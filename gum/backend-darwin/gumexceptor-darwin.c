@@ -72,11 +72,29 @@ static void gum_exceptor_backend_detach (GumExceptorBackend * self);
 static void gum_exceptor_backend_send_stop_request (GumExceptorBackend * self);
 static gpointer gum_exceptor_backend_process_messages (
     GumExceptorBackend * self);
+static void gum_exceptor_backend_on_signal (int sig, siginfo_t * siginfo,
+    void * context);
+
+static kern_return_t gum_exceptor_backend_replacement_task_get_exception_ports (
+    task_t task, exception_mask_t exception_mask, exception_mask_array_t masks,
+    mach_msg_type_number_t * masks_count,
+    exception_handler_array_t old_handlers,
+    exception_behavior_array_t old_behaviors,
+    exception_flavor_array_t old_flavors);
+static kern_return_t gum_exceptor_backend_replacement_task_set_exception_ports (
+    task_t task, exception_mask_t exception_mask, mach_port_t new_port,
+    exception_behavior_t behavior, thread_state_flavor_t new_flavor);
+static kern_return_t gum_exceptor_backend_replacement_task_swap_exception_ports
+    (task_t task, exception_mask_t exception_mask, mach_port_t new_port,
+    exception_behavior_t behavior, thread_state_flavor_t new_flavor,
+    exception_mask_array_t masks, mach_msg_type_number_t * masks_count,
+    exception_handler_array_t old_handlers,
+    exception_behavior_array_t old_behaviors,
+    exception_flavor_array_t old_flavors);
+
 static sig_t gum_exceptor_backend_replacement_signal (int sig, sig_t handler);
 static int gum_exceptor_backend_replacement_sigaction (int sig,
     const struct sigaction * act, struct sigaction * oact);
-static void gum_exceptor_backend_on_signal (int sig, siginfo_t * siginfo,
-    void * context);
 
 static gboolean gum_is_signal_handler_chainable (sig_t handler);
 
@@ -183,6 +201,13 @@ gum_exceptor_backend_attach (GumExceptorBackend * self)
 
   gum_interceptor_begin_transaction (interceptor);
 
+  gum_interceptor_replace_function (interceptor, task_get_exception_ports,
+      gum_exceptor_backend_replacement_task_get_exception_ports, self);
+  gum_interceptor_replace_function (interceptor, task_set_exception_ports,
+      gum_exceptor_backend_replacement_task_set_exception_ports, self);
+  gum_interceptor_replace_function (interceptor, task_swap_exception_ports,
+      gum_exceptor_backend_replacement_task_swap_exception_ports, self);
+
   gum_interceptor_replace_function (interceptor, signal,
       gum_exceptor_backend_replacement_signal, self);
   gum_interceptor_replace_function (interceptor, sigaction,
@@ -203,6 +228,10 @@ gum_exceptor_backend_detach (GumExceptorBackend * self)
   mach_msg_type_number_t port_index;
 
   gum_interceptor_begin_transaction (interceptor);
+
+  gum_interceptor_revert_function (interceptor, task_get_exception_ports);
+  gum_interceptor_revert_function (interceptor, task_set_exception_ports);
+  gum_interceptor_revert_function (interceptor, task_swap_exception_ports);
 
   gum_interceptor_revert_function (interceptor, signal);
   gum_interceptor_revert_function (interceptor, sigaction);
@@ -498,64 +527,6 @@ catch_mach_exception_raise_state_identity (
   return kr;
 }
 
-static sig_t
-gum_exceptor_backend_replacement_signal (int sig,
-                                         sig_t handler)
-{
-  GumExceptorBackend * self;
-  GumInvocationContext * ctx;
-  struct sigaction * old_handler;
-  sig_t result;
-
-  ctx = gum_interceptor_get_current_invocation ();
-  g_assert (ctx != NULL);
-
-  self = GUM_EXCEPTOR_BACKEND (
-      gum_invocation_context_get_replacement_function_data (ctx));
-
-  if (sig != SIGABRT || !self->old_abort_handler_present)
-    return signal (sig, handler);
-
-  old_handler = &self->old_abort_handler;
-
-  result = ((old_handler->sa_flags & SA_SIGINFO) == 0)
-      ? old_handler->sa_handler
-      : SIG_DFL;
-
-  old_handler->sa_handler = handler;
-  old_handler->sa_flags &= ~SA_SIGINFO;
-
-  return result;
-}
-
-static int
-gum_exceptor_backend_replacement_sigaction (int sig,
-                                            const struct sigaction * act,
-                                            struct sigaction * oact)
-{
-  GumExceptorBackend * self;
-  GumInvocationContext * ctx;
-  struct sigaction * old_handler;
-
-  ctx = gum_interceptor_get_current_invocation ();
-  g_assert (ctx != NULL);
-
-  self = GUM_EXCEPTOR_BACKEND (
-      gum_invocation_context_get_replacement_function_data (ctx));
-
-  if (sig != SIGABRT || !self->old_abort_handler_present)
-    return sigaction (sig, act, oact);
-
-  old_handler = &self->old_abort_handler;
-
-  if (oact != NULL)
-    *oact = *old_handler;
-  if (act != NULL)
-    *old_handler = *act;
-
-  return 0;
-}
-
 static void
 gum_exceptor_backend_on_signal (int sig,
                                 siginfo_t * siginfo,
@@ -622,6 +593,104 @@ gum_exceptor_backend_on_signal (int sig,
 panic:
   self->old_abort_handler_present = FALSE;
   signal (SIGABRT, SIG_DFL);
+}
+
+static kern_return_t
+gum_exceptor_backend_replacement_task_get_exception_ports (
+    task_t task,
+    exception_mask_t exception_mask,
+    exception_mask_array_t masks,
+    mach_msg_type_number_t * masks_count,
+    exception_handler_array_t old_handlers,
+    exception_behavior_array_t old_behaviors,
+    exception_flavor_array_t old_flavors)
+{
+  return KERN_FAILURE;
+}
+
+static kern_return_t
+gum_exceptor_backend_replacement_task_set_exception_ports (
+    task_t task,
+    exception_mask_t exception_mask,
+    mach_port_t new_port,
+    exception_behavior_t behavior,
+    thread_state_flavor_t new_flavor)
+{
+  return KERN_FAILURE;
+}
+
+static kern_return_t
+gum_exceptor_backend_replacement_task_swap_exception_ports (
+    task_t task,
+    exception_mask_t exception_mask,
+    mach_port_t new_port,
+    exception_behavior_t behavior,
+    thread_state_flavor_t new_flavor,
+    exception_mask_array_t masks,
+    mach_msg_type_number_t * masks_count,
+    exception_handler_array_t old_handlers,
+    exception_behavior_array_t old_behaviors,
+    exception_flavor_array_t old_flavors)
+{
+  return KERN_FAILURE;
+}
+
+static sig_t
+gum_exceptor_backend_replacement_signal (int sig,
+                                         sig_t handler)
+{
+  GumExceptorBackend * self;
+  GumInvocationContext * ctx;
+  struct sigaction * old_handler;
+  sig_t result;
+
+  ctx = gum_interceptor_get_current_invocation ();
+  g_assert (ctx != NULL);
+
+  self = GUM_EXCEPTOR_BACKEND (
+      gum_invocation_context_get_replacement_function_data (ctx));
+
+  if (sig != SIGABRT || !self->old_abort_handler_present)
+    return signal (sig, handler);
+
+  old_handler = &self->old_abort_handler;
+
+  result = ((old_handler->sa_flags & SA_SIGINFO) == 0)
+      ? old_handler->sa_handler
+      : SIG_DFL;
+
+  old_handler->sa_handler = handler;
+  old_handler->sa_flags &= ~SA_SIGINFO;
+
+  return result;
+}
+
+static int
+gum_exceptor_backend_replacement_sigaction (int sig,
+                                            const struct sigaction * act,
+                                            struct sigaction * oact)
+{
+  GumExceptorBackend * self;
+  GumInvocationContext * ctx;
+  struct sigaction * old_handler;
+
+  ctx = gum_interceptor_get_current_invocation ();
+  g_assert (ctx != NULL);
+
+  self = GUM_EXCEPTOR_BACKEND (
+      gum_invocation_context_get_replacement_function_data (ctx));
+
+  if (sig != SIGABRT || !self->old_abort_handler_present)
+    return sigaction (sig, act, oact);
+
+  old_handler = &self->old_abort_handler;
+
+  if (oact != NULL)
+    *oact = *old_handler;
+  if (act != NULL)
+    *old_handler = *act;
+
+  return 0;
 }
 
 static gboolean
