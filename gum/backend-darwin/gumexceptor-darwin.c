@@ -605,7 +605,12 @@ gum_exceptor_backend_replacement_task_get_exception_ports (
     exception_behavior_array_t old_behaviors,
     exception_flavor_array_t old_flavors)
 {
-  return KERN_FAILURE;
+  if (task != mach_task_self ())
+    goto passthrough;
+
+passthrough:
+  return task_get_exception_ports (task, exception_mask, masks, masks_count,
+      old_handlers, old_behaviors, old_flavors);
 }
 
 static kern_return_t
@@ -616,7 +621,12 @@ gum_exceptor_backend_replacement_task_set_exception_ports (
     exception_behavior_t behavior,
     thread_state_flavor_t new_flavor)
 {
-  return KERN_FAILURE;
+  if (task != mach_task_self ())
+    goto passthrough;
+
+passthrough:
+  return task_set_exception_ports (task, exception_mask, new_port, behavior,
+      new_flavor);
 }
 
 static kern_return_t
@@ -632,7 +642,12 @@ gum_exceptor_backend_replacement_task_swap_exception_ports (
     exception_behavior_array_t old_behaviors,
     exception_flavor_array_t old_flavors)
 {
-  return KERN_FAILURE;
+  if (task != mach_task_self ())
+    goto passthrough;
+
+passthrough:
+  return task_swap_exception_ports (task, exception_mask, new_port, behavior,
+      new_flavor, masks, masks_count, old_handlers, old_behaviors, old_flavors);
 }
 
 static sig_t
