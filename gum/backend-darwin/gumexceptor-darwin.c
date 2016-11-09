@@ -346,6 +346,14 @@ catch_mach_exception_raise_state_identity (
   {
     GumExceptionPortSet * previous_ports = &self->previous_ports;
     mach_msg_type_number_t port_index;
+    exception_data_t small_code;
+    mach_msg_type_number_t code_index;
+
+    small_code = g_alloca (code_count * sizeof (exception_data_type_t));
+    for (code_index = 0; code_index != code_count; code_index++)
+    {
+      small_code[code_index] = code[code_index];
+    }
 
     kr = KERN_FAILURE;
 
@@ -355,7 +363,6 @@ catch_mach_exception_raise_state_identity (
       mach_port_t port = previous_ports->ports[port_index];
       exception_behavior_t behavior = previous_ports->behaviors[port_index];
       gboolean is_modern;
-      exception_data_t small_code = NULL;
 
       if (port == MACH_PORT_NULL)
         continue;
@@ -364,17 +371,6 @@ catch_mach_exception_raise_state_identity (
         continue;
 
       is_modern = behavior & MACH_EXCEPTION_CODES;
-
-      if (!is_modern)
-      {
-        mach_msg_type_number_t code_index;
-
-        small_code = g_alloca (code_count * sizeof (exception_data_type_t));
-        for (code_index = 0; code_index != code_count; code_index++)
-        {
-          small_code[code_index] = code[code_index];
-        }
-      }
 
       switch (behavior & ~MACH_EXCEPTION_CODES)
       {
