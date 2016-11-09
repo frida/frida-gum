@@ -4,6 +4,9 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
+#include "gumexceptor.h"
+
+#include "backend-darwin/gumdarwin.h"
 #include "testutil.h"
 
 #include <mach/mach.h>
@@ -15,6 +18,7 @@
 
 TEST_LIST_BEGIN (exceptor_darwin)
   EXCEPTOR_TESTENTRY (task_get_exception_ports_should_hide_our_handler)
+  EXCEPTOR_TESTENTRY (task_swap_exception_ports_should_not_obstruct_us)
 TEST_LIST_END ()
 
 EXCEPTOR_TESTCASE (task_get_exception_ports_should_hide_our_handler)
@@ -81,6 +85,73 @@ EXCEPTOR_TESTCASE (task_get_exception_ports_should_hide_our_handler)
   {
     mach_port_mod_refs (self_task, new_handlers[i], MACH_PORT_RIGHT_SEND, -2);
   }
+
+  g_object_unref (exceptor);
+}
+
+EXCEPTOR_TESTCASE (task_swap_exception_ports_should_not_obstruct_us)
+{
+  GumExceptor * exceptor;
+  mach_port_t self_task, server_port;
+  kern_return_t kr;
+  mach_msg_type_number_t count, i;
+  exception_mask_t masks[EXC_TYPES_COUNT];
+  mach_port_t handlers[EXC_TYPES_COUNT];
+  exception_behavior_t behaviors[EXC_TYPES_COUNT];
+  thread_state_flavor_t flavors[EXC_TYPES_COUNT];
+  GumExceptorScope scope;
+  gboolean caught = FALSE;
+
+  exceptor = gum_exceptor_obtain ();
+
+  self_task = mach_task_self ();
+
+  kr = mach_port_allocate (self_task, MACH_PORT_RIGHT_RECEIVE, &server_port);
+  g_assert_cmpint (kr, ==, KERN_SUCCESS);
+
+  kr = mach_port_insert_right (self_task, server_port, server_port,
+      MACH_MSG_TYPE_MAKE_SEND);
+  g_assert_cmpint (kr, ==, KERN_SUCCESS);
+
+  count = G_N_ELEMENTS (masks);
+  kr = task_swap_exception_ports (self_task, EXC_MASK_BAD_ACCESS, server_port,
+      EXCEPTION_STATE_IDENTITY | MACH_EXCEPTION_CODES,
+      GUM_DARWIN_THREAD_STATE_FLAVOR, masks, &count, handlers, behaviors,
+      flavors);
+  g_assert_cmpint (kr, ==, KERN_SUCCESS);
+
+  if (gum_exceptor_try (exceptor, &scope))
+  {
+    *((int *) 1) = 42;
+  }
+
+  if (gum_exceptor_catch (exceptor, &scope))
+  {
+    gchar * message;
+
+    caught = TRUE;
+
+    message = gum_exception_details_to_string (&scope.exception);
+    g_assert_cmpstr (message, ==, "access violation accessing 0x1");
+    g_free (message);
+  }
+
+  g_assert (caught);
+
+  for (i = 0; i != count; i++)
+  {
+    kr = task_set_exception_ports (self_task, masks[i], handlers[i],
+        behaviors[i], flavors[i]);
+    g_assert_cmpint (kr, ==, KERN_SUCCESS);
+
+    kr = mach_port_mod_refs (self_task, handlers[i], MACH_PORT_RIGHT_SEND, -1);
+    g_assert_cmpint (kr, ==, KERN_SUCCESS);
+  }
+
+  kr = mach_port_mod_refs (self_task, server_port, MACH_PORT_RIGHT_SEND, -1);
+  g_assert_cmpint (kr, ==, KERN_SUCCESS);
+  kr = mach_port_mod_refs (self_task, server_port, MACH_PORT_RIGHT_RECEIVE, -1);
+  g_assert_cmpint (kr, ==, KERN_SUCCESS);
 
   g_object_unref (exceptor);
 }
