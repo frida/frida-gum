@@ -10,7 +10,6 @@
 #include "gumv8scriptbackend.h"
 
 #include <gum/gum-init.h>
-#include <gum/gumexceptor.h>
 #include <gum/guminterceptor.h>
 
 static void gum_script_backend_adjust_ignore_level (GumThreadId thread_id,
@@ -26,7 +25,6 @@ static GRWLock ignored_lock;
 
 static GMainContext * main_context;
 static GumInterceptor * interceptor;
-static GumExceptor * exceptor;
 
 #include <stdio.h>
 
@@ -36,12 +34,6 @@ gum_script_backend_init (void)
   ignored_threads = g_hash_table_new_full (NULL, NULL, NULL, NULL);
 
   main_context = g_main_context_get_thread_default ();
-
-  /*
-   * Hold onto Exceptor to avoid creating and destroying it over and over,
-   * which isn't ideal with hooks being added and removed.
-   */
-  exceptor = gum_exceptor_obtain ();
 
   interceptor = gum_interceptor_obtain ();
 }
@@ -60,9 +52,6 @@ gum_script_backend_deinit (void)
 
   g_object_unref (interceptor);
   interceptor = NULL;
-
-  g_object_unref (exceptor);
-  exceptor = NULL;
 
   main_context = NULL;
 
