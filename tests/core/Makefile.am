@@ -18,7 +18,9 @@ endif
 
 if OS_DARWIN
 os_sources += \
-	interceptor-darwin.c
+	interceptor-darwin.c \
+	exceptor-darwin.c \
+	$(NULL)
 endif
 
 libgum_tests_core_la_SOURCES = \
