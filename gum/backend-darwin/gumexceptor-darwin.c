@@ -107,6 +107,11 @@ static void gum_exception_port_set_copy (GumExceptionPortSet * self,
     GumExceptionPortSet * target);
 static void gum_exception_port_set_copy_with_filter (GumExceptionPortSet * self,
     GumExceptionPortSet * target, exception_mask_t mask);
+static void gum_exception_port_set_extract (GumExceptionPortSet * self,
+    exception_mask_array_t masks, mach_msg_type_number_t * masks_count,
+    exception_handler_array_t old_handlers,
+    exception_behavior_array_t old_behaviors,
+    exception_flavor_array_t old_flavors);
 static void gum_exception_port_set_explode (GumExceptionPortSet * self,
     GumExceptionPortSet * target);
 static void gum_exception_port_set_implode (GumExceptionPortSet * self,
@@ -258,19 +263,16 @@ gum_exceptor_backend_detach (GumExceptorBackend * self)
   old_ports = &self->old_ports;
   for (port_index = 0; port_index != old_ports->count; port_index++)
   {
-    mach_port_t handler = old_ports->handlers[port_index];
     kern_return_t kr;
 
     kr = task_set_exception_ports (self_task,
         old_ports->masks[port_index],
-        handler,
+        old_ports->handlers[port_index],
         old_ports->behaviors[port_index],
         old_ports->flavors[port_index]);
     g_assert_cmpint (kr, ==, KERN_SUCCESS);
-
-    if (handler != MACH_PORT_NULL)
-      mach_port_mod_refs (self_task, handler, MACH_PORT_RIGHT_SEND, -1);
   }
+  gum_exception_port_set_mod_refs (old_ports, -1);
   old_ports->count = 0;
 
   gum_exceptor_backend_send_stop_request (self);
@@ -627,13 +629,10 @@ gum_exceptor_backend_replacement_task_get_exception_ports (
   mach_port_t self_task;
   GumExceptorBackend * self;
   GumInvocationContext * ctx;
-  mach_msg_type_number_t count, src_index, dst_index;
-  exception_mask_t all_masks[EXC_TYPES_COUNT];
-  mach_port_t all_handlers[EXC_TYPES_COUNT];
-  exception_behavior_t all_behaviors[EXC_TYPES_COUNT];
-  thread_state_flavor_t all_flavors[EXC_TYPES_COUNT];
+  GumExceptionPortSet all_ports, filtered_ports;
   kern_return_t kr;
   gboolean found_server_port;
+  mach_msg_type_number_t src_index, dst_index;
 
   self_task = mach_task_self ();
 
@@ -646,17 +645,18 @@ gum_exceptor_backend_replacement_task_get_exception_ports (
   self = GUM_EXCEPTOR_BACKEND (
       gum_invocation_context_get_replacement_function_data (ctx));
 
-  kr = task_get_exception_ports (task, exception_mask, all_masks, &count,
-      all_handlers, all_behaviors, all_flavors);
+  kr = task_get_exception_ports (task, exception_mask, all_ports.masks,
+      &all_ports.count, all_ports.handlers, all_ports.behaviors,
+      all_ports.flavors);
   if (kr != KERN_SUCCESS)
     return kr;
 
-  dst_index = 0;
   found_server_port = FALSE;
 
-  for (src_index = 0; src_index != count; src_index++)
+  dst_index = 0;
+  for (src_index = 0; src_index != all_ports.count; src_index++)
   {
-    mach_port_t handler = all_handlers[src_index];
+    mach_port_t handler = all_ports.handlers[src_index];
 
     if (handler == self->server_port)
     {
@@ -664,61 +664,29 @@ gum_exceptor_backend_replacement_task_get_exception_ports (
       continue;
     }
 
-    all_handlers[src_index] = MACH_PORT_NULL;
-
-    masks[dst_index] = all_masks[src_index];
-    old_handlers[dst_index] = handler;
-    old_behaviors[dst_index] = all_behaviors[src_index];
-    old_flavors[dst_index] = all_flavors[src_index];
+    filtered_ports.masks[dst_index] = all_ports.masks[src_index];
+    filtered_ports.handlers[dst_index] = handler;
+    filtered_ports.behaviors[dst_index] = all_ports.behaviors[src_index];
+    filtered_ports.flavors[dst_index] = all_ports.flavors[src_index];
     dst_index++;
   }
+  filtered_ports.count = dst_index;
 
   if (found_server_port)
   {
-    GumExceptionPortSet * old_ports = &self->old_ports;
-    mach_msg_type_number_t old_index;
+    GumExceptionPortSet merged_ports;
 
-    for (old_index = 0; old_index != old_ports->count; old_index++)
-    {
-      exception_mask_t old_mask = old_ports->masks[old_index];
-      mach_port_t old_handler = old_ports->handlers[old_index];
-      exception_behavior_t old_behavior = old_ports->behaviors[old_index];
-      thread_state_flavor_t old_flavor = old_ports->flavors[old_index];
-      mach_msg_type_number_t existing_index;
-
-      for (existing_index = 0; existing_index != dst_index; existing_index++)
-      {
-        if (old_handlers[existing_index] == old_handler &&
-            old_behaviors[existing_index] == old_behavior &&
-            old_flavors[existing_index] == old_flavor)
-        {
-          masks[existing_index] |= old_mask;
-          break;
-        }
-      }
-
-      if (existing_index == dst_index)
-      {
-        mach_port_mod_refs (self_task, old_handler, MACH_PORT_RIGHT_SEND, 1);
-
-        masks[dst_index] = old_mask;
-        old_handlers[dst_index] = old_handler;
-        old_behaviors[dst_index] = old_behavior;
-        old_flavors[dst_index] = old_flavor;
-        dst_index++;
-      }
-    }
+    gum_exception_port_set_clear (&merged_ports);
+    gum_exception_port_set_explode (&self->old_ports, &merged_ports);
+    gum_exception_port_set_explode (&filtered_ports, &merged_ports);
+    gum_exception_port_set_implode (&merged_ports, &filtered_ports);
   }
 
-  *masks_count = dst_index;
+  gum_exception_port_set_mod_refs (&filtered_ports, 1);
+  gum_exception_port_set_mod_refs (&all_ports, -1);
 
-  for (src_index = 0; src_index != count; src_index++)
-  {
-    mach_port_t handler = all_handlers[src_index];
-
-    if (handler != MACH_PORT_NULL)
-      mach_port_mod_refs (self_task, handler, MACH_PORT_RIGHT_SEND, -1);
-  }
+  gum_exception_port_set_extract (&filtered_ports, masks, masks_count,
+      old_handlers, old_behaviors, old_flavors);
 
   return KERN_SUCCESS;
 
@@ -735,8 +703,55 @@ gum_exceptor_backend_replacement_task_set_exception_ports (
     exception_behavior_t behavior,
     thread_state_flavor_t new_flavor)
 {
-  if (task != mach_task_self ())
+  mach_port_t self_task;
+  GumExceptorBackend * self;
+  GumInvocationContext * ctx;
+  exception_mask_t inside_mask, outside_mask;
+  GumExceptionPortSet in_ports, next_ports, imploded_next_ports;
+
+  self_task = mach_task_self ();
+
+  if (task != self_task)
     goto passthrough;
+
+  ctx = gum_interceptor_get_current_invocation ();
+  g_assert (ctx != NULL);
+
+  self = GUM_EXCEPTOR_BACKEND (
+      gum_invocation_context_get_replacement_function_data (ctx));
+
+  inside_mask = self->exception_mask & exception_mask;
+  if (inside_mask == 0)
+    goto passthrough;
+
+  outside_mask = exception_mask & ~self->exception_mask;
+
+  if (outside_mask != 0)
+  {
+    kern_return_t kr;
+
+    kr = task_set_exception_ports (task, outside_mask, new_port, behavior,
+        new_flavor);
+    if (kr != KERN_SUCCESS)
+      return kr;
+  }
+
+  in_ports.count = 1;
+  in_ports.masks[0] = inside_mask;
+  in_ports.handlers[0] = new_port;
+  in_ports.behaviors[0] = behavior;
+  in_ports.flavors[0] = new_flavor;
+
+  gum_exception_port_set_clear (&next_ports);
+  gum_exception_port_set_explode (&self->old_ports, &next_ports);
+  gum_exception_port_set_explode (&in_ports, &next_ports);
+
+  gum_exception_port_set_implode (&next_ports, &imploded_next_ports);
+  gum_exception_port_set_mod_refs (&imploded_next_ports, 1);
+  gum_exception_port_set_mod_refs (&self->old_ports, -1);
+  gum_exception_port_set_copy (&imploded_next_ports, &self->old_ports);
+
+  return KERN_SUCCESS;
 
 passthrough:
   return task_set_exception_ports (task, exception_mask, new_port, behavior,
@@ -817,15 +832,8 @@ gum_exceptor_backend_replacement_task_swap_exception_ports (
   gum_exception_port_set_implode (&out_ports, &imploded_out_ports);
   gum_exception_port_set_mod_refs (&imploded_out_ports, 1);
   gum_exception_port_set_mod_refs (&prev_outside_ports, -1);
-
-  *masks_count = imploded_out_ports.count;
-  memcpy (masks, imploded_out_ports.masks, sizeof (imploded_out_ports.masks));
-  memcpy (old_handlers, imploded_out_ports.handlers,
-      sizeof (imploded_out_ports.handlers));
-  memcpy (old_behaviors, imploded_out_ports.behaviors,
-      sizeof (imploded_out_ports.behaviors));
-  memcpy (old_flavors, imploded_out_ports.flavors,
-      sizeof (imploded_out_ports.flavors));
+  gum_exception_port_set_extract (&imploded_out_ports, masks, masks_count,
+      old_handlers, old_behaviors, old_flavors);
 
   gum_exception_port_set_implode (&next_ports, &imploded_next_ports);
   gum_exception_port_set_mod_refs (&imploded_next_ports, 1);
@@ -1052,6 +1060,21 @@ gum_exception_port_set_copy_with_filter (GumExceptionPortSet * self,
 }
 
 static void
+gum_exception_port_set_extract (GumExceptionPortSet * self,
+                                exception_mask_array_t masks,
+                                mach_msg_type_number_t * masks_count,
+                                exception_handler_array_t old_handlers,
+                                exception_behavior_array_t old_behaviors,
+                                exception_flavor_array_t old_flavors)
+{
+  memcpy (masks, self->masks, sizeof (self->masks));
+  *masks_count = self->count;
+  memcpy (old_handlers, self->handlers, sizeof (self->handlers));
+  memcpy (old_behaviors, self->behaviors, sizeof (self->behaviors));
+  memcpy (old_flavors, self->flavors, sizeof (self->flavors));
+}
+
+static void
 gum_exception_port_set_explode (GumExceptionPortSet * self,
                                 GumExceptionPortSet * dst)
 {
@@ -1129,14 +1152,11 @@ gum_exception_port_set_mod_refs (GumExceptionPortSet * self,
   for (i = 0; i != self->count; i++)
   {
     mach_port_t handler;
-    kern_return_t kr;
 
     handler = self->handlers[i];
     if (handler == MACH_PORT_NULL)
       continue;
 
-    kr = mach_port_mod_refs (self_task, handler, MACH_PORT_RIGHT_SEND, delta);
-    g_assert_cmpint (kr, ==, KERN_SUCCESS);
-    /* TODO: remove assertion */
+    mach_port_mod_refs (self_task, handler, MACH_PORT_RIGHT_SEND, delta);
   }
 }
