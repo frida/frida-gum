@@ -803,11 +803,6 @@ gum_exceptor_backend_replacement_task_swap_exception_ports (
     prev_outside_ports.count = 0;
   }
 
-  gum_exception_port_set_implode (&next_ports, &imploded_next_ports);
-  gum_exception_port_set_mod_refs (&imploded_next_ports, 1);
-  gum_exception_port_set_mod_refs (&self->old_ports, -1);
-  gum_exception_port_set_copy (&imploded_next_ports, &self->old_ports);
-
   gum_exception_port_set_implode (&out_ports, &imploded_out_ports);
   gum_exception_port_set_mod_refs (&imploded_out_ports, 1);
   gum_exception_port_set_mod_refs (&prev_outside_ports, -1);
@@ -820,6 +815,11 @@ gum_exceptor_backend_replacement_task_swap_exception_ports (
       sizeof (imploded_out_ports.behaviors));
   memcpy (old_flavors, imploded_out_ports.flavors,
       sizeof (imploded_out_ports.flavors));
+
+  gum_exception_port_set_implode (&next_ports, &imploded_next_ports);
+  gum_exception_port_set_mod_refs (&imploded_next_ports, 1);
+  gum_exception_port_set_mod_refs (&self->old_ports, -1);
+  gum_exception_port_set_copy (&imploded_next_ports, &self->old_ports);
 
   return KERN_SUCCESS;
 
