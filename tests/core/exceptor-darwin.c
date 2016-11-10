@@ -38,7 +38,6 @@ EXCEPTOR_TESTCASE (task_get_exception_ports_should_hide_our_handler)
 
   self_task = mach_task_self ();
 
-  old_count = G_N_ELEMENTS (old_masks);
   kr = task_get_exception_ports (self_task, EXC_MASK_ALL, old_masks,
       &old_count, old_handlers, old_behaviors, old_flavors);
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
@@ -56,7 +55,6 @@ EXCEPTOR_TESTCASE (task_get_exception_ports_should_hide_our_handler)
 
   exceptor = gum_exceptor_obtain ();
 
-  new_count = G_N_ELEMENTS (new_masks);
   kr = task_get_exception_ports (self_task, EXC_MASK_ALL, new_masks,
       &new_count, new_handlers, new_behaviors, new_flavors);
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
@@ -113,7 +111,6 @@ EXCEPTOR_TESTCASE (task_swap_exception_ports_should_not_obstruct_us)
       MACH_MSG_TYPE_MAKE_SEND);
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
 
-  count = G_N_ELEMENTS (masks);
   kr = task_swap_exception_ports (self_task, EXC_MASK_BAD_ACCESS, server_port,
       EXCEPTION_STATE_IDENTITY | MACH_EXCEPTION_CODES,
       GUM_DARWIN_THREAD_STATE_FLAVOR, masks, &count, handlers, behaviors,
@@ -140,12 +137,17 @@ EXCEPTOR_TESTCASE (task_swap_exception_ports_should_not_obstruct_us)
 
   for (i = 0; i != count; i++)
   {
-    kr = task_set_exception_ports (self_task, masks[i], handlers[i],
+    mach_port_t handler = handlers[i];
+
+    kr = task_set_exception_ports (self_task, masks[i], handler,
         behaviors[i], flavors[i]);
     g_assert_cmpint (kr, ==, KERN_SUCCESS);
 
-    kr = mach_port_mod_refs (self_task, handlers[i], MACH_PORT_RIGHT_SEND, -1);
-    g_assert_cmpint (kr, ==, KERN_SUCCESS);
+    if (handler != MACH_PORT_NULL)
+    {
+      kr = mach_port_mod_refs (self_task, handler, MACH_PORT_RIGHT_SEND, -1);
+      g_assert_cmpint (kr, ==, KERN_SUCCESS);
+    }
   }
 
   kr = mach_port_mod_refs (self_task, server_port, MACH_PORT_RIGHT_SEND, -1);
