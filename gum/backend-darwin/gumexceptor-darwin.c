@@ -102,6 +102,18 @@ static gboolean gum_is_signal_handler_chainable (sig_t handler);
 static gboolean gum_exception_memory_details_from_thread (
     mach_port_t thread, GumExceptionMemoryDetails * md);
 
+static void gum_exception_port_set_clear (GumExceptionPortSet * self);
+static void gum_exception_port_set_copy (GumExceptionPortSet * self,
+    GumExceptionPortSet * target);
+static void gum_exception_port_set_copy_with_filter (GumExceptionPortSet * self,
+    GumExceptionPortSet * target, exception_mask_t mask);
+static void gum_exception_port_set_explode (GumExceptionPortSet * self,
+    GumExceptionPortSet * target);
+static void gum_exception_port_set_implode (GumExceptionPortSet * self,
+    GumExceptionPortSet * target);
+static void gum_exception_port_set_mod_refs (GumExceptionPortSet * self,
+    mach_port_delta_t delta);
+
 G_DEFINE_TYPE (GumExceptorBackend, gum_exceptor_backend, G_TYPE_OBJECT)
 
 static GumExceptorBackend * the_backend = NULL;
@@ -195,7 +207,6 @@ gum_exceptor_backend_attach (GumExceptorBackend * self)
       old_ports->behaviors,
       old_ports->flavors);
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
-  g_print ("count=%u\n", old_ports->count);
 
   self->old_abort_handler_present = TRUE;
   action.sa_sigaction = gum_exceptor_backend_on_signal;
@@ -998,4 +1009,134 @@ gum_exception_memory_details_from_thread (mach_port_t thread,
 #endif
 
   return TRUE;
+}
+
+static void
+gum_exception_port_set_clear (GumExceptionPortSet * self)
+{
+  bzero (self, sizeof (GumExceptionPortSet));
+}
+
+static void
+gum_exception_port_set_copy (GumExceptionPortSet * self,
+                             GumExceptionPortSet * dst)
+{
+  memcpy (dst, self, sizeof (GumExceptionPortSet));
+}
+
+static void
+gum_exception_port_set_copy_with_filter (GumExceptionPortSet * self,
+                                         GumExceptionPortSet * dst,
+                                         exception_mask_t mask)
+{
+  mach_msg_type_number_t port_index;
+
+  for (port_index = 0; port_index != self->count; port_index++)
+  {
+    if ((self->masks[port_index] & mask) != 0)
+    {
+      dst->masks[port_index] = self->masks[port_index];
+      dst->handlers[port_index] = self->handlers[port_index];
+      dst->behaviors[port_index] = self->behaviors[port_index];
+      dst->flavors[port_index] = self->flavors[port_index];
+    }
+    else
+    {
+      dst->masks[port_index] = 0;
+      dst->handlers[port_index] = MACH_PORT_NULL;
+      dst->behaviors[port_index] = 0;
+      dst->flavors[port_index] = 0;
+    }
+  }
+  dst->count = self->count;
+}
+
+static void
+gum_exception_port_set_explode (GumExceptionPortSet * self,
+                                GumExceptionPortSet * dst)
+{
+  mach_msg_type_number_t port_index;
+  guint bit_index;
+
+  for (port_index = 0; port_index != self->count; port_index++)
+  {
+    for (bit_index = FIRST_EXCEPTION; bit_index != EXC_TYPES_COUNT; bit_index++)
+    {
+      exception_mask_t flag = 1 << bit_index;
+
+      if ((self->masks[port_index] & flag) == 0)
+        continue;
+
+      dst->masks[bit_index] = flag;
+      dst->handlers[bit_index] = self->handlers[port_index];
+      dst->behaviors[bit_index] = self->behaviors[port_index];
+      dst->flavors[bit_index] = self->flavors[port_index];
+    }
+  }
+  dst->count = EXC_TYPES_COUNT;
+}
+
+static void
+gum_exception_port_set_implode (GumExceptionPortSet * self,
+                                GumExceptionPortSet * dst)
+{
+  mach_msg_type_number_t bit_index, dst_index;
+
+  dst_index = 0;
+  for (bit_index = FIRST_EXCEPTION; bit_index != EXC_TYPES_COUNT; bit_index++)
+  {
+    exception_mask_t flag = 1 << bit_index;
+    mach_port_t handler = self->handlers[bit_index];
+    exception_behavior_t behavior = self->behaviors[bit_index];
+    thread_state_flavor_t flavor = self->flavors[bit_index];
+    mach_msg_type_number_t existing_index;
+
+    if (self->masks[bit_index] == 0)
+      continue;
+
+    for (existing_index = 0; existing_index != dst_index; existing_index++)
+    {
+      if (dst->handlers[existing_index] == handler &&
+          dst->behaviors[existing_index] == behavior &&
+          dst->flavors[existing_index] == flavor)
+      {
+        dst->masks[existing_index] |= flag;
+        break;
+      }
+    }
+
+    if (existing_index == dst_index)
+    {
+      dst->masks[dst_index] = flag;
+      dst->handlers[dst_index] = handler;
+      dst->behaviors[dst_index] = behavior;
+      dst->flavors[dst_index] = flavor;
+      dst_index++;
+    }
+  }
+  dst->count = dst_index;
+}
+
+static void
+gum_exception_port_set_mod_refs (GumExceptionPortSet * self,
+                                 mach_port_delta_t delta)
+{
+  mach_port_t self_task;
+  mach_msg_type_number_t i;
+
+  self_task = mach_task_self ();
+
+  for (i = 0; i != self->count; i++)
+  {
+    mach_port_t handler;
+    kern_return_t kr;
+
+    handler = self->handlers[i];
+    if (handler == MACH_PORT_NULL)
+      continue;
+
+    kr = mach_port_mod_refs (self_task, handler, MACH_PORT_RIGHT_SEND, delta);
+    g_assert_cmpint (kr, ==, KERN_SUCCESS);
+    /* TODO: remove assertion */
+  }
 }
