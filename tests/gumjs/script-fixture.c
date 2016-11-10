@@ -5,9 +5,11 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
+#include "testutil.h"
+
+#include "gum-init.h"
 #include "gumdukscriptbackend.h"
 #include "gumscriptbackend.h"
-#include "testutil.h"
 #include "valgrind.h"
 
 #include <stdio.h>
@@ -134,6 +136,15 @@ static void test_script_fixture_expect_send_message_with_payload_and_data (
 static void test_script_fixture_expect_error_message_with (
     TestScriptFixture * fixture, gint line_number, const gchar * description);
 
+static GumExceptor * exceptor = NULL;
+
+static void
+test_script_fixture_deinit (void)
+{
+  g_object_unref (exceptor);
+  exceptor = NULL;
+}
+
 static void
 test_script_fixture_setup (TestScriptFixture * fixture,
                            gconstpointer data)
@@ -146,6 +157,12 @@ test_script_fixture_setup (TestScriptFixture * fixture,
   fixture->context = g_main_context_ref_thread_default ();
   fixture->loop = g_main_loop_new (fixture->context, FALSE);
   fixture->messages = g_queue_new ();
+
+  if (exceptor == NULL)
+  {
+    exceptor = gum_exceptor_obtain ();
+    _gum_register_destructor (test_script_fixture_deinit);
+  }
 }
 
 static void
