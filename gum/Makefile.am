@@ -153,6 +153,7 @@ backend_sources += \
 	backend-darwin/gummemory-darwin.c \
 	backend-darwin/gumprocess-darwin.c \
 	backend-darwin/gumcodesegment-darwin.c \
+	backend-darwin/gumexceptor-darwin.c \
 	backend-darwin/gumdarwinmapper.c \
 	backend-darwin/gumdarwinmodule.c
 fridainclude_HEADERS += \
@@ -174,10 +175,9 @@ backend_sources += \
 	backend-posix/gumtls-posix.c \
 	backend-posix/gummemory-posix.c
 endif
-endif
-
 backend_sources += \
 	backend-posix/gumexceptor-posix.c
+endif
 
 if HAVE_LIBUNWIND
 backend_sources += \

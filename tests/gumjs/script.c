@@ -110,6 +110,7 @@ TEST_LIST_BEGIN (script)
 #endif
   SCRIPT_TESTENTRY (invalid_read_results_in_exception)
   SCRIPT_TESTENTRY (invalid_write_results_in_exception)
+  SCRIPT_TESTENTRY (invalid_read_write_execute_results_in_exception)
   SCRIPT_TESTENTRY (memory_can_be_scanned)
   SCRIPT_TESTENTRY (memory_can_be_scanned_synchronously)
   SCRIPT_TESTENTRY (memory_scan_should_be_interruptible)
@@ -3657,6 +3658,33 @@ SCRIPT_TESTCASE (invalid_write_results_in_exception)
     EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation accessing 0x530");
     g_free (source);
   }
+}
+
+SCRIPT_TESTCASE (invalid_read_write_execute_results_in_exception)
+{
+  if (RUNNING_ON_VALGRIND)
+  {
+    g_print ("<skipping, not compatible with Valgrind> ");
+    return;
+  }
+
+  COMPILE_AND_LOAD_SCRIPT ("Memory.readU8(ptr(\"1328\"));");
+  EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation accessing 0x530");
+  EXPECT_NO_MESSAGES ();
+
+  COMPILE_AND_LOAD_SCRIPT ("Memory.writeU8(ptr(\"1328\"), 42);");
+  EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation accessing 0x530");
+  EXPECT_NO_MESSAGES ();
+
+  COMPILE_AND_LOAD_SCRIPT ("var data = Memory.alloc(Process.pageSize);"
+      "var f = new NativeFunction(data, 'void', []);"
+      "try {"
+      "  f();"
+      "} catch (e) {"
+      "  send(e.toString() === 'Error: access violation accessing ' + data);"
+      "}");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
 }
 
 SCRIPT_TESTCASE (script_can_be_compiled_to_bytecode)

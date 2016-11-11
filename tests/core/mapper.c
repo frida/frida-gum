@@ -11,7 +11,7 @@ main (gint argc,
       gchar * argv[])
 {
   const gchar * dylib_path;
-  mach_port_name_t task;
+  mach_port_t task;
   GumCpuType cpu_type;
   GumDarwinMapper * mapper;
   mach_vm_address_t base_address = 0;

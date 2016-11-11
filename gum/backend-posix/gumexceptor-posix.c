@@ -62,7 +62,6 @@ static void gum_unparse_context (const GumCpuContext * ctx,
 
 G_DEFINE_TYPE (GumExceptorBackend, gum_exceptor_backend, G_TYPE_OBJECT)
 
-G_LOCK_DEFINE_STATIC (the_backend);
 static GumExceptorBackend * the_backend = NULL;
 
 static void
@@ -78,10 +77,7 @@ gum_exceptor_backend_init (GumExceptorBackend * self)
 {
   self->interceptor = gum_interceptor_obtain ();
 
-  G_LOCK (the_backend);
-  g_assert (the_backend == NULL);
   the_backend = self;
-  G_UNLOCK (the_backend);
 }
 
 static void
@@ -93,15 +89,12 @@ gum_exceptor_backend_dispose (GObject * object)
   {
     self->disposed = TRUE;
 
-    G_LOCK (the_backend);
-    g_assert (the_backend == self);
-    the_backend = NULL;
-    G_UNLOCK (the_backend);
-
     gum_exceptor_backend_detach (self);
 
     g_object_unref (self->interceptor);
     self->interceptor = NULL;
+
+    the_backend = NULL;
   }
 
   G_OBJECT_CLASS (gum_exceptor_backend_parent_class)->dispose (object);
@@ -125,6 +118,7 @@ gum_exceptor_backend_new (GumExceptionHandler handler,
 static void
 gum_exceptor_backend_attach (GumExceptorBackend * self)
 {
+  GumInterceptor * interceptor = self->interceptor;
   const gint handled_signals[] = {
     SIGABRT,
     SIGSEGV,
@@ -157,27 +151,28 @@ gum_exceptor_backend_attach (GumExceptorBackend * self)
     sigaction (sig, &action, old_handler);
   }
 
-  gum_interceptor_begin_transaction (self->interceptor);
+  gum_interceptor_begin_transaction (interceptor);
 
-  gum_interceptor_replace_function (self->interceptor, signal,
+  gum_interceptor_replace_function (interceptor, signal,
       gum_exceptor_backend_replacement_signal, self);
-  gum_interceptor_replace_function (self->interceptor, sigaction,
+  gum_interceptor_replace_function (interceptor, sigaction,
       gum_exceptor_backend_replacement_sigaction, self);
 
-  gum_interceptor_end_transaction (self->interceptor);
+  gum_interceptor_end_transaction (interceptor);
 }
 
 static void
 gum_exceptor_backend_detach (GumExceptorBackend * self)
 {
+  GumInterceptor * interceptor = self->interceptor;
   gint i;
 
-  gum_interceptor_begin_transaction (self->interceptor);
+  gum_interceptor_begin_transaction (interceptor);
 
-  gum_interceptor_revert_function (self->interceptor, signal);
-  gum_interceptor_revert_function (self->interceptor, sigaction);
+  gum_interceptor_revert_function (interceptor, signal);
+  gum_interceptor_revert_function (interceptor, sigaction);
 
-  gum_interceptor_end_transaction (self->interceptor);
+  gum_interceptor_end_transaction (interceptor);
 
   for (i = 0; i != self->num_old_handlers; i++)
     gum_exceptor_backend_detach_handler (self, i);
@@ -228,9 +223,9 @@ gum_exceptor_backend_replacement_signal (int sig,
 
   old_handler = gum_exceptor_backend_get_old_handler (self, sig);
   if (old_handler == NULL)
-    goto passthrough;
+    return signal (sig, handler);
 
-  result = ((old_handler->sa_flags & SA_SIGINFO) != 0)
+  result = ((old_handler->sa_flags & SA_SIGINFO) == 0)
       ? old_handler->sa_handler
       : SIG_DFL;
 
@@ -238,9 +233,6 @@ gum_exceptor_backend_replacement_signal (int sig,
   old_handler->sa_flags &= ~SA_SIGINFO;
 
   return result;
-
-passthrough:
-  return signal (sig, handler);
 }
 
 static int
@@ -260,7 +252,7 @@ gum_exceptor_backend_replacement_sigaction (int sig,
 
   old_handler = gum_exceptor_backend_get_old_handler (self, sig);
   if (old_handler == NULL)
-    goto passthrough;
+    return sigaction (sig, act, oact);
 
   if (oact != NULL)
     *oact = *old_handler;
@@ -268,9 +260,6 @@ gum_exceptor_backend_replacement_sigaction (int sig,
     *old_handler = *act;
 
   return 0;
-
-passthrough:
-  return sigaction (sig, act, oact);
 }
 
 static void
@@ -278,20 +267,15 @@ gum_exceptor_backend_on_signal (int sig,
                                 siginfo_t * siginfo,
                                 void * context)
 {
-  GumExceptorBackend * self;
+  GumExceptorBackend * self = the_backend;
   GumExceptionDetails ed;
   GumExceptionMemoryDetails * md = &ed.memory;
   GumCpuContext * cpu_context = &ed.context;
   struct sigaction * action;
 
-  G_LOCK (the_backend);
-  self = (the_backend != NULL) ? g_object_ref (the_backend) : NULL;
-  G_UNLOCK (the_backend);
-
-  if (self == NULL)
-    return;
-
   action = self->old_handlers[sig];
+
+  ed.thread_id = gum_process_get_current_thread_id ();
 
   switch (sig)
   {
@@ -351,7 +335,7 @@ gum_exceptor_backend_on_signal (int sig,
   if (self->handler (&ed, self->handler_data))
   {
     gum_unparse_context (cpu_context, context);
-    goto beach;
+    return;
   }
 
   if ((action->sa_flags & SA_SIGINFO) != 0)
@@ -359,43 +343,24 @@ gum_exceptor_backend_on_signal (int sig,
     void (* old_sigaction) (int, siginfo_t *, void *) = action->sa_sigaction;
 
     if (old_sigaction != NULL)
-    {
-      g_object_unref (self);
-
       old_sigaction (sig, siginfo, context);
-
-      return;
-    }
     else
-    {
       goto panic;
-    }
   }
   else
   {
     void (* old_handler) (int) = action->sa_handler;
 
     if (gum_is_signal_handler_chainable (old_handler))
-    {
-      g_object_unref (self);
-
       old_handler (sig);
-
-      return;
-    }
     else if (action->sa_handler != SIG_IGN)
-    {
       goto panic;
-    }
   }
 
-  goto beach;
+  return;
 
 panic:
   gum_exceptor_backend_detach_handler (self, sig);
-
-beach:
-  g_object_unref (self);
 }
 
 static void

@@ -162,6 +162,9 @@ main (gint argc, gchar * argv[])
 #ifdef HAVE_DARWIN
   TEST_RUN_LIST (interceptor_darwin);
 #endif
+#ifdef HAVE_DARWIN
+  TEST_RUN_LIST (exceptor_darwin);
+#endif
 #if defined (HAVE_I386) && defined (G_OS_WIN32)
   TEST_RUN_LIST (memoryaccessmonitor);
 #endif
