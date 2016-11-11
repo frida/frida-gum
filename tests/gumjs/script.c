@@ -2110,6 +2110,8 @@ SCRIPT_TESTCASE (argument_can_be_replaced)
   EXPECT_NO_MESSAGES ();
   g_assert_cmpstr (target_function_string ("Hello"), ==, "Hei");
   EXPECT_NO_MESSAGES ();
+  g_assert_cmpstr (target_function_string ("Hello"), ==, "Hei");
+  EXPECT_NO_MESSAGES ();
 }
 
 SCRIPT_TESTCASE (return_value_can_be_read)
