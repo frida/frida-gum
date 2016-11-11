@@ -265,16 +265,14 @@ namespace Gum {
 
 	public delegate void WalkInstanceFunc (Gum.InstanceDetails id);
 
-	public struct InstanceVTable
-	{
+	public struct InstanceVTable {
 		void * create_instance;
 		void * free_instance;
 
 		void * type_id_to_name;
 	}
 
-	public struct InstanceDetails
-	{
+	public struct InstanceDetails {
 		public void * address;
 		public uint ref_count;
 		public string type_name;
