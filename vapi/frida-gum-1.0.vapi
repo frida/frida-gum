@@ -251,6 +251,10 @@ namespace Gum {
 		EXECUTE   = (1 << 2)
 	}
 
+	public class Exceptor : GLib.Object {
+		public static Exceptor obtain ();
+	}
+
 	[CCode (cheader_filename = "gum/gum-heap.h")]
 	public class InstanceTracker : GLib.Object {
 		public InstanceTracker ();
