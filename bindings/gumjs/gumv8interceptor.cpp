@@ -978,6 +978,8 @@ gumjs_invocation_args_set_nth (uint32_t index,
 {
   auto self = gum_v8_invocation_args_get (info);
 
+  info.GetReturnValue ().Set (value);
+
   gpointer raw_value;
   if (!_gum_v8_native_pointer_get (value, &raw_value, self->core))
     return;
