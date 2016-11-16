@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -37,6 +37,9 @@ struct _GumDukScript
 struct _GumDukScriptClass
 {
   GObjectClass parent_class;
+
+  void (* debugger_detached) (GumDukScript * script);
+  void (* debugger_output) (GumDukScript * script, GBytes * bytes);
 };
 
 G_BEGIN_DECLS
@@ -45,6 +48,11 @@ G_GNUC_INTERNAL GType gum_duk_script_get_type (void) G_GNUC_CONST;
 
 G_GNUC_INTERNAL gboolean gum_duk_script_create_context (GumDukScript * self,
     GError ** error);
+
+G_GNUC_INTERNAL void gum_duk_script_attach_debugger (GumDukScript * self);
+G_GNUC_INTERNAL void gum_duk_script_detach_debugger (GumDukScript * self);
+G_GNUC_INTERNAL void gum_duk_script_post_to_debugger (GumDukScript * self,
+    GBytes * bytes);
 
 G_END_DECLS
 

@@ -24,8 +24,6 @@ typedef struct _GumScriptIface GumScriptIface;
 
 typedef void (* GumScriptMessageHandler) (GumScript * script,
     const gchar * message, GBytes * data, gpointer user_data);
-typedef void (* GumScriptDebugMessageHandler) (const gchar * message,
-    gpointer user_data);
 
 struct _GumScriptIface
 {

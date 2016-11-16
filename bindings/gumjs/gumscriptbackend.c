@@ -250,7 +250,7 @@ gum_script_backend_compile_sync (GumScriptBackend * self,
 void
 gum_script_backend_set_debug_message_handler (
     GumScriptBackend * self,
-    GumScriptDebugMessageHandler handler,
+    GumScriptBackendDebugMessageHandler handler,
     gpointer data,
     GDestroyNotify data_destroy)
 {

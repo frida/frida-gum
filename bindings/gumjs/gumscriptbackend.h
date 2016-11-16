@@ -21,6 +21,9 @@
 typedef struct _GumScriptBackend GumScriptBackend;
 typedef struct _GumScriptBackendIface GumScriptBackendIface;
 
+typedef void (* GumScriptBackendDebugMessageHandler) (const gchar * message,
+    gpointer user_data);
+
 struct _GumScriptBackendIface
 {
   GTypeInterface parent;
@@ -51,7 +54,7 @@ struct _GumScriptBackendIface
       GCancellable * cancellable, GError ** error);
 
   void (* set_debug_message_handler) (GumScriptBackend * self,
-      GumScriptDebugMessageHandler handler, gpointer data,
+      GumScriptBackendDebugMessageHandler handler, gpointer data,
       GDestroyNotify data_destroy);
   void (* post_debug_message) (GumScriptBackend * self, const gchar * message);
 
@@ -95,7 +98,7 @@ GUM_API GBytes * gum_script_backend_compile_sync (GumScriptBackend * self,
     const gchar * source, GCancellable * cancellable, GError ** error);
 
 GUM_API void gum_script_backend_set_debug_message_handler (
-    GumScriptBackend * self, GumScriptDebugMessageHandler handler,
+    GumScriptBackend * self, GumScriptBackendDebugMessageHandler handler,
     gpointer data, GDestroyNotify data_destroy);
 GUM_API void gum_script_backend_post_debug_message (GumScriptBackend * self,
     const gchar * message);
