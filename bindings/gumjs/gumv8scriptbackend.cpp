@@ -55,7 +55,7 @@ struct _GumV8ScriptBackendPrivate
 
   GumV8Platform * platform;
 
-  GumScriptDebugMessageHandler debug_handler;
+  GumScriptBackendDebugMessageHandler debug_handler;
   gpointer debug_handler_data;
   GDestroyNotify debug_handler_data_destroy;
   GMainContext * debug_handler_context;
@@ -140,7 +140,7 @@ static void gum_compile_script_task_run (GumScriptTask * task,
 static void gum_compile_script_data_free (GumCompileScriptData * d);
 
 static void gum_v8_script_backend_set_debug_message_handler (
-    GumScriptBackend * backend, GumScriptDebugMessageHandler handler,
+    GumScriptBackend * backend, GumScriptBackendDebugMessageHandler handler,
     gpointer data, GDestroyNotify data_destroy);
 static void gum_v8_script_backend_enable_debugger (GumV8ScriptBackend * self);
 static void gum_v8_script_backend_disable_debugger (GumV8ScriptBackend * self);
@@ -214,13 +214,12 @@ gum_v8_script_backend_dispose (GObject * object)
   auto self = GUM_V8_SCRIPT_BACKEND (object);
   auto priv = self->priv;
 
+  g_clear_pointer (&priv->debug_handler_context, g_main_context_unref);
   if (priv->debug_handler_data_destroy != NULL)
     priv->debug_handler_data_destroy (priv->debug_handler_data);
   priv->debug_handler = NULL;
   priv->debug_handler_data = NULL;
   priv->debug_handler_data_destroy = NULL;
-
-  g_clear_pointer (&priv->debug_handler_context, g_main_context_unref);
 
   gum_v8_script_backend_disable_debugger (self);
 
@@ -565,7 +564,7 @@ gum_compile_script_data_free (GumCompileScriptData * d)
 static void
 gum_v8_script_backend_set_debug_message_handler (
     GumScriptBackend * backend,
-    GumScriptDebugMessageHandler handler,
+    GumScriptBackendDebugMessageHandler handler,
     gpointer data,
     GDestroyNotify data_destroy)
 {

@@ -166,6 +166,8 @@ script-runtime-stamp: generate-runtime.py $(script_runtime_sources)
 
 AM_CPPFLAGS = \
 	-DG_LOG_DOMAIN=\"Frida\" \
+	-DDUK_OPT_INTERRUPT_COUNTER=1 \
+	-DDUK_OPT_DEBUGGER_SUPPORT=1 \
 	-include config.h \
 	-I $(top_srcdir) \
 	-I $(top_srcdir)/gum \

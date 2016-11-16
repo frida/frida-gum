@@ -201,7 +201,8 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (weak_callback_is_triggered_on_unbind)
   SCRIPT_TESTENTRY (globals_can_be_dynamically_generated)
   SCRIPT_TESTENTRY (exceptions_can_be_handled)
-  SCRIPT_TESTENTRY (debugger_can_be_enabled)
+  SCRIPT_TESTENTRY (debugger_can_be_enabled_on_v8)
+  SCRIPT_TESTENTRY (debugger_can_be_enabled_on_duktape)
 TEST_LIST_END ()
 
 typedef struct _TestTrigger TestTrigger;
@@ -4065,14 +4066,20 @@ SCRIPT_TESTCASE (exceptions_can_be_handled)
   EXPECT_NO_MESSAGES ();
 }
 
-#include "script-debugserver.c"
+#include "script-v8debugserver.c"
 
-SCRIPT_TESTCASE (debugger_can_be_enabled)
+SCRIPT_TESTCASE (debugger_can_be_enabled_on_v8)
 {
   GumScript * badger, * snake;
   GMainLoop * loop;
   const guint16 port = 5858;
-  GumDebugServer * server;
+  GumV8DebugServer * server;
+
+  if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+  {
+    g_print ("<skipping, only applicable on V8> ");
+    return;
+  }
 
   if (!g_test_slow ())
   {
@@ -4096,12 +4103,59 @@ SCRIPT_TESTCASE (debugger_can_be_enabled)
 
   loop = g_main_loop_new (g_main_context_get_thread_default (), FALSE);
 
-  server = gum_debug_server_new (fixture->backend, port);
+  server = gum_v8_debug_server_new (fixture->backend, port);
 
   g_print ("Debugger enabled. You may now connect to port %u.\n", port);
   g_main_loop_run (loop);
 
-  gum_debug_server_free (server);
+  gum_v8_debug_server_free (server);
+
+  g_main_loop_unref (loop);
+}
+
+#include "script-dukdebugserver.c"
+
+SCRIPT_TESTCASE (debugger_can_be_enabled_on_duktape)
+{
+  GumScript * badger, * snake;
+  GMainLoop * loop;
+  const guint16 base_port = 5858;
+  GumDukDebugServer * server;
+
+  if (!GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+  {
+    g_print ("<skipping, only applicable on Duktape> ");
+    return;
+  }
+
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
+  badger = gum_script_backend_create_sync (fixture->backend, "badger",
+      "setInterval(function () {\n"
+      "  send('badger');\n"
+      "}, 1000);", NULL, NULL);
+  gum_script_set_message_handler (badger, on_message, "badger", NULL);
+  gum_script_load_sync (badger, NULL);
+
+  snake = gum_script_backend_create_sync (fixture->backend, "snake",
+      "setInterval(function () {\n"
+      "  send('snake');\n"
+      "}, 1000);", NULL, NULL);
+  gum_script_set_message_handler (snake, on_message, "snake", NULL);
+  gum_script_load_sync (snake, NULL);
+
+  loop = g_main_loop_new (g_main_context_get_thread_default (), FALSE);
+
+  server = gum_duk_debug_server_new (fixture->backend, base_port);
+
+  g_print ("Debugger enabled.\n");
+  g_main_loop_run (loop);
+
+  gum_duk_debug_server_free (server);
 
   g_main_loop_unref (loop);
 }
