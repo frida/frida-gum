@@ -1089,7 +1089,8 @@ gum_duk_script_debugger_on_write (GumDukScriptDebugger * self,
                                   duk_size_t length)
 {
   GUM_DUK_SCRIPT_DEBUGGER_LOCK (self);
-  g_byte_array_append (self->unwritten, (const guint8 *) buffer, length);
+  g_byte_array_append (self->unwritten, (const guint8 *) buffer,
+      (guint) length);
   GUM_DUK_SCRIPT_DEBUGGER_UNLOCK (self);
 
   return length;
