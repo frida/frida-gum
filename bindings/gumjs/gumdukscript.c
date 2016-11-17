@@ -186,6 +186,7 @@ static void gum_duk_emit_data_free (GumEmitData * d);
 
 static void gum_duk_script_do_attach_debugger (GumDukScript * self);
 static void gum_duk_script_do_detach_debugger (GumDukScript * self);
+static void gum_duk_script_awaken_debugger (GumDukScript * self);
 
 static void gum_duk_script_debugger_init (GumDukScriptDebugger * self,
     GumDukScript * script);
@@ -195,6 +196,7 @@ static void gum_duk_script_debugger_detach (GumDukScriptDebugger * self);
 static void gum_duk_script_debugger_cancel (GumDukScriptDebugger * self);
 static void gum_duk_script_debugger_post (GumDukScriptDebugger * self,
     GBytes * bytes);
+static void gum_duk_script_debugger_awaken (GumDukScriptDebugger * self);
 static duk_size_t gum_duk_script_debugger_on_read (GumDukScriptDebugger * self,
     char * buffer, duk_size_t length);
 static duk_size_t gum_duk_script_debugger_on_write (GumDukScriptDebugger * self,
@@ -938,6 +940,27 @@ gum_duk_script_post_to_debugger (GumDukScript * self,
                                  GBytes * bytes)
 {
   gum_duk_script_debugger_post (&self->priv->debugger, bytes);
+
+  gum_script_scheduler_push_job_on_js_thread (
+      gum_duk_script_backend_get_scheduler (self->priv->backend),
+      G_PRIORITY_DEFAULT, (GumScriptJobFunc) gum_duk_script_awaken_debugger,
+      g_object_ref (self), g_object_unref);
+}
+
+static void
+gum_duk_script_awaken_debugger (GumDukScript * self)
+{
+  GumDukScriptPrivate * priv = self->priv;
+  GumDukScope scope;
+
+  if (priv->state != GUM_SCRIPT_STATE_LOADED)
+    return;
+
+  _gum_duk_scope_enter (&scope, &priv->core);
+
+  gum_duk_script_debugger_awaken (&priv->debugger);
+
+  _gum_duk_scope_leave (&scope);
 }
 
 static void
@@ -1040,6 +1063,14 @@ gum_duk_script_debugger_post (GumDukScriptDebugger * self,
 
   GUM_DUK_SCRIPT_DEBUGGER_SIGNAL (self);
   GUM_DUK_SCRIPT_DEBUGGER_UNLOCK (self);
+}
+
+static void
+gum_duk_script_debugger_awaken (GumDukScriptDebugger * self)
+{
+  GumDukCore * core = &self->script->priv->core;
+
+  duk_debugger_cooperate (core->heap_ctx);
 }
 
 static duk_size_t
