@@ -100,6 +100,14 @@ EXCEPTOR_TESTCASE (task_swap_exception_ports_should_not_obstruct_us)
   GumExceptorScope scope;
   gboolean caught = FALSE;
 
+#ifdef HAVE_ASAN
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping on ASan, run in slow mode> ");
+    return;
+  }
+#endif
+
   exceptor = gum_exceptor_obtain ();
 
   self_task = mach_task_self ();
