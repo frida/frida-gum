@@ -66,7 +66,7 @@ struct _GumDukScriptDebugger
   volatile gboolean cancelled;
 
   GByteArray * unread;
-  guint unread_offset;
+  duk_size_t unread_offset;
   GByteArray * unwritten;
 
   GumDukScript * script;
@@ -1073,7 +1073,7 @@ gum_duk_script_debugger_on_read (GumDukScriptDebugger * self,
     }
     else if (self->unread_offset > 2048)
     {
-      g_byte_array_remove_range (self->unread, 0, self->unread_offset);
+      g_byte_array_remove_range (self->unread, 0, (guint) self->unread_offset);
       self->unread_offset = 0;
     }
   }
