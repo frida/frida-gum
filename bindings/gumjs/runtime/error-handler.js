@@ -98,34 +98,41 @@ function register() {
         return error;
 
       let firstSourcePosition = null;
+      let frameTypes = [];
 
-      error.stack = stack
-          .replace(/\t([^0-9]\w*)((.*?file:\/\/\/)([^:]+):(\d+))?(  native)?(.*)/g,
-            function (match, scope, url, filePrefix, fileName, lineNumber, native, suffix) {
-              if (native !== undefined) {
-                return scope + ' (native)';
-              } else if (url === undefined) {
-                return 'at ' + scope + suffix;
-              } else {
-                const position = mapSourcePosition({
-                  source: fileName,
-                  line: parseInt(lineNumber, 10),
-                  column: 0
-                });
+      stack = stack
+          .replace(/    at (.+) \(((.+):(.+))?\) (internal)?(native)?(.*)/g,
+            function (match, scope, sourceLocation, fileName, lineNumber, internal, native, suffix) {
+              frameTypes.push(internal || native);
 
-                if (firstSourcePosition === null)
-                  firstSourcePosition = position;
-
-                const location = position.source + ':' + position.line;
-
-                const funcName = (scope !== 'global' && scope !== 'anon') ? scope : null;
-                if (funcName !== null)
-                  return 'at ' + funcName + ' (' + location + ')';
-                else
-                  return 'at ' + location;
+              if (sourceLocation === undefined || internal !== undefined) {
+                return '    at ' + scope + ' (' + (sourceLocation || (native || "")) + ')';
               }
-            })
-          .replace(/\n/g, '\n    ');
+
+              const position = mapSourcePosition({
+                source: fileName,
+                line: parseInt(lineNumber, 10),
+                column: 0
+              });
+
+              if (firstSourcePosition === null)
+                firstSourcePosition = position;
+
+              const location = position.source + ':' + position.line;
+
+              const funcName = (scope !== 'global' && scope !== '[anon]') ? scope : null;
+              if (funcName !== null)
+                return '    at ' + funcName + ' (' + location + ')';
+              else
+                return '    at ' + location;
+            });
+
+      if (frameTypes.length >= 3 && frameTypes[0] === 'internal' && frameTypes[1] === 'native') {
+        const lines = stack.split('\n');
+        stack = lines[0] + '\n' + lines.slice(3).join('\n');
+      }
+
+      error.stack = stack;
 
       if (firstSourcePosition !== null) {
         error.fileName = firstSourcePosition.source;

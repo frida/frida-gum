@@ -202,7 +202,8 @@ static duk_size_t gum_duk_script_debugger_on_write (GumDukScriptDebugger * self,
 static duk_size_t gum_duk_script_debugger_on_peek (GumDukScriptDebugger * self);
 static void gum_duk_script_debugger_on_write_flush (
     GumDukScriptDebugger * self);
-static void gum_duk_script_debugger_on_detached (GumDukScriptDebugger * self);
+static void gum_duk_script_debugger_on_detached (duk_context * ctx,
+    GumDukScriptDebugger * self);
 
 G_DEFINE_TYPE_EXTENDED (GumDukScript,
                         gum_duk_script,
@@ -429,7 +430,7 @@ gum_duk_script_create_context (GumDukScript * self,
 
     duk_load_function (ctx);
 
-    url = g_strconcat ("file:///", priv->name, ".js", NULL);
+    url = g_strconcat (priv->name, ".js", NULL);
     duk_push_string (ctx, url);
     duk_put_prop_string (ctx, -2, "fileName");
     g_free (url);
@@ -988,6 +989,7 @@ gum_duk_script_debugger_attach (GumDukScriptDebugger * self)
       (duk_debug_peek_function) gum_duk_script_debugger_on_peek,
       (duk_debug_read_flush_function) NULL,
       (duk_debug_write_flush_function) gum_duk_script_debugger_on_write_flush,
+      (duk_debug_request_function) NULL,
       (duk_debug_detached_function) gum_duk_script_debugger_on_detached,
       self);
 }
@@ -1134,8 +1136,11 @@ gum_duk_script_debugger_on_write_flush (GumDukScriptDebugger * self)
 }
 
 static void
-gum_duk_script_debugger_on_detached (GumDukScriptDebugger * self)
+gum_duk_script_debugger_on_detached (duk_context * ctx,
+                                     GumDukScriptDebugger * self)
 {
+  (void) ctx;
+
   GUM_DUK_SCRIPT_DEBUGGER_LOCK (self);
 
   self->attached = FALSE;

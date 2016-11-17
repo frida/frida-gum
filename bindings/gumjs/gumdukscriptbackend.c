@@ -184,8 +184,8 @@ static gboolean gum_duk_script_backend_notify_debugger_output (
 static void gum_notify_debugger_output_data_free (
     GumNotifyDebuggerOutputData * d);
 
-static void gum_duk_script_backend_on_fatal_error (duk_context * ctx,
-    duk_errcode_t code, const char * msg);
+static void gum_duk_script_backend_on_fatal_error (void * udata,
+    const char * msg);
 
 static void * gum_duk_alloc (void * udata, duk_size_t size);
 static void * gum_duk_realloc (void * udata, void * ptr, duk_size_t size);
@@ -336,7 +336,7 @@ gum_duk_script_backend_create_heap (GumDukScriptBackend * self)
 {
   (void) self;
 
-  return duk_create_heap (gum_duk_alloc, gum_duk_realloc, gum_duk_free, NULL,
+  return duk_create_heap (gum_duk_alloc, gum_duk_realloc, gum_duk_free, self,
       gum_duk_script_backend_on_fatal_error);
 }
 
@@ -352,7 +352,7 @@ gum_duk_script_backend_push_program (GumDukScriptBackend * self,
 
   (void) self;
 
-  url = g_strconcat ("file:///", name, ".js", NULL);
+  url = g_strconcat (name, ".js", NULL);
 
   duk_push_string (ctx, source);
   duk_push_string (ctx, url);
@@ -1162,13 +1162,12 @@ gum_notify_debugger_output_data_free (GumNotifyDebuggerOutputData * d)
 }
 
 static void
-gum_duk_script_backend_on_fatal_error (duk_context * ctx,
-                                       duk_errcode_t code,
+gum_duk_script_backend_on_fatal_error (void * udata,
                                        const char * msg)
 {
-  (void) ctx;
+  (void) udata;
 
-  g_log ("DUK", G_LOG_LEVEL_ERROR, "%d: %s", code, msg);
+  g_log ("DUK", G_LOG_LEVEL_ERROR, "%s", msg);
   abort ();
 }
 
