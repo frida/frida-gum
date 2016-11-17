@@ -870,7 +870,7 @@ gum_duk_script_backend_on_debug_handler_attached (GumDukScriptBackend * self)
     if (script_index != 0)
       g_string_append_c (message, '\n');
 
-    g_string_append_printf (message, "%" GUM_DUK_SCRIPT_ID_FORMAT " %s",
+    g_string_append_printf (message, "%" GUM_DUK_SCRIPT_ID_FORMAT " %s.js",
         id, name_escaped);
 
     g_free (name_escaped);
@@ -959,7 +959,7 @@ gum_duk_script_backend_notify_script_added (GumNotifyScriptAddedData * d)
     return FALSE;
 
   name_escaped = g_strescape (d->name, NULL);
-  message = g_strdup_printf ("ADD %" GUM_DUK_SCRIPT_ID_FORMAT " %s",
+  message = g_strdup_printf ("ADD %" GUM_DUK_SCRIPT_ID_FORMAT " %s.js",
       d->id, name_escaped);
 
   priv->debug_handler (message, priv->debug_handler_data);
