@@ -320,6 +320,8 @@ gum_duk_script_weak_ref_on_notify (GumDukScriptWeakRef * ref,
 {
   GumDukScriptBackendPrivate * priv = ref->backend->priv;
 
+  (void) where_the_object_was;
+
   gum_duk_script_backend_on_script_removed (ref->backend, ref->id);
 
   GUM_DUK_SCRIPT_BACKEND_LOCK ();
@@ -1041,6 +1043,8 @@ gum_duk_script_backend_on_debugger_detached (GumDukScript * script,
   GumNotifyDebuggerDetachedData * d;
   GSource * source;
 
+  (void) script;
+
   context = gum_duk_script_backend_get_debug_context (ref->backend);
   if (context == NULL)
     return;
@@ -1094,6 +1098,8 @@ gum_duk_script_backend_on_debugger_output (GumDukScript * script,
   GMainContext * context;
   GumNotifyDebuggerOutputData * d;
   GSource * source;
+
+  (void) script;
 
   context = gum_duk_script_backend_get_debug_context (ref->backend);
   if (context == NULL)

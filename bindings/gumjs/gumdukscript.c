@@ -66,7 +66,7 @@ struct _GumDukScriptDebugger
   volatile gboolean cancelled;
 
   GByteArray * unread;
-  duk_size_t unread_offset;
+  guint unread_offset;
   GByteArray * unwritten;
 
   GumDukScript * script;

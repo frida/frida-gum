@@ -2581,10 +2581,10 @@ gum_cpu_meta_reg_from_real_reg (GumCpuReg reg)
 #endif
   else if (reg == GUM_REG_RIP)
     return GUM_REG_XIP;
-  else if (reg == GUM_REG_NONE)
-    return GUM_REG_NONE;
+  else if (reg != GUM_REG_NONE)
+    g_assert_not_reached ();
 
-  g_assert_not_reached ();
+  return GUM_REG_NONE;
 }
 
 static GumCpuReg
