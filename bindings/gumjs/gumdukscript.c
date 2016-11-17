@@ -196,7 +196,8 @@ static void gum_duk_script_debugger_detach (GumDukScriptDebugger * self);
 static void gum_duk_script_debugger_cancel (GumDukScriptDebugger * self);
 static void gum_duk_script_debugger_post (GumDukScriptDebugger * self,
     GBytes * bytes);
-static void gum_duk_script_debugger_awaken (GumDukScriptDebugger * self);
+static void gum_duk_script_debugger_process_pending (
+    GumDukScriptDebugger * self);
 static duk_size_t gum_duk_script_debugger_on_read (GumDukScriptDebugger * self,
     char * buffer, duk_size_t length);
 static duk_size_t gum_duk_script_debugger_on_write (GumDukScriptDebugger * self,
@@ -958,7 +959,7 @@ gum_duk_script_awaken_debugger (GumDukScript * self)
 
   _gum_duk_scope_enter (&scope, &priv->core);
 
-  gum_duk_script_debugger_awaken (&priv->debugger);
+  gum_duk_script_debugger_process_pending (&priv->debugger);
 
   _gum_duk_scope_leave (&scope);
 }
@@ -1066,11 +1067,9 @@ gum_duk_script_debugger_post (GumDukScriptDebugger * self,
 }
 
 static void
-gum_duk_script_debugger_awaken (GumDukScriptDebugger * self)
+gum_duk_script_debugger_process_pending (GumDukScriptDebugger * self)
 {
-  GumDukCore * core = &self->script->priv->core;
-
-  duk_debugger_cooperate (core->heap_ctx);
+  duk_debugger_cooperate (self->script->priv->core.heap_ctx);
 }
 
 static duk_size_t
