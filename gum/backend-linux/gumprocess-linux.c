@@ -661,8 +661,8 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
     while (fgets (line, line_size, fp) != NULL)
     {
       n = sscanf (line,
-          "%*" G_GINT64_MODIFIER "x-%" G_GINT64_MODIFIER "x %*4c %*x %*s %*d "
-          "%s",
+          "%*" G_GINT64_MODIFIER "x-%" G_GINT64_MODIFIER "x %*c%*c%*c%*c %*x "
+          "%*s %*d %s",
           &end,
           next_path);
       if (n == 1)
