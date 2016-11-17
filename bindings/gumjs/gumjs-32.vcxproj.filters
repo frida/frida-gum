@@ -328,22 +328,28 @@
     <None Include="..\..\vapi\frida-gumjs-1.0.vapi">
       <Filter>vapi</Filter>
     </None>
-    <None Include="gumjs-core.js">
+    <None Include="runtime\index.js">
       <Filter>runtime</Filter>
     </None>
-    <None Include="gumjs-source-map.js">
+    <None Include="runtime\message-dispatcher.js">
       <Filter>runtime</Filter>
     </None>
-    <None Include="gumjs-java.js">
+    <None Include="runtime\error-handler.js">
       <Filter>runtime</Filter>
     </None>
-    <None Include="gumjs-objc.js">
+    <None Include="runtime\console.js">
       <Filter>runtime</Filter>
     </None>
-    <None Include="gumjs-babel-polyfill.js">
+    <None Include="runtime\hexdump.js">
       <Filter>runtime</Filter>
     </None>
-    <None Include="gumjs-debug.js">
+    <None Include="frida-debug.js">
+      <Filter>runtime</Filter>
+    </None>
+    <None Include="frida-babel-polyfill.js">
+      <Filter>runtime</Filter>
+    </None>
+    <None Include="frida-regenerator.js">
       <Filter>runtime</Filter>
     </None>
   </ItemGroup>

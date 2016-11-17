@@ -297,9 +297,11 @@ gum_v8_script_create_context (GumV8Script * self,
     HandleScope handle_scope (priv->isolate);
 
     auto global_templ = ObjectTemplate::New ();
-    _gum_v8_core_init (&priv->core, self, gum_v8_script_emit,
-        gum_v8_script_backend_get_scheduler (priv->backend), priv->isolate,
-        global_templ);
+    auto platform =
+        (GumV8Platform *) gum_v8_script_backend_get_platform (priv->backend);
+    _gum_v8_core_init (&priv->core, self, platform->GetRuntimeSourceMap (),
+        gum_v8_script_emit, gum_v8_script_backend_get_scheduler (priv->backend),
+        priv->isolate, global_templ);
     _gum_v8_kernel_init (&priv->kernel, &priv->core, global_templ);
     _gum_v8_memory_init (&priv->memory, &priv->core, global_templ);
     _gum_v8_process_init (&priv->process, &priv->core, global_templ);
@@ -496,7 +498,7 @@ gum_v8_script_perform_load_task (GumV8Script * self,
       auto platform =
           (GumV8Platform *) gum_v8_script_backend_get_platform (priv->backend);
 
-      gum_v8_bundle_run (platform->GetUserRuntime ());
+      gum_v8_bundle_run (platform->GetRuntimeBundle ());
 
       auto code = Local<Script>::New (priv->isolate, *priv->code);
       code->Run ();

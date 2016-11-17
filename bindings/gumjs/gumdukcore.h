@@ -51,6 +51,7 @@ struct _GumDukCore
 {
   GumDukScript * script;
   GumDukScriptBackend * backend;
+  const gchar * runtime_source_map;
   GumDukInterceptor * interceptor;
   GumDukMessageEmitter message_emitter;
   GumScriptScheduler * scheduler;
@@ -152,9 +153,9 @@ struct _GumDukNativeResource
 };
 
 G_GNUC_INTERNAL void _gum_duk_core_init (GumDukCore * self,
-    GumDukScript * script, GumDukInterceptor * interceptor,
-    GumDukMessageEmitter message_emitter, GumScriptScheduler * scheduler,
-    duk_context * ctx);
+    GumDukScript * script, const gchar * runtime_source_map,
+    GumDukInterceptor * interceptor, GumDukMessageEmitter message_emitter,
+    GumScriptScheduler * scheduler, duk_context * ctx);
 G_GNUC_INTERNAL gboolean _gum_duk_core_flush (GumDukCore * self,
     GumDukFlushNotify flush_notify);
 G_GNUC_INTERNAL void _gum_duk_core_dispose (GumDukCore * self);

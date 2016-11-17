@@ -154,9 +154,9 @@ script_runtime_sources = \
 	runtime/error-handler.js \
 	runtime/console.js \
 	runtime/hexdump.js \
-	gumjs-debug.js \
-	gumjs-babel-polyfill.js \
-	gumjs-regenerator.js \
+	frida-debug.js \
+	frida-babel-polyfill.js \
+	frida-regenerator.js \
 	$(NULL)
 
 script-runtime-stamp: generate-runtime.py $(script_runtime_sources)

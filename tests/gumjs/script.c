@@ -194,7 +194,8 @@ TEST_LIST_BEGIN (script)
 #endif
   SCRIPT_TESTENTRY (script_can_be_compiled_to_bytecode)
   SCRIPT_TESTENTRY (script_can_be_reloaded)
-  SCRIPT_TESTENTRY (source_maps_should_be_supported)
+  SCRIPT_TESTENTRY (source_maps_should_be_supported_for_our_runtime)
+  SCRIPT_TESTENTRY (source_maps_should_be_supported_for_user_scripts)
   SCRIPT_TESTENTRY (types_handle_invalid_construction)
   SCRIPT_TESTENTRY (weak_callback_is_triggered_on_gc)
   SCRIPT_TESTENTRY (weak_callback_is_triggered_on_unload)
@@ -3777,7 +3778,20 @@ SCRIPT_TESTCASE (script_can_be_reloaded)
   EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
 }
 
-SCRIPT_TESTCASE (source_maps_should_be_supported)
+SCRIPT_TESTCASE (source_maps_should_be_supported_for_our_runtime)
+{
+  TestScriptMessageItem * item;
+
+  COMPILE_AND_LOAD_SCRIPT ("hexdump(null);");
+
+  item = test_script_fixture_pop_message (fixture);
+  g_assert (strstr (item->message, "at hexdump (frida/hexdump.js:") != NULL);
+  test_script_message_item_free (item);
+
+  EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (source_maps_should_be_supported_for_user_scripts)
 {
   TestScriptMessageItem * item;
 

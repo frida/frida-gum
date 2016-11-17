@@ -142,6 +142,8 @@ GUMJS_DECLARE_FUNCTION (gumjs_set_unhandled_exception_callback)
 GUMJS_DECLARE_FUNCTION (gumjs_set_incoming_message_callback)
 GUMJS_DECLARE_FUNCTION (gumjs_wait_for_event)
 
+GUMJS_DECLARE_GETTER (gumjs_frida_get_source_map_data)
+
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_script_construct)
 GUMJS_DECLARE_GETTER (gumjs_script_get_file_name)
 GUMJS_DECLARE_GETTER (gumjs_script_get_source_map_data)
@@ -275,6 +277,13 @@ static gboolean gum_duk_get_ffi_value (duk_context * ctx, duk_idx_t index,
     const ffi_type * type, GumDukCore * core, GumFFIValue * value);
 static void gum_duk_push_ffi_value (duk_context * ctx,
     const GumFFIValue * value, const ffi_type * type, GumDukCore * core);
+
+static const GumDukPropertyEntry gumjs_frida_values[] =
+{
+  { "_sourceMapData", gumjs_frida_get_source_map_data, NULL },
+
+  { NULL, NULL, NULL }
+};
 
 static const GumDukPropertyEntry gumjs_script_values[] =
 {
@@ -669,6 +678,7 @@ static const GumDukPropertyEntry gumjs_cpu_context_values[] =
 void
 _gum_duk_core_init (GumDukCore * self,
                     GumDukScript * script,
+                    const gchar * runtime_source_map,
                     GumDukInterceptor * interceptor,
                     GumDukMessageEmitter message_emitter,
                     GumScriptScheduler * scheduler,
@@ -680,6 +690,7 @@ _gum_duk_core_init (GumDukCore * self,
   g_object_unref (self->backend);
 
   self->script = script;
+  self->runtime_source_map = runtime_source_map;
   self->interceptor = interceptor;
   self->message_emitter = message_emitter;
   self->scheduler = scheduler;
@@ -711,6 +722,8 @@ _gum_duk_core_init (GumDukCore * self,
   duk_put_global_string (ctx, "global");
 
   duk_push_object (ctx);
+  _gum_duk_add_properties_to_class_by_heapptr (ctx,
+      duk_require_heapptr (ctx, -1), gumjs_frida_values);
   duk_push_string (ctx, FRIDA_VERSION);
   duk_put_prop_string (ctx, -2, "version");
   duk_put_global_string (ctx, "Frida");
@@ -1223,6 +1236,12 @@ _gum_duk_scope_leave (GumDukScope * self)
 
   if (pending_flush_notify != NULL)
     gum_duk_core_notify_flushed (core, pending_flush_notify);
+}
+
+GUMJS_DEFINE_GETTER (gumjs_frida_get_source_map_data)
+{
+  duk_push_string (ctx, args->core->runtime_source_map);
+  return 1;
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_script_construct)

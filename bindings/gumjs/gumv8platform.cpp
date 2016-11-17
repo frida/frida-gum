@@ -85,8 +85,14 @@ GumV8Platform::InitRuntime ()
   Local<Context> context (Context::New (isolate));
   Context::Scope context_scope (context);
 
-  user_runtime = gum_v8_bundle_new (isolate, gum_v8_script_runtime_sources);
-  debug_runtime = gum_v8_bundle_new (isolate, gum_v8_script_debug_sources);
+  runtime_bundle = gum_v8_bundle_new (isolate, gumjs_runtime_modules);
+  debug_bundle = gum_v8_bundle_new (isolate, gumjs_debug_modules);
+}
+
+const gchar *
+GumV8Platform::GetRuntimeSourceMap () const
+{
+  return gumjs_frida_source_map;
 }
 
 void
@@ -105,8 +111,8 @@ GumV8Platform::~GumV8Platform ()
     Isolate::Scope isolate_scope (isolate);
     HandleScope handle_scope (isolate);
 
-    gum_v8_bundle_free (debug_runtime);
-    gum_v8_bundle_free (user_runtime);
+    gum_v8_bundle_free (debug_bundle);
+    gum_v8_bundle_free (runtime_bundle);
   }
 
   isolate->Dispose ();

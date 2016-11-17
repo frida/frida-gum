@@ -21,8 +21,9 @@ public:
   ~GumV8Platform ();
 
   v8::Isolate * GetIsolate () const { return isolate; }
-  GumV8Bundle * GetUserRuntime () const { return user_runtime; }
-  GumV8Bundle * GetDebugRuntime () const { return debug_runtime; }
+  GumV8Bundle * GetRuntimeBundle () const { return runtime_bundle; }
+  const gchar * GetRuntimeSourceMap () const;
+  GumV8Bundle * GetDebugBundle () const { return debug_bundle; }
   GumScriptScheduler * GetScheduler () const { return scheduler; }
 
   virtual size_t NumberOfAvailableBackgroundThreads ();
@@ -48,8 +49,8 @@ private:
 
   bool disposing;
   v8::Isolate * isolate;
-  GumV8Bundle * user_runtime;
-  GumV8Bundle * debug_runtime;
+  GumV8Bundle * runtime_bundle;
+  GumV8Bundle * debug_bundle;
   GumScriptScheduler * scheduler;
   const gint64 start_time;
   v8::ArrayBuffer::Allocator * array_buffer_allocator;

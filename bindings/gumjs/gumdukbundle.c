@@ -14,10 +14,10 @@ gum_duk_bundle_load (const GumDukRuntimeModule * modules,
 {
   const GumDukRuntimeModule * cur;
 
-  for (cur = modules; cur->code != NULL; cur++)
+  for (cur = modules; cur->bytecode != NULL; cur++)
   {
     duk_push_external_buffer (ctx);
-    duk_config_buffer (ctx, -1, (void *) cur->code, cur->size);
+    duk_config_buffer (ctx, -1, (void *) cur->bytecode, cur->bytecode_size);
     duk_load_function (ctx);
     if (duk_pcall (ctx, 0) != DUK_EXEC_SUCCESS)
       _gum_duk_panic (ctx, duk_safe_to_string (ctx, -1));

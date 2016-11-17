@@ -8,23 +8,29 @@ module.exports = {
 
 function register() {
   const engine = global;
-  let didLoadSourceMap = false;
-  let cachedSourceMap = null;
 
-  Object.defineProperty(Script, 'sourceMap', {
-    enumerable: true,
-    get: function () {
-      if (!didLoadSourceMap) {
-        const data = Script._sourceMapData;
-        if (data !== null)
-          cachedSourceMap = JSON.parse(data);
-        else
-          cachedSourceMap = null;
-        didLoadSourceMap = true;
+  makeSourceMapGetter(Frida);
+  makeSourceMapGetter(Script);
+
+  function makeSourceMapGetter(m) {
+    let didLoadSourceMap = false;
+    let cachedSourceMap = null;
+
+    Object.defineProperty(m, 'sourceMap', {
+      enumerable: true,
+      get: function () {
+        if (!didLoadSourceMap) {
+          const data = m._sourceMapData;
+          if (data !== null)
+            cachedSourceMap = JSON.parse(data);
+          else
+            cachedSourceMap = null;
+          didLoadSourceMap = true;
+        }
+        return cachedSourceMap;
       }
-      return cachedSourceMap;
-    }
-  });
+    });
+  }
 
   const runtime = Script.runtime;
   if (runtime === 'V8') {
@@ -251,6 +257,8 @@ function mapEvalOrigin(origin) {
 function findSourceMap(source) {
   if (source === Script.fileName)
     return Script.sourceMap;
+  else if (source === 'frida.js')
+    return Frida.sourceMap;
   else
     return null;
 }

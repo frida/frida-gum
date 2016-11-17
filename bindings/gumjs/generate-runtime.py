@@ -1,39 +1,60 @@
 #!/usr/bin/env python
 
 from __future__ import unicode_literals, print_function
+from base64 import b64decode
 import codecs
+import json
 import os
 import platform
+import re
 import subprocess
 import sys
 
-def generate_runtime_v8(output_dir, output, inputs):
+def generate_runtime_v8(runtime_name, output_dir, output, inputs):
     with codecs.open(os.path.join(output_dir, output), 'wb', 'utf-8') as output_file:
-        output_file.write("""\
-#include "gumv8bundle.h"
+        output_file.write("#include \"gumv8bundle.h\"\n")
 
-static const {entry_type} {entries_identifier}[] =
-{{""".format(entry_type="GumV8Source",
-            entries_identifier=underscorify(output) + "_sources"))
-
+        modules = []
         for input_path in inputs:
             input_name = os.path.basename(input_path)
-            output_file.write("""
-  {{
-    "{filename}",
-    {{
-""".format(filename=input_name))
+
+            base, ext = os.path.splitext(input_name)
+
+            input_source_code_identifier = "gumjs_{0}_source_code".format(identifier(base))
+            input_source_map_identifier = "gumjs_{0}_source_map".format(identifier(base))
+
             with codecs.open(input_path, 'rb', 'utf-8') as input_file:
-                write_code(input_file.read(), output_file)
-            output_file.write("      NULL\n    }\n  },\n")
+                source_code = input_file.read()
+            (stripped_source_code, source_map) = extract_source_map(source_code)
+            source_code_bytes = bytearray(stripped_source_code.encode('utf-8'))
+            source_code_bytes.append(0)
+            source_code_size = len(source_code_bytes)
 
-        output_file.write("\n  { NULL, { NULL } }\n};")
+            output_file.write("\nstatic const gchar {0}[{1}] =\n{{".format(input_source_code_identifier, source_code_size))
+            write_bytes(source_code_bytes, output_file)
+            output_file.write("\n};\n")
 
-def generate_runtime_duk(output_dir, output, input_dir, inputs):
+            if source_map is not None:
+                source_map_bytes = bytearray(source_map.encode('utf-8'))
+                source_map_bytes.append(0)
+                source_map_size = len(source_map_bytes)
+
+                output_file.write("\nstatic const gchar {0}[{1}] =\n{{".format(input_source_map_identifier, source_map_size))
+                write_bytes(source_map_bytes, output_file)
+                output_file.write("\n};\n")
+
+                modules.append((input_name, input_source_code_identifier, input_source_map_identifier))
+            else:
+                modules.append((input_name, input_source_code_identifier, "NULL"))
+
+        output_file.write("\nstatic const GumV8RuntimeModule gumjs_{0}_modules[] =\n{{".format(runtime_name))
+        for filename, source_code_identifier, source_map_identifier in modules:
+            output_file.write("\n  {{ \"{0}\", {1}, {2} }},".format(filename, source_code_identifier, source_map_identifier))
+        output_file.write("\n  { NULL, NULL, NULL }\n};")
+
+def generate_runtime_duk(runtime_name, output_dir, output, input_dir, inputs):
     with codecs.open(os.path.join(output_dir, output), 'wb', 'utf-8') as output_file:
-        output_file.write("""\
-#include "gumdukbundle.h"
-""")
+        output_file.write("#include \"gumdukbundle.h\"\n")
 
         build_os = platform.system().lower()
 
@@ -78,59 +99,65 @@ def generate_runtime_duk(output_dir, output, input_dir, inputs):
             input_name_duk = base + ".duk"
             input_path_duk = os.path.join(output_dir, input_name_duk)
 
-            input_identifier = "gum_duk_script_runtime_module_" + identifier(base)
+            input_bytecode_identifier = "gumjs_{0}_bytecode".format(identifier(base))
+            input_source_map_identifier = "gumjs_{0}_source_map".format(identifier(base))
 
             subprocess.call([dukcompile, input_path, input_path_duk])
 
             with open(input_path_duk, 'rb') as duk:
-                code = duk.read()
-                size = len(code)
-                output_file.write("\nstatic const guint8 " + input_identifier + "[" + str(size) + "] =\n{")
-                write_bytes(code, output_file)
+                bytecode = duk.read()
+            bytecode_size = len(bytecode)
+
+            output_file.write("\nstatic const guint8 {0}[{1}] =\n{{".format(input_bytecode_identifier, bytecode_size))
+            write_bytes(bytecode, output_file)
+            output_file.write("\n};\n")
+
+            with codecs.open(input_path, 'rb', 'utf-8') as input_file:
+                source_code = input_file.read()
+
+            (stripped_source_code, source_map) = extract_source_map(source_code)
+
+            if source_map is not None:
+                source_map_bytes = bytearray(source_map.encode('utf-8'))
+                source_map_bytes.append(0)
+                source_map_size = len(source_map_bytes)
+
+                output_file.write("\nstatic const gchar {0}[{1}] =\n{{".format(input_source_map_identifier, source_map_size))
+                write_bytes(source_map_bytes, output_file)
                 output_file.write("\n};\n")
-                modules.append((input_identifier, size))
 
-        output_file.write("\nstatic const {entry_type} {entries_identifier}[] =\n{{\n  ".format(
-            entry_type="GumDukRuntimeModule",
-            entries_identifier=underscorify(output) + "_modules"))
-        output_file.write("\n  ".join(map(lambda e: "{{ {identifier}, {size} }},".format(identifier=e[0], size=e[1]), modules)))
-        output_file.write("\n  { NULL, 0 }\n};")
+                modules.append((input_bytecode_identifier, bytecode_size, input_source_map_identifier))
+            else:
+                modules.append((input_bytecode_identifier, bytecode_size, "NULL"))
 
-def write_code(js_code, sink):
-    MAX_LINE_LENGTH = 80
-    INDENT = 6
-    QUOTATION_OVERHEAD = 2
-    LINE_OVERHEAD = 1
-    NULL_TERMINATOR_SIZE = 1
-    MAX_CHARACTER_SIZE = 4
-    # MSVC's limit is roughly 65535 bytes, but we'll play it safe
-    MAX_LITERAL_SIZE = 32768
+        output_file.write("\nstatic const GumDukRuntimeModule gumjs_{0}_modules[] =\n{{".format(runtime_name))
+        for bytecode_identifier, bytecode_size, source_map_identifier in modules:
+            output_file.write("\n  {{ {0}, {1}, {2} }},".format(bytecode_identifier, bytecode_size, source_map_identifier))
+        output_file.write("\n  { NULL, 0, NULL }\n};")
 
-    # MSVC's individual quoted string limit is 2048 bytes
-    assert MAX_LINE_LENGTH <= 2048 / MAX_CHARACTER_SIZE
+source_map_pattern = re.compile("//[#@][ \t]sourceMappingURL=[ \t]*data:application/json;base64,([^\\s'\"]*)[ \t]*\n")
 
-    pending = js_code.replace('\\', '\\\\').replace('"', '\\"').replace("\n", "\\n").replace("??", "\\?\\?")
-    size = 0
-    while len(pending) > 0:
-        chunk_length = min(MAX_LINE_LENGTH - INDENT - QUOTATION_OVERHEAD, len(pending))
-        while True:
-            chunk = pending[:chunk_length]
-            chunk_size = len(chunk.encode('utf-8'))
-            if chunk[-1] != "\\" and size + chunk_size + LINE_OVERHEAD + NULL_TERMINATOR_SIZE <= MAX_LITERAL_SIZE:
-                pending = pending[chunk_length:]
-                size += chunk_size + LINE_OVERHEAD
-                break
-            chunk_length -= 1
-        sink.write((" " * INDENT) + "\"" + chunk + "\"")
-        capacity = MAX_LITERAL_SIZE - size
-        if capacity < INDENT + QUOTATION_OVERHEAD + (2 * MAX_CHARACTER_SIZE) + LINE_OVERHEAD + NULL_TERMINATOR_SIZE:
-            sink.write(",")
-            size = 0
-        if len(pending) > 0:
-            sink.write("\n")
-    if size != 0:
-        sink.write(",")
-    sink.write("\n")
+def extract_source_map(source_code):
+    m = source_map_pattern.search(source_code)
+    if m is None:
+        return (source_code, None)
+    raw_source_map = m.group(1)
+
+    source_map = json.loads(b64decode(raw_source_map).decode('utf-8'))
+    source_map['file'] = 'frida.js'
+    source_map['sources'] = list(map(to_canonical_source_path, source_map['sources']))
+
+    raw_source_map = json.dumps(source_map)
+
+    stripped_source_code = source_map_pattern.sub("", source_code)
+
+    return (stripped_source_code, raw_source_map)
+
+def to_canonical_source_path(path):
+    if path.startswith('../node_modules'):
+        return 'frida/' + path[3:]
+    else:
+        return 'frida/' + path
 
 def write_bytes(data, sink):
     sink.write("\n  ")
@@ -149,20 +176,9 @@ def write_bytes(data, sink):
         line_length += len(token)
         offset += 1
 
-def underscorify(filename):
-    if filename.startswith("gumv8"):
-        result = "gum_v8_"
-        filename = filename[5:]
-    elif filename.startswith("gumduk"):
-        result = "gum_duk_"
-        filename = filename[6:]
-    else:
-        result = ""
-    return result + os.path.splitext(filename)[0].lower().replace("-", "_")
-
 def identifier(filename):
     result = ""
-    if filename.startswith("gumjs-"):
+    if filename.startswith("frida-"):
         filename = filename[6:]
     for c in filename:
         if c.isalnum():
@@ -183,18 +199,18 @@ if __name__ == '__main__':
     input_dir = sys.argv[1]
     output_dir = sys.argv[2]
 
-    runtime = os.path.abspath(os.path.join(output_dir, "gumjs-runtime.js"))
+    runtime = os.path.abspath(os.path.join(output_dir, "frida.js"))
 
-    subprocess.call([node_script_path("frida-compile"), "-c", "./runtime", "-o", runtime], cwd=input_dir)
+    subprocess.call([node_script_path("frida-compile"), "./runtime", "-o", runtime], cwd=input_dir)
 
     polyfill_modules = [os.path.join(input_dir, input_name) for input_name in [
-        "gumjs-regenerator.js",
+        "frida-regenerator.js",
     ]]
 
-    generate_runtime_v8(output_dir, "gumv8script-runtime.h", polyfill_modules + [runtime])
-    generate_runtime_v8(output_dir, "gumv8script-debug.h", [os.path.join(input_dir, "gumjs-debug.js")])
+    generate_runtime_v8("runtime", output_dir, "gumv8script-runtime.h", polyfill_modules + [runtime])
+    generate_runtime_v8("debug", output_dir, "gumv8script-debug.h", [os.path.join(input_dir, "frida-debug.js")])
 
     duk_polyfill_modules = [os.path.join(input_dir, input_name) for input_name in [
-        "gumjs-babel-polyfill.js",
+        "frida-babel-polyfill.js",
     ]] + polyfill_modules
-    generate_runtime_duk(output_dir, "gumdukscript-runtime.h", input_dir, duk_polyfill_modules + [runtime])
+    generate_runtime_duk("runtime", output_dir, "gumdukscript-runtime.h", input_dir, duk_polyfill_modules + [runtime])

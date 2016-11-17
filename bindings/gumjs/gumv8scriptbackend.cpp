@@ -615,7 +615,7 @@ gum_v8_script_backend_enable_debugger (GumV8ScriptBackend * self)
   Context::Scope context_scope (context);
 
   gum_v8_bundle_run (
-      GUM_V8_SCRIPT_BACKEND_GET_PLATFORM (self)->GetDebugRuntime ());
+      GUM_V8_SCRIPT_BACKEND_GET_PLATFORM (self)->GetDebugBundle ());
 }
 
 static void

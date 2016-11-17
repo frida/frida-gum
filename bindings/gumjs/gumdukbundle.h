@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -15,8 +15,9 @@ typedef struct _GumDukRuntimeModule GumDukRuntimeModule;
 
 struct _GumDukRuntimeModule
 {
-  gconstpointer code;
-  gsize size;
+  gconstpointer bytecode;
+  gsize bytecode_size;
+  const gchar * source_map;
 };
 
 G_GNUC_INTERNAL void gum_duk_bundle_load (const GumDukRuntimeModule * modules,

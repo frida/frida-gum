@@ -126,12 +126,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="gumjs-core.js" />
-    <None Include="gumjs-source-map.js" />
-    <None Include="gumjs-java.js" />
-    <None Include="gumjs-objc.js" />
-    <None Include="gumjs-debug.js" />
-    <None Include="gumjs-babel-polyfill.js" />
+    <None Include="runtime\index.js" />
+    <None Include="runtime\message-dispatcher.js" />
+    <None Include="runtime\error-handler.js" />
+    <None Include="runtime\console.js" />
+    <None Include="runtime\hexdump.js" />
+    <None Include="frida-debug.js" />
+    <None Include="frida-babel-polyfill.js" />
+    <None Include="frida-regenerator.js" />
   </ItemGroup>
 
   <ItemGroup>
@@ -144,7 +146,7 @@ generate-runtime.py $(ProjectDir) $(IntDir)gumjs || exit 1
 REM. &gt; $(IntDir)gumjs\runtime.stamp
 </Command>
       <LinkObjects>false</LinkObjects>
-      <AdditionalInputs>gumjs-core.js;gumjs-source-map.js;gumjs-java.js;gumjs-objc.js;gumjs-debug.js;gumjs-babel-polyfill.js;%(AdditionalInputs)</AdditionalInputs>
+      <AdditionalInputs>runtime\index.js;runtime\message-dispatcher.js;runtime\error-handler.js;runtime\console.js;runtime\hexdump.js;frida-debug.js;frida-babel-polyfill.js;frida-regenerator.js;%(AdditionalInputs)</AdditionalInputs>
     </CustomBuild>
   </ItemGroup>
 

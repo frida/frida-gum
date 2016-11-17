@@ -16,7 +16,7 @@ static void gum_v8_bundle_script_run (Persistent<UnboundScript> * script,
 
 GumV8Bundle *
 gum_v8_bundle_new (Isolate * isolate,
-                   const GumV8Source * sources)
+                   const GumV8RuntimeModule * modules)
 {
   auto bundle = g_slice_new (GumV8Bundle);
 
@@ -24,14 +24,12 @@ gum_v8_bundle_new (Isolate * isolate,
       (GDestroyNotify) gum_v8_bundle_script_free);
   bundle->isolate = isolate;
 
-  for (auto source = sources; source->name != NULL; source++)
+  for (auto module = modules; module->name != NULL; module++)
   {
-    auto resource_name = _gum_v8_string_new_ascii (isolate, source->name);
+    auto resource_name = _gum_v8_string_new_ascii (isolate, module->name);
     ScriptOrigin origin (resource_name);
 
-    auto str = g_strjoinv (NULL, (gchar **) source->chunks);
-    auto source_string = String::NewFromUtf8 (isolate, str);
-    g_free (str);
+    auto source_string = String::NewFromUtf8 (isolate, module->source_code);
     ScriptCompiler::Source source_value (source_string, origin);
 
     auto script = ScriptCompiler::CompileUnboundScript (isolate, &source_value)

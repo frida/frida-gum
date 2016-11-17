@@ -154,6 +154,8 @@ static void gumjs_global_query (Local<Name> property,
     const PropertyCallbackInfo<Integer> & info);
 static void gumjs_global_enumerate (const PropertyCallbackInfo<Array> & info);
 
+GUMJS_DECLARE_GETTER (gumjs_frida_get_source_map_data)
+
 GUMJS_DECLARE_GETTER (gumjs_script_get_file_name)
 GUMJS_DECLARE_GETTER (gumjs_script_get_source_map_data)
 GUMJS_DECLARE_FUNCTION (gumjs_script_next_tick)
@@ -277,6 +279,13 @@ static const GumV8Function gumjs_global_functions[] =
   { NULL, NULL }
 };
 
+static const GumV8Property gumjs_frida_values[] =
+{
+  { "_sourceMapData", gumjs_frida_get_source_map_data, NULL },
+
+  { NULL, NULL }
+};
+
 static const GumV8Property gumjs_script_values[] =
 {
   { "fileName", gumjs_script_get_file_name, NULL },
@@ -369,6 +378,7 @@ static const GumV8Function gumjs_native_function_functions[] =
 void
 _gum_v8_core_init (GumV8Core * self,
                    GumV8Script * script,
+                   const gchar * runtime_source_map,
                    GumV8MessageEmitter message_emitter,
                    GumScriptScheduler * scheduler,
                    v8::Isolate * isolate,
@@ -376,6 +386,7 @@ _gum_v8_core_init (GumV8Core * self,
 {
   self->script = script;
   self->backend = script->priv->backend;
+  self->runtime_source_map = runtime_source_map;
   self->core = self;
   self->message_emitter = message_emitter;
   self->scheduler = scheduler;
@@ -409,6 +420,7 @@ _gum_v8_core_init (GumV8Core * self,
   scope->SetHandler (global_access);
 
   auto frida = _gum_v8_create_module ("Frida", scope, isolate);
+  _gum_v8_module_add (module, frida, gumjs_frida_values, isolate);
   frida->Set (_gum_v8_string_new_ascii (isolate, "version"),
       _gum_v8_string_new_ascii (isolate, FRIDA_VERSION), ReadOnly);
 
@@ -1254,6 +1266,12 @@ gumjs_global_enumerate (const PropertyCallbackInfo<Array> & info)
   {
     info.GetReturnValue ().Set (result.As<Array> ());
   }
+}
+
+GUMJS_DEFINE_GETTER (gumjs_frida_get_source_map_data)
+{
+  info.GetReturnValue ().Set (
+      String::NewFromUtf8 (isolate, core->runtime_source_map));
 }
 
 GUMJS_DEFINE_GETTER (gumjs_script_get_file_name)

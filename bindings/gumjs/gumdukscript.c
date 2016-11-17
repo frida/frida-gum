@@ -455,8 +455,8 @@ gum_duk_script_create_context (GumDukScript * self,
 
   priv->ctx = ctx;
 
-  _gum_duk_core_init (&priv->core, self, &priv->interceptor,
-      gum_duk_script_emit,
+  _gum_duk_core_init (&priv->core, self, gumjs_frida_source_map,
+      &priv->interceptor, gum_duk_script_emit,
       gum_duk_script_backend_get_scheduler (priv->backend), priv->ctx);
 
   priv->core.current_ctx = priv->core.heap_ctx;
@@ -479,7 +479,7 @@ gum_duk_script_create_context (GumDukScript * self,
 
   _gum_duk_scope_enter (&scope, &priv->core);
 
-  gum_duk_bundle_load (gum_duk_script_runtime_modules, priv->ctx);
+  gum_duk_bundle_load (gumjs_runtime_modules, priv->ctx);
 
   _gum_duk_scope_leave (&scope);
 
