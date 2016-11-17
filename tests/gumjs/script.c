@@ -3684,7 +3684,8 @@ SCRIPT_TESTCASE (invalid_read_write_execute_results_in_exception)
       "try {"
       "  f();"
       "} catch (e) {"
-      "  send(e.toString() === 'Error: access violation accessing ' + data);"
+      "  send(e.toString().indexOf('Error: access violation accessing 0x')"
+      "      === 0);"
       "}");
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_NO_MESSAGES ();
