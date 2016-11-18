@@ -234,26 +234,21 @@ gum_duk_script_class_init (GumDukScriptClass * klass)
 
   g_object_class_install_property (object_class, PROP_NAME,
       g_param_spec_string ("name", "Name", "Name", NULL,
-      (GParamFlags) (G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-      G_PARAM_STATIC_STRINGS)));
+      G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_SOURCE,
       g_param_spec_string ("source", "Source", "Source code", NULL,
-      (GParamFlags) (G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-      G_PARAM_STATIC_STRINGS)));
+      G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_BYTECODE,
       g_param_spec_boxed ("bytecode", "Bytecode", "Bytecode", G_TYPE_BYTES,
-      (GParamFlags) (G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-      G_PARAM_STATIC_STRINGS)));
+      G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_MAIN_CONTEXT,
       g_param_spec_boxed ("main-context", "MainContext",
       "MainContext being used", G_TYPE_MAIN_CONTEXT,
-      (GParamFlags) (G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-      G_PARAM_STATIC_STRINGS)));
+      G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_BACKEND,
       g_param_spec_object ("backend", "Backend", "Backend being used",
       GUM_DUK_TYPE_SCRIPT_BACKEND,
-      (GParamFlags) (G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-      G_PARAM_STATIC_STRINGS)));
+      G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
 
   gum_duk_script_signals[SIGNAL_DEBUGGER_DETACHED] =
       g_signal_new ("debugger-detached", G_TYPE_FROM_CLASS (klass),
