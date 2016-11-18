@@ -66,7 +66,7 @@ def generate_runtime_duk(runtime_name, output_dir, output, input_dir, inputs):
         dukcompile = os.path.join(output_dir, "gumdukcompile" + program_suffix)
         dukcompile_sources = list(map(lambda name: os.path.join(input_dir, name), ["gumdukcompile.c", "duktape.c"]))
         if build_os == 'windows':
-            subprocess.call(["cl.exe",
+            subprocess.check_call(["cl.exe",
                 "/nologo", "/MT", "/W3", "/O1", "/GL", "/MP",
                 "/D", "WIN32",
                 "/D", "_WINDOWS",
@@ -86,7 +86,7 @@ def generate_runtime_duk(runtime_name, output_dir, output, input_dir, inputs):
             else:
                 CC = ["gcc"]
                 dukcompile_libs.append("-lm")
-            subprocess.call(CC + ["-Wall", "-pipe", "-O2", "-fomit-frame-pointer"] +
+            subprocess.check_call(CC + ["-Wall", "-pipe", "-O2", "-fomit-frame-pointer"] +
                 dukcompile_sources +
                 ["-o", dukcompile] + dukcompile_libs)
 
@@ -102,7 +102,7 @@ def generate_runtime_duk(runtime_name, output_dir, output, input_dir, inputs):
             input_bytecode_identifier = "gumjs_{0}_bytecode".format(identifier(base))
             input_source_map_identifier = "gumjs_{0}_source_map".format(identifier(base))
 
-            subprocess.call([dukcompile, input_path, input_path_duk])
+            subprocess.check_call([dukcompile, input_path, input_path_duk])
 
             with open(input_path_duk, 'rb') as duk:
                 bytecode = duk.read()
@@ -201,7 +201,7 @@ if __name__ == '__main__':
 
     runtime = os.path.abspath(os.path.join(output_dir, "frida.js"))
 
-    subprocess.call([node_script_path("frida-compile"), "./runtime", "-o", runtime], cwd=input_dir)
+    subprocess.check_call([node_script_path("frida-compile"), "./runtime", "-o", runtime], cwd=input_dir)
 
     polyfill_modules = [os.path.join(input_dir, input_name) for input_name in [
         "frida-regenerator.js",
