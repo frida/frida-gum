@@ -8,6 +8,7 @@
 
 #include "gumv8core.h"
 
+#include "gumsourcemap.h"
 #include "gumv8macros.h"
 #include "gumv8scope.h"
 #include "gumv8script-priv.h"
@@ -94,6 +95,14 @@ struct GumV8NativeCallback
   GumV8Core * core;
 };
 
+struct GumV8SourceMap
+{
+  GumPersistent<Object>::type * wrapper;
+  GumSourceMap * handle;
+
+  GumV8Core * core;
+};
+
 union GumFFIValue
 {
   gpointer v_pointer;
@@ -154,10 +163,10 @@ static void gumjs_global_query (Local<Name> property,
     const PropertyCallbackInfo<Integer> & info);
 static void gumjs_global_enumerate (const PropertyCallbackInfo<Array> & info);
 
-GUMJS_DECLARE_GETTER (gumjs_frida_get_source_map_data)
+GUMJS_DECLARE_GETTER (gumjs_frida_get_source_map)
 
 GUMJS_DECLARE_GETTER (gumjs_script_get_file_name)
-GUMJS_DECLARE_GETTER (gumjs_script_get_source_map_data)
+GUMJS_DECLARE_GETTER (gumjs_script_get_source_map)
 GUMJS_DECLARE_FUNCTION (gumjs_script_next_tick)
 GUMJS_DECLARE_FUNCTION (gumjs_script_pin)
 GUMJS_DECLARE_FUNCTION (gumjs_script_unpin)
@@ -244,6 +253,16 @@ GUMJS_DECLARE_CONSTRUCTOR (gumjs_cpu_context_construct)
 GUMJS_DECLARE_GETTER (gumjs_cpu_context_get_register)
 GUMJS_DECLARE_SETTER (gumjs_cpu_context_set_register)
 
+static MaybeLocal<Object> gumjs_source_map_new (const gchar * json,
+    GumV8Core * core);
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_source_map_construct)
+GUMJS_DECLARE_FUNCTION (gumjs_source_map_resolve)
+static GumV8SourceMap * gum_v8_source_map_new (Handle<Object> wrapper,
+    GumSourceMap * handle, GumV8Core * core);
+static void gum_v8_source_map_free (GumV8SourceMap * self);
+static void gum_v8_source_map_on_weak_notify (
+    const WeakCallbackInfo<GumV8SourceMap> & info);
+
 static GumV8ExceptionSink * gum_v8_exception_sink_new (
     Handle<Function> callback, Isolate * isolate);
 static void gum_v8_exception_sink_free (GumV8ExceptionSink * sink);
@@ -281,7 +300,7 @@ static const GumV8Function gumjs_global_functions[] =
 
 static const GumV8Property gumjs_frida_values[] =
 {
-  { "_sourceMapData", gumjs_frida_get_source_map_data, NULL },
+  { "sourceMap", gumjs_frida_get_source_map, NULL },
 
   { NULL, NULL }
 };
@@ -289,7 +308,7 @@ static const GumV8Property gumjs_frida_values[] =
 static const GumV8Property gumjs_script_values[] =
 {
   { "fileName", gumjs_script_get_file_name, NULL },
-  { "_sourceMapData", gumjs_script_get_source_map_data, NULL },
+  { "sourceMap", gumjs_script_get_source_map, NULL },
 
   { NULL, NULL }
 };
@@ -371,6 +390,13 @@ static const GumV8Function gumjs_native_function_functions[] =
 {
   { "call", gumjs_native_function_call },
   { "apply", gumjs_native_function_apply },
+
+  { NULL, NULL }
+};
+
+static const GumV8Function gumjs_source_map_functions[] =
+{
+  { "_resolve", gumjs_source_map_resolve },
 
   { NULL, NULL }
 };
@@ -592,6 +618,12 @@ _gum_v8_core_init (GumV8Core * self,
   GUM_DEFINE_CPU_CONTEXT_ACCESSOR (fp);
   GUM_DEFINE_CPU_CONTEXT_ACCESSOR (lr);
 #endif
+
+  auto source_map = _gum_v8_create_class ("SourceMap",
+      gumjs_source_map_construct, scope, module, isolate);
+  _gum_v8_class_add (source_map, gumjs_source_map_functions, module, isolate);
+  self->source_map =
+      new GumPersistent<FunctionTemplate>::type (isolate, source_map);
 }
 
 void
@@ -611,6 +643,9 @@ _gum_v8_core_realize (GumV8Core * self)
 
   self->native_resources = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) _gum_v8_native_resource_free);
+
+  self->source_maps = g_hash_table_new_full (NULL, NULL, NULL,
+      (GDestroyNotify) gum_v8_source_map_free);
 
   Local<Value> zero = Integer::New (isolate, 0);
 
@@ -750,6 +785,9 @@ gum_v8_flush_callback_notify (GumV8FlushCallback * self)
 void
 _gum_v8_core_dispose (GumV8Core * self)
 {
+  g_hash_table_unref (self->source_maps);
+  self->source_maps = NULL;
+
   g_hash_table_unref (self->native_resources);
   self->native_resources = NULL;
 
@@ -802,6 +840,9 @@ _gum_v8_core_finalize (GumV8Core * self)
 
   g_hash_table_unref (self->weak_refs);
   self->weak_refs = NULL;
+
+  delete self->source_map;
+  self->source_map = nullptr;
 
   delete self->cpu_context;
   self->cpu_context = nullptr;
@@ -1268,10 +1309,11 @@ gumjs_global_enumerate (const PropertyCallbackInfo<Array> & info)
   }
 }
 
-GUMJS_DEFINE_GETTER (gumjs_frida_get_source_map_data)
+GUMJS_DEFINE_GETTER (gumjs_frida_get_source_map)
 {
-  info.GetReturnValue ().Set (
-      String::NewFromUtf8 (isolate, core->runtime_source_map));
+  Local<Object> map;
+  if (gumjs_source_map_new (core->runtime_source_map, core).ToLocal (&map))
+    info.GetReturnValue ().Set (map);
 }
 
 GUMJS_DEFINE_GETTER (gumjs_script_get_file_name)
@@ -1293,9 +1335,9 @@ GUMJS_DEFINE_GETTER (gumjs_script_get_file_name)
     info.GetReturnValue ().SetNull ();
 }
 
-GUMJS_DEFINE_GETTER (gumjs_script_get_source_map_data)
+GUMJS_DEFINE_GETTER (gumjs_script_get_source_map)
 {
-  Local<Value> result;
+  gchar * json = NULL;
 
   auto priv = core->script->priv;
   if (priv->code != nullptr)
@@ -1312,19 +1354,24 @@ GUMJS_DEFINE_GETTER (gumjs_script_get_source_map_data)
         gsize size;
         auto data = (gchar *) g_base64_decode (url + 29, &size);
         if (data != NULL && g_utf8_validate (data, size, NULL))
-        {
-          result = String::NewFromUtf8 (isolate, data, String::kNormalString,
-              size);
-        }
-        g_free (data);
+          json = data;
+        else
+          g_free (data);
       }
     }
   }
 
-  if (!result.IsEmpty ())
-    info.GetReturnValue ().Set (result);
+  if (json != NULL)
+  {
+    Local<Object> map;
+    if (gumjs_source_map_new (json, core).ToLocal (&map))
+      info.GetReturnValue ().Set (map);
+    g_free (json);
+  }
   else
+  {
     info.GetReturnValue ().SetNull ();
+  }
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_script_next_tick)
@@ -2623,6 +2670,111 @@ gumjs_cpu_context_set_register (Local<Name> property,
     return;
 
   cpu_context[offset] = ptr;
+}
+
+static MaybeLocal<Object>
+gumjs_source_map_new (const gchar * json,
+                      GumV8Core * core)
+{
+  auto isolate = core->isolate;
+  auto context = isolate->GetCurrentContext ();
+
+  auto ctor = Local<FunctionTemplate>::New (isolate, *core->source_map);
+
+  Local<Value> args[] = {
+    String::NewFromUtf8 (isolate, json)
+  };
+
+  return ctor->GetFunction ()->NewInstance (context, G_N_ELEMENTS (args), args);
+}
+
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_source_map_construct)
+{
+  if (!info.IsConstructCall ())
+  {
+    _gum_v8_throw_ascii_literal (isolate,
+        "use `new SourceMap()` to create a new instance");
+    return;
+  }
+
+  gchar * json;
+  if (!_gum_v8_args_parse (args, "s", &json))
+    return;
+
+  auto handle = gum_source_map_new (json);
+
+  g_free (json);
+
+  if (handle == NULL)
+  {
+    _gum_v8_throw (isolate, "invalid source map");
+    return;
+  }
+
+  auto map = gum_v8_source_map_new (wrapper, handle, module);
+  wrapper->SetAlignedPointerInInternalField (0, map);
+}
+
+GUMJS_DEFINE_CLASS_METHOD (gumjs_source_map_resolve, GumV8SourceMap)
+{
+  guint line, column;
+  if (!_gum_v8_args_parse (args, "uu", &line, &column))
+    return;
+
+  const gchar * source, * name;
+  if (gum_source_map_resolve (self->handle, &line, &column, &source, &name))
+  {
+    auto result = Array::New (isolate, 4);
+    result->Set (0, String::NewFromUtf8 (isolate, source));
+    result->Set (1, Integer::NewFromUnsigned (isolate, line));
+    result->Set (2, Integer::NewFromUnsigned (isolate, column));
+    if (name != NULL)
+      result->Set (3, String::NewFromUtf8 (isolate, name));
+    else
+      result->Set (3, Null (isolate));
+    info.GetReturnValue ().Set (result);
+  }
+  else
+  {
+    info.GetReturnValue ().SetNull ();
+  }
+}
+
+static GumV8SourceMap *
+gum_v8_source_map_new (Handle<Object> wrapper,
+                       GumSourceMap * handle,
+                       GumV8Core * core)
+{
+  auto map = g_slice_new (GumV8SourceMap);
+  map->wrapper = new GumPersistent<Object>::type (core->isolate, wrapper);
+  map->wrapper->MarkIndependent ();
+  map->wrapper->SetWeak (map, gum_v8_source_map_on_weak_notify,
+      WeakCallbackType::kParameter);
+  map->handle = handle;
+
+  map->core = core;
+
+  g_hash_table_insert (core->source_maps, map, map);
+
+  return map;
+}
+
+static void
+gum_v8_source_map_free (GumV8SourceMap * self)
+{
+  g_object_unref (self->handle);
+
+  delete self->wrapper;
+
+  g_slice_free (GumV8SourceMap, self);
+}
+
+static void
+gum_v8_source_map_on_weak_notify (const WeakCallbackInfo<GumV8SourceMap> & info)
+{
+  HandleScope handle_scope (info.GetIsolate ());
+  auto self = info.GetParameter ();
+  g_hash_table_remove (self->core->source_maps, self);
 }
 
 static GumV8ExceptionSink *

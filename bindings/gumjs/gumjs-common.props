@@ -13,12 +13,14 @@
     <ClInclude Include="gumscriptbackend.h" />
     <ClInclude Include="gumscriptscheduler.h" />
     <ClInclude Include="gumscripttask.h" />
+    <ClInclude Include="gumsourcemap.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="gumscript.c" />
     <ClCompile Include="gumscriptbackend.c" />
     <ClCompile Include="gumscriptscheduler.c" />
     <ClCompile Include="gumscripttask.c" />
+    <ClCompile Include="gumsourcemap.c" />
   </ItemGroup>
 
   <ItemGroup>

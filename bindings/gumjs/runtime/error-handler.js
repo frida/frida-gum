@@ -9,29 +9,6 @@ module.exports = {
 function register() {
   const engine = global;
 
-  makeSourceMapGetter(Frida);
-  makeSourceMapGetter(Script);
-
-  function makeSourceMapGetter(m) {
-    let didLoadSourceMap = false;
-    let cachedSourceMap = null;
-
-    Object.defineProperty(m, 'sourceMap', {
-      enumerable: true,
-      get: function () {
-        if (!didLoadSourceMap) {
-          const data = m._sourceMapData;
-          if (data !== null)
-            cachedSourceMap = JSON.parse(data);
-          else
-            cachedSourceMap = null;
-          didLoadSourceMap = true;
-        }
-        return cachedSourceMap;
-      }
-    });
-  }
-
   const runtime = Script.runtime;
   if (runtime === 'V8') {
     engine._setUnhandledExceptionCallback(function (error) {
@@ -203,27 +180,20 @@ function wrapCallSite(frame) {
 function mapSourcePosition(position) {
   let item = sourceMapCache[position.source];
   if (!item) {
-    const map = findSourceMap(position.source);
-    if (map !== null) {
-      item = sourceMapCache[position.source] = {
-        map: new SourceMapConsumer(map)
-      };
-    } else {
-      item = sourceMapCache[position.source] = {
-        map: null
-      };
-    }
+    item = sourceMapCache[position.source] = {
+      map: findSourceMap(position.source)
+    };
   }
 
   if (item.map) {
-    const originalPosition = item.map.originalPositionFor(position);
+    const originalPosition = item.map.resolve(position);
 
     // Only return the original position if a matching line was found. If no
     // matching line is found then we return position instead, which will cause
     // the stack trace to print the path and line for the compiled file. It is
     // better to give a precise location in the compiled file than a vague
     // location in the original file.
-    if (originalPosition.source !== null)
+    if (originalPosition !== null)
       return originalPosition;
   }
 
