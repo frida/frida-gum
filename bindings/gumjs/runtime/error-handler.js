@@ -1,7 +1,5 @@
 'use strict';
 
-const {SourceMapConsumer} = require('source-map/lib/source-map-consumer');
-
 module.exports = {
   register: register
 };

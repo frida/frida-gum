@@ -7,8 +7,7 @@
   "devDependencies": {
     "frida-compile": "^2.0.8",
     "frida-java": "1.0.1",
-    "frida-objc": "1.0.1",
-    "source-map": "0.5.6"
+    "frida-objc": "1.0.1"
   },
   "repository": {
     "type": "git",
