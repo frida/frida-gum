@@ -139,6 +139,8 @@ libfrida_gumjs_la_SOURCES = \
 	gumscriptscheduler.c \
 	gumscripttask.h \
 	gumscripttask.c \
+	gumsourcemap.h \
+	gumsourcemap.c \
 	$(backend_sources) \
 	$(NULL)
 libfrida_gumjs_la_CXXFLAGS = \

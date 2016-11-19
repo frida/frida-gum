@@ -13,6 +13,9 @@
     <ClCompile Include="gumscripttask.c">
       <Filter>common</Filter>
     </ClCompile>
+    <ClCompile Include="gumsourcemap.c">
+      <Filter>common</Filter>
+    </ClCompile>
     <ClCompile Include="duktape.c">
       <Filter>duk</Filter>
     </ClCompile>
@@ -157,6 +160,9 @@
       <Filter>common</Filter>
     </ClInclude>
     <ClInclude Include="gumscripttask.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="gumsourcemap.h">
       <Filter>common</Filter>
     </ClInclude>
     <ClInclude Include="duk_config.h">

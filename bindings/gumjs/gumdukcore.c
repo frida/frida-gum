@@ -8,6 +8,7 @@
 
 #include "gumdukinterceptor.h"
 #include "gumdukmacros.h"
+#include "gumsourcemap.h"
 
 #include <ffi.h>
 
@@ -142,11 +143,11 @@ GUMJS_DECLARE_FUNCTION (gumjs_set_unhandled_exception_callback)
 GUMJS_DECLARE_FUNCTION (gumjs_set_incoming_message_callback)
 GUMJS_DECLARE_FUNCTION (gumjs_wait_for_event)
 
-GUMJS_DECLARE_GETTER (gumjs_frida_get_source_map_data)
+GUMJS_DECLARE_GETTER (gumjs_frida_get_source_map)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_script_construct)
 GUMJS_DECLARE_GETTER (gumjs_script_get_file_name)
-GUMJS_DECLARE_GETTER (gumjs_script_get_source_map_data)
+GUMJS_DECLARE_GETTER (gumjs_script_get_source_map)
 GUMJS_DECLARE_FUNCTION (gumjs_script_next_tick)
 GUMJS_DECLARE_FUNCTION (gumjs_script_pin)
 GUMJS_DECLARE_FUNCTION (gumjs_script_unpin)
@@ -240,6 +241,10 @@ GUMJS_DECLARE_FINALIZER (gumjs_cpu_context_finalize)
 static void gumjs_cpu_context_set_register (GumDukCpuContext * self,
     duk_context * ctx, const GumDukArgs * args, gpointer * reg);
 
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_source_map_construct)
+GUMJS_DECLARE_FINALIZER (gumjs_source_map_finalize)
+GUMJS_DECLARE_FUNCTION (gumjs_source_map_resolve)
+
 static GumDukWeakRef * gum_duk_weak_ref_new (guint id, GumDukHeapPtr target,
     GumDukHeapPtr callback, GumDukCore * core);
 static void gum_duk_weak_ref_clear (GumDukWeakRef * ref);
@@ -280,7 +285,7 @@ static void gum_duk_push_ffi_value (duk_context * ctx,
 
 static const GumDukPropertyEntry gumjs_frida_values[] =
 {
-  { "_sourceMapData", gumjs_frida_get_source_map_data, NULL },
+  { "sourceMap", gumjs_frida_get_source_map, NULL },
 
   { NULL, NULL, NULL }
 };
@@ -288,7 +293,7 @@ static const GumDukPropertyEntry gumjs_frida_values[] =
 static const GumDukPropertyEntry gumjs_script_values[] =
 {
   { "fileName", gumjs_script_get_file_name, NULL },
-  { "_sourceMapData", gumjs_script_get_source_map_data, NULL },
+  { "sourceMap", gumjs_script_get_source_map, NULL },
 
   { NULL, NULL, NULL }
 };
@@ -675,6 +680,13 @@ static const GumDukPropertyEntry gumjs_cpu_context_values[] =
   { NULL, NULL, NULL }
 };
 
+static const duk_function_list_entry gumjs_source_map_functions[] =
+{
+  { "_resolve", gumjs_source_map_resolve, 2 },
+
+  { NULL, NULL, 0 }
+};
+
 void
 _gum_duk_core_init (GumDukCore * self,
                     GumDukScript * script,
@@ -838,6 +850,15 @@ _gum_duk_core_init (GumDukCore * self,
 
     duk_pop_2 (ctx);
   }
+
+  duk_push_c_function (ctx, gumjs_source_map_construct, 1);
+  duk_push_object (ctx);
+  duk_put_function_list (ctx, -1, gumjs_source_map_functions);
+  duk_push_c_function (ctx, gumjs_source_map_finalize, 2);
+  duk_set_finalizer (ctx, -2);
+  duk_put_prop_string (ctx, -2, "prototype");
+  self->source_map = _gum_duk_require_heapptr (ctx, -1);
+  duk_put_global_string (ctx, "SourceMap");
 }
 
 gboolean
@@ -950,6 +971,7 @@ _gum_duk_core_dispose (GumDukCore * self)
   _gum_duk_release_heapptr (ctx, self->system_function);
   _gum_duk_release_heapptr (ctx, self->system_function_prototype);
   _gum_duk_release_heapptr (ctx, self->cpu_context);
+  _gum_duk_release_heapptr (ctx, self->source_map);
 }
 
 void
@@ -1238,9 +1260,14 @@ _gum_duk_scope_leave (GumDukScope * self)
     gum_duk_core_notify_flushed (core, pending_flush_notify);
 }
 
-GUMJS_DEFINE_GETTER (gumjs_frida_get_source_map_data)
+GUMJS_DEFINE_GETTER (gumjs_frida_get_source_map)
 {
-  duk_push_string (ctx, args->core->runtime_source_map);
+  GumDukCore * self = args->core;
+
+  duk_push_heapptr (ctx, self->source_map);
+  duk_push_string (ctx, self->runtime_source_map);
+  duk_new (ctx, 1);
+
   return 1;
 }
 
@@ -1274,13 +1301,14 @@ GUMJS_DEFINE_GETTER (gumjs_script_get_file_name)
   return 1;
 }
 
-GUMJS_DEFINE_GETTER (gumjs_script_get_source_map_data)
+GUMJS_DEFINE_GETTER (gumjs_script_get_source_map)
 {
+  GumDukCore * self = args->core;
   gchar * source;
   GRegex * regex;
   GMatchInfo * match_info;
 
-  g_object_get (args->core->script, "source", &source, NULL);
+  g_object_get (self->script, "source", &source, NULL);
 
   if (source == NULL)
   {
@@ -1304,9 +1332,11 @@ GUMJS_DEFINE_GETTER (gumjs_script_get_source_map_data)
     {
       gchar * data_utf8;
 
+      duk_push_heapptr (ctx, self->source_map);
       data_utf8 = g_strndup (data, size);
       duk_push_string (ctx, data_utf8);
       g_free (data_utf8);
+      duk_new (ctx, 1);
     }
     else
     {
@@ -2969,6 +2999,95 @@ gumjs_cpu_context_set_register (GumDukCpuContext * self,
     _gum_duk_throw (ctx, "invalid operation");
 
   _gum_duk_args_parse (args, "p~", reg);
+}
+
+static GumSourceMap *
+gumjs_source_map_from_args (const GumDukArgs * args)
+{
+  duk_context * ctx = args->ctx;
+  GumSourceMap * self;
+
+  duk_push_this (ctx);
+  self = _gum_duk_require_data (ctx, -1);
+  duk_pop (ctx);
+
+  return self;
+}
+
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_source_map_construct)
+{
+  const gchar * json;
+  GumSourceMap * self;
+
+  if (!duk_is_constructor_call (ctx))
+    _gum_duk_throw (ctx, "use `new SourceMap()` to create a new instance");
+
+  _gum_duk_args_parse (args, "s", &json);
+
+  self = gum_source_map_new (json);
+  if (self == NULL)
+    _gum_duk_throw (ctx, "invalid source map");
+
+  duk_push_this (ctx);
+  _gum_duk_put_data (ctx, -1, self);
+  duk_pop (ctx);
+
+  return 0;
+}
+
+GUMJS_DEFINE_FINALIZER (gumjs_source_map_finalize)
+{
+  GumSourceMap * self;
+
+  (void) args;
+
+  if (_gum_duk_is_arg0_equal_to_prototype (ctx, "SourceMap"))
+    return 0;
+
+  self = _gum_duk_steal_data (ctx, 0);
+  if (self == NULL)
+    return 0;
+
+  g_object_unref (self);
+
+  return 0;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_source_map_resolve)
+{
+  GumSourceMap * self;
+  guint line, column;
+  const gchar * source, * name;
+
+  self = gumjs_source_map_from_args (args);
+
+  _gum_duk_args_parse (args, "uu", &line, &column);
+
+  if (gum_source_map_resolve (self, &line, &column, &source, &name))
+  {
+    duk_push_array (ctx);
+
+    duk_push_string (ctx, source);
+    duk_put_prop_index (ctx, -2, 0);
+
+    duk_push_uint (ctx, line);
+    duk_put_prop_index (ctx, -2, 1);
+
+    duk_push_uint (ctx, column);
+    duk_put_prop_index (ctx, -2, 2);
+
+    if (name != NULL)
+      duk_push_string (ctx, name);
+    else
+      duk_push_null (ctx);
+    duk_put_prop_index (ctx, -2, 3);
+  }
+  else
+  {
+    duk_push_null (ctx);
+  }
+
+  return 1;
 }
 
 static GumDukWeakRef *

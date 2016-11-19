@@ -94,6 +94,7 @@ struct _GumDukCore
   GumDukHeapPtr system_function;
   GumDukHeapPtr system_function_prototype;
   GumDukHeapPtr cpu_context;
+  GumDukHeapPtr source_map;
 
   GumDukNativePointerImpl * cached_native_pointers;
 };
