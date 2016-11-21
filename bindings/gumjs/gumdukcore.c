@@ -1736,10 +1736,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_int64_construct)
 
   if (!duk_is_constructor_call (ctx))
   {
-    duk_push_error_object (ctx, DUK_ERR_ERROR,
-        "use `new Int64()` to create a new instance, "
+    _gum_duk_throw (ctx, "use `new Int64()` to create a new instance, "
         "or use the shorthand: `int64()`");
-    duk_throw (ctx);
   }
 
   _gum_duk_args_parse (args, "q~", &value);
@@ -1876,10 +1874,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_uint64_construct)
 
   if (!duk_is_constructor_call (ctx))
   {
-    duk_push_error_object (ctx, DUK_ERR_ERROR,
-        "use `new UInt64()` to create a new instance, "
+    _gum_duk_throw (ctx, "use `new UInt64()` to create a new instance, "
         "or use the shorthand: `uint64()`");
-    duk_throw (ctx);
   }
 
   _gum_duk_args_parse (args, "Q~", &value);
@@ -2014,10 +2010,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
 
   if (!duk_is_constructor_call (ctx))
   {
-    duk_push_error_object (ctx, DUK_ERR_ERROR,
-        "use `new NativePointer()` to create a new instance, or use one of the "
-        "two shorthands: `ptr()` and `NULL`");
-    duk_throw (ctx);
+    _gum_duk_throw (ctx, "use `new NativePointer()` to create a new instance, "
+        "or use one of the two shorthands: `ptr()` and `NULL`");
   }
 
   _gum_duk_args_parse (args, "p~", &ptr);
@@ -2278,11 +2272,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
   GumDukNativeFunctionParams params;
 
   if (!duk_is_constructor_call (ctx))
-  {
-    duk_push_error_object (ctx, DUK_ERR_ERROR,
-        "use `new NativeFunction()` to create a new instance");
-    duk_throw (ctx);
-  }
+    _gum_duk_throw (ctx, "use `new NativeFunction()` to create a new instance");
 
   params.prototype = core->native_function_prototype;
 
@@ -2694,11 +2684,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_system_function_construct)
   GumDukNativeFunctionParams params;
 
   if (!duk_is_constructor_call (ctx))
-  {
-    duk_push_error_object (ctx, DUK_ERR_ERROR,
-        "use `new SystemFunction()` to create a new instance");
-    duk_throw (ctx);
-  }
+    _gum_duk_throw (ctx, "use `new SystemFunction()` to create a new instance");
 
   params.prototype = core->system_function_prototype;
 
@@ -2741,11 +2727,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
   ffi_abi abi;
 
   if (!duk_is_constructor_call (ctx))
-  {
-    duk_push_error_object (ctx, DUK_ERR_ERROR,
-        "use `new NativeCallback()` to create a new instance");
-    duk_throw (ctx);
-  }
+    _gum_duk_throw (ctx, "use `new NativeCallback()` to create a new instance");
 
   _gum_duk_args_parse (args, "FVA|s", &func, &rtype_value, &atypes_array,
       &abi_str);

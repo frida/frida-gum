@@ -144,10 +144,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_instruction_construct)
   gpointer target;
 
   if (!duk_is_constructor_call (ctx))
-  {
-    duk_push_error_object (ctx, DUK_ERR_ERROR, "Constructor call required");
-    duk_throw (ctx);
-  }
+    _gum_duk_throw (ctx, "constructor call required");
 
   insn = duk_require_pointer (ctx, 0);
   target = duk_require_pointer (ctx, 1);

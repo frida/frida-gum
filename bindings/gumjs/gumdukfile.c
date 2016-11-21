@@ -91,11 +91,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_file_construct)
   GumFile * file;
 
   if (!duk_is_constructor_call (ctx))
-  {
-    duk_push_error_object (ctx, DUK_ERR_ERROR,
-        "use `new File()` to create a new instance");
-    duk_throw (ctx);
-  }
+    _gum_duk_throw (ctx, "use `new File()` to create a new instance");
 
   _gum_duk_args_parse (args, "ss", &filename, &mode);
 
