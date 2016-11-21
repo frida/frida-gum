@@ -184,7 +184,7 @@ gum_source_map_load_mappings (GumSourceMap * self,
       gint source_index;
 
       source_index = prev_source + segment[1];
-      if (source_index < 0 || source_index >= sources->len)
+      if (source_index < 0 || source_index >= (gint) sources->len)
         return FALSE;
       mapping->source = g_ptr_array_index (sources, source_index);
       prev_source = source_index;
@@ -201,7 +201,7 @@ gum_source_map_load_mappings (GumSourceMap * self,
         gint name_index;
 
         name_index = prev_name + segment[4];
-        if (name_index < 0 || name_index >= names->len)
+        if (name_index < 0 || name_index >= (gint) names->len)
           return FALSE;
         mapping->name = g_ptr_array_index (names, name_index);
         prev_name = name_index;
