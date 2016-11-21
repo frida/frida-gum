@@ -7,7 +7,6 @@
 #include "gumsourcemap.h"
 
 #include <json-glib/json-glib.h>
-#include <stdlib.h>
 
 typedef struct _GumSourceMapping GumSourceMapping;
 
@@ -36,6 +35,10 @@ static gboolean gum_source_map_load (GumSourceMap * self, const gchar * json);
 static gboolean gum_source_map_load_mappings (GumSourceMap * self,
     const gchar * encoded_mappings);
 
+static gconstpointer gum_bsearch_find_closest (gconstpointer needle,
+    GArray * haystack, GCompareFunc compare);
+static gint gum_find_closest_in_range (gint low, gint high,
+    gconstpointer needle, GArray * haystack, GCompareFunc compare);
 static gint gum_source_mapping_compare (const GumSourceMapping * a,
     const GumSourceMapping * b);
 
@@ -235,10 +238,9 @@ gum_source_map_resolve (GumSourceMap * self,
   needle.generated_line = *line;
   needle.generated_column = *column;
 
-  mapping = bsearch (&needle, self->mappings->data, self->mappings->len,
-      sizeof (GumSourceMapping), (gint (*) (gconstpointer, gconstpointer))
-      gum_source_mapping_compare);
-  if (mapping == NULL)
+  mapping = gum_bsearch_find_closest (&needle, self->mappings,
+      (GCompareFunc) gum_source_mapping_compare);
+  if (mapping == NULL || mapping->generated_line != needle.generated_line)
     return FALSE;
 
   *line = mapping->line;
@@ -247,6 +249,67 @@ gum_source_map_resolve (GumSourceMap * self,
   *name = mapping->name;
 
   return TRUE;
+}
+
+static gconstpointer
+gum_bsearch_find_closest (gconstpointer needle,
+                          GArray * haystack,
+                          GCompareFunc compare)
+{
+  gint index;
+  guint element_size;
+
+  if (haystack->len == 0)
+    return NULL;
+
+  index =
+      gum_find_closest_in_range (-1, haystack->len, needle, haystack, compare);
+  if (index < 0)
+    return NULL;
+
+  element_size = g_array_get_element_size (haystack);
+
+  while (index - 1 >= 0)
+  {
+    if (compare (needle, haystack->data + ((index - 1) * element_size)) != 0)
+      break;
+    index--;
+  }
+
+  return haystack->data + (index * element_size);
+}
+
+static gint
+gum_find_closest_in_range (gint low,
+                           gint high,
+                           gconstpointer needle,
+                           GArray * haystack,
+                           GCompareFunc compare)
+{
+  gint mid, comparison;
+
+  mid = ((high - low) / 2) + low;
+
+  comparison = compare (needle,
+      haystack->data + (mid * g_array_get_element_size (haystack)));
+  if (comparison == 0)
+  {
+    return mid;
+  }
+  else if (comparison > 0)
+  {
+    if (high - mid > 1)
+      return gum_find_closest_in_range (mid, high, needle, haystack, compare);
+    else
+      return mid;
+  }
+  else
+  {
+    if (mid - low > 1)
+      return gum_find_closest_in_range (low, mid, needle, haystack, compare);
+    else
+      return low < 0 ? -1 : low;
+  }
 }
 
 static gint
