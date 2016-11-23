@@ -15,9 +15,7 @@
 #define GUM_DUK_SCRIPT_BACKEND_LOCK()   (g_mutex_lock (&priv->mutex))
 #define GUM_DUK_SCRIPT_BACKEND_UNLOCK() (g_mutex_unlock (&priv->mutex))
 
-#define GUM_DUK_SCRIPT_ID_FORMAT G_GSIZE_FORMAT
-
-typedef gsize GumDukScriptId;
+typedef guint GumDukScriptId;
 typedef struct _GumDukScriptWeakRef GumDukScriptWeakRef;
 typedef struct _GumCreateScriptData GumCreateScriptData;
 typedef struct _GumCreateScriptFromBytesData GumCreateScriptFromBytesData;
@@ -791,19 +789,19 @@ gum_duk_script_backend_post_debug_message (GumScriptBackend * backend,
 {
   GumDukScriptBackend * self = GUM_DUK_SCRIPT_BACKEND (backend);
   GumDukScriptBackendPrivate * priv = self->priv;
+  const gchar * id_start, * id_end;
   GumDukScriptId id;
-  const gchar * end, * command;
   GumDukScriptWeakRef * ref;
   GumDukScript * script = NULL;
 
-  id = (GumDukScriptId) g_ascii_strtoull (message, (gchar **) &end, 10);
-  if (end == message)
+  id_start = strchr (message, ' ');
+  if (id_start == NULL)
     return;
+  id_start++;
 
-  command = strchr (message, ' ');
-  if (command == NULL)
+  id = (GumDukScriptId) g_ascii_strtoull (id_start, (gchar **) &id_end, 10);
+  if (id_end == id_start)
     return;
-  command++;
 
   GUM_DUK_SCRIPT_BACKEND_LOCK ();
   ref = g_hash_table_lookup (priv->scripts, GSIZE_TO_POINTER (id));
@@ -813,22 +811,25 @@ gum_duk_script_backend_post_debug_message (GumScriptBackend * backend,
   if (script == NULL)
     return;
 
-  if (g_str_has_prefix (command, "POST "))
+  if (g_str_has_prefix (message, "POST "))
   {
     guchar * data;
     gsize size;
     GBytes * bytes;
 
-    data = g_base64_decode (command + 5, &size);
+    if (*id_end != ' ')
+      return;
+
+    data = g_base64_decode (id_end + 1, &size);
     bytes = g_bytes_new_take (data, size);
 
     gum_duk_script_post_to_debugger (script, bytes);
   }
-  else if (strcmp (command, "ATTACH") == 0)
+  else if (g_str_has_prefix (message, "ATTACH "))
   {
     gum_duk_script_attach_debugger (script);
   }
-  else if (strcmp (command, "DETACH") == 0)
+  else if (g_str_has_prefix (message, "DETACH "))
   {
     gum_duk_script_detach_debugger (script);
   }
@@ -842,7 +843,7 @@ gum_duk_script_backend_on_debug_handler_attached (GumDukScriptBackend * self)
   GumDukScriptBackendPrivate * priv = self->priv;
   GString * message;
   GHashTableIter iter;
-  GumDukScriptId id;
+  gpointer raw_id;
   GumDukScriptWeakRef * ref;
   guint script_index;
 
@@ -856,8 +857,9 @@ gum_duk_script_backend_on_debug_handler_attached (GumDukScriptBackend * self)
   g_hash_table_iter_init (&iter, priv->scripts);
   script_index = 0;
 
-  while (g_hash_table_iter_next (&iter, (gpointer *) &id, (gpointer *) &ref))
+  while (g_hash_table_iter_next (&iter, &raw_id, (gpointer *) &ref))
   {
+    GumDukScriptId id = GPOINTER_TO_SIZE (raw_id);
     GumDukScript * script;
     gchar * name, * name_escaped;
 
@@ -870,15 +872,13 @@ gum_duk_script_backend_on_debug_handler_attached (GumDukScriptBackend * self)
     if (script_index != 0)
       g_string_append_c (message, '\n');
 
-    g_string_append_printf (message, "%" GUM_DUK_SCRIPT_ID_FORMAT " %s.js",
-        id, name_escaped);
+    g_string_append_printf (message, "%u %s.js", id, name_escaped);
 
     g_free (name_escaped);
     g_free (name);
     g_object_unref (script);
 
-    g_hash_table_insert (priv->debug_handler_announced_scripts,
-        GSIZE_TO_POINTER (id), GSIZE_TO_POINTER (id));
+    g_hash_table_insert (priv->debug_handler_announced_scripts, raw_id, raw_id);
 
     script_index++;
   }
@@ -959,8 +959,7 @@ gum_duk_script_backend_notify_script_added (GumNotifyScriptAddedData * d)
     return FALSE;
 
   name_escaped = g_strescape (d->name, NULL);
-  message = g_strdup_printf ("ADD %" GUM_DUK_SCRIPT_ID_FORMAT " %s.js",
-      d->id, name_escaped);
+  message = g_strdup_printf ("ADD %u %s.js", d->id, name_escaped);
 
   priv->debug_handler (message, priv->debug_handler_data);
 
@@ -1018,7 +1017,7 @@ gum_duk_script_backend_notify_script_removed (GumNotifyScriptRemovedData * d)
       GSIZE_TO_POINTER (d->id)) == NULL)
     return FALSE;
 
-  message = g_strdup_printf ("REMOVE %" GUM_DUK_SCRIPT_ID_FORMAT, d->id);
+  message = g_strdup_printf ("REMOVE %u", d->id);
 
   priv->debug_handler (message, priv->debug_handler_data);
 
@@ -1073,7 +1072,7 @@ gum_duk_script_backend_notify_debugger_detached (
   if (priv->debug_handler == NULL)
     return FALSE;
 
-  message = g_strdup_printf ("DETACH %" GUM_DUK_SCRIPT_ID_FORMAT, d->id);
+  message = g_strdup_printf ("DETACH %u", d->id);
 
   priv->debug_handler (message, priv->debug_handler_data);
 
@@ -1139,8 +1138,7 @@ gum_duk_script_backend_notify_debugger_output (GumNotifyDebuggerOutputData * d)
   message = g_string_sized_new (4 + 1 + 20 + 1 +
       (size / 3 + 1) * 4 + 4 + 4 + 1);
 
-  g_string_append_printf (message, "EMIT %" GUM_DUK_SCRIPT_ID_FORMAT " ",
-      d->id);
+  g_string_append_printf (message, "EMIT %u ", d->id);
 
   cur = message->str + message->len;
   state = 0;

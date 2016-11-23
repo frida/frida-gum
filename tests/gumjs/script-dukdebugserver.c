@@ -30,7 +30,7 @@ struct _GumDukDebugChannel
 {
   GObject parent;
 
-  guint64 id;
+  guint id;
   gchar * name;
   GSList * sessions;
   gboolean attached;
@@ -131,7 +131,7 @@ gum_duk_debug_server_on_incoming_connection (GSocketService * service,
                                              GumDukDebugChannel * channel,
                                              gpointer user_data)
 {
-  g_print ("NEW CONNECTION FOR %s.js\n", channel->name);
+  g_print ("NEW CONNECTION FOR %s\n", channel->name);
 
   gum_duk_debug_channel_add_session (channel, connection);
 
@@ -146,14 +146,14 @@ gum_duk_debug_server_on_message (const gchar * message,
 
   if (g_str_has_prefix (message, "EMIT "))
   {
-    guint64 id;
+    guint id;
     gchar * end;
     GumDukDebugChannel * channel;
     guchar * data;
     gsize size;
     GBytes * bytes;
 
-    id = (guint64) g_ascii_strtoull (message + 5, &end, 10);
+    id = (guint) g_ascii_strtoull (message + 5, &end, 10);
     g_assert (end != message + 5);
 
     channel = g_hash_table_lookup (self->channels, GSIZE_TO_POINTER (id));
@@ -183,7 +183,7 @@ gum_duk_debug_server_on_message (const gchar * message,
 
       channel = g_object_new (GUM_DUK_TYPE_DEBUG_CHANNEL, NULL);
 
-      channel->id = (guint64) g_ascii_strtoull (line, &end, 10);
+      channel->id = (guint) g_ascii_strtoull (line, &end, 10);
       g_assert (end != line);
       channel->name = g_strdup (end + 1);
 
@@ -212,11 +212,11 @@ gum_duk_debug_server_on_message (const gchar * message,
   }
   else if (g_str_has_prefix (message, "DETACH "))
   {
-    guint64 id;
+    guint id;
     gchar * end;
     GumDukDebugChannel * channel;
 
-    id = (guint64) g_ascii_strtoull (message + 7, &end, 10);
+    id = (guint) g_ascii_strtoull (message + 7, &end, 10);
     g_assert (end != message + 7);
 
     channel = g_hash_table_lookup (self->channels, GSIZE_TO_POINTER (id));
@@ -322,8 +322,7 @@ gum_duk_debug_channel_post (GumDukDebugChannel * self,
 
   data = g_bytes_get_data (bytes, &size);
   bytes_encoded = g_base64_encode (data, size);
-  message = g_strdup_printf ("%" G_GUINT64_FORMAT " POST %s",
-      self->id, bytes_encoded);
+  message = g_strdup_printf ("POST %u %s", self->id, bytes_encoded);
 
   g_print (">>> %s\n", message);
 
@@ -342,7 +341,7 @@ gum_duk_debug_channel_attach (GumDukDebugChannel * self)
     return;
   self->attached = TRUE;
 
-  message = g_strdup_printf ("%" G_GUINT64_FORMAT " ATTACH", self->id);
+  message = g_strdup_printf ("ATTACH %u", self->id);
 
   g_print (">>> %s\n", message);
 
@@ -360,7 +359,7 @@ gum_duk_debug_channel_detach (GumDukDebugChannel * self)
     return;
   self->attached = FALSE;
 
-  message = g_strdup_printf ("%" G_GUINT64_FORMAT " DETACH", self->id);
+  message = g_strdup_printf ("DETACH %u", self->id);
 
   g_print (">>> %s\n", message);
 
