@@ -194,7 +194,7 @@ static void gum_duk_script_debugger_finalize (GumDukScriptDebugger * self);
 static void gum_duk_script_debugger_attach (GumDukScriptDebugger * self);
 static void gum_duk_script_debugger_detach (GumDukScriptDebugger * self);
 static void gum_duk_script_debugger_cancel (GumDukScriptDebugger * self);
-static void gum_duk_script_debugger_post (GumDukScriptDebugger * self,
+static gboolean gum_duk_script_debugger_try_post (GumDukScriptDebugger * self,
     GBytes * bytes);
 static void gum_duk_script_debugger_process_pending (
     GumDukScriptDebugger * self);
@@ -935,7 +935,11 @@ void
 gum_duk_script_post_to_debugger (GumDukScript * self,
                                  GBytes * bytes)
 {
-  gum_duk_script_debugger_post (&self->priv->debugger, bytes);
+  gboolean delivered;
+
+  delivered = gum_duk_script_debugger_try_post (&self->priv->debugger, bytes);
+  if (!delivered)
+    return;
 
   gum_script_scheduler_push_job_on_js_thread (
       gum_duk_script_backend_get_scheduler (self->priv->backend),
@@ -1037,11 +1041,20 @@ gum_duk_script_debugger_cancel (GumDukScriptDebugger * self)
   GUM_DUK_SCRIPT_DEBUGGER_UNLOCK (self);
 }
 
-static void
-gum_duk_script_debugger_post (GumDukScriptDebugger * self,
-                              GBytes * bytes)
+static gboolean
+gum_duk_script_debugger_try_post (GumDukScriptDebugger * self,
+                                  GBytes * bytes)
 {
   GUM_DUK_SCRIPT_DEBUGGER_LOCK (self);
+
+  if (!self->attached)
+  {
+    GUM_DUK_SCRIPT_DEBUGGER_UNLOCK (self);
+
+    g_bytes_unref (bytes);
+
+    return FALSE;
+  }
 
   if (self->unread == NULL)
   {
@@ -1059,6 +1072,8 @@ gum_duk_script_debugger_post (GumDukScriptDebugger * self,
 
   GUM_DUK_SCRIPT_DEBUGGER_SIGNAL (self);
   GUM_DUK_SCRIPT_DEBUGGER_UNLOCK (self);
+
+  return TRUE;
 }
 
 static void
