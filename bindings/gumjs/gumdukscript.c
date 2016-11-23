@@ -894,7 +894,7 @@ gum_duk_script_do_attach_debugger (GumDukScript * self)
   GumDukScriptPrivate * priv = self->priv;
   GumDukScope scope;
 
-  if (priv->state != GUM_SCRIPT_STATE_LOADED)
+  if (priv->ctx == NULL)
     return;
 
   _gum_duk_scope_enter (&scope, &priv->core);
@@ -921,7 +921,7 @@ gum_duk_script_do_detach_debugger (GumDukScript * self)
   GumDukScriptPrivate * priv = self->priv;
   GumDukScope scope;
 
-  if (priv->state != GUM_SCRIPT_STATE_LOADED)
+  if (priv->ctx == NULL)
     return;
 
   _gum_duk_scope_enter (&scope, &priv->core);
@@ -953,7 +953,7 @@ gum_duk_script_awaken_debugger (GumDukScript * self)
   GumDukScriptPrivate * priv = self->priv;
   GumDukScope scope;
 
-  if (priv->state != GUM_SCRIPT_STATE_LOADED)
+  if (priv->ctx == NULL)
     return;
 
   _gum_duk_scope_enter (&scope, &priv->core);
