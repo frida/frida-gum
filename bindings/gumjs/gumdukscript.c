@@ -1171,6 +1171,7 @@ gum_duk_script_debugger_on_detached (duk_context * ctx,
 
   self->attached = FALSE;
   g_clear_pointer (&self->unread, g_byte_array_unref);
+  self->unread_offset = 0;
 
   GUM_DUK_SCRIPT_DEBUGGER_UNLOCK (self);
 
