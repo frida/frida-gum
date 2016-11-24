@@ -409,7 +409,6 @@ gum_duk_script_create_context (GumDukScript * self,
 {
   GumDukScriptPrivate * priv = self->priv;
   duk_context * ctx;
-  GumDukScope scope;
 
   g_assert (priv->ctx == NULL);
 
@@ -471,12 +470,6 @@ gum_duk_script_create_context (GumDukScript * self,
   _gum_duk_instruction_init (&priv->instruction, &priv->core);
 
   priv->core.current_ctx = NULL;
-
-  _gum_duk_scope_enter (&scope, &priv->core);
-
-  gum_duk_bundle_load (gumjs_runtime_modules, priv->ctx);
-
-  _gum_duk_scope_leave (&scope);
 
   return TRUE;
 }
@@ -604,6 +597,7 @@ gum_duk_script_perform_load_task (GumDukScript * self,
   if (priv->state == GUM_SCRIPT_STATE_UNLOADED)
   {
     GumDukScope scope;
+    duk_context * ctx;
 
     if (priv->ctx == NULL)
     {
@@ -613,11 +607,13 @@ gum_duk_script_perform_load_task (GumDukScript * self,
       g_assert (created);
     }
 
-    _gum_duk_scope_enter (&scope, &priv->core);
+    ctx = _gum_duk_scope_enter (&scope, &priv->core);
 
-    duk_push_heapptr (priv->ctx, priv->code);
+    gum_duk_bundle_load (gumjs_runtime_modules, ctx);
+
+    duk_push_heapptr (ctx, priv->code);
     _gum_duk_scope_call (&scope, 0);
-    duk_pop (priv->ctx);
+    duk_pop (ctx);
 
     _gum_duk_scope_leave (&scope);
 
