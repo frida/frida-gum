@@ -949,13 +949,14 @@ static gboolean
 gum_duk_script_backend_notify_script_added (GumNotifyScriptAddedData * d)
 {
   GumDukScriptBackendPrivate * priv = d->backend->priv;
+  gpointer raw_id = GSIZE_TO_POINTER (d->id);
   gchar * name_escaped, * message;
 
   if (priv->debug_handler == NULL)
     return FALSE;
 
-  if (g_hash_table_lookup (priv->debug_handler_announced_scripts,
-      GSIZE_TO_POINTER (d->id)) != NULL)
+  if (!g_hash_table_insert (priv->debug_handler_announced_scripts, raw_id,
+      raw_id))
     return FALSE;
 
   name_escaped = g_strescape (d->name, NULL);
@@ -1013,8 +1014,8 @@ gum_duk_script_backend_notify_script_removed (GumNotifyScriptRemovedData * d)
   if (priv->debug_handler == NULL)
     return FALSE;
 
-  if (g_hash_table_lookup (priv->debug_handler_announced_scripts,
-      GSIZE_TO_POINTER (d->id)) == NULL)
+  if (!g_hash_table_remove (priv->debug_handler_announced_scripts,
+      GSIZE_TO_POINTER (d->id)))
     return FALSE;
 
   message = g_strdup_printf ("REMOVE %u", d->id);
