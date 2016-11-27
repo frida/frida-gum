@@ -20,9 +20,7 @@ main (gint argc,
   GumDarwinMapperDestructor destructor;
   UnixAttackerEntrypoint entrypoint;
 
-#if GLIB_CHECK_VERSION (2, 46, 0)
   glib_init ();
-#endif
 
   if (argc != 2)
   {

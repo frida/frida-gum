@@ -1,6 +1,5 @@
 #include "runtime.hpp"
 
-#include <gio/gio.h>
 #include <gum/gum.h>
 #ifdef G_OS_WIN32
 #include <windows.h>
@@ -13,24 +12,12 @@ namespace Gum
 #ifndef GUMPP_STATIC
   static void init ()
   {
-#if GLIB_CHECK_VERSION (2, 46, 0)
-    glib_init ();
-    gio_init ();
-#endif
-    gum_init ();
+    gum_init_embedded ();
   }
 
   static void deinit ()
   {
-#if GLIB_CHECK_VERSION (2, 46, 0)
-    gio_shutdown ();
-    glib_shutdown ();
-#endif
-    gum_deinit ();
-#if GLIB_CHECK_VERSION (2, 46, 0)
-    gio_deinit ();
-    glib_deinit ();
-#endif
+    gum_deinit_embedded ();
   }
 #endif
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -38,6 +38,9 @@ G_BEGIN_DECLS
 
 GUM_API void gum_init (void);
 GUM_API void gum_deinit (void);
+
+GUM_API void gum_init_embedded (void);
+GUM_API void gum_deinit_embedded (void);
 
 G_END_DECLS
 

@@ -3,6 +3,9 @@ namespace Gum {
 	public void init ();
 	public void deinit ();
 
+	public void init_embedded ();
+	public void deinit_embedded ();
+
 	[CCode (cprefix = "GUM_CALL_")]
 	public enum CallingConvention {
 		CAPI,

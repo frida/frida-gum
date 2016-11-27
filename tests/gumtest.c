@@ -101,10 +101,8 @@ main (gint argc, gchar * argv[])
   g_setenv ("G_SLICE", "always-malloc", TRUE);
 #endif
   g_setenv ("G_DEBUG", "fatal-warnings:fatal-criticals", TRUE);
-#if GLIB_CHECK_VERSION (2, 46, 0)
   glib_init ();
   gio_init ();
-#endif
   g_test_init (&argc, &argv, NULL);
   gum_init ();
 
@@ -282,10 +280,8 @@ main (gint argc, gchar * argv[])
       g_main_context_iteration (context, FALSE);
   }
 
-# if GLIB_CHECK_VERSION (2, 46, 0)
   gio_shutdown ();
   glib_shutdown ();
-# endif
 
   _test_util_deinit ();
 
@@ -294,10 +290,8 @@ main (gint argc, gchar * argv[])
 # endif
 
   gum_deinit ();
-# if GLIB_CHECK_VERSION (2, 46, 0)
   gio_deinit ();
   glib_deinit ();
-# endif
   gum_memory_deinit ();
 
 # ifdef G_OS_WIN32
