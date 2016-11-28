@@ -6,7 +6,7 @@
   "main": "runtime/index.js",
   "devDependencies": {
     "frida-compile": "^2.0.8",
-    "frida-java": "1.0.2",
+    "frida-java": "1.0.3",
     "frida-objc": "1.0.1"
   },
   "repository": {
