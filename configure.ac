@@ -198,6 +198,13 @@ pkg_modules="glib-2.0 >= $GLIB_VERSION, gobject-2.0 >= $GLIB_VERSION,
     capstone >= $CAPSTONE_VERSION"
 PKG_CHECK_MODULES(GUM, [$pkg_modules])
 
+if [[ "x$HAVE_ANDROID" = "xyes" ]]; then
+  GUM_LIBS_PRIVATE="-llog"
+fi
+AC_SUBST(GUM_LIBS_PRIVATE)
+
+GUM_LIBS="$GUM_LIBS $GUM_LIBS_PRIVATE"
+
 PKG_CHECK_MODULES(LIBUNWIND, [libunwind], [HAVE_LIBUNWIND=yes], [HAVE_LIBUNWIND=no])
 if [[ "x$HAVE_LIBUNWIND" = "xyes" ]]; then
   AC_DEFINE(HAVE_LIBUNWIND, 1, [Define to 1 if libunwind is available.])
