@@ -21,7 +21,6 @@
 
 #define DEBUG_HEAP_LEAKS 0
 
-static gpointer do_init (gpointer data);
 static void gum_destructor_invoke (GumDestructorFunc destructor);
 
 static void gum_on_assert_failure (const gchar * log_domain, const gchar * file,
