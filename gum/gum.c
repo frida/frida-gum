@@ -70,24 +70,31 @@ struct _GumCFApi
 # endif
 #endif
 
+static void gum_do_init (void);
 static void gum_capstone_deinit (void);
 static gpointer gum_capstone_malloc (gsize size);
 static gpointer gum_capstone_calloc (gsize count, gsize size);
 static gpointer gum_capstone_realloc (gpointer mem, gsize size);
 static void gum_capstone_free (gpointer mem);
 
+static gboolean gum_initialized = FALSE;
 static GSList * gum_destructors = NULL;
 
 void
 gum_init (void)
 {
-  static GOnce init_once = G_ONCE_INIT;
-  g_once (&init_once, do_init, NULL);
+  if (gum_initialized)
+    return;
+  gum_initialized = TRUE;
+
+  gum_do_init ();
 }
 
 void
 gum_deinit (void)
 {
+  g_assert (gum_initialized);
+
   _gum_tls_deinit ();
 
   g_slist_foreach (gum_destructors, (GFunc) gum_destructor_invoke, NULL);
@@ -99,10 +106,12 @@ gum_deinit (void)
   _gum_interceptor_deinit ();
 
   gum_capstone_deinit ();
+
+  gum_initialized = FALSE;
 }
 
-static gpointer
-do_init (gpointer data)
+static void
+gum_do_init (void)
 {
   cs_opt_mem gum_cs_mem_callbacks = {
     gum_capstone_malloc,
@@ -123,8 +132,6 @@ do_init (gpointer data)
   _gum_tls_init ();
   _gum_interceptor_init ();
   _gum_tls_realize ();
-
-  return NULL;
 }
 
 void
@@ -155,7 +162,13 @@ gum_init_embedded (void)
 #endif
 #if defined (G_OS_WIN32) && DEBUG_HEAP_LEAKS
   int tmp_flag;
+#endif
 
+  if (gum_initialized)
+    return;
+  gum_initialized = TRUE;
+
+#if defined (G_OS_WIN32) && DEBUG_HEAP_LEAKS
   /*_CrtSetBreakAlloc (1337);*/
 
   _CrtSetReportMode (_CRT_ERROR, _CRTDBG_MODE_FILE);
@@ -188,7 +201,7 @@ gum_init_embedded (void)
   g_log_set_default_handler (gum_on_log_message, NULL);
   g_log_set_always_fatal (G_LOG_LEVEL_ERROR | G_LOG_LEVEL_CRITICAL |
       G_LOG_LEVEL_WARNING);
-  gum_init ();
+  gum_do_init ();
 
 #if defined (HAVE_LINUX) && defined (HAVE_GLIBC)
   gum_libdl_prevent_unload ();
@@ -198,6 +211,8 @@ gum_init_embedded (void)
 void
 gum_deinit_embedded (void)
 {
+  g_assert (gum_initialized);
+
   gio_shutdown ();
   glib_shutdown ();
 
@@ -205,6 +220,8 @@ gum_deinit_embedded (void)
   gio_deinit ();
   glib_deinit ();
   gum_memory_deinit ();
+
+  gum_initialized = FALSE;
 }
 
 #if defined (HAVE_LINUX) && defined (HAVE_GLIBC)
