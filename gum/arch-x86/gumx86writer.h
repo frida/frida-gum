@@ -144,6 +144,7 @@ void gum_x86_writer_put_call_reg (GumX86Writer * self, GumCpuReg reg);
 void gum_x86_writer_put_call_reg_offset_ptr (GumX86Writer * self, GumCpuReg reg, gssize offset);
 void gum_x86_writer_put_call_indirect (GumX86Writer * self, gconstpointer * addr);
 void gum_x86_writer_put_call_near_label (GumX86Writer * self, gconstpointer label_id);
+void gum_x86_writer_put_leave (GumX86Writer * self);
 void gum_x86_writer_put_ret (GumX86Writer * self);
 void gum_x86_writer_put_ret_imm (GumX86Writer * self, guint16 imm_value);
 void gum_x86_writer_put_jmp (GumX86Writer * self, gconstpointer target);

@@ -604,6 +604,12 @@ gum_x86_writer_put_call_near_label (GumX86Writer * self,
 }
 
 void
+gum_x86_writer_put_leave (GumX86Writer * self)
+{
+  gum_x86_writer_put_u8 (self, 0xc9);
+}
+
+void
 gum_x86_writer_put_ret (GumX86Writer * self)
 {
   gum_x86_writer_put_u8 (self, 0xc3);
