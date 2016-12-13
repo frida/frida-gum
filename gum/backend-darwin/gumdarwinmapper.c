@@ -1296,6 +1296,7 @@ gum_darwin_mapper_add_existing_mapping_from_module (
   module = gum_darwin_module_new_from_memory (details->path, self->module->task,
       self->module->cpu_type, base_address);
   mapping = gum_darwin_mapper_add_existing_mapping (self, module, base_address);
+
   if (self->sysroot != NULL && g_str_has_prefix (details->path, self->sysroot))
   {
     gum_darwin_mapper_add_alias_mapping (self,
@@ -1313,6 +1314,16 @@ gum_darwin_mapper_add_existing_mapping_from_module (
       g_free (symlink_path);
     }
   }
+
+  if (g_str_has_prefix (details->path, "/usr/lib/system/introspection/"))
+  {
+    gchar * vanilla_path;
+
+    vanilla_path = g_strconcat ("/usr/lib/system/", details->path + 30, NULL);
+    gum_darwin_mapper_add_alias_mapping (self, vanilla_path, mapping);
+    g_free (vanilla_path);
+  }
+
   gum_darwin_module_unref (module);
 
   ctx->index++;
