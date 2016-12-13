@@ -1082,6 +1082,7 @@ gum_linux_cpu_type_from_pid (pid_t pid,
   gchar * auxv_path;
   guint8 * auxv;
   gsize auxv_size, i;
+  GumCpuType cpu32, cpu64;
 
   auxv_path = g_strdup_printf ("/proc/%d/auxv", pid);
 
@@ -1089,31 +1090,35 @@ gum_linux_cpu_type_from_pid (pid_t pid,
     goto beach;
 
 #if defined (HAVE_I386)
-  result = GUM_CPU_AMD64;
+  cpu32 = GUM_CPU_IA32;
+  cpu64 = GUM_CPU_AMD64;
 #elif defined (HAVE_ARM) || defined (HAVE_ARM64)
-  result = GUM_CPU_ARM64;
+  cpu32 = GUM_CPU_ARM;
+  cpu64 = GUM_CPU_ARM64;
 #elif defined (HAVE_MIPS)
-  result = GUM_CPU_MIPS;
+  cpu32 = GUM_CPU_MIPS;
+  cpu64 = GUM_CPU_MIPS;
 #else
 # error Unsupported architecture
 #endif
 
-  for (i = 0; i < auxv_size; i += 16)
+  if (auxv[0] != AT_NULL)
   {
-    if (auxv[4] != 0 || auxv[5] != 0 ||
-        auxv[6] != 0 || auxv[7] != 0)
+    result = cpu64;
+
+    for (i = 0; i < auxv_size; i += 16)
     {
-#if defined (HAVE_I386)
-      result = GUM_CPU_IA32;
-#elif defined (HAVE_ARM) || defined (HAVE_ARM64)
-      result = GUM_CPU_ARM;
-#elif defined (HAVE_MIPS)
-      result = GUM_CPU_MIPS;
-#else
-# error Unsupported architecture
-#endif
-      break;
+      if (auxv[4] != 0 || auxv[5] != 0 ||
+          auxv[6] != 0 || auxv[7] != 0)
+      {
+        result = cpu32;
+        break;
+      }
     }
+  }
+  else
+  {
+    result = (auxv_size == 8) ? cpu32 : cpu64;
   }
 
 beach:
