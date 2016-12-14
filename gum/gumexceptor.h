@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -10,6 +10,7 @@
 #include <glib-object.h>
 #include <gum/gummemory.h>
 #include <gum/gumprocess.h>
+#include <setjmp.h>
 
 #define GUM_TYPE_EXCEPTOR (gum_exceptor_get_type ())
 #define GUM_EXCEPTOR(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
@@ -26,6 +27,16 @@
 
 G_BEGIN_DECLS
 
+#if defined (G_OS_WIN32) || defined (__APPLE__)
+# define GUM_NATIVE_SETJMP(env) setjmp (env)
+# define GUM_NATIVE_LONGJMP longjmp
+  typedef jmp_buf GumExceptorNativeJmpBuf;
+#else
+# define GUM_NATIVE_SETJMP(env) sigsetjmp (env, TRUE)
+# define GUM_NATIVE_LONGJMP siglongjmp
+  typedef sigjmp_buf GumExceptorNativeJmpBuf;
+#endif
+
 typedef struct _GumExceptor GumExceptor;
 typedef struct _GumExceptorClass GumExceptorClass;
 typedef struct _GumExceptorPrivate GumExceptorPrivate;
@@ -37,9 +48,6 @@ typedef gboolean (* GumExceptionHandler) (GumExceptionDetails * details,
     gpointer user_data);
 
 typedef struct _GumExceptorScope GumExceptorScope;
-typedef struct _GumExceptorScopeImpl GumExceptorScopeImpl;
-typedef gpointer GumExceptorJmpBuf;
-typedef gint (* GumExceptorSetJmp) (GumExceptorJmpBuf buf, gboolean save_mask);
 
 struct _GumExceptor
 {
@@ -86,7 +94,14 @@ struct _GumExceptorScope
 {
   GumExceptionDetails exception;
 
-  GumExceptorScopeImpl * impl;
+  /*< private */
+  gboolean exception_occurred;
+  gpointer padding[2];
+  jmp_buf env;
+#ifdef __ANDROID__
+  sigset_t mask;
+#endif
+
   GumExceptorScope * next;
 };
 
@@ -99,37 +114,21 @@ GUM_API void gum_exceptor_add (GumExceptor * self, GumExceptionHandler func,
 GUM_API void gum_exceptor_remove (GumExceptor * self, GumExceptionHandler func,
     gpointer user_data);
 
-#ifdef __QNX__
-/*
- * On qnx-arm, the sigsetjmp _function_ is BROKEN. See
- * http://community.qnx.com/sf/discussion/do/listPosts/projects.core_os/discussion.newcode.topc26577
- * for details. We need to use the sigsetjmp _macro_ instead.
- * The macro evaluates the 'env' argument twice, so we need to make sure that
- * the _gum_exceptor_prepare_try is safe to run twice.
- */
-#define gum_exceptor_try(self, scope) \
-    (scope)->impl = NULL, \
-    sigsetjmp (_gum_exceptor_prepare_try (self, scope), TRUE) == 0
-#else
 /*
  * The setjmp() API does not allow longjmp() to be called after the function
  * that called setjmp() returns. That's why we cannot hide all the gory details
  * behind our API and need this hack...
  */
 #define gum_exceptor_try(self, scope) \
-    (scope)->impl = NULL, \
-    _gum_exceptor_get_setjmp () ( \
-        _gum_exceptor_prepare_try (self, scope), TRUE) == 0
-#endif
-
+    _gum_exceptor_prepare_try (self, scope), \
+    GUM_NATIVE_SETJMP ((scope)->env) == 0
 GUM_API gboolean gum_exceptor_catch (GumExceptor * self,
     GumExceptorScope * scope);
 
 GUM_API gchar * gum_exception_details_to_string (
     const GumExceptionDetails * details);
 
-GUM_API GumExceptorSetJmp _gum_exceptor_get_setjmp (void);
-GUM_API GumExceptorJmpBuf _gum_exceptor_prepare_try (GumExceptor * self,
+GUM_API void _gum_exceptor_prepare_try (GumExceptor * self,
     GumExceptorScope * scope);
 
 G_END_DECLS

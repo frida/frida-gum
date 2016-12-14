@@ -8,23 +8,9 @@
 
 #include "gumexceptorbackend.h"
 
-#include <setjmp.h>
 #include <string.h>
 
 typedef struct _GumExceptionHandlerEntry GumExceptionHandlerEntry;
-#if defined (G_OS_WIN32) || defined (HAVE_DARWIN)
-# define GUM_NATIVE_SETJMP setjmp
-# define GUM_NATIVE_LONGJMP longjmp
-  typedef jmp_buf GumExceptorNativeJmpBuf;
-#else
-# if defined (sigsetjmp) && !defined (HAVE_QNX)
-#   define GUM_NATIVE_SETJMP __sigsetjmp
-# else
-#   define GUM_NATIVE_SETJMP sigsetjmp
-# endif
-# define GUM_NATIVE_LONGJMP siglongjmp
-  typedef sigjmp_buf GumExceptorNativeJmpBuf;
-#endif
 
 #define GUM_EXCEPTOR_LOCK()   (g_mutex_lock (&priv->mutex))
 #define GUM_EXCEPTOR_UNLOCK() (g_mutex_unlock (&priv->mutex))
@@ -45,15 +31,6 @@ struct _GumExceptionHandlerEntry
   gpointer user_data;
 };
 
-struct _GumExceptorScopeImpl
-{
-  GumExceptorNativeJmpBuf env;
-  gboolean exception_occurred;
-#ifdef HAVE_ANDROID
-  sigset_t mask;
-#endif
-};
-
 static void gum_exceptor_dispose (GObject * object);
 static void gum_exceptor_finalize (GObject * object);
 static void the_exceptor_weak_notify (gpointer data,
@@ -64,8 +41,7 @@ static gboolean gum_exceptor_handle_exception (GumExceptionDetails * details,
 static gboolean gum_exceptor_handle_scope_exception (
     GumExceptionDetails * details, gpointer user_data);
 
-static void gum_exceptor_scope_impl_perform_longjmp (
-    GumExceptorScopeImpl * impl);
+static void gum_exceptor_scope_perform_longjmp (GumExceptorScope * scope);
 
 G_DEFINE_TYPE (GumExceptor, gum_exceptor, G_TYPE_OBJECT);
 
@@ -250,58 +226,41 @@ gum_exceptor_handle_exception (GumExceptionDetails * details,
   return handled;
 }
 
-GumExceptorSetJmp
-_gum_exceptor_get_setjmp (void)
-{
-  return GUM_POINTER_TO_FUNCPTR (GumExceptorSetJmp,
-      GUM_FUNCPTR_TO_POINTER (GUM_NATIVE_SETJMP));
-}
-
-GumExceptorJmpBuf
+void
 _gum_exceptor_prepare_try (GumExceptor * self,
                            GumExceptorScope * scope)
 {
-  GHashTable * scopes = self->priv->scopes;
+  GumExceptorPrivate * priv = self->priv;
   gpointer thread_id_key;
-  GumExceptorScopeImpl * impl;
-
-  if (scope->impl != NULL)
-    return scope->impl->env;
 
   thread_id_key = GSIZE_TO_POINTER (gum_process_get_current_thread_id ());
 
-  impl = g_slice_new (GumExceptorScopeImpl);
-  impl->exception_occurred = FALSE;
+  scope->exception_occurred = FALSE;
 #ifdef HAVE_ANDROID
   /* Workaround for Bionic bug up to and including Android L */
-  sigprocmask (SIG_SETMASK, NULL, &impl->mask);
+  sigprocmask (SIG_SETMASK, NULL, &scope->mask);
 #endif
 
-  scope->impl = impl;
-  scope->next = g_hash_table_lookup (scopes, thread_id_key);
-
-  g_hash_table_insert (scopes, thread_id_key, scope);
-
-  return impl->env;
+  GUM_EXCEPTOR_LOCK ();
+  scope->next = g_hash_table_lookup (priv->scopes, thread_id_key);
+  g_hash_table_insert (priv->scopes, thread_id_key, scope);
+  GUM_EXCEPTOR_UNLOCK ();
 }
 
 gboolean
 gum_exceptor_catch (GumExceptor * self,
                     GumExceptorScope * scope)
 {
-  GumExceptorScopeImpl * impl = scope->impl;
+  GumExceptorPrivate * priv = self->priv;
   gpointer thread_id_key;
-  gboolean exception_occurred;
 
   thread_id_key = GSIZE_TO_POINTER (gum_process_get_current_thread_id ());
 
-  g_hash_table_insert (self->priv->scopes, thread_id_key, scope->next);
+  GUM_EXCEPTOR_LOCK ();
+  g_hash_table_insert (priv->scopes, thread_id_key, scope->next);
+  GUM_EXCEPTOR_UNLOCK ();
 
-  exception_occurred = impl->exception_occurred;
-  g_slice_free (GumExceptorScopeImpl, impl);
-  scope->impl = NULL;
-
-  return exception_occurred;
+  return scope->exception_occurred;
 }
 
 gchar *
@@ -358,20 +317,21 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
                                      gpointer user_data)
 {
   GumExceptor * self = GUM_EXCEPTOR_CAST (user_data);
+  GumExceptorPrivate * priv = self->priv;
   GumExceptorScope * scope;
-  GumExceptorScopeImpl * impl;
   GumCpuContext * context = &details->context;
 
-  scope = g_hash_table_lookup (self->priv->scopes,
+  GUM_EXCEPTOR_LOCK ();
+  scope = g_hash_table_lookup (priv->scopes,
       GSIZE_TO_POINTER (details->thread_id));
+  GUM_EXCEPTOR_UNLOCK ();
   if (scope == NULL)
     return FALSE;
 
-  impl = scope->impl;
-  if (impl->exception_occurred)
+  if (scope->exception_occurred)
     return FALSE;
 
-  impl->exception_occurred = TRUE;
+  scope->exception_occurred = TRUE;
   memcpy (&scope->exception, details, sizeof (GumExceptionDetails));
   scope->exception.native_context = NULL;
 
@@ -381,9 +341,9 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
    */
 #if defined (HAVE_I386)
   GUM_CPU_CONTEXT_XIP (context) = GPOINTER_TO_SIZE (
-      GUM_FUNCPTR_TO_POINTER (gum_exceptor_scope_impl_perform_longjmp));
+      GUM_FUNCPTR_TO_POINTER (gum_exceptor_scope_perform_longjmp));
 
-  /* Align to 16 byte boundary (Mac ABI) */
+  /* Align to 16 byte boundary (macOS ABI) */
   GUM_CPU_CONTEXT_XSP (context) &= ~(gsize) (16 - 1);
   /* Avoid the red zone (when applicable) */
   GUM_CPU_CONTEXT_XSP (context) -= GUM_RED_ZONE_SIZE;
@@ -392,13 +352,13 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
 
 # if GLIB_SIZEOF_VOID_P == 4
   /* 32-bit: First argument goes on the stack (cdecl) */
-  *((GumExceptorScopeImpl **) context->esp) = impl;
+  *((GumExceptorScope **) context->esp) = scope;
 # else
   /* 64-bit: First argument goes in a register */
 #  if GUM_NATIVE_ABI_IS_WINDOWS
-  context->rcx = GPOINTER_TO_SIZE (impl);
+  context->rcx = GPOINTER_TO_SIZE (scope);
 #  else
-  context->rdi = GPOINTER_TO_SIZE (impl);
+  context->rdi = GPOINTER_TO_SIZE (scope);
 #  endif
 # endif
 
@@ -407,7 +367,7 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
   *((gsize *) GUM_CPU_CONTEXT_XSP (context)) = 1337;
 #elif defined (HAVE_ARM) || defined (HAVE_ARM64)
   context->pc = GPOINTER_TO_SIZE (
-      GUM_FUNCPTR_TO_POINTER (gum_exceptor_scope_impl_perform_longjmp));
+      GUM_FUNCPTR_TO_POINTER (gum_exceptor_scope_perform_longjmp));
 
   /* Align to 16 byte boundary */
   context->sp &= ~(gsize) (16 - 1);
@@ -415,18 +375,18 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
   context->sp -= GUM_RED_ZONE_SIZE;
 
 # if GLIB_SIZEOF_VOID_P == 4
-  context->r[0] = GPOINTER_TO_SIZE (impl);
+  context->r[0] = GPOINTER_TO_SIZE (scope);
 # else
-  context->x[0] = GPOINTER_TO_SIZE (impl);
+  context->x[0] = GPOINTER_TO_SIZE (scope);
 # endif
 
   /* Dummy return address (we won't return) */
   context->lr = 1337;
 #elif defined (HAVE_MIPS)
   context->pc = GPOINTER_TO_SIZE (
-      GUM_FUNCPTR_TO_POINTER (gum_exceptor_scope_impl_perform_longjmp));
+      GUM_FUNCPTR_TO_POINTER (gum_exceptor_scope_perform_longjmp));
 
-  /* set t9 to gum_exceptor_scope_impl_perform_longjmp, as it is PIC and needs
+  /* set t9 to gum_exceptor_scope_perform_longjmp, as it is PIC and needs
    * t9 for the gp calculation.
    */
   context->t9 = context->pc;
@@ -436,7 +396,7 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
   /* Avoid the red zone (when applicable) */
   context->sp -= GUM_RED_ZONE_SIZE;
 
-  context->a0 = GPOINTER_TO_SIZE (impl);
+  context->a0 = GPOINTER_TO_SIZE (scope);
 
   /* Dummy return address (we won't return) */
   context->ra = 1337;
@@ -448,10 +408,10 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
 }
 
 static void
-gum_exceptor_scope_impl_perform_longjmp (GumExceptorScopeImpl * impl)
+gum_exceptor_scope_perform_longjmp (GumExceptorScope * self)
 {
 #ifdef HAVE_ANDROID
-  sigprocmask (SIG_SETMASK, &impl->mask, NULL);
+  sigprocmask (SIG_SETMASK, &self->mask, NULL);
 #endif
-  GUM_NATIVE_LONGJMP (impl->env, 1);
+  GUM_NATIVE_LONGJMP (self->env, 1);
 }
