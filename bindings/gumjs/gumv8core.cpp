@@ -2290,6 +2290,11 @@ gum_v8_native_function_free (GumV8NativeFunction * self)
   g_slice_free (GumV8NativeFunction, self);
 }
 
+#ifdef _MSC_VER
+# pragma warning (push)
+# pragma warning (disable: 4611)
+#endif
+
 static void
 gum_v8_native_function_invoke (GumV8NativeFunction * self,
                                GCallback implementation,
@@ -2402,6 +2407,10 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
     }
   }
 }
+
+#ifdef _MSC_VER
+# pragma warning (pop)
+#endif
 
 static void
 gum_v8_native_function_on_weak_notify (

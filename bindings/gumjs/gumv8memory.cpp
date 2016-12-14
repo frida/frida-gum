@@ -251,6 +251,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
   info.GetReturnValue ().Set (Local<Object>::New (isolate, *res->instance));
 }
 
+#ifdef _MSC_VER
+# pragma warning (push)
+# pragma warning (disable: 4611)
+#endif
+
 /*
  * Prototype:
  * Memory.copy(destination, source, size)
@@ -324,11 +329,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_protect)
 
   info.GetReturnValue ().Set (success);
 }
-
-#ifdef _MSC_VER
-# pragma warning (push)
-# pragma warning (disable: 4611)
-#endif
 
 static void
 gum_v8_memory_read (GumMemoryValueType type,
