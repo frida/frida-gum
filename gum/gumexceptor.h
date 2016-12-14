@@ -114,14 +114,22 @@ GUM_API void gum_exceptor_add (GumExceptor * self, GumExceptionHandler func,
 GUM_API void gum_exceptor_remove (GumExceptor * self, GumExceptionHandler func,
     gpointer user_data);
 
+#if defined (_MSC_VER) && GLIB_SIZEOF_VOID_P == 8
 /*
- * The setjmp() API does not allow longjmp() to be called after the function
- * that called setjmp() returns. That's why we cannot hide all the gory details
- * behind our API and need this hack...
+ * On MSVC/64-bit setjmp() is actually an intrinsic that calls _setjmp() with a
+ * a hidden second argument specifying the frame pointer. This makes sense when
+ * the longjmp() is guaranteed to happen from code we control, but is not
+ * reliable otherwise.
  */
-#define gum_exceptor_try(self, scope) \
+# define gum_exceptor_try(self, scope) \
+    _gum_exceptor_prepare_try (self, scope), \
+    ((int (*) (jmp_buf env, void * frame_pointer)) _setjmp) ( \
+        (scope)->env, NULL) == 0
+#else
+# define gum_exceptor_try(self, scope) \
     _gum_exceptor_prepare_try (self, scope), \
     GUM_NATIVE_SETJMP ((scope)->env) == 0
+#endif
 GUM_API gboolean gum_exceptor_catch (GumExceptor * self,
     GumExceptorScope * scope);
 
