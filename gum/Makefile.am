@@ -155,12 +155,14 @@ backend_sources += \
 	backend-darwin/gumcodesegment-darwin.c \
 	backend-darwin/gumexceptor-darwin.c \
 	backend-darwin/gumdarwinmapper.c \
-	backend-darwin/gumdarwinmodule.c
+	backend-darwin/gumdarwinmodule.c \
+	backend-darwin/gumdarwinmoduleresolver.c
 fridainclude_HEADERS += \
 	backend-darwin/gumdarwin.h \
 	backend-darwin/gumdarwinbacktracer.h \
 	backend-darwin/gumdarwinmapper.h \
-	backend-darwin/gumdarwinmodule.h
+	backend-darwin/gumdarwinmodule.h \
+	backend-darwin/gumdarwinmoduleresolver.h
 else
 if OS_QNX
 backend_sources += \

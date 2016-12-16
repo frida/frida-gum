@@ -79,6 +79,7 @@ enum _GumAbiType
 
 enum _GumCpuType
 {
+  GUM_CPU_INVALID,
   GUM_CPU_IA32,
   GUM_CPU_AMD64,
   GUM_CPU_ARM,

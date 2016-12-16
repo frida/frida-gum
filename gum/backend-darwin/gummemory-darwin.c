@@ -217,7 +217,7 @@ gum_darwin_read (mach_port_t task,
     vm_offset_t result_data;
     mach_msg_type_number_t result_size;
 
-    /* mach_vm_read_overwrite leaks memory on Mac OS X */
+    /* mach_vm_read_overwrite leaks memory on macOS */
     kr = mach_vm_read (task, page_address, page_size,
         &result_data, &result_size);
     if (kr != KERN_SUCCESS)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -8,18 +8,21 @@
 #define __GUM_DARWIN_MAPPER_H__
 
 #include "gumdarwin.h"
-#include "gumdefs.h"
+#include "gumdarwinmoduleresolver.h"
+
+#include <glib-object.h>
 
 G_BEGIN_DECLS
 
-typedef struct _GumDarwinMapper GumDarwinMapper;
+#define GUM_DARWIN_TYPE_MAPPER (gum_darwin_mapper_get_type ())
+G_DECLARE_FINAL_TYPE (GumDarwinMapper, gum_darwin_mapper, GUM_DARWIN, MAPPER,
+    GObject)
 
 typedef void (* GumDarwinMapperConstructor) (void);
 typedef void (* GumDarwinMapperDestructor) (void);
 
-GumDarwinMapper * gum_darwin_mapper_new (const gchar * name, mach_port_t task,
-    GumCpuType cpu_type);
-void gum_darwin_mapper_free (GumDarwinMapper * mapper);
+GumDarwinMapper * gum_darwin_mapper_new (const gchar * name,
+    GumDarwinModuleResolver * resolver);
 
 gsize gum_darwin_mapper_size (GumDarwinMapper * self);
 void gum_darwin_mapper_map (GumDarwinMapper * self, GumAddress base_address);

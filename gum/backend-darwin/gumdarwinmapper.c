@@ -1,11 +1,12 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gumdarwinmapper.h"
 
+#include "gumdarwin.h"
 #include "gumdarwinmodule.h"
 
 #include <fcntl.h>
@@ -42,14 +43,25 @@
 # define TERM_FOOTPRINT_SIZE_64 44
 #endif
 
+enum
+{
+  PROP_0,
+  PROP_NAME,
+  PROP_RESOLVER,
+  PROP_PARENT
+};
+
 typedef struct _GumDarwinMapping GumDarwinMapping;
 typedef struct _GumDarwinSymbolValue GumDarwinSymbolValue;
 
-typedef struct _GumCollectModulesContext GumCollectModulesContext;
 typedef struct _GumAccumulateFootprintContext GumAccumulateFootprintContext;
 
 struct _GumDarwinMapper
 {
+  GObject object;
+
+  gchar * name;
+  GumDarwinModuleResolver * resolver;
   GumDarwinMapper * parent;
 
   gboolean mapped;
@@ -70,8 +82,6 @@ struct _GumDarwinMapper
   GMappedFile * cache_file;
   GSList * children;
   GHashTable * mappings;
-  gchar * sysroot;
-  guint sysroot_length;
 };
 
 struct _GumDarwinMapping
@@ -87,21 +97,22 @@ struct _GumDarwinSymbolValue
   GumAddress resolver;
 };
 
-struct _GumCollectModulesContext
-{
-  GumDarwinMapper * self;
-  guint index;
-};
-
 struct _GumAccumulateFootprintContext
 {
   GumDarwinMapper * mapper;
   gsize total;
 };
 
+static void gum_darwin_mapper_constructed (GObject * object);
+static void gum_darwin_mapper_finalize (GObject * object);
+static void gum_darwin_mapper_get_property (GObject * object, guint property_id,
+    GValue * value, GParamSpec * pspec);
+static void gum_darwin_mapper_set_property (GObject * object, guint property_id,
+    const GValue * value, GParamSpec * pspec);
+
 static GumDarwinMapper * gum_darwin_mapper_new_with_parent (
-    GumDarwinMapper * parent, const gchar * name, mach_port_t task,
-    GumCpuType cpu_type);
+    GumDarwinMapper * parent, const gchar * name,
+    GumDarwinModuleResolver * resolver);
 static void gum_darwin_mapper_init_cache_file (GumDarwinMapper * self,
     GumCpuType cpu_type);
 static void gum_darwin_mapper_init_dependencies (GumDarwinMapper * self);
@@ -124,10 +135,8 @@ static GumDarwinMapping * gum_darwin_mapper_resolve_dependency (
 static gboolean gum_darwin_mapper_resolve_symbol (GumDarwinMapper * self,
     GumDarwinModule * module, const gchar * symbol,
     GumDarwinSymbolValue * value);
-static gboolean gum_darwin_mapper_add_existing_mapping_from_module (
-    const GumModuleDetails * details, gpointer user_data);
 static GumDarwinMapping * gum_darwin_mapper_add_existing_mapping (
-    GumDarwinMapper * self, GumDarwinModule * module, GumAddress base_address);
+    GumDarwinMapper * self, GumDarwinModule * module);
 static GumDarwinMapping * gum_darwin_mapper_add_pending_mapping (
     GumDarwinMapper * self, const gchar * name, GumDarwinMapper * mapper);
 static GumDarwinMapping * gum_darwin_mapper_add_alias_mapping (
@@ -139,6 +148,8 @@ static gboolean gum_darwin_mapper_bind (const GumDarwinBindDetails * details,
 
 static void gum_darwin_mapping_free (GumDarwinMapping * self);
 
+G_DEFINE_TYPE (GumDarwinMapper, gum_darwin_mapper, G_TYPE_OBJECT)
+
 static const gchar * gum_darwin_cache_file_arch_candidates_ia32[] =
     { "i386", NULL };
 static const gchar * gum_darwin_cache_file_arch_candidates_amd64[] =
@@ -148,45 +159,155 @@ static const gchar * gum_darwin_cache_file_arch_candidates_arm[] =
 static const gchar * gum_darwin_cache_file_arch_candidates_arm64[] =
     { "arm64", NULL };
 
+static void
+gum_darwin_mapper_class_init (GumDarwinMapperClass * klass)
+{
+  GObjectClass * object_class = G_OBJECT_CLASS (klass);
+
+  object_class->constructed = gum_darwin_mapper_constructed;
+  object_class->finalize = gum_darwin_mapper_finalize;
+  object_class->get_property = gum_darwin_mapper_get_property;
+  object_class->set_property = gum_darwin_mapper_set_property;
+
+  g_object_class_install_property (object_class, PROP_NAME,
+      g_param_spec_string ("name", "Name", "Name", NULL,
+      G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (object_class, PROP_RESOLVER,
+      g_param_spec_object ("resolver", "Resolver", "Module resolver",
+      GUM_DARWIN_TYPE_MODULE_RESOLVER, G_PARAM_READWRITE |
+      G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (object_class, PROP_PARENT,
+      g_param_spec_object ("parent", "Parent", "Parent mapper",
+      GUM_DARWIN_TYPE_MAPPER, G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+      G_PARAM_STATIC_STRINGS));
+}
+
+static void
+gum_darwin_mapper_init (GumDarwinMapper * self)
+{
+  self->mapped = FALSE;
+}
+
+static void
+gum_darwin_mapper_constructed (GObject * object)
+{
+  GumDarwinMapper * self = GUM_DARWIN_MAPPER (object);
+  GumDarwinMapper * parent = self->parent;
+  GumDarwinModuleResolver * resolver = self->resolver;
+  GMappedFile * cache_file;
+
+  g_assert (self->name != NULL);
+  g_assert (resolver != NULL);
+
+  if (parent == NULL)
+    gum_darwin_mapper_init_cache_file (self, resolver->cpu_type);
+
+  cache_file = (parent != NULL) ? parent->cache_file : self->cache_file;
+
+  self->module = gum_darwin_module_new_from_file (self->name, resolver->task,
+      resolver->cpu_type, resolver->page_size, cache_file);
+  self->image = self->module->image;
+
+  if (parent != NULL)
+  {
+    parent->children = g_slist_prepend (parent->children, self);
+
+    gum_darwin_mapper_add_pending_mapping (parent, self->name, self);
+  }
+
+  gum_darwin_mapper_init_dependencies (self);
+  gum_darwin_mapper_init_footprint_budget (self);
+}
+
+static void
+gum_darwin_mapper_finalize (GObject * object)
+{
+  GumDarwinMapper * self = GUM_DARWIN_MAPPER (object);
+
+  g_clear_pointer (&self->mappings, g_hash_table_unref);
+  g_clear_pointer (&self->cache_file, g_mapped_file_unref);
+
+  g_slist_free_full (self->children, g_object_unref);
+
+  g_free (self->runtime);
+
+  g_ptr_array_unref (self->dependencies);
+
+  g_object_unref (self->module);
+
+  g_object_unref (self->resolver);
+  g_free (self->name);
+
+  G_OBJECT_CLASS (gum_darwin_mapper_parent_class)->finalize (object);
+}
+
+static void
+gum_darwin_mapper_get_property (GObject * object,
+                                guint property_id,
+                                GValue * value,
+                                GParamSpec * pspec)
+{
+  GumDarwinMapper * self = GUM_DARWIN_MAPPER (object);
+
+  switch (property_id)
+  {
+    case PROP_NAME:
+      g_value_set_string (value, self->name);
+      break;
+    case PROP_RESOLVER:
+      g_value_set_object (value, self->resolver);
+      break;
+    case PROP_PARENT:
+      g_value_set_object (value, self->parent);
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
+  }
+}
+
+static void
+gum_darwin_mapper_set_property (GObject * object,
+                                guint property_id,
+                                const GValue * value,
+                                GParamSpec * pspec)
+{
+  GumDarwinMapper * self = GUM_DARWIN_MAPPER (object);
+
+  switch (property_id)
+  {
+    case PROP_NAME:
+      g_free (self->name);
+      self->name = g_value_dup_string (value);
+      break;
+    case PROP_RESOLVER:
+      g_clear_object (&self->resolver);
+      self->resolver = g_value_dup_object (value);
+      break;
+    case PROP_PARENT:
+      self->parent = g_value_get_object (value);
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
+  }
+}
+
 GumDarwinMapper *
 gum_darwin_mapper_new (const gchar * name,
-                       mach_port_t task,
-                       GumCpuType cpu_type)
+                       GumDarwinModuleResolver * resolver)
 {
-  return gum_darwin_mapper_new_with_parent (NULL, name, task, cpu_type);
+  return gum_darwin_mapper_new_with_parent (NULL, name, resolver);
 }
 
 static GumDarwinMapper *
 gum_darwin_mapper_new_with_parent (GumDarwinMapper * parent,
                                    const gchar * name,
-                                   mach_port_t task,
-                                   GumCpuType cpu_type)
+                                   GumDarwinModuleResolver * resolver)
 {
-  GumDarwinMapper * mapper;
-
-  mapper = g_slice_new0 (GumDarwinMapper);
-  mapper->parent = parent;
-
-  mapper->mapped = FALSE;
-
-  if (parent == NULL)
-    gum_darwin_mapper_init_cache_file (mapper, cpu_type);
-
-  mapper->module = gum_darwin_module_new_from_file (name, task, cpu_type,
-      (parent != NULL) ? parent->cache_file : mapper->cache_file);
-  mapper->image = gum_darwin_module_image_dup (mapper->module->image);
-
-  if (parent != NULL)
-  {
-    parent->children = g_slist_prepend (parent->children, mapper);
-
-    gum_darwin_mapper_add_pending_mapping (parent, name, mapper);
-  }
-
-  gum_darwin_mapper_init_dependencies (mapper);
-  gum_darwin_mapper_init_footprint_budget (mapper);
-
-  return mapper;
+  return g_object_new (GUM_DARWIN_TYPE_MAPPER,
+      "name", name,
+      "resolver", resolver,
+      "parent", parent,
+      NULL);
 }
 
 static void
@@ -232,7 +353,7 @@ gum_darwin_mapper_init_cache_file (GumDarwinMapper * self,
   result = fcntl (fd, F_NOCACHE, TRUE);
   g_assert (result == 0);
 
-  self->cache_file = g_mapped_file_new_from_fd (fd, FALSE, NULL);
+  self->cache_file = g_mapped_file_new_from_fd (fd, TRUE, NULL);
   g_assert (self->cache_file != NULL);
 
   close (fd);
@@ -249,17 +370,9 @@ gum_darwin_mapper_init_dependencies (GumDarwinMapper * self)
 
   if (self->parent == NULL)
   {
-    GumCollectModulesContext ctx;
-
     self->mappings = g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
         (GDestroyNotify) gum_darwin_mapping_free);
     gum_darwin_mapper_add_pending_mapping (self, module->name, self);
-
-    ctx.self = self;
-    ctx.index = 0;
-
-    gum_darwin_enumerate_modules (module->task,
-        gum_darwin_mapper_add_existing_mapping_from_module, &ctx);
   }
 
   dependencies = module->dependencies;
@@ -338,28 +451,6 @@ gum_darwin_mapper_init_footprint_budget (GumDarwinMapper * self)
   self->vm_size = segments_size + self->runtime_vm_size;
 }
 
-void
-gum_darwin_mapper_free (GumDarwinMapper * mapper)
-{
-  g_free (mapper->sysroot);
-
-  if (mapper->mappings != NULL)
-    g_hash_table_unref (mapper->mappings);
-  if (mapper->cache_file != NULL)
-    g_mapped_file_unref (mapper->cache_file);
-
-  g_slist_free_full (mapper->children, (GDestroyNotify) gum_darwin_mapper_free);
-
-  g_free (mapper->runtime);
-
-  g_ptr_array_unref (mapper->dependencies);
-
-  gum_darwin_module_image_free (mapper->image);
-  gum_darwin_module_unref (mapper->module);
-
-  g_slice_free (GumDarwinMapper, mapper);
-}
-
 gsize
 gum_darwin_mapper_size (GumDarwinMapper * self)
 {
@@ -400,7 +491,7 @@ gum_darwin_mapper_map (GumDarwinMapper * self,
     base_address += child->vm_size;
   }
 
-  gum_darwin_module_set_base_address (module, base_address);
+  g_object_set (module, "base-address", base_address, NULL);
 
   gum_emit_runtime (self);
 
@@ -1141,29 +1232,78 @@ static GumDarwinMapping *
 gum_darwin_mapper_resolve_dependency (GumDarwinMapper * self,
                                       const gchar * name)
 {
+  GumDarwinModuleResolver * resolver = self->resolver;
   GumDarwinMapping * mapping;
 
   if (self->parent != NULL)
     return gum_darwin_mapper_resolve_dependency (self->parent, name);
 
   mapping = g_hash_table_lookup (self->mappings, name);
+
+  if (mapping == NULL)
+  {
+    GumDarwinModule * module = NULL;
+    gchar * candidate;
+
+    if (resolver->sysroot != NULL)
+    {
+      candidate = g_strconcat (resolver->sysroot, "/", name, NULL);
+      module = gum_darwin_module_resolver_find_module (resolver, candidate);
+      g_free (candidate);
+
+      if (module == NULL && strcmp (name, "/usr/lib/libSystem.B.dylib") == 0)
+      {
+        candidate = g_strconcat (resolver->sysroot, "/usr/lib/libSystem.dylib",
+            NULL);
+        module = gum_darwin_module_resolver_find_module (resolver, candidate);
+        g_free (candidate);
+      }
+
+      if (module == NULL && g_str_has_prefix (name, "/usr/lib/system/"))
+      {
+        candidate = g_strconcat (resolver->sysroot,
+            "/usr/lib/system/introspection/", name + 16, NULL);
+        module = gum_darwin_module_resolver_find_module (resolver, candidate);
+        g_free (candidate);
+      }
+    }
+
+    if (module == NULL)
+    {
+      module = gum_darwin_module_resolver_find_module (resolver, name);
+    }
+
+    if (module == NULL && g_str_has_prefix (name, "/usr/lib/system/"))
+    {
+      candidate = g_strconcat ("/usr/lib/system/introspection/", name + 16,
+          NULL);
+      module = gum_darwin_module_resolver_find_module (resolver, candidate);
+      g_free (candidate);
+    }
+
+    if (module != NULL)
+    {
+      mapping = gum_darwin_mapper_add_existing_mapping (self, module);
+    }
+  }
+
   if (mapping == NULL)
   {
     gchar * full_name;
     GumDarwinMapper * mapper;
 
-    if (self->sysroot != NULL)
-      full_name = g_strconcat (self->sysroot, name, NULL);
+    if (resolver->sysroot != NULL)
+      full_name = g_strconcat (resolver->sysroot, name, NULL);
     else
       full_name = g_strdup (name);
 
     mapper = gum_darwin_mapper_new_with_parent (self, full_name,
-        self->module->task, self->module->cpu_type);
+        self->resolver);
 
     mapping = g_hash_table_lookup (self->mappings, full_name);
     g_assert (mapping != NULL);
 
-    if (self->sysroot != NULL)
+    if (resolver->sysroot != NULL)
       gum_darwin_mapper_add_alias_mapping (self, name, mapping);
 
     g_free (full_name);
@@ -1276,70 +1416,14 @@ gum_darwin_mapper_resolve_symbol (GumDarwinMapper * self,
   }
 }
 
-static gboolean
-gum_darwin_mapper_add_existing_mapping_from_module (
-    const GumModuleDetails * details,
-    gpointer user_data)
-{
-  GumCollectModulesContext * ctx = user_data;
-  GumDarwinMapper * self = ctx->self;
-  GumAddress base_address = details->range->base_address;
-  GumDarwinModule * module;
-  GumDarwinMapping * mapping;
-
-  if (ctx->index == 0 && g_str_has_suffix (details->path, "/usr/lib/dyld_sim"))
-  {
-    self->sysroot_length = strlen (details->path) - 17;
-    self->sysroot = g_strndup (details->path, self->sysroot_length);
-  }
-
-  module = gum_darwin_module_new_from_memory (details->path, self->module->task,
-      self->module->cpu_type, base_address);
-  mapping = gum_darwin_mapper_add_existing_mapping (self, module, base_address);
-
-  if (self->sysroot != NULL && g_str_has_prefix (details->path, self->sysroot))
-  {
-    gum_darwin_mapper_add_alias_mapping (self,
-        details->path + self->sysroot_length, mapping);
-
-    if (g_str_has_suffix (details->path, "/usr/lib/libSystem.dylib"))
-    {
-      gchar * symlink_path;
-
-      symlink_path = g_strconcat (self->sysroot, "/usr/lib/libSystem.B.dylib",
-          NULL);
-      gum_darwin_mapper_add_alias_mapping (self, symlink_path, mapping);
-      gum_darwin_mapper_add_alias_mapping (self,
-          symlink_path + self->sysroot_length, mapping);
-      g_free (symlink_path);
-    }
-  }
-
-  if (g_str_has_prefix (details->path, "/usr/lib/system/introspection/"))
-  {
-    gchar * vanilla_path;
-
-    vanilla_path = g_strconcat ("/usr/lib/system/", details->path + 30, NULL);
-    gum_darwin_mapper_add_alias_mapping (self, vanilla_path, mapping);
-    g_free (vanilla_path);
-  }
-
-  gum_darwin_module_unref (module);
-
-  ctx->index++;
-
-  return TRUE;
-}
-
 static GumDarwinMapping *
 gum_darwin_mapper_add_existing_mapping (GumDarwinMapper * self,
-                                        GumDarwinModule * module,
-                                        GumAddress base_address)
+                                        GumDarwinModule * module)
 {
   GumDarwinMapping * mapping;
 
   mapping = g_slice_new (GumDarwinMapping);
-  mapping->module = gum_darwin_module_ref (module);
+  mapping->module = g_object_ref (module);
   mapping->mapper = NULL;
 
   g_hash_table_insert (self->mappings, g_strdup (module->name), mapping);
@@ -1355,7 +1439,7 @@ gum_darwin_mapper_add_pending_mapping (GumDarwinMapper * self,
   GumDarwinMapping * mapping;
 
   mapping = g_slice_new (GumDarwinMapping);
-  mapping->module = gum_darwin_module_ref (mapper->module);
+  mapping->module = g_object_ref (mapper->module);
   mapping->mapper = mapper;
 
   g_hash_table_insert (self->mappings, g_strdup (name), mapping);
@@ -1371,7 +1455,7 @@ gum_darwin_mapper_add_alias_mapping (GumDarwinMapper * self,
   GumDarwinMapping * mapping;
 
   mapping = g_slice_dup (GumDarwinMapping, to);
-  gum_darwin_module_ref (mapping->module);
+  g_object_ref (mapping->module);
 
   g_hash_table_insert (self->mappings, g_strdup (name), mapping);
 
@@ -1423,7 +1507,7 @@ gum_darwin_mapper_bind (const GumDarwinBindDetails * details,
   success = gum_darwin_mapper_resolve_symbol (self, dependency->module,
       details->symbol_name, &value);
   is_weak_import = (details->symbol_flags & BIND_SYMBOL_FLAGS_WEAK_IMPORT) != 0;
-  if (!success && !is_weak_import && self->sysroot != NULL &&
+  if (!success && !is_weak_import && self->resolver->sysroot != NULL &&
       g_str_has_suffix (details->symbol_name, "$INODE64"))
   {
     gchar * plain_name;
@@ -1452,6 +1536,6 @@ gum_darwin_mapper_bind (const GumDarwinBindDetails * details,
 static void
 gum_darwin_mapping_free (GumDarwinMapping * self)
 {
-  gum_darwin_module_unref (self->module);
+  g_object_unref (self->module);
   g_slice_free (GumDarwinMapping, self);
 }

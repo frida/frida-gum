@@ -15,7 +15,10 @@
 
 G_BEGIN_DECLS
 
-typedef struct _GumDarwinModule GumDarwinModule;
+#define GUM_DARWIN_TYPE_MODULE (gum_darwin_module_get_type ())
+G_DECLARE_FINAL_TYPE (GumDarwinModule, gum_darwin_module, GUM_DARWIN, MODULE,
+    GObject)
+
 typedef struct _GumDarwinModuleImage GumDarwinModuleImage;
 
 typedef struct _GumDarwinModuleImageSegment GumDarwinModuleImageSegment;
@@ -46,7 +49,7 @@ typedef gpointer (* GumDarwinModuleResolverFunc) (void);
 
 struct _GumDarwinModule
 {
-  gint ref_count;
+  GObject parent;
 
   gchar * name;
 
@@ -195,13 +198,10 @@ struct _GumDarwinSymbolDetails
 };
 
 GumDarwinModule * gum_darwin_module_new_from_file (const gchar * name,
-    mach_port_t task, GumCpuType cpu_type, GMappedFile * cache_file);
+    mach_port_t task, GumCpuType cpu_type, guint page_size,
+    GMappedFile * cache_file);
 GumDarwinModule * gum_darwin_module_new_from_memory (const gchar * name,
-    mach_port_t task, GumCpuType cpu_type, GumAddress base_address);
-GumDarwinModule * gum_darwin_module_ref (GumDarwinModule * self);
-void gum_darwin_module_unref (GumDarwinModule * self);
-
-void gum_darwin_module_set_base_address (GumDarwinModule * self,
+    mach_port_t task, GumCpuType cpu_type, guint page_size,
     GumAddress base_address);
 
 gboolean gum_darwin_module_resolve_export (GumDarwinModule * self,
