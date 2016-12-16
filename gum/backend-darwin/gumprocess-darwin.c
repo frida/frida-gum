@@ -777,6 +777,7 @@ gum_darwin_enumerate_modules (mach_port_t task,
   gpointer info_array = NULL;
   gpointer header_data = NULL;
   gchar * file_path = NULL;
+  gchar * file_path_malloc_data = NULL;
   gboolean carry_on = TRUE;
 
   if (task == mach_task_self ())
@@ -878,14 +879,20 @@ gum_darwin_enumerate_modules (mach_port_t task,
       file_path_address = info->image_file_path;
     }
 
-    header_data = gum_darwin_read (task,
-        load_address,
-        MAX_MACH_HEADER_SIZE,
-        NULL);
-    file_path = (gchar *) gum_darwin_read (task,
-        file_path_address,
-        2 * MAXPATHLEN,
-        NULL);
+    if ((file_path_address & ~((GumAddress) 4095)) == load_address)
+    {
+      header_data = gum_darwin_read (task, load_address, 4096, NULL);
+      file_path = header_data + (file_path_address - load_address);
+      file_path_malloc_data = NULL;
+    }
+    else
+    {
+      header_data = gum_darwin_read (task, load_address, 4096, NULL);
+      file_path = (gchar *) gum_darwin_read (task, file_path_address,
+          2 * MAXPATHLEN, NULL);
+      file_path_malloc_data = file_path;
+    }
+
     if (header_data == NULL || file_path == NULL)
       goto beach;
 
@@ -926,8 +933,8 @@ gum_darwin_enumerate_modules (mach_port_t task,
 
     g_free (name);
 
-    g_free (file_path);
-    file_path = NULL;
+    g_free (file_path_malloc_data);
+    file_path_malloc_data = NULL;
     g_free (header_data);
     header_data = NULL;
   }
@@ -938,7 +945,7 @@ fallback:
   gum_darwin_enumerate_modules_slow (task, func, user_data);
 
 beach:
-  g_free (file_path);
+  g_free (file_path_malloc_data);
   g_free (header_data);
   g_free (info_array);
 
