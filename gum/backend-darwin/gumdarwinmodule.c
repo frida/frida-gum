@@ -124,6 +124,8 @@ static gboolean gum_darwin_module_try_load_image_from_cache (
     GMappedFile * cache_file);
 static void gum_darwin_module_load_image_from_filesystem (
     GumDarwinModule * self, const gchar * name, GumCpuType cpu_type);
+static void gum_darwin_module_load_image_from_blob (GumDarwinModule * self,
+    GBytes * blob);
 static gboolean gum_darwin_module_load_image_from_memory (
     GumDarwinModule * self);
 static gboolean gum_darwin_module_take_image (GumDarwinModule * self,
@@ -355,6 +357,26 @@ gum_darwin_module_new_from_file (const gchar * name,
   {
     gum_darwin_module_load_image_from_filesystem (module, name, cpu_type);
   }
+
+  return module;
+}
+
+GumDarwinModule *
+gum_darwin_module_new_from_blob (const gchar * name,
+                                 GBytes * blob,
+                                 mach_port_t task,
+                                 GumCpuType cpu_type,
+                                 guint page_size)
+{
+  GumDarwinModule * module;
+
+  module = g_object_new (GUM_DARWIN_TYPE_MODULE,
+      "name", name,
+      "task", task,
+      "cpu-type", cpu_type,
+      "page-size", page_size,
+      NULL);
+  gum_darwin_module_load_image_from_blob (module, blob);
 
   return module;
 }
@@ -1173,7 +1195,7 @@ gum_darwin_module_try_load_image_from_cache (GumDarwinModule * self,
       module_image->shared_size;
   module_image->linkedit = cache;
 
-  module_image->file = g_mapped_file_ref (cache_file);
+  module_image->bytes = g_mapped_file_get_bytes (cache_file);
 
   success = gum_darwin_module_take_image (self, module_image);
   g_assert (success);
@@ -1186,8 +1208,28 @@ gum_darwin_module_load_image_from_filesystem (GumDarwinModule * self,
                                               const gchar * name,
                                               GumCpuType cpu_type)
 {
+  GMappedFile * file;
+  GBytes * blob;
+
+  file = g_mapped_file_new (name, TRUE, NULL);
+  g_assert (file != NULL);
+
+  blob = g_mapped_file_get_bytes (file);
+
+  gum_darwin_module_load_image_from_blob (self, blob);
+
+  g_bytes_unref (blob);
+
+  g_mapped_file_unref (file);
+}
+
+static void
+gum_darwin_module_load_image_from_blob (GumDarwinModule * self,
+                                        GBytes * blob)
+{
   GumDarwinModuleImage * image;
-  gpointer file_data;
+  gpointer blob_data;
+  gsize blob_size;
   struct fat_header * fat_header;
   struct mach_header * header_32 = NULL;
   struct mach_header_64 * header_64 = NULL;
@@ -1196,13 +1238,11 @@ gum_darwin_module_load_image_from_filesystem (GumDarwinModule * self,
   gboolean success;
 
   image = gum_darwin_module_image_new ();
+  image->bytes = g_bytes_ref (blob);
 
-  image->file = g_mapped_file_new (name, TRUE, NULL);
-  g_assert (image->file != NULL);
+  blob_data = (gpointer) g_bytes_get_data (blob, &blob_size);
 
-  file_data = g_mapped_file_get_contents (image->file);
-
-  fat_header = file_data;
+  fat_header = blob_data;
   switch (fat_header->magic)
   {
     case FAT_CIGAM:
@@ -1213,7 +1253,7 @@ gum_darwin_module_load_image_from_filesystem (GumDarwinModule * self,
       for (i = 0; i != count; i++)
       {
         struct fat_arch * fat_arch = ((struct fat_arch *) (fat_header + 1)) + i;
-        gpointer mach_header = file_data + GUINT32_FROM_BE (fat_arch->offset);
+        gpointer mach_header = blob_data + GUINT32_FROM_BE (fat_arch->offset);
         switch (((struct mach_header *) mach_header)->magic)
         {
           case MH_MAGIC:
@@ -1233,19 +1273,19 @@ gum_darwin_module_load_image_from_filesystem (GumDarwinModule * self,
       break;
     }
     case MH_MAGIC:
-      header_32 = file_data;
-      size_32 = g_mapped_file_get_length (image->file);
+      header_32 = blob_data;
+      size_32 = blob_size;
       break;
     case MH_MAGIC_64:
-      header_64 = file_data;
-      size_64 = g_mapped_file_get_length (image->file);
+      header_64 = blob_data;
+      size_64 = blob_size;
       break;
     default:
       g_assert_not_reached ();
       break;
   }
 
-  switch (cpu_type)
+  switch (self->cpu_type)
   {
     case GUM_CPU_IA32:
     case GUM_CPU_ARM:
@@ -1544,8 +1584,8 @@ gum_darwin_module_image_dup (const GumDarwinModuleImage * other)
   image->shared_size = other->shared_size;
   image->shared_segments = g_array_ref (other->shared_segments);
 
-  if (other->file != NULL)
-    image->file = g_mapped_file_ref (other->file);
+  if (other->bytes != NULL)
+    image->bytes = g_bytes_ref (other->bytes);
 
   if (other->shared_segments->len > 0)
   {
@@ -1570,14 +1610,13 @@ gum_darwin_module_image_dup (const GumDarwinModuleImage * other)
     image->data = image->malloc_data;
   }
 
-  if (other->file != NULL)
+  if (other->bytes != NULL)
   {
-    gpointer file_data;
-    gsize file_size;
+    gconstpointer data;
+    gsize size;
 
-    file_data = g_mapped_file_get_contents (other->file);
-    file_size = g_mapped_file_get_length (other->file);
-    if (other->linkedit >= file_data && other->linkedit < file_data + file_size)
+    data = g_bytes_get_data (other->bytes, &size);
+    if (other->linkedit >= data && other->linkedit < data + size)
       image->linkedit = other->linkedit;
   }
 
@@ -1595,8 +1634,7 @@ void
 gum_darwin_module_image_free (GumDarwinModuleImage * image)
 {
   g_free (image->malloc_data);
-  if (image->file != NULL)
-    g_mapped_file_unref (image->file);
+  g_bytes_unref (image->bytes);
 
   g_array_unref (image->shared_segments);
 

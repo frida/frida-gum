@@ -44,7 +44,7 @@ main (gint argc,
 #endif
 
   resolver = gum_darwin_module_resolver_new (task);
-  mapper = gum_darwin_mapper_new (dylib_path, resolver);
+  mapper = gum_darwin_mapper_new_from_file (dylib_path, resolver);
 
   kr = mach_vm_allocate (task, &base_address, gum_darwin_mapper_size (mapper),
       VM_FLAGS_ANYWHERE);

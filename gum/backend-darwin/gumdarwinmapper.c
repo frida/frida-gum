@@ -47,7 +47,9 @@ enum
 {
   PROP_0,
   PROP_NAME,
+  PROP_MODULE,
   PROP_RESOLVER,
+  PROP_CACHE_FILE,
   PROP_PARENT
 };
 
@@ -61,13 +63,12 @@ struct _GumDarwinMapper
   GObject object;
 
   gchar * name;
+  GumDarwinModule * module;
+  GumDarwinModuleImage * image;
   GumDarwinModuleResolver * resolver;
   GumDarwinMapper * parent;
 
   gboolean mapped;
-
-  GumDarwinModule * module;
-  GumDarwinModuleImage * image;
 
   GPtrArray * dependencies;
 
@@ -110,10 +111,10 @@ static void gum_darwin_mapper_get_property (GObject * object, guint property_id,
 static void gum_darwin_mapper_set_property (GObject * object, guint property_id,
     const GValue * value, GParamSpec * pspec);
 
-static GumDarwinMapper * gum_darwin_mapper_new_with_parent (
-    GumDarwinMapper * parent, const gchar * name,
+static GumDarwinMapper * gum_darwin_mapper_new_from_file_with_parent (
+    GumDarwinMapper * parent, const gchar * path,
     GumDarwinModuleResolver * resolver);
-static void gum_darwin_mapper_init_cache_file (GumDarwinMapper * self,
+static GMappedFile * gum_darwin_mapper_try_load_cache_file (
     GumCpuType cpu_type);
 static void gum_darwin_mapper_init_dependencies (GumDarwinMapper * self);
 static void gum_darwin_mapper_init_footprint_budget (GumDarwinMapper * self);
@@ -172,10 +173,18 @@ gum_darwin_mapper_class_init (GumDarwinMapperClass * klass)
   g_object_class_install_property (object_class, PROP_NAME,
       g_param_spec_string ("name", "Name", "Name", NULL,
       G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (object_class, PROP_MODULE,
+      g_param_spec_object ("module", "Module", "Module",
+      GUM_DARWIN_TYPE_MODULE, G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+      G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_RESOLVER,
       g_param_spec_object ("resolver", "Resolver", "Module resolver",
       GUM_DARWIN_TYPE_MODULE_RESOLVER, G_PARAM_READWRITE |
       G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (object_class, PROP_CACHE_FILE,
+      g_param_spec_boxed ("cache-file", "CacheFile", "Shared cache file",
+      G_TYPE_MAPPED_FILE, G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+      G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_PARENT,
       g_param_spec_object ("parent", "Parent", "Parent mapper",
       GUM_DARWIN_TYPE_MAPPER, G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
@@ -193,20 +202,10 @@ gum_darwin_mapper_constructed (GObject * object)
 {
   GumDarwinMapper * self = GUM_DARWIN_MAPPER (object);
   GumDarwinMapper * parent = self->parent;
-  GumDarwinModuleResolver * resolver = self->resolver;
-  GMappedFile * cache_file;
 
   g_assert (self->name != NULL);
-  g_assert (resolver != NULL);
-
-  if (parent == NULL)
-    gum_darwin_mapper_init_cache_file (self, resolver->cpu_type);
-
-  cache_file = (parent != NULL) ? parent->cache_file : self->cache_file;
-
-  self->module = gum_darwin_module_new_from_file (self->name, resolver->task,
-      resolver->cpu_type, resolver->page_size, cache_file);
-  self->image = self->module->image;
+  g_assert (self->module != NULL);
+  g_assert (self->resolver != NULL);
 
   if (parent != NULL)
   {
@@ -254,8 +253,14 @@ gum_darwin_mapper_get_property (GObject * object,
     case PROP_NAME:
       g_value_set_string (value, self->name);
       break;
+    case PROP_MODULE:
+      g_value_set_object (value, self->module);
+      break;
     case PROP_RESOLVER:
       g_value_set_object (value, self->resolver);
+      break;
+    case PROP_CACHE_FILE:
+      g_value_set_boxed (value, self->cache_file);
       break;
     case PROP_PARENT:
       g_value_set_object (value, self->parent);
@@ -279,9 +284,18 @@ gum_darwin_mapper_set_property (GObject * object,
       g_free (self->name);
       self->name = g_value_dup_string (value);
       break;
+    case PROP_MODULE:
+      g_clear_object (&self->module);
+      self->module = g_value_dup_object (value);
+      self->image = (self->module != NULL) ? self->module->image : NULL;
+      break;
     case PROP_RESOLVER:
       g_clear_object (&self->resolver);
       self->resolver = g_value_dup_object (value);
+      break;
+    case PROP_CACHE_FILE:
+      g_clear_pointer (&self->cache_file, g_mapped_file_unref);
+      self->cache_file = g_value_dup_boxed (value);
       break;
     case PROP_PARENT:
       self->parent = g_value_get_object (value);
@@ -292,28 +306,79 @@ gum_darwin_mapper_set_property (GObject * object,
 }
 
 GumDarwinMapper *
-gum_darwin_mapper_new (const gchar * name,
-                       GumDarwinModuleResolver * resolver)
+gum_darwin_mapper_new_from_file (const gchar * path,
+                                 GumDarwinModuleResolver * resolver)
 {
-  return gum_darwin_mapper_new_with_parent (NULL, name, resolver);
+  return gum_darwin_mapper_new_from_file_with_parent (NULL, path, resolver);
+}
+
+GumDarwinMapper *
+gum_darwin_mapper_new_take_blob (const gchar * name,
+                                 GBytes * blob,
+                                 GumDarwinModuleResolver * resolver)
+{
+  GumDarwinModule * module;
+  GMappedFile * cache_file;
+  GumDarwinMapper * mapper;
+
+  module = gum_darwin_module_new_from_blob (name, blob, resolver->task,
+      resolver->cpu_type, resolver->page_size);
+
+  cache_file = gum_darwin_mapper_try_load_cache_file (resolver->cpu_type);
+
+  mapper = g_object_new (GUM_DARWIN_TYPE_MAPPER,
+      "name", name,
+      "module", module,
+      "resolver", resolver,
+      "cache-file", cache_file,
+      NULL);
+
+  if (cache_file != NULL)
+    g_mapped_file_unref (cache_file);
+  g_object_unref (module);
+  g_bytes_unref (blob);
+
+  return mapper;
 }
 
 static GumDarwinMapper *
-gum_darwin_mapper_new_with_parent (GumDarwinMapper * parent,
-                                   const gchar * name,
-                                   GumDarwinModuleResolver * resolver)
+gum_darwin_mapper_new_from_file_with_parent (GumDarwinMapper * parent,
+                                             const gchar * path,
+                                             GumDarwinModuleResolver * resolver)
 {
-  return g_object_new (GUM_DARWIN_TYPE_MAPPER,
-      "name", name,
+  GMappedFile * cache_file;
+  GumDarwinModule * module;
+  GumDarwinMapper * mapper;
+
+  if (parent == NULL)
+    cache_file = gum_darwin_mapper_try_load_cache_file (resolver->cpu_type);
+  else if (parent->cache_file != NULL)
+    cache_file = g_mapped_file_ref (parent->cache_file);
+  else
+    cache_file = NULL;
+
+  module = gum_darwin_module_new_from_file (path, resolver->task,
+      resolver->cpu_type, resolver->page_size, cache_file);
+
+  mapper = g_object_new (GUM_DARWIN_TYPE_MAPPER,
+      "name", path,
+      "module", module,
       "resolver", resolver,
+      "cache-file", cache_file,
       "parent", parent,
       NULL);
+
+  g_object_unref (module);
+  if (cache_file != NULL)
+    g_mapped_file_unref (cache_file);
+
+  return mapper;
 }
 
-static void
-gum_darwin_mapper_init_cache_file (GumDarwinMapper * self,
-                                   GumCpuType cpu_type)
+static GMappedFile *
+gum_darwin_mapper_try_load_cache_file (GumCpuType cpu_type)
 {
+  GMappedFile * file;
   const gchar ** candidates, ** candidate;
   gint fd, result;
 
@@ -348,15 +413,17 @@ gum_darwin_mapper_init_cache_file (GumDarwinMapper * self,
     g_free (path);
   }
   if (fd == -1)
-    return;
+    return NULL;
 
   result = fcntl (fd, F_NOCACHE, TRUE);
   g_assert (result == 0);
 
-  self->cache_file = g_mapped_file_new_from_fd (fd, TRUE, NULL);
-  g_assert (self->cache_file != NULL);
+  file = g_mapped_file_new_from_fd (fd, TRUE, NULL);
+  g_assert (file != NULL);
 
   close (fd);
+
+  return file;
 }
 
 static void
@@ -1297,7 +1364,7 @@ gum_darwin_mapper_resolve_dependency (GumDarwinMapper * self,
     else
       full_name = g_strdup (name);
 
-    mapper = gum_darwin_mapper_new_with_parent (self, full_name,
+    mapper = gum_darwin_mapper_new_from_file_with_parent (self, full_name,
         self->resolver);
 
     mapping = g_hash_table_lookup (self->mappings, full_name);

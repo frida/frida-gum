@@ -21,8 +21,10 @@ G_DECLARE_FINAL_TYPE (GumDarwinMapper, gum_darwin_mapper, GUM_DARWIN, MAPPER,
 typedef void (* GumDarwinMapperConstructor) (void);
 typedef void (* GumDarwinMapperDestructor) (void);
 
-GumDarwinMapper * gum_darwin_mapper_new (const gchar * name,
+GumDarwinMapper * gum_darwin_mapper_new_from_file (const gchar * path,
     GumDarwinModuleResolver * resolver);
+GumDarwinMapper * gum_darwin_mapper_new_take_blob (const gchar * name,
+    GBytes * blob, GumDarwinModuleResolver * resolver);
 
 gsize gum_darwin_mapper_size (GumDarwinMapper * self);
 void gum_darwin_mapper_map (GumDarwinMapper * self, GumAddress base_address);

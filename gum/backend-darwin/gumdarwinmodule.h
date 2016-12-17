@@ -103,7 +103,7 @@ struct _GumDarwinModuleImage
   guint64 shared_size;
   GArray * shared_segments;
 
-  GMappedFile * file;
+  GBytes * bytes;
   gpointer malloc_data;
 };
 
@@ -197,9 +197,11 @@ struct _GumDarwinSymbolDetails
   guint16 description;
 };
 
-GumDarwinModule * gum_darwin_module_new_from_file (const gchar * name,
+GumDarwinModule * gum_darwin_module_new_from_file (const gchar * path,
     mach_port_t task, GumCpuType cpu_type, guint page_size,
     GMappedFile * cache_file);
+GumDarwinModule * gum_darwin_module_new_from_blob (const gchar * name,
+    GBytes * blob, mach_port_t task, GumCpuType cpu_type, guint page_size);
 GumDarwinModule * gum_darwin_module_new_from_memory (const gchar * name,
     mach_port_t task, GumCpuType cpu_type, guint page_size,
     GumAddress base_address);
