@@ -507,7 +507,7 @@ if (Process.findRangeByAddress === undefined) {
       Process.enumerateRanges('---', {
         onMatch: function (r) {
           const base = r.base;
-          if (base.compare(address) < 0 && base.add(r.size).compare(address) > 0) {
+          if (base.compare(address) <= 0 && base.add(r.size).compare(address) > 0) {
             range = r;
             return 'stop';
           }

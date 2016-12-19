@@ -1542,6 +1542,15 @@ SCRIPT_TESTCASE (process_range_can_be_looked_up_from_address)
   EXPECT_SEND_MESSAGE_WITH ("true");
 
   COMPILE_AND_LOAD_SCRIPT (
+      "var someRange = Process.enumerateRangesSync('r-x')[1];"
+      "var foundRange = Process.findRangeByAddress(someRange.base);"
+      "send(foundRange !== null);"
+      "send(foundRange.base.equals(someRange.base));");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+
+  COMPILE_AND_LOAD_SCRIPT (
       "send(Object.keys(Process.getRangeByAddress(" GUM_PTR_CONST
       ")).length > 0);",
       f);
