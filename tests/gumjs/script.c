@@ -133,9 +133,7 @@ TEST_LIST_BEGIN (script)
 #endif
   SCRIPT_TESTENTRY (process_modules_can_be_enumerated)
   SCRIPT_TESTENTRY (process_modules_can_be_enumerated_synchronously)
-#ifndef HAVE_LINUX
   SCRIPT_TESTENTRY (process_module_can_be_looked_up_from_address)
-#endif
   SCRIPT_TESTENTRY (process_module_can_be_looked_up_from_name)
   SCRIPT_TESTENTRY (process_ranges_can_be_enumerated)
   SCRIPT_TESTENTRY (process_ranges_can_be_enumerated_synchronously)
@@ -1444,10 +1442,9 @@ SCRIPT_TESTCASE (process_modules_can_be_enumerated_synchronously)
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
-#ifndef HAVE_LINUX
-
 SCRIPT_TESTCASE (process_module_can_be_looked_up_from_address)
 {
+#ifndef HAVE_LINUX
   GModule * m;
   gpointer f;
   gboolean found;
@@ -1467,9 +1464,18 @@ SCRIPT_TESTCASE (process_module_can_be_looked_up_from_address)
       ")).length > 0);",
       f);
   EXPECT_SEND_MESSAGE_WITH ("true");
+#endif
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var someModule = Process.enumerateModulesSync()[1];"
+      "var foundModule = Process.findModuleByAddress(someModule.base);"
+      "send(foundModule !== null);"
+      "send(foundModule.name === someModule.name);");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
 }
 
-#endif
 
 SCRIPT_TESTCASE (process_module_can_be_looked_up_from_name)
 {

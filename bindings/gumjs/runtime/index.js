@@ -413,7 +413,7 @@ Object.defineProperties(Process, {
       Process.enumerateModules({
         onMatch: function (m) {
           const base = m.base;
-          if (base.compare(address) < 0 && base.add(m.size).compare(address) > 0) {
+          if (base.compare(address) <= 0 && base.add(m.size).compare(address) > 0) {
             module = m;
             return 'stop';
           }
