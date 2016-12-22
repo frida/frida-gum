@@ -11,12 +11,6 @@
 
 #include <string.h>
 
-#ifdef G_OS_UNIX
-# include <unistd.h>
-# define __USE_GNU     1
-# include <sys/mman.h>
-# undef __USE_GNU
-#endif
 #ifdef HAVE_IOS
 # include "backend-darwin/gumdarwin.h"
 # include <mach/mach.h>
@@ -30,9 +24,15 @@
 #define FOOTERS       0
 #define INSECURE      1
 #define NO_MALLINFO   0
+#ifdef HAVE_LIBC_MALLINFO
+# define STRUCT_MALLINFO_DECLARED 1
+#endif
 #ifdef _MSC_VER
 # pragma warning (push)
 # pragma warning (disable: 4267 4702)
+#endif
+#ifdef _GNU_SOURCE
+# undef _GNU_SOURCE
 #endif
 #include "dlmalloc.c"
 #ifdef _MSC_VER
@@ -80,8 +80,7 @@ gum_memory_deinit (void)
     destroy_mspace (gum_mspace);
     gum_mspace = NULL;
 
-    DESTROY_MORECORE_LOCK ();
-    DESTROY_MAGIC_INIT_LOCK ();
+    (void) DESTROY_LOCK (&malloc_global_mutex);
   }
 }
 
