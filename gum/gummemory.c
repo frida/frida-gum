@@ -16,14 +16,15 @@
 # include <mach/mach.h>
 #endif
 #ifdef HAVE_DARWIN
-# define DARWIN       1
+# define DARWIN                   1
 #endif
-#define MSPACES       1
-#define ONLY_MSPACES  1
-#define USE_LOCKS     1
-#define FOOTERS       0
-#define INSECURE      1
-#define NO_MALLINFO   0
+#define MSPACES                   1
+#define ONLY_MSPACES              1
+#define USE_LOCKS                 1
+#define USE_SPIN_LOCKS            0
+#define FOOTERS                   0
+#define INSECURE                  1
+#define NO_MALLINFO               0
 #ifdef HAVE_LIBC_MALLINFO
 # define STRUCT_MALLINFO_DECLARED 1
 #endif
