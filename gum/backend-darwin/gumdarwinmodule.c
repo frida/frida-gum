@@ -1208,19 +1208,19 @@ gum_darwin_module_load_image_from_filesystem (GumDarwinModule * self,
                                               const gchar * name,
                                               GumCpuType cpu_type)
 {
-  GMappedFile * file;
+  gchar * data;
+  gsize size;
+  gboolean success;
   GBytes * blob;
 
-  file = g_mapped_file_new (name, TRUE, NULL);
-  g_assert (file != NULL);
+  success = g_file_get_contents (name, &data, &size, NULL);
+  g_assert (success);
 
-  blob = g_mapped_file_get_bytes (file);
+  blob = g_bytes_new_take (data, size);
 
   gum_darwin_module_load_image_from_blob (self, blob);
 
   g_bytes_unref (blob);
-
-  g_mapped_file_unref (file);
 }
 
 static void
