@@ -543,6 +543,8 @@ gum_darwin_mapper_map (GumDarwinMapper * self,
   GSList * cur;
   GumDarwinModule * module = self->module;
   guint i;
+  mach_vm_address_t mapped_address;
+  vm_prot_t cur_protection, max_protection;
   GArray * shared_segments;
 
   g_assert (!self->mapped);
@@ -577,8 +579,11 @@ gum_darwin_mapper_map (GumDarwinMapper * self,
     file_offset =
         (s->file_offset != 0) ? s->file_offset - self->image->source_offset : 0;
 
-    mach_vm_write (module->task, segment_address,
-        (vm_offset_t) (self->image->data + file_offset), s->file_size);
+    mapped_address = segment_address;
+    mach_vm_remap (module->task, &mapped_address, s->file_size, 0,
+        VM_FLAGS_OVERWRITE, mach_task_self (),
+        (vm_offset_t) (self->image->data + file_offset), TRUE, &cur_protection,
+        &max_protection, VM_INHERIT_COPY);
     mach_vm_protect (module->task, segment_address, s->vm_size, FALSE,
         s->protection);
   }
@@ -589,8 +594,11 @@ gum_darwin_mapper_map (GumDarwinMapper * self,
     GumDarwinModuleImageSegment * s =
         &g_array_index (shared_segments, GumDarwinModuleImageSegment, i);
 
-    mach_vm_write (module->task, base_address + s->offset,
-        (vm_offset_t) self->image->data + s->offset, s->size);
+    mapped_address = base_address + s->offset;
+    mach_vm_remap (module->task, &mapped_address, s->size, 0,
+        VM_FLAGS_OVERWRITE, mach_task_self (),
+        (vm_offset_t) (self->image->data + s->offset), TRUE, &cur_protection,
+        &max_protection, VM_INHERIT_COPY);
     mach_vm_protect (module->task, base_address + s->offset, s->size, FALSE,
         s->protection);
   }
