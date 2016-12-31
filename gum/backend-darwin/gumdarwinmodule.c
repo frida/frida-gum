@@ -36,6 +36,8 @@ typedef struct _GumDyldCacheHeader GumDyldCacheHeader;
 typedef struct _GumDyldCacheMappingInfo GumDyldCacheMappingInfo;
 typedef struct _GumDyldCacheImageInfo GumDyldCacheImageInfo;
 
+typedef struct _GumMemoryMapping GumMemoryMapping;
+
 struct _GumResolveSymbolContext
 {
   const gchar * name;
@@ -103,6 +105,12 @@ struct _GumDyldCacheImageInfo
   guint32 padding;
 };
 
+struct _GumMemoryMapping
+{
+  mach_vm_address_t address;
+  mach_vm_size_t size;
+};
+
 static void gum_darwin_module_constructed (GObject * object);
 static void gum_darwin_module_finalize (GObject * object);
 static void gum_darwin_module_get_property (GObject * object,
@@ -158,6 +166,8 @@ static guint64 gum_dyld_cache_compute_image_size (
     gsize image_count);
 static guint64 gum_dyld_cache_offset_from_address (GumAddress address,
     const GumDyldCacheMappingInfo * mappings, gsize mapping_count);
+
+static void gum_memory_mapping_free (GumMemoryMapping * self);
 
 G_DEFINE_TYPE (GumDarwinModule, gum_darwin_module, G_TYPE_OBJECT)
 
@@ -1208,15 +1218,35 @@ gum_darwin_module_load_image_from_filesystem (GumDarwinModule * self,
                                               const gchar * name,
                                               GumCpuType cpu_type)
 {
-  gchar * data;
+  GMappedFile * file;
   gsize size;
-  gboolean success;
+  mach_port_t self_task;
+  mach_vm_address_t mapped_address;
+  vm_prot_t cur_protection, max_protection;
+  GumMemoryMapping * mapping;
   GBytes * blob;
 
-  success = g_file_get_contents (name, &data, &size, NULL);
-  g_assert (success);
+  file = g_mapped_file_new (name, FALSE, NULL);
+  g_assert (file != NULL);
+  size = g_mapped_file_get_length (file);
 
-  blob = g_bytes_new_take (data, size);
+  self_task = mach_task_self ();
+
+  mapped_address = 0;
+  mach_vm_remap (self_task, &mapped_address, size, 0, VM_FLAGS_ANYWHERE,
+      self_task, (mach_vm_address_t) g_mapped_file_get_contents (file), TRUE,
+      &cur_protection, &max_protection, VM_INHERIT_COPY);
+  mach_vm_protect (self_task, mapped_address, size, FALSE,
+      VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
+
+  g_clear_pointer (&file, g_mapped_file_unref);
+
+  mapping = g_slice_new (GumMemoryMapping);
+  mapping->address = mapped_address;
+  mapping->size = size;
+
+  blob = g_bytes_new_with_free_func (GSIZE_TO_POINTER (mapped_address), size,
+      (GDestroyNotify) gum_memory_mapping_free, mapping);
 
   gum_darwin_module_load_image_from_blob (self, blob);
 
@@ -1879,4 +1909,12 @@ gum_dyld_cache_offset_from_address (GumAddress address,
   }
 
   g_assert_not_reached ();
+}
+
+static void
+gum_memory_mapping_free (GumMemoryMapping * self)
+{
+  mach_vm_deallocate (mach_task_self (), self->address, self->size);
+
+  g_slice_free (GumMemoryMapping, self);
 }
