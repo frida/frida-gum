@@ -25,13 +25,21 @@ struct GumV8MatchContext
   gboolean has_pending_exception;
 };
 
+GUMJS_DECLARE_GETTER (gumjs_kernel_get_available)
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
     GumV8MatchContext * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_read_byte_array)
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_write_byte_array)
 
-GUMJS_DECLARE_FUNCTION (gumjs_kernel_throw_not_available)
+static gboolean gum_v8_kernel_check_api_available (Isolate * isolate);
+
+static const GumV8Property gumjs_kernel_values[] =
+{
+  { "available", gumjs_kernel_get_available, NULL },
+
+  { NULL, NULL, NULL }
+};
 
 static const GumV8Function gumjs_kernel_functions[] =
 {
@@ -54,26 +62,8 @@ _gum_v8_kernel_init (GumV8Kernel * self,
   auto module = External::New (isolate, self);
 
   auto kernel = _gum_v8_create_module ("Kernel", scope, isolate);
-
-  auto available = gum_kernel_api_is_available ();
-  kernel->Set (_gum_v8_string_new_ascii (isolate, "available"),
-      Boolean::New (isolate, !!available), ReadOnly);
-
-  if (available)
-  {
-    _gum_v8_module_add (module, kernel, gumjs_kernel_functions, isolate);
-  }
-  else
-  {
-    auto unavailable_functions =
-        (GumV8Function *) g_alloca (sizeof (gumjs_kernel_functions));
-    memcpy (unavailable_functions, gumjs_kernel_functions,
-        sizeof (gumjs_kernel_functions));
-    for (guint i = 0; unavailable_functions[i].name != NULL; i++)
-    {
-      unavailable_functions[i].callback = gumjs_kernel_throw_not_available;
-    }
-  }
+  _gum_v8_module_add (module, kernel, gumjs_kernel_values, isolate);
+  _gum_v8_module_add (module, kernel, gumjs_kernel_functions, isolate);
 }
 
 void
@@ -94,6 +84,11 @@ _gum_v8_kernel_finalize (GumV8Kernel * self)
   (void) self;
 }
 
+GUMJS_DEFINE_GETTER (gumjs_kernel_get_available)
+{
+  info.GetReturnValue ().Set (!!gum_kernel_api_is_available ());
+}
+
 /*
  * Prototype:
  * Kernel._enumerateRanges(prot, callback)
@@ -106,6 +101,9 @@ _gum_v8_kernel_finalize (GumV8Kernel * self)
  */
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_ranges)
 {
+  if (!gum_v8_kernel_check_api_available (isolate))
+    return;
+
   GumV8MatchContext mc;
   GumPageProtection prot;
   if (!_gum_v8_args_parse (args, "mF{onMatch,onComplete}", &prot, &mc.on_match,
@@ -181,6 +179,9 @@ gum_emit_range (const GumRangeDetails * details,
  */
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_read_byte_array)
 {
+  if (!gum_v8_kernel_check_api_available (isolate))
+    return;
+
   gpointer address;
   gssize length;
   if (!_gum_v8_args_parse (args, "pZ", &address, &length))
@@ -230,6 +231,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_read_byte_array)
  */
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_write_byte_array)
 {
+  if (!gum_v8_kernel_check_api_available (isolate))
+    return;
+
   gpointer address;
   GBytes * bytes;
   if (!_gum_v8_args_parse (args, "pB", &address, &bytes))
@@ -248,8 +252,15 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_write_byte_array)
   g_bytes_unref (bytes);
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_kernel_throw_not_available)
+static gboolean
+gum_v8_kernel_check_api_available (Isolate * isolate)
 {
-  _gum_v8_throw_ascii_literal (isolate,
-      "Kernel API is not available on this system");
+  if (!gum_kernel_api_is_available ())
+  {
+    _gum_v8_throw_ascii_literal (isolate,
+        "Kernel API is not available on this system");
+    return FALSE;
+  }
+
+  return TRUE;
 }
