@@ -44,6 +44,9 @@ gum_darwin_query_page_size (mach_port_t task,
   kern_return_t kr;
   GumCpuType cpu_type;
 
+  if (task == mach_task_self ())
+    return gum_query_page_size ();
+
   /* FIXME: any way we can probe it without access to the task's host port? */
   kr = pid_for_task (task, &pid);
   if (kr != KERN_SUCCESS)
