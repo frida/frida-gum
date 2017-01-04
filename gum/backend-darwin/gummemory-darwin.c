@@ -179,13 +179,15 @@ gum_darwin_read (mach_port_t task,
                  gsize len,
                  gsize * n_bytes_read)
 {
-  gsize page_size;
+  guint page_size;
   guint8 * result;
   gsize offset;
   mach_port_t self;
   kern_return_t kr;
 
-  page_size = gum_query_page_size ();
+  if (!gum_darwin_query_page_size (task, &page_size))
+    return NULL;
+
   if (address < page_size)
     return NULL;
 
@@ -200,7 +202,7 @@ gum_darwin_read (mach_port_t task,
     gsize chunk_size, page_offset;
 
     chunk_address = address + offset;
-    page_address = chunk_address & ~(page_size - 1);
+    page_address = chunk_address & ~(GumAddress) (page_size - 1);
     page_offset = chunk_address - page_address;
     chunk_size = MIN (len - offset, page_size - page_offset);
 
