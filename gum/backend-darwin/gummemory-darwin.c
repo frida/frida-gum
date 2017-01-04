@@ -251,10 +251,12 @@ gum_darwin_write (mach_port_t task,
                   const guint8 * bytes,
                   gsize len)
 {
-  gsize page_size;
+  guint page_size;
   kern_return_t kr;
 
-  page_size = gum_query_page_size ();
+  if (!gum_darwin_query_page_size (task, &page_size))
+    return FALSE;
+
   if (address < page_size)
     return FALSE;
 
