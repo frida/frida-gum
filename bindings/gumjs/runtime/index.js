@@ -146,14 +146,22 @@ Object.defineProperties(engine, {
   },
   ObjC: {
     enumerable: true,
+    configurable: true,
     get: function () {
-      return require('frida-objc');
+      Frida._loadObjC();
+      const m = Frida._objc;
+      Object.defineProperty(engine, 'ObjC', { value: m });
+      return m;
     }
   },
   Java: {
     enumerable: true,
+    configurable: true,
     get: function () {
-      return require('frida-java');
+      Frida._loadJava();
+      const m = Frida._java;
+      Object.defineProperty(engine, 'Java', { value: m });
+      return m;
     }
   },
 });

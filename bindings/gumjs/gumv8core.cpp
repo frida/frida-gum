@@ -164,6 +164,10 @@ static void gumjs_global_query (Local<Name> property,
 static void gumjs_global_enumerate (const PropertyCallbackInfo<Array> & info);
 
 GUMJS_DECLARE_GETTER (gumjs_frida_get_source_map)
+GUMJS_DECLARE_GETTER (gumjs_frida_objc_get_source_map)
+GUMJS_DECLARE_GETTER (gumjs_frida_java_get_source_map)
+GUMJS_DECLARE_FUNCTION (gumjs_frida_objc_load)
+GUMJS_DECLARE_FUNCTION (gumjs_frida_java_load)
 
 GUMJS_DECLARE_GETTER (gumjs_script_get_file_name)
 GUMJS_DECLARE_GETTER (gumjs_script_get_source_map)
@@ -301,6 +305,16 @@ static const GumV8Function gumjs_global_functions[] =
 static const GumV8Property gumjs_frida_values[] =
 {
   { "sourceMap", gumjs_frida_get_source_map, NULL },
+  { "_objcSourceMap", gumjs_frida_objc_get_source_map, NULL },
+  { "_javaSourceMap", gumjs_frida_java_get_source_map, NULL },
+
+  { NULL, NULL }
+};
+
+static const GumV8Function gumjs_frida_functions[] =
+{
+  { "_loadObjC", gumjs_frida_objc_load },
+  { "_loadJava", gumjs_frida_java_load },
 
   { NULL, NULL }
 };
@@ -447,6 +461,7 @@ _gum_v8_core_init (GumV8Core * self,
 
   auto frida = _gum_v8_create_module ("Frida", scope, isolate);
   _gum_v8_module_add (module, frida, gumjs_frida_values, isolate);
+  _gum_v8_module_add (module, frida, gumjs_frida_functions, isolate);
   frida->Set (_gum_v8_string_new_ascii (isolate, "version"),
       _gum_v8_string_new_ascii (isolate, FRIDA_VERSION), ReadOnly);
 
@@ -1314,6 +1329,42 @@ GUMJS_DEFINE_GETTER (gumjs_frida_get_source_map)
   Local<Object> map;
   if (gumjs_source_map_new (core->runtime_source_map, core).ToLocal (&map))
     info.GetReturnValue ().Set (map);
+}
+
+GUMJS_DEFINE_GETTER (gumjs_frida_objc_get_source_map)
+{
+  auto platform = (GumV8Platform *) gum_v8_script_backend_get_platform (
+      core->script->priv->backend);
+
+  Local<Object> map;
+  if (gumjs_source_map_new (platform->GetObjCSourceMap (), core).ToLocal (&map))
+    info.GetReturnValue ().Set (map);
+}
+
+GUMJS_DEFINE_GETTER (gumjs_frida_java_get_source_map)
+{
+  auto platform = (GumV8Platform *) gum_v8_script_backend_get_platform (
+      core->script->priv->backend);
+
+  Local<Object> map;
+  if (gumjs_source_map_new (platform->GetJavaSourceMap (), core).ToLocal (&map))
+    info.GetReturnValue ().Set (map);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_frida_objc_load)
+{
+  auto platform = (GumV8Platform *) gum_v8_script_backend_get_platform (
+      core->script->priv->backend);
+
+  gum_v8_bundle_run (platform->GetObjCBundle ());
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_frida_java_load)
+{
+  auto platform = (GumV8Platform *) gum_v8_script_backend_get_platform (
+      core->script->priv->backend);
+
+  gum_v8_bundle_run (platform->GetJavaBundle ());
 }
 
 GUMJS_DEFINE_GETTER (gumjs_script_get_file_name)

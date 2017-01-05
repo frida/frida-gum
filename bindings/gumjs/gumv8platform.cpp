@@ -7,6 +7,8 @@
 #include "gumv8platform.h"
 
 #include "gumv8script-debug.h"
+#include "gumv8script-java.h"
+#include "gumv8script-objc.h"
 #include "gumv8script-runtime.h"
 
 using namespace v8;
@@ -60,6 +62,8 @@ public:
 
 GumV8Platform::GumV8Platform ()
   : disposing (false),
+    objc_bundle (NULL),
+    java_bundle (NULL),
     scheduler (gum_script_scheduler_new ()),
     start_time (g_get_monotonic_time ()),
     array_buffer_allocator (new GumArrayBufferAllocator ())
@@ -95,6 +99,34 @@ GumV8Platform::GetRuntimeSourceMap () const
   return gumjs_frida_source_map;
 }
 
+GumV8Bundle *
+GumV8Platform::GetObjCBundle ()
+{
+  if (objc_bundle == NULL)
+    objc_bundle = gum_v8_bundle_new (isolate, gumjs_objc_modules);
+  return objc_bundle;
+}
+
+const gchar *
+GumV8Platform::GetObjCSourceMap () const
+{
+  return gumjs_objc_source_map;
+}
+
+GumV8Bundle *
+GumV8Platform::GetJavaBundle ()
+{
+  if (java_bundle == NULL)
+    java_bundle = gum_v8_bundle_new (isolate, gumjs_java_modules);
+  return java_bundle;
+}
+
+const gchar *
+GumV8Platform::GetJavaSourceMap () const
+{
+  return gumjs_java_source_map;
+}
+
 void
 GumV8Platform::OnFatalError (const char * location,
                              const char * message)
@@ -110,6 +142,11 @@ GumV8Platform::~GumV8Platform ()
     Locker locker (isolate);
     Isolate::Scope isolate_scope (isolate);
     HandleScope handle_scope (isolate);
+
+    if (objc_bundle != NULL)
+      gum_v8_bundle_free (objc_bundle);
+    if (java_bundle != NULL)
+      gum_v8_bundle_free (java_bundle);
 
     gum_v8_bundle_free (debug_bundle);
     gum_v8_bundle_free (runtime_bundle);

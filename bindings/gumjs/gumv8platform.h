@@ -23,6 +23,10 @@ public:
   v8::Isolate * GetIsolate () const { return isolate; }
   GumV8Bundle * GetRuntimeBundle () const { return runtime_bundle; }
   const gchar * GetRuntimeSourceMap () const;
+  GumV8Bundle * GetObjCBundle ();
+  const gchar * GetObjCSourceMap () const;
+  GumV8Bundle * GetJavaBundle ();
+  const gchar * GetJavaSourceMap () const;
   GumV8Bundle * GetDebugBundle () const { return debug_bundle; }
   GumScriptScheduler * GetScheduler () const { return scheduler; }
 
@@ -50,6 +54,8 @@ private:
   bool disposing;
   v8::Isolate * isolate;
   GumV8Bundle * runtime_bundle;
+  GumV8Bundle * objc_bundle;
+  GumV8Bundle * java_bundle;
   GumV8Bundle * debug_bundle;
   GumScriptScheduler * scheduler;
   const gint64 start_time;

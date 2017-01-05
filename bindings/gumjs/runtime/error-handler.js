@@ -227,6 +227,10 @@ function findSourceMap(source) {
     return Script.sourceMap;
   else if (source === 'frida.js')
     return Frida.sourceMap;
+  else if (source === 'objc.js')
+    return Frida._objcSourceMap;
+  else if (source === 'java.js')
+    return Frida._javaSourceMap;
   else
     return null;
 }

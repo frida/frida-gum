@@ -8,6 +8,8 @@
 
 #include "gumdukinterceptor.h"
 #include "gumdukmacros.h"
+#include "gumdukscript-objc.h"
+#include "gumdukscript-java.h"
 #include "gumsourcemap.h"
 
 #include <ffi.h>
@@ -143,7 +145,12 @@ GUMJS_DECLARE_FUNCTION (gumjs_set_unhandled_exception_callback)
 GUMJS_DECLARE_FUNCTION (gumjs_set_incoming_message_callback)
 GUMJS_DECLARE_FUNCTION (gumjs_wait_for_event)
 
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_frida_construct)
 GUMJS_DECLARE_GETTER (gumjs_frida_get_source_map)
+GUMJS_DECLARE_GETTER (gumjs_frida_objc_get_source_map)
+GUMJS_DECLARE_GETTER (gumjs_frida_java_get_source_map)
+GUMJS_DECLARE_FUNCTION (gumjs_frida_objc_load)
+GUMJS_DECLARE_FUNCTION (gumjs_frida_java_load)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_script_construct)
 GUMJS_DECLARE_GETTER (gumjs_script_get_file_name)
@@ -286,8 +293,18 @@ static void gum_duk_push_ffi_value (duk_context * ctx,
 static const GumDukPropertyEntry gumjs_frida_values[] =
 {
   { "sourceMap", gumjs_frida_get_source_map, NULL },
+  { "_objcSourceMap", gumjs_frida_objc_get_source_map, NULL },
+  { "_javaSourceMap", gumjs_frida_java_get_source_map, NULL },
 
   { NULL, NULL, NULL }
+};
+
+static const duk_function_list_entry gumjs_frida_functions[] =
+{
+  { "_loadObjC", gumjs_frida_objc_load, 0 },
+  { "_loadJava", gumjs_frida_java_load, 0 },
+
+  { NULL, NULL, 0 }
 };
 
 static const GumDukPropertyEntry gumjs_script_values[] =
@@ -733,11 +750,11 @@ _gum_duk_core_init (GumDukCore * self,
   duk_push_global_object (ctx);
   duk_put_global_string (ctx, "global");
 
+  duk_push_c_function (ctx, gumjs_frida_construct, 0);
   duk_push_object (ctx);
-  _gum_duk_add_properties_to_class_by_heapptr (ctx,
-      duk_require_heapptr (ctx, -1), gumjs_frida_values);
-  duk_push_string (ctx, FRIDA_VERSION);
-  duk_put_prop_string (ctx, -2, "version");
+  duk_put_function_list (ctx, -1, gumjs_frida_functions);
+  duk_put_prop_string (ctx, -2, "prototype");
+  duk_new (ctx, 0);
   duk_put_global_string (ctx, "Frida");
 
   duk_push_c_function (ctx, gumjs_script_construct, 0);
@@ -1260,6 +1277,23 @@ _gum_duk_scope_leave (GumDukScope * self)
     gum_duk_core_notify_flushed (core, pending_flush_notify);
 }
 
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_frida_construct)
+{
+  (void) args;
+
+  duk_push_this (ctx);
+
+  duk_push_string (ctx, FRIDA_VERSION);
+  duk_put_prop_string (ctx, -2, "version");
+
+  _gum_duk_add_properties_to_class_by_heapptr (ctx,
+      duk_require_heapptr (ctx, -1), gumjs_frida_values);
+
+  duk_pop (ctx);
+
+  return 0;
+}
+
 GUMJS_DEFINE_GETTER (gumjs_frida_get_source_map)
 {
   GumDukCore * self = args->core;
@@ -1267,8 +1301,35 @@ GUMJS_DEFINE_GETTER (gumjs_frida_get_source_map)
   duk_push_heapptr (ctx, self->source_map);
   duk_push_string (ctx, self->runtime_source_map);
   duk_new (ctx, 1);
-
   return 1;
+}
+
+GUMJS_DEFINE_GETTER (gumjs_frida_objc_get_source_map)
+{
+  duk_push_heapptr (ctx, args->core->source_map);
+  duk_push_string (ctx, gumjs_objc_source_map);
+  duk_new (ctx, 1);
+  return 1;
+}
+
+GUMJS_DEFINE_GETTER (gumjs_frida_java_get_source_map)
+{
+  duk_push_heapptr (ctx, args->core->source_map);
+  duk_push_string (ctx, gumjs_java_source_map);
+  duk_new (ctx, 1);
+  return 1;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_frida_objc_load)
+{
+  gum_duk_bundle_load (gumjs_objc_modules, ctx);
+  return 0;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_frida_java_load)
+{
+  gum_duk_bundle_load (gumjs_java_modules, ctx);
+  return 0;
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_script_construct)

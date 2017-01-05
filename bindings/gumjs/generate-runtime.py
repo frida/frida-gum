@@ -200,17 +200,25 @@ if __name__ == '__main__':
     output_dir = sys.argv[2]
 
     runtime = os.path.abspath(os.path.join(output_dir, "frida.js"))
+    objc = os.path.abspath(os.path.join(output_dir, "objc.js"))
+    java = os.path.abspath(os.path.join(output_dir, "java.js"))
 
     subprocess.check_call([node_script_path("frida-compile"), "./runtime", "-o", runtime], cwd=input_dir)
+    subprocess.check_call([node_script_path("frida-compile"), "./runtime/objc.js", "-o", objc], cwd=input_dir)
+    subprocess.check_call([node_script_path("frida-compile"), "./runtime/java.js", "-o", java], cwd=input_dir)
 
     polyfill_modules = [os.path.join(input_dir, input_name) for input_name in [
         "frida-regenerator.js",
     ]]
 
     generate_runtime_v8("runtime", output_dir, "gumv8script-runtime.h", polyfill_modules + [runtime])
+    generate_runtime_v8("objc", output_dir, "gumv8script-objc.h", [objc])
+    generate_runtime_v8("java", output_dir, "gumv8script-java.h", [java])
     generate_runtime_v8("debug", output_dir, "gumv8script-debug.h", [os.path.join(input_dir, "frida-debug.js")])
 
     duk_polyfill_modules = [os.path.join(input_dir, input_name) for input_name in [
         "frida-babel-polyfill.js",
     ]] + polyfill_modules
     generate_runtime_duk("runtime", output_dir, "gumdukscript-runtime.h", input_dir, duk_polyfill_modules + [runtime])
+    generate_runtime_duk("objc", output_dir, "gumdukscript-objc.h", input_dir, [objc])
+    generate_runtime_duk("java", output_dir, "gumdukscript-java.h", input_dir, [java])

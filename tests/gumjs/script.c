@@ -192,6 +192,7 @@ TEST_LIST_BEGIN (script)
 #endif
   SCRIPT_TESTENTRY (script_can_be_compiled_to_bytecode)
   SCRIPT_TESTENTRY (script_can_be_reloaded)
+  SCRIPT_TESTENTRY (script_memory_usage)
   SCRIPT_TESTENTRY (source_maps_should_be_supported_for_our_runtime)
   SCRIPT_TESTENTRY (source_maps_should_be_supported_for_user_scripts)
   SCRIPT_TESTENTRY (types_handle_invalid_construction)
@@ -3790,6 +3791,51 @@ SCRIPT_TESTCASE (script_can_be_reloaded)
   EXPECT_NO_MESSAGES ();
   gum_script_load_sync (fixture->script, NULL);
   EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
+}
+
+SCRIPT_TESTCASE (script_memory_usage)
+{
+  GumScript * script;
+  GTimer * timer;
+  guint before, after;
+
+  if (!GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+  {
+    g_print ("<skipping, measurement only valid for the Duktape runtime> ");
+    return;
+  }
+
+  /* Warm up */
+  script = gum_script_backend_create_sync (fixture->backend, "testcase",
+      "'use strict';", NULL, NULL);
+  gum_script_load_sync (script, NULL);
+  gum_script_unload_sync (script, NULL);
+  g_object_unref (script);
+
+  timer = g_timer_new ();
+
+  before = gum_peek_private_memory_usage ();
+
+  g_timer_reset (timer);
+  script = gum_script_backend_create_sync (fixture->backend, "testcase",
+      "'use strict';", NULL, NULL);
+  g_print ("created in %u ms\n",
+      (guint) (g_timer_elapsed (timer, NULL) * 1000.0));
+
+  g_timer_reset (timer);
+  gum_script_load_sync (script, NULL);
+  g_print ("loaded in %u ms\n",
+      (guint) (g_timer_elapsed (timer, NULL) * 1000.0));
+
+  after = gum_peek_private_memory_usage ();
+  g_print ("memory usage: %u bytes\n", after - before);
+
+  g_timer_reset (timer);
+  gum_script_unload_sync (script, NULL);
+  g_print ("unloaded in %u ms\n",
+      (guint) (g_timer_elapsed (timer, NULL) * 1000.0));
+
+  g_object_unref (script);
 }
 
 SCRIPT_TESTCASE (source_maps_should_be_supported_for_our_runtime)
