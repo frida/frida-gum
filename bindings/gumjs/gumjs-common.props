@@ -128,27 +128,30 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="runtime\index.js" />
+    <None Include="runtime\entrypoint-v8.js" />
+    <None Include="runtime\entrypoint-duktape.js" />
     <None Include="runtime\message-dispatcher.js" />
-    <None Include="runtime\error-handler.js" />
+    <None Include="runtime\error-handler-v8.js" />
+    <None Include="runtime\error-handler-duktape.js" />
     <None Include="runtime\console.js" />
     <None Include="runtime\hexdump.js" />
+    <None Include="runtime\promise.js" />
+    <None Include="runtime\objc.js" />
+    <None Include="runtime\java.js" />
     <None Include="frida-debug.js" />
-    <None Include="frida-babel-polyfill.js" />
-    <None Include="frida-regenerator.js" />
   </ItemGroup>
 
   <ItemGroup>
     <CustomBuild Include="generate-runtime.py">
       <FileType>Document</FileType>
-      <Outputs>$(IntDir)gumjs\runtime.stamp;$(IntDir)gumjs\gumv8script-runtime.h;$(IntDir)gumjs\gumv8script-debug.h</Outputs>
+      <Outputs>$(IntDir)gumjs\runtime.stamp;$(IntDir)gumjs\gumv8script-runtime.h;$(IntDir)gumjs\gumv8script-objc.h;$(IntDir)gumjs\gumv8script-java.h;$(IntDir)gumjs\gumv8script-debug.h;$(IntDir)gumjs\gumdukscript-runtime.h;$(IntDir)gumjs\gumdukscript-objc.h;$(IntDir)gumjs\gumdukscript-java.h;$(IntDir)gumjs\gumdukscript-promise.h</Outputs>
       <Message>Generating runtime</Message>
       <Command>mkdir $(IntDir)gumjs 2&gt;NUL
 generate-runtime.py $(ProjectDir) $(IntDir)gumjs || exit 1
 REM. &gt; $(IntDir)gumjs\runtime.stamp
 </Command>
       <LinkObjects>false</LinkObjects>
-      <AdditionalInputs>runtime\index.js;runtime\message-dispatcher.js;runtime\error-handler.js;runtime\console.js;runtime\hexdump.js;frida-debug.js;frida-babel-polyfill.js;frida-regenerator.js;%(AdditionalInputs)</AdditionalInputs>
+      <AdditionalInputs>runtime\entrypoint-v8.js;runtime\entrypoint-duktape.js;runtime\message-dispatcher.js;runtime\error-handler-v8.js;runtime\error-handler-duktape.js;runtime\console.js;runtime\hexdump.js;runtime\promise.js;runtime\objc.js;runtime\java.js;frida-debug.js;%(AdditionalInputs)</AdditionalInputs>
     </CustomBuild>
   </ItemGroup>
 

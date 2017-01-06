@@ -334,13 +334,19 @@
     <None Include="..\..\vapi\frida-gumjs-1.0.vapi">
       <Filter>vapi</Filter>
     </None>
-    <None Include="runtime\index.js">
+    <None Include="runtime\entrypoint-v8.js">
+      <Filter>runtime</Filter>
+    </None>
+    <None Include="runtime\entrypoint-duktape.js">
       <Filter>runtime</Filter>
     </None>
     <None Include="runtime\message-dispatcher.js">
       <Filter>runtime</Filter>
     </None>
-    <None Include="runtime\error-handler.js">
+    <None Include="runtime\error-handler-v8.js">
+      <Filter>runtime</Filter>
+    </None>
+    <None Include="runtime\error-handler-duktape.js">
       <Filter>runtime</Filter>
     </None>
     <None Include="runtime\console.js">
@@ -349,13 +355,16 @@
     <None Include="runtime\hexdump.js">
       <Filter>runtime</Filter>
     </None>
+    <None Include="runtime\promise.js">
+      <Filter>runtime</Filter>
+    </None>
+    <None Include="runtime\objc.js">
+      <Filter>runtime</Filter>
+    </None>
+    <None Include="runtime\java.js">
+      <Filter>runtime</Filter>
+    </None>
     <None Include="frida-debug.js">
-      <Filter>runtime</Filter>
-    </None>
-    <None Include="frida-babel-polyfill.js">
-      <Filter>runtime</Filter>
-    </None>
-    <None Include="frida-regenerator.js">
       <Filter>runtime</Filter>
     </None>
   </ItemGroup>
