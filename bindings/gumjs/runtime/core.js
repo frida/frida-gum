@@ -10,7 +10,6 @@ let nextTimerId = 1;
 let immediates = [];
 let immediateTimer = null;
 let messageDispatcher;
-const longSize = (Process.pointerSize === 8 && Process.platform !== 'windows') ? 64 : 32;
 
 function initialize() {
   messageDispatcher = new MessageDispatcher();
@@ -304,111 +303,7 @@ Object.defineProperties(Memory, {
       return result;
     }
   },
-  readShort: {
-    enumerable: true,
-    value: function (mem) {
-      return Memory.readS16(mem);
-    }
-  },
-  writeShort: {
-    enumerable: true,
-    value: function (mem, value) {
-      return Memory.writeS16(mem, value);
-    }
-  },
-  readUShort: {
-    enumerable: true,
-    value: function (mem) {
-      return Memory.readU16(mem);
-    }
-  },
-  writeUShort: {
-    enumerable: true,
-    value: function (mem, value) {
-      return Memory.writeU16(mem, value);
-    }
-  },
-  readInt: {
-    enumerable: true,
-    value: function (mem) {
-      return Memory.readS32(mem);
-    }
-  },
-  writeInt: {
-    enumerable: true,
-    value: function (mem, value) {
-      return Memory.writeS32(mem, value);
-    }
-  },
-  readUInt: {
-    enumerable: true,
-    value: function (mem) {
-      return Memory.readU32(mem);
-    }
-  },
-  writeUInt: {
-    enumerable: true,
-    value: function (mem, value) {
-      return Memory.writeU32(mem, value);
-    }
-  },
 });
-
-if (longSize === 64) {
-  Object.defineProperties(Memory, {
-    readLong: {
-      enumerable: true,
-      value: function (mem) {
-        return Memory.readS64(mem);
-      }
-    },
-    writeLong: {
-      enumerable: true,
-      value: function (mem, value) {
-        Memory.writeS64(mem, value);
-      }
-    },
-    readULong: {
-      enumerable: true,
-      value: function (mem) {
-        return Memory.readU64(mem);
-      }
-    },
-    writeULong: {
-      enumerable: true,
-      value: function (mem, value) {
-        Memory.writeU64(mem, value);
-      }
-    },
-  });
-} else {
-  Object.defineProperties(Memory, {
-    readLong: {
-      enumerable: true,
-      value: function (mem) {
-        return new Int64(Memory.readS32(mem));
-      }
-    },
-    writeLong: {
-      enumerable: true,
-      value: function (mem, value) {
-        Memory.writeS32(mem, value);
-      }
-    },
-    readULong: {
-      enumerable: true,
-      value: function (mem) {
-        return new UInt64(Memory.readU32(mem));
-      }
-    },
-    writeULong: {
-      enumerable: true,
-      value: function (mem, value) {
-        Memory.writeU32(mem, value);
-      }
-    },
-  });
-}
 
 Object.defineProperties(Process, {
   findModuleByAddress: {
