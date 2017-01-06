@@ -271,7 +271,8 @@ gum_bsearch_find_closest (gconstpointer needle,
 
   while (index - 1 >= 0)
   {
-    if (compare (needle, haystack->data + ((index - 1) * element_size)) != 0)
+    if (compare (haystack->data + (index * element_size),
+        haystack->data + ((index - 1) * element_size)) != 0)
       break;
     index--;
   }
