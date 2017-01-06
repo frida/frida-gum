@@ -25,7 +25,7 @@ def generate_runtime_v8(runtime_name, output_dir, output, inputs):
 
             with codecs.open(input_path, 'rb', 'utf-8') as input_file:
                 source_code = input_file.read()
-            (stripped_source_code, source_map) = extract_source_map(source_code)
+            (stripped_source_code, source_map) = extract_source_map(input_name, source_code)
             source_code_bytes = bytearray(stripped_source_code.encode('utf-8'))
             source_code_bytes.append(0)
             source_code_size = len(source_code_bytes)
@@ -64,31 +64,32 @@ def generate_runtime_duk(runtime_name, output_dir, output, input_dir, inputs):
             program_suffix = ""
 
         dukcompile = os.path.join(output_dir, "gumdukcompile" + program_suffix)
-        dukcompile_sources = list(map(lambda name: os.path.join(input_dir, name), ["gumdukcompile.c", "duktape.c"]))
-        if build_os == 'windows':
-            subprocess.check_call(["cl.exe",
-                "/nologo", "/MT", "/W3", "/O1", "/GL", "/MP",
-                "/D", "WIN32",
-                "/D", "_WINDOWS",
-                "/D", "WINVER=0x0501",
-                "/D", "_WIN32_WINNT=0x0501",
-                "/D", "NDEBUG",
-                "/D", "_CRT_SECURE_NO_WARNINGS",
-                "/D", "_USING_V110_SDK71_"] + dukcompile_sources, cwd=output_dir)
-        else:
-            dukcompile_libs = []
-            if build_os == 'darwin':
-                sdk = "macosx"
-                CC = [
-                    subprocess.check_output(["xcrun", "--sdk", sdk, "-f", "clang"]).decode('utf-8').rstrip("\n"),
-                    "-isysroot", subprocess.check_output(["xcrun", "--sdk", sdk, "--show-sdk-path"]).decode('utf-8').rstrip("\n")
-                ]
+        if not os.path.exists(dukcompile):
+            dukcompile_sources = list(map(lambda name: os.path.join(input_dir, name), ["gumdukcompile.c", "duktape.c"]))
+            if build_os == 'windows':
+                subprocess.check_call(["cl.exe",
+                    "/nologo", "/MT", "/W3", "/O1", "/GL", "/MP",
+                    "/D", "WIN32",
+                    "/D", "_WINDOWS",
+                    "/D", "WINVER=0x0501",
+                    "/D", "_WIN32_WINNT=0x0501",
+                    "/D", "NDEBUG",
+                    "/D", "_CRT_SECURE_NO_WARNINGS",
+                    "/D", "_USING_V110_SDK71_"] + dukcompile_sources, cwd=output_dir)
             else:
-                CC = ["gcc"]
-                dukcompile_libs.append("-lm")
-            subprocess.check_call(CC + ["-Wall", "-pipe", "-O2", "-fomit-frame-pointer"] +
-                dukcompile_sources +
-                ["-o", dukcompile] + dukcompile_libs)
+                dukcompile_libs = []
+                if build_os == 'darwin':
+                    sdk = "macosx"
+                    CC = [
+                        subprocess.check_output(["xcrun", "--sdk", sdk, "-f", "clang"]).decode('utf-8').rstrip("\n"),
+                        "-isysroot", subprocess.check_output(["xcrun", "--sdk", sdk, "--show-sdk-path"]).decode('utf-8').rstrip("\n")
+                    ]
+                else:
+                    CC = ["gcc"]
+                    dukcompile_libs.append("-lm")
+                subprocess.check_call(CC + ["-Wall", "-pipe", "-O1", "-fomit-frame-pointer"] +
+                    dukcompile_sources +
+                    ["-o", dukcompile] + dukcompile_libs)
 
         modules = []
         for input_path in inputs:
@@ -115,7 +116,7 @@ def generate_runtime_duk(runtime_name, output_dir, output, input_dir, inputs):
             with codecs.open(input_path, 'rb', 'utf-8') as input_file:
                 source_code = input_file.read()
 
-            (stripped_source_code, source_map) = extract_source_map(source_code)
+            (stripped_source_code, source_map) = extract_source_map(input_name, source_code)
 
             if source_map is not None:
                 source_map_bytes = bytearray(source_map.encode('utf-8'))
@@ -137,14 +138,14 @@ def generate_runtime_duk(runtime_name, output_dir, output, input_dir, inputs):
 
 source_map_pattern = re.compile("//[#@][ \t]sourceMappingURL=[ \t]*data:application/json;base64,([^\\s'\"]*)[ \t]*\n")
 
-def extract_source_map(source_code):
+def extract_source_map(filename, source_code):
     m = source_map_pattern.search(source_code)
     if m is None:
         return (source_code, None)
     raw_source_map = m.group(1)
 
     source_map = json.loads(b64decode(raw_source_map).decode('utf-8'))
-    source_map['file'] = 'frida.js'
+    source_map['file'] = filename
     source_map['sources'] = list(map(to_canonical_source_path, source_map['sources']))
 
     raw_source_map = json.dumps(source_map)
@@ -199,26 +200,32 @@ if __name__ == '__main__':
     input_dir = sys.argv[1]
     output_dir = sys.argv[2]
 
-    runtime = os.path.abspath(os.path.join(output_dir, "frida.js"))
-    objc = os.path.abspath(os.path.join(output_dir, "objc.js"))
-    java = os.path.abspath(os.path.join(output_dir, "java.js"))
+    v8_tmp_dir = os.path.join(output_dir, "runtime-build-v8")
+    runtime = os.path.abspath(os.path.join(v8_tmp_dir, "frida.js"))
+    objc = os.path.abspath(os.path.join(v8_tmp_dir, "objc.js"))
+    java = os.path.abspath(os.path.join(v8_tmp_dir, "java.js"))
 
-    subprocess.check_call([node_script_path("frida-compile"), "./runtime", "-o", runtime], cwd=input_dir)
-    subprocess.check_call([node_script_path("frida-compile"), "./runtime/objc.js", "-o", objc], cwd=input_dir)
-    subprocess.check_call([node_script_path("frida-compile"), "./runtime/java.js", "-o", java], cwd=input_dir)
+    subprocess.check_call([node_script_path("frida-compile"), "./runtime", "-o", runtime, "-x"], cwd=input_dir)
+    subprocess.check_call([node_script_path("frida-compile"), "./runtime/objc.js", "-o", objc, "-x"], cwd=input_dir)
+    subprocess.check_call([node_script_path("frida-compile"), "./runtime/java.js", "-o", java, "-x"], cwd=input_dir)
 
-    polyfill_modules = [os.path.join(input_dir, input_name) for input_name in [
-        "frida-regenerator.js",
-    ]]
-
-    generate_runtime_v8("runtime", output_dir, "gumv8script-runtime.h", polyfill_modules + [runtime])
+    generate_runtime_v8("runtime", output_dir, "gumv8script-runtime.h", [runtime])
     generate_runtime_v8("objc", output_dir, "gumv8script-objc.h", [objc])
     generate_runtime_v8("java", output_dir, "gumv8script-java.h", [java])
     generate_runtime_v8("debug", output_dir, "gumv8script-debug.h", [os.path.join(input_dir, "frida-debug.js")])
 
-    duk_polyfill_modules = [os.path.join(input_dir, input_name) for input_name in [
-        "frida-babel-polyfill.js",
-    ]] + polyfill_modules
-    generate_runtime_duk("runtime", output_dir, "gumdukscript-runtime.h", input_dir, duk_polyfill_modules + [runtime])
+    duk_tmp_dir = os.path.join(output_dir, "runtime-build-duk")
+    runtime = os.path.abspath(os.path.join(duk_tmp_dir, "frida.js"))
+    promise = os.path.abspath(os.path.join(duk_tmp_dir, "promise.js"))
+    objc = os.path.abspath(os.path.join(duk_tmp_dir, "objc.js"))
+    java = os.path.abspath(os.path.join(duk_tmp_dir, "java.js"))
+
+    subprocess.check_call([node_script_path("frida-compile"), "./runtime", "-o", runtime], cwd=input_dir)
+    subprocess.check_call([node_script_path("frida-compile"), "./runtime/promise.js", "-o", promise], cwd=input_dir)
+    subprocess.check_call([node_script_path("frida-compile"), "./runtime/objc.js", "-o", objc], cwd=input_dir)
+    subprocess.check_call([node_script_path("frida-compile"), "./runtime/java.js", "-o", java], cwd=input_dir)
+
+    generate_runtime_duk("runtime", output_dir, "gumdukscript-runtime.h", input_dir, [runtime])
+    generate_runtime_duk("promise", output_dir, "gumdukscript-promise.h", input_dir, [promise])
     generate_runtime_duk("objc", output_dir, "gumdukscript-objc.h", input_dir, [objc])
     generate_runtime_duk("java", output_dir, "gumdukscript-java.h", input_dir, [java])

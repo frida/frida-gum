@@ -3,18 +3,19 @@
 const hexdump = require('./hexdump');
 
 const engine = global;
+const slice = Array.prototype.slice;
 
 class Console {
   log() {
-    sendLogMessage('info', Array.from(arguments));
+    sendLogMessage('info', slice.call(arguments));
   }
 
   warn() {
-    sendLogMessage('warning', Array.from(arguments));
+    sendLogMessage('warning', slice.call(arguments));
   }
 
   error() {
-    sendLogMessage('error', Array.from(arguments));
+    sendLogMessage('error', slice.call(arguments));
   }
 }
 

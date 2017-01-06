@@ -43,7 +43,7 @@ function MessageDispatcher() {
 
       try {
         const result = exports[method].apply(exports, args);
-        if (result instanceof Promise) {
+        if (typeof result === 'object' && typeof result.then === 'function') {
           result
           .then(value => {
             reply(id, 'ok', value);

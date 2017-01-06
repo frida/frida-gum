@@ -156,9 +156,10 @@ script_runtime_sources = \
 	runtime/error-handler.js \
 	runtime/console.js \
 	runtime/hexdump.js \
+	runtime/promise.js \
+	runtime/objc.js \
+	runtime/java.js \
 	frida-debug.js \
-	frida-babel-polyfill.js \
-	frida-regenerator.js \
 	$(NULL)
 
 script-runtime-stamp: generate-runtime.py $(script_runtime_sources)

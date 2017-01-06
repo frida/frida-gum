@@ -8,8 +8,9 @@
 
 #include "gumdukinterceptor.h"
 #include "gumdukmacros.h"
-#include "gumdukscript-objc.h"
 #include "gumdukscript-java.h"
+#include "gumdukscript-objc.h"
+#include "gumdukscript-promise.h"
 #include "gumsourcemap.h"
 
 #include <ffi.h>
@@ -144,6 +145,8 @@ GUMJS_DECLARE_FUNCTION (gumjs_send)
 GUMJS_DECLARE_FUNCTION (gumjs_set_unhandled_exception_callback)
 GUMJS_DECLARE_FUNCTION (gumjs_set_incoming_message_callback)
 GUMJS_DECLARE_FUNCTION (gumjs_wait_for_event)
+
+GUMJS_DECLARE_GETTER (gumjs_get_promise)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_frida_construct)
 GUMJS_DECLARE_GETTER (gumjs_frida_get_source_map)
@@ -750,6 +753,13 @@ _gum_duk_core_init (GumDukCore * self,
   duk_push_global_object (ctx);
   duk_put_global_string (ctx, "global");
 
+  duk_push_global_object (ctx);
+  duk_push_string (ctx, "Promise");
+  duk_push_c_function (ctx, gumjs_get_promise, 0);
+  duk_def_prop (ctx, -3, DUK_DEFPROP_SET_ENUMERABLE |
+      DUK_DEFPROP_SET_CONFIGURABLE | DUK_DEFPROP_HAVE_GETTER);
+  duk_pop (ctx);
+
   duk_push_c_function (ctx, gumjs_frida_construct, 0);
   duk_push_object (ctx);
   duk_put_function_list (ctx, -1, gumjs_frida_functions);
@@ -1275,6 +1285,27 @@ _gum_duk_scope_leave (GumDukScope * self)
 
   if (pending_flush_notify != NULL)
     gum_duk_core_notify_flushed (core, pending_flush_notify);
+}
+
+GUMJS_DEFINE_GETTER (gumjs_get_promise)
+{
+  duk_push_global_object (ctx);
+
+  duk_del_prop_string (ctx, -1, "Promise");
+
+  gum_duk_bundle_load (gumjs_promise_modules, ctx);
+
+  duk_get_prop_string (ctx, -1, "Frida");
+  duk_get_prop_string (ctx, -1, "_promise");
+
+  duk_push_string (ctx, "Promise");
+  duk_dup (ctx, -2);
+  duk_def_prop (ctx, -5, DUK_DEFPROP_SET_ENUMERABLE |
+      DUK_DEFPROP_SET_CONFIGURABLE | DUK_DEFPROP_HAVE_VALUE);
+
+  duk_swap_top (ctx, -3);
+  duk_pop_2 (ctx);
+  return 1;
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_frida_construct)
