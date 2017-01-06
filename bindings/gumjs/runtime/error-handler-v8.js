@@ -1,134 +1,48 @@
 'use strict';
 
-module.exports = {
-  register: register
-};
+global._setUnhandledExceptionCallback(function (error) {
+  const message = {
+    type: 'error',
+    description: '' + error
+  };
 
-function register() {
-  const engine = global;
+  if (error instanceof Error) {
+    const stack = error.stack;
+    if (stack) {
+      message.stack = stack;
 
-  const runtime = Script.runtime;
-  if (runtime === 'V8') {
-    engine._setUnhandledExceptionCallback(function (error) {
-      const message = {
-        type: 'error',
-        description: '' + error
-      };
-
-      if (error instanceof Error) {
-        const stack = error.stack;
-        if (stack) {
-          message.stack = stack;
-
-          const frames = stack.frames;
-          if (frames) {
-            const frame = frames[0];
-            message.fileName = frame.getFileName();
-            message.lineNumber = frame.getLineNumber();
-            message.columnNumber = frame.getColumnNumber();
-          }
-        }
+      const frames = stack.frames;
+      if (frames) {
+        const frame = frames[0];
+        message.fileName = frame.getFileName();
+        message.lineNumber = frame.getLineNumber();
+        message.columnNumber = frame.getColumnNumber();
       }
-
-      engine._send(JSON.stringify(message), null);
-    });
-
-    Error.prepareStackTrace = function (error, stack) {
-      const translatedStack = stack.map(function (frame) {
-        return wrapCallSite(frame);
-      });
-      if (translatedStack[0].toString() === 'Error (native)')
-        translatedStack.splice(0, 1);
-      const result = new String(error.toString() + translatedStack.map(function (frame) {
-        return '\n    at ' + frame.toString();
-      }).join(''));
-      result.frames = translatedStack;
-      return result;
-    };
-  } else if (runtime === 'DUK') {
-    engine._setUnhandledExceptionCallback(function (error) {
-      const message = {
-        type: 'error',
-        description: '' + error
-      };
-
-      if (error instanceof Error) {
-        const stack = error.stack;
-        if (stack) {
-          message.stack = stack;
-        }
-
-        const fileName = error.fileName;
-        if (fileName) {
-          message.fileName = fileName;
-        }
-
-        const lineNumber = error.lineNumber;
-        if (lineNumber) {
-          message.lineNumber = lineNumber;
-          message.columnNumber = 1;
-        }
-      }
-
-      engine._send(JSON.stringify(message), null);
-    });
-
-    Duktape.errCreate = function (error) {
-      let stack = error.stack;
-      if (!stack)
-        return error;
-
-      let firstSourcePosition = null;
-      let frameTypes = [];
-
-      stack = stack
-          .replace(/    at (.+) \(((.+):(.+))?\) (internal)?(native)?(.*)/g,
-            function (match, scope, sourceLocation, fileName, lineNumber, internal, native, suffix) {
-              frameTypes.push(internal || native);
-
-              if (sourceLocation === undefined || internal !== undefined) {
-                return '    at ' + scope + ' (' + (sourceLocation || (native || "")) + ')';
-              }
-
-              const position = mapSourcePosition({
-                source: fileName,
-                line: parseInt(lineNumber, 10)
-              });
-
-              if (firstSourcePosition === null)
-                firstSourcePosition = position;
-
-              const location = position.source + ':' + position.line;
-
-              const funcName = (scope !== 'global' && scope !== '[anon]') ? scope : null;
-              if (funcName !== null)
-                return '    at ' + funcName + ' (' + location + ')';
-              else
-                return '    at ' + location;
-            });
-
-      if (frameTypes.length >= 3 && frameTypes[0] === 'internal' && frameTypes[1] === 'native') {
-        const lines = stack.split('\n');
-        stack = lines[0] + '\n' + lines.slice(3).join('\n');
-      }
-
-      error.stack = stack;
-
-      if (firstSourcePosition !== null) {
-        error.fileName = firstSourcePosition.source;
-        error.lineNumber = firstSourcePosition.line;
-      }
-
-      return error;
-    };
+    }
   }
-}
+
+  _send(JSON.stringify(message), null);
+});
+
+Error.prepareStackTrace = function (error, stack) {
+  const translatedStack = stack.map(function (frame) {
+    return wrapCallSite(frame);
+  });
+  if (translatedStack[0].toString() === 'Error (native)')
+    translatedStack.splice(0, 1);
+  const result = new String(error.toString() + translatedStack.map(function (frame) {
+    return '\n    at ' + frame.toString();
+  }).join(''));
+  result.frames = translatedStack;
+  return result;
+};
 
 /*
  * Based on https://github.com/evanw/node-source-map-support
  */
 
 const sourceMapCache = {};
+
 function wrapCallSite(frame) {
   // Most call sites will return the source file from getFileName(), but code
   // passed to eval() ending in "//# sourceURL=..." will return the source file

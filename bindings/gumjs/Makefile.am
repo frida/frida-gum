@@ -151,9 +151,11 @@ libfrida_gumjs_la_LIBTOOLFLAGS = \
 	$(NULL)
 
 script_runtime_sources = \
-	runtime/index.js \
+	runtime/entrypoint-v8.js \
+	runtime/entrypoint-duktape.js \
 	runtime/message-dispatcher.js \
-	runtime/error-handler.js \
+	runtime/error-handler-v8.js \
+	runtime/error-handler-duktape.js \
 	runtime/console.js \
 	runtime/hexdump.js \
 	runtime/promise.js \

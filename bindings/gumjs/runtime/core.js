@@ -1,7 +1,6 @@
 'use strict';
 
 const Console = require('./console');
-const ErrorHandler = require('./error-handler');
 const hexdump = require('./hexdump');
 const MessageDispatcher = require('./message-dispatcher');
 
@@ -11,7 +10,7 @@ let nextTimerId = 1;
 let immediates = [];
 let immediateTimer = null;
 let messageDispatcher;
-const longSize = (Process.pointerSize == 8 && Process.platform !== 'windows') ? 64 : 32;
+const longSize = (Process.pointerSize === 8 && Process.platform !== 'windows') ? 64 : 32;
 
 function initialize() {
   messageDispatcher = new MessageDispatcher();
@@ -23,8 +22,6 @@ function initialize() {
       return createProxy.call(proxyClass, handler, Object.getPrototypeOf(target));
     };
   }
-
-  ErrorHandler.register();
 }
 
 Object.defineProperties(engine, {

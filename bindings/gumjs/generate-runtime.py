@@ -205,7 +205,7 @@ if __name__ == '__main__':
     objc = os.path.abspath(os.path.join(v8_tmp_dir, "objc.js"))
     java = os.path.abspath(os.path.join(v8_tmp_dir, "java.js"))
 
-    subprocess.check_call([node_script_path("frida-compile"), "./runtime", "-o", runtime, "-x"], cwd=input_dir)
+    subprocess.check_call([node_script_path("frida-compile"), "./runtime/entrypoint-v8.js", "-o", runtime, "-x"], cwd=input_dir)
     subprocess.check_call([node_script_path("frida-compile"), "./runtime/objc.js", "-o", objc, "-x"], cwd=input_dir)
     subprocess.check_call([node_script_path("frida-compile"), "./runtime/java.js", "-o", java, "-x"], cwd=input_dir)
 
@@ -220,7 +220,7 @@ if __name__ == '__main__':
     objc = os.path.abspath(os.path.join(duk_tmp_dir, "objc.js"))
     java = os.path.abspath(os.path.join(duk_tmp_dir, "java.js"))
 
-    subprocess.check_call([node_script_path("frida-compile"), "./runtime", "-o", runtime], cwd=input_dir)
+    subprocess.check_call([node_script_path("frida-compile"), "./runtime/entrypoint-duktape.js", "-o", runtime], cwd=input_dir)
     subprocess.check_call([node_script_path("frida-compile"), "./runtime/promise.js", "-o", promise], cwd=input_dir)
     subprocess.check_call([node_script_path("frida-compile"), "./runtime/objc.js", "-o", objc], cwd=input_dir)
     subprocess.check_call([node_script_path("frida-compile"), "./runtime/java.js", "-o", java], cwd=input_dir)
