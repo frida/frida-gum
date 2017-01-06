@@ -340,6 +340,9 @@
     <None Include="runtime\entrypoint-duktape.js">
       <Filter>runtime</Filter>
     </None>
+    <None Include="runtime\core.js">
+      <Filter>runtime</Filter>
+    </None>
     <None Include="runtime\message-dispatcher.js">
       <Filter>runtime</Filter>
     </None>

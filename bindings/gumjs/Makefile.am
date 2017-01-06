@@ -153,6 +153,7 @@ libfrida_gumjs_la_LIBTOOLFLAGS = \
 script_runtime_sources = \
 	runtime/entrypoint-v8.js \
 	runtime/entrypoint-duktape.js \
+	runtime/core.js \
 	runtime/message-dispatcher.js \
 	runtime/error-handler-v8.js \
 	runtime/error-handler-duktape.js \

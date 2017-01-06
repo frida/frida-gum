@@ -130,6 +130,7 @@
   <ItemGroup>
     <None Include="runtime\entrypoint-v8.js" />
     <None Include="runtime\entrypoint-duktape.js" />
+    <None Include="runtime\core.js" />
     <None Include="runtime\message-dispatcher.js" />
     <None Include="runtime\error-handler-v8.js" />
     <None Include="runtime\error-handler-duktape.js" />
@@ -151,7 +152,7 @@ generate-runtime.py $(ProjectDir) $(IntDir)gumjs || exit 1
 REM. &gt; $(IntDir)gumjs\runtime.stamp
 </Command>
       <LinkObjects>false</LinkObjects>
-      <AdditionalInputs>runtime\entrypoint-v8.js;runtime\entrypoint-duktape.js;runtime\message-dispatcher.js;runtime\error-handler-v8.js;runtime\error-handler-duktape.js;runtime\console.js;runtime\hexdump.js;runtime\promise.js;runtime\objc.js;runtime\java.js;frida-debug.js;%(AdditionalInputs)</AdditionalInputs>
+      <AdditionalInputs>runtime\entrypoint-v8.js;runtime\entrypoint-duktape.js;runtime\core.js;runtime\message-dispatcher.js;runtime\error-handler-v8.js;runtime\error-handler-duktape.js;runtime\console.js;runtime\hexdump.js;runtime\promise.js;runtime\objc.js;runtime\java.js;frida-debug.js;%(AdditionalInputs)</AdditionalInputs>
     </CustomBuild>
   </ItemGroup>
 
