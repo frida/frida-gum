@@ -92,8 +92,7 @@ function register() {
 
               const position = mapSourcePosition({
                 source: fileName,
-                line: parseInt(lineNumber, 10),
-                column: 0
+                line: parseInt(lineNumber, 10)
               });
 
               if (firstSourcePosition === null)

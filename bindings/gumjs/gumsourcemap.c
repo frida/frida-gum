@@ -322,6 +322,9 @@ gum_source_mapping_compare (const GumSourceMapping * a,
   if (result != 0)
     return result;
 
+  if (a->generated_column == G_MAXUINT || b->generated_column == G_MAXUINT)
+    return 0;
+
   result = a->generated_column - b->generated_column;
 
   return result;

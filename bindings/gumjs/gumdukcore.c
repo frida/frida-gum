@@ -699,7 +699,7 @@ static const GumDukPropertyEntry gumjs_cpu_context_values[] =
 
 static const duk_function_list_entry gumjs_source_map_functions[] =
 {
-  { "_resolve", gumjs_source_map_resolve, 2 },
+  { "_resolve", gumjs_source_map_resolve, DUK_VARARGS },
 
   { NULL, NULL, 0 }
 };
@@ -3104,7 +3104,15 @@ GUMJS_DEFINE_FUNCTION (gumjs_source_map_resolve)
 
   self = gumjs_source_map_from_args (args);
 
-  _gum_duk_args_parse (args, "uu", &line, &column);
+  if (args->count == 1)
+  {
+    _gum_duk_args_parse (args, "u", &line);
+    column = G_MAXUINT;
+  }
+  else
+  {
+    _gum_duk_args_parse (args, "uu", &line, &column);
+  }
 
   if (gum_source_map_resolve (self, &line, &column, &source, &name))
   {

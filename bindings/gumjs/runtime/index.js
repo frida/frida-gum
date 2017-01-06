@@ -846,7 +846,10 @@ Object.defineProperties(Socket, {
 });
 
 SourceMap.prototype.resolve = function (generatedPosition) {
-  const position = this._resolve(generatedPosition.line, generatedPosition.column);
+  const generatedColumn = generatedPosition.column;
+  const position = (generatedColumn !== undefined)
+      ? this._resolve(generatedPosition.line, generatedColumn)
+      : this._resolve(generatedPosition.line);
   if (position === null)
     return null;
 

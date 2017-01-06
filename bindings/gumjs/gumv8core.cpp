@@ -2778,8 +2778,18 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_source_map_construct)
 GUMJS_DEFINE_CLASS_METHOD (gumjs_source_map_resolve, GumV8SourceMap)
 {
   guint line, column;
-  if (!_gum_v8_args_parse (args, "uu", &line, &column))
-    return;
+
+  if (args->info->Length () == 1)
+  {
+    if (!_gum_v8_args_parse (args, "u", &line))
+      return;
+    column = G_MAXUINT;
+  }
+  else
+  {
+    if (!_gum_v8_args_parse (args, "uu", &line, &column))
+      return;
+  }
 
   const gchar * source, * name;
   if (gum_source_map_resolve (self->handle, &line, &column, &source, &name))
