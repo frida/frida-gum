@@ -33,6 +33,8 @@ enum GumMemoryValueType
   GUM_MEMORY_VALUE_U32,
   GUM_MEMORY_VALUE_S64,
   GUM_MEMORY_VALUE_U64,
+  GUM_MEMORY_VALUE_LONG,
+  GUM_MEMORY_VALUE_ULONG,
   GUM_MEMORY_VALUE_FLOAT,
   GUM_MEMORY_VALUE_DOUBLE,
   GUM_MEMORY_VALUE_BYTE_ARRAY,
@@ -105,6 +107,8 @@ GUM_DEFINE_MEMORY_READ_WRITE (S32)
 GUM_DEFINE_MEMORY_READ_WRITE (U32)
 GUM_DEFINE_MEMORY_READ_WRITE (S64)
 GUM_DEFINE_MEMORY_READ_WRITE (U64)
+GUM_DEFINE_MEMORY_READ_WRITE (LONG)
+GUM_DEFINE_MEMORY_READ_WRITE (ULONG)
 GUM_DEFINE_MEMORY_READ_WRITE (FLOAT)
 GUM_DEFINE_MEMORY_READ_WRITE (DOUBLE)
 GUM_DEFINE_MEMORY_READ_WRITE (BYTE_ARRAY)
@@ -141,17 +145,6 @@ static const GumV8Function gumjs_memory_functions[] =
   { "protect", gumjs_memory_protect },
 
   GUMJS_EXPORT_MEMORY_READ_WRITE ("Pointer", POINTER),
-  GUMJS_EXPORT_MEMORY_READ_WRITE ("Short", S16),
-  GUMJS_EXPORT_MEMORY_READ_WRITE ("UShort", U16),
-  GUMJS_EXPORT_MEMORY_READ_WRITE ("Int", S32),
-  GUMJS_EXPORT_MEMORY_READ_WRITE ("UInt", U32),
-#if GLIB_SIZEOF_VOID_P == 8 && !defined (G_OS_WIN32)
-  GUMJS_EXPORT_MEMORY_READ_WRITE ("Long", S64),
-  GUMJS_EXPORT_MEMORY_READ_WRITE ("ULong", U64),
-#else
-  GUMJS_EXPORT_MEMORY_READ_WRITE ("Long", S32),
-  GUMJS_EXPORT_MEMORY_READ_WRITE ("ULong", U32),
-#endif
   GUMJS_EXPORT_MEMORY_READ_WRITE ("S8", S8),
   GUMJS_EXPORT_MEMORY_READ_WRITE ("U8", U8),
   GUMJS_EXPORT_MEMORY_READ_WRITE ("S16", S16),
@@ -160,6 +153,12 @@ static const GumV8Function gumjs_memory_functions[] =
   GUMJS_EXPORT_MEMORY_READ_WRITE ("U32", U32),
   GUMJS_EXPORT_MEMORY_READ_WRITE ("S64", S64),
   GUMJS_EXPORT_MEMORY_READ_WRITE ("U64", U64),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("Short", S16),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("UShort", U16),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("Int", S32),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("UInt", U32),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("Long", LONG),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("ULong", ULONG),
   GUMJS_EXPORT_MEMORY_READ_WRITE ("Float", FLOAT),
   GUMJS_EXPORT_MEMORY_READ_WRITE ("Double", DOUBLE),
   GUMJS_EXPORT_MEMORY_READ_WRITE ("ByteArray", BYTE_ARRAY),
@@ -404,6 +403,12 @@ gum_v8_memory_read (GumMemoryValueType type,
       case GUM_MEMORY_VALUE_U64:
         result = _gum_v8_uint64_new (*((guint64 *) address), core);
         break;
+      case GUM_MEMORY_VALUE_LONG:
+        result = _gum_v8_int64_new (*((glong *) address), core);
+        break;
+      case GUM_MEMORY_VALUE_ULONG:
+        result = _gum_v8_uint64_new (*((gulong *) address), core);
+        break;
       case GUM_MEMORY_VALUE_FLOAT:
         result = Number::New (isolate, *((gfloat *) address));
         break;
@@ -609,10 +614,12 @@ gum_v8_memory_write (GumMemoryValueType type,
         return;
       break;
     case GUM_MEMORY_VALUE_S64:
+    case GUM_MEMORY_VALUE_LONG:
       if (!_gum_v8_args_parse (args, "pq", &address, &s64))
         return;
       break;
     case GUM_MEMORY_VALUE_U64:
+    case GUM_MEMORY_VALUE_ULONG:
       if (!_gum_v8_args_parse (args, "pQ", &address, &u64))
         return;
       break;
@@ -673,6 +680,12 @@ gum_v8_memory_write (GumMemoryValueType type,
         break;
       case GUM_MEMORY_VALUE_U64:
         *((guint64 *) address) = u64;
+        break;
+      case GUM_MEMORY_VALUE_LONG:
+        *((glong *) address) = s64;
+        break;
+      case GUM_MEMORY_VALUE_ULONG:
+        *((gulong *) address) = u64;
         break;
       case GUM_MEMORY_VALUE_FLOAT:
         *((gfloat *) address) = number;
