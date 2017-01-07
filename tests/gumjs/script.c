@@ -3845,7 +3845,7 @@ SCRIPT_TESTCASE (source_maps_should_be_supported_for_our_runtime)
   COMPILE_AND_LOAD_SCRIPT ("hexdump(null);");
 
   item = test_script_fixture_pop_message (fixture);
-  g_assert (strstr (item->message, "at hexdump (frida/hexdump.js:") != NULL);
+  g_assert (strstr (item->message, " (frida/hexdump.js:") != NULL);
   test_script_message_item_free (item);
 
   EXPECT_NO_MESSAGES ();
