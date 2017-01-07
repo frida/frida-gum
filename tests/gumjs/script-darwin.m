@@ -936,7 +936,7 @@ SCRIPT_TESTCASE (performance)
     COMPILE_AND_LOAD_SCRIPT (
         "ObjC.classes.NSObject;"
         "var start = Date.now();"
-        "Object.keys(ObjC.classes.NSWindow);"
+        "Object.keys(ObjC.classes.NSDictionary);"
         "var end = Date.now();"
         "send(end - start);");
     item = test_script_fixture_pop_message (fixture);
