@@ -942,9 +942,18 @@ gum_darwin_enumerate_modules (mach_port_t task,
         first_command = NULL;
       }
 
-      if (lc->cmd == GUM_LC_SEGMENT)
+      if (lc->cmd == LC_SEGMENT)
       {
-        gum_segment_command_t * sc = (gum_segment_command_t *) lc;
+        struct segment_command * sc = p;
+        if (strcmp (sc->segname, "__TEXT") == 0)
+        {
+          dylib_range.size = sc->vmsize;
+          break;
+        }
+      }
+      else if (lc->cmd == LC_SEGMENT_64)
+      {
+        struct segment_command_64 * sc = p;
         if (strcmp (sc->segname, "__TEXT") == 0)
         {
           dylib_range.size = sc->vmsize;
