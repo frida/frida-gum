@@ -912,7 +912,7 @@ gum_darwin_enumerate_modules (mach_port_t task,
     p = first_command;
     for (cmd_index = 0; cmd_index != header->ncmds; cmd_index++)
     {
-      const struct load_command * lc = (struct load_command *) p;
+      const struct load_command * lc = p;
 
       while (p + sizeof (struct load_command) > header_data_end ||
           p + lc->cmdsize > header_data_end)
