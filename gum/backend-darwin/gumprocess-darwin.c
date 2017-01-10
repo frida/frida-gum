@@ -776,6 +776,8 @@ gum_darwin_enumerate_modules (mach_port_t task,
   GumAddress info_array_address;
   gpointer info_array = NULL;
   gpointer header_data = NULL;
+  gpointer header_data_end;
+  const guint header_data_initial_size = 4096;
   gchar * file_path = NULL;
   gchar * file_path_malloc_data = NULL;
   gboolean carry_on = TRUE;
@@ -860,7 +862,7 @@ gum_darwin_enumerate_modules (mach_port_t task,
   {
     GumAddress load_address, file_path_address;
     struct mach_header * header;
-    guint8 * first_command, * p;
+    gpointer first_command, p;
     guint cmd_index;
     GumMemoryRange dylib_range;
     gchar * name;
@@ -881,20 +883,22 @@ gum_darwin_enumerate_modules (mach_port_t task,
 
     if ((file_path_address & ~((GumAddress) 4095)) == load_address)
     {
-      header_data = gum_darwin_read (task, load_address, 4096, NULL);
+      header_data = gum_darwin_read (task, load_address,
+          header_data_initial_size, NULL);
       file_path = header_data + (file_path_address - load_address);
       file_path_malloc_data = NULL;
     }
     else
     {
-      header_data = gum_darwin_read (task, load_address, 4096, NULL);
+      header_data = gum_darwin_read (task, load_address,
+          header_data_initial_size, NULL);
       file_path = (gchar *) gum_darwin_read (task, file_path_address,
           2 * MAXPATHLEN, NULL);
       file_path_malloc_data = file_path;
     }
-
     if (header_data == NULL || file_path == NULL)
       goto beach;
+    header_data_end = header_data + header_data_initial_size;
 
     header = (struct mach_header *) header_data;
     if (info.all_image_info_format == TASK_DYLD_ALL_IMAGE_INFO_64)
@@ -909,6 +913,34 @@ gum_darwin_enumerate_modules (mach_port_t task,
     for (cmd_index = 0; cmd_index != header->ncmds; cmd_index++)
     {
       const struct load_command * lc = (struct load_command *) p;
+
+      while (p + sizeof (struct load_command) > header_data_end ||
+          p + lc->cmdsize > header_data_end)
+      {
+        gsize current_offset, new_size;
+
+        if (file_path_malloc_data == NULL)
+        {
+          file_path_malloc_data = g_strdup (file_path);
+          file_path = file_path_malloc_data;
+        }
+
+        current_offset = p - header_data;
+        new_size = (header_data_end - header_data) + 4096;
+
+        g_free (header_data);
+        header_data = gum_darwin_read (task, load_address, new_size, NULL);
+        if (header_data == NULL)
+          goto beach;
+        header_data_end = header_data + new_size;
+
+        header = (struct mach_header *) header_data;
+
+        p = header_data + current_offset;
+        lc = (struct load_command *) p;
+
+        first_command = NULL;
+      }
 
       if (lc->cmd == GUM_LC_SEGMENT)
       {
