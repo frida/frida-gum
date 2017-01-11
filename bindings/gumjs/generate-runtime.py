@@ -155,10 +155,7 @@ def extract_source_map(filename, source_code):
     return (stripped_source_code, raw_source_map)
 
 def to_canonical_source_path(path):
-    if path.startswith('../node_modules'):
-        return 'frida/' + path[3:]
-    else:
-        return 'frida/' + path
+    return os.path.join("frida", path).replace("\\", "/")
 
 def write_bytes(data, sink):
     sink.write("\n  ")
@@ -189,7 +186,7 @@ def identifier(filename):
     return result
 
 def node_script_path(name):
-    return os.path.join(".", "node_modules", ".bin", name + script_suffix())
+    return os.path.abspath(os.path.join(sys.path[0], "node_modules", ".bin", name + script_suffix()))
 
 def script_suffix():
     build_os = platform.system().lower()
