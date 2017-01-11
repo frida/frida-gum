@@ -86,6 +86,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_kernel_construct)
 
 GUMJS_DEFINE_GETTER (gumjs_kernel_get_available)
 {
+  (void) args;
+
   duk_push_boolean (ctx, gum_kernel_api_is_available ());
   return 1;
 }

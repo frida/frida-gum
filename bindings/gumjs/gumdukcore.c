@@ -1289,6 +1289,8 @@ _gum_duk_scope_leave (GumDukScope * self)
 
 GUMJS_DEFINE_GETTER (gumjs_get_promise)
 {
+  (void) args;
+
   duk_push_global_object (ctx);
 
   duk_del_prop_string (ctx, -1, "Promise");
@@ -1353,13 +1355,19 @@ GUMJS_DEFINE_GETTER (gumjs_frida_java_get_source_map)
 
 GUMJS_DEFINE_FUNCTION (gumjs_frida_objc_load)
 {
+  (void) args;
+
   gum_duk_bundle_load (gumjs_objc_modules, ctx);
+
   return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_frida_java_load)
 {
+  (void) args;
+
   gum_duk_bundle_load (gumjs_java_modules, ctx);
+
   return 0;
 }
 
