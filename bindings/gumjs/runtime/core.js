@@ -303,6 +303,16 @@ Object.defineProperties(Memory, {
       return result;
     }
   },
+  zeroAlloc: {
+      enumerable: true,
+      value: function (size) {
+        const ptr = Memory.alloc(size);
+        for(let i = 0; i < size; i++) {
+            Memory.writeU8(ptr.add(i), 0);
+        }
+        return ptr;
+      }
+  },
 });
 
 Object.defineProperties(Process, {

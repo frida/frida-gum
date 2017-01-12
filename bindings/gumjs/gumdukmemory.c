@@ -235,7 +235,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
 
   if (size < page_size)
   {
-    _gum_duk_push_native_resource (ctx, g_malloc (size), g_free, core);
+    _gum_duk_push_native_resource (ctx, g_malloc0 (size), g_free, core);
   }
   else
   {
