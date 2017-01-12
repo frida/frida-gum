@@ -227,7 +227,7 @@ _gum_v8_memory_finalize (GumV8Memory * self)
  * Memory.alloc(size)
  *
  * Docs:
- * Allocate a chunk of memory
+ * Allocate a zero-initialized chunk of memory
  *
  * Example:
  * TBW
@@ -249,7 +249,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
   gsize page_size = gum_query_page_size ();
   if (size < page_size)
   {
-    res = _gum_v8_native_resource_new (g_malloc (size), size, g_free, core);
+    res = _gum_v8_native_resource_new (g_malloc0 (size), size, g_free, core);
   }
   else
   {

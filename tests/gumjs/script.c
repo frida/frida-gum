@@ -3002,6 +3002,11 @@ SCRIPT_TESTCASE (memory_can_be_allocated)
   g_assert (p != 0);
   test_script_message_item_free (item);
   g_assert_cmpuint (p & (gum_query_page_size () - 1), ==, 0);
+
+  COMPILE_AND_LOAD_SCRIPT(
+      "var p = Memory.alloc(5);"
+      "send('p', Memory.readByteArray(p, 5));");
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA("\"p\"", "00 00 00 00 00");
 }
 
 SCRIPT_TESTCASE (memory_can_be_copied)
