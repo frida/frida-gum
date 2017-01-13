@@ -69,7 +69,7 @@ if ARCH_ARM64
 endif
 
 check: push
-	adb shell "\"${RPFX}/tests/gum-tests\""
+	adb shell "\"${RPFX}/tests/gum-tests\" -p /Core/Arm64Stalker"
 
 check-gdb: $(top_builddir)/tests/android-gdb.setup
 	adb shell "${RM} -f /data/local/tmp/tests/debug-socket"

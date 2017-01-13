@@ -86,11 +86,13 @@ void
 gum_stalker_follow_me (GumStalker * self,
                        GumEventSink * sink)
 {
+  g_print ("got here gum_stalker_follow_me\n");
 }
 
 void
 gum_stalker_unfollow_me (GumStalker * self)
 {
+  g_print ("got here gum_stalker_unfollow_me\n");
 }
 
 gboolean

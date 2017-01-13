@@ -5,10 +5,10 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#include "stalker-arm64-fixture.c"
+#include "arm64stalker-fixture.c"
 
 TEST_LIST_BEGIN (arm64stalker)
-  STALKER_ARM64_TESTENTRY (heap_api_arm64)
+  STALKER_ARM64_TESTENTRY (heap_api)
 TEST_LIST_END ()
 
 static void pretend_workload (void);
@@ -18,7 +18,7 @@ static void invoke_unfollow_deep_code (TestArm64StalkerFixture * fixture);
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
 
-STALKER_ARM64_TESTCASE (heap_api_arm64)
+STALKER_ARM64_TESTCASE (heap_api)
 {
   gpointer p;
 
