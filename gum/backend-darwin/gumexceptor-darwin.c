@@ -51,6 +51,7 @@ struct _GumExceptorBackend
 {
   GObject parent;
 
+  gboolean attached;
   gboolean disposed;
 
   GumExceptionHandler handler;
@@ -148,7 +149,8 @@ gum_exceptor_backend_dispose (GObject * object)
   {
     self->disposed = TRUE;
 
-    gum_exceptor_backend_detach (self);
+    if (self->attached)
+      gum_exceptor_backend_detach (self);
 
     g_object_unref (self->interceptor);
     self->interceptor = NULL;
@@ -169,7 +171,8 @@ gum_exceptor_backend_new (GumExceptionHandler handler,
   backend->handler = handler;
   backend->handler_data = user_data;
 
-  gum_exceptor_backend_attach (backend);
+  if (!gum_process_is_debugger_attached ())
+    gum_exceptor_backend_attach (backend);
 
   return backend;
 }
@@ -182,6 +185,8 @@ gum_exceptor_backend_attach (GumExceptorBackend * self)
   kern_return_t kr;
   GumExceptionPortSet * old_ports;
   struct sigaction action;
+
+  g_assert (!self->attached);
 
   self_task = mach_task_self ();
 
@@ -237,6 +242,8 @@ gum_exceptor_backend_attach (GumExceptorBackend * self)
 
   self->worker = g_thread_new ("gum-exceptor-worker",
       (GThreadFunc) gum_exceptor_backend_process_messages, self);
+
+  self->attached = TRUE;
 }
 
 static void
@@ -246,6 +253,8 @@ gum_exceptor_backend_detach (GumExceptorBackend * self)
   mach_port_t self_task;
   GumExceptionPortSet * old_ports;
   mach_msg_type_number_t port_index;
+
+  g_assert (self->attached);
 
   gum_interceptor_begin_transaction (interceptor);
 
@@ -283,6 +292,8 @@ gum_exceptor_backend_detach (GumExceptorBackend * self)
   mach_port_mod_refs (self_task, self->server_port, MACH_PORT_RIGHT_RECEIVE,
       -1);
   self->server_port = MACH_PORT_NULL;
+
+  self->attached = FALSE;
 }
 
 static void
