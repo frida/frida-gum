@@ -122,10 +122,14 @@ gum_code_segment_is_supported (void)
   if (g_once_init_enter (&cached_result))
   {
     gboolean supported = FALSE;
+    gpointer scratch_page;
     GumCodeSegment * segment;
 
     segment = gum_code_segment_new (1, NULL);
+    scratch_page = gum_code_segment_get_address (segment);
     supported = gum_code_segment_try_realize (segment);
+    if (supported)
+      supported = gum_code_segment_try_map (segment, 0, 1, scratch_page);
     gum_code_segment_free (segment);
 
     g_once_init_leave (&cached_result, supported + 1);
