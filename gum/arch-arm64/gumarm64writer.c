@@ -330,8 +330,7 @@ gum_arm64_writer_put_call_address_with_arguments (GumArm64Writer * self,
                                                   GumAddress func,
                                                   guint n_args,
                                                   ...)
-{
-  va_list vl;
+{ va_list vl;
 
   va_start (vl, n_args);
   gum_arm64_writer_put_argument_list_setup (self, n_args, vl);

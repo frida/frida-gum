@@ -28,12 +28,6 @@
         TestArm64StalkerFixture)
 
 
-#if defined (G_OS_WIN32) && GLIB_SIZEOF_VOID_P == 4
-# define STALKER_TESTFUNC __fastcall
-#else
-# define STALKER_TESTFUNC
-#endif
-
 #define NTH_EVENT_AS_CALL(N) \
     (gum_fake_event_sink_get_nth_event_as_call (fixture->sink, N))
 #define NTH_EVENT_AS_RET(N) \
@@ -51,7 +45,7 @@ typedef struct _TestArm64StalkerFixture
   guint8 * last_invoke_retaddr;
 } TestArm64StalkerFixture;
 
-typedef gint (STALKER_TESTFUNC * StalkerTestFunc) (gint arg);
+typedef gint (* StalkerTestFunc) (gint arg);
 
 static void silence_warnings (void);
 
@@ -78,7 +72,7 @@ test_arm64_stalker_fixture_teardown (TestArm64StalkerFixture * fixture,
 
 static guint8 *
 test_arm64_stalker_fixture_dup_code (TestArm64StalkerFixture * fixture,
-                               const guint8 * tpl_code,
+                               const guint32 * tpl_code,
                                guint tpl_size)
 {
   GumAddressSpec spec;
@@ -88,7 +82,7 @@ test_arm64_stalker_fixture_dup_code (TestArm64StalkerFixture * fixture,
 
   if (fixture->code != NULL)
     gum_free_pages (fixture->code);
-  fixture->code = (guint8 *) gum_alloc_n_pages_near (
+  fixture->code = (guint32 *) gum_alloc_n_pages_near (
       (tpl_size / gum_query_page_size ()) + 1, GUM_PAGE_RWX, &spec);
   memcpy (fixture->code, tpl_code, tpl_size);
   return fixture->code;
@@ -112,66 +106,71 @@ static gint
 test_arm64_stalker_fixture_follow_and_invoke (TestArm64StalkerFixture * fixture,
                                         StalkerTestFunc func,
                                         gint arg)
-{/*
-  GumAddressSpec spec;
-  gint ret;
-  guint8 * code;
-  GumX86Writer cw;
-#if GLIB_SIZEOF_VOID_P == 4
-  guint align_correction_follow = 4;
-  guint align_correction_call = 12;
-  guint align_correction_unfollow = 8;
-#else
-  guint align_correction_follow = 8;
-  guint align_correction_call = 0;
-  guint align_correction_unfollow = 8;
-#endif
-  GCallback invoke_func;
+{
+    GumAddressSpec spec;
+    gint ret;
+    guint8 * code;
+    GumArm64Writer cw;
+    GCallback invoke_func;
 
-  spec.near_address = gum_stalker_follow_me;
-  spec.max_distance = G_MAXINT32 / 2;
+    spec.near_address = gum_stalker_follow_me;
+    spec.max_distance = G_MAXINT32 / 2;
+    code = (guint8 *) gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &spec);
 
-  code = (guint8 *) gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &spec);
+    // init writer
+    gum_arm64_writer_init (&cw, code);
 
-  gum_x86_writer_init (&cw, code);
-
-  gum_x86_writer_put_pushax (&cw);
-
-  gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction_follow);
-  gum_x86_writer_put_call_with_arguments (&cw,
+    // call gum_stalker_follow_me
+    gum_arm64_writer_put_instruction(&cw, 0xa9bf7bfd);  //gum_x86_writer_put_pushax (&cw);
+    gum_arm64_writer_put_instruction(&cw, 0x910003fd); //gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction_follow);
+    gum_arm64_writer_put_call_address_with_arguments(&cw,
+                                                     gum_stalker_follow_me, 2,
+                                                     GUM_ARG_ADDRESS, fixture->stalker,
+                                                     GUM_ARG_ADDRESS, fixture->sink);
+    /*gum_x86_writer_put_call_with_arguments (&cw,
       gum_stalker_follow_me, 2,
       GUM_ARG_POINTER, fixture->stalker,
-      GUM_ARG_POINTER, fixture->sink);
-  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_follow);
+      GUM_ARG_POINTER, fixture->sink);*/
+    //gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_follow);
 
-  gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction_call);
-  gum_x86_writer_put_mov_reg_address (&cw, GUM_REG_XCX, GUM_ADDRESS (arg));
-  fixture->last_invoke_calladdr = (guint8 *) gum_x86_writer_cur (&cw);
-  gum_x86_writer_put_call (&cw, func);
-  fixture->last_invoke_retaddr = (guint8 *) gum_x86_writer_cur (&cw);
-  gum_x86_writer_put_mov_reg_address (&cw, GUM_REG_XCX, GUM_ADDRESS (&ret));
-  gum_x86_writer_put_mov_reg_ptr_reg (&cw, GUM_REG_XCX, GUM_REG_EAX);
-  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_call);
+    // call function -int func(int x)- and save address before and after call
+    //gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction_call);
+    gum_arm64_writer_put_ldr_reg_address(&cw, ARM64_REG_X0, GUM_ADDRESS (arg));//gum_x86_writer_put_mov_reg_address (&cw, GUM_REG_XCX, GUM_ADDRESS (arg));
 
-  gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction_unfollow);
-  gum_x86_writer_put_call_with_arguments (&cw,
+    fixture->last_invoke_calladdr = (guint8 *) gum_arm64_writer_cur(&cw);//gum_x86_writer_cur (&cw);
+
+    //gum_arm64_writer_put_bl_imm(&cw, func);//gum_x86_writer_put_call (&cw, func);
+    gum_arm64_writer_put_call_address_with_arguments(&cw, func, 0);
+
+    fixture->last_invoke_retaddr = (guint8 *) gum_arm64_writer_cur(&cw);//gum_x86_writer_cur (&cw);
+    //gum_arm64_writer_put_str_reg_reg_offset(&cw, ARM64_REG_X0, ARM64_REG_SP, GUM_ADDRESS (&ret));
+    gum_arm64_writer_put_ldr_reg_address(&cw, ARM64_REG_X1, GUM_ADDRESS (&ret));//gum_x86_writer_put_mov_reg_address (&cw, GUM_REG_XCX, GUM_ADDRESS (&ret));
+    gum_arm64_writer_put_str_reg_reg_offset(&cw, ARM64_REG_X0, ARM64_REG_X1, 0);
+    //gum_x86_writer_put_mov_reg_ptr_reg (&cw, GUM_REG_XCX, GUM_REG_EAX);
+    //gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_call);
+
+    // call gum_stalker_unfollow_me
+    //gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction_unfollow);
+    gum_arm64_writer_put_call_address_with_arguments(&cw,
+                                                     gum_stalker_unfollow_me, 1,
+                                                     GUM_ARG_ADDRESS, fixture->stalker);
+    /*gum_x86_writer_put_call_with_arguments (&cw,
       gum_stalker_unfollow_me, 1,
-      GUM_ARG_POINTER, fixture->stalker);
-  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_unfollow);
+      GUM_ARG_POINTER, fixture->stalker);*/
+    //gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_unfollow);
 
-  gum_x86_writer_put_popax (&cw);
+    gum_arm64_writer_put_instruction(&cw, 0xa8c17bfd);//gum_x86_writer_put_popax (&cw);
 
-  gum_x86_writer_put_ret (&cw);
+    gum_arm64_writer_put_instruction(&cw, 0xd65f03c0);//gum_x86_writer_put_ret (&cw);
 
-  gum_x86_writer_free (&cw);
+    gum_arm64_writer_free (&cw);
 
-  invoke_func = GUM_POINTER_TO_FUNCPTR (GCallback, code);
-  invoke_func ();
+    invoke_func = GUM_POINTER_TO_FUNCPTR (GCallback, code);
+    invoke_func ();
 
-  gum_free_pages (code);
+    gum_free_pages (code);
 
-  return ret;*/
-  return arg;
+  return ret;
 }
 
 static void
