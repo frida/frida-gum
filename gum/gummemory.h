@@ -55,6 +55,7 @@ struct _GumMemoryRange
 
 G_BEGIN_DECLS
 
+typedef void (* GumMemoryPatchApplyFunc) (gpointer mem, gpointer user_data);
 typedef gboolean (* GumMemoryScanMatchFunc) (GumAddress address, gsize size,
     gpointer user_data);
 
@@ -66,6 +67,8 @@ gboolean gum_query_is_rwx_supported (void);
 gboolean gum_memory_is_readable (GumAddress address, gsize len);
 guint8 * gum_memory_read (GumAddress address, gsize len, gsize * n_bytes_read);
 gboolean gum_memory_write (GumAddress address, const guint8 * bytes, gsize len);
+gboolean gum_memory_patch_code (GumAddress address, gsize size,
+    GumMemoryPatchApplyFunc apply, gpointer apply_data);
 
 void gum_memory_scan (const GumMemoryRange * range,
     const GumMatchPattern * pattern,
