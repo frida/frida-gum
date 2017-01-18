@@ -303,6 +303,13 @@ Object.defineProperties(Memory, {
       return result;
     }
   },
+  patchCode: {
+    enumerable: true,
+    value: function (address, size, apply) {
+      Memory.readU8(address);
+      Memory._patchCode(address, size, apply);
+    }
+  },
 });
 
 Object.defineProperties(Process, {

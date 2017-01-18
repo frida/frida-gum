@@ -16,6 +16,7 @@
 #endif
 
 typedef guint GumMemoryValueType;
+typedef struct _GumMemoryPatchContext GumMemoryPatchContext;
 typedef struct _GumMemoryScanContext GumMemoryScanContext;
 
 enum _GumMemoryValueType
@@ -40,6 +41,13 @@ enum _GumMemoryValueType
   GUM_MEMORY_VALUE_ANSI_STRING
 };
 
+struct _GumMemoryPatchContext
+{
+  GumDukHeapPtr apply;
+
+  GumDukScope * scope;
+};
+
 struct _GumMemoryScanContext
 {
   GumMemoryRange range;
@@ -55,6 +63,9 @@ GUMJS_DECLARE_CONSTRUCTOR (gumjs_memory_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_alloc)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_copy)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_protect)
+GUMJS_DECLARE_FUNCTION (gumjs_memory_patch_code)
+static void gum_memory_patch_context_apply (gpointer mem,
+    GumMemoryPatchContext * self);
 
 static int gum_duk_memory_read (GumMemoryValueType type,
     const GumDukArgs * args);
@@ -133,6 +144,7 @@ static const duk_function_list_entry gumjs_memory_functions[] =
   { "alloc", gumjs_memory_alloc, 1 },
   { "copy", gumjs_memory_copy, 3 },
   { "protect", gumjs_memory_protect, 3 },
+  { "_patchCode", gumjs_memory_patch_code, 3 },
 
   GUMJS_EXPORT_MEMORY_READ_WRITE ("Pointer", POINTER),
   GUMJS_EXPORT_MEMORY_READ_WRITE ("S8", S8),
@@ -293,6 +305,38 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_protect)
 
   duk_push_boolean (ctx, success);
   return 1;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_memory_patch_code)
+{
+  gpointer address;
+  gsize size;
+  GumMemoryPatchContext pc;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
+  gboolean success;
+
+  _gum_duk_args_parse (args, "pZF", &address, &size, &pc.apply);
+  pc.scope = &scope;
+
+  success = gum_memory_patch_code (GUM_ADDRESS (address), size,
+      (GumMemoryPatchApplyFunc) gum_memory_patch_context_apply, &pc);
+  if (!success)
+    _gum_duk_throw (ctx, "invalid address");
+
+  return 0;
+}
+
+static void
+gum_memory_patch_context_apply (gpointer mem,
+                                GumMemoryPatchContext * self)
+{
+  GumDukScope * scope = self->scope;
+  duk_context * ctx = scope->ctx;
+
+  duk_push_heapptr (ctx, self->apply);
+  _gum_duk_push_native_pointer (ctx, mem, scope->core);
+  _gum_duk_scope_call (scope, 1);
+  duk_pop (ctx);
 }
 
 static int
