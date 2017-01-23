@@ -153,6 +153,8 @@ static void gum_v8_script_backend_post_debug_message (
     GumScriptBackend * backend, const gchar * message);
 static void gum_v8_script_backend_do_process_debug_messages (
     GumV8ScriptBackend * self);
+static GMainContext * gum_v8_script_backend_get_main_context (
+    GumScriptBackend * backend);
 
 G_DEFINE_TYPE_EXTENDED (GumV8ScriptBackend,
                         gum_v8_script_backend,
@@ -195,6 +197,8 @@ gum_v8_script_backend_iface_init (gpointer g_iface,
   iface->set_debug_message_handler =
       gum_v8_script_backend_set_debug_message_handler;
   iface->post_debug_message = gum_v8_script_backend_post_debug_message;
+
+  iface->get_main_context = gum_v8_script_backend_get_main_context;
 }
 
 static void
@@ -730,4 +734,11 @@ gum_v8_script_backend_do_process_debug_messages (GumV8ScriptBackend * self)
   Context::Scope context_scope (context);
 
   Debug::ProcessDebugMessages (isolate);
+}
+
+static GMainContext *
+gum_v8_script_backend_get_main_context (GumScriptBackend * backend)
+{
+  return gum_script_scheduler_get_js_context (
+      gum_v8_script_backend_get_scheduler (GUM_V8_SCRIPT_BACKEND (backend)));
 }

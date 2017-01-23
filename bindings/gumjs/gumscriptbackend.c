@@ -265,6 +265,12 @@ gum_script_backend_post_debug_message (GumScriptBackend * self,
   GUM_SCRIPT_BACKEND_GET_INTERFACE (self)->post_debug_message (self, message);
 }
 
+GMainContext *
+gum_script_backend_get_main_context (GumScriptBackend * self)
+{
+  return GUM_SCRIPT_BACKEND_GET_INTERFACE (self)->get_main_context (self);
+}
+
 void
 gum_script_backend_ignore (GumThreadId thread_id)
 {
