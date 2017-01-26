@@ -17,7 +17,6 @@
 
 typedef struct _GumArm64Argument GumArm64Argument;
 typedef guint GumArm64MemPairOperandSize;
-typedef guint GumArm64MetaReg;
 typedef struct _GumArm64RegInfo GumArm64RegInfo;
 
 struct _GumArm64LabelMapping
@@ -58,46 +57,6 @@ enum _GumArm64MemPairOperandSize
   GUM_MEM_PAIR_OPERAND_V128 = 2
 };
 
-enum _GumArm64MetaReg
-{
-  GUM_MREG_R0,
-  GUM_MREG_R1,
-  GUM_MREG_R2,
-  GUM_MREG_R3,
-  GUM_MREG_R4,
-  GUM_MREG_R5,
-  GUM_MREG_R6,
-  GUM_MREG_R7,
-  GUM_MREG_R8,
-  GUM_MREG_R9,
-  GUM_MREG_R10,
-  GUM_MREG_R11,
-  GUM_MREG_R12,
-  GUM_MREG_R13,
-  GUM_MREG_R14,
-  GUM_MREG_R15,
-  GUM_MREG_R16,
-  GUM_MREG_R17,
-  GUM_MREG_R18,
-  GUM_MREG_R19,
-  GUM_MREG_R20,
-  GUM_MREG_R21,
-  GUM_MREG_R22,
-  GUM_MREG_R23,
-  GUM_MREG_R24,
-  GUM_MREG_R25,
-  GUM_MREG_R26,
-  GUM_MREG_R27,
-  GUM_MREG_R28,
-  GUM_MREG_R29,
-  GUM_MREG_R30,
-  GUM_MREG_R31,
-
-  GUM_MREG_FP = GUM_MREG_R29,
-  GUM_MREG_LR = GUM_MREG_R30,
-  GUM_MREG_SP = GUM_MREG_R31,
-  GUM_MREG_ZR = GUM_MREG_R31
-};
 
 struct _GumArm64RegInfo
 {
@@ -317,13 +276,14 @@ static void
 gum_arm64_writer_add_literal_reference_here (GumArm64Writer * self,
                                              guint64 val)
 {
-  GumArm64LiteralRef * r = &self->literal_refs[self->literal_refs_len++];
+    GumArm64LiteralRef * r = &self->literal_refs[self->literal_refs_len++];
 
-  g_assert_cmpuint (self->literal_refs_len, <=, GUM_MAX_LITERAL_REF_COUNT);
+    g_assert_cmpuint (self->literal_refs_len, <=, GUM_MAX_LITERAL_REF_COUNT);
 
-  r->insn = self->code;
+    r->insn = self->code;
   r->val = val;
 }
+
 
 void
 gum_arm64_writer_put_call_address_with_arguments (GumArm64Writer * self,
@@ -414,6 +374,24 @@ gum_arm64_writer_put_argument_list_teardown (GumArm64Writer * self,
   (void) self;
   (void) n_args;
 }
+
+
+void gum_arm64_writer_put_branch_address(GumArm64Writer * self, GumAddress address)
+{
+
+    if (gum_arm64_writer_can_branch_imm (self->pc, address))
+    {
+        gum_arm64_writer_put_b_imm (self, address);
+    }
+    else
+    {
+        arm64_reg target = ARM64_REG_X0;
+        gum_arm64_writer_put_ldr_reg_address (self, target, address);
+        gum_arm64_writer_put_br_reg (self, target);
+    }
+
+}
+
 
 gboolean
 gum_arm64_writer_can_branch_imm (GumAddress from,
@@ -980,4 +958,75 @@ gum_arm64_writer_describe_reg (GumArm64Writer * self,
     g_assert_not_reached ();
   }
   ri->index = ri->meta - GUM_MREG_R0;
+}
+
+// add by italiaken
+
+#define PUSH_ALL
+
+void gum_arm64_writer_put_push_all_registers(GumArm64Writer * self){
+
+    for (int i = ARM64_REG_X0; i < ARM64_REG_X28 ; i=i+2) {
+        gum_arm64_writer_put_push_reg_reg(self, i, i+1);
+    }
+    gum_arm64_writer_put_push_reg_reg(self, ARM64_REG_X28, ARM64_REG_X29);
+    gum_arm64_writer_put_instruction(self, 0xD53B420F);//MRS X15, NZCV
+    gum_arm64_writer_put_push_reg_reg(self, ARM64_REG_X30, ARM64_REG_X15);
+
+}
+
+void gum_arm64_writer_put_push_all_Q_registers(GumArm64Writer * self)
+{
+    guint32 instructions[]={
+            0xADBF07E0,
+            0xADBF0FE2,
+            0xADBF17E4,
+            0xADBF1FE6,
+            0xADBF27E8,
+            0xADBF2FEA,
+            0xADBF37EC,
+            0xADBF3FEE,
+            0xADBF47F0,
+            0xADBF4FF2,
+            0xADBF57F4,
+            0xADBF5FF6,
+            0xADBF67F8,
+            0xADBF6FFA,
+            0xADBF77FC,
+            0xADBF7FFE
+    };
+    gum_arm64_writer_put_instruction(self, instructions);
+}
+
+void gum_arm64_writer_put_pop_all_registers(GumArm64Writer * self)
+{
+    gum_arm64_writer_put_pop_reg_reg(self, ARM64_REG_X30, ARM64_REG_X15);
+    gum_arm64_writer_put_instruction(self, 0xD51B420F);//msr NZCV, x15
+    gum_arm64_writer_put_pop_reg_reg(self, ARM64_REG_X28, ARM64_REG_X29);
+    for (int i = ARM64_REG_X27; i > ARM64_REG_X0 ; i=i-2) {
+        gum_arm64_writer_put_push_reg_reg(self, i-1, i);
+    }
+
+}
+void gum_arm64_writer_put_pop_all_Q_registers(GumArm64Writer * self)
+{
+    guint32 instructions[]={
+            0xACC17FFE,
+            0xACC177FC,
+            0xACC16FFA,
+            0xACC167F8,
+            0xACC15FF6,
+            0xACC157F4,
+            0xACC14FF2,
+            0xACC147F0,
+            0xACC13FEE,
+            0xACC137EC,
+            0xACC12FEA,
+            0xACC127E8,
+            0xACC11FE6,
+            0xACC117E4,
+            0xACC10FE2,
+            0xACC107E0
+    };
+    gum_arm64_writer_put_instruction(self, instructions);
 }

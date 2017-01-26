@@ -8,16 +8,20 @@
 #include "arm64stalker-fixture.c"
 
 TEST_LIST_BEGIN (arm64stalker)
-  STALKER_ARM64_TESTENTRY (no_events)
-  STALKER_ARM64_TESTENTRY (heap_api)
-  STALKER_ARM64_TESTENTRY (follow_syscall)
-  STALKER_ARM64_TESTENTRY (follow_thread)
-TEST_LIST_END ()
+/*STALKER_ARM64_TESTENTRY (no_events)
+STALKER_ARM64_TESTENTRY (call)
+STALKER_ARM64_TESTENTRY (ret)
+STALKER_ARM64_TESTENTRY (exec)*/
+STALKER_ARM64_TESTENTRY (no_register_clobber)
+TEST_LIST_END()
 
-static void pretend_workload (void);
-static gpointer stalker_victim (gpointer data);
-static void invoke_follow_return_code (TestArm64StalkerFixture * fixture);
-static void invoke_unfollow_deep_code (TestArm64StalkerFixture * fixture);
+static void pretend_workload(void);
+
+static gpointer stalker_victim(gpointer data);
+
+static void invoke_follow_return_code(TestArm64StalkerFixture *fixture);
+
+static void invoke_unfollow_deep_code(TestArm64StalkerFixture *fixture);
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
 
@@ -28,162 +32,141 @@ static const guint32 flat_code[] = {
         0xd65f03c0  /* ret          */
 };
 
-static const guint32 NEW_flat_code[] = {
-        GUINT32_TO_LE(0xd10043ff),
-        GUINT32_TO_LE(0xb9000fe0),
-        GUINT32_TO_LE(0x52800040),
-        GUINT32_TO_LE(0x910043ff),
-        GUINT32_TO_LE(0xd65f03c0)
-};
-
-static StalkerTestFunc invoke_flat (TestArm64StalkerFixture * fixture,
-                                    GumEventType mask)
-{
+static StalkerTestFunc invoke_flat(TestArm64StalkerFixture *fixture,
+                                   GumEventType mask) {
     StalkerTestFunc func;
     gint ret;
 
-    func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc,
-                                   test_arm64_stalker_fixture_dup_code (fixture, flat_code, sizeof (flat_code)));
+    func = GUM_POINTER_TO_FUNCPTR(StalkerTestFunc,
+                                  test_arm64_stalker_fixture_dup_code(fixture, flat_code, sizeof(flat_code)));
 
     fixture->sink->mask = mask;
-    ret = test_arm64_stalker_fixture_follow_and_invoke (fixture, func, -1);
-    g_assert_cmpint (ret, ==, 2);
+    ret = test_arm64_stalker_fixture_follow_and_invoke(fixture, func, -1);
+    g_assert_cmpint(ret, == , 2);
 
     return func;
 }
 
-STALKER_ARM64_TESTCASE (no_events)
-{
-    invoke_flat (fixture, GUM_NOTHING);
-    g_assert_cmpuint (fixture->sink->events->len, ==, 0);
+STALKER_ARM64_TESTCASE (no_events) {
+    invoke_flat(fixture, GUM_NOTHING);
+    g_assert_cmpuint(fixture->sink->events->len, == , 0);
 }
 
-STALKER_ARM64_TESTCASE (heap_api)
-{
-  gpointer p;
+STALKER_ARM64_TESTCASE (call) {
+    StalkerTestFunc func;
+    GumCallEvent *ev;
 
-  fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
+    func = invoke_flat(fixture, GUM_CALL);
 
-  gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
-  p = malloc (1);
-  free (p);
-  gum_stalker_unfollow_me (fixture->stalker);
-
-  g_assert_cmpuint (fixture->sink->events->len, >, 0);
-
-  /*gum_fake_event_sink_dump (fixture->sink);*/
+    g_assert_cmpuint(fixture->sink->events->len, == , 2);
+    g_assert_cmpint(g_array_index(fixture->sink->events, GumEvent, 0).type, == , GUM_CALL);
+    ev = &g_array_index(fixture->sink->events, GumEvent, 0).call;
+    GUM_ASSERT_CMPADDR(ev->location, == , fixture->last_invoke_calladdr);
+    GUM_ASSERT_CMPADDR(ev->target, == , func);
 }
 
-STALKER_ARM64_TESTCASE (follow_syscall)
-{
-    fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
+STALKER_ARM64_TESTCASE (ret) {
+    StalkerTestFunc func;
+    GumRetEvent *ev;
 
-    gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
-    g_usleep (1);
-    gum_stalker_unfollow_me (fixture->stalker);
+    func = invoke_flat(fixture, GUM_RET);
 
-    g_assert_cmpuint (fixture->sink->events->len, >, 0);
+    g_assert_cmpuint(fixture->sink->events->len, == , 1);
+    g_assert_cmpint(g_array_index(fixture->sink->events, GumEvent, 0).type, == , GUM_RET);
 
-                /*gum_fake_event_sink_dump (fixture->sink);*/
+    ev = &g_array_index(fixture->sink->events, GumEvent, 0).ret;
+
+    GUM_ASSERT_CMPADDR(ev->location, == , ((guint8 *) GSIZE_TO_POINTER(func)) + 3 * 4);
+    GUM_ASSERT_CMPADDR(ev->target, == , fixture->last_invoke_retaddr);
 }
 
-STALKER_ARM64_TESTCASE (follow_thread)
-{
-    StalkerVictimContext ctx;
-    GumThreadId thread_id;
-    GThread * thread;
+STALKER_ARM64_TESTCASE (exec) {
+    StalkerTestFunc func;
+    GumRetEvent *ev;
 
-    ctx.state = STALKER_VICTIM_CREATED;
-    g_mutex_init (&ctx.mutex);
-    g_cond_init (&ctx.cond);
+    func = invoke_flat(fixture, GUM_EXEC);
 
-    thread = g_thread_new ("stalker-test-victim", stalker_victim, &ctx);
-
-    /* 1: Wait for victim to tell us it's ready, giving its thread id */
-    g_mutex_lock (&ctx.mutex);
-    while (ctx.state != STALKER_VICTIM_READY_FOR_FOLLOW)
-        g_cond_wait (&ctx.cond, &ctx.mutex);
-    thread_id = ctx.thread_id;
-    g_mutex_unlock (&ctx.mutex);
-
-    /* 4: Follow and notify victim about it */
-    fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
-    gum_stalker_follow (fixture->stalker, thread_id,
-        GUM_EVENT_SINK (fixture->sink));
-    g_mutex_lock (&ctx.mutex);
-    ctx.state = STALKER_VICTIM_IS_FOLLOWED;
-    g_cond_signal (&ctx.cond);
-    g_mutex_unlock (&ctx.mutex);
-
-    /* 5: Wait for victim to tell us to unfollow */
-    g_mutex_lock (&ctx.mutex);
-    while (ctx.state != STALKER_VICTIM_READY_FOR_UNFOLLOW)
-        g_cond_wait (&ctx.cond, &ctx.mutex);
-    g_mutex_unlock (&ctx.mutex);
-
-    g_assert_cmpuint (fixture->sink->events->len, >, 0);
-
-    /* 8: Unfollow and notify victim about it */
-    gum_stalker_unfollow (fixture->stalker, thread_id);
-    g_mutex_lock (&ctx.mutex);
-    ctx.state = STALKER_VICTIM_IS_UNFOLLOWED;
-    g_cond_signal (&ctx.cond);
-    g_mutex_unlock (&ctx.mutex);
-
-    /* 9: Wait for victim to tell us it's ready for us to reset the sink */
-    g_mutex_lock (&ctx.mutex);
-    while (ctx.state != STALKER_VICTIM_READY_FOR_SHUTDOWN)
-        g_cond_wait (&ctx.cond, &ctx.mutex);
-    g_mutex_unlock (&ctx.mutex);
-
-    gum_fake_event_sink_reset (fixture->sink);
-
-    /* 12: Tell victim to it' */
-    g_mutex_lock (&ctx.mutex);
-    ctx.state = STALKER_VICTIM_IS_SHUTDOWN;
-    g_cond_signal (&ctx.cond);
-    g_mutex_unlock (&ctx.mutex);
-
-    g_thread_join (thread);
-
-    g_assert_cmpuint (fixture->sink->events->len, ==, 0);
-
-    g_mutex_clear (&ctx.mutex);
-    g_cond_clear (&ctx.cond);
+    g_assert_cmpuint(fixture->sink->events->len, == , INVOKER_INSN_COUNT + 4);
+    g_assert_cmpint(g_array_index(fixture->sink->events, GumEvent, INVOKER_IMPL_OFFSET).type, == , GUM_EXEC);
+    ev = &g_array_index(fixture->sink->events, GumEvent, INVOKER_IMPL_OFFSET).ret;
+    GUM_ASSERT_CMPADDR(ev->location, == , func);
 }
 
-static gpointer stalker_victim (gpointer data)
+
+typedef void (*ClobberFunc)(GumCpuContext *ctx);
+
+STALKER_ARM64_TESTCASE (no_register_clobber)
 {
-    StalkerVictimContext * ctx = (StalkerVictimContext *) data;
 
-    g_mutex_lock (&ctx->mutex);
+    guint8 * code;
+    GumArm64Writer cw;
+    const gchar * my_func_lbl = "my_func";
+    const gchar * my_beach_lbl = "my_beach";
+    const gchar * my_ken_lbl = "my_ken";
+    ClobberFunc func;
+    GumCpuContext ctx;
 
-    /* 2: Signal readyness, giving our thread id */
-    ctx->state = STALKER_VICTIM_READY_FOR_FOLLOW;
-    ctx->thread_id = gum_process_get_current_thread_id ();
-    g_cond_signal (&ctx->cond);
+    code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+    gum_arm64_writer_init (&cw, code);
 
-    /* 3: Wait for master to tell us we're being followed */
-    while (ctx->state != STALKER_VICTIM_IS_FOLLOWED)
-        g_cond_wait (&ctx->cond, &ctx->mutex);
+    gum_arm64_writer_put_push_all_registers(&cw); // 16 push of 16
 
-    /* 6: Signal that we're ready to be unfollowed */
-    ctx->state = STALKER_VICTIM_READY_FOR_UNFOLLOW;
-    g_cond_signal (&ctx->cond);
+    gum_arm64_writer_put_push_all_registers(&cw);
+    gum_arm64_writer_put_call_address_with_arguments(&cw,
+                                                     gum_stalker_follow_me, 2,
+                                                     GUM_ARG_ADDRESS, fixture->stalker,
+                                                     GUM_ARG_ADDRESS, fixture->sink);
 
-    /* 7: Wait for master to tell us we're no longer followed */
-    while (ctx->state != STALKER_VICTIM_IS_UNFOLLOWED)
-        g_cond_wait (&ctx->cond, &ctx->mutex);
+    gum_arm64_writer_put_pop_all_registers(&cw);
 
-    /* 10: Signal that we're ready for a reset */
-    ctx->state = STALKER_VICTIM_READY_FOR_SHUTDOWN;
-    g_cond_signal (&ctx->cond);
+    for (int i=ARM64_REG_X0; i<=ARM64_REG_X30;i++){
+        gum_arm64_writer_put_ldr_reg_u64(&cw, i, i);
+    }
 
-    /* 11: Wait for master to tell us we can call it a day */
-    while (ctx->state != STALKER_VICTIM_IS_SHUTDOWN)
-        g_cond_wait (&ctx->cond, &ctx->mutex);
 
-    g_mutex_unlock (&ctx->mutex);
+    gum_arm64_writer_put_b_label(&cw, my_func_lbl);
+    gum_arm64_writer_put_label (&cw, my_ken_lbl);
 
-    return NULL;
+    gum_arm64_writer_put_push_all_registers(&cw);
+
+    gum_arm64_writer_put_call_address_with_arguments(&cw,
+                                                     gum_stalker_unfollow_me, 1,
+                                                     GUM_ARG_ADDRESS, fixture->stalker);
+    gum_arm64_writer_put_pop_all_registers(&cw);
+
+    int offset = (2* sizeof(gpointer))+(32 * sizeof (gpointer));
+
+    for (int i=ARM64_REG_X0; i<=ARM64_REG_X28;i++){
+        gum_arm64_writer_put_str_reg_reg_offset(&cw, i, ARM64_REG_SP,
+                                                offset+G_STRUCT_OFFSET (GumCpuContext, x[i]));
+    }
+
+    gum_arm64_writer_put_pop_all_registers(&cw);
+
+    gum_arm64_writer_put_ret (&cw);
+
+    gum_arm64_writer_put_label (&cw, my_func_lbl);
+    gum_arm64_writer_put_nop (&cw);
+    gum_arm64_writer_put_b_label (&cw, my_beach_lbl);
+    gum_arm64_writer_put_brk_imm (&cw, 0x14);
+
+    gum_arm64_writer_put_label (&cw, my_beach_lbl);
+    gum_arm64_writer_put_nop (&cw);
+    gum_arm64_writer_put_nop (&cw);
+    gum_arm64_writer_put_nop (&cw);
+    gum_arm64_writer_put_b_label (&cw, my_ken_lbl);
+
+
+    gum_arm64_writer_free (&cw);
+
+    fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
+    func = GUM_POINTER_TO_FUNCPTR (ClobberFunc, code);
+    func (&ctx);
+
+    for (int i=ARM64_REG_X0; i<=ARM64_REG_X28;i++){
+        g_assert_cmphex (ctx.x[i], ==, i);
+    }
+
+    gum_free_pages (code);
+
 }
