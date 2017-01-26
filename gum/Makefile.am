@@ -115,7 +115,8 @@ arch_sources += \
 backend_sources += \
 	backend-arm64/guminterceptor-arm64.c \
 	backend-arm64/gumspinlock-arm64.c \
-	backend-arm64/gumstalker-arm64.c
+	backend-arm64/gumstalker-arm64.c \
+	backend-arm64/gumstalker-arm64-glue.S
 endif
 
 if ARCH_MIPS
