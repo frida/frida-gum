@@ -62,6 +62,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (memory_can_be_copied)
   SCRIPT_TESTENTRY (memory_can_be_duped)
   SCRIPT_TESTENTRY (memory_can_be_protected)
+  SCRIPT_TESTENTRY (code_can_be_patched)
   SCRIPT_TESTENTRY (s8_can_be_read)
   SCRIPT_TESTENTRY (s8_can_be_written)
   SCRIPT_TESTENTRY (u8_can_be_read)
@@ -3002,6 +3003,11 @@ SCRIPT_TESTCASE (memory_can_be_allocated)
   g_assert (p != 0);
   test_script_message_item_free (item);
   g_assert_cmpuint (p & (gum_query_page_size () - 1), ==, 0);
+
+  COMPILE_AND_LOAD_SCRIPT(
+      "var p = Memory.alloc(5);"
+      "send('p', Memory.readByteArray(p, 5));");
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA("\"p\"", "00 00 00 00 00");
 }
 
 SCRIPT_TESTCASE (memory_can_be_copied)
@@ -3089,6 +3095,23 @@ SCRIPT_TESTCASE (memory_can_be_protected)
   g_assert (exception_on_write);
 
   gum_free_pages (buf);
+}
+
+SCRIPT_TESTCASE (code_can_be_patched)
+{
+  guint8 * code;
+
+  code = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  code[7] = 0xc3;
+  gum_mprotect (code, gum_query_page_size (), GUM_PAGE_RX);
+
+  COMPILE_AND_LOAD_SCRIPT ("Memory.patchCode(" GUM_PTR_CONST ", 1, "
+      "function (ptr) {"
+          "Memory.writeU8(ptr, 0x90);"
+      "});", code + 7);
+  g_assert_cmphex (code[7], ==, 0x90);
+
+  gum_free_pages (code);
 }
 
 SCRIPT_TESTCASE (s8_can_be_read)

@@ -603,12 +603,12 @@ gum_darwin_mapper_map (GumDarwinMapper * self,
         s->protection);
   }
 
-  if (gum_query_is_rwx_supported ())
+  if (gum_query_is_rwx_supported () || !gum_code_segment_is_supported ())
   {
     mach_vm_write (module->task, self->runtime_address,
         (vm_offset_t) self->runtime, self->runtime_file_size);
     mach_vm_protect (module->task, self->runtime_address, self->runtime_vm_size,
-        FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY | VM_PROT_EXECUTE);
+        FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
   }
   else
   {

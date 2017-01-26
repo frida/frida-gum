@@ -6,6 +6,7 @@
 
 #include "gummemory.h"
 
+#include "gumcodesegment.h"
 #include "gumlibc.h"
 #include "gummemory-priv.h"
 
@@ -144,6 +145,61 @@ gum_query_is_rwx_supported (void)
 #else
   return TRUE;
 #endif
+}
+
+gboolean
+gum_memory_patch_code (GumAddress address,
+                       gsize size,
+                       GumMemoryPatchApplyFunc apply,
+                       gpointer apply_data)
+{
+  gsize page_size;
+  guint8 * start_page, * end_page;
+  gsize page_offset, range_size;
+  gboolean rwx_supported;
+
+  page_size = gum_query_page_size ();
+  start_page = GSIZE_TO_POINTER (((gsize) address) & ~(page_size - 1));
+  end_page = GSIZE_TO_POINTER (
+      ((gsize) (address + size - 1)) & ~(page_size - 1));
+  page_offset = ((guint8 *) GSIZE_TO_POINTER (address)) - start_page;
+  range_size = (end_page + page_size) - start_page;
+
+  rwx_supported = gum_query_is_rwx_supported ();
+
+  if (rwx_supported || !gum_code_segment_is_supported ())
+  {
+    GumPageProtection protection;
+
+    protection = rwx_supported ? GUM_PAGE_RWX : GUM_PAGE_RW;
+
+    if (!gum_try_mprotect (start_page, range_size, protection))
+      return FALSE;
+
+    apply (GSIZE_TO_POINTER (address), apply_data);
+
+    if (!gum_try_mprotect (start_page, range_size, GUM_PAGE_RX))
+      return FALSE;
+  }
+  else
+  {
+    GumCodeSegment * segment;
+    guint8 * scratch_page;
+
+    segment = gum_code_segment_new (range_size, NULL);
+    scratch_page = gum_code_segment_get_address (segment);
+    memcpy (scratch_page, start_page, range_size);
+
+    apply (scratch_page + page_offset, apply_data);
+
+    gum_code_segment_realize (segment);
+    gum_code_segment_map (segment, 0, range_size, start_page);
+    gum_code_segment_free (segment);
+  }
+
+  gum_clear_cache (GSIZE_TO_POINTER (address), size);
+
+  return TRUE;
 }
 
 void

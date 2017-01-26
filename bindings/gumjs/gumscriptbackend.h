@@ -58,6 +58,8 @@ struct _GumScriptBackendIface
       GDestroyNotify data_destroy);
   void (* post_debug_message) (GumScriptBackend * self, const gchar * message);
 
+  GMainContext * (* get_main_context) (GumScriptBackend * self);
+
   void (* ignore) (GumScriptBackend * self, GumThreadId thread_id);
   void (* unignore) (GumScriptBackend * self, GumThreadId thread_id);
   void (* unignore_later) (GumScriptBackend * self, GumThreadId thread_id);
@@ -102,6 +104,9 @@ GUM_API void gum_script_backend_set_debug_message_handler (
     gpointer data, GDestroyNotify data_destroy);
 GUM_API void gum_script_backend_post_debug_message (GumScriptBackend * self,
     const gchar * message);
+
+GUM_API GMainContext * gum_script_backend_get_main_context (
+    GumScriptBackend * self);
 
 GUM_API void gum_script_backend_ignore (GumThreadId thread_id);
 GUM_API void gum_script_backend_unignore (GumThreadId thread_id);

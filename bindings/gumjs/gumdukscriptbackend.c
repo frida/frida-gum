@@ -154,6 +154,8 @@ static void gum_duk_script_backend_set_debug_message_handler (
     gpointer data, GDestroyNotify data_destroy);
 static void gum_duk_script_backend_post_debug_message (
     GumScriptBackend * backend, const gchar * message);
+static GMainContext * gum_duk_script_backend_get_main_context (
+    GumScriptBackend * backend);
 static void gum_duk_script_backend_on_debug_handler_attached (
     GumDukScriptBackend * self);
 static void gum_duk_script_backend_on_debug_handler_detached (
@@ -230,6 +232,8 @@ gum_duk_script_backend_iface_init (gpointer g_iface,
   iface->set_debug_message_handler =
       gum_duk_script_backend_set_debug_message_handler;
   iface->post_debug_message = gum_duk_script_backend_post_debug_message;
+
+  iface->get_main_context = gum_duk_script_backend_get_main_context;
 }
 
 static void
@@ -835,6 +839,13 @@ gum_duk_script_backend_post_debug_message (GumScriptBackend * backend,
   }
 
   g_object_unref (script);
+}
+
+static GMainContext *
+gum_duk_script_backend_get_main_context (GumScriptBackend * backend)
+{
+  return gum_script_scheduler_get_js_context (
+      gum_duk_script_backend_get_scheduler (GUM_DUK_SCRIPT_BACKEND (backend)));
 }
 
 static void

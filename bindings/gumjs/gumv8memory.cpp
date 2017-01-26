@@ -44,6 +44,14 @@ enum GumMemoryValueType
   GUM_MEMORY_VALUE_ANSI_STRING
 };
 
+struct GumMemoryPatchContext
+{
+  Local<Function> apply;
+  gboolean has_pending_exception;
+
+  GumV8Core * core;
+};
+
 struct GumMemoryScanContext
 {
   GumMemoryRange range;
@@ -65,6 +73,9 @@ struct GumMemoryScanSyncContext
 GUMJS_DECLARE_FUNCTION (gumjs_memory_alloc)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_copy)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_protect)
+GUMJS_DECLARE_FUNCTION (gumjs_memory_patch_code)
+static void gum_memory_patch_context_apply (gpointer mem,
+    GumMemoryPatchContext * self);
 
 static void gum_v8_memory_read (GumMemoryValueType type,
     const GumV8Args * args, ReturnValue<Value> return_value);
@@ -143,6 +154,7 @@ static const GumV8Function gumjs_memory_functions[] =
   { "alloc", gumjs_memory_alloc },
   { "copy", gumjs_memory_copy },
   { "protect", gumjs_memory_protect },
+  { "_patchCode", gumjs_memory_patch_code },
 
   GUMJS_EXPORT_MEMORY_READ_WRITE ("Pointer", POINTER),
   GUMJS_EXPORT_MEMORY_READ_WRITE ("S8", S8),
@@ -227,7 +239,7 @@ _gum_v8_memory_finalize (GumV8Memory * self)
  * Memory.alloc(size)
  *
  * Docs:
- * Allocate a chunk of memory
+ * Allocate a zero-initialized chunk of memory
  *
  * Example:
  * TBW
@@ -249,7 +261,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
   gsize page_size = gum_query_page_size ();
   if (size < page_size)
   {
-    res = _gum_v8_native_resource_new (g_malloc (size), size, g_free, core);
+    res = _gum_v8_native_resource_new (g_malloc0 (size), size, g_free, core);
   }
   else
   {
@@ -338,6 +350,36 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_protect)
     success = true;
 
   info.GetReturnValue ().Set (success);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_memory_patch_code)
+{
+  gpointer address;
+  gsize size;
+  GumMemoryPatchContext pc;
+  gboolean success;
+
+  if (!_gum_v8_args_parse (args, "pZF", &address, &size, &pc.apply))
+    return;
+  pc.has_pending_exception = FALSE;
+  pc.core = core;
+
+  success = gum_memory_patch_code (GUM_ADDRESS (address), size,
+      (GumMemoryPatchApplyFunc) gum_memory_patch_context_apply, &pc);
+  if (!success && !pc.has_pending_exception)
+    _gum_v8_throw_ascii_literal (isolate, "invalid address");
+}
+
+static void
+gum_memory_patch_context_apply (gpointer mem,
+                                GumMemoryPatchContext * self)
+{
+  Handle<Value> argv[] = {
+    _gum_v8_native_pointer_new (mem, self->core)
+  };
+  auto result = self->apply->Call (Undefined (self->core->isolate),
+      G_N_ELEMENTS (argv), argv);
+  self->has_pending_exception = result.IsEmpty ();
 }
 
 static void
