@@ -15,15 +15,6 @@ STALKER_ARM64_TESTENTRY (exec)*/
 STALKER_ARM64_TESTENTRY (no_register_clobber)
 TEST_LIST_END()
 
-static void pretend_workload(void);
-
-static gpointer stalker_victim(gpointer data);
-
-static void invoke_follow_return_code(TestArm64StalkerFixture *fixture);
-
-static void invoke_unfollow_deep_code(TestArm64StalkerFixture *fixture);
-
-gint gum_stalker_dummy_global_to_trick_optimizer = 0;
 
 static const guint32 flat_code[] = {
         0xCB000000, /* sub w0,w0,w0 */
@@ -92,7 +83,6 @@ STALKER_ARM64_TESTCASE (exec) {
     GUM_ASSERT_CMPADDR(ev->location, == , func);
 }
 
-
 typedef void (*ClobberFunc)(GumCpuContext *ctx);
 
 STALKER_ARM64_TESTCASE (no_register_clobber)
@@ -109,42 +99,47 @@ STALKER_ARM64_TESTCASE (no_register_clobber)
     code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
     gum_arm64_writer_init (&cw, code);
 
+    // +++
     gum_arm64_writer_put_push_all_registers(&cw); // 16 push of 16
 
+    // +++
     gum_arm64_writer_put_push_all_registers(&cw);
     gum_arm64_writer_put_call_address_with_arguments(&cw,
                                                      gum_stalker_follow_me, 2,
                                                      GUM_ARG_ADDRESS, fixture->stalker,
                                                      GUM_ARG_ADDRESS, fixture->sink);
 
+    // ---
     gum_arm64_writer_put_pop_all_registers(&cw);
 
-    for (int i=ARM64_REG_X0; i<=ARM64_REG_X30;i++){
+    for (int i=ARM64_REG_X0; i<=ARM64_REG_X28;i++){
         gum_arm64_writer_put_ldr_reg_u64(&cw, i, i);
     }
 
+    //gum_arm64_writer_put_b_label(&cw, my_func_lbl);
+    //gum_arm64_writer_put_label (&cw, my_ken_lbl);
 
-    gum_arm64_writer_put_b_label(&cw, my_func_lbl);
-    gum_arm64_writer_put_label (&cw, my_ken_lbl);
-
+    // +++
     gum_arm64_writer_put_push_all_registers(&cw);
-
     gum_arm64_writer_put_call_address_with_arguments(&cw,
                                                      gum_stalker_unfollow_me, 1,
                                                      GUM_ARG_ADDRESS, fixture->stalker);
+    // ---
     gum_arm64_writer_put_pop_all_registers(&cw);
 
-    int offset = (2* sizeof(gpointer))+(32 * sizeof (gpointer));
+    int offset = (4* sizeof(gpointer))+(32 * sizeof (gpointer));
 
     for (int i=ARM64_REG_X0; i<=ARM64_REG_X28;i++){
         gum_arm64_writer_put_str_reg_reg_offset(&cw, i, ARM64_REG_SP,
-                                                offset+G_STRUCT_OFFSET (GumCpuContext, x[i]));
+                                                offset+G_STRUCT_OFFSET (GumCpuContext, x[i-ARM64_REG_X0]));
     }
 
+    // ---
     gum_arm64_writer_put_pop_all_registers(&cw);
 
     gum_arm64_writer_put_ret (&cw);
 
+    /*
     gum_arm64_writer_put_label (&cw, my_func_lbl);
     gum_arm64_writer_put_nop (&cw);
     gum_arm64_writer_put_b_label (&cw, my_beach_lbl);
@@ -154,7 +149,7 @@ STALKER_ARM64_TESTCASE (no_register_clobber)
     gum_arm64_writer_put_nop (&cw);
     gum_arm64_writer_put_nop (&cw);
     gum_arm64_writer_put_nop (&cw);
-    gum_arm64_writer_put_b_label (&cw, my_ken_lbl);
+    gum_arm64_writer_put_b_label (&cw, my_ken_lbl);*/
 
 
     gum_arm64_writer_free (&cw);
@@ -164,7 +159,7 @@ STALKER_ARM64_TESTCASE (no_register_clobber)
     func (&ctx);
 
     for (int i=ARM64_REG_X0; i<=ARM64_REG_X28;i++){
-        g_assert_cmphex (ctx.x[i], ==, i);
+        g_assert_cmphex (ctx.x[i-ARM64_REG_X0], ==, i);
     }
 
     gum_free_pages (code);

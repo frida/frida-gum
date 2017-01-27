@@ -13,7 +13,7 @@
 
 #define GUM_MAX_LABEL_COUNT       100
 #define GUM_MAX_LABEL_REF_COUNT   (3 * GUM_MAX_LABEL_COUNT)
-#define GUM_MAX_LITERAL_REF_COUNT 100
+#define GUM_MAX_LITERAL_REF_COUNT 1000
 
 typedef struct _GumArm64Argument GumArm64Argument;
 typedef guint GumArm64MemPairOperandSize;
@@ -278,6 +278,8 @@ gum_arm64_writer_add_literal_reference_here (GumArm64Writer * self,
 {
     GumArm64LiteralRef * r = &self->literal_refs[self->literal_refs_len++];
 
+    //printf("\x1b[32mself->code %p \x1b[0m\n", self->code);
+
     g_assert_cmpuint (self->literal_refs_len, <=, GUM_MAX_LITERAL_REF_COUNT);
 
     r->insn = self->code;
@@ -385,7 +387,7 @@ void gum_arm64_writer_put_branch_address(GumArm64Writer * self, GumAddress addre
     }
     else
     {
-        arm64_reg target = ARM64_REG_X0;
+        arm64_reg target = ARM64_REG_X16;
         gum_arm64_writer_put_ldr_reg_address (self, target, address);
         gum_arm64_writer_put_br_reg (self, target);
     }
@@ -962,13 +964,22 @@ gum_arm64_writer_describe_reg (GumArm64Writer * self,
 
 // add by italiaken
 
-#define PUSH_ALL
-
 void gum_arm64_writer_put_push_all_registers(GumArm64Writer * self){
 
-    for (int i = ARM64_REG_X0; i < ARM64_REG_X28 ; i=i+2) {
-        gum_arm64_writer_put_push_reg_reg(self, i, i+1);
-    }
+    gum_arm64_writer_put_push_reg_reg(self, ARM64_REG_X0, ARM64_REG_X1);
+    gum_arm64_writer_put_push_reg_reg(self, ARM64_REG_X2, ARM64_REG_X3);
+    gum_arm64_writer_put_push_reg_reg(self, ARM64_REG_X4, ARM64_REG_X5);
+    gum_arm64_writer_put_push_reg_reg(self, ARM64_REG_X6, ARM64_REG_X7);
+    gum_arm64_writer_put_push_reg_reg(self, ARM64_REG_X8, ARM64_REG_X9);
+    gum_arm64_writer_put_push_reg_reg(self, ARM64_REG_X10, ARM64_REG_X11);
+    gum_arm64_writer_put_push_reg_reg(self, ARM64_REG_X12, ARM64_REG_X13);
+    gum_arm64_writer_put_push_reg_reg(self, ARM64_REG_X14, ARM64_REG_X15);
+    gum_arm64_writer_put_push_reg_reg(self, ARM64_REG_X16, ARM64_REG_X17);
+    gum_arm64_writer_put_push_reg_reg(self, ARM64_REG_X18, ARM64_REG_X19);
+    gum_arm64_writer_put_push_reg_reg(self, ARM64_REG_X20, ARM64_REG_X21);
+    gum_arm64_writer_put_push_reg_reg(self, ARM64_REG_X22, ARM64_REG_X23);
+    gum_arm64_writer_put_push_reg_reg(self, ARM64_REG_X24, ARM64_REG_X25);
+    gum_arm64_writer_put_push_reg_reg(self, ARM64_REG_X26, ARM64_REG_X27);
     gum_arm64_writer_put_push_reg_reg(self, ARM64_REG_X28, ARM64_REG_X29);
     gum_arm64_writer_put_instruction(self, 0xD53B420F);//MRS X15, NZCV
     gum_arm64_writer_put_push_reg_reg(self, ARM64_REG_X30, ARM64_REG_X15);
@@ -1003,9 +1014,20 @@ void gum_arm64_writer_put_pop_all_registers(GumArm64Writer * self)
     gum_arm64_writer_put_pop_reg_reg(self, ARM64_REG_X30, ARM64_REG_X15);
     gum_arm64_writer_put_instruction(self, 0xD51B420F);//msr NZCV, x15
     gum_arm64_writer_put_pop_reg_reg(self, ARM64_REG_X28, ARM64_REG_X29);
-    for (int i = ARM64_REG_X27; i > ARM64_REG_X0 ; i=i-2) {
-        gum_arm64_writer_put_push_reg_reg(self, i-1, i);
-    }
+    gum_arm64_writer_put_pop_reg_reg(self, ARM64_REG_X26, ARM64_REG_X27);
+    gum_arm64_writer_put_pop_reg_reg(self, ARM64_REG_X24, ARM64_REG_X25);
+    gum_arm64_writer_put_pop_reg_reg(self, ARM64_REG_X22, ARM64_REG_X23);
+    gum_arm64_writer_put_pop_reg_reg(self, ARM64_REG_X20, ARM64_REG_X21);
+    gum_arm64_writer_put_pop_reg_reg(self, ARM64_REG_X18, ARM64_REG_X19);
+    gum_arm64_writer_put_pop_reg_reg(self, ARM64_REG_X16, ARM64_REG_X17);
+    gum_arm64_writer_put_pop_reg_reg(self, ARM64_REG_X14, ARM64_REG_X15);
+    gum_arm64_writer_put_pop_reg_reg(self, ARM64_REG_X12, ARM64_REG_X13);
+    gum_arm64_writer_put_pop_reg_reg(self, ARM64_REG_X10, ARM64_REG_X11);
+    gum_arm64_writer_put_pop_reg_reg(self, ARM64_REG_X8, ARM64_REG_X9);
+    gum_arm64_writer_put_pop_reg_reg(self, ARM64_REG_X6, ARM64_REG_X7);
+    gum_arm64_writer_put_pop_reg_reg(self, ARM64_REG_X4, ARM64_REG_X5);
+    gum_arm64_writer_put_pop_reg_reg(self, ARM64_REG_X2, ARM64_REG_X3);
+    gum_arm64_writer_put_pop_reg_reg(self, ARM64_REG_X0, ARM64_REG_X1);
 
 }
 void gum_arm64_writer_put_pop_all_Q_registers(GumArm64Writer * self)
