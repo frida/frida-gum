@@ -39,7 +39,7 @@
     G_STRUCT_OFFSET (GumExecCtx, FIELD) + ADDITIONAL_OFFSET);
 
 
-#define ENABLE_DEBUG 1
+#define ENABLE_DEBUG 0
 #if ENABLE_DEBUG == 0
 #undef ENABLE_DEBUG
 #endif
@@ -2150,9 +2150,10 @@ gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
 
 
     gum_exec_block_close_prolog (block, gc);
+
     gum_arm64_writer_put_push_reg_reg(cw, ARM64_REG_X16, ARM64_REG_X17);
     gum_arm64_writer_put_ldr_reg_address(cw, ARM64_REG_X16, GUM_ADDRESS (&block->ctx->resume_at));
-    gum_arm64_writer_put_ldr_reg_reg_offset(cw, ARM64_REG_X17, ARM64_REG_X14, 0);
+    gum_arm64_writer_put_ldr_reg_reg_offset(cw, ARM64_REG_X17, ARM64_REG_X16, 0);
     gum_arm64_writer_put_br_reg(cw, ARM64_REG_X17);
 
 #ifdef ENABLE_DEBUG
