@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -29,16 +29,20 @@
     "--harmony-function-sent " \
     "--harmony-sharedarraybuffer " \
     "--harmony-simd " \
-    "--harmony-explicit-tailcalls " \
     "--harmony-do-expressions " \
-    "--harmony-restrictive-generators " \
     "--harmony-regexp-named-captures " \
     "--harmony-regexp-property " \
-    "--harmony-for-in " \
+    "--harmony-class-fields " \
+    "--harmony-async-iteration " \
+    "--harmony-regexp-lookbehind " \
+    "--harmony-restrictive-generators " \
+    "--harmony-tailcalls " \
     "--harmony-trailing-commas " \
-    "--expose-wasm " \
+    "--harmony-object-rest-spread " \
     "--wasm-simd-prototype " \
     "--wasm-eh-prototype " \
+    "--wasm-mv-prototype " \
+    "--wasm-atomics-prototype " \
     "--expose-gc"
 
 using namespace v8;
