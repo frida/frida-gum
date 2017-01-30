@@ -56,13 +56,18 @@ static void debug_hello(gpointer pointer){
 }
 
 static void put_debug_print(GumArm64Writer* cw, gpointer pointer){
-    gum_arm64_writer_put_push_reg_reg(cw, ARM64_REG_X29, ARM64_REG_X30);
-    gum_arm64_writer_put_push_reg_reg(cw, ARM64_REG_X0, ARM64_REG_X1);
+    gum_arm64_writer_put_push_all_registers(cw);
     gum_arm64_writer_put_call_address_with_arguments(cw,
                                                      GUM_FUNCPTR_TO_POINTER (debug_hello), 1,
                                                      GUM_ARG_ADDRESS, GUM_ADDRESS(pointer));
-    gum_arm64_writer_put_pop_reg_reg(cw, ARM64_REG_X0, ARM64_REG_X1);
-    gum_arm64_writer_put_pop_reg_reg(cw, ARM64_REG_X29, ARM64_REG_X30);
+    gum_arm64_writer_put_pop_all_registers(cw);
+}
+static void put_debug_print_reg(GumArm64Writer* cw, arm64_reg reg){
+    gum_arm64_writer_put_push_all_registers(cw);
+    gum_arm64_writer_put_call_address_with_arguments(cw,
+                                                     GUM_FUNCPTR_TO_POINTER (debug_hello), 1,
+                                                     GUM_ARG_REGISTER, reg);
+    gum_arm64_writer_put_pop_all_registers(cw);
 }
 
 
@@ -160,10 +165,8 @@ test_arm64_stalker_fixture_follow_and_invoke (TestArm64StalkerFixture * fixture,
 
     gum_arm64_writer_free (&cw);
 
-    g_print("before calling it\n");
     invoke_func = GUM_POINTER_TO_FUNCPTR (GCallback, code);
     invoke_func ();
-    g_print("after calling it\n");
 
     gum_free_pages (code);
 
