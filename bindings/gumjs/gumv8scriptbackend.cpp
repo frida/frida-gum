@@ -35,7 +35,6 @@
     "--harmony-class-fields " \
     "--harmony-async-iteration " \
     "--harmony-regexp-lookbehind " \
-    "--harmony-restrictive-generators " \
     "--harmony-tailcalls " \
     "--harmony-trailing-commas " \
     "--harmony-object-rest-spread " \
