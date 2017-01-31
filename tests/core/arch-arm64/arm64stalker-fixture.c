@@ -21,19 +21,19 @@
 #endif
 
 #define STALKER_ARM64_TESTCASE(NAME) \
-    void test_arm64_stalker_ ## NAME ( \
-        TestArm64StalkerFixture * fixture, gconstpointer data)
+  void test_arm64_stalker_ ## NAME ( \
+    TestArm64StalkerFixture * fixture, gconstpointer data)
 #define STALKER_ARM64_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Core/Arm64Stalker", test_arm64_stalker, NAME, \
-        TestArm64StalkerFixture)
+  TEST_ENTRY_WITH_FIXTURE ("Core/Arm64Stalker", test_arm64_stalker, NAME, \
+    TestArm64StalkerFixture)
 
 
 #define NTH_EVENT_AS_CALL(N) \
-    (gum_fake_event_sink_get_nth_event_as_call (fixture->sink, N))
+  (gum_fake_event_sink_get_nth_event_as_call (fixture->sink, N))
 #define NTH_EVENT_AS_RET(N) \
-    (gum_fake_event_sink_get_nth_event_as_ret (fixture->sink, N))
+  (gum_fake_event_sink_get_nth_event_as_ret (fixture->sink, N))
 #define NTH_EXEC_EVENT_LOCATION(N) \
-    (gum_fake_event_sink_get_nth_event_as_exec (fixture->sink, N)->location)
+  (gum_fake_event_sink_get_nth_event_as_exec (fixture->sink, N)->location)
 
 typedef struct _TestArm64StalkerFixture
 {
@@ -49,31 +49,36 @@ typedef gint (* StalkerTestFunc) (gint arg);
 
 static void silence_warnings (void);
 
-static void debug_hello(gpointer pointer){
-    g_print("********* hello *********\n");
-    printf("* pointer: %p *\n", pointer);
-    g_print("*************************\n");
+static void
+debug_hello (gpointer pointer){
+  g_print ("********* hello *********\n");
+  printf ("* pointer: %p *\n", pointer);
+  g_print ("*************************\n");
 }
 
-static void put_debug_print(GumArm64Writer* cw, gpointer pointer){
-    gum_arm64_writer_put_push_all_registers(cw);
-    gum_arm64_writer_put_call_address_with_arguments(cw,
-                                                     GUM_FUNCPTR_TO_POINTER (debug_hello), 1,
-                                                     GUM_ARG_ADDRESS, GUM_ADDRESS(pointer));
-    gum_arm64_writer_put_pop_all_registers(cw);
+static void
+put_debug_print (GumArm64Writer* cw,
+    gpointer pointer){
+  gum_arm64_writer_put_push_all_registers (cw);
+  gum_arm64_writer_put_call_address_with_arguments (cw,
+      GUM_FUNCPTR_TO_POINTER (debug_hello), 1,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (pointer));
+  gum_arm64_writer_put_pop_all_registers (cw);
 }
-static void put_debug_print_reg(GumArm64Writer* cw, arm64_reg reg){
-    gum_arm64_writer_put_push_all_registers(cw);
-    gum_arm64_writer_put_call_address_with_arguments(cw,
-                                                     GUM_FUNCPTR_TO_POINTER (debug_hello), 1,
-                                                     GUM_ARG_REGISTER, reg);
-    gum_arm64_writer_put_pop_all_registers(cw);
+static void
+put_debug_print_reg (GumArm64Writer* cw,
+    arm64_reg reg){
+  gum_arm64_writer_put_push_all_registers (cw);
+  gum_arm64_writer_put_call_address_with_arguments (cw,
+      GUM_FUNCPTR_TO_POINTER (debug_hello), 1,
+      GUM_ARG_REGISTER, reg);
+  gum_arm64_writer_put_pop_all_registers (cw);
 }
 
 
 static void
 test_arm64_stalker_fixture_setup (TestArm64StalkerFixture * fixture,
-                            gconstpointer data)
+    gconstpointer data)
 {
   fixture->stalker = gum_stalker_new ();
   fixture->sink = GUM_FAKE_EVENT_SINK (gum_fake_event_sink_new ());
@@ -83,7 +88,7 @@ test_arm64_stalker_fixture_setup (TestArm64StalkerFixture * fixture,
 
 static void
 test_arm64_stalker_fixture_teardown (TestArm64StalkerFixture * fixture,
-                               gconstpointer data)
+    gconstpointer data)
 {
   g_object_unref (fixture->sink);
   g_object_unref (fixture->stalker);
@@ -94,8 +99,8 @@ test_arm64_stalker_fixture_teardown (TestArm64StalkerFixture * fixture,
 
 static guint8 *
 test_arm64_stalker_fixture_dup_code (TestArm64StalkerFixture * fixture,
-                               const guint32 * tpl_code,
-                               guint tpl_size)
+    const guint32 * tpl_code,
+    guint tpl_size)
 {
   GumAddressSpec spec;
 
@@ -116,59 +121,59 @@ test_arm64_stalker_fixture_dup_code (TestArm64StalkerFixture * fixture,
 /* custom invoke code as we want to stalk a deterministic code sequence */
 static gint
 test_arm64_stalker_fixture_follow_and_invoke (TestArm64StalkerFixture * fixture,
-                                        StalkerTestFunc func,
-                                        gint arg)
+    StalkerTestFunc func,
+    gint arg)
 {
-    GumAddressSpec spec;
-    gint ret;
-    guint8 * code;
-    GumArm64Writer cw;
-    GCallback invoke_func;
+  GumAddressSpec spec;
+  gint ret;
+  guint8 * code;
+  GumArm64Writer cw;
+  GCallback invoke_func;
 
-    spec.near_address = gum_stalker_follow_me;
-    spec.max_distance = G_MAXINT32 / 2;
-    code = (guint8 *) gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &spec);
+  spec.near_address = gum_stalker_follow_me;
+  spec.max_distance = G_MAXINT32 / 2;
+  code = (guint8 *) gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &spec);
 
-    // init writer
-    gum_arm64_writer_init (&cw, code);
+  // init writer
+  gum_arm64_writer_init (&cw, code);
 
-    // call gum_stalker_follow_me
-    //gum_arm64_writer_put_push_reg_reg(&cw, ARM64_REG_X0, ARM64_REG_X1);
-    //gum_arm64_writer_put_push_reg_reg(&cw, ARM64_REG_X2, ARM64_REG_X3);
-    gum_arm64_writer_put_push_reg_reg(&cw, ARM64_REG_X29, ARM64_REG_X30);
-    gum_arm64_writer_put_mov_reg_reg(&cw, ARM64_REG_X29, ARM64_REG_SP);
+  // call gum_stalker_follow_me
+  //gum_arm64_writer_put_push_reg_reg(&cw, ARM64_REG_X0, ARM64_REG_X1);
+  //gum_arm64_writer_put_push_reg_reg(&cw, ARM64_REG_X2, ARM64_REG_X3);
+  gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X29, ARM64_REG_X30);
+  gum_arm64_writer_put_mov_reg_reg (&cw, ARM64_REG_X29, ARM64_REG_SP);
 
-    gum_arm64_writer_put_call_address_with_arguments(&cw,
-                                                     gum_stalker_follow_me, 2,
-                                                     GUM_ARG_ADDRESS, fixture->stalker,
-                                                     GUM_ARG_ADDRESS, fixture->sink);
+  gum_arm64_writer_put_call_address_with_arguments (&cw,
+      gum_stalker_follow_me, 2,
+      GUM_ARG_ADDRESS, fixture->stalker,
+      GUM_ARG_ADDRESS, fixture->sink);
 
-    // call function -int func(int x)- and save address before and after call
+  // call function -int func(int x)- and save address before and after call
 
-    gum_arm64_writer_put_ldr_reg_address(&cw, ARM64_REG_X0, GUM_ADDRESS (arg));
-    fixture->last_invoke_calladdr = (guint8 *) gum_arm64_writer_cur(&cw);
-    gum_arm64_writer_put_call_address_with_arguments(&cw, func, 0);
-    fixture->last_invoke_retaddr = (guint8 *) gum_arm64_writer_cur(&cw);
-    gum_arm64_writer_put_ldr_reg_address(&cw, ARM64_REG_X1, GUM_ADDRESS (&ret));
-    gum_arm64_writer_put_str_reg_reg_offset(&cw, ARM64_REG_X0, ARM64_REG_X1, 0);
+  gum_arm64_writer_put_ldr_reg_address (&cw, ARM64_REG_X0, GUM_ADDRESS (arg));
+  fixture->last_invoke_calladdr = (guint8 *) gum_arm64_writer_cur (&cw);
+  gum_arm64_writer_put_call_address_with_arguments (&cw, func, 0);
+  fixture->last_invoke_retaddr = (guint8 *) gum_arm64_writer_cur (&cw);
+  gum_arm64_writer_put_ldr_reg_address (&cw, ARM64_REG_X1, GUM_ADDRESS (&ret));
+  gum_arm64_writer_put_str_reg_reg_offset (&cw, ARM64_REG_X0, ARM64_REG_X1, 0);
 
 
-    // call gum_stalker_unfollow_me
-    gum_arm64_writer_put_call_address_with_arguments(&cw,
-                                                     gum_stalker_unfollow_me, 1,
-                                                     GUM_ARG_ADDRESS, fixture->stalker);
+  // call gum_stalker_unfollow_me
+  gum_arm64_writer_put_call_address_with_arguments (&cw,
+      gum_stalker_unfollow_me, 1,
+      GUM_ARG_ADDRESS, fixture->stalker);
 
-    gum_arm64_writer_put_pop_reg_reg(&cw, ARM64_REG_X29, ARM64_REG_X30);
-    //gum_arm64_writer_put_pop_reg_reg(&cw, ARM64_REG_X2, ARM64_REG_X3);
-    //gum_arm64_writer_put_pop_reg_reg(&cw, ARM64_REG_X0, ARM64_REG_X1);
-    gum_arm64_writer_put_ret(&cw);
+  gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X29, ARM64_REG_X30);
+  //gum_arm64_writer_put_pop_reg_reg(&cw, ARM64_REG_X2, ARM64_REG_X3);
+  //gum_arm64_writer_put_pop_reg_reg(&cw, ARM64_REG_X0, ARM64_REG_X1);
+  gum_arm64_writer_put_ret (&cw);
 
-    gum_arm64_writer_free (&cw);
+  gum_arm64_writer_free (&cw);
 
-    invoke_func = GUM_POINTER_TO_FUNCPTR (GCallback, code);
-    invoke_func ();
+  invoke_func = GUM_POINTER_TO_FUNCPTR (GCallback, code);
+  invoke_func ();
 
-    gum_free_pages (code);
+  gum_free_pages (code);
 
   return ret;
 }
