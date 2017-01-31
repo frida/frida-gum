@@ -9,8 +9,7 @@ gum_stalker_follow_me:
     mov x2, x30
     bl _gum_stalker_do_follow_me
     ldp	x29, x30, [sp],16
-    mov x30, x0
-    stp x16, x17, [sp,-16]!
+    add x30, x0, #4
     ret
 
     .global gum_stalker_unfollow_me

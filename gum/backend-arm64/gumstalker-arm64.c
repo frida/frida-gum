@@ -682,7 +682,7 @@ gum_stalker_infect (GumThreadId thread_id,
                                                      GUM_ARG_ADDRESS, ctx);
 
     gum_exec_ctx_write_epilog (ctx, GUM_PROLOG_MINIMAL, &cw);
-    gum_arm64_writer_put_branch_address(&cw, code_address);
+    gum_arm64_writer_put_branch_address(&cw, code_address + 4);
 
     gum_arm64_writer_free(&cw);
 
@@ -1461,21 +1461,39 @@ gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
 
     if (source_register >= ARM64_REG_X0 && source_register <= ARM64_REG_X5){
 
+        int slot_in_the_stack = (source_register-ARM64_REG_X0)/2 + 1;
+        int pos_in_the_slot = (source_register-ARM64_REG_X0)%2;
+
         gum_arm64_writer_put_ldr_reg_address(cw, ARM64_REG_X15, GUM_ADDRESS (&ctx->app_stack));
         gum_arm64_writer_put_ldr_reg_reg_offset(cw, ARM64_REG_X15, ARM64_REG_X15, 0);
-        gum_arm64_writer_put_sub_reg_reg_imm(cw, ARM64_REG_X15, ARM64_REG_X15,
-                                             GUM_RED_ZONE_SIZE + (source_register-ARM64_REG_X0)*8);
-        gum_arm64_writer_put_ldr_reg_reg_offset(cw, target_register, ARM64_REG_X15, 0);
+        //gum_arm64_writer_put_sub_reg_reg_imm(cw, ARM64_REG_X15, ARM64_REG_X15, GUM_RED_ZONE_SIZE + (source_register-ARM64_REG_X0)*8);
+        gum_arm64_writer_put_sub_reg_reg_imm(cw, ARM64_REG_X15, ARM64_REG_X15, GUM_RED_ZONE_SIZE);
+        gum_arm64_writer_put_ldp_reg_reg_reg_offset(cw, ARM64_REG_X14, ARM64_REG_X15, ARM64_REG_X15, -slot_in_the_stack*16);
+        if (pos_in_the_slot == 0)
+            gum_arm64_writer_put_mov_reg_reg(cw, target_register, ARM64_REG_X14);
+        else
+            gum_arm64_writer_put_mov_reg_reg(cw, target_register, ARM64_REG_X15);
 
     }else if (source_register >= ARM64_STALKER_REG_CTX && source_register <= ARM64_REG_X17){
+
+        int slot_in_the_stack = 3 + (source_register-ARM64_STALKER_REG_CTX)/2 + 1;
+        int pos_in_the_slot = (source_register-ARM64_STALKER_REG_CTX)%2;
+
+
         gum_arm64_writer_put_ldr_reg_address(cw, ARM64_REG_X15, GUM_ADDRESS (&ctx->app_stack));
         gum_arm64_writer_put_ldr_reg_reg_offset(cw, ARM64_REG_X15, ARM64_REG_X15, 0);
-        gum_arm64_writer_put_sub_reg_reg_imm(cw, ARM64_REG_X15, ARM64_REG_X15,
-                                             GUM_RED_ZONE_SIZE + 6*8 +(source_register-ARM64_STALKER_REG_CTX)*8);
-        gum_arm64_writer_put_ldr_reg_reg_offset(cw, target_register, ARM64_REG_X15, 0);
+        //gum_arm64_writer_put_sub_reg_reg_imm(cw, ARM64_REG_X15, ARM64_REG_X15, GUM_RED_ZONE_SIZE + 6*8 +(source_register-ARM64_STALKER_REG_CTX)*8);
+        gum_arm64_writer_put_sub_reg_reg_imm(cw, ARM64_REG_X15, ARM64_REG_X15, GUM_RED_ZONE_SIZE);
+        gum_arm64_writer_put_ldp_reg_reg_reg_offset(cw, ARM64_REG_X14, ARM64_REG_X15, ARM64_REG_X15, -slot_in_the_stack*16);
+        if (pos_in_the_slot == 0)
+            gum_arm64_writer_put_mov_reg_reg(cw, target_register, ARM64_REG_X14);
+        else
+            gum_arm64_writer_put_mov_reg_reg(cw, target_register, ARM64_REG_X15);
 
-    } else{
+    } else if (source_register == ARM64_REG_X29 || source_register == ARM64_REG_X30){
         g_assert(source_register=="not implemented");
+    } else {
+        gum_arm64_writer_put_mov_reg_reg(cw, target_register, source_register);
     }
 
 

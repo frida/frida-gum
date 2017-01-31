@@ -79,6 +79,9 @@ static void gum_arm64_writer_put_load_store_pair_pre (GumArm64Writer * self,
 static void gum_arm64_writer_put_load_store_pair_post (GumArm64Writer * self,
     GumArm64MemPairOperandSize op_size, guint opc, gboolean v, gboolean l,
     guint rt, guint rt2, guint rn, gssize post_increment);
+static void gum_arm64_writer_put_load_store_pair_signed_offset (GumArm64Writer * self,
+    GumArm64MemPairOperandSize op_size, guint opc, gboolean v, gboolean l,
+    guint rt, guint rt2, guint rn, gssize signed_offset);
 static gsize gum_mem_pair_offset_shift (GumArm64MemPairOperandSize size,
     gboolean v);
 
@@ -540,24 +543,21 @@ gum_arm64_writer_put_push_reg_reg (GumArm64Writer * self,
                                    arm64_reg reg_a,
                                    arm64_reg reg_b)
 {
-  GumArm64RegInfo ra, rb, sp;
+    GumArm64RegInfo ra, rb, sp;
 
-  gum_arm64_writer_describe_reg (self, reg_a, &ra);
-  gum_arm64_writer_describe_reg (self, reg_b, &rb);
-  gum_arm64_writer_describe_reg (self, ARM64_REG_SP, &sp);
+    gum_arm64_writer_describe_reg(self, reg_a, &ra);
+    gum_arm64_writer_describe_reg(self, reg_b, &rb);
+    gum_arm64_writer_describe_reg(self, ARM64_REG_SP, &sp);
 
-  g_assert_cmpuint (ra.width, ==, rb.width);
+    g_assert_cmpuint(ra.width, == , rb.width);
 
-  if (ra.width == 64)
-  {
-    gum_arm64_writer_put_load_store_pair_pre (self, GUM_MEM_PAIR_OPERAND_64,
-        2, FALSE, FALSE, ra.index, rb.index, sp.index, -16);
-  }
-  else
-  {
-    gum_arm64_writer_put_load_store_pair_pre (self, GUM_MEM_PAIR_OPERAND_32,
-        0, FALSE, FALSE, ra.index, rb.index, sp.index, -8);
-  }
+    if (ra.width == 64) {
+        gum_arm64_writer_put_load_store_pair_pre(self, GUM_MEM_PAIR_OPERAND_64,
+                                                 2, FALSE, FALSE, ra.index, rb.index, sp.index, -16);
+    } else {
+        gum_arm64_writer_put_load_store_pair_pre(self, GUM_MEM_PAIR_OPERAND_32,
+                                                 0, FALSE, FALSE, ra.index, rb.index, sp.index, -8);
+    }
 }
 
 void
@@ -583,6 +583,21 @@ gum_arm64_writer_put_pop_reg_reg (GumArm64Writer * self,
     gum_arm64_writer_put_load_store_pair_post (self, GUM_MEM_PAIR_OPERAND_32,
         0, FALSE, TRUE, ra.index, rb.index, sp.index, 8);
   }
+}
+
+void gum_arm64_writer_put_ldp_reg_reg_reg_offset (GumArm64Writer * self, arm64_reg reg_a,
+                                                  arm64_reg reg_b, arm64_reg reg_src, gsize src_offset){
+    GumArm64RegInfo ra, rb, rs;
+
+    gum_arm64_writer_describe_reg (self, reg_a, &ra);
+    gum_arm64_writer_describe_reg (self, reg_b, &rb);
+    gum_arm64_writer_describe_reg (self, reg_src, &rs);
+
+    g_assert_cmpuint (ra.width, ==, rb.width);
+
+    gum_arm64_writer_put_load_store_pair_signed_offset (self, GUM_MEM_PAIR_OPERAND_64,
+                                                   2, FALSE, TRUE, ra.index, rb.index, rs.index, src_offset);
+
 }
 
 void
@@ -848,6 +863,24 @@ gum_arm64_writer_put_load_store_pair_post (GumArm64Writer * self,
   gum_arm64_writer_put_instruction (self, (opc << 30) | (5 << 27) |
       (v << 26) | (1 << 23) | (l << 22) |
       (((post_increment >> shift) & 0x7f) << 15) |
+      (rt2 << 10) | (rn << 5) | rt);
+}
+
+static void
+gum_arm64_writer_put_load_store_pair_signed_offset (GumArm64Writer * self,
+                                                   GumArm64MemPairOperandSize op_size,
+                                                   guint opc,
+                                                   gboolean v,
+                                                   gboolean l,
+                                                   guint rt,
+                                                   guint rt2,
+                                                   guint rn,
+                                                   gssize signed_offset)
+{
+  gsize shift = gum_mem_pair_offset_shift (op_size, v);
+  gum_arm64_writer_put_instruction (self, (opc << 30) | (5 << 27) |
+      (v << 26) | (2 << 23) | (l << 22) |
+      (((signed_offset >> shift) & 0x7f) << 15) |
       (rt2 << 10) | (rn << 5) | rt);
 }
 

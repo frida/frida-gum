@@ -9,6 +9,7 @@
 
 TEST_LIST_BEGIN (arm64stalker)
 
+
 //EVENTS
 STALKER_ARM64_TESTENTRY (no_events)
 STALKER_ARM64_TESTENTRY (call)
@@ -16,26 +17,26 @@ STALKER_ARM64_TESTENTRY (ret)
 STALKER_ARM64_TESTENTRY (exec)
 
 //BRANCH
-/*
+
 STALKER_ARM64_TESTENTRY(unconditional_branch)
 STALKER_ARM64_TESTENTRY(unconditional_branch_reg)
 STALKER_ARM64_TESTENTRY(conditional_branch)
 STALKER_ARM64_TESTENTRY(compare_and_branch)
-STALKER_ARM64_TESTENTRY(test_bit_and_branch)*/
+STALKER_ARM64_TESTENTRY(test_bit_and_branch)
+
+
+STALKER_ARM64_TESTENTRY (heap_api)
+STALKER_ARM64_TESTENTRY (no_register_clobber)
 
 //FOLLOWS
-/*
+
 STALKER_ARM64_TESTENTRY(follow_std_call)
 STALKER_ARM64_TESTENTRY(follow_return)
 STALKER_ARM64_TESTENTRY(follow_syscall)
- */
 
 
 //STALKER_ARM64_TESTENTRY(follow_thread)
 
-STALKER_ARM64_TESTENTRY (heap_api)
-
-//STALKER_ARM64_TESTENTRY (no_register_clobber)
 TEST_LIST_END()
 
 
@@ -201,8 +202,9 @@ STALKER_ARM64_TESTCASE (unconditional_branch_reg) {
 
     gum_arm64_writer_put_label(&cw, my_ken_lbl);
     gum_arm64_writer_put_add_reg_reg_imm(&cw, ARM64_REG_X0, ARM64_REG_X0, 1);
-    gum_arm64_writer_put_ldr_reg_address(&cw, ARM64_REG_X15, address);
-    gum_arm64_writer_put_br_reg(&cw, ARM64_REG_X15);
+    arm64_reg reg = ARM64_REG_X8;
+    gum_arm64_writer_put_ldr_reg_address(&cw, reg, address);
+    gum_arm64_writer_put_br_reg(&cw, reg);
 
     gum_arm64_writer_free(&cw);
 
