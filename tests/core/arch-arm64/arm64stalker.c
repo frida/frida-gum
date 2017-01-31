@@ -35,7 +35,7 @@ STALKER_ARM64_TESTENTRY(follow_return)
 STALKER_ARM64_TESTENTRY(follow_syscall)
 
 
-//STALKER_ARM64_TESTENTRY(follow_thread)
+STALKER_ARM64_TESTENTRY(follow_thread)
 
 TEST_LIST_END()
 
@@ -169,6 +169,8 @@ STALKER_ARM64_TESTCASE (unconditional_branch_reg) {
     gpointer address;
     const gchar *my_ken_lbl = "my_ken";
     StalkerTestFunc func;
+    arm64_reg reg = ARM64_REG_X1;
+
 
     code = gum_alloc_n_pages(1, GUM_PAGE_RWX);
     gum_arm64_writer_init(&cw, code);
@@ -202,7 +204,6 @@ STALKER_ARM64_TESTCASE (unconditional_branch_reg) {
 
     gum_arm64_writer_put_label(&cw, my_ken_lbl);
     gum_arm64_writer_put_add_reg_reg_imm(&cw, ARM64_REG_X0, ARM64_REG_X0, 1);
-    arm64_reg reg = ARM64_REG_X8;
     gum_arm64_writer_put_ldr_reg_address(&cw, reg, address);
     gum_arm64_writer_put_br_reg(&cw, reg);
 
@@ -506,33 +507,33 @@ stalker_victim(gpointer data) {
     g_mutex_lock(&ctx->mutex);
 
     /* 2: Signal readyness, giving our thread id */
-    g_print("2:Signal readyness, giving our thread id\n");
+    //g_print("2:Signal readyness, giving our thread id\n");
     ctx->state = STALKER_VICTIM_READY_FOR_FOLLOW;
     ctx->thread_id = gum_process_get_current_thread_id();
     g_cond_signal(&ctx->cond);
 
     /* 3: Wait for master to tell us we're being followed */
-    g_print("3:Wait for master to tell us we're being followed\n");
+    //g_print("3:Wait for master to tell us we're being followed\n");
     while (ctx->state != STALKER_VICTIM_IS_FOLLOWED)
         g_cond_wait(&ctx->cond, &ctx->mutex);
 
     /* 6: Signal that we're ready to be unfollowed */
-    g_print("6:Signal that we're ready to be unfollowed\n");
+    //g_print("6:Signal that we're ready to be unfollowed\n");
     ctx->state = STALKER_VICTIM_READY_FOR_UNFOLLOW;
     g_cond_signal(&ctx->cond);
 
     /* 7: Wait for master to tell us we're no longer followed */
-    g_print("7:Wait for master to tell us we're no longer followed\n");
+    //g_print("7:Wait for master to tell us we're no longer followed\n");
     while (ctx->state != STALKER_VICTIM_IS_UNFOLLOWED)
         g_cond_wait(&ctx->cond, &ctx->mutex);
 
     /* 10: Signal that we're ready for a reset */
-    g_print("10:Signal that we're ready for a reset\n");
+    //g_print("10:Signal that we're ready for a reset\n");
     ctx->state = STALKER_VICTIM_READY_FOR_SHUTDOWN;
     g_cond_signal(&ctx->cond);
 
     /* 11: Wait for master to tell us we can call it a day */
-    g_print("11:Wait for master to tell us we can call it a day\n");
+    //g_print("11:Wait for master to tell us we can call it a day\n");
     while (ctx->state != STALKER_VICTIM_IS_SHUTDOWN)
         g_cond_wait(&ctx->cond, &ctx->mutex);
 
@@ -553,7 +554,7 @@ STALKER_ARM64_TESTCASE (follow_thread) {
     thread = g_thread_new("stalker-test-victim", stalker_victim, &ctx);
 
     /* 1: Wait for victim to tell us it's ready, giving its thread id */
-    g_print("1:Wait for victim to tell us it's ready, giving its thread id\n");
+    //g_print("1:Wait for victim to tell us it's ready, giving its thread id\n");
     g_mutex_lock(&ctx.mutex);
     while (ctx.state != STALKER_VICTIM_READY_FOR_FOLLOW)
         g_cond_wait(&ctx.cond, &ctx.mutex);
@@ -561,7 +562,7 @@ STALKER_ARM64_TESTCASE (follow_thread) {
     g_mutex_unlock(&ctx.mutex);
 
     /* 4: Follow and notify victim about it */
-    g_print("4:Follow and notify victim about it\n");
+    //g_print("4:Follow and notify victim about it\n");
     fixture->sink->mask = (GumEventType)(GUM_EXEC | GUM_CALL | GUM_RET);
     gum_stalker_follow(fixture->stalker, thread_id,
                        GUM_EVENT_SINK(fixture->sink));
@@ -571,7 +572,7 @@ STALKER_ARM64_TESTCASE (follow_thread) {
     g_mutex_unlock(&ctx.mutex);
 
     /* 5: Wait for victim to tell us to unfollow */
-    g_print("5:Wait for victim to tell us to unfollow\n");
+    //g_print("5:Wait for victim to tell us to unfollow\n");
     g_mutex_lock(&ctx.mutex);
     while (ctx.state != STALKER_VICTIM_READY_FOR_UNFOLLOW)
         g_cond_wait(&ctx.cond, &ctx.mutex);
@@ -580,7 +581,7 @@ STALKER_ARM64_TESTCASE (follow_thread) {
     g_assert_cmpuint(fixture->sink->events->len, > , 0);
 
     /* 8: Unfollow and notify victim about it */
-    g_print("8:Unfollow and notify victim about it\n");
+    //g_print("8:Unfollow and notify victim about it\n");
     gum_stalker_unfollow(fixture->stalker, thread_id);
     g_mutex_lock(&ctx.mutex);
     ctx.state = STALKER_VICTIM_IS_UNFOLLOWED;
@@ -588,7 +589,7 @@ STALKER_ARM64_TESTCASE (follow_thread) {
     g_mutex_unlock(&ctx.mutex);
 
     /* 9: Wait for victim to tell us it's ready for us to reset the sink */
-    g_print("9:Wait for victim to tell us it's ready for us to reset the sink\n");
+    //g_print("9:Wait for victim to tell us it's ready for us to reset the sink\n");
     g_mutex_lock(&ctx.mutex);
     while (ctx.state != STALKER_VICTIM_READY_FOR_SHUTDOWN)
         g_cond_wait(&ctx.cond, &ctx.mutex);
@@ -597,7 +598,7 @@ STALKER_ARM64_TESTCASE (follow_thread) {
     gum_fake_event_sink_reset(fixture->sink);
 
     /* 12: Tell victim to it' */
-    g_print("12:Tell victim to it\n");
+    //g_print("12:Tell victim to it\n");
     g_mutex_lock(&ctx.mutex);
     ctx.state = STALKER_VICTIM_IS_SHUTDOWN;
     g_cond_signal(&ctx.cond);

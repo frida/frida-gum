@@ -15,7 +15,6 @@ gum_stalker_follow_me:
     .global gum_stalker_unfollow_me
     .type   gum_stalker_unfollow_me, %function
 gum_stalker_unfollow_me:
-    ldp x16, x17, [sp], 16
     stp	x29, x30, [sp,-16]!
     mov	x29, sp
     bl _gum_stalker_do_unfollow_me
