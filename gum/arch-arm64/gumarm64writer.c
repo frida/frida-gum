@@ -17,6 +17,7 @@
 
 typedef struct _GumArm64Argument GumArm64Argument;
 typedef guint GumArm64MemPairOperandSize;
+typedef guint GumArm64MetaReg;
 typedef struct _GumArm64RegInfo GumArm64RegInfo;
 
 struct _GumArm64LabelMapping
@@ -55,6 +56,47 @@ enum _GumArm64MemPairOperandSize
   GUM_MEM_PAIR_OPERAND_V64 = 1,
   GUM_MEM_PAIR_OPERAND_64 = 2,
   GUM_MEM_PAIR_OPERAND_V128 = 2
+};
+
+enum _GumArm64MetaReg
+{
+    GUM_MREG_R0,
+    GUM_MREG_R1,
+    GUM_MREG_R2,
+    GUM_MREG_R3,
+    GUM_MREG_R4,
+    GUM_MREG_R5,
+    GUM_MREG_R6,
+    GUM_MREG_R7,
+    GUM_MREG_R8,
+    GUM_MREG_R9,
+    GUM_MREG_R10,
+    GUM_MREG_R11,
+    GUM_MREG_R12,
+    GUM_MREG_R13,
+    GUM_MREG_R14,
+    GUM_MREG_R15,
+    GUM_MREG_R16,
+    GUM_MREG_R17,
+    GUM_MREG_R18,
+    GUM_MREG_R19,
+    GUM_MREG_R20,
+    GUM_MREG_R21,
+    GUM_MREG_R22,
+    GUM_MREG_R23,
+    GUM_MREG_R24,
+    GUM_MREG_R25,
+    GUM_MREG_R26,
+    GUM_MREG_R27,
+    GUM_MREG_R28,
+    GUM_MREG_R29,
+    GUM_MREG_R30,
+    GUM_MREG_R31,
+
+    GUM_MREG_FP = GUM_MREG_R29,
+    GUM_MREG_LR = GUM_MREG_R30,
+    GUM_MREG_SP = GUM_MREG_R31,
+    GUM_MREG_ZR = GUM_MREG_R31
 };
 
 struct _GumArm64RegInfo
@@ -882,7 +924,10 @@ gum_arm64_writer_put_load_store_pair_signed_offset (
     guint rn,
     gssize signed_offset)
 {
-  gsize shift = gum_mem_pair_offset_shift (op_size, v);
+  gsize shift;
+
+  shift = gum_mem_pair_offset_shift (op_size, v);
+
   gum_arm64_writer_put_instruction (self, (opc << 30) | (5 << 27) |
       (v << 26) | (2 << 23) | (l << 22) |
       (((signed_offset >> shift) & 0x7f) << 15) |
@@ -1023,7 +1068,7 @@ gum_arm64_writer_put_push_all_registers (GumArm64Writer * self)
 }
 
 void
-gum_arm64_writer_put_push_all_Q_registers (GumArm64Writer * self)
+gum_arm64_writer_put_push_all_q_registers (GumArm64Writer * self)
 {
   guint32 instructions[] = {
     0xADBF07E0,
@@ -1043,14 +1088,14 @@ gum_arm64_writer_put_push_all_Q_registers (GumArm64Writer * self)
     0xADBF77FC,
     0xADBF7FFE
   };
-  gum_arm64_writer_put_bytes (self, instructions, sizeof(instructions));
+  gum_arm64_writer_put_bytes (self, instructions, sizeof (instructions));
 }
 
 void
 gum_arm64_writer_put_pop_all_registers (GumArm64Writer * self)
 {
   gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_X30, ARM64_REG_X15);
-  gum_arm64_writer_put_instruction (self, 0xD51B420F); /* msr NZCV, x15 */
+  gum_arm64_writer_put_instruction (self, 0xD51B420F); /* MSR NZCV, X15 */
   gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_X28, ARM64_REG_X29);
   gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_X26, ARM64_REG_X27);
   gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_X24, ARM64_REG_X25);
@@ -1068,7 +1113,7 @@ gum_arm64_writer_put_pop_all_registers (GumArm64Writer * self)
   gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_X0, ARM64_REG_X1);
 }
 
-void gum_arm64_writer_put_pop_all_Q_registers (GumArm64Writer * self)
+void gum_arm64_writer_put_pop_all_q_registers (GumArm64Writer * self)
 {
   guint32 instructions[] = {
     0xACC17FFE,
@@ -1088,5 +1133,5 @@ void gum_arm64_writer_put_pop_all_Q_registers (GumArm64Writer * self)
     0xACC10FE2,
     0xACC107E0
   };
-  gum_arm64_writer_put_bytes (self, instructions, sizeof(instructions));
+  gum_arm64_writer_put_bytes (self, instructions, sizeof (instructions));
 }

@@ -338,7 +338,7 @@ _debug_hello (gpointer pointer)
 }
 
 static void
-put_debug_print (GumArm64Writer* cw,
+put_debug_print_pointer (GumArm64Writer* cw,
     gpointer pointer)
 {
   gum_arm64_writer_put_push_all_registers (cw);
@@ -1381,7 +1381,7 @@ gum_exec_ctx_write_prolog (GumExecCtx * ctx,
   {
 
     gum_arm64_writer_put_push_all_registers (cw);    // 16 push of 16
-    gum_arm64_writer_put_push_all_Q_registers (cw);     // 16 push of 32
+    gum_arm64_writer_put_push_all_q_registers (cw);     // 16 push of 32
     immediate_for_sp += (16*16)+(16*32);
   }
 
@@ -1440,7 +1440,7 @@ gum_exec_ctx_write_epilog (GumExecCtx * ctx,
   else     //GUM_PROLOG_FULL
   {
 
-    gum_arm64_writer_put_pop_all_Q_registers (cw);
+    gum_arm64_writer_put_pop_all_q_registers (cw);
     gum_arm64_writer_put_pop_all_registers (cw);
 
   }
