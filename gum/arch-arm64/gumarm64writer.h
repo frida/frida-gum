@@ -67,7 +67,6 @@ enum _GumArm64MetaReg
     GUM_MREG_ZR = GUM_MREG_R31
 };
 
-
 struct _GumArm64Writer
 {
   guint32 * base;
@@ -154,8 +153,8 @@ void gum_arm64_writer_put_push_all_Q_registers(GumArm64Writer * self);
 void gum_arm64_writer_put_pop_all_registers(GumArm64Writer * self);
 void gum_arm64_writer_put_pop_all_Q_registers(GumArm64Writer * self);
 
-void gum_arm64_writer_put_ldp_reg_reg_reg_offset (GumArm64Writer * self, arm64_reg reg_a,
-    arm64_reg reg_b, arm64_reg reg_src, gsize src_offset);
+void gum_arm64_writer_put_ldp_reg_reg_reg_offset (GumArm64Writer * self,
+    arm64_reg reg_a, arm64_reg reg_b, arm64_reg reg_src, gsize src_offset);
 
 
 void gum_arm64_writer_put_instruction (GumArm64Writer * self, guint32 insn);
