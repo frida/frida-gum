@@ -1047,7 +1047,7 @@ gum_arm64_writer_describe_reg (GumArm64Writer * self,
 }
 
 void
-gum_arm64_writer_put_push_all_registers (GumArm64Writer * self)
+gum_arm64_writer_put_push_all_x_registers (GumArm64Writer * self)
 {
   gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_X0, ARM64_REG_X1);
   gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_X2, ARM64_REG_X3);
@@ -1093,7 +1093,7 @@ gum_arm64_writer_put_push_all_q_registers (GumArm64Writer * self)
 }
 
 void
-gum_arm64_writer_put_pop_all_registers (GumArm64Writer * self)
+gum_arm64_writer_put_pop_all_x_registers (GumArm64Writer * self)
 {
   gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_X30, ARM64_REG_X15);
   gum_arm64_writer_put_instruction (self, 0xD51B420F); /* MSR NZCV, X15 */

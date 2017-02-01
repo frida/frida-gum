@@ -102,10 +102,10 @@ void gum_arm64_writer_put_sub_reg_reg_imm (GumArm64Writer * self,
 void gum_arm64_writer_put_nop (GumArm64Writer * self);
 void gum_arm64_writer_put_brk_imm (GumArm64Writer * self, guint16 imm);
 
-void gum_arm64_writer_put_push_all_registers (GumArm64Writer * self);
 void gum_arm64_writer_put_push_all_q_registers (GumArm64Writer * self);
-void gum_arm64_writer_put_pop_all_registers (GumArm64Writer * self);
+void gum_arm64_writer_put_push_all_x_registers (GumArm64Writer * self);
 void gum_arm64_writer_put_pop_all_q_registers (GumArm64Writer * self);
+void gum_arm64_writer_put_pop_all_x_registers (GumArm64Writer * self);
 
 void gum_arm64_writer_put_ldp_reg_reg_reg_offset (GumArm64Writer * self,
     arm64_reg reg_a, arm64_reg reg_b, arm64_reg reg_src, gsize src_offset);
