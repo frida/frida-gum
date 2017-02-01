@@ -5,9 +5,9 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#include "arm64stalker-fixture.c"
+#include "stalker-arm64-fixture.c"
 
-TEST_LIST_BEGIN (arm64stalker)
+TEST_LIST_BEGIN (stalker)
 
   /* EVENTS */
   STALKER_TESTENTRY (no_events)
@@ -42,7 +42,7 @@ static const guint32 flat_code[] = {
 };
 
 static StalkerTestFunc
-invoke_flat (TestArm64StalkerFixture *fixture,
+invoke_flat (TestArm64StalkerFixture * fixture,
              GumEventType mask)
 {
   StalkerTestFunc func;
@@ -68,7 +68,7 @@ STALKER_TESTCASE (no_events)
 STALKER_TESTCASE (call)
 {
   StalkerTestFunc func;
-  GumCallEvent *ev;
+  GumCallEvent * ev;
 
   func = invoke_flat (fixture, GUM_CALL);
 
@@ -83,7 +83,7 @@ STALKER_TESTCASE (call)
 STALKER_TESTCASE (ret)
 {
   StalkerTestFunc func;
-  GumRetEvent *ev;
+  GumRetEvent * ev;
 
   func = invoke_flat (fixture, GUM_RET);
 
@@ -101,7 +101,7 @@ STALKER_TESTCASE (ret)
 STALKER_TESTCASE (exec)
 {
   StalkerTestFunc func;
-  GumRetEvent *ev;
+  GumRetEvent * ev;
 
   func = invoke_flat (fixture, GUM_EXEC);
 
@@ -115,10 +115,10 @@ STALKER_TESTCASE (exec)
 
 STALKER_TESTCASE (unconditional_branch)
 {
-  guint8 *code;
+  guint8 * code;
   GumArm64Writer cw;
   gpointer address;
-  const gchar *my_ken_lbl = "my_ken";
+  const gchar * my_ken_lbl = "my_ken";
   StalkerTestFunc func;
   gint r;
 
@@ -165,11 +165,10 @@ STALKER_TESTCASE (unconditional_branch)
 
 STALKER_TESTCASE (unconditional_branch_reg)
 {
-
-  guint8 *code;
+  guint8 * code;
   GumArm64Writer cw;
   gpointer address;
-  const gchar *my_ken_lbl = "my_ken";
+  const gchar * my_ken_lbl = "my_ken";
   StalkerTestFunc func;
   arm64_reg reg = ARM64_REG_X1;
   gint r;
@@ -218,11 +217,11 @@ STALKER_TESTCASE (unconditional_branch_reg)
 
 STALKER_TESTCASE (conditional_branch)
 {
-  guint8 *code;
+  guint8 * code;
   GumArm64Writer cw;
   gpointer address;
   arm64_cc cc = ARM64_CC_EQ;
-  const gchar *my_ken_lbl = "my_ken";
+  const gchar * my_ken_lbl = "my_ken";
   StalkerTestFunc func;
   gint r;
 
@@ -269,10 +268,10 @@ STALKER_TESTCASE (conditional_branch)
 
 STALKER_TESTCASE (compare_and_branch)
 {
-  guint8 *code;
+  guint8 * code;
   GumArm64Writer cw;
-  const gchar *my_ken_lbl = "my_ken";
-  const gchar *my_nken_lbl = "my_nken";
+  const gchar * my_ken_lbl = "my_ken";
+  const gchar * my_nken_lbl = "my_nken";
   StalkerTestFunc func;
   gint r;
 
@@ -319,10 +318,10 @@ STALKER_TESTCASE (compare_and_branch)
 
 STALKER_TESTCASE (test_bit_and_branch)
 {
-  guint8 *code;
+  guint8 * code;
   GumArm64Writer cw;
-  const gchar *my_ken_lbl = "my_ken";
-  const gchar *my_nken_lbl = "my_nken";
+  const gchar * my_ken_lbl = "my_ken";
+  const gchar * my_nken_lbl = "my_nken";
   StalkerTestFunc func;
   gint r;
 
@@ -369,11 +368,10 @@ STALKER_TESTCASE (test_bit_and_branch)
 
 STALKER_TESTCASE (follow_std_call)
 {
-
-  guint8 *code;
+  guint8 * code;
   GumArm64Writer cw;
   gpointer address;
-  const gchar *my_ken_lbl = "my_ken";
+  const gchar * my_ken_lbl = "my_ken";
   StalkerTestFunc func;
   gint r;
 
@@ -421,10 +419,10 @@ STALKER_TESTCASE (follow_std_call)
 
 STALKER_TESTCASE (follow_return)
 {
-  guint8 *code;
+  guint8 * code;
   GumArm64Writer cw;
   gpointer address;
-  const gchar *my_ken_lbl = "my_ken";
+  const gchar * my_ken_lbl = "my_ken";
   StalkerTestFunc func;
   gint r;
 
@@ -485,7 +483,7 @@ STALKER_TESTCASE (follow_syscall)
 static gpointer
 stalker_victim (gpointer data)
 {
-  StalkerVictimContext *ctx = (StalkerVictimContext *) data;
+  StalkerVictimContext * ctx = (StalkerVictimContext *) data;
 
   g_mutex_lock (&ctx->mutex);
 
@@ -523,7 +521,7 @@ STALKER_TESTCASE (follow_thread)
 {
   StalkerVictimContext ctx;
   GumThreadId thread_id;
-  GThread *thread;
+  GThread * thread;
 
   ctx.state = STALKER_VICTIM_CREATED;
   g_mutex_init (&ctx.mutex);
@@ -598,15 +596,17 @@ STALKER_TESTCASE (heap_api)
   g_assert_cmpuint (fixture->sink->events->len, >, 0);
 }
 
-typedef void (*ClobberFunc)(GumCpuContext *ctx);
+typedef void (* ClobberFunc)(GumCpuContext * ctx);
 
 STALKER_TESTCASE (no_register_clobber)
 {
-  guint8 *code;
+  guint8 * code;
   GumArm64Writer cw;
-  const gchar *my_func_lbl = "my_func";
-  const gchar *my_beach_lbl = "my_beach";
-  const gchar *my_ken_lbl = "my_ken";
+  const gchar * my_func_lbl = "my_func";
+  const gchar * my_beach_lbl = "my_beach";
+  const gchar * my_ken_lbl = "my_ken";
+  gint i;
+  gint offset;
   ClobberFunc func;
   GumCpuContext ctx;
 
@@ -623,7 +623,8 @@ STALKER_TESTCASE (no_register_clobber)
 
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
-  for (int i = ARM64_REG_X0; i <= ARM64_REG_X28; i++) {
+  for (i = ARM64_REG_X0; i <= ARM64_REG_X28; i++) 
+  {
     gum_arm64_writer_put_ldr_reg_u64 (&cw, i, i);
   }
 
@@ -633,9 +634,10 @@ STALKER_TESTCASE (no_register_clobber)
       GUM_ARG_ADDRESS, fixture->stalker);
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
-  int offset = (4 * sizeof (gpointer)) + (32 * sizeof (gpointer));
+  offset = (4 * sizeof (gpointer)) + (32 * sizeof (gpointer));
 
-  for (int i = ARM64_REG_X0; i <= ARM64_REG_X28; i++) {
+  for (i = ARM64_REG_X0; i <= ARM64_REG_X28; i++) 
+  {
     gum_arm64_writer_put_str_reg_reg_offset (&cw, i, ARM64_REG_SP,
         offset + G_STRUCT_OFFSET (GumCpuContext, x[i - ARM64_REG_X0]));
   }

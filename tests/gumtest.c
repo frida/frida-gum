@@ -166,14 +166,11 @@ main (gint argc, gchar * argv[])
 #if defined (HAVE_I386) && defined (G_OS_WIN32)
   TEST_RUN_LIST (memoryaccessmonitor);
 #endif
-#ifdef HAVE_I386
+#if defined HAVE_I386 || defined (HAVE_ARM64)
   TEST_RUN_LIST (stalker);
 #endif
 #ifdef HAVE_MAC
   TEST_RUN_LIST (stalker_mac);
-#endif
-#ifdef HAVE_ARM64
-  TEST_RUN_LIST (arm64stalker);
 #endif
   TEST_RUN_LIST (api_resolver);
 #if !defined (HAVE_QNX) && !(defined (HAVE_ANDROID) && defined (HAVE_ARM64)) && !(defined (HAVE_MIPS))

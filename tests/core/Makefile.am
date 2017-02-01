@@ -18,7 +18,7 @@ endif
 
 if ARCH_ARM64
 arch_sources += \
-	arch-arm64/arm64stalker.c
+	arch-arm64/stalker-arm64.c
 endif
 
 if OS_DARWIN

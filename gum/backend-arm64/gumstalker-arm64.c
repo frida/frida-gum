@@ -21,31 +21,34 @@
 #define GUM_CODE_SLAB_SIZE_IN_PAGES         1024
 #define GUM_EXEC_BLOCK_MIN_SIZE             1024
 
-#define ARM64_STALKER_REG_CTX ARM64_REG_X12
+#define STALKER_REG_CTX ARM64_REG_X12
 
-#define STALKER_LOAD_REG_FROM_CTX(ARM64_REG, FIELD) \
-    gum_arm64_writer_put_ldr_reg_reg_offset (cw, ARM64_REG, ARM64_STALKER_REG_CTX, \
-    G_STRUCT_OFFSET (GumExecCtx, FIELD));
+#define STALKER_LOAD_REG_FROM_CTX(reg, field) \
+    gum_arm64_writer_put_ldr_reg_reg_offset (cw, reg, STALKER_REG_CTX, \
+        G_STRUCT_OFFSET (GumExecCtx, field));
+#define STALKER_LOAD_REG_FROM_CTX_WITH_AO(reg, field, additional_offset) \
+    gum_arm64_writer_put_ldr_reg_reg_offset (cw, reg, STALKER_REG_CTX, \
+        G_STRUCT_OFFSET (GumExecCtx, field) + additional_offset);
+#define STALKER_STORE_REG_INTO_CTX(reg, field) \
+    gum_arm64_writer_put_str_reg_reg_offset (cw, reg, STALKER_REG_CTX, \
+        G_STRUCT_OFFSET (GumExecCtx, field));
+#define STALKER_STORE_REG_INTO_CTX_WITH_AO(reg, field, additional_offset) \
+    gum_arm64_writer_put_str_reg_reg_offset (cw, reg, STALKER_REG_CTX, \
+        G_STRUCT_OFFSET (GumExecCtx, field) + additional_offset);
 
-#define STALKER_LOAD_REG_FROM_CTX_WITH_AO(ARM64_REG, FIELD, ADDITIONAL_OFFSET) \
-    gum_arm64_writer_put_ldr_reg_reg_offset (cw, ARM64_REG, ARM64_STALKER_REG_CTX, \
-    G_STRUCT_OFFSET (GumExecCtx, FIELD) + ADDITIONAL_OFFSET);
+#define GUM_STALKER_LOCK(o) g_mutex_lock (&(o)->priv->mutex)
+#define GUM_STALKER_UNLOCK(o) g_mutex_unlock (&(o)->priv->mutex)
 
-#define STALKER_STORE_REG_INTO_CTX(ARM64_REG, FIELD) \
-    gum_arm64_writer_put_str_reg_reg_offset (cw, ARM64_REG, ARM64_STALKER_REG_CTX, \
-    G_STRUCT_OFFSET (GumExecCtx, FIELD));
+#define GUM_STALKER_GET_PRIVATE(o) ((o)->priv)
 
-#define STALKER_STORE_REG_INTO_CTX_WITH_AO(ARM64_REG, FIELD, ADDITIONAL_OFFSET) \
-    gum_arm64_writer_put_str_reg_reg_offset (cw, ARM64_REG, ARM64_STALKER_REG_CTX, \
-    G_STRUCT_OFFSET (GumExecCtx, FIELD) + ADDITIONAL_OFFSET);
 
 /*
-  10 everything
-  9 new instructions
-  8 read instructions
-  7 ad-hoc
-*/
-#define DEBUG_LEVEL 0
+ * 10: everything
+ *  9: new instructions
+ *  8: read instructions
+ *  7: ad-hoc
+ */
+#define STALKER_DEBUG_LEVEL 0
 
 typedef struct _GumInfectContext GumInfectContext;
 typedef struct _GumDisinfectContext GumDisinfectContext;
@@ -53,7 +56,6 @@ typedef struct _GumDisinfectContext GumDisinfectContext;
 typedef struct _GumCallProbe GumCallProbe;
 typedef struct _GumSlab GumSlab;
 
-typedef struct _GumExecFrame GumExecFrame;
 typedef struct _GumExecCtx GumExecCtx;
 typedef struct _GumExecBlock GumExecBlock;
 
@@ -111,12 +113,6 @@ struct _GumSlab
   GumSlab * next;
 };
 
-struct _GumExecFrame
-{
-  gpointer real_address;
-  gpointer code_address;
-};
-
 enum _GumExecCtxState
 {
   GUM_EXEC_CTX_ACTIVE,
@@ -137,14 +133,11 @@ struct _GumExecCtx
 
   GumEventSink * sink;
   GumEventType sink_mask;
-  gpointer sink_process_impl;   /* cached */
+  gpointer sink_process_impl; /* cached */
   GumEvent tmp_event;
 
   gboolean unfollow_called_while_still_following;
   GumExecBlock * current_block;
-  GumExecFrame * current_frame;
-  GumExecFrame * first_frame;
-  GumExecFrame * frames;
 
   gpointer resume_at;
   gpointer return_at;
@@ -169,16 +162,8 @@ struct _GumExecBlock
   guint8 * code_begin;
   guint8 * code_end;
 
-  guint8 state;
   gint recycle_count;
   gboolean has_call_to_excluded_range;
-};
-
-enum _GumExecState
-{
-  GUM_EXEC_NORMAL,
-  GUM_EXEC_SINGLE_STEPPING_ON_CALL,
-  GUM_EXEC_SINGLE_STEPPING_THROUGH_CALL
 };
 
 enum _GumPrologType
@@ -226,15 +211,8 @@ struct _GumBranchTarget
 enum _GumVirtualizationRequirements
 {
   GUM_REQUIRE_NOTHING         = 0,
-
   GUM_REQUIRE_RELOCATION      = 1 << 0,
-  GUM_REQUIRE_SINGLE_STEP     = 1 << 1
 };
-
-#define GUM_STALKER_LOCK(o) g_mutex_lock (&(o)->priv->mutex)
-#define GUM_STALKER_UNLOCK(o) g_mutex_unlock (&(o)->priv->mutex)
-
-#define GUM_STALKER_GET_PRIVATE(o) ((o)->priv)
 
 static void gum_stalker_finalize (GObject * object);
 
@@ -256,8 +234,8 @@ static void gum_stalker_invalidate_caches (GumStalker * self);
 static void gum_exec_ctx_free (GumExecCtx * ctx);
 static void gum_exec_ctx_unfollow (GumExecCtx * ctx, gpointer resume_at);
 static gboolean gum_exec_ctx_has_executed (GumExecCtx * ctx);
-static gpointer gum_exec_ctx_replace_current_block_with (
-    GumExecCtx * ctx, gpointer start_address);
+static gpointer gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
+    gpointer start_address);
 static void gum_exec_ctx_create_thunks (GumExecCtx * ctx);
 static void gum_exec_ctx_destroy_thunks (GumExecCtx * ctx);
 
@@ -269,9 +247,9 @@ static void gum_exec_ctx_write_epilog (GumExecCtx * ctx, GumPrologType type,
     GumArm64Writer * cw);
 static void gum_exec_ctx_write_push_branch_target_address (GumExecCtx * ctx,
     const GumBranchTarget * target, GumGeneratorContext * gc);
-static void gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
-    arm64_reg target_register, arm64_reg source_register,
-    gpointer ip, GumGeneratorContext * gc);
+static void gum_exec_ctx_load_real_register_into (GumExecCtx * ctx, 
+    arm64_reg target_register, arm64_reg source_register, gpointer ip,
+    GumGeneratorContext * gc);
 
 static GumExecBlock * gum_exec_block_new (GumExecCtx * ctx);
 static GumExecBlock * gum_exec_block_obtain (GumExecCtx * ctx,
@@ -328,34 +306,36 @@ static void gum_exec_block_close_prolog (GumExecBlock * block,
 
 G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT);
 
-#if DEBUG_LEVEL > 0
-void
-_debug_hello (gpointer pointer)
+#if STALKER_DEBUG_LEVEL > 0
+
+static void
+gum_print_pointer (gpointer pointer)
 {
   g_print ("# pointer: %p #\n", pointer);
 }
 
 static void
-put_debug_print_pointer (GumArm64Writer * cw,
+gum_put_debug_print_pointer (GumArm64Writer * cw,
                          gpointer pointer)
 {
   gum_arm64_writer_put_push_all_x_registers (cw);
   gum_arm64_writer_put_call_address_with_arguments (cw,
-      GUM_FUNCPTR_TO_POINTER (_debug_hello), 1,
+      GUM_FUNCPTR_TO_POINTER (gum_print_pointer), 1,
       GUM_ARG_ADDRESS, GUM_ADDRESS (pointer));
   gum_arm64_writer_put_pop_all_x_registers (cw);
 }
 
 static void
-put_debug_print_reg (GumArm64Writer * cw,
+gum_put_debug_print_reg (GumArm64Writer * cw,
                      arm64_reg reg)
 {
   gum_arm64_writer_put_push_all_x_registers (cw);
   gum_arm64_writer_put_call_address_with_arguments (cw,
-      GUM_FUNCPTR_TO_POINTER (_debug_hello), 1,
+      GUM_FUNCPTR_TO_POINTER (gum_print_pointer), 1,
       GUM_ARG_REGISTER, reg);
   gum_arm64_writer_put_pop_all_x_registers (cw);
 }
+
 #endif
 
 static void
@@ -515,14 +495,14 @@ _gum_stalker_do_follow_me (GumStalker * self,
   GumExecCtx * ctx;
   gpointer code_address;
 
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("_gum_stalker_do_follow_me - enter\n");
   g_print ("\tret_addr_ptr: %p\n", ret_addr);
   g_print ("\tnext actual instruction to execute after\n");
 #endif
 
-  ctx = gum_stalker_create_exec_ctx (self,
-      gum_process_get_current_thread_id (), sink);
+  ctx = gum_stalker_create_exec_ctx (self, gum_process_get_current_thread_id (),
+      sink);
   gum_tls_key_set_value (self->priv->exec_ctx, ctx);
 
   ctx->current_block = gum_exec_ctx_obtain_block_for (ctx, ret_addr,
@@ -530,7 +510,7 @@ _gum_stalker_do_follow_me (GumStalker * self,
 
   gum_event_sink_start (sink);
 
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("_gum_stalker_do_follow_me - exit\n");
   g_print ("\tcode_address: %p\n", code_address);
   g_print ("\tnext stalker instruction to execute after!\n");
@@ -546,11 +526,11 @@ _gum_stalker_do_follow_me (GumStalker * self,
 void
 gum_stalker_unfollow_me (GumStalker * self)
 {
-#if DEBUG_LEVEL == 10
+  GumExecCtx * ctx;
+
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("gum_stalker_unfollow_me - enter\n");
 #endif
-
-  GumExecCtx * ctx;
 
   ctx = gum_stalker_get_exec_ctx (self);
   g_assert (ctx != NULL);
@@ -560,7 +540,7 @@ gum_stalker_unfollow_me (GumStalker * self)
   if (ctx->current_block != NULL &&
       ctx->current_block->has_call_to_excluded_range)
   {
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
     g_print (
         "\t- ctx->current_block != NULL && ctx->current_block->has_call_to_excluded_range\n");
 #endif
@@ -568,7 +548,7 @@ gum_stalker_unfollow_me (GumStalker * self)
   }
   else
   {
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
     g_print ("\t- otherwise\n");
 #endif
 
@@ -583,10 +563,9 @@ gum_stalker_unfollow_me (GumStalker * self)
     gum_exec_ctx_free (ctx);
   }
 
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("gum_stalker_unfollow_me - exit\n");
 #endif
-
 }
 
 gboolean
@@ -609,6 +588,7 @@ gum_stalker_follow (GumStalker * self,
     GumInfectContext ctx;
     ctx.stalker = self;
     ctx.sink = sink;
+
     gum_process_modify_thread (thread_id, gum_stalker_infect, &ctx);
   }
 }
@@ -617,7 +597,7 @@ void
 gum_stalker_unfollow (GumStalker * self,
                       GumThreadId thread_id)
 {
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("gum_stalker_unfollow - enter\n");
 #endif
 
@@ -639,7 +619,7 @@ gum_stalker_unfollow (GumStalker * self,
         gum_event_sink_stop (ctx->sink);
         if (gum_exec_ctx_has_executed (ctx))
         {
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
           g_print ("setting ctx->state = GUM_EXEC_CTX_UNFOLLOW_PENDING\n");
 #endif
           ctx->state = GUM_EXEC_CTX_UNFOLLOW_PENDING;
@@ -652,13 +632,16 @@ gum_stalker_unfollow (GumStalker * self,
           dc.success = FALSE;
 
           gum_process_modify_thread (thread_id, gum_stalker_disinfect, &dc);
+
           if (!dc.success)
             ctx->state = GUM_EXEC_CTX_UNFOLLOW_PENDING;
         }
         break;
       }
     }
+
     GUM_STALKER_UNLOCK (self);
+
   }
 }
 
@@ -667,22 +650,23 @@ gum_stalker_infect (GumThreadId thread_id,
                     GumCpuContext * cpu_context,
                     gpointer user_data)
 {
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("gum_stalker_infect - enter\n");
 #endif
 
-  GumInfectContext * infect_context = (GumInfectContext *) user_data;
-  GumStalker * self = infect_context->stalker;
+  GumInfectContext * infect_context;
+  GumStalker * self; 
   GumExecCtx * ctx;
   gpointer code_address;
   GumArm64Writer cw;
 
+  infect_context = (GumInfectContext *) user_data;
+  self = infect_context->stalker;
   ctx = gum_stalker_create_exec_ctx (self, thread_id, infect_context->sink);
 
-  ctx->current_block =
-      gum_exec_ctx_obtain_block_for (ctx, GSIZE_TO_POINTER (
-      (cpu_context)->pc), &code_address);
-  (cpu_context)->pc = GPOINTER_TO_SIZE (ctx->infect_thunk);
+  ctx->current_block = gum_exec_ctx_obtain_block_for (ctx, 
+      GSIZE_TO_POINTER (cpu_context->pc), &code_address);
+  cpu_context->pc = GPOINTER_TO_SIZE (ctx->infect_thunk);
 
   gum_arm64_writer_init (&cw, ctx->infect_thunk);
 
@@ -706,23 +690,26 @@ gum_stalker_disinfect (GumThreadId thread_id,
                        GumCpuContext * cpu_context,
                        gpointer user_data)
 {
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("gum_stalker_disinfect - enter\n");
 #endif
 
-  GumDisinfectContext * disinfect_context = (GumDisinfectContext *) user_data;
-  GumStalker * self = disinfect_context->stalker;
-  GumExecCtx * ctx = disinfect_context->exec_ctx;
+  GumDisinfectContext * disinfect_context;
+  GumStalker * self;
+  GumExecCtx * ctx;
   gboolean infection_not_active_yet;
+  
+  disinfect_context = (GumDisinfectContext *) user_data;
+  self = disinfect_context->stalker;
+  ctx = disinfect_context->exec_ctx;
 
   (void) thread_id;
 
-  infection_not_active_yet =
-      (cpu_context)->pc == GPOINTER_TO_SIZE (ctx->infect_thunk);
+  infection_not_active_yet = 
+      cpu_context->pc == GPOINTER_TO_SIZE (ctx->infect_thunk);
   if (infection_not_active_yet)
   {
-    (cpu_context)->pc =
-        GPOINTER_TO_SIZE (ctx->current_block->real_begin);
+    cpu_context->pc = GPOINTER_TO_SIZE (ctx->current_block->real_begin);
 
     self->priv->contexts = g_slist_remove (self->priv->contexts, ctx);
     gum_exec_ctx_free (ctx);
@@ -778,13 +765,6 @@ gum_stalker_create_exec_ctx (GumStalker * self,
   ctx->first_code_slab.size = GUM_CODE_SLAB_SIZE_IN_PAGES * priv->page_size;
   ctx->first_code_slab.next = NULL;
 
-  ctx->frames = (GumExecFrame *)
-      (ctx->code_slab->data + ctx->code_slab->size);
-  ctx->first_frame = (GumExecFrame *) (ctx->code_slab->data +
-      ctx->code_slab->size + priv->page_size -
-      sizeof (GumExecFrame));
-  ctx->current_frame = ctx->first_frame;
-
   ctx->mappings = gum_metal_hash_table_new (NULL, NULL);
 
   ctx->resume_at = NULL;
@@ -802,7 +782,7 @@ gum_stalker_create_exec_ctx (GumStalker * self,
   ctx->sink_process_impl = GUM_FUNCPTR_TO_POINTER (
       GUM_EVENT_SINK_GET_INTERFACE (sink)->process);
 
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("sink mask= %ld\n", ctx->sink_mask);
 #endif
 
@@ -869,7 +849,7 @@ static void
 gum_exec_ctx_unfollow (GumExecCtx * ctx,
                        gpointer resume_at)
 {
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("gum_exec_ctx_unfollow - enter\n");
 #endif
 
@@ -890,7 +870,7 @@ static gpointer
 gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
                                          gpointer start_address)
 {
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("gum_exec_ctx_replace_current_block_with - enter\n");
   g_print ("\tstart_address (real_address) %p:\n", start_address);
   g_print ("\tresume_at (code_address) %p:\n", ctx->resume_at);
@@ -899,8 +879,8 @@ gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
 
   if (ctx->invalidate_pending)
   {
-#if DEBUG_LEVEL == 10
-    g_print ("gum_exec_ctx_replace_current_block_with - invalidate_pending\n");
+#if STALKER_DEBUG_LEVEL == 10
+    g_print ("gum_exec_ctx_replace_current_block_with - invalidate pending\n");
 #endif
     gum_metal_hash_table_remove_all (ctx->mappings);
 
@@ -909,30 +889,29 @@ gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
 
   if (start_address == gum_stalker_unfollow_me)
   {
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
     g_print (
-        "gum_exec_ctx_replace_current_block_with - gum_stalker_unfollow_me\n");
+        "gum_exec_ctx_replace_current_block_with - unfollow me\n");
 #endif
 
     ctx->unfollow_called_while_still_following = TRUE;
     ctx->current_block = NULL;
 
     ctx->resume_at = start_address;
-
   }
   else if (ctx->state == GUM_EXEC_CTX_UNFOLLOW_PENDING)
   {
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
     g_print (
-        "gum_exec_ctx_replace_current_block_with - GUM_EXEC_CTX_UNFOLLOW_PENDING\n");
+        "gum_exec_ctx_replace_current_block_with - unfollow pending\n");
 #endif
     gum_exec_ctx_unfollow (ctx, start_address);
   }
   else
   {
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
     g_print (
-        "gum_exec_ctx_replace_current_block_with - gum_exec_ctx_obtain_block_for\n");
+        "gum_exec_ctx_replace_current_block_with - obtain block\n");
     g_print ("\tstart_address (real_address) %p:\n", start_address);
     g_print ("\tresume_at (code_address) %p:\n", ctx->resume_at);
 #endif
@@ -941,7 +920,7 @@ gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
         &ctx->resume_at);
   }
 
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("\treturn ctx->resume_at %p\n", ctx->resume_at);
   g_print ("\treturn start_address %p\n", start_address);
   g_print ("gum_exec_ctx_replace_current_block_with - exit\n");
@@ -971,7 +950,8 @@ gum_exec_ctx_destroy_thunks (GumExecCtx * ctx)
   gum_free_pages (ctx->thunks);
 }
 
-#if DEBUG_LEVEL > 0
+#if STALKER_DEBUG_LEVEL > 0
+
 static void
 gum_disasm (guint8 * code,
             guint size,
@@ -980,7 +960,7 @@ gum_disasm (guint8 * code,
   csh capstone;
   cs_err err;
   cs_insn * insn;
-  size_t count, i;
+  gint count, i, j;
 
   err = cs_open (CS_ARCH_ARM64, CS_MODE_ARM, &capstone);
   g_assert_cmpint (err, ==, CS_ERR_OK);
@@ -990,11 +970,10 @@ gum_disasm (guint8 * code,
 
   for (i = 0; i != count; i++)
   {
-    g_print ("%s0x%" G_GINT64_MODIFIER "x\t(0x",
-        prefix, insn[i].address);
+    g_print ("%s0x%" G_GINT64_MODIFIER "x\t(0x", prefix, insn[i].address);
 
-    for (int j = 0; j<insn[i].size; j++)
-      g_print ("%02X",(unsigned)insn[i].bytes[j]);
+    for (j = 0; j != insn[i].size; j++)
+      g_print ("%02X", (unsigned) insn[i].bytes[j]);
 
     g_print (")\t%s %s\x1b[0m\n", insn[i].mnemonic, insn[i].op_str);
   }
@@ -1003,6 +982,7 @@ gum_disasm (guint8 * code,
 
   cs_close (&capstone);
 }
+
 #endif
 
 static GumExecBlock *
@@ -1010,23 +990,27 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
                                gpointer real_address,
                                gpointer * code_address_ptr)
 {
-#if DEBUG_LEVEL == 10
+  GumExecBlock * block;
+  GumArm64Writer * cw;
+  GumArm64Relocator * rl;
+  GumGeneratorContext gc;
+
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("gum_exec_ctx_obtain_block_for - enter\n");
   g_print ("\treal_address (former ret_address): %p\n", real_address);
   g_print ("\tcode_address_ptr: %p\n", code_address_ptr);
   g_print ("\tcode_address: %p\n", *code_address_ptr);
 #endif
 
-  GumExecBlock * block;
-  GumArm64Writer * cw = &ctx->code_writer;
-  GumArm64Relocator * rl = &ctx->relocator;
-  GumGeneratorContext gc;
+  cw = &ctx->code_writer;
+  rl = &ctx->relocator;
 
   if (ctx->stalker->priv->trust_threshold >= 0)
   {
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
     g_print ("ctx->stalker->priv->trust_threshold >= 0\n");
 #endif
+
     block = gum_exec_block_obtain (ctx, real_address, code_address_ptr);
     if (block != NULL)
     {
@@ -1035,7 +1019,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
           block->real_end - block->real_begin) == 0)
       {
         block->recycle_count++;
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
         g_print ("gum_exec_ctx_obtain_block_for - fast exit\n");
 #endif
         return block;
@@ -1049,7 +1033,8 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
 
   block = gum_exec_block_new (ctx);
   *code_address_ptr = block->code_begin;
-#if DEBUG_LEVEL == 10
+
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("new block!\n");
   g_print ("\tcode_address_ptr: %p\n", code_address_ptr);
   g_print ("\tcode_address: %p\n", *code_address_ptr);
@@ -1066,13 +1051,14 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   gc.continuation_real_address = NULL;
   gc.opened_prolog = GUM_PROLOG_NONE;
 
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
   g_print (
       "\n\n*********************\n\nCreating block for %p (real_address):\n",
       real_address);
   int i = 0;
 #endif
 
+  /* this may trash the red zone, if any... */
   gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X16, ARM64_REG_X17);
 
   while (TRUE)
@@ -1090,7 +1076,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
 
     g_assert (insn.ci != NULL && insn.begin != NULL);
 
-#if DEBUG_LEVEL>=8
+#if STALKER_DEBUG_LEVEL >= 8
     gum_disasm (insn.begin, insn.ci->size, "\x1b[31mINS > ");
     g_print ("K");
 #endif
@@ -1110,25 +1096,23 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
       case ARM64_INS_CBNZ:
       case ARM64_INS_TBZ:
       case ARM64_INS_TBNZ:
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
         g_print ("gum_exec_ctx_obtain_block_for - switch branch ins\n");
 #endif
         requirements = gum_exec_block_virtualize_branch_insn (block, &gc);
         break;
-
       case ARM64_INS_RET:
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
         g_print ("gum_exec_ctx_obtain_block_for - switch ret ins\n");
 #endif
         requirements = gum_exec_block_virtualize_ret_insn (block, &gc);
         break;
-
       case ARM64_INS_SVC:
         requirements = gum_exec_block_virtualize_sysenter_insn (block, &gc);
         break;
       case ARM64_INS_SMC:
       case ARM64_INS_HVC:
-        g_assert (""=="not implemented");
+        g_assert ("" == "not implemented");
       default:
         requirements = GUM_REQUIRE_RELOCATION;
     }
@@ -1137,13 +1121,8 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
 
     if ((requirements & GUM_REQUIRE_RELOCATION) != 0)
       gum_arm64_relocator_write_one (rl);
-    else if ((requirements & GUM_REQUIRE_SINGLE_STEP) != 0)
-    {
-      gum_arm64_relocator_skip_one (rl);
-      gum_exec_block_write_single_step_transfer_code (block, &gc);
-    }
 
-#if DEBUG_LEVEL>=9
+#if STALKER_DEBUG_LEVEL >= 9
     {
       guint8 * begin = block->code_end;
       block->code_end = gum_arm64_writer_cur (cw);
@@ -1156,7 +1135,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
     if (gum_exec_block_is_full (block))
     {
       gc.continuation_real_address = insn.end;
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
       g_print ("gum_exec_ctx_obtain_block_for - block is full\n");
       g_print ("gc.continuation_real_address: %p", gc.continuation_real_address);
 #endif
@@ -1167,7 +1146,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
       /* We always stop on a call unless it's to an excluded range */
       if ((requirements & GUM_REQUIRE_RELOCATION) != 0)
       {
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
         g_print ("gum_exec_ctx_obtain_block_for - block is not full\n");
         g_print ("(requirements & GUM_REQUIRE_RELOCATION) != 0\n");
         g_print ("rl->eob = FALSE");
@@ -1191,10 +1170,8 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
 
     continue_target.is_indirect = FALSE;
     continue_target.absolute_address = gc.continuation_real_address;
-#if DEBUG_LEVEL == 10
-    g_print (
-        "gum_exec_ctx_obtain_block_for - gc.continuation_real_address != NULL\n");
-    g_print ("continue_target.absolute_address: %p",
+#if STALKER_DEBUG_LEVEL == 10
+    g_print ("continue_target.absolute_address: %p", 
         continue_target.absolute_address);
 #endif
     gum_exec_block_write_jmp_transfer_code (block, &continue_target, &gc);
@@ -1206,12 +1183,12 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
 
   block->code_end = (guint8 *) gum_arm64_writer_cur (cw);
 
-  block->real_begin = (guint8 *) rl->input_start;
-  block->real_end = (guint8 *) rl->input_cur;
+  block->real_begin = rl->input_start;
+  block->real_end = rl->input_cur;
 
   gum_exec_block_commit (block);
 
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("gum_exec_ctx_obtain_block_for - exit\n");
   g_print ("\tcode_address_ptr: %p\n", code_address_ptr);
   g_print ("\tcode_address: %p\n", *code_address_ptr);
@@ -1229,24 +1206,25 @@ gum_exec_ctx_write_prolog (GumExecCtx * ctx,
                            gpointer ip,
                            GumArm64Writer * cw)
 {
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("+ gum_exec_ctx_write_prolog - type: %d\n",type);
 #endif
+  gint immediate_for_sp;
 
-  /* 1) move to the red-zone */
+  /* 1) move out of the red-zone */
   gum_arm64_writer_put_sub_reg_reg_imm (cw, ARM64_REG_SP, ARM64_REG_SP,
       GUM_RED_ZONE_SIZE);
 
   /* 2) push registers that are going to be clobbered */
-  int immediate_for_sp = GUM_RED_ZONE_SIZE;
+  immediate_for_sp = GUM_RED_ZONE_SIZE;
   if (type == GUM_PROLOG_MINIMAL)
   {
-    /* save the register used by stalker's code */
+    /* save the registers used by stalker's code */
     gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X0, ARM64_REG_X1);
     gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X2, ARM64_REG_X3);
     gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X4, ARM64_REG_X5);
 
-    gum_arm64_writer_put_push_reg_reg (cw, ARM64_STALKER_REG_CTX,
+    gum_arm64_writer_put_push_reg_reg (cw, STALKER_REG_CTX,
         ARM64_REG_X13);
     gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X14, ARM64_REG_X15);
     gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X16, ARM64_REG_X17);
@@ -1256,24 +1234,22 @@ gum_exec_ctx_write_prolog (GumExecCtx * ctx,
     gum_arm64_writer_put_instruction (cw, 0xD53B420F); /* MRS X15, NZCV */
     gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X30, ARM64_REG_X15);
 
-    /* 8 push of 16 */
-    immediate_for_sp += 16 * 8;
+    immediate_for_sp += 8 * 16;
   }
   else /* GUM_PROLOG_FULL */
   {
-
-    gum_arm64_writer_put_push_all_x_registers (cw); /* 16 push of 16 */
-    gum_arm64_writer_put_push_all_q_registers (cw); /* 16 push of 32 */
-    immediate_for_sp += (16*16)+(16*32);
+    gum_arm64_writer_put_push_all_x_registers (cw); /* 16 pushes of 16 */
+    gum_arm64_writer_put_push_all_q_registers (cw); /* 16 pushes of 32 */
+   
+    immediate_for_sp += (16 * 16) + (16 * 32);
   }
 
   /* 3) save the stack pointer in context */
-  gum_arm64_writer_put_ldr_reg_address (cw, ARM64_STALKER_REG_CTX,
+  gum_arm64_writer_put_ldr_reg_address (cw, STALKER_REG_CTX,
       GUM_ADDRESS (ctx));
   gum_arm64_writer_put_add_reg_reg_imm (cw, ARM64_REG_X14, ARM64_REG_SP,
       immediate_for_sp);
   STALKER_STORE_REG_INTO_CTX (ARM64_REG_X14, app_stack);
-
 
   if (type != GUM_PROLOG_MINIMAL)
   {
@@ -1283,9 +1259,8 @@ gum_exec_ctx_write_prolog (GumExecCtx * ctx,
 
     /* 6) save the stack pointer in the GumCpuContex.sp? */
     STALKER_STORE_REG_INTO_CTX (ARM64_REG_X15, app_stack);
-    gum_arm64_writer_put_ldr_reg_reg_offset (cw, ARM64_REG_X15, ARM64_REG_SP, G_STRUCT_OFFSET (
-        GumCpuContext,
-        sp));
+    gum_arm64_writer_put_ldr_reg_reg_offset (cw, ARM64_REG_X15, ARM64_REG_SP, 
+        G_STRUCT_OFFSET (GumCpuContext, sp));
   }
 }
 
@@ -1294,8 +1269,8 @@ gum_exec_ctx_write_epilog (GumExecCtx * ctx,
                            GumPrologType type,
                            GumArm64Writer * cw)
 {
-#if DEBUG_LEVEL == 10
-  g_print ("- gum_exec_ctx_write_epilog - type: %d\n",type);
+#if STALKER_DEBUG_LEVEL == 10
+  g_print ("- gum_exec_ctx_write_epilog - type: %d\n", type);
 #endif
 
   if (type != GUM_PROLOG_MINIMAL) /* GUM_PROLOG_FULL */
@@ -1312,7 +1287,7 @@ gum_exec_ctx_write_epilog (GumExecCtx * ctx,
 
     gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X16, ARM64_REG_X17);
     gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X14, ARM64_REG_X15);
-    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_STALKER_REG_CTX, ARM64_REG_X13);
+    gum_arm64_writer_put_pop_reg_reg (cw, STALKER_REG_CTX, ARM64_REG_X13);
 
     gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X4, ARM64_REG_X5);
     gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X2, ARM64_REG_X3);
@@ -1344,13 +1319,13 @@ gum_exec_ctx_write_push_branch_target_address (GumExecCtx * ctx,
 {
   GumArm64Writer * cw = gc->code_writer;
 
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("gum_exec_ctx_write_push_branch_target_address - enter\n");
-  g_print ("\ttarget is %sdirect\n", (target->is_indirect) ? "in" : "");
+  g_print ("\ttarget is %sdirect\n", target->is_indirect ? "in" : "");
   g_print ("\ttarget->base is %svalid\n",
-      (target->base == X86_REG_INVALID) ? "in" : "");
+      target->base == X86_REG_INVALID ? "in" : "");
   g_print ("\ttarget->index  is %svalid\n",
-      (target->index == X86_REG_INVALID) ? "in" : "");
+      target->index == X86_REG_INVALID ? "in" : "");
 #endif
 
   if (!target->is_indirect)
@@ -1370,11 +1345,11 @@ gum_exec_ctx_write_push_branch_target_address (GumExecCtx * ctx,
   }
   else if (target->base == X86_REG_INVALID && target->index == X86_REG_INVALID)
   {
-    g_assert ("not yet implemented"=="");
+    g_assert ("" == "not implemented");
   }
   else
   {
-    g_assert ("not yet implemented"=="");
+    g_assert ("" == "not implemented");
   }
 }
 
@@ -1385,57 +1360,54 @@ gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
                                       gpointer ip,
                                       GumGeneratorContext * gc)
 {
-  if (gc->opened_prolog != GUM_PROLOG_MINIMAL) g_assert (""=="not implemented");
+  GumArm64Writer * cw;
+  gint slot_in_the_stack;
+  gint pos_in_the_slot;
+  
+  if (gc->opened_prolog != GUM_PROLOG_MINIMAL)
+      g_assert ("" == "not implemented");
 
-  GumArm64Writer * cw = gc->code_writer;
+  cw = gc->code_writer;
 
   if (source_register >= ARM64_REG_X0 && source_register <= ARM64_REG_X5)
   {
-
-    int slot_in_the_stack = (source_register-ARM64_REG_X0)/2 + 1;
-    int pos_in_the_slot = (source_register-ARM64_REG_X0)%2;
+    slot_in_the_stack = (source_register-ARM64_REG_X0)/2 + 1;
+    pos_in_the_slot = (source_register-ARM64_REG_X0)%2;
 
     STALKER_LOAD_REG_FROM_CTX (ARM64_REG_X15, app_stack);
     gum_arm64_writer_put_sub_reg_reg_imm (cw, ARM64_REG_X15, ARM64_REG_X15,
         GUM_RED_ZONE_SIZE);
     gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X14,
-        ARM64_REG_X15, ARM64_REG_X15,
-        -slot_in_the_stack*16);
+        ARM64_REG_X15, ARM64_REG_X15, -slot_in_the_stack * 16);
     if (pos_in_the_slot == 0)
       gum_arm64_writer_put_mov_reg_reg (cw, target_register, ARM64_REG_X14);
     else
       gum_arm64_writer_put_mov_reg_reg (cw, target_register, ARM64_REG_X15);
-
   }
-  else if (source_register >= ARM64_STALKER_REG_CTX &&
+  else if (source_register >= STALKER_REG_CTX &&
       source_register <= ARM64_REG_X17)
   {
-
-    int slot_in_the_stack = 3 + (source_register-ARM64_STALKER_REG_CTX)/2 + 1;
-    int pos_in_the_slot = (source_register-ARM64_STALKER_REG_CTX)%2;
-
+    slot_in_the_stack = 3 + (source_register - STALKER_REG_CTX) / 2 + 1;
+    pos_in_the_slot = (source_register - STALKER_REG_CTX) % 2;
 
     STALKER_LOAD_REG_FROM_CTX (ARM64_REG_X15, app_stack);
     gum_arm64_writer_put_sub_reg_reg_imm (cw, ARM64_REG_X15, ARM64_REG_X15,
         GUM_RED_ZONE_SIZE);
     gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X14,
-        ARM64_REG_X15, ARM64_REG_X15,
-        -slot_in_the_stack*16);
+        ARM64_REG_X15, ARM64_REG_X15, -slot_in_the_stack * 16);
     if (pos_in_the_slot == 0)
       gum_arm64_writer_put_mov_reg_reg (cw, target_register, ARM64_REG_X14);
     else
       gum_arm64_writer_put_mov_reg_reg (cw, target_register, ARM64_REG_X15);
-
   }
   else if (source_register == ARM64_REG_X29 || source_register == ARM64_REG_X30)
   {
-    g_assert (""=="not implemented");
+    g_assert ("" == "not implemented");
   }
   else
   {
     gum_arm64_writer_put_mov_reg_reg (cw, target_register, source_register);
   }
-
 }
 
 static GumExecBlock *
@@ -1454,15 +1426,12 @@ gum_exec_block_new (GumExecCtx * ctx)
         slab->offset + sizeof (GumExecBlock)));
     block->code_end = block->code_begin;
 
-    block->state = GUM_EXEC_NORMAL;
     block->recycle_count = 0;
     block->has_call_to_excluded_range = FALSE;
 
     slab->offset += block->code_begin - (slab->data + slab->offset);
 
-#if DEBUG_LEVEL == 10
-    g_print (
-        "gum_exec_block_new - slab->size - slab->offset >= GUM_EXEC_BLOCK_MIN_SIZE\n");
+#if STALKER_DEBUG_LEVEL == 10
     g_print ("data: %p, offset: %d, size GumExecBlock: %d\n", slab->data,
         slab->offset, sizeof (GumExecBlock));
     g_print ("block->code_begin: %p\n", block->code_begin);
@@ -1473,7 +1442,7 @@ gum_exec_block_new (GumExecCtx * ctx)
 
   if (ctx->stalker->priv->trust_threshold < 0)
   {
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
     g_print ("gum_exec_block_new - ctx->stalker->priv->trust_threshold < 0\n");
 #endif
 
@@ -1490,7 +1459,7 @@ gum_exec_block_new (GumExecCtx * ctx)
   slab->next = ctx->code_slab;
   ctx->code_slab = slab;
 
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("gum_exec_block_new - return gum_exec_block_new (ctx)\n");
 #endif
 
@@ -1508,7 +1477,7 @@ gum_exec_block_obtain (GumExecCtx * ctx,
   if (block != NULL)
     *code_address_ptr = block->code_begin;
 
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("gum_exec_block_obtain - exit\n");
   g_print ("code_address_ptr: %p\n", code_address_ptr);
   g_print ("code_address: %p\n", *code_address_ptr);
@@ -1574,22 +1543,32 @@ static GumVirtualizationRequirements
 gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
                                        GumGeneratorContext * gc)
 {
-#if DEBUG_LEVEL == 10
-  g_print ("gum_exec_block_virtualize_branch_insn - enter\n");
-#endif
-
-  GumInstruction * insn = gc->instruction;
-  GumArm64Writer * cw = gc->code_writer;
+  GumInstruction * insn;
+  GumArm64Writer * cw;
   gboolean is_conditional;
-  cs_arm64 * arm64 = &insn->ci->detail->arm64;
+  cs_arm64 * arm64;
 
-  g_assert (arm64->op_count != 0);
-  cs_arm64_op * op = &arm64->operands[0];
+  cs_arm64_op * op;
   cs_arm64_op * op2;
   cs_arm64_op * op3;
 
-  arm64_cc cc = arm64->cc;
+  arm64_cc cc;
+  arm64_cc not_cc;
   GumBranchTarget target = { 0, };
+
+#if STALKER_DEBUG_LEVEL == 10
+  g_print ("gum_exec_block_virtualize_branch_insn - enter\n");
+#endif
+
+  insn = gc->instruction;
+  cw = gc->code_writer;
+  is_conditional;
+  arm64 = &insn->ci->detail->arm64;
+
+  g_assert (arm64->op_count != 0);
+  op = &arm64->operands[0];
+
+  cc = arm64->cc;
 
   is_conditional = (insn->ci->id == ARM64_INS_CBZ) ||
       (insn->ci->id == ARM64_INS_CBNZ) ||
@@ -1598,7 +1577,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
       (insn->ci->id == ARM64_INS_B && cc != ARM64_CC_INVALID);
 
   target.origin_ip = insn->end;
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("\tconditional: %s\n", is_conditional ? "yes" : "no");
   g_print ("\ttarget.origin_ip = insn->end: %p\n", target.origin_ip);
 #endif
@@ -1607,7 +1586,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
   {
     g_assert (op->type == ARM64_OP_IMM);
 
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
     g_print ("gum_exec_block_virtualize_branch_insn - BL & %sconditonal B\n",
         is_conditional ? "" : "in");
     g_print ("\top->imm: %p\n", op->imm);
@@ -1624,7 +1603,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
   {
     g_assert (op->type == ARM64_OP_REG);
 
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
     g_print ("gum_exec_block_virtualize_branch_insn - BLR & %sconditonal BR\n",
         is_conditional ? "" : "in");
     g_print ("\ttarget.base: %d\n", op->reg);
@@ -1635,14 +1614,14 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
     target.index = ARM64_REG_INVALID;
     target.disp = 0;
   }
-  else if(insn->ci->id == ARM64_INS_CBZ || insn->ci->id == ARM64_INS_CBNZ)
+  else if (insn->ci->id == ARM64_INS_CBZ || insn->ci->id == ARM64_INS_CBNZ)
   {
     op2 = &arm64->operands[1];
 
     g_assert (op->type == ARM64_OP_REG);
     g_assert (op2->type == ARM64_OP_IMM);
 
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
     if(insn->ci->id == ARM64_INS_CBZ) g_print (
           "gum_exec_block_virtualize_branch_insn - CBZ\n");
     else g_print ("gum_exec_block_virtualize_branch_insn - CBNZ\n");
@@ -1655,7 +1634,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
     target.index = ARM64_REG_INVALID;
     target.disp = 0;
   }
-  else if(insn->ci->id == ARM64_INS_TBZ || insn->ci->id == ARM64_INS_TBNZ)
+  else if (insn->ci->id == ARM64_INS_TBZ || insn->ci->id == ARM64_INS_TBNZ)
   {
     op2 = &arm64->operands[1];
     op3 = &arm64->operands[2];
@@ -1664,10 +1643,11 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
     g_assert (op2->type == ARM64_OP_IMM);
     g_assert (op3->type == ARM64_OP_IMM);
 
-#if DEBUG_LEVEL == 10
-    if(insn->ci->id == ARM64_INS_CBZ) g_print (
-          "gum_exec_block_virtualize_branch_insn - CBZ\n");
-    else g_print ("gum_exec_block_virtualize_branch_insn - CBNZ\n");
+#if STALKER_DEBUG_LEVEL == 10
+    if(insn->ci->id == ARM64_INS_CBZ) 
+      g_print ("gum_exec_block_virtualize_branch_insn - CBZ\n");
+    else
+      g_print ("gum_exec_block_virtualize_branch_insn - CBNZ\n");
     g_print ("\ttarget.absolute_address: %p\n", op3->imm);
     g_print ("\tbit: %d\n", op2->imm);
 #endif
@@ -1685,29 +1665,24 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
 
   if (insn->ci->id == ARM64_INS_BL || insn->ci->id == ARM64_INS_BLR)
   {
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
     if (insn->ci->id == ARM64_INS_BL)
-      g_print (
-          "gum_exec_block_virtualize_branch_insn - insn->ci->id == ARM64_INS_BL\n");
+      g_print ("gum_exec_block_virtualize_branch_insn - ARM64_INS_BL\n");
     else
-      g_print (
-          "gum_exec_block_virtualize_branch_insn - insn->ci->id == ARM64_INS_BLR\n");
+      g_print ("gum_exec_block_virtualize_branch_insn - ARM64_INS_BLR\n");
 #endif
 
     gboolean target_is_excluded = FALSE;
 
     if ((block->ctx->sink_mask & GUM_CALL) != 0)
     {
-#if DEBUG_LEVEL == 10
-      g_print ("\t - (block->ctx->sink_mask & GUM_CALL) != 0\n");
-#endif
       gum_exec_block_write_call_event_code (block, &target, gc,
           GUM_CODE_INTERRUPTIBLE);
     }
 
     if (block->ctx->stalker->priv->any_probes_attached)
     {
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
       g_print ("\t - block->ctx->stalker->priv->any_probes_attached\n");
 #endif
       gum_exec_block_write_call_probe_code (block, &target, gc);
@@ -1715,7 +1690,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
 
     if (!target.is_indirect && target.base == ARM64_REG_INVALID)
     {
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
       g_print ("\t - !target.is_indirect && target.base == ARM64_REG_INVALID\n");
 #endif
       GArray * exclusions = block->ctx->stalker->priv->exclusions;
@@ -1735,7 +1710,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
 
     if (target_is_excluded)
     {
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
       g_print ("\t - target_is_excluded\n");
 #endif
       block->has_call_to_excluded_range = TRUE;
@@ -1747,7 +1722,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
     gum_exec_block_write_call_invoke_code (block, &target, gc);
 
   }
-  else if(insn->ci->id == ARM64_INS_CBZ || insn->ci->id == ARM64_INS_CBNZ
+  else if (insn->ci->id == ARM64_INS_CBZ || insn->ci->id == ARM64_INS_CBNZ
       || insn->ci->id == ARM64_INS_TBZ || insn->ci->id == ARM64_INS_TBNZ
       || insn->ci->id == ARM64_INS_B || insn->ci->id == ARM64_INS_BR)
   {
@@ -1766,27 +1741,38 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
 
       /* jump to is_false if is_false */
       if (insn->ci->id == ARM64_INS_CBZ)
+      {
         gum_arm64_writer_put_cbnz_reg_label (cw, op->reg,  is_false);
+      } 
       else if (insn->ci->id == ARM64_INS_CBNZ)
+      {
         gum_arm64_writer_put_cbz_reg_label (cw, op->reg,  is_false);
+      }
       else if (insn->ci->id == ARM64_INS_TBZ)
+      {
         gum_arm64_writer_put_tbnz_reg_imm_label (cw, op->reg, op2->imm,
             is_false);
+      }
       else if (insn->ci->id == ARM64_INS_TBNZ)
+      {
         gum_arm64_writer_put_tbz_reg_imm_label (cw, op->reg, op2->imm,
             is_false);
-      else if(insn->ci->id == ARM64_INS_B)
+      }
+      else if (insn->ci->id == ARM64_INS_B)
       {
         g_assert (cc != ARM64_CC_INVALID);
         g_assert (cc > ARM64_CC_INVALID);
         g_assert (cc <= ARM64_CC_NV);
-        arm64_cc not_cc = cc + 2*(cc%2) -1;
-#if DEBUG_LEVEL == 10
+        not_cc = cc + 2 * (cc % 2) - 1;
+#if STALKER_DEBUG_LEVEL == 10
         g_print ("cc (%d) and not_cc (%d)",cc, not_cc);
 #endif
         gum_arm64_writer_put_b_cond_label (cw, not_cc, is_false);
       }
-      else g_assert_not_reached ();
+      else
+      {
+        g_assert_not_reached ();
+      }
     }
 
     gum_exec_block_write_jmp_transfer_code (block, &target, gc);
@@ -1839,28 +1825,30 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
                                        const GumBranchTarget * target,
                                        GumGeneratorContext * gc)
 {
-#if DEBUG_LEVEL == 10
-  g_print ("gum_exec_block_write_call_invoke_code - enter\n");
-#endif
-
-  gboolean can_backpatch;
-  GumArm64Writer * cw = gc->code_writer;
+  GumArm64Writer * cw;
   gpointer call_code_start;
   GumPrologType opened_prolog;
 
+#if STALKER_DEBUG_LEVEL == 10
+  g_print ("gum_exec_block_write_call_invoke_code - enter\n");
+#endif
+
+  cw = gc->code_writer;
   call_code_start = cw->code;
   opened_prolog = gc->opened_prolog;
 
   gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
 
-#if DEBUG_LEVEL == 10
-  g_print (
-      "\t> gum_exec_ctx_replace_current_block_with\n\t\t(block->ctx: %p,\n\t\ttarget->absolute_address: %p|%d)\n",
+#if STALKER_DEBUG_LEVEL == 10
+  g_print ("\t> gum_exec_ctx_replace_current_block_with\n");
+  g_print("\t\t(block->ctx: %p,\n\t\ttarget->absolute_address: %p|%d)\n",
       block->ctx, target->absolute_address, target->base);
 #endif
 
-  /* generate code for the target */
-  /* get the target */
+  /* 
+   *  generate code for the target
+   *  get the target 
+   */
   gum_arm64_writer_put_push_all_x_registers (cw);
 
   gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
@@ -1875,7 +1863,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
 
   gum_exec_block_close_prolog (block, gc);
 
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("> b to address pointed by block->ctx->resume_at: %p\n",
       &block->ctx->resume_at);
   g_print ("\t> gc->instruction->end (saving in placeholder : %p\n",
@@ -1889,7 +1877,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   /* execute the generated code */
   gum_exec_block_write_exec_generated_code (cw, block->ctx);
 
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("gum_exec_block_write_call_invoke_code - exit\n");
 #endif
 }
@@ -1899,14 +1887,15 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
                                         const GumBranchTarget * target,
                                         GumGeneratorContext * gc)
 {
-#if DEBUG_LEVEL == 10
-  g_print ("gum_exec_block_write_jmp_transfer_code - enter\n");
-#endif
-
-  GumArm64Writer * cw = gc->code_writer;
+  GumArm64Writer * cw;
   guint8 * code_start;
   GumPrologType opened_prolog;
 
+#if STALKER_DEBUG_LEVEL == 10
+  g_print ("gum_exec_block_write_jmp_transfer_code - enter\n");
+#endif
+
+  cw = gc->code_writer;
   code_start = cw->code;
   opened_prolog = gc->opened_prolog;
 
@@ -1924,7 +1913,8 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
   gum_exec_block_close_prolog (block, gc);
 
   gum_exec_block_write_exec_generated_code (cw, block->ctx);
-#if DEBUG_LEVEL == 10
+
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("gum_exec_block_write_jmp_transfer_code - exit\n");
   g_print ("> b to address pointed by block->ctx->resume_at: %p\n",
       &block->ctx->resume_at);
@@ -1935,12 +1925,15 @@ static void
 gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
                                         GumGeneratorContext * gc)
 {
-#if DEBUG_LEVEL == 10
+  GumArm64Writer * cw;
+  gconstpointer resolve_dynamically_label;
+
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("gum_exec_block_write_ret_transfer_code - enter\n");
 #endif
 
-  GumArm64Writer * cw = gc->code_writer;
-  gconstpointer resolve_dynamically_label = cw->code;
+  cw = gc->code_writer;
+  resolve_dynamically_label = cw->code;
 
   gum_exec_block_close_prolog (block, gc);
   gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
@@ -1956,7 +1949,7 @@ gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
 
   gum_exec_block_write_exec_generated_code (cw, block->ctx);
 
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("gum_exec_block_write_ret_transfer_code - exit\n");
 #endif
 }
@@ -1965,7 +1958,7 @@ static void
 gum_exec_block_write_single_step_transfer_code (GumExecBlock * block,
                                                 GumGeneratorContext * gc)
 {
-  g_assert (""=="NOT_IMPLEMENTED");
+  g_assert ("" == "NOT_IMPLEMENTED");
 }
 
 static void
@@ -1997,11 +1990,13 @@ gum_exec_block_write_call_event_code (GumExecBlock * block,
                                       GumGeneratorContext * gc,
                                       GumCodeContext cc)
 {
-#if DEBUG_LEVEL == 10
+  GumArm64Writer * cw;
+
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("gum_exec_block_write_call_event_code - enter\n");
 #endif
 
-  GumArm64Writer * cw = gc->code_writer;
+  cw = gc->code_writer;
 
   gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
 
@@ -2034,11 +2029,12 @@ gum_exec_block_write_ret_event_code (GumExecBlock * block,
                                      GumGeneratorContext * gc,
                                      GumCodeContext cc)
 {
-#if DEBUG_LEVEL == 10
+  GumArm64Writer * cw;
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("gum_exec_block_write_ret_event_code - enter\n");
 #endif
 
-  GumArm64Writer * cw = gc->code_writer;
+  cw = gc->code_writer;
 
   gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
 
@@ -2067,11 +2063,13 @@ gum_exec_block_write_exec_event_code (GumExecBlock * block,
                                       GumGeneratorContext * gc,
                                       GumCodeContext cc)
 {
-#if DEBUG_LEVEL == 10
+  GumArm64Writer * cw;
+
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("gum_exec_block_write_exec_event_code - enter\n");
 #endif
 
-  GumArm64Writer * cw = gc->code_writer;
+  cw = gc->code_writer;
 
   gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
 
@@ -2085,7 +2083,7 @@ gum_exec_block_write_exec_event_code (GumExecBlock * block,
 
   gum_exec_block_write_event_submit_code (block, gc, cc);
 
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("gum_exec_block_write_exec_event_code - exit\n");
 #endif
 }
@@ -2095,11 +2093,13 @@ gum_exec_block_write_event_init_code (GumExecBlock * block,
                                       GumEventType type,
                                       GumGeneratorContext * gc)
 {
-#if DEBUG_LEVEL == 10
+  GumArm64Writer * cw;
+  
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("gum_exec_block_write_event_init_code - enter\n");
 #endif
 
-  GumArm64Writer * cw = gc->code_writer;
+  cw = gc->code_writer;
 
   /* save the type of event */
   gum_arm64_writer_put_instruction (cw, 0xCB0E01CE);
@@ -2107,7 +2107,7 @@ gum_exec_block_write_event_init_code (GumExecBlock * block,
   STALKER_STORE_REG_INTO_CTX_WITH_AO (ARM64_REG_X14, tmp_event,
       G_STRUCT_OFFSET (GumAnyEvent, type));
 
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("gum_exec_block_write_event_init_code - exit\n");
 #endif
 }
@@ -2117,19 +2117,23 @@ gum_exec_block_write_event_submit_code (GumExecBlock * block,
                                         GumGeneratorContext * gc,
                                         GumCodeContext cc)
 {
-#if DEBUG_LEVEL == 10
+  GumExecCtx * ctx;
+  GumArm64Writer * cw;
+  gconstpointer beach_label;
+  GumPrologType opened_prolog;
+
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("gum_exec_block_write_event_submit_code - enter\n");
   g_print ("gum_exec_block_write_event_submit_code - enter\n");
 #endif
 
-  GumExecCtx * ctx = block->ctx;
-  GumArm64Writer * cw = gc->code_writer;
-  gconstpointer beach_label = cw->code + 1;
-  GumPrologType opened_prolog;
+  ctx = block->ctx;
+  cw = gc->code_writer;
+  beach_label = cw->code + 1;
 
   gum_arm64_writer_put_push_all_x_registers (cw);
   gum_arm64_writer_put_add_reg_reg_imm (cw, ARM64_REG_X15,
-      ARM64_STALKER_REG_CTX, G_STRUCT_OFFSET (
+      STALKER_REG_CTX, G_STRUCT_OFFSET (
       GumExecCtx,
       tmp_event));
   gum_arm64_writer_put_call_address_with_arguments (cw,
@@ -2159,14 +2163,14 @@ gum_exec_block_write_event_submit_code (GumExecBlock * block,
 
     gum_arm64_writer_put_ldr_reg_address (cw, ARM64_REG_X16,
         GUM_ADDRESS (&block->ctx->resume_at));
-    gum_arm64_writer_put_ldr_reg_reg_offset (cw, ARM64_REG_X17, ARM64_REG_X16,
+    gum_arm64_writer_put_ldr_reg_reg_offset (cw, ARM64_REG_X17, ARM64_REG_X16, 
         0);
     gum_arm64_writer_put_br_reg (cw, ARM64_REG_X17);
 
     gum_arm64_writer_put_label (cw, beach_label);
   }
 
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("gum_exec_block_write_event_submit_code - exit\n");
 #endif
 }
@@ -2198,7 +2202,7 @@ gum_exec_block_open_prolog (GumExecBlock * block,
   /* We don't want to handle this case for performance reasons */
   g_assert (gc->opened_prolog == GUM_PROLOG_NONE);
 
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("+++ gum_exec_block_open_prolog - %d\n", type);
   g_print ("\tgc->instruction->begin (saved as ip) - %p\n",
       gc->instruction->begin);
@@ -2214,13 +2218,11 @@ gum_exec_block_close_prolog (GumExecBlock * block,
                              GumGeneratorContext * gc)
 {
   if (gc->opened_prolog == GUM_PROLOG_NONE)
-  {
     return;
-  }
 
   gum_exec_ctx_write_epilog (block->ctx, gc->opened_prolog, gc->code_writer);
 
-#if DEBUG_LEVEL == 10
+#if STALKER_DEBUG_LEVEL == 10
   g_print ("--- gum_exec_block_close_prolog - %d\n", gc->opened_prolog);
 #endif
 

@@ -51,7 +51,7 @@ debug_hello (gpointer pointer)
 
 static void
 put_debug_print_pointer (GumArm64Writer * cw,
-                 gpointer pointer)
+                         gpointer pointer)
 {
   gum_arm64_writer_put_push_all_registers (cw);
   gum_arm64_writer_put_call_address_with_arguments (cw,
@@ -142,9 +142,9 @@ test_arm64_stalker_fixture_follow_and_invoke (TestArm64StalkerFixture * fixture,
 
   /* call function -int func(int x)- and save address before and after call */
   gum_arm64_writer_put_ldr_reg_address (&cw, ARM64_REG_X0, GUM_ADDRESS (arg));
-  fixture->last_invoke_calladdr = (guint8 *) gum_arm64_writer_cur (&cw);
+  fixture->last_invoke_calladdr = gum_arm64_writer_cur (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw, func, 0);
-  fixture->last_invoke_retaddr = (guint8 *) gum_arm64_writer_cur (&cw);
+  fixture->last_invoke_retaddr = gum_arm64_writer_cur (&cw);
   gum_arm64_writer_put_ldr_reg_address (&cw, ARM64_REG_X1, GUM_ADDRESS (&ret));
   gum_arm64_writer_put_str_reg_reg_offset (&cw, ARM64_REG_X0, ARM64_REG_X1, 0);
 
