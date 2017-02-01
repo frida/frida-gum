@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -53,6 +54,9 @@ void gum_arm64_writer_put_call_address_with_arguments (GumArm64Writer * self,
 void gum_arm64_writer_put_call_reg_with_arguments (GumArm64Writer * self,
     arm64_reg reg, guint n_args, ...);
 
+void gum_arm64_writer_put_branch_address (GumArm64Writer * self,
+    GumAddress address);
+
 gboolean gum_arm64_writer_can_branch_imm (GumAddress from, GumAddress to);
 void gum_arm64_writer_put_b_imm (GumArm64Writer * self, GumAddress address);
 void gum_arm64_writer_put_b_label (GumArm64Writer * self,
@@ -76,6 +80,11 @@ void gum_arm64_writer_put_push_reg_reg (GumArm64Writer * self, arm64_reg reg_a,
     arm64_reg reg_b);
 void gum_arm64_writer_put_pop_reg_reg (GumArm64Writer * self, arm64_reg reg_a,
     arm64_reg reg_b);
+void gum_arm64_writer_put_push_all_x_registers (GumArm64Writer * self);
+void gum_arm64_writer_put_pop_all_x_registers (GumArm64Writer * self);
+void gum_arm64_writer_put_push_all_q_registers (GumArm64Writer * self);
+void gum_arm64_writer_put_pop_all_q_registers (GumArm64Writer * self);
+
 void gum_arm64_writer_put_ldr_reg_address (GumArm64Writer * self, arm64_reg reg,
     GumAddress address);
 void gum_arm64_writer_put_ldr_reg_u64 (GumArm64Writer * self, arm64_reg reg,
@@ -84,6 +93,8 @@ void gum_arm64_writer_put_ldr_reg_reg_offset (GumArm64Writer * self,
     arm64_reg dst_reg, arm64_reg src_reg, gsize src_offset);
 void gum_arm64_writer_put_adrp_reg_address (GumArm64Writer * self,
     arm64_reg reg, GumAddress address);
+void gum_arm64_writer_put_ldp_reg_reg_reg_offset (GumArm64Writer * self,
+    arm64_reg reg_a, arm64_reg reg_b, arm64_reg reg_src, gsize src_offset);
 void gum_arm64_writer_put_str_reg_reg_offset (GumArm64Writer * self,
     arm64_reg src_reg, arm64_reg dst_reg, gsize dst_offset);
 void gum_arm64_writer_put_mov_reg_reg (GumArm64Writer * self, arm64_reg dst_reg,

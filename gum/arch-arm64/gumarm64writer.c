@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -13,7 +14,7 @@
 
 #define GUM_MAX_LABEL_COUNT       100
 #define GUM_MAX_LABEL_REF_COUNT   (3 * GUM_MAX_LABEL_COUNT)
-#define GUM_MAX_LITERAL_REF_COUNT 100
+#define GUM_MAX_LITERAL_REF_COUNT 1000
 
 typedef struct _GumArm64Argument GumArm64Argument;
 typedef guint GumArm64MemPairOperandSize;
@@ -120,6 +121,10 @@ static void gum_arm64_writer_put_load_store_pair_pre (GumArm64Writer * self,
 static void gum_arm64_writer_put_load_store_pair_post (GumArm64Writer * self,
     GumArm64MemPairOperandSize op_size, guint opc, gboolean v, gboolean l,
     guint rt, guint rt2, guint rn, gssize post_increment);
+static void gum_arm64_writer_put_load_store_pair_signed_offset (
+    GumArm64Writer * self, GumArm64MemPairOperandSize op_size, guint opc,
+    gboolean v, gboolean l, guint rt, guint rt2, guint rn,
+    gssize signed_offset);
 static gsize gum_mem_pair_offset_shift (GumArm64MemPairOperandSize size,
     gboolean v);
 
@@ -416,6 +421,22 @@ gum_arm64_writer_put_argument_list_teardown (GumArm64Writer * self,
   (void) n_args;
 }
 
+void
+gum_arm64_writer_put_branch_address (GumArm64Writer * self,
+                                     GumAddress address)
+{
+  if (gum_arm64_writer_can_branch_imm (self->pc, address))
+  {
+    gum_arm64_writer_put_b_imm (self, address);
+  }
+  else
+  {
+    arm64_reg target = ARM64_REG_X16;
+    gum_arm64_writer_put_ldr_reg_address (self, target, address);
+    gum_arm64_writer_put_br_reg (self, target);
+  }
+}
+
 gboolean
 gum_arm64_writer_can_branch_imm (GumAddress from,
                                  GumAddress to)
@@ -607,6 +628,97 @@ gum_arm64_writer_put_pop_reg_reg (GumArm64Writer * self,
 }
 
 void
+gum_arm64_writer_put_push_all_x_registers (GumArm64Writer * self)
+{
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_X0, ARM64_REG_X1);
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_X2, ARM64_REG_X3);
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_X4, ARM64_REG_X5);
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_X6, ARM64_REG_X7);
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_X8, ARM64_REG_X9);
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_X10, ARM64_REG_X11);
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_X12, ARM64_REG_X13);
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_X14, ARM64_REG_X15);
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_X16, ARM64_REG_X17);
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_X18, ARM64_REG_X19);
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_X20, ARM64_REG_X21);
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_X22, ARM64_REG_X23);
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_X24, ARM64_REG_X25);
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_X26, ARM64_REG_X27);
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_X28, ARM64_REG_X29);
+  gum_arm64_writer_put_instruction (self, 0xD53B420F); /* MRS X15, NZCV */
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_X30, ARM64_REG_X15);
+}
+
+void
+gum_arm64_writer_put_pop_all_x_registers (GumArm64Writer * self)
+{
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_X30, ARM64_REG_X15);
+  gum_arm64_writer_put_instruction (self, 0xD51B420F); /* MSR NZCV, X15 */
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_X28, ARM64_REG_X29);
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_X26, ARM64_REG_X27);
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_X24, ARM64_REG_X25);
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_X22, ARM64_REG_X23);
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_X20, ARM64_REG_X21);
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_X18, ARM64_REG_X19);
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_X16, ARM64_REG_X17);
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_X14, ARM64_REG_X15);
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_X12, ARM64_REG_X13);
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_X10, ARM64_REG_X11);
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_X8, ARM64_REG_X9);
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_X6, ARM64_REG_X7);
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_X4, ARM64_REG_X5);
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_X2, ARM64_REG_X3);
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_X0, ARM64_REG_X1);
+}
+
+void
+gum_arm64_writer_put_push_all_q_registers (GumArm64Writer * self)
+{
+  const guint32 instructions[] = {
+    0xADBF07E0,
+    0xADBF0FE2,
+    0xADBF17E4,
+    0xADBF1FE6,
+    0xADBF27E8,
+    0xADBF2FEA,
+    0xADBF37EC,
+    0xADBF3FEE,
+    0xADBF47F0,
+    0xADBF4FF2,
+    0xADBF57F4,
+    0xADBF5FF6,
+    0xADBF67F8,
+    0xADBF6FFA,
+    0xADBF77FC,
+    0xADBF7FFE
+  };
+  gum_arm64_writer_put_bytes (self, instructions, sizeof (instructions));
+}
+
+void gum_arm64_writer_put_pop_all_q_registers (GumArm64Writer * self)
+{
+  const guint32 instructions[] = {
+    0xACC17FFE,
+    0xACC177FC,
+    0xACC16FFA,
+    0xACC167F8,
+    0xACC15FF6,
+    0xACC157F4,
+    0xACC14FF2,
+    0xACC147F0,
+    0xACC13FEE,
+    0xACC137EC,
+    0xACC12FEA,
+    0xACC127E8,
+    0xACC11FE6,
+    0xACC117E4,
+    0xACC10FE2,
+    0xACC107E0
+  };
+  gum_arm64_writer_put_bytes (self, instructions, sizeof (instructions));
+}
+
+void
 gum_arm64_writer_put_ldr_reg_address (GumArm64Writer * self,
                                       arm64_reg reg,
                                       GumAddress address)
@@ -700,6 +812,26 @@ gum_arm64_writer_put_adrp_reg_address (GumArm64Writer * self,
 
   gum_arm64_writer_put_instruction (self, 0x90000000 |
       (imm_lo << 29) | (imm_hi << 5) | ri.index);
+}
+
+void
+gum_arm64_writer_put_ldp_reg_reg_reg_offset (GumArm64Writer * self,
+                                             arm64_reg reg_a,
+                                             arm64_reg reg_b,
+                                             arm64_reg reg_src,
+                                             gsize src_offset)
+{
+  GumArm64RegInfo ra, rb, rs;
+
+  gum_arm64_writer_describe_reg (self, reg_a, &ra);
+  gum_arm64_writer_describe_reg (self, reg_b, &rb);
+  gum_arm64_writer_describe_reg (self, reg_src, &rs);
+
+  g_assert_cmpuint (ra.width, ==, rb.width);
+
+  gum_arm64_writer_put_load_store_pair_signed_offset (self,
+      GUM_MEM_PAIR_OPERAND_64, 2, FALSE, TRUE, ra.index, rb.index, rs.index,
+      src_offset);
 }
 
 void
@@ -869,6 +1001,28 @@ gum_arm64_writer_put_load_store_pair_post (GumArm64Writer * self,
   gum_arm64_writer_put_instruction (self, (opc << 30) | (5 << 27) |
       (v << 26) | (1 << 23) | (l << 22) |
       (((post_increment >> shift) & 0x7f) << 15) |
+      (rt2 << 10) | (rn << 5) | rt);
+}
+
+static void
+gum_arm64_writer_put_load_store_pair_signed_offset (
+    GumArm64Writer * self,
+    GumArm64MemPairOperandSize op_size,
+    guint opc,
+    gboolean v,
+    gboolean l,
+    guint rt,
+    guint rt2,
+    guint rn,
+    gssize signed_offset)
+{
+  gsize shift;
+
+  shift = gum_mem_pair_offset_shift (op_size, v);
+
+  gum_arm64_writer_put_instruction (self, (opc << 30) | (5 << 27) |
+      (v << 26) | (2 << 23) | (l << 22) |
+      (((signed_offset >> shift) & 0x7f) << 15) |
       (rt2 << 10) | (rn << 5) | rt);
 }
 

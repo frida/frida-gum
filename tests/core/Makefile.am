@@ -16,6 +16,11 @@ arch_sources += \
 	arch-x86/stalker-x86-mac.m
 endif
 
+if ARCH_ARM64
+arch_sources += \
+	arch-arm64/stalker-arm64.c
+endif
+
 if OS_DARWIN
 os_sources += \
 	interceptor-darwin.c \

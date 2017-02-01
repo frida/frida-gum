@@ -51,6 +51,7 @@ android_libdir = /system/lib64
 endif
 
 push: all
+	adb shell "rm -rf \"${RPFX}/tests/\""
 	adb shell "${MKDIR} \"${RPFX}/tests/\" && ${MKDIR} \"${RPFX}/tests/data/\""
 	cp "$(top_builddir)/tests/gum-tests" "$(top_builddir)/tests/gum-tests.stripped"
 	$$STRIP --strip-all "$(top_builddir)/tests/gum-tests.stripped"
