@@ -138,8 +138,6 @@ test_arm64_stalker_fixture_follow_and_invoke (TestArm64StalkerFixture * fixture,
   gum_arm64_writer_init (&cw, code);
 
   // call gum_stalker_follow_me
-  //gum_arm64_writer_put_push_reg_reg(&cw, ARM64_REG_X0, ARM64_REG_X1);
-  //gum_arm64_writer_put_push_reg_reg(&cw, ARM64_REG_X2, ARM64_REG_X3);
   gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X29, ARM64_REG_X30);
   gum_arm64_writer_put_mov_reg_reg (&cw, ARM64_REG_X29, ARM64_REG_SP);
 

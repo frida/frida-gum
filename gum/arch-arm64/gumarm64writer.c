@@ -378,7 +378,6 @@ gum_arm64_writer_put_argument_list_teardown (GumArm64Writer * self,
   (void) n_args;
 }
 
-
 void
 gum_arm64_writer_put_branch_address (GumArm64Writer * self,
                                      GumAddress address)
