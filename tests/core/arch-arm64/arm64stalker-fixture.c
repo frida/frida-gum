@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2009-2013 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
- * Copyright (C) 2010-2013 Karl Trygve Kalleberg <karltk@boblycat.org>
+ * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -15,10 +15,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define STALKER_ARM64_TESTCASE(NAME) \
+#define STALKER_TESTCASE(NAME) \
     void test_arm64_stalker_ ## NAME ( \
     TestArm64StalkerFixture * fixture, gconstpointer data)
-#define STALKER_ARM64_TESTENTRY(NAME) \
+#define STALKER_TESTENTRY(NAME) \
     TEST_ENTRY_WITH_FIXTURE ("Core/Arm64Stalker", test_arm64_stalker, NAME, \
     TestArm64StalkerFixture)
 
@@ -130,10 +130,8 @@ test_arm64_stalker_fixture_follow_and_invoke (TestArm64StalkerFixture * fixture,
   spec.max_distance = G_MAXINT32 / 2;
   code = gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &spec);
 
-  /* init writer */
   gum_arm64_writer_init (&cw, code);
 
-  /* call gum_stalker_follow_me */
   gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X29, ARM64_REG_X30);
   gum_arm64_writer_put_mov_reg_reg (&cw, ARM64_REG_X29, ARM64_REG_SP);
 
@@ -150,7 +148,6 @@ test_arm64_stalker_fixture_follow_and_invoke (TestArm64StalkerFixture * fixture,
   gum_arm64_writer_put_ldr_reg_address (&cw, ARM64_REG_X1, GUM_ADDRESS (&ret));
   gum_arm64_writer_put_str_reg_reg_offset (&cw, ARM64_REG_X0, ARM64_REG_X1, 0);
 
-  /* call gum_stalker_unfollow_me */
   gum_arm64_writer_put_call_address_with_arguments (&cw,
       gum_stalker_unfollow_me, 1,
       GUM_ARG_ADDRESS, fixture->stalker);

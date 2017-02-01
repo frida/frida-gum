@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -103,13 +104,11 @@ void gum_arm64_writer_put_brk_imm (GumArm64Writer * self, guint16 imm);
 
 void gum_arm64_writer_put_push_all_registers (GumArm64Writer * self);
 void gum_arm64_writer_put_push_all_q_registers (GumArm64Writer * self);
-
 void gum_arm64_writer_put_pop_all_registers (GumArm64Writer * self);
 void gum_arm64_writer_put_pop_all_q_registers (GumArm64Writer * self);
 
 void gum_arm64_writer_put_ldp_reg_reg_reg_offset (GumArm64Writer * self,
     arm64_reg reg_a, arm64_reg reg_b, arm64_reg reg_src, gsize src_offset);
-
 
 void gum_arm64_writer_put_instruction (GumArm64Writer * self, guint32 insn);
 void gum_arm64_writer_put_bytes (GumArm64Writer * self, const guint8 * data,
