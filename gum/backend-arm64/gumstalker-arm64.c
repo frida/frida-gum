@@ -748,8 +748,6 @@ gum_stalker_disinfect (GumThreadId thread_id,
   }
 }
 
-
-
 GumProbeId
 gum_stalker_add_call_probe (GumStalker * self,
                             gpointer target_address,
@@ -1622,8 +1620,8 @@ gum_exec_block_new (GumExecCtx * ctx)
 
 static GumExecBlock *
 gum_exec_block_obtain (GumExecCtx * ctx,
-    gpointer real_address,
-    gpointer * code_address_ptr)
+                       gpointer real_address,
+                       gpointer * code_address_ptr)
 {
   GumExecBlock * block;
 
