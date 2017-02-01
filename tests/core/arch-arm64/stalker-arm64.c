@@ -471,7 +471,7 @@ STALKER_TESTCASE (follow_return)
 
 STALKER_TESTCASE (follow_syscall)
 {
-  fixture->sink->mask = (GumEventType)(GUM_EXEC | GUM_CALL | GUM_RET);
+  fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
 
   gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
   g_usleep (1);
@@ -537,7 +537,7 @@ STALKER_TESTCASE (follow_thread)
   g_mutex_unlock (&ctx.mutex);
 
   /* 4: Follow and notify victim about it */
-  fixture->sink->mask = (GumEventType)(GUM_EXEC | GUM_CALL | GUM_RET);
+  fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
   gum_stalker_follow (fixture->stalker, thread_id,
       GUM_EVENT_SINK (fixture->sink));
   g_mutex_lock (&ctx.mutex);
@@ -586,7 +586,7 @@ STALKER_TESTCASE (heap_api)
 {
   gpointer p;
 
-  fixture->sink->mask = (GumEventType)(GUM_EXEC | GUM_CALL | GUM_RET);
+  fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
 
   gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
   p = malloc (1);
@@ -596,7 +596,7 @@ STALKER_TESTCASE (heap_api)
   g_assert_cmpuint (fixture->sink->events->len, >, 0);
 }
 
-typedef void (* ClobberFunc)(GumCpuContext * ctx);
+typedef void (* ClobberFunc) (GumCpuContext * ctx);
 
 STALKER_TESTCASE (no_register_clobber)
 {
@@ -623,7 +623,7 @@ STALKER_TESTCASE (no_register_clobber)
 
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
-  for (i = ARM64_REG_X0; i <= ARM64_REG_X28; i++) 
+  for (i = ARM64_REG_X0; i <= ARM64_REG_X28; i++)
   {
     gum_arm64_writer_put_ldr_reg_u64 (&cw, i, i);
   }
@@ -636,7 +636,7 @@ STALKER_TESTCASE (no_register_clobber)
 
   offset = (4 * sizeof (gpointer)) + (32 * sizeof (gpointer));
 
-  for (i = ARM64_REG_X0; i <= ARM64_REG_X28; i++) 
+  for (i = ARM64_REG_X0; i <= ARM64_REG_X28; i++)
   {
     gum_arm64_writer_put_str_reg_reg_offset (&cw, i, ARM64_REG_SP,
         offset + G_STRUCT_OFFSET (GumCpuContext, x[i - ARM64_REG_X0]));

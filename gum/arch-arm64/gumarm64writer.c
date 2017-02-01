@@ -675,22 +675,22 @@ void
 gum_arm64_writer_put_push_all_q_registers (GumArm64Writer * self)
 {
   const guint32 instructions[] = {
-      0xADBF07E0,
-      0xADBF0FE2,
-      0xADBF17E4,
-      0xADBF1FE6,
-      0xADBF27E8,
-      0xADBF2FEA,
-      0xADBF37EC,
-      0xADBF3FEE,
-      0xADBF47F0,
-      0xADBF4FF2,
-      0xADBF57F4,
-      0xADBF5FF6,
-      0xADBF67F8,
-      0xADBF6FFA,
-      0xADBF77FC,
-      0xADBF7FFE
+    0xADBF07E0,
+    0xADBF0FE2,
+    0xADBF17E4,
+    0xADBF1FE6,
+    0xADBF27E8,
+    0xADBF2FEA,
+    0xADBF37EC,
+    0xADBF3FEE,
+    0xADBF47F0,
+    0xADBF4FF2,
+    0xADBF57F4,
+    0xADBF5FF6,
+    0xADBF67F8,
+    0xADBF6FFA,
+    0xADBF77FC,
+    0xADBF7FFE
   };
   gum_arm64_writer_put_bytes (self, instructions, sizeof (instructions));
 }
@@ -698,22 +698,22 @@ gum_arm64_writer_put_push_all_q_registers (GumArm64Writer * self)
 void gum_arm64_writer_put_pop_all_q_registers (GumArm64Writer * self)
 {
   const guint32 instructions[] = {
-      0xACC17FFE,
-      0xACC177FC,
-      0xACC16FFA,
-      0xACC167F8,
-      0xACC15FF6,
-      0xACC157F4,
-      0xACC14FF2,
-      0xACC147F0,
-      0xACC13FEE,
-      0xACC137EC,
-      0xACC12FEA,
-      0xACC127E8,
-      0xACC11FE6,
-      0xACC117E4,
-      0xACC10FE2,
-      0xACC107E0
+    0xACC17FFE,
+    0xACC177FC,
+    0xACC16FFA,
+    0xACC167F8,
+    0xACC15FF6,
+    0xACC157F4,
+    0xACC14FF2,
+    0xACC147F0,
+    0xACC13FEE,
+    0xACC137EC,
+    0xACC12FEA,
+    0xACC127E8,
+    0xACC11FE6,
+    0xACC117E4,
+    0xACC10FE2,
+    0xACC107E0
   };
   gum_arm64_writer_put_bytes (self, instructions, sizeof (instructions));
 }
