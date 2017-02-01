@@ -334,7 +334,7 @@ void _debug_hello (gpointer);
 void
 _debug_hello (gpointer pointer)
 {
-  printf ("# pointer: %p #\n", pointer);
+  g_print ("# pointer: %p #\n", pointer);
 }
 
 static void
@@ -518,7 +518,7 @@ _gum_stalker_do_follow_me (GumStalker * self,
 {
 #if DEBUG_LEVEL==10
   g_print ("_gum_stalker_do_follow_me - enter\n");
-  printf ("\tret_addr_ptr: %p\n", ret_addr);
+  g_print ("\tret_addr_ptr: %p\n", ret_addr);
   g_print ("\tnext actual instruction to execute after\n");
 #endif
 
@@ -536,9 +536,9 @@ _gum_stalker_do_follow_me (GumStalker * self,
 
 #if DEBUG_LEVEL==10
   g_print ("_gum_stalker_do_follow_me - exit\n");
-  printf ("\tcode_address: %p\n", code_address);
+  g_print ("\tcode_address: %p\n", code_address);
   g_print ("\tnext stalker instruction to execute after!\n");
-  printf ("self %p\n", self);
+  g_print ("self %p\n", self);
 #endif
 
   g_assert (ctx != NULL);
@@ -911,7 +911,7 @@ gum_stalker_create_exec_ctx (GumStalker * self,
       GUM_EVENT_SINK_GET_INTERFACE (sink)->process);
 
 #if DEBUG_LEVEL==10
-  printf ("sink mask= %ld\n", ctx->sink_mask);
+  g_print ("sink mask= %ld\n", ctx->sink_mask);
 #endif
 
   gum_exec_ctx_create_thunks (ctx);
@@ -1000,9 +1000,9 @@ gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
 {
 #if DEBUG_LEVEL==10
   g_print ("gum_exec_ctx_replace_current_block_with - enter\n");
-  printf ("\tstart_address (real_address) %p:\n", start_address);
-  printf ("\tresume_at (code_address) %p:\n", ctx->resume_at);
-  printf ("\tgum_stalker_unfollow_me: %p\n", gum_stalker_unfollow_me);
+  g_print ("\tstart_address (real_address) %p:\n", start_address);
+  g_print ("\tresume_at (code_address) %p:\n", ctx->resume_at);
+  g_print ("\tgum_stalker_unfollow_me: %p\n", gum_stalker_unfollow_me);
 #endif
 
   if (ctx->invalidate_pending)
@@ -1041,8 +1041,8 @@ gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
 #if DEBUG_LEVEL==10
     g_print (
         "gum_exec_ctx_replace_current_block_with - gum_exec_ctx_obtain_block_for\n");
-    printf ("\tstart_address (real_address) %p:\n", start_address);
-    printf ("\tresume_at (code_address) %p:\n", ctx->resume_at);
+    g_print ("\tstart_address (real_address) %p:\n", start_address);
+    g_print ("\tresume_at (code_address) %p:\n", ctx->resume_at);
 #endif
 
     ctx->current_block = gum_exec_ctx_obtain_block_for (ctx, start_address,
@@ -1050,8 +1050,8 @@ gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
   }
 
 #if DEBUG_LEVEL==10
-  printf ("\treturn ctx->resume_at %p\n", ctx->resume_at);
-  printf ("\treturn start_address %p\n", start_address);
+  g_print ("\treturn ctx->resume_at %p\n", ctx->resume_at);
+  g_print ("\treturn start_address %p\n", start_address);
   g_print ("gum_exec_ctx_replace_current_block_with - exit\n");
 #endif
 
@@ -1099,15 +1099,15 @@ gum_disasm (guint8 * code,
 
   for (i = 0; i != count; i++)
   {
-    printf ("%s0x%" G_GINT64_MODIFIER "x\t(0x",
+    g_print ("%s0x%" G_GINT64_MODIFIER "x\t(0x",
         prefix, insn[i].address);
 
     for (int j = 0; j<insn[i].size; j++)
     {
-      printf ("%02X",(unsigned)insn[i].bytes[j]);
+      g_print ("%02X",(unsigned)insn[i].bytes[j]);
     }
 
-    printf (")\t%s %s\x1b[0m\n", insn[i].mnemonic, insn[i].op_str);
+    g_print (")\t%s %s\x1b[0m\n", insn[i].mnemonic, insn[i].op_str);
 
   }
 
@@ -1126,9 +1126,9 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
 {
 #if DEBUG_LEVEL==10
   g_print ("gum_exec_ctx_obtain_block_for - enter\n");
-  printf ("\treal_address (former ret_address): %p\n", real_address);
-  printf ("\tcode_address_ptr: %p\n", code_address_ptr);
-  printf ("\tcode_address: %p\n", *code_address_ptr);
+  g_print ("\treal_address (former ret_address): %p\n", real_address);
+  g_print ("\tcode_address_ptr: %p\n", code_address_ptr);
+  g_print ("\tcode_address: %p\n", *code_address_ptr);
 #endif
 
   GumExecBlock * block;
@@ -1165,8 +1165,8 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   *code_address_ptr = block->code_begin;
 #if DEBUG_LEVEL==10
   g_print ("new block!\n");
-  printf ("\tcode_address_ptr: %p\n", code_address_ptr);
-  printf ("\tcode_address: %p\n", *code_address_ptr);
+  g_print ("\tcode_address_ptr: %p\n", code_address_ptr);
+  g_print ("\tcode_address: %p\n", *code_address_ptr);
 #endif
 
   if (ctx->stalker->priv->trust_threshold >= 0)
@@ -1181,7 +1181,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   gc.opened_prolog = GUM_PROLOG_NONE;
 
 #if DEBUG_LEVEL==10
-  printf (
+  g_print (
       "\n\n*********************\n\nCreating block for %p (real_address):\n",
       real_address);
   int i = 0;
@@ -1276,7 +1276,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
       gc.continuation_real_address = insn.end;
 #if DEBUG_LEVEL==10
       g_print ("gum_exec_ctx_obtain_block_for - block is full\n");
-      printf ("gc.continuation_real_address: %p", gc.continuation_real_address);
+      g_print ("gc.continuation_real_address: %p", gc.continuation_real_address);
 #endif
       break;
     }
@@ -1312,7 +1312,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
 #if DEBUG_LEVEL==10
     g_print (
         "gum_exec_ctx_obtain_block_for - gc.continuation_real_address != NULL\n");
-    printf ("continue_target.absolute_address: %p",
+    g_print ("continue_target.absolute_address: %p",
         continue_target.absolute_address);
 #endif
     gum_exec_block_write_jmp_transfer_code (block, &continue_target, &gc);
@@ -1332,12 +1332,12 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
 
 #if DEBUG_LEVEL==10
   g_print ("gum_exec_ctx_obtain_block_for - exit\n");
-  printf ("\tcode_address_ptr: %p\n", code_address_ptr);
-  printf ("\tcode_address: %p\n", *code_address_ptr);
-  printf ("\tblock->code_begin: %p\n", block->code_begin);
-  printf ("\tblock->code_end: %p\n", block->code_end);
-  printf ("\tblock->real_begin: %p\n", block->real_begin);
-  printf ("\tblock->real_end: %p\n", block->real_end);
+  g_print ("\tcode_address_ptr: %p\n", code_address_ptr);
+  g_print ("\tcode_address: %p\n", *code_address_ptr);
+  g_print ("\tblock->code_begin: %p\n", block->code_begin);
+  g_print ("\tblock->code_end: %p\n", block->code_end);
+  g_print ("\tblock->real_begin: %p\n", block->real_begin);
+  g_print ("\tblock->real_end: %p\n", block->real_end);
 #endif
   return block;
 }
@@ -1349,7 +1349,7 @@ gum_exec_ctx_write_prolog (GumExecCtx * ctx,
                            GumArm64Writer * cw)
 {
 #if DEBUG_LEVEL==10
-  printf ("+ gum_exec_ctx_write_prolog - type: %d\n",type);
+  g_print ("+ gum_exec_ctx_write_prolog - type: %d\n",type);
 #endif
 
   // 1) move to the red-zone
@@ -1416,7 +1416,7 @@ gum_exec_ctx_write_epilog (GumExecCtx * ctx,
 {
 
 #if DEBUG_LEVEL==10
-  printf ("- gum_exec_ctx_write_epilog - type: %d\n",type);
+  g_print ("- gum_exec_ctx_write_epilog - type: %d\n",type);
 #endif
 
   if (type != GUM_PROLOG_MINIMAL)   /* GUM_PROLOG_FULL */
@@ -1468,10 +1468,10 @@ gum_exec_ctx_write_push_branch_target_address (GumExecCtx * ctx,
 
 #if DEBUG_LEVEL==10
   g_print ("gum_exec_ctx_write_push_branch_target_address - enter\n");
-  printf ("\ttarget is %sdirect\n", (target->is_indirect) ? "in" : "");
-  printf ("\ttarget->base is %svalid\n",
+  g_print ("\ttarget is %sdirect\n", (target->is_indirect) ? "in" : "");
+  g_print ("\ttarget->base is %svalid\n",
       (target->base == X86_REG_INVALID) ? "in" : "");
-  printf ("\ttarget->index  is %svalid\n",
+  g_print ("\ttarget->index  is %svalid\n",
       (target->index == X86_REG_INVALID) ? "in" : "");
 #endif
 
@@ -1588,9 +1588,9 @@ gum_exec_block_new (GumExecCtx * ctx)
 #if DEBUG_LEVEL==10
     g_print (
         "gum_exec_block_new - slab->size - slab->offset >= GUM_EXEC_BLOCK_MIN_SIZE\n");
-    printf ("data: %p, offset: %d, size GumExecBlock: %d\n", slab->data,
+    g_print ("data: %p, offset: %d, size GumExecBlock: %d\n", slab->data,
         slab->offset, sizeof (GumExecBlock));
-    printf ("block->code_begin: %p\n", block->code_begin);
+    g_print ("block->code_begin: %p\n", block->code_begin);
 #endif
     return block;
   }
@@ -1631,8 +1631,8 @@ gum_exec_block_obtain (GumExecCtx * ctx,
 
 #if DEBUG_LEVEL==10
   g_print ("gum_exec_block_obtain - exit\n");
-  printf ("code_address_ptr: %p\n", code_address_ptr);
-  printf ("code_address: %p\n", *code_address_ptr);
+  g_print ("code_address_ptr: %p\n", code_address_ptr);
+  g_print ("code_address: %p\n", *code_address_ptr);
 #endif
   return block;
 }
@@ -1682,8 +1682,8 @@ gum_exec_block_backpatch_jmp (GumExecBlock * block,
 
 #if DEBUG_LEVEL==10
   g_print ("gum_exec_block_backpatch_jmp - enter\n");
-  printf ("code_start: %p\n", code_start);
-  printf ("target_address: %p\n", target_address);
+  g_print ("code_start: %p\n", code_start);
+  g_print ("target_address: %p\n", target_address);
 #endif
 
   GumExecCtx * ctx = block->ctx;
@@ -1717,8 +1717,8 @@ gum_exec_block_backpatch_ret (GumExecBlock * block,
 
 #if DEBUG_LEVEL==10
   g_print ("gum_exec_block_backpatch_ret - enter");
-  printf ("code_start: %p", code_start);
-  printf ("target_address: %p", target_address);
+  g_print ("code_start: %p", code_start);
+  g_print ("target_address: %p", target_address);
 #endif
 
   if (block != NULL)   /* when we just unfollowed */
@@ -1767,8 +1767,8 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
 
   target.origin_ip = insn->end;
 #if DEBUG_LEVEL==10
-  printf ("\tconditional: %s\n", is_conditional ? "yes" : "no");
-  printf ("\ttarget.origin_ip = insn->end: %p\n", target.origin_ip);
+  g_print ("\tconditional: %s\n", is_conditional ? "yes" : "no");
+  g_print ("\ttarget.origin_ip = insn->end: %p\n", target.origin_ip);
 #endif
 
   if (insn->ci->id == ARM64_INS_BL || insn->ci->id == ARM64_INS_B)
@@ -1776,10 +1776,10 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
 
     g_assert (op->type == ARM64_OP_IMM);
 #if DEBUG_LEVEL==10
-    printf ("gum_exec_block_virtualize_branch_insn - BL & %sconditonal B\n",
+    g_print ("gum_exec_block_virtualize_branch_insn - BL & %sconditonal B\n",
         is_conditional ? "" : "in");
-    printf ("\top->imm: %p\n", op->imm);
-    printf ("\tinsn->ci->address: %p\n", insn->ci->address);
+    g_print ("\top->imm: %p\n", op->imm);
+    g_print ("\tinsn->ci->address: %p\n", insn->ci->address);
 #endif
     target.absolute_address = GSIZE_TO_POINTER (op->imm);
     target.is_indirect = FALSE;
@@ -1791,9 +1791,9 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
   {
     g_assert (op->type == ARM64_OP_REG);
 #if DEBUG_LEVEL==10
-    printf ("gum_exec_block_virtualize_branch_insn - BLR & %sconditonal BR\n",
+    g_print ("gum_exec_block_virtualize_branch_insn - BLR & %sconditonal BR\n",
         is_conditional ? "" : "in");
-    printf ("\ttarget.base: %d\n", op->reg);
+    g_print ("\ttarget.base: %d\n", op->reg);
 #endif
     target.is_indirect = FALSE;
     target.base = op->reg;
@@ -1811,7 +1811,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
     if(insn->ci->id == ARM64_INS_CBZ) g_print (
           "gum_exec_block_virtualize_branch_insn - CBZ\n");
     else g_print ("gum_exec_block_virtualize_branch_insn - CBNZ\n");
-    printf ("\ttarget.absolute_address: %d\n", op2->imm);
+    g_print ("\ttarget.absolute_address: %d\n", op2->imm);
 #endif
     target.is_indirect = FALSE;
     target.absolute_address = GSIZE_TO_POINTER (op2->imm);
@@ -1833,8 +1833,8 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
     if(insn->ci->id == ARM64_INS_CBZ) g_print (
           "gum_exec_block_virtualize_branch_insn - CBZ\n");
     else g_print ("gum_exec_block_virtualize_branch_insn - CBNZ\n");
-    printf ("\ttarget.absolute_address: %p\n", op3->imm);
-    printf ("\tbit: %d\n", op2->imm);
+    g_print ("\ttarget.absolute_address: %p\n", op3->imm);
+    g_print ("\tbit: %d\n", op2->imm);
 #endif
     target.is_indirect = FALSE;
     target.absolute_address = GSIZE_TO_POINTER (op3->imm);
@@ -1960,7 +1960,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
         g_assert (cc <= ARM64_CC_NV);
         arm64_cc not_cc = cc + 2*(cc%2) -1;
 #if DEBUG_LEVEL==10
-        printf ("cc (%d) and not_cc (%d)",cc, not_cc);
+        g_print ("cc (%d) and not_cc (%d)",cc, not_cc);
 #endif
         gum_arm64_writer_put_b_cond_label (cw, not_cc, is_false);
       }
@@ -2043,7 +2043,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
 
 #if DEBUG_LEVEL==10
-  printf (
+  g_print (
       "\t> gum_exec_ctx_replace_current_block_with\n\t\t(block->ctx: %p,\n\t\ttarget->absolute_address: %p|%d)\n",
       block->ctx, target->absolute_address, target->base);
 #endif
@@ -2065,9 +2065,9 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   gum_exec_block_close_prolog (block, gc);
 
 #if DEBUG_LEVEL==10
-  printf ("> b to address pointed by block->ctx->resume_at: %p\n",
+  g_print ("> b to address pointed by block->ctx->resume_at: %p\n",
       &block->ctx->resume_at);
-  printf ("\t> gc->instruction->end (saving in placeholder : %p\n",
+  g_print ("\t> gc->instruction->end (saving in placeholder : %p\n",
       gc->instruction->end);
 #endif
   // we need to save the return address outside the open-close prolog
@@ -2114,7 +2114,7 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
   gum_exec_block_write_exec_generated_code (cw, block->ctx);
 #if DEBUG_LEVEL==10
   g_print ("gum_exec_block_write_jmp_transfer_code - exit\n");
-  printf ("> b to address pointed by block->ctx->resume_at: %p\n",
+  g_print ("> b to address pointed by block->ctx->resume_at: %p\n",
       &block->ctx->resume_at);
 #endif
 }
@@ -2397,8 +2397,8 @@ gum_exec_block_open_prolog (GumExecBlock * block,
   g_assert (gc->opened_prolog == GUM_PROLOG_NONE);
 
 #if DEBUG_LEVEL==10
-  printf ("+++ gum_exec_block_open_prolog - %d\n", type);
-  printf ("\tgc->instruction->begin (saved as ip) - %p\n",
+  g_print ("+++ gum_exec_block_open_prolog - %d\n", type);
+  g_print ("\tgc->instruction->begin (saved as ip) - %p\n",
       gc->instruction->begin);
 #endif
   gc->opened_prolog = type;
@@ -2418,7 +2418,7 @@ gum_exec_block_close_prolog (GumExecBlock * block,
   gum_exec_ctx_write_epilog (block->ctx, gc->opened_prolog, gc->code_writer);
 
 #if DEBUG_LEVEL==10
-  printf ("--- gum_exec_block_close_prolog - %d\n", gc->opened_prolog);
+  g_print ("--- gum_exec_block_close_prolog - %d\n", gc->opened_prolog);
 #endif
 
   gc->opened_prolog = GUM_PROLOG_NONE;

@@ -46,7 +46,7 @@ static void silence_warnings (void);
 static void
 debug_hello (gpointer pointer)
 {
-  printf ("* pointer: %p *\n", pointer);
+  g_print ("* pointer: %p *\n", pointer);
 }
 
 static void
