@@ -1983,7 +1983,6 @@ gum_exec_block_write_exec_generated_code (GumArm64Writer * cw,
   gum_arm64_writer_put_br_reg (cw, ARM64_REG_X17);
 }
 
-
 static void
 gum_exec_block_write_call_event_code (GumExecBlock * block,
                                       const GumBranchTarget * target,
