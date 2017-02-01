@@ -130,7 +130,6 @@ STALKER_TESTCASE (unconditional_branch)
       gum_stalker_follow_me, 2,
       GUM_ARG_ADDRESS, fixture->stalker,
       GUM_ARG_ADDRESS, fixture->sink);
-
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
   gum_arm64_writer_put_nop (&cw);
@@ -181,7 +180,6 @@ STALKER_TESTCASE (unconditional_branch_reg)
       gum_stalker_follow_me, 2,
       GUM_ARG_ADDRESS, fixture->stalker,
       GUM_ARG_ADDRESS, fixture->sink);
-
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
   gum_arm64_writer_put_nop (&cw);
@@ -237,7 +235,7 @@ STALKER_TESTCASE (conditional_branch)
 
   gum_arm64_writer_put_nop (&cw);
   gum_arm64_writer_put_nop (&cw);
-  gum_arm64_writer_put_instruction (&cw, 0xF1000800);  /* subs x0,x0,#2 */
+  gum_arm64_writer_put_instruction (&cw, 0xF1000800);  /* SUBS X0, X0, #2 */
   gum_arm64_writer_put_b_cond_label (&cw, cc, my_ken_lbl);
 
   address = gum_arm64_writer_cur (&cw);
@@ -613,14 +611,13 @@ STALKER_TESTCASE (no_register_clobber)
   code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
   gum_arm64_writer_init (&cw, code);
 
-  gum_arm64_writer_put_push_all_x_registers (&cw);  /* 16 push of 16 */
+  gum_arm64_writer_put_push_all_x_registers (&cw);
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
       gum_stalker_follow_me, 2,
       GUM_ARG_ADDRESS, fixture->stalker,
       GUM_ARG_ADDRESS, fixture->sink);
-
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
   for (i = ARM64_REG_X0; i <= ARM64_REG_X28; i++)
@@ -652,7 +649,8 @@ STALKER_TESTCASE (no_register_clobber)
   func = GUM_POINTER_TO_FUNCPTR (ClobberFunc, code);
   func (&ctx);
 
-  for (int i = ARM64_REG_X0; i <= ARM64_REG_X28; i++) {
+  for (i = ARM64_REG_X0; i <= ARM64_REG_X28; i++)
+  {
     g_assert_cmphex (ctx.x[i - ARM64_REG_X0], ==, i);
   }
 
