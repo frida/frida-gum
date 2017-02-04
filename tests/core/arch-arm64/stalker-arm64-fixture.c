@@ -53,22 +53,22 @@ static void
 put_debug_print_pointer (GumArm64Writer * cw,
                          gpointer pointer)
 {
-  gum_arm64_writer_put_push_all_registers (cw);
+  gum_arm64_writer_put_push_all_x_registers (cw);
   gum_arm64_writer_put_call_address_with_arguments (cw,
-      GUM_FUNCPTR_TO_POINTER (debug_hello), 1,
+      GUM_ADDRESS (debug_hello), 1,
       GUM_ARG_ADDRESS, GUM_ADDRESS (pointer));
-  gum_arm64_writer_put_pop_all_registers (cw);
+  gum_arm64_writer_put_pop_all_x_registers (cw);
 }
 
 static void
 put_debug_print_reg (GumArm64Writer * cw,
                      arm64_reg reg)
 {
-  gum_arm64_writer_put_push_all_registers (cw);
+  gum_arm64_writer_put_push_all_x_registers (cw);
   gum_arm64_writer_put_call_address_with_arguments (cw,
-      GUM_FUNCPTR_TO_POINTER (debug_hello), 1,
+      GUM_ADDRESS (debug_hello), 1,
       GUM_ARG_REGISTER, reg);
-  gum_arm64_writer_put_pop_all_registers (cw);
+  gum_arm64_writer_put_pop_all_x_registers (cw);
 }
 
 static void
@@ -104,7 +104,7 @@ test_arm64_stalker_fixture_dup_code (TestArm64StalkerFixture * fixture,
 
   if (fixture->code != NULL)
     gum_free_pages (fixture->code);
-  fixture->code = (guint32 *) gum_alloc_n_pages_near (
+  fixture->code = gum_alloc_n_pages_near (
       (tpl_size / gum_query_page_size ()) + 1, GUM_PAGE_RWX, &spec);
   memcpy (fixture->code, tpl_code, tpl_size);
 
@@ -136,20 +136,20 @@ test_arm64_stalker_fixture_follow_and_invoke (TestArm64StalkerFixture * fixture,
   gum_arm64_writer_put_mov_reg_reg (&cw, ARM64_REG_X29, ARM64_REG_SP);
 
   gum_arm64_writer_put_call_address_with_arguments (&cw,
-      gum_stalker_follow_me, 2,
+      GUM_ADDRESS (gum_stalker_follow_me), 2,
       GUM_ARG_ADDRESS, fixture->stalker,
       GUM_ARG_ADDRESS, fixture->sink);
 
   /* call function -int func(int x)- and save address before and after call */
   gum_arm64_writer_put_ldr_reg_address (&cw, ARM64_REG_X0, GUM_ADDRESS (arg));
   fixture->last_invoke_calladdr = gum_arm64_writer_cur (&cw);
-  gum_arm64_writer_put_call_address_with_arguments (&cw, func, 0);
+  gum_arm64_writer_put_call_address_with_arguments (&cw, GUM_ADDRESS (func), 0);
   fixture->last_invoke_retaddr = gum_arm64_writer_cur (&cw);
   gum_arm64_writer_put_ldr_reg_address (&cw, ARM64_REG_X1, GUM_ADDRESS (&ret));
   gum_arm64_writer_put_str_reg_reg_offset (&cw, ARM64_REG_X0, ARM64_REG_X1, 0);
 
   gum_arm64_writer_put_call_address_with_arguments (&cw,
-      gum_stalker_unfollow_me, 1,
+      GUM_ADDRESS (gum_stalker_unfollow_me), 1,
       GUM_ARG_ADDRESS, fixture->stalker);
 
   gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X29, ARM64_REG_X30);
@@ -168,6 +168,8 @@ test_arm64_stalker_fixture_follow_and_invoke (TestArm64StalkerFixture * fixture,
 static void
 silence_warnings (void)
 {
+  (void) put_debug_print_pointer;
+  (void) put_debug_print_reg;
   (void) test_arm64_stalker_fixture_dup_code;
   (void) test_arm64_stalker_fixture_follow_and_invoke;
 }

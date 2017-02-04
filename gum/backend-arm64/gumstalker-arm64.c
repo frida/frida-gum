@@ -228,7 +228,6 @@ static void gum_stalker_free_probe_array (gpointer data);
 static GumExecCtx * gum_stalker_create_exec_ctx (GumStalker * self,
     GumThreadId thread_id, GumEventSink * sink);
 static GumExecCtx * gum_stalker_get_exec_ctx (GumStalker * self);
-static void gum_stalker_invalidate_caches (GumStalker * self);
 
 static void gum_exec_ctx_free (GumExecCtx * ctx);
 static void gum_exec_ctx_unfollow (GumExecCtx * ctx, gpointer resume_at);
@@ -660,12 +659,12 @@ gum_stalker_infect (GumThreadId thread_id,
   gum_exec_ctx_write_prolog (ctx, GUM_PROLOG_MINIMAL,
       ctx->current_block->real_begin, &cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
-      GUM_FUNCPTR_TO_POINTER (gum_tls_key_set_value), 2,
+      GUM_ADDRESS (gum_tls_key_set_value), 2,
       GUM_ARG_ADDRESS, self->priv->exec_ctx,
       GUM_ARG_ADDRESS, ctx);
   gum_exec_ctx_write_epilog (ctx, GUM_PROLOG_MINIMAL, &cw);
 
-  gum_arm64_writer_put_branch_address (&cw, code_address + 4);
+  gum_arm64_writer_put_branch_address (&cw, GUM_ADDRESS (code_address + 4));
 
   gum_arm64_writer_free (&cw);
 
@@ -713,6 +712,8 @@ gum_stalker_add_call_probe (GumStalker * self,
                             GDestroyNotify notify)
 {
   g_assert ("" == "NOT IMPLEMENTED");
+
+  return 0;
 }
 
 void
@@ -786,23 +787,6 @@ static GumExecCtx *
 gum_stalker_get_exec_ctx (GumStalker * self)
 {
   return (GumExecCtx *) gum_tls_key_get_value (self->priv->exec_ctx);
-}
-
-static void
-gum_stalker_invalidate_caches (GumStalker * self)
-{
-  GSList * cur;
-
-  GUM_STALKER_LOCK (self);
-
-  for (cur = self->priv->contexts; cur != NULL; cur = cur->next)
-  {
-    GumExecCtx * ctx = (GumExecCtx *) cur->data;
-
-    ctx->invalidate_pending = TRUE;
-  }
-
-  GUM_STALKER_UNLOCK (self);
 }
 
 static void
@@ -1170,8 +1154,8 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
 
   block->code_end = (guint8 *) gum_arm64_writer_cur (cw);
 
-  block->real_begin = rl->input_start;
-  block->real_end = rl->input_cur;
+  block->real_begin = (guint8 *) rl->input_start;
+  block->real_end = (guint8 *) rl->input_cur;
 
   gum_exec_block_commit (block);
 
@@ -1517,7 +1501,6 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
 
   insn = gc->instruction;
   cw = gc->code_writer;
-  is_conditional;
   arm64 = &insn->ci->detail->arm64;
 
   g_assert (arm64->op_count != 0);
@@ -1811,7 +1794,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
 
   /* create new block for the target */
   gum_arm64_writer_put_call_address_with_arguments (cw,
-      GUM_FUNCPTR_TO_POINTER (gum_exec_ctx_replace_current_block_with), 2,
+      GUM_ADDRESS (gum_exec_ctx_replace_current_block_with), 2,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
       GUM_ARG_REGISTER, ARM64_REG_X15);
   gum_arm64_writer_put_pop_all_x_registers (cw);
@@ -1843,7 +1826,6 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
                                         GumGeneratorContext * gc)
 {
   GumArm64Writer * cw;
-  guint8 * code_start;
   GumPrologType opened_prolog;
 
 #if STALKER_DEBUG_LEVEL == 10
@@ -1851,7 +1833,6 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
 #endif
 
   cw = gc->code_writer;
-  code_start = cw->code;
   opened_prolog = gc->opened_prolog;
 
   gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
@@ -1860,7 +1841,7 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
   gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
   gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X14, ARM64_REG_X15);
   gum_arm64_writer_put_call_address_with_arguments (cw,
-      GUM_FUNCPTR_TO_POINTER (gum_exec_ctx_replace_current_block_with), 2,
+      GUM_ADDRESS (gum_exec_ctx_replace_current_block_with), 2,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
       GUM_ARG_REGISTER, ARM64_REG_X15);
   gum_arm64_writer_put_pop_all_x_registers (cw);
@@ -1895,7 +1876,7 @@ gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
 
   gum_arm64_writer_put_push_all_x_registers (cw);
   gum_arm64_writer_put_call_address_with_arguments (cw,
-      GUM_FUNCPTR_TO_POINTER (gum_exec_ctx_replace_current_block_with), 2,
+      GUM_ADDRESS (gum_exec_ctx_replace_current_block_with), 2,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
       GUM_ARG_REGISTER, ARM64_REG_X30);
   gum_arm64_writer_put_pop_all_x_registers (cw);
@@ -2084,7 +2065,7 @@ gum_exec_block_write_event_submit_code (GumExecBlock * block,
       GumExecCtx,
       tmp_event));
   gum_arm64_writer_put_call_address_with_arguments (cw,
-      block->ctx->sink_process_impl, 2,
+      GUM_ADDRESS (block->ctx->sink_process_impl), 2,
       GUM_ARG_ADDRESS, block->ctx->sink,
       GUM_ARG_REGISTER, ARM64_REG_X15);
   gum_arm64_writer_put_pop_all_x_registers (cw);
@@ -2099,7 +2080,7 @@ gum_exec_block_write_event_submit_code (GumExecBlock * block,
 
     gum_arm64_writer_put_push_all_x_registers (cw);
     gum_arm64_writer_put_call_address_with_arguments (cw,
-        GUM_FUNCPTR_TO_POINTER (gum_exec_ctx_unfollow), 2,
+        GUM_ADDRESS (gum_exec_ctx_unfollow), 2,
         GUM_ARG_ADDRESS, ctx,
         GUM_ARG_ADDRESS, gc->instruction->begin);
     gum_arm64_writer_put_pop_all_x_registers (cw);
@@ -2120,14 +2101,6 @@ gum_exec_block_write_event_submit_code (GumExecBlock * block,
 #if STALKER_DEBUG_LEVEL == 10
   g_print ("gum_exec_block_write_event_submit_code - exit\n");
 #endif
-}
-
-static void
-gum_exec_block_invoke_call_probes_for_target (GumExecBlock * block,
-                                              gpointer target_address,
-                                              GumCpuContext * cpu_context)
-{
-  g_assert ("" == "NOT IMPLEMENTED");
 }
 
 static void

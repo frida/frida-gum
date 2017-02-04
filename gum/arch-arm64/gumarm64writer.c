@@ -692,7 +692,8 @@ gum_arm64_writer_put_push_all_q_registers (GumArm64Writer * self)
     0xADBF77FC,
     0xADBF7FFE
   };
-  gum_arm64_writer_put_bytes (self, instructions, sizeof (instructions));
+  gum_arm64_writer_put_bytes (self, (const guint8 *) instructions,
+      sizeof (instructions));
 }
 
 void gum_arm64_writer_put_pop_all_q_registers (GumArm64Writer * self)
@@ -715,7 +716,8 @@ void gum_arm64_writer_put_pop_all_q_registers (GumArm64Writer * self)
     0xACC10FE2,
     0xACC107E0
   };
-  gum_arm64_writer_put_bytes (self, instructions, sizeof (instructions));
+  gum_arm64_writer_put_bytes (self, (const guint8 *) instructions,
+      sizeof (instructions));
 }
 
 void
