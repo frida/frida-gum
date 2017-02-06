@@ -89,6 +89,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_interceptor_detach_all)
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_replace)
 static void gum_v8_replace_entry_free (GumV8ReplaceEntry * entry);
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_revert)
+GUMJS_DECLARE_FUNCTION (gumjs_interceptor_flush)
 
 GUMJS_DECLARE_FUNCTION (gumjs_invocation_listener_detach)
 
@@ -157,6 +158,7 @@ static const GumV8Function gumjs_interceptor_functions[] =
   { "detachAll", gumjs_interceptor_detach_all },
   { "_replace", gumjs_interceptor_replace },
   { "revert", gumjs_interceptor_revert },
+  { "flush", gumjs_interceptor_flush },
 
   { NULL, NULL }
 };
@@ -608,6 +610,24 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_revert)
     return;
 
   g_hash_table_remove (module->replacement_by_address, target);
+}
+
+/*
+ * Prototype:
+ * Interceptor.flush()
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
+GUMJS_DEFINE_FUNCTION (gumjs_interceptor_flush)
+{
+  auto interceptor = module->interceptor;
+
+  gum_interceptor_end_transaction (interceptor);
+  gum_interceptor_begin_transaction (interceptor);
 }
 
 /*
