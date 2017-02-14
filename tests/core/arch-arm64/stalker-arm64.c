@@ -117,7 +117,7 @@ STALKER_TESTCASE (unconditional_branch)
 {
   guint8 * code;
   GumArm64Writer cw;
-  gpointer address;
+  GumAddress address;
   const gchar * my_ken_lbl = "my_ken";
   StalkerTestFunc func;
   gint r;
@@ -127,7 +127,7 @@ STALKER_TESTCASE (unconditional_branch)
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
-      gum_stalker_follow_me, 2,
+      GUM_ADDRESS (gum_stalker_follow_me), 2,
       GUM_ARG_ADDRESS, fixture->stalker,
       GUM_ARG_ADDRESS, fixture->sink);
   gum_arm64_writer_put_pop_all_x_registers (&cw);
@@ -136,12 +136,12 @@ STALKER_TESTCASE (unconditional_branch)
   gum_arm64_writer_put_nop (&cw);
   gum_arm64_writer_put_b_label (&cw, my_ken_lbl);
 
-  address = gum_arm64_writer_cur (&cw);
+  address = GUM_ADDRESS (gum_arm64_writer_cur (&cw));
   gum_arm64_writer_put_add_reg_reg_imm (&cw, ARM64_REG_X0, ARM64_REG_X0, 10);
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
-      gum_stalker_unfollow_me, 1,
+      GUM_ADDRESS (gum_stalker_unfollow_me), 1,
       GUM_ARG_ADDRESS, fixture->stalker);
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
@@ -166,7 +166,7 @@ STALKER_TESTCASE (unconditional_branch_reg)
 {
   guint8 * code;
   GumArm64Writer cw;
-  gpointer address;
+  GumAddress address;
   const gchar * my_ken_lbl = "my_ken";
   StalkerTestFunc func;
   arm64_reg reg = ARM64_REG_X29;
@@ -177,7 +177,7 @@ STALKER_TESTCASE (unconditional_branch_reg)
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
-      gum_stalker_follow_me, 2,
+      GUM_ADDRESS (gum_stalker_follow_me), 2,
       GUM_ARG_ADDRESS, fixture->stalker,
       GUM_ARG_ADDRESS, fixture->sink);
   gum_arm64_writer_put_pop_all_x_registers (&cw);
@@ -186,14 +186,14 @@ STALKER_TESTCASE (unconditional_branch_reg)
   gum_arm64_writer_put_nop (&cw);
   gum_arm64_writer_put_b_label (&cw, my_ken_lbl);
 
-  address = gum_arm64_writer_cur (&cw);
+  address = GUM_ADDRESS (gum_arm64_writer_cur (&cw));
   gum_arm64_writer_put_add_reg_reg_imm (&cw, ARM64_REG_X0, ARM64_REG_X0, 10);
   if (reg == ARM64_REG_X29 || reg == ARM64_REG_X30)
     gum_arm64_writer_put_pop_reg_reg(&cw, reg, ARM64_REG_XZR);
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
-      gum_stalker_unfollow_me, 1,
+      GUM_ADDRESS (gum_stalker_unfollow_me), 1,
       GUM_ARG_ADDRESS, fixture->stalker);
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
@@ -221,7 +221,7 @@ STALKER_TESTCASE (conditional_branch)
 {
   guint8 * code;
   GumArm64Writer cw;
-  gpointer address;
+  GumAddress address;
   arm64_cc cc = ARM64_CC_EQ;
   const gchar * my_ken_lbl = "my_ken";
   StalkerTestFunc func;
@@ -232,7 +232,7 @@ STALKER_TESTCASE (conditional_branch)
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
-      gum_stalker_follow_me, 2,
+      GUM_ADDRESS (gum_stalker_follow_me), 2,
       GUM_ARG_ADDRESS, fixture->stalker,
       GUM_ARG_ADDRESS, fixture->sink);
   gum_arm64_writer_put_pop_all_x_registers (&cw);
@@ -242,12 +242,12 @@ STALKER_TESTCASE (conditional_branch)
   gum_arm64_writer_put_instruction (&cw, 0xF1000800);  /* SUBS X0, X0, #2 */
   gum_arm64_writer_put_b_cond_label (&cw, cc, my_ken_lbl);
 
-  address = gum_arm64_writer_cur (&cw);
+  address = GUM_ADDRESS (gum_arm64_writer_cur (&cw));
   gum_arm64_writer_put_nop (&cw);
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
-      gum_stalker_unfollow_me, 1,
+      GUM_ADDRESS (gum_stalker_unfollow_me), 1,
       GUM_ARG_ADDRESS, fixture->stalker);
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
@@ -282,7 +282,7 @@ STALKER_TESTCASE (compare_and_branch)
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
-      gum_stalker_follow_me, 2,
+      GUM_ADDRESS (gum_stalker_follow_me), 2,
       GUM_ARG_ADDRESS, fixture->stalker,
       GUM_ARG_ADDRESS, fixture->sink);
   gum_arm64_writer_put_pop_all_x_registers (&cw);
@@ -297,7 +297,7 @@ STALKER_TESTCASE (compare_and_branch)
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
-      gum_stalker_unfollow_me, 1,
+      GUM_ADDRESS (gum_stalker_unfollow_me), 1,
       GUM_ARG_ADDRESS, fixture->stalker);
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
@@ -332,7 +332,7 @@ STALKER_TESTCASE (test_bit_and_branch)
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
-      gum_stalker_follow_me, 2,
+      GUM_ADDRESS (gum_stalker_follow_me), 2,
       GUM_ARG_ADDRESS, fixture->stalker,
       GUM_ARG_ADDRESS, fixture->sink);
   gum_arm64_writer_put_pop_all_x_registers (&cw);
@@ -347,7 +347,7 @@ STALKER_TESTCASE (test_bit_and_branch)
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
-      gum_stalker_unfollow_me, 1,
+      GUM_ADDRESS (gum_stalker_unfollow_me), 1,
       GUM_ARG_ADDRESS, fixture->stalker);
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
@@ -372,7 +372,7 @@ STALKER_TESTCASE (follow_std_call)
 {
   guint8 * code;
   GumArm64Writer cw;
-  gpointer address;
+  GumAddress address;
   const gchar * my_ken_lbl = "my_ken";
   StalkerTestFunc func;
   gint r;
@@ -385,14 +385,14 @@ STALKER_TESTCASE (follow_std_call)
 
   gum_arm64_writer_put_b_label (&cw, my_ken_lbl);
 
-  address = gum_arm64_writer_cur (&cw);
+  address = GUM_ADDRESS (gum_arm64_writer_cur (&cw));
   gum_arm64_writer_put_add_reg_reg_imm (&cw, ARM64_REG_X0, ARM64_REG_X0, 1);
   gum_arm64_writer_put_ret (&cw);
 
   gum_arm64_writer_put_label (&cw, my_ken_lbl);
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
-      gum_stalker_follow_me, 2,
+      GUM_ADDRESS (gum_stalker_follow_me), 2,
       GUM_ARG_ADDRESS, fixture->stalker,
       GUM_ARG_ADDRESS, fixture->sink);
   gum_arm64_writer_put_pop_all_x_registers (&cw);
@@ -401,7 +401,7 @@ STALKER_TESTCASE (follow_std_call)
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
-      gum_stalker_unfollow_me, 1,
+      GUM_ADDRESS (gum_stalker_unfollow_me), 1,
       GUM_ARG_ADDRESS, fixture->stalker);
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
@@ -423,7 +423,7 @@ STALKER_TESTCASE (follow_return)
 {
   guint8 * code;
   GumArm64Writer cw;
-  gpointer address;
+  GumAddress address;
   const gchar * my_ken_lbl = "my_ken";
   StalkerTestFunc func;
   gint r;
@@ -436,10 +436,10 @@ STALKER_TESTCASE (follow_return)
 
   gum_arm64_writer_put_b_label (&cw, my_ken_lbl);
 
-  address = gum_arm64_writer_cur (&cw);
+  address = GUM_ADDRESS (gum_arm64_writer_cur (&cw));
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
-      gum_stalker_follow_me, 2,
+      GUM_ADDRESS (gum_stalker_follow_me), 2,
       GUM_ARG_ADDRESS, fixture->stalker,
       GUM_ARG_ADDRESS, fixture->sink);
   gum_arm64_writer_put_pop_all_x_registers (&cw);
@@ -458,7 +458,7 @@ STALKER_TESTCASE (follow_return)
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
-      gum_stalker_unfollow_me, 1,
+      GUM_ADDRESS (gum_stalker_unfollow_me), 1,
       GUM_ARG_ADDRESS, fixture->stalker);
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
@@ -609,9 +609,6 @@ STALKER_TESTCASE (no_register_clobber)
 {
   guint8 * code;
   GumArm64Writer cw;
-  const gchar * my_func_lbl = "my_func";
-  const gchar * my_beach_lbl = "my_beach";
-  const gchar * my_ken_lbl = "my_ken";
   gint i;
   gint offset;
   ClobberFunc func;
@@ -624,7 +621,7 @@ STALKER_TESTCASE (no_register_clobber)
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
-      gum_stalker_follow_me, 2,
+      GUM_ADDRESS (gum_stalker_follow_me), 2,
       GUM_ARG_ADDRESS, fixture->stalker,
       GUM_ARG_ADDRESS, fixture->sink);
   gum_arm64_writer_put_pop_all_x_registers (&cw);
@@ -636,7 +633,7 @@ STALKER_TESTCASE (no_register_clobber)
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
-      gum_stalker_unfollow_me, 1,
+      GUM_ADDRESS (gum_stalker_unfollow_me), 1,
       GUM_ARG_ADDRESS, fixture->stalker);
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 

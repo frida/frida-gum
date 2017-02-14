@@ -98,6 +98,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_interceptor_detach_all)
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_replace)
 static void gum_duk_replace_entry_free (GumDukReplaceEntry * entry);
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_revert)
+GUMJS_DECLARE_FUNCTION (gumjs_interceptor_flush)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_invocation_listener_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_invocation_listener_detach)
@@ -170,6 +171,7 @@ static const duk_function_list_entry gumjs_interceptor_functions[] =
   { "detachAll", gumjs_interceptor_detach_all, 0 },
   { "_replace", gumjs_interceptor_replace, 2 },
   { "revert", gumjs_interceptor_revert, 1 },
+  { "flush", gumjs_interceptor_flush, 0 },
 
   { NULL, NULL, 0 }
 };
@@ -573,6 +575,20 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_revert)
   _gum_duk_args_parse (args, "p", &target);
 
   g_hash_table_remove (self->replacement_by_address, target);
+
+  return 0;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_interceptor_flush)
+{
+  GumDukInterceptor * self;
+
+  (void) ctx;
+
+  self = gumjs_interceptor_from_args (args);
+
+  gum_interceptor_end_transaction (self->interceptor);
+  gum_interceptor_begin_transaction (self->interceptor);
 
   return 0;
 }

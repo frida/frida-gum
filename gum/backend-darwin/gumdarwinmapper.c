@@ -81,6 +81,7 @@ struct _GumDarwinMapper
   gsize destructor_offset;
 
   GMappedFile * cache_file;
+  gboolean cache_file_load_attempted;
   GSList * children;
   GHashTable * mappings;
 };
@@ -183,8 +184,7 @@ gum_darwin_mapper_class_init (GumDarwinMapperClass * klass)
       G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_CACHE_FILE,
       g_param_spec_boxed ("cache-file", "CacheFile", "Shared cache file",
-      G_TYPE_MAPPED_FILE, G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-      G_PARAM_STATIC_STRINGS));
+      G_TYPE_MAPPED_FILE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_PARENT,
       g_param_spec_object ("parent", "Parent", "Parent mapper",
       GUM_DARWIN_TYPE_MAPPER, G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
@@ -318,23 +318,17 @@ gum_darwin_mapper_new_take_blob (const gchar * name,
                                  GumDarwinModuleResolver * resolver)
 {
   GumDarwinModule * module;
-  GMappedFile * cache_file;
   GumDarwinMapper * mapper;
 
   module = gum_darwin_module_new_from_blob (name, blob, resolver->task,
       resolver->cpu_type, resolver->page_size);
 
-  cache_file = gum_darwin_mapper_try_load_cache_file (resolver->cpu_type);
-
   mapper = g_object_new (GUM_DARWIN_TYPE_MAPPER,
       "name", name,
       "module", module,
       "resolver", resolver,
-      "cache-file", cache_file,
       NULL);
 
-  if (cache_file != NULL)
-    g_mapped_file_unref (cache_file);
   g_object_unref (module);
   g_bytes_unref (blob);
 
@@ -351,11 +345,23 @@ gum_darwin_mapper_new_from_file_with_parent (GumDarwinMapper * parent,
   GumDarwinMapper * mapper;
 
   if (parent == NULL)
+  {
     cache_file = gum_darwin_mapper_try_load_cache_file (resolver->cpu_type);
-  else if (parent->cache_file != NULL)
-    cache_file = g_mapped_file_ref (parent->cache_file);
+  }
   else
-    cache_file = NULL;
+  {
+    if (parent->cache_file == NULL && !parent->cache_file_load_attempted)
+    {
+      parent->cache_file =
+          gum_darwin_mapper_try_load_cache_file (resolver->cpu_type);
+      parent->cache_file_load_attempted = TRUE;
+    }
+
+    if (parent->cache_file != NULL)
+      cache_file = g_mapped_file_ref (parent->cache_file);
+    else
+      cache_file = NULL;
+  }
 
   module = gum_darwin_module_new_from_file (path, resolver->task,
       resolver->cpu_type, resolver->page_size, cache_file);
@@ -367,6 +373,11 @@ gum_darwin_mapper_new_from_file_with_parent (GumDarwinMapper * parent,
       "cache-file", cache_file,
       "parent", parent,
       NULL);
+
+  if (parent == NULL)
+  {
+    mapper->cache_file_load_attempted = TRUE;
+  }
 
   g_object_unref (module);
   if (cache_file != NULL)

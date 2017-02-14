@@ -49,6 +49,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (listener_can_be_detached_by_destruction_mid_call)
   SCRIPT_TESTENTRY (all_listeners_can_be_detached)
   SCRIPT_TESTENTRY (function_can_be_replaced)
+  SCRIPT_TESTENTRY (function_can_be_replaced_and_called_immediately)
   SCRIPT_TESTENTRY (function_can_be_reverted)
   SCRIPT_TESTENTRY (replaced_function_should_have_invocation_context)
   SCRIPT_TESTENTRY (instructions_can_be_probed)
@@ -2635,6 +2636,24 @@ SCRIPT_TESTCASE (function_can_be_replaced)
 
   gum_script_unload_sync (fixture->script, NULL);
   target_function_int (1);
+  EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (function_can_be_replaced_and_called_immediately)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var address = " GUM_PTR_CONST ";"
+      "Interceptor.replace(address,"
+      "    new NativeCallback(function (arg) {"
+      "  send(arg);"
+      "  return 1337;"
+      "}, 'int', ['int']));"
+      "var f = new NativeFunction(address, 'int', ['int']);"
+      "f(7);"
+      "Interceptor.flush();"
+      "f(8);",
+      target_function_int);
+  EXPECT_SEND_MESSAGE_WITH ("8");
   EXPECT_NO_MESSAGES ();
 }
 
