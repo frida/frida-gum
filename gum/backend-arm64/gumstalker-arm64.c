@@ -1065,7 +1065,6 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
 
 #if STALKER_DEBUG_LEVEL >= 8
     gum_disasm (insn.begin, insn.ci->size, "\x1b[31mINS > ");
-    g_print ("K");
 #endif
 
     gc.instruction = &insn;
@@ -1394,8 +1393,6 @@ gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
   {
     slot_in_the_stack = 3 + 3 + 1;
     pos_in_the_slot = (source_register - ARM64_REG_X29) % 2;
-
-    g_print("s %d, p %d", slot_in_the_stack, pos_in_the_slot);
 
     STALKER_LOAD_REG_FROM_CTX (ARM64_REG_X15, app_stack);
     gum_arm64_writer_put_sub_reg_reg_imm (cw, ARM64_REG_X15, ARM64_REG_X15,

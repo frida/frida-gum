@@ -53,11 +53,11 @@ static void
 put_debug_print_pointer (GumArm64Writer * cw,
                          gpointer pointer)
 {
-  gum_arm64_writer_put_push_all_registers (cw);
+  gum_arm64_writer_put_push_all_x_registers (cw);
   gum_arm64_writer_put_call_address_with_arguments (cw,
       GUM_FUNCPTR_TO_POINTER (debug_hello), 1,
       GUM_ARG_ADDRESS, GUM_ADDRESS (pointer));
-  gum_arm64_writer_put_pop_all_registers (cw);
+  gum_arm64_writer_put_pop_all_x_registers (cw);
 }
 
 static void
