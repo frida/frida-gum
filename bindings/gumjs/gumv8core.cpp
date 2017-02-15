@@ -1400,10 +1400,16 @@ GUMJS_DEFINE_GETTER (gumjs_script_get_source_map)
     {
       String::Utf8Value url_utf8 (url_value);
       auto url = *url_utf8;
-      if (g_str_has_prefix (url, "data:application/json;base64,"))
+
+      auto base64_start = strstr (url, "base64,");
+
+      if (g_str_has_prefix (url, "data:application/json;") &&
+          base64_start != NULL)
       {
+        base64_start += 7;
+
         gsize size;
-        auto data = (gchar *) g_base64_decode (url + 29, &size);
+        auto data = (gchar *) g_base64_decode (base64_start, &size);
         if (data != NULL && g_utf8_validate (data, size, NULL))
           json = data;
         else

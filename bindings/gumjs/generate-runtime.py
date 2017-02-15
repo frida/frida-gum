@@ -136,7 +136,7 @@ def generate_runtime_duk(runtime_name, output_dir, output, input_dir, inputs):
             output_file.write("\n  {{ {0}, {1}, {2} }},".format(bytecode_identifier, bytecode_size, source_map_identifier))
         output_file.write("\n  { NULL, 0, NULL }\n};")
 
-source_map_pattern = re.compile("//[#@][ \t]sourceMappingURL=[ \t]*data:application/json;base64,([^\\s'\"]*)[ \t]*\n")
+source_map_pattern = re.compile("//[#@][ \t]sourceMappingURL=[ \t]*data:application/json;.*?base64,([^\\s'\"]*)[ \t]*\n")
 
 def extract_source_map(filename, source_code):
     m = source_map_pattern.search(source_code)
