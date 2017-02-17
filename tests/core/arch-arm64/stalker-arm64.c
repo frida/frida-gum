@@ -172,7 +172,7 @@ STALKER_TESTCASE (unconditional_branch_reg)
   GumAddress address;
   const gchar * my_ken_lbl = "my_ken";
   StalkerTestFunc func;
-  arm64_reg reg = ARM64_REG_X29;
+  arm64_reg reg = ARM64_REG_X13;
   gint r;
 
   code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
