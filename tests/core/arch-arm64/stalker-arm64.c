@@ -669,7 +669,7 @@ STALKER_TESTCASE (no_register_clobber)
 GUM_NOINLINE static void
 pretend_workload (void)
 {
-  const guint repeats = 25000;
+  const guint repeats = 250;
   guint i;
 
   for (i = 0; i != repeats; i++)

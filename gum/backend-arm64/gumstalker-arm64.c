@@ -2123,14 +2123,10 @@ gum_exec_block_write_event_submit_code (GumExecBlock * block,
         GUM_EXEC_CTX_UNFOLLOW_PENDING);
     gum_arm64_writer_put_cbnz_reg_label (cw, ARM64_REG_X14, beach_label);
 
-    gum_arm64_writer_put_push_all_x_registers (cw);
-    gum_arm64_writer_put_push_all_q_registers (cw);
     gum_arm64_writer_put_call_address_with_arguments (cw,
         GUM_ADDRESS (gum_exec_ctx_unfollow), 2,
         GUM_ARG_ADDRESS, ctx,
         GUM_ARG_ADDRESS, gc->instruction->begin);
-    gum_arm64_writer_put_pop_all_q_registers (cw);
-    gum_arm64_writer_put_pop_all_x_registers (cw);
 
     opened_prolog = gc->opened_prolog;
     gum_exec_block_close_prolog (block, gc);
