@@ -192,7 +192,7 @@ STALKER_TESTCASE (unconditional_branch_reg)
   address = GUM_ADDRESS (gum_arm64_writer_cur (&cw));
   gum_arm64_writer_put_add_reg_reg_imm (&cw, ARM64_REG_X0, ARM64_REG_X0, 10);
   if (reg == ARM64_REG_X29 || reg == ARM64_REG_X30)
-    gum_arm64_writer_put_pop_reg_reg(&cw, reg, ARM64_REG_XZR);
+    gum_arm64_writer_put_pop_reg_reg (&cw, reg, ARM64_REG_XZR);
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
@@ -448,8 +448,8 @@ STALKER_TESTCASE (follow_return)
   gum_arm64_writer_put_pop_all_x_registers (&cw);
   /*
    * alternative for instruction RET X15
-   * gum_arm64_writer_put_mov_reg_reg(&cw, ARM64_REG_X15, ARM64_REG_X30);
-   * gum_arm64_writer_put_instruction(&cw, 0xD65F01E0);
+   * gum_arm64_writer_put_mov_reg_reg (&cw, ARM64_REG_X15, ARM64_REG_X30);
+   * gum_arm64_writer_put_instruction (&cw, 0xD65F01E0);
    */
   gum_arm64_writer_put_ret (&cw);
 

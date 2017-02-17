@@ -1331,12 +1331,6 @@ gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
   gint slot_in_the_stack;
   gint pos_in_the_slot;
 
-#if STALKER_DEBUG_LEVEL == 10
-  g_print("gum_exec_ctx_load_real_register_into - start\n");
-  g_print("\nsource: %d\n", source_register);
-  g_print("\ntarget: %d\n", target_register);
-#endif
-
   if (gc->opened_prolog != GUM_PROLOG_MINIMAL)
     g_assert ("" == "not implemented");
 
