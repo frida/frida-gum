@@ -13,6 +13,7 @@ m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 AM_MAINTAINER_MODE
 
 AC_PROG_CC
+AC_USE_SYSTEM_EXTENSIONS
 AC_PROG_CC_STDC
 AC_PROG_CXX
 AC_PROG_OBJC
@@ -69,7 +70,6 @@ case $host_os in
 esac
 if [[ "x$HAVE_LINUX" = "xyes" ]]; then
   AC_DEFINE(HAVE_LINUX, 1, [Define to 1 if OS is Linux based.])
-  AC_DEFINE(_GNU_SOURCE, 1, [Enable GNU extensions (required by Linux backend).])
 fi
 if [[ "x$HAVE_DARWIN" = "xyes" ]]; then
   AC_DEFINE(HAVE_DARWIN, 1, [Define to 1 if OS is Darwin based.])
