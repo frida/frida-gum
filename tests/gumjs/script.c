@@ -204,6 +204,8 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (globals_can_be_dynamically_generated)
   SCRIPT_TESTENTRY (exceptions_can_be_handled)
   SCRIPT_TESTENTRY (debugger_can_be_enabled)
+  SCRIPT_TESTENTRY (objc_api_is_embedded)
+  SCRIPT_TESTENTRY (java_api_is_embedded)
 TEST_LIST_END ()
 
 typedef struct _TestTrigger TestTrigger;
@@ -4240,6 +4242,18 @@ SCRIPT_TESTCASE (debugger_can_be_enabled)
   }
 
   g_main_loop_unref (loop);
+}
+
+SCRIPT_TESTCASE (objc_api_is_embedded)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send(typeof ObjC.available);");
+  EXPECT_SEND_MESSAGE_WITH ("\"boolean\"");
+}
+
+SCRIPT_TESTCASE (java_api_is_embedded)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send(typeof Java.available);");
+  EXPECT_SEND_MESSAGE_WITH ("\"boolean\"");
 }
 
 static void
