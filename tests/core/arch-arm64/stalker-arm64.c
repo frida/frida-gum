@@ -31,8 +31,11 @@ TEST_LIST_BEGIN (stalker)
   /* EXTRA */
   STALKER_TESTENTRY (heap_api)
   STALKER_TESTENTRY (no_register_clobber)
+  STALKER_TESTENTRY (performance)
 
 TEST_LIST_END ()
+
+gint gum_stalker_dummy_global_to_trick_optimizer = 0;
 
 static const guint32 flat_code[] = {
   0xCB000000, /* SUB W0, W0, W0 */
@@ -661,4 +664,54 @@ STALKER_TESTCASE (no_register_clobber)
   }
 
   gum_free_pages (code);
+}
+
+GUM_NOINLINE static void
+pretend_workload (void)
+{
+  const guint repeats = 25000;
+  guint i;
+
+  for (i = 0; i != repeats; i++)
+  {
+    void * p = malloc (42 + i);
+    gum_stalker_dummy_global_to_trick_optimizer +=
+        GPOINTER_TO_SIZE (p) % 42 == 0;
+    free (p);
+  }
+}
+
+STALKER_TESTCASE (performance)
+{
+  GTimer * timer;
+  gdouble duration_direct, duration_stalked;
+
+  timer = g_timer_new ();
+  pretend_workload ();
+
+  g_timer_reset (timer);
+  pretend_workload ();
+  duration_direct = g_timer_elapsed (timer, NULL);
+
+  fixture->sink->mask = GUM_NOTHING;
+
+  gum_stalker_set_trust_threshold (fixture->stalker, 0);
+  gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
+
+  /* warm-up */
+  g_timer_reset (timer);
+  pretend_workload ();
+  g_timer_elapsed (timer, NULL);
+
+  /* the real deal */
+  g_timer_reset (timer);
+  pretend_workload ();
+  duration_stalked = g_timer_elapsed (timer, NULL);
+
+  gum_stalker_unfollow_me (fixture->stalker);
+
+  g_timer_destroy (timer);
+
+  g_print ("\n\t<duration_direct=%f duration_stalked=%f ratio=%f>\n",
+      duration_direct, duration_stalked, duration_stalked / duration_direct);
 }

@@ -1827,6 +1827,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
    * get the target
    */
   gum_arm64_writer_put_push_all_x_registers (cw);
+  gum_arm64_writer_put_push_all_q_registers (cw);
 
   gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
   gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X14, ARM64_REG_X15);
@@ -1836,6 +1837,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
       GUM_ADDRESS (gum_exec_ctx_replace_current_block_with), 2,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
       GUM_ARG_REGISTER, ARM64_REG_X15);
+  gum_arm64_writer_put_pop_all_q_registers (cw);
   gum_arm64_writer_put_pop_all_x_registers (cw);
 
   gum_exec_block_close_prolog (block, gc);
@@ -1877,12 +1879,14 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
   gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
 
   gum_arm64_writer_put_push_all_x_registers (cw);
+  gum_arm64_writer_put_push_all_q_registers (cw);
   gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
   gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X14, ARM64_REG_X15);
   gum_arm64_writer_put_call_address_with_arguments (cw,
       GUM_ADDRESS (gum_exec_ctx_replace_current_block_with), 2,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
       GUM_ARG_REGISTER, ARM64_REG_X15);
+  gum_arm64_writer_put_pop_all_q_registers (cw);
   gum_arm64_writer_put_pop_all_x_registers (cw);
 
   gum_exec_block_close_prolog (block, gc);
@@ -1918,10 +1922,12 @@ gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
       gc);
 
   gum_arm64_writer_put_push_all_x_registers (cw);
+  gum_arm64_writer_put_push_all_q_registers (cw);
   gum_arm64_writer_put_call_address_with_arguments (cw,
       GUM_ADDRESS (gum_exec_ctx_replace_current_block_with), 2,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
       GUM_ARG_REGISTER, ARM64_REG_X16);
+  gum_arm64_writer_put_pop_all_q_registers (cw);
   gum_arm64_writer_put_pop_all_x_registers (cw);
 
   gum_exec_block_close_prolog (block, gc);
@@ -2103,6 +2109,7 @@ gum_exec_block_write_event_submit_code (GumExecBlock * block,
   beach_label = cw->code + 1;
 
   gum_arm64_writer_put_push_all_x_registers (cw);
+  gum_arm64_writer_put_push_all_q_registers (cw);
   gum_arm64_writer_put_add_reg_reg_imm (cw, ARM64_REG_X15,
       STALKER_REG_CTX, G_STRUCT_OFFSET (
       GumExecCtx,
@@ -2111,6 +2118,7 @@ gum_exec_block_write_event_submit_code (GumExecBlock * block,
       GUM_ADDRESS (block->ctx->sink_process_impl), 2,
       GUM_ARG_ADDRESS, block->ctx->sink,
       GUM_ARG_REGISTER, ARM64_REG_X15);
+  gum_arm64_writer_put_pop_all_q_registers (cw);
   gum_arm64_writer_put_pop_all_x_registers (cw);
 
   if (cc == GUM_CODE_INTERRUPTIBLE)
@@ -2122,10 +2130,12 @@ gum_exec_block_write_event_submit_code (GumExecBlock * block,
     gum_arm64_writer_put_cbnz_reg_label (cw, ARM64_REG_X14, beach_label);
 
     gum_arm64_writer_put_push_all_x_registers (cw);
+    gum_arm64_writer_put_push_all_q_registers (cw);
     gum_arm64_writer_put_call_address_with_arguments (cw,
         GUM_ADDRESS (gum_exec_ctx_unfollow), 2,
         GUM_ARG_ADDRESS, ctx,
         GUM_ARG_ADDRESS, gc->instruction->begin);
+    gum_arm64_writer_put_pop_all_q_registers (cw);
     gum_arm64_writer_put_pop_all_x_registers (cw);
 
     opened_prolog = gc->opened_prolog;
