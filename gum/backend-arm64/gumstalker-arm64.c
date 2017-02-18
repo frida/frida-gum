@@ -2096,7 +2096,6 @@ gum_exec_block_write_event_submit_code (GumExecBlock * block,
       GUM_ARG_REGISTER, ARM64_REG_X15);
   gum_arm64_writer_put_pop_reg_reg (cw, STALKER_REG_CTX, ARM64_REG_X15);
 
-
   if (cc == GUM_CODE_INTERRUPTIBLE)
   {
     /* check if we've been asked to unfollow */
