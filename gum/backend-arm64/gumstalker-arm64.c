@@ -1862,16 +1862,13 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
 
   gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
 
-  gum_arm64_writer_put_push_all_x_registers (cw);
-  gum_arm64_writer_put_push_all_q_registers (cw);
   gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
+
   gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X14, ARM64_REG_X15);
   gum_arm64_writer_put_call_address_with_arguments (cw,
       GUM_ADDRESS (gum_exec_ctx_replace_current_block_with), 2,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
       GUM_ARG_REGISTER, ARM64_REG_X15);
-  gum_arm64_writer_put_pop_all_q_registers (cw);
-  gum_arm64_writer_put_pop_all_x_registers (cw);
 
   gum_exec_block_close_prolog (block, gc);
 
@@ -2081,15 +2078,14 @@ gum_exec_block_write_event_submit_code (GumExecBlock * block,
 
 #if STALKER_DEBUG_LEVEL == 10
   g_print ("gum_exec_block_write_event_submit_code - enter\n");
-  g_print ("gum_exec_block_write_event_submit_code - enter\n");
 #endif
 
   ctx = block->ctx;
   cw = gc->code_writer;
   beach_label = cw->code + 1;
 
-  gum_arm64_writer_put_push_all_x_registers (cw);
-  gum_arm64_writer_put_push_all_q_registers (cw);
+  /* in order to keep using STALKER_REG_CTX we have to save them from this */
+  gum_arm64_writer_put_push_reg_reg (cw, STALKER_REG_CTX, ARM64_REG_X15);
   gum_arm64_writer_put_add_reg_reg_imm (cw, ARM64_REG_X15,
       STALKER_REG_CTX, G_STRUCT_OFFSET (
       GumExecCtx,
@@ -2098,8 +2094,8 @@ gum_exec_block_write_event_submit_code (GumExecBlock * block,
       GUM_ADDRESS (block->ctx->sink_process_impl), 2,
       GUM_ARG_ADDRESS, block->ctx->sink,
       GUM_ARG_REGISTER, ARM64_REG_X15);
-  gum_arm64_writer_put_pop_all_q_registers (cw);
-  gum_arm64_writer_put_pop_all_x_registers (cw);
+  gum_arm64_writer_put_pop_reg_reg (cw, STALKER_REG_CTX, ARM64_REG_X15);
+
 
   if (cc == GUM_CODE_INTERRUPTIBLE)
   {
