@@ -31,8 +31,11 @@ TEST_LIST_BEGIN (stalker)
   /* EXTRA */
   STALKER_TESTENTRY (heap_api)
   STALKER_TESTENTRY (no_register_clobber)
+  STALKER_TESTENTRY (performance)
 
 TEST_LIST_END ()
+
+gint gum_stalker_dummy_global_to_trick_optimizer = 0;
 
 static const guint32 flat_code[] = {
   0xCB000000, /* SUB W0, W0, W0 */
@@ -169,7 +172,7 @@ STALKER_TESTCASE (unconditional_branch_reg)
   GumAddress address;
   const gchar * my_ken_lbl = "my_ken";
   StalkerTestFunc func;
-  arm64_reg reg = ARM64_REG_X1;
+  arm64_reg reg = ARM64_REG_X13;
   gint r;
 
   code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
@@ -188,6 +191,8 @@ STALKER_TESTCASE (unconditional_branch_reg)
 
   address = GUM_ADDRESS (gum_arm64_writer_cur (&cw));
   gum_arm64_writer_put_add_reg_reg_imm (&cw, ARM64_REG_X0, ARM64_REG_X0, 10);
+  if (reg == ARM64_REG_X29 || reg == ARM64_REG_X30)
+    gum_arm64_writer_put_pop_reg_reg (&cw, reg, ARM64_REG_XZR);
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
@@ -199,6 +204,8 @@ STALKER_TESTCASE (unconditional_branch_reg)
 
   gum_arm64_writer_put_label (&cw, my_ken_lbl);
   gum_arm64_writer_put_add_reg_reg_imm (&cw, ARM64_REG_X0, ARM64_REG_X0, 1);
+  if (reg == ARM64_REG_X29 || reg == ARM64_REG_X30)
+    gum_arm64_writer_put_push_reg_reg (&cw, reg, reg);
   gum_arm64_writer_put_ldr_reg_address (&cw, reg, address);
   gum_arm64_writer_put_br_reg (&cw, reg);
 
@@ -439,6 +446,11 @@ STALKER_TESTCASE (follow_return)
       GUM_ARG_ADDRESS, fixture->stalker,
       GUM_ARG_ADDRESS, fixture->sink);
   gum_arm64_writer_put_pop_all_x_registers (&cw);
+  /*
+   * alternative for instruction RET X15
+   * gum_arm64_writer_put_mov_reg_reg (&cw, ARM64_REG_X15, ARM64_REG_X30);
+   * gum_arm64_writer_put_instruction (&cw, 0xD65F01E0);
+   */
   gum_arm64_writer_put_ret (&cw);
 
   gum_arm64_writer_put_label (&cw, my_ken_lbl);
@@ -652,4 +664,54 @@ STALKER_TESTCASE (no_register_clobber)
   }
 
   gum_free_pages (code);
+}
+
+GUM_NOINLINE static void
+pretend_workload (void)
+{
+  const guint repeats = 250;
+  guint i;
+
+  for (i = 0; i != repeats; i++)
+  {
+    void * p = malloc (42 + i);
+    gum_stalker_dummy_global_to_trick_optimizer +=
+        GPOINTER_TO_SIZE (p) % 42 == 0;
+    free (p);
+  }
+}
+
+STALKER_TESTCASE (performance)
+{
+  GTimer * timer;
+  gdouble duration_direct, duration_stalked;
+
+  timer = g_timer_new ();
+  pretend_workload ();
+
+  g_timer_reset (timer);
+  pretend_workload ();
+  duration_direct = g_timer_elapsed (timer, NULL);
+
+  fixture->sink->mask = GUM_NOTHING;
+
+  gum_stalker_set_trust_threshold (fixture->stalker, 0);
+  gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
+
+  /* warm-up */
+  g_timer_reset (timer);
+  pretend_workload ();
+  g_timer_elapsed (timer, NULL);
+
+  /* the real deal */
+  g_timer_reset (timer);
+  pretend_workload ();
+  duration_stalked = g_timer_elapsed (timer, NULL);
+
+  gum_stalker_unfollow_me (fixture->stalker);
+
+  g_timer_destroy (timer);
+
+  g_print ("\n\t<duration_direct=%f duration_stalked=%f ratio=%f>\n",
+      duration_direct, duration_stalked, duration_stalked / duration_direct);
 }
