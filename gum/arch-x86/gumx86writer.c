@@ -2191,6 +2191,14 @@ gum_x86_writer_put_padding (GumX86Writer * self,
 }
 
 void
+gum_x86_writer_put_nop_padding (GumX86Writer * self,
+                                guint n)
+{
+  gum_memset (self->code, 0x90, n);
+  gum_x86_writer_commit (self, n);
+}
+
+void
 gum_x86_writer_put_u8 (GumX86Writer * self,
                        guint8 value)
 {

@@ -236,6 +236,7 @@ void gum_x86_writer_put_pause (GumX86Writer * self);
 void gum_x86_writer_put_nop (GumX86Writer * self);
 void gum_x86_writer_put_breakpoint (GumX86Writer * self);
 void gum_x86_writer_put_padding (GumX86Writer * self, guint n);
+void gum_x86_writer_put_nop_padding (GumX86Writer * self, guint n);
 
 void gum_x86_writer_put_u8 (GumX86Writer * self, guint8 value);
 void gum_x86_writer_put_s8 (GumX86Writer * self, gint8 value);
