@@ -26,6 +26,9 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (attach_two)
   INTERCEPTOR_TESTENTRY (attach_to_recursive_function)
   INTERCEPTOR_TESTENTRY (attach_to_special_function)
+#ifdef G_OS_UNIX
+  INTERCEPTOR_TESTENTRY (attach_to_pthread_key_create)
+#endif
 #if !defined (HAVE_IOS) && defined (HAVE_ARM)
   INTERCEPTOR_TESTENTRY (attach_to_unaligned_function)
 #endif
@@ -55,7 +58,6 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (listener_ref_count)
   INTERCEPTOR_TESTENTRY (function_data)
 
-#if !(defined (HAVE_ANDROID) && defined (HAVE_ARM64))
   INTERCEPTOR_TESTENTRY (i_can_has_replaceability)
   INTERCEPTOR_TESTENTRY (already_replaced)
 # ifndef HAVE_ASAN
@@ -63,7 +65,6 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (two_replaced_functions)
 # endif
   INTERCEPTOR_TESTENTRY (replace_function_then_attach_to_it)
-#endif
 
 #ifdef HAVE_QNX
   INTERCEPTOR_TESTENTRY (intercept_malloc_and_create_thread)
@@ -119,6 +120,27 @@ INTERCEPTOR_TESTCASE (attach_to_special_function)
   special_function (fixture->result);
   g_assert_cmpstr (fixture->result->str, ==, ">|<");
 }
+
+#ifdef G_OS_UNIX
+
+INTERCEPTOR_TESTCASE (attach_to_pthread_key_create)
+{
+  int (* pthread_key_create_impl) (pthread_key_t * key,
+      void (* destructor) (void *));
+  pthread_key_t key;
+
+  pthread_key_create_impl = GSIZE_TO_POINTER (
+      gum_module_find_export_by_name (NULL, "pthread_key_create"));
+
+  interceptor_fixture_attach_listener (fixture, 0, pthread_key_create_impl, '>',
+      '<');
+
+  g_assert_cmpint (pthread_key_create_impl (&key, NULL), ==, 0);
+
+  pthread_key_delete (key);
+}
+
+#endif
 
 #if !defined (HAVE_IOS) && defined (HAVE_ARM)
 

@@ -343,62 +343,130 @@ gum_arm64_relocator_can_relocate (gpointer address,
 
   if (!rl.eoi)
   {
+    GHashTable * checked_targets, * targets_to_check;
     csh capstone;
     cs_err err;
     cs_insn * insn;
-    size_t count, i;
-    gboolean eoi;
+    const guint8 * current_code;
+    uint64_t current_address;
+    gsize current_code_size;
+    gpointer target;
+    GHashTableIter iter;
+
+    checked_targets = g_hash_table_new (NULL, NULL);
+    targets_to_check = g_hash_table_new (NULL, NULL);
 
     err = cs_open (CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN, &capstone);
     g_assert_cmpint (err, == , CS_ERR_OK);
     err = cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
     g_assert_cmpint (err, ==, CS_ERR_OK);
 
-    count = cs_disasm (capstone, rl.input_cur, 1024, rl.input_pc, 0, &insn);
-    g_assert (insn != NULL);
+    insn = cs_malloc (capstone);
+    current_code = rl.input_cur;
+    current_address = rl.input_pc;
+    current_code_size = 1024;
 
-    eoi = FALSE;
-    for (i = 0; i != count && !eoi; i++)
+    do
     {
-      cs_arm64 * d = &insn[i].detail->arm64;
+      gboolean carry_on = TRUE;
 
-      switch (insn[i].id)
+      g_hash_table_add (checked_targets, (gpointer) current_code);
+
+      while (carry_on && cs_disasm_iter (capstone, &current_code,
+          &current_code_size, &current_address, insn))
       {
-        case ARM64_INS_B:
+        cs_arm64 * d = &insn->detail->arm64;
+
+        switch (insn->id)
         {
-          cs_arm64_op * op = &d->operands[0];
-          g_assert (op->type == ARM64_OP_IMM);
-          gssize offset =
-              (gssize) op->imm - (gssize) GPOINTER_TO_SIZE (address);
-          if (offset > 0 && offset < (gssize) n)
-            n = offset;
-          eoi = d->cc == ARM64_CC_INVALID || d->cc == ARM64_CC_AL ||
-              d->cc == ARM64_CC_NV;
-          break;
+          case ARM64_INS_B:
+          {
+            cs_arm64_op * op = &d->operands[0];
+
+            g_assert (op->type == ARM64_OP_IMM);
+            target = GSIZE_TO_POINTER (op->imm);
+            if (!g_hash_table_contains (checked_targets, target))
+              g_hash_table_add (targets_to_check, target);
+
+            carry_on = d->cc != ARM64_CC_INVALID && d->cc != ARM64_CC_AL &&
+                d->cc != ARM64_CC_NV;
+
+            break;
+          }
+          case ARM64_INS_CBZ:
+          case ARM64_INS_CBNZ:
+          {
+            cs_arm64_op * op = &d->operands[1];
+
+            g_assert (op->type == ARM64_OP_IMM);
+            target = GSIZE_TO_POINTER (op->imm);
+            if (!g_hash_table_contains (checked_targets, target))
+              g_hash_table_add (targets_to_check, target);
+
+            break;
+          }
+          case ARM64_INS_TBZ:
+          case ARM64_INS_TBNZ:
+          {
+            cs_arm64_op * op = &d->operands[2];
+
+            g_assert (op->type == ARM64_OP_IMM);
+            target = GSIZE_TO_POINTER (op->imm);
+            if (!g_hash_table_contains (checked_targets, target))
+              g_hash_table_add (targets_to_check, target);
+
+            break;
+          }
+          case ARM64_INS_RET:
+          {
+            carry_on = FALSE;
+            break;
+          }
+          case ARM64_INS_BR:
+          {
+            carry_on = FALSE;
+            break;
+          }
+          default:
+            break;
         }
-        case ARM64_INS_CBZ:
-        case ARM64_INS_CBNZ:
-        {
-          cs_arm64_op * op = &d->operands[1];
-          g_assert (op->type == ARM64_OP_IMM);
-          gssize offset =
-              (gssize) op->imm - (gssize) GPOINTER_TO_SIZE (address);
-          if (offset > 0 && offset < (gssize) n)
-            n = offset;
-          break;
-        }
-        case ARM64_INS_BR:
-        case ARM64_INS_RET:
-          eoi = TRUE;
-          break;
-        default:
+      }
+
+      g_hash_table_iter_init (&iter, targets_to_check);
+      if (g_hash_table_iter_next (&iter, &target, NULL))
+      {
+        current_code = target;
+        if (current_code > rl.input_cur)
+          current_address = (current_code - rl.input_cur) + rl.input_pc;
+        else
+          current_address = rl.input_pc - (rl.input_cur - current_code);
+        g_hash_table_iter_remove (&iter);
+      }
+      else
+      {
+        current_code = NULL;
+      }
+    }
+    while (current_code != NULL);
+
+    g_hash_table_iter_init (&iter, checked_targets);
+    while (g_hash_table_iter_next (&iter, &target, NULL))
+    {
+      gssize offset = (gssize) target - (gssize) address;
+      if (offset > 0 && offset < (gssize) n)
+      {
+        n = offset;
+        if (n == 4)
           break;
       }
     }
 
-    cs_free (insn, count);
+    cs_free (insn, 1);
 
     cs_close (&capstone);
+
+    g_hash_table_unref (targets_to_check);
+    g_hash_table_unref (checked_targets);
   }
 
   if (available_scratch_reg != NULL)
