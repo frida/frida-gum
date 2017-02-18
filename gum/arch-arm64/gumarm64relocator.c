@@ -349,6 +349,7 @@ gum_arm64_relocator_can_relocate (gpointer address,
     GHashTable * targets_to_check, * checked_targets;
     guint8 * code_cur, * address_cur;
     guint code_size;
+    gboolean fast_exit;
     GHashTableIter iter;
     gpointer key, value;
 
@@ -364,8 +365,8 @@ gum_arm64_relocator_can_relocate (gpointer address,
     code_cur = rl.input_cur;
     address_cur = rl.input_pc;
     code_size = 1024;
-    gboolean fast_exit = FALSE;
-    while (true)
+    fast_exit = FALSE;
+    while (TRUE)
     {
       gboolean go_ahead = TRUE;
 
@@ -408,13 +409,13 @@ gum_arm64_relocator_can_relocate (gpointer address,
           }
           case ARM64_INS_RET:
           {
-            go_ahead = false;
+            go_ahead = FALSE;
             break;
           }
           case ARM64_INS_BR:
           {
-            go_ahead = false;
-            fast_exit = true;
+            go_ahead = FALSE;
+            fast_exit = TRUE;
             /*
              * fast exit: we stop and reduce to the safest case because
              * we can not know where the br can jump. Optimization is possible,
