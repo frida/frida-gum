@@ -357,29 +357,32 @@ gum_arm64_relocator_can_relocate (gpointer address,
     err = cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
     g_assert_cmpint (err, ==, CS_ERR_OK);
 
-    insn = cs_malloc(capstone);
+    insn = cs_malloc (capstone);
     targets_to_check = g_hash_table_new (NULL, NULL);
     checked_targets = g_hash_table_new (NULL, NULL);
 
     code_cur = rl.input_cur;
     address_cur = rl.input_pc;
     code_size = 1024;
-    gboolean tragic_exit = false;
+    gboolean fast_exit = FALSE;
     while (true)
     {
-      gboolean go_ahead = true;
+      gboolean go_ahead = TRUE;
+
       g_hash_table_add (checked_targets, code_cur);
+
       while (go_ahead && cs_disasm_iter (capstone, &code_cur, &code_size,
           &address_cur, insn))
       {
         cs_arm64 * d = &insn->detail->arm64;
+
         switch (insn->id)
         {
           case ARM64_INS_B:
           {
             cs_arm64_op * op = &d->operands[0];
             g_assert (op->type == ARM64_OP_IMM);
-            if (!g_hash_table_contains(checked_targets, op->imm))
+            if (!g_hash_table_contains (checked_targets, op->imm))
               g_hash_table_add (targets_to_check, op->imm);
             go_ahead = d->cc != ARM64_CC_INVALID && d->cc != ARM64_CC_AL &&
                 d->cc != ARM64_CC_NV;
@@ -390,7 +393,7 @@ gum_arm64_relocator_can_relocate (gpointer address,
           {
             cs_arm64_op * op = &d->operands[1];
             g_assert (op->type == ARM64_OP_IMM);
-            if (!g_hash_table_contains(checked_targets, op->imm))
+            if (!g_hash_table_contains (checked_targets, op->imm))
               g_hash_table_add (targets_to_check, op->imm);
             break;
           }
@@ -399,7 +402,7 @@ gum_arm64_relocator_can_relocate (gpointer address,
           {
             cs_arm64_op * op = &d->operands[2];
             g_assert (op->type == ARM64_OP_IMM);
-            if (!g_hash_table_contains(checked_targets, op->imm))
+            if (!g_hash_table_contains (checked_targets, op->imm))
               g_hash_table_add (targets_to_check, op->imm);
             break;
           }
@@ -411,9 +414,9 @@ gum_arm64_relocator_can_relocate (gpointer address,
           case ARM64_INS_BR:
           {
             go_ahead = false;
-            tragic_exit = true;
+            fast_exit = true;
             /*
-             * tragic exit: we stop and reduce to the safest case because
+             * fast exit: we stop and reduce to the safest case because
              * we can not know where the br can jump. Optimization is possible,
              * by guessing the register value from previouos instruction.
              */
@@ -423,7 +426,7 @@ gum_arm64_relocator_can_relocate (gpointer address,
             break;
         }
       }
-      if (tragic_exit)
+      if (fast_exit)
         break;
 
       g_hash_table_iter_init (&iter, targets_to_check);
@@ -451,7 +454,7 @@ gum_arm64_relocator_can_relocate (gpointer address,
         break;
     }
 
-    if (!tragic_exit)
+    if (!fast_exit)
     {
       g_hash_table_iter_init (&iter, checked_targets);
       while (g_hash_table_iter_next (&iter, &key, &key))

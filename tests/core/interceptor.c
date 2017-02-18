@@ -26,7 +26,9 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (attach_two)
   INTERCEPTOR_TESTENTRY (attach_to_recursive_function)
   INTERCEPTOR_TESTENTRY (attach_to_special_function)
+#ifdef G_OS_UNIX
   INTERCEPTOR_TESTENTRY (attach_to_pthread_key_create)
+#endif
 #if !defined (HAVE_IOS) && defined (HAVE_ARM)
   INTERCEPTOR_TESTENTRY (attach_to_unaligned_function)
 #endif
@@ -119,18 +121,25 @@ INTERCEPTOR_TESTCASE (attach_to_special_function)
   g_assert_cmpstr (fixture->result->str, ==, ">|<");
 }
 
+#ifdef G_OS_UNIX
+
 INTERCEPTOR_TESTCASE (attach_to_pthread_key_create)
 {
-  gint (* pthread_key_create_impl) (pthread_key_t *key, void (*destructor)(void*));
+  gint (* pthread_key_create_impl) (pthread_key_t * key,
+      void (* destructor)(void * ));
   pthread_key_t key;
 
-  pthread_key_create_impl = GSIZE_TO_POINTER(
+  pthread_key_create_impl = GSIZE_TO_POINTER (
       gum_module_find_export_by_name ("libc.so", "pthread_key_create"));
 
   interceptor_fixture_attach_listener (fixture, 0, pthread_key_create_impl, '>', '<');
 
   g_assert_cmpint (pthread_key_create_impl (&key, NULL), ==, 0);
+
+  pthread_key_delete (key);
 }
+
+#endif
 
 #if !defined (HAVE_IOS) && defined (HAVE_ARM)
 
