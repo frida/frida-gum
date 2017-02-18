@@ -73,12 +73,11 @@ check: push
 	adb shell "\"${RPFX}/tests/gum-tests\""
 
 check-gdb: $(top_builddir)/tests/android-gdb.setup
-	adb shell "${RM} -f /data/local/tmp/tests/debug-socket"
 	adb push "${ANDROID_NDK_ROOT}/prebuilt/android-$(android_arch)/gdbserver/gdbserver" "${RPFX}/tests/"
-	adb shell "${RPFX}/tests/gdbserver +${RPFX}/tests/debug-socket ${RPFX}/tests/gum-tests" &
+	adb shell "${RPFX}/tests/gdbserver :${DEBUG_PORT} ${RPFX}/tests/gum-tests" &
 	sleep 1
-	adb forward tcp:${DEBUG_PORT} localfilesystem:${RPFX}/tests/debug-socket
-	${ANDROID_NDK_ROOT}/toolchains/$(android_toolchain)/prebuilt/darwin-x86_64/bin/$(android_toolprefix)-gdb -x "$(top_builddir)/tests/android-gdb.setup"
+	adb forward tcp:${DEBUG_PORT} tcp:${DEBUG_PORT}
+	${ANDROID_GDB} -x "$(top_builddir)/tests/android-gdb.setup"
 
 pull:
 	adb pull /system/bin/linker "$(top_builddir)/tests"
