@@ -28,6 +28,12 @@ os_sources += \
 	$(NULL)
 endif
 
+if OS_ANDROID
+os_sources += \
+	interceptor-android.c \
+	$(NULL)
+endif
+
 libgum_tests_core_la_SOURCES = \
 	tls.c \
 	memory.c \

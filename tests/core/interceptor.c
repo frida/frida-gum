@@ -35,9 +35,6 @@ TEST_LIST_BEGIN (interceptor)
 #if !defined (HAVE_QNX) && !(defined (HAVE_ANDROID) && defined (HAVE_ARM64))
   INTERCEPTOR_TESTENTRY (attach_to_heap_api)
 #endif
-#ifdef HAVE_ANDROID
-  INTERCEPTOR_TESTENTRY (attach_to_android_apis)
-#endif
   INTERCEPTOR_TESTENTRY (attach_to_own_api)
 #ifdef G_OS_WIN32
   INTERCEPTOR_TESTENTRY (attach_detach_torture)
@@ -215,34 +212,6 @@ INTERCEPTOR_TESTCASE (attach_to_heap_api)
 
   g_assert_cmpstr (fixture->result->str, ==, "><ab");
 }
-
-#ifdef HAVE_ANDROID
-
-INTERCEPTOR_TESTCASE (attach_to_android_apis)
-{
-  {
-    pid_t (* fork_impl) (void);
-    pid_t pid;
-
-    fork_impl = GSIZE_TO_POINTER (
-        gum_module_find_export_by_name ("libc.so", "fork"));
-
-    interceptor_fixture_attach_listener (fixture, 0, fork_impl, '>', '<');
-
-    pid = fork_impl ();
-    if (pid == 0)
-    {
-      exit (0);
-    }
-    g_assert_cmpint (pid, !=, -1);
-    g_assert_cmpstr (fixture->result->str, ==, "><");
-
-    interceptor_fixture_detach_listener (fixture, 0);
-    g_string_truncate (fixture->result, 0);
-  }
-}
-
-#endif
 
 INTERCEPTOR_TESTCASE (attach_to_own_api)
 {
