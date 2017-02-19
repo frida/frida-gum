@@ -241,12 +241,6 @@ main (gint argc, gchar * argv[])
     TEST_RUN_LIST_WITH_DATA (script_darwin, gum_script_backend_obtain_duk ());
 # endif
 
-# ifdef HAVE_ANDROID
-#  ifdef HAVE_V8
-    TEST_RUN_LIST_WITH_DATA (script_android, v8_backend);
-#  endif
-# endif
-
 # ifndef HAVE_ASAN
     if (gum_kernel_api_is_available ())
       TEST_RUN_LIST (kscript);

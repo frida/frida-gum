@@ -8,12 +8,6 @@ os_sources += \
 	$(NULL)
 endif
 
-if OS_ANDROID
-os_sources += \
-	script-android.c \
-	$(NULL)
-endif
-
 libgum_tests_gumjs_la_SOURCES = \
 	script.c \
 	kscript.c \
