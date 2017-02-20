@@ -165,6 +165,9 @@
     <ClInclude Include="gumsourcemap.h">
       <Filter>common</Filter>
     </ClInclude>
+    <ClInclude Include="gumdukcompat.h">
+      <Filter>duk</Filter>
+    </ClInclude>
     <ClInclude Include="duk_config.h">
       <Filter>duk</Filter>
     </ClInclude>

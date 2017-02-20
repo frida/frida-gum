@@ -237,6 +237,9 @@
     <ClInclude Include="gumv8thread.h">
       <Filter>v8</Filter>
     </ClInclude>
+    <ClInclude Include="gumdukcompat.h">
+      <Filter>duk</Filter>
+    </ClInclude>
     <ClInclude Include="duk_config.h">
       <Filter>duk</Filter>
     </ClInclude>

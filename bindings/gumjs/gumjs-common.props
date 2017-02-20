@@ -3,7 +3,7 @@
 
   <ItemDefinitionGroup>
     <ClCompile>
-      <PreprocessorDefinitions>G_LOG_DOMAIN=&quot;Frida&quot;;GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_V8=1;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>G_LOG_DOMAIN=&quot;Frida&quot;;GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_V8=1;HAVE_LOG2=1;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(IntDir)gumjs;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
@@ -99,6 +99,7 @@
     <ClInclude Include="gumdukapiresolver.h" />
     <ClInclude Include="gumduksymbol.h" />
     <ClInclude Include="gumdukinstruction.h" />
+    <ClInclude Include="gumdukcompat.h" />
     <ClInclude Include="duk_config.h" />
     <ClInclude Include="duktape.h" />
   </ItemGroup>

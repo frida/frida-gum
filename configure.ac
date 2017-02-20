@@ -27,6 +27,7 @@ AC_TYPE_LONG_DOUBLE
 AC_TYPE_LONG_LONG_INT
 
 AC_CHECK_HEADERS([elf.h sys/elf.h sys/user.h])
+AC_CHECK_FUNC([log2], [AC_DEFINE([HAVE_LOG2], [1], [Define if log2() exists.])])
 
 HAVE_I386=no
 HAVE_ARM=no

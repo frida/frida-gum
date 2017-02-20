@@ -7,10 +7,12 @@
 #include "gumdukscriptbackend.h"
 
 #include "duktape.h"
+#include "gumdukcompat.h"
 #include "gumdukscript.h"
 #include "gumscripttask.h"
 
 #include <gum/guminterceptor.h>
+#include <math.h>
 
 #define GUM_DUK_SCRIPT_BACKEND_LOCK()   (g_mutex_lock (&priv->mutex))
 #define GUM_DUK_SCRIPT_BACKEND_UNLOCK() (g_mutex_unlock (&priv->mutex))
@@ -1213,4 +1215,14 @@ gum_duk_free (void * udata,
   (void) udata;
 
   g_free (ptr);
+}
+
+double
+gum_duk_log2 (double x)
+{
+#ifdef HAVE_LOG2
+  return log2 (x);
+#else
+  return log (x) / log (2);
+#endif
 }

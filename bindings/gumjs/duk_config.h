@@ -55,6 +55,10 @@
 #if !defined(DUK_CONFIG_H_INCLUDED)
 #define DUK_CONFIG_H_INCLUDED
 
+#include "gumdukcompat.h"
+
+#define DUK_LOG2 gum_duk_log2
+
 /*
  *  Intermediate helper defines
  */
