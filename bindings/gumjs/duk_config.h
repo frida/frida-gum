@@ -2178,9 +2178,6 @@ typedef struct duk_hthread duk_context;
 #define DUK_CBRT             cbrt
 #endif
 #if !defined(DUK_LOG2)
-#if defined (HAVE_ANDROID) && (HAVE_ARM)
-double log2(double);
-#endif
 #define DUK_LOG2             log2
 #endif
 #if !defined(DUK_LOG10)
