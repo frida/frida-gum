@@ -75,7 +75,8 @@ def generate_runtime_duk(runtime_name, output_dir, output, input_dir, inputs):
                     "/D", "_WIN32_WINNT=0x0501",
                     "/D", "NDEBUG",
                     "/D", "_CRT_SECURE_NO_WARNINGS",
-                    "/D", "_USING_V110_SDK71_"] + dukcompile_sources, cwd=output_dir)
+                    "/D", "_USING_V110_SDK71_",
+                    "/D", "GUM_DUK_NO_COMPAT"] + dukcompile_sources, cwd=output_dir)
             else:
                 dukcompile_libs = []
                 if build_os == 'darwin':
@@ -87,7 +88,7 @@ def generate_runtime_duk(runtime_name, output_dir, output, input_dir, inputs):
                 else:
                     CC = ["gcc"]
                     dukcompile_libs.append("-lm")
-                subprocess.check_call(CC + ["-Wall", "-pipe", "-O1", "-fomit-frame-pointer"] +
+                subprocess.check_call(CC + ["-Wall", "-pipe", "-O1", "-fomit-frame-pointer", "-DGUM_DUK_NO_COMPAT"] +
                     dukcompile_sources +
                     ["-o", dukcompile] + dukcompile_libs)
 
