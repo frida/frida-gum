@@ -16,6 +16,9 @@
     <ClCompile Include="gumsourcemap.c">
       <Filter>common</Filter>
     </ClCompile>
+    <ClCompile Include="gumdukcompat.c">
+      <Filter>duk</Filter>
+    </ClCompile>
     <ClCompile Include="duktape.c">
       <Filter>duk</Filter>
     </ClCompile>

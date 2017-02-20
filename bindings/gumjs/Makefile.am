@@ -99,6 +99,8 @@ duk_sources = \
 	gumduksymbol.c \
 	gumdukinstruction.h \
 	gumdukinstruction.c \
+	gumdukcompat.h \
+	gumdukcompat.c \
 	duk_config.h \
 	duktape.c \
 	duktape.h \

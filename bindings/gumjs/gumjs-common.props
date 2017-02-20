@@ -123,6 +123,7 @@
     <ClCompile Include="gumdukapiresolver.c" />
     <ClCompile Include="gumduksymbol.c" />
     <ClCompile Include="gumdukinstruction.c" />
+    <ClCompile Include="gumdukcompat.c" />
     <ClCompile Include="duktape.c">
       <WarningLevel>TurnOffAllWarnings</WarningLevel>
     </ClCompile>
