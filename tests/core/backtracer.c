@@ -63,13 +63,22 @@ BACKTRACER_TESTCASE (full_cycle_with_interceptor)
   GumInterceptor * interceptor;
   BacktraceCollector * collector;
   int (* open_impl) (const char * path, int oflag, ...);
+  int (* close_impl) (int fd);
   int fd;
   GumReturnAddressDetails on_enter, on_leave;
 
   interceptor = gum_interceptor_obtain ();
   collector = backtrace_collector_new_with_backtracer (fixture->backtracer);
 
-  open_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (NULL, "open"));
+#ifdef G_OS_WIN32
+  open_impl = _open;
+  close_impl = _close;
+#else
+  open_impl =
+      GSIZE_TO_POINTER (gum_module_find_export_by_name (NULL, "open"));
+  close_impl =
+      GSIZE_TO_POINTER (gum_module_find_export_by_name (NULL, "close"));
+#endif
 
   gum_interceptor_attach_listener (interceptor, open_impl,
       GUM_INVOCATION_LISTENER (collector), NULL);
@@ -84,7 +93,7 @@ BACKTRACER_TESTCASE (full_cycle_with_interceptor)
       GUM_INVOCATION_LISTENER (collector));
 
   if (fd != -1)
-    close (fd);
+    close_impl (fd);
 
 #if PRINT_BACKTRACES
   g_print ("\n\n*** on_enter:");

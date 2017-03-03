@@ -13,6 +13,9 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#ifdef G_OS_WIN32
+# include <io.h>
+#endif
 #ifdef G_OS_UNIX
 # include <unistd.h>
 #endif
