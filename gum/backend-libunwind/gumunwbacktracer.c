@@ -59,15 +59,27 @@ gum_unw_backtracer_generate (GumBacktracer * backtracer,
 {
   unw_context_t context;
   unw_cursor_t cursor;
-  guint i;
+  guint start_index, i;
   GumInvocationStack * invocation_stack;
 
   if (cpu_context != NULL)
   {
+#if defined (HAVE_I386)
+    return_addresses->items[0] =
+        GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XIP (cpu_context));
+#elif defined (HAVE_ARM) || defined (HAVE_ARM64) || defined (HAVE_MIPS)
+    return_addresses->items[0] = GSIZE_TO_POINTER (cpu_context->pc);
+#else
+# error Unsupported architecture
+#endif
+    start_index = 1;
+
     gum_cpu_context_to_unw (cpu_context, &context);
   }
   else
   {
+    start_index = 0;
+
 #ifdef __clang__
 # pragma clang diagnostic push
 # pragma clang diagnostic ignored "-Winline-asm"
@@ -79,8 +91,8 @@ gum_unw_backtracer_generate (GumBacktracer * backtracer,
   }
 
   unw_init_local (&cursor, &context);
-  for (i = 0;
-      i != G_N_ELEMENTS (return_addresses->items) && unw_step (&cursor) > 0;
+  for (i = start_index;
+      i < G_N_ELEMENTS (return_addresses->items) && unw_step (&cursor) > 0;
       i++)
   {
     unw_word_t pc;
