@@ -1157,10 +1157,10 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
   GumInvocationStack * stack;
   GumInvocationStackEntry * stack_entry;
   GumInvocationContext * invocation_ctx = NULL;
-  gsize pc = 0;
   gint system_error;
   gboolean invoke_listeners = TRUE;
   gboolean will_trap_on_leave;
+  gsize pc;
 
   g_atomic_int_inc (&function_ctx->trampoline_usage_counter);
 
@@ -1213,20 +1213,18 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
     stack_entry = gum_invocation_stack_push (stack, function_ctx,
         *caller_ret_addr);
     invocation_ctx = &stack_entry->invocation_context;
-
-    pc = GPOINTER_TO_SIZE (*caller_ret_addr);
   }
   else if (invoke_listeners)
   {
     stack_entry = gum_invocation_stack_push (stack, function_ctx,
         function_ctx->function_address);
     invocation_ctx = &stack_entry->invocation_context;
-
-    pc = GPOINTER_TO_SIZE (function_ctx->function_address);
   }
 
   if (invocation_ctx != NULL)
     invocation_ctx->system_error = system_error;
+
+  pc = GPOINTER_TO_SIZE (*caller_ret_addr);
 
 #if defined (HAVE_I386)
 # if GLIB_SIZEOF_VOID_P == 4
