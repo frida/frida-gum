@@ -1,10 +1,12 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gumdbghelpbacktracer.h"
+
+#include "guminterceptor.h"
 
 #if GLIB_SIZEOF_VOID_P == 4
 # define GUM_BACKTRACER_MACHINE_TYPE IMAGE_FILE_MACHINE_I386
@@ -98,6 +100,7 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
   STACKFRAME64 frame = { 0, };
   __declspec (align (64)) CONTEXT context = { 0, };
   BOOL success;
+  GumInvocationStack * invocation_stack;
 
   /* Get the raw addresses */
   RtlCaptureContext (&context);
@@ -195,4 +198,11 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
   }
 
   dbghelp->Unlock ();
+
+  invocation_stack = gum_interceptor_get_current_stack ();
+  for (i = 0; i != return_addresses->len; i++)
+  {
+    return_addresses->items[i] = gum_invocation_stack_translate (
+        invocation_stack, return_addresses->items[i]);
+  }
 }

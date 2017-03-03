@@ -1,10 +1,12 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gumdarwinbacktracer.h"
+
+#include "guminterceptor.h"
 
 #define GUM_FP_LINK_OFFSET 1
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
@@ -62,6 +64,7 @@ gum_darwin_backtracer_generate (GumBacktracer * backtracer,
   gpointer stack_top, stack_bottom;
   gpointer * cur;
   guint i;
+  GumInvocationStack * invocation_stack;
 
   thread = pthread_self ();
   stack_top = pthread_get_stackaddr_np (thread);
@@ -103,5 +106,12 @@ gum_darwin_backtracer_generate (GumBacktracer * backtracer,
   }
 
   return_addresses->len = i;
+
+  invocation_stack = gum_interceptor_get_current_stack ();
+  for (i = 0; i != return_addresses->len; i++)
+  {
+    return_addresses->items[i] = gum_invocation_stack_translate (
+        invocation_stack, return_addresses->items[i]);
+  }
 }
 

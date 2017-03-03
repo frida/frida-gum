@@ -1,10 +1,12 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gumunwbacktracer.h"
+
+#include "guminterceptor.h"
 
 #define UNW_LOCAL_ONLY
 #include <libunwind.h>
@@ -58,6 +60,7 @@ gum_unw_backtracer_generate (GumBacktracer * backtracer,
   unw_context_t context;
   unw_cursor_t cursor;
   guint i;
+  GumInvocationStack * invocation_stack;
 
   if (cpu_context != NULL)
   {
@@ -85,8 +88,14 @@ gum_unw_backtracer_generate (GumBacktracer * backtracer,
     unw_get_reg (&cursor, UNW_REG_IP, &pc);
     return_addresses->items[i] = GSIZE_TO_POINTER (pc);
   }
-
   return_addresses->len = i;
+
+  invocation_stack = gum_interceptor_get_current_stack ();
+  for (i = 0; i != return_addresses->len; i++)
+  {
+    return_addresses->items[i] = gum_invocation_stack_translate (
+        invocation_stack, return_addresses->items[i]);
+  }
 }
 
 static void
