@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -11,7 +11,8 @@
 
 TEST_LIST_BEGIN (backtracer)
   BACKTRACER_TESTENTRY (basics)
-  BACKTRACER_TESTENTRY (full_cycle)
+  BACKTRACER_TESTENTRY (full_cycle_with_interceptor)
+  BACKTRACER_TESTENTRY (full_cycle_with_allocation_tracker)
 #if ENABLE_PERFORMANCE_TEST
   BACKTRACER_TESTENTRY (performance)
 #endif
@@ -57,7 +58,55 @@ BACKTRACER_TESTCASE (basics)
 #endif
 }
 
-BACKTRACER_TESTCASE (full_cycle)
+BACKTRACER_TESTCASE (full_cycle_with_interceptor)
+{
+  GumInterceptor * interceptor;
+  BacktraceCollector * collector;
+  int (* open_impl) (const char * path, int oflag, ...);
+  int fd;
+  GumReturnAddressDetails on_enter, on_leave;
+
+  interceptor = gum_interceptor_obtain ();
+  collector = backtrace_collector_new_with_backtracer (fixture->backtracer);
+
+  open_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (NULL, "open"));
+
+  gum_interceptor_attach_listener (interceptor, open_impl,
+      GUM_INVOCATION_LISTENER (collector), NULL);
+
+  g_assert_cmpuint (collector->last_on_enter.len, ==, 0);
+  g_assert_cmpuint (collector->last_on_leave.len, ==, 0);
+  fd = open_impl ("badger.txt", O_RDONLY);
+  g_assert (collector->last_on_enter.len != 0);
+  g_assert (collector->last_on_leave.len != 0);
+
+  gum_interceptor_detach_listener (interceptor,
+      GUM_INVOCATION_LISTENER (collector));
+
+  if (fd != -1)
+    close (fd);
+
+#if PRINT_BACKTRACES
+  g_print ("\n\n*** on_enter:");
+  print_backtrace (&collector->last_on_enter);
+
+  g_print ("*** on_leave:");
+  print_backtrace (&collector->last_on_leave);
+#endif
+
+  g_assert (gum_return_address_details_from_address (
+      collector->last_on_enter.items[0], &on_enter));
+  g_assert_cmpstr (on_enter.function_name, ==, __FUNCTION__);
+
+  g_assert (gum_return_address_details_from_address (
+      collector->last_on_leave.items[0], &on_leave));
+  g_assert_cmpstr (on_leave.function_name, ==, __FUNCTION__);
+
+  g_object_unref (collector);
+  g_object_unref (interceptor);
+}
+
+BACKTRACER_TESTCASE (full_cycle_with_allocation_tracker)
 {
   GumAllocatorProbe * probe;
   GumAllocationTracker * tracker;
