@@ -214,7 +214,7 @@ gum_tls_key_get_value (GumTlsKey key)
   {
     gpointer * tls_expansion_slots;
 
-    tls_expansion_slots = (gpointer) __readgsqword (0x1780)
+    tls_expansion_slots = (gpointer) __readgsqword (0x1780);
     if (tls_expansion_slots != NULL)
       return tls_expansion_slots[key - 64];
 
