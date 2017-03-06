@@ -53,8 +53,6 @@ struct _GumFunctionContext
   GumInterceptor * interceptor;
 };
 
-extern GumTlsKey _gum_interceptor_guard_key;
-
 G_GNUC_INTERNAL void _gum_interceptor_init (void);
 G_GNUC_INTERNAL void _gum_interceptor_deinit (void);
 

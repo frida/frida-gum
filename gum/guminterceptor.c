@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -171,6 +171,8 @@ static ListenerEntry ** gum_function_context_find_taken_listener_slot (
     GumFunctionContext * function_ctx);
 
 static InterceptorThreadContext * get_interceptor_thread_context (void);
+static void release_interceptor_thread_context (
+    InterceptorThreadContext * context);
 static InterceptorThreadContext * interceptor_thread_context_new (void);
 static void interceptor_thread_context_destroy (
     InterceptorThreadContext * context);
@@ -194,14 +196,13 @@ static gboolean gum_interceptor_has (GumInterceptor * self,
 static gpointer gum_page_address_from_pointer (gpointer ptr);
 static gint gum_page_address_compare (gconstpointer a, gconstpointer b);
 
-static GMutex _gum_interceptor_mutex;
+static GMutex _gum_interceptor_lock;
 static GumInterceptor * _the_interceptor = NULL;
 
-static GumTlsKey _gum_interceptor_context_key;
-GumTlsKey _gum_interceptor_guard_key;
-
 static GumSpinlock _gum_interceptor_thread_context_lock;
-static GArray * _gum_interceptor_thread_contexts;
+static GHashTable * _gum_interceptor_thread_contexts;
+static GumTlsKey _gum_interceptor_context_key;
+static GumTlsKey _gum_interceptor_guard_key;
 
 static GumInvocationStack _gum_interceptor_empty_stack = { NULL, 0 };
 
@@ -219,33 +220,25 @@ gum_interceptor_class_init (GumInterceptorClass * klass)
 void
 _gum_interceptor_init (void)
 {
-  _gum_interceptor_context_key = gum_tls_key_new ();
-  _gum_interceptor_guard_key = gum_tls_key_new ();
-
   gum_spinlock_init (&_gum_interceptor_thread_context_lock);
-  _gum_interceptor_thread_contexts = g_array_new (FALSE, FALSE,
-      sizeof (InterceptorThreadContext *));
+  _gum_interceptor_thread_contexts = g_hash_table_new_full (NULL, NULL,
+      (GDestroyNotify) interceptor_thread_context_destroy, NULL);
+
+  _gum_interceptor_context_key = gum_tls_key_new (
+      (GDestroyNotify) release_interceptor_thread_context);
+  _gum_interceptor_guard_key = gum_tls_key_new (NULL);
 }
 
 void
 _gum_interceptor_deinit (void)
 {
-  guint i;
-
-  for (i = 0; i != _gum_interceptor_thread_contexts->len; i++)
-  {
-    InterceptorThreadContext * thread_ctx;
-
-    thread_ctx = g_array_index (_gum_interceptor_thread_contexts,
-        InterceptorThreadContext *, i);
-    interceptor_thread_context_destroy (thread_ctx);
-  }
-  g_array_free (_gum_interceptor_thread_contexts, TRUE);
-  _gum_interceptor_thread_contexts = NULL;
-  gum_spinlock_free (&_gum_interceptor_thread_context_lock);
-
   gum_tls_key_free (_gum_interceptor_context_key);
   gum_tls_key_free (_gum_interceptor_guard_key);
+
+  g_hash_table_unref (_gum_interceptor_thread_contexts);
+  _gum_interceptor_thread_contexts = NULL;
+
+  gum_spinlock_free (&_gum_interceptor_thread_context_lock);
 }
 
 static void
@@ -309,7 +302,7 @@ gum_interceptor_obtain (void)
 {
   GumInterceptor * interceptor;
 
-  g_mutex_lock (&_gum_interceptor_mutex);
+  g_mutex_lock (&_gum_interceptor_lock);
 
   if (_the_interceptor != NULL)
   {
@@ -325,7 +318,7 @@ gum_interceptor_obtain (void)
     interceptor = _the_interceptor;
   }
 
-  g_mutex_unlock (&_gum_interceptor_mutex);
+  g_mutex_unlock (&_gum_interceptor_lock);
 
   return interceptor;
 }
@@ -336,12 +329,12 @@ the_interceptor_weak_notify (gpointer data,
 {
   (void) data;
 
-  g_mutex_lock (&_gum_interceptor_mutex);
+  g_mutex_lock (&_gum_interceptor_lock);
 
   g_assert (_the_interceptor == (GumInterceptor *) where_the_object_was);
   _the_interceptor = NULL;
 
-  g_mutex_unlock (&_gum_interceptor_mutex);
+  g_mutex_unlock (&_gum_interceptor_lock);
 }
 
 GumAttachReturn
@@ -400,7 +393,7 @@ gum_interceptor_detach_listener (GumInterceptor * self,
   GumInterceptorPrivate * priv = self->priv;
   GHashTableIter iter;
   GumFunctionContext * function_ctx;
-  guint i;
+  InterceptorThreadContext * thread_ctx;
 
   gum_interceptor_ignore_current_thread (self);
   GUM_INTERCEPTOR_LOCK ();
@@ -424,19 +417,11 @@ gum_interceptor_detach_listener (GumInterceptor * self,
     }
   }
 
-  /*
-   * We don't do any locking here because this array is grow-only, so we won't
-   * do anything else than just mark the slot as available.
-   */
-  for (i = 0; i != _gum_interceptor_thread_contexts->len; i++)
-  {
-    InterceptorThreadContext * interceptor_ctx;
-
-    interceptor_ctx = (InterceptorThreadContext *) g_array_index (
-        _gum_interceptor_thread_contexts, InterceptorThreadContext *, i);
-    interceptor_thread_context_forget_listener_data (interceptor_ctx,
-        listener);
-  }
+  gum_spinlock_acquire (&_gum_interceptor_thread_context_lock);
+  g_hash_table_iter_init (&iter, _gum_interceptor_thread_contexts);
+  while (g_hash_table_iter_next (&iter, (gpointer *) &thread_ctx, NULL))
+    interceptor_thread_context_forget_listener_data (thread_ctx, listener);
+  gum_spinlock_release (&_gum_interceptor_thread_context_lock);
 
   gum_interceptor_transaction_end (&priv->current_transaction);
   GUM_INTERCEPTOR_UNLOCK ();
@@ -1419,13 +1404,21 @@ get_interceptor_thread_context (void)
     context = interceptor_thread_context_new ();
 
     gum_spinlock_acquire (&_gum_interceptor_thread_context_lock);
-    g_array_append_val (_gum_interceptor_thread_contexts, context);
+    g_hash_table_add (_gum_interceptor_thread_contexts, context);
     gum_spinlock_release (&_gum_interceptor_thread_context_lock);
 
     gum_tls_key_set_value (_gum_interceptor_context_key, context);
   }
 
   return context;
+}
+
+static void
+release_interceptor_thread_context (InterceptorThreadContext * context)
+{
+  gum_spinlock_acquire (&_gum_interceptor_thread_context_lock);
+  g_hash_table_remove (_gum_interceptor_thread_contexts, context);
+  gum_spinlock_release (&_gum_interceptor_thread_context_lock);
 }
 
 static GumPointCut
