@@ -5,9 +5,10 @@
 * Licence: wxWindows Library Licence, Version 3.1
 */
 
+#include "gumtls.h"
+
 #include "gumprocess.h"
 #include "gumspinlock.h"
-#include "gumtls.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 # define WIN32_LEAN_AND_MEAN
@@ -18,7 +19,7 @@
 
 # define MAX_TMP_TLS_KEY 200
 
-typedef struct _GumTmpTlsKey		GumTmpTlsKey;
+typedef struct _GumTmpTlsKey GumTmpTlsKey;
 
 struct _GumTmpTlsKey
 {
@@ -53,7 +54,6 @@ gum_tls_key_free (GumTlsKey key)
   TlsFree (key);
 }
 
-
 void
 _gum_tls_init (void)
 {
@@ -78,9 +78,12 @@ _gum_tls_deinit (void)
 static gpointer
 _gum_tls_key_get_tmp_value (GumTlsKey key)
 {
+  GumThreadId tid;
+  gpointer value;
   guint i;
-  GumThreadId tid = gum_process_get_current_thread_id ();
-  gpointer value = NULL;
+
+  tid = gum_process_get_current_thread_id ();
+  value = NULL;
 
   gum_spinlock_acquire (&_gum_tls_tmp_keys_lock);
 
@@ -102,8 +105,10 @@ static void
 _gum_tls_key_set_tmp_value (GumTlsKey key,
                             gpointer value)
 {
+  GumThreadId tid;
   guint i;
-  GumThreadId tid = gum_process_get_current_thread_id ();
+
+  tid = gum_process_get_current_thread_id ();
 
   gum_spinlock_acquire (&_gum_tls_tmp_keys_lock);
 
@@ -125,8 +130,10 @@ _gum_tls_key_set_tmp_value (GumTlsKey key,
 static void
 _gum_tls_key_del_tmp_value (GumTlsKey key)
 {
+  GumThreadId tid;
   guint i;
-  GumThreadId tid = gum_process_get_current_thread_id ();
+
+  tid = gum_process_get_current_thread_id ();
 
   gum_spinlock_acquire (&_gum_tls_tmp_keys_lock);
 
@@ -150,15 +157,19 @@ gum_tls_key_get_value (GumTlsKey key)
 {
   if (key < 64)
   {
-    return (gpointer)__readfsdword (3600 + key * sizeof (gpointer));
+    return (gpointer) __readfsdword (3600 + key * sizeof (gpointer));
   }
   else if (key < 1088)
   {
-    gpointer * tls_expansion_slots = (gpointer *) __readfsdword (3988);
+    gpointer * tls_expansion_slots;
+
+    tls_expansion_slots = (gpointer *) __readfsdword (3988);
     if (tls_expansion_slots != NULL)
       return tls_expansion_slots[key - 64];
+
     return _gum_tls_key_get_tmp_value (key);
   }
+
   return NULL;
 }
 
@@ -172,9 +183,13 @@ gum_tls_key_set_value (GumTlsKey key,
   }
   else if (key < 1088)
   {
-    gpointer * tls_expansion_slots = (gpointer *) __readfsdword (3988);
+    gpointer * tls_expansion_slots;
+
+    tls_expansion_slots = (gpointer *) __readfsdword (3988);
     if (tls_expansion_slots != NULL)
+    {
       tls_expansion_slots[key - 64] = value;
+    }
     else
     {
       _gum_tls_key_set_tmp_value (key, value);
@@ -195,9 +210,12 @@ gum_tls_key_get_value (GumTlsKey key)
   }
   else if (key < 1088)
   {
-    gpointer * tls_expansion_slots = (gpointer) __readgsqword (0x1780);
+    gpointer * tls_expansion_slots;
+
+    tls_expansion_slots = (gpointer) __readgsqword (0x1780)
     if (tls_expansion_slots != NULL)
       return tls_expansion_slots[key - 64];
+
     return _gum_tls_key_get_tmp_value (key);
   }
   return NULL;
@@ -209,13 +227,17 @@ gum_tls_key_set_value (GumTlsKey key,
 {
   if (key < 64)
   {
-    __writegsqword (0x1480 + key * sizeof (gpointer), (unsigned __int64) value);
+    __writegsqword (0x1480 + key * sizeof (gpointer), (guint64) value);
   }
   else if (key < 1088)
   {
-    gpointer * tls_expansion_slots = (gpointer) __readgsqword (0x1780);
+    gpointer * tls_expansion_slots;
+
+    tls_expansion_slots = (gpointer) __readgsqword (0x1780);
     if (tls_expansion_slots != NULL)
+    {
       tls_expansion_slots[key - 64] = value;
+    }
     else
     {
       _gum_tls_key_set_tmp_value (key, value);
