@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -72,12 +72,12 @@ _gum_tls_deinit (void)
 
 
 GumTlsKey
-gum_tls_key_new (void)
+gum_tls_key_new (GDestroyNotify notify)
 {
   pthread_key_t key;
   gint res;
 
-  res = pthread_key_create (&key, NULL);
+  res = pthread_key_create (&key, notify);
   g_assert_cmpint (res, ==, 0);
 
   return key;

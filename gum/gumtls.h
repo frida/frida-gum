@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -13,7 +13,7 @@ G_BEGIN_DECLS
 
 typedef gsize GumTlsKey;
 
-GUM_API GumTlsKey gum_tls_key_new (void);
+GUM_API GumTlsKey gum_tls_key_new (GDestroyNotify notify);
 GUM_API void gum_tls_key_free (GumTlsKey key);
 
 GUM_API gpointer gum_tls_key_get_value (GumTlsKey key);

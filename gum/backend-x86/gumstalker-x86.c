@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2009-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2010-2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -425,7 +425,7 @@ gum_stalker_init (GumStalker * self)
   priv->page_size = gum_query_page_size ();
   g_mutex_init (&priv->mutex);
   priv->contexts = NULL;
-  priv->exec_ctx = gum_tls_key_new ();
+  priv->exec_ctx = gum_tls_key_new (NULL);
 }
 
 static void

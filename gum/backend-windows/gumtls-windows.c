@@ -1,5 +1,5 @@
 /*
-* Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+* Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
 * Copyright (C) 2015 Eloi Vanderbeken <eloi.vanderbeken@synacktiv.com>
 *
 * Licence: wxWindows Library Licence, Version 3.1
@@ -38,9 +38,11 @@ static GumSpinlock _gum_tls_tmp_keys_lock;
 #endif
 
 GumTlsKey
-gum_tls_key_new (void)
+gum_tls_key_new (GDestroyNotify notify)
 {
   DWORD res;
+
+  (void) notify;
 
   res = TlsAlloc ();
   g_assert (res != TLS_OUT_OF_INDEXES);

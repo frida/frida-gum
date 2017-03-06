@@ -93,7 +93,7 @@ gum_call_count_sampler_init (GumCallCountSampler * self)
 
   priv->interceptor = gum_interceptor_obtain ();
 
-  priv->tls_key = gum_tls_key_new ();
+  priv->tls_key = gum_tls_key_new (NULL);
   g_mutex_init (&priv->mutex);
 }
 
