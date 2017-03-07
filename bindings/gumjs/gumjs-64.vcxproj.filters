@@ -64,6 +64,9 @@
     <ClCompile Include="gumdukstalker.c">
       <Filter>duk</Filter>
     </ClCompile>
+    <ClCompile Include="gumduksampler.c">
+      <Filter>duk</Filter>
+    </ClCompile>
     <ClCompile Include="gumdukapiresolver.c">
       <Filter>duk</Filter>
     </ClCompile>
@@ -223,6 +226,9 @@
       <Filter>duk</Filter>
     </ClInclude>
     <ClInclude Include="gumdukstalker.h">
+      <Filter>duk</Filter>
+    </ClInclude>
+    <ClInclude Include="gumduksampler.h">
       <Filter>duk</Filter>
     </ClInclude>
     <ClInclude Include="gumdukapiresolver.h">

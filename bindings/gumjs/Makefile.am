@@ -93,6 +93,8 @@ duk_sources = \
 	gumdukinterceptor.c \
 	gumdukstalker.h \
 	gumdukstalker.c \
+	gumduksampler.h \
+	gumduksampler.c \
 	gumdukapiresolver.h \
 	gumdukapiresolver.c \
 	gumduksymbol.h \
@@ -177,6 +179,8 @@ AM_CPPFLAGS = \
 	-include config.h \
 	-I $(top_srcdir) \
 	-I $(top_srcdir)/gum \
+	-I $(top_srcdir)/libs \
+	-I $(top_srcdir)/libs/gum/prof \
 	-I $(top_srcdir)/bindings \
 	$(GUMJS_CFLAGS) \
 	$(backend_cppflags) \

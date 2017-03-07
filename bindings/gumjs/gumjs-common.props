@@ -96,6 +96,7 @@
     <ClInclude Include="gumduksocket.h" />
     <ClInclude Include="gumdukinterceptor.h" />
     <ClInclude Include="gumdukstalker.h" />
+    <ClInclude Include="gumduksampler.h" />
     <ClInclude Include="gumdukapiresolver.h" />
     <ClInclude Include="gumduksymbol.h" />
     <ClInclude Include="gumdukinstruction.h" />
@@ -120,6 +121,7 @@
     <ClCompile Include="gumduksocket.c" />
     <ClCompile Include="gumdukinterceptor.c" />
     <ClCompile Include="gumdukstalker.c" />
+    <ClCompile Include="gumduksampler.c" />
     <ClCompile Include="gumdukapiresolver.c" />
     <ClCompile Include="gumduksymbol.c" />
     <ClCompile Include="gumdukinstruction.c" />

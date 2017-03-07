@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -15,6 +15,7 @@
 #include "gumdukmemory.h"
 #include "gumdukmodule.h"
 #include "gumdukprocess.h"
+#include "gumduksampler.h"
 #include "gumdukscript-runtime.h"
 #include "gumduksocket.h"
 #include "gumdukstalker.h"
@@ -96,6 +97,7 @@ struct _GumDukScriptPrivate
   GumDukSocket socket;
   GumDukInterceptor interceptor;
   GumDukStalker stalker;
+  GumDukSampler sampler;
   GumDukApiResolver api_resolver;
   GumDukSymbol symbol;
   GumDukInstruction instruction;
@@ -476,6 +478,7 @@ gum_duk_script_create_context (GumDukScript * self,
   _gum_duk_socket_init (&priv->socket, core);
   _gum_duk_interceptor_init (&priv->interceptor, core);
   _gum_duk_stalker_init (&priv->stalker, core);
+  _gum_duk_sampler_init (&priv->sampler, &priv->core);
   _gum_duk_api_resolver_init (&priv->api_resolver, core);
   _gum_duk_symbol_init (&priv->symbol, core);
   _gum_duk_instruction_init (&priv->instruction, core);
@@ -501,6 +504,7 @@ gum_duk_script_destroy_context (GumDukScript * self)
     _gum_duk_instruction_dispose (&priv->instruction);
     _gum_duk_symbol_dispose (&priv->symbol);
     _gum_duk_api_resolver_dispose (&priv->api_resolver);
+    _gum_duk_sampler_dispose (&priv->sampler);
     _gum_duk_stalker_dispose (&priv->stalker);
     _gum_duk_interceptor_dispose (&priv->interceptor);
     _gum_duk_socket_dispose (&priv->socket);
@@ -534,6 +538,7 @@ gum_duk_script_destroy_context (GumDukScript * self)
   _gum_duk_instruction_finalize (&priv->instruction);
   _gum_duk_symbol_finalize (&priv->symbol);
   _gum_duk_api_resolver_finalize (&priv->api_resolver);
+  _gum_duk_sampler_finalize (&priv->sampler);
   _gum_duk_stalker_finalize (&priv->stalker);
   _gum_duk_interceptor_finalize (&priv->interceptor);
   _gum_duk_socket_finalize (&priv->socket);
@@ -740,6 +745,7 @@ gum_duk_script_try_unload (GumDukScript * self)
 
   _gum_duk_scope_enter (&scope, &priv->core);
 
+  _gum_duk_sampler_flush (&priv->sampler);
   _gum_duk_stalker_flush (&priv->stalker);
   _gum_duk_interceptor_flush (&priv->interceptor);
   _gum_duk_socket_flush (&priv->socket);
