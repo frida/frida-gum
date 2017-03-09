@@ -124,7 +124,7 @@ gum_script_backend_obtain_v8 (void)
 #endif
 
       if (backend != NULL)
-        _gum_register_destructor (gum_script_backend_deinit_v8);
+        _gum_register_early_destructor (gum_script_backend_deinit_v8);
     }
 
     g_once_init_leave (&gonce_value, GPOINTER_TO_SIZE (backend) + 1);
@@ -145,7 +145,7 @@ gum_script_backend_obtain_duk (void)
     backend = GUM_SCRIPT_BACKEND (
         g_object_new (GUM_DUK_TYPE_SCRIPT_BACKEND, NULL));
 
-    _gum_register_destructor (gum_script_backend_deinit_duk);
+    _gum_register_early_destructor (gum_script_backend_deinit_duk);
 
     g_once_init_leave (&gonce_value, GPOINTER_TO_SIZE (backend) + 1);
   }
