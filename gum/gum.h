@@ -37,6 +37,7 @@
 G_BEGIN_DECLS
 
 GUM_API void gum_init (void);
+GUM_API void gum_shutdown (void);
 GUM_API void gum_deinit (void);
 
 GUM_API void gum_init_embedded (void);
