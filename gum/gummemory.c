@@ -1,11 +1,12 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gummemory.h"
 
+#include "gumcloak-priv.h"
 #include "gumcodesegment.h"
 #include "gumlibc.h"
 #include "gummemory-priv.h"
@@ -55,6 +56,7 @@ static GumMatchToken * gum_match_token_new (GumMatchType type);
 static void gum_match_token_free (GumMatchToken * token);
 static void gum_match_token_append (GumMatchToken * self, guint8 byte);
 
+static gboolean gum_memory_initialized = FALSE;
 static mspace gum_mspace = NULL;
 static guint gum_cached_page_size;
 
@@ -69,6 +71,12 @@ gum_mspace_get (void)
 void
 gum_memory_init (void)
 {
+  if (gum_memory_initialized)
+    return;
+  gum_memory_initialized = TRUE;
+
+  _gum_cloak_init ();
+
   gum_mspace_get ();
 
   gum_cached_page_size = _gum_memory_backend_query_page_size ();
@@ -77,13 +85,16 @@ gum_memory_init (void)
 void
 gum_memory_deinit (void)
 {
-  if (gum_mspace != NULL)
-  {
-    destroy_mspace (gum_mspace);
-    gum_mspace = NULL;
+  g_assert (gum_memory_initialized);
 
-    (void) DESTROY_LOCK (&malloc_global_mutex);
-  }
+  destroy_mspace (gum_mspace);
+  gum_mspace = NULL;
+
+  (void) DESTROY_LOCK (&malloc_global_mutex);
+
+  _gum_cloak_deinit ();
+
+  gum_memory_initialized = FALSE;
 }
 
 guint

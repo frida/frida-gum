@@ -165,6 +165,12 @@ namespace Gum {
 		public delegate bool ScanMatchFunc (Address address, size_t size);
 	}
 
+	namespace Cloak {
+		public void add_base_address (Address base_address);
+		public void remove_base_address (Address base_address);
+		public bool has_base_address (Address base_address);
+	}
+
 	public delegate bool FoundRangeFunc (Gum.RangeDetails details);
 
 	public struct ThreadId : size_t {

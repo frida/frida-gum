@@ -13,6 +13,8 @@
     <ClInclude Include="gum\gum-init.h" />
     <ClInclude Include="gum\gumapiresolver.h" />
     <ClInclude Include="gum\gumbacktracer.h" />
+    <ClInclude Include="gum\gumcloak.h" />
+    <ClInclude Include="gum\gumcloak-priv.h" />
     <ClInclude Include="gum\gumcodeallocator.h" />
     <ClInclude Include="gum\gumcodesegment.h" />
     <ClInclude Include="gum\gumdefs.h" />
@@ -49,6 +51,7 @@
     <ClCompile Include="gum\gum.c" />
     <ClCompile Include="gum\gumapiresolver.c" />
     <ClCompile Include="gum\gumbacktracer.c" />
+    <ClCompile Include="gum\gumcloak.c" />
     <ClCompile Include="gum\gumcodeallocator.c" />
     <ClCompile Include="gum\gumcodesegment.c" />
     <ClCompile Include="gum\gumexceptor.c" />

@@ -117,6 +117,9 @@
     <ClCompile Include="gum\gumbacktracer.c">
       <Filter>core</Filter>
     </ClCompile>
+    <ClCompile Include="gum\gumcloak.c">
+      <Filter>core</Filter>
+    </ClCompile>
     <ClCompile Include="gum\backend-dbghelp\gumdbghelp.c">
       <Filter>core\backend-dbghelp</Filter>
     </ClCompile>
@@ -324,6 +327,12 @@
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\gumbacktracer.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumcloak.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumcloak-priv.h">
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\backend-dbghelp\gumdbghelp.h">
