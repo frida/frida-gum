@@ -1,10 +1,10 @@
 /*
- * Copyright (C) 2009-2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#include "gumprocess.h"
+#include "gumprocess-priv.h"
 
 #include "gumwindows.h"
 
@@ -261,9 +261,9 @@ beach:
 }
 
 void
-gum_process_enumerate_ranges (GumPageProtection prot,
-                              GumFoundRangeFunc func,
-                              gpointer user_data)
+_gum_process_enumerate_ranges (GumPageProtection prot,
+                               GumFoundRangeFunc func,
+                               gpointer user_data)
 {
   guint8 * cur_base_address;
 

@@ -5,7 +5,7 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#include "gumprocess.h"
+#include "gumprocess-priv.h"
 
 #include "gumdarwin.h"
 #include "gumdarwinmodule.h"
@@ -328,9 +328,9 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
 }
 
 void
-gum_process_enumerate_ranges (GumPageProtection prot,
-                              GumFoundRangeFunc func,
-                              gpointer user_data)
+_gum_process_enumerate_ranges (GumPageProtection prot,
+                               GumFoundRangeFunc func,
+                               gpointer user_data)
 {
   gum_darwin_enumerate_ranges (mach_task_self (), prot, func, user_data);
 }

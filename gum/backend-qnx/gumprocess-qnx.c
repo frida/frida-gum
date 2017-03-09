@@ -2,7 +2,7 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#include "gumprocess.h"
+#include "gumprocess-priv.h"
 
 #include "gumqnx.h"
 #include "gumqnx-priv.h"
@@ -259,9 +259,9 @@ gum_qnx_enumerate_ranges (pid_t pid,
 }
 
 void
-gum_process_enumerate_ranges (GumPageProtection prot,
-                              GumFoundRangeFunc func,
-                              gpointer user_data)
+_gum_process_enumerate_ranges (GumPageProtection prot,
+                               GumFoundRangeFunc func,
+                               gpointer user_data)
 {
   gum_qnx_enumerate_ranges (getpid (), prot, func, user_data);
 }

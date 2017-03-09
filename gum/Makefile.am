@@ -224,6 +224,7 @@ libfrida_gum_la_SOURCES = \
 	gumprintf.c \
 	gumprintf.h \
 	gumprocess.c \
+	gumprocess-priv.h \
 	gumreturnaddress.c \
 	arch-x86/gumx86writer.c \
 	arch-x86/gumx86relocator.c \

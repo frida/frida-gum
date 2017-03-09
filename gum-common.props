@@ -38,6 +38,7 @@
     <ClInclude Include="gum\gummodulemap.h" />
     <ClInclude Include="gum\gumprintf.h" />
     <ClInclude Include="gum\gumprocess.h" />
+    <ClInclude Include="gum\gumprocess-priv.h" />
     <ClInclude Include="gum\gumreturnaddress.h" />
     <ClInclude Include="gum\gumspinlock.h" />
     <ClInclude Include="gum\gumstalker.h" />

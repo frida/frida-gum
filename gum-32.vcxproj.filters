@@ -434,6 +434,9 @@
     <ClInclude Include="gum\gumprocess.h">
       <Filter>core</Filter>
     </ClInclude>
+    <ClInclude Include="gum\gumprocess-priv.h">
+      <Filter>core</Filter>
+    </ClInclude>
     <ClInclude Include="gum\arch-x86\gumx86backtracer.h">
       <Filter>core\arch-x86</Filter>
     </ClInclude>

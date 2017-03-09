@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -8,7 +8,7 @@
 
 #include "gum-init.h"
 #include "gummemory.h"
-#include "gumprocess.h"
+#include "gumprocess-priv.h"
 
 #include <bfd.h>
 #include <dlfcn.h>
@@ -221,7 +221,7 @@ gum_build_symbols_database (void)
 {
   g_hash_table_remove_all (gum_function_address_by_name);
 
-  gum_process_enumerate_ranges (GUM_PAGE_RX, gum_consume_symbols_from_range,
+  _gum_process_enumerate_ranges (GUM_PAGE_RX, gum_consume_symbols_from_range,
       NULL);
 }
 

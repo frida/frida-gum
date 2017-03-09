@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  *
@@ -30,6 +30,7 @@ TEST_LIST_BEGIN (process)
 #endif
   PROCESS_TESTENTRY (process_modules)
   PROCESS_TESTENTRY (process_ranges)
+  PROCESS_TESTENTRY (process_ranges_exclude_cloaked)
   PROCESS_TESTENTRY (module_imports)
   PROCESS_TESTENTRY (module_exports)
   PROCESS_TESTENTRY (module_ranges_can_be_enumerated)
@@ -84,6 +85,8 @@ static gboolean export_found_cb (const GumExportDetails * details,
 static gboolean range_found_cb (const GumRangeDetails * details,
     gpointer user_data);
 static gboolean range_check_cb (const GumRangeDetails * details,
+    gpointer user_data);
+static gboolean store_first_range (const GumRangeDetails * details,
     gpointer user_data);
 #ifdef HAVE_DARWIN
 static gboolean malloc_range_found_cb (
@@ -267,6 +270,24 @@ PROCESS_TESTCASE (process_ranges)
     gum_process_enumerate_ranges (GUM_PAGE_RW, range_check_cb, &ctx);
     g_assert (ctx.found);
   }
+}
+
+PROCESS_TESTCASE (process_ranges_exclude_cloaked)
+{
+  GumMemoryRange first = { 0, };
+  GumMemoryRange range = { 0, };
+  gpointer block;
+  TestRangeContext ctx;
+
+  gum_process_enumerate_ranges (GUM_PAGE_RX, store_first_range, &first);
+
+  gum_cloak_add_base_address (first.base_address);
+  gum_process_enumerate_ranges (GUM_PAGE_RX, store_first_range, &range);
+  g_assert_cmphex (range.base_address, !=, first.base_address);
+
+  gum_cloak_remove_base_address (first.base_address);
+  gum_process_enumerate_ranges (GUM_PAGE_RX, store_first_range, &range);
+  g_assert_cmphex (range.base_address, ==, first.base_address);
 }
 
 #ifdef HAVE_DARWIN
@@ -655,6 +676,17 @@ range_check_cb (const GumRangeDetails * details,
   }
 
   return TRUE;
+}
+
+static gboolean
+store_first_range (const GumRangeDetails * details,
+                   gpointer user_data)
+{
+  GumMemoryRange * range = user_data;
+
+  memcpy (range, details->range, sizeof (GumMemoryRange));
+
+  return FALSE;
 }
 
 #ifdef HAVE_DARWIN

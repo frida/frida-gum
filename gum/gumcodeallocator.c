@@ -8,7 +8,7 @@
 
 #include "gumcodesegment.h"
 #include "gummemory.h"
-#include "gumprocess.h"
+#include "gumprocess-priv.h"
 #ifdef HAVE_ARM
 # include "gumarmwriter.h"
 # include "gumthumbwriter.h"
@@ -517,7 +517,7 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller,
   probe_ctx.cave.base_address = 0;
   probe_ctx.cave.size = 0;
 
-  gum_process_enumerate_ranges (GUM_PAGE_RX, gum_probe_range_for_code_cave,
+  _gum_process_enumerate_ranges (GUM_PAGE_RX, gum_probe_range_for_code_cave,
       &probe_ctx);
 
   if (probe_ctx.cave.base_address == 0)

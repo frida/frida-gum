@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,8 +7,7 @@
 #include "gummemory.h"
 
 #include "gummemory-priv.h"
-
-#include "gumprocess.h"
+#include "gumprocess-priv.h"
 
 #include <unistd.h>
 #include <sys/mman.h>
@@ -149,7 +148,7 @@ gum_enumerate_free_ranges (GumFoundRangeFunc func,
 {
   GumEnumerateFreeRangesContext ctx = { func, user_data, 0 };
 
-  gum_process_enumerate_ranges (GUM_PAGE_NO_ACCESS, gum_emit_free_range, &ctx);
+  _gum_process_enumerate_ranges (GUM_PAGE_NO_ACCESS, gum_emit_free_range, &ctx);
 }
 
 static gboolean

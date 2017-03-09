@@ -1,10 +1,23 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#include "gumprocess.h"
+#include "gumprocess-priv.h"
+
+#include "gumcloak.h"
+
+typedef struct _GumEmitRangesContext GumEmitRangesContext;
+
+struct _GumEmitRangesContext
+{
+  GumFoundRangeFunc func;
+  gpointer user_data;
+};
+
+static gboolean gum_emit_range_if_not_cloaked (const GumRangeDetails * details,
+    gpointer user_data);
 
 GumOS
 gum_process_get_native_os (void)
@@ -24,4 +37,28 @@ gum_process_get_native_os (void)
 #else
 # error Unknown OS
 #endif
+}
+
+void
+gum_process_enumerate_ranges (GumPageProtection prot,
+                              GumFoundRangeFunc func,
+                              gpointer user_data)
+{
+  GumEmitRangesContext ctx;
+
+  ctx.func = func;
+  ctx.user_data = user_data;
+  _gum_process_enumerate_ranges (prot, gum_emit_range_if_not_cloaked, &ctx);
+}
+
+static gboolean
+gum_emit_range_if_not_cloaked (const GumRangeDetails * details,
+                               gpointer user_data)
+{
+  GumEmitRangesContext * ctx = user_data;
+
+  if (gum_cloak_has_base_address (details->range->base_address))
+    return TRUE;
+
+  return ctx->func (details, ctx->user_data);
 }

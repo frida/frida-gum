@@ -1,12 +1,12 @@
 /*
- * Copyright (C) 2013 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2013-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gummemorymap.h"
 
-#include "gumprocess.h"
+#include "gumprocess-priv.h"
 
 typedef struct _GumUpdateMemoryRangesContext GumUpdateMemoryRangesContext;
 
@@ -108,7 +108,7 @@ gum_memory_map_update (GumMemoryMap * self)
 
   g_array_set_size (priv->ranges, 0);
 
-  gum_process_enumerate_ranges (priv->prot, gum_memory_map_add_range, &ctx);
+  _gum_process_enumerate_ranges (priv->prot, gum_memory_map_add_range, &ctx);
 
   if (priv->ranges->len > 0)
   {
