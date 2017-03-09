@@ -70,7 +70,8 @@ struct _GumCFApi
 static void gum_do_init (void);
 
 static gboolean gum_initialized = FALSE;
-static GSList * gum_destructors = NULL;
+static GSList * gum_early_destructors = NULL;
+static GSList * gum_final_destructors = NULL;
 
 void
 gum_init (void)
@@ -83,15 +84,25 @@ gum_init (void)
 }
 
 void
+gum_shutdown (void)
+{
+  g_slist_foreach (gum_early_destructors, (GFunc) gum_destructor_invoke, NULL);
+  g_slist_free (gum_early_destructors);
+  gum_early_destructors = NULL;
+}
+
+void
 gum_deinit (void)
 {
   g_assert (gum_initialized);
 
+  gum_shutdown ();
+
   _gum_tls_deinit ();
 
-  g_slist_foreach (gum_destructors, (GFunc) gum_destructor_invoke, NULL);
-  g_slist_free (gum_destructors);
-  gum_destructors = NULL;
+  g_slist_foreach (gum_final_destructors, (GFunc) gum_destructor_invoke, NULL);
+  g_slist_free (gum_final_destructors);
+  gum_final_destructors = NULL;
 
   _gum_allocator_probe_deinit ();
 
@@ -125,9 +136,16 @@ gum_do_init (void)
 }
 
 void
+_gum_register_early_destructor (GumDestructorFunc destructor)
+{
+  gum_early_destructors = g_slist_prepend (gum_early_destructors,
+      GUM_FUNCPTR_TO_POINTER (destructor));
+}
+
+void
 _gum_register_destructor (GumDestructorFunc destructor)
 {
-  gum_destructors = g_slist_prepend (gum_destructors,
+  gum_final_destructors = g_slist_prepend (gum_final_destructors,
       GUM_FUNCPTR_TO_POINTER (destructor));
 }
 
@@ -203,6 +221,7 @@ gum_deinit_embedded (void)
 {
   g_assert (gum_initialized);
 
+  gum_shutdown ();
   gio_shutdown ();
   glib_shutdown ();
 

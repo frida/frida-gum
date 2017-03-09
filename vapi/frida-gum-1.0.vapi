@@ -1,6 +1,7 @@
 [CCode (cheader_filename = "gum/gum.h")]
 namespace Gum {
 	public void init ();
+	public void shutdown ();
 	public void deinit ();
 
 	public void init_embedded ();
