@@ -1645,24 +1645,32 @@ unsigned char _BitScanReverse(unsigned long *index, unsigned long mask);
 #define MMAP_FLAGS           (MAP_PRIVATE|MAP_ANONYMOUS)
 
 static FORCEINLINE void* unixmmap(size_t size) {
-  void* result = mmap(0, size, MMAP_PROT, MMAP_FLAGS, -1, 0);
-  if (result != MFAIL) {
-    GumMemoryRange range;
-    range.base_address = GUM_ADDRESS(result);
-    range.size = size;
-    gum_cloak_add_range(&range);
-  }
+  void* result;
+  GumMemoryRange range;
+
+  result = mmap(0, size, MMAP_PROT, MMAP_FLAGS, -1, 0);
+  if (result == MFAIL)
+    return MFAIL;
+
+  range.base_address = GUM_ADDRESS(result);
+  range.size = size;
+  gum_cloak_add_range(&range);
+
   return result;
 }
 
 static FORCEINLINE int unixmunmap(void* ptr, size_t size) {
-  int result = munmap(ptr, size);
-  if (result == 0) {
-    GumMemoryRange range;
-    range.base_address = GUM_ADDRESS(ptr);
-    range.size = size;
-    gum_cloak_remove_range(&range);
-  }
+  int result;
+  GumMemoryRange range;
+
+  result = munmap(ptr, size);
+  if (result != 0)
+    return result;
+
+  range.base_address = GUM_ADDRESS(ptr);
+  range.size = size;
+  gum_cloak_remove_range(&range);
+
   return result;
 }
 
