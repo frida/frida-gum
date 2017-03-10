@@ -288,6 +288,15 @@ PROCESS_TESTCASE (process_ranges_exclude_cloaked)
   gum_cloak_remove_range (&first);
   gum_process_enumerate_ranges (GUM_PAGE_RX, store_first_range, &range);
   g_assert_cmphex (range.base_address, ==, first.base_address);
+
+  block = gum_malloc (1);
+  ctx.range.base_address = GUM_ADDRESS (block);
+  ctx.range.size = 1;
+  ctx.found = FALSE;
+  ctx.found_exact = FALSE;
+  gum_process_enumerate_ranges (GUM_PAGE_RW, range_check_cb, &ctx);
+  gum_free (block);
+  g_assert (!ctx.found);
 }
 
 #ifdef HAVE_DARWIN

@@ -1636,14 +1636,39 @@ unsigned char _BitScanReverse(unsigned long *index, unsigned long mask);
 #if HAVE_MMAP
 
 #ifndef WIN32
-#define MUNMAP_DEFAULT(a, s)  munmap((a), (s))
 #define MMAP_PROT            (PROT_READ|PROT_WRITE)
 #if !defined(MAP_ANONYMOUS) && defined(MAP_ANON)
 #define MAP_ANONYMOUS        MAP_ANON
 #endif /* MAP_ANON */
 #ifdef MAP_ANONYMOUS
+
 #define MMAP_FLAGS           (MAP_PRIVATE|MAP_ANONYMOUS)
-#define MMAP_DEFAULT(s)       mmap(0, (s), MMAP_PROT, MMAP_FLAGS, -1, 0)
+
+static FORCEINLINE void* unixmmap(size_t size) {
+  void* result = mmap(0, size, MMAP_PROT, MMAP_FLAGS, -1, 0);
+  if (result != MFAIL) {
+    GumMemoryRange range;
+    range.base_address = GUM_ADDRESS(result);
+    range.size = size;
+    gum_cloak_add_range(&range);
+  }
+  return result;
+}
+
+static FORCEINLINE int unixmunmap(void* ptr, size_t size) {
+  int result = munmap(ptr, size);
+  if (result == 0) {
+    GumMemoryRange range;
+    range.base_address = GUM_ADDRESS(ptr);
+    range.size = size;
+    gum_cloak_remove_range(&range);
+  }
+  return result;
+}
+
+#define MMAP_DEFAULT(s)       unixmmap(s)
+#define MUNMAP_DEFAULT(a, s)  unixmunmap((a), (s))
+
 #else /* MAP_ANONYMOUS */
 /*
    Nearly all versions of mmap support MAP_ANONYMOUS, so the following
@@ -1655,6 +1680,7 @@ static int dev_zero_fd = -1; /* Cached file descriptor for /dev/zero. */
            (dev_zero_fd = open("/dev/zero", O_RDWR), \
             mmap(0, (s), MMAP_PROT, MMAP_FLAGS, dev_zero_fd, 0)) : \
             mmap(0, (s), MMAP_PROT, MMAP_FLAGS, dev_zero_fd, 0))
+#define MUNMAP_DEFAULT(a, s)  munmap((a), (s))
 #endif /* MAP_ANONYMOUS */
 
 #define DIRECT_MMAP_DEFAULT(s) MMAP_DEFAULT(s)
@@ -1663,21 +1689,43 @@ static int dev_zero_fd = -1; /* Cached file descriptor for /dev/zero. */
 
 /* Win32 MMAP via VirtualAlloc */
 static FORCEINLINE void* win32mmap(size_t size) {
-  void* ptr = VirtualAlloc(0, size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
-  return (ptr != 0)? ptr: MFAIL;
+  void* ptr;
+  GumMemoryRange range;
+
+  ptr = VirtualAlloc(0, size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+  if (ptr == 0)
+    return MFAIL;
+
+  range.base_address = GUM_ADDRESS(ptr);
+  range.size = size;
+  gum_cloak_add_range(&range);
+
+  return ptr;
 }
 
 /* For direct MMAP, use MEM_TOP_DOWN to minimize interference */
 static FORCEINLINE void* win32direct_mmap(size_t size) {
-  void* ptr = VirtualAlloc(0, size, MEM_RESERVE|MEM_COMMIT|MEM_TOP_DOWN,
-                           PAGE_READWRITE);
-  return (ptr != 0)? ptr: MFAIL;
+  void* ptr;
+  GumMemoryRange range;
+
+  ptr = VirtualAlloc(0, size, MEM_RESERVE|MEM_COMMIT|MEM_TOP_DOWN,
+                              PAGE_READWRITE);
+  if (ptr == 0)
+    return MFAIL;
+
+  range.base_address = GUM_ADDRESS(ptr);
+  range.size = size;
+  gum_cloak_add_range(&range);
+
+  return ptr;
 }
 
 /* This function supports releasing coalesed segments */
 static FORCEINLINE int win32munmap(void* ptr, size_t size) {
   MEMORY_BASIC_INFORMATION minfo;
   char* cptr = (char*)ptr;
+  GumMemoryRange range;
+
   while (size) {
     if (VirtualQuery(cptr, &minfo, sizeof(minfo)) == 0)
       return -1;
@@ -1689,6 +1737,11 @@ static FORCEINLINE int win32munmap(void* ptr, size_t size) {
     cptr += minfo.RegionSize;
     size -= minfo.RegionSize;
   }
+
+  range.base_address = GUM_ADDRESS(ptr);
+  range.size = size;
+  gum_cloak_remove_range(&range);
+
   return 0;
 }
 
