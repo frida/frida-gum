@@ -7,13 +7,13 @@
 #ifndef __GUM_CLOAK_H__
 #define __GUM_CLOAK_H__
 
-#include <gum/gumdefs.h>
+#include <gum/gummemory.h>
 
 G_BEGIN_DECLS
 
-GUM_API void gum_cloak_add_base_address (GumAddress base_address);
-GUM_API void gum_cloak_remove_base_address (GumAddress base_address);
-GUM_API gboolean gum_cloak_has_base_address (GumAddress base_address);
+GUM_API void gum_cloak_add_range (const GumMemoryRange * range);
+GUM_API void gum_cloak_remove_range (const GumMemoryRange * range);
+GUM_API gboolean gum_cloak_has_address (GumAddress address);
 
 G_END_DECLS
 

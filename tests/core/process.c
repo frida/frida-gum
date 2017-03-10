@@ -281,11 +281,11 @@ PROCESS_TESTCASE (process_ranges_exclude_cloaked)
 
   gum_process_enumerate_ranges (GUM_PAGE_RX, store_first_range, &first);
 
-  gum_cloak_add_base_address (first.base_address);
+  gum_cloak_add_range (&first);
   gum_process_enumerate_ranges (GUM_PAGE_RX, store_first_range, &range);
   g_assert_cmphex (range.base_address, !=, first.base_address);
 
-  gum_cloak_remove_base_address (first.base_address);
+  gum_cloak_remove_range (&first);
   gum_process_enumerate_ranges (GUM_PAGE_RX, store_first_range, &range);
   g_assert_cmphex (range.base_address, ==, first.base_address);
 }

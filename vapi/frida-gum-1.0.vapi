@@ -166,9 +166,9 @@ namespace Gum {
 	}
 
 	namespace Cloak {
-		public void add_base_address (Address base_address);
-		public void remove_base_address (Address base_address);
-		public bool has_base_address (Address base_address);
+		public void add_range (Gum.MemoryRange range);
+		public void remove_range (Gum.MemoryRange range);
+		public bool has_address (Address address);
 	}
 
 	public delegate bool FoundRangeFunc (Gum.RangeDetails details);

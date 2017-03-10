@@ -57,7 +57,7 @@ gum_emit_range_if_not_cloaked (const GumRangeDetails * details,
 {
   GumEmitRangesContext * ctx = user_data;
 
-  if (gum_cloak_has_base_address (details->range->base_address))
+  if (gum_cloak_has_address (details->range->base_address))
     return TRUE;
 
   return ctx->func (details, ctx->user_data);

@@ -75,11 +75,11 @@ gum_memory_init (void)
     return;
   gum_memory_initialized = TRUE;
 
+  gum_cached_page_size = _gum_memory_backend_query_page_size ();
+
   _gum_cloak_init ();
 
   gum_mspace_get ();
-
-  gum_cached_page_size = _gum_memory_backend_query_page_size ();
 }
 
 void
