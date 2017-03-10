@@ -1761,7 +1761,27 @@ static FORCEINLINE int win32munmap(void* ptr, size_t size) {
 
 #if HAVE_MREMAP
 #ifndef WIN32
-#define MREMAP_DEFAULT(addr, osz, nsz, mv) mremap((addr), (osz), (nsz), (mv))
+
+static FORCEINLINE void* dlmremap(void* old_address, size_t old_size, size_t new_size, int flags) {
+  void* result;
+  GumMemoryRange range;
+
+  result = mremap(old_address, old_size, new_size, flags);
+  if (result == MFAIL)
+    return MFAIL;
+
+  range.base_address = GUM_ADDRESS(old_address);
+  range.size = old_size;
+  gum_cloak_remove_range(&range);
+
+  range.base_address = GUM_ADDRESS(result);
+  range.size = new_size;
+  gum_cloak_add_range(&range);
+
+  return result;
+}
+
+#define MREMAP_DEFAULT(addr, osz, nsz, mv) dlmremap((addr), (osz), (nsz), (mv))
 #endif /* WIN32 */
 #endif /* HAVE_MREMAP */
 
