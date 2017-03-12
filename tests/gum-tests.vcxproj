@@ -261,6 +261,7 @@ copy /B /Y "$(SolutionDir)build\frida-windows\$(Platform)-$(ConfigurationName)\b
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="core\tls.c" />
+    <ClCompile Include="core\cloak.c" />
     <ClCompile Include="core\memory.c" />
     <ClCompile Include="core\memoryaccessmonitor-fixture.c">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>

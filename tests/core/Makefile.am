@@ -36,6 +36,7 @@ endif
 
 libgum_tests_core_la_SOURCES = \
 	tls.c \
+	cloak.c \
 	memory.c \
 	process.c \
 	symbolutil.c \

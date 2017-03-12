@@ -56,9 +56,29 @@ gum_emit_range_if_not_cloaked (const GumRangeDetails * details,
                                gpointer user_data)
 {
   GumEmitRangesContext * ctx = user_data;
+  GArray * sub_ranges;
 
-  if (gum_cloak_has_address (details->range->base_address))
-    return TRUE;
+  sub_ranges = gum_cloak_clip_range (details->range);
+  if (sub_ranges != NULL)
+  {
+    gboolean carry_on = TRUE;
+    GumRangeDetails sub_details;
+    guint i;
+
+    sub_details.prot = details->prot;
+    sub_details.file = details->file;
+
+    for (i = 0; i != sub_ranges->len && carry_on; i++)
+    {
+      sub_details.range = &g_array_index (sub_ranges, GumMemoryRange, i);
+
+      carry_on = ctx->func (&sub_details, ctx->user_data);
+    }
+
+    g_array_free (sub_ranges, TRUE);
+
+    return carry_on;
+  }
 
   return ctx->func (details, ctx->user_data);
 }
