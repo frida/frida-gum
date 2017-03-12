@@ -4277,6 +4277,15 @@ target_function_int (int arg)
 
   gum_script_dummy_global_to_trick_optimizer += result;
 
+  /*
+   * Throw in a dummy call to an external function so the platform's default ABI
+   * is used at call-sites. Because this function is static there is otherwise
+   * a chance that the compiler will invent its own calling convention, and any
+   * JS-defined replacement function (NativeCallback) will be prone to clobber
+   * registers used by the custom calling convention.
+   */
+  fflush (stdout);
+
   return result;
 }
 
