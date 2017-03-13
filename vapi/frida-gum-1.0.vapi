@@ -146,6 +146,10 @@ namespace Gum {
 		public delegate bool FoundModuleFunc (Gum.ModuleDetails details);
 	}
 
+	namespace Thread {
+		public bool try_get_range (out Gum.MemoryRange range);
+	}
+
 	namespace Module {
 		public void enumerate_imports (string module_name, Gum.Module.FoundImportFunc func);
 		public void enumerate_exports (string module_name, Gum.Module.FoundExportFunc func);
@@ -166,9 +170,13 @@ namespace Gum {
 	}
 
 	namespace Cloak {
+		public void add_thread (Gum.ThreadId id);
+		public void remove_thread (Gum.ThreadId id);
+		public bool has_thread (Gum.ThreadId id);
+
 		public void add_range (Gum.MemoryRange range);
 		public void remove_range (Gum.MemoryRange range);
-		public bool has_address (Address address);
+		public GLib.Array<Gum.MemoryRange>? clip_range (Gum.MemoryRange range);
 	}
 
 	public delegate bool FoundRangeFunc (Gum.RangeDetails details);
