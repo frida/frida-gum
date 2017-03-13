@@ -203,9 +203,6 @@ gum_emit_thread (const GumThreadDetails * details,
   auto core = mc->core;
   auto isolate = core->isolate;
 
-  if (gum_script_backend_is_ignoring (details->id))
-    return TRUE;
-
   auto thread = Object::New (isolate);
   _gum_v8_object_set (thread, "id", Number::New (isolate, details->id), core);
   _gum_v8_object_set (thread, "state", _gum_v8_string_new_ascii (isolate,

@@ -191,9 +191,6 @@ gum_emit_thread (const GumThreadDetails * details,
   duk_context * ctx = scope->ctx;
   gboolean proceed = TRUE;
 
-  if (gum_script_backend_is_ignoring (details->id))
-    return TRUE;
-
   duk_push_heapptr (ctx, mc->on_match);
 
   duk_push_object (ctx);

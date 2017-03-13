@@ -53,7 +53,6 @@ struct GumV8ProbeListenerClass
 struct GumV8InvocationState
 {
   GumV8InvocationContext * jic;
-  gboolean is_ignored;
 };
 
 struct GumV8InvocationArgs
@@ -670,11 +669,6 @@ gum_v8_invocation_listener_on_enter (GumInvocationListener * listener,
   auto self = GUM_V8_INVOCATION_LISTENER_CAST (listener);
   auto state = GUM_LINCTX_GET_FUNC_INVDATA (ic, GumV8InvocationState);
 
-  state->is_ignored = gum_script_backend_is_ignoring (
-      gum_invocation_context_get_thread_id (ic));
-  if (state->is_ignored)
-    return;
-
   if (self->on_enter != nullptr)
   {
     auto module = self->module;
@@ -720,8 +714,6 @@ gum_v8_invocation_listener_on_leave (GumInvocationListener * listener,
     return;
 
   auto state = GUM_LINCTX_GET_FUNC_INVDATA (ic, GumV8InvocationState);
-  if (state->is_ignored)
-    return;
 
   {
     auto module = self->module;

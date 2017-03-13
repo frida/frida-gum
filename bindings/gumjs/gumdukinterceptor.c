@@ -56,7 +56,6 @@ struct _GumDukProbeListenerClass
 struct _GumDukInvocationState
 {
   GumDukInvocationContext * jic;
-  gboolean is_ignored;
 };
 
 struct _GumDukInvocationArgs
@@ -638,11 +637,6 @@ gum_duk_invocation_listener_on_enter (GumInvocationListener * listener,
 
   state = GUM_LINCTX_GET_FUNC_INVDATA (ic, GumDukInvocationState);
 
-  state->is_ignored = gum_script_backend_is_ignoring (
-      gum_invocation_context_get_thread_id (ic));
-  if (state->is_ignored)
-    return;
-
   if (self->on_enter != NULL)
   {
     GumDukInterceptor * module = self->module;
@@ -694,8 +688,6 @@ gum_duk_invocation_listener_on_leave (GumInvocationListener * listener,
     return;
 
   state = GUM_LINCTX_GET_FUNC_INVDATA (ic, GumDukInvocationState);
-  if (state->is_ignored)
-    return;
 
   {
     GumDukInterceptor * module = self->module;

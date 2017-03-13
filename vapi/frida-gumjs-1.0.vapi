@@ -17,11 +17,6 @@ namespace Gum {
 
 		public void set_debug_message_handler (owned Gum.ScriptBackend.DebugMessageHandler? handler);
 		public void post_debug_message (string message);
-
-		public static void ignore (Gum.ThreadId thread_id);
-		public static void unignore (Gum.ThreadId thread_id);
-		public static void unignore_later (Gum.ThreadId thread_id);
-		public static bool is_ignoring (Gum.ThreadId thread_id);
 	}
 
 	[CCode (cheader_filename = "gumjs/gumscript.h")]
