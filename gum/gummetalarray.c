@@ -41,24 +41,42 @@ gum_metal_array_element_at (GumMetalArray * self,
 }
 
 gpointer
+gum_metal_array_insert_at (GumMetalArray * self,
+                           guint index_)
+{
+  gpointer element;
+
+  gum_metal_array_ensure_capacity (self, self->length + 1);
+
+  element = gum_metal_array_element_at (self, index_);
+
+  gum_memmove (gum_metal_array_element_at (self, index_ + 1), element,
+      (self->length - index_) * self->element_size);
+
+  self->length++;
+
+  return element;
+}
+
+void
+gum_metal_array_remove_at (GumMetalArray * self,
+                           guint index_)
+{
+  if (index_ != self->length - 1)
+  {
+    gum_memmove (gum_metal_array_element_at (self, index_),
+        gum_metal_array_element_at (self, index_ + 1),
+        (self->length - index_ - 1) * self->element_size);
+  }
+  self->length--;
+}
+
+gpointer
 gum_metal_array_append (GumMetalArray * self)
 {
   gum_metal_array_ensure_capacity (self, self->length + 1);
 
   return gum_metal_array_element_at (self, self->length++);
-}
-
-void
-gum_metal_array_remove_index (GumMetalArray * self,
-                              guint index_)
-{
-  if (index_ != self->length - 1)
-  {
-    memmove (gum_metal_array_element_at (self, index_),
-        gum_metal_array_element_at (self, index_ + 1),
-        (self->length - index_ - 1) * self->element_size);
-  }
-  self->length--;
 }
 
 void

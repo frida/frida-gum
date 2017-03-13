@@ -63,7 +63,7 @@ gum_cloak_remove_range (const GumMemoryRange * range)
 
   do
   {
-    gsize i;
+    guint i;
 
     found_match = FALSE;
 
@@ -88,7 +88,7 @@ gum_cloak_remove_range (const GumMemoryRange * range)
 
       if (bottom_remainder + top_remainder == 0)
       {
-        gum_metal_array_remove_index (&cloaked_ranges, i);
+        gum_metal_array_remove_at (&cloaked_ranges, i);
       }
       else
       {
@@ -151,7 +151,7 @@ gum_cloak_clip_range (const GumMemoryRange * range)
       GumMemoryRange * chunk;
       const guint8 * chunk_start, * chunk_end;
       gboolean chunk_available;
-      gsize cloaked_index;
+      guint cloaked_index;
 
       chunk = &g_array_index (chunks, GumMemoryRange, chunk_index);
       chunk_start = GSIZE_TO_POINTER (chunk->base_address);
