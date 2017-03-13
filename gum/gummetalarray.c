@@ -80,6 +80,15 @@ gum_metal_array_append (GumMetalArray * self)
 }
 
 void
+gum_metal_array_get_extents (GumMetalArray * self,
+                             gpointer * start,
+                             gpointer * end)
+{
+  *start = self->data;
+  *end = gum_metal_array_element_at (self, self->capacity);
+}
+
+void
 gum_metal_array_ensure_capacity (GumMetalArray * self,
                                  guint capacity)
 {

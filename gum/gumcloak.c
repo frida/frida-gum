@@ -244,26 +244,43 @@ gum_cloak_clip_range (const GumMemoryRange * range)
     {
       GumMemoryRange * chunk;
       const guint8 * chunk_start, * chunk_end;
-      gboolean chunk_available;
       guint cloaked_index;
+      GumCloakedRange threads;
+      GumCloakedRange ranges;
 
       chunk = &g_array_index (chunks, GumMemoryRange, chunk_index);
       chunk_start = GSIZE_TO_POINTER (chunk->base_address);
       chunk_end = chunk_start + chunk->size;
 
-      chunk_available = TRUE;
+      gum_metal_array_get_extents (&cloaked_threads,
+          (gpointer *) &threads.start, (gpointer *) &threads.end);
+      gum_metal_array_get_extents (&cloaked_ranges,
+          (gpointer *) &ranges.start, (gpointer *) &ranges.end);
 
       /* FIXME: also consider the arrays themselves */
 
       for (cloaked_index = 0;
-          cloaked_index != cloaked_ranges.length && !found_match;
+          cloaked_index != 2 + cloaked_ranges.length && !found_match;
           cloaked_index++)
       {
         const GumCloakedRange * cloaked;
         const guint8 * lower_bound, * upper_bound;
         gsize bottom_remainder, top_remainder;
+        gboolean chunk_available;
 
-        cloaked = gum_metal_array_element_at (&cloaked_ranges, cloaked_index);
+        if (cloaked_index == 0)
+        {
+          cloaked = &threads;
+        }
+        else if (cloaked_index == 1)
+        {
+          cloaked = &ranges;
+        }
+        else
+        {
+          cloaked = gum_metal_array_element_at (&cloaked_ranges,
+              cloaked_index - 2);
+        }
 
         lower_bound = MAX (cloaked->start, chunk_start);
         upper_bound = MIN (cloaked->end, chunk_end);
@@ -275,6 +292,7 @@ gum_cloak_clip_range (const GumMemoryRange * range)
 
         found_match = TRUE;
         dirty = TRUE;
+        chunk_available = TRUE;
 
         if (bottom_remainder + top_remainder == 0)
         {
@@ -298,7 +316,8 @@ gum_cloak_clip_range (const GumMemoryRange * range)
 
             if (chunk_available)
             {
-              memcpy (chunk, &top, sizeof (GumMemoryRange));
+              chunk->base_address = top.base_address;
+              chunk->size = top.size;
             }
             else
             {
