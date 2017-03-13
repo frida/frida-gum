@@ -274,6 +274,16 @@ gum_process_enumerate_malloc_ranges (GumFoundMallocRangeFunc func,
   g_assert_not_reached ();
 }
 
+gboolean
+gum_thread_try_get_range (GumMemoryRange * range)
+{
+  /* Not implemented */
+  range->base_address = 0;
+  range->size = 0;
+
+  return FALSE;
+}
+
 gint
 gum_thread_get_system_error (void)
 {

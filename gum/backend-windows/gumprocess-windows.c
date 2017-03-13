@@ -314,6 +314,16 @@ gum_process_enumerate_malloc_ranges (GumFoundMallocRangeFunc func,
   (void) user_data;
 }
 
+gboolean
+gum_thread_try_get_range (GumMemoryRange * range)
+{
+  /* Not implemented */
+  range->base_address = 0;
+  range->size = 0;
+
+  return FALSE;
+}
+
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
 
 gint

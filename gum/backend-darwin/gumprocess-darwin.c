@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -18,6 +18,7 @@
 #include <mach-o/dyld_images.h>
 #include <mach-o/nlist.h>
 #include <malloc/malloc.h>
+#include <pthread.h>
 #include <sys/sysctl.h>
 
 #define GUM_PSR_THUMB 0x20
@@ -414,6 +415,25 @@ gum_read_malloc_memory (task_t remote_task,
   *local_memory = (void *) remote_address;
 
   return KERN_SUCCESS;
+}
+
+gboolean
+gum_thread_try_get_range (GumMemoryRange * range)
+{
+  pthread_t thread;
+  gpointer stack_top;
+  gsize stack_size, guard_size;
+
+  thread = pthread_self ();
+
+  stack_top = pthread_get_stackaddr_np (thread);
+  stack_size = pthread_get_stacksize_np (thread);
+  guard_size = gum_query_page_size ();
+
+  range->base_address = GUM_ADDRESS (stack_top) - stack_size - guard_size;
+  range->size = stack_size + guard_size;
+
+  return TRUE;
 }
 
 gint
