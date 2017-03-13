@@ -217,6 +217,8 @@ libfrida_gum_la_SOURCES = \
 	gumlibc.h \
 	gummemory.c \
 	gummemorymap.c \
+	gummetalarray.c \
+	gummetalarray.h \
 	gummetalhash.c \
 	gummetalhash.h \
 	gummoduleapiresolver.c \

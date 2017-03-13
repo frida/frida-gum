@@ -6,7 +6,7 @@
 
 #include "gumcloak.h"
 
-#include "gummemory.h"
+#include "gummetalarray.h"
 #include "gumspinlock.h"
 
 #include <string.h>
@@ -19,29 +19,21 @@ struct _GumCloakedRange
   const guint8 * end;
 };
 
-static void gum_cloak_ensure_ranges_capacity (gsize capacity);
-
 static GumSpinlock cloak_lock;
-static GumCloakedRange * cloaked_ranges = NULL;
-static gsize cloaked_ranges_length = 0;
-static gsize cloaked_ranges_capacity = 0;
+static GumMetalArray cloaked_ranges;
 
 void
 _gum_cloak_init (void)
 {
   gum_spinlock_init (&cloak_lock);
 
-  cloaked_ranges = gum_alloc_n_pages (1, GUM_PAGE_RW);
-  cloaked_ranges_capacity = gum_query_page_size () / sizeof (GumCloakedRange);
+  gum_metal_array_init (&cloaked_ranges, sizeof (GumCloakedRange));
 }
 
 void
 _gum_cloak_deinit (void)
 {
-  gum_free_pages (cloaked_ranges);
-  cloaked_ranges = NULL;
-  cloaked_ranges_length = 0;
-  cloaked_ranges_capacity = 0;
+  gum_metal_array_free (&cloaked_ranges);
 
   gum_spinlock_free (&cloak_lock);
 }
@@ -53,9 +45,7 @@ gum_cloak_add_range (const GumMemoryRange * range)
 
   gum_spinlock_acquire (&cloak_lock);
 
-  gum_cloak_ensure_ranges_capacity (cloaked_ranges_length + 1);
-
-  r = &cloaked_ranges[cloaked_ranges_length++];
+  r = gum_metal_array_append (&cloaked_ranges);
   r->start = GSIZE_TO_POINTER (range->base_address);
   r->end = r->start + range->size;
 
@@ -79,11 +69,13 @@ gum_cloak_remove_range (const GumMemoryRange * range)
 
     gum_spinlock_acquire (&cloak_lock);
 
-    for (i = 0; i != cloaked_ranges_length && !found_match; i++)
+    for (i = 0; i != cloaked_ranges.length && !found_match; i++)
     {
-      GumCloakedRange * cloaked = &cloaked_ranges[i];
+      GumCloakedRange * cloaked;
       gsize bottom_remainder, top_remainder;
       gboolean slot_available;
+
+      cloaked = gum_metal_array_element_at (&cloaked_ranges, i);
 
       if (cloaked->start >= end || start >= cloaked->end)
         continue;
@@ -96,12 +88,7 @@ gum_cloak_remove_range (const GumMemoryRange * range)
 
       if (bottom_remainder + top_remainder == 0)
       {
-        if (i != cloaked_ranges_length - 1)
-        {
-          memmove (cloaked_ranges + i, cloaked_ranges + i + 1,
-              (cloaked_ranges_length - i - 1) * sizeof (GumCloakedRange));
-        }
-        cloaked_ranges_length--;
+        gum_metal_array_remove_index (&cloaked_ranges, i);
       }
       else
       {
@@ -173,12 +160,14 @@ gum_cloak_clip_range (const GumMemoryRange * range)
       chunk_available = TRUE;
 
       for (cloaked_index = 0;
-          cloaked_index != cloaked_ranges_length && !found_match;
+          cloaked_index != cloaked_ranges.length && !found_match;
           cloaked_index++)
       {
-        const GumCloakedRange * cloaked = &cloaked_ranges[cloaked_index];
+        const GumCloakedRange * cloaked;
         const guint8 * lower_bound, * upper_bound;
         gsize bottom_remainder, top_remainder;
+
+        cloaked = gum_metal_array_element_at (&cloaked_ranges, cloaked_index);
 
         lower_bound = MAX (cloaked->start, chunk_start);
         upper_bound = MIN (cloaked->end, chunk_end);
@@ -237,29 +226,4 @@ gum_cloak_clip_range (const GumMemoryRange * range)
   }
 
   return chunks;
-}
-
-static void
-gum_cloak_ensure_ranges_capacity (gsize capacity)
-{
-  gsize size_in_bytes, page_size, size_in_pages;
-  GumCloakedRange * new_ranges;
-
-  if (cloaked_ranges_capacity >= capacity)
-    return;
-
-  size_in_bytes = capacity * sizeof (GumCloakedRange);
-  page_size = gum_query_page_size ();
-  size_in_pages = size_in_bytes / page_size;
-  if (size_in_bytes % page_size != 0)
-    size_in_pages++;
-
-  new_ranges = gum_alloc_n_pages (size_in_pages, GUM_PAGE_RW);
-  memcpy (new_ranges, cloaked_ranges,
-      cloaked_ranges_length * sizeof (GumCloakedRange));
-
-  gum_free_pages (cloaked_ranges);
-  cloaked_ranges = new_ranges;
-  cloaked_ranges_capacity =
-      (size_in_pages * page_size) / sizeof (GumCloakedRange);
 }

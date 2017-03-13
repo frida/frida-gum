@@ -168,6 +168,9 @@
     <ClCompile Include="gum\gummemorymap.c">
       <Filter>core</Filter>
     </ClCompile>
+    <ClCompile Include="gum\gummetalarray.c">
+      <Filter>core</Filter>
+    </ClCompile>
     <ClCompile Include="gum\gummetalhash.c">
       <Filter>core</Filter>
     </ClCompile>
@@ -243,6 +246,9 @@
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\gummemorymap.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gummetalarray.h">
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\gummetalhash.h">
