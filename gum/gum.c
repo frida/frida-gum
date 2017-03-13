@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -19,7 +19,24 @@
 
 #define DEBUG_HEAP_LEAKS 0
 
+typedef struct _GumInternalThreadDetails GumInternalThreadDetails;
+
+struct _GumInternalThreadDetails
+{
+  gboolean has_cloaked_range;
+  GumMemoryRange cloaked_range;
+};
+
 static void gum_destructor_invoke (GumDestructorFunc destructor);
+
+static void gum_on_thread_init (GThread * thread);
+static void gum_on_thread_ready (GThread * thread, GThreadFunc func,
+    gpointer data, const gchar * name);
+static void gum_on_thread_finalize (GumInternalThreadDetails * details);
+static void gum_on_private_destructor_enter (GPrivate * key,
+    GDestroyNotify notify, gpointer value);
+static void gum_on_private_destructor_leave (GPrivate * key,
+    GDestroyNotify notify, gpointer value);
 
 static void gum_on_assert_failure (const gchar * log_domain, const gchar * file,
     gint line, const gchar * func, const gchar * message, gpointer user_data);
@@ -72,6 +89,11 @@ static void gum_do_init (void);
 static gboolean gum_initialized = FALSE;
 static GSList * gum_early_destructors = NULL;
 static GSList * gum_final_destructors = NULL;
+
+static GPrivate gum_internal_thread_details_key = G_PRIVATE_INIT (
+    (GDestroyNotify) gum_on_thread_finalize);
+
+static GumInterceptor * gum_cached_interceptor = NULL;
 
 void
 gum_init (void)
@@ -158,6 +180,12 @@ gum_destructor_invoke (GumDestructorFunc destructor)
 void
 gum_init_embedded (void)
 {
+  GThreadCallbacks thread_callbacks = {
+    gum_on_thread_init,
+    gum_on_thread_ready,
+    gum_on_private_destructor_enter,
+    gum_on_private_destructor_leave
+  };
 #if !DEBUG_HEAP_LEAKS && !defined (HAVE_ASAN)
   GMemVTable mem_vtable = {
     gum_malloc,
@@ -192,6 +220,7 @@ gum_init_embedded (void)
 #endif
 
   gum_memory_init ();
+  g_thread_set_callbacks (&thread_callbacks);
 #if !DEBUG_HEAP_LEAKS && !defined (HAVE_ASAN)
   if (RUNNING_ON_VALGRIND)
   {
@@ -214,6 +243,8 @@ gum_init_embedded (void)
 #if defined (HAVE_LINUX) && defined (HAVE_GLIBC)
   gum_libdl_prevent_unload ();
 #endif
+
+  gum_cached_interceptor = gum_interceptor_obtain ();
 }
 
 void
@@ -225,12 +256,83 @@ gum_deinit_embedded (void)
   gio_shutdown ();
   glib_shutdown ();
 
+  g_clear_object (&gum_cached_interceptor);
+
   gum_deinit ();
   gio_deinit ();
   glib_deinit ();
   gum_memory_deinit ();
 
   gum_initialized = FALSE;
+}
+
+static void
+gum_on_thread_init (GThread * thread)
+{
+  (void) thread;
+
+  gum_cloak_add_thread (gum_process_get_current_thread_id ());
+}
+
+static void
+gum_on_thread_ready (GThread * thread,
+                     GThreadFunc func,
+                     gpointer data,
+                     const gchar * name)
+{
+  GumInternalThreadDetails * details;
+
+  (void) thread;
+  (void) func;
+  (void) data;
+  (void) name;
+
+  gum_interceptor_ignore_current_thread (gum_cached_interceptor);
+
+  details = g_slice_new (GumInternalThreadDetails);
+  details->has_cloaked_range =
+      gum_thread_try_get_range (&details->cloaked_range);
+  gum_cloak_add_range (&details->cloaked_range);
+
+  /* This allows us to free the data no matter how the thread exits */
+  g_private_set (&gum_internal_thread_details_key, details);
+}
+
+static void
+gum_on_thread_finalize (GumInternalThreadDetails * details)
+{
+  if (details->has_cloaked_range)
+    gum_cloak_remove_range (&details->cloaked_range);
+
+  g_slice_free (GumInternalThreadDetails, details);
+
+  gum_cloak_remove_thread (gum_process_get_current_thread_id ());
+}
+
+static void
+gum_on_private_destructor_enter (GPrivate * key,
+                                 GDestroyNotify notify,
+                                 gpointer value)
+{
+  (void) key;
+  (void) notify;
+  (void) value;
+
+  if (gum_cached_interceptor != NULL)
+    gum_interceptor_ignore_current_thread (gum_cached_interceptor);
+}
+
+static void
+gum_on_private_destructor_leave (GPrivate * key,
+                                 GDestroyNotify notify,
+                                 gpointer value)
+{
+  (void) key;
+  (void) notify;
+  (void) value;
+
+  if (gum_cached_interceptor != NULL)
+    gum_interceptor_unignore_current_thread (gum_cached_interceptor);
 }
 
 #if defined (HAVE_LINUX) && defined (HAVE_GLIBC)
