@@ -253,6 +253,8 @@ gum_cloak_clip_range (const GumMemoryRange * range)
 
       chunk_available = TRUE;
 
+      /* FIXME: also consider the arrays themselves */
+
       for (cloaked_index = 0;
           cloaked_index != cloaked_ranges.length && !found_match;
           cloaked_index++)
