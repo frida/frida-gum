@@ -12,7 +12,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+typedef struct _GumCloakedThread GumCloakedThread;
 typedef struct _GumCloakedRange GumCloakedRange;
+
+struct _GumCloakedThread
+{
+  GumThreadId id;
+  guint ref_count;
+};
 
 struct _GumCloakedRange
 {
@@ -22,7 +29,7 @@ struct _GumCloakedRange
 
 static gint gum_cloak_index_of_thread (GumThreadId id);
 
-static gint gum_thread_id_compare (gconstpointer element_a,
+static gint gum_cloaked_thread_compare (gconstpointer element_a,
     gconstpointer element_b);
 
 static GumSpinlock cloak_lock;
@@ -34,7 +41,7 @@ _gum_cloak_init (void)
 {
   gum_spinlock_init (&cloak_lock);
 
-  gum_metal_array_init (&cloaked_threads, sizeof (GumThreadId));
+  gum_metal_array_init (&cloaked_threads, sizeof (GumCloakedThread));
   gum_metal_array_init (&cloaked_ranges, sizeof (GumCloakedRange));
 }
 
@@ -48,43 +55,63 @@ _gum_cloak_deinit (void)
 }
 
 void
-gum_cloak_add_thread (GumThreadId id)
+gum_cloak_ref_thread (GumThreadId id)
 {
-  GumThreadId * element, * elements;
-  gint i;
+  GumCloakedThread * threads;
+  gint index_;
 
   gum_spinlock_acquire (&cloak_lock);
 
-  element = NULL;
+  threads = cloaked_threads.data;
 
-  elements = cloaked_threads.data;
-  for (i = (gint) cloaked_threads.length - 1; i >= 0; i--)
+  index_ = gum_cloak_index_of_thread (id);
+  if (index_ != -1)
   {
-    if (id >= elements[i])
-    {
-      element = gum_metal_array_insert_at (&cloaked_threads, i + 1);
-      break;
-    }
+    threads[index_].ref_count++;
   }
+  else
+  {
+    GumCloakedThread * thread;
+    gint i;
 
-  if (element == NULL)
-    element = gum_metal_array_insert_at (&cloaked_threads, 0);
+    thread = NULL;
 
-  *element = id;
+    for (i = (gint) cloaked_threads.length - 1; i >= 0; i--)
+    {
+      if (id > threads[i].id)
+      {
+        thread = gum_metal_array_insert_at (&cloaked_threads, i + 1);
+        break;
+      }
+    }
+
+    if (thread == NULL)
+      thread = gum_metal_array_insert_at (&cloaked_threads, 0);
+
+    thread->id = id;
+    thread->ref_count = 1;
+  }
 
   gum_spinlock_release (&cloak_lock);
 }
 
 void
-gum_cloak_remove_thread (GumThreadId id)
+gum_cloak_unref_thread (GumThreadId id)
 {
+  GumCloakedThread * threads;
   gint index_;
 
   gum_spinlock_acquire (&cloak_lock);
 
+  threads = cloaked_threads.data;
+
   index_ = gum_cloak_index_of_thread (id);
-  if (index_ != -1)
+  g_assert (index_ != -1);
+
+  if (--threads[index_].ref_count == 0)
+  {
     gum_metal_array_remove_at (&cloaked_threads, index_);
+  }
 
   gum_spinlock_release (&cloak_lock);
 }
@@ -106,24 +133,24 @@ gum_cloak_has_thread (GumThreadId id)
 static gint
 gum_cloak_index_of_thread (GumThreadId id)
 {
-  GumThreadId * elements, * element;
+  GumCloakedThread * threads, * thread;
 
-  elements = cloaked_threads.data;
+  threads = cloaked_threads.data;
 
-  element = bsearch (&id, elements, cloaked_threads.length,
-      cloaked_threads.element_size, gum_thread_id_compare);
-  if (element == NULL)
+  thread = bsearch (&id, threads, cloaked_threads.length,
+      cloaked_threads.element_size, gum_cloaked_thread_compare);
+  if (thread == NULL)
     return -1;
 
-  return element - elements;
+  return thread - threads;
 }
 
 static gint
-gum_thread_id_compare (gconstpointer element_a,
-                       gconstpointer element_b)
+gum_cloaked_thread_compare (gconstpointer element_a,
+                            gconstpointer element_b)
 {
-  GumThreadId a = *((GumThreadId *) element_a);
-  GumThreadId b = *((GumThreadId *) element_b);
+  GumThreadId a = ((GumCloakedThread *) element_a)->id;
+  GumThreadId b = ((GumCloakedThread *) element_b)->id;
 
   if (a == b)
     return 0;

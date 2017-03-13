@@ -157,13 +157,24 @@ PROCESS_TESTCASE (process_threads_exclude_cloaked)
   gum_process_enumerate_threads (thread_check_cb, &ctx);
   g_assert (ctx.found);
 
-  gum_cloak_add_thread (ctx.needle);
+  gum_cloak_ref_thread (ctx.needle);
+  gum_cloak_ref_thread (ctx.needle);
 
   ctx.found = FALSE;
   gum_process_enumerate_threads (thread_check_cb, &ctx);
   g_assert (!ctx.found);
 
-  gum_cloak_remove_thread (ctx.needle);
+  gum_cloak_unref_thread (ctx.needle);
+
+  ctx.found = FALSE;
+  gum_process_enumerate_threads (thread_check_cb, &ctx);
+  g_assert (!ctx.found);
+
+  gum_cloak_unref_thread (ctx.needle);
+
+  ctx.found = FALSE;
+  gum_process_enumerate_threads (thread_check_cb, &ctx);
+  g_assert (ctx.found);
 }
 
 PROCESS_TESTCASE (process_modules)

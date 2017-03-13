@@ -12,8 +12,8 @@
 
 G_BEGIN_DECLS
 
-GUM_API void gum_cloak_add_thread (GumThreadId id);
-GUM_API void gum_cloak_remove_thread (GumThreadId id);
+GUM_API void gum_cloak_ref_thread (GumThreadId id);
+GUM_API void gum_cloak_unref_thread (GumThreadId id);
 GUM_API gboolean gum_cloak_has_thread (GumThreadId id);
 
 GUM_API void gum_cloak_add_range (const GumMemoryRange * range);
