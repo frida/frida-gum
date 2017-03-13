@@ -11,6 +11,8 @@
 
 G_BEGIN_DECLS
 
+G_GNUC_INTERNAL void _gum_process_enumerate_threads (GumFoundThreadFunc func,
+    gpointer user_data);
 G_GNUC_INTERNAL void _gum_process_enumerate_ranges (GumPageProtection prot,
     GumFoundRangeFunc func, gpointer user_data);
 

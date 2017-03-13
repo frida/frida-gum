@@ -102,8 +102,8 @@ beach:
 }
 
 void
-gum_process_enumerate_threads (GumFoundThreadFunc func,
-                               gpointer user_data)
+_gum_process_enumerate_threads (GumFoundThreadFunc func,
+                                gpointer user_data)
 {
   DWORD this_process_id;
   HANDLE snapshot;

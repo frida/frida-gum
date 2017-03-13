@@ -275,8 +275,8 @@ gum_process_modify_thread (GumThreadId thread_id,
 }
 
 void
-gum_process_enumerate_threads (GumFoundThreadFunc func,
-                               gpointer user_data)
+_gum_process_enumerate_threads (GumFoundThreadFunc func,
+                                gpointer user_data)
 {
   gum_darwin_enumerate_threads (mach_task_self (), func, user_data);
 }

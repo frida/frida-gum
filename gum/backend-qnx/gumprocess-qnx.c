@@ -154,8 +154,8 @@ gum_process_modify_thread (GumThreadId thread_id,
 }
 
 void
-gum_process_enumerate_threads (GumFoundThreadFunc func,
-                               gpointer user_data)
+_gum_process_enumerate_threads (GumFoundThreadFunc func,
+                                gpointer user_data)
 {
   gint fd, res;
   debug_process_t info;

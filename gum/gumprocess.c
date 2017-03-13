@@ -8,7 +8,14 @@
 
 #include "gumcloak.h"
 
+typedef struct _GumEmitThreadsContext GumEmitThreadsContext;
 typedef struct _GumEmitRangesContext GumEmitRangesContext;
+
+struct _GumEmitThreadsContext
+{
+  GumFoundThreadFunc func;
+  gpointer user_data;
+};
 
 struct _GumEmitRangesContext
 {
@@ -16,6 +23,8 @@ struct _GumEmitRangesContext
   gpointer user_data;
 };
 
+static gboolean gum_emit_thread_if_not_cloaked (
+    const GumThreadDetails * details, gpointer user_data);
 static gboolean gum_emit_range_if_not_cloaked (const GumRangeDetails * details,
     gpointer user_data);
 
@@ -37,6 +46,29 @@ gum_process_get_native_os (void)
 #else
 # error Unknown OS
 #endif
+}
+
+void
+gum_process_enumerate_threads (GumFoundThreadFunc func,
+                               gpointer user_data)
+{
+  GumEmitThreadsContext ctx;
+
+  ctx.func = func;
+  ctx.user_data = user_data;
+  _gum_process_enumerate_threads (gum_emit_thread_if_not_cloaked, &ctx);
+}
+
+static gboolean
+gum_emit_thread_if_not_cloaked (const GumThreadDetails * details,
+                                gpointer user_data)
+{
+  GumEmitThreadsContext * ctx = user_data;
+
+  if (gum_cloak_has_thread (details->id))
+    return TRUE;
+
+  return ctx->func (details, ctx->user_data);
 }
 
 void

@@ -551,8 +551,8 @@ gum_put_ack (gint fd,
 }
 
 void
-gum_process_enumerate_threads (GumFoundThreadFunc func,
-                               gpointer user_data)
+_gum_process_enumerate_threads (GumFoundThreadFunc func,
+                                gpointer user_data)
 {
   GDir * dir;
   const gchar * name;
