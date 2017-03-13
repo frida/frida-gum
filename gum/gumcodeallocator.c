@@ -1,11 +1,12 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gumcodeallocator.h"
 
+#include "gumcloak.h"
 #include "gumcodesegment.h"
 #include "gummemory.h"
 #include "gumprocess-priv.h"
@@ -246,6 +247,7 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
   gsize size_in_pages, size_in_bytes;
   GumCodeSegment * segment;
   gpointer data;
+  GumMemoryRange range;
   GumCodePages * pages;
   guint i;
 
@@ -280,6 +282,10 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
       return NULL;
     data = gum_code_segment_get_address (segment);
   }
+
+  range.base_address = GUM_ADDRESS (data);
+  range.size = size_in_bytes;
+  gum_cloak_add_range (&range);
 
   pages = g_slice_alloc (self->pages_metadata_size);
   pages->ref_count = self->slices_per_batch;
@@ -333,9 +339,19 @@ gum_code_pages_unref (GumCodePages * self)
   if (self->ref_count == 0)
   {
     if (self->segment != NULL)
+    {
       gum_code_segment_free (self->segment);
+    }
     else
+    {
+      GumMemoryRange range;
+
       gum_free_pages (self->data);
+
+      range.base_address = GUM_ADDRESS (self->data);
+      range.size = self->size;
+      gum_cloak_remove_range (&range);
+    }
 
     g_slice_free1 (self->allocator->pages_metadata_size, self);
   }
@@ -536,6 +552,15 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller,
       ? gum_alloc_n_pages (size_in_pages, GUM_PAGE_RW)
       : NULL;
 
+  if (dispatcher->thunk != NULL)
+  {
+    GumMemoryRange range;
+
+    range.base_address = GUM_ADDRESS (dispatcher->thunk);
+    range.size = size_in_bytes;
+    gum_cloak_add_range (&range);
+  }
+
   dispatcher->original_data = g_memdup (dispatcher->address,
       probe_ctx.cave.size);
   dispatcher->original_size = probe_ctx.cave.size;
@@ -565,7 +590,15 @@ gum_code_deflector_dispatcher_free (GumCodeDeflectorDispatcher * dispatcher)
   g_free (dispatcher->original_data);
 
   if (dispatcher->thunk != NULL)
+  {
+    GumMemoryRange range;
+
     gum_free_pages (dispatcher->thunk);
+
+    range.base_address = GUM_ADDRESS (dispatcher->thunk);
+    range.size = gum_query_page_size ();
+    gum_cloak_remove_range (&range);
+  }
 
   g_slist_foreach (dispatcher->callers, (GFunc) gum_code_deflector_free, NULL);
   g_slist_free (dispatcher->callers);
