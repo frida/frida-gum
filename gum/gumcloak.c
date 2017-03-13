@@ -26,25 +26,110 @@ static gint gum_thread_id_compare (gconstpointer element_a,
     gconstpointer element_b);
 
 static GumSpinlock cloak_lock;
-static GumMetalArray cloaked_ranges;
 static GumMetalArray cloaked_threads;
+static GumMetalArray cloaked_ranges;
 
 void
 _gum_cloak_init (void)
 {
   gum_spinlock_init (&cloak_lock);
 
-  gum_metal_array_init (&cloaked_ranges, sizeof (GumCloakedRange));
   gum_metal_array_init (&cloaked_threads, sizeof (GumThreadId));
+  gum_metal_array_init (&cloaked_ranges, sizeof (GumCloakedRange));
 }
 
 void
 _gum_cloak_deinit (void)
 {
-  gum_metal_array_free (&cloaked_threads);
   gum_metal_array_free (&cloaked_ranges);
+  gum_metal_array_free (&cloaked_threads);
 
   gum_spinlock_free (&cloak_lock);
+}
+
+void
+gum_cloak_add_thread (GumThreadId id)
+{
+  GumThreadId * element, * elements;
+  gint i;
+
+  gum_spinlock_acquire (&cloak_lock);
+
+  element = NULL;
+
+  elements = cloaked_threads.data;
+  for (i = (gint) cloaked_threads.length - 1; i >= 0; i--)
+  {
+    if (id >= elements[i])
+    {
+      element = gum_metal_array_insert_at (&cloaked_threads, i + 1);
+      break;
+    }
+  }
+
+  if (element == NULL)
+    element = gum_metal_array_insert_at (&cloaked_threads, 0);
+
+  *element = id;
+
+  gum_spinlock_release (&cloak_lock);
+}
+
+void
+gum_cloak_remove_thread (GumThreadId id)
+{
+  gint index_;
+
+  gum_spinlock_acquire (&cloak_lock);
+
+  index_ = gum_cloak_index_of_thread (id);
+  if (index_ != -1)
+    gum_metal_array_remove_at (&cloaked_threads, index_);
+
+  gum_spinlock_release (&cloak_lock);
+}
+
+gboolean
+gum_cloak_has_thread (GumThreadId id)
+{
+  gboolean result;
+
+  gum_spinlock_acquire (&cloak_lock);
+
+  result = gum_cloak_index_of_thread (id) != -1;
+
+  gum_spinlock_release (&cloak_lock);
+
+  return result;
+}
+
+static gint
+gum_cloak_index_of_thread (GumThreadId id)
+{
+  GumThreadId * elements, * element;
+
+  elements = cloaked_threads.data;
+
+  element = bsearch (&id, elements, cloaked_threads.length,
+      cloaked_threads.element_size, gum_thread_id_compare);
+  if (element == NULL)
+    return -1;
+
+  return element - elements;
+}
+
+static gint
+gum_thread_id_compare (gconstpointer element_a,
+                       gconstpointer element_b)
+{
+  GumThreadId a = *((GumThreadId *) element_a);
+  GumThreadId b = *((GumThreadId *) element_b);
+
+  if (a == b)
+    return 0;
+  if (a < b)
+    return -1;
+  return 1;
 }
 
 void
@@ -235,89 +320,4 @@ gum_cloak_clip_range (const GumMemoryRange * range)
   }
 
   return chunks;
-}
-
-void
-gum_cloak_add_thread (GumThreadId id)
-{
-  GumThreadId * element, * elements;
-  gint i;
-
-  gum_spinlock_acquire (&cloak_lock);
-
-  element = NULL;
-
-  elements = cloaked_threads.data;
-  for (i = (gint) cloaked_threads.length - 1; i >= 0; i--)
-  {
-    if (id >= elements[i])
-    {
-      element = gum_metal_array_insert_at (&cloaked_threads, i + 1);
-      break;
-    }
-  }
-
-  if (element == NULL)
-    element = gum_metal_array_insert_at (&cloaked_threads, 0);
-
-  *element = id;
-
-  gum_spinlock_release (&cloak_lock);
-}
-
-void
-gum_cloak_remove_thread (GumThreadId id)
-{
-  gint index_;
-
-  gum_spinlock_acquire (&cloak_lock);
-
-  index_ = gum_cloak_index_of_thread (id);
-  if (index_ != -1)
-    gum_metal_array_remove_at (&cloaked_threads, index_);
-
-  gum_spinlock_release (&cloak_lock);
-}
-
-gboolean
-gum_cloak_has_thread (GumThreadId id)
-{
-  gboolean result;
-
-  gum_spinlock_acquire (&cloak_lock);
-
-  result = gum_cloak_index_of_thread (id) != -1;
-
-  gum_spinlock_release (&cloak_lock);
-
-  return result;
-}
-
-static gint
-gum_cloak_index_of_thread (GumThreadId id)
-{
-  GumThreadId * elements, * element;
-
-  elements = cloaked_threads.data;
-
-  element = bsearch (&id, elements, cloaked_threads.length,
-      cloaked_threads.element_size, gum_thread_id_compare);
-  if (element == NULL)
-    return -1;
-
-  return element - elements;
-}
-
-static gint
-gum_thread_id_compare (gconstpointer element_a,
-                       gconstpointer element_b)
-{
-  GumThreadId a = *((GumThreadId *) element_a);
-  GumThreadId b = *((GumThreadId *) element_b);
-
-  if (a == b)
-    return 0;
-  if (a < b)
-    return -1;
-  return 1;
 }
