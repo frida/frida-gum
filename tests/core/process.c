@@ -27,6 +27,7 @@
 TEST_LIST_BEGIN (process)
 #ifndef HAVE_MIPS
   PROCESS_TESTENTRY (process_threads)
+  PROCESS_TESTENTRY (process_threads_exclude_cloaked)
 #endif
   PROCESS_TESTENTRY (process_modules)
   PROCESS_TESTENTRY (process_ranges)
@@ -52,16 +53,28 @@ TEST_LIST_BEGIN (process)
 #endif
 TEST_LIST_END ()
 
-typedef struct _TestForEachContext {
+typedef struct _TestForEachContext TestForEachContext;
+typedef struct _TestThreadContext TestThreadContext;
+typedef struct _TestRangeContext TestRangeContext;
+
+struct _TestForEachContext
+{
   gboolean value_to_return;
   guint number_of_calls;
-} TestForEachContext;
+};
 
-typedef struct _TestRangeContext {
+struct _TestThreadContext
+{
+  GumThreadId needle;
+  gboolean found;
+};
+
+struct _TestRangeContext
+{
   GumMemoryRange range;
   gboolean found;
   gboolean found_exact;
-} TestRangeContext;
+};
 
 #ifndef G_OS_WIN32
 static gboolean store_export_address_if_tricky_module_export (
@@ -75,6 +88,8 @@ static gboolean store_export_address_if_mach_msg (
 
 static gpointer sleeping_dummy (gpointer data);
 static gboolean thread_found_cb (const GumThreadDetails * details,
+    gpointer user_data);
+static gboolean thread_check_cb (const GumThreadDetails * details,
     gpointer user_data);
 static gboolean module_found_cb (const GumModuleDetails * details,
     gpointer user_data);
@@ -125,6 +140,30 @@ PROCESS_TESTCASE (process_threads)
   done = TRUE;
   g_thread_join (thread_b);
   g_thread_join (thread_a);
+}
+
+PROCESS_TESTCASE (process_threads_exclude_cloaked)
+{
+  TestThreadContext ctx;
+
+  if (RUNNING_ON_VALGRIND)
+  {
+    g_print ("<skipping, not compatible with Valgrind> ");
+    return;
+  }
+
+  ctx.needle = gum_process_get_current_thread_id ();
+  ctx.found = FALSE;
+  gum_process_enumerate_threads (thread_check_cb, &ctx);
+  g_assert (ctx.found);
+
+  gum_cloak_add_thread (ctx.needle);
+
+  ctx.found = FALSE;
+  gum_process_enumerate_threads (thread_check_cb, &ctx);
+  g_assert (!ctx.found);
+
+  gum_cloak_remove_thread (ctx.needle);
 }
 
 PROCESS_TESTCASE (process_modules)
@@ -602,6 +641,18 @@ thread_found_cb (const GumThreadDetails * details,
   ctx->number_of_calls++;
 
   return ctx->value_to_return;
+}
+
+static gboolean
+thread_check_cb (const GumThreadDetails * details,
+                 gpointer user_data)
+{
+  TestThreadContext * ctx = (TestThreadContext *) user_data;
+
+  if (details->id == ctx->needle)
+    ctx->found = TRUE;
+
+  return !ctx->found;
 }
 
 static gboolean
