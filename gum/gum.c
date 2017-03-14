@@ -14,6 +14,7 @@
 #include "valgrind.h"
 
 #include <capstone.h>
+#include <ffi.h>
 #include <glib-object.h>
 #include <gio/gio.h>
 
@@ -261,6 +262,7 @@ gum_deinit_embedded (void)
   gum_deinit ();
   gio_deinit ();
   glib_deinit ();
+  ffi_deinit ();
   gum_memory_deinit ();
 
   gum_initialized = FALSE;

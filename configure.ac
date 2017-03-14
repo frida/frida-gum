@@ -196,7 +196,8 @@ GLIB_VERSION=2.46.0
 CAPSTONE_VERSION=3.0.4
 pkg_modules="glib-2.0 >= $GLIB_VERSION, gobject-2.0 >= $GLIB_VERSION,
     gio-2.0 >= $GLIB_VERSION, gio-unix-2.0 >= $GLIB_VERSION,
-    capstone >= $CAPSTONE_VERSION"
+    capstone >= $CAPSTONE_VERSION,
+    libffi >= 3.1.1"
 PKG_CHECK_MODULES(GUM, [$pkg_modules])
 
 if [[ "x$HAVE_ANDROID" = "xyes" ]]; then
@@ -258,13 +259,11 @@ AC_ARG_ENABLE(gumjs,
   [AS_HELP_STRING([--enable-gumjs],
                   [enable JavaScript bindings [default=yes]])],,
   [enable_gumjs=yes])
-LIBFFI_REQUIRES="libffi >= 3.1.1"
 V8_REQUIRES=""
 if [[ "x$enable_gumjs" = "xyes" ]]; then
   AC_DEFINE(HAVE_GUMJS, 1, [Define to 1 if GumJS is available.])
 
   PKG_CHECK_MODULES(JSON_GLIB, [json-glib-1.0])
-  PKG_CHECK_MODULES(LIBFFI, [$LIBFFI_REQUIRES])
 
   if [[ "x$enable_diet" = "xno" ]]; then
     PKG_CHECK_MODULES(V8, [v8], [HAVE_V8=yes], [HAVE_V8=no])
@@ -277,15 +276,14 @@ if [[ "x$enable_gumjs" = "xyes" ]]; then
   fi
   AM_CONDITIONAL(HAVE_V8, [test "x$HAVE_V8" = "xyes"])
 
-  GUMJS_CFLAGS="$GUM_CFLAGS $JSON_GLIB_CFLAGS $LIBFFI_CFLAGS $V8_CFLAGS"
-  GUMJS_LDFLAGS="$GUM_LDFLAGS $JSON_GLIB_LDFLAGS $LIBFFI_LDFLAGS $V8_LDFLAGS"
-  GUMJS_LIBS="$GUM_LIBS $JSON_GLIB_LIBS $LIBFFI_LIBS $V8_LIBS"
+  GUMJS_CFLAGS="$GUM_CFLAGS $JSON_GLIB_CFLAGS $V8_CFLAGS"
+  GUMJS_LDFLAGS="$GUM_LDFLAGS $JSON_GLIB_LDFLAGS $V8_LDFLAGS"
+  GUMJS_LIBS="$GUM_LIBS $JSON_GLIB_LIBS $V8_LIBS"
 fi
 AM_CONDITIONAL(ENABLE_GUMJS, [test "x$enable_gumjs" = "xyes"])
 AC_SUBST(GUMJS_CFLAGS)
 AC_SUBST(GUMJS_LDFLAGS)
 AC_SUBST(GUMJS_LIBS)
-AC_SUBST(LIBFFI_REQUIRES)
 AC_SUBST(V8_REQUIRES)
 
 if [[ "x$HAVE_LINUX" = "xyes" ]]; then

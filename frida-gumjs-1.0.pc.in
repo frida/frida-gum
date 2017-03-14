@@ -7,7 +7,7 @@ Name: GumJS
 Description: Gum JavaScript bindings
 Version: @VERSION@
 Requires: frida-gum-1.0 json-glib-1.0
-Requires.private: @V8_REQUIRES@ @LIBFFI_REQUIRES@
+Requires.private: @V8_REQUIRES@
 Cflags: -I${includedir}/frida-1.0
 Libs: -L${libdir} -lfrida-gumjs-1.0
 Libs.private: @GUMDUK_LIBS_PRIVATE@
