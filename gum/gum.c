@@ -30,6 +30,8 @@ struct _GumInternalThreadDetails
 
 static void gum_destructor_invoke (GumDestructorFunc destructor);
 
+static void gum_on_ffi_allocate (void * base_address, size_t size);
+static void gum_on_ffi_deallocate (void * base_address, size_t size);
 static void gum_on_thread_init (GThread * thread);
 static void gum_on_thread_ready (GThread * thread, GThreadFunc func,
     gpointer data, const gchar * name);
@@ -181,6 +183,10 @@ gum_destructor_invoke (GumDestructorFunc destructor)
 void
 gum_init_embedded (void)
 {
+  ffi_mem_callbacks ffi_callbacks = {
+    gum_on_ffi_allocate,
+    gum_on_ffi_deallocate
+  };
   GThreadCallbacks thread_callbacks = {
     gum_on_thread_init,
     gum_on_thread_ready,
@@ -221,6 +227,7 @@ gum_init_embedded (void)
 #endif
 
   gum_memory_init ();
+  ffi_mem_set_callbacks (&ffi_callbacks);
   g_thread_set_callbacks (&thread_callbacks);
 #if !DEBUG_HEAP_LEAKS && !defined (HAVE_ASAN)
   if (RUNNING_ON_VALGRIND)
@@ -266,6 +273,26 @@ gum_deinit_embedded (void)
   gum_memory_deinit ();
 
   gum_initialized = FALSE;
+}
+
+static void
+gum_on_ffi_allocate (void * base_address,
+                     size_t size)
+{
+  GumMemoryRange range;
+  range.base_address = GUM_ADDRESS (base_address);
+  range.size = size;
+  gum_cloak_add_range (&range);
+}
+
+static void
+gum_on_ffi_deallocate (void * base_address,
+                       size_t size)
+{
+  GumMemoryRange range;
+  range.base_address = GUM_ADDRESS (base_address);
+  range.size = size;
+  gum_cloak_remove_range (&range);
 }
 
 static void
