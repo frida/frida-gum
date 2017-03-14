@@ -184,6 +184,9 @@ void
 gum_init_embedded (void)
 {
   ffi_mem_callbacks ffi_callbacks = {
+    gum_malloc,
+    gum_calloc,
+    gum_free,
     gum_on_ffi_allocate,
     gum_on_ffi_deallocate
   };
@@ -227,7 +230,7 @@ gum_init_embedded (void)
 #endif
 
   gum_memory_init ();
-  ffi_mem_set_callbacks (&ffi_callbacks);
+  ffi_set_mem_callbacks (&ffi_callbacks);
   g_thread_set_callbacks (&thread_callbacks);
 #if !DEBUG_HEAP_LEAKS && !defined (HAVE_ASAN)
   if (RUNNING_ON_VALGRIND)
