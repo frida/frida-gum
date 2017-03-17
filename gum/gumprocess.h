@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -12,6 +12,7 @@
 typedef gsize GumThreadId;
 typedef guint GumThreadState;
 typedef struct _GumThreadDetails GumThreadDetails;
+typedef struct _GumThreadLifetimeBeacon GumThreadLifetimeBeacon;
 typedef struct _GumModuleDetails GumModuleDetails;
 typedef guint GumImportType;
 typedef guint GumExportType;
@@ -35,6 +36,11 @@ struct _GumThreadDetails
   GumThreadId id;
   GumThreadState state;
   GumCpuContext cpu_context;
+};
+
+struct _GumThreadLifetimeBeacon
+{
+  gpointer data;
 };
 
 struct _GumModuleDetails
@@ -123,6 +129,9 @@ GUM_API void gum_process_enumerate_malloc_ranges (
 GUM_API gboolean gum_thread_try_get_range (GumMemoryRange * range);
 GUM_API gint gum_thread_get_system_error (void);
 GUM_API void gum_thread_set_system_error (gint value);
+GUM_API void gum_thread_create_beacon (GumThreadLifetimeBeacon * beacon);
+GUM_API void gum_thread_destroy_beacon (GumThreadLifetimeBeacon * beacon);
+GUM_API gboolean gum_thread_check_beacon (GumThreadLifetimeBeacon * beacon);
 GUM_API void gum_module_enumerate_imports (const gchar * module_name,
     GumFoundImportFunc func, gpointer user_data);
 GUM_API void gum_module_enumerate_exports (const gchar * module_name,
