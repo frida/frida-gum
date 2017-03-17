@@ -21,6 +21,9 @@
 #include <pthread.h>
 #include <sys/sysctl.h>
 
+#define GUM_DARWIN_THREAD_LIFETIME_BEACON(beacon) \
+    ((GumDarwinThreadLifetimeBeacon *) (beacon))
+
 #define GUM_PSR_THUMB 0x20
 #define MAX_MACH_HEADER_SIZE (64 * 1024)
 #define DYLD_INFO_COUNT 5
@@ -30,6 +33,7 @@
 #define DYLD_IMAGE_INFO_32_SIZE 12
 #define DYLD_IMAGE_INFO_64_SIZE 24
 
+typedef struct _GumDarwinThreadLifetimeBeacon GumDarwinThreadLifetimeBeacon;
 typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
 typedef struct _GumEnumerateExportsContext GumEnumerateExportsContext;
 typedef struct _GumFindEntrypointContext GumFindEntrypointContext;
@@ -45,6 +49,11 @@ typedef struct _DyldAllImageInfos32 DyldAllImageInfos32;
 typedef struct _DyldAllImageInfos64 DyldAllImageInfos64;
 typedef struct _DyldImageInfo32 DyldImageInfo32;
 typedef struct _DyldImageInfo64 DyldImageInfo64;
+
+struct _GumDarwinThreadLifetimeBeacon
+{
+  mach_port_t thread;
+};
 
 struct _GumEnumerateImportsContext
 {
@@ -446,6 +455,48 @@ void
 gum_thread_set_system_error (gint value)
 {
   errno = value;
+}
+
+void
+gum_thread_create_beacon (GumThreadLifetimeBeacon * beacon)
+{
+  GumDarwinThreadLifetimeBeacon * impl =
+      GUM_DARWIN_THREAD_LIFETIME_BEACON (beacon);
+
+  impl->thread = mach_thread_self ();
+}
+
+void
+gum_thread_destroy_beacon (GumThreadLifetimeBeacon * beacon)
+{
+  GumDarwinThreadLifetimeBeacon * impl =
+      GUM_DARWIN_THREAD_LIFETIME_BEACON (beacon);
+
+  g_assert (impl->thread != MACH_PORT_NULL);
+
+  mach_port_deallocate (mach_task_self (), impl->thread);
+  impl->thread = MACH_PORT_NULL;
+}
+
+gboolean
+gum_thread_check_beacon (GumThreadLifetimeBeacon * beacon)
+{
+  GumDarwinThreadLifetimeBeacon * impl =
+      GUM_DARWIN_THREAD_LIFETIME_BEACON (beacon);
+  mach_port_type_t type;
+  kern_return_t kr;
+
+  g_assert (impl->thread != MACH_PORT_NULL);
+
+  kr = mach_port_type (mach_task_self (), impl->thread, &type);
+  if (kr != KERN_SUCCESS)
+    goto assume_gone;
+
+  if ((type & MACH_PORT_TYPE_DEAD_NAME) == 0)
+    return FALSE;
+
+assume_gone:
+  return TRUE;
 }
 
 void

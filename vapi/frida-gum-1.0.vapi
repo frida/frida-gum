@@ -42,6 +42,8 @@ namespace Gum {
 
 		public void ignore_other_threads ();
 		public void unignore_other_threads ();
+
+		public signal void flush_suggested ();
 	}
 
 	public interface InvocationListener : GLib.Object {

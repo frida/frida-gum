@@ -55,6 +55,8 @@ struct _GumInterceptor
 struct _GumInterceptorClass
 {
   GObjectClass parent_class;
+
+  void (* flush_suggested) (GumInterceptor * interceptor);
 };
 
 G_BEGIN_DECLS

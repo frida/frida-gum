@@ -40,6 +40,13 @@ typedef struct _ListenerInvocationState ListenerInvocationState;
 typedef void (* GumPrologueWriteFunc) (GumInterceptor * self,
     GumFunctionContext * ctx, gpointer prologue);
 
+enum
+{
+  SIGNAL_FLUSH_SUGGESTED,
+
+  LAST_SIGNAL
+};
+
 struct _GumInterceptorTransaction
 {
   gboolean is_dirty;
@@ -86,6 +93,8 @@ struct _ListenerEntry
 
 struct _InterceptorThreadContext
 {
+  GumThreadLifetimeBeacon lifetime_beacon;
+
   GumInvocationBackend listener_backend;
   GumInvocationBackend replacement_backend;
 
@@ -171,8 +180,9 @@ static ListenerEntry ** gum_function_context_find_taken_listener_slot (
     GumFunctionContext * function_ctx);
 
 static InterceptorThreadContext * get_interceptor_thread_context (void);
-static void release_interceptor_thread_context (
+static void schedule_cleanup_of_interceptor_thread_context (
     InterceptorThreadContext * context);
+static gboolean gum_interceptor_garbage_collect (void);
 static InterceptorThreadContext * interceptor_thread_context_new (void);
 static void interceptor_thread_context_destroy (
     InterceptorThreadContext * context);
@@ -196,12 +206,16 @@ static gboolean gum_interceptor_has (GumInterceptor * self,
 static gpointer gum_page_address_from_pointer (gpointer ptr);
 static gint gum_page_address_compare (gconstpointer a, gconstpointer b);
 
+static guint gum_interceptor_signals[LAST_SIGNAL] = { 0, };
+
 static GMutex _gum_interceptor_lock;
 static GumInterceptor * _the_interceptor = NULL;
 
 static GumSpinlock _gum_interceptor_thread_context_lock;
 static GHashTable * _gum_interceptor_thread_contexts;
+static GQueue _gum_interceptor_thread_contexts_dying = G_QUEUE_INIT;
 static GumTlsKey _gum_interceptor_context_key;
+static GumTlsKey _gum_interceptor_cleanup_key;
 static GumTlsKey _gum_interceptor_guard_key;
 
 static GumInvocationStack _gum_interceptor_empty_stack = { NULL, 0 };
@@ -215,6 +229,13 @@ gum_interceptor_class_init (GumInterceptorClass * klass)
 
   object_class->dispose = gum_interceptor_dispose;
   object_class->finalize = gum_interceptor_finalize;
+
+  klass->flush_suggested = NULL;
+
+  gum_interceptor_signals[SIGNAL_FLUSH_SUGGESTED] =
+      g_signal_new ("flush-suggested", G_TYPE_FROM_CLASS (klass),
+      G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GumInterceptorClass, flush_suggested),
+      NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE, 0);
 }
 
 void
@@ -224,17 +245,20 @@ _gum_interceptor_init (void)
   _gum_interceptor_thread_contexts = g_hash_table_new_full (NULL, NULL,
       (GDestroyNotify) interceptor_thread_context_destroy, NULL);
 
-  _gum_interceptor_context_key = gum_tls_key_new (
-      (GDestroyNotify) release_interceptor_thread_context);
+  _gum_interceptor_context_key = gum_tls_key_new (NULL);
+  _gum_interceptor_cleanup_key = gum_tls_key_new (
+      (GDestroyNotify) schedule_cleanup_of_interceptor_thread_context);
   _gum_interceptor_guard_key = gum_tls_key_new (NULL);
 }
 
 void
 _gum_interceptor_deinit (void)
 {
-  gum_tls_key_free (_gum_interceptor_context_key);
   gum_tls_key_free (_gum_interceptor_guard_key);
+  gum_tls_key_free (_gum_interceptor_cleanup_key);
+  gum_tls_key_free (_gum_interceptor_context_key);
 
+  g_queue_clear (&_gum_interceptor_thread_contexts_dying);
   g_hash_table_unref (_gum_interceptor_thread_contexts);
   _gum_interceptor_thread_contexts = NULL;
 
@@ -544,6 +568,9 @@ gum_interceptor_flush (GumInterceptor * self)
   }
 
   GUM_INTERCEPTOR_UNLOCK ();
+
+  if (!gum_interceptor_garbage_collect ())
+    flushed = FALSE;
 
   return flushed;
 }
@@ -1403,22 +1430,74 @@ get_interceptor_thread_context (void)
   {
     context = interceptor_thread_context_new ();
 
+    gum_tls_key_set_value (_gum_interceptor_context_key, context);
+    gum_tls_key_set_value (_gum_interceptor_cleanup_key, context);
+
     gum_spinlock_acquire (&_gum_interceptor_thread_context_lock);
     g_hash_table_add (_gum_interceptor_thread_contexts, context);
     gum_spinlock_release (&_gum_interceptor_thread_context_lock);
-
-    gum_tls_key_set_value (_gum_interceptor_context_key, context);
   }
+
+  gum_interceptor_garbage_collect ();
 
   return context;
 }
 
 static void
-release_interceptor_thread_context (InterceptorThreadContext * context)
+schedule_cleanup_of_interceptor_thread_context (
+    InterceptorThreadContext * context)
 {
+  GumInterceptor * interceptor;
+
   gum_spinlock_acquire (&_gum_interceptor_thread_context_lock);
-  g_hash_table_remove (_gum_interceptor_thread_contexts, context);
+  g_queue_push_tail (&_gum_interceptor_thread_contexts_dying, context);
   gum_spinlock_release (&_gum_interceptor_thread_context_lock);
+
+  g_mutex_lock (&_gum_interceptor_lock);
+  interceptor = (_the_interceptor != NULL)
+      ? g_object_ref (_the_interceptor)
+      : NULL;
+  g_mutex_unlock (&_gum_interceptor_lock);
+
+  if (interceptor != NULL)
+  {
+    g_signal_emit (interceptor, gum_interceptor_signals[SIGNAL_FLUSH_SUGGESTED],
+        0);
+    g_object_unref (interceptor);
+  }
+}
+
+static gboolean
+gum_interceptor_garbage_collect (void)
+{
+  gboolean collected_everything = TRUE;
+  GList * cur;
+
+  gum_spinlock_acquire (&_gum_interceptor_thread_context_lock);
+
+  cur = _gum_interceptor_thread_contexts_dying.head;
+  while (cur != NULL)
+  {
+    InterceptorThreadContext * context = cur->data;
+    GList * next = cur->next;
+
+    if (gum_thread_check_beacon (&context->lifetime_beacon))
+    {
+      g_queue_delete_link (&_gum_interceptor_thread_contexts_dying, cur);
+
+      g_hash_table_remove (_gum_interceptor_thread_contexts, context);
+    }
+    else
+    {
+      collected_everything = FALSE;
+    }
+
+    cur = next;
+  }
+
+  gum_spinlock_release (&_gum_interceptor_thread_context_lock);
+
+  return collected_everything;
 }
 
 static GumPointCut
@@ -1549,6 +1628,8 @@ interceptor_thread_context_new (void)
 
   context = g_slice_new0 (InterceptorThreadContext);
 
+  gum_thread_create_beacon (&context->lifetime_beacon);
+
   gum_memcpy (&context->listener_backend,
       &gum_interceptor_listener_invocation_backend,
       sizeof (GumInvocationBackend));
@@ -1575,6 +1656,8 @@ interceptor_thread_context_destroy (InterceptorThreadContext * context)
   g_array_free (context->listener_data_slots, TRUE);
 
   g_array_free (context->stack, TRUE);
+
+  gum_thread_destroy_beacon (&context->lifetime_beacon);
 
   g_slice_free (InterceptorThreadContext, context);
 }
