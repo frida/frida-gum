@@ -38,11 +38,9 @@ static GumSpinlock _gum_tls_tmp_keys_lock;
 #endif
 
 GumTlsKey
-gum_tls_key_new (GDestroyNotify notify)
+gum_tls_key_new (void)
 {
   DWORD res;
-
-  (void) notify;
 
   res = TlsAlloc ();
   g_assert (res != TLS_OUT_OF_INDEXES);

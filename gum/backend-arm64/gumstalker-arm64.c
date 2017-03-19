@@ -357,7 +357,7 @@ gum_stalker_init (GumStalker * self)
   priv->page_size = gum_query_page_size ();
   g_mutex_init (&priv->mutex);
   priv->contexts = NULL;
-  priv->exec_ctx = gum_tls_key_new (NULL);
+  priv->exec_ctx = gum_tls_key_new ();
 }
 
 static void

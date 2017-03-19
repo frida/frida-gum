@@ -13,7 +13,7 @@ G_BEGIN_DECLS
 
 typedef gsize GumTlsKey;
 
-GUM_API GumTlsKey gum_tls_key_new (GDestroyNotify notify);
+GUM_API GumTlsKey gum_tls_key_new (void);
 GUM_API void gum_tls_key_free (GumTlsKey key);
 
 GUM_API gpointer gum_tls_key_get_value (GumTlsKey key);

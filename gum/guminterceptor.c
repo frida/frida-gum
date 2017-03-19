@@ -199,10 +199,11 @@ static gint gum_page_address_compare (gconstpointer a, gconstpointer b);
 static GMutex _gum_interceptor_lock;
 static GumInterceptor * _the_interceptor = NULL;
 
-static GumSpinlock _gum_interceptor_thread_context_lock;
-static GHashTable * _gum_interceptor_thread_contexts;
-static GumTlsKey _gum_interceptor_context_key;
-static GumTlsKey _gum_interceptor_guard_key;
+static GumSpinlock gum_interceptor_thread_context_lock;
+static GHashTable * gum_interceptor_thread_contexts;
+static GPrivate gum_interceptor_context_private =
+    G_PRIVATE_INIT ((GDestroyNotify) release_interceptor_thread_context);
+static GumTlsKey gum_interceptor_guard_key;
 
 static GumInvocationStack _gum_interceptor_empty_stack = { NULL, 0 };
 
@@ -220,25 +221,22 @@ gum_interceptor_class_init (GumInterceptorClass * klass)
 void
 _gum_interceptor_init (void)
 {
-  gum_spinlock_init (&_gum_interceptor_thread_context_lock);
-  _gum_interceptor_thread_contexts = g_hash_table_new_full (NULL, NULL,
+  gum_spinlock_init (&gum_interceptor_thread_context_lock);
+  gum_interceptor_thread_contexts = g_hash_table_new_full (NULL, NULL,
       (GDestroyNotify) interceptor_thread_context_destroy, NULL);
 
-  _gum_interceptor_context_key = gum_tls_key_new (
-      (GDestroyNotify) release_interceptor_thread_context);
-  _gum_interceptor_guard_key = gum_tls_key_new (NULL);
+  gum_interceptor_guard_key = gum_tls_key_new ();
 }
 
 void
 _gum_interceptor_deinit (void)
 {
-  gum_tls_key_free (_gum_interceptor_context_key);
-  gum_tls_key_free (_gum_interceptor_guard_key);
+  gum_tls_key_free (gum_interceptor_guard_key);
 
-  g_hash_table_unref (_gum_interceptor_thread_contexts);
-  _gum_interceptor_thread_contexts = NULL;
+  g_hash_table_unref (gum_interceptor_thread_contexts);
+  gum_interceptor_thread_contexts = NULL;
 
-  gum_spinlock_free (&_gum_interceptor_thread_context_lock);
+  gum_spinlock_free (&gum_interceptor_thread_context_lock);
 }
 
 static void
@@ -417,11 +415,11 @@ gum_interceptor_detach_listener (GumInterceptor * self,
     }
   }
 
-  gum_spinlock_acquire (&_gum_interceptor_thread_context_lock);
-  g_hash_table_iter_init (&iter, _gum_interceptor_thread_contexts);
+  gum_spinlock_acquire (&gum_interceptor_thread_context_lock);
+  g_hash_table_iter_init (&iter, gum_interceptor_thread_contexts);
   while (g_hash_table_iter_next (&iter, (gpointer *) &thread_ctx, NULL))
     interceptor_thread_context_forget_listener_data (thread_ctx, listener);
-  gum_spinlock_release (&_gum_interceptor_thread_context_lock);
+  gum_spinlock_release (&gum_interceptor_thread_context_lock);
 
   gum_interceptor_transaction_end (&priv->current_transaction);
   GUM_INTERCEPTOR_UNLOCK ();
@@ -567,8 +565,7 @@ gum_interceptor_get_current_stack (void)
 {
   InterceptorThreadContext * context;
 
-  context = (InterceptorThreadContext *)
-      gum_tls_key_get_value (_gum_interceptor_context_key);
+  context = g_private_get (&gum_interceptor_context_private);
   if (context == NULL)
     return &_gum_interceptor_empty_stack;
 
@@ -1156,12 +1153,12 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
   system_error = gum_thread_get_system_error ();
 #endif
 
-  if (gum_tls_key_get_value (_gum_interceptor_guard_key) == interceptor)
+  if (gum_tls_key_get_value (gum_interceptor_guard_key) == interceptor)
   {
     *next_hop = function_ctx->on_invoke_trampoline;
     goto bypass;
   }
-  gum_tls_key_set_value (_gum_interceptor_guard_key, interceptor);
+  gum_tls_key_set_value (gum_interceptor_guard_key, interceptor);
 
   interceptor_ctx = get_interceptor_thread_context ();
   stack = interceptor_ctx->stack;
@@ -1171,7 +1168,7 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
       stack_entry->invocation_context.function ==
       function_ctx->function_address)
   {
-    gum_tls_key_set_value (_gum_interceptor_guard_key, NULL);
+    gum_tls_key_set_value (gum_interceptor_guard_key, NULL);
     *next_hop = function_ctx->on_invoke_trampoline;
     goto bypass;
   }
@@ -1268,7 +1265,7 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
 
   gum_thread_set_system_error (system_error);
 
-  gum_tls_key_set_value (_gum_interceptor_guard_key, NULL);
+  gum_tls_key_set_value (gum_interceptor_guard_key, NULL);
 
   if (will_trap_on_leave)
   {
@@ -1319,7 +1316,7 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
   system_error = gum_thread_get_system_error ();
 #endif
 
-  gum_tls_key_set_value (_gum_interceptor_guard_key, function_ctx->interceptor);
+  gum_tls_key_set_value (gum_interceptor_guard_key, function_ctx->interceptor);
 
 #ifndef G_OS_WIN32
   system_error = gum_thread_get_system_error ();
@@ -1387,7 +1384,7 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
 
   gum_invocation_stack_pop (interceptor_ctx->stack);
 
-  gum_tls_key_set_value (_gum_interceptor_guard_key, NULL);
+  gum_tls_key_set_value (gum_interceptor_guard_key, NULL);
 
   g_atomic_int_dec_and_test (&function_ctx->trampoline_usage_counter);
 }
@@ -1397,17 +1394,16 @@ get_interceptor_thread_context (void)
 {
   InterceptorThreadContext * context;
 
-  context = (InterceptorThreadContext *)
-      gum_tls_key_get_value (_gum_interceptor_context_key);
+  context = g_private_get (&gum_interceptor_context_private);
   if (context == NULL)
   {
     context = interceptor_thread_context_new ();
 
-    gum_spinlock_acquire (&_gum_interceptor_thread_context_lock);
-    g_hash_table_add (_gum_interceptor_thread_contexts, context);
-    gum_spinlock_release (&_gum_interceptor_thread_context_lock);
+    gum_spinlock_acquire (&gum_interceptor_thread_context_lock);
+    g_hash_table_add (gum_interceptor_thread_contexts, context);
+    gum_spinlock_release (&gum_interceptor_thread_context_lock);
 
-    gum_tls_key_set_value (_gum_interceptor_context_key, context);
+    g_private_set (&gum_interceptor_context_private, context);
   }
 
   return context;
@@ -1416,9 +1412,12 @@ get_interceptor_thread_context (void)
 static void
 release_interceptor_thread_context (InterceptorThreadContext * context)
 {
-  gum_spinlock_acquire (&_gum_interceptor_thread_context_lock);
-  g_hash_table_remove (_gum_interceptor_thread_contexts, context);
-  gum_spinlock_release (&_gum_interceptor_thread_context_lock);
+  if (gum_interceptor_thread_contexts == NULL)
+    return;
+
+  gum_spinlock_acquire (&gum_interceptor_thread_context_lock);
+  g_hash_table_remove (gum_interceptor_thread_contexts, context);
+  gum_spinlock_release (&gum_interceptor_thread_context_lock);
 }
 
 static GumPointCut
