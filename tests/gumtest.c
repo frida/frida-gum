@@ -278,6 +278,7 @@ main (gint argc, gchar * argv[])
       g_main_context_iteration (context, FALSE);
   }
 
+  gum_shutdown ();
   gio_shutdown ();
   glib_shutdown ();
 
