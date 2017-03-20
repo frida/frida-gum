@@ -23,7 +23,6 @@
 #define MSPACES                   1
 #define ONLY_MSPACES              1
 #define USE_LOCKS                 1
-#define USE_SPIN_LOCKS            0
 #define FOOTERS                   0
 #define INSECURE                  1
 #define NO_MALLINFO               0
