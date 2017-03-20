@@ -66,6 +66,11 @@ public:
   {
   }
 
+  void ClearIsolate ()
+  {
+    isolate = nullptr;
+  }
+
   virtual void Perform () = 0;
 
 protected:
@@ -129,16 +134,28 @@ public:
 
   void Perform ()
   {
-    Locker locker (isolate);
-    Isolate::Scope isolate_scope (isolate);
-    HandleScope handle_scope (isolate);
+    if (isolate != nullptr)
+    {
+      Locker locker (isolate);
+      Isolate::Scope isolate_scope (isolate);
+      HandleScope handle_scope (isolate);
 
+      RunTask ();
+    }
+    else
+    {
+      RunTask ();
+    }
+  }
+
+private:
+  void RunTask ()
+  {
     const double deadline_in_seconds =
         platform->MonotonicallyIncreasingTime () + (1.0 / 60.0);
     task->Run (deadline_in_seconds);
   }
 
-private:
   IdleTask * task;
 };
 
@@ -238,6 +255,8 @@ GumV8Platform::Dispose (GumV8DisposeRequest * dispose_request)
     g_clear_pointer (&runtime_bundle, gum_v8_bundle_free);
   }
 
+  isolate->Dispose ();
+
   g_mutex_lock (&lock);
 
   while (g_hash_table_size (pending_foreground_tasks) > 0)
@@ -254,6 +273,7 @@ GumV8Platform::Dispose (GumV8DisposeRequest * dispose_request)
 
     g_source_destroy (source);
 
+    request->ClearIsolate ();
     request->Perform ();
     delete request;
 
@@ -261,8 +281,6 @@ GumV8Platform::Dispose (GumV8DisposeRequest * dispose_request)
   }
 
   g_mutex_unlock (&lock);
-
-  isolate->Dispose ();
 
   V8::Dispose ();
   V8::ShutdownPlatform ();
