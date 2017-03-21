@@ -954,6 +954,8 @@ SCRIPT_TESTCASE (file_can_be_written_to)
 
 SCRIPT_TESTCASE (socket_connection_can_be_established)
 {
+  fixture->timeout = 10000;
+
   COMPILE_AND_LOAD_SCRIPT (
       "Socket.listen({"
       "  backlog: 1,"
@@ -989,53 +991,69 @@ SCRIPT_TESTCASE (socket_connection_can_be_established)
       "  .catch(function (error) {"
       "    send('error: ' + error.message);"
       "  });"
+      "})"
+      ".catch(function (error) {"
+      "  send('error: ' + error.message);"
       "});");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"server read\"",
       "31 33 33 37 0a");
 
 #ifdef G_OS_UNIX
-  COMPILE_AND_LOAD_SCRIPT (
-      "var getpid = new NativeFunction(Module.findExportByName(null, 'getpid'),"
-      "    'int', []);"
-      "var unlink = new NativeFunction(Module.findExportByName(null, 'unlink'),"
-      "    'int', ['pointer']);"
-      ""
-      "Socket.listen({"
-      "  type: 'path',"
-      "  path: '/tmp/frida-gum-test-listener-' + getpid(),"
-      "  backlog: 1,"
-      "})"
-      ".then(function (listener) {"
-      "  listener.accept()"
-      "  .then(function (client) {"
-      "    return client.input.readAll(5)"
-      "    .then(function (data) {"
-      "      send('server read', data);"
-      "      client.close();"
-      "      listener.close();"
-      "    });"
-      "  })"
-      "  .catch(function (error) {"
-      "    send('error: ' + error.message);"
-      "  });"
-      ""
-      "  return Socket.connect({"
-      "    type: 'path',"
-      "    path: listener.path,"
-      "  })"
-      "  .then(function (connection) {"
-      "    unlink(Memory.allocUtf8String(listener.path));"
-      "    return connection.output.writeAll([0x31, 0x33, 0x33, 0x37, 0x0a])"
-      "    .then(function () {"
-      "      return connection.close();"
-      "    });"
-      "  })"
-      "  .catch(function (error) {"
-      "    send('error: ' + error.message);"
-      "  });"
-      "});");
-  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"server read\"",
-      "31 33 33 37 0a");
+  {
+    const gchar * tmp_dir;
+
+#ifdef HAVE_ANDROID
+    tmp_dir = "/data/local/tmp";
+#else
+    tmp_dir = g_get_tmp_dir ();
+#endif
+
+    COMPILE_AND_LOAD_SCRIPT (
+        "var getpid = new NativeFunction("
+        "    Module.findExportByName(null, 'getpid'), 'int', []);"
+        "var unlink = new NativeFunction("
+        "    Module.findExportByName(null, 'unlink'), 'int', ['pointer']);"
+        ""
+        "Socket.listen({"
+        "  type: 'path',"
+        "  path: '%s/frida-gum-test-listener-' + getpid(),"
+        "  backlog: 1,"
+        "})"
+        ".then(function (listener) {"
+        "  listener.accept()"
+        "  .then(function (client) {"
+        "    return client.input.readAll(5)"
+        "    .then(function (data) {"
+        "      send('server read', data);"
+        "      client.close();"
+        "      listener.close();"
+        "    });"
+        "  })"
+        "  .catch(function (error) {"
+        "    send('error: ' + error.message);"
+        "  });"
+        ""
+        "  return Socket.connect({"
+        "    type: 'path',"
+        "    path: listener.path,"
+        "  })"
+        "  .then(function (connection) {"
+        "    unlink(Memory.allocUtf8String(listener.path));"
+        "    return connection.output.writeAll([0x31, 0x33, 0x33, 0x37, 0x0a])"
+        "    .then(function () {"
+        "      return connection.close();"
+        "    });"
+        "  })"
+        "  .catch(function (error) {"
+        "    send('error: ' + error.message);"
+        "  });"
+        "})"
+        ".catch(function (error) {"
+        "  send('error: ' + error.message);"
+        "});", tmp_dir);
+    EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"server read\"",
+        "31 33 33 37 0a");
+  }
 #endif
 }
 
@@ -1091,7 +1109,7 @@ SCRIPT_TESTCASE (socket_type_can_be_inspected)
   EXPECT_SEND_MESSAGE_WITH ("\"unix:dgram\"");
   close (fd);
 
-  fd = open ("/etc/passwd", O_RDONLY);
+  fd = open ("/etc/hosts", O_RDONLY);
   g_assert (fd >= 0);
   COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
   EXPECT_SEND_MESSAGE_WITH ("null");
