@@ -78,7 +78,7 @@ check-gdb: $(top_builddir)/tests/android-gdb.setup
 	adb shell "${RPFX}/tests/gdbserver +${RPFX}/tests/debug-socket ${RPFX}/tests/gum-tests" &
 	sleep 1
 	adb forward tcp:${DEBUG_PORT} localfilesystem:${RPFX}/tests/debug-socket
-	${ANDROID_NDK_ROOT}/toolchains/$(android_toolchain)/prebuilt/darwin-x86_64/bin/$(android_toolprefix)-gdb -x "$(top_builddir)/tests/android-gdb.setup"
+	${ANDROID_NDK_ROOT}/prebuilt/darwin-x86_64/bin/gdb -x "$(top_builddir)/tests/android-gdb.setup"
 
 pull:
 	adb pull /system/bin/linker "$(top_builddir)/tests"
