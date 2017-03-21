@@ -973,6 +973,40 @@ _gum_duk_require_pointer (duk_context * ctx,
 }
 
 gboolean
+_gum_duk_is_uint64 (duk_context *ctx,
+					duk_idx_t index,
+					GumDukCore *core)
+{
+	gboolean success = FALSE;
+	duk_dup (ctx, index);
+    duk_push_heapptr (ctx, core->uint64);
+
+    if (duk_instanceof (ctx, -2, -1))
+    {
+      success = TRUE;
+    }
+    duk_pop_2 (ctx);
+	return success;
+}
+
+gboolean
+_gum_duk_is_int64 (duk_context *ctx,
+					duk_idx_t index,
+					GumDukCore *core)
+{
+	gboolean success = FALSE;
+	duk_dup (ctx, index);
+    duk_push_heapptr (ctx, core->int64);
+
+    if (duk_instanceof (ctx, -2, -1))
+    {
+      success = TRUE;
+    }
+    duk_pop_2 (ctx);
+	return success;
+}
+
+gboolean
 _gum_duk_parse_pointer (duk_context * ctx,
                         duk_idx_t index,
                         GumDukCore * core,
@@ -1010,6 +1044,22 @@ _gum_duk_parse_pointer (duk_context * ctx,
 
     *ptr = GSIZE_TO_POINTER ((gsize) number);
     return TRUE;
+  }
+  else if (_gum_duk_is_uint64(ctx,index,core)){
+	  guint64 val=0;
+	  if (_gum_duk_get_uint64 (ctx,index,core,&val)){
+		*ptr = GSIZE_TO_POINTER (val);
+		return TRUE;
+	  }
+	  return FALSE;
+  }
+  else if (_gum_duk_is_int64(ctx,index,core)){
+	  gint64 val=0;
+	  if (_gum_duk_get_int64 (ctx,index,core,&val)){
+		*ptr = GSIZE_TO_POINTER (val);
+		return TRUE;
+	  }
+	  return FALSE;
   }
 
   return _gum_duk_get_pointer (ctx, index, core, ptr);
