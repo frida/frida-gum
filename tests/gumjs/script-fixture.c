@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -36,7 +36,7 @@
 #endif
 
 #define ANY_LINE_NUMBER -1
-#define SCRIPT_MESSAGE_TIMEOUT_MSEC 500
+#define SCRIPT_MESSAGE_DEFAULT_TIMEOUT_MSEC 500
 
 #ifndef SCRIPT_SUITE
 # define SCRIPT_SUITE ""
@@ -117,6 +117,7 @@ typedef struct _TestScriptFixture
   GMainLoop * loop;
   GMainContext * context;
   GQueue * messages;
+  guint timeout;
 } TestScriptFixture;
 
 typedef struct _TestScriptMessageItem
@@ -157,6 +158,7 @@ test_script_fixture_setup (TestScriptFixture * fixture,
   fixture->context = g_main_context_ref_thread_default ();
   fixture->loop = g_main_loop_new (fixture->context, FALSE);
   fixture->messages = g_queue_new ();
+  fixture->timeout = SCRIPT_MESSAGE_DEFAULT_TIMEOUT_MSEC;
 
   if (exceptor == NULL)
   {
@@ -310,8 +312,7 @@ test_script_fixture_pop_message (TestScriptFixture * fixture)
 {
   TestScriptMessageItem * item;
 
-  item = test_script_fixture_try_pop_message (fixture,
-      SCRIPT_MESSAGE_TIMEOUT_MSEC);
+  item = test_script_fixture_try_pop_message (fixture, fixture->timeout);
   g_assert (item != NULL);
 
   return item;

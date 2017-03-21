@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -11,7 +11,7 @@
 #include <stdio.h>
 
 #define ANY_LINE_NUMBER -1
-#define KSCRIPT_MESSAGE_TIMEOUT_MSEC 500
+#define KSCRIPT_MESSAGE_DEFAULT_TIMEOUT_MSEC 500
 
 #ifndef KSCRIPT_SUITE
 # define KSCRIPT_SUITE ""
@@ -47,6 +47,7 @@ typedef struct _TestScriptFixture
   GMainLoop * loop;
   GMainContext * context;
   GQueue * messages;
+  guint timeout;
 } TestScriptFixture;
 
 typedef struct _TestScriptMessageItem
@@ -75,6 +76,7 @@ test_kscript_fixture_setup (TestScriptFixture * fixture,
   fixture->context = g_main_context_ref_thread_default ();
   fixture->loop = g_main_loop_new (fixture->context, FALSE);
   fixture->messages = g_queue_new ();
+  fixture->timeout = KSCRIPT_MESSAGE_DEFAULT_TIMEOUT_MSEC;
 }
 
 static void
@@ -217,8 +219,7 @@ test_kscript_fixture_pop_message (TestScriptFixture * fixture)
 {
   TestScriptMessageItem * item;
 
-  item = test_kscript_fixture_try_pop_message (fixture,
-      KSCRIPT_MESSAGE_TIMEOUT_MSEC);
+  item = test_kscript_fixture_try_pop_message (fixture, fixture->timeout);
   g_assert (item != NULL);
 
   return item;
