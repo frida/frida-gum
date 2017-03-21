@@ -4261,8 +4261,7 @@ SCRIPT_TESTCASE (native_pointer_loads_64_bits)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "send(ptr(0x1FFFFFFFF).equals(ptr(uint64(0x1FFFFFFFF))));"
-      "send(ptr(0x2FFFFFFFF).equals(ptr(int64(0x2FFFFFFFF))));"
-	  );
+      "send(ptr(0x2FFFFFFFF).equals(ptr(int64(0x2FFFFFFFF))));");
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
 }

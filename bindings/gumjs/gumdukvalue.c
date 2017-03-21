@@ -974,36 +974,36 @@ _gum_duk_require_pointer (duk_context * ctx,
 
 gboolean
 _gum_duk_is_uint64 (duk_context *ctx,
-					duk_idx_t index,
-					GumDukCore *core)
+                    duk_idx_t index,
+                    GumDukCore *core)
 {
-	gboolean success = FALSE;
-	duk_dup (ctx, index);
-    duk_push_heapptr (ctx, core->uint64);
+  gboolean success = FALSE;
+  duk_dup (ctx, index);
+  duk_push_heapptr (ctx, core->uint64);
 
-    if (duk_instanceof (ctx, -2, -1))
-    {
-      success = TRUE;
-    }
-    duk_pop_2 (ctx);
-	return success;
+  if (duk_instanceof (ctx, -2, -1))
+  {
+    success = TRUE;
+  }
+  duk_pop_2 (ctx);
+  return success;
 }
 
 gboolean
 _gum_duk_is_int64 (duk_context *ctx,
-					duk_idx_t index,
-					GumDukCore *core)
+                   duk_idx_t index,
+                   GumDukCore *core)
 {
-	gboolean success = FALSE;
-	duk_dup (ctx, index);
-    duk_push_heapptr (ctx, core->int64);
+  gboolean success = FALSE;
+  duk_dup (ctx, index);
+  duk_push_heapptr (ctx, core->int64);
 
-    if (duk_instanceof (ctx, -2, -1))
-    {
-      success = TRUE;
-    }
-    duk_pop_2 (ctx);
-	return success;
+  if (duk_instanceof (ctx, -2, -1))
+  {
+    success = TRUE;
+  }
+  duk_pop_2 (ctx);
+  return success;
 }
 
 gboolean
