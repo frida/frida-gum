@@ -1146,14 +1146,17 @@ _gum_v8_native_pointer_parse (Handle<Value> value,
     *ptr = GSIZE_TO_POINTER (value.As<Number> ()->Value ());
     return TRUE;
   }
-  else{
+  else
+  {
     auto uint64 (Local<FunctionTemplate>::New (core->isolate, *core->uint64));
-    if (uint64->HasInstance (value)) {
+    if (uint64->HasInstance (value)) 
+    {
       *ptr = GSIZE_TO_POINTER(_gum_v8_uint64_get_value (value.As<Object> ()));
       return TRUE;
     }
     auto int64 (Local<FunctionTemplate>::New (core->isolate, *core->int64));
-    if (int64->HasInstance (value)) {
+    if (int64->HasInstance (value)) 
+    {
       *ptr = GSIZE_TO_POINTER(_gum_v8_int64_get_value (value.As<Object> ()));
       return TRUE;
     }

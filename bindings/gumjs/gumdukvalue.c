@@ -1045,21 +1045,25 @@ _gum_duk_parse_pointer (duk_context * ctx,
     *ptr = GSIZE_TO_POINTER ((gsize) number);
     return TRUE;
   }
-  else if (_gum_duk_is_uint64(ctx,index,core)){
-	  guint64 val=0;
-	  if (_gum_duk_get_uint64 (ctx,index,core,&val)){
-		*ptr = GSIZE_TO_POINTER (val);
-		return TRUE;
-	  }
-	  return FALSE;
+  else if (_gum_duk_is_uint64 (ctx, index, core))
+  {
+    guint64 val = 0;
+    if (_gum_duk_get_uint64 (ctx, index, core, &val))
+    {
+      *ptr = GSIZE_TO_POINTER (val);
+      return TRUE;
+    }
+    return FALSE;
   }
-  else if (_gum_duk_is_int64(ctx,index,core)){
-	  gint64 val=0;
-	  if (_gum_duk_get_int64 (ctx,index,core,&val)){
-		*ptr = GSIZE_TO_POINTER (val);
-		return TRUE;
-	  }
-	  return FALSE;
+  else if (_gum_duk_is_int64 (ctx, index, core))
+  {
+    gint64 val = 0;
+    if (_gum_duk_get_int64 (ctx, index, core, &val))
+    {
+      *ptr = GSIZE_TO_POINTER (val);
+      return TRUE;
+    }
+    return FALSE;
   }
 
   return _gum_duk_get_pointer (ctx, index, core, ptr);
