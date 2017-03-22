@@ -301,7 +301,6 @@ gum_on_ffi_deallocate (void * base_address,
 static void
 gum_on_thread_init (void)
 {
-  gum_cloak_add_thread (gum_process_get_current_thread_id ());
 }
 
 static void
@@ -315,6 +314,8 @@ gum_on_thread_realize (void)
   details->thread_id = gum_process_get_current_thread_id ();
   details->has_cloaked_range =
       gum_thread_try_get_range (&details->cloaked_range);
+
+  gum_cloak_add_thread (details->thread_id);
   gum_cloak_add_range (&details->cloaked_range);
 
   /* This allows us to free the data no matter how the thread exits */
