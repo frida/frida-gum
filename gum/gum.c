@@ -24,6 +24,7 @@ typedef struct _GumInternalThreadDetails GumInternalThreadDetails;
 
 struct _GumInternalThreadDetails
 {
+  GumThreadId thread_id;
   gboolean has_cloaked_range;
   GumMemoryRange cloaked_range;
 };
@@ -32,14 +33,13 @@ static void gum_destructor_invoke (GumDestructorFunc destructor);
 
 static void gum_on_ffi_allocate (void * base_address, size_t size);
 static void gum_on_ffi_deallocate (void * base_address, size_t size);
-static void gum_on_thread_init (GThread * thread);
-static void gum_on_thread_ready (GThread * thread, GThreadFunc func,
-    gpointer data, const gchar * name);
-static void gum_on_thread_finalize (GumInternalThreadDetails * details);
-static void gum_on_private_destructor_enter (GPrivate * key,
-    GDestroyNotify notify, gpointer value);
-static void gum_on_private_destructor_leave (GPrivate * key,
-    GDestroyNotify notify, gpointer value);
+static void gum_on_thread_init (void);
+static void gum_on_thread_realize (void);
+static void gum_on_thread_dispose (void);
+static void gum_on_thread_finalize (void);
+
+static void gum_internal_thread_details_free (
+    GumInternalThreadDetails * details);
 
 static void gum_on_assert_failure (const gchar * log_domain, const gchar * file,
     gint line, const gchar * func, const gchar * message, gpointer user_data);
@@ -94,7 +94,7 @@ static GSList * gum_early_destructors = NULL;
 static GSList * gum_final_destructors = NULL;
 
 static GPrivate gum_internal_thread_details_key = G_PRIVATE_INIT (
-    (GDestroyNotify) gum_on_thread_finalize);
+    (GDestroyNotify) gum_internal_thread_details_free);
 
 static GumInterceptor * gum_cached_interceptor = NULL;
 
@@ -192,9 +192,9 @@ gum_init_embedded (void)
   };
   GThreadCallbacks thread_callbacks = {
     gum_on_thread_init,
-    gum_on_thread_ready,
-    gum_on_private_destructor_enter,
-    gum_on_private_destructor_leave
+    gum_on_thread_realize,
+    gum_on_thread_dispose,
+    gum_on_thread_finalize
   };
 #if !DEBUG_HEAP_LEAKS && !defined (HAVE_ASAN)
   GMemVTable mem_vtable = {
@@ -299,29 +299,20 @@ gum_on_ffi_deallocate (void * base_address,
 }
 
 static void
-gum_on_thread_init (GThread * thread)
+gum_on_thread_init (void)
 {
-  (void) thread;
-
   gum_cloak_add_thread (gum_process_get_current_thread_id ());
 }
 
 static void
-gum_on_thread_ready (GThread * thread,
-                     GThreadFunc func,
-                     gpointer data,
-                     const gchar * name)
+gum_on_thread_realize (void)
 {
   GumInternalThreadDetails * details;
-
-  (void) thread;
-  (void) func;
-  (void) data;
-  (void) name;
 
   gum_interceptor_ignore_current_thread (gum_cached_interceptor);
 
   details = g_slice_new (GumInternalThreadDetails);
+  details->thread_id = gum_process_get_current_thread_id ();
   details->has_cloaked_range =
       gum_thread_try_get_range (&details->cloaked_range);
   gum_cloak_add_range (&details->cloaked_range);
@@ -331,40 +322,32 @@ gum_on_thread_ready (GThread * thread,
 }
 
 static void
-gum_on_thread_finalize (GumInternalThreadDetails * details)
+gum_on_thread_dispose (void)
 {
-  if (details->has_cloaked_range)
-    gum_cloak_remove_range (&details->cloaked_range);
-
-  g_slice_free (GumInternalThreadDetails, details);
-
-  gum_cloak_remove_thread (gum_process_get_current_thread_id ());
-}
-
-static void
-gum_on_private_destructor_enter (GPrivate * key,
-                                 GDestroyNotify notify,
-                                 gpointer value)
-{
-  (void) key;
-  (void) notify;
-  (void) value;
-
   if (gum_cached_interceptor != NULL)
     gum_interceptor_ignore_current_thread (gum_cached_interceptor);
 }
 
 static void
-gum_on_private_destructor_leave (GPrivate * key,
-                                 GDestroyNotify notify,
-                                 gpointer value)
+gum_on_thread_finalize (void)
 {
-  (void) key;
-  (void) notify;
-  (void) value;
-
   if (gum_cached_interceptor != NULL)
     gum_interceptor_unignore_current_thread (gum_cached_interceptor);
+}
+
+static void
+gum_internal_thread_details_free (GumInternalThreadDetails * details)
+{
+  GumThreadId thread_id;
+
+  thread_id = details->thread_id;
+
+  if (details->has_cloaked_range)
+    gum_cloak_remove_range (&details->cloaked_range);
+
+  g_slice_free (GumInternalThreadDetails, details);
+
+  gum_cloak_remove_thread (thread_id);
 }
 
 #if defined (HAVE_LINUX) && defined (HAVE_GLIBC)

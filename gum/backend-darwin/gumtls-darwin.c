@@ -24,12 +24,12 @@ _gum_tls_deinit (void)
 }
 
 GumTlsKey
-gum_tls_key_new (GDestroyNotify notify)
+gum_tls_key_new (void)
 {
   pthread_key_t key;
   gint res;
 
-  res = pthread_key_create (&key, notify);
+  res = pthread_key_create (&key, NULL);
   g_assert_cmpint (res, ==, 0);
 
   return key;

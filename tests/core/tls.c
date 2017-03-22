@@ -29,7 +29,7 @@ TLS_TESTCASE (get_should_work_like_the_system_implementation)
 {
   GumTlsKey key;
 
-  key = gum_tls_key_new (NULL);
+  key = gum_tls_key_new ();
 
 #ifdef G_OS_WIN32
   TlsSetValue (key, GSIZE_TO_POINTER (0x11223344));
@@ -46,7 +46,7 @@ TLS_TESTCASE (set_should_work_like_the_system_implementation)
 {
   GumTlsKey key;
 
-  key = gum_tls_key_new (NULL);
+  key = gum_tls_key_new ();
 
   gum_tls_key_set_value (key, GSIZE_TO_POINTER (0x11223344));
 #ifdef G_OS_WIN32
