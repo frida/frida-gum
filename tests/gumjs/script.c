@@ -172,7 +172,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (native_pointer_provides_is_null)
   SCRIPT_TESTENTRY (native_pointer_provides_arithmetic_operations)
   SCRIPT_TESTENTRY (native_pointer_to_match_pattern)
-  SCRIPT_TESTENTRY (native_pointer_loads_64_bits)
+  SCRIPT_TESTENTRY (native_pointer_can_be_constructed_from_64bit_value)
   SCRIPT_TESTENTRY (native_function_can_be_invoked)
   SCRIPT_TESTENTRY (native_function_should_implement_call_and_apply)
   SCRIPT_TESTENTRY (system_function_can_be_invoked)
@@ -883,6 +883,15 @@ SCRIPT_TESTCASE (native_pointer_to_match_pattern)
   EXPECT_SEND_MESSAGE_WITH ("\"a1 b2 c3 d4 e5 f6 a7 b8\"");
 # endif
 #endif
+}
+
+SCRIPT_TESTCASE (native_pointer_can_be_constructed_from_64bit_value)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(ptr(0x1FFFFFFFF).equals(ptr(uint64(0x1FFFFFFFF))));"
+      "send(ptr(0x2FFFFFFFF).equals(ptr(int64(0x2FFFFFFFF))));");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
 static gint
@@ -4255,15 +4264,6 @@ SCRIPT_TESTCASE (java_api_is_embedded)
 {
   COMPILE_AND_LOAD_SCRIPT ("send(typeof Java.available);");
   EXPECT_SEND_MESSAGE_WITH ("\"boolean\"");
-}
-
-SCRIPT_TESTCASE (native_pointer_loads_64_bits)
-{
-  COMPILE_AND_LOAD_SCRIPT (
-      "send(ptr(0x1FFFFFFFF).equals(ptr(uint64(0x1FFFFFFFF))));"
-      "send(ptr(0x2FFFFFFFF).equals(ptr(int64(0x2FFFFFFFF))));");
-  EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
 static void

@@ -1154,6 +1154,7 @@ _gum_v8_native_pointer_parse (Handle<Value> value,
       *ptr = GSIZE_TO_POINTER(_gum_v8_uint64_get_value (value.As<Object> ()));
       return TRUE;
     }
+
     auto int64 (Local<FunctionTemplate>::New (core->isolate, *core->int64));
     if (int64->HasInstance (value)) 
     {
