@@ -703,13 +703,15 @@ _gum_duk_get_int64 (duk_context * ctx,
 
 static gboolean
 gum_duk_is_int64 (duk_context *ctx,
-                   duk_idx_t index,
-                   GumDukCore *core)
+                  duk_idx_t index,
+                  GumDukCore *core)
 {
+  gboolean is_int64;
+
   duk_dup (ctx, index);
   duk_push_heapptr (ctx, core->int64);
 
-  gboolean is_int64 = duk_instanceof (ctx, -2, -1);
+  is_int64 = duk_instanceof (ctx, -2, -1);
 
   duk_pop_2 (ctx);
 
@@ -748,13 +750,15 @@ _gum_duk_parse_int64 (duk_context * ctx,
 
 static gboolean
 gum_duk_is_uint64 (duk_context *ctx,
-                    duk_idx_t index,
-                    GumDukCore *core)
+                   duk_idx_t index,
+                   GumDukCore *core)
 {
+  gboolean is_uint64;
+
   duk_dup (ctx, index);
   duk_push_heapptr (ctx, core->uint64);
 
-  gboolean is_uint64 = duk_instanceof (ctx, -2, -1);
+  is_uint64 = duk_instanceof (ctx, -2, -1);
 
   duk_pop_2 (ctx);
 
@@ -1002,7 +1006,6 @@ _gum_duk_require_pointer (duk_context * ctx,
   return ptr;
 }
 
-
 gboolean
 _gum_duk_parse_pointer (duk_context * ctx,
                         duk_idx_t index,
@@ -1044,7 +1047,7 @@ _gum_duk_parse_pointer (duk_context * ctx,
   }
   else if (gum_duk_is_uint64 (ctx, index, core))
   {
-    guint64 val = 0;
+    guint64 val;
 
     _gum_duk_get_uint64 (ctx, index, core, &val);
 
@@ -1053,7 +1056,7 @@ _gum_duk_parse_pointer (duk_context * ctx,
   }
   else if (gum_duk_is_int64 (ctx, index, core))
   {
-    gint64 val = 0;
+    gint64 val;
 
     _gum_duk_get_int64 (ctx, index, core, &val);
 
