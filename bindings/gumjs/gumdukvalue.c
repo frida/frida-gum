@@ -663,9 +663,9 @@ _gum_duk_get_uint (duk_context * ctx,
 }
 
 static gboolean
-gum_duk_is_int64 (duk_context *ctx,
+gum_duk_is_int64 (duk_context * ctx,
                   duk_idx_t index,
-                  GumDukCore *core)
+                  GumDukCore * core)
 {
   gboolean is_int64;
 
@@ -749,9 +749,9 @@ _gum_duk_parse_int64 (duk_context * ctx,
 }
 
 static gboolean
-gum_duk_is_uint64 (duk_context *ctx,
+gum_duk_is_uint64 (duk_context * ctx,
                    duk_idx_t index,
-                   GumDukCore *core)
+                   GumDukCore * core)
 {
   gboolean is_uint64;
 
