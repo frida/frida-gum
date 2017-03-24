@@ -644,23 +644,6 @@ _gum_duk_require_index (duk_context * ctx,
   }
 }
 
-static gboolean
-gum_duk_is_int64 (duk_context *ctx,
-                  duk_idx_t index,
-                  GumDukCore *core)
-{
-  gboolean is_int64;
-
-  duk_dup (ctx, index);
-  duk_push_heapptr (ctx, core->int64);
-
-  is_int64 = duk_instanceof (ctx, -2, -1);
-
-  duk_pop_2 (ctx);
-
-  return is_int64;
-}
-
 gboolean
 _gum_duk_get_uint (duk_context * ctx,
                    duk_idx_t index,
@@ -677,6 +660,23 @@ _gum_duk_get_uint (duk_context * ctx,
 
   *u = (guint) number;
   return TRUE;
+}
+
+static gboolean
+gum_duk_is_int64 (duk_context *ctx,
+                  duk_idx_t index,
+                  GumDukCore *core)
+{
+  gboolean is_int64;
+
+  duk_dup (ctx, index);
+  duk_push_heapptr (ctx, core->int64);
+
+  is_int64 = duk_instanceof (ctx, -2, -1);
+
+  duk_pop_2 (ctx);
+
+  return is_int64;
 }
 
 gboolean
