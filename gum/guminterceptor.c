@@ -818,13 +818,24 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
   {
     guint num_pages;
     GumCodeSegment * segment;
-    guint8 * source_page;
+    guint8 * source_page, * current_page;
     gsize source_offset;
 
     num_pages = g_hash_table_size (self->pending_prologue_writes);
     segment = gum_code_segment_new (num_pages * page_size, NULL);
 
     source_page = gum_code_segment_get_address (segment);
+
+    current_page = source_page;
+    for (cur = addresses; cur != NULL; cur = cur->next)
+    {
+      guint8 * target_page = cur->data;
+
+      memcpy (current_page, target_page, page_size);
+
+      current_page += page_size;
+    }
+
     for (cur = addresses; cur != NULL; cur = cur->next)
     {
       guint8 * target_page = cur->data;
@@ -834,8 +845,6 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
       pending = g_hash_table_lookup (self->pending_prologue_writes,
           target_page);
       g_assert (pending != NULL);
-
-      memcpy (source_page, target_page, page_size);
 
       for (i = 0; i != pending->len; i++)
       {
