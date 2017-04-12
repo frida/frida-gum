@@ -1965,7 +1965,7 @@ gum_exec_block_write_call_event_code (GumExecBlock * block,
   /* save the target of the call event */
   gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
   /* previous function changes X15 */
-  gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X14, ARM64_REG_X14);
+  gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X14, ARM64_REG_X15);
 
   STALKER_STORE_REG_INTO_CTX_WITH_AO (ARM64_REG_X14, tmp_event,
       G_STRUCT_OFFSET (GumCallEvent, target));
