@@ -70,12 +70,12 @@ if ARCH_ARM64
 endif
 
 check: push
-	adb shell "\"${RPFX}/tests/gum-tests\" -p /Core/Arm64Stalker"
+	adb shell "\"${RPFX}/tests/gum-tests\""
 
 check-gdb: $(top_builddir)/tests/android-gdb.setup
 	adb shell "${RM} -f /data/local/tmp/tests/debug-socket"
 	adb push "${ANDROID_NDK_ROOT}/prebuilt/android-$(android_arch)/gdbserver/gdbserver" "${RPFX}/tests/"
-	adb shell "${RPFX}/tests/gdbserver :${DEBUG_PORT} ${RPFX}/tests/gum-tests -p /Core/Arm64Stalker/performance" &
+	adb shell "${RPFX}/tests/gdbserver :${DEBUG_PORT} ${RPFX}/tests/gum-tests" &
 	sleep 1
 	adb forward tcp:${DEBUG_PORT} tcp:${DEBUG_PORT}
 	${ANDROID_NDK_ROOT}/prebuilt/darwin-x86_64/bin/gdb -x "$(top_builddir)/tests/android-gdb.setup"
