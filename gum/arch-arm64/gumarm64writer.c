@@ -188,6 +188,9 @@ gum_arm64_writer_skip (GumArm64Writer * self,
 void
 gum_arm64_writer_flush (GumArm64Writer * self)
 {
+
+  gsize page_size, n_pages;
+
   if (self->label_refs_len > 0)
   {
     guint label_idx;
@@ -267,6 +270,14 @@ gum_arm64_writer_flush (GumArm64Writer * self)
     self->code = (guint32 *) last_slot;
     self->pc += (guint8 *) last_slot - (guint8 *) first_slot;
   }
+
+  page_size = gum_query_page_size ();
+  n_pages = (GPOINTER_TO_SIZE (self->code) - GPOINTER_TO_SIZE (self->base)) /
+    page_size + 1 ;
+
+  __builtin___clear_cache ((void *) self->base, (void *) self->base + n_pages *
+      page_size);
+
 }
 
 static guint8 *
