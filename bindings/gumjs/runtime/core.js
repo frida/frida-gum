@@ -5,10 +5,6 @@ const hexdump = require('./hexdump');
 const MessageDispatcher = require('./message-dispatcher');
 
 const engine = global;
-const timers = {};
-let nextTimerId = 1;
-let immediates = [];
-let immediateTimer = null;
 let messageDispatcher;
 
 function initialize() {
@@ -57,30 +53,9 @@ Object.defineProperties(engine, {
   setTimeout: {
     enumerable: true,
     value: function (func, delay = 0, ...args) {
-      if (delay === 0)
-        return setImmediate(func, ...args);
-
-      const id = nextTimerId++;
-
-      const nativeId = _setTimeout(function () {
-        delete timers[id];
+      return _setTimeout(function () {
         func.apply(null, args);
       }, delay);
-      timers[id] = nativeId;
-
-      return id;
-    }
-  },
-  clearTimeout: {
-    enumerable: true,
-    value: function (id) {
-      const nativeId = timers[id];
-      if (nativeId !== undefined) {
-        delete timers[id];
-        _clearTimeout(nativeId);
-      } else {
-        clearImmediate(id);
-      }
     }
   },
   setInterval: {
@@ -94,20 +69,13 @@ Object.defineProperties(engine, {
   setImmediate: {
     enumerable: true,
     value: function (func, ...args) {
-      const id = nextTimerId++;
-
-      immediates.push([id, func, args]);
-
-      if (immediateTimer === null)
-        immediateTimer = _setTimeout(processImmediates, 0);
-
-      return id;
+      return setTimeout(func, 0, ...args);
     }
   },
   clearImmediate: {
     enumerable: true,
     value: function (id) {
-      immediates = immediates.filter(([immediateId]) => immediateId !== id);
+      clearTimeout(id);
     }
   },
   int64: {
@@ -189,27 +157,6 @@ makeEnumerateRanges(Kernel);
 
 makeEnumerateThreads(Process);
 makeEnumerateRanges(Process);
-
-function processImmediates() {
-  immediateTimer = null;
-
-  const length = immediates.length;
-  if (length === 0)
-    return;
-  const [maxId] = immediates[length - 1];
-
-  do {
-    const [id] = immediates[0];
-    if (id > maxId)
-      break;
-    const [, func, args] = immediates.shift();
-    try {
-      func.apply(null, args);
-    } catch (e) {
-      _setTimeout(function () { throw e; }, 0);
-    }
-  } while (immediates.length > 0);
-}
 
 function makeEnumerateThreads(mod) {
   Object.defineProperty(mod, 'enumerateThreadsSync', {

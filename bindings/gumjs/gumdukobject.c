@@ -170,7 +170,7 @@ _gum_duk_object_operation_alloc (gsize size,
                                  GumDukObjectOperationFunc dispose)
 {
   GumDukCore * core = object->core;
-  duk_context * ctx = core->current_ctx;
+  duk_context * ctx = core->current_scope->ctx;
   GumDukObjectOperation * op;
 
   op = g_slice_alloc (size);
@@ -317,7 +317,7 @@ _gum_duk_module_operation_alloc (gsize size,
                                  GumDukModuleOperationFunc dispose)
 {
   GumDukCore * core = manager->core;
-  duk_context * ctx = core->current_ctx;
+  duk_context * ctx = core->current_scope->ctx;
   GumDukModuleOperation * op;
 
   op = g_slice_alloc (size);

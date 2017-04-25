@@ -8,6 +8,7 @@
 #define __GUM_V8_CORE_H__
 
 #include "gumscriptscheduler.h"
+#include "gumv8scope.h"
 #include "gumv8script.h"
 #include "gumv8scriptbackend.h"
 
@@ -50,6 +51,7 @@ struct GumV8Core
   GumExceptor * exceptor;
   v8::Isolate * isolate;
 
+  ScriptScope * current_scope;
   volatile guint usage_count;
   volatile GumV8FlushNotify flush_notify;
 
@@ -68,10 +70,8 @@ struct GumV8Core
   GHashTable * weak_refs;
   guint last_weak_ref_id;
 
-  GQueue * tick_callbacks;
-
-  GSList * scheduled_callbacks;
-  guint last_callback_id;
+  GHashTable * scheduled_callbacks;
+  guint next_callback_id;
 
   GHashTable * native_functions;
 
