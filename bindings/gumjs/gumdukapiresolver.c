@@ -134,7 +134,7 @@ invalid_query:
   {
     duk_push_error_object (ctx, DUK_ERR_ERROR, "%s", error->message);
     g_error_free (error);
-    duk_throw (ctx);
+    (void) duk_throw (ctx);
     return 0;
   }
 }

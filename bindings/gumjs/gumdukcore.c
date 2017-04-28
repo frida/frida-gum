@@ -1219,7 +1219,7 @@ _gum_duk_scope_flush (GumDukScope * self)
   duk_push_heapptr (ctx, self->exception);
   _gum_duk_release_heapptr (ctx, self->exception);
   self->exception = NULL;
-  duk_throw (ctx);
+  (void) duk_throw (ctx);
 }
 
 void
