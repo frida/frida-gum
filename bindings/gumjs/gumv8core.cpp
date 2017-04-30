@@ -144,8 +144,8 @@ GUMJS_DECLARE_FUNCTION (gumjs_set_timeout)
 GUMJS_DECLARE_FUNCTION (gumjs_set_interval)
 static void gum_v8_core_schedule_callback (GumV8Core * self,
     const GumV8Args * args, gboolean repeat);
-static void gum_v8_core_add_scheduled_callback (GumV8Core * self,
-    GumV8ScheduledCallback * callback);
+static GumV8ScheduledCallback * gum_v8_core_try_steal_scheduled_callback (
+    GumV8Core * self, gint id);
 GUMJS_DECLARE_FUNCTION (gumjs_clear_timer)
 static GumV8ScheduledCallback * gum_v8_scheduled_callback_new (guint id,
     gboolean repeat, GSource * source, GumV8Core * core);
@@ -292,7 +292,7 @@ static const GumV8Function gumjs_global_functions[] =
 {
   { "_setTimeout", gumjs_set_timeout, },
   { "_setInterval", gumjs_set_interval },
-  { "_clearTimeout", gumjs_clear_timer },
+  { "clearTimeout", gumjs_clear_timer },
   { "clearInterval", gumjs_clear_timer },
   { "_send", gumjs_send },
   { "_setUnhandledExceptionCallback", gumjs_set_unhandled_exception_callback },
@@ -433,6 +433,7 @@ _gum_v8_core_init (GumV8Core * self,
   self->exceptor = gum_exceptor_obtain ();
   self->isolate = isolate;
 
+  self->current_scope = nullptr;
   self->usage_count = 0;
   self->flush_notify = NULL;
 
@@ -445,7 +446,8 @@ _gum_v8_core_init (GumV8Core * self,
   self->weak_refs = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_v8_weak_ref_free);
 
-  self->tick_callbacks = g_queue_new ();
+  self->scheduled_callbacks = g_hash_table_new (NULL, NULL);
+  self->next_callback_id = 1;
 
   auto module = External::New (isolate, self);
 
@@ -712,32 +714,21 @@ _gum_v8_core_flush (GumV8Core * self,
                     GumV8FlushNotify flush_notify)
 {
   gboolean done;
+  GHashTableIter iter;
+  GumV8ScheduledCallback * callback;
 
   self->flush_notify = flush_notify;
 
   if (self->usage_count > 1)
     return FALSE;
 
-  while (self->scheduled_callbacks != NULL)
+  g_hash_table_iter_init (&iter, self->scheduled_callbacks);
+  while (g_hash_table_iter_next (&iter, NULL, (gpointer *) &callback))
   {
-    auto callback = (GumV8ScheduledCallback *) self->scheduled_callbacks->data;
-
-    self->scheduled_callbacks = g_slist_delete_link (
-        self->scheduled_callbacks, self->scheduled_callbacks);
-
-    auto source = g_source_ref (callback->source);
-
     _gum_v8_core_pin (self);
-
-    self->isolate->Exit ();
-    {
-      Unlocker ul (self->isolate);
-
-      g_source_destroy (source);
-      g_source_unref (source);
-    }
-    self->isolate->Enter ();
+    g_source_destroy (callback->source);
   }
+  g_hash_table_remove_all (self->scheduled_callbacks);
 
   if (self->usage_count > 1)
     return FALSE;
@@ -849,9 +840,8 @@ _gum_v8_core_dispose (GumV8Core * self)
 void
 _gum_v8_core_finalize (GumV8Core * self)
 {
-  g_assert (g_queue_is_empty (self->tick_callbacks));
-  g_queue_free (self->tick_callbacks);
-  self->tick_callbacks = NULL;
+  g_hash_table_unref (self->scheduled_callbacks);
+  self->scheduled_callbacks = NULL;
 
   g_hash_table_unref (self->weak_refs);
   self->weak_refs = NULL;
@@ -992,7 +982,7 @@ gum_v8_core_schedule_callback (GumV8Core * self,
       return;
   }
 
-  auto id = ++self->last_callback_id;
+  auto id = self->next_callback_id++;
   GSource * source;
   if (delay == 0)
     source = g_idle_source_new ();
@@ -1002,33 +992,28 @@ gum_v8_core_schedule_callback (GumV8Core * self,
   callback->func = new GumPersistent<Function>::type (self->isolate, func);
   g_source_set_callback (source, (GSourceFunc) gum_v8_scheduled_callback_invoke,
       callback, (GDestroyNotify) gum_v8_scheduled_callback_free);
-  gum_v8_core_add_scheduled_callback (self, callback);
 
-  g_source_attach (source,
-      gum_script_scheduler_get_js_context (self->scheduler));
+  g_hash_table_insert (self->scheduled_callbacks, GINT_TO_POINTER (id),
+      callback);
+  self->current_scope->AddScheduledSource (source);
 
   args->info->GetReturnValue ().Set (id);
 }
 
-static void
-gum_v8_core_add_scheduled_callback (GumV8Core * self,
-                                    GumV8ScheduledCallback * callback)
+static GumV8ScheduledCallback *
+gum_v8_core_try_steal_scheduled_callback (GumV8Core * self,
+                                          gint id)
 {
-  self->scheduled_callbacks =
-      g_slist_prepend (self->scheduled_callbacks, callback);
-}
+  auto raw_id = GINT_TO_POINTER (id);
 
-static gboolean
-gum_v8_core_remove_scheduled_callback (GumV8Core * self,
-                                       GumV8ScheduledCallback * callback)
-{
-  auto link = g_slist_find (self->scheduled_callbacks, callback);
-  if (link == NULL)
-    return FALSE;
+  auto callback = (GumV8ScheduledCallback *) g_hash_table_lookup (
+      self->scheduled_callbacks, raw_id);
+  if (callback == NULL)
+    return NULL;
 
-  self->scheduled_callbacks =
-      g_slist_delete_link (self->scheduled_callbacks, link);
-  return TRUE;
+  g_hash_table_remove (self->scheduled_callbacks, raw_id);
+
+  return callback;
 }
 
 /*
@@ -1049,33 +1034,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_clear_timer)
   if (!_gum_v8_args_parse (args, "i", &id))
     return;
 
-  GumV8ScheduledCallback * callback = NULL;
-  for (auto cur = core->scheduled_callbacks; cur != NULL; cur = cur->next)
-  {
-    auto cb = (GumV8ScheduledCallback *) cur->data;
-    if (cb->id == id)
-    {
-      callback = cb;
-      core->scheduled_callbacks =
-          g_slist_delete_link (core->scheduled_callbacks, cur);
-      break;
-    }
-  }
-
+  auto callback = gum_v8_core_try_steal_scheduled_callback (core, id);
   if (callback != NULL)
   {
-    auto source = g_source_ref (callback->source);
-
     _gum_v8_core_pin (core);
-
-    core->isolate->Exit ();
-    {
-      Unlocker ul (core->isolate);
-
-      g_source_destroy (source);
-      g_source_unref (source);
-    }
-    core->isolate->Enter ();
+    g_source_destroy (callback->source);
   }
 
   info.GetReturnValue ().Set (callback != NULL);
@@ -1111,8 +1074,6 @@ gum_v8_scheduled_callback_free (GumV8ScheduledCallback * callback)
     _gum_v8_core_unpin (core);
   }
 
-  g_source_unref (callback->source);
-
   g_slice_free (GumV8ScheduledCallback, callback);
 }
 
@@ -1127,7 +1088,7 @@ gum_v8_scheduled_callback_invoke (GumV8ScheduledCallback * self)
 
   if (!self->repeat)
   {
-    if (gum_v8_core_remove_scheduled_callback (core, self))
+    if (gum_v8_core_try_steal_scheduled_callback (core, self->id) != NULL)
       _gum_v8_core_pin (core);
   }
 
@@ -1233,6 +1194,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_incoming_message_callback)
  */
 GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
 {
+  core->current_scope->PerformPendingIO ();
+
   core->isolate->Exit ();
   {
     Unlocker ul (core->isolate);
@@ -1437,8 +1400,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_next_tick)
   if (!_gum_v8_args_parse (args, "F", &callback))
     return;
 
-  g_queue_push_tail (core->tick_callbacks, new GumPersistent<Function>::type (
-      isolate, callback));
+  core->current_scope->AddTickCallback (callback);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_script_pin)

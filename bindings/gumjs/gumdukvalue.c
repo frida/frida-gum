@@ -1464,7 +1464,7 @@ _gum_duk_throw (duk_context * ctx,
   duk_push_error_object_va (ctx, DUK_ERR_ERROR, format, ap);
   va_end (ap);
 
-  duk_throw (ctx);
+  (void) duk_throw (ctx);
 }
 
 void
@@ -1476,7 +1476,7 @@ _gum_duk_throw_native (duk_context * ctx,
 
   _gum_duk_push_exception_details (ctx, details, core, &cc);
   _gum_duk_cpu_context_make_read_only (cc);
-  duk_throw (ctx);
+  (void) duk_throw (ctx);
 }
 
 void

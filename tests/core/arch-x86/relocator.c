@@ -212,6 +212,7 @@ RELOCATOR_TESTCASE (jmp_short_outside_block)
   guint8 input[] = {
     0xeb, 0x01  /* jmp +1 */
   };
+  const gssize input_end = GPOINTER_TO_SIZE (input) + G_N_ELEMENTS (input);
   gint32 reloc_distance, expected_distance;
 
   SETUP_RELOCATOR_WITH (input);
@@ -225,8 +226,7 @@ RELOCATOR_TESTCASE (jmp_short_outside_block)
   g_assert_cmphex (fixture->output[0], ==, 0xe9);
 
   reloc_distance = *((gint32 *) (fixture->output + 1));
-  expected_distance =
-      ((gssize) (input + 2 + 1)) - ((gssize) (fixture->output + 5));
+  expected_distance = (input_end + 1) - ((gssize) (fixture->output + 5));
   g_assert_cmpint (reloc_distance, ==, expected_distance);
 }
 
@@ -235,6 +235,7 @@ RELOCATOR_TESTCASE (jmp_near_outside_block)
   guint8 input[] = {
     0xe9, 0x01, 0x00, 0x00, 0x00, /* jmp +1 */
   };
+  const gssize input_end = GPOINTER_TO_SIZE (input) + G_N_ELEMENTS (input);
   gint32 reloc_distance, expected_distance;
 
   SETUP_RELOCATOR_WITH (input);
@@ -247,8 +248,7 @@ RELOCATOR_TESTCASE (jmp_near_outside_block)
   g_assert_cmphex (fixture->output[0], ==, input[0]);
 
   reloc_distance = *((gint32 *) (fixture->output + 1));
-  expected_distance =
-      ((gssize) (input + 5 + 1)) - ((gssize) (fixture->output + 5));
+  expected_distance = (input_end + 1) - ((gssize) (fixture->output + 5));
   g_assert_cmpint (reloc_distance, ==, expected_distance);
 }
 
@@ -335,6 +335,7 @@ RELOCATOR_TESTCASE (jcc_short_outside_block)
     0x75, 0xfd, /* jnz -3 */
     0xc3        /* retn   */
   };
+  const gssize input_start = GPOINTER_TO_SIZE (input);
 
   SETUP_RELOCATOR_WITH (input);
 
@@ -346,7 +347,7 @@ RELOCATOR_TESTCASE (jcc_short_outside_block)
   g_assert_cmphex (fixture->output[0], ==, 0x0f);
   g_assert_cmphex (fixture->output[1], ==, 0x85);
   g_assert_cmpint (*((gint32 *) (fixture->output + 2)), ==,
-      (gssize) (input - 1) - (gssize) (fixture->output + 6));
+      (input_start - 1) - (gssize) (fixture->output + 6));
   g_assert_cmphex (fixture->output[6], ==, input[2]);
 }
 
@@ -356,6 +357,7 @@ RELOCATOR_TESTCASE (jcc_near_outside_block)
     0x0f, 0x84, 0xda, 0x00, 0x00, 0x00, /* jz +218 */
     0xc3                                /* retn    */
   };
+  const gssize retn_start = GPOINTER_TO_SIZE (input) + 6;
 
   SETUP_RELOCATOR_WITH (input);
 
@@ -367,7 +369,7 @@ RELOCATOR_TESTCASE (jcc_near_outside_block)
   g_assert_cmphex (fixture->output[0], ==, 0x0f);
   g_assert_cmphex (fixture->output[1], ==, 0x84);
   g_assert_cmpint (*((gint32 *) (fixture->output + 2)), ==,
-      (gssize) (input + 6 + 218) - (gssize) (fixture->output + 6));
+      (retn_start + 218) - (gssize) (fixture->output + 6));
   g_assert_cmphex (fixture->output[6], ==, input[6]);
 }
 
@@ -411,6 +413,7 @@ RELOCATOR_TESTCASE (jcxz_short_outside_block)
     0xe3, 0xfd, /* jecxz/jrcxz -3      */
     0xc3        /* retn                */
   };
+  const gssize retn_start = GPOINTER_TO_SIZE (input) + 2;
   guint8 expected_output[] = {
     0xe3, 0x02, /* jecxz/jrcxz is_true */
     0xeb, 0x05, /* jmp is_false        */
@@ -422,7 +425,8 @@ RELOCATOR_TESTCASE (jcxz_short_outside_block)
     0xc3        /* retn                */
   };
 
-  *((gint32 *) (expected_output + 5)) = (input - 1) - (fixture->output + 9);
+  *((gint32 *) (expected_output + 5)) =
+      (retn_start - 3) - ((gssize) (fixture->output + 9));
 
   SETUP_RELOCATOR_WITH (input);
 

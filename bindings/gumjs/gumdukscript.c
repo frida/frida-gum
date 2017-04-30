@@ -408,7 +408,9 @@ gum_duk_script_create_context (GumDukScript * self,
                                GError ** error)
 {
   GumDukScriptPrivate * priv = self->priv;
+  GumDukCore * core = &priv->core;
   duk_context * ctx;
+  GumDukScope scope = { core, NULL, };
 
   g_assert (priv->ctx == NULL);
 
@@ -449,27 +451,28 @@ gum_duk_script_create_context (GumDukScript * self,
 
   priv->ctx = ctx;
 
-  _gum_duk_core_init (&priv->core, self, gumjs_frida_source_map,
-      &priv->interceptor, gum_duk_script_emit,
-      gum_duk_script_backend_get_scheduler (priv->backend), priv->ctx);
+  _gum_duk_core_init (core, self, gumjs_frida_source_map, &priv->interceptor,
+      gum_duk_script_emit, gum_duk_script_backend_get_scheduler (priv->backend),
+      priv->ctx);
 
-  priv->core.current_ctx = priv->core.heap_ctx;
+  scope.ctx = core->heap_ctx;
+  core->current_scope = &scope;
 
-  _gum_duk_kernel_init (&priv->kernel, &priv->core);
-  _gum_duk_memory_init (&priv->memory, &priv->core);
-  _gum_duk_process_init (&priv->process, &priv->core);
-  _gum_duk_thread_init (&priv->thread, &priv->core);
-  _gum_duk_module_init (&priv->module, &priv->core);
-  _gum_duk_file_init (&priv->file, &priv->core);
-  _gum_duk_stream_init (&priv->stream, &priv->core);
-  _gum_duk_socket_init (&priv->socket, &priv->core);
-  _gum_duk_interceptor_init (&priv->interceptor, &priv->core);
-  _gum_duk_stalker_init (&priv->stalker, &priv->core);
-  _gum_duk_api_resolver_init (&priv->api_resolver, &priv->core);
-  _gum_duk_symbol_init (&priv->symbol, &priv->core);
-  _gum_duk_instruction_init (&priv->instruction, &priv->core);
+  _gum_duk_kernel_init (&priv->kernel, core);
+  _gum_duk_memory_init (&priv->memory, core);
+  _gum_duk_process_init (&priv->process, core);
+  _gum_duk_thread_init (&priv->thread, core);
+  _gum_duk_module_init (&priv->module, core);
+  _gum_duk_file_init (&priv->file, core);
+  _gum_duk_stream_init (&priv->stream, core);
+  _gum_duk_socket_init (&priv->socket, core);
+  _gum_duk_interceptor_init (&priv->interceptor, core);
+  _gum_duk_stalker_init (&priv->stalker, core);
+  _gum_duk_api_resolver_init (&priv->api_resolver, core);
+  _gum_duk_symbol_init (&priv->symbol, core);
+  _gum_duk_instruction_init (&priv->instruction, core);
 
-  priv->core.current_ctx = NULL;
+  core->current_scope = NULL;
 
   return TRUE;
 }

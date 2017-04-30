@@ -38,6 +38,10 @@ public:
   ~ScriptScope ();
 
   bool HasPendingException () const { return trycatch.HasCaught (); }
+  void PerformPendingIO ();
+
+  void AddTickCallback (v8::Handle<v8::Function> callback);
+  void AddScheduledSource (GSource * source);
 
 private:
   GumV8Script * parent;
@@ -49,6 +53,9 @@ private:
   v8::Context::Scope context_scope;
   v8::TryCatch trycatch;
   ScriptInterceptorScope interceptor_scope;
+  ScriptScope * next;
+  GQueue tick_callbacks;
+  GQueue scheduled_sources;
 };
 
 #endif

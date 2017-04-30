@@ -21,7 +21,15 @@ ScriptScope::ScriptScope (GumV8Script * parent)
     trycatch (parent->priv->isolate),
     interceptor_scope (parent)
 {
-  _gum_v8_core_pin (&parent->priv->core);
+  auto core = &parent->priv->core;
+
+  _gum_v8_core_pin (core);
+
+  next = core->current_scope;
+  core->current_scope = this;
+
+  g_queue_init (&tick_callbacks);
+  g_queue_init (&scheduled_sources);
 }
 
 ScriptScope::~ScriptScope ()
@@ -37,29 +45,9 @@ ScriptScope::~ScriptScope ()
     trycatch.Reset ();
   }
 
-  if (!g_queue_is_empty (core->tick_callbacks))
-  {
-    auto isolate = parent->priv->isolate;
+  PerformPendingIO ();
 
-    GumPersistent<Function>::type * tick_callback;
-    auto receiver = Undefined (isolate);
-    while ((tick_callback = (GumPersistent<Function>::type *)
-        g_queue_pop_head (core->tick_callbacks)) != nullptr)
-    {
-      auto callback = Local<Function>::New (isolate, *tick_callback);
-
-      callback->Call (receiver, 0, nullptr);
-      if (trycatch.HasCaught ())
-      {
-        auto exception = trycatch.Exception ();
-        trycatch.Reset ();
-        _gum_v8_core_on_unhandled_exception (&priv->core, exception);
-        trycatch.Reset ();
-      }
-
-      delete tick_callback;
-    }
-  }
+  core->current_scope = next;
 
   _gum_v8_core_unpin (core);
 
@@ -77,6 +65,62 @@ ScriptScope::~ScriptScope ()
     }
     isolate->Enter ();
   }
+}
+
+void
+ScriptScope::PerformPendingIO ()
+{
+  auto priv = parent->priv;
+  auto core = &priv->core;
+
+  if (!g_queue_is_empty (&tick_callbacks))
+  {
+    auto isolate = priv->isolate;
+
+    GumPersistent<Function>::type * tick_callback;
+    auto receiver = Undefined (isolate);
+    while ((tick_callback = (GumPersistent<Function>::type *)
+        g_queue_pop_head (&tick_callbacks)) != nullptr)
+    {
+      auto callback = Local<Function>::New (isolate, *tick_callback);
+
+      callback->Call (receiver, 0, nullptr);
+      if (trycatch.HasCaught ())
+      {
+        auto exception = trycatch.Exception ();
+        trycatch.Reset ();
+        _gum_v8_core_on_unhandled_exception (core, exception);
+        trycatch.Reset ();
+      }
+
+      delete tick_callback;
+    }
+  }
+
+  GSource * source;
+  while ((source = (GSource *) g_queue_pop_head (&scheduled_sources)) != NULL)
+  {
+    if (!g_source_is_destroyed (source))
+    {
+      g_source_attach (source,
+          gum_script_scheduler_get_js_context (core->scheduler));
+    }
+
+    g_source_unref (source);
+  }
+}
+
+void
+ScriptScope::AddTickCallback (Handle<Function> callback)
+{
+  g_queue_push_tail (&tick_callbacks, new GumPersistent<Function>::type (
+      parent->priv->isolate, callback));
+}
+
+void
+ScriptScope::AddScheduledSource (GSource * source)
+{
+  g_queue_push_tail (&scheduled_sources, source);
 }
 
 ScriptInterceptorScope::ScriptInterceptorScope (GumV8Script * parent)

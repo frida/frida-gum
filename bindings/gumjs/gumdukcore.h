@@ -14,7 +14,7 @@
 
 #include <gum/gumexceptor.h>
 
-#define GUM_DUK_SCOPE_INIT(C) { C, 0, (C)->current_ctx, NULL }
+#define GUM_DUK_SCOPE_INIT(C) { C, NULL, 0, (C)->current_scope->ctx, NULL }
 
 #ifdef G_OS_WIN32
 # define GUMJS_SYSTEM_ERROR_FIELD "lastError"
@@ -57,7 +57,7 @@ struct _GumDukCore
   GumScriptScheduler * scheduler;
   GumExceptor * exceptor;
   duk_context * heap_ctx;
-  duk_context * current_ctx;
+  GumDukScope * current_scope;
 
   GRecMutex mutex;
   volatile guint usage_count;
@@ -80,10 +80,8 @@ struct _GumDukCore
   GHashTable * weak_refs;
   guint last_weak_ref_id;
 
-  GQueue * tick_callbacks;
-
-  GSList * scheduled_callbacks;
-  guint last_callback_id;
+  GHashTable * scheduled_callbacks;
+  guint next_callback_id;
 
   GumDukHeapPtr int64;
   GumDukHeapPtr uint64;
@@ -102,10 +100,13 @@ struct _GumDukCore
 struct _GumDukScope
 {
   GumDukCore * core;
+  GumDukScope * previous_scope;
   guint previous_mutex_depth;
   duk_context * ctx;
   GumDukHeapPtr exception;
   duk_thread_state thread_state;
+  GQueue tick_callbacks;
+  GQueue scheduled_sources;
 };
 
 struct _GumDukInt64
@@ -182,6 +183,7 @@ G_GNUC_INTERNAL gboolean _gum_duk_scope_call_method (GumDukScope * self,
 G_GNUC_INTERNAL gboolean _gum_duk_scope_call_sync (GumDukScope * self,
     duk_idx_t nargs);
 G_GNUC_INTERNAL void _gum_duk_scope_flush (GumDukScope * self);
+G_GNUC_INTERNAL void _gum_duk_scope_perform_pending_io (GumDukScope * self);
 G_GNUC_INTERNAL void _gum_duk_scope_leave (GumDukScope * self);
 
 G_END_DECLS
