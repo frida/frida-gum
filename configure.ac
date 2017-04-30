@@ -198,7 +198,7 @@ pkg_modules="glib-2.0 >= $GLIB_VERSION, gobject-2.0 >= $GLIB_VERSION,
     gio-2.0 >= $GLIB_VERSION, gio-unix-2.0 >= $GLIB_VERSION,
     capstone >= $CAPSTONE_VERSION,
     libffi >= 3.1.1"
-PKG_CHECK_MODULES(GUM, [$pkg_modules])
+PKG_CHECK_MODULES_STATIC(GUM, [$pkg_modules])
 
 if [[ "x$HAVE_ANDROID" = "xyes" ]]; then
   GUM_LIBS_PRIVATE="-llog"
@@ -207,7 +207,7 @@ AC_SUBST(GUM_LIBS_PRIVATE)
 
 GUM_LIBS="$GUM_LIBS $GUM_LIBS_PRIVATE"
 
-PKG_CHECK_MODULES(LIBUNWIND, [libunwind], [HAVE_LIBUNWIND=yes], [HAVE_LIBUNWIND=no])
+PKG_CHECK_MODULES_STATIC(LIBUNWIND, [libunwind], [HAVE_LIBUNWIND=yes], [HAVE_LIBUNWIND=no])
 if [[ "x$HAVE_LIBUNWIND" = "xyes" ]]; then
   AC_DEFINE(HAVE_LIBUNWIND, 1, [Define to 1 if libunwind is available.])
   GUM_LDFLAGS="$GUM_LDFLAGS $LIBUNWIND_LDFLAGS"
@@ -263,10 +263,10 @@ V8_REQUIRES=""
 if [[ "x$enable_gumjs" = "xyes" ]]; then
   AC_DEFINE(HAVE_GUMJS, 1, [Define to 1 if GumJS is available.])
 
-  PKG_CHECK_MODULES(JSON_GLIB, [json-glib-1.0])
+  PKG_CHECK_MODULES_STATIC(JSON_GLIB, [json-glib-1.0])
 
   if [[ "x$enable_diet" = "xno" ]]; then
-    PKG_CHECK_MODULES(V8, [v8], [HAVE_V8=yes], [HAVE_V8=no])
+    PKG_CHECK_MODULES_STATIC(V8, [v8], [HAVE_V8=yes], [HAVE_V8=no])
   else
     HAVE_V8=no
   fi
