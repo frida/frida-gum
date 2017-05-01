@@ -136,13 +136,12 @@ gum_script_backend_create_sync (GumScriptBackend * self,
 
 void
 gum_script_backend_create_from_bytes (GumScriptBackend * self,
-                                      const gchar * name,
                                       GBytes * bytes,
                                       GCancellable * cancellable,
                                       GAsyncReadyCallback callback,
                                       gpointer user_data)
 {
-  GUM_SCRIPT_BACKEND_GET_INTERFACE (self)->create_from_bytes (self, name, bytes,
+  GUM_SCRIPT_BACKEND_GET_INTERFACE (self)->create_from_bytes (self, bytes,
       cancellable, callback, user_data);
 }
 
@@ -157,24 +156,24 @@ gum_script_backend_create_from_bytes_finish (GumScriptBackend * self,
 
 GumScript *
 gum_script_backend_create_from_bytes_sync (GumScriptBackend * self,
-                                           const gchar * name,
                                            GBytes * bytes,
                                            GCancellable * cancellable,
                                            GError ** error)
 {
   return GUM_SCRIPT_BACKEND_GET_INTERFACE (self)->create_from_bytes_sync (self,
-      name, bytes, cancellable, error);
+      bytes, cancellable, error);
 }
 
 void
 gum_script_backend_compile (GumScriptBackend * self,
+                            const gchar * name,
                             const gchar * source,
                             GCancellable * cancellable,
                             GAsyncReadyCallback callback,
                             gpointer user_data)
 {
-  GUM_SCRIPT_BACKEND_GET_INTERFACE (self)->compile (self, source, cancellable,
-      callback, user_data);
+  GUM_SCRIPT_BACKEND_GET_INTERFACE (self)->compile (self, name, source,
+      cancellable, callback, user_data);
 }
 
 GBytes *
@@ -188,12 +187,13 @@ gum_script_backend_compile_finish (GumScriptBackend * self,
 
 GBytes *
 gum_script_backend_compile_sync (GumScriptBackend * self,
+                                 const gchar * name,
                                  const gchar * source,
                                  GCancellable * cancellable,
                                  GError ** error)
 {
-  return GUM_SCRIPT_BACKEND_GET_INTERFACE (self)->compile_sync (self, source,
-      cancellable, error);
+  return GUM_SCRIPT_BACKEND_GET_INTERFACE (self)->compile_sync (self, name,
+      source, cancellable, error);
 }
 
 void

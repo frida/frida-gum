@@ -25,6 +25,7 @@
 #include "gumscripttask.h"
 
 #include <gum/guminvocationlistener.h>
+#include <string.h>
 
 #define GUM_DUK_SCRIPT_DEBUGGER_LOCK(o) g_mutex_lock (&(o)->mutex)
 #define GUM_DUK_SCRIPT_DEBUGGER_UNLOCK(o) g_mutex_unlock (&(o)->mutex)
@@ -208,6 +209,9 @@ static void gum_duk_script_debugger_on_write_flush (
 static void gum_duk_script_debugger_on_detached (duk_context * ctx,
     GumDukScriptDebugger * self);
 
+static gboolean gum_duk_script_try_rename_from_filename (GumDukScript * self,
+    const gchar * filename);
+
 G_DEFINE_TYPE_EXTENDED (GumDukScript,
                         gum_duk_script,
                         G_TYPE_OBJECT,
@@ -289,6 +293,8 @@ gum_duk_script_init (GumDukScript * self)
 
   priv = self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
       GUM_DUK_TYPE_SCRIPT, GumDukScriptPrivate);
+
+  priv->name = g_strdup ("agent");
 
   priv->state = GUM_SCRIPT_STATE_UNLOADED;
   priv->on_unload = NULL;
@@ -427,6 +433,14 @@ gum_duk_script_create_context (GumDukScript * self,
     duk_config_buffer (ctx, -1, (void *) code, size);
 
     duk_load_function (ctx);
+
+    duk_get_prop_string (ctx, -1, "fileName");
+    if (duk_is_string (ctx, -1))
+    {
+      gum_duk_script_try_rename_from_filename (self,
+          duk_require_string (ctx, -1));
+    }
+    duk_pop (ctx);
   }
   else
   {
@@ -1185,6 +1199,33 @@ gum_duk_script_debugger_on_detached (duk_context * ctx,
 
   g_signal_emit (self->script, gum_duk_script_signals[SIGNAL_DEBUGGER_DETACHED],
       0);
+}
+
+static gboolean
+gum_duk_script_try_rename_from_filename (GumDukScript * self,
+                                         const gchar * filename)
+{
+  gboolean success = FALSE;
+  GumDukScriptPrivate * priv = self->priv;
+  gchar * basename, * extension;
+
+  basename = g_path_get_basename (filename);
+
+  extension = strrchr (basename, '.');
+  if (extension != NULL)
+    *extension = '\0';
+
+  if (strlen (basename) > 0)
+  {
+    g_free (priv->name);
+    priv->name = g_steal_pointer (&basename);
+
+    success = TRUE;
+  }
+
+  g_free (basename);
+
+  return success;
 }
 
 void
