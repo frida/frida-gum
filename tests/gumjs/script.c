@@ -4101,11 +4101,13 @@ SCRIPT_TESTCASE (weak_callback_is_triggered_on_gc)
   }
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var val = {};"
-      "WeakRef.bind(val, function () {"
+      "(function () {"
+      "  var val = {};"
+      "  WeakRef.bind(val, onWeakNotify);"
+      "})();"
+      "function onWeakNotify() {"
       "  send(\"weak notify\");"
-      "});"
-      "val = null;"
+      "}"
       "gc();");
   EXPECT_SEND_MESSAGE_WITH ("\"weak notify\"");
   EXPECT_NO_MESSAGES ();

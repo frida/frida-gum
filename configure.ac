@@ -272,7 +272,7 @@ if [[ "x$enable_gumjs" = "xyes" ]]; then
   fi
   if [[ "x$HAVE_V8" = "xyes" ]]; then
     AC_DEFINE(HAVE_V8, 1, [Define to 1 if V8 is available.])
-    V8_REQUIRES="v8 >= 5.8.60"
+    V8_REQUIRES="v8 >= 6.0.124"
   fi
   AM_CONDITIONAL(HAVE_V8, [test "x$HAVE_V8" = "xyes"])
 

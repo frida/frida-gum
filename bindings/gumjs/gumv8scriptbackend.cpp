@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -27,17 +27,14 @@
     "--es-staging " \
     "--harmony-array-prototype-values " \
     "--harmony-function-sent " \
+    "--harmony-tailcalls " \
     "--harmony-sharedarraybuffer " \
-    "--harmony-simd " \
     "--harmony-do-expressions " \
-    "--harmony-regexp-named-captures " \
-    "--harmony-regexp-property " \
     "--harmony-class-fields " \
     "--harmony-async-iteration " \
-    "--harmony-regexp-lookbehind " \
-    "--harmony-tailcalls " \
-    "--harmony-trailing-commas " \
-    "--harmony-object-rest-spread " \
+    "--harmony-dynamic-import " \
+    "--harmony-promise-finally " \
+    "--harmony-restrict-constructor-return " \
     "--wasm-simd-prototype " \
     "--wasm-eh-prototype " \
     "--wasm-mv-prototype " \
