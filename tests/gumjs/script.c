@@ -3831,8 +3831,6 @@ SCRIPT_TESTCASE (script_can_be_compiled_to_bytecode)
 
     item = test_script_fixture_pop_message (fixture);
     g_assert (strstr (item->message, "ReferenceError") != NULL);
-    g_assert (strstr (item->message, "agent.js") == NULL);
-    g_assert (strstr (item->message, "testcase.js") != NULL);
     test_script_message_item_free (item);
 
     EXPECT_NO_MESSAGES ();

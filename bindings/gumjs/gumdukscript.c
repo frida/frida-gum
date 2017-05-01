@@ -420,7 +420,6 @@ gum_duk_script_create_context (GumDukScript * self,
   {
     gconstpointer code;
     gsize size;
-    gchar * url;
 
     duk_push_external_buffer (ctx);
 
@@ -428,11 +427,6 @@ gum_duk_script_create_context (GumDukScript * self,
     duk_config_buffer (ctx, -1, (void *) code, size);
 
     duk_load_function (ctx);
-
-    url = g_strconcat (priv->name, ".js", NULL);
-    duk_push_string (ctx, url);
-    duk_put_prop_string (ctx, -2, "fileName");
-    g_free (url);
   }
   else
   {
