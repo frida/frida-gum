@@ -463,7 +463,7 @@ gum_duk_script_create_context (GumDukScript * self,
       gum_duk_script_emit, gum_duk_script_backend_get_scheduler (priv->backend),
       priv->ctx);
 
-  scope.ctx = core->heap_ctx;
+  scope.ctx = priv->ctx;
   core->current_scope = &scope;
 
   _gum_duk_kernel_init (&priv->kernel, core);
@@ -489,34 +489,47 @@ static void
 gum_duk_script_destroy_context (GumDukScript * self)
 {
   GumDukScriptPrivate * priv = self->priv;
-  GumDukScope scope;
+  GumDukCore * core = &priv->core;
 
   g_assert (priv->ctx != NULL);
 
-  _gum_duk_scope_enter (&scope, &priv->core);
+  {
+    GumDukScope scope;
 
-  _gum_duk_instruction_dispose (&priv->instruction);
-  _gum_duk_symbol_dispose (&priv->symbol);
-  _gum_duk_api_resolver_dispose (&priv->api_resolver);
-  _gum_duk_stalker_dispose (&priv->stalker);
-  _gum_duk_interceptor_dispose (&priv->interceptor);
-  _gum_duk_socket_dispose (&priv->socket);
-  _gum_duk_stream_dispose (&priv->stream);
-  _gum_duk_file_dispose (&priv->file);
-  _gum_duk_module_dispose (&priv->module);
-  _gum_duk_thread_dispose (&priv->thread);
-  _gum_duk_process_dispose (&priv->process);
-  _gum_duk_memory_dispose (&priv->memory);
-  _gum_duk_kernel_dispose (&priv->kernel);
-  _gum_duk_core_dispose (&priv->core);
+    _gum_duk_scope_enter (&scope, core);
 
-  _gum_duk_scope_leave (&scope);
+    _gum_duk_instruction_dispose (&priv->instruction);
+    _gum_duk_symbol_dispose (&priv->symbol);
+    _gum_duk_api_resolver_dispose (&priv->api_resolver);
+    _gum_duk_stalker_dispose (&priv->stalker);
+    _gum_duk_interceptor_dispose (&priv->interceptor);
+    _gum_duk_socket_dispose (&priv->socket);
+    _gum_duk_stream_dispose (&priv->stream);
+    _gum_duk_file_dispose (&priv->file);
+    _gum_duk_module_dispose (&priv->module);
+    _gum_duk_thread_dispose (&priv->thread);
+    _gum_duk_process_dispose (&priv->process);
+    _gum_duk_memory_dispose (&priv->memory);
+    _gum_duk_kernel_dispose (&priv->kernel);
+    _gum_duk_core_dispose (core);
 
-  _gum_duk_release_heapptr (priv->ctx, priv->code);
-  priv->code = NULL;
+    _gum_duk_scope_leave (&scope);
+  }
 
-  duk_destroy_heap (priv->ctx);
-  priv->ctx = NULL;
+  {
+    GumDukScope scope = { core, NULL, };
+
+    scope.ctx = priv->ctx;
+    core->current_scope = &scope;
+
+    _gum_duk_release_heapptr (priv->ctx, priv->code);
+    priv->code = NULL;
+
+    duk_destroy_heap (priv->ctx);
+    priv->ctx = NULL;
+
+    core->current_scope = NULL;
+  }
 
   _gum_duk_instruction_finalize (&priv->instruction);
   _gum_duk_symbol_finalize (&priv->symbol);
@@ -531,7 +544,7 @@ gum_duk_script_destroy_context (GumDukScript * self)
   _gum_duk_process_finalize (&priv->process);
   _gum_duk_memory_finalize (&priv->memory);
   _gum_duk_kernel_finalize (&priv->kernel);
-  _gum_duk_core_finalize (&priv->core);
+  _gum_duk_core_finalize (core);
 }
 
 static void
