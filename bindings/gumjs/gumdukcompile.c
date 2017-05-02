@@ -58,7 +58,11 @@ main (int argc,
   rewind (input);
 
   input_source = malloc (input_size + 1);
-  fread (input_source, input_size, 1, input);
+  if (fread (input_source, input_size, 1, input) != 1)
+  {
+    fprintf (stderr, "%s: I/O error\n", input_path);
+    goto beach;
+  }
   input_source[input_size] = 0;
 
   duk_push_string (ctx, input_source);
