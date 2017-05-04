@@ -3786,18 +3786,18 @@ SCRIPT_TESTCASE (script_can_be_compiled_to_bytecode)
   GumScript * script;
 
   error = NULL;
-  code = gum_script_backend_compile_sync (fixture->backend, "send(1337);\noops;", NULL,
-      &error);
+  code = gum_script_backend_compile_sync (fixture->backend, "testcase",
+      "send(1337);\noops;", NULL, &error);
   if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
   {
     g_assert (code != NULL);
     g_assert (error == NULL);
 
-    g_assert (gum_script_backend_compile_sync (fixture->backend, "'", NULL,
-        NULL) == NULL);
+    g_assert (gum_script_backend_compile_sync (fixture->backend, "failcase1",
+        "'", NULL, NULL) == NULL);
 
-    g_assert (gum_script_backend_compile_sync (fixture->backend, "'", NULL,
-        &error) == NULL);
+    g_assert (gum_script_backend_compile_sync (fixture->backend, "failcase2",
+        "'", NULL, &error) == NULL);
     g_assert (error != NULL);
     g_assert (g_str_has_prefix (error->message,
         "Script(line 1): SyntaxError: "));
@@ -3813,8 +3813,8 @@ SCRIPT_TESTCASE (script_can_be_compiled_to_bytecode)
     code = g_bytes_new (NULL, 0);
   }
 
-  script = gum_script_backend_create_from_bytes_sync (fixture->backend,
-      "testcase", code, NULL, &error);
+  script = gum_script_backend_create_from_bytes_sync (fixture->backend, code,
+      NULL, &error);
   if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
   {
     TestScriptMessageItem * item;
@@ -4101,11 +4101,13 @@ SCRIPT_TESTCASE (weak_callback_is_triggered_on_gc)
   }
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var val = {};"
-      "WeakRef.bind(val, function () {"
+      "(function () {"
+      "  var val = {};"
+      "  WeakRef.bind(val, onWeakNotify);"
+      "})();"
+      "function onWeakNotify() {"
       "  send(\"weak notify\");"
-      "});"
-      "val = null;"
+      "}"
       "gc();");
   EXPECT_SEND_MESSAGE_WITH ("\"weak notify\"");
   EXPECT_NO_MESSAGES ();

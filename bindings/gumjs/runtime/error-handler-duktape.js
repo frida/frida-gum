@@ -32,8 +32,8 @@ Duktape.errCreate = function (error) {
   if (!stack)
     return error;
 
-  let firstSourcePosition = null;
-  let frameTypes = [];
+  const frameTypes = [];
+  const sourcePositions = [];
 
   stack = stack
       .replace(/    at (.+) \(((.+):(.+))?\) (internal)?(native)?(.*)/g,
@@ -41,6 +41,8 @@ Duktape.errCreate = function (error) {
           frameTypes.push(internal || native);
 
           if (sourceLocation === undefined || internal !== undefined) {
+            sourcePositions.push(null);
+
             return '    at ' + scope + ' (' + (sourceLocation || (native || "")) + ')';
           }
 
@@ -49,8 +51,7 @@ Duktape.errCreate = function (error) {
             line: parseInt(lineNumber, 10)
           });
 
-          if (firstSourcePosition === null)
-            firstSourcePosition = position;
+          sourcePositions.push(position);
 
           const location = position.source + ':' + position.line;
 
@@ -61,9 +62,15 @@ Duktape.errCreate = function (error) {
             return '    at ' + location;
         });
 
+  let firstSourcePosition;
+
   if (frameTypes.length >= 3 && frameTypes[0] === 'internal' && frameTypes[1] === 'native') {
     const lines = stack.split('\n');
     stack = lines[0] + '\n' + lines.slice(3).join('\n');
+
+    firstSourcePosition = sourcePositions[2];
+  } else {
+    firstSourcePosition = sourcePositions[0] || null;
   }
 
   error.stack = stack;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -55,12 +55,12 @@ struct _GumCreateScriptData
 
 struct _GumCreateScriptFromBytesData
 {
-  gchar * name;
   GBytes * bytes;
 };
 
 struct _GumCompileScriptData
 {
+  gchar * name;
   gchar * source;
 };
 
@@ -115,18 +115,16 @@ static void gum_create_script_task_run (GumScriptTask * task,
     GCancellable * cancellable);
 static void gum_create_script_data_free (GumCreateScriptData * d);
 static void gum_duk_script_backend_create_from_bytes (
-    GumScriptBackend * backend, const gchar * name, GBytes * bytes,
-    GCancellable * cancellable, GAsyncReadyCallback callback,
-    gpointer user_data);
+    GumScriptBackend * backend, GBytes * bytes, GCancellable * cancellable,
+    GAsyncReadyCallback callback, gpointer user_data);
 static GumScript * gum_duk_script_backend_create_from_bytes_finish (
     GumScriptBackend * backend, GAsyncResult * result, GError ** error);
 static GumScript * gum_duk_script_backend_create_from_bytes_sync (
-    GumScriptBackend * backend, const gchar * name, GBytes * bytes,
-    GCancellable * cancellable, GError ** error);
+    GumScriptBackend * backend, GBytes * bytes, GCancellable * cancellable,
+    GError ** error);
 static GumScriptTask * gum_create_script_from_bytes_task_new (
-    GumDukScriptBackend * backend, const gchar * name, GBytes * bytes,
-    GCancellable * cancellable, GAsyncReadyCallback callback,
-    gpointer user_data);
+    GumDukScriptBackend * backend, GBytes * bytes, GCancellable * cancellable,
+    GAsyncReadyCallback callback, gpointer user_data);
 static void gum_create_script_from_bytes_task_run (GumScriptTask * task,
     GumDukScriptBackend * self, GumCreateScriptFromBytesData * d,
     GCancellable * cancellable);
@@ -134,14 +132,15 @@ static void gum_create_script_from_bytes_data_free (
     GumCreateScriptFromBytesData * d);
 
 static void gum_duk_script_backend_compile (GumScriptBackend * backend,
-    const gchar * source, GCancellable * cancellable,
+    const gchar * name, const gchar * source, GCancellable * cancellable,
     GAsyncReadyCallback callback, gpointer user_data);
 static GBytes * gum_duk_script_backend_compile_finish (
     GumScriptBackend * backend, GAsyncResult * result, GError ** error);
 static GBytes * gum_duk_script_backend_compile_sync (GumScriptBackend * backend,
-    const gchar * source, GCancellable * cancellable, GError ** error);
+    const gchar * name, const gchar * source, GCancellable * cancellable,
+    GError ** error);
 static GumScriptTask * gum_compile_script_task_new (
-    GumDukScriptBackend * backend, const gchar * source,
+    GumDukScriptBackend * backend, const gchar * name, const gchar * source,
     GCancellable * cancellable, GAsyncReadyCallback callback,
     gpointer user_data);
 static void gum_compile_script_task_run (GumScriptTask * task,
@@ -514,7 +513,6 @@ gum_create_script_data_free (GumCreateScriptData * d)
 
 static void
 gum_duk_script_backend_create_from_bytes (GumScriptBackend * backend,
-                                          const gchar * name,
                                           GBytes * bytes,
                                           GCancellable * cancellable,
                                           GAsyncReadyCallback callback,
@@ -523,7 +521,7 @@ gum_duk_script_backend_create_from_bytes (GumScriptBackend * backend,
   GumDukScriptBackend * self = GUM_DUK_SCRIPT_BACKEND (backend);
   GumScriptTask * task;
 
-  task = gum_create_script_from_bytes_task_new (self, name, bytes, cancellable,
+  task = gum_create_script_from_bytes_task_new (self, bytes, cancellable,
       callback, user_data);
   gum_script_task_run_in_js_thread (task,
       gum_duk_script_backend_get_scheduler (self));
@@ -542,7 +540,6 @@ gum_duk_script_backend_create_from_bytes_finish (GumScriptBackend * backend,
 
 static GumScript *
 gum_duk_script_backend_create_from_bytes_sync (GumScriptBackend * backend,
-                                               const gchar * name,
                                                GBytes * bytes,
                                                GCancellable * cancellable,
                                                GError ** error)
@@ -551,8 +548,8 @@ gum_duk_script_backend_create_from_bytes_sync (GumScriptBackend * backend,
   GumScript * script;
   GumScriptTask * task;
 
-  task = gum_create_script_from_bytes_task_new (self, name, bytes, cancellable,
-      NULL, NULL);
+  task = gum_create_script_from_bytes_task_new (self, bytes, cancellable, NULL,
+      NULL);
   gum_script_task_run_in_js_thread_sync (task,
       gum_duk_script_backend_get_scheduler (self));
   script = GUM_SCRIPT (gum_script_task_propagate_pointer (task, error));
@@ -563,7 +560,6 @@ gum_duk_script_backend_create_from_bytes_sync (GumScriptBackend * backend,
 
 static GumScriptTask *
 gum_create_script_from_bytes_task_new (GumDukScriptBackend * backend,
-                                       const gchar * name,
                                        GBytes * bytes,
                                        GCancellable * cancellable,
                                        GAsyncReadyCallback callback,
@@ -573,7 +569,6 @@ gum_create_script_from_bytes_task_new (GumDukScriptBackend * backend,
   GumScriptTask * task;
 
   d = g_slice_new (GumCreateScriptFromBytesData);
-  d->name = g_strdup (name);
   d->bytes = g_bytes_ref (bytes);
 
   task = gum_script_task_new (
@@ -596,7 +591,6 @@ gum_create_script_from_bytes_task_run (GumScriptTask * task,
   (void) cancellable;
 
   script = g_object_new (GUM_DUK_TYPE_SCRIPT,
-      "name", d->name,
       "bytecode", d->bytes,
       "main-context", gum_script_task_get_context (task),
       "backend", self,
@@ -620,7 +614,6 @@ gum_create_script_from_bytes_task_run (GumScriptTask * task,
 static void
 gum_create_script_from_bytes_data_free (GumCreateScriptFromBytesData * d)
 {
-  g_free (d->name);
   g_bytes_unref (d->bytes);
 
   g_slice_free (GumCreateScriptFromBytesData, d);
@@ -628,6 +621,7 @@ gum_create_script_from_bytes_data_free (GumCreateScriptFromBytesData * d)
 
 static void
 gum_duk_script_backend_compile (GumScriptBackend * backend,
+                                const gchar * name,
                                 const gchar * source,
                                 GCancellable * cancellable,
                                 GAsyncReadyCallback callback,
@@ -636,7 +630,7 @@ gum_duk_script_backend_compile (GumScriptBackend * backend,
   GumDukScriptBackend * self = GUM_DUK_SCRIPT_BACKEND (backend);
   GumScriptTask * task;
 
-  task = gum_compile_script_task_new (self, source, cancellable, callback,
+  task = gum_compile_script_task_new (self, name, source, cancellable, callback,
       user_data);
   gum_script_task_run_in_js_thread (task,
       gum_duk_script_backend_get_scheduler (self));
@@ -655,6 +649,7 @@ gum_duk_script_backend_compile_finish (GumScriptBackend * backend,
 
 static GBytes *
 gum_duk_script_backend_compile_sync (GumScriptBackend * backend,
+                                     const gchar * name,
                                      const gchar * source,
                                      GCancellable * cancellable,
                                      GError ** error)
@@ -663,7 +658,8 @@ gum_duk_script_backend_compile_sync (GumScriptBackend * backend,
   GBytes * bytes;
   GumScriptTask * task;
 
-  task = gum_compile_script_task_new (self, source, cancellable, NULL, NULL);
+  task = gum_compile_script_task_new (self, name, source, cancellable, NULL,
+      NULL);
   gum_script_task_run_in_js_thread_sync (task,
       gum_duk_script_backend_get_scheduler (self));
   bytes = gum_script_task_propagate_pointer (task, error);
@@ -674,12 +670,14 @@ gum_duk_script_backend_compile_sync (GumScriptBackend * backend,
 
 static GumScriptTask *
 gum_compile_script_task_new (GumDukScriptBackend * backend,
+                             const gchar * name,
                              const gchar * source,
                              GCancellable * cancellable,
                              GAsyncReadyCallback callback,
                              gpointer user_data)
 {
   GumCompileScriptData * d = g_slice_new (GumCompileScriptData);
+  d->name = g_strdup (name);
   d->source = g_strdup (source);
 
   GumScriptTask * task = gum_script_task_new (
@@ -703,7 +701,7 @@ gum_compile_script_task_run (GumScriptTask * task,
 
   ctx = gum_duk_script_backend_create_heap (self);
 
-  gum_duk_script_backend_push_program (self, ctx, "agent", d->source, &error);
+  gum_duk_script_backend_push_program (self, ctx, d->name, d->source, &error);
 
   if (error == NULL)
   {
@@ -732,6 +730,7 @@ gum_compile_script_task_run (GumScriptTask * task,
 static void
 gum_compile_script_data_free (GumCompileScriptData * d)
 {
+  g_free (d->name);
   g_free (d->source);
 
   g_slice_free (GumCompileScriptData, d);
