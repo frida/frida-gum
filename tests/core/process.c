@@ -48,6 +48,8 @@ TEST_LIST_BEGIN (process)
   PROCESS_TESTENTRY (darwin_enumerate_modules)
   PROCESS_TESTENTRY (darwin_enumerate_ranges)
   PROCESS_TESTENTRY (darwin_module_exports)
+#endif
+#if defined (G_OS_WIN32) || defined (HAVE_DARWIN)
   PROCESS_TESTENTRY (process_malloc_ranges)
 #endif
 #ifdef HAVE_LINUX
@@ -105,7 +107,7 @@ static gboolean range_check_cb (const GumRangeDetails * details,
     gpointer user_data);
 static gboolean store_first_range (const GumRangeDetails * details,
     gpointer user_data);
-#ifdef HAVE_DARWIN
+#if defined (G_OS_WIN32) || defined (HAVE_DARWIN)
 static gboolean malloc_range_found_cb (
     const GumMallocRangeDetails * details, gpointer user_data);
 static gboolean malloc_range_check_cb (
@@ -340,7 +342,9 @@ PROCESS_TESTCASE (process_ranges_exclude_cloaked)
   g_assert (!ctx.found);
 }
 
-#ifdef HAVE_DARWIN
+#if defined (G_OS_WIN32) || defined (HAVE_DARWIN)
+
+#define TEST_STACK_BUFFER_SIZE 50
 
 PROCESS_TESTCASE (process_malloc_ranges)
 {
@@ -368,8 +372,7 @@ PROCESS_TESTCASE (process_malloc_ranges)
     TestRangeContext ctx;
     const gsize malloc_buf_size = 100;
     guint8 * malloc_buf;
-    const gsize stack_buf_size = 50;
-    guint8 stack_buf[stack_buf_size];
+    guint8 stack_buf[TEST_STACK_BUFFER_SIZE];
 
     malloc_buf = malloc (malloc_buf_size);
 
@@ -392,7 +395,7 @@ PROCESS_TESTCASE (process_malloc_ranges)
     free (malloc_buf);
 
     ctx.range.base_address = GUM_ADDRESS (stack_buf);
-    ctx.range.size = stack_buf_size;
+    ctx.range.size = TEST_STACK_BUFFER_SIZE;
     ctx.found = FALSE;
     ctx.found_exact = FALSE;
     gum_process_enumerate_malloc_ranges (malloc_range_check_cb, &ctx);
@@ -400,6 +403,7 @@ PROCESS_TESTCASE (process_malloc_ranges)
     g_assert (!ctx.found_exact);
   }
 }
+#undef TEST_STACK_BUFFER_SIZE
 
 #endif
 
@@ -751,7 +755,7 @@ store_first_range (const GumRangeDetails * details,
   return FALSE;
 }
 
-#ifdef HAVE_DARWIN
+#if defined (G_OS_WIN32) || defined (HAVE_DARWIN)
 
 static gboolean
 malloc_range_found_cb (const GumMallocRangeDetails * details,
