@@ -4054,7 +4054,7 @@ SCRIPT_TESTCASE (source_maps_should_be_supported_for_user_scripts)
 SCRIPT_TESTCASE (types_handle_invalid_construction)
 {
   /* FIXME: there seems to be a TryCatch issue with V8 on mac-x86_64 */
-#if !(defined (HAVE_MAC) && GLIB_SIZEOF_VOID_P == 8)
+#if !(defined (HAVE_MACOS) && GLIB_SIZEOF_VOID_P == 8)
   COMPILE_AND_LOAD_SCRIPT (
       "try {"
       "  NativePointer(\"0x1234\")"

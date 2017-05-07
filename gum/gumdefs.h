@@ -58,7 +58,7 @@ typedef guint GumRelocationScenario;
 enum _GumOS
 {
   GUM_OS_WINDOWS,
-  GUM_OS_MAC,
+  GUM_OS_MACOS,
   GUM_OS_LINUX,
   GUM_OS_IOS,
   GUM_OS_ANDROID,

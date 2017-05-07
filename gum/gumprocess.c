@@ -33,8 +33,8 @@ gum_process_get_native_os (void)
 {
 #if defined (G_OS_WIN32)
   return GUM_OS_WINDOWS;
-#elif defined (HAVE_MAC)
-  return GUM_OS_MAC;
+#elif defined (HAVE_MACOS)
+  return GUM_OS_MACOS;
 #elif defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
   return GUM_OS_LINUX;
 #elif defined (HAVE_IOS)

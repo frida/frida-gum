@@ -173,7 +173,7 @@ main (gint argc, gchar * argv[])
 #if defined HAVE_I386 || (defined (HAVE_ARM64) && !defined (HAVE_IOS))
   TEST_RUN_LIST (stalker);
 #endif
-#ifdef HAVE_MAC
+#ifdef HAVE_MACOS
   TEST_RUN_LIST (stalker_mac);
 #endif
   TEST_RUN_LIST (api_resolver);
