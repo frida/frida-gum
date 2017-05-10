@@ -52,9 +52,9 @@
 
 #if defined (HAVE_I386)
 # if GLIB_SIZEOF_VOID_P == 4
-#  define GUM_TEST_SHLIB_ARCH "ia32"
+#  define GUM_TEST_SHLIB_ARCH "x86"
 # else
-#  define GUM_TEST_SHLIB_ARCH "amd64"
+#  define GUM_TEST_SHLIB_ARCH "x86_64"
 # endif
 #elif defined (HAVE_ARM)
 # define GUM_TEST_SHLIB_ARCH "arm"

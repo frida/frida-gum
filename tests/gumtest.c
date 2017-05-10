@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -8,7 +8,9 @@
 
 #include "testutil.h"
 
-#include "gumscriptbackend.h"
+#if defined (HAVE_GUMJS)
+# include "gumscriptbackend.h"
+#endif
 #ifdef HAVE_I386
 # include "lowlevel-helpers.h"
 #endif

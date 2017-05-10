@@ -1,0 +1,76 @@
+/* config.h.in.  Generated from configure.ac by autoheader.  */
+
+/* Define to 1 if OS is Android based. */
+#mesondefine HAVE_ANDROID
+
+/* Define to 1 if target is ARM based. */
+#mesondefine HAVE_ARM
+
+/* Define to 1 if target is AArch64 based. */
+#mesondefine HAVE_ARM64
+
+/* Define to 1 if AddressSanitizer is enabled. */
+#mesondefine HAVE_ASAN
+
+/* Define to 1 if OS is Darwin based. */
+#mesondefine HAVE_DARWIN
+
+/* Define to 1 if you have the <elf.h> header file. */
+#mesondefine HAVE_ELF_H
+
+/* Define to 1 if libc is glibc. */
+#mesondefine HAVE_GLIBC
+
+/* Define to 1 if GumJS is available. */
+#mesondefine HAVE_GUMJS
+
+/* Define to 1 if Gum++ is available. */
+#mesondefine HAVE_GUMPP
+
+/* Define to 1 if target is x86 based. */
+#mesondefine HAVE_I386
+
+/* Define to 1 if OS is iOS. */
+#mesondefine HAVE_IOS
+
+/* Define to 1 if libc has mallinfo struct. */
+#mesondefine HAVE_LIBC_MALLINFO
+
+/* Define to 1 if libunwind is available. */
+#mesondefine HAVE_LIBUNWIND
+
+/* Define to 1 if OS is Linux based. */
+#mesondefine HAVE_LINUX
+
+/* Define if log2() exists. */
+#mesondefine HAVE_LOG2
+
+/* Define to 1 if the system has the type `long double'. */
+#mesondefine HAVE_LONG_DOUBLE
+
+/* Define to 1 if the system has the type 'long long int'. */
+#mesondefine HAVE_LONG_LONG_INT
+
+/* Define to 1 if OS is macOS. */
+#mesondefine HAVE_MACOS
+
+/* Define to 1 if target is MIPS based. */
+#mesondefine HAVE_MIPS
+
+/* Define to 1 if OS is QNX based. */
+#mesondefine HAVE_QNX
+
+/* Define to 1 if you have the <stdint.h> header file. */
+#mesondefine HAVE_STDINT_H
+
+/* Define to 1 if you have the <sys/elf.h> header file. */
+#mesondefine HAVE_SYS_ELF_H
+
+/* Define to 1 if you have the <sys/user.h> header file. */
+#mesondefine HAVE_SYS_USER_H
+
+/* Define to 1 if the system has the type 'unsigned long long int'. */
+#mesondefine HAVE_UNSIGNED_LONG_LONG_INT
+
+/* Define to 1 if V8 is available. */
+#mesondefine HAVE_V8
