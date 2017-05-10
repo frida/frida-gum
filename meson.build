@@ -17,6 +17,7 @@ os_defines = [
   ['windows', 'HAVE_WINDOWS'],
   ['darwin', 'HAVE_DARWIN'],
   ['linux', 'HAVE_LINUX'],
+  ['qnx', 'HAVE_QNX'],
 ]
 foreach d : os_defines
   if d.get(0) == host_machine.system()
