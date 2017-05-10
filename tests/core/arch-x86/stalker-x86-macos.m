@@ -8,7 +8,7 @@
 
 #import <Cocoa/Cocoa.h>
 
-TEST_LIST_BEGIN (stalker_mac)
+TEST_LIST_BEGIN (stalker_macos)
   STALKER_TESTENTRY (cocoa)
 TEST_LIST_END ()
 

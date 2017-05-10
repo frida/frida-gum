@@ -19,7 +19,7 @@ fi
 tmp1="$(mktemp /tmp/build-targetfunctions.XXXXXX)"
 tmp2="$(mktemp /tmp/build-targetfunctions.XXXXXX)"
 
-if [ "$os" = "mac" -o "$os" = "ios" ]; then
+if [ "$os" = "macos" -o "$os" = "ios" ]; then
   shlib_suffix=dylib
   extra_ldflags="-Wl,-undefined,error -Wl,-dead_strip"
   strip_command=strip
