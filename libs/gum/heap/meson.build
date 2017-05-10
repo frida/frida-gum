@@ -30,7 +30,7 @@ install_headers(gum_heap_headers, subdir: install_header_subdir + '/heap')
 
 gum_heap = static_library('frida-gum-heap', gum_heap_sources,
   include_directories: gum_incdirs,
-  dependencies: [glib_dep, gobject_dep, gmodule_dep],
+  dependencies: [gum_dep, gmodule_dep],
 )
 
 gum_heap_dep = declare_dependency(link_with: gum_heap)

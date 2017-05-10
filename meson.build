@@ -204,6 +204,10 @@ configure_file(input: 'config.h.meson',
 
 add_project_arguments('-include', 'config.h', language: languages)
 
+if host_machine.system() == 'linux'
+  add_project_arguments('-D_GNU_SOURCE=1', language: languages)
+endif
+
 gum_incdirs = [
   include_directories('.'),
   include_directories('gum'),
@@ -219,7 +223,7 @@ gum_incdirs = [
 install_header_basedir = 'frida-@0@'.format(api_version)
 install_header_subdir = install_header_basedir + '/gum'
 
-subdir('libs')
 subdir('gum')
+subdir('libs')
 subdir('bindings')
 subdir('tests')

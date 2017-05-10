@@ -17,7 +17,7 @@ gumpp_sources = [
 install_headers(gumpp_headers, subdir: install_header_basedir + '/gumpp')
 
 gumpp = shared_library('frida-gumpp-@0@'.format(api_version), gumpp_sources,
-  dependencies: [gum_dep],
+  dependencies: [gum_dep, gum_heap_dep, gum_prof_dep],
   install: true,
 )
 

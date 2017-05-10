@@ -55,7 +55,7 @@ gum_tests = executable('gum-tests', runner_sources + [test_data_stamp],
     gum_tests_prof,
     gum_tests_gumjs,
   ],
-  dependencies: [gum_dep] + extra_test_deps,
+  dependencies: [gum_dep, gum_heap_dep, gum_prof_dep] + extra_test_deps,
   link_args: extra_link_args,
 )
 

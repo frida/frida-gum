@@ -49,7 +49,7 @@ install_headers(gum_prof_headers, subdir: install_header_subdir + '/prof')
 
 gum_prof = static_library('frida-gum-prof', gum_prof_sources,
   include_directories: gum_incdirs,
-  dependencies: [glib_dep, gobject_dep],
+  dependencies: [gum_dep],
 )
 
 gum_prof_dep = declare_dependency(link_with: gum_prof)
