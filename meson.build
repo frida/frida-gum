@@ -226,4 +226,5 @@ install_header_subdir = install_header_basedir + '/gum'
 subdir('gum')
 subdir('libs')
 subdir('bindings')
+subdir('vapi')
 subdir('tests')
