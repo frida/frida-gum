@@ -7,7 +7,6 @@
 #include "gum.h"
 
 #include "gum-init.h"
-#include "../libs/gum/heap/gumallocatorprobe-priv.h"
 #include "guminterceptor-priv.h"
 #include "gumprintf.h"
 #include "gumtls-priv.h"
@@ -128,8 +127,6 @@ gum_deinit (void)
   g_slist_foreach (gum_final_destructors, (GFunc) gum_destructor_invoke, NULL);
   g_slist_free (gum_final_destructors);
   gum_final_destructors = NULL;
-
-  _gum_allocator_probe_deinit ();
 
   _gum_interceptor_deinit ();
 

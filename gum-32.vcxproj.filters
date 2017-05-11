@@ -410,9 +410,6 @@
     <ClInclude Include="libs\gum\heap\gumheapapi.h">
       <Filter>libs\heap</Filter>
     </ClInclude>
-    <ClInclude Include="libs\gum\heap\gumallocatorprobe-priv.h">
-      <Filter>libs\heap</Filter>
-    </ClInclude>
     <ClInclude Include="gum\arch-arm64\gumarm64relocator.h">
       <Filter>core\arch-arm64</Filter>
     </ClInclude>

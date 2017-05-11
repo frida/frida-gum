@@ -148,7 +148,6 @@
     <ClInclude Include="libs\gum\heap\gumallocationgroup.h" />
     <ClInclude Include="libs\gum\heap\gumallocationtracker.h" />
     <ClInclude Include="libs\gum\heap\gumallocatorprobe.h" />
-    <ClInclude Include="libs\gum\heap\gumallocatorprobe-priv.h" />
     <ClInclude Include="libs\gum\heap\gumboundschecker.h" />
     <ClInclude Include="libs\gum\heap\gumcobject.h" />
     <ClInclude Include="libs\gum\heap\gumcobjecttracker.h" />
