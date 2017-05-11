@@ -160,6 +160,8 @@ gum_try_mprotect (gpointer address,
 
     memcpy (aligned_address, buffer, aligned_size);
 
+    gum_clear_cache (aligned_address, aligned_size);
+
     result = mprotect (aligned_address, aligned_size, posix_page_prot);
 
     ThreadCtl (_NTO_TCTL_THREADS_CONT, 0);
