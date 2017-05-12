@@ -22,6 +22,8 @@ struct _GumFindExportContext
 
 static gboolean gum_windows_get_thread_details (DWORD thread_id,
     GumThreadDetails * details);
+static gboolean gum_process_enumerate_heap_ranges (HANDLE heap, 
+    GumFoundMallocRangeFunc func, gpointer user_data);
 static gboolean gum_store_address_if_module_has_export (
     const GumModuleDetails * details, gpointer user_data);
 static gboolean gum_store_address_if_export_name_matches (
@@ -309,9 +311,68 @@ void
 gum_process_enumerate_malloc_ranges (GumFoundMallocRangeFunc func,
                                      gpointer user_data)
 {
-  /* Not implemented */
-  (void) func;
-  (void) user_data;
+  HANDLE process_heap;
+  DWORD num_heaps;
+  HANDLE * heaps;
+  DWORD num_heaps_after;
+  DWORD i;
+
+  process_heap = GetProcessHeap ();
+  if (!gum_process_enumerate_heap_ranges (process_heap, func, user_data))
+    return;
+
+  num_heaps = GetProcessHeaps (0, NULL);
+  if (num_heaps == 0)
+    return;
+  heaps = HeapAlloc (process_heap, 0, num_heaps * sizeof (HANDLE));
+  if (heaps == NULL)
+    return;
+  num_heaps_after = GetProcessHeaps (num_heaps, heaps);
+
+  num_heaps = MIN (num_heaps_after, num_heaps);
+  for (i = 0; i != num_heaps; i++)
+  {
+    if (heaps[i] != process_heap)
+    {
+      if (!gum_process_enumerate_heap_ranges (process_heap, func, user_data))
+        break;
+    }
+  }
+
+  HeapFree (process_heap, 0, heaps);
+}
+
+static gboolean
+gum_process_enumerate_heap_ranges (HANDLE heap,
+                                   GumFoundMallocRangeFunc func,
+                                   gpointer user_data)
+{
+  gboolean carry_on;
+  gboolean locked_heap;
+  GumMemoryRange range;
+  GumMallocRangeDetails details;
+  PROCESS_HEAP_ENTRY entry;
+
+  /* HeapLock may fail but it doesn't seem to have any real consequences... */
+  locked_heap = HeapLock (heap);
+
+  details.range = &range;
+  carry_on = TRUE;
+  entry.lpData = NULL;
+  while (carry_on && HeapWalk (heap, &entry))
+  {
+    if ((entry.wFlags & PROCESS_HEAP_ENTRY_BUSY) != 0)
+    {
+      range.base_address = GUM_ADDRESS (entry.lpData);
+      range.size = entry.cbData;
+      carry_on = func (&details, user_data);
+    }
+  }
+
+  if (locked_heap)
+    HeapUnlock (heap);
+
+  return carry_on;
 }
 
 gboolean

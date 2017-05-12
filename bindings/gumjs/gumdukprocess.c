@@ -357,7 +357,7 @@ gum_emit_range (const GumRangeDetails * details,
   return proceed;
 }
 
-#ifdef HAVE_DARWIN
+#if defined (G_OS_WIN32) || defined (HAVE_DARWIN)
 
 static gboolean gum_emit_malloc_range (const GumMallocRangeDetails * details,
     GumDukMatchContext * mc);
