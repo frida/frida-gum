@@ -135,7 +135,7 @@ ffi_dep = dependency('libffi')
 
 extra_deps = []
 extra_requires_private = []
-extra_libraries_private = []
+extra_libs_private = []
 
 gumjs_extra_deps = []
 gumjs_extra_requires = []
@@ -154,9 +154,9 @@ endif
 have_bfd = cc.has_header('bfd.h')
 if have_bfd
   if host_machine.system() == 'linux'
-    extra_libraries_private += ['-lbfd', '-ldl', '-lz']
+    extra_libs_private += ['-lbfd', '-ldl', '-lz']
   else
-    extra_libraries_private += ['-lbfd', '-lz']
+    extra_libs_private += ['-lbfd', '-lz']
   endif
 elif host_machine.system() == 'linux' or host_machine.system() == 'qnx'
   error('libbfd is required')

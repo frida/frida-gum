@@ -243,7 +243,7 @@ gum = library('frida-gum-@0@'.format(api_version), gum_sources,
 gum_dep = declare_dependency(link_with: gum,
   include_directories: gum_incdirs,
   dependencies: [glib_dep, gobject_dep, gio_dep, capstone_dep],
-  link_args: extra_libraries_private,
+  link_args: extra_libs_private,
 )
 
 pkg = import('pkgconfig')
@@ -255,5 +255,5 @@ pkg.generate(filebase: 'frida-gum-@0@'.format(api_version),
   requires_private: extra_requires_private,
   subdirs: install_header_basedir,
   libraries: [gum],
-  libraries_private: extra_libraries_private,
+  libraries_private: extra_libs_private,
 )
