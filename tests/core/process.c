@@ -403,7 +403,6 @@ PROCESS_TESTCASE (process_malloc_ranges)
     g_assert (!ctx.found_exact);
   }
 }
-#undef TEST_STACK_BUFFER_SIZE
 
 #endif
 

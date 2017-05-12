@@ -22,7 +22,7 @@ struct _GumFindExportContext
 
 static gboolean gum_windows_get_thread_details (DWORD thread_id,
     GumThreadDetails * details);
-static gboolean gum_process_enumerate_heap_ranges (HANDLE heap, 
+static gboolean gum_process_enumerate_heap_ranges (HANDLE heap,
     GumFoundMallocRangeFunc func, gpointer user_data);
 static gboolean gum_store_address_if_module_has_export (
     const GumModuleDetails * details, gpointer user_data);
