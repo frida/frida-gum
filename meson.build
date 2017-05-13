@@ -202,7 +202,10 @@ configure_file(input: 'config.h.meson',
   output: 'config.h',
   configuration: cdata)
 
-add_project_arguments('-include', 'config.h', language: languages)
+add_project_arguments(
+  '-include', 'config.h',
+  '-DG_LOG_DOMAIN="Frida"',
+  language: languages)
 
 if host_machine.system() == 'linux'
   add_project_arguments('-D_GNU_SOURCE=1', language: languages)
