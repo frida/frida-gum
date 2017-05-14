@@ -62,7 +62,7 @@ cpu_defines = [
   ['mips', 'HAVE_MIPS'],
 ]
 foreach d : cpu_defines
-  if d.get(0) == host_machine.cpu()
+  if d.get(0) == host_machine.cpu_family()
     cdata.set(d.get(1), 1)
   endif
 endforeach

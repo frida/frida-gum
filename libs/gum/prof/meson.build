@@ -18,7 +18,7 @@ gum_prof_sources = [
   'gumwallclocksampler.c',
 ]
 
-host_cpu_is_intel = host_machine.cpu() == 'x86' or host_machine.cpu() == 'x86_64'
+host_cpu_is_intel = host_machine.cpu_family() == 'x86' or host_machine.cpu_family() == 'x86_64'
 
 if host_cpu_is_intel and host_machine.system() != 'qnx'
   gum_prof_sources += ['gumcyclesampler-x86.c']

@@ -140,7 +140,7 @@ gum_x86_headers = [
   'arch-x86/gumx86relocator.h',
   'arch-x86/gumx86reader.h',
 ]
-if host_machine.cpu() == 'x86' or host_machine.cpu() == 'x86_64'
+if host_machine.cpu_family() == 'x86' or host_machine.cpu_family() == 'x86_64'
   gum_x86_headers += [
     'arch-x86/gumx86backtracer.h',
   ]
@@ -160,7 +160,7 @@ gum_arm_headers = [
   'arch-arm/gumthumbrelocator.h',
   'arch-arm/gumarmreg.h',
 ]
-if host_machine.cpu() == 'arm'
+if host_machine.cpu_family() == 'arm'
   gum_arm_headers += [
     'arch-arm/gumarmbacktracer.h',
     'arch-arm/gumarmreader.h',
@@ -180,7 +180,7 @@ gum_arm64_headers = [
   'arch-arm64/gumarm64writer.h',
   'arch-arm64/gumarm64relocator.h',
 ]
-if host_machine.cpu() == 'arm64'
+if host_machine.cpu_family() == 'arm64'
   gum_arm64_headers += [
     'arch-arm64/gumarm64backtracer.h',
     'arch-arm64/gumarm64reader.h',
@@ -199,7 +199,7 @@ gum_mips_headers = [
   'arch-mips/gummipswriter.h',
   'arch-mips/gummipsrelocator.h',
 ]
-if host_machine.cpu() == 'mips'
+if host_machine.cpu_family() == 'mips'
   gum_mips_headers += [
     'arch-mips/gummipsbacktracer.h',
     'arch-mips/gummipsreader.h',

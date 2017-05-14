@@ -36,13 +36,13 @@ if host_os == 'android'
   ]
 endif
 
-if host_machine.cpu() == 'x86' or host_machine.cpu() == 'x86_64'
+if host_machine.cpu_family() == 'x86' or host_machine.cpu_family() == 'x86_64'
   core_sources += [
     'arch-x86/stalker-x86.c',
   ]
 endif
 
-if host_machine.cpu() == 'arm64'
+if host_machine.cpu_family() == 'arm64'
   core_sources += [
     'arch-arm64/stalker-arm64.c',
   ]

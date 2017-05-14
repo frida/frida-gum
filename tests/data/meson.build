@@ -10,7 +10,7 @@ else
   shlib_extension = 'so'
 endif
 foreach l : test_function_libraries
-  name = '@0@-@1@-@2@.@3@'.format(l, host_os, host_machine.cpu(), shlib_extension)
+  name = '@0@-@1@-@2@.@3@'.format(l, host_os, host_machine.cpu_family(), shlib_extension)
   test_function_filenames += [name]
 endforeach
 
