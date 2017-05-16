@@ -84,15 +84,3 @@ KSCRIPT_TESTCASE (byte_array_can_be_written)
   EXPECT_NO_MESSAGES ();
 }
 
-KSCRIPT_TESTCASE (invalid_read_results_in_exception)
-{
-  COMPILE_AND_LOAD_SCRIPT ("Kernel.readByteArray(ptr(\"1328\"), 3)");
-  EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation reading 0x530");
-}
-
-KSCRIPT_TESTCASE (invalid_write_results_in_exception)
-{
-  COMPILE_AND_LOAD_SCRIPT ("Kernel.writeByteArray(ptr(\"1328\"), [1, 2, 3])");
-  EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation writing to 0x530");
-}
-
