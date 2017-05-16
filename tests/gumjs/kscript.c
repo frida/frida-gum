@@ -13,8 +13,6 @@ TEST_LIST_BEGIN (kscript)
   KSCRIPT_TESTENTRY (memory_ranges_can_be_enumerated_with_neighbors_coalesced)
   KSCRIPT_TESTENTRY (byte_array_can_be_read)
   KSCRIPT_TESTENTRY (byte_array_can_be_written)
-  KSCRIPT_TESTENTRY (invalid_read_results_in_exception)
-  KSCRIPT_TESTENTRY (invalid_write_results_in_exception)
 TEST_LIST_END ()
 
 KSCRIPT_TESTCASE (api_availability_can_be_queried)
@@ -82,17 +80,5 @@ KSCRIPT_TESTCASE (byte_array_can_be_written)
       "var bytes = Kernel.readByteArray(address, 3);"
       "Kernel.writeByteArray(address, bytes);");
   EXPECT_NO_MESSAGES ();
-}
-
-KSCRIPT_TESTCASE (invalid_read_results_in_exception)
-{
-  COMPILE_AND_LOAD_SCRIPT ("Kernel.readByteArray(ptr(\"1328\"), 3)");
-  EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation reading 0x530");
-}
-
-KSCRIPT_TESTCASE (invalid_write_results_in_exception)
-{
-  COMPILE_AND_LOAD_SCRIPT ("Kernel.writeByteArray(ptr(\"1328\"), [1, 2, 3])");
-  EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation writing to 0x530");
 }
 
