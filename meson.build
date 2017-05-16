@@ -30,7 +30,7 @@ host_os = host_machine.system()
 target_conditionals_prefix = '#include <TargetConditionals.h>'
 
 is_macos_src = target_conditionals_prefix + '''
-#if !TARGET_OS_MAC
+#if !TARGET_OS_OSX
 # error Not macOS
 #endif
 '''
