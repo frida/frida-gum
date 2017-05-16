@@ -13,8 +13,6 @@ TEST_LIST_BEGIN (kscript)
   KSCRIPT_TESTENTRY (memory_ranges_can_be_enumerated_with_neighbors_coalesced)
   KSCRIPT_TESTENTRY (byte_array_can_be_read)
   KSCRIPT_TESTENTRY (byte_array_can_be_written)
-  KSCRIPT_TESTENTRY (invalid_read_results_in_exception)
-  KSCRIPT_TESTENTRY (invalid_write_results_in_exception)
 TEST_LIST_END ()
 
 KSCRIPT_TESTCASE (api_availability_can_be_queried)
