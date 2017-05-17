@@ -184,7 +184,13 @@ if get_option('enable_gumjs')
     gumjs_extra_libraries += ['-lm']
   endif
 
-  if not get_option('enable_diet')
+  enable_diet_value = get_option('enable_diet')
+  if enable_diet_value == 'auto'
+    enable_diet = host_os == 'ios'
+  else
+    enable_diet = enable_diet_value == 'yes'
+  endif
+  if not enable_diet
     v8_dep = dependency('v8', version: '>=6.0.124', required: false)
     have_v8 = v8_dep.found()
   else

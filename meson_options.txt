@@ -1,3 +1,3 @@
-option('enable_diet', type: 'boolean', value: false)
+option('enable_diet', type: 'combo', choices: ['auto', 'no', 'yes'], value: 'auto')
 option('enable_gumpp', type: 'boolean', value: true)
 option('enable_gumjs', type: 'boolean', value: true)
