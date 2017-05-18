@@ -102,7 +102,7 @@ if cc.compiles(glibc_src, name: 'compiling for glibc')
   cdata.set('HAVE_GLIBC', 1)
 endif
 
-if cc.has_function('log2')
+if cc.has_function('log2') and host_os != 'android'
   cdata.set('HAVE_LOG2', 1)
 endif
 
@@ -140,6 +140,10 @@ extra_libs_private = []
 gumjs_extra_deps = []
 gumjs_extra_requires = []
 gumjs_extra_libraries = []
+
+if host_os == 'android'
+  extra_libs_private += ['-llog']
+endif
 
 unwind_dep = dependency('libunwind', required: false)
 unwind_requires = []
