@@ -14,9 +14,6 @@ fridainclude_HEADERS = \
 	gumpagepool.h \
 	gumsanitychecker.h
 
-noinst_HEADERS = \
-	gumallocatorprobe-priv.h
-
 libfrida_gum_heap_1_0_la_SOURCES = \
 	gumallocationblock.c \
 	gumallocationgroup.c \

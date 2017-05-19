@@ -13,7 +13,7 @@ endif
 
 if OS_MAC
 arch_sources += \
-	arch-x86/stalker-x86-mac.m
+	arch-x86/stalker-x86-macos.m
 endif
 
 if ARCH_ARM64

@@ -7,7 +7,7 @@
 
 #include "gumallocatorprobe.h"
 
-#include "gumallocatorprobe-priv.h"
+#include "gum-init.h"
 #include "guminterceptor.h"
 #include "gumprocess.h"
 #include "gumsymbolutil.h"
@@ -94,6 +94,8 @@ struct _FreeThreadContext
   GumCpuContext cpu_context;
   gpointer address;
 };
+
+static void gum_allocator_probe_deinit (void);
 
 static void gum_allocator_probe_listener_iface_init (gpointer g_iface,
     gpointer iface_data);
@@ -199,10 +201,12 @@ gum_allocator_probe_class_init (GumAllocatorProbeClass * klass)
       "Number of free() calls seen so far", 0, G_MAXUINT, 0,
       (GParamFlags) (G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_FREE_COUNT, pspec);
+
+  _gum_register_destructor (gum_allocator_probe_deinit);
 }
 
-void
-_gum_allocator_probe_deinit (void)
+static void
+gum_allocator_probe_deinit (void)
 {
   if (_gum_allocator_probe_ignored_functions != NULL)
   {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -8,7 +8,9 @@
 
 #include "testutil.h"
 
-#include "gumscriptbackend.h"
+#if defined (HAVE_GUMJS)
+# include "gumscriptbackend.h"
+#endif
 #ifdef HAVE_I386
 # include "lowlevel-helpers.h"
 #endif
@@ -173,8 +175,8 @@ main (gint argc, gchar * argv[])
 #if defined HAVE_I386 || (defined (HAVE_ARM64) && !defined (HAVE_IOS))
   TEST_RUN_LIST (stalker);
 #endif
-#ifdef HAVE_MAC
-  TEST_RUN_LIST (stalker_mac);
+#ifdef HAVE_MACOS
+  TEST_RUN_LIST (stalker_macos);
 #endif
   TEST_RUN_LIST (api_resolver);
 #if !defined (HAVE_QNX) && !(defined (HAVE_ANDROID) && defined (HAVE_ARM64)) && !(defined (HAVE_MIPS))

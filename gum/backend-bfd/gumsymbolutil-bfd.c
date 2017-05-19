@@ -10,6 +10,9 @@
 #include "gummemory.h"
 #include "gumprocess-priv.h"
 
+#ifndef PACKAGE
+# define PACKAGE "frida-gum"
+#endif
 #include <bfd.h>
 #include <dlfcn.h>
 #include <string.h>

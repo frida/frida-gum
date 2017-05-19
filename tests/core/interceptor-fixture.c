@@ -36,8 +36,8 @@
 
 #if defined (G_OS_WIN32)
 # define GUM_TEST_SHLIB_OS "windows"
-#elif defined (HAVE_MAC)
-# define GUM_TEST_SHLIB_OS "mac"
+#elif defined (HAVE_MACOS)
+# define GUM_TEST_SHLIB_OS "macos"
 #elif defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
 # define GUM_TEST_SHLIB_OS "linux"
 #elif defined (HAVE_IOS)
@@ -52,9 +52,9 @@
 
 #if defined (HAVE_I386)
 # if GLIB_SIZEOF_VOID_P == 4
-#  define GUM_TEST_SHLIB_ARCH "ia32"
+#  define GUM_TEST_SHLIB_ARCH "x86"
 # else
-#  define GUM_TEST_SHLIB_ARCH "amd64"
+#  define GUM_TEST_SHLIB_ARCH "x86_64"
 # endif
 #elif defined (HAVE_ARM)
 # define GUM_TEST_SHLIB_ARCH "arm"

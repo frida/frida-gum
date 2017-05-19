@@ -29,6 +29,8 @@ namespace Gum
 
   struct Object
   {
+    virtual ~Object () {}
+
     virtual void ref () = 0;
     virtual void unref () = 0;
     virtual void * get_handle () const = 0;
@@ -70,6 +72,8 @@ namespace Gum
 
   struct InvocationContext
   {
+    virtual ~InvocationContext () {}
+
     virtual void * get_function () const = 0;
 
     template <typename T>
@@ -119,6 +123,8 @@ namespace Gum
 
   struct InvocationListener
   {
+    virtual ~InvocationListener () {}
+
     virtual void on_enter (InvocationContext * context) = 0;
     virtual void on_leave (InvocationContext * context) = 0;
   };
@@ -207,11 +213,15 @@ namespace Gum
 
   struct FunctionMatchCallbacks
   {
+    virtual ~FunctionMatchCallbacks () {}
+
     virtual bool match_should_include (const char * function_name) = 0;
   };
 
   struct InspectorCallbacks
   {
+    virtual ~InspectorCallbacks () {}
+
     virtual void inspect_worst_case (InvocationContext * context, char * output_buf, unsigned int output_buf_len) = 0;
   };
 

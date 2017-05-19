@@ -94,12 +94,12 @@ case $host_os in
 #endif
       ]])],
       [
-        HAVE_MAC=no
+        HAVE_MACOS=no
         HAVE_IOS=yes
         AC_MSG_RESULT([iOS])
       ],
       [
-        HAVE_MAC=yes
+        HAVE_MACOS=yes
         HAVE_IOS=no
         AC_MSG_RESULT([Mac])
       ]
@@ -127,32 +127,14 @@ case $host_os in
         AC_MSG_RESULT([no])
       ]
     )
-    AC_MSG_CHECKING([Libc is uClibc])
-    AC_PREPROC_IFELSE(
-      [AC_LANG_PROGRAM([[#include <features.h>]],
-                       [[
-#if defined (__UCLIBC__)
-#else
-# error Not uClibc
-#endif
-      ]])],
-      [
-        HAVE_UCLIBC=yes
-        AC_MSG_RESULT([yes])
-      ],
-      [
-        HAVE_UCLIBC=no
-        AC_MSG_RESULT([no])
-      ]
-    )
     ;;
   *)
     ;;
 esac
-if [[ "x$HAVE_MAC" = "xyes" ]]; then
-  AC_DEFINE(HAVE_MAC, 1, [Define to 1 if OS is Mac.])
+if [[ "x$HAVE_MACOS" = "xyes" ]]; then
+  AC_DEFINE(HAVE_MACOS, 1, [Define to 1 if OS is macOS.])
 fi
-AM_CONDITIONAL(OS_MAC, test "x$HAVE_MAC" = "xyes")
+AM_CONDITIONAL(OS_MAC, test "x$HAVE_MACOS" = "xyes")
 if [[ "x$HAVE_ANDROID" = "xyes" ]]; then
   AC_DEFINE(HAVE_ANDROID, 1, [Define to 1 if OS is Android based.])
 fi
@@ -165,9 +147,6 @@ AM_CONDITIONAL(OS_IOS, test "x$HAVE_IOS" = "xyes")
 
 if [[ "x$HAVE_GLIBC" = "xyes" ]]; then
   AC_DEFINE(HAVE_GLIBC, 1, [Define to 1 if libc is glibc.])
-fi
-if [[ "x$HAVE_UCLIBC" = "xyes" ]]; then
-  AC_DEFINE(HAVE_UCLIBC, 1, [Define to 1 if libc is uClibc.])
 fi
 
 AC_CHECK_MEMBER([struct mallinfo.arena],
@@ -295,7 +274,7 @@ fi
 AC_SUBST(GUMDUK_LIBS_PRIVATE)
 
 GUM_TEST_LIBS=""
-if [[ "x$HAVE_MAC" = "xyes" ]]; then
+if [[ "x$HAVE_MACOS" = "xyes" ]]; then
   GUM_TEST_LIBS="$GUM_TEST_LIBS -Wl,-framework -Wl,AppKit"
 fi
 if [[ "x$HAVE_IOS" = "xyes" ]]; then
