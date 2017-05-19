@@ -236,14 +236,15 @@ install_headers(gum_mips_headers, subdir: install_header_subdir + '/arch-mips')
 
 gum = library('frida-gum-' + api_version, gum_sources,
   include_directories: gum_incdirs,
+  link_args: extra_libs_private,
   dependencies: [glib_dep, gobject_dep, gio_dep, ffi_dep, capstone_dep] + extra_deps,
   install: true,
 )
 
 gum_dep = declare_dependency(link_with: gum,
   include_directories: gum_incdirs,
-  dependencies: [glib_dep, gobject_dep, gio_dep, capstone_dep],
   link_args: extra_libs_private,
+  dependencies: [glib_dep, gobject_dep, gio_dep, capstone_dep],
 )
 
 pkg = import('pkgconfig')
