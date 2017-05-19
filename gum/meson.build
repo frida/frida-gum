@@ -234,7 +234,7 @@ install_headers(gum_arm_headers, subdir: install_header_subdir + '/arch-arm')
 install_headers(gum_arm64_headers, subdir: install_header_subdir + '/arch-arm64')
 install_headers(gum_mips_headers, subdir: install_header_subdir + '/arch-mips')
 
-gum = library('frida-gum-@0@'.format(api_version), gum_sources,
+gum = library('frida-gum-' + api_version, gum_sources,
   include_directories: gum_incdirs,
   dependencies: [glib_dep, gobject_dep, gio_dep, ffi_dep, capstone_dep] + extra_deps,
   install: true,
@@ -247,7 +247,7 @@ gum_dep = declare_dependency(link_with: gum,
 )
 
 pkg = import('pkgconfig')
-pkg.generate(filebase: 'frida-gum-@0@'.format(api_version),
+pkg.generate(filebase: 'frida-gum-' + api_version,
   name: 'Gum',
   version: gum_version,
   description: 'Low-level code instrumentation library',

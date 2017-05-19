@@ -47,7 +47,7 @@ endif
 
 install_headers(gum_prof_headers, subdir: install_header_subdir + '/prof')
 
-gum_prof = static_library('frida-gum-prof-@0@'.format(api_version), gum_prof_sources,
+gum_prof = static_library('frida-gum-prof-' + api_version, gum_prof_sources,
   include_directories: gum_incdirs,
   dependencies: [gum_dep],
   install: true,
@@ -56,11 +56,11 @@ gum_prof = static_library('frida-gum-prof-@0@'.format(api_version), gum_prof_sou
 gum_prof_dep = declare_dependency(link_with: gum_prof)
 
 pkg = import('pkgconfig')
-pkg.generate(filebase: 'frida-gum-prof-@0@'.format(api_version),
+pkg.generate(filebase: 'frida-gum-prof-' + api_version,
   name: 'GumProf',
   version: gum_version,
   description: 'Profiling library built on top of Gum',
-  requires: ['frida-gum-@0@'.format(api_version)],
+  requires: ['frida-gum-' + api_version],
   subdirs: install_header_basedir,
   libraries: [gum_prof],
 )

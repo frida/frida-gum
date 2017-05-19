@@ -244,7 +244,7 @@ gum_incdirs = [
   include_directories('libs/gum/prof'),
 ]
 
-install_header_basedir = 'frida-@0@'.format(api_version)
+install_header_basedir = 'frida-' + api_version
 install_header_subdir = install_header_basedir + '/gum'
 
 subdir('gum')

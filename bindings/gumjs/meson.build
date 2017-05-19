@@ -94,7 +94,7 @@ gumjs_runtime = custom_target('gumjs-runtime',
 )
 gumjs_sources += [gumjs_runtime]
 
-gumjs = library('frida-gumjs-@0@'.format(api_version), gumjs_sources,
+gumjs = library('frida-gumjs-' + api_version, gumjs_sources,
   include_directories: [bindings_inc],
   dependencies: [gum_dep, gio_dep, json_glib_dep, ffi_dep] + gumjs_extra_deps,
   install: true,
@@ -106,11 +106,11 @@ gumjs_dep = declare_dependency(link_with: gumjs,
 )
 
 pkg = import('pkgconfig')
-pkg.generate(filebase: 'frida-gumjs-@0@'.format(api_version),
+pkg.generate(filebase: 'frida-gumjs-' + api_version,
   name: 'GumJS',
   version: gum_version,
   description: 'Gum JavaScript bindings',
-  requires: ['frida-gum-@0@'.format(api_version), 'json-glib-1.0'],
+  requires: ['frida-gum-' + api_version, 'json-glib-1.0'],
   requires_private: ['gio-2.0', 'libffi', 'capstone'] + gumjs_extra_requires,
   subdirs: install_header_basedir,
   libraries: [gumjs],

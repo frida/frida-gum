@@ -28,7 +28,7 @@ endif
 
 install_headers(gumpp_headers, subdir: install_header_basedir + '/gumpp')
 
-gumpp = shared_library('frida-gumpp-@0@'.format(api_version), gumpp_sources,
+gumpp = shared_library('frida-gumpp-' + api_version, gumpp_sources,
   link_args: extra_link_args,
   link_depends: extra_link_depends,
   vs_module_defs: 'gumpp.def',
@@ -37,11 +37,11 @@ gumpp = shared_library('frida-gumpp-@0@'.format(api_version), gumpp_sources,
 )
 
 pkg = import('pkgconfig')
-pkg.generate(filebase: 'frida-gumpp-@0@'.format(api_version),
+pkg.generate(filebase: 'frida-gumpp-' + api_version,
   name: 'Gum++',
   version: gum_version,
   description: 'Gum C++ bindings',
-  requires_private: ['frida-gum-@0@'.format(api_version)],
+  requires_private: ['frida-gum-' + api_version],
   subdirs: install_header_basedir,
   libraries: [gumpp],
 )
