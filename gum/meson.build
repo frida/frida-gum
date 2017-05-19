@@ -66,7 +66,7 @@ gum_sources = [
   'arch-mips/gummipsrelocator.c',
 ]
 
-if host_machine.system() == 'windows'
+if host_os_family == 'windows'
   gum_headers += [
     'backend-windows/gumwindows.h',
     'backend-dbghelp/gumdbghelp.h',
@@ -84,7 +84,7 @@ if host_machine.system() == 'windows'
   ]
 endif
 
-if host_machine.system() == 'darwin'
+if host_os_family == 'darwin'
   gum_headers += [
     'backend-darwin/gumdarwin.h',
     'backend-darwin/gumdarwinbacktracer.h',
@@ -109,7 +109,7 @@ if host_machine.system() == 'darwin'
   ]
 endif
 
-if host_machine.system() == 'linux'
+if host_os_family == 'linux'
   gum_headers += [
     'backend-linux/gumlinux.h',
   ]
@@ -122,7 +122,7 @@ if host_machine.system() == 'linux'
   ]
 endif
 
-if host_machine.system() == 'qnx'
+if host_os_family == 'qnx'
   gum_headers += [
     'backend-qnx/gumqnx.h',
   ]

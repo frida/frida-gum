@@ -20,25 +20,25 @@ gum_prof_sources = [
 
 host_cpu_is_intel = host_machine.cpu_family() == 'x86' or host_machine.cpu_family() == 'x86_64'
 
-if host_cpu_is_intel and host_machine.system() != 'qnx'
+if host_cpu_is_intel and host_os_family != 'qnx'
   gum_prof_sources += ['gumcyclesampler-x86.c']
 endif
 
-if host_machine.system() == 'darwin'
+if host_os_family == 'darwin'
   gum_prof_sources += ['gumbusycyclesampler-darwin.c']
   if not host_cpu_is_intel
     gum_prof_sources += ['gumcyclesampler-darwin.c']
   endif
 endif
 
-if host_machine.system() == 'linux'
+if host_os_family == 'linux'
   gum_prof_sources += ['gumbusycyclesampler-linux.c']
   if not host_cpu_is_intel
     gum_prof_sources += ['gumcyclesampler-linux.c']
   endif
 endif
 
-if host_machine.system() == 'qnx'
+if host_os_family == 'qnx'
   gum_prof_sources += [
     'gumbusycyclesampler-qnx.c',
     'gumcyclesampler-qnx.c',

@@ -17,7 +17,7 @@ core_sources = [
   'arch-arm64/arm64relocator.c',
 ]
 
-if host_machine.system() == 'darwin'
+if host_os_family == 'darwin'
   core_sources += [
     'interceptor-darwin.c',
     'exceptor-darwin.c',

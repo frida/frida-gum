@@ -32,7 +32,7 @@ endif
 
 force_cpp_linking = get_option('enable_gumpp') or have_v8
 if force_cpp_linking
-  if host_machine.system() == 'darwin'
+  if host_os_family == 'darwin'
     # Work around Meson bug: https://github.com/mesonbuild/meson/issues/1766
     runner_sources += ['dummy.mm']
   else

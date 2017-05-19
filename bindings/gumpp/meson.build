@@ -16,11 +16,11 @@ gumpp_sources = [
 
 extra_link_args = []
 extra_link_depends = []
-if host_machine.system() == 'darwin'
+if host_os_family == 'darwin'
   symlist = 'gumpp.symbols'
   extra_link_args += ['-Wl,-exported_symbols_list,' + join_paths(meson.current_source_dir(), symlist)]
   extra_link_depends += [symlist]
-elif host_machine.system() != 'windows'
+elif host_os_family != 'windows'
   symscript = 'gumpp.version'
   extra_link_args += ['-Wl,--version-script,' + join_paths(meson.current_source_dir(), symscript)]
   extra_link_depends += [symscript]

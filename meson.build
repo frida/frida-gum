@@ -1,7 +1,54 @@
 project('frida-gum', 'c', 'cpp', version: '1.0.0')
 
+host_os_family = ''
+host_os = host_machine.system()
+
+if not meson.is_cross_build()
+  target_conditionals_prefix = '#include <TargetConditionals.h>'
+
+  is_macos_src = target_conditionals_prefix + '''
+  #if !TARGET_OS_OSX
+  # error Not macOS
+  #endif
+  '''
+  if cc.compiles(is_macos_src, name: 'compiling for macOS')
+    host_os = 'macos'
+  endif
+
+  is_ios_src = target_conditionals_prefix + '''
+  #if !TARGET_OS_IOS
+  # error Not iOS
+  #endif
+  '''
+  if cc.compiles(is_ios_src, name: 'compiling for iOS')
+    host_os = 'ios'
+  endif
+
+  if cc.has_header('android/api-level.h')
+    host_os = 'android'
+  endif
+endif
+
+os_families = [
+  ['windows', 'windows'],
+  ['macos', 'darwin'],
+  ['linux', 'linux'],
+  ['ios', 'darwin'],
+  ['android', 'linux'],
+  ['qnx', 'qnx'],
+]
+foreach f : os_families
+  if f.get(0) == host_os
+    host_os_family = f.get(1)
+  endif
+endforeach
+
+if host_os_family == ''
+  error('Unsupported OS')
+endif
+
 languages = ['c', 'cpp']
-if host_machine.system() == 'darwin'
+if host_os_family == 'darwin'
   languages += ['objc', 'objcpp']
   add_languages('objc', 'objcpp')
 endif
@@ -13,45 +60,9 @@ cc = meson.get_compiler('c')
 
 cdata = configuration_data()
 
-os_defines = [
-  ['windows', 'HAVE_WINDOWS'],
-  ['darwin', 'HAVE_DARWIN'],
-  ['linux', 'HAVE_LINUX'],
-  ['qnx', 'HAVE_QNX'],
-]
-foreach d : os_defines
-  if d.get(0) == host_machine.system()
-    cdata.set(d.get(1), 1)
-  endif
-endforeach
-
-host_os = host_machine.system()
-
-target_conditionals_prefix = '#include <TargetConditionals.h>'
-
-is_macos_src = target_conditionals_prefix + '''
-#if !TARGET_OS_OSX
-# error Not macOS
-#endif
-'''
-if cc.compiles(is_macos_src, name: 'compiling for macOS')
-  host_os = 'macos'
-  cdata.set('HAVE_MACOS', 1)
-endif
-
-is_ios_src = target_conditionals_prefix + '''
-#if !TARGET_OS_IOS
-# error Not iOS
-#endif
-'''
-if cc.compiles(is_ios_src, name: 'compiling for iOS')
-  host_os = 'ios'
-  cdata.set('HAVE_IOS', 1)
-endif
-
-if cc.has_header('android/api-level.h')
-  host_os = 'android'
-  cdata.set('HAVE_ANDROID', 1)
+cdata.set('HAVE_' + host_os_family.to_upper(), 1)
+if host_os != host_os_family
+  cdata.set('HAVE_' + host_os.to_upper(), 1)
 endif
 
 cpu_defines = [
@@ -151,18 +162,18 @@ if unwind_dep.found()
   cdata.set('HAVE_LIBUNWIND', 1)
   extra_deps += [unwind_dep]
   extra_requires_private += ['libunwind']
-elif host_machine.system() == 'linux' or host_machine.system() == 'qnx'
+elif host_os_family == 'linux' or host_os_family == 'qnx'
   error('libunwind is required')
 endif
 
 have_bfd = cc.has_header('bfd.h')
 if have_bfd
-  if host_machine.system() == 'linux'
+  if host_os_family == 'linux'
     extra_libs_private += ['-lbfd', '-ldl', '-lz']
   else
     extra_libs_private += ['-lbfd', '-lz']
   endif
-elif host_machine.system() == 'linux' or host_machine.system() == 'qnx'
+elif host_os_family == 'linux' or host_os_family == 'qnx'
   error('libbfd is required')
 endif
 
@@ -175,7 +186,7 @@ if get_option('enable_gumjs')
 
   json_glib_dep = dependency('json-glib-1.0')
 
-  if host_machine.system() == 'windows'
+  if host_os_family == 'windows'
     gio_os_package_name = 'gio-windows-2.0'
   else
     gio_os_package_name = 'gio-unix-2.0'
@@ -184,7 +195,7 @@ if get_option('enable_gumjs')
   gumjs_extra_deps += [gio_os_package_dep]
   gumjs_extra_requires += [gio_os_package_name]
 
-  if host_machine.system() == 'linux' or host_machine.system() == 'qnx'
+  if host_os_family == 'linux' or host_os_family == 'qnx'
     gumjs_extra_libraries += ['-lm']
   endif
 
@@ -217,7 +228,7 @@ add_project_arguments(
   '-DG_LOG_DOMAIN="Frida"',
   language: languages)
 
-if host_machine.system() == 'linux'
+if host_os_family == 'linux'
   add_project_arguments('-D_GNU_SOURCE=1', language: languages)
 endif
 

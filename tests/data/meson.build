@@ -4,7 +4,7 @@ test_function_libraries = [
   'targetfunctions',
   'specialfunctions',
 ]
-if host_machine.system() == 'darwin'
+if host_os_family == 'darwin'
   shlib_extension = 'dylib'
 else
   shlib_extension = 'so'
