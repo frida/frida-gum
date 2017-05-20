@@ -219,7 +219,7 @@ if get_option('enable_gumjs')
   endif
 endif
 
-configure_file(input: 'config.h.meson',
+configure_file(input: 'config.h.in',
   output: 'config.h',
   configuration: cdata)
 
