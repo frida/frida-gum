@@ -1,51 +1,10 @@
 project('frida-gum', 'c', 'cpp', version: '1.0.0')
 
-host_os_family = ''
-host_os = host_machine.system()
+gum_version = meson.project_version()
+api_version = '1.0'
 
-if not meson.is_cross_build()
-  target_conditionals_prefix = '#include <TargetConditionals.h>'
-
-  is_macos_src = target_conditionals_prefix + '''
-  #if !TARGET_OS_OSX
-  # error Not macOS
-  #endif
-  '''
-  if cc.compiles(is_macos_src, name: 'compiling for macOS')
-    host_os = 'macos'
-  endif
-
-  is_ios_src = target_conditionals_prefix + '''
-  #if !TARGET_OS_IOS
-  # error Not iOS
-  #endif
-  '''
-  if cc.compiles(is_ios_src, name: 'compiling for iOS')
-    host_os = 'ios'
-  endif
-
-  if cc.has_header('android/api-level.h')
-    host_os = 'android'
-  endif
-endif
-
-os_families = [
-  ['windows', 'windows'],
-  ['macos', 'darwin'],
-  ['linux', 'linux'],
-  ['ios', 'darwin'],
-  ['android', 'linux'],
-  ['qnx', 'qnx'],
-]
-foreach f : os_families
-  if f.get(0) == host_os
-    host_os_family = f.get(1)
-  endif
-endforeach
-
-if host_os_family == ''
-  error('Unsupported OS')
-endif
+host_os_family = host_machine.system()
+host_os = host_os_family
 
 languages = ['c', 'cpp']
 if host_os_family == 'darwin'
@@ -53,10 +12,31 @@ if host_os_family == 'darwin'
   add_languages('objc', 'objcpp')
 endif
 
-gum_version = meson.project_version()
-api_version = '1.0'
-
 cc = meson.get_compiler('c')
+
+target_conditionals_prefix = '#include <TargetConditionals.h>'
+
+is_macos_src = target_conditionals_prefix + '''
+#if !TARGET_OS_OSX
+# error Not macOS
+#endif
+'''
+if cc.compiles(is_macos_src, name: 'compiling for macOS')
+  host_os = 'macos'
+endif
+
+is_ios_src = target_conditionals_prefix + '''
+#if !TARGET_OS_IOS
+# error Not iOS
+#endif
+'''
+if cc.compiles(is_ios_src, name: 'compiling for iOS')
+  host_os = 'ios'
+endif
+
+if cc.has_header('android/api-level.h')
+  host_os = 'android'
+endif
 
 cdata = configuration_data()
 
