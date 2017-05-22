@@ -31,11 +31,8 @@ gum_stalker_class_init (GumStalkerClass * klass)
 static void
 gum_stalker_init (GumStalker * self)
 {
-  GumStalkerPrivate * priv;
-
   self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
       GUM_TYPE_STALKER, GumStalkerPrivate);
-  priv = GUM_STALKER_GET_PRIVATE (self);
 }
 
 static void
