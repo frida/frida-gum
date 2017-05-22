@@ -174,8 +174,13 @@ gum_cpu_context_to_unw (const GumCpuContext * ctx,
   uc->regs[UNW_ARM_R15] = ctx->pc;
   uc->regs[UNW_ARM_R13] = ctx->sp;
 
-  for (guint i = 0; i != G_N_ELEMENTS (ctx->r); i++)
-    uc->regs[i] = ctx->r[i];
+  {
+    guint i;
+
+    for (i = 0; i != G_N_ELEMENTS (ctx->r); i++)
+      uc->regs[i] = ctx->r[i];
+  }
+
   uc->regs[UNW_ARM_R14] = ctx->lr;
 #elif defined (UNW_TARGET_AARCH64)
   mcontext_t * mc = &uc->uc_mcontext;
