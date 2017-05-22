@@ -291,12 +291,9 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
 
   if (get_all_image_infos_impl == NULL)
   {
-    void * syslib;
-
-    syslib = dlopen ("/usr/lib/libSystem.dylib", RTLD_LAZY | RTLD_GLOBAL);
-    get_all_image_infos_impl = dlsym (syslib, "_dyld_get_all_image_infos");
+    get_all_image_infos_impl = dlsym (RTLD_DEFAULT,
+        "_dyld_get_all_image_infos");
     g_assert (get_all_image_infos_impl != NULL);
-    dlclose (syslib);
   }
 
   all_info = get_all_image_infos_impl ();
