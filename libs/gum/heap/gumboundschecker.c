@@ -306,7 +306,7 @@ gum_bounds_checker_attach_to_apis (GumBoundsChecker * self,
   priv->page_pool = gum_page_pool_new (GUM_PROTECT_MODE_ABOVE,
       priv->pool_size);
   g_object_set (priv->page_pool, "front-alignment", priv->front_alignment,
-      (gpointer) NULL);
+      NULL);
 
   gum_interceptor_begin_transaction (priv->interceptor);
 

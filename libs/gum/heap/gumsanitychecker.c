@@ -216,7 +216,7 @@ gum_sanity_checker_begin (GumSanityChecker * self,
 
     priv->alloc_probe = gum_allocator_probe_new ();
     g_object_set (priv->alloc_probe, "allocation-tracker", priv->alloc_tracker,
-        (gpointer) NULL);
+        NULL);
   }
 
   if ((flags & GUM_CHECK_INSTANCE_LEAKS) != 0)
@@ -238,8 +238,7 @@ gum_sanity_checker_begin (GumSanityChecker * self,
     priv->bounds_checker = gum_bounds_checker_new (backtracer,
         priv->output, priv->output_user_data);
     g_object_set (priv->bounds_checker,
-        "front-alignment", priv->front_alignment_granularity,
-        (gpointer) NULL);
+        "front-alignment", priv->front_alignment_granularity, NULL);
     gum_bounds_checker_attach_to_apis (priv->bounds_checker, priv->heap_apis);
   }
 
