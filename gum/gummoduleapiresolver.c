@@ -169,7 +169,7 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
               (function->module != NULL) ? function->module : module->path,
               "!",
               function->name,
-              NULL);
+              (gpointer) NULL);
           details.address = function->address;
 
           carry_on = func (&details, user_data);
