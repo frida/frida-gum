@@ -242,7 +242,7 @@ GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_op_str, GumInstruction)
 GUMJS_DEFINE_CLASS_METHOD (gumjs_instruction_to_string, GumInstruction)
 {
   cs_insn * insn = &self->insn;
-  auto str = g_strconcat (insn->mnemonic, " ", insn->op_str, (void *) NULL);
+  auto str = g_strconcat (insn->mnemonic, " ", insn->op_str, (gpointer) NULL);
   info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate, str));
   g_free (str);
 }
