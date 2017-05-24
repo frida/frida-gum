@@ -345,7 +345,7 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
     {
       gchar * name;
 
-      name = g_path_get_basename (details.path)
+      name = g_path_get_basename (details.path);
       details.name = name;
 
       carry_on = func (&details, user_data);
