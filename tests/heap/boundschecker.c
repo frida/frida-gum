@@ -168,7 +168,7 @@ BOUNDSCHECKER_TESTCASE (realloc_migration_pool_to_heap)
   guint32 * a;
   guint32 value_after_migration;
 
-  g_object_set (fixture->checker, "pool-size", 2, NULL);
+  g_object_set (fixture->checker, "pool-size", 2, (gpointer) NULL);
 
   ATTACH_CHECKER ();
   a = (guint32 *) malloc (4);
@@ -201,7 +201,7 @@ BOUNDSCHECKER_TESTCASE (calloc_initializes_to_zero)
   guint8 * p;
   guint8 expected[1024] = { 0, };
 
-  g_object_set (fixture->checker, "pool-size", 2, NULL);
+  g_object_set (fixture->checker, "pool-size", 2, (gpointer) NULL);
 
   ATTACH_CHECKER ();
   p = (guint8 *) calloc (1, sizeof (expected));
@@ -218,7 +218,7 @@ BOUNDSCHECKER_TESTCASE (custom_front_alignment)
   guint8 * a;
   gboolean exception_on_read, exception_on_write;
 
-  g_object_set (fixture->checker, "front-alignment", 1, NULL);
+  g_object_set (fixture->checker, "front-alignment", 1, (gpointer) NULL);
   ATTACH_CHECKER ();
   a = (guint8 *) malloc (1);
   a[0] = 1;

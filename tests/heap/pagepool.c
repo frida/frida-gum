@@ -24,7 +24,7 @@ PAGEPOOL_TESTCASE (alloc_sizes)
   gpointer p1, p2;
 
   SETUP_POOL (&pool, GUM_PROTECT_MODE_ABOVE, 4);
-  g_object_get (pool, "page-size", &page_size, NULL);
+  g_object_get (pool, "page-size", &page_size, (gpointer) NULL);
 
   g_assert_cmpuint (gum_page_pool_peek_available (pool), ==, 4);
 
@@ -49,7 +49,7 @@ PAGEPOOL_TESTCASE (alloc_alignment)
   guint8 * expected_p1, * expected_p2;
 
   SETUP_POOL (&pool, GUM_PROTECT_MODE_ABOVE, 4);
-  g_object_get (pool, "page-size", &page_size, NULL);
+  g_object_get (pool, "page-size", &page_size, (gpointer) NULL);
   gum_page_pool_get_bounds (pool, &start, &end);
 
   p1 = (guint8 *) gum_page_pool_try_alloc (pool, 1);
@@ -86,7 +86,7 @@ PAGEPOOL_TESTCASE (free)
   guint8 * p1, * p2;
 
   SETUP_POOL (&pool, GUM_PROTECT_MODE_ABOVE, 5);
-  g_object_get (pool, "page-size", &page_size, NULL);
+  g_object_get (pool, "page-size", &page_size, (gpointer) NULL);
 
   g_assert (!gum_page_pool_try_free (pool, GSIZE_TO_POINTER (1)));
 
@@ -131,7 +131,7 @@ PAGEPOOL_TESTCASE (query_block_details)
 
   SETUP_POOL (&pool, GUM_PROTECT_MODE_ABOVE, 3);
 
-  g_object_get (pool, "page-size", &page_size, NULL);
+  g_object_get (pool, "page-size", &page_size, (gpointer) NULL);
 
   g_assert (!gum_page_pool_query_block_details (pool, GSIZE_TO_POINTER (1),
       &details));
