@@ -11,6 +11,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <gio/gio.h>
+#include <stdio,h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/elf.h>
@@ -68,8 +69,6 @@ struct _GumDlPhdrInternal
     Link_map * linkmap;
 };
 
-static void gum_do_modify_thread (int sig, siginfo_t * siginfo,
-    void * context);
 static void gum_store_cpu_context (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 
@@ -91,12 +90,6 @@ static void gum_cpu_context_to_qnx (const GumCpuContext * ctx,
 
 static GumThreadState gum_thread_state_from_system_thread_state (int state);
 
-G_LOCK_DEFINE_STATIC (gum_modify_thread);
-static volatile gboolean gum_modify_thread_did_load_cpu_context;
-static volatile gboolean gum_modify_thread_did_modify_cpu_context;
-static volatile gboolean gum_modify_thread_did_store_cpu_context;
-static GumCpuContext gum_modify_thread_cpu_context;
-
 gboolean
 gum_process_is_debugger_attached (void)
 {
@@ -115,7 +108,6 @@ gum_process_modify_thread (GumThreadId thread_id,
                            gpointer user_data)
 {
   gboolean success = FALSE;
-  struct sigaction action, old_action;
 
   ThreadCtl (_NTO_TCTL_ONE_THREAD_HOLD, (void *) thread_id);
   if (vfork () == 0)
@@ -351,11 +343,14 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
 
     if (details.path)
     {
-      details.name = g_path_get_basename (details.path);
+      gchar * name;
+
+      name = g_path_get_basename (details.path)
+      details.name = name;
 
       carry_on = func (&details, user_data);
 
-      g_free (details.name);
+      g_free (name);
     }
   }
 
@@ -411,12 +406,15 @@ gum_module_enumerate_exports (const gchar * module_name,
     phdr = base_address + ehdr->e_phoff + (i * ehdr->e_phentsize);
     if (phdr->p_type == PT_DYNAMIC)
     {
-      guint num_symbols = 0;
-      guint dyn_symentsize = 0;
+      guint num_symbols, dyn_symentsize;
+      GumElfDynEntry * dyn_entry;
 
-      for (GumElfDynEntry * dyn_entry = base_address + phdr->p_offset;
+      num_symbols = 0;
+      dyn_symentsize = 0;
+
+      for (dyn_entry = base_address + phdr->p_offset;
            dyn_entry < (GumElfDynEntry *) (base_address +
-             phdr->p_offset + phdr->p_filesz);
+               phdr->p_offset + phdr->p_filesz);
            dyn_entry++)
       {
         switch (dyn_entry->d_tag)
@@ -924,13 +922,14 @@ gum_qnx_parse_ucontext (const ucontext_t * uc,
   ctx->eax = cpu->eax;
 #elif defined (HAVE_ARM)
   const ARM_CPU_REGISTERS * cpu = &uc->uc_mcontext.cpu;
+  guint i;
 
   ctx->pc = cpu->gpr[ARM_REG_PC];
   ctx->sp = cpu->gpr[ARM_REG_SP];
   ctx->cpsr = cpu->spsr;
   ctx->lr = cpu->gpr[ARM_REG_LR];
 
-  for (int i = 0; i != G_N_ELEMENTS (ctx->r); i++)
+  for (i = 0; i != G_N_ELEMENTS (ctx->r); i++)
     ctx->r[i] = cpu->gpr[i];
 
   ctx->r8 = cpu->gpr[ARM_REG_R8];
@@ -962,12 +961,13 @@ gum_qnx_unparse_ucontext (const GumCpuContext * ctx,
   cpu->eax = ctx->eax;
 #elif defined (HAVE_ARM)
   ARM_CPU_REGISTERS * cpu = &uc->uc_mcontext.cpu;
+  guint i;
 
   cpu->gpr[ARM_REG_PC] = ctx->pc & ~1;
   cpu->gpr[ARM_REG_SP] = ctx->sp;
   cpu->gpr[ARM_REG_LR] = ctx->lr;
 
-  for (int i = 0; i != G_N_ELEMENTS (ctx->r); i++)
+  for (i = 0; i != G_N_ELEMENTS (ctx->r); i++)
     cpu->gpr[i] = ctx->r[i];
 
   cpu->gpr[ARM_REG_R8] = ctx->r8;
