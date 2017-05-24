@@ -4,6 +4,10 @@
 #include "runtime.hpp"
 
 #include <gum/gum-heap.h>
+#ifdef HAVE_QNX
+// Yes, iostream depends on pthread.h, not kidding.
+# include <pthread.h>
+#endif
 #include <iostream>
 
 namespace Gum
