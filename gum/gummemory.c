@@ -27,6 +27,7 @@
 #define INSECURE                  1
 #define NO_MALLINFO               0
 #ifdef HAVE_LIBC_MALLINFO
+# include <malloc.h>
 # define STRUCT_MALLINFO_DECLARED 1
 #endif
 #ifdef _MSC_VER
