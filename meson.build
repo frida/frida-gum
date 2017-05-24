@@ -1,6 +1,6 @@
 project('frida-gum', 'c', 'cpp',
   version: '1.0.0',
-  default_options: ['c_std=c99', 'cpp_std=c++11'],
+  default_options: ['c_std=gnu99', 'cpp_std=c++11'],
 )
 
 gum_version = meson.project_version()
