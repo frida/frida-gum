@@ -74,3 +74,7 @@
 
 /* Define to 1 if V8 is available. */
 #mesondefine HAVE_V8
+
+#ifdef HAVE_QNX
+# define NULL ((void *) 0)
+#endif
