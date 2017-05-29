@@ -1153,8 +1153,6 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
 
   block->code_end = (guint8 *) gum_arm64_writer_cur (cw);
 
-  gum_clear_cache (block->code_begin, block->code_end - block->code_begin);
-
   block->real_begin = (guint8 *) rl->input_start;
   block->real_end = (guint8 *) rl->input_cur;
 
@@ -1484,6 +1482,8 @@ gum_exec_block_commit (GumExecBlock * block)
   aligned_end = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (block->real_snapshot +
       real_size));
   block->slab->offset += aligned_end - block->code_begin;
+
+  gum_clear_cache (block->code_begin, block->code_end - block->code_begin);
 }
 
 static GumVirtualizationRequirements
