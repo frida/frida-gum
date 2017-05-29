@@ -1482,6 +1482,8 @@ gum_exec_block_commit (GumExecBlock * block)
   aligned_end = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (block->real_snapshot +
       real_size));
   block->slab->offset += aligned_end - block->code_begin;
+
+  gum_clear_cache (block->code_begin, block->code_end - block->code_begin);
 }
 
 static GumVirtualizationRequirements
