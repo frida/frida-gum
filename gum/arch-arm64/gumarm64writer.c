@@ -188,7 +188,6 @@ gum_arm64_writer_skip (GumArm64Writer * self,
 void
 gum_arm64_writer_flush (GumArm64Writer * self)
 {
-
   if (self->label_refs_len > 0)
   {
     guint label_idx;
@@ -268,7 +267,6 @@ gum_arm64_writer_flush (GumArm64Writer * self)
     self->code = (guint32 *) last_slot;
     self->pc += (guint8 *) last_slot - (guint8 *) first_slot;
   }
-
 }
 
 static guint8 *
