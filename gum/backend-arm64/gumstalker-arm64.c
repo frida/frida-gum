@@ -1153,6 +1153,8 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
 
   block->code_end = (guint8 *) gum_arm64_writer_cur (cw);
 
+  gum_clear_cache (block->code_begin, block->code_end - block->code_begin);
+
   block->real_begin = (guint8 *) rl->input_start;
   block->real_end = (guint8 *) rl->input_cur;
 
