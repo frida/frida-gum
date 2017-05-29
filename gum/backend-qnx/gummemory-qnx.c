@@ -4,6 +4,7 @@
 
 #include "gummemory.h"
 
+#include "gummemory-priv.h"
 #include "gumqnx-priv.h"
 
 #include <errno.h>

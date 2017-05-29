@@ -28,7 +28,7 @@ gum_heap_sources = [
 
 install_headers(gum_heap_headers, subdir: install_header_subdir + '/heap')
 
-gum_heap = library('frida-gum-heap-@0@'.format(api_version), gum_heap_sources,
+gum_heap = library('frida-gum-heap-' + api_version, gum_heap_sources,
   include_directories: gum_incdirs,
   dependencies: [gum_dep, gmodule_dep],
   install: true,
@@ -37,11 +37,11 @@ gum_heap = library('frida-gum-heap-@0@'.format(api_version), gum_heap_sources,
 gum_heap_dep = declare_dependency(link_with: gum_heap)
 
 pkg = import('pkgconfig')
-pkg.generate(filebase: 'frida-gum-heap-@0@'.format(api_version),
+pkg.generate(filebase: 'frida-gum-heap-' + api_version,
   name: 'GumHeap',
   version: gum_version,
   description: 'Heap instrumentation library built on top of Gum',
-  requires: ['frida-gum-@0@'.format(api_version)],
+  requires: ['frida-gum-' + api_version],
   requires_private: ['gmodule-2.0'],
   subdirs: install_header_basedir,
   libraries: [gum_heap],

@@ -2,7 +2,7 @@ vapis = [
   'frida-gum-@0@.vapi'.format(api_version),
 ]
 
-if host_machine.system() == 'linux'
+if host_os_family == 'linux'
   vapis += ['frida-gum-linux-@0@.vapi'.format(api_version)]
 endif
 

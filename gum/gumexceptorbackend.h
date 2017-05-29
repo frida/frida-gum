@@ -11,9 +11,6 @@
 
 #include <glib-object.h>
 
-typedef gboolean (* GumExceptionHandler) (GumExceptionDetails * details,
-    gpointer user_data);
-
 G_BEGIN_DECLS
 
 #define GUM_TYPE_EXCEPTOR_BACKEND (gum_exceptor_backend_get_type ())

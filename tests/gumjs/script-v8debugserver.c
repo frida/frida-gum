@@ -139,7 +139,9 @@ static void
 gum_v8_debug_server_on_message (const gchar * message,
                                 GumV8DebugServer * self)
 {
-  for (GSList * cur = self->sessions; cur != NULL; cur = cur->next)
+  GSList * cur;
+
+  for (cur = self->sessions; cur != NULL; cur = cur->next)
   {
     GumV8DebugSession * session = GUM_V8_DEBUG_SESSION (cur->data);
 

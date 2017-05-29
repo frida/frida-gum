@@ -3,7 +3,7 @@ gumjs_sources = [
   'kscript.c',
 ]
 
-if host_machine.system() == 'darwin'
+if host_os_family == 'darwin'
   gumjs_sources += [
     'script-darwin.m',
   ]
