@@ -10,7 +10,12 @@
         "babelify",
         {
           "presets": [
-            ["es2015", { "loose": true }]
+            [
+              "es2015",
+              {
+                "loose": true
+              }
+            ]
           ]
         }
       ]
@@ -19,7 +24,7 @@
   "devDependencies": {
     "babel-preset-es2015": "^6.18.0",
     "frida-compile": "^5.0.1",
-    "frida-java": "1.2.0",
+    "frida-java": "1.2.1",
     "frida-objc": "2.0.1",
     "promiscuous": "^0.7.0"
   },
