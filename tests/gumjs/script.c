@@ -27,6 +27,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (callback_can_be_scheduled_from_a_scheduled_callback)
   SCRIPT_TESTENTRY (callback_can_be_cancelled)
   SCRIPT_TESTENTRY (callback_can_be_scheduled_on_next_tick)
+  SCRIPT_TESTENTRY (timer_cancellation_apis_should_be_forgiving)
   SCRIPT_TESTENTRY (argument_can_be_read)
   SCRIPT_TESTENTRY (argument_can_be_replaced)
   SCRIPT_TESTENTRY (return_value_can_be_read)
@@ -2125,6 +2126,15 @@ SCRIPT_TESTCASE (callback_can_be_scheduled_on_next_tick)
   COMPILE_AND_LOAD_SCRIPT (
       "Script.nextTick(send, 1337, [0x13, 0x37, 0x0a]);");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("1337", "13 37 0a");
+  EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (timer_cancellation_apis_should_be_forgiving)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "clearTimeout(undefined);"
+      "clearInterval(undefined);"
+      "clearImmediate(undefined);");
   EXPECT_NO_MESSAGES ();
 }
 

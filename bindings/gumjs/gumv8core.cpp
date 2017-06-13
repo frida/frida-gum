@@ -1030,6 +1030,12 @@ gum_v8_core_try_steal_scheduled_callback (GumV8Core * self,
  */
 GUMJS_DEFINE_FUNCTION (gumjs_clear_timer)
 {
+  if (info.Length () < 1 || !info[0]->IsNumber ())
+  {
+    info.GetReturnValue ().Set (false);
+    return;
+  }
+
   gint id;
   if (!_gum_v8_args_parse (args, "i", &id))
     return;

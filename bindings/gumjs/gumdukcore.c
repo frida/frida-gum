@@ -1668,6 +1668,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_clear_timer)
   gint id;
   GumDukScheduledCallback * callback;
 
+  if (!duk_is_number (ctx, 0))
+    goto invalid_handle;
+
   _gum_duk_args_parse (args, "i", &id);
 
   callback = gum_duk_core_try_steal_scheduled_callback (self, id);
@@ -1679,6 +1682,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_clear_timer)
 
   duk_push_boolean (ctx, callback != NULL);
   return 1;
+
+invalid_handle:
+  {
+    duk_push_boolean (ctx, FALSE);
+    return 1;
+  }
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_gc)
