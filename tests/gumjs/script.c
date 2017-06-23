@@ -190,6 +190,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (functions_can_be_found_by_matching)
   SCRIPT_TESTENTRY (instruction_can_be_parsed)
   SCRIPT_TESTENTRY (file_can_be_written_to)
+  SCRIPT_TESTENTRY (inline_sqlite_database_can_be_queried)
 #ifdef HAVE_I386
   SCRIPT_TESTENTRY (execution_can_be_traced)
   SCRIPT_TESTENTRY (call_can_be_probed)
@@ -961,6 +962,22 @@ SCRIPT_TESTCASE (file_can_be_written_to)
       "log.close();",
       d00d);
   EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (inline_sqlite_database_can_be_queried)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var db = Database.loadFromString('"
+          "H4sIAHBBTFkAA+3XPwrCUAwG8LxWLQ5SwaF0y6giLl6gVesgLmov8MRYCvYP5Q2ezTO"
+          "5u9oiIriIo/D9yBdIyAWy325SI3wqqkwbnlGflKKAmYjsOha9qTqtj/kbm6btoNccu1"
+          "eqCwAAAAAAAAB+slQdz/eVGH04SylF+erWYheFccRxON9E/NzxMNeZsJGLmbBOhNPcS"
+          "CLVqPnNLfdG7r1uAAAAAAAAAPD3upbtqVWVHrXjKHug1oWMH9PoQsIAIAAA"
+      "');\n"
+      "var statement = db.prepare('SELECT name, age FROM people"
+          " WHERE age == $1');\n"
+      "var rows = db.query(statement, [42]);\n"
+      "send(rows);\n");
+  EXPECT_SEND_MESSAGE_WITH ("[[\"Joe\", 42]]");
 }
 
 SCRIPT_TESTCASE (socket_connection_can_be_established)
