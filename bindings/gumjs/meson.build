@@ -9,6 +9,7 @@ gumjs_sources = [
   'gumscriptscheduler.c',
   'gumscripttask.c',
   'gumsourcemap.c',
+  'sqlite3.c',
   'gumdukscriptbackend.c',
   'gumdukscript.c',
   'gumdukbundle.c',

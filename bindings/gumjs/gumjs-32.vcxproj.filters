@@ -16,6 +16,9 @@
     <ClCompile Include="gumsourcemap.c">
       <Filter>common</Filter>
     </ClCompile>
+    <ClCompile Include="sqlite3.c">
+      <Filter>common</Filter>
+    </ClCompile>
     <ClCompile Include="gumv8bundle.cpp">
       <Filter>v8</Filter>
     </ClCompile>
