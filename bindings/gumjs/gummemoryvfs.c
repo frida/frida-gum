@@ -503,7 +503,8 @@ gum_memory_file_size (sqlite3_file * file,
 {
   GumMemoryFile * self = GUM_MEMORY_FILE (file);
 
-  return self->entry->size;
+  *size = self->entry->size;
+  return SQLITE_OK;
 }
 
 static int
@@ -559,7 +560,10 @@ gum_memory_file_sector_size (sqlite3_file * file)
 static int
 gum_memory_file_device_characteristics (sqlite3_file * file)
 {
-  return 0;
+  return SQLITE_IOCAP_ATOMIC |
+      SQLITE_IOCAP_SAFE_APPEND |
+      SQLITE_IOCAP_SEQUENTIAL |
+      SQLITE_IOCAP_POWERSAFE_OVERWRITE;
 }
 
 static int
