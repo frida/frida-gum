@@ -974,7 +974,7 @@ SCRIPT_TESTCASE (inline_sqlite_database_can_be_queried)
           "CLVqPnNLfdG7r1uAAAAAAAAAPD3upbtqVWVHrXjKHug1oWMH9PoQsIAIAAA"
       "');\n"
       "var statement = db.prepare('SELECT name, age FROM people"
-          " WHERE age == $1');\n"
+          " WHERE age = ?');\n"
       "var rows = db.query(statement, [42]);\n"
       "send(rows);\n");
   EXPECT_SEND_MESSAGE_WITH ("[[\"Joe\", 42]]");
