@@ -976,20 +976,38 @@ SCRIPT_TESTCASE (inline_sqlite_database_can_be_queried)
           "teu0edkSLukLQaen2Hj8AoNOJGgAwAAA="
       "');\n"
       "var s = db.prepare('SELECT name, age FROM people WHERE age = ?');\n"
-      "s.bindInt(1, 42);\n"
+      "s.bindInteger(1, 42);\n"
       "send(s.step());\n"
       "send(s.step());\n"
       "s.reset();\n"
-      "s.bindInt(1, 7);\n"
+      "s.bindInteger(1, 7);\n"
       "send(s.step());\n"
-      "var s2 = db.prepare('SELECT age FROM people WHERE name = ?');\n"
-      "s2.bindText(1, 'Joe');\n"
-      "send(s2.step());\n"
+      "s = db.prepare('SELECT age FROM people WHERE name = ?');\n"
+      "s.bindText(1, 'Joe');\n"
+      "send(s.step());\n"
+      "s = db.prepare('SELECT name FROM people WHERE karma <= ?');\n"
+      "s.bindFloat(1, 117.5);\n"
+      "send(s.step());\n"
+      "send(s.step());\n"
+      "s = db.prepare('SELECT avatar FROM people WHERE name = ?');\n"
+      "s.bindText(1, 'Frida');\n"
+      "send('avatar', s.step()[0]);\n"
+      "send(s.step());\n"
+      "s.reset();\n"
+      "s.bindText(1, 'Joe');\n"
+      "send(s.step());\n"
+      "send(s.step());\n"
       );
   EXPECT_SEND_MESSAGE_WITH ("[\"Joe\",42]");
   EXPECT_SEND_MESSAGE_WITH ("null");
   EXPECT_SEND_MESSAGE_WITH ("[\"Frida\",7]");
   EXPECT_SEND_MESSAGE_WITH ("[42]");
+  EXPECT_SEND_MESSAGE_WITH ("[\"Joe\"]");
+  EXPECT_SEND_MESSAGE_WITH ("null");
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"avatar\"", "13 37");
+  EXPECT_SEND_MESSAGE_WITH ("null");
+  EXPECT_SEND_MESSAGE_WITH ("[null]");
+  EXPECT_SEND_MESSAGE_WITH ("null");
   EXPECT_NO_MESSAGES ();
 }
 

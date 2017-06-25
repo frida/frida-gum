@@ -31,7 +31,8 @@ static void gum_database_free (GumDatabase * self);
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_statement_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_statement_finalize)
-GUMJS_DECLARE_FUNCTION (gumjs_statement_bind_int)
+GUMJS_DECLARE_FUNCTION (gumjs_statement_bind_integer)
+GUMJS_DECLARE_FUNCTION (gumjs_statement_bind_float)
 GUMJS_DECLARE_FUNCTION (gumjs_statement_bind_text)
 GUMJS_DECLARE_FUNCTION (gumjs_statement_step)
 GUMJS_DECLARE_FUNCTION (gumjs_statement_reset)
@@ -56,7 +57,8 @@ static const duk_function_list_entry gumjs_database_functions[] =
 
 static const duk_function_list_entry gumjs_statement_functions[] =
 {
-  { "bindInt", gumjs_statement_bind_int, 2 },
+  { "bindInteger", gumjs_statement_bind_integer, 2 },
+  { "bindFloat", gumjs_statement_bind_float, 2 },
   { "bindText", gumjs_statement_bind_text, 2 },
   { "step", gumjs_statement_step, 0 },
   { "reset", gumjs_statement_reset, 0 },
@@ -322,7 +324,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_statement_finalize)
   return 0;
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_int)
+GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_integer)
 {
   gint index, value;
   int status;
@@ -330,6 +332,21 @@ GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_int)
   _gum_duk_args_parse (args, "ii", &index, &value);
 
   status = sqlite3_bind_int64 (gumjs_statement_from_args (args), index, value);
+  if (status != SQLITE_OK)
+    _gum_duk_throw (ctx, "%s", sqlite3_errstr (status));
+
+  return 0;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_float)
+{
+  gint index;
+  gdouble value;
+  int status;
+
+  _gum_duk_args_parse (args, "in", &index, &value);
+
+  status = sqlite3_bind_double (gumjs_statement_from_args (args), index, value);
   if (status != SQLITE_OK)
     _gum_duk_throw (ctx, "%s", sqlite3_errstr (status));
 
