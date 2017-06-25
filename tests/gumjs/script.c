@@ -1077,7 +1077,8 @@ SCRIPT_TESTCASE (external_sqlite_database_can_be_queried)
           "INSERT INTO people VALUES (1, 'Joe', 42, 117, NULL);"
           "INSERT INTO people VALUES (2, 'Frida', 7, 140, X'1337');"
           "COMMIT;"
-      "\");\n");
+      "\");\n"
+      "db.close();\n");
   EXPECT_NO_MESSAGES ();
 }
 
