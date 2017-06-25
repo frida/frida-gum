@@ -53,6 +53,7 @@ if have_v8
     'gumv8file.cpp',
     'gumv8stream.cpp',
     'gumv8socket.cpp',
+    'gumv8database.cpp',
     'gumv8interceptor.cpp',
     'gumv8stalker.cpp',
     'gumv8eventsink.cpp',

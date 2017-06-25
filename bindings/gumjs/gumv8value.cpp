@@ -1672,10 +1672,26 @@ _gum_v8_create_class (const gchar * name,
                       Isolate * isolate)
 {
   auto klass = FunctionTemplate::New (isolate, ctor, module);
-  klass->SetClassName (_gum_v8_string_new_ascii (isolate, name));
+  auto name_value = _gum_v8_string_new_ascii (isolate, name);
+  klass->SetClassName (name_value);
   klass->InstanceTemplate ()->SetInternalFieldCount (1);
-  scope->Set (_gum_v8_string_new_ascii (isolate, name), klass);
+  scope->Set (name_value, klass);
   return klass;
+}
+
+void
+_gum_v8_class_add_static (Handle<FunctionTemplate> klass,
+                          const GumV8Function * functions,
+                          Handle<External> module,
+                          Isolate * isolate)
+{
+  auto func = functions;
+  while (func->name != NULL)
+  {
+    klass->Set (_gum_v8_string_new_ascii (isolate, func->name),
+        FunctionTemplate::New (isolate, func->callback, module));
+    func++;
+  }
 }
 
 void
