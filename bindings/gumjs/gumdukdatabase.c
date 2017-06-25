@@ -366,13 +366,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_statement_step)
       gum_push_row (ctx, statement);
       return 1;
     case SQLITE_DONE:
-      break;
+      duk_push_null (ctx);
+      return 1;
     default:
       _gum_duk_throw (ctx, "%s", sqlite3_errstr (status));
-      break;
+      return 0;
   }
-
-  return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_statement_reset)

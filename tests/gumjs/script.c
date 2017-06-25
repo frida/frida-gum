@@ -976,7 +976,7 @@ SCRIPT_TESTCASE (inline_sqlite_database_can_be_queried)
       "var s = db.prepare('SELECT name, age FROM people WHERE age = ?');\n"
       "s.bindInt(1, 42);\n"
       "send(s.step());\n"
-      "send(typeof s.step());\n"
+      "send(s.step());\n"
       "s.reset();\n"
       "s.bindInt(1, 7);\n"
       "send(s.step());\n"
@@ -985,7 +985,7 @@ SCRIPT_TESTCASE (inline_sqlite_database_can_be_queried)
       "send(s2.step());\n"
       );
   EXPECT_SEND_MESSAGE_WITH ("[\"Joe\",42]");
-  EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
+  EXPECT_SEND_MESSAGE_WITH ("null");
   EXPECT_SEND_MESSAGE_WITH ("[\"Frida\",7]");
   EXPECT_SEND_MESSAGE_WITH ("[42]");
   EXPECT_NO_MESSAGES ();
