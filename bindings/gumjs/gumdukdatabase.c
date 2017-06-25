@@ -13,20 +13,24 @@ typedef struct _GumDatabase GumDatabase;
 
 struct _GumDatabase
 {
-  gchar * path;
   sqlite3 * handle;
+  gchar * path;
+  gboolean is_virtual;
   GumDukDatabase * module;
 };
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_database_module_construct)
-GUMJS_DECLARE_FUNCTION (gumjs_database_load_from_string)
+GUMJS_DECLARE_FUNCTION (gumjs_database_open)
+GUMJS_DECLARE_FUNCTION (gumjs_database_open_inline)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_database_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_database_finalize)
+GUMJS_DECLARE_FUNCTION (gumjs_database_close)
+GUMJS_DECLARE_FUNCTION (gumjs_database_exec)
 GUMJS_DECLARE_FUNCTION (gumjs_database_prepare)
 
-static GumDatabase * gum_database_new (const gchar * path, sqlite3 * handle,
-    GumDukDatabase * module);
+static GumDatabase * gum_database_new (sqlite3 * handle, const gchar * path,
+    gboolean is_virtual, GumDukDatabase * module);
 static void gum_database_free (GumDatabase * self);
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_statement_construct)
@@ -45,13 +49,16 @@ static void gum_push_column (duk_context * ctx, sqlite3_stmt * statement,
 
 static const duk_function_list_entry gumjs_database_module_functions[] =
 {
-  { "loadFromString", gumjs_database_load_from_string, 1 },
+  { "open", gumjs_database_open, 1 },
+  { "openInline", gumjs_database_open_inline, 1 },
 
   { NULL, NULL, 0 }
 };
 
 static const duk_function_list_entry gumjs_database_functions[] =
 {
+  { "close", gumjs_database_close, 0 },
+  { "exec", gumjs_database_exec, 1 },
   { "prepare", gumjs_database_prepare, 1 },
 
   { NULL, NULL, 0 }
@@ -88,7 +95,7 @@ _gum_duk_database_init (GumDukDatabase * self,
   duk_new (ctx, 0);
   duk_put_global_string (ctx, "Database");
 
-  duk_push_c_function (ctx, gumjs_database_construct, 2);
+  duk_push_c_function (ctx, gumjs_database_construct, 3);
   duk_push_object (ctx);
   duk_put_function_list (ctx, -1, gumjs_database_functions);
   duk_push_c_function (ctx, gumjs_database_finalize, 1);
@@ -140,7 +147,39 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_database_module_construct)
   return 0;
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_database_load_from_string)
+GUMJS_DEFINE_FUNCTION (gumjs_database_open)
+{
+  GumDukDatabase * self;
+  const gchar * path;
+  sqlite3 * handle;
+  gint status;
+
+  self = gumjs_database_module_from_args (args);
+
+  _gum_duk_args_parse (args, "s", &path);
+
+  handle = NULL;
+  status = sqlite3_open_v2 (path, &handle,
+      SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
+  if (status != SQLITE_OK)
+    goto invalid_database;
+
+  duk_push_heapptr (ctx, self->database);
+  duk_push_string (ctx, path);
+  duk_push_pointer (ctx, handle);
+  duk_push_boolean (ctx, FALSE);
+  duk_new (ctx, 3);
+  return 1;
+
+invalid_database:
+  {
+    sqlite3_close_v2 (handle);
+    _gum_duk_throw (ctx, "%s", sqlite3_errstr (status));
+    return 0;
+  }
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_database_open_inline)
 {
   GumDukDatabase * self;
   const gchar * data, * path;
@@ -164,7 +203,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_database_load_from_string)
   duk_push_heapptr (ctx, self->database);
   duk_push_string (ctx, path);
   duk_push_pointer (ctx, handle);
-  duk_new (ctx, 2);
+  duk_push_boolean (ctx, TRUE);
+  duk_new (ctx, 3);
   return 1;
 
 invalid_data:
@@ -198,14 +238,15 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_database_construct)
 {
   const gchar * path;
   sqlite3 * handle;
+  gboolean is_virtual;
   GumDatabase * database;
 
   if (!duk_is_constructor_call (ctx))
     _gum_duk_throw (ctx, "use constructor syntax to create a new instance");
 
-  _gum_duk_args_parse (args, "sp", &path, &handle);
+  _gum_duk_args_parse (args, "spt", &path, &handle, &is_virtual);
 
-  database = gum_database_new (path, handle,
+  database = gum_database_new (handle, path, is_virtual,
       gumjs_database_module_from_args (args));
 
   duk_push_this (ctx);
@@ -230,12 +271,56 @@ GUMJS_DEFINE_FINALIZER (gumjs_database_finalize)
   return 0;
 }
 
+GUMJS_DEFINE_FUNCTION (gumjs_database_close)
+{
+  GumDatabase * self;
+
+  duk_push_this (ctx);
+  self = _gum_duk_steal_data (ctx, -1);
+  duk_pop (ctx);
+
+  if (self != NULL)
+    gum_database_free (self);
+
+  return 0;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_database_exec)
+{
+  GumDatabase * self;
+  const gchar * sql;
+  gchar * error_message;
+  gint status;
+
+  self = gumjs_database_from_args (args);
+
+  _gum_duk_args_parse (args, "s", &sql);
+
+  status = sqlite3_exec (self->handle, sql, NULL, NULL, &error_message);
+  if (status != SQLITE_OK)
+    goto error;
+
+  return 0;
+
+error:
+  {
+    duk_push_error_object (ctx, DUK_ERR_ERROR, "%s", error_message);
+    sqlite3_free (error_message);
+
+    (void) duk_throw (ctx);
+
+    return 0;
+  }
+}
+
 GUMJS_DEFINE_FUNCTION (gumjs_database_prepare)
 {
-  GumDatabase * self = gumjs_database_from_args (args);
+  GumDatabase * self;
   const gchar * sql;
   sqlite3_stmt * statement;
   gint status;
+
+  self = gumjs_database_from_args (args);
 
   _gum_duk_args_parse (args, "s", &sql);
 
@@ -260,15 +345,17 @@ invalid_sql:
 }
 
 static GumDatabase *
-gum_database_new (const gchar * path,
-                  sqlite3 * handle,
+gum_database_new (sqlite3 * handle,
+                  const gchar * path,
+                  gboolean is_virtual,
                   GumDukDatabase * module)
 {
   GumDatabase * database;
 
   database = g_slice_new (GumDatabase);
-  database->path = g_strdup (path);
   database->handle = handle;
+  database->path = g_strdup (path);
+  database->is_virtual = is_virtual;
   database->module = module;
 
   return database;
@@ -278,7 +365,8 @@ static void
 gum_database_free (GumDatabase * self)
 {
   sqlite3_close_v2 (self->handle);
-  gum_memory_vfs_remove_file (self->module->memory_vfs, self->path);
+  if (self->is_virtual)
+    gum_memory_vfs_remove_file (self->module->memory_vfs, self->path);
   g_free (self->path);
 
   g_slice_free (GumDatabase, self);

@@ -191,6 +191,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (instruction_can_be_parsed)
   SCRIPT_TESTENTRY (file_can_be_written_to)
   SCRIPT_TESTENTRY (inline_sqlite_database_can_be_queried)
+  SCRIPT_TESTENTRY (external_sqlite_database_can_be_queried)
 #ifdef HAVE_I386
   SCRIPT_TESTENTRY (execution_can_be_traced)
   SCRIPT_TESTENTRY (call_can_be_probed)
@@ -967,7 +968,7 @@ SCRIPT_TESTCASE (file_can_be_written_to)
 SCRIPT_TESTCASE (inline_sqlite_database_can_be_queried)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var db = Database.loadFromString('"
+      "var db = Database.openInline('"
           "H4sIAMMIT1kAA+3ZsU7DMBAG4HMC7VChROpQut0IqGJhYCWJDAq4LbhGoqNRDYqgpIo"
           "CO8y8JM/AC+CKFNhgLfo/+U7n0/kBTp5cqKJ2fFNWc1vzAcUkBB0xE1HYxIrwsdHUYX"
           "P/TUj7m+nWcjhy5A8AAAAAAADA//W8Ldq9fl+8dGp7fe8WrlyscphpmRjJJkmV5M8e7"
@@ -1050,6 +1051,33 @@ SCRIPT_TESTCASE (inline_sqlite_database_can_be_queried)
   EXPECT_SEND_MESSAGE_WITH ("null");
   EXPECT_SEND_MESSAGE_WITH ("[null]");
   EXPECT_SEND_MESSAGE_WITH ("null");
+  EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (external_sqlite_database_can_be_queried)
+{
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var db = Database.open('/tmp/gum-test.db');\n"
+      "db.exec(\""
+          "PRAGMA foreign_keys=OFF;"
+          "BEGIN TRANSACTION;"
+          "CREATE TABLE people ("
+              "id INTEGER PRIMARY KEY ASC,"
+              "name TEXT NOT NULL,"
+              "age INTEGER NOT NULL,"
+              "karma NUMERIC NOT NULL,"
+              "avatar BLOB"
+          ");"
+          "INSERT INTO people VALUES (1, 'Joe', 42, 117, NULL);"
+          "INSERT INTO people VALUES (2, 'Frida', 7, 140, X'1337');"
+          "COMMIT;"
+      "\");\n");
   EXPECT_NO_MESSAGES ();
 }
 
