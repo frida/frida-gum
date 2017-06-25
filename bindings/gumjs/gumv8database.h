@@ -16,6 +16,7 @@ struct GumV8Database
 
   GHashTable * databases;
   GumPersistent<v8::FunctionTemplate>::type * database;
+  GumPersistent<v8::FunctionTemplate>::type * statement;
 
   GumMemoryVfs * memory_vfs;
 };

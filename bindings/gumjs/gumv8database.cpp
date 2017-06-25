@@ -90,6 +90,12 @@ _gum_v8_database_init (GumV8Database * self,
   _gum_v8_class_add (db, gumjs_database_functions, module, isolate);
   self->database = new GumPersistent<FunctionTemplate>::type (isolate, db);
 
+  auto statement = _gum_v8_create_class ("SqliteStatement", nullptr, scope,
+      module, isolate);
+  _gum_v8_class_add (db, gumjs_statement_functions, module, isolate);
+  self->statement =
+      new GumPersistent<FunctionTemplate>::type (isolate, statement);
+
   self->memory_vfs = gum_memory_vfs_new ();
   sqlite3_vfs_register (&self->memory_vfs->vfs, FALSE);
 }
@@ -106,6 +112,9 @@ _gum_v8_database_dispose (GumV8Database * self)
 {
   g_hash_table_unref (self->databases);
   self->databases = NULL;
+
+  delete self->statement;
+  self->statement = nullptr;
 
   delete self->database;
   self->database = nullptr;
@@ -149,6 +158,60 @@ invalid_database:
     _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
     return;
   }
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_database_open_inline)
+{
+  gchar * data;
+  const gchar * path;
+  sqlite3 * handle;
+  gint status;
+  Local<Object> object;
+
+  if (!_gum_v8_args_parse (args, "s", &data))
+    return;
+
+  path = gum_memory_vfs_add_file (module->memory_vfs, data);
+  g_free (data);
+  if (path == NULL)
+    goto invalid_data;
+
+  handle = NULL;
+  status = sqlite3_open_v2 (path, &handle, SQLITE_OPEN_READWRITE,
+      module->memory_vfs->name);
+  if (status != SQLITE_OK)
+    goto invalid_database;
+
+  object = gum_database_new (handle, path, TRUE, module);
+
+  info.GetReturnValue ().Set (object);
+
+  return;
+
+invalid_data:
+  {
+    _gum_v8_throw (isolate, "invalid data");
+    return;
+  }
+invalid_database:
+  {
+    sqlite3_close_v2 (handle);
+    gum_memory_vfs_remove_file (module->memory_vfs, path);
+    _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
+    return;
+  }
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_database_close)
+{
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_database_exec)
+{
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_database_prepare)
+{
 }
 
 static Local<Object>
@@ -201,4 +264,32 @@ gum_database_on_weak_notify (const WeakCallbackInfo<GumDatabase> & info)
   HandleScope handle_scope (info.GetIsolate ());
   auto self = info.GetParameter ();
   g_hash_table_remove (self->module->databases, self);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_integer)
+{
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_float)
+{
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_text)
+{
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_blob)
+{
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_null)
+{
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_statement_step)
+{
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_statement_reset)
+{
 }
