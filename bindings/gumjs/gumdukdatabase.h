@@ -19,6 +19,7 @@ struct _GumDukDatabase
   GumDukCore * core;
 
   GumDukHeapPtr database;
+  GumDukHeapPtr statement;
   GumMemoryVfs * memory_vfs;
 };
 

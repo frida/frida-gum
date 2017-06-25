@@ -973,11 +973,22 @@ SCRIPT_TESTCASE (inline_sqlite_database_can_be_queried)
           "eqCwAAAAAAAAB+slQdz/eVGH04SylF+erWYheFccRxON9E/NzxMNeZsJGLmbBOhNPcS"
           "CLVqPnNLfdG7r1uAAAAAAAAAPD3upbtqVWVHrXjKHug1oWMH9PoQsIAIAAA"
       "');\n"
-      "var statement = db.prepare('SELECT name, age FROM people"
-          " WHERE age = ?');\n"
-      "var rows = db.query(statement, [42]);\n"
-      "send(rows);\n");
-  EXPECT_SEND_MESSAGE_WITH ("[[\"Joe\", 42]]");
+      "var s = db.prepare('SELECT name, age FROM people WHERE age = ?');\n"
+      "s.bindInt(1, 42);\n"
+      "send(s.step());\n"
+      "send(typeof s.step());\n"
+      "s.reset();\n"
+      "s.bindInt(1, 7);\n"
+      "send(s.step());\n"
+      "var s2 = db.prepare('SELECT age FROM people WHERE name = ?');\n"
+      "s2.bindText(1, 'Joe');\n"
+      "send(s2.step());\n"
+      );
+  EXPECT_SEND_MESSAGE_WITH ("[\"Joe\",42]");
+  EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
+  EXPECT_SEND_MESSAGE_WITH ("[\"Frida\",7]");
+  EXPECT_SEND_MESSAGE_WITH ("[42]");
+  EXPECT_NO_MESSAGES ();
 }
 
 SCRIPT_TESTCASE (socket_connection_can_be_established)
