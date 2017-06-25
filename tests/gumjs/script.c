@@ -968,7 +968,7 @@ SCRIPT_TESTCASE (file_can_be_written_to)
 SCRIPT_TESTCASE (inline_sqlite_database_can_be_queried)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var db = Database.openInline('"
+      "var db = SqliteDatabase.openInline('"
           "H4sIAMMIT1kAA+3ZsU7DMBAG4HMC7VChROpQut0IqGJhYCWJDAq4LbhGoqNRDYqgpIo"
           "CO8y8JM/AC+CKFNhgLfo/+U7n0/kBTp5cqKJ2fFNWc1vzAcUkBB0xE1HYxIrwsdHUYX"
           "P/TUj7m+nWcjhy5A8AAAAAAADA//W8Ldq9fl+8dGp7fe8WrlyscphpmRjJJkmV5M8e7"
@@ -1063,7 +1063,7 @@ SCRIPT_TESTCASE (external_sqlite_database_can_be_queried)
   }
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var db = Database.open('/tmp/gum-test.db');\n"
+      "var db = SqliteDatabase.open('/tmp/gum-test.db');\n"
       "db.exec(\""
           "PRAGMA foreign_keys=OFF;"
           "BEGIN TRANSACTION;"

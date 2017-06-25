@@ -19,7 +19,6 @@ struct _GumDatabase
   GumDukDatabase * module;
 };
 
-GUMJS_DECLARE_CONSTRUCTOR (gumjs_database_module_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_database_open)
 GUMJS_DECLARE_FUNCTION (gumjs_database_open_inline)
 
@@ -88,13 +87,6 @@ _gum_duk_database_init (GumDukDatabase * self,
 
   _gum_duk_store_module_data (ctx, "database", self);
 
-  duk_push_c_function (ctx, gumjs_database_module_construct, 0);
-  duk_push_object (ctx);
-  duk_put_function_list (ctx, -1, gumjs_database_module_functions);
-  duk_put_prop_string (ctx, -2, "prototype");
-  duk_new (ctx, 0);
-  duk_put_global_string (ctx, "Database");
-
   duk_push_c_function (ctx, gumjs_database_construct, 3);
   duk_push_object (ctx);
   duk_put_function_list (ctx, -1, gumjs_database_functions);
@@ -102,6 +94,7 @@ _gum_duk_database_init (GumDukDatabase * self,
   duk_set_finalizer (ctx, -2);
   duk_put_prop_string (ctx, -2, "prototype");
   self->database = _gum_duk_require_heapptr (ctx, -1);
+  duk_put_function_list (ctx, -1, gumjs_database_module_functions);
   duk_put_global_string (ctx, "SqliteDatabase");
 
   duk_push_c_function (ctx, gumjs_statement_construct, 2);
@@ -137,14 +130,6 @@ static GumDukDatabase *
 gumjs_database_module_from_args (const GumDukArgs * args)
 {
   return _gum_duk_load_module_data (args->ctx, "database");
-}
-
-GUMJS_DEFINE_CONSTRUCTOR (gumjs_database_module_construct)
-{
-  (void) ctx;
-  (void) args;
-
-  return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_database_open)
