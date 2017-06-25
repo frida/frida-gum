@@ -975,6 +975,8 @@ SCRIPT_TESTCASE (inline_sqlite_database_can_be_queried)
           "c/rJ1rbiVI3T3b8s8QAAAAAAAACw3pZ/80H0RtG7TwAAAAAAAACwnuKgRT0RxMdVMbN"
           "teu0edkSLukLQaen2Hj8AoNOJGgAwAAA="
       "');\n"
+
+      /* 1: bindInteger() */
       "var s = db.prepare('SELECT name, age FROM people WHERE age = ?');\n"
       "s.bindInteger(1, 42);\n"
       "send(s.step());\n"
@@ -982,13 +984,34 @@ SCRIPT_TESTCASE (inline_sqlite_database_can_be_queried)
       "s.reset();\n"
       "s.bindInteger(1, 7);\n"
       "send(s.step());\n"
-      "s = db.prepare('SELECT age FROM people WHERE name = ?');\n"
-      "s.bindText(1, 'Joe');\n"
-      "send(s.step());\n"
+
+      /* 2: bindFloat() */
       "s = db.prepare('SELECT name FROM people WHERE karma <= ?');\n"
       "s.bindFloat(1, 117.5);\n"
       "send(s.step());\n"
       "send(s.step());\n"
+
+      /* 3: bindText() */
+      "s = db.prepare('SELECT age FROM people WHERE name = ?');\n"
+      "s.bindText(1, 'Joe');\n"
+      "send(s.step());\n"
+
+      /* 4: bindBlob() */
+      "s = db.prepare('SELECT name FROM people WHERE avatar = ?');\n"
+      "s.bindBlob(1, [0x13, 0x37]);\n"
+      "send(s.step());\n"
+      "send(s.step());\n"
+
+      /* 5: bindNull() */
+      "s = db.prepare('INSERT INTO people VALUES (?, ?, ?, ?, ?)');\n"
+      "s.bindInteger(1, 3);\n"
+      "s.bindText(2, 'Alice');\n"
+      "s.bindInteger(3, 40);\n"
+      "s.bindInteger(4, 150);\n"
+      "s.bindNull(5);\n"
+      "send(s.step());\n"
+
+      /* 6: blob column */
       "s = db.prepare('SELECT avatar FROM people WHERE name = ?');\n"
       "s.bindText(1, 'Frida');\n"
       "send('avatar', s.step()[0]);\n"
@@ -998,12 +1021,27 @@ SCRIPT_TESTCASE (inline_sqlite_database_can_be_queried)
       "send(s.step());\n"
       "send(s.step());\n"
       );
+
+  /* 1: bindInteger() */
   EXPECT_SEND_MESSAGE_WITH ("[\"Joe\",42]");
   EXPECT_SEND_MESSAGE_WITH ("null");
   EXPECT_SEND_MESSAGE_WITH ("[\"Frida\",7]");
-  EXPECT_SEND_MESSAGE_WITH ("[42]");
+
+  /* 2: bindFloat() */
   EXPECT_SEND_MESSAGE_WITH ("[\"Joe\"]");
   EXPECT_SEND_MESSAGE_WITH ("null");
+
+  /* 3: bindText() */
+  EXPECT_SEND_MESSAGE_WITH ("[42]");
+
+  /* 4: bindBlob() */
+  EXPECT_SEND_MESSAGE_WITH ("[\"Frida\"]");
+  EXPECT_SEND_MESSAGE_WITH ("null");
+
+  /* 5: bindNull() */
+  EXPECT_SEND_MESSAGE_WITH ("null");
+
+  /* 6: blob column */
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"avatar\"", "13 37");
   EXPECT_SEND_MESSAGE_WITH ("null");
   EXPECT_SEND_MESSAGE_WITH ("[null]");

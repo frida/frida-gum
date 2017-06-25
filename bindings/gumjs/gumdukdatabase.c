@@ -34,6 +34,8 @@ GUMJS_DECLARE_FINALIZER (gumjs_statement_finalize)
 GUMJS_DECLARE_FUNCTION (gumjs_statement_bind_integer)
 GUMJS_DECLARE_FUNCTION (gumjs_statement_bind_float)
 GUMJS_DECLARE_FUNCTION (gumjs_statement_bind_text)
+GUMJS_DECLARE_FUNCTION (gumjs_statement_bind_blob)
+GUMJS_DECLARE_FUNCTION (gumjs_statement_bind_null)
 GUMJS_DECLARE_FUNCTION (gumjs_statement_step)
 GUMJS_DECLARE_FUNCTION (gumjs_statement_reset)
 
@@ -60,6 +62,8 @@ static const duk_function_list_entry gumjs_statement_functions[] =
   { "bindInteger", gumjs_statement_bind_integer, 2 },
   { "bindFloat", gumjs_statement_bind_float, 2 },
   { "bindText", gumjs_statement_bind_text, 2 },
+  { "bindBlob", gumjs_statement_bind_blob, 2 },
+  { "bindNull", gumjs_statement_bind_null, 1 },
   { "step", gumjs_statement_step, 0 },
   { "reset", gumjs_statement_reset, 0 },
 
@@ -91,7 +95,7 @@ _gum_duk_database_init (GumDukDatabase * self,
   duk_set_finalizer (ctx, -2);
   duk_put_prop_string (ctx, -2, "prototype");
   self->database = _gum_duk_require_heapptr (ctx, -1);
-  duk_pop (ctx);
+  duk_put_global_string (ctx, "SqliteDatabase");
 
   duk_push_c_function (ctx, gumjs_statement_construct, 2);
   duk_push_object (ctx);
@@ -100,7 +104,7 @@ _gum_duk_database_init (GumDukDatabase * self,
   duk_set_finalizer (ctx, -2);
   duk_put_prop_string (ctx, -2, "prototype");
   self->statement = _gum_duk_require_heapptr (ctx, -1);
-  duk_pop (ctx);
+  duk_put_global_string (ctx, "SqliteStatement");
 
   self->memory_vfs = gum_memory_vfs_new ();
   sqlite3_vfs_register (&self->memory_vfs->vfs, FALSE);
@@ -141,7 +145,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_database_load_from_string)
   GumDukDatabase * self;
   const gchar * data, * path;
   sqlite3 * handle;
-  int status;
+  gint status;
 
   self = gumjs_database_module_from_args (args);
 
@@ -231,7 +235,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_database_prepare)
   GumDatabase * self = gumjs_database_from_args (args);
   const gchar * sql;
   sqlite3_stmt * statement;
-  int status;
+  gint status;
 
   _gum_duk_args_parse (args, "s", &sql);
 
@@ -326,8 +330,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_statement_finalize)
 
 GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_integer)
 {
-  gint index, value;
-  int status;
+  gint index, value, status;
 
   _gum_duk_args_parse (args, "ii", &index, &value);
 
@@ -342,7 +345,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_float)
 {
   gint index;
   gdouble value;
-  int status;
+  gint status;
 
   _gum_duk_args_parse (args, "in", &index, &value);
 
@@ -357,7 +360,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_text)
 {
   gint index;
   const gchar * value;
-  int status;
+  gint status;
 
   _gum_duk_args_parse (args, "is", &index, &value);
 
@@ -369,10 +372,43 @@ GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_text)
   return 0;
 }
 
+GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_blob)
+{
+  gint index;
+  GBytes * bytes;
+  gpointer data;
+  gsize size;
+  gint status;
+
+  _gum_duk_args_parse (args, "iB~", &index, &bytes);
+
+  data = g_bytes_unref_to_data (bytes, &size);
+
+  status = sqlite3_bind_blob64 (gumjs_statement_from_args (args), index, data,
+      size, g_free);
+  if (status != SQLITE_OK)
+    _gum_duk_throw (ctx, "%s", sqlite3_errstr (status));
+
+  return 0;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_null)
+{
+  gint index, status;
+
+  _gum_duk_args_parse (args, "i", &index);
+
+  status = sqlite3_bind_null (gumjs_statement_from_args (args), index);
+  if (status != SQLITE_OK)
+    _gum_duk_throw (ctx, "%s", sqlite3_errstr (status));
+
+  return 0;
+}
+
 GUMJS_DEFINE_FUNCTION (gumjs_statement_step)
 {
   sqlite3_stmt * statement;
-  int status;
+  gint status;
 
   statement = gumjs_statement_from_args (args);
 
@@ -393,7 +429,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_statement_step)
 
 GUMJS_DEFINE_FUNCTION (gumjs_statement_reset)
 {
-  int status;
+  gint status;
 
   status = sqlite3_reset (gumjs_statement_from_args (args));
   if (status != SQLITE_OK)
@@ -406,7 +442,7 @@ static void
 gum_push_row (duk_context * ctx,
               sqlite3_stmt * statement)
 {
-  int num_columns, index;
+  gint num_columns, index;
 
   duk_push_array (ctx);
 
@@ -423,7 +459,7 @@ gum_push_column (duk_context * ctx,
                  sqlite3_stmt * statement,
                  guint index)
 {
-  int type;
+  gint type;
 
   type = sqlite3_column_type (statement, index);
   switch (type)
@@ -440,7 +476,7 @@ gum_push_column (duk_context * ctx,
       break;
     case SQLITE_BLOB:
     {
-      int size;
+      gint size;
       gpointer buffer_data;
 
       size = sqlite3_column_bytes (statement, index);
