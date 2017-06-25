@@ -968,10 +968,12 @@ SCRIPT_TESTCASE (inline_sqlite_database_can_be_queried)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "var db = Database.loadFromString('"
-          "H4sIAHBBTFkAA+3XPwrCUAwG8LxWLQ5SwaF0y6giLl6gVesgLmov8MRYCvYP5Q2ezTO"
-          "5u9oiIriIo/D9yBdIyAWy325SI3wqqkwbnlGflKKAmYjsOha9qTqtj/kbm6btoNccu1"
-          "eqCwAAAAAAAAB+slQdz/eVGH04SylF+erWYheFccRxON9E/NzxMNeZsJGLmbBOhNPcS"
-          "CLVqPnNLfdG7r1uAAAAAAAAAPD3upbtqVWVHrXjKHug1oWMH9PoQsIAIAAA"
+          "H4sIAMMIT1kAA+3ZsU7DMBAG4HMC7VChROpQut0IqGJhYCWJDAq4LbhGoqNRDYqgpIo"
+          "CO8y8JM/AC+CKFNhgLfo/+U7n0/kBTp5cqKJ2fFNWc1vzAcUkBB0xE1HYxIrwsdHUYX"
+          "P/TUj7m+nWcjhy5A8AAAAAAADA//W8Ldq9fl+8dGp7fe8WrlyscphpmRjJJkmV5M8e7"
+          "xQzzkdGnkjN5zofJnrKZ3LKySQb8IOdOzbyyvBo7ONSqQHbW/f14Lt7Z/1S7+uh1Hn2"
+          "c/rJ1rbiVI3T3b8s8QAAAAAAAACw3pZ/80H0RtG7TwAAAAAAAACwnuKgRT0RxMdVMbN"
+          "teu0edkSLukLQaen2Hj8AoNOJGgAwAAA="
       "');\n"
       "var s = db.prepare('SELECT name, age FROM people WHERE age = ?');\n"
       "s.bindInt(1, 42);\n"
