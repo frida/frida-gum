@@ -1010,6 +1010,9 @@ SCRIPT_TESTCASE (inline_sqlite_database_can_be_queried)
       "s.bindInteger(4, 150);\n"
       "s.bindNull(5);\n"
       "send(s.step());\n"
+      "s = db.prepare('SELECT * FROM people WHERE name = \"Alice\"');\n"
+      "send(s.step());\n"
+      "send(s.step());\n"
 
       /* 6: blob column */
       "s = db.prepare('SELECT avatar FROM people WHERE name = ?');\n"
@@ -1019,8 +1022,7 @@ SCRIPT_TESTCASE (inline_sqlite_database_can_be_queried)
       "s.reset();\n"
       "s.bindText(1, 'Joe');\n"
       "send(s.step());\n"
-      "send(s.step());\n"
-      );
+      "send(s.step());\n");
 
   /* 1: bindInteger() */
   EXPECT_SEND_MESSAGE_WITH ("[\"Joe\",42]");
@@ -1039,6 +1041,8 @@ SCRIPT_TESTCASE (inline_sqlite_database_can_be_queried)
   EXPECT_SEND_MESSAGE_WITH ("null");
 
   /* 5: bindNull() */
+  EXPECT_SEND_MESSAGE_WITH ("null");
+  EXPECT_SEND_MESSAGE_WITH ("[3,\"Alice\",40,150,null]");
   EXPECT_SEND_MESSAGE_WITH ("null");
 
   /* 6: blob column */
