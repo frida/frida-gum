@@ -202,7 +202,7 @@ gum_memory_vfs_add_file (GumMemoryVfs * self,
       in_offset += bytes_read;
       out_offset += bytes_written;
 
-      remaining_capacity = buffer_size - bytes_written;
+      remaining_capacity = buffer_size - out_offset;
       if (remaining_capacity < 2048)
       {
         buffer_size *= 2;
