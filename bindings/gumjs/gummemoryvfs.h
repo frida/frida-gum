@@ -28,7 +28,7 @@ struct _GumMemoryVfs
 G_GNUC_INTERNAL GumMemoryVfs * gum_memory_vfs_new (void);
 G_GNUC_INTERNAL void gum_memory_vfs_free (GumMemoryVfs * self);
 
-G_GNUC_INTERNAL gchar * gum_memory_vfs_add_file (GumMemoryVfs * self,
+G_GNUC_INTERNAL const gchar * gum_memory_vfs_add_file (GumMemoryVfs * self,
     const gchar * base64);
 G_GNUC_INTERNAL void gum_memory_vfs_remove_file (GumMemoryVfs * self,
     const gchar * path);

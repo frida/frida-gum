@@ -31,6 +31,8 @@ struct _GumMemoryFileEntry
   gint lock_level;
 };
 
+static GumMemoryFileEntry * gum_memory_vfs_add_entry (GumMemoryVfs * self,
+    gchar * path, guint8 * data, gsize size);
 static int gum_memory_vfs_open (sqlite3_vfs * vfs, const char * name,
     sqlite3_file * file, int flags, int * out_flags);
 static int gum_memory_vfs_delete (sqlite3_vfs * vfs, const char * name,
@@ -156,7 +158,7 @@ gum_memory_vfs_free (GumMemoryVfs * self)
   g_slice_free (GumMemoryVfs, self);
 }
 
-gchar *
+const gchar *
 gum_memory_vfs_add_file (GumMemoryVfs * self,
                          const gchar * base64)
 {
@@ -165,7 +167,6 @@ gum_memory_vfs_add_file (GumMemoryVfs * self,
   gboolean is_compressed;
   guint8 * buffer = NULL;
   gchar * path;
-  GumMemoryFileEntry * entry;
 
   data = g_base64_decode (base64, &data_size);
   if (data == NULL)
@@ -220,12 +221,7 @@ gum_memory_vfs_add_file (GumMemoryVfs * self,
 
   path = g_strdup_printf ("/f%d.db", self->next_entry_id++);
 
-  entry = g_slice_new (GumMemoryFileEntry);
-  entry->ref_count = 1;
-  entry->data = data;
-  entry->size = data_size;
-  entry->lock_level = SQLITE_LOCK_NONE;
-  g_hash_table_insert (self->entries, path, entry);
+  gum_memory_vfs_add_entry (self, path, data, data_size);
 
   return path;
 
@@ -248,6 +244,24 @@ gum_memory_vfs_remove_file (GumMemoryVfs * self,
   self->vfs.xDelete (&self->vfs, path, FALSE);
 }
 
+static GumMemoryFileEntry *
+gum_memory_vfs_add_entry (GumMemoryVfs * self,
+                          gchar * path,
+                          guint8 * data,
+                          gsize size)
+{
+  GumMemoryFileEntry * entry;
+
+  entry = g_slice_new (GumMemoryFileEntry);
+  entry->ref_count = 1;
+  entry->data = data;
+  entry->size = size;
+  entry->lock_level = SQLITE_LOCK_NONE;
+  g_hash_table_replace (self->entries, path, entry);
+
+  return entry;
+}
+
 static int
 gum_memory_vfs_open (sqlite3_vfs * vfs,
                      const char * name,
@@ -261,9 +275,16 @@ gum_memory_vfs_open (sqlite3_vfs * vfs,
 
   memset (f, 0, sizeof (GumMemoryFile));
 
-  entry = g_hash_table_lookup (self->entries, name);
-  if (entry == NULL)
-    return SQLITE_CANTOPEN;
+  if ((flags & SQLITE_OPEN_CREATE) != 0)
+  {
+    entry = gum_memory_vfs_add_entry (self, g_strdup (name), NULL, 0);
+  }
+  else
+  {
+    entry = g_hash_table_lookup (self->entries, name);
+    if (entry == NULL)
+      return SQLITE_CANTOPEN;
+  }
 
   file->pMethods = &gum_memory_file_methods;
 
