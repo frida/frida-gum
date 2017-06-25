@@ -15,6 +15,7 @@ struct GumV8Database
   GumV8Core * core;
 
   GHashTable * databases;
+  GHashTable * statements;
   GumPersistent<v8::FunctionTemplate>::type * database;
   GumPersistent<v8::FunctionTemplate>::type * statement;
 

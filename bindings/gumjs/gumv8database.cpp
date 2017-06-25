@@ -21,6 +21,13 @@ struct GumDatabase
   GumV8Database * module;
 };
 
+struct GumStatement
+{
+  GumPersistent<v8::Object>::type * wrapper;
+  sqlite3_stmt * handle;
+  GumV8Database * module;
+};
+
 GUMJS_DECLARE_FUNCTION (gumjs_database_open)
 GUMJS_DECLARE_FUNCTION (gumjs_database_open_inline)
 
@@ -41,6 +48,12 @@ GUMJS_DECLARE_FUNCTION (gumjs_statement_bind_blob)
 GUMJS_DECLARE_FUNCTION (gumjs_statement_bind_null)
 GUMJS_DECLARE_FUNCTION (gumjs_statement_step)
 GUMJS_DECLARE_FUNCTION (gumjs_statement_reset)
+
+static Local<Object> gum_statement_new (sqlite3_stmt * handle,
+    GumV8Database * module);
+static void gum_statement_free (GumStatement * self);
+static void gum_statement_on_weak_notify (
+    const WeakCallbackInfo<GumStatement> & info);
 
 static const GumV8Function gumjs_database_module_functions[] =
 {
@@ -83,16 +96,17 @@ _gum_v8_database_init (GumV8Database * self,
 
   auto module = External::New (isolate, self);
 
-  auto db = _gum_v8_create_class ("SqliteDatabase", nullptr, scope, module,
+  auto database = _gum_v8_create_class ("SqliteDatabase", nullptr, scope,
+      module, isolate);
+  _gum_v8_class_add_static (database, gumjs_database_module_functions, module,
       isolate);
-  _gum_v8_class_add_static (db, gumjs_database_module_functions, module,
-      isolate);
-  _gum_v8_class_add (db, gumjs_database_functions, module, isolate);
-  self->database = new GumPersistent<FunctionTemplate>::type (isolate, db);
+  _gum_v8_class_add (database, gumjs_database_functions, module, isolate);
+  self->database =
+      new GumPersistent<FunctionTemplate>::type (isolate, database);
 
   auto statement = _gum_v8_create_class ("SqliteStatement", nullptr, scope,
       module, isolate);
-  _gum_v8_class_add (db, gumjs_statement_functions, module, isolate);
+  _gum_v8_class_add (statement, gumjs_statement_functions, module, isolate);
   self->statement =
       new GumPersistent<FunctionTemplate>::type (isolate, statement);
 
@@ -105,11 +119,16 @@ _gum_v8_database_realize (GumV8Database * self)
 {
   self->databases = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_database_free);
+  self->statements = g_hash_table_new_full (NULL, NULL, NULL,
+      (GDestroyNotify) gum_statement_free);
 }
 
 void
 _gum_v8_database_dispose (GumV8Database * self)
 {
+  g_hash_table_unref (self->statements);
+  self->statements = NULL;
+
   g_hash_table_unref (self->databases);
   self->databases = NULL;
 
@@ -202,16 +221,44 @@ invalid_database:
   }
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_database_close)
+GUMJS_DEFINE_CLASS_METHOD (gumjs_database_close, GumDatabase)
 {
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_database_exec)
+GUMJS_DEFINE_CLASS_METHOD (gumjs_database_exec, GumDatabase)
 {
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_database_prepare)
+GUMJS_DEFINE_CLASS_METHOD (gumjs_database_prepare, GumDatabase)
 {
+  gchar * sql;
+  sqlite3_stmt * statement;
+  gint status;
+  Local<Object> object;
+
+  if (!_gum_v8_args_parse (args, "s", &sql))
+    return;
+
+  statement = NULL;
+  status = sqlite3_prepare_v2 (self->handle, sql, -1, &statement, NULL);
+  g_free (sql);
+  if (statement == NULL)
+    goto invalid_sql;
+
+  object = gum_statement_new (statement, module);
+
+  info.GetReturnValue ().Set (object);
+
+  return;
+
+invalid_sql:
+  {
+    if (status == SQLITE_OK)
+      _gum_v8_throw (isolate, "invalid statement");
+    else
+      _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
+    return;
+  }
 }
 
 static Local<Object>
@@ -228,19 +275,19 @@ gum_database_new (sqlite3 * handle,
   auto object = constructor->GetFunction ()->NewInstance (context, 0, nullptr)
       .ToLocalChecked ();
 
-  auto db = g_slice_new (GumDatabase);
-  db->wrapper = new GumPersistent<Object>::type (isolate, object);
-  db->wrapper->MarkIndependent ();
-  db->wrapper->SetWeak (db, gum_database_on_weak_notify,
+  auto database = g_slice_new (GumDatabase);
+  database->wrapper = new GumPersistent<Object>::type (isolate, object);
+  database->wrapper->MarkIndependent ();
+  database->wrapper->SetWeak (database, gum_database_on_weak_notify,
       WeakCallbackType::kParameter);
-  db->handle = handle;
-  db->path = g_strdup (path);
-  db->is_virtual = is_virtual;
-  db->module = module;
+  database->handle = handle;
+  database->path = g_strdup (path);
+  database->is_virtual = is_virtual;
+  database->module = module;
 
-  object->SetAlignedPointerInInternalField (0, db);
+  object->SetAlignedPointerInInternalField (0, database);
 
-  g_hash_table_insert (module->databases, db, db);
+  g_hash_table_insert (module->databases, database, database);
 
   return object;
 }
@@ -266,30 +313,130 @@ gum_database_on_weak_notify (const WeakCallbackInfo<GumDatabase> & info)
   g_hash_table_remove (self->module->databases, self);
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_integer)
+GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_bind_integer, GumStatement)
+{
+  gint index, value, status;
+
+  if (!_gum_v8_args_parse (args, "ii", &index, &value))
+    return;
+
+  status = sqlite3_bind_int64 (self->handle, index, value);
+  if (status != SQLITE_OK)
+    _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
+}
+
+GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_bind_float, GumStatement)
+{
+  gint index;
+  gdouble value;
+  gint status;
+
+  if (!_gum_v8_args_parse (args, "in", &index, &value))
+    return;
+
+  status = sqlite3_bind_double (self->handle, index, value);
+  if (status != SQLITE_OK)
+    _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
+}
+
+GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_bind_text, GumStatement)
+{
+  gint index;
+  gchar * value;
+  gint status;
+
+  if (!_gum_v8_args_parse (args, "is", &index, &value))
+    return;
+
+  status = sqlite3_bind_text (self->handle, index, value, -1, g_free);
+  if (status != SQLITE_OK)
+    _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
+}
+
+GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_bind_blob, GumStatement)
+{
+  gint index;
+  GBytes * bytes;
+  gpointer data;
+  gsize size;
+  gint status;
+
+  if (!_gum_v8_args_parse (args, "iB~", &index, &bytes))
+    return;
+
+  data = g_bytes_unref_to_data (bytes, &size);
+
+  status = sqlite3_bind_blob64 (self->handle, index, data, size, g_free);
+  if (status != SQLITE_OK)
+    _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
+}
+
+GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_bind_null, GumStatement)
+{
+  gint index, status;
+
+  if (!_gum_v8_args_parse (args, "i", &index))
+    return;
+
+  status = sqlite3_bind_null (self->handle, index);
+  if (status != SQLITE_OK)
+    _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
+}
+
+GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_step, GumStatement)
 {
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_float)
+GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_reset, GumStatement)
 {
+  gint status;
+
+  status = sqlite3_reset (self->handle);
+  if (status != SQLITE_OK)
+    _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_text)
+static Local<Object>
+gum_statement_new (sqlite3_stmt * handle,
+                   GumV8Database * module)
 {
+  auto isolate = module->core->isolate;
+  auto context = isolate->GetCurrentContext ();
+
+  auto constructor = Local<FunctionTemplate>::New (isolate,
+      *module->statement);
+  auto object = constructor->GetFunction ()->NewInstance (context, 0, nullptr)
+      .ToLocalChecked ();
+
+  auto statement = g_slice_new (GumStatement);
+  statement->wrapper = new GumPersistent<Object>::type (isolate, object);
+  statement->wrapper->MarkIndependent ();
+  statement->wrapper->SetWeak (statement, gum_statement_on_weak_notify,
+      WeakCallbackType::kParameter);
+  statement->handle = handle;
+  statement->module = module;
+
+  object->SetAlignedPointerInInternalField (0, statement);
+
+  g_hash_table_insert (module->statements, statement, statement);
+
+  return object;
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_blob)
+static void
+gum_statement_free (GumStatement * self)
 {
+  delete self->wrapper;
+
+  sqlite3_finalize (self->handle);
+
+  g_slice_free (GumStatement, self);
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_null)
+static void
+gum_statement_on_weak_notify (const WeakCallbackInfo<GumStatement> & info)
 {
-}
-
-GUMJS_DEFINE_FUNCTION (gumjs_statement_step)
-{
-}
-
-GUMJS_DEFINE_FUNCTION (gumjs_statement_reset)
-{
+  HandleScope handle_scope (info.GetIsolate ());
+  auto self = info.GetParameter ();
+  g_hash_table_remove (self->module->statements, self);
 }
