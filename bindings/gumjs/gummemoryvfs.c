@@ -456,7 +456,7 @@ gum_memory_file_read (sqlite3_file * file,
   GumMemoryFileEntry * entry = self->entry;
   gint available, n;
 
-  if (offset < 0 || offset >= entry->size)
+  if (offset < 0 || (gsize) offset >= entry->size)
     return SQLITE_IOERR_READ;
 
   available = entry->size - offset;
