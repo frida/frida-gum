@@ -261,6 +261,7 @@ gum_script_backend_init_sqlite (void)
   };
 
   sqlite3_config (SQLITE_CONFIG_MALLOC, &gum_mem_methods);
+  sqlite3_config (SQLITE_CONFIG_MULTITHREAD);
 
   sqlite3_initialize ();
   _gum_register_early_destructor (gum_script_backend_deinit_sqlite);
