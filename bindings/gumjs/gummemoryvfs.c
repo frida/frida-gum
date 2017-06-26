@@ -335,7 +335,7 @@ gum_memory_vfs_full_pathname (sqlite3_vfs * vfs,
       : g_strconcat ("/", name, NULL);
 
   g_strlcpy (z_out, full_path, n_out);
-  buffer_too_small = strlen (full_path) >= n_out;
+  buffer_too_small = strlen (full_path) >= (gsize) n_out;
 
   g_free (full_path);
 
@@ -454,7 +454,7 @@ gum_memory_file_read (sqlite3_file * file,
 {
   GumMemoryFile * self = GUM_MEMORY_FILE (file);
   GumMemoryFileEntry * entry = self->entry;
-  gsize available, n;
+  gint available, n;
 
   if (offset < 0 || offset >= entry->size)
     return SQLITE_IOERR_READ;
@@ -466,7 +466,7 @@ gum_memory_file_read (sqlite3_file * file,
 
   if (n < amount)
   {
-    memset (buffer + n, 0, amount - n);
+    memset ((guint8 *) buffer + n, 0, amount - n);
     return SQLITE_IOERR_SHORT_READ;
   }
 
