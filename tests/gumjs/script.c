@@ -190,6 +190,8 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (functions_can_be_found_by_matching)
   SCRIPT_TESTENTRY (instruction_can_be_parsed)
   SCRIPT_TESTENTRY (file_can_be_written_to)
+  SCRIPT_TESTENTRY (inline_sqlite_database_can_be_queried)
+  SCRIPT_TESTENTRY (external_sqlite_database_can_be_queried)
 #ifdef HAVE_I386
   SCRIPT_TESTENTRY (execution_can_be_traced)
   SCRIPT_TESTENTRY (call_can_be_probed)
@@ -960,6 +962,123 @@ SCRIPT_TESTCASE (file_can_be_written_to)
       "log.write(\"!\\n\");"
       "log.close();",
       d00d);
+  EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (inline_sqlite_database_can_be_queried)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var db = SqliteDatabase.openInline('"
+          "H4sIAMMIT1kAA+3ZsU7DMBAG4HMC7VChROpQut0IqGJhYCWJDAq4LbhGoqNRDYqgpIo"
+          "CO8y8JM/AC+CKFNhgLfo/+U7n0/kBTp5cqKJ2fFNWc1vzAcUkBB0xE1HYxIrwsdHUYX"
+          "P/TUj7m+nWcjhy5A8AAAAAAADA//W8Ldq9fl+8dGp7fe8WrlyscphpmRjJJkmV5M8e7"
+          "xQzzkdGnkjN5zofJnrKZ3LKySQb8IOdOzbyyvBo7ONSqQHbW/f14Lt7Z/1S7+uh1Hn2"
+          "c/rJ1rbiVI3T3b8s8QAAAAAAAACw3pZ/80H0RtG7TwAAAAAAAACwnuKgRT0RxMdVMbN"
+          "teu0edkSLukLQaen2Hj8AoNOJGgAwAAA="
+      "');\n"
+
+      /* 1: bindInteger() */
+      "var s = db.prepare('SELECT name, age FROM people WHERE age = ?');\n"
+      "s.bindInteger(1, 42);\n"
+      "send(s.step());\n"
+      "send(s.step());\n"
+      "s.reset();\n"
+      "s.bindInteger(1, 7);\n"
+      "send(s.step());\n"
+
+      /* 2: bindFloat() */
+      "s = db.prepare('SELECT name FROM people WHERE karma <= ?');\n"
+      "s.bindFloat(1, 117.5);\n"
+      "send(s.step());\n"
+      "send(s.step());\n"
+
+      /* 3: bindText() */
+      "s = db.prepare('SELECT age FROM people WHERE name = ?');\n"
+      "s.bindText(1, 'Joe');\n"
+      "send(s.step());\n"
+
+      /* 4: bindBlob() */
+      "s = db.prepare('SELECT name FROM people WHERE avatar = ?');\n"
+      "s.bindBlob(1, [0x13, 0x37]);\n"
+      "send(s.step());\n"
+      "send(s.step());\n"
+
+      /* 5: bindNull() */
+      "s = db.prepare('INSERT INTO people VALUES (?, ?, ?, ?, ?)');\n"
+      "s.bindInteger(1, 3);\n"
+      "s.bindText(2, 'Alice');\n"
+      "s.bindInteger(3, 40);\n"
+      "s.bindInteger(4, 150);\n"
+      "s.bindNull(5);\n"
+      "send(s.step());\n"
+      "s = db.prepare('SELECT * FROM people WHERE name = \"Alice\"');\n"
+      "send(s.step());\n"
+      "send(s.step());\n"
+
+      /* 6: blob column */
+      "s = db.prepare('SELECT avatar FROM people WHERE name = ?');\n"
+      "s.bindText(1, 'Frida');\n"
+      "send('avatar', s.step()[0]);\n"
+      "send(s.step());\n"
+      "s.reset();\n"
+      "s.bindText(1, 'Joe');\n"
+      "send(s.step());\n"
+      "send(s.step());\n");
+
+  /* 1: bindInteger() */
+  EXPECT_SEND_MESSAGE_WITH ("[\"Joe\",42]");
+  EXPECT_SEND_MESSAGE_WITH ("null");
+  EXPECT_SEND_MESSAGE_WITH ("[\"Frida\",7]");
+
+  /* 2: bindFloat() */
+  EXPECT_SEND_MESSAGE_WITH ("[\"Joe\"]");
+  EXPECT_SEND_MESSAGE_WITH ("null");
+
+  /* 3: bindText() */
+  EXPECT_SEND_MESSAGE_WITH ("[42]");
+
+  /* 4: bindBlob() */
+  EXPECT_SEND_MESSAGE_WITH ("[\"Frida\"]");
+  EXPECT_SEND_MESSAGE_WITH ("null");
+
+  /* 5: bindNull() */
+  EXPECT_SEND_MESSAGE_WITH ("null");
+  EXPECT_SEND_MESSAGE_WITH ("[3,\"Alice\",40,150,null]");
+  EXPECT_SEND_MESSAGE_WITH ("null");
+
+  /* 6: blob column */
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"avatar\"", "13 37");
+  EXPECT_SEND_MESSAGE_WITH ("null");
+  EXPECT_SEND_MESSAGE_WITH ("[null]");
+  EXPECT_SEND_MESSAGE_WITH ("null");
+  EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (external_sqlite_database_can_be_queried)
+{
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var db = SqliteDatabase.open('/tmp/gum-test.db');\n"
+      "db.exec(\""
+          "PRAGMA foreign_keys=OFF;"
+          "BEGIN TRANSACTION;"
+          "CREATE TABLE people ("
+              "id INTEGER PRIMARY KEY ASC,"
+              "name TEXT NOT NULL,"
+              "age INTEGER NOT NULL,"
+              "karma NUMERIC NOT NULL,"
+              "avatar BLOB"
+          ");"
+          "INSERT INTO people VALUES (1, 'Joe', 42, 117, NULL);"
+          "INSERT INTO people VALUES (2, 'Frida', 7, 140, X'1337');"
+          "COMMIT;"
+      "\");\n"
+      "db.close();\n");
   EXPECT_NO_MESSAGES ();
 }
 

@@ -8,6 +8,7 @@
 
 #include "gumdukapiresolver.h"
 #include "gumdukcore.h"
+#include "gumdukdatabase.h"
 #include "gumdukfile.h"
 #include "gumdukinstruction.h"
 #include "gumdukinterceptor.h"
@@ -94,6 +95,7 @@ struct _GumDukScriptPrivate
   GumDukFile file;
   GumDukStream stream;
   GumDukSocket socket;
+  GumDukDatabase database;
   GumDukInterceptor interceptor;
   GumDukStalker stalker;
   GumDukApiResolver api_resolver;
@@ -474,6 +476,7 @@ gum_duk_script_create_context (GumDukScript * self,
   _gum_duk_file_init (&priv->file, core);
   _gum_duk_stream_init (&priv->stream, core);
   _gum_duk_socket_init (&priv->socket, core);
+  _gum_duk_database_init (&priv->database, core);
   _gum_duk_interceptor_init (&priv->interceptor, core);
   _gum_duk_stalker_init (&priv->stalker, core);
   _gum_duk_api_resolver_init (&priv->api_resolver, core);
@@ -503,6 +506,7 @@ gum_duk_script_destroy_context (GumDukScript * self)
     _gum_duk_api_resolver_dispose (&priv->api_resolver);
     _gum_duk_stalker_dispose (&priv->stalker);
     _gum_duk_interceptor_dispose (&priv->interceptor);
+    _gum_duk_database_dispose (&priv->database);
     _gum_duk_socket_dispose (&priv->socket);
     _gum_duk_stream_dispose (&priv->stream);
     _gum_duk_file_dispose (&priv->file);
@@ -536,6 +540,7 @@ gum_duk_script_destroy_context (GumDukScript * self)
   _gum_duk_api_resolver_finalize (&priv->api_resolver);
   _gum_duk_stalker_finalize (&priv->stalker);
   _gum_duk_interceptor_finalize (&priv->interceptor);
+  _gum_duk_database_finalize (&priv->database);
   _gum_duk_socket_finalize (&priv->socket);
   _gum_duk_stream_finalize (&priv->stream);
   _gum_duk_file_finalize (&priv->file);

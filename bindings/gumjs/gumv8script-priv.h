@@ -9,6 +9,7 @@
 
 #include "gumv8apiresolver.h"
 #include "gumv8core.h"
+#include "gumv8database.h"
 #include "gumv8file.h"
 #include "gumv8instruction.h"
 #include "gumv8interceptor.h"
@@ -47,6 +48,7 @@ struct _GumV8ScriptPrivate
   GumV8File file;
   GumV8Stream stream;
   GumV8Socket socket;
+  GumV8Database database;
   GumV8Interceptor interceptor;
   GumV8Stalker stalker;
   GumV8ApiResolver api_resolver;

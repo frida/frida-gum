@@ -14,6 +14,9 @@
     <ClInclude Include="gumscriptscheduler.h" />
     <ClInclude Include="gumscripttask.h" />
     <ClInclude Include="gumsourcemap.h" />
+    <ClInclude Include="gummemoryvfs.h" />
+    <ClInclude Include="sqlite3.h" />
+    <ClInclude Include="sqlite3ext.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="gumscript.c" />
@@ -21,6 +24,8 @@
     <ClCompile Include="gumscriptscheduler.c" />
     <ClCompile Include="gumscripttask.c" />
     <ClCompile Include="gumsourcemap.c" />
+    <ClCompile Include="gummemoryvfs.c" />
+    <ClCompile Include="sqlite3.c" />
   </ItemGroup>
 
   <ItemGroup>
@@ -44,6 +49,7 @@
     <ClInclude Include="gumv8file.h" />
     <ClInclude Include="gumv8stream.h" />
     <ClInclude Include="gumv8socket.h" />
+    <ClInclude Include="gumv8database.h" />
     <ClInclude Include="gumv8interceptor.h" />
     <ClInclude Include="gumv8stalker.h" />
     <ClInclude Include="gumv8eventsink.h" />
@@ -68,6 +74,7 @@
     <ClCompile Include="gumv8file.cpp" />
     <ClCompile Include="gumv8stream.cpp" />
     <ClCompile Include="gumv8socket.cpp" />
+    <ClCompile Include="gumv8database.cpp" />
     <ClCompile Include="gumv8interceptor.cpp" />
     <ClCompile Include="gumv8stalker.cpp" />
     <ClCompile Include="gumv8eventsink.cpp" />
@@ -94,6 +101,7 @@
     <ClInclude Include="gumdukfile.h" />
     <ClInclude Include="gumdukstream.h" />
     <ClInclude Include="gumduksocket.h" />
+    <ClInclude Include="gumdukdatabase.h" />
     <ClInclude Include="gumdukinterceptor.h" />
     <ClInclude Include="gumdukstalker.h" />
     <ClInclude Include="gumdukapiresolver.h" />
@@ -118,6 +126,7 @@
     <ClCompile Include="gumdukfile.c" />
     <ClCompile Include="gumdukstream.c" />
     <ClCompile Include="gumduksocket.c" />
+    <ClCompile Include="gumdukdatabase.c" />
     <ClCompile Include="gumdukinterceptor.c" />
     <ClCompile Include="gumdukstalker.c" />
     <ClCompile Include="gumdukapiresolver.c" />
