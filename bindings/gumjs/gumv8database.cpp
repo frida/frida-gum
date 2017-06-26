@@ -38,6 +38,8 @@ GUMJS_DECLARE_FUNCTION (gumjs_database_prepare)
 static Local<Object> gum_database_new (sqlite3 * handle, const gchar * path,
     gboolean is_virtual, GumV8Database * module);
 static void gum_database_free (GumDatabase * self);
+static void gum_database_close (GumDatabase * self);
+static gboolean gum_database_check_open (GumDatabase * self, Isolate * isolate);
 static void gum_database_on_weak_notify (
     const WeakCallbackInfo<GumDatabase> & info);
 
@@ -54,6 +56,10 @@ static Local<Object> gum_statement_new (sqlite3_stmt * handle,
 static void gum_statement_free (GumStatement * self);
 static void gum_statement_on_weak_notify (
     const WeakCallbackInfo<GumStatement> & info);
+
+static Local<Array> gum_parse_row (Isolate * isolate, sqlite3_stmt * statement);
+static Local<Value> gum_parse_column (Isolate * isolate,
+    sqlite3_stmt * statement, guint index);
 
 static const GumV8Function gumjs_database_module_functions[] =
 {
@@ -223,10 +229,33 @@ invalid_database:
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_database_close, GumDatabase)
 {
+  gum_database_close (self);
 }
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_database_exec, GumDatabase)
 {
+  gchar * sql, * error_message;
+  gint status;
+
+  if (!gum_database_check_open (self, isolate))
+    return;
+
+  if (!_gum_v8_args_parse (args, "s", &sql))
+    return;
+
+  status = sqlite3_exec (self->handle, sql, NULL, NULL, &error_message);
+  g_free (sql);
+  if (status != SQLITE_OK)
+    goto error;
+
+  return;
+
+error:
+  {
+    _gum_v8_throw (isolate, "%s", error_message);
+    sqlite3_free (error_message);
+    return;
+  }
 }
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_database_prepare, GumDatabase)
@@ -235,6 +264,9 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_database_prepare, GumDatabase)
   sqlite3_stmt * statement;
   gint status;
   Local<Object> object;
+
+  if (!gum_database_check_open (self, isolate))
+    return;
 
   if (!_gum_v8_args_parse (args, "s", &sql))
     return;
@@ -295,14 +327,40 @@ gum_database_new (sqlite3 * handle,
 static void
 gum_database_free (GumDatabase * self)
 {
+  gum_database_close (self);
+
   delete self->wrapper;
 
+  g_slice_free (GumDatabase, self);
+}
+
+static void
+gum_database_close (GumDatabase * self)
+{
+  if (self->handle == NULL)
+    return;
+
   sqlite3_close_v2 (self->handle);
+  self->handle = NULL;
+
   if (self->is_virtual)
     gum_memory_vfs_remove_file (self->module->memory_vfs, self->path);
-  g_free (self->path);
 
-  g_slice_free (GumDatabase, self);
+  g_free (self->path);
+  self->path = NULL;
+}
+
+static gboolean
+gum_database_check_open (GumDatabase * self,
+                         Isolate * isolate)
+{
+  if (self->handle == NULL)
+  {
+    _gum_v8_throw (isolate, "database is closed");
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 static void
@@ -385,6 +443,21 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_bind_null, GumStatement)
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_step, GumStatement)
 {
+  gint status;
+
+  status = sqlite3_step (self->handle);
+  switch (status)
+  {
+    case SQLITE_ROW:
+      info.GetReturnValue ().Set (gum_parse_row (isolate, self->handle));
+      break;
+    case SQLITE_DONE:
+      info.GetReturnValue ().SetNull ();
+      break;
+    default:
+      _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
+      break;
+  }
 }
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_reset, GumStatement)
@@ -439,4 +512,51 @@ gum_statement_on_weak_notify (const WeakCallbackInfo<GumStatement> & info)
   HandleScope handle_scope (info.GetIsolate ());
   auto self = info.GetParameter ();
   g_hash_table_remove (self->module->statements, self);
+}
+
+static Local<Array>
+gum_parse_row (Isolate * isolate,
+               sqlite3_stmt * statement)
+{
+  auto num_columns = sqlite3_column_count (statement);
+  auto row = Array::New (isolate, num_columns);
+
+  for (gint index = 0; index != num_columns; index++)
+  {
+    auto column = gum_parse_column (isolate, statement, index);
+    row->Set (index, column);
+  }
+
+  return row;
+}
+
+static Local<Value>
+gum_parse_column (Isolate * isolate,
+                  sqlite3_stmt * statement,
+                  guint index)
+{
+  switch (sqlite3_column_type (statement, index))
+  {
+    case SQLITE_INTEGER:
+      return Number::New (isolate, sqlite3_column_int64 (statement, index));
+    case SQLITE_FLOAT:
+      return Number::New (isolate, sqlite3_column_int64 (statement, index));
+    case SQLITE_TEXT:
+      return String::NewFromUtf8 (isolate,
+          (const char *) sqlite3_column_text (statement, index),
+          NewStringType::kNormal).ToLocalChecked ();
+    case SQLITE_BLOB:
+    {
+      auto size = sqlite3_column_bytes (statement, index);
+      auto data = g_memdup (sqlite3_column_blob (statement, index), size);
+      return ArrayBuffer::New (isolate, data, size,
+          ArrayBufferCreationMode::kInternalized);
+    }
+    case SQLITE_NULL:
+      return Null (isolate);
+    default:
+      g_assert_not_reached ();
+  }
+
+  return Local<Value> ();
 }
