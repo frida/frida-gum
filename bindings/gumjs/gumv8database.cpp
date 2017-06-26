@@ -373,12 +373,11 @@ gum_database_on_weak_notify (const WeakCallbackInfo<GumDatabase> & info)
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_bind_integer, GumStatement)
 {
-  gint index, value, status;
-
+  gint index, value;
   if (!_gum_v8_args_parse (args, "ii", &index, &value))
     return;
 
-  status = sqlite3_bind_int64 (self->handle, index, value);
+  auto status = sqlite3_bind_int64 (self->handle, index, value);
   if (status != SQLITE_OK)
     _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
 }
@@ -387,12 +386,10 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_bind_float, GumStatement)
 {
   gint index;
   gdouble value;
-  gint status;
-
   if (!_gum_v8_args_parse (args, "in", &index, &value))
     return;
 
-  status = sqlite3_bind_double (self->handle, index, value);
+  auto status = sqlite3_bind_double (self->handle, index, value);
   if (status != SQLITE_OK)
     _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
 }
@@ -401,12 +398,10 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_bind_text, GumStatement)
 {
   gint index;
   gchar * value;
-  gint status;
-
   if (!_gum_v8_args_parse (args, "is", &index, &value))
     return;
 
-  status = sqlite3_bind_text (self->handle, index, value, -1, g_free);
+  auto status = sqlite3_bind_text (self->handle, index, value, -1, g_free);
   if (status != SQLITE_OK)
     _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
 }
@@ -415,37 +410,31 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_bind_blob, GumStatement)
 {
   gint index;
   GBytes * bytes;
-  gpointer data;
-  gsize size;
-  gint status;
-
   if (!_gum_v8_args_parse (args, "iB~", &index, &bytes))
     return;
 
-  data = g_bytes_unref_to_data (bytes, &size);
+  gsize size;
+  auto data = g_bytes_unref_to_data (bytes, &size);
 
-  status = sqlite3_bind_blob64 (self->handle, index, data, size, g_free);
+  auto status = sqlite3_bind_blob64 (self->handle, index, data, size, g_free);
   if (status != SQLITE_OK)
     _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
 }
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_bind_null, GumStatement)
 {
-  gint index, status;
-
+  gint index;
   if (!_gum_v8_args_parse (args, "i", &index))
     return;
 
-  status = sqlite3_bind_null (self->handle, index);
+  auto status = sqlite3_bind_null (self->handle, index);
   if (status != SQLITE_OK)
     _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
 }
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_step, GumStatement)
 {
-  gint status;
-
-  status = sqlite3_step (self->handle);
+  auto status = sqlite3_step (self->handle);
   switch (status)
   {
     case SQLITE_ROW:
@@ -462,9 +451,7 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_step, GumStatement)
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_reset, GumStatement)
 {
-  gint status;
-
-  status = sqlite3_reset (self->handle);
+  auto status = sqlite3_reset (self->handle);
   if (status != SQLITE_OK)
     _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
 }
