@@ -214,6 +214,8 @@ gumjs_database_from_args (const GumDukArgs * args)
 
   duk_push_this (ctx);
   self = _gum_duk_require_data (ctx, -1);
+  if (self == NULL)
+    _gum_duk_throw (ctx, "database is closed");
   duk_pop (ctx);
 
   return self;
@@ -532,10 +534,7 @@ gum_push_column (duk_context * ctx,
                  sqlite3_stmt * statement,
                  guint index)
 {
-  gint type;
-
-  type = sqlite3_column_type (statement, index);
-  switch (type)
+  switch (sqlite3_column_type (statement, index))
   {
     case SQLITE_INTEGER:
       duk_push_int (ctx, sqlite3_column_int64 (statement, index));
