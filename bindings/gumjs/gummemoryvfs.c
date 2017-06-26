@@ -593,28 +593,37 @@ gchar *
 gum_memory_vfs_contents_to_string (gconstpointer contents,
                                    gsize size)
 {
-  GOutputStream * sink, * source;
-  GMemoryOutputStream * sink_memory;
-  GConverter * compressor;
+  GInputStream * uncompressed_input;
+  GOutputStream * compressed_output;
+  GMemoryOutputStream * compressed_output_memory;
+  GConverter * converter;
+  GOutputStream * uncompressed_output;
   gchar * encoded_contents;
 
-  sink = g_memory_output_stream_new_resizable ();
-  sink_memory = G_MEMORY_OUTPUT_STREAM (sink);
-  compressor = G_CONVERTER (
-      g_zlib_compressor_new (G_ZLIB_COMPRESSOR_FORMAT_GZIP, -1));
-  source = g_converter_output_stream_new (sink, compressor);
+  uncompressed_input =
+      g_memory_input_stream_new_from_data (contents, size, NULL);
 
-  g_output_stream_write_all (source, contents, size, NULL, NULL, NULL);
-  g_output_stream_flush (source, NULL, NULL);
-  g_output_stream_close (source, NULL, NULL);
+  compressed_output = g_memory_output_stream_new_resizable ();
+  compressed_output_memory = G_MEMORY_OUTPUT_STREAM (compressed_output);
+
+  converter = G_CONVERTER (
+      g_zlib_compressor_new (G_ZLIB_COMPRESSOR_FORMAT_GZIP, -1));
+  uncompressed_output =
+      g_converter_output_stream_new (compressed_output, converter);
+  g_object_unref (converter);
+
+  g_output_stream_splice (uncompressed_output,
+      uncompressed_input, G_OUTPUT_STREAM_SPLICE_CLOSE_SOURCE |
+      G_OUTPUT_STREAM_SPLICE_CLOSE_TARGET, NULL, NULL);
+
+  g_object_unref (uncompressed_output);
+  g_object_unref (uncompressed_input);
 
   encoded_contents = g_base64_encode (
-      g_memory_output_stream_get_data (sink_memory),
-      g_memory_output_stream_get_data_size (sink_memory));
+      g_memory_output_stream_get_data (compressed_output_memory),
+      g_memory_output_stream_get_data_size (compressed_output_memory));
 
-  g_object_unref (source);
-  g_object_unref (compressor);
-  g_object_unref (sink);
+  g_object_unref (compressed_output);
 
   return encoded_contents;
 }
@@ -627,7 +636,7 @@ gum_memory_vfs_contents_from_string (const gchar * str,
   guchar * data;
   gsize data_size;
   gboolean is_compressed;
-  guint8 * buffer = NULL;
+  GOutputStream * uncompressed_output;
 
   data = g_base64_decode (str, &data_size);
   if (data == NULL)
@@ -636,52 +645,39 @@ gum_memory_vfs_contents_from_string (const gchar * str,
   is_compressed = data_size >= 2 && data[0] == 0x1f && data[1] == 0x8b;
   if (is_compressed)
   {
+    GInputStream * compressed_input, * uncompressed_input;
     GConverter * converter;
-    gsize buffer_size;
-    gsize in_offset, out_offset;
-    GError * error;
-    GConverterResult result;
+    gssize uncompressed_size;
 
+    compressed_input =
+        g_memory_input_stream_new_from_data (data, data_size, g_free);
     converter = G_CONVERTER (
         g_zlib_decompressor_new (G_ZLIB_COMPRESSOR_FORMAT_GZIP));
+    uncompressed_input =
+        g_converter_input_stream_new (compressed_input, converter);
+    g_object_unref (converter);
+    g_object_unref (compressed_input);
 
-    buffer_size = 4096;
-    buffer = g_malloc (buffer_size);
-    in_offset = 0;
-    out_offset = 0;
+    uncompressed_output = g_memory_output_stream_new_resizable ();
 
-    error = NULL;
-    do
-    {
-      gsize bytes_read, bytes_written, remaining_capacity;
+    uncompressed_size = g_output_stream_splice (uncompressed_output,
+        uncompressed_input, G_OUTPUT_STREAM_SPLICE_CLOSE_SOURCE |
+        G_OUTPUT_STREAM_SPLICE_CLOSE_TARGET, NULL, NULL);
+    g_object_unref (uncompressed_input);
+    if (uncompressed_size == -1)
+      goto invalid_data;
 
-      result = g_converter_convert (converter, data + in_offset,
-          data_size - in_offset, buffer + out_offset, buffer_size - out_offset,
-          G_CONVERTER_INPUT_AT_END, &bytes_read, &bytes_written, &error);
-      if (result == G_CONVERTER_ERROR)
-        goto invalid_data;
+    *contents = g_memory_output_stream_steal_data (G_MEMORY_OUTPUT_STREAM (
+        uncompressed_output));
+    *size = uncompressed_size;
 
-      in_offset += bytes_read;
-      out_offset += bytes_written;
-
-      remaining_capacity = buffer_size - out_offset;
-      if (remaining_capacity < 2048)
-      {
-        buffer_size *= 2;
-        buffer = g_realloc (buffer, buffer_size);
-      }
-    }
-    while (result != G_CONVERTER_FINISHED);
-
-    g_free (data);
-    data = g_steal_pointer (&buffer);
-    data_size = out_offset;
-
-    data = g_realloc (data, data_size);
+    g_object_unref (uncompressed_output);
   }
-
-  *contents = data;
-  *size = data_size;
+  else
+  {
+    *contents = data;
+    *size = data_size;
+  }
 
   return TRUE;
 
@@ -691,9 +687,7 @@ invalid_base64:
   }
 invalid_data:
   {
-    g_free (buffer);
-    g_free (data);
-
+    g_object_unref (uncompressed_output);
     return FALSE;
   }
 }
