@@ -1056,6 +1056,8 @@ SCRIPT_TESTCASE (inline_sqlite_database_can_be_queried)
 
 SCRIPT_TESTCASE (external_sqlite_database_can_be_queried)
 {
+  TestScriptMessageItem * item;
+
   if (!g_test_slow ())
   {
     g_print ("<skipping, run in slow mode> ");
@@ -1078,8 +1080,12 @@ SCRIPT_TESTCASE (external_sqlite_database_can_be_queried)
           "INSERT INTO people VALUES (2, 'Frida', 7, 140, X'1337');"
           "COMMIT;"
       "\");\n"
+      "send(db.dump());\n"
       "db.close();\n");
-  EXPECT_NO_MESSAGES ();
+
+  item = test_script_fixture_pop_message (fixture);
+  g_print ("%s\n", item->message);
+  test_script_message_item_free (item);
 }
 
 SCRIPT_TESTCASE (socket_connection_can_be_established)

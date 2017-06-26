@@ -34,6 +34,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_database_open_inline)
 GUMJS_DECLARE_FUNCTION (gumjs_database_close)
 GUMJS_DECLARE_FUNCTION (gumjs_database_exec)
 GUMJS_DECLARE_FUNCTION (gumjs_database_prepare)
+GUMJS_DECLARE_FUNCTION (gumjs_database_dump)
 
 static Local<Object> gum_database_new (sqlite3 * handle, const gchar * path,
     gboolean is_virtual, GumV8Database * module);
@@ -74,6 +75,7 @@ static const GumV8Function gumjs_database_functions[] =
   { "close", gumjs_database_close },
   { "exec", gumjs_database_exec },
   { "prepare", gumjs_database_prepare },
+  { "dump", gumjs_database_dump },
 
   { NULL, NULL }
 };
@@ -187,19 +189,25 @@ invalid_database:
 
 GUMJS_DEFINE_FUNCTION (gumjs_database_open_inline)
 {
-  gchar * data;
+  gchar * encoded_contents;
+  gpointer contents;
+  gsize size;
+  gboolean valid;
   const gchar * path;
   sqlite3 * handle;
   gint status;
   Local<Object> object;
 
-  if (!_gum_v8_args_parse (args, "s", &data))
+  if (!_gum_v8_args_parse (args, "s", &encoded_contents))
     return;
 
-  path = gum_memory_vfs_add_file (module->memory_vfs, data);
-  g_free (data);
-  if (path == NULL)
+  valid =
+      gum_memory_vfs_contents_from_string (encoded_contents, &contents, &size);
+  g_free (encoded_contents);
+  if (!valid)
     goto invalid_data;
+
+  path = gum_memory_vfs_add_file (module->memory_vfs, contents, size);
 
   handle = NULL;
   status = sqlite3_open_v2 (path, &handle, SQLITE_OPEN_READWRITE,
@@ -289,6 +297,52 @@ invalid_sql:
       _gum_v8_throw (isolate, "invalid statement");
     else
       _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
+    return;
+  }
+}
+
+GUMJS_DEFINE_CLASS_METHOD (gumjs_database_dump, GumDatabase)
+{
+  gpointer data, malloc_data;
+  gsize size;
+  GError * error;
+  gchar * data_str;
+
+  if (!gum_database_check_open (self, isolate))
+    return;
+
+  if (self->is_virtual)
+  {
+    gboolean found;
+
+    found = gum_memory_vfs_get_file_contents (module->memory_vfs, self->path,
+        &data, &size);
+    g_assert (found);
+
+    malloc_data = NULL;
+  }
+  else
+  {
+    error = NULL;
+    if (!g_file_get_contents (self->path, (gchar **) &data, &size, &error))
+      goto io_error;
+
+    malloc_data = data;
+  }
+
+  data_str = gum_memory_vfs_contents_to_string (data, size);
+
+  info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate, data_str));
+
+  g_free (data_str);
+  g_free (malloc_data);
+
+  return;
+
+io_error:
+  {
+    _gum_v8_throw (isolate, "%s", error->message);
+    g_error_free (error);
     return;
   }
 }

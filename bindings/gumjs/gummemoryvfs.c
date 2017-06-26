@@ -160,81 +160,16 @@ gum_memory_vfs_free (GumMemoryVfs * self)
 
 const gchar *
 gum_memory_vfs_add_file (GumMemoryVfs * self,
-                         const gchar * base64)
+                         gpointer contents,
+                         gsize size)
 {
-  guchar * data;
-  gsize data_size;
-  gboolean is_compressed;
-  guint8 * buffer = NULL;
   gchar * path;
-
-  data = g_base64_decode (base64, &data_size);
-  if (data == NULL)
-    goto invalid_base64;
-
-  is_compressed = data_size >= 2 && data[0] == 0x1f && data[1] == 0x8b;
-  if (is_compressed)
-  {
-    GConverter * converter;
-    gsize buffer_size;
-    gsize in_offset, out_offset;
-    GError * error;
-    GConverterResult result;
-
-    converter = G_CONVERTER (
-        g_zlib_decompressor_new (G_ZLIB_COMPRESSOR_FORMAT_GZIP));
-
-    buffer_size = 4096;
-    buffer = g_malloc (buffer_size);
-    in_offset = 0;
-    out_offset = 0;
-
-    error = NULL;
-    do
-    {
-      gsize bytes_read, bytes_written, remaining_capacity;
-
-      result = g_converter_convert (converter, data + in_offset,
-          data_size - in_offset, buffer + out_offset, buffer_size - out_offset,
-          G_CONVERTER_INPUT_AT_END, &bytes_read, &bytes_written, &error);
-      if (result == G_CONVERTER_ERROR)
-        goto invalid_data;
-
-      in_offset += bytes_read;
-      out_offset += bytes_written;
-
-      remaining_capacity = buffer_size - out_offset;
-      if (remaining_capacity < 2048)
-      {
-        buffer_size *= 2;
-        buffer = g_realloc (buffer, buffer_size);
-      }
-    }
-    while (result != G_CONVERTER_FINISHED);
-
-    g_free (data);
-    data = g_steal_pointer (&buffer);
-    data_size = out_offset;
-
-    data = g_realloc (data, data_size);
-  }
 
   path = g_strdup_printf ("/f%d.db", self->next_entry_id++);
 
-  gum_memory_vfs_add_entry (self, path, data, data_size);
+  gum_memory_vfs_add_entry (self, path, contents, size);
 
   return path;
-
-invalid_base64:
-  {
-    return NULL;
-  }
-invalid_data:
-  {
-    g_free (buffer);
-    g_free (data);
-    return NULL;
-  }
 }
 
 void
@@ -242,6 +177,24 @@ gum_memory_vfs_remove_file (GumMemoryVfs * self,
                             const gchar * path)
 {
   self->vfs.xDelete (&self->vfs, path, FALSE);
+}
+
+gboolean
+gum_memory_vfs_get_file_contents (GumMemoryVfs * self,
+                                  const gchar * path,
+                                  gpointer * contents,
+                                  gsize * size)
+{
+  GumMemoryFileEntry * entry;
+
+  entry = g_hash_table_lookup (self->entries, path);
+  if (entry == NULL)
+    return FALSE;
+
+  *contents = entry->data;
+  *size = entry->size;
+
+  return TRUE;
 }
 
 static GumMemoryFileEntry *
@@ -634,4 +587,113 @@ gum_memory_file_unfetch (sqlite3_file * file,
                          void * memory)
 {
   return SQLITE_OK;
+}
+
+gchar *
+gum_memory_vfs_contents_to_string (gconstpointer contents,
+                                   gsize size)
+{
+  GOutputStream * sink, * source;
+  GMemoryOutputStream * sink_memory;
+  GConverter * compressor;
+  gchar * encoded_contents;
+
+  sink = g_memory_output_stream_new_resizable ();
+  sink_memory = G_MEMORY_OUTPUT_STREAM (sink);
+  compressor = G_CONVERTER (
+      g_zlib_compressor_new (G_ZLIB_COMPRESSOR_FORMAT_GZIP, -1));
+  source = g_converter_output_stream_new (sink, compressor);
+
+  g_output_stream_write_all (source, contents, size, NULL, NULL, NULL);
+  g_output_stream_flush (source, NULL, NULL);
+  g_output_stream_close (source, NULL, NULL);
+
+  encoded_contents = g_base64_encode (
+      g_memory_output_stream_get_data (sink_memory),
+      g_memory_output_stream_get_data_size (sink_memory));
+
+  g_object_unref (source);
+  g_object_unref (compressor);
+  g_object_unref (sink);
+
+  return encoded_contents;
+}
+
+gboolean
+gum_memory_vfs_contents_from_string (const gchar * str,
+                                     gpointer * contents,
+                                     gsize * size)
+{
+  guchar * data;
+  gsize data_size;
+  gboolean is_compressed;
+  guint8 * buffer = NULL;
+
+  data = g_base64_decode (str, &data_size);
+  if (data == NULL)
+    goto invalid_base64;
+
+  is_compressed = data_size >= 2 && data[0] == 0x1f && data[1] == 0x8b;
+  if (is_compressed)
+  {
+    GConverter * converter;
+    gsize buffer_size;
+    gsize in_offset, out_offset;
+    GError * error;
+    GConverterResult result;
+
+    converter = G_CONVERTER (
+        g_zlib_decompressor_new (G_ZLIB_COMPRESSOR_FORMAT_GZIP));
+
+    buffer_size = 4096;
+    buffer = g_malloc (buffer_size);
+    in_offset = 0;
+    out_offset = 0;
+
+    error = NULL;
+    do
+    {
+      gsize bytes_read, bytes_written, remaining_capacity;
+
+      result = g_converter_convert (converter, data + in_offset,
+          data_size - in_offset, buffer + out_offset, buffer_size - out_offset,
+          G_CONVERTER_INPUT_AT_END, &bytes_read, &bytes_written, &error);
+      if (result == G_CONVERTER_ERROR)
+        goto invalid_data;
+
+      in_offset += bytes_read;
+      out_offset += bytes_written;
+
+      remaining_capacity = buffer_size - out_offset;
+      if (remaining_capacity < 2048)
+      {
+        buffer_size *= 2;
+        buffer = g_realloc (buffer, buffer_size);
+      }
+    }
+    while (result != G_CONVERTER_FINISHED);
+
+    g_free (data);
+    data = g_steal_pointer (&buffer);
+    data_size = out_offset;
+
+    data = g_realloc (data, data_size);
+  }
+
+  *contents = data;
+  *size = data_size;
+
+  return TRUE;
+
+invalid_base64:
+  {
+    return FALSE;
+  }
+invalid_data:
+  {
+    g_free (buffer);
+    g_free (data);
+
+    return FALSE;
+  }
 }

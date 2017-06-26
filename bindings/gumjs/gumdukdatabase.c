@@ -27,6 +27,7 @@ GUMJS_DECLARE_FINALIZER (gumjs_database_finalize)
 GUMJS_DECLARE_FUNCTION (gumjs_database_close)
 GUMJS_DECLARE_FUNCTION (gumjs_database_exec)
 GUMJS_DECLARE_FUNCTION (gumjs_database_prepare)
+GUMJS_DECLARE_FUNCTION (gumjs_database_dump)
 
 static GumDatabase * gum_database_new (sqlite3 * handle, const gchar * path,
     gboolean is_virtual, GumDukDatabase * module);
@@ -59,6 +60,7 @@ static const duk_function_list_entry gumjs_database_functions[] =
   { "close", gumjs_database_close, 0 },
   { "exec", gumjs_database_exec, 1 },
   { "prepare", gumjs_database_prepare, 1 },
+  { "dump", gumjs_database_dump, 0 },
 
   { NULL, NULL, 0 }
 };
@@ -167,17 +169,24 @@ invalid_database:
 GUMJS_DEFINE_FUNCTION (gumjs_database_open_inline)
 {
   GumDukDatabase * self;
-  const gchar * data, * path;
+  const gchar * encoded_contents;
+  gpointer contents;
+  gsize size;
+  gboolean valid;
+  const gchar * path;
   sqlite3 * handle;
   gint status;
 
   self = gumjs_database_module_from_args (args);
 
-  _gum_duk_args_parse (args, "s", &data);
+  _gum_duk_args_parse (args, "s", &encoded_contents);
 
-  path = gum_memory_vfs_add_file (self->memory_vfs, data);
-  if (path == NULL)
+  valid =
+      gum_memory_vfs_contents_from_string (encoded_contents, &contents, &size);
+  if (!valid)
     goto invalid_data;
+
+  path = gum_memory_vfs_add_file (self->memory_vfs, contents, size);
 
   handle = NULL;
   status = sqlite3_open_v2 (path, &handle, SQLITE_OPEN_READWRITE,
@@ -327,6 +336,55 @@ invalid_sql:
       _gum_duk_throw (ctx, "invalid statement");
     else
       _gum_duk_throw (ctx, "%s", sqlite3_errstr (status));
+    return 0;
+  }
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_database_dump)
+{
+  GumDatabase * self;
+  gpointer data, malloc_data;
+  gsize size;
+  GError * error;
+  gchar * data_str;
+
+  self = gumjs_database_from_args (args);
+
+  if (self->is_virtual)
+  {
+    gboolean found;
+
+    found = gum_memory_vfs_get_file_contents (self->module->memory_vfs,
+        self->path, &data, &size);
+    g_assert (found);
+
+    malloc_data = NULL;
+  }
+  else
+  {
+    error = NULL;
+    if (!g_file_get_contents (self->path, (gchar **) &data, &size, &error))
+      goto io_error;
+
+    malloc_data = data;
+  }
+
+  data_str = gum_memory_vfs_contents_to_string (data, size);
+
+  duk_push_string (ctx, data_str);
+
+  g_free (data_str);
+  g_free (malloc_data);
+
+  return 1;
+
+io_error:
+  {
+    duk_push_error_object (ctx, DUK_ERR_ERROR, "%s", error->message);
+    g_error_free (error);
+
+    (void) duk_throw (ctx);
+
     return 0;
   }
 }
