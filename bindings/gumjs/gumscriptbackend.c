@@ -8,8 +8,32 @@
 
 #include "gumdukscriptbackend.h"
 #include "gumv8scriptbackend.h"
+#include "sqlite3.h"
 
 #include <gum/gum-init.h>
+
+#define GUM_SQLITE_BLOCK_ALLOC_SIZE(s) (sizeof (GumSqliteBlock) + (s))
+#define GUM_SQLITE_BLOCK_TO_CLIENT(b) (((GumSqliteBlock *) (b)) + 1)
+#define GUM_SQLITE_BLOCK_FROM_CLIENT(b) (((GumSqliteBlock *) (b)) - 1)
+
+typedef struct _GumSqliteBlock GumSqliteBlock;
+
+struct _GumSqliteBlock
+{
+  int size;
+  int padding;
+};
+
+static void gum_script_backend_init_sqlite (void);
+static void gum_script_backend_deinit_sqlite (void);
+
+static int gum_sqlite_allocator_init (void * data);
+static void gum_sqlite_allocator_shutdown (void * data);
+static void * gum_sqlite_allocator_malloc (int size);
+static void gum_sqlite_allocator_free (void * mem);
+static void * gum_sqlite_allocator_realloc (void * mem, int n_bytes);
+static int gum_sqlite_allocator_size (void * mem);
+static int gum_sqlite_allocator_roundup (int size);
 
 static void
 gum_script_backend_deinit_v8 (void)
@@ -35,6 +59,8 @@ gum_script_backend_get_type (void)
     gtype = g_type_register_static_simple (G_TYPE_INTERFACE, "GumScriptBackend",
         sizeof (GumScriptBackendIface), NULL, 0, NULL, 0);
     g_type_interface_add_prerequisite (gtype, G_TYPE_OBJECT);
+
+    gum_script_backend_init_sqlite ();
 
     g_once_init_leave (&gonce_value, gtype);
   }
@@ -218,4 +244,86 @@ GMainContext *
 gum_script_backend_get_main_context (GumScriptBackend * self)
 {
   return GUM_SCRIPT_BACKEND_GET_INTERFACE (self)->get_main_context (self);
+}
+
+static void
+gum_script_backend_init_sqlite (void)
+{
+  sqlite3_mem_methods gum_mem_methods = {
+    gum_sqlite_allocator_malloc,
+    gum_sqlite_allocator_free,
+    gum_sqlite_allocator_realloc,
+    gum_sqlite_allocator_size,
+    gum_sqlite_allocator_roundup,
+    gum_sqlite_allocator_init,
+    gum_sqlite_allocator_shutdown,
+    NULL,
+  };
+
+  sqlite3_config (SQLITE_CONFIG_MALLOC, &gum_mem_methods);
+
+  sqlite3_initialize ();
+  _gum_register_early_destructor (gum_script_backend_deinit_sqlite);
+}
+
+static void
+gum_script_backend_deinit_sqlite (void)
+{
+  sqlite3_shutdown ();
+}
+
+static int
+gum_sqlite_allocator_init (void * data)
+{
+  return SQLITE_OK;
+}
+
+static void
+gum_sqlite_allocator_shutdown (void * data)
+{
+}
+
+static void *
+gum_sqlite_allocator_malloc (int size)
+{
+  GumSqliteBlock * block;
+
+  block = g_malloc (GUM_SQLITE_BLOCK_ALLOC_SIZE (size));
+  block->size = size;
+
+  return GUM_SQLITE_BLOCK_TO_CLIENT (block);
+}
+
+static void
+gum_sqlite_allocator_free (void * mem)
+{
+  GumSqliteBlock * block = GUM_SQLITE_BLOCK_FROM_CLIENT (mem);
+
+  g_free (block);
+}
+
+static void *
+gum_sqlite_allocator_realloc (void * mem,
+                              int n_bytes)
+{
+  GumSqliteBlock * block = GUM_SQLITE_BLOCK_FROM_CLIENT (mem);
+
+  block = g_realloc (block, GUM_SQLITE_BLOCK_ALLOC_SIZE (n_bytes));
+  block->size = n_bytes;
+
+  return GUM_SQLITE_BLOCK_TO_CLIENT (block);
+}
+
+static int
+gum_sqlite_allocator_size (void * mem)
+{
+  GumSqliteBlock * block = GUM_SQLITE_BLOCK_FROM_CLIENT (mem);
+
+  return block->size;
+}
+
+static int
+gum_sqlite_allocator_roundup (int size)
+{
+  return size;
 }
