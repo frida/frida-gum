@@ -69,6 +69,8 @@ struct GumV8Core
 
   GHashTable * weak_refs;
   guint last_weak_ref_id;
+  GQueue pending_weak_callbacks;
+  GSource * pending_weak_source;
 
   GHashTable * scheduled_callbacks;
   guint next_callback_id;

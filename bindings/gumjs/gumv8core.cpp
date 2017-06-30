@@ -184,6 +184,10 @@ static void gum_v8_weak_ref_clear (GumV8WeakRef * ref);
 static void gum_v8_weak_ref_free (GumV8WeakRef * ref);
 static void gum_v8_weak_ref_on_weak_notify (
     const WeakCallbackInfo<GumV8WeakRef> & info);
+static gboolean gum_v8_core_invoke_pending_weak_callbacks_in_idle (
+    GumV8Core * self);
+static void gum_v8_core_invoke_pending_weak_callbacks (GumV8Core * self,
+    ScriptScope * scope);
 
 GUMJS_DECLARE_FUNCTION (gumjs_int64_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_int64_add)
@@ -755,6 +759,9 @@ gum_v8_core_clear_weak_refs (GumV8Core * self)
   }
 
   g_hash_table_remove_all (self->weak_refs);
+
+  ScriptScope scope (self->script);
+  gum_v8_core_invoke_pending_weak_callbacks (self, &scope);
 }
 
 void
@@ -1530,15 +1537,27 @@ gum_v8_weak_ref_clear (GumV8WeakRef * ref)
 static void
 gum_v8_weak_ref_free (GumV8WeakRef * ref)
 {
+  auto core = ref->core;
+
+  gboolean in_teardown = ref->target == nullptr;
+
   gum_v8_weak_ref_clear (ref);
 
+  g_queue_push_tail (&core->pending_weak_callbacks, ref->callback);
+  if (!in_teardown && core->pending_weak_source == NULL)
   {
-    ScriptScope scope (ref->core->script);
-    auto isolate = ref->core->isolate;
-    auto callback = Local<Function>::New (isolate, *ref->callback);
-    callback->Call (Undefined (isolate), 0, nullptr);
+    auto source = g_idle_source_new ();
+    g_source_set_callback (source,
+        (GSourceFunc) gum_v8_core_invoke_pending_weak_callbacks_in_idle, core,
+        NULL);
+    g_source_attach (source,
+        gum_script_scheduler_get_js_context (core->scheduler));
+    g_source_unref (source);
+
+    _gum_v8_core_pin (core);
+
+    core->pending_weak_source = source;
   }
-  delete ref->callback;
 
   g_slice_free (GumV8WeakRef, ref);
 }
@@ -1549,6 +1568,37 @@ gum_v8_weak_ref_on_weak_notify (const WeakCallbackInfo<GumV8WeakRef> & info)
   auto self = info.GetParameter ();
 
   g_hash_table_remove (self->core->weak_refs, GUINT_TO_POINTER (self->id));
+}
+
+static gboolean
+gum_v8_core_invoke_pending_weak_callbacks_in_idle (GumV8Core * self)
+{
+  ScriptScope scope (self->script);
+
+  self->pending_weak_source = NULL;
+
+  gum_v8_core_invoke_pending_weak_callbacks (self, &scope);
+
+  _gum_v8_core_unpin (self);
+
+  return FALSE;
+}
+
+static void
+gum_v8_core_invoke_pending_weak_callbacks (GumV8Core * self,
+                                           ScriptScope * scope)
+{
+  auto isolate = self->isolate;
+
+  GumPersistent<Function>::type * weak_callback;
+  while ((weak_callback = (GumPersistent<Function>::type *)
+      g_queue_pop_head (&self->pending_weak_callbacks)) != nullptr)
+  {
+    auto callback = Local<Function>::New (isolate, *weak_callback);
+    callback->Call (Undefined (isolate), 0, nullptr);
+    scope->ProcessAnyPendingException ();
+    delete weak_callback;
+  }
 }
 
 void

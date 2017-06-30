@@ -38,6 +38,7 @@ public:
   ~ScriptScope ();
 
   bool HasPendingException () const { return trycatch.HasCaught (); }
+  void ProcessAnyPendingException ();
   void PerformPendingIO ();
 
   void AddTickCallback (v8::Handle<v8::Function> callback);

@@ -37,13 +37,7 @@ ScriptScope::~ScriptScope ()
   auto priv = parent->priv;
   auto core = &priv->core;
 
-  if (trycatch.HasCaught ())
-  {
-    auto exception = trycatch.Exception ();
-    trycatch.Reset ();
-    _gum_v8_core_on_unhandled_exception (&priv->core, exception);
-    trycatch.Reset ();
-  }
+  ProcessAnyPendingException ();
 
   PerformPendingIO ();
 
@@ -68,6 +62,18 @@ ScriptScope::~ScriptScope ()
 }
 
 void
+ScriptScope::ProcessAnyPendingException ()
+{
+  if (trycatch.HasCaught ())
+  {
+    auto exception = trycatch.Exception ();
+    trycatch.Reset ();
+    _gum_v8_core_on_unhandled_exception (&parent->priv->core, exception);
+    trycatch.Reset ();
+  }
+}
+
+void
 ScriptScope::PerformPendingIO ()
 {
   auto priv = parent->priv;
@@ -85,13 +91,7 @@ ScriptScope::PerformPendingIO ()
       auto callback = Local<Function>::New (isolate, *tick_callback);
 
       callback->Call (receiver, 0, nullptr);
-      if (trycatch.HasCaught ())
-      {
-        auto exception = trycatch.Exception ();
-        trycatch.Reset ();
-        _gum_v8_core_on_unhandled_exception (core, exception);
-        trycatch.Reset ();
-      }
+      ProcessAnyPendingException ();
 
       delete tick_callback;
     }
