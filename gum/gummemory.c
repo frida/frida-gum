@@ -57,16 +57,8 @@ static void gum_match_token_free (GumMatchToken * token);
 static void gum_match_token_append (GumMatchToken * self, guint8 byte);
 
 static gboolean gum_memory_initialized = FALSE;
-static mspace gum_mspace = NULL;
+static mspace gum_mspace_main = NULL;
 static guint gum_cached_page_size;
-
-static mspace
-gum_mspace_get (void)
-{
-  if (gum_mspace == NULL)
-    gum_mspace = create_mspace (0, TRUE);
-  return gum_mspace;
-}
 
 void
 gum_memory_init (void)
@@ -79,7 +71,7 @@ gum_memory_init (void)
 
   _gum_cloak_init ();
 
-  gum_mspace_get ();
+  gum_mspace_main = create_mspace (0, TRUE);
 }
 
 void
@@ -87,8 +79,9 @@ gum_memory_deinit (void)
 {
   g_assert (gum_memory_initialized);
 
-  destroy_mspace (gum_mspace);
-  gum_mspace = NULL;
+
+  destroy_mspace (gum_mspace_main);
+  gum_mspace_main = NULL;
 
   (void) DESTROY_LOCK (&malloc_global_mutex);
 
@@ -469,7 +462,7 @@ gum_peek_private_memory_usage (void)
 {
   struct mallinfo info;
 
-  info = mspace_mallinfo (gum_mspace_get ());
+  info = mspace_mallinfo (gum_mspace_main);
 
   return (guint) info.uordblks;
 }
@@ -477,27 +470,27 @@ gum_peek_private_memory_usage (void)
 gpointer
 gum_malloc (gsize size)
 {
-  return mspace_malloc (gum_mspace_get (), size);
+  return mspace_malloc (gum_mspace_main, size);
 }
 
 gpointer
 gum_malloc0 (gsize size)
 {
-  return mspace_calloc (gum_mspace_get (), 1, size);
+  return mspace_calloc (gum_mspace_main, 1, size);
 }
 
 gpointer
 gum_calloc (gsize count,
             gsize size)
 {
-  return mspace_calloc (gum_mspace_get (), count, size);
+  return mspace_calloc (gum_mspace_main, count, size);
 }
 
 gpointer
 gum_realloc (gpointer mem,
              gsize size)
 {
-  return mspace_realloc (gum_mspace_get (), mem, size);
+  return mspace_realloc (gum_mspace_main, mem, size);
 }
 
 gpointer
@@ -506,7 +499,7 @@ gum_memdup (gconstpointer mem,
 {
   gpointer result;
 
-  result = mspace_malloc (gum_mspace_get (), byte_size);
+  result = mspace_malloc (gum_mspace_main, byte_size);
   memcpy (result, mem, byte_size);
 
   return result;
@@ -515,7 +508,7 @@ gum_memdup (gconstpointer mem,
 void
 gum_free (gpointer mem)
 {
-  mspace_free (gum_mspace_get (), mem);
+  mspace_free (gum_mspace_main, mem);
 }
 
 gpointer
