@@ -137,10 +137,10 @@ static void
 gum_do_init (void)
 {
   cs_opt_mem gum_cs_mem_callbacks = {
-    gum_malloc,
-    gum_calloc,
-    gum_realloc,
-    gum_free,
+    gum_cs_malloc,
+    gum_cs_calloc,
+    gum_cs_realloc,
+    gum_cs_free,
     gum_vsnprintf
   };
 

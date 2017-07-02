@@ -58,6 +58,7 @@ static void gum_match_token_append (GumMatchToken * self, guint8 byte);
 
 static gboolean gum_memory_initialized = FALSE;
 static mspace gum_mspace_main = NULL;
+static mspace gum_mspace_capstone = NULL;
 static guint gum_cached_page_size;
 
 void
@@ -72,6 +73,7 @@ gum_memory_init (void)
   _gum_cloak_init ();
 
   gum_mspace_main = create_mspace (0, TRUE);
+  gum_mspace_capstone = create_mspace (0, TRUE);
 }
 
 void
@@ -79,6 +81,8 @@ gum_memory_deinit (void)
 {
   g_assert (gum_memory_initialized);
 
+  destroy_mspace (gum_mspace_capstone);
+  gum_mspace_capstone = NULL;
 
   destroy_mspace (gum_mspace_main);
   gum_mspace_main = NULL;
@@ -509,6 +513,32 @@ void
 gum_free (gpointer mem)
 {
   mspace_free (gum_mspace_main, mem);
+}
+
+gpointer
+gum_cs_malloc (gsize size)
+{
+  return mspace_malloc (gum_mspace_capstone, size);
+}
+
+gpointer
+gum_cs_calloc (gsize count,
+               gsize size)
+{
+  return mspace_calloc (gum_mspace_capstone, count, size);
+}
+
+gpointer
+gum_cs_realloc (gpointer mem,
+                gsize size)
+{
+  return mspace_realloc (gum_mspace_capstone, mem, size);
+}
+
+void
+gum_cs_free (gpointer mem)
+{
+  mspace_free (gum_mspace_capstone, mem);
 }
 
 gpointer

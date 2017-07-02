@@ -17,6 +17,11 @@ G_GNUC_INTERNAL void _gum_register_early_destructor (
     GumDestructorFunc destructor);
 G_GNUC_INTERNAL void _gum_register_destructor (GumDestructorFunc destructor);
 
+G_GNUC_INTERNAL gpointer gum_cs_malloc (gsize size);
+G_GNUC_INTERNAL gpointer gum_cs_calloc (gsize count, gsize size);
+G_GNUC_INTERNAL gpointer gum_cs_realloc (gpointer mem, gsize size);
+G_GNUC_INTERNAL void gum_cs_free (gpointer mem);
+
 G_END_DECLS
 
 #endif
