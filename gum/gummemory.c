@@ -487,7 +487,8 @@ gum_malloc0 (gsize size)
 }
 
 gpointer
-gum_calloc (gsize count, gsize size)
+gum_calloc (gsize count,
+            gsize size)
 {
   return mspace_calloc (gum_mspace_get (), count, size);
 }
