@@ -9,9 +9,27 @@
 #include "gumv8scope.h"
 #include "gumv8value.h"
 
+#include <gum/gumspinlock.h>
 #include <string.h>
 
 using namespace v8;
+
+struct _GumV8EventSink
+{
+  GObject parent;
+
+  GumSpinlock lock;
+  GArray * queue;
+  guint queue_capacity;
+  guint queue_drain_interval;
+
+  GumV8Core * core;
+  GMainContext * main_context;
+  GumEventType event_mask;
+  GumPersistent<v8::Function>::type * on_receive;
+  GumPersistent<v8::Function>::type * on_call_summary;
+  GSource * source;
+};
 
 static void gum_v8_event_sink_iface_init (gpointer g_iface,
     gpointer iface_data);
@@ -64,11 +82,11 @@ gum_v8_event_sink_init (GumV8EventSink * self)
 static void
 gum_v8_event_sink_release_core (GumV8EventSink * self)
 {
-  if (self->core == NULL)
+  GumV8Core * core = (GumV8Core *) g_steal_pointer (&self->core);
+  if (core == NULL)
     return;
 
-  auto script = self->core->script;
-  self->core = NULL;
+  auto script = core->script;
 
   {
     ScriptScope scope (script);
