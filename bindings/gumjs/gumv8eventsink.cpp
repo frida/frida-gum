@@ -254,12 +254,13 @@ gum_v8_event_sink_drain (GumV8EventSink * self)
       GHashTableIter iter;
       g_hash_table_iter_init (&iter, frequencies);
       gpointer target, count;
-      Local<Context> jc = isolate->GetCurrentContext ();
+      gchar target_str[32];
       while (g_hash_table_iter_next (&iter, &target, &count))
       {
-        summary->ForceSet (jc, _gum_v8_native_pointer_new (target, self->core),
-            Number::New (isolate, GPOINTER_TO_SIZE (count)),
-            (PropertyAttribute) (ReadOnly | DontDelete)).FromJust ();
+        sprintf (target_str, "0x%" G_GSIZE_MODIFIER "x",
+            GPOINTER_TO_SIZE (target));
+        _gum_v8_object_set (summary, target_str,
+            Number::New (isolate, GPOINTER_TO_SIZE (count)), self->core);
       }
 
       g_hash_table_unref (frequencies);
