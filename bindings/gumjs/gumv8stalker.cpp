@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -116,18 +116,11 @@ _gum_v8_stalker_flush (GumV8Stalker * self)
 {
   auto isolate = self->core->isolate;
 
-  if (self->sink != NULL)
-  {
-    auto sink = self->sink;
-    self->sink = NULL;
-    g_object_unref (sink);
-  }
+  g_clear_object (&self->sink);
 
-  auto stalker = self->stalker;
+  auto stalker = (GumStalker *) g_steal_pointer (&self->stalker);
   if (stalker != NULL)
   {
-    self->stalker = NULL;
-
     isolate->Exit ();
     {
       Unlocker ul (isolate);
@@ -174,12 +167,7 @@ _gum_v8_stalker_process_pending (GumV8Stalker * self)
   }
   self->pending_follow_level = 0;
 
-  if (self->sink != NULL)
-  {
-    auto sink = self->sink;
-    self->sink = NULL;
-    g_object_unref (sink);
-  }
+  g_clear_object (&self->sink);
 }
 
 GUMJS_DEFINE_GETTER (gumjs_stalker_get_trust_threshold)
@@ -269,12 +257,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
       &so.on_receive, &so.on_call_summary))
     return;
 
-  if (module->sink != NULL)
-  {
-    auto sink = module->sink;
-    module->sink = NULL;
-    g_object_unref (sink);
-  }
+  g_clear_object (&module->sink);
 
   module->sink = gum_v8_event_sink_new (&so);
   if (thread_id == gum_process_get_current_thread_id ())
@@ -283,8 +266,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
   }
   else
   {
-    auto sink = module->sink;
-    module->sink = NULL;
+    auto sink = (GumEventSink *) g_steal_pointer (&module->sink);
     gum_stalker_follow (_gum_v8_stalker_get (module), thread_id, sink);
     g_object_unref (sink);
   }
