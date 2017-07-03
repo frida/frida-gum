@@ -110,7 +110,7 @@ gum_v8_event_sink_new (const GumV8EventSinkOptions * options)
   auto isolate = options->core->isolate;
 
   auto sink = GUM_V8_EVENT_SINK (
-      g_object_new (GUM_TYPE_SCRIPT_EVENT_SINK, NULL));
+      g_object_new (GUM_V8_TYPE_EVENT_SINK, NULL));
   sink->queue = g_array_sized_new (FALSE, FALSE, sizeof (GumEvent),
       options->queue_capacity);
   sink->queue_capacity = options->queue_capacity;
