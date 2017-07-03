@@ -109,7 +109,7 @@ _gum_duk_stalker_get (GumDukStalker * self)
 }
 
 static GumDukStalker *
-gumjs_stalker_from_args (const GumDukArgs * args)
+gumjs_module_from_args (const GumDukArgs * args)
 {
   return _gum_duk_load_module_data (args->ctx, "stalker");
 }
@@ -124,7 +124,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_stalker_construct)
 
 GUMJS_DEFINE_GETTER (gumjs_stalker_get_trust_threshold)
 {
-  GumStalker * stalker = _gum_duk_stalker_get (gumjs_stalker_from_args (args));
+  GumStalker * stalker = _gum_duk_stalker_get (gumjs_module_from_args (args));
 
   duk_push_number (ctx, gum_stalker_get_trust_threshold (stalker));
   return 1;
@@ -137,7 +137,7 @@ GUMJS_DEFINE_SETTER (gumjs_stalker_set_trust_threshold)
 
   (void) ctx;
 
-  stalker = _gum_duk_stalker_get (gumjs_stalker_from_args (args));
+  stalker = _gum_duk_stalker_get (gumjs_module_from_args (args));
 
   _gum_duk_args_parse (args, "i", &threshold);
 
@@ -147,7 +147,7 @@ GUMJS_DEFINE_SETTER (gumjs_stalker_set_trust_threshold)
 
 GUMJS_DEFINE_GETTER (gumjs_stalker_get_queue_capacity)
 {
-  GumDukStalker * self = gumjs_stalker_from_args (args);
+  GumDukStalker * self = gumjs_module_from_args (args);
 
   duk_push_number (ctx, self->queue_capacity);
   return 1;
@@ -155,7 +155,7 @@ GUMJS_DEFINE_GETTER (gumjs_stalker_get_queue_capacity)
 
 GUMJS_DEFINE_SETTER (gumjs_stalker_set_queue_capacity)
 {
-  GumDukStalker * self = gumjs_stalker_from_args (args);
+  GumDukStalker * self = gumjs_module_from_args (args);
 
   (void) ctx;
 
@@ -165,7 +165,7 @@ GUMJS_DEFINE_SETTER (gumjs_stalker_set_queue_capacity)
 
 GUMJS_DEFINE_GETTER (gumjs_stalker_get_queue_drain_interval)
 {
-  GumDukStalker * self = gumjs_stalker_from_args (args);
+  GumDukStalker * self = gumjs_module_from_args (args);
 
   duk_push_number (ctx, self->queue_drain_interval);
   return 1;
@@ -173,7 +173,7 @@ GUMJS_DEFINE_GETTER (gumjs_stalker_get_queue_drain_interval)
 
 GUMJS_DEFINE_SETTER (gumjs_stalker_set_queue_drain_interval)
 {
-  GumDukStalker * self = gumjs_stalker_from_args (args);
+  GumDukStalker * self = gumjs_module_from_args (args);
 
   (void) ctx;
 

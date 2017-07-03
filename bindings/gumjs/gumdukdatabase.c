@@ -129,7 +129,7 @@ _gum_duk_database_finalize (GumDukDatabase * self)
 }
 
 static GumDukDatabase *
-gumjs_database_module_from_args (const GumDukArgs * args)
+gumjs_module_from_args (const GumDukArgs * args)
 {
   return _gum_duk_load_module_data (args->ctx, "database");
 }
@@ -141,7 +141,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_database_open)
   sqlite3 * handle;
   gint status;
 
-  self = gumjs_database_module_from_args (args);
+  self = gumjs_module_from_args (args);
 
   _gum_duk_args_parse (args, "s", &path);
 
@@ -177,7 +177,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_database_open_inline)
   sqlite3 * handle;
   gint status;
 
-  self = gumjs_database_module_from_args (args);
+  self = gumjs_module_from_args (args);
 
   _gum_duk_args_parse (args, "s", &encoded_contents);
 
@@ -243,7 +243,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_database_construct)
   _gum_duk_args_parse (args, "spt", &path, &handle, &is_virtual);
 
   database = gum_database_new (handle, path, is_virtual,
-      gumjs_database_module_from_args (args));
+      gumjs_module_from_args (args));
 
   duk_push_this (ctx);
   _gum_duk_put_data (ctx, -1, database);

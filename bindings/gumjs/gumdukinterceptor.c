@@ -380,7 +380,7 @@ _gum_duk_interceptor_finalize (GumDukInterceptor * self)
 }
 
 static GumDukInterceptor *
-gumjs_interceptor_from_args (const GumDukArgs * args)
+gumjs_module_from_args (const GumDukArgs * args)
 {
   return _gum_duk_load_module_data (args->ctx, "interceptor");
 }
@@ -401,7 +401,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
   GumDukInvocationListener * listener;
   GumAttachReturn attach_ret;
 
-  self = gumjs_interceptor_from_args (args);
+  self = gumjs_module_from_args (args);
 
   if (duk_is_function (ctx, 1))
   {
@@ -487,7 +487,7 @@ gum_duk_interceptor_detach (GumDukInterceptor * self,
 
 GUMJS_DEFINE_FUNCTION (gumjs_interceptor_detach_all)
 {
-  GumDukInterceptor * self = gumjs_interceptor_from_args (args);
+  GumDukInterceptor * self = gumjs_module_from_args (args);
 
   (void) ctx;
 
@@ -505,7 +505,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
   GumDukReplaceEntry * entry;
   GumReplaceReturn replace_ret;
 
-  self = gumjs_interceptor_from_args (args);
+  self = gumjs_module_from_args (args);
 
   _gum_duk_args_parse (args, "pO", &target, &replacement_value);
 
@@ -569,7 +569,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_revert)
 
   (void) ctx;
 
-  self = gumjs_interceptor_from_args (args);
+  self = gumjs_module_from_args (args);
 
   _gum_duk_args_parse (args, "p", &target);
 
@@ -584,7 +584,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_flush)
 
   (void) ctx;
 
-  self = gumjs_interceptor_from_args (args);
+  self = gumjs_module_from_args (args);
 
   gum_interceptor_end_transaction (self->interceptor);
   gum_interceptor_begin_transaction (self->interceptor);
@@ -605,7 +605,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_invocation_listener_detach)
   GumDukInterceptor * module;
   GumDukInvocationListener * listener;
 
-  module = gumjs_interceptor_from_args (args);
+  module = gumjs_module_from_args (args);
 
   duk_push_this (ctx);
   listener = _gum_duk_steal_data (ctx, -1);

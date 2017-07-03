@@ -83,7 +83,7 @@ _gum_duk_symbol_finalize (GumDukSymbol * self)
 }
 
 static GumDukSymbol *
-gumjs_symbol_module_from_args (const GumDukArgs * args)
+gumjs_module_from_args (const GumDukArgs * args)
 {
   return _gum_duk_load_module_data (args->ctx, "debug-symbol");
 }
@@ -104,7 +104,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_address)
   GumSymbolDetails details;
   gboolean success;
 
-  self = gumjs_symbol_module_from_args (args);
+  self = gumjs_module_from_args (args);
 
   _gum_duk_args_parse (args, "p", &address);
 
@@ -128,7 +128,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_name)
   GumSymbolDetails details;
   gboolean success;
 
-  self = gumjs_symbol_module_from_args (args);
+  self = gumjs_module_from_args (args);
 
   _gum_duk_args_parse (args, "s", &name);
 
