@@ -129,6 +129,7 @@
     <ClCompile Include="gumdukdatabase.c" />
     <ClCompile Include="gumdukinterceptor.c" />
     <ClCompile Include="gumdukstalker.c" />
+    <ClCompile Include="gumdukeventsink.c" />
     <ClCompile Include="gumdukapiresolver.c" />
     <ClCompile Include="gumduksymbol.c" />
     <ClCompile Include="gumdukinstruction.c" />

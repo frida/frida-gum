@@ -142,6 +142,9 @@
     <ClCompile Include="gumdukstalker.c">
       <Filter>duk</Filter>
     </ClCompile>
+    <ClCompile Include="gumdukeventsink.c">
+      <Filter>duk</Filter>
+    </ClCompile>
     <ClCompile Include="gumdukapiresolver.c">
       <Filter>duk</Filter>
     </ClCompile>
