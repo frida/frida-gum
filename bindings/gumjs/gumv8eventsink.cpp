@@ -268,6 +268,7 @@ gum_v8_event_sink_drain (GumV8EventSink * self)
       auto on_call_summary =
           Local<Function>::New (isolate, *self->on_call_summary);
       on_call_summary->Call (on_call_summary, G_N_ELEMENTS (argv), argv);
+      scope.ProcessAnyPendingException ();
     }
 
     if (self->on_receive != nullptr)
@@ -278,6 +279,7 @@ gum_v8_event_sink_drain (GumV8EventSink * self)
             ArrayBufferCreationMode::kInternalized)
       };
       on_receive->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
+      scope.ProcessAnyPendingException ();
     }
     else
     {
