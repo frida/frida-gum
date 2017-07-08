@@ -83,6 +83,11 @@ GUM_API GumProbeId gum_stalker_add_call_probe (GumStalker * self,
 GUM_API void gum_stalker_remove_call_probe (GumStalker * self,
     GumProbeId id);
 
+#define gum_call_site_get_nth_argument(s, n) \
+    gum_cpu_context_get_nth_argument ((s)->cpu_context, n)
+#define gum_call_site_replace_nth_argument(s, n, v) \
+    gum_cpu_context_replace_nth_argument ((s)->cpu_context, n, v)
+
 G_END_DECLS
 
 #endif

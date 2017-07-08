@@ -396,37 +396,12 @@ gumjs_probe_args_get_nth (uint32_t index,
       (GumV8CallProbe *) wrapper->GetAlignedPointerFromInternalField (0);
   auto site =
       (GumCallSite *) wrapper->GetAlignedPointerFromInternalField (1);
-  gsize value;
-  gsize * stack_argument = (gsize *) site->stack_data;
+  auto core = self->module->core;
 
-#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
-  switch (index)
   {
-# if GUM_NATIVE_ABI_IS_UNIX
-    case 0: value = site->cpu_context->rdi; break;
-    case 1: value = site->cpu_context->rsi; break;
-    case 2: value = site->cpu_context->rdx; break;
-    case 3: value = site->cpu_context->rcx; break;
-    case 4: value = site->cpu_context->r8;  break;
-    case 5: value = site->cpu_context->r9;  break;
-    default:
-      value = stack_argument[index - 6];
-      break;
-# else
-    case 0: value = site->cpu_context->rcx; break;
-    case 1: value = site->cpu_context->rdx; break;
-    case 2: value = site->cpu_context->r8;  break;
-    case 3: value = site->cpu_context->r9;  break;
-    default:
-      value = stack_argument[index];
-      break;
-# endif
   }
-#else
-  value = stack_argument[index];
-#endif
 
   info.GetReturnValue ().Set (
-      _gum_v8_native_pointer_new (GSIZE_TO_POINTER (value),
-          self->module->core));
+      _gum_v8_native_pointer_new (gum_call_site_get_nth_argument (site, index),
+          core));
 }

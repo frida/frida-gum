@@ -44,6 +44,8 @@
 # define GUM_NATIVE_ABI_IS_UNIX    1
 #endif
 
+G_BEGIN_DECLS
+
 typedef guint64 GumAddress;
 #define GUM_ADDRESS(a) ((GumAddress) GPOINTER_TO_SIZE (a))
 typedef guint GumOS;
@@ -357,5 +359,15 @@ enum _GumRelocationScenario
 #define GUM_IS_WITHIN_INT32_RANGE(i) \
     (((gint64) (i)) >= (gint64) G_MININT32 && \
      ((gint64) (i)) <= (gint64) G_MAXINT32)
+
+GUM_API gpointer gum_cpu_context_get_nth_argument (GumCpuContext * self,
+    guint n);
+GUM_API void gum_cpu_context_replace_nth_argument (GumCpuContext * self,
+    guint n, gpointer value);
+GUM_API gpointer gum_cpu_context_get_return_value (GumCpuContext * self);
+GUM_API void gum_cpu_context_replace_return_value (GumCpuContext * self,
+    gpointer value);
+
+G_END_DECLS
 
 #endif

@@ -115,6 +115,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ClCompile Include="gum\backend-x86\gumcpucontext-x86.c" />
     <ClCompile Include="gum\backend-x86\guminterceptor-x86.c" />
     <ClCompile Include="gum\backend-x86\gumstalker-x86.c" />
   </ItemGroup>

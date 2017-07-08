@@ -33,13 +33,6 @@ struct _GumInvocationBackend
 {
   GumPointCut (* get_point_cut) (GumInvocationContext * context);
 
-  gpointer (* get_nth_argument) (GumInvocationContext * context, guint n);
-  void (* replace_nth_argument) (GumInvocationContext * context, guint n,
-      gpointer value);
-  gpointer (* get_return_value) (GumInvocationContext * context);
-  void (* replace_return_value) (GumInvocationContext * context,
-      gpointer value);
-
   GumThreadId (* get_thread_id) (GumInvocationContext * context);
   guint (* get_depth) (GumInvocationContext * context);
 

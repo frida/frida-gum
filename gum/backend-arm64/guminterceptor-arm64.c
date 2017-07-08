@@ -321,54 +321,6 @@ _gum_interceptor_backend_resolve_redirect (GumInterceptorBackend * self,
   return gum_arm64_reader_try_get_relative_jump_target (address);
 }
 
-gpointer
-_gum_interceptor_invocation_get_nth_argument (GumInvocationContext * context,
-                                              guint n)
-{
-  if (n < 8)
-  {
-    return (gpointer) context->cpu_context->x[n];
-  }
-  else
-  {
-    gpointer * stack_argument = (gpointer *) context->cpu_context->sp;
-
-    return stack_argument[n - 8];
-  }
-}
-
-void
-_gum_interceptor_invocation_replace_nth_argument (
-    GumInvocationContext * context,
-    guint n,
-    gpointer value)
-{
-  if (n < 8)
-  {
-    context->cpu_context->x[n] = (guint64) value;
-  }
-  else
-  {
-    gpointer * stack_argument = (gpointer *) context->cpu_context->sp;
-
-    stack_argument[n - 8] = value;
-  }
-}
-
-gpointer
-_gum_interceptor_invocation_get_return_value (GumInvocationContext * context)
-{
-  return (gpointer) context->cpu_context->x[0];
-}
-
-void
-_gum_interceptor_invocation_replace_return_value (
-    GumInvocationContext * context,
-    gpointer value)
-{
-  context->cpu_context->x[0] = (guint64) value;
-}
-
 static void
 gum_interceptor_backend_create_thunks (GumInterceptorBackend * self)
 {

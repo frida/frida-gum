@@ -16,7 +16,7 @@ gpointer
 gum_invocation_context_get_nth_argument (GumInvocationContext * context,
                                          guint n)
 {
-  return context->backend->get_nth_argument (context, n);
+  return gum_cpu_context_get_nth_argument (context->cpu_context, n);
 }
 
 void
@@ -24,20 +24,20 @@ gum_invocation_context_replace_nth_argument (GumInvocationContext * context,
                                              guint n,
                                              gpointer value)
 {
-  context->backend->replace_nth_argument (context, n, value);
+  gum_cpu_context_replace_nth_argument (context->cpu_context, n, value);
 }
 
 gpointer
 gum_invocation_context_get_return_value (GumInvocationContext * context)
 {
-  return context->backend->get_return_value (context);
+  return gum_cpu_context_get_return_value (context->cpu_context);
 }
 
 void
 gum_invocation_context_replace_return_value (GumInvocationContext * context,
                                              gpointer value)
 {
-  context->backend->replace_return_value (context, value);
+  gum_cpu_context_replace_return_value (context->cpu_context, value);
 }
 
 gpointer

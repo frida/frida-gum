@@ -1509,11 +1509,6 @@ gum_interceptor_listener_invocation_backend =
 {
   gum_interceptor_invocation_get_listener_point_cut,
 
-  _gum_interceptor_invocation_get_nth_argument,
-  _gum_interceptor_invocation_replace_nth_argument,
-  _gum_interceptor_invocation_get_return_value,
-  _gum_interceptor_invocation_replace_return_value,
-
   gum_interceptor_invocation_get_thread_id,
   gum_interceptor_invocation_get_depth,
 
@@ -1531,11 +1526,6 @@ static const GumInvocationBackend
 gum_interceptor_replacement_invocation_backend =
 {
   gum_interceptor_invocation_get_replacement_point_cut,
-
-  _gum_interceptor_invocation_get_nth_argument,
-  _gum_interceptor_invocation_replace_nth_argument,
-  _gum_interceptor_invocation_get_return_value,
-  _gum_interceptor_invocation_replace_return_value,
 
   gum_interceptor_invocation_get_thread_id,
   gum_interceptor_invocation_get_depth,

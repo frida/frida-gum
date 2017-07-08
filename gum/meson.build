@@ -146,6 +146,7 @@ if host_machine.cpu_family() == 'x86' or host_machine.cpu_family() == 'x86_64'
   ]
   gum_sources += [
     'arch-x86/gumx86backtracer.c',
+    'backend-x86/gumcpucontext-x86.c',
     'backend-x86/guminterceptor-x86.c',
     'backend-x86/gumspinlock-x86.c',
     'backend-x86/gumstalker-x86.c',
@@ -170,6 +171,7 @@ if host_machine.cpu_family() == 'arm'
     'arch-arm/gumarmbacktracer.c',
     'arch-arm/gumarmreader.c',
     'arch-arm/gumthumbreader.c',
+    'backend-arm/gumcpucontext-arm.c',
     'backend-arm/guminterceptor-arm.c',
     'backend-arm/gumspinlock-arm.c',
     'backend-arm/gumstalker-arm.c',
@@ -188,6 +190,7 @@ if host_machine.cpu_family() == 'arm64'
   gum_sources += [
     'arch-arm64/gumarm64backtracer.c',
     'arch-arm64/gumarm64reader.c',
+    'backend-arm64/gumcpucontext-arm64.c',
     'backend-arm64/guminterceptor-arm64.c',
     'backend-arm64/gumspinlock-arm64.c',
     'backend-arm64/gumstalker-arm64.c',
@@ -207,6 +210,7 @@ if host_machine.cpu_family() == 'mips'
   gum_sources += [
     'arch-mips/gummipsbacktracer.c',
     'arch-mips/gummipsreader.c',
+    'backend-mips/gumcpucontext-mips.c',
     'backend-mips/guminterceptor-mips.c',
     'backend-mips/gumspinlock-mips.c',
     'backend-mips/gumstalker-mips.c',
