@@ -135,11 +135,13 @@ ScriptInterceptorScope::~ScriptInterceptorScope ()
 }
 
 ScriptStalkerScope::ScriptStalkerScope (GumV8Script * parent)
-  : parent (parent)
+  : pending_level (0),
+    sink (NULL),
+    parent (parent)
 {
 }
 
 ScriptStalkerScope::~ScriptStalkerScope ()
 {
-  _gum_v8_stalker_process_pending (&parent->priv->stalker);
+  _gum_v8_stalker_process_pending (&parent->priv->stalker, this);
 }

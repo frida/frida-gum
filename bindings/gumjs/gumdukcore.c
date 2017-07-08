@@ -11,6 +11,7 @@
 #include "gumdukscript-java.h"
 #include "gumdukscript-objc.h"
 #include "gumdukscript-promise.h"
+#include "gumdukstalker.h"
 #include "gumsourcemap.h"
 
 #include <ffi.h>
@@ -710,6 +711,7 @@ _gum_duk_core_init (GumDukCore * self,
                     GumDukScript * script,
                     const gchar * runtime_source_map,
                     GumDukInterceptor * interceptor,
+                    GumDukStalker * stalker,
                     GumDukMessageEmitter message_emitter,
                     GumScriptScheduler * scheduler,
                     duk_context * ctx)
@@ -722,6 +724,7 @@ _gum_duk_core_init (GumDukCore * self,
   self->script = script;
   self->runtime_source_map = runtime_source_map;
   self->interceptor = interceptor;
+  self->stalker = stalker;
   self->message_emitter = message_emitter;
   self->scheduler = scheduler;
   self->exceptor = gum_exceptor_obtain ();
@@ -1118,6 +1121,9 @@ _gum_duk_scope_enter (GumDukScope * self,
   g_queue_init (&self->tick_callbacks);
   g_queue_init (&self->scheduled_sources);
 
+  self->pending_stalker_level = 0;
+  self->pending_stalker_sink = NULL;
+
   return self->ctx;
 }
 
@@ -1297,6 +1303,8 @@ _gum_duk_scope_leave (GumDukScope * self)
 
   if (pending_flush_notify != NULL)
     gum_duk_core_notify_flushed (core, pending_flush_notify);
+
+  _gum_duk_stalker_process_pending (core->stalker, self);
 }
 
 GUMJS_DEFINE_GETTER (gumjs_get_promise)

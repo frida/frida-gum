@@ -27,6 +27,9 @@ public:
   ScriptStalkerScope (GumV8Script * parent);
   ~ScriptStalkerScope ();
 
+  gint pending_level;
+  GumEventSink * sink;
+
 private:
   GumV8Script * parent;
 };
@@ -44,9 +47,10 @@ public:
   void AddTickCallback (v8::Handle<v8::Function> callback);
   void AddScheduledSource (GSource * source);
 
-private:
   GumV8Script * parent;
   ScriptStalkerScope stalker_scope;
+
+private:
   v8::Locker locker;
   v8::Isolate::Scope isolate_scope;
   v8::HandleScope handle_scope;

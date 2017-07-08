@@ -26,6 +26,7 @@ G_BEGIN_DECLS
 
 typedef struct _GumDukCore GumDukCore;
 typedef struct _GumDukInterceptor GumDukInterceptor;
+typedef struct _GumDukStalker GumDukStalker;
 typedef struct _GumDukScope GumDukScope;
 typedef gpointer GumDukHeapPtr;
 typedef struct _GumDukWeakRef GumDukWeakRef;
@@ -53,6 +54,7 @@ struct _GumDukCore
   GumDukScriptBackend * backend;
   const gchar * runtime_source_map;
   GumDukInterceptor * interceptor;
+  GumDukStalker * stalker;
   GumDukMessageEmitter message_emitter;
   GumScriptScheduler * scheduler;
   GumExceptor * exceptor;
@@ -105,8 +107,12 @@ struct _GumDukScope
   duk_context * ctx;
   GumDukHeapPtr exception;
   duk_thread_state thread_state;
+
   GQueue tick_callbacks;
   GQueue scheduled_sources;
+
+  gint pending_stalker_level;
+  GumEventSink * pending_stalker_sink;
 };
 
 struct _GumDukInt64
@@ -156,8 +162,9 @@ struct _GumDukNativeResource
 
 G_GNUC_INTERNAL void _gum_duk_core_init (GumDukCore * self,
     GumDukScript * script, const gchar * runtime_source_map,
-    GumDukInterceptor * interceptor, GumDukMessageEmitter message_emitter,
-    GumScriptScheduler * scheduler, duk_context * ctx);
+    GumDukInterceptor * interceptor, GumDukStalker * stalker,
+    GumDukMessageEmitter message_emitter, GumScriptScheduler * scheduler,
+    duk_context * ctx);
 G_GNUC_INTERNAL gboolean _gum_duk_core_flush (GumDukCore * self,
     GumDukFlushNotify flush_notify);
 G_GNUC_INTERNAL void _gum_duk_core_dispose (GumDukCore * self);

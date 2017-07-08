@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -11,17 +11,14 @@
 
 G_BEGIN_DECLS
 
-typedef struct _GumDukStalker GumDukStalker;
 typedef struct _GumDukProbeArgs GumDukProbeArgs;
 
 struct _GumDukStalker
 {
   GumDukCore * core;
   GumStalker * stalker;
-  GumEventSink * sink;
   guint queue_capacity;
   guint queue_drain_interval;
-  gint pending_follow_level;
 
   GumDukHeapPtr probe_args;
 
@@ -36,6 +33,8 @@ G_GNUC_INTERNAL void _gum_duk_stalker_dispose (GumDukStalker * self);
 G_GNUC_INTERNAL void _gum_duk_stalker_finalize (GumDukStalker * self);
 
 G_GNUC_INTERNAL GumStalker * _gum_duk_stalker_get (GumDukStalker * self);
+G_GNUC_INTERNAL void _gum_duk_stalker_process_pending (GumDukStalker * self,
+    GumDukScope * scope);
 
 G_END_DECLS
 

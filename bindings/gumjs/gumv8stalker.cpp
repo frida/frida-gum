@@ -86,10 +86,8 @@ _gum_v8_stalker_init (GumV8Stalker * self,
 
   self->core = core;
   self->stalker = NULL;
-  self->sink = NULL;
   self->queue_capacity = 16384;
   self->queue_drain_interval = 250;
-  self->pending_follow_level = 0;
 
   auto module = External::New (isolate, self);
 
@@ -115,8 +113,6 @@ void
 _gum_v8_stalker_flush (GumV8Stalker * self)
 {
   auto isolate = self->core->isolate;
-
-  g_clear_object (&self->sink);
 
   auto stalker = (GumStalker *) g_steal_pointer (&self->stalker);
   if (stalker != NULL)
@@ -155,19 +151,20 @@ _gum_v8_stalker_get (GumV8Stalker * self)
 }
 
 void
-_gum_v8_stalker_process_pending (GumV8Stalker * self)
+_gum_v8_stalker_process_pending (GumV8Stalker * self,
+                                 ScriptStalkerScope * scope)
 {
-  if (self->pending_follow_level > 0)
+  if (scope->pending_level > 0)
   {
-    gum_stalker_follow_me (_gum_v8_stalker_get (self), self->sink);
+    gum_stalker_follow_me (_gum_v8_stalker_get (self), scope->sink);
   }
-  else if (self->pending_follow_level < 0)
+  else if (scope->pending_level < 0)
   {
     gum_stalker_unfollow_me (_gum_v8_stalker_get (self));
   }
-  self->pending_follow_level = 0;
+  scope->pending_level = 0;
 
-  g_clear_object (&self->sink);
+  g_clear_object (&scope->sink);
 }
 
 GUMJS_DEFINE_GETTER (gumjs_stalker_get_trust_threshold)
@@ -245,7 +242,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_garbage_collect)
  */
 GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
 {
+  GumStalker * stalker;
   GumThreadId thread_id;
+
+  stalker = _gum_v8_stalker_get (module);
 
   GumV8EventSinkOptions so;
   so.core = core;
@@ -257,17 +257,19 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
       &so.on_receive, &so.on_call_summary))
     return;
 
-  g_clear_object (&module->sink);
-
-  module->sink = gum_v8_event_sink_new (&so);
+  auto sink = gum_v8_event_sink_new (&so);
   if (thread_id == gum_process_get_current_thread_id ())
   {
-    module->pending_follow_level = 1;
+    ScriptStalkerScope * scope = &core->current_scope->stalker_scope;
+
+    scope->pending_level = 1;
+
+    g_clear_object (&scope->sink);
+    scope->sink = sink;
   }
   else
   {
-    auto sink = (GumEventSink *) g_steal_pointer (&module->sink);
-    gum_stalker_follow (_gum_v8_stalker_get (module), thread_id, sink);
+    gum_stalker_follow (stalker, thread_id, sink);
     g_object_unref (sink);
   }
 }
@@ -284,16 +286,19 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
  */
 GUMJS_DEFINE_FUNCTION (gumjs_stalker_unfollow)
 {
+  GumStalker * stalker;
   GumThreadId current_thread_id = gum_process_get_current_thread_id ();
+
+  stalker = _gum_v8_stalker_get (module);
 
   GumThreadId thread_id = current_thread_id;
   if (!_gum_v8_args_parse (args, "|Z", &thread_id))
     return;
 
   if (thread_id == current_thread_id)
-    module->pending_follow_level--;
+    core->current_scope->stalker_scope.pending_level--;
   else
-    gum_stalker_unfollow (_gum_v8_stalker_get (module), thread_id);
+    gum_stalker_unfollow (stalker, thread_id);
 }
 
 /*

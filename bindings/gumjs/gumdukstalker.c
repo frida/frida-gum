@@ -98,7 +98,6 @@ _gum_duk_stalker_init (GumDukStalker * self,
   self->stalker = NULL;
   self->queue_capacity = 16384;
   self->queue_drain_interval = 250;
-  self->pending_follow_level = 0;
 
   _gum_duk_store_module_data (ctx, "stalker", self);
 
@@ -161,19 +160,21 @@ _gum_duk_stalker_get (GumDukStalker * self)
 }
 
 void
-_gum_duk_stalker_process_pending (GumDukStalker * self)
+_gum_duk_stalker_process_pending (GumDukStalker * self,
+                                  GumDukScope * scope)
 {
-  if (self->pending_follow_level > 0)
+  if (scope->pending_stalker_level > 0)
   {
-    gum_stalker_follow_me (_gum_duk_stalker_get (self), self->sink);
+    gum_stalker_follow_me (_gum_duk_stalker_get (self),
+        scope->pending_stalker_sink);
   }
-  else if (self->pending_follow_level < 0)
+  else if (scope->pending_stalker_level < 0)
   {
     gum_stalker_unfollow_me (_gum_duk_stalker_get (self));
   }
-  self->pending_follow_level = 0;
+  scope->pending_stalker_level = 0;
 
-  g_clear_object (&self->sink);
+  g_clear_object (&scope->pending_stalker_sink);
 }
 
 static GumDukStalker *
@@ -267,6 +268,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
   GumDukCore * core;
   GumThreadId thread_id;
   GumDukEventSinkOptions so;
+  GumEventSink * sink;
 
   module = gumjs_module_from_args (args);
   stalker = _gum_duk_stalker_get (module);
@@ -280,19 +282,19 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
   _gum_duk_args_parse (args, "ZuF?F?", &thread_id, &so.event_mask,
       &so.on_receive, &so.on_call_summary);
 
-  g_clear_object (&module->sink);
-
-  module->sink = gum_duk_event_sink_new (ctx, &so);
+  sink = gum_duk_event_sink_new (ctx, &so);
   if (thread_id == gum_process_get_current_thread_id ())
   {
-    module->pending_follow_level = 1;
+    GumDukScope * scope = core->current_scope;
+
+    scope->pending_stalker_level = 1;
+
+    g_clear_object (&scope->pending_stalker_sink);
+    scope->pending_stalker_sink = sink;
   }
   else
   {
-    GumEventSink * sink;
-
-    sink = g_steal_pointer (&module->sink);
-    gum_stalker_follow (_gum_duk_stalker_get (module), thread_id, sink);
+    gum_stalker_follow (stalker, thread_id, sink);
     g_object_unref (sink);
   }
 
@@ -302,9 +304,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
 GUMJS_DEFINE_FUNCTION (gumjs_stalker_unfollow)
 {
   GumDukStalker * module;
+  GumStalker * stalker;
   GumThreadId current_thread_id, thread_id;
 
   module = gumjs_module_from_args (args);
+  stalker = _gum_duk_stalker_get (module);
 
   current_thread_id = gum_process_get_current_thread_id ();
 
@@ -312,9 +316,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_unfollow)
   _gum_duk_args_parse (args, "|Z", &thread_id);
 
   if (thread_id == current_thread_id)
-    module->pending_follow_level--;
+    module->core->current_scope->pending_stalker_level--;
   else
-    gum_stalker_unfollow (_gum_duk_stalker_get (module), thread_id);
+    gum_stalker_unfollow (stalker, thread_id);
 
   return 0;
 }
