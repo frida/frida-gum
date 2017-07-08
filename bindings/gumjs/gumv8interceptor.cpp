@@ -979,6 +979,13 @@ gumjs_invocation_args_get_nth (uint32_t index,
                                const PropertyCallbackInfo<Value> & info)
 {
   auto self = gum_v8_invocation_args_get (info);
+
+  if (self->ic == NULL)
+  {
+    _gum_v8_throw_ascii_literal (self->core->isolate, "invalid operation");
+    return;
+  }
+
   info.GetReturnValue ().Set (_gum_v8_native_pointer_new (
       gum_invocation_context_get_nth_argument (self->ic, index), self->core));
 }
@@ -989,6 +996,12 @@ gumjs_invocation_args_set_nth (uint32_t index,
                                const PropertyCallbackInfo<Value> & info)
 {
   auto self = gum_v8_invocation_args_get (info);
+
+  if (self->ic == NULL)
+  {
+    _gum_v8_throw_ascii_literal (self->core->isolate, "invalid operation");
+    return;
+  }
 
   info.GetReturnValue ().Set (value);
 
