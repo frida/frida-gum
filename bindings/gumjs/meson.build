@@ -28,6 +28,7 @@ gumjs_sources = [
   'gumdukdatabase.c',
   'gumdukinterceptor.c',
   'gumdukstalker.c',
+  'gumdukeventsink.c',
   'gumdukapiresolver.c',
   'gumduksymbol.c',
   'gumdukinstruction.c',
