@@ -42,6 +42,8 @@ static void gum_v8_call_probe_on_fire (GumCallSite * site,
 
 static void gumjs_probe_args_get_nth (uint32_t index,
     const PropertyCallbackInfo<Value> & info);
+static void gumjs_probe_args_set_nth (uint32_t index, Local<Value> value,
+    const PropertyCallbackInfo<Value> & info);
 
 static const GumV8Property gumjs_stalker_values[] =
 {
@@ -103,7 +105,8 @@ _gum_v8_stalker_realize (GumV8Stalker * self)
 
   auto args_templ = ObjectTemplate::New (isolate);
   args_templ->SetInternalFieldCount (2);
-  args_templ->SetIndexedPropertyHandler (gumjs_probe_args_get_nth);
+  args_templ->SetIndexedPropertyHandler (gumjs_probe_args_get_nth,
+      gumjs_probe_args_set_nth);
   self->probe_args =
       new GumPersistent<ObjectTemplate>::type(isolate, args_templ);
 }
@@ -410,4 +413,31 @@ gumjs_probe_args_get_nth (uint32_t index,
   info.GetReturnValue ().Set (
       _gum_v8_native_pointer_new (gum_call_site_get_nth_argument (site, index),
           core));
+}
+
+static void
+gumjs_probe_args_set_nth (uint32_t index,
+                          Local<Value> value,
+                          const PropertyCallbackInfo<Value> & info)
+{
+  auto wrapper = info.This ();
+  auto self =
+      (GumV8CallProbe *) wrapper->GetAlignedPointerFromInternalField (0);
+  auto site =
+      (GumCallSite *) wrapper->GetAlignedPointerFromInternalField (1);
+  auto core = self->module->core;
+
+  if (site == nullptr)
+  {
+    _gum_v8_throw_ascii_literal (core->isolate, "invalid operation");
+    return;
+  }
+
+  info.GetReturnValue ().Set (value);
+
+  gpointer raw_value;
+  if (!_gum_v8_native_pointer_get (value, &raw_value, core))
+    return;
+
+  gum_call_site_replace_nth_argument (site, index, raw_value);
 }
