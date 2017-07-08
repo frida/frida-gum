@@ -385,6 +385,9 @@ gum_v8_call_probe_on_fire (GumCallSite * site,
   auto callback (Local<Function>::New (isolate, *self->callback));
   Handle<Value> argv[] = { args };
   callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
+
+  args->SetAlignedPointerInInternalField (0, nullptr);
+  args->SetAlignedPointerInInternalField (1, nullptr);
 }
 
 static void
@@ -398,7 +401,10 @@ gumjs_probe_args_get_nth (uint32_t index,
       (GumCallSite *) wrapper->GetAlignedPointerFromInternalField (1);
   auto core = self->module->core;
 
+  if (site == nullptr)
   {
+    _gum_v8_throw_ascii_literal (core->isolate, "invalid operation");
+    return;
   }
 
   info.GetReturnValue ().Set (
