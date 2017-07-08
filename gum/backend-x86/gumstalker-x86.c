@@ -2508,6 +2508,8 @@ gum_exec_block_invoke_call_probes_for_target (GumExecBlock * block,
     call_site.stack_data = block->ctx->app_stack;
     call_site.cpu_context = cpu_context;
 
+    GUM_CPU_CONTEXT_XSP (cpu_context) = GPOINTER_TO_SIZE (call_site.stack_data);
+
     for (i = 0; i != probes->len; i++)
     {
       GumCallProbe * probe = &g_array_index (probes, GumCallProbe, i);
