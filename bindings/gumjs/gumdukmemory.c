@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -8,6 +8,7 @@
 
 #include "gumdukmacros.h"
 
+#include <string.h>
 #ifdef G_OS_WIN32
 # ifndef WIN32_LEAN_AND_MEAN
 #  define WIN32_LEAN_AND_MEAN
@@ -275,7 +276,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_copy)
 
   if (gum_exceptor_try (exceptor, &scope))
   {
-    memcpy (destination, source, size);
+    memmove (destination, source, size);
   }
 
   if (gum_exceptor_catch (exceptor, &scope))

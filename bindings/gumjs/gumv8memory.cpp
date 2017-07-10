@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -310,7 +310,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_copy)
 
   if (gum_exceptor_try (exceptor, &scope))
   {
-    memcpy (destination, source, size);
+    memmove (destination, source, size);
   }
 
   if (gum_exceptor_catch (exceptor, &scope))
