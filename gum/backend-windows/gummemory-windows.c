@@ -10,6 +10,16 @@
 #include "gummemory-priv.h"
 #include "gumwindows.h"
 
+void
+_gum_memory_backend_init (void)
+{
+}
+
+void
+_gum_memory_backend_deinit (void)
+{
+}
+
 guint
 _gum_memory_backend_query_page_size (void)
 {

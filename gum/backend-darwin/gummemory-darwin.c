@@ -6,6 +6,7 @@
 
 #include "gummemory.h"
 
+#include "fridajitclient.h"
 #include "gumdarwin.h"
 #include "gummemory-priv.h"
 
@@ -24,11 +25,40 @@ struct _GumAllocNearContext
   gpointer result;
   gsize size;
   const GumAddressSpec * address_spec;
+  gboolean using_jit_server;
   mach_port_t task;
 };
 
 static gboolean gum_try_alloc_in_range_if_near_enough (
     const GumMemoryRange * range, gpointer user_data);
+
+#ifdef HAVE_IOS
+kern_return_t bootstrap_look_up (mach_port_t bp, const char * service_name,
+    mach_port_t * sp);
+
+static mach_port_t frida_jit = MACH_PORT_NULL;
+#endif
+
+void
+_gum_memory_backend_init (void)
+{
+#ifdef HAVE_IOS
+  bootstrap_look_up (bootstrap_port, "com.apple.uikit.viewservice.frida",
+      &frida_jit);
+#endif
+}
+
+void
+_gum_memory_backend_deinit (void)
+{
+#ifdef HAVE_IOS
+  if (frida_jit != MACH_PORT_NULL)
+  {
+    mach_port_deallocate (mach_task_self (), frida_jit);
+    frida_jit = MACH_PORT_NULL;
+  }
+#endif
+}
 
 guint
 _gum_memory_backend_query_page_size (void)
@@ -371,11 +401,27 @@ gum_alloc_n_pages (guint n_pages,
   mach_vm_address_t result = 0;
   gsize page_size, size;
   kern_return_t kr;
+  gboolean using_jit_server = FALSE;
 
   page_size = gum_query_page_size ();
   size = (1 + n_pages) * page_size;
 
-  kr = mach_vm_allocate (mach_task_self (), &result, size, VM_FLAGS_ANYWHERE);
+#ifdef HAVE_IOS
+  using_jit_server = (page_prot == GUM_PAGE_RWX &&
+      !gum_query_is_rwx_supported () &&
+      frida_jit != MACH_PORT_NULL);
+  if (using_jit_server)
+  {
+    kr = frida_jit_alloc (frida_jit, mach_task_self (), &result, size,
+        VM_FLAGS_ANYWHERE);
+
+    using_jit_server = TRUE;
+  }
+  else
+#endif
+  {
+    kr = mach_vm_allocate (mach_task_self (), &result, size, VM_FLAGS_ANYWHERE);
+  }
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
 
   *((gsize *) GSIZE_TO_POINTER (result)) = size;
@@ -385,7 +431,7 @@ gum_alloc_n_pages (guint n_pages,
     gum_mprotect (GSIZE_TO_POINTER (result), page_size, GUM_PAGE_READ);
   }
 
-  if (page_prot != GUM_PAGE_RW)
+  if (page_prot != GUM_PAGE_RW && !using_jit_server)
   {
     gum_mprotect (GSIZE_TO_POINTER (result + page_size), size - page_size,
         page_prot);
@@ -407,6 +453,12 @@ gum_try_alloc_n_pages_near (guint n_pages,
   ctx.result = NULL;
   ctx.size = (1 + n_pages) * gum_query_page_size ();
   ctx.address_spec = address_spec;
+#ifdef HAVE_IOS
+  ctx.using_jit_server = (page_prot == GUM_PAGE_RWX &&
+      !gum_query_is_rwx_supported () && frida_jit != MACH_PORT_NULL);
+#else
+  ctx.using_jit_server = FALSE;
+#endif
   ctx.task = mach_task_self ();
 
   gum_memory_enumerate_free_ranges (gum_try_alloc_in_range_if_near_enough,
@@ -421,7 +473,7 @@ gum_try_alloc_n_pages_near (guint n_pages,
     gum_mprotect (ctx.result, page_size, GUM_PAGE_READ);
   }
 
-  if (page_prot != GUM_PAGE_RW)
+  if (page_prot != GUM_PAGE_RW && !ctx.using_jit_server)
   {
     gum_mprotect (ctx.result + page_size, ctx.size - page_size, page_prot);
   }
@@ -456,7 +508,17 @@ gum_try_alloc_in_range_if_near_enough (const GumMemoryRange * range,
     return TRUE;
 
   address = base_address;
-  kr = mach_vm_allocate (ctx->task, &address, ctx->size, VM_FLAGS_FIXED);
+#ifdef HAVE_IOS
+  if (ctx->using_jit_server)
+  {
+    kr = frida_jit_alloc (frida_jit, ctx->task, &address, ctx->size,
+        VM_FLAGS_FIXED);
+  }
+  else
+#endif
+  {
+    kr = mach_vm_allocate (ctx->task, &address, ctx->size, VM_FLAGS_FIXED);
+  }
   if (kr != KERN_SUCCESS)
     return TRUE;
 

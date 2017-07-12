@@ -68,6 +68,8 @@ gum_memory_init (void)
     return;
   gum_memory_initialized = TRUE;
 
+  _gum_memory_backend_init ();
+
   gum_cached_page_size = _gum_memory_backend_query_page_size ();
 
   _gum_cloak_init ();
@@ -91,6 +93,8 @@ gum_memory_deinit (void)
 
   _gum_cloak_deinit ();
 
+  _gum_memory_backend_deinit ();
+
   gum_memory_initialized = FALSE;
 }
 
@@ -109,8 +113,8 @@ gum_query_is_rwx_supported (void)
   if (g_once_init_enter (&cached_result))
   {
     gboolean supported = FALSE;
-    gpointer p;
     mach_port_t task;
+    mach_vm_address_t page = 0;
     mach_vm_address_t address;
     mach_vm_size_t size = (mach_vm_size_t) 0;
     natural_t depth = 0;
@@ -118,10 +122,15 @@ gum_query_is_rwx_supported (void)
     mach_msg_type_number_t info_count;
     kern_return_t kr;
 
-    p = gum_alloc_n_pages (1, GUM_PAGE_RWX);
-
     task = mach_task_self ();
-    address = (mach_vm_address_t) p;
+
+    kr = mach_vm_allocate (task, &page, gum_cached_page_size,
+        VM_FLAGS_ANYWHERE);
+    g_assert_cmpint (kr, ==, KERN_SUCCESS);
+
+    gum_mprotect (GSIZE_TO_POINTER (page), gum_cached_page_size, GUM_PAGE_RWX);
+
+    address = page;
     while (TRUE)
     {
       info_count = VM_REGION_SUBMAP_INFO_COUNT_64;
@@ -144,7 +153,7 @@ gum_query_is_rwx_supported (void)
       }
     }
 
-    gum_free_pages (p);
+    mach_vm_deallocate (task, page, gum_cached_page_size);
 
     g_once_init_leave (&cached_result, supported + 1);
   }

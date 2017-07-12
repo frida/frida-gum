@@ -108,6 +108,11 @@ if host_os_family == 'darwin'
     'backend-darwin/gumdarwinmoduleresolver.c',
   ]
 endif
+if host_os == 'ios'
+  gum_sources += [
+    'backend-darwin/fridajitclient.c',
+  ]
+endif
 
 if host_os_family == 'linux'
   gum_headers += [
