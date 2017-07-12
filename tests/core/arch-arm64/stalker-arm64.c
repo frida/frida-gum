@@ -671,6 +671,8 @@ STALKER_TESTCASE (no_register_clobber)
   {
     g_assert_cmphex (ctx.x[i - ARM64_REG_X0], ==, i);
   }
+  g_assert_cmphex (ctx.fp, ==, ARM64_REG_FP);
+  g_assert_cmphex (ctx.lr, ==, ARM64_REG_LR);
 
   gum_free_pages (code);
 }
