@@ -23,6 +23,11 @@ endif
 
 subdir('data')
 
+runner_name = 'gum-tests'
+if host_os_family == 'darwin'
+  runner_name = 'gum-tests-unsigned'
+endif
+
 extra_test_deps = []
 extra_link_args = []
 
@@ -48,7 +53,7 @@ if host_os == 'ios'
   extra_link_args += ['-Wl,-framework,Foundation']
 endif
 
-gum_tests = executable('gum-tests', runner_sources + [test_data_stamp],
+runner = executable(runner_name, runner_sources + [test_data_stamp],
   link_with: [
     gum_tests_core,
     gum_tests_heap,
@@ -59,4 +64,19 @@ gum_tests = executable('gum-tests', runner_sources + [test_data_stamp],
   link_args: extra_link_args,
 )
 
-test('Gum', gum_tests)
+if host_os_family == 'darwin'
+  custom_target('gum-tests-signed',
+    input: [
+      runner,
+      'gum-tests.xcent',
+    ],
+    output: 'gum-tests',
+    command: [
+      files('sign.sh'),
+      host_os,
+      '@INPUT@',
+      '@OUTPUT@',
+    ],
+    build_by_default: true,
+  )
+endif
