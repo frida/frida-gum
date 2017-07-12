@@ -613,7 +613,6 @@ STALKER_TESTCASE (no_register_clobber)
   guint8 * code;
   GumArm64Writer cw;
   gint i;
-  gint offset;
   ClobberFunc func;
   GumCpuContext ctx;
 
@@ -633,6 +632,8 @@ STALKER_TESTCASE (no_register_clobber)
   {
     gum_arm64_writer_put_ldr_reg_u64 (&cw, i, i);
   }
+  gum_arm64_writer_put_ldr_reg_u64 (&cw, ARM64_REG_FP, ARM64_REG_FP);
+  gum_arm64_writer_put_ldr_reg_u64 (&cw, ARM64_REG_LR, ARM64_REG_LR);
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
@@ -640,16 +641,24 @@ STALKER_TESTCASE (no_register_clobber)
       GUM_ARG_ADDRESS, fixture->stalker);
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
-  offset = (4 * sizeof (gpointer)) + (32 * sizeof (gpointer));
-
+  gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_FP, ARM64_REG_LR);
+  gum_arm64_writer_put_ldr_reg_reg_offset (&cw, ARM64_REG_FP, ARM64_REG_SP,
+      (2 + 30) * sizeof (gpointer));
   for (i = ARM64_REG_X0; i <= ARM64_REG_X28; i++)
   {
-    gum_arm64_writer_put_str_reg_reg_offset (&cw, i, ARM64_REG_SP,
-        offset + G_STRUCT_OFFSET (GumCpuContext, x[i - ARM64_REG_X0]));
+    gum_arm64_writer_put_str_reg_reg_offset (&cw, i, ARM64_REG_FP,
+        G_STRUCT_OFFSET (GumCpuContext, x[i - ARM64_REG_X0]));
   }
+  gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_FP, ARM64_REG_LR);
+
+  gum_arm64_writer_put_ldr_reg_reg_offset (&cw, ARM64_REG_X0, ARM64_REG_SP,
+      30 * sizeof (gpointer));
+  gum_arm64_writer_put_str_reg_reg_offset (&cw, ARM64_REG_FP, ARM64_REG_X0,
+      G_STRUCT_OFFSET (GumCpuContext, fp));
+  gum_arm64_writer_put_str_reg_reg_offset (&cw, ARM64_REG_LR, ARM64_REG_X0,
+      G_STRUCT_OFFSET (GumCpuContext, lr));
 
   gum_arm64_writer_put_pop_all_x_registers (&cw);
-
   gum_arm64_writer_put_ret (&cw);
 
   gum_arm64_writer_free (&cw);
