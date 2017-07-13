@@ -161,7 +161,6 @@ enum _GumPrologType
 {
   GUM_PROLOG_NONE,
   GUM_PROLOG_MINIMAL,
-  GUM_PROLOG_FULL
 };
 
 enum _GumCodeContext
@@ -983,14 +982,6 @@ gum_exec_ctx_write_prolog (GumExecCtx * ctx,
     gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X30, ARM64_REG_X15);
     immediate_for_sp += 1 * 16;
   }
-  else /* GUM_PROLOG_FULL */
-  {
-    gum_arm64_writer_put_push_all_x_registers (cw);
-    immediate_for_sp += 16 * 16;
-
-    gum_arm64_writer_put_push_all_q_registers (cw);
-    immediate_for_sp += 16 * 32;
-  }
 
   /* 3) save the stack pointer in context */
   gum_arm64_writer_put_ldr_reg_address (cw, STALKER_REG_CTX, GUM_ADDRESS (ctx));
@@ -1016,11 +1007,6 @@ gum_exec_ctx_write_epilog (GumExecCtx * ctx,
                            GumPrologType type,
                            GumArm64Writer * cw)
 {
-  if (type != GUM_PROLOG_MINIMAL) /* GUM_PROLOG_FULL */
-  {
-    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X15, ARM64_REG_X15);
-  }
-
   if (type == GUM_PROLOG_MINIMAL)
   {
     gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X30, ARM64_REG_X15);
@@ -1039,11 +1025,6 @@ gum_exec_ctx_write_epilog (GumExecCtx * ctx,
     gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X4, ARM64_REG_X5);
     gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X2, ARM64_REG_X3);
     gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X0, ARM64_REG_X1);
-  }
-  else /* GUM_PROLOG_FULL */
-  {
-    gum_arm64_writer_put_pop_all_q_registers (cw);
-    gum_arm64_writer_put_pop_all_x_registers (cw);
   }
 
   /* restore the app_stack (with some tricks) */
