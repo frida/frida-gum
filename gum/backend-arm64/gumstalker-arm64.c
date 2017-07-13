@@ -982,7 +982,6 @@ gum_exec_ctx_write_prolog (GumExecCtx * ctx,
     gum_arm64_writer_put_instruction (cw, 0xD53B420F); /* MRS X15, NZCV */
     gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X30, ARM64_REG_X15);
     immediate_for_sp += 1 * 16;
-
   }
   else /* GUM_PROLOG_FULL */
   {
@@ -1113,7 +1112,8 @@ gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
     gum_arm64_writer_put_sub_reg_reg_imm (cw, ARM64_REG_X15, ARM64_REG_X15,
         GUM_RED_ZONE_SIZE);
     gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X14,
-        ARM64_REG_X15, ARM64_REG_X15, -slot_in_the_stack * 16);
+        ARM64_REG_X15, ARM64_REG_X15, -slot_in_the_stack * 16,
+        GUM_INDEX_SIGNED_OFFSET);
     if (pos_in_the_slot == 0)
       gum_arm64_writer_put_mov_reg_reg (cw, target_register, ARM64_REG_X14);
     else
@@ -1128,7 +1128,8 @@ gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
     gum_arm64_writer_put_sub_reg_reg_imm (cw, ARM64_REG_X15, ARM64_REG_X15,
         GUM_RED_ZONE_SIZE);
     gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X14,
-        ARM64_REG_X15, ARM64_REG_X15, -slot_in_the_stack * 16);
+        ARM64_REG_X15, ARM64_REG_X15, -slot_in_the_stack * 16,
+        GUM_INDEX_SIGNED_OFFSET);
 
     if (pos_in_the_slot == 0)
       gum_arm64_writer_put_mov_reg_reg (cw, target_register, ARM64_REG_X14);

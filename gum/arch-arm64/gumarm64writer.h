@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
- * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
+ * Copyright (C) 2014-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C)      2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -20,6 +20,7 @@ typedef struct _GumArm64Writer GumArm64Writer;
 typedef struct _GumArm64LabelMapping GumArm64LabelMapping;
 typedef struct _GumArm64LabelRef GumArm64LabelRef;
 typedef struct _GumArm64LiteralRef GumArm64LiteralRef;
+typedef guint GumArm64IndexMode;
 
 struct _GumArm64Writer
 {
@@ -35,6 +36,13 @@ struct _GumArm64Writer
 
   GumArm64LiteralRef * literal_refs;
   guint literal_refs_len;
+};
+
+enum _GumArm64IndexMode
+{
+  GUM_INDEX_POST_ADJUST   = 1,
+  GUM_INDEX_SIGNED_OFFSET = 2,
+  GUM_INDEX_PRE_ADJUST    = 3,
 };
 
 void gum_arm64_writer_init (GumArm64Writer * writer, gpointer code_address);
@@ -93,10 +101,14 @@ void gum_arm64_writer_put_ldr_reg_reg_offset (GumArm64Writer * self,
     arm64_reg dst_reg, arm64_reg src_reg, gsize src_offset);
 void gum_arm64_writer_put_adrp_reg_address (GumArm64Writer * self,
     arm64_reg reg, GumAddress address);
-void gum_arm64_writer_put_ldp_reg_reg_reg_offset (GumArm64Writer * self,
-    arm64_reg reg_a, arm64_reg reg_b, arm64_reg reg_src, gsize src_offset);
 void gum_arm64_writer_put_str_reg_reg_offset (GumArm64Writer * self,
     arm64_reg src_reg, arm64_reg dst_reg, gsize dst_offset);
+void gum_arm64_writer_put_ldp_reg_reg_reg_offset (GumArm64Writer * self,
+    arm64_reg reg_a, arm64_reg reg_b, arm64_reg reg_src, gssize src_offset,
+    GumArm64IndexMode mode);
+void gum_arm64_writer_put_stp_reg_reg_reg_offset (GumArm64Writer * self,
+    arm64_reg reg_a, arm64_reg reg_b, arm64_reg reg_dst, gssize dst_offset,
+    GumArm64IndexMode mode);
 void gum_arm64_writer_put_mov_reg_reg (GumArm64Writer * self, arm64_reg dst_reg,
     arm64_reg src_reg);
 void gum_arm64_writer_put_add_reg_reg_imm (GumArm64Writer * self,
