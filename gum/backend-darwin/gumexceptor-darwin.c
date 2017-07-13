@@ -324,22 +324,27 @@ gum_exceptor_backend_process_messages (GumExceptorBackend * self)
   while (TRUE)
   {
     bzero (&request, sizeof (request));
+
     header_in = (mach_msg_header_t *) &request;
     header_in->msgh_size = sizeof (request);
     header_in->msgh_local_port = self->server_port;
+
     kr = mach_msg_receive (header_in);
     g_assert_cmpint (kr, ==, KERN_SUCCESS);
 
     if (header_in->msgh_id == GUM_EXCEPTOR_BACKEND_MESSAGE_STOP)
+    {
+      mach_msg_destroy (header_in);
       break;
+    }
 
     header_out = (mach_msg_header_t *) &reply;
 
     handled = mach_exc_server (header_in, header_out);
-    if (!handled)
-      continue;
+    if (handled)
+      mach_msg_send (header_out);
 
-    mach_msg_send (header_out);
+    mach_msg_destroy (header_in);
   }
 
   return NULL;
@@ -552,9 +557,6 @@ catch_mach_exception_raise_state_identity (
         break;
     }
   }
-
-  mach_port_deallocate (self_task, thread);
-  mach_port_deallocate (self_task, task);
 
   return kr;
 }
