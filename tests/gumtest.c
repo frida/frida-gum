@@ -172,7 +172,7 @@ main (gint argc, gchar * argv[])
 #if defined (HAVE_I386) && defined (G_OS_WIN32)
   TEST_RUN_LIST (memoryaccessmonitor);
 #endif
-#if defined HAVE_I386 || defined (HAVE_ARM64)
+#if defined (HAVE_I386) || defined (HAVE_ARM64)
   TEST_RUN_LIST (stalker);
 #endif
 #ifdef HAVE_MACOS
