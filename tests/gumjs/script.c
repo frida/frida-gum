@@ -192,8 +192,10 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (file_can_be_written_to)
   SCRIPT_TESTENTRY (inline_sqlite_database_can_be_queried)
   SCRIPT_TESTENTRY (external_sqlite_database_can_be_queried)
-#ifdef HAVE_I386
+#if defined (HAVE_I386) || defined (HAVE_ARM64)
   SCRIPT_TESTENTRY (execution_can_be_traced)
+#endif
+#if defined (HAVE_I386)
   SCRIPT_TESTENTRY (call_can_be_probed)
 #endif
   SCRIPT_TESTENTRY (script_can_be_compiled_to_bytecode)
@@ -1384,7 +1386,7 @@ on_read_ready (GObject * source_object,
 
 #endif /* !HAVE_ANDROID */
 
-#ifdef HAVE_I386
+#if defined (HAVE_I386) || defined (HAVE_ARM64)
 
 SCRIPT_TESTCASE (execution_can_be_traced)
 {
@@ -1422,6 +1424,10 @@ SCRIPT_TESTCASE (execution_can_be_traced)
   EXPECT_SEND_MESSAGE_WITH ("\"onReceive: true\"");
 }
 
+#endif
+
+#if defined (HAVE_I386)
+
 SCRIPT_TESTCASE (call_can_be_probed)
 {
   GumThreadId test_thread_id;
@@ -1449,7 +1455,7 @@ SCRIPT_TESTCASE (call_can_be_probed)
   POST_MESSAGE ("{\"type\":\"stop\"}");
 }
 
-#endif /* HAVE_I386 */
+#endif
 
 SCRIPT_TESTCASE (frida_version_is_available)
 {
