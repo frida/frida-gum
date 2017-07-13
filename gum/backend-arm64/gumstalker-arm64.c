@@ -988,18 +988,6 @@ gum_exec_ctx_write_prolog (GumExecCtx * ctx,
   gum_arm64_writer_put_add_reg_reg_imm (cw, ARM64_REG_X14, ARM64_REG_SP,
       immediate_for_sp);
   STALKER_STORE_REG_INTO_CTX (ARM64_REG_X14, app_stack);
-
-  if (type != GUM_PROLOG_MINIMAL)
-  {
-    /* 5) push the instruction pointer */
-    gum_arm64_writer_put_ldr_reg_address (cw, ARM64_REG_X15, GUM_ADDRESS (ip));
-    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X15, ARM64_REG_X15);
-
-    /* 6) save the stack pointer in the GumCpuContex.sp? */
-    STALKER_STORE_REG_INTO_CTX (ARM64_REG_X15, app_stack);
-    gum_arm64_writer_put_ldr_reg_reg_offset (cw, ARM64_REG_X15, ARM64_REG_SP,
-        G_STRUCT_OFFSET (GumCpuContext, sp));
-  }
 }
 
 static void
