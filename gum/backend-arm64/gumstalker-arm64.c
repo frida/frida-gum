@@ -1371,11 +1371,11 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
       /* jump to is_false if is_false */
       if (insn->ci->id == ARM64_INS_CBZ)
       {
-        gum_arm64_writer_put_cbnz_reg_label (cw, op->reg,  is_false);
+        gum_arm64_writer_put_cbnz_reg_label (cw, op->reg, is_false);
       }
       else if (insn->ci->id == ARM64_INS_CBNZ)
       {
-        gum_arm64_writer_put_cbz_reg_label (cw, op->reg,  is_false);
+        gum_arm64_writer_put_cbz_reg_label (cw, op->reg, is_false);
       }
       else if (insn->ci->id == ARM64_INS_TBZ)
       {
