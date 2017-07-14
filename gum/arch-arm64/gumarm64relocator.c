@@ -169,6 +169,7 @@ gum_arm64_relocator_read_one (GumArm64Relocator * self,
       self->eoi = FALSE;
       break;
     default:
+      self->eob = FALSE;
       break;
   }
 
