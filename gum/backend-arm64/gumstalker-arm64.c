@@ -36,6 +36,8 @@
   gum_arm64_writer_put_str_reg_reg_offset (cw, reg, STALKER_REG_CTX, \
       G_STRUCT_OFFSET (GumExecCtx, field) + additional_offset);
 
+#define GUM_INSTRUCTION_OFFSET_NONE (-1)
+
 #define GUM_STALKER_LOCK(o) g_mutex_lock (&(o)->priv->mutex)
 #define GUM_STALKER_UNLOCK(o) g_mutex_unlock (&(o)->priv->mutex)
 
@@ -176,6 +178,7 @@ struct _GumGeneratorContext
   GumArm64Writer * code_writer;
   gpointer continuation_real_address;
   GumPrologType opened_prolog;
+  gint exclusive_load_offset;
 };
 
 struct _GumInstruction
@@ -200,8 +203,9 @@ struct _GumBranchTarget
 
 enum _GumVirtualizationRequirements
 {
-  GUM_REQUIRE_NOTHING         = 0,
-  GUM_REQUIRE_RELOCATION      = 1 << 0,
+  GUM_REQUIRE_NOTHING          = 0,
+  GUM_REQUIRE_RELOCATION       = 1 << 0,
+  GUM_REQUIRE_EXCLUSIVE_STORE  = 1 << 1,
 };
 
 static void gum_stalker_finalize (GObject * object);
@@ -842,6 +846,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   gc.code_writer = cw;
   gc.continuation_real_address = NULL;
   gc.opened_prolog = GUM_PROLOG_NONE;
+  gc.exclusive_load_offset = GUM_INSTRUCTION_OFFSET_NONE;
 
   gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X16, ARM64_REG_X17,
       ARM64_REG_SP, 16 + GUM_RED_ZONE_SIZE, GUM_INDEX_POST_ADJUST);
@@ -863,8 +868,27 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
 
     gc.instruction = &insn;
 
-    if ((ctx->sink_mask & GUM_EXEC) != 0)
+    switch (insn.ci->id)
+    {
+      case ARM64_INS_LDAXR:
+      case ARM64_INS_LDAXP:
+      case ARM64_INS_LDAXRB:
+      case ARM64_INS_LDAXRH:
+      case ARM64_INS_LDXR:
+      case ARM64_INS_LDXP:
+      case ARM64_INS_LDXRB:
+      case ARM64_INS_LDXRH:
+        gc.exclusive_load_offset = 0;
+        break;
+      default:
+        break;
+    }
+
+    if ((ctx->sink_mask & GUM_EXEC) != 0 &&
+        gc.exclusive_load_offset == GUM_INSTRUCTION_OFFSET_NONE)
+    {
       gum_exec_block_write_exec_event_code (block, &gc, GUM_CODE_INTERRUPTIBLE);
+    }
 
     switch (insn.ci->id)
     {
@@ -887,6 +911,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
       case ARM64_INS_SMC:
       case ARM64_INS_HVC:
         g_assert ("" == "not implemented");
+        break;
       default:
         requirements = GUM_REQUIRE_RELOCATION;
     }
@@ -905,19 +930,39 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
     }
     else if (insn.ci->id == ARM64_INS_BL)
     {
-      /* We always stop on a call unless it's to an excluded range */
-      if ((requirements & GUM_REQUIRE_RELOCATION) != 0)
-      {
-        rl->eob = FALSE;
-      }
-      else
-      {
+      gboolean is_call_to_excluded_range;
+
+      is_call_to_excluded_range = (requirements & GUM_REQUIRE_RELOCATION) != 0;
+      if (!is_call_to_excluded_range)
         break;
-      }
     }
-    else if (gum_arm64_relocator_eob (rl))
+    else if ((requirements & GUM_REQUIRE_EXCLUSIVE_STORE) == 0 &&
+        gum_arm64_relocator_eob (rl))
     {
       break;
+    }
+
+    switch (insn.ci->id)
+    {
+      case ARM64_INS_STXR:
+      case ARM64_INS_STXP:
+      case ARM64_INS_STXRB:
+      case ARM64_INS_STXRH:
+      case ARM64_INS_STLXR:
+      case ARM64_INS_STLXP:
+      case ARM64_INS_STLXRB:
+      case ARM64_INS_STLXRH:
+        gc.exclusive_load_offset = GUM_INSTRUCTION_OFFSET_NONE;
+        break;
+      default:
+        break;
+    }
+
+    if (gc.exclusive_load_offset != GUM_INSTRUCTION_OFFSET_NONE)
+    {
+      gc.exclusive_load_offset++;
+      if (gc.exclusive_load_offset == 4)
+        gc.exclusive_load_offset = GUM_INSTRUCTION_OFFSET_NONE;
     }
   }
 
@@ -1367,7 +1412,14 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
 
       gum_arm64_writer_put_label (cw, is_false);
 
-      gum_exec_block_write_jmp_transfer_code (block, &cond_target, gc);
+      if (gc->exclusive_load_offset == GUM_INSTRUCTION_OFFSET_NONE)
+      {
+        gum_exec_block_write_jmp_transfer_code (block, &cond_target, gc);
+      }
+      else
+      {
+        return GUM_REQUIRE_EXCLUSIVE_STORE;
+      }
     }
   }
   else
