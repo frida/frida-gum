@@ -578,18 +578,12 @@ gum_arm64_relocator_rewrite_ldr (GumArm64Relocator * self,
   {
     tmp_reg = ARM64_REG_X0;
 
-    gum_arm64_writer_put_sub_reg_reg_imm (ctx->output, ARM64_REG_SP,
-        ARM64_REG_SP, 8);
-    gum_arm64_writer_put_str_reg_reg_offset (ctx->output, tmp_reg,
-        ARM64_REG_SP, 0);
+    gum_arm64_writer_put_push_reg_reg (ctx->output, tmp_reg, ARM64_REG_X1);
 
     gum_arm64_writer_put_ldr_reg_address (ctx->output, tmp_reg, src->imm);
     gum_arm64_writer_put_ldr_reg_reg_offset (ctx->output, dst->reg, tmp_reg, 0);
 
-    gum_arm64_writer_put_ldr_reg_reg_offset (ctx->output, tmp_reg,
-        ARM64_REG_SP, 0);
-    gum_arm64_writer_put_add_reg_reg_imm (ctx->output, ARM64_REG_SP,
-        ARM64_REG_SP, 8);
+    gum_arm64_writer_put_pop_reg_reg (ctx->output, tmp_reg, ARM64_REG_X1);
   }
   else
   {
