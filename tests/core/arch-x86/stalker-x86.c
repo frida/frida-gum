@@ -457,7 +457,8 @@ STALKER_TESTCASE (call_probe)
 }
 
 static void
-probe_func_a_invocation (GumCallSite * site, gpointer user_data)
+probe_func_a_invocation (GumCallSite * site,
+                         gpointer user_data)
 {
   CallProbeContext * ctx = (CallProbeContext *) user_data;
 
