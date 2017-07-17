@@ -2659,7 +2659,7 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
     if (!gum_v8_value_from_ffi_type (self->core, &argv[i],
         (GumFFIValue *) args[i], cif->arg_types[i]))
     {
-      for (guint j = 0; j != i; j++)
+      for (guint j = 0; j <= i; j++)
         argv[j].~Local<Value> ();
       return;
     }
