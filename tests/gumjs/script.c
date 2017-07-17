@@ -194,8 +194,6 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (external_sqlite_database_can_be_queried)
 #if defined (HAVE_I386) || defined (HAVE_ARM64)
   SCRIPT_TESTENTRY (execution_can_be_traced)
-#endif
-#if defined (HAVE_I386)
   SCRIPT_TESTENTRY (call_can_be_probed)
 #endif
   SCRIPT_TESTENTRY (script_can_be_compiled_to_bytecode)
@@ -1423,10 +1421,6 @@ SCRIPT_TESTCASE (execution_can_be_traced)
   EXPECT_SEND_MESSAGE_WITH ("\"onCallSummary: true\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onReceive: true\"");
 }
-
-#endif
-
-#if defined (HAVE_I386)
 
 SCRIPT_TESTCASE (call_can_be_probed)
 {

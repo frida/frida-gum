@@ -223,6 +223,7 @@ static void gum_stalker_free_probe_array (gpointer data);
 static GumExecCtx * gum_stalker_create_exec_ctx (GumStalker * self,
     GumThreadId thread_id, GumEventSink * sink);
 static GumExecCtx * gum_stalker_get_exec_ctx (GumStalker * self);
+static void gum_stalker_invalidate_caches (GumStalker * self);
 
 static void gum_exec_ctx_free (GumExecCtx * ctx);
 static void gum_exec_ctx_unfollow (GumExecCtx * ctx, gpointer resume_at);
@@ -631,22 +632,104 @@ gum_stalker_add_call_probe (GumStalker * self,
                             gpointer data,
                             GDestroyNotify notify)
 {
-  g_assert ("" == "NOT IMPLEMENTED");
+  GumStalkerPrivate * priv = self->priv;
+  GumCallProbe probe;
+  GArray * probes;
 
-  return 0;
+  probe.id = g_atomic_int_add (&priv->last_probe_id, 1) + 1;
+  probe.callback = callback;
+  probe.user_data = data;
+  probe.user_notify = notify;
+
+  gum_spinlock_acquire (&priv->probe_lock);
+
+  g_hash_table_insert (priv->probe_target_by_id, GSIZE_TO_POINTER (probe.id),
+      target_address);
+
+  probes = (GArray *)
+      g_hash_table_lookup (priv->probe_array_by_address, target_address);
+  if (probes == NULL)
+  {
+    probes = g_array_sized_new (FALSE, FALSE, sizeof (GumCallProbe), 4);
+    g_hash_table_insert (priv->probe_array_by_address, target_address, probes);
+  }
+
+  g_array_append_val (probes, probe);
+
+  priv->any_probes_attached = TRUE;
+
+  gum_spinlock_release (&priv->probe_lock);
+
+  gum_stalker_invalidate_caches (self);
+
+  return probe.id;
 }
 
 void
 gum_stalker_remove_call_probe (GumStalker * self,
                                GumProbeId id)
 {
-  g_assert ("" == "NOT IMPLEMENTED");
+  GumStalkerPrivate * priv = self->priv;
+  gpointer target_address;
+
+  gum_spinlock_acquire (&priv->probe_lock);
+
+  target_address =
+      g_hash_table_lookup (priv->probe_target_by_id, GSIZE_TO_POINTER (id));
+  if (target_address != NULL)
+  {
+    GArray * probes;
+    gint match_index = -1;
+    guint i;
+    GumCallProbe * probe;
+
+    g_hash_table_remove (priv->probe_target_by_id, GSIZE_TO_POINTER (id));
+
+    probes = (GArray *)
+        g_hash_table_lookup (priv->probe_array_by_address, target_address);
+    g_assert (probes != NULL);
+
+    for (i = 0; i != probes->len; i++)
+    {
+      if (g_array_index (probes, GumCallProbe, i).id == id)
+      {
+        match_index = i;
+        break;
+      }
+    }
+    g_assert_cmpint (match_index, !=, -1);
+
+    probe = &g_array_index (probes, GumCallProbe, match_index);
+    if (probe->user_notify != NULL)
+      probe->user_notify (probe->user_data);
+    g_array_remove_index (probes, match_index);
+
+    if (probes->len == 0)
+      g_hash_table_remove (priv->probe_array_by_address, target_address);
+
+    priv->any_probes_attached =
+        g_hash_table_size (priv->probe_array_by_address) != 0;
+  }
+
+  gum_spinlock_release (&priv->probe_lock);
+
+  gum_stalker_invalidate_caches (self);
 }
 
 static void
 gum_stalker_free_probe_array (gpointer data)
 {
-  g_assert ("" == "NOT IMPLEMENTED");
+  GArray * probes = (GArray *) data;
+  guint i;
+
+  for (i = 0; i != probes->len; i++)
+  {
+    GumCallProbe * probe = &g_array_index (probes, GumCallProbe, i);
+    if (probe->user_notify != NULL)
+      probe->user_notify (probe->user_data);
+  }
+
+  g_array_free (probes, TRUE);
 }
 
 static GumExecCtx *
@@ -703,6 +786,23 @@ static GumExecCtx *
 gum_stalker_get_exec_ctx (GumStalker * self)
 {
   return (GumExecCtx *) gum_tls_key_get_value (self->priv->exec_ctx);
+}
+
+static void
+gum_stalker_invalidate_caches (GumStalker * self)
+{
+  GSList * cur;
+
+  GUM_STALKER_LOCK (self);
+
+  for (cur = self->priv->contexts; cur != NULL; cur = cur->next)
+  {
+    GumExecCtx * ctx = (GumExecCtx *) cur->data;
+
+    ctx->invalidate_pending = TRUE;
+  }
+
+  GUM_STALKER_UNLOCK (self);
 }
 
 static void
@@ -1017,7 +1117,7 @@ gum_exec_ctx_write_prolog (GumExecCtx * ctx,
     immediate_for_sp += 11 * 16;
 
     gum_arm64_writer_put_push_all_q_registers (cw);
-    immediate_for_sp += 16 * 32;
+    immediate_for_sp += 32 * 16;
 
     gum_arm64_writer_put_instruction (cw, 0xD53B420F); /* MRS X15, NZCV */
     gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X30, ARM64_REG_X15);
@@ -1748,11 +1848,115 @@ gum_exec_block_write_event_submit_code (GumExecBlock * block,
 }
 
 static void
+gum_exec_block_invoke_call_probes_for_target (GumExecBlock * block,
+                                              gpointer location,
+                                              gpointer target_address,
+                                              guint64 * callee_saved_regs)
+{
+  GumStalkerPrivate * priv = block->ctx->stalker->priv;
+  GArray * probes;
+
+  gum_spinlock_acquire (&priv->probe_lock);
+
+  probes = (GArray *)
+      g_hash_table_lookup (priv->probe_array_by_address, target_address);
+  if (probes != NULL)
+  {
+    GumCallSite call_site;
+    GumCpuContext cpu_context;
+    guint64 * caller_saved_regs;
+    guint slot_index, reg_index, probe_index;
+
+    call_site.block_address = block->real_begin;
+    call_site.stack_data = block->ctx->app_stack;
+    call_site.cpu_context = &cpu_context;
+
+    cpu_context.pc = GPOINTER_TO_SIZE (location);
+    cpu_context.sp = GPOINTER_TO_SIZE (call_site.stack_data);
+
+    caller_saved_regs = (guint64 *)
+        ((guint8 *) block->ctx->app_stack - GUM_RED_ZONE_SIZE - 16);
+    for (slot_index = 0, reg_index = 0;
+        slot_index != 9;
+        slot_index++, reg_index += 2, caller_saved_regs -= 2)
+    {
+      cpu_context.x[reg_index + 0] = caller_saved_regs[0];
+      cpu_context.x[reg_index + 1] = caller_saved_regs[1];
+    }
+
+    cpu_context.x[reg_index] = caller_saved_regs[0];
+    reg_index++;
+    caller_saved_regs -= 2;
+
+    cpu_context.fp = caller_saved_regs[0];
+    cpu_context.lr = caller_saved_regs[1];
+    caller_saved_regs -= 2;
+
+    memcpy (cpu_context.q, caller_saved_regs - 64, sizeof (cpu_context.q));
+
+    for (slot_index = 0;
+        slot_index != 5;
+        slot_index++, reg_index += 2, callee_saved_regs += 2)
+    {
+      cpu_context.x[reg_index + 0] = callee_saved_regs[0];
+      cpu_context.x[reg_index + 1] = callee_saved_regs[1];
+    }
+
+    for (probe_index = 0; probe_index != probes->len; probe_index++)
+    {
+      GumCallProbe * probe = &g_array_index (probes, GumCallProbe, probe_index);
+
+      probe->callback (&call_site, probe->user_data);
+    }
+  }
+
+  gum_spinlock_release (&priv->probe_lock);
+}
+
+static void
 gum_exec_block_write_call_probe_code (GumExecBlock * block,
                                       const GumBranchTarget * target,
                                       GumGeneratorContext * gc)
 {
-  g_assert ("" == "NOT IMPLEMENTED");
+  GumArm64Writer * cw;
+  gboolean skip_probing = FALSE;
+
+  cw = gc->code_writer;
+
+  if (!target->is_indirect && target->base == ARM64_REG_INVALID)
+  {
+    GumStalkerPrivate * priv = block->ctx->stalker->priv;
+
+    gum_spinlock_acquire (&priv->probe_lock);
+    skip_probing = g_hash_table_lookup (priv->probe_array_by_address,
+        target->absolute_address) == NULL;
+    gum_spinlock_release (&priv->probe_lock);
+  }
+
+  if (!skip_probing)
+  {
+    gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
+
+    gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X14, ARM64_REG_X15);
+
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X27, ARM64_REG_X28);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X25, ARM64_REG_X26);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X23, ARM64_REG_X24);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X21, ARM64_REG_X22);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X19, ARM64_REG_X20);
+    gum_arm64_writer_put_mov_reg_reg (cw, ARM64_REG_X15, ARM64_REG_SP);
+
+    gum_arm64_writer_put_call_address_with_arguments (cw,
+        GUM_ADDRESS (gum_exec_block_invoke_call_probes_for_target), 4,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (block),
+        GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->begin),
+        GUM_ARG_REGISTER, ARM64_REG_X14,
+        GUM_ARG_REGISTER, ARM64_REG_X15);
+
+    gum_arm64_writer_put_add_reg_reg_imm (cw, ARM64_REG_SP, ARM64_REG_SP,
+        5 * 16);
+  }
 }
 
 static void

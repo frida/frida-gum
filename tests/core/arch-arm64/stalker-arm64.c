@@ -15,6 +15,9 @@ TEST_LIST_BEGIN (stalker)
   STALKER_TESTENTRY (ret)
   STALKER_TESTENTRY (exec)
 
+  /* PROBES */
+  STALKER_TESTENTRY (call_probe)
+
   /* BRANCH */
   STALKER_TESTENTRY (unconditional_branch)
   STALKER_TESTENTRY (unconditional_branch_reg)
@@ -114,6 +117,95 @@ STALKER_TESTCASE (exec)
   ev =
       &g_array_index (fixture->sink->events, GumEvent, INVOKER_IMPL_OFFSET).ret;
   GUM_ASSERT_CMPADDR (ev->location, ==, func);
+}
+
+typedef struct _CallProbeContext CallProbeContext;
+
+struct _CallProbeContext
+{
+  guint callback_count;
+  guint8 * block_start;
+};
+
+static void probe_func_a_invocation (GumCallSite * site, gpointer user_data);
+
+STALKER_TESTCASE (call_probe)
+{
+  const guint32 code_template[] =
+  {
+    0xa9bf7bf3, /* push {x19, lr} */
+    0xd2801553, /* mov x19, #0xaa */
+    0xd2800883, /* mov x3, #0x44  */
+    0xd2800662, /* mov x2, #0x33  */
+    0xd2800441, /* mov x1, #0x22  */
+    0xd2800220, /* mov x0, #0x11  */
+    0xa9bf07e0, /* push {x0, x1}  */
+    0x94000009, /* bl func_a      */
+    0xa8c107e0, /* pop {x0, x1}   */
+    0xd2801103, /* mov x3, #0x88  */
+    0xd2800ee2, /* mov x2, #0x77  */
+    0xd2800cc1, /* mov x1, #0x66  */
+    0xd2800aa0, /* mov x0, #0x55  */
+    0x94000005, /* bl func_b      */
+    0xa8c17bf3, /* pop {x19, lr}  */
+    0xd65f03c0, /* ret            */
+
+    /* func_a: */
+    0xd2801100, /* mov x0, #0x88  */
+    0xd65f03c0, /* ret            */
+
+    /* func_b: */
+    0xd2801320, /* mov x0, #0x99  */
+    0xd65f03c0, /* ret            */
+  };
+  StalkerTestFunc func;
+  guint8 * func_a_address;
+  CallProbeContext probe_ctx, secondary_probe_ctx;
+  GumProbeId probe_id;
+
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc,
+      test_arm64_stalker_fixture_dup_code (fixture, code_template,
+          sizeof (code_template)));
+
+  func_a_address = fixture->code + (16 * 4);
+
+  probe_ctx.callback_count = 0;
+  probe_ctx.block_start = fixture->code;
+  probe_id = gum_stalker_add_call_probe (fixture->stalker,
+      func_a_address, probe_func_a_invocation, &probe_ctx, NULL);
+  test_arm64_stalker_fixture_follow_and_invoke (fixture, func, 0);
+  g_assert_cmpuint (probe_ctx.callback_count, ==, 1);
+
+  secondary_probe_ctx.callback_count = 0;
+  secondary_probe_ctx.block_start = fixture->code;
+  gum_stalker_add_call_probe (fixture->stalker,
+      func_a_address, probe_func_a_invocation, &secondary_probe_ctx, NULL);
+  test_arm64_stalker_fixture_follow_and_invoke (fixture, func, 0);
+  g_assert_cmpuint (probe_ctx.callback_count, ==, 2);
+  g_assert_cmpuint (secondary_probe_ctx.callback_count, ==, 1);
+
+  gum_stalker_remove_call_probe (fixture->stalker, probe_id);
+  test_arm64_stalker_fixture_follow_and_invoke (fixture, func, 0);
+  g_assert_cmpuint (probe_ctx.callback_count, ==, 2);
+  g_assert_cmpuint (secondary_probe_ctx.callback_count, ==, 2);
+}
+
+static void
+probe_func_a_invocation (GumCallSite * site,
+                         gpointer user_data)
+{
+  CallProbeContext * ctx = (CallProbeContext *) user_data;
+
+  ctx->callback_count++;
+
+  GUM_ASSERT_CMPADDR (site->block_address, ==, ctx->block_start);
+  g_assert_cmphex (site->cpu_context->x[0], ==, 0x11);
+  g_assert_cmphex (site->cpu_context->x[1], ==, 0x22);
+  g_assert_cmphex (site->cpu_context->x[2], ==, 0x33);
+  g_assert_cmphex (site->cpu_context->x[3], ==, 0x44);
+  g_assert_cmphex (site->cpu_context->x[19], ==, 0xaa);
+  g_assert_cmphex (((gsize *) site->stack_data)[0], ==, 0x11);
+  g_assert_cmphex (((gsize *) site->stack_data)[1], ==, 0x22);
 }
 
 STALKER_TESTCASE (unconditional_branch)
