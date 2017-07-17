@@ -118,16 +118,14 @@ TESTCASE (ldr_d_should_be_rewritten)
     GUINT32_TO_LE (0x5c000041)  /* ldr d1, [pc, #8]   */
   };
   const guint32 expected_output_instructions[] = {
-    GUINT32_TO_LE (0xd10023ff), /* sub sp, sp, #8     */
-    GUINT32_TO_LE (0xf90003e0), /* str x0, [sp]       */
-    GUINT32_TO_LE (0x58000080), /* ldr x0, [pc, #16]  */
+    GUINT32_TO_LE (0xa9bf07e0), /* push {x0, x1}      */
+    GUINT32_TO_LE (0x58000060), /* ldr x0, [pc, #16]  */
     GUINT32_TO_LE (0xfd400001), /* ldr d1, [x0]       */
-    GUINT32_TO_LE (0xf94003e0), /* ldr x0, [sp]       */
-    GUINT32_TO_LE (0x910023ff), /* add sp, sp, #8     */
+    GUINT32_TO_LE (0xa8c107e0), /* pop {x0, x1}       */
     0xffffffff,                 /* <calculated PC     */
     0xffffffff                  /*  goes here>        */
   };
-  gchar expected_output[8 * sizeof (guint32)];
+  gchar expected_output[6 * sizeof (guint32)];
   guint64 calculated_pc;
   const cs_insn * insn;
 
@@ -136,7 +134,7 @@ TESTCASE (ldr_d_should_be_rewritten)
   memcpy (expected_output, expected_output_instructions,
       sizeof (expected_output_instructions));
   calculated_pc = fixture->rl.input_pc + 8;
-  *((guint64 *) (expected_output + 24)) = GUINT64_TO_LE (calculated_pc);
+  *((guint64 *) (expected_output + 16)) = GUINT64_TO_LE (calculated_pc);
 
   g_assert_cmpuint (gum_arm64_relocator_read_one (&fixture->rl, &insn), ==, 4);
   g_assert_cmpint (insn->id, ==, ARM64_INS_LDR);
