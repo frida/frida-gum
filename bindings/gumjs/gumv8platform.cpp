@@ -397,6 +397,12 @@ GumV8Platform::MonotonicallyIncreasingTime ()
   return ((double) (delta / G_GINT64_CONSTANT (1000))) / 1000.0;
 }
 
+v8::TracingController *
+GumV8Platform::GetTracingController ()
+{
+  return new TracingController ();
+}
+
 void
 GumV8Platform::HandleBackgroundTaskRequest (GumV8TaskRequest * request)
 {

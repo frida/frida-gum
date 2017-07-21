@@ -42,6 +42,7 @@ public:
       v8::IdleTask * task);
   virtual bool IdleTasksEnabled (v8::Isolate * for_isolate);
   virtual double MonotonicallyIncreasingTime ();
+  virtual v8::TracingController * GetTracingController ();
 
 private:
   void InitRuntime ();
