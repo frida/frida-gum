@@ -189,6 +189,7 @@ GumV8Platform::GumV8Platform ()
     scheduler (gum_script_scheduler_new ()),
     start_time (g_get_monotonic_time ()),
     array_buffer_allocator (new GumArrayBufferAllocator ()),
+    tracing_controller (new TracingController ()),
     pending_foreground_tasks (g_hash_table_new (NULL, NULL))
 {
   g_mutex_init (&lock);
@@ -216,6 +217,7 @@ GumV8Platform::~GumV8Platform ()
 
   g_object_unref (scheduler);
 
+  delete tracing_controller;
   delete array_buffer_allocator;
 
   g_mutex_clear (&lock);
@@ -400,7 +402,7 @@ GumV8Platform::MonotonicallyIncreasingTime ()
 v8::TracingController *
 GumV8Platform::GetTracingController ()
 {
-  return new TracingController ();
+  return tracing_controller;
 }
 
 void

@@ -64,6 +64,7 @@ private:
   GumScriptScheduler * scheduler;
   const gint64 start_time;
   v8::ArrayBuffer::Allocator * array_buffer_allocator;
+  v8::TracingController * tracing_controller;
   GHashTable * pending_foreground_tasks;
 
   GumV8Platform (const GumV8Platform &);
