@@ -42,6 +42,7 @@ public:
       v8::IdleTask * task) override;
   bool IdleTasksEnabled (v8::Isolate * for_isolate) override;
   double MonotonicallyIncreasingTime () override;
+  v8::ThreadingBackend * GetThreadingBackend () override;
   v8::TracingController * GetTracingController () override;
 
 private:
@@ -64,6 +65,7 @@ private:
   GumScriptScheduler * scheduler;
   const gint64 start_time;
   v8::ArrayBuffer::Allocator * array_buffer_allocator;
+  v8::ThreadingBackend * threading_backend;
   v8::TracingController * tracing_controller;
   GHashTable * pending_foreground_tasks;
 

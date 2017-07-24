@@ -163,6 +163,145 @@ private:
   IdleTask * task;
 };
 
+class GumMutex : public MutexImpl
+{
+public:
+  GumMutex ()
+  {
+    g_mutex_init (&mutex);
+  }
+
+  ~GumMutex () override
+  {
+    g_mutex_clear (&mutex);
+  }
+
+  void
+  Lock () override
+  {
+    g_mutex_lock (&mutex);
+  }
+
+  void
+  Unlock () override
+  {
+    g_mutex_unlock (&mutex);
+  }
+
+  bool
+  TryLock () override
+  {
+    return !!g_mutex_trylock (&mutex);
+  }
+
+private:
+  GMutex mutex;
+
+  friend class GumConditionVariable;
+};
+
+class GumRecursiveMutex : public MutexImpl
+{
+public:
+  GumRecursiveMutex ()
+  {
+    g_rec_mutex_init (&mutex);
+  }
+
+  ~GumRecursiveMutex () override
+  {
+    g_rec_mutex_clear (&mutex);
+  }
+
+  void
+  Lock () override
+  {
+    g_rec_mutex_lock (&mutex);
+  }
+
+  void
+  Unlock () override
+  {
+    g_rec_mutex_unlock (&mutex);
+  }
+
+  bool
+  TryLock () override
+  {
+    return !!g_rec_mutex_trylock (&mutex);
+  }
+
+private:
+  GRecMutex mutex;
+};
+
+class GumConditionVariable : public ConditionVariableImpl
+{
+public:
+  GumConditionVariable ()
+  {
+    g_cond_init (&cond);
+  }
+
+  ~GumConditionVariable () override
+  {
+    g_cond_clear (&cond);
+  }
+
+  void
+  NotifyOne () override
+  {
+    g_cond_signal (&cond);
+  }
+
+  void
+  NotifyAll () override
+  {
+    g_cond_broadcast (&cond);
+  }
+
+  void
+  Wait (MutexImpl * mutex) override
+  {
+    GumMutex * m = (GumMutex *) mutex;
+    g_cond_wait (&cond, &m->mutex);
+  }
+
+  bool
+  WaitFor (MutexImpl * mutex,
+           int64_t delta_in_microseconds) override
+  {
+    GumMutex * m = (GumMutex *) mutex;
+    gint64 deadline = g_get_monotonic_time () + delta_in_microseconds;
+    return !!g_cond_wait_until (&cond, &m->mutex, deadline);
+  }
+
+private:
+  GCond cond;
+};
+
+class GumThreadingBackend : public ThreadingBackend
+{
+public:
+  MutexImpl *
+  CreateMutex () override
+  {
+    return new GumMutex ();
+  }
+
+  MutexImpl *
+  CreateRecursiveMutex () override
+  {
+    return new GumRecursiveMutex ();
+  }
+
+  ConditionVariableImpl *
+  CreateConditionVariable () override
+  {
+    return new GumConditionVariable ();
+  }
+};
+
 class GumArrayBufferAllocator : public ArrayBuffer::Allocator
 {
 public:
@@ -194,6 +333,7 @@ GumV8Platform::GumV8Platform ()
     scheduler (gum_script_scheduler_new ()),
     start_time (g_get_monotonic_time ()),
     array_buffer_allocator (new GumArrayBufferAllocator ()),
+    threading_backend (new GumThreadingBackend ()),
     tracing_controller (new TracingController ()),
     pending_foreground_tasks (g_hash_table_new (NULL, NULL))
 {
@@ -223,6 +363,7 @@ GumV8Platform::~GumV8Platform ()
   g_object_unref (scheduler);
 
   delete tracing_controller;
+  delete threading_backend;
   delete array_buffer_allocator;
 
   g_mutex_clear (&lock);
@@ -402,6 +543,12 @@ GumV8Platform::MonotonicallyIncreasingTime ()
   gint64 delta = g_get_monotonic_time () - start_time;
 
   return ((double) (delta / G_GINT64_CONSTANT (1000))) / 1000.0;
+}
+
+ThreadingBackend *
+GumV8Platform::GetThreadingBackend ()
+{
+  return threading_backend;
 }
 
 TracingController *
