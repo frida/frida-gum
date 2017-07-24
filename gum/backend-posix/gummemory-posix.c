@@ -12,6 +12,14 @@
 #include <unistd.h>
 #include <sys/mman.h>
 
+#if defined (HAVE_LINUX)
+# define GUM_MAP_LAZY MAP_NORESERVE
+#elif defined (HAVE_QNX)
+# define GUM_MAP_LAZY MAP_LAZY
+#else
+# error Unsupported OS
+#endif
+
 typedef struct _GumAllocNearContext GumAllocNearContext;
 typedef struct _GumEnumerateFreeRangesContext GumEnumerateFreeRangesContext;
 
@@ -175,7 +183,7 @@ gum_memory_reserve (gsize size,
   gint posix_page_prot, flags;
 
   posix_page_prot = PROT_NONE;
-  flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE;
+  flags = MAP_PRIVATE | MAP_ANONYMOUS | GUM_MAP_LAZY;
 
   result = mmap (hint, size, posix_page_prot, flags, -1, 0);
 
@@ -202,7 +210,7 @@ gum_memory_uncommit (gpointer base,
   gint posix_page_prot, flags;
 
   posix_page_prot = PROT_NONE;
-  flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_NORESERVE;
+  flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | GUM_MAP_LAZY;
 
   return mmap (base, size, posix_page_prot, flags, -1, 0) != MAP_FAILED;
 }
