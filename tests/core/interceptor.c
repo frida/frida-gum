@@ -171,6 +171,8 @@ INTERCEPTOR_TESTCASE (attach_to_unaligned_function)
   gum_thumb_writer_put_pop_regs (&tw, 8,
       ARM_REG_R1, ARM_REG_R2, ARM_REG_R3, ARM_REG_R4, ARM_REG_R5, ARM_REG_R6,
       ARM_REG_R7, ARM_REG_PC);
+  gum_thumb_writer_flush (&tw);
+  gum_clear_cache (tw.base, gum_thumb_writer_offset (&tw));
   gum_thumb_writer_free (&tw);
 
   f = code + 1;
