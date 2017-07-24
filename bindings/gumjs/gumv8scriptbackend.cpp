@@ -27,18 +27,15 @@
     "--es-staging " \
     "--harmony-array-prototype-values " \
     "--harmony-function-sent " \
-    "--harmony-tailcalls " \
     "--harmony-sharedarraybuffer " \
     "--harmony-do-expressions " \
     "--harmony-class-fields " \
     "--harmony-async-iteration " \
-    "--harmony-dynamic-import " \
     "--harmony-promise-finally " \
-    "--harmony-restrict-constructor-return " \
-    "--wasm-simd-prototype " \
-    "--wasm-eh-prototype " \
-    "--wasm-mv-prototype " \
-    "--wasm-atomics-prototype " \
+    "--experimental-wasm-simd " \
+    "--experimental-wasm-eh " \
+    "--experimental-wasm-mv " \
+    "--experimental-wasm-threads " \
     "--expose-gc"
 
 using namespace v8;
