@@ -440,6 +440,8 @@ const stalkerEventType = {
   call: 1,
   ret: 2,
   exec: 4,
+  block: 8,
+  compile: 16,
 };
 
 Object.defineProperties(Stalker, {

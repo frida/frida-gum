@@ -319,6 +319,8 @@ static void gum_exec_block_write_ret_event_code (GumExecBlock * block,
     GumGeneratorContext * gc, GumCodeContext cc);
 static void gum_exec_block_write_exec_event_code (GumExecBlock * block,
     GumGeneratorContext * gc, GumCodeContext cc);
+static void gum_exec_block_write_block_event_code (GumExecBlock * block,
+    GumGeneratorContext * gc, GumCodeContext cc);
 static void gum_exec_block_write_event_init_code (GumExecBlock * block,
     GumEventType type, GumGeneratorContext * gc);
 static void gum_exec_block_write_event_submit_code (GumExecBlock * block,
@@ -1169,6 +1171,13 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
     if ((ctx->sink_mask & GUM_EXEC) != 0)
       gum_exec_block_write_exec_event_code (block, &gc, GUM_CODE_INTERRUPTIBLE);
 
+    if ((ctx->sink_mask & GUM_BLOCK) != 0 &&
+        gum_x86_relocator_eob (rl) &&
+        insn.ci->id != X86_INS_CALL)
+    {
+      gum_exec_block_write_block_event_code (block, &gc, GUM_CODE_INTERRUPTIBLE);
+    }
+
     switch (insn.ci->id)
     {
       case X86_INS_CALL:
@@ -1259,6 +1268,15 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   block->real_end = (guint8 *) rl->input_cur;
 
   gum_exec_block_commit (block);
+
+  if ((ctx->sink_mask & GUM_COMPILE) != 0)
+  {
+    ctx->tmp_event.type = GUM_COMPILE;
+    ctx->tmp_event.compile.begin = block->real_begin;
+    ctx->tmp_event.compile.end = block->real_end;
+
+    gum_event_sink_process (ctx->sink, &ctx->tmp_event);
+  }
 
   return block;
 }
@@ -2426,6 +2444,32 @@ gum_exec_block_write_exec_event_code (GumExecBlock * block,
       GUM_ADDRESS (gc->instruction->begin));
   gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
       GUM_REG_XAX, G_STRUCT_OFFSET (GumExecEvent, location),
+      GUM_REG_XCX);
+
+  gum_exec_block_write_event_submit_code (block, gc, cc);
+}
+
+static void
+gum_exec_block_write_block_event_code (GumExecBlock * block,
+                                       GumGeneratorContext * gc,
+                                       GumCodeContext cc)
+{
+  GumX86Writer * cw = gc->code_writer;
+
+  gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
+
+  gum_exec_block_write_event_init_code (block, GUM_BLOCK, gc);
+
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XCX,
+      GUM_ADDRESS (gc->relocator->input_start));
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
+      GUM_REG_XAX, G_STRUCT_OFFSET (GumBlockEvent, begin),
+      GUM_REG_XCX);
+
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XCX,
+      GUM_ADDRESS (gc->relocator->input_cur));
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
+      GUM_REG_XAX, G_STRUCT_OFFSET (GumBlockEvent, end),
       GUM_REG_XCX);
 
   gum_exec_block_write_event_submit_code (block, gc, cc);

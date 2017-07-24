@@ -272,6 +272,8 @@ static void gum_exec_block_write_ret_event_code (GumExecBlock * block,
     GumGeneratorContext * gc, GumCodeContext cc);
 static void gum_exec_block_write_exec_event_code (GumExecBlock * block,
     GumGeneratorContext * gc, GumCodeContext cc);
+static void gum_exec_block_write_block_event_code (GumExecBlock * block,
+    GumGeneratorContext * gc, GumCodeContext cc);
 static void gum_exec_block_write_event_init_code (GumExecBlock * block,
     GumEventType type, GumGeneratorContext * gc);
 static void gum_exec_block_write_event_submit_code (GumExecBlock * block,
@@ -990,6 +992,14 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
       gum_exec_block_write_exec_event_code (block, &gc, GUM_CODE_INTERRUPTIBLE);
     }
 
+    if ((ctx->sink_mask & GUM_BLOCK) != 0 &&
+        gc.exclusive_load_offset == GUM_INSTRUCTION_OFFSET_NONE &&
+        gum_arm64_relocator_eob (rl) &&
+        insn.ci->id != ARM64_INS_BL && insn.ci->id != ARM64_INS_BLR)
+    {
+      gum_exec_block_write_block_event_code (block, &gc, GUM_CODE_UNINTERRUPTIBLE);
+    }
+
     switch (insn.ci->id)
     {
       case ARM64_INS_BL:
@@ -1085,6 +1095,15 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   block->real_end = (guint8 *) rl->input_cur;
 
   gum_exec_block_commit (block);
+
+  if ((ctx->sink_mask & GUM_COMPILE) != 0)
+  {
+    ctx->tmp_event.type = GUM_COMPILE;
+    ctx->tmp_event.compile.begin = block->real_begin;
+    ctx->tmp_event.compile.end = block->real_end;
+
+    gum_event_sink_process (ctx->sink, &ctx->tmp_event);
+  }
 
   return block;
 }
@@ -1774,6 +1793,32 @@ gum_exec_block_write_exec_event_code (GumExecBlock * block,
       GUM_ADDRESS (gc->instruction->begin));
   STALKER_STORE_REG_INTO_CTX_WITH_AO (ARM64_REG_X14, tmp_event,
       G_STRUCT_OFFSET (GumExecEvent, location));
+
+  gum_exec_block_write_event_submit_code (block, gc, cc);
+}
+
+static void
+gum_exec_block_write_block_event_code (GumExecBlock * block,
+                                       GumGeneratorContext * gc,
+                                       GumCodeContext cc)
+{
+  GumArm64Writer * cw;
+
+  cw = gc->code_writer;
+
+  gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
+
+  gum_exec_block_write_event_init_code (block, GUM_BLOCK, gc);
+
+  gum_arm64_writer_put_ldr_reg_address (cw, ARM64_REG_X14,
+      GUM_ADDRESS (gc->relocator->input_start));
+  STALKER_STORE_REG_INTO_CTX_WITH_AO (ARM64_REG_X14, tmp_event,
+      G_STRUCT_OFFSET (GumBlockEvent, begin));
+
+  gum_arm64_writer_put_ldr_reg_address (cw, ARM64_REG_X14,
+      GUM_ADDRESS (gc->relocator->input_cur));
+  STALKER_STORE_REG_INTO_CTX_WITH_AO (ARM64_REG_X14, tmp_event,
+      G_STRUCT_OFFSET (GumBlockEvent, end));
 
   gum_exec_block_write_event_submit_code (block, gc, cc);
 }
