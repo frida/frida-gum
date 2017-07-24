@@ -59,49 +59,54 @@ typedef void (* GumMemoryPatchApplyFunc) (gpointer mem, gpointer user_data);
 typedef gboolean (* GumMemoryScanMatchFunc) (GumAddress address, gsize size,
     gpointer user_data);
 
-void gum_memory_init (void);
-void gum_memory_deinit (void);
+GUM_API void gum_memory_init (void);
+GUM_API void gum_memory_deinit (void);
 
-guint gum_query_page_size (void);
-gboolean gum_query_is_rwx_supported (void);
-gboolean gum_memory_is_readable (GumAddress address, gsize len);
-guint8 * gum_memory_read (GumAddress address, gsize len, gsize * n_bytes_read);
-gboolean gum_memory_write (GumAddress address, const guint8 * bytes, gsize len);
-gboolean gum_memory_patch_code (GumAddress address, gsize size,
+GUM_API guint gum_query_page_size (void);
+GUM_API gboolean gum_query_is_rwx_supported (void);
+GUM_API gboolean gum_memory_is_readable (GumAddress address, gsize len);
+GUM_API guint8 * gum_memory_read (GumAddress address, gsize len,
+    gsize * n_bytes_read);
+GUM_API gboolean gum_memory_write (GumAddress address, const guint8 * bytes,
+    gsize len);
+GUM_API gboolean gum_memory_patch_code (GumAddress address, gsize size,
     GumMemoryPatchApplyFunc apply, gpointer apply_data);
 
-void gum_memory_scan (const GumMemoryRange * range,
-    const GumMatchPattern * pattern,
-    GumMemoryScanMatchFunc func, gpointer user_data);
+GUM_API void gum_memory_scan (const GumMemoryRange * range,
+    const GumMatchPattern * pattern, GumMemoryScanMatchFunc func,
+    gpointer user_data);
 
-GumMatchPattern * gum_match_pattern_new_from_string (const gchar * match_str);
-void gum_match_pattern_free (GumMatchPattern * pattern);
+GUM_API GumMatchPattern * gum_match_pattern_new_from_string (
+    const gchar * match_str);
+GUM_API void gum_match_pattern_free (GumMatchPattern * pattern);
 
-void gum_mprotect (gpointer address, gsize size, GumPageProtection page_prot);
-gboolean gum_try_mprotect (gpointer address, gsize size, GumPageProtection page_prot);
+GUM_API void gum_mprotect (gpointer address, gsize size,
+    GumPageProtection page_prot);
+GUM_API gboolean gum_try_mprotect (gpointer address, gsize size,
+    GumPageProtection page_prot);
 
-void gum_clear_cache (gpointer address, gsize size);
+GUM_API void gum_clear_cache (gpointer address, gsize size);
 
 #define gum_new(struct_type, n_structs) \
     ((struct_type *) gum_malloc (n_structs * sizeof (struct_type)))
 #define gum_new0(struct_type, n_structs) \
     ((struct_type *) gum_malloc0 (n_structs * sizeof (struct_type)))
 
-guint gum_peek_private_memory_usage (void);
+GUM_API guint gum_peek_private_memory_usage (void);
 
-gpointer gum_malloc (gsize size);
-gpointer gum_malloc0 (gsize size);
-gpointer gum_calloc (gsize count, gsize size);
-gpointer gum_realloc (gpointer mem, gsize size);
-gpointer gum_memdup (gconstpointer mem, gsize byte_size);
-void gum_free (gpointer mem);
+GUM_API gpointer gum_malloc (gsize size);
+GUM_API gpointer gum_malloc0 (gsize size);
+GUM_API gpointer gum_calloc (gsize count, gsize size);
+GUM_API gpointer gum_realloc (gpointer mem, gsize size);
+GUM_API gpointer gum_memdup (gconstpointer mem, gsize byte_size);
+GUM_API void gum_free (gpointer mem);
 
-gpointer gum_alloc_n_pages (guint n_pages, GumPageProtection page_prot);
-gpointer gum_alloc_n_pages_near (guint n_pages, GumPageProtection page_prot,
-    const GumAddressSpec * address_spec);
-gpointer gum_try_alloc_n_pages_near (guint n_pages, GumPageProtection page_prot,
-    const GumAddressSpec * address_spec);
-void gum_free_pages (gpointer mem);
+GUM_API gpointer gum_alloc_n_pages (guint n_pages, GumPageProtection page_prot);
+GUM_API gpointer gum_alloc_n_pages_near (guint n_pages,
+    GumPageProtection page_prot, const GumAddressSpec * address_spec);
+GUM_API gpointer gum_try_alloc_n_pages_near (guint n_pages,
+    GumPageProtection page_prot, const GumAddressSpec * address_spec);
+GUM_API void gum_free_pages (gpointer mem);
 
 G_END_DECLS
 
