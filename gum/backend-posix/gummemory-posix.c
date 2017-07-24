@@ -58,17 +58,14 @@ gpointer
 gum_alloc_n_pages (guint n_pages,
                    GumPageProtection page_prot)
 {
-  guint8 * result = NULL;
+  guint8 * result;
   guint page_size, size;
-  gint posix_page_prot;
-  const gint flags = MAP_PRIVATE | MAP_ANONYMOUS;
 
   page_size = gum_query_page_size ();
   size = (1 + n_pages) * page_size;
-  posix_page_prot = _gum_page_protection_to_posix (page_prot);
 
-  result = mmap (NULL, size, posix_page_prot, flags, -1, 0);
-  g_assert (result != MAP_FAILED);
+  result = gum_memory_allocate (size, page_prot, NULL);
+  g_assert (result != NULL);
 
   if ((page_prot & GUM_PAGE_WRITE) == 0)
     gum_mprotect (result, page_size, GUM_PAGE_RW);
@@ -145,13 +142,85 @@ gum_free_pages (gpointer mem)
 {
   guint8 * start;
   gsize size;
-  gint result;
+  gboolean success;
 
   start = mem - gum_query_page_size ();
   size = *((gsize *) start);
 
-  result = munmap (start, size);
-  g_assert_cmpint (result, ==, 0);
+  success = gum_memory_release (start, size);
+  g_assert (success);
+}
+
+gpointer
+gum_memory_allocate (gsize size,
+                     GumPageProtection page_prot,
+                     gpointer hint)
+{
+  gpointer result;
+  gint posix_page_prot, flags;
+
+  posix_page_prot = _gum_page_protection_to_posix (page_prot);
+  flags = MAP_PRIVATE | MAP_ANONYMOUS;
+
+  result = mmap (hint, size, posix_page_prot, flags, -1, 0);
+
+  return (result != MAP_FAILED) ? result : NULL;
+}
+
+gpointer
+gum_memory_reserve (gsize size,
+                    gpointer hint)
+{
+  gpointer result;
+  gint posix_page_prot, flags;
+
+  posix_page_prot = PROT_NONE;
+  flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE;
+
+  result = mmap (hint, size, posix_page_prot, flags, -1, 0);
+
+  return (result != MAP_FAILED) ? result : NULL;
+}
+
+gboolean
+gum_memory_commit (gpointer base,
+                   gsize size,
+                   GumPageProtection page_prot)
+{
+  gint posix_page_prot, flags;
+
+  posix_page_prot = _gum_page_protection_to_posix (page_prot);
+  flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED;
+
+  return mmap (base, size, posix_page_prot, flags, -1, 0) != MAP_FAILED;
+}
+
+gboolean
+gum_memory_uncommit (gpointer base,
+                     gsize size)
+{
+  gint posix_page_prot, flags;
+
+  posix_page_prot = PROT_NONE;
+  flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_NORESERVE;
+
+  return mmap (base, size, posix_page_prot, flags, -1, 0) != MAP_FAILED;
+}
+
+gboolean
+gum_memory_release_partial (gpointer base,
+                            gsize size,
+                            gpointer free_start,
+                            gsize free_size)
+{
+  return munmap (free_start, free_size) == 0;
+}
+
+gboolean
+gum_memory_release (gpointer base,
+                    gsize size)
+{
+  return munmap (base, size) == 0;
 }
 
 static void
