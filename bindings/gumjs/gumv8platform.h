@@ -31,18 +31,18 @@ public:
   GumV8Bundle * GetDebugBundle () const { return debug_bundle; }
   GumScriptScheduler * GetScheduler () const { return scheduler; }
 
-  virtual size_t NumberOfAvailableBackgroundThreads ();
-  virtual void CallOnBackgroundThread (v8::Task * task,
-      ExpectedRuntime expected_runtime);
-  virtual void CallOnForegroundThread (v8::Isolate * for_isolate,
-      v8::Task * task);
-  virtual void CallDelayedOnForegroundThread (v8::Isolate * for_isolate,
-      v8::Task * task, double delay_in_seconds);
-  virtual void CallIdleOnForegroundThread (v8::Isolate * for_isolate,
-      v8::IdleTask * task);
-  virtual bool IdleTasksEnabled (v8::Isolate * for_isolate);
-  virtual double MonotonicallyIncreasingTime ();
-  virtual v8::TracingController * GetTracingController ();
+  size_t NumberOfAvailableBackgroundThreads () override;
+  void CallOnBackgroundThread (v8::Task * task,
+      ExpectedRuntime expected_runtime) override;
+  void CallOnForegroundThread (v8::Isolate * for_isolate,
+      v8::Task * task) override;
+  void CallDelayedOnForegroundThread (v8::Isolate * for_isolate,
+      v8::Task * task, double delay_in_seconds) override;
+  void CallIdleOnForegroundThread (v8::Isolate * for_isolate,
+      v8::IdleTask * task) override;
+  bool IdleTasksEnabled (v8::Isolate * for_isolate) override;
+  double MonotonicallyIncreasingTime () override;
+  v8::TracingController * GetTracingController () override;
 
 private:
   void InitRuntime ();

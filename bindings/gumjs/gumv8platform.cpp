@@ -162,20 +162,20 @@ private:
 class GumArrayBufferAllocator : public ArrayBuffer::Allocator
 {
 public:
-  virtual void *
-  Allocate (size_t length)
+  void *
+  Allocate (size_t length) override
   {
     return g_malloc0 (length);
   }
 
-  virtual void *
-  AllocateUninitialized (size_t length)
+  void *
+  AllocateUninitialized (size_t length) override
   {
     return g_malloc (length);
   }
 
-  virtual void
-  Free (void * data, size_t length)
+  void
+  Free (void * data, size_t length) override
   {
     (void) length;
 
