@@ -16,10 +16,12 @@ typedef guint GumEventType;
 
 typedef union _GumEvent GumEvent;
 
-typedef struct _GumAnyEvent   GumAnyEvent;
-typedef struct _GumCallEvent  GumCallEvent;
-typedef struct _GumRetEvent   GumRetEvent;
-typedef struct _GumExecEvent  GumExecEvent;
+typedef struct _GumAnyEvent     GumAnyEvent;
+typedef struct _GumCallEvent    GumCallEvent;
+typedef struct _GumRetEvent     GumRetEvent;
+typedef struct _GumExecEvent    GumExecEvent;
+typedef struct _GumBlockEvent   GumBlockEvent;
+typedef struct _GumCompileEvent GumCompileEvent;
 
 enum _GumEventType
 {
@@ -27,6 +29,8 @@ enum _GumEventType
   GUM_CALL        = 1 << 0,
   GUM_RET         = 1 << 1,
   GUM_EXEC        = 1 << 2,
+  GUM_BLOCK       = 1 << 3,
+  GUM_COMPILE     = 1 << 4,
 };
 
 struct _GumAnyEvent
@@ -59,6 +63,22 @@ struct _GumExecEvent
   gpointer location;
 };
 
+struct _GumBlockEvent
+{
+  GumEventType type;
+
+  gpointer begin;
+  gpointer end;
+};
+
+struct _GumCompileEvent
+{
+  GumEventType type;
+
+  gpointer begin;
+  gpointer end;
+};
+
 union _GumEvent
 {
   GumEventType type;
@@ -67,6 +87,8 @@ union _GumEvent
   GumCallEvent call;
   GumRetEvent ret;
   GumExecEvent exec;
+  GumBlockEvent block;
+  GumCompileEvent compile;
 };
 
 G_END_DECLS
