@@ -2451,8 +2451,8 @@ gum_exec_block_write_exec_event_code (GumExecBlock * block,
 
 static void
 gum_exec_block_write_block_event_code (GumExecBlock * block,
-                                      GumGeneratorContext * gc,
-                                      GumCodeContext cc)
+                                       GumGeneratorContext * gc,
+                                       GumCodeContext cc)
 {
   GumX86Writer * cw = gc->code_writer;
 
