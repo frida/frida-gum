@@ -426,10 +426,7 @@ gum_alloc_n_pages (guint n_pages,
 
   *((gsize *) GSIZE_TO_POINTER (result)) = size;
 
-  if (page_prot != GUM_PAGE_READ)
-  {
-    gum_mprotect (GSIZE_TO_POINTER (result), page_size, GUM_PAGE_READ);
-  }
+  gum_mprotect (GSIZE_TO_POINTER (result), page_size, GUM_PAGE_READ);
 
   if (page_prot != GUM_PAGE_RW && !using_jit_server)
   {
