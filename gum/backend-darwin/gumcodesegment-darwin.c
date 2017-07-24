@@ -176,8 +176,8 @@ gum_code_segment_new (gsize size,
 
   segment->fd = -1;
 
-  range.base_address = GUM_ADDRESS (segment->data);
-  range.size = segment->virtual_size;
+  range.base_address = GUM_ADDRESS (segment->data) - page_size;
+  range.size = segment->virtual_size + page_size;
   gum_cloak_add_range (&range);
 
   return segment;
@@ -193,8 +193,8 @@ gum_code_segment_free (GumCodeSegment * segment)
 
   gum_free_pages (segment->data);
 
-  range.base_address = GUM_ADDRESS (segment->data);
-  range.size = segment->virtual_size;
+  range.base_address = GUM_ADDRESS (segment->data) - page_size;
+  range.size = segment->virtual_size + page_size;
   gum_cloak_remove_range (&range);
 
   g_slice_free (GumCodeSegment, segment);

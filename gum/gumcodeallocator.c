@@ -244,22 +244,23 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
 {
   GumCodeSlice * result = NULL;
   gboolean rwx_supported, code_segment_supported;
-  gsize size_in_pages, size_in_bytes;
+  gsize page_size, size_in_pages, size_in_bytes;
   GumCodeSegment * segment;
   gpointer data;
-  GumMemoryRange range;
   GumCodePages * pages;
   guint i;
 
   rwx_supported = gum_query_is_rwx_supported ();
   code_segment_supported = gum_code_segment_is_supported ();
 
+  page_size = gum_query_page_size ();
   size_in_pages = self->pages_per_batch;
-  size_in_bytes = size_in_pages * gum_query_page_size ();
+  size_in_bytes = size_in_pages * page_size;
 
   if (rwx_supported || !code_segment_supported)
   {
     GumPageProtection protection;
+    GumMemoryRange range;
 
     protection = rwx_supported ? GUM_PAGE_RWX : GUM_PAGE_RW;
 
@@ -274,6 +275,10 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
     {
       data = gum_alloc_n_pages (size_in_pages, protection);
     }
+
+    range.base_address = GUM_ADDRESS (data) - page_size;
+    range.size = size_in_bytes + page_size;
+    gum_cloak_add_range (&range);
   }
   else
   {
@@ -282,10 +287,6 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
       return NULL;
     data = gum_code_segment_get_address (segment);
   }
-
-  range.base_address = GUM_ADDRESS (data);
-  range.size = size_in_bytes;
-  gum_cloak_add_range (&range);
 
   pages = g_slice_alloc (self->pages_metadata_size);
   pages->ref_count = self->slices_per_batch;
@@ -344,12 +345,15 @@ gum_code_pages_unref (GumCodePages * self)
     }
     else
     {
+      gsize page_size;
       GumMemoryRange range;
 
       gum_free_pages (self->data);
 
-      range.base_address = GUM_ADDRESS (self->data);
-      range.size = self->size;
+      page_size = gum_query_page_size ();
+
+      range.base_address = GUM_ADDRESS (self->data) - page_size;
+      range.size = self->size + page_size;
       gum_cloak_remove_range (&range);
     }
 
@@ -525,7 +529,7 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller,
 #else
   GumCodeDeflectorDispatcher * dispatcher;
   GumProbeRangeForCodeCaveContext probe_ctx;
-  gsize size_in_pages, size_in_bytes;
+  gsize page_size, size_in_pages, size_in_bytes;
   GumInsertDeflectorContext insert_ctx;
 
   probe_ctx.caller = caller;
@@ -539,8 +543,9 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller,
   if (probe_ctx.cave.base_address == 0)
     return NULL;
 
+  page_size = gum_query_page_size ();
   size_in_pages = 1;
-  size_in_bytes = size_in_pages * gum_query_page_size ();
+  size_in_bytes = size_in_pages * page_size;
 
   dispatcher = g_slice_new (GumCodeDeflectorDispatcher);
 
@@ -556,8 +561,8 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller,
   {
     GumMemoryRange range;
 
-    range.base_address = GUM_ADDRESS (dispatcher->thunk);
-    range.size = size_in_bytes;
+    range.base_address = GUM_ADDRESS (dispatcher->thunk) - page_size;
+    range.size = size_in_bytes + page_size;
     gum_cloak_add_range (&range);
   }
 
@@ -591,12 +596,15 @@ gum_code_deflector_dispatcher_free (GumCodeDeflectorDispatcher * dispatcher)
 
   if (dispatcher->thunk != NULL)
   {
+    gsize page_size;
     GumMemoryRange range;
 
     gum_free_pages (dispatcher->thunk);
 
-    range.base_address = GUM_ADDRESS (dispatcher->thunk);
-    range.size = gum_query_page_size ();
+    page_size = gum_query_page_size ();
+
+    range.base_address = GUM_ADDRESS (dispatcher->thunk) - page_size;
+    range.size = 2 * page_size;
     gum_cloak_remove_range (&range);
   }
 
