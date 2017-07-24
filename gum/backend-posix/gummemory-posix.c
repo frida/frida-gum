@@ -70,7 +70,8 @@ gum_alloc_n_pages (guint n_pages,
   result = mmap (NULL, size, posix_page_prot, flags, -1, 0);
   g_assert (result != MAP_FAILED);
 
-  gum_mprotect (result, page_size, GUM_PAGE_RW);
+  if ((page_prot & GUM_PAGE_WRITE) == 0)
+    gum_mprotect (result, page_size, GUM_PAGE_RW);
   *((gsize *) result) = size;
   gum_mprotect (result, page_size, GUM_PAGE_READ);
 
@@ -96,7 +97,8 @@ gum_try_alloc_n_pages_near (guint n_pages,
   if (ctx.result == NULL)
     return NULL;
 
-  gum_mprotect (ctx.result, page_size, GUM_PAGE_RW);
+  if ((page_prot & GUM_PAGE_WRITE) == 0)
+    gum_mprotect (ctx.result, page_size, GUM_PAGE_RW);
   *((gsize *) ctx.result) = ctx.size;
   gum_mprotect (ctx.result, page_size, GUM_PAGE_READ);
 
