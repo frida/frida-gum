@@ -108,6 +108,16 @@ GUM_API gpointer gum_try_alloc_n_pages_near (guint n_pages,
     GumPageProtection page_prot, const GumAddressSpec * address_spec);
 GUM_API void gum_free_pages (gpointer mem);
 
+GUM_API gpointer gum_memory_allocate (gsize size, GumPageProtection page_prot,
+    gpointer hint);
+GUM_API gpointer gum_memory_reserve (gsize size, gpointer hint);
+GUM_API gboolean gum_memory_commit (gpointer base, gsize size,
+    GumPageProtection page_prot);
+GUM_API gboolean gum_memory_uncommit (gpointer base, gsize size);
+GUM_API gboolean gum_memory_release_partial (gpointer base, gsize size,
+    gpointer free_start, gsize free_size);
+GUM_API gboolean gum_memory_release (gpointer base, gsize size);
+
 G_END_DECLS
 
 #endif
