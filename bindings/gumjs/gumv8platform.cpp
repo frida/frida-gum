@@ -28,7 +28,8 @@ public:
     g_cond_clear (&cond);
   }
 
-  void Await ()
+  void
+  Await ()
   {
     g_mutex_lock (&platform->lock);
     while (!completed)
@@ -36,7 +37,8 @@ public:
     g_mutex_unlock (&platform->lock);
   }
 
-  void Complete ()
+  void
+  Complete ()
   {
     g_mutex_lock (&platform->lock);
     completed = true;
@@ -62,11 +64,10 @@ public:
   {
   }
 
-  virtual ~GumV8TaskRequest ()
-  {
-  }
+  virtual ~GumV8TaskRequest () = default;
 
-  void ClearIsolate ()
+  void
+  ClearIsolate ()
   {
     isolate = nullptr;
   }
@@ -96,7 +97,8 @@ public:
     delete task;
   }
 
-  void Perform ()
+  void
+  Perform ()
   {
     if (isolate != nullptr)
     {
@@ -132,7 +134,8 @@ public:
     delete task;
   }
 
-  void Perform ()
+  void
+  Perform ()
   {
     if (isolate != nullptr)
     {
@@ -149,7 +152,8 @@ public:
   }
 
 private:
-  void RunTask ()
+  void
+  RunTask ()
   {
     const double deadline_in_seconds =
         platform->MonotonicallyIncreasingTime () + (1.0 / 60.0);
@@ -175,7 +179,8 @@ public:
   }
 
   void
-  Free (void * data, size_t length) override
+  Free (void * data,
+        size_t length) override
   {
     (void) length;
 
@@ -399,7 +404,7 @@ GumV8Platform::MonotonicallyIncreasingTime ()
   return ((double) (delta / G_GINT64_CONSTANT (1000))) / 1000.0;
 }
 
-v8::TracingController *
+TracingController *
 GumV8Platform::GetTracingController ()
 {
   return tracing_controller;
