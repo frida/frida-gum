@@ -68,7 +68,7 @@ gum_alloc_n_pages (guint n_pages,
   posix_page_prot = _gum_page_protection_to_posix (page_prot);
 
   result = mmap (NULL, size, posix_page_prot, flags, -1, 0);
-  g_assert (result != NULL);
+  g_assert (result != MAP_FAILED);
 
   gum_mprotect (result, page_size, GUM_PAGE_RW);
   *((gsize *) result) = size;
