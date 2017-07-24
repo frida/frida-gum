@@ -11,6 +11,9 @@
 #include "gumv8script-objc.h"
 #include "gumv8script-runtime.h"
 
+#include <gum/gumcloak.h>
+#include <gum/gummemory.h>
+
 using namespace v8;
 
 class GumV8DisposeRequest
@@ -161,6 +164,92 @@ private:
   }
 
   IdleTask * task;
+};
+
+class GumMemoryBackend : public MemoryBackend
+{
+public:
+  void *
+  Allocate (const size_t size,
+            bool is_executable,
+            void * hint) override
+  {
+    gpointer base = gum_memory_allocate (size,
+        is_executable ? GUM_PAGE_RWX : GUM_PAGE_RW, hint);
+    if (base != NULL)
+      Cloak (base, size);
+    return base;
+  }
+
+  void *
+  Reserve (size_t size,
+           void * hint) override
+  {
+    gpointer base = gum_memory_reserve (size, hint);
+    if (base != NULL)
+      Cloak (base, size);
+    return base;
+  }
+
+  bool
+  Commit (void * base,
+          size_t size,
+          bool is_executable) override
+  {
+    return !!gum_memory_commit (base, size,
+        is_executable ? GUM_PAGE_RWX : GUM_PAGE_RW);
+  }
+
+  bool
+  Uncommit (void * base,
+            size_t size) override
+  {
+    return !!gum_memory_uncommit (base, size);
+  }
+
+  bool
+  ReleasePartial (void * base,
+                  size_t size,
+                  void * free_start,
+                  size_t free_size) override
+  {
+    bool success =
+        !!gum_memory_release_partial (base, size, free_start, free_size);
+    if (success)
+      Uncloak (free_start, free_size);
+    return success;
+  }
+
+  bool
+  Release (void * base,
+           size_t size) override
+  {
+    bool success = !!gum_memory_release (base, size);
+    if (success)
+      Uncloak (base, size);
+    return success;
+  }
+
+private:
+  void
+  Cloak (gpointer base,
+         gsize size)
+  {
+    GumMemoryRange r;
+    r.base_address = GUM_ADDRESS (base);
+    r.size = size;
+    gum_cloak_add_range (&r);
+  }
+
+  void
+  Uncloak (gpointer base,
+           gsize size)
+  {
+    GumMemoryRange r;
+    r.base_address = GUM_ADDRESS (base);
+    r.size = size;
+    gum_cloak_remove_range (&r);
+  }
 };
 
 class GumMutex : public MutexImpl
@@ -333,6 +422,7 @@ GumV8Platform::GumV8Platform ()
     scheduler (gum_script_scheduler_new ()),
     start_time (g_get_monotonic_time ()),
     array_buffer_allocator (new GumArrayBufferAllocator ()),
+    memory_backend (new GumMemoryBackend ()),
     threading_backend (new GumThreadingBackend ()),
     tracing_controller (new TracingController ()),
     pending_foreground_tasks (g_hash_table_new (NULL, NULL))
@@ -364,6 +454,7 @@ GumV8Platform::~GumV8Platform ()
 
   delete tracing_controller;
   delete threading_backend;
+  delete memory_backend;
   delete array_buffer_allocator;
 
   g_mutex_clear (&lock);
@@ -543,6 +634,12 @@ GumV8Platform::MonotonicallyIncreasingTime ()
   gint64 delta = g_get_monotonic_time () - start_time;
 
   return ((double) (delta / G_GINT64_CONSTANT (1000))) / 1000.0;
+}
+
+MemoryBackend *
+GumV8Platform::GetMemoryBackend ()
+{
+  return memory_backend;
 }
 
 ThreadingBackend *
