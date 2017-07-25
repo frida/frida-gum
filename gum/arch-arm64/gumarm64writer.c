@@ -595,7 +595,7 @@ gum_arm64_writer_put_push_reg_reg (GumArm64Writer * self,
 
   gum_arm64_writer_put_load_store_pair (self, GUM_MEM_OPERATION_STORE,
       gum_arm64_mem_operand_type_from_reg_info (&ra), ra.index, rb.index,
-      sp.index, -(2 * (ra.width / 8)), GUM_INDEX_PRE_ADJUST);
+      sp.index, -(2 * ((gint) ra.width / 8)), GUM_INDEX_PRE_ADJUST);
 }
 
 void
