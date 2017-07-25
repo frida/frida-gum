@@ -186,12 +186,15 @@ gum_code_segment_new (gsize size,
 void
 gum_code_segment_free (GumCodeSegment * segment)
 {
+  guint page_size;
   GumMemoryRange range;
 
   if (segment->fd != -1)
     close (segment->fd);
 
   gum_free_pages (segment->data);
+
+  page_size = gum_query_page_size ();
 
   range.base_address = GUM_ADDRESS (segment->data) - page_size;
   range.size = segment->virtual_size + page_size;
