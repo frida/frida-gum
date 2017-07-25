@@ -1023,6 +1023,9 @@ gum_arm64_writer_put_load_store_pair (GumArm64Writer * self,
       shift = 4;
       break;
     default:
+      opc = 0;
+      is_vector = FALSE;
+      shift = 0;
       g_assert_not_reached ();
   }
 
