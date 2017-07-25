@@ -373,7 +373,7 @@ class GumThreadingBackend : public ThreadingBackend
 {
 public:
   MutexImpl *
-  CreateMutex () override
+  CreatePlainMutex () override
   {
     return new GumMutex ();
   }
