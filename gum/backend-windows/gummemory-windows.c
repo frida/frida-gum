@@ -324,7 +324,7 @@ gboolean
 gum_memory_release (gpointer base,
                     gsize size)
 {
-  return VirtualFree (base, size, MEM_RELEASE);
+  return VirtualFree (base, 0, MEM_RELEASE);
 }
 
 GumPageProtection
