@@ -10,6 +10,9 @@
 #include "gummemory-priv.h"
 #include "gumwindows.h"
 
+static gpointer gum_virtual_alloc (gsize size, DWORD allocation_type,
+    GumPageProtection page_prot, gpointer hint);
+
 void
 _gum_memory_backend_init (void)
 {
@@ -183,7 +186,8 @@ gum_alloc_n_pages (guint n_pages,
 
   size = n_pages * gum_query_page_size ();
   win_page_prot = gum_page_protection_to_windows (page_prot);
-  result = VirtualAlloc (NULL, size, MEM_COMMIT | MEM_RESERVE, win_page_prot);
+
+  result = gum_memory_allocate (size, page_prot, NULL);
   g_assert (result != NULL);
 
   return result;
@@ -237,6 +241,90 @@ gum_free_pages (gpointer mem)
 
   success = VirtualFree (mem, 0, MEM_RELEASE);
   g_assert (success);
+}
+
+gpointer
+gum_memory_allocate (gsize size,
+                     GumPageProtection page_prot,
+                     gpointer hint)
+{
+  return gum_virtual_alloc (size, MEM_COMMIT | MEM_RESERVE, page_prot, hint);
+}
+
+gpointer
+gum_memory_reserve (gsize size,
+                    gpointer hint)
+{
+  return gum_virtual_alloc (size, MEM_RESERVE, GUM_PAGE_NO_ACCESS, hint);
+}
+
+static gpointer
+gum_virtual_alloc (gsize size,
+                   DWORD allocation_type,
+                   GumPageProtection page_prot,
+                   gpointer hint)
+{
+  gpointer result = NULL;
+  DWORD win_page_prot;
+  static BOOL use_aslr = -1;
+
+  win_page_prot = gum_page_protection_to_windows (page_prot);
+
+  /* Replicate V8's behavior: only use ASLR on 64-bit systems. */
+#if GLIB_SIZEOF_VOID_P == 4
+  if (use_aslr == -1 && !IsWow64Process (GetCurrentProcess (), &use_aslr))
+    use_aslr = FALSE;
+#else
+  use_aslr = TRUE;
+#endif
+
+  if (use_aslr &&
+      (page_prot == GUM_PAGE_NO_ACCESS || page_prot == GUM_PAGE_RWX))
+  {
+    result = VirtualAlloc (hint, size, allocation_type, win_page_prot);
+  }
+
+  if (result == NULL)
+  {
+    result = VirtualAlloc (NULL, size, allocation_type, win_page_prot);
+  }
+
+  return result;
+}
+
+gboolean
+gum_memory_commit (gpointer base,
+                   gsize size,
+                   GumPageProtection page_prot)
+{
+  DWORD win_page_prot;
+
+  win_page_prot = gum_page_protection_to_windows (page_prot);
+
+  return VirtualAlloc (base, size, MEM_COMMIT, win_page_prot) != NULL;
+}
+
+gboolean
+gum_memory_uncommit (gpointer base,
+                     gsize size)
+{
+  return VirtualFree (base, size, MEM_DECOMMIT);
+}
+
+gboolean
+gum_memory_release_partial (gpointer base,
+                            gsize size,
+                            gpointer free_start,
+                            gsize free_size)
+{
+  return VirtualFree (free_start, free_size, MEM_DECOMMIT);
+}
+
+gboolean
+gum_memory_release (gpointer base,
+                    gsize size)
+{
+  return VirtualFree (base, size, MEM_RELEASE);
 }
 
 GumPageProtection
