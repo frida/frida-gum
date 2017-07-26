@@ -18,11 +18,6 @@
 # include "gumarm64writer.h"
 #endif
 
-#if defined (HAVE_ELF_H)
-# include <elf.h>
-#elif defined (HAVE_SYS_ELF_H)
-# include <sys/elf.h>
-#endif
 #include <string.h>
 
 #define GUM_CODE_SLICE_ELEMENT_FROM_SLICE(s) \
@@ -121,8 +116,8 @@ static void gum_code_deflector_dispatcher_modify_cave (
     GumCodeDeflectorDispatcher * self, GumModifyCaveFunc func,
     gpointer user_data);
 
-static gboolean gum_probe_range_for_code_cave (const GumRangeDetails * details,
-    gpointer user_data);
+static gboolean gum_probe_module_for_code_cave (
+    const GumModuleDetails * details, gpointer user_data);
 
 void
 gum_code_allocator_init (GumCodeAllocator * allocator,
@@ -515,18 +510,7 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller,
                                    gpointer return_address,
                                    gpointer dedicated_target)
 {
-#if defined (HAVE_LINUX) && defined (HAVE_ARM64)
-  /* FIXME: need to find a larger cave */
-
-  (void) caller;
-  (void) return_address;
-  (void) dedicated_target;
-
-  (void) gum_insert_deflector;
-  (void) gum_probe_range_for_code_cave;
-
-  return NULL;
-#else
+#if defined (HAVE_DARWIN) || (defined (HAVE_LINUX) && GLIB_SIZEOF_VOID_P == 4)
   GumCodeDeflectorDispatcher * dispatcher;
   GumProbeRangeForCodeCaveContext probe_ctx;
   gsize page_size, size_in_pages, size_in_bytes;
@@ -537,8 +521,7 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller,
   probe_ctx.cave.base_address = 0;
   probe_ctx.cave.size = 0;
 
-  _gum_process_enumerate_ranges (GUM_PAGE_RX, gum_probe_range_for_code_cave,
-      &probe_ctx);
+  gum_process_enumerate_modules (gum_probe_module_for_code_cave, &probe_ctx);
 
   if (probe_ctx.cave.base_address == 0)
     return NULL;
@@ -583,6 +566,15 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller,
   }
 
   return dispatcher;
+#else
+  (void) caller;
+  (void) return_address;
+  (void) dedicated_target;
+
+  (void) gum_insert_deflector;
+  (void) gum_probe_module_for_code_cave;
+
+  return NULL;
 #endif
 }
 
@@ -841,104 +833,68 @@ gum_code_deflector_dispatcher_modify_cave (GumCodeDeflectorDispatcher * self,
 }
 
 static gboolean
-gum_probe_range_for_code_cave (const GumRangeDetails * details,
-                               gpointer user_data)
+gum_probe_module_for_code_cave (const GumModuleDetails * details,
+                                gpointer user_data)
 {
-#if defined (HAVE_DARWIN) || defined (HAVE_LINUX)
   const GumMemoryRange * range = details->range;
   GumProbeRangeForCodeCaveContext * ctx = user_data;
   const GumAddressSpec * caller = ctx->caller;
-  gsize distance_from_start, distance_from_end;
-  GumAddress header_address;
+  GumAddress header_address, cave_address;
+  gsize distance;
+  const guint8 empty_cave[GUM_CODE_DEFLECTOR_CAVE_SIZE] = { 0, };
 
-  distance_from_start = ABS ((gssize) range->base_address -
-      (gssize) caller->near_address);
-  distance_from_end = ABS ((gssize) (range->base_address + range->size) -
-      (gssize) caller->near_address);
-  if (distance_from_start > caller->max_distance &&
-      distance_from_end > caller->max_distance)
+  header_address = range->base_address;
+
+#ifdef HAVE_DARWIN
+  cave_address = header_address + 4096 - sizeof (empty_cave);
+#else
+  cave_address = header_address + 8;
+#endif
+
+  distance = ABS ((gssize) cave_address - (gssize) caller->near_address);
+  if (distance > caller->max_distance)
     return TRUE;
 
-  for (header_address = range->base_address;
-      header_address < range->base_address + range->size;
-      header_address += 4096)
+  if (memcmp (GSIZE_TO_POINTER (cave_address), empty_cave,
+      sizeof (empty_cave)) != 0)
   {
-    GumAddress cave_address;
-    gsize distance;
-    const gchar * magic;
-    gsize magic_size;
-    const guint8 empty_cave[GUM_CODE_DEFLECTOR_CAVE_SIZE] = { 0, };
+#ifdef HAVE_DARWIN
+    gboolean found_empty_cave, nothing_in_front_of_cave;
 
-# if defined (HAVE_DARWIN)
-    cave_address = header_address + 4096 - sizeof (empty_cave);
-#  if GLIB_SIZEOF_VOID_P == 8
-    magic = "\xcf\xfa\xed\xfe";
-#  else
-    magic = "\xce\xfa\xed\xfe";
-#  endif
-    magic_size = 4;
-# elif defined (HAVE_LINUX)
-    cave_address = header_address + 8;
-    magic = ELFMAG;
-    magic_size = SELFMAG;
-# endif
+    found_empty_cave = FALSE;
+    nothing_in_front_of_cave = TRUE;
 
-    distance = ABS ((gssize) cave_address - (gssize) caller->near_address);
-    if (distance > caller->max_distance)
-      continue;
-
-    if (memcmp (GSIZE_TO_POINTER (header_address), magic, magic_size) != 0)
-      continue;
-
-    if (memcmp (GSIZE_TO_POINTER (cave_address), empty_cave,
-        sizeof (empty_cave)) != 0)
+    do
     {
-# if defined (HAVE_DARWIN)
-      gboolean found_empty_cave, nothing_in_front_of_cave;
+      cave_address -= sizeof (empty_cave);
 
-      found_empty_cave = FALSE;
-      nothing_in_front_of_cave = TRUE;
+      found_empty_cave = memcmp (GSIZE_TO_POINTER (cave_address), empty_cave,
+          sizeof (empty_cave)) == 0;
+    }
+    while (!found_empty_cave && cave_address > header_address + 0x500);
 
-      do
+    if (found_empty_cave)
+    {
+      gsize offset;
+
+      for (offset = sizeof (empty_cave);
+          offset <= 2 * sizeof (empty_cave);
+          offset += sizeof (empty_cave))
       {
-        cave_address -= sizeof (empty_cave);
-
-        found_empty_cave = memcmp (GSIZE_TO_POINTER (cave_address), empty_cave,
+        nothing_in_front_of_cave = memcmp (
+            GSIZE_TO_POINTER (cave_address - offset), empty_cave,
             sizeof (empty_cave)) == 0;
       }
-      while (!found_empty_cave && cave_address > header_address + 0x500);
-
-      if (found_empty_cave)
-      {
-        gsize offset;
-
-        for (offset = sizeof (empty_cave);
-            offset <= 2 * sizeof (empty_cave);
-            offset += sizeof (empty_cave))
-        {
-          nothing_in_front_of_cave = memcmp (
-              GSIZE_TO_POINTER (cave_address - offset), empty_cave,
-              sizeof (empty_cave)) == 0;
-        }
-      }
-
-      if (!(found_empty_cave && nothing_in_front_of_cave))
-        continue;
-# elif defined (HAVE_LINUX)
-      continue;
-#endif
     }
 
-    ctx->cave.base_address = cave_address;
-    ctx->cave.size = sizeof (empty_cave);
-    return FALSE;
+    if (!(found_empty_cave && nothing_in_front_of_cave))
+      return TRUE;
+#else
+    return TRUE;
+#endif
   }
 
-  return TRUE;
-#else
-  (void) details;
-  (void) user_data;
-
+  ctx->cave.base_address = cave_address;
+  ctx->cave.size = sizeof (empty_cave);
   return FALSE;
-#endif
 }
