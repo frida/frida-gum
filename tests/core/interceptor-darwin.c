@@ -482,16 +482,16 @@ static gboolean replace_with_cydia_substrate_if_function_export (
 
 INTERCEPTOR_TESTCASE (should_retain_code_signing_status)
 {
-  int (* open_impl) (const char * path, int flags, ...);
-  gint fd, res;
+  gint (* close_impl) (gpointer connection);
+  gint res;
   uint32_t attributes;
 
-  open_impl = GSIZE_TO_POINTER (
-      gum_module_find_export_by_name ("libSystem.B.dylib", "open"));
-  interceptor_fixture_attach_listener (fixture, 0, open_impl, '>', '<');
+  close_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (
+      "libsqlite3.dylib", "sqlite3_close"));
+  interceptor_fixture_attach_listener (fixture, 0, close_impl, '>', '<');
 
   g_assert_cmpstr (fixture->result->str, ==, "");
-  fd = open ("/etc/fstab", O_RDONLY);
+  close_impl (NULL);
   g_assert_cmpstr (fixture->result->str, ==, "><");
 
   attributes = 0;
@@ -499,9 +499,6 @@ INTERCEPTOR_TESTCASE (should_retain_code_signing_status)
   g_assert (res != -1);
 
   g_assert ((attributes & CS_VALID) != 0);
-
-  if (fd != -1)
-    close (fd);
 }
 
 INTERCEPTOR_TESTCASE (cydia_substrate_replace_performance)
