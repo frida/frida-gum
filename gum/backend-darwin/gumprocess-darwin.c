@@ -186,8 +186,6 @@ static gboolean gum_module_path_equals (const gchar * path,
 
 static GumThreadState gum_thread_state_from_darwin (integer_t run_state);
 
-static DyldGetAllImageInfosFunc get_all_image_infos_impl = NULL;
-
 gboolean
 gum_process_is_debugger_attached (void)
 {
@@ -286,35 +284,27 @@ void
 gum_process_enumerate_modules (GumFoundModuleFunc func,
                                gpointer user_data)
 {
-  const struct dyld_all_image_infos * all_info;
-  guint count, i;
+  uint32_t count, i;
 
-  if (get_all_image_infos_impl == NULL)
-  {
-    get_all_image_infos_impl = dlsym (RTLD_DEFAULT,
-        "_dyld_get_all_image_infos");
-    g_assert (get_all_image_infos_impl != NULL);
-  }
-
-  all_info = get_all_image_infos_impl ();
-
-  count = all_info->infoArrayCount;
+  count = _dyld_image_count ();
   for (i = 0; i != count; i++)
   {
-    const struct dyld_image_info * info = &all_info->infoArray[i];
+    const gchar * path;
     gchar * name;
     GumMemoryRange range;
     GumModuleDetails details;
     gboolean carry_on;
 
-    name = g_path_get_basename (info->imageFilePath);
+    path = _dyld_get_image_name (i);
 
-    range.base_address = GUM_ADDRESS (info->imageLoadAddress);
-    range.size = find_image_size (info->imageFilePath);
+    name = g_path_get_basename (path);
+
+    range.base_address = GUM_ADDRESS (_dyld_get_image_header (i));
+    range.size = find_image_size (path);
 
     details.name = name;
     details.range = &range;
-    details.path = info->imageFilePath;
+    details.path = path;
 
     carry_on = func (&details, user_data);
 
