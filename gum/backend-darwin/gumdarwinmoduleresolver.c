@@ -257,9 +257,9 @@ gum_darwin_module_resolver_resolve_export (
     if (is_reexporting_itself)
     {
       /*
-       * Happens with a few of Security.framework exports on High Sierra beta 4,
-       * and seems like a bug given that dlsym() crashes with a stack-overflow
-       * trying to resolve these.
+       * Happens with a few of the Security.framework exports on High Sierra
+       * beta 4, and seems like a bug given that dlsym() crashes with a
+       * stack-overflow when asked to resolve these.
        */
       return FALSE;
     }
