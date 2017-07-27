@@ -243,6 +243,7 @@ gum_darwin_module_resolver_resolve_export (
   {
     const gchar * target_module_name;
     GumDarwinModule * target_module;
+    gboolean is_reexporting_itself;
 
     target_module_name = gum_darwin_module_dependency (module,
         export->reexport_library_ordinal);
@@ -250,6 +251,18 @@ gum_darwin_module_resolver_resolve_export (
         target_module_name);
     if (target_module == NULL)
       return FALSE;
+
+    is_reexporting_itself = (target_module == module &&
+        strcmp (export->reexport_symbol, export->name) == 0);
+    if (is_reexporting_itself)
+    {
+      /*
+       * Happens with a few of Security.framework exports on High Sierra beta 4,
+       * and seems like a bug given that dlsym() crashes with a stack-overflow
+       * trying to resolve these.
+       */
+      return FALSE;
+    }
 
     return gum_darwin_module_resolver_find_export_by_mangled_name (self,
         target_module, export->reexport_symbol, result);
