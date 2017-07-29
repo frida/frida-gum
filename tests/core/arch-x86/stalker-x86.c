@@ -824,7 +824,7 @@ STALKER_TESTCASE (follow_repne_ret)
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 2);
 
-  g_assert_cmpint (ret, == , 0xbeef);
+  g_assert_cmpint (ret, ==, 0xbeef);
 }
 
 STALKER_TESTCASE (follow_repne_jb)
