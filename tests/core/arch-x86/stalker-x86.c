@@ -849,8 +849,8 @@ STALKER_TESTCASE (follow_repne_jb)
   gint ret;
 
   func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc,
-    test_stalker_fixture_dup_code(fixture, repne_jb_code,
-      sizeof(repne_jb_code)));
+    test_stalker_fixture_dup_code (fixture, repne_jb_code,
+      sizeof (repne_jb_code)));
 
   g_assert_cmpint (func(0), == , 0xbeef);
 
