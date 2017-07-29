@@ -838,7 +838,7 @@ STALKER_TESTCASE(follow_repne_jb)
     0xb9, 0xfe, 0x00, 0x00, 0x00, /* mov ecx, 0xfe       */
     0x3b, 0xc8,                   /* cmp ecx, eax        */
     0xf2, 0x72, 0x02,             /* repne jb short func */
-    xc3,                          /* ret                 */
+    0xc3,                         /* ret                 */
     0xcc,                         /* int3                */
 
                                   /* func:               */
