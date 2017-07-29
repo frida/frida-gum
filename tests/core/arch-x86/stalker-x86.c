@@ -23,6 +23,8 @@ TEST_LIST_BEGIN (stalker)
   STALKER_TESTENTRY (long_conditional_jump)
   STALKER_TESTENTRY (follow_return)
   STALKER_TESTENTRY (follow_stdcall)
+  STALKER_TESTENTRY (follow_repne_ret)
+  STALKER_TESTENTRY (follow_repne_jb)
   STALKER_TESTENTRY (unfollow_deep)
   STALKER_TESTENTRY (call_followed_by_junk)
   STALKER_TESTENTRY (indirect_call_with_immediate)
@@ -797,8 +799,63 @@ STALKER_TESTCASE (follow_stdcall)
   fixture->sink->mask = GUM_EXEC;
   ret = test_stalker_fixture_follow_and_invoke (fixture, func, 0);
 
-  g_assert_cmpuint (fixture->sink->events->len,
-      ==, INVOKER_INSN_COUNT + 5);
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 5);
+
+  g_assert_cmpint (ret, ==, 0xbeef);
+}
+
+STALKER_TESTCASE (follow_repne_ret)
+{
+  const guint8 repne_ret_code[] =
+  {
+    0xb8, 0xef, 0xbe, 0x00, 0x00, /* mov eax, 0xbeef     */
+    0xf2, 0xc3,                   /* repne ret           */
+    0xcc,                         /* int3                */
+  };
+  StalkerTestFunc func;
+  gint ret;
+
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc,
+      test_stalker_fixture_dup_code (fixture, repne_ret_code,
+          sizeof (repne_ret_code)));
+
+  fixture->sink->mask = GUM_EXEC;
+  ret = test_stalker_fixture_follow_and_invoke (fixture, func, 0);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 2);
+
+  g_assert_cmpint (ret, ==, 0xbeef);
+}
+
+STALKER_TESTCASE (follow_repne_jb)
+{
+  const guint8 repne_jb_code[] =
+  {
+    0x68, 0xef, 0xbe, 0x00, 0x00, /* push dword 0xbeef   */
+    0xb8, 0xff, 0x00, 0x00, 0x00, /* mov eax, 0xff       */
+    0xb9, 0xfe, 0x00, 0x00, 0x00, /* mov ecx, 0xfe       */
+    0x3b, 0xc8,                   /* cmp ecx, eax        */
+    0xf2, 0x72, 0x02,             /* repne jb short func */
+    0xc3,                         /* ret                 */
+    0xcc,                         /* int3                */
+
+                                  /* func:               */
+    0x58,                         /* pop eax             */
+    0xc3,                         /* ret                 */
+  };
+  StalkerTestFunc func;
+  gint ret;
+
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc,
+      test_stalker_fixture_dup_code (fixture, repne_jb_code,
+          sizeof (repne_jb_code)));
+
+  g_assert_cmpint (func (0), ==, 0xbeef);
+
+  fixture->sink->mask = GUM_EXEC;
+  ret = test_stalker_fixture_follow_and_invoke (fixture, func, 0);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 7);
 
   g_assert_cmpint (ret, ==, 0xbeef);
 }
