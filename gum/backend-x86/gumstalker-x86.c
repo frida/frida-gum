@@ -5,7 +5,7 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#define ENABLE_DEBUG 0
+#define ENABLE_DEBUG 1
 
 #include "gumstalker.h"
 
@@ -31,7 +31,7 @@
 
 #define GUM_CODE_ALIGNMENT                     8
 #define GUM_DATA_ALIGNMENT                     8
-#define GUM_CODE_SLAB_SIZE_IN_PAGES        65536
+#define GUM_CODE_SLAB_SIZE_IN_PAGES         1024 // <ole> Erik Could you try lowering this: https://github.com/frida/frida-gum/blob/master/gum/backend-x86/gumstalker-x86.c#L34
 #define GUM_EXEC_BLOCK_MIN_SIZE             2048
 
 typedef struct _GumInfectContext GumInfectContext;
@@ -1760,6 +1760,47 @@ gum_exec_block_backpatch_ret (GumExecBlock * block,
   }
 }
 
+static unsigned int gum_negate_jcc(unsigned int instruction_id)
+{
+  switch (instruction_id)
+  {
+    case X86_INS_JA:
+	  return X86_INS_JBE;
+    case X86_INS_JAE:
+	  return X86_INS_JB;
+    case X86_INS_JB:
+	  return X86_INS_JAE;
+    case X86_INS_JBE:
+	  return X86_INS_JA;
+    case X86_INS_JE:
+	  return X86_INS_JNE;
+    case X86_INS_JG:
+	  return X86_INS_JLE;
+    case X86_INS_JGE:
+	  return X86_INS_JL;
+    case X86_INS_JL:
+	  return X86_INS_JGE;
+    case X86_INS_JLE:
+	  return X86_INS_JG;
+    case X86_INS_JNE:
+	  return X86_INS_JE;
+    case X86_INS_JNO:
+	  return X86_INS_JO;
+    case X86_INS_JNP:
+	  return X86_INS_JP;
+    case X86_INS_JNS:
+	  return X86_INS_JS;
+    case X86_INS_JO:
+	  return X86_INS_JNO;
+    case X86_INS_JP:
+	  return X86_INS_JNP;
+    case X86_INS_JS:
+	  return X86_INS_JNS;
+	default:
+	  g_assert_not_reached();
+  };
+}
+
 static GumVirtualizationRequirements
 gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
                                        GumGeneratorContext * gc)
@@ -1896,10 +1937,8 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
 
       gum_exec_block_close_prolog (block, gc);
 
-      gum_x86_writer_put_jcc_near_label (cw,
-          gum_x86_reader_jcc_opcode_negate (
-              gum_x86_reader_jcc_insn_to_short_opcode (insn->begin)),
-          is_false, GUM_NO_HINT);
+      gum_x86_writer_put_jcc_near_label (cw, gum_negate_jcc(insn->ci->id), is_false, 
+		  GUM_NO_HINT);
     }
 
     gum_exec_block_write_jmp_transfer_code (block, &target, gc);

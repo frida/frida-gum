@@ -859,12 +859,54 @@ gum_x86_writer_put_jcc_short_label (GumX86Writer * self,
   gum_x86_writer_add_label_reference_here (self, label_id, GUM_LREF_SHORT);
 }
 
+static guint8 gum_get_opcode(unsigned int instruction_id) {
+  switch (instruction_id)
+  {
+    case X86_INS_JA:
+	  return X86_INS_JBE;
+    case X86_INS_JAE:
+	  return X86_INS_JB;
+    case X86_INS_JB:
+	  return X86_INS_JAE;
+    case X86_INS_JBE:
+	  return X86_INS_JA;
+    case X86_INS_JE:
+	  return X86_INS_JNE;
+    case X86_INS_JG:
+	  return X86_INS_JLE;
+    case X86_INS_JGE:
+	  return X86_INS_JL;
+    case X86_INS_JL:
+	  return X86_INS_JGE;
+    case X86_INS_JLE:
+	  return X86_INS_JG;
+    case X86_INS_JNE:
+	  return X86_INS_JE;
+    case X86_INS_JNO:
+	  return X86_INS_JO;
+    case X86_INS_JNP:
+	  return X86_INS_JP;
+    case X86_INS_JNS:
+	  return X86_INS_JS;
+    case X86_INS_JO:
+	  return X86_INS_JNO;
+    case X86_INS_JP:
+	  return X86_INS_JNP;
+    case X86_INS_JS:
+	  return X86_INS_JNS;
+	default:
+	  g_assert_not_reached();
+  }
+}
+
 void
 gum_x86_writer_put_jcc_near_label (GumX86Writer * self,
-                                   guint8 opcode,
+                                   unsigned int instruction_id,
                                    gconstpointer label_id,
                                    GumBranchHint hint)
 {
+  guint8 opcode;
+  opcode = gum_get_opcode(instruction_id);
   gum_x86_writer_put_jcc_near (self, opcode, GSIZE_TO_POINTER (self->pc), hint);
   gum_x86_writer_add_label_reference_here (self, label_id, GUM_LREF_NEAR);
 }

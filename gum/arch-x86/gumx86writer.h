@@ -9,6 +9,8 @@
 
 #include <gum/gumdefs.h>
 
+#include <capstone.h>
+
 G_BEGIN_DECLS
 
 typedef struct _GumX86Writer GumX86Writer;
