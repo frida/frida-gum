@@ -102,34 +102,6 @@ enum _GumPtrTarget
   GUM_PTR_QWORD
 };
 
-enum _GumX86JumpOpcode
-{
-  GUM_X86_JO    = 0x70,
-  GUM_X86_JNO   = 0x71,
-  GUM_X86_JS    = 0x78,
-  GUM_X86_JNS   = 0x79,
-  GUM_X86_JP    = 0x7a,
-  GUM_X86_JNP   = 0x7b,
-  GUM_X86_JCXZ  = 0xe3,
-  GUM_X86_JECXZ = 0xe3,
-  GUM_X86_JRCXZ = 0xe3,
-
-  /* unsigned */
-  GUM_X86_JB    = 0x72,
-  GUM_X86_JAE   = 0x73,
-  GUM_X86_JE    = 0x74,
-  GUM_X86_JNE   = 0x75,
-  GUM_X86_JBE   = 0x76,
-  GUM_X86_JA    = 0x77,
-
-  /* signed */
-  GUM_X86_JL    = 0x7c,
-  GUM_X86_JGE   = 0x7d,
-  GUM_X86_JLE   = 0x7e,
-  GUM_X86_JG    = 0x7f,
-};
-
-
 void gum_x86_writer_init (GumX86Writer * writer, gpointer code_address);
 void gum_x86_writer_reset (GumX86Writer * writer, gpointer code_address);
 void gum_x86_writer_free (GumX86Writer * writer);

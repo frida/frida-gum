@@ -9,8 +9,6 @@
 #include "gumx86writer.h"
 #include "gummemory.h"
 
-#include <capstone.h>
-
 typedef struct _GumSpinlockImpl GumSpinlockImpl;
 
 typedef void (* GumSpinlockAcquireFunc) (GumSpinlock * spinlock);

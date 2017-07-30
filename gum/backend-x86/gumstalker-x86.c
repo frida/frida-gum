@@ -31,7 +31,7 @@
 
 #define GUM_CODE_ALIGNMENT                     8
 #define GUM_DATA_ALIGNMENT                     8
-#define GUM_CODE_SLAB_SIZE_IN_PAGES         1024 // <ole> Erik Could you try lowering this: https://github.com/frida/frida-gum/blob/master/gum/backend-x86/gumstalker-x86.c#L34
+#define GUM_CODE_SLAB_SIZE_IN_PAGES        65536
 #define GUM_EXEC_BLOCK_MIN_SIZE             2048
 
 typedef struct _GumInfectContext GumInfectContext;
@@ -338,7 +338,7 @@ static void gum_write_segment_prefix (uint8_t segment, GumX86Writer * cw);
 
 static GumCpuReg gum_cpu_meta_reg_from_real_reg (GumCpuReg reg);
 static GumCpuReg gum_cpu_reg_from_capstone (x86_reg reg);
-static x86_insn gum_negate_jcc (x86_insn instruction_id);;
+static x86_insn gum_negate_jcc (x86_insn instruction_id);
 
 #ifdef G_OS_WIN32
 static gboolean gum_stalker_on_exception (GumExceptionDetails * details,
@@ -1897,8 +1897,8 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
 
       gum_exec_block_close_prolog (block, gc);
 
-      gum_x86_writer_put_jcc_near_label (cw, gum_negate_jcc(insn->ci->id), is_false, 
-		  GUM_NO_HINT);
+      gum_x86_writer_put_jcc_near_label (cw, gum_negate_jcc (insn->ci->id),
+          is_false, GUM_NO_HINT);
     }
 
     gum_exec_block_write_jmp_transfer_code (block, &target, gc);
@@ -2780,11 +2780,11 @@ gum_negate_jcc (x86_insn instruction_id)
       return X86_INS_JNO;
     case X86_INS_JP:
       return X86_INS_JNP;
-     case X86_INS_JS:
+    case X86_INS_JS:
       return X86_INS_JNS;
     default:
       g_assert_not_reached ();
-  };
+  }
 }
 
 #if defined (G_OS_WIN32) && GLIB_SIZEOF_VOID_P == 4

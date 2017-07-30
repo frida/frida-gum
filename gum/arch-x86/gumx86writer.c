@@ -811,8 +811,8 @@ gum_x86_writer_put_jcc_near (GumX86Writer * self,
                              gconstpointer target,
                              GumBranchHint hint)
 {
-  gssize distance;
   guint8 opcode;
+  gssize distance;
 
   opcode = gum_get_jcc_opcode (instruction_id);
 
@@ -832,12 +832,8 @@ gum_x86_writer_put_jcc_short_label (GumX86Writer * self,
                                     gconstpointer label_id,
                                     GumBranchHint hint)
 {
-  guint8 opcode;
-
-  opcode = gum_get_jcc_opcode (instruction_id);
-
-  gum_x86_writer_put_jcc_short (self, instruction_id, GSIZE_TO_POINTER (self->pc),
-      hint);
+  gum_x86_writer_put_jcc_short (self, instruction_id, 
+      GSIZE_TO_POINTER (self->pc), hint);
   gum_x86_writer_add_label_reference_here (self, label_id, GUM_LREF_SHORT);
 }
 
@@ -847,7 +843,8 @@ gum_x86_writer_put_jcc_near_label (GumX86Writer * self,
                                    gconstpointer label_id,
                                    GumBranchHint hint)
 {
-  gum_x86_writer_put_jcc_near (self, instruction_id, GSIZE_TO_POINTER (self->pc), hint);
+  gum_x86_writer_put_jcc_near (self, instruction_id, 
+      GSIZE_TO_POINTER (self->pc), hint);
   gum_x86_writer_add_label_reference_here (self, label_id, GUM_LREF_NEAR);
 }
 
@@ -2349,44 +2346,44 @@ gum_get_jcc_opcode (x86_insn instruction_id)
 {
   switch (instruction_id)
   {
-    case X86_INS_JA:
-      return GUM_X86_JA;
-    case X86_INS_JAE:
-      return GUM_X86_JAE;
-    case X86_INS_JB:
-      return GUM_X86_JB;
-    case X86_INS_JBE:
-      return GUM_X86_JBE;
-    case X86_INS_JE:
-      return GUM_X86_JE;
-    case X86_INS_JG:
-      return GUM_X86_JG;
-    case X86_INS_JGE:
-      return GUM_X86_JGE;
-    case X86_INS_JL:
-      return GUM_X86_JL;
-    case X86_INS_JLE:
-      return GUM_X86_JLE;
-    case X86_INS_JNE:
-      return GUM_X86_JNE;
-    case X86_INS_JNO:
-      return GUM_X86_JNO;
-    case X86_INS_JNP:
-      return GUM_X86_JNP;
-    case X86_INS_JNS:
-      return GUM_X86_JNS;
     case X86_INS_JO:
-      return GUM_X86_JO;
-    case X86_INS_JP:
-      return GUM_X86_JP;
+      return 0x70;
+    case X86_INS_JNO:
+      return 0x71;
+    case X86_INS_JB:
+      return 0x72;
+    case X86_INS_JAE:
+      return 0x73;
+    case X86_INS_JE:
+      return 0x74;
+    case X86_INS_JNE:
+      return 0x75;
+    case X86_INS_JBE:
+      return 0x76;
+    case X86_INS_JA:
+      return 0x77;
     case X86_INS_JS:
-      return GUM_X86_JS;
+      return 0x78;
+    case X86_INS_JNS:
+      return 0x79;
+    case X86_INS_JP:
+      return 0x7A;
+    case X86_INS_JNP:
+      return 0x7B;
+    case X86_INS_JL:
+      return 0x7C;
+    case X86_INS_JGE:
+      return 0x7D;
+    case X86_INS_JLE:
+      return 0x7E;
+    case X86_INS_JG:
+      return 0x7F;
     case X86_INS_JCXZ:
-      return GUM_X86_JCXZ;
-     case X86_INS_JECXZ:
-       return GUM_X86_JECXZ;
+      return 0xE3;
+    case X86_INS_JECXZ:
+      return 0xE3;
     case X86_INS_JRCXZ:
-      return GUM_X86_JRCXZ;
+      return 0xE3;
     default:
       g_assert_not_reached ();
   }

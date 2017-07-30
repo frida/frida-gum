@@ -478,9 +478,7 @@ gum_x86_relocator_rewrite_conditional_branch (GumX86Relocator * self,
     }
     else
     {
-      gum_x86_writer_put_jcc_near (ctx->code_writer,
-          ctx->insn->id,
-          target,
+      gum_x86_writer_put_jcc_near (ctx->code_writer, ctx->insn->id, target,
           GUM_NO_HINT);
     }
   }
