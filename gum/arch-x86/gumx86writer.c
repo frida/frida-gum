@@ -90,6 +90,8 @@ static void gum_x86_writer_put_prefix_for_reg_info (GumX86Writer * self,
 static void gum_x86_writer_put_prefix_for_registers (GumX86Writer * self,
     const GumCpuRegInfo * width_reg, guint default_width, ...);
 
+static guint8 gum_get_jcc_opcode (x86_insn instruction_id);
+
 void
 gum_x86_writer_init (GumX86Writer * writer,
                      gpointer code_address)
@@ -784,42 +786,15 @@ gum_x86_writer_put_jmp_near_ptr (GumX86Writer * self,
 }
 
 void
-gum_x86_writer_put_jcc (GumX86Writer * self,
-                        guint8 opcode,
-                        gconstpointer target,
-                        GumBranchHint hint)
-{
-  gsize short_instruction_size = 2, near_instruction_size = 6;
-  gint64 distance;
-
-  if (hint != GUM_NO_HINT)
-  {
-    short_instruction_size++;
-    near_instruction_size++;
-  }
-
-  distance = (gssize) target - (gssize) (self->pc + short_instruction_size);
-
-  if (GUM_IS_WITHIN_INT8_RANGE (distance))
-  {
-    gum_x86_writer_put_jcc_short (self, opcode, target, hint);
-  }
-  else
-  {
-    distance = (gssize) target - (gssize) (self->pc + near_instruction_size);
-    g_assert (GUM_IS_WITHIN_INT32_RANGE (distance));
-
-    gum_x86_writer_put_jcc_near (self, opcode, target, hint);
-  }
-}
-
-void
 gum_x86_writer_put_jcc_short (GumX86Writer * self,
-                              guint8 opcode,
+                              x86_insn instruction_id,
                               gconstpointer target,
                               GumBranchHint hint)
 {
   gssize distance;
+  guint8 opcode;
+
+  opcode = gum_get_jcc_opcode (instruction_id);
 
   if (hint != GUM_NO_HINT)
     gum_x86_writer_put_u8 (self, (hint == GUM_LIKELY) ? 0x3e : 0x2e);
@@ -832,11 +807,14 @@ gum_x86_writer_put_jcc_short (GumX86Writer * self,
 
 void
 gum_x86_writer_put_jcc_near (GumX86Writer * self,
-                             guint8 opcode,
+                             x86_insn instruction_id,
                              gconstpointer target,
                              GumBranchHint hint)
 {
   gssize distance;
+  guint8 opcode;
+
+  opcode = gum_get_jcc_opcode (instruction_id);
 
   if (hint != GUM_NO_HINT)
     gum_x86_writer_put_u8 (self, (hint == GUM_LIKELY) ? 0x3e : 0x2e);
@@ -850,64 +828,26 @@ gum_x86_writer_put_jcc_near (GumX86Writer * self,
 
 void
 gum_x86_writer_put_jcc_short_label (GumX86Writer * self,
-                                    guint8 opcode,
+                                    x86_insn instruction_id,
                                     gconstpointer label_id,
                                     GumBranchHint hint)
 {
-  gum_x86_writer_put_jcc_short (self, opcode, GSIZE_TO_POINTER (self->pc),
+  guint8 opcode;
+
+  opcode = gum_get_jcc_opcode (instruction_id);
+
+  gum_x86_writer_put_jcc_short (self, instruction_id, GSIZE_TO_POINTER (self->pc),
       hint);
   gum_x86_writer_add_label_reference_here (self, label_id, GUM_LREF_SHORT);
 }
 
-static guint8 gum_get_opcode(unsigned int instruction_id) {
-  switch (instruction_id)
-  {
-    case X86_INS_JA:
-	  return X86_INS_JBE;
-    case X86_INS_JAE:
-	  return X86_INS_JB;
-    case X86_INS_JB:
-	  return X86_INS_JAE;
-    case X86_INS_JBE:
-	  return X86_INS_JA;
-    case X86_INS_JE:
-	  return X86_INS_JNE;
-    case X86_INS_JG:
-	  return X86_INS_JLE;
-    case X86_INS_JGE:
-	  return X86_INS_JL;
-    case X86_INS_JL:
-	  return X86_INS_JGE;
-    case X86_INS_JLE:
-	  return X86_INS_JG;
-    case X86_INS_JNE:
-	  return X86_INS_JE;
-    case X86_INS_JNO:
-	  return X86_INS_JO;
-    case X86_INS_JNP:
-	  return X86_INS_JP;
-    case X86_INS_JNS:
-	  return X86_INS_JS;
-    case X86_INS_JO:
-	  return X86_INS_JNO;
-    case X86_INS_JP:
-	  return X86_INS_JNP;
-    case X86_INS_JS:
-	  return X86_INS_JNS;
-	default:
-	  g_assert_not_reached();
-  }
-}
-
 void
 gum_x86_writer_put_jcc_near_label (GumX86Writer * self,
-                                   unsigned int instruction_id,
+                                   x86_insn instruction_id,
                                    gconstpointer label_id,
                                    GumBranchHint hint)
 {
-  guint8 opcode;
-  opcode = gum_get_opcode(instruction_id);
-  gum_x86_writer_put_jcc_near (self, opcode, GSIZE_TO_POINTER (self->pc), hint);
+  gum_x86_writer_put_jcc_near (self, instruction_id, GSIZE_TO_POINTER (self->pc), hint);
   gum_x86_writer_add_label_reference_here (self, label_id, GUM_LREF_NEAR);
 }
 
@@ -2401,5 +2341,53 @@ gum_x86_writer_put_prefix_for_registers (GumX86Writer * self,
 
     if (nibble != 0)
       gum_x86_writer_put_u8 (self, 0x40 | nibble);
+  }
+}
+
+static guint8
+gum_get_jcc_opcode (x86_insn instruction_id)
+{
+  switch (instruction_id)
+  {
+  case X86_INS_JA:
+    return GUM_X86_JA;
+  case X86_INS_JAE:
+    return GUM_X86_JAE;
+  case X86_INS_JB:
+    return GUM_X86_JB;
+  case X86_INS_JBE:
+    return GUM_X86_JBE;
+  case X86_INS_JE:
+    return GUM_X86_JE;
+  case X86_INS_JG:
+    return GUM_X86_JG;
+  case X86_INS_JGE:
+    return GUM_X86_JGE;
+  case X86_INS_JL:
+    return GUM_X86_JL;
+  case X86_INS_JLE:
+    return GUM_X86_JLE;
+  case X86_INS_JNE:
+    return GUM_X86_JNE;
+  case X86_INS_JNO:
+    return GUM_X86_JNO;
+  case X86_INS_JNP:
+    return GUM_X86_JNP;
+  case X86_INS_JNS:
+    return GUM_X86_JNS;
+  case X86_INS_JO:
+    return GUM_X86_JO;
+  case X86_INS_JP:
+    return GUM_X86_JP;
+  case X86_INS_JS:
+    return GUM_X86_JS;
+  case X86_INS_JCXZ:
+    return GUM_X86_JCXZ;
+  case X86_INS_JECXZ:
+    return GUM_X86_JECXZ;
+  case X86_INS_JRCXZ:
+    return GUM_X86_JRCXZ;
+  default:
+    g_assert_not_reached ();
   }
 }

@@ -94,13 +94,13 @@ CODEWRITER_TESTCASE (jump_label)
 
   gum_x86_writer_put_label (&fixture->cw, start_lbl);
   gum_x86_writer_put_cmp_reg_i32 (&fixture->cw, GUM_REG_ECX, 1337);
-  gum_x86_writer_put_jcc_short_label (&fixture->cw, GUM_X86_JZ,
+  gum_x86_writer_put_jcc_short_label (&fixture->cw, X86_INS_JE,
       handle_error_lbl, GUM_UNLIKELY);
-  gum_x86_writer_put_jcc_short_label (&fixture->cw, GUM_X86_JLE,
+  gum_x86_writer_put_jcc_short_label (&fixture->cw, X86_INS_JLE,
       handle_error_lbl, GUM_UNLIKELY);
-  gum_x86_writer_put_jcc_near_label (&fixture->cw, GUM_X86_JZ,
+  gum_x86_writer_put_jcc_near_label (&fixture->cw, X86_INS_JE,
       handle_error_lbl, GUM_LIKELY);
-  gum_x86_writer_put_jcc_near_label (&fixture->cw, GUM_X86_JLE,
+  gum_x86_writer_put_jcc_near_label (&fixture->cw, X86_INS_JLE,
       handle_error_lbl, GUM_UNLIKELY);
   gum_x86_writer_put_jmp_short_label (&fixture->cw, beach_lbl);
 
