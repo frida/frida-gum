@@ -811,15 +811,12 @@ gum_x86_writer_put_jcc_near (GumX86Writer * self,
                              gconstpointer target,
                              GumBranchHint hint)
 {
-  guint8 opcode;
   gssize distance;
-
-  opcode = gum_get_jcc_opcode (instruction_id);
 
   if (hint != GUM_NO_HINT)
     gum_x86_writer_put_u8 (self, (hint == GUM_LIKELY) ? 0x3e : 0x2e);
   self->code[0] = 0x0f;
-  self->code[1] = 0x10 + opcode;
+  self->code[1] = 0x10 + gum_get_jcc_opcode (instruction_id);
   distance = (gssize) target - (gssize) (self->pc + 6);
   g_assert (GUM_IS_WITHIN_INT32_RANGE (distance));
   *((gint32 *) (self->code + 2)) = GINT32_TO_LE (distance);
