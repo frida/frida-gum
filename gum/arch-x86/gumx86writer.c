@@ -792,13 +792,10 @@ gum_x86_writer_put_jcc_short (GumX86Writer * self,
                               GumBranchHint hint)
 {
   gssize distance;
-  guint8 opcode;
-
-  opcode = gum_get_jcc_opcode (instruction_id);
 
   if (hint != GUM_NO_HINT)
     gum_x86_writer_put_u8 (self, (hint == GUM_LIKELY) ? 0x3e : 0x2e);
-  self->code[0] = opcode;
+  self->code[0] = gum_get_jcc_opcode (instruction_id);
   distance = (gssize) target - (gssize) (self->pc + 2);
   g_assert (GUM_IS_WITHIN_INT8_RANGE (distance));
   *((gint8 *) (self->code + 1)) = distance;
