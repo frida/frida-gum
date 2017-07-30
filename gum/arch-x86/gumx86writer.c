@@ -826,7 +826,7 @@ gum_x86_writer_put_jcc_short_label (GumX86Writer * self,
                                     gconstpointer label_id,
                                     GumBranchHint hint)
 {
-  gum_x86_writer_put_jcc_short (self, instruction_id, 
+  gum_x86_writer_put_jcc_short (self, instruction_id,
       GSIZE_TO_POINTER (self->pc), hint);
   gum_x86_writer_add_label_reference_here (self, label_id, GUM_LREF_SHORT);
 }
@@ -2373,10 +2373,8 @@ gum_get_jcc_opcode (x86_insn instruction_id)
     case X86_INS_JG:
       return 0x7F;
     case X86_INS_JCXZ:
-      return 0xE3;
-    case X86_INS_JECXZ:
-      return 0xE3;
     case X86_INS_JRCXZ:
+    case X86_INS_JECXZ:
       return 0xE3;
     default:
       g_assert_not_reached ();
