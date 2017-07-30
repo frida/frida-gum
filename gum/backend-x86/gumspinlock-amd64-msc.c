@@ -42,7 +42,7 @@ gum_spinlock_init (GumSpinlock * spinlock)
   gum_x86_writer_put_label (&cw, try_again_label);
   gum_x86_writer_put_mov_reg_u32 (&cw, GUM_REG_EAX, 0);
   gum_x86_writer_put_lock_cmpxchg_reg_ptr_reg (&cw, GUM_REG_RCX, GUM_REG_EDX);
-  gum_x86_writer_put_jcc_short_label (&cw, GUM_X86_JZ, beach_label,
+  gum_x86_writer_put_jcc_short_label (&cw, X86_INS_JE, beach_label,
       GUM_NO_HINT);
 
   gum_x86_writer_put_pause (&cw);

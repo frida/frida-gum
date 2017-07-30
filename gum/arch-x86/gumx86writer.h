@@ -9,6 +9,8 @@
 
 #include <gum/gumdefs.h>
 
+#include <capstone.h>
+
 G_BEGIN_DECLS
 
 typedef struct _GumX86Writer GumX86Writer;
@@ -100,25 +102,6 @@ enum _GumPtrTarget
   GUM_PTR_QWORD
 };
 
-enum _GumX86JumpOpcode
-{
-  GUM_X86_JZ  = 0x74,
-  GUM_X86_JNZ = 0x75,
-
-  /* unsigned */
-  GUM_X86_JB  = 0x72,
-  GUM_X86_JAE = 0x73,
-  GUM_X86_JBE = 0x76,
-  GUM_X86_JA  = 0x77,
-
-  /* signed */
-  GUM_X86_JL  = 0x7c,
-  GUM_X86_JGE = 0x7d,
-  GUM_X86_JLE = 0x7e,
-  GUM_X86_JG  = 0x7f,
-};
-
-
 void gum_x86_writer_init (GumX86Writer * writer, gpointer code_address);
 void gum_x86_writer_reset (GumX86Writer * writer, gpointer code_address);
 void gum_x86_writer_free (GumX86Writer * writer);
@@ -153,11 +136,10 @@ void gum_x86_writer_put_jmp_near_label (GumX86Writer * self, gconstpointer label
 void gum_x86_writer_put_jmp_reg (GumX86Writer * self, GumCpuReg reg);
 void gum_x86_writer_put_jmp_reg_ptr (GumX86Writer * self, GumCpuReg reg);
 void gum_x86_writer_put_jmp_near_ptr (GumX86Writer * self, GumAddress address);
-void gum_x86_writer_put_jcc (GumX86Writer * self, guint8 opcode, gconstpointer target, GumBranchHint hint);
-void gum_x86_writer_put_jcc_short (GumX86Writer * self, guint8 opcode, gconstpointer target, GumBranchHint hint);
-void gum_x86_writer_put_jcc_near (GumX86Writer * self, guint8 opcode, gconstpointer target, GumBranchHint hint);
-void gum_x86_writer_put_jcc_short_label (GumX86Writer * self, guint8 opcode, gconstpointer label_id, GumBranchHint hint);
-void gum_x86_writer_put_jcc_near_label (GumX86Writer * self, guint8 opcode, gconstpointer label_id, GumBranchHint hint);
+void gum_x86_writer_put_jcc_short (GumX86Writer * self, x86_insn instruction_id, gconstpointer target, GumBranchHint hint);
+void gum_x86_writer_put_jcc_near (GumX86Writer * self, x86_insn instruction_id, gconstpointer target, GumBranchHint hint);
+void gum_x86_writer_put_jcc_short_label (GumX86Writer * self, x86_insn instruction_id, gconstpointer label_id, GumBranchHint hint);
+void gum_x86_writer_put_jcc_near_label (GumX86Writer * self, x86_insn instruction_id, gconstpointer label_id, GumBranchHint hint);
 
 void gum_x86_writer_put_add_reg_imm (GumX86Writer * self, GumCpuReg reg, gssize imm_value);
 void gum_x86_writer_put_add_reg_reg (GumX86Writer * self, GumCpuReg dst_reg, GumCpuReg src_reg);

@@ -26,7 +26,7 @@ gum_x86_reader_insn_length (guint8 * code)
 }
 
 gboolean
-gum_x86_reader_insn_is_jcc (cs_insn * insn)
+gum_x86_reader_insn_is_jcc (const cs_insn * insn)
 {
   switch (insn->id)
   {
@@ -53,26 +53,6 @@ gum_x86_reader_insn_is_jcc (cs_insn * insn)
   }
 
   return FALSE;
-}
-
-guint8
-gum_x86_reader_jcc_insn_to_short_opcode (guint8 * code)
-{
-  if (*code == 0x3e || *code == 0x2e)
-    code++; /* skip hint */
-  if (code[0] == 0x0f)
-    return code[1] - 0x10;
-  else
-    return code[0];
-}
-
-guint8
-gum_x86_reader_jcc_opcode_negate (guint8 opcode)
-{
-  if (opcode % 2 == 0)
-    return opcode + 1;
-  else
-    return opcode - 1;
 }
 
 gpointer

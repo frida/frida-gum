@@ -338,6 +338,7 @@ static void gum_write_segment_prefix (uint8_t segment, GumX86Writer * cw);
 
 static GumCpuReg gum_cpu_meta_reg_from_real_reg (GumCpuReg reg);
 static GumCpuReg gum_cpu_reg_from_capstone (x86_reg reg);
+static x86_insn gum_negate_jcc (x86_insn instruction_id);
 
 #ifdef G_OS_WIN32
 static gboolean gum_stalker_on_exception (GumExceptionDetails * details,
@@ -1676,7 +1677,7 @@ gum_exec_block_backpatch_call (GumExecBlock * block,
         GUM_ADDRESS (&block->ctx->current_frame));
     gum_x86_writer_put_test_reg_u32 (cw, GUM_REG_XCX,
         block->ctx->stalker->priv->page_size - 1);
-    gum_x86_writer_put_jcc_short_label (cw, GUM_X86_JZ, beach_label,
+    gum_x86_writer_put_jcc_short_label (cw, X86_INS_JE, beach_label,
         GUM_UNLIKELY);
 
     gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XCX, sizeof (GumExecFrame));
@@ -1870,7 +1871,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
 
     gum_exec_block_close_prolog (block, gc);
 
-    gum_x86_writer_put_jcc_short_label (cw, 0xe3, is_true, GUM_NO_HINT);
+    gum_x86_writer_put_jcc_short_label (cw, X86_INS_JCXZ, is_true, GUM_NO_HINT);
     gum_x86_writer_put_jmp_near_label (cw, is_false);
 
     gum_x86_writer_put_label (cw, is_true);
@@ -1896,9 +1897,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
 
       gum_exec_block_close_prolog (block, gc);
 
-      gum_x86_writer_put_jcc_near_label (cw,
-          gum_x86_reader_jcc_opcode_negate (
-              gum_x86_reader_jcc_insn_to_short_opcode (insn->begin)),
+      gum_x86_writer_put_jcc_near_label (cw, gum_negate_jcc (insn->ci->id),
           is_false, GUM_NO_HINT);
     }
 
@@ -2011,7 +2010,7 @@ gum_exec_block_virtualize_sysenter_insn (GumExecBlock * block,
       GUM_ADDRESS (&block->ctx->state));
   gum_x86_writer_put_cmp_reg_i32 (cw, GUM_REG_EAX,
       GUM_EXEC_CTX_UNFOLLOW_PENDING);
-  gum_x86_writer_put_jcc_short_label (cw, GUM_X86_JZ,
+  gum_x86_writer_put_jcc_short_label (cw, X86_INS_JE,
       resolve_dynamically_label, GUM_UNLIKELY);
 
   /* check frame at the top of the stack */
@@ -2020,7 +2019,7 @@ gum_exec_block_virtualize_sysenter_insn (GumExecBlock * block,
   gum_x86_writer_put_cmp_reg_offset_ptr_reg (cw,
       GUM_REG_EAX, G_STRUCT_OFFSET (GumExecFrame, real_address),
       GUM_REG_EDX);
-  gum_x86_writer_put_jcc_short_label (cw, GUM_X86_JNZ,
+  gum_x86_writer_put_jcc_short_label (cw, X86_INS_JNE,
       resolve_dynamically_label, GUM_UNLIKELY);
 
   /* replace return address */
@@ -2168,7 +2167,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
       GUM_ADDRESS (&block->ctx->current_frame));
   gum_x86_writer_put_test_reg_u32 (cw, GUM_REG_XCX,
       block->ctx->stalker->priv->page_size - 1);
-  gum_x86_writer_put_jcc_short_label (cw, GUM_X86_JZ, skip_stack_push,
+  gum_x86_writer_put_jcc_short_label (cw, X86_INS_JE, skip_stack_push,
       GUM_UNLIKELY);
 
   gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XCX, sizeof (GumExecFrame));
@@ -2276,7 +2275,7 @@ gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
   gum_x86_writer_put_cmp_reg_offset_ptr_reg (cw,
       GUM_REG_XSP, 3 * sizeof (gpointer),
       GUM_REG_XAX);
-  gum_x86_writer_put_jcc_short_label (cw, GUM_X86_JNZ,
+  gum_x86_writer_put_jcc_short_label (cw, X86_INS_JNE,
       resolve_dynamically_label, GUM_UNLIKELY);
 
   /* replace return address */
@@ -2517,7 +2516,7 @@ gum_exec_block_write_event_submit_code (GumExecBlock * block,
         GUM_ADDRESS (&ctx->state));
     gum_x86_writer_put_cmp_reg_i32 (cw, GUM_REG_EAX,
         GUM_EXEC_CTX_UNFOLLOW_PENDING);
-    gum_x86_writer_put_jcc_near_label (cw, GUM_X86_JNZ, beach_label, GUM_LIKELY);
+    gum_x86_writer_put_jcc_near_label (cw, X86_INS_JNE, beach_label, GUM_LIKELY);
     gum_x86_writer_put_call_with_arguments (cw,
         GUM_FUNCPTR_TO_POINTER (gum_exec_ctx_unfollow), 2,
         GUM_ARG_POINTER, ctx,
@@ -2741,6 +2740,48 @@ gum_cpu_reg_from_capstone (x86_reg reg)
     case X86_REG_R15: return GUM_REG_R15;
     case X86_REG_RIP: return GUM_REG_RIP;
 
+    default:
+      g_assert_not_reached ();
+  }
+}
+
+static x86_insn
+gum_negate_jcc (x86_insn instruction_id)
+{
+  switch (instruction_id)
+  {
+    case X86_INS_JA:
+      return X86_INS_JBE;
+    case X86_INS_JAE:
+      return X86_INS_JB;
+    case X86_INS_JB:
+      return X86_INS_JAE;
+    case X86_INS_JBE:
+      return X86_INS_JA;
+    case X86_INS_JE:
+      return X86_INS_JNE;
+    case X86_INS_JG:
+      return X86_INS_JLE;
+    case X86_INS_JGE:
+      return X86_INS_JL;
+    case X86_INS_JL:
+      return X86_INS_JGE;
+    case X86_INS_JLE:
+      return X86_INS_JG;
+    case X86_INS_JNE:
+      return X86_INS_JE;
+    case X86_INS_JNO:
+      return X86_INS_JO;
+    case X86_INS_JNP:
+      return X86_INS_JP;
+    case X86_INS_JNS:
+      return X86_INS_JS;
+    case X86_INS_JO:
+      return X86_INS_JNO;
+    case X86_INS_JP:
+      return X86_INS_JNP;
+    case X86_INS_JS:
+      return X86_INS_JNS;
     default:
       g_assert_not_reached ();
   }
