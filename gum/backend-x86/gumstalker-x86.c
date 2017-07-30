@@ -338,7 +338,7 @@ static void gum_write_segment_prefix (uint8_t segment, GumX86Writer * cw);
 
 static GumCpuReg gum_cpu_meta_reg_from_real_reg (GumCpuReg reg);
 static GumCpuReg gum_cpu_reg_from_capstone (x86_reg reg);
-static unsigned int gum_negate_jcc (unsigned int instruction_id);;
+static x86_insn gum_negate_jcc (x86_insn instruction_id);;
 
 #ifdef G_OS_WIN32
 static gboolean gum_stalker_on_exception (GumExceptionDetails * details,
@@ -2745,8 +2745,8 @@ gum_cpu_reg_from_capstone (x86_reg reg)
   }
 }
 
-static unsigned int
-gum_negate_jcc (unsigned int instruction_id)
+static x86_insn
+gum_negate_jcc (x86_insn instruction_id)
 {
   switch (instruction_id)
   {
