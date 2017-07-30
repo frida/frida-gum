@@ -2361,21 +2361,21 @@ gum_get_jcc_opcode (x86_insn instruction_id)
     case X86_INS_JNS:
       return 0x79;
     case X86_INS_JP:
-      return 0x7A;
+      return 0x7a;
     case X86_INS_JNP:
-      return 0x7B;
+      return 0x7b;
     case X86_INS_JL:
-      return 0x7C;
+      return 0x7c;
     case X86_INS_JGE:
-      return 0x7D;
+      return 0x7d;
     case X86_INS_JLE:
-      return 0x7E;
+      return 0x7e;
     case X86_INS_JG:
-      return 0x7F;
+      return 0x7f;
     case X86_INS_JCXZ:
-    case X86_INS_JRCXZ:
     case X86_INS_JECXZ:
-      return 0xE3;
+    case X86_INS_JRCXZ:
+      return 0xe3;
     default:
       g_assert_not_reached ();
   }
