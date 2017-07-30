@@ -467,8 +467,8 @@ gum_x86_relocator_rewrite_conditional_branch (GumX86Relocator * self,
       gconstpointer is_true = GSIZE_TO_POINTER (unique_id | 1);
       gconstpointer is_false = GSIZE_TO_POINTER (unique_id | 0);
 
-      gum_x86_writer_put_jcc_short_label (ctx->code_writer, ctx->insn->id, is_true,
-          GUM_NO_HINT);
+      gum_x86_writer_put_jcc_short_label (ctx->code_writer, ctx->insn->id, 
+          is_true, GUM_NO_HINT);
       gum_x86_writer_put_jmp_short_label (ctx->code_writer, is_false);
 
       gum_x86_writer_put_label (ctx->code_writer, is_true);
