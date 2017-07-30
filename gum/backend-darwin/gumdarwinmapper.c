@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -839,7 +839,7 @@ gum_emit_init_calls (const GumDarwinInitPointersDetails * details,
 
   gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XBP, self->module->pointer_size);
   gum_x86_writer_put_dec_reg (cw, GUM_REG_XBX);
-  gum_x86_writer_put_jcc_short_label (cw, GUM_X86_JNZ, next_label, GUM_NO_HINT);
+  gum_x86_writer_put_jcc_short_label (cw, X86_INS_JNE, next_label, GUM_NO_HINT);
 
   return TRUE;
 }
@@ -863,7 +863,7 @@ gum_emit_term_calls (const GumDarwinTermPointersDetails * details,
 
   gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XBP, self->module->pointer_size);
   gum_x86_writer_put_dec_reg (cw, GUM_REG_XBX);
-  gum_x86_writer_put_jcc_short_label (cw, GUM_X86_JNZ, next_label, GUM_NO_HINT);
+  gum_x86_writer_put_jcc_short_label (cw, X86_INS_JNE, next_label, GUM_NO_HINT);
 
   return TRUE;
 }
