@@ -3649,6 +3649,10 @@ SCRIPT_TESTCASE (utf8_string_can_be_read)
 
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(ptr(\"0\")));", str);
   EXPECT_SEND_MESSAGE_WITH ("null");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(" GUM_PTR_CONST
+      ", 3));", str);
+  EXPECT_ERROR_MESSAGE_WITH (1, "Error: invalid UTF-8");
 }
 
 SCRIPT_TESTCASE (utf8_string_can_be_written)

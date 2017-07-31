@@ -519,6 +519,12 @@ gum_v8_memory_read (GumMemoryValueType type,
           guint8 dummy_to_trap_bad_pointer_early;
           memcpy (&dummy_to_trap_bad_pointer_early, data, sizeof (guint8));
 
+          if (!g_utf8_validate (data, length, NULL))
+          {
+            _gum_v8_throw_ascii_literal (isolate, "invalid UTF-8");
+            break;
+          }
+
           result = String::NewFromUtf8 (isolate, data, String::kNormalString,
               length);
         }

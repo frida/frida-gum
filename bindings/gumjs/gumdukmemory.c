@@ -486,6 +486,9 @@ gum_duk_memory_read (GumMemoryValueType type,
         if (length != 0)
           memcpy (&dummy_to_trap_bad_pointer_early, data, sizeof (guint8));
 
+        if (!g_utf8_validate (data, length, NULL))
+          _gum_duk_throw (ctx, "invalid UTF-8");
+
         if (length < 0)
         {
           duk_push_string (ctx, data);
