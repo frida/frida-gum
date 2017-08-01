@@ -546,6 +546,14 @@ gum_module_enumerate_exports (const gchar * module_name,
 }
 
 void
+gum_module_enumerate_symbols (const gchar * module_name,
+                              GumFoundSymbolFunc func,
+                              gpointer user_data)
+{
+  /* TODO: implement */
+}
+
+void
 gum_module_enumerate_ranges (const gchar * module_name,
                              GumPageProtection prot,
                              GumFoundRangeFunc func,
