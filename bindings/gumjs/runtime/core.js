@@ -380,8 +380,8 @@ Object.defineProperties(Module, {
     value: function (name) {
       const imports = [];
       Module.enumerateImports(name, {
-        onMatch: function (e) {
-          imports.push(e);
+        onMatch: function (imp) {
+          imports.push(imp);
         },
         onComplete: function () {
         }
@@ -394,8 +394,8 @@ Object.defineProperties(Module, {
     value: function (name) {
       const exports = [];
       Module.enumerateExports(name, {
-        onMatch: function (e) {
-          exports.push(e);
+        onMatch: function (exp) {
+          exports.push(exp);
         },
         onComplete: function () {
         }
