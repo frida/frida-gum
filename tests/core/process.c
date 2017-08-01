@@ -446,6 +446,7 @@ PROCESS_TESTCASE (module_exports)
 
 PROCESS_TESTCASE (module_symbols)
 {
+#ifdef HAVE_DARWIN
   TestForEachContext ctx;
 
   ctx.number_of_calls = 0;
@@ -457,6 +458,9 @@ PROCESS_TESTCASE (module_symbols)
   ctx.value_to_return = FALSE;
   gum_module_enumerate_symbols (SYSTEM_MODULE_NAME, symbol_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
+#else
+  (void) symbol_found_cb;
+#endif
 }
 
 PROCESS_TESTCASE (module_ranges_can_be_enumerated)
