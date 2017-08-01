@@ -52,7 +52,7 @@ struct GumV8ExportsContext
   gboolean has_pending_exception;
 };
 
-struct GumV8RangesContext
+struct GumV8MatchContext
 {
   Local<Function> on_match;
   Local<Function> on_complete;
@@ -70,7 +70,7 @@ static gboolean gum_emit_export (const GumExportDetails * details,
     GumV8ExportsContext * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
-    GumV8RangesContext * mc);
+    GumV8MatchContext * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_base_address)
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_export_by_name)
 
@@ -376,20 +376,20 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_ranges)
 {
   gchar * name;
   GumPageProtection prot;
-  GumV8RangesContext rc;
+  GumV8MatchContext mc;
   if (!_gum_v8_args_parse (args, "smF{onMatch,onComplete}", &name, &prot,
-      &rc.on_match, &rc.on_complete))
+      &mc.on_match, &mc.on_complete))
     return;
-  rc.core = core;
+  mc.core = core;
 
-  rc.has_pending_exception = FALSE;
+  mc.has_pending_exception = FALSE;
 
   gum_module_enumerate_ranges (name, prot, (GumFoundRangeFunc) gum_emit_range,
-      &rc);
+      &mc);
 
-  if (!rc.has_pending_exception)
+  if (!mc.has_pending_exception)
   {
-    rc.on_complete->Call (Undefined (isolate), 0, nullptr);
+    mc.on_complete->Call (Undefined (isolate), 0, nullptr);
   }
 
   g_free (name);
@@ -397,9 +397,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_ranges)
 
 static gboolean
 gum_emit_range (const GumRangeDetails * details,
-                GumV8RangesContext * rc)
+                GumV8MatchContext * mc)
 {
-  auto core = rc->core;
+  auto core = mc->core;
   auto isolate = core->isolate;
 
   auto range = Object::New (isolate);
@@ -410,11 +410,11 @@ gum_emit_range (const GumRangeDetails * details,
 
   Handle<Value> argv[] = { range };
   auto result =
-      rc->on_match->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
+      mc->on_match->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
 
-  rc->has_pending_exception = result.IsEmpty ();
+  mc->has_pending_exception = result.IsEmpty ();
 
-  gboolean proceed = !rc->has_pending_exception;
+  gboolean proceed = !mc->has_pending_exception;
   if (proceed && result->IsString ())
   {
     String::Utf8Value str (result);
