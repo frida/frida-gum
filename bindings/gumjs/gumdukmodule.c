@@ -25,6 +25,9 @@ static gboolean gum_emit_import (const GumImportDetails * details,
 GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_exports)
 static gboolean gum_emit_export (const GumExportDetails * details,
     GumDukMatchContext * mc);
+GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_symbols)
+static gboolean gum_emit_symbol (const GumSymbolDetails * details,
+    GumDukMatchContext * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
     GumDukMatchContext * mc);
@@ -35,6 +38,7 @@ static const duk_function_list_entry gumjs_module_functions[] =
 {
   { "enumerateImports", gumjs_module_enumerate_imports, 2 },
   { "enumerateExports", gumjs_module_enumerate_exports, 2 },
+  { "enumerateSymbols", gumjs_module_enumerate_symbols, 2 },
   { "enumerateRanges", gumjs_module_enumerate_ranges, 3 },
   { "findBaseAddress", gumjs_module_find_base_address, 1 },
   { "findExportByName", gumjs_module_find_export_by_name, 2 },
@@ -186,6 +190,80 @@ gum_emit_export (const GumExportDetails * details,
   duk_push_string (ctx,
       (details->type == GUM_EXPORT_FUNCTION) ? "function" : "variable");
   duk_put_prop_string (ctx, -2, "type");
+
+  duk_push_string (ctx, details->name);
+  duk_put_prop_string (ctx, -2, "name");
+
+  _gum_duk_push_native_pointer (ctx, GSIZE_TO_POINTER (details->address),
+      scope->core);
+  duk_put_prop_string (ctx, -2, "address");
+
+  if (_gum_duk_scope_call_sync (scope, 1))
+  {
+    if (duk_is_string (ctx, -1))
+      proceed = strcmp (duk_require_string (ctx, -1), "stop") != 0;
+  }
+  else
+  {
+    proceed = FALSE;
+  }
+  duk_pop (ctx);
+
+  return proceed;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_symbols)
+{
+  GumDukMatchContext mc;
+  const gchar * name;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
+
+  _gum_duk_args_parse (args, "sF{onMatch,onComplete}", &name, &mc.on_match,
+      &mc.on_complete);
+  mc.scope = &scope;
+
+  gum_module_enumerate_symbols (name, (GumFoundSymbolFunc) gum_emit_symbol,
+      &mc);
+  _gum_duk_scope_flush (&scope);
+
+  duk_push_heapptr (ctx, mc.on_complete);
+  duk_call (ctx, 0);
+  duk_pop (ctx);
+
+  return 0;
+}
+
+static gboolean
+gum_emit_symbol (const GumSymbolDetails * details,
+                 GumDukMatchContext * mc)
+{
+  const GumSymbolSection * section = details->section;
+  GumDukScope * scope = mc->scope;
+  duk_context * ctx = scope->ctx;
+  gboolean proceed = TRUE;
+
+  duk_push_heapptr (ctx, mc->on_match);
+
+  duk_push_object (ctx);
+
+  duk_push_boolean (ctx, details->is_global);
+  duk_put_prop_string (ctx, -2, "isGlobal");
+
+  duk_push_string (ctx, gum_symbol_type_to_string (details->type));
+  duk_put_prop_string (ctx, -2, "type");
+
+  if (section != NULL)
+  {
+    duk_push_object (ctx);
+
+    duk_push_string (ctx, section->id);
+    duk_put_prop_string (ctx, -2, "id");
+
+    _gum_duk_push_page_protection (ctx, section->prot);
+    duk_put_prop_string (ctx, -2, "protection");
+
+    duk_put_prop_string (ctx, -2, "section");
+  }
 
   duk_push_string (ctx, details->name);
   duk_put_prop_string (ctx, -2, "name");

@@ -403,6 +403,20 @@ Object.defineProperties(Module, {
       return exports;
     }
   },
+  enumerateSymbolsSync: {
+    enumerable: true,
+    value: function (name) {
+      const symbols = [];
+      Module.enumerateSymbols(name, {
+        onMatch: function (sym) {
+          symbols.push(sym);
+        },
+        onComplete: function () {
+        }
+      });
+      return symbols;
+    }
+  },
   enumerateRangesSync: {
     enumerable: true,
     value: function (name, prot) {

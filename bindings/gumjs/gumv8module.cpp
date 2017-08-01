@@ -68,6 +68,9 @@ static gboolean gum_emit_import (const GumImportDetails * details,
 GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_exports)
 static gboolean gum_emit_export (const GumExportDetails * details,
     GumV8ExportsContext * mc);
+GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_symbols)
+static gboolean gum_emit_symbol (const GumSymbolDetails * details,
+    GumV8MatchContext * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
     GumV8MatchContext * mc);
@@ -78,6 +81,7 @@ static const GumV8Function gumjs_module_functions[] =
 {
   { "enumerateImports", gumjs_module_enumerate_imports },
   { "enumerateExports", gumjs_module_enumerate_exports },
+  { "enumerateSymbols", gumjs_module_enumerate_symbols },
   { "enumerateRanges", gumjs_module_enumerate_ranges },
   { "findBaseAddress", gumjs_module_find_base_address },
   { "findExportByName", gumjs_module_find_export_by_name },
@@ -353,6 +357,79 @@ gum_emit_export (const GumExportDetails * details,
   ec->has_pending_exception = result.IsEmpty ();
 
   gboolean proceed = !ec->has_pending_exception;
+  if (proceed && result->IsString ())
+  {
+    String::Utf8Value str (result);
+    proceed = strcmp (*str, "stop") != 0;
+  }
+
+  return proceed;
+}
+
+/*
+ * Prototype:
+ * Module.enumerateSymbols(name, callback)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
+GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_symbols)
+{
+  gchar * name;
+  GumV8MatchContext mc;
+  if (!_gum_v8_args_parse (args, "sF{onMatch,onComplete}", &name, &mc.on_match,
+      &mc.on_complete))
+    return;
+  mc.core = core;
+
+  mc.has_pending_exception = FALSE;
+
+  gum_module_enumerate_symbols (name, (GumFoundSymbolFunc) gum_emit_symbol,
+      &mc);
+
+  if (!mc.has_pending_exception)
+  {
+    mc.on_complete->Call (Undefined (isolate), 0, nullptr);
+  }
+
+  g_free (name);
+}
+
+static gboolean
+gum_emit_symbol (const GumSymbolDetails * details,
+                 GumV8MatchContext * mc)
+{
+  auto core = mc->core;
+  auto isolate = core->isolate;
+
+  auto symbol = Object::New (isolate);
+  _gum_v8_object_set (symbol, "isGlobal",
+      Boolean::New (isolate, details->is_global), core);
+  _gum_v8_object_set_ascii (symbol, "type",
+      gum_symbol_type_to_string (details->type), core);
+
+  auto s = details->section;
+  if (s != NULL)
+  {
+    auto section = Object::New (isolate);
+    _gum_v8_object_set_ascii (section, "id", s->id, core);
+    _gum_v8_object_set_page_protection (section, "protection", s->prot, core);
+    _gum_v8_object_set (symbol, "section", section, core);
+  }
+
+  _gum_v8_object_set_ascii (symbol, "name", details->name, core);
+  _gum_v8_object_set_pointer (symbol, "address", details->address, core);
+
+  Handle<Value> argv[] = { symbol };
+  auto result =
+      mc->on_match->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
+
+  mc->has_pending_exception = result.IsEmpty ();
+
+  gboolean proceed = !mc->has_pending_exception;
   if (proceed && result->IsString ())
   {
     String::Utf8Value str (result);

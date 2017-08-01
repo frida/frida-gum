@@ -153,6 +153,8 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (module_exports_can_be_enumerated)
   SCRIPT_TESTENTRY (module_exports_can_be_enumerated_synchronously)
   SCRIPT_TESTENTRY (module_exports_enumeration_performance)
+  SCRIPT_TESTENTRY (module_symbols_can_be_enumerated)
+  SCRIPT_TESTENTRY (module_symbols_can_be_enumerated_synchronously)
   SCRIPT_TESTENTRY (module_ranges_can_be_enumerated)
   SCRIPT_TESTENTRY (module_ranges_can_be_enumerated_synchronously)
   SCRIPT_TESTENTRY (module_base_address_can_be_found)
@@ -1830,6 +1832,44 @@ SCRIPT_TESTCASE (module_exports_enumeration_performance)
   sscanf (item->message, "{\"type\":\"send\",\"payload\":%d}", &duration);
   g_print ("<%d ms> ", duration);
   test_script_message_item_free (item);
+}
+
+SCRIPT_TESTCASE (module_symbols_can_be_enumerated)
+{
+#ifdef HAVE_DARWIN
+  COMPILE_AND_LOAD_SCRIPT (
+      "Module.enumerateSymbols(\"%s\", {"
+        "onMatch: function (sym) {"
+        "  send('onMatch');"
+        "  send(typeof sym.isGlobal === 'boolean');"
+        "  send(typeof sym.type === 'string');"
+        "  send(typeof sym.name === 'string');"
+        "  send(sym.address instanceof NativePointer);"
+        "  send(JSON.stringify(sym) !== \"{}\");"
+        "  return 'stop';"
+        "},"
+        "onComplete: function () {"
+        "  send('onComplete');"
+        "}"
+      "});", SYSTEM_MODULE_NAME);
+  EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
+#endif
+}
+
+SCRIPT_TESTCASE (module_symbols_can_be_enumerated_synchronously)
+{
+#ifdef HAVE_DARWIN
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(Module.enumerateSymbolsSync(\"%s\").length > 1);",
+      SYSTEM_MODULE_NAME);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+#endif
 }
 
 SCRIPT_TESTCASE (module_ranges_can_be_enumerated)
