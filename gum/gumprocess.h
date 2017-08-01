@@ -19,6 +19,7 @@ typedef guint GumSymbolType;
 typedef struct _GumImportDetails GumImportDetails;
 typedef struct _GumExportDetails GumExportDetails;
 typedef struct _GumSymbolDetails GumSymbolDetails;
+typedef struct _GumSymbolSection GumSymbolSection;
 typedef struct _GumRangeDetails GumRangeDetails;
 typedef struct _GumFileMapping GumFileMapping;
 typedef struct _GumMallocRangeDetails GumMallocRangeDetails;
@@ -86,11 +87,16 @@ struct _GumExportDetails
 
 struct _GumSymbolDetails
 {
-  GumSymbolType type;
   gboolean is_global;
-  const gchar * scope;
+  GumSymbolType type;
+  const GumSymbolSection * section;
   const gchar * name;
   GumAddress address;
+};
+
+struct _GumSymbolSection
+{
+  const gchar * id;
   GumPageProtection prot;
 };
 
@@ -158,6 +164,8 @@ GUM_API void gum_module_enumerate_ranges (const gchar * module_name,
 GUM_API GumAddress gum_module_find_base_address (const gchar * module_name);
 GUM_API GumAddress gum_module_find_export_by_name (const gchar * module_name,
     const gchar * symbol_name);
+
+GUM_API const gchar * gum_symbol_type_to_string (GumSymbolType type);
 
 G_END_DECLS
 

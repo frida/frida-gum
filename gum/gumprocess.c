@@ -114,3 +114,20 @@ gum_emit_range_if_not_cloaked (const GumRangeDetails * details,
 
   return ctx->func (details, ctx->user_data);
 }
+
+const gchar *
+gum_symbol_type_to_string (GumSymbolType type)
+{
+  switch (type)
+  {
+    case GUM_SYMBOL_UNKNOWN:            return "unknown";
+    case GUM_SYMBOL_UNDEFINED:          return "undefined";
+    case GUM_SYMBOL_ABSOLUTE:           return "absolute";
+    case GUM_SYMBOL_SECTION:            return "section";
+    case GUM_SYMBOL_PREBOUND_UNDEFINED: return "prebound-undefined";
+    case GUM_SYMBOL_INDIRECT:           return "indirect";
+  }
+
+  g_assert_not_reached ();
+  return NULL;
+}

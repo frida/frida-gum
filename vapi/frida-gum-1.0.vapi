@@ -243,11 +243,15 @@ namespace Gum {
 	}
 
 	public struct SymbolDetails {
-		public Gum.SymbolType type;
 		public bool is_global;
-		public string? scope;
+		public Gum.SymbolType type;
+		public Gum.SymbolSection? section;
 		public string name;
 		public Gum.Address address;
+	}
+
+	public struct SymbolSection {
+		public string id;
 		public Gum.PageProtection prot;
 	}
 

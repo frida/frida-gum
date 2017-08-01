@@ -33,7 +33,6 @@
 typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
 typedef struct _GumEnumerateExportsContext GumEnumerateExportsContext;
 typedef struct _GumEnumerateSymbolsContext GumEnumerateSymbolsContext;
-typedef struct _GumSectionSummary GumSectionSummary;
 typedef struct _GumFindEntrypointContext GumFindEntrypointContext;
 typedef struct _GumEnumerateModulesSlowContext GumEnumerateModulesSlowContext;
 typedef struct _GumEnumerateMallocRangesContext GumEnumerateMallocRangesContext;
@@ -73,12 +72,6 @@ struct _GumEnumerateSymbolsContext
   gpointer user_data;
 
   GArray * sections;
-};
-
-struct _GumSectionSummary
-{
-  gchar * id;
-  GumPageProtection prot;
 };
 
 struct _GumFindEntrypointContext
@@ -200,9 +193,9 @@ static gboolean gum_emit_export (const GumDarwinExportDetails * details,
     gpointer user_data);
 static gboolean gum_emit_symbol (const GumDarwinSymbolDetails * details,
     gpointer user_data);
-static gboolean gum_append_section_summary (
+static gboolean gum_append_symbol_section (
     const GumDarwinSectionDetails * details, gpointer user_data);
-static void gum_section_summary_destroy (GumSectionSummary * self);
+static void gum_symbol_section_destroy (GumSymbolSection * self);
 
 static gboolean find_image_address_and_slide (const gchar * image_name,
     gpointer * address, gpointer * slide);
@@ -1405,11 +1398,11 @@ gum_darwin_enumerate_symbols (mach_port_t task,
     ctx.func = func;
     ctx.user_data = user_data;
 
-    ctx.sections = g_array_new (FALSE, FALSE, sizeof (GumSectionSummary));
+    ctx.sections = g_array_new (FALSE, FALSE, sizeof (GumSymbolSection));
     g_array_set_clear_func (ctx.sections,
-        (GDestroyNotify) gum_section_summary_destroy);
+        (GDestroyNotify) gum_symbol_section_destroy);
 
-    gum_darwin_module_enumerate_sections (module, gum_append_section_summary,
+    gum_darwin_module_enumerate_sections (module, gum_append_symbol_section,
         ctx.sections);
 
     gum_darwin_module_enumerate_symbols (module, gum_emit_symbol, &ctx);
@@ -1427,6 +1420,8 @@ gum_emit_symbol (const GumDarwinSymbolDetails * details,
   GumEnumerateSymbolsContext * ctx = user_data;
   GumSymbolDetails symbol;
 
+  symbol.is_global = (details->type & N_EXT) != 0;
+
   switch (details->type & N_TYPE)
   {
     case N_UNDF: symbol.type = GUM_SYMBOL_UNDEFINED;          break;
@@ -1437,22 +1432,14 @@ gum_emit_symbol (const GumDarwinSymbolDetails * details,
     default:     symbol.type = GUM_SYMBOL_UNKNOWN;            break;
   }
 
-  symbol.is_global = (details->type & N_EXT) != 0;
-
   if (details->section != NO_SECT && details->section <= ctx->sections->len)
   {
-    const GumSectionSummary * summary;
-
-    summary = &g_array_index (ctx->sections, GumSectionSummary,
+    symbol.section = &g_array_index (ctx->sections, GumSymbolSection,
         details->section - 1);
-
-    symbol.scope = summary->id;
-    symbol.prot = summary->prot;
   }
   else
   {
-    symbol.scope = NULL;
-    symbol.prot = GUM_PAGE_NO_ACCESS;
+    symbol.section = NULL;
   }
 
   symbol.name = gum_symbol_name_from_darwin (details->name);
@@ -1462,25 +1449,25 @@ gum_emit_symbol (const GumDarwinSymbolDetails * details,
 }
 
 static gboolean
-gum_append_section_summary (const GumDarwinSectionDetails * details,
+gum_append_symbol_section (const GumDarwinSectionDetails * details,
                             gpointer user_data)
 {
-  GArray * summaries = user_data;
-  GumSectionSummary summary;
+  GArray * sections = user_data;
+  GumSymbolSection section;
 
-  summary.id = g_strdup_printf ("section.%u.%s.%s", summaries->len,
+  section.id = g_strdup_printf ("%u.%s.%s", sections->len,
       details->segment_name, details->section_name);
-  summary.prot = gum_page_protection_from_mach (details->protection);
+  section.prot = gum_page_protection_from_mach (details->protection);
 
-  g_array_append_val (summaries, summary);
+  g_array_append_val (sections, section);
 
   return TRUE;
 }
 
 static void
-gum_section_summary_destroy (GumSectionSummary * self)
+gum_symbol_section_destroy (GumSymbolSection * self)
 {
-  g_free (self->id);
+  g_free ((gpointer) self->id);
 }
 
 gboolean
