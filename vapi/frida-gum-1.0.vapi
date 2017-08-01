@@ -153,12 +153,14 @@ namespace Gum {
 	namespace Module {
 		public void enumerate_imports (string module_name, Gum.Module.FoundImportFunc func);
 		public void enumerate_exports (string module_name, Gum.Module.FoundExportFunc func);
+		public void enumerate_symbols (string module_name, Gum.Module.FoundSymbolFunc func);
 		public void enumerate_ranges (string module_name, Gum.PageProtection prot, Gum.FoundRangeFunc func);
 		public void * find_base_address (string module_name);
 		public void * find_export_by_name (string module_name, string symbol_name);
 
 		public delegate bool FoundImportFunc (Gum.ImportDetails details);
 		public delegate bool FoundExportFunc (Gum.ExportDetails details);
+		public delegate bool FoundSymbolFunc (Gum.SymbolDetails details);
 	}
 
 	namespace Memory {
@@ -228,6 +230,25 @@ namespace Gum {
 		public Gum.ExportType type;
 		public string name;
 		public Gum.Address address;
+	}
+
+	[CCode (cprefix = "GUM_SYMBOL_")]
+	public enum SymbolType {
+		UNKNOWN,
+		UNDEFINED,
+		ABSOLUTE,
+		SECTION,
+		PREBOUND_UNDEFINED,
+		INDIRECT
+	}
+
+	public struct SymbolDetails {
+		public Gum.SymbolType type;
+		public bool is_global;
+		public string? scope;
+		public string name;
+		public Gum.Address address;
+		public Gum.PageProtection prot;
 	}
 
 	public struct RangeDetails {
