@@ -120,6 +120,7 @@ struct _GumDarwinSectionDetails
   const gchar * section_name;
   GumAddress vm_address;
   guint64 size;
+  vm_prot_t protection;
   guint32 file_offset;
   guint32 flags;
 };

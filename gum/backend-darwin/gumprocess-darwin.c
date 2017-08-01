@@ -32,6 +32,8 @@
 
 typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
 typedef struct _GumEnumerateExportsContext GumEnumerateExportsContext;
+typedef struct _GumEnumerateSymbolsContext GumEnumerateSymbolsContext;
+typedef struct _GumSectionSummary GumSectionSummary;
 typedef struct _GumFindEntrypointContext GumFindEntrypointContext;
 typedef struct _GumEnumerateModulesSlowContext GumEnumerateModulesSlowContext;
 typedef struct _GumEnumerateMallocRangesContext GumEnumerateMallocRangesContext;
@@ -63,6 +65,20 @@ struct _GumEnumerateExportsContext
   GumDarwinModuleResolver * resolver;
   GumDarwinModule * module;
   gboolean carry_on;
+};
+
+struct _GumEnumerateSymbolsContext
+{
+  GumFoundSymbolFunc func;
+  gpointer user_data;
+
+  GArray * sections;
+};
+
+struct _GumSectionSummary
+{
+  gchar * id;
+  GumPageProtection prot;
 };
 
 struct _GumFindEntrypointContext
@@ -182,6 +198,11 @@ static gboolean gum_emit_import (const GumImportDetails * details,
     gpointer user_data);
 static gboolean gum_emit_export (const GumDarwinExportDetails * details,
     gpointer user_data);
+static gboolean gum_emit_symbol (const GumDarwinSymbolDetails * details,
+    gpointer user_data);
+static gboolean gum_append_section_summary (
+    const GumDarwinSectionDetails * details, gpointer user_data);
+static void gum_section_summary_destroy (GumSectionSummary * self);
 
 static gboolean find_image_address_and_slide (const gchar * image_name,
     gpointer * address, gpointer * slide);
@@ -430,6 +451,15 @@ gum_module_enumerate_exports (const gchar * module_name,
                               gpointer user_data)
 {
   return gum_darwin_enumerate_exports (mach_task_self (), module_name, func,
+      user_data);
+}
+
+void
+gum_module_enumerate_symbols (const gchar * module_name,
+                              GumFoundSymbolFunc func,
+                              gpointer user_data)
+{
+  return gum_darwin_enumerate_symbols (mach_task_self (), module_name, func,
       user_data);
 }
 
@@ -1354,6 +1384,103 @@ gum_emit_export (const GumDarwinExportDetails * details,
   ctx->carry_on = ctx->func (&export, ctx->user_data);
 
   return ctx->carry_on;
+}
+
+void
+gum_darwin_enumerate_symbols (mach_port_t task,
+                              const gchar * module_name,
+                              GumFoundSymbolFunc func,
+                              gpointer user_data)
+{
+  GumDarwinModuleResolver * resolver;
+  GumDarwinModule * module;
+
+  resolver = gum_darwin_module_resolver_new (task);
+
+  module = gum_darwin_module_resolver_find_module (resolver, module_name);
+  if (module != NULL)
+  {
+    GumEnumerateSymbolsContext ctx;
+
+    ctx.func = func;
+    ctx.user_data = user_data;
+
+    ctx.sections = g_array_new (FALSE, FALSE, sizeof (GumSectionSummary));
+    g_array_set_clear_func (ctx.sections,
+        (GDestroyNotify) gum_section_summary_destroy);
+
+    gum_darwin_module_enumerate_sections (module, gum_append_section_summary,
+        ctx.sections);
+
+    gum_darwin_module_enumerate_symbols (module, gum_emit_symbol, &ctx);
+
+    g_array_free (ctx.sections, TRUE);
+  }
+
+  g_object_unref (resolver);
+}
+
+static gboolean
+gum_emit_symbol (const GumDarwinSymbolDetails * details,
+                 gpointer user_data)
+{
+  GumEnumerateSymbolsContext * ctx = user_data;
+  GumSymbolDetails symbol;
+
+  switch (details->type & N_TYPE)
+  {
+    case N_UNDF: symbol.type = GUM_SYMBOL_UNDEFINED;          break;
+    case N_ABS:  symbol.type = GUM_SYMBOL_ABSOLUTE;           break;
+    case N_SECT: symbol.type = GUM_SYMBOL_SECTION;            break;
+    case N_PBUD: symbol.type = GUM_SYMBOL_PREBOUND_UNDEFINED; break;
+    case N_INDR: symbol.type = GUM_SYMBOL_INDIRECT;           break;
+    default:     symbol.type = GUM_SYMBOL_UNKNOWN;            break;
+  }
+
+  symbol.is_global = (details->type & N_EXT) != 0;
+
+  if (details->section != NO_SECT && details->section <= ctx->sections->len)
+  {
+    const GumSectionSummary * summary;
+
+    summary = &g_array_index (ctx->sections, GumSectionSummary,
+        details->section - 1);
+
+    symbol.scope = summary->id;
+    symbol.prot = summary->prot;
+  }
+  else
+  {
+    symbol.scope = NULL;
+    symbol.prot = GUM_PAGE_NO_ACCESS;
+  }
+
+  symbol.name = gum_symbol_name_from_darwin (details->name);
+  symbol.address = details->address;
+
+  return ctx->func (&symbol, ctx->user_data);
+}
+
+static gboolean
+gum_append_section_summary (const GumDarwinSectionDetails * details,
+                            gpointer user_data)
+{
+  GArray * summaries = user_data;
+  GumSectionSummary summary;
+
+  summary.id = g_strdup_printf ("section.%u.%s.%s", summaries->len,
+      details->segment_name, details->section_name);
+  summary.prot = gum_page_protection_from_mach (details->protection);
+
+  g_array_append_val (summaries, summary);
+
+  return TRUE;
+}
+
+static void
+gum_section_summary_destroy (GumSectionSummary * self)
+{
+  g_free (self->id);
 }
 
 gboolean

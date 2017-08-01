@@ -623,7 +623,7 @@ gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
       symbol = symbols + (symbol_index * sizeof (struct nlist_64));
 
       details.name = strings + symbol->n_un.n_strx;
-      details.address = symbol->n_value + slide;
+      details.address = (symbol->n_value != 0) ? symbol->n_value + slide : 0;
 
       details.type = symbol->n_type;
       details.section = symbol->n_sect;
@@ -636,7 +636,7 @@ gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
       symbol = symbols + (symbol_index * sizeof (struct nlist));
 
       details.name = strings + symbol->n_un.n_strx;
-      details.address = symbol->n_value + slide;
+      details.address = (symbol->n_value != 0) ? symbol->n_value + slide : 0;
 
       details.type = symbol->n_type;
       details.section = symbol->n_sect;
@@ -694,26 +694,31 @@ gum_darwin_module_enumerate_sections (GumDarwinModule * self,
 
     if (lc->cmd == LC_SEGMENT || lc->cmd == LC_SEGMENT_64)
     {
+      GumDarwinSectionDetails details;
       gconstpointer sections;
       gsize section_count, section_index;
 
       if (lc->cmd == LC_SEGMENT)
       {
         const struct segment_command * sc = command;
+
+        details.protection = sc->initprot;
+
         sections = sc + 1;
         section_count = sc->nsects;
       }
       else
       {
         const struct segment_command_64 * sc = command;
+
+        details.protection = sc->initprot;
+
         sections = sc + 1;
         section_count = sc->nsects;
       }
 
       for (section_index = 0; section_index != section_count; section_index++)
       {
-        GumDarwinSectionDetails details;
-
         if (lc->cmd == LC_SEGMENT)
         {
           const struct section * s = sections +
