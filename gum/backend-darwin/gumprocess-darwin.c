@@ -176,7 +176,6 @@ static gboolean gum_emit_export (const GumDarwinExportDetails * details,
 
 static gboolean find_image_address_and_slide (const gchar * image_name,
     gpointer * address, gpointer * slide);
-static gsize find_image_size (const gchar * image_name);
 
 static gchar * gum_canonicalize_module_name (const gchar * name);
 static gboolean gum_store_module_path_if_module_name_matches (
@@ -284,35 +283,7 @@ void
 gum_process_enumerate_modules (GumFoundModuleFunc func,
                                gpointer user_data)
 {
-  uint32_t count, i;
-
-  count = _dyld_image_count ();
-  for (i = 0; i != count; i++)
-  {
-    const gchar * path;
-    gchar * name;
-    GumMemoryRange range;
-    GumModuleDetails details;
-    gboolean carry_on;
-
-    path = _dyld_get_image_name (i);
-
-    name = g_path_get_basename (path);
-
-    range.base_address = GUM_ADDRESS (_dyld_get_image_header (i));
-    range.size = find_image_size (path);
-
-    details.name = name;
-    details.range = &range;
-    details.path = path;
-
-    carry_on = func (&details, user_data);
-
-    g_free (name);
-
-    if (!carry_on)
-      break;
-  }
+  gum_darwin_enumerate_modules (mach_task_self (), func, user_data);
 }
 
 void
@@ -788,12 +759,6 @@ gum_darwin_enumerate_modules (mach_port_t task,
   gchar * file_path = NULL;
   gchar * file_path_malloc_data = NULL;
   gboolean carry_on = TRUE;
-
-  if (task == mach_task_self ())
-  {
-    gum_process_enumerate_modules (func, user_data);
-    return;
-  }
 
 #if defined (HAVE_ARM) || defined (HAVE_ARM64)
   DyldInfo info_raw;
@@ -1495,36 +1460,6 @@ find_image_address_and_slide (const gchar * image_name,
   }
 
   return FALSE;
-}
-
-static gsize
-find_image_size (const gchar * image_name)
-{
-  gpointer image_address, image_slide;
-  const gum_mach_header_t * header;
-  guint8 * p;
-  guint cmd_index;
-
-  if (!find_image_address_and_slide (image_name, &image_address, &image_slide))
-    return 0;
-
-  header = (const gum_mach_header_t *) image_address;
-  p = (guint8 *) (header + 1);
-  for (cmd_index = 0; cmd_index != header->ncmds; cmd_index++)
-  {
-    gum_segment_command_t * sc = (gum_segment_command_t *) p;
-
-    if (sc->cmd == GUM_LC_SEGMENT)
-    {
-      gpointer segment_address = sc->vmaddr + image_slide;
-      if (segment_address == image_address)
-        return sc->vmsize;
-    }
-
-    p += sc->cmdsize;
-  }
-
-  return 0;
 }
 
 static gchar *
