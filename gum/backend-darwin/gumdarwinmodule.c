@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -27,6 +27,7 @@ enum
 typedef struct _GumResolveSymbolContext GumResolveSymbolContext;
 
 typedef struct _GumEmitImportContext GumEmitImportContext;
+typedef struct _GumEmitExportFromSymbolContext GumEmitExportFromSymbolContext;
 typedef struct _GumEmitInitPointersContext GumEmitInitPointersContext;
 typedef struct _GumEmitTermPointersContext GumEmitTermPointersContext;
 
@@ -50,6 +51,12 @@ struct _GumEmitImportContext
   GumDarwinModule * module;
   GHashTable * imports_seen;
   gboolean carry_on;
+};
+
+struct _GumEmitExportFromSymbolContext
+{
+  GumDarwinFoundExportFunc func;
+  gpointer user_data;
 };
 
 struct _GumEmitInitPointersContext
@@ -114,6 +121,8 @@ static gboolean gum_store_address_if_name_matches (
     const GumDarwinSymbolDetails * details, gpointer user_data);
 static gboolean gum_emit_import (const GumDarwinBindDetails * details,
     gpointer user_data);
+static gboolean gum_emit_export_from_symbol (
+    const GumDarwinSymbolDetails * details, gpointer user_data);
 static gboolean gum_emit_section_init_pointers (
     const GumDarwinSectionDetails * details, gpointer user_data);
 static gboolean gum_emit_section_term_pointers (
@@ -533,7 +542,38 @@ gum_darwin_module_enumerate_exports (GumDarwinModule * self,
   if (!gum_darwin_module_ensure_image_loaded (self))
     return;
 
-  gum_exports_trie_foreach (self->exports, self->exports_end, func, user_data);
+  if (self->exports != NULL)
+  {
+    gum_exports_trie_foreach (self->exports, self->exports_end, func,
+        user_data);
+  }
+  else
+  {
+    GumEmitExportFromSymbolContext ctx;
+
+    ctx.func = func;
+    ctx.user_data = user_data;
+
+    gum_darwin_module_enumerate_symbols (self, gum_emit_export_from_symbol,
+        &ctx);
+  }
+}
+
+static gboolean
+gum_emit_export_from_symbol (const GumDarwinSymbolDetails * details,
+                             gpointer user_data)
+{
+  GumEmitExportFromSymbolContext * ctx = user_data;
+  GumDarwinExportDetails d;
+
+  if ((details->type & N_EXT) == 0)
+    return TRUE;
+
+  d.name = details->name;
+  d.flags = GUM_DARWIN_EXPORT_SYMBOL_FLAGS_KIND_ABSOLUTE;
+  d.offset = details->address;
+
+  return ctx->func (&d, ctx->user_data);
 }
 
 void
