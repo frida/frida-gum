@@ -128,19 +128,11 @@ gum_emit_range (const GumRangeDetails * details,
   auto core = mc->core;
   auto isolate = core->isolate;
 
-  char prot_str[4] = "---";
-  if ((details->prot & GUM_PAGE_READ) != 0)
-    prot_str[0] = 'r';
-  if ((details->prot & GUM_PAGE_WRITE) != 0)
-    prot_str[1] = 'w';
-  if ((details->prot & GUM_PAGE_EXECUTE) != 0)
-    prot_str[2] = 'x';
-
   auto range = Object::New (isolate);
   _gum_v8_object_set_pointer (range, "base", details->range->base_address,
       core);
   _gum_v8_object_set_uint (range, "size", details->range->size, core);
-  _gum_v8_object_set_ascii (range, "protection", prot_str, core);
+  _gum_v8_object_set_page_protection (range, "protection", details->prot, core);
 
   auto f = details->file;
   if (f != NULL)

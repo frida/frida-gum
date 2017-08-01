@@ -127,6 +127,9 @@ G_GNUC_INTERNAL gboolean _gum_v8_object_set_ascii (
     GumV8Core * core);
 G_GNUC_INTERNAL gboolean _gum_v8_object_set_utf8 (v8::Handle<v8::Object> object,
     const gchar * key, const gchar * value, GumV8Core * core);
+G_GNUC_INTERNAL gboolean _gum_v8_object_set_page_protection (
+    v8::Handle<v8::Object> object, const gchar * key, GumPageProtection prot,
+    GumV8Core * core);
 
 G_GNUC_INTERNAL gboolean _gum_v8_callbacks_get (
     v8::Handle<v8::Object> callbacks, const gchar * name,

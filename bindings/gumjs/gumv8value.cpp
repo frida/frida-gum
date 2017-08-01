@@ -1462,6 +1462,24 @@ _gum_v8_object_set_utf8 (Handle<Object> object,
 }
 
 gboolean
+_gum_v8_object_set_page_protection (Handle<Object> object,
+                                    const gchar * key,
+                                    GumPageProtection prot,
+                                    GumV8Core * core)
+{
+  gchar prot_str[4] = "---";
+
+  if ((prot & GUM_PAGE_READ) != 0)
+    prot_str[0] = 'r';
+  if ((prot & GUM_PAGE_WRITE) != 0)
+    prot_str[1] = 'w';
+  if ((prot & GUM_PAGE_EXECUTE) != 0)
+    prot_str[2] = 'x';
+
+  return _gum_v8_object_set_ascii (object, key, prot_str, core);
+}
+
+gboolean
 _gum_v8_callbacks_get (Handle<Object> callbacks,
                        const gchar * name,
                        Handle<Function> * callback_function,
