@@ -36,6 +36,7 @@ TEST_LIST_BEGIN (process)
   PROCESS_TESTENTRY (process_ranges_exclude_cloaked)
   PROCESS_TESTENTRY (module_imports)
   PROCESS_TESTENTRY (module_exports)
+  PROCESS_TESTENTRY (module_symbols)
   PROCESS_TESTENTRY (module_ranges_can_be_enumerated)
   PROCESS_TESTENTRY (module_base)
   PROCESS_TESTENTRY (module_export_can_be_found)
@@ -101,6 +102,8 @@ static gboolean module_found_cb (const GumModuleDetails * details,
 static gboolean import_found_cb (const GumImportDetails * details,
     gpointer user_data);
 static gboolean export_found_cb (const GumExportDetails * details,
+    gpointer user_data);
+static gboolean symbol_found_cb (const GumSymbolDetails * details,
     gpointer user_data);
 static gboolean range_found_cb (const GumRangeDetails * details,
     gpointer user_data);
@@ -441,6 +444,21 @@ PROCESS_TESTCASE (module_exports)
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
 
+PROCESS_TESTCASE (module_symbols)
+{
+  TestForEachContext ctx;
+
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = TRUE;
+  gum_module_enumerate_symbols (SYSTEM_MODULE_NAME, symbol_found_cb, &ctx);
+  g_assert_cmpuint (ctx.number_of_calls, >, 1);
+
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = FALSE;
+  gum_module_enumerate_symbols (SYSTEM_MODULE_NAME, symbol_found_cb, &ctx);
+  g_assert_cmpuint (ctx.number_of_calls, ==, 1);
+}
+
 PROCESS_TESTCASE (module_ranges_can_be_enumerated)
 {
   TestForEachContext ctx;
@@ -721,6 +739,17 @@ export_found_cb (const GumExportDetails * details,
   else if (strcmp (details->name, "dispatch_async_f") == 0)
     g_assert_cmpint (details->type, ==, GUM_EXPORT_FUNCTION);
 #endif
+
+  return ctx->value_to_return;
+}
+
+static gboolean
+symbol_found_cb (const GumSymbolDetails * details,
+                 gpointer user_data)
+{
+  TestForEachContext * ctx = (TestForEachContext *) user_data;
+
+  ctx->number_of_calls++;
 
   return ctx->value_to_return;
 }

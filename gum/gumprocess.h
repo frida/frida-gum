@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -15,8 +15,10 @@ typedef struct _GumThreadDetails GumThreadDetails;
 typedef struct _GumModuleDetails GumModuleDetails;
 typedef guint GumImportType;
 typedef guint GumExportType;
+typedef guint GumSymbolType;
 typedef struct _GumImportDetails GumImportDetails;
 typedef struct _GumExportDetails GumExportDetails;
+typedef struct _GumSymbolDetails GumSymbolDetails;
 typedef struct _GumRangeDetails GumRangeDetails;
 typedef struct _GumFileMapping GumFileMapping;
 typedef struct _GumMallocRangeDetails GumMallocRangeDetails;
@@ -57,6 +59,16 @@ enum _GumExportType
   GUM_EXPORT_VARIABLE
 };
 
+enum _GumSymbolType
+{
+  GUM_SYMBOL_UNKNOWN,
+  GUM_SYMBOL_UNDEFINED,
+  GUM_SYMBOL_ABSOLUTE,
+  GUM_SYMBOL_SECTION,
+  GUM_SYMBOL_PREBOUND_UNDEFINED,
+  GUM_SYMBOL_INDIRECT,
+};
+
 struct _GumImportDetails
 {
   GumImportType type;
@@ -70,6 +82,16 @@ struct _GumExportDetails
   GumExportType type;
   const gchar * name;
   GumAddress address;
+};
+
+struct _GumSymbolDetails
+{
+  GumSymbolType type;
+  gboolean is_global;
+  const gchar * scope;
+  const gchar * name;
+  GumAddress address;
+  GumPageProtection prot;
 };
 
 struct _GumRangeDetails
@@ -102,6 +124,8 @@ typedef gboolean (* GumFoundImportFunc) (const GumImportDetails * details,
     gpointer user_data);
 typedef gboolean (* GumFoundExportFunc) (const GumExportDetails * details,
     gpointer user_data);
+typedef gboolean (* GumFoundSymbolFunc) (const GumSymbolDetails * details,
+    gpointer user_data);
 typedef gboolean (* GumFoundRangeFunc) (const GumRangeDetails * details,
     gpointer user_data);
 typedef gboolean (* GumFoundMallocRangeFunc) (
@@ -127,6 +151,8 @@ GUM_API void gum_module_enumerate_imports (const gchar * module_name,
     GumFoundImportFunc func, gpointer user_data);
 GUM_API void gum_module_enumerate_exports (const gchar * module_name,
     GumFoundExportFunc func, gpointer user_data);
+GUM_API void gum_module_enumerate_symbols (const gchar * module_name,
+    GumFoundSymbolFunc func, gpointer user_data);
 GUM_API void gum_module_enumerate_ranges (const gchar * module_name,
     GumPageProtection prot, GumFoundRangeFunc func, gpointer user_data);
 GUM_API GumAddress gum_module_find_base_address (const gchar * module_name);
