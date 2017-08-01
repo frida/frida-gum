@@ -126,6 +126,10 @@ struct _DyldAllImageInfos32
   guint32 version;
   guint32 info_array_count;
   guint32 info_array;
+  guint32 notification;
+  guint8 process_detached_from_shared_region;
+  guint8 libsystem_initialized;
+  guint32 dyld_image_load_address;
 };
 
 struct _DyldAllImageInfos64
@@ -133,6 +137,11 @@ struct _DyldAllImageInfos64
   guint32 version;
   guint32 info_array_count;
   guint64 info_array;
+  guint64 notification;
+  guint8 process_detached_from_shared_region;
+  guint8 libsystem_initialized;
+  guint32 padding;
+  guint64 dyld_image_load_address;
 };
 
 struct _DyldImageInfo32
@@ -751,7 +760,7 @@ gum_darwin_enumerate_modules (mach_port_t task,
   mach_msg_type_number_t count;
   kern_return_t kr;
   gsize info_array_count, info_array_size, i;
-  GumAddress info_array_address;
+  GumAddress info_array_address, dyld_image_load_address;
   gpointer info_array = NULL;
   gpointer header_data = NULL;
   gpointer header_data_end;
@@ -806,6 +815,7 @@ gum_darwin_enumerate_modules (mach_port_t task,
     info_array_count = all_info->info_array_count;
     info_array_size = info_array_count * DYLD_IMAGE_INFO_64_SIZE;
     info_array_address = all_info->info_array;
+    dyld_image_load_address = all_info->dyld_image_load_address;
     g_free (all_info);
   }
   else
@@ -821,6 +831,7 @@ gum_darwin_enumerate_modules (mach_port_t task,
     info_array_count = all_info->info_array_count;
     info_array_size = info_array_count * DYLD_IMAGE_INFO_32_SIZE;
     info_array_address = all_info->info_array;
+    dyld_image_load_address = all_info->dyld_image_load_address;
     g_free (all_info);
   }
 
@@ -830,7 +841,7 @@ gum_darwin_enumerate_modules (mach_port_t task,
   info_array =
       gum_darwin_read (task, info_array_address, info_array_size, NULL);
 
-  for (i = 0; i != info_array_count && carry_on; i++)
+  for (i = 0; i != info_array_count + 1 && carry_on; i++)
   {
     GumAddress load_address, file_path_address;
     struct mach_header * header;
@@ -840,36 +851,49 @@ gum_darwin_enumerate_modules (mach_port_t task,
     gchar * name;
     GumModuleDetails details;
 
-    if (info.all_image_info_format == TASK_DYLD_ALL_IMAGE_INFO_64)
+    if (i != info_array_count)
     {
-      DyldImageInfo64 * info = info_array + (i * DYLD_IMAGE_INFO_64_SIZE);
-      load_address = info->image_load_address;
-      file_path_address = info->image_file_path;
+      if (info.all_image_info_format == TASK_DYLD_ALL_IMAGE_INFO_64)
+      {
+        DyldImageInfo64 * info = info_array + (i * DYLD_IMAGE_INFO_64_SIZE);
+        load_address = info->image_load_address;
+        file_path_address = info->image_file_path;
+      }
+      else
+      {
+        DyldImageInfo32 * info = info_array + (i * DYLD_IMAGE_INFO_32_SIZE);
+        load_address = info->image_load_address;
+        file_path_address = info->image_file_path;
+      }
+
+      if ((file_path_address & ~((GumAddress) 4095)) == load_address)
+      {
+        header_data = gum_darwin_read (task, load_address,
+            header_data_initial_size, NULL);
+        file_path = header_data + (file_path_address - load_address);
+        file_path_malloc_data = NULL;
+      }
+      else
+      {
+        header_data = gum_darwin_read (task, load_address,
+            header_data_initial_size, NULL);
+        file_path = (gchar *) gum_darwin_read (task, file_path_address,
+            2 * MAXPATHLEN, NULL);
+        file_path_malloc_data = file_path;
+      }
+      if (header_data == NULL || file_path == NULL)
+        goto beach;
     }
     else
     {
-      DyldImageInfo32 * info = info_array + (i * DYLD_IMAGE_INFO_32_SIZE);
-      load_address = info->image_load_address;
-      file_path_address = info->image_file_path;
+      load_address = dyld_image_load_address;
+      header_data = gum_darwin_read (task, load_address,
+          header_data_initial_size, NULL);
+      if (header_data == NULL)
+        goto beach;
+      file_path = "/usr/lib/dyld";
     }
 
-    if ((file_path_address & ~((GumAddress) 4095)) == load_address)
-    {
-      header_data = gum_darwin_read (task, load_address,
-          header_data_initial_size, NULL);
-      file_path = header_data + (file_path_address - load_address);
-      file_path_malloc_data = NULL;
-    }
-    else
-    {
-      header_data = gum_darwin_read (task, load_address,
-          header_data_initial_size, NULL);
-      file_path = (gchar *) gum_darwin_read (task, file_path_address,
-          2 * MAXPATHLEN, NULL);
-      file_path_malloc_data = file_path;
-    }
-    if (header_data == NULL || file_path == NULL)
-      goto beach;
     header_data_end = header_data + header_data_initial_size;
 
     header = (struct mach_header *) header_data;
