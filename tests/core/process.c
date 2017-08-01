@@ -548,8 +548,10 @@ gum_test_get_target_task (void)
 
 PROCESS_TESTCASE (darwin_enumerate_modules)
 {
-  mach_port_t task = gum_test_get_target_task ();
+  mach_port_t task;
   TestForEachContext ctx;
+
+  task = gum_test_get_target_task ();
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
@@ -564,8 +566,10 @@ PROCESS_TESTCASE (darwin_enumerate_modules)
 
 PROCESS_TESTCASE (darwin_enumerate_ranges)
 {
-  mach_port_t task = gum_test_get_target_task ();
+  mach_port_t task;
   TestForEachContext ctx;
+
+  task = gum_test_get_target_task ();
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
@@ -580,11 +584,13 @@ PROCESS_TESTCASE (darwin_enumerate_ranges)
 
 PROCESS_TESTCASE (darwin_module_exports)
 {
-  mach_port_t task = gum_test_get_target_task ();
+  mach_port_t task;
   TestForEachContext ctx;
   GumAddress actual_mach_msg_address = 0;
   GumAddress expected_mach_msg_address;
   void * module;
+
+  task = gum_test_get_target_task ();
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
