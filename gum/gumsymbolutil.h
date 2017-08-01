@@ -10,9 +10,9 @@
 
 #include <gum/gummemory.h>
 
-typedef struct _GumSymbolDetails GumSymbolDetails;
+typedef struct _GumDebugSymbolDetails GumDebugSymbolDetails;
 
-struct _GumSymbolDetails
+struct _GumDebugSymbolDetails
 {
   GumAddress address;
   gchar module_name[GUM_MAX_PATH + 1];
@@ -24,7 +24,7 @@ struct _GumSymbolDetails
 G_BEGIN_DECLS
 
 GUM_API gboolean gum_symbol_details_from_address (gpointer address,
-    GumSymbolDetails * details);
+    GumDebugSymbolDetails * details);
 GUM_API gchar * gum_symbol_name_from_address (gpointer address);
 
 GUM_API gpointer gum_find_function (const gchar * name);

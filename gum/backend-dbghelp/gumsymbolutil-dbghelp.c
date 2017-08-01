@@ -84,7 +84,7 @@ do_deinit (void)
 
 gboolean
 gum_symbol_details_from_address (gpointer address,
-                                 GumSymbolDetails * details)
+                                 GumDebugSymbolDetails * details)
 {
   GumDbgHelpImpl * dbghelp;
   GumSymbolInfo si = { 0, };
@@ -97,7 +97,7 @@ gum_symbol_details_from_address (gpointer address,
   if (dbghelp == NULL)
     return FALSE;
 
-  memset (details, 0, sizeof (GumSymbolDetails));
+  memset (details, 0, sizeof (GumDebugSymbolDetails));
   details->address = GUM_ADDRESS (address);
 
   si.sym_info.SizeOfStruct = sizeof (SYMBOL_INFO);
@@ -135,7 +135,7 @@ gum_symbol_details_from_address (gpointer address,
 gchar *
 gum_symbol_name_from_address (gpointer address)
 {
-  GumSymbolDetails details;
+  GumDebugSymbolDetails details;
 
   if (gum_symbol_details_from_address (address, &details))
     return g_strdup (details.symbol_name);

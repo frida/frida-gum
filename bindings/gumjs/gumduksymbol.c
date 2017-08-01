@@ -101,7 +101,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_address)
   GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
   GumDukSymbol * self;
   gpointer address;
-  GumSymbolDetails details;
+  GumDebugSymbolDetails details;
   gboolean success;
 
   self = gumjs_module_from_args (args);
@@ -125,7 +125,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_name)
   GumDukSymbol * self;
   const gchar * name;
   gpointer address;
-  GumSymbolDetails details;
+  GumDebugSymbolDetails details;
   gboolean success;
 
   self = gumjs_module_from_args (args);
@@ -201,7 +201,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_matching)
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_symbol_construct)
 {
   gpointer address;
-  GumSymbolDetails * d;
+  GumDebugSymbolDetails * d;
   GString * s;
 
   if (!duk_is_constructor_call (ctx))

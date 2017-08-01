@@ -13,7 +13,7 @@ gboolean
 gum_return_address_details_from_address (GumReturnAddress address,
                                          GumReturnAddressDetails * details)
 {
-  GumSymbolDetails sd;
+  GumDebugSymbolDetails sd;
 
   if (gum_symbol_details_from_address (address, &sd))
   {

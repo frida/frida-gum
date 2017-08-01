@@ -18,7 +18,7 @@ struct GumSymbol
 {
   GumPersistent<v8::Object>::type * wrapper;
   gboolean resolved;
-  GumSymbolDetails details;
+  GumDebugSymbolDetails details;
   GumV8Symbol * module;
 };
 

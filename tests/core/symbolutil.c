@@ -41,7 +41,7 @@ static void GUM_STDCALL gum_dummy_function_1 (void);
 
 SYMUTIL_TESTCASE (symbol_details_from_address)
 {
-  GumSymbolDetails details;
+  GumDebugSymbolDetails details;
 
   g_assert (gum_symbol_details_from_address (gum_dummy_function_0, &details));
 

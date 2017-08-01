@@ -81,7 +81,7 @@ do_deinit (void)
 
 gboolean
 gum_symbol_details_from_address (gpointer address,
-                                 GumSymbolDetails * details)
+                                 GumDebugSymbolDetails * details)
 {
   gboolean result = FALSE;
   Dl_info dl_info;
@@ -96,7 +96,7 @@ gum_symbol_details_from_address (gpointer address,
   if (!dladdr (address, &dl_info))
     goto beach;
 
-  memset (details, 0, sizeof (GumSymbolDetails));
+  memset (details, 0, sizeof (GumDebugSymbolDetails));
 
   details->address = GUM_ADDRESS (address);
 
@@ -161,7 +161,7 @@ beach:
 gchar *
 gum_symbol_name_from_address (gpointer address)
 {
-  GumSymbolDetails details;
+  GumDebugSymbolDetails details;
 
   if (gum_symbol_details_from_address (address, &details))
     return g_strdup (details.symbol_name);

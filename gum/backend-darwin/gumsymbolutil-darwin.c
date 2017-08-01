@@ -176,7 +176,7 @@ do_deinit (void)
 
 gboolean
 gum_symbol_details_from_address (gpointer address,
-                                 GumSymbolDetails * details)
+                                 GumDebugSymbolDetails * details)
 {
   gboolean success = FALSE;
   CSSymbolRef symbol;
