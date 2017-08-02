@@ -530,11 +530,34 @@ gum_module_find_export_by_name (const gchar * module_name,
     name = gum_canonicalize_module_name (module_name);
     if (name == NULL)
       return 0;
-    module = dlopen (name, RTLD_LAZY | RTLD_GLOBAL | RTLD_NOLOAD);
-    g_free (name);
 
-    if (module == NULL)
-      return 0;
+    module = dlopen (name, RTLD_LAZY | RTLD_GLOBAL | RTLD_NOLOAD);
+    if (module == NULL && strcmp (name, "/usr/lib/dyld") == 0)
+    {
+      GumDarwinModuleResolver * resolver;
+      GumDarwinModule * dm;
+
+      resolver = gum_darwin_module_resolver_new (mach_task_self ());
+
+      dm = gum_darwin_module_resolver_find_module (resolver, name);
+      if (dm != NULL)
+      {
+        result = gum_darwin_module_resolver_find_export_address (resolver, dm,
+            symbol_name);
+      }
+      else
+      {
+        result = 0;
+      }
+
+      g_object_unref (resolver);
+
+      g_free (name);
+
+      return result;
+    }
+
+    g_free (name);
   }
   else
   {
