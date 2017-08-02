@@ -414,8 +414,25 @@ gum_darwin_module_resolve_export (GumDarwinModule * self,
   if (!gum_darwin_module_ensure_image_loaded (self))
     return FALSE;
 
-  return gum_exports_trie_find (self->exports, self->exports_end, name,
-      details);
+  if (self->exports != NULL)
+  {
+    return gum_exports_trie_find (self->exports, self->exports_end, name,
+        details);
+  }
+  else
+  {
+    GumAddress address;
+
+    address = gum_darwin_module_resolve_symbol_address (self, name);
+    if (address == 0)
+      return FALSE;
+
+    details->name = name;
+    details->flags = GUM_DARWIN_EXPORT_SYMBOL_FLAGS_KIND_ABSOLUTE;
+    details->offset = address;
+
+    return TRUE;
+  }
 }
 
 GumAddress
