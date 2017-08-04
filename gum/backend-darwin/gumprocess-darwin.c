@@ -531,8 +531,7 @@ gum_module_find_export_by_name (const gchar * module_name,
     if (name == NULL)
       return 0;
 
-    module = dlopen (name, RTLD_LAZY | RTLD_GLOBAL | RTLD_NOLOAD);
-    if (module == NULL && strcmp (name, "/usr/lib/dyld") == 0)
+    if (strcmp (name, "/usr/lib/dyld") == 0)
     {
       GumDarwinModuleResolver * resolver;
       GumDarwinModule * dm;
@@ -556,6 +555,8 @@ gum_module_find_export_by_name (const gchar * module_name,
 
       return result;
     }
+
+    module = dlopen (name, RTLD_LAZY | RTLD_GLOBAL | RTLD_NOLOAD);
 
     g_free (name);
   }
