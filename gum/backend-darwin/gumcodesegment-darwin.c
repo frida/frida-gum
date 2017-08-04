@@ -422,8 +422,8 @@ gum_put_mach_headers (const gchar * dylib_path,
   dl = (struct dylib_command *) (seg + 1);
   dl->cmd = LC_ID_DYLIB;
   dl->cmdsize = sizeof (struct dylib_command) + dylib_path_size;
-  if ((dl->cmdsize % 4) != 0)
-    dl->cmdsize += 4 - (dl->cmdsize % 4);
+  if ((dl->cmdsize % 8) != 0)
+    dl->cmdsize += 8 - (dl->cmdsize % 8);
   dl->dylib.name.offset = sizeof (struct dylib_command);
   dl->dylib.timestamp = 0;
   dl->dylib.current_version = 0;
