@@ -912,7 +912,8 @@ gum_darwin_enumerate_modules (mach_port_t task,
         file_path_address = info->image_file_path;
       }
 
-      if ((file_path_address & ~((GumAddress) 4095)) == load_address)
+      if (((file_path_address + MAXPATHLEN + 1) & ~((GumAddress) 4095))
+          == load_address)
       {
         header_data = gum_darwin_read (task, load_address,
             header_data_initial_size, NULL);
@@ -924,7 +925,7 @@ gum_darwin_enumerate_modules (mach_port_t task,
         header_data = gum_darwin_read (task, load_address,
             header_data_initial_size, NULL);
         file_path = (gchar *) gum_darwin_read (task, file_path_address,
-            2 * MAXPATHLEN, NULL);
+            MAXPATHLEN + 1, NULL);
         file_path_malloc_data = file_path;
       }
       if (header_data == NULL || file_path == NULL)
