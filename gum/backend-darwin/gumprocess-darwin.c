@@ -805,14 +805,13 @@ gum_darwin_enumerate_modules (mach_port_t task,
   struct task_dyld_info info;
   mach_msg_type_number_t count;
   kern_return_t kr;
+  gboolean inprocess;
   gsize info_array_count, info_array_size, i;
   GumAddress info_array_address, dyld_image_load_address;
-  gpointer info_array = NULL;
-  gpointer header_data = NULL;
-  gpointer header_data_end;
+  gpointer info_array, info_array_malloc_data = NULL;
+  gpointer header_data, header_data_end, header_malloc_data = NULL;
   const guint header_data_initial_size = 4096;
-  gchar * file_path = NULL;
-  gchar * file_path_malloc_data = NULL;
+  gchar * file_path, * file_path_malloc_data = NULL;
   gboolean carry_on = TRUE;
 
 #if defined (HAVE_ARM) || defined (HAVE_ARM64)
@@ -848,44 +847,76 @@ gum_darwin_enumerate_modules (mach_port_t task,
     goto beach;
 #endif
 
+  inprocess = task == mach_task_self ();
+
   if (info.all_image_info_format == TASK_DYLD_ALL_IMAGE_INFO_64)
   {
     DyldAllImageInfos64 * all_info;
+    gpointer all_info_malloc_data;
 
-    all_info = (DyldAllImageInfos64 *) gum_darwin_read (task,
-        info.all_image_info_addr,
-        sizeof (DyldAllImageInfos64),
-        NULL);
+    if (inprocess)
+    {
+      all_info = (DyldAllImageInfos64 *) info.all_image_info_addr;
+    }
+    else
+    {
+      all_info = (DyldAllImageInfos64 *) gum_darwin_read (task,
+          info.all_image_info_addr,
+          sizeof (DyldAllImageInfos64),
+          NULL);
+      all_info_malloc_data = all_info;
+    }
     if (all_info == NULL)
       goto beach;
+
     info_array_count = all_info->info_array_count;
     info_array_size = info_array_count * DYLD_IMAGE_INFO_64_SIZE;
     info_array_address = all_info->info_array;
     dyld_image_load_address = all_info->dyld_image_load_address;
-    g_free (all_info);
+
+    g_free (all_info_malloc_data);
   }
   else
   {
     DyldAllImageInfos32 * all_info;
+    gpointer all_info_malloc_data;
 
-    all_info = (DyldAllImageInfos32 *) gum_darwin_read (task,
-        info.all_image_info_addr,
-        sizeof (DyldAllImageInfos32),
-        NULL);
+    if (inprocess)
+    {
+      all_info = (DyldAllImageInfos32 *) info.all_image_info_addr;
+    }
+    else
+    {
+      all_info = (DyldAllImageInfos32 *) gum_darwin_read (task,
+          info.all_image_info_addr,
+          sizeof (DyldAllImageInfos32),
+          NULL);
+      all_info_malloc_data = all_info;
+    }
     if (all_info == NULL)
       goto beach;
+
     info_array_count = all_info->info_array_count;
     info_array_size = info_array_count * DYLD_IMAGE_INFO_32_SIZE;
     info_array_address = all_info->info_array;
     dyld_image_load_address = all_info->dyld_image_load_address;
-    g_free (all_info);
+
+    g_free (all_info_malloc_data);
   }
 
   if (info_array_address == 0)
     goto fallback;
 
-  info_array =
-      gum_darwin_read (task, info_array_address, info_array_size, NULL);
+  if (inprocess)
+  {
+    info_array = GSIZE_TO_POINTER (info_array_address);
+  }
+  else
+  {
+    info_array =
+        gum_darwin_read (task, info_array_address, info_array_size, NULL);
+    info_array_malloc_data = info_array;
+  }
 
   for (i = 0; i != info_array_count + 1 && carry_on; i++)
   {
@@ -912,21 +943,29 @@ gum_darwin_enumerate_modules (mach_port_t task,
         file_path_address = info->image_file_path;
       }
 
-      if (((file_path_address + MAXPATHLEN + 1) & ~((GumAddress) 4095))
-          == load_address)
+      if (inprocess)
       {
-        header_data = gum_darwin_read (task, load_address,
-            header_data_initial_size, NULL);
-        file_path = header_data + (file_path_address - load_address);
-        file_path_malloc_data = NULL;
+        header_data = GSIZE_TO_POINTER (load_address);
+
+        file_path = GSIZE_TO_POINTER (file_path_address);
       }
       else
       {
         header_data = gum_darwin_read (task, load_address,
             header_data_initial_size, NULL);
-        file_path = (gchar *) gum_darwin_read (task, file_path_address,
-            MAXPATHLEN + 1, NULL);
-        file_path_malloc_data = file_path;
+        header_malloc_data = header_data;
+
+        if (((file_path_address + MAXPATHLEN + 1) & ~((GumAddress) 4095))
+            == load_address)
+        {
+          file_path = header_data + (file_path_address - load_address);
+        }
+        else
+        {
+          file_path = (gchar *) gum_darwin_read (task, file_path_address,
+              MAXPATHLEN + 1, NULL);
+          file_path_malloc_data = file_path;
+        }
       }
       if (header_data == NULL || file_path == NULL)
         goto beach;
@@ -934,10 +973,11 @@ gum_darwin_enumerate_modules (mach_port_t task,
     else
     {
       load_address = dyld_image_load_address;
-      header_data = gum_darwin_read (task, load_address,
-          header_data_initial_size, NULL);
+
+      header_data = GSIZE_TO_POINTER (load_address);
       if (header_data == NULL)
         goto beach;
+
       file_path = "/usr/lib/dyld";
     }
 
@@ -957,32 +997,36 @@ gum_darwin_enumerate_modules (mach_port_t task,
     {
       const struct load_command * lc = p;
 
-      while (p + sizeof (struct load_command) > header_data_end ||
-          p + lc->cmdsize > header_data_end)
+      if (!inprocess)
       {
-        gsize current_offset, new_size;
-
-        if (file_path_malloc_data == NULL)
+        while (p + sizeof (struct load_command) > header_data_end ||
+            p + lc->cmdsize > header_data_end)
         {
-          file_path_malloc_data = g_strdup (file_path);
-          file_path = file_path_malloc_data;
+          gsize current_offset, new_size;
+
+          if (file_path_malloc_data == NULL)
+          {
+            file_path_malloc_data = g_strdup (file_path);
+            file_path = file_path_malloc_data;
+          }
+
+          current_offset = p - header_data;
+          new_size = (header_data_end - header_data) + 4096;
+
+          g_free (header_malloc_data);
+          header_data = gum_darwin_read (task, load_address, new_size, NULL);
+          header_malloc_data = header_data;
+          if (header_data == NULL)
+            goto beach;
+          header_data_end = header_data + new_size;
+
+          header = (struct mach_header *) header_data;
+
+          p = header_data + current_offset;
+          lc = (struct load_command *) p;
+
+          first_command = NULL;
         }
-
-        current_offset = p - header_data;
-        new_size = (header_data_end - header_data) + 4096;
-
-        g_free (header_data);
-        header_data = gum_darwin_read (task, load_address, new_size, NULL);
-        if (header_data == NULL)
-          goto beach;
-        header_data_end = header_data + new_size;
-
-        header = (struct mach_header *) header_data;
-
-        p = header_data + current_offset;
-        lc = (struct load_command *) p;
-
-        first_command = NULL;
       }
 
       if (lc->cmd == LC_SEGMENT)
@@ -1019,8 +1063,8 @@ gum_darwin_enumerate_modules (mach_port_t task,
 
     g_free (file_path_malloc_data);
     file_path_malloc_data = NULL;
-    g_free (header_data);
-    header_data = NULL;
+    g_free (header_malloc_data);
+    header_malloc_data = NULL;
   }
 
   goto beach;
@@ -1030,8 +1074,8 @@ fallback:
 
 beach:
   g_free (file_path_malloc_data);
-  g_free (header_data);
-  g_free (info_array);
+  g_free (header_malloc_data);
+  g_free (info_array_malloc_data);
 
   return;
 }
