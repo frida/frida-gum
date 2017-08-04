@@ -673,11 +673,13 @@ assign_true_if_core_foundation (const GumModuleDetails * details,
 {
   gboolean * found = user_data;
 
-  if (strcmp (details->name, "CoreFoundation") != 0)
-    return TRUE;
+  if (strcmp (details->name, "CoreFoundation") == 0)
+  {
+    *found = TRUE;
+    return FALSE;
+  }
 
-  *found = TRUE;
-  return FALSE;
+  return TRUE;
 }
 
 static gboolean
