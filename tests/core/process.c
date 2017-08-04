@@ -47,6 +47,7 @@ TEST_LIST_BEGIN (process)
 #endif
 #ifdef HAVE_DARWIN
   PROCESS_TESTENTRY (darwin_enumerate_modules)
+  PROCESS_TESTENTRY (darwin_enumerate_modules_should_include_core_foundation)
   PROCESS_TESTENTRY (darwin_enumerate_ranges)
   PROCESS_TESTENTRY (darwin_module_exports)
   PROCESS_TESTENTRY (darwin_module_exports_should_support_dyld)
@@ -88,6 +89,8 @@ static gboolean store_export_address_if_tricky_module_export (
 #endif
 
 #ifdef HAVE_DARWIN
+static gboolean assign_true_if_core_foundation (
+    const GumModuleDetails * details, gpointer user_data);
 static gboolean store_export_address_if_mach_msg (
     const GumExportDetails * details, gpointer user_data);
 #endif
@@ -587,6 +590,18 @@ PROCESS_TESTCASE (darwin_enumerate_modules)
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
 
+PROCESS_TESTCASE (darwin_enumerate_modules_should_include_core_foundation)
+{
+  mach_port_t task;
+  gboolean found;
+
+  task = gum_test_get_target_task ();
+
+  found = FALSE;
+  gum_darwin_enumerate_modules (task, assign_true_if_core_foundation, &found);
+  g_assert (found);
+}
+
 PROCESS_TESTCASE (darwin_enumerate_ranges)
 {
   mach_port_t task;
@@ -650,6 +665,19 @@ PROCESS_TESTCASE (darwin_module_exports_should_support_dyld)
   ctx.value_to_return = TRUE;
   gum_darwin_enumerate_exports (task, "/usr/lib/dyld", export_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, >, 1);
+}
+
+static gboolean
+assign_true_if_core_foundation (const GumModuleDetails * details,
+                                gpointer user_data)
+{
+  gboolean * found = user_data;
+
+  if (strcmp (details->name, "CoreFoundation") != 0)
+    return TRUE;
+
+  *found = TRUE;
+  return FALSE;
 }
 
 static gboolean
