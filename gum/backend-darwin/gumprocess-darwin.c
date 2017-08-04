@@ -921,7 +921,7 @@ gum_darwin_enumerate_modules (mach_port_t task,
 
   for (i = 0; i != info_array_count + 1 && carry_on; i++)
   {
-    GumAddress load_address, file_path_address;
+    GumAddress load_address;
     struct mach_header * header;
     gpointer first_command, p;
     guint cmd_index;
@@ -931,6 +931,8 @@ gum_darwin_enumerate_modules (mach_port_t task,
 
     if (i != info_array_count)
     {
+      GumAddress file_path_address;
+
       if (info.all_image_info_format == TASK_DYLD_ALL_IMAGE_INFO_64)
       {
         DyldImageInfo64 * info = info_array + (i * DYLD_IMAGE_INFO_64_SIZE);
@@ -975,7 +977,16 @@ gum_darwin_enumerate_modules (mach_port_t task,
     {
       load_address = dyld_image_load_address;
 
-      header_data = GSIZE_TO_POINTER (load_address);
+      if (inprocess)
+      {
+        header_data = GSIZE_TO_POINTER (load_address);
+      }
+      else
+      {
+        header_data = gum_darwin_read (task, load_address,
+            header_data_initial_size, NULL);
+        header_malloc_data = header_data;
+      }
       if (header_data == NULL)
         goto beach;
 
