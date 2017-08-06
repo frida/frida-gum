@@ -35,6 +35,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_stalker_follow)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_unfollow)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_add_call_probe)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_remove_call_probe)
+GUMJS_DECLARE_FUNCTION (gumjs_stalker_parse)
 
 static void gum_v8_call_probe_free (GumV8CallProbe * probe);
 static void gum_v8_call_probe_on_fire (GumCallSite * site,
@@ -44,6 +45,9 @@ static void gumjs_probe_args_get_nth (uint32_t index,
     const PropertyCallbackInfo<Value> & info);
 static void gumjs_probe_args_set_nth (uint32_t index, Local<Value> value,
     const PropertyCallbackInfo<Value> & info);
+
+static Local<Value> gum_make_pointer (gpointer value, gboolean stringify,
+    GumV8Core * core);
 
 static const GumV8Property gumjs_stalker_values[] =
 {
@@ -73,6 +77,7 @@ static const GumV8Function gumjs_stalker_functions[] =
   { "unfollow", gumjs_stalker_unfollow },
   { "addCallProbe", gumjs_stalker_add_call_probe },
   { "removeCallProbe", gumjs_stalker_remove_call_probe },
+  { "_parse", gumjs_stalker_parse },
 
   { NULL, NULL }
 };
@@ -348,6 +353,161 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_remove_call_probe)
   gum_stalker_remove_call_probe (_gum_v8_stalker_get (module), id);
 }
 
+GUMJS_DEFINE_FUNCTION (gumjs_stalker_parse)
+{
+  Local<Value> events_value;
+  gboolean annotate, stringify;
+  if (!_gum_v8_args_parse (args, "Vtt", &events_value, &annotate, &stringify))
+    return;
+
+  if (!events_value->IsArrayBuffer ())
+  {
+    _gum_v8_throw_ascii_literal (isolate, "expected an ArrayBuffer");
+    return;
+  }
+
+  auto events_contents = events_value.As<ArrayBuffer> ()->GetContents ();
+  const GumEvent * events = (const GumEvent *) events_contents.Data ();
+  size_t size = events_contents.ByteLength ();
+  if (size % sizeof (GumEvent) != 0)
+  {
+    _gum_v8_throw_ascii_literal (isolate, "invalid buffer shape");
+    return;
+  }
+
+  size_t count = size / sizeof (GumEvent);
+
+  auto rows = Array::New (isolate, count);
+
+  const GumEvent * ev;
+  size_t row_index;
+  for (ev = events, row_index = 0;
+      row_index != count;
+      ev++, row_index++)
+  {
+    Local<Array> row;
+    guint column_index = 0;
+
+    switch (ev->type)
+    {
+      case GUM_CALL:
+      {
+        const GumCallEvent * call = &ev->call;
+
+        if (annotate)
+        {
+          row = Array::New (isolate, 4);
+          row->Set (column_index++, _gum_v8_string_new_ascii (isolate, "call"));
+        }
+        else
+        {
+          row = Array::New (isolate, 3);
+        }
+
+        row->Set (column_index++,
+            gum_make_pointer (call->location, stringify, core));
+        row->Set (column_index++,
+            gum_make_pointer (call->target, stringify, core));
+        row->Set (column_index++, Integer::New (isolate, call->depth));
+
+        break;
+      }
+      case GUM_RET:
+      {
+        const GumRetEvent * ret = &ev->ret;
+
+        if (annotate)
+        {
+          row = Array::New (isolate, 4);
+          row->Set (column_index++, _gum_v8_string_new_ascii (isolate, "ret"));
+        }
+        else
+        {
+          row = Array::New (isolate, 3);
+        }
+
+        row->Set (column_index++,
+            gum_make_pointer (ret->location, stringify, core));
+        row->Set (column_index++,
+            gum_make_pointer (ret->target, stringify, core));
+        row->Set (column_index++, Integer::New (isolate, ret->depth));
+
+        break;
+      }
+      case GUM_EXEC:
+      {
+        const GumExecEvent * exec = &ev->exec;
+
+        if (annotate)
+        {
+          row = Array::New (isolate, 2);
+          row->Set (column_index++, _gum_v8_string_new_ascii (isolate, "exec"));
+        }
+        else
+        {
+          row = Array::New (isolate, 1);
+        }
+
+        row->Set (column_index++,
+            gum_make_pointer (exec->location, stringify, core));
+
+        break;
+      }
+      case GUM_BLOCK:
+      {
+        const GumBlockEvent * block = &ev->block;
+
+        if (annotate)
+        {
+          row = Array::New (isolate, 3);
+          row->Set (column_index++,
+              _gum_v8_string_new_ascii (isolate, "block"));
+        }
+        else
+        {
+          row = Array::New (isolate, 2);
+        }
+
+        row->Set (column_index++,
+            gum_make_pointer (block->begin, stringify, core));
+        row->Set (column_index++,
+            gum_make_pointer (block->end, stringify, core));
+
+        break;
+      }
+      case GUM_COMPILE:
+      {
+        const GumCompileEvent * compile = &ev->compile;
+
+        if (annotate)
+        {
+          row = Array::New (isolate, 3);
+          row->Set (column_index++,
+              _gum_v8_string_new_ascii (isolate, "compile"));
+        }
+        else
+        {
+          row = Array::New (isolate, 2);
+        }
+
+        row->Set (column_index++,
+            gum_make_pointer (compile->begin, stringify, core));
+        row->Set (column_index++,
+            gum_make_pointer (compile->end, stringify, core));
+
+        break;
+      }
+      default:
+        g_assert_not_reached ();
+        break;
+    }
+
+    rows->Set (row_index, row);
+  }
+
+  info.GetReturnValue ().Set (rows);
+}
+
 static void
 gum_v8_call_probe_free (GumV8CallProbe * probe)
 {
@@ -427,4 +587,23 @@ gumjs_probe_args_set_nth (uint32_t index,
     return;
 
   gum_call_site_replace_nth_argument (site, index, raw_value);
+}
+
+static Local<Value>
+gum_make_pointer (gpointer value,
+                  gboolean stringify,
+                  GumV8Core * core)
+{
+  if (stringify)
+  {
+    gchar str[32];
+
+    sprintf (str, "0x%" G_GSIZE_MODIFIER "x", GPOINTER_TO_SIZE (value));
+
+    return _gum_v8_string_new_ascii (core->isolate, str);
+  }
+  else
+  {
+    return _gum_v8_native_pointer_new (value, core);
+  }
 }

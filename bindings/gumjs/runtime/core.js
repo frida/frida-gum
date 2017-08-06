@@ -502,6 +502,17 @@ Object.defineProperties(Stalker, {
       Stalker._follow(threadId, eventMask, onReceive, onCallSummary);
     }
   },
+  parse: {
+    enumerable: true,
+    value: function (events, options = {}) {
+      const {
+        annotate = true,
+        stringify = false
+      } = options;
+
+      return Stalker._parse(events, annotate, stringify);
+    }
+  }
 });
 
 Object.defineProperty(Instruction, 'parse', {

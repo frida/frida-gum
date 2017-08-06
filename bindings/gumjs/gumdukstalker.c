@@ -41,6 +41,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_stalker_follow)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_unfollow)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_add_call_probe)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_remove_call_probe)
+GUMJS_DECLARE_FUNCTION (gumjs_stalker_parse)
 
 static void gum_duk_call_probe_free (GumDukCallProbe * probe);
 static void gum_duk_call_probe_on_fire (GumCallSite * site,
@@ -54,6 +55,9 @@ GUMJS_DECLARE_CONSTRUCTOR (gumjs_probe_args_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_probe_args_finalize)
 GUMJS_DECLARE_GETTER (gumjs_probe_args_get_property)
 GUMJS_DECLARE_SETTER (gumjs_probe_args_set_property)
+
+static void gum_push_pointer (duk_context * ctx, gpointer value,
+    gboolean stringify, GumDukCore * core);
 
 static const GumDukPropertyEntry gumjs_stalker_values[] =
 {
@@ -83,6 +87,7 @@ static const duk_function_list_entry gumjs_stalker_functions[] =
   { "unfollow", gumjs_stalker_unfollow, 1 },
   { "addCallProbe", gumjs_stalker_add_call_probe, 2 },
   { "removeCallProbe", gumjs_stalker_remove_call_probe, 1 },
+  { "_parse", gumjs_stalker_parse, 3 },
 
   { NULL, NULL, 0 }
 };
@@ -362,6 +367,144 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_remove_call_probe)
   return 0;
 }
 
+GUMJS_DEFINE_FUNCTION (gumjs_stalker_parse)
+{
+  GumDukStalker * module;
+  GumDukCore * core;
+  GumDukHeapPtr events_value;
+  gboolean annotate, stringify;
+  const GumEvent * events;
+  duk_size_t size, count, row_index;
+  const GumEvent * ev;
+
+  module = gumjs_module_from_args (args);
+  core = module->core;
+
+  _gum_duk_args_parse (args, "Vtt", &events_value, &annotate, &stringify);
+
+  events = duk_get_buffer_data (ctx, 0, &size);
+  if (events == NULL)
+    _gum_duk_throw (ctx, "expected an ArrayBuffer");
+
+  if (size % sizeof (GumEvent) != 0)
+    _gum_duk_throw (ctx, "invalid buffer shape");
+
+  count = size / sizeof (GumEvent);
+
+  duk_push_array (ctx);
+
+  for (ev = events, row_index = 0; row_index != count; ev++, row_index++)
+  {
+    duk_size_t column_index = 0;
+
+    duk_push_array (ctx);
+
+    switch (ev->type)
+    {
+      case GUM_CALL:
+      {
+        const GumCallEvent * call = &ev->call;
+
+        if (annotate)
+        {
+          duk_push_string (ctx, "call");
+          duk_put_prop_index (ctx, -2, column_index++);
+        }
+
+        gum_push_pointer (ctx, call->location, stringify, core);
+        duk_put_prop_index (ctx, -2, column_index++);
+
+        gum_push_pointer (ctx, call->target, stringify, core);
+        duk_put_prop_index (ctx, -2, column_index++);
+
+        duk_push_int (ctx, call->depth);
+        duk_put_prop_index (ctx, -2, column_index++);
+
+        break;
+      }
+      case GUM_RET:
+      {
+        const GumRetEvent * ret = &ev->ret;
+
+        if (annotate)
+        {
+          duk_push_string (ctx, "ret");
+          duk_put_prop_index (ctx, -2, column_index++);
+        }
+
+        gum_push_pointer (ctx, ret->location, stringify, core);
+        duk_put_prop_index (ctx, -2, column_index++);
+
+        gum_push_pointer (ctx, ret->target, stringify, core);
+        duk_put_prop_index (ctx, -2, column_index++);
+
+        duk_push_int (ctx, ret->depth);
+        duk_put_prop_index (ctx, -2, column_index++);
+
+        break;
+      }
+      case GUM_EXEC:
+      {
+        const GumExecEvent * exec = &ev->exec;
+
+        if (annotate)
+        {
+          duk_push_string (ctx, "exec");
+          duk_put_prop_index (ctx, -2, column_index++);
+        }
+
+        gum_push_pointer (ctx, exec->location, stringify, core);
+        duk_put_prop_index (ctx, -2, column_index++);
+
+        break;
+      }
+      case GUM_BLOCK:
+      {
+        const GumBlockEvent * block = &ev->block;
+
+        if (annotate)
+        {
+          duk_push_string (ctx, "block");
+          duk_put_prop_index (ctx, -2, column_index++);
+        }
+
+        gum_push_pointer (ctx, block->begin, stringify, core);
+        duk_put_prop_index (ctx, -2, column_index++);
+
+        gum_push_pointer (ctx, block->end, stringify, core);
+        duk_put_prop_index (ctx, -2, column_index++);
+
+        break;
+      }
+      case GUM_COMPILE:
+      {
+        const GumCompileEvent * compile = &ev->compile;
+
+        if (annotate)
+        {
+          duk_push_string (ctx, "compile");
+          duk_put_prop_index (ctx, -2, column_index++);
+        }
+
+        gum_push_pointer (ctx, compile->begin, stringify, core);
+        duk_put_prop_index (ctx, -2, column_index++);
+
+        gum_push_pointer (ctx, compile->end, stringify, core);
+        duk_put_prop_index (ctx, -2, column_index++);
+
+        break;
+      }
+      default:
+        g_assert_not_reached ();
+        break;
+    }
+
+    duk_put_prop_index (ctx, -2, row_index);
+  }
+
+  return 1;
+}
+
 static GumDukProbeArgs *
 gum_duk_stalker_obtain_probe_args (GumDukStalker * self)
 {
@@ -540,4 +683,23 @@ GUMJS_DEFINE_SETTER (gumjs_probe_args_set_property)
 
   duk_push_true (ctx);
   return 1;
+}
+
+static void
+gum_push_pointer (duk_context * ctx,
+                  gpointer value,
+                  gboolean stringify,
+                  GumDukCore * core)
+{
+  if (stringify)
+  {
+    gchar str[32];
+
+    sprintf (str, "0x%" G_GSIZE_MODIFIER "x", GPOINTER_TO_SIZE (value));
+    duk_push_string (ctx, str);
+  }
+  else
+  {
+    _gum_duk_push_native_pointer (ctx, value, core);
+  }
 }
