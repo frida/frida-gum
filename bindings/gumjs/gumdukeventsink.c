@@ -216,103 +216,90 @@ static gboolean
 gum_duk_event_sink_drain (GumDukEventSink * self)
 {
   GumDukCore * core = self->core;
-  gpointer buffer = NULL;
+  gpointer buffer_data;
   guint len, size;
+  GumDukScope scope;
+  duk_context * ctx;
 
   if (core == NULL)
     return FALSE;
 
   len = self->queue->len;
+  if (len == 0)
+    return TRUE;
   size = len * sizeof (GumEvent);
-  if (len != 0)
+
+  ctx = _gum_duk_scope_enter (&scope, core);
+
+  buffer_data = duk_push_fixed_buffer (ctx, size);
+  memcpy (buffer_data, self->queue->data, size);
+
+  gum_spinlock_acquire (&self->lock);
+  g_array_remove_range (self->queue, 0, len);
+  gum_spinlock_release (&self->lock);
+
+  if (self->on_call_summary != NULL)
   {
-    buffer = g_memdup (self->queue->data, size);
+    GHashTable * frequencies;
+    GumCallEvent * ev;
+    guint i;
+    GHashTableIter iter;
+    gpointer target, count;
+    gchar target_str[32];
 
-    gum_spinlock_acquire (&self->lock);
-    g_array_remove_range (self->queue, 0, len);
-    gum_spinlock_release (&self->lock);
-  }
+    frequencies = g_hash_table_new (NULL, NULL);
 
-  if (buffer != NULL)
-  {
-    GHashTable * frequencies = NULL;
-    GumDukScope scope;
-    duk_context * ctx;
-
-    if (self->on_call_summary != NULL)
+    ev = buffer_data;
+    for (i = 0; i != len; i++)
     {
-      GumCallEvent * ev;
-      guint i;
-
-      frequencies = g_hash_table_new (NULL, NULL);
-
-      ev = (GumCallEvent *) buffer;
-      for (i = 0; i != len; i++)
+      if (ev->type == GUM_CALL)
       {
-        if (ev->type == GUM_CALL)
-        {
-          gsize count;
+        gsize count;
 
-          count = GPOINTER_TO_SIZE (
-              g_hash_table_lookup (frequencies, ev->target));
-          count++;
-          g_hash_table_insert (frequencies, ev->target,
-              GSIZE_TO_POINTER (count));
-        }
-
-        ev++;
-      }
-    }
-
-    ctx = _gum_duk_scope_enter (&scope, core);
-
-    if (frequencies != NULL)
-    {
-      GHashTableIter iter;
-      gpointer target, count;
-      gchar target_str[32];
-
-      duk_push_heapptr (ctx, self->on_call_summary);
-
-      duk_push_object (ctx);
-
-      g_hash_table_iter_init (&iter, frequencies);
-      while (g_hash_table_iter_next (&iter, &target, &count))
-      {
-        sprintf (target_str, "0x%" G_GSIZE_MODIFIER "x",
-            GPOINTER_TO_SIZE (target));
-        duk_push_uint (ctx, GPOINTER_TO_SIZE (count));
-        duk_put_prop_string (ctx, -2, target_str);
+        count = GPOINTER_TO_SIZE (
+            g_hash_table_lookup (frequencies, ev->target));
+        count++;
+        g_hash_table_insert (frequencies, ev->target,
+            GSIZE_TO_POINTER (count));
       }
 
-      g_hash_table_unref (frequencies);
-
-      _gum_duk_scope_call (&scope, 1);
-      duk_pop (ctx);
+      ev++;
     }
 
-    if (self->on_receive != NULL)
+    duk_push_heapptr (ctx, self->on_call_summary);
+
+    duk_push_object (ctx);
+
+    g_hash_table_iter_init (&iter, frequencies);
+    while (g_hash_table_iter_next (&iter, &target, &count))
     {
-      gpointer buffer_data;
-
-      duk_push_heapptr (ctx, self->on_receive);
-
-      buffer_data = duk_push_fixed_buffer (ctx, size);
-      memcpy (buffer_data, buffer, size);
-      duk_push_buffer_object (ctx, -1, 0, size, DUK_BUFOBJ_ARRAYBUFFER);
-      duk_swap (ctx, -2, -1);
-      duk_pop (ctx);
-
-      _gum_duk_scope_call (&scope, 1);
-      duk_pop (ctx);
-    }
-    else
-    {
-      g_free (buffer);
+      sprintf (target_str, "0x%" G_GSIZE_MODIFIER "x",
+          GPOINTER_TO_SIZE (target));
+      duk_push_uint (ctx, GPOINTER_TO_SIZE (count));
+      duk_put_prop_string (ctx, -2, target_str);
     }
 
-    _gum_duk_scope_leave (&scope);
+    g_hash_table_unref (frequencies);
+
+    _gum_duk_scope_call (&scope, 1);
+    duk_pop (ctx);
   }
+
+  if (self->on_receive != NULL)
+  {
+    duk_push_heapptr (ctx, self->on_receive);
+
+    duk_push_buffer_object (ctx, -2, 0, size, DUK_BUFOBJ_ARRAYBUFFER);
+
+    _gum_duk_scope_call (&scope, 1);
+    duk_pop_2 (ctx);
+  }
+  else
+  {
+    duk_pop (ctx);
+  }
+
+  _gum_duk_scope_leave (&scope);
 
   return TRUE;
 }
