@@ -853,7 +853,7 @@ gum_darwin_enumerate_modules (mach_port_t task,
   if (info.all_image_info_format == TASK_DYLD_ALL_IMAGE_INFO_64)
   {
     DyldAllImageInfos64 * all_info;
-    gpointer all_info_malloc_data;
+    gpointer all_info_malloc_data = NULL;
 
     if (inprocess)
     {
@@ -880,7 +880,7 @@ gum_darwin_enumerate_modules (mach_port_t task,
   else
   {
     DyldAllImageInfos32 * all_info;
-    gpointer all_info_malloc_data;
+    gpointer all_info_malloc_data = NULL;
 
     if (inprocess)
     {
