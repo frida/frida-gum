@@ -17,7 +17,7 @@
 #include <glib-object.h>
 #include <gio/gio.h>
 #ifdef HAVE_WINDOWS
-#  include <windows.h>
+# include <windows.h>
 #endif
 
 #define DEBUG_HEAP_LEAKS 0
