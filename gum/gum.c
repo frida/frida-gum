@@ -392,11 +392,10 @@ gum_on_log_message (const gchar * log_domain,
 {
 #if defined(HAVE_WINDOWS)
   gunichar2 * message_utf16;
+
   message_utf16 = g_utf8_to_utf16 (message, -1, NULL, NULL, NULL);
   OutputDebugString (message_utf16);
   g_free (message_utf16);
-
-  return;
 #elif defined(HAVE_ANDROID)
   int priority;
 
