@@ -16,6 +16,9 @@
 #include <ffi.h>
 #include <glib-object.h>
 #include <gio/gio.h>
+#ifdef HAVE_WINDOWS
+  #include <windows.h>
+#endif
 
 #define DEBUG_HEAP_LEAKS 0
 
@@ -506,6 +509,18 @@ gum_on_log_message (const gchar * log_domain,
 
     return;
   }
+#else
+# ifdef HAVE_WINDOWS
+  gunichar2* utf16_message;
+  utf16_message = g_utf8_to_utf16 (message, -1, NULL, NULL, NULL);
+  if (utf16_message)
+  {
+    OutputDebugString (utf16_message);
+    g_free (utf16_message);
+
+    return;
+  }
+
   /* else: fall through to stdout/stderr logging */
 # endif
 
