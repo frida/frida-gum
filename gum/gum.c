@@ -16,6 +16,9 @@
 #include <ffi.h>
 #include <glib-object.h>
 #include <gio/gio.h>
+#ifdef HAVE_WINDOWS
+# include <windows.h>
+#endif
 
 #define DEBUG_HEAP_LEAKS 0
 
@@ -387,7 +390,13 @@ gum_on_log_message (const gchar * log_domain,
                     const gchar * message,
                     gpointer user_data)
 {
-#ifdef HAVE_ANDROID
+#if defined (HAVE_WINDOWS)
+  gunichar2 * message_utf16;
+
+  message_utf16 = g_utf8_to_utf16 (message, -1, NULL, NULL, NULL);
+  OutputDebugString (message_utf16);
+  g_free (message_utf16);
+#elif defined (HAVE_ANDROID)
   int priority;
 
   (void) user_data;
