@@ -515,9 +515,9 @@ gum_on_log_message (const gchar * log_domain,
 
     return;
   }
-
   /* else: fall through to stdout/stderr logging */
 # endif
+
   FILE * file = NULL;
   const gchar * severity = NULL;
 
