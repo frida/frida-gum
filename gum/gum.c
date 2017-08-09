@@ -390,13 +390,13 @@ gum_on_log_message (const gchar * log_domain,
                     const gchar * message,
                     gpointer user_data)
 {
-#if defined(HAVE_WINDOWS)
+#if defined (HAVE_WINDOWS)
   gunichar2 * message_utf16;
 
   message_utf16 = g_utf8_to_utf16 (message, -1, NULL, NULL, NULL);
   OutputDebugString (message_utf16);
   g_free (message_utf16);
-#elif defined(HAVE_ANDROID)
+#elif defined (HAVE_ANDROID)
   int priority;
 
   (void) user_data;
@@ -420,7 +420,8 @@ gum_on_log_message (const gchar * log_domain,
   }
 
   __android_log_write (priority, log_domain, message);
-#elif defined(HAVE_DARWIN)
+#else
+# ifdef HAVE_DARWIN
   static gsize api_value = 0;
   GumCFApi * api;
 
@@ -516,7 +517,7 @@ gum_on_log_message (const gchar * log_domain,
   }
 
   /* else: fall through to stdout/stderr logging */
-#else
+# endif
   FILE * file = NULL;
   const gchar * severity = NULL;
 
