@@ -17,7 +17,7 @@
 #include <glib-object.h>
 #include <gio/gio.h>
 #ifdef HAVE_WINDOWS
-  #include <windows.h>
+#  include <windows.h>
 #endif
 
 #define DEBUG_HEAP_LEAKS 0
@@ -390,7 +390,14 @@ gum_on_log_message (const gchar * log_domain,
                     const gchar * message,
                     gpointer user_data)
 {
-#ifdef HAVE_ANDROID
+#if defined(HAVE_WINDOWS)
+  gunichar2 * message_utf16;
+  message_utf16 = g_utf8_to_utf16 (message, -1, NULL, NULL, NULL);
+  OutputDebugString (message_utf16);
+  g_free (message_utf16);
+
+  return;
+#elif defined(HAVE_ANDROID)
   int priority;
 
   (void) user_data;
@@ -414,8 +421,7 @@ gum_on_log_message (const gchar * log_domain,
   }
 
   __android_log_write (priority, log_domain, message);
-#else
-# ifdef HAVE_DARWIN
+#elif defined(HAVE_DARWIN)
   static gsize api_value = 0;
   GumCFApi * api;
 
@@ -509,21 +515,9 @@ gum_on_log_message (const gchar * log_domain,
 
     return;
   }
-#else
-# ifdef HAVE_WINDOWS
-  gunichar2* utf16_message;
-  utf16_message = g_utf8_to_utf16 (message, -1, NULL, NULL, NULL);
-  if (utf16_message)
-  {
-    OutputDebugString (utf16_message);
-    g_free (utf16_message);
-
-    return;
-  }
 
   /* else: fall through to stdout/stderr logging */
-# endif
-
+#else
   FILE * file = NULL;
   const gchar * severity = NULL;
 
