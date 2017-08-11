@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -316,8 +316,10 @@ gum_v8_script_create_context (GumV8Script * self,
     _gum_v8_stalker_init (&priv->stalker, &priv->core, global_templ);
     _gum_v8_api_resolver_init (&priv->api_resolver, &priv->core, global_templ);
     _gum_v8_symbol_init (&priv->symbol, &priv->core, global_templ);
-    _gum_v8_instruction_init (&priv->instruction, &priv->core,
-        global_templ);
+    _gum_v8_instruction_init (&priv->instruction, &priv->core, global_templ);
+    _gum_v8_code_writer_init (&priv->code_writer, &priv->core, global_templ);
+    _gum_v8_code_relocator_init (&priv->code_relocator, &priv->code_writer,
+        &priv->instruction, &priv->core, global_templ);
 
     auto context = Context::New (priv->isolate, NULL, global_templ);
     priv->context = new GumPersistent<Context>::type (priv->isolate, context);
@@ -337,6 +339,8 @@ gum_v8_script_create_context (GumV8Script * self,
     _gum_v8_api_resolver_realize (&priv->api_resolver);
     _gum_v8_symbol_realize (&priv->symbol);
     _gum_v8_instruction_realize (&priv->instruction);
+    _gum_v8_code_writer_realize (&priv->code_writer);
+    _gum_v8_code_relocator_realize (&priv->code_relocator);
 
     auto resource_name_str = g_strconcat (priv->name, ".js", NULL);
     auto resource_name = String::NewFromUtf8 (priv->isolate, resource_name_str);
@@ -381,6 +385,8 @@ gum_v8_script_destroy_context (GumV8Script * self)
   {
     ScriptScope scope (self);
 
+    _gum_v8_code_relocator_dispose (&priv->code_relocator);
+    _gum_v8_code_writer_dispose (&priv->code_writer);
     _gum_v8_instruction_dispose (&priv->instruction);
     _gum_v8_symbol_dispose (&priv->symbol);
     _gum_v8_api_resolver_dispose (&priv->api_resolver);
@@ -403,6 +409,8 @@ gum_v8_script_destroy_context (GumV8Script * self)
   delete priv->context;
   priv->context = nullptr;
 
+  _gum_v8_code_relocator_finalize (&priv->code_relocator);
+  _gum_v8_code_writer_finalize (&priv->code_writer);
   _gum_v8_instruction_finalize (&priv->instruction);
   _gum_v8_symbol_finalize (&priv->symbol);
   _gum_v8_api_resolver_finalize (&priv->api_resolver);

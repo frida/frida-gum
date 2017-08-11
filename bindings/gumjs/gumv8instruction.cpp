@@ -36,15 +36,15 @@ using namespace v8;
 struct GumInstruction
 {
   GumPersistent<v8::Object>::type * wrapper;
-  gpointer target;
+  gconstpointer target;
   cs_insn insn;
   GumV8Instruction * module;
 };
 
 GUMJS_DECLARE_FUNCTION (gumjs_instruction_parse)
 
-static Local<Object> gum_instruction_new (gpointer target, const cs_insn * insn,
-    GumV8Instruction * module);
+static Local<Object> gum_instruction_new (gconstpointer target,
+    const cs_insn * insn, GumV8Instruction * module);
 static void gum_instruction_free (GumInstruction * self);
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_address)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_next)
@@ -140,6 +140,14 @@ _gum_v8_instruction_finalize (GumV8Instruction * self)
   cs_close (&self->capstone);
 }
 
+Local<Object>
+_gum_v8_instruction_new (const cs_insn * insn,
+                         gconstpointer target,
+                         GumV8Instruction * module)
+{
+  return gum_instruction_new (target, insn, module);
+}
+
 GUMJS_DEFINE_FUNCTION (gumjs_instruction_parse)
 {
   gpointer target;
@@ -169,7 +177,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_instruction_parse)
 }
 
 static Local<Object>
-gum_instruction_new (gpointer target,
+gum_instruction_new (gconstpointer target,
                      const cs_insn * insn,
                      GumV8Instruction * module)
 {
@@ -242,9 +250,18 @@ GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_op_str, GumInstruction)
 GUMJS_DEFINE_CLASS_METHOD (gumjs_instruction_to_string, GumInstruction)
 {
   cs_insn * insn = &self->insn;
-  auto str = g_strconcat (insn->mnemonic, " ", insn->op_str, NULL);
-  info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate, str));
-  g_free (str);
+
+  if (*insn->op_str != '\0')
+  {
+    auto str = g_strconcat (insn->mnemonic, " ", insn->op_str, NULL);
+    info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate, str));
+    g_free (str);
+  }
+  else
+  {
+    info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate,
+        insn->mnemonic));
+  }
 }
 
 static void

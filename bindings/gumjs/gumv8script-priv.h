@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -8,6 +8,8 @@
 #define __GUM_V8_SCRIPT_PRIV_H__
 
 #include "gumv8apiresolver.h"
+#include "gumv8coderelocator.h"
+#include "gumv8codewriter.h"
 #include "gumv8core.h"
 #include "gumv8database.h"
 #include "gumv8file.h"
@@ -54,6 +56,8 @@ struct _GumV8ScriptPrivate
   GumV8ApiResolver api_resolver;
   GumV8Symbol symbol;
   GumV8Instruction instruction;
+  GumV8CodeWriter code_writer;
+  GumV8CodeRelocator code_relocator;
   GumPersistent<v8::Context>::type * context;
   GumPersistent<v8::Script>::type * code;
 

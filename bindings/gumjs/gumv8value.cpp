@@ -7,6 +7,7 @@
 #include "gumv8value.h"
 
 #include <string.h>
+#include <string>
 
 #define GUM_MAX_SEND_ARRAY_LENGTH (1024 * 1024)
 
@@ -302,6 +303,19 @@ _gum_v8_args_parse (const GumV8Args * args,
         }
 
         *va_arg (ap, gchar **) = str;
+
+        break;
+      }
+      case 'S':
+      {
+        if (!arg->IsString ())
+        {
+          _gum_v8_throw_ascii_literal (isolate, "expected a string");
+          return FALSE;
+        }
+
+        String::Utf8Value arg_utf8 (arg);
+        *va_arg (ap, std::string *) = *arg_utf8;
 
         break;
       }

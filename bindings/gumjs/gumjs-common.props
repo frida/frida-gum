@@ -56,6 +56,8 @@
     <ClInclude Include="gumv8apiresolver.h" />
     <ClInclude Include="gumv8symbol.h" />
     <ClInclude Include="gumv8instruction.h" />
+    <ClInclude Include="gumv8codewriter.h" />
+    <ClInclude Include="gumv8coderelocator.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="gumv8scriptbackend.cpp" />
@@ -81,6 +83,8 @@
     <ClCompile Include="gumv8apiresolver.cpp" />
     <ClCompile Include="gumv8symbol.cpp" />
     <ClCompile Include="gumv8instruction.cpp" />
+    <ClCompile Include="gumv8codewriter.cpp" />
+    <ClCompile Include="gumv8coderelocator.cpp" />
   </ItemGroup>
 
   <ItemGroup>
@@ -107,6 +111,8 @@
     <ClInclude Include="gumdukapiresolver.h" />
     <ClInclude Include="gumduksymbol.h" />
     <ClInclude Include="gumdukinstruction.h" />
+    <ClInclude Include="gumdukcodewriter.h" />
+    <ClInclude Include="gumdukcoderelocator.h" />
     <ClInclude Include="gumdukcompat.h" />
     <ClInclude Include="duk_config.h" />
     <ClInclude Include="duktape.h" />
@@ -133,6 +139,8 @@
     <ClCompile Include="gumdukapiresolver.c" />
     <ClCompile Include="gumduksymbol.c" />
     <ClCompile Include="gumdukinstruction.c" />
+    <ClCompile Include="gumdukcodewriter.c" />
+    <ClCompile Include="gumdukcoderelocator.c" />
     <ClCompile Include="gumdukcompat.c" />
     <ClCompile Include="duktape.c">
       <WarningLevel>TurnOffAllWarnings</WarningLevel>
@@ -152,6 +160,20 @@
     <None Include="runtime\objc.js" />
     <None Include="runtime\java.js" />
     <None Include="frida-debug.js" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <CustomBuild Include="generate-bindings.py">
+      <FileType>Document</FileType>
+      <Outputs>$(IntDir)gumjs\bindings.stamp;$(IntDir)gumjs\gumdukcodewriter.inc;$(IntDir)gumjs\gumdukcodewriter-x86.inc;$(IntDir)gumjs\gumdukcodewriter-arm.inc;$(IntDir)gumjs\gumdukcodewriter-thumb.inc;$(IntDir)gumjs\gumdukcodewriter-arm64.inc;$(IntDir)gumjs\gumdukcodewriter-mips.inc;$(IntDir)gumjs\gumdukcodewriter-fields.inc;$(IntDir)gumjs\gumdukcodewriter-fields-x86.inc;$(IntDir)gumjs\gumdukcodewriter-fields-arm.inc;$(IntDir)gumjs\gumdukcodewriter-fields-thumb.inc;$(IntDir)gumjs\gumdukcodewriter-fields-arm64.inc;$(IntDir)gumjs\gumdukcodewriter-fields-mips.inc;$(IntDir)gumjs\gumdukcodewriter-methods.inc;$(IntDir)gumjs\gumdukcodewriter-methods-x86.inc;$(IntDir)gumjs\gumdukcodewriter-methods-arm.inc;$(IntDir)gumjs\gumdukcodewriter-methods-thumb.inc;$(IntDir)gumjs\gumdukcodewriter-methods-arm64.inc;$(IntDir)gumjs\gumdukcodewriter-methods-mips.inc;$(IntDir)gumjs\gumdukcodewriter-init.inc;$(IntDir)gumjs\gumdukcodewriter-init-x86.inc;$(IntDir)gumjs\gumdukcodewriter-init-arm.inc;$(IntDir)gumjs\gumdukcodewriter-init-thumb.inc;$(IntDir)gumjs\gumdukcodewriter-init-arm64.inc;$(IntDir)gumjs\gumdukcodewriter-init-mips.inc;$(IntDir)gumjs\gumdukcodewriter-dispose.inc;$(IntDir)gumjs\gumdukcodewriter-dispose-x86.inc;$(IntDir)gumjs\gumdukcodewriter-dispose-arm.inc;$(IntDir)gumjs\gumdukcodewriter-dispose-thumb.inc;$(IntDir)gumjs\gumdukcodewriter-dispose-arm64.inc;$(IntDir)gumjs\gumdukcodewriter-dispose-mips.inc;$(IntDir)gumjs\gumdukcoderelocator.inc;$(IntDir)gumjs\gumdukcoderelocator-x86.inc;$(IntDir)gumjs\gumdukcoderelocator-arm.inc;$(IntDir)gumjs\gumdukcoderelocator-thumb.inc;$(IntDir)gumjs\gumdukcoderelocator-arm64.inc;$(IntDir)gumjs\gumdukcoderelocator-mips.inc;$(IntDir)gumjs\gumdukcoderelocator-fields.inc;$(IntDir)gumjs\gumdukcoderelocator-fields-x86.inc;$(IntDir)gumjs\gumdukcoderelocator-fields-arm.inc;$(IntDir)gumjs\gumdukcoderelocator-fields-thumb.inc;$(IntDir)gumjs\gumdukcoderelocator-fields-arm64.inc;$(IntDir)gumjs\gumdukcoderelocator-fields-mips.inc;$(IntDir)gumjs\gumdukcoderelocator-methods.inc;$(IntDir)gumjs\gumdukcoderelocator-methods-x86.inc;$(IntDir)gumjs\gumdukcoderelocator-methods-arm.inc;$(IntDir)gumjs\gumdukcoderelocator-methods-thumb.inc;$(IntDir)gumjs\gumdukcoderelocator-methods-arm64.inc;$(IntDir)gumjs\gumdukcoderelocator-methods-mips.inc;$(IntDir)gumjs\gumdukcoderelocator-init.inc;$(IntDir)gumjs\gumdukcoderelocator-init-x86.inc;$(IntDir)gumjs\gumdukcoderelocator-init-arm.inc;$(IntDir)gumjs\gumdukcoderelocator-init-thumb.inc;$(IntDir)gumjs\gumdukcoderelocator-init-arm64.inc;$(IntDir)gumjs\gumdukcoderelocator-init-mips.inc;$(IntDir)gumjs\gumdukcoderelocator-dispose.inc;$(IntDir)gumjs\gumdukcoderelocator-dispose-x86.inc;$(IntDir)gumjs\gumdukcoderelocator-dispose-arm.inc;$(IntDir)gumjs\gumdukcoderelocator-dispose-thumb.inc;$(IntDir)gumjs\gumdukcoderelocator-dispose-arm64.inc;$(IntDir)gumjs\gumdukcoderelocator-dispose-mips.inc;$(IntDir)gumjs\gumv8codewriter.inc;$(IntDir)gumjs\gumv8codewriter-x86.inc;$(IntDir)gumjs\gumv8codewriter-arm.inc;$(IntDir)gumjs\gumv8codewriter-thumb.inc;$(IntDir)gumjs\gumv8codewriter-arm64.inc;$(IntDir)gumjs\gumv8codewriter-mips.inc;$(IntDir)gumjs\gumv8codewriter-fields.inc;$(IntDir)gumjs\gumv8codewriter-fields-x86.inc;$(IntDir)gumjs\gumv8codewriter-fields-arm.inc;$(IntDir)gumjs\gumv8codewriter-fields-thumb.inc;$(IntDir)gumjs\gumv8codewriter-fields-arm64.inc;$(IntDir)gumjs\gumv8codewriter-fields-mips.inc;$(IntDir)gumjs\gumv8codewriter-methods.inc;$(IntDir)gumjs\gumv8codewriter-methods-x86.inc;$(IntDir)gumjs\gumv8codewriter-methods-arm.inc;$(IntDir)gumjs\gumv8codewriter-methods-thumb.inc;$(IntDir)gumjs\gumv8codewriter-methods-arm64.inc;$(IntDir)gumjs\gumv8codewriter-methods-mips.inc;$(IntDir)gumjs\gumv8codewriter-init.inc;$(IntDir)gumjs\gumv8codewriter-init-x86.inc;$(IntDir)gumjs\gumv8codewriter-init-arm.inc;$(IntDir)gumjs\gumv8codewriter-init-thumb.inc;$(IntDir)gumjs\gumv8codewriter-init-arm64.inc;$(IntDir)gumjs\gumv8codewriter-init-mips.inc;$(IntDir)gumjs\gumv8codewriter-dispose.inc;$(IntDir)gumjs\gumv8codewriter-dispose-x86.inc;$(IntDir)gumjs\gumv8codewriter-dispose-arm.inc;$(IntDir)gumjs\gumv8codewriter-dispose-thumb.inc;$(IntDir)gumjs\gumv8codewriter-dispose-arm64.inc;$(IntDir)gumjs\gumv8codewriter-dispose-mips.inc;$(IntDir)gumjs\gumv8coderelocator.inc;$(IntDir)gumjs\gumv8coderelocator-x86.inc;$(IntDir)gumjs\gumv8coderelocator-arm.inc;$(IntDir)gumjs\gumv8coderelocator-thumb.inc;$(IntDir)gumjs\gumv8coderelocator-arm64.inc;$(IntDir)gumjs\gumv8coderelocator-mips.inc;$(IntDir)gumjs\gumv8coderelocator-fields.inc;$(IntDir)gumjs\gumv8coderelocator-fields-x86.inc;$(IntDir)gumjs\gumv8coderelocator-fields-arm.inc;$(IntDir)gumjs\gumv8coderelocator-fields-thumb.inc;$(IntDir)gumjs\gumv8coderelocator-fields-arm64.inc;$(IntDir)gumjs\gumv8coderelocator-fields-mips.inc;$(IntDir)gumjs\gumv8coderelocator-methods.inc;$(IntDir)gumjs\gumv8coderelocator-methods-x86.inc;$(IntDir)gumjs\gumv8coderelocator-methods-arm.inc;$(IntDir)gumjs\gumv8coderelocator-methods-thumb.inc;$(IntDir)gumjs\gumv8coderelocator-methods-arm64.inc;$(IntDir)gumjs\gumv8coderelocator-methods-mips.inc;$(IntDir)gumjs\gumv8coderelocator-init.inc;$(IntDir)gumjs\gumv8coderelocator-init-x86.inc;$(IntDir)gumjs\gumv8coderelocator-init-arm.inc;$(IntDir)gumjs\gumv8coderelocator-init-thumb.inc;$(IntDir)gumjs\gumv8coderelocator-init-arm64.inc;$(IntDir)gumjs\gumv8coderelocator-init-mips.inc;$(IntDir)gumjs\gumv8coderelocator-dispose.inc;$(IntDir)gumjs\gumv8coderelocator-dispose-x86.inc;$(IntDir)gumjs\gumv8coderelocator-dispose-arm.inc;$(IntDir)gumjs\gumv8coderelocator-dispose-thumb.inc;$(IntDir)gumjs\gumv8coderelocator-dispose-arm64.inc;$(IntDir)gumjs\gumv8coderelocator-dispose-mips.inc</Outputs>
+      <Message>Generating bindings</Message>
+      <Command>mkdir $(IntDir)gumjs 2&gt;NUL
+generate-bindings.py $(ProjectDir)..\..\gum $(IntDir)gumjs || exit 1
+REM. &gt; $(IntDir)gumjs\bindings.stamp
+</Command>
+      <LinkObjects>false</LinkObjects>
+      <AdditionalInputs>$(ProjectDir)..\..\gum\arch-x86\gumx86writer.h;$(ProjectDir)..\..\gum\arch-x86\gumx86relocator.h;$(ProjectDir)..\..\gum\arch-arm\gumarmwriter.h;$(ProjectDir)..\..\gum\arch-arm\gumarmrelocator.h;$(ProjectDir)..\..\gum\arch-arm\gumthumbwriter.h;$(ProjectDir)..\..\gum\arch-arm\gumthumbrelocator.h;$(ProjectDir)..\..\gum\arch-arm64\gumarm64writer.h;$(ProjectDir)..\..\gum\arch-arm64\gumarm64relocator.h;$(ProjectDir)..\..\gum\arch-mips\gummipswriter.h;$(ProjectDir)..\..\gum\arch-mips\gummipsrelocator.h;%(AdditionalInputs)</AdditionalInputs>
+    </CustomBuild>
   </ItemGroup>
 
   <ItemGroup>

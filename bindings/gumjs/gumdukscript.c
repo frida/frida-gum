@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,6 +7,8 @@
 #include "gumdukscript.h"
 
 #include "gumdukapiresolver.h"
+#include "gumdukcoderelocator.h"
+#include "gumdukcodewriter.h"
 #include "gumdukcore.h"
 #include "gumdukdatabase.h"
 #include "gumdukfile.h"
@@ -101,6 +103,8 @@ struct _GumDukScriptPrivate
   GumDukApiResolver api_resolver;
   GumDukSymbol symbol;
   GumDukInstruction instruction;
+  GumDukCodeWriter code_writer;
+  GumDukCodeRelocator code_relocator;
 
   GumScriptMessageHandler message_handler;
   gpointer message_handler_data;
@@ -482,6 +486,9 @@ gum_duk_script_create_context (GumDukScript * self,
   _gum_duk_api_resolver_init (&priv->api_resolver, core);
   _gum_duk_symbol_init (&priv->symbol, core);
   _gum_duk_instruction_init (&priv->instruction, core);
+  _gum_duk_code_writer_init (&priv->code_writer, core);
+  _gum_duk_code_relocator_init (&priv->code_relocator, &priv->code_writer,
+      &priv->instruction, core);
 
   core->current_scope = NULL;
 
@@ -501,6 +508,8 @@ gum_duk_script_destroy_context (GumDukScript * self)
 
     _gum_duk_scope_enter (&scope, core);
 
+    _gum_duk_code_relocator_dispose (&priv->code_relocator);
+    _gum_duk_code_writer_dispose (&priv->code_writer);
     _gum_duk_instruction_dispose (&priv->instruction);
     _gum_duk_symbol_dispose (&priv->symbol);
     _gum_duk_api_resolver_dispose (&priv->api_resolver);
@@ -535,6 +544,8 @@ gum_duk_script_destroy_context (GumDukScript * self)
     core->current_scope = NULL;
   }
 
+  _gum_duk_code_relocator_finalize (&priv->code_relocator);
+  _gum_duk_code_writer_finalize (&priv->code_writer);
   _gum_duk_instruction_finalize (&priv->instruction);
   _gum_duk_symbol_finalize (&priv->symbol);
   _gum_duk_api_resolver_finalize (&priv->api_resolver);

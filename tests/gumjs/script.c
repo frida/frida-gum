@@ -191,6 +191,8 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (functions_can_be_found_by_name)
   SCRIPT_TESTENTRY (functions_can_be_found_by_matching)
   SCRIPT_TESTENTRY (instruction_can_be_parsed)
+  SCRIPT_TESTENTRY (instruction_can_be_generated)
+  SCRIPT_TESTENTRY (instruction_can_be_relocated)
   SCRIPT_TESTENTRY (file_can_be_written_to)
   SCRIPT_TESTENTRY (inline_sqlite_database_can_be_queried)
   SCRIPT_TESTENTRY (external_sqlite_database_can_be_queried)
@@ -289,6 +291,101 @@ SCRIPT_TESTCASE (instruction_can_be_parsed)
     EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
         "Error: access violation accessing 0x1");
   }
+}
+
+SCRIPT_TESTCASE (instruction_can_be_generated)
+{
+#if defined (HAVE_I386)
+  COMPILE_AND_LOAD_SCRIPT (
+      "var page = Memory.alloc(Process.pageSize);"
+      "Memory.patchCode(page, 16, function (code) {"
+        "var cw = new X86Writer(code, { pc: page });"
+        "cw.putMovRegU32('eax', 42);"
+        "cw.putJmpShortLabel('badger');"
+        "cw.putMovRegU32('eax', 43);"
+        "cw.putLabel('badger');"
+        "cw.putRet();"
+        "cw.flush();"
+        "send(cw.offset);"
+      "});"
+      "var f = new NativeFunction(page, 'int', []);"
+      "send(f());");
+  EXPECT_SEND_MESSAGE_WITH ("13");
+  EXPECT_SEND_MESSAGE_WITH ("42");
+  EXPECT_NO_MESSAGES ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var code = Memory.alloc(16);"
+      "var cw = new X86Writer(code);"
+      "cw.putMovRegU32('rax', 42);");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER, "Error: invalid argument");
+#endif
+}
+
+SCRIPT_TESTCASE (instruction_can_be_relocated)
+{
+#if defined (HAVE_I386)
+  COMPILE_AND_LOAD_SCRIPT (
+      "var page = Memory.alloc(Process.pageSize);"
+
+      "var impl1 = page.add(0);"
+      "var impl2 = page.add(64);"
+
+      "Memory.patchCode(impl1, 16, function (code) {"
+        "var cw = new X86Writer(code, { pc: impl1 });"
+        "cw.putMovRegU32('eax', 42);"
+        "cw.putRet();"
+        "cw.flush();"
+      "});"
+
+      "Memory.patchCode(impl2, 16, function (code) {"
+        "var cw = new X86Writer(code, { pc: impl2 });"
+        "var rl = new X86Relocator(impl1, cw);"
+
+        "send(rl.input);"
+
+        "send(rl.readOne());"
+        "send(rl.input.toString());"
+        "send(rl.writeOne());"
+
+        "send(rl.eob);"
+        "send(rl.eoi);"
+
+        "send(rl.readOne());"
+        "send(rl.input.toString());"
+        "send(rl.writeOne());"
+
+        "send(rl.readOne());"
+        "send(rl.eob);"
+        "send(rl.eoi);"
+
+        "cw.flush();"
+      "});"
+
+      "var f = new NativeFunction(impl2, 'int', []);"
+      "send(f());");
+
+  EXPECT_SEND_MESSAGE_WITH ("null");
+
+  EXPECT_SEND_MESSAGE_WITH ("5");
+  EXPECT_SEND_MESSAGE_WITH ("\"mov eax, 0x2a\"");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
+  EXPECT_SEND_MESSAGE_WITH ("false");
+  EXPECT_SEND_MESSAGE_WITH ("false");
+
+  EXPECT_SEND_MESSAGE_WITH ("6");
+  EXPECT_SEND_MESSAGE_WITH ("\"ret\"");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
+  EXPECT_SEND_MESSAGE_WITH ("0");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
+  EXPECT_SEND_MESSAGE_WITH ("42");
+
+  EXPECT_NO_MESSAGES ();
+#endif
 }
 
 SCRIPT_TESTCASE (address_can_be_resolved_to_symbol)

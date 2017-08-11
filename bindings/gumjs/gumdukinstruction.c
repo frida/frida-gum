@@ -95,6 +95,18 @@ _gum_duk_instruction_finalize (GumDukInstruction * self)
   cs_close (&self->capstone);
 }
 
+void
+_gum_duk_push_instruction (duk_context * ctx,
+                           const cs_insn * insn,
+                           gconstpointer target,
+                           GumDukInstruction * module)
+{
+  duk_push_heapptr (ctx, module->instruction);
+  duk_push_pointer (ctx, (gpointer) insn);
+  duk_push_pointer (ctx, (gpointer) target);
+  duk_new (ctx, 2);
+}
+
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_instruction_module_construct)
 {
   (void) ctx;
@@ -128,10 +140,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_instruction_parse)
       address, 1, &insn) == 0)
     _gum_duk_throw (ctx, "invalid instruction");
 
-  duk_push_heapptr (ctx, self->instruction);
-  duk_push_pointer (ctx, insn);
-  duk_push_pointer (ctx, target);
-  duk_new (ctx, 2);
+  _gum_duk_push_instruction (ctx, insn, target, self);
 
   cs_free (insn, 1);
 
@@ -141,7 +150,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_instruction_parse)
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_instruction_construct)
 {
   cs_insn * insn;
-  gpointer target;
+  gconstpointer target;
 
   if (!duk_is_constructor_call (ctx))
     _gum_duk_throw (ctx, "constructor call required");
@@ -186,7 +195,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_instruction_to_string)
   duk_get_prop_string (ctx, -2, "opStr");
   op_str = duk_require_string (ctx, -1);
 
-  result = g_strconcat (mnemonic, " ", op_str, NULL);
+  if (*op_str != '\0')
+    result = g_strconcat (mnemonic, " ", op_str, NULL);
+  else
+    result = g_strdup (mnemonic);
 
   duk_pop_3 (ctx);
 

@@ -43,6 +43,12 @@
     <ClCompile Include="gumdukinstruction.c">
       <Filter>duk</Filter>
     </ClCompile>
+    <ClCompile Include="gumdukcodewriter.c">
+      <Filter>duk</Filter>
+    </ClCompile>
+    <ClCompile Include="gumdukcoderelocator.c">
+      <Filter>duk</Filter>
+    </ClCompile>
     <ClCompile Include="gumdukinterceptor.c">
       <Filter>duk</Filter>
     </ClCompile>
@@ -104,6 +110,12 @@
       <Filter>v8</Filter>
     </ClCompile>
     <ClCompile Include="gumv8instruction.cpp">
+      <Filter>v8</Filter>
+    </ClCompile>
+    <ClCompile Include="gumv8codewriter.cpp">
+      <Filter>v8</Filter>
+    </ClCompile>
+    <ClCompile Include="gumv8coderelocator.cpp">
       <Filter>v8</Filter>
     </ClCompile>
     <ClCompile Include="gumv8interceptor.cpp">
@@ -216,6 +228,12 @@
     <ClInclude Include="gumdukinstruction.h">
       <Filter>duk</Filter>
     </ClInclude>
+    <ClInclude Include="gumdukcodewriter.h">
+      <Filter>duk</Filter>
+    </ClInclude>
+    <ClInclude Include="gumdukcoderelocator.h">
+      <Filter>duk</Filter>
+    </ClInclude>
     <ClInclude Include="gumdukinterceptor.h">
       <Filter>duk</Filter>
     </ClInclude>
@@ -283,6 +301,12 @@
       <Filter>v8</Filter>
     </ClInclude>
     <ClInclude Include="gumv8instruction.h">
+      <Filter>v8</Filter>
+    </ClInclude>
+    <ClInclude Include="gumv8codewriter.h">
+      <Filter>v8</Filter>
+    </ClInclude>
+    <ClInclude Include="gumv8coderelocator.h">
       <Filter>v8</Filter>
     </ClInclude>
     <ClInclude Include="gumv8interceptor.h">
@@ -408,6 +432,9 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <CustomBuild Include="generate-bindings.py">
+      <Filter>common</Filter>
+    </CustomBuild>
     <CustomBuild Include="generate-runtime.py">
       <Filter>runtime</Filter>
     </CustomBuild>

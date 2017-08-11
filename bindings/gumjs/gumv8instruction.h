@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -30,5 +30,8 @@ G_GNUC_INTERNAL void _gum_v8_instruction_dispose (
     GumV8Instruction * self);
 G_GNUC_INTERNAL void _gum_v8_instruction_finalize (
     GumV8Instruction * self);
+
+G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_instruction_new (
+    const cs_insn * insn, gconstpointer target, GumV8Instruction * module);
 
 #endif
