@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2014-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -43,9 +43,9 @@ gpointer gum_mips_writer_cur (GumMipsWriter * self);
 guint gum_mips_writer_offset (GumMipsWriter * self);
 void gum_mips_writer_skip (GumMipsWriter * self, guint n_bytes);
 
-void gum_mips_writer_flush (GumMipsWriter * self);
+gboolean gum_mips_writer_flush (GumMipsWriter * self);
 
-void gum_mips_writer_put_label (GumMipsWriter * self, gconstpointer id);
+gboolean gum_mips_writer_put_label (GumMipsWriter * self, gconstpointer id);
 
 void gum_mips_writer_put_call_address_with_arguments (GumMipsWriter * self,
     GumAddress func, guint n_args, ...);
@@ -54,14 +54,15 @@ void gum_mips_writer_put_call_reg_with_arguments (GumMipsWriter * self,
 
 gboolean gum_mips_writer_can_branch_directly_between (GumAddress from,
     GumAddress to);
-void gum_mips_writer_put_j_address (GumMipsWriter * self, GumAddress address);
-void gum_mips_writer_put_j_label (GumMipsWriter * self,
+gboolean gum_mips_writer_put_j_address (GumMipsWriter * self,
+    GumAddress address);
+gboolean gum_mips_writer_put_j_label (GumMipsWriter * self,
     gconstpointer label_id);
 void gum_mips_writer_put_jr_reg (GumMipsWriter * self, mips_reg reg);
 void gum_mips_writer_put_jal_address (GumMipsWriter * self, guint32 address);
 void gum_mips_writer_put_jalr_reg (GumMipsWriter * self, mips_reg reg);
 void gum_mips_writer_put_b_offset (GumMipsWriter * self, gint32 offset);
-void gum_mips_writer_put_beq_reg_reg_label (GumMipsWriter * self,
+gboolean gum_mips_writer_put_beq_reg_reg_label (GumMipsWriter * self,
     mips_reg right_reg, mips_reg left_reg, gconstpointer label_id);
 void gum_mips_writer_put_ret (GumMipsWriter * self);
 
@@ -98,7 +99,7 @@ void gum_mips_writer_put_nop (GumMipsWriter * self);
 void gum_mips_writer_put_break (GumMipsWriter * self);
 
 void gum_mips_writer_put_instruction (GumMipsWriter * self, guint32 insn);
-void gum_mips_writer_put_bytes (GumMipsWriter * self, const guint8 * data,
+gboolean gum_mips_writer_put_bytes (GumMipsWriter * self, const guint8 * data,
     guint n);
 
 G_END_DECLS

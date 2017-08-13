@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2009-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -76,18 +76,18 @@ struct _GumX86LabelRef
 
 static guint8 * gum_x86_writer_lookup_address_for_label_id (
     GumX86Writer * self, gconstpointer id);
-static void gum_x86_writer_put_short_jmp (GumX86Writer * self,
+static gboolean gum_x86_writer_put_short_jmp (GumX86Writer * self,
     gconstpointer target);
-static void gum_x86_writer_put_near_jmp (GumX86Writer * self,
+static gboolean gum_x86_writer_put_near_jmp (GumX86Writer * self,
     gconstpointer target);
 static void gum_x86_writer_describe_cpu_reg (GumX86Writer * self,
     GumCpuReg reg, GumCpuRegInfo * ri);
 
 static GumMetaReg gum_meta_reg_from_cpu_reg (GumCpuReg reg);
 
-static void gum_x86_writer_put_prefix_for_reg_info (GumX86Writer * self,
+static gboolean gum_x86_writer_put_prefix_for_reg_info (GumX86Writer * self,
     const GumCpuRegInfo * ri, guint operand_index);
-static void gum_x86_writer_put_prefix_for_registers (GumX86Writer * self,
+static gboolean gum_x86_writer_put_prefix_for_registers (GumX86Writer * self,
     const GumCpuRegInfo * width_reg, guint default_width, ...);
 
 static guint8 gum_get_jcc_opcode (x86_insn instruction_id);
@@ -164,7 +164,7 @@ gum_x86_writer_commit (GumX86Writer * self,
   self->pc += n;
 }
 
-void
+gboolean
 gum_x86_writer_flush (GumX86Writer * self)
 {
   guint i;
@@ -176,13 +176,15 @@ gum_x86_writer_flush (GumX86Writer * self)
     gint32 distance;
 
     target_address = gum_x86_writer_lookup_address_for_label_id (self, r->id);
-    g_assert (target_address != NULL);
+    if (target_address == NULL)
+      goto error;
 
     distance = (gssize) target_address - (gssize) r->address;
 
     if (r->size == GUM_LREF_SHORT)
     {
-      g_assert (GUM_IS_WITHIN_INT8_RANGE (distance));
+      if (!GUM_IS_WITHIN_INT8_RANGE (distance))
+        goto error;
       *((gint8 *) (r->address - 1)) = distance;
     }
     else
@@ -190,8 +192,16 @@ gum_x86_writer_flush (GumX86Writer * self)
       *((gint32 *) (r->address - 4)) = GINT32_TO_LE (distance);
     }
   }
-
   self->label_refs_len = 0;
+
+  return TRUE;
+
+error:
+  {
+    self->label_refs_len = 0;
+
+    return FALSE;
+  }
 }
 
 GumCpuReg
@@ -257,39 +267,49 @@ gum_x86_writer_lookup_address_for_label_id (GumX86Writer * self,
   return NULL;
 }
 
-static void
+static gboolean
 gum_x86_writer_add_address_for_label_id (GumX86Writer * self,
                                          gconstpointer id,
                                          gpointer address)
 {
-  GumX86LabelMapping * map = &self->id_to_address[self->id_to_address_len++];
+  GumX86LabelMapping * map;
 
-  g_assert_cmpuint (self->id_to_address_len, <=, GUM_MAX_LABEL_COUNT);
+  if (self->id_to_address_len == GUM_MAX_LABEL_COUNT)
+    return FALSE;
 
+  map = &self->id_to_address[self->id_to_address_len++];
   map->id = id;
   map->address = address;
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_label (GumX86Writer * self,
                           gconstpointer id)
 {
-  g_assert (gum_x86_writer_lookup_address_for_label_id (self, id) == NULL);
-  gum_x86_writer_add_address_for_label_id (self, id, self->code);
+  if (gum_x86_writer_lookup_address_for_label_id (self, id) != NULL)
+    return FALSE;
+
+  return gum_x86_writer_add_address_for_label_id (self, id, self->code);
 }
 
-static void
+static gboolean
 gum_x86_writer_add_label_reference_here (GumX86Writer * self,
                                          gconstpointer id,
                                          GumX86LabelRefSize size)
 {
-  GumX86LabelRef * r = &self->label_refs[self->label_refs_len++];
+  GumX86LabelRef * r;
 
-  g_assert_cmpuint (self->label_refs_len, <=, GUM_MAX_LREF_COUNT);
+  if (self->label_refs_len == GUM_MAX_LREF_COUNT)
+    return FALSE;
 
+  r = &self->label_refs[self->label_refs_len++];
   r->id = id;
   r->address = self->code;
   r->size = size;
+
+  return TRUE;
 }
 
 static void
@@ -450,7 +470,7 @@ gum_x86_writer_put_argument_list_teardown (GumX86Writer * self,
   }
 }
 
-void
+gboolean
 gum_x86_writer_put_call_with_arguments (GumX86Writer * self,
                                         gpointer func,
                                         guint n_args,
@@ -463,12 +483,15 @@ gum_x86_writer_put_call_with_arguments (GumX86Writer * self,
   gum_x86_writer_put_argument_list_setup (self, conv, n_args, vl);
   va_end (vl);
 
-  gum_x86_writer_put_call (self, func);
+  if (!gum_x86_writer_put_call (self, func))
+    return FALSE;
 
   gum_x86_writer_put_argument_list_teardown (self, conv, n_args);
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_call_reg_with_arguments (GumX86Writer * self,
                                             GumCallingConvention conv,
                                             GumCpuReg reg,
@@ -481,18 +504,22 @@ gum_x86_writer_put_call_reg_with_arguments (GumX86Writer * self,
   gum_x86_writer_put_argument_list_setup (self, conv, n_args, vl);
   va_end (vl);
 
-  gum_x86_writer_put_call_reg (self, reg);
+  if (!gum_x86_writer_put_call_reg (self, reg))
+    return FALSE;
 
   gum_x86_writer_put_argument_list_teardown (self, conv, n_args);
+
+  return TRUE;
 }
 
-void
-gum_x86_writer_put_call_reg_offset_ptr_with_arguments (GumX86Writer * self,
-                                                       GumCallingConvention conv,
-                                                       GumCpuReg reg,
-                                                       gssize offset,
-                                                       guint n_args,
-                                                       ...)
+gboolean
+gum_x86_writer_put_call_reg_offset_ptr_with_arguments (
+    GumX86Writer * self,
+    GumCallingConvention conv,
+    GumCpuReg reg,
+    gssize offset,
+    guint n_args,
+    ...)
 {
   va_list vl;
 
@@ -500,12 +527,15 @@ gum_x86_writer_put_call_reg_offset_ptr_with_arguments (GumX86Writer * self,
   gum_x86_writer_put_argument_list_setup (self, conv, n_args, vl);
   va_end (vl);
 
-  gum_x86_writer_put_call_reg_offset_ptr (self, reg, offset);
+  if (!gum_x86_writer_put_call_reg_offset_ptr (self, reg, offset))
+    return FALSE;
 
   gum_x86_writer_put_argument_list_teardown (self, conv, n_args);
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_call (GumX86Writer * self,
                          gconstpointer target)
 {
@@ -523,15 +553,18 @@ gum_x86_writer_put_call (GumX86Writer * self,
   }
   else
   {
-    g_assert (self->target_cpu == GUM_CPU_AMD64);
+    if (self->target_cpu != GUM_CPU_AMD64)
+      return FALSE;
 
     gum_x86_writer_put_mov_reg_u64 (self, GUM_REG_RAX,
         GPOINTER_TO_SIZE (target));
     gum_x86_writer_put_call_reg (self, GUM_REG_RAX);
   }
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_call_reg (GumX86Writer * self,
                              GumCpuReg reg)
 {
@@ -540,18 +573,26 @@ gum_x86_writer_put_call_reg (GumX86Writer * self,
   gum_x86_writer_describe_cpu_reg (self, reg, &ri);
 
   if (self->target_cpu == GUM_CPU_IA32)
-    g_return_if_fail (ri.width == 32 && !ri.index_is_extended);
+  {
+    if (ri.width != 32 || ri.index_is_extended)
+      return FALSE;
+  }
   else
-    g_return_if_fail (ri.width == 64);
+  {
+    if (ri.width != 64)
+      return FALSE;
+  }
 
   if (ri.index_is_extended)
     gum_x86_writer_put_u8 (self, 0x41);
   self->code[0] = 0xff;
   self->code[1] = 0xd0 | ri.index;
   gum_x86_writer_commit (self, 2);
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_call_reg_offset_ptr (GumX86Writer * self,
                                         GumCpuReg reg,
                                         gssize offset)
@@ -564,9 +605,15 @@ gum_x86_writer_put_call_reg_offset_ptr (GumX86Writer * self,
   offset_fits_in_i8 = GUM_IS_WITHIN_INT8_RANGE (offset);
 
   if (self->target_cpu == GUM_CPU_IA32)
-    g_return_if_fail (ri.width == 32 && !ri.index_is_extended);
+  {
+    if (ri.width != 32 || ri.index_is_extended)
+      return FALSE;
+  }
   else
-    g_return_if_fail (ri.width == 64);
+  {
+    if (ri.width != 64)
+      return FALSE;
+  }
 
   if (ri.index_is_extended)
     gum_x86_writer_put_u8 (self, 0x41);
@@ -585,6 +632,8 @@ gum_x86_writer_put_call_reg_offset_ptr (GumX86Writer * self,
     *((gint32 *) self->code) = GINT32_TO_LE (offset);
     gum_x86_writer_commit (self, 4);
   }
+
+  return TRUE;
 }
 
 void
@@ -597,12 +646,14 @@ gum_x86_writer_put_call_indirect (GumX86Writer * self,
   gum_x86_writer_commit (self, 6);
 }
 
-void
+gboolean
 gum_x86_writer_put_call_near_label (GumX86Writer * self,
                                     gconstpointer label_id)
 {
   gum_x86_writer_put_call (self, GSIZE_TO_POINTER (self->pc));
-  gum_x86_writer_add_label_reference_here (self, label_id, GUM_LREF_NEAR);
+
+  return gum_x86_writer_add_label_reference_here (self, label_id,
+      GUM_LREF_NEAR);
 }
 
 void
@@ -626,7 +677,7 @@ gum_x86_writer_put_ret_imm (GumX86Writer * self,
   gum_x86_writer_commit (self, 3);
 }
 
-void
+gboolean
 gum_x86_writer_put_jmp (GumX86Writer * self,
                         gconstpointer target)
 {
@@ -652,7 +703,8 @@ gum_x86_writer_put_jmp (GumX86Writer * self,
     }
     else
     {
-      g_assert_cmpint (self->target_cpu, ==, GUM_CPU_AMD64);
+      if (self->target_cpu != GUM_CPU_AMD64)
+        return FALSE;
 
       self->code[0] = 0xff;
       self->code[1] = 0x25;
@@ -662,23 +714,28 @@ gum_x86_writer_put_jmp (GumX86Writer * self,
       gum_x86_writer_commit (self, 14);
     }
   }
+
+  return TRUE;
 }
 
-static void
+static gboolean
 gum_x86_writer_put_short_jmp (GumX86Writer * self,
                               gconstpointer target)
 {
   gint64 distance;
 
   distance = (gssize) target - (gssize) (self->pc + 2);
-  g_assert (GUM_IS_WITHIN_INT8_RANGE (distance));
+  if (!GUM_IS_WITHIN_INT8_RANGE (distance))
+    return FALSE;
 
   self->code[0] = 0xeb;
   *((gint8 *) (self->code + 1)) = distance;
   gum_x86_writer_commit (self, 2);
+
+  return TRUE;
 }
 
-static void
+static gboolean
 gum_x86_writer_put_near_jmp (GumX86Writer * self,
                              gconstpointer target)
 {
@@ -694,7 +751,8 @@ gum_x86_writer_put_near_jmp (GumX86Writer * self,
   }
   else
   {
-    g_assert_cmpint (self->target_cpu, ==, GUM_CPU_AMD64);
+    if (self->target_cpu != GUM_CPU_AMD64)
+      return FALSE;
 
     self->code[0] = 0xff;
     self->code[1] = 0x25;
@@ -702,25 +760,31 @@ gum_x86_writer_put_near_jmp (GumX86Writer * self,
     *((guint64 *) (self->code + 6)) = GUINT64_TO_LE (GPOINTER_TO_SIZE (target));
     gum_x86_writer_commit (self, 14);
   }
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_jmp_short_label (GumX86Writer * self,
                                     gconstpointer label_id)
 {
   gum_x86_writer_put_short_jmp (self, GSIZE_TO_POINTER (self->pc));
-  gum_x86_writer_add_label_reference_here (self, label_id, GUM_LREF_SHORT);
+
+  return gum_x86_writer_add_label_reference_here (self, label_id,
+      GUM_LREF_SHORT);
 }
 
-void
+gboolean
 gum_x86_writer_put_jmp_near_label (GumX86Writer * self,
                                    gconstpointer label_id)
 {
   gum_x86_writer_put_near_jmp (self, GSIZE_TO_POINTER (self->pc));
-  gum_x86_writer_add_label_reference_here (self, label_id, GUM_LREF_NEAR);
+
+  return gum_x86_writer_add_label_reference_here (self, label_id,
+      GUM_LREF_NEAR);
 }
 
-void
+gboolean
 gum_x86_writer_put_jmp_reg (GumX86Writer * self,
                             GumCpuReg reg)
 {
@@ -729,18 +793,27 @@ gum_x86_writer_put_jmp_reg (GumX86Writer * self,
   gum_x86_writer_describe_cpu_reg (self, reg, &ri);
 
   if (self->target_cpu == GUM_CPU_IA32)
-    g_return_if_fail (ri.width == 32 && !ri.index_is_extended);
+  {
+    if (ri.width != 32 || ri.index_is_extended)
+      return FALSE;
+  }
   else
-    g_return_if_fail (ri.width == 64);
+  {
+    if (ri.width != 64)
+      return FALSE;
+  }
 
-  gum_x86_writer_put_prefix_for_registers (self, &ri, 64, &ri, NULL);
+  if (!gum_x86_writer_put_prefix_for_registers (self, &ri, 64, &ri, NULL))
+    return FALSE;
 
   self->code[0] = 0xff;
   self->code[1] = 0xe0 | ri.index;
   gum_x86_writer_commit (self, 2);
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_jmp_reg_ptr (GumX86Writer * self,
                                 GumCpuReg reg)
 {
@@ -749,11 +822,18 @@ gum_x86_writer_put_jmp_reg_ptr (GumX86Writer * self,
   gum_x86_writer_describe_cpu_reg (self, reg, &ri);
 
   if (self->target_cpu == GUM_CPU_IA32)
-    g_return_if_fail (ri.width == 32 && !ri.index_is_extended);
+  {
+    if (ri.width != 32 || ri.index_is_extended)
+      return FALSE;
+  }
   else
-    g_return_if_fail (ri.width == 64);
+  {
+    if (ri.width != 64)
+      return FALSE;
+  }
 
-  gum_x86_writer_put_prefix_for_registers (self, &ri, 64, &ri, NULL);
+  if (!gum_x86_writer_put_prefix_for_registers (self, &ri, 64, &ri, NULL))
+    return FALSE;
 
   self->code[0] = 0xff;
   self->code[1] = 0x20 | ri.index;
@@ -761,9 +841,11 @@ gum_x86_writer_put_jmp_reg_ptr (GumX86Writer * self,
 
   if (ri.meta == GUM_META_REG_XSP)
     gum_x86_writer_put_u8 (self, 0x24);
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_jmp_near_ptr (GumX86Writer * self,
                                  GumAddress address)
 {
@@ -772,20 +854,24 @@ gum_x86_writer_put_jmp_near_ptr (GumX86Writer * self,
 
   if (self->target_cpu == GUM_CPU_IA32)
   {
-    g_assert (address <= G_MAXUINT32);
+    if (address > G_MAXUINT32)
+      return FALSE;
     *((guint32 *) (self->code + 2)) = GUINT32_TO_LE ((guint32) address);
   }
   else
   {
     gint64 distance = (gint64) address - (gint64) (self->pc + 6);
-    g_assert (distance >= G_MININT32 && distance <= G_MAXINT32);
+    if (distance < G_MININT32 || distance > G_MAXINT32)
+      return FALSE;
     *((gint32 *) (self->code + 2)) = GINT32_TO_LE ((gint32) distance);
   }
 
   gum_x86_writer_commit (self, 6);
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_jcc_short (GumX86Writer * self,
                               x86_insn instruction_id,
                               gconstpointer target,
@@ -797,12 +883,15 @@ gum_x86_writer_put_jcc_short (GumX86Writer * self,
     gum_x86_writer_put_u8 (self, (hint == GUM_LIKELY) ? 0x3e : 0x2e);
   self->code[0] = gum_get_jcc_opcode (instruction_id);
   distance = (gssize) target - (gssize) (self->pc + 2);
-  g_assert (GUM_IS_WITHIN_INT8_RANGE (distance));
+  if (!GUM_IS_WITHIN_INT8_RANGE (distance))
+    return FALSE;
   *((gint8 *) (self->code + 1)) = distance;
   gum_x86_writer_commit (self, 2);
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_jcc_near (GumX86Writer * self,
                              x86_insn instruction_id,
                              gconstpointer target,
@@ -815,12 +904,15 @@ gum_x86_writer_put_jcc_near (GumX86Writer * self,
   self->code[0] = 0x0f;
   self->code[1] = 0x10 + gum_get_jcc_opcode (instruction_id);
   distance = (gssize) target - (gssize) (self->pc + 6);
-  g_assert (GUM_IS_WITHIN_INT32_RANGE (distance));
+  if (!GUM_IS_WITHIN_INT32_RANGE (distance))
+    return FALSE;
   *((gint32 *) (self->code + 2)) = GINT32_TO_LE (distance);
   gum_x86_writer_commit (self, 6);
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_jcc_short_label (GumX86Writer * self,
                                     x86_insn instruction_id,
                                     gconstpointer label_id,
@@ -828,21 +920,25 @@ gum_x86_writer_put_jcc_short_label (GumX86Writer * self,
 {
   gum_x86_writer_put_jcc_short (self, instruction_id,
       GSIZE_TO_POINTER (self->pc), hint);
-  gum_x86_writer_add_label_reference_here (self, label_id, GUM_LREF_SHORT);
+
+  return gum_x86_writer_add_label_reference_here (self, label_id,
+      GUM_LREF_SHORT);
 }
 
-void
+gboolean
 gum_x86_writer_put_jcc_near_label (GumX86Writer * self,
                                    x86_insn instruction_id,
                                    gconstpointer label_id,
                                    GumBranchHint hint)
 {
-  gum_x86_writer_put_jcc_near (self, instruction_id, 
+  gum_x86_writer_put_jcc_near (self, instruction_id,
       GSIZE_TO_POINTER (self->pc), hint);
-  gum_x86_writer_add_label_reference_here (self, label_id, GUM_LREF_NEAR);
+
+  return gum_x86_writer_add_label_reference_here (self, label_id,
+      GUM_LREF_NEAR);
 }
 
-static void
+static gboolean
 gum_x86_writer_put_add_or_sub_reg_imm (GumX86Writer * self,
                                        GumCpuReg reg,
                                        gssize imm_value,
@@ -855,7 +951,8 @@ gum_x86_writer_put_add_or_sub_reg_imm (GumX86Writer * self,
 
   immediate_fits_in_i8 = GUM_IS_WITHIN_INT8_RANGE (imm_value);
 
-  gum_x86_writer_put_prefix_for_registers (self, &ri, 32, &ri, NULL);
+  if (!gum_x86_writer_put_prefix_for_registers (self, &ri, 32, &ri, NULL))
+    return FALSE;
 
   if (ri.meta == GUM_META_REG_XAX && !immediate_fits_in_i8)
   {
@@ -877,17 +974,19 @@ gum_x86_writer_put_add_or_sub_reg_imm (GumX86Writer * self,
     *((gint32 *) self->code) = GINT32_TO_LE (imm_value);
     gum_x86_writer_commit (self, 4);
   }
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_add_reg_imm (GumX86Writer * self,
                                 GumCpuReg reg,
                                 gssize imm_value)
 {
-  gum_x86_writer_put_add_or_sub_reg_imm (self, reg, imm_value, TRUE);
+  return gum_x86_writer_put_add_or_sub_reg_imm (self, reg, imm_value, TRUE);
 }
 
-void
+gboolean
 gum_x86_writer_put_add_reg_reg (GumX86Writer * self,
                                 GumCpuReg dst_reg,
                                 GumCpuReg src_reg)
@@ -897,16 +996,21 @@ gum_x86_writer_put_add_reg_reg (GumX86Writer * self,
   gum_x86_writer_describe_cpu_reg (self, dst_reg, &dst);
   gum_x86_writer_describe_cpu_reg (self, src_reg, &src);
 
-  g_return_if_fail (src.width == dst.width);
+  if (src.width != dst.width)
+    return FALSE;
 
-  gum_x86_writer_put_prefix_for_registers (self, &dst, 32, &dst, &src, NULL);
+  if (!gum_x86_writer_put_prefix_for_registers (self, &dst, 32, &dst, &src,
+      NULL))
+    return FALSE;
 
   self->code[0] = 0x01;
   self->code[1] = 0xc0 | (src.index << 3) | dst.index;
   gum_x86_writer_commit (self, 2);
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_add_reg_near_ptr (GumX86Writer * self,
                                      GumCpuReg dst_reg,
                                      GumAddress src_address)
@@ -915,7 +1019,8 @@ gum_x86_writer_put_add_reg_near_ptr (GumX86Writer * self,
 
   gum_x86_writer_describe_cpu_reg (self, dst_reg, &dst);
 
-  gum_x86_writer_put_prefix_for_registers (self, &dst, 32, &dst, NULL);
+  if (!gum_x86_writer_put_prefix_for_registers (self, &dst, 32, &dst, NULL))
+    return FALSE;
 
   self->code[0] = 0x03;
   self->code[1] = 0x05 | (dst.index << 3);
@@ -923,24 +1028,28 @@ gum_x86_writer_put_add_reg_near_ptr (GumX86Writer * self,
 
   if (self->target_cpu == GUM_CPU_IA32)
   {
-    g_assert (src_address <= G_MAXUINT32);
+    if (src_address > G_MAXUINT32)
+      return FALSE;
     *((guint32 *) self->code) = GUINT32_TO_LE ((guint32) src_address);
   }
   else
   {
     gint64 distance = (gint64) src_address - (gint64) (self->pc + 4);
-    g_assert (distance >= G_MININT32 && distance <= G_MAXINT32);
+    if (distance < G_MININT32 || distance > G_MAXINT32)
+      return FALSE;
     *((gint32 *) self->code) = GINT32_TO_LE ((gint32) distance);
   }
   gum_x86_writer_commit (self, 4);
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_sub_reg_imm (GumX86Writer * self,
                                 GumCpuReg reg,
                                 gssize imm_value)
 {
-  gum_x86_writer_put_add_or_sub_reg_imm (self, reg, imm_value, FALSE);
+  return gum_x86_writer_put_add_or_sub_reg_imm (self, reg, imm_value, FALSE);
 }
 
 void
@@ -953,7 +1062,7 @@ gum_x86_writer_put_sub_reg_reg (GumX86Writer * self,
   gum_x86_writer_commit (self, 2);
 }
 
-void
+gboolean
 gum_x86_writer_put_sub_reg_near_ptr (GumX86Writer * self,
                                      GumCpuReg dst_reg,
                                      GumAddress src_address)
@@ -962,7 +1071,8 @@ gum_x86_writer_put_sub_reg_near_ptr (GumX86Writer * self,
 
   gum_x86_writer_describe_cpu_reg (self, dst_reg, &dst);
 
-  gum_x86_writer_put_prefix_for_registers (self, &dst, 32, &dst, NULL);
+  if (!gum_x86_writer_put_prefix_for_registers (self, &dst, 32, &dst, NULL))
+    return FALSE;
 
   self->code[0] = 0x2b;
   self->code[1] = 0x05 | (dst.index << 3);
@@ -970,19 +1080,23 @@ gum_x86_writer_put_sub_reg_near_ptr (GumX86Writer * self,
 
   if (self->target_cpu == GUM_CPU_IA32)
   {
-    g_assert (src_address <= G_MAXUINT32);
+    if (src_address > G_MAXUINT32)
+      return FALSE;
     *((guint32 *) self->code) = GUINT32_TO_LE ((guint32) src_address);
   }
   else
   {
     gint64 distance = (gint64) src_address - (gint64) (self->pc + 4);
-    g_assert (distance >= G_MININT32 && distance <= G_MAXINT32);
+    if (distance < G_MININT32 || distance > G_MAXINT32)
+      return FALSE;
     *((gint32 *) self->code) = GINT32_TO_LE ((gint32) distance);
   }
   gum_x86_writer_commit (self, 4);
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_inc_reg (GumX86Writer * self,
                             GumCpuReg reg)
 {
@@ -990,16 +1104,23 @@ gum_x86_writer_put_inc_reg (GumX86Writer * self,
 
   gum_x86_writer_describe_cpu_reg (self, reg, &ri);
 
-  g_return_if_fail (self->target_cpu == GUM_CPU_AMD64 || (ri.width == 32 && !ri.index_is_extended));
+  if (self->target_cpu != GUM_CPU_AMD64 &&
+      (ri.width != 32 || ri.index_is_extended))
+  {
+    return FALSE;
+  }
 
-  gum_x86_writer_put_prefix_for_registers (self, &ri, 32, &ri, NULL);
+  if (!gum_x86_writer_put_prefix_for_registers (self, &ri, 32, &ri, NULL))
+    return FALSE;
 
   self->code[0] = 0xff;
   self->code[1] = 0xc0 | ri.index;
   gum_x86_writer_commit (self, 2);
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_dec_reg (GumX86Writer * self,
                             GumCpuReg reg)
 {
@@ -1007,16 +1128,23 @@ gum_x86_writer_put_dec_reg (GumX86Writer * self,
 
   gum_x86_writer_describe_cpu_reg (self, reg, &ri);
 
-  g_return_if_fail (self->target_cpu == GUM_CPU_AMD64 || (ri.width == 32 && !ri.index_is_extended));
+  if (self->target_cpu != GUM_CPU_AMD64 &&
+      (ri.width != 32 || ri.index_is_extended))
+  {
+    return FALSE;
+  }
 
-  gum_x86_writer_put_prefix_for_registers (self, &ri, 32, &ri, NULL);
+  if (!gum_x86_writer_put_prefix_for_registers (self, &ri, 32, &ri, NULL))
+    return FALSE;
 
   self->code[0] = 0xff;
   self->code[1] = 0xc8 | ri.index;
   gum_x86_writer_commit (self, 2);
+
+  return TRUE;
 }
 
-static void
+static gboolean
 gum_x86_writer_put_inc_or_dec_reg_ptr (GumX86Writer * self,
                                        GumPtrTarget target,
                                        GumCpuReg reg,
@@ -1040,32 +1168,35 @@ gum_x86_writer_put_inc_or_dec_reg_ptr (GumX86Writer * self,
       gum_x86_writer_put_u8 (self, 0xfe);
       break;
     case GUM_PTR_QWORD:
-      g_return_if_fail (self->target_cpu == GUM_CPU_AMD64);
+      if (self->target_cpu != GUM_CPU_AMD64)
+        return FALSE;
     case GUM_PTR_DWORD:
       gum_x86_writer_put_u8 (self, 0xff);
       break;
   }
 
   gum_x86_writer_put_u8 (self, (increment ? 0x00 : 0x08) | ri.index);
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_inc_reg_ptr (GumX86Writer * self,
                                 GumPtrTarget target,
                                 GumCpuReg reg)
 {
-  gum_x86_writer_put_inc_or_dec_reg_ptr (self, target, reg, TRUE);
+  return gum_x86_writer_put_inc_or_dec_reg_ptr (self, target, reg, TRUE);
 }
 
-void
+gboolean
 gum_x86_writer_put_dec_reg_ptr (GumX86Writer * self,
                                 GumPtrTarget target,
                                 GumCpuReg reg)
 {
-  gum_x86_writer_put_inc_or_dec_reg_ptr (self, target, reg, FALSE);
+  return gum_x86_writer_put_inc_or_dec_reg_ptr (self, target, reg, FALSE);
 }
 
-void
+gboolean
 gum_x86_writer_put_lock_xadd_reg_ptr_reg (GumX86Writer * self,
                                           GumCpuReg dst_reg,
                                           GumCpuReg src_reg)
@@ -1077,7 +1208,9 @@ gum_x86_writer_put_lock_xadd_reg_ptr_reg (GumX86Writer * self,
 
   gum_x86_writer_put_u8 (self, 0xf0); /* lock prefix */
 
-  gum_x86_writer_put_prefix_for_registers (self, &src, 32, &dst, &src, NULL);
+  if (!gum_x86_writer_put_prefix_for_registers (self, &src, 32, &dst, &src,
+      NULL))
+    return FALSE;
 
   self->code[0] = 0x0f;
   self->code[1] = 0xc1;
@@ -1093,9 +1226,11 @@ gum_x86_writer_put_lock_xadd_reg_ptr_reg (GumX86Writer * self,
     self->code[-1] |= 0x40;
     gum_x86_writer_put_u8 (self, 0x00);
   }
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_lock_cmpxchg_reg_ptr_reg (GumX86Writer * self,
                                              GumCpuReg dst_reg,
                                              GumCpuReg src_reg)
@@ -1106,11 +1241,19 @@ gum_x86_writer_put_lock_cmpxchg_reg_ptr_reg (GumX86Writer * self,
   gum_x86_writer_describe_cpu_reg (self, src_reg, &src);
 
   if (self->target_cpu == GUM_CPU_IA32)
-    g_return_if_fail (dst.width == 32);
+  {
+    if (dst.width != 32)
+      return FALSE;
+  }
   else
-    g_return_if_fail (dst.width == 64);
-  g_return_if_fail (!dst.index_is_extended);
-  g_return_if_fail (src.width == 32 && !src.index_is_extended);
+  {
+    if (dst.width != 64)
+      return FALSE;
+  }
+  if (dst.index_is_extended)
+    return FALSE;
+  if (src.width != 32 || src.index_is_extended)
+    return FALSE;
 
   self->code[0] = 0xf0; /* lock prefix */
   self->code[1] = 0x0f;
@@ -1127,9 +1270,11 @@ gum_x86_writer_put_lock_cmpxchg_reg_ptr_reg (GumX86Writer * self,
     self->code[-1] |= 0x40;
     gum_x86_writer_put_u8 (self, 0x00);
   }
+
+  return TRUE;
 }
 
-static void
+static gboolean
 gum_x86_writer_put_lock_inc_or_dec_imm32_ptr (GumX86Writer * self,
                                               gpointer target,
                                               gboolean increment)
@@ -1145,28 +1290,31 @@ gum_x86_writer_put_lock_inc_or_dec_imm32_ptr (GumX86Writer * self,
   else
   {
     gint64 distance = (gssize) target - (gssize) (self->pc + 7);
-    g_assert (GUM_IS_WITHIN_INT32_RANGE (distance));
+    if (!GUM_IS_WITHIN_INT32_RANGE (distance))
+      return FALSE;
     *((gint32 *) (self->code + 3)) = GINT32_TO_LE (distance);
   }
 
   gum_x86_writer_commit (self, 7);
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_lock_inc_imm32_ptr (GumX86Writer * self,
                                        gpointer target)
 {
-  gum_x86_writer_put_lock_inc_or_dec_imm32_ptr (self, target, TRUE);
+  return gum_x86_writer_put_lock_inc_or_dec_imm32_ptr (self, target, TRUE);
 }
 
-void
+gboolean
 gum_x86_writer_put_lock_dec_imm32_ptr (GumX86Writer * self,
                                        gpointer target)
 {
-  gum_x86_writer_put_lock_inc_or_dec_imm32_ptr (self, target, FALSE);
+  return gum_x86_writer_put_lock_inc_or_dec_imm32_ptr (self, target, FALSE);
 }
 
-void
+gboolean
 gum_x86_writer_put_and_reg_reg (GumX86Writer * self,
                                 GumCpuReg dst_reg,
                                 GumCpuReg src_reg)
@@ -1176,17 +1324,22 @@ gum_x86_writer_put_and_reg_reg (GumX86Writer * self,
   gum_x86_writer_describe_cpu_reg (self, dst_reg, &dst);
   gum_x86_writer_describe_cpu_reg (self, src_reg, &src);
 
-  g_return_if_fail (dst.width == src.width);
-  g_return_if_fail (!dst.index_is_extended && !src.index_is_extended);
+  if (dst.width != src.width)
+    return FALSE;
+  if (dst.index_is_extended || src.index_is_extended)
+    return FALSE;
 
-  gum_x86_writer_put_prefix_for_reg_info (self, &dst, 0);
+  if (!gum_x86_writer_put_prefix_for_reg_info (self, &dst, 0))
+    return FALSE;
 
   self->code[0] = 0x21;
   self->code[1] = 0xc0 | (src.index << 3) | dst.index;
   gum_x86_writer_commit (self, 2);
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_and_reg_u32 (GumX86Writer * self,
                                 GumCpuReg reg,
                                 guint32 imm_value)
@@ -1195,7 +1348,8 @@ gum_x86_writer_put_and_reg_u32 (GumX86Writer * self,
 
   gum_x86_writer_describe_cpu_reg (self, reg, &ri);
 
-  gum_x86_writer_put_prefix_for_registers (self, &ri, 32, &ri, NULL);
+  if (!gum_x86_writer_put_prefix_for_registers (self, &ri, 32, &ri, NULL))
+    return FALSE;
 
   if (ri.meta == GUM_META_REG_XAX)
   {
@@ -1210,9 +1364,11 @@ gum_x86_writer_put_and_reg_u32 (GumX86Writer * self,
     *((guint32 *) (self->code + 2)) = GUINT32_TO_LE (imm_value);
     gum_x86_writer_commit (self, 6);
   }
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_shl_reg_u8 (GumX86Writer * self,
                                GumCpuReg reg,
                                guint8 imm_value)
@@ -1221,15 +1377,18 @@ gum_x86_writer_put_shl_reg_u8 (GumX86Writer * self,
 
   gum_x86_writer_describe_cpu_reg (self, reg, &ri);
 
-  gum_x86_writer_put_prefix_for_registers (self, &ri, 32, &ri, NULL);
+  if (!gum_x86_writer_put_prefix_for_registers (self, &ri, 32, &ri, NULL))
+    return FALSE;
 
   self->code[0] = 0xc1;
   self->code[1] = 0xe0 | ri.index;
   self->code[2] = imm_value;
   gum_x86_writer_commit (self, 3);
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_shr_reg_u8 (GumX86Writer * self,
                                GumCpuReg reg,
                                guint8 imm_value)
@@ -1238,15 +1397,18 @@ gum_x86_writer_put_shr_reg_u8 (GumX86Writer * self,
 
   gum_x86_writer_describe_cpu_reg (self, reg, &ri);
 
-  gum_x86_writer_put_prefix_for_registers (self, &ri, 32, &ri, NULL);
+  if (!gum_x86_writer_put_prefix_for_registers (self, &ri, 32, &ri, NULL))
+    return FALSE;
 
   self->code[0] = 0xc1;
   self->code[1] = 0xe8 | ri.index;
   self->code[2] = imm_value;
   gum_x86_writer_commit (self, 3);
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_xor_reg_reg (GumX86Writer * self,
                                 GumCpuReg dst_reg,
                                 GumCpuReg src_reg)
@@ -1256,17 +1418,22 @@ gum_x86_writer_put_xor_reg_reg (GumX86Writer * self,
   gum_x86_writer_describe_cpu_reg (self, dst_reg, &dst);
   gum_x86_writer_describe_cpu_reg (self, src_reg, &src);
 
-  g_return_if_fail (dst.width == src.width);
-  g_return_if_fail (!dst.index_is_extended && !src.index_is_extended);
+  if (dst.width != src.width)
+    return FALSE;
+  if (dst.index_is_extended || src.index_is_extended)
+    return FALSE;
 
-  gum_x86_writer_put_prefix_for_reg_info (self, &dst, 0);
+  if (!gum_x86_writer_put_prefix_for_reg_info (self, &dst, 0))
+    return FALSE;
 
   self->code[0] = 0x31;
   self->code[1] = 0xc0 | (src.index << 3) | dst.index;
   gum_x86_writer_commit (self, 2);
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_mov_reg_reg (GumX86Writer * self,
                                 GumCpuReg dst_reg,
                                 GumCpuReg src_reg)
@@ -1276,16 +1443,21 @@ gum_x86_writer_put_mov_reg_reg (GumX86Writer * self,
   gum_x86_writer_describe_cpu_reg (self, dst_reg, &dst);
   gum_x86_writer_describe_cpu_reg (self, src_reg, &src);
 
-  g_return_if_fail (dst.width == src.width);
+  if (dst.width != src.width)
+    return FALSE;
 
-  gum_x86_writer_put_prefix_for_registers (self, &dst, 32, &dst, &src, NULL);
+  if (!gum_x86_writer_put_prefix_for_registers (self, &dst, 32, &dst, &src,
+      NULL))
+    return FALSE;
 
   self->code[0] = 0x89;
   self->code[1] = 0xc0 | (src.index << 3) | dst.index;
   gum_x86_writer_commit (self, 2);
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_mov_reg_u32 (GumX86Writer * self,
                                 GumCpuReg dst_reg,
                                 guint32 imm_value)
@@ -1294,33 +1466,42 @@ gum_x86_writer_put_mov_reg_u32 (GumX86Writer * self,
 
   gum_x86_writer_describe_cpu_reg (self, dst_reg, &dst);
 
-  g_return_if_fail (dst.width == 32);
+  if (dst.width != 32)
+    return FALSE;
 
-  gum_x86_writer_put_prefix_for_reg_info (self, &dst, 0);
+  if (!gum_x86_writer_put_prefix_for_reg_info (self, &dst, 0))
+    return FALSE;
 
   self->code[0] = 0xb8 | dst.index;
   *((guint32 *) (self->code + 1)) = GUINT32_TO_LE (imm_value);
   gum_x86_writer_commit (self, 5);
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_mov_reg_u64 (GumX86Writer * self,
                                 GumCpuReg dst_reg,
                                 guint64 imm_value)
 {
   GumCpuRegInfo dst;
 
-  g_return_if_fail (self->target_cpu == GUM_CPU_AMD64);
+  if (self->target_cpu != GUM_CPU_AMD64)
+    return FALSE;
 
   gum_x86_writer_describe_cpu_reg (self, dst_reg, &dst);
 
-  g_return_if_fail (dst.width == 64);
+  if (dst.width != 64)
+    return FALSE;
 
-  gum_x86_writer_put_prefix_for_reg_info (self, &dst, 0);
+  if (!gum_x86_writer_put_prefix_for_reg_info (self, &dst, 0))
+    return FALSE;
 
   self->code[0] = 0xb8 | dst.index;
   *((guint64 *) (self->code + 1)) = GUINT64_TO_LE (imm_value);
   gum_x86_writer_commit (self, 9);
+
+  return TRUE;
 }
 
 void
@@ -1346,7 +1527,7 @@ gum_x86_writer_put_mov_reg_ptr_u32 (GumX86Writer * self,
   gum_x86_writer_put_mov_reg_offset_ptr_u32 (self, dst_reg, 0, imm_value);
 }
 
-void
+gboolean
 gum_x86_writer_put_mov_reg_offset_ptr_u32 (GumX86Writer * self,
                                            GumCpuReg dst_reg,
                                            gssize dst_offset,
@@ -1358,9 +1539,15 @@ gum_x86_writer_put_mov_reg_offset_ptr_u32 (GumX86Writer * self,
   gum_x86_writer_describe_cpu_reg (self, dst_reg, &dst);
 
   if (self->target_cpu == GUM_CPU_IA32)
-    g_return_if_fail (dst.width == 32);
+  {
+    if (dst.width != 32)
+      return FALSE;
+  }
   else
-    g_return_if_fail (dst.width == 64);
+  {
+    if (dst.width != 64)
+      return FALSE;
+  }
 
   offset_fits_in_i8 = GUM_IS_WITHIN_INT8_RANGE (dst_offset);
 
@@ -1393,6 +1580,8 @@ gum_x86_writer_put_mov_reg_offset_ptr_u32 (GumX86Writer * self,
 
   *((guint32 *) self->code) = GUINT32_TO_LE (imm_value);
   gum_x86_writer_commit (self, 4);
+
+  return TRUE;
 }
 
 void
@@ -1403,7 +1592,7 @@ gum_x86_writer_put_mov_reg_ptr_reg (GumX86Writer * self,
   gum_x86_writer_put_mov_reg_offset_ptr_reg (self, dst_reg, 0, src_reg);
 }
 
-void
+gboolean
 gum_x86_writer_put_mov_reg_offset_ptr_reg (GumX86Writer * self,
                                            GumCpuReg dst_reg,
                                            gssize dst_offset,
@@ -1416,13 +1605,21 @@ gum_x86_writer_put_mov_reg_offset_ptr_reg (GumX86Writer * self,
   gum_x86_writer_describe_cpu_reg (self, src_reg, &src);
 
   if (self->target_cpu == GUM_CPU_IA32)
-    g_return_if_fail (dst.width == 32 && src.width == 32);
+  {
+    if (dst.width != 32 || src.width != 32)
+      return FALSE;
+  }
   else
-    g_return_if_fail (dst.width == 64);
+  {
+    if (dst.width != 64)
+      return FALSE;
+  }
 
   offset_fits_in_i8 = GUM_IS_WITHIN_INT8_RANGE (dst_offset);
 
-  gum_x86_writer_put_prefix_for_registers (self, &src, 32, &dst, &src, NULL);
+  if (!gum_x86_writer_put_prefix_for_registers (self, &src, 32, &dst, &src,
+      NULL))
+    return FALSE;
 
   gum_x86_writer_put_u8 (self, 0x89);
 
@@ -1450,6 +1647,8 @@ gum_x86_writer_put_mov_reg_offset_ptr_reg (GumX86Writer * self,
       gum_x86_writer_commit (self, 4);
     }
   }
+
+  return TRUE;
 }
 
 void
@@ -1460,7 +1659,7 @@ gum_x86_writer_put_mov_reg_reg_ptr (GumX86Writer * self,
   gum_x86_writer_put_mov_reg_reg_offset_ptr (self, dst_reg, src_reg, 0);
 }
 
-void
+gboolean
 gum_x86_writer_put_mov_reg_reg_offset_ptr (GumX86Writer * self,
                                            GumCpuReg dst_reg,
                                            GumCpuReg src_reg,
@@ -1473,13 +1672,21 @@ gum_x86_writer_put_mov_reg_reg_offset_ptr (GumX86Writer * self,
   gum_x86_writer_describe_cpu_reg (self, src_reg, &src);
 
   if (self->target_cpu == GUM_CPU_IA32)
-    g_return_if_fail (dst.width == 32 && src.width == 32);
+  {
+    if (dst.width != 32 || src.width != 32)
+      return FALSE;
+  }
   else
-    g_return_if_fail (src.width == 64);
+  {
+    if (src.width != 64)
+      return FALSE;
+  }
 
   offset_fits_in_i8 = GUM_IS_WITHIN_INT8_RANGE (src_offset);
 
-  gum_x86_writer_put_prefix_for_registers (self, &dst, 32, &src, &dst, NULL);
+  if (!gum_x86_writer_put_prefix_for_registers (self, &dst, 32, &src, &dst,
+      NULL))
+    return FALSE;
 
   self->code[0] = 0x8b;
   self->code[1] = ((offset_fits_in_i8) ? 0x40 : 0x80)
@@ -1498,9 +1705,11 @@ gum_x86_writer_put_mov_reg_reg_offset_ptr (GumX86Writer * self,
     *((gint32 *) self->code) = GINT32_TO_LE (src_offset);
     gum_x86_writer_commit (self, 4);
   }
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_mov_reg_base_index_scale_offset_ptr (GumX86Writer * self,
                                                         GumCpuReg dst_reg,
                                                         GumCpuReg base_reg,
@@ -1526,18 +1735,23 @@ gum_x86_writer_put_mov_reg_base_index_scale_offset_ptr (GumX86Writer * self,
   gum_x86_writer_describe_cpu_reg (self, base_reg, &base);
   gum_x86_writer_describe_cpu_reg (self, index_reg, &index);
 
-  g_return_if_fail (!dst.index_is_extended);
-  g_return_if_fail (base.width == index.width);
-  g_return_if_fail (!base.index_is_extended && !index.index_is_extended);
-  g_return_if_fail (index.meta != GUM_META_REG_XSP);
-  g_return_if_fail (scale == 1 || scale == 2 || scale == 4 || scale == 8);
+  if (dst.index_is_extended)
+    return FALSE;
+  if (base.width != index.width)
+    return FALSE;
+  if (base.index_is_extended || index.index_is_extended)
+    return FALSE;
+  if (index.meta == GUM_META_REG_XSP)
+    return FALSE;
+  if (scale != 1 && scale != 2 && scale != 4 && scale != 8)
+    return FALSE;
 
   offset_fits_in_i8 = GUM_IS_WITHIN_INT8_RANGE (offset);
 
   if (self->target_cpu == GUM_CPU_AMD64)
   {
-    g_return_if_fail (dst.width == 64);
-    g_return_if_fail (base.width == 64 && index.width == 64);
+    if (dst.width != 64 || base.width != 64 || index.width != 64)
+      return FALSE;
 
     gum_x86_writer_put_u8 (self, 0x48);
   }
@@ -1556,9 +1770,11 @@ gum_x86_writer_put_mov_reg_base_index_scale_offset_ptr (GumX86Writer * self,
     *((gint32 *) self->code) = GINT32_TO_LE (offset);
     gum_x86_writer_commit (self, 4);
   }
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_mov_reg_near_ptr (GumX86Writer * self,
                                      GumCpuReg dst_reg,
                                      GumAddress src_address)
@@ -1567,7 +1783,8 @@ gum_x86_writer_put_mov_reg_near_ptr (GumX86Writer * self,
 
   gum_x86_writer_describe_cpu_reg (self, dst_reg, &dst);
 
-  gum_x86_writer_put_prefix_for_registers (self, &dst, 32, &dst, NULL);
+  if (!gum_x86_writer_put_prefix_for_registers (self, &dst, 32, &dst, NULL))
+    return FALSE;
 
   if (self->target_cpu == GUM_CPU_IA32 && dst.meta == GUM_META_REG_XAX)
   {
@@ -1582,19 +1799,23 @@ gum_x86_writer_put_mov_reg_near_ptr (GumX86Writer * self,
 
   if (self->target_cpu == GUM_CPU_IA32)
   {
-    g_assert (src_address <= G_MAXUINT32);
+    if (src_address > G_MAXUINT32)
+      return FALSE;
     *((guint32 *) self->code) = GUINT32_TO_LE ((guint32) src_address);
   }
   else
   {
     gint64 distance = (gint64) src_address - (gint64) (self->pc + 4);
-    g_assert (distance >= G_MININT32 && distance <= G_MAXINT32);
+    if (distance < G_MININT32 || distance > G_MAXINT32)
+      return FALSE;
     *((gint32 *) self->code) = GINT32_TO_LE ((gint32) distance);
   }
   gum_x86_writer_commit (self, 4);
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_mov_near_ptr_reg (GumX86Writer * self,
                                      GumAddress dst_address,
                                      GumCpuReg src_reg)
@@ -1603,7 +1824,8 @@ gum_x86_writer_put_mov_near_ptr_reg (GumX86Writer * self,
 
   gum_x86_writer_describe_cpu_reg (self, src_reg, &src);
 
-  gum_x86_writer_put_prefix_for_registers (self, &src, 32, &src, NULL);
+  if (!gum_x86_writer_put_prefix_for_registers (self, &src, 32, &src, NULL))
+    return FALSE;
 
   if (self->target_cpu == GUM_CPU_IA32 && src.meta == GUM_META_REG_XAX)
   {
@@ -1618,19 +1840,23 @@ gum_x86_writer_put_mov_near_ptr_reg (GumX86Writer * self,
 
   if (self->target_cpu == GUM_CPU_IA32)
   {
-    g_assert (dst_address <= G_MAXUINT32);
+    if (dst_address > G_MAXUINT32)
+      return FALSE;
     *((guint32 *) self->code) = GUINT32_TO_LE ((guint32) dst_address);
   }
   else
   {
     gint64 distance = (gint64) dst_address - (gint64) (self->pc + 4);
-    g_assert (distance >= G_MININT32 && distance <= G_MAXINT32);
+    if (distance < G_MININT32 || distance > G_MAXINT32)
+      return FALSE;
     *((gint32 *) self->code) = GINT32_TO_LE ((gint32) distance);
   }
   gum_x86_writer_commit (self, 4);
+
+  return TRUE;
 }
 
-static void
+static gboolean
 gum_x86_writer_put_mov_reg_imm_ptr (GumX86Writer * self,
                                     GumCpuReg dst_reg,
                                     guint32 address)
@@ -1639,16 +1865,19 @@ gum_x86_writer_put_mov_reg_imm_ptr (GumX86Writer * self,
 
   gum_x86_writer_describe_cpu_reg (self, dst_reg, &dst);
 
-  gum_x86_writer_put_prefix_for_registers (self, &dst, 32, &dst, NULL);
+  if (!gum_x86_writer_put_prefix_for_registers (self, &dst, 32, &dst, NULL))
+    return FALSE;
 
   self->code[0] = 0x8b;
   self->code[1] = (dst.index << 3) | 0x04;
   self->code[2] = 0x25;
   *((guint32 *) (self->code + 3)) = GUINT32_TO_LE (address);
   gum_x86_writer_commit (self, 7);
+
+  return TRUE;
 }
 
-static void
+static gboolean
 gum_x86_writer_put_mov_imm_ptr_reg (GumX86Writer * self,
                                     guint32 address,
                                     GumCpuReg src_reg)
@@ -1657,49 +1886,52 @@ gum_x86_writer_put_mov_imm_ptr_reg (GumX86Writer * self,
 
   gum_x86_writer_describe_cpu_reg (self, src_reg, &src);
 
-  gum_x86_writer_put_prefix_for_registers (self, &src, 32, &src, NULL);
+  if (!gum_x86_writer_put_prefix_for_registers (self, &src, 32, &src, NULL))
+    return FALSE;
 
   self->code[0] = 0x89;
   self->code[1] = (src.index << 3) | 0x04;
   self->code[2] = 0x25;
   *((guint32 *) (self->code + 3)) = GUINT32_TO_LE (address);
   gum_x86_writer_commit (self, 7);
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_mov_fs_u32_ptr_reg (GumX86Writer * self,
                                        guint32 fs_offset,
                                        GumCpuReg src_reg)
 {
   gum_x86_writer_put_u8 (self, 0x64);
-  gum_x86_writer_put_mov_imm_ptr_reg (self, fs_offset, src_reg);
+  return gum_x86_writer_put_mov_imm_ptr_reg (self, fs_offset, src_reg);
 }
 
-void
+gboolean
 gum_x86_writer_put_mov_reg_fs_u32_ptr (GumX86Writer * self,
                                        GumCpuReg dst_reg,
                                        guint32 fs_offset)
 {
   gum_x86_writer_put_u8 (self, 0x64);
-  gum_x86_writer_put_mov_reg_imm_ptr (self, dst_reg, fs_offset);
+  return gum_x86_writer_put_mov_reg_imm_ptr (self, dst_reg, fs_offset);
 }
 
-void
+gboolean
 gum_x86_writer_put_mov_gs_u32_ptr_reg (GumX86Writer * self,
                                        guint32 fs_offset,
                                        GumCpuReg src_reg)
 {
   gum_x86_writer_put_u8 (self, 0x65);
-  gum_x86_writer_put_mov_imm_ptr_reg (self, fs_offset, src_reg);
+  return gum_x86_writer_put_mov_imm_ptr_reg (self, fs_offset, src_reg);
 }
 
-void
+gboolean
 gum_x86_writer_put_mov_reg_gs_u32_ptr (GumX86Writer * self,
                                        GumCpuReg dst_reg,
                                        guint32 fs_offset)
 {
   gum_x86_writer_put_u8 (self, 0x65);
-  gum_x86_writer_put_mov_reg_imm_ptr (self, dst_reg, fs_offset);
+  return gum_x86_writer_put_mov_reg_imm_ptr (self, dst_reg, fs_offset);
 }
 
 void
@@ -1752,7 +1984,7 @@ gum_x86_writer_put_movdqu_eax_offset_ptr_xmm0 (GumX86Writer * self,
   gum_x86_writer_commit (self, 5);
 }
 
-void
+gboolean
 gum_x86_writer_put_lea_reg_reg_offset (GumX86Writer * self,
                                        GumCpuReg dst_reg,
                                        GumCpuReg src_reg,
@@ -1763,7 +1995,8 @@ gum_x86_writer_put_lea_reg_reg_offset (GumX86Writer * self,
   gum_x86_writer_describe_cpu_reg (self, dst_reg, &dst);
   gum_x86_writer_describe_cpu_reg (self, src_reg, &src);
 
-  g_return_if_fail (!dst.index_is_extended && !src.index_is_extended);
+  if (dst.index_is_extended || src.index_is_extended)
+    return FALSE;
 
   if (self->target_cpu == GUM_CPU_AMD64)
   {
@@ -1782,9 +2015,11 @@ gum_x86_writer_put_lea_reg_reg_offset (GumX86Writer * self,
 
   *((gint32 *) self->code) = GINT32_TO_LE (src_offset);
   gum_x86_writer_commit (self, 4);
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_xchg_reg_reg_ptr (GumX86Writer * self,
                                      GumCpuReg left_reg,
                                      GumCpuReg right_reg)
@@ -1795,11 +2030,18 @@ gum_x86_writer_put_xchg_reg_reg_ptr (GumX86Writer * self,
   gum_x86_writer_describe_cpu_reg (self, right_reg, &right);
 
   if (self->target_cpu == GUM_CPU_IA32)
-    g_return_if_fail (right.width == 32);
+  {
+    if (right.width != 32)
+      return FALSE;
+  }
   else
-    g_return_if_fail (right.width == 64);
+  {
+    if (right.width != 64)
+      return FALSE;
+  }
 
-  gum_x86_writer_put_prefix_for_reg_info (self, &left, 1);
+  if (!gum_x86_writer_put_prefix_for_reg_info (self, &left, 1))
+    return FALSE;
 
   self->code[0] = 0x87;
   self->code[1] = 0x00 | (left.index << 3) | right.index;
@@ -1814,6 +2056,8 @@ gum_x86_writer_put_xchg_reg_reg_ptr (GumX86Writer * self,
     self->code[-1] |= 0x40;
     gum_x86_writer_put_u8 (self, 0x00);
   }
+
+  return TRUE;
 }
 
 void
@@ -1825,7 +2069,7 @@ gum_x86_writer_put_push_u32 (GumX86Writer * self,
   gum_x86_writer_commit (self, 5);
 }
 
-void
+gboolean
 gum_x86_writer_put_push_near_ptr (GumX86Writer * self,
                                   GumAddress address)
 {
@@ -1834,20 +2078,24 @@ gum_x86_writer_put_push_near_ptr (GumX86Writer * self,
 
   if (self->target_cpu == GUM_CPU_IA32)
   {
-    g_assert (address <= G_MAXUINT32);
+    if (address > G_MAXUINT32)
+      return FALSE;
     *((guint32 *) (self->code + 2)) = GUINT32_TO_LE ((guint32) address);
   }
   else
   {
     gint64 distance = (gint64) address - (gint64) (self->pc + 6);
-    g_assert (distance >= G_MININT32 && distance <= G_MAXINT32);
+    if (distance < G_MININT32 || distance > G_MAXINT32)
+      return FALSE;
     *((gint32 *) (self->code + 2)) = GINT32_TO_LE ((gint32) distance);
   }
 
   gum_x86_writer_commit (self, 6);
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_push_reg (GumX86Writer * self,
                              GumCpuReg reg)
 {
@@ -1856,16 +2104,25 @@ gum_x86_writer_put_push_reg (GumX86Writer * self,
   gum_x86_writer_describe_cpu_reg (self, reg, &ri);
 
   if (self->target_cpu == GUM_CPU_IA32)
-    g_return_if_fail (ri.width == 32);
+  {
+    if (ri.width != 32)
+      return FALSE;
+  }
   else
-    g_return_if_fail (ri.width == 64);
+  {
+    if (ri.width != 64)
+      return FALSE;
+  }
 
-  gum_x86_writer_put_prefix_for_registers (self, &ri, 64, &ri, NULL);
+  if (!gum_x86_writer_put_prefix_for_registers (self, &ri, 64, &ri, NULL))
+    return FALSE;
 
   gum_x86_writer_put_u8 (self, 0x50 | ri.index);
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_pop_reg (GumX86Writer * self,
                             GumCpuReg reg)
 {
@@ -1874,13 +2131,22 @@ gum_x86_writer_put_pop_reg (GumX86Writer * self,
   gum_x86_writer_describe_cpu_reg (self, reg, &ri);
 
   if (self->target_cpu == GUM_CPU_IA32)
-    g_return_if_fail (ri.width == 32);
+  {
+    if (ri.width != 32)
+      return FALSE;
+  }
   else
-    g_return_if_fail (ri.width == 64);
+  {
+    if (ri.width != 64)
+      return FALSE;
+  }
 
-  gum_x86_writer_put_prefix_for_registers (self, &ri, 64, &ri, NULL);
+  if (!gum_x86_writer_put_prefix_for_registers (self, &ri, 64, &ri, NULL))
+    return FALSE;
 
   gum_x86_writer_put_u8 (self, 0x58 | ri.index);
+
+  return TRUE;
 }
 
 void
@@ -1969,7 +2235,7 @@ gum_x86_writer_put_popfx (GumX86Writer * self)
   gum_x86_writer_put_u8 (self, 0x9d);
 }
 
-void
+gboolean
 gum_x86_writer_put_test_reg_reg (GumX86Writer * self,
                                  GumCpuReg reg_a,
                                  GumCpuReg reg_b)
@@ -1979,16 +2245,20 @@ gum_x86_writer_put_test_reg_reg (GumX86Writer * self,
   gum_x86_writer_describe_cpu_reg (self, reg_a, &a);
   gum_x86_writer_describe_cpu_reg (self, reg_b, &b);
 
-  g_return_if_fail (a.width == b.width);
+  if (a.width != b.width)
+    return FALSE;
 
-  gum_x86_writer_put_prefix_for_registers (self, &a, 32, &a, &b, NULL);
+  if (!gum_x86_writer_put_prefix_for_registers (self, &a, 32, &a, &b, NULL))
+    return FALSE;
 
   self->code[0] = 0x85;
   self->code[1] = 0xc0 | (b.index << 3) | a.index;
   gum_x86_writer_commit (self, 2);
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_test_reg_u32 (GumX86Writer * self,
                                  GumCpuReg reg,
                                  guint32 imm_value)
@@ -1997,7 +2267,8 @@ gum_x86_writer_put_test_reg_u32 (GumX86Writer * self,
 
   gum_x86_writer_describe_cpu_reg (self, reg, &ri);
 
-  gum_x86_writer_put_prefix_for_registers (self, &ri, 32, &ri, NULL);
+  if (!gum_x86_writer_put_prefix_for_registers (self, &ri, 32, &ri, NULL))
+    return FALSE;
 
   if (ri.meta == GUM_META_REG_XAX)
   {
@@ -2012,9 +2283,11 @@ gum_x86_writer_put_test_reg_u32 (GumX86Writer * self,
     *((guint32 *) (self->code + 2)) = GUINT32_TO_LE (imm_value);
     gum_x86_writer_commit (self, 6);
   }
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_cmp_reg_i32 (GumX86Writer * self,
                                 GumCpuReg reg,
                                 gint32 imm_value)
@@ -2023,7 +2296,8 @@ gum_x86_writer_put_cmp_reg_i32 (GumX86Writer * self,
 
   gum_x86_writer_describe_cpu_reg (self, reg, &ri);
 
-  gum_x86_writer_put_prefix_for_registers (self, &ri, 32, &ri, NULL);
+  if (!gum_x86_writer_put_prefix_for_registers (self, &ri, 32, &ri, NULL))
+    return FALSE;
 
   if (ri.meta == GUM_META_REG_XAX)
   {
@@ -2038,9 +2312,11 @@ gum_x86_writer_put_cmp_reg_i32 (GumX86Writer * self,
 
   *((gint32 *) self->code) = GINT32_TO_LE (imm_value);
   gum_x86_writer_commit (self, 4);
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_cmp_reg_offset_ptr_reg (GumX86Writer * self,
                                            GumCpuReg reg_a,
                                            gssize offset,
@@ -2052,10 +2328,12 @@ gum_x86_writer_put_cmp_reg_offset_ptr_reg (GumX86Writer * self,
   gum_x86_writer_describe_cpu_reg (self, reg_a, &a);
   gum_x86_writer_describe_cpu_reg (self, reg_b, &b);
 
-  gum_x86_writer_put_prefix_for_registers (self, &b, 32, &b, NULL);
+  if (!gum_x86_writer_put_prefix_for_registers (self, &b, 32, &b, NULL))
+    return FALSE;
 
   offset_fits_in_i8 = GUM_IS_WITHIN_INT8_RANGE (offset);
-  g_assert (offset_fits_in_i8);
+  if (!offset_fits_in_i8)
+    return FALSE;
 
   if (a.meta == GUM_META_REG_XSP)
   {
@@ -2072,6 +2350,8 @@ gum_x86_writer_put_cmp_reg_offset_ptr_reg (GumX86Writer * self,
     self->code[2] = (gint8) offset;
     gum_x86_writer_commit (self, 3);
   }
+
+  return TRUE;
 }
 
 void
@@ -2256,14 +2536,15 @@ gum_meta_reg_from_cpu_reg (GumCpuReg reg)
     g_assert_not_reached ();
 }
 
-static void
+static gboolean
 gum_x86_writer_put_prefix_for_reg_info (GumX86Writer * self,
                                         const GumCpuRegInfo * ri,
                                         guint operand_index)
 {
   if (self->target_cpu == GUM_CPU_IA32)
   {
-    g_return_if_fail (ri->width == 32 && !ri->index_is_extended);
+    if (ri->width != 32 || ri->index_is_extended)
+      return FALSE;
   }
   else
   {
@@ -2282,10 +2563,12 @@ gum_x86_writer_put_prefix_for_reg_info (GumX86Writer * self,
           (ri->index_is_extended) ? 0x48 | mask : 0x48);
     }
   }
+
+  return TRUE;
 }
 
 /* TODO: improve this function and get rid of the one above */
-static void
+static gboolean
 gum_x86_writer_put_prefix_for_registers (GumX86Writer * self,
                                          const GumCpuRegInfo * width_reg,
                                          guint default_width,
@@ -2311,11 +2594,12 @@ gum_x86_writer_put_prefix_for_registers (GumX86Writer * self,
 
   if (self->target_cpu == GUM_CPU_IA32)
   {
-    g_return_if_fail (ra->width == 32 && !ra->index_is_extended);
-    if (rb != NULL)
-      g_return_if_fail (rb->width == 32 && !rb->index_is_extended);
-    if (rc != NULL)
-      g_return_if_fail (rc->width == 32 && !rc->index_is_extended);
+    if (ra->width != 32 || ra->index_is_extended)
+      return FALSE;
+    if (rb != NULL && (rb->width != 32 || rb->index_is_extended))
+      return FALSE;
+    if (rc != NULL && (rc->width != 32 || rc->index_is_extended))
+      return FALSE;
   }
   else
   {
@@ -2333,6 +2617,8 @@ gum_x86_writer_put_prefix_for_registers (GumX86Writer * self,
     if (nibble != 0)
       gum_x86_writer_put_u8 (self, 0x40 | nibble);
   }
+
+  return TRUE;
 }
 
 static guint8

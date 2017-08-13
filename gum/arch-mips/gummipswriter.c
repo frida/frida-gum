@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2014-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -193,7 +193,7 @@ gum_mips_writer_skip (GumMipsWriter * self,
   self->pc += n_bytes;
 }
 
-void
+gboolean
 gum_mips_writer_flush (GumMipsWriter * self)
 {
   if (self->label_refs_len > 0)
@@ -209,7 +209,8 @@ gum_mips_writer_flush (GumMipsWriter * self)
 
       target_address =
           gum_mips_writer_lookup_address_for_label_id (self, r->id);
-      g_assert (target_address != NULL);
+      if (target_address == NULL)
+        goto error;
 
       distance = ((gssize) target_address - (gssize) r->insn) / 4;
 
@@ -217,24 +218,28 @@ gum_mips_writer_flush (GumMipsWriter * self)
       /* j <int16> */
       if (insn == 0x08000000)
       {
-        g_assert (GUM_IS_WITHIN_INT18_RANGE (distance << 2));
+        if (!GUM_IS_WITHIN_INT18_RANGE (distance << 2))
+          goto error;
         insn |= distance & GUM_INT16_MASK;
       }
       /* beq <int16> */
       else if ((insn & 0xfc000000) == 0x10000000)
       {
-        g_assert (GUM_IS_WITHIN_INT18_RANGE (distance << 2));
+        if (!GUM_IS_WITHIN_INT18_RANGE (distance << 2))
+          goto error;
         insn |= distance & GUM_INT16_MASK;
       }
       /* TODO: conditional branches */
       else if ((insn & 0x7e000000) == 0x36000000)
       {
-        g_assert (GUM_IS_WITHIN_INT14_RANGE (distance));
+        if (!GUM_IS_WITHIN_INT14_RANGE (distance))
+          goto error;
         insn |= (distance & GUM_INT14_MASK) << 5;
       }
       else
       {
-        g_assert (GUM_IS_WITHIN_INT19_RANGE (distance));
+        if (!GUM_IS_WITHIN_INT19_RANGE (distance))
+          goto error;
         insn |= (distance & GUM_INT19_MASK) << 5;
       }
 
@@ -283,6 +288,16 @@ gum_mips_writer_flush (GumMipsWriter * self)
     self->code = (guint32 *) last_slot;
     self->pc += (guint8 *) last_slot - (guint8 *) first_slot;
   }
+
+  return TRUE;
+
+error:
+  {
+    self->label_refs_len = 0;
+    self->literal_refs_len = 0;
+
+    return FALSE;
+  }
 }
 
 static guint8 *
@@ -301,37 +316,47 @@ gum_mips_writer_lookup_address_for_label_id (GumMipsWriter * self,
   return NULL;
 }
 
-static void
+static gboolean
 gum_mips_writer_add_address_for_label_id (GumMipsWriter * self,
                                           gconstpointer id,
                                           gpointer address)
 {
-  GumMipsLabelMapping * map = &self->id_to_address[self->id_to_address_len++];
+  GumMipsLabelMapping * map;
 
-  g_assert_cmpuint (self->id_to_address_len, <=, GUM_MAX_LABEL_COUNT);
+  if (self->id_to_address_len == GUM_MAX_LABEL_COUNT)
+    return FALSE;
 
+  map = &self->id_to_address[self->id_to_address_len++];
   map->id = id;
   map->address = address;
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_mips_writer_put_label (GumMipsWriter * self,
                            gconstpointer id)
 {
-  g_assert (gum_mips_writer_lookup_address_for_label_id (self, id) == NULL);
-  gum_mips_writer_add_address_for_label_id (self, id, self->code);
+  if (gum_mips_writer_lookup_address_for_label_id (self, id) != NULL)
+    return FALSE;
+
+  return gum_mips_writer_add_address_for_label_id (self, id, self->code);
 }
 
-static void
+static gboolean
 gum_mips_writer_add_label_reference_here (GumMipsWriter * self,
                                           gconstpointer id)
 {
-  GumMipsLabelRef * r = &self->label_refs[self->label_refs_len++];
+  GumMipsLabelRef * r;
 
-  g_assert_cmpuint (self->label_refs_len, <=, GUM_MAX_LABEL_REF_COUNT);
+  if (self->label_refs_len == GUM_MAX_LABEL_REF_COUNT)
+    return FALSE;
 
+  r = &self->label_refs[self->label_refs_len++];
   r->id = id;
   r->insn = self->code;
+
+  return TRUE;
 }
 
 void
@@ -447,25 +472,31 @@ gum_mips_writer_can_branch_directly_between (GumAddress from,
   return lower_limit < to && to < upper_limit;
 }
 
-void
+gboolean
 gum_mips_writer_put_j_address (GumMipsWriter * self,
                                GumAddress address)
 {
-  g_assert_cmpuint (address & 0xf0000000, ==, self->pc & 0xf0000000);
-  g_assert_cmpuint (address % 4, ==, 0);
+  if ((address & 0xf0000000) != (self->pc & 0xf0000000) || address % 4 != 0)
+    return FALSE;
 
   gum_mips_writer_put_instruction (self,
       0x08000000 | ((address & GUM_INT28_MASK) / 4));
   gum_mips_writer_put_nop (self);
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_mips_writer_put_j_label (GumMipsWriter * self,
                              gconstpointer label_id)
 {
-  gum_mips_writer_add_label_reference_here (self, label_id);
+  if (!gum_mips_writer_add_label_reference_here (self, label_id))
+    return FALSE;
+
   gum_mips_writer_put_instruction (self, 0x08000000);
   gum_mips_writer_put_nop (self);
+
+  return TRUE;
 }
 
 void
@@ -510,7 +541,7 @@ gum_mips_writer_put_b_offset (GumMipsWriter * self,
   gum_mips_writer_put_nop (self);
 }
 
-void
+gboolean
 gum_mips_writer_put_beq_reg_reg_label (GumMipsWriter * self,
                                        mips_reg right_reg,
                                        mips_reg left_reg,
@@ -521,10 +552,14 @@ gum_mips_writer_put_beq_reg_reg_label (GumMipsWriter * self,
   gum_mips_writer_describe_reg (self, right_reg, &rs);
   gum_mips_writer_describe_reg (self, left_reg, &rt);
 
-  gum_mips_writer_add_label_reference_here (self, label_id);
+  if (!gum_mips_writer_add_label_reference_here (self, label_id))
+    return FALSE;
+
   gum_mips_writer_put_instruction (self, 0x01000000 | (rs.index << 21) |
       (rt.index << 16));
   gum_mips_writer_put_nop (self);
+
+  return TRUE;
 }
 
 void
@@ -738,16 +773,19 @@ gum_mips_writer_put_instruction (GumMipsWriter * self,
   self->pc += 4;
 }
 
-void
+gboolean
 gum_mips_writer_put_bytes (GumMipsWriter * self,
                            const guint8 * data,
                            guint n)
 {
-  g_assert (n % 4 == 0);
+  if (n % 4 != 0)
+    return FALSE;
 
   gum_memcpy (self->code, data, n);
   self->code += n / sizeof (guint32);
   self->pc += n;
+
+  return TRUE;
 }
 
 static void

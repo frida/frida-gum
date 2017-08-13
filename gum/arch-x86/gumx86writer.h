@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2009-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -112,99 +112,99 @@ void gum_x86_writer_set_target_abi (GumX86Writer * self, GumAbiType abi_type);
 gpointer gum_x86_writer_cur (GumX86Writer * self);
 guint gum_x86_writer_offset (GumX86Writer * self);
 
-void gum_x86_writer_flush (GumX86Writer * self);
+gboolean gum_x86_writer_flush (GumX86Writer * self);
 
 GumCpuReg gum_x86_writer_get_cpu_register_for_nth_argument (GumX86Writer * self,
     guint n);
 
-void gum_x86_writer_put_label (GumX86Writer * self, gconstpointer id);
+gboolean gum_x86_writer_put_label (GumX86Writer * self, gconstpointer id);
 
-void gum_x86_writer_put_call_with_arguments (GumX86Writer * self, gpointer func, guint n_args, ...);
-void gum_x86_writer_put_call_reg_with_arguments (GumX86Writer * self, GumCallingConvention conv, GumCpuReg reg, guint n_args, ...);
-void gum_x86_writer_put_call_reg_offset_ptr_with_arguments (GumX86Writer * self, GumCallingConvention conv, GumCpuReg reg, gssize offset, guint n_args, ...);
-void gum_x86_writer_put_call (GumX86Writer * self, gconstpointer target);
-void gum_x86_writer_put_call_reg (GumX86Writer * self, GumCpuReg reg);
-void gum_x86_writer_put_call_reg_offset_ptr (GumX86Writer * self, GumCpuReg reg, gssize offset);
+gboolean gum_x86_writer_put_call_with_arguments (GumX86Writer * self, gpointer func, guint n_args, ...);
+gboolean gum_x86_writer_put_call_reg_with_arguments (GumX86Writer * self, GumCallingConvention conv, GumCpuReg reg, guint n_args, ...);
+gboolean gum_x86_writer_put_call_reg_offset_ptr_with_arguments (GumX86Writer * self, GumCallingConvention conv, GumCpuReg reg, gssize offset, guint n_args, ...);
+gboolean gum_x86_writer_put_call (GumX86Writer * self, gconstpointer target);
+gboolean gum_x86_writer_put_call_reg (GumX86Writer * self, GumCpuReg reg);
+gboolean gum_x86_writer_put_call_reg_offset_ptr (GumX86Writer * self, GumCpuReg reg, gssize offset);
 void gum_x86_writer_put_call_indirect (GumX86Writer * self, gconstpointer * addr);
-void gum_x86_writer_put_call_near_label (GumX86Writer * self, gconstpointer label_id);
+gboolean gum_x86_writer_put_call_near_label (GumX86Writer * self, gconstpointer label_id);
 void gum_x86_writer_put_leave (GumX86Writer * self);
 void gum_x86_writer_put_ret (GumX86Writer * self);
 void gum_x86_writer_put_ret_imm (GumX86Writer * self, guint16 imm_value);
-void gum_x86_writer_put_jmp (GumX86Writer * self, gconstpointer target);
-void gum_x86_writer_put_jmp_short_label (GumX86Writer * self, gconstpointer label_id);
-void gum_x86_writer_put_jmp_near_label (GumX86Writer * self, gconstpointer label_id);
-void gum_x86_writer_put_jmp_reg (GumX86Writer * self, GumCpuReg reg);
-void gum_x86_writer_put_jmp_reg_ptr (GumX86Writer * self, GumCpuReg reg);
-void gum_x86_writer_put_jmp_near_ptr (GumX86Writer * self, GumAddress address);
-void gum_x86_writer_put_jcc_short (GumX86Writer * self, x86_insn instruction_id, gconstpointer target, GumBranchHint hint);
-void gum_x86_writer_put_jcc_near (GumX86Writer * self, x86_insn instruction_id, gconstpointer target, GumBranchHint hint);
-void gum_x86_writer_put_jcc_short_label (GumX86Writer * self, x86_insn instruction_id, gconstpointer label_id, GumBranchHint hint);
-void gum_x86_writer_put_jcc_near_label (GumX86Writer * self, x86_insn instruction_id, gconstpointer label_id, GumBranchHint hint);
+gboolean gum_x86_writer_put_jmp (GumX86Writer * self, gconstpointer target);
+gboolean gum_x86_writer_put_jmp_short_label (GumX86Writer * self, gconstpointer label_id);
+gboolean gum_x86_writer_put_jmp_near_label (GumX86Writer * self, gconstpointer label_id);
+gboolean gum_x86_writer_put_jmp_reg (GumX86Writer * self, GumCpuReg reg);
+gboolean gum_x86_writer_put_jmp_reg_ptr (GumX86Writer * self, GumCpuReg reg);
+gboolean gum_x86_writer_put_jmp_near_ptr (GumX86Writer * self, GumAddress address);
+gboolean gum_x86_writer_put_jcc_short (GumX86Writer * self, x86_insn instruction_id, gconstpointer target, GumBranchHint hint);
+gboolean gum_x86_writer_put_jcc_near (GumX86Writer * self, x86_insn instruction_id, gconstpointer target, GumBranchHint hint);
+gboolean gum_x86_writer_put_jcc_short_label (GumX86Writer * self, x86_insn instruction_id, gconstpointer label_id, GumBranchHint hint);
+gboolean gum_x86_writer_put_jcc_near_label (GumX86Writer * self, x86_insn instruction_id, gconstpointer label_id, GumBranchHint hint);
 
-void gum_x86_writer_put_add_reg_imm (GumX86Writer * self, GumCpuReg reg, gssize imm_value);
-void gum_x86_writer_put_add_reg_reg (GumX86Writer * self, GumCpuReg dst_reg, GumCpuReg src_reg);
-void gum_x86_writer_put_add_reg_near_ptr (GumX86Writer * self, GumCpuReg dst_reg, GumAddress src_address);
-void gum_x86_writer_put_sub_reg_imm (GumX86Writer * self, GumCpuReg reg, gssize imm_value);
+gboolean gum_x86_writer_put_add_reg_imm (GumX86Writer * self, GumCpuReg reg, gssize imm_value);
+gboolean gum_x86_writer_put_add_reg_reg (GumX86Writer * self, GumCpuReg dst_reg, GumCpuReg src_reg);
+gboolean gum_x86_writer_put_add_reg_near_ptr (GumX86Writer * self, GumCpuReg dst_reg, GumAddress src_address);
+gboolean gum_x86_writer_put_sub_reg_imm (GumX86Writer * self, GumCpuReg reg, gssize imm_value);
 void gum_x86_writer_put_sub_reg_reg (GumX86Writer * self, GumCpuReg dst_reg, GumCpuReg src_reg);
-void gum_x86_writer_put_sub_reg_near_ptr (GumX86Writer * self, GumCpuReg dst_reg, GumAddress src_address);
-void gum_x86_writer_put_inc_reg (GumX86Writer * self, GumCpuReg reg);
-void gum_x86_writer_put_dec_reg (GumX86Writer * self, GumCpuReg reg);
-void gum_x86_writer_put_inc_reg_ptr (GumX86Writer * self, GumPtrTarget target, GumCpuReg reg);
-void gum_x86_writer_put_dec_reg_ptr (GumX86Writer * self, GumPtrTarget target, GumCpuReg reg);
-void gum_x86_writer_put_lock_xadd_reg_ptr_reg (GumX86Writer * self, GumCpuReg dst_reg, GumCpuReg src_reg);
-void gum_x86_writer_put_lock_cmpxchg_reg_ptr_reg (GumX86Writer * self, GumCpuReg dst_reg, GumCpuReg src_reg);
-void gum_x86_writer_put_lock_inc_imm32_ptr (GumX86Writer * self, gpointer target);
-void gum_x86_writer_put_lock_dec_imm32_ptr (GumX86Writer * self, gpointer target);
+gboolean gum_x86_writer_put_sub_reg_near_ptr (GumX86Writer * self, GumCpuReg dst_reg, GumAddress src_address);
+gboolean gum_x86_writer_put_inc_reg (GumX86Writer * self, GumCpuReg reg);
+gboolean gum_x86_writer_put_dec_reg (GumX86Writer * self, GumCpuReg reg);
+gboolean gum_x86_writer_put_inc_reg_ptr (GumX86Writer * self, GumPtrTarget target, GumCpuReg reg);
+gboolean gum_x86_writer_put_dec_reg_ptr (GumX86Writer * self, GumPtrTarget target, GumCpuReg reg);
+gboolean gum_x86_writer_put_lock_xadd_reg_ptr_reg (GumX86Writer * self, GumCpuReg dst_reg, GumCpuReg src_reg);
+gboolean gum_x86_writer_put_lock_cmpxchg_reg_ptr_reg (GumX86Writer * self, GumCpuReg dst_reg, GumCpuReg src_reg);
+gboolean gum_x86_writer_put_lock_inc_imm32_ptr (GumX86Writer * self, gpointer target);
+gboolean gum_x86_writer_put_lock_dec_imm32_ptr (GumX86Writer * self, gpointer target);
 
-void gum_x86_writer_put_and_reg_reg (GumX86Writer * self, GumCpuReg dst_reg, GumCpuReg src_reg);
-void gum_x86_writer_put_and_reg_u32 (GumX86Writer * self, GumCpuReg reg, guint32 imm_value);
-void gum_x86_writer_put_shl_reg_u8 (GumX86Writer * self, GumCpuReg reg, guint8 imm_value);
-void gum_x86_writer_put_shr_reg_u8 (GumX86Writer * self, GumCpuReg reg, guint8 imm_value);
-void gum_x86_writer_put_xor_reg_reg (GumX86Writer * self, GumCpuReg dst_reg, GumCpuReg src_reg);
+gboolean gum_x86_writer_put_and_reg_reg (GumX86Writer * self, GumCpuReg dst_reg, GumCpuReg src_reg);
+gboolean gum_x86_writer_put_and_reg_u32 (GumX86Writer * self, GumCpuReg reg, guint32 imm_value);
+gboolean gum_x86_writer_put_shl_reg_u8 (GumX86Writer * self, GumCpuReg reg, guint8 imm_value);
+gboolean gum_x86_writer_put_shr_reg_u8 (GumX86Writer * self, GumCpuReg reg, guint8 imm_value);
+gboolean gum_x86_writer_put_xor_reg_reg (GumX86Writer * self, GumCpuReg dst_reg, GumCpuReg src_reg);
 
-void gum_x86_writer_put_mov_reg_reg (GumX86Writer * self, GumCpuReg dst_reg, GumCpuReg src_reg);
-void gum_x86_writer_put_mov_reg_u32 (GumX86Writer * self, GumCpuReg dst_reg, guint32 imm_value);
-void gum_x86_writer_put_mov_reg_u64 (GumX86Writer * self, GumCpuReg dst_reg, guint64 imm_value);
+gboolean gum_x86_writer_put_mov_reg_reg (GumX86Writer * self, GumCpuReg dst_reg, GumCpuReg src_reg);
+gboolean gum_x86_writer_put_mov_reg_u32 (GumX86Writer * self, GumCpuReg dst_reg, guint32 imm_value);
+gboolean gum_x86_writer_put_mov_reg_u64 (GumX86Writer * self, GumCpuReg dst_reg, guint64 imm_value);
 void gum_x86_writer_put_mov_reg_address (GumX86Writer * self, GumCpuReg dst_reg, GumAddress address);
 void gum_x86_writer_put_mov_reg_ptr_u32 (GumX86Writer * self, GumCpuReg dst_reg, guint32 imm_value);
-void gum_x86_writer_put_mov_reg_offset_ptr_u32 (GumX86Writer * self, GumCpuReg dst_reg, gssize dst_offset, guint32 imm_value);
+gboolean gum_x86_writer_put_mov_reg_offset_ptr_u32 (GumX86Writer * self, GumCpuReg dst_reg, gssize dst_offset, guint32 imm_value);
 void gum_x86_writer_put_mov_reg_ptr_reg (GumX86Writer * self, GumCpuReg dst_reg, GumCpuReg src_reg);
-void gum_x86_writer_put_mov_reg_offset_ptr_reg (GumX86Writer * self, GumCpuReg dst_reg, gssize dst_offset, GumCpuReg src_reg);
+gboolean gum_x86_writer_put_mov_reg_offset_ptr_reg (GumX86Writer * self, GumCpuReg dst_reg, gssize dst_offset, GumCpuReg src_reg);
 void gum_x86_writer_put_mov_reg_reg_ptr (GumX86Writer * self, GumCpuReg dst_reg, GumCpuReg src_reg);
-void gum_x86_writer_put_mov_reg_reg_offset_ptr (GumX86Writer * self, GumCpuReg dst_reg, GumCpuReg src_reg, gssize src_offset);
-void gum_x86_writer_put_mov_reg_base_index_scale_offset_ptr (GumX86Writer * self, GumCpuReg dst_reg, GumCpuReg base_reg, GumCpuReg index_reg, guint8 scale, gssize offset);
+gboolean gum_x86_writer_put_mov_reg_reg_offset_ptr (GumX86Writer * self, GumCpuReg dst_reg, GumCpuReg src_reg, gssize src_offset);
+gboolean gum_x86_writer_put_mov_reg_base_index_scale_offset_ptr (GumX86Writer * self, GumCpuReg dst_reg, GumCpuReg base_reg, GumCpuReg index_reg, guint8 scale, gssize offset);
 
-void gum_x86_writer_put_mov_reg_near_ptr (GumX86Writer * self, GumCpuReg dst_reg, GumAddress src_address);
-void gum_x86_writer_put_mov_near_ptr_reg (GumX86Writer * self, GumAddress dst_address, GumCpuReg src_reg);
+gboolean gum_x86_writer_put_mov_reg_near_ptr (GumX86Writer * self, GumCpuReg dst_reg, GumAddress src_address);
+gboolean gum_x86_writer_put_mov_near_ptr_reg (GumX86Writer * self, GumAddress dst_address, GumCpuReg src_reg);
 
-void gum_x86_writer_put_mov_fs_u32_ptr_reg (GumX86Writer * self, guint32 fs_offset, GumCpuReg src_reg);
-void gum_x86_writer_put_mov_reg_fs_u32_ptr (GumX86Writer * self, GumCpuReg dst_reg, guint32 fs_offset);
-void gum_x86_writer_put_mov_gs_u32_ptr_reg (GumX86Writer * self, guint32 fs_offset, GumCpuReg src_reg);
-void gum_x86_writer_put_mov_reg_gs_u32_ptr (GumX86Writer * self, GumCpuReg dst_reg, guint32 fs_offset);
+gboolean gum_x86_writer_put_mov_fs_u32_ptr_reg (GumX86Writer * self, guint32 fs_offset, GumCpuReg src_reg);
+gboolean gum_x86_writer_put_mov_reg_fs_u32_ptr (GumX86Writer * self, GumCpuReg dst_reg, guint32 fs_offset);
+gboolean gum_x86_writer_put_mov_gs_u32_ptr_reg (GumX86Writer * self, guint32 fs_offset, GumCpuReg src_reg);
+gboolean gum_x86_writer_put_mov_reg_gs_u32_ptr (GumX86Writer * self, GumCpuReg dst_reg, guint32 fs_offset);
 
 void gum_x86_writer_put_movq_xmm0_esp_offset_ptr (GumX86Writer * self, gint8 offset);
 void gum_x86_writer_put_movq_eax_offset_ptr_xmm0 (GumX86Writer * self, gint8 offset);
 void gum_x86_writer_put_movdqu_xmm0_esp_offset_ptr (GumX86Writer * self, gint8 offset);
 void gum_x86_writer_put_movdqu_eax_offset_ptr_xmm0 (GumX86Writer * self, gint8 offset);
 
-void gum_x86_writer_put_lea_reg_reg_offset (GumX86Writer * self, GumCpuReg dst_reg, GumCpuReg src_reg, gssize src_offset);
+gboolean gum_x86_writer_put_lea_reg_reg_offset (GumX86Writer * self, GumCpuReg dst_reg, GumCpuReg src_reg, gssize src_offset);
 
-void gum_x86_writer_put_xchg_reg_reg_ptr (GumX86Writer * self, GumCpuReg left_reg, GumCpuReg right_reg);
+gboolean gum_x86_writer_put_xchg_reg_reg_ptr (GumX86Writer * self, GumCpuReg left_reg, GumCpuReg right_reg);
 
 void gum_x86_writer_put_push_u32 (GumX86Writer * self, guint32 imm_value);
-void gum_x86_writer_put_push_near_ptr (GumX86Writer * self, GumAddress address);
-void gum_x86_writer_put_push_reg (GumX86Writer * self, GumCpuReg reg);
-void gum_x86_writer_put_pop_reg (GumX86Writer * self, GumCpuReg reg);
+gboolean gum_x86_writer_put_push_near_ptr (GumX86Writer * self, GumAddress address);
+gboolean gum_x86_writer_put_push_reg (GumX86Writer * self, GumCpuReg reg);
+gboolean gum_x86_writer_put_pop_reg (GumX86Writer * self, GumCpuReg reg);
 void gum_x86_writer_put_push_imm_ptr (GumX86Writer * self, gconstpointer imm_ptr);
 void gum_x86_writer_put_pushax (GumX86Writer * self);
 void gum_x86_writer_put_popax (GumX86Writer * self);
 void gum_x86_writer_put_pushfx (GumX86Writer * self);
 void gum_x86_writer_put_popfx (GumX86Writer * self);
 
-void gum_x86_writer_put_test_reg_reg (GumX86Writer * self, GumCpuReg reg_a, GumCpuReg reg_b);
-void gum_x86_writer_put_test_reg_u32 (GumX86Writer * self, GumCpuReg reg, guint32 imm_value);
-void gum_x86_writer_put_cmp_reg_i32 (GumX86Writer * self, GumCpuReg reg, gint32 imm_value);
-void gum_x86_writer_put_cmp_reg_offset_ptr_reg (GumX86Writer * self, GumCpuReg reg_a, gssize offset, GumCpuReg reg_b);
+gboolean gum_x86_writer_put_test_reg_reg (GumX86Writer * self, GumCpuReg reg_a, GumCpuReg reg_b);
+gboolean gum_x86_writer_put_test_reg_u32 (GumX86Writer * self, GumCpuReg reg, guint32 imm_value);
+gboolean gum_x86_writer_put_cmp_reg_i32 (GumX86Writer * self, GumCpuReg reg, gint32 imm_value);
+gboolean gum_x86_writer_put_cmp_reg_offset_ptr_reg (GumX86Writer * self, GumCpuReg reg_a, gssize offset, GumCpuReg reg_b);
 void gum_x86_writer_put_cmp_imm_ptr_imm_u32 (GumX86Writer * self, gconstpointer imm_ptr, guint32 imm_value);
 void gum_x86_writer_put_clc (GumX86Writer * self);
 void gum_x86_writer_put_stc (GumX86Writer * self);

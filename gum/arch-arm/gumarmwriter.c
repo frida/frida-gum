@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -78,7 +78,7 @@ gum_arm_writer_skip (GumArmWriter * self,
   self->pc += n_bytes;
 }
 
-void
+gboolean
 gum_arm_writer_flush (GumArmWriter * self)
 {
   if (self->literal_refs_len > 0)
@@ -123,44 +123,53 @@ gum_arm_writer_flush (GumArmWriter * self)
     self->code = last_slot;
     self->pc += (guint8 *) last_slot - (guint8 *) first_slot;
   }
+
+  return TRUE;
 }
 
-static void
+static gboolean
 gum_arm_writer_add_literal_reference_here (GumArmWriter * self,
                                            guint32 val)
 {
-  GumArmLiteralRef * r = &self->literal_refs[self->literal_refs_len++];
+  GumArmLiteralRef * r;
 
-  g_assert_cmpuint (self->literal_refs_len, <=, GUM_MAX_LITERAL_REF_COUNT);
+  if (self->literal_refs_len == GUM_MAX_LITERAL_REF_COUNT)
+    return FALSE;
 
+  r = &self->literal_refs[self->literal_refs_len++];
   r->insn = self->code;
   r->val = val;
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_arm_writer_put_b_imm (GumArmWriter * self,
                           GumAddress target)
 {
   gint32 distance_in_bytes, distance_in_words;
 
   distance_in_bytes = target - (self->pc + 8);
-  g_assert (GUM_IS_WITHIN_INT26_RANGE (distance_in_bytes));
+  if (!GUM_IS_WITHIN_INT26_RANGE (distance_in_bytes))
+    return FALSE;
 
   distance_in_words = distance_in_bytes / 4;
 
   gum_arm_writer_put_instruction (self, 0xea000000 |
       (distance_in_words & GUM_INT24_MASK));
+
+  return TRUE;
 }
 
-void
+gboolean
 gum_arm_writer_put_ldr_reg_address (GumArmWriter * self,
                                     arm_reg reg,
                                     GumAddress address)
 {
-  gum_arm_writer_put_ldr_reg_u32 (self, reg, (guint32) address);
+  return gum_arm_writer_put_ldr_reg_u32 (self, reg, (guint32) address);
 }
 
-void
+gboolean
 gum_arm_writer_put_ldr_reg_u32 (GumArmWriter * self,
                                 arm_reg reg,
                                 guint32 val)
@@ -169,8 +178,11 @@ gum_arm_writer_put_ldr_reg_u32 (GumArmWriter * self,
 
   gum_arm_reg_describe (reg, &ri);
 
-  gum_arm_writer_add_literal_reference_here (self, val);
+  if (!gum_arm_writer_add_literal_reference_here (self, val))
+    return FALSE;
   gum_arm_writer_put_instruction (self, 0xe51f0000 | (ri.index << 12));
+
+  return TRUE;
 }
 
 void
@@ -230,14 +242,17 @@ gum_arm_writer_put_instruction (GumArmWriter * self,
   self->pc += 4;
 }
 
-void
+gboolean
 gum_arm_writer_put_bytes (GumArmWriter * self,
                           const guint8 * data,
                           guint n)
 {
-  g_assert (n % 2 == 0);
+  if (n % 4 != 0)
+    return FALSE;
 
   gum_memcpy (self->code, data, n);
   self->code += n / sizeof (guint32);
   self->pc += n;
+
+  return TRUE;
 }
