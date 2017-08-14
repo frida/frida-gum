@@ -260,7 +260,7 @@ gum_emit_enter_thunk (GumX86Writer * cw)
   gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XCX,
       GUM_REG_XBP, GUM_FRAME_OFFSET_NEXT_HOP);
 
-  gum_x86_writer_put_call_address_with_arguments (cw,
+  gum_x86_writer_put_call_address_with_arguments (cw, GUM_CALL_CAPI,
       GUM_ADDRESS (_gum_function_context_begin_invocation), 4,
       GUM_ARG_REGISTER, GUM_REG_XBX,
       GUM_ARG_REGISTER, GUM_REG_XSI,
@@ -293,7 +293,7 @@ gum_emit_leave_thunk (GumX86Writer * cw)
         GUM_REG_XSP, -align_correction_leave);
   }
 
-  gum_x86_writer_put_call_address_with_arguments (cw,
+  gum_x86_writer_put_call_address_with_arguments (cw, GUM_CALL_CAPI,
       GUM_ADDRESS (_gum_function_context_end_invocation), 3,
       GUM_ARG_REGISTER, GUM_REG_XBX,
       GUM_ARG_REGISTER, GUM_REG_XSI,

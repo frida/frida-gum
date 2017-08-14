@@ -151,7 +151,7 @@ test_stalker_fixture_follow_and_invoke (TestStalkerFixture * fixture,
   gum_x86_writer_put_pushax (&cw);
 
   gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction_follow);
-  gum_x86_writer_put_call_address_with_arguments (&cw,
+  gum_x86_writer_put_call_address_with_arguments (&cw, GUM_CALL_CAPI,
       GUM_ADDRESS (gum_stalker_follow_me), 2,
       GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker),
       GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->sink));
@@ -167,7 +167,7 @@ test_stalker_fixture_follow_and_invoke (TestStalkerFixture * fixture,
   gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_call);
 
   gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction_unfollow);
-  gum_x86_writer_put_call_address_with_arguments (&cw,
+  gum_x86_writer_put_call_address_with_arguments (&cw, GUM_CALL_CAPI,
       GUM_ADDRESS (gum_stalker_unfollow_me), 1,
       GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker));
   gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_unfollow);

@@ -246,7 +246,7 @@ CODEWRITER_TESTCASE (call_with_arguments_should_be_compatible_with_native_abi)
   page = gum_alloc_n_pages (1, GUM_PAGE_RW);
 
   gum_x86_writer_init (&cw, page);
-  gum_x86_writer_put_call_address_with_arguments (&cw,
+  gum_x86_writer_put_call_address_with_arguments (&cw, GUM_CALL_CAPI,
       GUM_ADDRESS (gum_test_native_function), 4,
       GUM_ARG_ADDRESS, GUM_ADDRESS ("red"),
       GUM_ARG_ADDRESS, GUM_ADDRESS ("green"),

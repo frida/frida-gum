@@ -723,7 +723,7 @@ gum_stalker_infect (GumThreadId thread_id,
   gum_exec_ctx_write_prolog (ctx, GUM_PROLOG_MINIMAL,
       ctx->current_block->real_begin, &cw);
   gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction);
-  gum_x86_writer_put_call_address_with_arguments (&cw,
+  gum_x86_writer_put_call_address_with_arguments (&cw, GUM_CALL_CAPI,
       GUM_ADDRESS (gum_tls_key_set_value), 2,
       GUM_ARG_ADDRESS, GUM_ADDRESS (self->priv->exec_ctx),
       GUM_ARG_ADDRESS, GUM_ADDRESS (ctx));
@@ -2152,7 +2152,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
 
   gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_XAX,
       GUM_ADDRESS (&block->ctx->current_block));
-  gum_x86_writer_put_call_address_with_arguments (cw,
+  gum_x86_writer_put_call_address_with_arguments (cw, GUM_CALL_CAPI,
       GUM_ADDRESS (gum_exec_block_backpatch_ret), 3,
       GUM_ARG_REGISTER, GUM_REG_XAX,
       GUM_ARG_ADDRESS, GUM_ADDRESS (ret_code_address),
@@ -2186,7 +2186,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
 
   if (can_backpatch)
   {
-    gum_x86_writer_put_call_address_with_arguments (cw,
+    gum_x86_writer_put_call_address_with_arguments (cw, GUM_CALL_CAPI,
         GUM_ADDRESS (gum_exec_block_backpatch_call), 6,
         GUM_ARG_ADDRESS, GUM_ADDRESS (block),
         GUM_ARG_ADDRESS, GUM_ADDRESS (call_code_start),
@@ -2233,7 +2233,7 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
   {
     if (opened_prolog != GUM_PROLOG_NONE)
         gum_x86_writer_put_nop_padding (cw, 120);
-    gum_x86_writer_put_call_address_with_arguments (cw,
+    gum_x86_writer_put_call_address_with_arguments (cw, GUM_CALL_CAPI,
         GUM_ADDRESS (gum_exec_block_backpatch_jmp), 4,
         GUM_ARG_ADDRESS, GUM_ADDRESS (block),
         GUM_ARG_ADDRESS, GUM_ADDRESS (code_start),
@@ -2502,7 +2502,7 @@ gum_exec_block_write_event_submit_code (GumExecBlock * block,
   guint align_correction = 8;
   gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XSP, align_correction);
 #endif
-  gum_x86_writer_put_call_address_with_arguments (cw,
+  gum_x86_writer_put_call_address_with_arguments (cw, GUM_CALL_CAPI,
       GUM_ADDRESS (block->ctx->sink_process_impl), 2,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx->sink),
       GUM_ARG_REGISTER, GUM_REG_XAX);
@@ -2518,7 +2518,7 @@ gum_exec_block_write_event_submit_code (GumExecBlock * block,
     gum_x86_writer_put_cmp_reg_i32 (cw, GUM_REG_EAX,
         GUM_EXEC_CTX_UNFOLLOW_PENDING);
     gum_x86_writer_put_jcc_near_label (cw, X86_INS_JNE, beach_label, GUM_LIKELY);
-    gum_x86_writer_put_call_address_with_arguments (cw,
+    gum_x86_writer_put_call_address_with_arguments (cw, GUM_CALL_CAPI,
         GUM_ADDRESS (gum_exec_ctx_unfollow), 2,
         GUM_ARG_ADDRESS, GUM_ADDRESS (ctx),
         GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->begin));
@@ -2599,7 +2599,7 @@ gum_exec_block_write_call_probe_code (GumExecBlock * block,
 #if GLIB_SIZEOF_VOID_P == 4
     gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XSP, align_correction);
 #endif
-    gum_x86_writer_put_call_address_with_arguments (cw,
+    gum_x86_writer_put_call_address_with_arguments (cw, GUM_CALL_CAPI,
         GUM_ADDRESS (gum_exec_block_invoke_call_probes_for_target), 3,
         GUM_ARG_ADDRESS, GUM_ADDRESS (block),
         GUM_ARG_REGISTER, GUM_REG_XAX,

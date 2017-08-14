@@ -493,15 +493,15 @@ gum_x86_writer_put_argument_list_teardown (GumX86Writer * self,
 
 gboolean
 gum_x86_writer_put_call_address_with_arguments (GumX86Writer * self,
+                                                GumCallingConvention conv,
                                                 GumAddress func,
                                                 guint n_args,
                                                 ...)
 {
-  GumCallingConvention conv = GUM_CALL_CAPI;
   va_list vl;
 
   va_start (vl, n_args);
-  gum_x86_writer_put_argument_list_setup (self, conv, n_args, vl);
+  gum_x86_writer_put_argument_list_setup_va (self, conv, n_args, vl);
   va_end (vl);
 
   if (!gum_x86_writer_put_call_address (self, func))

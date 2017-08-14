@@ -131,7 +131,8 @@ GUM_API gboolean gum_x86_writer_put_label (GumX86Writer * self,
     gconstpointer id);
 
 GUM_API gboolean gum_x86_writer_put_call_address_with_arguments (
-    GumX86Writer * self, GumAddress func, guint n_args, ...);
+    GumX86Writer * self, GumCallingConvention conv, GumAddress func,
+    guint n_args, ...);
 GUM_API gboolean gum_x86_writer_put_call_reg_with_arguments (
     GumX86Writer * self, GumCallingConvention conv, GumCpuReg reg,
     guint n_args, ...);
