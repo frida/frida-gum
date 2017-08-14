@@ -31,6 +31,9 @@ G_GNUC_INTERNAL void _gum_duk_instruction_dispose (
 G_GNUC_INTERNAL void _gum_duk_instruction_finalize (
     GumDukInstruction * self);
 
+G_GNUC_INTERNAL void _gum_duk_push_instruction (duk_context * ctx,
+    const cs_insn * insn, gconstpointer target, GumDukInstruction * module);
+
 G_END_DECLS
 
 #endif
