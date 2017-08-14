@@ -32,9 +32,9 @@ struct _GumX86Relocator
 };
 
 void gum_x86_relocator_init (GumX86Relocator * relocator,
-    const guint8 * input_code, GumX86Writer * output);
+    gconstpointer input_code, GumX86Writer * output);
 void gum_x86_relocator_reset (GumX86Relocator * relocator,
-    const guint8 * input_code, GumX86Writer * output);
+    gconstpointer input_code, GumX86Writer * output);
 void gum_x86_relocator_free (GumX86Relocator * relocator);
 
 guint gum_x86_relocator_read_one (GumX86Relocator * self,

@@ -43,7 +43,7 @@ static gboolean gum_x86_call_try_parse_get_pc_thunk (cs_insn * insn,
 
 void
 gum_x86_relocator_init (GumX86Relocator * relocator,
-                        const guint8 * input_code,
+                        gconstpointer input_code,
                         GumX86Writer * output)
 {
   cs_err err;
@@ -61,7 +61,7 @@ gum_x86_relocator_init (GumX86Relocator * relocator,
 
 void
 gum_x86_relocator_reset (GumX86Relocator * relocator,
-                         const guint8 * input_code,
+                         gconstpointer input_code,
                          GumX86Writer * output)
 {
   guint i;
