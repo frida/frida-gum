@@ -16,7 +16,6 @@
 #define GUM_MAX_LABEL_REF_COUNT   (3 * GUM_MAX_LABEL_COUNT)
 #define GUM_MAX_LITERAL_REF_COUNT 1000
 
-typedef struct _GumArm64Argument GumArm64Argument;
 typedef guint GumArm64MemOperationType;
 typedef guint GumArm64MemOperandType;
 typedef guint GumArm64MetaReg;
@@ -38,17 +37,6 @@ struct _GumArm64LiteralRef
 {
   guint32 * insn;
   gint64 val;
-};
-
-struct _GumArm64Argument
-{
-  GumArgType type;
-
-  union
-  {
-    arm64_reg reg;
-    GumAddress address;
-  } value;
 };
 
 enum _GumArm64MemOperationType
@@ -442,14 +430,14 @@ gum_arm64_writer_put_argument_list_setup (GumArm64Writer * self,
                                           guint n_args,
                                           va_list vl)
 {
-  GumArm64Argument * args;
+  GumArgument * args;
   gint arg_index;
 
-  args = g_alloca (n_args * sizeof (GumArm64Argument));
+  args = g_alloca (n_args * sizeof (GumArgument));
 
   for (arg_index = 0; arg_index != (gint) n_args; arg_index++)
   {
-    GumArm64Argument * arg = &args[arg_index];
+    GumArgument * arg = &args[arg_index];
 
     arg->type = va_arg (vl, GumArgType);
     if (arg->type == GUM_ARG_ADDRESS)
@@ -462,7 +450,7 @@ gum_arm64_writer_put_argument_list_setup (GumArm64Writer * self,
 
   for (arg_index = n_args - 1; arg_index >= 0; arg_index--)
   {
-    GumArm64Argument * arg = &args[arg_index];
+    GumArgument * arg = &args[arg_index];
     arm64_reg r = ARM64_REG_X0 + arg_index;
 
     if (arg->type == GUM_ARG_ADDRESS)

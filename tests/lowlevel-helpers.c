@@ -203,8 +203,7 @@ invoke_clobber_test_function_with_cpu_context (const GumCpuContext * input,
   if (align_correction != 0)
     gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction);
 
-  gum_x86_writer_put_call (&cw,
-      GUM_FUNCPTR_TO_POINTER (clobber_test_function));
+  gum_x86_writer_put_call_address (&cw, GUM_ADDRESS (clobber_test_function));
 
   if (align_correction != 0)
     gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction);
@@ -348,7 +347,7 @@ invoke_clobber_test_function_with_carry_set (gsize * flags_input,
   for (i = 0; i != align_correction; i += sizeof (gpointer))
     gum_x86_writer_put_push_reg (&cw, GUM_REG_XAX);
 
-  gum_x86_writer_put_call (&cw, clobber_test_function);
+  gum_x86_writer_put_call_address (&cw, GUM_ADDRESS (clobber_test_function));
 
   for (i = 0; i != align_correction; i += sizeof (gpointer))
     gum_x86_writer_put_pop_reg (&cw, GUM_REG_XAX);

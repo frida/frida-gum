@@ -53,6 +53,7 @@ typedef guint GumCallingConvention;
 typedef guint GumAbiType;
 typedef guint GumCpuType;
 typedef guint GumArgType;
+typedef struct _GumArgument GumArgument;
 typedef guint GumBranchHint;
 typedef struct _GumCpuContext GumCpuContext;
 typedef guint GumRelocationScenario;
@@ -92,8 +93,18 @@ enum _GumCpuType
 enum _GumArgType
 {
   GUM_ARG_ADDRESS,
-  GUM_ARG_REGISTER,
-  GUM_ARG_POINTER /* deprecated */
+  GUM_ARG_REGISTER
+};
+
+struct _GumArgument
+{
+  GumArgType type;
+
+  union
+  {
+    GumAddress address;
+    guint reg;
+  } value;
 };
 
 enum _GumBranchHint

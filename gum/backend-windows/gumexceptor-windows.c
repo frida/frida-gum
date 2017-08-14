@@ -112,8 +112,8 @@ gum_exceptor_backend_init (GumExceptorBackend * self)
           self->trampoline = gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &as);
 
           gum_x86_writer_init (&cw, self->trampoline);
-          gum_x86_writer_put_jmp (&cw,
-              GUM_FUNCPTR_TO_POINTER (gum_exceptor_backend_dispatch));
+          gum_x86_writer_put_jmp_address (&cw,
+              GUM_ADDRESS (gum_exceptor_backend_dispatch));
           gum_x86_writer_clear (&cw);
 
           distance = (gssize) self->trampoline - (gssize) call_end;

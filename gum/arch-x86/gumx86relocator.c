@@ -460,12 +460,10 @@ gum_x86_relocator_rewrite_unconditional_branch (GumX86Relocator * self,
 
   if (op->type == X86_OP_IMM)
   {
-    const guint8 * target = GSIZE_TO_POINTER (op->imm);
-
     if (ctx->insn->id == X86_INS_CALL)
-      gum_x86_writer_put_call (cw, target);
+      gum_x86_writer_put_call_address (cw, op->imm);
     else
-      gum_x86_writer_put_jmp (cw, target);
+      gum_x86_writer_put_jmp_address (cw, op->imm);
 
     return TRUE;
   }
@@ -499,7 +497,7 @@ gum_x86_relocator_rewrite_conditional_branch (GumX86Relocator * self,
     if (target >= self->input_start && target < self->input_cur)
     {
       gum_x86_writer_put_jcc_short_label (ctx->code_writer, ctx->insn->id,
-          GUINT_TO_POINTER (target), GUM_NO_HINT);
+          target, GUM_NO_HINT);
     }
     else if (ctx->insn->id == X86_INS_JECXZ || ctx->insn->id == X86_INS_JRCXZ)
     {
@@ -512,7 +510,7 @@ gum_x86_relocator_rewrite_conditional_branch (GumX86Relocator * self,
       gum_x86_writer_put_jmp_short_label (ctx->code_writer, is_false);
 
       gum_x86_writer_put_label (ctx->code_writer, is_true);
-      gum_x86_writer_put_jmp (ctx->code_writer, target);
+      gum_x86_writer_put_jmp_address (ctx->code_writer, GUM_ADDRESS (target));
 
       gum_x86_writer_put_label (ctx->code_writer, is_false);
     }

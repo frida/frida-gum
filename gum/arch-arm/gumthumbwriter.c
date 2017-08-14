@@ -17,7 +17,6 @@
 #define GUM_MAX_LREF_COUNT        (3 * GUM_MAX_LABEL_COUNT)
 #define GUM_MAX_LITERAL_REF_COUNT 100
 
-typedef struct _GumThumbArgument GumThumbArgument;
 typedef guint GumThumbMemoryOperation;
 
 struct _GumThumbLabelMapping
@@ -38,17 +37,6 @@ struct _GumThumbLiteralRef
   guint32 val;
   guint16 * insn;
   GumAddress pc;
-};
-
-struct _GumThumbArgument
-{
-  GumArgType type;
-
-  union
-  {
-    arm_reg reg;
-    GumAddress address;
-  } value;
 };
 
 enum _GumThumbMemoryOperation
@@ -413,14 +401,14 @@ gum_thumb_writer_put_argument_list_setup (GumThumbWriter * self,
                                           guint n_args,
                                           va_list vl)
 {
-  GumThumbArgument * args;
+  GumArgument * args;
   gint arg_index;
 
-  args = g_alloca (n_args * sizeof (GumThumbArgument));
+  args = g_alloca (n_args * sizeof (GumArgument));
 
   for (arg_index = 0; arg_index != (gint) n_args; arg_index++)
   {
-    GumThumbArgument * arg = &args[arg_index];
+    GumArgument * arg = &args[arg_index];
 
     arg->type = va_arg (vl, GumArgType);
     if (arg->type == GUM_ARG_ADDRESS)
@@ -433,7 +421,7 @@ gum_thumb_writer_put_argument_list_setup (GumThumbWriter * self,
 
   for (arg_index = n_args - 1; arg_index >= 0; arg_index--)
   {
-    GumThumbArgument * arg = &args[arg_index];
+    GumArgument * arg = &args[arg_index];
     arm_reg r = ARM_REG_R0 + arg_index;
 
     if (arg_index < 4)

@@ -120,12 +120,12 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   ctx->on_enter_trampoline = gum_x86_writer_cur (cw);
 
   gum_x86_writer_put_push_near_ptr (cw, function_ctx_ptr);
-  gum_x86_writer_put_jmp (cw, self->enter_thunk->data);
+  gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (self->enter_thunk->data));
 
   ctx->on_leave_trampoline = gum_x86_writer_cur (cw);
 
   gum_x86_writer_put_push_near_ptr (cw, function_ctx_ptr);
-  gum_x86_writer_put_jmp (cw, self->leave_thunk->data);
+  gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (self->leave_thunk->data));
 
   gum_x86_writer_flush (cw);
   g_assert_cmpuint (gum_x86_writer_offset (cw),
@@ -144,7 +144,8 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
   if (!gum_x86_relocator_eoi (rl))
   {
-    gum_x86_writer_put_jmp (cw, (guint8 *) ctx->function_address + reloc_bytes);
+    gum_x86_writer_put_jmp_address (cw,
+        GUM_ADDRESS (ctx->function_address) + reloc_bytes);
   }
 
   gum_x86_writer_flush (cw);
@@ -177,7 +178,7 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
 
   gum_x86_writer_reset (cw, prologue);
   cw->pc = GPOINTER_TO_SIZE (ctx->function_address);
-  gum_x86_writer_put_jmp (cw, ctx->on_enter_trampoline);
+  gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (ctx->on_enter_trampoline));
   gum_x86_writer_flush (cw);
   g_assert_cmpint (gum_x86_writer_offset (cw),
       <=, GUM_INTERCEPTOR_REDIRECT_CODE_SIZE);
@@ -259,8 +260,8 @@ gum_emit_enter_thunk (GumX86Writer * cw)
   gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XCX,
       GUM_REG_XBP, GUM_FRAME_OFFSET_NEXT_HOP);
 
-  gum_x86_writer_put_call_with_arguments (cw,
-      GUM_FUNCPTR_TO_POINTER (_gum_function_context_begin_invocation), 4,
+  gum_x86_writer_put_call_address_with_arguments (cw,
+      GUM_ADDRESS (_gum_function_context_begin_invocation), 4,
       GUM_ARG_REGISTER, GUM_REG_XBX,
       GUM_ARG_REGISTER, GUM_REG_XSI,
       GUM_ARG_REGISTER, GUM_REG_XDX,
@@ -292,8 +293,8 @@ gum_emit_leave_thunk (GumX86Writer * cw)
         GUM_REG_XSP, -align_correction_leave);
   }
 
-  gum_x86_writer_put_call_with_arguments (cw,
-      GUM_FUNCPTR_TO_POINTER (_gum_function_context_end_invocation), 3,
+  gum_x86_writer_put_call_address_with_arguments (cw,
+      GUM_ADDRESS (_gum_function_context_end_invocation), 3,
       GUM_ARG_REGISTER, GUM_REG_XBX,
       GUM_ARG_REGISTER, GUM_REG_XSI,
       GUM_ARG_REGISTER, GUM_REG_XDX);

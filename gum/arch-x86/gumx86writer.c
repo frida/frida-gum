@@ -14,17 +14,6 @@
 #define GUM_MAX_LABEL_COUNT (10 * 1000)
 #define GUM_MAX_LREF_COUNT  (3 * GUM_MAX_LABEL_COUNT)
 
-typedef struct _GumArgument
-{
-  GumArgType type;
-
-  union
-  {
-    GumCpuReg reg;
-    gpointer pointer;
-  } value;
-} GumArgument;
-
 typedef enum _GumMetaReg
 {
   GUM_META_REG_XAX = 0,
@@ -363,8 +352,8 @@ gum_x86_writer_put_argument_list_setup (GumX86Writer * self,
     GumArgument * arg = &args[arg_index];
 
     arg->type = va_arg (vl, GumArgType);
-    if (arg->type == GUM_ARG_POINTER)
-      arg->value.pointer = va_arg (vl, gpointer);
+    if (arg->type == GUM_ARG_ADDRESS)
+      arg->value.address = va_arg (vl, GumAddress);
     else if (arg->type == GUM_ARG_REGISTER)
       arg->value.reg = va_arg (vl, GumCpuReg);
     else
@@ -377,10 +366,9 @@ gum_x86_writer_put_argument_list_setup (GumX86Writer * self,
     {
       GumArgument * arg = &args[arg_index];
 
-      if (arg->type == GUM_ARG_POINTER)
+      if (arg->type == GUM_ARG_ADDRESS)
       {
-        gum_x86_writer_put_push_u32 (self, GPOINTER_TO_SIZE (
-            arg->value.pointer));
+        gum_x86_writer_put_push_u32 (self, arg->value.address);
       }
       else
       {
@@ -440,10 +428,10 @@ gum_x86_writer_put_argument_list_setup (GumX86Writer * self,
 
       if (arg_index < reg_for_arg_count)
       {
-        if (arg->type == GUM_ARG_POINTER)
+        if (arg->type == GUM_ARG_ADDRESS)
         {
           gum_x86_writer_put_mov_reg_u64 (self, reg_for_arg_64[arg_index],
-              GPOINTER_TO_SIZE (arg->value.pointer));
+              arg->value.address);
         }
         else if (gum_meta_reg_from_cpu_reg (arg->value.reg) !=
             gum_meta_reg_from_cpu_reg (reg_for_arg_64[arg_index]))
@@ -462,11 +450,11 @@ gum_x86_writer_put_argument_list_setup (GumX86Writer * self,
       }
       else
       {
-        if (arg->type == GUM_ARG_POINTER)
+        if (arg->type == GUM_ARG_ADDRESS)
         {
           gum_x86_writer_put_push_reg (self, GUM_REG_XAX);
           gum_x86_writer_put_mov_reg_address (self, GUM_REG_RAX,
-              GUM_ADDRESS (arg->value.pointer));
+              arg->value.address);
           gum_x86_writer_put_xchg_reg_reg_ptr (self, GUM_REG_RAX, GUM_REG_RSP);
         }
         else
@@ -504,10 +492,10 @@ gum_x86_writer_put_argument_list_teardown (GumX86Writer * self,
 }
 
 gboolean
-gum_x86_writer_put_call_with_arguments (GumX86Writer * self,
-                                        gpointer func,
-                                        guint n_args,
-                                        ...)
+gum_x86_writer_put_call_address_with_arguments (GumX86Writer * self,
+                                                GumAddress func,
+                                                guint n_args,
+                                                ...)
 {
   GumCallingConvention conv = GUM_CALL_CAPI;
   va_list vl;
@@ -516,7 +504,7 @@ gum_x86_writer_put_call_with_arguments (GumX86Writer * self,
   gum_x86_writer_put_argument_list_setup (self, conv, n_args, vl);
   va_end (vl);
 
-  if (!gum_x86_writer_put_call (self, func))
+  if (!gum_x86_writer_put_call_address (self, func))
     return FALSE;
 
   gum_x86_writer_put_argument_list_teardown (self, conv, n_args);
@@ -569,13 +557,13 @@ gum_x86_writer_put_call_reg_offset_ptr_with_arguments (
 }
 
 gboolean
-gum_x86_writer_put_call (GumX86Writer * self,
-                         gconstpointer target)
+gum_x86_writer_put_call_address (GumX86Writer * self,
+                                 GumAddress address)
 {
   gint64 distance;
   gboolean distance_fits_in_i32;
 
-  distance = (gssize) target - (gssize) (self->pc + 5);
+  distance = (gssize) address - (gssize) (self->pc + 5);
   distance_fits_in_i32 = (distance >= G_MININT32 && distance <= G_MAXINT32);
 
   if (distance_fits_in_i32)
@@ -589,8 +577,7 @@ gum_x86_writer_put_call (GumX86Writer * self,
     if (self->target_cpu != GUM_CPU_AMD64)
       return FALSE;
 
-    gum_x86_writer_put_mov_reg_u64 (self, GUM_REG_RAX,
-        GPOINTER_TO_SIZE (target));
+    gum_x86_writer_put_mov_reg_u64 (self, GUM_REG_RAX, address);
     gum_x86_writer_put_call_reg (self, GUM_REG_RAX);
   }
 
@@ -683,7 +670,7 @@ gboolean
 gum_x86_writer_put_call_near_label (GumX86Writer * self,
                                     gconstpointer label_id)
 {
-  gum_x86_writer_put_call (self, GSIZE_TO_POINTER (self->pc));
+  gum_x86_writer_put_call_address (self, self->pc);
 
   return gum_x86_writer_add_label_reference_here (self, label_id,
       GUM_LREF_NEAR);
@@ -711,12 +698,12 @@ gum_x86_writer_put_ret_imm (GumX86Writer * self,
 }
 
 gboolean
-gum_x86_writer_put_jmp (GumX86Writer * self,
-                        gconstpointer target)
+gum_x86_writer_put_jmp_address (GumX86Writer * self,
+                                GumAddress address)
 {
   gint64 distance;
 
-  distance = (gssize) target - (gssize) (self->pc + 2);
+  distance = (gssize) address - (gssize) (self->pc + 2);
 
   if (GUM_IS_WITHIN_INT8_RANGE (distance))
   {
@@ -726,7 +713,7 @@ gum_x86_writer_put_jmp (GumX86Writer * self,
   }
   else
   {
-    distance = (gssize) target - (gssize) (self->pc + 5);
+    distance = (gssize) address - (gssize) (self->pc + 5);
 
     if (GUM_IS_WITHIN_INT32_RANGE (distance))
     {
@@ -742,8 +729,7 @@ gum_x86_writer_put_jmp (GumX86Writer * self,
       self->code[0] = 0xff;
       self->code[1] = 0x25;
       *((gint32 *) (self->code + 2)) = GINT32_TO_LE (0); /* rip + 0 */
-      *((guint64 *) (self->code + 6)) = GUINT64_TO_LE (
-          GPOINTER_TO_SIZE (target));
+      *((guint64 *) (self->code + 6)) = GUINT64_TO_LE (address);
       gum_x86_writer_commit (self, 14);
     }
   }

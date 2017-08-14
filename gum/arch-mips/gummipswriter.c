@@ -15,7 +15,6 @@
 #define GUM_MAX_LABEL_REF_COUNT   (3 * GUM_MAX_LABEL_COUNT)
 #define GUM_MAX_LITERAL_REF_COUNT 100
 
-typedef struct _GumMipsArgument GumMipsArgument;
 typedef guint GumMipsMemPairOperandSize;
 typedef guint GumMipsMetaReg;
 typedef struct _GumMipsRegInfo GumMipsRegInfo;
@@ -36,17 +35,6 @@ struct _GumMipsLiteralRef
 {
   guint32 * insn;
   gint64 val;
-};
-
-struct _GumMipsArgument
-{
-  GumArgType type;
-
-  union
-  {
-    mips_reg reg;
-    GumAddress address;
-  } value;
 };
 
 enum _GumMipsMetaReg
@@ -433,14 +421,14 @@ gum_mips_writer_put_argument_list_setup (GumMipsWriter * self,
                                          guint n_args,
                                          va_list vl)
 {
-  GumMipsArgument * args;
+  GumArgument * args;
   gint arg_index;
 
-  args = g_alloca (n_args * sizeof (GumMipsArgument));
+  args = g_alloca (n_args * sizeof (GumArgument));
 
   for (arg_index = 0; arg_index != (gint) n_args; arg_index++)
   {
-    GumMipsArgument * arg = &args[arg_index];
+    GumArgument * arg = &args[arg_index];
 
     arg->type = va_arg (vl, GumArgType);
     if (arg->type == GUM_ARG_ADDRESS)
@@ -453,7 +441,7 @@ gum_mips_writer_put_argument_list_setup (GumMipsWriter * self,
 
   for (arg_index = n_args - 1; arg_index >= 0; arg_index--)
   {
-    GumMipsArgument * arg = &args[arg_index];
+    GumArgument * arg = &args[arg_index];
     mips_reg r = MIPS_REG_A0 + arg_index;
 
     if (arg_index < 4)

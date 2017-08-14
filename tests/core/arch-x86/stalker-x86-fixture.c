@@ -151,25 +151,25 @@ test_stalker_fixture_follow_and_invoke (TestStalkerFixture * fixture,
   gum_x86_writer_put_pushax (&cw);
 
   gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction_follow);
-  gum_x86_writer_put_call_with_arguments (&cw,
-      gum_stalker_follow_me, 2,
-      GUM_ARG_POINTER, fixture->stalker,
-      GUM_ARG_POINTER, fixture->sink);
+  gum_x86_writer_put_call_address_with_arguments (&cw,
+      GUM_ADDRESS (gum_stalker_follow_me), 2,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->sink));
   gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_follow);
 
   gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction_call);
   gum_x86_writer_put_mov_reg_address (&cw, GUM_REG_XCX, GUM_ADDRESS (arg));
   fixture->last_invoke_calladdr = (guint8 *) gum_x86_writer_cur (&cw);
-  gum_x86_writer_put_call (&cw, func);
+  gum_x86_writer_put_call_address (&cw, GUM_ADDRESS (func));
   fixture->last_invoke_retaddr = (guint8 *) gum_x86_writer_cur (&cw);
   gum_x86_writer_put_mov_reg_address (&cw, GUM_REG_XCX, GUM_ADDRESS (&ret));
   gum_x86_writer_put_mov_reg_ptr_reg (&cw, GUM_REG_XCX, GUM_REG_EAX);
   gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_call);
 
   gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction_unfollow);
-  gum_x86_writer_put_call_with_arguments (&cw,
-      gum_stalker_unfollow_me, 1,
-      GUM_ARG_POINTER, fixture->stalker);
+  gum_x86_writer_put_call_address_with_arguments (&cw,
+      GUM_ADDRESS (gum_stalker_unfollow_me), 1,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker));
   gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_unfollow);
 
   gum_x86_writer_put_popax (&cw);

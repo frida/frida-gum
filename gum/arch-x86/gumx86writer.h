@@ -130,16 +130,16 @@ GUM_API GumCpuReg gum_x86_writer_get_cpu_register_for_nth_argument (
 GUM_API gboolean gum_x86_writer_put_label (GumX86Writer * self,
     gconstpointer id);
 
-GUM_API gboolean gum_x86_writer_put_call_with_arguments (GumX86Writer * self,
-    gpointer func, guint n_args, ...);
+GUM_API gboolean gum_x86_writer_put_call_address_with_arguments (
+    GumX86Writer * self, GumAddress func, guint n_args, ...);
 GUM_API gboolean gum_x86_writer_put_call_reg_with_arguments (
     GumX86Writer * self, GumCallingConvention conv, GumCpuReg reg,
     guint n_args, ...);
 GUM_API gboolean gum_x86_writer_put_call_reg_offset_ptr_with_arguments (
     GumX86Writer * self, GumCallingConvention conv, GumCpuReg reg,
     gssize offset, guint n_args, ...);
-GUM_API gboolean gum_x86_writer_put_call (GumX86Writer * self,
-    gconstpointer target);
+GUM_API gboolean gum_x86_writer_put_call_address (GumX86Writer * self,
+    GumAddress address);
 GUM_API gboolean gum_x86_writer_put_call_reg (GumX86Writer * self,
     GumCpuReg reg);
 GUM_API gboolean gum_x86_writer_put_call_reg_offset_ptr (GumX86Writer * self,
@@ -152,8 +152,8 @@ GUM_API void gum_x86_writer_put_leave (GumX86Writer * self);
 GUM_API void gum_x86_writer_put_ret (GumX86Writer * self);
 GUM_API void gum_x86_writer_put_ret_imm (GumX86Writer * self,
     guint16 imm_value);
-GUM_API gboolean gum_x86_writer_put_jmp (GumX86Writer * self,
-    gconstpointer target);
+GUM_API gboolean gum_x86_writer_put_jmp_address (GumX86Writer * self,
+    GumAddress address);
 GUM_API gboolean gum_x86_writer_put_jmp_short_label (GumX86Writer * self,
     gconstpointer label_id);
 GUM_API gboolean gum_x86_writer_put_jmp_near_label (GumX86Writer * self,
