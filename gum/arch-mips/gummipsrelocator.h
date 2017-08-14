@@ -35,34 +35,37 @@ struct _GumMipsRelocator
   gboolean delay_slot_pending;
 };
 
-GumMipsRelocator * gum_mips_relocator_new (gconstpointer input_code,
+GUM_API GumMipsRelocator * gum_mips_relocator_new (gconstpointer input_code,
     GumMipsWriter * output);
-GumMipsRelocator * gum_mips_relocator_ref (GumMipsRelocator * relocator);
-void gum_mips_relocator_unref (GumMipsRelocator * relocator);
+GUM_API GumMipsRelocator * gum_mips_relocator_ref (
+    GumMipsRelocator * relocator);
+GUM_API void gum_mips_relocator_unref (GumMipsRelocator * relocator);
 
-void gum_mips_relocator_init (GumMipsRelocator * relocator,
+GUM_API void gum_mips_relocator_init (GumMipsRelocator * relocator,
     gconstpointer input_code, GumMipsWriter * output);
-void gum_mips_relocator_clear (GumMipsRelocator * relocator);
+GUM_API void gum_mips_relocator_clear (GumMipsRelocator * relocator);
 
-void gum_mips_relocator_reset (GumMipsRelocator * relocator,
+GUM_API void gum_mips_relocator_reset (GumMipsRelocator * relocator,
     gconstpointer input_code, GumMipsWriter * output);
 
-guint gum_mips_relocator_read_one (GumMipsRelocator * self,
+GUM_API guint gum_mips_relocator_read_one (GumMipsRelocator * self,
     const cs_insn ** instruction);
 
-cs_insn * gum_mips_relocator_peek_next_write_insn (GumMipsRelocator * self);
-gpointer gum_mips_relocator_peek_next_write_source (GumMipsRelocator * self);
-void gum_mips_relocator_skip_one (GumMipsRelocator * self);
-gboolean gum_mips_relocator_write_one (GumMipsRelocator * self);
-void gum_mips_relocator_write_all (GumMipsRelocator * self);
+GUM_API cs_insn * gum_mips_relocator_peek_next_write_insn (
+    GumMipsRelocator * self);
+GUM_API gpointer gum_mips_relocator_peek_next_write_source (
+    GumMipsRelocator * self);
+GUM_API void gum_mips_relocator_skip_one (GumMipsRelocator * self);
+GUM_API gboolean gum_mips_relocator_write_one (GumMipsRelocator * self);
+GUM_API void gum_mips_relocator_write_all (GumMipsRelocator * self);
 
-gboolean gum_mips_relocator_eob (GumMipsRelocator * self);
-gboolean gum_mips_relocator_eoi (GumMipsRelocator * self);
+GUM_API gboolean gum_mips_relocator_eob (GumMipsRelocator * self);
+GUM_API gboolean gum_mips_relocator_eoi (GumMipsRelocator * self);
 
-gboolean gum_mips_relocator_can_relocate (gpointer address, guint min_bytes,
-    GumRelocationScenario scenario, guint * maximum,
+GUM_API gboolean gum_mips_relocator_can_relocate (gpointer address,
+    guint min_bytes, GumRelocationScenario scenario, guint * maximum,
     mips_reg * available_scratch_reg);
-guint gum_mips_relocator_relocate (gpointer from, guint min_bytes,
+GUM_API guint gum_mips_relocator_relocate (gpointer from, guint min_bytes,
     gpointer to);
 
 G_END_DECLS

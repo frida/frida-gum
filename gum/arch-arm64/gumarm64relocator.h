@@ -34,34 +34,37 @@ struct _GumArm64Relocator
   gboolean eoi;
 };
 
-GumArm64Relocator * gum_arm64_relocator_new (gconstpointer input_code,
+GUM_API GumArm64Relocator * gum_arm64_relocator_new (gconstpointer input_code,
     GumArm64Writer * output);
-GumArm64Relocator * gum_arm64_relocator_ref (GumArm64Relocator * relocator);
-void gum_arm64_relocator_unref (GumArm64Relocator * relocator);
+GUM_API GumArm64Relocator * gum_arm64_relocator_ref (
+    GumArm64Relocator * relocator);
+GUM_API void gum_arm64_relocator_unref (GumArm64Relocator * relocator);
 
-void gum_arm64_relocator_init (GumArm64Relocator * relocator,
+GUM_API void gum_arm64_relocator_init (GumArm64Relocator * relocator,
     gconstpointer input_code, GumArm64Writer * output);
-void gum_arm64_relocator_clear (GumArm64Relocator * relocator);
+GUM_API void gum_arm64_relocator_clear (GumArm64Relocator * relocator);
 
-void gum_arm64_relocator_reset (GumArm64Relocator * relocator,
+GUM_API void gum_arm64_relocator_reset (GumArm64Relocator * relocator,
     gconstpointer input_code, GumArm64Writer * output);
 
-guint gum_arm64_relocator_read_one (GumArm64Relocator * self,
+GUM_API guint gum_arm64_relocator_read_one (GumArm64Relocator * self,
     const cs_insn ** instruction);
 
-cs_insn * gum_arm64_relocator_peek_next_write_insn (GumArm64Relocator * self);
-gpointer gum_arm64_relocator_peek_next_write_source (GumArm64Relocator * self);
-void gum_arm64_relocator_skip_one (GumArm64Relocator * self);
-gboolean gum_arm64_relocator_write_one (GumArm64Relocator * self);
-void gum_arm64_relocator_write_all (GumArm64Relocator * self);
+GUM_API cs_insn * gum_arm64_relocator_peek_next_write_insn (
+    GumArm64Relocator * self);
+GUM_API gpointer gum_arm64_relocator_peek_next_write_source (
+    GumArm64Relocator * self);
+GUM_API void gum_arm64_relocator_skip_one (GumArm64Relocator * self);
+GUM_API gboolean gum_arm64_relocator_write_one (GumArm64Relocator * self);
+GUM_API void gum_arm64_relocator_write_all (GumArm64Relocator * self);
 
-gboolean gum_arm64_relocator_eob (GumArm64Relocator * self);
-gboolean gum_arm64_relocator_eoi (GumArm64Relocator * self);
+GUM_API gboolean gum_arm64_relocator_eob (GumArm64Relocator * self);
+GUM_API gboolean gum_arm64_relocator_eoi (GumArm64Relocator * self);
 
-gboolean gum_arm64_relocator_can_relocate (gpointer address, guint min_bytes,
-    GumRelocationScenario scenario, guint * maximum,
+GUM_API gboolean gum_arm64_relocator_can_relocate (gpointer address,
+    guint min_bytes, GumRelocationScenario scenario, guint * maximum,
     arm64_reg * available_scratch_reg);
-guint gum_arm64_relocator_relocate (gpointer from, guint min_bytes,
+GUM_API guint gum_arm64_relocator_relocate (gpointer from, guint min_bytes,
     gpointer to);
 
 G_END_DECLS

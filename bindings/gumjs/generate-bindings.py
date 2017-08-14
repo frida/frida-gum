@@ -1634,7 +1634,7 @@ def parse_api(name, flavor, api_header, options):
     self_type = "{0} * ".format(to_camel_case("gum_{0}_{1}".format(flavor, name), start_high=True))
     ignored_methods = set(options.get('ignore', []))
 
-    put_methods = [(m.group(2), m.group(1), m.group(3)) for m in re.finditer(r"([\w *]+) gum_{0}_{1}_([\w]+) \(([^)]+)\);".format(flavor, name), api_header)]
+    put_methods = [(m.group(2), m.group(1), m.group(3)) for m in re.finditer(r"GUM_API ([\w *]+) gum_{0}_{1}_([\w]+) \(([^)]+)\);".format(flavor, name), api_header)]
     for method_name, return_type, raw_arglist in put_methods:
         if method_name in ignored_methods:
             continue

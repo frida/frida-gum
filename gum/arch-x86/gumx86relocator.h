@@ -33,35 +33,38 @@ struct _GumX86Relocator
   gboolean eoi;
 };
 
-GumX86Relocator * gum_x86_relocator_new (gconstpointer input_code,
+GUM_API GumX86Relocator * gum_x86_relocator_new (gconstpointer input_code,
     GumX86Writer * output);
-GumX86Relocator * gum_x86_relocator_ref (GumX86Relocator * relocator);
-void gum_x86_relocator_unref (GumX86Relocator * relocator);
+GUM_API GumX86Relocator * gum_x86_relocator_ref (GumX86Relocator * relocator);
+GUM_API void gum_x86_relocator_unref (GumX86Relocator * relocator);
 
-void gum_x86_relocator_init (GumX86Relocator * relocator,
+GUM_API void gum_x86_relocator_init (GumX86Relocator * relocator,
     gconstpointer input_code, GumX86Writer * output);
-void gum_x86_relocator_clear (GumX86Relocator * relocator);
+GUM_API void gum_x86_relocator_clear (GumX86Relocator * relocator);
 
-void gum_x86_relocator_reset (GumX86Relocator * relocator,
+GUM_API void gum_x86_relocator_reset (GumX86Relocator * relocator,
     gconstpointer input_code, GumX86Writer * output);
 
-guint gum_x86_relocator_read_one (GumX86Relocator * self,
+GUM_API guint gum_x86_relocator_read_one (GumX86Relocator * self,
     const cs_insn ** instruction);
 
-cs_insn * gum_x86_relocator_peek_next_write_insn (GumX86Relocator * self);
-gpointer gum_x86_relocator_peek_next_write_source (GumX86Relocator * self);
-void gum_x86_relocator_skip_one (GumX86Relocator * self);
-void gum_x86_relocator_skip_one_no_label (GumX86Relocator * self);
-gboolean gum_x86_relocator_write_one (GumX86Relocator * self);
-gboolean gum_x86_relocator_write_one_no_label (GumX86Relocator * self);
-void gum_x86_relocator_write_all (GumX86Relocator * self);
+GUM_API cs_insn * gum_x86_relocator_peek_next_write_insn (
+    GumX86Relocator * self);
+GUM_API gpointer gum_x86_relocator_peek_next_write_source (
+    GumX86Relocator * self);
+GUM_API void gum_x86_relocator_skip_one (GumX86Relocator * self);
+GUM_API void gum_x86_relocator_skip_one_no_label (GumX86Relocator * self);
+GUM_API gboolean gum_x86_relocator_write_one (GumX86Relocator * self);
+GUM_API gboolean gum_x86_relocator_write_one_no_label (GumX86Relocator * self);
+GUM_API void gum_x86_relocator_write_all (GumX86Relocator * self);
 
-gboolean gum_x86_relocator_eob (GumX86Relocator * self);
-gboolean gum_x86_relocator_eoi (GumX86Relocator * self);
+GUM_API gboolean gum_x86_relocator_eob (GumX86Relocator * self);
+GUM_API gboolean gum_x86_relocator_eoi (GumX86Relocator * self);
 
-gboolean gum_x86_relocator_can_relocate (gpointer address, guint min_bytes,
-    guint * maximum);
-guint gum_x86_relocator_relocate (gpointer from, guint min_bytes, gpointer to);
+GUM_API gboolean gum_x86_relocator_can_relocate (gpointer address,
+    guint min_bytes, guint * maximum);
+GUM_API guint gum_x86_relocator_relocate (gpointer from, guint min_bytes,
+    gpointer to);
 
 G_END_DECLS
 

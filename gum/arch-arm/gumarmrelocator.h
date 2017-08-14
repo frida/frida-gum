@@ -34,33 +34,36 @@ struct _GumArmRelocator
   gboolean eoi;
 };
 
-GumArmRelocator * gum_arm_relocator_new (gconstpointer input_code,
+GUM_API GumArmRelocator * gum_arm_relocator_new (gconstpointer input_code,
     GumArmWriter * output);
-GumArmRelocator * gum_arm_relocator_ref (GumArmRelocator * relocator);
-void gum_arm_relocator_unref (GumArmRelocator * relocator);
+GUM_API GumArmRelocator * gum_arm_relocator_ref (GumArmRelocator * relocator);
+GUM_API void gum_arm_relocator_unref (GumArmRelocator * relocator);
 
-void gum_arm_relocator_init (GumArmRelocator * relocator,
+GUM_API void gum_arm_relocator_init (GumArmRelocator * relocator,
     gconstpointer input_code, GumArmWriter * output);
-void gum_arm_relocator_clear (GumArmRelocator * relocator);
+GUM_API void gum_arm_relocator_clear (GumArmRelocator * relocator);
 
-void gum_arm_relocator_reset (GumArmRelocator * relocator,
+GUM_API void gum_arm_relocator_reset (GumArmRelocator * relocator,
     gconstpointer input_code, GumArmWriter * output);
 
-guint gum_arm_relocator_read_one (GumArmRelocator * self,
+GUM_API guint gum_arm_relocator_read_one (GumArmRelocator * self,
     const cs_insn ** instruction);
 
-cs_insn * gum_arm_relocator_peek_next_write_insn (GumArmRelocator * self);
-gpointer gum_arm_relocator_peek_next_write_source (GumArmRelocator * self);
-void gum_arm_relocator_skip_one (GumArmRelocator * self);
-gboolean gum_arm_relocator_write_one (GumArmRelocator * self);
-void gum_arm_relocator_write_all (GumArmRelocator * self);
+GUM_API cs_insn * gum_arm_relocator_peek_next_write_insn (
+    GumArmRelocator * self);
+GUM_API gpointer gum_arm_relocator_peek_next_write_source (
+    GumArmRelocator * self);
+GUM_API void gum_arm_relocator_skip_one (GumArmRelocator * self);
+GUM_API gboolean gum_arm_relocator_write_one (GumArmRelocator * self);
+GUM_API void gum_arm_relocator_write_all (GumArmRelocator * self);
 
-gboolean gum_arm_relocator_eob (GumArmRelocator * self);
-gboolean gum_arm_relocator_eoi (GumArmRelocator * self);
+GUM_API gboolean gum_arm_relocator_eob (GumArmRelocator * self);
+GUM_API gboolean gum_arm_relocator_eoi (GumArmRelocator * self);
 
-gboolean gum_arm_relocator_can_relocate (gpointer address, guint min_bytes,
-    guint * maximum);
-guint gum_arm_relocator_relocate (gpointer from, guint min_bytes, gpointer to);
+GUM_API gboolean gum_arm_relocator_can_relocate (gpointer address,
+    guint min_bytes, guint * maximum);
+GUM_API guint gum_arm_relocator_relocate (gpointer from, guint min_bytes,
+    gpointer to);
 
 G_END_DECLS
 
