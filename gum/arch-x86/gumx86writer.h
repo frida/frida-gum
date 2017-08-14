@@ -14,8 +14,8 @@
 G_BEGIN_DECLS
 
 typedef struct _GumX86Writer GumX86Writer;
-typedef enum _GumCpuReg GumCpuReg;
-typedef enum _GumPtrTarget GumPtrTarget;
+typedef guint GumCpuReg;
+typedef guint GumPtrTarget;
 
 typedef struct _GumX86LabelMapping GumX86LabelMapping;
 typedef struct _GumX86LabelRef GumX86LabelRef;
