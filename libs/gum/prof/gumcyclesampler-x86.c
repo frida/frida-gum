@@ -72,7 +72,7 @@ gum_cycle_sampler_init (GumCycleSampler * self)
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw, first_arg_reg, 4,
       GUM_REG_EDX);
   gum_x86_writer_put_ret (&cw);
-  gum_x86_writer_free (&cw);
+  gum_x86_writer_clear (&cw);
 
   priv->read_timestamp_counter =
       GUM_POINTER_TO_FUNCPTR (ReadTimestampCounterFunc, priv->code);

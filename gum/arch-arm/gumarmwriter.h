@@ -19,6 +19,8 @@ typedef struct _GumArmLiteralRef GumArmLiteralRef;
 
 struct _GumArmWriter
 {
+  volatile gint ref_count;
+
   GumOS target_os;
 
   guint32 * base;
@@ -29,10 +31,14 @@ struct _GumArmWriter
   guint literal_refs_len;
 };
 
-void gum_arm_writer_init (GumArmWriter * writer, gpointer code_address);
-void gum_arm_writer_reset (GumArmWriter * writer, gpointer code_address);
-void gum_arm_writer_free (GumArmWriter * writer);
+GumArmWriter * gum_arm_writer_new (gpointer code_address);
+GumArmWriter * gum_arm_writer_ref (GumArmWriter * writer);
+void gum_arm_writer_unref (GumArmWriter * writer);
 
+void gum_arm_writer_init (GumArmWriter * writer, gpointer code_address);
+void gum_arm_writer_clear (GumArmWriter * writer);
+
+void gum_arm_writer_reset (GumArmWriter * writer, gpointer code_address);
 void gum_arm_writer_set_target_os (GumArmWriter * self, GumOS os);
 
 gpointer gum_arm_writer_cur (GumArmWriter * self);

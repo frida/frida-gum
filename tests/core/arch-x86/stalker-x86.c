@@ -767,7 +767,7 @@ invoke_follow_return_code (TestStalkerFixture * fixture)
       GUM_ARG_POINTER, fixture->sink);
   gum_x86_writer_put_ret (&cw);
 
-  gum_x86_writer_free (&cw);
+  gum_x86_writer_clear (&cw);
 
   invoke_func = GUM_POINTER_TO_FUNCPTR (GCallback, code);
   invoke_func ();
@@ -928,7 +928,7 @@ invoke_unfollow_deep_code (TestStalkerFixture * fixture)
   gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_unfollow);
   gum_x86_writer_put_ret (&cw);
 
-  gum_x86_writer_free (&cw);
+  gum_x86_writer_clear (&cw);
 
   invoke_func = GUM_POINTER_TO_FUNCPTR (GCallback, code);
   invoke_func ();
@@ -1570,7 +1570,7 @@ STALKER_TESTCASE (no_register_clobber)
   gum_x86_writer_put_nop (&cw);
   gum_x86_writer_put_ret (&cw);
 
-  gum_x86_writer_free (&cw);
+  gum_x86_writer_clear (&cw);
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
   func = GUM_POINTER_TO_FUNCPTR (ClobberFunc, code);
@@ -1653,7 +1653,7 @@ STALKER_TESTCASE (big_block)
       test_stalker_fixture_dup_code (fixture, code,
           gum_x86_writer_offset (&cw)));
 
-  gum_x86_writer_free (&cw);
+  gum_x86_writer_clear (&cw);
   gum_free_pages (code);
 
   test_stalker_fixture_follow_and_invoke (fixture, func, -1);

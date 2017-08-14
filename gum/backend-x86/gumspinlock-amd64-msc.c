@@ -51,7 +51,7 @@ gum_spinlock_init (GumSpinlock * spinlock)
   gum_x86_writer_put_label (&cw, beach_label);
   gum_x86_writer_put_ret (&cw);
 
-  gum_x86_writer_free (&cw);
+  gum_x86_writer_clear (&cw);
 }
 
 void

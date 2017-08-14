@@ -41,8 +41,8 @@ static void
 test_arm_relocator_fixture_teardown (TestArmRelocatorFixture * fixture,
                                      gconstpointer data)
 {
-  gum_arm_relocator_free (&fixture->rl);
-  gum_arm_writer_free (&fixture->aw);
+  gum_arm_relocator_clear (&fixture->rl);
+  gum_arm_writer_clear (&fixture->aw);
   gum_free_pages (fixture->output);
 }
 

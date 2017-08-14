@@ -730,7 +730,7 @@ gum_stalker_infect (GumThreadId thread_id,
   gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction);
   gum_exec_ctx_write_epilog (ctx, GUM_PROLOG_MINIMAL, &cw);
   gum_x86_writer_put_jmp (&cw, code_address);
-  gum_x86_writer_free (&cw);
+  gum_x86_writer_clear (&cw);
 
   gum_event_sink_start (infect_context->sink);
 }
@@ -967,8 +967,8 @@ gum_exec_ctx_free (GumExecCtx * ctx)
 
   g_object_unref (ctx->sink);
 
-  gum_x86_relocator_free (&ctx->relocator);
-  gum_x86_writer_free (&ctx->code_writer);
+  gum_x86_relocator_clear (&ctx->relocator);
+  gum_x86_writer_clear (&ctx->code_writer);
 
   g_object_unref (ctx->stalker);
 
@@ -1034,7 +1034,7 @@ gum_exec_ctx_create_thunks (GumExecCtx * ctx)
 
   ctx->infect_thunk = gum_x86_writer_cur (&cw);
 
-  gum_x86_writer_free (&cw);
+  gum_x86_writer_clear (&cw);
 }
 
 static void

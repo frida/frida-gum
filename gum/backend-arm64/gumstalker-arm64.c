@@ -593,7 +593,7 @@ gum_stalker_infect (GumThreadId thread_id,
 
   gum_arm64_writer_put_branch_address (&cw, GUM_ADDRESS (code_address + 4));
 
-  gum_arm64_writer_free (&cw);
+  gum_arm64_writer_clear (&cw);
 
   gum_event_sink_start (infect_context->sink);
 }
@@ -826,8 +826,8 @@ gum_exec_ctx_free (GumExecCtx * ctx)
 
   g_object_unref (ctx->sink);
 
-  gum_arm64_relocator_free (&ctx->relocator);
-  gum_arm64_writer_free (&ctx->code_writer);
+  gum_arm64_relocator_clear (&ctx->relocator);
+  gum_arm64_writer_clear (&ctx->code_writer);
 
   g_object_unref (ctx->stalker);
 
@@ -894,7 +894,7 @@ gum_exec_ctx_create_thunks (GumExecCtx * ctx)
 
   ctx->infect_thunk = gum_arm64_writer_cur (&cw);
 
-  gum_arm64_writer_free (&cw);
+  gum_arm64_writer_clear (&cw);
 }
 
 static void

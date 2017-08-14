@@ -42,7 +42,7 @@ lowlevel_helpers_init (void)
   gum_x86_writer_put_nop (&cw);
   gum_x86_writer_put_nop (&cw);
   gum_x86_writer_put_ret (&cw);
-  gum_x86_writer_free (&cw);
+  gum_x86_writer_clear (&cw);
 }
 
 void
@@ -306,7 +306,7 @@ invoke_clobber_test_function_with_cpu_context (const GumCpuContext * input,
   gum_x86_writer_put_popax (&cw);
   gum_x86_writer_put_ret (&cw);
 
-  gum_x86_writer_free (&cw);
+  gum_x86_writer_clear (&cw);
 
   func = GUM_POINTER_TO_FUNCPTR (InvokeWithCpuContextFunc, code);
   func (input, output);
@@ -360,7 +360,7 @@ invoke_clobber_test_function_with_carry_set (gsize * flags_input,
 
   gum_x86_writer_put_ret (&cw);
 
-  gum_x86_writer_free (&cw);
+  gum_x86_writer_clear (&cw);
 
   func = GUM_POINTER_TO_FUNCPTR (InvokeWithCpuFlagsFunc, code);
   func (flags_input, flags_output);

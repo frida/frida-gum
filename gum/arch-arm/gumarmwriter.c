@@ -21,13 +21,54 @@ struct _GumArmLiteralRef
   guint32 val;
 };
 
+GumArmWriter *
+gum_arm_writer_new (gpointer code_address)
+{
+  GumArmWriter * writer;
+
+  writer = g_slice_new (GumArmWriter);
+
+  gum_arm_writer_init (writer, code_address);
+
+  return writer;
+}
+
+GumArmWriter *
+gum_arm_writer_ref (GumArmWriter * writer)
+{
+  g_atomic_int_inc (&writer->ref_count);
+
+  return writer;
+}
+
+void
+gum_arm_writer_unref (GumArmWriter * writer)
+{
+  if (g_atomic_int_dec_and_test (&writer->ref_count))
+  {
+    gum_arm_writer_clear (writer);
+
+    g_slice_free (GumArmWriter, writer);
+  }
+}
+
 void
 gum_arm_writer_init (GumArmWriter * writer,
                      gpointer code_address)
 {
+  writer->ref_count = 1;
+
   writer->literal_refs = g_new (GumArmLiteralRef, GUM_MAX_LITERAL_REF_COUNT);
 
   gum_arm_writer_reset (writer, code_address);
+}
+
+void
+gum_arm_writer_clear (GumArmWriter * writer)
+{
+  gum_arm_writer_flush (writer);
+
+  g_free (writer->literal_refs);
 }
 
 void
@@ -41,14 +82,6 @@ gum_arm_writer_reset (GumArmWriter * writer,
   writer->pc = GUM_ADDRESS (code_address);
 
   writer->literal_refs_len = 0;
-}
-
-void
-gum_arm_writer_free (GumArmWriter * writer)
-{
-  gum_arm_writer_flush (writer);
-
-  g_free (writer->literal_refs);
 }
 
 void

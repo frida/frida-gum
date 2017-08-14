@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -36,6 +36,38 @@ static gboolean gum_thumb_relocator_rewrite_bl (GumThumbRelocator * self,
 static gboolean gum_thumb_relocator_rewrite_cbz (GumThumbRelocator * self,
     GumCodeGenCtx * ctx);
 
+GumThumbRelocator *
+gum_thumb_relocator_new (gconstpointer input_code,
+                         GumThumbWriter * output)
+{
+  GumThumbRelocator * relocator;
+
+  relocator = g_slice_new (GumThumbRelocator);
+
+  gum_thumb_relocator_init (relocator, input_code, output);
+
+  return relocator;
+}
+
+GumThumbRelocator *
+gum_thumb_relocator_ref (GumThumbRelocator * relocator)
+{
+  g_atomic_int_inc (&relocator->ref_count);
+
+  return relocator;
+}
+
+void
+gum_thumb_relocator_unref (GumThumbRelocator * relocator)
+{
+  if (g_atomic_int_dec_and_test (&relocator->ref_count))
+  {
+    gum_thumb_relocator_clear (relocator);
+
+    g_slice_free (GumThumbRelocator, relocator);
+  }
+}
+
 void
 gum_thumb_relocator_init (GumThumbRelocator * relocator,
                           gconstpointer input_code,
@@ -43,13 +75,27 @@ gum_thumb_relocator_init (GumThumbRelocator * relocator,
 {
   cs_err err;
 
+  relocator->ref_count = 1;
+
   err = cs_open (CS_ARCH_ARM, CS_MODE_THUMB, &relocator->capstone);
   g_assert_cmpint (err, ==, CS_ERR_OK);
   err = cs_option (relocator->capstone, CS_OPT_DETAIL, CS_OPT_ON);
   g_assert_cmpint (err, ==, CS_ERR_OK);
   relocator->input_insns = g_new0 (cs_insn *, GUM_MAX_INPUT_INSN_COUNT);
 
+  relocator->output = NULL;
+
   gum_thumb_relocator_reset (relocator, input_code, output);
+}
+
+void
+gum_thumb_relocator_clear (GumThumbRelocator * relocator)
+{
+  gum_thumb_relocator_reset (relocator, NULL, NULL);
+
+  g_free (relocator->input_insns);
+
+  cs_close (&relocator->capstone);
 }
 
 void
@@ -71,6 +117,11 @@ gum_thumb_relocator_reset (GumThumbRelocator * relocator,
       relocator->input_insns[i] = NULL;
     }
   }
+
+  if (output != NULL)
+    gum_thumb_writer_ref (output);
+  if (relocator->output != NULL)
+    gum_thumb_writer_unref (relocator->output);
   relocator->output = output;
 
   relocator->inpos = 0;
@@ -78,17 +129,6 @@ gum_thumb_relocator_reset (GumThumbRelocator * relocator,
 
   relocator->eob = FALSE;
   relocator->eoi = FALSE;
-}
-
-void
-gum_thumb_relocator_free (GumThumbRelocator * relocator)
-{
-  gum_thumb_relocator_reset (relocator, relocator->input_start,
-      relocator->output);
-
-  g_free (relocator->input_insns);
-
-  cs_close (&relocator->capstone);
 }
 
 static guint
@@ -415,9 +455,9 @@ gum_thumb_relocator_can_relocate (gpointer address,
     cs_close (&capstone);
   }
 
-  gum_thumb_relocator_free (&rl);
+  gum_thumb_relocator_clear (&rl);
 
-  gum_thumb_writer_free (&cw);
+  gum_thumb_writer_clear (&cw);
 
   if (maximum != NULL)
     *maximum = n;
@@ -447,8 +487,8 @@ gum_thumb_relocator_relocate (gpointer from,
 
   gum_thumb_relocator_write_all (&rl);
 
-  gum_thumb_relocator_free (&rl);
-  gum_thumb_writer_free (&cw);
+  gum_thumb_relocator_clear (&rl);
+  gum_thumb_writer_clear (&cw);
 
   return reloc_bytes;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2009-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -17,6 +17,8 @@ typedef struct _GumX86Relocator GumX86Relocator;
 
 struct _GumX86Relocator
 {
+  volatile gint ref_count;
+
   csh capstone;
 
   const guint8 * input_start;
@@ -31,11 +33,17 @@ struct _GumX86Relocator
   gboolean eoi;
 };
 
+GumX86Relocator * gum_x86_relocator_new (gconstpointer input_code,
+    GumX86Writer * output);
+GumX86Relocator * gum_x86_relocator_ref (GumX86Relocator * relocator);
+void gum_x86_relocator_unref (GumX86Relocator * relocator);
+
 void gum_x86_relocator_init (GumX86Relocator * relocator,
     gconstpointer input_code, GumX86Writer * output);
+void gum_x86_relocator_clear (GumX86Relocator * relocator);
+
 void gum_x86_relocator_reset (GumX86Relocator * relocator,
     gconstpointer input_code, GumX86Writer * output);
-void gum_x86_relocator_free (GumX86Relocator * relocator);
 
 guint gum_x86_relocator_read_one (GumX86Relocator * self,
     const cs_insn ** instruction);

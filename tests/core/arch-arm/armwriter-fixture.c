@@ -34,7 +34,7 @@ static void
 test_arm_writer_fixture_teardown (TestArmWriterFixture * fixture,
                                   gconstpointer data)
 {
-  gum_arm_writer_free (&fixture->aw);
+  gum_arm_writer_clear (&fixture->aw);
 }
 
 #define assert_output_n_equals(n, v) \

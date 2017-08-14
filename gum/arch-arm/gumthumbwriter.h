@@ -21,6 +21,8 @@ typedef struct _GumThumbLiteralRef GumThumbLiteralRef;
 
 struct _GumThumbWriter
 {
+  volatile gint ref_count;
+
   GumOS target_os;
 
   guint16 * base;
@@ -37,10 +39,14 @@ struct _GumThumbWriter
   guint literal_refs_len;
 };
 
-void gum_thumb_writer_init (GumThumbWriter * writer, gpointer code_address);
-void gum_thumb_writer_reset (GumThumbWriter * writer, gpointer code_address);
-void gum_thumb_writer_free (GumThumbWriter * writer);
+GumThumbWriter * gum_thumb_writer_new (gpointer code_address);
+GumThumbWriter * gum_thumb_writer_ref (GumThumbWriter * writer);
+void gum_thumb_writer_unref (GumThumbWriter * writer);
 
+void gum_thumb_writer_init (GumThumbWriter * writer, gpointer code_address);
+void gum_thumb_writer_clear (GumThumbWriter * writer);
+
+void gum_thumb_writer_reset (GumThumbWriter * writer, gpointer code_address);
 void gum_thumb_writer_set_target_os (GumThumbWriter * self, GumOS os);
 
 gpointer gum_thumb_writer_cur (GumThumbWriter * self);

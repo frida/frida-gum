@@ -176,7 +176,7 @@ test_stalker_fixture_follow_and_invoke (TestStalkerFixture * fixture,
 
   gum_x86_writer_put_ret (&cw);
 
-  gum_x86_writer_free (&cw);
+  gum_x86_writer_clear (&cw);
 
   invoke_func = GUM_POINTER_TO_FUNCPTR (GCallback, code);
   invoke_func ();

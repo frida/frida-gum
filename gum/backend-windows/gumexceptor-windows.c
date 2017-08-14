@@ -114,7 +114,7 @@ gum_exceptor_backend_init (GumExceptorBackend * self)
           gum_x86_writer_init (&cw, self->trampoline);
           gum_x86_writer_put_jmp (&cw,
               GUM_FUNCPTR_TO_POINTER (gum_exceptor_backend_dispatch));
-          gum_x86_writer_free (&cw);
+          gum_x86_writer_clear (&cw);
 
           distance = (gssize) self->trampoline - (gssize) call_end;
         }

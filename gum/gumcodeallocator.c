@@ -624,7 +624,7 @@ gum_insert_deflector (gpointer cave,
           GUM_ADDRESS (ctx->dedicated_target));
       gum_arm_writer_flush (&aw);
       g_assert_cmpuint (gum_arm_writer_offset (&aw), <=, ctx->max_size);
-      gum_arm_writer_free (&aw);
+      gum_arm_writer_clear (&aw);
 
       dispatcher->trampoline = GSIZE_TO_POINTER (ctx->pc);
 
@@ -646,7 +646,7 @@ gum_insert_deflector (gpointer cave,
 
   gum_thumb_writer_flush (&tw);
   g_assert_cmpuint (gum_thumb_writer_offset (&tw), <=, ctx->max_size);
-  gum_thumb_writer_free (&tw);
+  gum_thumb_writer_clear (&tw);
 
   dispatcher->trampoline = GSIZE_TO_POINTER (ctx->pc + 1);
 # elif defined (HAVE_ARM64)
@@ -672,7 +672,7 @@ gum_insert_deflector (gpointer cave,
 
   gum_arm64_writer_flush (&aw);
   g_assert_cmpuint (gum_arm64_writer_offset (&aw), <=, ctx->max_size);
-  gum_arm64_writer_free (&aw);
+  gum_arm64_writer_clear (&aw);
 
   dispatcher->trampoline = GSIZE_TO_POINTER (ctx->pc);
 # else
@@ -700,7 +700,7 @@ gum_write_thunk (gpointer thunk,
   gum_thumb_writer_put_pop_regs (&tw, 2, ARM_REG_R9, ARM_REG_R12);
 
   gum_thumb_writer_put_bx_reg (&tw, ARM_REG_R0);
-  gum_thumb_writer_free (&tw);
+  gum_thumb_writer_clear (&tw);
 # elif defined (HAVE_ARM64)
   GumArm64Writer aw;
 
@@ -745,7 +745,7 @@ gum_write_thunk (gpointer thunk,
   gum_arm64_writer_put_instruction (&aw, 0xacc11fe6);
 
   gum_arm64_writer_put_br_reg (&aw, ARM64_REG_X0);
-  gum_arm64_writer_free (&aw);
+  gum_arm64_writer_clear (&aw);
 # else
   (void) gum_code_deflector_dispatcher_lookup;
 # endif

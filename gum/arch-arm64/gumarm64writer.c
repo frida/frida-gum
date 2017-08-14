@@ -134,15 +134,58 @@ static void gum_arm64_writer_describe_reg (GumArm64Writer * self,
 static GumArm64MemOperandType gum_arm64_mem_operand_type_from_reg_info (
     const GumArm64RegInfo * ri);
 
+GumArm64Writer *
+gum_arm64_writer_new (gpointer code_address)
+{
+  GumArm64Writer * writer;
+
+  writer = g_slice_new (GumArm64Writer);
+
+  gum_arm64_writer_init (writer, code_address);
+
+  return writer;
+}
+
+GumArm64Writer *
+gum_arm64_writer_ref (GumArm64Writer * writer)
+{
+  g_atomic_int_inc (&writer->ref_count);
+
+  return writer;
+}
+
+void
+gum_arm64_writer_unref (GumArm64Writer * writer)
+{
+  if (g_atomic_int_dec_and_test (&writer->ref_count))
+  {
+    gum_arm64_writer_clear (writer);
+
+    g_slice_free (GumArm64Writer, writer);
+  }
+}
+
 void
 gum_arm64_writer_init (GumArm64Writer * writer,
                        gpointer code_address)
 {
+  writer->ref_count = 1;
+
   writer->id_to_address = g_new (GumArm64LabelMapping, GUM_MAX_LABEL_COUNT);
   writer->label_refs = g_new (GumArm64LabelRef, GUM_MAX_LABEL_REF_COUNT);
   writer->literal_refs = g_new (GumArm64LiteralRef, GUM_MAX_LITERAL_REF_COUNT);
 
   gum_arm64_writer_reset (writer, code_address);
+}
+
+void
+gum_arm64_writer_clear (GumArm64Writer * writer)
+{
+  gum_arm64_writer_flush (writer);
+
+  g_free (writer->id_to_address);
+  g_free (writer->label_refs);
+  g_free (writer->literal_refs);
 }
 
 void
@@ -156,16 +199,6 @@ gum_arm64_writer_reset (GumArm64Writer * writer,
   writer->id_to_address_len = 0;
   writer->label_refs_len = 0;
   writer->literal_refs_len = 0;
-}
-
-void
-gum_arm64_writer_free (GumArm64Writer * writer)
-{
-  gum_arm64_writer_flush (writer);
-
-  g_free (writer->id_to_address);
-  g_free (writer->label_refs);
-  g_free (writer->literal_refs);
 }
 
 gpointer

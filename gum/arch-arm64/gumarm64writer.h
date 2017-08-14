@@ -24,6 +24,8 @@ typedef guint GumArm64IndexMode;
 
 struct _GumArm64Writer
 {
+  volatile gint ref_count;
+
   guint32 * base;
   guint32 * code;
   GumAddress pc;
@@ -45,9 +47,14 @@ enum _GumArm64IndexMode
   GUM_INDEX_PRE_ADJUST    = 3,
 };
 
+GumArm64Writer * gum_arm64_writer_new (gpointer code_address);
+GumArm64Writer * gum_arm64_writer_ref (GumArm64Writer * writer);
+void gum_arm64_writer_unref (GumArm64Writer * writer);
+
 void gum_arm64_writer_init (GumArm64Writer * writer, gpointer code_address);
+void gum_arm64_writer_clear (GumArm64Writer * writer);
+
 void gum_arm64_writer_reset (GumArm64Writer * writer, gpointer code_address);
-void gum_arm64_writer_free (GumArm64Writer * writer);
 
 gpointer gum_arm64_writer_cur (GumArm64Writer * self);
 guint gum_arm64_writer_offset (GumArm64Writer * self);

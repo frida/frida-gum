@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -17,6 +17,8 @@ typedef struct _GumThumbRelocator GumThumbRelocator;
 
 struct _GumThumbRelocator
 {
+  volatile gint ref_count;
+
   csh capstone;
 
   const guint8 * input_start;
@@ -32,11 +34,17 @@ struct _GumThumbRelocator
   gboolean eoi;
 };
 
+GumThumbRelocator * gum_thumb_relocator_new (gconstpointer input_code,
+    GumThumbWriter * output);
+GumThumbRelocator * gum_thumb_relocator_ref (GumThumbRelocator * relocator);
+void gum_thumb_relocator_unref (GumThumbRelocator * relocator);
+
 void gum_thumb_relocator_init (GumThumbRelocator * relocator,
     gconstpointer input_code, GumThumbWriter * output);
+void gum_thumb_relocator_clear (GumThumbRelocator * relocator);
+
 void gum_thumb_relocator_reset (GumThumbRelocator * relocator,
     gconstpointer input_code, GumThumbWriter * output);
-void gum_thumb_relocator_free (GumThumbRelocator * relocator);
 
 guint gum_thumb_relocator_read_one (GumThumbRelocator * self,
     const cs_insn ** instruction);

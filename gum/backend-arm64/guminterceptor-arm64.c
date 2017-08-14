@@ -75,8 +75,8 @@ _gum_interceptor_backend_destroy (GumInterceptorBackend * backend)
 {
   gum_interceptor_backend_destroy_thunks (backend);
 
-  gum_arm64_relocator_free (&backend->relocator);
-  gum_arm64_writer_free (&backend->writer);
+  gum_arm64_relocator_clear (&backend->relocator);
+  gum_arm64_writer_clear (&backend->writer);
 
   g_slice_free (GumInterceptorBackend, backend);
 }

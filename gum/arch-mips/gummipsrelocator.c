@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2014-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -25,12 +25,46 @@ struct _GumCodeGenCtx
 
 static gboolean gum_mips_has_delay_slot (const cs_insn * insn);
 
+GumMipsRelocator *
+gum_mips_relocator_new (gconstpointer input_code,
+                        GumMipsWriter * output)
+{
+  GumMipsRelocator * relocator;
+
+  relocator = g_slice_new (GumMipsRelocator);
+
+  gum_mips_relocator_init (relocator, input_code, output);
+
+  return relocator;
+}
+
+GumMipsRelocator *
+gum_mips_relocator_ref (GumMipsRelocator * relocator)
+{
+  g_atomic_int_inc (&relocator->ref_count);
+
+  return relocator;
+}
+
+void
+gum_mips_relocator_unref (GumMipsRelocator * relocator)
+{
+  if (g_atomic_int_dec_and_test (&relocator->ref_count))
+  {
+    gum_mips_relocator_clear (relocator);
+
+    g_slice_free (GumMipsRelocator, relocator);
+  }
+}
+
 void
 gum_mips_relocator_init (GumMipsRelocator * relocator,
                          gconstpointer input_code,
                          GumMipsWriter * output)
 {
   cs_err err;
+
+  relocator->ref_count = 1;
 
 #if G_BYTE_ORDER == G_LITTLE_ENDIAN
   err = cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_LITTLE_ENDIAN,
@@ -44,7 +78,19 @@ gum_mips_relocator_init (GumMipsRelocator * relocator,
   g_assert_cmpint (err, ==, CS_ERR_OK);
   relocator->input_insns = g_new0 (cs_insn *, GUM_MAX_INPUT_INSN_COUNT);
 
+  relocator->output = NULL;
+
   gum_mips_relocator_reset (relocator, input_code, output);
+}
+
+void
+gum_mips_relocator_clear (GumMipsRelocator * relocator)
+{
+  gum_mips_relocator_reset (relocator, NULL, NULL);
+
+  g_free (relocator->input_insns);
+
+  cs_close (&relocator->capstone);
 }
 
 void
@@ -66,6 +112,11 @@ gum_mips_relocator_reset (GumMipsRelocator * relocator,
       relocator->input_insns[i] = NULL;
     }
   }
+
+  if (output != NULL)
+    gum_mips_writer_ref (output);
+  if (relocator->output != NULL)
+    gum_mips_writer_unref (relocator->output);
   relocator->output = output;
 
   relocator->inpos = 0;
@@ -74,17 +125,6 @@ gum_mips_relocator_reset (GumMipsRelocator * relocator,
   relocator->eob = FALSE;
   relocator->eoi = FALSE;
   relocator->delay_slot_pending = FALSE;
-}
-
-void
-gum_mips_relocator_free (GumMipsRelocator * relocator)
-{
-  gum_mips_relocator_reset (relocator, relocator->input_start,
-      relocator->output);
-
-  g_free (relocator->input_insns);
-
-  cs_close (&relocator->capstone);
 }
 
 static guint
@@ -467,9 +507,9 @@ gum_mips_relocator_can_relocate (gpointer address,
       *available_scratch_reg = MIPS_REG_INVALID;
   }
 
-  gum_mips_relocator_free (&rl);
+  gum_mips_relocator_clear (&rl);
 
-  gum_mips_writer_free (&cw);
+  gum_mips_writer_clear (&cw);
 
   if (maximum != NULL)
     *maximum = n;
@@ -499,8 +539,8 @@ gum_mips_relocator_relocate (gpointer from,
 
   gum_mips_relocator_write_all (&rl);
 
-  gum_mips_relocator_free (&rl);
-  gum_mips_writer_free (&cw);
+  gum_mips_relocator_clear (&rl);
+  gum_mips_writer_clear (&cw);
 
   return reloc_bytes;
 }

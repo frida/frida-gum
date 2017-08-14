@@ -92,14 +92,56 @@ static gboolean gum_x86_writer_put_prefix_for_registers (GumX86Writer * self,
 
 static guint8 gum_get_jcc_opcode (x86_insn instruction_id);
 
+GumX86Writer *
+gum_x86_writer_new (gpointer code_address)
+{
+  GumX86Writer * writer;
+
+  writer = g_slice_new (GumX86Writer);
+
+  gum_x86_writer_init (writer, code_address);
+
+  return writer;
+}
+
+GumX86Writer *
+gum_x86_writer_ref (GumX86Writer * writer)
+{
+  g_atomic_int_inc (&writer->ref_count);
+
+  return writer;
+}
+
+void
+gum_x86_writer_unref (GumX86Writer * writer)
+{
+  if (g_atomic_int_dec_and_test (&writer->ref_count))
+  {
+    gum_x86_writer_clear (writer);
+
+    g_slice_free (GumX86Writer, writer);
+  }
+}
+
 void
 gum_x86_writer_init (GumX86Writer * writer,
                      gpointer code_address)
 {
+  writer->ref_count = 1;
+
   writer->id_to_address = g_new (GumX86LabelMapping, GUM_MAX_LABEL_COUNT);
   writer->label_refs = g_new (GumX86LabelRef, GUM_MAX_LREF_COUNT);
 
   gum_x86_writer_reset (writer, code_address);
+}
+
+void
+gum_x86_writer_clear (GumX86Writer * writer)
+{
+  gum_x86_writer_flush (writer);
+
+  g_free (writer->id_to_address);
+  g_free (writer->label_refs);
 }
 
 void
@@ -119,15 +161,6 @@ gum_x86_writer_reset (GumX86Writer * writer,
 
   writer->id_to_address_len = 0;
   writer->label_refs_len = 0;
-}
-
-void
-gum_x86_writer_free (GumX86Writer * writer)
-{
-  gum_x86_writer_flush (writer);
-
-  g_free (writer->id_to_address);
-  g_free (writer->label_refs);
 }
 
 void

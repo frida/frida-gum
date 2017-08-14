@@ -37,7 +37,7 @@ static void
 test_code_writer_fixture_teardown (TestCodeWriterFixture * fixture,
                                    gconstpointer data)
 {
-  gum_x86_writer_free (&fixture->cw);
+  gum_x86_writer_clear (&fixture->cw);
 }
 
 static void

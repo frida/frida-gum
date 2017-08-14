@@ -35,7 +35,7 @@ static void
 test_thumb_writer_fixture_teardown (TestThumbWriterFixture * fixture,
                                     gconstpointer data)
 {
-  gum_thumb_writer_free (&fixture->tw);
+  gum_thumb_writer_clear (&fixture->tw);
   g_free (fixture->output);
 }
 

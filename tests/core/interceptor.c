@@ -173,7 +173,7 @@ INTERCEPTOR_TESTCASE (attach_to_unaligned_function)
       ARM_REG_R7, ARM_REG_PC);
   gum_thumb_writer_flush (&tw);
   gum_clear_cache (tw.base, gum_thumb_writer_offset (&tw));
-  gum_thumb_writer_free (&tw);
+  gum_thumb_writer_clear (&tw);
 
   f = code + 1;
 

@@ -50,8 +50,8 @@ static void
 test_relocator_fixture_teardown (TestRelocatorFixture * fixture,
                                  gconstpointer data)
 {
-  gum_x86_relocator_free (&fixture->rl);
-  gum_x86_writer_free (&fixture->cw);
+  gum_x86_relocator_clear (&fixture->rl);
+  gum_x86_writer_clear (&fixture->cw);
   gum_free_pages (fixture->output);
 }
 

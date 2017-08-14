@@ -74,15 +74,58 @@ static gboolean gum_thumb_writer_put_transfer_reg_reg_offset (
 
 static gboolean gum_instruction_is_t1_load (guint16 instruction);
 
+GumThumbWriter *
+gum_thumb_writer_new (gpointer code_address)
+{
+  GumThumbWriter * writer;
+
+  writer = g_slice_new (GumThumbWriter);
+
+  gum_thumb_writer_init (writer, code_address);
+
+  return writer;
+}
+
+GumThumbWriter *
+gum_thumb_writer_ref (GumThumbWriter * writer)
+{
+  g_atomic_int_inc (&writer->ref_count);
+
+  return writer;
+}
+
+void
+gum_thumb_writer_unref (GumThumbWriter * writer)
+{
+  if (g_atomic_int_dec_and_test (&writer->ref_count))
+  {
+    gum_thumb_writer_clear (writer);
+
+    g_slice_free (GumThumbWriter, writer);
+  }
+}
+
 void
 gum_thumb_writer_init (GumThumbWriter * writer,
                        gpointer code_address)
 {
+  writer->ref_count = 1;
+
   writer->id_to_address = g_new (GumThumbLabelMapping, GUM_MAX_LABEL_COUNT);
   writer->label_refs = g_new (GumThumbLabelRef, GUM_MAX_LREF_COUNT);
   writer->literal_refs = g_new (GumThumbLiteralRef, GUM_MAX_LITERAL_REF_COUNT);
 
   gum_thumb_writer_reset (writer, code_address);
+}
+
+void
+gum_thumb_writer_clear (GumThumbWriter * writer)
+{
+  gum_thumb_writer_flush (writer);
+
+  g_free (writer->id_to_address);
+  g_free (writer->label_refs);
+  g_free (writer->literal_refs);
 }
 
 void
@@ -98,16 +141,6 @@ gum_thumb_writer_reset (GumThumbWriter * writer,
   writer->id_to_address_len = 0;
   writer->label_refs_len = 0;
   writer->literal_refs_len = 0;
-}
-
-void
-gum_thumb_writer_free (GumThumbWriter * writer)
-{
-  gum_thumb_writer_flush (writer);
-
-  g_free (writer->id_to_address);
-  g_free (writer->label_refs);
-  g_free (writer->literal_refs);
 }
 
 void

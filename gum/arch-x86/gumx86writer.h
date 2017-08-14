@@ -22,6 +22,8 @@ typedef struct _GumX86LabelRef GumX86LabelRef;
 
 struct _GumX86Writer
 {
+  volatile gint ref_count;
+
   GumCpuType target_cpu;
   GumAbiType target_abi;
 
@@ -102,10 +104,14 @@ enum _GumPtrTarget
   GUM_PTR_QWORD
 };
 
-void gum_x86_writer_init (GumX86Writer * writer, gpointer code_address);
-void gum_x86_writer_reset (GumX86Writer * writer, gpointer code_address);
-void gum_x86_writer_free (GumX86Writer * writer);
+GumX86Writer * gum_x86_writer_new (gpointer code_address);
+GumX86Writer * gum_x86_writer_ref (GumX86Writer * writer);
+void gum_x86_writer_unref (GumX86Writer * writer);
 
+void gum_x86_writer_init (GumX86Writer * writer, gpointer code_address);
+void gum_x86_writer_clear (GumX86Writer * writer);
+
+void gum_x86_writer_reset (GumX86Writer * writer, gpointer code_address);
 void gum_x86_writer_set_target_cpu (GumX86Writer * self, GumCpuType cpu_type);
 void gum_x86_writer_set_target_abi (GumX86Writer * self, GumAbiType abi_type);
 

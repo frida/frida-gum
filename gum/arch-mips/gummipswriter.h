@@ -21,6 +21,8 @@ typedef struct _GumMipsLiteralRef GumMipsLiteralRef;
 
 struct _GumMipsWriter
 {
+  volatile gint ref_count;
+
   guint32 * base;
   guint32 * code;
   GumAddress pc;
@@ -35,9 +37,14 @@ struct _GumMipsWriter
   guint literal_refs_len;
 };
 
+GumMipsWriter * gum_mips_writer_new (gpointer code_address);
+GumMipsWriter * gum_mips_writer_ref (GumMipsWriter * writer);
+void gum_mips_writer_unref (GumMipsWriter * writer);
+
 void gum_mips_writer_init (GumMipsWriter * writer, gpointer code_address);
+void gum_mips_writer_clear (GumMipsWriter * writer);
+
 void gum_mips_writer_reset (GumMipsWriter * writer, gpointer code_address);
-void gum_mips_writer_free (GumMipsWriter * writer);
 
 gpointer gum_mips_writer_cur (GumMipsWriter * self);
 guint gum_mips_writer_offset (GumMipsWriter * self);

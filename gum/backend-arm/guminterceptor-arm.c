@@ -96,11 +96,11 @@ _gum_interceptor_backend_destroy (GumInterceptorBackend * backend)
 {
   gum_interceptor_backend_destroy_thunks (backend);
 
-  gum_thumb_relocator_free (&backend->thumb_relocator);
-  gum_thumb_writer_free (&backend->thumb_writer);
+  gum_thumb_relocator_clear (&backend->thumb_relocator);
+  gum_thumb_writer_clear (&backend->thumb_writer);
 
-  gum_arm_relocator_free (&backend->arm_relocator);
-  gum_arm_writer_free (&backend->arm_writer);
+  gum_arm_relocator_clear (&backend->arm_relocator);
+  gum_arm_writer_clear (&backend->arm_writer);
 
   g_slice_free (GumInterceptorBackend, backend);
 }

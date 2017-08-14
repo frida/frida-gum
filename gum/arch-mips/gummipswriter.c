@@ -139,15 +139,58 @@ static void gum_mips_writer_put_argument_list_teardown (GumMipsWriter * self,
 static void gum_mips_writer_describe_reg (GumMipsWriter * self, mips_reg reg,
     GumMipsRegInfo * ri);
 
+GumMipsWriter *
+gum_mips_writer_new (gpointer code_address)
+{
+  GumMipsWriter * writer;
+
+  writer = g_slice_new (GumMipsWriter);
+
+  gum_mips_writer_init (writer, code_address);
+
+  return writer;
+}
+
+GumMipsWriter *
+gum_mips_writer_ref (GumMipsWriter * writer)
+{
+  g_atomic_int_inc (&writer->ref_count);
+
+  return writer;
+}
+
+void
+gum_mips_writer_unref (GumMipsWriter * writer)
+{
+  if (g_atomic_int_dec_and_test (&writer->ref_count))
+  {
+    gum_mips_writer_clear (writer);
+
+    g_slice_free (GumMipsWriter, writer);
+  }
+}
+
 void
 gum_mips_writer_init (GumMipsWriter * writer,
                       gpointer code_address)
 {
+  writer->ref_count = 1;
+
   writer->id_to_address = g_new (GumMipsLabelMapping, GUM_MAX_LABEL_COUNT);
   writer->label_refs = g_new (GumMipsLabelRef, GUM_MAX_LABEL_REF_COUNT);
   writer->literal_refs = g_new (GumMipsLiteralRef, GUM_MAX_LITERAL_REF_COUNT);
 
   gum_mips_writer_reset (writer, code_address);
+}
+
+void
+gum_mips_writer_clear (GumMipsWriter * writer)
+{
+  gum_mips_writer_flush (writer);
+
+  g_free (writer->id_to_address);
+  g_free (writer->label_refs);
+  g_free (writer->literal_refs);
 }
 
 void
@@ -161,16 +204,6 @@ gum_mips_writer_reset (GumMipsWriter * writer,
   writer->id_to_address_len = 0;
   writer->label_refs_len = 0;
   writer->literal_refs_len = 0;
-}
-
-void
-gum_mips_writer_free (GumMipsWriter * writer)
-{
-  gum_mips_writer_flush (writer);
-
-  g_free (writer->id_to_address);
-  g_free (writer->label_refs);
-  g_free (writer->literal_refs);
 }
 
 gpointer

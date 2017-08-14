@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2009-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -41,12 +41,46 @@ static gboolean gum_x86_call_is_to_next_instruction (cs_insn * insn);
 static gboolean gum_x86_call_try_parse_get_pc_thunk (cs_insn * insn,
     GumCpuType cpu_type, GumCpuReg * pc_reg);
 
+GumX86Relocator *
+gum_x86_relocator_new (gconstpointer input_code,
+                       GumX86Writer * output)
+{
+  GumX86Relocator * relocator;
+
+  relocator = g_slice_new (GumX86Relocator);
+
+  gum_x86_relocator_init (relocator, input_code, output);
+
+  return relocator;
+}
+
+GumX86Relocator *
+gum_x86_relocator_ref (GumX86Relocator * relocator)
+{
+  g_atomic_int_inc (&relocator->ref_count);
+
+  return relocator;
+}
+
+void
+gum_x86_relocator_unref (GumX86Relocator * relocator)
+{
+  if (g_atomic_int_dec_and_test (&relocator->ref_count))
+  {
+    gum_x86_relocator_clear (relocator);
+
+    g_slice_free (GumX86Relocator, relocator);
+  }
+}
+
 void
 gum_x86_relocator_init (GumX86Relocator * relocator,
                         gconstpointer input_code,
                         GumX86Writer * output)
 {
   cs_err err;
+
+  relocator->ref_count = 1;
 
   err = cs_open (CS_ARCH_X86,
       (output->target_cpu == GUM_CPU_AMD64) ? CS_MODE_64 : CS_MODE_32,
@@ -56,7 +90,19 @@ gum_x86_relocator_init (GumX86Relocator * relocator,
   g_assert_cmpint (err, ==, CS_ERR_OK);
   relocator->input_insns = g_new0 (cs_insn *, GUM_MAX_INPUT_INSN_COUNT);
 
+  relocator->output = NULL;
+
   gum_x86_relocator_reset (relocator, input_code, output);
+}
+
+void
+gum_x86_relocator_clear (GumX86Relocator * relocator)
+{
+  gum_x86_relocator_reset (relocator, NULL, NULL);
+
+  g_free (relocator->input_insns);
+
+  cs_close (&relocator->capstone);
 }
 
 void
@@ -77,6 +123,11 @@ gum_x86_relocator_reset (GumX86Relocator * relocator,
       relocator->input_insns[i] = NULL;
     }
   }
+
+  if (output != NULL)
+    gum_x86_writer_ref (output);
+  if (relocator->output != NULL)
+    gum_x86_writer_unref (relocator->output);
   relocator->output = output;
 
   relocator->inpos = 0;
@@ -84,17 +135,6 @@ gum_x86_relocator_reset (GumX86Relocator * relocator,
 
   relocator->eob = FALSE;
   relocator->eoi = FALSE;
-}
-
-void
-gum_x86_relocator_free (GumX86Relocator * relocator)
-{
-  gum_x86_relocator_reset (relocator, relocator->input_start,
-      relocator->output);
-
-  g_free (relocator->input_insns);
-
-  cs_close (&relocator->capstone);
 }
 
 static guint
@@ -345,9 +385,9 @@ gum_x86_relocator_can_relocate (gpointer address,
   }
   while (reloc_bytes < min_bytes);
 
-  gum_x86_relocator_free (&rl);
+  gum_x86_relocator_clear (&rl);
 
-  gum_x86_writer_free (&cw);
+  gum_x86_writer_clear (&cw);
 
   if (maximum != NULL)
     *maximum = n;
@@ -377,8 +417,8 @@ gum_x86_relocator_relocate (gpointer from,
 
   gum_x86_relocator_write_all (&rl);
 
-  gum_x86_relocator_free (&rl);
-  gum_x86_writer_free (&cw);
+  gum_x86_relocator_clear (&rl);
+  gum_x86_writer_clear (&cw);
 
   return reloc_bytes;
 }

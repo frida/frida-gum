@@ -35,7 +35,7 @@ static void
 test_arm64_writer_fixture_teardown (TestArm64WriterFixture * fixture,
                                     gconstpointer data)
 {
-  gum_arm64_writer_free (&fixture->aw);
+  gum_arm64_writer_clear (&fixture->aw);
   g_free (fixture->output);
 }
 

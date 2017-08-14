@@ -41,8 +41,8 @@ static void
 test_thumb_relocator_fixture_teardown (TestThumbRelocatorFixture * fixture,
                                        gconstpointer data)
 {
-  gum_thumb_relocator_free (&fixture->rl);
-  gum_thumb_writer_free (&fixture->tw);
+  gum_thumb_relocator_clear (&fixture->rl);
+  gum_thumb_writer_clear (&fixture->tw);
   gum_free_pages (fixture->output);
 }
 

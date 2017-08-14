@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2014-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -17,6 +17,8 @@ typedef struct _GumArm64Relocator GumArm64Relocator;
 
 struct _GumArm64Relocator
 {
+  volatile gint ref_count;
+
   csh capstone;
 
   const guint8 * input_start;
@@ -32,11 +34,17 @@ struct _GumArm64Relocator
   gboolean eoi;
 };
 
+GumArm64Relocator * gum_arm64_relocator_new (gconstpointer input_code,
+    GumArm64Writer * output);
+GumArm64Relocator * gum_arm64_relocator_ref (GumArm64Relocator * relocator);
+void gum_arm64_relocator_unref (GumArm64Relocator * relocator);
+
 void gum_arm64_relocator_init (GumArm64Relocator * relocator,
     gconstpointer input_code, GumArm64Writer * output);
+void gum_arm64_relocator_clear (GumArm64Relocator * relocator);
+
 void gum_arm64_relocator_reset (GumArm64Relocator * relocator,
     gconstpointer input_code, GumArm64Writer * output);
-void gum_arm64_relocator_free (GumArm64Relocator * relocator);
 
 guint gum_arm64_relocator_read_one (GumArm64Relocator * self,
     const cs_insn ** instruction);

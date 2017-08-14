@@ -252,7 +252,7 @@ CODEWRITER_TESTCASE (call_with_arguments_should_be_compatible_with_native_abi)
       GUM_ARG_POINTER, "blue",
       GUM_ARG_POINTER, "you");
   gum_x86_writer_put_ret (&cw);
-  gum_x86_writer_free (&cw);
+  gum_x86_writer_clear (&cw);
 
   gum_mprotect (page, gum_query_page_size (), GUM_PAGE_RX);
 

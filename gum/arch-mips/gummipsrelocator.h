@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2014-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -17,6 +17,8 @@ typedef struct _GumMipsRelocator GumMipsRelocator;
 
 struct _GumMipsRelocator
 {
+  volatile gint ref_count;
+
   csh capstone;
 
   const guint8 * input_start;
@@ -33,11 +35,17 @@ struct _GumMipsRelocator
   gboolean delay_slot_pending;
 };
 
+GumMipsRelocator * gum_mips_relocator_new (gconstpointer input_code,
+    GumMipsWriter * output);
+GumMipsRelocator * gum_mips_relocator_ref (GumMipsRelocator * relocator);
+void gum_mips_relocator_unref (GumMipsRelocator * relocator);
+
 void gum_mips_relocator_init (GumMipsRelocator * relocator,
     gconstpointer input_code, GumMipsWriter * output);
+void gum_mips_relocator_clear (GumMipsRelocator * relocator);
+
 void gum_mips_relocator_reset (GumMipsRelocator * relocator,
     gconstpointer input_code, GumMipsWriter * output);
-void gum_mips_relocator_free (GumMipsRelocator * relocator);
 
 guint gum_mips_relocator_read_one (GumMipsRelocator * self,
     const cs_insn ** instruction);

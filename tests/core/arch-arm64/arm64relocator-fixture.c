@@ -43,8 +43,8 @@ test_arm64_relocator_fixture_teardown (TestArm64RelocatorFixture * fixture,
                                        gconstpointer data)
 {
   if (fixture->rl_initialized)
-    gum_arm64_relocator_free (&fixture->rl);
-  gum_arm64_writer_free (&fixture->aw);
+    gum_arm64_relocator_clear (&fixture->rl);
+  gum_arm64_writer_clear (&fixture->aw);
   gum_free_pages (fixture->output);
 }
 

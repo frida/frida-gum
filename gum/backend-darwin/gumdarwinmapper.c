@@ -765,7 +765,7 @@ gum_emit_runtime (GumDarwinMapper * self)
 
   gum_x86_writer_flush (&cw);
   g_assert_cmpint (gum_x86_writer_offset (&cw), <=, self->runtime_file_size);
-  gum_x86_writer_free (&cw);
+  gum_x86_writer_clear (&cw);
 }
 
 static void
@@ -972,7 +972,7 @@ gum_emit_arm_runtime (GumDarwinMapper * self)
 
   gum_thumb_writer_flush (&tw);
   g_assert_cmpint (gum_thumb_writer_offset (&tw), <=, self->runtime_file_size);
-  gum_thumb_writer_free (&tw);
+  gum_thumb_writer_clear (&tw);
 }
 
 static void
@@ -1135,7 +1135,7 @@ gum_emit_arm64_runtime (GumDarwinMapper * self)
 
   gum_arm64_writer_flush (&aw);
   g_assert_cmpint (gum_arm64_writer_offset (&aw), <=, self->runtime_file_size);
-  gum_arm64_writer_free (&aw);
+  gum_arm64_writer_clear (&aw);
 }
 
 static void
