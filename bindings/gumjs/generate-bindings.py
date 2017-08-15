@@ -1142,20 +1142,7 @@ static void
 
   g_slice_free ({wrapper_struct_name}, self);
 }}
-
-static gconstpointer
-{wrapper_function_prefix}_resolve_label ({wrapper_struct_name} * self,
-{wrapper_resolve_arglist_indent}const std::string & str)
-{{
-  gchar * label = (gchar *) g_hash_table_lookup (self->labels, str.c_str ());
-  if (label != NULL)
-    return label;
-
-  label = g_strdup (str.c_str ());
-  g_hash_table_add (self->labels, label);
-  return label;
-}}
-
+{label_resolver}
 static void
 {wrapper_function_prefix}_on_weak_notify (
     const WeakCallbackInfo<{wrapper_struct_name}> & info)
@@ -1213,8 +1200,6 @@ GUMJS_DEFINE_CONSTRUCTOR ({gumjs_function_prefix}_construct)
     writer->impl->pc = pc;
 
   wrapper->SetAlignedPointerInInternalField (0, writer);
-
-  (void) {wrapper_function_prefix}_resolve_label;
 }}
 
 GUMJS_DEFINE_CLASS_METHOD ({gumjs_function_prefix}_reset, {wrapper_struct_name})
@@ -1274,6 +1259,25 @@ static const GumV8Property {gumjs_function_prefix}_values[] =
         "wrapper_check_arglist_indent": (wrapper_arglist_indent_level + 8) * " ",
     }
     params.update(component.__dict__)
+
+    label_resolver = """
+static gconstpointer
+{wrapper_function_prefix}_resolve_label ({wrapper_struct_name} * self,
+{wrapper_resolve_arglist_indent}const std::string & str)
+{{
+  gchar * label = (gchar *) g_hash_table_lookup (self->labels, str.c_str ());
+  if (label != NULL)
+    return label;
+
+  label = g_strdup (str.c_str ());
+  g_hash_table_add (self->labels, label);
+  return label;
+}}
+""".format(**params)
+    if component.flavor != "arm":
+        params["label_resolver"] = label_resolver
+    else:
+        params["label_resolver"] = ""
 
     return template.format(**params).split("\n")
 
