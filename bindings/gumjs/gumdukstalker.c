@@ -374,7 +374,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_parse)
   GumDukHeapPtr events_value;
   gboolean annotate, stringify;
   const GumEvent * events;
-  duk_uarridx_t size, count, row_index;
+  duk_size_t size, count, row_index;
   const GumEvent * ev;
 
   module = gumjs_module_from_args (args);
@@ -395,7 +395,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_parse)
 
   for (ev = events, row_index = 0; row_index != count; ev++, row_index++)
   {
-    duk_size_t column_index = 0;
+    duk_uarridx_t column_index = 0;
 
     duk_push_array (ctx);
 
