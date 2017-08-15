@@ -254,13 +254,11 @@ gum_duk_event_sink_drain (GumDukEventSink * self)
     {
       if (ev->type == GUM_CALL)
       {
-        gsize count;
+        gsize n;
 
-        count = GPOINTER_TO_SIZE (
-            g_hash_table_lookup (frequencies, ev->target));
-        count++;
-        g_hash_table_insert (frequencies, ev->target,
-            GSIZE_TO_POINTER (count));
+        n = GPOINTER_TO_SIZE (g_hash_table_lookup (frequencies, ev->target));
+        n++;
+        g_hash_table_insert (frequencies, ev->target, GSIZE_TO_POINTER (n));
       }
 
       ev++;

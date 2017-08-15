@@ -377,7 +377,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_parse)
 
   size_t count = size / sizeof (GumEvent);
 
-  auto rows = Array::New (isolate, count);
+  auto rows = Array::New (isolate, (int) count);
 
   const GumEvent * ev;
   size_t row_index;
@@ -502,7 +502,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_parse)
         break;
     }
 
-    rows->Set (row_index, row);
+    rows->Set ((uint32_t) row_index, row);
   }
 
   info.GetReturnValue ().Set (rows);

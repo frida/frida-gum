@@ -374,7 +374,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_parse)
   GumDukHeapPtr events_value;
   gboolean annotate, stringify;
   const GumEvent * events;
-  duk_size_t size, count, row_index;
+  duk_uarridx_t size, count, row_index;
   const GumEvent * ev;
 
   module = gumjs_module_from_args (args);
