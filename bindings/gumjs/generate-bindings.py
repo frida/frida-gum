@@ -1882,11 +1882,30 @@ def generate_enum_api_reference(name, arch, flavor, api):
     for name, type, prefix, values in writer_enums[arch]:
         display_name = to_camel_case("_".join(name.split("_")[1:]), start_high=True)
 
-        lines.append("-   {0}: `{1}`".format(display_name, "` `".join(values)))
+        lines.extend(reflow_enum_bulletpoint("-   {0}: `{1}`".format(display_name, "` `".join(values))))
 
     return {
         "{0}-enums.md".format(arch): "\n".join(lines),
     }
+
+def reflow_enum_bulletpoint(bulletpoint):
+    result = [bulletpoint]
+
+    indent = 3 * " "
+
+    while True:
+        last_line = result[-1]
+        if len(last_line) < 80:
+            break
+
+        cutoff_index = last_line.rindex("` `", 0, 81) + 1
+        before = last_line[:cutoff_index]
+        after = indent + last_line[cutoff_index:]
+
+        result[-1] = before
+        result.append(after)
+
+    return result
 
 def make_indefinite(noun):
     return make_indefinite_qualifier(noun) + " " + noun
