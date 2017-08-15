@@ -103,7 +103,7 @@ struct _GumArgument
   union
   {
     GumAddress address;
-    guint reg;
+    gint reg;
   } value;
 };
 

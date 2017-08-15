@@ -151,7 +151,7 @@ def generate_duk_wrapper_code(component, api):
                     lines.append("  {0} {1};".format(arg.type, arg.name))
         if is_put_array:
             lines.extend([
-                "  duk_size_t items_length, items_index;",
+                "  duk_uarridx_t items_length, items_index;",
                 "  {0} * items;".format(array_item_type),
             ])
 
@@ -308,7 +308,7 @@ def generate_duk_wrapper_code(component, api):
 def generate_duk_parse_array_elements(item_type, parse_item):
     return """
   duk_push_heapptr (ctx, items_value);
-  items_length = duk_get_length (ctx, -1);
+  items_length = (duk_uarridx_t) duk_get_length (ctx, -1);
   items = g_alloca (items_length * sizeof ({item_type}));
 
   for (items_index = 0; items_index != items_length; items_index++)
@@ -1024,10 +1024,10 @@ def generate_v8_parse_call_arg_array_element(component, api):
       item->type = GUM_ARG_REGISTER;
 
       String::Utf8Value value_as_utf8 (value.As<String> ());
-      {native_register_type} reg;
-      if (!gum_parse_{arch}_register (isolate, *value_as_utf8, &reg))
+      {native_register_type} value_as_reg;
+      if (!gum_parse_{arch}_register (isolate, *value_as_utf8, &value_as_reg))
         return;
-      item->value.reg = reg;
+      item->value.reg = value_as_reg;
     }}
     else
     {{
@@ -1049,11 +1049,11 @@ def generate_v8_parse_register_array_element(component, api):
     }}
 
     String::Utf8Value value_as_utf8 (value.As<String> ());
-    {native_register_type} reg;
-    if (!gum_parse_{arch}_register (isolate, *value_as_utf8, &reg))
+    {native_register_type} value_as_reg;
+    if (!gum_parse_{arch}_register (isolate, *value_as_utf8, &value_as_reg))
       return;
 
-    *item = reg;""".format(arch=component.arch, native_register_type=api.native_register_type)
+    *item = value_as_reg;""".format(arch=component.arch, native_register_type=api.native_register_type)
 
 def generate_v8_fields(component):
     return """\
