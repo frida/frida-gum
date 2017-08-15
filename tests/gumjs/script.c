@@ -308,7 +308,7 @@ SCRIPT_TESTCASE (instruction_can_be_generated)
 
         "cw.putMovRegU32('eax', 42);"
 
-        "var stackAlignOffset = (Process.pointerSize === 8) ? 8 : 12;"
+        "var stackAlignOffset = Process.pointerSize;"
         "cw.putSubRegImm('xsp', stackAlignOffset);"
 
         "cw.putCallAddressWithArguments(callback, ['eax', 7]);"
