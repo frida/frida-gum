@@ -47,6 +47,8 @@ def generate_and_write_bindings(source_dir, output_dir):
     for arch, flavor in flavor_combos:
         for name, options in binding_params:
             sections.append(docs["{0}-{1}.md".format(flavor, name)])
+        if flavor != "arm":
+            sections.append(docs["{0}-enums.md".format(arch)])
     api_reference = "\n\n".join(sections)
     with codecs.open(os.path.join(output_dir, "api-reference.md"), "w", 'utf-8') as f:
         f.write(api_reference)
@@ -1562,6 +1564,13 @@ gum_parse_{name} (Isolate * isolate,
 
     return (decls, code)
 
+arch_names = {
+    "x86": "x86",
+    "arm": "ARM",
+    "arm64": "AArch64",
+    "mips": "MIPS",
+}
+
 writer_enums = {
     "x86": [
         ("x86_register", "GumCpuReg", "GUM_REG_", [
@@ -1689,25 +1698,27 @@ gum_try_parse_{name} (const gchar * name,
     return (decls, code.split("\n"))
 
 def generate_docs(name, arch, flavor, api):
+    docs = {}
+    docs.update(generate_class_api_reference(name, arch, flavor, api))
+    docs.update(generate_enum_api_reference(name, arch, flavor, api))
+    return docs
+
+def generate_class_api_reference(name, arch, flavor, api):
     lines = []
 
     class_name = to_camel_case("{0}_{1}".format(flavor, name), start_high=True)
     writer_class_name = to_camel_case("{0}_writer".format(flavor, "writer"), start_high=True)
-
-    arch_names = {
-        "x86": "x86",
-        "arm": "ARM",
-        "arm64": "AArch64",
-        "mips": "MIPS",
-    }
 
     params = {
         "arch": arch,
         "arch_name": arch_names[arch],
         "class_name": class_name,
         "writer_class_name": writer_class_name,
-        "writer_class_link": "[{0}](#{1})".format(writer_class_name, writer_class_name.lower()),
-        "writer_article": "a" if flavor in ("thumb", "mips") else "an",
+        "writer_class_link_indefinite": "{0} [{1}](#{2})".format(
+            make_indefinite_qualifier(writer_class_name),
+            writer_class_name,
+            writer_class_name.lower()),
+        "instruction_link": "[Instruction](#instruction)",
     }
 
     lines.extend([
@@ -1728,7 +1739,7 @@ def generate_docs(name, arch, flavor, api):
 
 -   `reset(codeAddress[, {{ pc: ptr('0x1234') }}])`: recycle instance
 
--   `dispose()`: eagerly clean up memory.
+-   `dispose()`: eagerly clean up memory
 
 -   `flush()`: resolve label references and write pending data to memory. You
     should always call this once you've finished generating code. It is usually
@@ -1743,8 +1754,30 @@ def generate_docs(name, arch, flavor, api):
     copying {arch_name} instructions from one memory location to another, taking
     care to adjust position-dependent instructions accordingly.
     The source address is specified by `inputCode`, a NativePointer.
-    The destination is given by `output`, {writer_article} {writer_class_link} pointed
+    The destination is given by `output`, {writer_class_link_indefinite} pointed
     at the desired target memory address.
+
+-   `reset(inputCode, output)`: recycle instance
+
+-   `dispose()`: eagerly clean up memory
+
+-   `input`: latest {instruction_link} read so far. Starts out `null`
+    and changes on every call to `readOne()`.
+
+-   `eob`: boolean indicating whether end-of-block has been reached, i.e. we've
+    reached a branch of any kind, like CALL, JMP, BL, RET.
+
+-   `eoi`: boolean indicating whether end-of-input has been reached, e.g. we've
+    reached JMP/B/RET, an instruction after which there may or may not be valid
+    code.
+
+-   `readOne()`: read the next instruction into the relocator's internal buffer
+    and return the number of bytes read so far, including previous calls.
+    You may keep calling this method to keep buffering, or immediately call
+    either `writeOne()` or `skipOne()`. Or, you can buffer up until the desired
+    point and then call `writeAll()`.
+    Returns zero when end-of-input is reached, which means the `eoi` property is
+    now `true`.
 """.format(**params).split("\n"))
 
     for method in api.instance_methods:
@@ -1756,11 +1789,28 @@ def generate_docs(name, arch, flavor, api):
                 description = """put a label at the current position, where `id` is a string
     that may be referenced in past and future `put*Label()` calls"""
             elif method.name.startswith("put_call") and "_with_arguments" in method.name:
-                description = """generate code for calling a C
+                description = """put code needed for calling a C
     function with the specified `args`, specified as a JavaScript array where
     each element is either a string specifying the register, or a Number or
     NativePointer specifying the immediate value."""
                 arg_names[-1] = "args"
+            elif method.name in ("put_push_regs", "put_pop_regs"):
+                if method.name.startswith("put_push_"):
+                    mnemonic = "PUSH"
+                else:
+                    mnemonic = "POP"
+                description = """put a {mnemonic} instruction with the specified registers,
+    specified as a JavaScript array where each element is a string specifying
+    the register name.""".format(mnemonic=mnemonic)
+                arg_names[-1] = "regs"
+            elif method.name == "put_push_all_x_registers":
+                description = """put code needed for pushing all X registers on the stack"""
+            elif method.name == "put_push_all_q_registers":
+                description = """put code needed for pushing all Q registers on the stack"""
+            elif method.name == "put_pop_all_x_registers":
+                description = """put code needed for popping all X registers off the stack"""
+            elif method.name == "put_pop_all_q_registers":
+                description = """put code needed for popping all Q registers off the stack"""
             elif method.name == "put_breakpoint":
                 description = "put an OS/architecture-specific breakpoint instruction"
             elif method.name == "put_padding":
@@ -1774,14 +1824,36 @@ def generate_docs(name, arch, flavor, api):
             elif method.name == "put_s8":
                 description = "put an int8"
             elif method.name == "put_bytes":
-                description = "put raw instructions given by the provided ArrayBuffer"
+                description = "put raw data from the provided ArrayBuffer"
             else:
-                types = set(["reg", "imm", "offset", "ptr", "address", "label", "i32", "u32", "u64"])
+                types = set(["reg", "imm", "offset", "indirect", "short", "near", "ptr", "base", "index", "scale", "address", "label", "u8", "i32", "u32", "u64"])
                 opcode = " ".join(filter(lambda token: token not in types, method.name.split("_")[1:])).upper()
-                description = "put a {0} instruction".format(opcode)
+                description = "put {0} instruction".format(make_indefinite(opcode))
                 if method.name.endswith("_label"):
                     description += """
     referencing `labelId`, defined by a past or future `putLabel()`"""
+        elif method.name == "skip":
+            description = "skip `nBytes`"
+        elif method.name == "peek_next_write_insn":
+            description = "peek at the next {instruction_link} to be\n    written or skipped".format(**params)
+        elif method.name == "peek_next_write_source":
+            description = "peek at the address of the next instruction to be\n    written or skipped"
+        elif method.name.startswith("skip_one"):
+            description = "skip the instruction that would have been written next"
+            if method.name.endswith("_no_label"):
+                description += """,
+    but without a label for internal use. This breaks relocation of branches to
+    locations inside the relocated range, and is an optimization for use-cases
+    where all branches are rewritten (e.g. Frida's Stalker)."""
+        elif method.name.startswith("write_one"):
+            description = "write the next buffered instruction"
+            if method.name.endswith("_no_label"):
+                description += """, but without a
+    label for internal use. This breaks relocation of branches to locations
+    inside the relocated range, and is an optimization for use-cases where all
+    branches are rewritten (e.g. Frida's Stalker)."""
+        elif method.name.startswith("write_all"):
+            description = "write all buffered instructions"
 
         p = {}
         p.update(params)
@@ -1798,6 +1870,41 @@ def generate_docs(name, arch, flavor, api):
     return {
         "{0}-{1}.md".format(flavor, name): "\n".join(lines),
     }
+
+def generate_enum_api_reference(name, arch, flavor, api):
+    lines = []
+
+    lines.extend([
+        "## {0} enum types".format(arch_names[arch]),
+        "",
+    ])
+
+    for name, type, prefix, values in writer_enums[arch]:
+        display_name = to_camel_case("_".join(name.split("_")[1:]), start_high=True)
+
+        lines.append("-   {0}: `{1}`".format(display_name, "` `".join(values)))
+
+    return {
+        "{0}-enums.md".format(arch): "\n".join(lines),
+    }
+
+def make_indefinite(noun):
+    return make_indefinite_qualifier(noun) + " " + noun
+
+def make_indefinite_qualifier(noun):
+    noun_lc = noun.lower()
+
+    exceptions = [
+        "ld",
+        "lf",
+        "rd",
+        "x",
+    ]
+    for prefix in exceptions:
+        if noun_lc.startswith(prefix):
+            return "an"
+
+    return "an" if noun_lc[0] in ("a", "e", "i", "o", "u") else "a"
 
 class Component(object):
     def __init__(self, name, arch, flavor, namespace):
