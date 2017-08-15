@@ -48,6 +48,8 @@ enum _GumThumbMemoryOperation
 static GumAddress gum_thumb_writer_lookup_address_for_label_id (
     GumThumbWriter * self, gconstpointer id);
 static void gum_thumb_writer_put_argument_list_setup (GumThumbWriter * self,
+    guint n_args, const GumArgument * args);
+static void gum_thumb_writer_put_argument_list_setup_va (GumThumbWriter * self,
     guint n_args, va_list vl);
 static void gum_thumb_writer_put_argument_list_teardown (GumThumbWriter * self,
     guint n_args);
@@ -370,8 +372,23 @@ gum_thumb_writer_put_call_address_with_arguments (GumThumbWriter * self,
   va_list vl;
 
   va_start (vl, n_args);
-  gum_thumb_writer_put_argument_list_setup (self, n_args, vl);
+  gum_thumb_writer_put_argument_list_setup_va (self, n_args, vl);
   va_end (vl);
+
+  gum_thumb_writer_put_ldr_reg_address (self, ARM_REG_LR, func);
+  gum_thumb_writer_put_blx_reg (self, ARM_REG_LR);
+
+  gum_thumb_writer_put_argument_list_teardown (self, n_args);
+}
+
+void
+gum_thumb_writer_put_call_address_with_arguments_array (
+    GumThumbWriter * self,
+    GumAddress func,
+    guint n_args,
+    const GumArgument * args)
+{
+  gum_thumb_writer_put_argument_list_setup (self, n_args, args);
 
   gum_thumb_writer_put_ldr_reg_address (self, ARM_REG_LR, func);
   gum_thumb_writer_put_blx_reg (self, ARM_REG_LR);
@@ -388,8 +405,21 @@ gum_thumb_writer_put_call_reg_with_arguments (GumThumbWriter * self,
   va_list vl;
 
   va_start (vl, n_args);
-  gum_thumb_writer_put_argument_list_setup (self, n_args, vl);
+  gum_thumb_writer_put_argument_list_setup_va (self, n_args, vl);
   va_end (vl);
+
+  gum_thumb_writer_put_blx_reg (self, reg);
+
+  gum_thumb_writer_put_argument_list_teardown (self, n_args);
+}
+
+void
+gum_thumb_writer_put_call_reg_with_arguments_array (GumThumbWriter * self,
+                                                    arm_reg reg,
+                                                    guint n_args,
+                                                    const GumArgument * args)
+{
+  gum_thumb_writer_put_argument_list_setup (self, n_args, args);
 
   gum_thumb_writer_put_blx_reg (self, reg);
 
@@ -399,29 +429,13 @@ gum_thumb_writer_put_call_reg_with_arguments (GumThumbWriter * self,
 static void
 gum_thumb_writer_put_argument_list_setup (GumThumbWriter * self,
                                           guint n_args,
-                                          va_list vl)
+                                          const GumArgument * args)
 {
-  GumArgument * args;
   gint arg_index;
 
-  args = g_alloca (n_args * sizeof (GumArgument));
-
-  for (arg_index = 0; arg_index != (gint) n_args; arg_index++)
+  for (arg_index = (gint) n_args - 1; arg_index >= 0; arg_index--)
   {
-    GumArgument * arg = &args[arg_index];
-
-    arg->type = va_arg (vl, GumArgType);
-    if (arg->type == GUM_ARG_ADDRESS)
-      arg->value.address = va_arg (vl, GumAddress);
-    else if (arg->type == GUM_ARG_REGISTER)
-      arg->value.reg = va_arg (vl, arm_reg);
-    else
-      g_assert_not_reached ();
-  }
-
-  for (arg_index = n_args - 1; arg_index >= 0; arg_index--)
-  {
-    GumArgument * arg = &args[arg_index];
+    const GumArgument * arg = &args[arg_index];
     arm_reg r = ARM_REG_R0 + arg_index;
 
     if (arg_index < 4)
@@ -450,6 +464,32 @@ gum_thumb_writer_put_argument_list_setup (GumThumbWriter * self,
       }
     }
   }
+}
+
+static void
+gum_thumb_writer_put_argument_list_setup_va (GumThumbWriter * self,
+                                             guint n_args,
+                                             va_list vl)
+{
+  GumArgument * args;
+  guint arg_index;
+
+  args = g_alloca (n_args * sizeof (GumArgument));
+
+  for (arg_index = 0; arg_index != n_args; arg_index++)
+  {
+    GumArgument * arg = &args[arg_index];
+
+    arg->type = va_arg (vl, GumArgType);
+    if (arg->type == GUM_ARG_ADDRESS)
+      arg->value.address = va_arg (vl, GumAddress);
+    else if (arg->type == GUM_ARG_REGISTER)
+      arg->value.reg = va_arg (vl, arm_reg);
+    else
+      g_assert_not_reached ();
+  }
+
+  gum_thumb_writer_put_argument_list_setup (self, n_args, args);
 }
 
 static void

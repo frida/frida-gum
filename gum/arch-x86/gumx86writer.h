@@ -133,12 +133,21 @@ GUM_API gboolean gum_x86_writer_put_label (GumX86Writer * self,
 GUM_API gboolean gum_x86_writer_put_call_address_with_arguments (
     GumX86Writer * self, GumCallingConvention conv, GumAddress func,
     guint n_args, ...);
+GUM_API gboolean gum_x86_writer_put_call_address_with_arguments_array (
+    GumX86Writer * self, GumCallingConvention conv, GumAddress func,
+    guint n_args, const GumArgument * args);
 GUM_API gboolean gum_x86_writer_put_call_reg_with_arguments (
     GumX86Writer * self, GumCallingConvention conv, GumCpuReg reg,
     guint n_args, ...);
+GUM_API gboolean gum_x86_writer_put_call_reg_with_arguments_array (
+    GumX86Writer * self, GumCallingConvention conv, GumCpuReg reg,
+    guint n_args, const GumArgument * args);
 GUM_API gboolean gum_x86_writer_put_call_reg_offset_ptr_with_arguments (
     GumX86Writer * self, GumCallingConvention conv, GumCpuReg reg,
     gssize offset, guint n_args, ...);
+GUM_API gboolean gum_x86_writer_put_call_reg_offset_ptr_with_arguments_array (
+    GumX86Writer * self, GumCallingConvention conv, GumCpuReg reg,
+    gssize offset, guint n_args, const GumArgument * args);
 GUM_API gboolean gum_x86_writer_put_call_address (GumX86Writer * self,
     GumAddress address);
 GUM_API gboolean gum_x86_writer_put_call_reg (GumX86Writer * self,

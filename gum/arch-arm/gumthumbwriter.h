@@ -62,8 +62,13 @@ GUM_API gboolean gum_thumb_writer_put_label (GumThumbWriter * self,
 
 GUM_API void gum_thumb_writer_put_call_address_with_arguments (
     GumThumbWriter * self, GumAddress func, guint n_args, ...);
+GUM_API void gum_thumb_writer_put_call_address_with_arguments_array (
+    GumThumbWriter * self, GumAddress func, guint n_args,
+    const GumArgument * args);
 GUM_API void gum_thumb_writer_put_call_reg_with_arguments (
     GumThumbWriter * self, arm_reg reg, guint n_args, ...);
+GUM_API void gum_thumb_writer_put_call_reg_with_arguments_array (
+    GumThumbWriter * self, arm_reg reg, guint n_args, const GumArgument * args);
 
 GUM_API void gum_thumb_writer_put_b_imm (GumThumbWriter * self,
     GumAddress target);

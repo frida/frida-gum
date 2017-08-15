@@ -338,33 +338,15 @@ static void
 gum_x86_writer_put_argument_list_setup (GumX86Writer * self,
                                         GumCallingConvention conv,
                                         guint n_args,
-                                        va_list vl)
+                                        const GumArgument * args)
 {
-  GumArgument * args;
   gint arg_index;
-
-  (void) conv;
-
-  args = g_alloca (n_args * sizeof (GumArgument));
-
-  for (arg_index = 0; arg_index != (gint) n_args; arg_index++)
-  {
-    GumArgument * arg = &args[arg_index];
-
-    arg->type = va_arg (vl, GumArgType);
-    if (arg->type == GUM_ARG_ADDRESS)
-      arg->value.address = va_arg (vl, GumAddress);
-    else if (arg->type == GUM_ARG_REGISTER)
-      arg->value.reg = va_arg (vl, GumCpuReg);
-    else
-      g_assert_not_reached ();
-  }
 
   if (self->target_cpu == GUM_CPU_IA32)
   {
-    for (arg_index = n_args - 1; arg_index >= 0; arg_index--)
+    for (arg_index = (gint) n_args - 1; arg_index >= 0; arg_index--)
     {
-      GumArgument * arg = &args[arg_index];
+      const GumArgument * arg = &args[arg_index];
 
       if (arg->type == GUM_ARG_ADDRESS)
       {
@@ -422,9 +404,9 @@ gum_x86_writer_put_argument_list_setup (GumX86Writer * self,
       reg_for_arg_count = G_N_ELEMENTS (reg_for_arg_windows_64);
     }
 
-    for (arg_index = n_args - 1; arg_index >= 0; arg_index--)
+    for (arg_index = (gint) n_args - 1; arg_index >= 0; arg_index--)
     {
-      GumArgument * arg = &args[arg_index];
+      const GumArgument * arg = &args[arg_index];
 
       if (arg_index < reg_for_arg_count)
       {
@@ -467,6 +449,33 @@ gum_x86_writer_put_argument_list_setup (GumX86Writer * self,
     if (self->target_abi == GUM_ABI_WINDOWS)
       gum_x86_writer_put_sub_reg_imm (self, GUM_REG_RSP, 4 * 8);
   }
+}
+
+static void
+gum_x86_writer_put_argument_list_setup_va (GumX86Writer * self,
+                                           GumCallingConvention conv,
+                                           guint n_args,
+                                           va_list vl)
+{
+  GumArgument * args;
+  guint arg_index;
+
+  args = g_alloca (n_args * sizeof (GumArgument));
+
+  for (arg_index = 0; arg_index != n_args; arg_index++)
+  {
+    GumArgument * arg = &args[arg_index];
+
+    arg->type = va_arg (vl, GumArgType);
+    if (arg->type == GUM_ARG_ADDRESS)
+      arg->value.address = va_arg (vl, GumAddress);
+    else if (arg->type == GUM_ARG_REGISTER)
+      arg->value.reg = va_arg (vl, GumCpuReg);
+    else
+      g_assert_not_reached ();
+  }
+
+  gum_x86_writer_put_argument_list_setup (self, conv, n_args, args);
 }
 
 static void
@@ -513,6 +522,23 @@ gum_x86_writer_put_call_address_with_arguments (GumX86Writer * self,
 }
 
 gboolean
+gum_x86_writer_put_call_address_with_arguments_array (GumX86Writer * self,
+                                                      GumCallingConvention conv,
+                                                      GumAddress func,
+                                                      guint n_args,
+                                                      const GumArgument * args)
+{
+  gum_x86_writer_put_argument_list_setup (self, conv, n_args, args);
+
+  if (!gum_x86_writer_put_call_address (self, func))
+    return FALSE;
+
+  gum_x86_writer_put_argument_list_teardown (self, conv, n_args);
+
+  return TRUE;
+}
+
+gboolean
 gum_x86_writer_put_call_reg_with_arguments (GumX86Writer * self,
                                             GumCallingConvention conv,
                                             GumCpuReg reg,
@@ -522,8 +548,25 @@ gum_x86_writer_put_call_reg_with_arguments (GumX86Writer * self,
   va_list vl;
 
   va_start (vl, n_args);
-  gum_x86_writer_put_argument_list_setup (self, conv, n_args, vl);
+  gum_x86_writer_put_argument_list_setup_va (self, conv, n_args, vl);
   va_end (vl);
+
+  if (!gum_x86_writer_put_call_reg (self, reg))
+    return FALSE;
+
+  gum_x86_writer_put_argument_list_teardown (self, conv, n_args);
+
+  return TRUE;
+}
+
+gboolean
+gum_x86_writer_put_call_reg_with_arguments_array (GumX86Writer * self,
+                                                  GumCallingConvention conv,
+                                                  GumCpuReg reg,
+                                                  guint n_args,
+                                                  const GumArgument * args)
+{
+  gum_x86_writer_put_argument_list_setup (self, conv, n_args, args);
 
   if (!gum_x86_writer_put_call_reg (self, reg))
     return FALSE;
@@ -545,8 +588,27 @@ gum_x86_writer_put_call_reg_offset_ptr_with_arguments (
   va_list vl;
 
   va_start (vl, n_args);
-  gum_x86_writer_put_argument_list_setup (self, conv, n_args, vl);
+  gum_x86_writer_put_argument_list_setup_va (self, conv, n_args, vl);
   va_end (vl);
+
+  if (!gum_x86_writer_put_call_reg_offset_ptr (self, reg, offset))
+    return FALSE;
+
+  gum_x86_writer_put_argument_list_teardown (self, conv, n_args);
+
+  return TRUE;
+}
+
+gboolean
+gum_x86_writer_put_call_reg_offset_ptr_with_arguments_array (
+    GumX86Writer * self,
+    GumCallingConvention conv,
+    GumCpuReg reg,
+    gssize offset,
+    guint n_args,
+    const GumArgument * args)
+{
+  gum_x86_writer_put_argument_list_setup (self, conv, n_args, args);
 
   if (!gum_x86_writer_put_call_reg_offset_ptr (self, reg, offset))
     return FALSE;

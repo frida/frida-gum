@@ -59,8 +59,13 @@ GUM_API gboolean gum_mips_writer_put_label (GumMipsWriter * self,
 
 GUM_API void gum_mips_writer_put_call_address_with_arguments (
     GumMipsWriter * self, GumAddress func, guint n_args, ...);
+GUM_API void gum_mips_writer_put_call_address_with_arguments_array (
+    GumMipsWriter * self, GumAddress func, guint n_args,
+    const GumArgument * args);
 GUM_API void gum_mips_writer_put_call_reg_with_arguments (GumMipsWriter * self,
     mips_reg reg, guint n_args, ...);
+GUM_API void gum_mips_writer_put_call_reg_with_arguments_array (
+    GumMipsWriter * self, mips_reg reg, guint n_args, const GumArgument * args);
 
 GUM_API gboolean gum_mips_writer_can_branch_directly_between (GumAddress from,
     GumAddress to);
