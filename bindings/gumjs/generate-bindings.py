@@ -14,6 +14,7 @@ def generate_and_write_bindings(source_dir, output_dir):
         ("relocator", { 'ignore': ['new', 'ref', 'unref', 'init', 'clear', 'reset',
                                    'read_one', 'eob', 'eoi', 'can_relocate'] }),
     ]
+
     flavor_combos = [
         ("x86", "x86"),
         ("arm", "arm"),
@@ -21,6 +22,9 @@ def generate_and_write_bindings(source_dir, output_dir):
         ("arm64", "arm64"),
         ("mips", "mips"),
     ]
+
+    docs = {}
+
     for name, options in binding_params:
         for filename, code in generate_umbrellas(name, flavor_combos).items():
             with codecs.open(os.path.join(output_dir, filename), "w", 'utf-8') as f:
@@ -31,9 +35,21 @@ def generate_and_write_bindings(source_dir, output_dir):
             with codecs.open(api_header_path, "r", 'utf-8') as f:
                 api_header = f.read()
 
-            for filename, code in generate_bindings(name, arch, flavor, api_header, options).items():
+            bindings = generate_bindings(name, arch, flavor, api_header, options)
+
+            for filename, code in bindings.code.items():
                 with codecs.open(os.path.join(output_dir, filename), "w", 'utf-8') as f:
                     f.write(code)
+
+            docs.update(bindings.docs)
+
+    sections = []
+    for arch, flavor in flavor_combos:
+        for name, options in binding_params:
+            sections.append(docs["{0}-{1}.md".format(flavor, name)])
+    api_reference = "\n\n".join(sections)
+    with codecs.open(os.path.join(output_dir, "api-reference.md"), "w", 'utf-8') as f:
+        f.write(api_reference)
 
 def generate_umbrellas(name, flavor_combos):
     umbrellas = {}
@@ -68,14 +84,21 @@ def generate_umbrella(runtime, name, section, flavor_combos):
 
     return (filename, code)
 
+class Bindings(object):
+    def __init__(self, code, docs):
+        self.code = code
+        self.docs = docs
+
 def generate_bindings(name, arch, flavor, api_header, options):
     api = parse_api(name, flavor, api_header, options)
 
-    bindings = {}
-    bindings.update(generate_duk_bindings(name, arch, flavor, api))
-    bindings.update(generate_v8_bindings(name, arch, flavor, api))
+    code = {}
+    code.update(generate_duk_bindings(name, arch, flavor, api))
+    code.update(generate_v8_bindings(name, arch, flavor, api))
 
-    return bindings
+    docs = generate_docs(name, arch, flavor, api)
+
+    return Bindings(code, docs)
 
 def generate_duk_bindings(name, arch, flavor, api):
     component = Component(name, arch, flavor, "duk")
@@ -1665,6 +1688,117 @@ gum_try_parse_{name} (const gchar * name,
 
     return (decls, code.split("\n"))
 
+def generate_docs(name, arch, flavor, api):
+    lines = []
+
+    class_name = to_camel_case("{0}_{1}".format(flavor, name), start_high=True)
+    writer_class_name = to_camel_case("{0}_writer".format(flavor, "writer"), start_high=True)
+
+    arch_names = {
+        "x86": "x86",
+        "arm": "ARM",
+        "arm64": "AArch64",
+        "mips": "MIPS",
+    }
+
+    params = {
+        "arch": arch,
+        "arch_name": arch_names[arch],
+        "class_name": class_name,
+        "writer_class_name": writer_class_name,
+        "writer_class_link": "[{0}](#{1})".format(writer_class_name, writer_class_name.lower()),
+        "writer_article": "a" if flavor in ("thumb", "mips") else "an",
+    }
+
+    lines.extend([
+        "## {0}".format(class_name),
+        "",
+    ])
+
+    if name == "writer":
+        lines.extend("""\
++   `new {class_name}(codeAddress[, {{ pc: ptr('0x1234') }}])`: create a new code
+    writer for generating {arch_name} machine code written directly to memory at
+    `codeAddress`, specified as a NativePointer.
+    The second argument is an optional options object where the initial program
+    counter may be specified, which is useful when generating code to a scratch
+    buffer. This is essential when using `Memory.patchCode()` on iOS, which may
+    provide you with a temporary location that later gets mapped into memory at
+    the intended memory location.
+
+-   `reset(codeAddress[, {{ pc: ptr('0x1234') }}])`: recycle instance
+
+-   `dispose()`: eagerly clean up memory.
+
+-   `flush()`: resolve label references and write pending data to memory. You
+    should always call this once you've finished generating code. It is usually
+    also desirable to do this between pieces of unrelated code, e.g. when
+    generating multiple functions in one go.
+
+-   `offset`: current offset as a JavaScript Number
+""".format(**params).split("\n"))
+    elif name == "relocator":
+        lines.extend("""\
++   `new {class_name}(inputCode, output)`: create a new code relocator for
+    copying {arch_name} instructions from one memory location to another, taking
+    care to adjust position-dependent instructions accordingly.
+    The source address is specified by `inputCode`, a NativePointer.
+    The destination is given by `output`, {writer_article} {writer_class_link} pointed
+    at the desired target memory address.
+""".format(**params).split("\n"))
+
+    for method in api.instance_methods:
+        arg_names = [arg.name_js for arg in method.args]
+
+        description = ""
+        if method.name.startswith("put_"):
+            if method.name == "put_label":
+                description = """put a label at the current position, where `id` is a string
+    that may be referenced in past and future `put*Label()` calls"""
+            elif method.name.startswith("put_call") and "_with_arguments" in method.name:
+                description = """generate code for calling a C
+    function with the specified `args`, specified as a JavaScript array where
+    each element is either a string specifying the register, or a Number or
+    NativePointer specifying the immediate value."""
+                arg_names[-1] = "args"
+            elif method.name == "put_breakpoint":
+                description = "put an OS/architecture-specific breakpoint instruction"
+            elif method.name == "put_padding":
+                description = "put `n` guard instruction"
+            elif method.name == "put_nop_padding":
+                description = "put `n` NOP instructions"
+            elif method.name == "put_instruction":
+                description = "put a raw instruction as a JavaScript Number"
+            elif method.name == "put_u8":
+                description = "put a uint8"
+            elif method.name == "put_s8":
+                description = "put an int8"
+            elif method.name == "put_bytes":
+                description = "put raw instructions given by the provided ArrayBuffer"
+            else:
+                types = set(["reg", "imm", "offset", "ptr", "address", "label", "i32", "u32", "u64"])
+                opcode = " ".join(filter(lambda token: token not in types, method.name.split("_")[1:])).upper()
+                description = "put a {0} instruction".format(opcode)
+                if method.name.endswith("_label"):
+                    description += """
+    referencing `labelId`, defined by a past or future `putLabel()`"""
+
+        p = {}
+        p.update(params)
+        p.update({
+            "method_name": method.name_js,
+            "method_arglist": ", ".join(arg_names),
+            "method_description": description,
+        })
+
+        lines.extend("""\
+-   `{method_name}({method_arglist})`: {method_description}
+""".format(**p).split("\n"))
+
+    return {
+        "{0}-{1}.md".format(flavor, name): "\n".join(lines),
+    }
+
 class Component(object):
     def __init__(self, name, arch, flavor, namespace):
         self.name = name
@@ -1805,6 +1939,7 @@ class MethodArgument(object):
             name_raw = name if converter is None else "raw_{0}".format(name)
 
         self.name = name
+        self.name_js = to_camel_case(name, start_high=False)
         self.name_raw = name_raw
 
     def name_raw_for_cpp(self):
