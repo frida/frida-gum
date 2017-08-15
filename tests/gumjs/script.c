@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -297,21 +297,40 @@ SCRIPT_TESTCASE (instruction_can_be_generated)
 {
 #if defined (HAVE_I386)
   COMPILE_AND_LOAD_SCRIPT (
+      "var callback = new NativeCallback(function (a, b) {"
+      "  return a * b;"
+      "}, 'int', ['int', 'int']);"
+
       "var page = Memory.alloc(Process.pageSize);"
-      "Memory.patchCode(page, 16, function (code) {"
+
+      "Memory.patchCode(page, 38, function (code) {"
         "var cw = new X86Writer(code, { pc: page });"
+
         "cw.putMovRegU32('eax', 42);"
+
+        "var stackAlignOffset = (Process.pointerSize === 8) ? 8 : 12;"
+        "cw.putSubRegImm('xsp', stackAlignOffset);"
+
+        "cw.putCallAddressWithArguments(callback, ['eax', 7]);"
+
+        "cw.putAddRegImm('xsp', stackAlignOffset);"
+
         "cw.putJmpShortLabel('badger');"
+
         "cw.putMovRegU32('eax', 43);"
+
         "cw.putLabel('badger');"
         "cw.putRet();"
+
         "cw.flush();"
         "send(cw.offset);"
       "});"
+
       "var f = new NativeFunction(page, 'int', []);"
       "send(f());");
-  EXPECT_SEND_MESSAGE_WITH ("13");
-  EXPECT_SEND_MESSAGE_WITH ("42");
+
+  EXPECT_SEND_MESSAGE_WITH ("38");
+  EXPECT_SEND_MESSAGE_WITH ("294");
   EXPECT_NO_MESSAGES ();
 
   COMPILE_AND_LOAD_SCRIPT (

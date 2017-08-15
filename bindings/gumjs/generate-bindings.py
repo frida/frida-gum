@@ -69,25 +69,25 @@ def generate_umbrella(runtime, name, section, flavor_combos):
     return (filename, code)
 
 def generate_bindings(name, arch, flavor, api_header, options):
-    static_methods, instance_methods = parse_api(name, flavor, api_header, options)
+    api = parse_api(name, flavor, api_header, options)
 
     bindings = {}
-    bindings.update(generate_duk_bindings(name, arch, flavor, instance_methods))
-    bindings.update(generate_v8_bindings(name, arch, flavor, instance_methods))
+    bindings.update(generate_duk_bindings(name, arch, flavor, api))
+    bindings.update(generate_v8_bindings(name, arch, flavor, api))
 
     return bindings
 
-def generate_duk_bindings(name, arch, flavor, methods):
+def generate_duk_bindings(name, arch, flavor, api):
     component = Component(name, arch, flavor, "duk")
     return {
-        "gumdukcode{0}-{1}.inc".format(name, flavor): generate_duk_wrapper_code(component, methods),
+        "gumdukcode{0}-{1}.inc".format(name, flavor): generate_duk_wrapper_code(component, api),
         "gumdukcode{0}-fields-{1}.inc".format(name, flavor): generate_duk_fields(component),
         "gumdukcode{0}-methods-{1}.inc".format(name, flavor): generate_duk_methods(component),
         "gumdukcode{0}-init-{1}.inc".format(name, flavor): generate_duk_init_code(component),
         "gumdukcode{0}-dispose-{1}.inc".format(name, flavor): generate_duk_dispose_code(component),
     }
 
-def generate_duk_wrapper_code(component, methods):
+def generate_duk_wrapper_code(component, api):
     lines = [
         "/* Auto-generated, do not edit. */",
         "",
@@ -117,14 +117,17 @@ def generate_duk_wrapper_code(component, methods):
 
     lines.extend(generate_duk_base_methods(component))
 
-    for method in methods:
+    for method in api.instance_methods:
+        args = method.args
+        is_put_call = method.is_put_call
+
         lines.extend([
             "GUMJS_DEFINE_FUNCTION ({0}_{1})".format(component.gumjs_function_prefix, method.name),
             "{",
             "  {0} * self;".format(component.wrapper_struct_name),
         ])
 
-        for arg in method.args:
+        for arg in args:
             lines.append("  {0} {1};".format(arg.type_raw, arg.name_raw))
             converter = arg.type_converter
             if converter is not None:
@@ -135,6 +138,12 @@ def generate_duk_wrapper_code(component, methods):
                     ])
                 else:
                     lines.append("  {0} {1};".format(arg.type, arg.name))
+        if is_put_call:
+            lines.extend([
+                "  GumDukHeapPtr arg_items_value;",
+                "  duk_size_t arg_items_length, arg_items_index;",
+                "  GumArgument * arg_items;",
+            ])
 
         if method.return_type == "void":
             return_capture = ""
@@ -147,15 +156,19 @@ def generate_duk_wrapper_code(component, methods):
             "  self = {0}_from_args (args);".format(component.wrapper_function_prefix)
         ])
 
-        if len(method.args) > 0:
-            arglist_signature = "".join([arg.type_format for arg in method.args])
-            arglist_pointers = ", ".join(["&" + arg.name_raw for arg in method.args])
+        if len(args) > 0:
+            arglist_signature = "".join([arg.type_format for arg in args])
+            arglist_pointers = ", ".join(["&" + arg.name_raw for arg in args])
+            if is_put_call:
+                arglist_signature += "A"
+                arglist_pointers += ", &arg_items_value"
+
             lines.extend([
                 "",
                 "  _gum_duk_args_parse (args, \"{0}\", {1});".format(arglist_signature, arglist_pointers)
             ])
 
-        args_needing_conversion = [arg for arg in method.args if arg.type_converter is not None]
+        args_needing_conversion = [arg for arg in args if arg.type_converter is not None]
         if len(args_needing_conversion) > 0:
             lines.append("")
             for arg in args_needing_conversion:
@@ -175,25 +188,68 @@ def generate_duk_wrapper_code(component, methods):
                         arch=component.arch,
                         type=arg.type_converter))
 
+        if is_put_call:
+            lines.extend("""
+  duk_push_heapptr (ctx, arg_items_value);
+  arg_items_length = duk_get_length (ctx, -1);
+  arg_items = g_alloca (arg_items_length * sizeof (GumArgument));
+
+  for (arg_items_index = 0; arg_items_index != arg_items_length; arg_items_index++)
+  {{
+    GumArgument * item = &arg_items[arg_items_index];
+
+    duk_get_prop_index (ctx, -1, arg_items_index);
+
+    if (duk_is_string (ctx, -1))
+    {{
+      item->type = GUM_ARG_REGISTER;
+      item->value.reg = gum_parse_{arch}_register (ctx, duk_require_string (ctx, -1));
+    }}
+    else
+    {{
+      gpointer ptr;
+      item->type = GUM_ARG_ADDRESS;
+      if (!_gum_duk_parse_pointer (ctx, -1, args->core, &ptr))
+        _gum_duk_throw (ctx, "expected a pointer or number");
+      item->value.address = GUM_ADDRESS (ptr);
+    }}
+
+    duk_pop (ctx);
+  }}
+
+  duk_pop (ctx);""".format(arch=component.arch).split("\n"))
+
+        impl_function_name = "{0}_{1}".format(component.impl_function_prefix, method.name)
+
         arglist = ["self->impl"]
-        for arg in method.args:
+        if method.needs_calling_convention_arg:
+            arglist.append("GUM_CALL_CAPI")
+        for arg in args:
             if arg.type_converter == "bytes":
                 arglist.extend([arg.name, arg.name + "_size"])
             else:
                 arglist.append(arg.name)
+        if is_put_call:
+            impl_function_name += "_array"
+            arglist.extend([
+                "arg_items_length",
+                "arg_items",
+            ])
 
         lines.extend([
             "",
-            "  {0}{1}_{2} ({3});".format(return_capture, component.impl_function_prefix, method.name, ", ".join(arglist))
+            "  {0}{1} ({2});".format(return_capture, impl_function_name, ", ".join(arglist))
         ])
 
-        args_needing_cleanup = [arg for arg in method.args if arg.type_converter == "bytes"]
+        args_needing_cleanup = [arg for arg in args if arg.type_converter == "bytes"]
         if len(args_needing_cleanup) > 0:
             lines.append("")
             for arg in args_needing_cleanup:
                 lines.append("  g_bytes_unref ({0});".format(arg.name_raw))
 
         if method.return_type == "gboolean" and method.name.startswith("put_"):
+            if len(args_needing_cleanup) > 0:
+                lines.append("")
             lines.extend([
                 "  if (!result)",
                 "    _gum_duk_throw (ctx, \"invalid argument\");",
@@ -254,12 +310,15 @@ def generate_duk_wrapper_code(component, methods):
             "  {{ \"readOne\", {0}_read_one, 0 }},".format(component.gumjs_function_prefix),
         ])
 
-    for method in methods:
+    for method in api.instance_methods:
+        num_args = len(method.args)
+        if method.is_put_call:
+            num_args += 1
         lines.append("  {{ \"{0}\", {1}_{2}, {3} }},".format(
             method.name_js,
             component.gumjs_function_prefix,
             method.name,
-            len(method.args)
+            num_args
         ))
 
     lines.extend([
@@ -722,17 +781,17 @@ gum_parse_{name} (duk_context * ctx,
 
     return (decls, code)
 
-def generate_v8_bindings(name, arch, flavor, methods):
+def generate_v8_bindings(name, arch, flavor, api):
     component = Component(name, arch, flavor, "v8")
     return {
-        "gumv8code{0}-{1}.inc".format(name, flavor): generate_v8_wrapper_code(component, methods),
+        "gumv8code{0}-{1}.inc".format(name, flavor): generate_v8_wrapper_code(component, api),
         "gumv8code{0}-fields-{1}.inc".format(name, flavor): generate_v8_fields(component),
         "gumv8code{0}-methods-{1}.inc".format(name, flavor): generate_v8_methods(component),
         "gumv8code{0}-init-{1}.inc".format(name, flavor): generate_v8_init_code(component),
         "gumv8code{0}-dispose-{1}.inc".format(name, flavor): generate_v8_dispose_code(component),
     }
 
-def generate_v8_wrapper_code(component, methods):
+def generate_v8_wrapper_code(component, api):
     lines = [
         "/* Auto-generated, do not edit. */",
         "",
@@ -764,7 +823,10 @@ def generate_v8_wrapper_code(component, methods):
 
     lines.extend(generate_v8_base_methods(component))
 
-    for method in methods:
+    for method in api.instance_methods:
+        args = method.args
+        is_put_call = method.is_put_call
+
         lines.extend([
             "GUMJS_DEFINE_CLASS_METHOD ({0}_{1}, {2})".format(component.gumjs_function_prefix, method.name, component.wrapper_struct_name),
             "{",
@@ -772,20 +834,26 @@ def generate_v8_wrapper_code(component, methods):
             "    return;",
         ])
 
-        if len(method.args) > 0:
+        if len(args) > 0:
             lines.append("")
 
-            for arg in method.args:
+            for arg in args:
                 lines.append("  {0} {1};".format(arg.type_raw_for_cpp(), arg.name_raw_for_cpp()))
+            if is_put_call:
+                lines.append("  Local<Array> arg_items_value;")
 
-            arglist_signature = "".join([arg.type_format_for_cpp() for arg in method.args])
-            arglist_pointers = ", ".join(["&" + arg.name_raw_for_cpp() for arg in method.args])
+            arglist_signature = "".join([arg.type_format_for_cpp() for arg in args])
+            arglist_pointers = ", ".join(["&" + arg.name_raw_for_cpp() for arg in args])
+            if is_put_call:
+                arglist_signature += "A"
+                arglist_pointers += ", &arg_items_value"
+
             lines.extend([
                 "  if (!_gum_v8_args_parse (args, \"{0}\", {1}))".format(arglist_signature, arglist_pointers),
                 "    return;",
             ])
 
-        args_needing_conversion = [arg for arg in method.args if arg.type_converter_for_cpp() is not None]
+        args_needing_conversion = [arg for arg in args if arg.type_converter_for_cpp() is not None]
         if len(args_needing_conversion) > 0:
             lines.append("")
             for arg in args_needing_conversion:
@@ -817,12 +885,55 @@ def generate_v8_wrapper_code(component, methods):
                         "    return;",
                     ])
 
+        if is_put_call:
+            lines.extend("""
+  auto context = isolate->GetCurrentContext ();
+
+  uint32_t arg_items_length = arg_items_value->Length ();
+  auto arg_items = (GumArgument *) g_alloca (arg_items_length * sizeof (GumArgument));
+
+  for (uint32_t arg_items_index = 0; arg_items_index != arg_items_length; arg_items_index++)
+  {{
+    GumArgument * item = &arg_items[arg_items_index];
+
+    auto value = arg_items_value->Get (context, arg_items_index).ToLocalChecked ();
+    if (value->IsString ())
+    {{
+      item->type = GUM_ARG_REGISTER;
+
+      String::Utf8Value value_as_utf8 (value.As<String> ());
+      {native_register_type} reg;
+      if (!gum_parse_{arch}_register (isolate, *value_as_utf8, &reg))
+        return;
+      item->value.reg = reg;
+    }}
+    else
+    {{
+      item->type = GUM_ARG_ADDRESS;
+
+      gpointer ptr;
+      if (!_gum_v8_native_pointer_parse (value, &ptr, core))
+        return;
+      item->value.address = GUM_ADDRESS (ptr);
+    }}
+  }}""".format(arch=component.arch, native_register_type=api.native_register_type).split("\n"))
+
+        impl_function_name = "{0}_{1}".format(component.impl_function_prefix, method.name)
+
         arglist = ["self->impl"]
-        for arg in method.args:
+        if method.needs_calling_convention_arg:
+            arglist.append("GUM_CALL_CAPI")
+        for arg in args:
             if arg.type_converter_for_cpp() == "bytes":
                 arglist.extend([arg.name, arg.name + "_size"])
             else:
                 arglist.append(arg.name)
+        if is_put_call:
+            impl_function_name += "_array"
+            arglist.extend([
+                "arg_items_length",
+                "arg_items",
+            ])
 
         if method.return_type == "void":
             return_capture = ""
@@ -831,7 +942,7 @@ def generate_v8_wrapper_code(component, methods):
 
         lines.extend([
             "",
-            "  {0}{1}_{2} ({3});".format(return_capture, component.impl_function_prefix, method.name, ", ".join(arglist))
+            "  {0}{1} ({2});".format(return_capture, impl_function_name, ", ".join(arglist))
         ])
 
         if method.return_type == "gboolean" and method.name.startswith("put_"):
@@ -868,7 +979,7 @@ def generate_v8_wrapper_code(component, methods):
             else:
                 raise ValueError("Unsupported return type: {0}".format(method.return_type))
 
-        args_needing_cleanup = [arg for arg in method.args if arg.type_converter_for_cpp() == "bytes"]
+        args_needing_cleanup = [arg for arg in args if arg.type_converter_for_cpp() == "bytes"]
         if len(args_needing_cleanup) > 0:
             lines.append("")
             for arg in args_needing_cleanup:
@@ -890,7 +1001,7 @@ def generate_v8_wrapper_code(component, methods):
     elif component.name == "relocator":
         lines.append("  {{ \"readOne\", {0}_read_one }},".format(component.gumjs_function_prefix))
 
-    for method in methods:
+    for method in api.instance_methods:
         lines.append("  {{ \"{0}\", {1}_{2} }},".format(
             method.name_js,
             component.gumjs_function_prefix,
@@ -1528,10 +1639,37 @@ class Component(object):
         self.gumjs_function_prefix = "gumjs_{0}_{1}".format(flavor, name)
         self.module_struct_name = to_camel_case("gum_{0}_code_{1}".format(namespace, name), start_high=True)
 
+class Api(object):
+    def __init__(self, static_methods, instance_methods):
+        self.static_methods = static_methods
+        self.instance_methods = instance_methods
+
+        native_register_type = None
+        for method in instance_methods:
+            reg_types = [arg.type for arg in method.args if arg.type_converter == "register"]
+            if len(reg_types) > 0:
+                native_register_type = reg_types[0]
+                break
+        self.native_register_type = native_register_type
+
 class Method(object):
     def __init__(self, name, return_type, args):
+        is_put_call = name.startswith("put_") and name.endswith("_array")
+        if is_put_call:
+            name = name[:-6]
+
         self.name = name
         self.name_js = to_camel_case(name, start_high=False)
+
+        self.is_put_call = is_put_call
+        if is_put_call:
+            self.needs_calling_convention_arg = args[0].type == "GumCallingConvention"
+            if self.needs_calling_convention_arg:
+                args = args[1:]
+            args = args[:-2]
+        else:
+            self.needs_calling_convention_arg = False
+
         self.return_type = return_type
         self.args = args
 
@@ -1580,6 +1718,13 @@ class MethodArgument(object):
             self.type_raw = "const gchar *"
             self.type_format = "s"
             converter = "instruction_id"
+        elif type == "GumCallingConvention":
+            self.type_raw = "const gchar *"
+            self.type_format = "s"
+            converter = "calling_convention"
+        elif type == "const GumArgument *":
+            self.type_raw = type
+            self.type_format = "O"
         elif type == "GumBranchHint":
             self.type_raw = "const gchar *"
             self.type_format = "s"
@@ -1659,7 +1804,7 @@ def parse_api(name, flavor, api_header, options):
         else:
             instance_methods.append(method)
 
-    return (static_methods, instance_methods)
+    return Api(static_methods, instance_methods)
 
 def parse_arg(raw_arg):
     tokens = raw_arg.split(" ")
