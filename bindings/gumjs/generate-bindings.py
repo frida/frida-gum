@@ -1872,17 +1872,17 @@ def generate_class_api_reference(name, arch, flavor, api):
     }
 
 def generate_enum_api_reference(name, arch, flavor, api):
-    lines = []
-
-    lines.extend([
+    lines = [
         "## {0} enum types".format(arch_names[arch]),
         "",
-    ])
+    ]
 
     for name, type, prefix, values in writer_enums[arch]:
         display_name = to_camel_case("_".join(name.split("_")[1:]), start_high=True)
 
         lines.extend(reflow_enum_bulletpoint("-   {0}: `{1}`".format(display_name, "` `".join(values))))
+
+    lines.append("")
 
     return {
         "{0}-enums.md".format(arch): "\n".join(lines),
