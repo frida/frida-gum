@@ -303,7 +303,7 @@ SCRIPT_TESTCASE (instruction_can_be_generated)
 
       "var page = Memory.alloc(Process.pageSize);"
 
-      "Memory.patchCode(page, 38, function (code) {"
+      "Memory.patchCode(page, 64, function (code) {"
         "var cw = new X86Writer(code, { pc: page });"
 
         "cw.putMovRegU32('eax', 42);"
@@ -323,13 +323,13 @@ SCRIPT_TESTCASE (instruction_can_be_generated)
         "cw.putRet();"
 
         "cw.flush();"
-        "send(cw.offset);"
+        "send(cw.offset > 30);"
       "});"
 
       "var f = new NativeFunction(page, 'int', []);"
       "send(f());");
 
-  EXPECT_SEND_MESSAGE_WITH ("38");
+  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("294");
   EXPECT_NO_MESSAGES ();
 
