@@ -771,7 +771,7 @@ static {type}
 gum_parse_{name} (duk_context * ctx,
 {arglist_indent}const gchar * name)
 {{
-  {type} value;
+  {type} value = 0;
 
   if (!gum_try_parse_{name} (name, &value))
     _gum_duk_throw (ctx, "invalid {description}");
