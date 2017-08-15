@@ -1670,9 +1670,9 @@ class Component(object):
         self.name = name
         self.arch = arch
         self.flavor = flavor
-        self.wrapper_struct_name = to_camel_case('gum_{0}_{1}_{2}'.format(namespace, flavor, name), start_high=True)
+        self.wrapper_struct_name = to_camel_case("gum_{0}_{1}_{2}".format(namespace, flavor, name), start_high=True)
         self.wrapper_function_prefix = "gum_{0}_{1}_{2}".format(namespace, flavor, name)
-        self.impl_struct_name = to_camel_case('gum_{0}_{1}'.format(flavor, name), start_high=True)
+        self.impl_struct_name = to_camel_case("gum_{0}_{1}".format(flavor, name), start_high=True)
         self.impl_function_prefix = "gum_{0}_{1}".format(flavor, name)
         self.gumjs_class_name = flavor.title() + name.title()
         self.gumjs_field_name = "{0}_{1}".format(flavor, name)
