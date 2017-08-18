@@ -202,6 +202,10 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
         self->eob = TRUE;
         self->eoi = TRUE;
       }
+      else
+      {
+        self->eob = FALSE;
+      }
       break;
     case ARM_INS_IT:
     {
@@ -216,8 +220,13 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
       else
         it_block_size = 1;
 
+      self->eob = FALSE;
+
       break;
     }
+    default:
+      self->eob = FALSE;
+      break;
   }
 
   gum_thumb_relocator_increment_inpos (self);

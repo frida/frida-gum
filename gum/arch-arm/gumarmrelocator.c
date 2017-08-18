@@ -196,6 +196,13 @@ gum_arm_relocator_read_one (GumArmRelocator * self,
         self->eob = TRUE;
         self->eoi = TRUE;
       }
+      else
+      {
+        self->eob = FALSE;
+      }
+      break;
+    default:
+      self->eob = FALSE;
       break;
   }
 

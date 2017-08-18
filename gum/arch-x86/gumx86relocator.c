@@ -212,6 +212,8 @@ gum_x86_relocator_read_one (GumX86Relocator * self,
     default:
       if (gum_x86_reader_insn_is_jcc (insn))
         self->eob = TRUE;
+      else
+        self->eob = FALSE;
       break;
   }
 

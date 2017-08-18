@@ -217,6 +217,7 @@ gum_mips_relocator_read_one (GumMipsRelocator * self,
       self->delay_slot_pending = TRUE;
       break;
     default:
+      self->eob = FALSE;
       if (self->delay_slot_pending)
         self->delay_slot_pending = FALSE;
       break;
