@@ -424,7 +424,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
   {
     gum_stalker_follow (stalker, thread_id, transformer, sink);
     g_object_unref (sink);
-    g_object_unref (transformer);
+    g_clear_object (&transformer);
   }
 
   return 0;
