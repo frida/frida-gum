@@ -127,7 +127,8 @@ static void gumjs_invocation_context_set_property (Local<Name> property,
 
 static GumV8InvocationArgs * gum_v8_invocation_args_new_persistent (
     GumV8Interceptor * parent);
-static void gum_v8_invocation_args_release (GumV8InvocationArgs * self);
+static void gum_v8_invocation_args_release_persistent (
+    GumV8InvocationArgs * self);
 static void gum_v8_invocation_args_reset (GumV8InvocationArgs * self,
     GumInvocationContext * ic);
 static void gumjs_invocation_args_get_nth (uint32_t index,
@@ -377,7 +378,7 @@ _gum_v8_interceptor_dispose (GumV8Interceptor * self)
 
   gum_v8_invocation_context_release_persistent (
       self->cached_invocation_context);
-  gum_v8_invocation_args_release (
+  gum_v8_invocation_args_release_persistent (
       self->cached_invocation_args);
   gum_v8_invocation_return_value_release_persistent (
       self->cached_invocation_return_value);
@@ -959,7 +960,7 @@ gum_v8_invocation_args_new_persistent (GumV8Interceptor * parent)
 }
 
 static void
-gum_v8_invocation_args_release (GumV8InvocationArgs * self)
+gum_v8_invocation_args_release_persistent (GumV8InvocationArgs * self)
 {
   delete self->object;
 
@@ -1128,7 +1129,7 @@ gum_v8_interceptor_release_invocation_args (GumV8Interceptor * self,
   if (args == self->cached_invocation_args)
     self->cached_invocation_args_in_use = FALSE;
   else
-    gum_v8_invocation_args_release (args);
+    gum_v8_invocation_args_release_persistent (args);
 }
 
 static GumV8InvocationReturnValue *
