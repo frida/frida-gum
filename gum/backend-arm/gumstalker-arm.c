@@ -82,6 +82,7 @@ gum_stalker_garbage_collect (GumStalker * self)
 
 void
 gum_stalker_follow_me (GumStalker * self,
+                       GumStalkerTransformer * transformer,
                        GumEventSink * sink)
 {
 }
@@ -100,6 +101,7 @@ gum_stalker_is_following_me (GumStalker * self)
 void
 gum_stalker_follow (GumStalker * self,
                     GumThreadId thread_id,
+                    GumStalkerTransformer * transformer,
                     GumEventSink * sink)
 {
 }
@@ -126,3 +128,14 @@ gum_stalker_remove_call_probe (GumStalker * self,
 {
 }
 
+gboolean
+gum_stalker_iterator_next (GumStalkerIterator * self,
+                           const cs_insn ** insn)
+{
+  return FALSE;
+}
+
+void
+gum_stalker_iterator_keep (GumStalkerIterator * self)
+{
+}
