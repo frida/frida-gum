@@ -912,7 +912,7 @@ gum_v8_stalker_obtain_writer (GumV8Stalker * self)
 
 static void
 gum_v8_stalker_release_writer (GumV8Stalker * self,
-                                GumV8NativeWriter * writer)
+                               GumV8NativeWriter * writer)
 {
   if (writer == self->cached_writer)
   {
@@ -944,7 +944,7 @@ gum_v8_stalker_obtain_instruction (GumV8Stalker * self)
 
 static void
 gum_v8_stalker_release_instruction (GumV8Stalker * self,
-                                     GumV8InstructionValue * value)
+                                    GumV8InstructionValue * value)
 {
   if (value == self->cached_instruction)
   {
