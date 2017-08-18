@@ -393,7 +393,11 @@ _gum_v8_args_parse (const GumV8Args * args,
         {
           *va_arg (ap, Local<Array> *) = arg.As<Array> ();
         }
-        else if (!(is_nullable && arg->IsNull ()))
+        else if (is_nullable && arg->IsNull ())
+        {
+          *va_arg (ap, Local<Array> *) = Local<Array> ();
+        }
+        else
         {
           _gum_v8_throw_ascii_literal (isolate, "expected an array");
           return FALSE;
@@ -467,7 +471,11 @@ _gum_v8_args_parse (const GumV8Args * args,
           {
             *va_arg (ap, Local<Function> *) = arg.As<Function> ();
           }
-          else if (!(is_nullable && arg->IsNull ()))
+          else if (is_nullable && arg->IsNull ())
+          {
+            *va_arg (ap, Local<Function> *) = Local<Function> ();
+          }
+          else
           {
             _gum_v8_throw_ascii_literal (isolate, "expected a function");
             return FALSE;
