@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -136,6 +136,7 @@ ScriptInterceptorScope::~ScriptInterceptorScope ()
 
 ScriptStalkerScope::ScriptStalkerScope (GumV8Script * parent)
   : pending_level (0),
+    transformer (NULL),
     sink (NULL),
     parent (parent)
 {

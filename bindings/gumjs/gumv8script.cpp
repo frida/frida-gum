@@ -313,12 +313,13 @@ gum_v8_script_create_context (GumV8Script * self,
     _gum_v8_database_init (&priv->database, &priv->core, global_templ);
     _gum_v8_interceptor_init (&priv->interceptor, &priv->core,
         global_templ);
-    _gum_v8_stalker_init (&priv->stalker, &priv->core, global_templ);
     _gum_v8_api_resolver_init (&priv->api_resolver, &priv->core, global_templ);
     _gum_v8_symbol_init (&priv->symbol, &priv->core, global_templ);
     _gum_v8_instruction_init (&priv->instruction, &priv->core, global_templ);
     _gum_v8_code_writer_init (&priv->code_writer, &priv->core, global_templ);
     _gum_v8_code_relocator_init (&priv->code_relocator, &priv->code_writer,
+        &priv->instruction, &priv->core, global_templ);
+    _gum_v8_stalker_init (&priv->stalker, &priv->code_writer,
         &priv->instruction, &priv->core, global_templ);
 
     auto context = Context::New (priv->isolate, NULL, global_templ);
@@ -335,12 +336,12 @@ gum_v8_script_create_context (GumV8Script * self,
     _gum_v8_socket_realize (&priv->socket);
     _gum_v8_database_realize (&priv->database);
     _gum_v8_interceptor_realize (&priv->interceptor);
-    _gum_v8_stalker_realize (&priv->stalker);
     _gum_v8_api_resolver_realize (&priv->api_resolver);
     _gum_v8_symbol_realize (&priv->symbol);
     _gum_v8_instruction_realize (&priv->instruction);
     _gum_v8_code_writer_realize (&priv->code_writer);
     _gum_v8_code_relocator_realize (&priv->code_relocator);
+    _gum_v8_stalker_realize (&priv->stalker);
 
     auto resource_name_str = g_strconcat (priv->name, ".js", NULL);
     auto resource_name = String::NewFromUtf8 (priv->isolate, resource_name_str);
@@ -385,12 +386,12 @@ gum_v8_script_destroy_context (GumV8Script * self)
   {
     ScriptScope scope (self);
 
+    _gum_v8_stalker_dispose (&priv->stalker);
     _gum_v8_code_relocator_dispose (&priv->code_relocator);
     _gum_v8_code_writer_dispose (&priv->code_writer);
     _gum_v8_instruction_dispose (&priv->instruction);
     _gum_v8_symbol_dispose (&priv->symbol);
     _gum_v8_api_resolver_dispose (&priv->api_resolver);
-    _gum_v8_stalker_dispose (&priv->stalker);
     _gum_v8_interceptor_dispose (&priv->interceptor);
     _gum_v8_database_dispose (&priv->database);
     _gum_v8_socket_dispose (&priv->socket);
@@ -409,12 +410,12 @@ gum_v8_script_destroy_context (GumV8Script * self)
   delete priv->context;
   priv->context = nullptr;
 
+  _gum_v8_stalker_finalize (&priv->stalker);
   _gum_v8_code_relocator_finalize (&priv->code_relocator);
   _gum_v8_code_writer_finalize (&priv->code_writer);
   _gum_v8_instruction_finalize (&priv->instruction);
   _gum_v8_symbol_finalize (&priv->symbol);
   _gum_v8_api_resolver_finalize (&priv->api_resolver);
-  _gum_v8_stalker_finalize (&priv->stalker);
   _gum_v8_interceptor_finalize (&priv->interceptor);
   _gum_v8_database_finalize (&priv->database);
   _gum_v8_socket_finalize (&priv->socket);

@@ -52,12 +52,12 @@ struct _GumV8ScriptPrivate
   GumV8Socket socket;
   GumV8Database database;
   GumV8Interceptor interceptor;
-  GumV8Stalker stalker;
   GumV8ApiResolver api_resolver;
   GumV8Symbol symbol;
   GumV8Instruction instruction;
   GumV8CodeWriter code_writer;
   GumV8CodeRelocator code_relocator;
+  GumV8Stalker stalker;
   GumPersistent<v8::Context>::type * context;
   GumPersistent<v8::Script>::type * code;
 

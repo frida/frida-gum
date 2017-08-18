@@ -33,27 +33,20 @@
 
 using namespace v8;
 
-struct GumInstruction
-{
-  GumPersistent<v8::Object>::type * wrapper;
-  gconstpointer target;
-  cs_insn insn;
-  GumV8Instruction * module;
-};
-
 GUMJS_DECLARE_FUNCTION (gumjs_instruction_parse)
 
-static Local<Object> gum_instruction_new (gconstpointer target,
-    const cs_insn * insn, GumV8Instruction * module);
-static void gum_instruction_free (GumInstruction * self);
+static GumV8InstructionValue * gum_v8_instruction_alloc (
+    GumV8Instruction * module);
+static void gum_v8_instruction_dispose (GumV8InstructionValue * self);
+static void gum_v8_instruction_free (GumV8InstructionValue * self);
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_address)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_next)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_size)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_mnemonic)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_op_str)
 GUMJS_DECLARE_FUNCTION (gumjs_instruction_to_string)
-static void gum_instruction_on_weak_notify (
-    const WeakCallbackInfo<GumInstruction> & info);
+static void gum_v8_instruction_on_weak_notify (
+    const WeakCallbackInfo<GumV8InstructionValue> & info);
 
 static const GumV8Function gumjs_instruction_module_functions[] =
 {
@@ -89,10 +82,6 @@ _gum_v8_instruction_init (GumV8Instruction * self,
 
   self->core = core;
 
-  auto err =
-      cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &self->capstone);
-  g_assert_cmpint (err, ==, CS_ERR_OK);
-
   auto module = External::New (isolate, self);
 
   auto api = _gum_v8_create_module ("Instruction", scope, isolate);
@@ -113,7 +102,7 @@ _gum_v8_instruction_realize (GumV8Instruction * self)
   auto context = isolate->GetCurrentContext ();
 
   self->instructions = g_hash_table_new_full (NULL, NULL, NULL,
-      (GDestroyNotify) gum_instruction_free);
+      (GDestroyNotify) gum_v8_instruction_free);
 
   auto constructor = Local<FunctionTemplate>::New (isolate, *self->constructor);
   auto object = constructor->GetFunction ()->NewInstance (context, 0, nullptr)
@@ -141,11 +130,111 @@ _gum_v8_instruction_finalize (GumV8Instruction * self)
 }
 
 Local<Object>
-_gum_v8_instruction_new (const cs_insn * insn,
+_gum_v8_instruction_new (csh capstone,
+                         const cs_insn * insn,
+                         gboolean is_owned,
                          gconstpointer target,
                          GumV8Instruction * module)
 {
-  return gum_instruction_new (target, insn, module);
+  auto value = _gum_v8_instruction_new_persistent (module);
+
+  if (is_owned)
+  {
+    value->insn = insn;
+  }
+  else
+  {
+    g_assert (capstone != 0);
+    value->insn = cs_malloc (capstone);
+    memcpy ((void *) value->insn, insn, sizeof (cs_insn));
+    if (insn->detail != NULL)
+      memcpy (value->insn->detail, insn->detail, sizeof (cs_detail));
+  }
+  value->target = target;
+
+  value->object->MarkIndependent ();
+  value->object->SetWeak (value, gum_v8_instruction_on_weak_notify,
+      WeakCallbackType::kParameter);
+
+  g_hash_table_add (module->instructions, value);
+
+  return Local<Object>::New (module->core->isolate, *value->object);
+}
+
+GumV8InstructionValue *
+_gum_v8_instruction_new_persistent (GumV8Instruction * module)
+{
+  auto isolate = module->core->isolate;
+
+  auto value = gum_v8_instruction_alloc (module);
+
+  auto template_object = Local<Object>::New (isolate, *module->template_object);
+  auto object = template_object->Clone ();
+  value->object = new GumPersistent<Object>::type (isolate, object);
+  object->SetAlignedPointerInInternalField (0, value);
+
+  return value;
+}
+
+void
+_gum_v8_instruction_release_persistent (GumV8InstructionValue * value)
+{
+  gum_v8_instruction_dispose (value);
+
+  auto object = (GumPersistent<v8::Object>::type *)
+      g_steal_pointer (&value->object);
+  delete object;
+}
+
+static GumV8InstructionValue *
+gum_v8_instruction_alloc (GumV8Instruction * module)
+{
+  auto value = g_slice_new (GumV8InstructionValue);
+  value->object = nullptr;
+  value->insn = NULL;
+  value->target = NULL;
+  value->module = module;
+
+  module->core->isolate->AdjustAmountOfExternalAllocatedMemory (
+      GUM_INSTRUCTION_FOOTPRINT_ESTIMATE);
+
+  return value;
+}
+
+static void
+gum_v8_instruction_dispose (GumV8InstructionValue * self)
+{
+  if (self->insn != NULL)
+  {
+    cs_free ((cs_insn *) self->insn, 1);
+    self->insn = NULL;
+  }
+}
+
+static void
+gum_v8_instruction_free (GumV8InstructionValue * self)
+{
+  gum_v8_instruction_dispose (self);
+
+  self->module->core->isolate->AdjustAmountOfExternalAllocatedMemory (
+      -GUM_INSTRUCTION_FOOTPRINT_ESTIMATE);
+
+  delete self->object;
+
+  g_slice_free (GumV8InstructionValue, self);
+}
+
+static gboolean
+gum_v8_instruction_check_valid (GumV8InstructionValue * self,
+                                Isolate * isolate)
+{
+  if (self->insn == NULL)
+  {
+    _gum_v8_throw (isolate, "invalid operation");
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_instruction_parse)
@@ -153,6 +242,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_instruction_parse)
   gpointer target;
   if (!_gum_v8_args_parse (args, "p", &target))
     return;
+
+  if (module->capstone == 0)
+  {
+    auto err =
+        cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &module->capstone);
+    g_assert_cmpint (err, ==, CS_ERR_OK);
+  }
 
   uint64_t address;
 #ifdef HAVE_ARM
@@ -171,85 +267,63 @@ GUMJS_DEFINE_FUNCTION (gumjs_instruction_parse)
     return;
   }
 
-  info.GetReturnValue ().Set (gum_instruction_new (target, insn, module));
-
-  cs_free (insn, 1);
-}
-
-static Local<Object>
-gum_instruction_new (gconstpointer target,
-                     const cs_insn * insn,
-                     GumV8Instruction * module)
-{
-  auto isolate = module->core->isolate;
-
-  auto template_object = Local<Object>::New (isolate, *module->template_object);
-  auto object = template_object->Clone ();
-
-  auto instruction = g_slice_new (GumInstruction);
-  instruction->wrapper = new GumPersistent<Object>::type (isolate, object);
-  instruction->wrapper->MarkIndependent ();
-  instruction->wrapper->SetWeak (instruction, gum_instruction_on_weak_notify,
-      WeakCallbackType::kParameter);
-  instruction->target = target;
-  memcpy (&instruction->insn, insn, sizeof (cs_insn));
-  instruction->module = module;
-
-  object->SetAlignedPointerInInternalField (0, instruction);
-
-  isolate->AdjustAmountOfExternalAllocatedMemory (
-      GUM_INSTRUCTION_FOOTPRINT_ESTIMATE);
-
-  g_hash_table_insert (module->instructions, instruction, instruction);
-
-  return object;
-}
-
-static void
-gum_instruction_free (GumInstruction * self)
-{
-  self->module->core->isolate->AdjustAmountOfExternalAllocatedMemory (
-      -GUM_INSTRUCTION_FOOTPRINT_ESTIMATE);
-
-  delete self->wrapper;
-
-  g_slice_free (GumInstruction, self);
-}
-
-GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_address, GumInstruction)
-{
   info.GetReturnValue ().Set (
-      _gum_v8_native_pointer_new (GSIZE_TO_POINTER (self->insn.address), core));
+      _gum_v8_instruction_new (module->capstone, insn, TRUE, target, module));
 }
 
-GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_next, GumInstruction)
+GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_address, GumV8InstructionValue)
 {
+  if (!gum_v8_instruction_check_valid (self, isolate))
+    return;
+
+  info.GetReturnValue ().Set (_gum_v8_native_pointer_new (
+      GSIZE_TO_POINTER (self->insn->address), core));
+}
+
+GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_next, GumV8InstructionValue)
+{
+  if (!gum_v8_instruction_check_valid (self, isolate))
+    return;
+
   auto next = GSIZE_TO_POINTER (
-      GPOINTER_TO_SIZE (self->target) + self->insn.size);
+      GPOINTER_TO_SIZE (self->target) + self->insn->size);
 
   info.GetReturnValue ().Set (_gum_v8_native_pointer_new (next, core));
 }
 
-GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_size, GumInstruction)
+GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_size, GumV8InstructionValue)
 {
-  info.GetReturnValue ().Set (self->insn.size);
+  if (!gum_v8_instruction_check_valid (self, isolate))
+    return;
+
+  info.GetReturnValue ().Set (self->insn->size);
 }
 
-GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_mnemonic, GumInstruction)
+GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_mnemonic,
+    GumV8InstructionValue)
 {
+  if (!gum_v8_instruction_check_valid (self, isolate))
+    return;
+
   info.GetReturnValue ().Set (
-      _gum_v8_string_new_ascii (isolate, self->insn.mnemonic));
+      _gum_v8_string_new_ascii (isolate, self->insn->mnemonic));
 }
 
-GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_op_str, GumInstruction)
+GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_op_str, GumV8InstructionValue)
 {
+  if (!gum_v8_instruction_check_valid (self, isolate))
+    return;
+
   info.GetReturnValue ().Set (
-      _gum_v8_string_new_ascii (isolate, self->insn.op_str));
+      _gum_v8_string_new_ascii (isolate, self->insn->op_str));
 }
 
-GUMJS_DEFINE_CLASS_METHOD (gumjs_instruction_to_string, GumInstruction)
+GUMJS_DEFINE_CLASS_METHOD (gumjs_instruction_to_string, GumV8InstructionValue)
 {
-  cs_insn * insn = &self->insn;
+  if (!gum_v8_instruction_check_valid (self, isolate))
+    return;
+
+  const cs_insn * insn = self->insn;
 
   if (*insn->op_str != '\0')
   {
@@ -265,7 +339,8 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_instruction_to_string, GumInstruction)
 }
 
 static void
-gum_instruction_on_weak_notify (const WeakCallbackInfo<GumInstruction> & info)
+gum_v8_instruction_on_weak_notify (
+    const WeakCallbackInfo<GumV8InstructionValue> & info)
 {
   HandleScope handle_scope (info.GetIsolate ());
   auto self = info.GetParameter ();

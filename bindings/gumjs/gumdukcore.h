@@ -112,6 +112,7 @@ struct _GumDukScope
   GQueue scheduled_sources;
 
   gint pending_stalker_level;
+  GumStalkerTransformer * pending_stalker_transformer;
   GumEventSink * pending_stalker_sink;
 };
 

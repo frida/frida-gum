@@ -198,6 +198,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (external_sqlite_database_can_be_queried)
 #if defined (HAVE_I386) || defined (HAVE_ARM64)
   SCRIPT_TESTENTRY (execution_can_be_traced)
+  SCRIPT_TESTENTRY (execution_can_be_traced_with_custom_transformer)
   SCRIPT_TESTENTRY (call_can_be_probed)
 #endif
   SCRIPT_TESTENTRY (script_can_be_compiled_to_bytecode)
@@ -1538,6 +1539,42 @@ SCRIPT_TESTCASE (execution_can_be_traced)
   POST_MESSAGE ("{\"type\":\"stop\"}");
   EXPECT_SEND_MESSAGE_WITH ("\"onCallSummary: true\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onReceive: true\"");
+}
+
+SCRIPT_TESTCASE (execution_can_be_traced_with_custom_transformer)
+{
+  GumThreadId test_thread_id;
+
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
+  test_thread_id = gum_process_get_current_thread_id ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+    "var instructionsSeen = 0;"
+    "Stalker.follow(%" G_GSIZE_FORMAT ", {"
+    "  transform: function (iterator, output) {"
+    "    var instruction;"
+
+    "    while ((instruction = iterator.next()) !== null) {"
+    "      iterator.keep();"
+
+    "      instructionsSeen++;"
+    "    }"
+    "  }"
+    "});"
+    "recv('stop', function (message) {"
+    "  Stalker.unfollow(%" G_GSIZE_FORMAT ");"
+    "  send(instructionsSeen > 0);"
+    "});", test_thread_id, test_thread_id);
+  g_usleep (1);
+  EXPECT_NO_MESSAGES ();
+  POST_MESSAGE ("{\"type\":\"stop\"}");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
 }
 
 SCRIPT_TESTCASE (call_can_be_probed)

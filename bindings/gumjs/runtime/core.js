@@ -479,6 +479,7 @@ Object.defineProperties(Stalker, {
         throw new Error('invalid argument');
 
       const {
+        transform = null,
         events = {},
         onReceive = null,
         onCallSummary = null,
@@ -499,7 +500,7 @@ Object.defineProperties(Stalker, {
         return enabled ? (result | value) : result;
       }, 0);
 
-      Stalker._follow(threadId, eventMask, onReceive, onCallSummary);
+      Stalker._follow(threadId, transform, eventMask, onReceive, onCallSummary);
     }
   },
   parse: {

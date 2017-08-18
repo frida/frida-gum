@@ -1122,6 +1122,7 @@ _gum_duk_scope_enter (GumDukScope * self,
   g_queue_init (&self->scheduled_sources);
 
   self->pending_stalker_level = 0;
+  self->pending_stalker_transformer = NULL;
   self->pending_stalker_sink = NULL;
 
   return self->ctx;

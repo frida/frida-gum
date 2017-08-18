@@ -12,11 +12,39 @@
 
 #define GUMJS_MODULE_NAME Stalker
 
+#define GUM_V8_TYPE_CALLBACK_TRANSFORMER \
+    (gum_v8_callback_transformer_get_type ())
+#define GUM_V8_CALLBACK_TRANSFORMER_CAST(obj) \
+    ((GumV8CallbackTransformer *) (obj))
+
 using namespace v8;
+
+struct GumV8CallbackTransformer
+{
+  GObject parent;
+
+  GumPersistent<Function>::type * callback;
+
+  GumV8Stalker * module;
+};
+
+struct GumV8CallbackTransformerClass
+{
+  GObjectClass parent_class;
+};
 
 struct GumV8CallProbe
 {
   GumPersistent<Function>::type * callback;
+
+  GumV8Stalker * module;
+};
+
+struct GumV8StalkerIterator
+{
+  GumPersistent<v8::Object>::type * object;
+  GumStalkerIterator * handle;
+  GumV8InstructionValue * instruction;
 
   GumV8Stalker * module;
 };
@@ -37,14 +65,45 @@ GUMJS_DECLARE_FUNCTION (gumjs_stalker_add_call_probe)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_remove_call_probe)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_parse)
 
+static void gum_v8_callback_transformer_iface_init (gpointer g_iface,
+    gpointer iface_data);
+static void gum_v8_callback_transformer_dispose (GObject * object);
+G_DEFINE_TYPE_EXTENDED (GumV8CallbackTransformer,
+                        gum_v8_callback_transformer,
+                        G_TYPE_OBJECT,
+                        0,
+                        G_IMPLEMENT_INTERFACE (GUM_TYPE_STALKER_TRANSFORMER,
+                            gum_v8_callback_transformer_iface_init))
+
 static void gum_v8_call_probe_free (GumV8CallProbe * probe);
 static void gum_v8_call_probe_on_fire (GumCallSite * site,
     GumV8CallProbe * self);
+
+static GumV8StalkerIterator * gum_v8_stalker_iterator_new_persistent (
+    GumV8Stalker * parent);
+static void gum_v8_stalker_iterator_release_persistent (
+    GumV8StalkerIterator * self);
+static void gum_v8_stalker_iterator_reset (GumV8StalkerIterator * self,
+    GumStalkerIterator * handle);
+GUMJS_DECLARE_FUNCTION (gumjs_stalker_iterator_next)
+GUMJS_DECLARE_FUNCTION (gumjs_stalker_iterator_keep)
 
 static void gumjs_probe_args_get_nth (uint32_t index,
     const PropertyCallbackInfo<Value> & info);
 static void gumjs_probe_args_set_nth (uint32_t index, Local<Value> value,
     const PropertyCallbackInfo<Value> & info);
+
+static GumV8StalkerIterator * gum_v8_stalker_obtain_iterator (
+    GumV8Stalker * self);
+static void gum_v8_stalker_release_iterator (GumV8Stalker * self,
+    GumV8StalkerIterator * iterator);
+static GumV8NativeWriter * gum_v8_stalker_obtain_writer (GumV8Stalker * self);
+static void gum_v8_stalker_release_writer (GumV8Stalker * self,
+    GumV8NativeWriter * writer);
+static GumV8InstructionValue * gum_v8_stalker_obtain_instruction (
+    GumV8Stalker * self);
+static void gum_v8_stalker_release_instruction (GumV8Stalker * self,
+    GumV8InstructionValue * value);
 
 static Local<Value> gum_make_pointer (gpointer value, gboolean stringify,
     GumV8Core * core);
@@ -82,13 +141,25 @@ static const GumV8Function gumjs_stalker_functions[] =
   { NULL, NULL }
 };
 
+static const GumV8Function gumjs_stalker_iterator_functions[] =
+{
+  { "next", gumjs_stalker_iterator_next },
+  { "keep", gumjs_stalker_iterator_keep },
+
+  { NULL, NULL }
+};
+
 void
 _gum_v8_stalker_init (GumV8Stalker * self,
+                      GumV8CodeWriter * writer,
+                      GumV8Instruction * instruction,
                       GumV8Core * core,
                       Handle<ObjectTemplate> scope)
 {
   auto isolate = core->isolate;
 
+  self->writer = writer;
+  self->instruction = instruction;
   self->core = core;
   self->stalker = NULL;
   self->queue_capacity = 16384;
@@ -99,19 +170,40 @@ _gum_v8_stalker_init (GumV8Stalker * self,
   auto stalker = _gum_v8_create_module ("Stalker", scope, isolate);
   _gum_v8_module_add (module, stalker, gumjs_stalker_values, isolate);
   _gum_v8_module_add (module, stalker, gumjs_stalker_functions, isolate);
+
+  auto iter = _gum_v8_create_class ("StalkerIterator", nullptr, scope, module,
+      isolate);
+  _gum_v8_class_add (iter, gumjs_stalker_iterator_functions, module, isolate);
+  iter->InstanceTemplate ()->SetInternalFieldCount (1);
+  self->iterator = new GumPersistent<FunctionTemplate>::type (isolate, iter);
 }
 
 void
 _gum_v8_stalker_realize (GumV8Stalker * self)
 {
   auto isolate = self->core->isolate;
+  auto context = isolate->GetCurrentContext ();
 
-  auto args_templ = ObjectTemplate::New (isolate);
-  args_templ->SetInternalFieldCount (2);
-  args_templ->SetIndexedPropertyHandler (gumjs_probe_args_get_nth,
+  auto iter = Local<FunctionTemplate>::New (isolate, *self->iterator);
+  auto iter_value = iter->GetFunction ()->NewInstance (context, 0, nullptr)
+      .ToLocalChecked ();
+  self->iterator_value = new GumPersistent<Object>::type (isolate, iter_value);
+
+  auto args = ObjectTemplate::New (isolate);
+  args->SetInternalFieldCount (2);
+  args->SetIndexedPropertyHandler (gumjs_probe_args_get_nth,
       gumjs_probe_args_set_nth);
-  self->probe_args =
-      new GumPersistent<ObjectTemplate>::type(isolate, args_templ);
+  self->probe_args = new GumPersistent<ObjectTemplate>::type(isolate, args);
+
+  self->cached_iterator = gum_v8_stalker_iterator_new_persistent (self);
+  self->cached_iterator_in_use = FALSE;
+
+  self->cached_writer = _gum_v8_native_writer_new_persistent (self->writer);
+  self->cached_writer_in_use = FALSE;
+
+  self->cached_instruction =
+      _gum_v8_instruction_new_persistent (self->instruction);
+  self->cached_instruction_in_use = FALSE;
 }
 
 void
@@ -136,8 +228,23 @@ _gum_v8_stalker_flush (GumV8Stalker * self)
 void
 _gum_v8_stalker_dispose (GumV8Stalker * self)
 {
+  _gum_v8_instruction_release_persistent (self->cached_instruction);
+  self->cached_instruction = NULL;
+
+  _gum_v8_native_writer_release_persistent (self->cached_writer);
+  self->cached_writer = NULL;
+
+  gum_v8_stalker_iterator_release_persistent (self->cached_iterator);
+  self->cached_iterator = NULL;
+
+  delete self->iterator_value;
+  self->iterator_value = nullptr;
+
   delete self->probe_args;
   self->probe_args = nullptr;
+
+  delete self->iterator;
+  self->iterator = nullptr;
 }
 
 void
@@ -161,7 +268,8 @@ _gum_v8_stalker_process_pending (GumV8Stalker * self,
 {
   if (scope->pending_level > 0)
   {
-    gum_stalker_follow_me (_gum_v8_stalker_get (self), scope->sink);
+    gum_stalker_follow_me (_gum_v8_stalker_get (self), scope->transformer,
+        scope->sink);
   }
   else if (scope->pending_level < 0)
   {
@@ -170,6 +278,7 @@ _gum_v8_stalker_process_pending (GumV8Stalker * self,
   scope->pending_level = 0;
 
   g_clear_object (&scope->sink);
+  g_clear_object (&scope->transformer);
 }
 
 GUMJS_DEFINE_GETTER (gumjs_stalker_get_trust_threshold)
@@ -247,10 +356,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_garbage_collect)
  */
 GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
 {
-  GumStalker * stalker;
+  auto stalker = _gum_v8_stalker_get (module);
+
   GumThreadId thread_id;
 
-  stalker = _gum_v8_stalker_get (module);
+  Local<Function> transformer_callback;
 
   GumV8EventSinkOptions so;
   so.core = core;
@@ -258,9 +368,22 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
   so.queue_capacity = module->queue_capacity;
   so.queue_drain_interval = module->queue_drain_interval;
 
-  if (!_gum_v8_args_parse (args, "ZuF?F?", &thread_id, &so.event_mask,
-      &so.on_receive, &so.on_call_summary))
+  if (!_gum_v8_args_parse (args, "ZF?uF?F?", &thread_id, &transformer_callback,
+      &so.event_mask, &so.on_receive, &so.on_call_summary))
     return;
+
+  GumStalkerTransformer * transformer = NULL;
+
+  if (!transformer_callback.IsEmpty ())
+  {
+    auto cbt = (GumV8CallbackTransformer *)
+        g_object_new (GUM_V8_TYPE_CALLBACK_TRANSFORMER, NULL);
+    cbt->callback = new GumPersistent<Function>::type (isolate,
+        transformer_callback);
+    cbt->module = module;
+
+    transformer = GUM_STALKER_TRANSFORMER (cbt);
+  }
 
   auto sink = gum_v8_event_sink_new (&so);
   if (thread_id == gum_process_get_current_thread_id ())
@@ -269,12 +392,14 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
 
     scope->pending_level = 1;
 
+    g_clear_object (&scope->transformer);
     g_clear_object (&scope->sink);
+    scope->transformer = transformer;
     scope->sink = sink;
   }
   else
   {
-    gum_stalker_follow (stalker, thread_id, sink);
+    gum_stalker_follow (stalker, thread_id, transformer, sink);
     g_object_unref (sink);
   }
 }
@@ -509,6 +634,73 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_parse)
 }
 
 static void
+gum_v8_callback_transformer_transform_block (
+    GumStalkerTransformer * transformer,
+    GumStalkerIterator * iterator,
+    GumStalkerWriter * output)
+{
+  auto self = GUM_V8_CALLBACK_TRANSFORMER_CAST (transformer);
+  auto module = self->module;
+  auto core = module->core;
+  ScriptScope scope (core->script);
+  auto isolate = core->isolate;
+
+  auto callback = Local<Function>::New (isolate, *self->callback);
+
+  auto iter_value = gum_v8_stalker_obtain_iterator (module);
+  gum_v8_stalker_iterator_reset (iter_value, iterator);
+  auto iter_object = Local<Object>::New (isolate, *iter_value->object);
+
+  auto output_value = gum_v8_stalker_obtain_writer (module);
+  _gum_v8_native_writer_reset (output_value, (GumV8NativeWriterImpl *) output);
+  auto output_object = Local<Object>::New (isolate, *output_value->object);
+
+  Handle<Value> argv[] = { iter_object, output_object };
+  callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
+
+  _gum_v8_native_writer_reset (output_value, NULL);
+  gum_v8_stalker_release_writer (module, output_value);
+
+  gum_v8_stalker_iterator_reset (iter_value, NULL);
+  gum_v8_stalker_release_iterator (module, iter_value);
+}
+
+static void
+gum_v8_callback_transformer_class_init (GumV8CallbackTransformerClass * klass)
+{
+  auto object_class = G_OBJECT_CLASS (klass);
+
+  object_class->dispose = gum_v8_callback_transformer_dispose;
+}
+
+static void
+gum_v8_callback_transformer_iface_init (gpointer g_iface,
+                                        gpointer iface_data)
+{
+  auto iface = (GumStalkerTransformerIface *) g_iface;
+
+  iface->transform_block = gum_v8_callback_transformer_transform_block;
+}
+
+static void
+gum_v8_callback_transformer_init (GumV8CallbackTransformer * self)
+{
+}
+
+static void
+gum_v8_callback_transformer_dispose (GObject * object)
+{
+  auto self = GUM_V8_CALLBACK_TRANSFORMER_CAST (object);
+
+  ScriptScope scope (self->module->core->script);
+
+  delete self->callback;
+  self->callback = nullptr;
+
+  G_OBJECT_CLASS (gum_v8_callback_transformer_parent_class)->dispose (object);
+}
+
+static void
 gum_v8_call_probe_free (GumV8CallProbe * probe)
 {
   ScriptScope scope (probe->module->core->script);
@@ -538,6 +730,88 @@ gum_v8_call_probe_on_fire (GumCallSite * site,
 
   args->SetAlignedPointerInInternalField (0, nullptr);
   args->SetAlignedPointerInInternalField (1, nullptr);
+}
+
+static GumV8StalkerIterator *
+gum_v8_stalker_iterator_new_persistent (GumV8Stalker * parent)
+{
+  auto isolate = parent->core->isolate;
+
+  auto iter = g_slice_new (GumV8StalkerIterator);
+
+  auto iter_value = Local<Object>::New (isolate,
+      *parent->iterator_value);
+  auto object = iter_value->Clone ();
+  object->SetAlignedPointerInInternalField (0, iter);
+  iter->object = new GumPersistent<Object>::type (isolate, object);
+  iter->handle = NULL;
+  iter->instruction = NULL;
+  iter->module = parent;
+
+  return iter;
+}
+
+static void
+gum_v8_stalker_iterator_release_persistent (GumV8StalkerIterator * self)
+{
+  delete self->object;
+
+  g_slice_free (GumV8StalkerIterator, self);
+}
+
+static void
+gum_v8_stalker_iterator_reset (GumV8StalkerIterator * self,
+                               GumStalkerIterator * handle)
+{
+  GumV8Stalker * module = self->module;
+
+  self->handle = handle;
+
+  if (self->instruction != NULL)
+  {
+    self->instruction->insn = NULL;
+    gum_v8_stalker_release_instruction (module, self->instruction);
+  }
+  self->instruction = (handle != NULL)
+      ? gum_v8_stalker_obtain_instruction (module)
+      : NULL;
+}
+
+static gboolean
+gum_v8_stalker_iterator_check_valid (GumV8StalkerIterator * self,
+                                     Isolate * isolate)
+{
+  if (self->handle == NULL)
+  {
+    _gum_v8_throw (isolate, "invalid operation");
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+GUMJS_DEFINE_CLASS_METHOD (gumjs_stalker_iterator_next, GumV8StalkerIterator)
+{
+  if (!gum_v8_stalker_iterator_check_valid (self, isolate))
+    return;
+
+  if (gum_stalker_iterator_next (self->handle, &self->instruction->insn))
+  {
+    info.GetReturnValue ().Set (
+        Local<Object>::New (isolate, *self->instruction->object));
+  }
+  else
+  {
+    info.GetReturnValue ().SetNull ();
+  }
+}
+
+GUMJS_DEFINE_CLASS_METHOD (gumjs_stalker_iterator_keep, GumV8StalkerIterator)
+{
+  if (!gum_v8_stalker_iterator_check_valid (self, isolate))
+    return;
+
+  gum_stalker_iterator_keep (self->handle);
 }
 
 static void
@@ -587,6 +861,98 @@ gumjs_probe_args_set_nth (uint32_t index,
     return;
 
   gum_call_site_replace_nth_argument (site, index, raw_value);
+}
+
+static GumV8StalkerIterator *
+gum_v8_stalker_obtain_iterator (GumV8Stalker * self)
+{
+  GumV8StalkerIterator * iterator;
+
+  if (!self->cached_iterator_in_use)
+  {
+    iterator = self->cached_iterator;
+    self->cached_iterator_in_use = TRUE;
+  }
+  else
+  {
+    iterator = gum_v8_stalker_iterator_new_persistent (self);
+  }
+
+  return iterator;
+}
+
+static void
+gum_v8_stalker_release_iterator (GumV8Stalker * self,
+                                 GumV8StalkerIterator * iterator)
+{
+  if (iterator == self->cached_iterator)
+    self->cached_iterator_in_use = FALSE;
+  else
+    gum_v8_stalker_iterator_release_persistent (iterator);
+}
+
+static GumV8NativeWriter *
+gum_v8_stalker_obtain_writer (GumV8Stalker * self)
+{
+  GumV8NativeWriter * writer;
+
+  if (!self->cached_writer_in_use)
+  {
+    writer = self->cached_writer;
+    self->cached_writer_in_use = TRUE;
+  }
+  else
+  {
+    writer = _gum_v8_native_writer_new_persistent (self->writer);
+  }
+
+  return writer;
+}
+
+static void
+gum_v8_stalker_release_writer (GumV8Stalker * self,
+                                GumV8NativeWriter * writer)
+{
+  if (writer == self->cached_writer)
+  {
+    self->cached_writer_in_use = FALSE;
+  }
+  else
+  {
+    _gum_v8_native_writer_release_persistent (writer);
+  }
+}
+
+static GumV8InstructionValue *
+gum_v8_stalker_obtain_instruction (GumV8Stalker * self)
+{
+  GumV8InstructionValue * value;
+
+  if (!self->cached_instruction_in_use)
+  {
+    value = self->cached_instruction;
+    self->cached_instruction_in_use = TRUE;
+  }
+  else
+  {
+    value = _gum_v8_instruction_new_persistent (self->instruction);
+  }
+
+  return value;
+}
+
+static void
+gum_v8_stalker_release_instruction (GumV8Stalker * self,
+                                     GumV8InstructionValue * value)
+{
+  if (value == self->cached_instruction)
+  {
+    self->cached_instruction_in_use = FALSE;
+  }
+  else
+  {
+    _gum_v8_instruction_release_persistent (value);
+  }
 }
 
 static Local<Value>

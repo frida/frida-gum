@@ -75,10 +75,38 @@ def generate_umbrella(runtime, name, section, flavor_combos):
     for arch, flavor in flavor_combos:
         if arch != current_arch:
             if current_arch is not None:
-                lines.append("#endif")
-            lines.append("#ifdef " + arch_defines[arch])
+                lines.extend([
+                    "#endif",
+                    "",
+                ])
+            lines.extend([
+                "#ifdef " + arch_defines[arch],
+                "",
+            ])
             current_arch = arch
         lines.append("# include \"gum{0}code{1}{2}-{3}.inc\"".format(runtime, name, section, flavor))
+        if section == "-methods" and flavor != "arm":
+            native_function_prefix = "gum_{0}_native_{1}".format(runtime, name)
+            wrapper_function_prefix = "gum_{0}_{1}_{2}".format(runtime, flavor, name)
+            impl_function_prefix = "gum_{0}_{1}".format(flavor, name)
+
+            params = {
+                "native_struct_name": to_camel_case(native_function_prefix, start_high=True),
+                "native_function_prefix": native_function_prefix,
+                "wrapper_struct_name": to_camel_case(wrapper_function_prefix, start_high=True),
+                "wrapper_function_prefix": wrapper_function_prefix,
+                "impl_struct_name": to_camel_case(impl_function_prefix, start_high=True),
+                "persistent_suffix": "_persistent" if runtime == "v8" else ""
+            }
+
+            lines.extend("""
+typedef {wrapper_struct_name} {native_struct_name};
+typedef {impl_struct_name} {native_struct_name}Impl;
+
+#define _{native_function_prefix}_new{persistent_suffix} _{wrapper_function_prefix}_new{persistent_suffix}
+#define _{native_function_prefix}_release{persistent_suffix} _{wrapper_function_prefix}_release{persistent_suffix}
+#define _{native_function_prefix}_reset _{wrapper_function_prefix}_reset
+""".format(**params).split("\n"))
     lines.append("#endif")
 
     filename = "gum{0}code{1}{2}.inc".format(runtime, name, section)
@@ -116,23 +144,8 @@ def generate_duk_wrapper_code(component, api):
     lines = [
         "/* Auto-generated, do not edit. */",
         "",
-        "#include <gum/arch-{0}/gum{1}{2}.h>".format(component.arch, component.flavor, component.name),
         "#include <string.h>",
-        "",
-        "typedef struct _{0} {0};".format(component.wrapper_struct_name),
-        "",
-        "struct _{0}".format(component.wrapper_struct_name),
-        "{",
-        "  {0} * impl;".format(component.impl_struct_name),
     ]
-
-    if component.name == "relocator":
-        lines.append("  const cs_insn * input;")
-
-    lines.extend([
-        "  {0} * module;".format(component.module_struct_name),
-        "};",
-    ])
 
     conversion_decls, conversion_code = generate_conversion_methods(component, generate_duk_enum_parser)
     if len(conversion_decls) > 0:
@@ -278,7 +291,7 @@ def generate_duk_wrapper_code(component, api):
                 lines.extend([
                     "  if (result != NULL)",
                     "  {",
-                    "    _gum_duk_push_instruction (ctx, result, {0}, self->module->instruction);".format(target),
+                    "    _gum_duk_push_instruction (ctx, self->impl->capstone, result, FALSE, {0}, self->module->instruction);".format(target),
                     "  }",
                     "  else",
                     "  {",
@@ -372,14 +385,34 @@ def generate_duk_fields(component):
     return "  GumDukHeapPtr {0}_{1};".format(component.flavor, component.name)
 
 def generate_duk_methods(component):
-    if component.name == "writer":
-        template = """\
+    params = dict(component.__dict__)
+
+    extra_fields = ""
+    if component.name == "relocator":
+        extra_fields = "\n  GumDukInstructionValue * input;"
+
+    params["extra_fields"] = extra_fields
+
+    template = """\
 #include <gum/arch-{arch}/gum{flavor}{name}.h>
 
-G_GNUC_INTERNAL {impl_struct_name} * _gum_duk_require_{flavor}_writer (duk_context * ctx,
-    duk_idx_t index, {module_struct_name} * module);"""
-        return template.format(**component.__dict__)
-    return ""
+typedef struct _{wrapper_struct_name} {wrapper_struct_name};
+
+struct _{wrapper_struct_name}
+{{
+  GumDukHeapPtr object;
+  {impl_struct_name} * impl;{extra_fields}
+  {module_struct_name} * module;
+}};
+
+G_GNUC_INTERNAL {wrapper_struct_name} * _gum_duk_push_{flavor}_{name} (duk_context * ctx, {impl_struct_name} * impl, {module_struct_name} * module);
+G_GNUC_INTERNAL {wrapper_struct_name} * _gum_duk_require_{flavor}_{name} (duk_context * ctx, duk_idx_t index, {module_struct_name} * module);
+
+G_GNUC_INTERNAL {wrapper_struct_name} * _gum_duk_{flavor}_{name}_new ({module_struct_name} * module);
+G_GNUC_INTERNAL void _gum_duk_{flavor}_{name}_release ({wrapper_struct_name} * writer);
+G_GNUC_INTERNAL void _gum_duk_{flavor}_{name}_reset ({wrapper_struct_name} * self, {impl_struct_name} * impl);
+"""
+    return template.format(**params)
 
 def generate_duk_init_code(component):
     return """\
@@ -408,10 +441,34 @@ def generate_duk_base_methods(component):
 
 def generate_duk_writer_base_methods(component):
     template = """\
-{impl_struct_name} *
-_gum_duk_require_{flavor}_writer (duk_context * ctx,
-{require_writer_arglist_indent}duk_idx_t index,
-{require_writer_arglist_indent}{module_struct_name} * module)
+static {wrapper_struct_name} * {wrapper_function_prefix}_alloc ({module_struct_name} * module);
+static void {wrapper_function_prefix}_dispose ({wrapper_struct_name} * self);
+static void {gumjs_function_prefix}_parse_constructor_args (const GumDukArgs * args,
+    gpointer * code_address, GumAddress * pc, gboolean * pc_specified);
+
+{wrapper_struct_name} *
+_gum_duk_push_{flavor}_writer (
+    duk_context * ctx,
+    {impl_struct_name} * impl,
+    {module_struct_name} * module)
+{{
+  {wrapper_struct_name} * writer;
+
+  writer = {wrapper_function_prefix}_alloc (module);
+  writer->impl = (impl != NULL) ? {impl_function_prefix}_ref (impl) : NULL;
+
+  duk_push_heapptr (ctx, module->{flavor}_writer);
+  duk_push_pointer (ctx, writer);
+  duk_new (ctx, 1);
+
+  return writer;
+}}
+
+{wrapper_struct_name} *
+_gum_duk_require_{flavor}_writer (
+    duk_context * ctx,
+    duk_idx_t index,
+    {module_struct_name} * module)
 {{
   {wrapper_struct_name} * writer;
 
@@ -421,31 +478,73 @@ _gum_duk_require_{flavor}_writer (duk_context * ctx,
     _gum_duk_throw (ctx, "expected {flavor} writer");
 
   writer = _gum_duk_require_data (ctx, -2);
-  if (writer == NULL)
-    _gum_duk_throw (ctx, "writer is disposed");
+  if (writer->impl == NULL)
+    _gum_duk_throw (ctx, "invalid operation");
 
   duk_pop_2 (ctx);
 
-  return writer->impl;
+  return writer;
+}}
+
+{wrapper_struct_name} *
+_gum_duk_{flavor}_writer_new ({module_struct_name} * module)
+{{
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (module->core);
+  duk_context * ctx = scope.ctx;
+  {wrapper_struct_name} * writer;
+
+  writer = _gum_duk_push_{flavor}_writer (ctx, NULL, module);
+  _gum_duk_protect (ctx, writer->object);
+  duk_pop (ctx);
+
+  return writer;
+}}
+
+void
+_gum_duk_{flavor}_writer_release ({wrapper_struct_name} * writer)
+{{
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (writer->module->core);
+
+  {wrapper_function_prefix}_dispose (writer);
+
+  _gum_duk_unprotect (scope.ctx, writer->object);
+}}
+
+void
+_gum_duk_{flavor}_writer_reset (
+    {wrapper_struct_name} * self,
+    {impl_struct_name} * impl)
+{{
+  if (impl != NULL)
+    {impl_function_prefix}_ref (impl);
+  if (self->impl != NULL)
+    {impl_function_prefix}_unref (self->impl);
+  self->impl = impl;
 }}
 
 static {wrapper_struct_name} *
-{wrapper_function_prefix}_new (gpointer code_address,
-{wrapper_ctor_arglist_indent}{module_struct_name} * module)
+{wrapper_function_prefix}_alloc ({module_struct_name} * module)
 {{
   {wrapper_struct_name} * writer;
 
   writer = g_slice_new ({wrapper_struct_name});
-  writer->impl = {impl_function_prefix}_new (code_address);
+  writer->object = NULL;
+  writer->impl = NULL;
   writer->module = module;
 
   return writer;
 }}
 
 static void
+{wrapper_function_prefix}_dispose ({wrapper_struct_name} * self)
+{{
+  g_clear_pointer (&self->impl, {impl_function_prefix}_unref);
+}}
+
+static void
 {wrapper_function_prefix}_free ({wrapper_struct_name} * self)
 {{
-  {impl_function_prefix}_unref (self->impl);
+  {wrapper_function_prefix}_dispose (self);
 
   g_slice_free ({wrapper_struct_name}, self);
 }}
@@ -458,8 +557,8 @@ static {wrapper_struct_name} *
 
   duk_push_this (ctx);
   self = _gum_duk_require_data (ctx, -1);
-  if (self == NULL)
-    _gum_duk_throw (ctx, "writer is disposed");
+  if (self->impl == NULL)
+    _gum_duk_throw (ctx, "invalid operation");
   duk_pop (ctx);
 
   return self;
@@ -467,42 +566,36 @@ static {wrapper_struct_name} *
 
 GUMJS_DEFINE_CONSTRUCTOR ({gumjs_function_prefix}_construct)
 {{
-  gpointer code_address;
-  GumDukHeapPtr options;
-  GumAddress pc;
-  gboolean pc_specified;
   {wrapper_struct_name} * writer;
 
   if (!duk_is_constructor_call (ctx))
     _gum_duk_throw (ctx, "use constructor syntax to create a new instance");
 
-  options = NULL;
-  _gum_duk_args_parse (args, "p|O", &code_address, &options);
+  duk_push_this (ctx);
 
-  pc = 0;
-  pc_specified = FALSE;
-  if (options != NULL)
+  if (duk_is_pointer (ctx, 0))
   {{
-    duk_push_heapptr (ctx, options);
+    writer = duk_require_pointer (ctx, 0);
+  }}
+  else
+  {{
+    gpointer code_address;
+    GumAddress pc;
+    gboolean pc_specified;
 
-    duk_get_prop_string (ctx, -1, "pc");
-    if (!duk_is_undefined (ctx, -1))
-    {{
-      pc = GUM_ADDRESS (_gum_duk_require_pointer (ctx, -1, args->core));
-      pc_specified = TRUE;
-    }}
+    {gumjs_function_prefix}_parse_constructor_args (args, &code_address, &pc,
+        &pc_specified);
 
-    duk_pop_2 (ctx);
+    writer = {wrapper_function_prefix}_alloc (gumjs_module_from_args (args));
+
+    writer->impl = {impl_function_prefix}_new (code_address);
+    if (pc_specified)
+      writer->impl->pc = pc;
   }}
 
-  writer = {wrapper_function_prefix}_new (code_address,
-      gumjs_module_from_args (args));
-
-  if (pc_specified)
-    writer->impl->pc = pc;
-
-  duk_push_this (ctx);
+  writer->object = duk_require_heapptr (ctx, -1);
   _gum_duk_put_data (ctx, -1, writer);
+
   duk_pop (ctx);
 
   return 0;
@@ -511,19 +604,51 @@ GUMJS_DEFINE_CONSTRUCTOR ({gumjs_function_prefix}_construct)
 GUMJS_DEFINE_FUNCTION ({gumjs_function_prefix}_reset)
 {{
   {wrapper_struct_name} * self;
-  gpointer code_address, pc;
+  gpointer code_address;
+  GumAddress pc;
+  gboolean pc_specified;
 
   self = {wrapper_function_prefix}_from_args (args);
 
-  pc = NULL;
-  _gum_duk_args_parse (args, "p|p", &code_address);
+  {gumjs_function_prefix}_parse_constructor_args (args, &code_address, &pc,
+      &pc_specified);
 
   {impl_function_prefix}_reset (self->impl, code_address);
-
-  if (pc != NULL)
-    self->impl->pc = GUM_ADDRESS (pc);
+  if (pc_specified)
+    self->impl->pc = pc;
 
   return 0;
+}}
+
+static void
+{gumjs_function_prefix}_parse_constructor_args (
+    const GumDukArgs * args,
+    gpointer * code_address,
+    GumAddress * pc,
+    gboolean * pc_specified)
+{{
+  duk_context * ctx = args->ctx;
+  GumDukHeapPtr options;
+
+  options = NULL;
+  _gum_duk_args_parse (args, "p|O", code_address, &options);
+
+  *pc = 0;
+  *pc_specified = FALSE;
+
+  if (options != NULL)
+  {{
+    duk_push_heapptr (ctx, options);
+
+    duk_get_prop_string (ctx, -1, "pc");
+    if (!duk_is_undefined (ctx, -1))
+    {{
+      *pc = GUM_ADDRESS (_gum_duk_require_pointer (ctx, -1, args->core));
+      *pc_specified = TRUE;
+    }}
+
+    duk_pop_2 (ctx);
+  }}
 }}
 
 GUMJS_DEFINE_FUNCTION ({gumjs_function_prefix}_dispose)
@@ -531,11 +656,10 @@ GUMJS_DEFINE_FUNCTION ({gumjs_function_prefix}_dispose)
   {wrapper_struct_name} * self;
 
   duk_push_this (ctx);
-  self = _gum_duk_steal_data (ctx, -1);
+  self = _gum_duk_require_data (ctx, -1);
   duk_pop (ctx);
 
-  if (self != NULL)
-    {wrapper_function_prefix}_free (self);
+  {wrapper_function_prefix}_dispose (self);
 
   return 0;
 }}
@@ -585,35 +709,121 @@ static const GumDukPropertyEntry {gumjs_function_prefix}_values[] =
 }};
 """
 
-    params = {
-        "require_writer_arglist_indent": (len(component.flavor) + 26) * " ",
-        "wrapper_ctor_arglist_indent": (len(component.wrapper_function_prefix) + 6) * " "
-    }
-    params.update(component.__dict__)
-
-    return template.format(**params).split("\n")
+    return template.format(**component.__dict__).split("\n")
 
 def generate_duk_relocator_base_methods(component):
     template = """\
+static {wrapper_struct_name} * {wrapper_function_prefix}_alloc ({module_struct_name} * module);
+static void {wrapper_function_prefix}_dispose ({wrapper_struct_name} * self);
+static void {gumjs_function_prefix}_parse_constructor_args (const GumDukArgs * args,
+    gconstpointer * input_code, {writer_wrapper_struct_name} ** writer, {module_struct_name} * module);
+
+{wrapper_struct_name} *
+_gum_duk_push_{flavor}_relocator (
+    duk_context * ctx,
+    {impl_struct_name} * impl,
+    {module_struct_name} * module)
+{{
+  {wrapper_struct_name} * relocator;
+
+  relocator = {wrapper_function_prefix}_alloc (module);
+  relocator->impl = (impl != NULL) ? {impl_function_prefix}_ref (impl) : NULL;
+
+  duk_push_heapptr (ctx, module->{flavor}_relocator);
+  duk_push_pointer (ctx, relocator);
+  duk_new (ctx, 1);
+
+  return relocator;
+}}
+
+{wrapper_struct_name} *
+_gum_duk_require_{flavor}_relocator (
+    duk_context * ctx,
+    duk_idx_t index,
+    {module_struct_name} * module)
+{{
+  {wrapper_struct_name} * relocator;
+
+  duk_dup (ctx, index);
+  duk_push_heapptr (ctx, module->{flavor}_relocator);
+  if (!duk_instanceof (ctx, -2, -1))
+    _gum_duk_throw (ctx, "expected {flavor} relocator");
+
+  relocator = _gum_duk_require_data (ctx, -2);
+  if (relocator->impl == NULL)
+    _gum_duk_throw (ctx, "invalid operation");
+
+  duk_pop_2 (ctx);
+
+  return relocator;
+}}
+
+{wrapper_struct_name} *
+_gum_duk_{flavor}_relocator_new ({module_struct_name} * module)
+{{
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (module->core);
+  duk_context * ctx = scope.ctx;
+  {wrapper_struct_name} * relocator;
+
+  relocator = _gum_duk_push_{flavor}_relocator (ctx, NULL, module);
+  _gum_duk_protect (ctx, relocator->object);
+  duk_pop (ctx);
+
+  return relocator;
+}}
+
+void
+_gum_duk_{flavor}_relocator_release ({wrapper_struct_name} * relocator)
+{{
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (relocator->module->core);
+
+  {wrapper_function_prefix}_dispose (relocator);
+
+  _gum_duk_unprotect (scope.ctx, relocator->object);
+}}
+
+void
+_gum_duk_{flavor}_relocator_reset (
+    {wrapper_struct_name} * self,
+    {impl_struct_name} * impl)
+{{
+  if (impl != NULL)
+    {impl_function_prefix}_ref (impl);
+  if (self->impl != NULL)
+    {impl_function_prefix}_unref (self->impl);
+  self->impl = impl;
+
+  self->input->insn = NULL;
+}}
+
 static {wrapper_struct_name} *
-{wrapper_function_prefix}_new (gconstpointer input_code,
-{wrapper_ctor_arglist_indent}{writer_impl_struct_name} * output,
-{wrapper_ctor_arglist_indent}{module_struct_name} * module)
+{wrapper_function_prefix}_alloc ({module_struct_name} * module)
 {{
   {wrapper_struct_name} * relocator;
 
   relocator = g_slice_new ({wrapper_struct_name});
-  relocator->impl = {impl_function_prefix}_new (input_code, output);
-  relocator->input = NULL;
+  relocator->object = NULL;
+  relocator->impl = NULL;
+  relocator->input = _gum_duk_instruction_new (module->instruction);
   relocator->module = module;
 
   return relocator;
 }}
 
 static void
+{wrapper_function_prefix}_dispose ({wrapper_struct_name} * self)
+{{
+  self->input->insn = NULL;
+
+  g_clear_pointer (&self->impl, {impl_function_prefix}_unref);
+}}
+
+static void
 {wrapper_function_prefix}_free ({wrapper_struct_name} * self)
 {{
-  {impl_function_prefix}_unref (self->impl);
+  {wrapper_function_prefix}_dispose (self);
+
+  _gum_duk_instruction_release (self->input);
 
   g_slice_free ({wrapper_struct_name}, self);
 }}
@@ -626,8 +836,8 @@ static {wrapper_struct_name} *
 
   duk_push_this (ctx);
   self = _gum_duk_require_data (ctx, -1);
-  if (self == NULL)
-    _gum_duk_throw (ctx, "relocator is disposed");
+  if (self->impl == NULL)
+    _gum_duk_throw (ctx, "invalid operation");
   duk_pop (ctx);
 
   return self;
@@ -635,27 +845,35 @@ static {wrapper_struct_name} *
 
 GUMJS_DEFINE_CONSTRUCTOR ({gumjs_function_prefix}_construct)
 {{
-  {module_struct_name} * module;
-  gconstpointer input_code;
-  GumDukHeapPtr writer_object;
-  {writer_impl_struct_name} * writer;
   {wrapper_struct_name} * relocator;
 
   if (!duk_is_constructor_call (ctx))
     _gum_duk_throw (ctx, "use constructor syntax to create a new instance");
 
-  module = gumjs_module_from_args (args);
-
-  _gum_duk_args_parse (args, "pO", &input_code, &writer_object);
-
-  duk_push_heapptr (ctx, writer_object);
-  writer = _gum_duk_require_{flavor}_writer (ctx, -1, module->writer);
-
-  relocator = {wrapper_function_prefix}_new (input_code, writer, module);
-
   duk_push_this (ctx);
+
+  if (duk_is_pointer (ctx, 0))
+  {{
+    relocator = duk_require_pointer (ctx, 0);
+  }}
+  else
+  {{
+    gconstpointer input_code;
+    {writer_wrapper_struct_name} * writer;
+    {module_struct_name} * module;
+
+    module = gumjs_module_from_args (args);
+
+    {gumjs_function_prefix}_parse_constructor_args (args, &input_code, &writer, module);
+
+    relocator = {wrapper_function_prefix}_alloc (module);
+    relocator->impl = {impl_function_prefix}_new (input_code, writer->impl);
+  }}
+
+  relocator->object = duk_require_heapptr (ctx, -1);
   _gum_duk_put_data (ctx, -1, relocator);
-  duk_pop_2 (ctx);
+
+  duk_pop (ctx);
 
   return 0;
 }}
@@ -664,22 +882,34 @@ GUMJS_DEFINE_FUNCTION ({gumjs_function_prefix}_reset)
 {{
   {wrapper_struct_name} * self;
   gconstpointer input_code;
-  GumDukHeapPtr writer_object;
-  {writer_impl_struct_name} * writer;
+  {writer_wrapper_struct_name} * writer;
 
   self = {wrapper_function_prefix}_from_args (args);
 
-  _gum_duk_args_parse (args, "pO", &input_code, &writer_object);
+  {gumjs_function_prefix}_parse_constructor_args (args, &input_code, &writer, self->module);
 
-  duk_push_heapptr (ctx, writer_object);
-  writer = _gum_duk_require_{flavor}_writer (ctx, -1, self->module->writer);
-  duk_pop (ctx);
+  {impl_function_prefix}_reset (self->impl, input_code, writer->impl);
 
-  {impl_function_prefix}_reset (self->impl, input_code, writer);
-
-  self->input = NULL;
+  self->input->insn = NULL;
 
   return 0;
+}}
+
+static void
+{gumjs_function_prefix}_parse_constructor_args (
+    const GumDukArgs * args,
+    gconstpointer * input_code,
+    {writer_wrapper_struct_name} ** writer,
+    {module_struct_name} * module)
+{{
+  duk_context * ctx = args->ctx;
+  GumDukHeapPtr writer_object;
+
+  _gum_duk_args_parse (args, "pO", input_code, &writer_object);
+
+  duk_push_heapptr (ctx, writer_object);
+  *writer = _gum_duk_require_{flavor}_writer (ctx, -1, module->writer);
+  duk_pop (ctx);
 }}
 
 GUMJS_DEFINE_FUNCTION ({gumjs_function_prefix}_dispose)
@@ -687,11 +917,10 @@ GUMJS_DEFINE_FUNCTION ({gumjs_function_prefix}_dispose)
   {wrapper_struct_name} * self;
 
   duk_push_this (ctx);
-  self = _gum_duk_steal_data (ctx, -1);
+  self = _gum_duk_require_data (ctx, -1);
   duk_pop (ctx);
 
-  if (self != NULL)
-    {wrapper_function_prefix}_free (self);
+  {wrapper_function_prefix}_dispose (self);
 
   return 0;
 }}
@@ -716,7 +945,11 @@ GUMJS_DEFINE_FUNCTION ({gumjs_function_prefix}_read_one)
 
   self = {wrapper_function_prefix}_from_args (args);
 
-  n_read = {impl_function_prefix}_read_one (self->impl, &self->input);
+  n_read = {impl_function_prefix}_read_one (self->impl, &self->input->insn);
+  if (n_read != 0)
+  {{
+    self->input->target = {get_input_target_expression};
+  }}
 
   duk_push_uint (ctx, n_read);
   return 1;
@@ -728,16 +961,10 @@ GUMJS_DEFINE_GETTER ({gumjs_function_prefix}_get_input)
 
   self = {wrapper_function_prefix}_from_args (args);
 
-  if (self->input != NULL)
-  {{
-    _gum_duk_push_instruction (ctx, self->input,
-        {get_input_target_expression},
-        self->module->instruction);
-  }}
+  if (self->input->insn != NULL)
+    duk_push_heapptr (ctx, self->input->object);
   else
-  {{
     duk_push_null (ctx);
-  }}
   return 1;
 }}
 
@@ -772,16 +999,15 @@ static const GumDukPropertyEntry {gumjs_function_prefix}_values[] =
 """
 
     if component.flavor == "x86":
-        target = "GSIZE_TO_POINTER (self->input->address)"
+        target = "GSIZE_TO_POINTER (self->input->insn->address)"
     else:
-        target = "self->impl->input_start + (self->input->address - (self->impl->input_pc - self->impl->inpos))"
+        target = "self->impl->input_start + (self->input->insn->address - (self->impl->input_pc - self->impl->inpos))"
         if component.flavor == "thumb":
             target = "GSIZE_TO_POINTER (GPOINTER_TO_SIZE ({0}) | 1)".format(target)
 
     params = {
-        "writer_impl_struct_name": to_camel_case('gum_{0}_writer'.format(component.flavor), start_high=True),
+        "writer_wrapper_struct_name": component.wrapper_struct_name.replace("Relocator", "Writer"),
         "get_input_target_expression": target,
-        "wrapper_ctor_arglist_indent": (len(component.wrapper_function_prefix) + 6) * " "
     }
     params.update(component.__dict__)
 
@@ -794,7 +1020,6 @@ def generate_duk_enum_parser(name, type, prefix, values):
         'name': name,
         'description': name.replace("_", " "),
         'type': type,
-        'arglist_indent': (len(name) + 12) * " ",
     }
 
     decls = [
@@ -803,8 +1028,9 @@ def generate_duk_enum_parser(name, type, prefix, values):
 
     code = """\
 static {type}
-gum_parse_{name} (duk_context * ctx,
-{arglist_indent}const gchar * name)
+gum_parse_{name} (
+    duk_context * ctx,
+    const gchar * name)
 {{
   {type} value = 0;
 
@@ -831,25 +1057,9 @@ def generate_v8_wrapper_code(component, api):
     lines = [
         "/* Auto-generated, do not edit. */",
         "",
-        "#include <gum/arch-{0}/gum{1}{2}.h>".format(component.arch, component.flavor, component.name),
         "#include <string>",
         "#include <string.h>",
-        "",
-        "struct {0}".format(component.wrapper_struct_name),
-        "{",
-        "  GumPersistent<v8::Object>::type * wrapper;",
-        "  {0} * impl;".format(component.impl_struct_name),
     ]
-
-    if component.name == "writer":
-        lines.append("  GHashTable * labels;")
-    elif component.name == "relocator":
-        lines.append("  const cs_insn * input;")
-
-    lines.extend([
-        "  {0} * module;".format(component.module_struct_name),
-        "};",
-    ])
 
     conversion_decls, conversion_code = generate_conversion_methods(component, generate_v8_enum_parser)
     if len(conversion_decls) > 0:
@@ -977,7 +1187,7 @@ def generate_v8_wrapper_code(component, api):
                 lines.extend([
                     "  if (result != NULL)",
                     "  {",
-                    "    info.GetReturnValue ().Set (_gum_v8_instruction_new (result,",
+                    "    info.GetReturnValue ().Set (_gum_v8_instruction_new (self->impl->capstone, result, FALSE,",
                     "        {0}, module->instruction));".format(target),
                     "  }",
                     "  else",
@@ -1086,14 +1296,32 @@ def generate_v8_fields(component):
   GumPersistent<v8::FunctionTemplate>::type * {flavor}_{name};""".format(**component.__dict__)
 
 def generate_v8_methods(component):
+    params = dict(component.__dict__)
+
     if component.name == "writer":
-        template = """\
+        extra_fields = "\n  GHashTable * labels;"
+    elif component.name == "relocator":
+        extra_fields = "\n  GumV8InstructionValue * input;"
+
+    params["extra_fields"] = extra_fields
+
+    template = """\
 #include <gum/arch-{arch}/gum{flavor}{name}.h>
 
+struct {wrapper_struct_name}
+{{
+  GumPersistent<v8::Object>::type * object;
+  {impl_struct_name} * impl;{extra_fields}
+  {module_struct_name} * module;
+}};
+
 G_GNUC_INTERNAL gboolean _gum_v8_{flavor}_writer_get (v8::Handle<v8::Value> value,
-    {impl_struct_name} ** writer, {module_struct_name} * module);"""
-        return template.format(**component.__dict__)
-    return ""
+    {impl_struct_name} ** writer, {module_struct_name} * module);
+
+G_GNUC_INTERNAL {wrapper_struct_name} * _{wrapper_function_prefix}_new_persistent ({module_struct_name} * module);
+G_GNUC_INTERNAL void _{wrapper_function_prefix}_release_persistent ({wrapper_struct_name} * {name});
+G_GNUC_INTERNAL void _{wrapper_function_prefix}_reset ({wrapper_struct_name} * self, {impl_struct_name} * impl);"""
+    return template.format(**params)
 
 def generate_v8_init_code(component):
     return """\
@@ -1127,15 +1355,18 @@ def generate_v8_base_methods(component):
 
 def generate_v8_writer_base_methods(component):
     template = """\
-static void {wrapper_function_prefix}_on_weak_notify (
-    const WeakCallbackInfo<{wrapper_struct_name}> & info);
+static {wrapper_struct_name} * {wrapper_function_prefix}_alloc (GumV8CodeWriter * module);
+static void {wrapper_function_prefix}_dispose ({wrapper_struct_name} * self);
+static gboolean {gumjs_function_prefix}_parse_constructor_args (const GumV8Args * args,
+    gpointer * code_address, GumAddress * pc, gboolean * pc_specified);
 static gboolean {wrapper_function_prefix}_check ({wrapper_struct_name} * self,
     Isolate * isolate);
 
 gboolean
-_gum_v8_{flavor}_writer_get (v8::Handle<v8::Value> value,
-{writer_get_arglist_indent}{impl_struct_name} ** writer,
-{writer_get_arglist_indent}{module_struct_name} * module)
+_gum_v8_{flavor}_writer_get (
+    v8::Handle<v8::Value> value,
+    {impl_struct_name} ** writer,
+    {module_struct_name} * module)
 {{
   auto isolate = module->core->isolate;
 
@@ -1147,34 +1378,70 @@ _gum_v8_{flavor}_writer_get (v8::Handle<v8::Value> value,
     return FALSE;
   }}
 
-  auto writer_wrapper = ({wrapper_struct_name} *)
+  auto wrapper = ({wrapper_struct_name} *)
       value.As<Object> ()->GetAlignedPointerFromInternalField (0);
-  if (!{wrapper_function_prefix}_check (writer_wrapper, isolate))
+  if (!{wrapper_function_prefix}_check (wrapper, isolate))
     return FALSE;
 
-  *writer = writer_wrapper->impl;
+  *writer = wrapper->impl;
   return TRUE;
 }}
 
+{wrapper_struct_name} *
+_{wrapper_function_prefix}_new_persistent (GumV8CodeWriter * module)
+{{
+  auto isolate = module->core->isolate;
+  auto context = isolate->GetCurrentContext ();
+
+  auto writer = {wrapper_function_prefix}_alloc (module);
+
+  auto writer_class = Local<FunctionTemplate>::New (isolate,
+      *module->{flavor}_writer);
+
+  auto writer_value = External::New (isolate, writer);
+  Handle<Value> argv[] = {{ writer_value }};
+
+  auto object = writer_class->GetFunction ()->NewInstance (
+      context, G_N_ELEMENTS (argv), argv).ToLocalChecked ();
+
+  writer->object = new GumPersistent<Object>::type (isolate, object);
+
+  return writer;
+}}
+
+void
+_{wrapper_function_prefix}_release_persistent ({wrapper_struct_name} * writer)
+{{
+  {wrapper_function_prefix}_dispose (writer);
+
+  auto object = (GumPersistent<v8::Object>::type *)
+      g_steal_pointer (&writer->object);
+  delete object;
+}}
+
+void
+_{wrapper_function_prefix}_reset (
+    {wrapper_struct_name} * self,
+    {impl_struct_name} * impl)
+{{
+  if (impl != NULL)
+    {impl_function_prefix}_ref (impl);
+  if (self->impl != NULL)
+    {impl_function_prefix}_unref (self->impl);
+  self->impl = impl;
+}}
+
 static {wrapper_struct_name} *
-{wrapper_function_prefix}_new (Handle<Object> wrapper,
-{wrapper_ctor_arglist_indent}gpointer code_address,
-{wrapper_ctor_arglist_indent}GumV8CodeWriter * module)
+{wrapper_function_prefix}_alloc (GumV8CodeWriter * module)
 {{
   {wrapper_struct_name} * writer;
 
   writer = g_slice_new ({wrapper_struct_name});
-  writer->wrapper =
-      new GumPersistent<Object>::type (module->core->isolate, wrapper);
-  writer->wrapper->MarkIndependent ();
-  writer->wrapper->SetWeak (writer, {wrapper_function_prefix}_on_weak_notify,
-      WeakCallbackType::kParameter);
-  writer->impl = {impl_function_prefix}_new (code_address);
+  writer->object = nullptr;
+  writer->impl = NULL;
   writer->labels =
       g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
   writer->module = module;
-
-  g_hash_table_add (module->{flavor}_{name}s, writer);
 
   return writer;
 }}
@@ -1185,8 +1452,7 @@ static void
   if (self->impl == NULL)
     return;
 
-  g_hash_table_unref (self->labels);
-  self->labels = NULL;
+  g_hash_table_remove_all (self->labels);
 
   {impl_function_prefix}_unref (self->impl);
   self->impl = NULL;
@@ -1197,7 +1463,9 @@ static void
 {{
   {wrapper_function_prefix}_dispose (self);
 
-  delete self->wrapper;
+  g_hash_table_unref (self->labels);
+
+  delete self->object;
 
   g_slice_free ({wrapper_struct_name}, self);
 }}
@@ -1212,12 +1480,13 @@ static void
 }}
 
 static gboolean
-{wrapper_function_prefix}_check ({wrapper_struct_name} * self,
-{wrapper_check_arglist_indent}Isolate * isolate)
+{wrapper_function_prefix}_check (
+    {wrapper_struct_name} * self,
+    Isolate * isolate)
 {{
   if (self->impl == NULL)
   {{
-    _gum_v8_throw_ascii_literal (isolate, "writer is disposed");
+    _gum_v8_throw_ascii_literal (isolate, "invalid operation");
     return FALSE;
   }}
 
@@ -1233,30 +1502,34 @@ GUMJS_DEFINE_CONSTRUCTOR ({gumjs_function_prefix}_construct)
     return;
   }}
 
-  gpointer code_address;
-  Local<Object> options;
-  if (!_gum_v8_args_parse (args, "p|O", &code_address, &options))
-    return;
+  {wrapper_struct_name} * writer;
 
-  GumAddress pc = 0;
-  gboolean pc_specified = FALSE;
-  if (!options.IsEmpty ())
+  if (info.Length () == 1 && info[0]->IsExternal ())
   {{
-    auto pc_value = options->Get (_gum_v8_string_new_ascii (isolate, "pc"));
-    if (!pc_value->IsUndefined ())
-    {{
-      gpointer raw_value;
-      if (!_gum_v8_native_pointer_get (pc_value, &raw_value, core))
-        return;
-      pc = GUM_ADDRESS (raw_value);
-      pc_specified = TRUE;
-    }}
+    writer = ({wrapper_struct_name} *) info[0].As<External> ()->Value ();
   }}
+  else
+  {{
+    gpointer code_address;
+    GumAddress pc;
+    gboolean pc_specified;
+    if (!{gumjs_function_prefix}_parse_constructor_args (args, &code_address, &pc,
+        &pc_specified))
+      return;
 
-  auto writer = {wrapper_function_prefix}_new (wrapper, code_address, module);
+    writer = {wrapper_function_prefix}_alloc (module);
 
-  if (pc_specified)
-    writer->impl->pc = pc;
+    writer->object = new GumPersistent<Object>::type (isolate, wrapper);
+    writer->object->MarkIndependent ();
+    writer->object->SetWeak (writer, {wrapper_function_prefix}_on_weak_notify,
+        WeakCallbackType::kParameter);
+
+    g_hash_table_add (module->{flavor}_writers, writer);
+
+    writer->impl = {impl_function_prefix}_new (code_address);
+    if (pc_specified)
+      writer->impl->pc = pc;
+  }}
 
   wrapper->SetAlignedPointerInInternalField (0, writer);
 }}
@@ -1267,16 +1540,49 @@ GUMJS_DEFINE_CLASS_METHOD ({gumjs_function_prefix}_reset, {wrapper_struct_name})
     return;
 
   gpointer code_address;
-  gpointer pc = NULL;
-  if (!_gum_v8_args_parse (args, "p|p", &code_address))
+  GumAddress pc;
+  gboolean pc_specified;
+  if (!{gumjs_function_prefix}_parse_constructor_args (args, &code_address, &pc,
+      &pc_specified))
     return;
 
   {impl_function_prefix}_reset (self->impl, code_address);
-
-  if (pc != NULL)
-    self->impl->pc = GUM_ADDRESS (pc);
+  if (pc_specified)
+    self->impl->pc = pc;
 
   g_hash_table_remove_all (self->labels);
+}}
+
+static gboolean
+{gumjs_function_prefix}_parse_constructor_args (
+    const GumV8Args * args,
+    gpointer * code_address,
+    GumAddress * pc,
+    gboolean * pc_specified)
+{{
+  auto isolate = args->core->isolate;
+
+  Local<Object> options;
+  if (!_gum_v8_args_parse (args, "p|O", code_address, &options))
+    return FALSE;
+
+  *pc = 0;
+  *pc_specified = FALSE;
+
+  if (!options.IsEmpty ())
+  {{
+    auto pc_value = options->Get (_gum_v8_string_new_ascii (isolate, "pc"));
+    if (!pc_value->IsUndefined ())
+    {{
+      gpointer raw_value;
+      if (!_gum_v8_native_pointer_get (pc_value, &raw_value, args->core))
+        return FALSE;
+      *pc = GUM_ADDRESS (raw_value);
+      *pc_specified = TRUE;
+    }}
+  }}
+
+  return TRUE;
 }}
 
 GUMJS_DEFINE_CLASS_METHOD ({gumjs_function_prefix}_dispose, {wrapper_struct_name})
@@ -1310,19 +1616,12 @@ static const GumV8Property {gumjs_function_prefix}_values[] =
 }};
 """
 
-    wrapper_arglist_indent_level = len(component.wrapper_function_prefix)
-    params = {
-        "writer_get_arglist_indent": (len(component.flavor) + 21) * " ",
-        "wrapper_ctor_arglist_indent": (wrapper_arglist_indent_level + 6) * " ",
-        "wrapper_resolve_arglist_indent": (wrapper_arglist_indent_level + 16) * " ",
-        "wrapper_check_arglist_indent": (wrapper_arglist_indent_level + 8) * " ",
-    }
-    params.update(component.__dict__)
+    params = dict(component.__dict__)
 
     label_resolver = """
 static gconstpointer
 {wrapper_function_prefix}_resolve_label ({wrapper_struct_name} * self,
-{wrapper_resolve_arglist_indent}const std::string & str)
+    const std::string & str)
 {{
   gchar * label = (gchar *) g_hash_table_lookup (self->labels, str.c_str ());
   if (label != NULL)
@@ -1342,28 +1641,97 @@ static gconstpointer
 
 def generate_v8_relocator_base_methods(component):
     template = """\
+static {wrapper_struct_name} * {wrapper_function_prefix}_alloc (GumV8CodeRelocator * module);
+static void {wrapper_function_prefix}_dispose ({wrapper_struct_name} * self);
 static void {wrapper_function_prefix}_on_weak_notify (
     const WeakCallbackInfo<{wrapper_struct_name}> & info);
+static gboolean {wrapper_function_prefix}_check ({wrapper_struct_name} * self,
+    Isolate * isolate);
+static gboolean {gumjs_function_prefix}_parse_constructor_args (const GumV8Args * args,
+    gconstpointer * input_code, {writer_impl_struct_name} ** writer,
+    GumV8CodeRelocator * module);
+
+gboolean
+_gum_v8_{flavor}_relocator_get (
+    v8::Handle<v8::Value> value,
+    {impl_struct_name} ** relocator,
+    {module_struct_name} * module)
+{{
+  auto isolate = module->core->isolate;
+
+  auto relocator_class = Local<FunctionTemplate>::New (isolate,
+      *module->{flavor}_relocator);
+  if (!relocator_class->HasInstance (value))
+  {{
+    _gum_v8_throw_ascii_literal (isolate, "expected {flavor} relocator");
+    return FALSE;
+  }}
+
+  auto relocator_wrapper = ({wrapper_struct_name} *)
+      value.As<Object> ()->GetAlignedPointerFromInternalField (0);
+  if (!{wrapper_function_prefix}_check (relocator_wrapper, isolate))
+    return FALSE;
+
+  *relocator = relocator_wrapper->impl;
+  return TRUE;
+}}
+
+{wrapper_struct_name} *
+_{wrapper_function_prefix}_new_persistent (GumV8CodeRelocator * module)
+{{
+  auto isolate = module->core->isolate;
+  auto context = isolate->GetCurrentContext ();
+
+  auto relocator = {wrapper_function_prefix}_alloc (module);
+
+  auto relocator_class = Local<FunctionTemplate>::New (isolate,
+      *module->{flavor}_relocator);
+
+  auto relocator_value = External::New (isolate, relocator);
+  Handle<Value> argv[] = {{ relocator_value }};
+
+  auto object = relocator_class->GetFunction ()->NewInstance (
+      context, G_N_ELEMENTS (argv), argv).ToLocalChecked ();
+
+  relocator->object = new GumPersistent<Object>::type (isolate, object);
+
+  return relocator;
+}}
+
+void
+_{wrapper_function_prefix}_release_persistent ({wrapper_struct_name} * relocator)
+{{
+  {wrapper_function_prefix}_dispose (relocator);
+
+  auto object = (GumPersistent<v8::Object>::type *)
+      g_steal_pointer (&relocator->object);
+  delete object;
+}}
+
+void
+_{wrapper_function_prefix}_reset (
+    {wrapper_struct_name} * self,
+    {impl_struct_name} * impl)
+{{
+  if (impl != NULL)
+    {impl_function_prefix}_ref (impl);
+  if (self->impl != NULL)
+    {impl_function_prefix}_unref (self->impl);
+  self->impl = impl;
+
+  self->input->insn = NULL;
+}}
 
 static {wrapper_struct_name} *
-{wrapper_function_prefix}_new (Handle<Object> wrapper,
-{wrapper_ctor_arglist_indent}gconstpointer input_code,
-{wrapper_ctor_arglist_indent}{writer_impl_struct_name} * output,
-{wrapper_ctor_arglist_indent}{module_struct_name} * module)
+{wrapper_function_prefix}_alloc (GumV8CodeRelocator * module)
 {{
   {wrapper_struct_name} * relocator;
 
   relocator = g_slice_new ({wrapper_struct_name});
-  relocator->wrapper =
-      new GumPersistent<Object>::type (module->core->isolate, wrapper);
-  relocator->wrapper->MarkIndependent ();
-  relocator->wrapper->SetWeak (relocator, {wrapper_function_prefix}_on_weak_notify,
-      WeakCallbackType::kParameter);
-  relocator->impl = {impl_function_prefix}_new (input_code, output);
-  relocator->input = NULL;
+  relocator->object = nullptr;
+  relocator->impl = NULL;
+  relocator->input = _gum_v8_instruction_new_persistent (module->instruction);
   relocator->module = module;
-
-  g_hash_table_add (module->{flavor}_{name}s, relocator);
 
   return relocator;
 }}
@@ -1371,13 +1739,9 @@ static {wrapper_struct_name} *
 static void
 {wrapper_function_prefix}_dispose ({wrapper_struct_name} * self)
 {{
-  if (self->impl == NULL)
-    return;
+  self->input->insn = NULL;
 
-  self->input = NULL;
-
-  {impl_function_prefix}_unref (self->impl);
-  self->impl = NULL;
+  g_clear_pointer (&self->impl, {impl_function_prefix}_unref);
 }}
 
 static void
@@ -1385,7 +1749,9 @@ static void
 {{
   {wrapper_function_prefix}_dispose (self);
 
-  delete self->wrapper;
+  _gum_v8_instruction_release_persistent (self->input);
+
+  delete self->object;
 
   g_slice_free ({wrapper_struct_name}, self);
 }}
@@ -1400,12 +1766,13 @@ static void
 }}
 
 static gboolean
-{wrapper_function_prefix}_check ({wrapper_struct_name} * self,
-{wrapper_check_arglist_indent}Isolate * isolate)
+{wrapper_function_prefix}_check (
+    {wrapper_struct_name} * self,
+    Isolate * isolate)
 {{
   if (self->impl == NULL)
   {{
-    _gum_v8_throw_ascii_literal (isolate, "relocator is disposed");
+    _gum_v8_throw_ascii_literal (isolate, "invalid operation");
     return FALSE;
   }}
 
@@ -1421,17 +1788,30 @@ GUMJS_DEFINE_CONSTRUCTOR ({gumjs_function_prefix}_construct)
     return;
   }}
 
-  gconstpointer input_code;
-  Local<Object> writer_object;
-  if (!_gum_v8_args_parse (args, "pO", &input_code, &writer_object))
-    return;
+  {wrapper_struct_name} * relocator;
 
-  {writer_impl_struct_name} * writer;
-  if (!_gum_v8_{flavor}_writer_get (writer_object, &writer, module->writer))
-    return;
+  if (info.Length () == 1 && info[0]->IsExternal ())
+  {{
+    relocator = ({wrapper_struct_name} *) info[0].As<External> ()->Value ();
+  }}
+  else
+  {{
+    gconstpointer input_code;
+    {writer_impl_struct_name} * writer;
+    if (!{gumjs_function_prefix}_parse_constructor_args (args, &input_code, &writer, module))
+      return;
 
-  auto relocator = {wrapper_function_prefix}_new (wrapper, input_code, writer,
-      module);
+    relocator = {wrapper_function_prefix}_alloc (module);
+
+    relocator->object = new GumPersistent<Object>::type (isolate, wrapper);
+    relocator->object->MarkIndependent ();
+    relocator->object->SetWeak (relocator, {wrapper_function_prefix}_on_weak_notify,
+        WeakCallbackType::kParameter);
+
+    g_hash_table_add (module->{flavor}_relocators, relocator);
+
+    relocator->impl = {impl_function_prefix}_new (input_code, writer);
+  }}
 
   wrapper->SetAlignedPointerInInternalField (0, relocator);
 }}
@@ -1442,17 +1822,30 @@ GUMJS_DEFINE_CLASS_METHOD ({gumjs_function_prefix}_reset, {wrapper_struct_name})
     return;
 
   gconstpointer input_code;
-  Local<Object> writer_object;
-  if (!_gum_v8_args_parse (args, "pO", &input_code, &writer_object))
-    return;
-
   {writer_impl_struct_name} * writer;
-  if (!_gum_v8_{flavor}_writer_get (writer_object, &writer, module->writer))
+  if (!{gumjs_function_prefix}_parse_constructor_args (args, &input_code, &writer, module))
     return;
 
   {impl_function_prefix}_reset (self->impl, input_code, writer);
 
-  self->input = NULL;
+  self->input->insn = NULL;
+}}
+
+static gboolean
+{gumjs_function_prefix}_parse_constructor_args (
+    const GumV8Args * args,
+    gconstpointer * input_code,
+    {writer_impl_struct_name} ** writer,
+    {module_struct_name} * module)
+{{
+  Local<Object> writer_object;
+  if (!_gum_v8_args_parse (args, "pO", input_code, &writer_object))
+    return FALSE;
+
+  if (!_gum_v8_{flavor}_writer_get (writer_object, writer, module->writer))
+    return FALSE;
+
+  return TRUE;
 }}
 
 GUMJS_DEFINE_CLASS_METHOD ({gumjs_function_prefix}_dispose, {wrapper_struct_name})
@@ -1465,7 +1858,11 @@ GUMJS_DEFINE_CLASS_METHOD ({gumjs_function_prefix}_read_one, {wrapper_struct_nam
   if (!{wrapper_function_prefix}_check (self, isolate))
     return;
 
-  uint32_t n_read = {impl_function_prefix}_read_one (self->impl, &self->input);
+  uint32_t n_read = {impl_function_prefix}_read_one (self->impl, &self->input->insn);
+  if (n_read != 0)
+  {{
+    self->input->target = {get_input_target_expression};
+  }}
 
   info.GetReturnValue ().Set (n_read);
 }}
@@ -1475,11 +1872,10 @@ GUMJS_DEFINE_CLASS_GETTER ({gumjs_function_prefix}_get_input, {wrapper_struct_na
   if (!{wrapper_function_prefix}_check (self, isolate))
     return;
 
-  if (self->input != NULL)
+  if (self->input->insn != NULL)
   {{
-    info.GetReturnValue ().Set (_gum_v8_instruction_new (self->input,
-        {get_input_target_expression},
-        module->instruction));
+    info.GetReturnValue ().Set (
+        Local<Object>::New (isolate, *self->input->object));
   }}
   else
   {{
@@ -1514,19 +1910,15 @@ static const GumV8Property {gumjs_function_prefix}_values[] =
 """
 
     if component.flavor == "x86":
-        target = "GSIZE_TO_POINTER (self->input->address)"
+        target = "GSIZE_TO_POINTER (self->input->insn->address)"
     else:
-        target = "self->impl->input_start + (self->input->address - (self->impl->input_pc - self->impl->inpos))"
+        target = "self->impl->input_start + (self->input->insn->address - (self->impl->input_pc - self->impl->inpos))"
         if component.flavor == "thumb":
             target = "GSIZE_TO_POINTER (GPOINTER_TO_SIZE ({0}) | 1)".format(target)
 
-    base_arglist_indent_level = len(component.wrapper_function_prefix)
     params = {
         "writer_impl_struct_name": to_camel_case('gum_{0}_writer'.format(component.flavor), start_high=True),
         "get_input_target_expression": target,
-        "wrapper_ctor_arglist_indent": (base_arglist_indent_level + 6) * " ",
-        "wrapper_resolve_arglist_indent": (base_arglist_indent_level + 16) * " ",
-        "wrapper_check_arglist_indent": (base_arglist_indent_level + 8) * " ",
     }
     params.update(component.__dict__)
 
@@ -1539,7 +1931,6 @@ def generate_v8_enum_parser(name, type, prefix, values):
         'name': name,
         'description': name.replace("_", " "),
         'type': type,
-        'arglist_indent': (len(name) + 12) * " ",
     }
 
     decls = [
@@ -1548,9 +1939,10 @@ def generate_v8_enum_parser(name, type, prefix, values):
 
     code = """\
 static gboolean
-gum_parse_{name} (Isolate * isolate,
-{arglist_indent}const std::string & name,
-{arglist_indent}{type} * value)
+gum_parse_{name} (
+    Isolate * isolate,
+    const std::string & name,
+    {type} * value)
 {{
   if (!gum_try_parse_{name} (name.c_str (), value))
   {{
@@ -1680,8 +2072,9 @@ def generate_enum_parser(name, type, prefix, values):
 
     code = """\
 static gboolean
-gum_try_parse_{name} (const gchar * name,
-{arglist_indent}{type} * value)
+gum_try_parse_{name} (
+    const gchar * name,
+    {type} * value)
 {{
   {statements}
   else
@@ -1692,7 +2085,6 @@ gum_try_parse_{name} (const gchar * name,
         name=name,
         type=type,
         statements="\n".join(statements),
-        arglist_indent=(len(name) + 16) * " "
     )
 
     return (decls, code.split("\n"))

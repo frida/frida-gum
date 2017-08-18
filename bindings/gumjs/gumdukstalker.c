@@ -9,11 +9,41 @@
 #include "gumdukeventsink.h"
 #include "gumdukmacros.h"
 
+#define GUM_DUK_TYPE_CALLBACK_TRANSFORMER \
+    (gum_duk_callback_transformer_get_type ())
+#define GUM_DUK_CALLBACK_TRANSFORMER_CAST(obj) \
+    ((GumDukCallbackTransformer *) (obj))
+
+typedef struct _GumDukCallbackTransformer GumDukCallbackTransformer;
+typedef struct _GumDukCallbackTransformerClass GumDukCallbackTransformerClass;
 typedef struct _GumDukCallProbe GumDukCallProbe;
+
+struct _GumDukCallbackTransformer
+{
+  GObject parent;
+
+  GumDukHeapPtr callback;
+
+  GumDukStalker * module;
+};
+
+struct _GumDukCallbackTransformerClass
+{
+  GObjectClass parent_class;
+};
 
 struct _GumDukCallProbe
 {
   GumDukHeapPtr callback;
+
+  GumDukStalker * module;
+};
+
+struct _GumDukStalkerIterator
+{
+  GumDukHeapPtr object;
+  GumStalkerIterator * handle;
+  GumDukInstructionValue * instruction;
 
   GumDukStalker * module;
 };
@@ -43,9 +73,29 @@ GUMJS_DECLARE_FUNCTION (gumjs_stalker_add_call_probe)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_remove_call_probe)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_parse)
 
+static void gum_duk_callback_transformer_iface_init (gpointer g_iface,
+    gpointer iface_data);
+static void gum_duk_callback_transformer_dispose (GObject * object);
+G_DEFINE_TYPE_EXTENDED (GumDukCallbackTransformer,
+                        gum_duk_callback_transformer,
+                        G_TYPE_OBJECT,
+                        0,
+                        G_IMPLEMENT_INTERFACE (GUM_TYPE_STALKER_TRANSFORMER,
+                            gum_duk_callback_transformer_iface_init))
+
 static void gum_duk_call_probe_free (GumDukCallProbe * probe);
 static void gum_duk_call_probe_on_fire (GumCallSite * site,
     GumDukCallProbe * self);
+
+static GumDukStalkerIterator * gum_duk_stalker_iterator_new (
+    GumDukStalker * parent);
+static void gum_duk_stalker_iterator_release (GumDukStalkerIterator * self);
+static void gum_duk_stalker_iterator_reset (GumDukStalkerIterator * self,
+    GumStalkerIterator * handle);
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_stalker_iterator_construct)
+GUMJS_DECLARE_FINALIZER (gumjs_stalker_iterator_finalize)
+GUMJS_DECLARE_FUNCTION (gumjs_stalker_iterator_next)
+GUMJS_DECLARE_FUNCTION (gumjs_stalker_iterator_keep)
 
 static GumDukProbeArgs * gum_duk_probe_args_new (GumDukStalker * parent);
 static void gum_duk_probe_args_release (GumDukProbeArgs * self);
@@ -55,6 +105,23 @@ GUMJS_DECLARE_CONSTRUCTOR (gumjs_probe_args_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_probe_args_finalize)
 GUMJS_DECLARE_GETTER (gumjs_probe_args_get_property)
 GUMJS_DECLARE_SETTER (gumjs_probe_args_set_property)
+
+static GumDukStalkerIterator * gum_duk_stalker_obtain_iterator (
+    GumDukStalker * self);
+static void gum_duk_stalker_release_iterator (GumDukStalker * self,
+    GumDukStalkerIterator * iterator);
+static GumDukNativeWriter * gum_duk_stalker_obtain_writer (
+    GumDukStalker * self);
+static void gum_duk_stalker_release_writer (GumDukStalker * self,
+    GumDukNativeWriter * writer);
+static GumDukInstructionValue * gum_duk_stalker_obtain_instruction (
+    GumDukStalker * self);
+static void gum_duk_stalker_release_instruction (GumDukStalker * self,
+    GumDukInstructionValue * value);
+static GumDukProbeArgs * gum_duk_stalker_obtain_probe_args (
+    GumDukStalker * self);
+static void gum_duk_stalker_release_probe_args (GumDukStalker * self,
+    GumDukProbeArgs * args);
 
 static void gum_push_pointer (duk_context * ctx, gpointer value,
     gboolean stringify, GumDukCore * core);
@@ -83,7 +150,7 @@ static const GumDukPropertyEntry gumjs_stalker_values[] =
 static const duk_function_list_entry gumjs_stalker_functions[] =
 {
   { "garbageCollect", gumjs_stalker_garbage_collect, 0 },
-  { "_follow", gumjs_stalker_follow, 4 },
+  { "_follow", gumjs_stalker_follow, 5 },
   { "unfollow", gumjs_stalker_unfollow, 1 },
   { "addCallProbe", gumjs_stalker_add_call_probe, 2 },
   { "removeCallProbe", gumjs_stalker_remove_call_probe, 1 },
@@ -92,13 +159,25 @@ static const duk_function_list_entry gumjs_stalker_functions[] =
   { NULL, NULL, 0 }
 };
 
+static const duk_function_list_entry gumjs_stalker_iterator_functions[] =
+{
+  { "next", gumjs_stalker_iterator_next, 0 },
+  { "keep", gumjs_stalker_iterator_keep, 0 },
+
+  { NULL, NULL, 0 }
+};
+
 void
 _gum_duk_stalker_init (GumDukStalker * self,
+                       GumDukCodeWriter * writer,
+                       GumDukInstruction * instruction,
                        GumDukCore * core)
 {
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   duk_context * ctx = scope.ctx;
 
+  self->writer = writer;
+  self->instruction = instruction;
   self->core = core;
   self->stalker = NULL;
   self->queue_capacity = 16384;
@@ -115,6 +194,15 @@ _gum_duk_stalker_init (GumDukStalker * self,
       duk_require_heapptr (ctx, -1), gumjs_stalker_values);
   duk_put_global_string (ctx, "Stalker");
 
+  duk_push_c_function (ctx, gumjs_stalker_iterator_construct, 0);
+  duk_push_object (ctx);
+  duk_push_c_function (ctx, gumjs_stalker_iterator_finalize, 1);
+  duk_set_finalizer (ctx, -2);
+  duk_put_function_list (ctx, -1, gumjs_stalker_iterator_functions);
+  duk_put_prop_string (ctx, -2, "prototype");
+  self->iterator = _gum_duk_require_heapptr (ctx, -1);
+  duk_pop (ctx);
+
   duk_push_c_function (ctx, gumjs_probe_args_construct, 0);
   duk_push_object (ctx);
   duk_push_c_function (ctx, gumjs_probe_args_finalize, 1);
@@ -122,6 +210,15 @@ _gum_duk_stalker_init (GumDukStalker * self,
   duk_put_prop_string (ctx, -2, "prototype");
   self->probe_args = _gum_duk_require_heapptr (ctx, -1);
   duk_put_global_string (ctx, "ProbeArgs");
+
+  self->cached_iterator = gum_duk_stalker_iterator_new (self);
+  self->cached_iterator_in_use = FALSE;
+
+  self->cached_writer = _gum_duk_native_writer_new (writer);
+  self->cached_writer_in_use = FALSE;
+
+  self->cached_instruction = _gum_duk_instruction_new (instruction);
+  self->cached_instruction_in_use = FALSE;
 
   self->cached_probe_args = gum_duk_probe_args_new (self);
   self->cached_probe_args_in_use = FALSE;
@@ -145,8 +242,12 @@ _gum_duk_stalker_dispose (GumDukStalker * self)
   duk_context * ctx = scope.ctx;
 
   gum_duk_probe_args_release (self->cached_probe_args);
+  _gum_duk_instruction_release (self->cached_instruction);
+  _gum_duk_native_writer_release (self->cached_writer);
+  gum_duk_stalker_iterator_release (self->cached_iterator);
 
   _gum_duk_release_heapptr (ctx, self->probe_args);
+  _gum_duk_release_heapptr (ctx, self->iterator);
 }
 
 void
@@ -171,7 +272,7 @@ _gum_duk_stalker_process_pending (GumDukStalker * self,
   if (scope->pending_stalker_level > 0)
   {
     gum_stalker_follow_me (_gum_duk_stalker_get (self),
-        scope->pending_stalker_sink);
+        scope->pending_stalker_transformer, scope->pending_stalker_sink);
   }
   else if (scope->pending_stalker_level < 0)
   {
@@ -180,6 +281,7 @@ _gum_duk_stalker_process_pending (GumDukStalker * self,
   scope->pending_stalker_level = 0;
 
   g_clear_object (&scope->pending_stalker_sink);
+  g_clear_object (&scope->pending_stalker_transformer);
 }
 
 static GumDukStalker *
@@ -272,7 +374,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
   GumStalker * stalker;
   GumDukCore * core;
   GumThreadId thread_id;
+  GumDukHeapPtr transformer_callback;
   GumDukEventSinkOptions so;
+  GumStalkerTransformer * transformer;
   GumEventSink * sink;
 
   module = gumjs_module_from_args (args);
@@ -284,23 +388,43 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
   so.queue_capacity = module->queue_capacity;
   so.queue_drain_interval = module->queue_drain_interval;
 
-  _gum_duk_args_parse (args, "ZuF?F?", &thread_id, &so.event_mask,
-      &so.on_receive, &so.on_call_summary);
+  _gum_duk_args_parse (args, "ZF?uF?F?", &thread_id, &transformer_callback,
+      &so.event_mask, &so.on_receive, &so.on_call_summary);
+
+  if (transformer_callback != NULL)
+  {
+    GumDukCallbackTransformer * cbt;
+
+    cbt = g_object_new (GUM_DUK_TYPE_CALLBACK_TRANSFORMER, NULL);
+    _gum_duk_protect (ctx, transformer_callback);
+    cbt->callback = transformer_callback;
+    cbt->module = module;
+
+    transformer = GUM_STALKER_TRANSFORMER (cbt);
+  }
+  else
+  {
+    transformer = NULL;
+  }
 
   sink = gum_duk_event_sink_new (ctx, &so);
+
   if (thread_id == gum_process_get_current_thread_id ())
   {
     GumDukScope * scope = core->current_scope;
 
     scope->pending_stalker_level = 1;
 
+    g_clear_object (&scope->pending_stalker_transformer);
     g_clear_object (&scope->pending_stalker_sink);
+    scope->pending_stalker_transformer = transformer;
     scope->pending_stalker_sink = sink;
   }
   else
   {
-    gum_stalker_follow (stalker, thread_id, sink);
+    gum_stalker_follow (stalker, thread_id, transformer, sink);
     g_object_unref (sink);
+    g_object_unref (transformer);
   }
 
   return 0;
@@ -506,32 +630,85 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_parse)
   return 1;
 }
 
-static GumDukProbeArgs *
-gum_duk_stalker_obtain_probe_args (GumDukStalker * self)
+static void
+gum_duk_callback_transformer_transform_block (
+    GumStalkerTransformer * transformer,
+    GumStalkerIterator * iterator,
+    GumStalkerWriter * output)
 {
-  GumDukProbeArgs * args;
+  GumDukCallbackTransformer * self =
+      GUM_DUK_CALLBACK_TRANSFORMER_CAST (transformer);
+  GumDukStalker * module = self->module;
+  duk_context * ctx;
+  GumDukScope scope;
+  GumDukStalkerIterator * iterator_value;
+  GumDukNativeWriter * output_value;
 
-  if (!self->cached_probe_args_in_use)
-  {
-    args = self->cached_probe_args;
-    self->cached_probe_args_in_use = TRUE;
-  }
-  else
-  {
-    args = gum_duk_probe_args_new (self);
-  }
+  ctx = _gum_duk_scope_enter (&scope, module->core);
 
-  return args;
+  iterator_value = gum_duk_stalker_obtain_iterator (module);
+  gum_duk_stalker_iterator_reset (iterator_value, iterator);
+
+  output_value = gum_duk_stalker_obtain_writer (module);
+  _gum_duk_native_writer_reset (output_value,
+      (GumDukNativeWriterImpl *) output);
+
+  duk_push_heapptr (ctx, self->callback);
+  duk_push_heapptr (ctx, iterator_value->object);
+  duk_push_heapptr (ctx, output_value->object);
+  _gum_duk_scope_call (&scope, 2);
+  duk_pop (ctx);
+
+  _gum_duk_native_writer_reset (output_value, NULL);
+  gum_duk_stalker_release_writer (module, output_value);
+
+  gum_duk_stalker_iterator_reset (iterator_value, NULL);
+  gum_duk_stalker_release_iterator (module, iterator_value);
+
+  _gum_duk_scope_leave (&scope);
 }
 
 static void
-gum_duk_stalker_release_probe_args (GumDukStalker * self,
-                                    GumDukProbeArgs * args)
+gum_duk_callback_transformer_class_init (GumDukCallbackTransformerClass * klass)
 {
-  if (args == self->cached_probe_args)
-    self->cached_probe_args_in_use = FALSE;
-  else
-    gum_duk_probe_args_release (args);
+  GObjectClass * object_class = G_OBJECT_CLASS (klass);
+
+  object_class->dispose = gum_duk_callback_transformer_dispose;
+}
+
+static void
+gum_duk_callback_transformer_iface_init (gpointer g_iface,
+                                         gpointer iface_data)
+{
+  GumStalkerTransformerIface * iface = (GumStalkerTransformerIface *) g_iface;
+
+  iface->transform_block = gum_duk_callback_transformer_transform_block;
+}
+
+static void
+gum_duk_callback_transformer_init (GumDukCallbackTransformer * self)
+{
+}
+
+static void
+gum_duk_callback_transformer_dispose (GObject * object)
+{
+  GumDukCallbackTransformer * self = GUM_DUK_CALLBACK_TRANSFORMER_CAST (object);
+  GumDukCore * core = self->module->core;
+  GumDukScope scope;
+  duk_context * ctx;
+
+  ctx = _gum_duk_scope_enter (&scope, core);
+
+  if (self->callback != NULL)
+  {
+    _gum_duk_unprotect (ctx, self->callback);
+    self->callback = NULL;
+  }
+
+  _gum_duk_scope_leave (&scope);
+
+  G_OBJECT_CLASS (gum_duk_callback_transformer_parent_class)->dispose (object);
 }
 
 static void
@@ -567,6 +744,112 @@ gum_duk_call_probe_on_fire (GumCallSite * site,
   gum_duk_stalker_release_probe_args (module, args);
 
   _gum_duk_scope_leave (&scope);
+}
+
+static GumDukStalkerIterator *
+gum_duk_stalker_iterator_new (GumDukStalker * parent)
+{
+  GumDukCore * core = parent->core;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+  duk_context * ctx = scope.ctx;
+  GumDukStalkerIterator * iter;
+
+  iter = g_slice_new (GumDukStalkerIterator);
+
+  duk_push_heapptr (ctx, parent->iterator);
+  duk_new (ctx, 0);
+  _gum_duk_put_data (ctx, -1, iter);
+  iter->object = _gum_duk_require_heapptr (ctx, -1);
+  duk_pop (ctx);
+
+  iter->handle = NULL;
+  iter->instruction = NULL;
+  iter->module = parent;
+
+  return iter;
+}
+
+static void
+gum_duk_stalker_iterator_release (GumDukStalkerIterator * self)
+{
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (self->module->core);
+
+  _gum_duk_release_heapptr (scope.ctx, self->object);
+}
+
+static void
+gum_duk_stalker_iterator_reset (GumDukStalkerIterator * self,
+                                GumStalkerIterator * handle)
+{
+  GumDukStalker * module = self->module;
+
+  self->handle = handle;
+
+  if (self->instruction != NULL)
+  {
+    self->instruction->insn = NULL;
+    gum_duk_stalker_release_instruction (module, self->instruction);
+  }
+  self->instruction = (handle != NULL)
+      ? gum_duk_stalker_obtain_instruction (module)
+      : NULL;
+}
+
+static GumDukStalkerIterator *
+gumjs_stalker_iterator_from_args (const GumDukArgs * args)
+{
+  duk_context * ctx = args->ctx;
+  GumDukStalkerIterator * self;
+
+  duk_push_this (ctx);
+  self = _gum_duk_require_data (ctx, -1);
+  if (self->handle == NULL)
+    _gum_duk_throw (ctx, "invalid operation");
+  duk_pop (ctx);
+
+  return self;
+}
+
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_stalker_iterator_construct)
+{
+  return 0;
+}
+
+GUMJS_DEFINE_FINALIZER (gumjs_stalker_iterator_finalize)
+{
+  GumDukStalkerIterator * self;
+
+  self = _gum_duk_steal_data (ctx, 0);
+  if (self == NULL)
+    return 0;
+
+  g_slice_free (GumDukStalkerIterator, self);
+
+  return 0;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_stalker_iterator_next)
+{
+  GumDukStalkerIterator * self;
+
+  self = gumjs_stalker_iterator_from_args (args);
+
+  if (gum_stalker_iterator_next (self->handle, &self->instruction->insn))
+    duk_push_heapptr (ctx, self->instruction->object);
+  else
+    duk_push_null (ctx);
+  return 1;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_stalker_iterator_keep)
+{
+  GumDukStalkerIterator * self;
+
+  self = gumjs_stalker_iterator_from_args (args);
+
+  gum_stalker_iterator_keep (self->handle);
+
+  return 0;
 }
 
 static GumDukProbeArgs *
@@ -632,11 +915,6 @@ GUMJS_DEFINE_FINALIZER (gumjs_probe_args_finalize)
 {
   GumDukProbeArgs * self;
 
-  (void) args;
-
-  if (_gum_duk_is_arg0_equal_to_prototype (ctx, "ProbeArgs"))
-    return 0;
-
   self = _gum_duk_steal_data (ctx, 0);
   if (self == NULL)
     return 0;
@@ -684,6 +962,130 @@ GUMJS_DEFINE_SETTER (gumjs_probe_args_set_property)
 
   duk_push_true (ctx);
   return 1;
+}
+
+static GumDukStalkerIterator *
+gum_duk_stalker_obtain_iterator (GumDukStalker * self)
+{
+  GumDukStalkerIterator * iterator;
+
+  if (!self->cached_iterator_in_use)
+  {
+    iterator = self->cached_iterator;
+    self->cached_iterator_in_use = TRUE;
+  }
+  else
+  {
+    iterator = gum_duk_stalker_iterator_new (self);
+  }
+
+  return iterator;
+}
+
+static void
+gum_duk_stalker_release_iterator (GumDukStalker * self,
+                                  GumDukStalkerIterator * iterator)
+{
+  if (iterator == self->cached_iterator)
+  {
+    self->cached_iterator_in_use = FALSE;
+  }
+  else
+  {
+    gum_duk_stalker_iterator_release (iterator);
+  }
+}
+
+static GumDukNativeWriter *
+gum_duk_stalker_obtain_writer (GumDukStalker * self)
+{
+  GumDukNativeWriter * writer;
+
+  if (!self->cached_writer_in_use)
+  {
+    writer = self->cached_writer;
+    self->cached_writer_in_use = TRUE;
+  }
+  else
+  {
+    writer = _gum_duk_native_writer_new (self->writer);
+  }
+
+  return writer;
+}
+
+static void
+gum_duk_stalker_release_writer (GumDukStalker * self,
+                                GumDukNativeWriter * writer)
+{
+  if (writer == self->cached_writer)
+  {
+    self->cached_writer_in_use = FALSE;
+  }
+  else
+  {
+    _gum_duk_native_writer_release (writer);
+  }
+}
+
+static GumDukInstructionValue *
+gum_duk_stalker_obtain_instruction (GumDukStalker * self)
+{
+  GumDukInstructionValue * value;
+
+  if (!self->cached_instruction_in_use)
+  {
+    value = self->cached_instruction;
+    self->cached_instruction_in_use = TRUE;
+  }
+  else
+  {
+    value = _gum_duk_instruction_new (self->instruction);
+  }
+
+  return value;
+}
+
+static void
+gum_duk_stalker_release_instruction (GumDukStalker * self,
+                                     GumDukInstructionValue * value)
+{
+  if (value == self->cached_instruction)
+  {
+    self->cached_instruction_in_use = FALSE;
+  }
+  else
+  {
+    _gum_duk_instruction_release (value);
+  }
+}
+
+static GumDukProbeArgs *
+gum_duk_stalker_obtain_probe_args (GumDukStalker * self)
+{
+  GumDukProbeArgs * args;
+
+  if (!self->cached_probe_args_in_use)
+  {
+    args = self->cached_probe_args;
+    self->cached_probe_args_in_use = TRUE;
+  }
+  else
+  {
+    args = gum_duk_probe_args_new (self);
+  }
+
+  return args;
+}
+
+static void
+gum_duk_stalker_release_probe_args (GumDukStalker * self,
+                                    GumDukProbeArgs * args)
+{
+  if (args == self->cached_probe_args)
+    self->cached_probe_args_in_use = FALSE;
+  else
+    gum_duk_probe_args_release (args);
 }
 
 static void

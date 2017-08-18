@@ -99,12 +99,12 @@ struct _GumDukScriptPrivate
   GumDukSocket socket;
   GumDukDatabase database;
   GumDukInterceptor interceptor;
-  GumDukStalker stalker;
   GumDukApiResolver api_resolver;
   GumDukSymbol symbol;
   GumDukInstruction instruction;
   GumDukCodeWriter code_writer;
   GumDukCodeRelocator code_relocator;
+  GumDukStalker stalker;
 
   GumScriptMessageHandler message_handler;
   gpointer message_handler_data;
@@ -482,13 +482,14 @@ gum_duk_script_create_context (GumDukScript * self,
   _gum_duk_socket_init (&priv->socket, core);
   _gum_duk_database_init (&priv->database, core);
   _gum_duk_interceptor_init (&priv->interceptor, core);
-  _gum_duk_stalker_init (&priv->stalker, core);
   _gum_duk_api_resolver_init (&priv->api_resolver, core);
   _gum_duk_symbol_init (&priv->symbol, core);
   _gum_duk_instruction_init (&priv->instruction, core);
   _gum_duk_code_writer_init (&priv->code_writer, core);
   _gum_duk_code_relocator_init (&priv->code_relocator, &priv->code_writer,
       &priv->instruction, core);
+  _gum_duk_stalker_init (&priv->stalker, &priv->code_writer, &priv->instruction,
+      core);
 
   core->current_scope = NULL;
 
@@ -508,12 +509,12 @@ gum_duk_script_destroy_context (GumDukScript * self)
 
     _gum_duk_scope_enter (&scope, core);
 
+    _gum_duk_stalker_dispose (&priv->stalker);
     _gum_duk_code_relocator_dispose (&priv->code_relocator);
     _gum_duk_code_writer_dispose (&priv->code_writer);
     _gum_duk_instruction_dispose (&priv->instruction);
     _gum_duk_symbol_dispose (&priv->symbol);
     _gum_duk_api_resolver_dispose (&priv->api_resolver);
-    _gum_duk_stalker_dispose (&priv->stalker);
     _gum_duk_interceptor_dispose (&priv->interceptor);
     _gum_duk_database_dispose (&priv->database);
     _gum_duk_socket_dispose (&priv->socket);
@@ -544,12 +545,12 @@ gum_duk_script_destroy_context (GumDukScript * self)
     core->current_scope = NULL;
   }
 
+  _gum_duk_stalker_finalize (&priv->stalker);
   _gum_duk_code_relocator_finalize (&priv->code_relocator);
   _gum_duk_code_writer_finalize (&priv->code_writer);
   _gum_duk_instruction_finalize (&priv->instruction);
   _gum_duk_symbol_finalize (&priv->symbol);
   _gum_duk_api_resolver_finalize (&priv->api_resolver);
-  _gum_duk_stalker_finalize (&priv->stalker);
   _gum_duk_interceptor_finalize (&priv->interceptor);
   _gum_duk_database_finalize (&priv->database);
   _gum_duk_socket_finalize (&priv->socket);
