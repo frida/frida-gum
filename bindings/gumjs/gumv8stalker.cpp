@@ -193,7 +193,7 @@ _gum_v8_stalker_realize (GumV8Stalker * self)
   args->SetInternalFieldCount (2);
   args->SetIndexedPropertyHandler (gumjs_probe_args_get_nth,
       gumjs_probe_args_set_nth);
-  self->probe_args = new GumPersistent<ObjectTemplate>::type(isolate, args);
+  self->probe_args = new GumPersistent<ObjectTemplate>::type (isolate, args);
 
   self->cached_iterator = gum_v8_stalker_iterator_new_persistent (self);
   self->cached_iterator_in_use = FALSE;
