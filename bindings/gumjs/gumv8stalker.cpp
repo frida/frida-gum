@@ -237,11 +237,11 @@ _gum_v8_stalker_dispose (GumV8Stalker * self)
   gum_v8_stalker_iterator_release_persistent (self->cached_iterator);
   self->cached_iterator = NULL;
 
-  delete self->iterator_value;
-  self->iterator_value = nullptr;
-
   delete self->probe_args;
   self->probe_args = nullptr;
+
+  delete self->iterator_value;
+  self->iterator_value = nullptr;
 
   delete self->iterator;
   self->iterator = nullptr;
@@ -401,6 +401,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
   {
     gum_stalker_follow (stalker, thread_id, transformer, sink);
     g_object_unref (sink);
+    g_clear_object (&transformer);
   }
 }
 
