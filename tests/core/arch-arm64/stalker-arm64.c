@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2009-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -17,6 +17,9 @@ TEST_LIST_BEGIN (stalker)
 
   /* PROBES */
   STALKER_TESTENTRY (call_probe)
+
+  /* TRANSFORMERS */
+  STALKER_TESTENTRY (custom_transformer)
 
   /* BRANCH */
   STALKER_TESTENTRY (unconditional_branch)
@@ -38,6 +41,9 @@ TEST_LIST_BEGIN (stalker)
 
 TEST_LIST_END ()
 
+static void insert_extra_add_after_sub (GumStalkerIterator * iterator,
+    GumStalkerWriter * output, gpointer user_data);
+
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
 
 static const guint32 flat_code[] = {
@@ -48,8 +54,9 @@ static const guint32 flat_code[] = {
 };
 
 static StalkerTestFunc
-invoke_flat (TestArm64StalkerFixture * fixture,
-             GumEventType mask)
+invoke_flat_expecting_return_value (TestArm64StalkerFixture * fixture,
+                                    GumEventType mask,
+                                    guint expected_return_value)
 {
   StalkerTestFunc func;
   gint ret;
@@ -60,9 +67,16 @@ invoke_flat (TestArm64StalkerFixture * fixture,
 
   fixture->sink->mask = mask;
   ret = test_arm64_stalker_fixture_follow_and_invoke (fixture, func, -1);
-  g_assert_cmpint (ret, ==, 2);
+  g_assert_cmpint (ret, ==, expected_return_value);
 
   return func;
+}
+
+static StalkerTestFunc
+invoke_flat (TestArm64StalkerFixture * fixture,
+             GumEventType mask)
+{
+  return invoke_flat_expecting_return_value (fixture, mask, 2);
 }
 
 STALKER_TESTCASE (no_events)
@@ -208,6 +222,33 @@ probe_func_a_invocation (GumCallSite * site,
   g_assert_cmphex (((gsize *) site->stack_data)[1], ==, 0x22);
 }
 
+STALKER_TESTCASE (custom_transformer)
+{
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      insert_extra_add_after_sub, NULL, NULL);
+
+  invoke_flat_expecting_return_value (fixture, GUM_NOTHING, 3);
+}
+
+static void
+insert_extra_add_after_sub (GumStalkerIterator * iterator,
+                            GumStalkerWriter * output,
+                            gpointer user_data)
+{
+  const cs_insn * insn;
+
+  while (gum_stalker_iterator_next (iterator, &insn))
+  {
+    gum_stalker_iterator_keep (iterator);
+
+    if (insn->id == ARM64_INS_SUB)
+    {
+      gum_arm64_writer_put_add_reg_reg_imm (&output->arm64, ARM64_REG_W0,
+          ARM64_REG_W0, 1);
+    }
+  }
+}
+
 STALKER_TESTCASE (unconditional_branch)
 {
   guint8 * code;
@@ -222,9 +263,10 @@ STALKER_TESTCASE (unconditional_branch)
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
-      GUM_ADDRESS (gum_stalker_follow_me), 2,
-      GUM_ARG_ADDRESS, fixture->stalker,
-      GUM_ARG_ADDRESS, fixture->sink);
+      GUM_ADDRESS (gum_stalker_follow_me), 3,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->transformer),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->sink));
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
   gum_arm64_writer_put_nop (&cw);
@@ -237,7 +279,7 @@ STALKER_TESTCASE (unconditional_branch)
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
       GUM_ADDRESS (gum_stalker_unfollow_me), 1,
-      GUM_ARG_ADDRESS, fixture->stalker);
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker));
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
   gum_arm64_writer_put_ret (&cw);
@@ -272,9 +314,10 @@ STALKER_TESTCASE (unconditional_branch_reg)
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
-      GUM_ADDRESS (gum_stalker_follow_me), 2,
-      GUM_ARG_ADDRESS, fixture->stalker,
-      GUM_ARG_ADDRESS, fixture->sink);
+      GUM_ADDRESS (gum_stalker_follow_me), 3,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->transformer),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->sink));
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
   gum_arm64_writer_put_nop (&cw);
@@ -289,7 +332,7 @@ STALKER_TESTCASE (unconditional_branch_reg)
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
       GUM_ADDRESS (gum_stalker_unfollow_me), 1,
-      GUM_ARG_ADDRESS, fixture->stalker);
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker));
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
   gum_arm64_writer_put_ret (&cw);
@@ -327,9 +370,10 @@ STALKER_TESTCASE (conditional_branch)
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
-      GUM_ADDRESS (gum_stalker_follow_me), 2,
-      GUM_ARG_ADDRESS, fixture->stalker,
-      GUM_ARG_ADDRESS, fixture->sink);
+      GUM_ADDRESS (gum_stalker_follow_me), 3,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->transformer),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->sink));
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
   gum_arm64_writer_put_nop (&cw);
@@ -343,7 +387,7 @@ STALKER_TESTCASE (conditional_branch)
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
       GUM_ADDRESS (gum_stalker_unfollow_me), 1,
-      GUM_ARG_ADDRESS, fixture->stalker);
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker));
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
   gum_arm64_writer_put_ret (&cw);
@@ -377,9 +421,10 @@ STALKER_TESTCASE (compare_and_branch)
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
-      GUM_ADDRESS (gum_stalker_follow_me), 2,
-      GUM_ARG_ADDRESS, fixture->stalker,
-      GUM_ARG_ADDRESS, fixture->sink);
+      GUM_ADDRESS (gum_stalker_follow_me), 3,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->transformer),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->sink));
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
   gum_arm64_writer_put_nop (&cw);
@@ -393,7 +438,7 @@ STALKER_TESTCASE (compare_and_branch)
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
       GUM_ADDRESS (gum_stalker_unfollow_me), 1,
-      GUM_ARG_ADDRESS, fixture->stalker);
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker));
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
   gum_arm64_writer_put_ret (&cw);
@@ -427,9 +472,10 @@ STALKER_TESTCASE (test_bit_and_branch)
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
-      GUM_ADDRESS (gum_stalker_follow_me), 2,
-      GUM_ARG_ADDRESS, fixture->stalker,
-      GUM_ARG_ADDRESS, fixture->sink);
+      GUM_ADDRESS (gum_stalker_follow_me), 3,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->transformer),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->sink));
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
   gum_arm64_writer_put_nop (&cw);
@@ -443,7 +489,7 @@ STALKER_TESTCASE (test_bit_and_branch)
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
       GUM_ADDRESS (gum_stalker_unfollow_me), 1,
-      GUM_ARG_ADDRESS, fixture->stalker);
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker));
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
   gum_arm64_writer_put_ret (&cw);
@@ -487,9 +533,10 @@ STALKER_TESTCASE (follow_std_call)
   gum_arm64_writer_put_label (&cw, my_ken_lbl);
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
-      GUM_ADDRESS (gum_stalker_follow_me), 2,
-      GUM_ARG_ADDRESS, fixture->stalker,
-      GUM_ARG_ADDRESS, fixture->sink);
+      GUM_ADDRESS (gum_stalker_follow_me), 3,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->transformer),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->sink));
   gum_arm64_writer_put_pop_all_x_registers (&cw);
   gum_arm64_writer_put_add_reg_reg_imm (&cw, ARM64_REG_X0, ARM64_REG_X0, 1);
   gum_arm64_writer_put_bl_imm (&cw, address);
@@ -497,7 +544,7 @@ STALKER_TESTCASE (follow_std_call)
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
       GUM_ADDRESS (gum_stalker_unfollow_me), 1,
-      GUM_ARG_ADDRESS, fixture->stalker);
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker));
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
   gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X30, ARM64_REG_X29);
@@ -534,9 +581,10 @@ STALKER_TESTCASE (follow_return)
   address = GUM_ADDRESS (gum_arm64_writer_cur (&cw));
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
-      GUM_ADDRESS (gum_stalker_follow_me), 2,
-      GUM_ARG_ADDRESS, fixture->stalker,
-      GUM_ARG_ADDRESS, fixture->sink);
+      GUM_ADDRESS (gum_stalker_follow_me), 3,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->transformer),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->sink));
   gum_arm64_writer_put_pop_all_x_registers (&cw);
   /*
    * alternative for instruction RET X15
@@ -554,7 +602,7 @@ STALKER_TESTCASE (follow_return)
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
       GUM_ADDRESS (gum_stalker_unfollow_me), 1,
-      GUM_ARG_ADDRESS, fixture->stalker);
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker));
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
   gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X30, ARM64_REG_X29);
@@ -575,7 +623,8 @@ STALKER_TESTCASE (follow_syscall)
 {
   fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
 
-  gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
+  gum_stalker_follow_me (fixture->stalker, fixture->transformer,
+      GUM_EVENT_SINK (fixture->sink));
   g_usleep (1);
   gum_stalker_unfollow_me (fixture->stalker);
 
@@ -640,7 +689,7 @@ STALKER_TESTCASE (follow_thread)
 
   /* 4: Follow and notify victim about it */
   fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
-  gum_stalker_follow (fixture->stalker, thread_id,
+  gum_stalker_follow (fixture->stalker, thread_id, NULL,
       GUM_EVENT_SINK (fixture->sink));
   g_mutex_lock (&ctx.mutex);
   ctx.state = STALKER_VICTIM_IS_FOLLOWED;
@@ -690,7 +739,8 @@ STALKER_TESTCASE (heap_api)
 
   fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
 
-  gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
+  gum_stalker_follow_me (fixture->stalker, fixture->transformer,
+      GUM_EVENT_SINK (fixture->sink));
   p = malloc (1);
   free (p);
   gum_stalker_unfollow_me (fixture->stalker);
@@ -715,9 +765,10 @@ STALKER_TESTCASE (no_register_clobber)
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
-      GUM_ADDRESS (gum_stalker_follow_me), 2,
-      GUM_ARG_ADDRESS, fixture->stalker,
-      GUM_ARG_ADDRESS, fixture->sink);
+      GUM_ADDRESS (gum_stalker_follow_me), 3,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->transformer),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->sink));
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
   for (i = ARM64_REG_X0; i <= ARM64_REG_X28; i++)
@@ -730,7 +781,7 @@ STALKER_TESTCASE (no_register_clobber)
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
       GUM_ADDRESS (gum_stalker_unfollow_me), 1,
-      GUM_ARG_ADDRESS, fixture->stalker);
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker));
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
   gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_FP, ARM64_REG_LR);
@@ -799,7 +850,8 @@ STALKER_TESTCASE (performance)
   fixture->sink->mask = GUM_NOTHING;
 
   gum_stalker_set_trust_threshold (fixture->stalker, 0);
-  gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
+  gum_stalker_follow_me (fixture->stalker, fixture->transformer,
+      GUM_EVENT_SINK (fixture->sink));
 
   /* warm-up */
   g_timer_reset (timer);

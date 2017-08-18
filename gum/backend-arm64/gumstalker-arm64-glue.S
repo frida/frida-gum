@@ -11,7 +11,7 @@ gum_stalker_follow_me:
 #endif
   stp x29, x30, [sp, -16]!
   mov x29, sp
-  mov x2, x30
+  mov x3, x30
 #ifdef __APPLE__
   bl __gum_stalker_do_follow_me
 #else

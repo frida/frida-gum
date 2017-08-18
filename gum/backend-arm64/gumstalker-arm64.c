@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2014-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -80,6 +80,7 @@ struct _GumStalkerPrivate
 struct _GumInfectContext
 {
   GumStalker * stalker;
+  GumStalkerTransformer * transformer;
   GumEventSink * sink;
 };
 
@@ -124,6 +125,7 @@ struct _GumExecCtx
   GumArm64Writer code_writer;
   GumArm64Relocator relocator;
 
+  GumStalkerTransformer * transformer;
   GumEventSink * sink;
   GumEventType sink_mask;
   gpointer sink_process_impl; /* cached */
@@ -183,9 +185,19 @@ struct _GumGeneratorContext
 
 struct _GumInstruction
 {
-  cs_insn * ci;
+  const cs_insn * ci;
   guint8 * begin;
   guint8 * end;
+};
+
+struct _GumStalkerIterator
+{
+  GumExecCtx * exec_context;
+  GumExecBlock * exec_block;
+  GumGeneratorContext * generator_context;
+
+  GumInstruction instruction;
+  GumVirtualizationRequirements requirements;
 };
 
 struct _GumBranchTarget
@@ -211,7 +223,8 @@ enum _GumVirtualizationRequirements
 static void gum_stalker_finalize (GObject * object);
 
 G_GNUC_INTERNAL gpointer _gum_stalker_do_follow_me (GumStalker * self,
-    GumEventSink * sink, volatile gpointer ret_addr);
+    GumStalkerTransformer * transformer, GumEventSink * sink,
+    volatile gpointer ret_addr);
 
 static void gum_stalker_infect (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
@@ -221,7 +234,8 @@ static void gum_stalker_disinfect (GumThreadId thread_id,
 static void gum_stalker_free_probe_array (gpointer data);
 
 static GumExecCtx * gum_stalker_create_exec_ctx (GumStalker * self,
-    GumThreadId thread_id, GumEventSink * sink);
+    GumThreadId thread_id, GumStalkerTransformer * transformer,
+    GumEventSink * sink);
 static GumExecCtx * gum_stalker_get_exec_ctx (GumStalker * self);
 static void gum_stalker_invalidate_caches (GumStalker * self);
 
@@ -443,6 +457,7 @@ gum_stalker_garbage_collect (GumStalker * self)
 
 gpointer
 _gum_stalker_do_follow_me (GumStalker * self,
+                           GumStalkerTransformer * transformer,
                            GumEventSink * sink,
                            volatile gpointer ret_addr)
 {
@@ -450,7 +465,7 @@ _gum_stalker_do_follow_me (GumStalker * self,
   gpointer code_address;
 
   ctx = gum_stalker_create_exec_ctx (self, gum_process_get_current_thread_id (),
-      sink);
+      transformer, sink);
   gum_tls_key_set_value (self->priv->exec_ctx, ctx);
 
   ctx->current_block = gum_exec_ctx_obtain_block_for (ctx, ret_addr,
@@ -502,16 +517,18 @@ gum_stalker_is_following_me (GumStalker * self)
 void
 gum_stalker_follow (GumStalker * self,
                     GumThreadId thread_id,
+                    GumStalkerTransformer * transformer,
                     GumEventSink * sink)
 {
   if (thread_id == gum_process_get_current_thread_id ())
   {
-    gum_stalker_follow_me (self, sink);
+    gum_stalker_follow_me (self, transformer, sink);
   }
   else
   {
     GumInfectContext ctx;
     ctx.stalker = self;
+    ctx.transformer = transformer;
     ctx.sink = sink;
     gum_process_modify_thread (thread_id, gum_stalker_infect, &ctx);
   }
@@ -575,7 +592,8 @@ gum_stalker_infect (GumThreadId thread_id,
 
   infect_context = user_data;
   self = infect_context->stalker;
-  ctx = gum_stalker_create_exec_ctx (self, thread_id, infect_context->sink);
+  ctx = gum_stalker_create_exec_ctx (self, thread_id,
+      infect_context->transformer, infect_context->sink);
 
   ctx->current_block = gum_exec_ctx_obtain_block_for (ctx,
       GSIZE_TO_POINTER (cpu_context->pc), &code_address);
@@ -737,6 +755,7 @@ gum_stalker_free_probe_array (gpointer data)
 static GumExecCtx *
 gum_stalker_create_exec_ctx (GumStalker * self,
                              GumThreadId thread_id,
+                             GumStalkerTransformer * transformer,
                              GumEventSink * sink)
 {
   GumStalkerPrivate * priv = self->priv;
@@ -770,6 +789,10 @@ gum_stalker_create_exec_ctx (GumStalker * self,
   gum_arm64_writer_init (&ctx->code_writer, NULL);
   gum_arm64_relocator_init (&ctx->relocator, NULL, &ctx->code_writer);
 
+  if (transformer != NULL)
+    ctx->transformer = g_object_ref (transformer);
+  else
+    ctx->transformer = gum_stalker_transformer_make_default ();
   ctx->sink = (GumEventSink *) g_object_ref (sink);
   ctx->sink_mask = gum_event_sink_query_mask (sink);
   ctx->sink_process_impl = GUM_FUNCPTR_TO_POINTER (
@@ -825,6 +848,7 @@ gum_exec_ctx_free (GumExecCtx * ctx)
   gum_exec_ctx_destroy_thunks (ctx);
 
   g_object_unref (ctx->sink);
+  g_object_unref (ctx->transformer);
 
   gum_arm64_relocator_clear (&ctx->relocator);
   gum_arm64_writer_clear (&ctx->code_writer);
@@ -912,9 +936,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   GumArm64Writer * cw;
   GumArm64Relocator * rl;
   GumGeneratorContext gc;
-
-  cw = &ctx->code_writer;
-  rl = &ctx->relocator;
+  GumStalkerIterator iterator;
 
   if (ctx->stalker->priv->trust_threshold >= 0)
   {
@@ -940,6 +962,10 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
 
   if (ctx->stalker->priv->trust_threshold >= 0)
     gum_metal_hash_table_insert (ctx->mappings, real_address, block);
+
+  cw = &ctx->code_writer;
+  rl = &ctx->relocator;
+
   gum_arm64_writer_reset (cw, block->code_begin);
   gum_arm64_relocator_reset (rl, real_address, cw);
 
@@ -950,131 +976,20 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   gc.opened_prolog = GUM_PROLOG_NONE;
   gc.exclusive_load_offset = GUM_INSTRUCTION_OFFSET_NONE;
 
+  iterator.exec_context = ctx;
+  iterator.exec_block = block;
+  iterator.generator_context = &gc;
+
+  iterator.instruction.ci = NULL;
+  iterator.instruction.begin = NULL;
+  iterator.instruction.end = NULL;
+  iterator.requirements = GUM_REQUIRE_NOTHING;
+
   gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X16, ARM64_REG_X17,
       ARM64_REG_SP, 16 + GUM_RED_ZONE_SIZE, GUM_INDEX_POST_ADJUST);
 
-  while (TRUE)
-  {
-    guint n_read;
-    GumInstruction insn;
-    GumVirtualizationRequirements requirements = GUM_REQUIRE_NOTHING;
-
-    n_read = gum_arm64_relocator_read_one (rl, NULL);
-    g_assert_cmpuint (n_read, !=, 0);
-
-    insn.ci = gum_arm64_relocator_peek_next_write_insn (rl);
-    insn.begin = gum_arm64_relocator_peek_next_write_source (rl);
-    insn.end = insn.begin + insn.ci->size;
-
-    g_assert (insn.ci != NULL && insn.begin != NULL);
-
-    gc.instruction = &insn;
-
-    switch (insn.ci->id)
-    {
-      case ARM64_INS_LDAXR:
-      case ARM64_INS_LDAXP:
-      case ARM64_INS_LDAXRB:
-      case ARM64_INS_LDAXRH:
-      case ARM64_INS_LDXR:
-      case ARM64_INS_LDXP:
-      case ARM64_INS_LDXRB:
-      case ARM64_INS_LDXRH:
-        gc.exclusive_load_offset = 0;
-        break;
-      default:
-        break;
-    }
-
-    if ((ctx->sink_mask & GUM_EXEC) != 0 &&
-        gc.exclusive_load_offset == GUM_INSTRUCTION_OFFSET_NONE)
-    {
-      gum_exec_block_write_exec_event_code (block, &gc, GUM_CODE_INTERRUPTIBLE);
-    }
-
-    if ((ctx->sink_mask & GUM_BLOCK) != 0 &&
-        gc.exclusive_load_offset == GUM_INSTRUCTION_OFFSET_NONE &&
-        gum_arm64_relocator_eob (rl) &&
-        insn.ci->id != ARM64_INS_BL && insn.ci->id != ARM64_INS_BLR)
-    {
-      gum_exec_block_write_block_event_code (block, &gc, GUM_CODE_UNINTERRUPTIBLE);
-    }
-
-    switch (insn.ci->id)
-    {
-      case ARM64_INS_BL:
-      case ARM64_INS_B:
-      case ARM64_INS_BLR:
-      case ARM64_INS_BR:
-      case ARM64_INS_CBZ:
-      case ARM64_INS_CBNZ:
-      case ARM64_INS_TBZ:
-      case ARM64_INS_TBNZ:
-        requirements = gum_exec_block_virtualize_branch_insn (block, &gc);
-        break;
-      case ARM64_INS_RET:
-        requirements = gum_exec_block_virtualize_ret_insn (block, &gc);
-        break;
-      case ARM64_INS_SVC:
-        requirements = gum_exec_block_virtualize_sysenter_insn (block, &gc);
-        break;
-      case ARM64_INS_SMC:
-      case ARM64_INS_HVC:
-        g_assert ("" == "not implemented");
-        break;
-      default:
-        requirements = GUM_REQUIRE_RELOCATION;
-    }
-
-    gum_exec_block_close_prolog (block, &gc);
-
-    if ((requirements & GUM_REQUIRE_RELOCATION) != 0)
-      gum_arm64_relocator_write_one (rl);
-
-    block->code_end = gum_arm64_writer_cur (cw);
-
-    if (gum_exec_block_is_full (block))
-    {
-      gc.continuation_real_address = insn.end;
-      break;
-    }
-    else if (insn.ci->id == ARM64_INS_BL)
-    {
-      gboolean is_call_to_excluded_range;
-
-      is_call_to_excluded_range = (requirements & GUM_REQUIRE_RELOCATION) != 0;
-      if (!is_call_to_excluded_range)
-        break;
-    }
-    else if ((requirements & GUM_REQUIRE_EXCLUSIVE_STORE) == 0 &&
-        gum_arm64_relocator_eob (rl))
-    {
-      break;
-    }
-
-    switch (insn.ci->id)
-    {
-      case ARM64_INS_STXR:
-      case ARM64_INS_STXP:
-      case ARM64_INS_STXRB:
-      case ARM64_INS_STXRH:
-      case ARM64_INS_STLXR:
-      case ARM64_INS_STLXP:
-      case ARM64_INS_STLXRB:
-      case ARM64_INS_STLXRH:
-        gc.exclusive_load_offset = GUM_INSTRUCTION_OFFSET_NONE;
-        break;
-      default:
-        break;
-    }
-
-    if (gc.exclusive_load_offset != GUM_INSTRUCTION_OFFSET_NONE)
-    {
-      gc.exclusive_load_offset++;
-      if (gc.exclusive_load_offset == 4)
-        gc.exclusive_load_offset = GUM_INSTRUCTION_OFFSET_NONE;
-    }
-  }
+  gum_stalker_transformer_transform_block (ctx->transformer, &iterator,
+      (GumStalkerWriter *) cw);
 
   if (gc.continuation_real_address != NULL)
   {
@@ -1106,6 +1021,166 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   }
 
   return block;
+}
+
+gboolean
+gum_stalker_iterator_next (GumStalkerIterator * self,
+                           const cs_insn ** insn)
+{
+  GumGeneratorContext * gc = self->generator_context;
+  GumArm64Relocator * rl = gc->relocator;
+  GumInstruction * instruction;
+  guint n_read;
+
+  instruction = self->generator_context->instruction;
+  if (instruction != NULL)
+  {
+    GumExecBlock * block = self->exec_block;
+    gboolean skip_implicitly_requested;
+
+    skip_implicitly_requested = rl->outpos != rl->inpos;
+    if (skip_implicitly_requested)
+    {
+      gum_arm64_relocator_skip_one (rl);
+    }
+
+    block->code_end = gum_arm64_writer_cur (gc->code_writer);
+
+    if (gum_exec_block_is_full (block))
+    {
+      gc->continuation_real_address = instruction->end;
+      return FALSE;
+    }
+    else if (instruction->ci->id == ARM64_INS_BL)
+    {
+      gboolean call_is_to_excluded_range;
+
+      call_is_to_excluded_range =
+          (self->requirements & GUM_REQUIRE_RELOCATION) != 0;
+      if (!call_is_to_excluded_range)
+        return FALSE;
+    }
+    else if ((self->requirements & GUM_REQUIRE_EXCLUSIVE_STORE) == 0 &&
+        gum_arm64_relocator_eob (rl))
+    {
+      return FALSE;
+    }
+
+    switch (instruction->ci->id)
+    {
+      case ARM64_INS_STXR:
+      case ARM64_INS_STXP:
+      case ARM64_INS_STXRB:
+      case ARM64_INS_STXRH:
+      case ARM64_INS_STLXR:
+      case ARM64_INS_STLXP:
+      case ARM64_INS_STLXRB:
+      case ARM64_INS_STLXRH:
+        gc->exclusive_load_offset = GUM_INSTRUCTION_OFFSET_NONE;
+        break;
+      default:
+        break;
+    }
+
+    if (gc->exclusive_load_offset != GUM_INSTRUCTION_OFFSET_NONE)
+    {
+      gc->exclusive_load_offset++;
+      if (gc->exclusive_load_offset == 4)
+        gc->exclusive_load_offset = GUM_INSTRUCTION_OFFSET_NONE;
+    }
+  }
+
+  instruction = &self->instruction;
+
+  n_read = gum_arm64_relocator_read_one (rl, &instruction->ci);
+  if (n_read == 0)
+    return FALSE;
+
+  instruction->begin = GSIZE_TO_POINTER (instruction->ci->address);
+  instruction->end = instruction->begin + instruction->ci->size;
+
+  self->generator_context->instruction = instruction;
+
+  if (insn != NULL)
+    *insn = instruction->ci;
+
+  return TRUE;
+}
+
+void
+gum_stalker_iterator_keep (GumStalkerIterator * self)
+{
+  GumExecCtx * ec = self->exec_context;
+  GumExecBlock * block = self->exec_block;
+  GumGeneratorContext * gc = self->generator_context;
+  GumArm64Relocator * rl = gc->relocator;
+  const cs_insn * insn = gc->instruction->ci;
+  GumVirtualizationRequirements requirements;
+
+  requirements = GUM_REQUIRE_NOTHING;
+
+  switch (insn->id)
+  {
+    case ARM64_INS_LDAXR:
+    case ARM64_INS_LDAXP:
+    case ARM64_INS_LDAXRB:
+    case ARM64_INS_LDAXRH:
+    case ARM64_INS_LDXR:
+    case ARM64_INS_LDXP:
+    case ARM64_INS_LDXRB:
+    case ARM64_INS_LDXRH:
+      gc->exclusive_load_offset = 0;
+      break;
+    default:
+      break;
+  }
+
+  if ((ec->sink_mask & GUM_EXEC) != 0 &&
+      gc->exclusive_load_offset == GUM_INSTRUCTION_OFFSET_NONE)
+  {
+    gum_exec_block_write_exec_event_code (block, gc, GUM_CODE_INTERRUPTIBLE);
+  }
+
+  if ((ec->sink_mask & GUM_BLOCK) != 0 &&
+      gc->exclusive_load_offset == GUM_INSTRUCTION_OFFSET_NONE &&
+      gum_arm64_relocator_eob (rl) &&
+      insn->id != ARM64_INS_BL && insn->id != ARM64_INS_BLR)
+  {
+    gum_exec_block_write_block_event_code (block, gc, GUM_CODE_UNINTERRUPTIBLE);
+  }
+
+  switch (insn->id)
+  {
+    case ARM64_INS_BL:
+    case ARM64_INS_B:
+    case ARM64_INS_BLR:
+    case ARM64_INS_BR:
+    case ARM64_INS_CBZ:
+    case ARM64_INS_CBNZ:
+    case ARM64_INS_TBZ:
+    case ARM64_INS_TBNZ:
+      requirements = gum_exec_block_virtualize_branch_insn (block, gc);
+      break;
+    case ARM64_INS_RET:
+      requirements = gum_exec_block_virtualize_ret_insn (block, gc);
+      break;
+    case ARM64_INS_SVC:
+      requirements = gum_exec_block_virtualize_sysenter_insn (block, gc);
+      break;
+    case ARM64_INS_SMC:
+    case ARM64_INS_HVC:
+      g_assert ("" == "not implemented");
+      break;
+    default:
+      requirements = GUM_REQUIRE_RELOCATION;
+  }
+
+  gum_exec_block_close_prolog (block, gc);
+
+  if ((requirements & GUM_REQUIRE_RELOCATION) != 0)
+    gum_arm64_relocator_write_one (rl);
+
+  self->requirements = requirements;
 }
 
 static void

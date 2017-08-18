@@ -52,6 +52,7 @@ gum_sources = [
   'gumprintf.c',
   'gumprocess.c',
   'gumreturnaddress.c',
+  'gumstalker.c',
   'arch-x86/gumx86writer.c',
   'arch-x86/gumx86relocator.c',
   'arch-x86/gumx86reader.c',

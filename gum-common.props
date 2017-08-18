@@ -72,6 +72,7 @@
     <ClCompile Include="gum\gumprintf.c" />
     <ClCompile Include="gum\gumprocess.c" />
     <ClCompile Include="gum\gumreturnaddress.c" />
+    <ClCompile Include="gum\gumstalker.c" />
   </ItemGroup>
 
   <ItemGroup>

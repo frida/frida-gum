@@ -22,7 +22,8 @@ STALKER_TESTCASE (cocoa)
 
   fixture->sink->mask = (GumEventType) GUM_CALL;
 
-  gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
+  gum_stalker_follow_me (fixture->stalker, fixture->transformer,
+      GUM_EVENT_SINK (fixture->sink));
 
   @autoreleasepool
   {

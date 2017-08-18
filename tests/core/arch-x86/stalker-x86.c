@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2009-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2010-2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -14,6 +14,7 @@ TEST_LIST_BEGIN (stalker)
   STALKER_TESTENTRY (exec)
   STALKER_TESTENTRY (call_depth)
   STALKER_TESTENTRY (call_probe)
+  STALKER_TESTENTRY (custom_transformer)
 
   STALKER_TESTENTRY (unconditional_jumps)
   STALKER_TESTENTRY (short_conditional_jump_true)
@@ -68,6 +69,8 @@ TEST_LIST_END ()
 
 static void pretend_workload (void);
 static gpointer stalker_victim (gpointer data);
+static void insert_extra_increment_after_xor (GumStalkerIterator * iterator,
+    GumStalkerWriter * output, gpointer user_data);
 static void invoke_follow_return_code (TestStalkerFixture * fixture);
 static void invoke_unfollow_deep_code (TestStalkerFixture * fixture);
 
@@ -79,7 +82,8 @@ STALKER_TESTCASE (heap_api)
 
   fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
 
-  gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
+  gum_stalker_follow_me (fixture->stalker, fixture->transformer,
+      GUM_EVENT_SINK (fixture->sink));
   p = malloc (1);
   free (p);
   gum_stalker_unfollow_me (fixture->stalker);
@@ -101,7 +105,8 @@ STALKER_TESTCASE (follow_syscall)
 
   fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
 
-  gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
+  gum_stalker_follow_me (fixture->stalker, fixture->transformer,
+      GUM_EVENT_SINK (fixture->sink));
   g_usleep (1);
   gum_stalker_unfollow_me (fixture->stalker);
 
@@ -139,7 +144,7 @@ STALKER_TESTCASE (follow_thread)
 
   /* 4: Follow and notify victim about it */
   fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
-  gum_stalker_follow (fixture->stalker, thread_id,
+  gum_stalker_follow (fixture->stalker, thread_id, NULL,
       GUM_EVENT_SINK (fixture->sink));
   g_mutex_lock (&ctx.mutex);
   ctx.state = STALKER_VICTIM_IS_FOLLOWED;
@@ -243,7 +248,8 @@ STALKER_TESTCASE (performance)
   fixture->sink->mask = GUM_NOTHING;
 
   gum_stalker_set_trust_threshold (fixture->stalker, 0);
-  gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
+  gum_stalker_follow_me (fixture->stalker, fixture->transformer,
+      GUM_EVENT_SINK (fixture->sink));
 
   /* warm-up */
   g_timer_reset (timer);
@@ -286,8 +292,9 @@ static const guint8 flat_code[] = {
 };
 
 static StalkerTestFunc
-invoke_flat (TestStalkerFixture * fixture,
-             GumEventType mask)
+invoke_flat_expecting_return_value (TestStalkerFixture * fixture,
+                                    GumEventType mask,
+                                    guint expected_return_value)
 {
   StalkerTestFunc func;
   gint ret;
@@ -297,9 +304,16 @@ invoke_flat (TestStalkerFixture * fixture,
 
   fixture->sink->mask = mask;
   ret = test_stalker_fixture_follow_and_invoke (fixture, func, -1);
-  g_assert_cmpint (ret, ==, 2);
+  g_assert_cmpint (ret, ==, expected_return_value);
 
   return func;
+}
+
+static StalkerTestFunc
+invoke_flat (TestStalkerFixture * fixture,
+             GumEventType mask)
+{
+  return invoke_flat_expecting_return_value (fixture, mask, 2);
 }
 
 STALKER_TESTCASE (no_events)
@@ -508,6 +522,30 @@ invoke_jumpy (TestStalkerFixture * fixture,
   return func;
 }
 
+STALKER_TESTCASE (custom_transformer)
+{
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      insert_extra_increment_after_xor, NULL, NULL);
+
+  invoke_flat_expecting_return_value (fixture, GUM_NOTHING, 3);
+}
+
+static void
+insert_extra_increment_after_xor (GumStalkerIterator * iterator,
+                                  GumStalkerWriter * output,
+                                  gpointer user_data)
+{
+  const cs_insn * insn;
+
+  while (gum_stalker_iterator_next (iterator, &insn))
+  {
+    gum_stalker_iterator_keep (iterator);
+
+    if (insn->id == X86_INS_XOR)
+      gum_x86_writer_put_inc_reg (&output->x86, GUM_REG_EAX);
+  }
+}
+
 STALKER_TESTCASE (unconditional_jumps)
 {
   invoke_jumpy (fixture, GUM_EXEC);
@@ -712,12 +750,12 @@ STALKER_TESTCASE (long_conditional_jump)
 }
 
 #if GLIB_SIZEOF_VOID_P == 4
-# define FOLLOW_RETURN_EXTRA_INSN_COUNT 1
+# define FOLLOW_RETURN_EXTRA_INSN_COUNT 2
 #elif GLIB_SIZEOF_VOID_P == 8
 # if GUM_NATIVE_ABI_IS_WINDOWS
-#  define FOLLOW_RETURN_EXTRA_INSN_COUNT 2
+#  define FOLLOW_RETURN_EXTRA_INSN_COUNT 3
 # else
-#  define FOLLOW_RETURN_EXTRA_INSN_COUNT 0
+#  define FOLLOW_RETURN_EXTRA_INSN_COUNT 1
 # endif
 #endif
 
@@ -738,8 +776,10 @@ invoke_follow_return_code (TestStalkerFixture * fixture)
   guint8 * code;
   GumX86Writer cw;
 #if GLIB_SIZEOF_VOID_P == 4
+  guint align_correction_follow = 12;
   guint align_correction_unfollow = 8;
 #else
+  guint align_correction_follow = 0;
   guint align_correction_unfollow = 8;
 #endif
   const gchar * start_following_lbl = "start_following";
@@ -762,10 +802,13 @@ invoke_follow_return_code (TestStalkerFixture * fixture)
   gum_x86_writer_put_ret (&cw);
 
   gum_x86_writer_put_label (&cw, start_following_lbl);
+  gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction_follow);
   gum_x86_writer_put_call_address_with_arguments (&cw, GUM_CALL_CAPI,
-      GUM_ADDRESS (gum_stalker_follow_me), 2,
+      GUM_ADDRESS (gum_stalker_follow_me), 3,
       GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->transformer),
       GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->sink));
+  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_follow);
   gum_x86_writer_put_ret (&cw);
 
   gum_x86_writer_clear (&cw);
@@ -888,7 +931,7 @@ invoke_unfollow_deep_code (TestStalkerFixture * fixture)
   guint8 * code;
   GumX86Writer cw;
 #if GLIB_SIZEOF_VOID_P == 4
-  guint align_correction_follow = 4;
+  guint align_correction_follow = 0;
   guint align_correction_unfollow = 12;
 #else
   guint align_correction_follow = 8;
@@ -908,8 +951,9 @@ invoke_unfollow_deep_code (TestStalkerFixture * fixture)
 
   gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction_follow);
   gum_x86_writer_put_call_address_with_arguments (&cw, GUM_CALL_CAPI,
-      GUM_ADDRESS (gum_stalker_follow_me), 2,
+      GUM_ADDRESS (gum_stalker_follow_me), 3,
       GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->transformer),
       GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->sink));
   gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_follow);
   gum_x86_writer_put_call_near_label (&cw, func_a_lbl);
@@ -1515,8 +1559,8 @@ STALKER_TESTCASE (no_register_clobber)
   gum_x86_writer_put_pushax (&cw);
 
   gum_x86_writer_put_pushax (&cw);
-  gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_ESP, sizeof (gpointer));
   gum_x86_writer_put_push_u32 (&cw, (guint32) fixture->sink);
+  gum_x86_writer_put_push_u32 (&cw, (guint32) fixture->transformer);
   gum_x86_writer_put_push_u32 (&cw, (guint32) fixture->stalker);
   gum_x86_writer_put_call_address (&cw, GUM_ADDRESS (gum_stalker_follow_me));
   gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_ESP, 3 * sizeof (gpointer));
@@ -1757,7 +1801,8 @@ STALKER_TESTCASE (win32_messagebeep_api)
 
   fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
 
-  gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
+  gum_stalker_follow_me (fixture->stalker, fixture->transformer,
+      GUM_EVENT_SINK (fixture->sink));
   MessageBeep (MB_ICONINFORMATION);
   gum_stalker_unfollow_me (fixture->stalker);
 }
@@ -1774,8 +1819,10 @@ STALKER_TESTCASE (win32_follow_user_to_kernel_to_callback)
 
   window = create_test_window (fixture->stalker);
 
-  gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
-  send_message_and_pump_messages_briefly (window, do_unfollow, fixture->stalker);
+  gum_stalker_follow_me (fixture->stalker, fixture->transformer,
+      GUM_EVENT_SINK (fixture->sink));
+  send_message_and_pump_messages_briefly (window, do_unfollow,
+      fixture->stalker);
   g_assert (!gum_stalker_is_following_me (fixture->stalker));
 
   destroy_test_window (window);
@@ -1803,7 +1850,7 @@ STALKER_TESTCASE (win32_follow_callback_to_kernel_to_user)
 static void
 do_follow (TestWindow * window, gpointer user_data)
 {
-  gum_stalker_follow_me (window->stalker, GUM_EVENT_SINK (user_data));
+  gum_stalker_follow_me (window->stalker, NULL, GUM_EVENT_SINK (user_data));
 }
 
 static void

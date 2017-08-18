@@ -78,6 +78,7 @@ struct _GumStalkerPrivate
 struct _GumInfectContext
 {
   GumStalker * stalker;
+  GumStalkerTransformer * transformer;
   GumEventSink * sink;
 };
 
@@ -128,6 +129,7 @@ struct _GumExecCtx
   GumX86Writer code_writer;
   GumX86Relocator relocator;
 
+  GumStalkerTransformer * transformer;
   GumEventSink * sink;
   GumEventType sink_mask;
   gpointer sink_process_impl; /* cached */
@@ -208,9 +210,19 @@ struct _GumGeneratorContext
 
 struct _GumInstruction
 {
-  cs_insn * ci;
+  const cs_insn * ci;
   guint8 * begin;
   guint8 * end;
+};
+
+struct _GumStalkerIterator
+{
+  GumExecCtx * exec_context;
+  GumExecBlock * exec_block;
+  GumGeneratorContext * generator_context;
+
+  GumInstruction instruction;
+  GumVirtualizationRequirements requirements;
 };
 
 struct _GumBranchTarget
@@ -249,7 +261,8 @@ static void gum_stalker_dispose (GObject * object);
 static void gum_stalker_finalize (GObject * object);
 
 G_GNUC_INTERNAL void _gum_stalker_do_follow_me (GumStalker * self,
-    GumEventSink * sink, volatile gpointer * ret_addr_ptr);
+    GumStalkerTransformer * transformer, GumEventSink * sink,
+    volatile gpointer * ret_addr_ptr);
 static void gum_stalker_infect (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 static void gum_stalker_disinfect (GumThreadId thread_id,
@@ -258,7 +271,8 @@ static void gum_stalker_disinfect (GumThreadId thread_id,
 static void gum_stalker_free_probe_array (gpointer data);
 
 static GumExecCtx * gum_stalker_create_exec_ctx (GumStalker * self,
-    GumThreadId thread_id, GumEventSink * sink);
+    GumThreadId thread_id, GumStalkerTransformer * transformer,
+    GumEventSink * sink);
 static GumExecCtx * gum_stalker_get_exec_ctx (GumStalker * self);
 static void gum_stalker_invalidate_caches (GumStalker * self);
 
@@ -571,27 +585,29 @@ gum_stalker_garbage_collect (GumStalker * self)
 
 void
 gum_stalker_follow_me (GumStalker * self,
+                       GumStalkerTransformer * transformer,
                        GumEventSink * sink)
 {
   volatile gpointer * ret_addr_ptr;
 
   ret_addr_ptr = RETURN_ADDRESS_POINTER_FROM_FIRST_ARGUMENT (self);
 
-  _gum_stalker_do_follow_me (self, sink, ret_addr_ptr);
+  _gum_stalker_do_follow_me (self, transformer, sink, ret_addr_ptr);
 }
 
 #endif
 
 void
 _gum_stalker_do_follow_me (GumStalker * self,
+                           GumStalkerTransformer * transformer,
                            GumEventSink * sink,
                            volatile gpointer * ret_addr_ptr)
 {
   GumExecCtx * ctx;
   gpointer code_address;
 
-  ctx = gum_stalker_create_exec_ctx (self,
-      gum_process_get_current_thread_id (), sink);
+  ctx = gum_stalker_create_exec_ctx (self, gum_process_get_current_thread_id (),
+      transformer, sink);
   gum_tls_key_set_value (self->priv->exec_ctx, ctx);
   ctx->current_block = gum_exec_ctx_obtain_block_for (ctx, *ret_addr_ptr,
       &code_address);
@@ -638,16 +654,18 @@ gum_stalker_is_following_me (GumStalker * self)
 void
 gum_stalker_follow (GumStalker * self,
                     GumThreadId thread_id,
+                    GumStalkerTransformer * transformer,
                     GumEventSink * sink)
 {
   if (thread_id == gum_process_get_current_thread_id ())
   {
-    gum_stalker_follow_me (self, sink);
+    gum_stalker_follow_me (self, transformer, sink);
   }
   else
   {
     GumInfectContext ctx;
     ctx.stalker = self;
+    ctx.transformer = transformer;
     ctx.sink = sink;
     gum_process_modify_thread (thread_id, gum_stalker_infect, &ctx);
   }
@@ -713,7 +731,8 @@ gum_stalker_infect (GumThreadId thread_id,
   guint align_correction = 0;
 #endif
 
-  ctx = gum_stalker_create_exec_ctx (self, thread_id, infect_context->sink);
+  ctx = gum_stalker_create_exec_ctx (self, thread_id,
+      infect_context->transformer, infect_context->sink);
 
   ctx->current_block = gum_exec_ctx_obtain_block_for (ctx,
       GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XIP (cpu_context)), &code_address);
@@ -871,6 +890,7 @@ gum_stalker_free_probe_array (gpointer data)
 static GumExecCtx *
 gum_stalker_create_exec_ctx (GumStalker * self,
                              GumThreadId thread_id,
+                             GumStalkerTransformer * transformer,
                              GumEventSink * sink)
 {
   GumStalkerPrivate * priv = self->priv;
@@ -911,6 +931,10 @@ gum_stalker_create_exec_ctx (GumStalker * self,
   gum_x86_writer_init (&ctx->code_writer, NULL);
   gum_x86_relocator_init (&ctx->relocator, NULL, &ctx->code_writer);
 
+  if (transformer != NULL)
+    ctx->transformer = g_object_ref (transformer);
+  else
+    ctx->transformer = gum_stalker_transformer_make_default ();
   ctx->sink = (GumEventSink *) g_object_ref (sink);
   ctx->sink_mask = gum_event_sink_query_mask (sink);
   ctx->sink_process_impl = GUM_FUNCPTR_TO_POINTER (
@@ -966,6 +990,7 @@ gum_exec_ctx_free (GumExecCtx * ctx)
   gum_exec_ctx_destroy_thunks (ctx);
 
   g_object_unref (ctx->sink);
+  g_object_unref (ctx->transformer);
 
   gum_x86_relocator_clear (&ctx->relocator);
   gum_x86_writer_clear (&ctx->code_writer);
@@ -1104,9 +1129,10 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
                                gpointer * code_address)
 {
   GumExecBlock * block;
-  GumX86Writer * cw = &ctx->code_writer;
-  GumX86Relocator * rl = &ctx->relocator;
+  GumX86Writer * cw;
+  GumX86Relocator * rl;
   GumGeneratorContext gc;
+  GumStalkerIterator iterator;
 
   if (ctx->stalker->priv->trust_threshold >= 0)
   {
@@ -1129,8 +1155,13 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
 
   block = gum_exec_block_new (ctx);
   *code_address = block->code_begin;
+
   if (ctx->stalker->priv->trust_threshold >= 0)
     gum_metal_hash_table_insert (ctx->mappings, real_address, block);
+
+  cw = &ctx->code_writer;
+  rl = &ctx->relocator;
+
   gum_x86_writer_reset (cw, block->code_begin);
   gum_x86_relocator_reset (rl, real_address, cw);
 
@@ -1147,107 +1178,17 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   printf ("\n\n***\n\nCreating block for %p:\n", real_address);
 #endif
 
-  while (TRUE)
-  {
-    guint n_read;
-    GumInstruction insn;
-    GumVirtualizationRequirements requirements = GUM_REQUIRE_NOTHING;
+  iterator.exec_context = ctx;
+  iterator.exec_block = block;
+  iterator.generator_context = &gc;
 
-    n_read = gum_x86_relocator_read_one (rl, NULL);
-    g_assert_cmpuint (n_read, !=, 0);
+  iterator.instruction.ci = NULL;
+  iterator.instruction.begin = NULL;
+  iterator.instruction.end = NULL;
+  iterator.requirements = GUM_REQUIRE_NOTHING;
 
-    insn.ci = gum_x86_relocator_peek_next_write_insn (rl);
-    insn.begin = gum_x86_relocator_peek_next_write_source (rl);
-    insn.end = insn.begin + insn.ci->size;
-
-    g_assert (insn.ci != NULL && insn.begin != NULL);
-
-#if ENABLE_DEBUG
-    gum_disasm (insn.begin, insn.end - insn.begin, "");
-    gum_hexdump (insn.begin, insn.end - insn.begin, "; ");
-#endif
-
-    gc.instruction = &insn;
-
-    if ((ctx->sink_mask & GUM_EXEC) != 0)
-      gum_exec_block_write_exec_event_code (block, &gc, GUM_CODE_INTERRUPTIBLE);
-
-    if ((ctx->sink_mask & GUM_BLOCK) != 0 &&
-        gum_x86_relocator_eob (rl) &&
-        insn.ci->id != X86_INS_CALL)
-    {
-      gum_exec_block_write_block_event_code (block, &gc, GUM_CODE_INTERRUPTIBLE);
-    }
-
-    switch (insn.ci->id)
-    {
-      case X86_INS_CALL:
-      case X86_INS_JMP:
-        requirements = gum_exec_block_virtualize_branch_insn (block, &gc);
-        break;
-      case X86_INS_RET:
-        requirements = gum_exec_block_virtualize_ret_insn (block, &gc);
-        break;
-      case X86_INS_SYSENTER:
-        requirements = gum_exec_block_virtualize_sysenter_insn (block, &gc);
-        break;
-      case X86_INS_JECXZ:
-      case X86_INS_JRCXZ:
-        requirements = gum_exec_block_virtualize_branch_insn (block, &gc);
-        break;
-      default:
-        if (gum_x86_reader_insn_is_jcc (insn.ci))
-          requirements = gum_exec_block_virtualize_branch_insn (block, &gc);
-        else
-          requirements = GUM_REQUIRE_RELOCATION;
-        break;
-    }
-
-    gum_exec_block_close_prolog (block, &gc);
-
-    if ((requirements & GUM_REQUIRE_RELOCATION) != 0)
-    {
-      gum_x86_relocator_write_one_no_label (rl);
-    }
-    else if ((requirements & GUM_REQUIRE_SINGLE_STEP) != 0)
-    {
-      gum_x86_relocator_skip_one_no_label (rl);
-      gum_exec_block_write_single_step_transfer_code (block, &gc);
-    }
-
-#if ENABLE_DEBUG
-    {
-      guint8 * begin = block->code_end;
-      block->code_end = gum_x86_writer_cur (cw);
-      gum_disasm (begin, block->code_end - begin, "\t");
-      gum_hexdump (begin, block->code_end - begin, "\t; ");
-    }
-#else
-    block->code_end = gum_x86_writer_cur (cw);
-#endif
-
-    if (gum_exec_block_is_full (block))
-    {
-      gc.continuation_real_address = insn.end;
-      break;
-    }
-    else if (insn.ci->id == X86_INS_CALL)
-    {
-      /* We always stop on a call unless it's to an excluded range */
-      if ((requirements & GUM_REQUIRE_RELOCATION) != 0)
-      {
-        rl->eob = FALSE;
-      }
-      else
-      {
-        break;
-      }
-    }
-    else if (gum_x86_relocator_eob (rl))
-    {
-      break;
-    }
-  }
+  gum_stalker_transformer_transform_block (ctx->transformer, &iterator,
+      (GumStalkerWriter *) cw);
 
   if (gc.continuation_real_address != NULL)
   {
@@ -1280,6 +1221,139 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   }
 
   return block;
+}
+
+gboolean
+gum_stalker_iterator_next (GumStalkerIterator * self,
+                           const cs_insn ** insn)
+{
+  GumGeneratorContext * gc = self->generator_context;
+  GumX86Relocator * rl = gc->relocator;
+  GumInstruction * instruction;
+  guint n_read;
+
+  instruction = self->generator_context->instruction;
+  if (instruction != NULL)
+  {
+    GumExecBlock * block = self->exec_block;
+    gboolean skip_implicitly_requested;
+
+    skip_implicitly_requested = rl->outpos != rl->inpos;
+    if (skip_implicitly_requested)
+    {
+      gum_x86_relocator_skip_one_no_label (rl);
+    }
+
+#if ENABLE_DEBUG
+    {
+      guint8 * begin = block->code_end;
+      block->code_end = gum_x86_writer_cur (gc->code_writer);
+      gum_disasm (begin, block->code_end - begin, "\t");
+      gum_hexdump (begin, block->code_end - begin, "\t; ");
+    }
+#else
+    block->code_end = gum_x86_writer_cur (gc->code_writer);
+#endif
+
+    if (gum_exec_block_is_full (block))
+    {
+      gc->continuation_real_address = instruction->end;
+      return FALSE;
+    }
+    else if (instruction->ci->id == X86_INS_CALL)
+    {
+      gboolean call_is_to_excluded_range;
+
+      call_is_to_excluded_range =
+          (self->requirements & GUM_REQUIRE_RELOCATION) != 0;
+      if (!call_is_to_excluded_range)
+        return FALSE;
+    }
+    else if (gum_x86_relocator_eob (rl))
+    {
+      return FALSE;
+    }
+  }
+
+  instruction = &self->instruction;
+
+  n_read = gum_x86_relocator_read_one (rl, &instruction->ci);
+  if (n_read == 0)
+    return FALSE;
+
+  instruction->begin = GSIZE_TO_POINTER (instruction->ci->address);
+  instruction->end = instruction->begin + instruction->ci->size;
+
+#if ENABLE_DEBUG
+  gum_disasm (instruction->begin, instruction->end - instruction->begin, "");
+  gum_hexdump (instruction->begin, instruction->end - instruction->begin, "; ");
+#endif
+
+  self->generator_context->instruction = instruction;
+
+  if (insn != NULL)
+    *insn = instruction->ci;
+
+  return TRUE;
+}
+
+void
+gum_stalker_iterator_keep (GumStalkerIterator * self)
+{
+  GumExecCtx * ec = self->exec_context;
+  GumExecBlock * block = self->exec_block;
+  GumGeneratorContext * gc = self->generator_context;
+  GumX86Relocator * rl = gc->relocator;
+  const cs_insn * insn = gc->instruction->ci;
+  GumVirtualizationRequirements requirements;
+
+  if ((ec->sink_mask & GUM_EXEC) != 0)
+    gum_exec_block_write_exec_event_code (block, gc, GUM_CODE_INTERRUPTIBLE);
+
+  if ((ec->sink_mask & GUM_BLOCK) != 0 &&
+      gum_x86_relocator_eob (rl) &&
+      insn->id != X86_INS_CALL)
+  {
+    gum_exec_block_write_block_event_code (block, gc, GUM_CODE_INTERRUPTIBLE);
+  }
+
+  switch (insn->id)
+  {
+    case X86_INS_CALL:
+    case X86_INS_JMP:
+      requirements = gum_exec_block_virtualize_branch_insn (block, gc);
+      break;
+    case X86_INS_RET:
+      requirements = gum_exec_block_virtualize_ret_insn (block, gc);
+      break;
+    case X86_INS_SYSENTER:
+      requirements = gum_exec_block_virtualize_sysenter_insn (block, gc);
+      break;
+    case X86_INS_JECXZ:
+    case X86_INS_JRCXZ:
+      requirements = gum_exec_block_virtualize_branch_insn (block, gc);
+      break;
+    default:
+      if (gum_x86_reader_insn_is_jcc (insn))
+        requirements = gum_exec_block_virtualize_branch_insn (block, gc);
+      else
+        requirements = GUM_REQUIRE_RELOCATION;
+      break;
+  }
+
+  gum_exec_block_close_prolog (block, gc);
+
+  if ((requirements & GUM_REQUIRE_RELOCATION) != 0)
+  {
+    gum_x86_relocator_write_one_no_label (rl);
+  }
+  else if ((requirements & GUM_REQUIRE_SINGLE_STEP) != 0)
+  {
+    gum_x86_relocator_skip_one_no_label (rl);
+    gum_exec_block_write_single_step_transfer_code (block, gc);
+  }
+
+  self->requirements = requirements;
 }
 
 static void

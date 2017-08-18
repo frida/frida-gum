@@ -132,6 +132,9 @@
     <ClCompile Include="gum\gumreturnaddress.c">
       <Filter>core</Filter>
     </ClCompile>
+    <ClCompile Include="gum\gumstalker.c">
+      <Filter>core</Filter>
+    </ClCompile>
     <ClCompile Include="libs\gum\prof\gumbusycyclesampler-windows.c">
       <Filter>libs\prof</Filter>
     </ClCompile>

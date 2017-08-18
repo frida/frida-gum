@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2013 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2009-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2010-2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -43,6 +43,7 @@
 typedef struct _TestStalkerFixture
 {
   GumStalker * stalker;
+  GumStalkerTransformer * transformer;
   GumFakeEventSink * sink;
 
   guint8 * code;
@@ -59,6 +60,7 @@ test_stalker_fixture_setup (TestStalkerFixture * fixture,
                             gconstpointer data)
 {
   fixture->stalker = gum_stalker_new ();
+  fixture->transformer = NULL;
   fixture->sink = GUM_FAKE_EVENT_SINK (gum_fake_event_sink_new ());
 
 #ifdef G_OS_WIN32
@@ -83,6 +85,7 @@ test_stalker_fixture_teardown (TestStalkerFixture * fixture,
                                gconstpointer data)
 {
   g_object_unref (fixture->sink);
+  g_clear_object (&fixture->transformer);
   g_object_unref (fixture->stalker);
 
   if (fixture->code != NULL)
@@ -131,7 +134,7 @@ test_stalker_fixture_follow_and_invoke (TestStalkerFixture * fixture,
   guint8 * code;
   GumX86Writer cw;
 #if GLIB_SIZEOF_VOID_P == 4
-  guint align_correction_follow = 4;
+  guint align_correction_follow = 0;
   guint align_correction_call = 12;
   guint align_correction_unfollow = 8;
 #else
@@ -152,8 +155,9 @@ test_stalker_fixture_follow_and_invoke (TestStalkerFixture * fixture,
 
   gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction_follow);
   gum_x86_writer_put_call_address_with_arguments (&cw, GUM_CALL_CAPI,
-      GUM_ADDRESS (gum_stalker_follow_me), 2,
+      GUM_ADDRESS (gum_stalker_follow_me), 3,
       GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->transformer),
       GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->sink));
   gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_follow);
 

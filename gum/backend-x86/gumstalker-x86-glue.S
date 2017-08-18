@@ -8,18 +8,21 @@ _gum_stalker_follow_me:
 gum_stalker_follow_me:
 #endif
 #ifdef i386
-pushl %esp
-pushl (8 + 4)(%esp)
-pushl (12 + 0)(%esp)
+movl %esp, %eax
+subl $12, %esp
+pushl %eax
+pushl (20 + 8)(%esp)
+pushl (24 + 4)(%esp)
+pushl (28 + 0)(%esp)
 #ifdef __APPLE__
 call __gum_stalker_do_follow_me
 #else
 call _gum_stalker_do_follow_me
 #endif
-addl $12, %esp
+addl $28, %esp
 ret
 #else
-mov %rsp, %rdx
+mov %rsp, %rcx
 #ifdef __APPLE__
 jmp __gum_stalker_do_follow_me
 #else

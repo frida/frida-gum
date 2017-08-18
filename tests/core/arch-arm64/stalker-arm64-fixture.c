@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2013 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2009-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -32,6 +32,7 @@
 typedef struct _TestArm64StalkerFixture
 {
   GumStalker * stalker;
+  GumStalkerTransformer * transformer;
   GumFakeEventSink * sink;
 
   guint8 * code;
@@ -76,6 +77,7 @@ test_arm64_stalker_fixture_setup (TestArm64StalkerFixture * fixture,
                                   gconstpointer data)
 {
   fixture->stalker = gum_stalker_new ();
+  fixture->transformer = NULL;
   fixture->sink = GUM_FAKE_EVENT_SINK (gum_fake_event_sink_new ());
 
   silence_warnings ();
@@ -86,6 +88,7 @@ test_arm64_stalker_fixture_teardown (TestArm64StalkerFixture * fixture,
                                      gconstpointer data)
 {
   g_object_unref (fixture->sink);
+  g_clear_object (&fixture->transformer);
   g_object_unref (fixture->stalker);
 
   if (fixture->code != NULL)
@@ -136,9 +139,10 @@ test_arm64_stalker_fixture_follow_and_invoke (TestArm64StalkerFixture * fixture,
   gum_arm64_writer_put_mov_reg_reg (&cw, ARM64_REG_X29, ARM64_REG_SP);
 
   gum_arm64_writer_put_call_address_with_arguments (&cw,
-      GUM_ADDRESS (gum_stalker_follow_me), 2,
-      GUM_ARG_ADDRESS, fixture->stalker,
-      GUM_ARG_ADDRESS, fixture->sink);
+      GUM_ADDRESS (gum_stalker_follow_me), 3,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->transformer),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->sink));
 
   /* call function -int func(int x)- and save address before and after call */
   gum_arm64_writer_put_ldr_reg_address (&cw, ARM64_REG_X0, GUM_ADDRESS (arg));
@@ -150,7 +154,7 @@ test_arm64_stalker_fixture_follow_and_invoke (TestArm64StalkerFixture * fixture,
 
   gum_arm64_writer_put_call_address_with_arguments (&cw,
       GUM_ADDRESS (gum_stalker_unfollow_me), 1,
-      GUM_ARG_ADDRESS, fixture->stalker);
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker));
 
   gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X29, ARM64_REG_X30);
   gum_arm64_writer_put_ret (&cw);
