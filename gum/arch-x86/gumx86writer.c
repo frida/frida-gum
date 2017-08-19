@@ -717,12 +717,14 @@ gum_x86_writer_put_call_reg_offset_ptr (GumX86Writer * self,
       return FALSE;
   }
 
-  if (ri.index_is_extended)
-    gum_x86_writer_put_u8 (self, 0x41);
+  if (!gum_x86_writer_put_prefix_for_registers (self, &ri, 64, &ri, NULL))
+    return FALSE;
+
   self->code[0] = 0xff;
   self->code[1] = (offset_fits_in_i8 ? 0x50 : 0x90) | ri.index;
   gum_x86_writer_commit (self, 2);
-  if (ri.index_is_extended || ri.meta == GUM_META_REG_XSP)
+
+  if (ri.index == 4)
     gum_x86_writer_put_u8 (self, 0x24);
 
   if (offset_fits_in_i8)
