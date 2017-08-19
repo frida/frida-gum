@@ -61,12 +61,14 @@ TESTCASE (cbz_reg_label)
 TESTCASE (b_imm)
 {
   GumAddress from = 1024;
-  g_assert (gum_arm64_writer_can_branch_imm (from, 1024 + 134217727));
-  g_assert (!gum_arm64_writer_can_branch_imm (from, 1024 + 134217728));
+  g_assert (gum_arm64_writer_can_branch_directly_between (from,
+      1024 + 134217727));
+  g_assert (!gum_arm64_writer_can_branch_directly_between (from,
+      1024 + 134217728));
 
   from = 1024 + 134217728;
-  g_assert (gum_arm64_writer_can_branch_imm (from, 1024));
-  g_assert (!gum_arm64_writer_can_branch_imm (from, 1023));
+  g_assert (gum_arm64_writer_can_branch_directly_between (from, 1024));
+  g_assert (!gum_arm64_writer_can_branch_directly_between (from, 1023));
 
   fixture->aw.pc = 1024;
   gum_arm64_writer_put_b_imm (&fixture->aw, 2048);

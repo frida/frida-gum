@@ -396,7 +396,7 @@ gum_arm64_writer_put_call_address_with_arguments (GumArm64Writer * self,
   gum_arm64_writer_put_argument_list_setup_va (self, n_args, vl);
   va_end (vl);
 
-  if (gum_arm64_writer_can_branch_imm (self->pc, func))
+  if (gum_arm64_writer_can_branch_directly_between (self->pc, func))
   {
     gum_arm64_writer_put_bl_imm (self, func);
   }
@@ -419,7 +419,7 @@ gum_arm64_writer_put_call_address_with_arguments_array (
 {
   gum_arm64_writer_put_argument_list_setup (self, n_args, args);
 
-  if (gum_arm64_writer_can_branch_imm (self->pc, func))
+  if (gum_arm64_writer_can_branch_directly_between (self->pc, func))
   {
     gum_arm64_writer_put_bl_imm (self, func);
   }
@@ -525,7 +525,7 @@ gboolean
 gum_arm64_writer_put_branch_address (GumArm64Writer * self,
                                      GumAddress address)
 {
-  if (!gum_arm64_writer_can_branch_imm (self->pc, address))
+  if (!gum_arm64_writer_can_branch_directly_between (self->pc, address))
   {
     arm64_reg target = ARM64_REG_X16;
 
@@ -539,8 +539,8 @@ gum_arm64_writer_put_branch_address (GumArm64Writer * self,
 }
 
 gboolean
-gum_arm64_writer_can_branch_imm (GumAddress from,
-                                 GumAddress to)
+gum_arm64_writer_can_branch_directly_between (GumAddress from,
+                                              GumAddress to)
 {
   gint64 distance = (gint64) to - (gint64) from;
 

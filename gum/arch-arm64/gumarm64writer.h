@@ -81,7 +81,7 @@ GUM_API void gum_arm64_writer_put_call_reg_with_arguments_array (
 GUM_API gboolean gum_arm64_writer_put_branch_address (GumArm64Writer * self,
     GumAddress address);
 
-GUM_API gboolean gum_arm64_writer_can_branch_imm (GumAddress from,
+GUM_API gboolean gum_arm64_writer_can_branch_directly_between (GumAddress from,
     GumAddress to);
 GUM_API gboolean gum_arm64_writer_put_b_imm (GumArm64Writer * self,
     GumAddress address);
