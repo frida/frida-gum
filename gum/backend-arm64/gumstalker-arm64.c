@@ -937,6 +937,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   GumArm64Relocator * rl;
   GumGeneratorContext gc;
   GumStalkerIterator iterator;
+  gboolean all_labels_resolved;
 
   if (ctx->stalker->priv->trust_threshold >= 0)
   {
@@ -1002,7 +1003,8 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
 
   gum_arm64_writer_put_brk_imm (cw, 14);
 
-  gum_arm64_writer_flush (cw);
+  all_labels_resolved = gum_arm64_writer_flush (cw);
+  g_assert (all_labels_resolved);
 
   block->code_end = (guint8 *) gum_arm64_writer_cur (cw);
 

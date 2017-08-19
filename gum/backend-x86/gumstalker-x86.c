@@ -1133,6 +1133,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   GumX86Relocator * rl;
   GumGeneratorContext gc;
   GumStalkerIterator iterator;
+  gboolean all_labels_resolved;
 
   if (ctx->stalker->priv->trust_threshold >= 0)
   {
@@ -1202,7 +1203,8 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
 
   gum_x86_writer_put_breakpoint (cw); /* should never get here */
 
-  gum_x86_writer_flush (cw);
+  all_labels_resolved = gum_x86_writer_flush (cw);
+  g_assert (all_labels_resolved);
 
   block->code_end = (guint8 *) gum_x86_writer_cur (cw);
 
