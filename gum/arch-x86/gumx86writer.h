@@ -130,6 +130,8 @@ GUM_API GumCpuReg gum_x86_writer_get_cpu_register_for_nth_argument (
 GUM_API gboolean gum_x86_writer_put_label (GumX86Writer * self,
     gconstpointer id);
 
+GUM_API gboolean gum_x86_writer_can_branch_directly_between (GumAddress from,
+    GumAddress to);
 GUM_API gboolean gum_x86_writer_put_call_address_with_arguments (
     GumX86Writer * self, GumCallingConvention conv, GumAddress func,
     guint n_args, ...);

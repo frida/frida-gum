@@ -341,6 +341,20 @@ gum_x86_writer_add_label_reference_here (GumX86Writer * self,
 }
 
 gboolean
+gum_x86_writer_can_branch_directly_between (GumAddress from,
+                                            GumAddress to)
+{
+  gint64 distance;
+  gboolean distance_fits_in_i32;
+
+  distance = (gssize) to - (gssize) (from + 5);
+
+  distance_fits_in_i32 = (distance >= G_MININT32 && distance <= G_MAXINT32);
+
+  return distance_fits_in_i32;
+}
+
+gboolean
 gum_x86_writer_put_call_address_with_arguments (GumX86Writer * self,
                                                 GumCallingConvention conv,
                                                 GumAddress func,
