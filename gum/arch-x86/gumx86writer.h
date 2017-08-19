@@ -174,6 +174,8 @@ GUM_API gboolean gum_x86_writer_put_jmp_reg (GumX86Writer * self,
     GumCpuReg reg);
 GUM_API gboolean gum_x86_writer_put_jmp_reg_ptr (GumX86Writer * self,
     GumCpuReg reg);
+GUM_API gboolean gum_x86_writer_put_jmp_reg_offset_ptr (GumX86Writer * self,
+    GumCpuReg reg, gssize offset);
 GUM_API gboolean gum_x86_writer_put_jmp_near_ptr (GumX86Writer * self,
     GumAddress address);
 GUM_API gboolean gum_x86_writer_put_jcc_short (GumX86Writer * self,

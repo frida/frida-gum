@@ -947,6 +947,52 @@ gum_x86_writer_put_jmp_reg_ptr (GumX86Writer * self,
 }
 
 gboolean
+gum_x86_writer_put_jmp_reg_offset_ptr (GumX86Writer * self,
+                                       GumCpuReg reg,
+                                       gssize offset)
+{
+  GumCpuRegInfo ri;
+  gboolean offset_fits_in_i8;
+
+  gum_x86_writer_describe_cpu_reg (self, reg, &ri);
+
+  offset_fits_in_i8 = GUM_IS_WITHIN_INT8_RANGE (offset);
+
+  if (self->target_cpu == GUM_CPU_IA32)
+  {
+    if (ri.width != 32 || ri.index_is_extended)
+      return FALSE;
+  }
+  else
+  {
+    if (ri.width != 64)
+      return FALSE;
+  }
+
+  if (!gum_x86_writer_put_prefix_for_registers (self, &ri, 64, &ri, NULL))
+    return FALSE;
+
+  self->code[0] = 0xff;
+  self->code[1] = (offset_fits_in_i8 ? 0x60 : 0xa0) | ri.index;
+  gum_x86_writer_commit (self, 2);
+
+  if (ri.index == 4)
+    gum_x86_writer_put_u8 (self, 0x24);
+
+  if (offset_fits_in_i8)
+  {
+    gum_x86_writer_put_s8 (self, offset);
+  }
+  else
+  {
+    *((gint32 *) self->code) = GINT32_TO_LE (offset);
+    gum_x86_writer_commit (self, 4);
+  }
+
+  return TRUE;
+}
+
+gboolean
 gum_x86_writer_put_jmp_near_ptr (GumX86Writer * self,
                                  GumAddress address)
 {
