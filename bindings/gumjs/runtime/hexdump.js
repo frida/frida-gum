@@ -26,7 +26,16 @@ function hexdump(target, options) {
 
   const columnPadding = '  ';
   const leftColumnWidth = 8;
-  const hexLegend = ' 0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F';
+  var hexLegend = ' '; // 0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F';
+
+  for (let index = 0; index <= 15; index += printGroup) {
+    for (let groupOffset = printGroup-1; groupOffset >= 0; groupOffset--) {
+      const hex = (index+groupOffset).toString(16);
+      hexLegend += hex + ' ';
+    }
+    hexLegend += ' ';
+  }
+
   const asciiLegend = '0123456789ABCDEF';
 
   let resetColor, offsetColor, dataColor, newlineColor;
