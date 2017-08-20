@@ -1655,9 +1655,9 @@ gum_exec_block_new (GumExecCtx * ctx)
     block->ctx = ctx;
     block->slab = slab;
 
-    block->code_begin = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (slab->data +
-          slab->offset + sizeof (GumExecBlock) + GUM_CODE_ALIGNMENT - 1)
-        & ~(GUM_CODE_ALIGNMENT - 1));
+    block->code_begin = GUM_ALIGN_POINTER (guint8 *,
+        slab->data + slab->offset + sizeof (GumExecBlock),
+        GUM_CODE_ALIGNMENT);
     block->code_end = block->code_begin;
 
     block->state = GUM_EXEC_NORMAL;
@@ -1719,8 +1719,8 @@ gum_exec_block_commit (GumExecBlock * block)
   memcpy (block->real_snapshot, block->real_begin, real_size);
   block->slab->offset += real_size;
 
-  aligned_end = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (block->real_snapshot +
-        real_size + GUM_DATA_ALIGNMENT - 1) & ~(GUM_DATA_ALIGNMENT - 1));
+  aligned_end = GUM_ALIGN_POINTER (guint8 *, block->real_snapshot + real_size,
+      GUM_DATA_ALIGNMENT);
   block->slab->offset += aligned_end - block->code_begin;
 }
 
