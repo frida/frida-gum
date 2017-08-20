@@ -6,6 +6,7 @@ function hexdump(target, options) {
   options = options || {};
 
   const startOffset = options.offset || 0;
+  const printGroup = options.group || 1;
   let length = options.length;
   const showHeader = options.hasOwnProperty('header') ? options.header : true;
   const useAnsi = options.hasOwnProperty('ansi') ? options.ansi : false;
@@ -67,25 +68,29 @@ function hexdump(target, options) {
     const asciiChars = [];
     const lineSize = Math.min(length - offset, 16);
 
-    for (let lineOffset = 0; lineOffset !== lineSize; lineOffset++) {
-      const value = bytes[offset++];
-
-      const isNewline = value === 10;
-
-      const hexPair = pad(value.toString(16), 2, '0');
+    for (let lineOffset = 0; lineOffset !== lineSize; lineOffset += printGroup) {
       if (lineOffset !== 0)
         result.push(' ');
-      result.push(
-        isNewline ? newlineColor : dataColor,
-        hexPair,
-        resetColor
-      );
+      for (let groupOffset = printGroup-1; groupOffset >= 0; groupOffset--) {
+        if (bytes[offset + groupOffset] !== void 0) {
+          const value = bytes[offset + groupOffset];
+          const isNewline = value === 10;
 
-      asciiChars.push(
-        isNewline ? newlineColor : dataColor,
-        (value >= 32 && value <= 126) ? String.fromCharCode(value) : '.',
-        resetColor
-      );
+          const hexPair = pad(value.toString(16), 2, '0');
+          result.push(
+            isNewline ? newlineColor : dataColor,
+            hexPair,
+            resetColor
+          );
+
+          asciiChars.push(
+            isNewline ? newlineColor : dataColor,
+            (value >= 32 && value <= 126) ? String.fromCharCode(value) : '.',
+            resetColor
+          );
+        }
+      }
+      offset += printGroup;
     }
 
     for (let lineOffset = lineSize; lineOffset !== 16; lineOffset++) {
