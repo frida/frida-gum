@@ -251,9 +251,9 @@ enum _GumVirtualizationRequirements
 #define GUM_STALKER_UNLOCK(o) g_mutex_unlock (&(o)->priv->mutex)
 
 #if GLIB_SIZEOF_VOID_P == 4
-#define STATE_PRESERVE_TOPMOST_REGISTER_INDEX (3)
+#define GUM_STATE_PRESERVE_TOPMOST_REGISTER_INDEX (3)
 #else
-#define STATE_PRESERVE_TOPMOST_REGISTER_INDEX (9)
+#define GUM_STATE_PRESERVE_TOPMOST_REGISTER_INDEX (9)
 #endif
 #define GUM_THUNK_ARGLIST_STACK_RESERVE 64 /* x64 ABI compatibility */
 
@@ -1600,7 +1600,7 @@ gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
   {
     gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, target_register,
         GUM_REG_XBX, gc->state_preserve_stack_offset +
-        STATE_PRESERVE_TOPMOST_REGISTER_INDEX * sizeof (gpointer) -
+        GUM_STATE_PRESERVE_TOPMOST_REGISTER_INDEX * sizeof (gpointer) -
         ((source_meta - GUM_REG_XAX) * sizeof (gpointer)));
   }
 #if GLIB_SIZEOF_VOID_P == 8
@@ -1608,7 +1608,7 @@ gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
   {
     gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, target_register,
         GUM_REG_XBX, gc->state_preserve_stack_offset +
-        STATE_PRESERVE_TOPMOST_REGISTER_INDEX * sizeof (gpointer) -
+        GUM_STATE_PRESERVE_TOPMOST_REGISTER_INDEX * sizeof (gpointer) -
         ((source_meta - gc->state_preserve_stack_gap - GUM_REG_XAX)
         * sizeof (gpointer)));
   }
@@ -1616,7 +1616,7 @@ gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
   {
     gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, target_register,
         GUM_REG_XBX, gc->state_preserve_stack_offset +
-        STATE_PRESERVE_TOPMOST_REGISTER_INDEX * sizeof (gpointer) -
+        GUM_STATE_PRESERVE_TOPMOST_REGISTER_INDEX * sizeof (gpointer) -
         ((source_meta - gc->state_preserve_stack_gap - GUM_REG_RAX)
         * sizeof (gpointer)));
   }
