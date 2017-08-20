@@ -2374,7 +2374,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
      * We need some padding so the backpatching doesn't overwrite the return
      * handling logic below
      */
-    gum_x86_writer_put_padding (cw, 700);
+    gum_x86_writer_put_padding (cw, 10);
   }
 
   /* generate code for handling the return */
@@ -2477,8 +2477,6 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
       !target->is_indirect &&
       target->base == X86_REG_INVALID)
   {
-    if (opened_prolog != GUM_PROLOG_NONE)
-        gum_x86_writer_put_nop_padding (cw, 120);
     gum_x86_writer_put_call_address_with_arguments (cw, GUM_CALL_CAPI,
         GUM_ADDRESS (gum_exec_block_backpatch_jmp), 4,
         GUM_ARG_ADDRESS, GUM_ADDRESS (block),
