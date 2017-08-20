@@ -1533,7 +1533,7 @@ gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
   else /* GUM_PROLOG_FULL */
   {
     gum_x86_writer_put_pushax (cw); /* all of GumCpuContext except for xip */
-    /* TODO: GumCpuContext.xip must be filled out later */
+    /* GumCpuContext.xip gets filled out later */
     gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP, GUM_REG_XSP,
         -sizeof (gpointer));
 
@@ -2796,6 +2796,7 @@ gum_exec_block_invoke_call_probes_for_target (GumExecBlock * block,
     call_site.stack_data = block->ctx->app_stack;
     call_site.cpu_context = cpu_context;
 
+    GUM_CPU_CONTEXT_XIP (cpu_context) = GPOINTER_TO_SIZE (block->real_begin);
     GUM_CPU_CONTEXT_XSP (cpu_context) = GPOINTER_TO_SIZE (call_site.stack_data);
 
     for (i = 0; i != probes->len; i++)
