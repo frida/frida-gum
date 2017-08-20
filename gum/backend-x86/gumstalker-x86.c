@@ -42,6 +42,7 @@ typedef struct _GumSlab GumSlab;
 
 typedef struct _GumExecFrame GumExecFrame;
 typedef struct _GumExecCtx GumExecCtx;
+typedef void (* GumExecHelperWriteFunc) (GumExecCtx * ctx, GumX86Writer * cw);
 typedef struct _GumExecBlock GumExecBlock;
 
 typedef guint GumPrologType;
@@ -150,6 +151,10 @@ struct _GumExecCtx
 
   GumSlab * code_slab;
   GumSlab first_code_slab;
+  gpointer last_prolog_minimal;
+  gpointer last_epilog_minimal;
+  gpointer last_prolog_full;
+  gpointer last_epilog_full;
   GumMetalHashTable * mappings;
 };
 
@@ -255,6 +260,10 @@ enum _GumVirtualizationRequirements
 #else
 #define GUM_STATE_PRESERVE_TOPMOST_REGISTER_INDEX (9)
 #endif
+#define GUM_MINIMAL_PROLOG_RETURN_OFFSET \
+    ((GUM_STATE_PRESERVE_TOPMOST_REGISTER_INDEX + 2) * sizeof (gpointer))
+#define GUM_FULL_PROLOG_RETURN_OFFSET \
+    (sizeof (GumCpuContext) + sizeof (gpointer))
 #define GUM_THUNK_ARGLIST_STACK_RESERVE 64 /* x64 ABI compatibility */
 
 static void gum_stalker_dispose (GObject * object);
@@ -286,10 +295,30 @@ static void gum_exec_ctx_destroy_thunks (GumExecCtx * ctx);
 
 static GumExecBlock * gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
     gpointer real_address, gpointer * code_address);
+
 static void gum_exec_ctx_write_prolog (GumExecCtx * ctx, GumPrologType type,
-    gpointer ip, GumX86Writer * cw);
+    GumX86Writer * cw);
 static void gum_exec_ctx_write_epilog (GumExecCtx * ctx, GumPrologType type,
     GumX86Writer * cw);
+
+static void gum_exec_ctx_ensure_inline_helpers_reachable (GumExecCtx * ctx);
+static void gum_exec_ctx_write_minimal_prolog_helper (GumExecCtx * ctx,
+    GumX86Writer * cw);
+static void gum_exec_ctx_write_full_prolog_helper (GumExecCtx * ctx,
+    GumX86Writer * cw);
+static void gum_exec_ctx_write_minimal_epilog_helper (GumExecCtx * ctx,
+    GumX86Writer * cw);
+static void gum_exec_ctx_write_full_epilog_helper (GumExecCtx * ctx,
+    GumX86Writer * cw);
+static void gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
+    GumPrologType type, GumX86Writer * cw);
+static void gum_exec_ctx_write_epilog_helper (GumExecCtx * ctx,
+    GumPrologType type, GumX86Writer * cw);
+static void gum_exec_ctx_ensure_helper_reachable (GumExecCtx * ctx,
+    gpointer * helper_ptr, GumExecHelperWriteFunc write);
+static gboolean gum_exec_ctx_is_helper_reachable (GumExecCtx * ctx,
+    gpointer * helper_ptr);
+
 static void gum_exec_ctx_write_push_branch_target_address (GumExecCtx * ctx,
     const GumBranchTarget * target, GumGeneratorContext * gc);
 static void gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
@@ -739,8 +768,7 @@ gum_stalker_infect (GumThreadId thread_id,
   GUM_CPU_CONTEXT_XIP (cpu_context) = GPOINTER_TO_SIZE (ctx->infect_thunk);
 
   gum_x86_writer_init (&cw, ctx->infect_thunk);
-  gum_exec_ctx_write_prolog (ctx, GUM_PROLOG_MINIMAL,
-      ctx->current_block->real_begin, &cw);
+  gum_exec_ctx_write_prolog (ctx, GUM_PROLOG_MINIMAL, &cw);
   gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction);
   gum_x86_writer_put_call_address_with_arguments (&cw, GUM_CALL_CAPI,
       GUM_ADDRESS (gum_tls_key_set_value), 2,
@@ -912,6 +940,10 @@ gum_stalker_create_exec_ctx (GumStalker * self,
   ctx->first_code_slab.offset = 0;
   ctx->first_code_slab.size = GUM_CODE_SLAB_SIZE_IN_PAGES * priv->page_size;
   ctx->first_code_slab.next = NULL;
+  ctx->last_prolog_minimal = NULL;
+  ctx->last_epilog_minimal = NULL;
+  ctx->last_prolog_full = NULL;
+  ctx->last_epilog_full = NULL;
 
   ctx->frames = (GumExecFrame *)
       (ctx->code_slab->data + ctx->code_slab->size);
@@ -945,6 +977,8 @@ gum_stalker_create_exec_ctx (GumStalker * self,
   GUM_STALKER_LOCK (self);
   self->priv->contexts = g_slist_prepend (self->priv->contexts, ctx);
   GUM_STALKER_UNLOCK (self);
+
+  gum_exec_ctx_ensure_inline_helpers_reachable (ctx);
 
   return ctx;
 }
@@ -1361,8 +1395,80 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
 static void
 gum_exec_ctx_write_prolog (GumExecCtx * ctx,
                            GumPrologType type,
-                           gpointer ip,
                            GumX86Writer * cw)
+{
+  gpointer helper;
+
+  helper = (type == GUM_PROLOG_MINIMAL)
+      ? ctx->last_prolog_minimal
+      : ctx->last_prolog_full;
+
+  gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP,
+      GUM_REG_XSP, -GUM_RED_ZONE_SIZE);
+  gum_x86_writer_put_call_address (cw, GUM_ADDRESS (helper));
+}
+
+static void
+gum_exec_ctx_write_epilog (GumExecCtx * ctx,
+                           GumPrologType type,
+                           GumX86Writer * cw)
+{
+  gpointer helper;
+
+  helper = (type == GUM_PROLOG_MINIMAL)
+      ? ctx->last_epilog_minimal
+      : ctx->last_epilog_full;
+
+  gum_x86_writer_put_call_address (cw, GUM_ADDRESS (helper));
+  gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_XSP,
+      GUM_ADDRESS (&ctx->app_stack));
+}
+
+static void
+gum_exec_ctx_ensure_inline_helpers_reachable (GumExecCtx * ctx)
+{
+  gum_exec_ctx_ensure_helper_reachable (ctx, &ctx->last_prolog_minimal,
+      gum_exec_ctx_write_minimal_prolog_helper);
+  gum_exec_ctx_ensure_helper_reachable (ctx, &ctx->last_prolog_full,
+      gum_exec_ctx_write_full_prolog_helper);
+  gum_exec_ctx_ensure_helper_reachable (ctx, &ctx->last_epilog_minimal,
+      gum_exec_ctx_write_minimal_epilog_helper);
+  gum_exec_ctx_ensure_helper_reachable (ctx, &ctx->last_epilog_full,
+      gum_exec_ctx_write_full_epilog_helper);
+}
+
+static void
+gum_exec_ctx_write_minimal_prolog_helper (GumExecCtx * ctx,
+                                          GumX86Writer * cw)
+{
+  gum_exec_ctx_write_prolog_helper (ctx, GUM_PROLOG_MINIMAL, cw);
+}
+
+static void
+gum_exec_ctx_write_full_prolog_helper (GumExecCtx * ctx,
+                                       GumX86Writer * cw)
+{
+  gum_exec_ctx_write_prolog_helper (ctx, GUM_PROLOG_FULL, cw);
+}
+
+static void
+gum_exec_ctx_write_minimal_epilog_helper (GumExecCtx * ctx,
+                                          GumX86Writer * cw)
+{
+  gum_exec_ctx_write_epilog_helper (ctx, GUM_PROLOG_MINIMAL, cw);
+}
+
+static void
+gum_exec_ctx_write_full_epilog_helper (GumExecCtx * ctx,
+                                       GumX86Writer * cw)
+{
+  gum_exec_ctx_write_epilog_helper (ctx, GUM_PROLOG_FULL, cw);
+}
+
+static void
+gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
+                                  GumPrologType type,
+                                  GumX86Writer * cw)
 {
   guint8 fxsave[] = {
     0x0f, 0xae, 0x04, 0x24 /* fxsave [esp] */
@@ -1399,17 +1505,18 @@ gum_exec_ctx_write_prolog (GumExecCtx * ctx,
 #endif
   };
 
-  gum_x86_writer_put_mov_near_ptr_reg (cw, GUM_ADDRESS (&ctx->app_stack),
-      GUM_REG_XSP);
-  gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP,
-      GUM_REG_XSP, -GUM_RED_ZONE_SIZE);
-
   gum_x86_writer_put_pushfx (cw);
   gum_x86_writer_put_cld (cw); /* C ABI mandates this */
 
   if (type == GUM_PROLOG_MINIMAL)
   {
     gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
+
+    gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XAX, GUM_REG_XSP,
+        3 * sizeof (gpointer) + GUM_RED_ZONE_SIZE);
+    gum_x86_writer_put_mov_near_ptr_reg (cw, GUM_ADDRESS (&ctx->app_stack),
+        GUM_REG_XAX);
+
     gum_x86_writer_put_push_reg (cw, GUM_REG_XCX);
     gum_x86_writer_put_push_reg (cw, GUM_REG_XDX);
     gum_x86_writer_put_push_reg (cw, GUM_REG_XBX);
@@ -1426,11 +1533,15 @@ gum_exec_ctx_write_prolog (GumExecCtx * ctx,
   else /* GUM_PROLOG_FULL */
   {
     gum_x86_writer_put_pushax (cw); /* all of GumCpuContext except for xip */
-    gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX, GUM_ADDRESS (ip));
-    gum_x86_writer_put_push_reg (cw, GUM_REG_XAX); /* GumCpuContext.xip */
+    /* TODO: GumCpuContext.xip must be filled out later */
+    gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP, GUM_REG_XSP,
+        -sizeof (gpointer));
 
-    gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_XAX,
-        GUM_ADDRESS (&ctx->app_stack));
+    gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XAX, GUM_REG_XSP,
+        sizeof (GumCpuContext) + 2 * sizeof (gpointer) + GUM_RED_ZONE_SIZE);
+    gum_x86_writer_put_mov_near_ptr_reg (cw, GUM_ADDRESS (&ctx->app_stack),
+        GUM_REG_XAX);
+
     gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
         GUM_REG_XSP, GUM_CPU_CONTEXT_OFFSET_XSP,
         GUM_REG_XAX);
@@ -1442,12 +1553,18 @@ gum_exec_ctx_write_prolog (GumExecCtx * ctx,
   gum_x86_writer_put_bytes (cw, fxsave, sizeof (fxsave));
   gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XSP, 0x100);
   gum_x86_writer_put_bytes (cw, upper_ymm_saver, sizeof (upper_ymm_saver));
+
+  /* jump to our caller but leave it on the stack */
+  gum_x86_writer_put_jmp_reg_offset_ptr (cw,
+      GUM_REG_XBX, (type == GUM_PROLOG_MINIMAL)
+          ? GUM_MINIMAL_PROLOG_RETURN_OFFSET
+          : GUM_FULL_PROLOG_RETURN_OFFSET);
 }
 
 static void
-gum_exec_ctx_write_epilog (GumExecCtx * ctx,
-                           GumPrologType type,
-                           GumX86Writer * cw)
+gum_exec_ctx_write_epilog_helper (GumExecCtx * ctx,
+                                  GumPrologType type,
+                                  GumX86Writer * cw)
 {
   guint8 fxrstor[] = {
     0x0f, 0xae, 0x0c, 0x24 /* fxrstor [esp] */
@@ -1484,6 +1601,14 @@ gum_exec_ctx_write_epilog (GumExecCtx * ctx,
 #endif
   };
 
+  /* store our caller in the return address created by the prolog */
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_XAX);
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
+      GUM_REG_XBX, (type == GUM_PROLOG_MINIMAL)
+          ? GUM_MINIMAL_PROLOG_RETURN_OFFSET
+          : GUM_FULL_PROLOG_RETURN_OFFSET,
+      GUM_REG_XAX);
+
   gum_x86_writer_put_bytes (cw, upper_ymm_restorer,
       sizeof (upper_ymm_restorer));
   gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XSP, 0x100);
@@ -1514,9 +1639,53 @@ gum_exec_ctx_write_epilog (GumExecCtx * ctx,
   }
 
   gum_x86_writer_put_popfx (cw);
+  gum_x86_writer_put_ret (cw);
+}
 
-  gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_XSP,
-      GUM_ADDRESS (&ctx->app_stack));
+static void
+gum_exec_ctx_ensure_helper_reachable (GumExecCtx * ctx,
+                                      gpointer * helper_ptr,
+                                      GumExecHelperWriteFunc write)
+{
+  GumSlab * slab;
+  GumX86Writer * cw;
+
+  if (gum_exec_ctx_is_helper_reachable (ctx, helper_ptr))
+    return;
+
+  slab = ctx->code_slab;
+  cw = &ctx->code_writer;
+
+  gum_x86_writer_reset (cw, slab->data + slab->offset);
+  *helper_ptr = gum_x86_writer_cur (cw);
+
+  write (ctx, cw);
+
+  gum_x86_writer_flush (cw);
+  slab->offset += gum_x86_writer_offset (cw);
+}
+
+static gboolean
+gum_exec_ctx_is_helper_reachable (GumExecCtx * ctx,
+                                  gpointer * helper_ptr)
+{
+  GumAddress helper;
+  GumSlab * slab;
+  GumAddress start, end;
+
+  helper = GUM_ADDRESS (*helper_ptr);
+  if (helper == 0)
+    return FALSE;
+
+  slab = ctx->code_slab;
+
+  start = GUM_ADDRESS (slab->data);
+  end = start + slab->size;
+
+  if (!gum_x86_writer_can_branch_directly_between (start, helper))
+    return FALSE;
+
+  return gum_x86_writer_can_branch_directly_between (end, helper);
 }
 
 static void
@@ -1683,6 +1852,8 @@ gum_exec_block_new (GumExecCtx * ctx)
       - sizeof (GumSlab);
   slab->next = ctx->code_slab;
   ctx->code_slab = slab;
+
+  gum_exec_ctx_ensure_inline_helpers_reachable (ctx);
 
   return gum_exec_block_new (ctx);
 }
@@ -2210,8 +2381,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   ret_real_address = gc->instruction->end;
   ret_code_address = cw->code;
 
-  gum_exec_ctx_write_prolog (block->ctx, GUM_PROLOG_MINIMAL,
-      ret_real_address, cw);
+  gum_exec_ctx_write_prolog (block->ctx, GUM_PROLOG_MINIMAL, cw);
 
   gum_x86_writer_put_mov_reg_address (cw, GUM_THUNK_REG_ARG1,
       GUM_ADDRESS (ret_real_address));
@@ -2714,8 +2884,7 @@ gum_exec_block_open_prolog (GumExecBlock * block,
   }
   gc->accumulated_stack_delta = 0;
 
-  gum_exec_ctx_write_prolog (block->ctx, type, gc->instruction->begin,
-      gc->code_writer);
+  gum_exec_ctx_write_prolog (block->ctx, type, gc->code_writer);
 }
 
 static void
