@@ -772,7 +772,7 @@ gum_arm64_writer_put_push_all_x_registers (GumArm64Writer * self)
   gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_X24, ARM64_REG_X25);
   gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_X26, ARM64_REG_X27);
   gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_X28, ARM64_REG_X29);
-  gum_arm64_writer_put_instruction (self, 0xD53B420F); /* MRS X15, NZCV */
+  gum_arm64_writer_put_instruction (self, 0xd53b420f); /* mrs x15, NZCV */
   gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_X30, ARM64_REG_X15);
 }
 
@@ -780,7 +780,7 @@ void
 gum_arm64_writer_put_pop_all_x_registers (GumArm64Writer * self)
 {
   gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_X30, ARM64_REG_X15);
-  gum_arm64_writer_put_instruction (self, 0xD51B420F); /* MSR NZCV, X15 */
+  gum_arm64_writer_put_instruction (self, 0xd51b420f); /* msr NZCV, x15 */
   gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_X28, ARM64_REG_X29);
   gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_X26, ARM64_REG_X27);
   gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_X24, ARM64_REG_X25);
