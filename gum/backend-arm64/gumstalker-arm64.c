@@ -1244,8 +1244,11 @@ gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
   gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X29, ARM64_REG_X30);
   immediate_for_sp += 11 * 16;
 
-  gum_arm64_writer_put_push_all_q_registers (cw);
-  immediate_for_sp += 32 * 16;
+  gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_Q0, ARM64_REG_Q1);
+  gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_Q2, ARM64_REG_Q3);
+  gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_Q4, ARM64_REG_Q5);
+  gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_Q6, ARM64_REG_Q7);
+  immediate_for_sp += 4 * 32;
 
   gum_arm64_writer_put_instruction (cw, 0xD53B420F); /* MRS X15, NZCV */
   gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X30, ARM64_REG_X15);
@@ -1269,7 +1272,10 @@ gum_exec_ctx_write_epilog_helper (GumExecCtx * ctx,
   gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X30, ARM64_REG_X15);
   gum_arm64_writer_put_instruction (cw, 0xD51B420F); /* MSR NZCV, X15 */
 
-  gum_arm64_writer_put_pop_all_q_registers (cw);
+  gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_Q6, ARM64_REG_Q7);
+  gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_Q4, ARM64_REG_Q5);
+  gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_Q2, ARM64_REG_Q3);
+  gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_Q0, ARM64_REG_Q1);
 
   gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X29, ARM64_REG_X30);
   gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X18, STALKER_REG_CTX);
