@@ -53,6 +53,7 @@ typedef struct _GumExecCtx GumExecCtx;
 typedef void (* GumExecHelperWriteFunc) (GumExecCtx * ctx, GumArm64Writer * cw);
 typedef struct _GumExecBlock GumExecBlock;
 
+typedef guint GumPrologType;
 typedef guint GumCodeContext;
 typedef struct _GumGeneratorContext GumGeneratorContext;
 typedef struct _GumInstruction GumInstruction;
@@ -143,8 +144,10 @@ struct _GumExecCtx
 
   GumSlab * code_slab;
   GumSlab first_code_slab;
-  gpointer last_prolog;
-  gpointer last_epilog;
+  gpointer last_prolog_minimal;
+  gpointer last_epilog_minimal;
+  gpointer last_prolog_full;
+  gpointer last_epilog_full;
   GumMetalHashTable * mappings;
 };
 
@@ -163,6 +166,13 @@ struct _GumExecBlock
   gboolean has_call_to_excluded_range;
 };
 
+enum _GumPrologType
+{
+  GUM_PROLOG_NONE,
+  GUM_PROLOG_MINIMAL,
+  GUM_PROLOG_FULL
+};
+
 enum _GumCodeContext
 {
   GUM_CODE_INTERRUPTIBLE,
@@ -175,7 +185,7 @@ struct _GumGeneratorContext
   GumArm64Relocator * relocator;
   GumArm64Writer * code_writer;
   gpointer continuation_real_address;
-  gboolean prolog_open;
+  GumPrologType opened_prolog;
   gint exclusive_load_offset;
 };
 
@@ -246,14 +256,24 @@ static void gum_exec_ctx_destroy_thunks (GumExecCtx * ctx);
 static GumExecBlock * gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
     gpointer real_address, gpointer * code_address);
 
-static void gum_exec_ctx_write_prolog (GumExecCtx * ctx, GumArm64Writer * cw);
-static void gum_exec_ctx_write_epilog (GumExecCtx * ctx, GumArm64Writer * cw);
+static void gum_exec_ctx_write_prolog (GumExecCtx * ctx, GumPrologType type,
+    GumArm64Writer * cw);
+static void gum_exec_ctx_write_epilog (GumExecCtx * ctx, GumPrologType type,
+    GumArm64Writer * cw);
 
 static void gum_exec_ctx_ensure_inline_helpers_reachable (GumExecCtx * ctx);
+static void gum_exec_ctx_write_minimal_prolog_helper (GumExecCtx * ctx,
+    GumArm64Writer * cw);
+static void gum_exec_ctx_write_minimal_epilog_helper (GumExecCtx * ctx,
+    GumArm64Writer * cw);
+static void gum_exec_ctx_write_full_prolog_helper (GumExecCtx * ctx,
+    GumArm64Writer * cw);
+static void gum_exec_ctx_write_full_epilog_helper (GumExecCtx * ctx,
+    GumArm64Writer * cw);
 static void gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
-    GumArm64Writer * cw);
+    GumPrologType type, GumArm64Writer * cw);
 static void gum_exec_ctx_write_epilog_helper (GumExecCtx * ctx,
-    GumArm64Writer * cw);
+    GumPrologType type, GumArm64Writer * cw);
 static void gum_exec_ctx_ensure_helper_reachable (GumExecCtx * ctx,
     gpointer * helper_ptr, GumExecHelperWriteFunc write);
 static gboolean gum_exec_ctx_is_helper_reachable (GumExecCtx * ctx,
@@ -264,6 +284,12 @@ static void gum_exec_ctx_write_push_branch_target_address (GumExecCtx * ctx,
 static void gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
     arm64_reg target_register, arm64_reg source_register, gpointer ip,
     GumGeneratorContext * gc);
+static void gum_exec_ctx_load_real_register_from_minimal_frame_into (
+    GumExecCtx * ctx, arm64_reg target_register, arm64_reg source_register,
+    gpointer ip, GumGeneratorContext * gc);
+static void gum_exec_ctx_load_real_register_from_full_frame_into (
+    GumExecCtx * ctx, arm64_reg target_register, arm64_reg source_register,
+    gpointer ip, GumGeneratorContext * gc);
 
 static GumExecBlock * gum_exec_block_new (GumExecCtx * ctx);
 static GumExecBlock * gum_exec_block_obtain (GumExecCtx * ctx,
@@ -306,7 +332,7 @@ static void gum_exec_block_write_exec_generated_code (GumArm64Writer * cw,
     GumExecCtx * ctx);
 
 static void gum_exec_block_open_prolog (GumExecBlock * block,
-    GumGeneratorContext * gc);
+    GumPrologType type, GumGeneratorContext * gc);
 static void gum_exec_block_close_prolog (GumExecBlock * block,
     GumGeneratorContext * gc);
 
@@ -607,12 +633,12 @@ gum_stalker_infect (GumThreadId thread_id,
 
   gum_arm64_writer_init (&cw, ctx->infect_thunk);
 
-  gum_exec_ctx_write_prolog (ctx, &cw);
+  gum_exec_ctx_write_prolog (ctx, GUM_PROLOG_MINIMAL, &cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
       GUM_ADDRESS (gum_tls_key_set_value), 2,
       GUM_ARG_ADDRESS, self->priv->exec_ctx,
       GUM_ARG_ADDRESS, ctx);
-  gum_exec_ctx_write_epilog (ctx, &cw);
+  gum_exec_ctx_write_epilog (ctx, GUM_PROLOG_MINIMAL, &cw);
 
   gum_arm64_writer_put_branch_address (&cw, GUM_ADDRESS (code_address + 4));
 
@@ -981,7 +1007,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   gc.relocator = rl;
   gc.code_writer = cw;
   gc.continuation_real_address = NULL;
-  gc.prolog_open = FALSE;
+  gc.opened_prolog = GUM_PROLOG_NONE;
   gc.exclusive_load_offset = GUM_INSTRUCTION_OFFSET_NONE;
 
   iterator.exec_context = ctx;
@@ -1194,64 +1220,165 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
 
 static void
 gum_exec_ctx_write_prolog (GumExecCtx * ctx,
+                           GumPrologType type,
                            GumArm64Writer * cw)
 {
-  gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X19, ARM64_REG_LR,
-      ARM64_REG_SP, -(16 + GUM_RED_ZONE_SIZE), GUM_INDEX_PRE_ADJUST);
-  gum_arm64_writer_put_bl_imm (cw, GUM_ADDRESS (ctx->last_prolog));
+  gpointer helper;
+
+  helper = (type == GUM_PROLOG_MINIMAL)
+      ? ctx->last_prolog_minimal
+      : ctx->last_prolog_full;
+
+  gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X19,
+      ARM64_REG_LR, ARM64_REG_SP, -(16 + GUM_RED_ZONE_SIZE),
+      GUM_INDEX_PRE_ADJUST);
+  gum_arm64_writer_put_bl_imm (cw, GUM_ADDRESS (helper));
 }
 
 static void
 gum_exec_ctx_write_epilog (GumExecCtx * ctx,
+                           GumPrologType type,
                            GumArm64Writer * cw)
 {
-  gum_arm64_writer_put_bl_imm (cw, GUM_ADDRESS (ctx->last_epilog));
-  gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X19, ARM64_REG_X20,
-      ARM64_REG_SP, 16 + GUM_RED_ZONE_SIZE, GUM_INDEX_POST_ADJUST);
+  gpointer helper;
+
+  helper = (type == GUM_PROLOG_MINIMAL)
+      ? ctx->last_epilog_minimal
+      : ctx->last_epilog_full;
+
+  gum_arm64_writer_put_bl_imm (cw, GUM_ADDRESS (helper));
+  gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X19,
+      ARM64_REG_X20, ARM64_REG_SP, 16 + GUM_RED_ZONE_SIZE,
+      GUM_INDEX_POST_ADJUST);
 }
 
 static void
 gum_exec_ctx_ensure_inline_helpers_reachable (GumExecCtx * ctx)
 {
-  gum_exec_ctx_ensure_helper_reachable (ctx, &ctx->last_prolog,
-      gum_exec_ctx_write_prolog_helper);
-  gum_exec_ctx_ensure_helper_reachable (ctx, &ctx->last_epilog,
-      gum_exec_ctx_write_epilog_helper);
+  gum_exec_ctx_ensure_helper_reachable (ctx, &ctx->last_prolog_minimal,
+      gum_exec_ctx_write_minimal_prolog_helper);
+  gum_exec_ctx_ensure_helper_reachable (ctx, &ctx->last_epilog_minimal,
+      gum_exec_ctx_write_minimal_epilog_helper);
+
+  gum_exec_ctx_ensure_helper_reachable (ctx, &ctx->last_prolog_full,
+      gum_exec_ctx_write_full_prolog_helper);
+  gum_exec_ctx_ensure_helper_reachable (ctx, &ctx->last_epilog_full,
+      gum_exec_ctx_write_full_epilog_helper);
+}
+
+static void
+gum_exec_ctx_write_minimal_prolog_helper (GumExecCtx * ctx,
+                                          GumArm64Writer * cw)
+{
+  gum_exec_ctx_write_prolog_helper (ctx, GUM_PROLOG_MINIMAL, cw);
+}
+
+static void
+gum_exec_ctx_write_minimal_epilog_helper (GumExecCtx * ctx,
+                                          GumArm64Writer * cw)
+{
+  gum_exec_ctx_write_epilog_helper (ctx, GUM_PROLOG_MINIMAL, cw);
+}
+
+static void
+gum_exec_ctx_write_full_prolog_helper (GumExecCtx * ctx,
+                                       GumArm64Writer * cw)
+{
+  gum_exec_ctx_write_prolog_helper (ctx, GUM_PROLOG_FULL, cw);
+}
+
+static void
+gum_exec_ctx_write_full_epilog_helper (GumExecCtx * ctx,
+                                       GumArm64Writer * cw)
+{
+  gum_exec_ctx_write_epilog_helper (ctx, GUM_PROLOG_FULL, cw);
 }
 
 static void
 gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
+                                  GumPrologType type,
                                   GumArm64Writer * cw)
 {
   gint immediate_for_sp = 16 + GUM_RED_ZONE_SIZE;
+  const guint32 mrs_x15_nzcv = 0xd53b420f;
 
   gum_arm64_writer_put_mov_reg_reg (cw, ARM64_REG_X19, ARM64_REG_LR);
   gum_arm64_writer_put_ldr_reg_reg_offset (cw, ARM64_REG_LR, ARM64_REG_SP, 8);
-  gum_arm64_writer_put_str_reg_reg_offset (cw, ARM64_REG_X20, ARM64_REG_SP, 8);
+  gum_arm64_writer_put_str_reg_reg_offset (cw, ARM64_REG_X20, ARM64_REG_SP,
+      8);
 
-  /* save the registers used by stalker's code */
-  gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X0, ARM64_REG_X1);
-  gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X2, ARM64_REG_X3);
-  gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X4, ARM64_REG_X5);
-  gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X6, ARM64_REG_X7);
-  gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X8, ARM64_REG_X9);
-  gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X10, ARM64_REG_X11);
-  gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X12, ARM64_REG_X13);
+  if (type == GUM_PROLOG_MINIMAL)
+  {
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_Q6, ARM64_REG_Q7);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_Q4, ARM64_REG_Q5);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_Q2, ARM64_REG_Q3);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_Q0, ARM64_REG_Q1);
+    immediate_for_sp += 4 * 32;
+
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X29, ARM64_REG_X30);
+    /* X19 - X28 are callee-saved registers */
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X18, STALKER_REG_CTX);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X16, ARM64_REG_X17);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X14, ARM64_REG_X15);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X12, ARM64_REG_X13);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X10, ARM64_REG_X11);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X8, ARM64_REG_X9);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X6, ARM64_REG_X7);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X4, ARM64_REG_X5);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X2, ARM64_REG_X3);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X0, ARM64_REG_X1);
+    immediate_for_sp += 11 * 16;
+  }
+  else if (type == GUM_PROLOG_FULL)
+  {
+    /* GumCpuContext.q[128] */
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_Q6, ARM64_REG_Q7);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_Q4, ARM64_REG_Q5);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_Q2, ARM64_REG_Q3);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_Q0, ARM64_REG_Q1);
+
+    /* GumCpuContext.x[29] + fp + lr + padding */
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X30, ARM64_REG_X15);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X28, ARM64_REG_X29);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X26, ARM64_REG_X27);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X24, ARM64_REG_X25);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X22, ARM64_REG_X23);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X20, ARM64_REG_X21);
+
+    gum_arm64_writer_put_mov_reg_reg (cw, ARM64_REG_X20, ARM64_REG_X19);
+    gum_arm64_writer_put_ldr_reg_reg_offset (cw, ARM64_REG_X19, ARM64_REG_SP,
+        (6 * 16) + (4 * 32));
+
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X18, ARM64_REG_X19);
+
+    gum_arm64_writer_put_mov_reg_reg (cw, ARM64_REG_X19, ARM64_REG_X20);
+
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X16, ARM64_REG_X17);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X14, ARM64_REG_X15);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X12, ARM64_REG_X13);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X10, ARM64_REG_X11);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X8, ARM64_REG_X9);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X6, ARM64_REG_X7);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X4, ARM64_REG_X5);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X2, ARM64_REG_X3);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X0, ARM64_REG_X1);
+
+    /* GumCpuContext.pc + sp */
+    gum_arm64_writer_put_mov_reg_reg (cw, ARM64_REG_X0, ARM64_REG_XZR);
+    gum_arm64_writer_put_add_reg_reg_imm (cw, ARM64_REG_X1, ARM64_REG_SP,
+        (16 * 16) + (4 * 32) + 16 + GUM_RED_ZONE_SIZE);
+    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X0, ARM64_REG_X1);
+
+    immediate_for_sp += sizeof (GumCpuContext) + 8;
+  }
+
+  gum_arm64_writer_put_instruction (cw, mrs_x15_nzcv);
+
+  /* conveniently point X20 at the beginning of the saved registers */
+  gum_arm64_writer_put_mov_reg_reg (cw, ARM64_REG_X20, ARM64_REG_SP);
+
+  /* padding + status */
   gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X14, ARM64_REG_X15);
-  gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X16, ARM64_REG_X17);
-  gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X18, STALKER_REG_CTX);
-  /* X19 - X28 are callee-saved registers */
-  gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X29, ARM64_REG_X30);
-  immediate_for_sp += 11 * 16;
-
-  gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_Q0, ARM64_REG_Q1);
-  gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_Q2, ARM64_REG_Q3);
-  gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_Q4, ARM64_REG_Q5);
-  gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_Q6, ARM64_REG_Q7);
-  immediate_for_sp += 4 * 32;
-
-  gum_arm64_writer_put_instruction (cw, 0xD53B420F); /* MRS X15, NZCV */
-  gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X30, ARM64_REG_X15);
   immediate_for_sp += 1 * 16;
 
   /* save the stack pointer in context */
@@ -1265,29 +1392,79 @@ gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
 
 static void
 gum_exec_ctx_write_epilog_helper (GumExecCtx * ctx,
+                                  GumPrologType type,
                                   GumArm64Writer * cw)
 {
-  gum_arm64_writer_put_mov_reg_reg (cw, ARM64_REG_X19, ARM64_REG_LR);
+  const guint32 msr_nzcv_x15 = 0xd51b420f;
 
-  gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X30, ARM64_REG_X15);
-  gum_arm64_writer_put_instruction (cw, 0xD51B420F); /* MSR NZCV, X15 */
-
-  gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_Q6, ARM64_REG_Q7);
-  gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_Q4, ARM64_REG_Q5);
-  gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_Q2, ARM64_REG_Q3);
-  gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_Q0, ARM64_REG_Q1);
-
-  gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X29, ARM64_REG_X30);
-  gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X18, STALKER_REG_CTX);
-  gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X16, ARM64_REG_X17);
+  /* padding + status */
   gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X14, ARM64_REG_X15);
-  gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X12, ARM64_REG_X13);
-  gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X10, ARM64_REG_X11);
-  gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X8, ARM64_REG_X9);
-  gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X6, ARM64_REG_X7);
-  gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X4, ARM64_REG_X5);
-  gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X2, ARM64_REG_X3);
-  gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X0, ARM64_REG_X1);
+
+  if (type == GUM_PROLOG_MINIMAL)
+  {
+    gum_arm64_writer_put_mov_reg_reg (cw, ARM64_REG_X19, ARM64_REG_LR);
+
+    /* restore status */
+    gum_arm64_writer_put_instruction (cw, msr_nzcv_x15);
+
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X0, ARM64_REG_X1);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X2, ARM64_REG_X3);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X4, ARM64_REG_X5);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X6, ARM64_REG_X7);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X8, ARM64_REG_X9);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X10, ARM64_REG_X11);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X12, ARM64_REG_X13);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X14, ARM64_REG_X15);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X16, ARM64_REG_X17);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X18, STALKER_REG_CTX);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X29, ARM64_REG_X30);
+
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_Q0, ARM64_REG_Q1);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_Q2, ARM64_REG_Q3);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_Q4, ARM64_REG_Q5);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_Q6, ARM64_REG_Q7);
+  }
+  else if (type == GUM_PROLOG_FULL)
+  {
+    /* GumCpuContext.pc + sp */
+    gum_arm64_writer_put_add_reg_reg_imm (cw, ARM64_REG_SP, ARM64_REG_SP, 16);
+
+    /* restore status */
+    gum_arm64_writer_put_instruction (cw, msr_nzcv_x15);
+
+    /* GumCpuContext.x[29] + fp + lr + padding */
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X0, ARM64_REG_X1);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X2, ARM64_REG_X3);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X4, ARM64_REG_X5);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X6, ARM64_REG_X7);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X8, ARM64_REG_X9);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X10, ARM64_REG_X11);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X12, ARM64_REG_X13);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X14, ARM64_REG_X15);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X16, ARM64_REG_X17);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X18, ARM64_REG_X19);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X20, ARM64_REG_X21);
+
+    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X19,
+        ARM64_REG_X20, ARM64_REG_SP, (5 * 16) + (4 * 32),
+        GUM_INDEX_SIGNED_OFFSET);
+    gum_arm64_writer_put_mov_reg_reg (cw, ARM64_REG_X19, ARM64_REG_LR);
+
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X22, ARM64_REG_X23);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X24, ARM64_REG_X25);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X26, ARM64_REG_X27);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X28, ARM64_REG_X29);
+
+    gum_arm64_writer_put_str_reg_reg_offset (cw, ARM64_REG_X15, ARM64_REG_SP,
+        8);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X30, ARM64_REG_X15);
+
+    /* GumCpuContext.q[128] */
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_Q0, ARM64_REG_Q1);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_Q2, ARM64_REG_Q3);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_Q4, ARM64_REG_Q5);
+    gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_Q6, ARM64_REG_Q7);
+  }
 
   gum_arm64_writer_put_br_reg (cw, ARM64_REG_X19);
 }
@@ -1373,58 +1550,79 @@ gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
                                       gpointer ip,
                                       GumGeneratorContext * gc)
 {
+  if (gc->opened_prolog == GUM_PROLOG_MINIMAL)
+  {
+    return gum_exec_ctx_load_real_register_from_minimal_frame_into (ctx,
+        target_register, source_register, ip, gc);
+  }
+  else if (gc->opened_prolog == GUM_PROLOG_FULL)
+  {
+    return gum_exec_ctx_load_real_register_from_full_frame_into (ctx,
+        target_register, source_register, ip, gc);
+  }
+
+  g_assert_not_reached ();
+}
+
+static void
+gum_exec_ctx_load_real_register_from_minimal_frame_into (
+    GumExecCtx * ctx,
+    arm64_reg target_register,
+    arm64_reg source_register,
+    gpointer ip,
+    GumGeneratorContext * gc)
+{
   GumArm64Writer * cw;
-  gint slot_in_the_stack;
-  gint pos_in_the_slot;
 
   cw = gc->code_writer;
 
   if (source_register >= ARM64_REG_X0 && source_register <= ARM64_REG_X18)
   {
-    slot_in_the_stack = (source_register - ARM64_REG_X0) / 2 + 1;
-    pos_in_the_slot = (source_register - ARM64_REG_X0) % 2;
-
-    STALKER_LOAD_REG_FROM_CTX (ARM64_REG_X15, app_stack);
-    gum_arm64_writer_put_sub_reg_reg_imm (cw, ARM64_REG_X15, ARM64_REG_X15,
-        GUM_RED_ZONE_SIZE + 16);
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X14,
-        ARM64_REG_X15, ARM64_REG_X15, -slot_in_the_stack * 16,
-        GUM_INDEX_SIGNED_OFFSET);
-    if (pos_in_the_slot == 0)
-      gum_arm64_writer_put_mov_reg_reg (cw, target_register, ARM64_REG_X14);
-    else
-      gum_arm64_writer_put_mov_reg_reg (cw, target_register, ARM64_REG_X15);
+    gum_arm64_writer_put_ldr_reg_reg_offset (cw, target_register, ARM64_REG_X20,
+        (source_register - ARM64_REG_X0) * 8);
   }
   else if (source_register == ARM64_REG_X19 || source_register == ARM64_REG_X20)
   {
-    pos_in_the_slot = (source_register - ARM64_REG_X19) % 2;
-
-    STALKER_LOAD_REG_FROM_CTX (ARM64_REG_X15, app_stack);
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X14,
-        ARM64_REG_X15, ARM64_REG_X15, GUM_RED_ZONE_SIZE + 16,
-        GUM_INDEX_SIGNED_OFFSET);
-
-    if (pos_in_the_slot == 0)
-      gum_arm64_writer_put_mov_reg_reg (cw, target_register, ARM64_REG_X14);
-    else
-      gum_arm64_writer_put_mov_reg_reg (cw, target_register, ARM64_REG_X15);
+    gum_arm64_writer_put_ldr_reg_reg_offset (cw, target_register, ARM64_REG_X20,
+        (11 * 16) + (4 * 32) + ((source_register - ARM64_REG_X19) * 8));
   }
   else if (source_register == ARM64_REG_X29 || source_register == ARM64_REG_X30)
   {
-    slot_in_the_stack = 10 + 1;
-    pos_in_the_slot = (source_register - ARM64_REG_X29) % 2;
+    gum_arm64_writer_put_ldr_reg_reg_offset (cw, target_register, ARM64_REG_X20,
+        (10 * 16) + ((source_register - ARM64_REG_X29) * 8));
+  }
+  else
+  {
+    gum_arm64_writer_put_mov_reg_reg (cw, target_register, source_register);
+  }
+}
 
-    STALKER_LOAD_REG_FROM_CTX (ARM64_REG_X15, app_stack);
-    gum_arm64_writer_put_sub_reg_reg_imm (cw, ARM64_REG_X15, ARM64_REG_X15,
-        GUM_RED_ZONE_SIZE + 16);
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X14,
-        ARM64_REG_X15, ARM64_REG_X15, -slot_in_the_stack * 16,
-        GUM_INDEX_SIGNED_OFFSET);
+static void
+gum_exec_ctx_load_real_register_from_full_frame_into (GumExecCtx * ctx,
+                                                      arm64_reg target_register,
+                                                      arm64_reg source_register,
+                                                      gpointer ip,
+                                                      GumGeneratorContext * gc)
+{
+  GumArm64Writer * cw;
 
-    if (pos_in_the_slot == 0)
-      gum_arm64_writer_put_mov_reg_reg (cw, target_register, ARM64_REG_X14);
-    else
-      gum_arm64_writer_put_mov_reg_reg (cw, target_register, ARM64_REG_X15);
+  cw = gc->code_writer;
+
+  if (source_register >= ARM64_REG_X0 && source_register <= ARM64_REG_X28)
+  {
+    gum_arm64_writer_put_ldr_reg_reg_offset (cw, target_register, ARM64_REG_X20,
+        G_STRUCT_OFFSET (GumCpuContext, x) +
+        ((source_register - ARM64_REG_X0) * 8));
+  }
+  else if (source_register == ARM64_REG_X29)
+  {
+    gum_arm64_writer_put_ldr_reg_reg_offset (cw, target_register, ARM64_REG_X20,
+        G_STRUCT_OFFSET (GumCpuContext, fp));
+  }
+  else if (source_register == ARM64_REG_X30)
+  {
+    gum_arm64_writer_put_ldr_reg_reg_offset (cw, target_register, ARM64_REG_X20,
+        G_STRUCT_OFFSET (GumCpuContext, lr));
   }
   else
   {
@@ -1779,7 +1977,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   cw = gc->code_writer;
   call_code_start = cw->code;
 
-  gum_exec_block_open_prolog (block, gc);
+  gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
 
   /*
    * generate code for the target
@@ -1813,7 +2011,7 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
 
   cw = gc->code_writer;
 
-  gum_exec_block_open_prolog (block, gc);
+  gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
 
   gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
 
@@ -1840,7 +2038,7 @@ gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
   resolve_dynamically_label = cw->code;
 
   gum_exec_block_close_prolog (block, gc);
-  gum_exec_block_open_prolog (block, gc);
+  gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
 
   gum_exec_ctx_load_real_register_into (block->ctx, ARM64_REG_X16, ret_reg, 0,
       gc);
@@ -1888,7 +2086,7 @@ gum_exec_block_write_call_event_code (GumExecBlock * block,
 
   cw = gc->code_writer;
 
-  gum_exec_block_open_prolog (block, gc);
+  gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
 
   gum_exec_block_write_event_init_code (block, GUM_CALL, gc);
 
@@ -1923,7 +2121,7 @@ gum_exec_block_write_ret_event_code (GumExecBlock * block,
 
   cw = gc->code_writer;
 
-  gum_exec_block_open_prolog (block, gc);
+  gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
 
   gum_exec_block_write_event_init_code (block, GUM_RET, gc);
 
@@ -1954,7 +2152,7 @@ gum_exec_block_write_exec_event_code (GumExecBlock * block,
 
   cw = gc->code_writer;
 
-  gum_exec_block_open_prolog (block, gc);
+  gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
 
   gum_exec_block_write_event_init_code (block, GUM_EXEC, gc);
 
@@ -1976,7 +2174,7 @@ gum_exec_block_write_block_event_code (GumExecBlock * block,
 
   cw = gc->code_writer;
 
-  gum_exec_block_open_prolog (block, gc);
+  gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
 
   gum_exec_block_write_event_init_code (block, GUM_BLOCK, gc);
 
@@ -2017,7 +2215,7 @@ gum_exec_block_write_event_submit_code (GumExecBlock * block,
   GumExecCtx * ctx;
   GumArm64Writer * cw;
   gconstpointer beach_label;
-  gboolean prolog_open;
+  GumPrologType opened_prolog;
 
   ctx = block->ctx;
   cw = gc->code_writer;
@@ -2048,9 +2246,9 @@ gum_exec_block_write_event_submit_code (GumExecBlock * block,
         GUM_ARG_ADDRESS, ctx,
         GUM_ARG_ADDRESS, gc->instruction->begin);
 
-    prolog_open = gc->prolog_open;
+    opened_prolog = gc->opened_prolog;
     gum_exec_block_close_prolog (block, gc);
-    gc->prolog_open = prolog_open;
+    gc->opened_prolog = opened_prolog;
 
     gum_arm64_writer_put_ldr_reg_address (cw, ARM64_REG_X16,
         GUM_ADDRESS (&block->ctx->resume_at));
@@ -2066,7 +2264,7 @@ static void
 gum_exec_block_invoke_call_probes_for_target (GumExecBlock * block,
                                               gpointer location,
                                               gpointer target_address,
-                                              guint64 * callee_saved_regs)
+                                              GumCpuContext * cpu_context)
 {
   GumStalkerPrivate * priv = block->ctx->stalker->priv;
   GArray * probes;
@@ -2078,48 +2276,13 @@ gum_exec_block_invoke_call_probes_for_target (GumExecBlock * block,
   if (probes != NULL)
   {
     GumCallSite call_site;
-    GumCpuContext cpu_context;
-    guint64 * stalker_saved_regs;
-    guint slot_index, reg_index, probe_index;
+    guint probe_index;
 
     call_site.block_address = block->real_begin;
-    call_site.stack_data = block->ctx->app_stack;
-    call_site.cpu_context = &cpu_context;
+    call_site.stack_data = GSIZE_TO_POINTER (cpu_context->sp);
+    call_site.cpu_context = cpu_context;
 
-    cpu_context.pc = GPOINTER_TO_SIZE (location);
-    cpu_context.sp = GPOINTER_TO_SIZE (call_site.stack_data);
-
-    stalker_saved_regs = (guint64 *)
-        ((guint8 *) block->ctx->app_stack - GUM_RED_ZONE_SIZE - 16);
-
-    cpu_context.x[19] = stalker_saved_regs[0];
-    cpu_context.x[20] = stalker_saved_regs[1];
-    stalker_saved_regs -= 2;
-
-    for (slot_index = 0, reg_index = 0;
-        slot_index != 9;
-        slot_index++, reg_index += 2, stalker_saved_regs -= 2)
-    {
-      cpu_context.x[reg_index + 0] = stalker_saved_regs[0];
-      cpu_context.x[reg_index + 1] = stalker_saved_regs[1];
-    }
-
-    cpu_context.x[18] = stalker_saved_regs[0];
-    stalker_saved_regs -= 2;
-
-    cpu_context.fp = stalker_saved_regs[0];
-    cpu_context.lr = stalker_saved_regs[1];
-    stalker_saved_regs -= 2;
-
-    memcpy (cpu_context.q, stalker_saved_regs - 64, sizeof (cpu_context.q));
-
-    for (slot_index = 0, reg_index = 21;
-        slot_index != 5;
-        slot_index++, reg_index += 2, callee_saved_regs += 2)
-    {
-      cpu_context.x[reg_index + 0] = callee_saved_regs[0];
-      cpu_context.x[reg_index + 1] = callee_saved_regs[1];
-    }
+    cpu_context->pc = GPOINTER_TO_SIZE (location);
 
     for (probe_index = 0; probe_index != probes->len; probe_index++)
     {
@@ -2154,48 +2317,45 @@ gum_exec_block_write_call_probe_code (GumExecBlock * block,
 
   if (!skip_probing)
   {
-    gum_exec_block_open_prolog (block, gc);
+    if (gc->opened_prolog != GUM_PROLOG_NONE)
+      gum_exec_block_close_prolog (block, gc);
+    gum_exec_block_open_prolog (block, GUM_PROLOG_FULL, gc);
 
     gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
     gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X14, ARM64_REG_X15);
-
-    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X27, ARM64_REG_X28);
-    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X25, ARM64_REG_X26);
-    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X23, ARM64_REG_X24);
-    gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X21, ARM64_REG_X22);
-    gum_arm64_writer_put_mov_reg_reg (cw, ARM64_REG_X15, ARM64_REG_SP);
 
     gum_arm64_writer_put_call_address_with_arguments (cw,
         GUM_ADDRESS (gum_exec_block_invoke_call_probes_for_target), 4,
         GUM_ARG_ADDRESS, GUM_ADDRESS (block),
         GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->begin),
         GUM_ARG_REGISTER, ARM64_REG_X14,
-        GUM_ARG_REGISTER, ARM64_REG_X15);
-
-    gum_arm64_writer_put_add_reg_reg_imm (cw, ARM64_REG_SP, ARM64_REG_SP,
-        4 * 16);
+        GUM_ARG_REGISTER, ARM64_REG_X20);
   }
 }
 
 static void
 gum_exec_block_open_prolog (GumExecBlock * block,
+                            GumPrologType type,
                             GumGeneratorContext * gc)
 {
-  if (gc->prolog_open)
+  if (gc->opened_prolog >= type)
     return;
 
-  gc->prolog_open = TRUE;
-  gum_exec_ctx_write_prolog (block->ctx, gc->code_writer);
+  /* We don't want to handle this case for performance reasons */
+  g_assert (gc->opened_prolog == GUM_PROLOG_NONE);
+
+  gc->opened_prolog = type;
+
+  gum_exec_ctx_write_prolog (block->ctx, type, gc->code_writer);
 }
 
 static void
 gum_exec_block_close_prolog (GumExecBlock * block,
                              GumGeneratorContext * gc)
 {
-  if (!gc->prolog_open)
+  if (gc->opened_prolog == GUM_PROLOG_NONE)
     return;
 
-  gum_exec_ctx_write_epilog (block->ctx, gc->code_writer);
-
-  gc->prolog_open = FALSE;
+  gum_exec_ctx_write_epilog (block->ctx, gc->opened_prolog, gc->code_writer);
+  gc->opened_prolog = GUM_PROLOG_NONE;
 }
