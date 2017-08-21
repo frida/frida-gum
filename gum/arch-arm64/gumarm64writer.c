@@ -819,7 +819,8 @@ gum_arm64_writer_put_push_all_q_registers (GumArm64Writer * self)
   gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_Q30, ARM64_REG_Q31);
 }
 
-void gum_arm64_writer_put_pop_all_q_registers (GumArm64Writer * self)
+void
+gum_arm64_writer_put_pop_all_q_registers (GumArm64Writer * self)
 {
   gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_Q30, ARM64_REG_Q31);
   gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_Q28, ARM64_REG_Q29);
