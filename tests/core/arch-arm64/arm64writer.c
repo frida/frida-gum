@@ -211,6 +211,9 @@ TESTCASE (mov_reg_reg)
 
   gum_arm64_writer_put_mov_reg_reg (&fixture->aw, ARM64_REG_SP, ARM64_REG_X12);
   assert_output_n_equals (3, 0x9100019f);
+
+  gum_arm64_writer_put_mov_reg_reg (&fixture->aw, ARM64_REG_X7, ARM64_REG_XZR);
+  assert_output_n_equals (4, 0xaa1f03e7);
 }
 
 TESTCASE (add_reg_reg_imm)

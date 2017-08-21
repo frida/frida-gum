@@ -1046,6 +1046,7 @@ gum_arm64_writer_put_mov_reg_reg (GumArm64Writer * self,
                                   arm64_reg src_reg)
 {
   GumArm64RegInfo rd, rs;
+  gboolean src_is_zero_reg;
 
   gum_arm64_writer_describe_reg (self, dst_reg, &rd);
   gum_arm64_writer_describe_reg (self, src_reg, &rs);
@@ -1053,7 +1054,9 @@ gum_arm64_writer_put_mov_reg_reg (GumArm64Writer * self,
   if (rd.width != rs.width)
     return FALSE;
 
-  if (rd.meta == GUM_MREG_SP || rs.meta == GUM_MREG_SP)
+  src_is_zero_reg = src_reg == ARM64_REG_XZR || src_reg == ARM64_REG_WZR;
+
+  if (rd.meta == GUM_MREG_SP || (!src_is_zero_reg && rs.meta == GUM_MREG_SP))
   {
     gum_arm64_writer_put_instruction (self, 0x91000000 | rd.index |
         (rs.index << 5));
