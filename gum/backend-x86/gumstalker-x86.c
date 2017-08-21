@@ -304,9 +304,9 @@ static void gum_exec_ctx_write_epilog (GumExecCtx * ctx, GumPrologType type,
 static void gum_exec_ctx_ensure_inline_helpers_reachable (GumExecCtx * ctx);
 static void gum_exec_ctx_write_minimal_prolog_helper (GumExecCtx * ctx,
     GumX86Writer * cw);
-static void gum_exec_ctx_write_full_prolog_helper (GumExecCtx * ctx,
-    GumX86Writer * cw);
 static void gum_exec_ctx_write_minimal_epilog_helper (GumExecCtx * ctx,
+    GumX86Writer * cw);
+static void gum_exec_ctx_write_full_prolog_helper (GumExecCtx * ctx,
     GumX86Writer * cw);
 static void gum_exec_ctx_write_full_epilog_helper (GumExecCtx * ctx,
     GumX86Writer * cw);
@@ -1429,10 +1429,11 @@ gum_exec_ctx_ensure_inline_helpers_reachable (GumExecCtx * ctx)
 {
   gum_exec_ctx_ensure_helper_reachable (ctx, &ctx->last_prolog_minimal,
       gum_exec_ctx_write_minimal_prolog_helper);
-  gum_exec_ctx_ensure_helper_reachable (ctx, &ctx->last_prolog_full,
-      gum_exec_ctx_write_full_prolog_helper);
   gum_exec_ctx_ensure_helper_reachable (ctx, &ctx->last_epilog_minimal,
       gum_exec_ctx_write_minimal_epilog_helper);
+
+  gum_exec_ctx_ensure_helper_reachable (ctx, &ctx->last_prolog_full,
+      gum_exec_ctx_write_full_prolog_helper);
   gum_exec_ctx_ensure_helper_reachable (ctx, &ctx->last_epilog_full,
       gum_exec_ctx_write_full_epilog_helper);
 }
@@ -1445,17 +1446,17 @@ gum_exec_ctx_write_minimal_prolog_helper (GumExecCtx * ctx,
 }
 
 static void
-gum_exec_ctx_write_full_prolog_helper (GumExecCtx * ctx,
-                                       GumX86Writer * cw)
-{
-  gum_exec_ctx_write_prolog_helper (ctx, GUM_PROLOG_FULL, cw);
-}
-
-static void
 gum_exec_ctx_write_minimal_epilog_helper (GumExecCtx * ctx,
                                           GumX86Writer * cw)
 {
   gum_exec_ctx_write_epilog_helper (ctx, GUM_PROLOG_MINIMAL, cw);
+}
+
+static void
+gum_exec_ctx_write_full_prolog_helper (GumExecCtx * ctx,
+                                       GumX86Writer * cw)
+{
+  gum_exec_ctx_write_prolog_helper (ctx, GUM_PROLOG_FULL, cw);
 }
 
 static void
