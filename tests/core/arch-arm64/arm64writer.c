@@ -107,6 +107,9 @@ TESTCASE (push_reg_reg)
 
   gum_arm64_writer_put_push_reg_reg (&fixture->aw, ARM64_REG_W3, ARM64_REG_W5);
   assert_output_n_equals (1, 0x29bf17e3);
+
+  gum_arm64_writer_put_push_reg_reg (&fixture->aw, ARM64_REG_Q6, ARM64_REG_Q7);
+  assert_output_n_equals (2, 0xadbf1fe6);
 }
 
 TESTCASE (pop_reg_reg)
@@ -116,6 +119,9 @@ TESTCASE (pop_reg_reg)
 
   gum_arm64_writer_put_pop_reg_reg (&fixture->aw, ARM64_REG_W7, ARM64_REG_W12);
   assert_output_n_equals (1, 0x28c133e7);
+
+  gum_arm64_writer_put_pop_reg_reg (&fixture->aw, ARM64_REG_Q6, ARM64_REG_Q7);
+  assert_output_n_equals (2, 0xacc11fe6);
 }
 
 TESTCASE (ldr_x_address)
