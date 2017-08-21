@@ -801,50 +801,42 @@ gum_arm64_writer_put_pop_all_x_registers (GumArm64Writer * self)
 void
 gum_arm64_writer_put_push_all_q_registers (GumArm64Writer * self)
 {
-  const guint32 instructions[] = {
-    0xADBF07E0,
-    0xADBF0FE2,
-    0xADBF17E4,
-    0xADBF1FE6,
-    0xADBF27E8,
-    0xADBF2FEA,
-    0xADBF37EC,
-    0xADBF3FEE,
-    0xADBF47F0,
-    0xADBF4FF2,
-    0xADBF57F4,
-    0xADBF5FF6,
-    0xADBF67F8,
-    0xADBF6FFA,
-    0xADBF77FC,
-    0xADBF7FFE
-  };
-  gum_arm64_writer_put_bytes (self, (const guint8 *) instructions,
-      sizeof (instructions));
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_Q0, ARM64_REG_Q1);
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_Q2, ARM64_REG_Q3);
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_Q4, ARM64_REG_Q5);
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_Q6, ARM64_REG_Q7);
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_Q8, ARM64_REG_Q9);
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_Q10, ARM64_REG_Q11);
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_Q12, ARM64_REG_Q13);
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_Q14, ARM64_REG_Q15);
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_Q16, ARM64_REG_Q17);
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_Q18, ARM64_REG_Q19);
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_Q20, ARM64_REG_Q21);
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_Q22, ARM64_REG_Q23);
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_Q24, ARM64_REG_Q25);
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_Q26, ARM64_REG_Q27);
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_Q28, ARM64_REG_Q29);
+  gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_Q30, ARM64_REG_Q31);
 }
 
 void gum_arm64_writer_put_pop_all_q_registers (GumArm64Writer * self)
 {
-  const guint32 instructions[] = {
-    0xACC17FFE,
-    0xACC177FC,
-    0xACC16FFA,
-    0xACC167F8,
-    0xACC15FF6,
-    0xACC157F4,
-    0xACC14FF2,
-    0xACC147F0,
-    0xACC13FEE,
-    0xACC137EC,
-    0xACC12FEA,
-    0xACC127E8,
-    0xACC11FE6,
-    0xACC117E4,
-    0xACC10FE2,
-    0xACC107E0
-  };
-  gum_arm64_writer_put_bytes (self, (const guint8 *) instructions,
-      sizeof (instructions));
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_Q30, ARM64_REG_Q31);
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_Q28, ARM64_REG_Q29);
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_Q26, ARM64_REG_Q27);
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_Q24, ARM64_REG_Q25);
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_Q22, ARM64_REG_Q23);
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_Q20, ARM64_REG_Q21);
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_Q18, ARM64_REG_Q19);
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_Q16, ARM64_REG_Q17);
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_Q14, ARM64_REG_Q15);
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_Q12, ARM64_REG_Q13);
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_Q10, ARM64_REG_Q11);
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_Q8, ARM64_REG_Q9);
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_Q6, ARM64_REG_Q7);
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_Q4, ARM64_REG_Q5);
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_Q2, ARM64_REG_Q3);
+  gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_Q0, ARM64_REG_Q1);
 }
 
 gboolean

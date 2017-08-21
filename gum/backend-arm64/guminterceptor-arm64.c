@@ -401,11 +401,11 @@ gum_emit_prolog (GumArm64Writer * aw)
   /* reserve space for next_hop */
   gum_arm64_writer_put_sub_reg_reg_imm (aw, ARM64_REG_SP, ARM64_REG_SP, 16);
 
-  /* push {q0-q7}; store vector registers (for now only the clobberable ones) */
-  gum_arm64_writer_put_instruction (aw, 0xadbf1fe6);
-  gum_arm64_writer_put_instruction (aw, 0xadbf17e4);
-  gum_arm64_writer_put_instruction (aw, 0xadbf0fe2);
-  gum_arm64_writer_put_instruction (aw, 0xadbf07e0);
+  /* vector registers -- for now only the clobberable ones */
+  gum_arm64_writer_put_push_reg_reg (aw, ARM64_REG_Q6, ARM64_REG_Q7);
+  gum_arm64_writer_put_push_reg_reg (aw, ARM64_REG_Q4, ARM64_REG_Q5);
+  gum_arm64_writer_put_push_reg_reg (aw, ARM64_REG_Q2, ARM64_REG_Q3);
+  gum_arm64_writer_put_push_reg_reg (aw, ARM64_REG_Q0, ARM64_REG_Q1);
 
   /* upper part */
   gum_arm64_writer_put_push_reg_reg (aw, ARM64_REG_FP, ARM64_REG_LR);
@@ -461,11 +461,11 @@ gum_emit_epilog (GumArm64Writer * aw)
   gum_arm64_writer_put_pop_reg_reg (aw, ARM64_REG_X27, ARM64_REG_X28);
   gum_arm64_writer_put_pop_reg_reg (aw, ARM64_REG_FP, ARM64_REG_LR);
 
-  /* pop {q0-q7}; load vector registers (for now only the clobberable ones) */
-  gum_arm64_writer_put_instruction (aw, 0xacc107e0);
-  gum_arm64_writer_put_instruction (aw, 0xacc10fe2);
-  gum_arm64_writer_put_instruction (aw, 0xacc117e4);
-  gum_arm64_writer_put_instruction (aw, 0xacc11fe6);
+  /* vector registers -- for now only the clobberable ones */
+  gum_arm64_writer_put_pop_reg_reg (aw, ARM64_REG_Q0, ARM64_REG_Q1);
+  gum_arm64_writer_put_pop_reg_reg (aw, ARM64_REG_Q2, ARM64_REG_Q3);
+  gum_arm64_writer_put_pop_reg_reg (aw, ARM64_REG_Q4, ARM64_REG_Q5);
+  gum_arm64_writer_put_pop_reg_reg (aw, ARM64_REG_Q6, ARM64_REG_Q7);
 
   gum_arm64_writer_put_pop_reg_reg (aw, ARM64_REG_X16, ARM64_REG_X17);
   gum_arm64_writer_put_br_reg (aw, ARM64_REG_X16);
