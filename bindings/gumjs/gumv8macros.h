@@ -167,13 +167,13 @@
   \
   void \
   GumV8Closure_##N::invoke ()
-#define GUMJS_DEFINE_CLASS_GETTER(N, C) \
+#define GUMJS_DEFINE_CLASS_GETTER_AT_LEVEL(N, C, L) \
   class GumV8Closure_##N \
   { \
   public: \
     GumV8Closure_##N (const PropertyCallbackInfo<Value> & info) \
       : wrapper (info.Holder ()), \
-        self ((C *) wrapper->GetAlignedPointerFromInternalField (0)), \
+        self ((C *) wrapper->GetAlignedPointerFromInternalField (L)), \
         module ((GUMJS_MODULE_TYPE *) info.Data ().As<External> ()->Value ()), \
         core (module->core), \
         info (info), \
@@ -204,14 +204,14 @@
   \
   void \
   GumV8Closure_##N::invoke ()
-#define GUMJS_DEFINE_CLASS_SETTER(N, C) \
+#define GUMJS_DEFINE_CLASS_SETTER_AT_LEVEL(N, C, L) \
   class GumV8Closure_##N \
   { \
   public: \
     GumV8Closure_##N (Local<Value> value, \
         const PropertyCallbackInfo<void> & info) \
       : wrapper (info.Holder ()), \
-        self ((C *) wrapper->GetAlignedPointerFromInternalField (0)), \
+        self ((C *) wrapper->GetAlignedPointerFromInternalField (L)), \
         module ((GUMJS_MODULE_TYPE *) info.Data ().As<External> ()->Value ()), \
         core (module->core), \
         value (value), \
@@ -245,13 +245,13 @@
   \
   void \
   GumV8Closure_##N::invoke ()
-#define GUMJS_DEFINE_CLASS_METHOD(N, C) \
+#define GUMJS_DEFINE_CLASS_METHOD_AT_LEVEL(N, C, L) \
   struct GumV8Closure_##N \
   { \
   public: \
     GumV8Closure_##N (const FunctionCallbackInfo<Value> & info) \
       : wrapper (info.Holder ()), \
-        self ((C *) wrapper->GetAlignedPointerFromInternalField (0)), \
+        self ((C *) wrapper->GetAlignedPointerFromInternalField (L)), \
         module ((GUMJS_MODULE_TYPE *) info.Data ().As<External> ()->Value ()), \
         core (module->core), \
         args (&_args), \
@@ -285,5 +285,19 @@
   \
   void \
   GumV8Closure_##N::invoke ()
+
+#define GUMJS_DEFINE_CLASS_GETTER(N, C) \
+  GUMJS_DEFINE_CLASS_GETTER_AT_LEVEL (N, C, 0)
+#define GUMJS_DEFINE_CLASS_SETTER(N, C) \
+  GUMJS_DEFINE_CLASS_SETTER_AT_LEVEL (N, C, 0)
+#define GUMJS_DEFINE_CLASS_METHOD(N, C) \
+  GUMJS_DEFINE_CLASS_METHOD_AT_LEVEL (N, C, 0)
+
+#define GUMJS_DEFINE_DIRECT_SUBCLASS_GETTER(N, C) \
+  GUMJS_DEFINE_CLASS_GETTER_AT_LEVEL (N, C, 1)
+#define GUMJS_DEFINE_DIRECT_SUBCLASS_SETTER(N, C) \
+  GUMJS_DEFINE_CLASS_SETTER_AT_LEVEL (N, C, 1)
+#define GUMJS_DEFINE_DIRECT_SUBCLASS_METHOD(N, C) \
+  GUMJS_DEFINE_CLASS_METHOD_AT_LEVEL (N, C, 1)
 
 #endif
