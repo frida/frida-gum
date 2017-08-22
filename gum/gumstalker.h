@@ -157,7 +157,7 @@ GUM_API gboolean gum_stalker_iterator_next (GumStalkerIterator * self,
     const cs_insn ** insn);
 GUM_API void gum_stalker_iterator_keep (GumStalkerIterator * self);
 GUM_API void gum_stalker_iterator_put_callout (GumStalkerIterator * self,
-    GumStalkerCallout callout, gpointer user_data);
+    GumStalkerCallout callout, gpointer data, GDestroyNotify data_destroy);
 
 G_END_DECLS
 

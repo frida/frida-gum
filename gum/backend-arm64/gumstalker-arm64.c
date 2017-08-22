@@ -56,6 +56,7 @@ typedef struct _GumExecBlock GumExecBlock;
 typedef guint GumPrologType;
 typedef guint GumCodeContext;
 typedef struct _GumGeneratorContext GumGeneratorContext;
+typedef struct _GumCalloutEntry GumCalloutEntry;
 typedef struct _GumInstruction GumInstruction;
 typedef struct _GumBranchTarget GumBranchTarget;
 
@@ -127,6 +128,8 @@ struct _GumExecCtx
   GumArm64Relocator relocator;
 
   GumStalkerTransformer * transformer;
+  GQueue callout_entries;
+  GumSpinlock callout_lock;
   GumEventSink * sink;
   GumEventType sink_mask;
   gpointer sink_process_impl; /* cached */
@@ -206,6 +209,17 @@ struct _GumStalkerIterator
   GumVirtualizationRequirements requirements;
 };
 
+struct _GumCalloutEntry
+{
+  GumStalkerCallout callout;
+  gpointer data;
+  GDestroyNotify data_destroy;
+
+  gpointer pc;
+
+  GumExecCtx * exec_context;
+};
+
 struct _GumBranchTarget
 {
   gpointer origin_ip;
@@ -245,6 +259,7 @@ static GumExecCtx * gum_stalker_create_exec_ctx (GumStalker * self,
 static GumExecCtx * gum_stalker_get_exec_ctx (GumStalker * self);
 static void gum_stalker_invalidate_caches (GumStalker * self);
 
+static void gum_exec_ctx_dispose_callouts (GumExecCtx * ctx);
 static void gum_exec_ctx_free (GumExecCtx * ctx);
 static void gum_exec_ctx_unfollow (GumExecCtx * ctx, gpointer resume_at);
 static gboolean gum_exec_ctx_has_executed (GumExecCtx * ctx);
@@ -255,6 +270,9 @@ static void gum_exec_ctx_destroy_thunks (GumExecCtx * ctx);
 
 static GumExecBlock * gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
     gpointer real_address, gpointer * code_address);
+
+static void gum_stalker_invoke_callout (GumCpuContext * cpu_context,
+    GumCalloutEntry * entry);
 
 static void gum_exec_ctx_write_prolog (GumExecCtx * ctx, GumPrologType type,
     GumArm64Writer * cw);
@@ -519,6 +537,8 @@ gum_stalker_unfollow_me (GumStalker * self)
   ctx = gum_stalker_get_exec_ctx (self);
   g_assert (ctx != NULL);
 
+  gum_exec_ctx_dispose_callouts (ctx);
+
   gum_event_sink_stop (ctx->sink);
 
   if (ctx->current_block != NULL &&
@@ -585,6 +605,8 @@ gum_stalker_unfollow (GumStalker * self,
       GumExecCtx * ctx = (GumExecCtx *) cur->data;
       if (ctx->thread_id == thread_id && ctx->state == GUM_EXEC_CTX_ACTIVE)
       {
+        gum_exec_ctx_dispose_callouts (ctx);
+
         gum_event_sink_stop (ctx->sink);
 
         if (gum_exec_ctx_has_executed (ctx))
@@ -824,6 +846,8 @@ gum_stalker_create_exec_ctx (GumStalker * self,
     ctx->transformer = g_object_ref (transformer);
   else
     ctx->transformer = gum_stalker_transformer_make_default ();
+  g_queue_init (&ctx->callout_entries);
+  gum_spinlock_init (&ctx->callout_lock);
   ctx->sink = (GumEventSink *) g_object_ref (sink);
   ctx->sink_mask = gum_event_sink_query_mask (sink);
   ctx->sink_process_impl = GUM_FUNCPTR_TO_POINTER (
@@ -864,6 +888,43 @@ gum_stalker_invalidate_caches (GumStalker * self)
 }
 
 static void
+gum_exec_ctx_dispose_callouts (GumExecCtx * ctx)
+{
+  GList * cur;
+
+  gum_spinlock_acquire (&ctx->callout_lock);
+
+  for (cur = ctx->callout_entries.head; cur != NULL; cur = cur->next)
+  {
+    GumCalloutEntry * entry = cur->data;
+
+    if (entry->data_destroy != NULL)
+      entry->data_destroy (entry->data);
+
+    entry->callout = NULL;
+    entry->data = NULL;
+    entry->data_destroy = NULL;
+  }
+
+  gum_spinlock_release (&ctx->callout_lock);
+}
+
+static void
+gum_exec_ctx_finalize_callouts (GumExecCtx * ctx)
+{
+  GList * cur;
+
+  for (cur = ctx->callout_entries.head; cur != NULL; cur = cur->next)
+  {
+    GumCalloutEntry * entry = cur->data;
+
+    g_slice_free (GumCalloutEntry, entry);
+  }
+
+  g_queue_clear (&ctx->callout_entries);
+}
+
+static void
 gum_exec_ctx_free (GumExecCtx * ctx)
 {
   GumSlab * slab;
@@ -881,6 +942,8 @@ gum_exec_ctx_free (GumExecCtx * ctx)
   gum_exec_ctx_destroy_thunks (ctx);
 
   g_object_unref (ctx->sink);
+  gum_exec_ctx_finalize_callouts (ctx);
+  gum_spinlock_free (&ctx->callout_lock);
   g_object_unref (ctx->transformer);
 
   gum_arm64_relocator_clear (&ctx->relocator);
@@ -1221,19 +1284,51 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
 void
 gum_stalker_iterator_put_callout (GumStalkerIterator * self,
                                   GumStalkerCallout callout,
-                                  gpointer user_data)
+                                  gpointer data,
+                                  GDestroyNotify data_destroy)
 {
+  GumCalloutEntry * entry;
+  GumExecCtx * ec = self->exec_context;
   GumExecBlock * block = self->exec_block;
   GumGeneratorContext * gc = self->generator_context;
+
+  entry = g_slice_new (GumCalloutEntry);
+  entry->callout = callout;
+  entry->data = data;
+  entry->data_destroy = data_destroy;
+  entry->pc = gc->instruction->begin;
+  entry->exec_context = ec;
 
   gum_exec_block_open_prolog (block, GUM_PROLOG_FULL, gc);
 
   gum_arm64_writer_put_call_address_with_arguments (gc->code_writer,
-      GUM_ADDRESS (callout), 2,
+      GUM_ADDRESS (gum_stalker_invoke_callout), 2,
       GUM_ARG_REGISTER, ARM64_REG_X20,
-      GUM_ARG_ADDRESS, GUM_ADDRESS (user_data));
+      GUM_ARG_ADDRESS, GUM_ADDRESS (entry));
 
   gum_exec_block_close_prolog (block, gc);
+
+  gum_spinlock_acquire (&ec->callout_lock);
+  g_queue_push_head (&ec->callout_entries, entry);
+  gum_spinlock_release (&ec->callout_lock);
+}
+
+static void
+gum_stalker_invoke_callout (GumCpuContext * cpu_context,
+                            GumCalloutEntry * entry)
+{
+  GumExecCtx * ec = entry->exec_context;
+
+  cpu_context->pc = GPOINTER_TO_SIZE (entry->pc);
+
+  gum_spinlock_acquire (&ec->callout_lock);
+
+  if (entry->callout != NULL)
+  {
+    entry->callout (cpu_context, entry->data);
+  }
+
+  gum_spinlock_release (&ec->callout_lock);
 }
 
 static void

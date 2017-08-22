@@ -552,7 +552,7 @@ insert_extra_increment_after_xor (GumStalkerIterator * iterator,
   {
     if (in_leaf_func && insn->id == X86_INS_RET)
     {
-      gum_stalker_iterator_put_callout (iterator, store_xax, last_xax);
+      gum_stalker_iterator_put_callout (iterator, store_xax, last_xax, NULL);
     }
 
     gum_stalker_iterator_keep (iterator);

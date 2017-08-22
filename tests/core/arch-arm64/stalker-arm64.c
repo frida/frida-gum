@@ -252,7 +252,7 @@ insert_extra_add_after_sub (GumStalkerIterator * iterator,
   {
     if (in_leaf_func && insn->id == ARM64_INS_RET)
     {
-      gum_stalker_iterator_put_callout (iterator, store_x0, last_x0);
+      gum_stalker_iterator_put_callout (iterator, store_x0, last_x0, NULL);
     }
 
     gum_stalker_iterator_keep (iterator);
