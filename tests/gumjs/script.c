@@ -1556,7 +1556,7 @@ SCRIPT_TESTCASE (execution_can_be_traced_with_custom_transformer)
   COMPILE_AND_LOAD_SCRIPT (
     "var instructionsSeen = 0;"
     "Stalker.follow(%" G_GSIZE_FORMAT ", {"
-    "  transform: function (iterator, output) {"
+    "  transform: function (iterator) {"
     "    var instruction;"
 
     "    while ((instruction = iterator.next()) !== null) {"

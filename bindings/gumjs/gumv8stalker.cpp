@@ -49,7 +49,8 @@ struct GumV8CallProbe
 
 struct GumV8StalkerIterator
 {
-  GumPersistent<v8::Object>::type * object;
+  GumV8NativeWriter parent;
+
   GumStalkerIterator * handle;
   GumV8InstructionValue * instruction;
 
@@ -109,9 +110,6 @@ static GumV8StalkerIterator * gum_v8_stalker_obtain_iterator (
     GumV8Stalker * self);
 static void gum_v8_stalker_release_iterator (GumV8Stalker * self,
     GumV8StalkerIterator * iterator);
-static GumV8NativeWriter * gum_v8_stalker_obtain_writer (GumV8Stalker * self);
-static void gum_v8_stalker_release_writer (GumV8Stalker * self,
-    GumV8NativeWriter * writer);
 static GumV8InstructionValue * gum_v8_stalker_obtain_instruction (
     GumV8Stalker * self);
 static void gum_v8_stalker_release_instruction (GumV8Stalker * self,
@@ -186,8 +184,11 @@ _gum_v8_stalker_init (GumV8Stalker * self,
 
   auto iter = _gum_v8_create_class ("StalkerIterator", nullptr, scope, module,
       isolate);
+  auto native_writer = Local<FunctionTemplate>::New (isolate,
+      *writer->GUM_V8_NATIVE_WRITER_FIELD);
+  iter->Inherit (native_writer);
   _gum_v8_class_add (iter, gumjs_stalker_iterator_functions, module, isolate);
-  iter->InstanceTemplate ()->SetInternalFieldCount (1);
+  iter->InstanceTemplate ()->SetInternalFieldCount (2);
   self->iterator = new GumPersistent<FunctionTemplate>::type (isolate, iter);
 }
 
@@ -210,9 +211,6 @@ _gum_v8_stalker_realize (GumV8Stalker * self)
 
   self->cached_iterator = gum_v8_stalker_iterator_new_persistent (self);
   self->cached_iterator_in_use = FALSE;
-
-  self->cached_writer = _gum_v8_native_writer_new_persistent (self->writer);
-  self->cached_writer_in_use = FALSE;
 
   self->cached_instruction =
       _gum_v8_instruction_new_persistent (self->instruction);
@@ -243,9 +241,6 @@ _gum_v8_stalker_dispose (GumV8Stalker * self)
 {
   _gum_v8_instruction_release_persistent (self->cached_instruction);
   self->cached_instruction = NULL;
-
-  _gum_v8_native_writer_release_persistent (self->cached_writer);
-  self->cached_writer = NULL;
 
   gum_v8_stalker_iterator_release_persistent (self->cached_iterator);
   self->cached_iterator = NULL;
@@ -662,20 +657,16 @@ gum_v8_callback_transformer_transform_block (
   auto callback = Local<Function>::New (isolate, *self->callback);
 
   auto iter_value = gum_v8_stalker_obtain_iterator (module);
-  gum_v8_stalker_iterator_reset (iter_value, iterator);
-  auto iter_object = Local<Object>::New (isolate, *iter_value->object);
-
-  auto output_value = gum_v8_stalker_obtain_writer (module);
+  auto output_value = &iter_value->parent;
   _gum_v8_native_writer_reset (output_value, (GumV8NativeWriterImpl *) output);
-  auto output_object = Local<Object>::New (isolate, *output_value->object);
+  gum_v8_stalker_iterator_reset (iter_value, iterator);
+  auto iter_object = Local<Object>::New (isolate, *output_value->object);
 
-  Handle<Value> argv[] = { iter_object, output_object };
+  Handle<Value> argv[] = { iter_object };
   callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
 
-  _gum_v8_native_writer_reset (output_value, NULL);
-  gum_v8_stalker_release_writer (module, output_value);
-
   gum_v8_stalker_iterator_reset (iter_value, NULL);
+  _gum_v8_native_writer_reset (output_value, NULL);
   gum_v8_stalker_release_iterator (module, iter_value);
 }
 
@@ -753,14 +744,19 @@ gum_v8_stalker_iterator_new_persistent (GumV8Stalker * parent)
 
   auto iter = g_slice_new (GumV8StalkerIterator);
 
-  auto iter_value = Local<Object>::New (isolate,
-      *parent->iterator_value);
-  auto object = iter_value->Clone ();
-  object->SetAlignedPointerInInternalField (0, iter);
-  iter->object = new GumPersistent<Object>::type (isolate, object);
+  auto writer = &iter->parent;
+  _gum_v8_native_writer_init (writer, parent->writer);
+
   iter->handle = NULL;
   iter->instruction = NULL;
   iter->module = parent;
+
+  auto iter_value = Local<Object>::New (isolate,
+      *parent->iterator_value);
+  auto object = iter_value->Clone ();
+  object->SetAlignedPointerInInternalField (0, writer);
+  object->SetAlignedPointerInInternalField (1, iter);
+  writer->object = new GumPersistent<Object>::type (isolate, object);
 
   return iter;
 }
@@ -768,7 +764,7 @@ gum_v8_stalker_iterator_new_persistent (GumV8Stalker * parent)
 static void
 gum_v8_stalker_iterator_release_persistent (GumV8StalkerIterator * self)
 {
-  delete self->object;
+  _gum_v8_native_writer_finalize (&self->parent);
 
   g_slice_free (GumV8StalkerIterator, self);
 }
@@ -804,7 +800,8 @@ gum_v8_stalker_iterator_check_valid (GumV8StalkerIterator * self,
   return TRUE;
 }
 
-GUMJS_DEFINE_CLASS_METHOD (gumjs_stalker_iterator_next, GumV8StalkerIterator)
+GUMJS_DEFINE_DIRECT_SUBCLASS_METHOD (gumjs_stalker_iterator_next,
+                                     GumV8StalkerIterator)
 {
   if (!gum_v8_stalker_iterator_check_valid (self, isolate))
     return;
@@ -820,7 +817,8 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_stalker_iterator_next, GumV8StalkerIterator)
   }
 }
 
-GUMJS_DEFINE_CLASS_METHOD (gumjs_stalker_iterator_keep, GumV8StalkerIterator)
+GUMJS_DEFINE_DIRECT_SUBCLASS_METHOD (gumjs_stalker_iterator_keep,
+                                     GumV8StalkerIterator)
 {
   if (!gum_v8_stalker_iterator_check_valid (self, isolate))
     return;
@@ -828,8 +826,8 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_stalker_iterator_keep, GumV8StalkerIterator)
   gum_stalker_iterator_keep (self->handle);
 }
 
-GUMJS_DEFINE_CLASS_METHOD (gumjs_stalker_iterator_put_callout,
-    GumV8StalkerIterator)
+GUMJS_DEFINE_DIRECT_SUBCLASS_METHOD (gumjs_stalker_iterator_put_callout,
+                                     GumV8StalkerIterator)
 {
   if (!gum_v8_stalker_iterator_check_valid (self, isolate))
     return;
@@ -950,38 +948,6 @@ gum_v8_stalker_release_iterator (GumV8Stalker * self,
     self->cached_iterator_in_use = FALSE;
   else
     gum_v8_stalker_iterator_release_persistent (iterator);
-}
-
-static GumV8NativeWriter *
-gum_v8_stalker_obtain_writer (GumV8Stalker * self)
-{
-  GumV8NativeWriter * writer;
-
-  if (!self->cached_writer_in_use)
-  {
-    writer = self->cached_writer;
-    self->cached_writer_in_use = TRUE;
-  }
-  else
-  {
-    writer = _gum_v8_native_writer_new_persistent (self->writer);
-  }
-
-  return writer;
-}
-
-static void
-gum_v8_stalker_release_writer (GumV8Stalker * self,
-                               GumV8NativeWriter * writer)
-{
-  if (writer == self->cached_writer)
-  {
-    self->cached_writer_in_use = FALSE;
-  }
-  else
-  {
-    _gum_v8_native_writer_release_persistent (writer);
-  }
 }
 
 static GumV8InstructionValue *

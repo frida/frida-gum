@@ -30,9 +30,6 @@ struct GumV8Stalker
   GumV8StalkerIterator * cached_iterator;
   gboolean cached_iterator_in_use;
 
-  GumV8NativeWriter * cached_writer;
-  gboolean cached_writer_in_use;
-
   GumV8InstructionValue * cached_instruction;
   gboolean cached_instruction_in_use;
 };

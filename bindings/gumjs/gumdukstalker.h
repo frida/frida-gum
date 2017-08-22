@@ -31,9 +31,6 @@ struct _GumDukStalker
   GumDukStalkerIterator * cached_iterator;
   gboolean cached_iterator_in_use;
 
-  GumDukNativeWriter * cached_writer;
-  gboolean cached_writer_in_use;
-
   GumDukInstructionValue * cached_instruction;
   gboolean cached_instruction_in_use;
 

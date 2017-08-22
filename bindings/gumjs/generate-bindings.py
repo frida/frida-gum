@@ -91,8 +91,12 @@ def generate_umbrella(runtime, name, section, flavor_combos):
             impl_function_prefix = "gum_{0}_{1}".format(flavor, name)
 
             params = {
+                "name_uppercase": name.upper(),
+                "native_class_name": to_camel_case("{0}_{1}".format(flavor, name), start_high=True),
+                "native_field_name": "{0}_{1}".format(flavor, name),
                 "native_struct_name": to_camel_case(native_function_prefix, start_high=True),
                 "native_function_prefix": native_function_prefix,
+                "wrapper_macro_prefix": "GUM_{0}_NATIVE_{1}".format(runtime.upper(), name.upper()),
                 "wrapper_struct_name": to_camel_case(wrapper_function_prefix, start_high=True),
                 "wrapper_function_prefix": wrapper_function_prefix,
                 "impl_struct_name": to_camel_case(impl_function_prefix, start_high=True),
@@ -100,11 +104,16 @@ def generate_umbrella(runtime, name, section, flavor_combos):
             }
 
             lines.extend("""
+#define {wrapper_macro_prefix}_CLASS_NAME "{native_class_name}"
+#define {wrapper_macro_prefix}_FIELD {native_field_name}
+
 typedef {wrapper_struct_name} {native_struct_name};
 typedef {impl_struct_name} {native_struct_name}Impl;
 
 #define _{native_function_prefix}_new{persistent_suffix} _{wrapper_function_prefix}_new{persistent_suffix}
 #define _{native_function_prefix}_release{persistent_suffix} _{wrapper_function_prefix}_release{persistent_suffix}
+#define _{native_function_prefix}_init _{wrapper_function_prefix}_init
+#define _{native_function_prefix}_finalize _{wrapper_function_prefix}_finalize
 #define _{native_function_prefix}_reset _{wrapper_function_prefix}_reset
 """.format(**params).split("\n"))
     lines.append("#endif")
@@ -409,7 +418,9 @@ G_GNUC_INTERNAL {wrapper_struct_name} * _gum_duk_push_{flavor}_{name} (duk_conte
 G_GNUC_INTERNAL {wrapper_struct_name} * _gum_duk_require_{flavor}_{name} (duk_context * ctx, duk_idx_t index, {module_struct_name} * module);
 
 G_GNUC_INTERNAL {wrapper_struct_name} * _gum_duk_{flavor}_{name}_new ({module_struct_name} * module);
-G_GNUC_INTERNAL void _gum_duk_{flavor}_{name}_release ({wrapper_struct_name} * writer);
+G_GNUC_INTERNAL void _gum_duk_{flavor}_{name}_release ({wrapper_struct_name} * self);
+G_GNUC_INTERNAL void _gum_duk_{flavor}_{name}_init ({wrapper_struct_name} * self, {module_struct_name} * module);
+G_GNUC_INTERNAL void _gum_duk_{flavor}_{name}_finalize ({wrapper_struct_name} * self);
 G_GNUC_INTERNAL void _gum_duk_{flavor}_{name}_reset ({wrapper_struct_name} * self, {impl_struct_name} * impl);
 """
     return template.format(**params)
@@ -487,7 +498,7 @@ _gum_duk_require_{flavor}_writer (
 }}
 
 {wrapper_struct_name} *
-_gum_duk_{flavor}_writer_new ({module_struct_name} * module)
+_{wrapper_function_prefix}_new ({module_struct_name} * module)
 {{
   GumDukScope scope = GUM_DUK_SCOPE_INIT (module->core);
   duk_context * ctx = scope.ctx;
@@ -501,17 +512,33 @@ _gum_duk_{flavor}_writer_new ({module_struct_name} * module)
 }}
 
 void
-_gum_duk_{flavor}_writer_release ({wrapper_struct_name} * writer)
+_{wrapper_function_prefix}_release ({wrapper_struct_name} * self)
 {{
-  GumDukScope scope = GUM_DUK_SCOPE_INIT (writer->module->core);
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (self->module->core);
 
-  {wrapper_function_prefix}_dispose (writer);
+  {wrapper_function_prefix}_dispose (self);
 
-  _gum_duk_unprotect (scope.ctx, writer->object);
+  _gum_duk_unprotect (scope.ctx, self->object);
 }}
 
 void
-_gum_duk_{flavor}_writer_reset (
+_{wrapper_function_prefix}_init (
+    {wrapper_struct_name} * self,
+    {module_struct_name} * module)
+{{
+  self->object = NULL;
+  self->impl = NULL;
+  self->module = module;
+}}
+
+void
+_{wrapper_function_prefix}_finalize ({wrapper_struct_name} * self)
+{{
+  _gum_duk_{flavor}_writer_reset (self, NULL);
+}}
+
+void
+_{wrapper_function_prefix}_reset (
     {wrapper_struct_name} * self,
     {impl_struct_name} * impl)
 {{
@@ -528,9 +555,7 @@ static {wrapper_struct_name} *
   {wrapper_struct_name} * writer;
 
   writer = g_slice_new ({wrapper_struct_name});
-  writer->object = NULL;
-  writer->impl = NULL;
-  writer->module = module;
+  _{wrapper_function_prefix}_init (writer, module);
 
   return writer;
 }}
@@ -538,13 +563,13 @@ static {wrapper_struct_name} *
 static void
 {wrapper_function_prefix}_dispose ({wrapper_struct_name} * self)
 {{
-  g_clear_pointer (&self->impl, {impl_function_prefix}_unref);
+  _{wrapper_function_prefix}_reset (self, NULL);
 }}
 
 static void
 {wrapper_function_prefix}_free ({wrapper_struct_name} * self)
 {{
-  {wrapper_function_prefix}_dispose (self);
+  _{wrapper_function_prefix}_finalize (self);
 
   g_slice_free ({wrapper_struct_name}, self);
 }}
@@ -759,7 +784,7 @@ _gum_duk_require_{flavor}_relocator (
 }}
 
 {wrapper_struct_name} *
-_gum_duk_{flavor}_relocator_new ({module_struct_name} * module)
+_{wrapper_function_prefix}_new ({module_struct_name} * module)
 {{
   GumDukScope scope = GUM_DUK_SCOPE_INIT (module->core);
   duk_context * ctx = scope.ctx;
@@ -773,17 +798,36 @@ _gum_duk_{flavor}_relocator_new ({module_struct_name} * module)
 }}
 
 void
-_gum_duk_{flavor}_relocator_release ({wrapper_struct_name} * relocator)
+_{wrapper_function_prefix}_release ({wrapper_struct_name} * self)
 {{
-  GumDukScope scope = GUM_DUK_SCOPE_INIT (relocator->module->core);
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (self->module->core);
 
-  {wrapper_function_prefix}_dispose (relocator);
+  {wrapper_function_prefix}_dispose (self);
 
-  _gum_duk_unprotect (scope.ctx, relocator->object);
+  _gum_duk_unprotect (scope.ctx, self->object);
 }}
 
 void
-_gum_duk_{flavor}_relocator_reset (
+_{wrapper_function_prefix}_init (
+    {wrapper_struct_name} * self,
+    {module_struct_name} * module)
+{{
+  self->object = NULL;
+  self->impl = NULL;
+  self->input = _gum_duk_instruction_new (module->instruction);
+  self->module = module;
+}}
+
+void
+_{wrapper_function_prefix}_finalize ({wrapper_struct_name} * self)
+{{
+  _{wrapper_function_prefix}_reset (self, NULL);
+
+  _gum_duk_instruction_release (self->input);
+}}
+
+void
+_{wrapper_function_prefix}_reset (
     {wrapper_struct_name} * self,
     {impl_struct_name} * impl)
 {{
@@ -802,10 +846,7 @@ static {wrapper_struct_name} *
   {wrapper_struct_name} * relocator;
 
   relocator = g_slice_new ({wrapper_struct_name});
-  relocator->object = NULL;
-  relocator->impl = NULL;
-  relocator->input = _gum_duk_instruction_new (module->instruction);
-  relocator->module = module;
+  _{wrapper_function_prefix}_init (relocator, module);
 
   return relocator;
 }}
@@ -813,17 +854,13 @@ static {wrapper_struct_name} *
 static void
 {wrapper_function_prefix}_dispose ({wrapper_struct_name} * self)
 {{
-  self->input->insn = NULL;
-
-  g_clear_pointer (&self->impl, {impl_function_prefix}_unref);
+  _{wrapper_function_prefix}_reset (self, NULL);
 }}
 
 static void
 {wrapper_function_prefix}_free ({wrapper_struct_name} * self)
 {{
-  {wrapper_function_prefix}_dispose (self);
-
-  _gum_duk_instruction_release (self->input);
+  _{wrapper_function_prefix}_finalize (self);
 
   g_slice_free ({wrapper_struct_name}, self);
 }}
@@ -1320,6 +1357,8 @@ G_GNUC_INTERNAL gboolean _gum_v8_{flavor}_writer_get (v8::Handle<v8::Value> valu
 
 G_GNUC_INTERNAL {wrapper_struct_name} * _{wrapper_function_prefix}_new_persistent ({module_struct_name} * module);
 G_GNUC_INTERNAL void _{wrapper_function_prefix}_release_persistent ({wrapper_struct_name} * {name});
+G_GNUC_INTERNAL void _{wrapper_function_prefix}_init ({wrapper_struct_name} * self, {module_struct_name} * module);
+G_GNUC_INTERNAL void _{wrapper_function_prefix}_finalize ({wrapper_struct_name} * self);
 G_GNUC_INTERNAL void _{wrapper_function_prefix}_reset ({wrapper_struct_name} * self, {impl_struct_name} * impl);"""
     return template.format(**params)
 
@@ -1420,6 +1459,27 @@ _{wrapper_function_prefix}_release_persistent ({wrapper_struct_name} * writer)
 }}
 
 void
+_{wrapper_function_prefix}_init (
+    {wrapper_struct_name} * self,
+    {module_struct_name} * module)
+{{
+  self->object = nullptr;
+  self->impl = NULL;
+  self->labels = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
+  self->module = module;
+}}
+
+void
+_{wrapper_function_prefix}_finalize ({wrapper_struct_name} * self)
+{{
+  _{wrapper_function_prefix}_reset (self, NULL);
+
+  g_hash_table_unref (self->labels);
+
+  delete self->object;
+}}
+
+void
 _{wrapper_function_prefix}_reset (
     {wrapper_struct_name} * self,
     {impl_struct_name} * impl)
@@ -1429,6 +1489,8 @@ _{wrapper_function_prefix}_reset (
   if (self->impl != NULL)
     {impl_function_prefix}_unref (self->impl);
   self->impl = impl;
+
+  g_hash_table_remove_all (self->labels);
 }}
 
 static {wrapper_struct_name} *
@@ -1437,11 +1499,7 @@ static {wrapper_struct_name} *
   {wrapper_struct_name} * writer;
 
   writer = g_slice_new ({wrapper_struct_name});
-  writer->object = nullptr;
-  writer->impl = NULL;
-  writer->labels =
-      g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
-  writer->module = module;
+  _{wrapper_function_prefix}_init (writer, module);
 
   return writer;
 }}
@@ -1449,26 +1507,17 @@ static {wrapper_struct_name} *
 static void
 {wrapper_function_prefix}_dispose ({wrapper_struct_name} * self)
 {{
-  if (self->impl == NULL)
-    return;
-
-  g_hash_table_remove_all (self->labels);
-
-  {impl_function_prefix}_unref (self->impl);
-  self->impl = NULL;
+  _{wrapper_function_prefix}_reset (self, NULL);
 }}
 
 static void
 {wrapper_function_prefix}_free ({wrapper_struct_name} * self)
 {{
-  {wrapper_function_prefix}_dispose (self);
-
-  g_hash_table_unref (self->labels);
-
-  delete self->object;
+  _{wrapper_function_prefix}_finalize (self);
 
   g_slice_free ({wrapper_struct_name}, self);
 }}
+
 {label_resolver}
 static void
 {wrapper_function_prefix}_on_weak_notify (
@@ -1709,6 +1758,27 @@ _{wrapper_function_prefix}_release_persistent ({wrapper_struct_name} * relocator
 }}
 
 void
+_{wrapper_function_prefix}_init (
+    {wrapper_struct_name} * self,
+    {module_struct_name} * module)
+{{
+  self->object = nullptr;
+  self->impl = NULL;
+  self->input = _gum_v8_instruction_new_persistent (module->instruction);
+  self->module = module;
+}}
+
+void
+_{wrapper_function_prefix}_finalize ({wrapper_struct_name} * self)
+{{
+  _{wrapper_function_prefix}_reset (self, NULL);
+
+  _gum_v8_instruction_release_persistent (self->input);
+
+  delete self->object;
+}}
+
+void
 _{wrapper_function_prefix}_reset (
     {wrapper_struct_name} * self,
     {impl_struct_name} * impl)
@@ -1728,10 +1798,7 @@ static {wrapper_struct_name} *
   {wrapper_struct_name} * relocator;
 
   relocator = g_slice_new ({wrapper_struct_name});
-  relocator->object = nullptr;
-  relocator->impl = NULL;
-  relocator->input = _gum_v8_instruction_new_persistent (module->instruction);
-  relocator->module = module;
+  _{wrapper_function_prefix}_init (relocator, module);
 
   return relocator;
 }}
@@ -1739,19 +1806,13 @@ static {wrapper_struct_name} *
 static void
 {wrapper_function_prefix}_dispose ({wrapper_struct_name} * self)
 {{
-  self->input->insn = NULL;
-
-  g_clear_pointer (&self->impl, {impl_function_prefix}_unref);
+  _{wrapper_function_prefix}_reset (self, NULL);
 }}
 
 static void
 {wrapper_function_prefix}_free ({wrapper_struct_name} * self)
 {{
-  {wrapper_function_prefix}_dispose (self);
-
-  _gum_v8_instruction_release_persistent (self->input);
-
-  delete self->object;
+  _{wrapper_function_prefix}_finalize (self);
 
   g_slice_free ({wrapper_struct_name}, self);
 }}

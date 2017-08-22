@@ -49,7 +49,8 @@ struct _GumDukCallProbe
 
 struct _GumDukStalkerIterator
 {
-  GumDukHeapPtr object;
+  GumDukNativeWriter parent;
+
   GumStalkerIterator * handle;
   GumDukInstructionValue * instruction;
 
@@ -123,10 +124,6 @@ static GumDukStalkerIterator * gum_duk_stalker_obtain_iterator (
     GumDukStalker * self);
 static void gum_duk_stalker_release_iterator (GumDukStalker * self,
     GumDukStalkerIterator * iterator);
-static GumDukNativeWriter * gum_duk_stalker_obtain_writer (
-    GumDukStalker * self);
-static void gum_duk_stalker_release_writer (GumDukStalker * self,
-    GumDukNativeWriter * writer);
 static GumDukInstructionValue * gum_duk_stalker_obtain_instruction (
     GumDukStalker * self);
 static void gum_duk_stalker_release_instruction (GumDukStalker * self,
@@ -208,14 +205,14 @@ _gum_duk_stalker_init (GumDukStalker * self,
       duk_require_heapptr (ctx, -1), gumjs_stalker_values);
   duk_put_global_string (ctx, "Stalker");
 
-  duk_push_c_function (ctx, gumjs_stalker_iterator_construct, 0);
-  duk_push_object (ctx);
-  duk_push_c_function (ctx, gumjs_stalker_iterator_finalize, 1);
-  duk_set_finalizer (ctx, -2);
-  duk_put_function_list (ctx, -1, gumjs_stalker_iterator_functions);
-  duk_put_prop_string (ctx, -2, "prototype");
+  _gum_duk_create_subclass (ctx, GUM_DUK_NATIVE_WRITER_CLASS_NAME,
+      "StalkerIterator", gumjs_stalker_iterator_construct, 0,
+      gumjs_stalker_iterator_finalize);
+  duk_get_global_string (ctx, "StalkerIterator");
   self->iterator = _gum_duk_require_heapptr (ctx, -1);
-  duk_pop (ctx);
+  duk_get_prop_string (ctx, -1, "prototype");
+  duk_put_function_list (ctx, -1, gumjs_stalker_iterator_functions);
+  duk_pop_2 (ctx);
 
   duk_push_c_function (ctx, gumjs_probe_args_construct, 0);
   duk_push_object (ctx);
@@ -227,9 +224,6 @@ _gum_duk_stalker_init (GumDukStalker * self,
 
   self->cached_iterator = gum_duk_stalker_iterator_new (self);
   self->cached_iterator_in_use = FALSE;
-
-  self->cached_writer = _gum_duk_native_writer_new (writer);
-  self->cached_writer_in_use = FALSE;
 
   self->cached_instruction = _gum_duk_instruction_new (instruction);
   self->cached_instruction_in_use = FALSE;
@@ -257,7 +251,6 @@ _gum_duk_stalker_dispose (GumDukStalker * self)
 
   gum_duk_probe_args_release (self->cached_probe_args);
   _gum_duk_instruction_release (self->cached_instruction);
-  _gum_duk_native_writer_release (self->cached_writer);
   gum_duk_stalker_iterator_release (self->cached_iterator);
 
   _gum_duk_release_heapptr (ctx, self->probe_args);
@@ -661,22 +654,18 @@ gum_duk_callback_transformer_transform_block (
   ctx = _gum_duk_scope_enter (&scope, module->core);
 
   iterator_value = gum_duk_stalker_obtain_iterator (module);
-  gum_duk_stalker_iterator_reset (iterator_value, iterator);
-
-  output_value = gum_duk_stalker_obtain_writer (module);
+  output_value = &iterator_value->parent;
   _gum_duk_native_writer_reset (output_value,
       (GumDukNativeWriterImpl *) output);
+  gum_duk_stalker_iterator_reset (iterator_value, iterator);
 
   duk_push_heapptr (ctx, self->callback);
-  duk_push_heapptr (ctx, iterator_value->object);
   duk_push_heapptr (ctx, output_value->object);
-  _gum_duk_scope_call (&scope, 2);
+  _gum_duk_scope_call (&scope, 1);
   duk_pop (ctx);
 
-  _gum_duk_native_writer_reset (output_value, NULL);
-  gum_duk_stalker_release_writer (module, output_value);
-
   gum_duk_stalker_iterator_reset (iterator_value, NULL);
+  _gum_duk_native_writer_reset (output_value, NULL);
   gum_duk_stalker_release_iterator (module, iterator_value);
 
   _gum_duk_scope_leave (&scope);
@@ -768,18 +757,22 @@ gum_duk_stalker_iterator_new (GumDukStalker * parent)
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   duk_context * ctx = scope.ctx;
   GumDukStalkerIterator * iter;
+  GumDukNativeWriter * writer;
 
   iter = g_slice_new (GumDukStalkerIterator);
 
-  duk_push_heapptr (ctx, parent->iterator);
-  duk_new (ctx, 0);
-  _gum_duk_put_data (ctx, -1, iter);
-  iter->object = _gum_duk_require_heapptr (ctx, -1);
-  duk_pop (ctx);
+  writer = &iter->parent;
+  _gum_duk_native_writer_init (writer, parent->writer);
 
   iter->handle = NULL;
   iter->instruction = NULL;
   iter->module = parent;
+
+  duk_push_heapptr (ctx, parent->iterator);
+  duk_new (ctx, 0);
+  _gum_duk_put_data (ctx, -1, iter);
+  writer->object = _gum_duk_require_heapptr (ctx, -1);
+  duk_pop (ctx);
 
   return iter;
 }
@@ -789,7 +782,7 @@ gum_duk_stalker_iterator_release (GumDukStalkerIterator * self)
 {
   GumDukScope scope = GUM_DUK_SCOPE_INIT (self->module->core);
 
-  _gum_duk_release_heapptr (scope.ctx, self->object);
+  _gum_duk_release_heapptr (scope.ctx, self->parent.object);
 }
 
 static void
@@ -837,6 +830,8 @@ GUMJS_DEFINE_FINALIZER (gumjs_stalker_iterator_finalize)
   self = _gum_duk_steal_data (ctx, 0);
   if (self == NULL)
     return 0;
+
+  _gum_duk_native_writer_finalize (&self->parent);
 
   g_slice_free (GumDukStalkerIterator, self);
 
@@ -1068,38 +1063,6 @@ gum_duk_stalker_release_iterator (GumDukStalker * self,
   else
   {
     gum_duk_stalker_iterator_release (iterator);
-  }
-}
-
-static GumDukNativeWriter *
-gum_duk_stalker_obtain_writer (GumDukStalker * self)
-{
-  GumDukNativeWriter * writer;
-
-  if (!self->cached_writer_in_use)
-  {
-    writer = self->cached_writer;
-    self->cached_writer_in_use = TRUE;
-  }
-  else
-  {
-    writer = _gum_duk_native_writer_new (self->writer);
-  }
-
-  return writer;
-}
-
-static void
-gum_duk_stalker_release_writer (GumDukStalker * self,
-                                GumDukNativeWriter * writer)
-{
-  if (writer == self->cached_writer)
-  {
-    self->cached_writer_in_use = FALSE;
-  }
-  else
-  {
-    _gum_duk_native_writer_release (writer);
   }
 }
 
