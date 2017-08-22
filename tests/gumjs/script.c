@@ -1560,12 +1560,18 @@ SCRIPT_TESTCASE (execution_can_be_traced_with_custom_transformer)
     "    var instruction;"
 
     "    while ((instruction = iterator.next()) !== null) {"
+    "      if (instructionsSeen === 0) {"
+    "        iterator.putCallout(onBeforeFirstInstruction);"
+    "      }"
+
     "      iterator.keep();"
 
     "      instructionsSeen++;"
     "    }"
     "  }"
     "});"
+    "function onBeforeFirstInstruction (context) {"
+    "}"
     "recv('stop', function (message) {"
     "  Stalker.unfollow(%" G_GSIZE_FORMAT ");"
     "  send(instructionsSeen > 0);"

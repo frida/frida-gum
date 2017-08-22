@@ -33,6 +33,13 @@ struct GumV8CallbackTransformerClass
   GObjectClass parent_class;
 };
 
+struct GumV8Callout
+{
+  GumPersistent<Function>::type * callback;
+
+  GumV8Stalker * module;
+};
+
 struct GumV8CallProbe
 {
   GumPersistent<Function>::type * callback;
@@ -87,6 +94,11 @@ static void gum_v8_stalker_iterator_reset (GumV8StalkerIterator * self,
     GumStalkerIterator * handle);
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_iterator_next)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_iterator_keep)
+GUMJS_DECLARE_FUNCTION (gumjs_stalker_iterator_put_callout)
+
+static void gum_v8_callout_free (GumV8Callout * callout);
+static void gum_v8_callout_on_invoke (GumCpuContext * cpu_context,
+    GumV8Callout * self);
 
 static void gumjs_probe_args_get_nth (uint32_t index,
     const PropertyCallbackInfo<Value> & info);
@@ -145,6 +157,7 @@ static const GumV8Function gumjs_stalker_iterator_functions[] =
 {
   { "next", gumjs_stalker_iterator_next },
   { "keep", gumjs_stalker_iterator_keep },
+  { "putCallout", gumjs_stalker_iterator_put_callout },
 
   { NULL, NULL }
 };
@@ -813,6 +826,53 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_stalker_iterator_keep, GumV8StalkerIterator)
     return;
 
   gum_stalker_iterator_keep (self->handle);
+}
+
+GUMJS_DEFINE_CLASS_METHOD (gumjs_stalker_iterator_put_callout,
+    GumV8StalkerIterator)
+{
+  if (!gum_v8_stalker_iterator_check_valid (self, isolate))
+    return;
+
+  Local<Function> callback;
+  if (!_gum_v8_args_parse (args, "F", &callback))
+    return;
+
+  auto callout = g_slice_new (GumV8Callout);
+  callout->callback = new GumPersistent<Function>::type (isolate, callback);
+  callout->module = self->module;
+
+  gum_stalker_iterator_put_callout (self->handle,
+      (GumStalkerCallout) gum_v8_callout_on_invoke, callout,
+      (GDestroyNotify) gum_v8_callout_free);
+}
+
+static void
+gum_v8_callout_free (GumV8Callout * callout)
+{
+  ScriptScope scope (callout->module->core->script);
+
+  delete callout->callback;
+
+  g_slice_free (GumV8Callout, callout);
+}
+
+static void
+gum_v8_callout_on_invoke (GumCpuContext * cpu_context,
+                          GumV8Callout * self)
+{
+  auto core = self->module->core;
+  ScriptScope scope (core->script);
+  Isolate * isolate = core->isolate;
+
+  auto cpu_context_value = _gum_v8_cpu_context_new (cpu_context, core);
+
+  auto callback (Local<Function>::New (isolate, *self->callback));
+  Handle<Value> argv[] = { cpu_context_value };
+  callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
+
+  _gum_v8_cpu_context_free_later (
+      new GumPersistent<Object>::type (isolate, cpu_context_value), core);
 }
 
 static void

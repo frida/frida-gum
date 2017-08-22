@@ -16,6 +16,7 @@
 
 typedef struct _GumDukCallbackTransformer GumDukCallbackTransformer;
 typedef struct _GumDukCallbackTransformerClass GumDukCallbackTransformerClass;
+typedef struct _GumDukCallout GumDukCallout;
 typedef struct _GumDukCallProbe GumDukCallProbe;
 
 struct _GumDukCallbackTransformer
@@ -30,6 +31,13 @@ struct _GumDukCallbackTransformer
 struct _GumDukCallbackTransformerClass
 {
   GObjectClass parent_class;
+};
+
+struct _GumDukCallout
+{
+  GumDukHeapPtr callback;
+
+  GumDukStalker * module;
 };
 
 struct _GumDukCallProbe
@@ -96,6 +104,11 @@ GUMJS_DECLARE_CONSTRUCTOR (gumjs_stalker_iterator_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_stalker_iterator_finalize)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_iterator_next)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_iterator_keep)
+GUMJS_DECLARE_FUNCTION (gumjs_stalker_iterator_put_callout)
+
+static void gum_duk_callout_free (GumDukCallout * callout);
+static void gum_duk_callout_on_invoke (GumCpuContext * cpu_context,
+    GumDukCallout * self);
 
 static GumDukProbeArgs * gum_duk_probe_args_new (GumDukStalker * parent);
 static void gum_duk_probe_args_release (GumDukProbeArgs * self);
@@ -163,6 +176,7 @@ static const duk_function_list_entry gumjs_stalker_iterator_functions[] =
 {
   { "next", gumjs_stalker_iterator_next, 0 },
   { "keep", gumjs_stalker_iterator_keep, 0 },
+  { "putCallout", gumjs_stalker_iterator_put_callout, 1 },
 
   { NULL, NULL, 0 }
 };
@@ -741,6 +755,7 @@ gum_duk_call_probe_on_fire (GumCallSite * site,
   _gum_duk_scope_call (&scope, 1);
   duk_pop (ctx);
 
+  gum_duk_probe_args_reset (args, NULL);
   gum_duk_stalker_release_probe_args (module, args);
 
   _gum_duk_scope_leave (&scope);
@@ -850,6 +865,66 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_iterator_keep)
   gum_stalker_iterator_keep (self->handle);
 
   return 0;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_stalker_iterator_put_callout)
+{
+  GumDukStalkerIterator * self;
+  GumDukHeapPtr callback;
+  GumDukCallout * callout;
+
+  self = gumjs_stalker_iterator_from_args (args);
+
+  _gum_duk_args_parse (args, "F", &callback);
+
+  callout = g_slice_new (GumDukCallout);
+  _gum_duk_protect (ctx, callback);
+  callout->callback = callback;
+  callout->module = self->module;
+
+  gum_stalker_iterator_put_callout (self->handle,
+      (GumStalkerCallout) gum_duk_callout_on_invoke, callout,
+      (GDestroyNotify) gum_duk_callout_free);
+
+  return 0;
+}
+
+static void
+gum_duk_callout_free (GumDukCallout * callout)
+{
+  GumDukCore * core = callout->module->core;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+
+  _gum_duk_unprotect (scope.ctx, callout->callback);
+
+  g_slice_free (GumDukCallout, callout);
+}
+
+static void
+gum_duk_callout_on_invoke (GumCpuContext * cpu_context,
+                           GumDukCallout * self)
+{
+  GumDukStalker * module = self->module;
+  duk_context * ctx;
+  GumDukScope scope;
+  GumDukCpuContext * cpu_context_value;
+
+  ctx = _gum_duk_scope_enter (&scope, module->core);
+
+  cpu_context_value = _gum_duk_push_cpu_context (ctx, cpu_context,
+      GUM_CPU_CONTEXT_READWRITE, module->core);
+
+  duk_push_heapptr (ctx, cpu_context_value->object);
+
+  duk_push_heapptr (ctx, self->callback);
+  duk_dup (ctx, -2);
+  _gum_duk_scope_call (&scope, 1);
+
+  _gum_duk_cpu_context_make_read_only (cpu_context_value);
+
+  duk_pop_2 (ctx);
+
+  _gum_duk_scope_leave (&scope);
 }
 
 static GumDukProbeArgs *
