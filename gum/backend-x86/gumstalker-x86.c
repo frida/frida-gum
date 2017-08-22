@@ -1566,7 +1566,7 @@ gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
     gum_x86_writer_put_pushax (cw); /* all of GumCpuContext except for xip */
     /* GumCpuContext.xip gets filled out later */
     gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP, GUM_REG_XSP,
-        -sizeof (gpointer));
+        -((gint) sizeof (gpointer)));
 
     gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XAX, GUM_REG_XSP,
         sizeof (GumCpuContext) + 2 * sizeof (gpointer) + GUM_RED_ZONE_SIZE);
