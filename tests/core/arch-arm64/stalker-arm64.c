@@ -43,6 +43,7 @@ TEST_LIST_END ()
 
 static void insert_extra_add_after_sub (GumStalkerIterator * iterator,
     GumStalkerWriter * output, gpointer user_data);
+static void store_x0 (GumCpuContext * cpu_context, gpointer user_data);
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
 
@@ -224,10 +225,16 @@ probe_func_a_invocation (GumCallSite * site,
 
 STALKER_TESTCASE (custom_transformer)
 {
+  guint64 last_x0 = 0;
+
   fixture->transformer = gum_stalker_transformer_make_from_callback (
-      insert_extra_add_after_sub, NULL, NULL);
+      insert_extra_add_after_sub, &last_x0, NULL);
+
+  g_assert_cmpuint (last_x0, ==, 0);
 
   invoke_flat_expecting_return_value (fixture, GUM_NOTHING, 3);
+
+  g_assert_cmpuint (last_x0, ==, 3);
 }
 
 static void
@@ -235,18 +242,38 @@ insert_extra_add_after_sub (GumStalkerIterator * iterator,
                             GumStalkerWriter * output,
                             gpointer user_data)
 {
+  guint64 * last_x0 = user_data;
   const cs_insn * insn;
+  gboolean in_leaf_func;
+
+  in_leaf_func = FALSE;
 
   while (gum_stalker_iterator_next (iterator, &insn))
   {
+    if (in_leaf_func && insn->id == ARM64_INS_RET)
+    {
+      gum_stalker_iterator_put_callout (iterator, store_x0, last_x0);
+    }
+
     gum_stalker_iterator_keep (iterator);
 
     if (insn->id == ARM64_INS_SUB)
     {
+      in_leaf_func = TRUE;
+
       gum_arm64_writer_put_add_reg_reg_imm (&output->arm64, ARM64_REG_W0,
           ARM64_REG_W0, 1);
     }
   }
+}
+
+static void
+store_x0 (GumCpuContext * cpu_context,
+          gpointer user_data)
+{
+  guint64 * last_x0 = user_data;
+
+  *last_x0 = cpu_context->x[0];
 }
 
 STALKER_TESTCASE (unconditional_branch)

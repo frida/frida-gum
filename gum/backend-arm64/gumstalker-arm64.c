@@ -1218,6 +1218,24 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
   self->requirements = requirements;
 }
 
+void
+gum_stalker_iterator_put_callout (GumStalkerIterator * self,
+                                  GumStalkerCallout callout,
+                                  gpointer user_data)
+{
+  GumExecBlock * block = self->exec_block;
+  GumGeneratorContext * gc = self->generator_context;
+
+  gum_exec_block_open_prolog (block, GUM_PROLOG_FULL, gc);
+
+  gum_arm64_writer_put_call_address_with_arguments (gc->code_writer,
+      GUM_ADDRESS (callout), 2,
+      GUM_ARG_REGISTER, ARM64_REG_X20,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (user_data));
+
+  gum_exec_block_close_prolog (block, gc);
+}
+
 static void
 gum_exec_ctx_write_prolog (GumExecCtx * ctx,
                            GumPrologType type,

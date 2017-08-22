@@ -61,12 +61,12 @@ typedef struct _GumStalkerPrivate    GumStalkerPrivate;
 
 typedef struct _GumStalkerTransformer GumStalkerTransformer;
 typedef struct _GumStalkerTransformerIface GumStalkerTransformerIface;
-
 typedef struct _GumStalkerIterator GumStalkerIterator;
 typedef union _GumStalkerWriter GumStalkerWriter;
-
 typedef void (* GumStalkerTransformerCallback) (GumStalkerIterator * iterator,
     GumStalkerWriter * output, gpointer user_data);
+typedef void (* GumStalkerCallout) (GumCpuContext * cpu_context,
+    gpointer user_data);
 
 typedef guint GumProbeId;
 typedef struct _GumCallSite GumCallSite;
@@ -156,6 +156,8 @@ GUM_API void gum_stalker_transformer_transform_block (
 GUM_API gboolean gum_stalker_iterator_next (GumStalkerIterator * self,
     const cs_insn ** insn);
 GUM_API void gum_stalker_iterator_keep (GumStalkerIterator * self);
+GUM_API void gum_stalker_iterator_put_callout (GumStalkerIterator * self,
+    GumStalkerCallout callout, gpointer user_data);
 
 G_END_DECLS
 

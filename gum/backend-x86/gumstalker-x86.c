@@ -1392,6 +1392,36 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
   self->requirements = requirements;
 }
 
+void
+gum_stalker_iterator_put_callout (GumStalkerIterator * self,
+                                  GumStalkerCallout callout,
+                                  gpointer user_data)
+{
+  GumExecBlock * block = self->exec_block;
+  GumGeneratorContext * gc = self->generator_context;
+  GumX86Writer * cw = gc->code_writer;
+#if GLIB_SIZEOF_VOID_P == 4
+  guint align_correction = 8;
+#endif
+
+  gum_exec_block_open_prolog (block, GUM_PROLOG_FULL, gc);
+
+#if GLIB_SIZEOF_VOID_P == 4
+  gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XSP, align_correction);
+#endif
+
+  gum_x86_writer_put_call_address_with_arguments (cw,
+      GUM_CALL_CAPI, GUM_ADDRESS (callout), 2,
+      GUM_ARG_REGISTER, GUM_REG_XBX,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (user_data));
+
+#if GLIB_SIZEOF_VOID_P == 4
+  gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XSP, align_correction);
+#endif
+
+  gum_exec_block_close_prolog (block, gc);
+}
+
 static void
 gum_exec_ctx_write_prolog (GumExecCtx * ctx,
                            GumPrologType type,

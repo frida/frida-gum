@@ -71,6 +71,7 @@ static void pretend_workload (void);
 static gpointer stalker_victim (gpointer data);
 static void insert_extra_increment_after_xor (GumStalkerIterator * iterator,
     GumStalkerWriter * output, gpointer user_data);
+static void store_xax (GumCpuContext * cpu_context, gpointer user_data);
 static void invoke_follow_return_code (TestStalkerFixture * fixture);
 static void invoke_unfollow_deep_code (TestStalkerFixture * fixture);
 
@@ -524,10 +525,16 @@ invoke_jumpy (TestStalkerFixture * fixture,
 
 STALKER_TESTCASE (custom_transformer)
 {
+  gsize last_xax = 0;
+
   fixture->transformer = gum_stalker_transformer_make_from_callback (
-      insert_extra_increment_after_xor, NULL, NULL);
+      insert_extra_increment_after_xor, &last_xax, NULL);
+
+  g_assert_cmpuint (last_xax, ==, 0);
 
   invoke_flat_expecting_return_value (fixture, GUM_NOTHING, 3);
+
+  g_assert_cmpuint (last_xax, ==, 3);
 }
 
 static void
@@ -535,15 +542,37 @@ insert_extra_increment_after_xor (GumStalkerIterator * iterator,
                                   GumStalkerWriter * output,
                                   gpointer user_data)
 {
+  gsize * last_xax = user_data;
   const cs_insn * insn;
+  gboolean in_leaf_func;
+
+  in_leaf_func = FALSE;
 
   while (gum_stalker_iterator_next (iterator, &insn))
   {
+    if (in_leaf_func && insn->id == X86_INS_RET)
+    {
+      gum_stalker_iterator_put_callout (iterator, store_xax, last_xax);
+    }
+
     gum_stalker_iterator_keep (iterator);
 
     if (insn->id == X86_INS_XOR)
+    {
+      in_leaf_func = TRUE;
+
       gum_x86_writer_put_inc_reg (&output->x86, GUM_REG_EAX);
+    }
   }
+}
+
+static void
+store_xax (GumCpuContext * cpu_context,
+           gpointer user_data)
+{
+  gsize * last_xax = user_data;
+
+  *last_xax = GUM_CPU_CONTEXT_XAX (cpu_context);
 }
 
 STALKER_TESTCASE (unconditional_jumps)
