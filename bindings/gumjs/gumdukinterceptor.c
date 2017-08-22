@@ -447,7 +447,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
     duk_put_prop_string (ctx, -2, "\xff" "on-leave");
   }
 
-  g_hash_table_insert (self->invocation_listeners, listener, listener);
+  g_hash_table_add (self->invocation_listeners, listener);
 
   return 1;
 

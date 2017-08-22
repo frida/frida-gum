@@ -481,7 +481,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
     auto listener_value (listener_template_value->Clone ());
     listener_value->SetAlignedPointerInInternalField (0, listener);
 
-    g_hash_table_insert (module->invocation_listeners, listener, listener);
+    g_hash_table_add (module->invocation_listeners, listener);
 
     info.GetReturnValue ().Set (listener_value);
   }

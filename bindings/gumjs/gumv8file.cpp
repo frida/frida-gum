@@ -183,7 +183,7 @@ gum_file_new (Handle<Object> wrapper,
   file->handle = handle;
   file->module = module;
 
-  g_hash_table_insert (module->files, file, file);
+  g_hash_table_add (module->files, file);
 
   return file;
 }

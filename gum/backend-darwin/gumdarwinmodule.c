@@ -539,7 +539,7 @@ gum_emit_import (const GumDarwinBindDetails * details,
       NULL);
   if (g_hash_table_lookup (ctx->imports_seen, key) == NULL)
   {
-    g_hash_table_insert (ctx->imports_seen, key, key);
+    g_hash_table_add (ctx->imports_seen, key);
 
     ctx->carry_on = ctx->func (&d, ctx->user_data);
   }

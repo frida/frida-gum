@@ -2340,7 +2340,7 @@ gumjs_native_function_init (Handle<Object> wrapper,
       WeakCallbackType::kParameter);
   func->wrapper->MarkIndependent ();
 
-  g_hash_table_insert (core->native_functions, func, func);
+  g_hash_table_add (core->native_functions, func);
 
   return func;
 
@@ -2594,7 +2594,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
       gum_v8_native_callback_on_weak_notify, WeakCallbackType::kParameter);
   callback->wrapper->MarkIndependent ();
 
-  g_hash_table_insert (core->native_callbacks, callback, callback);
+  g_hash_table_add (core->native_callbacks, callback);
 
   return;
 
@@ -2848,7 +2848,7 @@ gum_v8_source_map_new (Handle<Object> wrapper,
 
   map->core = core;
 
-  g_hash_table_insert (core->source_maps, map, map);
+  g_hash_table_add (core->source_maps, map);
 
   return map;
 }

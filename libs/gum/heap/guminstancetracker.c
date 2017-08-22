@@ -362,7 +362,7 @@ gum_instance_tracker_add_instance (GumInstanceTracker * self,
   GUM_INSTANCE_TRACKER_LOCK ();
 
   g_assert (g_hash_table_lookup (priv->instances_ht, instance) == NULL);
-  g_hash_table_insert (priv->instances_ht, instance, instance);
+  g_hash_table_add (priv->instances_ht, instance);
 
   count = COUNTER_TABLE_GET (instance_type);
   COUNTER_TABLE_SET (instance_type, count + 1);

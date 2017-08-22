@@ -182,7 +182,7 @@ gum_code_allocator_try_alloc_slice_near (GumCodeAllocator * self,
 
       self->free_slices = g_list_remove_link (self->free_slices, cur);
 
-      g_hash_table_insert (self->dirty_pages, pages, pages);
+      g_hash_table_add (self->dirty_pages, pages);
 
       return slice;
     }
@@ -327,7 +327,7 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
   if (!rwx_supported)
     self->uncommitted_pages = g_slist_prepend (self->uncommitted_pages, pages);
 
-  g_hash_table_insert (self->dirty_pages, pages, pages);
+  g_hash_table_add (self->dirty_pages, pages);
 
   return result;
 }

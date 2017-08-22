@@ -373,7 +373,7 @@ gum_database_new (sqlite3 * handle,
 
   object->SetAlignedPointerInInternalField (0, database);
 
-  g_hash_table_insert (module->databases, database, database);
+  g_hash_table_add (module->databases, database);
 
   return object;
 }
@@ -532,7 +532,7 @@ gum_statement_new (sqlite3_stmt * handle,
 
   object->SetAlignedPointerInInternalField (0, statement);
 
-  g_hash_table_insert (module->statements, statement, statement);
+  g_hash_table_add (module->statements, statement);
 
   return object;
 }

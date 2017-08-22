@@ -888,7 +888,7 @@ gum_duk_script_backend_on_debug_handler_attached (GumDukScriptBackend * self)
     g_free (name);
     g_object_unref (script);
 
-    g_hash_table_insert (priv->debug_handler_announced_scripts, raw_id, raw_id);
+    g_hash_table_add (priv->debug_handler_announced_scripts, raw_id);
 
     script_index++;
   }
@@ -965,8 +965,7 @@ gum_duk_script_backend_notify_script_added (GumNotifyScriptAddedData * d)
   if (priv->debug_handler == NULL)
     return FALSE;
 
-  if (!g_hash_table_insert (priv->debug_handler_announced_scripts, raw_id,
-      raw_id))
+  if (!g_hash_table_add (priv->debug_handler_announced_scripts, raw_id))
     return FALSE;
 
   name_escaped = g_strescape (d->name, NULL);

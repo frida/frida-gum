@@ -227,7 +227,7 @@ gum_objc_api_resolver_enumerate_matches_for_class (GumObjcApiResolver * self,
 
   if (g_hash_table_lookup (visited_classes, klass) != NULL)
     return TRUE;
-  g_hash_table_insert (visited_classes, klass, klass);
+  g_hash_table_add (visited_classes, klass);
 
   method_types = (method_type == '*') ? all_method_types : one_method_type;
 

@@ -660,7 +660,7 @@ _gum_v8_native_resource_new (gpointer data,
 
   core->isolate->AdjustAmountOfExternalAllocatedMemory (size);
 
-  g_hash_table_insert (core->native_resources, resource, resource);
+  g_hash_table_add (core->native_resources, resource);
 
   return resource;
 }

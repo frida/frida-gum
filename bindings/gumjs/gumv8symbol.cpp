@@ -338,7 +338,7 @@ gum_symbol_new (GumV8Symbol * module,
 
   isolate->AdjustAmountOfExternalAllocatedMemory (sizeof (GumSymbol));
 
-  g_hash_table_insert (module->symbols, s, s);
+  g_hash_table_add (module->symbols, s);
 
   *symbol = s;
 

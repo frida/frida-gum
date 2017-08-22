@@ -296,7 +296,7 @@ gum_consume_symbols (bfd * abfd,
         sym->name[0] == '$' && sym->name[1] == 't')
     {
       address = base_address + bfd_asymbol_value (sym);
-      g_hash_table_insert (thumb_symbols, address, address);
+      g_hash_table_add (thumb_symbols, address);
     }
   }
 #endif
