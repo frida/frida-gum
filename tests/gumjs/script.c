@@ -292,6 +292,230 @@ SCRIPT_TESTCASE (instruction_can_be_parsed)
     EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
         "Error: access violation accessing 0x1");
   }
+
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+  COMPILE_AND_LOAD_SCRIPT (
+      "var code = Memory.alloc(Process.pageSize);"
+
+      "var cw = new X86Writer(code);"
+      "cw.putMovRegU32('eax', 42);"
+      "cw.putCallRegOffsetPtr('rax', 12);"
+      "cw.flush();"
+
+      "var mov = Instruction.parse(code);"
+      "send(mov.mnemonic);"
+      "var operands = mov.operands;"
+      "send(operands.length);"
+      "send(operands[0].type);"
+      "send(operands[0].value);"
+      "send(operands[1].type);"
+      "send(operands[1].value);"
+
+      "var call = Instruction.parse(mov.next);"
+      "send(call.mnemonic);"
+      "operands = call.operands;"
+      "send(operands[0].type);"
+      "var memProps = Object.keys(operands[0].value);"
+      "memProps.sort();"
+      "send(memProps);"
+      "send(operands[0].value.base);"
+      "send(operands[0].value.scale);"
+      "send(operands[0].value.disp);");
+
+  EXPECT_SEND_MESSAGE_WITH ("\"mov\"");
+  EXPECT_SEND_MESSAGE_WITH ("2");
+  EXPECT_SEND_MESSAGE_WITH ("\"reg\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"eax\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"imm\"");
+  EXPECT_SEND_MESSAGE_WITH ("42");
+
+  EXPECT_SEND_MESSAGE_WITH ("\"call\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"mem\"");
+  EXPECT_SEND_MESSAGE_WITH ("[\"base\",\"disp\",\"scale\"]");
+  EXPECT_SEND_MESSAGE_WITH ("\"rax\"");
+  EXPECT_SEND_MESSAGE_WITH ("1");
+  EXPECT_SEND_MESSAGE_WITH ("12");
+#elif defined (HAVE_ARM)
+  COMPILE_AND_LOAD_SCRIPT (
+      "var code = Memory.alloc(Process.pageSize);"
+
+      "var tw = new ThumbWriter(code);"
+      "tw.putLdrRegU32('r0', 42);"
+      "tw.putBlImm(code.add(64));"
+      /* sxtb.w r3, r7, ror 16 */
+      "tw.putInstruction(0xfa4f); tw.putInstruction(0xf3a7);"
+      /* vdup.8 d3, d7[1] */
+      "tw.putInstruction(0xffb3); tw.putInstruction(0x3c07);"
+      "tw.flush();"
+
+      "var ldr = Instruction.parse(code.or(1));"
+      "send(ldr.mnemonic);"
+      "var operands = ldr.operands;"
+      "send(operands.length);"
+      "send(operands[0].type);"
+      "send(operands[0].value);"
+      "send(operands[1].type);"
+      "send(operands[1].value.base);"
+      "send(operands[1].value.scale);"
+      "var disp = operands[1].value.disp;"
+      "send(Memory.readU32(ldr.address.add(4 + disp)));"
+
+      "var bl = Instruction.parse(ldr.next);"
+      "send(bl.mnemonic);"
+      "operands = bl.operands;"
+      "send(operands[0].type);"
+      "send(ptr(operands[0].value).equals(code.add(64)));"
+
+      "var sxtb = Instruction.parse(bl.next);"
+      "send(sxtb.mnemonic);"
+      "operands = sxtb.operands;"
+      "send(typeof operands[0].shift);"
+      "send(operands[1].shift.type);"
+      "send(operands[1].shift.value);"
+
+      "var vdup = Instruction.parse(sxtb.next);"
+      "send(vdup.mnemonic);"
+      "operands = vdup.operands;"
+      "send(typeof operands[0].vectorIndex);"
+      "send(operands[1].vectorIndex);"
+
+      "var aw = new ArmWriter(code);"
+      "aw.putInstruction(0xe00380f7);" /* strd r8, sb, [r3], -r7 */
+      "aw.flush();"
+
+      "var strdeq = Instruction.parse(code);"
+      "send(strdeq.mnemonic);"
+      "operands = strdeq.operands;"
+      "send(operands[0].subtracted);"
+      "send(operands[1].subtracted);"
+      "send(operands[2].subtracted);"
+      "send(operands[3].subtracted);"
+      );
+
+  EXPECT_SEND_MESSAGE_WITH ("\"ldr\"");
+  EXPECT_SEND_MESSAGE_WITH ("2");
+  EXPECT_SEND_MESSAGE_WITH ("\"reg\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"r0\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"mem\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"pc\"");
+  EXPECT_SEND_MESSAGE_WITH ("1");
+  EXPECT_SEND_MESSAGE_WITH ("42");
+
+  EXPECT_SEND_MESSAGE_WITH ("\"bl\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"imm\"");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
+  EXPECT_SEND_MESSAGE_WITH ("\"sxtb.w\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"ror\"");
+  EXPECT_SEND_MESSAGE_WITH ("16");
+
+  EXPECT_SEND_MESSAGE_WITH ("\"vdup.8\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
+  EXPECT_SEND_MESSAGE_WITH ("1");
+
+  EXPECT_SEND_MESSAGE_WITH ("\"strd\"");
+  EXPECT_SEND_MESSAGE_WITH ("false");
+  EXPECT_SEND_MESSAGE_WITH ("false");
+  EXPECT_SEND_MESSAGE_WITH ("false");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+#elif defined (HAVE_ARM64)
+  COMPILE_AND_LOAD_SCRIPT (
+      "var code = Memory.alloc(Process.pageSize);"
+
+      "var cw = new Arm64Writer(code);"
+      "cw.putLdrRegU64('x0', 42);"
+      "cw.putStrRegRegOffset('x0', 'x7', 32);"
+      "cw.putInstruction(0xcb422020);" /* sub x0, x1, x2, lsr #8 */
+      "cw.putInstruction(0x8b230841);" /* add x1, x2, w3, uxtb #2 */
+      "cw.putInstruction(0x4ee28420);" /* add.2d v0, v1, v2 */
+      "cw.putInstruction(0x9eae00e5);" /* fmov.d x5, v7[1] */
+      "cw.flush();"
+
+      "var ldr = Instruction.parse(code);"
+      "send(ldr.mnemonic);"
+      "var operands = ldr.operands;"
+      "send(operands.length);"
+      "send(operands[0].type);"
+      "send(operands[0].value);"
+      "send(operands[1].type);"
+      "send(Memory.readU64(ptr(operands[1].value)).valueOf());"
+
+      "var str = Instruction.parse(ldr.next);"
+      "send(str.mnemonic);"
+      "operands = str.operands;"
+      "send(operands[1].type);"
+      "var memProps = Object.keys(operands[1].value);"
+      "memProps.sort();"
+      "send(memProps);"
+      "send(operands[1].value.base);"
+      "send(operands[1].value.disp);"
+
+      "var sub = Instruction.parse(str.next);"
+      "send(sub.mnemonic);"
+      "operands = sub.operands;"
+      "send(typeof operands[0].shift);"
+      "send(typeof operands[1].shift);"
+      "send(operands[2].shift.type);"
+      "send(operands[2].shift.value);"
+
+      "var add = Instruction.parse(sub.next);"
+      "send(add.mnemonic);"
+      "operands = add.operands;"
+      "send(typeof operands[0].ext);"
+      "send(typeof operands[1].ext);"
+      "send(operands[2].ext);"
+
+      "var vadd = Instruction.parse(add.next);"
+      "send(vadd.mnemonic);"
+      "operands = vadd.operands;"
+      "send(operands[0].vas);"
+      "send(operands[1].vas);"
+      "send(operands[2].vas);"
+
+      "var fmov = Instruction.parse(vadd.next);"
+      "send(fmov.mnemonic);"
+      "operands = fmov.operands;"
+      "send(typeof operands[0].vess);"
+      "send(typeof operands[0].vectorIndex);"
+      "send(operands[1].vess);"
+      "send(operands[1].vectorIndex);");
+
+  EXPECT_SEND_MESSAGE_WITH ("\"ldr\"");
+  EXPECT_SEND_MESSAGE_WITH ("2");
+  EXPECT_SEND_MESSAGE_WITH ("\"reg\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"x0\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"imm\"");
+  EXPECT_SEND_MESSAGE_WITH ("42");
+
+  EXPECT_SEND_MESSAGE_WITH ("\"str\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"mem\"");
+  EXPECT_SEND_MESSAGE_WITH ("[\"base\",\"disp\"]");
+  EXPECT_SEND_MESSAGE_WITH ("\"x7\"");
+  EXPECT_SEND_MESSAGE_WITH ("32");
+
+  EXPECT_SEND_MESSAGE_WITH ("\"sub\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"lsr\"");
+  EXPECT_SEND_MESSAGE_WITH ("8");
+
+  EXPECT_SEND_MESSAGE_WITH ("\"add\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"uxtb\"");
+
+  EXPECT_SEND_MESSAGE_WITH ("\"add\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"2d\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"2d\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"2d\"");
+
+  EXPECT_SEND_MESSAGE_WITH ("\"fmov\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"d\"");
+  EXPECT_SEND_MESSAGE_WITH ("1");
+#endif
 }
 
 SCRIPT_TESTCASE (instruction_can_be_generated)
