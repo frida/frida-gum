@@ -21,9 +21,12 @@ struct _GumDukStalker
   GumDukCodeWriter * writer;
   GumDukInstruction * instruction;
   GumDukCore * core;
+
   GumStalker * stalker;
   guint queue_capacity;
   guint queue_drain_interval;
+
+  GSource * flush_timer;
 
   GumDukHeapPtr iterator;
   GumDukHeapPtr probe_args;

@@ -65,6 +65,8 @@ struct _GumDukProbeArgs
   GumDukCore * core;
 };
 
+static gboolean gum_duk_stalker_on_flush_timer_tick (GumDukStalker * self);
+
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_stalker_construct)
 GUMJS_DECLARE_GETTER (gumjs_stalker_get_trust_threshold)
 GUMJS_DECLARE_SETTER (gumjs_stalker_set_trust_threshold)
@@ -190,9 +192,12 @@ _gum_duk_stalker_init (GumDukStalker * self,
   self->writer = writer;
   self->instruction = instruction;
   self->core = core;
+
   self->stalker = NULL;
   self->queue_capacity = 16384;
   self->queue_drain_interval = 250;
+
+  self->flush_timer = NULL;
 
   _gum_duk_store_module_data (ctx, "stalker", self);
 
@@ -235,12 +240,67 @@ _gum_duk_stalker_init (GumDukStalker * self,
 void
 _gum_duk_stalker_flush (GumDukStalker * self)
 {
-  if (self->stalker != NULL)
+  GumDukCore * core = self->core;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+  gboolean pending_garbage;
+
+  if (self->stalker == NULL)
+    return;
+
+  _gum_duk_scope_suspend (&scope);
+
+  gum_stalker_stop (self->stalker);
+
+  pending_garbage = gum_stalker_garbage_collect (self->stalker);
+
+  _gum_duk_scope_resume (&scope);
+
+  if (pending_garbage)
   {
-    gum_stalker_stop (self->stalker);
+    if (self->flush_timer == NULL)
+    {
+      GSource * source;
+
+      source = g_timeout_source_new (10);
+      g_source_set_callback (source,
+          (GSourceFunc) gum_duk_stalker_on_flush_timer_tick, self, NULL);
+      self->flush_timer = source;
+
+      _gum_duk_core_pin (core);
+      _gum_duk_scope_suspend (&scope);
+
+      g_source_attach (source,
+          gum_script_scheduler_get_js_context (core->scheduler));
+      g_source_unref (source);
+
+      _gum_duk_scope_resume (&scope);
+    }
+  }
+  else
+  {
     g_object_unref (self->stalker);
     self->stalker = NULL;
   }
+}
+
+static gboolean
+gum_duk_stalker_on_flush_timer_tick (GumDukStalker * self)
+{
+  gboolean pending_garbage;
+
+  pending_garbage = gum_stalker_garbage_collect (self->stalker);
+  if (!pending_garbage)
+  {
+    GumDukCore * core = self->core;
+    GumDukScope scope;
+
+    _gum_duk_scope_enter (&scope, core);
+    _gum_duk_core_unpin (core);
+    self->flush_timer = NULL;
+    _gum_duk_scope_leave (&scope);
+  }
+
+  return pending_garbage;
 }
 
 void
@@ -248,6 +308,8 @@ _gum_duk_stalker_dispose (GumDukStalker * self)
 {
   GumDukScope scope = GUM_DUK_SCOPE_INIT (self->core);
   duk_context * ctx = scope.ctx;
+
+  g_assert (self->flush_timer == NULL);
 
   gum_duk_probe_args_release (self->cached_probe_args);
   _gum_duk_instruction_release (self->cached_instruction);
@@ -718,9 +780,14 @@ static void
 gum_duk_call_probe_free (GumDukCallProbe * probe)
 {
   GumDukCore * core = probe->module->core;
-  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+  GumDukScope scope;
+  duk_context * ctx;
 
-  _gum_duk_unprotect (scope.ctx, probe->callback);
+  ctx = _gum_duk_scope_enter (&scope, core);
+
+  _gum_duk_unprotect (ctx, probe->callback);
+
+  _gum_duk_scope_leave (&scope);
 
   g_slice_free (GumDukCallProbe, probe);
 }
@@ -888,9 +955,14 @@ static void
 gum_duk_callout_free (GumDukCallout * callout)
 {
   GumDukCore * core = callout->module->core;
-  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+  GumDukScope scope;
+  duk_context * ctx;
 
-  _gum_duk_unprotect (scope.ctx, callout->callback);
+  ctx = _gum_duk_scope_enter (&scope, core);
+
+  _gum_duk_unprotect (ctx, callout->callback);
+
+  _gum_duk_scope_leave (&scope);
 
   g_slice_free (GumDukCallout, callout);
 }

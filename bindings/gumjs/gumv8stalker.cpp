@@ -57,6 +57,8 @@ struct GumV8StalkerIterator
   GumV8Stalker * module;
 };
 
+static gboolean gum_v8_stalker_on_flush_timer_tick (GumV8Stalker * self);
+
 GUMJS_DECLARE_GETTER (gumjs_stalker_get_trust_threshold)
 GUMJS_DECLARE_SETTER (gumjs_stalker_set_trust_threshold)
 
@@ -175,9 +177,12 @@ _gum_v8_stalker_init (GumV8Stalker * self,
   self->writer = writer;
   self->instruction = instruction;
   self->core = core;
+
   self->stalker = NULL;
   self->queue_capacity = 16384;
   self->queue_drain_interval = 250;
+
+  self->flush_timer = NULL;
 
   self->iterators = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_v8_stalker_iterator_free);
@@ -226,25 +231,75 @@ _gum_v8_stalker_realize (GumV8Stalker * self)
 void
 _gum_v8_stalker_flush (GumV8Stalker * self)
 {
-  auto isolate = self->core->isolate;
+  auto core = self->core;
+  auto isolate = core->isolate;
+  gboolean pending_garbage;
 
-  auto stalker = (GumStalker *) g_steal_pointer (&self->stalker);
-  if (stalker != NULL)
+  if (self->stalker == NULL)
+    return;
+
+  isolate->Exit ();
   {
-    isolate->Exit ();
-    {
-      Unlocker ul (isolate);
+    Unlocker ul (isolate);
 
-      gum_stalker_stop (stalker);
-      g_object_unref (stalker);
-    }
-    isolate->Enter ();
+    gum_stalker_stop (self->stalker);
+
+    pending_garbage = gum_stalker_garbage_collect (self->stalker);
   }
+  isolate->Enter ();
+
+  if (pending_garbage)
+  {
+    if (self->flush_timer == NULL)
+    {
+      auto source = g_timeout_source_new (10);
+      g_source_set_callback (source,
+          (GSourceFunc) gum_v8_stalker_on_flush_timer_tick, self, NULL);
+      self->flush_timer = source;
+
+      _gum_v8_core_pin (core);
+
+      isolate->Exit ();
+      {
+        Unlocker ul (isolate);
+
+        g_source_attach (source,
+            gum_script_scheduler_get_js_context (core->scheduler));
+        g_source_unref (source);
+      }
+      isolate->Enter ();
+    }
+  }
+  else
+  {
+    g_object_unref (self->stalker);
+    self->stalker = NULL;
+  }
+}
+
+static gboolean
+gum_v8_stalker_on_flush_timer_tick (GumV8Stalker * self)
+{
+  gboolean pending_garbage;
+
+  pending_garbage = gum_stalker_garbage_collect (self->stalker);
+  if (!pending_garbage)
+  {
+    GumV8Core * core = self->core;
+
+    ScriptScope scope (core->script);
+    _gum_v8_core_unpin (core);
+    self->flush_timer = NULL;
+  }
+
+  return pending_garbage;
 }
 
 void
 _gum_v8_stalker_dispose (GumV8Stalker * self)
 {
+  g_assert (self->flush_timer == NULL);
+
   _gum_v8_instruction_release_persistent (self->cached_instruction);
   self->cached_instruction = NULL;
 

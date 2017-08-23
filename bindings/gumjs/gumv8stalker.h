@@ -18,9 +18,12 @@ struct GumV8Stalker
   GumV8CodeWriter * writer;
   GumV8Instruction * instruction;
   GumV8Core * core;
+
   GumStalker * stalker;
   guint queue_capacity;
   guint queue_drain_interval;
+
+  GSource * flush_timer;
 
   GHashTable * iterators;
 
