@@ -1234,10 +1234,20 @@ SCRIPT_TESTCASE (native_pointer_to_match_pattern)
 SCRIPT_TESTCASE (native_pointer_can_be_constructed_from_64bit_value)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "send(ptr(0x1FFFFFFFF).equals(ptr(uint64(0x1FFFFFFFF))));"
-      "send(ptr(0x2FFFFFFFF).equals(ptr(int64(0x2FFFFFFFF))));");
+      "send(ptr(uint64(0x1ffffffff)).equals(ptr(0x1ffffffff)));"
+      "send(ptr(int64(0x2ffffffff)).equals(ptr(0x2ffffffff)));");
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
+
+#if GLIB_SIZEOF_VOID_P == 4
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(ptr(int64(-150450112)).equals(ptr('0xf7085040')));");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+#elif GLIB_SIZEOF_VOID_P == 8
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(ptr(int64(-1)).equals(ptr('0xffffffffffffffff')));");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+#endif
 }
 
 static gint
