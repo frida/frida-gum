@@ -696,8 +696,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_parse)
         break;
       }
       default:
-        g_assert_not_reached ();
-        break;
+        _gum_v8_throw_ascii_literal (isolate, "invalid event type");
+        return;
     }
 
     rows->Set ((uint32_t) row_index, row);

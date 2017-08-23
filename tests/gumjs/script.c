@@ -201,6 +201,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (execution_can_be_traced_with_custom_transformer)
   SCRIPT_TESTENTRY (call_can_be_probed)
 #endif
+  SCRIPT_TESTENTRY (stalker_events_can_be_parsed)
   SCRIPT_TESTENTRY (script_can_be_compiled_to_bytecode)
   SCRIPT_TESTENTRY (script_can_be_reloaded)
   SCRIPT_TESTENTRY (script_memory_usage)
@@ -1834,6 +1835,29 @@ SCRIPT_TESTCASE (call_can_be_probed)
 }
 
 #endif
+
+SCRIPT_TESTCASE (stalker_events_can_be_parsed)
+{
+  GumEvent ev;
+
+  ev.type = GUM_CALL;
+  ev.call.location = GSIZE_TO_POINTER (7);
+  ev.call.target = GSIZE_TO_POINTER (12);
+  ev.call.depth = 42;
+  COMPILE_AND_LOAD_SCRIPT ("send(Stalker.parse(Memory.readByteArray("
+      GUM_PTR_CONST ", %" G_GSIZE_FORMAT ")));", &ev, sizeof (ev));
+  EXPECT_SEND_MESSAGE_WITH ("[[\"call\",\"0x7\",\"0xc\",42]]");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Stalker.parse(new ArrayBuffer(0)));");
+  EXPECT_SEND_MESSAGE_WITH ("[]");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Stalker.parse(new ArrayBuffer(1)));");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER, "Error: invalid buffer shape");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Stalker.parse(new ArrayBuffer(%" G_GSIZE_FORMAT
+      ")));", sizeof (GumEvent));
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER, "Error: invalid event type");
+}
 
 SCRIPT_TESTCASE (frida_version_is_available)
 {

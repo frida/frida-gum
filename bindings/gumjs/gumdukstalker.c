@@ -697,8 +697,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_parse)
         break;
       }
       default:
-        g_assert_not_reached ();
-        break;
+        _gum_duk_throw (ctx, "invalid event type");
+        return 0;
     }
 
     duk_put_prop_index (ctx, -2, row_index);
