@@ -159,7 +159,13 @@ gumjs_runtime = custom_target('gumjs-runtime',
 )
 gumjs_sources += [gumjs_runtime]
 
+gumjs_c_args = []
+if host_os == 'android'
+  gumjs_c_args += '-DSQLITE_DISABLE_LFS'
+endif
+
 gumjs = library('frida-gumjs-' + api_version, gumjs_sources,
+  c_args: gumjs_c_args,
   include_directories: [bindings_inc],
   dependencies: [gum_dep, gio_dep, json_glib_dep, ffi_dep] + gumjs_extra_deps,
   install: true,
