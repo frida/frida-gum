@@ -881,11 +881,6 @@ GUMJS_DEFINE_FINALIZER (gumjs_invocation_context_finalize)
 {
   GumDukInvocationContext * self;
 
-  (void) args;
-
-  if (_gum_duk_is_arg0_equal_to_prototype (ctx, "InvocationContext"))
-    return 0;
-
   self = _gum_duk_steal_data (ctx, 0);
   if (self == NULL)
     return 0;
@@ -1051,11 +1046,6 @@ GUMJS_DEFINE_FINALIZER (gumjs_invocation_args_finalize)
 {
   GumDukInvocationArgs * self;
 
-  (void) args;
-
-  if (_gum_duk_is_arg0_equal_to_prototype (ctx, "InvocationArgs"))
-    return 0;
-
   self = _gum_duk_steal_data (ctx, 0);
   if (self == NULL)
     return 0;
@@ -1165,11 +1155,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_invocation_return_value_construct)
 GUMJS_DEFINE_FINALIZER (gumjs_invocation_return_value_finalize)
 {
   GumDukInvocationReturnValue * self;
-
-  (void) args;
-
-  if (_gum_duk_is_arg0_equal_to_prototype (ctx, "InvocationReturnValue"))
-    return 0;
 
   self = _gum_duk_steal_data (ctx, 0);
   if (self == NULL)

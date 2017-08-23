@@ -112,11 +112,6 @@ GUMJS_DEFINE_FINALIZER (gumjs_file_finalize)
 {
   GumFile * self;
 
-  (void) args;
-
-  if (_gum_duk_is_arg0_equal_to_prototype (ctx, "File"))
-    return 0;
-
   self = _gum_duk_steal_data (ctx, 0);
   if (self == NULL)
     return 0;

@@ -819,6 +819,7 @@ _gum_duk_core_init (GumDukCore * self,
   duk_put_function_list (ctx, -1, gumjs_native_pointer_functions);
   duk_push_c_function (ctx, gumjs_native_pointer_finalize, 2);
   duk_set_finalizer (ctx, -2);
+  self->native_pointer_prototype = _gum_duk_require_heapptr (ctx, -1);
   duk_put_prop_string (ctx, -2, "prototype");
   self->native_pointer = _gum_duk_require_heapptr (ctx, -1);
   duk_put_global_string (ctx, "NativePointer");
@@ -983,6 +984,7 @@ _gum_duk_core_dispose (GumDukCore * self)
   _gum_duk_release_heapptr (ctx, self->int64);
   _gum_duk_release_heapptr (ctx, self->uint64);
   _gum_duk_release_heapptr (ctx, self->native_pointer);
+  _gum_duk_release_heapptr (ctx, self->native_pointer_prototype);
   _gum_duk_release_heapptr (ctx, self->native_resource);
   _gum_duk_release_heapptr (ctx, self->native_function);
   _gum_duk_release_heapptr (ctx, self->native_function_prototype);
@@ -1865,11 +1867,6 @@ GUMJS_DEFINE_FINALIZER (gumjs_int64_finalize)
 {
   GumDukInt64 * self;
 
-  (void) args;
-
-  if (_gum_duk_is_arg0_equal_to_prototype (ctx, "Int64"))
-    return 0;
-
   self = _gum_duk_steal_data (ctx, 0);
   if (self == NULL)
     return 0;
@@ -2003,11 +2000,6 @@ GUMJS_DEFINE_FINALIZER (gumjs_uint64_finalize)
 {
   GumDukUInt64 * self;
 
-  (void) args;
-
-  if (_gum_duk_is_arg0_equal_to_prototype (ctx, "UInt64"))
-    return 0;
-
   self = _gum_duk_steal_data (ctx, 0);
   if (self == NULL)
     return 0;
@@ -2137,17 +2129,21 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
 
 GUMJS_DEFINE_FINALIZER (gumjs_native_pointer_finalize)
 {
+  GumDukCore * core = args->core;
   GumDukNativePointerImpl * self;
   gboolean heap_destruct;
 
-  if (_gum_duk_is_arg0_equal_to_prototype (ctx, "NativePointer"))
+  duk_push_heapptr (ctx, core->native_pointer_prototype);
+  if (duk_equals (ctx, 0, -1))
+  {
+    duk_pop (ctx);
     return 0;
+  }
+  duk_pop (ctx);
 
   heap_destruct = duk_require_boolean (ctx, 1);
   if (!heap_destruct)
   {
-    GumDukCore * core = args->core;
-
     self = _gum_duk_get_data (ctx, 0);
     if (self == NULL)
       return 0;
@@ -2358,11 +2354,6 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_resource_finalize)
 {
   GumDukNativeResource * self;
 
-  (void) args;
-
-  if (_gum_duk_is_arg0_equal_to_prototype (ctx, "NativeResource"))
-    return 0;
-
   self = _gum_duk_steal_data (ctx, 0);
   if (self == NULL)
     return 0;
@@ -2397,11 +2388,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
 GUMJS_DEFINE_FINALIZER (gumjs_native_function_finalize)
 {
   GumDukNativeFunction * self;
-
-  (void) args;
-
-  if (_gum_duk_is_arg0_equal_to_prototype (ctx, "NativeFunction"))
-    return 0;
 
   self = _gum_duk_steal_data (ctx, 0);
   if (self == NULL)
@@ -2810,11 +2796,6 @@ GUMJS_DEFINE_FINALIZER (gumjs_system_function_finalize)
 {
   GumDukNativeFunction * self;
 
-  (void) args;
-
-  if (_gum_duk_is_arg0_equal_to_prototype (ctx, "SystemFunction"))
-    return 0;
-
   self = _gum_duk_steal_data (ctx, 0);
   if (self == NULL)
     return 0;
@@ -2942,11 +2923,6 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_callback_finalize)
   GumDukNativeCallback * self;
   gboolean heap_destruct;
 
-  (void) args;
-
-  if (_gum_duk_is_arg0_equal_to_prototype (ctx, "NativeCallback"))
-    return 0;
-
   self = _gum_duk_steal_data (ctx, 0);
   if (self == NULL)
     return 0;
@@ -3068,11 +3044,6 @@ GUMJS_DEFINE_FINALIZER (gumjs_cpu_context_finalize)
 {
   GumDukCpuContext * self;
 
-  (void) args;
-
-  if (_gum_duk_is_arg0_equal_to_prototype (ctx, "CpuContext"))
-    return 0;
-
   self = _gum_duk_steal_data (ctx, 0);
   if (self == NULL)
     return 0;
@@ -3131,11 +3102,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_source_map_construct)
 GUMJS_DEFINE_FINALIZER (gumjs_source_map_finalize)
 {
   GumSourceMap * self;
-
-  (void) args;
-
-  if (_gum_duk_is_arg0_equal_to_prototype (ctx, "SourceMap"))
-    return 0;
 
   self = _gum_duk_steal_data (ctx, 0);
   if (self == NULL)

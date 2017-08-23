@@ -1611,20 +1611,6 @@ _gum_duk_add_properties_to_class (duk_context * ctx,
   duk_pop_2 (ctx);
 }
 
-gboolean
-_gum_duk_is_arg0_equal_to_prototype (duk_context * ctx,
-                                     const gchar * class_name)
-{
-  gboolean result;
-
-  duk_get_global_string (ctx, class_name);
-  duk_get_prop_string (ctx, -1, "prototype");
-  result = duk_equals (ctx, 0, -1);
-  duk_pop_2 (ctx);
-
-  return result;
-}
-
 void
 _gum_duk_protect (duk_context * ctx,
                   GumDukHeapPtr object)

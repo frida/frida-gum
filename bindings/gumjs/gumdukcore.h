@@ -88,6 +88,7 @@ struct _GumDukCore
   GumDukHeapPtr int64;
   GumDukHeapPtr uint64;
   GumDukHeapPtr native_pointer;
+  GumDukHeapPtr native_pointer_prototype;
   GumDukHeapPtr native_resource;
   GumDukHeapPtr native_function;
   GumDukHeapPtr native_function_prototype;

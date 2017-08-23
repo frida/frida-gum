@@ -138,8 +138,6 @@ G_GNUC_INTERNAL void _gum_duk_add_properties_to_class_by_heapptr (
     const GumDukPropertyEntry * entries);
 G_GNUC_INTERNAL void _gum_duk_add_properties_to_class (duk_context * ctx,
     const gchar * class_name, const GumDukPropertyEntry * entries);
-G_GNUC_INTERNAL gboolean _gum_duk_is_arg0_equal_to_prototype (duk_context * ctx,
-    const gchar * class_name);
 
 G_GNUC_INTERNAL void _gum_duk_protect (duk_context * ctx,
     GumDukHeapPtr object);
