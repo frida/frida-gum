@@ -1165,7 +1165,23 @@ _gum_v8_native_pointer_parse (Handle<Value> value,
   }
   else if (value->IsNumber ())
   {
-    *ptr = GSIZE_TO_POINTER (value.As<Number> ()->Value ());
+    double number = value.As<Number> ()->Value ();
+
+    if (number < 0)
+    {
+      union
+      {
+        gpointer p;
+        gint64 i;
+      } v;
+
+      v.i = (gint64) number;
+
+      *ptr = v.p;
+      return TRUE;
+    }
+
+    *ptr = GSIZE_TO_POINTER (number);
     return TRUE;
   }
   else

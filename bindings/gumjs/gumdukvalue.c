@@ -1040,7 +1040,18 @@ _gum_duk_parse_pointer (duk_context * ctx,
 
     number = duk_require_number (ctx, index);
     if (number < 0)
-      return FALSE;
+    {
+      union
+      {
+        gpointer p;
+        gint64 i;
+      } v;
+
+      v.i = (gint64) number;
+
+      *ptr = v.p;
+      return TRUE;
+    }
 
     *ptr = GSIZE_TO_POINTER ((gsize) number);
     return TRUE;
