@@ -389,8 +389,7 @@ SCRIPT_TESTCASE (instruction_can_be_parsed)
       "send(operands[0].subtracted);"
       "send(operands[1].subtracted);"
       "send(operands[2].subtracted);"
-      "send(operands[3].subtracted);"
-      );
+      "send(operands[3].subtracted);");
 
   EXPECT_SEND_MESSAGE_WITH ("\"ldr\"");
   EXPECT_SEND_MESSAGE_WITH ("2");
