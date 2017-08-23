@@ -130,6 +130,10 @@ static GumDukInstructionValue * gum_duk_stalker_obtain_instruction (
     GumDukStalker * self);
 static void gum_duk_stalker_release_instruction (GumDukStalker * self,
     GumDukInstructionValue * value);
+static GumDukCpuContext * gum_duk_stalker_obtain_cpu_context (
+    GumDukStalker * self);
+static void gum_duk_stalker_release_cpu_context (GumDukStalker * self,
+    GumDukCpuContext * cpu_context);
 static GumDukProbeArgs * gum_duk_stalker_obtain_probe_args (
     GumDukStalker * self);
 static void gum_duk_stalker_release_probe_args (GumDukStalker * self,
@@ -233,6 +237,9 @@ _gum_duk_stalker_init (GumDukStalker * self,
   self->cached_instruction = _gum_duk_instruction_new (instruction);
   self->cached_instruction_in_use = FALSE;
 
+  self->cached_cpu_context = _gum_duk_cpu_context_new (core);
+  self->cached_cpu_context_in_use = FALSE;
+
   self->cached_probe_args = gum_duk_probe_args_new (self);
   self->cached_probe_args_in_use = FALSE;
 }
@@ -312,6 +319,7 @@ _gum_duk_stalker_dispose (GumDukStalker * self)
   g_assert (self->flush_timer == NULL);
 
   gum_duk_probe_args_release (self->cached_probe_args);
+  _gum_duk_cpu_context_release (self->cached_cpu_context);
   _gum_duk_instruction_release (self->cached_instruction);
   gum_duk_stalker_iterator_release (self->cached_iterator);
 
@@ -978,18 +986,18 @@ gum_duk_callout_on_invoke (GumCpuContext * cpu_context,
 
   ctx = _gum_duk_scope_enter (&scope, module->core);
 
-  cpu_context_value = _gum_duk_push_cpu_context (ctx, cpu_context,
-      GUM_CPU_CONTEXT_READWRITE, module->core);
-
-  duk_push_heapptr (ctx, cpu_context_value->object);
+  cpu_context_value = gum_duk_stalker_obtain_cpu_context (module);
+  _gum_duk_cpu_context_reset (cpu_context_value, cpu_context,
+      GUM_CPU_CONTEXT_READWRITE);
 
   duk_push_heapptr (ctx, self->callback);
-  duk_dup (ctx, -2);
+  duk_push_heapptr (ctx, cpu_context_value->object);
   _gum_duk_scope_call (&scope, 1);
+  duk_pop (ctx);
 
-  _gum_duk_cpu_context_make_read_only (cpu_context_value);
-
-  duk_pop_2 (ctx);
+  _gum_duk_cpu_context_reset (cpu_context_value, NULL,
+      GUM_CPU_CONTEXT_READWRITE);
+  gum_duk_stalker_release_cpu_context (module, cpu_context_value);
 
   _gum_duk_scope_leave (&scope);
 }
@@ -1167,6 +1175,38 @@ gum_duk_stalker_release_instruction (GumDukStalker * self,
   else
   {
     _gum_duk_instruction_release (value);
+  }
+}
+
+static GumDukCpuContext *
+gum_duk_stalker_obtain_cpu_context (GumDukStalker * self)
+{
+  GumDukCpuContext * cpu_context;
+
+  if (!self->cached_cpu_context_in_use)
+  {
+    cpu_context = self->cached_cpu_context;
+    self->cached_cpu_context_in_use = TRUE;
+  }
+  else
+  {
+    cpu_context = _gum_duk_cpu_context_new (self->core);
+  }
+
+  return cpu_context;
+}
+
+static void
+gum_duk_stalker_release_cpu_context (GumDukStalker * self,
+                                     GumDukCpuContext * cpu_context)
+{
+  if (cpu_context == self->cached_cpu_context)
+  {
+    self->cached_cpu_context_in_use = FALSE;
+  }
+  else
+  {
+    _gum_duk_cpu_context_release (cpu_context);
   }
 }
 

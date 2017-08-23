@@ -37,6 +37,9 @@ struct _GumDukStalker
   GumDukInstructionValue * cached_instruction;
   gboolean cached_instruction_in_use;
 
+  GumDukCpuContext * cached_cpu_context;
+  gboolean cached_cpu_context_in_use;
+
   GumDukProbeArgs * cached_probe_args;
   gboolean cached_probe_args_in_use;
 };

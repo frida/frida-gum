@@ -146,6 +146,8 @@ struct _GumDukCpuContext
   GumCpuContext * handle;
   GumDukCpuContextAccess access;
   GumCpuContext storage;
+
+  GumDukCore * core;
 };
 
 enum _GumDukCpuContextAccess

@@ -3049,6 +3049,8 @@ gumjs_cpu_context_from_args (const GumDukArgs * args)
 
   duk_push_this (ctx);
   self = _gum_duk_require_data (ctx, -1);
+  if (self->handle == NULL)
+    _gum_duk_throw (ctx, "invalid operation");
   duk_pop (ctx);
 
   return self;

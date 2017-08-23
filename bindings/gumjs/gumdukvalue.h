@@ -104,6 +104,11 @@ G_GNUC_INTERNAL GumDukCpuContext * _gum_duk_push_cpu_context (duk_context * ctx,
     GumDukCore * core);
 G_GNUC_INTERNAL GumCpuContext * _gum_duk_get_cpu_context (duk_context * ctx,
     duk_idx_t index, GumDukCore * core);
+G_GNUC_INTERNAL GumDukCpuContext * _gum_duk_cpu_context_new (GumDukCore * core);
+G_GNUC_INTERNAL void _gum_duk_cpu_context_release (
+    GumDukCpuContext * cpu_context);
+G_GNUC_INTERNAL void _gum_duk_cpu_context_reset (GumDukCpuContext * self,
+    GumCpuContext * handle, GumDukCpuContextAccess access);
 G_GNUC_INTERNAL void _gum_duk_cpu_context_make_read_only (
     GumDukCpuContext * self);
 

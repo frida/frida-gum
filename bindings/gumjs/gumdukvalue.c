@@ -1295,17 +1295,9 @@ _gum_duk_push_cpu_context (duk_context * ctx,
   duk_new (ctx, 0);
   _gum_duk_put_data (ctx, -1, scc);
   scc->object = duk_require_heapptr (ctx, -1);
+  scc->core = core;
 
-  if (access == GUM_CPU_CONTEXT_READWRITE)
-  {
-    scc->handle = handle;
-  }
-  else
-  {
-    memcpy (&scc->storage, handle, sizeof (GumCpuContext));
-    scc->handle = &scc->storage;
-  }
-  scc->access = access;
+  _gum_duk_cpu_context_reset (scc, handle, access);
 
   return scc;
 }
@@ -1332,6 +1324,54 @@ _gum_duk_get_cpu_context (duk_context * ctx,
   instance = _gum_duk_require_data (ctx, index);
 
   return instance->handle;
+}
+
+GumDukCpuContext *
+_gum_duk_cpu_context_new (GumDukCore * core)
+{
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+  duk_context * ctx = scope.ctx;
+  GumDukCpuContext * cpu_context;
+
+  cpu_context = _gum_duk_push_cpu_context (ctx, NULL, GUM_CPU_CONTEXT_READWRITE,
+      core);
+  _gum_duk_protect (ctx, cpu_context->object);
+  duk_pop (ctx);
+
+  return cpu_context;
+}
+
+void
+_gum_duk_cpu_context_release (GumDukCpuContext * cpu_context)
+{
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (cpu_context->core);
+
+  _gum_duk_unprotect (scope.ctx, cpu_context->object);
+}
+
+void
+_gum_duk_cpu_context_reset (GumDukCpuContext * self,
+                            GumCpuContext * handle,
+                            GumDukCpuContextAccess access)
+{
+  if (handle != NULL)
+  {
+    if (access == GUM_CPU_CONTEXT_READWRITE)
+    {
+      self->handle = handle;
+    }
+    else
+    {
+      memcpy (&self->storage, handle, sizeof (GumCpuContext));
+      self->handle = &self->storage;
+    }
+  }
+  else
+  {
+    self->handle = NULL;
+  }
+
+  self->access = access;
 }
 
 void
