@@ -114,6 +114,8 @@ G_GNUC_INTERNAL const gchar * _gum_v8_memory_operation_to_string (
 
 G_GNUC_INTERNAL gboolean _gum_v8_object_set (v8::Handle<v8::Object> object,
     const gchar * key, v8::Handle<v8::Value> value, GumV8Core * core);
+G_GNUC_INTERNAL gboolean _gum_v8_object_set_int (v8::Handle<v8::Object> object,
+    const gchar * key, gint value, GumV8Core * core);
 G_GNUC_INTERNAL gboolean _gum_v8_object_set_uint (v8::Handle<v8::Object> object,
     const gchar * key, guint value, GumV8Core * core);
 G_GNUC_INTERNAL gboolean _gum_v8_object_set_pointer (

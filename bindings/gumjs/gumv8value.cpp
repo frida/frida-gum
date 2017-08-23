@@ -1426,6 +1426,18 @@ _gum_v8_object_set (Handle<Object> object,
 }
 
 gboolean
+_gum_v8_object_set_int (Handle<Object> object,
+                        const gchar * key,
+                        gint value,
+                        GumV8Core * core)
+{
+  return _gum_v8_object_set (object,
+      key,
+      Integer::New (core->isolate, value),
+      core);
+}
+
+gboolean
 _gum_v8_object_set_uint (Handle<Object> object,
                          const gchar * key,
                          guint value,
