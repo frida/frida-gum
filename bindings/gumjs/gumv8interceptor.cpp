@@ -60,7 +60,7 @@ struct GumV8InvocationArgs
   GumPersistent<v8::Object>::type * object;
   GumInvocationContext * ic;
 
-  GumV8Core * core;
+  GumV8Interceptor * module;
 };
 
 struct GumV8InvocationReturnValue
@@ -68,7 +68,7 @@ struct GumV8InvocationReturnValue
   GumPersistent<v8::Object>::type * object;
   GumInvocationContext * ic;
 
-  GumV8Core * core;
+  GumV8Interceptor * module;
 };
 
 struct GumV8ReplaceEntry
@@ -116,6 +116,9 @@ static GumV8InvocationContext * gum_v8_invocation_context_new_persistent (
     GumV8Interceptor * parent);
 static void gum_v8_invocation_context_release_persistent (
     GumV8InvocationContext * self);
+static void gum_v8_invocation_context_on_weak_notify (
+    const WeakCallbackInfo<GumV8InvocationContext> & info);
+static void gum_v8_invocation_context_free (GumV8InvocationContext * self);
 GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_return_address)
 GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_cpu_context)
 GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_system_error)
@@ -129,6 +132,9 @@ static GumV8InvocationArgs * gum_v8_invocation_args_new_persistent (
     GumV8Interceptor * parent);
 static void gum_v8_invocation_args_release_persistent (
     GumV8InvocationArgs * self);
+static void gum_v8_invocation_args_on_weak_notify (
+    const WeakCallbackInfo<GumV8InvocationArgs> & info);
+static void gum_v8_invocation_args_free (GumV8InvocationArgs * self);
 static void gum_v8_invocation_args_reset (GumV8InvocationArgs * self,
     GumInvocationContext * ic);
 static void gumjs_invocation_args_get_nth (uint32_t index,
@@ -139,6 +145,10 @@ static void gumjs_invocation_args_set_nth (uint32_t index,
 static GumV8InvocationReturnValue *
     gum_v8_invocation_return_value_new_persistent (GumV8Interceptor * parent);
 static void gum_v8_invocation_return_value_release_persistent (
+    GumV8InvocationReturnValue * self);
+static void gum_v8_invocation_return_value_on_weak_notify (
+    const WeakCallbackInfo<GumV8InvocationReturnValue> & info);
+static void gum_v8_invocation_return_value_free (
     GumV8InvocationReturnValue * self);
 static void gum_v8_invocation_return_value_reset (
     GumV8InvocationReturnValue * self, GumInvocationContext * ic);
@@ -222,6 +232,12 @@ _gum_v8_interceptor_init (GumV8Interceptor * self,
 
   self->invocation_listeners = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_v8_invocation_listener_destroy);
+  self->invocation_context_values = g_hash_table_new_full (NULL, NULL, NULL,
+      (GDestroyNotify) gum_v8_invocation_context_free);
+  self->invocation_args_values = g_hash_table_new_full (NULL, NULL, NULL,
+      (GDestroyNotify) gum_v8_invocation_args_free);
+  self->invocation_return_values = g_hash_table_new_full (NULL, NULL, NULL,
+      (GDestroyNotify) gum_v8_invocation_return_value_free);
   self->replacement_by_address = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_v8_replace_entry_free);
   self->flush_timer = NULL;
@@ -409,6 +425,15 @@ _gum_v8_interceptor_dispose (GumV8Interceptor * self)
 
   delete self->invocation_listener;
   self->invocation_listener = nullptr;
+
+  g_hash_table_unref (self->invocation_context_values);
+  self->invocation_context_values = NULL;
+
+  g_hash_table_unref (self->invocation_args_values);
+  self->invocation_args_values = NULL;
+
+  g_hash_table_unref (self->invocation_return_values);
+  self->invocation_return_values = NULL;
 }
 
 void
@@ -842,13 +867,33 @@ gum_v8_invocation_context_new_persistent (GumV8Interceptor * parent)
   jic->handle = NULL;
   jic->cpu_context = nullptr;
 
-  jic->core = parent->core;
+  jic->module = parent;
 
   return jic;
 }
 
 static void
 gum_v8_invocation_context_release_persistent (GumV8InvocationContext * self)
+{
+  self->object->MarkIndependent ();
+  self->object->SetWeak (self, gum_v8_invocation_context_on_weak_notify,
+      WeakCallbackType::kParameter);
+
+  g_hash_table_add (self->module->invocation_context_values, self);
+}
+
+static void
+gum_v8_invocation_context_on_weak_notify (
+    const WeakCallbackInfo<GumV8InvocationContext> & info)
+{
+  HandleScope handle_scope (info.GetIsolate ());
+  auto self = info.GetParameter ();
+
+  g_hash_table_remove (self->module->invocation_context_values, self);
+}
+
+static void
+gum_v8_invocation_context_free (GumV8InvocationContext * self)
 {
   delete self->object;
 
@@ -863,14 +908,30 @@ _gum_v8_invocation_context_reset (GumV8InvocationContext * self,
 
   if (self->cpu_context != nullptr)
   {
-    _gum_v8_cpu_context_free_later (self->cpu_context, self->core);
+    _gum_v8_cpu_context_free_later (self->cpu_context, self->module->core);
     self->cpu_context = nullptr;
   }
+}
+
+static gboolean
+gum_v8_invocation_context_check_valid (GumV8InvocationContext * self,
+                                       Isolate * isolate)
+{
+  if (self->handle == NULL)
+  {
+    _gum_v8_throw (isolate, "invalid operation");
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 GUMJS_DEFINE_CLASS_GETTER (gumjs_invocation_context_get_return_address,
                            GumV8InvocationContext)
 {
+  if (!gum_v8_invocation_context_check_valid (self, isolate))
+    return;
+
   auto return_address =
       gum_invocation_context_get_return_address (self->handle);
   info.GetReturnValue ().Set (
@@ -880,6 +941,9 @@ GUMJS_DEFINE_CLASS_GETTER (gumjs_invocation_context_get_return_address,
 GUMJS_DEFINE_CLASS_GETTER (gumjs_invocation_context_get_cpu_context,
                            GumV8InvocationContext)
 {
+  if (!gum_v8_invocation_context_check_valid (self, isolate))
+    return;
+
   auto context = self->cpu_context;
   if (context == nullptr)
   {
@@ -894,12 +958,18 @@ GUMJS_DEFINE_CLASS_GETTER (gumjs_invocation_context_get_cpu_context,
 GUMJS_DEFINE_CLASS_GETTER (gumjs_invocation_context_get_system_error,
                            GumV8InvocationContext)
 {
+  if (!gum_v8_invocation_context_check_valid (self, isolate))
+    return;
+
   info.GetReturnValue ().Set (self->handle->system_error);
 }
 
 GUMJS_DEFINE_CLASS_SETTER (gumjs_invocation_context_set_system_error,
                            GumV8InvocationContext)
 {
+  if (!gum_v8_invocation_context_check_valid (self, isolate))
+    return;
+
   gint system_error;
   if (!_gum_v8_int_get (value, &system_error, core))
     return;
@@ -910,6 +980,9 @@ GUMJS_DEFINE_CLASS_SETTER (gumjs_invocation_context_set_system_error,
 GUMJS_DEFINE_CLASS_GETTER (gumjs_invocation_context_get_thread_id,
                            GumV8InvocationContext)
 {
+  if (!gum_v8_invocation_context_check_valid (self, isolate))
+    return;
+
   info.GetReturnValue ().Set (
       gum_invocation_context_get_thread_id (self->handle));
 }
@@ -917,6 +990,9 @@ GUMJS_DEFINE_CLASS_GETTER (gumjs_invocation_context_get_thread_id,
 GUMJS_DEFINE_CLASS_GETTER (gumjs_invocation_context_get_depth,
                            GumV8InvocationContext)
 {
+  if (!gum_v8_invocation_context_check_valid (self, isolate))
+    return;
+
   info.GetReturnValue ().Set (
       (int32_t) gum_invocation_context_get_depth (self->handle));
 }
@@ -954,13 +1030,33 @@ gum_v8_invocation_args_new_persistent (GumV8Interceptor * parent)
   args->object = new GumPersistent<Object>::type (isolate, object);
   args->ic = NULL;
 
-  args->core = parent->core;
+  args->module = parent;
 
   return args;
 }
 
 static void
 gum_v8_invocation_args_release_persistent (GumV8InvocationArgs * self)
+{
+  self->object->MarkIndependent ();
+  self->object->SetWeak (self, gum_v8_invocation_args_on_weak_notify,
+      WeakCallbackType::kParameter);
+
+  g_hash_table_add (self->module->invocation_args_values, self);
+}
+
+static void
+gum_v8_invocation_args_on_weak_notify (
+    const WeakCallbackInfo<GumV8InvocationArgs> & info)
+{
+  HandleScope handle_scope (info.GetIsolate ());
+  auto self = info.GetParameter ();
+
+  g_hash_table_remove (self->module->invocation_args_values, self);
+}
+
+static void
+gum_v8_invocation_args_free (GumV8InvocationArgs * self)
 {
   delete self->object;
 
@@ -987,15 +1083,16 @@ gumjs_invocation_args_get_nth (uint32_t index,
                                const PropertyCallbackInfo<Value> & info)
 {
   auto self = gum_v8_invocation_args_get (info);
+  auto core = self->module->core;
 
   if (self->ic == NULL)
   {
-    _gum_v8_throw_ascii_literal (self->core->isolate, "invalid operation");
+    _gum_v8_throw_ascii_literal (core->isolate, "invalid operation");
     return;
   }
 
   info.GetReturnValue ().Set (_gum_v8_native_pointer_new (
-      gum_invocation_context_get_nth_argument (self->ic, index), self->core));
+      gum_invocation_context_get_nth_argument (self->ic, index), core));
 }
 
 static void
@@ -1004,17 +1101,18 @@ gumjs_invocation_args_set_nth (uint32_t index,
                                const PropertyCallbackInfo<Value> & info)
 {
   auto self = gum_v8_invocation_args_get (info);
+  auto core = self->module->core;
 
   if (self->ic == NULL)
   {
-    _gum_v8_throw_ascii_literal (self->core->isolate, "invalid operation");
+    _gum_v8_throw_ascii_literal (core->isolate, "invalid operation");
     return;
   }
 
   info.GetReturnValue ().Set (value);
 
   gpointer raw_value;
-  if (!_gum_v8_native_pointer_get (value, &raw_value, self->core))
+  if (!_gum_v8_native_pointer_get (value, &raw_value, core))
     return;
 
   gum_invocation_context_replace_nth_argument (self->ic, index, raw_value);
@@ -1034,7 +1132,7 @@ gum_v8_invocation_return_value_new_persistent (GumV8Interceptor * parent)
   retval->object = new GumPersistent<Object>::type (isolate, object);
   retval->ic = NULL;
 
-  retval->core = parent->core;
+  retval->module = parent;
 
   return retval;
 }
@@ -1042,6 +1140,26 @@ gum_v8_invocation_return_value_new_persistent (GumV8Interceptor * parent)
 static void
 gum_v8_invocation_return_value_release_persistent (
     GumV8InvocationReturnValue * self)
+{
+  self->object->MarkIndependent ();
+  self->object->SetWeak (self, gum_v8_invocation_return_value_on_weak_notify,
+      WeakCallbackType::kParameter);
+
+  g_hash_table_add (self->module->invocation_return_values, self);
+}
+
+static void
+gum_v8_invocation_return_value_on_weak_notify (
+    const WeakCallbackInfo<GumV8InvocationReturnValue> & info)
+{
+  HandleScope handle_scope (info.GetIsolate ());
+  auto self = info.GetParameter ();
+
+  g_hash_table_remove (self->module->invocation_return_values, self);
+}
+
+static void
+gum_v8_invocation_return_value_free (GumV8InvocationReturnValue * self)
 {
   delete self->object;
 

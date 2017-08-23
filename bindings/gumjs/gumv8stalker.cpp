@@ -91,6 +91,9 @@ static GumV8StalkerIterator * gum_v8_stalker_iterator_new_persistent (
     GumV8Stalker * parent);
 static void gum_v8_stalker_iterator_release_persistent (
     GumV8StalkerIterator * self);
+static void gum_v8_stalker_iterator_on_weak_notify (
+    const WeakCallbackInfo<GumV8StalkerIterator> & info);
+static void gum_v8_stalker_iterator_free (GumV8StalkerIterator * self);
 static void gum_v8_stalker_iterator_reset (GumV8StalkerIterator * self,
     GumStalkerIterator * handle);
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_iterator_next)
@@ -176,6 +179,9 @@ _gum_v8_stalker_init (GumV8Stalker * self,
   self->queue_capacity = 16384;
   self->queue_drain_interval = 250;
 
+  self->iterators = g_hash_table_new_full (NULL, NULL, NULL,
+      (GDestroyNotify) gum_v8_stalker_iterator_free);
+
   auto module = External::New (isolate, self);
 
   auto stalker = _gum_v8_create_module ("Stalker", scope, isolate);
@@ -253,6 +259,9 @@ _gum_v8_stalker_dispose (GumV8Stalker * self)
 
   delete self->iterator;
   self->iterator = nullptr;
+
+  g_hash_table_unref (self->iterators);
+  self->iterators = NULL;
 }
 
 void
@@ -763,6 +772,28 @@ gum_v8_stalker_iterator_new_persistent (GumV8Stalker * parent)
 
 static void
 gum_v8_stalker_iterator_release_persistent (GumV8StalkerIterator * self)
+{
+  auto object = self->parent.object;
+
+  object->MarkIndependent ();
+  object->SetWeak (self, gum_v8_stalker_iterator_on_weak_notify,
+      WeakCallbackType::kParameter);
+
+  g_hash_table_add (self->module->iterators, self);
+}
+
+static void
+gum_v8_stalker_iterator_on_weak_notify (
+    const WeakCallbackInfo<GumV8StalkerIterator> & info)
+{
+  HandleScope handle_scope (info.GetIsolate ());
+  auto self = info.GetParameter ();
+
+  g_hash_table_remove (self->module->iterators, self);
+}
+
+static void
+gum_v8_stalker_iterator_free (GumV8StalkerIterator * self)
 {
   _gum_v8_native_writer_finalize (&self->parent);
 

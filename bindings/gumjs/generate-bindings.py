@@ -1396,6 +1396,9 @@ def generate_v8_writer_base_methods(component):
     template = """\
 static {wrapper_struct_name} * {wrapper_function_prefix}_alloc (GumV8CodeWriter * module);
 static void {wrapper_function_prefix}_dispose ({wrapper_struct_name} * self);
+static void {wrapper_function_prefix}_mark_weak ({wrapper_struct_name} * self);
+static void {wrapper_function_prefix}_on_weak_notify (
+    const WeakCallbackInfo<{wrapper_struct_name}> & info);
 static gboolean {gumjs_function_prefix}_parse_constructor_args (const GumV8Args * args,
     gpointer * code_address, GumAddress * pc, gboolean * pc_specified);
 static gboolean {wrapper_function_prefix}_check ({wrapper_struct_name} * self,
@@ -1453,9 +1456,7 @@ _{wrapper_function_prefix}_release_persistent ({wrapper_struct_name} * writer)
 {{
   {wrapper_function_prefix}_dispose (writer);
 
-  auto object = (GumPersistent<v8::Object>::type *)
-      g_steal_pointer (&writer->object);
-  delete object;
+  {wrapper_function_prefix}_mark_weak (writer);
 }}
 
 void
@@ -1518,6 +1519,16 @@ static void
   g_slice_free ({wrapper_struct_name}, self);
 }}
 
+static void
+{wrapper_function_prefix}_mark_weak ({wrapper_struct_name} * self)
+{{
+  self->object->MarkIndependent ();
+  self->object->SetWeak (self, {wrapper_function_prefix}_on_weak_notify,
+      WeakCallbackType::kParameter);
+
+  g_hash_table_add (self->module->{flavor}_{name}s, self);
+}}
+
 {label_resolver}
 static void
 {wrapper_function_prefix}_on_weak_notify (
@@ -1525,6 +1536,7 @@ static void
 {{
   HandleScope handle_scope (info.GetIsolate ());
   auto self = info.GetParameter ();
+
   g_hash_table_remove (self->module->{flavor}_{name}s, self);
 }}
 
@@ -1569,11 +1581,7 @@ GUMJS_DEFINE_CONSTRUCTOR ({gumjs_function_prefix}_construct)
     writer = {wrapper_function_prefix}_alloc (module);
 
     writer->object = new GumPersistent<Object>::type (isolate, wrapper);
-    writer->object->MarkIndependent ();
-    writer->object->SetWeak (writer, {wrapper_function_prefix}_on_weak_notify,
-        WeakCallbackType::kParameter);
-
-    g_hash_table_add (module->{flavor}_writers, writer);
+    {wrapper_function_prefix}_mark_weak (writer);
 
     writer->impl = {impl_function_prefix}_new (code_address);
     if (pc_specified)
@@ -1692,6 +1700,7 @@ def generate_v8_relocator_base_methods(component):
     template = """\
 static {wrapper_struct_name} * {wrapper_function_prefix}_alloc (GumV8CodeRelocator * module);
 static void {wrapper_function_prefix}_dispose ({wrapper_struct_name} * self);
+static void {wrapper_function_prefix}_mark_weak ({wrapper_struct_name} * self);
 static void {wrapper_function_prefix}_on_weak_notify (
     const WeakCallbackInfo<{wrapper_struct_name}> & info);
 static gboolean {wrapper_function_prefix}_check ({wrapper_struct_name} * self,
@@ -1752,9 +1761,7 @@ _{wrapper_function_prefix}_release_persistent ({wrapper_struct_name} * relocator
 {{
   {wrapper_function_prefix}_dispose (relocator);
 
-  auto object = (GumPersistent<v8::Object>::type *)
-      g_steal_pointer (&relocator->object);
-  delete object;
+  {wrapper_function_prefix}_mark_weak (relocator);
 }}
 
 void
@@ -1818,11 +1825,22 @@ static void
 }}
 
 static void
+{wrapper_function_prefix}_mark_weak ({wrapper_struct_name} * self)
+{{
+  self->object->MarkIndependent ();
+  self->object->SetWeak (self, {wrapper_function_prefix}_on_weak_notify,
+      WeakCallbackType::kParameter);
+
+  g_hash_table_add (self->module->{flavor}_{name}s, self);
+}}
+
+static void
 {wrapper_function_prefix}_on_weak_notify (
     const WeakCallbackInfo<{wrapper_struct_name}> & info)
 {{
   HandleScope handle_scope (info.GetIsolate ());
   auto self = info.GetParameter ();
+
   g_hash_table_remove (self->module->{flavor}_{name}s, self);
 }}
 
@@ -1865,11 +1883,7 @@ GUMJS_DEFINE_CONSTRUCTOR ({gumjs_function_prefix}_construct)
     relocator = {wrapper_function_prefix}_alloc (module);
 
     relocator->object = new GumPersistent<Object>::type (isolate, wrapper);
-    relocator->object->MarkIndependent ();
-    relocator->object->SetWeak (relocator, {wrapper_function_prefix}_on_weak_notify,
-        WeakCallbackType::kParameter);
-
-    g_hash_table_add (module->{flavor}_relocators, relocator);
+    {wrapper_function_prefix}_mark_weak (relocator);
 
     relocator->impl = {impl_function_prefix}_new (input_code, writer);
   }}

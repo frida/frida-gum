@@ -181,9 +181,11 @@ _gum_v8_instruction_release_persistent (GumV8InstructionValue * value)
 {
   gum_v8_instruction_dispose (value);
 
-  auto object = (GumPersistent<v8::Object>::type *)
-      g_steal_pointer (&value->object);
-  delete object;
+  value->object->MarkIndependent ();
+  value->object->SetWeak (value, gum_v8_instruction_on_weak_notify,
+      WeakCallbackType::kParameter);
+
+  g_hash_table_add (value->module->instructions, value);
 }
 
 static GumV8InstructionValue *

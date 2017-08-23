@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -22,6 +22,9 @@ struct GumV8Interceptor
   GumInterceptor * interceptor;
 
   GHashTable * invocation_listeners;
+  GHashTable * invocation_context_values;
+  GHashTable * invocation_args_values;
+  GHashTable * invocation_return_values;
   GHashTable * replacement_by_address;
   GSource * flush_timer;
 
@@ -51,7 +54,7 @@ struct GumV8InvocationContext
   GumInvocationContext * handle;
   GumPersistent<v8::Object>::type * cpu_context;
 
-  GumV8Core * core;
+  GumV8Interceptor * module;
 };
 
 G_GNUC_INTERNAL void _gum_v8_interceptor_init (GumV8Interceptor * self,

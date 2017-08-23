@@ -22,6 +22,8 @@ struct GumV8Stalker
   guint queue_capacity;
   guint queue_drain_interval;
 
+  GHashTable * iterators;
+
   GumPersistent<v8::FunctionTemplate>::type * iterator;
   GumPersistent<v8::ObjectTemplate>::type * probe_args;
 
