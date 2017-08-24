@@ -299,11 +299,18 @@ SCRIPT_TESTCASE (instruction_can_be_parsed)
       "var code = Memory.alloc(Process.pageSize);"
 
       "var cw = new X86Writer(code);"
+      "cw.putU8(0xab);" /* stosd */
       "cw.putMovRegU32('eax', 42);"
       "cw.putCallRegOffsetPtr('rax', 12);"
       "cw.flush();"
 
-      "var mov = Instruction.parse(code);"
+      "var stosd = Instruction.parse(code);"
+      "send(stosd.mnemonic);"
+      "send(stosd.regsRead);"
+      "send(stosd.regsWritten);"
+      "send(stosd.groups);"
+
+      "var mov = Instruction.parse(stosd.next);"
       "send(mov.mnemonic);"
       "var operands = mov.operands;"
       "send(operands.length);"
@@ -311,6 +318,9 @@ SCRIPT_TESTCASE (instruction_can_be_parsed)
       "send(operands[0].value);"
       "send(operands[1].type);"
       "send(operands[1].value);"
+      "send(mov.regsRead);"
+      "send(mov.regsWritten);"
+      "send(mov.groups);"
 
       "var call = Instruction.parse(mov.next);"
       "send(call.mnemonic);"
@@ -321,7 +331,13 @@ SCRIPT_TESTCASE (instruction_can_be_parsed)
       "send(memProps);"
       "send(operands[0].value.base);"
       "send(operands[0].value.scale);"
-      "send(operands[0].value.disp);");
+      "send(operands[0].value.disp);"
+      "send(call.groups);");
+
+  EXPECT_SEND_MESSAGE_WITH ("\"stosd\"");
+  EXPECT_SEND_MESSAGE_WITH ("[\"eax\",\"rdi\",\"rflags\"]");
+  EXPECT_SEND_MESSAGE_WITH ("[\"rdi\"]");
+  EXPECT_SEND_MESSAGE_WITH ("[]");
 
   EXPECT_SEND_MESSAGE_WITH ("\"mov\"");
   EXPECT_SEND_MESSAGE_WITH ("2");
@@ -329,6 +345,9 @@ SCRIPT_TESTCASE (instruction_can_be_parsed)
   EXPECT_SEND_MESSAGE_WITH ("\"eax\"");
   EXPECT_SEND_MESSAGE_WITH ("\"imm\"");
   EXPECT_SEND_MESSAGE_WITH ("42");
+  EXPECT_SEND_MESSAGE_WITH ("[]");
+  EXPECT_SEND_MESSAGE_WITH ("[]");
+  EXPECT_SEND_MESSAGE_WITH ("[]");
 
   EXPECT_SEND_MESSAGE_WITH ("\"call\"");
   EXPECT_SEND_MESSAGE_WITH ("\"mem\"");
@@ -336,6 +355,7 @@ SCRIPT_TESTCASE (instruction_can_be_parsed)
   EXPECT_SEND_MESSAGE_WITH ("\"rax\"");
   EXPECT_SEND_MESSAGE_WITH ("1");
   EXPECT_SEND_MESSAGE_WITH ("12");
+  EXPECT_SEND_MESSAGE_WITH ("[\"call\",\"mode64\"]");
 #elif defined (HAVE_ARM)
   COMPILE_AND_LOAD_SCRIPT (
       "var code = Memory.alloc(Process.pageSize);"

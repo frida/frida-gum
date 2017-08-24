@@ -42,6 +42,9 @@ GUMJS_DECLARE_GETTER (gumjs_instruction_get_size)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_mnemonic)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_op_str)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_operands)
+GUMJS_DECLARE_GETTER (gumjs_instruction_get_regs_read)
+GUMJS_DECLARE_GETTER (gumjs_instruction_get_regs_written)
+GUMJS_DECLARE_GETTER (gumjs_instruction_get_groups)
 GUMJS_DECLARE_FUNCTION (gumjs_instruction_to_string)
 GUMJS_DECLARE_FUNCTION (gumjs_instruction_to_json)
 
@@ -71,6 +74,12 @@ static void gum_mips_push_memory_operand_value (duk_context * ctx,
     const mips_op_mem * mem, GumDukInstruction * module);
 #endif
 
+static void gum_push_regs (duk_context * ctx, const uint8_t * regs,
+    uint8_t count, GumDukInstruction * module);
+
+static void gum_push_groups (duk_context * ctx, const uint8_t * groups,
+    uint8_t count, GumDukInstruction * module);
+
 static const duk_function_list_entry gumjs_instruction_module_functions[] =
 {
   { "_parse", gumjs_instruction_parse, 1 },
@@ -86,6 +95,9 @@ static const GumDukPropertyEntry gumjs_instruction_values[] =
   { "mnemonic", gumjs_instruction_get_mnemonic, NULL },
   { "opStr", gumjs_instruction_get_op_str, NULL },
   { "operands", gumjs_instruction_get_operands, NULL },
+  { "regsRead", gumjs_instruction_get_regs_read, NULL },
+  { "regsWritten", gumjs_instruction_get_regs_written, NULL },
+  { "groups", gumjs_instruction_get_groups, NULL },
 
   { NULL, NULL, NULL }
 };
@@ -330,6 +342,46 @@ GUMJS_DEFINE_GETTER (gumjs_instruction_get_operands)
   GumDukInstructionValue * self = gumjs_instruction_from_args (args);
 
   gum_push_operands (ctx, self->insn, self->module);
+  return 1;
+}
+
+GUMJS_DEFINE_GETTER (gumjs_instruction_get_regs_read)
+{
+  GumDukInstructionValue * self;
+  const cs_detail * detail;
+
+  self = gumjs_instruction_from_args (args);
+
+  detail = self->insn->detail;
+
+  gum_push_regs (ctx, detail->regs_read, detail->regs_read_count, self->module);
+  return 1;
+}
+
+GUMJS_DEFINE_GETTER (gumjs_instruction_get_regs_written)
+{
+  GumDukInstructionValue * self;
+  const cs_detail * detail;
+
+  self = gumjs_instruction_from_args (args);
+
+  detail = self->insn->detail;
+
+  gum_push_regs (ctx, detail->regs_write, detail->regs_write_count,
+      self->module);
+  return 1;
+}
+
+GUMJS_DEFINE_GETTER (gumjs_instruction_get_groups)
+{
+  GumDukInstructionValue * self;
+  const cs_detail * detail;
+
+  self = gumjs_instruction_from_args (args);
+
+  detail = self->insn->detail;
+
+  gum_push_groups (ctx, detail->groups, detail->groups_count, self->module);
   return 1;
 }
 
@@ -888,3 +940,39 @@ gum_mips_push_memory_operand_value (duk_context * ctx,
 }
 
 #endif
+
+static void
+gum_push_regs (duk_context * ctx,
+               const uint8_t * regs,
+               uint8_t count,
+               GumDukInstruction * module)
+{
+  csh capstone = module->capstone;
+  uint8_t reg_index;
+
+  duk_push_array (ctx);
+
+  for (reg_index = 0; reg_index != count; reg_index++)
+  {
+    duk_push_string (ctx, cs_reg_name (capstone, regs[reg_index]));
+    duk_put_prop_index (ctx, -2, reg_index);
+  }
+}
+
+static void
+gum_push_groups (duk_context * ctx,
+                 const uint8_t * groups,
+                 uint8_t count,
+                 GumDukInstruction * module)
+{
+  csh capstone = module->capstone;
+  uint8_t group_index;
+
+  duk_push_array (ctx);
+
+  for (group_index = 0; group_index != count; group_index++)
+  {
+    duk_push_string (ctx, cs_group_name (capstone, groups[group_index]));
+    duk_put_prop_index (ctx, -2, group_index);
+  }
+}

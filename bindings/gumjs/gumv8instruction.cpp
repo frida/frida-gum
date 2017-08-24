@@ -54,6 +54,9 @@ GUMJS_DECLARE_GETTER (gumjs_instruction_get_size)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_mnemonic)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_op_str)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_operands)
+GUMJS_DECLARE_GETTER (gumjs_instruction_get_regs_read)
+GUMJS_DECLARE_GETTER (gumjs_instruction_get_regs_written)
+GUMJS_DECLARE_GETTER (gumjs_instruction_get_groups)
 GUMJS_DECLARE_FUNCTION (gumjs_instruction_to_string)
 static void gum_v8_instruction_on_weak_notify (
     const WeakCallbackInfo<GumV8InstructionValue> & info);
@@ -84,6 +87,12 @@ static Local<Object> gum_mips_parse_memory_operand_value (
     const mips_op_mem * mem, GumV8Instruction * module);
 #endif
 
+static Local<Array> gum_parse_regs (const uint8_t * regs, uint8_t count,
+    GumV8Instruction * module);
+
+static Local<Array> gum_parse_groups (const uint8_t * groups, uint8_t count,
+    GumV8Instruction * module);
+
 static const GumV8Function gumjs_instruction_module_functions[] =
 {
   { "_parse", gumjs_instruction_parse },
@@ -99,6 +108,9 @@ static const GumV8Property gumjs_instruction_values[] =
   { "mnemonic", gumjs_instruction_get_mnemonic, NULL },
   { "opStr", gumjs_instruction_get_op_str, NULL },
   { "operands", gumjs_instruction_get_operands, NULL },
+  { "regsRead", gumjs_instruction_get_regs_read, NULL },
+  { "regsWritten", gumjs_instruction_get_regs_written, NULL },
+  { "groups", gumjs_instruction_get_groups, NULL },
 
   { NULL, NULL, NULL }
 };
@@ -360,12 +372,49 @@ GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_op_str, GumV8InstructionValue)
       _gum_v8_string_new_ascii (isolate, self->insn->op_str));
 }
 
-GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_operands, GumV8InstructionValue)
+GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_operands,
+                           GumV8InstructionValue)
 {
   if (!gum_v8_instruction_check_valid (self, isolate))
     return;
 
   info.GetReturnValue ().Set (gum_parse_operands (self->insn, module));
+}
+
+GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_regs_read,
+                           GumV8InstructionValue)
+{
+  if (!gum_v8_instruction_check_valid (self, isolate))
+    return;
+
+  auto detail = self->insn->detail;
+
+  info.GetReturnValue ().Set (gum_parse_regs (detail->regs_read,
+      detail->regs_read_count, module));
+}
+
+GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_regs_written,
+                           GumV8InstructionValue)
+{
+  if (!gum_v8_instruction_check_valid (self, isolate))
+    return;
+
+  auto detail = self->insn->detail;
+
+  info.GetReturnValue ().Set (gum_parse_regs (detail->regs_write,
+      detail->regs_write_count, module));
+}
+
+GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_groups,
+                           GumV8InstructionValue)
+{
+  if (!gum_v8_instruction_check_valid (self, isolate))
+    return;
+
+  auto detail = self->insn->detail;
+
+  info.GetReturnValue ().Set (gum_parse_groups (detail->groups,
+      detail->groups_count, module));
 }
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_instruction_to_string, GumV8InstructionValue)
@@ -950,3 +999,43 @@ gum_mips_parse_memory_operand_value (const mips_op_mem * mem,
 }
 
 #endif
+
+static Local<Array>
+gum_parse_regs (const uint8_t * regs,
+                uint8_t count,
+                GumV8Instruction * module)
+{
+  auto isolate = module->core->isolate;
+  auto capstone = module->capstone;
+
+  auto elements = Array::New (isolate, count);
+
+  for (uint8_t reg_index = 0; reg_index != count; reg_index++)
+  {
+    auto name = cs_reg_name (capstone, regs[reg_index]);
+
+    elements->Set (reg_index, _gum_v8_string_new_ascii (isolate, name));
+  }
+
+  return elements;
+}
+
+static Local<Array>
+gum_parse_groups (const uint8_t * groups,
+                  uint8_t count,
+                  GumV8Instruction * module)
+{
+  auto isolate = module->core->isolate;
+  auto capstone = module->capstone;
+
+  auto elements = Array::New (isolate, count);
+
+  for (uint8_t group_index = 0; group_index != count; group_index++)
+  {
+    auto name = cs_group_name (capstone, groups[group_index]);
+
+    elements->Set (group_index, _gum_v8_string_new_ascii (isolate, name));
+  }
+
+  return elements;
+}
