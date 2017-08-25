@@ -177,6 +177,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (native_pointer_to_match_pattern)
   SCRIPT_TESTENTRY (native_pointer_can_be_constructed_from_64bit_value)
   SCRIPT_TESTENTRY (native_function_can_be_invoked)
+  SCRIPT_TESTENTRY (native_function_can_be_intercepted)
   SCRIPT_TESTENTRY (native_function_should_implement_call_and_apply)
   SCRIPT_TESTENTRY (system_function_can_be_invoked)
   SCRIPT_TESTENTRY (native_function_crash_results_in_exception)
@@ -800,6 +801,51 @@ SCRIPT_TESTCASE (native_function_can_be_invoked)
   EXPECT_SEND_MESSAGE_WITH ("\"4\"");
   EXPECT_SEND_MESSAGE_WITH ("\"16\"");
   EXPECT_SEND_MESSAGE_WITH ("\"36\"");
+  EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (native_function_can_be_intercepted)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter: function (args) {"
+      "    send('>a');"
+      "  },"
+      "  onLeave: function (retval) {"
+      "    send('<a');"
+      "  }"
+      "});"
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter: function (args) {"
+      "    send('>b');"
+      "  },"
+      "  onLeave: function (retval) {"
+      "    send('<b');"
+      "  }"
+      "});"
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter: function (args) {"
+      "    send('>c');"
+      "  },"
+      "  onLeave: function (retval) {"
+      "    send('<c');"
+      "  }"
+      "});"
+      "Interceptor.flush();"
+      "var f = new NativeFunction(" GUM_PTR_CONST ", 'int', ['int']);"
+      "send(f(42));",
+      target_function_nested_a,
+      target_function_nested_b,
+      target_function_nested_c,
+      target_function_nested_a);
+
+  EXPECT_SEND_MESSAGE_WITH ("\">a\"");
+  EXPECT_SEND_MESSAGE_WITH ("\">b\"");
+  EXPECT_SEND_MESSAGE_WITH ("\">c\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"<c\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"<b\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"<a\"");
+  EXPECT_SEND_MESSAGE_WITH ("16855020");
   EXPECT_NO_MESSAGES ();
 }
 
