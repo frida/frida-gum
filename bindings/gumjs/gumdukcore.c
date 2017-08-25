@@ -2737,15 +2737,22 @@ gum_duk_native_function_invoke (GumDukNativeFunction * self,
 
   {
     GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+    GumInterceptor * interceptor = core->interceptor->interceptor;
 
     _gum_duk_scope_suspend (&scope);
 
     if (gum_exceptor_try (core->exceptor, &exceptor_scope))
     {
+      gum_interceptor_unignore_current_thread (interceptor);
       ffi_call (&self->cif, implementation, rvalue, avalue);
+      gum_interceptor_ignore_current_thread (interceptor);
 
       if (self->enable_detailed_return)
         system_error = gum_thread_get_system_error ();
+    }
+    else
+    {
+      gum_interceptor_ignore_current_thread (interceptor);
     }
 
     _gum_duk_scope_resume (&scope);

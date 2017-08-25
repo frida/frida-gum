@@ -89,7 +89,7 @@ struct _InterceptorThreadContext
   GumInvocationBackend listener_backend;
   GumInvocationBackend replacement_backend;
 
-  guint ignore_level;
+  gint ignore_level;
 
   GumInvocationStack * stack;
 
@@ -1194,7 +1194,7 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
 
   if (invoke_listeners)
   {
-    invoke_listeners = (interceptor_ctx->ignore_level == 0);
+    invoke_listeners = (interceptor_ctx->ignore_level <= 0);
   }
 
   will_trap_on_leave = function_ctx->replacement_function != NULL ||

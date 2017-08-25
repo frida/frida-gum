@@ -177,6 +177,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (native_pointer_to_match_pattern)
   SCRIPT_TESTENTRY (native_pointer_can_be_constructed_from_64bit_value)
   SCRIPT_TESTENTRY (native_function_can_be_invoked)
+  SCRIPT_TESTENTRY (native_function_can_be_intercepted_when_thread_is_ignored)
   SCRIPT_TESTENTRY (native_function_should_implement_call_and_apply)
   SCRIPT_TESTENTRY (system_function_can_be_invoked)
   SCRIPT_TESTENTRY (native_function_crash_results_in_exception)
@@ -227,6 +228,9 @@ struct _TestTrigger
   GMutex mutex;
   GCond cond;
 };
+
+static gboolean ignore_thread (GumInterceptor * interceptor);
+static gboolean unignore_thread (GumInterceptor * interceptor);
 
 static gint gum_clobber_system_error (gint value);
 static gint gum_toupper (gchar * str, gint limit);
@@ -801,6 +805,67 @@ SCRIPT_TESTCASE (native_function_can_be_invoked)
   EXPECT_SEND_MESSAGE_WITH ("\"16\"");
   EXPECT_SEND_MESSAGE_WITH ("\"36\"");
   EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (native_function_can_be_intercepted_when_thread_is_ignored)
+{
+  GumInterceptor * interceptor;
+  GMainContext * js_context;
+  GSource * source;
+
+  interceptor = gum_interceptor_obtain ();
+
+  js_context = gum_script_backend_get_main_context (fixture->backend);
+
+  source = g_idle_source_new ();
+  g_source_set_callback (source, (GSourceFunc) ignore_thread,
+      g_object_ref (interceptor), g_object_unref);
+  g_source_attach (source, js_context);
+  g_source_unref (source);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var impl = " GUM_PTR_CONST ";"
+      "Interceptor.attach(impl, {"
+      "  onEnter: function (args) {"
+      "    send('>');"
+      "  },"
+      "  onLeave: function (retval) {"
+      "    send('<');"
+      "  }"
+      "});"
+      "Interceptor.flush();"
+      "var f = new NativeFunction(impl, 'int', ['int']);"
+      "send(f(42));",
+      target_function_nested_a);
+
+  EXPECT_SEND_MESSAGE_WITH ("\">\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"<\"");
+  EXPECT_SEND_MESSAGE_WITH ("16855020");
+  EXPECT_NO_MESSAGES ();
+
+  source = g_idle_source_new ();
+  g_source_set_callback (source, (GSourceFunc) unignore_thread,
+      g_object_ref (interceptor), g_object_unref);
+  g_source_attach (source, js_context);
+  g_source_unref (source);
+
+  g_object_unref (interceptor);
+}
+
+static gboolean
+ignore_thread (GumInterceptor * interceptor)
+{
+  gum_interceptor_ignore_current_thread (interceptor);
+
+  return FALSE;
+}
+
+static gboolean
+unignore_thread (GumInterceptor * interceptor)
+{
+  gum_interceptor_unignore_current_thread (interceptor);
+
+  return FALSE;
 }
 
 SCRIPT_TESTCASE (native_function_should_implement_call_and_apply)
