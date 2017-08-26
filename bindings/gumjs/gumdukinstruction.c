@@ -116,8 +116,15 @@ _gum_duk_instruction_init (GumDukInstruction * self,
 {
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   duk_context * ctx = scope.ctx;
+  cs_err err;
 
   self->core = core;
+
+  err = cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &self->capstone);
+  g_assert_cmpint (err, ==, CS_ERR_OK);
+
+  err = cs_option (self->capstone, CS_OPT_DETAIL, CS_OPT_ON);
+  g_assert_cmpint (err, ==, CS_ERR_OK);
 
   _gum_duk_store_module_data (ctx, "instruction", self);
 
@@ -220,17 +227,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_instruction_parse)
   module = gumjs_module_from_args (args);
 
   _gum_duk_args_parse (args, "p", &target);
-
-  if (module->capstone == 0)
-  {
-    cs_err err;
-
-    err = cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &module->capstone);
-    g_assert_cmpint (err, ==, CS_ERR_OK);
-
-    err = cs_option (module->capstone, CS_OPT_DETAIL, CS_OPT_ON);
-    g_assert_cmpint (err, ==, CS_ERR_OK);
-  }
 
 #ifdef HAVE_ARM
   address = GPOINTER_TO_SIZE (target) & ~1;
