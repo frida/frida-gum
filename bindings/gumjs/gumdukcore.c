@@ -2742,7 +2742,9 @@ gum_duk_native_function_invoke (GumDukNativeFunction * self,
 
     if (gum_exceptor_try (core->exceptor, &exceptor_scope))
     {
+      gum_interceptor_unignore_current_thread (core->interceptor);
       ffi_call (&self->cif, implementation, rvalue, avalue);
+      gum_interceptor_ignore_current_thread (core->interceptor);
 
       if (self->enable_detailed_return)
         system_error = gum_thread_get_system_error ();
@@ -2753,7 +2755,9 @@ gum_duk_native_function_invoke (GumDukNativeFunction * self,
 
   if (gum_exceptor_catch (core->exceptor, &exceptor_scope))
   {
+    gum_interceptor_ignore_current_thread (core->interceptor);
     _gum_duk_throw_native (ctx, &exceptor_scope.exception, core);
+    gum_interceptor_unignore_current_thread (core->interceptor);
   }
 
   if (self->enable_detailed_return)
