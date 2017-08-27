@@ -44,6 +44,8 @@ typedef struct _GumExecFrame GumExecFrame;
 typedef struct _GumExecCtx GumExecCtx;
 typedef void (* GumExecHelperWriteFunc) (GumExecCtx * ctx, GumX86Writer * cw);
 typedef struct _GumExecBlock GumExecBlock;
+typedef gpointer (GUM_THUNK * GumExecCtxReplaceCurrentBlockFunc) (
+    GumExecCtx * ctx, gpointer start_address);
 
 typedef guint GumPrologType;
 typedef guint GumCodeContext;
@@ -367,7 +369,8 @@ static GumVirtualizationRequirements gum_exec_block_virtualize_sysenter_insn (
 static void gum_exec_block_write_call_invoke_code (GumExecBlock * block,
     const GumBranchTarget * target, GumGeneratorContext * gc);
 static void gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
-    const GumBranchTarget * target, GumGeneratorContext * gc);
+    const GumBranchTarget * target, GumExecCtxReplaceCurrentBlockFunc func,
+    GumGeneratorContext * gc);
 static void gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
     GumGeneratorContext * gc);
 static void gum_exec_block_write_single_step_transfer_code (
@@ -1113,10 +1116,55 @@ gum_exec_ctx_has_executed (GumExecCtx * ctx)
   return ctx->resume_at != NULL;
 }
 
+static gboolean counters_enabled = FALSE;
+static guint total_transitions = 0;
+
+#define GUM_ENTRYGATE(name) \
+  gum_exec_ctx_replace_current_block_from_##name
+#define GUM_DEFINE_ENTRYGATE(name) \
+  static guint total_##name##s = 0; \
+  \
+  static gpointer GUM_THUNK \
+  GUM_ENTRYGATE (name) ( \
+      GumExecCtx * ctx, \
+      gpointer start_address) \
+  { \
+    if (counters_enabled) \
+      total_##name##s++; \
+    \
+    return gum_exec_ctx_replace_current_block_with (ctx, start_address); \
+  }
+#define GUM_PRINT_ENTRYGATE_COUNTER(name) \
+  g_printerr ("\t" G_STRINGIFY (name) "s: %u\n", total_##name##s)
+
+#if GLIB_SIZEOF_VOID_P == 4 && !defined (HAVE_QNX)
+GUM_DEFINE_ENTRYGATE (sysenter_slow_path)
+#endif
+
+GUM_DEFINE_ENTRYGATE (call_imm)
+GUM_DEFINE_ENTRYGATE (call_reg)
+GUM_DEFINE_ENTRYGATE (call_mem)
+GUM_DEFINE_ENTRYGATE (post_call_invoke)
+GUM_DEFINE_ENTRYGATE (ret_slow_path)
+
+GUM_DEFINE_ENTRYGATE (jmp_imm)
+GUM_DEFINE_ENTRYGATE (jmp_mem)
+GUM_DEFINE_ENTRYGATE (jmp_reg)
+
+GUM_DEFINE_ENTRYGATE (jmp_cond_imm)
+GUM_DEFINE_ENTRYGATE (jmp_cond_mem)
+GUM_DEFINE_ENTRYGATE (jmp_cond_reg)
+GUM_DEFINE_ENTRYGATE (jmp_cond_jcxz)
+
+GUM_DEFINE_ENTRYGATE (jmp_continuation)
+
 static gpointer GUM_THUNK
 gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
                                          gpointer start_address)
 {
+  if (counters_enabled)
+    total_transitions++;
+
   if (ctx->invalidate_pending)
   {
     gum_metal_hash_table_remove_all (ctx->mappings);
@@ -1294,7 +1342,8 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
     continue_target.is_indirect = FALSE;
     continue_target.absolute_address = gc.continuation_real_address;
 
-    gum_exec_block_write_jmp_transfer_code (block, &continue_target, &gc);
+    gum_exec_block_write_jmp_transfer_code (block, &continue_target,
+        GUM_ENTRYGATE (jmp_continuation), &gc);
   }
 
   gum_x86_writer_put_breakpoint (cw); /* should never get here */
@@ -2247,16 +2296,19 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
     gum_x86_writer_put_jmp_near_label (cw, is_false);
 
     gum_x86_writer_put_label (cw, is_true);
-    gum_exec_block_write_jmp_transfer_code (block, &target, gc);
+    gum_exec_block_write_jmp_transfer_code (block, &target,
+        GUM_ENTRYGATE (jmp_cond_jcxz), gc);
 
     gum_x86_writer_put_label (cw, is_false);
     false_target.is_indirect = FALSE;
     false_target.absolute_address = insn->end;
-    gum_exec_block_write_jmp_transfer_code (block, &false_target, gc);
+    gum_exec_block_write_jmp_transfer_code (block, &false_target,
+        GUM_ENTRYGATE (jmp_cond_jcxz), gc);
   }
   else
   {
     gpointer is_false;
+    GumExecCtxReplaceCurrentBlockFunc regular_entry_func, cond_entry_func;
 
     gum_x86_relocator_skip_one_no_label (gc->relocator);
 
@@ -2273,7 +2325,24 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
           is_false, GUM_NO_HINT);
     }
 
-    gum_exec_block_write_jmp_transfer_code (block, &target, gc);
+    if (target.is_indirect)
+    {
+      regular_entry_func = GUM_ENTRYGATE (jmp_mem);
+      cond_entry_func = GUM_ENTRYGATE (jmp_cond_mem);
+    }
+    else if (target.base != X86_REG_INVALID)
+    {
+      regular_entry_func = GUM_ENTRYGATE (jmp_reg);
+      cond_entry_func = GUM_ENTRYGATE (jmp_cond_reg);
+    }
+    else
+    {
+      regular_entry_func = GUM_ENTRYGATE (jmp_imm);
+      cond_entry_func = GUM_ENTRYGATE (jmp_cond_imm);
+    }
+
+    gum_exec_block_write_jmp_transfer_code (block, &target,
+        is_conditional ? cond_entry_func : regular_entry_func, gc);
 
     if (is_conditional)
     {
@@ -2283,7 +2352,8 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
       cond_target.absolute_address = insn->end;
 
       gum_x86_writer_put_label (cw, is_false);
-      gum_exec_block_write_jmp_transfer_code (block, &cond_target, gc);
+      gum_exec_block_write_jmp_transfer_code (block, &cond_target,
+          cond_entry_func, gc);
     }
   }
 
@@ -2424,7 +2494,7 @@ gum_exec_block_virtualize_sysenter_insn (GumExecBlock * block,
   gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_ESP,
       GUM_THUNK_ARGLIST_STACK_RESERVE);
   gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
-      GUM_ADDRESS (gum_exec_ctx_replace_current_block_with));
+      GUM_ADDRESS (GUM_ENTRYGATE (sysenter_slow_path)));
   gum_x86_writer_put_call_reg (cw, GUM_REG_XAX);
   gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XSP,
       GUM_THUNK_ARGLIST_STACK_RESERVE);
@@ -2452,6 +2522,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   GumX86Writer * cw = gc->code_writer;
   gpointer call_code_start;
   GumPrologType opened_prolog;
+  GumExecCtxReplaceCurrentBlockFunc entry_func;
   gconstpointer perform_stack_push = cw->code + 1;
   gconstpointer skip_stack_push = cw->code + 2;
   gpointer ret_real_address;
@@ -2477,6 +2548,19 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
       GUM_ADDRESS (&block->ctx->app_stack), GUM_REG_XAX);
   gc->accumulated_stack_delta += sizeof (gpointer);
 
+  if (target->is_indirect)
+  {
+    entry_func = GUM_ENTRYGATE (call_mem);
+  }
+  else if (target->base != X86_REG_INVALID)
+  {
+    entry_func = GUM_ENTRYGATE (call_reg);
+  }
+  else
+  {
+    entry_func = GUM_ENTRYGATE (call_imm);
+  }
+
   /* generate code for the target */
   gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
   gum_x86_writer_put_pop_reg (cw, GUM_THUNK_REG_ARG1);
@@ -2485,7 +2569,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XSP,
       GUM_THUNK_ARGLIST_STACK_RESERVE);
   gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
-      GUM_ADDRESS (gum_exec_ctx_replace_current_block_with));
+      GUM_ADDRESS (entry_func));
   gum_x86_writer_put_call_reg (cw, GUM_REG_XAX);
   gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XSP,
       GUM_THUNK_ARGLIST_STACK_RESERVE);
@@ -2514,7 +2598,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XSP,
       GUM_THUNK_ARGLIST_STACK_RESERVE);
   gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
-      GUM_ADDRESS (gum_exec_ctx_replace_current_block_with));
+      GUM_ADDRESS (GUM_ENTRYGATE (post_call_invoke)));
   gum_x86_writer_put_call_reg (cw, GUM_REG_XAX);
   gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XSP,
       GUM_THUNK_ARGLIST_STACK_RESERVE);
@@ -2574,6 +2658,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
 static void
 gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
                                         const GumBranchTarget * target,
+                                        GumExecCtxReplaceCurrentBlockFunc func,
                                         GumGeneratorContext * gc)
 {
   GumX86Writer * cw = gc->code_writer;
@@ -2591,8 +2676,7 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
       GUM_ADDRESS (block->ctx));
   gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XSP,
       GUM_THUNK_ARGLIST_STACK_RESERVE);
-  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
-      GUM_ADDRESS (gum_exec_ctx_replace_current_block_with));
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX, GUM_ADDRESS (func));
   gum_x86_writer_put_call_reg (cw, GUM_REG_XAX);
   gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XSP,
       GUM_THUNK_ARGLIST_STACK_RESERVE);
@@ -2688,7 +2772,7 @@ gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
       GUM_THUNK_ARGLIST_STACK_RESERVE);
 
   gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
-      GUM_ADDRESS (gum_exec_ctx_replace_current_block_with));
+      GUM_ADDRESS (GUM_ENTRYGATE (ret_slow_path)));
   gum_x86_writer_put_call_reg (cw, GUM_REG_XAX);
 
   gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XSP,
@@ -3292,3 +3376,44 @@ gum_stalker_on_exception (GumExceptionDetails * details,
 }
 
 #endif
+
+void
+gum_stalker_set_counters_enabled (gboolean enabled)
+{
+  counters_enabled = enabled;
+}
+
+void
+gum_stalker_dump_counters (void)
+{
+  g_printerr ("\n\ntotal_transitions: %u\n", total_transitions);
+
+#if GLIB_SIZEOF_VOID_P == 4 && !defined (HAVE_QNX)
+  GUM_PRINT_ENTRYGATE_COUNTER (sysenter_slow_path);
+
+  g_printerr ("\n");
+#endif
+
+  GUM_PRINT_ENTRYGATE_COUNTER (call_imm);
+  GUM_PRINT_ENTRYGATE_COUNTER (call_reg);
+  GUM_PRINT_ENTRYGATE_COUNTER (call_mem);
+  GUM_PRINT_ENTRYGATE_COUNTER (post_call_invoke);
+  GUM_PRINT_ENTRYGATE_COUNTER (ret_slow_path);
+
+  g_printerr ("\n");
+
+  GUM_PRINT_ENTRYGATE_COUNTER (jmp_imm);
+  GUM_PRINT_ENTRYGATE_COUNTER (jmp_mem);
+  GUM_PRINT_ENTRYGATE_COUNTER (jmp_reg);
+
+  g_printerr ("\n");
+
+  GUM_PRINT_ENTRYGATE_COUNTER (jmp_cond_imm);
+  GUM_PRINT_ENTRYGATE_COUNTER (jmp_cond_mem);
+  GUM_PRINT_ENTRYGATE_COUNTER (jmp_cond_reg);
+  GUM_PRINT_ENTRYGATE_COUNTER (jmp_cond_jcxz);
+
+  g_printerr ("\n");
+
+  GUM_PRINT_ENTRYGATE_COUNTER (jmp_continuation);
+}

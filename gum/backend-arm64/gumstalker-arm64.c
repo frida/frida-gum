@@ -52,6 +52,8 @@ typedef struct _GumSlab GumSlab;
 typedef struct _GumExecCtx GumExecCtx;
 typedef void (* GumExecHelperWriteFunc) (GumExecCtx * ctx, GumArm64Writer * cw);
 typedef struct _GumExecBlock GumExecBlock;
+typedef gpointer (GUM_THUNK * GumExecCtxReplaceCurrentBlockFunc) (
+    GumExecCtx * ctx, gpointer start_address);
 
 typedef guint GumPrologType;
 typedef guint GumCodeContext;
@@ -325,7 +327,8 @@ static GumVirtualizationRequirements gum_exec_block_virtualize_sysenter_insn (
 static void gum_exec_block_write_call_invoke_code (GumExecBlock * block,
     const GumBranchTarget * target, GumGeneratorContext * gc);
 static void gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
-    const GumBranchTarget * target, GumGeneratorContext * gc);
+    const GumBranchTarget * target, GumExecCtxReplaceCurrentBlockFunc func,
+    GumGeneratorContext * gc);
 static void gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
     GumGeneratorContext * gc, arm64_reg ret_reg);
 
@@ -971,10 +974,49 @@ gum_exec_ctx_has_executed (GumExecCtx * ctx)
   return ctx->resume_at != NULL;
 }
 
+static gboolean counters_enabled = FALSE;
+static guint total_transitions = 0;
+
+#define GUM_ENTRYGATE(name) \
+  gum_exec_ctx_replace_current_block_from_##name
+#define GUM_DEFINE_ENTRYGATE(name) \
+  static guint total_##name##s = 0; \
+  \
+  static gpointer GUM_THUNK \
+  GUM_ENTRYGATE (name) ( \
+      GumExecCtx * ctx, \
+      gpointer start_address) \
+  { \
+    if (counters_enabled) \
+      total_##name##s++; \
+    \
+    return gum_exec_ctx_replace_current_block_with (ctx, start_address); \
+  }
+#define GUM_PRINT_ENTRYGATE_COUNTER(name) \
+  g_printerr ("\t" G_STRINGIFY (name) "s: %u\n", total_##name##s)
+
+GUM_DEFINE_ENTRYGATE (call_imm)
+GUM_DEFINE_ENTRYGATE (call_reg)
+GUM_DEFINE_ENTRYGATE (ret)
+
+GUM_DEFINE_ENTRYGATE (jmp_imm)
+GUM_DEFINE_ENTRYGATE (jmp_reg)
+
+GUM_DEFINE_ENTRYGATE (jmp_cond_cbz)
+GUM_DEFINE_ENTRYGATE (jmp_cond_cbnz)
+GUM_DEFINE_ENTRYGATE (jmp_cond_tbz)
+GUM_DEFINE_ENTRYGATE (jmp_cond_tbnz)
+GUM_DEFINE_ENTRYGATE (jmp_cond_cc)
+
+GUM_DEFINE_ENTRYGATE (jmp_continuation)
+
 static gpointer
 gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
                                          gpointer start_address)
 {
+  if (counters_enabled)
+    total_transitions++;
+
   if (ctx->invalidate_pending)
   {
     gum_metal_hash_table_remove_all (ctx->mappings);
@@ -1094,7 +1136,8 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
 
     continue_target.is_indirect = FALSE;
     continue_target.absolute_address = gc.continuation_real_address;
-    gum_exec_block_write_jmp_transfer_code (block, &continue_target, &gc);
+    gum_exec_block_write_jmp_transfer_code (block, &continue_target,
+        GUM_ENTRYGATE (jmp_continuation), &gc);
   }
 
   gum_arm64_writer_put_brk_imm (cw, 14);
@@ -1987,6 +2030,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
       || insn->ci->id == ARM64_INS_B || insn->ci->id == ARM64_INS_BR)
   {
     gpointer is_false;
+    GumExecCtxReplaceCurrentBlockFunc regular_entry_func, cond_entry_func;
 
     gum_arm64_relocator_skip_one (gc->relocator);
 
@@ -1999,24 +2043,34 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
 
       gum_exec_block_close_prolog (block, gc);
 
+      regular_entry_func = NULL;
+
       /* jump to is_false if is_false */
       if (insn->ci->id == ARM64_INS_CBZ)
       {
         gum_arm64_writer_put_cbnz_reg_label (cw, op->reg, is_false);
+
+        cond_entry_func = GUM_ENTRYGATE (jmp_cond_cbz);
       }
       else if (insn->ci->id == ARM64_INS_CBNZ)
       {
         gum_arm64_writer_put_cbz_reg_label (cw, op->reg, is_false);
+
+        cond_entry_func = GUM_ENTRYGATE (jmp_cond_cbnz);
       }
       else if (insn->ci->id == ARM64_INS_TBZ)
       {
         gum_arm64_writer_put_tbnz_reg_imm_label (cw, op->reg, op2->imm,
             is_false);
+
+        cond_entry_func = GUM_ENTRYGATE (jmp_cond_tbz);
       }
       else if (insn->ci->id == ARM64_INS_TBNZ)
       {
         gum_arm64_writer_put_tbz_reg_imm_label (cw, op->reg, op2->imm,
             is_false);
+
+        cond_entry_func = GUM_ENTRYGATE (jmp_cond_tbnz);
       }
       else if (insn->ci->id == ARM64_INS_B)
       {
@@ -2025,14 +2079,27 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
         g_assert (cc <= ARM64_CC_NV);
         not_cc = cc + 2 * (cc % 2) - 1;
         gum_arm64_writer_put_b_cond_label (cw, not_cc, is_false);
+
+        cond_entry_func = GUM_ENTRYGATE (jmp_cond_cc);
       }
       else
       {
+        cond_entry_func = NULL;
+
         g_assert_not_reached ();
       }
     }
+    else
+    {
+      if (target.base != ARM64_REG_INVALID)
+        regular_entry_func = GUM_ENTRYGATE (jmp_reg);
+      else
+        regular_entry_func = GUM_ENTRYGATE (jmp_imm);
+      cond_entry_func = NULL;
+    }
 
-    gum_exec_block_write_jmp_transfer_code (block, &target, gc);
+    gum_exec_block_write_jmp_transfer_code (block, &target,
+        is_conditional ? cond_entry_func : regular_entry_func, gc);
 
     if (is_conditional)
     {
@@ -2045,7 +2112,8 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
 
       if (gc->exclusive_load_offset == GUM_INSTRUCTION_OFFSET_NONE)
       {
-        gum_exec_block_write_jmp_transfer_code (block, &cond_target, gc);
+        gum_exec_block_write_jmp_transfer_code (block, &cond_target,
+            cond_entry_func, gc);
       }
       else
       {
@@ -2113,6 +2181,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
 {
   GumArm64Writer * cw;
   gpointer call_code_start;
+  GumExecCtxReplaceCurrentBlockFunc entry_func;
 
   cw = gc->code_writer;
   call_code_start = cw->code;
@@ -2126,9 +2195,20 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
   gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X14, ARM64_REG_X15);
 
+  g_assert (!target->is_indirect);
+
+  if (target->base != ARM64_REG_INVALID)
+  {
+    entry_func = GUM_ENTRYGATE (call_reg);
+  }
+  else
+  {
+    entry_func = GUM_ENTRYGATE (call_imm);
+  }
+
   /* create new block for the target */
   gum_arm64_writer_put_call_address_with_arguments (cw,
-      GUM_ADDRESS (gum_exec_ctx_replace_current_block_with), 2,
+      GUM_ADDRESS (entry_func), 2,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
       GUM_ARG_REGISTER, ARM64_REG_X15);
 
@@ -2145,6 +2225,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
 static void
 gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
                                         const GumBranchTarget * target,
+                                        GumExecCtxReplaceCurrentBlockFunc func,
                                         GumGeneratorContext * gc)
 {
   GumArm64Writer * cw;
@@ -2160,7 +2241,7 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
   gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
   gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X14, ARM64_REG_X15);
   gum_arm64_writer_put_call_address_with_arguments (cw,
-      GUM_ADDRESS (gum_exec_ctx_replace_current_block_with), 2,
+      GUM_ADDRESS (func), 2,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
       GUM_ARG_REGISTER, ARM64_REG_X15);
 
@@ -2198,7 +2279,7 @@ gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
       gc);
 
   gum_arm64_writer_put_call_address_with_arguments (cw,
-      GUM_ADDRESS (gum_exec_ctx_replace_current_block_with), 2,
+      GUM_ADDRESS (GUM_ENTRYGATE (ret)), 2,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
       GUM_ARG_REGISTER, ARM64_REG_X16);
 
@@ -2512,4 +2593,31 @@ gum_exec_block_close_prolog (GumExecBlock * block,
 
   gum_exec_ctx_write_epilog (block->ctx, gc->opened_prolog, gc->code_writer);
   gc->opened_prolog = GUM_PROLOG_NONE;
+}
+
+void
+gum_stalker_set_counters_enabled (gboolean enabled)
+{
+  counters_enabled = enabled;
+}
+
+void
+gum_stalker_dump_counters (void)
+{
+  g_printerr ("\n\ntotal_transitions: %u\n", total_transitions);
+
+  GUM_PRINT_ENTRYGATE_COUNTER (call_imm);
+  GUM_PRINT_ENTRYGATE_COUNTER (call_reg);
+  GUM_PRINT_ENTRYGATE_COUNTER (ret);
+
+  GUM_PRINT_ENTRYGATE_COUNTER (jmp_imm);
+  GUM_PRINT_ENTRYGATE_COUNTER (jmp_reg);
+
+  GUM_PRINT_ENTRYGATE_COUNTER (jmp_cond_cbz);
+  GUM_PRINT_ENTRYGATE_COUNTER (jmp_cond_cbnz);
+  GUM_PRINT_ENTRYGATE_COUNTER (jmp_cond_tbz);
+  GUM_PRINT_ENTRYGATE_COUNTER (jmp_cond_tbnz);
+  GUM_PRINT_ENTRYGATE_COUNTER (jmp_cond_cc);
+
+  GUM_PRINT_ENTRYGATE_COUNTER (jmp_continuation);
 }

@@ -268,6 +268,7 @@ STALKER_TESTCASE (performance)
   g_timer_elapsed (timer, NULL);
 
   /* the real deal */
+  gum_stalker_set_counters_enabled (TRUE);
   g_timer_reset (timer);
   pretend_workload (&runner_range);
   duration_stalked = g_timer_elapsed (timer, NULL);
@@ -278,6 +279,8 @@ STALKER_TESTCASE (performance)
 
   g_print ("<duration_direct=%f duration_stalked=%f ratio=%f> ",
       duration_direct, duration_stalked, duration_stalked / duration_direct);
+
+  gum_stalker_dump_counters ();
 }
 
 static gboolean

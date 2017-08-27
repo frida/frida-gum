@@ -159,6 +159,9 @@ GUM_API void gum_stalker_iterator_keep (GumStalkerIterator * self);
 GUM_API void gum_stalker_iterator_put_callout (GumStalkerIterator * self,
     GumStalkerCallout callout, gpointer data, GDestroyNotify data_destroy);
 
+GUM_API void gum_stalker_set_counters_enabled (gboolean enabled);
+GUM_API void gum_stalker_dump_counters (void);
+
 G_END_DECLS
 
 #endif

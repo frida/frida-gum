@@ -54,6 +54,7 @@ STALKER_TESTCASE (cocoa_performance)
     g_timer_elapsed (timer, NULL);
 
     /* the real deal */
+    gum_stalker_set_counters_enabled (TRUE);
     g_timer_reset (timer);
     for (i = 0; i != repeats; i++)
       create_and_destroy_window ();
@@ -66,6 +67,8 @@ STALKER_TESTCASE (cocoa_performance)
 
   g_print ("<duration_direct=%f duration_stalked=%f ratio=%f> ",
       duration_direct, duration_stalked, duration_stalked / duration_direct);
+
+  gum_stalker_dump_counters ();
 }
 
 static void
