@@ -2439,19 +2439,17 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
   {
     Unlocker ul (isolate);
 
+    gum_interceptor_unignore_current_thread (interceptor);
+
     if (gum_exceptor_try (core->exceptor, &scope))
     {
-      gum_interceptor_unignore_current_thread (interceptor);
       ffi_call (&self->cif, FFI_FN (implementation), rvalue, avalue);
-      gum_interceptor_ignore_current_thread (interceptor);
 
       if (self->enable_detailed_return)
         system_error = gum_thread_get_system_error ();
     }
-    else
-    {
-      gum_interceptor_ignore_current_thread (interceptor);
-    }
+
+    gum_interceptor_ignore_current_thread (interceptor);
   }
 
   isolate->Enter ();
