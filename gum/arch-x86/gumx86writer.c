@@ -2531,23 +2531,22 @@ gum_x86_writer_put_cmp_imm_ptr_imm_u32 (GumX86Writer * self,
 
 gboolean
 gum_x86_writer_put_cmp_reg_reg (GumX86Writer * self,
-                                GumCpuReg dst_reg,
-                                GumCpuReg src_reg)
+                                GumCpuReg reg_a,
+                                GumCpuReg reg_b)
 {
-  GumCpuRegInfo dst, src;
+  GumCpuRegInfo a, b;
 
-  gum_x86_writer_describe_cpu_reg (self, dst_reg, &dst);
-  gum_x86_writer_describe_cpu_reg (self, src_reg, &src);
+  gum_x86_writer_describe_cpu_reg (self, reg_a, &a);
+  gum_x86_writer_describe_cpu_reg (self, reg_b, &b);
 
-  if (src.width != dst.width)
+  if (a.width != b.width)
     return FALSE;
 
-  if (!gum_x86_writer_put_prefix_for_registers (self, &dst, 32, &dst, &src,
-      NULL))
+  if (!gum_x86_writer_put_prefix_for_registers (self, &a, 32, &a, &b, NULL))
     return FALSE;
 
   self->code[0] = 0x39;
-  self->code[1] = 0xc0 | (src.index << 3) | dst.index;
+  self->code[1] = 0xc0 | (b.index << 3) | a.index;
   gum_x86_writer_commit (self, 2);
 
   return TRUE;

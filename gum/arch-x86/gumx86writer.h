@@ -306,7 +306,7 @@ GUM_API gboolean gum_x86_writer_put_cmp_reg_offset_ptr_reg (GumX86Writer * self,
 GUM_API void gum_x86_writer_put_cmp_imm_ptr_imm_u32 (GumX86Writer * self,
     gconstpointer imm_ptr, guint32 imm_value);
 GUM_API gboolean gum_x86_writer_put_cmp_reg_reg (GumX86Writer * self,
-    GumCpuReg dst_reg, GumCpuReg src_reg);
+    GumCpuReg reg_a, GumCpuReg reg_b);
 GUM_API void gum_x86_writer_put_clc (GumX86Writer * self);
 GUM_API void gum_x86_writer_put_stc (GumX86Writer * self);
 GUM_API void gum_x86_writer_put_cld (GumX86Writer * self);
