@@ -178,6 +178,9 @@ main (gint argc, gchar * argv[])
 #ifdef HAVE_MACOS
   TEST_RUN_LIST (stalker_macos);
 #endif
+#if defined (HAVE_ARM64) && defined (HAVE_DARWIN)
+  TEST_RUN_LIST (stalker_darwin);
+#endif
   TEST_RUN_LIST (api_resolver);
 #if !defined (HAVE_QNX) && !(defined (HAVE_ANDROID) && defined (HAVE_ARM64)) && !(defined (HAVE_MIPS))
   TEST_RUN_LIST (backtracer);

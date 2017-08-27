@@ -30,6 +30,12 @@ if host_os == 'macos'
   ]
 endif
 
+if host_machine.cpu_family() == 'arm64' and host_os_family == 'darwin'
+  core_sources += [
+    'arch-arm64/stalker-arm64-darwin.m',
+  ]
+endif
+
 if host_os == 'android'
   core_sources += [
     'interceptor-android.c',
