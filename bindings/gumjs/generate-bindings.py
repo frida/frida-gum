@@ -756,7 +756,7 @@ static gconstpointer
 {wrapper_function_prefix}_resolve_label ({wrapper_struct_name} * self,
     const gchar * str)
 {{
-  gchar * label = (gchar *) g_hash_table_lookup (self->labels, str);
+  gchar * label = g_hash_table_lookup (self->labels, str);
   if (label != NULL)
     return label;
 
