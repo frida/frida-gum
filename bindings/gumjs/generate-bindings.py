@@ -194,6 +194,8 @@ def generate_duk_wrapper_code(component, api):
                         "  const guint8 * {0};".format(arg.name),
                         "  gsize {0}_size;".format(arg.name)
                     ])
+                elif converter == "label":
+                    lines.append("  gconstpointer {0};".format(arg.name))
                 else:
                     lines.append("  {0} {1};".format(arg.type, arg.name))
         if is_put_array:
@@ -227,7 +229,12 @@ def generate_duk_wrapper_code(component, api):
             lines.append("")
             for arg in args_needing_conversion:
                 converter = arg.type_converter
-                if converter == "address":
+                if converter == "label":
+                    lines.append("  {value} = {wrapper_function_prefix}_resolve_label (self, {value_raw});".format(
+                        value=arg.name,
+                        value_raw=arg.name_raw,
+                        wrapper_function_prefix=component.wrapper_function_prefix))
+                elif converter == "address":
                     lines.append("  {value} = GUM_ADDRESS ({value_raw});".format(
                         value=arg.name,
                         value_raw=arg.name_raw))
@@ -397,6 +404,8 @@ def generate_duk_methods(component):
     params = dict(component.__dict__)
 
     extra_fields = ""
+    if component.name == "writer":
+        extra_fields = "\n  GHashTable * labels;"
     if component.name == "relocator":
         extra_fields = "\n  GumDukInstructionValue * input;"
 
@@ -529,12 +538,14 @@ _{wrapper_function_prefix}_init (
   self->object = NULL;
   self->impl = NULL;
   self->module = module;
+  self->labels = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
 }}
 
 void
 _{wrapper_function_prefix}_finalize ({wrapper_struct_name} * self)
 {{
   _gum_duk_{flavor}_writer_reset (self, NULL);
+  g_hash_table_unref (self->labels);
 }}
 
 void
@@ -547,6 +558,8 @@ _{wrapper_function_prefix}_reset (
   if (self->impl != NULL)
     {impl_function_prefix}_unref (self->impl);
   self->impl = impl;
+
+  g_hash_table_remove_all (self->labels);
 }}
 
 static {wrapper_struct_name} *
@@ -574,6 +587,7 @@ static void
   g_slice_free ({wrapper_struct_name}, self);
 }}
 
+{label_resolver}
 static {wrapper_struct_name} *
 {wrapper_function_prefix}_from_args (const GumDukArgs * args)
 {{
@@ -641,6 +655,8 @@ GUMJS_DEFINE_FUNCTION ({gumjs_function_prefix}_reset)
   {impl_function_prefix}_reset (self->impl, code_address);
   if (pc_specified)
     self->impl->pc = pc;
+
+  g_hash_table_remove_all (self->labels);
 
   return 0;
 }}
@@ -733,8 +749,28 @@ static const GumDukPropertyEntry {gumjs_function_prefix}_values[] =
   {{ NULL, NULL, NULL }}
 }};
 """
+    params = dict(component.__dict__)
 
-    return template.format(**component.__dict__).split("\n")
+    label_resolver = """
+static gconstpointer
+{wrapper_function_prefix}_resolve_label ({wrapper_struct_name} * self,
+    const gchar * str)
+{{
+  gchar * label = g_hash_table_lookup (self->labels, str);
+  if (label != NULL)
+    return label;
+
+  label = g_strdup (str);
+  g_hash_table_add (self->labels, label);
+  return label;
+}}
+""".format(**params)
+    if component.flavor != "arm":
+        params["label_resolver"] = label_resolver
+    else:
+        params["label_resolver"] = ""
+
+    return template.format(**params).split("\n")
 
 def generate_duk_relocator_base_methods(component):
     template = """\
@@ -2486,6 +2522,7 @@ class MethodArgument(object):
         elif type == "$label":
             self.type_raw = "const gchar *"
             self.type_format = "s"
+            converter = "label"
         elif type == "$array":
             self.type_raw = "GBytes *"
             self.type_format = "B~"
