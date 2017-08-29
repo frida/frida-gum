@@ -1827,6 +1827,33 @@ gum_exec_block_commit (GumExecBlock * block)
   gum_clear_cache (block->code_begin, block->code_end - block->code_begin);
 }
 
+static void
+gum_exec_block_backpatch_jmp (GumExecBlock * block,
+                              gpointer code_start,
+                              GumPrologType opened_prolog,
+                              gpointer target_address)
+{
+  GumExecCtx * ctx = block->ctx;
+  GumArm64Writer * cw = &ctx->code_writer;
+
+  if (ctx->state == GUM_EXEC_CTX_ACTIVE &&
+      block->recycle_count >= ctx->stalker->priv->trust_threshold &&
+      gum_arm64_writer_can_branch_directly_between (cw->pc,
+          GUM_ADDRESS (target_address)))
+  {
+    gum_arm64_writer_reset (cw, code_start);
+
+    if (opened_prolog != GUM_PROLOG_NONE)
+    {
+      gum_exec_ctx_write_epilog (block->ctx, opened_prolog, cw);
+    }
+
+    gum_arm64_writer_put_b_imm (cw, GUM_ADDRESS (target_address) + 4);
+    gum_arm64_writer_flush (cw);
+    gum_clear_cache (code_start, gum_arm64_writer_offset (cw));
+  }
+}
+
 static GumVirtualizationRequirements
 gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
                                        GumGeneratorContext * gc)
@@ -2121,21 +2148,35 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
                                         GumGeneratorContext * gc)
 {
   GumArm64Writer * cw;
+  guint32 * code_start;
+  GumPrologType opened_prolog;
 
   cw = gc->code_writer;
+  code_start = cw->code;
+  opened_prolog = gc->opened_prolog;
 
   gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
 
   gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
-
   gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X14, ARM64_REG_X15);
   gum_arm64_writer_put_call_address_with_arguments (cw,
       GUM_ADDRESS (gum_exec_ctx_replace_current_block_with), 2,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
       GUM_ARG_REGISTER, ARM64_REG_X15);
 
-  gum_exec_block_close_prolog (block, gc);
+  if (block->ctx->stalker->priv->trust_threshold >= 0 &&
+      !target->is_indirect &&
+      target->base == ARM64_REG_INVALID)
+  {
+    gum_arm64_writer_put_call_address_with_arguments (cw,
+        GUM_ADDRESS (gum_exec_block_backpatch_jmp), 4,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (block),
+        GUM_ARG_ADDRESS, GUM_ADDRESS (code_start),
+        GUM_ARG_ADDRESS, GUM_ADDRESS (opened_prolog),
+        GUM_ARG_REGISTER, ARM64_REG_X0);
+  }
 
+  gum_exec_block_close_prolog (block, gc);
   gum_exec_block_write_exec_generated_code (cw, block->ctx);
 }
 
