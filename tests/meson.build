@@ -28,7 +28,7 @@ if host_os_family == 'darwin'
   runner_name = 'gum-tests-unsigned'
 endif
 
-extra_test_deps = []
+extra_test_deps = [lzma_dep]
 extra_link_args = []
 
 if get_option('enable_gumjs')

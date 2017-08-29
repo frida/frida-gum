@@ -126,6 +126,7 @@ gmodule_dep = dependency('gmodule-2.0')
 gio_dep = dependency('gio-2.0')
 capstone_dep = dependency('capstone')
 ffi_dep = dependency('libffi')
+lzma_dep = dependency('liblzma')
 
 extra_deps = []
 extra_requires_private = []

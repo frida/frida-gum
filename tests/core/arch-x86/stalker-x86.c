@@ -7,6 +7,10 @@
 
 #include "stalker-x86-fixture.c"
 
+#ifndef G_OS_WIN32
+# include <lzma.h>
+#endif
+
 TEST_LIST_BEGIN (stalker)
   STALKER_TESTENTRY (no_events)
   STALKER_TESTENTRY (call)
@@ -55,7 +59,9 @@ TEST_LIST_BEGIN (stalker)
   STALKER_TESTENTRY (heap_api)
   STALKER_TESTENTRY (follow_syscall)
   STALKER_TESTENTRY (follow_thread)
+#ifndef G_OS_WIN32
   STALKER_TESTENTRY (performance)
+#endif
 
 #ifdef G_OS_WIN32
 # if GLIB_SIZEOF_VOID_P == 4
@@ -67,7 +73,11 @@ TEST_LIST_BEGIN (stalker)
 #endif
 TEST_LIST_END ()
 
-static void pretend_workload (void);
+#ifndef G_OS_WIN32
+static gboolean store_range_of_test_runner (const GumModuleDetails * details,
+    gpointer user_data);
+static void pretend_workload (GumMemoryRange * runner_range);
+#endif
 static gpointer stalker_victim (gpointer data);
 static void insert_extra_increment_after_xor (GumStalkerIterator * iterator,
     GumStalkerWriter * output, gpointer user_data);
@@ -226,24 +236,24 @@ stalker_victim (gpointer data)
   return NULL;
 }
 
+#ifndef G_OS_WIN32
+
 STALKER_TESTCASE (performance)
 {
+  GumMemoryRange runner_range;
   GTimer * timer;
   gdouble duration_direct, duration_stalked;
 
-#ifdef G_OS_WIN32
-  if (!g_test_slow ())
-  {
-    g_print ("<not yet stable on this OS; skipping, run in slow mode> ");
-    return;
-  }
-#endif
+  runner_range.base_address = 0;
+  runner_range.size = 0;
+  gum_process_enumerate_modules (store_range_of_test_runner, &runner_range);
+  g_assert (runner_range.base_address != 0 && runner_range.size != 0);
 
   timer = g_timer_new ();
-  pretend_workload ();
+  pretend_workload (&runner_range);
 
   g_timer_reset (timer);
-  pretend_workload ();
+  pretend_workload (&runner_range);
   duration_direct = g_timer_elapsed (timer, NULL);
 
   fixture->sink->mask = GUM_NOTHING;
@@ -254,12 +264,12 @@ STALKER_TESTCASE (performance)
 
   /* warm-up */
   g_timer_reset (timer);
-  pretend_workload ();
+  pretend_workload (&runner_range);
   g_timer_elapsed (timer, NULL);
 
   /* the real deal */
   g_timer_reset (timer);
-  pretend_workload ();
+  pretend_workload (&runner_range);
   duration_stalked = g_timer_elapsed (timer, NULL);
 
   gum_stalker_unfollow_me (fixture->stalker);
@@ -270,20 +280,72 @@ STALKER_TESTCASE (performance)
       duration_direct, duration_stalked, duration_stalked / duration_direct);
 }
 
-GUM_NOINLINE static void
-pretend_workload (void)
+static gboolean
+store_range_of_test_runner (const GumModuleDetails * details,
+                            gpointer user_data)
 {
-  const guint repeats = 250;
-  guint i;
+  GumMemoryRange * runner_range = user_data;
 
-  for (i = 0; i != repeats; i++)
+  if (strstr (details->name, "gum-tests") != NULL)
   {
-    void * p = malloc (42 + i);
-    gum_stalker_dummy_global_to_trick_optimizer +=
-        GPOINTER_TO_SIZE (p) % 42 == 0;
-    free (p);
+    *runner_range = *details->range;
+    return FALSE;
   }
+
+  return TRUE;
 }
+
+GUM_NOINLINE static void
+pretend_workload (GumMemoryRange * runner_range)
+{
+  lzma_stream stream = LZMA_STREAM_INIT;
+  const uint32_t preset = 9 | LZMA_PRESET_EXTREME;
+  lzma_ret ret;
+  guint8 * outbuf;
+  gsize outbuf_size;
+  const gsize outbuf_size_increment = 1024 * 1024;
+
+  ret = lzma_easy_encoder (&stream, preset, LZMA_CHECK_CRC64);
+  g_assert_cmpint (ret, ==, LZMA_OK);
+
+  outbuf_size = outbuf_size_increment;
+  outbuf = malloc (outbuf_size);
+
+  stream.next_in = GSIZE_TO_POINTER (runner_range->base_address);
+  stream.avail_in = MIN (runner_range->size, 1024 * 1024);
+  stream.next_out = outbuf;
+  stream.avail_out = outbuf_size;
+
+  while (TRUE)
+  {
+    ret = lzma_code (&stream, LZMA_FINISH);
+
+    if (stream.avail_out == 0)
+    {
+      gsize compressed_size;
+
+      compressed_size = outbuf_size;
+
+      outbuf_size += outbuf_size_increment;
+      outbuf = realloc (outbuf, outbuf_size);
+
+      stream.next_out = outbuf + compressed_size;
+      stream.avail_out = outbuf_size - compressed_size;
+    }
+
+    if (ret != LZMA_OK)
+    {
+      g_assert_cmpint (ret, ==, LZMA_STREAM_END);
+      break;
+    }
+  }
+
+  lzma_end (&stream);
+
+  free (outbuf);
+}
+
+#endif
 
 static const guint8 flat_code[] = {
     0x33, 0xc0, /* xor eax, eax */
