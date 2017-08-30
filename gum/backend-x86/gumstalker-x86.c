@@ -2166,19 +2166,23 @@ gum_exec_block_backpatch_ret (GumExecBlock * block,
                               gpointer code_start,
                               gpointer target_address)
 {
-  if (block != NULL) /* when we just unfollowed */
+  gboolean just_unfollowed;
+  GumExecCtx * ctx;
+
+  just_unfollowed = block == NULL;
+  if (just_unfollowed)
+    return;
+
+  ctx = block->ctx;
+
+  if (ctx->state == GUM_EXEC_CTX_ACTIVE &&
+      block->recycle_count >= ctx->stalker->priv->trust_threshold)
   {
-    GumExecCtx * ctx = block->ctx;
+    GumX86Writer * cw = &ctx->code_writer;
 
-    if (ctx->state == GUM_EXEC_CTX_ACTIVE &&
-        block->recycle_count >= ctx->stalker->priv->trust_threshold)
-    {
-      GumX86Writer * cw = &ctx->code_writer;
-
-      gum_x86_writer_reset (cw, code_start);
-      gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (target_address));
-      gum_x86_writer_flush (cw);
-    }
+    gum_x86_writer_reset (cw, code_start);
+    gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (target_address));
+    gum_x86_writer_flush (cw);
   }
 }
 
@@ -2518,15 +2522,14 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
                                        const GumBranchTarget * target,
                                        GumGeneratorContext * gc)
 {
-  gboolean can_backpatch;
   GumX86Writer * cw = gc->code_writer;
   gpointer call_code_start;
   GumPrologType opened_prolog;
+  gboolean can_backpatch;
   GumExecCtxReplaceCurrentBlockFunc entry_func;
   gconstpointer perform_stack_push = cw->code + 1;
   gconstpointer skip_stack_push = cw->code + 2;
-  gpointer ret_real_address;
-  gpointer ret_code_address;
+  gpointer ret_real_address, ret_code_address;
 
   call_code_start = cw->code;
   opened_prolog = gc->opened_prolog;
