@@ -967,8 +967,7 @@ gum_stalker_create_exec_ctx (GumStalker * self,
   ctx->last_prolog_full = NULL;
   ctx->last_epilog_full = NULL;
 
-  ctx->frames = (GumExecFrame *)
-      (ctx->code_slab->data + ctx->code_slab->size);
+  ctx->frames = (GumExecFrame *) (ctx->code_slab->data + ctx->code_slab->size);
   ctx->first_frame = (GumExecFrame *) (ctx->code_slab->data +
       ctx->code_slab->size + priv->page_size - sizeof (GumExecFrame));
   ctx->current_frame = ctx->first_frame;
