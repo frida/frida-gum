@@ -124,6 +124,21 @@ static void gum_arm64_writer_describe_reg (GumArm64Writer * self,
 static GumArm64MemOperandType gum_arm64_mem_operand_type_from_reg_info (
     const GumArm64RegInfo * ri);
 
+static gboolean gum_arm64_try_encode_logical_immediate (guint64 imm_value,
+    guint reg_width, guint * imm_enc);
+static guint gum_arm64_determine_logical_element_size (guint64 imm_value,
+    guint reg_width);
+static gboolean gum_arm64_try_determine_logical_rotation (guint64 imm_value,
+    guint element_size, guint * num_rotations, guint * num_trailing_ones);
+
+static gboolean gum_is_shifted_mask_64 (guint64 value);
+static gboolean gum_is_mask_64 (guint64 value);
+
+static guint gum_count_leading_zeros (guint64 value);
+static guint gum_count_trailing_zeros (guint64 value);
+static guint gum_count_leading_ones (guint64 value);
+static guint gum_count_trailing_ones (guint64 value);
+
 GumArm64Writer *
 gum_arm64_writer_new (gpointer code_address)
 {
@@ -1135,6 +1150,25 @@ gum_arm64_writer_put_sub_reg_reg_imm (GumArm64Writer * self,
   return TRUE;
 }
 
+gboolean
+gum_arm64_writer_put_tst_reg_imm (GumArm64Writer * self,
+                                  arm64_reg reg,
+                                  guint64 imm_value)
+{
+  GumArm64RegInfo ri;
+  guint imm_enc;
+
+  gum_arm64_writer_describe_reg (self, reg, &ri);
+
+  if (!gum_arm64_try_encode_logical_immediate (imm_value, ri.width, &imm_enc))
+    return FALSE;
+
+  gum_arm64_writer_put_instruction (self, ri.sf | 0x7200001f | (ri.index << 5) |
+      (imm_enc << 10));
+
+  return TRUE;
+}
+
 void
 gum_arm64_writer_put_nop (GumArm64Writer * self)
 {
@@ -1332,4 +1366,166 @@ gum_arm64_mem_operand_type_from_reg_info (const GumArm64RegInfo * ri)
 
   g_assert_not_reached ();
   return GUM_MEM_OPERAND_I32;
+}
+
+static gboolean
+gum_arm64_try_encode_logical_immediate (guint64 imm_value,
+                                        guint reg_width,
+                                        guint * imm_enc)
+{
+  guint element_size, num_rotations, num_trailing_ones;
+  guint immr, imms, n;
+
+  if (imm_value == 0 || imm_value == ~G_GUINT64_CONSTANT (0))
+    return FALSE;
+  if (reg_width == 32)
+  {
+    if ((imm_value >> 32) != 0 || imm_value == ~0U)
+      return FALSE;
+  }
+
+  element_size =
+      gum_arm64_determine_logical_element_size (imm_value, reg_width);
+
+  if (!gum_arm64_try_determine_logical_rotation (imm_value, element_size,
+      &num_rotations, &num_trailing_ones))
+    return FALSE;
+
+  immr = (element_size - num_rotations) & (element_size - 1);
+
+  imms = ~(element_size - 1) << 1;
+  imms |= num_trailing_ones - 1;
+
+  n = ((imms >> 6) & 1) ^ 1;
+
+  *imm_enc = (n << 12) | (immr << 6) | (imms & 0x3f);
+
+  return TRUE;
+}
+
+static guint
+gum_arm64_determine_logical_element_size (guint64 imm_value,
+                                          guint reg_width)
+{
+  guint size = reg_width;
+
+  do
+  {
+    guint next_size;
+    guint64 mask;
+
+    next_size = size / 2;
+
+    mask = (G_GUINT64_CONSTANT (1) << next_size) - 1;
+    if ((imm_value & mask) != ((imm_value >> next_size) & mask))
+      break;
+
+    size = next_size;
+  }
+  while (size > 2);
+
+  return size;
+}
+
+static gboolean
+gum_arm64_try_determine_logical_rotation (guint64 imm_value,
+                                          guint element_size,
+                                          guint * num_rotations,
+                                          guint * num_trailing_ones)
+{
+  guint64 mask;
+
+  mask = ((guint64) G_GINT64_CONSTANT (-1)) >> (64 - element_size);
+
+  imm_value &= mask;
+
+  if (gum_is_shifted_mask_64 (imm_value))
+  {
+    *num_rotations = gum_count_trailing_zeros (imm_value);
+    *num_trailing_ones = gum_count_trailing_ones (imm_value >> *num_rotations);
+  }
+  else
+  {
+    guint num_leading_ones;
+
+    imm_value |= ~mask;
+    if (!gum_is_shifted_mask_64 (~imm_value))
+      return FALSE;
+
+    num_leading_ones = gum_count_leading_ones (imm_value);
+    *num_rotations = 64 - num_leading_ones;
+    *num_trailing_ones = num_leading_ones +
+        gum_count_trailing_ones (imm_value) -
+        (64 - element_size);
+  }
+
+  return TRUE;
+}
+
+static gboolean
+gum_is_shifted_mask_64 (guint64 value)
+{
+  if (value == 0)
+    return FALSE;
+
+  return gum_is_mask_64 ((value - 1) | value);
+}
+
+static gboolean
+gum_is_mask_64 (guint64 value)
+{
+  if (value == 0)
+    return FALSE;
+
+  return ((value + 1) & value) == 0;
+}
+
+static guint
+gum_count_leading_zeros (guint64 value)
+{
+  if (value == 0)
+    return 64;
+
+#ifdef _MSC_VER
+  {
+    unsigned long index;
+
+    _BitScanReverse64 (&index, value);
+
+    return index ^ 63;
+  }
+#else
+  return __builtin_clzll (value);
+#endif
+}
+
+static guint
+gum_count_trailing_zeros (guint64 value)
+{
+  if (value == 0)
+    return 64;
+
+#ifdef _MSC_VER
+  {
+    unsigned long index;
+
+    _BitScanForward64 (&index, value);
+
+    return index;
+  }
+#else
+  return __builtin_ctzll (value);
+#endif
+}
+
+static guint
+gum_count_leading_ones (guint64 value)
+{
+  return gum_count_leading_zeros (~value);
+}
+
+static guint
+gum_count_trailing_ones (guint64 value)
+{
+  return gum_count_trailing_zeros (~value);
 }

@@ -138,6 +138,8 @@ GUM_API gboolean gum_arm64_writer_put_add_reg_reg_reg (GumArm64Writer * self,
     arm64_reg dst_reg, arm64_reg left_reg, arm64_reg right_reg);
 GUM_API gboolean gum_arm64_writer_put_sub_reg_reg_imm (GumArm64Writer * self,
     arm64_reg dst_reg, arm64_reg left_reg, gsize right_value);
+GUM_API gboolean gum_arm64_writer_put_tst_reg_imm (GumArm64Writer * self,
+    arm64_reg reg, guint64 imm_value);
 
 GUM_API void gum_arm64_writer_put_nop (GumArm64Writer * self);
 GUM_API void gum_arm64_writer_put_brk_imm (GumArm64Writer * self, guint16 imm);
