@@ -1238,15 +1238,16 @@ gum_arm64_writer_put_tst_reg_imm (GumArm64Writer * self,
                                   guint64 imm_value)
 {
   GumArm64RegInfo ri;
-  guint imm_enc;
+  guint imm_value_encoded;
 
   gum_arm64_writer_describe_reg (self, reg, &ri);
 
-  if (!gum_arm64_try_encode_logical_immediate (imm_value, ri.width, &imm_enc))
+  if (!gum_arm64_try_encode_logical_immediate (imm_value, ri.width,
+      &imm_value_encoded))
     return FALSE;
 
   gum_arm64_writer_put_instruction (self, ri.sf | 0x7200001f | (ri.index << 5) |
-      (imm_enc << 10));
+      (imm_value_encoded << 10));
 
   return TRUE;
 }
