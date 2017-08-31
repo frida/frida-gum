@@ -28,6 +28,7 @@ TEST_LIST_BEGIN (arm64writer)
   TESTENTRY (sub_reg_reg_imm)
   TESTENTRY (sub_reg_reg_reg)
   TESTENTRY (tst_reg_imm)
+  TESTENTRY (cmp_reg_reg)
 TEST_LIST_END ()
 
 TESTCASE (cbz_reg_label)
@@ -262,4 +263,10 @@ TESTCASE (tst_reg_imm)
 
   gum_arm64_writer_put_tst_reg_imm (&fixture->aw, ARM64_REG_W7, 31);
   assert_output_n_equals (1, 0x720010ff);
+}
+
+TESTCASE (cmp_reg_reg)
+{
+  gum_arm64_writer_put_cmp_reg_reg (&fixture->aw, ARM64_REG_X3, ARM64_REG_X5);
+  assert_output_n_equals (0, 0xeb05007f);
 }

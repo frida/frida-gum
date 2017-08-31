@@ -1190,6 +1190,25 @@ gum_arm64_writer_put_tst_reg_imm (GumArm64Writer * self,
   return TRUE;
 }
 
+gboolean
+gum_arm64_writer_put_cmp_reg_reg (GumArm64Writer * self,
+                                  arm64_reg reg_a,
+                                  arm64_reg reg_b)
+{
+  GumArm64RegInfo ra, rb;
+
+  gum_arm64_writer_describe_reg (self, reg_a, &ra);
+  gum_arm64_writer_describe_reg (self, reg_b, &rb);
+
+  if (ra.width != rb.width)
+    return FALSE;
+
+  gum_arm64_writer_put_instruction (self, ra.sf | 0x6b00001f | (ra.index << 5) |
+      (rb.index << 16));
+
+  return TRUE;
+}
+
 void
 gum_arm64_writer_put_nop (GumArm64Writer * self)
 {
