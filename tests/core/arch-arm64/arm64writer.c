@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2014-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -26,6 +26,7 @@ TEST_LIST_BEGIN (arm64writer)
   TESTENTRY (mov_reg_reg)
   TESTENTRY (add_reg_reg_imm)
   TESTENTRY (sub_reg_reg_imm)
+  TESTENTRY (sub_reg_reg_reg)
   TESTENTRY (tst_reg_imm)
 TEST_LIST_END ()
 
@@ -245,6 +246,13 @@ TESTCASE (sub_reg_reg_imm)
   gum_arm64_writer_put_sub_reg_reg_imm (&fixture->aw, ARM64_REG_W7,
       ARM64_REG_W12, 16);
   assert_output_n_equals (2, 0x51004187);
+}
+
+TESTCASE (sub_reg_reg_reg)
+{
+  gum_arm64_writer_put_sub_reg_reg_reg (&fixture->aw, ARM64_REG_X3,
+      ARM64_REG_X5, ARM64_REG_X7);
+  assert_output_n_equals (0, 0xcb0700a3);
 }
 
 TESTCASE (tst_reg_imm)
