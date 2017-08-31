@@ -1172,6 +1172,31 @@ gum_arm64_writer_put_sub_reg_reg_reg (GumArm64Writer * self,
 }
 
 gboolean
+gum_arm64_writer_put_and_reg_reg_imm (GumArm64Writer * self,
+                                      arm64_reg dst_reg,
+                                      arm64_reg left_reg,
+                                      gsize right_value)
+{
+  GumArm64RegInfo rd, rl;
+  guint right_value_encoded;
+
+  gum_arm64_writer_describe_reg (self, dst_reg, &rd);
+  gum_arm64_writer_describe_reg (self, left_reg, &rl);
+
+  if (rd.width != rl.width)
+    return FALSE;
+
+  if (!gum_arm64_try_encode_logical_immediate (right_value, rd.width,
+      &right_value_encoded))
+    return FALSE;
+
+  gum_arm64_writer_put_instruction (self, rd.sf | 0x12000000 | rd.index |
+      (rl.index << 5) | (right_value_encoded << 10));
+
+  return TRUE;
+}
+
+gboolean
 gum_arm64_writer_put_tst_reg_imm (GumArm64Writer * self,
                                   arm64_reg reg,
                                   guint64 imm_value)
