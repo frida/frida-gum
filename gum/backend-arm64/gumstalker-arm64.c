@@ -1047,11 +1047,6 @@ gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
   if (counters_enabled)
     total_transitions++;
 
-#if 0
-  fprintf (stderr, "depth: %u\n",
-      (guint) (ctx->first_frame - ctx->current_frame));
-#endif
-
   if (ctx->invalidate_pending)
   {
     gum_metal_hash_table_remove_all (ctx->mappings);
