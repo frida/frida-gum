@@ -884,6 +884,42 @@ gum_arm64_writer_put_ldr_reg_u64 (GumArm64Writer * self,
   return TRUE;
 }
 
+guint
+gum_arm64_writer_put_ldr_reg_ref (GumArm64Writer * self,
+                                  arm64_reg reg)
+{
+  GumArm64RegInfo ri;
+  guint ref;
+
+  gum_arm64_writer_describe_reg (self, reg, &ri);
+
+  ref = gum_arm64_writer_offset (self);
+
+  gum_arm64_writer_put_instruction (self,
+      (ri.is_integer ? 0x58000000 : 0x5c000000) | ri.index);
+
+  return ref;
+}
+
+void
+gum_arm64_writer_put_ldr_reg_value (GumArm64Writer * self,
+                                    guint ref,
+                                    GumAddress value)
+{
+  guint distance;
+  guint32 * insn;
+
+  distance = gum_arm64_writer_offset (self) - ref;
+
+  insn = self->base + (ref / 4);
+  *insn = GUINT32_TO_LE (GUINT32_FROM_LE (*insn) |
+      (((distance / 4) & GUM_INT19_MASK) << 5));
+
+  *((guint64 *) self->code) = GUINT64_TO_LE (value);
+  self->code += 2;
+  self->pc += 8;
+}
+
 gboolean
 gum_arm64_writer_put_ldr_reg_reg_offset (GumArm64Writer * self,
                                          arm64_reg dst_reg,
