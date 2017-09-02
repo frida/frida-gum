@@ -2460,7 +2460,6 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   call_code_start = cw->code;
   opened_prolog = gc->opened_prolog;
 
-  /* We can backpatch if we have some trust and the call's target is static */
   can_backpatch = (block->ctx->stalker->priv->trust_threshold >= 0 &&
       !target->is_indirect &&
       target->base == X86_REG_INVALID);
