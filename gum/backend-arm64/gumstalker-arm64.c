@@ -1877,13 +1877,15 @@ gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
 {
   if (gc->opened_prolog == GUM_PROLOG_MINIMAL)
   {
-    return gum_exec_ctx_load_real_register_from_minimal_frame_into (ctx,
+    gum_exec_ctx_load_real_register_from_minimal_frame_into (ctx,
         target_register, source_register, gc);
+    return;
   }
   else if (gc->opened_prolog == GUM_PROLOG_FULL)
   {
-    return gum_exec_ctx_load_real_register_from_full_frame_into (ctx,
-        target_register, source_register, gc);
+    gum_exec_ctx_load_real_register_from_full_frame_into (ctx, target_register,
+        source_register, gc);
+    return;
   }
 
   g_assert_not_reached ();
