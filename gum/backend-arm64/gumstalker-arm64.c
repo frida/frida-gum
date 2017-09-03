@@ -2856,14 +2856,12 @@ gum_exec_block_write_ret_event_code (GumExecBlock * block,
                                      GumGeneratorContext * gc,
                                      GumCodeContext cc)
 {
-  GumArm64Writer * cw = gc->code_writer;
-
   gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
 
   gum_exec_ctx_load_real_register_into (block->ctx, ARM64_REG_X14, ARM64_REG_LR,
       gc);
 
-  gum_arm64_writer_put_call_address_with_arguments (cw,
+  gum_arm64_writer_put_call_address_with_arguments (gc->code_writer,
       GUM_ADDRESS (gum_exec_ctx_emit_ret_event), 3,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
       GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->begin),
@@ -2877,11 +2875,9 @@ gum_exec_block_write_exec_event_code (GumExecBlock * block,
                                       GumGeneratorContext * gc,
                                       GumCodeContext cc)
 {
-  GumArm64Writer * cw = gc->code_writer;
-
   gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
 
-  gum_arm64_writer_put_call_address_with_arguments (cw,
+  gum_arm64_writer_put_call_address_with_arguments (gc->code_writer,
       GUM_ADDRESS (gum_exec_ctx_emit_exec_event), 2,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
       GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->begin));
@@ -2894,11 +2890,9 @@ gum_exec_block_write_block_event_code (GumExecBlock * block,
                                        GumGeneratorContext * gc,
                                        GumCodeContext cc)
 {
-  GumArm64Writer * cw = gc->code_writer;
-
   gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
 
-  gum_arm64_writer_put_call_address_with_arguments (cw,
+  gum_arm64_writer_put_call_address_with_arguments (gc->code_writer,
       GUM_ADDRESS (gum_exec_ctx_emit_block_event), 3,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
       GUM_ARG_ADDRESS, GUM_ADDRESS (gc->relocator->input_start),
