@@ -2686,7 +2686,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
 
   gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_XAX,
       GUM_ADDRESS (&block->ctx->current_block));
-  gum_x86_writer_put_call_address_with_arguments (cw, GUM_CALL_CAPI,
+  gum_x86_writer_put_call_address_with_aligned_arguments (cw, GUM_CALL_CAPI,
       GUM_ADDRESS (gum_exec_block_backpatch_ret), 3,
       GUM_ARG_REGISTER, GUM_REG_XAX,
       GUM_ARG_ADDRESS, GUM_ADDRESS (ret_code_address),
@@ -2720,7 +2720,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
 
   if (can_backpatch)
   {
-    gum_x86_writer_put_call_address_with_arguments (cw, GUM_CALL_CAPI,
+    gum_x86_writer_put_call_address_with_aligned_arguments (cw, GUM_CALL_CAPI,
         GUM_ADDRESS (gum_exec_block_backpatch_call), 6,
         GUM_ARG_ADDRESS, GUM_ADDRESS (block),
         GUM_ARG_ADDRESS, GUM_ADDRESS (call_code_start),
