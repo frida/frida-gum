@@ -777,11 +777,6 @@ gum_stalker_infect (GumThreadId thread_id,
   GumExecCtx * ctx;
   gpointer code_address;
   GumX86Writer cw;
-#if GLIB_SIZEOF_VOID_P == 4
-  guint align_correction = 8;
-#else
-  guint align_correction = 0;
-#endif
 
   ctx = gum_stalker_create_exec_ctx (self, thread_id,
       infect_context->transformer, infect_context->sink);
@@ -792,12 +787,10 @@ gum_stalker_infect (GumThreadId thread_id,
 
   gum_x86_writer_init (&cw, ctx->infect_thunk);
   gum_exec_ctx_write_prolog (ctx, GUM_PROLOG_MINIMAL, &cw);
-  gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction);
-  gum_x86_writer_put_call_address_with_arguments (&cw, GUM_CALL_CAPI,
+  gum_x86_writer_put_call_address_with_aligned_arguments (&cw, GUM_CALL_CAPI,
       GUM_ADDRESS (gum_tls_key_set_value), 2,
       GUM_ARG_ADDRESS, GUM_ADDRESS (self->priv->exec_ctx),
       GUM_ARG_ADDRESS, GUM_ADDRESS (ctx));
-  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction);
   gum_exec_ctx_write_epilog (ctx, GUM_PROLOG_MINIMAL, &cw);
   gum_x86_writer_put_jmp_address (&cw, GUM_ADDRESS (code_address));
   gum_x86_writer_clear (&cw);
@@ -1575,9 +1568,6 @@ gum_stalker_iterator_put_callout (GumStalkerIterator * self,
   GumExecBlock * block = self->exec_block;
   GumGeneratorContext * gc = self->generator_context;
   GumX86Writer * cw = gc->code_writer;
-#if GLIB_SIZEOF_VOID_P == 4
-  guint align_correction = 8;
-#endif
 
   entry = g_slice_new (GumCalloutEntry);
   entry->callout = callout;
@@ -1588,18 +1578,10 @@ gum_stalker_iterator_put_callout (GumStalkerIterator * self,
 
   gum_exec_block_open_prolog (block, GUM_PROLOG_FULL, gc);
 
-#if GLIB_SIZEOF_VOID_P == 4
-  gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XSP, align_correction);
-#endif
-
-  gum_x86_writer_put_call_address_with_arguments (cw,
+  gum_x86_writer_put_call_address_with_aligned_arguments (cw,
       GUM_CALL_CAPI, GUM_ADDRESS (gum_stalker_invoke_callout), 2,
       GUM_ARG_REGISTER, GUM_REG_XBX,
       GUM_ARG_ADDRESS, GUM_ADDRESS (entry));
-
-#if GLIB_SIZEOF_VOID_P == 4
-  gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XSP, align_correction);
-#endif
 
   gum_exec_block_close_prolog (block, gc);
 
@@ -3022,10 +3004,6 @@ gum_exec_block_write_call_probe_code (GumExecBlock * block,
 
   if (!skip_probing)
   {
-#if GLIB_SIZEOF_VOID_P == 4
-    guint align_correction = 4;
-#endif
-
     if (gc->opened_prolog != GUM_PROLOG_NONE)
       gum_exec_block_close_prolog (block, gc);
     gum_exec_block_open_prolog (block, GUM_PROLOG_FULL, gc);
@@ -3033,17 +3011,11 @@ gum_exec_block_write_call_probe_code (GumExecBlock * block,
     gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
     gum_x86_writer_put_pop_reg (cw, GUM_REG_XAX);
 
-#if GLIB_SIZEOF_VOID_P == 4
-    gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XSP, align_correction);
-#endif
-    gum_x86_writer_put_call_address_with_arguments (cw, GUM_CALL_CAPI,
+    gum_x86_writer_put_call_address_with_aligned_arguments (cw, GUM_CALL_CAPI,
         GUM_ADDRESS (gum_exec_block_invoke_call_probes_for_target), 3,
         GUM_ARG_ADDRESS, GUM_ADDRESS (block),
         GUM_ARG_REGISTER, GUM_REG_XAX,
         GUM_ARG_REGISTER, GUM_REG_XBX);
-#if GLIB_SIZEOF_VOID_P == 4
-    gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XSP, align_correction);
-#endif
   }
 }
 

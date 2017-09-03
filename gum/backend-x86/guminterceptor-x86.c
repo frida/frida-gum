@@ -260,7 +260,7 @@ gum_emit_enter_thunk (GumX86Writer * cw)
   gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XCX,
       GUM_REG_XBP, GUM_FRAME_OFFSET_NEXT_HOP);
 
-  gum_x86_writer_put_call_address_with_arguments (cw, GUM_CALL_CAPI,
+  gum_x86_writer_put_call_address_with_aligned_arguments (cw, GUM_CALL_CAPI,
       GUM_ADDRESS (_gum_function_context_begin_invocation), 4,
       GUM_ARG_REGISTER, GUM_REG_XBX,
       GUM_ARG_REGISTER, GUM_REG_XSI,
@@ -274,11 +274,6 @@ static void
 gum_emit_leave_thunk (GumX86Writer * cw)
 {
   const gsize no_stack_displacement = 0;
-  gssize align_correction_leave = 0;
-
-#if GLIB_SIZEOF_VOID_P == 4
-  align_correction_leave = 4;
-#endif
 
   gum_emit_prolog (cw, no_stack_displacement);
 
@@ -287,23 +282,11 @@ gum_emit_leave_thunk (GumX86Writer * cw)
   gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XDX,
       GUM_REG_XBP, GUM_FRAME_OFFSET_NEXT_HOP);
 
-  if (align_correction_leave != 0)
-  {
-    gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP,
-        GUM_REG_XSP, -align_correction_leave);
-  }
-
-  gum_x86_writer_put_call_address_with_arguments (cw, GUM_CALL_CAPI,
+  gum_x86_writer_put_call_address_with_aligned_arguments (cw, GUM_CALL_CAPI,
       GUM_ADDRESS (_gum_function_context_end_invocation), 3,
       GUM_ARG_REGISTER, GUM_REG_XBX,
       GUM_ARG_REGISTER, GUM_REG_XSI,
       GUM_ARG_REGISTER, GUM_REG_XDX);
-
-  if (align_correction_leave != 0)
-  {
-    gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP,
-        GUM_REG_XSP, align_correction_leave);
-  }
 
   gum_emit_epilog (cw);
 }
