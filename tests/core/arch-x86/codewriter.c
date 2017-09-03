@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2011 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2009-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -68,6 +68,10 @@ TEST_LIST_BEGIN (codewriter)
   CODEWRITER_TESTENTRY (test_rax_r9)
   CODEWRITER_TESTENTRY (cmp_eax_i32)
   CODEWRITER_TESTENTRY (cmp_r9_i32)
+  CODEWRITER_TESTENTRY (cmp_rax_i8_offset_ptr_rcx)
+  CODEWRITER_TESTENTRY (cmp_r12_i8_offset_ptr_rcx)
+  CODEWRITER_TESTENTRY (cmp_rsp_i8_offset_ptr_rcx)
+  CODEWRITER_TESTENTRY (cmp_rsp_i32_offset_ptr_rcx)
 TEST_LIST_END ()
 
 CODEWRITER_TESTCASE (jump_label)
@@ -700,6 +704,41 @@ CODEWRITER_TESTCASE (cmp_r9_i32)
 {
   const guint8 expected_code[] = { 0x49, 0x81, 0xf9, 0x37, 0x13, 0x00, 0x00 };
   gum_x86_writer_put_cmp_reg_i32 (&fixture->cw, GUM_REG_R9, 0x1337);
+  assert_output_equals (expected_code);
+}
+
+CODEWRITER_TESTCASE (cmp_rax_i8_offset_ptr_rcx)
+{
+  const guint8 expected_code[] = { 0x48, 0x39, 0x48, 0x0a };
+  gum_x86_writer_put_cmp_reg_offset_ptr_reg (&fixture->cw, GUM_REG_RAX, 0x0a,
+      GUM_REG_RCX);
+  assert_output_equals (expected_code);
+}
+
+CODEWRITER_TESTCASE (cmp_r12_i8_offset_ptr_rcx)
+{
+  const guint8 expected_code[] = { 0x49, 0x39, 0x4c, 0x24, 0x0a };
+  gum_x86_writer_put_cmp_reg_offset_ptr_reg (&fixture->cw, GUM_REG_R12, 0x0a,
+      GUM_REG_RCX);
+  assert_output_equals (expected_code);
+}
+
+CODEWRITER_TESTCASE (cmp_rsp_i8_offset_ptr_rcx)
+{
+  const guint8 expected_code[] = { 0x48, 0x39, 0x4c, 0x24, 0x0a };
+  gum_x86_writer_put_cmp_reg_offset_ptr_reg (&fixture->cw, GUM_REG_RSP, 0x0a,
+      GUM_REG_RCX);
+  assert_output_equals (expected_code);
+}
+
+CODEWRITER_TESTCASE (cmp_rsp_i32_offset_ptr_rcx)
+{
+  const guint8 expected_code[] = {
+    0x48, 0x39, 0x8c, 0x24,
+    0xaa, 0x00, 0x00, 0x00
+  };
+  gum_x86_writer_put_cmp_reg_offset_ptr_reg (&fixture->cw, GUM_REG_RSP, 0xaa,
+      GUM_REG_RCX);
   assert_output_equals (expected_code);
 }
 

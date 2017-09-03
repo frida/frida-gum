@@ -2660,27 +2660,26 @@ gum_x86_writer_put_cmp_reg_offset_ptr_reg (GumX86Writer * self,
   gum_x86_writer_describe_cpu_reg (self, reg_a, &a);
   gum_x86_writer_describe_cpu_reg (self, reg_b, &b);
 
-  if (!gum_x86_writer_put_prefix_for_registers (self, &b, 32, &b, NULL))
+  if (!gum_x86_writer_put_prefix_for_registers (self, &a, 32, &a, &b, NULL))
     return FALSE;
 
   offset_fits_in_i8 = GUM_IS_WITHIN_INT8_RANGE (offset);
-  if (!offset_fits_in_i8)
-    return FALSE;
 
-  if (a.meta == GUM_META_REG_XSP)
+  self->code[0] = 0x39;
+  self->code[1] = (offset_fits_in_i8 ? 0x40 : 0x80) | (b.index << 3) | a.index;
+  gum_x86_writer_commit (self, 2);
+
+  if (a.index == 4)
+    gum_x86_writer_put_u8 (self, 0x24);
+
+  if (offset_fits_in_i8)
   {
-    self->code[0] = 0x39;
-    self->code[1] = 0x44 | (b.index << 3);
-    self->code[2] = 0x24;
-    self->code[3] = (gint8) offset;
-    gum_x86_writer_commit (self, 4);
+    gum_x86_writer_put_s8 (self, offset);
   }
   else
   {
-    self->code[0] = 0x39;
-    self->code[1] = 0x40 | (b.index << 3) | a.index;
-    self->code[2] = (gint8) offset;
-    gum_x86_writer_commit (self, 3);
+    *((gint32 *) self->code) = GINT32_TO_LE (offset);
+    gum_x86_writer_commit (self, 4);
   }
 
   return TRUE;
