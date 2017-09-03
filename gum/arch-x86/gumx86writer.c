@@ -71,6 +71,14 @@ static void gum_x86_writer_put_argument_list_setup_va (GumX86Writer * self,
     GumCallingConvention conv, guint n_args, va_list vl);
 static void gum_x86_writer_put_argument_list_teardown (GumX86Writer * self,
     GumCallingConvention conv, guint n_args);
+static void gum_x86_writer_put_aligned_argument_list_setup (GumX86Writer * self,
+    GumCallingConvention conv, guint n_args, const GumArgument * args);
+static void gum_x86_writer_put_aligned_argument_list_setup_va (
+    GumX86Writer * self, GumCallingConvention conv, guint n_args, va_list vl);
+static void gum_x86_writer_put_aligned_argument_list_teardown (
+    GumX86Writer * self, GumCallingConvention conv, guint n_args);
+static guint gum_x86_writer_get_needed_alignment_correction (
+    GumX86Writer * self, guint n_args);
 static gboolean gum_x86_writer_put_short_jmp (GumX86Writer * self,
     gconstpointer target);
 static gboolean gum_x86_writer_put_near_jmp (GumX86Writer * self,
@@ -393,6 +401,46 @@ gum_x86_writer_put_call_address_with_arguments_array (GumX86Writer * self,
 }
 
 gboolean
+gum_x86_writer_put_call_address_with_aligned_arguments (
+    GumX86Writer * self,
+    GumCallingConvention conv,
+    GumAddress func,
+    guint n_args,
+    ...)
+{
+  va_list vl;
+
+  va_start (vl, n_args);
+  gum_x86_writer_put_aligned_argument_list_setup_va (self, conv, n_args, vl);
+  va_end (vl);
+
+  if (!gum_x86_writer_put_call_address (self, func))
+    return FALSE;
+
+  gum_x86_writer_put_aligned_argument_list_teardown (self, conv, n_args);
+
+  return TRUE;
+}
+
+gboolean
+gum_x86_writer_put_call_address_with_aligned_arguments_array (
+    GumX86Writer * self,
+    GumCallingConvention conv,
+    GumAddress func,
+    guint n_args,
+    const GumArgument * args)
+{
+  gum_x86_writer_put_aligned_argument_list_setup (self, conv, n_args, args);
+
+  if (!gum_x86_writer_put_call_address (self, func))
+    return FALSE;
+
+  gum_x86_writer_put_aligned_argument_list_teardown (self, conv, n_args);
+
+  return TRUE;
+}
+
+gboolean
 gum_x86_writer_put_call_reg_with_arguments (GumX86Writer * self,
                                             GumCallingConvention conv,
                                             GumCpuReg reg,
@@ -426,6 +474,45 @@ gum_x86_writer_put_call_reg_with_arguments_array (GumX86Writer * self,
     return FALSE;
 
   gum_x86_writer_put_argument_list_teardown (self, conv, n_args);
+
+  return TRUE;
+}
+
+gboolean
+gum_x86_writer_put_call_reg_with_aligned_arguments (GumX86Writer * self,
+                                                    GumCallingConvention conv,
+                                                    GumCpuReg reg,
+                                                    guint n_args,
+                                                    ...)
+{
+  va_list vl;
+
+  va_start (vl, n_args);
+  gum_x86_writer_put_aligned_argument_list_setup_va (self, conv, n_args, vl);
+  va_end (vl);
+
+  if (!gum_x86_writer_put_call_reg (self, reg))
+    return FALSE;
+
+  gum_x86_writer_put_aligned_argument_list_teardown (self, conv, n_args);
+
+  return TRUE;
+}
+
+gboolean
+gum_x86_writer_put_call_reg_with_aligned_arguments_array (
+    GumX86Writer * self,
+    GumCallingConvention conv,
+    GumCpuReg reg,
+    guint n_args,
+    const GumArgument * args)
+{
+  gum_x86_writer_put_aligned_argument_list_setup (self, conv, n_args, args);
+
+  if (!gum_x86_writer_put_call_reg (self, reg))
+    return FALSE;
+
+  gum_x86_writer_put_aligned_argument_list_teardown (self, conv, n_args);
 
   return TRUE;
 }
@@ -594,6 +681,88 @@ gum_x86_writer_put_argument_list_teardown (GumX86Writer * self,
     else if (n_args > 6)
       gum_x86_writer_put_add_reg_imm (self, GUM_REG_RSP, (n_args - 6) * 8);
   }
+}
+
+static void
+gum_x86_writer_put_aligned_argument_list_setup (GumX86Writer * self,
+                                                GumCallingConvention conv,
+                                                guint n_args,
+                                                const GumArgument * args)
+{
+  guint align_correction;
+
+  align_correction =
+      gum_x86_writer_get_needed_alignment_correction (self, n_args);
+  if (align_correction != 0)
+  {
+    gum_x86_writer_put_sub_reg_imm (self, GUM_REG_XSP, align_correction);
+  }
+
+  gum_x86_writer_put_argument_list_setup (self, conv, n_args, args);
+}
+
+static void
+gum_x86_writer_put_aligned_argument_list_setup_va (GumX86Writer * self,
+                                                   GumCallingConvention conv,
+                                                   guint n_args,
+                                                   va_list vl)
+{
+  guint align_correction;
+
+  align_correction =
+      gum_x86_writer_get_needed_alignment_correction (self, n_args);
+  if (align_correction != 0)
+  {
+    gum_x86_writer_put_sub_reg_imm (self, GUM_REG_XSP, align_correction);
+  }
+
+  gum_x86_writer_put_argument_list_setup_va (self, conv, n_args, vl);
+}
+
+static void
+gum_x86_writer_put_aligned_argument_list_teardown (GumX86Writer * self,
+                                                   GumCallingConvention conv,
+                                                   guint n_args)
+{
+  guint align_correction;
+
+  gum_x86_writer_put_argument_list_teardown (self, conv, n_args);
+
+  align_correction =
+      gum_x86_writer_get_needed_alignment_correction (self, n_args);
+  if (align_correction != 0)
+  {
+    gum_x86_writer_put_add_reg_imm (self, GUM_REG_XSP, align_correction);
+  }
+}
+
+static guint
+gum_x86_writer_get_needed_alignment_correction (GumX86Writer * self,
+                                                guint n_args)
+{
+  guint n_stack_args, pointer_size, stack_args_size, remainder;
+
+  if (self->target_cpu == GUM_CPU_IA32)
+  {
+    n_stack_args = n_args;
+
+    pointer_size = 4;
+  }
+  else
+  {
+    if (self->target_abi == GUM_ABI_UNIX)
+      n_stack_args = (n_args > 6) ? n_args - 6 : 0;
+    else
+      n_stack_args = (n_args > 4) ? n_args - 4 : 0;
+
+    pointer_size = 8;
+  }
+
+  stack_args_size = n_stack_args * pointer_size;
+
+  remainder = stack_args_size % 16;
+
+  return (remainder != 0) ? 16 - remainder : 0;
 }
 
 gboolean
