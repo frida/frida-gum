@@ -16,6 +16,7 @@ TEST_LIST_BEGIN (stalker)
   STALKER_TESTENTRY (call)
   STALKER_TESTENTRY (ret)
   STALKER_TESTENTRY (exec)
+  STALKER_TESTENTRY (call_depth)
 
   /* PROBES */
   STALKER_TESTENTRY (call_probe)
@@ -137,6 +138,68 @@ STALKER_TESTCASE (exec)
   ev =
       &g_array_index (fixture->sink->events, GumEvent, INVOKER_IMPL_OFFSET).ret;
   GUM_ASSERT_CMPADDR (ev->location, ==, func);
+}
+
+STALKER_TESTCASE (call_depth)
+{
+  guint8 * code;
+  GumArm64Writer cw;
+  gpointer func_a, func_b;
+  const gchar * start_lbl = "start";
+  StalkerTestFunc func;
+  gint r;
+
+  code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  gum_arm64_writer_init (&cw, code);
+
+  gum_arm64_writer_put_push_all_x_registers (&cw);
+  gum_arm64_writer_put_call_address_with_arguments (&cw,
+      GUM_ADDRESS (gum_stalker_follow_me), 3,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->transformer),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->sink));
+  gum_arm64_writer_put_pop_all_x_registers (&cw);
+
+  gum_arm64_writer_put_b_label (&cw, start_lbl);
+
+  func_b = gum_arm64_writer_cur (&cw);
+  gum_arm64_writer_put_add_reg_reg_imm (&cw, ARM64_REG_X0, ARM64_REG_X0, 7);
+  gum_arm64_writer_put_ret (&cw);
+
+  func_a = gum_arm64_writer_cur (&cw);
+  gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
+  gum_arm64_writer_put_add_reg_reg_imm (&cw, ARM64_REG_X0, ARM64_REG_X0, 3);
+  gum_arm64_writer_put_bl_imm (&cw, GUM_ADDRESS (func_b));
+  gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
+  gum_arm64_writer_put_ret (&cw);
+
+  gum_arm64_writer_put_label (&cw, start_lbl);
+  gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
+  gum_arm64_writer_put_bl_imm (&cw, GUM_ADDRESS (func_a));
+  gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
+
+  gum_arm64_writer_put_push_all_x_registers (&cw);
+  gum_arm64_writer_put_call_address_with_arguments (&cw,
+      GUM_ADDRESS (gum_stalker_unfollow_me), 1,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker));
+  gum_arm64_writer_put_pop_all_x_registers (&cw);
+
+  gum_arm64_writer_put_ret (&cw);
+
+  gum_arm64_writer_clear (&cw);
+
+  fixture->sink->mask = GUM_CALL | GUM_RET;
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
+  r = func (2);
+
+  g_assert_cmpint (r, ==, 12);
+  g_assert_cmpuint (fixture->sink->events->len, ==, 5);
+  g_assert_cmpint (NTH_EVENT_AS_CALL (0)->depth, ==, 0);
+  g_assert_cmpint (NTH_EVENT_AS_CALL (1)->depth, ==, 1);
+  g_assert_cmpint (NTH_EVENT_AS_RET (2)->depth, ==, 2);
+  g_assert_cmpint (NTH_EVENT_AS_RET (3)->depth, ==, 1);
+
+  gum_free_pages (code);
 }
 
 typedef struct _CallProbeContext CallProbeContext;
