@@ -1741,7 +1741,7 @@ static void
 gum_exec_ctx_write_stack_pop_and_go_helper (GumExecCtx * ctx,
                                             GumArm64Writer * cw)
 {
-  gconstpointer resolve_dynamically_label = cw->code + 1;
+  gconstpointer resolve_dynamically = cw->code + 1;
 
   /*
    * Fast path (try the stack)
@@ -1757,7 +1757,7 @@ gum_exec_ctx_write_stack_pop_and_go_helper (GumExecCtx * ctx,
   gum_arm64_writer_put_sub_reg_reg_reg (cw, ARM64_REG_X17, ARM64_REG_X17,
       ARM64_REG_X16);
   gum_arm64_writer_put_cbnz_reg_label (cw, ARM64_REG_X17,
-      resolve_dynamically_label);
+      resolve_dynamically);
 
   gum_arm64_writer_put_ldr_reg_reg_offset (cw, ARM64_REG_X17, ARM64_REG_X1,
       G_STRUCT_OFFSET (GumExecFrame, code_address));
@@ -1771,7 +1771,7 @@ gum_exec_ctx_write_stack_pop_and_go_helper (GumExecCtx * ctx,
   /*
    * Slow path (resolve dynamically)
    */
-  gum_arm64_writer_put_label (cw, resolve_dynamically_label);
+  gum_arm64_writer_put_label (cw, resolve_dynamically);
 
   gum_arm64_writer_put_ldr_reg_address (cw, ARM64_REG_X0,
       GUM_ADDRESS (&ctx->return_at));
@@ -2908,7 +2908,7 @@ gum_exec_block_write_unfollow_check_code (GumExecBlock * block,
 {
   GumExecCtx * ctx = block->ctx;
   GumArm64Writer * cw = gc->code_writer;
-  gconstpointer beach_label = cw->code + 1;
+  gconstpointer beach = cw->code + 1;
   GumPrologType opened_prolog;
 
   if (cc != GUM_CODE_INTERRUPTIBLE)
@@ -2917,7 +2917,7 @@ gum_exec_block_write_unfollow_check_code (GumExecBlock * block,
   STALKER_LOAD_REG_FROM_CTX (ARM64_REG_X14, state);
   gum_arm64_writer_put_sub_reg_reg_imm (cw, ARM64_REG_X14, ARM64_REG_X14,
       GUM_EXEC_CTX_UNFOLLOW_PENDING);
-  gum_arm64_writer_put_cbnz_reg_label (cw, ARM64_REG_X14, beach_label);
+  gum_arm64_writer_put_cbnz_reg_label (cw, ARM64_REG_X14, beach);
 
   gum_arm64_writer_put_call_address_with_arguments (cw,
       GUM_ADDRESS (gum_exec_ctx_unfollow), 2,
@@ -2934,7 +2934,7 @@ gum_exec_block_write_unfollow_check_code (GumExecBlock * block,
       0);
   gum_arm64_writer_put_br_reg (cw, ARM64_REG_X17);
 
-  gum_arm64_writer_put_label (cw, beach_label);
+  gum_arm64_writer_put_label (cw, beach);
 }
 
 static void
