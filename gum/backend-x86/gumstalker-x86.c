@@ -2276,7 +2276,6 @@ gum_exec_block_backpatch_call (GumExecBlock * block,
       block->recycle_count >= ctx->stalker->priv->trust_threshold)
   {
     GumX86Writer * cw = &ctx->code_writer;
-    gconstpointer beach = cw->code + 1;
 
     gum_x86_writer_reset (cw, code_start);
 
@@ -2285,29 +2284,19 @@ gum_exec_block_backpatch_call (GumExecBlock * block,
       gum_x86_writer_put_pushfx (cw);
       gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
       gum_x86_writer_put_push_reg (cw, GUM_REG_XCX);
+      gum_x86_writer_put_push_reg (cw, GUM_REG_XDX);
     }
 
-    gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_XCX,
-        GUM_ADDRESS (&block->ctx->current_frame));
-    gum_x86_writer_put_test_reg_u32 (cw, GUM_REG_XCX,
-        block->ctx->stalker->priv->page_size - 1);
-    gum_x86_writer_put_jcc_short_label (cw, X86_INS_JE, beach, GUM_UNLIKELY);
-
-    gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XCX, sizeof (GumExecFrame));
-    gum_x86_writer_put_mov_near_ptr_reg (cw,
-        GUM_ADDRESS (&block->ctx->current_frame), GUM_REG_XCX);
-
-    gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
+    gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XCX,
         GUM_ADDRESS (ret_real_address));
-    gum_x86_writer_put_mov_reg_ptr_reg (cw, GUM_REG_XCX, GUM_REG_XAX);
-    gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
+    gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XDX,
         GUM_ADDRESS (ret_code_address));
-    gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
-        GUM_REG_XCX, G_STRUCT_OFFSET (GumExecFrame, code_address), GUM_REG_XAX);
+    gum_x86_writer_put_call_address (cw,
+        GUM_ADDRESS (block->ctx->last_stack_push));
 
-    gum_x86_writer_put_label (cw, beach);
     if (opened_prolog == GUM_PROLOG_NONE)
     {
+      gum_x86_writer_put_pop_reg (cw, GUM_REG_XDX);
       gum_x86_writer_put_pop_reg (cw, GUM_REG_XCX);
       gum_x86_writer_put_pop_reg (cw, GUM_REG_XAX);
       gum_x86_writer_put_popfx (cw);
@@ -2802,15 +2791,6 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
       GUM_THUNK_ARGLIST_STACK_RESERVE);
   gum_x86_writer_put_mov_reg_reg (cw, GUM_REG_XDX, GUM_REG_XAX);
   gum_x86_writer_put_jmp_near_label (cw, perform_stack_push);
-
-  if (can_backpatch_statically)
-  {
-    /*
-     * We need some padding so the backpatching doesn't overwrite the return
-     * handling logic below
-     */
-    gum_x86_writer_put_padding (cw, 10);
-  }
 
   /* Generate code for handling the return */
   ret_real_address = gc->instruction->end;
