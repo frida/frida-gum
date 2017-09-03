@@ -315,7 +315,7 @@ pretend_workload (GumMemoryRange * runner_range)
   outbuf = malloc (outbuf_size);
 
   stream.next_in = GSIZE_TO_POINTER (runner_range->base_address);
-  stream.avail_in = MIN (runner_range->size, 1024 * 1024);
+  stream.avail_in = MIN (runner_range->size, 65536);
   stream.next_out = outbuf;
   stream.avail_out = outbuf_size;
 
