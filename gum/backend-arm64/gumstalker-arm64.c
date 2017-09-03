@@ -1773,6 +1773,11 @@ gum_exec_ctx_write_stack_pop_and_go_helper (GumExecCtx * ctx,
    */
   gum_arm64_writer_put_label (cw, resolve_dynamically);
 
+  /* Clear our stack so we might resync later */
+  gum_arm64_writer_put_ldr_reg_address (cw, ARM64_REG_X1,
+      GUM_ADDRESS (ctx->first_frame));
+  gum_arm64_writer_put_str_reg_reg_offset (cw, ARM64_REG_X1, ARM64_REG_X0, 0);
+
   gum_arm64_writer_put_ldr_reg_address (cw, ARM64_REG_X0,
       GUM_ADDRESS (&ctx->return_at));
   gum_arm64_writer_put_str_reg_reg_offset (cw, ARM64_REG_X16, ARM64_REG_X0, 0);
