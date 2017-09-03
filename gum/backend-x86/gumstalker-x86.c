@@ -2120,7 +2120,14 @@ gum_exec_block_backpatch_call (GumExecBlock * block,
                                gpointer ret_real_address,
                                gpointer ret_code_address)
 {
-  GumExecCtx * ctx = block->ctx;
+  gboolean just_unfollowed;
+  GumExecCtx * ctx;
+
+  just_unfollowed = block == NULL;
+  if (just_unfollowed)
+    return;
+
+  ctx = block->ctx;
 
   if (ctx->state == GUM_EXEC_CTX_ACTIVE &&
       block->recycle_count >= ctx->stalker->priv->trust_threshold)
@@ -2720,9 +2727,11 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
 
   if (can_backpatch)
   {
+    gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_XAX,
+        GUM_ADDRESS (&block->ctx->current_block));
     gum_x86_writer_put_call_address_with_aligned_arguments (cw, GUM_CALL_CAPI,
         GUM_ADDRESS (gum_exec_block_backpatch_call), 6,
-        GUM_ARG_ADDRESS, GUM_ADDRESS (block),
+        GUM_ARG_REGISTER, GUM_REG_XAX,
         GUM_ARG_ADDRESS, GUM_ADDRESS (call_code_start),
         GUM_ARG_ADDRESS, GUM_ADDRESS (opened_prolog),
         GUM_ARG_REGISTER, GUM_REG_XDX,
