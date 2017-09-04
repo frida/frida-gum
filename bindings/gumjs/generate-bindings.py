@@ -2297,6 +2297,10 @@ def generate_class_api_reference(name, arch, flavor, api):
     each element is either a string specifying the register, or a Number or
     NativePointer specifying the immediate value."""
                 arg_names[-1] = "args"
+            elif method.name.startswith("put_call") and "_with_aligned_arguments" in method.name:
+                description = """like above, but also
+    ensures that the argument list is aligned on a 16 byte boundary"""
+                arg_names[-1] = "args"
             elif method.name in ("put_push_regs", "put_pop_regs"):
                 if method.name.startswith("put_push_"):
                     mnemonic = "PUSH"
@@ -2314,6 +2318,13 @@ def generate_class_api_reference(name, arch, flavor, api):
                 description = """put code needed for popping all X registers off the stack"""
             elif method.name == "put_pop_all_q_registers":
                 description = """put code needed for popping all Q registers off the stack"""
+            elif method.name == "put_ldr_reg_ref":
+                description = """put an LDR instruction with a dangling data reference,
+    returning an opaque ref value that should be passed to `putLdrRegValue()`
+    at the desired location"""
+            elif method.name == "put_ldr_reg_value":
+                description = """put the value and update the LDR instruction
+    from a previous `putLdrRegRef()`"""
             elif method.name == "put_breakpoint":
                 description = "put an OS/architecture-specific breakpoint instruction"
             elif method.name == "put_padding":
