@@ -732,6 +732,37 @@ GUMJS_DEFINE_FUNCTION ({gumjs_function_prefix}_flush)
   return 0;
 }}
 
+GUMJS_DEFINE_GETTER ({gumjs_function_prefix}_get_base)
+{{
+  {wrapper_struct_name} * self;
+
+  self = {wrapper_function_prefix}_from_args (args);
+
+  _gum_duk_push_native_pointer (ctx, self->impl->base, args->core);
+  return 1;
+}}
+
+GUMJS_DEFINE_GETTER ({gumjs_function_prefix}_get_code)
+{{
+  {wrapper_struct_name} * self;
+
+  self = {wrapper_function_prefix}_from_args (args);
+
+  _gum_duk_push_native_pointer (ctx, self->impl->code, args->core);
+  return 1;
+}}
+
+GUMJS_DEFINE_GETTER ({gumjs_function_prefix}_get_pc)
+{{
+  {wrapper_struct_name} * self;
+
+  self = {wrapper_function_prefix}_from_args (args);
+
+  _gum_duk_push_native_pointer (ctx, GSIZE_TO_POINTER (self->impl->pc),
+      args->core);
+  return 1;
+}}
+
 GUMJS_DEFINE_GETTER ({gumjs_function_prefix}_get_offset)
 {{
   {wrapper_struct_name} * self;
@@ -744,6 +775,9 @@ GUMJS_DEFINE_GETTER ({gumjs_function_prefix}_get_offset)
 
 static const GumDukPropertyEntry {gumjs_function_prefix}_values[] =
 {{
+  {{ "base", {gumjs_function_prefix}_get_base, NULL }},
+  {{ "code", {gumjs_function_prefix}_get_code, NULL }},
+  {{ "pc", {gumjs_function_prefix}_get_pc, NULL }},
   {{ "offset", {gumjs_function_prefix}_get_offset, NULL }},
 
   {{ NULL, NULL, NULL }}
@@ -1693,6 +1727,33 @@ GUMJS_DEFINE_CLASS_METHOD ({gumjs_function_prefix}_flush, {wrapper_struct_name})
     _gum_v8_throw_ascii_literal (isolate, "unable to resolve references");
 }}
 
+GUMJS_DEFINE_CLASS_GETTER ({gumjs_function_prefix}_get_base, {wrapper_struct_name})
+{{
+  if (!{wrapper_function_prefix}_check (self, isolate))
+    return;
+
+  info.GetReturnValue ().Set (
+      _gum_v8_native_pointer_new (self->impl->base, core));
+}}
+
+GUMJS_DEFINE_CLASS_GETTER ({gumjs_function_prefix}_get_code, {wrapper_struct_name})
+{{
+  if (!{wrapper_function_prefix}_check (self, isolate))
+    return;
+
+  info.GetReturnValue ().Set (
+      _gum_v8_native_pointer_new (self->impl->code, core));
+}}
+
+GUMJS_DEFINE_CLASS_GETTER ({gumjs_function_prefix}_get_pc, {wrapper_struct_name})
+{{
+  if (!{wrapper_function_prefix}_check (self, isolate))
+    return;
+
+  info.GetReturnValue ().Set (
+      _gum_v8_native_pointer_new (GSIZE_TO_POINTER (self->impl->pc), core));
+}}
+
 GUMJS_DEFINE_CLASS_GETTER ({gumjs_function_prefix}_get_offset, {wrapper_struct_name})
 {{
   if (!{wrapper_function_prefix}_check (self, isolate))
@@ -1703,6 +1764,9 @@ GUMJS_DEFINE_CLASS_GETTER ({gumjs_function_prefix}_get_offset, {wrapper_struct_n
 
 static const GumV8Property {gumjs_function_prefix}_values[] =
 {{
+  {{ "base", {gumjs_function_prefix}_get_base, NULL }},
+  {{ "code", {gumjs_function_prefix}_get_code, NULL }},
+  {{ "pc", {gumjs_function_prefix}_get_pc, NULL }},
   {{ "offset", {gumjs_function_prefix}_get_offset, NULL }},
 
   {{ NULL, NULL, NULL }}
@@ -2248,6 +2312,12 @@ def generate_class_api_reference(name, arch, flavor, api):
     should always call this once you've finished generating code. It is usually
     also desirable to do this between pieces of unrelated code, e.g. when
     generating multiple functions in one go.
+
+-   `base`: memory location of the first byte of output, as a NativePointer
+
+-   `code`: memory location of the next byte of output, as a NativePointer
+
+-   `pc`: program counter at the next byte of output, as a NativePointer
 
 -   `offset`: current offset as a JavaScript Number
 """.format(**params).split("\n"))

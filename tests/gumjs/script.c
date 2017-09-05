@@ -302,8 +302,13 @@ SCRIPT_TESTCASE (instruction_can_be_parsed)
   COMPILE_AND_LOAD_SCRIPT (
       "var code = Memory.alloc(Process.pageSize);"
 
-      "var cw = new X86Writer(code);"
+      "var cw = new X86Writer(code, { pc: ptr(0x1000) });"
+      "send(cw.pc);"
+      "send(cw.offset);"
       "cw.putU8(0xab);" /* stosd */
+      "send(cw.pc);"
+      "send(cw.offset);"
+      "send(cw.code.equals(cw.base.add(1)));"
       "cw.putMovRegU32('eax', 42);"
       "cw.putCallRegOffsetPtr('rax', 12);"
       "cw.flush();"
@@ -338,6 +343,11 @@ SCRIPT_TESTCASE (instruction_can_be_parsed)
       "send(operands[0].value.disp);"
       "send(call.groups);");
 
+  EXPECT_SEND_MESSAGE_WITH ("\"0x1000\"");
+  EXPECT_SEND_MESSAGE_WITH ("0");
+  EXPECT_SEND_MESSAGE_WITH ("\"0x1001\"");
+  EXPECT_SEND_MESSAGE_WITH ("1");
+  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("\"stosd\"");
   EXPECT_SEND_MESSAGE_WITH ("[\"eax\",\"rdi\",\"rflags\"]");
   EXPECT_SEND_MESSAGE_WITH ("[\"rdi\"]");
