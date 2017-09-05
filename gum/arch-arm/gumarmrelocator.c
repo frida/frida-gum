@@ -87,8 +87,19 @@ gum_arm_relocator_init (GumArmRelocator * relocator,
 void
 gum_arm_relocator_clear (GumArmRelocator * relocator)
 {
+  guint i;
+
   gum_arm_relocator_reset (relocator, NULL, NULL);
 
+  for (i = 0; i != GUM_MAX_INPUT_INSN_COUNT; i++)
+  {
+    cs_insn * insn = relocator->input_insns[i];
+    if (insn != NULL)
+    {
+      cs_free (insn, 1);
+      relocator->input_insns[i] = NULL;
+    }
+  }
   g_free (relocator->input_insns);
 
   cs_close (&relocator->capstone);
@@ -99,20 +110,9 @@ gum_arm_relocator_reset (GumArmRelocator * relocator,
                          gconstpointer input_code,
                          GumArmWriter * output)
 {
-  guint i;
-
   relocator->input_start = input_code;
   relocator->input_cur = input_code;
   relocator->input_pc = GUM_ADDRESS (input_code);
-  for (i = 0; i != GUM_MAX_INPUT_INSN_COUNT; i++)
-  {
-    cs_insn * insn = relocator->input_insns[i];
-    if (insn != NULL)
-    {
-      cs_free (insn, 1);
-      relocator->input_insns[i] = NULL;
-    }
-  }
 
   if (output != NULL)
     gum_arm_writer_ref (output);
@@ -158,25 +158,25 @@ gum_arm_relocator_read_one (GumArmRelocator * self,
                             const cs_insn ** instruction)
 {
   cs_insn ** insn_ptr, * insn;
+  const uint8_t * code;
+  size_t size;
+  uint64_t address;
 
   if (self->eoi)
     return 0;
 
   insn_ptr = &self->input_insns[gum_arm_relocator_inpos (self)];
 
-  if (*insn_ptr != NULL)
-  {
-    cs_free (*insn_ptr, 1);
-    *insn_ptr = NULL;
-  }
+  if (*insn_ptr == NULL)
+    *insn_ptr = cs_malloc (self->capstone);
 
-  if (cs_disasm (self->capstone, self->input_cur, 4, self->input_pc, 1,
-      insn_ptr) != 1)
-  {
-    return 0;
-  }
-
+  code = self->input_cur;
+  size = 4;
+  address = self->input_pc;
   insn = *insn_ptr;
+
+  if (!cs_disasm_iter (self->capstone, &code, &size, &address, insn))
+    return 0;
 
   switch (insn->id)
   {

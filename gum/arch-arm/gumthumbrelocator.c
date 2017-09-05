@@ -91,8 +91,19 @@ gum_thumb_relocator_init (GumThumbRelocator * relocator,
 void
 gum_thumb_relocator_clear (GumThumbRelocator * relocator)
 {
+  guint i;
+
   gum_thumb_relocator_reset (relocator, NULL, NULL);
 
+  for (i = 0; i != GUM_MAX_INPUT_INSN_COUNT; i++)
+  {
+    cs_insn * insn = relocator->input_insns[i];
+    if (insn != NULL)
+    {
+      cs_free (insn, 1);
+      relocator->input_insns[i] = NULL;
+    }
+  }
   g_free (relocator->input_insns);
 
   cs_close (&relocator->capstone);
@@ -103,20 +114,9 @@ gum_thumb_relocator_reset (GumThumbRelocator * relocator,
                            gconstpointer input_code,
                            GumThumbWriter * output)
 {
-  guint i;
-
   relocator->input_start = input_code;
   relocator->input_cur = input_code;
   relocator->input_pc = GUM_ADDRESS (input_code);
-  for (i = 0; i != GUM_MAX_INPUT_INSN_COUNT; i++)
-  {
-    cs_insn * insn = relocator->input_insns[i];
-    if (insn != NULL)
-    {
-      cs_free (insn, 1);
-      relocator->input_insns[i] = NULL;
-    }
-  }
 
   if (output != NULL)
     gum_thumb_writer_ref (output);
@@ -163,6 +163,9 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
 {
   const guint8 * input_start = self->input_start;
   cs_insn ** insn_ptr, * insn;
+  const uint8_t * code;
+  size_t size;
+  uint64_t address;
   gint it_block_size = 0;
 
   if (self->eoi)
@@ -170,19 +173,16 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
 
   insn_ptr = &self->input_insns[gum_thumb_relocator_inpos (self)];
 
-  if (*insn_ptr != NULL)
-  {
-    cs_free (*insn_ptr, 1);
-    *insn_ptr = NULL;
-  }
+  if (*insn_ptr == NULL)
+    *insn_ptr = cs_malloc (self->capstone);
 
-  if (cs_disasm (self->capstone, self->input_cur, 4, self->input_pc, 1,
-      insn_ptr) != 1)
-  {
-    return 0;
-  }
-
+  code = self->input_cur;
+  size = 4;
+  address = self->input_pc;
   insn = *insn_ptr;
+
+  if (!cs_disasm_iter (self->capstone, &code, &size, &address, insn))
+    return 0;
 
   switch (insn->id)
   {
