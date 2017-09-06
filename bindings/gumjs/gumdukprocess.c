@@ -244,21 +244,7 @@ gum_emit_module (const GumModuleDetails * details,
   gboolean proceed = TRUE;
 
   duk_push_heapptr (ctx, mc->on_match);
-
-  duk_push_object (ctx);
-
-  duk_push_string (ctx, details->name);
-  duk_put_prop_string (ctx, -2, "name");
-
-  _gum_duk_push_native_pointer (ctx,
-      GSIZE_TO_POINTER (details->range->base_address), scope->core);
-  duk_put_prop_string (ctx, -2, "base");
-
-  duk_push_uint (ctx, details->range->size);
-  duk_put_prop_string (ctx, -2, "size");
-
-  duk_push_string (ctx, details->path);
-  duk_put_prop_string (ctx, -2, "path");
+  _gum_duk_push_module (ctx, details, scope->core);
 
   if (_gum_duk_scope_call_sync (scope, 1))
   {
