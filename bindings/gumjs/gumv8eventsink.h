@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2012-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */

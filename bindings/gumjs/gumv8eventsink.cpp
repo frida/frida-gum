@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2012-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -26,8 +26,8 @@ struct _GumV8EventSink
   GumV8Core * core;
   GMainContext * main_context;
   GumEventType event_mask;
-  GumPersistent<v8::Function>::type * on_receive;
-  GumPersistent<v8::Function>::type * on_call_summary;
+  GumPersistent<Function>::type * on_receive;
+  GumPersistent<Function>::type * on_call_summary;
   GSource * source;
 };
 

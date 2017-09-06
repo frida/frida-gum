@@ -14,7 +14,7 @@ using namespace v8;
 
 struct GumDatabase
 {
-  GumPersistent<v8::Object>::type * wrapper;
+  GumPersistent<Object>::type * wrapper;
   sqlite3 * handle;
   gchar * path;
   gboolean is_virtual;
@@ -23,7 +23,7 @@ struct GumDatabase
 
 struct GumStatement
 {
-  GumPersistent<v8::Object>::type * wrapper;
+  GumPersistent<Object>::type * wrapper;
   sqlite3_stmt * handle;
   GumV8Database * module;
 };

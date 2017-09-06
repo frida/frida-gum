@@ -425,7 +425,7 @@ _gum_v8_core_init (GumV8Core * self,
                    const gchar * runtime_source_map,
                    GumV8MessageEmitter message_emitter,
                    GumScriptScheduler * scheduler,
-                   v8::Isolate * isolate,
+                   Isolate * isolate,
                    Handle<ObjectTemplate> scope)
 {
   self->script = script;

@@ -16,7 +16,7 @@ using namespace v8;
 
 struct GumSymbol
 {
-  GumPersistent<v8::Object>::type * wrapper;
+  GumPersistent<Object>::type * wrapper;
   gboolean resolved;
   GumDebugSymbolDetails details;
   GumV8Symbol * module;

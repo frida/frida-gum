@@ -57,7 +57,7 @@ struct GumV8InvocationState
 
 struct GumV8InvocationArgs
 {
-  GumPersistent<v8::Object>::type * object;
+  GumPersistent<Object>::type * object;
   GumInvocationContext * ic;
 
   GumV8Interceptor * module;
@@ -65,7 +65,7 @@ struct GumV8InvocationArgs
 
 struct GumV8InvocationReturnValue
 {
-  GumPersistent<v8::Object>::type * object;
+  GumPersistent<Object>::type * object;
   GumInvocationContext * ic;
 
   GumV8Interceptor * module;

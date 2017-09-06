@@ -17,7 +17,7 @@ using namespace v8;
 
 struct GumFile
 {
-  GumPersistent<v8::Object>::type * wrapper;
+  GumPersistent<Object>::type * wrapper;
   FILE * handle;
   GumV8File * module;
 };
