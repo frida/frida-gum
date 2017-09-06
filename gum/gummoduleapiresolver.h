@@ -16,7 +16,7 @@ G_BEGIN_DECLS
 G_DECLARE_FINAL_TYPE (GumModuleApiResolver, gum_module_api_resolver, GUM,
     MODULE_API_RESOLVER, GObject)
 
-GumApiResolver * gum_module_api_resolver_new (void);
+GUM_API GumApiResolver * gum_module_api_resolver_new (void);
 
 G_END_DECLS
 
