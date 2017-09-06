@@ -95,7 +95,7 @@ G_GNUC_INTERNAL void _gum_v8_throw_ascii_literal (v8::Isolate * isolate,
 G_GNUC_INTERNAL void _gum_v8_throw_native (GumExceptionDetails * details,
     GumV8Core * core);
 G_GNUC_INTERNAL void _gum_v8_parse_exception_details (
-    GumExceptionDetails * details, v8::Local<v8::Object> & exception,
+    const GumExceptionDetails * details, v8::Local<v8::Object> & exception,
     v8::Local<v8::Object> & cpu_context, GumV8Core * core);
 
 G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_cpu_context_new (

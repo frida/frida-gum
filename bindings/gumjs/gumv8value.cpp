@@ -1262,7 +1262,7 @@ _gum_v8_throw_native (GumExceptionDetails * details,
 }
 
 void
-_gum_v8_parse_exception_details (GumExceptionDetails * details,
+_gum_v8_parse_exception_details (const GumExceptionDetails * details,
                                  Local<Object> & exception,
                                  Local<Object> & cpu_context,
                                  GumV8Core * core)
