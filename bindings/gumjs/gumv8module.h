@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -12,6 +12,8 @@
 struct GumV8Module
 {
   GumV8Core * core;
+
+  GHashTable * maps;
 
   GumPersistent<v8::Object>::type * import_value;
   GumPersistent<v8::Object>::type * export_value;

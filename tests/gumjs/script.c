@@ -2146,8 +2146,37 @@ SCRIPT_TESTCASE (process_module_can_be_looked_up_from_address)
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_NO_MESSAGES ();
-}
 
+  COMPILE_AND_LOAD_SCRIPT (
+      "var someModule = Process.enumerateModulesSync()[1];"
+      "var map = new ModuleMap();"
+      "var foundModule = map.find(someModule.base);"
+      "send(foundModule !== null);"
+      "send(foundModule.name === someModule.name);"
+      "map.update();"
+      "foundModule = map.get(someModule.base);"
+      "send(foundModule.name === someModule.name);"
+      );
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+
+#ifdef HAVE_DARWIN
+  COMPILE_AND_LOAD_SCRIPT (
+      "var systemModule = Process.enumerateModulesSync()"
+      "  .filter(function (m) {"
+      "    return m.path.indexOf('/System/') === 0;"
+      "  })[0];"
+      "var map = new ModuleMap(function (module) {"
+      "  return module.path.indexOf('/System/') === -1;"
+      "});"
+      "var foundModule = map.find(systemModule.base);"
+      "send(foundModule === null);");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+#endif
+}
 
 SCRIPT_TESTCASE (process_module_can_be_looked_up_from_name)
 {

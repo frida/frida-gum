@@ -433,6 +433,18 @@ Object.defineProperties(Module, {
   },
 });
 
+Object.defineProperties(ModuleMap.prototype, {
+  get: {
+    enumerable: true,
+    value: function (address) {
+      const details = this.find(address);
+      if (details === null)
+        throw new Error('Unable to find module containing ' + address);
+      return details;
+    }
+  },
+});
+
 Object.defineProperties(Interceptor, {
   attach: {
     enumerable: true,

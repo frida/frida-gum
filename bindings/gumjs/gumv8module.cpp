@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -62,6 +62,21 @@ struct GumV8MatchContext
   gboolean has_pending_exception;
 };
 
+struct GumV8ModuleMap
+{
+  GumPersistent<Object>::type * wrapper;
+  GumModuleMap * handle;
+
+  GumV8Module * module;
+};
+
+struct GumV8ModuleFilter
+{
+  GumPersistent<Function>::type * callback;
+
+  GumV8Core * core;
+};
+
 GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_imports)
 static gboolean gum_emit_import (const GumImportDetails * details,
     GumV8ImportsContext * mc);
@@ -77,6 +92,20 @@ static gboolean gum_emit_range (const GumRangeDetails * details,
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_base_address)
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_export_by_name)
 
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_module_map_construct)
+GUMJS_DECLARE_FUNCTION (gumjs_module_map_find)
+GUMJS_DECLARE_FUNCTION (gumjs_module_map_update)
+
+static GumV8ModuleMap * gum_v8_module_map_new (Handle<Object> wrapper,
+    GumModuleMap * handle, GumV8Module * module);
+static void gum_v8_module_map_free (GumV8ModuleMap * self);
+static void gum_v8_module_map_on_weak_notify (
+    const WeakCallbackInfo<GumV8ModuleMap> & info);
+
+static void gum_v8_module_filter_free (GumV8ModuleFilter * filter);
+static gboolean gum_v8_module_filter_matches (const GumModuleDetails * details,
+    GumV8ModuleFilter * self);
+
 static const GumV8Function gumjs_module_functions[] =
 {
   { "enumerateImports", gumjs_module_enumerate_imports },
@@ -85,6 +114,14 @@ static const GumV8Function gumjs_module_functions[] =
   { "enumerateRanges", gumjs_module_enumerate_ranges },
   { "findBaseAddress", gumjs_module_find_base_address },
   { "findExportByName", gumjs_module_find_export_by_name },
+
+  { NULL, NULL }
+};
+
+static const GumV8Function gumjs_module_map_functions[] =
+{
+  { "find", gumjs_module_map_find },
+  { "update", gumjs_module_map_update },
 
   { NULL, NULL }
 };
@@ -102,6 +139,10 @@ _gum_v8_module_init (GumV8Module * self,
 
   auto object = _gum_v8_create_module ("Module", scope, isolate);
   _gum_v8_module_add (module, object, gumjs_module_functions, isolate);
+
+  auto map = _gum_v8_create_class ("ModuleMap", gumjs_module_map_construct,
+      scope, module, isolate);
+  _gum_v8_class_add (map, gumjs_module_map_functions, module, isolate);
 }
 
 void
@@ -109,6 +150,9 @@ _gum_v8_module_realize (GumV8Module * self)
 {
   auto isolate = self->core->isolate;
   auto context = isolate->GetCurrentContext ();
+
+  self->maps = g_hash_table_new_full (NULL, NULL, NULL,
+      (GDestroyNotify) gum_v8_module_map_free);
 
   auto type_key = _gum_v8_string_new_ascii (isolate, "type");
   self->type_key = new GumPersistent<String>::type (isolate, type_key);
@@ -146,6 +190,9 @@ _gum_v8_module_realize (GumV8Module * self)
 void
 _gum_v8_module_dispose (GumV8Module * self)
 {
+  g_hash_table_unref (self->maps);
+  self->maps = NULL;
+
   delete self->import_value;
   delete self->export_value;
   self->import_value = nullptr;
@@ -560,4 +607,129 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_find_export_by_name)
 
   g_free (module_name);
   g_free (symbol_name);
+}
+
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_map_construct)
+{
+  if (!info.IsConstructCall ())
+  {
+    _gum_v8_throw_ascii_literal (isolate,
+        "use constructor syntax to create a new instance");
+    return;
+  }
+
+  Local<Function> filter_callback;
+  if (!_gum_v8_args_parse (args, "|F", &filter_callback))
+    return;
+
+  GumModuleMap * handle;
+  if (filter_callback.IsEmpty ())
+  {
+    handle = gum_module_map_new ();
+  }
+  else
+  {
+    GumV8ModuleFilter * filter;
+
+    filter = g_slice_new (GumV8ModuleFilter);
+    filter->callback =
+        new GumPersistent<Function>::type (isolate, filter_callback);
+    filter->core = core;
+
+    handle = gum_module_map_new_filtered (
+        (GumModuleMapFilterFunc) gum_v8_module_filter_matches,
+        filter, (GDestroyNotify) gum_v8_module_filter_free);
+  }
+
+  auto map = gum_v8_module_map_new (wrapper, handle, module);
+  wrapper->SetAlignedPointerInInternalField (0, map);
+}
+
+GUMJS_DEFINE_CLASS_METHOD (gumjs_module_map_find, GumV8ModuleMap)
+{
+  gpointer address;
+  if (!_gum_v8_args_parse (args, "p", &address))
+    return;
+
+  auto details = gum_module_map_find (self->handle, GUM_ADDRESS (address));
+  if (details == NULL)
+  {
+    info.GetReturnValue ().SetNull ();
+    return;
+  }
+
+  info.GetReturnValue ().Set (_gum_v8_parse_module_details (details, core));
+}
+
+GUMJS_DEFINE_CLASS_METHOD (gumjs_module_map_update, GumV8ModuleMap)
+{
+  gum_module_map_update (self->handle);
+}
+
+static GumV8ModuleMap *
+gum_v8_module_map_new (Handle<Object> wrapper,
+                       GumModuleMap * handle,
+                       GumV8Module * module)
+{
+  auto map = g_slice_new (GumV8ModuleMap);
+  map->wrapper =
+      new GumPersistent<Object>::type (module->core->isolate, wrapper);
+  map->wrapper->MarkIndependent ();
+  map->wrapper->SetWeak (map, gum_v8_module_map_on_weak_notify,
+      WeakCallbackType::kParameter);
+  map->handle = handle;
+  map->module = module;
+
+  g_hash_table_add (module->maps, map);
+
+  return map;
+}
+
+static void
+gum_v8_module_map_free (GumV8ModuleMap * map)
+{
+  g_object_unref (map->handle);
+
+  delete map->wrapper;
+
+  g_slice_free (GumV8ModuleMap, map);
+}
+
+static void
+gum_v8_module_map_on_weak_notify (const WeakCallbackInfo<GumV8ModuleMap> & info)
+{
+  HandleScope handle_scope (info.GetIsolate ());
+  auto self = info.GetParameter ();
+  g_hash_table_remove (self->module->maps, self);
+}
+
+static void
+gum_v8_module_filter_free (GumV8ModuleFilter * filter)
+{
+  delete filter->callback;
+
+  g_slice_free (GumV8ModuleFilter, filter);
+}
+
+static gboolean
+gum_v8_module_filter_matches (const GumModuleDetails * details,
+                              GumV8ModuleFilter * self)
+{
+  auto core = self->core;
+  Isolate * isolate = core->isolate;
+
+  auto module = _gum_v8_parse_module_details (details, core);
+
+  auto callback (Local<Function>::New (isolate, *self->callback));
+  Handle<Value> argv[] = { module };
+
+  auto result = callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
+
+  if (result.IsEmpty ())
+  {
+    core->current_scope->ProcessAnyPendingException ();
+    return FALSE;
+  }
+
+  return result->IsBoolean () && result.As<Boolean> ()->Value ();
 }
