@@ -44,7 +44,10 @@ GUMJS_DECLARE_FUNCTION (gumjs_module_find_export_by_name)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_module_map_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_module_map_finalize)
+GUMJS_DECLARE_FUNCTION (gumjs_module_map_has)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_find)
+GUMJS_DECLARE_FUNCTION (gumjs_module_map_find_name)
+GUMJS_DECLARE_FUNCTION (gumjs_module_map_find_path)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_update)
 
 static void gum_duk_module_filter_free (GumDukModuleFilter * filter);
@@ -65,7 +68,10 @@ static const duk_function_list_entry gumjs_module_functions[] =
 
 static const duk_function_list_entry gumjs_module_map_functions[] =
 {
+  { "has", gumjs_module_map_has, 1 },
   { "find", gumjs_module_map_find, 1 },
+  { "findName", gumjs_module_map_find_name, 1 },
+  { "findPath", gumjs_module_map_find_path, 1 },
   { "update", gumjs_module_map_update, 0 },
 
   { NULL, NULL, 0 }
@@ -462,6 +468,22 @@ GUMJS_DEFINE_FINALIZER (gumjs_module_map_finalize)
   return 0;
 }
 
+GUMJS_DEFINE_FUNCTION (gumjs_module_map_has)
+{
+  GumModuleMap * self;
+  gpointer address;
+  const GumModuleDetails * details;
+
+  self = gumjs_module_map_from_args (args);
+
+  _gum_duk_args_parse (args, "p", &address);
+
+  details = gum_module_map_find (self, GUM_ADDRESS (address));
+
+  duk_push_boolean (ctx, details != NULL);
+  return 1;
+}
+
 GUMJS_DEFINE_FUNCTION (gumjs_module_map_find)
 {
   GumModuleMap * self;
@@ -480,6 +502,48 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_map_find)
   }
 
   _gum_duk_push_module (ctx, details, args->core);
+  return 1;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_module_map_find_name)
+{
+  GumModuleMap * self;
+  gpointer address;
+  const GumModuleDetails * details;
+
+  self = gumjs_module_map_from_args (args);
+
+  _gum_duk_args_parse (args, "p", &address);
+
+  details = gum_module_map_find (self, GUM_ADDRESS (address));
+  if (details == NULL)
+  {
+    duk_push_null (ctx);
+    return 1;
+  }
+
+  duk_push_string (ctx, details->name);
+  return 1;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_module_map_find_path)
+{
+  GumModuleMap * self;
+  gpointer address;
+  const GumModuleDetails * details;
+
+  self = gumjs_module_map_from_args (args);
+
+  _gum_duk_args_parse (args, "p", &address);
+
+  details = gum_module_map_find (self, GUM_ADDRESS (address));
+  if (details == NULL)
+  {
+    duk_push_null (ctx);
+    return 1;
+  }
+
+  duk_push_string (ctx, details->path);
   return 1;
 }
 

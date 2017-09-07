@@ -2148,18 +2148,64 @@ SCRIPT_TESTCASE (process_module_can_be_looked_up_from_address)
   EXPECT_NO_MESSAGES ();
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var someModule = Process.enumerateModulesSync()[1];"
       "var map = new ModuleMap();"
+      "var someModule = Process.enumerateModulesSync()[1];"
+
+      "send(map.has(someModule.base));"
+      "send(map.has(ptr(1)));"
+
       "var foundModule = map.find(someModule.base);"
       "send(foundModule !== null);"
       "send(foundModule.name === someModule.name);"
+      "send(map.find(ptr(1)));"
+
       "map.update();"
       "foundModule = map.get(someModule.base);"
       "send(foundModule.name === someModule.name);"
-      );
+      "try {"
+      "  map.get(ptr(1));"
+      "} catch (e) {"
+      "  send(e.message);"
+      "}"
+
+      "send(map.findName(someModule.base) === someModule.name);"
+      "send(map.findName(ptr(1)));"
+      "send(map.getName(someModule.base) === someModule.name);"
+      "try {"
+      "  map.getName(ptr(1));"
+      "} catch (e) {"
+      "  send(e.message);"
+      "}"
+
+      "send(map.findPath(someModule.base) === someModule.path);"
+      "send(map.findPath(ptr(1)));"
+      "send(map.getPath(someModule.base) === someModule.path);"
+      "try {"
+      "  map.getPath(ptr(1));"
+      "} catch (e) {"
+      "  send(e.message);"
+      "}");
+
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("false");
+
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("null");
+
   EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("\"Unable to find module containing 0x1\"");
+
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("null");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("\"Unable to find module containing 0x1\"");
+
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("null");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("\"Unable to find module containing 0x1\"");
+
   EXPECT_NO_MESSAGES ();
 
 #ifdef HAVE_DARWIN

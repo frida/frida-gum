@@ -443,6 +443,24 @@ Object.defineProperties(ModuleMap.prototype, {
       return details;
     }
   },
+  getName: {
+    enumerable: true,
+    value: function (address) {
+      const name = this.findName(address);
+      if (name === null)
+        throw new Error('Unable to find module containing ' + address);
+      return name;
+    }
+  },
+  getPath: {
+    enumerable: true,
+    value: function (address) {
+      const path = this.findPath(address);
+      if (path === null)
+        throw new Error('Unable to find module containing ' + address);
+      return path;
+    }
+  },
 });
 
 Object.defineProperties(Interceptor, {

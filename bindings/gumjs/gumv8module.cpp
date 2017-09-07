@@ -93,7 +93,10 @@ GUMJS_DECLARE_FUNCTION (gumjs_module_find_base_address)
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_export_by_name)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_module_map_construct)
+GUMJS_DECLARE_FUNCTION (gumjs_module_map_has)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_find)
+GUMJS_DECLARE_FUNCTION (gumjs_module_map_find_name)
+GUMJS_DECLARE_FUNCTION (gumjs_module_map_find_path)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_update)
 
 static GumV8ModuleMap * gum_v8_module_map_new (Handle<Object> wrapper,
@@ -120,7 +123,10 @@ static const GumV8Function gumjs_module_functions[] =
 
 static const GumV8Function gumjs_module_map_functions[] =
 {
+  { "has", gumjs_module_map_has },
   { "find", gumjs_module_map_find },
+  { "findName", gumjs_module_map_find_name },
+  { "findPath", gumjs_module_map_find_path },
   { "update", gumjs_module_map_update },
 
   { NULL, NULL }
@@ -645,6 +651,17 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_map_construct)
   wrapper->SetAlignedPointerInInternalField (0, map);
 }
 
+GUMJS_DEFINE_CLASS_METHOD (gumjs_module_map_has, GumV8ModuleMap)
+{
+  gpointer address;
+  if (!_gum_v8_args_parse (args, "p", &address))
+    return;
+
+  auto details = gum_module_map_find (self->handle, GUM_ADDRESS (address));
+
+  info.GetReturnValue ().Set (details != NULL);
+}
+
 GUMJS_DEFINE_CLASS_METHOD (gumjs_module_map_find, GumV8ModuleMap)
 {
   gpointer address;
@@ -659,6 +676,38 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_module_map_find, GumV8ModuleMap)
   }
 
   info.GetReturnValue ().Set (_gum_v8_parse_module_details (details, core));
+}
+
+GUMJS_DEFINE_CLASS_METHOD (gumjs_module_map_find_name, GumV8ModuleMap)
+{
+  gpointer address;
+  if (!_gum_v8_args_parse (args, "p", &address))
+    return;
+
+  auto details = gum_module_map_find (self->handle, GUM_ADDRESS (address));
+  if (details == NULL)
+  {
+    info.GetReturnValue ().SetNull ();
+    return;
+  }
+
+  info.GetReturnValue ().Set (String::NewFromUtf8 (isolate, details->name));
+}
+
+GUMJS_DEFINE_CLASS_METHOD (gumjs_module_map_find_path, GumV8ModuleMap)
+{
+  gpointer address;
+  if (!_gum_v8_args_parse (args, "p", &address))
+    return;
+
+  auto details = gum_module_map_find (self->handle, GUM_ADDRESS (address));
+  if (details == NULL)
+  {
+    info.GetReturnValue ().SetNull ();
+    return;
+  }
+
+  info.GetReturnValue ().Set (String::NewFromUtf8 (isolate, details->path));
 }
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_module_map_update, GumV8ModuleMap)
