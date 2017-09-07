@@ -1321,7 +1321,7 @@ _gum_v8_parse_module_details (const GumModuleDetails * details,
                               GumV8Core * core)
 {
   auto module = Object::New (core->isolate);
-  _gum_v8_object_set_ascii (module, "name", details->name, core);
+  _gum_v8_object_set_utf8 (module, "name", details->name, core);
   _gum_v8_object_set_pointer (module, "base", details->range->base_address,
       core);
   _gum_v8_object_set_uint (module, "size", details->range->size, core);
