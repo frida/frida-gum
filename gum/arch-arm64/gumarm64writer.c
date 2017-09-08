@@ -10,6 +10,9 @@
 #include "gumlibc.h"
 #include "gummemory.h"
 
+#ifdef _MSC_VER
+# include <intrin.h>
+#endif
 #include <string.h>
 
 #define GUM_MAX_LABEL_COUNT       100
