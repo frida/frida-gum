@@ -153,7 +153,7 @@ static void gum_duk_script_backend_set_debug_message_handler (
     gpointer data, GDestroyNotify data_destroy);
 static void gum_duk_script_backend_post_debug_message (
     GumScriptBackend * backend, const gchar * message);
-static GMainContext * gum_duk_script_backend_get_main_context (
+static GumScriptScheduler * gum_duk_script_backend_get_scheduler_impl (
     GumScriptBackend * backend);
 static void gum_duk_script_backend_on_debug_handler_attached (
     GumDukScriptBackend * self);
@@ -232,7 +232,7 @@ gum_duk_script_backend_iface_init (gpointer g_iface,
       gum_duk_script_backend_set_debug_message_handler;
   iface->post_debug_message = gum_duk_script_backend_post_debug_message;
 
-  iface->get_main_context = gum_duk_script_backend_get_main_context;
+  iface->get_scheduler = gum_duk_script_backend_get_scheduler_impl;
 }
 
 static void
@@ -390,12 +390,13 @@ gum_duk_script_backend_push_program (GumDukScriptBackend * self,
 GumScriptScheduler *
 gum_duk_script_backend_get_scheduler (GumDukScriptBackend * self)
 {
-  GumDukScriptBackendPrivate * priv = self->priv;
+  GumScriptScheduler * scheduler;
 
-  if (priv->scheduler == NULL)
-    priv->scheduler = gum_script_scheduler_new ();
+  scheduler = gum_script_backend_get_scheduler (GUM_SCRIPT_BACKEND (self));
 
-  return priv->scheduler;
+  gum_script_scheduler_start (scheduler);
+
+  return scheduler;
 }
 
 static void
@@ -840,11 +841,17 @@ gum_duk_script_backend_post_debug_message (GumScriptBackend * backend,
   g_object_unref (script);
 }
 
-static GMainContext *
-gum_duk_script_backend_get_main_context (GumScriptBackend * backend)
+static GumScriptScheduler *
+gum_duk_script_backend_get_scheduler_impl (GumScriptBackend * backend)
 {
-  return gum_script_scheduler_get_js_context (
-      gum_duk_script_backend_get_scheduler (GUM_DUK_SCRIPT_BACKEND (backend)));
+  GumDukScriptBackendPrivate * priv = GUM_DUK_SCRIPT_BACKEND (backend)->priv;
+
+  if (priv->scheduler == NULL)
+  {
+    priv->scheduler = gum_script_scheduler_new ();
+  }
+
+  return priv->scheduler;
 }
 
 static void

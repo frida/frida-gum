@@ -825,7 +825,8 @@ SCRIPT_TESTCASE (native_function_can_be_intercepted_when_thread_is_ignored)
 
   interceptor = gum_interceptor_obtain ();
 
-  js_context = gum_script_backend_get_main_context (fixture->backend);
+  js_context = gum_script_scheduler_get_js_context (
+      gum_script_backend_get_scheduler (fixture->backend));
 
   source = g_idle_source_new ();
   g_source_set_callback (source, (GSourceFunc) ignore_thread,

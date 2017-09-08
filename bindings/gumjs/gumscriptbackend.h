@@ -8,6 +8,7 @@
 #define __GUM_SCRIPT_BACKEND_H__
 
 #include <gumjs/gumscript.h>
+#include <gumjs/gumscriptscheduler.h>
 
 #define GUM_TYPE_SCRIPT_BACKEND (gum_script_backend_get_type ())
 #define GUM_SCRIPT_BACKEND(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
@@ -57,7 +58,7 @@ struct _GumScriptBackendIface
       GDestroyNotify data_destroy);
   void (* post_debug_message) (GumScriptBackend * self, const gchar * message);
 
-  GMainContext * (* get_main_context) (GumScriptBackend * self);
+  GumScriptScheduler * (* get_scheduler) (GumScriptBackend * self);
 };
 
 G_BEGIN_DECLS
@@ -100,7 +101,7 @@ GUM_API void gum_script_backend_set_debug_message_handler (
 GUM_API void gum_script_backend_post_debug_message (GumScriptBackend * self,
     const gchar * message);
 
-GUM_API GMainContext * gum_script_backend_get_main_context (
+GUM_API GumScriptScheduler * gum_script_backend_get_scheduler (
     GumScriptBackend * self);
 
 G_END_DECLS

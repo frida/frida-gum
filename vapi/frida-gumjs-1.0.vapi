@@ -17,6 +17,8 @@ namespace Gum {
 
 		public void set_debug_message_handler (owned Gum.ScriptBackend.DebugMessageHandler? handler);
 		public void post_debug_message (string message);
+
+		public ScriptScheduler get_scheduler ();
 	}
 
 	[CCode (cheader_filename = "gumjs/gumscript.h")]
@@ -32,5 +34,26 @@ namespace Gum {
 		public void post (string message, GLib.Bytes? data = null);
 
 		public unowned Stalker get_stalker ();
+	}
+
+	[CCode (cheader_filename = "gumjs/gumscriptscheduler.h")]
+	public class ScriptScheduler : GLib.Object {
+		public void enable_background_thread ();
+		public void disable_background_thread ();
+		public void start ();
+		public void stop ();
+
+		public unowned MainContext get_js_context ();
+
+		public void push_job_on_js_thread (int priority, owned ScriptJob.Func func);
+		public void push_job_on_thread_pool (owned ScriptJob.Func func);
+	}
+
+	[Compact]
+	[CCode (cheader_filename = "gumjs/gumscriptscheduler.h", free_function = "gum_script_job_free")]
+	public class ScriptJob {
+		public delegate void Func ();
+
+		public ScriptJob (ScriptScheduler scheduler, owned Func func);
 	}
 }

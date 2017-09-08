@@ -150,7 +150,7 @@ static void gum_v8_script_backend_post_debug_message (
     GumScriptBackend * backend, const gchar * message);
 static void gum_v8_script_backend_do_process_debug_messages (
     GumV8ScriptBackend * self);
-static GMainContext * gum_v8_script_backend_get_main_context (
+static GumScriptScheduler * gum_v8_script_backend_get_scheduler_impl (
     GumScriptBackend * backend);
 
 G_DEFINE_TYPE_EXTENDED (GumV8ScriptBackend,
@@ -195,7 +195,7 @@ gum_v8_script_backend_iface_init (gpointer g_iface,
       gum_v8_script_backend_set_debug_message_handler;
   iface->post_debug_message = gum_v8_script_backend_post_debug_message;
 
-  iface->get_main_context = gum_v8_script_backend_get_main_context;
+  iface->get_scheduler = gum_v8_script_backend_get_scheduler_impl;
 }
 
 static void
@@ -264,7 +264,13 @@ gum_v8_script_backend_get_isolate (GumV8ScriptBackend * self)
 GumScriptScheduler *
 gum_v8_script_backend_get_scheduler (GumV8ScriptBackend * self)
 {
-  return GUM_V8_SCRIPT_BACKEND_GET_PLATFORM (self)->GetScheduler ();
+  GumScriptScheduler * scheduler;
+
+  scheduler = GUM_V8_SCRIPT_BACKEND_GET_PLATFORM (self)->GetScheduler ();
+
+  gum_script_scheduler_start (scheduler);
+
+  return scheduler;
 }
 
 static void
@@ -733,9 +739,10 @@ gum_v8_script_backend_do_process_debug_messages (GumV8ScriptBackend * self)
   Debug::ProcessDebugMessages (isolate);
 }
 
-static GMainContext *
-gum_v8_script_backend_get_main_context (GumScriptBackend * backend)
+static GumScriptScheduler *
+gum_v8_script_backend_get_scheduler_impl (GumScriptBackend * backend)
 {
-  return gum_script_scheduler_get_js_context (
-      gum_v8_script_backend_get_scheduler (GUM_V8_SCRIPT_BACKEND (backend)));
+  auto self = GUM_V8_SCRIPT_BACKEND (backend);
+
+  return GUM_V8_SCRIPT_BACKEND_GET_PLATFORM (self)->GetScheduler ();
 }

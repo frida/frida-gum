@@ -1,6 +1,7 @@
 gumjs_headers = [
   'gumscript.h',
   'gumscriptbackend.h',
+  'gumscriptscheduler.h',
 ]
 
 gumjs_sources = [
