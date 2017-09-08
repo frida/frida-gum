@@ -109,6 +109,9 @@ gum_script_scheduler_disable_background_thread (GumScriptScheduler * self)
 void
 gum_script_scheduler_start (GumScriptScheduler * self)
 {
+  if (self->disposed)
+    return;
+
   if (self->enable_background_thread && self->js_thread == NULL)
   {
     self->js_loop = g_main_loop_new (self->js_context, TRUE);
