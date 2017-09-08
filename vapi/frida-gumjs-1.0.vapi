@@ -43,7 +43,7 @@ namespace Gum {
 		public void start ();
 		public void stop ();
 
-		public unowned MainContext get_js_context ();
+		public unowned GLib.MainContext get_js_context ();
 
 		public void push_job_on_js_thread (int priority, owned ScriptJob.Func func);
 		public void push_job_on_thread_pool (owned ScriptJob.Func func);
