@@ -30,7 +30,7 @@
 #define DYLD_IMAGE_INFO_32_SIZE 12
 #define DYLD_IMAGE_INFO_64_SIZE 24
 #define GUM_THREAD_POLL_STEP 1000
-#define GUM_MAX_THREAD_POLL 20000000 / GUM_THREAD_POLL_STEP
+#define GUM_MAX_THREAD_POLL (20000000 / GUM_THREAD_POLL_STEP)
 
 typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
 typedef struct _GumEnumerateExportsContext GumEnumerateExportsContext;
