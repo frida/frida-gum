@@ -29,6 +29,8 @@
 #define DYLD_INFO_64_COUNT 5
 #define DYLD_IMAGE_INFO_32_SIZE 12
 #define DYLD_IMAGE_INFO_64_SIZE 24
+#define GUM_THREAD_POLL_STEP 1000
+#define GUM_MAX_THREAD_POLL (20000000 / GUM_THREAD_POLL_STEP)
 
 typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
 typedef struct _GumEnumerateExportsContext GumEnumerateExportsContext;
@@ -207,6 +209,8 @@ static gboolean gum_module_path_equals (const gchar * path,
     const gchar * name_or_path);
 
 static GumThreadState gum_thread_state_from_darwin (integer_t run_state);
+static gboolean gum_darwin_is_unified_thread_state_valid (
+    const GumDarwinUnifiedThreadState * ts);
 
 gboolean
 gum_process_is_debugger_attached (void)
@@ -262,18 +266,36 @@ gum_process_modify_thread (GumThreadId thread_id,
         mach_msg_type_number_t state_count = GUM_DARWIN_THREAD_STATE_COUNT;
         thread_state_flavor_t state_flavor = GUM_DARWIN_THREAD_STATE_FLAVOR;
         GumCpuContext cpu_context;
+        gboolean state_is_valid = FALSE;
+        guint fail_count = 0;
 
-        kr = thread_suspend (thread);
-        if (kr != KERN_SUCCESS)
-          break;
-
-        kr = thread_get_state (thread, state_flavor, (thread_state_t) &state,
-            &state_count);
-        if (kr != KERN_SUCCESS)
+        do
         {
-          thread_resume (thread);
-          break;
+          kr = thread_suspend (thread);
+          if (kr != KERN_SUCCESS)
+            break;
+
+          kr = thread_get_state (thread, state_flavor, (thread_state_t) &state,
+              &state_count);
+          if (kr != KERN_SUCCESS)
+          {
+            thread_resume (thread);
+            break;
+          }
+
+          state_is_valid = gum_darwin_is_unified_thread_state_valid (&state);
+          if (!state_is_valid)
+          {
+            thread_resume (thread);
+            fail_count ++;
+            if (fail_count < GUM_MAX_THREAD_POLL)
+              g_usleep (GUM_THREAD_POLL_STEP);
+          }
         }
+        while (!state_is_valid && fail_count < GUM_MAX_THREAD_POLL);
+
+        if (kr != KERN_SUCCESS || fail_count >= GUM_MAX_THREAD_POLL)
+          break;
 
         gum_darwin_parse_unified_thread_state (&state, &cpu_context);
         func (thread_id, &cpu_context, user_data);
@@ -1753,6 +1775,20 @@ gum_darwin_parse_unified_thread_state (const GumDarwinUnifiedThreadState * ts,
   gum_darwin_parse_native_thread_state (&ts->ts_32, ctx);
 #elif defined (HAVE_ARM64)
   gum_darwin_parse_native_thread_state (&ts->ts_64, ctx);
+#endif
+}
+
+static gboolean
+gum_darwin_is_unified_thread_state_valid (const GumDarwinUnifiedThreadState * ts)
+{
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+  return ts->uts.ts32.__eip != 0;
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+  return ts->uts.ts64.__rip != 0;
+#elif defined (HAVE_ARM)
+  return ts->ts_32.__pc != 0;
+#elif defined (HAVE_ARM64)
+  return ts->ts_64.__pc != 0;
 #endif
 }
 
