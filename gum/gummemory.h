@@ -8,6 +8,7 @@
 #ifndef __GUM_MEMORY_H__
 #define __GUM_MEMORY_H__
 
+#include <glib-object.h>
 #include <gum/gumdefs.h>
 
 typedef guint GumMemoryOperation;
@@ -46,6 +47,7 @@ struct _GumMemoryRange
   gsize size;
 };
 
+#define GUM_TYPE_MEMORY_RANGE (gum_memory_range_get_type ())
 #define GUM_MEMORY_RANGE_INCLUDES(r, a) ((a) >= (r)->base_address && \
     (a) < ((r)->base_address + (r)->size))
 
@@ -117,6 +119,8 @@ GUM_API gboolean gum_memory_uncommit (gpointer base, gsize size);
 GUM_API gboolean gum_memory_release_partial (gpointer base, gsize size,
     gpointer free_start, gsize free_size);
 GUM_API gboolean gum_memory_release (gpointer base, gsize size);
+
+GUM_API GType gum_memory_range_get_type (void) G_GNUC_CONST;
 
 G_END_DECLS
 

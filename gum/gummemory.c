@@ -56,10 +56,16 @@ static GumMatchToken * gum_match_token_new (GumMatchType type);
 static void gum_match_token_free (GumMatchToken * token);
 static void gum_match_token_append (GumMatchToken * self, guint8 byte);
 
+static GumMemoryRange * gum_memory_range_copy (const GumMemoryRange * range);
+static void gum_memory_range_free (GumMemoryRange * range);
+
 static gboolean gum_memory_initialized = FALSE;
 static mspace gum_mspace_main = NULL;
 static mspace gum_mspace_capstone = NULL;
 static guint gum_cached_page_size;
+
+G_DEFINE_BOXED_TYPE (GumMemoryRange, gum_memory_range, gum_memory_range_copy,
+    gum_memory_range_free)
 
 void
 gum_memory_init (void)
@@ -561,4 +567,16 @@ gum_alloc_n_pages_near (guint n_pages,
   g_assert (result != NULL);
 
   return result;
+}
+
+static GumMemoryRange *
+gum_memory_range_copy (const GumMemoryRange * range)
+{
+  return g_slice_dup (GumMemoryRange, range);
+}
+
+static void
+gum_memory_range_free (GumMemoryRange * range)
+{
+  g_slice_free (GumMemoryRange, range);
 }
