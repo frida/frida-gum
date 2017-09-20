@@ -18,7 +18,7 @@ namespace Gum {
 		public void set_debug_message_handler (owned Gum.ScriptBackend.DebugMessageHandler? handler);
 		public void post_debug_message (string message);
 
-		public ScriptScheduler get_scheduler ();
+		public unowned ScriptScheduler get_scheduler ();
 	}
 
 	[CCode (cheader_filename = "gumjs/gumscript.h")]
