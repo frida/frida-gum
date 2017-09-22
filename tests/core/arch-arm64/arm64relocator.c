@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -11,6 +11,7 @@ TEST_LIST_BEGIN (arm64relocator)
   TESTENTRY (ldr_x_should_be_rewritten)
   TESTENTRY (ldr_w_should_be_rewritten)
   TESTENTRY (ldr_d_should_be_rewritten)
+  TESTENTRY (ldrsw_x_should_be_rewritten)
   TESTENTRY (adr_should_be_rewritten)
   TESTENTRY (adrp_should_be_rewritten)
   TESTENTRY (cbz_should_be_rewritten)
@@ -138,6 +139,36 @@ TESTCASE (ldr_d_should_be_rewritten)
 
   g_assert_cmpuint (gum_arm64_relocator_read_one (&fixture->rl, &insn), ==, 4);
   g_assert_cmpint (insn->id, ==, ARM64_INS_LDR);
+  g_assert (gum_arm64_relocator_write_one (&fixture->rl));
+  gum_arm64_writer_flush (&fixture->aw);
+  g_assert_cmpint (memcmp (fixture->output, expected_output,
+      sizeof (expected_output)), ==, 0);
+}
+
+TESTCASE (ldrsw_x_should_be_rewritten)
+{
+  const guint32 input[] = {
+    GUINT32_TO_LE (0x98000048)  /* ldrsw x8, [pc, #8] */
+  };
+  const guint32 expected_output_instructions[] = {
+    GUINT32_TO_LE (0x58000048), /* ldr x8, [pc, #8]   */
+    GUINT32_TO_LE (0xb9800108), /* ldrsw x8, [x8]     */
+    0xffffffff,                 /* <calculated PC     */
+    0xffffffff                  /*  goes here>        */
+  };
+  gchar expected_output[4 * sizeof (guint32)];
+  guint64 calculated_pc;
+  const cs_insn * insn;
+
+  SETUP_RELOCATOR_WITH (input);
+
+  memcpy (expected_output, expected_output_instructions,
+      sizeof (expected_output_instructions));
+  calculated_pc = fixture->rl.input_pc + 8;
+  *((guint64 *) (expected_output + 8)) = GUINT64_TO_LE (calculated_pc);
+
+  g_assert_cmpuint (gum_arm64_relocator_read_one (&fixture->rl, &insn), ==, 4);
+  g_assert_cmpint (insn->id, ==, ARM64_INS_LDRSW);
   g_assert (gum_arm64_relocator_write_one (&fixture->rl));
   gum_arm64_writer_flush (&fixture->aw);
   g_assert_cmpint (memcmp (fixture->output, expected_output,

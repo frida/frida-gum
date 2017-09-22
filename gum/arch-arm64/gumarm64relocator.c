@@ -272,6 +272,7 @@ gum_arm64_relocator_write_one (GumArm64Relocator * self)
   switch (insn->id)
   {
     case ARM64_INS_LDR:
+    case ARM64_INS_LDRSW:
       rewritten = gum_arm64_relocator_rewrite_ldr (self, &ctx);
       break;
     case ARM64_INS_ADR:
@@ -600,6 +601,7 @@ static gboolean
 gum_arm64_relocator_rewrite_ldr (GumArm64Relocator * self,
                                  GumCodeGenCtx * ctx)
 {
+  arm64_insn insn_id = ctx->insn->id;
   const cs_arm64_op * dst = &ctx->detail->operands[0];
   const cs_arm64_op * src = &ctx->detail->operands[1];
   gboolean dst_reg_is_fp_or_simd;
@@ -621,6 +623,7 @@ gum_arm64_relocator_rewrite_ldr (GumArm64Relocator * self,
     gum_arm64_writer_put_push_reg_reg (ctx->output, tmp_reg, ARM64_REG_X1);
 
     gum_arm64_writer_put_ldr_reg_address (ctx->output, tmp_reg, src->imm);
+    g_assert_cmpuint (insn_id, ==, ARM64_INS_LDR);
     gum_arm64_writer_put_ldr_reg_reg_offset (ctx->output, dst->reg, tmp_reg, 0);
 
     gum_arm64_writer_put_pop_reg_reg (ctx->output, tmp_reg, ARM64_REG_X1);
@@ -635,7 +638,16 @@ gum_arm64_relocator_rewrite_ldr (GumArm64Relocator * self,
       tmp_reg = dst->reg;
 
     gum_arm64_writer_put_ldr_reg_address (ctx->output, tmp_reg, src->imm);
-    gum_arm64_writer_put_ldr_reg_reg_offset (ctx->output, dst->reg, tmp_reg, 0);
+    if (insn_id == ARM64_INS_LDR)
+    {
+      gum_arm64_writer_put_ldr_reg_reg_offset (ctx->output, dst->reg, tmp_reg,
+          0);
+    }
+    else
+    {
+      gum_arm64_writer_put_ldrsw_reg_reg_offset (ctx->output, dst->reg, tmp_reg,
+          0);
+    }
   }
 
   return TRUE;
