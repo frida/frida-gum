@@ -968,6 +968,36 @@ gum_arm64_writer_put_ldr_reg_reg_offset (GumArm64Writer * self,
 }
 
 gboolean
+gum_arm64_writer_put_ldrsw_reg_reg_offset (GumArm64Writer * self,
+                                           arm64_reg dst_reg,
+                                           arm64_reg src_reg,
+                                           gsize src_offset)
+{
+  GumArm64RegInfo rd, rs;
+  gsize immediate;
+  gboolean immediate_fits_in_12_bits;
+
+  gum_arm64_writer_describe_reg (self, dst_reg, &rd);
+  gum_arm64_writer_describe_reg (self, src_reg, &rs);
+
+  if (rd.width != 64 || rs.width != 64)
+    return FALSE;
+  if (!rd.is_integer || !rs.is_integer)
+    return FALSE;
+
+  immediate = src_offset / sizeof (guint32);
+
+  immediate_fits_in_12_bits = (immediate >> 12) == 0;
+  if (!immediate_fits_in_12_bits)
+    return FALSE;
+
+  gum_arm64_writer_put_instruction (self, 0xb9800000 | (immediate << 10) |
+      (rs.index << 5) | rd.index);
+
+  return TRUE;
+}
+
+gboolean
 gum_arm64_writer_put_adrp_reg_address (GumArm64Writer * self,
                                        arm64_reg reg,
                                        GumAddress address)

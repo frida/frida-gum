@@ -124,6 +124,9 @@ GUM_API void gum_arm64_writer_put_ldr_reg_value (GumArm64Writer * self,
     guint ref, GumAddress value);
 GUM_API gboolean gum_arm64_writer_put_ldr_reg_reg_offset (GumArm64Writer * self,
     arm64_reg dst_reg, arm64_reg src_reg, gsize src_offset);
+GUM_API gboolean gum_arm64_writer_put_ldrsw_reg_reg_offset (
+    GumArm64Writer * self, arm64_reg dst_reg, arm64_reg src_reg,
+    gsize src_offset);
 GUM_API gboolean gum_arm64_writer_put_adrp_reg_address (GumArm64Writer * self,
     arm64_reg reg, GumAddress address);
 GUM_API gboolean gum_arm64_writer_put_str_reg_reg_offset (GumArm64Writer * self,

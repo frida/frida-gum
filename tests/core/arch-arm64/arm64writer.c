@@ -21,6 +21,7 @@ TEST_LIST_BEGIN (arm64writer)
   TESTENTRY (ldr_d_address)
   TESTENTRY (ldr_integer_reg_reg_imm)
   TESTENTRY (ldr_fp_reg_reg_imm)
+  TESTENTRY (ldrsw_reg_reg_imm)
   TESTENTRY (str_integer_reg_reg_imm)
   TESTENTRY (str_fp_reg_reg_imm)
   TESTENTRY (mov_reg_reg)
@@ -174,6 +175,13 @@ TESTCASE (ldr_fp_reg_reg_imm)
   gum_arm64_writer_put_ldr_reg_reg_offset (&fixture->aw, ARM64_REG_Q3,
       ARM64_REG_X7, 16);
   assert_output_n_equals (2, 0x3dc004e3);
+}
+
+TESTCASE (ldrsw_reg_reg_imm)
+{
+  gum_arm64_writer_put_ldrsw_reg_reg_offset (&fixture->aw, ARM64_REG_X3,
+      ARM64_REG_X5, 16);
+  assert_output_n_equals (0, 0xb98010a3);
 }
 
 TESTCASE (str_integer_reg_reg_imm)
