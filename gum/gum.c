@@ -247,8 +247,6 @@ gum_init_embedded (void)
   glib_init ();
   g_assertion_set_handler (gum_on_assert_failure, NULL);
   g_log_set_default_handler (gum_on_log_message, NULL);
-  g_log_set_always_fatal (G_LOG_LEVEL_ERROR | G_LOG_LEVEL_CRITICAL |
-      G_LOG_LEVEL_WARNING);
   gum_do_init ();
 
 #if defined (HAVE_LINUX) && defined (HAVE_GLIBC)
