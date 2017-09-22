@@ -18,6 +18,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (recv_can_be_waited_for_from_an_application_thread)
   SCRIPT_TESTENTRY (recv_can_be_waited_for_from_our_js_thread)
   SCRIPT_TESTENTRY (rpc_can_be_performed)
+  SCRIPT_TESTENTRY (message_can_be_logged)
   SCRIPT_TESTENTRY (thread_can_be_forced_to_sleep)
   SCRIPT_TESTENTRY (timeout_can_be_scheduled)
   SCRIPT_TESTENTRY (timeout_can_be_cancelled)
@@ -2750,6 +2751,19 @@ invoke_target_function_int_worker (gpointer data)
   ctx->finished = TRUE;
 
   return NULL;
+}
+
+SCRIPT_TESTCASE (message_can_be_logged)
+{
+  COMPILE_AND_LOAD_SCRIPT ("console.log('Hello', undefined, null, 1337, "
+      "'world');");
+  EXPECT_LOG_MESSAGE_WITH ("info", "Hello undefined null 1337 world");
+
+  COMPILE_AND_LOAD_SCRIPT ("console.warn('Trouble is coming');");
+  EXPECT_LOG_MESSAGE_WITH ("warning", "Trouble is coming");
+
+  COMPILE_AND_LOAD_SCRIPT ("console.error('Oh noes');");
+  EXPECT_LOG_MESSAGE_WITH ("error", "Oh noes");
 }
 
 SCRIPT_TESTCASE (thread_can_be_forced_to_sleep)

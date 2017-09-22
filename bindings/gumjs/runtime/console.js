@@ -34,6 +34,12 @@ function sendLogMessage(level, values) {
 function parseLogArgument(value) {
   if (value instanceof ArrayBuffer)
     return hexdump(value);
-  else
-    return value;
+
+  if (value === undefined)
+    return 'undefined';
+
+  if (value === null)
+    return 'null';
+
+  return value;
 }

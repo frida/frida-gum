@@ -87,6 +87,9 @@
         PAYLOAD, DATA)
 #define EXPECT_ERROR_MESSAGE_WITH(LINE_NUMBER, DESC) \
     test_script_fixture_expect_error_message_with (fixture, LINE_NUMBER, DESC)
+#define EXPECT_LOG_MESSAGE_WITH(LEVEL, PAYLOAD, ...) \
+    test_script_fixture_expect_log_message_with (fixture, LEVEL, PAYLOAD, \
+    ## __VA_ARGS__)
 
 #define GUM_PTR_CONST "ptr(\"0x%" G_GSIZE_MODIFIER "x\")"
 
@@ -136,6 +139,9 @@ static void test_script_fixture_expect_send_message_with_payload_and_data (
     TestScriptFixture * fixture, const gchar * payload, const gchar * data);
 static void test_script_fixture_expect_error_message_with (
     TestScriptFixture * fixture, gint line_number, const gchar * description);
+static void test_script_fixture_expect_log_message_with (
+    TestScriptFixture * fixture, const gchar * level,
+    const gchar * payload_template, ...);
 
 static GumExceptor * exceptor = NULL;
 
@@ -153,6 +159,7 @@ test_script_fixture_setup (TestScriptFixture * fixture,
   (void) test_script_fixture_expect_send_message_with_prefix;
   (void) test_script_fixture_expect_send_message_with_payload_and_data;
   (void) test_script_fixture_expect_error_message_with;
+  (void) test_script_fixture_expect_log_message_with;
 
   fixture->backend = (GumScriptBackend *) data;
   fixture->context = g_main_context_ref_thread_default ();
@@ -439,3 +446,27 @@ test_script_fixture_expect_error_message_with (TestScriptFixture * fixture,
   test_script_message_item_free (item);
 }
 
+static void
+test_script_fixture_expect_log_message_with (TestScriptFixture * fixture,
+                                             const gchar * level,
+                                             const gchar * payload_template,
+                                             ...)
+{
+  va_list args;
+  gchar * payload;
+  TestScriptMessageItem * item;
+  gchar * expected_message;
+
+  va_start (args, payload_template);
+  payload = g_strdup_vprintf (payload_template, args);
+  va_end (args);
+
+  item = test_script_fixture_pop_message (fixture);
+  expected_message = g_strconcat ("{\"type\":\"log\",\"level\":\"", level,
+      "\",\"payload\":\"", payload, "\"}", NULL);
+  g_assert_cmpstr (item->message, ==, expected_message);
+  test_script_message_item_free (item);
+  g_free (expected_message);
+
+  g_free (payload);
+}
