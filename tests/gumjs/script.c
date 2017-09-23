@@ -2756,8 +2756,9 @@ invoke_target_function_int_worker (gpointer data)
 SCRIPT_TESTCASE (message_can_be_logged)
 {
   COMPILE_AND_LOAD_SCRIPT ("console.log('Hello', undefined, null, 1337, "
-      "'world');");
-  EXPECT_LOG_MESSAGE_WITH ("info", "Hello undefined null 1337 world");
+      "'world', true, { color: 'pink' });");
+  EXPECT_LOG_MESSAGE_WITH ("info", "Hello undefined null 1337 world "
+      "true [object Object]");
 
   COMPILE_AND_LOAD_SCRIPT ("console.warn('Trouble is coming');");
   EXPECT_LOG_MESSAGE_WITH ("warning", "Trouble is coming");
