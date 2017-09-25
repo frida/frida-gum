@@ -141,6 +141,12 @@ if host_os_family == 'qnx'
   ]
 endif
 
+if host_os_family == 'linux' or host_os_family == 'qnx'
+  gum_sources += [
+    'backend-elf/gumelfmodule.c',
+  ]
+endif
+
 gum_x86_headers = [
   'arch-x86/gumx86writer.h',
   'arch-x86/gumx86relocator.h',
