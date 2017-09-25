@@ -44,11 +44,9 @@ SYMUTIL_TESTCASE (symbol_details_from_address)
   GumDebugSymbolDetails details;
 
   g_assert (gum_symbol_details_from_address (gum_dummy_function_0, &details));
-
   g_assert_cmphex (GPOINTER_TO_SIZE (details.address), ==,
       GPOINTER_TO_SIZE (gum_dummy_function_0));
-  g_assert (g_str_has_prefix (details.module_name, "gum-tests") ||
-      g_str_has_prefix (details.module_name, "lt-gum-tests"));
+  g_assert (g_str_has_prefix (details.module_name, "gum-tests"));
   g_assert_cmpstr (details.symbol_name, ==, "gum_dummy_function_0");
 #ifndef HAVE_IOS
   assert_basename_equals (__FILE__, details.file_name);

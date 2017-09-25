@@ -150,15 +150,22 @@ elif host_os_family == 'linux' or host_os_family == 'qnx'
   error('libunwind is required')
 endif
 
-have_bfd = cc.has_header('bfd.h')
-if have_bfd
-  if host_os_family == 'linux'
-    extra_libs_private += ['-lbfd', '-ldl', '-lz']
-  else
-    extra_libs_private += ['-lbfd', '-lz']
+if host_os_family == 'linux' or host_os_family == 'qnx'
+  have_libelf = cc.has_header('libelf.h')
+  if not have_libelf
+    error('libelf is required')
   endif
-elif host_os_family == 'linux' or host_os_family == 'qnx'
-  error('libbfd is required')
+  have_libdwarf = cc.has_header('libdwarf.h')
+  if not have_libdwarf
+    error('libdwarf is required')
+  endif
+  if host_os_family == 'linux'
+    extra_libs_private += ['-ldwarf', '-lelf', '-ldl', '-lz']
+  else
+    extra_libs_private += ['-ldwarf', '-lelf', '-lz']
+  endif
+else
+  have_libdwarf = false
 endif
 
 if get_option('enable_gumpp')

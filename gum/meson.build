@@ -238,9 +238,9 @@ if unwind_dep.found()
   ]
 endif
 
-if have_bfd
+if have_libdwarf
   gum_sources += [
-    'backend-bfd/gumsymbolutil-bfd.c',
+    'backend-libdwarf/gumsymbolutil-libdwarf.c',
   ]
 endif
 
