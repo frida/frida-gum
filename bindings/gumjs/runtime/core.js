@@ -771,10 +771,7 @@ const sqliteOpenFlags = {
 Object.defineProperties(SqliteDatabase, {
   open: {
     enumerable: true,
-    value: function (file, options) {
-      if (options === undefined)
-        options = {};
-
+    value: function (file, options = {}) {
       if (typeof file !== 'string' || (options === null || typeof options !== 'object'))
         throw new Error('invalid argument');
 
