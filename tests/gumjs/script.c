@@ -198,6 +198,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (file_can_be_written_to)
   SCRIPT_TESTENTRY (inline_sqlite_database_can_be_queried)
   SCRIPT_TESTENTRY (external_sqlite_database_can_be_queried)
+  SCRIPT_TESTENTRY (external_sqlite_database_can_be_opened_with_flags)
 #if defined (HAVE_I386) || defined (HAVE_ARM64)
   SCRIPT_TESTENTRY (execution_can_be_traced)
   SCRIPT_TESTENTRY (execution_can_be_traced_with_custom_transformer)
@@ -1536,6 +1537,74 @@ SCRIPT_TESTCASE (external_sqlite_database_can_be_queried)
   item = test_script_fixture_pop_message (fixture);
   g_print ("%s\n", item->message);
   test_script_message_item_free (item);
+}
+
+SCRIPT_TESTCASE (external_sqlite_database_can_be_opened_with_flags)
+{
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var db = null;\n"
+
+      "try {\n"
+          "db = SqliteDatabase.open('/tmp/gum-test-dont-create.db',"
+            "{ flags: ['readwrite'] });\n"
+          "send('fail');\n"
+          "db.close();\n"
+      "} catch (e) {\n"
+          "send('not exists');\n"
+      "}\n"
+
+      "try {\n"
+          "db = SqliteDatabase.open('/tmp/gum-test-dont-create2.db',"
+            "{ flags: ['readonly'] });\n"
+          "send('fail');\n"
+          "db.close();\n"
+      "} catch (e) {\n"
+          "send('not exists again');\n"
+      "}\n"
+
+      "try {\n"
+          "db = SqliteDatabase.open('/tmp/gum-test-dont-write.db',"
+            "{ flags: ['readonly', 'create'] });\n"
+          "send('fail');\n"
+          "db.close();\n"
+      "} catch (e) {\n"
+          "send('invalid flags');\n"
+      "}\n"
+
+      "db = SqliteDatabase.open('/tmp/gum-test-can-write.db',"
+        "{ flags: ['readwrite', 'create'] });\n"
+      "try {\n"
+          "db.exec(\""
+              "PRAGMA foreign_keys=OFF;"
+              "BEGIN TRANSACTION;"
+              "CREATE TABLE people ("
+                  "id INTEGER PRIMARY KEY ASC,"
+                  "name TEXT NOT NULL,"
+                  "age INTEGER NOT NULL,"
+                  "karma NUMERIC NOT NULL,"
+                  "avatar BLOB"
+              ");"
+              "INSERT INTO people VALUES (1, 'Joe', 42, 117, NULL);"
+              "INSERT INTO people VALUES (2, 'Frida', 7, 140, X'1337');"
+              "COMMIT;"
+          "\");\n"
+          "send('can write');\n"
+      "} catch (e) {\n"
+          "send('fail');\n"
+      "}\n"
+      "db.close();\n");
+
+  EXPECT_SEND_MESSAGE_WITH ("\"not exists\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"not exists again\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"invalid flags\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"can write\"");
+  EXPECT_NO_MESSAGES ();
 }
 
 SCRIPT_TESTCASE (socket_connection_can_be_established)
