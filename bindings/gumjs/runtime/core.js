@@ -762,4 +762,40 @@ SourceMap.prototype.resolve = function (generatedPosition) {
   return {source, line, column, name};
 };
 
+const sqliteOpenFlags = {
+  readonly: 1,
+  readwrite: 2,
+  create: 4,
+};
+
+Object.defineProperties(SqliteDatabase, {
+  open: {
+    enumerable: true,
+    value: function (file, options = {}) {
+      if (typeof file !== 'string' || (options === null || typeof options !== 'object'))
+        throw new Error('invalid argument');
+
+      const {
+        flags = ['readwrite', 'create'],
+      } = options;
+
+      if (!(flags instanceof Array) || flags.length === 0)
+        throw new Error('flags must be a non-empty array');
+
+      const flagsValue = flags.reduce((result, name) => {
+        const value = sqliteOpenFlags[name];
+        if (value === undefined)
+          throw new Error(`unknown flag: ${name}`);
+
+        return result | value;
+      }, 0);
+
+      if (flagsValue === 3 || flagsValue === 5 || flagsValue === 7)
+        throw new Error(`invalid flags combination: ${flags.join(' | ')}`);
+
+      return SqliteDatabase._open(file, flagsValue);
+    }
+  }
+});
+
 initialize();

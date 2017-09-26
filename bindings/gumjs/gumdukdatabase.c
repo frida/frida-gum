@@ -49,7 +49,7 @@ static void gum_push_column (duk_context * ctx, sqlite3_stmt * statement,
 
 static const duk_function_list_entry gumjs_database_module_functions[] =
 {
-  { "open", gumjs_database_open, 1 },
+  { "_open", gumjs_database_open, 2 },
   { "openInline", gumjs_database_open_inline, 1 },
 
   { NULL, NULL, 0 }
@@ -138,16 +138,16 @@ GUMJS_DEFINE_FUNCTION (gumjs_database_open)
 {
   GumDukDatabase * self;
   const gchar * path;
+  gint flags;
   sqlite3 * handle;
   gint status;
 
   self = gumjs_module_from_args (args);
 
-  _gum_duk_args_parse (args, "s", &path);
+  _gum_duk_args_parse (args, "si", &path, &flags);
 
   handle = NULL;
-  status = sqlite3_open_v2 (path, &handle,
-      SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
+  status = sqlite3_open_v2 (path, &handle, flags, NULL);
   if (status != SQLITE_OK)
     goto invalid_database;
 

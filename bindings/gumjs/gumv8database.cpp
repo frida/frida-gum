@@ -64,7 +64,7 @@ static Local<Value> gum_parse_column (Isolate * isolate,
 
 static const GumV8Function gumjs_database_module_functions[] =
 {
-  { "open", gumjs_database_open },
+  { "_open", gumjs_database_open },
   { "openInline", gumjs_database_open_inline },
 
   { NULL, NULL }
@@ -157,16 +157,16 @@ _gum_v8_database_finalize (GumV8Database * self)
 GUMJS_DEFINE_FUNCTION (gumjs_database_open)
 {
   gchar * path;
+  gint flags;
   sqlite3 * handle;
   gint status;
   Local<Object> object;
 
-  if (!_gum_v8_args_parse (args, "s", &path))
+  if (!_gum_v8_args_parse (args, "si", &path, &flags))
     return;
 
   handle = NULL;
-  status = sqlite3_open_v2 (path, &handle, SQLITE_OPEN_READWRITE |
-      SQLITE_OPEN_CREATE, NULL);
+  status = sqlite3_open_v2 (path, &handle, flags, NULL);
   if (status != SQLITE_OK)
     goto invalid_database;
 
