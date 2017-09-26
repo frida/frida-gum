@@ -50,6 +50,7 @@ struct _GumElfModule
   GObject parent;
 
   gboolean valid;
+  gchar * name;
   gchar * path;
   gint fd;
   gsize file_size;

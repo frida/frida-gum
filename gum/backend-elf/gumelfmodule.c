@@ -14,6 +14,7 @@
 enum
 {
   PROP_0,
+  PROP_NAME,
   PROP_PATH,
   PROP_BASE_ADDRESS
 };
@@ -60,6 +61,9 @@ gum_elf_module_class_init (GumElfModuleClass * klass)
   object_class->get_property = gum_elf_module_get_property;
   object_class->set_property = gum_elf_module_set_property;
 
+  g_object_class_install_property (object_class, PROP_NAME,
+      g_param_spec_string ("name", "Name", "Name", NULL,
+      G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_PATH,
       g_param_spec_string ("path", "Path", "Path", NULL,
       G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
@@ -78,6 +82,11 @@ gum_elf_module_constructed (GObject * object)
 {
   GumElfModule * self = GUM_ELF_MODULE (object);
   guint type;
+
+  if (self->name == NULL)
+  {
+    self->name = g_path_get_basename (self->path);
+  }
 
   self->fd = open (self->path, O_RDONLY);
   if (self->fd == -1)
@@ -134,6 +143,7 @@ gum_elf_module_finalize (GObject * object)
     close (self->fd);
 
   g_free (self->path);
+  g_free (self->name);
 
   G_OBJECT_CLASS (gum_elf_module_parent_class)->finalize (object);
 }
@@ -148,6 +158,9 @@ gum_elf_module_get_property (GObject * object,
 
   switch (property_id)
   {
+    case PROP_NAME:
+      g_value_set_string (value, self->name);
+      break;
     case PROP_PATH:
       g_value_set_string (value, self->path);
       break;
@@ -169,6 +182,10 @@ gum_elf_module_set_property (GObject * object,
 
   switch (property_id)
   {
+    case PROP_NAME:
+      g_free (self->name);
+      self->name = g_value_dup_string (value);
+      break;
     case PROP_PATH:
       g_free (self->path);
       self->path = g_value_dup_string (value);
