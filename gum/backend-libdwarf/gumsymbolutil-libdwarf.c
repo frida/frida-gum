@@ -11,7 +11,14 @@
 
 #include <dlfcn.h>
 #include <dwarf.h>
+#ifdef __clang__
+# pragma clang diagnostic push
+# pragma clang diagnostic ignored "-Wtypedef-redefinition"
+#endif
 #include <libdwarf.h>
+#ifdef __clang__
+# pragma clang diagnostic pop
+#endif
 #include <strings.h>
 
 #define GUM_MAX_CACHE_AGE (0.5)
@@ -319,8 +326,8 @@ gum_module_entry_from_path_and_base (const gchar * path,
   if (module == NULL)
     goto error;
 
-  if (dwarf_init (module->fd, DW_DLC_READ, gum_on_dwarf_error, NULL, &dbg,
-      NULL) != DW_DLV_OK)
+  if (dwarf_elf_init_b (module->elf, DW_DLC_READ, DW_GROUPNUMBER_ANY,
+      gum_on_dwarf_error, NULL, &dbg, NULL) != DW_DLV_OK)
     goto dwarf_error;
 
   entry = g_slice_new (GumModuleEntry);

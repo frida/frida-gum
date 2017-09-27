@@ -7,7 +7,7 @@
 #ifndef __GUM_ELF_MODULE_H__
 #define __GUM_ELF_MODULE_H__
 
-#include <elf.h>
+#include <gelf.h>
 #include <gum/gum.h>
 
 G_BEGIN_DECLS
@@ -23,27 +23,10 @@ typedef gboolean (* GumElfFoundDependencyFunc) (
 typedef gboolean (* GumElfFoundSymbolFunc) (const GumElfSymbolDetails * details,
     gpointer user_data);
 
-typedef guint GumElfSHeaderIndex;
-typedef guint GumElfSHeaderType;
-typedef guint GumElfSymbolType;
-typedef guint GumElfSymbolBind;
-#if GLIB_SIZEOF_VOID_P == 4
-typedef Elf32_Ehdr GumElfEHeader;
-typedef Elf32_Phdr GumElfPHeader;
-typedef Elf32_Shdr GumElfSHeader;
-typedef Elf32_Dyn GumElfDynamic;
-typedef Elf32_Sym GumElfSymbol;
-# define GUM_ELF_ST_BIND(val) ELF32_ST_BIND(val)
-# define GUM_ELF_ST_TYPE(val) ELF32_ST_TYPE(val)
-#else
-typedef Elf64_Ehdr GumElfEHeader;
-typedef Elf64_Phdr GumElfPHeader;
-typedef Elf64_Shdr GumElfSHeader;
-typedef Elf64_Dyn GumElfDynamic;
-typedef Elf64_Sym GumElfSymbol;
-# define GUM_ELF_ST_BIND(val) ELF64_ST_BIND(val)
-# define GUM_ELF_ST_TYPE(val) ELF64_ST_TYPE(val)
-#endif
+typedef gsize GumElfSectionHeaderIndex;
+typedef GElf_Word GumElfSectionHeaderType;
+typedef guchar GumElfSymbolType;
+typedef guchar GumElfSymbolBind;
 
 struct _GumElfModule
 {
@@ -52,10 +35,15 @@ struct _GumElfModule
   gboolean valid;
   gchar * name;
   gchar * path;
-  gint fd;
+
+  gpointer file_data;
   gsize file_size;
-  gpointer data;
-  GumElfEHeader * ehdr;
+
+  Elf * elf;
+
+  GElf_Ehdr * ehdr;
+  GElf_Ehdr ehdr_storage;
+
   GumAddress base_address;
   GumAddress preferred_address;
 };
@@ -71,7 +59,7 @@ struct _GumElfSymbolDetails
   GumAddress address;
   GumElfSymbolType type;
   GumElfSymbolBind bind;
-  GumElfSHeaderIndex section_header_index;
+  GumElfSectionHeaderIndex section_header_index;
 };
 
 GumElfModule * gum_elf_module_new_from_memory (const gchar * path,
@@ -85,8 +73,8 @@ void gum_elf_module_enumerate_exports (GumElfModule * self,
     GumFoundExportFunc func, gpointer user_data);
 void gum_elf_module_enumerate_dynamic_symbols (GumElfModule * self,
     GumElfFoundSymbolFunc func, gpointer user_data);
-GumElfSHeader * gum_elf_module_find_section_header (GumElfModule * self,
-    GumElfSHeaderType type);
+gboolean gum_elf_module_find_section_header (GumElfModule * self,
+    GumElfSectionHeaderType type, Elf_Scn ** scn, GElf_Shdr * shdr);
 
 G_END_DECLS
 

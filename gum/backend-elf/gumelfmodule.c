@@ -81,47 +81,46 @@ static void
 gum_elf_module_constructed (GObject * object)
 {
   GumElfModule * self = GUM_ELF_MODULE (object);
-  guint type;
+  int fd;
+  GElf_Half type;
 
   if (self->name == NULL)
   {
     self->name = g_path_get_basename (self->path);
   }
 
-  self->fd = open (self->path, O_RDONLY);
-  if (self->fd == -1)
-    goto invalid_path;
+  fd = open (self->path, O_RDONLY);
+  if (fd == -1)
+    goto error;
 
-  self->file_size = lseek (self->fd, 0, SEEK_END);
-  lseek (self->fd, 0, SEEK_SET);
+  self->file_size = lseek (fd, 0, SEEK_END);
+  lseek (fd, 0, SEEK_SET);
 
-  self->data =
-      mmap (NULL, self->file_size, PROT_READ, MAP_PRIVATE, self->fd, 0);
-  if (self->data == MAP_FAILED)
+  self->file_data = mmap (NULL, self->file_size, PROT_READ, MAP_PRIVATE, fd, 0);
+
+  close (fd);
+
+  if (self->file_data == MAP_FAILED)
     goto mmap_failed;
 
-  self->ehdr = self->data;
+  self->elf = elf_memory (self->file_data, self->file_size);
+  if (self->elf == NULL)
+    goto error;
+
+  self->ehdr = gelf_getehdr (self->elf, &self->ehdr_storage);
 
   type = self->ehdr->e_type;
   if (type != ET_EXEC && type != ET_DYN)
-    goto invalid_type;
+    goto error;
 
   self->preferred_address = gum_elf_module_compute_preferred_address (self);
 
   self->valid = TRUE;
   return;
 
-invalid_path:
-  {
-    goto error;
-  }
 mmap_failed:
   {
-    self->data = NULL;
-    goto error;
-  }
-invalid_type:
-  {
+    self->file_data = NULL;
     goto error;
   }
 error:
@@ -136,11 +135,11 @@ gum_elf_module_finalize (GObject * object)
 {
   GumElfModule * self = GUM_ELF_MODULE (object);
 
-  if (self->data != NULL)
-    munmap (self->data, self->file_size);
+  if (self->elf != NULL)
+    elf_end (self->elf);
 
-  if (self->fd != -1)
-    close (self->fd);
+  if (self->file_data != NULL)
+    munmap (self->file_data, self->file_size);
 
   g_free (self->path);
   g_free (self->name);
@@ -208,7 +207,7 @@ gum_elf_module_new_from_memory (const gchar * path,
       "path", path,
       "base-address", base_address,
       NULL);
-  if (module->fd == -1)
+  if (!module->valid)
   {
     g_object_unref (module);
     return NULL;
@@ -222,30 +221,33 @@ gum_elf_module_enumerate_dependencies (GumElfModule * self,
                                        GumElfFoundDependencyFunc func,
                                        gpointer user_data)
 {
-  gpointer data = self->data;
-  GumElfEHeader * ehdr = self->ehdr;
-  GumElfSHeader * dyn, * strtab_header;
-  const gchar * strtab;
+  Elf_Scn * scn;
+  GElf_Shdr shdr;
   gboolean carry_on;
-  guint i;
+  GElf_Half item_count, item_index;
+  Elf_Data * data;
 
-  dyn = gum_elf_module_find_section_header (self, SHT_DYNAMIC);
-  if (dyn == NULL)
+  if (!gum_elf_module_find_section_header (self, SHT_DYNAMIC, &scn, &shdr))
     return;
-  strtab_header = data + ehdr->e_shoff + (dyn->sh_link * ehdr->e_shentsize);
-  strtab = data + strtab_header->sh_offset;
 
   carry_on = TRUE;
-  for (i = 0; i != dyn->sh_size / dyn->sh_entsize && carry_on; i++)
-  {
-    GumElfDynamic * entry;
+  item_count = shdr.sh_size / shdr.sh_entsize;
+  data = elf_getdata (scn, NULL);
 
-    entry = data + dyn->sh_offset + (i * dyn->sh_entsize);
-    if (entry->d_tag == DT_NEEDED)
+  for (item_index = 0;
+      item_index != item_count && carry_on;
+      item_index++)
+  {
+    GElf_Dyn dyn;
+
+    gelf_getdyn (data, item_index, &dyn);
+
+    if (dyn.d_tag == DT_NEEDED)
     {
       GumElfDependencyDetails details;
 
-      details.name = strtab + entry->d_un.d_val;
+      details.name = elf_strptr (self->elf, shdr.sh_link, dyn.d_un.d_val);
+
       carry_on = func (&details, user_data);
     }
   }
@@ -332,70 +334,76 @@ gum_elf_module_enumerate_dynamic_symbols (GumElfModule * self,
                                           GumElfFoundSymbolFunc func,
                                           gpointer user_data)
 {
-  gpointer data = self->data;
-  GumElfEHeader * ehdr = self->ehdr;
-  GumElfSHeader * dynsym, * strtab_header;
-  const gchar * strtab;
+  Elf_Scn * scn;
+  GElf_Shdr shdr;
   gboolean carry_on;
-  guint i;
+  GElf_Half symbol_count, symbol_index;
+  Elf_Data * data;
 
-  dynsym = gum_elf_module_find_section_header (self, SHT_DYNSYM);
-  if (dynsym == NULL)
+  if (!gum_elf_module_find_section_header (self, SHT_DYNSYM, &scn, &shdr))
     return;
-  strtab_header = data + ehdr->e_shoff + (dynsym->sh_link * ehdr->e_shentsize);
-  strtab = data + strtab_header->sh_offset;
 
   carry_on = TRUE;
-  for (i = 0; i != dynsym->sh_size / dynsym->sh_entsize && carry_on; i++)
+  symbol_count = shdr.sh_size / shdr.sh_entsize;
+  data = elf_getdata (scn, NULL);
+
+  for (symbol_index = 0;
+      symbol_index != symbol_count && carry_on;
+      symbol_index++)
   {
-    GumElfSymbol * sym;
+    GElf_Sym sym;
     GumElfSymbolDetails details;
 
-    sym = data + dynsym->sh_offset + (i * dynsym->sh_entsize);
+    gelf_getsym (data, symbol_index, &sym);
 
-    details.name = strtab + sym->st_name;
+    details.name = elf_strptr (self->elf, shdr.sh_link, sym.st_name);
     details.address =
-        sym->st_value - self->preferred_address + self->base_address;
-    details.type = GUM_ELF_ST_TYPE (sym->st_info);
-    details.bind = GUM_ELF_ST_BIND (sym->st_info);
-    details.section_header_index = sym->st_shndx;
+        sym.st_value - self->preferred_address + self->base_address;
+    details.type = GELF_ST_TYPE (sym.st_info);
+    details.bind = GELF_ST_BIND (sym.st_info);
+    details.section_header_index = sym.st_shndx;
 
     carry_on = func (&details, user_data);
   }
 }
 
-GumElfSHeader *
+gboolean
 gum_elf_module_find_section_header (GumElfModule * self,
-                                    GumElfSHeaderType type)
+                                    GumElfSectionHeaderType type,
+                                    Elf_Scn ** scn,
+                                    GElf_Shdr * shdr)
 {
-  GumElfEHeader * ehdr = self->ehdr;
-  guint i;
+  Elf_Scn * cur = NULL;
 
-  for (i = 0; i != ehdr->e_shnum; i++)
+  while ((cur = elf_nextscn (self->elf, cur)) != NULL)
   {
-    GumElfSHeader * shdr;
+    gelf_getshdr (cur, shdr);
 
-    shdr = self->data + ehdr->e_shoff + (i * ehdr->e_shentsize);
     if (shdr->sh_type == type)
-      return shdr;
+    {
+      *scn = cur;
+      return TRUE;
+    }
   }
 
-  return NULL;
+  return FALSE;
 }
 
 static GumAddress
 gum_elf_module_compute_preferred_address (GumElfModule * self)
 {
-  GumElfEHeader * ehdr = self->ehdr;
-  guint i;
+  GElf_Half header_count, header_index;
 
-  for (i = 0; i != ehdr->e_phnum; i++)
+  header_count = self->ehdr->e_phnum;
+
+  for (header_index = 0; header_index != header_count; header_index++)
   {
-    GumElfPHeader * phdr;
+    GElf_Phdr phdr;
 
-    phdr = self->data + ehdr->e_phoff + (i * ehdr->e_phentsize);
-    if (phdr->p_offset == 0)
-      return phdr->p_vaddr;
+    gelf_getphdr (self->elf, header_index, &phdr);
+
+    if (phdr.p_offset == 0)
+      return phdr.p_vaddr;
   }
 
   return 0;
