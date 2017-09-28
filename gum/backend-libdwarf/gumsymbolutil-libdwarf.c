@@ -25,6 +25,7 @@
 
 typedef struct _GumModuleEntry GumModuleEntry;
 
+typedef struct _GumNearestSymbolDetails GumNearestSymbolDetails;
 typedef struct _GumDwarfSymbolDetails GumDwarfSymbolDetails;
 typedef struct _GumDwarfSourceDetails GumDwarfSourceDetails;
 typedef struct _GumFindCuDieOperation GumFindCuDieOperation;
@@ -43,6 +44,12 @@ struct _GumModuleEntry
   GumElfModule * module;
   Dwarf_Debug dbg;
   gboolean collected;
+};
+
+struct _GumNearestSymbolDetails
+{
+  const gchar * name;
+  gpointer address;
 };
 
 struct _GumDwarfSymbolDetails
@@ -86,7 +93,8 @@ struct _GumDieDetails
   Dwarf_Debug dbg;
 };
 
-static GumModuleEntry * gum_module_entry_from_address (gpointer address);
+static GumModuleEntry * gum_module_entry_from_address (gpointer address,
+    GumNearestSymbolDetails * nearest);
 static GumModuleEntry * gum_module_entry_from_path_and_base (const gchar * path,
     GumAddress base_address);
 static Dwarf_Addr gum_module_entry_virtual_address_to_file (
@@ -146,6 +154,7 @@ gum_symbol_details_from_address (gpointer address,
 {
   gboolean success;
   GumModuleEntry * entry;
+  GumNearestSymbolDetails nearest;
   Dwarf_Addr file_address;
   Dwarf_Die cu_die;
   GumDwarfSymbolDetails symbol;
@@ -155,9 +164,11 @@ gum_symbol_details_from_address (gpointer address,
 
   G_LOCK (gum_symbol_util);
 
-  entry = gum_module_entry_from_address (address);
+  entry = gum_module_entry_from_address (address, &nearest);
   if (entry == NULL)
     goto entry_not_found;
+  if (entry->dbg == NULL)
+    goto no_debug_info;
 
   file_address = gum_module_entry_virtual_address_to_file (entry, address);
 
@@ -173,12 +184,12 @@ gum_symbol_details_from_address (gpointer address,
       symbol.line_number, &source))
     goto line_not_found;
 
-  bzero (details, sizeof (GumDebugSymbolDetails));
-
   details->address = GUM_ADDRESS (address);
+
   g_strlcpy (details->module_name, entry->module->name,
       sizeof (details->module_name));
   g_strlcpy (details->symbol_name, symbol.name, sizeof (details->symbol_name));
+
   g_strlcpy (details->file_name, source.path, sizeof (details->file_name));
   details->line_number = source.line_number;
 
@@ -193,10 +204,52 @@ symbol_not_found:
   dwarf_dealloc (entry->dbg, cu_die, DW_DLA_DIE);
 
 cu_die_not_found:
+  if (!success)
+    goto no_debug_info;
+
 entry_not_found:
   G_UNLOCK (gum_symbol_util);
 
   return success;
+
+no_debug_info:
+  {
+    gsize offset;
+
+    details->address = GUM_ADDRESS (address);
+
+    g_strlcpy (details->module_name, entry->module->name,
+        sizeof (details->module_name));
+    if (nearest.name != NULL)
+    {
+      offset = GPOINTER_TO_SIZE (address) - GPOINTER_TO_SIZE (nearest.address);
+
+      if (offset == 0)
+      {
+        g_strlcpy (details->symbol_name, nearest.name,
+            sizeof (details->symbol_name));
+      }
+      else
+      {
+        g_snprintf (details->symbol_name, sizeof (details->symbol_name),
+            "%s+0x%" G_GSIZE_MODIFIER "x", nearest.name, offset);
+      }
+    }
+    else
+    {
+      offset = details->address - entry->module->base_address;
+
+      g_snprintf (details->symbol_name, sizeof (details->symbol_name),
+          "0x%" G_GSIZE_MODIFIER "x", offset);
+    }
+
+    details->file_name[0] = '\0';
+    details->line_number = 0;
+
+    G_UNLOCK (gum_symbol_util);
+
+    return TRUE;
+  }
 }
 
 gchar *
@@ -204,6 +257,7 @@ gum_symbol_name_from_address (gpointer address)
 {
   GumDwarfSymbolDetails symbol;
   GumModuleEntry * entry;
+  GumNearestSymbolDetails nearest;
   Dwarf_Addr file_address;
   Dwarf_Die cu_die;
 
@@ -211,9 +265,11 @@ gum_symbol_name_from_address (gpointer address)
 
   G_LOCK (gum_symbol_util);
 
-  entry = gum_module_entry_from_address (address);
+  entry = gum_module_entry_from_address (address, &nearest);
   if (entry == NULL)
     goto entry_not_found;
+  if (entry->dbg == NULL)
+    goto no_debug_info;
 
   file_address = gum_module_entry_virtual_address_to_file (entry, address);
 
@@ -227,10 +283,43 @@ gum_symbol_name_from_address (gpointer address)
   dwarf_dealloc (entry->dbg, cu_die, DW_DLA_DIE);
 
 cu_die_not_found:
+  if (symbol.name == NULL)
+    goto no_debug_info;
+
 entry_not_found:
   G_UNLOCK (gum_symbol_util);
 
   return symbol.name;
+
+no_debug_info:
+  {
+    gsize offset;
+
+    if (nearest.name != NULL)
+    {
+      offset = GPOINTER_TO_SIZE (address) - GPOINTER_TO_SIZE (nearest.address);
+
+      if (offset == 0)
+      {
+        symbol.name = g_strdup (nearest.name);
+      }
+      else
+      {
+        symbol.name = g_strdup_printf ("%s+0x%" G_GSIZE_MODIFIER "x",
+            nearest.name, offset);
+      }
+    }
+    else
+    {
+      offset = GPOINTER_TO_SIZE (address) - entry->module->base_address;
+
+      symbol.name = g_strdup_printf ("0x%" G_GSIZE_MODIFIER "x", offset);
+    }
+
+    G_UNLOCK (gum_symbol_util);
+
+    return symbol.name;
+  }
 }
 
 gpointer
@@ -309,15 +398,42 @@ gum_find_functions_matching (const gchar * str)
 }
 
 static GumModuleEntry *
-gum_module_entry_from_address (gpointer address)
+gum_module_entry_from_address (gpointer address,
+                               GumNearestSymbolDetails * nearest)
 {
+  GumModuleEntry * entry;
   Dl_info dl_info;
+  const gchar * path;
+  gchar * path_malloc_data;
 
   if (!dladdr (address, &dl_info))
+  {
+    nearest->name = NULL;
+    nearest->address = NULL;
     return NULL;
+  }
 
-  return gum_module_entry_from_path_and_base (dl_info.dli_fname,
+  nearest->name = dl_info.dli_sname;
+  nearest->address = dl_info.dli_saddr;
+
+  path = dl_info.dli_fname;
+  if (!g_path_is_absolute (path))
+  {
+    path_malloc_data = realpath (path, NULL);
+    if (path_malloc_data != NULL)
+      path = path_malloc_data;
+  }
+  else
+  {
+    path_malloc_data = NULL;
+  }
+
+  entry = gum_module_entry_from_path_and_base (path,
       GUM_ADDRESS (dl_info.dli_fbase));
+
+  free (path_malloc_data);
+
+  return entry;
 }
 
 static GumModuleEntry *
@@ -332,15 +448,16 @@ gum_module_entry_from_path_and_base (const gchar * path,
 
   entry = g_hash_table_lookup (gum_module_entries, path);
   if (entry != NULL)
-    return entry;
+    goto have_entry;
 
   module = gum_elf_module_new_from_memory (path, base_address);
-  if (module == NULL)
-    goto error;
 
-  if (dwarf_elf_init_b (module->elf, DW_DLC_READ, DW_GROUPNUMBER_ANY,
+  if (module == NULL ||
+      dwarf_elf_init_b (module->elf, DW_DLC_READ, DW_GROUPNUMBER_ANY,
       gum_on_dwarf_error, NULL, &dbg, NULL) != DW_DLV_OK)
-    goto dwarf_error;
+  {
+    dbg = NULL;
+  }
 
   entry = g_slice_new (GumModuleEntry);
   entry->module = module;
@@ -349,17 +466,8 @@ gum_module_entry_from_path_and_base (const gchar * path,
 
   g_hash_table_insert (gum_module_entries, g_strdup (path), entry);
 
-  return entry;
-
-dwarf_error:
-  {
-    g_object_unref (module);
-    return NULL;
-  }
-error:
-  {
-    return NULL;
-  }
+have_entry:
+  return (entry->module != NULL) ? entry : NULL;
 }
 
 static Dwarf_Addr
@@ -373,8 +481,11 @@ gum_module_entry_virtual_address_to_file (GumModuleEntry * self,
 static void
 gum_module_entry_free (GumModuleEntry * entry)
 {
-  dwarf_finish (entry->dbg, NULL);
-  g_object_unref (entry->module);
+  if (entry->dbg != NULL)
+    dwarf_finish (entry->dbg, NULL);
+
+  if (entry->module != NULL)
+    g_object_unref (entry->module);
 
   g_slice_free (GumModuleEntry, entry);
 }
@@ -413,7 +524,7 @@ gum_collect_module_functions (const GumModuleDetails * details,
 
   entry = gum_module_entry_from_path_and_base (details->path,
       details->range->base_address);
-  if (entry == NULL || entry->collected)
+  if (entry == NULL || entry->dbg == NULL || entry->collected)
     return TRUE;
 
   gum_enumerate_cu_dies (entry->dbg, TRUE,
