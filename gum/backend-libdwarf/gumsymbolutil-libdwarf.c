@@ -88,9 +88,9 @@ static GHashTable * gum_get_function_addresses (void);
 static gboolean gum_collect_module_functions (const GumModuleDetails * details,
     gpointer user_data);
 static gboolean gum_collect_cu_die_functions (const GumCuDieDetails * details,
-    gpointer user_data);
+    GumElfModule * module);
 static gboolean gum_collect_address_if_function (const GumDieDetails * details,
-    gpointer user_data);
+    GumElfModule * module);
 
 static void gum_symbol_util_ensure_initialized (void);
 static void gum_symbol_util_deinitialize (void);
@@ -404,7 +404,8 @@ gum_collect_module_functions (const GumModuleDetails * details,
   if (entry == NULL || entry->collected)
     return TRUE;
 
-  gum_enumerate_cu_dies (entry->dbg, TRUE, gum_collect_cu_die_functions, NULL);
+  gum_enumerate_cu_dies (entry->dbg, TRUE,
+      (GumFoundCuDieFunc) gum_collect_cu_die_functions, entry->module);
 
   entry->collected = TRUE;
 
@@ -413,17 +414,17 @@ gum_collect_module_functions (const GumModuleDetails * details,
 
 static gboolean
 gum_collect_cu_die_functions (const GumCuDieDetails * details,
-                              gpointer user_data)
+                              GumElfModule * module)
 {
   gum_enumerate_dies (details->dbg, details->cu_die,
-      gum_collect_address_if_function, NULL);
+      (GumFoundDieFunc) gum_collect_address_if_function, module);
 
   return TRUE;
 }
 
 static gboolean
 gum_collect_address_if_function (const GumDieDetails * details,
-                                 gpointer user_data)
+                                 GumElfModule * module)
 {
   Dwarf_Debug dbg = details->dbg;
   Dwarf_Die die = details->die;
@@ -437,7 +438,8 @@ gum_collect_address_if_function (const GumDieDetails * details,
 
   if (!gum_read_attribute_address (dbg, die, DW_AT_low_pc, &address))
     return TRUE;
-  raw_address = GSIZE_TO_POINTER (address);
+  raw_address = GSIZE_TO_POINTER (module->base_address +
+      (address - module->preferred_address));
 
   if (!gum_read_die_name (dbg, die, &name))
     return TRUE;
