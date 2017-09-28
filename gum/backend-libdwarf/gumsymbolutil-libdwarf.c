@@ -27,6 +27,7 @@ typedef struct _GumModuleEntry GumModuleEntry;
 
 typedef struct _GumDwarfSymbolDetails GumDwarfSymbolDetails;
 typedef struct _GumDwarfSourceDetails GumDwarfSourceDetails;
+typedef struct _GumFindCuDieOperation GumFindCuDieOperation;
 typedef struct _GumFindSymbolOperation GumFindSymbolOperation;
 
 typedef struct _GumCuDieDetails GumCuDieDetails;
@@ -54,6 +55,13 @@ struct _GumDwarfSourceDetails
 {
   gchar * path;
   guint line_number;
+};
+
+struct _GumFindCuDieOperation
+{
+  Dwarf_Addr needle;
+  gboolean found;
+  Dwarf_Off cu_die_offset;
 };
 
 struct _GumFindSymbolOperation
@@ -99,6 +107,8 @@ static void gum_on_dwarf_error (Dwarf_Error error, Dwarf_Ptr errarg);
 
 static Dwarf_Die gum_find_cu_die_by_virtual_address (Dwarf_Debug dbg,
     Dwarf_Addr address);
+static gboolean gum_store_cu_die_offset_if_containing_address (
+    const GumCuDieDetails * details, GumFindCuDieOperation * op);
 static gboolean gum_find_symbol_by_virtual_address (Dwarf_Debug dbg,
     Dwarf_Die cu_die, Dwarf_Addr address, GumDwarfSymbolDetails * details);
 static gboolean gum_collect_die_if_closest_so_far (
@@ -120,6 +130,8 @@ static gboolean gum_read_attribute_location (Dwarf_Debug dbg, Dwarf_Die die,
     Dwarf_Half id, Dwarf_Addr * address);
 static gboolean gum_read_attribute_address (Dwarf_Debug dbg, Dwarf_Die die,
     Dwarf_Half id, Dwarf_Addr * address);
+static gboolean gum_read_attribute_offset (Dwarf_Debug dbg, Dwarf_Die die,
+    Dwarf_Half id, Dwarf_Off * offset);
 static gboolean gum_read_attribute_uint (Dwarf_Debug dbg, Dwarf_Die die,
     Dwarf_Half id, Dwarf_Unsigned * value);
 
@@ -503,40 +515,61 @@ gum_find_cu_die_by_virtual_address (Dwarf_Debug dbg,
                                     Dwarf_Addr address)
 {
   Dwarf_Die result;
-  int status;
-  Dwarf_Arange * aranges;
-  Dwarf_Signed arange_count, arange_index;
+  GumFindCuDieOperation op;
 
-  status = dwarf_get_aranges (dbg, &aranges, &arange_count, NULL);
-  if (status != DW_DLV_OK)
+  op.needle = address;
+  op.found = FALSE;
+  op.cu_die_offset = 0;
+
+  gum_enumerate_cu_dies (dbg, TRUE,
+      (GumFoundCuDieFunc) gum_store_cu_die_offset_if_containing_address, &op);
+
+  if (!op.found)
     return NULL;
 
   result = NULL;
-
-  for (arange_index = 0; arange_index != arange_count; arange_index++)
-  {
-    Dwarf_Arange arange = aranges[arange_index];
-
-    if (result == NULL)
-    {
-      Dwarf_Addr start;
-      Dwarf_Unsigned length;
-      Dwarf_Off cu_die_offset;
-
-      status = dwarf_get_arange_info_b (arange, NULL, NULL, &start, &length,
-          &cu_die_offset, NULL);
-      if (status == DW_DLV_OK && address >= start && address < start + length)
-      {
-        dwarf_offdie (dbg, cu_die_offset, &result, NULL);
-      }
-    }
-
-    dwarf_dealloc (dbg, arange, DW_DLA_ARANGE);
-  }
-
-  dwarf_dealloc (dbg, aranges, DW_DLA_LIST);
+  dwarf_offdie (dbg, op.cu_die_offset, &result, NULL);
 
   return result;
+}
+
+static gboolean
+gum_store_cu_die_offset_if_containing_address (const GumCuDieDetails * details,
+                                               GumFindCuDieOperation * op)
+{
+  Dwarf_Debug dbg = details->dbg;
+  Dwarf_Die die = details->cu_die;
+  Dwarf_Off ranges_offset;
+  Dwarf_Ranges * ranges;
+  Dwarf_Signed range_count, range_index;
+
+  if (!gum_read_attribute_offset (dbg, die, DW_AT_ranges, &ranges_offset))
+    goto skip;
+
+  if (dwarf_get_ranges_a (dbg, ranges_offset, die, &ranges, &range_count, NULL,
+      NULL) != DW_DLV_OK)
+    goto skip;
+
+  for (range_index = 0; range_index < range_count; range_index++)
+  {
+    Dwarf_Ranges * range = &ranges[range_index];
+
+    if (range->dwr_type != DW_RANGES_ENTRY)
+      break;
+
+    if (op->needle >= range->dwr_addr1 && op->needle < range->dwr_addr2)
+    {
+      op->found = TRUE;
+      dwarf_dieoffset (die, &op->cu_die_offset, NULL);
+
+      break;
+    }
+  }
+
+  dwarf_ranges_dealloc (dbg, ranges, range_count);
+
+skip:
+  return !op->found;
 }
 
 static gboolean
@@ -872,6 +905,25 @@ gum_read_attribute_address (Dwarf_Debug dbg,
     return FALSE;
 
   success = dwarf_formaddr (attribute, address, NULL) == DW_DLV_OK;
+
+  dwarf_dealloc (dbg, attribute, DW_DLA_ATTR);
+
+  return success;
+}
+
+static gboolean
+gum_read_attribute_offset (Dwarf_Debug dbg,
+                           Dwarf_Die die,
+                           Dwarf_Half id,
+                           Dwarf_Off * offset)
+{
+  gboolean success;
+  Dwarf_Attribute attribute;
+
+  if (dwarf_attr (die, id, &attribute, NULL) != DW_DLV_OK)
+    return FALSE;
+
+  success = dwarf_global_formref (attribute, offset, NULL) == DW_DLV_OK;
 
   dwarf_dealloc (dbg, attribute, DW_DLA_ATTR);
 
