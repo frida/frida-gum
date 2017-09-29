@@ -103,10 +103,8 @@ static Dwarf_Addr gum_module_entry_virtual_address_to_file (
 static GHashTable * gum_get_function_addresses (void);
 static gboolean gum_collect_module_functions (const GumModuleDetails * details,
     gpointer user_data);
-static gboolean gum_collect_cu_die_functions (const GumCuDieDetails * details,
-    GumElfModule * module);
-static gboolean gum_collect_address_if_function (const GumDieDetails * details,
-    GumElfModule * module);
+static gboolean gum_collect_symbol_if_function (
+    const GumElfSymbolDetails * details, gpointer user_data);
 
 static void gum_symbol_util_ensure_initialized (void);
 static void gum_symbol_util_deinitialize (void);
@@ -524,11 +522,11 @@ gum_collect_module_functions (const GumModuleDetails * details,
 
   entry = gum_module_entry_from_path_and_base (details->path,
       details->range->base_address);
-  if (entry == NULL || entry->dbg == NULL || entry->collected)
+  if (entry == NULL || entry->collected)
     return TRUE;
 
-  gum_enumerate_cu_dies (entry->dbg, TRUE,
-      (GumFoundCuDieFunc) gum_collect_cu_die_functions, entry->module);
+  gum_elf_module_enumerate_symbols (entry->module,
+      gum_collect_symbol_if_function, NULL);
 
   entry->collected = TRUE;
 
@@ -536,49 +534,27 @@ gum_collect_module_functions (const GumModuleDetails * details,
 }
 
 static gboolean
-gum_collect_cu_die_functions (const GumCuDieDetails * details,
-                              GumElfModule * module)
+gum_collect_symbol_if_function (const GumElfSymbolDetails * details,
+                                gpointer user_data)
 {
-  gum_enumerate_dies (details->dbg, details->cu_die,
-      (GumFoundDieFunc) gum_collect_address_if_function, module);
-
-  return TRUE;
-}
-
-static gboolean
-gum_collect_address_if_function (const GumDieDetails * details,
-                                 GumElfModule * module)
-{
-  Dwarf_Debug dbg = details->dbg;
-  Dwarf_Die die = details->die;
-  Dwarf_Addr address;
-  gpointer raw_address;
-  gchar * name;
+  const gchar * name;
+  gpointer address;
   GArray * addresses;
 
-  if (details->tag != DW_TAG_subprogram)
+  if (details->section_header_index == SHN_UNDEF || details->type != STT_FUNC)
     return TRUE;
 
-  if (!gum_read_attribute_address (dbg, die, DW_AT_low_pc, &address))
-    return TRUE;
-  raw_address = GSIZE_TO_POINTER (module->base_address +
-      (address - module->preferred_address));
-
-  if (!gum_read_die_name (dbg, die, &name))
-    return TRUE;
+  name = details->name;
+  address = GSIZE_TO_POINTER (details->address);
 
   addresses = g_hash_table_lookup (gum_function_addresses, name);
   if (addresses == NULL)
   {
-    addresses = g_array_new (FALSE, FALSE, sizeof (gpointer));
-    g_hash_table_insert (gum_function_addresses, name, addresses);
-  }
-  else
-  {
-    g_free (name);
+    addresses = g_array_sized_new (FALSE, FALSE, sizeof (gpointer), 1);
+    g_hash_table_insert (gum_function_addresses, g_strdup (name), addresses);
   }
 
-  g_array_append_val (addresses, raw_address);
+  g_array_append_val (addresses, address);
 
   return TRUE;
 }
