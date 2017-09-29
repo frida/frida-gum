@@ -224,7 +224,7 @@ gum_elf_module_enumerate_dependencies (GumElfModule * self,
   Elf_Scn * scn;
   GElf_Shdr shdr;
   gboolean carry_on;
-  GElf_Half item_count, item_index;
+  GElf_Word item_count, item_index;
   Elf_Data * data;
 
   if (!gum_elf_module_find_section_header (self, SHT_DYNAMIC, &scn, &shdr))
@@ -337,7 +337,7 @@ gum_elf_module_enumerate_dynamic_symbols (GumElfModule * self,
   Elf_Scn * scn;
   GElf_Shdr shdr;
   gboolean carry_on;
-  GElf_Half symbol_count, symbol_index;
+  GElf_Word symbol_count, symbol_index;
   Elf_Data * data;
 
   if (!gum_elf_module_find_section_header (self, SHT_DYNSYM, &scn, &shdr))
