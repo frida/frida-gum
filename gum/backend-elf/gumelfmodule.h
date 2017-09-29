@@ -73,6 +73,8 @@ void gum_elf_module_enumerate_exports (GumElfModule * self,
     GumFoundExportFunc func, gpointer user_data);
 void gum_elf_module_enumerate_dynamic_symbols (GumElfModule * self,
     GumElfFoundSymbolFunc func, gpointer user_data);
+void gum_elf_module_enumerate_symbols (GumElfModule * self,
+    GumElfFoundSymbolFunc func, gpointer user_data);
 gboolean gum_elf_module_find_section_header (GumElfModule * self,
     GumElfSectionHeaderType type, Elf_Scn ** scn, GElf_Shdr * shdr);
 

@@ -46,6 +46,10 @@ static gboolean gum_emit_elf_import (const GumElfSymbolDetails * details,
 static gboolean gum_emit_elf_export (const GumElfSymbolDetails * details,
     gpointer user_data);
 
+static void gum_elf_module_enumerate_symbols_in_section (GumElfModule * self,
+    GumElfSectionHeaderType section, GumElfFoundSymbolFunc func,
+    gpointer user_data);
+
 static GumAddress gum_elf_module_compute_preferred_address (
     GumElfModule * self);
 
@@ -334,13 +338,32 @@ gum_elf_module_enumerate_dynamic_symbols (GumElfModule * self,
                                           GumElfFoundSymbolFunc func,
                                           gpointer user_data)
 {
+  gum_elf_module_enumerate_symbols_in_section (self, SHT_DYNSYM, func,
+      user_data);
+}
+
+void
+gum_elf_module_enumerate_symbols (GumElfModule * self,
+                                  GumElfFoundSymbolFunc func,
+                                  gpointer user_data)
+{
+  gum_elf_module_enumerate_symbols_in_section (self, SHT_SYMTAB, func,
+      user_data);
+}
+
+static void
+gum_elf_module_enumerate_symbols_in_section (GumElfModule * self,
+                                             GumElfSectionHeaderType section,
+                                             GumElfFoundSymbolFunc func,
+                                             gpointer user_data)
+{
   Elf_Scn * scn;
   GElf_Shdr shdr;
   gboolean carry_on;
   GElf_Word symbol_count, symbol_index;
   Elf_Data * data;
 
-  if (!gum_elf_module_find_section_header (self, SHT_DYNSYM, &scn, &shdr))
+  if (!gum_elf_module_find_section_header (self, section, &scn, &shdr))
     return;
 
   carry_on = TRUE;
@@ -357,8 +380,8 @@ gum_elf_module_enumerate_dynamic_symbols (GumElfModule * self,
     gelf_getsym (data, symbol_index, &sym);
 
     details.name = elf_strptr (self->elf, shdr.sh_link, sym.st_name);
-    details.address =
-        sym.st_value - self->preferred_address + self->base_address;
+    details.address = self->base_address +
+        (sym.st_value - self->preferred_address);
     details.type = GELF_ST_TYPE (sym.st_info);
     details.bind = GELF_ST_BIND (sym.st_info);
     details.section_header_index = sym.st_shndx;
