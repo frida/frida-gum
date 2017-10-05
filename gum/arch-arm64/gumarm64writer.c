@@ -1621,13 +1621,24 @@ gum_count_leading_zeros (guint64 value)
   if (value == 0)
     return 64;
 
-#ifdef _MSC_VER
+#if defined (_MSC_VER) && GLIB_SIZEOF_VOID_P == 4
+  {
+    unsigned long index;
+
+    if (_BitScanReverse (&index, value >> 32))
+      return 31 - index;
+
+    _BitScanReverse (&index, value & 0xffffffff);
+
+    return 63 - index;
+  }
+#elif defined (_MSC_VER) && GLIB_SIZEOF_VOID_P == 8
   {
     unsigned long index;
 
     _BitScanReverse64 (&index, value);
 
-    return index ^ 63;
+    return 63 - index;
   }
 #else
   return __builtin_clzll (value);
@@ -1640,7 +1651,18 @@ gum_count_trailing_zeros (guint64 value)
   if (value == 0)
     return 64;
 
-#ifdef _MSC_VER
+#if defined (_MSC_VER) && GLIB_SIZEOF_VOID_P == 4
+  {
+    unsigned long index;
+
+    if (_BitScanForward (&index, value & 0xffffffff))
+      return index;
+
+    _BitScanForward (&index, value >> 32);
+
+    return 32 + index;
+  }
+#elif defined (_MSC_VER) && GLIB_SIZEOF_VOID_P == 8
   {
     unsigned long index;
 
