@@ -1511,8 +1511,6 @@ _gum_duk_push_proxy (duk_context * ctx,
 {
   duk_dup (ctx, target);
 
-  duk_get_global_string (ctx, "Proxy");
-  duk_dup (ctx, -2);
   duk_push_object (ctx);
 
   if (getter != NULL)
@@ -1527,10 +1525,7 @@ _gum_duk_push_proxy (duk_context * ctx,
     duk_put_prop_string (ctx, -2, "set");
   }
 
-  duk_new (ctx, 2);
-
-  duk_swap_top (ctx, -2);
-  duk_pop (ctx);
+  duk_push_proxy (ctx, 0);
 }
 
 void
