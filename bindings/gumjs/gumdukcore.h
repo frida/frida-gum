@@ -85,6 +85,7 @@ struct _GumDukCore
   GHashTable * scheduled_callbacks;
   guint next_callback_id;
 
+  GumDukHeapPtr weak_ref;
   GumDukHeapPtr int64;
   GumDukHeapPtr uint64;
   GumDukHeapPtr native_pointer;

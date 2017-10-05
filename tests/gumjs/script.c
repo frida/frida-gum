@@ -4955,12 +4955,6 @@ SCRIPT_TESTCASE (types_handle_invalid_construction)
 
 SCRIPT_TESTCASE (weak_callback_is_triggered_on_gc)
 {
-  if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
-  {
-    g_print ("<skipping, not yet implemented in the Duktape runtime> ");
-    return;
-  }
-
   COMPILE_AND_LOAD_SCRIPT (
       "(function () {"
       "  var val = {};"

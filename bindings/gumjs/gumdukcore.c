@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -167,9 +167,12 @@ static int gum_duk_core_on_global_enumerate (duk_context * ctx, void * udata);
 static int gum_duk_core_on_global_get (duk_context * ctx, const char * name,
     void * udata);
 
-GUMJS_DECLARE_CONSTRUCTOR (gumjs_weak_ref_construct)
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_weak_ref_module_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_weak_ref_bind)
 GUMJS_DECLARE_FUNCTION (gumjs_weak_ref_unbind)
+
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_weak_ref_construct)
+GUMJS_DECLARE_FINALIZER (gumjs_weak_ref_finalize)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_int64_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_int64_finalize)
@@ -327,7 +330,7 @@ static const duk_function_list_entry gumjs_script_functions[] =
   { NULL, NULL, 0 }
 };
 
-static const duk_function_list_entry gumjs_weak_ref_functions[] =
+static const duk_function_list_entry gumjs_weak_ref_module_functions[] =
 {
   { "bind", gumjs_weak_ref_bind, 2 },
   { "unbind", gumjs_weak_ref_unbind, 1 },
@@ -776,13 +779,20 @@ _gum_duk_core_init (GumDukCore * self,
   duk_new (ctx, 0);
   duk_put_global_string (ctx, "Script");
 
-  duk_push_c_function (ctx, gumjs_weak_ref_construct, 0);
+  duk_push_c_function (ctx, gumjs_weak_ref_module_construct, 0);
   duk_push_object (ctx);
-  duk_put_function_list (ctx, -1, gumjs_weak_ref_functions);
+  duk_put_function_list (ctx, -1, gumjs_weak_ref_module_functions);
   duk_put_prop_string (ctx, -2, "prototype");
   duk_new (ctx, 0);
-  _gum_duk_put_data (ctx, -1, self);
   duk_put_global_string (ctx, "WeakRef");
+
+  duk_push_c_function (ctx, gumjs_weak_ref_construct, 2);
+  duk_push_object (ctx);
+  duk_push_c_function (ctx, gumjs_weak_ref_finalize, 1);
+  duk_set_finalizer (ctx, -2);
+  duk_put_prop_string (ctx, -2, "prototype");
+  self->weak_ref = _gum_duk_require_heapptr (ctx, -1);
+  duk_pop (ctx);
 
   GUMJS_ADD_GLOBAL_FUNCTION ("_setTimeout", gumjs_set_timeout, 2);
   GUMJS_ADD_GLOBAL_FUNCTION ("_setInterval", gumjs_set_interval, 2);
@@ -981,6 +991,7 @@ _gum_duk_core_dispose (GumDukCore * self)
 
   self->cached_native_pointers = NULL;
 
+  _gum_duk_release_heapptr (ctx, self->weak_ref);
   _gum_duk_release_heapptr (ctx, self->int64);
   _gum_duk_release_heapptr (ctx, self->uint64);
   _gum_duk_release_heapptr (ctx, self->native_pointer);
@@ -1608,20 +1619,19 @@ gum_duk_core_on_global_get (duk_context * ctx,
   return result;
 }
 
-GUMJS_DEFINE_CONSTRUCTOR (gumjs_weak_ref_construct)
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_weak_ref_module_construct)
 {
-  (void) ctx;
-  (void) args;
-
   return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_bind)
 {
+  GumDukCore * core = args->core;
   GumDukHeapPtr target;
   GumDukHeapPtr callback;
   gboolean target_is_valid;
   guint id;
+  gchar prop_name[1 + 2 + 8 + 1];
   GumDukWeakRef * ref;
 
   _gum_duk_args_parse (args, "VF", &target, &callback);
@@ -1630,12 +1640,21 @@ GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_bind)
   target_is_valid = !duk_is_null (ctx, -1) && duk_is_object (ctx, -1);
   if (!target_is_valid)
     _gum_duk_throw (ctx, "expected a heap value");
+
+  id = ++core->last_weak_ref_id;
+
+  ref = gum_duk_weak_ref_new (id, target, callback, core);
+  g_hash_table_insert (core->weak_refs, GUINT_TO_POINTER (id), ref);
+
+  duk_push_heapptr (ctx, core->weak_ref);
+  duk_new (ctx, 0);
+
+  _gum_duk_put_data (ctx, -1, ref);
+
+  sprintf (prop_name, "\xffwr%x", id);
+  duk_put_prop_string (ctx, -2, prop_name);
+
   duk_pop (ctx);
-
-  id = ++args->core->last_weak_ref_id;
-
-  ref = gum_duk_weak_ref_new (id, target, callback, args->core);
-  g_hash_table_insert (args->core->weak_refs, GUINT_TO_POINTER (id), ref);
 
   duk_push_int (ctx, id);
   return 1;
@@ -1645,14 +1664,31 @@ GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_unbind)
 {
   guint id;
   gboolean removed;
-  GumDukCore * self = args->core;
 
   _gum_duk_args_parse (args, "u", &id);
 
-  removed = !g_hash_table_remove (self->weak_refs, GUINT_TO_POINTER (id));
+  removed = !g_hash_table_remove (args->core->weak_refs, GUINT_TO_POINTER (id));
 
   duk_push_boolean (ctx, removed);
   return 1;
+}
+
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_weak_ref_construct)
+{
+  return 0;
+}
+
+GUMJS_DEFINE_FINALIZER (gumjs_weak_ref_finalize)
+{
+  GumDukWeakRef * self;
+
+  self = _gum_duk_steal_data (ctx, 0);
+  if (self == NULL)
+    return 0;
+
+  g_hash_table_remove (self->core->weak_refs, GUINT_TO_POINTER (self->id));
+
+  return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_set_timeout)
