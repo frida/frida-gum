@@ -261,7 +261,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_symbol_construct)
 
   g_string_free (s, TRUE);
 
-  duk_put_prop_string (ctx, -2, "\xff" "description");
+  duk_put_prop_string (ctx, -2, DUK_HIDDEN_SYMBOL ("description"));
 
   return 0;
 }
@@ -271,7 +271,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_to_string)
   (void) args;
 
   duk_push_this (ctx);
-  duk_get_prop_string (ctx, -1, "\xff" "description");
+  duk_get_prop_string (ctx, -1, DUK_HIDDEN_SYMBOL ("description"));
   return 1;
 }
 

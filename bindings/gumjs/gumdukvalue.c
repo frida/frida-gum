@@ -546,7 +546,7 @@ _gum_duk_get_data (duk_context * ctx,
 {
   gpointer result;
 
-  duk_get_prop_string (ctx, index, "\xff" "priv");
+  duk_get_prop_string (ctx, index, DUK_HIDDEN_SYMBOL ("priv"));
   if (!duk_is_undefined (ctx, -1))
     result = duk_require_pointer (ctx, -1);
   else
@@ -562,7 +562,7 @@ _gum_duk_require_data (duk_context * ctx,
 {
   gpointer result;
 
-  duk_get_prop_string (ctx, index, "\xff" "priv");
+  duk_get_prop_string (ctx, index, DUK_HIDDEN_SYMBOL ("priv"));
   result = duk_require_pointer (ctx, -1);
   duk_pop (ctx);
 
@@ -576,7 +576,7 @@ _gum_duk_put_data (duk_context * ctx,
 {
   duk_dup (ctx, index);
   duk_push_pointer (ctx, data);
-  duk_put_prop_string (ctx, -2, "\xff" "priv");
+  duk_put_prop_string (ctx, -2, DUK_HIDDEN_SYMBOL ("priv"));
   duk_pop (ctx);
 }
 
@@ -588,14 +588,14 @@ _gum_duk_steal_data (duk_context * ctx,
 
   duk_dup (ctx, index);
 
-  duk_get_prop_string (ctx, -1, "\xff" "priv");
+  duk_get_prop_string (ctx, -1, DUK_HIDDEN_SYMBOL ("priv"));
   if (!duk_is_undefined (ctx, -1))
   {
     result = duk_require_pointer (ctx, -1);
     duk_pop (ctx);
 
     duk_push_pointer (ctx, NULL);
-    duk_put_prop_string (ctx, -2, "\xff" "priv");
+    duk_put_prop_string (ctx, -2, DUK_HIDDEN_SYMBOL ("priv"));
 
     duk_pop (ctx);
   }

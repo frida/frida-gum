@@ -32,7 +32,7 @@
     \
     args.ctx = ctx; \
     \
-    duk_get_global_string (ctx, "\xff" "core"); \
+    duk_get_global_string (ctx, DUK_HIDDEN_SYMBOL ("core")); \
     args.core = duk_get_pointer (ctx, -1); \
     duk_pop (ctx); \
     \
@@ -54,7 +54,7 @@
     \
     args.ctx = ctx; \
     \
-    duk_get_global_string (ctx, "\xff" "core"); \
+    duk_get_global_string (ctx, DUK_HIDDEN_SYMBOL ("core")); \
     args.core = duk_get_pointer (ctx, -1); \
     duk_pop (ctx); \
     \
@@ -76,7 +76,7 @@
     \
     args.ctx = ctx; \
     \
-    duk_get_global_string (ctx, "\xff" "core"); \
+    duk_get_global_string (ctx, DUK_HIDDEN_SYMBOL ("core")); \
     args.core = duk_get_pointer (ctx, -1); \
     duk_pop (ctx); \
     \
@@ -98,7 +98,7 @@
     \
     args.ctx = ctx; \
     \
-    duk_get_global_string (ctx, "\xff" "core"); \
+    duk_get_global_string (ctx, DUK_HIDDEN_SYMBOL ("core")); \
     args.core = duk_get_pointer (ctx, -1); \
     duk_pop (ctx); \
     \
@@ -120,7 +120,7 @@
     \
     args.ctx = ctx; \
     \
-    duk_get_global_string (ctx, "\xff" "core"); \
+    duk_get_global_string (ctx, DUK_HIDDEN_SYMBOL ("core")); \
     args.core = duk_get_pointer (ctx, -1); \
     duk_pop (ctx); \
     \

@@ -438,13 +438,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
   if (on_enter != NULL)
   {
     duk_push_heapptr (ctx, on_enter);
-    duk_put_prop_string (ctx, -2, "\xff" "on-enter");
+    duk_put_prop_string (ctx, -2, DUK_HIDDEN_SYMBOL ("on-enter"));
   }
 
   if (on_leave != NULL)
   {
     duk_push_heapptr (ctx, on_leave);
-    duk_put_prop_string (ctx, -2, "\xff" "on-leave");
+    duk_put_prop_string (ctx, -2, DUK_HIDDEN_SYMBOL ("on-leave"));
   }
 
   g_hash_table_add (self->invocation_listeners, listener);
@@ -848,7 +848,7 @@ _gum_duk_invocation_context_reset (GumDukInvocationContext * self,
 
     duk_push_heapptr (ctx, self->object);
     duk_push_null (ctx);
-    duk_put_prop_string (ctx, -2, "\xff" "cc");
+    duk_put_prop_string (ctx, -2, DUK_HIDDEN_SYMBOL ("cc"));
     duk_pop (ctx);
   }
 }
@@ -908,7 +908,7 @@ GUMJS_DEFINE_GETTER (gumjs_invocation_context_get_cpu_context)
     duk_push_this (ctx);
     self->cpu_context = _gum_duk_push_cpu_context (ctx,
         self->handle->cpu_context, GUM_CPU_CONTEXT_READWRITE, args->core);
-    duk_put_prop_string (ctx, -2, "\xff" "cc");
+    duk_put_prop_string (ctx, -2, DUK_HIDDEN_SYMBOL ("cc"));
     duk_pop (ctx);
   }
 
