@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -725,14 +725,19 @@ gum_v8_invocation_listener_on_enter (GumInvocationListener * listener,
     gum_v8_interceptor_release_invocation_args (module, args);
 
     _gum_v8_invocation_context_reset (jic, NULL);
-    if (self->on_leave != nullptr)
+    if (self->on_leave != nullptr || jic->dirty)
     {
       state->jic = jic;
     }
     else
     {
       _gum_v8_interceptor_release_invocation_context (module, jic);
+      state->jic = NULL;
     }
+  }
+  else
+  {
+    state->jic = NULL;
   }
 }
 
@@ -741,12 +746,9 @@ gum_v8_invocation_listener_on_leave (GumInvocationListener * listener,
                                      GumInvocationContext * ic)
 {
   auto self = GUM_V8_INVOCATION_LISTENER_CAST (listener);
-
-  if (self->on_leave == nullptr)
-    return;
-
   auto state = GUM_LINCTX_GET_FUNC_INVDATA (ic, GumV8InvocationState);
 
+  if (self->on_leave != nullptr)
   {
     auto module = self->module;
     auto core = module->core;
@@ -777,6 +779,13 @@ gum_v8_invocation_listener_on_leave (GumInvocationListener * listener,
 
     _gum_v8_invocation_context_reset (jic, NULL);
     _gum_v8_interceptor_release_invocation_context (module, jic);
+  }
+  else if (state->jic != NULL)
+  {
+    auto module = self->module;
+    ScriptScope scope (module->core->script);
+
+    _gum_v8_interceptor_release_invocation_context (module, state->jic);
   }
 }
 
@@ -866,6 +875,7 @@ gum_v8_invocation_context_new_persistent (GumV8Interceptor * parent)
   jic->object = new GumPersistent<Object>::type (isolate, object);
   jic->handle = NULL;
   jic->cpu_context = nullptr;
+  jic->dirty = FALSE;
 
   jic->module = parent;
 
@@ -1002,18 +1012,20 @@ gumjs_invocation_context_set_property (Local<Name> property,
                                        Local<Value> value,
                                        const PropertyCallbackInfo<Value> & info)
 {
+  auto holder = info.Holder ();
+  auto self =
+      (GumV8InvocationContext *) holder->GetAlignedPointerFromInternalField (0);
   auto module =
       (GumV8Interceptor *) info.Data ().As<External> ()->Value ();
 
-  (void) property;
-  (void) value;
-
-  if (info.Holder () == *module->cached_invocation_context->object)
+  if (holder == *module->cached_invocation_context->object)
   {
     module->cached_invocation_context =
         gum_v8_invocation_context_new_persistent (module);
     module->cached_invocation_context_in_use = FALSE;
   }
+
+  self->dirty = TRUE;
 }
 
 static GumV8InvocationArgs *

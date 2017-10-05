@@ -53,6 +53,7 @@ struct GumV8InvocationContext
   GumPersistent<v8::Object>::type * object;
   GumInvocationContext * handle;
   GumPersistent<v8::Object>::type * cpu_context;
+  gboolean dirty;
 
   GumV8Interceptor * module;
 };

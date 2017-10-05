@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -632,9 +632,10 @@ static void
 gum_duk_invocation_listener_on_enter (GumInvocationListener * listener,
                                       GumInvocationContext * ic)
 {
-  GumDukInvocationListener * self = GUM_DUK_INVOCATION_LISTENER_CAST (listener);
+  GumDukInvocationListener * self;
   GumDukInvocationState * state;
 
+  self = GUM_DUK_INVOCATION_LISTENER_CAST (listener);
   state = GUM_LINCTX_GET_FUNC_INVDATA (ic, GumDukInvocationState);
 
   if (self->on_enter != NULL)
@@ -664,16 +665,21 @@ gum_duk_invocation_listener_on_enter (GumInvocationListener * listener,
     gum_duk_interceptor_release_invocation_args (module, args);
 
     _gum_duk_invocation_context_reset (jic, NULL);
-    if (self->on_leave != NULL)
+    if (self->on_leave != NULL || jic->dirty)
     {
       state->jic = jic;
     }
     else
     {
       _gum_duk_interceptor_release_invocation_context (module, jic);
+      state->jic = NULL;
     }
 
     _gum_duk_scope_leave (&scope);
+  }
+  else
+  {
+    state->jic = NULL;
   }
 }
 
@@ -681,14 +687,13 @@ static void
 gum_duk_invocation_listener_on_leave (GumInvocationListener * listener,
                                       GumInvocationContext * ic)
 {
-  GumDukInvocationListener * self = GUM_DUK_INVOCATION_LISTENER_CAST (listener);
+  GumDukInvocationListener * self;
   GumDukInvocationState * state;
 
-  if (self->on_leave == NULL)
-    return;
-
+  self = GUM_DUK_INVOCATION_LISTENER_CAST (listener);
   state = GUM_LINCTX_GET_FUNC_INVDATA (ic, GumDukInvocationState);
 
+  if (self->on_leave != NULL)
   {
     GumDukInterceptor * module = self->module;
     GumDukCore * core = module->core;
@@ -720,6 +725,18 @@ gum_duk_invocation_listener_on_leave (GumInvocationListener * listener,
 
     _gum_duk_invocation_context_reset (jic, NULL);
     _gum_duk_interceptor_release_invocation_context (module, jic);
+
+    _gum_duk_scope_leave (&scope);
+  }
+  else if (state->jic != NULL)
+  {
+    GumDukInterceptor * module = self->module;
+    duk_context * ctx;
+    GumDukScope scope;
+
+    ctx = _gum_duk_scope_enter (&scope, module->core);
+
+    _gum_duk_interceptor_release_invocation_context (module, state->jic);
 
     _gum_duk_scope_leave (&scope);
   }
@@ -818,6 +835,7 @@ gum_duk_invocation_context_new (GumDukInterceptor * parent)
 
   jic->handle = NULL;
   jic->cpu_context = NULL;
+  jic->dirty = FALSE;
 
   jic->interceptor = parent;
 
@@ -978,6 +996,8 @@ GUMJS_DEFINE_SETTER (gumjs_invocation_context_set_property)
         gum_duk_invocation_context_new (interceptor);
     interceptor->cached_invocation_context_in_use = FALSE;
   }
+
+  self->dirty = TRUE;
 
   duk_push_true (ctx);
   return 1;
