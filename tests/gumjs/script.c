@@ -4859,7 +4859,6 @@ SCRIPT_TESTCASE (source_maps_should_be_supported_for_user_scripts)
         "\"payload\":\"Error: Not yet implemented\\n"
         "    at math.js:5\\n"
         "    at index.js:6\\n"
-        "    at call (native)\\n"
         "    at s (node_modules/frida/node_modules/browserify/node_modules/"
             "browser-pack/_prelude.js:1)\\n"
         "    at e (node_modules/frida/node_modules/browserify/node_modules/"
