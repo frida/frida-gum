@@ -2448,11 +2448,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_apply)
   gumjs_native_function_get (ctx, receiver, args->core, &func, &implementation);
 
   argc = duk_get_length (ctx, argv_array_index);
-  for (i = argc; i != 0; i--)
+  argv_index = duk_get_top_index (ctx) + 1;
+  for (i = 0; i != argc; i++)
   {
-    duk_get_prop_index (ctx, argv_array_index, (duk_uarridx_t) (i - 1));
+    duk_get_prop_index (ctx, argv_array_index, (duk_uarridx_t) i);
   }
-  argv_index = duk_get_top_index (ctx);
 
   return gum_duk_native_function_invoke (func, ctx, implementation, argc,
       argv_index);

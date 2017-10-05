@@ -259,6 +259,8 @@ static void on_message (GumScript * script, const gchar * message,
     GBytes * data, gpointer user_data);
 
 static int target_function_int (int arg);
+static const guint8 * target_function_base_plus_offset (const guint8 * base,
+    int offset);
 static const gchar * target_function_string (const gchar * arg);
 static void target_function_callbacks (const gint value,
     void (* first) (const gint * value), void (* second) (const gint * value));
@@ -902,6 +904,16 @@ SCRIPT_TESTCASE (native_function_should_implement_call_and_apply)
   EXPECT_SEND_MESSAGE_WITH ("1890");
   EXPECT_SEND_MESSAGE_WITH ("16855020");
   EXPECT_SEND_MESSAGE_WITH ("16855020");
+  EXPECT_NO_MESSAGES ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var f = new NativeFunction(" GUM_PTR_CONST ", 'pointer', "
+      "    ['pointer', 'int']);"
+      "send(f.call(null, ptr(4), 3));"
+      "send(f.apply(null, [ptr(4), 3]));",
+      target_function_base_plus_offset);
+  EXPECT_SEND_MESSAGE_WITH ("\"0x7\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"0x7\"");
   EXPECT_NO_MESSAGES ();
 }
 
@@ -5166,6 +5178,17 @@ target_function_int (int arg)
   fflush (stdout);
 
   return result;
+}
+
+GUM_NOINLINE static const guint8 *
+target_function_base_plus_offset (const guint8 * base,
+                                  int offset)
+{
+  gum_script_dummy_global_to_trick_optimizer += offset;
+
+  fflush (stdout);
+
+  return base + offset;
 }
 
 GUM_NOINLINE static const gchar *
