@@ -1002,8 +1002,7 @@ gum_stalker_create_exec_ctx (GumStalker * self,
   gum_spinlock_init (&ctx->callout_lock);
   ctx->sink = (GumEventSink *) g_object_ref (sink);
   ctx->sink_mask = gum_event_sink_query_mask (sink);
-  ctx->sink_process_impl = GUM_FUNCPTR_TO_POINTER (
-      GUM_EVENT_SINK_GET_INTERFACE (sink)->process);
+  ctx->sink_process_impl = GUM_EVENT_SINK_GET_INTERFACE (sink)->process;
 
   gum_exec_ctx_create_thunks (ctx);
 
