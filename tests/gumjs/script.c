@@ -1274,7 +1274,8 @@ SCRIPT_TESTCASE (native_pointer_provides_arithmetic_operations)
       "send(ptr(6).or(3).toInt32());"
       "send(ptr(6).xor(3).toInt32());"
       "send(ptr(63).shr(4).toInt32());"
-      "send(ptr(1).shl(3).toInt32());");
+      "send(ptr(1).shl(3).toInt32());"
+      "send(ptr(0).not().toInt32());");
   EXPECT_SEND_MESSAGE_WITH ("7");
   EXPECT_SEND_MESSAGE_WITH ("3");
   EXPECT_SEND_MESSAGE_WITH ("2");
@@ -1282,6 +1283,7 @@ SCRIPT_TESTCASE (native_pointer_provides_arithmetic_operations)
   EXPECT_SEND_MESSAGE_WITH ("5");
   EXPECT_SEND_MESSAGE_WITH ("3");
   EXPECT_SEND_MESSAGE_WITH ("8");
+  EXPECT_SEND_MESSAGE_WITH ("-1");
 }
 
 SCRIPT_TESTCASE (native_pointer_to_match_pattern)

@@ -226,6 +226,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_or)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_xor)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_shr)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_shl)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_not)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_compare)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_int32)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_string)
@@ -395,6 +396,7 @@ static const GumV8Function gumjs_native_pointer_functions[] =
   { "xor", gumjs_native_pointer_xor },
   { "shr", gumjs_native_pointer_shr },
   { "shl", gumjs_native_pointer_shl },
+  { "not", gumjs_native_pointer_not },
   { "compare", gumjs_native_pointer_compare },
   { "toInt32", gumjs_native_pointer_to_int32 },
   { "toString", gumjs_native_pointer_to_string },
@@ -1934,7 +1936,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_is_null)
   info.GetReturnValue ().Set (GUMJS_NATIVE_POINTER_VALUE (info.Holder ()) == 0);
 }
 
-#define GUM_DEFINE_NATIVE_POINTER_OP_IMPL(name, op) \
+#define GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL(name, op) \
   GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_##name) \
   { \
     gpointer lhs_ptr = GUMJS_NATIVE_POINTER_VALUE (info.Holder ()); \
@@ -1951,13 +1953,25 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_is_null)
     info.GetReturnValue ().Set (_gum_v8_native_pointer_new (result, core)); \
   }
 
-GUM_DEFINE_NATIVE_POINTER_OP_IMPL (add, +)
-GUM_DEFINE_NATIVE_POINTER_OP_IMPL (sub, -)
-GUM_DEFINE_NATIVE_POINTER_OP_IMPL (and, &)
-GUM_DEFINE_NATIVE_POINTER_OP_IMPL (or,  |)
-GUM_DEFINE_NATIVE_POINTER_OP_IMPL (xor, ^)
-GUM_DEFINE_NATIVE_POINTER_OP_IMPL (shr, >>)
-GUM_DEFINE_NATIVE_POINTER_OP_IMPL (shl, <<)
+GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (add, +)
+GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (sub, -)
+GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (and, &)
+GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (or,  |)
+GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (xor, ^)
+GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (shr, >>)
+GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (shl, <<)
+
+#define GUM_DEFINE_NATIVE_POINTER_UNARY_OP_IMPL(name, op) \
+  GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_##name) \
+  { \
+    gsize v = GPOINTER_TO_SIZE (GUMJS_NATIVE_POINTER_VALUE (info.Holder ())); \
+    \
+    gpointer result = GSIZE_TO_POINTER (op v); \
+    \
+    info.GetReturnValue ().Set (_gum_v8_native_pointer_new (result, core)); \
+  }
+
+GUM_DEFINE_NATIVE_POINTER_UNARY_OP_IMPL (not, ~)
 
 /*
  * Prototype:

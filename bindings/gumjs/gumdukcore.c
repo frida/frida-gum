@@ -214,6 +214,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_or)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_xor)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_shr)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_shl)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_not)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_compare)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_int32)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_string)
@@ -384,6 +385,7 @@ static const duk_function_list_entry gumjs_native_pointer_functions[] =
   { "xor", gumjs_native_pointer_xor, 1 },
   { "shr", gumjs_native_pointer_shr, 1 },
   { "shl", gumjs_native_pointer_shl, 1 },
+  { "not", gumjs_native_pointer_not, 0 },
   { "compare", gumjs_native_pointer_compare, 1 },
   { "toInt32", gumjs_native_pointer_to_int32, 0 },
   { "toString", gumjs_native_pointer_to_string, 1 },
@@ -2217,7 +2219,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_is_null)
   return 1;
 }
 
-#define GUM_DEFINE_NATIVE_POINTER_OP_IMPL(name, op) \
+#define GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL(name, op) \
   GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_##name) \
   { \
     GumDukNativePointer * self; \
@@ -2238,13 +2240,29 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_is_null)
     return 1; \
   }
 
-GUM_DEFINE_NATIVE_POINTER_OP_IMPL (add, +)
-GUM_DEFINE_NATIVE_POINTER_OP_IMPL (sub, -)
-GUM_DEFINE_NATIVE_POINTER_OP_IMPL (and, &)
-GUM_DEFINE_NATIVE_POINTER_OP_IMPL (or,  |)
-GUM_DEFINE_NATIVE_POINTER_OP_IMPL (xor, ^)
-GUM_DEFINE_NATIVE_POINTER_OP_IMPL (shr, >>)
-GUM_DEFINE_NATIVE_POINTER_OP_IMPL (shl, <<)
+GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (add, +)
+GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (sub, -)
+GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (and, &)
+GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (or,  |)
+GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (xor, ^)
+GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (shr, >>)
+GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (shl, <<)
+
+#define GUM_DEFINE_NATIVE_POINTER_UNARY_OP_IMPL(name, op) \
+  GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_##name) \
+  { \
+    GumDukNativePointer * self; \
+    gpointer result; \
+    \
+    self = gumjs_native_pointer_from_args (args); \
+    \
+    result = GSIZE_TO_POINTER (op GPOINTER_TO_SIZE (self->value)); \
+    \
+    _gum_duk_push_native_pointer (ctx, result, args->core); \
+    return 1; \
+  }
+
+GUM_DEFINE_NATIVE_POINTER_UNARY_OP_IMPL (not, ~)
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_compare)
 {
