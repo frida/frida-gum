@@ -731,10 +731,9 @@ gum_duk_invocation_listener_on_leave (GumInvocationListener * listener,
   else if (state->jic != NULL)
   {
     GumDukInterceptor * module = self->module;
-    duk_context * ctx;
     GumDukScope scope;
 
-    ctx = _gum_duk_scope_enter (&scope, module->core);
+    _gum_duk_scope_enter (&scope, module->core);
 
     _gum_duk_interceptor_release_invocation_context (module, state->jic);
 
