@@ -141,6 +141,8 @@ static gboolean gum_read_attribute_offset (Dwarf_Debug dbg, Dwarf_Die die,
 static gboolean gum_read_attribute_uint (Dwarf_Debug dbg, Dwarf_Die die,
     Dwarf_Half id, Dwarf_Unsigned * value);
 
+static gint gum_compare_pointers (gconstpointer a, gconstpointer b);
+
 G_LOCK_DEFINE_STATIC (gum_symbol_util);
 static GHashTable * gum_module_entries = NULL;
 static GHashTable * gum_function_addresses = NULL;
@@ -367,13 +369,14 @@ GArray *
 gum_find_functions_matching (const gchar * str)
 {
   GArray * matches;
+  GHashTable * seen;
   GPatternSpec * pspec;
   GHashTableIter iter;
   const gchar * name;
   GArray * addresses;
 
   matches = g_array_new (FALSE, FALSE, sizeof (gpointer));
-
+  seen = g_hash_table_new (NULL, NULL);
   pspec = g_pattern_spec_new (str);
 
   G_LOCK (gum_symbol_util);
@@ -384,13 +387,30 @@ gum_find_functions_matching (const gchar * str)
   {
     if (g_pattern_match_string (pspec, name))
     {
-      g_array_append_vals (matches, addresses->data, addresses->len);
+      guint i;
+
+      for (i = 0; i != addresses->len; i++)
+      {
+        gpointer address;
+
+        address = g_array_index (addresses, gpointer, i);
+
+        if (!g_hash_table_contains (seen, address))
+        {
+          g_array_append_val (matches, address);
+
+          g_hash_table_add (seen, address);
+        }
+      }
     }
   }
 
   G_UNLOCK (gum_symbol_util);
 
+  g_array_sort (matches, gum_compare_pointers);
+
   g_pattern_spec_free (pspec);
+  g_hash_table_unref (seen);
 
   return matches;
 }
@@ -525,6 +545,9 @@ gum_collect_module_functions (const GumModuleDetails * details,
   if (entry == NULL || entry->collected)
     return TRUE;
 
+  gum_elf_module_enumerate_dynamic_symbols (entry->module,
+      gum_collect_symbol_if_function, NULL);
+
   gum_elf_module_enumerate_symbols (entry->module,
       gum_collect_symbol_if_function, NULL);
 
@@ -540,6 +563,7 @@ gum_collect_symbol_if_function (const GumElfSymbolDetails * details,
   const gchar * name;
   gpointer address;
   GArray * addresses;
+  gboolean already_collected;
 
   if (details->section_header_index == SHN_UNDEF || details->type != STT_FUNC)
     return TRUE;
@@ -547,14 +571,30 @@ gum_collect_symbol_if_function (const GumElfSymbolDetails * details,
   name = details->name;
   address = GSIZE_TO_POINTER (details->address);
 
+  already_collected = FALSE;
+
   addresses = g_hash_table_lookup (gum_function_addresses, name);
   if (addresses == NULL)
   {
     addresses = g_array_sized_new (FALSE, FALSE, sizeof (gpointer), 1);
     g_hash_table_insert (gum_function_addresses, g_strdup (name), addresses);
   }
+  else
+  {
+    guint i;
 
-  g_array_append_val (addresses, address);
+    for (i = 0; i != addresses->len; i++)
+    {
+      if (g_array_index (addresses, gpointer, i) == address)
+      {
+        already_collected = TRUE;
+        break;
+      }
+    }
+  }
+
+  if (!already_collected)
+    g_array_append_val (addresses, address);
 
   return TRUE;
 }
@@ -1034,4 +1074,11 @@ gum_read_attribute_uint (Dwarf_Debug dbg,
   dwarf_dealloc (dbg, attribute, DW_DLA_ATTR);
 
   return success;
+}
+
+static gint
+gum_compare_pointers (gconstpointer a,
+                      gconstpointer b)
+{
+  return *((gconstpointer *) a) - *((gconstpointer *) b);
 }
