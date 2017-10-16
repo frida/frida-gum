@@ -35,7 +35,6 @@ struct _GumDukFlushCallback
 struct _GumDukWeakRef
 {
   guint id;
-  GumDukHeapPtr target;
   GumDukHeapPtr callback;
 
   GumDukCore * core;
@@ -260,10 +259,9 @@ GUMJS_DECLARE_CONSTRUCTOR (gumjs_source_map_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_source_map_finalize)
 GUMJS_DECLARE_FUNCTION (gumjs_source_map_resolve)
 
-static GumDukWeakRef * gum_duk_weak_ref_new (guint id, GumDukHeapPtr target,
-    GumDukHeapPtr callback, GumDukCore * core);
+static GumDukWeakRef * gum_duk_weak_ref_new (guint id, GumDukHeapPtr callback,
+    GumDukCore * core);
 static void gum_duk_weak_ref_clear (GumDukWeakRef * ref);
-static void gum_duk_weak_ref_free (GumDukWeakRef * ref);
 
 static gint gum_duk_core_schedule_callback (GumDukCore * self,
     const GumDukArgs * args, gboolean repeat);
@@ -749,7 +747,7 @@ _gum_duk_core_init (GumDukCore * self,
   self->event_count = 0;
 
   self->weak_refs = g_hash_table_new_full (NULL, NULL, NULL,
-      (GDestroyNotify) gum_duk_weak_ref_free);
+      (GDestroyNotify) gum_duk_weak_ref_clear);
 
   self->scheduled_callbacks = g_hash_table_new (NULL, NULL);
   self->next_callback_id = 1;
@@ -1645,7 +1643,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_bind)
 
   id = ++core->last_weak_ref_id;
 
-  ref = gum_duk_weak_ref_new (id, target, callback, core);
+  ref = gum_duk_weak_ref_new (id, callback, core);
   g_hash_table_insert (core->weak_refs, GUINT_TO_POINTER (id), ref);
 
   duk_push_heapptr (ctx, core->weak_ref);
@@ -1688,7 +1686,12 @@ GUMJS_DEFINE_FINALIZER (gumjs_weak_ref_finalize)
   if (self == NULL)
     return 0;
 
-  g_hash_table_remove (self->core->weak_refs, GUINT_TO_POINTER (self->id));
+  if (self->core != NULL)
+  {
+    g_hash_table_remove (self->core->weak_refs, GUINT_TO_POINTER (self->id));
+  }
+
+  g_slice_free (GumDukWeakRef, self);
 
   return 0;
 }
@@ -3218,7 +3221,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_source_map_resolve)
 
 static GumDukWeakRef *
 gum_duk_weak_ref_new (guint id,
-                      GumDukHeapPtr target,
                       GumDukHeapPtr callback,
                       GumDukCore * core)
 {
@@ -3226,7 +3228,6 @@ gum_duk_weak_ref_new (guint id,
 
   ref = g_slice_new (GumDukWeakRef);
   ref->id = id;
-  ref->target = target;
   _gum_duk_protect (core->current_scope->ctx, callback);
   ref->callback = callback;
   ref->core = core;
@@ -3237,25 +3238,18 @@ gum_duk_weak_ref_new (guint id,
 static void
 gum_duk_weak_ref_clear (GumDukWeakRef * ref)
 {
-  g_clear_pointer (&ref->target, _gum_duk_weak_ref_free);
-}
-
-static void
-gum_duk_weak_ref_free (GumDukWeakRef * ref)
-{
   GumDukCore * core = ref->core;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   duk_context * ctx = scope.ctx;
-
-  gum_duk_weak_ref_clear (ref);
 
   duk_push_heapptr (ctx, ref->callback);
   _gum_duk_scope_call (&scope, 0);
   duk_pop (ctx);
 
   _gum_duk_unprotect (ctx, ref->callback);
+  ref->callback = NULL;
 
-  g_slice_free (GumDukWeakRef, ref);
+  ref->core = NULL;
 }
 
 static gint

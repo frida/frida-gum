@@ -151,12 +151,6 @@ G_GNUC_INTERNAL GumDukHeapPtr _gum_duk_require_heapptr (duk_context * ctx,
 G_GNUC_INTERNAL void _gum_duk_release_heapptr (duk_context * ctx,
     GumDukHeapPtr heapptr);
 
-G_GNUC_INTERNAL GumDukWeakRef * _gum_duk_weak_ref_new (duk_context * ctx,
-    GumDukHeapPtr value, GumDukWeakNotify notify, gpointer data,
-    GDestroyNotify data_destroy);
-G_GNUC_INTERNAL GumDukHeapPtr _gum_duk_weak_ref_get (GumDukWeakRef * ref);
-G_GNUC_INTERNAL void _gum_duk_weak_ref_free (GumDukWeakRef * ref);
-
 G_GNUC_INTERNAL const gchar * _gum_duk_thread_state_to_string (
     GumThreadState state);
 G_GNUC_INTERNAL const gchar * _gum_duk_memory_operation_to_string (

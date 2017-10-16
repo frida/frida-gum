@@ -1738,32 +1738,6 @@ _gum_duk_release_heapptr (duk_context * ctx,
   _gum_duk_unprotect (ctx, heapptr);
 }
 
-GumDukWeakRef *
-_gum_duk_weak_ref_new (duk_context * ctx,
-                       GumDukHeapPtr value,
-                       GumDukWeakNotify notify,
-                       gpointer data,
-                       GDestroyNotify data_destroy)
-{
-  /* TODO: implement */
-
-  (void) ctx;
-  (void) value;
-  (void) notify;
-  (void) data;
-  (void) data_destroy;
-
-  return NULL;
-}
-
-void
-_gum_duk_weak_ref_free (GumDukWeakRef * ref)
-{
-  /* TODO: implement */
-
-  (void) ref;
-}
-
 static const gchar *
 gum_exception_type_to_string (GumExceptionType type)
 {
