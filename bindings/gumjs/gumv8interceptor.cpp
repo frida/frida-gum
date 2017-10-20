@@ -529,6 +529,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
       _gum_v8_throw_ascii_literal (isolate,
           "already attached to this function");
       break;
+    case GUM_ATTACH_POLICY_VIOLATION:
+      _gum_v8_throw_ascii_literal (isolate,
+          "not permitted by code-signing policy");
+      break;
+    default:
+      g_assert_not_reached ();
   }
 }
 
@@ -611,6 +617,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
     case GUM_REPLACE_ALREADY_REPLACED:
       _gum_v8_throw_ascii_literal (isolate, "already replaced this function");
       break;
+    case GUM_REPLACE_POLICY_VIOLATION:
+      _gum_v8_throw_ascii_literal (isolate,
+          "not permitted by code-signing policy");
+      break;
+    default:
+      g_assert_not_reached ();
   }
 }
 

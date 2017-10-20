@@ -462,6 +462,8 @@ unable_to_attach:
             "please file a bug", target);
       case GUM_ATTACH_ALREADY_ATTACHED:
         _gum_duk_throw (ctx, "already attached to this function");
+      case GUM_ATTACH_POLICY_VIOLATION:
+        _gum_duk_throw (ctx, "not permitted by code-signing policy");
       default:
         g_assert_not_reached ();
     }
@@ -542,6 +544,8 @@ unable_to_replace:
             "please file a bug", target);
       case GUM_REPLACE_ALREADY_REPLACED:
         _gum_duk_throw (ctx, "already replaced this function");
+      case GUM_REPLACE_POLICY_VIOLATION:
+        _gum_duk_throw (ctx, "not permitted by code-signing policy");
       default:
         g_assert_not_reached ();
     }
