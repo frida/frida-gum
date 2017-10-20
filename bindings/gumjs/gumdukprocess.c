@@ -115,6 +115,9 @@ _gum_duk_process_init (GumDukProcess * self,
   duk_put_prop_string (ctx, -2, "pageSize");
   duk_push_uint (ctx, GLIB_SIZEOF_VOID_P);
   duk_put_prop_string (ctx, -2, "pointerSize");
+  duk_push_string (ctx, gum_code_signing_policy_to_string (
+      gum_process_get_code_signing_policy ()));
+  duk_put_prop_string (ctx, -2, "codeSigningPolicy");
   duk_put_prop_string (ctx, -2, "prototype");
   duk_new (ctx, 0);
   _gum_duk_put_data (ctx, -1, self);
