@@ -28,6 +28,8 @@ static gboolean gum_emit_thread_if_not_cloaked (
 static gboolean gum_emit_range_if_not_cloaked (const GumRangeDetails * details,
     gpointer user_data);
 
+static GumCodeSigningPolicy gum_code_signing_policy = GUM_CODE_SIGNING_OPTIONAL;
+
 GumOS
 gum_process_get_native_os (void)
 {
@@ -46,6 +48,18 @@ gum_process_get_native_os (void)
 #else
 # error Unknown OS
 #endif
+}
+
+GumCodeSigningPolicy
+gum_process_get_code_signing_policy (void)
+{
+  return gum_code_signing_policy;
+}
+
+void
+gum_process_set_code_signing_policy (GumCodeSigningPolicy policy)
+{
+  gum_code_signing_policy = policy;
 }
 
 void
@@ -113,6 +127,41 @@ gum_emit_range_if_not_cloaked (const GumRangeDetails * details,
   }
 
   return ctx->func (details, ctx->user_data);
+}
+
+GType
+gum_code_signing_policy_get_type (void)
+{
+  static volatile gsize gonce_value;
+
+  if (g_once_init_enter (&gonce_value))
+  {
+    static const GEnumValue values[] =
+    {
+      { GUM_CODE_SIGNING_OPTIONAL, "GUM_CODE_SIGNING_OPTIONAL", "optional" },
+      { GUM_CODE_SIGNING_REQUIRED, "GUM_CODE_SIGNING_REQUIRED", "required" }
+    };
+    GType etype;
+
+    etype = g_enum_register_static ("GumCodeSigningPolicy", values);
+
+    g_once_init_leave (&gonce_value, etype);
+  }
+
+  return (GType) gonce_value;
+}
+
+const gchar *
+gum_code_signing_policy_to_string (GumCodeSigningPolicy policy)
+{
+  switch (policy)
+  {
+    case GUM_CODE_SIGNING_OPTIONAL: return "optional";
+    case GUM_CODE_SIGNING_REQUIRED: return "required";
+  }
+
+  g_assert_not_reached ();
+  return NULL;
 }
 
 const gchar *

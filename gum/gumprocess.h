@@ -9,6 +9,9 @@
 
 #include <gum/gummemory.h>
 
+#define GUM_TYPE_CODE_SIGNING_POLICY (gum_code_signing_policy_get_type ())
+
+typedef guint GumCodeSigningPolicy;
 typedef gsize GumThreadId;
 typedef guint GumThreadState;
 typedef struct _GumThreadDetails GumThreadDetails;
@@ -23,6 +26,12 @@ typedef struct _GumSymbolSection GumSymbolSection;
 typedef struct _GumRangeDetails GumRangeDetails;
 typedef struct _GumFileMapping GumFileMapping;
 typedef struct _GumMallocRangeDetails GumMallocRangeDetails;
+
+enum _GumCodeSigningPolicy
+{
+  GUM_CODE_SIGNING_OPTIONAL,
+  GUM_CODE_SIGNING_REQUIRED
+};
 
 enum _GumThreadState
 {
@@ -138,6 +147,8 @@ typedef gboolean (* GumFoundMallocRangeFunc) (
     const GumMallocRangeDetails * details, gpointer user_data);
 
 GUM_API GumOS gum_process_get_native_os (void);
+GUM_API GumCodeSigningPolicy gum_process_get_code_signing_policy (void);
+GUM_API void gum_process_set_code_signing_policy (GumCodeSigningPolicy policy);
 GUM_API gboolean gum_process_is_debugger_attached (void);
 GUM_API GumThreadId gum_process_get_current_thread_id (void);
 GUM_API gboolean gum_process_modify_thread (GumThreadId thread_id,
@@ -165,6 +176,9 @@ GUM_API GumAddress gum_module_find_base_address (const gchar * module_name);
 GUM_API GumAddress gum_module_find_export_by_name (const gchar * module_name,
     const gchar * symbol_name);
 
+GUM_API GType gum_code_signing_policy_get_type (void) G_GNUC_CONST;
+GUM_API const gchar * gum_code_signing_policy_to_string (
+    GumCodeSigningPolicy policy);
 GUM_API const gchar * gum_symbol_type_to_string (GumSymbolType type);
 
 G_END_DECLS

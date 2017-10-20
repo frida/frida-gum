@@ -7,6 +7,12 @@ namespace Gum {
 	public void init_embedded ();
 	public void deinit_embedded ();
 
+	[CCode (cprefix = "GUM_CODE_SIGNING_")]
+	public enum CodeSigningPolicy {
+		OPTIONAL,
+		REQUIRED
+	}
+
 	[CCode (cprefix = "GUM_CALL_")]
 	public enum CallingConvention {
 		CAPI,
@@ -134,6 +140,9 @@ namespace Gum {
 	}
 
 	namespace Process {
+		public Gum.CodeSigningPolicy get_code_signing_policy ();
+		public void set_code_signing_policy (Gum.CodeSigningPolicy policy);
+
 		public Gum.ThreadId get_current_thread_id ();
 		public bool modify_thread (Gum.ThreadId thread_id, Gum.Process.ModifyThreadFunc func);
 		public void enumerate_threads (Gum.Process.FoundThreadFunc func);
