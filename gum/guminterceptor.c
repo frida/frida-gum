@@ -345,6 +345,9 @@ gum_interceptor_attach_listener (GumInterceptor * self,
   GumAttachReturn result = GUM_ATTACH_OK;
   GumFunctionContext * function_ctx;
 
+  if (gum_process_get_code_signing_policy () == GUM_CODE_SIGNING_REQUIRED)
+    goto policy_violation;
+
   gum_interceptor_ignore_current_thread (self);
   GUM_INTERCEPTOR_LOCK ();
   gum_interceptor_transaction_begin (&priv->current_transaction);
@@ -364,6 +367,10 @@ gum_interceptor_attach_listener (GumInterceptor * self,
 
   goto beach;
 
+policy_violation:
+  {
+    return GUM_ATTACH_POLICY_VIOLATION;
+  }
 wrong_signature:
   {
     result = GUM_ATTACH_WRONG_SIGNATURE;
@@ -436,6 +443,9 @@ gum_interceptor_replace_function (GumInterceptor * self,
   GumReplaceReturn result = GUM_REPLACE_OK;
   GumFunctionContext * function_ctx;
 
+  if (gum_process_get_code_signing_policy () == GUM_CODE_SIGNING_REQUIRED)
+    goto policy_violation;
+
   GUM_INTERCEPTOR_LOCK ();
   gum_interceptor_transaction_begin (&priv->current_transaction);
   priv->current_transaction.is_dirty = TRUE;
@@ -454,6 +464,10 @@ gum_interceptor_replace_function (GumInterceptor * self,
 
   goto beach;
 
+policy_violation:
+  {
+    return GUM_REPLACE_POLICY_VIOLATION;
+  }
 wrong_signature:
   {
     result = GUM_REPLACE_WRONG_SIGNATURE;

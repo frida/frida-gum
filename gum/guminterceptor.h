@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -35,14 +35,16 @@ typedef enum
 {
   GUM_ATTACH_OK               =  0,
   GUM_ATTACH_WRONG_SIGNATURE  = -1,
-  GUM_ATTACH_ALREADY_ATTACHED = -2
+  GUM_ATTACH_ALREADY_ATTACHED = -2,
+  GUM_ATTACH_POLICY_VIOLATION = -3
 } GumAttachReturn;
 
 typedef enum
 {
   GUM_REPLACE_OK               =  0,
   GUM_REPLACE_WRONG_SIGNATURE  = -1,
-  GUM_REPLACE_ALREADY_REPLACED = -2
+  GUM_REPLACE_ALREADY_REPLACED = -2,
+  GUM_REPLACE_POLICY_VIOLATION = -3
 } GumReplaceReturn;
 
 struct _GumInterceptor
