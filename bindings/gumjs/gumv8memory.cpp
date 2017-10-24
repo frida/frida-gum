@@ -495,8 +495,9 @@ gum_v8_memory_read (GumMemoryValueType type,
           guint8 dummy_to_trap_bad_pointer_early;
           memcpy (&dummy_to_trap_bad_pointer_early, data, sizeof (guint8));
 
-          result = String::NewFromOneByte (isolate, (const uint8_t *) data,
-              NewStringType::kNormal, length).ToLocalChecked ();
+          gchar * str = g_utf8_make_valid (data, length);
+          result = String::NewFromUtf8 (isolate, str, String::kNormalString);
+          g_free (str);
         }
         else
         {

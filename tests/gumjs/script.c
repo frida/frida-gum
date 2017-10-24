@@ -4323,6 +4323,7 @@ SCRIPT_TESTCASE (byte_array_can_be_written)
 SCRIPT_TESTCASE (c_string_can_be_read)
 {
   const gchar * str = "Hello";
+  const gchar * uni = "Bjøærheimsbygd";
 
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readCString(" GUM_PTR_CONST "));",
       str);
@@ -4346,6 +4347,14 @@ SCRIPT_TESTCASE (c_string_can_be_read)
 
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readCString(ptr(\"0\")));", str);
   EXPECT_SEND_MESSAGE_WITH ("null");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readCString(" GUM_PTR_CONST
+      ", 4));", uni);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjø\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readCString(" GUM_PTR_CONST
+      ", 3));", uni);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bj\357\277\275\"");
 }
 
 SCRIPT_TESTCASE (utf8_string_can_be_read)

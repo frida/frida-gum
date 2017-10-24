@@ -445,6 +445,7 @@ gum_duk_memory_read (GumMemoryValueType type,
       {
         gchar * data;
         guint8 dummy_to_trap_bad_pointer_early;
+        gchar * str;
 
         data = address;
         if (data == NULL)
@@ -456,18 +457,9 @@ gum_duk_memory_read (GumMemoryValueType type,
         if (length != 0)
           memcpy (&dummy_to_trap_bad_pointer_early, data, sizeof (guint8));
 
-        if (length < 0)
-        {
-          duk_push_string (ctx, data);
-        }
-        else
-        {
-          gchar * slice;
-
-          slice = g_strndup (data, length);
-          duk_push_string (ctx, slice);
-          g_free (slice);
-        }
+        str = g_utf8_make_valid (data, length);
+        duk_push_string (ctx, str);
+        g_free (str);
 
         break;
       }
