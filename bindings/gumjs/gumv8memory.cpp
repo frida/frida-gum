@@ -519,9 +519,12 @@ gum_v8_memory_read (GumMemoryValueType type,
           guint8 dummy_to_trap_bad_pointer_early;
           memcpy (&dummy_to_trap_bad_pointer_early, data, sizeof (guint8));
 
-          if (!g_utf8_validate (data, length, NULL))
+          const gchar * end;
+          if (!g_utf8_validate (data, length, &end))
           {
-            _gum_v8_throw_ascii_literal (isolate, "invalid UTF-8");
+            _gum_v8_throw_ascii (isolate,
+                "can't decode byte 0x%02x in position %u",
+                (guint8) *end, (guint) (end - data));
             break;
           }
 
