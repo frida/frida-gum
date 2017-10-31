@@ -2597,14 +2597,9 @@ gumjs_native_function_init (duk_context * ctx,
 
   for (i = 0; i != nargs_total; i++)
   {
-    GumDukHeapPtr atype_value;
-    ffi_type ** atype;
     gboolean is_marker;
 
     duk_get_prop_index (ctx, -1, (duk_uarridx_t) i);
-    atype_value = duk_get_heapptr (ctx, -1);
-
-    atype = &func->atypes[is_variadic ? i - 1 : i];
 
     if (duk_is_string (ctx, -1))
       is_marker = strcmp (duk_require_string (ctx, -1), "...") == 0;
@@ -2619,9 +2614,22 @@ gumjs_native_function_init (duk_context * ctx,
       nargs_fixed = i;
       is_variadic = TRUE;
     }
-    else if (!gum_duk_get_ffi_type (ctx, atype_value, atype, &func->data))
+    else
     {
-      goto invalid_argument_type;
+      GumDukHeapPtr atype_value;
+      ffi_type ** atype;
+
+      atype_value = duk_get_heapptr (ctx, -1);
+      atype = &func->atypes[is_variadic ? i - 1 : i];
+
+      if (!gum_duk_get_ffi_type (ctx, atype_value, atype, &func->data))
+        goto invalid_argument_type;
+
+      if (is_variadic && *atype == &ffi_type_float)
+      {
+        /* Must be promoted to double in the variadic portion. */
+        *atype = &ffi_type_double;
+      }
     }
 
     duk_pop (ctx);

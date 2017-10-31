@@ -2287,6 +2287,7 @@ gumjs_native_function_init (Handle<Object> wrapper,
   for (i = 0; i != nargs_total; i++)
   {
     auto type = params->argument_types->Get (i);
+
     String::Utf8Value type_utf8 (type);
     if (strcmp (*type_utf8, "...") == 0)
     {
@@ -2300,10 +2301,18 @@ gumjs_native_function_init (Handle<Object> wrapper,
       nargs_fixed = i;
       is_variadic = TRUE;
     }
-    else if (!gum_v8_ffi_type_get (core, type,
-        &func->atypes[is_variadic ? i - 1 : i], &func->data))
+    else
     {
-      goto error;
+      auto atype = &func->atypes[is_variadic ? i - 1 : i];
+
+      if (!gum_v8_ffi_type_get (core, type, atype, &func->data))
+        goto error;
+
+      if (is_variadic && *atype == &ffi_type_float)
+      {
+        /* Must be promoted to double in the variadic portion. */
+        *atype = &ffi_type_double;
+      }
     }
   }
   if (is_variadic)
