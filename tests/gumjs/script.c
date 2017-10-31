@@ -239,7 +239,8 @@ static gint gum_toupper (gchar * str, gint limit);
 static gint64 gum_classify_timestamp (gint64 timestamp);
 static guint64 gum_square (guint64 value);
 static gint gum_sum (gint count, ...);
-static gint gum_add_pointers_and_float (gpointer a, gpointer b, ...);
+static gint gum_add_pointers_and_float_fixed (gpointer a, gpointer b, float c);
+static gint gum_add_pointers_and_float_variadic (gpointer a, gpointer b, ...);
 
 #ifndef HAVE_ANDROID
 static gboolean on_incoming_connection (GSocketService * service,
@@ -787,6 +788,14 @@ SCRIPT_TESTCASE (native_function_can_be_invoked)
   EXPECT_NO_MESSAGES ();
   g_assert_cmpstr (str, ==, "BADGER");
 
+  COMPILE_AND_LOAD_SCRIPT (
+      "var sum = new NativeFunction(" GUM_PTR_CONST ", "
+          "'int', ['pointer', 'pointer', 'float']);"
+      "send(sum(ptr(3), ptr(4), 42.0));",
+      gum_add_pointers_and_float_fixed);
+  EXPECT_SEND_MESSAGE_WITH ("49");
+  EXPECT_NO_MESSAGES ();
+
 #ifdef G_OS_WIN32
   COMPILE_AND_LOAD_SCRIPT (
       "var impl = Module.findExportByName(\"user32.dll\", \"GetKeyState\");"
@@ -1024,7 +1033,7 @@ SCRIPT_TESTCASE (variadic_native_function_can_be_invoked)
       "var sum = new NativeFunction(" GUM_PTR_CONST ", "
           "'int', ['pointer', 'pointer', '...', 'float']);"
       "send(sum(ptr(3), ptr(4), 42.0));",
-      gum_add_pointers_and_float);
+      gum_add_pointers_and_float_variadic);
   EXPECT_SEND_MESSAGE_WITH ("49");
   EXPECT_NO_MESSAGES ();
 }
@@ -1420,9 +1429,17 @@ gum_sum (gint count,
 }
 
 static gint
-gum_add_pointers_and_float (gpointer a,
-                            gpointer b,
-                            ...)
+gum_add_pointers_and_float_fixed (gpointer a,
+                                  gpointer b,
+                                  float c)
+{
+  return GPOINTER_TO_SIZE (a) + GPOINTER_TO_SIZE (b) + (int) c;
+}
+
+static gint
+gum_add_pointers_and_float_variadic (gpointer a,
+                                     gpointer b,
+                                     ...)
 {
   va_list vl;
   float c;
