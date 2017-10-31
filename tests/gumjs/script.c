@@ -239,6 +239,7 @@ static gint gum_toupper (gchar * str, gint limit);
 static gint64 gum_classify_timestamp (gint64 timestamp);
 static guint64 gum_square (guint64 value);
 static gint gum_sum (gint count, ...);
+static gint gum_add_pointers_and_float (gpointer a, gpointer b, ...);
 
 #ifndef HAVE_ANDROID
 static gboolean on_incoming_connection (GSocketService * service,
@@ -1018,6 +1019,14 @@ SCRIPT_TESTCASE (variadic_native_function_can_be_invoked)
       gum_sum);
   EXPECT_SEND_MESSAGE_WITH ("6");
   EXPECT_NO_MESSAGES ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var sum = new NativeFunction(" GUM_PTR_CONST ", "
+          "'int', ['pointer', 'pointer', '...', 'float']);"
+      "send(sum(ptr(3), ptr(4), 42.0));",
+      gum_add_pointers_and_float);
+  EXPECT_SEND_MESSAGE_WITH ("49");
+  EXPECT_NO_MESSAGES ();
 }
 
 SCRIPT_TESTCASE (native_function_is_a_native_pointer)
@@ -1408,6 +1417,21 @@ gum_sum (gint count,
   va_end (vl);
 
   return total;
+}
+
+static gint
+gum_add_pointers_and_float (gpointer a,
+                            gpointer b,
+                            ...)
+{
+  va_list vl;
+  float c;
+
+  va_start (vl, b);
+  c = va_arg (vl, double); /* float is promoted to double */
+  va_end (vl);
+
+  return GPOINTER_TO_SIZE (a) + GPOINTER_TO_SIZE (b) + (int) c;
 }
 
 SCRIPT_TESTCASE (file_can_be_written_to)
