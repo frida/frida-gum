@@ -358,6 +358,32 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
   close (fd);
 }
 
+gboolean
+gum_module_ensure_initialized (const gchar * module_name)
+{
+  gboolean success;
+  gchar * name;
+  void * module;
+
+  success = FALSE;
+
+  name = gum_resolve_module_name (module_name, NULL);
+  if (name == NULL)
+    goto beach;
+
+  module = dlopen (name, RTLD_LAZY | RTLD_GLOBAL);
+  if (module == NULL)
+    goto beach;
+  dlclose (module);
+
+  success = TRUE;
+
+beach:
+  g_free (name);
+
+  return success;
+}
+
 void
 gum_module_enumerate_imports (const gchar * module_name,
                               GumFoundImportFunc func,

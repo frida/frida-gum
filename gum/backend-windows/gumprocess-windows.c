@@ -435,6 +435,16 @@ gum_thread_set_system_error (gint value)
 
 #endif
 
+gboolean
+gum_module_ensure_initialized (const gchar * module_name)
+{
+  HMODULE module;
+
+  module = get_module_handle_utf8 (module_name);
+
+  return module != NULL;
+}
+
 void
 gum_module_enumerate_imports (const gchar * module_name,
                               GumFoundImportFunc func,

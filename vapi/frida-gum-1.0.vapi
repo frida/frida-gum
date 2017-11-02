@@ -160,6 +160,7 @@ namespace Gum {
 	}
 
 	namespace Module {
+		public bool ensure_initialized (string module_name);
 		public void enumerate_imports (string module_name, Gum.Module.FoundImportFunc func);
 		public void enumerate_exports (string module_name, Gum.Module.FoundExportFunc func);
 		public void enumerate_symbols (string module_name, Gum.Module.FoundSymbolFunc func);

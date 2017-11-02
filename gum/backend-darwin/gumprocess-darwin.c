@@ -451,6 +451,37 @@ gum_thread_set_system_error (gint value)
   errno = value;
 }
 
+gboolean
+gum_module_ensure_initialized (const gchar * module_name)
+{
+  gboolean success;
+  gchar * name;
+  void * module;
+
+  success = FALSE;
+
+  name = gum_canonicalize_module_name (module_name);
+  if (name == NULL)
+    goto beach;
+
+  module = dlopen (name, RTLD_LAZY | RTLD_GLOBAL | RTLD_NOLOAD);
+  if (module == NULL)
+    goto beach;
+  dlclose (module);
+
+  module = dlopen (name, RTLD_LAZY | RTLD_GLOBAL);
+  if (module == NULL)
+    goto beach;
+  dlclose (module);
+
+  success = TRUE;
+
+beach:
+  g_free (name);
+
+  return success;
+}
+
 void
 gum_module_enumerate_imports (const gchar * module_name,
                               GumFoundImportFunc func,
