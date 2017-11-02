@@ -77,6 +77,7 @@ struct GumV8ModuleFilter
   GumV8Core * core;
 };
 
+GUMJS_DECLARE_FUNCTION (gumjs_module_ensure_initialized)
 GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_imports)
 static gboolean gum_emit_import (const GumImportDetails * details,
     GumV8ImportsContext * mc);
@@ -111,6 +112,7 @@ static gboolean gum_v8_module_filter_matches (const GumModuleDetails * details,
 
 static const GumV8Function gumjs_module_functions[] =
 {
+  { "ensureInitialized", gumjs_module_ensure_initialized },
   { "enumerateImports", gumjs_module_enumerate_imports },
   { "enumerateExports", gumjs_module_enumerate_exports },
   { "enumerateSymbols", gumjs_module_enumerate_symbols },
@@ -220,6 +222,31 @@ void
 _gum_v8_module_finalize (GumV8Module * self)
 {
   (void) self;
+}
+
+/*
+ * Prototype:
+ * Module.ensureInitialized(name)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
+GUMJS_DEFINE_FUNCTION (gumjs_module_ensure_initialized)
+{
+  gchar * name;
+  if (!_gum_v8_args_parse (args, "s", &name))
+    return;
+
+  auto success = gum_module_ensure_initialized (name);
+  if (!success)
+  {
+    _gum_v8_throw (isolate, "unable to find module '%s'", name);
+  }
+
+  g_free (name);
 }
 
 /*

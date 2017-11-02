@@ -160,6 +160,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (module_ranges_can_be_enumerated_synchronously)
   SCRIPT_TESTENTRY (module_base_address_can_be_found)
   SCRIPT_TESTENTRY (module_export_can_be_found_by_name)
+  SCRIPT_TESTENTRY (module_can_be_forcibly_initialized)
   SCRIPT_TESTENTRY (api_resolver_can_be_used_to_find_functions)
   SCRIPT_TESTENTRY (socket_connection_can_be_established)
   SCRIPT_TESTENTRY (socket_type_can_be_inspected)
@@ -2638,6 +2639,19 @@ SCRIPT_TESTCASE (module_export_can_be_found_by_name)
       SYSTEM_MODULE_NAME, SYSTEM_MODULE_EXPORT);
   EXPECT_SEND_MESSAGE_WITH ("true");
 #endif
+}
+
+SCRIPT_TESTCASE (module_can_be_forcibly_initialized)
+{
+  COMPILE_AND_LOAD_SCRIPT ("Module.ensureInitialized('%s');",
+      SYSTEM_MODULE_NAME);
+  EXPECT_NO_MESSAGES ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Module.ensureInitialized('DefinitelyNotAValidModuleName');");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "Error: unable to find module 'DefinitelyNotAValidModuleName'");
+  EXPECT_NO_MESSAGES ();
 }
 
 SCRIPT_TESTCASE (api_resolver_can_be_used_to_find_functions)

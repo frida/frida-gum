@@ -27,6 +27,7 @@ struct _GumDukModuleFilter
 };
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_module_construct)
+GUMJS_DECLARE_FUNCTION (gumjs_module_ensure_initialized)
 GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_imports)
 static gboolean gum_emit_import (const GumImportDetails * details,
     GumDukMatchContext * mc);
@@ -56,6 +57,7 @@ static gboolean gum_duk_module_filter_matches (const GumModuleDetails * details,
 
 static const duk_function_list_entry gumjs_module_functions[] =
 {
+  { "ensureInitialized", gumjs_module_ensure_initialized, 1 },
   { "enumerateImports", gumjs_module_enumerate_imports, 2 },
   { "enumerateExports", gumjs_module_enumerate_exports, 2 },
   { "enumerateSymbols", gumjs_module_enumerate_symbols, 2 },
@@ -119,6 +121,22 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_construct)
 {
   (void) ctx;
   (void) args;
+
+  return 0;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_module_ensure_initialized)
+{
+  const gchar * name;
+  gboolean success;
+
+  _gum_duk_args_parse (args, "s", &name);
+
+  success = gum_module_ensure_initialized (name);
+  if (!success)
+  {
+    _gum_duk_throw (ctx, "unable to find module '%s'", name);
+  }
 
   return 0;
 }
