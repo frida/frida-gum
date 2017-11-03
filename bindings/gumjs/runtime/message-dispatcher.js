@@ -37,7 +37,7 @@ function MessageDispatcher() {
       const args = params[1];
 
       if (!exports.hasOwnProperty(method)) {
-        reply(id, 'error', "Unable to find method '" + method + "'");
+        reply(id, 'error', "unable to find method '" + method + "'");
         return;
       }
 

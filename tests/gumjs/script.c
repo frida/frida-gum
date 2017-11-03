@@ -2321,17 +2321,17 @@ SCRIPT_TESTCASE (process_module_can_be_looked_up_from_address)
   EXPECT_SEND_MESSAGE_WITH ("null");
 
   EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("\"Unable to find module containing 0x1\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"unable to find module containing 0x1\"");
 
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("null");
   EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("\"Unable to find module containing 0x1\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"unable to find module containing 0x1\"");
 
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("null");
   EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("\"Unable to find module containing 0x1\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"unable to find module containing 0x1\"");
 
   EXPECT_NO_MESSAGES ();
 
@@ -2712,7 +2712,7 @@ SCRIPT_TESTCASE (rpc_can_be_performed)
           "if (result >= 0)"
               "return result;"
           "else "
-              "throw new Error('No');"
+              "throw new Error('no');"
       "};"
       "rpc.exports.bar = function (a, b) {"
           "return new Promise(function (resolve, reject) {"
@@ -2720,7 +2720,7 @@ SCRIPT_TESTCASE (rpc_can_be_performed)
               "if (result >= 0)"
                   "resolve(result);"
               "else "
-                  "reject(new Error('Nope'));"
+                  "reject(new Error('nope'));"
           "});"
       "};"
       "rpc.exports.badger = function () {"
@@ -2737,17 +2737,17 @@ SCRIPT_TESTCASE (rpc_can_be_performed)
   EXPECT_SEND_MESSAGE_WITH ("[\"frida:rpc\",2,\"ok\",3]");
 
   POST_MESSAGE ("[\"frida:rpc\",3,\"call\",\"foo\",[1,-2]]");
-  EXPECT_SEND_MESSAGE_WITH_PREFIX ("[\"frida:rpc\",3,\"error\",\"No\",");
+  EXPECT_SEND_MESSAGE_WITH_PREFIX ("[\"frida:rpc\",3,\"error\",\"no\",");
 
   POST_MESSAGE ("[\"frida:rpc\",4,\"call\",\"bar\",[3,4]]");
   EXPECT_SEND_MESSAGE_WITH ("[\"frida:rpc\",4,\"ok\",7]");
 
   POST_MESSAGE ("[\"frida:rpc\",5,\"call\",\"bar\",[3,-4]]");
-  EXPECT_SEND_MESSAGE_WITH_PREFIX ("[\"frida:rpc\",5,\"error\",\"Nope\",");
+  EXPECT_SEND_MESSAGE_WITH_PREFIX ("[\"frida:rpc\",5,\"error\",\"nope\",");
 
   POST_MESSAGE ("[\"frida:rpc\",6,\"call\",\"baz\",[]]");
   EXPECT_SEND_MESSAGE_WITH ("[\"frida:rpc\",6,\"error\","
-      "\"Unable to find method 'baz'\"]");
+      "\"unable to find method 'baz'\"]");
 
   POST_MESSAGE ("[\"frida:rpc\",7,\"call\",\"badger\",[]]");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("[\"frida:rpc\",7,\"ok\",{}]",
@@ -4878,7 +4878,7 @@ SCRIPT_TESTCASE (source_maps_should_be_supported_for_user_scripts)
    * 02
    * 03 module.exports = {
    * 04   add: function (a, b) {
-   * 05     throw new Error('Not yet implemented');
+   * 05     throw new Error('not yet implemented');
    * 06   }
    * 07 };
    */
@@ -4913,7 +4913,7 @@ SCRIPT_TESTCASE (source_maps_should_be_supported_for_user_scripts)
       "module.exports = {"                                                  "\n"
       "  add: function (a, b) {"                                            "\n"
       /* testcase.js:21 => math.js:5 */
-      "    throw new Error('Not yet implemented');"                         "\n"
+      "    throw new Error('not yet implemented');"                         "\n"
       "  }"                                                                 "\n"
       "};"                                                                  "\n"
       ""                                                                    "\n"
@@ -4934,7 +4934,7 @@ SCRIPT_TESTCASE (source_maps_should_be_supported_for_user_scripts)
   if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
   {
     g_assert (strstr (item->message,
-        "\"payload\":\"Error: Not yet implemented\\n"
+        "\"payload\":\"Error: not yet implemented\\n"
         "    at math.js:5\\n"
         "    at index.js:6\\n"
         "    at s (node_modules/frida/node_modules/browserify/node_modules/"
@@ -4946,7 +4946,7 @@ SCRIPT_TESTCASE (source_maps_should_be_supported_for_user_scripts)
   else
   {
     g_assert (strstr (item->message,
-        "\"payload\":\"Error: Not yet implemented\\n"
+        "\"payload\":\"Error: not yet implemented\\n"
         "    at Object.add (math.js:5:1)\\n"
         "    at Object.1../math (index.js:6:1)\\n"
         "    at s (node_modules/frida/node_modules/browserify/node_modules/"
