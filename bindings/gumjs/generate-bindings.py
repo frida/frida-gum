@@ -2685,7 +2685,7 @@ def parse_api(name, flavor, api_header, options):
         if method_name in ignored_methods:
             continue
 
-        raw_args = [raw_arg.strip() for raw_arg in raw_arglist.replace("\n", " ").split(", ")]
+        raw_args = [raw_arg.strip() for raw_arg in raw_arglist.replace(os.linesep, " ").split(", ")]
         if raw_args[-1] == "...":
             continue
 
