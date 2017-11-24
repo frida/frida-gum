@@ -188,6 +188,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (native_function_is_a_native_pointer)
   SCRIPT_TESTENTRY (native_callback_can_be_invoked)
   SCRIPT_TESTENTRY (native_callback_is_a_native_pointer)
+  SCRIPT_TESTENTRY (native_callback_memory_should_be_eagerly_reclaimed)
   SCRIPT_TESTENTRY (address_can_be_resolved_to_symbol)
   SCRIPT_TESTENTRY (name_can_be_resolved_to_symbol)
   SCRIPT_TESTENTRY (function_can_be_found_by_name)
@@ -1091,6 +1092,57 @@ SCRIPT_TESTCASE (native_callback_is_a_native_pointer)
       "var cb = new NativeCallback(function () {}, 'void', []);"
       "send(cb instanceof NativePointer);");
   EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+SCRIPT_TESTCASE (native_callback_memory_should_be_eagerly_reclaimed)
+{
+  guint usage_before, usage_after;
+  gboolean difference_is_less_than_2x;
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var iterationsRemaining = null;"
+      "recv('start', onStartRequest);"
+      "function onStartRequest(message) {"
+      "  iterationsRemaining = message.iterations;"
+      "  processNext();"
+      "}"
+      "function processNext() {"
+      "  var cb = new NativeCallback(function () {}, 'void', []);"
+      "  if (--iterationsRemaining === 0) {"
+      "    recv('start', onStartRequest);"
+      "    send('done');"
+      "  } else {"
+      "    setTimeout(processNext, 0);"
+      "  }"
+      "}");
+  EXPECT_NO_MESSAGES ();
+
+  POST_MESSAGE ("{\"type\":\"start\",\"iterations\":3}");
+  EXPECT_SEND_MESSAGE_WITH ("\"done\"");
+  EXPECT_NO_MESSAGES ();
+
+  PUSH_TIMEOUT (20000);
+
+  usage_before = gum_peek_private_memory_usage ();
+
+  POST_MESSAGE ("{\"type\":\"start\",\"iterations\":5000}");
+  EXPECT_SEND_MESSAGE_WITH ("\"done\"");
+  EXPECT_NO_MESSAGES ();
+
+  usage_after = gum_peek_private_memory_usage ();
+
+  POP_TIMEOUT ();
+
+  difference_is_less_than_2x = usage_after < usage_before * 2;
+  if (!difference_is_less_than_2x)
+  {
+    g_printerr ("\n\n"
+        "Oops, memory usage is not looking good:\n"
+        "\tusage before: %u\n"
+        "\t    vs after: %u\n\n",
+        usage_before, usage_after);
+    g_assert (difference_is_less_than_2x);
+  }
 }
 
 #ifdef G_OS_UNIX
