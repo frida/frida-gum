@@ -163,6 +163,7 @@ static void gumjs_global_query (Local<Name> property,
     const PropertyCallbackInfo<Integer> & info);
 static void gumjs_global_enumerate (const PropertyCallbackInfo<Array> & info);
 
+GUMJS_DECLARE_GETTER (gumjs_frida_get_heap_size)
 GUMJS_DECLARE_GETTER (gumjs_frida_get_source_map)
 GUMJS_DECLARE_GETTER (gumjs_frida_objc_get_source_map)
 GUMJS_DECLARE_GETTER (gumjs_frida_java_get_source_map)
@@ -309,6 +310,7 @@ static const GumV8Function gumjs_global_functions[] =
 
 static const GumV8Property gumjs_frida_values[] =
 {
+  { "heapSize", gumjs_frida_get_heap_size, NULL },
   { "sourceMap", gumjs_frida_get_source_map, NULL },
   { "_objcSourceMap", gumjs_frida_objc_get_source_map, NULL },
   { "_javaSourceMap", gumjs_frida_java_get_source_map, NULL },
@@ -1300,6 +1302,11 @@ gumjs_global_enumerate (const PropertyCallbackInfo<Array> & info)
   {
     info.GetReturnValue ().Set (result.As<Array> ());
   }
+}
+
+GUMJS_DEFINE_GETTER (gumjs_frida_get_heap_size)
+{
+  info.GetReturnValue ().Set (gum_peek_private_memory_usage ());
 }
 
 GUMJS_DEFINE_GETTER (gumjs_frida_get_source_map)

@@ -123,6 +123,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (memory_access_can_be_monitored)
 #endif
   SCRIPT_TESTENTRY (frida_version_is_available)
+  SCRIPT_TESTENTRY (frida_heap_size_can_be_queried)
   SCRIPT_TESTENTRY (process_arch_is_available)
   SCRIPT_TESTENTRY (process_platform_is_available)
   SCRIPT_TESTENTRY (process_page_size_is_available)
@@ -2147,6 +2148,12 @@ SCRIPT_TESTCASE (frida_version_is_available)
 {
   COMPILE_AND_LOAD_SCRIPT ("send(typeof Frida.version);");
   EXPECT_SEND_MESSAGE_WITH ("\"string\"");
+}
+
+SCRIPT_TESTCASE (frida_heap_size_can_be_queried)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send(typeof Frida.heapSize);");
+  EXPECT_SEND_MESSAGE_WITH ("\"number\"");
 }
 
 SCRIPT_TESTCASE (process_arch_is_available)

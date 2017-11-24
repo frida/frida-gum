@@ -149,6 +149,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_wait_for_event)
 GUMJS_DECLARE_GETTER (gumjs_get_promise)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_frida_construct)
+GUMJS_DECLARE_GETTER (gumjs_frida_get_heap_size)
 GUMJS_DECLARE_GETTER (gumjs_frida_get_source_map)
 GUMJS_DECLARE_GETTER (gumjs_frida_objc_get_source_map)
 GUMJS_DECLARE_GETTER (gumjs_frida_java_get_source_map)
@@ -296,6 +297,7 @@ static void gum_duk_push_ffi_value (duk_context * ctx,
 
 static const GumDukPropertyEntry gumjs_frida_values[] =
 {
+  { "heapSize", gumjs_frida_get_heap_size, NULL },
   { "sourceMap", gumjs_frida_get_source_map, NULL },
   { "_objcSourceMap", gumjs_frida_objc_get_source_map, NULL },
   { "_javaSourceMap", gumjs_frida_java_get_source_map, NULL },
@@ -1359,6 +1361,12 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_frida_construct)
   duk_pop (ctx);
 
   return 0;
+}
+
+GUMJS_DEFINE_GETTER (gumjs_frida_get_heap_size)
+{
+  duk_push_uint (ctx, gum_peek_private_memory_usage ());
+  return 1;
 }
 
 GUMJS_DEFINE_GETTER (gumjs_frida_get_source_map)
