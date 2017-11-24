@@ -1665,7 +1665,7 @@ SCRIPT_TESTCASE (external_sqlite_database_can_be_opened_with_flags)
 
 SCRIPT_TESTCASE (socket_connection_can_be_established)
 {
-  fixture->timeout = 10000;
+  PUSH_TIMEOUT (10000);
 
   COMPILE_AND_LOAD_SCRIPT (
       "Socket.listen({"

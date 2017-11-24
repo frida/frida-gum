@@ -90,6 +90,8 @@
 #define EXPECT_LOG_MESSAGE_WITH(LEVEL, PAYLOAD, ...) \
     test_script_fixture_expect_log_message_with (fixture, LEVEL, PAYLOAD, \
     ## __VA_ARGS__)
+#define PUSH_TIMEOUT(value) test_script_fixture_push_timeout (fixture, value)
+#define POP_TIMEOUT() test_script_fixture_pop_timeout (fixture)
 
 #define GUM_PTR_CONST "ptr(\"0x%" G_GSIZE_MODIFIER "x\")"
 
@@ -120,7 +122,7 @@ typedef struct _TestScriptFixture
   GMainLoop * loop;
   GMainContext * context;
   GQueue messages;
-  guint timeout;
+  GQueue timeouts;
 } TestScriptFixture;
 
 typedef struct _TestScriptMessageItem
@@ -142,6 +144,9 @@ static void test_script_fixture_expect_error_message_with (
 static void test_script_fixture_expect_log_message_with (
     TestScriptFixture * fixture, const gchar * level,
     const gchar * payload_template, ...);
+static void test_script_fixture_push_timeout (TestScriptFixture * fixture,
+    guint timeout);
+static void test_script_fixture_pop_timeout (TestScriptFixture * fixture);
 
 static GumExceptor * exceptor = NULL;
 
@@ -160,12 +165,16 @@ test_script_fixture_setup (TestScriptFixture * fixture,
   (void) test_script_fixture_expect_send_message_with_payload_and_data;
   (void) test_script_fixture_expect_error_message_with;
   (void) test_script_fixture_expect_log_message_with;
+  (void) test_script_fixture_pop_timeout;
 
   fixture->backend = (GumScriptBackend *) data;
   fixture->context = g_main_context_ref_thread_default ();
   fixture->loop = g_main_loop_new (fixture->context, FALSE);
   g_queue_init (&fixture->messages);
-  fixture->timeout = SCRIPT_MESSAGE_DEFAULT_TIMEOUT_MSEC;
+  g_queue_init (&fixture->timeouts);
+
+  test_script_fixture_push_timeout (fixture,
+      SCRIPT_MESSAGE_DEFAULT_TIMEOUT_MSEC);
 
   if (exceptor == NULL)
   {
@@ -193,6 +202,8 @@ test_script_fixture_teardown (TestScriptFixture * fixture,
   {
     test_script_message_item_free (item);
   }
+
+  g_queue_clear (&fixture->timeouts);
 
   g_main_loop_unref (fixture->loop);
   g_main_context_unref (fixture->context);
@@ -316,9 +327,12 @@ test_script_fixture_stop_loop (TestScriptFixture * fixture)
 static TestScriptMessageItem *
 test_script_fixture_pop_message (TestScriptFixture * fixture)
 {
+  guint timeout;
   TestScriptMessageItem * item;
 
-  item = test_script_fixture_try_pop_message (fixture, fixture->timeout);
+  timeout = GPOINTER_TO_UINT (g_queue_peek_tail (&fixture->timeouts));
+
+  item = test_script_fixture_try_pop_message (fixture, timeout);
   g_assert (item != NULL);
 
   return item;
@@ -468,4 +482,17 @@ test_script_fixture_expect_log_message_with (TestScriptFixture * fixture,
   g_free (expected_message);
 
   g_free (payload);
+}
+
+static void
+test_script_fixture_push_timeout (TestScriptFixture * fixture,
+                                  guint timeout)
+{
+  g_queue_push_tail (&fixture->timeouts, GUINT_TO_POINTER (timeout));
+}
+
+static void
+test_script_fixture_pop_timeout (TestScriptFixture * fixture)
+{
+  g_queue_pop_tail (&fixture->timeouts);
 }
