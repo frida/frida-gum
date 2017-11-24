@@ -119,7 +119,7 @@ typedef struct _TestScriptFixture
   GumScript * script;
   GMainLoop * loop;
   GMainContext * context;
-  GQueue * messages;
+  GQueue messages;
   guint timeout;
 } TestScriptFixture;
 
@@ -164,7 +164,7 @@ test_script_fixture_setup (TestScriptFixture * fixture,
   fixture->backend = (GumScriptBackend *) data;
   fixture->context = g_main_context_ref_thread_default ();
   fixture->loop = g_main_loop_new (fixture->context, FALSE);
-  fixture->messages = g_queue_new ();
+  g_queue_init (&fixture->messages);
   fixture->timeout = SCRIPT_MESSAGE_DEFAULT_TIMEOUT_MSEC;
 
   if (exceptor == NULL)
@@ -193,7 +193,6 @@ test_script_fixture_teardown (TestScriptFixture * fixture,
   {
     test_script_message_item_free (item);
   }
-  g_queue_free (fixture->messages);
 
   g_main_loop_unref (fixture->loop);
   g_main_context_unref (fixture->context);
@@ -242,7 +241,7 @@ test_script_fixture_store_message (GumScript * script,
     item->data = NULL;
   }
 
-  g_queue_push_tail (self->messages, item);
+  g_queue_push_tail (&self->messages, item);
   g_main_loop_quit (self->loop);
 }
 
@@ -288,7 +287,7 @@ static TestScriptMessageItem *
 test_script_fixture_try_pop_message (TestScriptFixture * fixture,
                                      guint timeout)
 {
-  if (g_queue_is_empty (fixture->messages))
+  if (g_queue_is_empty (&fixture->messages))
   {
     GSource * source;
 
@@ -303,7 +302,7 @@ test_script_fixture_try_pop_message (TestScriptFixture * fixture,
     g_source_unref (source);
   }
 
-  return g_queue_pop_head (fixture->messages);
+  return g_queue_pop_head (&fixture->messages);
 }
 
 static gboolean
