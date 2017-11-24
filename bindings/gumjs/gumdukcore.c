@@ -2894,7 +2894,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
 
   callback = g_slice_new0 (GumDukNativeCallback);
   ptr = &callback->parent;
-  _gum_duk_protect (ctx, func);
   callback->func = func;
   callback->core = core;
 
@@ -2949,6 +2948,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
 
   duk_push_this (ctx);
   _gum_duk_put_data (ctx, -1, callback);
+  duk_put_prop_string (ctx, -1, DUK_HIDDEN_SYMBOL ("func"));
   duk_pop (ctx);
 
   return 0;
@@ -3007,9 +3007,6 @@ static void
 gum_duk_native_callback_finalize (GumDukNativeCallback * callback,
                                   gboolean heap_destruct)
 {
-  if (!heap_destruct)
-    _gum_duk_unprotect (callback->core->current_scope->ctx, callback->func);
-
   ffi_closure_free (callback->closure);
 
   while (callback->data != NULL)
