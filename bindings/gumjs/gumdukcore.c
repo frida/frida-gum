@@ -747,6 +747,7 @@ _gum_duk_core_init (GumDukCore * self,
   g_mutex_init (&self->event_mutex);
   g_cond_init (&self->event_cond);
   self->event_count = 0;
+  self->event_source_available = TRUE;
 
   self->weak_refs = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_duk_weak_ref_clear);
@@ -912,6 +913,12 @@ _gum_duk_core_flush (GumDukCore * self,
   gboolean done;
 
   self->flush_notify = flush_notify;
+
+  g_mutex_lock (&self->event_mutex);
+  self->event_source_available = FALSE;
+  g_cond_broadcast (&self->event_cond);
+  g_mutex_unlock (&self->event_mutex);
+  g_main_loop_quit (self->event_loop);
 
   if (self->usage_count > 1)
     return FALSE;
@@ -1843,6 +1850,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
   GumDukScope scope = GUM_DUK_SCOPE_INIT (self);
   GMainContext * context;
   guint start_count;
+  gboolean event_source_available;
 
   (void) ctx;
 
@@ -1854,7 +1862,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
   {
     g_mutex_lock (&self->event_mutex);
     start_count = self->event_count;
-    while (self->event_count == start_count)
+    while (self->event_count == start_count &&
+        (event_source_available = self->event_source_available))
     {
       g_mutex_unlock (&self->event_mutex);
       g_main_loop_run (self->event_loop);
@@ -1866,12 +1875,18 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
   {
     g_mutex_lock (&self->event_mutex);
     start_count = self->event_count;
-    while (self->event_count == start_count)
+    while (self->event_count == start_count &&
+        (event_source_available = self->event_source_available))
+    {
       g_cond_wait (&self->event_cond, &self->event_mutex);
+    }
     g_mutex_unlock (&self->event_mutex);
   }
 
   _gum_duk_scope_resume (&scope);
+
+  if (!event_source_available)
+    _gum_duk_throw (ctx, "script is unloading");
 
   return 0;
 }

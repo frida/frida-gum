@@ -17,6 +17,8 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (recv_may_specify_desired_message_type)
   SCRIPT_TESTENTRY (recv_can_be_waited_for_from_an_application_thread)
   SCRIPT_TESTENTRY (recv_can_be_waited_for_from_our_js_thread)
+  SCRIPT_TESTENTRY (recv_wait_in_an_application_thread_should_throw_on_unload)
+  SCRIPT_TESTENTRY (recv_wait_in_our_js_thread_should_throw_on_unload)
   SCRIPT_TESTENTRY (rpc_can_be_performed)
   SCRIPT_TESTENTRY (message_can_be_logged)
   SCRIPT_TESTENTRY (thread_can_be_forced_to_sleep)
@@ -2935,6 +2937,67 @@ SCRIPT_TESTCASE (recv_can_be_waited_for_from_our_js_thread)
   POST_MESSAGE ("{\"type\":\"poke\"}");
   EXPECT_SEND_MESSAGE_WITH ("\"pokeBack\"");
   EXPECT_SEND_MESSAGE_WITH ("\"pokeReceived\"");
+  EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (recv_wait_in_an_application_thread_should_throw_on_unload)
+{
+  GThread * worker_thread;
+  GumInvokeTargetContext ctx;
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter: function (args) {"
+      "    var op = recv('poke', function (pokeMessage) {"
+      "      send('pokeBack');"
+      "    });"
+      "    try {"
+      "      op.wait();"
+      "      send('pokeReceived');"
+      "    } catch (e) {"
+      "      send('oops: ' + e.message);"
+      "    }"
+      "  }"
+      "});", target_function_int);
+  EXPECT_NO_MESSAGES ();
+
+  ctx.script = fixture->script;
+  ctx.started = FALSE;
+  ctx.finished = FALSE;
+  worker_thread = g_thread_new ("script-test-worker-thread",
+      invoke_target_function_int_worker, &ctx);
+  while (!ctx.started)
+    g_usleep (G_USEC_PER_SEC / 200);
+
+  g_usleep (G_USEC_PER_SEC / 25);
+  EXPECT_NO_MESSAGES ();
+  g_assert (!ctx.finished);
+
+  UNLOAD_SCRIPT ();
+  g_thread_join (worker_thread);
+  g_assert (ctx.finished);
+  EXPECT_SEND_MESSAGE_WITH ("\"oops: script is unloading\"");
+  EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (recv_wait_in_our_js_thread_should_throw_on_unload)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "setTimeout(function () {"
+      "  var op = recv('poke', function (pokeMessage) {"
+      "    send('pokeBack');"
+      "  });"
+      "  try {"
+      "    op.wait();"
+      "    send('pokeReceived');"
+      "  } catch (e) {"
+      "    send('oops: ' + e.message);"
+      "  }"
+      "}, 0);");
+  EXPECT_NO_MESSAGES ();
+
+  UNLOAD_SCRIPT ();
+  EXPECT_SEND_MESSAGE_WITH ("\"oops: script is unloading\"");
   EXPECT_NO_MESSAGES ();
 }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
  *
@@ -450,6 +450,7 @@ _gum_v8_core_init (GumV8Core * self,
   g_mutex_init (&self->event_mutex);
   g_cond_init (&self->event_cond);
   self->event_count = 0;
+  self->event_source_available = TRUE;
 
   self->weak_refs = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_v8_weak_ref_free);
@@ -726,6 +727,12 @@ _gum_v8_core_flush (GumV8Core * self,
   GumV8ScheduledCallback * callback;
 
   self->flush_notify = flush_notify;
+
+  g_mutex_lock (&self->event_mutex);
+  self->event_source_available = FALSE;
+  g_cond_broadcast (&self->event_cond);
+  g_mutex_unlock (&self->event_mutex);
+  g_main_loop_quit (self->event_loop);
 
   if (self->usage_count > 1)
     return FALSE;
@@ -1211,6 +1218,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_incoming_message_callback)
  */
 GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
 {
+  gboolean event_source_available;
+
   core->current_scope->PerformPendingIO ();
 
   core->isolate->Exit ();
@@ -1222,7 +1231,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
     {
       g_mutex_lock (&core->event_mutex);
       auto start_count = core->event_count;
-      while (core->event_count == start_count)
+      while (core->event_count == start_count &&
+          (event_source_available = core->event_source_available))
       {
         g_mutex_unlock (&core->event_mutex);
         g_main_loop_run (core->event_loop);
@@ -1234,12 +1244,18 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
     {
       g_mutex_lock (&core->event_mutex);
       auto start_count = core->event_count;
-      while (core->event_count == start_count)
+      while (core->event_count == start_count &&
+          (event_source_available = core->event_source_available))
+      {
         g_cond_wait (&core->event_cond, &core->event_mutex);
+      }
       g_mutex_unlock (&core->event_mutex);
     }
   }
   core->isolate->Enter ();
+
+  if (!event_source_available)
+    _gum_v8_throw_ascii_literal (isolate, "script is unloading");
 }
 
 static void

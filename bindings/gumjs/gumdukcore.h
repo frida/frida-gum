@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -71,6 +71,7 @@ struct _GumDukCore
   GMutex event_mutex;
   GCond event_cond;
   volatile guint event_count;
+  volatile gboolean event_source_available;
 
   GumDukExceptionSink * unhandled_exception_sink;
   GumDukMessageSink * incoming_message_sink;
