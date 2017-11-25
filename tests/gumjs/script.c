@@ -2929,7 +2929,7 @@ SCRIPT_TESTCASE (recv_can_be_waited_for_from_our_js_thread)
       "  });"
       "  op.wait();"
       "  send('pokeReceived');"
-      "}, 0);", target_function_int);
+      "}, 0);");
   EXPECT_NO_MESSAGES ();
 
   POST_MESSAGE ("{\"type\":\"poke\"}");
