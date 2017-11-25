@@ -1862,8 +1862,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
   {
     g_mutex_lock (&self->event_mutex);
     start_count = self->event_count;
-    while (self->event_count == start_count &&
-        (event_source_available = self->event_source_available))
+    while ((event_source_available = self->event_source_available) &&
+        self->event_count == start_count)
     {
       g_mutex_unlock (&self->event_mutex);
       g_main_loop_run (self->event_loop);
@@ -1875,8 +1875,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
   {
     g_mutex_lock (&self->event_mutex);
     start_count = self->event_count;
-    while (self->event_count == start_count &&
-        (event_source_available = self->event_source_available))
+    while ((event_source_available = self->event_source_available) &&
+        self->event_count == start_count)
     {
       g_cond_wait (&self->event_cond, &self->event_mutex);
     }
