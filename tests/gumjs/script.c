@@ -1074,6 +1074,7 @@ SCRIPT_TESTCASE (native_callback_can_be_invoked)
       "  }"
       "  return (limit === -1) ? -count : count;"
       "}, 'int', ['pointer', 'int']);"
+      "gc();"
       "send(toupper);");
 
   item = test_script_fixture_pop_message (fixture);
