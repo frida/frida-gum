@@ -1114,6 +1114,7 @@ SCRIPT_TESTCASE (native_callback_memory_should_be_eagerly_reclaimed)
       "  var cb = new NativeCallback(function () {}, 'void', []);"
       "  if (--iterationsRemaining === 0) {"
       "    recv('start', onStartRequest);"
+      "    gc();"
       "    send('done');"
       "  } else {"
       "    setTimeout(processNext, 0);"

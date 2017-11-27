@@ -2974,7 +2974,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
   _gum_duk_put_data (ctx, -1, callback);
 
   duk_push_heapptr (ctx, func);
-  duk_put_prop_string (ctx, -1, DUK_HIDDEN_SYMBOL ("func"));
+  duk_put_prop_string (ctx, -2, DUK_HIDDEN_SYMBOL ("func"));
 
   duk_pop (ctx);
 
