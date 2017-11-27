@@ -1849,39 +1849,37 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
   GumDukCore * self = args->core;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (self);
   GMainContext * context;
+  gboolean called_from_js_thread;
   guint start_count;
   gboolean event_source_available;
 
-  (void) ctx;
-
   _gum_duk_scope_perform_pending_io (self->current_scope);
+
   _gum_duk_scope_suspend (&scope);
 
   context = gum_script_scheduler_get_js_context (self->scheduler);
-  if (g_main_context_is_owner (context))
+  called_from_js_thread = g_main_context_is_owner (context);
+
+  g_mutex_lock (&self->event_mutex);
+
+  start_count = self->event_count;
+  while (self->event_count == start_count && self->event_source_available)
   {
-    g_mutex_lock (&self->event_mutex);
-    start_count = self->event_count;
-    while ((event_source_available = self->event_source_available) &&
-        self->event_count == start_count)
+    if (called_from_js_thread)
     {
       g_mutex_unlock (&self->event_mutex);
       g_main_loop_run (self->event_loop);
       g_mutex_lock (&self->event_mutex);
     }
-    g_mutex_unlock (&self->event_mutex);
-  }
-  else
-  {
-    g_mutex_lock (&self->event_mutex);
-    start_count = self->event_count;
-    while ((event_source_available = self->event_source_available) &&
-        self->event_count == start_count)
+    else
     {
       g_cond_wait (&self->event_cond, &self->event_mutex);
     }
-    g_mutex_unlock (&self->event_mutex);
   }
+
+  event_source_available = self->event_source_available;
+
+  g_mutex_unlock (&self->event_mutex);
 
   _gum_duk_scope_resume (&scope);
 
