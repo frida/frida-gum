@@ -150,7 +150,7 @@ test_arm64_stalker_fixture_follow_and_invoke (TestArm64StalkerFixture * fixture,
   gum_arm64_writer_put_call_address_with_arguments (&cw, GUM_ADDRESS (func), 0);
   fixture->last_invoke_retaddr = gum_arm64_writer_cur (&cw);
   gum_arm64_writer_put_ldr_reg_address (&cw, ARM64_REG_X1, GUM_ADDRESS (&ret));
-  gum_arm64_writer_put_str_reg_reg_offset (&cw, ARM64_REG_X0, ARM64_REG_X1, 0);
+  gum_arm64_writer_put_str_reg_reg_offset (&cw, ARM64_REG_W0, ARM64_REG_X1, 0);
 
   gum_arm64_writer_put_call_address_with_arguments (&cw,
       GUM_ADDRESS (gum_stalker_unfollow_me), 1,
