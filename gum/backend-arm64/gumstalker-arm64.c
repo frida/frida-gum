@@ -1824,7 +1824,7 @@ gum_exec_ctx_ensure_helper_reachable (GumExecCtx * ctx,
   write (ctx, cw);
 
   gum_arm64_writer_flush (cw);
-  gum_clear_cache (slab->data, gum_arm64_writer_offset (cw));
+  gum_clear_cache (cw.base, gum_arm64_writer_offset (cw));
 
   slab->offset += gum_arm64_writer_offset (cw);
 }
