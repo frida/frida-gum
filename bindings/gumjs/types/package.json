@@ -1,8 +1,8 @@
 {
   "name": "frida-gum-types",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Type definitions for Frida's instrumentation core",
-  "main": "",
+  "main": "index.js",
   "author": "Frida Developers",
   "license": "LGPL-2.0 WITH WxWindows-exception-3.1"
 }
