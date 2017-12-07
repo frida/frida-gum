@@ -452,8 +452,8 @@ declare namespace Stalker {
     function unfollow(): any;
 }
 declare namespace Thread {
-    function backtrace(): any;
-    function sleep(): any;
+    function backtrace(context: any): NativePointer[];
+    function sleep(duration: number): void;
 }
 declare namespace WeakRef {
     function bind(): any;
