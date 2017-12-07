@@ -674,6 +674,8 @@ gum_stalker_infect (GumThreadId thread_id,
 
   gum_arm64_writer_put_branch_address (&cw, GUM_ADDRESS (code_address + 4));
 
+  gum_arm64_writer_flush (&cw);
+  gum_clear_cache (ctx->infect_thunk, gum_arm64_writer_offset (&cw));
   gum_arm64_writer_clear (&cw);
 
   gum_event_sink_start (infect_context->sink);
@@ -1822,6 +1824,8 @@ gum_exec_ctx_ensure_helper_reachable (GumExecCtx * ctx,
   write (ctx, cw);
 
   gum_arm64_writer_flush (cw);
+  gum_clear_cache (slab->data, gum_arm64_writer_offset (cw));
+
   slab->offset += gum_arm64_writer_offset (cw);
 }
 
