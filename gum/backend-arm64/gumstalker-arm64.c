@@ -674,6 +674,8 @@ gum_stalker_infect (GumThreadId thread_id,
 
   gum_arm64_writer_put_branch_address (&cw, GUM_ADDRESS (code_address + 4));
 
+  gum_arm64_writer_flush (&cw);
+  gum_clear_cache (cw.base, gum_arm64_writer_offset (&cw));
   gum_arm64_writer_clear (&cw);
 
   gum_event_sink_start (infect_context->sink);
@@ -1822,6 +1824,8 @@ gum_exec_ctx_ensure_helper_reachable (GumExecCtx * ctx,
   write (ctx, cw);
 
   gum_arm64_writer_flush (cw);
+  gum_clear_cache (cw.base, gum_arm64_writer_offset (cw));
+
   slab->offset += gum_arm64_writer_offset (cw);
 }
 
@@ -2096,7 +2100,7 @@ gum_exec_block_backpatch_call (GumExecBlock * block,
     gum_exec_block_write_jmp_to_block_start (block, target_address);
 
     gum_arm64_writer_flush (cw);
-    gum_clear_cache (code_start, gum_arm64_writer_offset (cw));
+    gum_clear_cache (cw.base, gum_arm64_writer_offset (cw));
   }
 }
 
@@ -2130,7 +2134,7 @@ gum_exec_block_backpatch_jmp (GumExecBlock * block,
     gum_exec_block_write_jmp_to_block_start (block, target_address);
 
     gum_arm64_writer_flush (cw);
-    gum_clear_cache (code_start, gum_arm64_writer_offset (cw));
+    gum_clear_cache (cw.base, gum_arm64_writer_offset (cw));
   }
 }
 
@@ -2162,7 +2166,7 @@ gum_exec_block_backpatch_ret (GumExecBlock * block,
     gum_exec_block_write_jmp_to_block_start (block, target_address);
 
     gum_arm64_writer_flush (cw);
-    gum_clear_cache (code_start, gum_arm64_writer_offset (cw));
+    gum_clear_cache (cw.base, gum_arm64_writer_offset (cw));
   }
 }
 

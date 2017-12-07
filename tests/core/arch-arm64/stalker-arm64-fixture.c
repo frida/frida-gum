@@ -159,6 +159,8 @@ test_arm64_stalker_fixture_follow_and_invoke (TestArm64StalkerFixture * fixture,
   gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X29, ARM64_REG_X30);
   gum_arm64_writer_put_ret (&cw);
 
+  gum_arm64_writer_flush (&cw);
+  gum_clear_cache (cw.base, gum_arm64_writer_offset (&cw));
   gum_arm64_writer_clear (&cw);
 
   invoke_func = GUM_POINTER_TO_FUNCPTR (GCallback, code);

@@ -186,6 +186,8 @@ STALKER_TESTCASE (call_depth)
 
   gum_arm64_writer_put_ret (&cw);
 
+  gum_arm64_writer_flush (&cw);
+  gum_clear_cache (cw.base, gum_arm64_writer_offset (&cw));
   gum_arm64_writer_clear (&cw);
 
   fixture->sink->mask = GUM_CALL | GUM_RET;
@@ -383,6 +385,8 @@ STALKER_TESTCASE (unconditional_branch)
   gum_arm64_writer_put_add_reg_reg_imm (&cw, ARM64_REG_X0, ARM64_REG_X0, 1);
   gum_arm64_writer_put_b_imm (&cw, address);
 
+  gum_arm64_writer_flush (&cw);
+  gum_clear_cache (cw.base, gum_arm64_writer_offset (&cw));
   gum_arm64_writer_clear (&cw);
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
@@ -439,6 +443,8 @@ STALKER_TESTCASE (unconditional_branch_reg)
   gum_arm64_writer_put_ldr_reg_address (&cw, reg, address);
   gum_arm64_writer_put_br_reg (&cw, reg);
 
+  gum_arm64_writer_flush (&cw);
+  gum_clear_cache (cw.base, gum_arm64_writer_offset (&cw));
   gum_arm64_writer_clear (&cw);
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
@@ -491,6 +497,8 @@ STALKER_TESTCASE (conditional_branch)
   gum_arm64_writer_put_add_reg_reg_imm (&cw, ARM64_REG_X0, ARM64_REG_X0, 1);
   gum_arm64_writer_put_b_imm (&cw, address);
 
+  gum_arm64_writer_flush (&cw);
+  gum_clear_cache (cw.base, gum_arm64_writer_offset (&cw));
   gum_arm64_writer_clear (&cw);
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
@@ -542,6 +550,8 @@ STALKER_TESTCASE (compare_and_branch)
   gum_arm64_writer_put_add_reg_reg_imm (&cw, ARM64_REG_X0, ARM64_REG_X0, 1);
   gum_arm64_writer_put_cbnz_reg_label (&cw, ARM64_REG_X0, my_nken_lbl);
 
+  gum_arm64_writer_flush (&cw);
+  gum_clear_cache (cw.base, gum_arm64_writer_offset (&cw));
   gum_arm64_writer_clear (&cw);
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
@@ -593,6 +603,8 @@ STALKER_TESTCASE (test_bit_and_branch)
   gum_arm64_writer_put_add_reg_reg_imm (&cw, ARM64_REG_X0, ARM64_REG_X0, 1);
   gum_arm64_writer_put_tbnz_reg_imm_label (&cw, ARM64_REG_W0, 0, my_nken_lbl);
 
+  gum_arm64_writer_flush (&cw);
+  gum_clear_cache (cw.base, gum_arm64_writer_offset (&cw));
   gum_arm64_writer_clear (&cw);
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
@@ -645,6 +657,8 @@ STALKER_TESTCASE (follow_std_call)
   gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X30, ARM64_REG_X29);
   gum_arm64_writer_put_ret (&cw);
 
+  gum_arm64_writer_flush (&cw);
+  gum_clear_cache (cw.base, gum_arm64_writer_offset (&cw));
   gum_arm64_writer_clear (&cw);
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
@@ -703,6 +717,8 @@ STALKER_TESTCASE (follow_return)
   gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X30, ARM64_REG_X29);
   gum_arm64_writer_put_ret (&cw);
 
+  gum_arm64_writer_flush (&cw);
+  gum_clear_cache (cw.base, gum_arm64_writer_offset (&cw));
   gum_arm64_writer_clear (&cw);
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
@@ -899,6 +915,8 @@ STALKER_TESTCASE (no_register_clobber)
   gum_arm64_writer_put_pop_all_x_registers (&cw);
   gum_arm64_writer_put_ret (&cw);
 
+  gum_arm64_writer_flush (&cw);
+  gum_clear_cache (cw.base, gum_arm64_writer_offset (&cw));
   gum_arm64_writer_clear (&cw);
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
