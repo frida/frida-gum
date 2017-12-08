@@ -426,7 +426,7 @@ count_instructions (GumStalkerIterator * iterator,
 static void
 hello_ken (void)
 {
-  g_usleep (1);
+  g_print ("hello ken! ");
 }
 
 STALKER_TESTCASE (exclude_blr)
@@ -460,6 +460,7 @@ STALKER_TESTCASE (exclude_blr)
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
   gum_arm64_writer_put_add_reg_reg_imm (&cw, ARM64_REG_X0, ARM64_REG_X0, 10);
+  gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
       GUM_ADDRESS (gum_stalker_unfollow_me), 1,
       GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker));
@@ -474,6 +475,8 @@ STALKER_TESTCASE (exclude_blr)
   GumMemoryRange memory_range;
   memory_range.base_address = GUM_ADDRESS (hello_ken);
   memory_range.size = (4 * 2);
+
+  gum_stalker_exclude (fixture->stalker, &memory_range);
 
   func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
   r = func (2);

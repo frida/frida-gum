@@ -256,7 +256,7 @@ static void gum_stalker_infect (GumThreadId thread_id,
 static void gum_stalker_disinfect (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 
-static void GumAddress gum_stalker_is_address_included (GumStalker * self,
+static GumAddress gum_stalker_is_address_included (GumStalker * self,
     GumAddress address);
 
 static void gum_stalker_free_probe_array (gpointer data);
@@ -2586,7 +2586,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
         GUM_ARG_REGISTER, ARM64_REG_X15);
 
     gum_arm64_writer_put_mov_reg_reg (cw, ARM64_REG_X15, ARM64_REG_X0);
-    gum_arm64_writer_put_mov_reg_reg (cw, ARM64_REG_X15, keep_this_blr);
+    gum_arm64_writer_put_cbz_reg_label (cw, ARM64_REG_X15, keep_this_blr);
 
   }
   else
@@ -2704,7 +2704,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   }
 }
 
-static void
+static GumAddress
 gum_stalker_is_address_included (GumStalker * self,
                                  GumAddress address)
 {
