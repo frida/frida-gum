@@ -256,6 +256,9 @@ static void gum_stalker_infect (GumThreadId thread_id,
 static void gum_stalker_disinfect (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 
+static void GumAddress gum_stalker_is_address_included (GumStalker * self,
+    GumAddress address);
+
 static void gum_stalker_free_probe_array (gpointer data);
 
 static GumExecCtx * gum_stalker_create_exec_ctx (GumStalker * self,
@@ -1016,6 +1019,7 @@ static guint total_transitions = 0;
 
 GUM_DEFINE_ENTRYGATE (call_imm)
 GUM_DEFINE_ENTRYGATE (call_reg)
+GUM_DEFINE_ENTRYGATE (jmp_over_call_reg)
 GUM_DEFINE_ENTRYGATE (post_call_invoke)
 GUM_DEFINE_ENTRYGATE (ret)
 
@@ -2479,7 +2483,12 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   gconstpointer try_second = cw->code + 2;
   gconstpointer jump_to_cached = cw->code + 3;
   gconstpointer resolve_dynamically = cw->code + 4;
+  gconstpointer keep_this_blr = cw->code + 5;
   gpointer ret_real_address, ret_code_address;
+
+  GumBranchTarget next_insn_as_target = { 0, };
+  next_insn_as_target.absolute_address = gc->instruction->end;
+  next_insn_as_target.reg = ARM64_REG_INVALID;
 
   call_code_start = cw->code;
   opened_prolog = gc->opened_prolog;
@@ -2570,6 +2579,15 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   if (target->reg != ARM64_REG_INVALID)
   {
     entry_func = GUM_ENTRYGATE (call_reg);
+
+    gum_arm64_writer_put_call_address_with_arguments (cw,
+        GUM_ADDRESS (gum_stalker_is_address_included), 2,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx->stalker),
+        GUM_ARG_REGISTER, ARM64_REG_X15);
+
+    gum_arm64_writer_put_mov_reg_reg (cw, ARM64_REG_X15, ARM64_REG_X0);
+    gum_arm64_writer_put_mov_reg_reg (cw, ARM64_REG_X15, keep_this_blr);
+
   }
   else
   {
@@ -2673,6 +2691,36 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
     gum_arm64_writer_put_ldr_reg_value (cw, ic_load_real_address_ref,
         GUM_ADDRESS (ret_real_address));
   }
+
+  if (target->reg != ARM64_REG_INVALID)
+  {
+    gum_arm64_writer_put_label (cw, keep_this_blr);
+
+    gum_exec_ctx_write_epilog (block->ctx, GUM_PROLOG_MINIMAL, cw);
+    gum_arm64_writer_put_blr_reg (cw, target->reg);
+
+    gum_exec_block_write_jmp_transfer_code (block, &next_insn_as_target,
+        GUM_ENTRYGATE (jmp_over_call_reg), gc);
+  }
+}
+
+static void
+gum_stalker_is_address_included (GumStalker * self,
+                                 GumAddress address)
+{
+  GArray * exclusions = self->priv->exclusions;
+  guint i;
+
+  for (i = 0; i != exclusions->len; i++)
+  {
+    GumMemoryRange * r = &g_array_index (exclusions, GumMemoryRange, i);
+    if (GUM_MEMORY_RANGE_INCLUDES (r, address))
+    {
+      return GUM_ADDRESS(0);
+    }
+  }
+
+  return address;
 }
 
 static void
@@ -3060,6 +3108,7 @@ gum_stalker_dump_counters (void)
 
   GUM_PRINT_ENTRYGATE_COUNTER (call_imm);
   GUM_PRINT_ENTRYGATE_COUNTER (call_reg);
+  GUM_PRINT_ENTRYGATE_COUNTER (jmp_over_call_reg);
   GUM_PRINT_ENTRYGATE_COUNTER (post_call_invoke);
   GUM_PRINT_ENTRYGATE_COUNTER (ret);
 
