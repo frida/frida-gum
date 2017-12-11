@@ -256,9 +256,6 @@ static void gum_stalker_infect (GumThreadId thread_id,
 static void gum_stalker_disinfect (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 
-static GumAddress gum_stalker_is_address_included (GumStalker * self,
-    GumAddress address);
-
 static void gum_stalker_free_probe_array (gpointer data);
 
 static GumExecCtx * gum_stalker_create_exec_ctx (GumStalker * self,
@@ -434,6 +431,25 @@ gum_stalker_exclude (GumStalker * self,
                      const GumMemoryRange * range)
 {
   g_array_append_val (self->priv->exclusions, *range);
+}
+
+static GumAddress
+gum_stalker_is_address_included (GumStalker * self,
+                                 GumAddress address)
+{
+  GArray * exclusions = self->priv->exclusions;
+  guint i;
+
+  for (i = 0; i != exclusions->len; i++)
+  {
+    GumMemoryRange * r = &g_array_index (exclusions, GumMemoryRange, i);
+    if (GUM_MEMORY_RANGE_INCLUDES (r, address))
+    {
+      return GUM_ADDRESS(0);
+    }
+  }
+
+  return address;
 }
 
 gint
@@ -2702,25 +2718,6 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
     gum_exec_block_write_jmp_transfer_code (block, &next_insn_as_target,
         GUM_ENTRYGATE (call_reg_excluded), gc);
   }
-}
-
-static GumAddress
-gum_stalker_is_address_included (GumStalker * self,
-                                 GumAddress address)
-{
-  GArray * exclusions = self->priv->exclusions;
-  guint i;
-
-  for (i = 0; i != exclusions->len; i++)
-  {
-    GumMemoryRange * r = &g_array_index (exclusions, GumMemoryRange, i);
-    if (GUM_MEMORY_RANGE_INCLUDES (r, address))
-    {
-      return GUM_ADDRESS(0);
-    }
-  }
-
-  return address;
 }
 
 static void
