@@ -424,9 +424,9 @@ count_instructions (GumStalkerIterator * iterator,
 }
 
 static void
-hello_ken (void)
+simply_sleep (void)
 {
-  g_print ("hello ken! ");
+  g_usleep(1);
 }
 
 STALKER_TESTCASE (exclude_blr)
@@ -455,7 +455,7 @@ STALKER_TESTCASE (exclude_blr)
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_ldr_reg_address (&cw, ARM64_REG_X0,
-      GUM_ADDRESS (hello_ken));
+      GUM_ADDRESS (simply_sleep));
   gum_arm64_writer_put_blr_reg (&cw, ARM64_REG_X0);
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
@@ -473,7 +473,7 @@ STALKER_TESTCASE (exclude_blr)
   gum_arm64_writer_clear (&cw);
 
   GumMemoryRange memory_range;
-  memory_range.base_address = GUM_ADDRESS (hello_ken);
+  memory_range.base_address = GUM_ADDRESS (simply_sleep);
   memory_range.size = (4 * 2);
 
   gum_stalker_exclude (fixture->stalker, &memory_range);
