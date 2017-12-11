@@ -2486,10 +2486,6 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   gconstpointer keep_this_blr = cw->code + 5;
   gpointer ret_real_address, ret_code_address;
 
-  GumBranchTarget next_insn_as_target = { 0, };
-  next_insn_as_target.absolute_address = gc->instruction->end;
-  next_insn_as_target.reg = ARM64_REG_INVALID;
-
   call_code_start = cw->code;
   opened_prolog = gc->opened_prolog;
 
@@ -2694,6 +2690,10 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
 
   if (target->reg != ARM64_REG_INVALID)
   {
+    GumBranchTarget next_insn_as_target = { 0, };
+    next_insn_as_target.absolute_address = gc->instruction->end;
+    next_insn_as_target.reg = ARM64_REG_INVALID;
+
     gum_arm64_writer_put_label (cw, keep_this_blr);
 
     gum_exec_ctx_write_epilog (block->ctx, GUM_PROLOG_MINIMAL, cw);
