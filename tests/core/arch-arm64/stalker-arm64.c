@@ -51,8 +51,6 @@ TEST_LIST_END ()
 static void insert_extra_add_after_sub (GumStalkerIterator * iterator,
     GumStalkerWriter * output, gpointer user_data);
 static void store_x0 (GumCpuContext * cpu_context, gpointer user_data);
-static void count_instructions (GumStalkerIterator * iterator,
-    GumStalkerWriter * output, gpointer user_data);
 static gboolean store_range_of_test_runner (const GumModuleDetails * details,
     gpointer user_data);
 static void pretend_workload (GumMemoryRange * runner_range);
@@ -384,12 +382,9 @@ STALKER_TESTCASE (exclude_bl)
 
   StalkerTestFunc func;
   guint8 * func_a_address;
-  guint64 counter = 0;
 
-  fixture->transformer = gum_stalker_transformer_make_from_callback (
-      count_instructions, &counter, NULL);
-
-  g_assert_cmpuint (counter, ==, 0);
+  fixture->sink->mask = GUM_EXEC;
+  g_assert_cmpuint (fixture->sink->events->len, ==, 0);
 
   func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc,
       test_arm64_stalker_fixture_dup_code (fixture, code_template,
@@ -405,22 +400,7 @@ STALKER_TESTCASE (exclude_bl)
 
   test_arm64_stalker_fixture_follow_and_invoke (fixture, func, 0);
 
-  g_assert_cmpuint (counter, ==, 24);
-}
-
-static void
-count_instructions (GumStalkerIterator * iterator,
-                    GumStalkerWriter * output,
-                    gpointer user_data)
-{
-  guint64 * counter = user_data;
-  const cs_insn * insn;
-
-  while (gum_stalker_iterator_next (iterator, &insn))
-  {
-    *counter = *counter + 1;
-    gum_stalker_iterator_keep (iterator);
-  }
+  g_assert_cmpuint (fixture->sink->events->len, ==, 24);
 }
 
 static void
@@ -435,12 +415,9 @@ STALKER_TESTCASE (exclude_blr)
   guint8 * code;
   GumArm64Writer cw;
   gint r;
-  guint64 counter = 0;
 
-  fixture->transformer = gum_stalker_transformer_make_from_callback (
-      count_instructions, &counter, NULL);
-
-  g_assert_cmpuint (counter, ==, 0);
+  fixture->sink->mask = GUM_EXEC;
+  g_assert_cmpuint (fixture->sink->events->len, ==, 0);
 
   code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
   gum_arm64_writer_init (&cw, code);
@@ -483,7 +460,7 @@ STALKER_TESTCASE (exclude_blr)
 
   g_assert_cmpint (r, ==, 12);
 
-  g_assert_cmpint (counter, ==, 74);
+  g_assert_cmpuint (fixture->sink->events->len, ==, 74);
 
   gum_free_pages (code);
 }
