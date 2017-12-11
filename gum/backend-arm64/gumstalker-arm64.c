@@ -1019,7 +1019,7 @@ static guint total_transitions = 0;
 
 GUM_DEFINE_ENTRYGATE (call_imm)
 GUM_DEFINE_ENTRYGATE (call_reg)
-GUM_DEFINE_ENTRYGATE (jmp_over_call_reg)
+GUM_DEFINE_ENTRYGATE (call_reg_excluded)
 GUM_DEFINE_ENTRYGATE (post_call_invoke)
 GUM_DEFINE_ENTRYGATE (ret)
 
@@ -2700,7 +2700,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
     gum_arm64_writer_put_blr_reg (cw, target->reg);
 
     gum_exec_block_write_jmp_transfer_code (block, &next_insn_as_target,
-        GUM_ENTRYGATE (jmp_over_call_reg), gc);
+        GUM_ENTRYGATE (call_reg_excluded), gc);
   }
 }
 
@@ -3108,7 +3108,7 @@ gum_stalker_dump_counters (void)
 
   GUM_PRINT_ENTRYGATE_COUNTER (call_imm);
   GUM_PRINT_ENTRYGATE_COUNTER (call_reg);
-  GUM_PRINT_ENTRYGATE_COUNTER (jmp_over_call_reg);
+  GUM_PRINT_ENTRYGATE_COUNTER (call_reg_excluded);
   GUM_PRINT_ENTRYGATE_COUNTER (post_call_invoke);
   GUM_PRINT_ENTRYGATE_COUNTER (ret);
 
