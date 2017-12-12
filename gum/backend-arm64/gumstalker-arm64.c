@@ -322,6 +322,8 @@ static GumExecBlock * gum_exec_block_new (GumExecCtx * ctx);
 static GumExecBlock * gum_exec_block_obtain (GumExecCtx * ctx,
     gpointer real_address, gpointer * code_address);
 static gboolean gum_exec_block_is_full (GumExecBlock * block);
+static GumAddress gum_exec_block_check_address_for_exclusion (GumExecBlock * block,
+    GumAddress address);
 static void gum_exec_block_commit (GumExecBlock * block);
 
 static GumVirtualizationRequirements gum_exec_block_virtualize_branch_insn (
@@ -431,25 +433,6 @@ gum_stalker_exclude (GumStalker * self,
                      const GumMemoryRange * range)
 {
   g_array_append_val (self->priv->exclusions, *range);
-}
-
-static GumAddress
-gum_stalker_is_address_included (GumStalker * self,
-                                 GumAddress address)
-{
-  GArray * exclusions = self->priv->exclusions;
-  guint i;
-
-  for (i = 0; i != exclusions->len; i++)
-  {
-    GumMemoryRange * r = &g_array_index (exclusions, GumMemoryRange, i);
-    if (GUM_MEMORY_RANGE_INCLUDES (r, address))
-    {
-      return GUM_ADDRESS(0);
-    }
-  }
-
-  return address;
 }
 
 gint
@@ -2044,6 +2027,26 @@ gum_exec_block_is_full (GumExecBlock * block)
   return slab_end - block->code_end < GUM_EXEC_BLOCK_MIN_SIZE;
 }
 
+static GumAddress
+gum_exec_block_check_address_for_exclusion (GumExecBlock * block,
+                                            GumAddress address)
+{
+  GArray * exclusions = block->ctx->stalker->priv->exclusions;
+  guint i;
+
+  for (i = 0; i != exclusions->len; i++)
+  {
+    GumMemoryRange * r = &g_array_index (exclusions, GumMemoryRange, i);
+    if (GUM_MEMORY_RANGE_INCLUDES (r, address))
+    {
+      block->has_call_to_excluded_range = TRUE;
+      return GUM_ADDRESS(0);
+    }
+  }
+
+  return address;
+}
+
 static void
 gum_exec_block_commit (GumExecBlock * block)
 {
@@ -2593,8 +2596,8 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
     entry_func = GUM_ENTRYGATE (call_reg);
 
     gum_arm64_writer_put_call_address_with_arguments (cw,
-        GUM_ADDRESS (gum_stalker_is_address_included), 2,
-        GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx->stalker),
+        GUM_ADDRESS (gum_exec_block_check_address_for_exclusion), 2,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (block),
         GUM_ARG_REGISTER, ARM64_REG_X15);
 
     gum_arm64_writer_put_mov_reg_reg (cw, ARM64_REG_X15, ARM64_REG_X0);
