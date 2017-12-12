@@ -405,18 +405,14 @@ STALKER_TESTCASE (exclude_bl)
   g_assert_cmpuint (fixture->sink->events->len, ==, 24);
 }
 
-static void
-simply_sleep (void)
-{
-  g_usleep(1);
-}
-
 STALKER_TESTCASE (exclude_blr)
 {
   StalkerTestFunc func;
   guint8 * code;
   GumArm64Writer cw;
   gint r;
+  gpointer func_a;
+  const gchar * start_lbl = "start";
 
   fixture->sink->mask = GUM_EXEC;
   g_assert_cmpuint (fixture->sink->events->len, ==, 0);
@@ -432,13 +428,18 @@ STALKER_TESTCASE (exclude_blr)
       GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->sink));
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
-  gum_arm64_writer_put_push_all_x_registers (&cw);
-  gum_arm64_writer_put_ldr_reg_address (&cw, ARM64_REG_X0,
-      GUM_ADDRESS (simply_sleep));
-  gum_arm64_writer_put_blr_reg (&cw, ARM64_REG_X0);
-  gum_arm64_writer_put_pop_all_x_registers (&cw);
+  gum_arm64_writer_put_b_label (&cw, start_lbl);
 
+  func_a = gum_arm64_writer_cur (&cw);
   gum_arm64_writer_put_add_reg_reg_imm (&cw, ARM64_REG_X0, ARM64_REG_X0, 10);
+  gum_arm64_writer_put_ret (&cw);
+
+  gum_arm64_writer_put_label (&cw, start_lbl);
+  gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
+  gum_arm64_writer_put_ldr_reg_address (&cw, ARM64_REG_X1, GUM_ADDRESS (func_a));
+  gum_arm64_writer_put_blr_reg (&cw, ARM64_REG_X1);
+  gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
+
   gum_arm64_writer_put_push_all_x_registers (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
       GUM_ADDRESS (gum_stalker_unfollow_me), 1,
@@ -452,7 +453,7 @@ STALKER_TESTCASE (exclude_blr)
   gum_arm64_writer_clear (&cw);
 
   GumMemoryRange memory_range;
-  memory_range.base_address = GUM_ADDRESS (simply_sleep);
+  memory_range.base_address = GUM_ADDRESS (func_a);
   memory_range.size = (4 * 2);
 
   gum_stalker_exclude (fixture->stalker, &memory_range);
@@ -462,7 +463,7 @@ STALKER_TESTCASE (exclude_blr)
 
   g_assert_cmpint (r, ==, 12);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 74);
+  g_assert_cmpuint (fixture->sink->events->len, ==, 42);
 
   gum_free_pages (code);
 }
@@ -474,7 +475,7 @@ STALKER_TESTCASE (exclude_bl_with_unfollow)
   GumArm64Writer cw;
   gint r;
   gpointer func_a;
-  const gchar * the_end = "the_end";
+  const gchar * start_lbl = "start";
 
   fixture->sink->mask = GUM_EXEC;
   g_assert_cmpuint (fixture->sink->events->len, ==, 0);
@@ -490,7 +491,7 @@ STALKER_TESTCASE (exclude_bl_with_unfollow)
       GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->sink));
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
-  gum_arm64_writer_put_b_label (&cw, the_end);
+  gum_arm64_writer_put_b_label (&cw, start_lbl);
 
   func_a = gum_arm64_writer_cur (&cw);
   gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
@@ -503,7 +504,7 @@ STALKER_TESTCASE (exclude_bl_with_unfollow)
   gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
   gum_arm64_writer_put_ret (&cw);
 
-  gum_arm64_writer_put_label (&cw, the_end);
+  gum_arm64_writer_put_label (&cw, start_lbl);
 
   gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
   gum_arm64_writer_put_bl_imm (&cw, GUM_ADDRESS (func_a));
@@ -538,7 +539,7 @@ STALKER_TESTCASE (exclude_blr_with_unfollow)
   GumArm64Writer cw;
   gint r;
   gpointer func_a;
-  const gchar * the_end = "the_end";
+  const gchar * start_lbl = "start";
 
   fixture->sink->mask = GUM_EXEC;
   g_assert_cmpuint (fixture->sink->events->len, ==, 0);
@@ -554,7 +555,7 @@ STALKER_TESTCASE (exclude_blr_with_unfollow)
       GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->sink));
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
-  gum_arm64_writer_put_b_label (&cw, the_end);
+  gum_arm64_writer_put_b_label (&cw, start_lbl);
 
   func_a = gum_arm64_writer_cur (&cw);
   gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
@@ -567,7 +568,7 @@ STALKER_TESTCASE (exclude_blr_with_unfollow)
   gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
   gum_arm64_writer_put_ret (&cw);
 
-  gum_arm64_writer_put_label (&cw, the_end);
+  gum_arm64_writer_put_label (&cw, start_lbl);
 
   gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
   gum_arm64_writer_put_ldr_reg_address (&cw, ARM64_REG_X1, GUM_ADDRESS (func_a));
