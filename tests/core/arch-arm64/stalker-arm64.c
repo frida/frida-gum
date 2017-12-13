@@ -412,6 +412,7 @@ STALKER_TESTCASE (exclude_blr)
   GumArm64Writer cw;
   gint result;
   gpointer func_a;
+  GumMemoryRange memory_range;
   const gchar * start_lbl = "start";
 
   fixture->sink->mask = GUM_EXEC;
@@ -451,7 +452,6 @@ STALKER_TESTCASE (exclude_blr)
   gum_clear_cache (cw.base, gum_arm64_writer_offset (&cw));
   gum_arm64_writer_clear (&cw);
 
-  GumMemoryRange memory_range;
   memory_range.base_address = GUM_ADDRESS (func_a);
   memory_range.size = 4 * 2;
 
