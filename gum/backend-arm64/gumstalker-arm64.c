@@ -322,8 +322,8 @@ static GumExecBlock * gum_exec_block_new (GumExecCtx * ctx);
 static GumExecBlock * gum_exec_block_obtain (GumExecCtx * ctx,
     gpointer real_address, gpointer * code_address);
 static gboolean gum_exec_block_is_full (GumExecBlock * block);
-static GumAddress gum_exec_block_check_address_for_exclusion (GumExecBlock * block,
-    GumAddress address);
+static GumAddress gum_exec_block_check_address_for_exclusion (
+    GumExecBlock * block, GumAddress address);
 static void gum_exec_block_commit (GumExecBlock * block);
 
 static GumVirtualizationRequirements gum_exec_block_virtualize_branch_insn (
@@ -2040,7 +2040,7 @@ gum_exec_block_check_address_for_exclusion (GumExecBlock * block,
     if (GUM_MEMORY_RANGE_INCLUDES (r, address))
     {
       block->has_call_to_excluded_range = TRUE;
-      return GUM_ADDRESS(0);
+      return GUM_ADDRESS (0);
     }
   }
 
