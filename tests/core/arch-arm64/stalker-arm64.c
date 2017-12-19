@@ -392,10 +392,8 @@ STALKER_TESTCASE (exclude_bl)
           sizeof (code_template)));
 
   func_a_address = fixture->code + (16 * 4);
-
   memory_range.base_address = (GumAddress) func_a_address;
   memory_range.size = 4 * 2;
-
   gum_stalker_exclude (fixture->stalker, &memory_range);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 0);
@@ -410,7 +408,6 @@ STALKER_TESTCASE (exclude_blr)
   StalkerTestFunc func;
   guint8 * code;
   GumArm64Writer cw;
-  gint result;
   gpointer func_a;
   GumMemoryRange memory_range;
   const gchar * start_lbl = "start";
@@ -454,16 +451,13 @@ STALKER_TESTCASE (exclude_blr)
 
   memory_range.base_address = GUM_ADDRESS (func_a);
   memory_range.size = 4 * 2;
-
   gum_stalker_exclude (fixture->stalker, &memory_range);
 
   func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 0);
 
-  result = func (2);
-
-  g_assert_cmpint (result, ==, 12);
+  g_assert_cmpint (func (2), ==, 12);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 42);
 
@@ -475,7 +469,6 @@ STALKER_TESTCASE (exclude_bl_with_unfollow)
   StalkerTestFunc func;
   guint8 * code;
   GumArm64Writer cw;
-  gint result;
   gpointer func_a;
   GumMemoryRange memory_range;
   const gchar * start_lbl = "start";
@@ -520,16 +513,13 @@ STALKER_TESTCASE (exclude_bl_with_unfollow)
 
   memory_range.base_address = GUM_ADDRESS (func_a);
   memory_range.size = 4 * 20;
-
   gum_stalker_exclude (fixture->stalker, &memory_range);
 
   func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 0);
 
-  result = func (2);
-
-  g_assert_cmpint (result, ==, 12);
+  g_assert_cmpint (func (2), ==, 12);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 22);
 
@@ -541,7 +531,6 @@ STALKER_TESTCASE (exclude_blr_with_unfollow)
   StalkerTestFunc func;
   guint8 * code;
   GumArm64Writer cw;
-  gint result;
   gpointer func_a;
   GumMemoryRange memory_range;
   const gchar * start_lbl = "start";
@@ -587,16 +576,13 @@ STALKER_TESTCASE (exclude_blr_with_unfollow)
 
   memory_range.base_address = GUM_ADDRESS (func_a);
   memory_range.size = 4 * 20;
-
   gum_stalker_exclude (fixture->stalker, &memory_range);
 
   func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 0);
 
-  result = func (2);
-
-  g_assert_cmpint (result, ==, 12);
+  g_assert_cmpint (func (2), ==, 12);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 21);
 
@@ -610,7 +596,6 @@ STALKER_TESTCASE (unconditional_branch)
   GumAddress address;
   const gchar * my_ken_lbl = "my_ken";
   StalkerTestFunc func;
-  gint result;
 
   code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
   gum_arm64_writer_init (&cw, code);
@@ -648,9 +633,8 @@ STALKER_TESTCASE (unconditional_branch)
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
   func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
-  result = func (2);
 
-  g_assert_cmpint (result, ==, 13);
+  g_assert_cmpint (func (2), ==, 13);
 
   gum_free_pages (code);
 }
@@ -663,7 +647,6 @@ STALKER_TESTCASE (unconditional_branch_reg)
   const gchar * my_ken_lbl = "my_ken";
   StalkerTestFunc func;
   arm64_reg reg = ARM64_REG_X13;
-  gint result;
 
   code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
   gum_arm64_writer_init (&cw, code);
@@ -706,9 +689,8 @@ STALKER_TESTCASE (unconditional_branch_reg)
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
   func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
-  result = func (2);
 
-  g_assert_cmpint (result, ==, 13);
+  g_assert_cmpint (func (2), ==, 13);
 
   gum_free_pages (code);
 }

@@ -2602,7 +2602,6 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
 
     gum_arm64_writer_put_mov_reg_reg (cw, ARM64_REG_X15, ARM64_REG_X0);
     gum_arm64_writer_put_cbz_reg_label (cw, ARM64_REG_X15, keep_this_blr);
-
   }
   else
   {
