@@ -433,7 +433,8 @@ STALKER_TESTCASE (exclude_blr)
 
   gum_arm64_writer_put_label (&cw, start_lbl);
   gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
-  gum_arm64_writer_put_ldr_reg_address (&cw, ARM64_REG_X1, GUM_ADDRESS (func_a));
+  gum_arm64_writer_put_ldr_reg_address (&cw, ARM64_REG_X1,
+      GUM_ADDRESS (func_a));
   gum_arm64_writer_put_blr_reg (&cw, ARM64_REG_X1);
   gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
 
@@ -564,7 +565,8 @@ STALKER_TESTCASE (exclude_blr_with_unfollow)
   gum_arm64_writer_put_label (&cw, start_lbl);
 
   gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
-  gum_arm64_writer_put_ldr_reg_address (&cw, ARM64_REG_X1, GUM_ADDRESS (func_a));
+  gum_arm64_writer_put_ldr_reg_address (&cw, ARM64_REG_X1,
+      GUM_ADDRESS (func_a));
   gum_arm64_writer_put_blr_reg (&cw, ARM64_REG_X1);
   gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
 
