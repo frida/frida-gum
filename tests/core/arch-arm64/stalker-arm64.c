@@ -24,6 +24,12 @@ TEST_LIST_BEGIN (stalker)
   /* TRANSFORMERS */
   STALKER_TESTENTRY (custom_transformer)
 
+  /* EXCLUSION */
+  STALKER_TESTENTRY (exclude_bl)
+  STALKER_TESTENTRY (exclude_blr)
+  STALKER_TESTENTRY (exclude_bl_with_unfollow)
+  STALKER_TESTENTRY (exclude_blr_with_unfollow)
+
   /* BRANCH */
   STALKER_TESTENTRY (unconditional_branch)
   STALKER_TESTENTRY (unconditional_branch_reg)
@@ -346,6 +352,245 @@ store_x0 (GumCpuContext * cpu_context,
   *last_x0 = cpu_context->x[0];
 }
 
+STALKER_TESTCASE (exclude_bl)
+{
+  const guint32 code_template[] =
+  {
+    0xa9bf7bf3, /* push {x19, lr} */
+    0xd2801553, /* mov x19, #0xaa */
+    0xd2800883, /* mov x3, #0x44  */
+    0xd2800662, /* mov x2, #0x33  */
+    0xd2800441, /* mov x1, #0x22  */
+    0xd2800220, /* mov x0, #0x11  */
+    0xa9bf07e0, /* push {x0, x1}  */
+    0x94000009, /* bl func_a      */
+    0xa8c107e0, /* pop {x0, x1}   */
+    0xd2801103, /* mov x3, #0x88  */
+    0xd2800ee2, /* mov x2, #0x77  */
+    0xd2800cc1, /* mov x1, #0x66  */
+    0xd2800aa0, /* mov x0, #0x55  */
+    0x94000005, /* bl func_b      */
+    0xa8c17bf3, /* pop {x19, lr}  */
+    0xd65f03c0, /* ret            */
+
+    /* func_a: */
+    0xd2801100, /* mov x0, #0x88  */
+    0xd65f03c0, /* ret            */
+
+    /* func_b: */
+    0xd2801320, /* mov x0, #0x99  */
+    0xd65f03c0, /* ret            */
+  };
+  StalkerTestFunc func;
+  guint8 * func_a_address;
+  GumMemoryRange memory_range;
+
+  fixture->sink->mask = GUM_EXEC;
+
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc,
+      test_arm64_stalker_fixture_dup_code (fixture, code_template,
+          sizeof (code_template)));
+
+  func_a_address = fixture->code + (16 * 4);
+  memory_range.base_address = (GumAddress) func_a_address;
+  memory_range.size = 4 * 2;
+  gum_stalker_exclude (fixture->stalker, &memory_range);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, 0);
+
+  test_arm64_stalker_fixture_follow_and_invoke (fixture, func, 0);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, 24);
+}
+
+STALKER_TESTCASE (exclude_blr)
+{
+  StalkerTestFunc func;
+  guint8 * code;
+  GumArm64Writer cw;
+  gpointer func_a;
+  GumMemoryRange memory_range;
+  const gchar * start_lbl = "start";
+
+  fixture->sink->mask = GUM_EXEC;
+
+  code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  gum_arm64_writer_init (&cw, code);
+
+  gum_arm64_writer_put_push_all_x_registers (&cw);
+  gum_arm64_writer_put_call_address_with_arguments (&cw,
+      GUM_ADDRESS (gum_stalker_follow_me), 3,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->transformer),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->sink));
+  gum_arm64_writer_put_pop_all_x_registers (&cw);
+
+  gum_arm64_writer_put_b_label (&cw, start_lbl);
+
+  func_a = gum_arm64_writer_cur (&cw);
+  gum_arm64_writer_put_add_reg_reg_imm (&cw, ARM64_REG_X0, ARM64_REG_X0, 10);
+  gum_arm64_writer_put_ret (&cw);
+
+  gum_arm64_writer_put_label (&cw, start_lbl);
+  gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
+  gum_arm64_writer_put_ldr_reg_address (&cw, ARM64_REG_X1,
+      GUM_ADDRESS (func_a));
+  gum_arm64_writer_put_blr_reg (&cw, ARM64_REG_X1);
+  gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
+
+  gum_arm64_writer_put_push_all_x_registers (&cw);
+  gum_arm64_writer_put_call_address_with_arguments (&cw,
+      GUM_ADDRESS (gum_stalker_unfollow_me), 1,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker));
+  gum_arm64_writer_put_pop_all_x_registers (&cw);
+
+  gum_arm64_writer_put_ret (&cw);
+
+  gum_arm64_writer_flush (&cw);
+  gum_clear_cache (cw.base, gum_arm64_writer_offset (&cw));
+  gum_arm64_writer_clear (&cw);
+
+  memory_range.base_address = GUM_ADDRESS (func_a);
+  memory_range.size = 4 * 2;
+  gum_stalker_exclude (fixture->stalker, &memory_range);
+
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, 0);
+
+  g_assert_cmpint (func (2), ==, 12);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, 42);
+
+  gum_free_pages (code);
+}
+
+STALKER_TESTCASE (exclude_bl_with_unfollow)
+{
+  StalkerTestFunc func;
+  guint8 * code;
+  GumArm64Writer cw;
+  gpointer func_a;
+  GumMemoryRange memory_range;
+  const gchar * start_lbl = "start";
+
+  fixture->sink->mask = GUM_EXEC;
+
+  code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  gum_arm64_writer_init (&cw, code);
+
+  gum_arm64_writer_put_push_all_x_registers (&cw);
+  gum_arm64_writer_put_call_address_with_arguments (&cw,
+      GUM_ADDRESS (gum_stalker_follow_me), 3,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->transformer),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->sink));
+  gum_arm64_writer_put_pop_all_x_registers (&cw);
+
+  gum_arm64_writer_put_b_label (&cw, start_lbl);
+
+  func_a = gum_arm64_writer_cur (&cw);
+  gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
+  gum_arm64_writer_put_add_reg_reg_imm (&cw, ARM64_REG_X0, ARM64_REG_X0, 10);
+  gum_arm64_writer_put_push_all_x_registers (&cw);
+  gum_arm64_writer_put_call_address_with_arguments (&cw,
+      GUM_ADDRESS (gum_stalker_unfollow_me), 1,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker));
+  gum_arm64_writer_put_pop_all_x_registers (&cw);
+  gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
+  gum_arm64_writer_put_ret (&cw);
+
+  gum_arm64_writer_put_label (&cw, start_lbl);
+
+  gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
+  gum_arm64_writer_put_bl_imm (&cw, GUM_ADDRESS (func_a));
+  gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
+
+  gum_arm64_writer_put_ret (&cw);
+
+  gum_arm64_writer_flush (&cw);
+  gum_clear_cache (cw.base, gum_arm64_writer_offset (&cw));
+  gum_arm64_writer_clear (&cw);
+
+  memory_range.base_address = GUM_ADDRESS (func_a);
+  memory_range.size = 4 * 20;
+  gum_stalker_exclude (fixture->stalker, &memory_range);
+
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, 0);
+
+  g_assert_cmpint (func (2), ==, 12);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, 22);
+
+  gum_free_pages (code);
+}
+
+STALKER_TESTCASE (exclude_blr_with_unfollow)
+{
+  StalkerTestFunc func;
+  guint8 * code;
+  GumArm64Writer cw;
+  gpointer func_a;
+  GumMemoryRange memory_range;
+  const gchar * start_lbl = "start";
+
+  fixture->sink->mask = GUM_EXEC;
+
+  code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  gum_arm64_writer_init (&cw, code);
+
+  gum_arm64_writer_put_push_all_x_registers (&cw);
+  gum_arm64_writer_put_call_address_with_arguments (&cw,
+      GUM_ADDRESS (gum_stalker_follow_me), 3,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->transformer),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->sink));
+  gum_arm64_writer_put_pop_all_x_registers (&cw);
+
+  gum_arm64_writer_put_b_label (&cw, start_lbl);
+
+  func_a = gum_arm64_writer_cur (&cw);
+  gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
+  gum_arm64_writer_put_add_reg_reg_imm (&cw, ARM64_REG_X0, ARM64_REG_X0, 10);
+  gum_arm64_writer_put_push_all_x_registers (&cw);
+  gum_arm64_writer_put_call_address_with_arguments (&cw,
+      GUM_ADDRESS (gum_stalker_unfollow_me), 1,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker));
+  gum_arm64_writer_put_pop_all_x_registers (&cw);
+  gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
+  gum_arm64_writer_put_ret (&cw);
+
+  gum_arm64_writer_put_label (&cw, start_lbl);
+
+  gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
+  gum_arm64_writer_put_ldr_reg_address (&cw, ARM64_REG_X1,
+      GUM_ADDRESS (func_a));
+  gum_arm64_writer_put_blr_reg (&cw, ARM64_REG_X1);
+  gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
+
+  gum_arm64_writer_put_ret (&cw);
+
+  gum_arm64_writer_flush (&cw);
+  gum_clear_cache (cw.base, gum_arm64_writer_offset (&cw));
+  gum_arm64_writer_clear (&cw);
+
+  memory_range.base_address = GUM_ADDRESS (func_a);
+  memory_range.size = 4 * 20;
+  gum_stalker_exclude (fixture->stalker, &memory_range);
+
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, 0);
+
+  g_assert_cmpint (func (2), ==, 12);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, 21);
+
+  gum_free_pages (code);
+}
+
 STALKER_TESTCASE (unconditional_branch)
 {
   guint8 * code;
@@ -353,7 +598,6 @@ STALKER_TESTCASE (unconditional_branch)
   GumAddress address;
   const gchar * my_ken_lbl = "my_ken";
   StalkerTestFunc func;
-  gint r;
 
   code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
   gum_arm64_writer_init (&cw, code);
@@ -391,9 +635,8 @@ STALKER_TESTCASE (unconditional_branch)
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
   func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
-  r = func (2);
 
-  g_assert_cmpint (r, ==, 13);
+  g_assert_cmpint (func (2), ==, 13);
 
   gum_free_pages (code);
 }
@@ -406,7 +649,6 @@ STALKER_TESTCASE (unconditional_branch_reg)
   const gchar * my_ken_lbl = "my_ken";
   StalkerTestFunc func;
   arm64_reg reg = ARM64_REG_X13;
-  gint r;
 
   code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
   gum_arm64_writer_init (&cw, code);
@@ -449,9 +691,8 @@ STALKER_TESTCASE (unconditional_branch_reg)
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
   func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
-  r = func (2);
 
-  g_assert_cmpint (r, ==, 13);
+  g_assert_cmpint (func (2), ==, 13);
 
   gum_free_pages (code);
 }
