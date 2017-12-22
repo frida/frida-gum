@@ -120,6 +120,21 @@ gum_module_map_update (GumModuleMap * self)
   g_array_sort (self->modules, (GCompareFunc) gum_module_details_compare_base);
 }
 
+void
+gum_module_map_enumerate_modules (GumModuleMap * self,
+                                  GumFoundModuleFunc func,
+                                  gpointer user_data)
+{
+  gboolean carry_on = TRUE;
+  int i;
+
+  for (i = 0; carry_on && i < self->modules->len; i++)
+  {
+    GumModuleDetails * d = &g_array_index (self->modules, GumModuleDetails, i);
+    carry_on = func (d, user_data);
+  }
+}
+
 static void
 gum_module_map_clear (GumModuleMap * self)
 {

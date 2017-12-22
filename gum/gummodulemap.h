@@ -27,6 +27,9 @@ GUM_API const GumModuleDetails * gum_module_map_find (GumModuleMap * self,
 
 GUM_API void gum_module_map_update (GumModuleMap * self);
 
+GUM_API void gum_module_map_enumerate_modules (GumModuleMap * self,
+    GumFoundModuleFunc func, gpointer user_data);
+
 G_END_DECLS
 
 #endif
