@@ -99,6 +99,9 @@ GUMJS_DECLARE_FUNCTION (gumjs_module_map_find)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_find_name)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_find_path)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_update)
+GUMJS_DECLARE_FUNCTION (gumjs_module_map_enumerate_modules)
+static gboolean gum_emit_module (const GumModuleDetails * details,
+    GumV8MatchContext * mc);
 
 static GumV8ModuleMap * gum_v8_module_map_new (Handle<Object> wrapper,
     GumModuleMap * handle, GumV8Module * module);
@@ -130,6 +133,7 @@ static const GumV8Function gumjs_module_map_functions[] =
   { "findName", gumjs_module_map_find_name },
   { "findPath", gumjs_module_map_find_path },
   { "update", gumjs_module_map_update },
+  { "enumerateModules", gumjs_module_map_enumerate_modules },
 
   { NULL, NULL }
 };
@@ -740,6 +744,50 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_module_map_find_path, GumV8ModuleMap)
 GUMJS_DEFINE_CLASS_METHOD (gumjs_module_map_update, GumV8ModuleMap)
 {
   gum_module_map_update (self->handle);
+}
+
+GUMJS_DEFINE_CLASS_METHOD (gumjs_module_map_enumerate_modules, GumV8ModuleMap)
+{
+  GumV8MatchContext mc;
+  if (!_gum_v8_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
+      &mc.on_complete))
+    return;
+  mc.core = core;
+
+  mc.has_pending_exception = FALSE;
+
+  gum_module_map_enumerate_modules (self->handle,
+      (GumFoundModuleFunc) gum_emit_module, &mc);
+
+  if (!mc.has_pending_exception)
+  {
+    mc.on_complete->Call (Undefined (isolate), 0, nullptr);
+  }
+}
+
+static gboolean
+gum_emit_module (const GumModuleDetails * details,
+                 GumV8MatchContext * mc)
+{
+  auto core = mc->core;
+  auto isolate = core->isolate;
+
+  auto module = _gum_v8_parse_module_details (details, core);
+
+  Handle<Value> argv[] = { module };
+  auto result =
+      mc->on_match->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
+
+  mc->has_pending_exception = result.IsEmpty ();
+
+  gboolean proceed = !mc->has_pending_exception;
+  if (proceed && result->IsString ())
+  {
+    String::Utf8Value str (result);
+    proceed = strcmp (*str, "stop") != 0;
+  }
+
+  return proceed;
 }
 
 static GumV8ModuleMap *

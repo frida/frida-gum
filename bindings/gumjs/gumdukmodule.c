@@ -50,6 +50,9 @@ GUMJS_DECLARE_FUNCTION (gumjs_module_map_find)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_find_name)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_find_path)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_update)
+GUMJS_DECLARE_FUNCTION (gumjs_module_map_enumerate_modules)
+static gboolean gum_emit_module (const GumModuleDetails * details,
+    GumDukMatchContext * mc);
 
 static void gum_duk_module_filter_free (GumDukModuleFilter * filter);
 static gboolean gum_duk_module_filter_matches (const GumModuleDetails * details,
@@ -75,6 +78,7 @@ static const duk_function_list_entry gumjs_module_map_functions[] =
   { "findName", gumjs_module_map_find_name, 1 },
   { "findPath", gumjs_module_map_find_path, 1 },
   { "update", gumjs_module_map_update, 0 },
+  { "enumerateModules", gumjs_module_map_enumerate_modules, 1 },
 
   { NULL, NULL, 0 }
 };
@@ -569,6 +573,53 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_map_update)
 {
   gum_module_map_update (gumjs_module_map_from_args (args));
   return 0;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_module_map_enumerate_modules)
+{
+  GumModuleMap * self;
+  GumDukMatchContext mc;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
+
+  _gum_duk_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
+      &mc.on_complete);
+  mc.scope = &scope;
+
+  self = gumjs_module_map_from_args (args);
+
+  gum_module_map_enumerate_modules (self, (GumFoundModuleFunc) gum_emit_module, &mc);
+  _gum_duk_scope_flush (&scope);
+
+  duk_push_heapptr (ctx, mc.on_complete);
+  duk_call (ctx, 0);
+  duk_pop (ctx);
+
+  return 0;
+}
+
+static gboolean
+gum_emit_module (const GumModuleDetails * details,
+                 GumDukMatchContext * mc)
+{
+  GumDukScope * scope = mc->scope;
+  duk_context * ctx = scope->ctx;
+  gboolean proceed = TRUE;
+
+  duk_push_heapptr (ctx, mc->on_match);
+  _gum_duk_push_module (ctx, details, scope->core);
+
+  if (_gum_duk_scope_call_sync (scope, 1))
+  {
+    if (duk_is_string (ctx, -1))
+      proceed = strcmp (duk_require_string (ctx, -1), "stop") != 0;
+  }
+  else
+  {
+    proceed = FALSE;
+  }
+  duk_pop (ctx);
+
+  return proceed;
 }
 
 static void

@@ -461,6 +461,20 @@ Object.defineProperties(ModuleMap.prototype, {
       return path;
     }
   },
+  enumerateModulesSync: {
+    enumerable: true,
+    value: function () {
+      const modules = [];
+      this.enumerateModules({
+        onMatch: function (m) {
+          modules.push(m);
+        },
+        onComplete: function () {
+        }
+      });
+      return modules;
+    }
+  },
 });
 
 Object.defineProperties(Interceptor, {
