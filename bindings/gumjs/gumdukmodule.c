@@ -50,6 +50,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_module_map_find)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_find_name)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_find_path)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_update)
+GUMJS_DECLARE_FUNCTION (gumjs_module_map_get_modules)
 
 static void gum_duk_module_filter_free (GumDukModuleFilter * filter);
 static gboolean gum_duk_module_filter_matches (const GumModuleDetails * details,
@@ -66,6 +67,17 @@ static const duk_function_list_entry gumjs_module_functions[] =
   { "findExportByName", gumjs_module_find_export_by_name, 2 },
 
   { NULL, NULL, 0 }
+};
+
+static const GumDukPropertyEntry gumjs_module_map_values[] =
+{
+  {
+    "modules",
+    gumjs_module_map_get_modules,
+    NULL
+  },
+
+  { NULL, NULL, NULL }
 };
 
 static const duk_function_list_entry gumjs_module_map_functions[] =
@@ -468,6 +480,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_map_construct)
 
   duk_push_this (ctx);
   _gum_duk_put_data (ctx, -1, module_map);
+  _gum_duk_add_properties_to_class_by_heapptr (ctx,
+      duk_require_heapptr (ctx, -1), gumjs_module_map_values);
   duk_pop (ctx);
 
   return 0;
@@ -569,6 +583,27 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_map_update)
 {
   gum_module_map_update (gumjs_module_map_from_args (args));
   return 0;
+}
+
+GUMJS_DEFINE_GETTER (gumjs_module_map_get_modules)
+{
+  GumModuleDetails * details;
+  int i;
+  const GArray * modules;
+  GumModuleMap * self;
+
+  self = gumjs_module_map_from_args (args);
+  modules = gum_module_map_get_modules (self);
+
+  duk_push_array (ctx);
+  for (i = 0; i != modules->len; i++)
+  {
+    details = &g_array_index (modules, GumModuleDetails, i);
+    _gum_duk_push_module (ctx, details, args->core);
+    duk_put_prop_index (ctx, -2, i);
+  }
+
+  return 1;
 }
 
 static void

@@ -99,6 +99,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_module_map_find)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_find_name)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_find_path)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_update)
+GUMJS_DECLARE_GETTER (gumjs_module_map_get_modules)
 
 static GumV8ModuleMap * gum_v8_module_map_new (Handle<Object> wrapper,
     GumModuleMap * handle, GumV8Module * module);
@@ -121,6 +122,17 @@ static const GumV8Function gumjs_module_functions[] =
   { "findExportByName", gumjs_module_find_export_by_name },
 
   { NULL, NULL }
+};
+
+static const GumV8Property gumjs_module_map_values[] =
+{
+  {
+    "modules",
+    gumjs_module_map_get_modules,
+    NULL
+  },
+
+  { NULL, NULL, NULL }
 };
 
 static const GumV8Function gumjs_module_map_functions[] =
@@ -151,6 +163,7 @@ _gum_v8_module_init (GumV8Module * self,
   auto map = _gum_v8_create_class ("ModuleMap", gumjs_module_map_construct,
       scope, module, isolate);
   _gum_v8_class_add (map, gumjs_module_map_functions, module, isolate);
+  _gum_v8_class_add (map, gumjs_module_map_values, module, isolate);
 }
 
 void
@@ -740,6 +753,26 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_module_map_find_path, GumV8ModuleMap)
 GUMJS_DEFINE_CLASS_METHOD (gumjs_module_map_update, GumV8ModuleMap)
 {
   gum_module_map_update (self->handle);
+}
+
+GUMJS_DEFINE_CLASS_GETTER (gumjs_module_map_get_modules, GumV8ModuleMap)
+{
+  auto modules = gum_module_map_get_modules (self->handle);
+  auto result = Array::New (isolate, modules->len);
+
+  for (guint i = 0; i != modules->len; i++)
+  {
+    auto details = &g_array_index (modules, GumModuleDetails, i);
+    auto module = Object::New (isolate);
+    _gum_v8_object_set_ascii (module, "name", details->name, core);
+    _gum_v8_object_set_pointer (module, "base", details->range->base_address,
+      core);
+    _gum_v8_object_set_uint (module, "size", details->range->size, core);
+    _gum_v8_object_set_utf8 (module, "path", details->path, core);
+    result->Set (i, module);
+  }
+
+  info.GetReturnValue ().Set (result);
 }
 
 static GumV8ModuleMap *
