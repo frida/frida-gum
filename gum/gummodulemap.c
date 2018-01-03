@@ -121,7 +121,7 @@ gum_module_map_update (GumModuleMap * self)
 }
 
 const GArray *
-gum_module_map_get_modules (GumModuleMap * self)
+gum_module_map_get_values (GumModuleMap * self)
 {
     return self->modules;
 }

@@ -50,7 +50,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_module_map_find)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_find_name)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_find_path)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_update)
-GUMJS_DECLARE_FUNCTION (gumjs_module_map_get_modules)
+GUMJS_DECLARE_FUNCTION (gumjs_module_map_copy_values)
 
 static void gum_duk_module_filter_free (GumDukModuleFilter * filter);
 static gboolean gum_duk_module_filter_matches (const GumModuleDetails * details,
@@ -69,17 +69,6 @@ static const duk_function_list_entry gumjs_module_functions[] =
   { NULL, NULL, 0 }
 };
 
-static const GumDukPropertyEntry gumjs_module_map_values[] =
-{
-  {
-    "modules",
-    gumjs_module_map_get_modules,
-    NULL
-  },
-
-  { NULL, NULL, NULL }
-};
-
 static const duk_function_list_entry gumjs_module_map_functions[] =
 {
   { "has", gumjs_module_map_has, 1 },
@@ -87,6 +76,7 @@ static const duk_function_list_entry gumjs_module_map_functions[] =
   { "findName", gumjs_module_map_find_name, 1 },
   { "findPath", gumjs_module_map_find_path, 1 },
   { "update", gumjs_module_map_update, 0 },
+  { "values", gumjs_module_map_copy_values, 0 },
 
   { NULL, NULL, 0 }
 };
@@ -480,8 +470,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_map_construct)
 
   duk_push_this (ctx);
   _gum_duk_put_data (ctx, -1, module_map);
-  _gum_duk_add_properties_to_class_by_heapptr (ctx,
-      duk_require_heapptr (ctx, -1), gumjs_module_map_values);
   duk_pop (ctx);
 
   return 0;
@@ -585,20 +573,20 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_map_update)
   return 0;
 }
 
-GUMJS_DEFINE_GETTER (gumjs_module_map_get_modules)
+GUMJS_DEFINE_FUNCTION (gumjs_module_map_copy_values)
 {
   GumModuleDetails * details;
   int i;
-  const GArray * modules;
   GumModuleMap * self;
+  const GArray * values;
 
   self = gumjs_module_map_from_args (args);
-  modules = gum_module_map_get_modules (self);
+  values = gum_module_map_get_values (self);
 
   duk_push_array (ctx);
-  for (i = 0; i != modules->len; i++)
+  for (i = 0; i != values->len; i++)
   {
-    details = &g_array_index (modules, GumModuleDetails, i);
+    details = &g_array_index (values, GumModuleDetails, i);
     _gum_duk_push_module (ctx, details, args->core);
     duk_put_prop_index (ctx, -2, i);
   }
