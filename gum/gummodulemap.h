@@ -27,6 +27,8 @@ GUM_API const GumModuleDetails * gum_module_map_find (GumModuleMap * self,
 
 GUM_API void gum_module_map_update (GumModuleMap * self);
 
+GUM_API GArray * gum_module_map_get_values (GumModuleMap * self);
+
 G_END_DECLS
 
 #endif
