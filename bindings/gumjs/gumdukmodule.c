@@ -575,10 +575,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_map_update)
 
 GUMJS_DEFINE_FUNCTION (gumjs_module_map_copy_values)
 {
-  GumModuleDetails * details;
-  int i;
   GumModuleMap * self;
   const GArray * values;
+  guint i;
 
   self = gumjs_module_map_from_args (args);
   values = gum_module_map_get_values (self);
@@ -586,6 +585,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_map_copy_values)
   duk_push_array (ctx);
   for (i = 0; i != values->len; i++)
   {
+    GumModuleDetails * details;
+
     details = &g_array_index (values, GumModuleDetails, i);
     _gum_duk_push_module (ctx, details, args->core);
     duk_put_prop_index (ctx, -2, i);

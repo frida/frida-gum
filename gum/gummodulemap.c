@@ -120,10 +120,10 @@ gum_module_map_update (GumModuleMap * self)
   g_array_sort (self->modules, (GCompareFunc) gum_module_details_compare_base);
 }
 
-const GArray *
+GArray *
 gum_module_map_get_values (GumModuleMap * self)
 {
-    return self->modules;
+  return self->modules;
 }
 
 static void
