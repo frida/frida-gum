@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -13,23 +13,14 @@
 
 #include <string.h>
 
-#define GUM_MAX_LABEL_COUNT       100
-#define GUM_MAX_LREF_COUNT        (3 * GUM_MAX_LABEL_COUNT)
-#define GUM_MAX_LITERAL_REF_COUNT 100
-
+typedef struct _GumThumbLabelRef GumThumbLabelRef;
+typedef struct _GumThumbLiteralRef GumThumbLiteralRef;
 typedef guint GumThumbMemoryOperation;
-
-struct _GumThumbLabelMapping
-{
-  gconstpointer id;
-  GumAddress address;
-};
 
 struct _GumThumbLabelRef
 {
   gconstpointer id;
   guint16 * insn;
-  GumAddress pc;
 };
 
 struct _GumThumbLiteralRef
@@ -45,8 +36,6 @@ enum _GumThumbMemoryOperation
   GUM_THUMB_MEMORY_STORE
 };
 
-static GumAddress gum_thumb_writer_lookup_address_for_label_id (
-    GumThumbWriter * self, gconstpointer id);
 static void gum_thumb_writer_put_argument_list_setup (GumThumbWriter * self,
     guint n_args, const GumArgument * args);
 static void gum_thumb_writer_put_argument_list_setup_va (GumThumbWriter * self,
@@ -104,9 +93,11 @@ gum_thumb_writer_init (GumThumbWriter * writer,
 {
   writer->ref_count = 1;
 
-  writer->id_to_address = g_new (GumThumbLabelMapping, GUM_MAX_LABEL_COUNT);
-  writer->label_refs = g_new (GumThumbLabelRef, GUM_MAX_LREF_COUNT);
-  writer->literal_refs = g_new (GumThumbLiteralRef, GUM_MAX_LITERAL_REF_COUNT);
+  writer->id_to_address = g_hash_table_new (NULL, NULL);
+  writer->label_refs = g_array_new (FALSE, FALSE,
+      sizeof (GumThumbLabelRef));
+  writer->literal_refs = g_array_new (FALSE, FALSE,
+      sizeof (GumThumbLiteralRef));
 
   gum_thumb_writer_reset (writer, code_address);
 }
@@ -116,9 +107,9 @@ gum_thumb_writer_clear (GumThumbWriter * writer)
 {
   gum_thumb_writer_flush (writer);
 
-  g_free (writer->id_to_address);
-  g_free (writer->label_refs);
-  g_free (writer->literal_refs);
+  g_hash_table_unref (writer->id_to_address);
+  g_array_free (writer->label_refs, TRUE);
+  g_array_free (writer->literal_refs, TRUE);
 }
 
 void
@@ -131,9 +122,9 @@ gum_thumb_writer_reset (GumThumbWriter * writer,
   writer->code = code_address;
   writer->pc = GUM_ADDRESS (code_address);
 
-  writer->id_to_address_len = 0;
-  writer->label_refs_len = 0;
-  writer->literal_refs_len = 0;
+  g_hash_table_remove_all (writer->id_to_address);
+  g_array_set_size (writer->label_refs, 0);
+  g_array_set_size (writer->literal_refs, 0);
 }
 
 void
@@ -166,65 +157,69 @@ gum_thumb_writer_skip (GumThumbWriter * self,
 gboolean
 gum_thumb_writer_flush (GumThumbWriter * self)
 {
-  if (self->label_refs_len > 0)
+  guint num_refs, ref_index;
+
+  num_refs = self->label_refs->len;
+  for (ref_index = 0; ref_index != num_refs; ref_index++)
   {
-    guint label_idx;
+    GumThumbLabelRef * r;
+    const guint16 * target_insn;
+    gssize distance;
+    guint16 insn;
 
-    for (label_idx = 0; label_idx != self->label_refs_len; label_idx++)
+    r = &g_array_index (self->label_refs, GumThumbLabelRef, ref_index);
+
+    target_insn = g_hash_table_lookup (self->id_to_address, r->id);
+    if (target_insn == NULL)
+      goto error;
+
+    distance = target_insn - (r->insn + 2);
+
+    insn = GUINT16_FROM_LE (*r->insn);
+    if ((insn & 0xf000) == 0xd000)
     {
-      GumThumbLabelRef * r = &self->label_refs[label_idx];
-      GumAddress target_address;
-      gssize distance;
-      guint16 insn;
+      if (!GUM_IS_WITHIN_INT8_RANGE (distance))
+        goto error;
+      insn |= distance & GUM_INT8_MASK;
+    }
+    else if ((insn & 0xf800) == 0xe000)
+    {
+      if (!GUM_IS_WITHIN_INT11_RANGE (distance))
+        goto error;
+      insn |= distance & GUM_INT11_MASK;
+    }
+    else
+    {
+      guint16 i, imm5;
 
-      target_address =
-          gum_thumb_writer_lookup_address_for_label_id (self, r->id);
-      if (target_address == 0)
+      if (!GUM_IS_WITHIN_UINT7_RANGE (distance))
         goto error;
 
-      distance = ((gint32) target_address - (gint32) r->pc) / 2;
+      i = (distance >> 5) & 1;
+      imm5 = distance & GUM_INT5_MASK;
 
-      insn = GUINT16_FROM_LE (*r->insn);
-      if ((insn & 0xf000) == 0xd000)
-      {
-        if (!GUM_IS_WITHIN_INT8_RANGE (distance))
-          goto error;
-        insn |= distance & GUM_INT8_MASK;
-      }
-      else if ((insn & 0xf800) == 0xe000)
-      {
-        if (!GUM_IS_WITHIN_INT11_RANGE (distance))
-          goto error;
-        insn |= distance & GUM_INT11_MASK;
-      }
-      else
-      {
-        guint16 i, imm5;
-
-        if (!GUM_IS_WITHIN_UINT7_RANGE (distance))
-          goto error;
-
-        i = (distance >> 5) & 1;
-        imm5 = distance & GUM_INT5_MASK;
-
-        insn |= (i << 9) | (imm5 << 3);
-      }
-
-      *r->insn = GUINT16_TO_LE (insn);
+      insn |= (i << 9) | (imm5 << 3);
     }
-    self->label_refs_len = 0;
-  }
 
-  if (self->literal_refs_len > 0)
+    *r->insn = GUINT16_TO_LE (insn);
+  }
+  g_array_set_size (self->label_refs, 0);
+
+  num_refs = self->literal_refs->len;
+  if (num_refs > 0)
   {
     gboolean need_aligned_slots;
     guint32 * first_slot, * last_slot;
-    guint ref_idx;
 
     need_aligned_slots = FALSE;
-    for (ref_idx = 0; ref_idx != self->literal_refs_len; ref_idx++)
+    for (ref_index = 0; ref_index != num_refs; ref_index++)
     {
-      guint16 insn = GUINT16_FROM_LE (self->literal_refs[ref_idx].insn[0]);
+      GumThumbLiteralRef * r;
+      guint16 insn;
+
+      r = &g_array_index (self->literal_refs, GumThumbLiteralRef, ref_index);
+
+      insn = GUINT16_FROM_LE (r->insn[0]);
       if (gum_instruction_is_t1_load (insn))
         need_aligned_slots = TRUE;
     }
@@ -235,7 +230,7 @@ gum_thumb_writer_flush (GumThumbWriter * self)
     first_slot = (guint32 *) self->code;
     last_slot = first_slot;
 
-    for (ref_idx = 0; ref_idx != self->literal_refs_len; ref_idx++)
+    for (ref_index = 0; ref_index != num_refs; ref_index++)
     {
       GumThumbLiteralRef * r;
       guint16 insn;
@@ -243,7 +238,7 @@ gum_thumb_writer_flush (GumThumbWriter * self)
       GumAddress slot_pc;
       gsize distance_in_bytes;
 
-      r = &self->literal_refs[ref_idx];
+      r = &g_array_index (self->literal_refs, GumThumbLiteralRef, ref_index);
       insn = GUINT16_FROM_LE (r->insn[0]);
 
       for (slot = first_slot; slot != last_slot; slot++)
@@ -275,76 +270,41 @@ gum_thumb_writer_flush (GumThumbWriter * self)
             distance_in_bytes);
       }
     }
-    self->literal_refs_len = 0;
+    g_array_set_size (self->literal_refs, 0);
   }
 
   return TRUE;
 
 error:
   {
-    self->label_refs_len = 0;
-    self->literal_refs_len = 0;
+    g_array_set_size (self->label_refs, 0);
+    g_array_set_size (self->literal_refs, 0);
 
     return FALSE;
   }
-}
-
-static GumAddress
-gum_thumb_writer_lookup_address_for_label_id (GumThumbWriter * self,
-                                              gconstpointer id)
-{
-  guint i;
-
-  for (i = 0; i < self->id_to_address_len; i++)
-  {
-    GumThumbLabelMapping * map = &self->id_to_address[i];
-    if (map->id == id)
-      return map->address;
-  }
-
-  return 0;
-}
-
-static gboolean
-gum_thumb_writer_add_address_for_label_id (GumThumbWriter * self,
-                                           gconstpointer id,
-                                           GumAddress address)
-{
-  GumThumbLabelMapping * map;
-
-  if (self->id_to_address_len == GUM_MAX_LABEL_COUNT)
-    return FALSE;
-
-  map = &self->id_to_address[self->id_to_address_len++];
-  map->id = id;
-  map->address = address;
-
-  return TRUE;
 }
 
 gboolean
 gum_thumb_writer_put_label (GumThumbWriter * self,
                             gconstpointer id)
 {
-  if (gum_thumb_writer_lookup_address_for_label_id (self, id) != 0)
+  if (g_hash_table_lookup (self->id_to_address, id) != NULL)
     return FALSE;
 
-  return gum_thumb_writer_add_address_for_label_id (self, id, self->pc);
+  g_hash_table_insert (self->id_to_address, (gpointer) id, self->code);
+  return TRUE;
 }
 
 static gboolean
 gum_thumb_writer_add_label_reference_here (GumThumbWriter * self,
                                            gconstpointer id)
 {
-  GumThumbLabelRef * r;
+  GumThumbLabelRef r;
 
-  if (self->label_refs_len == GUM_MAX_LREF_COUNT)
-    return FALSE;
+  r.id = id;
+  r.insn = self->code;
 
-  r = &self->label_refs[self->label_refs_len++];
-  r->id = id;
-  r->insn = self->code;
-  r->pc = self->pc + 4;
+  g_array_append_val (self->label_refs, r);
 
   return TRUE;
 }
@@ -353,15 +313,13 @@ static gboolean
 gum_thumb_writer_add_literal_reference_here (GumThumbWriter * self,
                                              guint32 val)
 {
-  GumThumbLiteralRef * r;
+  GumThumbLiteralRef r;
 
-  if (self->literal_refs_len == GUM_MAX_LITERAL_REF_COUNT)
-    return FALSE;
+  r.val = val;
+  r.insn = self->code;
+  r.pc = self->pc + 4;
 
-  r = &self->literal_refs[self->literal_refs_len++];
-  r->val = val;
-  r->insn = self->code;
-  r->pc = self->pc + 4;
+  g_array_append_val (self->literal_refs, r);
 
   return TRUE;
 }

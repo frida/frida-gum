@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -15,9 +15,6 @@
 G_BEGIN_DECLS
 
 typedef struct _GumThumbWriter GumThumbWriter;
-typedef struct _GumThumbLabelMapping GumThumbLabelMapping;
-typedef struct _GumThumbLabelRef GumThumbLabelRef;
-typedef struct _GumThumbLiteralRef GumThumbLiteralRef;
 
 struct _GumThumbWriter
 {
@@ -29,14 +26,9 @@ struct _GumThumbWriter
   guint16 * code;
   GumAddress pc;
 
-  GumThumbLabelMapping * id_to_address;
-  guint id_to_address_len;
-
-  GumThumbLabelRef * label_refs;
-  guint label_refs_len;
-
-  GumThumbLiteralRef * literal_refs;
-  guint literal_refs_len;
+  GHashTable * id_to_address;
+  GArray * label_refs;
+  GArray * literal_refs;
 };
 
 GUM_API GumThumbWriter * gum_thumb_writer_new (gpointer code_address);

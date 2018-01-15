@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -15,20 +15,12 @@
 #endif
 #include <string.h>
 
-#define GUM_MAX_LABEL_COUNT       100
-#define GUM_MAX_LABEL_REF_COUNT   (3 * GUM_MAX_LABEL_COUNT)
-#define GUM_MAX_LITERAL_REF_COUNT 1000
-
+typedef struct _GumArm64LabelRef GumArm64LabelRef;
+typedef struct _GumArm64LiteralRef GumArm64LiteralRef;
 typedef guint GumArm64MemOperationType;
 typedef guint GumArm64MemOperandType;
 typedef guint GumArm64MetaReg;
 typedef struct _GumArm64RegInfo GumArm64RegInfo;
-
-struct _GumArm64LabelMapping
-{
-  gconstpointer id;
-  gpointer address;
-};
 
 struct _GumArm64LabelRef
 {
@@ -108,8 +100,6 @@ struct _GumArm64RegInfo
   GumArm64MemOperandType operand_type;
 };
 
-static guint8 * gum_arm64_writer_lookup_address_for_label_id (
-    GumArm64Writer * self, gconstpointer id);
 static void gum_arm64_writer_put_argument_list_setup (GumArm64Writer * self,
     guint n_args, const GumArgument * args);
 static void gum_arm64_writer_put_argument_list_setup_va (GumArm64Writer * self,
@@ -179,9 +169,11 @@ gum_arm64_writer_init (GumArm64Writer * writer,
 {
   writer->ref_count = 1;
 
-  writer->id_to_address = g_new (GumArm64LabelMapping, GUM_MAX_LABEL_COUNT);
-  writer->label_refs = g_new (GumArm64LabelRef, GUM_MAX_LABEL_REF_COUNT);
-  writer->literal_refs = g_new (GumArm64LiteralRef, GUM_MAX_LITERAL_REF_COUNT);
+  writer->id_to_address = g_hash_table_new (NULL, NULL);
+  writer->label_refs = g_array_new (FALSE, FALSE,
+      sizeof (GumArm64LabelRef));
+  writer->literal_refs = g_array_new (FALSE, FALSE,
+      sizeof (GumArm64LiteralRef));
 
   gum_arm64_writer_reset (writer, code_address);
 }
@@ -191,9 +183,9 @@ gum_arm64_writer_clear (GumArm64Writer * writer)
 {
   gum_arm64_writer_flush (writer);
 
-  g_free (writer->id_to_address);
-  g_free (writer->label_refs);
-  g_free (writer->literal_refs);
+  g_hash_table_unref (writer->id_to_address);
+  g_array_free (writer->label_refs, TRUE);
+  g_array_free (writer->literal_refs, TRUE);
 }
 
 void
@@ -204,9 +196,9 @@ gum_arm64_writer_reset (GumArm64Writer * writer,
   writer->code = code_address;
   writer->pc = GUM_ADDRESS (code_address);
 
-  writer->id_to_address_len = 0;
-  writer->label_refs_len = 0;
-  writer->literal_refs_len = 0;
+  g_hash_table_remove_all (writer->id_to_address);
+  g_array_set_size (writer->label_refs, 0);
+  g_array_set_size (writer->literal_refs, 0);
 }
 
 gpointer
@@ -232,64 +224,63 @@ gum_arm64_writer_skip (GumArm64Writer * self,
 gboolean
 gum_arm64_writer_flush (GumArm64Writer * self)
 {
-  if (self->label_refs_len > 0)
+  guint num_refs, ref_index;
+
+  num_refs = self->label_refs->len;
+  for (ref_index = 0; ref_index != num_refs; ref_index++)
   {
-    guint label_idx;
+    GumArm64LabelRef * r;
+    const guint32 * target_insn;
+    gssize distance;
+    guint32 insn;
 
-    for (label_idx = 0; label_idx != self->label_refs_len; label_idx++)
+    r = &g_array_index (self->label_refs, GumArm64LabelRef, ref_index);
+
+    target_insn = g_hash_table_lookup (self->id_to_address, r->id);
+    if (target_insn == NULL)
+      goto error;
+
+    distance = target_insn - r->insn;
+
+    insn = GUINT32_FROM_LE (*r->insn);
+    if (insn == 0x14000000)
     {
-      GumArm64LabelRef * r = &self->label_refs[label_idx];
-      gpointer target_address;
-      gssize distance;
-      guint32 insn;
-
-      target_address =
-          gum_arm64_writer_lookup_address_for_label_id (self, r->id);
-      if (target_address == NULL)
+      if (!GUM_IS_WITHIN_INT26_RANGE (distance))
         goto error;
-
-      distance = ((gssize) target_address - (gssize) r->insn) / 4;
-
-      insn = GUINT32_FROM_LE (*r->insn);
-      if (insn == 0x14000000)
-      {
-        if (!GUM_IS_WITHIN_INT26_RANGE (distance))
-          goto error;
-        insn |= distance & GUM_INT26_MASK;
-      }
-      else if ((insn & 0x7e000000) == 0x36000000)
-      {
-        if (!GUM_IS_WITHIN_INT14_RANGE (distance))
-          goto error;
-        insn |= (distance & GUM_INT14_MASK) << 5;
-      }
-      else
-      {
-        if (!GUM_IS_WITHIN_INT19_RANGE (distance))
-          goto error;
-        insn |= (distance & GUM_INT19_MASK) << 5;
-      }
-
-      *r->insn = GUINT32_TO_LE (insn);
+      insn |= distance & GUM_INT26_MASK;
     }
-    self->label_refs_len = 0;
-  }
+    else if ((insn & 0x7e000000) == 0x36000000)
+    {
+      if (!GUM_IS_WITHIN_INT14_RANGE (distance))
+        goto error;
+      insn |= (distance & GUM_INT14_MASK) << 5;
+    }
+    else
+    {
+      if (!GUM_IS_WITHIN_INT19_RANGE (distance))
+        goto error;
+      insn |= (distance & GUM_INT19_MASK) << 5;
+    }
 
-  if (self->literal_refs_len > 0)
+    *r->insn = GUINT32_TO_LE (insn);
+  }
+  g_array_set_size (self->label_refs, 0);
+
+  num_refs = self->literal_refs->len;
+  if (num_refs > 0)
   {
     gint64 * first_slot, * last_slot;
-    guint ref_idx;
 
     first_slot = (gint64 *) self->code;
     last_slot = first_slot;
 
-    for (ref_idx = 0; ref_idx != self->literal_refs_len; ref_idx++)
+    for (ref_index = 0; ref_index != num_refs; ref_index++)
     {
       GumArm64LiteralRef * r;
       gint64 * cur_slot, distance;
       guint32 insn;
 
-      r = &self->literal_refs[ref_idx];
+      r = &g_array_index (self->literal_refs, GumArm64LiteralRef, ref_index);
 
       for (cur_slot = first_slot; cur_slot != last_slot; cur_slot++)
       {
@@ -310,7 +301,7 @@ gum_arm64_writer_flush (GumArm64Writer * self)
       insn |= ((distance / 4) & GUM_INT19_MASK) << 5;
       *r->insn = GUINT32_TO_LE (insn);
     }
-    self->literal_refs_len = 0;
+    g_array_set_size (self->literal_refs, 0);
 
     self->code = (guint32 *) last_slot;
     self->pc += (guint8 *) last_slot - (guint8 *) first_slot;
@@ -320,68 +311,34 @@ gum_arm64_writer_flush (GumArm64Writer * self)
 
 error:
   {
-    self->label_refs_len = 0;
-    self->literal_refs_len = 0;
+    g_array_set_size (self->label_refs, 0);
+    g_array_set_size (self->literal_refs, 0);
 
     return FALSE;
   }
-}
-
-static guint8 *
-gum_arm64_writer_lookup_address_for_label_id (GumArm64Writer * self,
-                                              gconstpointer id)
-{
-  guint i;
-
-  for (i = 0; i < self->id_to_address_len; i++)
-  {
-    GumArm64LabelMapping * map = &self->id_to_address[i];
-    if (map->id == id)
-      return map->address;
-  }
-
-  return NULL;
-}
-
-static gboolean
-gum_arm64_writer_add_address_for_label_id (GumArm64Writer * self,
-                                           gconstpointer id,
-                                           gpointer address)
-{
-  GumArm64LabelMapping * map;
-
-  if (self->id_to_address_len == GUM_MAX_LABEL_COUNT)
-    return FALSE;
-
-  map = &self->id_to_address[self->id_to_address_len++];
-  map->id = id;
-  map->address = address;
-
-  return TRUE;
 }
 
 gboolean
 gum_arm64_writer_put_label (GumArm64Writer * self,
                             gconstpointer id)
 {
-  if (gum_arm64_writer_lookup_address_for_label_id (self, id) != NULL)
+  if (g_hash_table_lookup (self->id_to_address, id) != NULL)
     return FALSE;
 
-  return gum_arm64_writer_add_address_for_label_id (self, id, self->code);
+  g_hash_table_insert (self->id_to_address, (gpointer) id, self->code);
+  return TRUE;
 }
 
 static gboolean
 gum_arm64_writer_add_label_reference_here (GumArm64Writer * self,
                                            gconstpointer id)
 {
-  GumArm64LabelRef * r;
+  GumArm64LabelRef r;
 
-  if (self->label_refs_len == GUM_MAX_LABEL_REF_COUNT)
-    return FALSE;
+  r.id = id;
+  r.insn = self->code;
 
-  r = &self->label_refs[self->label_refs_len++];
-  r->id = id;
-  r->insn = self->code;
+  g_array_append_val (self->label_refs, r);
 
   return TRUE;
 }
@@ -390,14 +347,12 @@ static gboolean
 gum_arm64_writer_add_literal_reference_here (GumArm64Writer * self,
                                              guint64 val)
 {
-  GumArm64LiteralRef * r;
+  GumArm64LiteralRef r;
 
-  if (self->literal_refs_len == GUM_MAX_LITERAL_REF_COUNT)
-    return FALSE;
+  r.insn = self->code;
+  r.val = val;
 
-  r = &self->literal_refs[self->literal_refs_len++];
-  r->insn = self->code;
-  r->val = val;
+  g_array_append_val (self->literal_refs, r);
 
   return TRUE;
 }

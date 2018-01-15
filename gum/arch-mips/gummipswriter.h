@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -15,9 +15,6 @@
 G_BEGIN_DECLS
 
 typedef struct _GumMipsWriter GumMipsWriter;
-typedef struct _GumMipsLabelMapping GumMipsLabelMapping;
-typedef struct _GumMipsLabelRef GumMipsLabelRef;
-typedef struct _GumMipsLiteralRef GumMipsLiteralRef;
 
 struct _GumMipsWriter
 {
@@ -27,14 +24,9 @@ struct _GumMipsWriter
   guint32 * code;
   GumAddress pc;
 
-  GumMipsLabelMapping * id_to_address;
-  guint id_to_address_len;
-
-  GumMipsLabelRef * label_refs;
-  guint label_refs_len;
-
-  GumMipsLiteralRef * literal_refs;
-  guint literal_refs_len;
+  GHashTable * id_to_address;
+  GArray * label_refs;
+  GArray * literal_refs;
 };
 
 GUM_API GumMipsWriter * gum_mips_writer_new (gpointer code_address);

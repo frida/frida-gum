@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -11,19 +11,11 @@
 
 #include <string.h>
 
-#define GUM_MAX_LABEL_COUNT       100
-#define GUM_MAX_LABEL_REF_COUNT   (3 * GUM_MAX_LABEL_COUNT)
-#define GUM_MAX_LITERAL_REF_COUNT 100
-
+typedef struct _GumMipsLabelRef GumMipsLabelRef;
+typedef struct _GumMipsLiteralRef GumMipsLiteralRef;
 typedef guint GumMipsMemPairOperandSize;
 typedef guint GumMipsMetaReg;
 typedef struct _GumMipsRegInfo GumMipsRegInfo;
-
-struct _GumMipsLabelMapping
-{
-  gconstpointer id;
-  gpointer address;
-};
 
 struct _GumMipsLabelRef
 {
@@ -117,8 +109,6 @@ struct _GumMipsRegInfo
   guint index;
 };
 
-static guint8 * gum_mips_writer_lookup_address_for_label_id (
-    GumMipsWriter * self, gconstpointer id);
 static void gum_mips_writer_put_argument_list_setup (GumMipsWriter * self,
     guint n_args, const GumArgument * args);
 static void gum_mips_writer_put_argument_list_setup_va (GumMipsWriter * self,
@@ -166,9 +156,9 @@ gum_mips_writer_init (GumMipsWriter * writer,
 {
   writer->ref_count = 1;
 
-  writer->id_to_address = g_new (GumMipsLabelMapping, GUM_MAX_LABEL_COUNT);
-  writer->label_refs = g_new (GumMipsLabelRef, GUM_MAX_LABEL_REF_COUNT);
-  writer->literal_refs = g_new (GumMipsLiteralRef, GUM_MAX_LITERAL_REF_COUNT);
+  writer->id_to_address = g_hash_table_new (NULL, NULL);
+  writer->label_refs = g_array_new (FALSE, FALSE, sizeof (GumMipsLabelRef));
+  writer->literal_refs = g_array_new (FALSE, FALSE, sizeof (GumMipsLiteralRef));
 
   gum_mips_writer_reset (writer, code_address);
 }
@@ -178,9 +168,9 @@ gum_mips_writer_clear (GumMipsWriter * writer)
 {
   gum_mips_writer_flush (writer);
 
-  g_free (writer->id_to_address);
-  g_free (writer->label_refs);
-  g_free (writer->literal_refs);
+  g_hash_table_unref (writer->id_to_address);
+  g_array_free (writer->label_refs, TRUE);
+  g_array_free (writer->literal_refs, TRUE);
 }
 
 void
@@ -191,9 +181,9 @@ gum_mips_writer_reset (GumMipsWriter * writer,
   writer->code = code_address;
   writer->pc = GUM_ADDRESS (code_address);
 
-  writer->id_to_address_len = 0;
-  writer->label_refs_len = 0;
-  writer->literal_refs_len = 0;
+  g_hash_table_remove_all (writer->id_to_address);
+  g_array_set_size (writer->label_refs, 0);
+  g_array_set_size (writer->literal_refs, 0);
 }
 
 gpointer
@@ -219,73 +209,72 @@ gum_mips_writer_skip (GumMipsWriter * self,
 gboolean
 gum_mips_writer_flush (GumMipsWriter * self)
 {
-  if (self->label_refs_len > 0)
+  guint num_refs, ref_index;
+
+  num_refs = self->label_refs->len;
+  for (ref_index = 0; ref_index != num_refs; ref_index++)
   {
-    guint label_idx;
+    GumMipsLabelRef * r;
+    const guint32 * target_insn;
+    gssize distance;
+    guint32 insn;
 
-    for (label_idx = 0; label_idx != self->label_refs_len; label_idx++)
+    r = &g_array_index (self->label_refs, GumMipsLabelRef, ref_index);
+
+    target_insn = g_hash_table_lookup (self->id_to_address, r->id);
+    if (target_insn == NULL)
+      goto error;
+
+    distance = target_insn - r->insn;
+
+    insn = *r->insn;
+    /* j <int16> */
+    if (insn == 0x08000000)
     {
-      GumMipsLabelRef * r = &self->label_refs[label_idx];
-      gpointer target_address;
-      gssize distance;
-      guint32 insn;
-
-      target_address =
-          gum_mips_writer_lookup_address_for_label_id (self, r->id);
-      if (target_address == NULL)
+      if (!GUM_IS_WITHIN_INT18_RANGE (distance << 2))
         goto error;
-
-      distance = ((gssize) target_address - (gssize) r->insn) / 4;
-
-      insn = *r->insn;
-      /* j <int16> */
-      if (insn == 0x08000000)
-      {
-        if (!GUM_IS_WITHIN_INT18_RANGE (distance << 2))
-          goto error;
-        insn |= distance & GUM_INT16_MASK;
-      }
-      /* beq <int16> */
-      else if ((insn & 0xfc000000) == 0x10000000)
-      {
-        if (!GUM_IS_WITHIN_INT18_RANGE (distance << 2))
-          goto error;
-        insn |= distance & GUM_INT16_MASK;
-      }
-      /* TODO: conditional branches */
-      else if ((insn & 0x7e000000) == 0x36000000)
-      {
-        if (!GUM_IS_WITHIN_INT14_RANGE (distance))
-          goto error;
-        insn |= (distance & GUM_INT14_MASK) << 5;
-      }
-      else
-      {
-        if (!GUM_IS_WITHIN_INT19_RANGE (distance))
-          goto error;
-        insn |= (distance & GUM_INT19_MASK) << 5;
-      }
-
-      *r->insn = insn;
+      insn |= distance & GUM_INT16_MASK;
     }
-    self->label_refs_len = 0;
-  }
+    /* beq <int16> */
+    else if ((insn & 0xfc000000) == 0x10000000)
+    {
+      if (!GUM_IS_WITHIN_INT18_RANGE (distance << 2))
+        goto error;
+      insn |= distance & GUM_INT16_MASK;
+    }
+    /* TODO: conditional branches */
+    else if ((insn & 0x7e000000) == 0x36000000)
+    {
+      if (!GUM_IS_WITHIN_INT14_RANGE (distance))
+        goto error;
+      insn |= (distance & GUM_INT14_MASK) << 5;
+    }
+    else
+    {
+      if (!GUM_IS_WITHIN_INT19_RANGE (distance))
+        goto error;
+      insn |= (distance & GUM_INT19_MASK) << 5;
+    }
 
-  if (self->literal_refs_len > 0)
+    *r->insn = insn;
+  }
+  g_array_set_size (self->label_refs, 0);
+
+  num_refs = self->literal_refs->len;
+  if (num_refs > 0)
   {
     gint64 * first_slot, * last_slot;
-    guint ref_idx;
 
     first_slot = (gint64 *) self->code;
     last_slot = first_slot;
 
-    for (ref_idx = 0; ref_idx != self->literal_refs_len; ref_idx++)
+    for (ref_index = 0; ref_index != num_refs; ref_index++)
     {
       GumMipsLiteralRef * r;
       gint64 * cur_slot, distance;
       guint32 insn;
 
-      r = &self->literal_refs[ref_idx];
+      r = &g_array_index (self->literal_refs, GumMipsLiteralRef, ref_index);
 
       for (cur_slot = first_slot; cur_slot != last_slot; cur_slot++)
       {
@@ -306,7 +295,7 @@ gum_mips_writer_flush (GumMipsWriter * self)
       insn |= ((distance / 4) & GUM_INT19_MASK) << 5;
       *r->insn = GUINT32_TO_LE (insn);
     }
-    self->literal_refs_len = 0;
+    g_array_set_size (self->literal_refs, 0);
 
     self->code = (guint32 *) last_slot;
     self->pc += (guint8 *) last_slot - (guint8 *) first_slot;
@@ -316,68 +305,34 @@ gum_mips_writer_flush (GumMipsWriter * self)
 
 error:
   {
-    self->label_refs_len = 0;
-    self->literal_refs_len = 0;
+    g_array_set_size (self->label_refs, 0);
+    g_array_set_size (self->literal_refs, 0);
 
     return FALSE;
   }
-}
-
-static guint8 *
-gum_mips_writer_lookup_address_for_label_id (GumMipsWriter * self,
-                                             gconstpointer id)
-{
-  guint i;
-
-  for (i = 0; i < self->id_to_address_len; i++)
-  {
-    GumMipsLabelMapping * map = &self->id_to_address[i];
-    if (map->id == id)
-      return map->address;
-  }
-
-  return NULL;
-}
-
-static gboolean
-gum_mips_writer_add_address_for_label_id (GumMipsWriter * self,
-                                          gconstpointer id,
-                                          gpointer address)
-{
-  GumMipsLabelMapping * map;
-
-  if (self->id_to_address_len == GUM_MAX_LABEL_COUNT)
-    return FALSE;
-
-  map = &self->id_to_address[self->id_to_address_len++];
-  map->id = id;
-  map->address = address;
-
-  return TRUE;
 }
 
 gboolean
 gum_mips_writer_put_label (GumMipsWriter * self,
                            gconstpointer id)
 {
-  if (gum_mips_writer_lookup_address_for_label_id (self, id) != NULL)
+  if (g_hash_table_lookup (self->id_to_address, id) != NULL)
     return FALSE;
 
-  return gum_mips_writer_add_address_for_label_id (self, id, self->code);
+  g_hash_table_insert (self->id_to_address, (gpointer) id, self->code);
+  return TRUE;
 }
 
 static gboolean
 gum_mips_writer_add_label_reference_here (GumMipsWriter * self,
                                           gconstpointer id)
 {
-  GumMipsLabelRef * r;
+  GumMipsLabelRef r;
 
-  if (self->label_refs_len == GUM_MAX_LABEL_REF_COUNT)
-    return FALSE;
+  r.id = id;
+  r.insn = self->code;
 
-  r = &self->label_refs[self->label_refs_len++];
-  r->id = id;
-  r->insn = self->code;
+  g_array_append_val (self->label_refs, r);
 
   return TRUE;
 }

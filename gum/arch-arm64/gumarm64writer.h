@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -17,9 +17,6 @@
 G_BEGIN_DECLS
 
 typedef struct _GumArm64Writer GumArm64Writer;
-typedef struct _GumArm64LabelMapping GumArm64LabelMapping;
-typedef struct _GumArm64LabelRef GumArm64LabelRef;
-typedef struct _GumArm64LiteralRef GumArm64LiteralRef;
 typedef guint GumArm64IndexMode;
 
 struct _GumArm64Writer
@@ -30,14 +27,9 @@ struct _GumArm64Writer
   guint32 * code;
   GumAddress pc;
 
-  GumArm64LabelMapping * id_to_address;
-  guint id_to_address_len;
-
-  GumArm64LabelRef * label_refs;
-  guint label_refs_len;
-
-  GumArm64LiteralRef * literal_refs;
-  guint literal_refs_len;
+  GHashTable * id_to_address;
+  GArray * label_refs;
+  GArray * literal_refs;
 };
 
 enum _GumArm64IndexMode

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -11,10 +11,12 @@
 
 #include <string.h>
 
-#define GUM_MAX_LABEL_COUNT (10 * 1000)
-#define GUM_MAX_LREF_COUNT  (3 * GUM_MAX_LABEL_COUNT)
+typedef guint GumMetaReg;
+typedef struct _GumCpuRegInfo GumCpuRegInfo;
+typedef guint GumX86LabelRefSize;
+typedef struct _GumX86LabelRef GumX86LabelRef;
 
-typedef enum _GumMetaReg
+enum _GumMetaReg
 {
   GUM_META_REG_XAX = 0,
   GUM_META_REG_XCX,
@@ -32,9 +34,7 @@ typedef enum _GumMetaReg
   GUM_META_REG_R13,
   GUM_META_REG_R14,
   GUM_META_REG_R15
-} GumMetaReg;
-
-typedef struct _GumCpuRegInfo GumCpuRegInfo;
+};
 
 struct _GumCpuRegInfo
 {
@@ -44,16 +44,10 @@ struct _GumCpuRegInfo
   gboolean index_is_extended;
 };
 
-typedef enum _GumX86LabelRefSize
+enum _GumX86LabelRefSize
 {
   GUM_LREF_SHORT,
   GUM_LREF_NEAR
-} GumX86LabelRefSize;
-
-struct _GumX86LabelMapping
-{
-  gconstpointer id;
-  gpointer address;
 };
 
 struct _GumX86LabelRef
@@ -63,8 +57,6 @@ struct _GumX86LabelRef
   GumX86LabelRefSize size;
 };
 
-static guint8 * gum_x86_writer_lookup_address_for_label_id (
-    GumX86Writer * self, gconstpointer id);
 static void gum_x86_writer_put_argument_list_setup (GumX86Writer * self,
     GumCallingConvention conv, guint n_args, const GumArgument * args);
 static void gum_x86_writer_put_argument_list_setup_va (GumX86Writer * self,
@@ -132,8 +124,8 @@ gum_x86_writer_init (GumX86Writer * writer,
 {
   writer->ref_count = 1;
 
-  writer->id_to_address = g_new (GumX86LabelMapping, GUM_MAX_LABEL_COUNT);
-  writer->label_refs = g_new (GumX86LabelRef, GUM_MAX_LREF_COUNT);
+  writer->id_to_address = g_hash_table_new (NULL, NULL);
+  writer->label_refs = g_array_new (FALSE, FALSE, sizeof (GumX86LabelRef));
 
   gum_x86_writer_reset (writer, code_address);
 }
@@ -143,8 +135,8 @@ gum_x86_writer_clear (GumX86Writer * writer)
 {
   gum_x86_writer_flush (writer);
 
-  g_free (writer->id_to_address);
-  g_free (writer->label_refs);
+  g_hash_table_unref (writer->id_to_address);
+  g_array_free (writer->label_refs, TRUE);
 }
 
 void
@@ -162,8 +154,8 @@ gum_x86_writer_reset (GumX86Writer * writer,
   writer->code = (guint8 *) code_address;
   writer->pc = GUM_ADDRESS (code_address);
 
-  writer->id_to_address_len = 0;
-  writer->label_refs_len = 0;
+  g_hash_table_remove_all (writer->id_to_address);
+  g_array_set_size (writer->label_refs, 0);
 }
 
 void
@@ -203,15 +195,18 @@ gum_x86_writer_commit (GumX86Writer * self,
 gboolean
 gum_x86_writer_flush (GumX86Writer * self)
 {
-  guint i;
+  guint num_refs, ref_index;
 
-  for (i = 0; i < self->label_refs_len; i++)
+  num_refs = self->label_refs->len;
+  for (ref_index = 0; ref_index != num_refs; ref_index++)
   {
-    GumX86LabelRef * r = &self->label_refs[i];
+    GumX86LabelRef * r;
     gpointer target_address;
     gint32 distance;
 
-    target_address = gum_x86_writer_lookup_address_for_label_id (self, r->id);
+    r = &g_array_index (self->label_refs, GumX86LabelRef, ref_index);
+
+    target_address = g_hash_table_lookup (self->id_to_address, r->id);
     if (target_address == NULL)
       goto error;
 
@@ -228,13 +223,13 @@ gum_x86_writer_flush (GumX86Writer * self)
       *((gint32 *) (r->address - 4)) = GINT32_TO_LE (distance);
     }
   }
-  self->label_refs_len = 0;
+  g_array_set_size (self->label_refs, 0);
 
   return TRUE;
 
 error:
   {
-    self->label_refs_len = 0;
+    g_array_set_size (self->label_refs, 0);
 
     return FALSE;
   }
@@ -287,47 +282,15 @@ gum_x86_writer_get_cpu_register_for_nth_argument (GumX86Writer * self,
   return GUM_REG_NONE;
 }
 
-static guint8 *
-gum_x86_writer_lookup_address_for_label_id (GumX86Writer * self,
-                                            gconstpointer id)
-{
-  guint i;
-
-  for (i = 0; i < self->id_to_address_len; i++)
-  {
-    GumX86LabelMapping * map = &self->id_to_address[i];
-    if (map->id == id)
-      return map->address;
-  }
-
-  return NULL;
-}
-
-static gboolean
-gum_x86_writer_add_address_for_label_id (GumX86Writer * self,
-                                         gconstpointer id,
-                                         gpointer address)
-{
-  GumX86LabelMapping * map;
-
-  if (self->id_to_address_len == GUM_MAX_LABEL_COUNT)
-    return FALSE;
-
-  map = &self->id_to_address[self->id_to_address_len++];
-  map->id = id;
-  map->address = address;
-
-  return TRUE;
-}
-
 gboolean
 gum_x86_writer_put_label (GumX86Writer * self,
                           gconstpointer id)
 {
-  if (gum_x86_writer_lookup_address_for_label_id (self, id) != NULL)
+  if (g_hash_table_lookup (self->id_to_address, id) != NULL)
     return FALSE;
 
-  return gum_x86_writer_add_address_for_label_id (self, id, self->code);
+  g_hash_table_insert (self->id_to_address, (gpointer) id, self->code);
+  return TRUE;
 }
 
 static gboolean
@@ -335,15 +298,13 @@ gum_x86_writer_add_label_reference_here (GumX86Writer * self,
                                          gconstpointer id,
                                          GumX86LabelRefSize size)
 {
-  GumX86LabelRef * r;
+  GumX86LabelRef r;
 
-  if (self->label_refs_len == GUM_MAX_LREF_COUNT)
-    return FALSE;
+  r.id = id;
+  r.address = self->code;
+  r.size = size;
 
-  r = &self->label_refs[self->label_refs_len++];
-  r->id = id;
-  r->address = self->code;
-  r->size = size;
+  g_array_append_val (self->label_refs, r);
 
   return TRUE;
 }

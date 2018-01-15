@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -15,7 +15,6 @@
 G_BEGIN_DECLS
 
 typedef struct _GumArmWriter GumArmWriter;
-typedef struct _GumArmLiteralRef GumArmLiteralRef;
 
 struct _GumArmWriter
 {
@@ -27,8 +26,7 @@ struct _GumArmWriter
   guint32 * code;
   GumAddress pc;
 
-  GumArmLiteralRef * literal_refs;
-  guint literal_refs_len;
+  GArray * literal_refs;
 };
 
 GUM_API GumArmWriter * gum_arm_writer_new (gpointer code_address);

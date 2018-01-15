@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -17,9 +17,6 @@ typedef struct _GumX86Writer GumX86Writer;
 typedef guint GumCpuReg;
 typedef guint GumPtrTarget;
 
-typedef struct _GumX86LabelMapping GumX86LabelMapping;
-typedef struct _GumX86LabelRef GumX86LabelRef;
-
 struct _GumX86Writer
 {
   volatile gint ref_count;
@@ -31,11 +28,8 @@ struct _GumX86Writer
   guint8 * code;
   GumAddress pc;
 
-  GumX86LabelMapping * id_to_address;
-  guint id_to_address_len;
-
-  GumX86LabelRef * label_refs;
-  guint label_refs_len;
+  GHashTable * id_to_address;
+  GArray * label_refs;
 };
 
 enum _GumCpuReg

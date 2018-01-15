@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -13,7 +13,7 @@
 
 #include <string.h>
 
-#define GUM_MAX_LITERAL_REF_COUNT 100
+typedef struct _GumArmLiteralRef GumArmLiteralRef;
 
 struct _GumArmLiteralRef
 {
@@ -58,7 +58,7 @@ gum_arm_writer_init (GumArmWriter * writer,
 {
   writer->ref_count = 1;
 
-  writer->literal_refs = g_new (GumArmLiteralRef, GUM_MAX_LITERAL_REF_COUNT);
+  writer->literal_refs = g_array_new (FALSE, FALSE, sizeof (GumArmLiteralRef));
 
   gum_arm_writer_reset (writer, code_address);
 }
@@ -68,7 +68,7 @@ gum_arm_writer_clear (GumArmWriter * writer)
 {
   gum_arm_writer_flush (writer);
 
-  g_free (writer->literal_refs);
+  g_array_free (writer->literal_refs, TRUE);
 }
 
 void
@@ -81,7 +81,7 @@ gum_arm_writer_reset (GumArmWriter * writer,
   writer->code = code_address;
   writer->pc = GUM_ADDRESS (code_address);
 
-  writer->literal_refs_len = 0;
+  g_array_set_size (writer->literal_refs, 0);
 }
 
 void
@@ -114,22 +114,25 @@ gum_arm_writer_skip (GumArmWriter * self,
 gboolean
 gum_arm_writer_flush (GumArmWriter * self)
 {
-  if (self->literal_refs_len > 0)
+  guint num_refs;
+
+  num_refs = self->literal_refs->len;
+  if (num_refs > 0)
   {
     guint32 * first_slot, * last_slot;
-    guint ref_idx;
+    guint ref_index;
 
     first_slot = self->code;
     last_slot = first_slot;
 
-    for (ref_idx = 0; ref_idx != self->literal_refs_len; ref_idx++)
+    for (ref_index = 0; ref_index != num_refs; ref_index++)
     {
       GumArmLiteralRef * r;
       guint32 * cur_slot;
       gint64 distance_in_words;
       guint32 insn;
 
-      r = &self->literal_refs[ref_idx];
+      r = &g_array_index (self->literal_refs, GumArmLiteralRef, ref_index);
 
       for (cur_slot = first_slot; cur_slot != last_slot; cur_slot++)
       {
@@ -151,7 +154,7 @@ gum_arm_writer_flush (GumArmWriter * self)
         insn |= 1 << 23;
       *r->insn = GUINT32_TO_LE (insn);
     }
-    self->literal_refs_len = 0;
+    g_array_set_size (self->literal_refs, 0);
 
     self->code = last_slot;
     self->pc += (guint8 *) last_slot - (guint8 *) first_slot;
@@ -164,14 +167,12 @@ static gboolean
 gum_arm_writer_add_literal_reference_here (GumArmWriter * self,
                                            guint32 val)
 {
-  GumArmLiteralRef * r;
+  GumArmLiteralRef r;
 
-  if (self->literal_refs_len == GUM_MAX_LITERAL_REF_COUNT)
-    return FALSE;
+  r.insn = self->code;
+  r.val = val;
 
-  r = &self->literal_refs[self->literal_refs_len++];
-  r->insn = self->code;
-  r->val = val;
+  g_array_append_val (self->literal_refs, r);
 
   return TRUE;
 }
