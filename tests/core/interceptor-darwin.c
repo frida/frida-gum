@@ -283,6 +283,7 @@ INTERCEPTOR_TESTCASE (can_attach_to_sqlite3_close)
 
 INTERCEPTOR_TESTCASE (can_attach_to_sqlite3_thread_cleanup)
 {
+#ifndef HAVE_ARM
   void (* thread_cleanup_impl) (void);
 
   thread_cleanup_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (
@@ -296,6 +297,7 @@ INTERCEPTOR_TESTCASE (can_attach_to_sqlite3_thread_cleanup)
 
   interceptor_fixture_detach_listener (fixture, 0);
   g_string_truncate (fixture->result, 0);
+#endif
 }
 
 static gpointer
