@@ -460,7 +460,11 @@ STALKER_TESTCASE (exclude_blr)
 
   g_assert_cmpint (func (2), ==, 12);
 
+#ifdef HAVE_DARWIN
+  g_assert_cmpuint (fixture->sink->events->len, ==, 41);
+#else
   g_assert_cmpuint (fixture->sink->events->len, ==, 42);
+#endif
 
   gum_free_pages (code);
 }
@@ -1104,6 +1108,7 @@ typedef void (* ClobberFunc) (GumCpuContext * ctx);
 
 STALKER_TESTCASE (no_register_clobber)
 {
+#ifndef HAVE_DARWIN
   guint8 * code;
   GumArm64Writer cw;
   gint i;
@@ -1172,6 +1177,7 @@ STALKER_TESTCASE (no_register_clobber)
   g_assert_cmphex (ctx.lr, ==, ARM64_REG_LR);
 
   gum_free_pages (code);
+#endif
 }
 
 STALKER_TESTCASE (performance)
