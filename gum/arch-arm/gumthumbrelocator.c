@@ -587,7 +587,7 @@ gum_thumb_relocator_rewrite_b_cond (GumThumbRelocator * self,
                                     GumCodeGenCtx * ctx)
 {
   const cs_arm_op * target = &ctx->detail->operands[0];
-  gsize unique_id = ((ctx->insn->address - self->input_pc) << 1);
+  gsize unique_id = GPOINTER_TO_SIZE (ctx->output->code) << 1;
   gconstpointer is_true = GSIZE_TO_POINTER (unique_id | 1);
   gconstpointer is_false = GSIZE_TO_POINTER (unique_id | 0);
 
@@ -637,7 +637,7 @@ gum_thumb_relocator_rewrite_cbz (GumThumbRelocator * self,
 {
   const cs_arm_op * source = &ctx->detail->operands[0];
   const cs_arm_op * target = &ctx->detail->operands[1];
-  gsize unique_id = ((ctx->insn->address - self->input_pc) << 1);
+  gsize unique_id = GPOINTER_TO_SIZE (ctx->output->code) << 1;
   gconstpointer is_true = GSIZE_TO_POINTER (unique_id | 1);
   gconstpointer is_false = GSIZE_TO_POINTER (unique_id | 0);
 

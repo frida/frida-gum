@@ -688,7 +688,7 @@ gum_arm64_relocator_rewrite_b_cond (GumArm64Relocator * self,
                                     GumCodeGenCtx * ctx)
 {
   const cs_arm64_op * target = &ctx->detail->operands[0];
-  gsize unique_id = ((ctx->insn->address - self->input_pc) << 1);
+  gsize unique_id = GPOINTER_TO_SIZE (ctx->output->code) << 1;
   gconstpointer is_true = GSIZE_TO_POINTER (unique_id | 1);
   gconstpointer is_false = GSIZE_TO_POINTER (unique_id | 0);
 
@@ -727,7 +727,7 @@ gum_arm64_relocator_rewrite_cbz (GumArm64Relocator * self,
 {
   const cs_arm64_op * source = &ctx->detail->operands[0];
   const cs_arm64_op * target = &ctx->detail->operands[1];
-  gsize unique_id = ((ctx->insn->address - self->input_pc) << 1);
+  gsize unique_id = GPOINTER_TO_SIZE (ctx->output->code) << 1;
   gconstpointer is_true = GSIZE_TO_POINTER (unique_id | 1);
   gconstpointer is_false = GSIZE_TO_POINTER (unique_id | 0);
 
@@ -756,7 +756,7 @@ gum_arm64_relocator_rewrite_tbz (GumArm64Relocator * self,
   const cs_arm64_op * source = &ctx->detail->operands[0];
   const cs_arm64_op * bit = &ctx->detail->operands[1];
   const cs_arm64_op * target = &ctx->detail->operands[2];
-  gsize unique_id = ((ctx->insn->address - self->input_pc) << 1);
+  gsize unique_id = GPOINTER_TO_SIZE (ctx->output->code) << 1;
   gconstpointer is_true = GSIZE_TO_POINTER (unique_id | 1);
   gconstpointer is_false = GSIZE_TO_POINTER (unique_id | 0);
 

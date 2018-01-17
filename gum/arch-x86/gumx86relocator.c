@@ -503,7 +503,7 @@ gum_x86_relocator_rewrite_conditional_branch (GumX86Relocator * self,
     }
     else if (ctx->insn->id == X86_INS_JECXZ || ctx->insn->id == X86_INS_JRCXZ)
     {
-      gsize unique_id = ((ctx->start - self->input_start) << 1);
+      gsize unique_id = GPOINTER_TO_SIZE (ctx->code_writer->code) << 1;
       gconstpointer is_true = GSIZE_TO_POINTER (unique_id | 1);
       gconstpointer is_false = GSIZE_TO_POINTER (unique_id | 0);
 
