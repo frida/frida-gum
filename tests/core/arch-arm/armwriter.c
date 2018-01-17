@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -9,9 +9,16 @@
 TEST_LIST_BEGIN (armwriter)
   ARMWRITER_TESTENTRY (ldr_u32)
   ARMWRITER_TESTENTRY (ldr_pc_u32)
+#ifdef HAVE_ARM
+  ARMWRITER_TESTENTRY (ldr_in_large_block)
+#endif
 
   ARMWRITER_TESTENTRY (nop)
 TEST_LIST_END ()
+
+#ifdef HAVE_ARM
+static void gum_emit_ldr_in_large_block (gpointer mem, gpointer user_data);
+#endif
 
 ARMWRITER_TESTCASE (ldr_u32)
 {
@@ -33,6 +40,47 @@ ARMWRITER_TESTCASE (ldr_pc_u32)
   assert_output_n_equals (0, 0xe51ff004);
   g_assert_cmphex (GUINT32_FROM_LE (fixture->output[1 + 0]), ==, 0xdeadbeef);
 }
+
+#ifdef HAVE_ARM
+
+ARMWRITER_TESTCASE (ldr_in_large_block)
+{
+  const gsize code_size_in_pages = 2;
+  gsize code_size;
+  gpointer code;
+  gint (* impl) (void);
+
+  code_size = code_size_in_pages * gum_query_page_size ();
+  code = gum_alloc_n_pages (code_size_in_pages, GUM_PAGE_RW);
+  gum_memory_patch_code (GUM_ADDRESS (code), code_size,
+      gum_emit_ldr_in_large_block, code);
+
+  impl = code;
+  g_assert_cmpint (impl (), ==, 0x1337);
+
+  gum_free_pages (code);
+}
+
+static void
+gum_emit_ldr_in_large_block (gpointer mem,
+                             gpointer user_data)
+{
+  gpointer code = user_data;
+  GumArmWriter aw;
+  guint i;
+
+  gum_arm_writer_init (&aw, mem);
+  aw.pc = GUM_ADDRESS (code);
+
+  gum_arm_writer_put_ldr_reg_u32 (&aw, ARM_REG_R0, 0x1337);
+  for (i = 0; i != 1024; i++)
+    gum_arm_writer_put_nop (&aw);
+  gum_arm_writer_put_bx_reg (&aw, ARM_REG_LR);
+
+  gum_arm_writer_clear (&aw);
+}
+
+#endif
 
 ARMWRITER_TESTCASE (nop)
 {

@@ -361,6 +361,9 @@ enum _GumRelocationScenario
 #define GUM_IS_WITHIN_INT21_RANGE(i) \
     (((gint64) (i)) >= G_GINT64_CONSTANT (-1048576) && \
      ((gint64) (i)) <= G_GINT64_CONSTANT (1048575))
+#define GUM_IS_WITHIN_INT24_RANGE(i) \
+    (((gint64) (i)) >= G_GINT64_CONSTANT (-8388608) && \
+     ((gint64) (i)) <= G_GINT64_CONSTANT (8388607))
 #define GUM_IS_WITHIN_INT26_RANGE(i) \
     (((gint64) (i)) >= G_GINT64_CONSTANT (-33554432) && \
      ((gint64) (i)) <= G_GINT64_CONSTANT (33554431))

@@ -30,6 +30,7 @@ struct _GumArm64Writer
   GHashTable * id_to_address;
   GArray * label_refs;
   GArray * literal_refs;
+  const guint32 * earliest_literal_insn;
 };
 
 enum _GumArm64IndexMode

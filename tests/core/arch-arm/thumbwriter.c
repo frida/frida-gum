@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -19,6 +19,9 @@ TEST_LIST_BEGIN (thumbwriter)
   THUMBWRITER_TESTENTRY (push_regs)
   THUMBWRITER_TESTENTRY (pop_regs)
   THUMBWRITER_TESTENTRY (ldr_u32)
+#ifdef HAVE_ARM
+  THUMBWRITER_TESTENTRY (ldr_in_large_block)
+#endif
   THUMBWRITER_TESTENTRY (ldr_reg_reg_offset)
   THUMBWRITER_TESTENTRY (ldr_reg_reg)
   THUMBWRITER_TESTENTRY (str_reg_reg_offset)
@@ -35,6 +38,10 @@ TEST_LIST_BEGIN (thumbwriter)
 
   THUMBWRITER_TESTENTRY (nop)
 TEST_LIST_END ()
+
+#ifdef HAVE_ARM
+static void gum_emit_ldr_in_large_block (gpointer mem, gpointer user_data);
+#endif
 
 THUMBWRITER_TESTCASE (cmp_reg_imm)
 {
@@ -188,6 +195,47 @@ THUMBWRITER_TESTCASE (ldr_u32)
   g_assert_cmphex (GUINT32_FROM_LE (((guint32 *) fixture->output)[3]),
       ==, 0x1227);
 }
+
+#ifdef HAVE_ARM
+
+THUMBWRITER_TESTCASE (ldr_in_large_block)
+{
+  const gsize code_size_in_pages = 1;
+  gsize code_size;
+  gpointer code;
+  gint (* impl) (void);
+
+  code_size = code_size_in_pages * gum_query_page_size ();
+  code = gum_alloc_n_pages (code_size_in_pages, GUM_PAGE_RW);
+  gum_memory_patch_code (GUM_ADDRESS (code), code_size,
+      gum_emit_ldr_in_large_block, code);
+
+  impl = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (code) | 1);
+  g_assert_cmpint (impl (), ==, 0x1337);
+
+  gum_free_pages (code);
+}
+
+static void
+gum_emit_ldr_in_large_block (gpointer mem,
+                             gpointer user_data)
+{
+  gpointer code = user_data;
+  GumThumbWriter tw;
+  guint i;
+
+  gum_thumb_writer_init (&tw, mem);
+  tw.pc = GUM_ADDRESS (code);
+
+  gum_thumb_writer_put_ldr_reg_u32 (&tw, ARM_REG_R0, 0x1337);
+  for (i = 0; i != 511; i++)
+    gum_thumb_writer_put_nop (&tw);
+  gum_thumb_writer_put_bx_reg (&tw, ARM_REG_LR);
+
+  gum_thumb_writer_clear (&tw);
+}
+
+#endif
 
 THUMBWRITER_TESTCASE (ldr_reg_reg_offset)
 {

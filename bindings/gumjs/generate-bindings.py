@@ -785,7 +785,7 @@ static const GumDukPropertyEntry {gumjs_function_prefix}_values[] =
 """
     params = dict(component.__dict__)
 
-    label_resolver = """
+    params["label_resolver"] = """
 static gconstpointer
 {wrapper_function_prefix}_resolve_label ({wrapper_struct_name} * self,
     const gchar * str)
@@ -799,10 +799,6 @@ static gconstpointer
   return label;
 }}
 """.format(**params)
-    if component.flavor != "arm":
-        params["label_resolver"] = label_resolver
-    else:
-        params["label_resolver"] = ""
 
     return template.format(**params).split("\n")
 
@@ -1775,7 +1771,7 @@ static const GumV8Property {gumjs_function_prefix}_values[] =
 
     params = dict(component.__dict__)
 
-    label_resolver = """
+    params["label_resolver"] = """
 static gconstpointer
 {wrapper_function_prefix}_resolve_label ({wrapper_struct_name} * self,
     const std::string & str)
@@ -1789,10 +1785,6 @@ static gconstpointer
   return label;
 }}
 """.format(**params)
-    if component.flavor != "arm":
-        params["label_resolver"] = label_resolver
-    else:
-        params["label_resolver"] = ""
 
     return template.format(**params).split("\n")
 

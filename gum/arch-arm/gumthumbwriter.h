@@ -29,6 +29,7 @@ struct _GumThumbWriter
   GHashTable * id_to_address;
   GArray * label_refs;
   GArray * literal_refs;
+  const guint16 * earliest_literal_insn;
 };
 
 GUM_API GumThumbWriter * gum_thumb_writer_new (gpointer code_address);
@@ -132,6 +133,8 @@ GUM_API void gum_thumb_writer_put_breakpoint (GumThumbWriter * self);
 
 GUM_API void gum_thumb_writer_put_instruction (GumThumbWriter * self,
     guint16 insn);
+GUM_API void gum_thumb_writer_put_wide_instruction (GumThumbWriter * self,
+    guint16 a, guint16 b);
 GUM_API gboolean gum_thumb_writer_put_bytes (GumThumbWriter * self,
     const guint8 * data, guint n);
 

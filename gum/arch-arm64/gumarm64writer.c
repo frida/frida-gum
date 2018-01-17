@@ -111,6 +111,10 @@ static void gum_arm64_writer_put_load_store_pair (GumArm64Writer * self,
     GumArm64MemOperandType operand_type, guint rt, guint rt2, guint rn,
     gssize rn_offset, GumArm64IndexMode mode);
 
+static gboolean gum_arm64_writer_try_commit_label_refs (GumArm64Writer * self);
+static void gum_arm64_writer_maybe_commit_literals (GumArm64Writer * self);
+static void gum_arm64_writer_commit_literals (GumArm64Writer * self);
+
 static void gum_arm64_writer_describe_reg (GumArm64Writer * self,
     arm64_reg reg, GumArm64RegInfo * ri);
 
@@ -199,6 +203,7 @@ gum_arm64_writer_reset (GumArm64Writer * writer,
   g_hash_table_remove_all (writer->id_to_address);
   g_array_set_size (writer->label_refs, 0);
   g_array_set_size (writer->literal_refs, 0);
+  writer->earliest_literal_insn = NULL;
 }
 
 gpointer
@@ -224,88 +229,10 @@ gum_arm64_writer_skip (GumArm64Writer * self,
 gboolean
 gum_arm64_writer_flush (GumArm64Writer * self)
 {
-  guint num_refs, ref_index;
+  if (!gum_arm64_writer_try_commit_label_refs (self))
+    goto error;
 
-  num_refs = self->label_refs->len;
-  for (ref_index = 0; ref_index != num_refs; ref_index++)
-  {
-    GumArm64LabelRef * r;
-    const guint32 * target_insn;
-    gssize distance;
-    guint32 insn;
-
-    r = &g_array_index (self->label_refs, GumArm64LabelRef, ref_index);
-
-    target_insn = g_hash_table_lookup (self->id_to_address, r->id);
-    if (target_insn == NULL)
-      goto error;
-
-    distance = target_insn - r->insn;
-
-    insn = GUINT32_FROM_LE (*r->insn);
-    if (insn == 0x14000000)
-    {
-      if (!GUM_IS_WITHIN_INT26_RANGE (distance))
-        goto error;
-      insn |= distance & GUM_INT26_MASK;
-    }
-    else if ((insn & 0x7e000000) == 0x36000000)
-    {
-      if (!GUM_IS_WITHIN_INT14_RANGE (distance))
-        goto error;
-      insn |= (distance & GUM_INT14_MASK) << 5;
-    }
-    else
-    {
-      if (!GUM_IS_WITHIN_INT19_RANGE (distance))
-        goto error;
-      insn |= (distance & GUM_INT19_MASK) << 5;
-    }
-
-    *r->insn = GUINT32_TO_LE (insn);
-  }
-  g_array_set_size (self->label_refs, 0);
-
-  num_refs = self->literal_refs->len;
-  if (num_refs > 0)
-  {
-    gint64 * first_slot, * last_slot;
-
-    first_slot = (gint64 *) self->code;
-    last_slot = first_slot;
-
-    for (ref_index = 0; ref_index != num_refs; ref_index++)
-    {
-      GumArm64LiteralRef * r;
-      gint64 * cur_slot, distance;
-      guint32 insn;
-
-      r = &g_array_index (self->literal_refs, GumArm64LiteralRef, ref_index);
-
-      for (cur_slot = first_slot; cur_slot != last_slot; cur_slot++)
-      {
-        if (*cur_slot == r->val)
-          break;
-      }
-
-      if (cur_slot == last_slot)
-      {
-        *cur_slot = r->val;
-        last_slot++;
-      }
-
-      distance = (gint64) GPOINTER_TO_SIZE (cur_slot) -
-          (gint64) GPOINTER_TO_SIZE (r->insn);
-
-      insn = GUINT32_FROM_LE (*r->insn);
-      insn |= ((distance / 4) & GUM_INT19_MASK) << 5;
-      *r->insn = GUINT32_TO_LE (insn);
-    }
-    g_array_set_size (self->literal_refs, 0);
-
-    self->code = (guint32 *) last_slot;
-    self->pc += (guint8 *) last_slot - (guint8 *) first_slot;
-  }
+  gum_arm64_writer_commit_literals (self);
 
   return TRUE;
 
@@ -353,6 +280,11 @@ gum_arm64_writer_add_literal_reference_here (GumArm64Writer * self,
   r.val = val;
 
   g_array_append_val (self->literal_refs, r);
+
+  if (self->earliest_literal_insn == NULL)
+  {
+    self->earliest_literal_insn = r.insn;
+  }
 
   return TRUE;
 }
@@ -1332,6 +1264,8 @@ gum_arm64_writer_put_instruction (GumArm64Writer * self,
 {
   *self->code++ = GUINT32_TO_LE (insn);
   self->pc += 4;
+
+  gum_arm64_writer_maybe_commit_literals (self);
 }
 
 gboolean
@@ -1346,7 +1280,126 @@ gum_arm64_writer_put_bytes (GumArm64Writer * self,
   self->code += n / sizeof (guint32);
   self->pc += n;
 
+  gum_arm64_writer_maybe_commit_literals (self);
+
   return TRUE;
+}
+
+static gboolean
+gum_arm64_writer_try_commit_label_refs (GumArm64Writer * self)
+{
+  guint num_refs, ref_index;
+
+  num_refs = self->label_refs->len;
+  for (ref_index = 0; ref_index != num_refs; ref_index++)
+  {
+    GumArm64LabelRef * r;
+    const guint32 * target_insn;
+    gssize distance;
+    guint32 insn;
+
+    r = &g_array_index (self->label_refs, GumArm64LabelRef, ref_index);
+
+    target_insn = g_hash_table_lookup (self->id_to_address, r->id);
+    if (target_insn == NULL)
+      return FALSE;
+
+    distance = target_insn - r->insn;
+
+    insn = GUINT32_FROM_LE (*r->insn);
+    if (insn == 0x14000000)
+    {
+      if (!GUM_IS_WITHIN_INT26_RANGE (distance))
+        return FALSE;
+      insn |= distance & GUM_INT26_MASK;
+    }
+    else if ((insn & 0x7e000000) == 0x36000000)
+    {
+      if (!GUM_IS_WITHIN_INT14_RANGE (distance))
+        return FALSE;
+      insn |= (distance & GUM_INT14_MASK) << 5;
+    }
+    else
+    {
+      if (!GUM_IS_WITHIN_INT19_RANGE (distance))
+        return FALSE;
+      insn |= (distance & GUM_INT19_MASK) << 5;
+    }
+
+    *r->insn = GUINT32_TO_LE (insn);
+  }
+
+  g_array_set_size (self->label_refs, 0);
+
+  return TRUE;
+}
+
+static void
+gum_arm64_writer_maybe_commit_literals (GumArm64Writer * self)
+{
+  guint space_used;
+  gconstpointer after_literals = self->code;
+
+  if (self->earliest_literal_insn == NULL)
+    return;
+
+  space_used = (self->code - self->earliest_literal_insn) * sizeof (guint32);
+  space_used += self->literal_refs->len * sizeof (guint64);
+  if (space_used <= 1048572)
+    return;
+
+  self->earliest_literal_insn = NULL;
+
+  gum_arm64_writer_put_b_label (self, after_literals);
+  gum_arm64_writer_commit_literals (self);
+  gum_arm64_writer_put_label (self, after_literals);
+}
+
+static void
+gum_arm64_writer_commit_literals (GumArm64Writer * self)
+{
+  guint num_refs, ref_index;
+  gint64 * first_slot, * last_slot;
+
+  num_refs = self->literal_refs->len;
+  if (num_refs == 0)
+    return;
+
+  first_slot = (gint64 *) self->code;
+  last_slot = first_slot;
+
+  for (ref_index = 0; ref_index != num_refs; ref_index++)
+  {
+    GumArm64LiteralRef * r;
+    gint64 * cur_slot, distance;
+    guint32 insn;
+
+    r = &g_array_index (self->literal_refs, GumArm64LiteralRef, ref_index);
+
+    for (cur_slot = first_slot; cur_slot != last_slot; cur_slot++)
+    {
+      if (*cur_slot == r->val)
+        break;
+    }
+
+    if (cur_slot == last_slot)
+    {
+      *cur_slot = r->val;
+      last_slot++;
+    }
+
+    distance = (gint64) GPOINTER_TO_SIZE (cur_slot) -
+        (gint64) GPOINTER_TO_SIZE (r->insn);
+
+    insn = GUINT32_FROM_LE (*r->insn);
+    insn |= ((distance / 4) & GUM_INT19_MASK) << 5;
+    *r->insn = GUINT32_TO_LE (insn);
+  }
+
+  self->code = (guint32 *) last_slot;
+  self->pc += (guint8 *) last_slot - (guint8 *) first_slot;
+
+  g_array_set_size (self->literal_refs, 0);
 }
 
 static void

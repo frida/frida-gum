@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -19,6 +19,9 @@ TEST_LIST_BEGIN (arm64writer)
   TESTENTRY (pop_reg_reg)
   TESTENTRY (ldr_x_address)
   TESTENTRY (ldr_d_address)
+#ifdef HAVE_ARM64
+  TESTENTRY (ldr_in_large_block)
+#endif
   TESTENTRY (ldr_integer_reg_reg_imm)
   TESTENTRY (ldr_fp_reg_reg_imm)
   TESTENTRY (ldrsw_reg_reg_imm)
@@ -32,6 +35,10 @@ TEST_LIST_BEGIN (arm64writer)
   TESTENTRY (tst_reg_imm)
   TESTENTRY (cmp_reg_reg)
 TEST_LIST_END ()
+
+#ifdef HAVE_ARM64
+static void gum_emit_ldr_in_large_block (gpointer mem, gpointer user_data);
+#endif
 
 TESTCASE (cbz_reg_label)
 {
@@ -150,6 +157,47 @@ TESTCASE (ldr_d_address)
       GUINT64_FROM_LE (*((guint64 *) (((guint8 *) fixture->output) + 4))),
       ==, 0x123456789abcdef0);
 }
+
+#ifdef HAVE_ARM64
+
+TESTCASE (ldr_in_large_block)
+{
+  const gsize code_size_in_pages = 512;
+  gsize code_size;
+  gpointer code;
+  gint (* impl) (void);
+
+  code_size = code_size_in_pages * gum_query_page_size ();
+  code = gum_alloc_n_pages (code_size_in_pages, GUM_PAGE_RW);
+  gum_memory_patch_code (GUM_ADDRESS (code), code_size,
+      gum_emit_ldr_in_large_block, code);
+
+  impl = code;
+  g_assert_cmpint (impl (), ==, 0x1337);
+
+  gum_free_pages (code);
+}
+
+static void
+gum_emit_ldr_in_large_block (gpointer mem,
+                             gpointer user_data)
+{
+  gpointer code = user_data;
+  GumArm64Writer aw;
+  guint i;
+
+  gum_arm64_writer_init (&aw, mem);
+  aw.pc = GUM_ADDRESS (code);
+
+  gum_arm64_writer_put_ldr_reg_address (&aw, ARM64_REG_X0, 0x1337);
+  for (i = 0; i != 262142; i++)
+    gum_arm64_writer_put_nop (&aw);
+  gum_arm64_writer_put_ret (&aw);
+
+  gum_arm64_writer_clear (&aw);
+}
+
+#endif
 
 TESTCASE (ldr_integer_reg_reg_imm)
 {

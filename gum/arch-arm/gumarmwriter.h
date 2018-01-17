@@ -26,7 +26,10 @@ struct _GumArmWriter
   guint32 * code;
   GumAddress pc;
 
+  GHashTable * id_to_address;
+  GArray * label_refs;
   GArray * literal_refs;
+  const guint32 * earliest_literal_insn;
 };
 
 GUM_API GumArmWriter * gum_arm_writer_new (gpointer code_address);
@@ -46,8 +49,14 @@ GUM_API void gum_arm_writer_skip (GumArmWriter * self, guint n_bytes);
 
 GUM_API gboolean gum_arm_writer_flush (GumArmWriter * self);
 
+GUM_API gboolean gum_arm_writer_put_label (GumArmWriter * self,
+    gconstpointer id);
+
 GUM_API gboolean gum_arm_writer_put_b_imm (GumArmWriter * self,
     GumAddress target);
+GUM_API void gum_arm_writer_put_bx_reg (GumArmWriter * self, arm_reg reg);
+GUM_API gboolean gum_arm_writer_put_b_label (GumArmWriter * self,
+    gconstpointer label_id);
 
 GUM_API gboolean gum_arm_writer_put_ldr_reg_address (GumArmWriter * self,
     arm_reg reg, GumAddress address);
