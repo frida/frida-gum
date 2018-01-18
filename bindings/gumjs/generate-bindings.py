@@ -2398,6 +2398,8 @@ def generate_class_api_reference(name, arch, flavor, api):
                 description = "put `n` NOP instructions"
             elif method.name == "put_instruction":
                 description = "put a raw instruction as a JavaScript Number"
+            elif method.name == "put_instruction_wide":
+                description = "put a raw Thumb-2 instruction from\n    two JavaScript Number values"
             elif method.name == "put_u8":
                 description = "put a uint8"
             elif method.name == "put_s8":
