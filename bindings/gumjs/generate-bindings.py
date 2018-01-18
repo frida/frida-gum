@@ -2566,10 +2566,14 @@ class MethodArgument(object):
         name_raw = None
         converter = None
 
-        if type in ("GumCpuReg", "arm_reg", "arm_sysreg", "arm64_reg", "mips_reg"):
+        if type in ("GumCpuReg", "arm_reg", "arm64_reg", "mips_reg"):
             self.type_raw = "const gchar *"
             self.type_format = "s"
             converter = "register"
+        elif type in ("arm_sysreg",):
+            self.type_raw = "const gchar *"
+            self.type_format = "s"
+            converter = "system_register"
         elif type in ("gint", "gint8", "gint16", "gint32"):
             self.type_raw = "gint"
             self.type_format = "i"
