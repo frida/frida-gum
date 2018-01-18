@@ -2157,6 +2157,9 @@ writer_enums = {
             "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
             "sp", "lr", "sb", "sl", "fp", "ip", "pc",
         ]),
+        ("arm_system_register", "arm_sysreg", "ARM_SYSREG_", [
+            "apsr_nzcvq",
+        ]),
         ("arm_condition_code", "arm_cc", "ARM_CC_", [
             "eq", "ne", "hs", "lo", "mi", "pl", "vs", "vc",
             "hi", "ls", "ge", "lt", "gt", "le", "al",
@@ -2563,7 +2566,7 @@ class MethodArgument(object):
         name_raw = None
         converter = None
 
-        if type in ("GumCpuReg", "arm_reg", "arm64_reg", "mips_reg"):
+        if type in ("GumCpuReg", "arm_reg", "arm_sysreg", "arm64_reg", "mips_reg"):
             self.type_raw = "const gchar *"
             self.type_format = "s"
             converter = "register"

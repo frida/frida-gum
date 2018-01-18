@@ -980,6 +980,48 @@ gum_thumb_writer_put_sub_reg_reg_imm (GumThumbWriter * self,
       -right_value);
 }
 
+gboolean
+gum_thumb_writer_put_mrs_reg_reg (GumThumbWriter * self,
+                                  arm_reg dst_reg,
+                                  arm_sysreg src_reg)
+{
+  GumArmRegInfo dst;
+
+  gum_arm_reg_describe (dst_reg, &dst);
+
+  if (dst.meta > GUM_ARM_MREG_R12)
+    return FALSE;
+  if (src_reg != ARM_SYSREG_APSR_NZCVQ)
+    return FALSE;
+
+  gum_thumb_writer_put_instruction_wide (self,
+      0xf3ef,
+      0x8000 | (dst.index << 8));
+
+  return TRUE;
+}
+
+gboolean
+gum_thumb_writer_put_msr_reg_reg (GumThumbWriter * self,
+                                  arm_sysreg dst_reg,
+                                  arm_reg src_reg)
+{
+  GumArmRegInfo src;
+
+  gum_arm_reg_describe (src_reg, &src);
+
+  if (dst_reg != ARM_SYSREG_APSR_NZCVQ)
+    return FALSE;
+  if (src.meta > GUM_ARM_MREG_R12)
+    return FALSE;
+
+  gum_thumb_writer_put_instruction_wide (self,
+      0xf380 | src.index,
+      0x8800);
+
+  return TRUE;
+}
+
 void
 gum_thumb_writer_put_nop (GumThumbWriter * self)
 {

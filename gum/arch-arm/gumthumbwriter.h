@@ -128,6 +128,10 @@ GUM_API void gum_thumb_writer_put_sub_reg_reg_reg (GumThumbWriter * self,
     arm_reg dst_reg, arm_reg left_reg, arm_reg right_reg);
 GUM_API gboolean gum_thumb_writer_put_sub_reg_reg_imm (GumThumbWriter * self,
     arm_reg dst_reg, arm_reg left_reg, gssize right_value);
+GUM_API gboolean gum_thumb_writer_put_mrs_reg_reg (GumThumbWriter * self,
+    arm_reg dst_reg, arm_sysreg src_reg);
+GUM_API gboolean gum_thumb_writer_put_msr_reg_reg (GumThumbWriter * self,
+    arm_sysreg dst_reg, arm_reg src_reg);
 
 GUM_API void gum_thumb_writer_put_nop (GumThumbWriter * self);
 GUM_API void gum_thumb_writer_put_bkpt_imm (GumThumbWriter * self, guint8 imm);

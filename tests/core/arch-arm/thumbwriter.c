@@ -37,6 +37,9 @@ TEST_LIST_BEGIN (thumbwriter)
   THUMBWRITER_TESTENTRY (sub_reg_reg_reg)
   THUMBWRITER_TESTENTRY (sub_reg_reg_imm)
 
+  THUMBWRITER_TESTENTRY (mrs_reg_reg)
+  THUMBWRITER_TESTENTRY (msr_reg_reg)
+
   THUMBWRITER_TESTENTRY (nop)
 TEST_LIST_END ()
 
@@ -527,6 +530,32 @@ THUMBWRITER_TESTCASE (sub_reg_reg_imm)
   gum_thumb_writer_put_sub_reg_reg_imm (&fixture->tw, ARM_REG_R1, ARM_REG_R7,
       5);
   assert_output_equals (0x1f79);
+}
+
+THUMBWRITER_TESTCASE (mrs_reg_reg)
+{
+  gum_thumb_writer_put_mrs_reg_reg (&fixture->tw, ARM_REG_R1,
+      ARM_SYSREG_APSR_NZCVQ);
+  assert_output_n_equals (0, 0xf3ef);
+  assert_output_n_equals (1, 0x8100);
+
+  gum_thumb_writer_put_mrs_reg_reg (&fixture->tw, ARM_REG_R7,
+      ARM_SYSREG_APSR_NZCVQ);
+  assert_output_n_equals (2, 0xf3ef);
+  assert_output_n_equals (3, 0x8700);
+}
+
+THUMBWRITER_TESTCASE (msr_reg_reg)
+{
+  gum_thumb_writer_put_msr_reg_reg (&fixture->tw, ARM_SYSREG_APSR_NZCVQ,
+      ARM_REG_R1);
+  assert_output_n_equals (0, 0xf381);
+  assert_output_n_equals (1, 0x8800);
+
+  gum_thumb_writer_put_msr_reg_reg (&fixture->tw, ARM_SYSREG_APSR_NZCVQ,
+      ARM_REG_R7);
+  assert_output_n_equals (2, 0xf387);
+  assert_output_n_equals (3, 0x8800);
 }
 
 THUMBWRITER_TESTCASE (nop)
