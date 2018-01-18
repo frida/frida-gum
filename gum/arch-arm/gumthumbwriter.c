@@ -422,7 +422,7 @@ gum_thumb_writer_put_branch_imm (GumThumbWriter * self,
   imm10 = (distance.u >> 11) & GUM_INT10_MASK;
   imm11 = distance.u & GUM_INT11_MASK;
 
-  gum_thumb_writer_put_wide_instruction (self,
+  gum_thumb_writer_put_instruction_wide (self,
       0xf000 | (s << 10) | imm10,
       0x8000 | (link << 14) | (j1 << 13) | (thumb << 12) | (j2 << 11) | imm11);
 }
@@ -476,7 +476,7 @@ gum_thumb_writer_put_b_cond_label_wide (GumThumbWriter * self,
                                         gconstpointer label_id)
 {
   gum_thumb_writer_add_label_reference_here (self, label_id);
-  gum_thumb_writer_put_wide_instruction (self,
+  gum_thumb_writer_put_instruction_wide (self,
       0xf000 | ((cc - 1) << 6),
       0x8000);
 }
@@ -675,7 +675,7 @@ gum_thumb_writer_put_ldr_reg_u32 (GumThumbWriter * self,
   {
     gboolean add = TRUE;
 
-    gum_thumb_writer_put_wide_instruction (self,
+    gum_thumb_writer_put_instruction_wide (self,
         0xf85f | (add << 7),
         (ri.index << 12));
   }
@@ -754,7 +754,7 @@ gum_thumb_writer_put_transfer_reg_reg_offset (GumThumbWriter * self,
     if (right_offset > 4095)
       return FALSE;
 
-    gum_thumb_writer_put_wide_instruction (self,
+    gum_thumb_writer_put_instruction_wide (self,
         0xf8c0 | ((operation == GUM_THUMB_MEMORY_LOAD) ? 0x0010 : 0x0000) |
             rr.index,
         (lr.index << 12) | right_offset);
@@ -1020,12 +1020,12 @@ gum_thumb_writer_put_instruction (GumThumbWriter * self,
 }
 
 void
-gum_thumb_writer_put_wide_instruction (GumThumbWriter * self,
-                                       guint16 a,
-                                       guint16 b)
+gum_thumb_writer_put_instruction_wide (GumThumbWriter * self,
+                                       guint16 upper,
+                                       guint16 lower)
 {
-  *self->code++ = GUINT16_TO_LE (a);
-  *self->code++ = GUINT16_TO_LE (b);
+  *self->code++ = GUINT16_TO_LE (upper);
+  *self->code++ = GUINT16_TO_LE (lower);
   self->pc += 4;
 
   gum_thumb_writer_maybe_commit_literals (self);
