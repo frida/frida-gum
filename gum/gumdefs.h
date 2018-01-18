@@ -325,6 +325,7 @@ enum _GumRelocationScenario
 #define GUM_POINTER_TO_FUNCPTR(t, p) ((t) GPOINTER_TO_SIZE (p))
 
 #define GUM_INT5_MASK  0x0000001f
+#define GUM_INT6_MASK  0x0000003f
 #define GUM_INT8_MASK  0x000000ff
 #define GUM_INT10_MASK 0x000003ff
 #define GUM_INT11_MASK 0x000007ff
@@ -358,6 +359,9 @@ enum _GumRelocationScenario
 #define GUM_IS_WITHIN_INT19_RANGE(i) \
     (((gint64) (i)) >= G_GINT64_CONSTANT (-262144) && \
      ((gint64) (i)) <= G_GINT64_CONSTANT (262143))
+#define GUM_IS_WITHIN_INT20_RANGE(i) \
+    (((gint64) (i)) >= G_GINT64_CONSTANT (-524288) && \
+     ((gint64) (i)) <= G_GINT64_CONSTANT (524287))
 #define GUM_IS_WITHIN_INT21_RANGE(i) \
     (((gint64) (i)) >= G_GINT64_CONSTANT (-1048576) && \
      ((gint64) (i)) <= G_GINT64_CONSTANT (1048575))

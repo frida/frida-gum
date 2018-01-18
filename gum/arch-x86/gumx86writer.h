@@ -164,7 +164,7 @@ GUM_API gboolean gum_x86_writer_put_call_reg_offset_ptr (GumX86Writer * self,
     GumCpuReg reg, gssize offset);
 GUM_API void gum_x86_writer_put_call_indirect (GumX86Writer * self,
     gconstpointer * addr);
-GUM_API gboolean gum_x86_writer_put_call_near_label (GumX86Writer * self,
+GUM_API void gum_x86_writer_put_call_near_label (GumX86Writer * self,
     gconstpointer label_id);
 GUM_API void gum_x86_writer_put_leave (GumX86Writer * self);
 GUM_API void gum_x86_writer_put_ret (GumX86Writer * self);
@@ -172,9 +172,9 @@ GUM_API void gum_x86_writer_put_ret_imm (GumX86Writer * self,
     guint16 imm_value);
 GUM_API gboolean gum_x86_writer_put_jmp_address (GumX86Writer * self,
     GumAddress address);
-GUM_API gboolean gum_x86_writer_put_jmp_short_label (GumX86Writer * self,
+GUM_API void gum_x86_writer_put_jmp_short_label (GumX86Writer * self,
     gconstpointer label_id);
-GUM_API gboolean gum_x86_writer_put_jmp_near_label (GumX86Writer * self,
+GUM_API void gum_x86_writer_put_jmp_near_label (GumX86Writer * self,
     gconstpointer label_id);
 GUM_API gboolean gum_x86_writer_put_jmp_reg (GumX86Writer * self,
     GumCpuReg reg);
@@ -188,9 +188,9 @@ GUM_API gboolean gum_x86_writer_put_jcc_short (GumX86Writer * self,
     x86_insn instruction_id, gconstpointer target, GumBranchHint hint);
 GUM_API gboolean gum_x86_writer_put_jcc_near (GumX86Writer * self,
     x86_insn instruction_id, gconstpointer target, GumBranchHint hint);
-GUM_API gboolean gum_x86_writer_put_jcc_short_label (GumX86Writer * self,
+GUM_API void gum_x86_writer_put_jcc_short_label (GumX86Writer * self,
     x86_insn instruction_id, gconstpointer label_id, GumBranchHint hint);
-GUM_API gboolean gum_x86_writer_put_jcc_near_label (GumX86Writer * self,
+GUM_API void gum_x86_writer_put_jcc_near_label (GumX86Writer * self,
     x86_insn instruction_id, gconstpointer label_id, GumBranchHint hint);
 
 GUM_API gboolean gum_x86_writer_put_add_reg_imm (GumX86Writer * self,

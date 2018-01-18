@@ -73,17 +73,19 @@ GUM_API void gum_thumb_writer_put_blx_imm (GumThumbWriter * self,
     GumAddress target);
 GUM_API void gum_thumb_writer_put_cmp_reg_imm (GumThumbWriter * self,
     arm_reg reg, guint8 imm_value);
-GUM_API gboolean gum_thumb_writer_put_b_label (GumThumbWriter * self,
+GUM_API void gum_thumb_writer_put_b_label (GumThumbWriter * self,
     gconstpointer label_id);
-GUM_API gboolean gum_thumb_writer_put_beq_label (GumThumbWriter * self,
+GUM_API void gum_thumb_writer_put_beq_label (GumThumbWriter * self,
     gconstpointer label_id);
-GUM_API gboolean gum_thumb_writer_put_bne_label (GumThumbWriter * self,
+GUM_API void gum_thumb_writer_put_bne_label (GumThumbWriter * self,
     gconstpointer label_id);
-GUM_API gboolean gum_thumb_writer_put_b_cond_label (GumThumbWriter * self,
+GUM_API void gum_thumb_writer_put_b_cond_label (GumThumbWriter * self,
     arm_cc cc, gconstpointer label_id);
-GUM_API gboolean gum_thumb_writer_put_cbz_reg_label (GumThumbWriter * self,
+GUM_API void gum_thumb_writer_put_b_cond_label_wide (GumThumbWriter * self,
+    arm_cc cc, gconstpointer label_id);
+GUM_API void gum_thumb_writer_put_cbz_reg_label (GumThumbWriter * self,
     arm_reg reg, gconstpointer label_id);
-GUM_API gboolean gum_thumb_writer_put_cbnz_reg_label (GumThumbWriter * self,
+GUM_API void gum_thumb_writer_put_cbnz_reg_label (GumThumbWriter * self,
     arm_reg reg, gconstpointer label_id);
 
 GUM_API gboolean gum_thumb_writer_put_push_regs (GumThumbWriter * self,

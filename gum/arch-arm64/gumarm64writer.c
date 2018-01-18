@@ -256,7 +256,7 @@ gum_arm64_writer_put_label (GumArm64Writer * self,
   return TRUE;
 }
 
-static gboolean
+static void
 gum_arm64_writer_add_label_reference_here (GumArm64Writer * self,
                                            gconstpointer id)
 {
@@ -266,11 +266,9 @@ gum_arm64_writer_add_label_reference_here (GumArm64Writer * self,
   r.insn = self->code;
 
   g_array_append_val (self->label_refs, r);
-
-  return TRUE;
 }
 
-static gboolean
+static void
 gum_arm64_writer_add_literal_reference_here (GumArm64Writer * self,
                                              guint64 val)
 {
@@ -285,8 +283,6 @@ gum_arm64_writer_add_literal_reference_here (GumArm64Writer * self,
   {
     self->earliest_literal_insn = r.insn;
   }
-
-  return TRUE;
 }
 
 void
@@ -467,29 +463,21 @@ gum_arm64_writer_put_b_imm (GumArm64Writer * self,
   return TRUE;
 }
 
-gboolean
+void
 gum_arm64_writer_put_b_label (GumArm64Writer * self,
                               gconstpointer label_id)
 {
-  if (!gum_arm64_writer_add_label_reference_here (self, label_id))
-    return FALSE;
-
+  gum_arm64_writer_add_label_reference_here (self, label_id);
   gum_arm64_writer_put_instruction (self, 0x14000000);
-
-  return TRUE;
 }
 
-gboolean
+void
 gum_arm64_writer_put_b_cond_label (GumArm64Writer * self,
                                    arm64_cc cc,
                                    gconstpointer label_id)
 {
-  if (!gum_arm64_writer_add_label_reference_here (self, label_id))
-    return FALSE;
-
+  gum_arm64_writer_add_label_reference_here (self, label_id);
   gum_arm64_writer_put_instruction (self, 0x54000000 | (cc - 1));
-
-  return TRUE;
 }
 
 gboolean
@@ -545,7 +533,7 @@ gum_arm64_writer_put_ret (GumArm64Writer * self)
   gum_arm64_writer_put_instruction (self, 0xd65f0000 | (GUM_MREG_LR << 5));
 }
 
-gboolean
+void
 gum_arm64_writer_put_cbz_reg_label (GumArm64Writer * self,
                                     arm64_reg reg,
                                     gconstpointer label_id)
@@ -554,15 +542,11 @@ gum_arm64_writer_put_cbz_reg_label (GumArm64Writer * self,
 
   gum_arm64_writer_describe_reg (self, reg, &ri);
 
-  if (!gum_arm64_writer_add_label_reference_here (self, label_id))
-    return FALSE;
-
+  gum_arm64_writer_add_label_reference_here (self, label_id);
   gum_arm64_writer_put_instruction (self, ri.sf | 0x34000000 | ri.index);
-
-  return TRUE;
 }
 
-gboolean
+void
 gum_arm64_writer_put_cbnz_reg_label (GumArm64Writer * self,
                                      arm64_reg reg,
                                      gconstpointer label_id)
@@ -571,15 +555,11 @@ gum_arm64_writer_put_cbnz_reg_label (GumArm64Writer * self,
 
   gum_arm64_writer_describe_reg (self, reg, &ri);
 
-  if (!gum_arm64_writer_add_label_reference_here (self, label_id))
-    return FALSE;
-
+  gum_arm64_writer_add_label_reference_here (self, label_id);
   gum_arm64_writer_put_instruction (self, ri.sf | 0x35000000 | ri.index);
-
-  return TRUE;
 }
 
-gboolean
+void
 gum_arm64_writer_put_tbz_reg_imm_label (GumArm64Writer * self,
                                         arm64_reg reg,
                                         guint bit,
@@ -589,16 +569,12 @@ gum_arm64_writer_put_tbz_reg_imm_label (GumArm64Writer * self,
 
   gum_arm64_writer_describe_reg (self, reg, &ri);
 
-  if (!gum_arm64_writer_add_label_reference_here (self, label_id))
-    return FALSE;
-
+  gum_arm64_writer_add_label_reference_here (self, label_id);
   gum_arm64_writer_put_instruction (self, ri.sf | 0x36000000 |
       ((bit & GUM_INT5_MASK) << 19) | ri.index);
-
-  return TRUE;
 }
 
-gboolean
+void
 gum_arm64_writer_put_tbnz_reg_imm_label (GumArm64Writer * self,
                                          arm64_reg reg,
                                          guint bit,
@@ -608,13 +584,9 @@ gum_arm64_writer_put_tbnz_reg_imm_label (GumArm64Writer * self,
 
   gum_arm64_writer_describe_reg (self, reg, &ri);
 
-  if (!gum_arm64_writer_add_label_reference_here (self, label_id))
-    return FALSE;
-
+  gum_arm64_writer_add_label_reference_here (self, label_id);
   gum_arm64_writer_put_instruction (self, ri.sf | 0x37000000 |
       ((bit & GUM_INT5_MASK) << 19) | ri.index);
-
-  return TRUE;
 }
 
 gboolean
@@ -765,9 +737,7 @@ gum_arm64_writer_put_ldr_reg_u64 (GumArm64Writer * self,
   if (ri.width != 64)
     return FALSE;
 
-  if (!gum_arm64_writer_add_literal_reference_here (self, val))
-    return FALSE;
-
+  gum_arm64_writer_add_literal_reference_here (self, val);
   gum_arm64_writer_put_instruction (self,
       (ri.is_integer ? 0x58000000 : 0x5c000000) | ri.index);
 

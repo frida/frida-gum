@@ -78,9 +78,9 @@ GUM_API gboolean gum_arm64_writer_can_branch_directly_between (GumAddress from,
     GumAddress to);
 GUM_API gboolean gum_arm64_writer_put_b_imm (GumArm64Writer * self,
     GumAddress address);
-GUM_API gboolean gum_arm64_writer_put_b_label (GumArm64Writer * self,
+GUM_API void gum_arm64_writer_put_b_label (GumArm64Writer * self,
     gconstpointer label_id);
-GUM_API gboolean gum_arm64_writer_put_b_cond_label (GumArm64Writer * self,
+GUM_API void gum_arm64_writer_put_b_cond_label (GumArm64Writer * self,
     arm64_cc cc, gconstpointer label_id);
 GUM_API gboolean gum_arm64_writer_put_bl_imm (GumArm64Writer * self,
     GumAddress address);
@@ -89,13 +89,13 @@ GUM_API gboolean gum_arm64_writer_put_br_reg (GumArm64Writer * self,
 GUM_API gboolean gum_arm64_writer_put_blr_reg (GumArm64Writer * self,
     arm64_reg reg);
 GUM_API void gum_arm64_writer_put_ret (GumArm64Writer * self);
-GUM_API gboolean gum_arm64_writer_put_cbz_reg_label (GumArm64Writer * self,
+GUM_API void gum_arm64_writer_put_cbz_reg_label (GumArm64Writer * self,
     arm64_reg reg, gconstpointer label_id);
-GUM_API gboolean gum_arm64_writer_put_cbnz_reg_label (GumArm64Writer * self,
+GUM_API void gum_arm64_writer_put_cbnz_reg_label (GumArm64Writer * self,
     arm64_reg reg, gconstpointer label_id);
-GUM_API gboolean gum_arm64_writer_put_tbz_reg_imm_label (GumArm64Writer * self,
+GUM_API void gum_arm64_writer_put_tbz_reg_imm_label (GumArm64Writer * self,
     arm64_reg reg, guint bit, gconstpointer label_id);
-GUM_API gboolean gum_arm64_writer_put_tbnz_reg_imm_label (GumArm64Writer * self,
+GUM_API void gum_arm64_writer_put_tbnz_reg_imm_label (GumArm64Writer * self,
     arm64_reg reg, guint bit, gconstpointer label_id);
 
 GUM_API gboolean gum_arm64_writer_put_push_reg_reg (GumArm64Writer * self,

@@ -159,7 +159,7 @@ gum_arm_writer_put_label (GumArmWriter * self,
   return TRUE;
 }
 
-static gboolean
+static void
 gum_arm_writer_add_label_reference_here (GumArmWriter * self,
                                          gconstpointer id)
 {
@@ -169,11 +169,9 @@ gum_arm_writer_add_label_reference_here (GumArmWriter * self,
   r.insn = self->code;
 
   g_array_append_val (self->label_refs, r);
-
-  return TRUE;
 }
 
-static gboolean
+static void
 gum_arm_writer_add_literal_reference_here (GumArmWriter * self,
                                            guint32 val)
 {
@@ -188,8 +186,6 @@ gum_arm_writer_add_literal_reference_here (GumArmWriter * self,
   {
     self->earliest_literal_insn = r.insn;
   }
-
-  return TRUE;
 }
 
 gboolean
@@ -221,16 +217,12 @@ gum_arm_writer_put_bx_reg (GumArmWriter * self,
   gum_arm_writer_put_instruction (self, 0xe12fff10 | ri.index);
 }
 
-gboolean
+void
 gum_arm_writer_put_b_label (GumArmWriter * self,
                             gconstpointer label_id)
 {
-  if (!gum_arm_writer_add_label_reference_here (self, label_id))
-    return FALSE;
-
+  gum_arm_writer_add_label_reference_here (self, label_id);
   gum_arm_writer_put_instruction (self, 0xea000000);
-
-  return TRUE;
 }
 
 gboolean
@@ -250,8 +242,7 @@ gum_arm_writer_put_ldr_reg_u32 (GumArmWriter * self,
 
   gum_arm_reg_describe (reg, &ri);
 
-  if (!gum_arm_writer_add_literal_reference_here (self, val))
-    return FALSE;
+  gum_arm_writer_add_literal_reference_here (self, val);
   gum_arm_writer_put_instruction (self, 0xe51f0000 | (ri.index << 12));
 
   return TRUE;

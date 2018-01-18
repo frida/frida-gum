@@ -26,7 +26,6 @@ struct _GumMipsWriter
 
   GHashTable * id_to_address;
   GArray * label_refs;
-  GArray * literal_refs;
 };
 
 GUM_API GumMipsWriter * gum_mips_writer_new (gpointer code_address);
@@ -63,14 +62,14 @@ GUM_API gboolean gum_mips_writer_can_branch_directly_between (GumAddress from,
     GumAddress to);
 GUM_API gboolean gum_mips_writer_put_j_address (GumMipsWriter * self,
     GumAddress address);
-GUM_API gboolean gum_mips_writer_put_j_label (GumMipsWriter * self,
+GUM_API void gum_mips_writer_put_j_label (GumMipsWriter * self,
     gconstpointer label_id);
 GUM_API void gum_mips_writer_put_jr_reg (GumMipsWriter * self, mips_reg reg);
 GUM_API void gum_mips_writer_put_jal_address (GumMipsWriter * self,
     guint32 address);
 GUM_API void gum_mips_writer_put_jalr_reg (GumMipsWriter * self, mips_reg reg);
 GUM_API void gum_mips_writer_put_b_offset (GumMipsWriter * self, gint32 offset);
-GUM_API gboolean gum_mips_writer_put_beq_reg_reg_label (GumMipsWriter * self,
+GUM_API void gum_mips_writer_put_beq_reg_reg_label (GumMipsWriter * self,
     mips_reg right_reg, mips_reg left_reg, gconstpointer label_id);
 GUM_API void gum_mips_writer_put_ret (GumMipsWriter * self);
 

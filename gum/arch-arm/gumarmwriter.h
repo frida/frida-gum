@@ -55,7 +55,7 @@ GUM_API gboolean gum_arm_writer_put_label (GumArmWriter * self,
 GUM_API gboolean gum_arm_writer_put_b_imm (GumArmWriter * self,
     GumAddress target);
 GUM_API void gum_arm_writer_put_bx_reg (GumArmWriter * self, arm_reg reg);
-GUM_API gboolean gum_arm_writer_put_b_label (GumArmWriter * self,
+GUM_API void gum_arm_writer_put_b_label (GumArmWriter * self,
     gconstpointer label_id);
 
 GUM_API gboolean gum_arm_writer_put_ldr_reg_address (GumArmWriter * self,

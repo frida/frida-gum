@@ -293,7 +293,7 @@ gum_x86_writer_put_label (GumX86Writer * self,
   return TRUE;
 }
 
-static gboolean
+static void
 gum_x86_writer_add_label_reference_here (GumX86Writer * self,
                                          gconstpointer id,
                                          GumX86LabelRefSize size)
@@ -305,8 +305,6 @@ gum_x86_writer_add_label_reference_here (GumX86Writer * self,
   r.size = size;
 
   g_array_append_val (self->label_refs, r);
-
-  return TRUE;
 }
 
 gboolean
@@ -880,14 +878,12 @@ gum_x86_writer_put_call_indirect (GumX86Writer * self,
   gum_x86_writer_commit (self, 6);
 }
 
-gboolean
+void
 gum_x86_writer_put_call_near_label (GumX86Writer * self,
                                     gconstpointer label_id)
 {
   gum_x86_writer_put_call_address (self, self->pc);
-
-  return gum_x86_writer_add_label_reference_here (self, label_id,
-      GUM_LREF_NEAR);
+  gum_x86_writer_add_label_reference_here (self, label_id, GUM_LREF_NEAR);
 }
 
 void
@@ -997,24 +993,20 @@ gum_x86_writer_put_near_jmp (GumX86Writer * self,
   return TRUE;
 }
 
-gboolean
+void
 gum_x86_writer_put_jmp_short_label (GumX86Writer * self,
                                     gconstpointer label_id)
 {
   gum_x86_writer_put_short_jmp (self, GSIZE_TO_POINTER (self->pc));
-
-  return gum_x86_writer_add_label_reference_here (self, label_id,
-      GUM_LREF_SHORT);
+  gum_x86_writer_add_label_reference_here (self, label_id, GUM_LREF_SHORT);
 }
 
-gboolean
+void
 gum_x86_writer_put_jmp_near_label (GumX86Writer * self,
                                    gconstpointer label_id)
 {
   gum_x86_writer_put_near_jmp (self, GSIZE_TO_POINTER (self->pc));
-
-  return gum_x86_writer_add_label_reference_here (self, label_id,
-      GUM_LREF_NEAR);
+  gum_x86_writer_add_label_reference_here (self, label_id, GUM_LREF_NEAR);
 }
 
 gboolean
@@ -1191,7 +1183,7 @@ gum_x86_writer_put_jcc_near (GumX86Writer * self,
   return TRUE;
 }
 
-gboolean
+void
 gum_x86_writer_put_jcc_short_label (GumX86Writer * self,
                                     x86_insn instruction_id,
                                     gconstpointer label_id,
@@ -1199,12 +1191,10 @@ gum_x86_writer_put_jcc_short_label (GumX86Writer * self,
 {
   gum_x86_writer_put_jcc_short (self, instruction_id,
       GSIZE_TO_POINTER (self->pc), hint);
-
-  return gum_x86_writer_add_label_reference_here (self, label_id,
-      GUM_LREF_SHORT);
+  gum_x86_writer_add_label_reference_here (self, label_id, GUM_LREF_SHORT);
 }
 
-gboolean
+void
 gum_x86_writer_put_jcc_near_label (GumX86Writer * self,
                                    x86_insn instruction_id,
                                    gconstpointer label_id,
@@ -1212,9 +1202,7 @@ gum_x86_writer_put_jcc_near_label (GumX86Writer * self,
 {
   gum_x86_writer_put_jcc_near (self, instruction_id,
       GSIZE_TO_POINTER (self->pc), hint);
-
-  return gum_x86_writer_add_label_reference_here (self, label_id,
-      GUM_LREF_NEAR);
+  gum_x86_writer_add_label_reference_here (self, label_id, GUM_LREF_NEAR);
 }
 
 static gboolean
