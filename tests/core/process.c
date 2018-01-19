@@ -25,7 +25,7 @@
     TEST_ENTRY_SIMPLE ("Core/Process", test_process, NAME)
 
 TEST_LIST_BEGIN (process)
-#ifndef HAVE_MIPS
+#if !defined (HAVE_ANDROID) && !defined (HAVE_MIPS)
   PROCESS_TESTENTRY (process_threads)
 #endif
 #if !defined (HAVE_ANDROID) && !defined (HAVE_MIPS)
