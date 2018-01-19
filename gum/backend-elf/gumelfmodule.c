@@ -30,7 +30,6 @@ struct _GumElfEnumerateDepsContext
   gpointer user_data;
 
   GumElfModule * module;
-  const gchar * strtab;
 };
 
 struct _GumElfEnumerateImportsContext
@@ -53,8 +52,12 @@ struct _GumElfStoreSymtabParamsContext
   gpointer entries;
   gsize entry_size;
   gsize entry_count;
-  const gchar * strtab;
 
+  GumElfModule * module;
+};
+
+struct _GumElfStoreFindStringTableContext
+{
   GumElfModule * module;
 };
 
@@ -65,8 +68,6 @@ static void gum_elf_module_get_property (GObject * object,
 static void gum_elf_module_set_property (GObject * object,
     guint property_id, const GValue * value, GParamSpec * pspec);
 
-static gboolean gum_store_strtab (const GumElfDynamicEntryDetails * details,
-    gpointer user_data);
 static gboolean gum_emit_each_needed (const GumElfDynamicEntryDetails * details,
     gpointer user_data);
 static gboolean gum_emit_elf_import (const GumElfSymbolDetails * details,
@@ -84,6 +85,8 @@ static GumAddress gum_elf_module_compute_preferred_address (
     GumElfModule * self);
 static GumAddress gum_elf_module_resolve_virtual_address (GumElfModule * self,
     GumAddress address);
+static gboolean gum_store_dynamic_string_table (
+    const GumElfDynamicEntryDetails * details, gpointer user_data);
 
 G_DEFINE_TYPE (GumElfModule, gum_elf_module, G_TYPE_OBJECT)
 
@@ -105,7 +108,8 @@ gum_elf_module_class_init (GumElfModuleClass * klass)
       G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_BASE_ADDRESS,
       g_param_spec_uint64 ("base-address", "BaseAddress", "Base address", 0,
-      G_MAXUINT64, 0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+      G_MAXUINT64, 0, G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+      G_PARAM_STATIC_STRINGS));
 }
 
 static void
@@ -150,6 +154,9 @@ gum_elf_module_constructed (GObject * object)
     goto error;
 
   self->preferred_address = gum_elf_module_compute_preferred_address (self);
+
+  gum_elf_module_enumerate_dynamic_entries (self,
+      gum_store_dynamic_string_table, self);
 
   self->valid = TRUE;
   return;
@@ -263,28 +270,10 @@ gum_elf_module_enumerate_dependencies (GumElfModule * self,
   ctx.user_data = user_data;
 
   ctx.module = self;
-  ctx.strtab = NULL;
-
-  gum_elf_module_enumerate_dynamic_entries (self, gum_store_strtab, &ctx);
-  if (ctx.strtab == NULL)
-    return;
 
   gum_elf_module_enumerate_dynamic_entries (self, gum_emit_each_needed, &ctx);
 }
 
-static gboolean
-gum_store_strtab (const GumElfDynamicEntryDetails * details,
-                  gpointer user_data)
-{
-  GumElfEnumerateDepsContext * ctx = user_data;
-
-  if (details->type != DT_STRTAB)
-    return TRUE;
-
-  ctx->strtab = GSIZE_TO_POINTER (
-      gum_elf_module_resolve_virtual_address (ctx->module, details->value));
-  return FALSE;
-}
 
 static gboolean
 gum_emit_each_needed (const GumElfDynamicEntryDetails * details,
@@ -296,7 +285,7 @@ gum_emit_each_needed (const GumElfDynamicEntryDetails * details,
   if (details->type != DT_NEEDED)
     return TRUE;
 
-  d.name = ctx->strtab + details->value;
+  d.name = ctx->module->dynamic_strings + details->value;
 
   return ctx->func (&d, ctx->user_data);
 }
@@ -384,14 +373,14 @@ gum_elf_module_enumerate_dynamic_symbols (GumElfModule * self,
 {
   GumElfStoreSymtabParamsContext ctx;
   gsize entry_index;
+  const gchar * dynamic_strings = self->dynamic_strings;
 
-  ctx.pending = 4;
+  ctx.pending = 3;
   ctx.found_hash = FALSE;
 
   ctx.entries = NULL;
   ctx.entry_size = 0;
   ctx.entry_count = 0;
-  ctx.strtab = NULL;
 
   ctx.module = self;
 
@@ -409,7 +398,7 @@ gum_elf_module_enumerate_dynamic_symbols (GumElfModule * self,
     {
       Elf32_Sym * sym = entry;
 
-      details.name = ctx.strtab + sym->st_name;
+      details.name = dynamic_strings + sym->st_name;
       details.address =
           gum_elf_module_resolve_virtual_address (self, sym->st_value);
       details.type = GELF_ST_TYPE (sym->st_info);
@@ -420,7 +409,7 @@ gum_elf_module_enumerate_dynamic_symbols (GumElfModule * self,
     {
       Elf64_Sym * sym = entry;
 
-      details.name = ctx.strtab + sym->st_name;
+      details.name = dynamic_strings + sym->st_name;
       details.address =
           gum_elf_module_resolve_virtual_address (self, sym->st_value);
       details.type = GELF_ST_TYPE (sym->st_info);
@@ -516,11 +505,6 @@ gum_store_symtab_params (const GumElfDynamicEntryDetails * details,
 
       break;
     }
-    case DT_STRTAB:
-      ctx->strtab = GSIZE_TO_POINTER (
-          gum_elf_module_resolve_virtual_address (ctx->module, details->value));
-      ctx->pending--;
-      break;
     default:
       break;
   }
@@ -549,7 +533,7 @@ gum_elf_module_enumerate_symbols_in_section (GumElfModule * self,
   GElf_Word symbol_count, symbol_index;
   Elf_Data * data;
 
-  if (!gum_elf_module_find_section_header (self, section, &scn, &shdr))
+  if (!gum_elf_module_find_section_header_by_type (self, section, &scn, &shdr))
     return;
 
   carry_on = TRUE;
@@ -633,6 +617,43 @@ gum_elf_module_enumerate_dynamic_entries (GumElfModule * self,
 }
 
 static gboolean
+gum_elf_module_find_address_protection (GumElfModule * self,
+                                        GumAddress address,
+                                        GumPageProtection * prot)
+{
+  GElf_Half header_count, header_index;
+
+  header_count = self->ehdr->e_phnum;
+  for (header_index = 0; header_index != header_count; header_index++)
+  {
+    GElf_Phdr phdr;
+
+    gelf_getphdr (self->elf, header_index, &phdr);
+
+    if (phdr.p_type == PT_LOAD &&
+        address >= phdr.p_vaddr &&
+        address < phdr.p_vaddr + phdr.p_memsz)
+    {
+      GumPageProtection p;
+
+      p = GUM_PAGE_NO_ACCESS;
+      if ((phdr.p_flags & PF_R) != 0)
+        p |= GUM_PAGE_READ;
+      if ((phdr.p_flags & PF_W) != 0)
+        p |= GUM_PAGE_WRITE;
+      if ((phdr.p_flags & PF_X) != 0)
+        p |= GUM_PAGE_EXECUTE;
+
+      *prot = p;
+
+      return TRUE;
+    }
+  }
+
+  return FALSE;
+}
+
+static gboolean
 gum_elf_module_find_dynamic_range (GumElfModule * self,
                                    GumMemoryRange * range)
 {
@@ -656,11 +677,81 @@ gum_elf_module_find_dynamic_range (GumElfModule * self,
   return FALSE;
 }
 
+void
+gum_elf_module_enumerate_sections (GumElfModule * self,
+                                   GumElfFoundSectionFunc func,
+                                   gpointer user_data)
+{
+  Elf_Scn * strings_scn;
+  GElf_Shdr strings_shdr;
+  const gchar * strings;
+  Elf_Scn * cur;
+
+  if (!gum_elf_module_find_section_header_by_index (self,
+      self->ehdr->e_shstrndx, &strings_scn, &strings_shdr))
+    return;
+
+  strings = self->file_data + strings_shdr.sh_offset;
+
+  cur = NULL;
+  while ((cur = elf_nextscn (self->elf, cur)) != NULL)
+  {
+    GElf_Shdr shdr;
+    GumElfSectionDetails d;
+
+    gelf_getshdr (cur, &shdr);
+
+    d.name = strings + shdr.sh_name;
+    d.type = shdr.sh_type;
+    d.flags = shdr.sh_flags;
+    d.address = gum_elf_module_resolve_virtual_address (self, shdr.sh_addr);
+    d.offset = shdr.sh_offset;
+    d.size = shdr.sh_size;
+    d.link = shdr.sh_link;
+    d.info = shdr.sh_info;
+    d.alignment = shdr.sh_addralign;
+    d.entry_size = shdr.sh_entsize;
+    if (!gum_elf_module_find_address_protection (self, shdr.sh_addr, &d.prot))
+      d.prot = GUM_PAGE_NO_ACCESS;
+
+    if (!func (&d, user_data))
+      return;
+  }
+}
+
 gboolean
-gum_elf_module_find_section_header (GumElfModule * self,
-                                    GumElfSectionHeaderType type,
-                                    Elf_Scn ** scn,
-                                    GElf_Shdr * shdr)
+gum_elf_module_find_section_header_by_index (GumElfModule * self,
+                                             guint index,
+                                             Elf_Scn ** scn,
+                                             GElf_Shdr * shdr)
+{
+  guint current_index;
+  Elf_Scn * current_section;
+
+  current_index = 1;
+  current_section = NULL;
+
+  while ((current_section = elf_nextscn (self->elf, current_section)) != NULL)
+  {
+    if (current_index == index)
+    {
+      gelf_getshdr (current_section, shdr);
+
+      *scn = current_section;
+      return TRUE;
+    }
+
+    current_index++;
+  }
+
+  return FALSE;
+}
+
+gboolean
+gum_elf_module_find_section_header_by_type (GumElfModule * self,
+                                            GumElfSectionHeaderType type,
+                                            Elf_Scn ** scn,
+                                            GElf_Shdr * shdr)
 {
   Elf_Scn * cur = NULL;
 
@@ -703,4 +794,18 @@ gum_elf_module_resolve_virtual_address (GumElfModule * self,
                                         GumAddress address)
 {
   return self->base_address + (address - self->preferred_address);
+}
+
+static gboolean
+gum_store_dynamic_string_table (const GumElfDynamicEntryDetails * details,
+                                gpointer user_data)
+{
+  GumElfModule * self = user_data;
+
+  if (details->type != DT_STRTAB)
+    return TRUE;
+
+  self->dynamic_strings = GSIZE_TO_POINTER (
+      gum_elf_module_resolve_virtual_address (self, details->value));
+  return FALSE;
 }

@@ -18,6 +18,7 @@ G_DECLARE_FINAL_TYPE (GumElfModule, gum_elf_module, GUM_ELF, MODULE, GObject)
 typedef struct _GumElfDependencyDetails GumElfDependencyDetails;
 typedef struct _GumElfSymbolDetails GumElfSymbolDetails;
 typedef struct _GumElfDynamicEntryDetails GumElfDynamicEntryDetails;
+typedef struct _GumElfSectionDetails GumElfSectionDetails;
 
 typedef gboolean (* GumElfFoundDependencyFunc) (
     const GumElfDependencyDetails * details, gpointer user_data);
@@ -25,6 +26,8 @@ typedef gboolean (* GumElfFoundSymbolFunc) (const GumElfSymbolDetails * details,
     gpointer user_data);
 typedef gboolean (* GumElfFoundDynamicEntryFunc) (
     const GumElfDynamicEntryDetails * details, gpointer user_data);
+typedef gboolean (* GumElfFoundSectionFunc) (
+    const GumElfSectionDetails * details, gpointer user_data);
 
 typedef GElf_Sxword GumElfDynamicEntryType;
 typedef GElf_Xword GumElfDynamicEntryValue;
@@ -51,6 +54,8 @@ struct _GumElfModule
 
   GumAddress base_address;
   GumAddress preferred_address;
+
+  const gchar * dynamic_strings;
 };
 
 struct _GumElfDependencyDetails
@@ -73,6 +78,21 @@ struct _GumElfDynamicEntryDetails
   GumElfDynamicEntryValue value;
 };
 
+struct _GumElfSectionDetails
+{
+  const gchar * name;
+  Elf64_Word type;
+  Elf64_Xword flags;
+  GumAddress address;
+  goffset offset;
+  gsize size;
+  Elf64_Word link;
+  Elf64_Word info;
+  Elf64_Xword alignment;
+  Elf64_Xword entry_size;
+  GumPageProtection prot;
+};
+
 GumElfModule * gum_elf_module_new_from_memory (const gchar * path,
     GumAddress base_address);
 
@@ -88,7 +108,11 @@ void gum_elf_module_enumerate_symbols (GumElfModule * self,
     GumElfFoundSymbolFunc func, gpointer user_data);
 void gum_elf_module_enumerate_dynamic_entries (GumElfModule * self,
     GumElfFoundDynamicEntryFunc func, gpointer user_data);
-gboolean gum_elf_module_find_section_header (GumElfModule * self,
+void gum_elf_module_enumerate_sections (GumElfModule * self,
+    GumElfFoundSectionFunc func, gpointer user_data);
+gboolean gum_elf_module_find_section_header_by_index (GumElfModule * self,
+    guint index, Elf_Scn ** scn, GElf_Shdr * shdr);
+gboolean gum_elf_module_find_section_header_by_type (GumElfModule * self,
     GumElfSectionHeaderType type, Elf_Scn ** scn, GElf_Shdr * shdr);
 
 G_END_DECLS
