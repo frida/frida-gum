@@ -449,7 +449,7 @@ PROCESS_TESTCASE (module_exports)
 
 PROCESS_TESTCASE (module_symbols)
 {
-#ifdef HAVE_DARWIN
+#if defined (HAVE_DARWIN) || defined (HAVE_LINUX)
   TestForEachContext ctx;
 
   ctx.number_of_calls = 0;

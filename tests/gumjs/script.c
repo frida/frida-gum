@@ -2612,7 +2612,7 @@ SCRIPT_TESTCASE (module_exports_enumeration_performance)
 
 SCRIPT_TESTCASE (module_symbols_can_be_enumerated)
 {
-#ifdef HAVE_DARWIN
+#if defined (HAVE_DARWIN) || defined (HAVE_LINUX)
   COMPILE_AND_LOAD_SCRIPT (
       "Module.enumerateSymbols(\"%s\", {"
         "onMatch: function (sym) {"

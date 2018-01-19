@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -80,6 +80,7 @@ typedef guint8 GumModifyThreadAck;
 
 typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
 typedef struct _GumDependencyExport GumDependencyExport;
+typedef struct _GumEnumerateModuleSymbolContext GumEnumerateModuleSymbolContext;
 typedef struct _GumEnumerateModuleRangesContext GumEnumerateModuleRangesContext;
 typedef struct _GumResolveModuleNameContext GumResolveModuleNameContext;
 
@@ -121,6 +122,14 @@ struct _GumDependencyExport
 {
   gchar * module;
   GumAddress address;
+};
+
+struct _GumEnumerateModuleSymbolContext
+{
+  GumFoundSymbolFunc func;
+  gpointer user_data;
+
+  GArray * sections;
 };
 
 struct _GumEnumerateModuleRangesContext
@@ -166,6 +175,11 @@ static gboolean gum_collect_dependency_export (const GumExportDetails * details,
 static GumDependencyExport * gum_dependency_export_new (const gchar * module,
     GumAddress address);
 static void gum_dependency_export_free (GumDependencyExport * export);
+static gboolean gum_emit_symbol (const GumElfSymbolDetails * details,
+    gpointer user_data);
+static gboolean gum_append_symbol_section (const GumElfSectionDetails * details,
+    gpointer user_data);
+static void gum_symbol_section_destroy (GumSymbolSection * self);
 static gboolean gum_emit_range_if_module_name_matches (
     const GumRangeDetails * details, gpointer user_data);
 
@@ -878,7 +892,86 @@ gum_module_enumerate_symbols (const gchar * module_name,
                               GumFoundSymbolFunc func,
                               gpointer user_data)
 {
-  /* TODO: implement */
+  GumElfModule * module;
+  GumEnumerateModuleSymbolContext ctx;
+
+  module = gum_open_elf_module (module_name);
+  if (module == NULL)
+    return;
+
+  ctx.func = func;
+  ctx.user_data = user_data;
+
+  ctx.sections = g_array_new (FALSE, FALSE, sizeof (GumSymbolSection));
+  g_array_set_clear_func (ctx.sections,
+      (GDestroyNotify) gum_symbol_section_destroy);
+
+  gum_elf_module_enumerate_sections (module, gum_append_symbol_section,
+      ctx.sections);
+
+  gum_elf_module_enumerate_symbols (module, gum_emit_symbol, &ctx);
+
+  g_array_free (ctx.sections, TRUE);
+
+  g_object_unref (module);
+}
+
+static gboolean
+gum_emit_symbol (const GumElfSymbolDetails * details,
+                 gpointer user_data)
+{
+  GumEnumerateModuleSymbolContext * ctx = user_data;
+  GumSymbolDetails symbol;
+
+  symbol.is_global = details->bind == STB_GLOBAL || details->bind == STB_WEAK;
+
+  switch (details->type)
+  {
+    case STT_OBJECT:  symbol.type = GUM_SYMBOL_OBJECT;   break;
+    case STT_FUNC:    symbol.type = GUM_SYMBOL_FUNCTION; break;
+    case STT_SECTION: symbol.type = GUM_SYMBOL_SECTION;  break;
+    case STT_FILE:    symbol.type = GUM_SYMBOL_FILE;     break;
+    case STT_COMMON:  symbol.type = GUM_SYMBOL_COMMON;   break;
+    case STT_TLS:     symbol.type = GUM_SYMBOL_TLS;      break;
+    default:          symbol.type = GUM_SYMBOL_UNKNOWN;  break;
+  }
+
+  if (details->section_header_index != SHN_UNDEF &&
+      details->section_header_index <= ctx->sections->len)
+  {
+    symbol.section = &g_array_index (ctx->sections, GumSymbolSection,
+        details->section_header_index - 1);
+  }
+  else
+  {
+    symbol.section = NULL;
+  }
+
+  symbol.name = details->name;
+  symbol.address = details->address;
+
+  return ctx->func (&symbol, ctx->user_data);
+}
+
+static gboolean
+gum_append_symbol_section (const GumElfSectionDetails * details,
+                           gpointer user_data)
+{
+  GArray * sections = user_data;
+  GumSymbolSection section;
+
+  section.id = g_strdup_printf ("%u%s", 1 + sections->len, details->name);
+  section.prot = details->prot;
+
+  g_array_append_val (sections, section);
+
+  return TRUE;
+}
+
+static void
+gum_symbol_section_destroy (GumSymbolSection * self)
+{
+  g_free ((gpointer) self->id);
 }
 
 void
