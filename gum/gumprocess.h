@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -71,12 +71,22 @@ enum _GumExportType
 
 enum _GumSymbolType
 {
+  /* Common */
   GUM_SYMBOL_UNKNOWN,
+  GUM_SYMBOL_SECTION,
+
+  /* Mach-O */
   GUM_SYMBOL_UNDEFINED,
   GUM_SYMBOL_ABSOLUTE,
-  GUM_SYMBOL_SECTION,
   GUM_SYMBOL_PREBOUND_UNDEFINED,
   GUM_SYMBOL_INDIRECT,
+
+  /* ELF */
+  GUM_SYMBOL_OBJECT,
+  GUM_SYMBOL_FUNCTION,
+  GUM_SYMBOL_FILE,
+  GUM_SYMBOL_COMMON,
+  GUM_SYMBOL_TLS,
 };
 
 struct _GumImportDetails
