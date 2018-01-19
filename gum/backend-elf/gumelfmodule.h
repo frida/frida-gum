@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -17,14 +17,19 @@ G_DECLARE_FINAL_TYPE (GumElfModule, gum_elf_module, GUM_ELF, MODULE, GObject)
 
 typedef struct _GumElfDependencyDetails GumElfDependencyDetails;
 typedef struct _GumElfSymbolDetails GumElfSymbolDetails;
+typedef struct _GumElfDynamicEntryDetails GumElfDynamicEntryDetails;
 
 typedef gboolean (* GumElfFoundDependencyFunc) (
     const GumElfDependencyDetails * details, gpointer user_data);
 typedef gboolean (* GumElfFoundSymbolFunc) (const GumElfSymbolDetails * details,
     gpointer user_data);
+typedef gboolean (* GumElfFoundDynamicEntryFunc) (
+    const GumElfDynamicEntryDetails * details, gpointer user_data);
 
-typedef gsize GumElfSectionHeaderIndex;
+typedef GElf_Sxword GumElfDynamicEntryType;
+typedef GElf_Xword GumElfDynamicEntryValue;
 typedef GElf_Word GumElfSectionHeaderType;
+typedef gsize GumElfSectionHeaderIndex;
 typedef guchar GumElfSymbolType;
 typedef guchar GumElfSymbolBind;
 
@@ -62,6 +67,12 @@ struct _GumElfSymbolDetails
   GumElfSectionHeaderIndex section_header_index;
 };
 
+struct _GumElfDynamicEntryDetails
+{
+  GumElfDynamicEntryType type;
+  GumElfDynamicEntryValue value;
+};
+
 GumElfModule * gum_elf_module_new_from_memory (const gchar * path,
     GumAddress base_address);
 
@@ -75,6 +86,8 @@ void gum_elf_module_enumerate_dynamic_symbols (GumElfModule * self,
     GumElfFoundSymbolFunc func, gpointer user_data);
 void gum_elf_module_enumerate_symbols (GumElfModule * self,
     GumElfFoundSymbolFunc func, gpointer user_data);
+void gum_elf_module_enumerate_dynamic_entries (GumElfModule * self,
+    GumElfFoundDynamicEntryFunc func, gpointer user_data);
 gboolean gum_elf_module_find_section_header (GumElfModule * self,
     GumElfSectionHeaderType type, Elf_Scn ** scn, GElf_Shdr * shdr);
 
