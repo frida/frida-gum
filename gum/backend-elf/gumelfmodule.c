@@ -48,6 +48,7 @@ struct _GumElfEnumerateExportsContext
 struct _GumElfStoreSymtabParamsContext
 {
   guint pending;
+  gboolean found_hash;
 
   gpointer entries;
   gsize entry_size;
@@ -385,6 +386,7 @@ gum_elf_module_enumerate_dynamic_symbols (GumElfModule * self,
   gsize entry_index;
 
   ctx.pending = 4;
+  ctx.found_hash = FALSE;
 
   ctx.entries = NULL;
   ctx.entry_size = 0;
@@ -398,7 +400,7 @@ gum_elf_module_enumerate_dynamic_symbols (GumElfModule * self,
   if (ctx.pending != 0)
     return;
 
-  for (entry_index = 1; entry_index < ctx.entry_count; entry_index++)
+  for (entry_index = 1; entry_index != ctx.entry_count; entry_index++)
   {
     gpointer entry = ctx.entries + (entry_index * ctx.entry_size);
     GumElfSymbolDetails details;
@@ -450,13 +452,66 @@ gum_store_symtab_params (const GumElfDynamicEntryDetails * details,
       break;
     case DT_HASH:
     {
-      guint32 * hash_params, nchain;
+      const guint32 * hash_params;
+      guint32 nchain;
+
+      if (ctx->found_hash)
+        break;
+      ctx->found_hash = TRUE;
 
       hash_params = GSIZE_TO_POINTER (
           gum_elf_module_resolve_virtual_address (ctx->module, details->value));
       nchain = hash_params[1];
 
       ctx->entry_count = nchain;
+      ctx->pending--;
+
+      break;
+    }
+    case DT_GNU_HASH:
+    {
+      const guint32 * hash_params;
+      guint32 nbuckets;
+      guint32 symoffset;
+      guint32 bloom_size;
+      guint32 bloom_shift;
+      const gsize * bloom;
+      const guint32 * buckets;
+      const guint32 * chain;
+      guint32 highest_index, bucket_index;
+
+      if (ctx->found_hash)
+        break;
+      ctx->found_hash = TRUE;
+
+      hash_params = GSIZE_TO_POINTER (
+          gum_elf_module_resolve_virtual_address (ctx->module,
+              details->value));
+      nbuckets = hash_params[0];
+      symoffset = hash_params[1];
+      bloom_size = hash_params[2];
+      bloom_shift = hash_params[3];
+      bloom = (gsize *) (hash_params + 4);
+      buckets = (const guint32 *) (bloom + bloom_size);
+      chain = buckets + nbuckets;
+
+      highest_index = 0;
+      for (bucket_index = 0; bucket_index != nbuckets; bucket_index++)
+      {
+        highest_index = MAX (buckets[bucket_index], highest_index);
+      }
+
+      while (TRUE)
+      {
+        guint32 hash = chain[highest_index - symoffset];
+
+        if ((hash & 1) != 0)
+          break;
+
+        highest_index++;
+      }
+
+      ctx->entry_count = highest_index + 1;
       ctx->pending--;
 
       break;
