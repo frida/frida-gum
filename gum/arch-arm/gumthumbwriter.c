@@ -1198,28 +1198,18 @@ static void
 gum_thumb_writer_commit_literals (GumThumbWriter * self)
 {
   guint num_refs, ref_index;
-  gboolean need_aligned_slots;
+  gboolean need_alignment_padding;
   guint32 * first_slot, * last_slot;
 
   num_refs = self->literal_refs->len;
   if (num_refs == 0)
     return;
 
-  need_aligned_slots = FALSE;
-  for (ref_index = 0; ref_index != num_refs; ref_index++)
+  need_alignment_padding = (self->pc & 3) != 0;
+  if (need_alignment_padding)
   {
-    GumThumbLiteralRef * r;
-    guint16 insn;
-
-    r = &g_array_index (self->literal_refs, GumThumbLiteralRef, ref_index);
-
-    insn = GUINT16_FROM_LE (r->insn[0]);
-    if (gum_instruction_is_t1_load (insn))
-      need_aligned_slots = TRUE;
-  }
-
-  if (need_aligned_slots && (self->pc & 3) != 0)
     gum_thumb_writer_put_nop (self);
+  }
 
   first_slot = (guint32 *) self->code;
   last_slot = first_slot;
