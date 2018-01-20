@@ -134,10 +134,8 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (process_debugger_status_is_available)
 #endif
   SCRIPT_TESTENTRY (process_current_thread_id_is_available)
-#ifndef HAVE_MIPS
   SCRIPT_TESTENTRY (process_threads_can_be_enumerated)
   SCRIPT_TESTENTRY (process_threads_can_be_enumerated_synchronously)
-#endif
   SCRIPT_TESTENTRY (process_modules_can_be_enumerated)
   SCRIPT_TESTENTRY (process_modules_can_be_enumerated_synchronously)
   SCRIPT_TESTENTRY (process_module_can_be_looked_up_from_address)
@@ -2225,6 +2223,14 @@ SCRIPT_TESTCASE (process_current_thread_id_is_available)
 
 SCRIPT_TESTCASE (process_threads_can_be_enumerated)
 {
+#if defined (HAVE_ANDROID) || defined (HAVE_MIPS)
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+#endif
+
   if (RUNNING_ON_VALGRIND)
   {
     g_print ("<skipping, not compatible with Valgrind> ");
@@ -2249,6 +2255,14 @@ SCRIPT_TESTCASE (process_threads_can_be_enumerated_synchronously)
 {
   gboolean done = FALSE;
   GThread * thread_a, * thread_b;
+
+#if defined (HAVE_ANDROID) || defined (HAVE_MIPS)
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+#endif
 
   if (RUNNING_ON_VALGRIND)
   {
