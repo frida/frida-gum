@@ -1722,6 +1722,14 @@ SCRIPT_TESTCASE (external_sqlite_database_can_be_opened_with_flags)
 
 SCRIPT_TESTCASE (socket_connection_can_be_established)
 {
+#ifdef HAVE_ANDROID
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+#endif
+
   PUSH_TIMEOUT (10000);
 
   COMPILE_AND_LOAD_SCRIPT (

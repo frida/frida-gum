@@ -25,12 +25,8 @@
     TEST_ENTRY_SIMPLE ("Core/Process", test_process, NAME)
 
 TEST_LIST_BEGIN (process)
-#if !defined (HAVE_ANDROID) && !defined (HAVE_MIPS)
   PROCESS_TESTENTRY (process_threads)
-#endif
-#if !defined (HAVE_ANDROID) && !defined (HAVE_MIPS)
   PROCESS_TESTENTRY (process_threads_exclude_cloaked)
-#endif
   PROCESS_TESTENTRY (process_modules)
   PROCESS_TESTENTRY (process_ranges)
   PROCESS_TESTENTRY (process_ranges_exclude_cloaked)
@@ -127,6 +123,14 @@ PROCESS_TESTCASE (process_threads)
   GThread * thread_a, * thread_b;
   TestForEachContext ctx;
 
+#if defined (HAVE_ANDROID) || defined (HAVE_MIPS)
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+#endif
+
   if (RUNNING_ON_VALGRIND)
   {
     g_print ("<skipping, not compatible with Valgrind> ");
@@ -156,6 +160,14 @@ PROCESS_TESTCASE (process_threads)
 PROCESS_TESTCASE (process_threads_exclude_cloaked)
 {
   TestThreadContext ctx;
+
+#if defined (HAVE_ANDROID) || defined (HAVE_MIPS)
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+#endif
 
   if (RUNNING_ON_VALGRIND)
   {
