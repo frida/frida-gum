@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -53,6 +53,7 @@ struct _GumInterceptorBackend
 
 struct _GumArmFunctionContextData
 {
+  guint full_redirect_size;
   guint redirect_code_size;
 };
 
@@ -120,11 +121,14 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
 
   if (is_thumb)
   {
+    data->full_redirect_size = GUM_INTERCEPTOR_THUMB_FULL_REDIRECT_SIZE;
+    if ((GPOINTER_TO_SIZE (function_address) & 3) != 0)
+      data->full_redirect_size += 2;
+
     if (gum_thumb_relocator_can_relocate (function_address,
-        GUM_INTERCEPTOR_THUMB_FULL_REDIRECT_SIZE, GUM_SCENARIO_ONLINE,
-        &redirect_limit))
+        data->full_redirect_size, GUM_SCENARIO_ONLINE, &redirect_limit))
     {
-      data->redirect_code_size = GUM_INTERCEPTOR_THUMB_FULL_REDIRECT_SIZE;
+      data->redirect_code_size = data->full_redirect_size;
     }
     else
     {
@@ -138,10 +142,12 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
   }
   else
   {
+    data->full_redirect_size = GUM_INTERCEPTOR_ARM_FULL_REDIRECT_SIZE;
+
     if (gum_arm_relocator_can_relocate (function_address,
-        GUM_INTERCEPTOR_ARM_FULL_REDIRECT_SIZE, &redirect_limit))
+        data->full_redirect_size, &redirect_limit))
     {
-      data->redirect_code_size = GUM_INTERCEPTOR_ARM_FULL_REDIRECT_SIZE;
+      data->redirect_code_size = data->full_redirect_size;
     }
     else
     {
@@ -177,8 +183,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
   ctx->on_enter_trampoline = gum_thumb_writer_cur (tw) + 1;
 
-  if (is_thumb &&
-      data->redirect_code_size != GUM_INTERCEPTOR_THUMB_FULL_REDIRECT_SIZE)
+  if (is_thumb && data->redirect_code_size != data->full_redirect_size)
   {
     GumAddressSpec caller;
     gpointer return_address;
@@ -203,8 +208,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
     }
   }
 
-  if (!is_thumb &&
-      data->redirect_code_size != GUM_INTERCEPTOR_ARM_FULL_REDIRECT_SIZE)
+  if (!is_thumb && data->redirect_code_size != data->full_redirect_size)
   {
     GumAddressSpec caller;
     gpointer return_address;
