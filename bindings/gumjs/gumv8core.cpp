@@ -2169,16 +2169,32 @@ gumjs_native_function_invoke (const FunctionCallbackInfo<Value> & info)
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_function_call)
 {
+  auto num_args = info.Length ();
+
   Local<Object> receiver;
-  if (!_gum_v8_args_parse (args, "O?", &receiver))
-    return;
+  if (num_args >= 1)
+  {
+    Local<Value> receiver_value = info[0];
+    if (!receiver_value->IsUndefined () && !receiver_value->IsNull ())
+    {
+      if (receiver_value->IsObject ())
+      {
+        receiver = receiver_value.As<Object> ();
+      }
+      else
+      {
+        _gum_v8_throw_ascii_literal (isolate, "invalid receiver");
+        return;
+      }
+    }
+  }
 
   GumV8NativeFunction * func;
   GCallback implementation;
   if (!gumjs_native_function_get (info, receiver, core, &func, &implementation))
     return;
 
-  uint32_t argc = info.Length () - 1;
+  uint32_t argc = num_args - 1;
 
   Local<Value> * argv = nullptr;
   if (argc > 0)
@@ -2199,10 +2215,35 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_call)
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_function_apply)
 {
-  Local<Object> receiver;
-  Local<Array> argv_array;
-  if (!_gum_v8_args_parse (args, "O?A", &receiver, &argv_array))
+  auto num_args = info.Length ();
+  if (num_args < 2)
+  {
+    _gum_v8_throw_ascii_literal (isolate, "missing argument");
     return;
+  }
+
+  Local<Object> receiver;
+  Local<Value> receiver_value = info[0];
+  if (!receiver_value->IsUndefined () && !receiver_value->IsNull ())
+  {
+    if (receiver_value->IsObject ())
+    {
+      receiver = receiver_value.As<Object> ();
+    }
+    else
+    {
+      _gum_v8_throw_ascii_literal (isolate, "invalid receiver");
+      return;
+    }
+  }
+
+  Local<Value> argv_array_value = info[1];
+  if (!argv_array_value->IsArray ())
+  {
+    _gum_v8_throw_ascii_literal (isolate, "expected an array");
+    return;
+  }
+  Local<Array> argv_array = argv_array_value.As<Array> ();
 
   GumV8NativeFunction * func;
   GCallback implementation;

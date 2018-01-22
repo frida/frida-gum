@@ -2500,7 +2500,19 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_call)
   duk_size_t argc;
   duk_idx_t argv_index;
 
-  _gum_duk_args_parse (args, "O?", &receiver);
+  if (args->count == 0 || duk_is_undefined (ctx, 0) || duk_is_null (ctx, 0))
+  {
+    receiver = NULL;
+  }
+  else if (duk_is_object (ctx, 0))
+  {
+    receiver = duk_require_heapptr (ctx, 0);
+  }
+  else
+  {
+    _gum_duk_throw (ctx, "invalid receiver");
+    return 0;
+  }
 
   gumjs_native_function_get (ctx, receiver, args->core, &func, &implementation);
 
@@ -2514,14 +2526,31 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_call)
 GUMJS_DEFINE_FUNCTION (gumjs_native_function_apply)
 {
   GumDukHeapPtr receiver;
-  GumDukHeapPtr argv_array;
   const duk_idx_t argv_array_index = 1;
   GumDukNativeFunction * func;
   GCallback implementation;
   duk_size_t argc, i;
   duk_idx_t argv_index;
 
-  _gum_duk_args_parse (args, "O?A", &receiver, &argv_array);
+  if (args->count < 2)
+    _gum_duk_throw (ctx, "missing argument");
+
+  if (duk_is_undefined (ctx, 0) || duk_is_null (ctx, 0))
+  {
+    receiver = NULL;
+  }
+  else if (duk_is_object (ctx, 0))
+  {
+    receiver = duk_require_heapptr (ctx, 0);
+  }
+  else
+  {
+    _gum_duk_throw (ctx, "invalid receiver");
+    return 0;
+  }
+
+  if (!duk_is_array (ctx, 1))
+    _gum_duk_throw (ctx, "expected an array");
 
   gumjs_native_function_get (ctx, receiver, args->core, &func, &implementation);
 

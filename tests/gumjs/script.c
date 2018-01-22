@@ -902,6 +902,8 @@ SCRIPT_TESTCASE (native_function_should_implement_call_and_apply)
       "var f = new NativeFunction(" GUM_PTR_CONST ", 'int', ['int']);"
       "send(NativeFunction.prototype.call(f, 42));"
       "send(NativeFunction.prototype.apply(f, [42]));"
+      "send(f.call(undefined, 42));"
+      "send(f.apply(undefined, [42]));"
       "send(f.call(null, 42));"
       "send(f.apply(null, [42]));"
       "send(f.call(f, 42));"
@@ -909,6 +911,8 @@ SCRIPT_TESTCASE (native_function_should_implement_call_and_apply)
       "send(f.call(ptr(" GUM_PTR_CONST "), 42));"
       "send(f.apply(ptr(" GUM_PTR_CONST "), [42]));",
       target_function_int, target_function_nested_a, target_function_nested_a);
+  EXPECT_SEND_MESSAGE_WITH ("1890");
+  EXPECT_SEND_MESSAGE_WITH ("1890");
   EXPECT_SEND_MESSAGE_WITH ("1890");
   EXPECT_SEND_MESSAGE_WITH ("1890");
   EXPECT_SEND_MESSAGE_WITH ("1890");
