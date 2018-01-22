@@ -148,6 +148,8 @@ gum_elf_module_constructed (GObject * object)
     goto error;
 
   self->ehdr = gelf_getehdr (self->elf, &self->ehdr_storage);
+  if (self->ehdr == NULL)
+    goto error;
 
   type = self->ehdr->e_type;
   if (type != ET_EXEC && type != ET_DYN)
