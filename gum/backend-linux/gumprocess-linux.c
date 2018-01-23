@@ -1036,7 +1036,23 @@ gum_module_find_export_by_name (const gchar * module_name,
     name = gum_resolve_module_name (module_name, NULL);
     if (name == NULL)
       return 0;
+
+#ifdef HAVE_ANDROID
+    {
+      const gchar * linker_name = (sizeof (gpointer) == 4)
+          ? "/system/bin/linker"
+          : "/system/bin/linker64";
+      if (strcmp (name, linker_name) == 0)
+      {
+        g_free (name);
+
+        return GUM_ADDRESS (dlsym (RTLD_DEFAULT, symbol_name));
+      }
+    }
+#endif
+
     module = dlopen (name, RTLD_LAZY | RTLD_GLOBAL);
+
     g_free (name);
 
     if (module == NULL)

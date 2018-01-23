@@ -337,6 +337,37 @@ gum_elf_module_enumerate_exports (GumElfModule * self,
 {
   GumElfEnumerateExportsContext ctx;
 
+#ifdef HAVE_ANDROID
+  const gchar * linker_name = (sizeof (gpointer) == 4)
+      ? "/system/bin/linker"
+      : "/system/bin/linker64";
+  if (strcmp (self->path, linker_name) == 0)
+  {
+    const gchar * linker_exports[] =
+    {
+      "dlopen",
+      "dlsym",
+      "dlclose",
+      "dlerror",
+    };
+    guint i;
+
+    for (i = 0; i != G_N_ELEMENTS (linker_exports); i++)
+    {
+      const gchar * name = linker_exports[i];
+      GumExportDetails d;
+
+      d.type = GUM_EXPORT_FUNCTION;
+      d.name = name;
+      d.address = gum_module_find_export_by_name (linker_name, name);
+      g_assert (d.address != 0);
+
+      if (!func (&d, user_data))
+        return;
+    }
+  }
+#endif
+
   ctx.func = func;
   ctx.user_data = user_data;
 
