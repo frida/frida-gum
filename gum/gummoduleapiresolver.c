@@ -130,6 +130,7 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
   gchar * collection;
   GPatternSpec * module_spec, * function_spec;
   GHashTableIter module_iter;
+  GHashTable * seen_modules;
   gboolean carry_on;
   GumModuleMetadata * module;
 
@@ -142,10 +143,16 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
   function_spec = gum_pattern_spec_from_match_info (query_info, 3);
 
   g_hash_table_iter_init (&module_iter, self->module_by_name);
+  seen_modules = g_hash_table_new (NULL, NULL);
   carry_on = TRUE;
+
   while (carry_on &&
       g_hash_table_iter_next (&module_iter, NULL, (gpointer *) &module))
   {
+    if (g_hash_table_contains (seen_modules, module))
+      continue;
+    g_hash_table_add (seen_modules, module);
+
     if (g_pattern_match_string (module_spec, module->name) ||
         g_pattern_match_string (module_spec, module->path))
     {
@@ -179,6 +186,8 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
       }
     }
   }
+
+  g_hash_table_unref (seen_modules);
 
   g_pattern_spec_free (function_spec);
   g_pattern_spec_free (module_spec);
