@@ -1182,6 +1182,9 @@ gum_resolve_module_name (const gchar * name,
 {
   GumResolveModuleNameContext ctx;
 
+  if (name[0] == '/' && base == NULL)
+    return g_strdup (name);
+
 #if defined (HAVE_GLIBC)
   struct link_map * map;
 
