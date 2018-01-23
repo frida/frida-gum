@@ -7,9 +7,31 @@
 #include "interceptor-android-fixture.c"
 
 TEST_LIST_BEGIN (interceptor_android)
+  INTERCEPTOR_TESTENTRY (can_attach_to_dlopen)
   INTERCEPTOR_TESTENTRY (can_attach_to_fork)
   INTERCEPTOR_TESTENTRY (can_attach_to_set_argv0)
 TEST_LIST_END ()
+
+INTERCEPTOR_TESTCASE (can_attach_to_dlopen)
+{
+  void * (* dlopen_impl) (const char * filename, int flags);
+  void * libc;
+
+  dlopen_impl = GSIZE_TO_POINTER (
+      gum_module_find_export_by_name (NULL, "dlopen"));
+
+  interceptor_fixture_attach_listener (fixture, 0, dlopen_impl, '>', '<');
+
+  libc = dlopen ("libc.so", RTLD_LAZY | RTLD_GLOBAL);
+  g_assert (libc != NULL);
+
+  dlclose (libc);
+
+  g_assert_cmpstr (fixture->result->str, ==, "><");
+
+  interceptor_fixture_detach_listener (fixture, 0);
+  g_string_truncate (fixture->result, 0);
+}
 
 INTERCEPTOR_TESTCASE (can_attach_to_fork)
 {
