@@ -256,20 +256,100 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   if (is_thumb)
   {
     GumThumbRelocator * tr = &self->thumb_relocator;
+    gboolean is_eligible_for_lr_rewriting;
 
     ctx->on_invoke_trampoline = gum_thumb_writer_cur (tw) + 1;
 
     gum_thumb_relocator_reset (tr, function_address, tw);
 
+    is_eligible_for_lr_rewriting = TRUE;
     do
     {
-      reloc_bytes = gum_thumb_relocator_read_one (tr, NULL);
-      if (reloc_bytes == 0)
+      const cs_insn * insn;
+
+      reloc_bytes = gum_thumb_relocator_read_one (tr, &insn);
+
+      if (reloc_bytes != 0)
+      {
+        switch (insn->id)
+        {
+          case ARM_INS_MOV:
+          case ARM_INS_B:
+            break;
+          default:
+            is_eligible_for_lr_rewriting = FALSE;
+            break;
+        }
+      }
+      else
+      {
         reloc_bytes = data->redirect_code_size;
+      }
     }
     while (reloc_bytes < data->redirect_code_size);
 
-    gum_thumb_relocator_write_all (tr);
+    if (is_eligible_for_lr_rewriting)
+    {
+      const cs_insn * insn;
+
+      while ((insn = gum_thumb_relocator_peek_next_write_insn (tr)) != NULL)
+      {
+        if (insn->id == ARM_INS_MOV &&
+            insn->detail->arm.operands[1].reg == ARM_REG_LR)
+        {
+          arm_reg dst_reg = insn->detail->arm.operands[0].reg;
+          const arm_reg clobbered_regs[] = {
+            ARM_REG_R0, ARM_REG_R1, ARM_REG_R2, ARM_REG_R3,
+            ARM_REG_R4, ARM_REG_R5, ARM_REG_R6, ARM_REG_R7,
+            ARM_REG_R9, ARM_REG_R12, ARM_REG_LR,
+          };
+          GArray * saved_regs;
+          guint i;
+          arm_reg nzcvq_reg;
+
+          saved_regs = g_array_sized_new (FALSE, FALSE, sizeof (arm_reg),
+              G_N_ELEMENTS (clobbered_regs));
+          for (i = 0; i != G_N_ELEMENTS (clobbered_regs); i++)
+          {
+            arm_reg reg = clobbered_regs[i];
+            if (reg != dst_reg)
+              g_array_append_val (saved_regs, reg);
+          }
+
+          nzcvq_reg = ARM_REG_R4;
+          if (nzcvq_reg == dst_reg)
+            nzcvq_reg = ARM_REG_R5;
+
+          gum_thumb_writer_put_push_regs_array (tw, saved_regs->len,
+              (const arm_reg *) saved_regs->data);
+          gum_thumb_writer_put_mrs_reg_reg (tw, nzcvq_reg,
+              ARM_SYSREG_APSR_NZCVQ);
+
+          gum_thumb_writer_put_call_address_with_arguments (tw,
+              GUM_ADDRESS (_gum_interceptor_translate_top_return_address), 2,
+              GUM_ARG_ADDRESS, GUM_ADDRESS (ctx->interceptor),
+              GUM_ARG_REGISTER, ARM_REG_LR);
+          gum_thumb_writer_put_mov_reg_reg (tw, dst_reg, ARM_REG_R0);
+
+          gum_thumb_writer_put_msr_reg_reg (tw, ARM_SYSREG_APSR_NZCVQ,
+              nzcvq_reg);
+          gum_thumb_writer_put_pop_regs_array (tw, saved_regs->len,
+              (const arm_reg *) saved_regs->data);
+
+          g_array_free (saved_regs, TRUE);
+
+          gum_thumb_relocator_skip_one (tr);
+        }
+        else
+        {
+          gum_thumb_relocator_write_one (tr);
+        }
+      }
+    }
+    else
+    {
+      gum_thumb_relocator_write_all (tr);
+    }
 
     if (!gum_thumb_relocator_eoi (tr))
     {
