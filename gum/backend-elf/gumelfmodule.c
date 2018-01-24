@@ -496,7 +496,6 @@ gum_store_symtab_params (const GumElfDynamicEntryDetails * details,
       guint32 nbuckets;
       guint32 symoffset;
       guint32 bloom_size;
-      guint32 bloom_shift;
       const gsize * bloom;
       const guint32 * buckets;
       const guint32 * chain;
@@ -512,7 +511,6 @@ gum_store_symtab_params (const GumElfDynamicEntryDetails * details,
       nbuckets = hash_params[0];
       symoffset = hash_params[1];
       bloom_size = hash_params[2];
-      bloom_shift = hash_params[3];
       bloom = (gsize *) (hash_params + 4);
       buckets = (const guint32 *) (bloom + bloom_size);
       chain = buckets + nbuckets;
