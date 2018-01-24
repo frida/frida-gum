@@ -642,6 +642,27 @@ gum_invocation_stack_translate (GumInvocationStack * self,
   return return_address;
 }
 
+gpointer
+_gum_interceptor_translate_top_return_address (GumInterceptor * self,
+                                               gpointer return_address)
+{
+  GumInvocationStack * stack;
+  GumInvocationStackEntry * entry;
+
+  stack = gum_interceptor_get_current_stack ();
+  if (stack->len == 0)
+    goto fallback;
+
+  entry = &g_array_index (stack, GumInvocationStackEntry, stack->len - 1);
+  if (entry->trampoline_ret_addr != return_address)
+    goto fallback;
+
+  return entry->caller_ret_addr;
+
+fallback:
+  return return_address;
+}
+
 static GumFunctionContext *
 gum_interceptor_instrument (GumInterceptor * self,
                             gpointer function_address)

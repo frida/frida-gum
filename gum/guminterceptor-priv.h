@@ -83,4 +83,7 @@ G_GNUC_INTERNAL gpointer _gum_interceptor_backend_resolve_redirect (
 G_GNUC_INTERNAL gboolean _gum_interceptor_backend_can_intercept (
     GumInterceptorBackend * self, gpointer function_address);
 
+G_GNUC_INTERNAL gpointer _gum_interceptor_translate_top_return_address (
+    GumInterceptor * self, gpointer return_address);
+
 #endif
