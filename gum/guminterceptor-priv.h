@@ -56,30 +56,31 @@ struct _GumFunctionContext
 G_GNUC_INTERNAL void _gum_interceptor_init (void);
 G_GNUC_INTERNAL void _gum_interceptor_deinit (void);
 
-void _gum_function_context_begin_invocation (
+G_GNUC_INTERNAL void _gum_function_context_begin_invocation (
     GumFunctionContext * function_ctx, GumCpuContext * cpu_context,
     gpointer * caller_ret_addr, gpointer * next_hop);
-void _gum_function_context_end_invocation (
+G_GNUC_INTERNAL void _gum_function_context_end_invocation (
     GumFunctionContext * function_ctx, GumCpuContext * cpu_context,
     gpointer * next_hop);
 
-GumInterceptorBackend * _gum_interceptor_backend_create (
+G_GNUC_INTERNAL GumInterceptorBackend * _gum_interceptor_backend_create (
     GumCodeAllocator * allocator);
-void _gum_interceptor_backend_destroy (GumInterceptorBackend * backend);
-gboolean _gum_interceptor_backend_create_trampoline (
+G_GNUC_INTERNAL void _gum_interceptor_backend_destroy (
+    GumInterceptorBackend * backend);
+G_GNUC_INTERNAL gboolean _gum_interceptor_backend_create_trampoline (
     GumInterceptorBackend * self, GumFunctionContext * ctx);
-void _gum_interceptor_backend_destroy_trampoline (GumInterceptorBackend * self,
-    GumFunctionContext * ctx);
-void _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
-    GumFunctionContext * ctx, gpointer prologue);
-void _gum_interceptor_backend_deactivate_trampoline (
+G_GNUC_INTERNAL void _gum_interceptor_backend_destroy_trampoline (
+    GumInterceptorBackend * self, GumFunctionContext * ctx);
+G_GNUC_INTERNAL void _gum_interceptor_backend_activate_trampoline (
+    GumInterceptorBackend * self, GumFunctionContext * ctx, gpointer prologue);
+G_GNUC_INTERNAL void _gum_interceptor_backend_deactivate_trampoline (
     GumInterceptorBackend * self, GumFunctionContext * ctx, gpointer prologue);
 
-gpointer _gum_interceptor_backend_get_function_address (
+G_GNUC_INTERNAL gpointer _gum_interceptor_backend_get_function_address (
     GumFunctionContext * ctx);
-gpointer _gum_interceptor_backend_resolve_redirect (
+G_GNUC_INTERNAL gpointer _gum_interceptor_backend_resolve_redirect (
     GumInterceptorBackend * self, gpointer address);
-gboolean _gum_interceptor_backend_can_intercept (GumInterceptorBackend * self,
-    gpointer function_address);
+G_GNUC_INTERNAL gboolean _gum_interceptor_backend_can_intercept (
+    GumInterceptorBackend * self, gpointer function_address);
 
 #endif
