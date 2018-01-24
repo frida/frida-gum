@@ -159,7 +159,7 @@ API_RESOLVER_TESTCASE (linker_exports_can_be_resolved_on_android)
     gum_api_resolver_enumerate_matches (fixture->resolver, query,
         check_linker_export, &ctx, &error);
     g_assert (error == NULL);
-    g_assert_cmpuint (ctx.number_of_calls, ==, 1);
+    g_assert_cmpuint (ctx.number_of_calls, >=, 1);
 
     g_free (query);
   }
