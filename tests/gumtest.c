@@ -166,6 +166,9 @@ main (gint argc, gchar * argv[])
 #ifdef HAVE_ANDROID
   TEST_RUN_LIST (interceptor_android);
 #endif
+#ifdef HAVE_ARM
+  TEST_RUN_LIST (interceptor_arm);
+#endif
 #ifdef HAVE_DARWIN
   TEST_RUN_LIST (exceptor_darwin);
 #endif
