@@ -634,8 +634,7 @@ gum_invocation_stack_translate (GumInvocationStack * self,
   {
     GumInvocationStackEntry * entry;
 
-    entry = (GumInvocationStackEntry *)
-        &g_array_index (self, GumInvocationStackEntry, i);
+    entry = &g_array_index (self, GumInvocationStackEntry, i);
     if (entry->trampoline_ret_addr == return_address)
       return entry->caller_ret_addr;
   }
