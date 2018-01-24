@@ -13,13 +13,26 @@
 
 #include <string.h>
 
+typedef guint GumThumbLabelRefType;
 typedef struct _GumThumbLabelRef GumThumbLabelRef;
 typedef struct _GumThumbLiteralRef GumThumbLiteralRef;
 typedef guint GumThumbMemoryOperation;
 
+enum _GumThumbLabelRefType
+{
+  GUM_THUMB_B_T1,
+  GUM_THUMB_B_T2,
+  GUM_THUMB_B_T3,
+  GUM_THUMB_B_T4,
+  GUM_THUMB_BL_T1,
+  GUM_THUMB_CBZ_T1,
+  GUM_THUMB_CBNZ_T1,
+};
+
 struct _GumThumbLabelRef
 {
   gconstpointer id;
+  GumThumbLabelRefType type;
   guint16 * insn;
 };
 
@@ -191,11 +204,13 @@ gum_thumb_writer_put_label (GumThumbWriter * self,
 
 static void
 gum_thumb_writer_add_label_reference_here (GumThumbWriter * self,
-                                           gconstpointer id)
+                                           gconstpointer id,
+                                           GumThumbLabelRefType type)
 {
   GumThumbLabelRef r;
 
   r.id = id;
+  r.type = type;
   r.insn = self->code;
 
   g_array_append_val (self->label_refs, r);
@@ -364,6 +379,22 @@ gum_thumb_writer_put_b_imm (GumThumbWriter * self,
 }
 
 void
+gum_thumb_writer_put_b_label (GumThumbWriter * self,
+                              gconstpointer label_id)
+{
+  gum_thumb_writer_add_label_reference_here (self, label_id, GUM_THUMB_B_T2);
+  gum_thumb_writer_put_instruction (self, 0xe000);
+}
+
+void
+gum_thumb_writer_put_b_label_wide (GumThumbWriter * self,
+                                   gconstpointer label_id)
+{
+  gum_thumb_writer_add_label_reference_here (self, label_id, GUM_THUMB_B_T4);
+  gum_thumb_writer_put_branch_imm (self, 0, FALSE, TRUE);
+}
+
+void
 gum_thumb_writer_put_bx_reg (GumThumbWriter * self,
                              arm_reg reg)
 {
@@ -372,6 +403,28 @@ gum_thumb_writer_put_bx_reg (GumThumbWriter * self,
   gum_arm_reg_describe (reg, &ri);
 
   gum_thumb_writer_put_instruction (self, 0x4700 | (ri.index << 3));
+}
+
+void
+gum_thumb_writer_put_bl_imm (GumThumbWriter * self,
+                             GumAddress target)
+{
+  gum_thumb_writer_put_branch_imm (self, target, TRUE, TRUE);
+}
+
+void
+gum_thumb_writer_put_bl_label (GumThumbWriter * self,
+                               gconstpointer label_id)
+{
+  gum_thumb_writer_add_label_reference_here (self, label_id, GUM_THUMB_BL_T1);
+  gum_thumb_writer_put_branch_imm (self, 0, TRUE, TRUE);
+}
+
+void
+gum_thumb_writer_put_blx_imm (GumThumbWriter * self,
+                              GumAddress target)
+{
+  gum_thumb_writer_put_branch_imm (self, target, TRUE, FALSE);
 }
 
 void
@@ -385,42 +438,43 @@ gum_thumb_writer_put_blx_reg (GumThumbWriter * self,
   gum_thumb_writer_put_instruction (self, 0x4780 | (ri.index << 3));
 }
 
-void
-gum_thumb_writer_put_bl_imm (GumThumbWriter * self,
-                             GumAddress target)
-{
-  gum_thumb_writer_put_branch_imm (self, target, TRUE, TRUE);
-}
-
-void
-gum_thumb_writer_put_blx_imm (GumThumbWriter * self,
-                              GumAddress target)
-{
-  gum_thumb_writer_put_branch_imm (self, target, TRUE, FALSE);
-}
-
 static void
 gum_thumb_writer_put_branch_imm (GumThumbWriter * self,
                                  GumAddress target,
                                  gboolean link,
                                  gboolean thumb)
 {
-  union
-  {
-    gint32 i;
-    guint32 u;
-  } distance;
   guint16 s, j1, j2, imm10, imm11;
 
-  distance.i = ((gint32) (target & ~((GumAddress) 1)) -
-      (gint32) (self->pc + 4)) / 2;
+  if (target != 0)
+  {
+    union
+    {
+      gint32 i;
+      guint32 u;
+    } distance;
+    guint16 i1, i2;
 
-  s = (distance.u >> 31) & 1;
-  j1 = (~((distance.u >> 22) ^ s)) & 1;
-  j2 = (~((distance.u >> 21) ^ s)) & 1;
+    distance.i = ((gint32) (target & ~((GumAddress) 1)) -
+        (gint32) (self->pc + 4)) / 2;
 
-  imm10 = (distance.u >> 11) & GUM_INT10_MASK;
-  imm11 = distance.u & GUM_INT11_MASK;
+    s =  (distance.u >> 23) & 1;
+    i1 = (distance.u >> 22) & 1;
+    i2 = (distance.u >> 21) & 1;
+    j1 = (i1 ^ 1) ^ s;
+    j2 = (i2 ^ 1) ^ s;
+
+    imm10 = (distance.u >> 11) & GUM_INT10_MASK;
+    imm11 =  distance.u        & GUM_INT11_MASK;
+  }
+  else
+  {
+    s = 0;
+    j1 = 0;
+    j2 = 0;
+    imm10 = 0;
+    imm11 = 0;
+  }
 
   gum_thumb_writer_put_instruction_wide (self,
       0xf000 | (s << 10) | imm10,
@@ -437,14 +491,6 @@ gum_thumb_writer_put_cmp_reg_imm (GumThumbWriter * self,
   gum_arm_reg_describe (reg, &ri);
 
   gum_thumb_writer_put_instruction (self, 0x2800 | (ri.index << 8) | imm_value);
-}
-
-void
-gum_thumb_writer_put_b_label (GumThumbWriter * self,
-                              gconstpointer label_id)
-{
-  gum_thumb_writer_add_label_reference_here (self, label_id);
-  gum_thumb_writer_put_instruction (self, 0xe000);
 }
 
 void
@@ -466,7 +512,7 @@ gum_thumb_writer_put_b_cond_label (GumThumbWriter * self,
                                    arm_cc cc,
                                    gconstpointer label_id)
 {
-  gum_thumb_writer_add_label_reference_here (self, label_id);
+  gum_thumb_writer_add_label_reference_here (self, label_id, GUM_THUMB_B_T1);
   gum_thumb_writer_put_instruction (self, 0xd000 | ((cc - 1) << 8));
 }
 
@@ -475,7 +521,7 @@ gum_thumb_writer_put_b_cond_label_wide (GumThumbWriter * self,
                                         arm_cc cc,
                                         gconstpointer label_id)
 {
-  gum_thumb_writer_add_label_reference_here (self, label_id);
+  gum_thumb_writer_add_label_reference_here (self, label_id, GUM_THUMB_B_T3);
   gum_thumb_writer_put_instruction_wide (self,
       0xf000 | ((cc - 1) << 6),
       0x8000);
@@ -490,7 +536,7 @@ gum_thumb_writer_put_cbz_reg_label (GumThumbWriter * self,
 
   gum_arm_reg_describe (reg, &ri);
 
-  gum_thumb_writer_add_label_reference_here (self, label_id);
+  gum_thumb_writer_add_label_reference_here (self, label_id, GUM_THUMB_CBZ_T1);
   gum_thumb_writer_put_instruction (self, 0xb100 | ri.index);
 }
 
@@ -503,7 +549,7 @@ gum_thumb_writer_put_cbnz_reg_label (GumThumbWriter * self,
 
   gum_arm_reg_describe (reg, &ri);
 
-  gum_thumb_writer_add_label_reference_here (self, label_id);
+  gum_thumb_writer_add_label_reference_here (self, label_id, GUM_THUMB_CBNZ_T1);
   gum_thumb_writer_put_instruction (self, 0xb900 | ri.index);
 }
 
@@ -1112,57 +1158,99 @@ gum_thumb_writer_try_commit_label_refs (GumThumbWriter * self)
     distance = target_insn - (r->insn + 2);
 
     insn = GUINT16_FROM_LE (*r->insn);
-    if ((insn & 0xf000) == 0xd000)
+    switch (r->type)
     {
-      if (!GUM_IS_WITHIN_INT8_RANGE (distance))
-        return FALSE;
-      insn |= distance & GUM_INT8_MASK;
-    }
-    else if ((insn & 0xf800) == 0xe000)
-    {
-      if (!GUM_IS_WITHIN_INT11_RANGE (distance))
-        return FALSE;
-      insn |= distance & GUM_INT11_MASK;
-    }
-    else if ((insn & 0xf800) == 0xf000)
-    {
-      union
+      case GUM_THUMB_B_T1:
+        if (!GUM_IS_WITHIN_INT8_RANGE (distance))
+          return FALSE;
+        insn |= distance & GUM_INT8_MASK;
+        break;
+      case GUM_THUMB_B_T2:
+        if (!GUM_IS_WITHIN_INT11_RANGE (distance))
+          return FALSE;
+        insn |= distance & GUM_INT11_MASK;
+        break;
+      case GUM_THUMB_B_T3:
       {
-        gint32 i;
-        guint32 u;
-      } distance_word;
-      guint32 s, j2, j1, imm6, imm11;
-      guint16 insn_low;
+        union
+        {
+          gint32 i;
+          guint32 u;
+        } distance_word;
+        guint32 s, j2, j1, imm6, imm11;
+        guint16 insn_low;
 
-      if (!GUM_IS_WITHIN_INT20_RANGE (distance))
-        return FALSE;
+        if (!GUM_IS_WITHIN_INT20_RANGE (distance))
+          return FALSE;
 
-      insn_low = GUINT16_FROM_LE (r->insn[1]);
+        insn_low = GUINT16_FROM_LE (r->insn[1]);
 
-      distance_word.i = distance;
+        distance_word.i = distance;
 
-      s = distance_word.u >> 31;
-      j2 = (distance_word.u >> 18) & 1;
-      j1 = (distance_word.u >> 17) & 1;
-      imm6 = (distance_word.u >> 11) & GUM_INT6_MASK;
-      imm11 = distance_word.u & GUM_INT11_MASK;
+        s =  (distance_word.u >> 23) & 1;
+        j2 = (distance_word.u >> 18) & 1;
+        j1 = (distance_word.u >> 17) & 1;
+        imm6 = (distance_word.u >> 11) & GUM_INT6_MASK;
+        imm11 = distance_word.u        & GUM_INT11_MASK;
 
-      insn     |=  (s << 10) | imm6;
-      insn_low |= (j1 << 13) | (j2 << 11) | imm11;
+        insn     |=  (s << 10) | imm6;
+        insn_low |= (j1 << 13) | (j2 << 11) | imm11;
 
-      r->insn[1] = GUINT16_TO_LE (insn_low);
-    }
-    else
-    {
-      guint16 i, imm5;
+        r->insn[1] = GUINT16_TO_LE (insn_low);
 
-      if (!GUM_IS_WITHIN_UINT7_RANGE (distance))
-        return FALSE;
+        break;
+      }
+      case GUM_THUMB_B_T4:
+      case GUM_THUMB_BL_T1:
+      {
+        union
+        {
+          gint32 i;
+          guint32 u;
+        } distance_word;
+        guint16 s, i1, i2, j1, j2, imm10, imm11;
+        guint16 insn_low;
 
-      i = (distance >> 5) & 1;
-      imm5 = distance & GUM_INT5_MASK;
+        if (!GUM_IS_WITHIN_INT24_RANGE (distance))
+          return FALSE;
 
-      insn |= (i << 9) | (imm5 << 3);
+        insn_low = GUINT16_FROM_LE (r->insn[1]);
+
+        distance_word.i = distance;
+
+        s =  (distance_word.u >> 23) & 1;
+        i1 = (distance_word.u >> 22) & 1;
+        i2 = (distance_word.u >> 21) & 1;
+        j1 = (i1 ^ 1) ^ s;
+        j2 = (i2 ^ 1) ^ s;
+
+        imm10 = (distance_word.u >> 11) & GUM_INT10_MASK;
+        imm11 =  distance_word.u        & GUM_INT11_MASK;
+
+        insn     |=  (s << 10) | imm10;
+        insn_low |= (j1 << 13) | (j2 << 11) | imm11;
+
+        r->insn[1] = GUINT16_TO_LE (insn_low);
+
+        break;
+      }
+      case GUM_THUMB_CBZ_T1:
+      case GUM_THUMB_CBNZ_T1:
+      {
+        guint16 i, imm5;
+
+        if (!GUM_IS_WITHIN_UINT7_RANGE (distance))
+          return FALSE;
+
+        i = (distance >> 5) & 1;
+        imm5 = distance & GUM_INT5_MASK;
+
+        insn |= (i << 9) | (imm5 << 3);
+
+        break;
+      }
+      default:
+        g_assert_not_reached ();
     }
 
     *r->insn = GUINT16_TO_LE (insn);

@@ -14,7 +14,9 @@ TEST_LIST_BEGIN (thumbwriter)
   THUMBWRITER_TESTENTRY (cbz_reg_label)
   THUMBWRITER_TESTENTRY (cbnz_reg_label)
 
+  THUMBWRITER_TESTENTRY (b_label_wide)
   THUMBWRITER_TESTENTRY (bx_reg)
+  THUMBWRITER_TESTENTRY (bl_label)
   THUMBWRITER_TESTENTRY (blx_reg)
 
   THUMBWRITER_TESTENTRY (push_regs)
@@ -154,6 +156,22 @@ THUMBWRITER_TESTCASE (cbnz_reg_label)
   /* beach: */
 }
 
+THUMBWRITER_TESTCASE (b_label_wide)
+{
+  const gchar * next_lbl = "next";
+
+  gum_thumb_writer_put_b_label_wide (&fixture->tw, next_lbl);
+  gum_thumb_writer_put_label (&fixture->tw, next_lbl);
+  gum_thumb_writer_put_nop (&fixture->tw);
+
+  gum_thumb_writer_flush (&fixture->tw);
+
+  assert_output_n_equals (0, 0xf000); /* b.w next */
+  assert_output_n_equals (1, 0xb800);
+  /* next: */
+  assert_output_n_equals (2, 0x46c0); /* nop */
+}
+
 THUMBWRITER_TESTCASE (bx_reg)
 {
   gum_thumb_writer_put_bx_reg (&fixture->tw, ARM_REG_R0);
@@ -170,6 +188,26 @@ THUMBWRITER_TESTCASE (blx_reg)
 
   gum_thumb_writer_put_blx_reg (&fixture->tw, ARM_REG_R3);
   assert_output_n_equals (1, 0x4798);
+}
+
+THUMBWRITER_TESTCASE (bl_label)
+{
+  const gchar * next_lbl = "next";
+
+  gum_thumb_writer_put_push_regs (&fixture->tw, 1, ARM_REG_LR);
+  gum_thumb_writer_put_bl_label (&fixture->tw, next_lbl);
+  gum_thumb_writer_put_pop_regs (&fixture->tw, 1, ARM_REG_PC);
+  gum_thumb_writer_put_label (&fixture->tw, next_lbl);
+  gum_thumb_writer_put_mov_reg_u8 (&fixture->tw, ARM_REG_R2, 0);
+
+  gum_thumb_writer_flush (&fixture->tw);
+
+  assert_output_n_equals (0, 0xb500); /* push {lr} */
+  assert_output_n_equals (1, 0xf000); /* bl next */
+  assert_output_n_equals (2, 0xf801);
+  assert_output_n_equals (3, 0xbd00); /* pop {pc} */
+  /* next: */
+  assert_output_n_equals (4, 0x2200); /* movs r2, 0 */
 }
 
 THUMBWRITER_TESTCASE (push_regs)
