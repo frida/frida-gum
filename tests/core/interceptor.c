@@ -32,6 +32,9 @@ TEST_LIST_BEGIN (interceptor)
 #if !defined (HAVE_IOS) && defined (HAVE_ARM)
   INTERCEPTOR_TESTENTRY (attach_to_unaligned_function)
 #endif
+#ifdef HAVE_ARM
+  INTERCEPTOR_TESTENTRY (attach_to_thumb_thunk_reading_lr)
+#endif
 #if !defined (HAVE_QNX) && !(defined (HAVE_ANDROID) && defined (HAVE_ARM64))
   INTERCEPTOR_TESTENTRY (attach_to_heap_api)
 #endif
@@ -187,6 +190,77 @@ INTERCEPTOR_TESTCASE (attach_to_unaligned_function)
   g_assert_cmpstr (fixture->result->str, ==, "");
 
   gum_free_pages (page);
+}
+
+#endif
+
+#ifdef HAVE_ARM
+
+typedef struct _GumEmitLrThunkContext GumEmitLrThunkContext;
+
+struct _GumEmitLrThunkContext
+{
+  gpointer code;
+  gsize (* run) (void);
+  gsize (* thunk) (void);
+  gsize expected_lr;
+};
+
+static void gum_emit_lr_thunk (gpointer mem, gpointer user_data);
+
+INTERCEPTOR_TESTCASE (attach_to_thumb_thunk_reading_lr)
+{
+  const gsize code_size_in_pages = 1;
+  gsize code_size;
+  GumEmitLrThunkContext ctx;
+
+  code_size = code_size_in_pages * gum_query_page_size ();
+  ctx.code = gum_alloc_n_pages (code_size_in_pages, GUM_PAGE_RW);
+  ctx.run = NULL;
+  ctx.thunk = NULL;
+  ctx.expected_lr = 0;
+
+  gum_memory_patch_code (GUM_ADDRESS (ctx.code), code_size, gum_emit_lr_thunk,
+      &ctx);
+
+  g_assert_cmphex (ctx.run (), ==, ctx.expected_lr);
+
+  interceptor_fixture_attach_listener (fixture, 0, ctx.thunk, '>', '<');
+  g_assert_cmphex (ctx.run (), ==, ctx.expected_lr);
+  g_assert_cmpstr (fixture->result->str, ==, "><");
+
+  gum_free_pages (ctx.code);
+}
+
+static void
+gum_emit_lr_thunk (gpointer mem,
+                   gpointer user_data)
+{
+  GumEmitLrThunkContext * ctx = user_data;
+  GumThumbWriter tw;
+  const gchar * thunk_start = "thunk_start";
+  const gchar * inner_start = "inner_start";
+
+  gum_thumb_writer_init (&tw, mem);
+  tw.pc = GUM_ADDRESS (ctx->code);
+
+  ctx->run = GSIZE_TO_POINTER (tw.pc | 1);
+  gum_thumb_writer_put_push_regs (&tw, 1, ARM_REG_LR);
+  gum_thumb_writer_put_bl_label (&tw, thunk_start);
+  ctx->expected_lr = tw.pc | 1;
+  gum_thumb_writer_put_pop_regs (&tw, 1, ARM_REG_PC);
+
+  ctx->thunk = GSIZE_TO_POINTER (tw.pc | 1);
+  gum_thumb_writer_put_label (&tw, thunk_start);
+  gum_thumb_writer_put_mov_reg_u8 (&tw, ARM_REG_R2, 0);
+  gum_thumb_writer_put_mov_reg_reg (&tw, ARM_REG_R3, ARM_REG_LR);
+  gum_thumb_writer_put_b_label_wide (&tw, inner_start);
+
+  gum_thumb_writer_put_label (&tw, inner_start);
+  gum_thumb_writer_put_mov_reg_reg (&tw, ARM_REG_R0, ARM_REG_R3);
+  gum_thumb_writer_put_bx_reg (&tw, ARM_REG_LR);
+
+  gum_thumb_writer_clear (&tw);
 }
 
 #endif
