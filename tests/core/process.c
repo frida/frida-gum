@@ -79,6 +79,13 @@ struct _TestRangeContext
   gboolean found_exact;
 };
 
+struct _TestThreadSyncData
+{
+  GMutex thread_is_started_mutex;
+  GCond thread_is_started;
+  volatile gboolean * volatile done;
+};
+
 #ifndef G_OS_WIN32
 static gboolean store_export_address_if_tricky_module_export (
     const GumExportDetails * details, gpointer user_data);
@@ -91,6 +98,7 @@ static gboolean store_export_address_if_mach_msg (
     const GumExportDetails * details, gpointer user_data);
 #endif
 
+static GThread * new_sleeping_dummy_thread_sync (volatile gboolean * done);
 static gpointer sleeping_dummy (gpointer data);
 static gboolean thread_found_cb (const GumThreadDetails * details,
     gpointer user_data);
@@ -117,9 +125,31 @@ static gboolean malloc_range_check_cb (
     const GumMallocRangeDetails * details, gpointer user_data);
 #endif
 
+GThread * new_sleeping_dummy_thread_sync (volatile gboolean * done)
+{
+  struct _TestThreadSyncData sync_data;
+  GThread * thread;
+
+  g_cond_init (&sync_data.thread_is_started);
+  g_mutex_init (&sync_data.thread_is_started_mutex);
+  g_mutex_lock (&sync_data.thread_is_started_mutex);
+  sync_data.done = done;
+
+  thread = g_thread_new ("process-test-sleeping-dummy", sleeping_dummy,
+      &sync_data);
+
+  g_cond_wait (&sync_data.thread_is_started,
+      &sync_data.thread_is_started_mutex);
+  g_mutex_unlock (&sync_data.thread_is_started_mutex);
+
+  g_cond_clear (&sync_data.thread_is_started);
+  g_mutex_clear (&sync_data.thread_is_started_mutex);
+  return thread;
+}
+
 PROCESS_TESTCASE (process_threads)
 {
-  gboolean done = FALSE;
+  volatile gboolean done = FALSE;
   GThread * thread_a, * thread_b;
   TestForEachContext ctx;
 
@@ -137,10 +167,8 @@ PROCESS_TESTCASE (process_threads)
     return;
   }
 
-  thread_a = g_thread_new ("process-test-sleeping-dummy-a", sleeping_dummy,
-      &done);
-  thread_b = g_thread_new ("process-test-sleeping-dummy-b", sleeping_dummy,
-      &done);
+  thread_a = new_sleeping_dummy_thread_sync (&done);
+  thread_b = new_sleeping_dummy_thread_sync (&done);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
@@ -713,11 +741,14 @@ store_export_address_if_mach_msg (const GumExportDetails * details,
 static gpointer
 sleeping_dummy (gpointer data)
 {
-  volatile gboolean * done = (gboolean *) data;
+  struct _TestThreadSyncData * sync_data = (struct _TestThreadSyncData *)data;
+  volatile gboolean * done = sync_data->done;
 
-  while (!(*done))
+  g_mutex_lock (&sync_data->thread_is_started_mutex);
+  g_cond_signal (&sync_data->thread_is_started);
+  g_mutex_unlock (&sync_data->thread_is_started_mutex);
+  while (!(* done))
     g_thread_yield ();
-
   return NULL;
 }
 
