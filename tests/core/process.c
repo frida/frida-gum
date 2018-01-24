@@ -59,6 +59,7 @@ TEST_LIST_END ()
 typedef struct _TestForEachContext TestForEachContext;
 typedef struct _TestThreadContext TestThreadContext;
 typedef struct _TestRangeContext TestRangeContext;
+typedef struct _TestThreadSyncData TestThreadSyncData;
 
 struct _TestForEachContext
 {
@@ -79,6 +80,14 @@ struct _TestRangeContext
   gboolean found_exact;
 };
 
+struct _TestThreadSyncData
+{
+  GMutex mutex;
+  GCond cond;
+  volatile gboolean started;
+  volatile gboolean * volatile done;
+};
+
 #ifndef G_OS_WIN32
 static gboolean store_export_address_if_tricky_module_export (
     const GumExportDetails * details, gpointer user_data);
@@ -91,6 +100,7 @@ static gboolean store_export_address_if_mach_msg (
     const GumExportDetails * details, gpointer user_data);
 #endif
 
+static GThread * create_sleeping_dummy_thread_sync (volatile gboolean * done);
 static gpointer sleeping_dummy (gpointer data);
 static gboolean thread_found_cb (const GumThreadDetails * details,
     gpointer user_data);
@@ -119,7 +129,7 @@ static gboolean malloc_range_check_cb (
 
 PROCESS_TESTCASE (process_threads)
 {
-  gboolean done = FALSE;
+  volatile gboolean done = FALSE;
   GThread * thread_a, * thread_b;
   TestForEachContext ctx;
 
@@ -137,10 +147,8 @@ PROCESS_TESTCASE (process_threads)
     return;
   }
 
-  thread_a = g_thread_new ("process-test-sleeping-dummy-a", sleeping_dummy,
-      &done);
-  thread_b = g_thread_new ("process-test-sleeping-dummy-b", sleeping_dummy,
-      &done);
+  thread_a = create_sleeping_dummy_thread_sync (&done);
+  thread_b = create_sleeping_dummy_thread_sync (&done);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
@@ -710,10 +718,43 @@ store_export_address_if_mach_msg (const GumExportDetails * details,
 
 #endif
 
+static GThread *
+create_sleeping_dummy_thread_sync (volatile gboolean * done)
+{
+  TestThreadSyncData sync_data;
+  GThread * thread;
+
+  g_mutex_init (&sync_data.mutex);
+  g_cond_init (&sync_data.cond);
+  sync_data.started = FALSE;
+  sync_data.done = done;
+
+  g_mutex_lock (&sync_data.mutex);
+
+  thread = g_thread_new ("process-test-sleeping-dummy", sleeping_dummy,
+      &sync_data);
+
+  while (!sync_data.started)
+    g_cond_wait (&sync_data.cond, &sync_data.mutex);
+
+  g_mutex_unlock (&sync_data.mutex);
+
+  g_cond_clear (&sync_data.cond);
+  g_mutex_clear (&sync_data.mutex);
+
+  return thread;
+}
+
 static gpointer
 sleeping_dummy (gpointer data)
 {
-  volatile gboolean * done = (gboolean *) data;
+  TestThreadSyncData * sync_data = data;
+  volatile gboolean * done = sync_data->done;
+
+  g_mutex_lock (&sync_data->mutex);
+  sync_data->started = TRUE;
+  g_cond_signal (&sync_data->cond);
+  g_mutex_unlock (&sync_data->mutex);
 
   while (!(*done))
     g_thread_yield ();
@@ -725,7 +766,7 @@ static gboolean
 thread_found_cb (const GumThreadDetails * details,
                  gpointer user_data)
 {
-  TestForEachContext * ctx = (TestForEachContext *) user_data;
+  TestForEachContext * ctx = user_data;
 
   ctx->number_of_calls++;
 
@@ -736,7 +777,7 @@ static gboolean
 thread_check_cb (const GumThreadDetails * details,
                  gpointer user_data)
 {
-  TestThreadContext * ctx = (TestThreadContext *) user_data;
+  TestThreadContext * ctx = user_data;
 
   if (details->id == ctx->needle)
     ctx->found = TRUE;
@@ -748,7 +789,7 @@ static gboolean
 module_found_cb (const GumModuleDetails * details,
                  gpointer user_data)
 {
-  TestForEachContext * ctx = (TestForEachContext *) user_data;
+  TestForEachContext * ctx = user_data;
 
   ctx->number_of_calls++;
 
@@ -759,7 +800,7 @@ static gboolean
 import_found_cb (const GumImportDetails * details,
                  gpointer user_data)
 {
-  TestForEachContext * ctx = (TestForEachContext *) user_data;
+  TestForEachContext * ctx = user_data;
 
   ctx->number_of_calls++;
 
@@ -773,7 +814,7 @@ static gboolean
 export_found_cb (const GumExportDetails * details,
                  gpointer user_data)
 {
-  TestForEachContext * ctx = (TestForEachContext *) user_data;
+  TestForEachContext * ctx = user_data;
 
   ctx->number_of_calls++;
 
@@ -793,7 +834,7 @@ static gboolean
 symbol_found_cb (const GumSymbolDetails * details,
                  gpointer user_data)
 {
-  TestForEachContext * ctx = (TestForEachContext *) user_data;
+  TestForEachContext * ctx = user_data;
 
   ctx->number_of_calls++;
 
@@ -804,7 +845,7 @@ static gboolean
 range_found_cb (const GumRangeDetails * details,
                 gpointer user_data)
 {
-  TestForEachContext * ctx = (TestForEachContext *) user_data;
+  TestForEachContext * ctx = user_data;
 
   ctx->number_of_calls++;
 
@@ -815,7 +856,7 @@ static gboolean
 range_check_cb (const GumRangeDetails * details,
                 gpointer user_data)
 {
-  TestRangeContext * ctx = (TestRangeContext *) user_data;
+  TestRangeContext * ctx = user_data;
   GumAddress ctx_start, ctx_end;
   GumAddress details_start, details_end;
 
@@ -855,7 +896,7 @@ static gboolean
 malloc_range_found_cb (const GumMallocRangeDetails * details,
                        gpointer user_data)
 {
-  TestForEachContext * ctx = (TestForEachContext *) user_data;
+  TestForEachContext * ctx = user_data;
 
   ctx->number_of_calls++;
 
@@ -866,7 +907,7 @@ static gboolean
 malloc_range_check_cb (const GumMallocRangeDetails * details,
                        gpointer user_data)
 {
-  TestRangeContext * ctx = (TestRangeContext *) user_data;
+  TestRangeContext * ctx = user_data;
   GumAddress ctx_start, ctx_end;
   GumAddress details_start, details_end;
 
