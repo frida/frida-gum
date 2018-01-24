@@ -1221,7 +1221,9 @@ gum_exec_ctx_destroy_thunks (GumExecCtx * ctx)
 #if ENABLE_DEBUG
 
 static void
-gum_disasm (guint8 * code, guint size, const gchar * prefix)
+gum_disasm (guint8 * code,
+            guint size,
+            const gchar * prefix)
 {
   csh capstone;
   cs_err err;
