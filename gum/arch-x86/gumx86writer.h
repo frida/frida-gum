@@ -162,8 +162,10 @@ GUM_API gboolean gum_x86_writer_put_call_reg (GumX86Writer * self,
     GumCpuReg reg);
 GUM_API gboolean gum_x86_writer_put_call_reg_offset_ptr (GumX86Writer * self,
     GumCpuReg reg, gssize offset);
-GUM_API void gum_x86_writer_put_call_indirect (GumX86Writer * self,
-    gconstpointer * addr);
+GUM_API gboolean gum_x86_writer_put_call_indirect (GumX86Writer * self,
+    GumAddress addr);
+GUM_API gboolean gum_x86_writer_put_call_indirect_label (GumX86Writer * self,
+    gconstpointer label_id);
 GUM_API void gum_x86_writer_put_call_near_label (GumX86Writer * self,
     gconstpointer label_id);
 GUM_API void gum_x86_writer_put_leave (GumX86Writer * self);

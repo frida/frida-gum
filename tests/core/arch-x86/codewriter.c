@@ -9,6 +9,8 @@
 TEST_LIST_BEGIN (codewriter)
   CODEWRITER_TESTENTRY (jump_label)
   CODEWRITER_TESTENTRY (call_label)
+  CODEWRITER_TESTENTRY (call_indirect)
+  CODEWRITER_TESTENTRY (call_indirect_label)
   CODEWRITER_TESTENTRY (call_capi_eax_with_xdi_argument_for_ia32)
   CODEWRITER_TESTENTRY (call_capi_xbx_plus_i8_offset_ptr_with_xcx_argument_for_ia32)
   CODEWRITER_TESTENTRY (call_capi_xbx_plus_i8_offset_ptr_with_xcx_argument_for_amd64)
@@ -135,6 +137,64 @@ CODEWRITER_TESTCASE (call_label)
   gum_x86_writer_put_ret (&fixture->cw);
 
   assert_output_equals (expected_code);
+}
+
+CODEWRITER_TESTCASE (call_indirect)
+{
+  const guint8 expected_ia32_code[] = {
+    0xff, 0x15, 0x78, 0x56, 0x34, 0x12 /* call [0x12345678] */
+  };
+  const guint8 expected_amd64_code[] = {
+    0xff, 0x15, 0x78, 0x56, 0x34, 0x12 /* call [rip + 6 + 0x12345678] */
+  };
+
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_IA32);
+  gum_x86_writer_put_call_indirect (&fixture->cw, 0x12345678);
+  assert_output_equals (expected_ia32_code);
+
+  gum_x86_writer_reset (&fixture->cw, fixture->output);
+
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
+  g_assert_false (gum_x86_writer_put_call_indirect (&fixture->cw,
+      GUM_ADDRESS (fixture->output) + G_GUINT64_CONSTANT (0x7fffffff) + 6 + 1));
+
+  gum_x86_writer_reset (&fixture->cw, fixture->output);
+
+  gum_x86_writer_put_call_indirect (&fixture->cw,
+      GUM_ADDRESS (fixture->output) + 0x12345678 + 6);
+  assert_output_equals (expected_amd64_code);
+}
+
+CODEWRITER_TESTCASE (call_indirect_label)
+{
+  const gchar * addr_lbl = "label";
+  const guint8 expected_amd64_code[] = {
+    0xff, 0x15, 0x01, 0x00, 0x00, 0x00, /* call [rip + label_delta] */
+    0xc3,                               /* retn                     */
+  /* label: */
+  };
+  guint8 expected_ia32_code[] = {
+    0xff, 0x15, 0x78, 0x56, 0x34, 0x12, /* call [label] */
+    0xc3,                               /* retn         */
+  /* label: */
+  };
+
+  *(guint32 *) &expected_ia32_code[2] =
+      (guint32) GUM_ADDRESS (fixture->output) + 7;
+
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
+  gum_x86_writer_put_call_indirect_label (&fixture->cw, addr_lbl);
+  gum_x86_writer_put_ret (&fixture->cw);
+  gum_x86_writer_put_label (&fixture->cw, addr_lbl);
+  assert_output_equals (expected_amd64_code);
+
+  gum_x86_writer_reset (&fixture->cw, fixture->output);
+
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_IA32);
+  gum_x86_writer_put_call_indirect_label (&fixture->cw, addr_lbl);
+  gum_x86_writer_put_ret (&fixture->cw);
+  gum_x86_writer_put_label (&fixture->cw, addr_lbl);
+  assert_output_equals (expected_ia32_code);
 }
 
 CODEWRITER_TESTCASE (call_capi_eax_with_xdi_argument_for_ia32)
