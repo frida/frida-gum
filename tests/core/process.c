@@ -59,6 +59,7 @@ TEST_LIST_END ()
 typedef struct _TestForEachContext TestForEachContext;
 typedef struct _TestThreadContext TestThreadContext;
 typedef struct _TestRangeContext TestRangeContext;
+typedef struct _TestThreadSyncData TestThreadSyncData;
 
 struct _TestForEachContext
 {
@@ -81,8 +82,9 @@ struct _TestRangeContext
 
 struct _TestThreadSyncData
 {
-  GMutex thread_is_started_mutex;
-  GCond thread_is_started;
+  GMutex mutex;
+  GCond cond;
+  volatile gboolean started;
   volatile gboolean * volatile done;
 };
 
@@ -124,28 +126,6 @@ static gboolean malloc_range_found_cb (
 static gboolean malloc_range_check_cb (
     const GumMallocRangeDetails * details, gpointer user_data);
 #endif
-
-GThread * new_sleeping_dummy_thread_sync (volatile gboolean * done)
-{
-  struct _TestThreadSyncData sync_data;
-  GThread * thread;
-
-  g_cond_init (&sync_data.thread_is_started);
-  g_mutex_init (&sync_data.thread_is_started_mutex);
-  g_mutex_lock (&sync_data.thread_is_started_mutex);
-  sync_data.done = done;
-
-  thread = g_thread_new ("process-test-sleeping-dummy", sleeping_dummy,
-      &sync_data);
-
-  g_cond_wait (&sync_data.thread_is_started,
-      &sync_data.thread_is_started_mutex);
-  g_mutex_unlock (&sync_data.thread_is_started_mutex);
-
-  g_cond_clear (&sync_data.thread_is_started);
-  g_mutex_clear (&sync_data.thread_is_started_mutex);
-  return thread;
-}
 
 PROCESS_TESTCASE (process_threads)
 {
@@ -738,17 +718,46 @@ store_export_address_if_mach_msg (const GumExportDetails * details,
 
 #endif
 
+static GThread *
+new_sleeping_dummy_thread_sync (volatile gboolean * done)
+{
+  TestThreadSyncData sync_data;
+  GThread * thread;
+
+  g_cond_init (&sync_data.cond);
+  g_mutex_init (&sync_data.mutex);
+  g_mutex_lock (&sync_data.mutex);
+  sync_data.started = FALSE;
+  sync_data.done = done;
+
+  thread = g_thread_new ("process-test-sleeping-dummy", sleeping_dummy,
+      &sync_data);
+  
+  while (! sync_data.started)
+    g_cond_wait (&sync_data.cond, &sync_data.mutex);
+
+  g_mutex_unlock (&sync_data.mutex);
+
+  g_cond_clear (&sync_data.cond);
+  g_mutex_clear (&sync_data.mutex);
+
+  return thread;
+}
+
 static gpointer
 sleeping_dummy (gpointer data)
 {
-  struct _TestThreadSyncData * sync_data = (struct _TestThreadSyncData *)data;
+  TestThreadSyncData * sync_data = (TestThreadSyncData *)data;
   volatile gboolean * done = sync_data->done;
 
-  g_mutex_lock (&sync_data->thread_is_started_mutex);
-  g_cond_signal (&sync_data->thread_is_started);
-  g_mutex_unlock (&sync_data->thread_is_started_mutex);
-  while (!(* done))
+  g_mutex_lock (&sync_data->mutex);
+  sync_data->started = TRUE;
+  g_cond_signal (&sync_data->cond);
+  g_mutex_unlock (&sync_data->mutex);
+  
+  while (!(*done))
     g_thread_yield ();
+
   return NULL;
 }
 
