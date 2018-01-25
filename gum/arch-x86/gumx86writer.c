@@ -47,7 +47,8 @@ struct _GumCpuRegInfo
 enum _GumX86LabelRefSize
 {
   GUM_LREF_SHORT,
-  GUM_LREF_NEAR
+  GUM_LREF_NEAR,
+  GUM_LREF_ABS
 };
 
 struct _GumX86LabelRef
@@ -218,9 +219,24 @@ gum_x86_writer_flush (GumX86Writer * self)
         goto error;
       *((gint8 *) (r->address - 1)) = distance;
     }
-    else
+    else if (r->size == GUM_LREF_NEAR)
     {
       *((gint32 *) (r->address - 4)) = GINT32_TO_LE (distance);
+    }
+    else if (r->size == GUM_LREF_ABS)
+    {
+      if (self->target_cpu == GUM_CPU_AMD64)
+      {
+        guint64 uint_addr = GUM_ADDRESS (target_address);
+        *((guint64 *) (r->address - 8)) = GUINT64_TO_LE (uint_addr);
+      }
+      else
+        *((guint32 *) (r->address - 4)) =
+            GUINT32_TO_LE (GUM_ADDRESS (target_address));
+    }
+    else
+    {
+        g_assert_not_reached();
     }
   }
   g_array_set_size (self->label_refs, 0);
@@ -784,11 +800,22 @@ gum_x86_writer_put_call_address (GumX86Writer * self,
   }
   else
   {
+    gpointer label_jmp, label_addr;
+
     if (self->target_cpu != GUM_CPU_AMD64)
       return FALSE;
 
-    gum_x86_writer_put_mov_reg_u64 (self, GUM_REG_RAX, address);
-    gum_x86_writer_put_call_reg (self, GUM_REG_RAX);
+    label_jmp = self->code + 1;
+    label_addr = self->code + 2;
+
+    gum_x86_writer_put_jmp_short_label (self, label_jmp);
+
+    gum_x86_writer_put_label (self, label_addr);
+    *((guint64 *) (self->code)) = GUINT64_TO_LE (address);
+    gum_x86_writer_commit (self, 8);
+
+    gum_x86_writer_put_label (self, label_jmp);
+    gum_x86_writer_put_call_indirect_label (self, label_addr);
   }
 
   return TRUE;
@@ -868,14 +895,43 @@ gum_x86_writer_put_call_reg_offset_ptr (GumX86Writer * self,
   return TRUE;
 }
 
-void
+gboolean
 gum_x86_writer_put_call_indirect (GumX86Writer * self,
-                                  gconstpointer * addr)
+                                  GumAddress address)
 {
-  self->code[0] = 0xff;
-  self->code[1] = 0x15;
-  *((guint32 *) (self->code + 2)) = GUINT32_TO_LE (GUM_ADDRESS (addr));
-  gum_x86_writer_commit (self, 6);
+  if (self->target_cpu == GUM_CPU_AMD64)
+  {
+    gint64 distance = (gssize) address - (gssize) (self->pc + 6);
+
+    if (! GUM_IS_WITHIN_INT32_RANGE (distance))
+      return false;
+
+    self->code[0] = 0xff;
+    self->code[1] = 0x15;
+    *((guint32 *) (self->code + 2)) = GINT32_TO_LE ((gint32) distance);
+    gum_x86_writer_commit (self, 6);
+  }
+  else
+  {
+    self->code[0] = 0xff;
+    self->code[1] = 0x15;
+    *((guint32 *) (self->code + 2)) = GUINT32_TO_LE (address);
+    gum_x86_writer_commit (self, 6);
+  }
+  return true;
+}
+
+gboolean
+gum_x86_writer_put_call_indirect_label (GumX86Writer * self,
+                                        gconstpointer label_id)
+{
+  if (! gum_x86_writer_put_call_indirect(self, self->pc))
+    return false;
+  if (self->target_cpu == GUM_CPU_AMD64)
+    gum_x86_writer_add_label_reference_here (self, label_id, GUM_LREF_NEAR);
+  else
+    gum_x86_writer_add_label_reference_here (self, label_id, GUM_LREF_ABS);
+  return true;
 }
 
 void
