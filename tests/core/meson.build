@@ -24,24 +24,6 @@ if host_os_family == 'darwin'
   ]
 endif
 
-if host_os == 'macos'
-  core_sources += [
-    'arch-x86/stalker-x86-macos.m',
-  ]
-endif
-
-if host_machine.cpu_family() == 'arm'
-  core_sources += [
-    'arch-arm/interceptor-arm.c',
-  ]
-endif
-
-if host_machine.cpu_family() == 'arm64' and host_os_family == 'darwin'
-  core_sources += [
-    'arch-arm64/stalker-arm64-darwin.m',
-  ]
-endif
-
 if host_os == 'android'
   core_sources += [
     'interceptor-android.c',
@@ -52,12 +34,29 @@ if host_machine.cpu_family() == 'x86' or host_machine.cpu_family() == 'x86_64'
   core_sources += [
     'arch-x86/stalker-x86.c',
   ]
+  if host_os == 'macos'
+    core_sources += [
+      'arch-x86/stalker-x86-macos.m',
+    ]
+  endif
+endif
+
+if host_machine.cpu_family() == 'arm'
+  core_sources += [
+    'arch-arm/interceptor-arm.c',
+  ]
 endif
 
 if host_machine.cpu_family() == 'arm64'
   core_sources += [
+    'arch-arm64/interceptor-arm64.c',
     'arch-arm64/stalker-arm64.c',
   ]
+  if host_os_family == 'darwin'
+    core_sources += [
+      'arch-arm64/stalker-arm64-darwin.m',
+    ]
+  endif
 endif
 
 gum_tests_core = static_library('gum-tests-core', core_sources,
