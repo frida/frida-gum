@@ -10,7 +10,9 @@ TEST_LIST_BEGIN (arm64writer)
   TESTENTRY (cbz_reg_label)
 
   TESTENTRY (b_imm)
+  TESTENTRY (b_label)
   TESTENTRY (bl_imm)
+  TESTENTRY (bl_label)
   TESTENTRY (br_reg)
   TESTENTRY (blr_reg)
   TESTENTRY (ret)
@@ -87,11 +89,45 @@ TESTCASE (b_imm)
   assert_output_n_equals (0, 0x14000100);
 }
 
+TESTCASE (b_label)
+{
+  const gchar * next_lbl = "next";
+
+  gum_arm64_writer_put_b_label (&fixture->aw, next_lbl);
+  gum_arm64_writer_put_nop (&fixture->aw);
+  gum_arm64_writer_put_label (&fixture->aw, next_lbl);
+  gum_arm64_writer_put_nop (&fixture->aw);
+
+  gum_arm64_writer_flush (&fixture->aw);
+
+  assert_output_n_equals (0, 0x14000002); /* b next */
+  assert_output_n_equals (1, 0xd503201f); /* nop */
+  /* next: */
+  assert_output_n_equals (2, 0xd503201f); /* nop */
+}
+
 TESTCASE (bl_imm)
 {
   fixture->aw.pc = 1024;
   gum_arm64_writer_put_bl_imm (&fixture->aw, 1028);
   assert_output_n_equals (0, 0x94000001);
+}
+
+TESTCASE (bl_label)
+{
+  const gchar * next_lbl = "next";
+
+  gum_arm64_writer_put_bl_label (&fixture->aw, next_lbl);
+  gum_arm64_writer_put_nop (&fixture->aw);
+  gum_arm64_writer_put_label (&fixture->aw, next_lbl);
+  gum_arm64_writer_put_nop (&fixture->aw);
+
+  gum_arm64_writer_flush (&fixture->aw);
+
+  assert_output_n_equals (0, 0x94000002); /* bl next */
+  assert_output_n_equals (1, 0xd503201f); /* nop */
+  /* next: */
+  assert_output_n_equals (2, 0xd503201f); /* nop */
 }
 
 TESTCASE (br_reg)

@@ -15,6 +15,7 @@
 #endif
 #include <string.h>
 
+typedef guint GumArm64LabelRefType;
 typedef struct _GumArm64LabelRef GumArm64LabelRef;
 typedef struct _GumArm64LiteralRef GumArm64LiteralRef;
 typedef guint GumArm64MemOperationType;
@@ -22,9 +23,21 @@ typedef guint GumArm64MemOperandType;
 typedef guint GumArm64MetaReg;
 typedef struct _GumArm64RegInfo GumArm64RegInfo;
 
+enum _GumArm64LabelRefType
+{
+  GUM_ARM64_B,
+  GUM_ARM64_B_COND,
+  GUM_ARM64_BL,
+  GUM_ARM64_CBZ,
+  GUM_ARM64_CBNZ,
+  GUM_ARM64_TBZ,
+  GUM_ARM64_TBNZ,
+};
+
 struct _GumArm64LabelRef
 {
   gconstpointer id;
+  GumArm64LabelRefType type;
   guint32 * insn;
 };
 
@@ -258,11 +271,13 @@ gum_arm64_writer_put_label (GumArm64Writer * self,
 
 static void
 gum_arm64_writer_add_label_reference_here (GumArm64Writer * self,
-                                           gconstpointer id)
+                                           gconstpointer id,
+                                           GumArm64LabelRefType type)
 {
   GumArm64LabelRef r;
 
   r.id = id;
+  r.type = type;
   r.insn = self->code;
 
   g_array_append_val (self->label_refs, r);
@@ -467,7 +482,7 @@ void
 gum_arm64_writer_put_b_label (GumArm64Writer * self,
                               gconstpointer label_id)
 {
-  gum_arm64_writer_add_label_reference_here (self, label_id);
+  gum_arm64_writer_add_label_reference_here (self, label_id, GUM_ARM64_B);
   gum_arm64_writer_put_instruction (self, 0x14000000);
 }
 
@@ -476,7 +491,7 @@ gum_arm64_writer_put_b_cond_label (GumArm64Writer * self,
                                    arm64_cc cc,
                                    gconstpointer label_id)
 {
-  gum_arm64_writer_add_label_reference_here (self, label_id);
+  gum_arm64_writer_add_label_reference_here (self, label_id, GUM_ARM64_B_COND);
   gum_arm64_writer_put_instruction (self, 0x54000000 | (cc - 1));
 }
 
@@ -493,6 +508,14 @@ gum_arm64_writer_put_bl_imm (GumArm64Writer * self,
       0x94000000 | ((distance / 4) & GUM_INT26_MASK));
 
   return TRUE;
+}
+
+void
+gum_arm64_writer_put_bl_label (GumArm64Writer * self,
+                               gconstpointer label_id)
+{
+  gum_arm64_writer_add_label_reference_here (self, label_id, GUM_ARM64_BL);
+  gum_arm64_writer_put_instruction (self, 0x94000000);
 }
 
 gboolean
@@ -542,7 +565,7 @@ gum_arm64_writer_put_cbz_reg_label (GumArm64Writer * self,
 
   gum_arm64_writer_describe_reg (self, reg, &ri);
 
-  gum_arm64_writer_add_label_reference_here (self, label_id);
+  gum_arm64_writer_add_label_reference_here (self, label_id, GUM_ARM64_CBZ);
   gum_arm64_writer_put_instruction (self, ri.sf | 0x34000000 | ri.index);
 }
 
@@ -555,7 +578,7 @@ gum_arm64_writer_put_cbnz_reg_label (GumArm64Writer * self,
 
   gum_arm64_writer_describe_reg (self, reg, &ri);
 
-  gum_arm64_writer_add_label_reference_here (self, label_id);
+  gum_arm64_writer_add_label_reference_here (self, label_id, GUM_ARM64_CBNZ);
   gum_arm64_writer_put_instruction (self, ri.sf | 0x35000000 | ri.index);
 }
 
@@ -569,7 +592,7 @@ gum_arm64_writer_put_tbz_reg_imm_label (GumArm64Writer * self,
 
   gum_arm64_writer_describe_reg (self, reg, &ri);
 
-  gum_arm64_writer_add_label_reference_here (self, label_id);
+  gum_arm64_writer_add_label_reference_here (self, label_id, GUM_ARM64_TBZ);
   gum_arm64_writer_put_instruction (self, ri.sf | 0x36000000 |
       ((bit & GUM_INT5_MASK) << 19) | ri.index);
 }
@@ -584,7 +607,7 @@ gum_arm64_writer_put_tbnz_reg_imm_label (GumArm64Writer * self,
 
   gum_arm64_writer_describe_reg (self, reg, &ri);
 
-  gum_arm64_writer_add_label_reference_here (self, label_id);
+  gum_arm64_writer_add_label_reference_here (self, label_id, GUM_ARM64_TBNZ);
   gum_arm64_writer_put_instruction (self, ri.sf | 0x37000000 |
       ((bit & GUM_INT5_MASK) << 19) | ri.index);
 }
@@ -1277,23 +1300,29 @@ gum_arm64_writer_try_commit_label_refs (GumArm64Writer * self)
     distance = target_insn - r->insn;
 
     insn = GUINT32_FROM_LE (*r->insn);
-    if (insn == 0x14000000)
+    switch (r->type)
     {
-      if (!GUM_IS_WITHIN_INT26_RANGE (distance))
-        return FALSE;
-      insn |= distance & GUM_INT26_MASK;
-    }
-    else if ((insn & 0x7e000000) == 0x36000000)
-    {
-      if (!GUM_IS_WITHIN_INT14_RANGE (distance))
-        return FALSE;
-      insn |= (distance & GUM_INT14_MASK) << 5;
-    }
-    else
-    {
-      if (!GUM_IS_WITHIN_INT19_RANGE (distance))
-        return FALSE;
-      insn |= (distance & GUM_INT19_MASK) << 5;
+      case GUM_ARM64_B:
+      case GUM_ARM64_BL:
+        if (!GUM_IS_WITHIN_INT26_RANGE (distance))
+          return FALSE;
+        insn |= distance & GUM_INT26_MASK;
+        break;
+      case GUM_ARM64_B_COND:
+      case GUM_ARM64_CBZ:
+      case GUM_ARM64_CBNZ:
+        if (!GUM_IS_WITHIN_INT19_RANGE (distance))
+          return FALSE;
+        insn |= (distance & GUM_INT19_MASK) << 5;
+        break;
+      case GUM_ARM64_TBZ:
+      case GUM_ARM64_TBNZ:
+        if (!GUM_IS_WITHIN_INT14_RANGE (distance))
+          return FALSE;
+        insn |= (distance & GUM_INT14_MASK) << 5;
+        break;
+      default:
+        g_assert_not_reached ();
     }
 
     *r->insn = GUINT32_TO_LE (insn);
