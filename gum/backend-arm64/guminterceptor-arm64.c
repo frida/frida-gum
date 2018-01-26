@@ -153,6 +153,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   GumArm64FunctionContextData * data = (GumArm64FunctionContextData *)
       &ctx->backend_data;
   gboolean need_deflector;
+  gboolean is_eligible_for_lr_rewriting;
   guint reloc_bytes;
 
   if (!gum_interceptor_backend_prepare_trampoline (self, ctx, &need_deflector))
@@ -208,14 +209,77 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
   gum_arm64_relocator_reset (ar, function_address, aw);
 
+  is_eligible_for_lr_rewriting = TRUE;
   do
   {
-    reloc_bytes = gum_arm64_relocator_read_one (ar, NULL);
+    const cs_insn * insn;
+
+    reloc_bytes = gum_arm64_relocator_read_one (ar, &insn);
     g_assert_cmpuint (reloc_bytes, !=, 0);
+
+    switch (insn->id)
+    {
+      case ARM64_INS_MOV:
+      case ARM64_INS_B:
+        break;
+      default:
+        is_eligible_for_lr_rewriting = FALSE;
+        break;
+    }
   }
   while (reloc_bytes < data->redirect_code_size);
 
-  gum_arm64_relocator_write_all (ar);
+  if (is_eligible_for_lr_rewriting)
+  {
+    const cs_insn * insn;
+
+    while ((insn = gum_arm64_relocator_peek_next_write_insn (ar)) != NULL)
+    {
+      if (insn->id == ARM64_INS_MOV &&
+          insn->detail->arm64.operands[1].reg == ARM64_REG_LR)
+      {
+        arm64_reg dst_reg = insn->detail->arm64.operands[0].reg;
+        const guint reg_size = sizeof (gpointer);
+        const guint reg_pair_size = 2 * reg_size;
+        guint dst_reg_index, dst_reg_slot_index, dst_reg_offset_in_frame;
+
+        gum_arm64_writer_put_push_all_x_registers (aw);
+
+        gum_arm64_writer_put_call_address_with_arguments (aw,
+            GUM_ADDRESS (_gum_interceptor_translate_top_return_address), 2,
+            GUM_ARG_ADDRESS, GUM_ADDRESS (ctx->interceptor),
+            GUM_ARG_REGISTER, ARM64_REG_LR);
+
+        if (dst_reg >= ARM64_REG_X0 && dst_reg <= ARM64_REG_X28)
+          dst_reg_index = dst_reg - ARM64_REG_X0;
+        else if (dst_reg >= ARM64_REG_X29 && dst_reg <= ARM64_REG_X30)
+          dst_reg_index = dst_reg - ARM64_REG_X29;
+        else
+          g_assert_not_reached ();
+
+        dst_reg_slot_index = (dst_reg_index * reg_size) / reg_pair_size;
+
+        dst_reg_offset_in_frame = (15 - dst_reg_slot_index) * reg_pair_size;
+        if (dst_reg_index % 2 != 0)
+          dst_reg_offset_in_frame += reg_size;
+
+        gum_arm64_writer_put_str_reg_reg_offset (aw, ARM64_REG_X0, ARM64_REG_SP,
+            dst_reg_offset_in_frame);
+
+        gum_arm64_writer_put_pop_all_x_registers (aw);
+
+        gum_arm64_relocator_skip_one (ar);
+      }
+      else
+      {
+        gum_arm64_relocator_write_one (ar);
+      }
+    }
+  }
+  else
+  {
+    gum_arm64_relocator_write_all (ar);
+  }
 
   if (!ar->eoi)
   {
