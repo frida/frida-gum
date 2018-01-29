@@ -8,6 +8,8 @@
 
 #include "testutil.h"
 
+#include <string.h>
+
 #define INTERCEPTOR_TESTCASE(NAME) \
     void interceptor_ ## NAME ( \
         InterceptorFixture * fixture, gconstpointer data)
