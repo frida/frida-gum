@@ -1264,7 +1264,7 @@ gum_thumb_writer_try_commit_label_refs (GumThumbWriter * self)
 static void
 gum_thumb_writer_maybe_commit_literals (GumThumbWriter * self)
 {
-  guint space_used;
+  gsize space_used;
   gconstpointer after_literals = self->code;
 
   if (self->earliest_literal_insn == NULL)

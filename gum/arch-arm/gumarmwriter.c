@@ -360,7 +360,7 @@ gum_arm_writer_try_commit_label_refs (GumArmWriter * self)
 static void
 gum_arm_writer_maybe_commit_literals (GumArmWriter * self)
 {
-  guint space_used;
+  gsize space_used;
   gconstpointer after_literals = self->code;
 
   if (self->earliest_literal_insn == NULL)

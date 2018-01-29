@@ -1336,7 +1336,7 @@ gum_arm64_writer_try_commit_label_refs (GumArm64Writer * self)
 static void
 gum_arm64_writer_maybe_commit_literals (GumArm64Writer * self)
 {
-  guint space_used;
+  gsize space_used;
   gconstpointer after_literals = self->code;
 
   if (self->earliest_literal_insn == NULL)
