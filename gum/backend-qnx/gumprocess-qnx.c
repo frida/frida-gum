@@ -238,6 +238,7 @@ gum_qnx_enumerate_ranges (pid_t pid,
     g_assert (res == 0);
     file.path = debuginfo->path;
     file.offset = 0; /* TODO */
+    file.size = 0; /* TODO */
 
     if ((details.prot & prot) == prot)
     {

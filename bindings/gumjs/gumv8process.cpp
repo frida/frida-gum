@@ -333,6 +333,7 @@ gum_emit_range (const GumRangeDetails * details,
     auto file = Object::New (isolate);
     _gum_v8_object_set_utf8 (file, "path", f->path, core);
     _gum_v8_object_set_uint (file, "offset", f->offset, core);
+    _gum_v8_object_set_uint (file, "size", f->size, core);
     _gum_v8_object_set (range, "file", file, core);
   }
 

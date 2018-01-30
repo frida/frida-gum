@@ -857,6 +857,7 @@ gum_linux_enumerate_ranges (pid_t pid,
       {
         *strchr (file.path, '\n') = '\0';
         details.file = &file;
+        file.size = 0; /* TODO */
 
         if (RUNNING_ON_VALGRIND && strstr (file.path, "/valgrind/") != NULL)
           continue;
