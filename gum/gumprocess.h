@@ -130,6 +130,7 @@ struct _GumFileMapping
 {
   const gchar * path;
   guint64 offset;
+  gsize size;
 };
 
 struct _GumMallocRangeDetails

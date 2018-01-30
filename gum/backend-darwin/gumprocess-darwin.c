@@ -169,10 +169,79 @@ struct _DyldImageInfo64
   guint64 image_file_mod_date;
 };
 
-#ifndef PROC_SETPC_NONE
-extern int proc_regionfilename (int pid, uint64_t address, void * buffer,
-    uint32_t buffersize);
+#ifndef PROC_INFO_CALL_PIDINFO
+
+#define PROC_INFO_CALL_PIDINFO 0x2
+#define PROC_PIDREGIONPATHINFO 8
+
+struct vinfo_stat {
+  uint32_t vst_dev;    /* [XSI] ID of device containing file */
+  uint16_t vst_mode;   /* [XSI] Mode of file (see below) */
+  uint16_t vst_nlink;  /* [XSI] Number of hard links */
+  uint64_t vst_ino;    /* [XSI] File serial number */
+  uid_t vst_uid;    /* [XSI] User ID of the file */
+  gid_t vst_gid;    /* [XSI] Group ID of the file */
+  int64_t vst_atime;  /* [XSI] Time of last access */
+  int64_t vst_atimensec;  /* nsec of last access */
+  int64_t vst_mtime;  /* [XSI] Last data modification time */
+  int64_t vst_mtimensec;  /* last data modification nsec */
+  int64_t vst_ctime;  /* [XSI] Time of last status change */
+  int64_t vst_ctimensec;  /* nsec of last status change */
+  int64_t vst_birthtime;  /*  File creation time(birth)  */
+  int64_t vst_birthtimensec;  /* nsec of File creation time */
+  off_t vst_size;   /* [XSI] file size, in bytes */
+  int64_t vst_blocks; /* [XSI] blocks allocated for file */
+  int32_t vst_blksize;    /* [XSI] optimal blocksize for I/O */
+  uint32_t vst_flags;  /* user defined flags for file */
+  uint32_t vst_gen;    /* file generation number */
+  uint32_t vst_rdev;   /* [XSI] Device ID */
+  int64_t vst_qspare[2];  /* RESERVED: DO NOT USE! */
+};
+
+struct vnode_info {
+  struct vinfo_stat vi_stat;
+  int vi_type;
+  int vi_pad;
+  fsid_t vi_fsid;
+};
+
+struct vnode_info_path {
+  struct vnode_info vip_vi;
+  char vip_path[MAXPATHLEN];
+};
+
+struct proc_regioninfo {
+  uint32_t pri_protection;
+  uint32_t pri_max_protection;
+  uint32_t pri_inheritance;
+  uint32_t pri_flags; /* shared, external pager, is submap */
+  uint64_t pri_offset;
+  uint32_t pri_behavior;
+  uint32_t pri_user_wired_count;
+  uint32_t pri_user_tag;
+  uint32_t pri_pages_resident;
+  uint32_t pri_pages_shared_now_private;
+  uint32_t pri_pages_swapped_out;
+  uint32_t pri_pages_dirtied;
+  uint32_t pri_ref_count;
+  uint32_t pri_shadow_depth;
+  uint32_t pri_share_mode;
+  uint32_t pri_private_pages_resident;
+  uint32_t pri_shared_pages_resident;
+  uint32_t pri_obj_id;
+  uint32_t pri_depth;
+  uint64_t pri_address;
+  uint64_t pri_size;
+};
+
+struct proc_regionwithpathinfo {
+  struct proc_regioninfo prp_prinfo;
+  struct vnode_info_path prp_vip;
+};
 #endif
+
+extern int __proc_info (int callnum, int pid, int flavor, uint64_t arg,
+    void * buffer, int buffersize);
 
 typedef const struct dyld_all_image_infos * (* DyldGetAllImageInfosFunc) (
     void);
@@ -211,6 +280,12 @@ static gboolean gum_module_path_equals (const gchar * path,
 static GumThreadState gum_thread_state_from_darwin (integer_t run_state);
 static gboolean gum_darwin_is_unified_thread_state_valid (
     const GumDarwinUnifiedThreadState * ts);
+
+static gboolean gum_darwin_fill_file_mapping (gint pid,
+    mach_vm_address_t address, GumFileMapping * file,
+    struct proc_regionwithpathinfo * reginfo);
+static void gum_darwin_adjust_range_size (GumMemoryRange * range,
+    GumFileMapping * file);
 
 gboolean
 gum_process_is_debugger_attached (void)
@@ -519,9 +594,12 @@ gum_module_enumerate_ranges (const gchar * module_name,
   gum_mach_header_t * header;
   guint8 * p;
   guint cmd_index;
+  gint pid;
 
   if (!find_image_address_and_slide (module_name, &address, &slide))
     return;
+
+  pid = getpid ();
 
   header = address;
   p = (guint8 *) (header + 1);
@@ -532,7 +610,19 @@ gum_module_enumerate_ranges (const gchar * module_name,
     if (lc->cmd == GUM_LC_SEGMENT)
     {
       gum_segment_command_t * segcmd = (gum_segment_command_t *) lc;
+      gboolean is_page_zero;
       GumPageProtection cur_prot;
+
+      is_page_zero = segcmd->vmaddr == 0 &&
+          segcmd->filesize == 0 &&
+          segcmd->vmsize != 0 &&
+          (segcmd->initprot & VM_PROT_ALL) == VM_PROT_NONE &&
+          (segcmd->maxprot & VM_PROT_ALL) == VM_PROT_NONE;
+
+      if (is_page_zero) {
+          p += lc->cmdsize;
+          continue;
+      }
 
       cur_prot = gum_page_protection_from_mach (segcmd->initprot);
 
@@ -540,6 +630,8 @@ gum_module_enumerate_ranges (const gchar * module_name,
       {
         GumMemoryRange range;
         GumRangeDetails details;
+        GumFileMapping file;
+        struct proc_regionwithpathinfo reginfo;
 
         range.base_address = GUM_ADDRESS (
             GSIZE_TO_POINTER (segcmd->vmaddr) + GPOINTER_TO_SIZE (slide));
@@ -547,7 +639,15 @@ gum_module_enumerate_ranges (const gchar * module_name,
 
         details.range = &range;
         details.prot = cur_prot;
-        details.file = NULL; /* TODO */
+        details.file = NULL;
+
+        if (pid != 0) {
+          if (gum_darwin_fill_file_mapping (pid, range.base_address,
+              &file, &reginfo)) {
+            details.file = &file;
+            gum_darwin_adjust_range_size (&range, &file);
+          }
+        }
 
         if (!func (&details, user_data))
           return;
@@ -1348,8 +1448,7 @@ gum_darwin_enumerate_ranges (mach_port_t task,
       GumMemoryRange range;
       GumRangeDetails details;
       GumFileMapping file;
-      gchar file_path[MAXPATHLEN];
-      gint len;
+      struct proc_regionwithpathinfo reginfo;
 
       range.base_address = address;
       range.size = size;
@@ -1360,14 +1459,9 @@ gum_darwin_enumerate_ranges (mach_port_t task,
 
       if (pid != 0)
       {
-        len = proc_regionfilename (pid, address, file_path, sizeof (file_path));
-        file_path[len] = '\0';
-        if (len != 0)
-        {
-          file.path = file_path;
-          file.offset = 0; /* TODO */
-
+        if (gum_darwin_fill_file_mapping (pid, address, &file, &reginfo)) {
           details.file = &file;
+          gum_darwin_adjust_range_size (&range, &file);
         }
       }
 
@@ -1377,6 +1471,51 @@ gum_darwin_enumerate_ranges (mach_port_t task,
 
     address += size;
     size = 0;
+  }
+}
+
+static gboolean
+gum_darwin_fill_file_mapping (gint pid,
+                              mach_vm_address_t address,
+                              GumFileMapping * file,
+                              struct proc_regionwithpathinfo * reginfo)
+{
+  gint retval, len;
+
+  retval = __proc_info (PROC_INFO_CALL_PIDINFO, pid, PROC_PIDREGIONPATHINFO,
+            (uint64_t) address,  reginfo, sizeof (struct proc_regionwithpathinfo));
+
+  if (retval == -1) {
+      return FALSE;
+  }
+
+  len = strnlen (reginfo->prp_vip.vip_path, MAXPATHLEN);
+  reginfo->prp_vip.vip_path[len] = '\0';
+
+  if (len > 0) {
+    file->path = reginfo->prp_vip.vip_path;
+    file->offset = reginfo->prp_prinfo.pri_offset;
+    file->size = reginfo->prp_vip.vip_vi.vi_stat.vst_size;
+
+    return TRUE;
+  }
+
+  return FALSE;
+}
+
+static void
+gum_darwin_adjust_range_size (GumMemoryRange * range,
+                              GumFileMapping * file)
+{
+  gsize end_of_map = file->offset + range->size;
+
+  if (end_of_map > file->size) {
+    gsize delta = end_of_map - file->size;
+
+    range->size = MIN (
+        range->size,
+        (range->size - delta + (vm_kernel_page_size - 1)) &
+            ~(vm_kernel_page_size - 1));
   }
 }
 

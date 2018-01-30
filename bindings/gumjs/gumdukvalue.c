@@ -1483,6 +1483,9 @@ _gum_duk_push_range (duk_context * ctx,
     duk_push_uint (ctx, f->offset);
     duk_put_prop_string (ctx, -2, "offset");
 
+    duk_push_uint (ctx, f->size);
+    duk_put_prop_string (ctx, -2, "size");
+
     duk_put_prop_string (ctx, -2, "file");
   }
 }
