@@ -83,8 +83,14 @@ static gboolean gum_elf_module_find_dynamic_range (GumElfModule * self,
     GumMemoryRange * range);
 static GumAddress gum_elf_module_compute_preferred_address (
     GumElfModule * self);
-static GumAddress gum_elf_module_resolve_virtual_address (GumElfModule * self,
-    GumAddress address);
+static GumElfDynamicAddressState gum_elf_module_detect_dynamic_address_state (
+    GumElfModule * self);
+static gboolean gum_find_rela_section (
+    const GumElfDynamicEntryDetails * details, gpointer user_data);
+static GumAddress gum_elf_module_resolve_static_virtual_address (
+    GumElfModule * self, GumAddress address);
+static GumAddress gum_elf_module_resolve_dynamic_virtual_address (
+    GumElfModule * self, GumAddress address);
 static gboolean gum_store_dynamic_string_table (
     const GumElfDynamicEntryDetails * details, gpointer user_data);
 
@@ -156,6 +162,9 @@ gum_elf_module_constructed (GObject * object)
     goto error;
 
   self->preferred_address = gum_elf_module_compute_preferred_address (self);
+
+  self->dynamic_address_state =
+      gum_elf_module_detect_dynamic_address_state (self);
 
   gum_elf_module_enumerate_dynamic_entries (self,
       gum_store_dynamic_string_table, self);
@@ -426,29 +435,34 @@ gum_elf_module_enumerate_dynamic_symbols (GumElfModule * self,
   {
     gpointer entry = ctx.entries + (entry_index * ctx.entry_size);
     GumElfSymbolDetails details;
+    GumAddress raw_address;
 
     if (sizeof (gpointer) == 4)
     {
       Elf32_Sym * sym = entry;
 
       details.name = dynamic_strings + sym->st_name;
-      details.address =
-          gum_elf_module_resolve_virtual_address (self, sym->st_value);
       details.type = GELF_ST_TYPE (sym->st_info);
       details.bind = GELF_ST_BIND (sym->st_info);
       details.section_header_index = sym->st_shndx;
+
+      raw_address = sym->st_value;
     }
     else
     {
       Elf64_Sym * sym = entry;
 
       details.name = dynamic_strings + sym->st_name;
-      details.address =
-          gum_elf_module_resolve_virtual_address (self, sym->st_value);
       details.type = GELF_ST_TYPE (sym->st_info);
       details.bind = GELF_ST_BIND (sym->st_info);
       details.section_header_index = sym->st_shndx;
+
+      raw_address = sym->st_value;
     }
+
+    details.address = (raw_address != 0)
+        ? gum_elf_module_resolve_static_virtual_address (self, raw_address)
+        : 0;
 
     if (!func (&details, user_data))
       return;
@@ -465,7 +479,8 @@ gum_store_symtab_params (const GumElfDynamicEntryDetails * details,
   {
     case DT_SYMTAB:
       ctx->entries = GSIZE_TO_POINTER (
-          gum_elf_module_resolve_virtual_address (ctx->module, details->value));
+          gum_elf_module_resolve_dynamic_virtual_address (ctx->module,
+              details->value));
       ctx->pending--;
       break;
     case DT_SYMENT:
@@ -482,7 +497,8 @@ gum_store_symtab_params (const GumElfDynamicEntryDetails * details,
       ctx->found_hash = TRUE;
 
       hash_params = GSIZE_TO_POINTER (
-          gum_elf_module_resolve_virtual_address (ctx->module, details->value));
+          gum_elf_module_resolve_dynamic_virtual_address (ctx->module,
+              details->value));
       nchain = hash_params[1];
 
       ctx->entry_count = nchain;
@@ -506,7 +522,7 @@ gum_store_symtab_params (const GumElfDynamicEntryDetails * details,
       ctx->found_hash = TRUE;
 
       hash_params = GSIZE_TO_POINTER (
-          gum_elf_module_resolve_virtual_address (ctx->module,
+          gum_elf_module_resolve_dynamic_virtual_address (ctx->module,
               details->value));
       nbuckets = hash_params[0];
       symoffset = hash_params[1];
@@ -581,8 +597,9 @@ gum_elf_module_enumerate_symbols_in_section (GumElfModule * self,
     gelf_getsym (data, symbol_index, &sym);
 
     details.name = elf_strptr (self->elf, shdr.sh_link, sym.st_name);
-    details.address =
-        gum_elf_module_resolve_virtual_address (self, sym.st_value);
+    details.address = (sym.st_value != 0)
+        ? gum_elf_module_resolve_static_virtual_address (self, sym.st_value)
+        : 0;
     details.type = GELF_ST_TYPE (sym.st_info);
     details.bind = GELF_ST_BIND (sym.st_info);
     details.section_header_index = sym.st_shndx;
@@ -603,7 +620,8 @@ gum_elf_module_enumerate_dynamic_entries (GumElfModule * self,
     return;
 
   dynamic_begin = GSIZE_TO_POINTER (
-      gum_elf_module_resolve_virtual_address (self, dynamic.base_address));
+      gum_elf_module_resolve_static_virtual_address (self,
+          dynamic.base_address));
 
   if (sizeof (gpointer) == 4)
   {
@@ -735,7 +753,8 @@ gum_elf_module_enumerate_sections (GumElfModule * self,
     d.name = strings + shdr.sh_name;
     d.type = shdr.sh_type;
     d.flags = shdr.sh_flags;
-    d.address = gum_elf_module_resolve_virtual_address (self, shdr.sh_addr);
+    d.address =
+        gum_elf_module_resolve_static_virtual_address (self, shdr.sh_addr);
     d.offset = shdr.sh_offset;
     d.size = shdr.sh_size;
     d.link = shdr.sh_link;
@@ -820,11 +839,55 @@ gum_elf_module_compute_preferred_address (GumElfModule * self)
   return 0;
 }
 
+static GumElfDynamicAddressState
+gum_elf_module_detect_dynamic_address_state (GumElfModule * self)
+{
+  gboolean have_rela_section;
+
+  have_rela_section = FALSE;
+  gum_elf_module_enumerate_dynamic_entries (self, gum_find_rela_section,
+      &have_rela_section);
+
+  return have_rela_section
+      ? GUM_ELF_DYNAMIC_ADDRESS_ADJUSTED
+      : GUM_ELF_DYNAMIC_ADDRESS_PRISTINE;
+}
+
+static gboolean
+gum_find_rela_section (const GumElfDynamicEntryDetails * details,
+                       gpointer user_data)
+{
+  gboolean * found = user_data;
+
+  if (details->type != DT_RELA)
+    return TRUE;
+
+  *found = TRUE;
+  return FALSE;
+}
+
 static GumAddress
-gum_elf_module_resolve_virtual_address (GumElfModule * self,
-                                        GumAddress address)
+gum_elf_module_resolve_static_virtual_address (GumElfModule * self,
+                                               GumAddress address)
 {
   return self->base_address + (address - self->preferred_address);
+}
+
+static GumAddress
+gum_elf_module_resolve_dynamic_virtual_address (GumElfModule * self,
+                                                GumAddress address)
+{
+  switch (self->dynamic_address_state)
+  {
+    case GUM_ELF_DYNAMIC_ADDRESS_PRISTINE:
+      return self->base_address + (address - self->preferred_address);
+    case GUM_ELF_DYNAMIC_ADDRESS_ADJUSTED:
+      return address;
+    default:
+      g_assert_not_reached ();
+  }
+
+  return 0;
 }
 
 static gboolean
@@ -837,6 +900,6 @@ gum_store_dynamic_string_table (const GumElfDynamicEntryDetails * details,
     return TRUE;
 
   self->dynamic_strings = GSIZE_TO_POINTER (
-      gum_elf_module_resolve_virtual_address (self, details->value));
+      gum_elf_module_resolve_dynamic_virtual_address (self, details->value));
   return FALSE;
 }

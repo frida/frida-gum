@@ -29,6 +29,7 @@ typedef gboolean (* GumElfFoundDynamicEntryFunc) (
 typedef gboolean (* GumElfFoundSectionFunc) (
     const GumElfSectionDetails * details, gpointer user_data);
 
+typedef guint GumElfDynamicAddressState;
 typedef GElf_Sxword GumElfDynamicEntryType;
 typedef GElf_Xword GumElfDynamicEntryValue;
 typedef GElf_Word GumElfSectionHeaderType;
@@ -54,8 +55,15 @@ struct _GumElfModule
 
   GumAddress base_address;
   GumAddress preferred_address;
+  GumElfDynamicAddressState dynamic_address_state;
 
   const gchar * dynamic_strings;
+};
+
+enum _GumElfDynamicAddressState
+{
+  GUM_ELF_DYNAMIC_ADDRESS_PRISTINE,
+  GUM_ELF_DYNAMIC_ADDRESS_ADJUSTED,
 };
 
 struct _GumElfDependencyDetails
