@@ -1507,7 +1507,7 @@ gum_darwin_fill_file_mapping (gint pid,
 
 static void
 gum_darwin_clamp_range_size (GumMemoryRange * range,
-                              GumFileMapping * file)
+                             GumFileMapping * file)
 {
   gsize end_of_map = file->offset + range->size;
 
