@@ -880,7 +880,7 @@ gum_elf_module_resolve_dynamic_virtual_address (GumElfModule * self,
   switch (self->dynamic_address_state)
   {
     case GUM_ELF_DYNAMIC_ADDRESS_PRISTINE:
-      return self->base_address + (address - self->preferred_address);
+      return gum_elf_module_resolve_static_virtual_address (self, address);
     case GUM_ELF_DYNAMIC_ADDRESS_ADJUSTED:
       return address;
     default:
