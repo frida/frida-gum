@@ -580,13 +580,9 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
   GumMemoryRange range;
   gboolean carry_on;
 
-  path = info->dlpi_name;
-  if (path[0] == '\0')
-  {
-    path = g_hash_table_lookup (ctx->names, GSIZE_TO_POINTER (info->dlpi_addr));
-    if (path == NULL)
-      path = "";
-  }
+  path = g_hash_table_lookup (ctx->names, GSIZE_TO_POINTER (info->dlpi_addr));
+  if (path == NULL)
+    path = info->dlpi_name;
   name = g_path_get_basename (path);
 
   details.name = name;
