@@ -171,8 +171,8 @@ struct _DyldImageInfo64
 
 #ifndef PROC_INFO_CALL_PIDINFO
 
-#define PROC_INFO_CALL_PIDINFO 0x2
-#define PROC_PIDREGIONPATHINFO 8
+# define PROC_INFO_CALL_PIDINFO 0x2
+# define PROC_PIDREGIONPATHINFO 8
 
 struct vinfo_stat
 {
@@ -243,6 +243,7 @@ struct proc_regionwithpathinfo
   struct proc_regioninfo prp_prinfo;
   struct vnode_info_path prp_vip;
 };
+
 #endif
 
 extern int __proc_info (int callnum, int pid, int flavor, uint64_t arg,
@@ -289,7 +290,7 @@ static gboolean gum_darwin_is_unified_thread_state_valid (
 static gboolean gum_darwin_fill_file_mapping (gint pid,
     mach_vm_address_t address, GumFileMapping * file,
     struct proc_regionwithpathinfo * region);
-static void gum_darwin_adjust_range_size (GumMemoryRange * range,
+static void gum_darwin_clamp_range_size (GumMemoryRange * range,
     GumFileMapping * file);
 
 gboolean
@@ -623,11 +624,10 @@ gum_module_enumerate_ranges (const gchar * module_name,
           segcmd->vmsize != 0 &&
           (segcmd->initprot & VM_PROT_ALL) == VM_PROT_NONE &&
           (segcmd->maxprot & VM_PROT_ALL) == VM_PROT_NONE;
-
       if (is_page_zero)
       {
-          p += lc->cmdsize;
-          continue;
+        p += lc->cmdsize;
+        continue;
       }
 
       cur_prot = gum_page_protection_from_mach (segcmd->initprot);
@@ -651,7 +651,7 @@ gum_module_enumerate_ranges (const gchar * module_name,
             &file, &region))
         {
           details.file = &file;
-          gum_darwin_adjust_range_size (&range, &file);
+          gum_darwin_clamp_range_size (&range, &file);
         }
 
         if (!func (&details, user_data))
@@ -1465,8 +1465,8 @@ gum_darwin_enumerate_ranges (mach_port_t task,
       if (pid != 0 && gum_darwin_fill_file_mapping (pid, address, &file,
           &region))
       {
-          details.file = &file;
-          gum_darwin_adjust_range_size (&range, &file);
+        details.file = &file;
+        gum_darwin_clamp_range_size (&range, &file);
       }
 
       if (!func (&details, user_data))
@@ -1506,7 +1506,7 @@ gum_darwin_fill_file_mapping (gint pid,
 }
 
 static void
-gum_darwin_adjust_range_size (GumMemoryRange * range,
+gum_darwin_clamp_range_size (GumMemoryRange * range,
                               GumFileMapping * file)
 {
   gsize end_of_map = file->offset + range->size;
