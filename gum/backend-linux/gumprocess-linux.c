@@ -13,6 +13,7 @@
 
 #include <dlfcn.h>
 #include <errno.h>
+#include <link.h>
 #include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
