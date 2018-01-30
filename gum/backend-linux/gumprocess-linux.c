@@ -78,11 +78,16 @@
 typedef struct _GumModifyThreadContext GumModifyThreadContext;
 typedef guint8 GumModifyThreadAck;
 
+typedef struct _GumEnumerateModulesContext GumEnumerateModulesContext;
 typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
 typedef struct _GumDependencyExport GumDependencyExport;
 typedef struct _GumEnumerateModuleSymbolContext GumEnumerateModuleSymbolContext;
 typedef struct _GumEnumerateModuleRangesContext GumEnumerateModuleRangesContext;
 typedef struct _GumResolveModuleNameContext GumResolveModuleNameContext;
+
+typedef gint (* GumFoundDlPhdrFunc) (struct dl_phdr_info * info,
+    gsize size, gpointer data);
+typedef void (* GumDlIteratePhdrImpl) (GumFoundDlPhdrFunc func, gpointer data);
 
 typedef struct _GumUserDesc GumUserDesc;
 
@@ -106,6 +111,15 @@ struct _GumModifyThreadContext
   gint fd[2];
   GumThreadId thread_id;
   GumCpuContext cpu_context;
+};
+
+struct _GumEnumerateModulesContext
+{
+  GumFoundModuleFunc func;
+  gpointer user_data;
+
+  GHashTable * names;
+  GHashTable * sizes;
 };
 
 struct _GumEnumerateImportsContext
@@ -165,6 +179,13 @@ static void gum_put_ack (gint fd, GumModifyThreadAck ack);
 
 static void gum_store_cpu_context (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
+
+static gint gum_emit_module_from_phdr (struct dl_phdr_info * info, gsize size,
+    gpointer user_data);
+static void gum_process_enumerate_modules_by_parsing_proc_maps (
+    GumFoundModuleFunc func, gpointer user_data);
+static void gum_process_build_named_range_indexes (GHashTable ** names,
+    GHashTable ** sizes);
 
 static gboolean gum_emit_import (const GumImportDetails * details,
     gpointer user_data);
@@ -514,6 +535,79 @@ void
 gum_process_enumerate_modules (GumFoundModuleFunc func,
                                gpointer user_data)
 {
+  static gsize iterate_phdr_value = 0;
+  GumDlIteratePhdrImpl iterate_phdr;
+
+  if (g_once_init_enter (&iterate_phdr_value))
+  {
+    gsize impl;
+
+    impl = GPOINTER_TO_SIZE (dlsym (RTLD_DEFAULT, "dl_iterate_phdr"));
+
+    g_once_init_leave (&iterate_phdr_value, impl + 1);
+  }
+
+  iterate_phdr = GSIZE_TO_POINTER (iterate_phdr_value - 1);
+  if (iterate_phdr != NULL)
+  {
+    GumEnumerateModulesContext ctx;
+
+    ctx.func = func;
+    ctx.user_data = user_data;
+
+    gum_process_build_named_range_indexes (&ctx.names, &ctx.sizes);
+
+    iterate_phdr (gum_emit_module_from_phdr, &ctx);
+
+    g_hash_table_unref (ctx.sizes);
+    g_hash_table_unref (ctx.names);
+  }
+  else
+  {
+    gum_process_enumerate_modules_by_parsing_proc_maps (func, user_data);
+  }
+}
+
+static gint
+gum_emit_module_from_phdr (struct dl_phdr_info * info,
+                           gsize size,
+                           gpointer user_data)
+{
+  GumEnumerateModulesContext * ctx = user_data;
+  const gchar * path;
+  gchar * name;
+  GumModuleDetails details;
+  GumMemoryRange range;
+  gboolean carry_on;
+
+  path = info->dlpi_name;
+  if (path[0] == '\0')
+  {
+    path = g_hash_table_lookup (ctx->names, GSIZE_TO_POINTER (info->dlpi_addr));
+    if (path == NULL)
+      path = "";
+  }
+  name = g_path_get_basename (path);
+
+  details.name = name;
+  details.range = &range;
+  details.path = path;
+
+  range.base_address = info->dlpi_addr;
+  range.size = GPOINTER_TO_SIZE (
+      g_hash_table_lookup (ctx->sizes, GSIZE_TO_POINTER (info->dlpi_addr)));
+
+  carry_on = ctx->func (&details, ctx->user_data);
+
+  g_free (name);
+
+  return carry_on ? 0 : 1;
+}
+
+static void
+gum_process_enumerate_modules_by_parsing_proc_maps (GumFoundModuleFunc func,
+                                                    gpointer user_data)
+{
   FILE * fp;
   const guint line_size = GUM_MAPS_LINE_SIZE;
   gchar * line, * path, * next_path;
@@ -611,6 +705,92 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
 
   g_free (path);
   g_free (next_path);
+
+  g_free (line);
+
+  fclose (fp);
+}
+
+static void
+gum_process_build_named_range_indexes (GHashTable ** names,
+                                       GHashTable ** sizes)
+{
+  FILE * fp;
+  const guint line_size = GUM_MAPS_LINE_SIZE;
+  gchar * line, * name, * next_name;
+  gboolean carry_on = TRUE;
+  gboolean got_line = FALSE;
+
+  *names = g_hash_table_new_full (NULL, NULL, NULL, g_free);
+  *sizes = g_hash_table_new (NULL, NULL);
+
+  fp = fopen ("/proc/self/maps", "r");
+  g_assert (fp != NULL);
+
+  line = g_malloc (line_size);
+
+  name = g_malloc (PATH_MAX);
+  next_name = g_malloc (PATH_MAX);
+
+  do
+  {
+    GumMemoryRange range;
+    GumAddress end;
+    gint n;
+    gpointer base;
+
+    if (!got_line)
+    {
+      if (fgets (line, line_size, fp) == NULL)
+        break;
+    }
+    else
+    {
+      got_line = FALSE;
+    }
+
+    n = sscanf (line,
+        "%" G_GINT64_MODIFIER "x-%" G_GINT64_MODIFIER "x "
+        "%*4c "
+        "%*x %*s %*d "
+        "%s",
+        &range.base_address, &end,
+        name);
+    if (n == 2)
+      continue;
+    g_assert_cmpint (n, ==, 3);
+
+    range.size = end - range.base_address;
+
+    while (fgets (line, line_size, fp) != NULL)
+    {
+      n = sscanf (line,
+          "%*x-%" G_GINT64_MODIFIER "x %*c%*c%*c%*c %*x %*s %*d %s",
+          &end,
+          next_name);
+      if (n == 1)
+      {
+        continue;
+      }
+      else if (n == 2 && strcmp (next_name, name) == 0)
+      {
+        range.size = end - range.base_address;
+      }
+      else
+      {
+        got_line = TRUE;
+        break;
+      }
+    }
+
+    base = GSIZE_TO_POINTER (range.base_address);
+    g_hash_table_insert (*names, base, g_strdup (name));
+    g_hash_table_insert (*sizes, base, GSIZE_TO_POINTER (range.size));
+  }
+  while (carry_on);
+
+  g_free (name);
+  g_free (next_name);
 
   g_free (line);
 
