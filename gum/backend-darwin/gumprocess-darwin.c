@@ -174,47 +174,51 @@ struct _DyldImageInfo64
 #define PROC_INFO_CALL_PIDINFO 0x2
 #define PROC_PIDREGIONPATHINFO 8
 
-struct vinfo_stat {
-  uint32_t vst_dev;    /* [XSI] ID of device containing file */
-  uint16_t vst_mode;   /* [XSI] Mode of file (see below) */
-  uint16_t vst_nlink;  /* [XSI] Number of hard links */
-  uint64_t vst_ino;    /* [XSI] File serial number */
-  uid_t vst_uid;    /* [XSI] User ID of the file */
-  gid_t vst_gid;    /* [XSI] Group ID of the file */
-  int64_t vst_atime;  /* [XSI] Time of last access */
-  int64_t vst_atimensec;  /* nsec of last access */
-  int64_t vst_mtime;  /* [XSI] Last data modification time */
-  int64_t vst_mtimensec;  /* last data modification nsec */
-  int64_t vst_ctime;  /* [XSI] Time of last status change */
-  int64_t vst_ctimensec;  /* nsec of last status change */
-  int64_t vst_birthtime;  /*  File creation time(birth)  */
-  int64_t vst_birthtimensec;  /* nsec of File creation time */
-  off_t vst_size;   /* [XSI] file size, in bytes */
-  int64_t vst_blocks; /* [XSI] blocks allocated for file */
-  int32_t vst_blksize;    /* [XSI] optimal blocksize for I/O */
-  uint32_t vst_flags;  /* user defined flags for file */
-  uint32_t vst_gen;    /* file generation number */
-  uint32_t vst_rdev;   /* [XSI] Device ID */
-  int64_t vst_qspare[2];  /* RESERVED: DO NOT USE! */
+struct vinfo_stat
+{
+  uint32_t vst_dev;
+  uint16_t vst_mode;
+  uint16_t vst_nlink;
+  uint64_t vst_ino;
+  uid_t vst_uid;
+  gid_t vst_gid;
+  int64_t vst_atime;
+  int64_t vst_atimensec;
+  int64_t vst_mtime;
+  int64_t vst_mtimensec;
+  int64_t vst_ctime;
+  int64_t vst_ctimensec;
+  int64_t vst_birthtime;
+  int64_t vst_birthtimensec;
+  off_t vst_size;
+  int64_t vst_blocks;
+  int32_t vst_blksize;
+  uint32_t vst_flags;
+  uint32_t vst_gen;
+  uint32_t vst_rdev;
+  int64_t vst_qspare[2];
 };
 
-struct vnode_info {
+struct vnode_info
+{
   struct vinfo_stat vi_stat;
   int vi_type;
   int vi_pad;
   fsid_t vi_fsid;
 };
 
-struct vnode_info_path {
+struct vnode_info_path
+{
   struct vnode_info vip_vi;
   char vip_path[MAXPATHLEN];
 };
 
-struct proc_regioninfo {
+struct proc_regioninfo
+{
   uint32_t pri_protection;
   uint32_t pri_max_protection;
   uint32_t pri_inheritance;
-  uint32_t pri_flags; /* shared, external pager, is submap */
+  uint32_t pri_flags;
   uint64_t pri_offset;
   uint32_t pri_behavior;
   uint32_t pri_user_wired_count;
@@ -234,7 +238,8 @@ struct proc_regioninfo {
   uint64_t pri_size;
 };
 
-struct proc_regionwithpathinfo {
+struct proc_regionwithpathinfo
+{
   struct proc_regioninfo prp_prinfo;
   struct vnode_info_path prp_vip;
 };
@@ -283,7 +288,7 @@ static gboolean gum_darwin_is_unified_thread_state_valid (
 
 static gboolean gum_darwin_fill_file_mapping (gint pid,
     mach_vm_address_t address, GumFileMapping * file,
-    struct proc_regionwithpathinfo * reginfo);
+    struct proc_regionwithpathinfo * region);
 static void gum_darwin_adjust_range_size (GumMemoryRange * range,
     GumFileMapping * file);
 
@@ -591,10 +596,10 @@ gum_module_enumerate_ranges (const gchar * module_name,
                              gpointer user_data)
 {
   gpointer address, slide;
+  gint pid;
   gum_mach_header_t * header;
   guint8 * p;
   guint cmd_index;
-  gint pid;
 
   if (!find_image_address_and_slide (module_name, &address, &slide))
     return;
@@ -619,7 +624,8 @@ gum_module_enumerate_ranges (const gchar * module_name,
           (segcmd->initprot & VM_PROT_ALL) == VM_PROT_NONE &&
           (segcmd->maxprot & VM_PROT_ALL) == VM_PROT_NONE;
 
-      if (is_page_zero) {
+      if (is_page_zero)
+      {
           p += lc->cmdsize;
           continue;
       }
@@ -631,7 +637,7 @@ gum_module_enumerate_ranges (const gchar * module_name,
         GumMemoryRange range;
         GumRangeDetails details;
         GumFileMapping file;
-        struct proc_regionwithpathinfo reginfo;
+        struct proc_regionwithpathinfo region;
 
         range.base_address = GUM_ADDRESS (
             GSIZE_TO_POINTER (segcmd->vmaddr) + GPOINTER_TO_SIZE (slide));
@@ -641,12 +647,11 @@ gum_module_enumerate_ranges (const gchar * module_name,
         details.prot = cur_prot;
         details.file = NULL;
 
-        if (pid != 0) {
-          if (gum_darwin_fill_file_mapping (pid, range.base_address,
-              &file, &reginfo)) {
-            details.file = &file;
-            gum_darwin_adjust_range_size (&range, &file);
-          }
+        if (pid != 0 && gum_darwin_fill_file_mapping (pid, range.base_address,
+            &file, &region))
+        {
+          details.file = &file;
+          gum_darwin_adjust_range_size (&range, &file);
         }
 
         if (!func (&details, user_data))
@@ -1448,7 +1453,7 @@ gum_darwin_enumerate_ranges (mach_port_t task,
       GumMemoryRange range;
       GumRangeDetails details;
       GumFileMapping file;
-      struct proc_regionwithpathinfo reginfo;
+      struct proc_regionwithpathinfo region;
 
       range.base_address = address;
       range.size = size;
@@ -1457,12 +1462,11 @@ gum_darwin_enumerate_ranges (mach_port_t task,
       details.prot = cur_prot;
       details.file = NULL;
 
-      if (pid != 0)
+      if (pid != 0 && gum_darwin_fill_file_mapping (pid, address, &file,
+          &region))
       {
-        if (gum_darwin_fill_file_mapping (pid, address, &file, &reginfo)) {
           details.file = &file;
           gum_darwin_adjust_range_size (&range, &file);
-        }
       }
 
       if (!func (&details, user_data))
@@ -1478,29 +1482,27 @@ static gboolean
 gum_darwin_fill_file_mapping (gint pid,
                               mach_vm_address_t address,
                               GumFileMapping * file,
-                              struct proc_regionwithpathinfo * reginfo)
+                              struct proc_regionwithpathinfo * region)
 {
   gint retval, len;
 
   retval = __proc_info (PROC_INFO_CALL_PIDINFO, pid, PROC_PIDREGIONPATHINFO,
-            (uint64_t) address,  reginfo, sizeof (struct proc_regionwithpathinfo));
+      (uint64_t) address,  region, sizeof (struct proc_regionwithpathinfo));
 
-  if (retval == -1) {
-      return FALSE;
-  }
+  if (retval == -1)
+    return FALSE;
 
-  len = strnlen (reginfo->prp_vip.vip_path, MAXPATHLEN);
-  reginfo->prp_vip.vip_path[len] = '\0';
+  len = strnlen (region->prp_vip.vip_path, MAXPATHLEN);
+  region->prp_vip.vip_path[len] = '\0';
 
-  if (len > 0) {
-    file->path = reginfo->prp_vip.vip_path;
-    file->offset = reginfo->prp_prinfo.pri_offset;
-    file->size = reginfo->prp_vip.vip_vi.vi_stat.vst_size;
+  if (len == 0)
+    return FALSE;
 
-    return TRUE;
-  }
+  file->path = region->prp_vip.vip_path;
+  file->offset = region->prp_prinfo.pri_offset;
+  file->size = region->prp_vip.vip_vi.vi_stat.vst_size;
 
-  return FALSE;
+  return TRUE;
 }
 
 static void
@@ -1509,7 +1511,8 @@ gum_darwin_adjust_range_size (GumMemoryRange * range,
 {
   gsize end_of_map = file->offset + range->size;
 
-  if (end_of_map > file->size) {
+  if (end_of_map > file->size)
+  {
     gsize delta = end_of_map - file->size;
 
     range->size = MIN (
