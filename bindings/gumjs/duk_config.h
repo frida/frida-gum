@@ -62,8 +62,8 @@
 #if !defined(GUM_DUK_NO_COMPAT)
 #include "gumdukcompat.h"
 #define DUK_LOG2 gum_duk_log2
-#define DUK_USE_DATE_GET_NOW gum_duk_date_get_now
-#define DUK_USE_GET_MONOTONIC_TIME gum_duk_date_get_monotonic_time
+#define DUK_USE_DATE_GET_NOW(ctx) gum_duk_date_get_now()
+#define DUK_USE_GET_MONOTONIC_TIME(ctx) gum_duk_date_get_monotonic_time()
 #endif
 
 /*
