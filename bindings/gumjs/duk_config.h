@@ -62,6 +62,8 @@
 #if !defined(GUM_DUK_NO_COMPAT)
 #include "gumdukcompat.h"
 #define DUK_LOG2 gum_duk_log2
+#define DUK_USE_DATE_GET_NOW gum_duk_date_get_now
+#define DUK_USE_GET_MONOTONIC_TIME gum_duk_date_get_monotonic_time
 #endif
 
 /*
@@ -2866,7 +2868,6 @@ typedef struct duk_hthread duk_context;
 #define DUK_USE_DATE_BUILTIN
 #undef DUK_USE_DATE_FORMAT_STRING
 #undef DUK_USE_DATE_GET_LOCAL_TZOFFSET
-#undef DUK_USE_DATE_GET_NOW
 #undef DUK_USE_DATE_PARSE_STRING
 #undef DUK_USE_DATE_PRS_GETDATE
 #undef DUK_USE_DEBUG
@@ -2914,7 +2915,6 @@ typedef struct duk_hthread duk_context;
 #define DUK_USE_FUNC_FILENAME_PROPERTY
 #define DUK_USE_FUNC_NAME_PROPERTY
 #undef DUK_USE_GC_TORTURE
-#undef DUK_USE_GET_MONOTONIC_TIME
 #undef DUK_USE_GET_RANDOM_DOUBLE
 #undef DUK_USE_GLOBAL_BINDING
 #define DUK_USE_GLOBAL_BUILTIN
