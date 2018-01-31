@@ -183,6 +183,8 @@ static void gum_store_cpu_context (GumThreadId thread_id,
 
 static gint gum_emit_module_from_phdr (struct dl_phdr_info * info, gsize size,
     gpointer user_data);
+static GumAddress gum_resolve_base_address_from_phdr (
+    struct dl_phdr_info * info);
 static void gum_process_enumerate_modules_by_parsing_proc_maps (
     GumFoundModuleFunc func, gpointer user_data);
 static void gum_process_build_named_range_indexes (GHashTable ** names,
@@ -575,13 +577,16 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
                            gpointer user_data)
 {
   GumEnumerateModulesContext * ctx = user_data;
+  GumAddress base_address;
   const gchar * path;
   gchar * name;
   GumModuleDetails details;
   GumMemoryRange range;
   gboolean carry_on;
 
-  path = g_hash_table_lookup (ctx->names, GSIZE_TO_POINTER (info->dlpi_addr));
+  base_address = gum_resolve_base_address_from_phdr (info);
+
+  path = g_hash_table_lookup (ctx->names, GSIZE_TO_POINTER (base_address));
   if (path == NULL || path[0] == '[')
     path = info->dlpi_name;
   name = g_path_get_basename (path);
@@ -590,15 +595,38 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
   details.range = &range;
   details.path = path;
 
-  range.base_address = info->dlpi_addr;
+  range.base_address = base_address;
   range.size = GPOINTER_TO_SIZE (
-      g_hash_table_lookup (ctx->sizes, GSIZE_TO_POINTER (info->dlpi_addr)));
+      g_hash_table_lookup (ctx->sizes, GSIZE_TO_POINTER (base_address)));
 
   carry_on = ctx->func (&details, ctx->user_data);
 
   g_free (name);
 
   return carry_on ? 0 : 1;
+}
+
+static GumAddress
+gum_resolve_base_address_from_phdr (struct dl_phdr_info * info)
+{
+  GumAddress base_address;
+  ElfW(Half) header_count, header_index;
+
+  base_address = info->dlpi_addr;
+
+  header_count = info->dlpi_phnum;
+  for (header_index = 0; header_index != header_count; header_index++)
+  {
+    const ElfW(Phdr) * phdr = &info->dlpi_phdr[header_index];
+
+    if (phdr->p_type == PT_LOAD && phdr->p_offset == 0)
+    {
+      base_address += phdr->p_vaddr;
+      break;
+    }
+  }
+
+  return base_address;
 }
 
 static void
