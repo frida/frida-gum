@@ -256,10 +256,12 @@ main (gint argc, gchar * argv[])
     TEST_RUN_LIST_WITH_DATA (script_darwin, gum_script_backend_obtain_duk ());
 # endif
 
+#if 0
 # ifndef HAVE_ASAN
     if (gum_kernel_api_is_available ())
       TEST_RUN_LIST (kscript);
 # endif
+#endif
   }
 #endif
 
