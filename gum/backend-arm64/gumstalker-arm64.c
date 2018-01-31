@@ -2971,6 +2971,9 @@ gum_exec_block_write_unfollow_check_code (GumExecBlock * block,
   if (cc != GUM_CODE_INTERRUPTIBLE)
     return;
 
+  gum_arm64_writer_put_ldr_reg_address (cw, STALKER_REG_CTX,
+      GUM_ADDRESS (block->ctx));
+
   STALKER_LOAD_REG_FROM_CTX (ARM64_REG_X14, state);
   gum_arm64_writer_put_sub_reg_reg_imm (cw, ARM64_REG_X14, ARM64_REG_X14,
       GUM_EXEC_CTX_UNFOLLOW_PENDING);
