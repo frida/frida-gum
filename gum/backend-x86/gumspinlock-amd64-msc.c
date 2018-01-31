@@ -1,75 +1,44 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gumspinlock.h"
 
-#include "gumx86writer.h"
-#include "gummemory.h"
-
 typedef struct _GumSpinlockImpl GumSpinlockImpl;
-
-typedef void (* GumSpinlockAcquireFunc) (GumSpinlock * spinlock);
 
 struct _GumSpinlockImpl
 {
-  volatile guint32 is_held;
-
-  gpointer code;
-  GumSpinlockAcquireFunc acquire_impl;
+  volatile gint is_held;
 };
 
 void
 gum_spinlock_init (GumSpinlock * spinlock)
 {
   GumSpinlockImpl * self = (GumSpinlockImpl *) spinlock;
-  GumX86Writer cw;
-  gpointer try_again_label = "gum_spinlock_try_again";
-  gpointer beach_label = "gum_spinlock_beach";
 
   self->is_held = FALSE;
-
-  self->code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
-
-  gum_x86_writer_init (&cw, self->code);
-
-  self->acquire_impl = GUM_POINTER_TO_FUNCPTR (GumSpinlockAcquireFunc,
-      gum_x86_writer_cur (&cw));
-  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_REG_EDX, 1);
-
-  gum_x86_writer_put_label (&cw, try_again_label);
-  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_REG_EAX, 0);
-  gum_x86_writer_put_lock_cmpxchg_reg_ptr_reg (&cw, GUM_REG_RCX, GUM_REG_EDX);
-  gum_x86_writer_put_jcc_short_label (&cw, X86_INS_JE, beach_label,
-      GUM_NO_HINT);
-
-  gum_x86_writer_put_pause (&cw);
-  gum_x86_writer_put_jmp_short_label (&cw, try_again_label);
-
-  gum_x86_writer_put_label (&cw, beach_label);
-  gum_x86_writer_put_ret (&cw);
-
-  gum_x86_writer_clear (&cw);
 }
 
 void
 gum_spinlock_free (GumSpinlock * spinlock)
 {
-  GumSpinlockImpl * self = (GumSpinlockImpl *) spinlock;
-
-  gum_free_pages (self->code);
 }
 
 void
 gum_spinlock_acquire (GumSpinlock * spinlock)
 {
-  ((GumSpinlockImpl *) spinlock)->acquire_impl (spinlock);
+  GumSpinlockImpl * self = (GumSpinlockImpl *) spinlock;
+
+  while (!g_atomic_int_compare_and_exchange (&self->is_held, FALSE, TRUE))
+    ;
 }
 
 void
 gum_spinlock_release (GumSpinlock * spinlock)
 {
-  ((GumSpinlockImpl *) spinlock)->is_held = FALSE;
+  GumSpinlockImpl * self = (GumSpinlockImpl *) spinlock;
+
+  g_atomic_int_set (&self->is_held, FALSE);
 }
