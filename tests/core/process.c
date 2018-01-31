@@ -230,9 +230,13 @@ static gboolean verify_module_bounds (const GumModuleDetails * details,
 
 PROCESS_TESTCASE (linux_process_modules)
 {
+  void * lib;
   ModuleBounds bounds;
 
-  bounds.name = SYSTEM_MODULE_NAME;
+  lib = dlopen (TRICKY_MODULE_NAME, RTLD_NOW | RTLD_GLOBAL);
+  g_assert (lib != NULL);
+
+  bounds.name = TRICKY_MODULE_NAME;
   bounds.start = 0;
   bounds.end = 0;
 
@@ -243,6 +247,8 @@ PROCESS_TESTCASE (linux_process_modules)
   g_assert (bounds.end != 0);
 
   gum_process_enumerate_modules (verify_module_bounds, &bounds);
+
+  dlclose (lib);
 }
 
 static gboolean
