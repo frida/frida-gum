@@ -587,8 +587,18 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
   base_address = gum_resolve_base_address_from_phdr (info);
 
   path = g_hash_table_lookup (ctx->names, GSIZE_TO_POINTER (base_address));
-  if (path == NULL || path[0] == '[')
+  if (path != NULL)
+  {
+    gboolean is_special_module;
+
+    is_special_module = path[0] == '[';
+    if (is_special_module)
+      return 0;
+  }
+  else
+  {
     path = info->dlpi_name;
+  }
   name = g_path_get_basename (path);
 
   details.name = name;
