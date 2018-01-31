@@ -85,8 +85,6 @@ static GumAddress gum_elf_module_compute_preferred_address (
     GumElfModule * self);
 static GumElfDynamicAddressState gum_elf_module_detect_dynamic_address_state (
     GumElfModule * self);
-static gboolean gum_find_rela_section (
-    const GumElfDynamicEntryDetails * details, gpointer user_data);
 static GumAddress gum_elf_module_resolve_static_virtual_address (
     GumElfModule * self, GumAddress address);
 static GumAddress gum_elf_module_resolve_dynamic_virtual_address (
@@ -842,28 +840,12 @@ gum_elf_module_compute_preferred_address (GumElfModule * self)
 static GumElfDynamicAddressState
 gum_elf_module_detect_dynamic_address_state (GumElfModule * self)
 {
-  gboolean have_rela_section;
-
-  have_rela_section = FALSE;
-  gum_elf_module_enumerate_dynamic_entries (self, gum_find_rela_section,
-      &have_rela_section);
-
-  return have_rela_section
-      ? GUM_ELF_DYNAMIC_ADDRESS_ADJUSTED
-      : GUM_ELF_DYNAMIC_ADDRESS_PRISTINE;
-}
-
-static gboolean
-gum_find_rela_section (const GumElfDynamicEntryDetails * details,
-                       gpointer user_data)
-{
-  gboolean * found = user_data;
-
-  if (details->type != DT_RELA)
-    return TRUE;
-
-  *found = TRUE;
-  return FALSE;
+  /* FIXME: this is not very generic */
+#ifdef HAVE_ANDROID
+  return GUM_ELF_DYNAMIC_ADDRESS_PRISTINE;
+#else
+  return GUM_ELF_DYNAMIC_ADDRESS_ADJUSTED;
+#endif
 }
 
 static GumAddress
