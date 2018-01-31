@@ -852,7 +852,7 @@ static GumAddress
 gum_elf_module_resolve_static_virtual_address (GumElfModule * self,
                                                GumAddress address)
 {
-  return self->base_address + (address - self->preferred_address);
+  return self->base_address + address;
 }
 
 static GumAddress
