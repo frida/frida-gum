@@ -180,7 +180,7 @@ CODEWRITER_TESTCASE (call_indirect_label)
   /* label: */
   };
 
-  *(guint32 *) &expected_ia32_code[2] =
+  *(guint32 *) ((gpointer) (expected_ia32_code + 2)) =
       (guint32) GUM_ADDRESS (fixture->output) + 7;
 
   gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
