@@ -830,7 +830,7 @@ gum_elf_module_compute_preferred_address (GumElfModule * self)
 
     gelf_getphdr (self->elf, header_index, &phdr);
 
-    if (phdr.p_offset == 0)
+    if (phdr.p_type == PT_LOAD && phdr.p_offset == 0)
       return phdr.p_vaddr;
   }
 
