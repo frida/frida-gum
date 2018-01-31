@@ -384,4 +384,18 @@ SetSpecialSignalHandlerFn (int signal,
   /* g_print ("SetSpecialSignalHandlerFn(signal=%d)\n", signal); */
 }
 
+void
+AddSpecialSignalHandlerFn (int signal,
+                           gpointer sa)
+{
+  /* g_print ("AddSpecialSignalHandlerFn(signal=%d)\n", signal); */
+}
+
+void
+RemoveSpecialSignalHandlerFn (int signal,
+                              bool (* fn) (int, siginfo_t *, void *))
+{
+  /* g_print ("RemoveSpecialSignalHandlerFn(signal=%d)\n", signal); */
+}
+
 #endif
