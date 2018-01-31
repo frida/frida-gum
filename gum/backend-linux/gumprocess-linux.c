@@ -581,7 +581,7 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
   gboolean carry_on;
 
   path = g_hash_table_lookup (ctx->names, GSIZE_TO_POINTER (info->dlpi_addr));
-  if (path == NULL)
+  if (path == NULL || path[0] == '[')
     path = info->dlpi_name;
   name = g_path_get_basename (path);
 
