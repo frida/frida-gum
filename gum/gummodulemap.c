@@ -26,8 +26,8 @@ static void gum_module_map_clear (GumModuleMap * self);
 static gboolean gum_add_module (const GumModuleDetails * details,
     gpointer user_data);
 
-static gint gum_module_details_compare_base (const GumModuleDetails * a,
-    const GumModuleDetails * b);
+static gint gum_module_details_compare_base (
+    const GumModuleDetails * lhs_module, const GumModuleDetails * rhs_module);
 static gint gum_module_details_compare_to_key (const GumAddress * key_ptr,
     const GumModuleDetails * member);
 
@@ -164,10 +164,19 @@ gum_add_module (const GumModuleDetails * details,
 }
 
 static gint
-gum_module_details_compare_base (const GumModuleDetails * a,
-                                 const GumModuleDetails * b)
+gum_module_details_compare_base (const GumModuleDetails * lhs_module,
+                                 const GumModuleDetails * rhs_module)
 {
-  return (gssize) a->range->base_address - (gssize) b->range->base_address;
+  GumAddress lhs = lhs_module->range->base_address;
+  GumAddress rhs = rhs_module->range->base_address;
+
+  if (lhs < rhs)
+    return -1;
+
+  if (lhs > rhs)
+    return 1;
+
+  return 0;
 }
 
 static gint
