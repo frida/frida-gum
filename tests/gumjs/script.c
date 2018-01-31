@@ -2653,7 +2653,7 @@ SCRIPT_TESTCASE (module_symbols_can_be_enumerated)
         "onComplete: function () {"
         "  send('onComplete');"
         "}"
-      "});", SYSTEM_MODULE_NAME);
+      "});", GUM_TESTS_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
@@ -2669,7 +2669,7 @@ SCRIPT_TESTCASE (module_symbols_can_be_enumerated_synchronously)
 #ifdef HAVE_DARWIN
   COMPILE_AND_LOAD_SCRIPT (
       "send(Module.enumerateSymbolsSync(\"%s\").length > 1);",
-      SYSTEM_MODULE_NAME);
+      GUM_TESTS_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("true");
 #endif
 }
