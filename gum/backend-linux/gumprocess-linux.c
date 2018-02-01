@@ -80,6 +80,7 @@ typedef struct _GumModifyThreadContext GumModifyThreadContext;
 typedef guint8 GumModifyThreadAck;
 
 typedef struct _GumEnumerateModulesContext GumEnumerateModulesContext;
+typedef struct _GumEmitExecutableModuleContext GumEmitExecutableModuleContext;
 typedef struct _GumCopyLinkerModuleContext GumCopyLinkerModuleContext;
 typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
 typedef struct _GumDependencyExport GumDependencyExport;
@@ -123,8 +124,18 @@ struct _GumEnumerateModulesContext
   GHashTable * names;
   GHashTable * sizes;
 
+  guint index;
   gboolean carry_on;
   GumModuleDetails * linker_module;
+};
+
+struct _GumEmitExecutableModuleContext
+{
+  const gchar * executable_path;
+  GumFoundModuleFunc func;
+  gpointer user_data;
+
+  gboolean carry_on;
 };
 
 struct _GumCopyLinkerModuleContext
@@ -198,6 +209,10 @@ static gint gum_emit_module_from_phdr (struct dl_phdr_info * info, gsize size,
     gpointer user_data);
 static GumAddress gum_resolve_base_address_from_phdr (
     struct dl_phdr_info * info);
+#ifndef HAVE_ANDROID
+static gboolean gum_emit_executable_module (const GumModuleDetails * details,
+    gpointer user_data);
+#endif
 
 static void gum_process_enumerate_modules_by_parsing_proc_maps (
     GumFoundModuleFunc func, gpointer user_data);
@@ -599,6 +614,7 @@ gum_process_enumerate_modules_by_using_libc (GumDlIteratePhdrImpl iterate_phdr,
 
   gum_process_build_named_range_indexes (&ctx.names, &ctx.sizes);
 
+  ctx.index = 0;
   ctx.carry_on = TRUE;
   ctx.linker_module = NULL;
 
@@ -680,7 +696,39 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
   else
 #endif
   {
-    ctx->carry_on = ctx->func (&details, ctx->user_data);
+#ifndef HAVE_ANDROID
+    if (ctx->index == 0)
+    {
+      gchar * executable_path;
+
+      executable_path = g_file_read_link ("/proc/self/exe", NULL);
+      if (executable_path != NULL &&
+          strcmp (details.path, executable_path) != 0)
+      {
+        GumEmitExecutableModuleContext emc;
+
+        emc.executable_path = executable_path;
+        emc.func = ctx->func;
+        emc.user_data = ctx->user_data;
+
+        emc.carry_on = TRUE;
+
+        gum_process_enumerate_modules_by_parsing_proc_maps (
+            gum_emit_executable_module, &emc);
+
+        ctx->carry_on = emc.carry_on;
+      }
+
+      g_free (executable_path);
+    }
+#endif
+
+    if (ctx->carry_on)
+    {
+      ctx->carry_on = ctx->func (&details, ctx->user_data);
+    }
+
+    ctx->index++;
   }
 
   g_free (name);
@@ -710,6 +758,24 @@ gum_resolve_base_address_from_phdr (struct dl_phdr_info * info)
 
   return base_address;
 }
+
+#ifndef HAVE_ANDROID
+
+static gboolean
+gum_emit_executable_module (const GumModuleDetails * details,
+                            gpointer user_data)
+{
+  GumEmitExecutableModuleContext * ctx = user_data;
+
+  if (strcmp (details->path, ctx->executable_path) != 0)
+    return TRUE;
+
+  ctx->carry_on = ctx->func (details, ctx->user_data);
+
+  return FALSE;
+}
+
+#endif
 
 static void
 gum_process_enumerate_modules_by_parsing_proc_maps (GumFoundModuleFunc func,
