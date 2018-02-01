@@ -625,9 +625,9 @@ gum_process_enumerate_modules_by_using_libc (GumDlIteratePhdrImpl iterate_phdr,
       func (ctx.linker_module, user_data);
     }
   }
-#endif
 
   gum_module_details_free (ctx.linker_module);
+#endif
 
   g_hash_table_unref (ctx.sizes);
   g_hash_table_unref (ctx.names);
