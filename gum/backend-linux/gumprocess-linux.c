@@ -215,6 +215,10 @@ static gboolean gum_module_path_equals (const gchar * path,
 
 static GumElfModule * gum_open_elf_module (const gchar * name);
 
+#ifdef HAVE_ANDROID
+static gboolean gum_module_name_is_android_linker (const gchar * name);
+#endif
+
 static gboolean gum_thread_read_state (GumThreadId tid, GumThreadState * state);
 static GumThreadState gum_thread_state_from_proc_status_character (gchar c);
 static GumPageProtection gum_page_protection_from_proc_perms_string (
@@ -1254,16 +1258,11 @@ gum_module_find_export_by_name (const gchar * module_name,
       return 0;
 
 #ifdef HAVE_ANDROID
+    if (gum_module_name_is_android_linker (name))
     {
-      const gchar * linker_name = (sizeof (gpointer) == 4)
-          ? "/system/bin/linker"
-          : "/system/bin/linker64";
-      if (strcmp (name, linker_name) == 0)
-      {
-        g_free (name);
+      g_free (name);
 
-        return GUM_ADDRESS (dlsym (RTLD_DEFAULT, symbol_name));
-      }
+      return GUM_ADDRESS (dlsym (RTLD_DEFAULT, symbol_name));
     }
 #endif
 
@@ -1493,6 +1492,19 @@ gum_open_elf_module (const gchar * name)
 
   return module;
 }
+
+#ifdef HAVE_ANDROID
+
+static gboolean
+gum_module_name_is_android_linker (const gchar * name)
+{
+  const gchar * linker_name = (sizeof (gpointer) == 4)
+      ? "/system/bin/linker"
+      : "/system/bin/linker64";
+  return strcmp (name, linker_name) == 0;
+}
+
+#endif
 
 void
 gum_linux_parse_ucontext (const ucontext_t * uc,
