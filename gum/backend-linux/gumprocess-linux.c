@@ -80,6 +80,7 @@ typedef struct _GumModifyThreadContext GumModifyThreadContext;
 typedef guint8 GumModifyThreadAck;
 
 typedef struct _GumEnumerateModulesContext GumEnumerateModulesContext;
+typedef struct _GumCopyLinkerModuleContext GumCopyLinkerModuleContext;
 typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
 typedef struct _GumDependencyExport GumDependencyExport;
 typedef struct _GumEnumerateModuleSymbolContext GumEnumerateModuleSymbolContext;
@@ -121,6 +122,15 @@ struct _GumEnumerateModulesContext
 
   GHashTable * names;
   GHashTable * sizes;
+
+  gboolean carry_on;
+  GumModuleDetails * linker_module;
+};
+
+struct _GumCopyLinkerModuleContext
+{
+  GumAddress address_in_linker;
+  GumModuleDetails * linker_module;
 };
 
 struct _GumEnumerateImportsContext
@@ -181,14 +191,26 @@ static void gum_put_ack (gint fd, GumModifyThreadAck ack);
 static void gum_store_cpu_context (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 
+static void gum_process_enumerate_modules_by_using_libc (
+    GumDlIteratePhdrImpl iterate_phdr, GumFoundModuleFunc func,
+    gpointer user_data);
 static gint gum_emit_module_from_phdr (struct dl_phdr_info * info, gsize size,
     gpointer user_data);
 static GumAddress gum_resolve_base_address_from_phdr (
     struct dl_phdr_info * info);
+
 static void gum_process_enumerate_modules_by_parsing_proc_maps (
     GumFoundModuleFunc func, gpointer user_data);
+
 static void gum_process_build_named_range_indexes (GHashTable ** names,
     GHashTable ** sizes);
+#ifdef HAVE_ANDROID
+static gboolean gum_copy_linker_module (const GumModuleDetails * details,
+    gpointer user_data);
+static GumModuleDetails * gum_module_details_dup (
+    const GumModuleDetails * module);
+static void gum_module_details_free (GumModuleDetails * module);
+#endif
 
 static gboolean gum_emit_import (const GumImportDetails * details,
     gpointer user_data);
@@ -557,22 +579,58 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
   iterate_phdr = GSIZE_TO_POINTER (iterate_phdr_value - 1);
   if (iterate_phdr != NULL)
   {
-    GumEnumerateModulesContext ctx;
-
-    ctx.func = func;
-    ctx.user_data = user_data;
-
-    gum_process_build_named_range_indexes (&ctx.names, &ctx.sizes);
-
-    iterate_phdr (gum_emit_module_from_phdr, &ctx);
-
-    g_hash_table_unref (ctx.sizes);
-    g_hash_table_unref (ctx.names);
+    gum_process_enumerate_modules_by_using_libc (iterate_phdr, func, user_data);
   }
   else
   {
     gum_process_enumerate_modules_by_parsing_proc_maps (func, user_data);
   }
+}
+
+static void
+gum_process_enumerate_modules_by_using_libc (GumDlIteratePhdrImpl iterate_phdr,
+                                             GumFoundModuleFunc func,
+                                             gpointer user_data)
+{
+  GumEnumerateModulesContext ctx;
+
+  ctx.func = func;
+  ctx.user_data = user_data;
+
+  gum_process_build_named_range_indexes (&ctx.names, &ctx.sizes);
+
+  ctx.carry_on = TRUE;
+  ctx.linker_module = NULL;
+
+  iterate_phdr (gum_emit_module_from_phdr, &ctx);
+
+#ifdef HAVE_ANDROID
+  if (ctx.carry_on)
+  {
+    if (ctx.linker_module == NULL)
+    {
+      GumCopyLinkerModuleContext clmc;
+
+      clmc.address_in_linker = GUM_ADDRESS (dlsym (RTLD_DEFAULT, "dlopen"));
+      clmc.linker_module = NULL;
+
+      gum_process_enumerate_modules_by_parsing_proc_maps (
+          gum_copy_linker_module, &clmc);
+
+      ctx.linker_module = clmc.linker_module;
+    }
+
+    if (ctx.linker_module != NULL)
+    {
+      func (ctx.linker_module, user_data);
+    }
+  }
+#endif
+
+  gum_module_details_free (ctx.linker_module);
+
+  g_hash_table_unref (ctx.sizes);
+  g_hash_table_unref (ctx.names);
 }
 
 static gint
@@ -583,26 +641,24 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
   GumEnumerateModulesContext * ctx = user_data;
   GumAddress base_address;
   const gchar * path;
+  gboolean is_special_module;
   gchar * name;
   GumModuleDetails details;
   GumMemoryRange range;
-  gboolean carry_on;
+
+  if (info->dlpi_addr == 0 || info->dlpi_name == NULL)
+    return 0;
 
   base_address = gum_resolve_base_address_from_phdr (info);
 
   path = g_hash_table_lookup (ctx->names, GSIZE_TO_POINTER (base_address));
-  if (path != NULL)
-  {
-    gboolean is_special_module;
-
-    is_special_module = path[0] == '[';
-    if (is_special_module)
-      return 0;
-  }
-  else
-  {
+  if (path == NULL)
     path = info->dlpi_name;
-  }
+
+  is_special_module = path[0] == '[';
+  if (is_special_module)
+    return 0;
+
   name = g_path_get_basename (path);
 
   details.name = name;
@@ -613,11 +669,21 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
   range.size = GPOINTER_TO_SIZE (
       g_hash_table_lookup (ctx->sizes, GSIZE_TO_POINTER (base_address)));
 
-  carry_on = ctx->func (&details, ctx->user_data);
+#ifdef HAVE_ANDROID
+  if (ctx->linker_module == NULL &&
+      gum_module_name_is_android_linker (info->dlpi_name))
+  {
+    ctx->linker_module = gum_module_details_dup (&details);
+  }
+  else
+#endif
+  {
+    ctx->carry_on = ctx->func (&details, ctx->user_data);
+  }
 
   g_free (name);
 
-  return carry_on ? 0 : 1;
+  return ctx->carry_on ? 0 : 1;
 }
 
 static GumAddress
@@ -835,6 +901,49 @@ gum_process_build_named_range_indexes (GHashTable ** names,
 
   fclose (fp);
 }
+
+#ifdef HAVE_ANDROID
+
+static gboolean
+gum_copy_linker_module (const GumModuleDetails * details,
+                        gpointer user_data)
+{
+  GumCopyLinkerModuleContext * ctx = user_data;
+
+  if (!GUM_MEMORY_RANGE_INCLUDES (details->range, ctx->address_in_linker))
+    return TRUE;
+
+  ctx->linker_module = gum_module_details_dup (details);
+
+  return FALSE;
+}
+
+static GumModuleDetails *
+gum_module_details_dup (const GumModuleDetails * module)
+{
+  GumModuleDetails * copy;
+
+  copy = g_slice_new (GumModuleDetails);
+  copy->name = g_strdup (module->name);
+  copy->range = g_slice_dup (GumMemoryRange, module->range);
+  copy->path = g_strdup (module->path);
+
+  return copy;
+}
+
+static void
+gum_module_details_free (GumModuleDetails * module)
+{
+  if (module == NULL)
+    return;
+
+  g_free ((gpointer) module->name);
+  g_slice_free (GumMemoryRange, (gpointer) module->range);
+  g_free ((gpointer) module->path);
+  g_slice_free (GumModuleDetails, module);
+}
+
+#endif
 
 void
 _gum_process_enumerate_ranges (GumPageProtection prot,
