@@ -639,14 +639,16 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
                            gpointer user_data)
 {
   GumEnumerateModulesContext * ctx = user_data;
+  gboolean is_special_module;
   GumAddress base_address;
   const gchar * path;
-  gboolean is_special_module;
   gchar * name;
   GumModuleDetails details;
   GumMemoryRange range;
 
-  if (info->dlpi_addr == 0 || info->dlpi_name == NULL)
+  is_special_module = info->dlpi_addr == 0 || info->dlpi_name == NULL ||
+      info->dlpi_name[0] == '\0';
+  if (is_special_module)
     return 0;
 
   base_address = gum_resolve_base_address_from_phdr (info);
