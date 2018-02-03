@@ -26,6 +26,7 @@ struct GumV8ImportsContext
   Local<String> name;
   Local<String> module;
   Local<String> address;
+  Local<String> offset;
   Local<String> variable;
 
   GumV8Core * core;
@@ -172,6 +173,8 @@ _gum_v8_module_realize (GumV8Module * self)
   self->module_key = new GumPersistent<String>::type (isolate, module_key);
   auto address_key = _gum_v8_string_new_ascii (isolate, "address");
   self->address_key = new GumPersistent<String>::type (isolate, address_key);
+  auto offset_key = _gum_v8_string_new_ascii (isolate, "offset");
+  self->offset_key = new GumPersistent<String>::type (isolate, offset_key);
 
   auto function_value = _gum_v8_string_new_ascii (isolate, "function");
   auto variable_value = _gum_v8_string_new_ascii (isolate, "variable");
@@ -212,11 +215,13 @@ _gum_v8_module_dispose (GumV8Module * self)
   delete self->name_key;
   delete self->module_key;
   delete self->address_key;
+  delete self->offset_key;
   delete self->variable_value;
   self->type_key = nullptr;
   self->name_key = nullptr;
   self->module_key = nullptr;
   self->address_key = nullptr;
+  self->offset_key = nullptr;
   self->variable_value = nullptr;
 }
 
@@ -275,6 +280,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_imports)
   ic.name = Local<String>::New (isolate, *module->name_key);
   ic.module = Local<String>::New (isolate, *module->module_key);
   ic.address = Local<String>::New (isolate, *module->address_key);
+  ic.offset = Local<String>::New (isolate, *module->offset_key);
   ic.variable = Local<String>::New (isolate, *module->variable_value);
 
   ic.core = core;
@@ -351,6 +357,17 @@ gum_emit_import (const GumImportDetails * details,
   else
   {
     imp->Delete (context, ic->address).FromJust ();
+  }
+
+  if (details->offset != 0)
+  {
+    imp->ForceSet (context, ic->offset,
+        _gum_v8_native_pointer_new (GSIZE_TO_POINTER (details->offset), core),
+        attrs).FromJust ();
+  }
+  else
+  {
+    imp->Delete (context, ic->offset).FromJust ();
   }
 
   Handle<Value> argv[] = { imp };
