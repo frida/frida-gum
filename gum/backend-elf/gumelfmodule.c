@@ -329,6 +329,7 @@ gum_emit_elf_import (const GumElfSymbolDetails * details,
     d.name = details->name;
     d.module = NULL;
     d.address = 0;
+    d.slot = 0; /* TODO */
 
     if (!ctx->func (&d, ctx->user_data))
       return FALSE;

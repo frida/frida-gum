@@ -479,6 +479,7 @@ gum_module_enumerate_imports (const gchar * module_name,
     details.name = NULL;
     details.module = (const gchar *) (mod_base + desc->Name);
     details.address = 0;
+    details.slot = 0; /* TODO */
 
     thunk_data = (const IMAGE_THUNK_DATA *)
         (mod_base + desc->OriginalFirstThunk);

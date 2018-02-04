@@ -1191,6 +1191,7 @@ gum_emit_import (const GumImportDetails * details,
 
   d.type = details->type;
   d.name = details->name;
+  d.slot = details->slot;
 
   exp = g_hash_table_lookup (ctx->dependency_exports, details->name);
   if (exp != NULL)

@@ -1557,6 +1557,7 @@ gum_emit_import (const GumImportDetails * details,
   d.name = gum_symbol_name_from_darwin (details->name);
   d.module = details->module;
   d.address = 0;
+  d.slot = details->slot;
 
   if (d.module == NULL)
   {

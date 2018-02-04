@@ -22,6 +22,7 @@ struct GumV8Module
   GumPersistent<v8::String>::type * name_key;
   GumPersistent<v8::String>::type * module_key;
   GumPersistent<v8::String>::type * address_key;
+  GumPersistent<v8::String>::type * slot_key;
   GumPersistent<v8::String>::type * variable_value;
 };
 
