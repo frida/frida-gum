@@ -534,12 +534,12 @@ gum_emit_import (const GumDarwinBindDetails * details,
 
   if (details->segment != NULL)
   {
-    d.offset = details->offset + details->segment->vm_address +
+    d.slot = details->offset + details->segment->vm_address +
         gum_darwin_module_slide (ctx->module);
   }
   else
   {
-    d.offset = 0;
+    d.slot = 0;
   }
 
   key = g_strconcat (

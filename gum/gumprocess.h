@@ -95,7 +95,7 @@ struct _GumImportDetails
   const gchar * name;
   const gchar * module;
   GumAddress address;
-  GumAddress offset;
+  GumAddress slot;
 };
 
 struct _GumExportDetails

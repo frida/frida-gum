@@ -199,11 +199,11 @@ gum_emit_import (const GumImportDetails * details,
     duk_put_prop_string (ctx, -2, "address");
   }
 
-  if (details->offset != 0)
+  if (details->slot != 0)
   {
-    _gum_duk_push_native_pointer (ctx, GSIZE_TO_POINTER (details->offset),
+    _gum_duk_push_native_pointer (ctx, GSIZE_TO_POINTER (details->slot),
         scope->core);
-    duk_put_prop_string (ctx, -2, "offset");
+    duk_put_prop_string (ctx, -2, "slot");
   }
 
   if (_gum_duk_scope_call_sync (scope, 1))
