@@ -506,7 +506,6 @@ gum_emit_import (const GumDarwinBindDetails * details,
 {
   GumEmitImportContext * ctx = user_data;
   GumImportDetails d;
-  gchar * key;
 
   d.type = GUM_IMPORT_UNKNOWN;
   d.name = details->symbol_name;
