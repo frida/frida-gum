@@ -49,7 +49,6 @@ struct _GumEmitImportContext
   gpointer user_data;
 
   GumDarwinModule * module;
-  GHashTable * imports_seen;
   gboolean carry_on;
 };
 
@@ -495,14 +494,10 @@ gum_darwin_module_enumerate_imports (GumDarwinModule * self,
   ctx.user_data = user_data;
 
   ctx.module = self;
-  ctx.imports_seen = g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
-      NULL);
   ctx.carry_on = TRUE;
   gum_darwin_module_enumerate_binds (self, gum_emit_import, &ctx);
   if (ctx.carry_on)
     gum_darwin_module_enumerate_lazy_binds (self, gum_emit_import, &ctx);
-
-  g_hash_table_unref (ctx.imports_seen);
 }
 
 static gboolean
@@ -511,7 +506,6 @@ gum_emit_import (const GumDarwinBindDetails * details,
 {
   GumEmitImportContext * ctx = user_data;
   GumImportDetails d;
-  gchar * key;
 
   d.type = GUM_IMPORT_UNKNOWN;
   d.name = details->symbol_name;
@@ -542,21 +536,7 @@ gum_emit_import (const GumDarwinBindDetails * details,
     d.slot = 0;
   }
 
-  key = g_strconcat (
-      (d.module != NULL) ? d.module : "",
-      "|",
-      d.name,
-      NULL);
-  if (g_hash_table_lookup (ctx->imports_seen, key) == NULL)
-  {
-    g_hash_table_add (ctx->imports_seen, key);
-
-    ctx->carry_on = ctx->func (&d, ctx->user_data);
-  }
-  else
-  {
-    g_free (key);
-  }
+  ctx->carry_on = ctx->func (&d, ctx->user_data);
 
   return ctx->carry_on;
 }
