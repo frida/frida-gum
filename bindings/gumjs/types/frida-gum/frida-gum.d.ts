@@ -120,6 +120,73 @@ declare interface ImmediateId {}
 
 declare interface ScheduledCallback { (...params: any[]): void }
 
+declare class Int64 {
+    constructor(v: string | number | Int64);
+
+    add(v: Int64 | number | string): Int64;
+    sub(v: Int64 | number | string): Int64;
+    and(v: Int64 | number | string): Int64;
+    or(v: Int64 | number | string): Int64;
+    xor(v: Int64 | number | string): Int64;
+    shr(v: Int64 | number | string): Int64;
+    shl(v: Int64 | number | string): Int64;
+
+    compare(v: Int64 | number | string): number;
+
+    toNumber(): number;
+    toString(): string;
+    toString(radix: number): string;
+    toJSON(): string;
+    valueOf(): number;
+}
+
+declare class UInt64 {
+    constructor(v: string | number | UInt64);
+
+    add(v: UInt64 | number | string): UInt64;
+    sub(v: UInt64 | number | string): UInt64;
+    and(v: UInt64 | number | string): UInt64;
+    or(v: UInt64 | number | string): UInt64;
+    xor(v: UInt64 | number | string): UInt64;
+    shr(v: UInt64 | number | string): UInt64;
+    shl(v: UInt64 | number | string): UInt64;
+
+    compare(v: UInt64 | number | string): number;
+
+    toNumber(): number;
+    toString(): string;
+    toString(radix: number): string;
+    toJSON(): string;
+    valueOf(): number;
+}
+
+declare class NativePointer {
+    constructor(v: string | number | UInt64 | Int64 | NativePointer | ObjectWrapper);
+
+    isNull(): boolean;
+
+    add(v: NativePointer | ObjectWrapper | UInt64 | Int64 | number | string): NativePointer;
+    sub(v: NativePointer | ObjectWrapper | UInt64 | Int64 | number | string): NativePointer;
+    and(v: NativePointer | ObjectWrapper | UInt64 | Int64 | number | string): NativePointer;
+    or(v: NativePointer | ObjectWrapper | UInt64 | Int64 | number | string): NativePointer;
+    xor(v: NativePointer | ObjectWrapper | UInt64 | Int64 | number | string): NativePointer;
+    shr(v: NativePointer | ObjectWrapper | UInt64 | Int64 | number | string): NativePointer;
+    shl(v: NativePointer | ObjectWrapper | UInt64 | Int64 | number | string): NativePointer;
+
+    equals(v: NativePointer | ObjectWrapper | UInt64 | Int64 | number | string): boolean;
+    compare(v: NativePointer | ObjectWrapper | UInt64 | Int64 | number | string): number;
+
+    toInt32(): number;
+    toString(): string;
+    toString(radix: number): string;
+    toJSON(): string;
+    toMatchPattern(): string;
+}
+
+declare interface ObjectWrapper {
+    handle: NativePointer;
+}
+
 declare class ApiResolver {
     constructor();
     enumerateMatches(): any;
@@ -149,21 +216,7 @@ declare class InstructionValue {
     constructor();
     toString(): any;
 }
-declare class Int64 {
-    constructor();
-    add(): Int64;
-    and(): Int64;
-    compare(): number;
-    or(): Int64;
-    shl(): Int64;
-    shr(): Int64;
-    sub(): Int64;
-    toJSON(): string;
-    toNumber(): number;
-    toString(): string;
-    valueOf(): number;
-    xor(): Int64;
-}
+
 declare class InvocationListener {
     constructor();
     detach(): any;
@@ -176,23 +229,6 @@ declare class NativeFunction {
     constructor();
     apply(): any;
     call(): any;
-}
-declare class NativePointer {
-    constructor();
-    add(): NativePointer;
-    and(): NativePointer;
-    compare(): number;
-    equals(ptr: any): boolean;
-    isNull(): boolean;
-    or(): NativePointer;
-    shl(): NativePointer;
-    shr(): NativePointer;
-    sub(): NativePointer;
-    toInt32(): number;
-    toJSON(): string;
-    toMatchPattern(): string;
-    toString(): string;
-    xor(): NativePointer;
 }
 declare class OutputStream {
     constructor();
@@ -212,21 +248,6 @@ declare class SocketListener {
 declare class SourceMap {
     constructor();
     resolve(generatedPosition: any): any;
-}
-declare class UInt64 {
-    constructor();
-    add(): UInt64;
-    and(): UInt64;
-    compare(): number;
-    or(): UInt64;
-    shl(): UInt64;
-    shr(): UInt64;
-    sub(): UInt64;
-    toJSON(): string;
-    toNumber(): number;
-    toString(): string;
-    valueOf(): number;
-    xor(): UInt64;
 }
 declare const Backtracer: {
     ACCURATE: any;
