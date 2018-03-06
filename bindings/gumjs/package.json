@@ -24,7 +24,7 @@
   "devDependencies": {
     "babel-preset-es2015": "^6.18.0",
     "frida-compile": "^5.0.1",
-    "frida-java": "1.4.1",
+    "frida-java": "1.4.2",
     "frida-objc": "2.0.5",
     "promiscuous": "^0.7.0"
   },
