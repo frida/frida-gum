@@ -84,8 +84,15 @@ gum_metal_array_get_extents (GumMetalArray * self,
                              gpointer * start,
                              gpointer * end)
 {
-  *start = self->data;
-  *end = gum_metal_array_element_at (self, self->capacity);
+  GumMemoryRange range;
+  uint size;
+
+  size = (guint) (gum_metal_array_element_at (self, self->capacity)
+      - self->data);
+  gum_query_page_allocation_range (self->data, size, &range);
+
+  *start = (gpointer) range.base_address;
+  *end = (gpointer) (range.base_address + range.size);
 }
 
 void

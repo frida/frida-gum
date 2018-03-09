@@ -275,8 +275,7 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
       data = gum_alloc_n_pages (size_in_pages, protection);
     }
 
-    range.base_address = GUM_ADDRESS (data) - page_size;
-    range.size = size_in_bytes + page_size;
+    gum_query_page_allocation_range (data, size_in_bytes, &range);
     gum_cloak_add_range (&range);
   }
   else
@@ -344,15 +343,11 @@ gum_code_pages_unref (GumCodePages * self)
     }
     else
     {
-      gsize page_size;
       GumMemoryRange range;
 
       gum_free_pages (self->data);
 
-      page_size = gum_query_page_size ();
-
-      range.base_address = GUM_ADDRESS (self->data) - page_size;
-      range.size = self->size + page_size;
+      gum_query_page_allocation_range (self->data, self->size, &range);
       gum_cloak_remove_range (&range);
     }
 

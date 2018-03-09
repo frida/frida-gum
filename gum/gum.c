@@ -314,7 +314,8 @@ gum_on_thread_realize (void)
       gum_thread_try_get_range (&details->cloaked_range);
 
   gum_cloak_add_thread (details->thread_id);
-  gum_cloak_add_range (&details->cloaked_range);
+  if (details->has_cloaked_range)
+    gum_cloak_add_range (&details->cloaked_range);
 
   /* This allows us to free the data no matter how the thread exits */
   g_private_set (&gum_internal_thread_details_key, details);
