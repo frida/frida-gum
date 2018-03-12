@@ -146,6 +146,17 @@ gum_try_alloc_in_range_if_near_enough (const GumRangeDetails * details,
 }
 
 void
+gum_query_page_allocation_range (gconstpointer mem,
+                                 guint size,
+                                 GumMemoryRange * range)
+{
+  gsize page_size = gum_query_page_size ();
+
+  range->base_address = GUM_ADDRESS (mem - page_size);
+  range->size = size + page_size;
+}
+
+void
 gum_free_pages (gpointer mem)
 {
   guint8 * start;

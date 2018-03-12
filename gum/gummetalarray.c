@@ -11,6 +11,8 @@
 
 #include <string.h>
 
+static guint gum_round_up_to_page_size (guint size);
+
 void
 gum_metal_array_init (GumMetalArray * array,
                       guint element_size)
@@ -84,8 +86,16 @@ gum_metal_array_get_extents (GumMetalArray * self,
                              gpointer * start,
                              gpointer * end)
 {
-  *start = self->data;
-  *end = gum_metal_array_element_at (self, self->capacity);
+  GumMemoryRange range;
+  guint size;
+
+  size = (guint) (gum_metal_array_element_at (self, self->capacity) -
+      self->data);
+  gum_query_page_allocation_range (self->data, gum_round_up_to_page_size (size),
+      &range);
+
+  *start = (gpointer) range.base_address;
+  *end = (gpointer) (range.base_address + range.size);
 }
 
 void
@@ -110,4 +120,12 @@ gum_metal_array_ensure_capacity (GumMetalArray * self,
   gum_free_pages (self->data);
   self->data = new_data;
   self->capacity = (size_in_pages * page_size) / self->element_size;
+}
+
+static guint
+gum_round_up_to_page_size (guint size)
+{
+  guint page_mask = gum_query_page_size () - 1;
+
+  return (size + page_mask) & ~page_mask;
 }
