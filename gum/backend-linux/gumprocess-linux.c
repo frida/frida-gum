@@ -1102,7 +1102,7 @@ gum_process_enumerate_malloc_ranges (GumFoundMallocRangeFunc func,
 }
 
 guint
-gum_thread_try_get_ranges (GumMemoryRange ranges[],
+gum_thread_try_get_ranges (GumMemoryRange * ranges,
                            guint max_length)
 {
   /* Not implemented */
