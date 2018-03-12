@@ -89,8 +89,8 @@ gum_metal_array_get_extents (GumMetalArray * self,
   GumMemoryRange range;
   guint size;
 
-  size = (guint) (gum_metal_array_element_at (self, self->capacity) -
-      self->data);
+  size = (guint) ((guint8 *) gum_metal_array_element_at (self, self->capacity) -
+      (guint8 *) self->data);
   gum_query_page_allocation_range (self->data, gum_round_up_to_page_size (size),
       &range);
 
