@@ -376,7 +376,7 @@ gum_process_enumerate_heap_ranges (HANDLE heap,
 }
 
 guint
-gum_thread_try_get_ranges (GumMemoryRange ranges[],
+gum_thread_try_get_ranges (GumMemoryRange * ranges,
                            guint max_length)
 {
   /* Not implemented */
