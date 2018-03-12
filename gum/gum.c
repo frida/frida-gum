@@ -312,7 +312,8 @@ gum_on_thread_realize (void)
   details = g_slice_new (GumInternalThreadDetails);
   details->thread_id = gum_process_get_current_thread_id ();
   details->n_cloaked_ranges =
-      gum_thread_try_get_ranges (details->cloaked_ranges, GUM_MAX_THREAD_RANGES);
+      gum_thread_try_get_ranges (details->cloaked_ranges,
+          GUM_MAX_THREAD_RANGES);
 
   gum_cloak_add_thread (details->thread_id);
 
