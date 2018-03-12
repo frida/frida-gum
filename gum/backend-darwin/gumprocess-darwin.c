@@ -510,20 +510,19 @@ gum_read_malloc_memory (task_t remote_task,
 }
 
 guint
-gum_thread_try_get_ranges (GumMemoryRange ranges[],
+gum_thread_try_get_ranges (GumMemoryRange * ranges,
                            guint max_length)
 {
   pthread_t thread;
   uint64_t thread_id, real_thread_id;
-  size_t skew = 0;
+  size_t skew;
   GumMemoryRange * range;
   GumAddress stack_addr;
   size_t guard_size, stack_size;
   GumAddress stack_base;
 
-  if (max_length == 0) {
+  if (max_length == 0)
     return 0;
-  }
 
   range = &ranges[0];
 
@@ -532,17 +531,16 @@ gum_thread_try_get_ranges (GumMemoryRange ranges[],
   thread_id = GUM_PTHREAD_GET_FIELD (thread,
       GUM_PTHREAD_FIELD_THREADID, uint64_t);
   pthread_threadid_np (thread, &real_thread_id);
-  if (thread_id != real_thread_id)
-    skew = 8;
+
+  skew = (thread_id == real_thread_id) ? 0 : 8;
 
   range->base_address = GUM_ADDRESS (GUM_PTHREAD_GET_FIELD (thread,
       GUM_PTHREAD_FIELD_FREEADDR + skew, void *));
   range->size = GUM_PTHREAD_GET_FIELD (thread,
       GUM_PTHREAD_FIELD_FREESIZE + skew, size_t);
 
-  if (max_length == 1) {
+  if (max_length == 1)
     return 1;
-  }
 
   stack_addr = GUM_ADDRESS (GUM_PTHREAD_GET_FIELD (thread,
       GUM_PTHREAD_FIELD_STACKADDR + skew, void *));
