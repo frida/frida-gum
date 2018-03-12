@@ -173,7 +173,8 @@ GUM_API void gum_process_enumerate_ranges (GumPageProtection prot,
     GumFoundRangeFunc func, gpointer user_data);
 GUM_API void gum_process_enumerate_malloc_ranges (
     GumFoundMallocRangeFunc func, gpointer user_data);
-GUM_API gboolean gum_thread_try_get_range (GumMemoryRange * range);
+GUM_API guint gum_thread_try_get_ranges (GumMemoryRange * ranges,
+    guint max_length);
 GUM_API gint gum_thread_get_system_error (void);
 GUM_API void gum_thread_set_system_error (gint value);
 GUM_API gboolean gum_module_ensure_initialized (const gchar * module_name);

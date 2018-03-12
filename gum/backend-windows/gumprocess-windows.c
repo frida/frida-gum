@@ -375,14 +375,12 @@ gum_process_enumerate_heap_ranges (HANDLE heap,
   return carry_on;
 }
 
-gboolean
-gum_thread_try_get_range (GumMemoryRange * range)
+guint
+gum_thread_try_get_ranges (GumMemoryRange * ranges,
+                           guint max_length)
 {
   /* Not implemented */
-  range->base_address = 0;
-  range->size = 0;
-
-  return FALSE;
+  return 0;
 }
 
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4

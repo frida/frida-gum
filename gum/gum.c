@@ -27,8 +27,8 @@ typedef struct _GumInternalThreadDetails GumInternalThreadDetails;
 struct _GumInternalThreadDetails
 {
   GumThreadId thread_id;
-  gboolean has_cloaked_range;
-  GumMemoryRange cloaked_range;
+  guint n_cloaked_ranges;
+  GumMemoryRange cloaked_ranges[GUM_MAX_THREAD_RANGES];
 };
 
 static void gum_destructor_invoke (GumDestructorFunc destructor);
@@ -305,17 +305,20 @@ static void
 gum_on_thread_realize (void)
 {
   GumInternalThreadDetails * details;
+  guint i;
 
   gum_interceptor_ignore_current_thread (gum_cached_interceptor);
 
   details = g_slice_new (GumInternalThreadDetails);
   details->thread_id = gum_process_get_current_thread_id ();
-  details->has_cloaked_range =
-      gum_thread_try_get_range (&details->cloaked_range);
+  details->n_cloaked_ranges =
+      gum_thread_try_get_ranges (details->cloaked_ranges,
+          GUM_MAX_THREAD_RANGES);
 
   gum_cloak_add_thread (details->thread_id);
-  if (details->has_cloaked_range)
-    gum_cloak_add_range (&details->cloaked_range);
+
+  for (i = 0; i != details->n_cloaked_ranges; i++)
+    gum_cloak_add_range (&details->cloaked_ranges[i]);
 
   /* This allows us to free the data no matter how the thread exits */
   g_private_set (&gum_internal_thread_details_key, details);
@@ -339,11 +342,12 @@ static void
 gum_internal_thread_details_free (GumInternalThreadDetails * details)
 {
   GumThreadId thread_id;
+  guint i;
 
   thread_id = details->thread_id;
 
-  if (details->has_cloaked_range)
-    gum_cloak_remove_range (&details->cloaked_range);
+  for (i = 0; i != details->n_cloaked_ranges; i++)
+    gum_cloak_remove_range (&details->cloaked_ranges[i]);
 
   g_slice_free (GumInternalThreadDetails, details);
 

@@ -31,6 +31,14 @@
 #define DYLD_IMAGE_INFO_64_SIZE 24
 #define GUM_THREAD_POLL_STEP 1000
 #define GUM_MAX_THREAD_POLL (20000000 / GUM_THREAD_POLL_STEP)
+#define GUM_PTHREAD_FIELD_STACKADDR ((GLIB_SIZEOF_VOID_P == 8) ? 0xb0 : 0x88)
+#define GUM_PTHREAD_FIELD_STACKSIZE ((GLIB_SIZEOF_VOID_P == 8) ? 0xb8 : 0x8c)
+#define GUM_PTHREAD_FIELD_FREEADDR ((GLIB_SIZEOF_VOID_P == 8) ? 0xc0 : 0x90)
+#define GUM_PTHREAD_FIELD_FREESIZE ((GLIB_SIZEOF_VOID_P == 8) ? 0xc8 : 0x94)
+#define GUM_PTHREAD_FIELD_GUARDSIZE ((GLIB_SIZEOF_VOID_P == 8) ? 0xd0 : 0x98)
+#define GUM_PTHREAD_FIELD_THREADID ((GLIB_SIZEOF_VOID_P == 8) ? 0xd8 : 0xa0)
+#define GUM_PTHREAD_GET_FIELD(thread, field, type) \
+    (*((type *) ((guint8 *) thread + field)))
 
 typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
 typedef struct _GumEnumerateExportsContext GumEnumerateExportsContext;
@@ -501,23 +509,57 @@ gum_read_malloc_memory (task_t remote_task,
   return KERN_SUCCESS;
 }
 
-gboolean
-gum_thread_try_get_range (GumMemoryRange * range)
+guint
+gum_thread_try_get_ranges (GumMemoryRange * ranges,
+                           guint max_length)
 {
   pthread_t thread;
-  gpointer stack_top;
-  gsize stack_size, guard_size;
+  uint64_t thread_id, real_thread_id;
+  guint skew;
+  GumMemoryRange * range;
+  GumAddress stack_addr;
+  size_t guard_size, stack_size;
+  GumAddress stack_base;
+
+  if (max_length == 0)
+    return 0;
+
+  range = &ranges[0];
 
   thread = pthread_self ();
 
-  stack_top = pthread_get_stackaddr_np (thread);
-  stack_size = pthread_get_stacksize_np (thread);
-  guard_size = gum_query_page_size ();
+  thread_id = GUM_PTHREAD_GET_FIELD (thread,
+      GUM_PTHREAD_FIELD_THREADID, uint64_t);
+  pthread_threadid_np (thread, &real_thread_id);
 
-  range->base_address = GUM_ADDRESS (stack_top) - stack_size - guard_size;
-  range->size = stack_size + guard_size;
+  skew = (thread_id == real_thread_id) ? 0 : 8;
 
-  return TRUE;
+  range->base_address = GUM_ADDRESS (GUM_PTHREAD_GET_FIELD (thread,
+      GUM_PTHREAD_FIELD_FREEADDR + skew, void *));
+  range->size = GUM_PTHREAD_GET_FIELD (thread,
+      GUM_PTHREAD_FIELD_FREESIZE + skew, size_t);
+
+  if (max_length == 1)
+    return 1;
+
+  stack_addr = GUM_ADDRESS (GUM_PTHREAD_GET_FIELD (thread,
+      GUM_PTHREAD_FIELD_STACKADDR + skew, void *));
+  stack_size = GUM_PTHREAD_GET_FIELD (thread,
+      GUM_PTHREAD_FIELD_STACKSIZE + skew, size_t);
+  guard_size = GUM_PTHREAD_GET_FIELD (thread,
+      GUM_PTHREAD_FIELD_GUARDSIZE + skew, size_t);
+
+  stack_base = stack_addr - stack_size - guard_size;
+
+  if (stack_base == range->base_address)
+    return 1;
+
+  range = &ranges[1];
+
+  range->base_address = stack_base;
+  range->size = stack_addr - stack_base;
+
+  return 2;
 }
 
 gint
