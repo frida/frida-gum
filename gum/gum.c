@@ -317,7 +317,7 @@ gum_on_thread_realize (void)
 
   gum_cloak_add_thread (details->thread_id);
 
-  for (i = 0; i < details->n_cloaked_ranges; i++)
+  for (i = 0; i != details->n_cloaked_ranges; i++)
     gum_cloak_add_range (&details->cloaked_ranges[i]);
 
   /* This allows us to free the data no matter how the thread exits */
@@ -346,7 +346,7 @@ gum_internal_thread_details_free (GumInternalThreadDetails * details)
 
   thread_id = details->thread_id;
 
-  for (i = 0; i < details->n_cloaked_ranges; i++)
+  for (i = 0; i != details->n_cloaked_ranges; i++)
     gum_cloak_remove_range (&details->cloaked_ranges[i]);
 
   g_slice_free (GumInternalThreadDetails, details);
