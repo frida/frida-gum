@@ -109,6 +109,8 @@ GUM_API gpointer gum_alloc_n_pages_near (guint n_pages,
     GumPageProtection page_prot, const GumAddressSpec * address_spec);
 GUM_API gpointer gum_try_alloc_n_pages_near (guint n_pages,
     GumPageProtection page_prot, const GumAddressSpec * address_spec);
+GUM_API void gum_query_page_allocation_range (gconstpointer mem, guint size,
+    GumMemoryRange * range);
 GUM_API void gum_free_pages (gpointer mem);
 
 GUM_API gpointer gum_memory_allocate (gsize size, GumPageProtection page_prot,
