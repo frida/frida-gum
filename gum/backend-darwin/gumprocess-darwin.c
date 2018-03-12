@@ -37,8 +37,8 @@
 #define GUM_PTHREAD_FIELD_FREESIZE ((GLIB_SIZEOF_VOID_P == 8) ? 0xc8 : 0x94)
 #define GUM_PTHREAD_FIELD_GUARDSIZE ((GLIB_SIZEOF_VOID_P == 8) ? 0xd0 : 0x98)
 #define GUM_PTHREAD_FIELD_THREADID ((GLIB_SIZEOF_VOID_P == 8) ? 0xd8 : 0xa0)
-#define GUM_PTHREAD_GET_FIELD(thread, field, type)\
-    (* ((type *) ((char *) thread + field)))
+#define GUM_PTHREAD_GET_FIELD(thread, field, type) \
+    (*((type *) ((guint8 *) thread + field)))
 
 typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
 typedef struct _GumEnumerateExportsContext GumEnumerateExportsContext;
@@ -515,7 +515,7 @@ gum_thread_try_get_ranges (GumMemoryRange * ranges,
 {
   pthread_t thread;
   uint64_t thread_id, real_thread_id;
-  size_t skew;
+  guint skew;
   GumMemoryRange * range;
   GumAddress stack_addr;
   size_t guard_size, stack_size;
