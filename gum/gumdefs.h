@@ -276,6 +276,8 @@ enum _GumRelocationScenario
 #define GUM_MAX_LISTENERS_PER_FUNCTION 2
 #define GUM_MAX_LISTENER_DATA        512
 
+#define GUM_MAX_THREAD_RANGES 2
+
 #if GLIB_SIZEOF_VOID_P == 8
 #define GUM_CPU_MODE CS_MODE_64
 #define GUM_THUNK

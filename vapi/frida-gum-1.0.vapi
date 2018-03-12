@@ -156,7 +156,7 @@ namespace Gum {
 	}
 
 	namespace Thread {
-		public bool try_get_range (out Gum.MemoryRange range);
+		public uint try_get_ranges (Gum.MemoryRange[] ranges);
 	}
 
 	namespace Module {
