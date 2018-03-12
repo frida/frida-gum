@@ -235,7 +235,8 @@ gum_try_alloc_n_pages_near (guint n_pages,
 }
 
 void
-gum_query_page_allocation_range (gconstpointer mem, guint size,
+gum_query_page_allocation_range (gconstpointer mem,
+                                 guint size,
                                  GumMemoryRange * range)
 {
   range->base_address = GUM_ADDRESS (mem);
