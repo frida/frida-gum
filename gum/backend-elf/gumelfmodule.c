@@ -505,6 +505,7 @@ gum_store_symtab_params (const GumElfDynamicEntryDetails * details,
 
       break;
     }
+#ifdef DT_GNU_HASH
     case DT_GNU_HASH:
     {
       const guint32 * hash_params;
@@ -551,6 +552,7 @@ gum_store_symtab_params (const GumElfDynamicEntryDetails * details,
 
       break;
     }
+#endif
     default:
       break;
   }
