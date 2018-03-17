@@ -664,6 +664,21 @@ OutputStream.prototype.writeAll = function (data) {
   });
 };
 
+const _writeMemoryRegion = OutputStream.prototype._writeMemoryRegion;
+OutputStream.prototype.writeMemoryRegion = function (address, length) {
+  const stream = this;
+  return new Promise(function (resolve, reject) {
+    _writeMemoryRegion.call(stream, address, length, function (error, size) {
+      if (error === null) {
+        resolve(size);
+      } else {
+        error.partialSize = size;
+        reject(error);
+      }
+    });
+  });
+};
+
 const _closeListener = SocketListener.prototype._close;
 SocketListener.prototype.close = function () {
   const listener = this;
