@@ -1,10 +1,12 @@
 /*
- * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gumscriptscheduler.h"
+
+#include "gumscriptscheduler-priv.h"
 
 struct _GumScriptScheduler
 {
@@ -40,6 +42,39 @@ static gpointer gum_script_scheduler_run_js_loop (GumScriptScheduler * self);
 
 G_DEFINE_TYPE (GumScriptScheduler, gum_script_scheduler, G_TYPE_OBJECT);
 
+G_LOCK_DEFINE_STATIC (gum_script_schedulers);
+static GSList * gum_script_schedulers = NULL;
+
+void
+_gum_script_scheduler_prepare_to_fork (void)
+{
+  GSList * cur;
+
+  G_LOCK (gum_script_schedulers);
+
+  for (cur = gum_script_schedulers; cur != NULL; cur = cur->next)
+  {
+    gum_script_scheduler_stop (cur->data);
+  }
+
+  G_UNLOCK (gum_script_schedulers);
+}
+
+void
+_gum_script_scheduler_recover_from_fork (void)
+{
+  GSList * cur;
+
+  G_LOCK (gum_script_schedulers);
+
+  for (cur = gum_script_schedulers; cur != NULL; cur = cur->next)
+  {
+    gum_script_scheduler_start (cur->data);
+  }
+
+  G_UNLOCK (gum_script_schedulers);
+}
+
 static void
 gum_script_scheduler_class_init (GumScriptSchedulerClass * klass)
 {
@@ -61,6 +96,10 @@ gum_script_scheduler_init (GumScriptScheduler * self)
       4,
       FALSE,
       NULL);
+
+  G_LOCK (gum_script_schedulers);
+  gum_script_schedulers = g_slist_prepend (gum_script_schedulers, self);
+  G_UNLOCK (gum_script_schedulers);
 }
 
 static void
@@ -71,6 +110,10 @@ gum_script_scheduler_dispose (GObject * obj)
   if (!self->disposed)
   {
     self->disposed = TRUE;
+
+    G_LOCK (gum_script_schedulers);
+    gum_script_schedulers = g_slist_remove (gum_script_schedulers, self);
+    G_UNLOCK (gum_script_schedulers);
 
     g_thread_pool_free (self->thread_pool, FALSE, TRUE);
     self->thread_pool = NULL;

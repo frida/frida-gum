@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,7 +7,9 @@
 #include "gum.h"
 
 #include "gum-init.h"
+#include "gumexceptorbackend.h"
 #include "guminterceptor-priv.h"
+#include "gummemory-priv.h"
 #include "gumprintf.h"
 #include "gumtls-priv.h"
 #include "valgrind.h"
@@ -274,6 +276,24 @@ gum_deinit_embedded (void)
   gum_memory_deinit ();
 
   gum_initialized = FALSE;
+}
+
+void
+gum_prepare_to_fork (void)
+{
+  _gum_exceptor_backend_prepare_to_fork ();
+}
+
+void
+gum_recover_from_fork_in_parent (void)
+{
+  _gum_exceptor_backend_recover_from_fork_in_parent ();
+}
+
+void
+gum_recover_from_fork_in_child (void)
+{
+  _gum_exceptor_backend_recover_from_fork_in_child ();
 }
 
 static void

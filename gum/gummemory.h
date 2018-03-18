@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -64,6 +64,10 @@ typedef gboolean (* GumMemoryScanMatchFunc) (GumAddress address, gsize size,
 
 GUM_API void gum_memory_init (void);
 GUM_API void gum_memory_deinit (void);
+
+GUM_API void gum_memory_prepare_to_fork (void);
+GUM_API void gum_memory_recover_from_fork_in_parent (void);
+GUM_API void gum_memory_recover_from_fork_in_child (void);
 
 GUM_API guint gum_query_page_size (void);
 GUM_API gboolean gum_query_is_rwx_supported (void);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -43,6 +43,10 @@ GUM_API void gum_deinit (void);
 
 GUM_API void gum_init_embedded (void);
 GUM_API void gum_deinit_embedded (void);
+
+GUM_API void gum_prepare_to_fork (void);
+GUM_API void gum_recover_from_fork_in_parent (void);
+GUM_API void gum_recover_from_fork_in_child (void);
 
 G_END_DECLS
 

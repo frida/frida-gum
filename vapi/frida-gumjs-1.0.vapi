@@ -1,3 +1,10 @@
+[CCode (cheader_filename = "gumjs/gumjs.h", lower_case_cprefix = "gumjs_")]
+namespace GumJS {
+	public void prepare_to_fork ();
+	public void recover_from_fork_in_parent ();
+	public void recover_from_fork_in_child ();
+}
+
 namespace Gum {
 	[CCode (cheader_filename = "gumjs/gumscriptbackend.h")]
 	public interface ScriptBackend : GLib.Object {
