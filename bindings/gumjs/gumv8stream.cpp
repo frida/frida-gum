@@ -105,6 +105,7 @@ static void gum_v8_close_output_operation_finish (GOutputStream * stream,
     GAsyncResult * result, GumV8CloseOutputOperation * self);
 GUMJS_DECLARE_FUNCTION (gumjs_output_stream_write)
 GUMJS_DECLARE_FUNCTION (gumjs_output_stream_write_all)
+GUMJS_DECLARE_FUNCTION (gumjs_output_stream_write_memory_region)
 static void gumjs_output_stream_write_with_strategy (GumV8OutputStream * self,
     const GumV8Args * args, GumV8WriteStrategy strategy);
 static void gum_v8_write_operation_dispose (GumV8WriteOperation * self);
@@ -140,6 +141,7 @@ static const GumV8Function gumjs_output_stream_functions[] =
   { "_close", gumjs_output_stream_close },
   { "_write", gumjs_output_stream_write },
   { "_writeAll", gumjs_output_stream_write_all },
+  { "_writeMemoryRegion", gumjs_output_stream_write_memory_region },
 
   { NULL, NULL }
 };
@@ -587,6 +589,21 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_output_stream_write, GumV8OutputStream)
 GUMJS_DEFINE_CLASS_METHOD (gumjs_output_stream_write_all, GumV8OutputStream)
 {
   gumjs_output_stream_write_with_strategy (self, args, GUM_V8_WRITE_ALL);
+}
+
+GUMJS_DEFINE_CLASS_METHOD (gumjs_output_stream_write_memory_region, GumV8OutputStream)
+{
+  gconstpointer address;
+  gsize length;
+  Local<Function> callback;
+  if (!_gum_v8_args_parse (args, "pZF", &address, &length, &callback))
+    return;
+
+  auto op = gum_v8_object_operation_new (self, callback,
+      gum_v8_write_operation_start, gum_v8_write_operation_dispose);
+  op->strategy = GUM_V8_WRITE_ALL;
+  op->bytes = g_bytes_new_static (address, length);
+  gum_v8_object_operation_schedule (op);
 }
 
 static void

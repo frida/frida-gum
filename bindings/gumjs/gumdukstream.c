@@ -112,6 +112,7 @@ static void gum_duk_close_output_operation_finish (GOutputStream * stream,
     GAsyncResult * result, GumDukCloseOutputOperation * self);
 GUMJS_DECLARE_FUNCTION (gumjs_output_stream_write)
 GUMJS_DECLARE_FUNCTION (gumjs_output_stream_write_all)
+GUMJS_DECLARE_FUNCTION (gumjs_output_stream_write_memory_region)
 static gint gumjs_output_stream_write_with_strategy (duk_context * ctx,
     const GumDukArgs * args, GumDukWriteStrategy strategy);
 static void gum_duk_write_operation_dispose (GumDukWriteOperation * self);
@@ -147,6 +148,7 @@ static const duk_function_list_entry gumjs_output_stream_functions[] =
   { "_close", gumjs_output_stream_close, 1 },
   { "_write", gumjs_output_stream_write, 2 },
   { "_writeAll", gumjs_output_stream_write_all, 2 },
+  { "_writeMemoryRegion", gumjs_output_stream_write_memory_region, 3 },
 
   { NULL, NULL, 0 }
 };
@@ -664,6 +666,27 @@ GUMJS_DEFINE_FUNCTION (gumjs_output_stream_write_all)
 {
   return gumjs_output_stream_write_with_strategy (ctx, args,
       GUM_DUK_WRITE_ALL);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_output_stream_write_memory_region)
+{
+  GumDukObject * self;
+  gconstpointer address;
+  gsize length;
+  GumDukHeapPtr callback;
+  GumDukWriteOperation * op;
+
+  self = _gum_duk_object_get (args);
+
+  _gum_duk_args_parse (args, "pZF", &address, &length, &callback);
+
+  op = _gum_duk_object_operation_new (GumDukWriteOperation, self, callback,
+      gum_duk_write_operation_start, gum_duk_write_operation_dispose);
+  op->strategy = GUM_DUK_WRITE_ALL;
+  op->bytes = g_bytes_new_static (address, length);
+  _gum_duk_object_operation_schedule (op);
+
+  return 0;
 }
 
 static gint
