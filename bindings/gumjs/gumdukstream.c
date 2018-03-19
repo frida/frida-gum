@@ -671,12 +671,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_output_stream_write_all)
 GUMJS_DEFINE_FUNCTION (gumjs_output_stream_write_memory_region)
 {
   GumDukObject * self;
-  GumDukHeapPtr callback;
-  GumDukWriteOperation * op;
   gconstpointer address;
   gsize length;
-
-  (void) ctx;
+  GumDukHeapPtr callback;
+  GumDukWriteOperation * op;
 
   self = _gum_duk_object_get (args);
 
