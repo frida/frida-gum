@@ -25,6 +25,11 @@ global._setUnhandledExceptionCallback(function (error) {
 });
 
 Error.prepareStackTrace = function (error, stack) {
+  if (stack.length === 0) {
+    const result = new String(error.toString());
+    result.frames = [];
+    return result;
+  }
   const translatedStack = stack.map(function (frame) {
     return wrapCallSite(frame);
   });
