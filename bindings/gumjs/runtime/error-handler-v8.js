@@ -25,7 +25,7 @@ global._setUnhandledExceptionCallback(function (error) {
 });
 
 Error.prepareStackTrace = function (error, stack) {
-  if (!stack || stack.length === 0) {
+  if (stack.length === 0) {
     const result = new String(error.toString());
     result.frames = [];
     return result;
