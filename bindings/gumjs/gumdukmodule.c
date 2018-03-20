@@ -418,11 +418,14 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_find_base_address)
 GUMJS_DEFINE_FUNCTION (gumjs_module_find_export_by_name)
 {
   const gchar * module_name, * symbol_name;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
   GumAddress address;
 
   _gum_duk_args_parse (args, "s?s", &module_name, &symbol_name);
 
+  _gum_duk_scope_suspend (&scope);
   address = gum_module_find_export_by_name (module_name, symbol_name);
+  _gum_duk_scope_resume (&scope);
 
   if (address != 0)
     _gum_duk_push_native_pointer (ctx, GSIZE_TO_POINTER (address), args->core);
