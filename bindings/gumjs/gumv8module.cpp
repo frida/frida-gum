@@ -646,7 +646,16 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_find_export_by_name)
   if (!_gum_v8_args_parse (args, "s?s", &module_name, &symbol_name))
     return;
 
-  auto address = gum_module_find_export_by_name (module_name, symbol_name);
+  GumAddress address;
+
+  core->isolate->Exit ();
+  {
+    Unlocker ul (core->isolate);
+
+    address = gum_module_find_export_by_name (module_name, symbol_name);
+  }
+  core->isolate->Enter ();
+
   if (address != 0)
   {
     info.GetReturnValue ().Set (
