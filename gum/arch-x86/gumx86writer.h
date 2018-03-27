@@ -156,6 +156,13 @@ GUM_API gboolean gum_x86_writer_put_call_reg_offset_ptr_with_arguments (
 GUM_API gboolean gum_x86_writer_put_call_reg_offset_ptr_with_arguments_array (
     GumX86Writer * self, GumCallingConvention conv, GumCpuReg reg,
     gssize offset, guint n_args, const GumArgument * args);
+GUM_API gboolean gum_x86_writer_put_call_reg_offset_ptr_with_aligned_arguments (
+    GumX86Writer * self, GumCallingConvention conv, GumCpuReg reg,
+    gssize offset, guint n_args, ...);
+GUM_API gboolean
+    gum_x86_writer_put_call_reg_offset_ptr_with_aligned_arguments_array (
+    GumX86Writer * self, GumCallingConvention conv, GumCpuReg reg,
+    gssize offset, guint n_args, const GumArgument * args);
 GUM_API gboolean gum_x86_writer_put_call_address (GumX86Writer * self,
     GumAddress address);
 GUM_API gboolean gum_x86_writer_put_call_reg (GumX86Writer * self,

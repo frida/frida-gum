@@ -788,6 +788,48 @@ gum_x86_writer_put_call_reg_offset_ptr_with_arguments_array (
 }
 
 gboolean
+gum_x86_writer_put_call_reg_offset_ptr_with_aligned_arguments (
+    GumX86Writer * self,
+    GumCallingConvention conv,
+    GumCpuReg reg,
+    gssize offset,
+    guint n_args,
+    ...)
+{
+  va_list vl;
+
+  va_start (vl, n_args);
+  gum_x86_writer_put_aligned_argument_list_setup_va (self, conv, n_args, vl);
+  va_end (vl);
+
+  if (!gum_x86_writer_put_call_reg_offset_ptr (self, reg, offset))
+    return FALSE;
+
+  gum_x86_writer_put_aligned_argument_list_teardown (self, conv, n_args);
+
+  return TRUE;
+}
+
+gboolean
+gum_x86_writer_put_call_reg_offset_ptr_with_aligned_arguments_array (
+    GumX86Writer * self,
+    GumCallingConvention conv,
+    GumCpuReg reg,
+    gssize offset,
+    guint n_args,
+    const GumArgument * args)
+{
+  gum_x86_writer_put_aligned_argument_list_setup (self, conv, n_args, args);
+
+  if (!gum_x86_writer_put_call_reg_offset_ptr (self, reg, offset))
+    return FALSE;
+
+  gum_x86_writer_put_aligned_argument_list_teardown (self, conv, n_args);
+
+  return TRUE;
+}
+
+gboolean
 gum_x86_writer_put_call_address (GumX86Writer * self,
                                  GumAddress address)
 {
