@@ -104,33 +104,6 @@ gum_memory_deinit (void)
   gum_memory_initialized = FALSE;
 }
 
-void
-gum_memory_prepare_to_fork (void)
-{
-  ACQUIRE_LOCK (&malloc_global_mutex);
-
-  ACQUIRE_LOCK (&((mstate) gum_mspace_main)->mutex);
-  ACQUIRE_LOCK (&((mstate) gum_mspace_capstone)->mutex);
-}
-
-void
-gum_memory_recover_from_fork_in_parent (void)
-{
-  RELEASE_LOCK (&((mstate) gum_mspace_capstone)->mutex);
-  RELEASE_LOCK (&((mstate) gum_mspace_main)->mutex);
-
-  RELEASE_LOCK (&malloc_global_mutex);
-}
-
-void
-gum_memory_recover_from_fork_in_child (void)
-{
-  (void) INITIAL_LOCK (&((mstate) gum_mspace_capstone)->mutex);
-  (void) INITIAL_LOCK (&((mstate) gum_mspace_main)->mutex);
-
-  (void) INITIAL_LOCK (&malloc_global_mutex);
-}
-
 guint
 gum_query_page_size (void)
 {

@@ -178,10 +178,6 @@ namespace Gum {
 	}
 
 	namespace Memory {
-		public void prepare_to_fork ();
-		public void recover_from_fork_in_parent ();
-		public void recover_from_fork_in_child ();
-
 		public uint8[] read (Address address, size_t len);
 		public bool write (Address address, uint8[] bytes);
 		public void scan (Gum.MemoryRange range, Gum.MatchPattern pattern, Gum.Memory.ScanMatchFunc func);
