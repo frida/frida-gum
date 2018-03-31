@@ -1,10 +1,12 @@
 gumjs_headers = [
+  'gumjs.h',
   'gumscript.h',
   'gumscriptbackend.h',
   'gumscriptscheduler.h',
 ]
 
 gumjs_sources = [
+  'gumjs.c',
   'gumscript.c',
   'gumscriptbackend.c',
   'gumscriptscheduler.c',

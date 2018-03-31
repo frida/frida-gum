@@ -71,6 +71,9 @@ static void gum_exceptor_backend_dispose (GObject * object);
 
 static void gum_exceptor_backend_attach (GumExceptorBackend * self);
 static void gum_exceptor_backend_detach (GumExceptorBackend * self);
+static void gum_exceptor_backend_start_worker_thread (
+    GumExceptorBackend * self);
+static void gum_exceptor_backend_stop_worker_thread (GumExceptorBackend * self);
 static void gum_exceptor_backend_send_stop_request (GumExceptorBackend * self);
 static gpointer gum_exceptor_backend_process_messages (
     GumExceptorBackend * self);
@@ -123,6 +126,35 @@ static void gum_exception_port_set_mod_refs (GumExceptionPortSet * self,
 G_DEFINE_TYPE (GumExceptorBackend, gum_exceptor_backend, G_TYPE_OBJECT)
 
 static GumExceptorBackend * the_backend = NULL;
+static gboolean was_attached_before_fork = FALSE;
+
+void
+_gum_exceptor_backend_prepare_to_fork (void)
+{
+  if (the_backend == NULL || !the_backend->attached)
+  {
+    was_attached_before_fork = FALSE;
+    return;
+  }
+
+  was_attached_before_fork = TRUE;
+
+  gum_exceptor_backend_detach (the_backend);
+}
+
+void
+_gum_exceptor_backend_recover_from_fork_in_parent (void)
+{
+  if (was_attached_before_fork)
+    gum_exceptor_backend_attach (the_backend);
+}
+
+void
+_gum_exceptor_backend_recover_from_fork_in_child (void)
+{
+  if (was_attached_before_fork)
+    gum_exceptor_backend_attach (the_backend);
+}
 
 static void
 gum_exceptor_backend_class_init (GumExceptorBackendClass * klass)
@@ -240,8 +272,7 @@ gum_exceptor_backend_attach (GumExceptorBackend * self)
 
   gum_interceptor_end_transaction (interceptor);
 
-  self->worker = g_thread_new ("gum-exceptor-worker",
-      (GThreadFunc) gum_exceptor_backend_process_messages, self);
+  gum_exceptor_backend_start_worker_thread (self);
 
   self->attached = TRUE;
 }
@@ -284,9 +315,7 @@ gum_exceptor_backend_detach (GumExceptorBackend * self)
   gum_exception_port_set_mod_refs (old_ports, -1);
   old_ports->count = 0;
 
-  gum_exceptor_backend_send_stop_request (self);
-  g_thread_join (self->worker);
-  self->worker = NULL;
+  gum_exceptor_backend_stop_worker_thread (self);
 
   mach_port_mod_refs (self_task, self->server_port, MACH_PORT_RIGHT_SEND, -1);
   mach_port_mod_refs (self_task, self->server_port, MACH_PORT_RIGHT_RECEIVE,
@@ -294,6 +323,25 @@ gum_exceptor_backend_detach (GumExceptorBackend * self)
   self->server_port = MACH_PORT_NULL;
 
   self->attached = FALSE;
+}
+
+static void
+gum_exceptor_backend_start_worker_thread (GumExceptorBackend * self)
+{
+  g_assert (self->worker == NULL);
+
+  self->worker = g_thread_new ("gum-exceptor-worker",
+      (GThreadFunc) gum_exceptor_backend_process_messages, self);
+}
+
+static void
+gum_exceptor_backend_stop_worker_thread (GumExceptorBackend * self)
+{
+  g_assert (self->worker != NULL);
+
+  gum_exceptor_backend_send_stop_request (self);
+  g_thread_join (self->worker);
+  self->worker = NULL;
 }
 
 static void

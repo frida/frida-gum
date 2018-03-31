@@ -40,6 +40,21 @@ G_DEFINE_TYPE (GumExceptorBackend, gum_exceptor_backend, G_TYPE_OBJECT)
 
 static GumExceptorBackend * the_backend = NULL;
 
+void
+_gum_exceptor_backend_prepare_to_fork (void)
+{
+}
+
+void
+_gum_exceptor_backend_recover_from_fork_in_parent (void)
+{
+}
+
+void
+_gum_exceptor_backend_recover_from_fork_in_child (void)
+{
+}
+
 static void
 gum_exceptor_backend_class_init (GumExceptorBackendClass * klass)
 {
