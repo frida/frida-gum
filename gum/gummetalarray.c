@@ -94,8 +94,8 @@ gum_metal_array_get_extents (GumMetalArray * self,
   gum_query_page_allocation_range (self->data, gum_round_up_to_page_size (size),
       &range);
 
-  *start = (gpointer) range.base_address;
-  *end = (gpointer) (range.base_address + range.size);
+  *start = GSIZE_TO_POINTER (range.base_address);
+  *end = GSIZE_TO_POINTER (range.base_address + range.size);
 }
 
 void
