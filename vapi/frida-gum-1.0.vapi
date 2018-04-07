@@ -55,8 +55,8 @@ namespace Gum {
 	}
 
 	public interface InvocationListener : GLib.Object {
-		public abstract void on_enter (Gum.InvocationContext context);
-		public abstract void on_leave (Gum.InvocationContext context);
+		public virtual void on_enter (Gum.InvocationContext context);
+		public virtual void on_leave (Gum.InvocationContext context);
 	}
 
 	[Compact]
