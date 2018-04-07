@@ -170,7 +170,7 @@ namespace Gum {
 		public void enumerate_symbols (string module_name, Gum.Module.FoundSymbolFunc func);
 		public void enumerate_ranges (string module_name, Gum.PageProtection prot, Gum.FoundRangeFunc func);
 		public void * find_base_address (string module_name);
-		public void * find_export_by_name (string module_name, string symbol_name);
+		public void * find_export_by_name (string? module_name, string symbol_name);
 
 		public delegate bool FoundImportFunc (Gum.ImportDetails details);
 		public delegate bool FoundExportFunc (Gum.ExportDetails details);
