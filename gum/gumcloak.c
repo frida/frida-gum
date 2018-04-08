@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -21,13 +21,15 @@ struct _GumCloakedRange
 };
 
 static gint gum_cloak_index_of_thread (GumThreadId id);
-
 static gint gum_thread_id_compare (gconstpointer element_a,
     gconstpointer element_b);
+static gint gum_cloak_index_of_fd (gint fd);
+static gint gum_fd_compare (gconstpointer element_a, gconstpointer element_b);
 
 static GumSpinlock cloak_lock;
 static GumMetalArray cloaked_threads;
 static GumMetalArray cloaked_ranges;
+static GumMetalArray cloaked_fds;
 
 void
 _gum_cloak_init (void)
@@ -36,11 +38,13 @@ _gum_cloak_init (void)
 
   gum_metal_array_init (&cloaked_threads, sizeof (GumThreadId));
   gum_metal_array_init (&cloaked_ranges, sizeof (GumCloakedRange));
+  gum_metal_array_init (&cloaked_fds, sizeof (gint));
 }
 
 void
 _gum_cloak_deinit (void)
 {
+  gum_metal_array_free (&cloaked_fds);
   gum_metal_array_free (&cloaked_ranges);
   gum_metal_array_free (&cloaked_threads);
 
@@ -341,4 +345,89 @@ gum_cloak_clip_range (const GumMemoryRange * range)
   }
 
   return chunks;
+}
+
+void
+gum_cloak_add_fd (gint fd)
+{
+  gint * element, * elements;
+  gint i;
+
+  gum_spinlock_acquire (&cloak_lock);
+
+  element = NULL;
+
+  elements = cloaked_fds.data;
+  for (i = (gint) cloaked_fds.length - 1; i >= 0; i--)
+  {
+    if (fd >= elements[i])
+    {
+      element = gum_metal_array_insert_at (&cloaked_fds, i + 1);
+      break;
+    }
+  }
+
+  if (element == NULL)
+    element = gum_metal_array_insert_at (&cloaked_fds, 0);
+
+  *element = fd;
+
+  gum_spinlock_release (&cloak_lock);
+}
+
+void
+gum_cloak_remove_fd (gint fd)
+{
+  gint index_;
+
+  gum_spinlock_acquire (&cloak_lock);
+
+  index_ = gum_cloak_index_of_fd (fd);
+  if (index_ != -1)
+    gum_metal_array_remove_at (&cloaked_fds, index_);
+
+  gum_spinlock_release (&cloak_lock);
+}
+
+gboolean
+gum_cloak_has_fd (gint fd)
+{
+  gboolean result;
+
+  gum_spinlock_acquire (&cloak_lock);
+
+  result = gum_cloak_index_of_fd (fd) != -1;
+
+  gum_spinlock_release (&cloak_lock);
+
+  return result;
+}
+
+static gint
+gum_cloak_index_of_fd (gint fd)
+{
+  gint * elements, * element;
+
+  elements = cloaked_fds.data;
+
+  element = bsearch (&fd, elements, cloaked_fds.length,
+      cloaked_fds.element_size, gum_fd_compare);
+  if (element == NULL)
+    return -1;
+
+  return element - elements;
+}
+
+static gint
+gum_fd_compare (gconstpointer element_a,
+                gconstpointer element_b)
+{
+  gint a = *((gint *) element_a);
+  gint b = *((gint *) element_b);
+
+  if (a == b)
+    return 0;
+  if (a < b)
+    return -1;
+  return 1;
 }

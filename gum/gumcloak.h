@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -19,6 +19,10 @@ GUM_API gboolean gum_cloak_has_thread (GumThreadId id);
 GUM_API void gum_cloak_add_range (const GumMemoryRange * range);
 GUM_API void gum_cloak_remove_range (const GumMemoryRange * range);
 GUM_API GArray * gum_cloak_clip_range (const GumMemoryRange * range);
+
+GUM_API void gum_cloak_add_fd (gint fd);
+GUM_API void gum_cloak_remove_fd (gint fd);
+GUM_API gboolean gum_cloak_has_fd (gint fd);
 
 G_END_DECLS
 
