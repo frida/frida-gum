@@ -195,9 +195,9 @@ namespace Gum {
 		public void remove_range (Gum.MemoryRange range);
 		public GLib.Array<Gum.MemoryRange>? clip_range (Gum.MemoryRange range);
 
-		public void add_fd (int fd);
-		public void remove_fd (int fd);
-		public bool has_fd (int fd);
+		public void add_file_descriptor (int fd);
+		public void remove_file_descriptor (int fd);
+		public bool has_file_descriptor (int fd);
 	}
 
 	public delegate bool FoundRangeFunc (Gum.RangeDetails details);

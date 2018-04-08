@@ -20,9 +20,9 @@ GUM_API void gum_cloak_add_range (const GumMemoryRange * range);
 GUM_API void gum_cloak_remove_range (const GumMemoryRange * range);
 GUM_API GArray * gum_cloak_clip_range (const GumMemoryRange * range);
 
-GUM_API void gum_cloak_add_fd (gint fd);
-GUM_API void gum_cloak_remove_fd (gint fd);
-GUM_API gboolean gum_cloak_has_fd (gint fd);
+GUM_API void gum_cloak_add_file_descriptor (gint fd);
+GUM_API void gum_cloak_remove_file_descriptor (gint fd);
+GUM_API gboolean gum_cloak_has_file_descriptor (gint fd);
 
 G_END_DECLS
 

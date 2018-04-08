@@ -348,7 +348,7 @@ gum_cloak_clip_range (const GumMemoryRange * range)
 }
 
 void
-gum_cloak_add_fd (gint fd)
+gum_cloak_add_file_descriptor (gint fd)
 {
   gint * element, * elements;
   gint i;
@@ -376,7 +376,7 @@ gum_cloak_add_fd (gint fd)
 }
 
 void
-gum_cloak_remove_fd (gint fd)
+gum_cloak_remove_file_descriptor (gint fd)
 {
   gint index_;
 
@@ -390,7 +390,7 @@ gum_cloak_remove_fd (gint fd)
 }
 
 gboolean
-gum_cloak_has_fd (gint fd)
+gum_cloak_has_file_descriptor (gint fd)
 {
   gboolean result;
 
