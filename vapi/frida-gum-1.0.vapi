@@ -69,6 +69,7 @@ namespace Gum {
 		public void * get_nth_argument (uint n);
 		public void replace_nth_argument (uint n, void * val);
 		public void * get_return_value ();
+		public void replace_return_value (void * val);
 
 		public uint get_thread_id ();
 
