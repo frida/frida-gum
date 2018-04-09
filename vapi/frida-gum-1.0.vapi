@@ -190,14 +190,21 @@ namespace Gum {
 		public void add_thread (Gum.ThreadId id);
 		public void remove_thread (Gum.ThreadId id);
 		public bool has_thread (Gum.ThreadId id);
+		public void enumerate_threads (Gum.Cloak.FoundThreadFunc func);
 
 		public void add_range (Gum.MemoryRange range);
 		public void remove_range (Gum.MemoryRange range);
 		public GLib.Array<Gum.MemoryRange>? clip_range (Gum.MemoryRange range);
+		public void enumerate_ranges (Gum.Cloak.FoundRangeFunc func);
 
 		public void add_file_descriptor (int fd);
 		public void remove_file_descriptor (int fd);
 		public bool has_file_descriptor (int fd);
+		public void enumerate_file_descriptors (Gum.Cloak.FoundFDFunc func);
+
+		public delegate bool FoundThreadFunc (Gum.ThreadId id);
+		public delegate bool FoundRangeFunc (Gum.MemoryRange range);
+		public delegate bool FoundFDFunc (int fd);
 	}
 
 	public delegate bool FoundRangeFunc (Gum.RangeDetails details);

@@ -6,6 +6,7 @@
 
 #include "gumcloak.h"
 
+#include "gumlibc.h"
 #include "gummetalarray.h"
 #include "gumspinlock.h"
 
@@ -105,6 +106,29 @@ gum_cloak_has_thread (GumThreadId id)
   gum_spinlock_release (&cloak_lock);
 
   return result;
+}
+
+void
+gum_cloak_enumerate_threads (GumCloakFoundThreadFunc func,
+                             gpointer user_data)
+{
+  guint length, size, i;
+  GumThreadId * threads;
+
+  gum_spinlock_acquire (&cloak_lock);
+
+  length = cloaked_threads.length;
+  size = length * cloaked_threads.element_size;
+  threads = g_alloca (size);
+  gum_memcpy (threads, cloaked_threads.data, size);
+
+  gum_spinlock_release (&cloak_lock);
+
+  for (i = 0; i != length; i++)
+  {
+    if (!func (threads[i], user_data))
+      return;
+  }
 }
 
 static gint
@@ -348,6 +372,29 @@ gum_cloak_clip_range (const GumMemoryRange * range)
 }
 
 void
+gum_cloak_enumerate_ranges (GumCloakFoundRangeFunc func,
+                            gpointer user_data)
+{
+  guint length, size, i;
+  GumMemoryRange * ranges;
+
+  gum_spinlock_acquire (&cloak_lock);
+
+  length = cloaked_ranges.length;
+  size = length * cloaked_ranges.element_size;
+  ranges = g_alloca (size);
+  gum_memcpy (ranges, cloaked_ranges.data, size);
+
+  gum_spinlock_release (&cloak_lock);
+
+  for (i = 0; i != length; i++)
+  {
+    if (!func (&ranges[i], user_data))
+      return;
+  }
+}
+
+void
 gum_cloak_add_file_descriptor (gint fd)
 {
   gint * element, * elements;
@@ -401,6 +448,29 @@ gum_cloak_has_file_descriptor (gint fd)
   gum_spinlock_release (&cloak_lock);
 
   return result;
+}
+
+void
+gum_cloak_enumerate_file_descriptors (GumCloakFoundFDFunc func,
+                                      gpointer user_data)
+{
+  guint length, size, i;
+  gint * fds;
+
+  gum_spinlock_acquire (&cloak_lock);
+
+  length = cloaked_fds.length;
+  size = length * cloaked_fds.element_size;
+  fds = g_alloca (size);
+  gum_memcpy (fds, cloaked_fds.data, size);
+
+  gum_spinlock_release (&cloak_lock);
+
+  for (i = 0; i != length; i++)
+  {
+    if (!func (fds[i], user_data))
+      return;
+  }
 }
 
 static gint
