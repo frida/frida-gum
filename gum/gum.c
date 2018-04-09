@@ -41,9 +41,10 @@ static void gum_on_thread_init (void);
 static void gum_on_thread_realize (void);
 static void gum_on_thread_dispose (void);
 static void gum_on_thread_finalize (void);
-
 static void gum_internal_thread_details_free (
     GumInternalThreadDetails * details);
+static void gum_on_fd_opened (gint fd, const gchar * description);
+static void gum_on_fd_closed (gint fd, const gchar * description);
 
 static void gum_on_assert_failure (const gchar * log_domain, const gchar * file,
     gint line, const gchar * func, const gchar * message, gpointer user_data);
@@ -198,6 +199,10 @@ gum_init_embedded (void)
     gum_on_thread_dispose,
     gum_on_thread_finalize
   };
+  GFDCallbacks fd_callbacks = {
+    gum_on_fd_opened,
+    gum_on_fd_closed
+  };
 #if !DEBUG_HEAP_LEAKS && !defined (HAVE_ASAN)
   GMemVTable mem_vtable = {
     gum_malloc,
@@ -234,6 +239,7 @@ gum_init_embedded (void)
   gum_memory_init ();
   ffi_set_mem_callbacks (&ffi_callbacks);
   g_thread_set_callbacks (&thread_callbacks);
+  g_platform_audit_set_fd_callbacks (&fd_callbacks);
 #if !DEBUG_HEAP_LEAKS && !defined (HAVE_ASAN)
   if (RUNNING_ON_VALGRIND)
   {
@@ -372,6 +378,20 @@ gum_internal_thread_details_free (GumInternalThreadDetails * details)
   g_slice_free (GumInternalThreadDetails, details);
 
   gum_cloak_remove_thread (thread_id);
+}
+
+static void
+gum_on_fd_opened (gint fd,
+                  const gchar * description)
+{
+  gum_cloak_add_file_descriptor (fd);
+}
+
+static void
+gum_on_fd_closed (gint fd,
+                  const gchar * description)
+{
+  gum_cloak_remove_file_descriptor (fd);
 }
 
 #if defined (HAVE_LINUX) && defined (HAVE_GLIBC)
