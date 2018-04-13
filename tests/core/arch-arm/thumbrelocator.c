@@ -64,7 +64,8 @@ RELOCATOR_TESTCASE (one_to_one)
 RELOCATOR_TESTCASE (handle_extended_instructions)
 {
   const guint16 input[] = {
-    GUINT16_TO_LE (0xe92d), GUINT16_TO_LE (0x4ff0), /* stmdb sp!, {r4, r5, r6, r7, r8, r9, sl, fp, lr} */
+    /* stmdb sp!, {r4, r5, r6, r7, r8, r9, sl, fp, lr} */
+    GUINT16_TO_LE (0xe92d), GUINT16_TO_LE (0x4ff0),
     GUINT16_TO_LE (0xb580), /* push {r7, lr}  */
     GUINT16_TO_LE (0xf241), GUINT16_TO_LE (0x3037), /* movw r0, #4919 */
   };
