@@ -30,6 +30,7 @@ TEST_LIST_BEGIN (arm64writer)
   TESTENTRY (str_integer_reg_reg_imm)
   TESTENTRY (str_fp_reg_reg_imm)
   TESTENTRY (mov_reg_reg)
+  TESTENTRY (uxtw_reg_reg)
   TESTENTRY (add_reg_reg_imm)
   TESTENTRY (sub_reg_reg_imm)
   TESTENTRY (sub_reg_reg_reg)
@@ -310,6 +311,15 @@ TESTCASE (mov_reg_reg)
 
   gum_arm64_writer_put_mov_reg_reg (&fixture->aw, ARM64_REG_X7, ARM64_REG_XZR);
   assert_output_n_equals (4, 0xaa1f03e7);
+}
+
+TESTCASE (uxtw_reg_reg)
+{
+  gum_arm64_writer_put_uxtw_reg_reg (&fixture->aw, ARM64_REG_X3, ARM64_REG_W5);
+  assert_output_n_equals (0, 0xd3407ca3);
+
+  gum_arm64_writer_put_uxtw_reg_reg (&fixture->aw, ARM64_REG_X7, ARM64_REG_W12);
+  assert_output_n_equals (1, 0xd3407d87);
 }
 
 TESTCASE (add_reg_reg_imm)
