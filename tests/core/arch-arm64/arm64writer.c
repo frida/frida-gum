@@ -37,11 +37,24 @@ TEST_LIST_BEGIN (arm64writer)
   TESTENTRY (and_reg_reg_imm)
   TESTENTRY (tst_reg_imm)
   TESTENTRY (cmp_reg_reg)
+
+  TESTENTRY (call_reg)
 TEST_LIST_END ()
 
 #ifdef HAVE_ARM64
 static void gum_emit_ldr_in_large_block (gpointer mem, gpointer user_data);
 #endif
+
+TESTCASE (call_reg)
+{
+  gum_arm64_writer_put_call_reg_with_arguments (&fixture->aw, ARM64_REG_X3,
+      2,
+      GUM_ARG_REGISTER, ARM64_REG_X5,
+      GUM_ARG_REGISTER, ARM64_REG_W7);
+  assert_output_n_equals (0, 0xd3407ce1); /* uxtw x1, w7 */
+  assert_output_n_equals (1, 0xaa0503e0); /* mov x0, x5 */
+  assert_output_n_equals (2, 0xd63f0060); /* blr x3 */
+}
 
 TESTCASE (cbz_reg_label)
 {

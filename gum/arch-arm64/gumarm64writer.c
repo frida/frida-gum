@@ -389,16 +389,28 @@ gum_arm64_writer_put_argument_list_setup (GumArm64Writer * self,
   for (arg_index = (gint) n_args - 1; arg_index >= 0; arg_index--)
   {
     const GumArgument * arg = &args[arg_index];
-    arm64_reg r = ARM64_REG_X0 + arg_index;
+    arm64_reg dst_reg = ARM64_REG_X0 + arg_index;
 
     if (arg->type == GUM_ARG_ADDRESS)
     {
-      gum_arm64_writer_put_ldr_reg_address (self, r, arg->value.address);
+      gum_arm64_writer_put_ldr_reg_address (self, dst_reg, arg->value.address);
     }
     else
     {
-      if (arg->value.reg != r)
-        gum_arm64_writer_put_mov_reg_reg (self, r, arg->value.reg);
+      arm64_reg src_reg = arg->value.reg;
+      GumArm64RegInfo rs;
+
+      gum_arm64_writer_describe_reg (self, src_reg, &rs);
+
+      if (rs.width == 64)
+      {
+        if (src_reg != dst_reg)
+          gum_arm64_writer_put_mov_reg_reg (self, dst_reg, arg->value.reg);
+      }
+      else
+      {
+        gum_arm64_writer_put_uxtw_reg_reg (self, dst_reg, src_reg);
+      }
     }
   }
 }
