@@ -72,6 +72,7 @@ namespace Gum {
 		public void replace_return_value (void * val);
 
 		public uint get_thread_id ();
+		public uint get_depth ();
 
 		public void * get_listener_thread_data (size_t required_size);
 		public void * get_listener_function_data ();
