@@ -101,6 +101,8 @@ struct _GumCsRequirements
 static gboolean gum_code_segment_try_realize (GumCodeSegment * self);
 static gboolean gum_code_segment_try_map (GumCodeSegment * self,
     gsize source_offset, gsize source_size, gpointer target_address);
+static gboolean gum_code_segment_try_remap (GumCodeSegment * self, gsize source_offset,
+    gsize source_size, gpointer target_address);
 
 static void gum_code_segment_compute_layout (GumCodeSegment * self,
     GumCodeLayout * layout);
@@ -118,25 +120,7 @@ gboolean
 gum_code_segment_is_supported (void)
 {
 #ifdef HAVE_IOS
-  static gsize cached_result = 0;
-
-  if (g_once_init_enter (&cached_result))
-  {
-    gboolean supported = FALSE;
-    gpointer scratch_page;
-    GumCodeSegment * segment;
-
-    segment = gum_code_segment_new (1, NULL);
-    scratch_page = gum_code_segment_get_address (segment);
-    supported = gum_code_segment_try_realize (segment);
-    if (supported)
-      supported = gum_code_segment_try_map (segment, 0, 1, scratch_page);
-    gum_code_segment_free (segment);
-
-    g_once_init_leave (&cached_result, supported + 1);
-  }
-
-  return cached_result - 1;
+  return TRUE;
 #else
   return FALSE;
 #endif
@@ -221,10 +205,29 @@ gum_code_segment_get_virtual_size (GumCodeSegment * self)
 void
 gum_code_segment_realize (GumCodeSegment * self)
 {
-  gboolean realized_successfully;
+  static gsize realize_supported = 0;
 
-  realized_successfully = gum_code_segment_try_realize (self);
-  g_assert (realized_successfully);
+  if (g_once_init_enter (&realize_supported))
+  {
+    gboolean supported = FALSE;
+    gpointer scratch_page;
+    GumCodeSegment * segment;
+
+    segment = gum_code_segment_new (1, NULL);
+    scratch_page = gum_code_segment_get_address (segment);
+    supported = gum_code_segment_try_realize (segment);
+    if (supported)
+      supported = gum_code_segment_try_map (segment, 0, 1, scratch_page);
+    gum_code_segment_free (segment);
+
+    g_once_init_leave (&realize_supported, supported + 1);
+  }
+
+  if (realize_supported == 2) {
+      gboolean realized_successfully;
+      realized_successfully = gum_code_segment_try_realize (self);
+      g_assert (realized_successfully);
+  }
 }
 
 void
@@ -235,8 +238,13 @@ gum_code_segment_map (GumCodeSegment * self,
 {
   gboolean mapped_successfully;
 
-  mapped_successfully = gum_code_segment_try_map (self, source_offset,
-      source_size, target_address);
+  if (self->fd != -1)
+    mapped_successfully = gum_code_segment_try_map (self, source_offset,
+        source_size, target_address);
+  else
+    mapped_successfully = gum_code_segment_try_remap (self, source_offset,
+        source_size, target_address);
+
   g_assert (mapped_successfully);
 }
 
@@ -296,6 +304,29 @@ gum_code_segment_try_map (GumCodeSegment * self,
       gum_query_page_size () + source_offset);
 
   return result != MAP_FAILED;
+}
+
+static gboolean
+gum_code_segment_try_remap (GumCodeSegment * self,
+                            gsize source_offset,
+                            gsize source_size,
+                            gpointer target_address)
+{
+  mach_vm_address_t address = (mach_vm_address_t) target_address;
+  mach_port_t task_self = mach_task_self ();
+  vm_prot_t cur_protection, max_protection;
+  mach_vm_address_t source_address;
+
+  source_address = (mach_vm_address_t) self->data + source_offset;
+
+  mach_vm_protect (task_self, source_address, source_size, FALSE,
+      PROT_READ | PROT_EXEC);
+  kern_return_t kr = mach_vm_remap (task_self, &address, source_size, 0,
+      VM_FLAGS_OVERWRITE | VM_FLAGS_FIXED, task_self,
+      (vm_offset_t) (source_address),
+      TRUE, &cur_protection, &max_protection, VM_INHERIT_COPY);
+
+  return kr == 0;
 }
 
 static void
