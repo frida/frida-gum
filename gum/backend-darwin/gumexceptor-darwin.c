@@ -312,10 +312,9 @@ gum_exceptor_backend_detach (GumExceptorBackend * self)
         old_ports->flavors[port_index]);
     g_assert_cmpint (kr, ==, KERN_SUCCESS);
   }
+  gum_exceptor_backend_stop_worker_thread (self);
   gum_exception_port_set_mod_refs (old_ports, -1);
   old_ports->count = 0;
-
-  gum_exceptor_backend_stop_worker_thread (self);
 
   mach_port_mod_refs (self_task, self->server_port, MACH_PORT_RIGHT_SEND, -1);
   mach_port_mod_refs (self_task, self->server_port, MACH_PORT_RIGHT_RECEIVE,
