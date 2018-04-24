@@ -45,7 +45,7 @@ namespace Gum {
 		public void end_transaction ();
 		public bool flush ();
 
-		public static Gum.InvocationContext get_current_invocation ();
+		public static unowned Gum.InvocationContext get_current_invocation ();
 
 		public void ignore_current_thread ();
 		public void unignore_current_thread ();
