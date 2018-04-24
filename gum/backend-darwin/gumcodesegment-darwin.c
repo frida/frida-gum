@@ -98,12 +98,12 @@ struct _GumCsRequirements
   guint32 count;
 };
 
+static gboolean gum_code_segment_is_realize_supported (void);
 static gboolean gum_code_segment_try_realize (GumCodeSegment * self);
 static gboolean gum_code_segment_try_map (GumCodeSegment * self,
     gsize source_offset, gsize source_size, gpointer target_address);
 static gboolean gum_code_segment_try_remap (GumCodeSegment * self, gsize source_offset,
     gsize source_size, gpointer target_address);
-static gboolean gum_code_segment_is_realize_supported (void);
 
 static void gum_code_segment_compute_layout (GumCodeSegment * self,
     GumCodeLayout * layout);
