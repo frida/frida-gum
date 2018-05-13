@@ -72,7 +72,7 @@ gum_tls_key_get_value (GumTlsKey key)
   asm (
       "mrs %0, TPIDRRO_EL0\n\t"
       : "=r" (tls_base_value));
-  tls_base = (gpointer *) (tls_base_value & ~((gsize) 3));
+  tls_base = (gpointer *) (tls_base_value & ~((gsize) 7));
   result = tls_base[key];
 #endif
 
@@ -109,7 +109,7 @@ gum_tls_key_set_value (GumTlsKey key,
   asm (
       "mrs %0, TPIDRRO_EL0\n\t"
       : "=r" (tls_base_value));
-  tls_base = (gpointer *) (tls_base_value & ~((gsize) 3));
+  tls_base = (gpointer *) (tls_base_value & ~((gsize) 7));
   tls_base[key] = value;
 #endif
 }
