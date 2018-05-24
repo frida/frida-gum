@@ -159,7 +159,7 @@ declare namespace rpc {
     let exports: {
         [name: string]: Function;
     };
-};
+}
 
 declare namespace Frida {
     /**
