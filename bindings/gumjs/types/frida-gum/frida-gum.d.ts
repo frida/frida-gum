@@ -1251,27 +1251,7 @@ declare type NativeArgumentValue = NativePointerValue | UInt64 | Int64 | number 
 
 declare type NativeReturnValue = NativePointer | UInt64 | Int64 | number | boolean | any[];
 
-declare enum NativeType {
-    Void = "void",
-    Pointer = "pointer",
-    Int = "int",
-    UInt = "uint",
-    Long = "long",
-    ULong = "ulong",
-    Char = "char",
-    UChar = "uchar",
-    Float = "float",
-    Double = "double",
-    Int8 = "int8",
-    UInt8 = "uint8",
-    Int16 = "int16",
-    UInt16 = "uint16",
-    Int32 = "int32",
-    UInt32 = "uint32",
-    Int64 = "int64",
-    UInt64 = "uint64",
-    Sentinel = "..."
-}
+declare type NativeType = string | any[];
 
 declare enum NativeABI {
     Default = "default",
