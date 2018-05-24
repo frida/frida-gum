@@ -84,13 +84,13 @@ declare function send(message: any): void;
 declare function send(message: any, data: ArrayBuffer | number[] | null): void;
 
 /**
- * Calls @func when Frida's event loop is idle.
+ * Calls `func` when Frida's event loop is idle.
  * Returns an id that can be passed to `clearTimeout()` to cancel it.
  */
 declare function setTimeout(func: ScheduledCallback): TimeoutId;
 
 /**
- * Calls @func after delay milliseconds, optionally passing it the provided params.
+ * Calls `func` after delay milliseconds, optionally passing it the provided params.
  * Returns an id that can be passed to `clearTimeout()` to cancel it.
  */
 declare function setTimeout(func: ScheduledCallback, delay: number, ...params: any[]): TimeoutId;
@@ -106,7 +106,7 @@ declare function clearTimeout(id: TimeoutId): void;
 declare interface TimeoutId {}
 
 /**
- * Calls @func every @delay milliseconds, optionally passing it the provided params.
+ * Calls `func` every `delay` milliseconds, optionally passing it the provided params.
  * Returns an id that can be passed to clearInterval() to cancel it.
  */
 declare function setInterval(func: ScheduledCallback, delay: number, ...params: any[]): IntervalId;
@@ -122,7 +122,7 @@ declare function clearInterval(id: IntervalId): void;
 declare interface IntervalId {}
 
 /**
- * Schedules @func to be called on Frida's JavaScript thread, optionally passing it the provided params.
+ * Schedules `func` to be called on Frida's JavaScript thread, optionally passing it the provided params.
  * Returns an id that can be passed to clearImmediate() to cancel it.
  */
 declare function setImmediate(func: ScheduledCallback, ...params: any[]): ImmediateId;
@@ -978,43 +978,43 @@ declare type MemoryPatchApplyCallback = (code: NativePointer) => void;
  */
 declare class Int64 {
     /**
-     * Creates a new Int64 from @v, which is either a string containing the value in decimal, or hexadecimal
+     * Creates a new Int64 from `v`, which is either a string containing the value in decimal, or hexadecimal
      * if prefixed with “0x”, or a number. You may use the int64(v) short-hand for brevity.
      */
     constructor(v: string | number | Int64);
 
     /**
-     * Makes a new Int64 whose value is `this` + @v.
+     * Makes a new Int64 whose value is `this` + `v`.
      */
     add(v: Int64 | number | string): Int64;
 
     /**
-     * Makes a new Int64 whose value is `this` - @v.
+     * Makes a new Int64 whose value is `this` - `v`.
      */
     sub(v: Int64 | number | string): Int64;
 
     /**
-     * Makes a new Int64 whose value is `this` & @v.
+     * Makes a new Int64 whose value is `this` & `v`.
      */
     and(v: Int64 | number | string): Int64;
 
     /**
-     * Makes a new Int64 whose value is `this` | @v.
+     * Makes a new Int64 whose value is `this` | `v`.
      */
     or(v: Int64 | number | string): Int64;
 
     /**
-     * Makes a new Int64 whose value is `this` ^ @v.
+     * Makes a new Int64 whose value is `this` ^ `v`.
      */
     xor(v: Int64 | number | string): Int64;
 
     /**
-     * Makes a new Int64 whose value is `this` << @v.
+     * Makes a new Int64 whose value is `this` << `v`.
      */
     shr(v: Int64 | number | string): Int64;
 
     /**
-     * Makes a new Int64 whose value is `this` >> @v.
+     * Makes a new Int64 whose value is `this` >> `v`.
      */
     shl(v: Int64 | number | string): Int64;
 
@@ -1034,7 +1034,7 @@ declare class Int64 {
     toString(): string;
 
     /**
-     * Converts to a string with @radix.
+     * Converts to a string with `radix`.
      */
     toString(radix: number): string;
 
@@ -1054,43 +1054,43 @@ declare class Int64 {
  */
 declare class UInt64 {
     /**
-     * Creates a new UInt64 from @v, which is either a string containing the value in decimal, or hexadecimal
+     * Creates a new UInt64 from `v`, which is either a string containing the value in decimal, or hexadecimal
      * if prefixed with “0x”, or a number. You may use the uint64(v) short-hand for brevity.
      */
     constructor(v: string | number | UInt64);
 
     /**
-     * Makes a new UInt64 whose value is `this` + @v.
+     * Makes a new UInt64 whose value is `this` + `v`.
      */
     add(v: UInt64 | number | string): UInt64;
 
     /**
-     * Makes a new UInt64 whose value is `this` - @v.
+     * Makes a new UInt64 whose value is `this` - `v`.
      */
     sub(v: UInt64 | number | string): UInt64;
 
     /**
-     * Makes a new UInt64 whose value is `this` & @v.
+     * Makes a new UInt64 whose value is `this` & `v`.
      */
     and(v: UInt64 | number | string): UInt64;
 
     /**
-     * Makes a new UInt64 whose value is `this` | @v.
+     * Makes a new UInt64 whose value is `this` | `v`.
      */
     or(v: UInt64 | number | string): UInt64;
 
     /**
-     * Makes a new UInt64 whose value is `this` ^ @v.
+     * Makes a new UInt64 whose value is `this` ^ `v`.
      */
     xor(v: UInt64 | number | string): UInt64;
 
     /**
-     * Makes a new UInt64 whose value is `this` << @v.
+     * Makes a new UInt64 whose value is `this` << `v`.
      */
     shr(v: UInt64 | number | string): UInt64;
 
     /**
-     * Makes a new UInt64 whose value is `this` >> @v.
+     * Makes a new UInt64 whose value is `this` >> `v`.
      */
     shl(v: UInt64 | number | string): UInt64;
 
@@ -1110,7 +1110,7 @@ declare class UInt64 {
     toString(): string;
 
     /**
-     * Converts to a string with @radix.
+     * Converts to a string with `radix`.
      */
     toString(radix: number): string;
 
@@ -1130,7 +1130,7 @@ declare class UInt64 {
  */
 declare class NativePointer {
     /**
-     * Creates a new NativePointer from @v, which is either a string containing the memory address in decimal,
+     * Creates a new NativePointer from `v`, which is either a string containing the memory address in decimal,
      * or hexadecimal if prefixed with “0x”, or a number. You may use the ptr(v) short-hand for brevity.
      */
     constructor(v: string | number | UInt64 | Int64 | NativePointerValue);
@@ -1141,42 +1141,42 @@ declare class NativePointer {
     isNull(): boolean;
 
     /**
-     * Makes a new NativePointer whose value is `this` + @v.
+     * Makes a new NativePointer whose value is `this` + `v`.
      */
     add(v: NativePointerValue | UInt64 | Int64 | number | string): NativePointer;
 
     /**
-     * Makes a new NativePointer whose value is `this` - @v.
+     * Makes a new NativePointer whose value is `this` - `v`.
      */
     sub(v: NativePointerValue | UInt64 | Int64 | number | string): NativePointer;
 
     /**
-     * Makes a new NativePointer whose value is `this` & @v.
+     * Makes a new NativePointer whose value is `this` & `v`.
      */
     and(v: NativePointerValue | UInt64 | Int64 | number | string): NativePointer;
 
     /**
-     * Makes a new NativePointer whose value is `this` | @v.
+     * Makes a new NativePointer whose value is `this` | `v`.
      */
     or(v: NativePointerValue | UInt64 | Int64 | number | string): NativePointer;
 
     /**
-     * Makes a new NativePointer whose value is `this` ^ @v.
+     * Makes a new NativePointer whose value is `this` ^ `v`.
      */
     xor(v: NativePointerValue | UInt64 | Int64 | number | string): NativePointer;
 
     /**
-     * Makes a new NativePointer whose value is `this` << @v.
+     * Makes a new NativePointer whose value is `this` << `v`.
      */
     shr(v: NativePointerValue | UInt64 | Int64 | number | string): NativePointer;
 
     /**
-     * Makes a new NativePointer whose value is `this` >> @v.
+     * Makes a new NativePointer whose value is `this` >> `v`.
      */
     shl(v: NativePointerValue | UInt64 | Int64 | number | string): NativePointer;
 
     /**
-     * Returns a boolean indicating whether @v is equal to `this`; i.e. it contains the same memory address.
+     * Returns a boolean indicating whether `v` is equal to `this`; i.e. it contains the same memory address.
      */
     equals(v: NativePointerValue | UInt64 | Int64 | number | string): boolean;
 
@@ -1196,7 +1196,7 @@ declare class NativePointer {
     toString(): string;
 
     /**
-     * Converts to a string with @radix.
+     * Converts to a string with `radix`.
      */
     toString(radix: number): string;
 
@@ -1408,12 +1408,12 @@ declare interface MipsCpuContext extends PortableCpuContext {
  */
 declare namespace Interceptor {
     /**
-     * Intercepts calls to function at @target.
+     * Intercepts calls to function at `target`.
      */
     function attach(target: NativePointerValue, callbacks: InvocationListenerCallbacks): InvocationListener;
 
     /**
-     * Intercepts execution of instruction at @target.
+     * Intercepts execution of instruction at `target`.
      */
     function attach(target: NativePointerValue, probe: InstructionProbeCallback): InvocationListener;
 
@@ -1423,12 +1423,12 @@ declare namespace Interceptor {
     function detachAll(): void;
 
     /**
-     * Replaces function at @target with implementation at @replacement.
+     * Replaces function at `target` with implementation at `replacement`.
      */
     function replace(target: NativePointerValue, replacement: NativePointerValue): void;
 
     /**
-     * Reverts the previously replaced function at @target.
+     * Reverts the previously replaced function at `target`.
      */
     function revert(target: NativePointerValue): void;
 }
