@@ -156,9 +156,11 @@ declare namespace rpc {
      * The key specifies the method name and the value is your exported function. This function may either return
      * a plain value for returning that to the caller immediately, or a Promise for returning asynchronously.
      */
-    let exports: {
-        [name: string]: Function;
-    };
+    let exports: RpcExports;
+}
+
+declare interface RpcExports {
+    [name: string]: Function;
 }
 
 declare namespace Frida {
