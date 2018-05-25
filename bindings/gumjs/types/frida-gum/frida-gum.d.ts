@@ -601,11 +601,11 @@ declare namespace Memory {
     function readULong(address: NativePointerValue): number | UInt64;
     function readFloat(address: NativePointerValue): number;
     function readDouble(address: NativePointerValue): number;
-    function readByteArray(address: NativePointerValue, length: number): ArrayBuffer;
-    function readCString(address: NativePointerValue, size?: number): string;
-    function readUtf8String(address: NativePointerValue, size?: number): string;
-    function readUtf16String(address: NativePointerValue, length?: number): string;
-    function readAnsiString(address: NativePointerValue, size?: number): string;
+    function readByteArray(address: NativePointerValue, length: number): ArrayBuffer | null;
+    function readCString(address: NativePointerValue, size?: number): string | null;
+    function readUtf8String(address: NativePointerValue, size?: number): string | null;
+    function readUtf16String(address: NativePointerValue, length?: number): string | null;
+    function readAnsiString(address: NativePointerValue, size?: number): string | null;
 
     function writePointer(address: NativePointerValue, value: NativePointerValue): void;
     function writeS8(address: NativePointerValue, value: number | Int64): void;
