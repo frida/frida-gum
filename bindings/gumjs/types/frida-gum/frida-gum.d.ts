@@ -1628,32 +1628,6 @@ declare namespace MemoryAccessMonitor {
     function disable(): any;
     function enable(): any;
 }
-declare namespace ObjC {
-    class Block {
-        constructor(target: any);
-        implementation(): void;
-    }
-    const api: {
-    };
-    const available: boolean;
-    const classes: any;
-    const protocols: any;
-    const mainQueue: NativePointer;
-    function Object(handle: any, protocol?: any, cachedIsClass?: any, superSpecifier?: any): void;
-    function Protocol(handle: any): any;
-    function bind(obj: any, data: any): void;
-    function choose(specifier: any, callbacks: any): any;
-    function chooseSync(specifier: any): any;
-    function getBoundData(obj: any): any;
-    function implement(method: any, fn: any): any;
-    function registerClass(properties: any): any;
-    function registerProtocol(properties: any): any;
-    function registerProxy(properties: any): any;
-    function schedule(queue: any, work: any): void;
-    function selector(name: any): any;
-    function selectorAsString(sel: any): any;
-    function unbind(obj: any): void;
-}
 declare namespace Script {
     const fileName: string;
     const runtime: string;
@@ -1686,6 +1660,495 @@ declare namespace Thread {
     function backtrace(context: any): NativePointer[];
     function sleep(duration: number): void;
 }
+
+declare namespace ObjC {
+    /**
+     * Whether the current process has an Objective-C runtime loaded. Do not invoke any other ObjC properties or
+     * methods unless this is the case.
+     */
+    const available: boolean;
+
+    /**
+     * Direct access to a big portion of the Objective-C runtime API.
+     */
+    const api: {
+        [name: string]: any;
+    };
+
+    /**
+     * Dynamically generated bindings for each of the currently registered classes.
+     *
+     * You can interact with objects by using dot notation and replacing colons with underscores, i.e.:
+     *
+     * ```
+     *     [NSString stringWithString:@"Hello World"];
+     * ```
+     *
+     * becomes:
+     *
+     * ```
+     *     const NSString = ObjC.classes.NSString;
+     *     NSString.stringWithString_("Hello World");
+     * ```
+     *
+     * Note the underscore after the method name.
+     */
+    const classes: {
+        [name: string]: ObjC.Object
+    };
+
+    /**
+     * Dynamically generated bindings for each of the currently registered protocols.
+     */
+    const protocols: {
+        [name: string]: ObjC.Protocol
+    };
+
+    /**
+     * GCD queue of the main thread.
+     */
+    const mainQueue: NativePointer;
+
+    /**
+     * Schedule the JavaScript function `work` on the GCD queue specified by `queue`. An NSAutoreleasePool is created
+     * just before calling `work`, and cleaned up on return.
+     *
+     * E.g. on macOS:
+     * ```
+     *     const { NSSound } = ObjC.classes;
+     *     ObjC.schedule(ObjC.mainQueue, () => {
+     *         const sound = NSSound.alloc().initWithContentsOfFile_byReference_("/Users/oleavr/.Trash/test.mp3", true).autorelease();
+     *         sound.play();
+     *     });
+     * ```
+     *
+     * @param queue GCD queue to schedule `work` on.
+     * @param work Function to call on the specified `queue`.
+     */
+    function schedule(queue: NativePointerValue, work: () => void): void;
+
+    /**
+     * Dynamically generated wrapper for any Objective-C instance, class, or meta-class.
+     */
+    class Object implements ObjectWrapper, ObjC.ObjectMethods {
+        constructor(handle: NativePointer, protocol?: ObjC.Protocol);
+
+        handle: NativePointer;
+
+        /**
+         * Whether this is an instance, class, or meta-class.
+         */
+        $kind: ObjectKind;
+
+        /**
+         * Instance used for chaining up to super-class method implementations.
+         */
+        $super: ObjC.Object;
+
+        /**
+         * Super-class of this object's class.
+         */
+        $superClass: ObjC.Object;
+
+        /**
+         * Class that this object is an instance of.
+         */
+        $class: ObjC.Object;
+
+        /**
+         * Class name of this object.
+         */
+        $className: string;
+
+        /**
+         * Protocols that this object conforms to.
+         */
+        $protocols: {
+            [name: string]: ObjC.Protocol
+        };
+
+        /**
+         * Native method names exposed by this object’s class and parent classes.
+         */
+        $methods: string[];
+
+        /**
+         * Native method names exposed by this object’s class, not including parent classes.
+         */
+        $ownMethods: string[];
+
+        /**
+         * Instance variables on this object. Supports both access and assignment.
+         */
+        $ivars: {
+            [name: string]: any;
+        };
+
+        /**
+         * Determines whether two instances refer to the same underlying object.
+         *
+         * @param other Other object instance or address to compare to.
+         */
+        equals(other: ObjC.Object | NativePointer): boolean;
+
+        [name: string]: any;
+    }
+
+    interface ObjectMethods {
+        [name: string]: ObjectMethod;
+    }
+
+    class ObjectMethod implements ObjectWrapper {
+        handle: NativePointer;
+
+        /**
+         * Objective-C selector. Use `ObjC.selectorAsString()` to convert it to a string.
+         */
+        selector: NativePointer;
+
+        /**
+         * Current implementation.
+         *
+         * You may replace it by assigning to this property. See `ObjC.implement()` for details.
+         */
+        implementation: Function | NativePointer;
+
+        /**
+         * Return type name.
+         */
+        returnType: string;
+
+        /**
+         * Argument type names.
+         */
+        argumentTypes: string;
+
+        /**
+         * Signature.
+         */
+        types: string;
+    }
+
+    /**
+     * What kind of object an ObjC.Object represents.
+     */
+    enum ObjectKind {
+        Instance = "instance",
+        Class = "class",
+        MetaClass = "meta-class"
+    }
+
+    /**
+     * Dynamically generated language binding for any Objective-C protocol.
+     */
+    class Protocol implements ObjectWrapper {
+        constructor(handle: NativePointer);
+
+        handle: NativePointer;
+
+        /**
+         * Name visible to the Objective-C runtime.
+         */
+        name: string;
+
+        /**
+         * Protocols that this protocol conforms to.
+         */
+        protocols: {
+            [name: string]: ObjC.Protocol
+        };
+
+        /**
+         * Properties declared by this protocol.
+         */
+        properties: {
+            [name: string]: ProtocolPropertyAttributes;
+        };
+
+        /**
+         * Methods declared by this protocol.
+         */
+        methods: {
+            [name: string]: ProtocolMethodDescription;
+        };
+    }
+
+    interface ProtocolPropertyAttributes {
+        [name: string]: string;
+    }
+
+    interface ProtocolMethodDescription {
+        /**
+         * Whether this method is required or optional.
+         */
+        required: boolean;
+
+        /**
+         * Method signature.
+         */
+        types: string;
+    }
+
+    /**
+     * Dynamically generated language binding for any Objective-C block. Also supports implementing a block from
+     * scratch by passing in a MethodDefinition.
+     */
+    class Block implements ObjectWrapper {
+        constructor(target: NativePointer | MethodSpec);
+
+        handle: NativePointer;
+
+        /**
+         * Current implementation. You may replace it by assigning to this property.
+         */
+        implementation: Function;
+    }
+
+    /**
+     * Creates a JavaScript implementation compatible with the signature of `method`, where `fn` is used as the
+     * implementation. Returns a `NativeCallback` that you may assign to an ObjC method’s `implementation` property.
+     *
+     * @param method Method to implement.
+     * @param fn Implementation.
+     */
+    function implement(method: ObjectMethod, fn: Function): NativeCallback;
+
+    /**
+     * Creates a new class designed to act as a proxy for a target object.
+     *
+     * @param spec Proxy specification.
+     */
+    function registerProxy(spec: ProxySpec): ProxyConstructor;
+
+    /**
+     * Creates a new Objective-C class.
+     *
+     * @param spec Class specification.
+     */
+    function registerClass(spec: ClassSpec): ObjC.Object;
+
+    /**
+     * Creates a new Objective-C protocol.
+     *
+     * @param spec Protocol specification.
+     */
+    function registerProtocol(spec: ProtocolSpec): ObjC.Protocol;
+
+    /**
+     * Binds some JavaScript data to an Objective-C instance.
+     *
+     * @param obj Objective-C instance to bind data to.
+     * @param data Data to bind.
+     */
+    function bind(obj: ObjC.Object | NativePointer, data: InstanceData): void;
+
+    /**
+     * Unbinds previously associated JavaScript data from an Objective-C instance.
+     *
+     * @param obj Objective-C instance to unbind data from.
+     */
+    function unbind(obj: ObjC.Object | NativePointer): void;
+
+    /**
+     * Looks up previously bound data from an Objective-C object.
+     *
+     * @param obj Objective-C instance to look up data for.
+     */
+    function getBoundData(obj: ObjC.Object | NativePointer): any;
+
+    function choose(specifier: ChooseSpecifier, callbacks: EnumerateCallbacks<ObjC.Object>): void;
+
+    /**
+     * Synchronous version of `chooseSync()`.
+     *
+     * @param specifier What kind of objects to look for.
+     */
+    function chooseSync(specifier: ChooseSpecifier): ObjC.Object[];
+
+    /**
+     * Converts the JavaScript string `name` to a selector.
+     *
+     * @param name Name to turn into a selector.
+     */
+    function selector(name: string): NativePointer;
+
+    /**
+     * Converts the selector `sel` to a JavaScript string.
+     *
+     * @param sel Selector to turn into a string.
+     */
+    function selectorAsString(sel: NativePointerValue): string;
+
+    interface ProxySpec {
+        /**
+         * Protocols this proxy class conforms to.
+         */
+        protocols?: ObjC.Protocol[];
+
+        /**
+         * Methods to implement.
+         */
+        methods?: {
+            [name: string]: Function | MethodSpec;
+        };
+
+        /**
+         * Callbacks for getting notified about events.
+         */
+        events?: {
+            /**
+             * Gets notified about the method name that we’re about to forward a call to. This might be where you’d
+             * start out with a temporary callback that just logs the names to help you decide which methods to
+             * override.
+             *
+             * @param name Name of method that is about to get called.
+             */
+            forward?(name: string): void;
+        }
+    }
+
+    /**
+     * Constructor for instantiating a proxy object.
+     *
+     * @param target Target object to proxy to.
+     * @param data Object with arbitrary data.
+     */
+    type ProxyConstructor = (target: ObjC.Object | NativePointer, data: InstanceData) => void;
+
+    interface ClassSpec {
+        /**
+         * Name of the class.
+         *
+         * Omit this if you don’t care about the globally visible name and would like the runtime to auto-generate one
+         * for you.
+         */
+        name?: string;
+
+        /**
+         * Super-class, or `null` to create a new root class. Omit to inherit from `NSObject`.
+         */
+        super?: ObjC.Object | null;
+
+        /**
+         * Protocols this class conforms to.
+         */
+        protocols?: ObjC.Protocol[];
+
+        /**
+         * Methods to implement.
+         */
+        methods?: {
+            [name: string]: Function | MethodSpec;
+        };
+    }
+
+    type MethodSpec = SimpleMethodSpec | DetailedMethodSpec;
+
+    interface SimpleMethodSpec {
+        /**
+         * Return type.
+         */
+        retType: string;
+
+        /**
+         * Argument types.
+         */
+        argTypes: string[];
+
+        /**
+         * Implementation.
+         */
+        implementation: Function;
+    }
+
+    interface DetailedMethodSpec {
+        /**
+         * Signature.
+         */
+        types: string;
+
+        /**
+         * Implementation.
+         */
+        implementation: Function;
+    }
+
+    /**
+     * User-defined data that can be accessed from method implementations.
+     */
+    interface InstanceData {
+        [name: string]: any;
+    }
+
+    interface ProtocolSpec {
+        /**
+         * Name of the protocol.
+         *
+         * Omit this if you don’t care about the globally visible name and would like the runtime to auto-generate one
+         * for you.
+         */
+        name?: string;
+
+        /**
+         * Protocols this protocol conforms to.
+         */
+        protocols?: ObjC.Protocol[];
+
+        methods?: {
+            [name: string]: ProtocolMethodSpec;
+        };
+    }
+
+    type ProtocolMethodSpec = SimpleProtocolMethodSpec | DetailedProtocolMethodSpec;
+
+    interface SimpleProtocolMethodSpec {
+        /**
+         * Return type.
+         */
+        retType: string;
+
+        /**
+         * Argument types.
+         */
+        argTypes: string[];
+
+        /**
+         * Whether this method is required or optional. Default is required.
+         */
+        optional?: boolean;
+    }
+
+    interface DetailedProtocolMethodSpec {
+        /**
+         * Method signature.
+         */
+        types: string;
+
+        /**
+         * Whether this method is required or optional. Default is required.
+         */
+        optional?: boolean;
+    }
+
+    type ChooseSpecifier = SimpleChooseSpecifier | DetailedChooseSpecifier;
+
+    type SimpleChooseSpecifier = ObjC.Object;
+
+    interface DetailedChooseSpecifier {
+        /**
+         * Which class to look for instances of. E.g.: `ObjC.classes.UIButton`.
+         */
+        class: ObjC.Object;
+
+        /**
+         * Whether you’re also interested in subclasses matching the given class selector.
+         *
+         * The default is to also include subclasses.
+         */
+        subclasses?: boolean;
+    }
+}
+
 declare namespace WeakRef {
     function bind(): any;
     function unbind(): any;
