@@ -160,8 +160,10 @@ declare namespace rpc {
 }
 
 declare interface RpcExports {
-    [name: string]: Function;
+    [name: string]: AnyFunction;
 }
+
+declare type AnyFunction = (...args: any[]) => any;
 
 declare namespace Frida {
     /**
@@ -1901,7 +1903,7 @@ declare namespace ObjC {
         /**
          * Current implementation. You may replace it by assigning to this property.
          */
-        implementation: Function;
+        implementation: AnyFunction;
     }
 
     /**
@@ -1911,7 +1913,7 @@ declare namespace ObjC {
      * @param method Method to implement.
      * @param fn Implementation.
      */
-    function implement(method: ObjectMethod, fn: Function): NativeCallback;
+    function implement(method: ObjectMethod, fn: AnyFunction): NativeCallback;
 
     /**
      * Creates a new class designed to act as a proxy for a target object.
@@ -1989,7 +1991,7 @@ declare namespace ObjC {
          * Methods to implement.
          */
         methods?: {
-            [name: string]: Function | MethodSpec;
+            [name: string]: AnyFunction | MethodSpec;
         };
 
         /**
@@ -2038,7 +2040,7 @@ declare namespace ObjC {
          * Methods to implement.
          */
         methods?: {
-            [name: string]: Function | MethodSpec;
+            [name: string]: AnyFunction | MethodSpec;
         };
     }
 
@@ -2058,7 +2060,7 @@ declare namespace ObjC {
         /**
          * Implementation.
          */
-        implementation: Function;
+        implementation: AnyFunction;
     }
 
     interface DetailedMethodSpec {
@@ -2070,7 +2072,7 @@ declare namespace ObjC {
         /**
          * Implementation.
          */
-        implementation: Function;
+        implementation: AnyFunction;
     }
 
     /**
