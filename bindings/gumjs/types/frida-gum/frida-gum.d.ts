@@ -1472,9 +1472,9 @@ declare class InvocationReturnValue extends NativePointer {
     replace(value: NativePointerValue): void;
 }
 
-declare type InvocationContext = WindowsInvocationContext | UnixInvocationContext;
+declare type InvocationContext = PortableInvocationContext | WindowsInvocationContext | UnixInvocationContext;
 
-declare interface WindowsInvocationContext {
+declare interface PortableInvocationContext {
     /**
      * Return address.
      */
@@ -1484,11 +1484,6 @@ declare interface WindowsInvocationContext {
      * CPU registers. You may also update register values by assigning to these keys.
      */
     context: CpuContext;
-
-    /**
-     * Current OS error value (you may replace it).
-     */
-    lastError: number;
 
     /**
      * OS thread ID.
@@ -1506,36 +1501,18 @@ declare interface WindowsInvocationContext {
     [x: string]: any;
 }
 
-declare interface UnixInvocationContext {
+declare interface WindowsInvocationContext extends PortableInvocationContext {
     /**
-     * Return address.
+     * Current OS error value (you may replace it).
      */
-    returnAddress: NativePointer;
+    lastError: number;
+}
 
-    /**
-     * CPU registers. You may also update register values by assigning to these keys.
-     */
-    context: CpuContext;
-
+declare interface UnixInvocationContext extends PortableInvocationContext {
     /**
      * Current errno value (you may replace it).
      */
     errno: number;
-
-    /**
-     * OS thread ID.
-     */
-    threadId: ThreadId;
-
-    /**
-     * Call depth of relative to other invocations.
-     */
-    depth: number;
-
-    /**
-     * User-defined invocation data. Useful if you want to read an argument in `onEnter` and act on it in `onLeave`.
-     */
-    [x: string]: any;
 }
 
 declare class ApiResolver {
