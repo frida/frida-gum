@@ -537,14 +537,18 @@ gum_store_symtab_params (const GumElfDynamicEntryDetails * details,
         highest_index = MAX (buckets[bucket_index], highest_index);
       }
 
-      while (TRUE)
+      if (highest_index >= symoffset)
       {
-        guint32 hash = chain[highest_index - symoffset];
+        while (TRUE)
+        {
+          guint32 hash = chain[highest_index - symoffset];
 
-        if ((hash & 1) != 0)
-          break;
+          if ((hash & 1) != 0)
+            break;
 
-        highest_index++;
+          highest_index++;
+        }
+
       }
 
       ctx->entry_count = highest_index + 1;
