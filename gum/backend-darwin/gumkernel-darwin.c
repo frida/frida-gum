@@ -30,11 +30,11 @@ gum_kernel_query_page_size (void)
 gpointer
 gum_kernel_alloc_n_pages (guint n_pages)
 {
-  mach_vm_address_t result = 0;
+  mach_vm_address_t result;
   mach_port_t task;
   gsize page_size, size;
   kern_return_t kr;
-  gboolean wr;
+  gboolean written;
 
   task = gum_kernel_get_task ();
   if (task == MACH_PORT_NULL)
@@ -43,14 +43,15 @@ gum_kernel_alloc_n_pages (guint n_pages)
   page_size = vm_kernel_page_size;
   size = (n_pages + 1) * page_size;
 
+  result = 0;
   kr = mach_vm_allocate (task, &result, size, VM_FLAGS_ANYWHERE);
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
 
-  wr = gum_darwin_write (task, result, (guint8*) &size, sizeof (gsize));
-  g_assert_cmpint (wr, ==, TRUE);
+  written = gum_darwin_write (task, result, (guint8 *) &size, sizeof (gsize));
+  g_assert (written);
 
-  kr = vm_protect(task, result + page_size, size - page_size,
-      TRUE, VM_PROT_READ|VM_PROT_WRITE|VM_PROT_EXECUTE);
+  kr = vm_protect (task, result + page_size, size - page_size,
+      TRUE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE);
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
 
   return GSIZE_TO_POINTER (result + page_size);
