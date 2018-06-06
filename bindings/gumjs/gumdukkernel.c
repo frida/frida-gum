@@ -23,10 +23,10 @@ GUMJS_DECLARE_GETTER (gumjs_kernel_get_available)
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
     GumDukMatchContext * mc);
-GUMJS_DECLARE_FUNCTION (gumjs_kernel_read_byte_array)
-GUMJS_DECLARE_FUNCTION (gumjs_kernel_write_byte_array)
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_alloc)
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_protect)
+GUMJS_DECLARE_FUNCTION (gumjs_kernel_read_byte_array)
+GUMJS_DECLARE_FUNCTION (gumjs_kernel_write_byte_array)
 
 static void gum_duk_kernel_check_api_available (duk_context * ctx);
 
@@ -40,10 +40,10 @@ static const GumDukPropertyEntry gumjs_kernel_values[] =
 static const duk_function_list_entry gumjs_kernel_functions[] =
 {
   { "_enumerateRanges", gumjs_kernel_enumerate_ranges, 2 },
-  { "readByteArray", gumjs_kernel_read_byte_array, 2 },
-  { "writeByteArray", gumjs_kernel_write_byte_array, 2 },
   { "alloc", gumjs_kernel_alloc, 2 },
   { "protect", gumjs_kernel_protect, 3 },
+  { "readByteArray", gumjs_kernel_read_byte_array, 2 },
+  { "writeByteArray", gumjs_kernel_write_byte_array, 2 },
 
   { NULL, NULL, 0 }
 };
@@ -145,6 +145,53 @@ gum_emit_range (const GumRangeDetails * details,
   return proceed;
 }
 
+GUMJS_DEFINE_FUNCTION (gumjs_kernel_alloc)
+{
+  gpointer address;
+  gssize length;
+  gsize page_size;
+  guint n_pages;
+  GumDukCore * core = args->core;
+
+  gum_duk_kernel_check_api_available (ctx);
+
+  _gum_duk_args_parse (args, "Z", &length);
+
+  if (length == 0 || length > 0x7fffffff)
+    _gum_duk_throw (ctx, "invalid size");
+
+  page_size = gum_kernel_query_page_size ();
+  n_pages = ((length + page_size - 1) & ~(page_size - 1)) / page_size;
+
+  address = gum_kernel_alloc_n_pages (n_pages);
+  _gum_duk_push_native_pointer (ctx, address, core);
+
+  return 1;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_kernel_protect)
+{
+  gpointer address;
+  gsize size;
+  GumPageProtection prot;
+  gboolean success;
+
+  gum_duk_kernel_check_api_available (ctx);
+
+  _gum_duk_args_parse (args, "pZm", &address, &size, &prot);
+
+  if (size > 0x7fffffff)
+    _gum_duk_throw (ctx, "invalid size");
+
+  if (size != 0)
+    success = gum_kernel_try_mprotect (address, size, prot);
+  else
+    success = TRUE;
+
+  duk_push_boolean (ctx, success);
+  return 1;
+}
+
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_read_byte_array)
 {
   gpointer address;
@@ -217,53 +264,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_write_byte_array)
   }
 
   return 0;
-}
-
-GUMJS_DEFINE_FUNCTION (gumjs_kernel_alloc)
-{
-  gpointer address;
-  gssize length;
-  gsize page_size;
-  guint n_pages;
-  GumDukCore * core = args->core;
-
-  gum_duk_kernel_check_api_available (ctx);
-
-  _gum_duk_args_parse (args, "Z", &length);
-
-  if (length == 0 || length > 0x7fffffff)
-    _gum_duk_throw (ctx, "invalid size");
-
-  page_size = gum_kernel_query_page_size ();
-  n_pages = ((length + page_size - 1) & ~(page_size - 1)) / page_size;
-
-  address = gum_kernel_alloc_n_pages (n_pages);
-  _gum_duk_push_native_pointer (ctx, address, core);
-
-  return 1;
-}
-
-GUMJS_DEFINE_FUNCTION (gumjs_kernel_protect)
-{
-  gpointer address;
-  gsize size;
-  GumPageProtection prot;
-  gboolean success;
-
-  gum_duk_kernel_check_api_available (ctx);
-
-  _gum_duk_args_parse (args, "pZm", &address, &size, &prot);
-
-  if (size > 0x7fffffff)
-    _gum_duk_throw (ctx, "invalid size");
-
-  if (size != 0)
-    success = gum_kernel_try_mprotect (address, size, prot);
-  else
-    success = TRUE;
-
-  duk_push_boolean (ctx, success);
-  return 1;
 }
 
 static void

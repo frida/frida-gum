@@ -27,74 +27,6 @@ gum_kernel_query_page_size (void)
   return vm_kernel_page_size;
 }
 
-guint8 *
-gum_kernel_read (GumAddress address,
-                 gsize len,
-                 gsize * n_bytes_read)
-{
-  mach_port_t task;
-  guint page_size;
-  guint8 * result;
-  gsize offset;
-  kern_return_t kr;
-
-  task = gum_kernel_get_task ();
-  if (task == MACH_PORT_NULL)
-    return NULL;
-
-  /* failsafe size, smaller than kernel page size */
-  page_size = 2048;
-  result = g_malloc (len);
-  offset = 0;
-
-  while (offset != len)
-  {
-    GumAddress chunk_address, page_address;
-    gsize chunk_size, page_offset;
-
-    chunk_address = address + offset;
-    page_address = chunk_address & ~(GumAddress) (page_size - 1);
-    page_offset = chunk_address - page_address;
-    chunk_size = MIN (len - offset, page_size - page_offset);
-
-    mach_vm_size_t n_bytes_read;
-
-    /* mach_vm_read corrupts memory on iOS */
-    kr = mach_vm_read_overwrite (task, chunk_address, chunk_size,
-        (vm_address_t) (result + offset), &n_bytes_read);
-    if (kr != KERN_SUCCESS)
-      break;
-    g_assert_cmpuint (n_bytes_read, ==, chunk_size);
-
-    offset += chunk_size;
-  }
-
-  if (offset == 0)
-  {
-    g_free (result);
-    result = NULL;
-  }
-
-  if (n_bytes_read != NULL)
-    *n_bytes_read = offset;
-
-  return result;
-}
-
-gboolean
-gum_kernel_write (GumAddress address,
-                  const guint8 * bytes,
-                  gsize len)
-{
-  mach_port_t task;
-
-  task = gum_kernel_get_task ();
-  if (task == MACH_PORT_NULL)
-    return FALSE;
-
-  return gum_darwin_write (task, address, bytes, len);
-}
-
 gpointer
 gum_kernel_alloc_n_pages (guint n_pages)
 {
@@ -153,6 +85,74 @@ gum_kernel_try_mprotect (gpointer address,
       aligned_size, FALSE, mach_page_prot);
 
   return kr == KERN_SUCCESS;
+}
+
+guint8 *
+gum_kernel_read (GumAddress address,
+                 gsize len,
+                 gsize * n_bytes_read)
+{
+  mach_port_t task;
+  guint page_size;
+  guint8 * result;
+  gsize offset;
+  kern_return_t kr;
+
+  task = gum_kernel_get_task ();
+  if (task == MACH_PORT_NULL)
+    return NULL;
+
+  /* Failsafe size, smaller than the kernel page size. */
+  page_size = 2048;
+  result = g_malloc (len);
+  offset = 0;
+
+  while (offset != len)
+  {
+    GumAddress chunk_address, page_address;
+    gsize chunk_size, page_offset;
+
+    chunk_address = address + offset;
+    page_address = chunk_address & ~(GumAddress) (page_size - 1);
+    page_offset = chunk_address - page_address;
+    chunk_size = MIN (len - offset, page_size - page_offset);
+
+    mach_vm_size_t n_bytes_read;
+
+    /* mach_vm_read corrupts memory on iOS */
+    kr = mach_vm_read_overwrite (task, chunk_address, chunk_size,
+        (vm_address_t) (result + offset), &n_bytes_read);
+    if (kr != KERN_SUCCESS)
+      break;
+    g_assert_cmpuint (n_bytes_read, ==, chunk_size);
+
+    offset += chunk_size;
+  }
+
+  if (offset == 0)
+  {
+    g_free (result);
+    result = NULL;
+  }
+
+  if (n_bytes_read != NULL)
+    *n_bytes_read = offset;
+
+  return result;
+}
+
+gboolean
+gum_kernel_write (GumAddress address,
+                  const guint8 * bytes,
+                  gsize len)
+{
+  mach_port_t task;
+
+  task = gum_kernel_get_task ();
+  if (task == MACH_PORT_NULL)
+    return FALSE;
+
+  return gum_darwin_write (task, address, bytes, len);
 }
 
 void

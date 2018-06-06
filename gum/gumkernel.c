@@ -20,6 +20,28 @@ gum_kernel_query_page_size (void)
   return 0;
 }
 
+gpointer
+gum_kernel_alloc_n_pages (guint n_pages,
+                          GumPageProtection page_prot)
+{
+  (void) n_pages;
+  (void) page_prot;
+
+  return NULL;
+}
+
+gboolean
+gum_kernel_try_mprotect (gpointer address,
+                         gsize size,
+                         GumPageProtection page_prot)
+{
+  (void) address;
+  (void) size;
+  (void) page_prot;
+
+  return FALSE;
+}
+
 guint8 *
 gum_kernel_read (GumAddress address,
                  gsize len,
@@ -40,28 +62,6 @@ gum_kernel_write (GumAddress address,
   (void) address;
   (void) bytes;
   (void) len;
-
-  return FALSE;
-}
-
-gpointer
-gum_kernel_alloc_n_pages (guint n_pages,
-                          GumPageProtection page_prot)
-{
-  (void) n_pages;
-  (void) page_prot;
-
-  return NULL;
-}
-
-gboolean
-gum_kernel_try_mprotect (gpointer address,
-                         gsize size,
-                         GumPageProtection page_prot)
-{
-  (void) address;
-  (void) size;
-  (void) page_prot;
 
   return FALSE;
 }
