@@ -31,6 +31,8 @@ static gboolean gum_emit_range (const GumRangeDetails * details,
     GumV8MatchContext * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_read_byte_array)
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_write_byte_array)
+GUMJS_DECLARE_FUNCTION (gumjs_kernel_alloc)
+GUMJS_DECLARE_FUNCTION (gumjs_kernel_protect)
 
 static gboolean gum_v8_kernel_check_api_available (Isolate * isolate);
 
@@ -46,6 +48,8 @@ static const GumV8Function gumjs_kernel_functions[] =
   { "_enumerateRanges", gumjs_kernel_enumerate_ranges },
   { "readByteArray", gumjs_kernel_read_byte_array },
   { "writeByteArray", gumjs_kernel_write_byte_array },
+  { "alloc", gumjs_kernel_alloc },
+  { "protect", gumjs_kernel_protect },
 
   { NULL, NULL }
 };
@@ -62,6 +66,8 @@ _gum_v8_kernel_init (GumV8Kernel * self,
   auto module = External::New (isolate, self);
 
   auto kernel = _gum_v8_create_module ("Kernel", scope, isolate);
+  kernel->Set (_gum_v8_string_new_ascii (isolate, "pageSize"),
+      Number::New (isolate, gum_kernel_query_page_size ()), ReadOnly);
   _gum_v8_module_add (module, kernel, gumjs_kernel_values, isolate);
   _gum_v8_module_add (module, kernel, gumjs_kernel_functions, isolate);
 }
@@ -242,6 +248,74 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_write_byte_array)
   }
 
   g_bytes_unref (bytes);
+}
+
+/*
+ * Prototype:
+ * Kernel.alloc(size)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
+GUMJS_DEFINE_FUNCTION (gumjs_kernel_alloc)
+{
+  if (!gum_v8_kernel_check_api_available (isolate))
+    return;
+
+  gssize length;
+  if (!_gum_v8_args_parse (args, "Z", &length))
+    return;
+
+  if (length == 0 || length > 0x7fffffff)
+  {
+    _gum_v8_throw_ascii_literal (isolate, "invalid size");
+    return;
+  }
+
+  gsize page_size = gum_kernel_query_page_size ();
+  guint n_pages = ((length + page_size - 1) & ~(page_size - 1)) / page_size;
+
+  gpointer address = gum_kernel_alloc_n_pages (n_pages);
+  info.GetReturnValue ().Set (_gum_v8_native_pointer_new (address, core));
+}
+
+/*
+ * Prototype:
+ * Kernel.protect(address, size, protection)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
+GUMJS_DEFINE_FUNCTION (gumjs_kernel_protect)
+{
+  if (!gum_v8_kernel_check_api_available (isolate))
+    return;
+
+  gpointer address;
+  gsize size;
+  GumPageProtection prot;
+  if (!_gum_v8_args_parse (args, "pZm", &address, &size, &prot))
+    return;
+
+  if (size > 0x7fffffff)
+  {
+    _gum_v8_throw_ascii_literal (isolate, "invalid size");
+    return;
+  }
+
+  bool success;
+  if (size != 0)
+    success = !!gum_kernel_try_mprotect (address, size, prot);
+  else
+    success = true;
+
+  info.GetReturnValue ().Set (success);
 }
 
 static gboolean
