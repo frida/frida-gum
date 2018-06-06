@@ -129,12 +129,12 @@ gum_kernel_try_mprotect (gpointer address,
                          gsize size,
                          GumPageProtection page_prot)
 {
+  mach_port_t task;
   gsize page_size;
   gpointer aligned_address;
   gsize aligned_size;
   vm_prot_t mach_page_prot;
   kern_return_t kr;
-  mach_port_t task;
 
   g_assert (size != 0);
 
