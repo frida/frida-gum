@@ -21,11 +21,9 @@ gum_kernel_query_page_size (void)
 }
 
 gpointer
-gum_kernel_alloc_n_pages (guint n_pages,
-                          GumPageProtection page_prot)
+gum_kernel_alloc_n_pages (guint n_pages)
 {
   (void) n_pages;
-  (void) page_prot;
 
   return NULL;
 }
