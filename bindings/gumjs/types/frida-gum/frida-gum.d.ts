@@ -1408,6 +1408,262 @@ declare interface MipsCpuContext extends PortableCpuContext {
 }
 
 /**
+ * TCP and UNIX sockets.
+ */
+declare namespace Socket {
+    /**
+     * Opens a TCP or UNIX listening socket.
+     *
+     * Defaults to listening on both IPv4 and IPv6, if supported, and binding on all interfaces on a randomly
+     * selected port.
+     */
+    function listen(options?: SocketListenOptions): Promise<SocketListener>;
+
+    /**
+     * Connects to a TCP or UNIX server.
+     */
+    function connect(options: SocketConnectOptions): Promise<SocketConnection>;
+
+    /**
+     * Inspects the OS socket `handle` and returns its type, or `null` if invalid or unknown.
+     */
+    function type(handle: number): SocketType | null;
+
+    /**
+     * Inspects the OS socket `handle` and returns its local address, or `null` if invalid or unknown.
+     */
+    function localAddress(handle: number): SocketEndpointAddress | null;
+
+    /**
+     * Inspects the OS socket `handle` and returns its peer address, or `null` if invalid or unknown.
+     */
+    function peerAddress(handle: number): SocketEndpointAddress | null;
+}
+
+/**
+ * Listener created by `Socket.listen()`.
+ */
+declare type SocketListener = TcpListener | UnixListener;
+
+declare interface BaseListener {
+    /**
+     * Closes the listener, releasing resources related to it. Once the listener is closed, all other operations
+     * will fail. Closing a listener multiple times is allowed and will not result in an error.
+     */
+    close(): Promise<void>;
+
+    /**
+     * Waits for the next client to connect.
+     */
+    accept(): Promise<SocketConnection>;
+}
+
+declare interface TcpListener extends BaseListener {
+    /**
+     * IP port being listened on.
+     */
+    port: number;
+}
+
+declare interface UnixListener extends BaseListener {
+    /**
+     * Path being listened on.
+     */
+    path: string;
+}
+
+declare interface SocketConnection extends IOStream {
+    /**
+     * Disables the Nagle algorithm if `noDelay` is `true`, otherwise enables it. The Nagle algorithm is enabled
+     * by default, so it is only necessary to call this method if you wish to optimize for low delay instead of
+     * high throughput.
+     */
+    setNoDelay(noDelay: boolean): Promise<void>;
+}
+
+declare interface IOStream {
+    /**
+     * The `InputStream` to read from.
+     */
+    input: InputStream;
+
+    /**
+     * The `OutputStream` to write to.
+     */
+    output: OutputStream;
+
+    /**
+     * Closes the stream, releasing resources related to it. This will also close the individual input and output
+     * streams. Once the stream is closed, all other operations will fail. Closing a stream multiple times is allowed
+     * and will not result in an error.
+     */
+    close(): Promise<void>;
+}
+
+declare interface InputStream {
+    /**
+     * Closes the stream, releasing resources related to it. Once the stream is closed, all other operations will fail.
+     * Closing a stream multiple times is allowed and will not result in an error.
+     */
+    close(): Promise<void>;
+
+    /**
+     * Reads up to `size` bytes from the stream. The resulting buffer is up to `size` bytes long. End of stream is
+     * signalled through an empty buffer.
+     */
+    read(size: number): Promise<ArrayBuffer>;
+
+    /**
+     * Keeps reading from the stream until exactly `size` bytes have been consumed. The resulting buffer is exactly
+     * `size` bytes long. Premature error or end of stream results in an `Error` object with a `partialData` property
+     * containing the incomplete data.
+     */
+    readAll(size: number): Promise<ArrayBuffer>;
+}
+
+declare interface OutputStream {
+    /**
+     * Closes the stream, releasing resources related to it. Once the stream is closed, all other operations will fail.
+     * Closing a stream multiple times is allowed and will not result in an error.
+     */
+    close(): Promise<void>;
+
+    /**
+     * Tries to write `data` to the stream. Returns how how many bytes of `data` were written to the stream.
+     */
+    write(data: ArrayBuffer | number[]): Promise<number>;
+
+    /**
+     * Keeps writing to the stream until all of `data` has been written. Premature error or end of stream results in an
+     * `Error` object with a `partialSize` property specifying how many bytes of `data` were written to the stream
+     * before the error occurred.
+     */
+    writeAll(data: ArrayBuffer | number[]): Promise<void>;``
+}
+
+declare enum AddressFamily {
+    Unix = "unix",
+    IPv4 = "ipv4",
+    IPv6 = "ipv6"
+}
+
+declare enum SocketType {
+    Tcp = "tcp",
+    Udp = "udp",
+    Tcp6 = "tcp6",
+    Udp6 = "udp6",
+    UnixStream = "unix:stream",
+    UnixDatagram = "unix:dgram"
+}
+
+declare enum UnixSocketType {
+    Anonymous = "anonymous",
+    Path = "path",
+    Abstract = "abstract",
+    AbstractPadded = "abstract-padded"
+}
+
+declare type SocketListenOptions = TcpListenOptions | UnixListenOptions;
+
+declare interface TcpListenOptions extends BaseListenOptions {
+    /**
+     * Address family. Omit to listen on both ipv4 and ipv6 – if supported by the OS.
+     */
+    family?: AddressFamily.IPv4 | AddressFamily.IPv6;
+
+    /**
+     * Host or IP address to listen on. Omit to listen on all interfaces.
+     */
+    host?: string;
+
+    /**
+     * Port to listen on. Omit to listen on a randomly selected port.
+     */
+    port?: number;
+}
+
+declare interface UnixListenOptions extends BaseListenOptions {
+    /**
+     * Address family.
+     */
+    family: AddressFamily.Unix;
+
+    /**
+     * Type of UNIX socket to listen on. Defaults to UnixSocketType.Path.
+     */
+    type?: UnixSocketType;
+
+    /**
+     * UNIX socket path to listen on.
+     */
+    path: string;
+}
+
+declare interface BaseListenOptions {
+    /**
+     * Listen backlog. Defaults to 10.
+     */
+    backlog?: number;
+}
+
+declare type SocketConnectOptions = TcpConnectOptions | UnixConnectOptions;
+
+declare interface TcpConnectOptions {
+    /**
+     * Address family. Omit to determine based on the host specified.
+     */
+    family?: AddressFamily.IPv4 | AddressFamily.IPv6;
+
+    /**
+     * Host or IP address to connect to. Defaults to `localhost`.
+     */
+    host?: string;
+
+    /**
+     * IP port to connect to.
+     */
+    port: number;
+}
+
+declare interface UnixConnectOptions {
+    /**
+     * Address family.
+     */
+    family: AddressFamily.Unix;
+
+    /**
+     * Type of UNIX socket to connect to. Defaults to UnixSocketType.Path.
+     */
+    type?: UnixSocketType;
+
+    /**
+     * Path to UNIX socket to connect to.
+     */
+    path: string;
+}
+
+declare type SocketEndpointAddress = TcpEndpointAddress | UnixEndpointAddress;
+
+declare interface TcpEndpointAddress {
+    /**
+     * IP address.
+     */
+    ip: string;
+
+    /**
+     * Port.
+     */
+    port: number;
+}
+
+declare interface UnixEndpointAddress {
+    /**
+     * UNIX socket path.
+     */
+    path: string;
+}
+
+/**
  * Intercepts execution through inline hooking.
  */
 declare namespace Interceptor {
@@ -1530,34 +1786,9 @@ declare class File {
     flush(): any;
     write(): any;
 }
-declare class IOStream {
-    constructor();
-    close(): any;
-}
-declare class InputStream {
-    constructor();
-    close(): any;
-    read(size: any): any;
-    readAll(size: any): any;
-}
 declare class InstructionValue {
     constructor();
     toString(): any;
-}
-declare class OutputStream {
-    constructor();
-    close(): any;
-    write(data: any): any;
-    writeAll(data: any): any;
-}
-declare class SocketConnection {
-    constructor();
-    setNoDelay(noDelay: any): any;
-}
-declare class SocketListener {
-    constructor();
-    accept(): any;
-    close(): any;
 }
 declare class SourceMap {
     constructor();
@@ -1617,13 +1848,6 @@ declare namespace Script {
     namespace sourceMap {
         function resolve(generatedPosition: any): any;
     }
-}
-declare namespace Socket {
-    function connect(options: any): any;
-    function listen(options: any): any;
-    function localAddress(): any;
-    function peerAddress(): any;
-    function type(): any;
 }
 declare namespace Stalker {
     const queueCapacity: number;
