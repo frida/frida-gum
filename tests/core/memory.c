@@ -24,6 +24,7 @@ TEST_LIST_BEGIN (memory)
   MEMORY_TESTENTRY (match_pattern_from_string_does_proper_validation)
   MEMORY_TESTENTRY (scan_range_finds_three_exact_matches)
   MEMORY_TESTENTRY (scan_range_finds_three_wildcarded_matches)
+  MEMORY_TESTENTRY (scan_range_finds_three_masked_matches)
   MEMORY_TESTENTRY (is_memory_readable_handles_mixed_page_protections)
   MEMORY_TESTENTRY (alloc_n_pages_returns_aligned_rw_address)
   MEMORY_TESTENTRY (alloc_n_pages_near_returns_aligned_rw_address_within_range)
@@ -172,6 +173,9 @@ MEMORY_TESTCASE (write_to_invalid_address_should_fail)
 #define GUM_PATTERN_NTH_TOKEN_NTH_BYTE(p, n, b) \
     (g_array_index (((GumMatchToken *) g_ptr_array_index (p->tokens, \
         n))->bytes, guint8, b))
+#define GUM_PATTERN_NTH_TOKEN_NTH_MASK(p, n, b) \
+    (g_array_index (((GumMatchToken *) g_ptr_array_index (p->tokens, \
+        n))->masks, guint8, b))
 
 MEMORY_TESTCASE (match_pattern_from_string_does_proper_validation)
 {
@@ -233,6 +237,42 @@ MEMORY_TESTCASE (match_pattern_from_string_does_proper_validation)
 
   pattern = gum_match_pattern_new_from_string ("");
   g_assert (pattern == NULL);
+
+  pattern = gum_match_pattern_new_from_string ("1337:ff0f");
+  g_assert (pattern != NULL);
+  g_assert_cmpuint (pattern->size, ==, 2);
+  g_assert_cmpuint (pattern->tokens->len, ==, 2);
+  g_assert_cmpuint (GUM_PATTERN_NTH_TOKEN (pattern, 0)->bytes->len, ==, 1);
+  g_assert_cmpuint (GUM_PATTERN_NTH_TOKEN (pattern, 1)->bytes->len, ==, 1);
+  g_assert_cmphex (GUM_PATTERN_NTH_TOKEN_NTH_BYTE (pattern, 0, 0), ==, 0x13);
+  g_assert_cmphex (GUM_PATTERN_NTH_TOKEN_NTH_BYTE (pattern, 1, 0), ==, 0x37);
+  g_assert_cmphex (GUM_PATTERN_NTH_TOKEN_NTH_MASK (pattern, 1, 0), ==, 0x0f);
+  gum_match_pattern_free (pattern);
+
+  pattern = gum_match_pattern_new_from_string ("13 37 : ff 0f");
+  g_assert (pattern != NULL);
+  g_assert_cmpuint (pattern->size, ==, 2);
+  g_assert_cmpuint (pattern->tokens->len, ==, 2);
+  g_assert_cmpuint (GUM_PATTERN_NTH_TOKEN (pattern, 0)->bytes->len, ==, 1);
+  g_assert_cmpuint (GUM_PATTERN_NTH_TOKEN (pattern, 1)->bytes->len, ==, 1);
+  g_assert_cmphex (GUM_PATTERN_NTH_TOKEN_NTH_BYTE (pattern, 0, 0), ==, 0x13);
+  g_assert_cmphex (GUM_PATTERN_NTH_TOKEN_NTH_BYTE (pattern, 1, 0), ==, 0x37);
+  g_assert_cmphex (GUM_PATTERN_NTH_TOKEN_NTH_MASK (pattern, 1, 0), ==, 0x0f);
+  gum_match_pattern_free (pattern);
+
+  pattern = gum_match_pattern_new_from_string ("13 ?7");
+  g_assert (pattern != NULL);
+  g_assert_cmpuint (pattern->size, ==, 2);
+  g_assert_cmpuint (pattern->tokens->len, ==, 2);
+  g_assert_cmpuint (GUM_PATTERN_NTH_TOKEN (pattern, 0)->bytes->len, ==, 1);
+  g_assert_cmpuint (GUM_PATTERN_NTH_TOKEN (pattern, 1)->bytes->len, ==, 1);
+  g_assert_cmphex (GUM_PATTERN_NTH_TOKEN_NTH_BYTE (pattern, 0, 0), ==, 0x13);
+  g_assert_cmphex (GUM_PATTERN_NTH_TOKEN_NTH_BYTE (pattern, 1, 0), ==, 0x47);
+  g_assert_cmphex (GUM_PATTERN_NTH_TOKEN_NTH_MASK (pattern, 1, 0), ==, 0x0f);
+  gum_match_pattern_free (pattern);
+
+  pattern = gum_match_pattern_new_from_string ("13 37 : ff");
+  g_assert (pattern == NULL);
 }
 
 MEMORY_TESTCASE (scan_range_finds_three_exact_matches)
@@ -287,6 +327,39 @@ MEMORY_TESTCASE (scan_range_finds_three_wildcarded_matches)
   range.size = sizeof (buf);
 
   pattern = gum_match_pattern_new_from_string ("12 ?? 13 37");
+  g_assert (pattern != NULL);
+
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = TRUE;
+
+  ctx.expected_address[0] = buf + 0;
+  ctx.expected_address[1] = buf + 4 + 2;
+  ctx.expected_address[2] = buf + 4 + 2 + 4;
+  ctx.expected_size = 4;
+
+  gum_memory_scan (&range, pattern, match_found_cb, &ctx);
+
+  g_assert_cmpuint (ctx.number_of_calls, ==, 3);
+
+  gum_match_pattern_free (pattern);
+}
+
+MEMORY_TESTCASE (scan_range_finds_three_masked_matches)
+{
+  guint8 buf[] = {
+    0x12, 0x11, 0x13, 0x35,
+    0x12, 0x00,
+    0x72, 0xc0, 0x13, 0x37,
+    0xb2, 0x44, 0x13, 0x33
+  };
+  GumMemoryRange range;
+  GumMatchPattern * pattern;
+  TestForEachContext ctx;
+
+  range.base_address = GUM_ADDRESS (buf);
+  range.size = sizeof (buf);
+
+  pattern = gum_match_pattern_new_from_string ("12 ?? 13 37 : 1f ff ff f1");
   g_assert (pattern != NULL);
 
   ctx.number_of_calls = 0;
