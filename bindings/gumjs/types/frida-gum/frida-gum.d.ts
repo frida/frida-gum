@@ -1538,7 +1538,7 @@ declare interface OutputStream {
      * `Error` object with a `partialSize` property specifying how many bytes of `data` were written to the stream
      * before the error occurred.
      */
-    writeAll(data: ArrayBuffer | number[]): Promise<void>;``
+    writeAll(data: ArrayBuffer | number[]): Promise<void>;
 }
 
 declare enum AddressFamily {
