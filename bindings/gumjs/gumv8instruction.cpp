@@ -87,7 +87,7 @@ static Local<Object> gum_mips_parse_memory_operand_value (
     const mips_op_mem * mem, GumV8Instruction * module);
 #endif
 
-static Local<Array> gum_parse_regs (const uint8_t * regs, uint8_t count,
+static Local<Array> gum_parse_regs (const uint16_t * regs, uint8_t count,
     GumV8Instruction * module);
 
 static Local<Array> gum_parse_groups (const uint8_t * groups, uint8_t count,
@@ -490,11 +490,6 @@ gum_parse_operands (const cs_insn * insn,
         _gum_v8_object_set_ascii (element, type_key, "mem", core);
         _gum_v8_object_set (element, value_key,
             gum_x86_parse_memory_operand_value (&op->mem, module), core);
-        break;
-      case X86_OP_FP:
-        _gum_v8_object_set_ascii (element, type_key, "fp", core);
-        _gum_v8_object_set (element, value_key, Number::New (isolate, op->fp),
-            core);
         break;
       default:
         g_assert_not_reached ();
@@ -998,7 +993,7 @@ gum_mips_parse_memory_operand_value (const mips_op_mem * mem,
 #endif
 
 static Local<Array>
-gum_parse_regs (const uint8_t * regs,
+gum_parse_regs (const uint16_t * regs,
                 uint8_t count,
                 GumV8Instruction * module)
 {

@@ -14,7 +14,7 @@
 #include "gumtls-priv.h"
 #include "valgrind.h"
 
-#include <capstone.h>
+#include <capstone/capstone.h>
 #include <ffi.h>
 #include <glib-object.h>
 #include <gio/gio.h>

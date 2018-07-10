@@ -7,7 +7,7 @@
 #ifndef __GUM_MIPS_WRITER_H__
 #define __GUM_MIPS_WRITER_H__
 
-#include <capstone.h>
+#include <capstone/capstone.h>
 #include <gum/gumdefs.h>
 
 #define GUM_MIPS_J_MAX_DISTANCE (1 << 28)

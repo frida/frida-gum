@@ -9,7 +9,7 @@
 
 #include "gumarmwriter.h"
 
-#include <capstone.h>
+#include <capstone/capstone.h>
 
 G_BEGIN_DECLS
 

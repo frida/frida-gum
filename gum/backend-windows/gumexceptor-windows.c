@@ -9,7 +9,7 @@
 #include "gumwindows.h"
 #include "gumx86writer.h"
 
-#include <capstone.h>
+#include <capstone/capstone.h>
 #include <tchar.h>
 
 typedef BOOL (WINAPI * GumWindowsExceptionHandler) (

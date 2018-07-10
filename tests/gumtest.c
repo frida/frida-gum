@@ -16,7 +16,7 @@
 #endif
 #include "valgrind.h"
 
-#include <capstone.h>
+#include <capstone/capstone.h>
 #include <glib.h>
 #include <gio/gio.h>
 #include <gum/gum.h>

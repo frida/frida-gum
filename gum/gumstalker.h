@@ -8,7 +8,7 @@
 #ifndef __GUM_STALKER_H__
 #define __GUM_STALKER_H__
 
-#include <capstone.h>
+#include <capstone/capstone.h>
 #include <glib-object.h>
 #include <gum/arch-x86/gumx86writer.h>
 #include <gum/arch-arm/gumarmwriter.h>

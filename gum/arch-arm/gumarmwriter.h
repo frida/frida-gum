@@ -7,7 +7,7 @@
 #ifndef __GUM_ARM_WRITER_H__
 #define __GUM_ARM_WRITER_H__
 
-#include <capstone.h>
+#include <capstone/capstone.h>
 #include <gum/gumdefs.h>
 
 #define GUM_ARM_B_MAX_DISTANCE 0x01fffffc

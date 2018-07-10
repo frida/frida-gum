@@ -74,7 +74,7 @@ static void gum_mips_push_memory_operand_value (duk_context * ctx,
     const mips_op_mem * mem, GumDukInstruction * module);
 #endif
 
-static void gum_push_regs (duk_context * ctx, const uint8_t * regs,
+static void gum_push_regs (duk_context * ctx, const uint16_t * regs,
     uint8_t count, GumDukInstruction * module);
 
 static void gum_push_groups (duk_context * ctx, const uint8_t * groups,
@@ -460,10 +460,6 @@ gum_push_operands (duk_context * ctx,
       case X86_OP_MEM:
         gum_x86_push_memory_operand_value (ctx, &op->mem, module);
         duk_push_string (ctx, "mem");
-        break;
-      case X86_OP_FP:
-        duk_push_number (ctx, op->fp);
-        duk_push_string (ctx, "fp");
         break;
       default:
         g_assert_not_reached ();
@@ -939,7 +935,7 @@ gum_mips_push_memory_operand_value (duk_context * ctx,
 
 static void
 gum_push_regs (duk_context * ctx,
-               const uint8_t * regs,
+               const uint16_t * regs,
                uint8_t count,
                GumDukInstruction * module)
 {

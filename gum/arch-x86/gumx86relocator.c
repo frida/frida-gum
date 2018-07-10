@@ -552,7 +552,7 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
   GumAbiType target_abi = self->output->target_abi;
   guint8 code[16];
 
-  if (x86->modrm_offset == 0)
+  if (x86->encoding.modrm_offset == 0)
     return FALSE;
 
   mod = (x86->modrm & 0xc0) >> 6;
@@ -614,7 +614,7 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
   else
   {
     gum_memcpy (code, ctx->start, ctx->len);
-    code[x86->modrm_offset] = (mod << 6) | (reg << 3) | rm;
+    code[x86->encoding.modrm_offset] = (mod << 6) | (reg << 3) | rm;
     gum_x86_writer_put_bytes (ctx->code_writer, code, ctx->len);
   }
 
