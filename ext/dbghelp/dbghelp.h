@@ -26,8 +26,8 @@ Revision History:
 
 #include <winapifamily.h>
 
-#pragma region Desktop Family
-#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+#pragma region Desktop Family or WER Package
+#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP | WINAPI_PARTITION_PKG_WER)
 
 
 // As a general principal always call the 64 bit version
@@ -67,10 +67,10 @@ extern "C" {
 // Observant readers may notice that 2 new fields,
 // 'fReadOnly' and 'Version' have been added to
 // the LOADED_IMAGE structure after 'fDOSImage'.
-// This does not change the size of the structure 
-// from previous headers.  That is because while 
-// 'fDOSImage' is a byte, it is padded by the 
-// compiler to 4 bytes.  So the 2 new fields are 
+// This does not change the size of the structure
+// from previous headers.  That is because while
+// 'fDOSImage' is a byte, it is padded by the
+// compiler to 4 bytes.  So the 2 new fields are
 // slipped into the extra space.
 
 typedef struct _LOADED_IMAGE {
@@ -506,8 +506,8 @@ typedef struct _MODLOAD_CVMISC {
 } MODLOAD_CVMISC, *PMODLOAD_CVMISC;
 
 typedef struct _MODLOAD_PDBGUID_PDBAGE {
-    GUID    PdbGuid;                // Pdb Guid 
-    DWORD   PdbAge;                 // Pdb Age 
+    GUID    PdbGuid;                // Pdb Guid
+    DWORD   PdbAge;                 // Pdb Age
 } MODLOAD_PDBGUID_PDBAGE, *PMODLOAD_PDBGUID_PDBAGE;
 
 //
@@ -1100,6 +1100,16 @@ enum SymTagEnum
     SymTagManagedType,
     SymTagDimension,
     SymTagCallSite,
+    SymTagInlineSite,
+    SymTagBaseInterface,
+    SymTagVectorType,
+    SymTagMatrixType,
+    SymTagHLSLType,
+    SymTagCaller,
+    SymTagCallee,
+    SymTagExport,
+    SymTagHeapAllocationSite,
+    SymTagCoffGroup,
     SymTagMax
 };
 
@@ -1401,6 +1411,7 @@ typedef struct _SOURCEFILEW {
 #define CBA_UPDATE_STATUS_BAR                   0x50000000
 #define CBA_ENGINE_PRESENT                      0x60000000
 #define CBA_CHECK_ENGOPT_DISALLOW_NETWORK_PATHS 0x70000000
+#define CBA_CHECK_ARM_MACHINE_THUMB_TYPE_OVERRIDE 0x80000000
 
 
 typedef struct _IMAGEHLP_CBA_READ_MEMORY {
@@ -1462,6 +1473,7 @@ typedef struct _IMAGEHLP_DEFERRED_SYMBOL_LOADW64 {
 #define DSLFLAG_MISMATCHED_DBG              0x2
 #define FLAG_ENGINE_PRESENT                 0x4
 #define FLAG_ENGOPT_DISALLOW_NETWORK_PATHS  0x8
+#define FLAG_OVERRIDE_ARM_MACHINE_TYPE      0x10
 
 
 #if !defined(_IMAGEHLP_SOURCE_) && defined(_IMAGEHLP64)
@@ -1541,7 +1553,7 @@ typedef enum {
     hdSym,      // where symbols are stored
     hdSrc,      // where source is stored
     hdMax       // end marker
-};
+} IMAGEHLP_HD_TYPE;
 
 typedef struct _OMAP {
     ULONG  rva;
@@ -1596,6 +1608,11 @@ SymGetOmaps(
 #define SYMOPT_DISABLE_SRVSTAR_ON_STARTUP 0x40000000
 #define SYMOPT_DEBUG                     0x80000000
 
+typedef enum {
+    SYMOPT_EX_DISABLEACCESSTIMEUPDATE, // Disable File Last Access Time on Symbols
+    SYMOPT_EX_MAX                      // Unused
+} IMAGEHLP_EXTENDED_OPTIONS;
+
 DWORD
 IMAGEAPI
 SymSetOptions(
@@ -1613,6 +1630,16 @@ IMAGEAPI
 SymCleanup(
     _In_ HANDLE hProcess
     );
+
+// Returns the value of the extended option
+BOOL
+IMAGEAPI
+SymGetExtendedOption(_In_ IMAGEHLP_EXTENDED_OPTIONS option);
+
+// Returns the previous value of the option
+BOOL
+IMAGEAPI
+SymSetExtendedOption(_In_ IMAGEHLP_EXTENDED_OPTIONS option, _In_ BOOL value);
 
 BOOL
 IMAGEAPI
@@ -1708,7 +1735,7 @@ EnumerateLoadedModulesEx(
     _In_ PENUMLOADED_MODULES_CALLBACK64 EnumLoadedModulesCallback,
     _In_opt_ PVOID UserContext
     );
-    
+
 BOOL
 IMAGEAPI
 EnumerateLoadedModulesExW(
@@ -2186,6 +2213,30 @@ SymGetSourceFileToken(
     _In_ PCSTR FileSpec,
     _Outptr_ PVOID *Token,
     _Out_ DWORD *Size
+    );
+
+BOOL
+IMAGEAPI
+SymGetSourceFileChecksumW(
+    _In_ HANDLE hProcess,
+    _In_ ULONG64 Base,
+    _In_ PCWSTR FileSpec,
+    _Out_ DWORD *pCheckSumType,
+    _Out_writes_(checksumSize) BYTE *pChecksum,
+    _In_ DWORD checksumSize,
+    _Out_ DWORD *pActualBytesWritten
+    );
+
+BOOL
+IMAGEAPI
+SymGetSourceFileChecksum(
+    _In_ HANDLE hProcess,
+    _In_ ULONG64 Base,
+    _In_ PCSTR FileSpec,
+    _Out_ DWORD *pCheckSumType,
+    _Out_writes_(checksumSize) BYTE *pChecksum,
+    _In_ DWORD checksumSize,
+    _Out_ DWORD *pActualBytesWritten
     );
 
 BOOL
@@ -3187,7 +3238,7 @@ typedef enum {
     sfPdb,
     sfMpd,
     sfMax
-};
+} IMAGEHLP_SF_TYPE;
 
 BOOL
 IMAGEAPI
@@ -3342,6 +3393,8 @@ typedef DWORD (WINAPI *PSYMBOLSERVERVERSION)();
 typedef BOOL (CALLBACK WINAPI *PSYMBOLSERVERMESSAGEPROC)(UINT_PTR action, ULONG64 data, ULONG64 context);
 typedef BOOL (WINAPI *PSYMBOLSERVERWEXPROC)(PCWSTR, PCWSTR, PVOID, DWORD, DWORD, PWSTR, PSYMSRV_EXTENDED_OUTPUT_DATA);
 typedef BOOL (WINAPI *PSYMBOLSERVERPINGPROCWEX)(PCWSTR);
+typedef BOOL (WINAPI *PSYMBOLSERVERGETOPTIONDATAPROC)(UINT_PTR, PULONG64);
+typedef BOOL (WINAPI *PSYMBOLSERVERSETHTTPAUTHHEADER)(_In_ PCWSTR pszAuthHeader);
 
 #define SYMSRV_VERSION              2
 
@@ -3372,22 +3425,42 @@ typedef BOOL (WINAPI *PSYMBOLSERVERPINGPROCWEX)(PCWSTR);
 #define SSRVOPT_WINHTTP             0x00800000
 #define SSRVOPT_WININET             0x01000000
 #define SSRVOPT_DONT_UNCOMPRESS     0x02000000
-#define SSRVOPT_DISABLE_PING_HOST   0x04000000    
-#define SSRVOPT_DISABLE_TIMEOUT     0x08000000    
-#define SSRVOPT_ENABLE_COMM_MSG     0x10000000    
+#define SSRVOPT_DISABLE_PING_HOST   0x04000000
+#define SSRVOPT_DISABLE_TIMEOUT     0x08000000
+#define SSRVOPT_ENABLE_COMM_MSG     0x10000000
+#define SSRVOPT_URI_FILTER          0x20000000
+#define SSRVOPT_URI_TIERS           0x40000000
+#define SSRVOPT_RETRY_APP_HANG      0x80000000
 
-#define SSRVOPT_MAX                 0x10000000
+#define SSRVOPT_MAX                 0x80000000
 
 #define SSRVOPT_RESET               ((ULONG_PTR)-1)
 
+#define NUM_SSRVOPTS                32
 
-#define NUM_SSRVOPTS                30
+#define SSRVURI_HTTP_NORMAL         0x01
+#define SSRVURI_HTTP_COMPRESSED     0x02
+#define SSRVURI_HTTP_FILEPTR        0x04
+
+#define SSRVURI_UNC_NORMAL          0x10
+#define SSRVURI_UNC_COMPRESSED      0x20
+#define SSRVURI_UNC_FILEPTR         0x40
+
+#define SSRVURI_HTTP_MASK           0x0F
+#define SSRVURI_UNC_MASK            0xF0
+#define SSRVURI_ALL                 0xFF
+
+// Legacy Names
+#define SSRVURI_NORMAL              SSRVURI_HTTP_NORMAL
+#define SSRVURI_COMPRESSED          SSRVURI_HTTP_COMPRESSED
+#define SSRVURI_FILEPTR             SSRVURI_HTTP_FILEPTR
 
 #define SSRVACTION_TRACE        1
 #define SSRVACTION_QUERYCANCEL  2
 #define SSRVACTION_EVENT        3
 #define SSRVACTION_EVENTW       4
 #define SSRVACTION_SIZE         5
+#define SSRVACTION_HTTPSTATUS   6
 
 #define SYMSTOREOPT_COMPRESS        0x01
 #define SYMSTOREOPT_OVERWRITE       0x02
@@ -3691,7 +3764,7 @@ typedef ULONG (__stdcall *LPCALL_BACK_USER_INTERRUPT_ROUTINE )(VOID);
 typedef struct
 {
     PCWSTR pBinPathNonExist;
-    PCWSTR pSymbolPathNonExist;        
+    PCWSTR pSymbolPathNonExist;
 }DBGHELP_DATA_REPORT_STRUCT, *PDBGHELP_DATA_REPORT_STRUCT;
 
 void
@@ -3702,17 +3775,17 @@ SetCheckUserInterruptShared(
 
 LPCALL_BACK_USER_INTERRUPT_ROUTINE
 IMAGEAPI
-GetCheckUserInterruptShared( 
-    void 
+GetCheckUserInterruptShared(
+    void
     );
 
-DWORD 
+DWORD
 IMAGEAPI
-GetSymLoadError( 
-    void 
+GetSymLoadError(
+    void
     );
 
-void 
+void
 IMAGEAPI
 SetSymLoadError(
     _In_ DWORD error
@@ -3832,1094 +3905,10 @@ RangeMapWrite(
 #include <poppack.h>
 
 
-#include <pshpack4.h>
+#include <minidumpapiset.h>
 
-#if defined(_MSC_VER)
-#if _MSC_VER >= 800
-#if _MSC_VER >= 1200
-#pragma warning(push)
-#endif
-#pragma warning(disable:4200)    /* Zero length array */
-#pragma warning(disable:4201)    /* Nameless struct/union */
-#endif
-#endif
 
-#define MINIDUMP_SIGNATURE ('PMDM')
-#define MINIDUMP_VERSION   (42899)
-typedef DWORD RVA;
-typedef ULONG64 RVA64;
-
-typedef struct _MINIDUMP_LOCATION_DESCRIPTOR {
-    ULONG32 DataSize;
-    RVA Rva;
-} MINIDUMP_LOCATION_DESCRIPTOR;
-
-typedef struct _MINIDUMP_LOCATION_DESCRIPTOR64 {
-    ULONG64 DataSize;
-    RVA64 Rva;
-} MINIDUMP_LOCATION_DESCRIPTOR64;
-
-
-typedef struct _MINIDUMP_MEMORY_DESCRIPTOR {
-    ULONG64 StartOfMemoryRange;
-    MINIDUMP_LOCATION_DESCRIPTOR Memory;
-} MINIDUMP_MEMORY_DESCRIPTOR, *PMINIDUMP_MEMORY_DESCRIPTOR;
-
-// DESCRIPTOR64 is used for full-memory minidumps where
-// all of the raw memory is laid out sequentially at the
-// end of the dump.  There is no need for individual RVAs
-// as the RVA is the base RVA plus the sum of the preceeding
-// data blocks.
-typedef struct _MINIDUMP_MEMORY_DESCRIPTOR64 {
-    ULONG64 StartOfMemoryRange;
-    ULONG64 DataSize;
-} MINIDUMP_MEMORY_DESCRIPTOR64, *PMINIDUMP_MEMORY_DESCRIPTOR64;
-
-
-typedef struct _MINIDUMP_HEADER {
-    ULONG32 Signature;
-    ULONG32 Version;
-    ULONG32 NumberOfStreams;
-    RVA StreamDirectoryRva;
-    ULONG32 CheckSum;
-    union {
-        ULONG32 Reserved;
-        ULONG32 TimeDateStamp;
-    };
-    ULONG64 Flags;
-} MINIDUMP_HEADER, *PMINIDUMP_HEADER;
-
-//
-// The MINIDUMP_HEADER field StreamDirectoryRva points to 
-// an array of MINIDUMP_DIRECTORY structures.
-//
-
-typedef struct _MINIDUMP_DIRECTORY {
-    ULONG32 StreamType;
-    MINIDUMP_LOCATION_DESCRIPTOR Location;
-} MINIDUMP_DIRECTORY, *PMINIDUMP_DIRECTORY;
-
-
-typedef struct _MINIDUMP_STRING {
-    ULONG32 Length;         // Length in bytes of the string
-    WCHAR   Buffer [0];     // Variable size buffer
-} MINIDUMP_STRING, *PMINIDUMP_STRING;
-
-
-
-//
-// The MINIDUMP_DIRECTORY field StreamType may be one of the following types.
-// Types will be added in the future, so if a program reading the minidump
-// header encounters a stream type it does not understand it should ignore
-// the data altogether. Any tag above LastReservedStream will not be used by
-// the system and is reserved for program-specific information.
-//
-
-typedef enum _MINIDUMP_STREAM_TYPE {
-
-    UnusedStream                = 0,
-    ReservedStream0             = 1,
-    ReservedStream1             = 2,
-    ThreadListStream            = 3,
-    ModuleListStream            = 4,
-    MemoryListStream            = 5,
-    ExceptionStream             = 6,
-    SystemInfoStream            = 7,
-    ThreadExListStream          = 8,
-    Memory64ListStream          = 9,
-    CommentStreamA              = 10,
-    CommentStreamW              = 11,
-    HandleDataStream            = 12,
-    FunctionTableStream         = 13,
-    UnloadedModuleListStream    = 14,
-    MiscInfoStream              = 15,
-    MemoryInfoListStream        = 16,
-    ThreadInfoListStream        = 17,
-    HandleOperationListStream   = 18,
-    TokenStream                 = 19,
-    JavaScriptDataStream        = 20,
-
-    ceStreamNull                = 0x8000,
-    ceStreamSystemInfo          = 0x8001,
-    ceStreamException           = 0x8002,
-    ceStreamModuleList          = 0x8003,
-    ceStreamProcessList         = 0x8004,
-    ceStreamThreadList          = 0x8005, 
-    ceStreamThreadContextList   = 0x8006,
-    ceStreamThreadCallStackList = 0x8007,
-    ceStreamMemoryVirtualList   = 0x8008,
-    ceStreamMemoryPhysicalList  = 0x8009,
-    ceStreamBucketParameters    = 0x800A,     
-    ceStreamProcessModuleMap    = 0x800B,
-    ceStreamDiagnosisList       = 0x800C,
-
-    LastReservedStream          = 0xffff
-
-} MINIDUMP_STREAM_TYPE;
-
-
-//
-// The minidump system information contains processor and
-// Operating System specific information.
-// 
-
-//
-// CPU information is obtained from one of two places.
-//
-//  1) On x86 computers, CPU_INFORMATION is obtained from the CPUID
-//     instruction. You must use the X86 portion of the union for X86
-//     computers.
-//
-//  2) On non-x86 architectures, CPU_INFORMATION is obtained by calling
-//     IsProcessorFeatureSupported().
-//
-
-typedef union _CPU_INFORMATION {
-
-    //
-    // X86 platforms use CPUID function to obtain processor information.
-    //
-    
-    struct {
-
-        //
-        // CPUID Subfunction 0, register EAX (VendorId [0]),
-        // EBX (VendorId [1]) and ECX (VendorId [2]).
-        //
-        
-        ULONG32 VendorId [ 3 ];
-        
-        //
-        // CPUID Subfunction 1, register EAX
-        //
-        
-        ULONG32 VersionInformation;
-
-        //
-        // CPUID Subfunction 1, register EDX
-        //
-        
-        ULONG32 FeatureInformation;
-        
-
-        //
-        // CPUID, Subfunction 80000001, register EBX. This will only
-        // be obtained if the vendor id is "AuthenticAMD".
-        //
-        
-        ULONG32 AMDExtendedCpuFeatures;
-
-    } X86CpuInfo;
-
-    //
-    // Non-x86 platforms use processor feature flags.
-    //
-    
-    struct {
-
-        ULONG64 ProcessorFeatures [ 2 ];
-        
-    } OtherCpuInfo;
-
-} CPU_INFORMATION, *PCPU_INFORMATION;
-        
-typedef struct _MINIDUMP_SYSTEM_INFO {
-
-    //
-    // ProcessorArchitecture, ProcessorLevel and ProcessorRevision are all
-    // taken from the SYSTEM_INFO structure obtained by GetSystemInfo( ).
-    //
-    
-    USHORT ProcessorArchitecture;
-    USHORT ProcessorLevel;
-    USHORT ProcessorRevision;
-
-    union {
-        USHORT Reserved0;
-        struct {
-            UCHAR NumberOfProcessors;
-            UCHAR ProductType;
-        };
-    };
-
-    //
-    // MajorVersion, MinorVersion, BuildNumber, PlatformId and
-    // CSDVersion are all taken from the OSVERSIONINFO structure
-    // returned by GetVersionEx( ).
-    //
-    
-    ULONG32 MajorVersion;
-    ULONG32 MinorVersion;
-    ULONG32 BuildNumber;
-    ULONG32 PlatformId;
-
-    //
-    // RVA to a CSDVersion string in the string table.
-    //
-    
-    RVA CSDVersionRva;
-
-    union {
-        ULONG32 Reserved1;
-        struct {
-            USHORT SuiteMask;
-            USHORT Reserved2;
-        };
-    };
-
-    CPU_INFORMATION Cpu;
-
-} MINIDUMP_SYSTEM_INFO, *PMINIDUMP_SYSTEM_INFO;
-
-
-//
-// The minidump thread contains standard thread
-// information plus an RVA to the memory for this 
-// thread and an RVA to the CONTEXT structure for
-// this thread.
-//
-
-
-//
-// ThreadId must be 4 bytes on all architectures.
-//
-
-C_ASSERT (sizeof ( ((PPROCESS_INFORMATION)0)->dwThreadId ) == 4);
-
-typedef struct _MINIDUMP_THREAD {
-    ULONG32 ThreadId;
-    ULONG32 SuspendCount;
-    ULONG32 PriorityClass;
-    ULONG32 Priority;
-    ULONG64 Teb;
-    MINIDUMP_MEMORY_DESCRIPTOR Stack;
-    MINIDUMP_LOCATION_DESCRIPTOR ThreadContext;
-} MINIDUMP_THREAD, *PMINIDUMP_THREAD;
-
-//
-// The thread list is a container of threads.
-//
-
-typedef struct _MINIDUMP_THREAD_LIST {
-    ULONG32 NumberOfThreads;
-    MINIDUMP_THREAD Threads [0];
-} MINIDUMP_THREAD_LIST, *PMINIDUMP_THREAD_LIST;
-
-
-typedef struct _MINIDUMP_THREAD_EX {
-    ULONG32 ThreadId;
-    ULONG32 SuspendCount;
-    ULONG32 PriorityClass;
-    ULONG32 Priority;
-    ULONG64 Teb;
-    MINIDUMP_MEMORY_DESCRIPTOR Stack;
-    MINIDUMP_LOCATION_DESCRIPTOR ThreadContext;
-    MINIDUMP_MEMORY_DESCRIPTOR BackingStore;
-} MINIDUMP_THREAD_EX, *PMINIDUMP_THREAD_EX;
-
-//
-// The thread list is a container of threads.
-//
-
-typedef struct _MINIDUMP_THREAD_EX_LIST {
-    ULONG32 NumberOfThreads;
-    MINIDUMP_THREAD_EX Threads [0];
-} MINIDUMP_THREAD_EX_LIST, *PMINIDUMP_THREAD_EX_LIST;
-
-
-//
-// The MINIDUMP_EXCEPTION is the same as EXCEPTION on Win64.
-//
-
-typedef struct _MINIDUMP_EXCEPTION  {
-    ULONG32 ExceptionCode;
-    ULONG32 ExceptionFlags;
-    ULONG64 ExceptionRecord;
-    ULONG64 ExceptionAddress;
-    ULONG32 NumberParameters;
-    ULONG32 __unusedAlignment;
-    ULONG64 ExceptionInformation [ EXCEPTION_MAXIMUM_PARAMETERS ];
-} MINIDUMP_EXCEPTION, *PMINIDUMP_EXCEPTION;
-
-
-//
-// The exception information stream contains the id of the thread that caused
-// the exception (ThreadId), the exception record for the exception
-// (ExceptionRecord) and an RVA to the thread context where the exception
-// occured.
-//
-
-typedef struct MINIDUMP_EXCEPTION_STREAM {
-    ULONG32 ThreadId;
-    ULONG32  __alignment;
-    MINIDUMP_EXCEPTION ExceptionRecord;
-    MINIDUMP_LOCATION_DESCRIPTOR ThreadContext;
-} MINIDUMP_EXCEPTION_STREAM, *PMINIDUMP_EXCEPTION_STREAM;
-
-
-//
-// The MINIDUMP_MODULE contains information about a
-// a specific module. It includes the CheckSum and
-// the TimeDateStamp for the module so the module
-// can be reloaded during the analysis phase.
-//
-
-typedef struct _MINIDUMP_MODULE {
-    ULONG64 BaseOfImage;
-    ULONG32 SizeOfImage;
-    ULONG32 CheckSum;
-    ULONG32 TimeDateStamp;
-    RVA ModuleNameRva;
-    VS_FIXEDFILEINFO VersionInfo;
-    MINIDUMP_LOCATION_DESCRIPTOR CvRecord;
-    MINIDUMP_LOCATION_DESCRIPTOR MiscRecord;
-    ULONG64 Reserved0;                          // Reserved for future use.
-    ULONG64 Reserved1;                          // Reserved for future use.
-} MINIDUMP_MODULE, *PMINIDUMP_MODULE;   
-
-
-//
-// The minidump module list is a container for modules.
-//
-
-typedef struct _MINIDUMP_MODULE_LIST {
-    ULONG32 NumberOfModules;
-    MINIDUMP_MODULE Modules [ 0 ];
-} MINIDUMP_MODULE_LIST, *PMINIDUMP_MODULE_LIST;
-
-
-//
-// Memory Ranges
-//
-
-typedef struct _MINIDUMP_MEMORY_LIST {
-    ULONG32 NumberOfMemoryRanges;
-    MINIDUMP_MEMORY_DESCRIPTOR MemoryRanges [0];
-} MINIDUMP_MEMORY_LIST, *PMINIDUMP_MEMORY_LIST;
-
-typedef struct _MINIDUMP_MEMORY64_LIST {
-    ULONG64 NumberOfMemoryRanges;
-    RVA64 BaseRva;
-    MINIDUMP_MEMORY_DESCRIPTOR64 MemoryRanges [0];
-} MINIDUMP_MEMORY64_LIST, *PMINIDUMP_MEMORY64_LIST;
-
-
-//
-// Support for user supplied exception information.
-//
-
-typedef struct _MINIDUMP_EXCEPTION_INFORMATION {
-    DWORD ThreadId;
-    PEXCEPTION_POINTERS ExceptionPointers;
-    BOOL ClientPointers;
-} MINIDUMP_EXCEPTION_INFORMATION, *PMINIDUMP_EXCEPTION_INFORMATION;
-
-typedef struct _MINIDUMP_EXCEPTION_INFORMATION64 {
-    DWORD ThreadId;
-    ULONG64 ExceptionRecord;
-    ULONG64 ContextRecord;
-    BOOL ClientPointers;
-} MINIDUMP_EXCEPTION_INFORMATION64, *PMINIDUMP_EXCEPTION_INFORMATION64;
-
-
-//
-// Support for capturing system handle state at the time of the dump.
-//
-
-// Per-handle object information varies according to
-// the OS, the OS version, the processor type and
-// so on.  The minidump gives a minidump identifier
-// to each possible data format for identification
-// purposes but does not control nor describe the actual data.
-typedef enum _MINIDUMP_HANDLE_OBJECT_INFORMATION_TYPE {
-    MiniHandleObjectInformationNone,
-    MiniThreadInformation1,
-    MiniMutantInformation1,
-    MiniMutantInformation2,
-    MiniProcessInformation1,
-    MiniProcessInformation2,
-    MiniEventInformation1,
-    MiniSectionInformation1,
-    MiniHandleObjectInformationTypeMax
-} MINIDUMP_HANDLE_OBJECT_INFORMATION_TYPE;
-
-typedef struct _MINIDUMP_HANDLE_OBJECT_INFORMATION {
-    RVA NextInfoRva;
-    ULONG32 InfoType;
-    ULONG32 SizeOfInfo;
-    // Raw information follows.
-} MINIDUMP_HANDLE_OBJECT_INFORMATION;
-
-typedef struct _MINIDUMP_HANDLE_DESCRIPTOR {
-    ULONG64 Handle;
-    RVA TypeNameRva;
-    RVA ObjectNameRva;
-    ULONG32 Attributes;
-    ULONG32 GrantedAccess;
-    ULONG32 HandleCount;
-    ULONG32 PointerCount;
-} MINIDUMP_HANDLE_DESCRIPTOR, *PMINIDUMP_HANDLE_DESCRIPTOR;
-
-typedef struct _MINIDUMP_HANDLE_DESCRIPTOR_2 {
-    ULONG64 Handle;
-    RVA TypeNameRva;
-    RVA ObjectNameRva;
-    ULONG32 Attributes;
-    ULONG32 GrantedAccess;
-    ULONG32 HandleCount;
-    ULONG32 PointerCount;
-    RVA ObjectInfoRva;
-    ULONG32 Reserved0;
-} MINIDUMP_HANDLE_DESCRIPTOR_2, *PMINIDUMP_HANDLE_DESCRIPTOR_2;
-
-// The latest MINIDUMP_HANDLE_DESCRIPTOR definition.
-typedef MINIDUMP_HANDLE_DESCRIPTOR_2 MINIDUMP_HANDLE_DESCRIPTOR_N;
-typedef MINIDUMP_HANDLE_DESCRIPTOR_N *PMINIDUMP_HANDLE_DESCRIPTOR_N;
-
-typedef struct _MINIDUMP_HANDLE_DATA_STREAM {
-    ULONG32 SizeOfHeader;
-    ULONG32 SizeOfDescriptor;
-    ULONG32 NumberOfDescriptors;
-    ULONG32 Reserved;
-} MINIDUMP_HANDLE_DATA_STREAM, *PMINIDUMP_HANDLE_DATA_STREAM;
-
-// Some operating systems can track the last operations
-// performed on a handle.  For example, Application Verifier
-// can enable this for some versions of Windows.  The
-// handle operation list collects handle operations
-// known for the dump target.
-// Each entry is an AVRF_HANDLE_OPERATION.
-typedef struct _MINIDUMP_HANDLE_OPERATION_LIST {
-    ULONG32 SizeOfHeader;
-    ULONG32 SizeOfEntry;
-    ULONG32 NumberOfEntries;
-    ULONG32 Reserved;
-} MINIDUMP_HANDLE_OPERATION_LIST, *PMINIDUMP_HANDLE_OPERATION_LIST;
-
-
-//
-// Support for capturing dynamic function table state at the time of the dump.
-//
-
-typedef struct _MINIDUMP_FUNCTION_TABLE_DESCRIPTOR {
-    ULONG64 MinimumAddress;
-    ULONG64 MaximumAddress;
-    ULONG64 BaseAddress;
-    ULONG32 EntryCount;
-    ULONG32 SizeOfAlignPad;
-} MINIDUMP_FUNCTION_TABLE_DESCRIPTOR, *PMINIDUMP_FUNCTION_TABLE_DESCRIPTOR;
-
-typedef struct _MINIDUMP_FUNCTION_TABLE_STREAM {
-    ULONG32 SizeOfHeader;
-    ULONG32 SizeOfDescriptor;
-    ULONG32 SizeOfNativeDescriptor;
-    ULONG32 SizeOfFunctionEntry;
-    ULONG32 NumberOfDescriptors;
-    ULONG32 SizeOfAlignPad;
-} MINIDUMP_FUNCTION_TABLE_STREAM, *PMINIDUMP_FUNCTION_TABLE_STREAM;
-
-
-//
-// The MINIDUMP_UNLOADED_MODULE contains information about a
-// a specific module that was previously loaded but no
-// longer is.  This can help with diagnosing problems where
-// callers attempt to call code that is no longer loaded.
-//
-
-typedef struct _MINIDUMP_UNLOADED_MODULE {
-    ULONG64 BaseOfImage;
-    ULONG32 SizeOfImage;
-    ULONG32 CheckSum;
-    ULONG32 TimeDateStamp;
-    RVA ModuleNameRva;
-} MINIDUMP_UNLOADED_MODULE, *PMINIDUMP_UNLOADED_MODULE;
-
-
-//
-// The minidump unloaded module list is a container for unloaded modules.
-//
-
-typedef struct _MINIDUMP_UNLOADED_MODULE_LIST {
-    ULONG32 SizeOfHeader;
-    ULONG32 SizeOfEntry;
-    ULONG32 NumberOfEntries;
-} MINIDUMP_UNLOADED_MODULE_LIST, *PMINIDUMP_UNLOADED_MODULE_LIST;
-
-
-//
-// The miscellaneous information stream contains a variety
-// of small pieces of information.  A member is valid if
-// it's within the available size and its corresponding
-// bit is set.
-//
-
-#define MINIDUMP_MISC1_PROCESS_ID            0x00000001
-#define MINIDUMP_MISC1_PROCESS_TIMES         0x00000002
-#define MINIDUMP_MISC1_PROCESSOR_POWER_INFO  0x00000004
-#define MINIDUMP_MISC3_PROCESS_INTEGRITY     0x00000010
-#define MINIDUMP_MISC3_PROCESS_EXECUTE_FLAGS 0x00000020
-#define MINIDUMP_MISC3_TIMEZONE              0x00000040
-#define MINIDUMP_MISC3_PROTECTED_PROCESS     0x00000080
-#define MINIDUMP_MISC4_BUILDSTRING           0x00000100
-
-typedef struct _MINIDUMP_MISC_INFO {
-    ULONG32 SizeOfInfo;
-    ULONG32 Flags1;
-    ULONG32 ProcessId;
-    ULONG32 ProcessCreateTime;
-    ULONG32 ProcessUserTime;
-    ULONG32 ProcessKernelTime;
-} MINIDUMP_MISC_INFO, *PMINIDUMP_MISC_INFO;
-
-typedef struct _MINIDUMP_MISC_INFO_2 {
-    ULONG32 SizeOfInfo;
-    ULONG32 Flags1;
-    ULONG32 ProcessId;
-    ULONG32 ProcessCreateTime;
-    ULONG32 ProcessUserTime;
-    ULONG32 ProcessKernelTime;
-    ULONG32 ProcessorMaxMhz;
-    ULONG32 ProcessorCurrentMhz;
-    ULONG32 ProcessorMhzLimit;
-    ULONG32 ProcessorMaxIdleState;
-    ULONG32 ProcessorCurrentIdleState;
-} MINIDUMP_MISC_INFO_2, *PMINIDUMP_MISC_INFO_2;
-
-typedef struct _MINIDUMP_MISC_INFO_3 {
-    ULONG32 SizeOfInfo;
-    ULONG32 Flags1;
-    ULONG32 ProcessId;
-    ULONG32 ProcessCreateTime;
-    ULONG32 ProcessUserTime;
-    ULONG32 ProcessKernelTime;
-    ULONG32 ProcessorMaxMhz;
-    ULONG32 ProcessorCurrentMhz;
-    ULONG32 ProcessorMhzLimit;
-    ULONG32 ProcessorMaxIdleState;
-    ULONG32 ProcessorCurrentIdleState;
-    ULONG32 ProcessIntegrityLevel;
-    ULONG32 ProcessExecuteFlags;
-    ULONG32 ProtectedProcess;
-    ULONG32 TimeZoneId;
-    TIME_ZONE_INFORMATION TimeZone;
-} MINIDUMP_MISC_INFO_3, *PMINIDUMP_MISC_INFO_3;
-
-typedef struct _MINIDUMP_MISC_INFO_4 {
-    ULONG32 SizeOfInfo;
-    ULONG32 Flags1;
-    ULONG32 ProcessId;
-    ULONG32 ProcessCreateTime;
-    ULONG32 ProcessUserTime;
-    ULONG32 ProcessKernelTime;
-    ULONG32 ProcessorMaxMhz;
-    ULONG32 ProcessorCurrentMhz;
-    ULONG32 ProcessorMhzLimit;
-    ULONG32 ProcessorMaxIdleState;
-    ULONG32 ProcessorCurrentIdleState;
-    ULONG32 ProcessIntegrityLevel;
-    ULONG32 ProcessExecuteFlags;
-    ULONG32 ProtectedProcess;
-    ULONG32 TimeZoneId;
-    TIME_ZONE_INFORMATION TimeZone;
-    WCHAR   BuildString[MAX_PATH];
-    WCHAR   DbgBldStr[40];
-} MINIDUMP_MISC_INFO_4, *PMINIDUMP_MISC_INFO_4;
-
-// The latest MINIDUMP_MISC_INFO definition.
-typedef MINIDUMP_MISC_INFO_4 MINIDUMP_MISC_INFO_N;
-typedef MINIDUMP_MISC_INFO_N* PMINIDUMP_MISC_INFO_N;
-
-//
-// The memory information stream contains memory region
-// description information.  This stream corresponds to
-// what VirtualQuery would return for the process the
-// dump was created for.
-//
-
-typedef struct _MINIDUMP_MEMORY_INFO {
-    ULONG64 BaseAddress;
-    ULONG64 AllocationBase;
-    ULONG32 AllocationProtect;
-    ULONG32 __alignment1;
-    ULONG64 RegionSize;
-    ULONG32 State;
-    ULONG32 Protect;
-    ULONG32 Type;
-    ULONG32 __alignment2;
-} MINIDUMP_MEMORY_INFO, *PMINIDUMP_MEMORY_INFO;
-
-typedef struct _MINIDUMP_MEMORY_INFO_LIST {
-    ULONG SizeOfHeader;
-    ULONG SizeOfEntry;
-    ULONG64 NumberOfEntries;
-} MINIDUMP_MEMORY_INFO_LIST, *PMINIDUMP_MEMORY_INFO_LIST;
-
-    
-//
-// The memory information stream contains memory region
-// description information.  This stream corresponds to
-// what VirtualQuery would return for the process the
-// dump was created for.
-//
-
-// Thread dump writer status flags.
-#define MINIDUMP_THREAD_INFO_ERROR_THREAD    0x00000001
-#define MINIDUMP_THREAD_INFO_WRITING_THREAD  0x00000002
-#define MINIDUMP_THREAD_INFO_EXITED_THREAD   0x00000004
-#define MINIDUMP_THREAD_INFO_INVALID_INFO    0x00000008
-#define MINIDUMP_THREAD_INFO_INVALID_CONTEXT 0x00000010
-#define MINIDUMP_THREAD_INFO_INVALID_TEB     0x00000020
-
-typedef struct _MINIDUMP_THREAD_INFO {
-    ULONG32 ThreadId;
-    ULONG32 DumpFlags;
-    ULONG32 DumpError;
-    ULONG32 ExitStatus;
-    ULONG64 CreateTime;
-    ULONG64 ExitTime;
-    ULONG64 KernelTime;
-    ULONG64 UserTime;
-    ULONG64 StartAddress;
-    ULONG64 Affinity;
-} MINIDUMP_THREAD_INFO, *PMINIDUMP_THREAD_INFO;
-
-typedef struct _MINIDUMP_THREAD_INFO_LIST {
-    ULONG SizeOfHeader;
-    ULONG SizeOfEntry;
-    ULONG NumberOfEntries;
-} MINIDUMP_THREAD_INFO_LIST, *PMINIDUMP_THREAD_INFO_LIST;
-
-//
-// Support for token information.
-//
-typedef struct _MINIDUMP_TOKEN_INFO_HEADER {
-    ULONG   TokenSize;   // The size of the token structure.
-    ULONG   TokenId;     // The PID in NtOpenProcessToken() call or TID in NtOpenThreadToken() call.
-    ULONG64 TokenHandle; // The handle value returned.
-} MINIDUMP_TOKEN_INFO_HEADER, *PMINIDUMP_TOKEN_INFO_HEADER;
-
-typedef struct _MINIDUMP_TOKEN_INFO_LIST {
-    ULONG TokenListSize;
-    ULONG TokenListEntries;
-    ULONG ListHeaderSize;
-    ULONG ElementHeaderSize;
-} MINIDUMP_TOKEN_INFO_LIST, *PMINIDUMP_TOKEN_INFO_LIST;
-
-//
-// Support for arbitrary user-defined information.
-//
-
-typedef struct _MINIDUMP_USER_RECORD {
-    ULONG32 Type;
-    MINIDUMP_LOCATION_DESCRIPTOR Memory;
-} MINIDUMP_USER_RECORD, *PMINIDUMP_USER_RECORD;
-
-
-typedef struct _MINIDUMP_USER_STREAM {
-    ULONG32 Type;
-    ULONG BufferSize;
-    PVOID Buffer;
-
-} MINIDUMP_USER_STREAM, *PMINIDUMP_USER_STREAM;
-
-
-typedef struct _MINIDUMP_USER_STREAM_INFORMATION {
-    ULONG UserStreamCount;
-    PMINIDUMP_USER_STREAM UserStreamArray;
-} MINIDUMP_USER_STREAM_INFORMATION, *PMINIDUMP_USER_STREAM_INFORMATION;
-
-//
-// Callback support.
-//
-
-typedef enum _MINIDUMP_CALLBACK_TYPE {
-    ModuleCallback,
-    ThreadCallback,
-    ThreadExCallback,
-    IncludeThreadCallback,
-    IncludeModuleCallback,
-    MemoryCallback,
-    CancelCallback,
-    WriteKernelMinidumpCallback,
-    KernelMinidumpStatusCallback,
-    RemoveMemoryCallback,
-    IncludeVmRegionCallback,
-    IoStartCallback,
-    IoWriteAllCallback,
-    IoFinishCallback,
-    ReadMemoryFailureCallback,
-    SecondaryFlagsCallback,
-    IsProcessSnapshotCallback,
-    VmStartCallback,
-    VmQueryCallback,
-    VmPreReadCallback,
-    VmPostReadCallback,
-} MINIDUMP_CALLBACK_TYPE;
-
-
-typedef struct _MINIDUMP_THREAD_CALLBACK {
-    ULONG ThreadId;
-    HANDLE ThreadHandle;
-    CONTEXT Context;
-    ULONG SizeOfContext;
-    ULONG64 StackBase;
-    ULONG64 StackEnd;
-} MINIDUMP_THREAD_CALLBACK, *PMINIDUMP_THREAD_CALLBACK;
-
-
-typedef struct _MINIDUMP_THREAD_EX_CALLBACK {
-    ULONG ThreadId;
-    HANDLE ThreadHandle;
-    CONTEXT Context;
-    ULONG SizeOfContext;
-    ULONG64 StackBase;
-    ULONG64 StackEnd;
-    ULONG64 BackingStoreBase;
-    ULONG64 BackingStoreEnd;
-} MINIDUMP_THREAD_EX_CALLBACK, *PMINIDUMP_THREAD_EX_CALLBACK;
-
-
-typedef struct _MINIDUMP_INCLUDE_THREAD_CALLBACK {
-    ULONG ThreadId;
-} MINIDUMP_INCLUDE_THREAD_CALLBACK, *PMINIDUMP_INCLUDE_THREAD_CALLBACK;
-
-
-typedef enum _THREAD_WRITE_FLAGS {
-    ThreadWriteThread            = 0x0001,
-    ThreadWriteStack             = 0x0002,
-    ThreadWriteContext           = 0x0004,
-    ThreadWriteBackingStore      = 0x0008,
-    ThreadWriteInstructionWindow = 0x0010,
-    ThreadWriteThreadData        = 0x0020,
-    ThreadWriteThreadInfo        = 0x0040,
-} THREAD_WRITE_FLAGS;
-
-typedef struct _MINIDUMP_MODULE_CALLBACK {
-    PWCHAR FullPath;
-    ULONG64 BaseOfImage;
-    ULONG SizeOfImage;
-    ULONG CheckSum;
-    ULONG TimeDateStamp;
-    VS_FIXEDFILEINFO VersionInfo;
-    PVOID CvRecord; 
-    ULONG SizeOfCvRecord;
-    PVOID MiscRecord;
-    ULONG SizeOfMiscRecord;
-} MINIDUMP_MODULE_CALLBACK, *PMINIDUMP_MODULE_CALLBACK;
-
-
-typedef struct _MINIDUMP_INCLUDE_MODULE_CALLBACK {
-    ULONG64 BaseOfImage;
-} MINIDUMP_INCLUDE_MODULE_CALLBACK, *PMINIDUMP_INCLUDE_MODULE_CALLBACK;
-
-
-typedef enum _MODULE_WRITE_FLAGS {
-    ModuleWriteModule        = 0x0001,
-    ModuleWriteDataSeg       = 0x0002,
-    ModuleWriteMiscRecord    = 0x0004,
-    ModuleWriteCvRecord      = 0x0008,
-    ModuleReferencedByMemory = 0x0010,
-    ModuleWriteTlsData       = 0x0020,
-    ModuleWriteCodeSegs      = 0x0040,
-} MODULE_WRITE_FLAGS;
-
-
-typedef struct _MINIDUMP_IO_CALLBACK {
-    HANDLE Handle;
-    ULONG64 Offset;
-    PVOID Buffer;
-    ULONG BufferBytes;
-} MINIDUMP_IO_CALLBACK, *PMINIDUMP_IO_CALLBACK;
-
-
-typedef struct _MINIDUMP_READ_MEMORY_FAILURE_CALLBACK
-{
-    ULONG64 Offset;
-    ULONG Bytes;
-    HRESULT FailureStatus;
-} MINIDUMP_READ_MEMORY_FAILURE_CALLBACK,
-  *PMINIDUMP_READ_MEMORY_FAILURE_CALLBACK;
-
-typedef struct _MINIDUMP_VM_QUERY_CALLBACK
-{
-    ULONG64 Offset;
-} MINIDUMP_VM_QUERY_CALLBACK, *PMINIDUMP_VM_QUERY_CALLBACK;
-
-typedef struct _MINIDUMP_VM_PRE_READ_CALLBACK
-{
-    ULONG64 Offset;
-    PVOID Buffer;
-    ULONG Size;
-} MINIDUMP_VM_PRE_READ_CALLBACK, *PMINIDUMP_VM_PRE_READ_CALLBACK;
-
-typedef struct _MINIDUMP_VM_POST_READ_CALLBACK
-{
-    ULONG64 Offset;
-    PVOID Buffer;
-    ULONG Size;
-    ULONG Completed;
-    HRESULT Status;
-} MINIDUMP_VM_POST_READ_CALLBACK, *PMINIDUMP_VM_POST_READ_CALLBACK;
-
-typedef struct _MINIDUMP_CALLBACK_INPUT {
-    ULONG ProcessId;
-    HANDLE ProcessHandle;
-    ULONG CallbackType;
-    union {
-        HRESULT Status;
-        MINIDUMP_THREAD_CALLBACK Thread;
-        MINIDUMP_THREAD_EX_CALLBACK ThreadEx;
-        MINIDUMP_MODULE_CALLBACK Module;
-        MINIDUMP_INCLUDE_THREAD_CALLBACK IncludeThread;
-        MINIDUMP_INCLUDE_MODULE_CALLBACK IncludeModule;
-        MINIDUMP_IO_CALLBACK Io;
-        MINIDUMP_READ_MEMORY_FAILURE_CALLBACK ReadMemoryFailure;
-        ULONG SecondaryFlags;
-        MINIDUMP_VM_QUERY_CALLBACK VmQuery;
-        MINIDUMP_VM_PRE_READ_CALLBACK VmPreRead;
-        MINIDUMP_VM_POST_READ_CALLBACK VmPostRead;
-    };
-} MINIDUMP_CALLBACK_INPUT, *PMINIDUMP_CALLBACK_INPUT;
-
-typedef struct _MINIDUMP_CALLBACK_OUTPUT {
-    union {
-        ULONG ModuleWriteFlags;
-        ULONG ThreadWriteFlags;
-        ULONG SecondaryFlags;
-        struct {
-            ULONG64 MemoryBase;
-            ULONG MemorySize;
-        };
-        struct {
-            BOOL CheckCancel;
-            BOOL Cancel;
-        };
-        HANDLE Handle;
-        struct {
-            MINIDUMP_MEMORY_INFO VmRegion;
-            BOOL Continue;
-        };
-        struct {
-            HRESULT VmQueryStatus;
-            MINIDUMP_MEMORY_INFO VmQueryResult;
-        };
-        struct {
-            HRESULT VmReadStatus;
-            ULONG VmReadBytesCompleted;
-        };
-        HRESULT Status;
-    };
-} MINIDUMP_CALLBACK_OUTPUT, *PMINIDUMP_CALLBACK_OUTPUT;
-
-        
-//
-// A normal minidump contains just the information
-// necessary to capture stack traces for all of the
-// existing threads in a process.
-//
-// A minidump with data segments includes all of the data
-// sections from loaded modules in order to capture
-// global variable contents.  This can make the dump much
-// larger if many modules have global data.
-//
-// A minidump with full memory includes all of the accessible
-// memory in the process and can be very large.  A minidump
-// with full memory always has the raw memory data at the end
-// of the dump so that the initial structures in the dump can
-// be mapped directly without having to include the raw
-// memory information.
-//
-// Stack and backing store memory can be filtered to remove
-// data unnecessary for stack walking.  This can improve
-// compression of stacks and also deletes data that may
-// be private and should not be stored in a dump.
-// Memory can also be scanned to see what modules are
-// referenced by stack and backing store memory to allow
-// omission of other modules to reduce dump size.
-// In either of these modes the ModuleReferencedByMemory flag
-// is set for all modules referenced before the base
-// module callbacks occur.
-//
-// On some operating systems a list of modules that were
-// recently unloaded is kept in addition to the currently
-// loaded module list.  This information can be saved in
-// the dump if desired.
-//
-// Stack and backing store memory can be scanned for referenced
-// pages in order to pick up data referenced by locals or other
-// stack memory.  This can increase the size of a dump significantly.
-//
-// Module paths may contain undesired information such as user names
-// or other important directory names so they can be stripped.  This
-// option reduces the ability to locate the proper image later
-// and should only be used in certain situations.
-//
-// Complete operating system per-process and per-thread information can
-// be gathered and stored in the dump.
-//
-// The virtual address space can be scanned for various types
-// of memory to be included in the dump.
-//
-// Code which is concerned with potentially private information
-// getting into the minidump can set a flag that automatically
-// modifies all existing and future flags to avoid placing
-// unnecessary data in the dump.  Basic data, such as stack
-// information, will still be included but optional data, such
-// as indirect memory, will not.
-//
-// When doing a full memory dump it's possible to store all
-// of the enumerated memory region descriptive information
-// in a memory information stream.
-//
-// Additional thread information beyond the basic thread
-// structure can be collected if desired.
-//
-// A minidump with code segments includes all of the code
-// and code-related sections from loaded modules in order
-// to capture executable content.
-//
-// MiniDumpWithoutAuxiliaryState turns off any secondary,
-// auxiliary-supported memory gathering.
-//
-// MiniDumpWithFullAuxiliaryState asks any present auxiliary
-// data providers to include all of their state in the dump.
-// The exact set of what is provided depends on the auxiliary.
-// This can be quite large.
-//
-
-typedef enum _MINIDUMP_TYPE {
-    MiniDumpNormal                         = 0x00000000,
-    MiniDumpWithDataSegs                   = 0x00000001,
-    MiniDumpWithFullMemory                 = 0x00000002,
-    MiniDumpWithHandleData                 = 0x00000004,
-    MiniDumpFilterMemory                   = 0x00000008,
-    MiniDumpScanMemory                     = 0x00000010,
-    MiniDumpWithUnloadedModules            = 0x00000020,
-    MiniDumpWithIndirectlyReferencedMemory = 0x00000040,
-    MiniDumpFilterModulePaths              = 0x00000080,
-    MiniDumpWithProcessThreadData          = 0x00000100,
-    MiniDumpWithPrivateReadWriteMemory     = 0x00000200,
-    MiniDumpWithoutOptionalData            = 0x00000400,
-    MiniDumpWithFullMemoryInfo             = 0x00000800,
-    MiniDumpWithThreadInfo                 = 0x00001000,
-    MiniDumpWithCodeSegs                   = 0x00002000,
-    MiniDumpWithoutAuxiliaryState          = 0x00004000,
-    MiniDumpWithFullAuxiliaryState         = 0x00008000,
-    MiniDumpWithPrivateWriteCopyMemory     = 0x00010000,
-    MiniDumpIgnoreInaccessibleMemory       = 0x00020000,
-    MiniDumpWithTokenInformation           = 0x00040000,
-    MiniDumpWithModuleHeaders              = 0x00080000,
-    MiniDumpFilterTriage                   = 0x00100000,
-    MiniDumpValidTypeFlags                 = 0x001fffff,
-} MINIDUMP_TYPE;
-
-//
-// In addition to the primary flags provided to
-// MiniDumpWriteDump there are additional, less
-// frequently used options queried via the secondary
-// flags callback.
-//
-// MiniSecondaryWithoutPowerInfo suppresses the minidump
-// query that retrieves processor power information for
-// MINIDUMP_MISC_INFO.
-//
-    
-typedef enum _MINIDUMP_SECONDARY_FLAGS {
-    MiniSecondaryWithoutPowerInfo = 0x00000001,
-
-    MiniSecondaryValidFlags       = 0x00000001,
-} MINIDUMP_SECONDARY_FLAGS;
-
-
-//
-// The minidump callback should modify the FieldsToWrite parameter to reflect
-// what portions of the specified thread or module should be written to the
-// file.
-//
-
-typedef
-BOOL
-(WINAPI * MINIDUMP_CALLBACK_ROUTINE) (
-    _Inout_ PVOID CallbackParam,
-    _In_    PMINIDUMP_CALLBACK_INPUT CallbackInput,
-    _Inout_ PMINIDUMP_CALLBACK_OUTPUT CallbackOutput
-    );
-
-typedef struct _MINIDUMP_CALLBACK_INFORMATION {
-    MINIDUMP_CALLBACK_ROUTINE CallbackRoutine;
-    PVOID CallbackParam;
-} MINIDUMP_CALLBACK_INFORMATION, *PMINIDUMP_CALLBACK_INFORMATION;
-
-
-
-//++
-//
-// PVOID
-// RVA_TO_ADDR(
-//     PVOID Mapping,
-//     ULONG Rva
-//     )
-//
-// Routine Description:
-//
-//     Map an RVA that is contained within a mapped file to it's associated
-//     flat address.
-//
-// Arguments:
-//
-//     Mapping - Base address of mapped file containing the RVA.
-//
-//     Rva - An Rva to fixup.
-//
-// Return Values:
-//
-//     A pointer to the desired data.
-//
-//--
-
-#define RVA_TO_ADDR(Mapping,Rva) ((PVOID)(((ULONG_PTR) (Mapping)) + (Rva)))
-
-BOOL
-WINAPI
-MiniDumpWriteDump(
-    _In_ HANDLE hProcess,
-    _In_ DWORD ProcessId,
-    _In_ HANDLE hFile,
-    _In_ MINIDUMP_TYPE DumpType,
-    _In_opt_ PMINIDUMP_EXCEPTION_INFORMATION ExceptionParam,
-    _In_opt_ PMINIDUMP_USER_STREAM_INFORMATION UserStreamParam,
-    _In_opt_ PMINIDUMP_CALLBACK_INFORMATION CallbackParam
-    );
-
-BOOL
-WINAPI
-MiniDumpReadDumpStream(
-    _In_ PVOID BaseOfDump,
-    _In_ ULONG StreamNumber,
-    _Outptr_result_maybenull_ PMINIDUMP_DIRECTORY * Dir,
-    _Outptr_result_maybenull_ PVOID * StreamPointer,
-    _Out_opt_ ULONG * StreamSize
-    );
-
-#if defined(_MSC_VER)
-#if _MSC_VER >= 800
-#if _MSC_VER >= 1200
-#pragma warning(pop)
-#else
-#pragma warning(default:4200)    /* Zero length array */
-#pragma warning(default:4201)    /* Nameless struct/union */
-#endif
-#endif
-#endif
-
-#include <poppack.h>
-
-#ifdef __cplusplus
-}
-#endif
-
-
-#endif /* WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP) */
+#endif /* WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP | WINAPI_PARTITION_PKG_WER) */
 #pragma endregion
 
 #endif // _DBGHELP_
