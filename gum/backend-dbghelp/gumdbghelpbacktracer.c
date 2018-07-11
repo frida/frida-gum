@@ -162,7 +162,7 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
     if (!success)
       break;
     else if (frame.AddrPC.Offset == frame.AddrReturn.Offset)
-      break;
+      continue;
     else if (frame.AddrPC.Offset != 0)
     {
       if (i >= skip_count)
