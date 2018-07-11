@@ -13,10 +13,10 @@ gum_cpu_context_get_nth_argument (GumCpuContext * self,
   gpointer * stack_argument;
 
 #if GLIB_SIZEOF_VOID_P == 4
-  stack_argument = (gpointer *) self->esp;
+  stack_argument = (gpointer *) (self->esp + 4);
   return stack_argument[n];
 #else
-  stack_argument = (gpointer *) self->rsp;
+  stack_argument = (gpointer *) (self->rsp + 8);
   switch (n)
   {
 # if GUM_NATIVE_ABI_IS_UNIX
@@ -46,10 +46,10 @@ gum_cpu_context_replace_nth_argument (GumCpuContext * self,
   gpointer * stack_argument;
 
 #if GLIB_SIZEOF_VOID_P == 4
-  stack_argument = (gpointer *) self->esp;
+  stack_argument = (gpointer *) (self->esp + 4);
   stack_argument[n] = value;
 #else
-  stack_argument = (gpointer *) self->rsp;
+  stack_argument = (gpointer *) (self->rsp + 8);
   switch (n)
   {
 # if GUM_NATIVE_ABI_IS_UNIX
