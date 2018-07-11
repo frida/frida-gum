@@ -1336,7 +1336,6 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
   InterceptorThreadContext * interceptor_ctx;
   GumInvocationStackEntry * stack_entry;
   GumInvocationContext * invocation_ctx;
-  gsize pc;
   GPtrArray * listener_entries;
   guint i;
 
