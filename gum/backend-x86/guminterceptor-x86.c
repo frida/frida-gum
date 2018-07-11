@@ -249,7 +249,7 @@ gum_interceptor_backend_destroy_thunks (GumInterceptorBackend * self)
 static void
 gum_emit_enter_thunk (GumX86Writer * cw)
 {
-  const gsize return_address_stack_displacement = 0;
+  const gssize return_address_stack_displacement = 0;
 
   gum_emit_prolog (cw, return_address_stack_displacement);
 
@@ -273,7 +273,7 @@ gum_emit_enter_thunk (GumX86Writer * cw)
 static void
 gum_emit_leave_thunk (GumX86Writer * cw)
 {
-  const gsize next_hop_stack_displacement = -((gssize) sizeof (gpointer));
+  const gssize next_hop_stack_displacement = -((gssize) sizeof (gpointer));
 
   gum_emit_prolog (cw, next_hop_stack_displacement);
 
