@@ -76,16 +76,16 @@ gum_darwin_backtracer_generate (GumBacktracer * backtracer,
 #if defined (HAVE_I386)
     cur = GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XBP (cpu_context));
 
-    return_addresses->items[0] =
-        GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XIP (cpu_context));
+    return_addresses->items[0] = *((GumReturnAddress *) GSIZE_TO_POINTER (
+        GUM_CPU_CONTEXT_XSP (cpu_context)));
 #elif defined (HAVE_ARM)
     cur = GSIZE_TO_POINTER (cpu_context->r[7]);
 
-    return_addresses->items[0] = GSIZE_TO_POINTER (cpu_context->pc);
+    return_addresses->items[0] = GSIZE_TO_POINTER (cpu_context->lr);
 #elif defined (HAVE_ARM64)
     cur = GSIZE_TO_POINTER (cpu_context->fp);
 
-    return_addresses->items[0] = GSIZE_TO_POINTER (cpu_context->pc);
+    return_addresses->items[0] = GSIZE_TO_POINTER (cpu_context->lr);
 #else
 # error Unsupported architecture
 #endif

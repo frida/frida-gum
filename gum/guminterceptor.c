@@ -169,6 +169,8 @@ static ListenerEntry ** gum_function_context_find_listener (
     GumFunctionContext * function_ctx, GumInvocationListener * listener);
 static ListenerEntry ** gum_function_context_find_taken_listener_slot (
     GumFunctionContext * function_ctx);
+static void gum_function_context_fixup_cpu_context (
+    GumFunctionContext * function_ctx, GumCpuContext * cpu_context);
 
 static InterceptorThreadContext * get_interceptor_thread_context (void);
 static void release_interceptor_thread_context (
@@ -1185,7 +1187,6 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
   gint system_error;
   gboolean invoke_listeners = TRUE;
   gboolean will_trap_on_leave;
-  gsize pc;
 
   g_atomic_int_inc (&function_ctx->trampoline_usage_counter);
 
@@ -1249,23 +1250,7 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
   if (invocation_ctx != NULL)
     invocation_ctx->system_error = system_error;
 
-  pc = GPOINTER_TO_SIZE (*caller_ret_addr);
-
-#if defined (HAVE_I386)
-# if GLIB_SIZEOF_VOID_P == 4
-  cpu_context->eip = pc;
-# else
-  cpu_context->rip = pc;
-# endif
-#elif defined (HAVE_ARM)
-  cpu_context->pc = pc;
-#elif defined (HAVE_ARM64)
-  cpu_context->pc = pc;
-#elif defined (HAVE_MIPS)
-  cpu_context->pc = pc;
-#else
-# error Unsupported architecture
-#endif
+  gum_function_context_fixup_cpu_context (function_ctx, cpu_context);
 
   if (invoke_listeners)
   {
@@ -1350,8 +1335,8 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
   gint system_error;
   InterceptorThreadContext * interceptor_ctx;
   GumInvocationStackEntry * stack_entry;
-  gpointer caller_ret_addr;
   GumInvocationContext * invocation_ctx;
+  gsize pc;
   GPtrArray * listener_entries;
   guint i;
 
@@ -1368,8 +1353,7 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
   interceptor_ctx = get_interceptor_thread_context ();
 
   stack_entry = gum_invocation_stack_peek_top (interceptor_ctx->stack);
-  caller_ret_addr = stack_entry->caller_ret_addr;
-  *next_hop = caller_ret_addr;
+  *next_hop = stack_entry->caller_ret_addr;
 
   invocation_ctx = &stack_entry->invocation_context;
   invocation_ctx->cpu_context = cpu_context;
@@ -1384,21 +1368,7 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
   }
   invocation_ctx->backend = &interceptor_ctx->listener_backend;
 
-#if defined (HAVE_I386)
-# if GLIB_SIZEOF_VOID_P == 4
-  cpu_context->eip = (guint32) caller_ret_addr;
-# else
-  cpu_context->rip = (guint64) caller_ret_addr;
-# endif
-#elif defined (HAVE_ARM)
-  cpu_context->pc = (guint32) caller_ret_addr;
-#elif defined (HAVE_ARM64)
-  cpu_context->pc = (guint64) caller_ret_addr;
-#elif defined (HAVE_MIPS)
-  cpu_context->pc = (guint32) caller_ret_addr;
-#else
-# error Unsupported architecture
-#endif
+  gum_function_context_fixup_cpu_context (function_ctx, cpu_context);
 
   listener_entries = g_atomic_pointer_get (&function_ctx->listener_entries);
   for (i = 0; i != listener_entries->len; i++)
@@ -1430,6 +1400,34 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
   gum_tls_key_set_value (gum_interceptor_guard_key, NULL);
 
   g_atomic_int_dec_and_test (&function_ctx->trampoline_usage_counter);
+}
+
+static void
+gum_function_context_fixup_cpu_context (GumFunctionContext * function_ctx,
+                                        GumCpuContext * cpu_context)
+{
+  gsize pc;
+
+  pc = GPOINTER_TO_SIZE (function_ctx->function_address);
+#ifdef HAVE_ARM
+  pc &= ~1;
+#endif
+
+#if defined (HAVE_I386)
+# if GLIB_SIZEOF_VOID_P == 4
+  cpu_context->eip = pc;
+# else
+  cpu_context->rip = pc;
+# endif
+#elif defined (HAVE_ARM)
+  cpu_context->pc = pc;
+#elif defined (HAVE_ARM64)
+  cpu_context->pc = pc;
+#elif defined (HAVE_MIPS)
+  cpu_context->pc = pc;
+#else
+# error Unsupported architecture
+#endif
 }
 
 static InterceptorThreadContext *

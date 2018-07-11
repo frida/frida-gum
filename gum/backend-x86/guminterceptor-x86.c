@@ -45,7 +45,7 @@ static void gum_emit_enter_thunk (GumX86Writer * cw);
 static void gum_emit_leave_thunk (GumX86Writer * cw);
 
 static void gum_emit_prolog (GumX86Writer * cw,
-    gsize stack_displacement);
+    gssize stack_displacement);
 static void gum_emit_epilog (GumX86Writer * cw);
 
 GumInterceptorBackend *
@@ -249,7 +249,7 @@ gum_interceptor_backend_destroy_thunks (GumInterceptorBackend * self)
 static void
 gum_emit_enter_thunk (GumX86Writer * cw)
 {
-  const gsize return_address_stack_displacement = sizeof (gpointer);
+  const gsize return_address_stack_displacement = 0;
 
   gum_emit_prolog (cw, return_address_stack_displacement);
 
@@ -273,9 +273,9 @@ gum_emit_enter_thunk (GumX86Writer * cw)
 static void
 gum_emit_leave_thunk (GumX86Writer * cw)
 {
-  const gsize no_stack_displacement = 0;
+  const gsize next_hop_stack_displacement = -((gssize) sizeof (gpointer));
 
-  gum_emit_prolog (cw, no_stack_displacement);
+  gum_emit_prolog (cw, next_hop_stack_displacement);
 
   gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSI,
       GUM_REG_XBP, GUM_FRAME_OFFSET_CPU_CONTEXT);
@@ -293,7 +293,7 @@ gum_emit_leave_thunk (GumX86Writer * cw)
 
 static void
 gum_emit_prolog (GumX86Writer * cw,
-                 gsize stack_displacement)
+                 gssize stack_displacement)
 {
   guint8 fxsave[] = {
     0x0f, 0xae, 0x04, 0x24 /* fxsave [esp] */

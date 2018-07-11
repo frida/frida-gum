@@ -65,10 +65,12 @@ gum_unw_backtracer_generate (GumBacktracer * backtracer,
   if (cpu_context != NULL)
   {
 #if defined (HAVE_I386)
-    return_addresses->items[0] =
-        GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XIP (cpu_context));
-#elif defined (HAVE_ARM) || defined (HAVE_ARM64) || defined (HAVE_MIPS)
-    return_addresses->items[0] = GSIZE_TO_POINTER (cpu_context->pc);
+    return_addresses->items[0] = *((GumReturnAddress *) GSIZE_TO_POINTER (
+        GUM_CPU_CONTEXT_XSP (cpu_context)));
+#elif defined (HAVE_ARM) || defined (HAVE_ARM64)
+    return_addresses->items[0] = GSIZE_TO_POINTER (cpu_context->lr);
+#elif defined (HAVE_MIPS)
+    return_addresses->items[0] = GSIZE_TO_POINTER (cpu_context->ra);
 #else
 # error Unsupported architecture
 #endif
