@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -186,7 +186,42 @@ gum_x86_relocator_read_one (GumX86Relocator * self,
   insn = *insn_ptr;
 
   if (!cs_disasm_iter (self->capstone, &code, &size, &address, insn))
-    return 0;
+  {
+    gboolean handled = FALSE;
+
+    /*
+     * XXX: Capstone's “next” branch is missing X86_INS_VBROADCASTI128,
+     *      so we temporarily detect it here.
+     */
+    if (code[0] == 0xc4 &&
+        (code[1] & 0x1f) == 0x02 &&
+        code[2] == 0x7d &&
+        code[3] == 0x5a)
+    {
+      if ((code[4] & 0xc7) == 0x04 &&
+          (code[5] & 0xc0) == 0x00)
+      {
+        insn->id = X86_INS_VBROADCASTF128;
+        insn->size = 6;
+        insn->detail->x86.op_count = 0;
+
+        handled = TRUE;
+      }
+      else if ((code[4] & 0xc7) == 0x44 &&
+          (code[5] & 0xc7) == 0x05 &&
+          code[6] == 0x00)
+      {
+        insn->id = X86_INS_VBROADCASTF128;
+        insn->size = 7;
+        insn->detail->x86.op_count = 0;
+
+        handled = TRUE;
+      }
+    }
+
+    if (!handled)
+      return 0;
+  }
 
   switch (insn->id)
   {
