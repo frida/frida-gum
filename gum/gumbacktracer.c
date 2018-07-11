@@ -50,7 +50,7 @@ gum_backtracer_make_accurate (void)
 #if defined (G_OS_WIN32)
   GumDbgHelpImpl * dbghelp;
 
-  dbghelp = gum_dbghelp_impl_obtain ();
+  dbghelp = gum_dbghelp_impl_try_obtain ();
   if (dbghelp == NULL)
     return NULL;
   return gum_dbghelp_backtracer_new (dbghelp);

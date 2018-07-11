@@ -32,19 +32,10 @@ G_DEFINE_TYPE_EXTENDED (GumDbghelpBacktracer,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_BACKTRACER,
                                                gum_dbghelp_backtracer_iface_init));
 
-static void gum_dbghelp_backtracer_finalize (GObject * object);
-
-static void gum_dbghelp_backtracer_fill_address_details (
-    GumDbghelpBacktracer * self, GumReturnAddress * ret_addr);
-
 static void
 gum_dbghelp_backtracer_class_init (GumDbghelpBacktracerClass * klass)
 {
-  GObjectClass * object_class = G_OBJECT_CLASS (klass);
-
   g_type_class_add_private (klass, sizeof (GumDbghelpBacktracerPrivate));
-
-  object_class->finalize = gum_dbghelp_backtracer_finalize;
 }
 
 static void
@@ -52,8 +43,6 @@ gum_dbghelp_backtracer_iface_init (gpointer g_iface,
                                    gpointer iface_data)
 {
   GumBacktracerIface * iface = (GumBacktracerIface *) g_iface;
-
-  (void) iface_data;
 
   iface->generate = gum_dbghelp_backtracer_generate;
 }
@@ -63,16 +52,6 @@ gum_dbghelp_backtracer_init (GumDbghelpBacktracer * self)
 {
   self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
         GUM_TYPE_DBGHELP_BACKTRACER, GumDbghelpBacktracerPrivate);
-}
-
-static void
-gum_dbghelp_backtracer_finalize (GObject * object)
-{
-  GumDbghelpBacktracer * self = GUM_DBGHELP_BACKTRACER (object);
-
-  gum_dbghelp_impl_release (self->priv->dbghelp);
-
-  G_OBJECT_CLASS (gum_dbghelp_backtracer_parent_class)->finalize (object);
 }
 
 GumBacktracer *
@@ -94,6 +73,7 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
                                  GumReturnAddressArray * return_addresses)
 {
   GumDbghelpBacktracer * self = GUM_DBGHELP_BACKTRACER_CAST (backtracer);
+  HANDLE current_process, current_thread;
   GumDbgHelpImpl * dbghelp = self->priv->dbghelp;
   guint i;
   guint skip_count = 0;
@@ -112,7 +92,7 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
   if (cpu_context != NULL)
   {
 #if GLIB_SIZEOF_VOID_P == 4
-    context.Eip = cpu_context->eip;
+    context.Eip = *((gsize *) GSIZE_TO_POINTER (cpu_context->esp));
 
     context.Edi = cpu_context->edi;
     context.Esi = cpu_context->esi;
@@ -122,8 +102,12 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
     context.Edx = cpu_context->edx;
     context.Ecx = cpu_context->ecx;
     context.Eax = cpu_context->eax;
+
+    frame.AddrPC.Offset = context.Eip;
+    frame.AddrFrame.Offset = cpu_context->ebp;
+    frame.AddrStack.Offset = cpu_context->esp;
 #else
-    context.Rip = cpu_context->rip;
+    context.Rip = *((gsize *) GSIZE_TO_POINTER (cpu_context->rsp));
 
     context.R15 = cpu_context->r15;
     context.R14 = cpu_context->r14;
@@ -142,16 +126,10 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
     context.Rdx = cpu_context->rdx;
     context.Rcx = cpu_context->rcx;
     context.Rax = cpu_context->rax;
-#endif
 
-#if GLIB_SIZEOF_VOID_P == 8
-    frame.AddrPC.Offset = cpu_context->rip;
-    frame.AddrFrame.Offset = cpu_context->rbp;
+    frame.AddrPC.Offset = context.Rip;
+    frame.AddrFrame.Offset = cpu_context->rsp;
     frame.AddrStack.Offset = cpu_context->rsp;
-#else
-    frame.AddrPC.Offset = cpu_context->eip;
-    frame.AddrFrame.Offset = cpu_context->ebp;
-    frame.AddrStack.Offset = cpu_context->esp;
 #endif
   }
   else
@@ -162,24 +140,24 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
     frame.AddrStack.Offset = context.Esp;
 #else
     frame.AddrPC.Offset = context.Rip;
-    frame.AddrFrame.Offset = context.Rbp;
+    frame.AddrFrame.Offset = context.Rsp;
     frame.AddrStack.Offset = context.Rsp;
 #endif
 
-    skip_count = 1; /* leave out this function */
-#if GLIB_SIZEOF_VOID_P == 8
-    skip_count++;
-#endif
+    skip_count++; /* leave out this function */
   }
 
   return_addresses->len = 0;
+
+  current_process = GetCurrentProcess ();
+  current_thread = GetCurrentThread ();
 
   dbghelp->Lock ();
 
   for (i = 0; i < GUM_MAX_BACKTRACE_DEPTH + skip_count; i++)
   {
     success = dbghelp->StackWalk64 (GUM_BACKTRACER_MACHINE_TYPE,
-        GetCurrentProcess (), GetCurrentThread (), &frame, &context, NULL,
+        current_process, current_thread, &frame, &context, NULL,
         dbghelp->SymFunctionTableAccess64, dbghelp->SymGetModuleBase64, NULL);
     if (!success)
       break;

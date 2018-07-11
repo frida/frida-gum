@@ -1,12 +1,11 @@
 /*
- * Copyright (C) 2008-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gumsymbolutil.h"
 
-#include "gum-init.h"
 #include "gumdbghelp.h"
 
 #include <psapi.h>
@@ -18,10 +17,10 @@
 typedef struct _GumSymbolInfo GumSymbolInfo;
 
 #ifdef _MSC_VER
-#pragma pack(push)
-#pragma pack(1)
+# pragma pack(push)
+# pragma pack(1)
 #else
-#error Fix this for other compilers
+# error Fix this for other compilers
 #endif
 
 struct _GumSymbolInfo
@@ -31,56 +30,12 @@ struct _GumSymbolInfo
 };
 
 #ifdef _MSC_VER
-#pragma pack(pop)
+# pragma pack(pop)
 #endif
-
-static gpointer do_init (gpointer data);
-static void do_deinit (void);
 
 static BOOL CALLBACK enum_functions_callback (SYMBOL_INFO * sym_info,
     gulong symbol_size, gpointer user_context);
 static gboolean is_function (SYMBOL_INFO * sym_info);
-
-static GumDbgHelpImpl *
-gum_symbol_util_try_get_dbghelp (void)
-{
-  static GOnce init_once = G_ONCE_INIT;
-
-  g_once (&init_once, do_init, NULL);
-
-  return init_once.retval;
-}
-
-static gpointer
-do_init (gpointer data)
-{
-  GumDbgHelpImpl * dbghelp;
-
-  (void) data;
-
-  dbghelp = gum_dbghelp_impl_obtain ();
-  if (dbghelp == NULL)
-    return NULL;
-
-  dbghelp->SymInitialize (GetCurrentProcess (), NULL, TRUE);
-
-  _gum_register_destructor (do_deinit);
-
-  return dbghelp;
-}
-
-static void
-do_deinit (void)
-{
-  GumDbgHelpImpl * dbghelp;
-
-  dbghelp = gum_symbol_util_try_get_dbghelp ();
-  g_assert (dbghelp != NULL);
-
-  dbghelp->SymCleanup (GetCurrentProcess ());
-
-  gum_dbghelp_impl_release (dbghelp);
-}
 
 gboolean
 gum_symbol_details_from_address (gpointer address,
@@ -93,7 +48,7 @@ gum_symbol_details_from_address (gpointer address,
   DWORD64 displacement_qw;
   BOOL has_sym_info, has_file_info;
 
-  dbghelp = gum_symbol_util_try_get_dbghelp ();
+  dbghelp = gum_dbghelp_impl_try_obtain ();
   if (dbghelp == NULL)
     return FALSE;
 
@@ -174,7 +129,7 @@ gum_find_functions_matching (const gchar * str)
 
   matches = g_array_new (FALSE, FALSE, sizeof (gpointer));
 
-  dbghelp = gum_symbol_util_try_get_dbghelp ();
+  dbghelp = gum_dbghelp_impl_try_obtain ();
   if (dbghelp == NULL)
     return matches;
 

@@ -1,17 +1,21 @@
 /*
- * Copyright (C) 2008-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gumdbghelp.h"
 
+#include "gum-init.h"
 #include "gumprocess.h"
 
 struct _GumDbgHelpImplPrivate
 {
   HMODULE module;
 };
+
+static gpointer do_init (gpointer data);
+static void do_deinit (void);
 
 static HMODULE load_dbghelp (void);
 
@@ -20,11 +24,21 @@ static void gum_dbghelp_impl_unlock (void);
 
 #define INIT_IMPL_FUNC(func) \
     *((gpointer *) (&impl->##func)) = \
-        GSIZE_TO_POINTER (GetProcAddress (mod, G_STRINGIFY (func)));\
+        GSIZE_TO_POINTER (GetProcAddress (mod, G_STRINGIFY (func))); \
     g_assert (impl->##func != NULL)
 
 GumDbgHelpImpl *
-gum_dbghelp_impl_obtain (void)
+gum_dbghelp_impl_try_obtain (void)
+{
+  static GOnce init_once = G_ONCE_INIT;
+
+  g_once (&init_once, do_init, NULL);
+
+  return init_once.retval;
+}
+
+static gpointer
+do_init (gpointer data)
 {
   HMODULE mod;
   GumDbgHelpImpl * impl;
@@ -50,12 +64,23 @@ gum_dbghelp_impl_obtain (void)
   impl->Lock = gum_dbghelp_impl_lock;
   impl->Unlock = gum_dbghelp_impl_unlock;
 
+  impl->SymInitialize (GetCurrentProcess (), NULL, TRUE);
+
+  _gum_register_destructor (do_deinit);
+
   return impl;
 }
 
-void
-gum_dbghelp_impl_release (GumDbgHelpImpl * impl)
+static void
+do_deinit (void)
 {
+  GumDbgHelpImpl * impl;
+
+  impl = gum_dbghelp_impl_try_obtain ();
+  g_assert (impl != NULL);
+
+  impl->SymCleanup (GetCurrentProcess ());
+
   FreeLibrary (impl->priv->module);
   g_slice_free (GumDbgHelpImplPrivate, impl->priv);
   g_slice_free (GumDbgHelpImpl, impl);

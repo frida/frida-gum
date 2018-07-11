@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -58,8 +58,7 @@ struct _GumDbgHelpImpl
 
 G_BEGIN_DECLS
 
-GumDbgHelpImpl * gum_dbghelp_impl_obtain (void);
-void gum_dbghelp_impl_release (GumDbgHelpImpl * impl);
+G_GNUC_INTERNAL GumDbgHelpImpl * gum_dbghelp_impl_try_obtain (void);
 
 G_END_DECLS
 
