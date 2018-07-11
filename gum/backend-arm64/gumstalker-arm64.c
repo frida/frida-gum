@@ -3020,6 +3020,7 @@ gum_exec_block_invoke_call_probes_for_target (GumExecBlock * block,
     call_site.cpu_context = cpu_context;
 
     cpu_context->pc = GPOINTER_TO_SIZE (location);
+    cpu_context->lr = cpu_context->pc + 4;
 
     for (probe_index = 0; probe_index != probes->len; probe_index++)
     {

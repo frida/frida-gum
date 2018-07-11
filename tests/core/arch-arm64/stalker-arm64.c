@@ -216,6 +216,8 @@ struct _CallProbeContext
 {
   guint callback_count;
   guint8 * block_start;
+  gpointer call_address;
+  gpointer return_address;
 };
 
 static void probe_func_a_invocation (GumCallSite * site, gpointer user_data);
@@ -262,6 +264,8 @@ STALKER_TESTCASE (call_probe)
 
   probe_ctx.callback_count = 0;
   probe_ctx.block_start = fixture->code;
+  probe_ctx.call_address = fixture->code + (7 * 4);
+  probe_ctx.return_address = fixture->code + (8 * 4);
   probe_id = gum_stalker_add_call_probe (fixture->stalker,
       func_a_address, probe_func_a_invocation, &probe_ctx, NULL);
   test_arm64_stalker_fixture_follow_and_invoke (fixture, func, 0);
@@ -269,6 +273,8 @@ STALKER_TESTCASE (call_probe)
 
   secondary_probe_ctx.callback_count = 0;
   secondary_probe_ctx.block_start = fixture->code;
+  secondary_probe_ctx.call_address = probe_ctx.call_address;
+  secondary_probe_ctx.return_address = probe_ctx.return_address;
   gum_stalker_add_call_probe (fixture->stalker,
       func_a_address, probe_func_a_invocation, &secondary_probe_ctx, NULL);
   test_arm64_stalker_fixture_follow_and_invoke (fixture, func, 0);
@@ -295,6 +301,10 @@ probe_func_a_invocation (GumCallSite * site,
   g_assert_cmphex (site->cpu_context->x[2], ==, 0x33);
   g_assert_cmphex (site->cpu_context->x[3], ==, 0x44);
   g_assert_cmphex (site->cpu_context->x[19], ==, 0xaa);
+  g_assert_cmphex (site->cpu_context->pc,
+      ==, GPOINTER_TO_SIZE (ctx->call_address));
+  g_assert_cmphex (site->cpu_context->lr,
+      ==, GPOINTER_TO_SIZE (ctx->return_address));
   g_assert_cmphex (((gsize *) site->stack_data)[0], ==, 0x11);
   g_assert_cmphex (((gsize *) site->stack_data)[1], ==, 0x22);
 }

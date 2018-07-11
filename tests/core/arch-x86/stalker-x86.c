@@ -476,6 +476,8 @@ struct _CallProbeContext
 {
   guint callback_count;
   guint8 * block_start;
+  gpointer call_address;
+  gpointer return_address;
 };
 
 static void probe_func_a_invocation (GumCallSite * site, gpointer user_data);
@@ -519,6 +521,8 @@ STALKER_TESTCASE (call_probe)
 
   probe_ctx.callback_count = 0;
   probe_ctx.block_start = fixture->code;
+  probe_ctx.call_address = fixture->code + 20;
+  probe_ctx.return_address = fixture->code + 25;
   probe_id = gum_stalker_add_call_probe (fixture->stalker,
       func_a_address, probe_func_a_invocation, &probe_ctx, NULL);
   test_stalker_fixture_follow_and_invoke (fixture, func, 0);
@@ -526,6 +530,8 @@ STALKER_TESTCASE (call_probe)
 
   secondary_probe_ctx.callback_count = 0;
   secondary_probe_ctx.block_start = fixture->code;
+  secondary_probe_ctx.call_address = probe_ctx.call_address;
+  secondary_probe_ctx.return_address = probe_ctx.return_address;
   gum_stalker_add_call_probe (fixture->stalker,
       func_a_address, probe_func_a_invocation, &secondary_probe_ctx, NULL);
   test_stalker_fixture_follow_and_invoke (fixture, func, 0);
@@ -554,10 +560,23 @@ probe_func_a_invocation (GumCallSite * site,
   g_assert_cmphex (site->cpu_context->rcx & 0xffffffff, ==, 0xaaaa1111);
   g_assert_cmphex (site->cpu_context->rdx & 0xffffffff, ==, 0xaaaa2222);
 #endif
-  g_assert_cmphex (((gsize *) site->stack_data)[0] & 0xffffffff,
-      ==, 0xaaaa3333);
+  g_assert_cmphex (GUM_CPU_CONTEXT_XIP (site->cpu_context),
+      ==, GPOINTER_TO_SIZE (ctx->call_address));
+  g_assert_cmphex (((gsize *) site->stack_data)[0],
+      ==, GPOINTER_TO_SIZE (ctx->return_address));
   g_assert_cmphex (((gsize *) site->stack_data)[1] & 0xffffffff,
+      ==, 0xaaaa3333);
+  g_assert_cmphex (((gsize *) site->stack_data)[2] & 0xffffffff,
       ==, 0xaaaa4444);
+
+#if GLIB_SIZEOF_VOID_P == 4
+  g_assert_cmphex (GPOINTER_TO_SIZE (
+      gum_cpu_context_get_nth_argument (site->cpu_context, 0)),
+      ==, 0xaaaa3333);
+  g_assert_cmphex (GPOINTER_TO_SIZE (
+      gum_cpu_context_get_nth_argument (site->cpu_context, 1)),
+      ==, 0xaaaa4444);
+#endif
 }
 
 static const guint8 jumpy_code[] = {

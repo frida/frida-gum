@@ -3377,7 +3377,9 @@ gum_exec_block_write_unfollow_check_code (GumExecBlock * block,
 
 static void
 gum_exec_block_invoke_call_probes_for_target (GumExecBlock * block,
+                                              gpointer location,
                                               gpointer target_address,
+                                              gpointer return_address,
                                               GumCpuContext * cpu_context)
 {
   GumStalkerPrivate * priv = block->ctx->stalker->priv;
@@ -3390,14 +3392,18 @@ gum_exec_block_invoke_call_probes_for_target (GumExecBlock * block,
   if (probes != NULL)
   {
     GumCallSite call_site;
+    gpointer * return_address_slot;
     guint i;
 
     call_site.block_address = block->real_begin;
-    call_site.stack_data = block->ctx->app_stack;
+    call_site.stack_data = ((gpointer *) block->ctx->app_stack) - 1;
     call_site.cpu_context = cpu_context;
 
-    GUM_CPU_CONTEXT_XIP (cpu_context) = GPOINTER_TO_SIZE (block->real_begin);
-    GUM_CPU_CONTEXT_XSP (cpu_context) = GPOINTER_TO_SIZE (call_site.stack_data);
+    GUM_CPU_CONTEXT_XIP (cpu_context) = GPOINTER_TO_SIZE (location);
+
+    return_address_slot = call_site.stack_data;
+    *return_address_slot = return_address;
+    GUM_CPU_CONTEXT_XSP (cpu_context) = GPOINTER_TO_SIZE (return_address_slot);
 
     for (i = 0; i != probes->len; i++)
     {
@@ -3438,9 +3444,11 @@ gum_exec_block_write_call_probe_code (GumExecBlock * block,
     gum_x86_writer_put_pop_reg (cw, GUM_REG_XAX);
 
     gum_x86_writer_put_call_address_with_aligned_arguments (cw, GUM_CALL_CAPI,
-        GUM_ADDRESS (gum_exec_block_invoke_call_probes_for_target), 3,
+        GUM_ADDRESS (gum_exec_block_invoke_call_probes_for_target), 5,
         GUM_ARG_ADDRESS, GUM_ADDRESS (block),
+        GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->begin),
         GUM_ARG_REGISTER, GUM_REG_XAX,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->end),
         GUM_ARG_REGISTER, GUM_REG_XBX);
   }
 }
