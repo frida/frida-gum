@@ -48,8 +48,8 @@ static GumMatchToken * gum_match_pattern_get_longest_token (
     const GumMatchPattern * self, GumMatchType type);
 static gboolean gum_match_pattern_try_match_on (const GumMatchPattern * self,
     guint8 * bytes);
-static gint gum_memcmp_mask (guint8 * haystack, guint8 * needle,
-    guint8 * mask, gsize len);
+static gint gum_memcmp_mask (const guint8 * haystack, const guint8 * needle,
+    const guint8 * mask, guint len);
 static GumMatchToken * gum_match_pattern_push_token (GumMatchPattern * self,
     GumMatchType type);
 static gboolean gum_match_pattern_seal (GumMatchPattern * self);
@@ -291,18 +291,18 @@ GumMatchPattern *
 gum_match_pattern_new_from_string (const gchar * match_combined_str)
 {
   GumMatchPattern * pattern = NULL;
-  gchar ** splitted;
+  gchar ** parts;
   const gchar * match_str, * mask_str;
   gboolean has_mask = FALSE;
   GumMatchToken * token = NULL;
   const gchar * ch, * mh;
 
-  splitted = g_strsplit (match_combined_str, ":", 2);
-  match_str = splitted[0];
+  parts = g_strsplit (match_combined_str, ":", 2);
+  match_str = parts[0];
   if (match_str == NULL)
     goto parse_error;
 
-  mask_str = splitted[1];
+  mask_str = parts[1];
   has_mask = mask_str != NULL;
   if (has_mask && strlen (mask_str) != strlen (match_str))
     goto parse_error;
@@ -379,15 +379,17 @@ gum_match_pattern_new_from_string (const gchar * match_combined_str)
   if (!gum_match_pattern_seal (pattern))
     goto parse_error;
 
-  g_strfreev (splitted);
+  g_strfreev (parts);
+
   return pattern;
 
   /* ERRORS */
 parse_error:
   {
-    g_strfreev (splitted);
+    g_strfreev (parts);
     if (pattern != NULL)
       gum_match_pattern_free (pattern);
+
     return NULL;
   }
 }
@@ -456,7 +458,7 @@ gum_match_pattern_try_match_on (const GumMatchPattern * self,
                                 guint8 * bytes)
 {
   guint i;
-  gboolean there_are_masks = FALSE;
+  gboolean no_masks = TRUE;
 
   for (i = 0; i != self->tokens->len; i++)
   {
@@ -476,11 +478,11 @@ gum_match_pattern_try_match_on (const GumMatchPattern * self,
     }
     else if (token->type == GUM_MATCH_MASK)
     {
-      there_are_masks = TRUE;
+      no_masks = FALSE;
     }
   }
 
-  if (!there_are_masks)
+  if (no_masks)
     return TRUE;
 
   for (i = 0; i != self->tokens->len; i++)
@@ -494,7 +496,7 @@ gum_match_pattern_try_match_on (const GumMatchPattern * self,
 
       p = (gchar *) bytes + token->offset;
       if (gum_memcmp_mask ((guint8 *) p, (guint8 *) token->bytes->data,
-         (guint8 *) token->masks->data, token->masks->len) != 0)
+          (guint8 *) token->masks->data, token->masks->len) != 0)
       {
         return FALSE;
       }
@@ -505,10 +507,10 @@ gum_match_pattern_try_match_on (const GumMatchPattern * self,
 }
 
 static gint
-gum_memcmp_mask (guint8 * haystack,
-                 guint8 * needle,
-                 guint8 * mask,
-                 gsize len)
+gum_memcmp_mask (const guint8 * haystack,
+                 const guint8 * needle,
+                 const guint8 * mask,
+                 guint len)
 {
   guint i;
 
