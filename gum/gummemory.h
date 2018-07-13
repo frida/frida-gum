@@ -80,7 +80,7 @@ GUM_API void gum_memory_scan (const GumMemoryRange * range,
     gpointer user_data);
 
 GUM_API GumMatchPattern * gum_match_pattern_new_from_string (
-    const gchar * match_str);
+    const gchar * match_combined_str);
 GUM_API void gum_match_pattern_free (GumMatchPattern * pattern);
 
 GUM_API void gum_mprotect (gpointer address, gsize size,

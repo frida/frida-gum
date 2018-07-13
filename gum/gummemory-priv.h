@@ -21,13 +21,15 @@ struct _GumMatchPattern
 enum _GumMatchType
 {
   GUM_MATCH_EXACT,
-  GUM_MATCH_WILDCARD
+  GUM_MATCH_WILDCARD,
+  GUM_MATCH_MASK
 };
 
 struct _GumMatchToken
 {
   GumMatchType type;
   GArray * bytes;
+  GArray * masks;
   guint offset;
 };
 

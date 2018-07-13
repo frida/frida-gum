@@ -48,6 +48,8 @@ static GumMatchToken * gum_match_pattern_get_longest_token (
     const GumMatchPattern * self, GumMatchType type);
 static gboolean gum_match_pattern_try_match_on (const GumMatchPattern * self,
     guint8 * bytes);
+static gint gum_memcmp_mask (const guint8 * haystack, const guint8 * needle,
+    const guint8 * mask, guint len);
 static GumMatchToken * gum_match_pattern_push_token (GumMatchPattern * self,
     GumMatchType type);
 static gboolean gum_match_pattern_seal (GumMatchPattern * self);
@@ -55,6 +57,8 @@ static gboolean gum_match_pattern_seal (GumMatchPattern * self);
 static GumMatchToken * gum_match_token_new (GumMatchType type);
 static void gum_match_token_free (GumMatchToken * token);
 static void gum_match_token_append (GumMatchToken * self, guint8 byte);
+static void gum_match_token_append_with_mask (GumMatchToken * self,
+    guint8 byte, guint8 mask);
 
 static GumMemoryRange * gum_memory_range_copy (const GumMemoryRange * range);
 static void gum_memory_range_free (GumMemoryRange * range);
@@ -232,11 +236,17 @@ gum_memory_scan (const GumMemoryRange * range,
                  gpointer user_data)
 {
   GumMatchToken * needle;
-  guint8 * needle_data;
+  guint8 * needle_data, * mask_data = NULL;
   guint needle_len;
   guint8 * cur, * end_address;
 
   needle = gum_match_pattern_get_longest_token (pattern, GUM_MATCH_EXACT);
+  if (needle == NULL)
+  {
+    needle = gum_match_pattern_get_longest_token (pattern, GUM_MATCH_MASK);
+    mask_data = (guint8 *) needle->masks->data;
+  }
+
   needle_data = (guint8 *) needle->bytes->data;
   needle_len = needle->bytes->len;
 
@@ -247,8 +257,23 @@ gum_memory_scan (const GumMemoryRange * range,
   {
     guint8 * start;
 
-    if (cur[0] != needle_data[0] || memcmp (cur, needle_data, needle_len) != 0)
-      continue;
+    if (mask_data == NULL)
+    {
+      if (cur[0] != needle_data[0] ||
+          memcmp (cur, needle_data, needle_len) != 0)
+      {
+        continue;
+      }
+    }
+    else
+    {
+      if ((cur[0] & mask_data[0]) != (needle_data[0] & mask_data[0]) ||
+          gum_memcmp_mask ((guint8 *) cur, (guint8 *) needle_data,
+              (guint8 *) mask_data, needle_len) != 0)
+      {
+        continue;
+      }
+    }
 
     start = cur - needle->offset;
 
@@ -263,54 +288,108 @@ gum_memory_scan (const GumMemoryRange * range,
 }
 
 GumMatchPattern *
-gum_match_pattern_new_from_string (const gchar * match_str)
+gum_match_pattern_new_from_string (const gchar * match_combined_str)
 {
-  GumMatchPattern * pattern;
+  GumMatchPattern * pattern = NULL;
+  gchar ** parts;
+  const gchar * match_str, * mask_str;
+  gboolean has_mask = FALSE;
   GumMatchToken * token = NULL;
-  const gchar * ch;
+  const gchar * ch, * mh;
+
+  parts = g_strsplit (match_combined_str, ":", 2);
+  match_str = parts[0];
+  if (match_str == NULL)
+    goto parse_error;
+
+  mask_str = parts[1];
+  has_mask = mask_str != NULL;
+  if (has_mask && strlen (mask_str) != strlen (match_str))
+    goto parse_error;
 
   pattern = gum_match_pattern_new ();
 
-  for (ch = match_str; *ch != '\0'; ch++)
+  for (ch = match_str, mh = mask_str;
+       *ch != '\0' && (!has_mask || *mh != '\0');
+       ch++, mh++)
   {
     gint upper, lower;
+    gint mask = 0xff;
     guint8 value;
 
     if (ch[0] == ' ')
       continue;
 
-    if (ch[0] == '?' && ch[1] == '?')
+    if (has_mask)
+    {
+      while (mh[0] == ' ')
+        mh++;
+      if ((upper = g_ascii_xdigit_value (mh[0])) == -1)
+        goto parse_error;
+      if ((lower = g_ascii_xdigit_value (mh[1])) == -1)
+        goto parse_error;
+      mask = (upper << 4) | lower;
+    }
+
+    if (ch[0] == '?')
+    {
+      upper = 4;
+      mask &= 0x0f;
+    }
+    else if ((upper = g_ascii_xdigit_value (ch[0])) == -1)
+    {
+      goto parse_error;
+    }
+
+    if (ch[1] == '?')
+    {
+      lower = 2;
+      mask &= 0xf0;
+    }
+    else if ((lower = g_ascii_xdigit_value (ch[1])) == -1)
+    {
+      goto parse_error;
+    }
+
+    value = (upper << 4) | lower;
+
+    if (mask == 0xff)
+    {
+      if (token == NULL || token->type != GUM_MATCH_EXACT)
+        token = gum_match_pattern_push_token (pattern, GUM_MATCH_EXACT);
+      gum_match_token_append (token, value);
+    }
+    else if (mask == 0x00)
     {
       if (token == NULL || token->type != GUM_MATCH_WILDCARD)
         token = gum_match_pattern_push_token (pattern, GUM_MATCH_WILDCARD);
       gum_match_token_append (token, 0x42);
-
-      ch++;
-      continue;
+    }
+    else
+    {
+      if (token == NULL || token->type != GUM_MATCH_MASK)
+        token = gum_match_pattern_push_token (pattern, GUM_MATCH_MASK);
+      gum_match_token_append_with_mask (token, value, mask);
     }
 
-    if ((upper = g_ascii_xdigit_value (ch[0])) == -1)
-      goto parse_error;
-    if ((lower = g_ascii_xdigit_value (ch[1])) == -1)
-      goto parse_error;
-    value = (upper << 4) | lower;
-
-    if (token == NULL || token->type != GUM_MATCH_EXACT)
-      token = gum_match_pattern_push_token (pattern, GUM_MATCH_EXACT);
-    gum_match_token_append (token, value);
-
     ch++;
+    mh++;
   }
 
   if (!gum_match_pattern_seal (pattern))
     goto parse_error;
+
+  g_strfreev (parts);
 
   return pattern;
 
   /* ERRORS */
 parse_error:
   {
-    gum_match_pattern_free (pattern);
+    g_strfreev (parts);
+    if (pattern != NULL)
+      gum_match_pattern_free (pattern);
+
     return NULL;
   }
 }
@@ -379,6 +458,7 @@ gum_match_pattern_try_match_on (const GumMatchPattern * self,
                                 guint8 * bytes)
 {
   guint i;
+  gboolean no_masks = TRUE;
 
   for (i = 0; i != self->tokens->len; i++)
   {
@@ -396,9 +476,53 @@ gum_match_pattern_try_match_on (const GumMatchPattern * self,
         return FALSE;
       }
     }
+    else if (token->type == GUM_MATCH_MASK)
+    {
+      no_masks = FALSE;
+    }
+  }
+
+  if (no_masks)
+    return TRUE;
+
+  for (i = 0; i != self->tokens->len; i++)
+  {
+    GumMatchToken * token;
+
+    token = (GumMatchToken *) g_ptr_array_index (self->tokens, i);
+    if (token->type == GUM_MATCH_MASK)
+    {
+      gchar * p;
+
+      p = (gchar *) bytes + token->offset;
+      if (gum_memcmp_mask ((guint8 *) p, (guint8 *) token->bytes->data,
+          (guint8 *) token->masks->data, token->masks->len) != 0)
+      {
+        return FALSE;
+      }
+    }
   }
 
   return TRUE;
+}
+
+static gint
+gum_memcmp_mask (const guint8 * haystack,
+                 const guint8 * needle,
+                 const guint8 * mask,
+                 guint len)
+{
+  guint i;
+
+  for (i = 0; i != len; i++)
+  {
+    guint8 value = *(haystack++) & mask[i];
+    guint8 test_value = needle[i] & mask[i];
+    if (value != test_value)
+      return value - test_value;
+  }
+
+  return 0;
 }
 
 static GumMatchToken *
@@ -427,12 +551,12 @@ gum_match_pattern_seal (GumMatchPattern * self)
     return FALSE;
 
   token = (GumMatchToken *) g_ptr_array_index (self->tokens, 0);
-  if (token->type != GUM_MATCH_EXACT)
+  if (token->type == GUM_MATCH_WILDCARD)
     return FALSE;
 
   token = (GumMatchToken *) g_ptr_array_index (self->tokens,
       self->tokens->len - 1);
-  if (token->type != GUM_MATCH_EXACT)
+  if (token->type == GUM_MATCH_WILDCARD)
     return FALSE;
 
   return TRUE;
@@ -446,6 +570,7 @@ gum_match_token_new (GumMatchType type)
   token = g_slice_new (GumMatchToken);
   token->type = type;
   token->bytes = g_array_new (FALSE, FALSE, sizeof (guint8));
+  token->masks = NULL;
   token->offset = 0;
 
   return token;
@@ -455,6 +580,8 @@ static void
 gum_match_token_free (GumMatchToken * token)
 {
   g_array_free (token->bytes, TRUE);
+  if (token->masks != NULL)
+    g_array_free (token->bytes, TRUE);
   g_slice_free (GumMatchToken, token);
 }
 
@@ -463,6 +590,19 @@ gum_match_token_append (GumMatchToken * self,
                         guint8 byte)
 {
   g_array_append_val (self->bytes, byte);
+}
+
+static void
+gum_match_token_append_with_mask (GumMatchToken * self,
+                                  guint8 byte,
+                                  guint8 mask)
+{
+  g_array_append_val (self->bytes, byte);
+
+  if (self->masks == NULL)
+    self->masks = g_array_new (FALSE, FALSE, sizeof (guint8));
+
+  g_array_append_val (self->masks, mask);
 }
 
 void
