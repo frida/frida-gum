@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -645,8 +645,22 @@ gum_invocation_stack_translate (GumInvocationStack * self,
 }
 
 gpointer
-_gum_interceptor_translate_top_return_address (GumInterceptor * self,
-                                               gpointer return_address)
+_gum_interceptor_peek_top_caller_return_address (void)
+{
+  GumInvocationStack * stack;
+  GumInvocationStackEntry * entry;
+
+  stack = gum_interceptor_get_current_stack ();
+  if (stack->len == 0)
+    return NULL;
+
+  entry = &g_array_index (stack, GumInvocationStackEntry, stack->len - 1);
+
+  return entry->caller_ret_addr;
+}
+
+gpointer
+_gum_interceptor_translate_top_return_address (gpointer return_address)
 {
   GumInvocationStack * stack;
   GumInvocationStackEntry * entry;

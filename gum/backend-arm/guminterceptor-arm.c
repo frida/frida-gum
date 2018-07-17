@@ -326,8 +326,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
               ARM_SYSREG_APSR_NZCVQ);
 
           gum_thumb_writer_put_call_address_with_arguments (tw,
-              GUM_ADDRESS (_gum_interceptor_translate_top_return_address), 2,
-              GUM_ARG_ADDRESS, GUM_ADDRESS (ctx->interceptor),
+              GUM_ADDRESS (_gum_interceptor_translate_top_return_address), 1,
               GUM_ARG_REGISTER, ARM_REG_LR);
           gum_thumb_writer_put_mov_reg_reg (tw, dst_reg, ARM_REG_R0);
 

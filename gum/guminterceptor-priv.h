@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -83,7 +83,8 @@ G_GNUC_INTERNAL gpointer _gum_interceptor_backend_resolve_redirect (
 G_GNUC_INTERNAL gboolean _gum_interceptor_backend_can_intercept (
     GumInterceptorBackend * self, gpointer function_address);
 
+G_GNUC_INTERNAL gpointer _gum_interceptor_peek_top_caller_return_address (void);
 G_GNUC_INTERNAL gpointer _gum_interceptor_translate_top_return_address (
-    GumInterceptor * self, gpointer return_address);
+    gpointer return_address);
 
 #endif
