@@ -497,7 +497,12 @@ declare namespace Memory {
      * @param address Starting address to scan from.
      * @param size Number of bytes to scan.
      * @param pattern Match pattern of the form “13 37 ?? ff” to match 0x13 followed by 0x37 followed by any byte
-     *                followed by 0xff.
+     *                followed by 0xff. For more advanced matching it is also possible to specify an r2-style mask.
+     *                The mask is bitwise AND-ed against both the needle and the haystack. To specify the mask append
+     *                a `:` character after the needle, followed by the mask using the same syntax.
+     *                For example: “13 37 13 37 : 1f ff ff f1”.
+     *                For convenience it is also possible to specify nibble-level wildcards, like “?3 37 13 ?7”,
+     *                which gets translated into masks behind the scenes.
      * @param callbacks Object with callbacks.
      */
     function scan(address: NativePointerValue, size: number | UInt64, pattern: string, callbacks: MemoryScanCallbacks): void;
@@ -507,8 +512,7 @@ declare namespace Memory {
      *
      * @param address Starting address to scan from.
      * @param size Number of bytes to scan.
-     * @param pattern Match pattern of the form “13 37 ?? ff” to match 0x13 followed by 0x37 followed by any byte
-     *                followed by 0xff.
+     * @param pattern Match pattern, see `Memory.scan()` for details.
      * @param callbacks Object with callbacks.
      */
     function scanSync(address: NativePointerValue, size: number | UInt64, pattern: string): MemoryScanMatch[];
