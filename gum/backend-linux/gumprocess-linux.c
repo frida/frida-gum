@@ -278,11 +278,6 @@ static gssize gum_libc_ptrace (gsize request, pid_t pid, gpointer address,
 #define gum_libc_syscall_3(n, a, b, c) gum_libc_syscall_4 (n, a, b, c, 0)
 static gssize gum_libc_syscall_4 (gsize n, gsize a, gsize b, gsize c, gsize d);
 
-#if defined (HAVE_MIPS)
-static int getcontext (ucontext_t * ucp);
-static int setcontext (const ucontext_t * ucp);
-#endif
-
 static gboolean gum_is_regset_supported = TRUE;
 
 gboolean
@@ -2585,17 +2580,3 @@ gum_libc_syscall_4 (gsize n,
 
   return result;
 }
-
-#if defined (HAVE_MIPS)
-static int
-getcontext (ucontext_t * ucp)
-{
-   g_assert_not_reached ();
-}
-
-static int
-setcontext (const ucontext_t * ucp)
-{
-  g_assert_not_reached ();
-}
-#endif
