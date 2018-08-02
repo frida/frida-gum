@@ -184,19 +184,18 @@ _gum_v8_module_realize (GumV8Module * self)
   auto empty_string = String::Empty (isolate);
 
   auto imp = Object::New (isolate);
-  imp->ForceSet (context, type_key, function_value).FromJust ();
-  imp->ForceSet (context, name_key, empty_string, DontDelete).FromJust ();
-  imp->ForceSet (context, module_key, empty_string).FromJust ();
-  imp->ForceSet (context, address_key, _gum_v8_native_pointer_new (
+  imp->Set (context, type_key, function_value).FromJust ();
+  imp->Set (context, name_key, empty_string).FromJust ();
+  imp->Set (context, module_key, empty_string).FromJust ();
+  imp->Set (context, address_key, _gum_v8_native_pointer_new (
       GSIZE_TO_POINTER (NULL), self->core)).FromJust ();
   self->import_value = new GumPersistent<Object>::type (isolate, imp);
 
   auto exp = Object::New (isolate);
-  exp->ForceSet (context, type_key, function_value, DontDelete)
-      .FromJust ();
-  exp->ForceSet (context, name_key, empty_string, DontDelete).FromJust ();
-  exp->ForceSet (context, address_key, _gum_v8_native_pointer_new (
-      GSIZE_TO_POINTER (NULL), self->core), DontDelete).FromJust ();
+  exp->Set (context, type_key, function_value).FromJust ();
+  exp->Set (context, name_key, empty_string).FromJust ();
+  exp->Set (context, address_key, _gum_v8_native_pointer_new (
+      GSIZE_TO_POINTER (NULL), self->core)).FromJust ();
   self->export_value = new GumPersistent<Object>::type (isolate, exp);
 }
 
@@ -309,8 +308,6 @@ gum_emit_import (const GumImportDetails * details,
 
   auto imp = ic->imp->Clone ();
 
-  auto attrs = (PropertyAttribute) (ReadOnly | DontDelete);
-
   switch (details->type)
   {
     case GUM_IMPORT_FUNCTION:
@@ -320,7 +317,7 @@ gum_emit_import (const GumImportDetails * details,
     }
     case GUM_IMPORT_VARIABLE:
     {
-      imp->ForceSet (context, ic->type, ic->variable, attrs).FromJust ();
+      imp->Set (context, ic->type, ic->variable).FromJust ();
       break;
     }
     case GUM_IMPORT_UNKNOWN:
@@ -335,13 +332,13 @@ gum_emit_import (const GumImportDetails * details,
     }
   }
 
-  imp->ForceSet (context, ic->name,
-      _gum_v8_string_new_ascii (isolate, details->name), attrs).FromJust ();
+  imp->Set (context, ic->name,
+      _gum_v8_string_new_ascii (isolate, details->name)).FromJust ();
 
   if (details->module != NULL)
   {
-    imp->ForceSet (context, ic->module,
-        _gum_v8_string_new_ascii (isolate, details->module), attrs).FromJust ();
+    imp->Set (context, ic->module,
+        _gum_v8_string_new_ascii (isolate, details->module)).FromJust ();
   }
   else
   {
@@ -350,9 +347,9 @@ gum_emit_import (const GumImportDetails * details,
 
   if (details->address != 0)
   {
-    imp->ForceSet (context, ic->address,
-        _gum_v8_native_pointer_new (GSIZE_TO_POINTER (details->address), core),
-        attrs).FromJust ();
+    imp->Set (context, ic->address,
+        _gum_v8_native_pointer_new (GSIZE_TO_POINTER (details->address), core))
+        .FromJust ();
   }
   else
   {
@@ -361,9 +358,9 @@ gum_emit_import (const GumImportDetails * details,
 
   if (details->slot != 0)
   {
-    imp->ForceSet (context, ic->slot,
-        _gum_v8_native_pointer_new (GSIZE_TO_POINTER (details->slot), core),
-        attrs).FromJust ();
+    imp->Set (context, ic->slot,
+        _gum_v8_native_pointer_new (GSIZE_TO_POINTER (details->slot), core))
+        .FromJust ();
   }
   else
   {
@@ -436,19 +433,17 @@ gum_emit_export (const GumExportDetails * details,
 
   auto exp = ec->exp->Clone ();
 
-  auto attrs = (PropertyAttribute) (ReadOnly | DontDelete);
-
   if (details->type != GUM_EXPORT_FUNCTION)
   {
-    exp->ForceSet (context, ec->type, ec->variable, attrs).FromJust ();
+    exp->Set (context, ec->type, ec->variable).FromJust ();
   }
 
-  exp->ForceSet (context, ec->name,
-      _gum_v8_string_new_ascii (isolate, details->name), attrs).FromJust ();
+  exp->Set (context, ec->name,
+      _gum_v8_string_new_ascii (isolate, details->name)).FromJust ();
 
-  exp->ForceSet (context, ec->address,
-      _gum_v8_native_pointer_new (GSIZE_TO_POINTER (details->address), core),
-      attrs).FromJust ();
+  exp->Set (context, ec->address,
+      _gum_v8_native_pointer_new (GSIZE_TO_POINTER (details->address), core))
+      .FromJust ();
 
   Handle<Value> argv[] = { exp };
   auto result = ec->on_match->Call (ec->receiver, G_N_ELEMENTS (argv), argv);

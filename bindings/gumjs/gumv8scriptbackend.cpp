@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -13,7 +13,7 @@
 
 #include <gum/guminterceptor.h>
 #include <string.h>
-#include <v8-debug.h>
+#include <v8-inspector.h>
 
 #define GUM_V8_SCRIPT_BACKEND_LOCK()   (g_mutex_lock (&priv->mutex))
 #define GUM_V8_SCRIPT_BACKEND_UNLOCK() (g_mutex_unlock (&priv->mutex))
@@ -25,20 +25,21 @@
 
 #define GUM_V8_FLAGS \
     "--es-staging " \
-    "--harmony-array-prototype-values " \
-    "--harmony-function-sent " \
-    "--harmony-sharedarraybuffer " \
     "--harmony-do-expressions " \
     "--harmony-class-fields " \
-    "--harmony-async-iteration " \
-    "--harmony-promise-finally " \
+    "--harmony-static-fields " \
     "--experimental-wasm-simd " \
     "--experimental-wasm-eh " \
     "--experimental-wasm-mv " \
     "--experimental-wasm-threads " \
+    "--experimental-wasm-sat-f2i-conversions " \
+    "--experimental-wasm-anyref " \
     "--expose-gc"
 
 using namespace v8;
+using namespace v8_inspector;
+
+class GumInspectorClient;
 
 template <typename T>
 struct GumPersistent
@@ -56,7 +57,9 @@ struct _GumV8ScriptBackendPrivate
   gpointer debug_handler_data;
   GDestroyNotify debug_handler_data_destroy;
   GMainContext * debug_handler_context;
-  GumPersistent<Context>::type * debug_context;
+
+  V8Inspector * inspector;
+  GumInspectorClient * inspector_client;
 };
 
 struct GumCreateScriptData
@@ -76,10 +79,21 @@ struct GumCompileScriptData
   gchar * source;
 };
 
-struct GumEmitDebugMessageData
+class GumInspectorClient : public V8InspectorClient
 {
-  GumV8ScriptBackend * backend;
-  gchar * message;
+public:
+  void runMessageLoopOnPause (int context_group_id) override;
+  void quitMessageLoopOnPause () override;
+  void runIfWaitingForDebugger (int context_group_id) override;
+};
+
+class GumInspectorChannel : public V8Inspector::Channel
+{
+public:
+  void sendResponse (int call_id,
+      std::unique_ptr<StringBuffer> message) override;
+  void sendNotification (std::unique_ptr<StringBuffer> message) override;
+  void flushProtocolNotifications () override;
 };
 
 static void gum_v8_script_backend_iface_init (gpointer g_iface,
@@ -141,15 +155,8 @@ static void gum_v8_script_backend_set_debug_message_handler (
     gpointer data, GDestroyNotify data_destroy);
 static void gum_v8_script_backend_enable_debugger (GumV8ScriptBackend * self);
 static void gum_v8_script_backend_disable_debugger (GumV8ScriptBackend * self);
-static void gum_v8_script_backend_emit_debug_message (
-    const Debug::Message & message);
-static gboolean gum_v8_script_backend_do_emit_debug_message (
-    GumEmitDebugMessageData * d);
-static void gum_emit_debug_message_data_free (GumEmitDebugMessageData * d);
 static void gum_v8_script_backend_post_debug_message (
     GumScriptBackend * backend, const gchar * message);
-static void gum_v8_script_backend_do_process_debug_messages (
-    GumV8ScriptBackend * self);
 static GumScriptScheduler * gum_v8_script_backend_get_scheduler_impl (
     GumScriptBackend * backend);
 
@@ -176,8 +183,6 @@ gum_v8_script_backend_iface_init (gpointer g_iface,
                                   gpointer iface_data)
 {
   auto iface = (GumScriptBackendIface *) g_iface;
-
-  (void) iface_data;
 
   iface->create = gum_v8_script_backend_create;
   iface->create_finish = gum_v8_script_backend_create_finish;
@@ -295,8 +300,6 @@ gum_v8_script_backend_create_finish (GumScriptBackend * backend,
                                      GAsyncResult * result,
                                      GError ** error)
 {
-  (void) backend;
-
   return GUM_SCRIPT (gum_script_task_propagate_pointer (
       GUM_SCRIPT_TASK (result), error));
 }
@@ -347,8 +350,6 @@ gum_create_script_task_run (GumScriptTask * task,
                             GCancellable * cancellable)
 {
   auto isolate = GUM_V8_SCRIPT_BACKEND_GET_ISOLATE (self);
-
-  (void) cancellable;
 
   auto script = GUM_V8_SCRIPT (g_object_new (GUM_V8_TYPE_SCRIPT,
       "name", d->name,
@@ -408,8 +409,6 @@ gum_v8_script_backend_create_from_bytes_finish (GumScriptBackend * backend,
                                                 GAsyncResult * result,
                                                 GError ** error)
 {
-  (void) backend;
-
   return GUM_SCRIPT (gum_script_task_propagate_pointer (
       GUM_SCRIPT_TASK (result), error));
 }
@@ -456,12 +455,6 @@ gum_create_script_from_bytes_task_run (GumScriptTask * task,
                                        GumCreateScriptFromBytesData * d,
                                        GCancellable * cancellable)
 {
-  auto isolate = GUM_V8_SCRIPT_BACKEND_GET_ISOLATE (self);
-
-  (void) isolate;
-  (void) d;
-  (void) cancellable;
-
   auto error = g_error_new (G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
       "not yet supported by the V8 runtime");
   gum_script_task_return_error (task, error);
@@ -497,8 +490,6 @@ gum_v8_script_backend_compile_finish (GumScriptBackend * backend,
                                       GAsyncResult * result,
                                       GError ** error)
 {
-  (void) backend;
-
   return (GBytes *) gum_script_task_propagate_pointer (GUM_SCRIPT_TASK (result),
       error);
 }
@@ -548,12 +539,6 @@ gum_compile_script_task_run (GumScriptTask * task,
                              GumCompileScriptData * d,
                              GCancellable * cancellable)
 {
-  Isolate * isolate = GUM_V8_SCRIPT_BACKEND_GET_ISOLATE (self);
-
-  (void) isolate;
-  (void) d;
-  (void) cancellable;
-
   auto error = g_error_new (G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
       "not yet supported by the V8 runtime");
   gum_script_task_return_error (task, error);
@@ -615,14 +600,11 @@ gum_v8_script_backend_enable_debugger (GumV8ScriptBackend * self)
   Isolate::Scope isolate_scope (isolate);
   HandleScope handle_scope (isolate);
 
-  Debug::SetMessageHandler (isolate, gum_v8_script_backend_emit_debug_message);
+  auto client = new GumInspectorClient ();
+  priv->inspector_client = client;
 
-  auto context = Debug::GetDebugContext (isolate);
-  priv->debug_context = new GumPersistent<Context>::type (isolate, context);
-  Context::Scope context_scope (context);
-
-  gum_v8_bundle_run (
-      GUM_V8_SCRIPT_BACKEND_GET_PLATFORM (self)->GetDebugBundle ());
+  auto inspector = V8Inspector::create (isolate, client);
+  priv->inspector = inspector.release ();
 }
 
 static void
@@ -635,66 +617,11 @@ gum_v8_script_backend_disable_debugger (GumV8ScriptBackend * self)
   Isolate::Scope isolate_scope (isolate);
   HandleScope handle_scope (isolate);
 
-  delete priv->debug_context;
-  priv->debug_context = nullptr;
+  delete priv->inspector;
+  priv->inspector = nullptr;
 
-  Debug::SetMessageHandler (isolate, nullptr);
-}
-
-static void
-gum_v8_script_backend_emit_debug_message (const Debug::Message & message)
-{
-  auto isolate = message.GetIsolate ();
-  auto self = GUM_V8_SCRIPT_BACKEND (isolate->GetData (0));
-  auto priv = self->priv;
-
-  HandleScope scope (isolate);
-
-  auto json = message.GetJSON ();
-  String::Utf8Value json_str (json);
-
-  GUM_V8_SCRIPT_BACKEND_LOCK ();
-  auto context = (priv->debug_handler_context != NULL)
-      ? g_main_context_ref (priv->debug_handler_context)
-      : NULL;
-  GUM_V8_SCRIPT_BACKEND_UNLOCK ();
-
-  if (context == NULL)
-    return;
-
-  auto d = g_slice_new (GumEmitDebugMessageData);
-  d->backend = self;
-  g_object_ref (self);
-  d->message = g_strdup (*json_str);
-
-  auto source = g_idle_source_new ();
-  g_source_set_callback (source,
-      (GSourceFunc) gum_v8_script_backend_do_emit_debug_message, d,
-      (GDestroyNotify) gum_emit_debug_message_data_free);
-  g_source_attach (source, context);
-  g_source_unref (source);
-
-  g_main_context_unref (context);
-}
-
-static gboolean
-gum_v8_script_backend_do_emit_debug_message (GumEmitDebugMessageData * d)
-{
-  auto priv = d->backend->priv;
-
-  if (priv->debug_handler != NULL)
-    priv->debug_handler (d->message, priv->debug_handler_data);
-
-  return FALSE;
-}
-
-static void
-gum_emit_debug_message_data_free (GumEmitDebugMessageData * d)
-{
-  g_free (d->message);
-  g_object_unref (d->backend);
-
-  g_slice_free (GumEmitDebugMessageData, d);
+  delete priv->inspector_client;
+  priv->inspector_client = nullptr;
 }
 
 static void
@@ -707,36 +634,7 @@ gum_v8_script_backend_post_debug_message (GumScriptBackend * backend,
   if (priv->debug_handler == NULL)
     return;
 
-  auto isolate = GUM_V8_SCRIPT_BACKEND_GET_ISOLATE (self);
-
-  glong command_length;
-  uint16_t * command = g_utf8_to_utf16 (message, (glong) strlen (message), NULL,
-      &command_length, NULL);
-  g_assert (command != NULL);
-
-  Debug::SendCommand (isolate, command, command_length);
-
-  g_free (command);
-
-  gum_script_scheduler_push_job_on_js_thread (
-      gum_v8_script_backend_get_scheduler (self), G_PRIORITY_DEFAULT,
-      (GumScriptJobFunc) gum_v8_script_backend_do_process_debug_messages,
-      self, NULL);
-}
-
-static void
-gum_v8_script_backend_do_process_debug_messages (GumV8ScriptBackend * self)
-{
-  auto priv = self->priv;
-  auto isolate = GUM_V8_SCRIPT_BACKEND_GET_ISOLATE (self);
-
-  Locker locker (isolate);
-  Isolate::Scope isolate_scope (isolate);
-  HandleScope handle_scope (isolate);
-  auto context = Local<Context>::New (isolate, *priv->debug_context);
-  Context::Scope context_scope (context);
-
-  Debug::ProcessDebugMessages (isolate);
+  /* FIXME */
 }
 
 static GumScriptScheduler *
@@ -745,4 +643,41 @@ gum_v8_script_backend_get_scheduler_impl (GumScriptBackend * backend)
   auto self = GUM_V8_SCRIPT_BACKEND (backend);
 
   return GUM_V8_SCRIPT_BACKEND_GET_PLATFORM (self)->GetScheduler ();
+}
+
+void
+GumInspectorClient::runMessageLoopOnPause (int context_group_id)
+{
+  /* FIXME */
+}
+
+void
+GumInspectorClient::quitMessageLoopOnPause ()
+{
+  /* FIXME */
+}
+
+void
+GumInspectorClient::runIfWaitingForDebugger (int context_group_id)
+{
+  /* FIXME */
+}
+
+void
+GumInspectorChannel::sendResponse (int call_id,
+                                   std::unique_ptr<StringBuffer> message)
+{
+  /* FIXME */
+}
+
+void
+GumInspectorChannel::sendNotification (std::unique_ptr<StringBuffer> message)
+{
+  /* FIXME */
+}
+
+void
+GumInspectorChannel::flushProtocolNotifications ()
+{
+  /* FIXME */
 }

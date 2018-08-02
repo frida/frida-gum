@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -557,7 +557,8 @@ Local<String>
 _gum_v8_string_new_ascii (Isolate * isolate,
                           const gchar * str)
 {
-  return String::NewFromOneByte (isolate, (const uint8_t *) str);
+  return String::NewFromOneByte (isolate, (const uint8_t *) str,
+      NewStringType::kNormal).ToLocalChecked ();
 }
 
 GBytes *

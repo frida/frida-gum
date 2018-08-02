@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -292,16 +292,17 @@ gum_v8_script_create_context (GumV8Script * self,
   g_assert (priv->context == NULL);
 
   {
-    Locker locker (priv->isolate);
-    Isolate::Scope isolate_scope (priv->isolate);
-    HandleScope handle_scope (priv->isolate);
+    Isolate * isolate = priv->isolate;
+    Locker locker (isolate);
+    Isolate::Scope isolate_scope (isolate);
+    HandleScope handle_scope (isolate);
 
-    auto global_templ = ObjectTemplate::New ();
+    auto global_templ = ObjectTemplate::New (isolate);
     auto platform =
         (GumV8Platform *) gum_v8_script_backend_get_platform (priv->backend);
     _gum_v8_core_init (&priv->core, self, platform->GetRuntimeSourceMap (),
         gum_v8_script_emit, gum_v8_script_backend_get_scheduler (priv->backend),
-        priv->isolate, global_templ);
+        isolate, global_templ);
     _gum_v8_kernel_init (&priv->kernel, &priv->core, global_templ);
     _gum_v8_memory_init (&priv->memory, &priv->core, global_templ);
     _gum_v8_process_init (&priv->process, &priv->core, global_templ);
@@ -322,8 +323,8 @@ gum_v8_script_create_context (GumV8Script * self,
     _gum_v8_stalker_init (&priv->stalker, &priv->code_writer,
         &priv->instruction, &priv->core, global_templ);
 
-    auto context = Context::New (priv->isolate, NULL, global_templ);
-    priv->context = new GumPersistent<Context>::type (priv->isolate, context);
+    auto context = Context::New (isolate, NULL, global_templ);
+    priv->context = new GumPersistent<Context>::type (isolate, context);
     Context::Scope context_scope (context);
     _gum_v8_core_realize (&priv->core);
     _gum_v8_kernel_realize (&priv->kernel);
@@ -344,18 +345,18 @@ gum_v8_script_create_context (GumV8Script * self,
     _gum_v8_stalker_realize (&priv->stalker);
 
     auto resource_name_str = g_strconcat (priv->name, ".js", NULL);
-    auto resource_name = String::NewFromUtf8 (priv->isolate, resource_name_str);
+    auto resource_name = String::NewFromUtf8 (isolate, resource_name_str);
     ScriptOrigin origin (resource_name);
     g_free (resource_name_str);
 
-    auto source = String::NewFromUtf8 (priv->isolate, priv->source);
+    auto source = String::NewFromUtf8 (isolate, priv->source);
 
-    TryCatch trycatch;
+    TryCatch trycatch (isolate);
     auto maybe_code = Script::Compile (context, source, &origin);
     Local<Script> code;
     if (maybe_code.ToLocal (&code))
     {
-      priv->code = new GumPersistent<Script>::type (priv->isolate, code);
+      priv->code = new GumPersistent<Script>::type (isolate, code);
     }
     else
     {
