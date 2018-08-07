@@ -176,6 +176,7 @@ if get_option('enable_gumjs')
   cdata.set('HAVE_GUMJS', 1)
 
   json_glib_dep = dependency('json-glib-1.0')
+  sqlite_dep = dependency('sqlite3')
 
   if host_os_family == 'windows'
     gio_os_package_name = 'gio-windows-2.0'
