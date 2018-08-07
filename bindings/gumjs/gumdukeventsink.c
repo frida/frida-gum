@@ -45,7 +45,7 @@ G_DEFINE_TYPE_EXTENDED (GumDukEventSink,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_EVENT_SINK,
-                            gum_duk_event_sink_iface_init));
+                            gum_duk_event_sink_iface_init))
 
 static void
 gum_duk_event_sink_class_init (GumDukEventSinkClass * klass)
@@ -58,9 +58,9 @@ gum_duk_event_sink_class_init (GumDukEventSinkClass * klass)
 
 static void
 gum_duk_event_sink_iface_init (gpointer g_iface,
-                              gpointer iface_data)
+                               gpointer iface_data)
 {
-  GumEventSinkIface * iface = (GumEventSinkIface *) g_iface;
+  GumEventSinkInterface * iface = g_iface;
 
   iface->query_mask = gum_duk_event_sink_query_mask;
   iface->start = gum_duk_event_sink_start;

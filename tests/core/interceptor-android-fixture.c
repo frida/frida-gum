@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -61,7 +61,7 @@ G_DEFINE_TYPE_EXTENDED (AndroidListenerContext,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
-                            android_listener_context_iface_init));
+                            android_listener_context_iface_init))
 
 static JavaVM * java_vm = NULL;
 static JNIEnv * java_env = NULL;
@@ -70,8 +70,6 @@ static void
 test_interceptor_fixture_setup (TestInterceptorFixture * fixture,
                                 gconstpointer data)
 {
-  (void) data;
-
   fixture->interceptor = gum_interceptor_obtain ();
   fixture->result = g_string_sized_new (4096);
   memset (&fixture->listener_context, 0, sizeof (fixture->listener_context));
@@ -87,8 +85,6 @@ test_interceptor_fixture_teardown (TestInterceptorFixture * fixture,
                                    gconstpointer data)
 {
   guint i;
-
-  (void) data;
 
   for (i = 0; i < G_N_ELEMENTS (fixture->listener_context); i++)
   {
@@ -116,14 +112,9 @@ interceptor_fixture_try_attaching_listener (TestInterceptorFixture * h,
   GumAttachReturn result;
   AndroidListenerContext * ctx;
 
-  if (h->listener_context[listener_index] != NULL)
-  {
-    g_object_unref (h->listener_context[listener_index]);
-    h->listener_context[listener_index] = NULL;
-  }
+  g_clear_object (&h->listener_context[listener_index]);
 
-  ctx = (AndroidListenerContext *) g_object_new (
-      android_listener_context_get_type (), NULL);
+  ctx = g_object_new (android_listener_context_get_type (), NULL);
   ctx->harness = h;
   ctx->enter_char = enter_char;
   ctx->leave_char = leave_char;
@@ -197,16 +188,13 @@ android_listener_context_on_leave (GumInvocationListener * listener,
 static void
 android_listener_context_class_init (AndroidListenerContextClass * klass)
 {
-  (void) klass;
 }
 
 static void
 android_listener_context_iface_init (gpointer g_iface,
                                      gpointer iface_data)
 {
-  GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
-
-  (void) iface_data;
+  GumInvocationListenerInterface * iface = g_iface;
 
   iface->on_enter = android_listener_context_on_enter;
   iface->on_leave = android_listener_context_on_leave;
@@ -215,7 +203,6 @@ android_listener_context_iface_init (gpointer g_iface,
 static void
 android_listener_context_init (AndroidListenerContext * self)
 {
-  (void) self;
 }
 
 static void

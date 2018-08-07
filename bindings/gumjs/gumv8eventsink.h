@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2012-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -26,8 +26,6 @@ struct GumV8EventSinkOptions
   v8::Handle<v8::Function> on_receive;
   v8::Handle<v8::Function> on_call_summary;
 };
-
-G_GNUC_INTERNAL GType gum_v8_event_sink_get_type (void) G_GNUC_CONST;
 
 G_GNUC_INTERNAL GumEventSink * gum_v8_event_sink_new (
     const GumV8EventSinkOptions * options);

@@ -67,7 +67,6 @@ _gum_v8_api_resolver_dispose (GumV8ApiResolver * self)
 void
 _gum_v8_api_resolver_finalize (GumV8ApiResolver * self)
 {
-  (void) self;
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_api_resolver_construct)
@@ -103,16 +102,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_api_resolver_construct)
   gum_v8_object_manager_add (&module->objects, wrapper, resolver, module);
 }
 
-/*
- * Prototype:
- * ApiResolver.enumerateMatches(query, callbacks)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_CLASS_METHOD (gumjs_api_resolver_enumerate_matches,
                            GumV8ApiResolverObject)
 {

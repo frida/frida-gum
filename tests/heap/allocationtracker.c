@@ -461,7 +461,7 @@ ALLOCTRACKER_TESTCASE (backtracer_gtype_interop)
   g_object_set (probe, "allocation-tracker", tracker, NULL);
   gum_allocator_probe_attach (probe);
 
-  zebra = ZOO_ZEBRA (g_object_new (ZOO_TYPE_ZEBRA, NULL));
+  zebra = g_object_new (ZOO_TYPE_ZEBRA, NULL);
   g_object_unref (zebra);
 
   g_object_unref (probe);

@@ -442,8 +442,6 @@ gum_on_log_message (const gchar * log_domain,
 #elif defined (HAVE_ANDROID)
   int priority;
 
-  (void) user_data;
-
   switch (log_level & G_LOG_LEVEL_MASK)
   {
     case G_LOG_LEVEL_ERROR:
@@ -563,8 +561,6 @@ gum_on_log_message (const gchar * log_domain,
 
   FILE * file = NULL;
   const gchar * severity = NULL;
-
-  (void) user_data;
 
   switch (log_level & G_LOG_LEVEL_MASK)
   {

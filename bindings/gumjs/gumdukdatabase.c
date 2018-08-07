@@ -256,8 +256,6 @@ GUMJS_DEFINE_FINALIZER (gumjs_database_finalize)
 {
   GumDatabase * self;
 
-  (void) args;
-
   self = _gum_duk_steal_data (ctx, 0);
   if (self == NULL)
     return 0;
@@ -449,8 +447,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_statement_construct)
 GUMJS_DEFINE_FINALIZER (gumjs_statement_finalize)
 {
   sqlite3_stmt * statement;
-
-  (void) args;
 
   statement = _gum_duk_steal_data (ctx, 0);
   if (statement == NULL)

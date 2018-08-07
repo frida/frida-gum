@@ -433,7 +433,7 @@ _gum_v8_core_init (GumV8Core * self,
                    Handle<ObjectTemplate> scope)
 {
   self->script = script;
-  self->backend = script->priv->backend;
+  self->backend = script->backend;
   self->runtime_source_map = runtime_source_map;
   self->core = self;
   self->message_emitter = message_emitter;
@@ -781,7 +781,7 @@ _gum_v8_core_notify_flushed (GumV8Core * self,
 {
   auto callback = g_slice_new (GumV8FlushCallback);
   callback->func = func;
-  callback->script = GUM_V8_SCRIPT_CAST (g_object_ref (self->script));
+  callback->script = GUM_V8_SCRIPT (g_object_ref (self->script));
 
   auto source = g_idle_source_new ();
   g_source_set_callback (source, (GSourceFunc) gum_v8_flush_callback_notify,
@@ -947,34 +947,11 @@ _gum_v8_core_post (GumV8Core * self,
   }
 }
 
-/*
- * Prototype:
- * setTimeout(callback, delay)
- *
- * Docs:
- * Calls a function or executes a code snippet after a specified delay.
- *
- * Example:
- * // Delay for 3 seconds, then log to console
- * -> setTimeout(function(){console.log("Fired!")}, 3000)
- */
 GUMJS_DEFINE_FUNCTION (gumjs_set_timeout)
 {
   gum_v8_core_schedule_callback (core, args, FALSE);
 }
 
-/*
- * Prototype:
- * setInterval(callback, delay)
- *
- * Docs:
- * Calls a function or executes a code snippet repeatedly, with a fixed
- * time delay between each call to that function. Returns an intervalID.
- *
- * Example:
- * // Every 3 seconds, log to console
- * -> setInterval(function(){console.log("Fired!")}, 3000)
- */
 GUMJS_DEFINE_FUNCTION (gumjs_set_interval)
 {
   gum_v8_core_schedule_callback (core, args, TRUE);
@@ -1034,18 +1011,6 @@ gum_v8_core_try_steal_scheduled_callback (GumV8Core * self,
   return callback;
 }
 
-/*
- * Prototype:
- * clearTimeout(id)/clearInterval(id)
- *
- * Docs:
- * Clears the delay set by setTimeout/setInterval
- *
- * Example:
- * // Create a timeout, and abort immediately
- * -> var test = setTimeout(function(){console.log("Fired!")}, 3000);
- * -> clearTimeout(test)
- */
 GUMJS_DEFINE_FUNCTION (gumjs_clear_timer)
 {
   if (info.Length () < 1 || !info[0]->IsNumber ())
@@ -1119,16 +1084,6 @@ gum_v8_scheduled_callback_invoke (GumV8ScheduledCallback * self)
   return self->repeat;
 }
 
-/*
- * Prototype:
- * [PRIVATE] _send(message[, array=null])
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_send)
 {
   gchar * message;
@@ -1142,7 +1097,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_send)
    *
    * This is very important for the RPC API.
    */
-  auto interceptor = core->script->priv->interceptor.interceptor;
+  auto interceptor = core->script->interceptor.interceptor;
   gum_interceptor_end_transaction (interceptor);
   gum_interceptor_begin_transaction (interceptor);
 
@@ -1152,16 +1107,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_send)
   g_free (message);
 }
 
-/*
- * Prototype:
- * _setUnhandledExceptionCallback(callback)
- *
- * Docs:
- * [PRIVATE] Set callback to fire when an unhandled exception occurs
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_set_unhandled_exception_callback)
 {
   Local<Function> callback;
@@ -1179,16 +1124,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_unhandled_exception_callback)
     gum_v8_exception_sink_free (old_sink);
 }
 
-/*
- * Prototype:
- * _setIncomingMessageCallback(callback)
- *
- * Docs:
- * [PRIVATE] Set callback to fire when a message is received
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_set_incoming_message_callback)
 {
   Local<Function> callback;
@@ -1206,16 +1141,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_incoming_message_callback)
     gum_v8_message_sink_free (old_sink);
 }
 
-/*
- * Prototype:
- * [PRIVATE] _waitForEvent(argument1)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
 {
   gboolean event_source_available;
@@ -1333,7 +1258,7 @@ GUMJS_DEFINE_GETTER (gumjs_frida_get_source_map)
 GUMJS_DEFINE_GETTER (gumjs_frida_objc_get_source_map)
 {
   auto platform = (GumV8Platform *) gum_v8_script_backend_get_platform (
-      core->script->priv->backend);
+      core->script->backend);
 
   Local<Object> map;
   if (gumjs_source_map_new (platform->GetObjCSourceMap (), core).ToLocal (&map))
@@ -1343,7 +1268,7 @@ GUMJS_DEFINE_GETTER (gumjs_frida_objc_get_source_map)
 GUMJS_DEFINE_GETTER (gumjs_frida_java_get_source_map)
 {
   auto platform = (GumV8Platform *) gum_v8_script_backend_get_platform (
-      core->script->priv->backend);
+      core->script->backend);
 
   Local<Object> map;
   if (gumjs_source_map_new (platform->GetJavaSourceMap (), core).ToLocal (&map))
@@ -1353,7 +1278,7 @@ GUMJS_DEFINE_GETTER (gumjs_frida_java_get_source_map)
 GUMJS_DEFINE_FUNCTION (gumjs_frida_objc_load)
 {
   auto platform = (GumV8Platform *) gum_v8_script_backend_get_platform (
-      core->script->priv->backend);
+      core->script->backend);
 
   gum_v8_bundle_run (platform->GetObjCBundle ());
 }
@@ -1361,7 +1286,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_frida_objc_load)
 GUMJS_DEFINE_FUNCTION (gumjs_frida_java_load)
 {
   auto platform = (GumV8Platform *) gum_v8_script_backend_get_platform (
-      core->script->priv->backend);
+      core->script->backend);
 
   gum_v8_bundle_run (platform->GetJavaBundle ());
 }
@@ -1370,10 +1295,10 @@ GUMJS_DEFINE_GETTER (gumjs_script_get_file_name)
 {
   Local<Value> result;
 
-  auto priv = core->script->priv;
-  if (priv->code != nullptr)
+  auto script = core->script;
+  if (script->code != nullptr)
   {
-    auto code = Local<Script>::New (isolate, *priv->code);
+    auto code = Local<Script>::New (isolate, *script->code);
     auto file_name = code->GetUnboundScript ()->GetScriptName ();
     if (file_name->IsString ())
       result = file_name;
@@ -1389,10 +1314,10 @@ GUMJS_DEFINE_GETTER (gumjs_script_get_source_map)
 {
   gchar * json = NULL;
 
-  auto priv = core->script->priv;
-  if (priv->code != nullptr)
+  auto script = core->script;
+  if (script->code != nullptr)
   {
-    auto code = Local<Script>::New (isolate, *priv->code);
+    auto code = Local<Script>::New (isolate, *script->code);
 
     auto url_value = code->GetUnboundScript ()->GetSourceMappingURL ();
     if (url_value->IsString ())
@@ -1479,16 +1404,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_set_global_access_handler)
   }
 }
 
-/*
- * Prototype:
- * WeakRef.bind(target, callback_val)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_bind)
 {
   Local<Value> target;
@@ -1510,16 +1425,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_bind)
   info.GetReturnValue ().Set (id);
 }
 
-/*
- * Prototype:
- * WeakRef.unbind(id_val)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_unbind)
 {
   guint id;
@@ -1672,17 +1577,6 @@ GUM_DEFINE_INT64_OP_IMPL (xor, ^)
 GUM_DEFINE_INT64_OP_IMPL (shr, >>)
 GUM_DEFINE_INT64_OP_IMPL (shl, <<)
 
-/*
- * Prototype:
- * Int64.compare(that)
- *
- * Docs:
- * Returns 0 if this and that are equal.
- * Otherwise returns -1 if this < that and 1 if this > that
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_int64_compare)
 {
   gint64 lhs = _gum_v8_int64_get_value (info.Holder ());
@@ -1696,32 +1590,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_int64_compare)
   info.GetReturnValue ().Set (result);
 }
 
-/*
- * Prototype:
- * Int64.toNumber()
- *
- * Docs:
- * Represents the value as a JavaScript Number
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_int64_to_number)
 {
   info.GetReturnValue ().Set (
       (double) _gum_v8_int64_get_value (info.Holder ()));
 }
 
-/*
- * Prototype:
- * Int64.toString([radix=10])
- *
- * Docs:
- * Represents the value as either a base-10 or base-16 string.
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_int64_to_string)
 {
   gint radix = 10;
@@ -1746,16 +1620,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_int64_to_string)
   info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate, str));
 }
 
-/*
- * Prototype:
- * Int64.toJSON()
- *
- * Docs:
- * Represents the value as a JSON-formatted value
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_int64_to_json)
 {
   gchar str[32];
@@ -1764,16 +1628,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_int64_to_json)
   info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate, str));
 }
 
-/*
- * Prototype:
- * Int64.valueOf()
- *
- * Docs:
- * Represents the value as a JavaScript Number
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_int64_value_of)
 {
   info.GetReturnValue ().Set (
@@ -1818,17 +1672,6 @@ GUM_DEFINE_UINT64_OP_IMPL (xor, ^)
 GUM_DEFINE_UINT64_OP_IMPL (shr, >>)
 GUM_DEFINE_UINT64_OP_IMPL (shl, <<)
 
-/*
- * Prototype:
- * UInt64.compare(that)
- *
- * Docs:
- * Returns 0 if this and that are equal.
- * Otherwise returns -1 if this < that and 1 if this > that
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_uint64_compare)
 {
   guint64 lhs = _gum_v8_uint64_get_value (info.Holder ());
@@ -1842,32 +1685,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_uint64_compare)
   info.GetReturnValue ().Set (result);
 }
 
-/*
- * Prototype:
- * UInt64.toNumber()
- *
- * Docs:
- * Represents the value as a JavaScript Number
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_uint64_to_number)
 {
   info.GetReturnValue ().Set (
       (double) _gum_v8_uint64_get_value (info.Holder ()));
 }
 
-/*
- * Prototype:
- * UInt64.toString([radix=10])
- *
- * Docs:
- * Represents the value as either a base-10 or base-16 string.
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_uint64_to_string)
 {
   gint radix = 10;
@@ -1890,16 +1713,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_uint64_to_string)
   info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate, str));
 }
 
-/*
- * Prototype:
- * UInt64.toJSON()
- *
- * Docs:
- * Represents the value as a JSON-formatted value
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_uint64_to_json)
 {
   gchar str[32];
@@ -1909,16 +1722,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_uint64_to_json)
   info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate, str));
 }
 
-/*
- * Prototype:
- * UInt64.valueOf()
- *
- * Docs:
- * Represents the value as a JavaScript Number
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_uint64_value_of)
 {
   info.GetReturnValue ().Set (
@@ -1942,16 +1745,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
   wrapper->SetInternalField (0, External::New (isolate, ptr));
 }
 
-/*
- * Prototype:
- * NativePointer.isNull()
- *
- * Docs:
- * Returns true if a pointer is NULL, otherwise false
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_is_null)
 {
   info.GetReturnValue ().Set (GUMJS_NATIVE_POINTER_VALUE (info.Holder ()) == 0);
@@ -1994,17 +1787,6 @@ GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (shl, <<)
 
 GUM_DEFINE_NATIVE_POINTER_UNARY_OP_IMPL (not, ~)
 
-/*
- * Prototype:
- * NativePointer.compare(that)
- *
- * Docs:
- * Returns 0 if this and that are equal.
- * Otherwise returns -1 if this < that and 1 if this > that
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_compare)
 {
   gpointer lhs_ptr = GUMJS_NATIVE_POINTER_VALUE (info.Holder ());
@@ -2021,32 +1803,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_compare)
   info.GetReturnValue ().Set (result);
 }
 
-/*
- * Prototype:
- * NativePointer.toInt32()
- *
- * Docs:
- * Represents the pointer as a signed 32-bit integer
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_int32)
 {
   info.GetReturnValue ().Set ((int32_t) GPOINTER_TO_SIZE (
       GUMJS_NATIVE_POINTER_VALUE (info.Holder ())));
 }
 
-/*
- * Prototype:
- * NativePointer.toString([radix=16])
- *
- * Docs:
- * Represents the pointer as either a base-10 or base-16 string.
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_string)
 {
   gint radix = 0;
@@ -2081,16 +1843,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_string)
   info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate, str));
 }
 
-/*
- * Prototype:
- * NativePointer.toJSON()
- *
- * Docs:
- * Represents the pointer as a JSON-formatted value
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_json)
 {
   gsize ptr = GPOINTER_TO_SIZE (GUMJS_NATIVE_POINTER_VALUE (info.Holder ()));
@@ -2101,16 +1853,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_json)
   info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate, str));
 }
 
-/*
- * Prototype:
- * NativePointer.toMatchPattern()
- *
- * Docs:
- * Represents the pointer as a pattern.
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_match_pattern)
 {
   gchar result[24];
@@ -2518,7 +2260,7 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
     avalue = NULL;
   }
 
-  auto interceptor = core->script->priv->interceptor.interceptor;
+  auto interceptor = core->script->interceptor.interceptor;
 
   isolate->Exit ();
   {
@@ -2758,7 +2500,7 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
   auto func (Local<Function>::New (isolate, *self->func));
 
   Local<Value> receiver;
-  auto interceptor = &self->core->script->priv->interceptor;
+  auto interceptor = &self->core->script->interceptor;
   GumV8InvocationContext * jic = NULL;
   auto ic = gum_interceptor_get_current_invocation ();
   if (ic != NULL)
@@ -2812,8 +2554,6 @@ gumjs_cpu_context_get_register (Local<Name> property,
       (gpointer *) wrapper->GetInternalField (0).As<External> ()->Value ();
   gsize offset = info.Data ().As<Integer> ()->Value ();
 
-  (void) property;
-
   info.GetReturnValue ().Set (
       _gum_v8_native_pointer_new (cpu_context[offset], core));
 }
@@ -2830,8 +2570,6 @@ gumjs_cpu_context_set_register (Local<Name> property,
       (gpointer *) wrapper->GetInternalField (0).As<External> ()->Value ();
   bool is_mutable = wrapper->GetInternalField (1).As<Boolean> ()->Value ();
   gsize offset = info.Data ().As<Integer> ()->Value ();
-
-  (void) property;
 
   if (!is_mutable)
   {

@@ -122,19 +122,8 @@ _gum_v8_symbol_dispose (GumV8Symbol * self)
 void
 _gum_v8_symbol_finalize (GumV8Symbol * self)
 {
-  (void) self;
 }
 
-/*
- * Prototype:
- * DebugSymbol.fromAddress(address)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_address)
 {
   gpointer address;
@@ -158,16 +147,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_address)
   info.GetReturnValue ().Set (object);
 }
 
-/*
- * Prototype:
- * DebugSymbol.fromName(name)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_name)
 {
   gchar * name;
@@ -200,16 +179,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_name)
   info.GetReturnValue ().Set (object);
 }
 
-/*
- * Prototype:
- * DebugSymbol.getFunctionByName(name)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_get_function_by_name)
 {
   gchar * name;
@@ -238,16 +207,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_get_function_by_name)
   g_free (name);
 }
 
-/*
- * Prototype:
- * DebugSymbol.findFunctionsNamed(name)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_named)
 {
   gchar * name;
@@ -278,16 +237,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_named)
   g_free (name);
 }
 
-/*
- * Prototype:
- * DebugSymbol.findFunctionsMatching(glob)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_matching)
 {
   gchar * str;

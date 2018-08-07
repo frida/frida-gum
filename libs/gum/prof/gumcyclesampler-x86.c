@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -12,8 +12,10 @@
 
 typedef void (GUM_THUNK * ReadTimestampCounterFunc) (GumSample * sample);
 
-struct _GumCycleSamplerPrivate
+struct _GumCycleSampler
 {
+  GObject parent;
+
   ReadTimestampCounterFunc read_timestamp_counter;
 
   gpointer code;
@@ -29,7 +31,7 @@ G_DEFINE_TYPE_EXTENDED (GumCycleSampler,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_SAMPLER,
-                                               gum_cycle_sampler_iface_init));
+                                               gum_cycle_sampler_iface_init))
 
 static void
 gum_cycle_sampler_class_init (GumCycleSamplerClass * klass)
@@ -37,17 +39,13 @@ gum_cycle_sampler_class_init (GumCycleSamplerClass * klass)
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
 
   object_class->finalize = gum_cycle_sampler_finalize;
-
-  g_type_class_add_private (klass, sizeof (GumCycleSamplerPrivate));
 }
 
 static void
 gum_cycle_sampler_iface_init (gpointer g_iface,
                               gpointer iface_data)
 {
-  GumSamplerIface * iface = (GumSamplerIface *) g_iface;
-
-  (void) iface_data;
+  GumSamplerInterface * iface = g_iface;
 
   iface->sample = gum_cycle_sampler_sample;
 }
@@ -55,16 +53,11 @@ gum_cycle_sampler_iface_init (gpointer g_iface,
 static void
 gum_cycle_sampler_init (GumCycleSampler * self)
 {
-  GumCycleSamplerPrivate * priv;
   GumX86Writer cw;
   GumCpuReg first_arg_reg;
 
-  self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self, GUM_TYPE_CYCLE_SAMPLER,
-      GumCycleSamplerPrivate);
-  priv = self->priv;
-
-  priv->code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
-  gum_x86_writer_init (&cw, priv->code);
+  self->code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  gum_x86_writer_init (&cw, self->code);
   gum_x86_writer_put_lfence (&cw);
   gum_x86_writer_put_rdtsc (&cw);
   first_arg_reg = gum_x86_writer_get_cpu_register_for_nth_argument (&cw, 0);
@@ -74,8 +67,8 @@ gum_cycle_sampler_init (GumCycleSampler * self)
   gum_x86_writer_put_ret (&cw);
   gum_x86_writer_clear (&cw);
 
-  priv->read_timestamp_counter =
-      GUM_POINTER_TO_FUNCPTR (ReadTimestampCounterFunc, priv->code);
+  self->read_timestamp_counter =
+      GUM_POINTER_TO_FUNCPTR (ReadTimestampCounterFunc, self->code);
 }
 
 static void
@@ -83,7 +76,7 @@ gum_cycle_sampler_finalize (GObject * object)
 {
   GumCycleSampler * self = GUM_CYCLE_SAMPLER (object);
 
-  gum_free_pages (self->priv->code);
+  gum_free_pages (self->code);
 
   G_OBJECT_CLASS (gum_cycle_sampler_parent_class)->finalize (object);
 }
@@ -91,24 +84,21 @@ gum_cycle_sampler_finalize (GObject * object)
 GumSampler *
 gum_cycle_sampler_new (void)
 {
-  return GUM_SAMPLER_CAST (g_object_new (GUM_TYPE_CYCLE_SAMPLER, NULL));
+  return g_object_new (GUM_TYPE_CYCLE_SAMPLER, NULL);
 }
 
 gboolean
 gum_cycle_sampler_is_available (GumCycleSampler * self)
 {
-  (void) self;
-
   return TRUE;
 }
 
 static GumSample
 gum_cycle_sampler_sample (GumSampler * sampler)
 {
-  GumCycleSampler * self = GUM_CYCLE_SAMPLER_CAST (sampler);
   GumSample result;
 
-  self->priv->read_timestamp_counter (&result);
+  GUM_CYCLE_SAMPLER (sampler)->read_timestamp_counter (&result);
 
   return result;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -33,6 +33,9 @@ static void gum_callback_stalker_transformer_transform_block (
     GumStalkerTransformer * transformer, GumStalkerIterator * iterator,
     GumStalkerWriter * output);
 
+G_DEFINE_INTERFACE (GumStalkerTransformer, gum_stalker_transformer,
+    G_TYPE_OBJECT)
+
 G_DEFINE_TYPE_EXTENDED (GumDefaultStalkerTransformer,
                         gum_default_stalker_transformer,
                         G_TYPE_OBJECT,
@@ -47,24 +50,9 @@ G_DEFINE_TYPE_EXTENDED (GumCallbackStalkerTransformer,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_STALKER_TRANSFORMER,
                             gum_callback_stalker_transformer_iface_init))
 
-GType
-gum_stalker_transformer_get_type (void)
+static void
+gum_stalker_transformer_default_init (GumStalkerTransformerInterface * iface)
 {
-  static volatile gsize gonce_value;
-
-  if (g_once_init_enter (&gonce_value))
-  {
-    GType gtype;
-
-    gtype = g_type_register_static_simple (G_TYPE_INTERFACE,
-        "GumStalkerTransformer", sizeof (GumStalkerTransformerIface), NULL, 0,
-        NULL, 0);
-    g_type_interface_add_prerequisite (gtype, G_TYPE_OBJECT);
-
-    g_once_init_leave (&gonce_value, gtype);
-  }
-
-  return (GType) gonce_value;
 }
 
 GumStalkerTransformer *
@@ -94,8 +82,8 @@ gum_stalker_transformer_transform_block (GumStalkerTransformer * self,
                                          GumStalkerIterator * iterator,
                                          GumStalkerWriter * output)
 {
-  GumStalkerTransformerIface * iface =
-      GUM_STALKER_TRANSFORMER_GET_INTERFACE (self);
+  GumStalkerTransformerInterface * iface =
+      GUM_STALKER_TRANSFORMER_GET_IFACE (self);
 
   g_assert (iface->transform_block != NULL);
 
@@ -112,7 +100,8 @@ static void
 gum_default_stalker_transformer_iface_init (gpointer g_iface,
                                             gpointer iface_data)
 {
-  GumStalkerTransformerIface * iface = (GumStalkerTransformerIface *) g_iface;
+  GumStalkerTransformerInterface * iface =
+      (GumStalkerTransformerInterface *) g_iface;
 
   iface->transform_block = gum_default_stalker_transformer_transform_block;
 }
@@ -147,7 +136,8 @@ static void
 gum_callback_stalker_transformer_iface_init (gpointer g_iface,
                                              gpointer iface_data)
 {
-  GumStalkerTransformerIface * iface = (GumStalkerTransformerIface *) g_iface;
+  GumStalkerTransformerInterface * iface =
+      (GumStalkerTransformerInterface *) g_iface;
 
   iface->transform_block = gum_callback_stalker_transformer_transform_block;
 }

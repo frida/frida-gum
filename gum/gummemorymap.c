@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2013-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -10,8 +10,10 @@
 
 typedef struct _GumUpdateMemoryRangesContext GumUpdateMemoryRangesContext;
 
-struct _GumMemoryMapPrivate
+struct _GumMemoryMap
 {
+  GObject parent;
+
   GumPageProtection prot;
   GArray * ranges;
   gsize ranges_min;
@@ -29,14 +31,12 @@ static void gum_memory_map_finalize (GObject * object);
 static gboolean gum_memory_map_add_range (const GumRangeDetails * details,
     gpointer user_data);
 
-G_DEFINE_TYPE (GumMemoryMap, gum_memory_map, G_TYPE_OBJECT);
+G_DEFINE_TYPE (GumMemoryMap, gum_memory_map, G_TYPE_OBJECT)
 
 static void
 gum_memory_map_class_init (GumMemoryMapClass * klass)
 {
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
-
-  g_type_class_add_private (klass, sizeof (GumMemoryMapPrivate));
 
   object_class->finalize = gum_memory_map_finalize;
 }
@@ -44,10 +44,7 @@ gum_memory_map_class_init (GumMemoryMapClass * klass)
 static void
 gum_memory_map_init (GumMemoryMap * self)
 {
-  self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self, GUM_TYPE_MEMORY_MAP,
-      GumMemoryMapPrivate);
-
-  self->priv->ranges = g_array_new (FALSE, FALSE, sizeof (GumMemoryRange));
+  self->ranges = g_array_new (FALSE, FALSE, sizeof (GumMemoryRange));
 }
 
 static void
@@ -55,7 +52,7 @@ gum_memory_map_finalize (GObject * object)
 {
   GumMemoryMap * self = GUM_MEMORY_MAP (object);
 
-  g_array_free (self->priv->ranges, TRUE);
+  g_array_free (self->ranges, TRUE);
 
   G_OBJECT_CLASS (gum_memory_map_parent_class)->finalize (object);
 }
@@ -66,7 +63,7 @@ gum_memory_map_new (GumPageProtection prot)
   GumMemoryMap * map;
 
   map = g_object_new (GUM_TYPE_MEMORY_MAP, NULL);
-  map->priv->prot = prot;
+  map->prot = prot;
 
   gum_memory_map_update (map);
 
@@ -77,19 +74,18 @@ gboolean
 gum_memory_map_contains (GumMemoryMap * self,
                          const GumMemoryRange * range)
 {
-  GumMemoryMapPrivate * priv = self->priv;
   const GumAddress start = range->base_address;
   const GumAddress end = range->base_address + range->size;
   guint i;
 
-  if (start < priv->ranges_min)
+  if (start < self->ranges_min)
     return FALSE;
-  else if (end > priv->ranges_max)
+  else if (end > self->ranges_max)
     return FALSE;
 
-  for (i = 0; i < priv->ranges->len; i++)
+  for (i = 0; i < self->ranges->len; i++)
   {
-    GumMemoryRange * r = &g_array_index (priv->ranges, GumMemoryRange, i);
+    GumMemoryRange * r = &g_array_index (self->ranges, GumMemoryRange, i);
     if (start >= r->base_address && end <= r->base_address + r->size)
       return TRUE;
   }
@@ -100,31 +96,30 @@ gum_memory_map_contains (GumMemoryMap * self,
 void
 gum_memory_map_update (GumMemoryMap * self)
 {
-  GumMemoryMapPrivate * priv = self->priv;
   GumUpdateMemoryRangesContext ctx;
 
-  ctx.ranges = priv->ranges;
+  ctx.ranges = self->ranges;
   ctx.prev_range_index = -1;
 
-  g_array_set_size (priv->ranges, 0);
+  g_array_set_size (self->ranges, 0);
 
-  _gum_process_enumerate_ranges (priv->prot, gum_memory_map_add_range, &ctx);
+  _gum_process_enumerate_ranges (self->prot, gum_memory_map_add_range, &ctx);
 
-  if (priv->ranges->len > 0)
+  if (self->ranges->len > 0)
   {
     GumMemoryRange * first_range, * last_range;
 
-    first_range = &g_array_index (priv->ranges, GumMemoryRange, 0);
-    last_range = &g_array_index (priv->ranges, GumMemoryRange,
-        priv->ranges->len - 1);
+    first_range = &g_array_index (self->ranges, GumMemoryRange, 0);
+    last_range = &g_array_index (self->ranges, GumMemoryRange,
+        self->ranges->len - 1);
 
-    priv->ranges_min = first_range->base_address;
-    priv->ranges_max = last_range->base_address + last_range->size;
+    self->ranges_min = first_range->base_address;
+    self->ranges_max = last_range->base_address + last_range->size;
   }
   else
   {
-    priv->ranges_min = 0;
-    priv->ranges_max = 0;
+    self->ranges_min = 0;
+    self->ranges_max = 0;
   }
 }
 

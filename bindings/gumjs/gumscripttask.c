@@ -1,13 +1,15 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gumscripttask.h"
 
-struct _GumScriptTaskPrivate
+struct _GumScriptTask
 {
+  GObject parent;
+
   gboolean disposed;
 
   GumScriptTaskFunc func;
@@ -53,14 +55,12 @@ G_DEFINE_TYPE_EXTENDED (GumScriptTask,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (G_TYPE_ASYNC_RESULT,
-                            gum_script_task_iface_init));
+                            gum_script_task_iface_init))
 
 static void
 gum_script_task_class_init (GumScriptTaskClass * klass)
 {
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
-
-  g_type_class_add_private (klass, sizeof (GumScriptTaskPrivate));
 
   object_class->dispose = gum_script_task_dispose;
   object_class->finalize = gum_script_task_finalize;
@@ -77,34 +77,23 @@ gum_script_task_iface_init (GAsyncResultIface * iface)
 static void
 gum_script_task_init (GumScriptTask * self)
 {
-  self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self, GUM_TYPE_SCRIPT_TASK,
-      GumScriptTaskPrivate);
 }
 
 static void
 gum_script_task_dispose (GObject * obj)
 {
   GumScriptTask * self = GUM_SCRIPT_TASK (obj);
-  GumScriptTaskPrivate * priv = self->priv;
 
-  if (!priv->disposed)
+  if (!self->disposed)
   {
-    priv->disposed = TRUE;
+    self->disposed = TRUE;
 
-    g_main_context_unref (priv->context);
-    priv->context = NULL;
+    g_main_context_unref (self->context);
+    self->context = NULL;
 
-    if (priv->cancellable != NULL)
-    {
-      g_object_unref (priv->cancellable);
-      priv->cancellable = NULL;
-    }
+    g_clear_object (&self->cancellable);
 
-    if (priv->source_object != NULL)
-    {
-      g_object_unref (priv->source_object);
-      priv->source_object = NULL;
-    }
+    g_clear_object (&self->source_object);
   }
 
   G_OBJECT_CLASS (gum_script_task_parent_class)->dispose (obj);
@@ -114,16 +103,15 @@ static void
 gum_script_task_finalize (GObject * obj)
 {
   GumScriptTask * self = GUM_SCRIPT_TASK (obj);
-  GumScriptTaskPrivate * priv = self->priv;
 
-  if (priv->error != NULL)
-    g_error_free (priv->error);
+  if (self->error != NULL)
+    g_error_free (self->error);
 
-  if (priv->result_destroy != NULL)
-    priv->result_destroy (priv->result);
+  if (self->result_destroy != NULL)
+    self->result_destroy (self->result);
 
-  if (priv->task_data_destroy != NULL)
-    priv->task_data_destroy (priv->task_data);
+  if (self->task_data_destroy != NULL)
+    self->task_data_destroy (self->task_data);
 
   G_OBJECT_CLASS (gum_script_task_parent_class)->finalize (obj);
 }
@@ -136,20 +124,18 @@ gum_script_task_new (GumScriptTaskFunc func,
                      gpointer callback_data)
 {
   GumScriptTask * task;
-  GumScriptTaskPrivate * priv;
 
   task = g_object_new (GUM_TYPE_SCRIPT_TASK, NULL);
-  priv = task->priv;
 
-  priv->func = func;
-  priv->source_object =
+  task->func = func;
+  task->source_object =
       (source_object != NULL) ? g_object_ref (source_object) : NULL;
-  priv->cancellable =
+  task->cancellable =
       (cancellable != NULL) ? g_object_ref (cancellable) : NULL;
-  priv->callback = callback;
-  priv->callback_data = callback_data;
+  task->callback = callback;
+  task->callback_data = callback_data;
 
-  priv->context = g_main_context_ref_thread_default ();
+  task->context = g_main_context_ref_thread_default ();
 
   return task;
 }
@@ -157,51 +143,50 @@ gum_script_task_new (GumScriptTaskFunc func,
 static gpointer
 gum_script_task_get_user_data (GAsyncResult * res)
 {
-  return GUM_SCRIPT_TASK (res)->priv->callback_data;
+  return GUM_SCRIPT_TASK (res)->callback_data;
 }
 
 static GObject *
 gum_script_task_ref_source_object (GAsyncResult * res)
 {
   GumScriptTask * self = GUM_SCRIPT_TASK (res);
-  GumScriptTaskPrivate * priv = self->priv;
 
-  if (priv->source_object == NULL)
+  if (self->source_object == NULL)
     return NULL;
 
-  return g_object_ref (priv->source_object);
+  return g_object_ref (self->source_object);
 }
 
 static gboolean
 gum_script_task_is_tagged (GAsyncResult * res,
                            gpointer source_tag)
 {
-  return GUM_SCRIPT_TASK (res)->priv->source_tag == source_tag;
+  return GUM_SCRIPT_TASK (res)->source_tag == source_tag;
 }
 
 gpointer
 gum_script_task_get_source_object (GumScriptTask * self)
 {
-  return self->priv->source_object;
+  return self->source_object;
 }
 
 gpointer
 gum_script_task_get_source_tag (GumScriptTask * self)
 {
-  return self->priv->source_tag;
+  return self->source_tag;
 }
 
 void
 gum_script_task_set_source_tag (GumScriptTask * self,
                                 gpointer source_tag)
 {
-  self->priv->source_tag = source_tag;
+  self->source_tag = source_tag;
 }
 
 GMainContext *
 gum_script_task_get_context (GumScriptTask * self)
 {
-  return self->priv->context;
+  return self->context;
 }
 
 void
@@ -209,10 +194,8 @@ gum_script_task_set_task_data (GumScriptTask * self,
                                gpointer task_data,
                                GDestroyNotify task_data_destroy)
 {
-  GumScriptTaskPrivate * priv = self->priv;
-
-  priv->task_data = task_data;
-  priv->task_data_destroy = task_data_destroy;
+  self->task_data = task_data;
+  self->task_data_destroy = task_data_destroy;
 }
 
 void
@@ -220,10 +203,8 @@ gum_script_task_return_pointer (GumScriptTask * self,
                                 gpointer result,
                                 GDestroyNotify result_destroy)
 {
-  GumScriptTaskPrivate * priv = self->priv;
-
-  priv->result = result;
-  priv->result_destroy = result_destroy;
+  self->result = result;
+  self->result_destroy = result_destroy;
 
   gum_script_task_return (self);
 }
@@ -232,7 +213,7 @@ void
 gum_script_task_return_error (GumScriptTask * self,
                               GError * error)
 {
-  self->priv->error = error;
+  self->error = error;
 
   gum_script_task_return (self);
 }
@@ -240,14 +221,12 @@ gum_script_task_return_error (GumScriptTask * self,
 static void
 gum_script_task_return (GumScriptTask * self)
 {
-  GumScriptTaskPrivate * priv = self->priv;
-
-  if (priv->synchronous)
+  if (self->synchronous)
   {
-    g_mutex_lock (&priv->mutex);
-    priv->completed = TRUE;
-    g_cond_signal (&priv->cond);
-    g_mutex_unlock (&priv->mutex);
+    g_mutex_lock (&self->mutex);
+    self->completed = TRUE;
+    g_cond_signal (&self->cond);
+    g_mutex_unlock (&self->mutex);
   }
   else
   {
@@ -256,7 +235,7 @@ gum_script_task_return (GumScriptTask * self)
     source = g_idle_source_new ();
     g_source_set_callback (source, (GSourceFunc) gum_script_task_complete,
         g_object_ref (self), g_object_unref);
-    g_source_attach (source, priv->context);
+    g_source_attach (source, self->context);
     g_source_unref (source);
   }
 }
@@ -265,29 +244,25 @@ gpointer
 gum_script_task_propagate_pointer (GumScriptTask * self,
                                    GError ** error)
 {
-  GumScriptTaskPrivate * priv = self->priv;
-
   if (gum_script_task_propagate_error (self, error))
     return NULL;
 
-  priv->result_destroy = NULL;
+  self->result_destroy = NULL;
 
-  return priv->result;
+  return self->result;
 }
 
 static gboolean
 gum_script_task_propagate_error (GumScriptTask * self,
                                  GError ** error)
 {
-  GumScriptTaskPrivate * priv = self->priv;
-
-  if (g_cancellable_set_error_if_cancelled (priv->cancellable, error))
+  if (g_cancellable_set_error_if_cancelled (self->cancellable, error))
     return TRUE;
 
-  if (priv->error != NULL)
+  if (self->error != NULL)
   {
-    g_propagate_error (error, priv->error);
-    priv->error = NULL;
+    g_propagate_error (error, self->error);
+    self->error = NULL;
     return TRUE;
   }
 
@@ -307,49 +282,42 @@ void
 gum_script_task_run_in_js_thread_sync (GumScriptTask * self,
                                        GumScriptScheduler * scheduler)
 {
-  GumScriptTaskPrivate * priv = self->priv;
+  self->synchronous = TRUE;
 
-  priv->synchronous = TRUE;
-
-  g_mutex_init (&priv->mutex);
-  g_cond_init (&priv->cond);
+  g_mutex_init (&self->mutex);
+  g_cond_init (&self->cond);
 
   gum_script_scheduler_push_job_on_js_thread (scheduler, G_PRIORITY_DEFAULT,
       (GumScriptJobFunc) gum_script_task_run, g_object_ref (self),
       g_object_unref);
 
-  g_mutex_lock (&priv->mutex);
-  while (!priv->completed)
-    g_cond_wait (&priv->cond, &priv->mutex);
-  g_mutex_unlock (&priv->mutex);
+  g_mutex_lock (&self->mutex);
+  while (!self->completed)
+    g_cond_wait (&self->cond, &self->mutex);
+  g_mutex_unlock (&self->mutex);
 
-  g_cond_clear (&priv->cond);
-  g_mutex_clear (&priv->mutex);
+  g_cond_clear (&self->cond);
+  g_mutex_clear (&self->mutex);
 }
 
 static void
 gum_script_task_run (GumScriptTask * self)
 {
-  GumScriptTaskPrivate * priv = self->priv;
-
-  if (priv->cancellable == NULL ||
-      !g_cancellable_is_cancelled (priv->cancellable))
+  if (self->cancellable == NULL ||
+      !g_cancellable_is_cancelled (self->cancellable))
   {
-    priv->func (self, priv->source_object, priv->task_data, priv->cancellable);
+    self->func (self, self->source_object, self->task_data, self->cancellable);
   }
 }
 
 static gboolean
 gum_script_task_complete (GumScriptTask * self)
 {
-  GumScriptTaskPrivate * priv = self->priv;
-
-  if (priv->callback != NULL)
+  if (self->callback != NULL)
   {
-    priv->callback (priv->source_object, G_ASYNC_RESULT (self),
-        priv->callback_data);
+    self->callback (self->source_object, G_ASYNC_RESULT (self),
+        self->callback_data);
   }
 
   return FALSE;
 }
-

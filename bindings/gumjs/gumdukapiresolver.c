@@ -67,7 +67,6 @@ _gum_duk_api_resolver_dispose (GumDukApiResolver * self)
 void
 _gum_duk_api_resolver_finalize (GumDukApiResolver * self)
 {
-  (void) self;
 }
 
 static GumDukApiResolver *

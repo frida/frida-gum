@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -12,20 +12,10 @@
 #include <gum/gumprocess.h>
 #include <setjmp.h>
 
-#define GUM_TYPE_EXCEPTOR (gum_exceptor_get_type ())
-#define GUM_EXCEPTOR(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
-    GUM_TYPE_EXCEPTOR, GumExceptor))
-#define GUM_EXCEPTOR_CAST(obj) ((GumExceptor *) (obj))
-#define GUM_EXCEPTOR_CLASS(klass) (G_TYPE_CHECK_CLASS_CAST ((klass),\
-    GUM_TYPE_EXCEPTOR, GumExceptorClass))
-#define GUM_IS_EXCEPTOR(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj),\
-    GUM_TYPE_EXCEPTOR))
-#define GUM_IS_EXCEPTOR_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE (\
-    (klass), GUM_TYPE_EXCEPTOR))
-#define GUM_EXCEPTOR_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS (\
-    (obj), GUM_TYPE_EXCEPTOR, GumExceptorClass))
-
 G_BEGIN_DECLS
+
+#define GUM_TYPE_EXCEPTOR (gum_exceptor_get_type ())
+G_DECLARE_FINAL_TYPE (GumExceptor, gum_exceptor, GUM, EXCEPTOR, GObject)
 
 #if defined (G_OS_WIN32) || defined (__APPLE__)
 # define GUM_NATIVE_SETJMP(env) setjmp (env)
@@ -37,10 +27,6 @@ G_BEGIN_DECLS
   typedef sigjmp_buf GumExceptorNativeJmpBuf;
 #endif
 
-typedef struct _GumExceptor GumExceptor;
-typedef struct _GumExceptorClass GumExceptorClass;
-typedef struct _GumExceptorPrivate GumExceptorPrivate;
-
 typedef struct _GumExceptionDetails GumExceptionDetails;
 typedef guint GumExceptionType;
 typedef struct _GumExceptionMemoryDetails GumExceptionMemoryDetails;
@@ -48,18 +34,6 @@ typedef gboolean (* GumExceptionHandler) (GumExceptionDetails * details,
     gpointer user_data);
 
 typedef struct _GumExceptorScope GumExceptorScope;
-
-struct _GumExceptor
-{
-  GObject parent;
-
-  GumExceptorPrivate * priv;
-};
-
-struct _GumExceptorClass
-{
-  GObjectClass parent_class;
-};
 
 enum _GumExceptionType
 {
@@ -104,8 +78,6 @@ struct _GumExceptorScope
 
   GumExceptorScope * next;
 };
-
-GUM_API GType gum_exceptor_get_type (void) G_GNUC_CONST;
 
 GUM_API GumExceptor * gum_exceptor_obtain (void);
 

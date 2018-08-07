@@ -53,16 +53,12 @@ _gum_duk_thread_init (GumDukThread * self,
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_thread_construct)
 {
-  (void) ctx;
-  (void) args;
-
   return 0;
 }
 
 void
 _gum_duk_thread_dispose (GumDukThread * self)
 {
-  (void) self;
 }
 
 void
@@ -143,8 +139,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_sleep)
   GumDukCore * core = args->core;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   gdouble delay;
-
-  (void) ctx;
 
   _gum_duk_args_parse (args, "n", &delay);
 

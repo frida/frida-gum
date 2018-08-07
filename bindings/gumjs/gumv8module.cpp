@@ -227,19 +227,8 @@ _gum_v8_module_dispose (GumV8Module * self)
 void
 _gum_v8_module_finalize (GumV8Module * self)
 {
-  (void) self;
 }
 
-/*
- * Prototype:
- * Module.ensureInitialized(name)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_module_ensure_initialized)
 {
   gchar * name;
@@ -255,16 +244,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_ensure_initialized)
   g_free (name);
 }
 
-/*
- * Prototype:
- * Module.enumerateImports(name, callback)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_imports)
 {
   gchar * name;
@@ -382,16 +361,6 @@ gum_emit_import (const GumImportDetails * details,
   return proceed;
 }
 
-/*
- * Prototype:
- * Module.enumerateExports(name, callback)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_exports)
 {
   gchar * name;
@@ -460,16 +429,6 @@ gum_emit_export (const GumExportDetails * details,
   return proceed;
 }
 
-/*
- * Prototype:
- * Module.enumerateSymbols(name, callback)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_symbols)
 {
   gchar * name;
@@ -533,16 +492,6 @@ gum_emit_symbol (const GumSymbolDetails * details,
   return proceed;
 }
 
-/*
- * Prototype:
- * Module.enumerateRanges(name, prot, callback)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_ranges)
 {
   gchar * name;
@@ -595,16 +544,6 @@ gum_emit_range (const GumRangeDetails * details,
   return proceed;
 }
 
-/*
- * Prototype:
- * Module.findBaseAddress(module_name)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_module_find_base_address)
 {
   gchar * name;
@@ -625,16 +564,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_find_base_address)
   g_free (name);
 }
 
-/*
- * Prototype:
- * Module.findExportByName(module_name, symbol_name)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_module_find_export_by_name)
 {
   gchar * module_name, * symbol_name;

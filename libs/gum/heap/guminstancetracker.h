@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -10,22 +10,12 @@
 #include <glib-object.h>
 #include <gum/gumdefs.h>
 
-#define GUM_TYPE_INSTANCE_TRACKER (gum_instance_tracker_get_type ())
-#define GUM_INSTANCE_TRACKER(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
-    GUM_TYPE_INSTANCE_TRACKER, GumInstanceTracker))
-#define GUM_INSTANCE_TRACKER_CAST(obj) ((GumInstanceTracker *) (obj))
-#define GUM_INSTANCE_TRACKER_CLASS(klass) (G_TYPE_CHECK_CLASS_CAST ((klass),\
-    GUM_TYPE_INSTANCE_TRACKER, GumInstanceTrackerClass))
-#define GUM_IS_INSTANCE_TRACKER(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj),\
-    GUM_TYPE_INSTANCE_TRACKER))
-#define GUM_IS_INSTANCE_TRACKER_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE (\
-    (klass), GUM_TYPE_INSTANCE_TRACKER))
-#define GUM_INSTANCE_TRACKER_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS (\
-    (obj), GUM_TYPE_INSTANCE_TRACKER, GumInstanceTrackerClass))
+G_BEGIN_DECLS
 
-typedef struct _GumInstanceTracker GumInstanceTracker;
-typedef struct _GumInstanceTrackerClass GumInstanceTrackerClass;
-typedef struct _GumInstanceTrackerPrivate GumInstanceTrackerPrivate;
+#define GUM_TYPE_INSTANCE_TRACKER (gum_instance_tracker_get_type ())
+G_DECLARE_FINAL_TYPE (GumInstanceTracker, gum_instance_tracker, GUM,
+    INSTANCE_TRACKER, GObject)
+
 typedef struct _GumInstanceVTable GumInstanceVTable;
 typedef struct _GumInstanceDetails GumInstanceDetails;
 
@@ -33,18 +23,6 @@ typedef gboolean (* GumFilterInstanceTypeFunc) (
     GumInstanceTracker * tracker, GType gtype, gpointer user_data);
 typedef void (* GumWalkInstanceFunc) (GumInstanceDetails * id,
     gpointer user_data);
-
-struct _GumInstanceTracker
-{
-  GObject parent;
-
-  GumInstanceTrackerPrivate * priv;
-};
-
-struct _GumInstanceTrackerClass
-{
-  GObjectClass parent_class;
-};
 
 struct _GumInstanceVTable
 {
@@ -60,10 +38,6 @@ struct _GumInstanceDetails
   guint ref_count;
   const gchar * type_name;
 };
-
-G_BEGIN_DECLS
-
-GUM_API GType gum_instance_tracker_get_type (void) G_GNUC_CONST;
 
 GUM_API GumInstanceTracker * gum_instance_tracker_new (void);
 

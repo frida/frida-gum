@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -13,6 +13,27 @@
 #define DEFAULT_POOL_SIZE       G_MAXUINT16
 #define DEFAULT_FRONT_ALIGNMENT 16
 
+typedef struct _AlignmentCriteria AlignmentCriteria;
+typedef struct _TailAlignResult   TailAlignResult;
+
+struct _GumPagePool
+{
+  GObject parent;
+
+  gboolean disposed;
+
+  guint page_size;
+  GumProtectMode protect_mode;
+  guint size;
+  guint front_alignment;
+
+  guint available;
+  guint cur_offset;
+  guint8 * pool;
+  guint8 * pool_end;
+  GumBlockDetails * block_details;
+};
+
 enum
 {
   PROP_0,
@@ -20,29 +41,6 @@ enum
   PROP_PROTECT_MODE,
   PROP_SIZE,
   PROP_FRONT_ALIGNMENT
-};
-
-G_DEFINE_TYPE (GumPagePool, gum_page_pool, G_TYPE_OBJECT);
-
-typedef struct _AlignmentCriteria AlignmentCriteria;
-typedef struct _TailAlignResult   TailAlignResult;
-
-struct _GumPagePoolPrivate
-{
-  gboolean disposed;
-
-  /*< properties */
-  guint page_size;
-  GumProtectMode protect_mode;
-  guint size;
-  guint front_alignment;
-
-  /*< state */
-  guint available;
-  guint cur_offset;
-  guint8 * pool;
-  guint8 * pool_end;
-  GumBlockDetails * block_details;
 };
 
 struct _AlignmentCriteria
@@ -58,11 +56,8 @@ struct _TailAlignResult
   gsize gap_size;
 };
 
-#define GUM_PAGE_POOL_GET_PRIVATE(o) ((o)->priv)
-
 static void gum_page_pool_constructed (GObject * object);
 static void gum_page_pool_finalize (GObject * object);
-
 static void gum_page_pool_get_property (GObject * object,
     guint property_id, GValue * value, GParamSpec * pspec);
 static void gum_page_pool_set_property (GObject * object,
@@ -82,12 +77,12 @@ static gpointer release_n_pages_at (GumPagePool * self, guint n_pages,
 static void tail_align (gpointer ptr, gsize size,
     const AlignmentCriteria * criteria, TailAlignResult * result);
 
+G_DEFINE_TYPE (GumPagePool, gum_page_pool, G_TYPE_OBJECT)
+
 static void
 gum_page_pool_class_init (GumPagePoolClass * klass)
 {
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
-
-  g_type_class_add_private (klass, sizeof (GumPagePoolPrivate));
 
   object_class->constructed = gum_page_pool_constructed;
   object_class->finalize = gum_page_pool_finalize;
@@ -119,39 +114,30 @@ gum_page_pool_class_init (GumPagePoolClass * klass)
 static void
 gum_page_pool_init (GumPagePool * self)
 {
-  GumPagePoolPrivate * priv;
-
-  self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self, GUM_TYPE_PAGE_POOL,
-      GumPagePoolPrivate);
-
-  priv = GUM_PAGE_POOL_GET_PRIVATE (self);
-
-  priv->page_size = gum_query_page_size ();
-  priv->protect_mode = DEFAULT_PROTECT_MODE;
-  priv->size = DEFAULT_POOL_SIZE;
-  priv->front_alignment = DEFAULT_FRONT_ALIGNMENT;
+  self->page_size = gum_query_page_size ();
+  self->protect_mode = DEFAULT_PROTECT_MODE;
+  self->size = DEFAULT_POOL_SIZE;
+  self->front_alignment = DEFAULT_FRONT_ALIGNMENT;
 }
 
 static void
 gum_page_pool_constructed (GObject * object)
 {
   GumPagePool * self = GUM_PAGE_POOL (object);
-  GumPagePoolPrivate * priv = GUM_PAGE_POOL_GET_PRIVATE (self);
 
-  priv->available = priv->size;
-  priv->pool = gum_alloc_n_pages (priv->size, GUM_PAGE_NO_ACCESS);
-  priv->pool_end = priv->pool + (priv->size * priv->page_size);
-  priv->block_details = g_malloc0 (priv->size * sizeof (GumBlockDetails));
+  self->available = self->size;
+  self->pool = gum_alloc_n_pages (self->size, GUM_PAGE_NO_ACCESS);
+  self->pool_end = self->pool + (self->size * self->page_size);
+  self->block_details = g_malloc0 (self->size * sizeof (GumBlockDetails));
 }
 
 static void
 gum_page_pool_finalize (GObject * object)
 {
   GumPagePool * self = GUM_PAGE_POOL (object);
-  GumPagePoolPrivate * priv = GUM_PAGE_POOL_GET_PRIVATE (self);
 
-  g_free (priv->block_details);
-  gum_free_pages (priv->pool);
+  g_free (self->block_details);
+  gum_free_pages (self->pool);
 
   G_OBJECT_CLASS (gum_page_pool_parent_class)->finalize (object);
 }
@@ -163,21 +149,20 @@ gum_page_pool_get_property (GObject * object,
                             GParamSpec * pspec)
 {
   GumPagePool * self = GUM_PAGE_POOL (object);
-  GumPagePoolPrivate * priv = GUM_PAGE_POOL_GET_PRIVATE (self);
 
   switch (property_id)
   {
     case PROP_PAGE_SIZE:
-      g_value_set_uint (value, priv->page_size);
+      g_value_set_uint (value, self->page_size);
       break;
     case PROP_PROTECT_MODE:
-      g_value_set_uint (value, priv->protect_mode);
+      g_value_set_uint (value, self->protect_mode);
       break;
     case PROP_SIZE:
-      g_value_set_uint (value, priv->size);
+      g_value_set_uint (value, self->size);
       break;
     case PROP_FRONT_ALIGNMENT:
-      g_value_set_uint (value, priv->front_alignment);
+      g_value_set_uint (value, self->front_alignment);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -191,18 +176,17 @@ gum_page_pool_set_property (GObject * object,
                             GParamSpec * pspec)
 {
   GumPagePool * self = GUM_PAGE_POOL (object);
-  GumPagePoolPrivate * priv = GUM_PAGE_POOL_GET_PRIVATE (self);
 
   switch (property_id)
   {
     case PROP_PROTECT_MODE:
-      priv->protect_mode = g_value_get_uint (value);
+      self->protect_mode = g_value_get_uint (value);
       break;
     case PROP_SIZE:
-      priv->size = g_value_get_uint (value);
+      self->size = g_value_get_uint (value);
       break;
     case PROP_FRONT_ALIGNMENT:
-      priv->front_alignment = g_value_get_uint (value);
+      self->front_alignment = g_value_get_uint (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -223,7 +207,6 @@ gpointer
 gum_page_pool_try_alloc (GumPagePool * self,
                          guint size)
 {
-  GumPagePoolPrivate * priv = GUM_PAGE_POOL_GET_PRIVATE (self);
   gpointer result = NULL;
   guint n_pages;
 
@@ -231,7 +214,7 @@ gum_page_pool_try_alloc (GumPagePool * self,
 
   n_pages = num_pages_needed_for (self, size);
 
-  if (n_pages <= priv->available)
+  if (n_pages <= self->available)
   {
     gint start_index;
 
@@ -245,19 +228,19 @@ gum_page_pool_try_alloc (GumPagePool * self,
 
       page_start = claim_n_pages_at (self, n_pages, start_index);
 
-      align_criteria.front = priv->front_alignment;
-      align_criteria.tail = priv->page_size;
+      align_criteria.front = self->front_alignment;
+      align_criteria.tail = self->page_size;
       tail_align (page_start, size, &align_criteria, &align_result);
 
       for (i = start_index; i < start_index + n_pages; i++)
       {
-        GumBlockDetails * details = &priv->block_details[i];
+        GumBlockDetails * details = &self->block_details[i];
 
         details->address = align_result.aligned_ptr;
         details->size = size;
 
-        details->guard = page_start + ((n_pages - 1) * priv->page_size);
-        details->guard_size = priv->page_size;
+        details->guard = page_start + ((n_pages - 1) * self->page_size);
+        details->guard_size = self->page_size;
       }
 
       result = align_result.aligned_ptr;
@@ -271,7 +254,6 @@ gboolean
 gum_page_pool_try_free (GumPagePool * self,
                         gpointer mem)
 {
-  GumPagePoolPrivate * priv = GUM_PAGE_POOL_GET_PRIVATE (self);
   gint start_index;
   guint n_pages;
 
@@ -279,7 +261,7 @@ gum_page_pool_try_free (GumPagePool * self,
   if (start_index < 0)
     return FALSE;
 
-  n_pages = num_pages_needed_for (self, priv->block_details[start_index].size);
+  n_pages = num_pages_needed_for (self, self->block_details[start_index].size);
   release_n_pages_at (self, n_pages, start_index);
 
   return TRUE;
@@ -288,15 +270,13 @@ gum_page_pool_try_free (GumPagePool * self,
 guint
 gum_page_pool_peek_available (GumPagePool * self)
 {
-  return self->priv->available;
+  return self->available;
 }
 
 guint
 gum_page_pool_peek_used (GumPagePool * self)
 {
-  GumPagePoolPrivate * priv = GUM_PAGE_POOL_GET_PRIVATE (self);
-
-  return priv->size - priv->available;
+  return self->size - self->available;
 }
 
 void
@@ -304,10 +284,8 @@ gum_page_pool_get_bounds (GumPagePool * self,
                           guint8 ** lower,
                           guint8 ** upper)
 {
-  GumPagePoolPrivate * priv = GUM_PAGE_POOL_GET_PRIVATE (self);
-
-  *lower = priv->pool;
-  *upper = priv->pool_end;
+  *lower = self->pool;
+  *upper = self->pool_end;
 }
 
 gboolean
@@ -315,14 +293,13 @@ gum_page_pool_query_block_details (GumPagePool * self,
                                    gconstpointer mem,
                                    GumBlockDetails * details)
 {
-  GumPagePoolPrivate * priv = GUM_PAGE_POOL_GET_PRIVATE (self);
   gint start_index;
 
   start_index = find_start_index_for_address (self, mem);
   if (start_index < 0)
     return FALSE;
 
-  *details = priv->block_details[start_index];
+  *details = self->block_details[start_index];
   return TRUE;
 }
 
@@ -330,18 +307,17 @@ static gint
 find_start_index_with_n_free_pages (GumPagePool * self,
                                     guint n_pages)
 {
-  GumPagePoolPrivate * priv = GUM_PAGE_POOL_GET_PRIVATE (self);
   gint result = -1;
   guint first_index;
   guint i, n;
 
-  first_index = priv->cur_offset;
+  first_index = self->cur_offset;
 
 start_over:
 
-  for (i = first_index, n = 0; i < priv->size && n < n_pages; i++)
+  for (i = first_index, n = 0; i < self->size && n < n_pages; i++)
   {
-    if (!priv->block_details[i].allocated)
+    if (!self->block_details[i].allocated)
       n++;
     else
       n = 0;
@@ -364,52 +340,48 @@ static gint
 find_start_index_for_address (GumPagePool * self,
                               const guint8 * p)
 {
-  GumPagePoolPrivate * priv = GUM_PAGE_POOL_GET_PRIVATE (self);
-
-  if (p < priv->pool || p > priv->pool_end)
+  if (p < self->pool || p > self->pool_end)
     return -1;
 
-  return (p - priv->pool) / priv->page_size;
+  return (p - self->pool) / self->page_size;
 }
 
 static guint
 num_pages_needed_for (GumPagePool * self,
                       guint size)
 {
-  GumPagePoolPrivate * priv = GUM_PAGE_POOL_GET_PRIVATE (self);
   guint n_pages;
 
-  n_pages = (size / priv->page_size) + 1;
-  if (size % priv->page_size != 0)
+  n_pages = (size / self->page_size) + 1;
+  if (size % self->page_size != 0)
     n_pages++;
 
   return n_pages;
 }
 
-#define POOL_ADDRESS_FROM_PAGE_INDEX(n) (priv->pool + (n * priv->page_size))
+#define POOL_ADDRESS_FROM_PAGE_INDEX(n) (self->pool + (n * self->page_size))
 
 static gpointer
 claim_n_pages_at (GumPagePool * self,
                   guint n_pages,
                   guint start_index)
 {
-  GumPagePoolPrivate * priv = GUM_PAGE_POOL_GET_PRIVATE (self);
   gpointer start_address;
   guint i;
 
   start_address = POOL_ADDRESS_FROM_PAGE_INDEX (start_index);
 
-  priv->cur_offset = start_index + n_pages;
-  priv->available -= n_pages;
+  self->cur_offset = start_index + n_pages;
+  self->available -= n_pages;
 
   for (i = start_index; i < start_index + n_pages; i++)
   {
-    GumBlockDetails * details = &priv->block_details[i];
+    GumBlockDetails * details = &self->block_details[i];
 
     details->allocated = TRUE;
   }
 
-  gum_mprotect (start_address, (n_pages - 1) * priv->page_size,
+  gum_mprotect (start_address, (n_pages - 1) * self->page_size,
       GUM_PAGE_READ | GUM_PAGE_WRITE);
   return start_address;
 }
@@ -419,21 +391,21 @@ release_n_pages_at (GumPagePool * self,
                     guint n_pages,
                     guint start_index)
 {
-  GumPagePoolPrivate * priv = GUM_PAGE_POOL_GET_PRIVATE (self);
   gpointer start_address;
   guint i;
 
-  priv->available += n_pages;
+  self->available += n_pages;
 
   for (i = start_index; i < start_index + n_pages; i++)
   {
-    GumBlockDetails * details = &priv->block_details[i];
+    GumBlockDetails * details = &self->block_details[i];
 
     details->allocated = FALSE;
   }
 
   start_address = POOL_ADDRESS_FROM_PAGE_INDEX (start_index);
   gum_mprotect (start_address, n_pages - 1, GUM_PAGE_NO_ACCESS);
+
   return start_address;
 }
 
@@ -449,9 +421,11 @@ tail_align (gpointer ptr,
 
   unaligned_start_address = GPOINTER_TO_SIZE (ptr);
   unaligned_end_address = unaligned_start_address + size - 1;
-  next_tail_boundary = ((unaligned_end_address / criteria->tail) + 1) * criteria->tail;
+  next_tail_boundary = ((unaligned_end_address / criteria->tail) + 1)
+      * criteria->tail;
 
-  aligned_start_address = ((next_tail_boundary - size) / criteria->front) * criteria->front;
+  aligned_start_address = ((next_tail_boundary - size) / criteria->front)
+      * criteria->front;
   if (aligned_start_address < unaligned_start_address)
   {
     aligned_start_address += criteria->tail;

@@ -122,8 +122,6 @@
   N (Local<Name> property, \
      const PropertyCallbackInfo<Value> & info) \
   { \
-    (void) property; \
-    \
     GumV8Closure_##N closure (info); \
     closure.invoke (); \
   } \
@@ -159,8 +157,6 @@
      Local<Value> value, \
      const PropertyCallbackInfo<void> & info) \
   { \
-    (void) property; \
-    \
     GumV8Closure_##N closure (value, info); \
     closure.invoke (); \
   } \
@@ -196,8 +192,6 @@
   N (Local<Name> property, \
      const PropertyCallbackInfo<Value> & info) \
   { \
-    (void) property; \
-    \
     GumV8Closure_##N closure (info); \
     closure.invoke (); \
   } \
@@ -237,8 +231,6 @@
      Local<Value> value, \
      const PropertyCallbackInfo<void> & info) \
   { \
-    (void) property; \
-    \
     GumV8Closure_##N closure (value, info); \
     closure.invoke (); \
   } \

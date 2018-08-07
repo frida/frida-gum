@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -17,8 +17,8 @@
 #define DEFAULT_POOL_SIZE       4096
 #define DEFAULT_FRONT_ALIGNMENT   16
 
-#define GUM_BOUNDS_CHECKER_LOCK()   (g_mutex_lock (&self->priv->mutex))
-#define GUM_BOUNDS_CHECKER_UNLOCK() (g_mutex_unlock (&self->priv->mutex))
+#define GUM_BOUNDS_CHECKER_LOCK() g_mutex_lock (&self->mutex)
+#define GUM_BOUNDS_CHECKER_UNLOCK() g_mutex_unlock (&self->mutex)
 
 #define BLOCK_ALLOC_RETADDRS(b) \
     ((GumReturnAddressArray *) (b)->guard)
@@ -33,13 +33,15 @@ enum
   PROP_FRONT_ALIGNMENT
 };
 
-struct _GumBoundsCheckerPrivate
+struct _GumBoundsChecker
 {
+  GObject parent;
+
   gboolean disposed;
 
   GMutex mutex;
 
-  GumBacktracerIface * backtracer_interface;
+  GumBacktracerInterface * backtracer_iface;
   GumBacktracer * backtracer_instance;
   GumBoundsOutputFunc output;
   gpointer output_user_data;
@@ -55,8 +57,6 @@ struct _GumBoundsCheckerPrivate
   guint front_alignment;
   GumPagePool * page_pool;
 };
-
-#define GUM_BOUNDS_CHECKER_GET_PRIVATE(o) ((o)->priv)
 
 static void gum_bounds_checker_dispose (GObject * object);
 static void gum_bounds_checker_finalize (GObject * object);
@@ -82,14 +82,12 @@ static gboolean gum_bounds_checker_on_exception (GumExceptionDetails * details,
 static void gum_bounds_checker_append_backtrace (
     const GumReturnAddressArray * arr, GString * s);
 
-G_DEFINE_TYPE (GumBoundsChecker, gum_bounds_checker, G_TYPE_OBJECT);
+G_DEFINE_TYPE (GumBoundsChecker, gum_bounds_checker, G_TYPE_OBJECT)
 
 static void
 gum_bounds_checker_class_init (GumBoundsCheckerClass * klass)
 {
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
-
-  g_type_class_add_private (klass, sizeof (GumBoundsCheckerPrivate));
 
   object_class->dispose = gum_bounds_checker_dispose;
   object_class->finalize = gum_bounds_checker_finalize;
@@ -117,48 +115,36 @@ gum_bounds_checker_class_init (GumBoundsCheckerClass * klass)
 static void
 gum_bounds_checker_init (GumBoundsChecker * self)
 {
-  GumBoundsCheckerPrivate * priv;
+  g_mutex_init (&self->mutex);
 
-  self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self, GUM_TYPE_BOUNDS_CHECKER,
-      GumBoundsCheckerPrivate);
+  self->interceptor = gum_interceptor_obtain ();
+  self->exceptor = gum_exceptor_obtain ();
+  self->pool_size = DEFAULT_POOL_SIZE;
+  self->front_alignment = DEFAULT_FRONT_ALIGNMENT;
 
-  priv = GUM_BOUNDS_CHECKER_GET_PRIVATE (self);
-
-  g_mutex_init (&priv->mutex);
-
-  priv->interceptor = gum_interceptor_obtain ();
-  priv->exceptor = gum_exceptor_obtain ();
-  priv->pool_size = DEFAULT_POOL_SIZE;
-  priv->front_alignment = DEFAULT_FRONT_ALIGNMENT;
-
-  gum_exceptor_add (priv->exceptor, gum_bounds_checker_on_exception, self);
+  gum_exceptor_add (self->exceptor, gum_bounds_checker_on_exception, self);
 }
 
 static void
 gum_bounds_checker_dispose (GObject * object)
 {
   GumBoundsChecker * self = GUM_BOUNDS_CHECKER (object);
-  GumBoundsCheckerPrivate * priv = GUM_BOUNDS_CHECKER_GET_PRIVATE (self);
 
-  if (!priv->disposed)
+  if (!self->disposed)
   {
-    priv->disposed = TRUE;
+    self->disposed = TRUE;
 
     gum_bounds_checker_detach (self);
 
-    gum_exceptor_remove (priv->exceptor, gum_bounds_checker_on_exception, self);
-    g_object_unref (priv->exceptor);
-    priv->exceptor = NULL;
+    gum_exceptor_remove (self->exceptor, gum_bounds_checker_on_exception, self);
+    g_object_unref (self->exceptor);
+    self->exceptor = NULL;
 
-    g_object_unref (priv->interceptor);
-    priv->interceptor = NULL;
+    g_object_unref (self->interceptor);
+    self->interceptor = NULL;
 
-    if (priv->backtracer_instance != NULL)
-    {
-      g_object_unref (priv->backtracer_instance);
-      priv->backtracer_instance = NULL;
-    }
-    priv->backtracer_interface = NULL;
+    g_clear_object (&self->backtracer_instance);
+    self->backtracer_iface = NULL;
   }
 
   G_OBJECT_CLASS (gum_bounds_checker_parent_class)->dispose (object);
@@ -169,7 +155,7 @@ gum_bounds_checker_finalize (GObject * object)
 {
   GumBoundsChecker * self = GUM_BOUNDS_CHECKER (object);
 
-  g_mutex_clear (&self->priv->mutex);
+  g_mutex_clear (&self->mutex);
 
   G_OBJECT_CLASS (gum_bounds_checker_parent_class)->finalize (object);
 }
@@ -181,12 +167,11 @@ gum_bounds_checker_get_property (GObject * object,
                                  GParamSpec * pspec)
 {
   GumBoundsChecker * self = GUM_BOUNDS_CHECKER (object);
-  GumBoundsCheckerPrivate * priv = self->priv;
 
   switch (property_id)
   {
     case PROP_BACKTRACER:
-      g_value_set_object (value, priv->backtracer_instance);
+      g_value_set_object (value, self->backtracer_instance);
       break;
     case PROP_POOL_SIZE:
       g_value_set_uint (value, gum_bounds_checker_get_pool_size (self));
@@ -206,23 +191,22 @@ gum_bounds_checker_set_property (GObject * object,
                                  GParamSpec * pspec)
 {
   GumBoundsChecker * self = GUM_BOUNDS_CHECKER (object);
-  GumBoundsCheckerPrivate * priv = self->priv;
 
   switch (property_id)
   {
     case PROP_BACKTRACER:
-      if (priv->backtracer_instance != NULL)
-        g_object_unref (priv->backtracer_instance);
-      priv->backtracer_instance = g_value_dup_object (value);
+      if (self->backtracer_instance != NULL)
+        g_object_unref (self->backtracer_instance);
+      self->backtracer_instance = g_value_dup_object (value);
 
-      if (priv->backtracer_instance != NULL)
+      if (self->backtracer_instance != NULL)
       {
-        priv->backtracer_interface =
-            GUM_BACKTRACER_GET_INTERFACE (priv->backtracer_instance);
+        self->backtracer_iface =
+            GUM_BACKTRACER_GET_IFACE (self->backtracer_instance);
       }
       else
       {
-        priv->backtracer_interface = NULL;
+        self->backtracer_iface = NULL;
       }
 
       break;
@@ -243,15 +227,13 @@ gum_bounds_checker_new (GumBacktracer * backtracer,
                         gpointer user_data)
 {
   GumBoundsChecker * checker;
-  GumBoundsCheckerPrivate * priv;
 
-  checker = GUM_BOUNDS_CHECKER (g_object_new (GUM_TYPE_BOUNDS_CHECKER,
+  checker = g_object_new (GUM_TYPE_BOUNDS_CHECKER,
       "backtracer", backtracer,
-      NULL));
-  priv = checker->priv;
+      NULL);
 
-  priv->output = func;
-  priv->output_user_data = user_data;
+  checker->output = func;
+  checker->output_user_data = user_data;
 
   return checker;
 }
@@ -259,29 +241,29 @@ gum_bounds_checker_new (GumBacktracer * backtracer,
 guint
 gum_bounds_checker_get_pool_size (GumBoundsChecker * self)
 {
-  return self->priv->pool_size;
+  return self->pool_size;
 }
 
 void
 gum_bounds_checker_set_pool_size (GumBoundsChecker * self,
                                   guint pool_size)
 {
-  g_assert (self->priv->page_pool == NULL);
-  self->priv->pool_size = pool_size;
+  g_assert (self->page_pool == NULL);
+  self->pool_size = pool_size;
 }
 
 guint
 gum_bounds_checker_get_front_alignment (GumBoundsChecker * self)
 {
-  return self->priv->front_alignment;
+  return self->front_alignment;
 }
 
 void
 gum_bounds_checker_set_front_alignment (GumBoundsChecker * self,
                                         guint pool_size)
 {
-  g_assert (self->priv->page_pool == NULL);
-  self->priv->front_alignment = pool_size;
+  g_assert (self->page_pool == NULL);
+  self->front_alignment = pool_size;
 }
 
 void
@@ -296,26 +278,25 @@ void
 gum_bounds_checker_attach_to_apis (GumBoundsChecker * self,
                                    const GumHeapApiList * apis)
 {
-  GumBoundsCheckerPrivate * priv = GUM_BOUNDS_CHECKER_GET_PRIVATE (self);
   guint i;
 
-  g_assert (priv->heap_apis == NULL);
-  priv->heap_apis = gum_heap_api_list_copy (apis);
+  g_assert (self->heap_apis == NULL);
+  self->heap_apis = gum_heap_api_list_copy (apis);
 
-  g_assert (priv->page_pool == NULL);
-  priv->page_pool = gum_page_pool_new (GUM_PROTECT_MODE_ABOVE,
-      priv->pool_size);
-  g_object_set (priv->page_pool, "front-alignment", priv->front_alignment,
+  g_assert (self->page_pool == NULL);
+  self->page_pool = gum_page_pool_new (GUM_PROTECT_MODE_ABOVE,
+      self->pool_size);
+  g_object_set (self->page_pool, "front-alignment", self->front_alignment,
       NULL);
 
-  gum_interceptor_begin_transaction (priv->interceptor);
+  gum_interceptor_begin_transaction (self->interceptor);
 
   for (i = 0; i != apis->len; i++)
   {
     const GumHeapApi * api = gum_heap_api_list_get_nth (apis, i);
 
 #define GUM_REPLACE_API_FUNC(name) \
-    gum_interceptor_replace_function (priv->interceptor, \
+    gum_interceptor_replace_function (self->interceptor, \
         GUM_FUNCPTR_TO_POINTER (api->name), \
         GUM_FUNCPTR_TO_POINTER (replacement_##name), self)
 
@@ -327,33 +308,31 @@ gum_bounds_checker_attach_to_apis (GumBoundsChecker * self,
 #undef GUM_REPLACE_API_FUNC
   }
 
-  gum_interceptor_end_transaction (priv->interceptor);
+  gum_interceptor_end_transaction (self->interceptor);
 
-  priv->attached = TRUE;
+  self->attached = TRUE;
 }
 
 void
 gum_bounds_checker_detach (GumBoundsChecker * self)
 {
-  GumBoundsCheckerPrivate * priv = GUM_BOUNDS_CHECKER_GET_PRIVATE (self);
-
-  if (priv->attached)
+  if (self->attached)
   {
     guint i;
 
-    priv->attached = FALSE;
-    priv->detaching = TRUE;
+    self->attached = FALSE;
+    self->detaching = TRUE;
 
-    g_assert_cmpuint (gum_page_pool_peek_used (priv->page_pool), ==, 0);
+    g_assert_cmpuint (gum_page_pool_peek_used (self->page_pool), ==, 0);
 
-    gum_interceptor_begin_transaction (priv->interceptor);
+    gum_interceptor_begin_transaction (self->interceptor);
 
-    for (i = 0; i != priv->heap_apis->len; i++)
+    for (i = 0; i != self->heap_apis->len; i++)
     {
-      const GumHeapApi * api = gum_heap_api_list_get_nth (priv->heap_apis, i);
+      const GumHeapApi * api = gum_heap_api_list_get_nth (self->heap_apis, i);
 
 #define GUM_REVERT_API_FUNC(name) \
-      gum_interceptor_revert_function (priv->interceptor, \
+      gum_interceptor_revert_function (self->interceptor, \
           GUM_FUNCPTR_TO_POINTER (api->name))
 
       GUM_REVERT_API_FUNC (malloc);
@@ -364,13 +343,13 @@ gum_bounds_checker_detach (GumBoundsChecker * self)
   #undef GUM_REVERT_API_FUNC
     }
 
-    gum_interceptor_end_transaction (priv->interceptor);
+    gum_interceptor_end_transaction (self->interceptor);
 
-    g_object_unref (priv->page_pool);
-    priv->page_pool = NULL;
+    g_object_unref (self->page_pool);
+    self->page_pool = NULL;
 
-    gum_heap_api_list_free (priv->heap_apis);
-    priv->heap_apis = NULL;
+    gum_heap_api_list_free (self->heap_apis);
+    self->heap_apis = NULL;
   }
 }
 
@@ -384,7 +363,7 @@ replacement_malloc (gsize size)
   ctx = gum_interceptor_get_current_invocation ();
   self = GUM_RINCTX_GET_FUNC_DATA (ctx, GumBoundsChecker *);
 
-  if (self->priv->detaching || self->priv->handled_invalid_access)
+  if (self->detaching || self->handled_invalid_access)
     goto fallback;
 
   GUM_BOUNDS_CHECKER_LOCK ();
@@ -410,7 +389,7 @@ replacement_calloc (gsize num,
   ctx = gum_interceptor_get_current_invocation ();
   self = GUM_RINCTX_GET_FUNC_DATA (ctx, GumBoundsChecker *);
 
-  if (self->priv->detaching || self->priv->handled_invalid_access)
+  if (self->detaching || self->handled_invalid_access)
     goto fallback;
 
   GUM_BOUNDS_CHECKER_LOCK ();
@@ -449,12 +428,12 @@ replacement_realloc (gpointer old_address,
     return NULL;
   }
 
-  if (self->priv->detaching || self->priv->handled_invalid_access)
+  if (self->detaching || self->handled_invalid_access)
     goto fallback;
 
   GUM_BOUNDS_CHECKER_LOCK ();
 
-  if (!gum_page_pool_query_block_details (self->priv->page_pool, old_address,
+  if (!gum_page_pool_query_block_details (self->page_pool, old_address,
       &old_block))
   {
     GUM_BOUNDS_CHECKER_UNLOCK ();
@@ -506,22 +485,21 @@ gum_bounds_checker_try_alloc (GumBoundsChecker * self,
                               guint size,
                               GumInvocationContext * ctx)
 {
-  GumBoundsCheckerPrivate * priv = self->priv;
   gpointer result;
 
-  result = gum_page_pool_try_alloc (priv->page_pool, size);
+  result = gum_page_pool_try_alloc (self->page_pool, size);
 
-  if (result != NULL && priv->backtracer_instance != NULL)
+  if (result != NULL && self->backtracer_instance != NULL)
   {
     GumBlockDetails block;
 
-    gum_page_pool_query_block_details (priv->page_pool, result, &block);
+    gum_page_pool_query_block_details (self->page_pool, result, &block);
 
     gum_mprotect (block.guard, block.guard_size, GUM_PAGE_RW);
 
     g_assert_cmpuint (block.guard_size / 2,
         >=, sizeof (GumReturnAddressArray));
-    priv->backtracer_interface->generate (priv->backtracer_instance,
+    self->backtracer_iface->generate (self->backtracer_instance,
         ctx->cpu_context, BLOCK_ALLOC_RETADDRS (&block));
 
     BLOCK_FREE_RETADDRS (&block)->len = 0;
@@ -537,22 +515,21 @@ gum_bounds_checker_try_free (GumBoundsChecker * self,
                              gpointer address,
                              GumInvocationContext * ctx)
 {
-  GumBoundsCheckerPrivate * priv = self->priv;
   gboolean freed;
 
-  freed = gum_page_pool_try_free (priv->page_pool, address);
+  freed = gum_page_pool_try_free (self->page_pool, address);
 
-  if (freed && priv->backtracer_instance != NULL)
+  if (freed && self->backtracer_instance != NULL)
   {
     GumBlockDetails block;
 
-    gum_page_pool_query_block_details (priv->page_pool, address, &block);
+    gum_page_pool_query_block_details (self->page_pool, address, &block);
 
     gum_mprotect (block.guard, block.guard_size, GUM_PAGE_RW);
 
     g_assert_cmpuint (block.guard_size / 2,
         >=, sizeof (GumReturnAddressArray));
-    priv->backtracer_interface->generate (priv->backtracer_instance,
+    self->backtracer_iface->generate (self->backtracer_instance,
         ctx->cpu_context, BLOCK_FREE_RETADDRS (&block));
 
     gum_mprotect (block.guard, block.guard_size, GUM_PAGE_NO_ACCESS);
@@ -565,13 +542,14 @@ static gboolean
 gum_bounds_checker_on_exception (GumExceptionDetails * details,
                                  gpointer user_data)
 {
-  GumBoundsChecker * self = GUM_BOUNDS_CHECKER_CAST (user_data);
-  GumBoundsCheckerPrivate * priv = self->priv;
+  GumBoundsChecker * self;
   GumMemoryOperation op;
   gconstpointer address;
   GumBlockDetails block;
   GString * message;
   GumReturnAddressArray accessed_at = { 0, };
+
+  self = GUM_BOUNDS_CHECKER (user_data);
 
   if (details->type != GUM_EXCEPTION_ACCESS_VIOLATION)
     return FALSE;
@@ -582,14 +560,14 @@ gum_bounds_checker_on_exception (GumExceptionDetails * details,
 
   address = details->memory.address;
 
-  if (!gum_page_pool_query_block_details (priv->page_pool, address, &block))
+  if (!gum_page_pool_query_block_details (self->page_pool, address, &block))
     return FALSE;
 
-  if (priv->handled_invalid_access)
+  if (self->handled_invalid_access)
     return FALSE;
-  priv->handled_invalid_access = TRUE;
+  self->handled_invalid_access = TRUE;
 
-  if (priv->output == NULL)
+  if (self->output == NULL)
     return TRUE;
 
   message = g_string_sized_new (300);
@@ -602,10 +580,10 @@ gum_bounds_checker_on_exception (GumExceptionDetails * details,
       block.size,
       (gsize) ((guint8 *) address - (guint8 *) block.address));
 
-  if (priv->backtracer_instance != NULL)
+  if (self->backtracer_instance != NULL)
   {
-    priv->backtracer_interface->generate (priv->backtracer_instance,
-        NULL, &accessed_at);
+    self->backtracer_iface->generate (self->backtracer_instance, NULL,
+        &accessed_at);
   }
 
   if (accessed_at.len > 0)
@@ -618,7 +596,7 @@ gum_bounds_checker_on_exception (GumExceptionDetails * details,
     g_string_append_c (message, '\n');
   }
 
-  if (priv->backtracer_instance != NULL)
+  if (self->backtracer_instance != NULL)
   {
     GumReturnAddressArray * allocated_at, * freed_at;
 
@@ -641,7 +619,7 @@ gum_bounds_checker_on_exception (GumExceptionDetails * details,
     gum_mprotect (block.guard, block.guard_size, GUM_PAGE_NO_ACCESS);
   }
 
-  priv->output (message->str, priv->output_user_data);
+  self->output (message->str, self->output_user_data);
 
   g_string_free (message, TRUE);
 

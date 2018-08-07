@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -97,7 +97,7 @@ static void
 backtrace_collector_iface_init (gpointer g_iface,
                                 gpointer iface_data)
 {
-  GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
+  GumInvocationListenerInterface * iface = g_iface;
 
   iface->on_enter = backtrace_collector_on_enter;
   iface->on_leave = backtrace_collector_on_leave;

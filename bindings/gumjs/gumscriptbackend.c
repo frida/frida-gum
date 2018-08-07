@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -35,6 +35,14 @@ static void * gum_sqlite_allocator_realloc (void * mem, int n_bytes);
 static int gum_sqlite_allocator_size (void * mem);
 static int gum_sqlite_allocator_roundup (int size);
 
+G_DEFINE_INTERFACE_WITH_CODE (GumScriptBackend, gum_script_backend,
+    G_TYPE_OBJECT, gum_script_backend_init_sqlite ())
+
+static void
+gum_script_backend_default_init (GumScriptBackendInterface * iface)
+{
+}
+
 static void
 gum_script_backend_deinit_v8 (void)
 {
@@ -45,27 +53,6 @@ static void
 gum_script_backend_deinit_duk (void)
 {
   g_object_unref (gum_script_backend_obtain_duk ());
-}
-
-GType
-gum_script_backend_get_type (void)
-{
-  static volatile gsize gonce_value;
-
-  if (g_once_init_enter (&gonce_value))
-  {
-    GType gtype;
-
-    gtype = g_type_register_static_simple (G_TYPE_INTERFACE, "GumScriptBackend",
-        sizeof (GumScriptBackendIface), NULL, 0, NULL, 0);
-    g_type_interface_add_prerequisite (gtype, G_TYPE_OBJECT);
-
-    gum_script_backend_init_sqlite ();
-
-    g_once_init_leave (&gonce_value, gtype);
-  }
-
-  return (GType) gonce_value;
 }
 
 GumScriptBackend *
@@ -136,8 +123,8 @@ gum_script_backend_create (GumScriptBackend * self,
                            GAsyncReadyCallback callback,
                            gpointer user_data)
 {
-  GUM_SCRIPT_BACKEND_GET_INTERFACE (self)->create (self, name, source,
-      cancellable, callback, user_data);
+  GUM_SCRIPT_BACKEND_GET_IFACE (self)->create (self, name, source, cancellable,
+      callback, user_data);
 }
 
 GumScript *
@@ -145,7 +132,7 @@ gum_script_backend_create_finish (GumScriptBackend * self,
                                   GAsyncResult * result,
                                   GError ** error)
 {
-  return GUM_SCRIPT_BACKEND_GET_INTERFACE (self)->create_finish (self, result,
+  return GUM_SCRIPT_BACKEND_GET_IFACE (self)->create_finish (self, result,
       error);
 }
 
@@ -156,8 +143,8 @@ gum_script_backend_create_sync (GumScriptBackend * self,
                                 GCancellable * cancellable,
                                 GError ** error)
 {
-  return GUM_SCRIPT_BACKEND_GET_INTERFACE (self)->create_sync (self, name,
-      source, cancellable, error);
+  return GUM_SCRIPT_BACKEND_GET_IFACE (self)->create_sync (self, name, source,
+      cancellable, error);
 }
 
 void
@@ -167,7 +154,7 @@ gum_script_backend_create_from_bytes (GumScriptBackend * self,
                                       GAsyncReadyCallback callback,
                                       gpointer user_data)
 {
-  GUM_SCRIPT_BACKEND_GET_INTERFACE (self)->create_from_bytes (self, bytes,
+  GUM_SCRIPT_BACKEND_GET_IFACE (self)->create_from_bytes (self, bytes,
       cancellable, callback, user_data);
 }
 
@@ -176,8 +163,8 @@ gum_script_backend_create_from_bytes_finish (GumScriptBackend * self,
                                              GAsyncResult * result,
                                              GError ** error)
 {
-  return GUM_SCRIPT_BACKEND_GET_INTERFACE (self)->create_from_bytes_finish (
-      self, result, error);
+  return GUM_SCRIPT_BACKEND_GET_IFACE (self)->create_from_bytes_finish (self,
+      result, error);
 }
 
 GumScript *
@@ -186,7 +173,7 @@ gum_script_backend_create_from_bytes_sync (GumScriptBackend * self,
                                            GCancellable * cancellable,
                                            GError ** error)
 {
-  return GUM_SCRIPT_BACKEND_GET_INTERFACE (self)->create_from_bytes_sync (self,
+  return GUM_SCRIPT_BACKEND_GET_IFACE (self)->create_from_bytes_sync (self,
       bytes, cancellable, error);
 }
 
@@ -198,8 +185,8 @@ gum_script_backend_compile (GumScriptBackend * self,
                             GAsyncReadyCallback callback,
                             gpointer user_data)
 {
-  GUM_SCRIPT_BACKEND_GET_INTERFACE (self)->compile (self, name, source,
-      cancellable, callback, user_data);
+  GUM_SCRIPT_BACKEND_GET_IFACE (self)->compile (self, name, source, cancellable,
+      callback, user_data);
 }
 
 GBytes *
@@ -207,7 +194,7 @@ gum_script_backend_compile_finish (GumScriptBackend * self,
                                    GAsyncResult * result,
                                    GError ** error)
 {
-  return GUM_SCRIPT_BACKEND_GET_INTERFACE (self)->compile_finish (self, result,
+  return GUM_SCRIPT_BACKEND_GET_IFACE (self)->compile_finish (self, result,
       error);
 }
 
@@ -218,8 +205,8 @@ gum_script_backend_compile_sync (GumScriptBackend * self,
                                  GCancellable * cancellable,
                                  GError ** error)
 {
-  return GUM_SCRIPT_BACKEND_GET_INTERFACE (self)->compile_sync (self, name,
-      source, cancellable, error);
+  return GUM_SCRIPT_BACKEND_GET_IFACE (self)->compile_sync (self, name, source,
+      cancellable, error);
 }
 
 void
@@ -229,21 +216,21 @@ gum_script_backend_set_debug_message_handler (
     gpointer data,
     GDestroyNotify data_destroy)
 {
-  GUM_SCRIPT_BACKEND_GET_INTERFACE (self)->set_debug_message_handler (self,
-      handler, data, data_destroy);
+  GUM_SCRIPT_BACKEND_GET_IFACE (self)->set_debug_message_handler (self, handler,
+      data, data_destroy);
 }
 
 void
 gum_script_backend_post_debug_message (GumScriptBackend * self,
                                        const gchar * message)
 {
-  GUM_SCRIPT_BACKEND_GET_INTERFACE (self)->post_debug_message (self, message);
+  GUM_SCRIPT_BACKEND_GET_IFACE (self)->post_debug_message (self, message);
 }
 
 GumScriptScheduler *
 gum_script_backend_get_scheduler (GumScriptBackend * self)
 {
-  return GUM_SCRIPT_BACKEND_GET_INTERFACE (self)->get_scheduler (self);
+  return GUM_SCRIPT_BACKEND_GET_IFACE (self)->get_scheduler (self);
 }
 
 static void

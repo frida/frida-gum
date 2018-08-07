@@ -445,8 +445,6 @@ static void
 gum_arm64_writer_put_argument_list_teardown (GumArm64Writer * self,
                                              guint n_args)
 {
-  (void) self;
-  (void) n_args;
 }
 
 gboolean
@@ -1437,8 +1435,6 @@ gum_arm64_writer_describe_reg (GumArm64Writer * self,
                                arm64_reg reg,
                                GumArm64RegInfo * ri)
 {
-  (void) self;
-
   if (reg >= ARM64_REG_X0 && reg <= ARM64_REG_X28)
   {
     ri->meta = GUM_MREG_R0 + (reg - ARM64_REG_X0);

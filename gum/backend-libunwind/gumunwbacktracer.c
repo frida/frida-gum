@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -10,6 +10,11 @@
 
 #define UNW_LOCAL_ONLY
 #include <libunwind.h>
+
+struct _GumUnwBacktracer
+{
+  GObject parent;
+};
 
 static void gum_unw_backtracer_iface_init (gpointer g_iface,
     gpointer iface_data);
@@ -25,7 +30,7 @@ G_DEFINE_TYPE_EXTENDED (GumUnwBacktracer,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_BACKTRACER,
-                                               gum_unw_backtracer_iface_init));
+                                               gum_unw_backtracer_iface_init))
 
 static void
 gum_unw_backtracer_class_init (GumUnwBacktracerClass * klass)
@@ -36,7 +41,7 @@ static void
 gum_unw_backtracer_iface_init (gpointer g_iface,
                                gpointer iface_data)
 {
-  GumBacktracerIface * iface = (GumBacktracerIface *) g_iface;
+  GumBacktracerInterface * iface = g_iface;
 
   iface->generate = gum_unw_backtracer_generate;
 }
@@ -245,4 +250,3 @@ gum_cpu_context_to_unw (const GumCpuContext * ctx,
 # error FIXME
 #endif
 }
-

@@ -84,16 +84,6 @@ _gum_v8_thread_finalize (GumV8Thread * self)
   g_clear_object (&self->fuzzy_backtracer);
 }
 
-/*
- * Prototype:
- * TBW
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_thread_backtrace)
 {
   GumCpuContext * cpu_context = NULL;
@@ -147,16 +137,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_backtrace)
   info.GetReturnValue ().Set (result);
 }
 
-/*
- * Prototype:
- * Thread.sleep(delay)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_thread_sleep)
 {
   gdouble delay;

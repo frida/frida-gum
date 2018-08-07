@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -18,7 +18,7 @@ G_DEFINE_TYPE_EXTENDED (GumFakeBacktracer,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_BACKTRACER,
-                                               gum_fake_backtracer_iface_init));
+                                               gum_fake_backtracer_iface_init))
 
 static void
 gum_fake_backtracer_class_init (GumFakeBacktracerClass * klass)
@@ -29,7 +29,7 @@ static void
 gum_fake_backtracer_iface_init (gpointer g_iface,
                                 gpointer iface_data)
 {
-  GumBacktracerIface * iface = (GumBacktracerIface *) g_iface;
+  GumBacktracerInterface * iface = g_iface;
 
   iface->generate = gum_fake_backtracer_generate;
 }
@@ -59,7 +59,7 @@ gum_fake_backtracer_generate (GumBacktracer * backtracer,
 {
   GumFakeBacktracer * self = GUM_FAKE_BACKTRACER (backtracer);
 
-  memcpy (return_addresses->items, self->ret_addrs, self->num_ret_addrs *
-      sizeof (GumReturnAddress));
+  memcpy (return_addresses->items, self->ret_addrs,
+      self->num_ret_addrs * sizeof (GumReturnAddress));
   return_addresses->len = self->num_ret_addrs;
 }

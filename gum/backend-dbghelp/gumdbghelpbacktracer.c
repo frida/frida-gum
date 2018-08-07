@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -14,9 +14,11 @@
 # define GUM_BACKTRACER_MACHINE_TYPE IMAGE_FILE_MACHINE_AMD64
 #endif
 
-struct _GumDbghelpBacktracerPrivate
+struct _GumDbghelpBacktracer
 {
-  GumDbgHelpImpl * dbghelp;
+  GObject parent;
+
+  GumDbghelpImpl * dbghelp;
 };
 
 static void gum_dbghelp_backtracer_iface_init (gpointer g_iface,
@@ -30,19 +32,18 @@ G_DEFINE_TYPE_EXTENDED (GumDbghelpBacktracer,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_BACKTRACER,
-                                               gum_dbghelp_backtracer_iface_init));
+                            gum_dbghelp_backtracer_iface_init))
 
 static void
 gum_dbghelp_backtracer_class_init (GumDbghelpBacktracerClass * klass)
 {
-  g_type_class_add_private (klass, sizeof (GumDbghelpBacktracerPrivate));
 }
 
 static void
 gum_dbghelp_backtracer_iface_init (gpointer g_iface,
                                    gpointer iface_data)
 {
-  GumBacktracerIface * iface = (GumBacktracerIface *) g_iface;
+  GumBacktracerInterface * iface = g_iface;
 
   iface->generate = gum_dbghelp_backtracer_generate;
 }
@@ -50,21 +51,19 @@ gum_dbghelp_backtracer_iface_init (gpointer g_iface,
 static void
 gum_dbghelp_backtracer_init (GumDbghelpBacktracer * self)
 {
-  self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
-        GUM_TYPE_DBGHELP_BACKTRACER, GumDbghelpBacktracerPrivate);
 }
 
 GumBacktracer *
-gum_dbghelp_backtracer_new (GumDbgHelpImpl * dbghelp)
+gum_dbghelp_backtracer_new (GumDbghelpImpl * dbghelp)
 {
   GumDbghelpBacktracer * backtracer;
 
   g_assert (dbghelp != NULL);
 
   backtracer = g_object_new (GUM_TYPE_DBGHELP_BACKTRACER, NULL);
-  backtracer->priv->dbghelp = dbghelp;
+  backtracer->dbghelp = dbghelp;
 
-  return GUM_BACKTRACER_CAST (backtracer);
+  return GUM_BACKTRACER (backtracer);
 }
 
 static void
@@ -72,15 +71,18 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
                                  const GumCpuContext * cpu_context,
                                  GumReturnAddressArray * return_addresses)
 {
-  GumDbghelpBacktracer * self = GUM_DBGHELP_BACKTRACER_CAST (backtracer);
-  HANDLE current_process, current_thread;
-  GumDbgHelpImpl * dbghelp = self->priv->dbghelp;
-  guint i;
-  guint skip_count = 0;
-  STACKFRAME64 frame = { 0, };
+  GumDbghelpBacktracer * self;
+  GumDbghelpImpl * dbghelp;
   __declspec (align (64)) CONTEXT context = { 0, };
+  STACKFRAME64 frame = { 0, };
+  guint skip_count = 0;
+  HANDLE current_process, current_thread;
+  guint i;
   BOOL success;
   GumInvocationStack * invocation_stack;
+
+  self = GUM_DBGHELP_BACKTRACER (backtracer);
+  dbghelp = self->dbghelp;
 
   /* Get the raw addresses */
   RtlCaptureContext (&context);

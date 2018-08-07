@@ -32,7 +32,7 @@ G_DEFINE_TYPE_EXTENDED (TestCallbackListener,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
-                            test_callback_listener_iface_init));
+                            test_callback_listener_iface_init))
 
 static void
 test_callback_listener_on_enter (GumInvocationListener * listener,
@@ -58,9 +58,7 @@ static void
 test_callback_listener_iface_init (gpointer g_iface,
                                    gpointer iface_data)
 {
-  GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
-
-  (void) iface_data;
+  GumInvocationListenerInterface * iface = g_iface;
 
   iface->on_enter = test_callback_listener_on_enter;
   iface->on_leave = test_callback_listener_on_leave;
@@ -69,13 +67,11 @@ test_callback_listener_iface_init (gpointer g_iface,
 static void
 test_callback_listener_class_init (TestCallbackListenerClass * klass)
 {
-  (void) klass;
 }
 
 static void
 test_callback_listener_init (TestCallbackListener * self)
 {
-  (void) self;
 }
 
 static TestCallbackListener *

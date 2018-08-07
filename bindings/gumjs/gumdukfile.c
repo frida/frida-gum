@@ -68,7 +68,6 @@ _gum_duk_file_dispose (GumDukFile * self)
 void
 _gum_duk_file_finalize (GumDukFile * self)
 {
-  (void) self;
 }
 
 static GumFile *

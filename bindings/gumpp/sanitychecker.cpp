@@ -63,8 +63,6 @@ namespace Gum
   protected:
     static void output_to_stderr (const gchar * text, gpointer user_data)
     {
-      (void) user_data;
-
       std::cerr << text;
     }
   };

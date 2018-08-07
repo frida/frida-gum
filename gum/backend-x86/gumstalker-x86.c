@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2010-2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -56,8 +56,10 @@ typedef struct _GumBranchTarget GumBranchTarget;
 
 typedef guint GumVirtualizationRequirements;
 
-struct _GumStalkerPrivate
+struct _GumStalker
 {
+  GObject parent;
+
   guint page_size;
 
   GMutex mutex;
@@ -269,8 +271,8 @@ enum _GumVirtualizationRequirements
   GUM_REQUIRE_SINGLE_STEP     = 1 << 1
 };
 
-#define GUM_STALKER_LOCK(o) g_mutex_lock (&(o)->priv->mutex)
-#define GUM_STALKER_UNLOCK(o) g_mutex_unlock (&(o)->priv->mutex)
+#define GUM_STALKER_LOCK(o) g_mutex_lock (&(o)->mutex)
+#define GUM_STALKER_UNLOCK(o) g_mutex_unlock (&(o)->mutex)
 
 #if GLIB_SIZEOF_VOID_P == 4
 #define GUM_STATE_PRESERVE_TOPMOST_REGISTER_INDEX (3)
@@ -421,14 +423,12 @@ static gboolean gum_stalker_on_exception (GumExceptionDetails * details,
     gpointer user_data);
 #endif
 
-G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT);
+G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
 
 static void
 gum_stalker_class_init (GumStalkerClass * klass)
 {
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
-
-  g_type_class_add_private (klass, sizeof (GumStalkerPrivate));
 
   object_class->dispose = gum_stalker_dispose;
   object_class->finalize = gum_stalker_finalize;
@@ -437,24 +437,18 @@ gum_stalker_class_init (GumStalkerClass * klass)
 static void
 gum_stalker_init (GumStalker * self)
 {
-  GumStalkerPrivate * priv;
+  self->exclusions = g_array_new (FALSE, FALSE, sizeof (GumMemoryRange));
+  self->trust_threshold = 1;
 
-  self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
-      GUM_TYPE_STALKER, GumStalkerPrivate);
-  priv = self->priv;
-
-  priv->exclusions = g_array_new (FALSE, FALSE, sizeof (GumMemoryRange));
-  priv->trust_threshold = 1;
-
-  gum_spinlock_init (&priv->probe_lock);
-  priv->probe_target_by_id =
+  gum_spinlock_init (&self->probe_lock);
+  self->probe_target_by_id =
       g_hash_table_new_full (NULL, NULL, NULL, NULL);
-  priv->probe_array_by_address =
+  self->probe_array_by_address =
       g_hash_table_new_full (NULL, NULL, NULL, gum_stalker_free_probe_array);
 
 #if defined (G_OS_WIN32) && GLIB_SIZEOF_VOID_P == 4
-  priv->exceptor = gum_exceptor_obtain ();
-  gum_exceptor_add (priv->exceptor, gum_stalker_on_exception, self);
+  self->exceptor = gum_exceptor_obtain ();
+  gum_exceptor_add (self->exceptor, gum_stalker_on_exception, self);
 
   {
     HMODULE ntmod, usermod;
@@ -470,10 +464,10 @@ gum_stalker_init (GumStalker * self)
     success = GetModuleInformation (GetCurrentProcess (), usermod,
         &mi, sizeof (mi));
     g_assert (success);
-    priv->user32_start = mi.lpBaseOfDll;
-    priv->user32_end = (guint8 *) mi.lpBaseOfDll + mi.SizeOfImage;
+    self->user32_start = mi.lpBaseOfDll;
+    self->user32_end = (guint8 *) mi.lpBaseOfDll + mi.SizeOfImage;
 
-    for (p = (guint8 *) priv->user32_start; p < (guint8 *) priv->user32_end;)
+    for (p = (guint8 *) self->user32_start; p < (guint8 *) self->user32_end;)
     {
       MEMORY_BASIC_INFORMATION mbi;
 
@@ -484,8 +478,8 @@ gum_stalker_init (GumStalker * self)
           mbi.Protect == PAGE_EXECUTE_READWRITE ||
           mbi.Protect == PAGE_EXECUTE_WRITECOPY)
       {
-        priv->user32_start = mbi.BaseAddress;
-        priv->user32_end = (guint8 *) mbi.BaseAddress + mbi.RegionSize;
+        self->user32_start = mbi.BaseAddress;
+        self->user32_end = (guint8 *) mbi.BaseAddress + mbi.RegionSize;
 
         found_user32_code = TRUE;
       }
@@ -495,16 +489,16 @@ gum_stalker_init (GumStalker * self)
 
     g_assert (found_user32_code);
 
-    priv->ki_user_callback_dispatcher_impl = GUM_FUNCPTR_TO_POINTER (
+    self->ki_user_callback_dispatcher_impl = GUM_FUNCPTR_TO_POINTER (
         GetProcAddress (ntmod, "KiUserCallbackDispatcher"));
-    g_assert (priv->ki_user_callback_dispatcher_impl != NULL);
+    g_assert (self->ki_user_callback_dispatcher_impl != NULL);
   }
 #endif
 
-  priv->page_size = gum_query_page_size ();
-  g_mutex_init (&priv->mutex);
-  priv->contexts = NULL;
-  priv->exec_ctx = gum_tls_key_new ();
+  self->page_size = gum_query_page_size ();
+  g_mutex_init (&self->mutex);
+  self->contexts = NULL;
+  self->exec_ctx = gum_tls_key_new ();
 }
 
 static void
@@ -512,13 +506,12 @@ gum_stalker_dispose (GObject * object)
 {
 #if defined (G_OS_WIN32) && GLIB_SIZEOF_VOID_P == 4
   GumStalker * self = GUM_STALKER (object);
-  GumStalkerPrivate * priv = self->priv;
 
-  if (priv->exceptor != NULL)
+  if (self->exceptor != NULL)
   {
-    gum_exceptor_remove (priv->exceptor, gum_stalker_on_exception, self);
-    g_object_unref (priv->exceptor);
-    priv->exceptor = NULL;
+    gum_exceptor_remove (self->exceptor, gum_stalker_on_exception, self);
+    g_object_unref (self->exceptor);
+    self->exceptor = NULL;
   }
 #endif
 
@@ -529,18 +522,17 @@ static void
 gum_stalker_finalize (GObject * object)
 {
   GumStalker * self = GUM_STALKER (object);
-  GumStalkerPrivate * priv = self->priv;
 
-  g_hash_table_unref (priv->probe_array_by_address);
-  g_hash_table_unref (priv->probe_target_by_id);
+  g_hash_table_unref (self->probe_array_by_address);
+  g_hash_table_unref (self->probe_target_by_id);
 
-  gum_spinlock_free (&priv->probe_lock);
+  gum_spinlock_free (&self->probe_lock);
 
-  g_array_free (priv->exclusions, TRUE);
+  g_array_free (self->exclusions, TRUE);
 
-  g_assert (priv->contexts == NULL);
-  gum_tls_key_free (priv->exec_ctx);
-  g_mutex_clear (&priv->mutex);
+  g_assert (self->contexts == NULL);
+  gum_tls_key_free (self->exec_ctx);
+  g_mutex_clear (&self->mutex);
 
   G_OBJECT_CLASS (gum_stalker_parent_class)->finalize (object);
 }
@@ -548,41 +540,40 @@ gum_stalker_finalize (GObject * object)
 GumStalker *
 gum_stalker_new (void)
 {
-  return GUM_STALKER (g_object_new (GUM_TYPE_STALKER, NULL));
+  return g_object_new (GUM_TYPE_STALKER, NULL);
 }
 
 void
 gum_stalker_exclude (GumStalker * self,
                      const GumMemoryRange * range)
 {
-  g_array_append_val (self->priv->exclusions, *range);
+  g_array_append_val (self->exclusions, *range);
 }
 
 gint
 gum_stalker_get_trust_threshold (GumStalker * self)
 {
-  return self->priv->trust_threshold;
+  return self->trust_threshold;
 }
 
 void
 gum_stalker_set_trust_threshold (GumStalker * self,
                                  gint trust_threshold)
 {
-  self->priv->trust_threshold = trust_threshold;
+  self->trust_threshold = trust_threshold;
 }
 
 void
 gum_stalker_stop (GumStalker * self)
 {
-  GumStalkerPrivate * priv = self->priv;
   gboolean rescan_needed;
   GSList * cur;
 
-  gum_spinlock_acquire (&priv->probe_lock);
-  g_hash_table_remove_all (priv->probe_target_by_id);
-  g_hash_table_remove_all (priv->probe_array_by_address);
-  priv->any_probes_attached = FALSE;
-  gum_spinlock_release (&priv->probe_lock);
+  gum_spinlock_acquire (&self->probe_lock);
+  g_hash_table_remove_all (self->probe_target_by_id);
+  g_hash_table_remove_all (self->probe_array_by_address);
+  self->any_probes_attached = FALSE;
+  gum_spinlock_release (&self->probe_lock);
 
   GUM_STALKER_LOCK (self);
 
@@ -590,7 +581,7 @@ gum_stalker_stop (GumStalker * self)
   {
     rescan_needed = FALSE;
 
-    for (cur = priv->contexts; cur != NULL; cur = cur->next)
+    for (cur = self->contexts; cur != NULL; cur = cur->next)
     {
       GumExecCtx * ctx = (GumExecCtx *) cur->data;
       if (ctx->state == GUM_EXEC_CTX_ACTIVE)
@@ -621,7 +612,7 @@ gum_stalker_garbage_collect (GumStalker * self)
 
   GUM_STALKER_LOCK (self);
 
-  for (cur = self->priv->contexts; cur != NULL; cur = cur->next)
+  for (cur = self->contexts; cur != NULL; cur = cur->next)
   {
     GumExecCtx * ctx = (GumExecCtx *) cur->data;
     if (ctx->state == GUM_EXEC_CTX_DESTROY_PENDING)
@@ -630,8 +621,8 @@ gum_stalker_garbage_collect (GumStalker * self)
       keep = g_slist_prepend (keep, ctx);
   }
 
-  g_slist_free (self->priv->contexts);
-  self->priv->contexts = keep;
+  g_slist_free (self->contexts);
+  self->contexts = keep;
 
   pending_garbage = keep != NULL;
 
@@ -670,7 +661,7 @@ _gum_stalker_do_follow_me (GumStalker * self,
 
   ctx = gum_stalker_create_exec_ctx (self, gum_process_get_current_thread_id (),
       transformer, sink);
-  gum_tls_key_set_value (self->priv->exec_ctx, ctx);
+  gum_tls_key_set_value (self->exec_ctx, ctx);
   ctx->current_block = gum_exec_ctx_obtain_block_for (ctx, *ret_addr_ptr,
       &code_address);
   *ret_addr_ptr = code_address;
@@ -699,10 +690,10 @@ gum_stalker_unfollow_me (GumStalker * self)
   {
     g_assert (ctx->unfollow_called_while_still_following);
 
-    gum_tls_key_set_value (self->priv->exec_ctx, NULL);
+    gum_tls_key_set_value (self->exec_ctx, NULL);
 
     GUM_STALKER_LOCK (self);
-    self->priv->contexts = g_slist_remove (self->priv->contexts, ctx);
+    self->contexts = g_slist_remove (self->contexts, ctx);
     GUM_STALKER_UNLOCK (self);
 
     gum_exec_ctx_free (ctx);
@@ -749,7 +740,7 @@ gum_stalker_unfollow (GumStalker * self,
 
     GUM_STALKER_LOCK (self);
 
-    for (cur = self->priv->contexts; cur != NULL; cur = cur->next)
+    for (cur = self->contexts; cur != NULL; cur = cur->next)
     {
       GumExecCtx * ctx = (GumExecCtx *) cur->data;
       if (ctx->thread_id == thread_id && ctx->state == GUM_EXEC_CTX_ACTIVE)
@@ -803,7 +794,7 @@ gum_stalker_infect (GumThreadId thread_id,
   gum_exec_ctx_write_prolog (ctx, GUM_PROLOG_MINIMAL, &cw);
   gum_x86_writer_put_call_address_with_aligned_arguments (&cw, GUM_CALL_CAPI,
       GUM_ADDRESS (gum_tls_key_set_value), 2,
-      GUM_ARG_ADDRESS, GUM_ADDRESS (self->priv->exec_ctx),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (self->exec_ctx),
       GUM_ARG_ADDRESS, GUM_ADDRESS (ctx));
   gum_exec_ctx_write_epilog (ctx, GUM_PROLOG_MINIMAL, &cw);
   gum_x86_writer_put_jmp_address (&cw, GUM_ADDRESS (code_address));
@@ -822,8 +813,6 @@ gum_stalker_disinfect (GumThreadId thread_id,
   GumExecCtx * ctx = disinfect_context->exec_ctx;
   gboolean infection_not_active_yet;
 
-  (void) thread_id;
-
   infection_not_active_yet =
       GUM_CPU_CONTEXT_XIP (cpu_context) == GPOINTER_TO_SIZE (ctx->infect_thunk);
   if (infection_not_active_yet)
@@ -831,7 +820,7 @@ gum_stalker_disinfect (GumThreadId thread_id,
     GUM_CPU_CONTEXT_XIP (cpu_context) =
         GPOINTER_TO_SIZE (ctx->current_block->real_begin);
 
-    self->priv->contexts = g_slist_remove (self->priv->contexts, ctx);
+    self->contexts = g_slist_remove (self->contexts, ctx);
     gum_exec_ctx_free (ctx);
 
     disinfect_context->success = TRUE;
@@ -845,33 +834,32 @@ gum_stalker_add_call_probe (GumStalker * self,
                             gpointer data,
                             GDestroyNotify notify)
 {
-  GumStalkerPrivate * priv = self->priv;
   GumCallProbe probe;
   GArray * probes;
 
-  probe.id = g_atomic_int_add (&priv->last_probe_id, 1) + 1;
+  probe.id = g_atomic_int_add (&self->last_probe_id, 1) + 1;
   probe.callback = callback;
   probe.user_data = data;
   probe.user_notify = notify;
 
-  gum_spinlock_acquire (&priv->probe_lock);
+  gum_spinlock_acquire (&self->probe_lock);
 
-  g_hash_table_insert (priv->probe_target_by_id, GSIZE_TO_POINTER (probe.id),
+  g_hash_table_insert (self->probe_target_by_id, GSIZE_TO_POINTER (probe.id),
       target_address);
 
   probes = (GArray *)
-      g_hash_table_lookup (priv->probe_array_by_address, target_address);
+      g_hash_table_lookup (self->probe_array_by_address, target_address);
   if (probes == NULL)
   {
     probes = g_array_sized_new (FALSE, FALSE, sizeof (GumCallProbe), 4);
-    g_hash_table_insert (priv->probe_array_by_address, target_address, probes);
+    g_hash_table_insert (self->probe_array_by_address, target_address, probes);
   }
 
   g_array_append_val (probes, probe);
 
-  priv->any_probes_attached = TRUE;
+  self->any_probes_attached = TRUE;
 
-  gum_spinlock_release (&priv->probe_lock);
+  gum_spinlock_release (&self->probe_lock);
 
   gum_stalker_invalidate_caches (self);
 
@@ -882,13 +870,12 @@ void
 gum_stalker_remove_call_probe (GumStalker * self,
                                GumProbeId id)
 {
-  GumStalkerPrivate * priv = self->priv;
   gpointer target_address;
 
-  gum_spinlock_acquire (&priv->probe_lock);
+  gum_spinlock_acquire (&self->probe_lock);
 
   target_address =
-      g_hash_table_lookup (priv->probe_target_by_id, GSIZE_TO_POINTER (id));
+      g_hash_table_lookup (self->probe_target_by_id, GSIZE_TO_POINTER (id));
   if (target_address != NULL)
   {
     GArray * probes;
@@ -896,10 +883,10 @@ gum_stalker_remove_call_probe (GumStalker * self,
     guint i;
     GumCallProbe * probe;
 
-    g_hash_table_remove (priv->probe_target_by_id, GSIZE_TO_POINTER (id));
+    g_hash_table_remove (self->probe_target_by_id, GSIZE_TO_POINTER (id));
 
     probes = (GArray *)
-        g_hash_table_lookup (priv->probe_array_by_address, target_address);
+        g_hash_table_lookup (self->probe_array_by_address, target_address);
     g_assert (probes != NULL);
 
     for (i = 0; i != probes->len; i++)
@@ -918,13 +905,13 @@ gum_stalker_remove_call_probe (GumStalker * self,
     g_array_remove_index (probes, match_index);
 
     if (probes->len == 0)
-      g_hash_table_remove (priv->probe_array_by_address, target_address);
+      g_hash_table_remove (self->probe_array_by_address, target_address);
 
-    priv->any_probes_attached =
-        g_hash_table_size (priv->probe_array_by_address) != 0;
+    self->any_probes_attached =
+        g_hash_table_size (self->probe_array_by_address) != 0;
   }
 
-  gum_spinlock_release (&priv->probe_lock);
+  gum_spinlock_release (&self->probe_lock);
 
   gum_stalker_invalidate_caches (self);
 }
@@ -951,12 +938,11 @@ gum_stalker_create_exec_ctx (GumStalker * self,
                              GumStalkerTransformer * transformer,
                              GumEventSink * sink)
 {
-  GumStalkerPrivate * priv = self->priv;
   guint base_size;
   GumExecCtx * ctx;
 
-  base_size = sizeof (GumExecCtx) / priv->page_size;
-  if (sizeof (GumExecCtx) % priv->page_size != 0)
+  base_size = sizeof (GumExecCtx) / self->page_size;
+  if (sizeof (GumExecCtx) % self->page_size != 0)
     base_size++;
 
   ctx = (GumExecCtx *)
@@ -966,9 +952,9 @@ gum_stalker_create_exec_ctx (GumStalker * self,
   ctx->invalidate_pending = FALSE;
 
   ctx->code_slab = &ctx->first_code_slab;
-  ctx->first_code_slab.data = ((guint8 *) ctx) + (base_size * priv->page_size);
+  ctx->first_code_slab.data = ((guint8 *) ctx) + (base_size * self->page_size);
   ctx->first_code_slab.offset = 0;
-  ctx->first_code_slab.size = GUM_CODE_SLAB_SIZE_IN_PAGES * priv->page_size;
+  ctx->first_code_slab.size = GUM_CODE_SLAB_SIZE_IN_PAGES * self->page_size;
   ctx->first_code_slab.next = NULL;
   ctx->last_prolog_minimal = NULL;
   ctx->last_epilog_minimal = NULL;
@@ -979,7 +965,7 @@ gum_stalker_create_exec_ctx (GumStalker * self,
 
   ctx->frames = (GumExecFrame *) (ctx->code_slab->data + ctx->code_slab->size);
   ctx->first_frame = (GumExecFrame *) (ctx->code_slab->data +
-      ctx->code_slab->size + priv->page_size - sizeof (GumExecFrame));
+      ctx->code_slab->size + self->page_size - sizeof (GumExecFrame));
   ctx->current_frame = ctx->first_frame;
 
   ctx->mappings = gum_metal_hash_table_new (NULL, NULL);
@@ -1002,12 +988,12 @@ gum_stalker_create_exec_ctx (GumStalker * self,
   gum_spinlock_init (&ctx->callout_lock);
   ctx->sink = (GumEventSink *) g_object_ref (sink);
   ctx->sink_mask = gum_event_sink_query_mask (sink);
-  ctx->sink_process_impl = GUM_EVENT_SINK_GET_INTERFACE (sink)->process;
+  ctx->sink_process_impl = GUM_EVENT_SINK_GET_IFACE (sink)->process;
 
   gum_exec_ctx_create_thunks (ctx);
 
   GUM_STALKER_LOCK (self);
-  self->priv->contexts = g_slist_prepend (self->priv->contexts, ctx);
+  self->contexts = g_slist_prepend (self->contexts, ctx);
   GUM_STALKER_UNLOCK (self);
 
   gum_exec_ctx_ensure_inline_helpers_reachable (ctx);
@@ -1018,7 +1004,7 @@ gum_stalker_create_exec_ctx (GumStalker * self,
 static GumExecCtx *
 gum_stalker_get_exec_ctx (GumStalker * self)
 {
-  return (GumExecCtx *) gum_tls_key_get_value (self->priv->exec_ctx);
+  return (GumExecCtx *) gum_tls_key_get_value (self->exec_ctx);
 }
 
 static void
@@ -1028,7 +1014,7 @@ gum_stalker_invalidate_caches (GumStalker * self)
 
   GUM_STALKER_LOCK (self);
 
-  for (cur = self->priv->contexts; cur != NULL; cur = cur->next)
+  for (cur = self->contexts; cur != NULL; cur = cur->next)
   {
     GumExecCtx * ctx = (GumExecCtx *) cur->data;
 
@@ -1111,7 +1097,7 @@ gum_exec_ctx_unfollow (GumExecCtx * ctx,
 {
   ctx->resume_at = resume_at;
 
-  gum_tls_key_set_value (ctx->stalker->priv->exec_ctx, NULL);
+  gum_tls_key_set_value (ctx->stalker->exec_ctx, NULL);
   ctx->current_block = NULL;
   ctx->state = GUM_EXEC_CTX_DESTROY_PENDING;
 }
@@ -1287,12 +1273,12 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   GumStalkerIterator iterator;
   gboolean all_labels_resolved;
 
-  if (ctx->stalker->priv->trust_threshold >= 0)
+  if (ctx->stalker->trust_threshold >= 0)
   {
     block = gum_exec_block_obtain (ctx, real_address, code_address);
     if (block != NULL)
     {
-      if (block->recycle_count >= ctx->stalker->priv->trust_threshold ||
+      if (block->recycle_count >= ctx->stalker->trust_threshold ||
           memcmp (real_address, block->real_snapshot,
             block->real_end - block->real_begin) == 0)
       {
@@ -1309,7 +1295,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   block = gum_exec_block_new (ctx);
   *code_address = block->code_begin;
 
-  if (ctx->stalker->priv->trust_threshold >= 0)
+  if (ctx->stalker->trust_threshold >= 0)
     gum_metal_hash_table_insert (ctx->mappings, real_address, block);
 
   cw = &ctx->code_writer;
@@ -1945,7 +1931,7 @@ gum_exec_ctx_write_stack_push_helper (GumExecCtx * ctx,
 
   gum_x86_writer_put_mov_reg_reg_ptr (cw, GUM_REG_XAX, GUM_REG_XAX);
   gum_x86_writer_put_test_reg_u32 (cw, GUM_REG_XAX,
-      ctx->stalker->priv->page_size - 1);
+      ctx->stalker->page_size - 1);
   gum_x86_writer_put_jcc_short_label (cw, X86_INS_JE, skip_stack_push,
       GUM_UNLIKELY);
 
@@ -2380,7 +2366,7 @@ gum_exec_block_new (GumExecCtx * ctx)
     return block;
   }
 
-  if (ctx->stalker->priv->trust_threshold < 0)
+  if (ctx->stalker->trust_threshold < 0)
   {
     ctx->code_slab->offset = 0;
 
@@ -2390,7 +2376,7 @@ gum_exec_block_new (GumExecCtx * ctx)
   slab = gum_alloc_n_pages (GUM_CODE_SLAB_SIZE_IN_PAGES, GUM_PAGE_RWX);
   slab->data = (guint8 *) (slab + 1);
   slab->offset = 0;
-  slab->size = (GUM_CODE_SLAB_SIZE_IN_PAGES * ctx->stalker->priv->page_size)
+  slab->size = (GUM_CODE_SLAB_SIZE_IN_PAGES * ctx->stalker->page_size)
       - sizeof (GumSlab);
   slab->next = ctx->code_slab;
   ctx->code_slab = slab;
@@ -2454,7 +2440,7 @@ gum_exec_block_backpatch_call (GumExecBlock * block,
   ctx = block->ctx;
 
   if (ctx->state == GUM_EXEC_CTX_ACTIVE &&
-      block->recycle_count >= ctx->stalker->priv->trust_threshold)
+      block->recycle_count >= ctx->stalker->trust_threshold)
   {
     GumX86Writer * cw = &ctx->code_writer;
 
@@ -2513,7 +2499,7 @@ gum_exec_block_backpatch_jmp (GumExecBlock * block,
   ctx = block->ctx;
 
   if (ctx->state == GUM_EXEC_CTX_ACTIVE &&
-      block->recycle_count >= ctx->stalker->priv->trust_threshold)
+      block->recycle_count >= ctx->stalker->trust_threshold)
   {
     GumX86Writer * cw = &ctx->code_writer;
 
@@ -2543,7 +2529,7 @@ gum_exec_block_backpatch_ret (GumExecBlock * block,
   ctx = block->ctx;
 
   if (ctx->state == GUM_EXEC_CTX_ACTIVE &&
-      block->recycle_count >= ctx->stalker->priv->trust_threshold)
+      block->recycle_count >= ctx->stalker->trust_threshold)
   {
     GumX86Writer * cw = &ctx->code_writer;
 
@@ -2567,7 +2553,7 @@ gum_exec_block_backpatch_inline_cache (GumExecBlock * block,
   ctx = block->ctx;
 
   if (ctx->state == GUM_EXEC_CTX_ACTIVE &&
-      block->recycle_count >= ctx->stalker->priv->trust_threshold)
+      block->recycle_count >= ctx->stalker->trust_threshold)
   {
     guint offset;
 
@@ -2648,12 +2634,12 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
           GUM_CODE_INTERRUPTIBLE);
     }
 
-    if (block->ctx->stalker->priv->any_probes_attached)
+    if (block->ctx->stalker->any_probes_attached)
       gum_exec_block_write_call_probe_code (block, &target, gc);
 
     if (!target.is_indirect && target.base == X86_REG_INVALID)
     {
-      GArray * exclusions = block->ctx->stalker->priv->exclusions;
+      GArray * exclusions = block->ctx->stalker->exclusions;
       guint i;
 
       for (i = 0; i != exclusions->len; i++)
@@ -2905,9 +2891,6 @@ gum_exec_block_virtualize_sysenter_insn (GumExecBlock * block,
 
   return GUM_REQUIRE_NOTHING;
 #else
-  (void) block;
-  (void) gc;
-
   return GUM_REQUIRE_RELOCATION;
 #endif
 }
@@ -2934,11 +2917,11 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   call_code_start = cw->code;
   opened_prolog = gc->opened_prolog;
 
-  can_backpatch_statically = block->ctx->stalker->priv->trust_threshold >= 0 &&
+  can_backpatch_statically = block->ctx->stalker->trust_threshold >= 0 &&
       !target->is_indirect &&
       target->base == X86_REG_INVALID;
 
-  if (block->ctx->stalker->priv->trust_threshold >= 0 &&
+  if (block->ctx->stalker->trust_threshold >= 0 &&
       !can_backpatch_statically)
   {
     gpointer null_ptr = NULL;
@@ -3098,7 +3081,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
 
   gum_x86_writer_put_label (cw, beach);
 
-  if (block->ctx->stalker->priv->trust_threshold >= 0)
+  if (block->ctx->stalker->trust_threshold >= 0)
   {
     gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_XAX,
         GUM_ADDRESS (&block->ctx->current_block));
@@ -3147,11 +3130,11 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
   code_start = cw->code;
   opened_prolog = gc->opened_prolog;
 
-  can_backpatch_statically = block->ctx->stalker->priv->trust_threshold >= 0 &&
+  can_backpatch_statically = block->ctx->stalker->trust_threshold >= 0 &&
       !target->is_indirect &&
       target->base == X86_REG_INVALID;
 
-  if (block->ctx->stalker->priv->trust_threshold >= 0 &&
+  if (block->ctx->stalker->trust_threshold >= 0 &&
       !can_backpatch_statically)
   {
     gpointer null_ptr = NULL;
@@ -3214,7 +3197,7 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
   gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XSP,
       GUM_THUNK_ARGLIST_STACK_RESERVE);
 
-  if (block->ctx->stalker->priv->trust_threshold >= 0)
+  if (block->ctx->stalker->trust_threshold >= 0)
   {
     gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_XAX,
         GUM_ADDRESS (&block->ctx->current_block));
@@ -3382,13 +3365,13 @@ gum_exec_block_invoke_call_probes_for_target (GumExecBlock * block,
                                               gpointer return_address,
                                               GumCpuContext * cpu_context)
 {
-  GumStalkerPrivate * priv = block->ctx->stalker->priv;
+  GumStalker * stalker = block->ctx->stalker;
   GArray * probes;
 
-  gum_spinlock_acquire (&priv->probe_lock);
+  gum_spinlock_acquire (&stalker->probe_lock);
 
   probes = (GArray *)
-      g_hash_table_lookup (priv->probe_array_by_address, target_address);
+      g_hash_table_lookup (stalker->probe_array_by_address, target_address);
   if (probes != NULL)
   {
     GumCallSite call_site;
@@ -3413,7 +3396,7 @@ gum_exec_block_invoke_call_probes_for_target (GumExecBlock * block,
     }
   }
 
-  gum_spinlock_release (&priv->probe_lock);
+  gum_spinlock_release (&stalker->probe_lock);
 }
 
 static void
@@ -3426,12 +3409,12 @@ gum_exec_block_write_call_probe_code (GumExecBlock * block,
 
   if (!target->is_indirect && target->base == X86_REG_INVALID)
   {
-    GumStalkerPrivate * priv = block->ctx->stalker->priv;
+    GumStalker * stalker = block->ctx->stalker;
 
-    gum_spinlock_acquire (&priv->probe_lock);
-    skip_probing = g_hash_table_lookup (priv->probe_array_by_address,
+    gum_spinlock_acquire (&stalker->probe_lock);
+    skip_probing = g_hash_table_lookup (stalker->probe_array_by_address,
         target->absolute_address) == NULL;
-    gum_spinlock_release (&priv->probe_lock);
+    gum_spinlock_release (&stalker->probe_lock);
   }
 
   if (!skip_probing)
@@ -3630,7 +3613,6 @@ enable_hardware_breakpoint (DWORD * dr7_reg, guint index)
 static gpointer
 find_system_call_above_us (GumStalker * stalker, gpointer * start_esp)
 {
-  GumStalkerPrivate * priv = stalker->priv;
   gpointer * top_esp, * cur_esp;
   guint8 call_fs_c0_code[] = { 0x64, 0xff, 0x15, 0xc0, 0x00, 0x00, 0x00 };
   guint8 call_ebp_8_code[] = { 0xff, 0x55, 0x08 };
@@ -3642,15 +3624,15 @@ find_system_call_above_us (GumStalker * stalker, gpointer * start_esp)
     mov [top_esp], eax;
   }
 
-  if ((guint) ABS (top_esp - start_esp) > priv->page_size)
+  if ((guint) ABS (top_esp - start_esp) > stalker->page_size)
   {
     top_esp = (gpointer *) ((GPOINTER_TO_SIZE (start_esp) +
-        (priv->page_size - 1)) & ~(priv->page_size - 1));
+        (stalker->page_size - 1)) & ~(stalker->page_size - 1));
   }
 
   /* These boundaries are quite artificial... */
-  minimum_address = (guint8 *) priv->user32_start + sizeof (call_fs_c0_code);
-  maximum_address = (guint8 *) priv->user32_end - 1;
+  minimum_address = (guint8 *) stalker->user32_start + sizeof (call_fs_c0_code);
+  maximum_address = (guint8 *) stalker->user32_end - 1;
 
   for (cur_esp = start_esp + 1; cur_esp < top_esp; cur_esp++)
   {
@@ -3711,7 +3693,7 @@ gum_stalker_on_exception (GumExceptionDetails * details,
       context->Dr0 = instruction_after_call_here;
       enable_hardware_breakpoint (&context->Dr7, 0);
 
-      context->Dr1 = (DWORD) self->priv->ki_user_callback_dispatcher_impl;
+      context->Dr1 = (DWORD) self->ki_user_callback_dispatcher_impl;
       enable_hardware_breakpoint (&context->Dr7, 1);
 
       instruction_after_call_above_us = (DWORD)

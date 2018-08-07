@@ -607,8 +607,6 @@ gum_arm64_relocator_rewrite_ldr (GumArm64Relocator * self,
   gboolean dst_reg_is_fp_or_simd;
   arm64_reg tmp_reg;
 
-  (void) self;
-
   if (src->type != ARM64_OP_IMM)
     return FALSE;
 
@@ -660,8 +658,6 @@ gum_arm64_relocator_rewrite_adr (GumArm64Relocator * self,
   const cs_arm64_op * dst = &ctx->detail->operands[0];
   const cs_arm64_op * label = &ctx->detail->operands[1];
 
-  (void) self;
-
   g_assert_cmpuint (label->type, ==, ARM64_OP_IMM);
 
   gum_arm64_writer_put_ldr_reg_address (ctx->output, dst->reg, label->imm);
@@ -673,8 +669,6 @@ gum_arm64_relocator_rewrite_b (GumArm64Relocator * self,
                                GumCodeGenCtx * ctx)
 {
   const cs_arm64_op * target = &ctx->detail->operands[0];
-
-  (void) self;
 
   gum_arm64_writer_put_ldr_reg_address (ctx->output, ARM64_REG_X16,
       target->imm);
@@ -691,8 +685,6 @@ gum_arm64_relocator_rewrite_b_cond (GumArm64Relocator * self,
   gsize unique_id = GPOINTER_TO_SIZE (ctx->output->code) << 1;
   gconstpointer is_true = GSIZE_TO_POINTER (unique_id | 1);
   gconstpointer is_false = GSIZE_TO_POINTER (unique_id | 0);
-
-  (void) self;
 
   gum_arm64_writer_put_b_cond_label (ctx->output, ctx->detail->cc, is_true);
   gum_arm64_writer_put_b_label (ctx->output, is_false);
@@ -713,8 +705,6 @@ gum_arm64_relocator_rewrite_bl (GumArm64Relocator * self,
 {
   const cs_arm64_op * target = &ctx->detail->operands[0];
 
-  (void) self;
-
   gum_arm64_writer_put_ldr_reg_address (ctx->output, ARM64_REG_LR, target->imm);
   gum_arm64_writer_put_blr_reg (ctx->output, ARM64_REG_LR);
 
@@ -730,8 +720,6 @@ gum_arm64_relocator_rewrite_cbz (GumArm64Relocator * self,
   gsize unique_id = GPOINTER_TO_SIZE (ctx->output->code) << 1;
   gconstpointer is_true = GSIZE_TO_POINTER (unique_id | 1);
   gconstpointer is_false = GSIZE_TO_POINTER (unique_id | 0);
-
-  (void) self;
 
   if (ctx->insn->id == ARM64_INS_CBZ)
     gum_arm64_writer_put_cbz_reg_label (ctx->output, source->reg, is_true);
@@ -759,8 +747,6 @@ gum_arm64_relocator_rewrite_tbz (GumArm64Relocator * self,
   gsize unique_id = GPOINTER_TO_SIZE (ctx->output->code) << 1;
   gconstpointer is_true = GSIZE_TO_POINTER (unique_id | 1);
   gconstpointer is_false = GSIZE_TO_POINTER (unique_id | 0);
-
-  (void) self;
 
   if (ctx->insn->id == ARM64_INS_TBZ)
   {

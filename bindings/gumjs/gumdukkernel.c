@@ -73,27 +73,20 @@ _gum_duk_kernel_init (GumDukKernel * self,
 void
 _gum_duk_kernel_dispose (GumDukKernel * self)
 {
-  (void) self;
 }
 
 void
 _gum_duk_kernel_finalize (GumDukKernel * self)
 {
-  (void) self;
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_kernel_construct)
 {
-  (void) ctx;
-  (void) args;
-
   return 0;
 }
 
 GUMJS_DEFINE_GETTER (gumjs_kernel_get_available)
 {
-  (void) args;
-
   duk_push_boolean (ctx, gum_kernel_api_is_available ());
   return 1;
 }

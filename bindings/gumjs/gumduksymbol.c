@@ -79,7 +79,6 @@ _gum_duk_symbol_dispose (GumDukSymbol * self)
 void
 _gum_duk_symbol_finalize (GumDukSymbol * self)
 {
-  (void) self;
 }
 
 static GumDukSymbol *
@@ -90,9 +89,6 @@ gumjs_module_from_args (const GumDukArgs * args)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_symbol_module_construct)
 {
-  (void) ctx;
-  (void) args;
-
   return 0;
 }
 
@@ -268,8 +264,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_symbol_construct)
 
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_to_string)
 {
-  (void) args;
-
   duk_push_this (ctx);
   duk_get_prop_string (ctx, -1, DUK_HIDDEN_SYMBOL ("description"));
   return 1;

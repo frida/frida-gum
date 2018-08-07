@@ -367,8 +367,6 @@ static void
 gum_thumb_writer_put_argument_list_teardown (GumThumbWriter * self,
                                              guint n_args)
 {
-  (void) self;
-  (void) n_args;
 }
 
 void

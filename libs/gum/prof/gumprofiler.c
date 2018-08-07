@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -12,8 +12,8 @@
 
 #include <string.h>
 
-#define GUM_PROFILER_LOCK()   (g_mutex_lock (&priv->mutex))
-#define GUM_PROFILER_UNLOCK() (g_mutex_unlock (&priv->mutex))
+#define GUM_PROFILER_LOCK()   (g_mutex_lock (&self->mutex))
+#define GUM_PROFILER_UNLOCK() (g_mutex_unlock (&self->mutex))
 
 typedef struct _GumProfilerInvocation GumProfilerInvocation;
 typedef struct _GumProfilerContext GumProfilerContext;
@@ -22,8 +22,10 @@ typedef struct _GumWorstCaseInfo GumWorstCaseInfo;
 typedef struct _GumWorstCase GumWorstCase;
 typedef struct _GumFunctionThreadContext GumFunctionThreadContext;
 
-struct _GumProfilerPrivate
+struct _GumProfiler
 {
+  GObject parent;
+
   gboolean disposed;
 
   GMutex mutex;
@@ -80,7 +82,7 @@ struct _GumFunctionContext
 {
   gpointer function_address;
 
-  GumSamplerIface * sampler_interface;
+  GumSamplerInterface * sampler_interface;
   GumSampler * sampler_instance;
   GumWorstCaseInspectorFunc inspector_func;
   gpointer inspector_user_data;
@@ -88,8 +90,6 @@ struct _GumFunctionContext
   GumFunctionThreadContext thread_contexts[GUM_MAX_THREADS];
   volatile gint thread_context_count;
 };
-
-#define GUM_PROFILER_GET_PRIVATE(o) ((o)->priv)
 
 static void gum_profiler_invocation_listener_iface_init (gpointer g_iface,
     gpointer iface_data);
@@ -126,14 +126,12 @@ G_DEFINE_TYPE_EXTENDED (GumProfiler,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
-                            gum_profiler_invocation_listener_iface_init));
+                            gum_profiler_invocation_listener_iface_init))
 
 static void
 gum_profiler_class_init (GumProfilerClass * klass)
 {
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
-
-  g_type_class_add_private (klass, sizeof (GumProfilerPrivate));
 
   object_class->dispose = gum_profiler_dispose;
   object_class->finalize = gum_profiler_finalize;
@@ -143,9 +141,7 @@ static void
 gum_profiler_invocation_listener_iface_init (gpointer g_iface,
                                              gpointer iface_data)
 {
-  GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
-
-  (void) iface_data;
+  GumInvocationListenerInterface * iface = g_iface;
 
   iface->on_enter = gum_profiler_on_enter;
   iface->on_leave = gum_profiler_on_leave;
@@ -154,16 +150,10 @@ gum_profiler_invocation_listener_iface_init (gpointer g_iface,
 static void
 gum_profiler_init (GumProfiler * self)
 {
-  GumProfilerPrivate * priv;
+  g_mutex_init (&self->mutex);
 
-  self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self, GUM_TYPE_PROFILER,
-      GumProfilerPrivate);
-
-  priv = GUM_PROFILER_GET_PRIVATE (self);
-  g_mutex_init (&priv->mutex);
-
-  priv->interceptor = gum_interceptor_obtain ();
-  priv->function_by_address = g_hash_table_new_full (g_direct_hash,
+  self->interceptor = gum_interceptor_obtain ();
+  self->function_by_address = g_hash_table_new_full (g_direct_hash,
       g_direct_equal, NULL, NULL);
 }
 
@@ -171,21 +161,20 @@ static void
 gum_profiler_dispose (GObject * object)
 {
   GumProfiler * self = GUM_PROFILER (object);
-  GumProfilerPrivate * priv = GUM_PROFILER_GET_PRIVATE (self);
 
-  if (!priv->disposed)
+  if (!self->disposed)
   {
-    priv->disposed = TRUE;
+    self->disposed = TRUE;
 
-    gum_interceptor_detach_listener (priv->interceptor,
+    gum_interceptor_detach_listener (self->interceptor,
         GUM_INVOCATION_LISTENER (self));
 
-    g_hash_table_foreach (priv->function_by_address,
+    g_hash_table_foreach (self->function_by_address,
         unstrument_and_free_function, self);
-    g_hash_table_remove_all (priv->function_by_address);
+    g_hash_table_remove_all (self->function_by_address);
 
-    g_object_unref (priv->interceptor);
-    priv->interceptor = NULL;
+    g_object_unref (self->interceptor);
+    self->interceptor = NULL;
   }
 
   G_OBJECT_CLASS (gum_profiler_parent_class)->dispose (object);
@@ -195,18 +184,17 @@ static void
 gum_profiler_finalize (GObject * object)
 {
   GumProfiler * self = GUM_PROFILER (object);
-  GumProfilerPrivate * priv = GUM_PROFILER_GET_PRIVATE (self);
 
-  while (priv->stacks != NULL)
+  while (self->stacks != NULL)
   {
-    GArray * stack = (GArray *) priv->stacks->data;
+    GArray * stack = (GArray *) self->stacks->data;
     g_array_free (stack, TRUE);
-    priv->stacks = g_slist_delete_link (priv->stacks, priv->stacks);
+    self->stacks = g_slist_delete_link (self->stacks, self->stacks);
   }
 
-  g_hash_table_unref (priv->function_by_address);
+  g_hash_table_unref (self->function_by_address);
 
-  g_mutex_clear (&priv->mutex);
+  g_mutex_clear (&self->mutex);
 
   G_OBJECT_CLASS (gum_profiler_parent_class)->finalize (object);
 }
@@ -224,13 +212,13 @@ gum_profiler_on_enter (GumInvocationListener * listener,
   inv->profiler = GUM_LINCTX_GET_THREAD_DATA (context, GumProfilerContext);
   if (inv->profiler->stack == NULL)
   {
-    GumProfilerPrivate * priv = GUM_PROFILER_CAST (listener)->priv;
+    GumProfiler * self = GUM_PROFILER (listener);
 
     inv->profiler->stack = g_array_sized_new (FALSE, FALSE,
         sizeof (GumFunctionThreadContext *), GUM_MAX_CALL_DEPTH);
 
     GUM_PROFILER_LOCK ();
-    priv->stacks = g_slist_prepend (priv->stacks, inv->profiler->stack);
+    self->stacks = g_slist_prepend (self->stacks, inv->profiler->stack);
     GUM_PROFILER_UNLOCK ();
   }
 
@@ -269,8 +257,6 @@ gum_profiler_on_leave (GumInvocationListener * listener,
   GumFunctionContext * fctx;
   GumFunctionThreadContext * tctx;
   GArray * stack;
-
-  (void) listener;
 
   inv = GUM_LINCTX_GET_FUNC_INVDATA (context, GumProfilerInvocation);
 
@@ -322,7 +308,7 @@ gum_profiler_on_leave (GumInvocationListener * listener,
 GumProfiler *
 gum_profiler_new (void)
 {
-  return GUM_PROFILER (g_object_new (GUM_TYPE_PROFILER, NULL));
+  return g_object_new (GUM_TYPE_PROFILER, NULL);
 }
 
 void
@@ -332,7 +318,7 @@ gum_profiler_instrument_functions_matching (GumProfiler * self,
                                             GumFunctionMatchFilterFunc filter,
                                             gpointer user_data)
 {
-  GumInterceptor * interceptor = self->priv->interceptor;
+  GumInterceptor * interceptor = self->interceptor;
   GArray * matches;
   guint i;
 
@@ -373,32 +359,32 @@ gum_profiler_instrument_function (GumProfiler * self,
 }
 
 GumInstrumentReturn
-gum_profiler_instrument_function_with_inspector (GumProfiler * self,
-                                                 gpointer function_address,
-                                                 GumSampler * sampler,
-                                                 GumWorstCaseInspectorFunc inspector_func,
-                                                 gpointer user_data)
+gum_profiler_instrument_function_with_inspector (
+    GumProfiler * self,
+    gpointer function_address,
+    GumSampler * sampler,
+    GumWorstCaseInspectorFunc inspector_func,
+    gpointer user_data)
 {
-  GumProfilerPrivate * priv = GUM_PROFILER_GET_PRIVATE (self);
   GumInstrumentReturn result = GUM_INSTRUMENT_OK;
   GumFunctionContext * ctx;
   GumAttachReturn attach_ret;
 
   ctx = g_new0 (GumFunctionContext, 1);
 
-  attach_ret = gum_interceptor_attach_listener (priv->interceptor,
+  attach_ret = gum_interceptor_attach_listener (self->interceptor,
       function_address, GUM_INVOCATION_LISTENER (self), ctx);
   if (attach_ret != GUM_ATTACH_OK)
     goto error;
 
   ctx->function_address = function_address;
-  ctx->sampler_interface = GUM_SAMPLER_GET_INTERFACE (sampler);
+  ctx->sampler_interface = GUM_SAMPLER_GET_IFACE (sampler);
   ctx->sampler_instance = g_object_ref (sampler);
   ctx->inspector_func = inspector_func;
   ctx->inspector_user_data = user_data;
 
   GUM_PROFILER_LOCK ();
-  g_hash_table_insert (priv->function_by_address, function_address, ctx);
+  g_hash_table_insert (self->function_by_address, function_address, ctx);
   GUM_PROFILER_UNLOCK ();
 
   return result;
@@ -423,9 +409,6 @@ unstrument_and_free_function (gpointer key,
 {
   GumFunctionContext * function_ctx = (GumFunctionContext *) value;
 
-  (void) key;
-  (void) user_data;
-
   g_object_unref (function_ctx->sampler_instance);
   g_free (function_ctx);
 }
@@ -433,11 +416,10 @@ unstrument_and_free_function (gpointer key,
 GumProfileReport *
 gum_profiler_generate_report (GumProfiler * self)
 {
-  GumProfilerPrivate * priv = GUM_PROFILER_GET_PRIVATE (self);
   GumProfileReport * report;
 
   report = gum_profile_report_new ();
-  g_hash_table_foreach (priv->function_by_address, add_to_report_if_root_node,
+  g_hash_table_foreach (self->function_by_address, add_to_report_if_root_node,
       report);
   _gum_profile_report_sort (report);
 
@@ -451,8 +433,6 @@ add_to_report_if_root_node (gpointer key,
 {
   GumProfileReport * report = GUM_PROFILE_REPORT (user_data);
   GumFunctionContext * function_ctx = (GumFunctionContext *) value;
-
-  (void) key;
 
   if (function_ctx->thread_context_count > 0)
   {
@@ -542,13 +522,12 @@ make_node (gchar * name,
 guint
 gum_profiler_get_number_of_threads (GumProfiler * self)
 {
-  GumProfilerPrivate * priv = GUM_PROFILER_GET_PRIVATE (self);
   guint result;
   GHashTable * unique_thread_id_set;
 
   unique_thread_id_set = g_hash_table_new (g_direct_hash, g_direct_equal);
   GUM_PROFILER_LOCK ();
-  g_hash_table_foreach (priv->function_by_address,
+  g_hash_table_foreach (self->function_by_address,
       get_number_of_threads_foreach, unique_thread_id_set);
   GUM_PROFILER_UNLOCK ();
   result = g_hash_table_size (unique_thread_id_set);
@@ -562,12 +541,11 @@ gum_profiler_get_total_duration_of (GumProfiler * self,
                                     guint thread_index,
                                     gpointer function_address)
 {
-  GumProfilerPrivate * priv = GUM_PROFILER_GET_PRIVATE (self);
   GumFunctionContext * function_ctx;
 
   GUM_PROFILER_LOCK ();
   function_ctx = (GumFunctionContext *)
-      g_hash_table_lookup (priv->function_by_address, function_address);
+      g_hash_table_lookup (self->function_by_address, function_address);
   GUM_PROFILER_UNLOCK ();
 
   if (function_ctx != NULL
@@ -582,12 +560,11 @@ gum_profiler_get_worst_case_duration_of (GumProfiler * self,
                                          guint thread_index,
                                          gpointer function_address)
 {
-  GumProfilerPrivate * priv = GUM_PROFILER_GET_PRIVATE (self);
   GumFunctionContext * function_ctx;
 
   GUM_PROFILER_LOCK ();
   function_ctx = (GumFunctionContext *)
-      g_hash_table_lookup (priv->function_by_address, function_address);
+      g_hash_table_lookup (self->function_by_address, function_address);
   GUM_PROFILER_UNLOCK ();
 
   if (function_ctx != NULL
@@ -602,12 +579,11 @@ gum_profiler_get_worst_case_info_of (GumProfiler * self,
                                      guint thread_index,
                                      gpointer function_address)
 {
-  GumProfilerPrivate * priv = GUM_PROFILER_GET_PRIVATE (self);
   GumFunctionContext * function_ctx;
 
   GUM_PROFILER_LOCK ();
   function_ctx = (GumFunctionContext *)
-      g_hash_table_lookup (priv->function_by_address, function_address);
+      g_hash_table_lookup (self->function_by_address, function_address);
   GUM_PROFILER_UNLOCK ();
 
   if (function_ctx != NULL
@@ -643,8 +619,6 @@ get_number_of_threads_foreach (gpointer key,
   GHashTable * unique_thread_id_set = user_data;
   guint thread_count = function_ctx->thread_context_count;
   guint i;
-
-  (void) key;
 
   for (i = 0; i < thread_count; i++)
   {

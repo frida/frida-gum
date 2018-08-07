@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2009-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -11,18 +11,12 @@
 #include <gum/gumdefs.h>
 #include <gum/gumevent.h>
 
+G_BEGIN_DECLS
+
 #define GUM_TYPE_EVENT_SINK (gum_event_sink_get_type ())
-#define GUM_EVENT_SINK(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
-    GUM_TYPE_EVENT_SINK, GumEventSink))
-#define GUM_IS_EVENT_SINK(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj),\
-    GUM_TYPE_EVENT_SINK))
-#define GUM_EVENT_SINK_GET_INTERFACE(inst) (G_TYPE_INSTANCE_GET_INTERFACE (\
-    (inst), GUM_TYPE_EVENT_SINK, GumEventSinkIface))
+G_DECLARE_INTERFACE (GumEventSink, gum_event_sink, GUM, EVENT_SINK, GObject)
 
-typedef struct _GumEventSink GumEventSink;
-typedef struct _GumEventSinkIface GumEventSinkIface;
-
-struct _GumEventSinkIface
+struct _GumEventSinkInterface
 {
   GTypeInterface parent;
 
@@ -31,10 +25,6 @@ struct _GumEventSinkIface
   void (* process) (GumEventSink * self, const GumEvent * ev);
   void (* stop) (GumEventSink * self);
 };
-
-G_BEGIN_DECLS
-
-GType gum_event_sink_get_type (void);
 
 GUM_API GumEventType gum_event_sink_query_mask (GumEventSink * self);
 GUM_API void gum_event_sink_start (GumEventSink * self);

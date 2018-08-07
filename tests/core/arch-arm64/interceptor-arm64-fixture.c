@@ -50,7 +50,7 @@ G_DEFINE_TYPE_EXTENDED (Arm64ListenerContext,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
-                            arm64_listener_context_iface_init));
+                            arm64_listener_context_iface_init))
 
 static void
 interceptor_fixture_setup (InterceptorFixture * fixture,
@@ -93,14 +93,9 @@ interceptor_fixture_try_attaching_listener (InterceptorFixture * h,
   GumAttachReturn result;
   Arm64ListenerContext * ctx;
 
-  if (h->listener_context[listener_index] != NULL)
-  {
-    g_object_unref (h->listener_context[listener_index]);
-    h->listener_context[listener_index] = NULL;
-  }
+  g_clear_object (&h->listener_context[listener_index]);
 
-  ctx = (Arm64ListenerContext *) g_object_new (
-      arm64_listener_context_get_type (), NULL);
+  ctx = g_object_new (arm64_listener_context_get_type (), NULL);
   ctx->harness = h;
   ctx->enter_char = enter_char;
   ctx->leave_char = leave_char;
@@ -166,7 +161,7 @@ static void
 arm64_listener_context_iface_init (gpointer g_iface,
                                    gpointer iface_data)
 {
-  GumInvocationListenerIface * iface = g_iface;
+  GumInvocationListenerInterface * iface = g_iface;
 
   iface->on_enter = arm64_listener_context_on_enter;
   iface->on_leave = arm64_listener_context_on_leave;

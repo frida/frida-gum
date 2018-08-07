@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2009-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -18,7 +18,7 @@ G_DEFINE_TYPE_EXTENDED (GumFakeEventSink,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_EVENT_SINK,
-                                               gum_fake_event_sink_iface_init));
+                                               gum_fake_event_sink_iface_init))
 
 static void
 gum_fake_event_sink_class_init (GumFakeEventSinkClass * klass)
@@ -32,7 +32,7 @@ static void
 gum_fake_event_sink_iface_init (gpointer g_iface,
                                 gpointer iface_data)
 {
-  GumEventSinkIface * iface = (GumEventSinkIface *) g_iface;
+  GumEventSinkInterface * iface = g_iface;
 
   iface->query_mask = gum_fake_event_sink_query_mask;
   iface->process = gum_fake_event_sink_process;
@@ -118,10 +118,12 @@ gum_fake_event_sink_dump (GumFakeEventSink * self)
         g_print ("GUM_EXEC at %p\n", ev->exec.location);
         break;
       case GUM_CALL:
-        g_print ("GUM_CALL at %p, target=%p\n", ev->call.location, ev->call.target);
+        g_print ("GUM_CALL at %p, target=%p\n", ev->call.location,
+            ev->call.target);
         break;
       case GUM_RET:
-        g_print ("GUM_RET at %p, target=%p\n", ev->ret.location, ev->ret.target);
+        g_print ("GUM_RET at %p, target=%p\n", ev->ret.location,
+            ev->ret.target);
         break;
       default:
         g_print ("UNKNOWN EVENT\n");

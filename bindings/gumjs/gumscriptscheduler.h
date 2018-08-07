@@ -19,8 +19,6 @@ G_DECLARE_FINAL_TYPE (GumScriptScheduler, gum_script_scheduler, GUM,
 typedef struct _GumScriptJob GumScriptJob;
 typedef void (* GumScriptJobFunc) (gpointer data);
 
-GUM_API GType gum_script_scheduler_get_type (void) G_GNUC_CONST;
-
 GUM_API GumScriptScheduler * gum_script_scheduler_new (void);
 
 GUM_API void gum_script_scheduler_enable_background_thread (

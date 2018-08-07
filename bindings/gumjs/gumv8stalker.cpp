@@ -322,7 +322,6 @@ _gum_v8_stalker_dispose (GumV8Stalker * self)
 void
 _gum_v8_stalker_finalize (GumV8Stalker * self)
 {
-  (void) self;
 }
 
 GumStalker *
@@ -399,16 +398,6 @@ GUMJS_DEFINE_SETTER (gumjs_stalker_set_queue_drain_interval)
   module->queue_drain_interval = interval;
 }
 
-/*
- * Prototype:
- * Stalker.garbageCollect()
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_stalker_garbage_collect)
 {
   auto stalker = _gum_v8_stalker_get (module);
@@ -416,16 +405,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_garbage_collect)
   gum_stalker_garbage_collect (stalker);
 }
 
-/*
- * Prototype:
- * TBW
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
 {
   auto stalker = _gum_v8_stalker_get (module);
@@ -477,16 +456,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
   }
 }
 
-/*
- * Prototype:
- * Stalker.unfollow(thread_id)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_stalker_unfollow)
 {
   GumStalker * stalker;
@@ -504,16 +473,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_unfollow)
     gum_stalker_unfollow (stalker, thread_id);
 }
 
-/*
- * Prototype:
- * Stalker.addCallProbe(target_address, callback)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_stalker_add_call_probe)
 {
   gpointer target_address;
@@ -532,16 +491,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_add_call_probe)
   info.GetReturnValue ().Set (id);
 }
 
-/*
- * Prototype:
- * Stalker.removeCallProbe(id)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_stalker_remove_call_probe)
 {
   GumProbeId id;
@@ -746,7 +695,7 @@ static void
 gum_v8_callback_transformer_iface_init (gpointer g_iface,
                                         gpointer iface_data)
 {
-  auto iface = (GumStalkerTransformerIface *) g_iface;
+  auto iface = (GumStalkerTransformerInterface *) g_iface;
 
   iface->transform_block = gum_v8_callback_transformer_transform_block;
 }

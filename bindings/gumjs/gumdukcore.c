@@ -1332,8 +1332,6 @@ _gum_duk_scope_leave (GumDukScope * self)
 
 GUMJS_DEFINE_GETTER (gumjs_get_promise)
 {
-  (void) args;
-
   duk_push_global_object (ctx);
 
   duk_del_prop_string (ctx, -1, "Promise");
@@ -1355,8 +1353,6 @@ GUMJS_DEFINE_GETTER (gumjs_get_promise)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_frida_construct)
 {
-  (void) args;
-
   duk_push_this (ctx);
 
   duk_push_string (ctx, FRIDA_VERSION);
@@ -1404,8 +1400,6 @@ GUMJS_DEFINE_GETTER (gumjs_frida_java_get_source_map)
 
 GUMJS_DEFINE_FUNCTION (gumjs_frida_objc_load)
 {
-  (void) args;
-
   gum_duk_bundle_load (gumjs_objc_modules, ctx);
 
   return 0;
@@ -1413,8 +1407,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_frida_objc_load)
 
 GUMJS_DEFINE_FUNCTION (gumjs_frida_java_load)
 {
-  (void) args;
-
   gum_duk_bundle_load (gumjs_java_modules, ctx);
 
   return 0;
@@ -1422,8 +1414,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_frida_java_load)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_script_construct)
 {
-  (void) args;
-
   duk_push_this (ctx);
 
   duk_push_string (ctx, "DUK");
@@ -1521,8 +1511,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_next_tick)
 
 GUMJS_DEFINE_FUNCTION (gumjs_script_pin)
 {
-  (void) ctx;
-
   _gum_duk_core_pin (args->core);
 
   return 0;
@@ -1530,8 +1518,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_pin)
 
 GUMJS_DEFINE_FUNCTION (gumjs_script_unpin)
 {
-  (void) ctx;
-
   _gum_duk_core_unpin (args->core);
 
   return 0;
@@ -1715,16 +1701,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_timeout)
 {
   GumDukCore * self = args->core;
 
-  (void) ctx;
-
   return gum_duk_core_schedule_callback (self, args, FALSE);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_set_interval)
 {
   GumDukCore * self = args->core;
-
-  (void) ctx;
 
   return gum_duk_core_schedule_callback (self, args, TRUE);
 }
@@ -1759,8 +1741,6 @@ invalid_handle:
 
 GUMJS_DEFINE_FUNCTION (gumjs_gc)
 {
-  (void) args;
-
   duk_gc (ctx, 0);
 
   return 0;
@@ -1773,8 +1753,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_send)
   GumInterceptor * interceptor = self->interceptor->interceptor;
   const gchar * message;
   GBytes * data;
-
-  (void) ctx;
 
   _gum_duk_args_parse (args, "sB?", &message, &data);
 
@@ -1804,8 +1782,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_unhandled_exception_callback)
   GumDukHeapPtr callback;
   GumDukExceptionSink * new_sink, * old_sink;
 
-  (void) ctx;
-
   _gum_duk_args_parse (args, "F?", &callback);
 
   new_sink = (callback != NULL)
@@ -1826,8 +1802,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_incoming_message_callback)
   GumDukCore * self = args->core;
   GumDukHeapPtr callback;
   GumDukMessageSink * new_sink, * old_sink;
-
-  (void) ctx;
 
   _gum_duk_args_parse (args, "F?", &callback);
 
@@ -2409,8 +2383,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_resource_construct)
   GDestroyNotify notify;
   GumDukNativeResource * resource;
   GumDukNativePointer * ptr;
-
-  (void) args;
 
   data = duk_require_pointer (ctx, 0);
   notify = GUM_POINTER_TO_FUNCPTR (GDestroyNotify,
@@ -3155,9 +3127,6 @@ gumjs_cpu_context_from_args (const GumDukArgs * args)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_cpu_context_construct)
 {
-  (void) ctx;
-  (void) args;
-
   return 0;
 }
 
@@ -3485,8 +3454,6 @@ gum_duk_message_sink_free (GumDukMessageSink * sink)
 GUMJS_DEFINE_FINALIZER (gum_duk_message_data_finalize)
 {
   gpointer data;
-
-  (void) args;
 
   data = duk_require_buffer_data (ctx, 0, NULL);
   g_free (data);

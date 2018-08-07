@@ -1,11 +1,18 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "fakesampler.h"
+
+struct _GumFakeSampler
+{
+  GObject parent;
+
+  GumSample now;
+};
 
 static void gum_fake_sampler_iface_init (gpointer g_iface,
     gpointer iface_data);
@@ -16,7 +23,7 @@ G_DEFINE_TYPE_EXTENDED (GumFakeSampler,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_SAMPLER,
-                                               gum_fake_sampler_iface_init));
+                                               gum_fake_sampler_iface_init))
 
 static void
 gum_fake_sampler_class_init (GumFakeSamplerClass * klass)
@@ -25,9 +32,9 @@ gum_fake_sampler_class_init (GumFakeSamplerClass * klass)
 
 static void
 gum_fake_sampler_iface_init (gpointer g_iface,
-                                gpointer iface_data)
+                             gpointer iface_data)
 {
-  GumSamplerIface * iface = (GumSamplerIface *) g_iface;
+  GumSamplerInterface * iface = g_iface;
 
   iface->sample = gum_fake_sampler_sample;
 }

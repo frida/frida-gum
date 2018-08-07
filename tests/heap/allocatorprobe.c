@@ -171,7 +171,7 @@ ALLOCPROBE_TESTCASE (gtype_interop)
 
   ATTACH_PROBE ();
 
-  pony = MY_PONY (g_object_new (MY_TYPE_PONY, NULL));
+  pony = g_object_new (MY_TYPE_PONY, NULL);
   g_object_unref (pony);
 }
 

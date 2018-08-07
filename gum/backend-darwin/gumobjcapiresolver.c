@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -90,9 +90,7 @@ static void
 gum_objc_api_resolver_iface_init (gpointer g_iface,
                                   gpointer iface_data)
 {
-  GumApiResolverIface * iface = (GumApiResolverIface *) g_iface;
-
-  (void) iface_data;
+  GumApiResolverInterface * iface = g_iface;
 
   iface->enumerate_matches = gum_objc_api_resolver_enumerate_matches;
 }

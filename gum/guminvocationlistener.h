@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -11,19 +11,13 @@
 #include <gum/gumdefs.h>
 #include <gum/guminvocationcontext.h>
 
+G_BEGIN_DECLS
+
 #define GUM_TYPE_INVOCATION_LISTENER (gum_invocation_listener_get_type ())
-#define GUM_INVOCATION_LISTENER(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
-    GUM_TYPE_INVOCATION_LISTENER, GumInvocationListener))
-#define GUM_INVOCATION_LISTENER_CAST(obj) ((GumInvocationListener *) (obj))
-#define GUM_IS_INVOCATION_LISTENER(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj),\
-    GUM_TYPE_INVOCATION_LISTENER))
-#define GUM_INVOCATION_LISTENER_GET_INTERFACE(inst) (G_TYPE_INSTANCE_GET_INTERFACE (\
-    (inst), GUM_TYPE_INVOCATION_LISTENER, GumInvocationListenerIface))
+G_DECLARE_INTERFACE (GumInvocationListener, gum_invocation_listener, GUM,
+    INVOCATION_LISTENER, GObject)
 
-typedef struct _GumInvocationListener GumInvocationListener;
-typedef struct _GumInvocationListenerIface GumInvocationListenerIface;
-
-struct _GumInvocationListenerIface
+struct _GumInvocationListenerInterface
 {
   GTypeInterface parent;
 
@@ -32,10 +26,6 @@ struct _GumInvocationListenerIface
   void (* on_leave) (GumInvocationListener * self,
       GumInvocationContext * context);
 };
-
-G_BEGIN_DECLS
-
-GUM_API GType gum_invocation_listener_get_type (void);
 
 GUM_API void gum_invocation_listener_on_enter (GumInvocationListener * self,
     GumInvocationContext * context);

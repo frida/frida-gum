@@ -198,50 +198,51 @@ struct _GumDarwinSymbolDetails
   guint16 description;
 };
 
-GumDarwinModule * gum_darwin_module_new_from_file (const gchar * path,
+GUM_API GumDarwinModule * gum_darwin_module_new_from_file (const gchar * path,
     mach_port_t task, GumCpuType cpu_type, guint page_size,
     GMappedFile * cache_file);
-GumDarwinModule * gum_darwin_module_new_from_blob (const gchar * name,
+GUM_API GumDarwinModule * gum_darwin_module_new_from_blob (const gchar * name,
     GBytes * blob, mach_port_t task, GumCpuType cpu_type, guint page_size);
-GumDarwinModule * gum_darwin_module_new_from_memory (const gchar * name,
+GUM_API GumDarwinModule * gum_darwin_module_new_from_memory (const gchar * name,
     mach_port_t task, GumCpuType cpu_type, guint page_size,
     GumAddress base_address);
 
-gboolean gum_darwin_module_resolve_export (GumDarwinModule * self,
+GUM_API gboolean gum_darwin_module_resolve_export (GumDarwinModule * self,
     const gchar * symbol, GumDarwinExportDetails * details);
-GumAddress gum_darwin_module_resolve_symbol_address (GumDarwinModule * self,
-    const gchar * symbol);
-gboolean gum_darwin_module_lacks_exports_for_reexports (GumDarwinModule * self);
-void gum_darwin_module_enumerate_imports (GumDarwinModule * self,
+GUM_API GumAddress gum_darwin_module_resolve_symbol_address (
+    GumDarwinModule * self, const gchar * symbol);
+GUM_API gboolean gum_darwin_module_lacks_exports_for_reexports (
+    GumDarwinModule * self);
+GUM_API void gum_darwin_module_enumerate_imports (GumDarwinModule * self,
     GumFoundImportFunc func, gpointer user_data);
-void gum_darwin_module_enumerate_exports (GumDarwinModule * self,
+GUM_API void gum_darwin_module_enumerate_exports (GumDarwinModule * self,
     GumDarwinFoundExportFunc func, gpointer user_data);
-void gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
+GUM_API void gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
     GumDarwinFoundSymbolFunc func, gpointer user_data);
-GumAddress gum_darwin_module_slide (GumDarwinModule * self);
-const GumDarwinSegment * gum_darwin_module_segment (GumDarwinModule * self,
-    gsize index);
-void gum_darwin_module_enumerate_sections (GumDarwinModule * self,
+GUM_API GumAddress gum_darwin_module_slide (GumDarwinModule * self);
+GUM_API const GumDarwinSegment * gum_darwin_module_segment (
+    GumDarwinModule * self, gsize index);
+GUM_API void gum_darwin_module_enumerate_sections (GumDarwinModule * self,
     GumDarwinFoundSectionFunc func, gpointer user_data);
-gboolean gum_darwin_module_is_address_in_text_section (GumDarwinModule * self,
-    GumAddress address);
-void gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
+GUM_API gboolean gum_darwin_module_is_address_in_text_section (
+    GumDarwinModule * self, GumAddress address);
+GUM_API void gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
     GumDarwinFoundRebaseFunc func, gpointer user_data);
-void gum_darwin_module_enumerate_binds (GumDarwinModule * self,
+GUM_API void gum_darwin_module_enumerate_binds (GumDarwinModule * self,
     GumDarwinFoundBindFunc func, gpointer user_data);
-void gum_darwin_module_enumerate_lazy_binds (GumDarwinModule * self,
+GUM_API void gum_darwin_module_enumerate_lazy_binds (GumDarwinModule * self,
     GumDarwinFoundBindFunc func, gpointer user_data);
-void gum_darwin_module_enumerate_init_pointers (GumDarwinModule * self,
+GUM_API void gum_darwin_module_enumerate_init_pointers (GumDarwinModule * self,
     GumDarwinFoundInitPointersFunc func, gpointer user_data);
-void gum_darwin_module_enumerate_term_pointers (GumDarwinModule * self,
+GUM_API void gum_darwin_module_enumerate_term_pointers (GumDarwinModule * self,
     GumDarwinFoundTermPointersFunc func, gpointer user_data);
-const gchar * gum_darwin_module_dependency (GumDarwinModule * self,
+GUM_API const gchar * gum_darwin_module_dependency (GumDarwinModule * self,
     gint ordinal);
 
-GumDarwinModuleImage * gum_darwin_module_image_new (void);
-GumDarwinModuleImage * gum_darwin_module_image_dup (
+GUM_API GumDarwinModuleImage * gum_darwin_module_image_new (void);
+GUM_API GumDarwinModuleImage * gum_darwin_module_image_dup (
     const GumDarwinModuleImage * other);
-void gum_darwin_module_image_free (GumDarwinModuleImage * image);
+GUM_API void gum_darwin_module_image_free (GumDarwinModuleImage * image);
 
 G_END_DECLS
 

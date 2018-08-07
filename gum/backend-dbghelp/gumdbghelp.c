@@ -9,7 +9,7 @@
 #include "gum-init.h"
 #include "gumprocess.h"
 
-struct _GumDbgHelpImplPrivate
+struct _GumDbghelpImplPrivate
 {
   HMODULE module;
 };
@@ -27,7 +27,7 @@ static void gum_dbghelp_impl_unlock (void);
         GSIZE_TO_POINTER (GetProcAddress (mod, G_STRINGIFY (func))); \
     g_assert (impl->##func != NULL)
 
-GumDbgHelpImpl *
+GumDbghelpImpl *
 gum_dbghelp_impl_try_obtain (void)
 {
   static GOnce init_once = G_ONCE_INIT;
@@ -41,14 +41,14 @@ static gpointer
 do_init (gpointer data)
 {
   HMODULE mod;
-  GumDbgHelpImpl * impl;
+  GumDbghelpImpl * impl;
 
   mod = load_dbghelp ();
   if (mod == NULL)
     return NULL;
 
-  impl = g_slice_new0 (GumDbgHelpImpl);
-  impl->priv = g_slice_new (GumDbgHelpImplPrivate);
+  impl = g_slice_new0 (GumDbghelpImpl);
+  impl->priv = g_slice_new (GumDbghelpImplPrivate);
   impl->priv->module = mod;
 
   INIT_IMPL_FUNC (StackWalk64);
@@ -74,7 +74,7 @@ do_init (gpointer data)
 static void
 do_deinit (void)
 {
-  GumDbgHelpImpl * impl;
+  GumDbghelpImpl * impl;
 
   impl = gum_dbghelp_impl_try_obtain ();
   g_assert (impl != NULL);
@@ -82,8 +82,8 @@ do_deinit (void)
   impl->SymCleanup (GetCurrentProcess ());
 
   FreeLibrary (impl->priv->module);
-  g_slice_free (GumDbgHelpImplPrivate, impl->priv);
-  g_slice_free (GumDbgHelpImpl, impl);
+  g_slice_free (GumDbghelpImplPrivate, impl->priv);
+  g_slice_free (GumDbghelpImpl, impl);
 }
 
 static HMODULE

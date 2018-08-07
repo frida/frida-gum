@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -11,21 +11,15 @@
 #include <gum/gum.h>
 #include <json-glib/json-glib.h>
 
-#define GUM_TYPE_SCRIPT (gum_script_get_type ())
-#define GUM_SCRIPT(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), GUM_TYPE_SCRIPT,\
-    GumScript))
-#define GUM_SCRIPT_CAST(obj) ((GumScript *) (obj))
-#define GUM_IS_SCRIPT(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), GUM_TYPE_SCRIPT))
-#define GUM_SCRIPT_GET_INTERFACE(inst) (G_TYPE_INSTANCE_GET_INTERFACE ((inst),\
-    GUM_TYPE_SCRIPT, GumScriptIface))
+G_BEGIN_DECLS
 
-typedef struct _GumScript GumScript;
-typedef struct _GumScriptIface GumScriptIface;
+#define GUM_TYPE_SCRIPT (gum_script_get_type ())
+G_DECLARE_INTERFACE (GumScript, gum_script, GUM, SCRIPT, GObject)
 
 typedef void (* GumScriptMessageHandler) (GumScript * script,
     const gchar * message, GBytes * data, gpointer user_data);
 
-struct _GumScriptIface
+struct _GumScriptInterface
 {
   GTypeInterface parent;
 
@@ -45,10 +39,6 @@ struct _GumScriptIface
 
   GumStalker * (* get_stalker) (GumScript * self);
 };
-
-G_BEGIN_DECLS
-
-GUM_API GType gum_script_get_type (void);
 
 GUM_API void gum_script_load (GumScript * self, GCancellable * cancellable,
     GAsyncReadyCallback callback, gpointer user_data);

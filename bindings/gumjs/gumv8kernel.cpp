@@ -75,19 +75,16 @@ _gum_v8_kernel_init (GumV8Kernel * self,
 void
 _gum_v8_kernel_realize (GumV8Kernel * self)
 {
-  (void) self;
 }
 
 void
 _gum_v8_kernel_dispose (GumV8Kernel * self)
 {
-  (void) self;
 }
 
 void
 _gum_v8_kernel_finalize (GumV8Kernel * self)
 {
-  (void) self;
 }
 
 GUMJS_DEFINE_GETTER (gumjs_kernel_get_available)
@@ -95,16 +92,6 @@ GUMJS_DEFINE_GETTER (gumjs_kernel_get_available)
   info.GetReturnValue ().Set (!!gum_kernel_api_is_available ());
 }
 
-/*
- * Prototype:
- * Kernel._enumerateRanges(prot, callback)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_ranges)
 {
   if (!gum_v8_kernel_check_api_available (isolate))
@@ -165,16 +152,6 @@ gum_emit_range (const GumRangeDetails * details,
   return proceed;
 }
 
-/*
- * Prototype:
- * Kernel.alloc(size)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_alloc)
 {
   if (!gum_v8_kernel_check_api_available (isolate))
@@ -197,16 +174,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_alloc)
   info.GetReturnValue ().Set (_gum_v8_native_pointer_new (address, core));
 }
 
-/*
- * Prototype:
- * Kernel.protect(address, size, protection)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_protect)
 {
   if (!gum_v8_kernel_check_api_available (isolate))
@@ -233,16 +200,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_protect)
   info.GetReturnValue ().Set (success);
 }
 
-/*
- * Prototype:
- * Kernel.readByteArray(address, length)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_read_byte_array)
 {
   if (!gum_v8_kernel_check_api_available (isolate))
@@ -285,16 +242,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_read_byte_array)
   info.GetReturnValue ().Set (result);
 }
 
-/*
- * Prototype:
- * Kernel.writeByteArray(address, bytes)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_write_byte_array)
 {
   if (!gum_v8_kernel_check_api_available (isolate))

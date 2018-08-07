@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -8,28 +8,15 @@
 #ifndef __GUM_PROFILER_H__
 #define __GUM_PROFILER_H__
 
-#include "gumsampler.h"
 #include "gumprofilereport.h"
+#include "gumsampler.h"
 
 #include <gum/guminvocationcontext.h>
 
+G_BEGIN_DECLS
+
 #define GUM_TYPE_PROFILER (gum_profiler_get_type ())
-#define GUM_PROFILER(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
-    GUM_TYPE_PROFILER, GumProfiler))
-#define GUM_PROFILER_CAST(obj) ((GumProfiler *) (obj))
-#define GUM_PROFILER_CLASS(klass) (G_TYPE_CHECK_CLASS_CAST ((klass),\
-    GUM_TYPE_PROFILER, GumProfilerClass))
-#define GUM_IS_PROFILER(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj),\
-    GUM_TYPE_PROFILER))
-#define GUM_IS_PROFILER_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE (\
-    (klass), GUM_TYPE_PROFILER))
-#define GUM_PROFILER_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS (\
-    (obj), GUM_TYPE_PROFILER, GumProfilerClass))
-
-typedef struct _GumProfiler GumProfiler;
-typedef struct _GumProfilerClass GumProfilerClass;
-
-typedef struct _GumProfilerPrivate GumProfilerPrivate;
+G_DECLARE_FINAL_TYPE (GumProfiler, gum_profiler, GUM, PROFILER, GObject)
 
 typedef enum
 {
@@ -38,26 +25,10 @@ typedef enum
   GUM_INSTRUMENT_WAS_INSTRUMENTED = -2
 } GumInstrumentReturn;
 
-struct _GumProfiler
-{
-  GObject parent;
-
-  GumProfilerPrivate * priv;
-};
-
-struct _GumProfilerClass
-{
-  GObjectClass parent_class;
-};
-
-G_BEGIN_DECLS
-
 typedef gboolean (* GumFunctionMatchFilterFunc) (const gchar * function_name,
     gpointer user_data);
 typedef void (* GumWorstCaseInspectorFunc) (GumInvocationContext * context,
     gchar * output_buf, guint output_buf_len, gpointer user_data);
-
-GUM_API GType gum_profiler_get_type (void) G_GNUC_CONST;
 
 GUM_API GumProfiler * gum_profiler_new (void);
 

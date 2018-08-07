@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -10,39 +10,11 @@
 
 #include "gumsampler.h"
 
-#define GUM_TYPE_CALL_COUNT_SAMPLER (gum_call_count_sampler_get_type ())
-#define GUM_CALL_COUNT_SAMPLER(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
-    GUM_TYPE_CALL_COUNT_SAMPLER, GumCallCountSampler))
-#define GUM_CALL_COUNT_SAMPLER_CAST(obj) ((GumCallCountSampler *) (obj))
-#define GUM_CALL_COUNT_SAMPLER_CLASS(klass) (G_TYPE_CHECK_CLASS_CAST ((klass),\
-    GUM_TYPE_CALL_COUNT_SAMPLER, GumCallCountSamplerClass))
-#define GUM_IS_CALL_COUNT_SAMPLER(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj),\
-    GUM_TYPE_CALL_COUNT_SAMPLER))
-#define GUM_IS_CALL_COUNT_SAMPLER_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE (\
-    (klass), GUM_TYPE_CALL_COUNT_SAMPLER))
-#define GUM_CALL_COUNT_SAMPLER_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS (\
-    (obj), GUM_TYPE_CALL_COUNT_SAMPLER, GumCallCountSamplerClass))
-
-typedef struct _GumCallCountSampler GumCallCountSampler;
-typedef struct _GumCallCountSamplerClass GumCallCountSamplerClass;
-
-typedef struct _GumCallCountSamplerPrivate GumCallCountSamplerPrivate;
-
-struct _GumCallCountSampler
-{
-  GObject parent;
-
-  GumCallCountSamplerPrivate * priv;
-};
-
-struct _GumCallCountSamplerClass
-{
-  GObjectClass parent_class;
-};
-
 G_BEGIN_DECLS
 
-GUM_API GType gum_call_count_sampler_get_type (void) G_GNUC_CONST;
+#define GUM_TYPE_CALL_COUNT_SAMPLER (gum_call_count_sampler_get_type ())
+G_DECLARE_FINAL_TYPE (GumCallCountSampler, gum_call_count_sampler, GUM,
+    CALL_COUNT_SAMPLER, GObject)
 
 GUM_API GumSampler * gum_call_count_sampler_new (gpointer first_function, ...);
 GUM_API GumSampler * gum_call_count_sampler_new_valist (gpointer first_function,

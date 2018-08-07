@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -11,42 +11,13 @@
 
 #include <gio/gio.h>
 
+G_BEGIN_DECLS
+
 #define GUM_TYPE_SCRIPT_TASK (gum_script_task_get_type ())
-#define GUM_SCRIPT_TASK(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
-    GUM_TYPE_SCRIPT_TASK, GumScriptTask))
-#define GUM_SCRIPT_TASK_CAST(obj) ((GumScriptTask *) (obj))
-#define GUM_SCRIPT_TASK_CLASS(klass) (G_TYPE_CHECK_CLASS_CAST ((klass),\
-    GUM_TYPE_SCRIPT_TASK, GumScriptTaskClass))
-#define GUM_IS_SCRIPT_TASK(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj),\
-    GUM_TYPE_SCRIPT_TASK))
-#define GUM_IS_SCRIPT_TASK_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE (\
-    (klass), GUM_TYPE_SCRIPT_TASK))
-#define GUM_SCRIPT_TASK_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS (\
-    (obj), GUM_TYPE_SCRIPT_TASK, GumScriptTaskClass))
-
-typedef struct _GumScriptTask GumScriptTask;
-typedef struct _GumScriptTaskClass GumScriptTaskClass;
-
-typedef struct _GumScriptTaskPrivate GumScriptTaskPrivate;
+G_DECLARE_FINAL_TYPE (GumScriptTask, gum_script_task, GUM, SCRIPT_TASK, GObject)
 
 typedef void (* GumScriptTaskFunc) (GumScriptTask * task,
     gpointer source_object, gpointer task_data, GCancellable * cancellable);
-
-struct _GumScriptTask
-{
-  GObject parent;
-
-  GumScriptTaskPrivate * priv;
-};
-
-struct _GumScriptTaskClass
-{
-  GObjectClass parent_class;
-};
-
-G_BEGIN_DECLS
-
-G_GNUC_INTERNAL GType gum_script_task_get_type (void) G_GNUC_CONST;
 
 G_GNUC_INTERNAL GumScriptTask * gum_script_task_new (GumScriptTaskFunc func,
     gpointer source_object, GCancellable * cancellable,

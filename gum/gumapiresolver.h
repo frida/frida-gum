@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -10,24 +10,18 @@
 #include <glib-object.h>
 #include <gum/gumdefs.h>
 
-#define GUM_TYPE_API_RESOLVER (gum_api_resolver_get_type ())
-#define GUM_API_RESOLVER(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
-    GUM_TYPE_API_RESOLVER, GumApiResolver))
-#define GUM_API_RESOLVER_CAST(obj) ((GumApiResolver *) (obj))
-#define GUM_IS_API_RESOLVER(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj),\
-    GUM_TYPE_API_RESOLVER))
-#define GUM_API_RESOLVER_GET_INTERFACE(inst) (G_TYPE_INSTANCE_GET_INTERFACE (\
-    (inst), GUM_TYPE_API_RESOLVER, GumApiResolverIface))
+G_BEGIN_DECLS
 
-typedef struct _GumApiResolver GumApiResolver;
-typedef struct _GumApiResolverIface GumApiResolverIface;
+#define GUM_TYPE_API_RESOLVER (gum_api_resolver_get_type ())
+G_DECLARE_INTERFACE (GumApiResolver, gum_api_resolver, GUM, API_RESOLVER,
+    GObject)
 
 typedef struct _GumApiDetails GumApiDetails;
 
 typedef gboolean (* GumFoundApiFunc) (const GumApiDetails * details,
     gpointer user_data);
 
-struct _GumApiResolverIface
+struct _GumApiResolverInterface
 {
   GTypeInterface parent;
 
@@ -40,10 +34,6 @@ struct _GumApiDetails
   const gchar * name;
   GumAddress address;
 };
-
-G_BEGIN_DECLS
-
-GUM_API GType gum_api_resolver_get_type (void);
 
 GUM_API GumApiResolver * gum_api_resolver_make (const gchar * type);
 

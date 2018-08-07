@@ -219,7 +219,6 @@ _gum_v8_memory_init (GumV8Memory * self,
 void
 _gum_v8_memory_realize (GumV8Memory * self)
 {
-  (void) self;
 }
 
 void
@@ -234,16 +233,6 @@ _gum_v8_memory_finalize (GumV8Memory * self)
   g_clear_object (&self->monitor);
 }
 
-/*
- * Prototype:
- * Memory.alloc(size)
- *
- * Docs:
- * Allocate a zero-initialized chunk of memory
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
 {
   gsize size;
@@ -278,16 +267,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
 # pragma warning (disable: 4611)
 #endif
 
-/*
- * Prototype:
- * Memory.copy(destination, source, size)
- *
- * Docs:
- * Copies a specified number of bytes from one memory location to another
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_memory_copy)
 {
   gpointer destination, source;
@@ -319,16 +298,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_copy)
   }
 }
 
-/*
- * Prototype:
- * Memory.protect(address, size, prot)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_memory_protect)
 {
   gpointer address;
@@ -830,17 +799,6 @@ gum_ansi_string_from_utf8 (const gchar * str_utf8)
 
 #endif
 
-/*
- * Prototype:
- * Memory.allocAnsiString(string)
- *
- * Docs:
- * Windows only. Allocates an ANSI string and returns a pointer.
- *
- * Example:
- * -> Memory.allocAnsiString("Frida Rocks!")
- * "0x1110c7da0"
- */
 GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_ansi_string)
 {
 #ifdef G_OS_WIN32
@@ -869,17 +827,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_utf8_string)
   info.GetReturnValue ().Set (Local<Object>::New (isolate, *res->instance));
 }
 
-/*
- * Prototype:
- * Memory.allocUtf16String(string)
- *
- * Docs:
- * Allocates a UTF-16 string and returns a pointer.
- *
- * Example:
- * -> Memory.allocUtf16String("Frida Rocks!")
- * "0x11139d6f0"
- */
 GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_utf16_string)
 {
   gchar * str;
@@ -896,16 +843,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_utf16_string)
   info.GetReturnValue ().Set (Local<Object>::New (isolate, *res->instance));
 }
 
-/*
- * Prototype:
- * Memory.scan(address, size, match_str, callback)
- *
- * Docs:
- * Scans a memory region for a specific string
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
 {
   gpointer address;
@@ -1030,16 +967,6 @@ gum_memory_scan_context_emit_match (GumAddress address,
   return proceed;
 }
 
-/*
- * Prototype:
- * Memory.scanSync(address, size, match_str)
- *
- * Docs:
- * Scans a memory region for a specific string
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_memory_scan_sync)
 {
   gpointer address;
@@ -1106,16 +1033,6 @@ gum_append_match (GumAddress address,
 # pragma warning (pop)
 #endif
 
-/*
- * Prototype:
- * MemoryAccessMonitor.enable(num_ranges, callback)
- *
- * Docs:
- * Windows only. TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_enable)
 {
 #ifdef G_OS_WIN32
@@ -1165,16 +1082,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_enable)
 #endif
 }
 
-/*
- * Prototype:
- * MemoryAccessMonitor.disable()
- *
- * Docs:
- * Windows only. TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_disable)
 {
 #ifdef G_OS_WIN32
@@ -1198,8 +1105,6 @@ gum_v8_memory_clear_monitor (GumV8Memory * self)
 
   delete self->on_access;
   self->on_access = nullptr;
-#else
-  (void) self;
 #endif
 }
 
@@ -1213,8 +1118,6 @@ gum_v8_memory_on_access (GumMemoryAccessMonitor * monitor,
   auto core = self->core;
   auto isolate = core->isolate;
   ScriptScope script_scope (core->script);
-
-  (void) monitor;
 
   auto d = Object::New (isolate);
   _gum_v8_object_set_ascii (d, "operation",

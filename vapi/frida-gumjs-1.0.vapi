@@ -6,7 +6,7 @@ namespace GumJS {
 }
 
 namespace Gum {
-	[CCode (cheader_filename = "gumjs/gumscriptbackend.h")]
+	[CCode (cheader_filename = "gumjs/gumscriptbackend.h", type_cname = "GumScriptBackendInterface")]
 	public interface ScriptBackend : GLib.Object {
 		public delegate void DebugMessageHandler (string message);
 
@@ -28,7 +28,7 @@ namespace Gum {
 		public unowned ScriptScheduler get_scheduler ();
 	}
 
-	[CCode (cheader_filename = "gumjs/gumscript.h")]
+	[CCode (cheader_filename = "gumjs/gumscript.h", type_cname = "GumScriptInterface")]
 	public interface Script : GLib.Object {
 		public delegate void MessageHandler (Gum.Script script, string message, GLib.Bytes? data);
 

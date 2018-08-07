@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -9,8 +9,10 @@
 #include "guminterceptor.h"
 #include "gummemorymap.h"
 
-struct _GumMipsBacktracerPrivate
+struct _GumMipsBacktracer
 {
+  GObject parent;
+
   GumMemoryMap * code;
   GumMemoryMap * writable;
 };
@@ -27,14 +29,12 @@ G_DEFINE_TYPE_EXTENDED (GumMipsBacktracer,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_BACKTRACER,
-                                               gum_mips_backtracer_iface_init));
+                                               gum_mips_backtracer_iface_init))
 
 static void
 gum_mips_backtracer_class_init (GumMipsBacktracerClass * klass)
 {
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
-
-  g_type_class_add_private (klass, sizeof (GumMipsBacktracerPrivate));
 
   object_class->dispose = gum_mips_backtracer_dispose;
 }
@@ -43,7 +43,7 @@ static void
 gum_mips_backtracer_iface_init (gpointer g_iface,
                                 gpointer iface_data)
 {
-  GumBacktracerIface * iface = (GumBacktracerIface *) g_iface;
+  GumBacktracerInterface * iface = g_iface;
 
   iface->generate = gum_mips_backtracer_generate;
 }
@@ -51,21 +51,17 @@ gum_mips_backtracer_iface_init (gpointer g_iface,
 static void
 gum_mips_backtracer_init (GumMipsBacktracer * self)
 {
-  self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self, GUM_TYPE_MIPS_BACKTRACER,
-      GumMipsBacktracerPrivate);
-
-  self->priv->code = gum_memory_map_new (GUM_PAGE_EXECUTE);
-  self->priv->writable = gum_memory_map_new (GUM_PAGE_WRITE);
+  self->code = gum_memory_map_new (GUM_PAGE_EXECUTE);
+  self->writable = gum_memory_map_new (GUM_PAGE_WRITE);
 }
 
 static void
 gum_mips_backtracer_dispose (GObject * object)
 {
   GumMipsBacktracer * self = GUM_MIPS_BACKTRACER (object);
-  GumMipsBacktracerPrivate * priv = self->priv;
 
-  g_clear_object (&priv->code);
-  g_clear_object (&priv->writable);
+  g_clear_object (&self->code);
+  g_clear_object (&self->writable);
 
   G_OBJECT_CLASS (gum_mips_backtracer_parent_class)->dispose (object);
 }
@@ -81,13 +77,13 @@ gum_mips_backtracer_generate (GumBacktracer * backtracer,
                               const GumCpuContext * cpu_context,
                               GumReturnAddressArray * return_addresses)
 {
-  GumMipsBacktracer * self = GUM_MIPS_BACKTRACER_CAST (backtracer);
-  GumMipsBacktracerPrivate * priv = self->priv;
+  GumMipsBacktracer * self;
   GumInvocationStack * invocation_stack;
   gsize * start_address;
   guint skips_pending, i;
   gsize * p;
 
+  self = GUM_MIPS_BACKTRACER (backtracer);
   invocation_stack = gum_interceptor_get_current_stack ();
 
   if (cpu_context != NULL)
@@ -112,7 +108,7 @@ gum_mips_backtracer_generate (GumBacktracer * backtracer,
       GumMemoryRange next_range;
       next_range.base_address = GUM_ADDRESS (p);
       next_range.size = 4096;
-      if (!gum_memory_map_contains (priv->writable, &next_range))
+      if (!gum_memory_map_contains (self->writable, &next_range))
         break;
     }
 
@@ -122,7 +118,7 @@ gum_mips_backtracer_generate (GumBacktracer * backtracer,
 
     if (value > 4096 + 4 &&
         (value & 0x3) == 0 &&
-        gum_memory_map_contains (priv->code, &vr))
+        gum_memory_map_contains (self->code, &vr))
     {
       gsize translated_value;
 
@@ -186,4 +182,3 @@ gum_mips_backtracer_generate (GumBacktracer * backtracer,
 
   return_addresses->len = i;
 }
-

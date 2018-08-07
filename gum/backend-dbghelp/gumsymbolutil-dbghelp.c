@@ -41,7 +41,7 @@ gboolean
 gum_symbol_details_from_address (gpointer address,
                                  GumDebugSymbolDetails * details)
 {
-  GumDbgHelpImpl * dbghelp;
+  GumDbghelpImpl * dbghelp;
   GumSymbolInfo si = { 0, };
   IMAGEHLP_LINE64 li = { 0, };
   DWORD displacement_dw;
@@ -122,7 +122,7 @@ GArray *
 gum_find_functions_matching (const gchar * str)
 {
   GArray * matches;
-  GumDbgHelpImpl * dbghelp;
+  GumDbghelpImpl * dbghelp;
   gchar * match_formatted_str;
   HANDLE cur_process_handle;
   guint64 any_module_base;
@@ -154,8 +154,6 @@ enum_functions_callback (SYMBOL_INFO * sym_info,
                          gpointer user_context)
 {
   GArray * result = user_context;
-
-  (void) symbol_size;
 
   if (is_function (sym_info))
   {

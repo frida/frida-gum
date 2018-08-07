@@ -107,14 +107,12 @@ G_DEFINE_TYPE_EXTENDED (GumV8Script,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_SCRIPT,
-                            gum_v8_script_iface_init));
+                            gum_v8_script_iface_init))
 
 static void
 gum_v8_script_class_init (GumV8ScriptClass * klass)
 {
   auto object_class = G_OBJECT_CLASS (klass);
-
-  g_type_class_add_private (klass, sizeof (GumV8ScriptPrivate));
 
   object_class->constructed = gum_v8_script_constructed;
   object_class->dispose = gum_v8_script_dispose;
@@ -146,9 +144,7 @@ static void
 gum_v8_script_iface_init (gpointer g_iface,
                           gpointer iface_data)
 {
-  auto iface = (GumScriptIface *) g_iface;
-
-  (void) iface_data;
+  auto iface = (GumScriptInterface *) g_iface;
 
   iface->load = gum_v8_script_load;
   iface->load_finish = gum_v8_script_load_finish;
@@ -166,44 +162,39 @@ gum_v8_script_iface_init (gpointer g_iface,
 static void
 gum_v8_script_init (GumV8Script * self)
 {
-  auto priv = self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
-      GUM_V8_TYPE_SCRIPT, GumV8ScriptPrivate);
-
-  priv->state = GUM_SCRIPT_STATE_UNLOADED;
-  priv->on_unload = NULL;
+  self->state = GUM_SCRIPT_STATE_UNLOADED;
+  self->on_unload = NULL;
 }
 
 static void
 gum_v8_script_constructed (GObject * object)
 {
   auto self = GUM_V8_SCRIPT (object);
-  auto priv = self->priv;
 
   G_OBJECT_CLASS (gum_v8_script_parent_class)->constructed (object);
 
-  priv->isolate = (Isolate *) gum_v8_script_backend_get_isolate (priv->backend);
+  self->isolate = (Isolate *) gum_v8_script_backend_get_isolate (self->backend);
 }
 
 static void
 gum_v8_script_dispose (GObject * object)
 {
   auto self = GUM_V8_SCRIPT (object);
-  auto priv = self->priv;
   auto script = GUM_SCRIPT (self);
 
   gum_v8_script_set_message_handler (script, NULL, NULL, NULL);
 
-  if (priv->state == GUM_SCRIPT_STATE_LOADED)
+  if (self->state == GUM_SCRIPT_STATE_LOADED)
   {
     /* dispose() will be triggered again at the end of unload() */
     gum_v8_script_unload (script, NULL, NULL, NULL);
   }
   else
   {
-    priv->isolate = NULL;
+    self->isolate = NULL;
 
-    g_clear_pointer (&priv->main_context, g_main_context_unref);
-    g_clear_pointer (&priv->backend, g_object_unref);
+    g_clear_pointer (&self->main_context, g_main_context_unref);
+    g_clear_pointer (&self->backend, g_object_unref);
   }
 
   G_OBJECT_CLASS (gum_v8_script_parent_class)->dispose (object);
@@ -213,10 +204,9 @@ static void
 gum_v8_script_finalize (GObject * object)
 {
   auto self = GUM_V8_SCRIPT (object);
-  auto priv = self->priv;
 
-  g_free (priv->name);
-  g_free (priv->source);
+  g_free (self->name);
+  g_free (self->source);
 
   G_OBJECT_CLASS (gum_v8_script_parent_class)->finalize (object);
 }
@@ -228,21 +218,20 @@ gum_v8_script_get_property (GObject * object,
                             GParamSpec * pspec)
 {
   auto self = GUM_V8_SCRIPT (object);
-  auto priv = self->priv;
 
   switch (property_id)
   {
     case PROP_NAME:
-      g_value_set_string (value, priv->name);
+      g_value_set_string (value, self->name);
       break;
     case PROP_SOURCE:
-      g_value_set_string (value, priv->source);
+      g_value_set_string (value, self->source);
       break;
     case PROP_MAIN_CONTEXT:
-      g_value_set_boxed (value, priv->main_context);
+      g_value_set_boxed (value, self->main_context);
       break;
     case PROP_BACKEND:
-      g_value_set_object (value, priv->backend);
+      g_value_set_object (value, self->backend);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -256,27 +245,26 @@ gum_v8_script_set_property (GObject * object,
                             GParamSpec * pspec)
 {
   auto self = GUM_V8_SCRIPT (object);
-  auto priv = self->priv;
 
   switch (property_id)
   {
     case PROP_NAME:
-      g_free (priv->name);
-      priv->name = g_value_dup_string (value);
+      g_free (self->name);
+      self->name = g_value_dup_string (value);
       break;
     case PROP_SOURCE:
-      g_free (priv->source);
-      priv->source = g_value_dup_string (value);
+      g_free (self->source);
+      self->source = g_value_dup_string (value);
       break;
     case PROP_MAIN_CONTEXT:
-      if (priv->main_context != NULL)
-        g_main_context_unref (priv->main_context);
-      priv->main_context = (GMainContext *) g_value_dup_boxed (value);
+      if (self->main_context != NULL)
+        g_main_context_unref (self->main_context);
+      self->main_context = (GMainContext *) g_value_dup_boxed (value);
       break;
     case PROP_BACKEND:
-      if (priv->backend != NULL)
-        g_object_unref (priv->backend);
-      priv->backend = GUM_V8_SCRIPT_BACKEND (g_value_dup_object (value));
+      if (self->backend != NULL)
+        g_object_unref (self->backend);
+      self->backend = GUM_V8_SCRIPT_BACKEND (g_value_dup_object (value));
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -287,76 +275,74 @@ gboolean
 gum_v8_script_create_context (GumV8Script * self,
                               GError ** error)
 {
-  auto priv = self->priv;
-
-  g_assert (priv->context == NULL);
+  g_assert (self->context == NULL);
 
   {
-    Isolate * isolate = priv->isolate;
+    Isolate * isolate = self->isolate;
     Locker locker (isolate);
     Isolate::Scope isolate_scope (isolate);
     HandleScope handle_scope (isolate);
 
     auto global_templ = ObjectTemplate::New (isolate);
     auto platform =
-        (GumV8Platform *) gum_v8_script_backend_get_platform (priv->backend);
-    _gum_v8_core_init (&priv->core, self, platform->GetRuntimeSourceMap (),
-        gum_v8_script_emit, gum_v8_script_backend_get_scheduler (priv->backend),
+        (GumV8Platform *) gum_v8_script_backend_get_platform (self->backend);
+    _gum_v8_core_init (&self->core, self, platform->GetRuntimeSourceMap (),
+        gum_v8_script_emit, gum_v8_script_backend_get_scheduler (self->backend),
         isolate, global_templ);
-    _gum_v8_kernel_init (&priv->kernel, &priv->core, global_templ);
-    _gum_v8_memory_init (&priv->memory, &priv->core, global_templ);
-    _gum_v8_process_init (&priv->process, &priv->core, global_templ);
-    _gum_v8_thread_init (&priv->thread, &priv->core, global_templ);
-    _gum_v8_module_init (&priv->module, &priv->core, global_templ);
-    _gum_v8_file_init (&priv->file, &priv->core, global_templ);
-    _gum_v8_stream_init (&priv->stream, &priv->core, global_templ);
-    _gum_v8_socket_init (&priv->socket, &priv->core, global_templ);
-    _gum_v8_database_init (&priv->database, &priv->core, global_templ);
-    _gum_v8_interceptor_init (&priv->interceptor, &priv->core,
+    _gum_v8_kernel_init (&self->kernel, &self->core, global_templ);
+    _gum_v8_memory_init (&self->memory, &self->core, global_templ);
+    _gum_v8_process_init (&self->process, &self->core, global_templ);
+    _gum_v8_thread_init (&self->thread, &self->core, global_templ);
+    _gum_v8_module_init (&self->module, &self->core, global_templ);
+    _gum_v8_file_init (&self->file, &self->core, global_templ);
+    _gum_v8_stream_init (&self->stream, &self->core, global_templ);
+    _gum_v8_socket_init (&self->socket, &self->core, global_templ);
+    _gum_v8_database_init (&self->database, &self->core, global_templ);
+    _gum_v8_interceptor_init (&self->interceptor, &self->core,
         global_templ);
-    _gum_v8_api_resolver_init (&priv->api_resolver, &priv->core, global_templ);
-    _gum_v8_symbol_init (&priv->symbol, &priv->core, global_templ);
-    _gum_v8_instruction_init (&priv->instruction, &priv->core, global_templ);
-    _gum_v8_code_writer_init (&priv->code_writer, &priv->core, global_templ);
-    _gum_v8_code_relocator_init (&priv->code_relocator, &priv->code_writer,
-        &priv->instruction, &priv->core, global_templ);
-    _gum_v8_stalker_init (&priv->stalker, &priv->code_writer,
-        &priv->instruction, &priv->core, global_templ);
+    _gum_v8_api_resolver_init (&self->api_resolver, &self->core, global_templ);
+    _gum_v8_symbol_init (&self->symbol, &self->core, global_templ);
+    _gum_v8_instruction_init (&self->instruction, &self->core, global_templ);
+    _gum_v8_code_writer_init (&self->code_writer, &self->core, global_templ);
+    _gum_v8_code_relocator_init (&self->code_relocator, &self->code_writer,
+        &self->instruction, &self->core, global_templ);
+    _gum_v8_stalker_init (&self->stalker, &self->code_writer,
+        &self->instruction, &self->core, global_templ);
 
     auto context = Context::New (isolate, NULL, global_templ);
-    priv->context = new GumPersistent<Context>::type (isolate, context);
+    self->context = new GumPersistent<Context>::type (isolate, context);
     Context::Scope context_scope (context);
-    _gum_v8_core_realize (&priv->core);
-    _gum_v8_kernel_realize (&priv->kernel);
-    _gum_v8_memory_realize (&priv->memory);
-    _gum_v8_process_realize (&priv->process);
-    _gum_v8_thread_realize (&priv->thread);
-    _gum_v8_module_realize (&priv->module);
-    _gum_v8_file_realize (&priv->file);
-    _gum_v8_stream_realize (&priv->stream);
-    _gum_v8_socket_realize (&priv->socket);
-    _gum_v8_database_realize (&priv->database);
-    _gum_v8_interceptor_realize (&priv->interceptor);
-    _gum_v8_api_resolver_realize (&priv->api_resolver);
-    _gum_v8_symbol_realize (&priv->symbol);
-    _gum_v8_instruction_realize (&priv->instruction);
-    _gum_v8_code_writer_realize (&priv->code_writer);
-    _gum_v8_code_relocator_realize (&priv->code_relocator);
-    _gum_v8_stalker_realize (&priv->stalker);
+    _gum_v8_core_realize (&self->core);
+    _gum_v8_kernel_realize (&self->kernel);
+    _gum_v8_memory_realize (&self->memory);
+    _gum_v8_process_realize (&self->process);
+    _gum_v8_thread_realize (&self->thread);
+    _gum_v8_module_realize (&self->module);
+    _gum_v8_file_realize (&self->file);
+    _gum_v8_stream_realize (&self->stream);
+    _gum_v8_socket_realize (&self->socket);
+    _gum_v8_database_realize (&self->database);
+    _gum_v8_interceptor_realize (&self->interceptor);
+    _gum_v8_api_resolver_realize (&self->api_resolver);
+    _gum_v8_symbol_realize (&self->symbol);
+    _gum_v8_instruction_realize (&self->instruction);
+    _gum_v8_code_writer_realize (&self->code_writer);
+    _gum_v8_code_relocator_realize (&self->code_relocator);
+    _gum_v8_stalker_realize (&self->stalker);
 
-    auto resource_name_str = g_strconcat (priv->name, ".js", NULL);
+    auto resource_name_str = g_strconcat (self->name, ".js", NULL);
     auto resource_name = String::NewFromUtf8 (isolate, resource_name_str);
     ScriptOrigin origin (resource_name);
     g_free (resource_name_str);
 
-    auto source = String::NewFromUtf8 (isolate, priv->source);
+    auto source = String::NewFromUtf8 (isolate, self->source);
 
     TryCatch trycatch (isolate);
     auto maybe_code = Script::Compile (context, source, &origin);
     Local<Script> code;
     if (maybe_code.ToLocal (&code))
     {
-      priv->code = new GumPersistent<Script>::type (isolate, code);
+      self->code = new GumPersistent<Script>::type (isolate, code);
     }
     else
     {
@@ -368,7 +354,7 @@ gum_v8_script_create_context (GumV8Script * self,
     }
   }
 
-  if (priv->code == NULL)
+  if (self->code == NULL)
   {
     gum_v8_script_destroy_context (self);
     return FALSE;
@@ -380,54 +366,52 @@ gum_v8_script_create_context (GumV8Script * self,
 static void
 gum_v8_script_destroy_context (GumV8Script * self)
 {
-  auto priv = self->priv;
-
-  g_assert (priv->context != NULL);
+  g_assert (self->context != NULL);
 
   {
     ScriptScope scope (self);
 
-    _gum_v8_stalker_dispose (&priv->stalker);
-    _gum_v8_code_relocator_dispose (&priv->code_relocator);
-    _gum_v8_code_writer_dispose (&priv->code_writer);
-    _gum_v8_instruction_dispose (&priv->instruction);
-    _gum_v8_symbol_dispose (&priv->symbol);
-    _gum_v8_api_resolver_dispose (&priv->api_resolver);
-    _gum_v8_interceptor_dispose (&priv->interceptor);
-    _gum_v8_database_dispose (&priv->database);
-    _gum_v8_socket_dispose (&priv->socket);
-    _gum_v8_stream_dispose (&priv->stream);
-    _gum_v8_file_dispose (&priv->file);
-    _gum_v8_module_dispose (&priv->module);
-    _gum_v8_thread_dispose (&priv->thread);
-    _gum_v8_process_dispose (&priv->process);
-    _gum_v8_memory_dispose (&priv->memory);
-    _gum_v8_kernel_dispose (&priv->kernel);
-    _gum_v8_core_dispose (&priv->core);
+    _gum_v8_stalker_dispose (&self->stalker);
+    _gum_v8_code_relocator_dispose (&self->code_relocator);
+    _gum_v8_code_writer_dispose (&self->code_writer);
+    _gum_v8_instruction_dispose (&self->instruction);
+    _gum_v8_symbol_dispose (&self->symbol);
+    _gum_v8_api_resolver_dispose (&self->api_resolver);
+    _gum_v8_interceptor_dispose (&self->interceptor);
+    _gum_v8_database_dispose (&self->database);
+    _gum_v8_socket_dispose (&self->socket);
+    _gum_v8_stream_dispose (&self->stream);
+    _gum_v8_file_dispose (&self->file);
+    _gum_v8_module_dispose (&self->module);
+    _gum_v8_thread_dispose (&self->thread);
+    _gum_v8_process_dispose (&self->process);
+    _gum_v8_memory_dispose (&self->memory);
+    _gum_v8_kernel_dispose (&self->kernel);
+    _gum_v8_core_dispose (&self->core);
   }
 
-  delete priv->code;
-  priv->code = nullptr;
-  delete priv->context;
-  priv->context = nullptr;
+  delete self->code;
+  self->code = nullptr;
+  delete self->context;
+  self->context = nullptr;
 
-  _gum_v8_stalker_finalize (&priv->stalker);
-  _gum_v8_code_relocator_finalize (&priv->code_relocator);
-  _gum_v8_code_writer_finalize (&priv->code_writer);
-  _gum_v8_instruction_finalize (&priv->instruction);
-  _gum_v8_symbol_finalize (&priv->symbol);
-  _gum_v8_api_resolver_finalize (&priv->api_resolver);
-  _gum_v8_interceptor_finalize (&priv->interceptor);
-  _gum_v8_database_finalize (&priv->database);
-  _gum_v8_socket_finalize (&priv->socket);
-  _gum_v8_stream_finalize (&priv->stream);
-  _gum_v8_file_finalize (&priv->file);
-  _gum_v8_module_finalize (&priv->module);
-  _gum_v8_thread_finalize (&priv->thread);
-  _gum_v8_process_finalize (&priv->process);
-  _gum_v8_memory_finalize (&priv->memory);
-  _gum_v8_kernel_finalize (&priv->kernel);
-  _gum_v8_core_finalize (&priv->core);
+  _gum_v8_stalker_finalize (&self->stalker);
+  _gum_v8_code_relocator_finalize (&self->code_relocator);
+  _gum_v8_code_writer_finalize (&self->code_writer);
+  _gum_v8_instruction_finalize (&self->instruction);
+  _gum_v8_symbol_finalize (&self->symbol);
+  _gum_v8_api_resolver_finalize (&self->api_resolver);
+  _gum_v8_interceptor_finalize (&self->interceptor);
+  _gum_v8_database_finalize (&self->database);
+  _gum_v8_socket_finalize (&self->socket);
+  _gum_v8_stream_finalize (&self->stream);
+  _gum_v8_file_finalize (&self->file);
+  _gum_v8_module_finalize (&self->module);
+  _gum_v8_thread_finalize (&self->thread);
+  _gum_v8_process_finalize (&self->process);
+  _gum_v8_memory_finalize (&self->memory);
+  _gum_v8_kernel_finalize (&self->kernel);
+  _gum_v8_core_finalize (&self->core);
 }
 
 static void
@@ -441,7 +425,7 @@ gum_v8_script_load (GumScript * script,
   auto task = gum_script_task_new ((GumScriptTaskFunc) gum_v8_script_do_load,
       self, cancellable, callback, user_data);
   gum_script_task_run_in_js_thread (task,
-      gum_v8_script_backend_get_scheduler (self->priv->backend));
+      gum_v8_script_backend_get_scheduler (self->backend));
   g_object_unref (task);
 }
 
@@ -449,8 +433,6 @@ static void
 gum_v8_script_load_finish (GumScript * script,
                            GAsyncResult * result)
 {
-  (void) script;
-
   gum_script_task_propagate_pointer (GUM_SCRIPT_TASK (result), NULL);
 }
 
@@ -463,7 +445,7 @@ gum_v8_script_load_sync (GumScript * script,
   auto task = gum_script_task_new ((GumScriptTaskFunc) gum_v8_script_do_load,
       self, cancellable, NULL, NULL);
   gum_script_task_run_in_js_thread_sync (task,
-      gum_v8_script_backend_get_scheduler (self->priv->backend));
+      gum_v8_script_backend_get_scheduler (self->backend));
   gum_script_task_propagate_pointer (task, NULL);
   g_object_unref (task);
 }
@@ -474,10 +456,7 @@ gum_v8_script_do_load (GumScriptTask * task,
                        gpointer task_data,
                        GCancellable * cancellable)
 {
-  (void) task_data;
-  (void) cancellable;
-
-  switch (self->priv->state)
+  switch (self->state)
   {
     case GUM_SCRIPT_STATE_UNLOADED:
     case GUM_SCRIPT_STATE_LOADED:
@@ -497,11 +476,9 @@ static void
 gum_v8_script_perform_load_task (GumV8Script * self,
                                  GumScriptTask * task)
 {
-  auto priv = self->priv;
-
-  if (priv->state == GUM_SCRIPT_STATE_UNLOADED)
+  if (self->state == GUM_SCRIPT_STATE_UNLOADED)
   {
-    if (priv->code == NULL)
+    if (self->code == NULL)
     {
       auto created = gum_v8_script_create_context (self, NULL);
       g_assert (created);
@@ -510,15 +487,15 @@ gum_v8_script_perform_load_task (GumV8Script * self,
     {
       ScriptScope scope (self);
       auto platform =
-          (GumV8Platform *) gum_v8_script_backend_get_platform (priv->backend);
+          (GumV8Platform *) gum_v8_script_backend_get_platform (self->backend);
 
       gum_v8_bundle_run (platform->GetRuntimeBundle ());
 
-      auto code = Local<Script>::New (priv->isolate, *priv->code);
+      auto code = Local<Script>::New (self->isolate, *self->code);
       code->Run ();
     }
 
-    priv->state = GUM_SCRIPT_STATE_LOADED;
+    self->state = GUM_SCRIPT_STATE_LOADED;
   }
 
   gum_script_task_return_pointer (task, NULL, NULL);
@@ -535,7 +512,7 @@ gum_v8_script_unload (GumScript * script,
   auto task = gum_script_task_new ((GumScriptTaskFunc) gum_v8_script_do_unload,
       self, cancellable, callback, user_data);
   gum_script_task_run_in_js_thread (task,
-      gum_v8_script_backend_get_scheduler (self->priv->backend));
+      gum_v8_script_backend_get_scheduler (self->backend));
   g_object_unref (task);
 }
 
@@ -543,8 +520,6 @@ static void
 gum_v8_script_unload_finish (GumScript * script,
                              GAsyncResult * result)
 {
-  (void) script;
-
   gum_script_task_propagate_pointer (GUM_SCRIPT_TASK (result), NULL);
 }
 
@@ -557,7 +532,7 @@ gum_v8_script_unload_sync (GumScript * script,
   auto task = gum_script_task_new ((GumScriptTaskFunc) gum_v8_script_do_unload,
       self, cancellable, NULL, NULL);
   gum_script_task_run_in_js_thread_sync (task,
-      gum_v8_script_backend_get_scheduler (self->priv->backend));
+      gum_v8_script_backend_get_scheduler (self->backend));
   gum_script_task_propagate_pointer (task, NULL);
   g_object_unref (task);
 }
@@ -568,18 +543,13 @@ gum_v8_script_do_unload (GumScriptTask * task,
                          gpointer task_data,
                          GCancellable * cancellable)
 {
-  auto priv = self->priv;
-
-  (void) task_data;
-  (void) cancellable;
-
-  switch (priv->state)
+  switch (self->state)
   {
     case GUM_SCRIPT_STATE_UNLOADED:
       gum_v8_script_complete_unload_task (self, task);
       break;
     case GUM_SCRIPT_STATE_LOADED:
-      priv->state = GUM_SCRIPT_STATE_UNLOADING;
+      self->state = GUM_SCRIPT_STATE_UNLOADING;
       gum_v8_script_once_unloaded (self,
           (GumUnloadNotifyFunc) gum_v8_script_complete_unload_task,
           g_object_ref (task), g_object_unref);
@@ -599,40 +569,36 @@ static void
 gum_v8_script_complete_unload_task (GumV8Script * self,
                                     GumScriptTask * task)
 {
-  (void) self;
-
   gum_script_task_return_pointer (task, NULL, NULL);
 }
 
 static void
 gum_v8_script_try_unload (GumV8Script * self)
 {
-  auto priv = self->priv;
-
-  g_assert_cmpuint (priv->state, ==, GUM_SCRIPT_STATE_UNLOADING);
+  g_assert_cmpuint (self->state, ==, GUM_SCRIPT_STATE_UNLOADING);
 
   gboolean success;
 
   {
     ScriptScope scope (self);
 
-    _gum_v8_stalker_flush (&priv->stalker);
-    _gum_v8_interceptor_flush (&priv->interceptor);
-    _gum_v8_socket_flush (&priv->socket);
-    _gum_v8_stream_flush (&priv->stream);
-    _gum_v8_process_flush (&priv->process);
-    success = _gum_v8_core_flush (&priv->core, gum_v8_script_try_unload);
+    _gum_v8_stalker_flush (&self->stalker);
+    _gum_v8_interceptor_flush (&self->interceptor);
+    _gum_v8_socket_flush (&self->socket);
+    _gum_v8_stream_flush (&self->stream);
+    _gum_v8_process_flush (&self->process);
+    success = _gum_v8_core_flush (&self->core, gum_v8_script_try_unload);
   }
 
   if (success)
   {
     gum_v8_script_destroy_context (self);
 
-    priv->state = GUM_SCRIPT_STATE_UNLOADED;
+    self->state = GUM_SCRIPT_STATE_UNLOADED;
 
-    while (priv->on_unload != NULL)
+    while (self->on_unload != NULL)
     {
-      auto link = priv->on_unload;
+      auto link = self->on_unload;
       auto callback = (GumUnloadNotifyCallback *) link->data;
 
       callback->func (self, callback->data);
@@ -640,7 +606,7 @@ gum_v8_script_try_unload (GumV8Script * self)
         callback->data_destroy (callback->data);
       g_slice_free (GumUnloadNotifyCallback, callback);
 
-      priv->on_unload = g_slist_delete_link (priv->on_unload, link);
+      self->on_unload = g_slist_delete_link (self->on_unload, link);
     }
   }
 }
@@ -651,14 +617,12 @@ gum_v8_script_once_unloaded (GumV8Script * self,
                              gpointer data,
                              GDestroyNotify data_destroy)
 {
-  auto priv = self->priv;
-
   auto callback = g_slice_new (GumUnloadNotifyCallback);
   callback->func = func;
   callback->data = data;
   callback->data_destroy = data_destroy;
 
-  priv->on_unload = g_slist_append (priv->on_unload, callback);
+  self->on_unload = g_slist_append (self->on_unload, callback);
 }
 
 static void
@@ -668,13 +632,12 @@ gum_v8_script_set_message_handler (GumScript * script,
                                    GDestroyNotify data_destroy)
 {
   auto self = GUM_V8_SCRIPT (script);
-  auto priv = self->priv;
 
-  if (priv->message_handler_data_destroy != NULL)
-    priv->message_handler_data_destroy (priv->message_handler_data);
-  priv->message_handler = handler;
-  priv->message_handler_data = data;
-  priv->message_handler_data_destroy = data_destroy;
+  if (self->message_handler_data_destroy != NULL)
+    self->message_handler_data_destroy (self->message_handler_data);
+  self->message_handler = handler;
+  self->message_handler_data = data;
+  self->message_handler_data_destroy = data_destroy;
 }
 
 static void
@@ -691,7 +654,7 @@ gum_v8_script_post (GumScript * script,
   d->data = (data != NULL) ? g_bytes_ref (data) : NULL;
 
   gum_script_scheduler_push_job_on_js_thread (
-      gum_v8_script_backend_get_scheduler (self->priv->backend),
+      gum_v8_script_backend_get_scheduler (self->backend),
       G_PRIORITY_DEFAULT, (GumScriptJobFunc) gum_v8_script_do_post, d,
       (GDestroyNotify) gum_v8_post_data_free);
 }
@@ -702,7 +665,7 @@ gum_v8_script_do_post (GumPostData * d)
   GBytes * data = d->data;
   d->data = NULL;
 
-  _gum_v8_core_post (&d->script->priv->core, d->message, data);
+  _gum_v8_core_post (&d->script->core, d->message, data);
 }
 
 static void
@@ -719,7 +682,7 @@ gum_v8_script_get_stalker (GumScript * script)
 {
   auto self = GUM_V8_SCRIPT (script);
 
-  return _gum_v8_stalker_get (&self->priv->stalker);
+  return _gum_v8_stalker_get (&self->stalker);
 }
 
 static void
@@ -736,7 +699,7 @@ gum_v8_script_emit (GumV8Script * self,
   auto source = g_idle_source_new ();
   g_source_set_callback (source, (GSourceFunc) gum_v8_script_do_emit, d,
       (GDestroyNotify) gum_v8_emit_data_free);
-  g_source_attach (source, self->priv->main_context);
+  g_source_attach (source, self->main_context);
   g_source_unref (source);
 }
 
@@ -744,12 +707,11 @@ static gboolean
 gum_v8_script_do_emit (GumEmitData * d)
 {
   auto self = d->script;
-  auto priv = self->priv;
 
-  if (priv->message_handler != NULL)
+  if (self->message_handler != NULL)
   {
-    priv->message_handler (GUM_SCRIPT (self), d->message, d->data,
-        priv->message_handler_data);
+    self->message_handler (GUM_SCRIPT (self), d->message, d->data,
+        self->message_handler_data);
   }
 
   return FALSE;

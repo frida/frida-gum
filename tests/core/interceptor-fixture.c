@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -109,7 +109,7 @@ G_DEFINE_TYPE_EXTENDED (ListenerContext,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
-                            listener_context_iface_init));
+                            listener_context_iface_init))
 
 gpointer (* target_function) (GString * str) = NULL;
 gpointer (* target_nop_function_a) (gpointer data);
@@ -122,8 +122,6 @@ static void
 test_interceptor_fixture_setup (TestInterceptorFixture * fixture,
                                 gconstpointer data)
 {
-  (void) data;
-
   fixture->interceptor = gum_interceptor_obtain ();
   fixture->result = g_string_sized_new (4096);
   memset (&fixture->listener_context, 0, sizeof (fixture->listener_context));
@@ -184,8 +182,6 @@ test_interceptor_fixture_teardown (TestInterceptorFixture * fixture,
 {
   guint i;
 
-  (void) data;
-
   for (i = 0; i < G_N_ELEMENTS (fixture->listener_context); i++)
   {
     ListenerContext * ctx = fixture->listener_context[i];
@@ -212,13 +208,9 @@ interceptor_fixture_try_attaching_listener (TestInterceptorFixture * h,
   GumAttachReturn result;
   ListenerContext * ctx;
 
-  if (h->listener_context[listener_index] != NULL)
-  {
-    g_object_unref (h->listener_context[listener_index]);
-    h->listener_context[listener_index] = NULL;
-  }
+  g_clear_object (&h->listener_context[listener_index]);
 
-  ctx = (ListenerContext *) g_object_new (listener_context_get_type (), NULL);
+  ctx = g_object_new (listener_context_get_type (), NULL);
   ctx->harness = h;
   ctx->enter_char = enter_char;
   ctx->leave_char = leave_char;
@@ -292,16 +284,13 @@ listener_context_on_leave (GumInvocationListener * listener,
 static void
 listener_context_class_init (ListenerContextClass * klass)
 {
-  (void) klass;
 }
 
 static void
 listener_context_iface_init (gpointer g_iface,
                              gpointer iface_data)
 {
-  GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
-
-  (void) iface_data;
+  GumInvocationListenerInterface * iface = g_iface;
 
   iface->on_enter = listener_context_on_enter;
   iface->on_leave = listener_context_on_leave;
@@ -310,5 +299,4 @@ listener_context_iface_init (gpointer g_iface,
 static void
 listener_context_init (ListenerContext * self)
 {
-  (void) self;
 }

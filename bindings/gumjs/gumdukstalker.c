@@ -330,7 +330,6 @@ _gum_duk_stalker_dispose (GumDukStalker * self)
 void
 _gum_duk_stalker_finalize (GumDukStalker * self)
 {
-  (void) self;
 }
 
 GumStalker *
@@ -369,9 +368,6 @@ gumjs_module_from_args (const GumDukArgs * args)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_stalker_construct)
 {
-  (void) ctx;
-  (void) args;
-
   return 0;
 }
 
@@ -387,8 +383,6 @@ GUMJS_DEFINE_SETTER (gumjs_stalker_set_trust_threshold)
 {
   GumStalker * stalker;
   gint threshold;
-
-  (void) ctx;
 
   stalker = _gum_duk_stalker_get (gumjs_module_from_args (args));
 
@@ -410,8 +404,6 @@ GUMJS_DEFINE_SETTER (gumjs_stalker_set_queue_capacity)
 {
   GumDukStalker * self = gumjs_module_from_args (args);
 
-  (void) ctx;
-
   _gum_duk_args_parse (args, "u", &self->queue_capacity);
   return 0;
 }
@@ -427,8 +419,6 @@ GUMJS_DEFINE_GETTER (gumjs_stalker_get_queue_drain_interval)
 GUMJS_DEFINE_SETTER (gumjs_stalker_set_queue_drain_interval)
 {
   GumDukStalker * self = gumjs_module_from_args (args);
-
-  (void) ctx;
 
   _gum_duk_args_parse (args, "u", &self->queue_drain_interval);
   return 0;
@@ -753,7 +743,7 @@ static void
 gum_duk_callback_transformer_iface_init (gpointer g_iface,
                                          gpointer iface_data)
 {
-  GumStalkerTransformerIface * iface = (GumStalkerTransformerIface *) g_iface;
+  GumStalkerTransformerInterface * iface = g_iface;
 
   iface->transform_block = gum_duk_callback_transformer_transform_block;
 }
@@ -1053,8 +1043,6 @@ gumjs_probe_args_require_call_site (duk_context * ctx,
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_probe_args_construct)
 {
-  (void) args;
-
   duk_push_this (ctx);
   _gum_duk_push_proxy (ctx, -1, gumjs_probe_args_get_property,
       gumjs_probe_args_set_property);

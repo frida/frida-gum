@@ -40,7 +40,7 @@ static void gum_script_scheduler_perform_pool_job (GumScriptJob * job,
 
 static gpointer gum_script_scheduler_run_js_loop (GumScriptScheduler * self);
 
-G_DEFINE_TYPE (GumScriptScheduler, gum_script_scheduler, G_TYPE_OBJECT);
+G_DEFINE_TYPE (GumScriptScheduler, gum_script_scheduler, G_TYPE_OBJECT)
 
 G_LOCK_DEFINE_STATIC (gum_script_schedulers);
 static GSList * gum_script_schedulers = NULL;
@@ -230,8 +230,6 @@ static void
 gum_script_scheduler_perform_pool_job (GumScriptJob * job,
                                        GumScriptScheduler * self)
 {
-  (void) self;
-
   job->func (job->data);
 
   gum_script_job_free (job);

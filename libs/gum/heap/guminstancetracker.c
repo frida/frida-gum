@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -11,20 +11,12 @@
 
 #include <gmodule.h>
 
-static void gum_instance_tracker_listener_iface_init (gpointer g_iface,
-    gpointer iface_data);
-
-G_DEFINE_TYPE_EXTENDED (GumInstanceTracker,
-                        gum_instance_tracker,
-                        G_TYPE_OBJECT,
-                        0,
-                        G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
-                                               gum_instance_tracker_listener_iface_init))
-
 typedef enum _FunctionId FunctionId;
 
-struct _GumInstanceTrackerPrivate
+struct _GumInstanceTracker
 {
+  GObject parent;
+
   gboolean disposed;
 
   GMutex mutex;
@@ -45,14 +37,16 @@ enum _FunctionId
   FUNCTION_ID_FREE_INSTANCE
 };
 
-#define GUM_INSTANCE_TRACKER_LOCK()   g_mutex_lock   (&priv->mutex)
-#define GUM_INSTANCE_TRACKER_UNLOCK() g_mutex_unlock (&priv->mutex)
+#define GUM_INSTANCE_TRACKER_LOCK() g_mutex_lock (&self->mutex)
+#define GUM_INSTANCE_TRACKER_UNLOCK() g_mutex_unlock (&self->mutex)
 
 #define COUNTER_TABLE_GET(gtype) GPOINTER_TO_UINT (g_hash_table_lookup (\
-    priv->counter_ht, GUINT_TO_POINTER (gtype)))
+    self->counter_ht, GUINT_TO_POINTER (gtype)))
 #define COUNTER_TABLE_SET(gtype, count) g_hash_table_insert (\
-    priv->counter_ht, GUINT_TO_POINTER (gtype), GUINT_TO_POINTER (count))
+    self->counter_ht, GUINT_TO_POINTER (gtype), GUINT_TO_POINTER (count))
 
+static void gum_instance_tracker_listener_iface_init (gpointer g_iface,
+    gpointer iface_data);
 static void gum_instance_tracker_dispose (GObject * object);
 static void gum_instance_tracker_finalize (GObject * object);
 
@@ -61,12 +55,17 @@ static void gum_instance_tracker_on_enter (GumInvocationListener * listener,
 static void gum_instance_tracker_on_leave (GumInvocationListener * listener,
     GumInvocationContext * context);
 
+G_DEFINE_TYPE_EXTENDED (GumInstanceTracker,
+                        gum_instance_tracker,
+                        G_TYPE_OBJECT,
+                        0,
+                        G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
+                            gum_instance_tracker_listener_iface_init))
+
 static void
 gum_instance_tracker_class_init (GumInstanceTrackerClass * klass)
 {
   GObjectClass * gobject_class = G_OBJECT_CLASS (klass);
-
-  g_type_class_add_private (klass, sizeof (GumInstanceTrackerPrivate));
 
   gobject_class->dispose = gum_instance_tracker_dispose;
   gobject_class->finalize = gum_instance_tracker_finalize;
@@ -76,9 +75,7 @@ static void
 gum_instance_tracker_listener_iface_init (gpointer g_iface,
                                           gpointer iface_data)
 {
-  GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
-
-  (void) iface_data;
+  GumInvocationListenerInterface * iface = g_iface;
 
   iface->on_enter = gum_instance_tracker_on_enter;
   iface->on_leave = gum_instance_tracker_on_leave;
@@ -87,45 +84,37 @@ gum_instance_tracker_listener_iface_init (gpointer g_iface,
 static void
 gum_instance_tracker_init (GumInstanceTracker * self)
 {
-  GumInstanceTrackerPrivate * priv;
+  g_mutex_init (&self->mutex);
 
-  self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
-      GUM_TYPE_INSTANCE_TRACKER, GumInstanceTrackerPrivate);
-
-  priv = self->priv;
-
-  g_mutex_init (&priv->mutex);
-
-  priv->counter_ht = g_hash_table_new_full (g_direct_hash, g_direct_equal,
+  self->counter_ht = g_hash_table_new_full (g_direct_hash, g_direct_equal,
       NULL, NULL);
-  g_assert (priv->counter_ht != NULL);
+  g_assert (self->counter_ht != NULL);
 
-  priv->instances_ht = g_hash_table_new_full (g_direct_hash, g_direct_equal,
+  self->instances_ht = g_hash_table_new_full (g_direct_hash, g_direct_equal,
       NULL, NULL);
 
-  priv->interceptor = gum_interceptor_obtain ();
+  self->interceptor = gum_interceptor_obtain ();
 }
 
 static void
 gum_instance_tracker_dispose (GObject * object)
 {
   GumInstanceTracker * self = GUM_INSTANCE_TRACKER (object);
-  GumInstanceTrackerPrivate * priv = self->priv;
 
-  if (!priv->disposed)
+  if (!self->disposed)
   {
-    priv->disposed = TRUE;
+    self->disposed = TRUE;
 
-    if (priv->is_active)
+    if (self->is_active)
       gum_instance_tracker_end (self);
 
-    g_object_unref (priv->interceptor);
+    g_object_unref (self->interceptor);
 
-    g_hash_table_unref (priv->counter_ht);
-    priv->counter_ht = NULL;
+    g_hash_table_unref (self->counter_ht);
+    self->counter_ht = NULL;
 
-    g_hash_table_unref (priv->instances_ht);
-    priv->instances_ht = NULL;
+    g_hash_table_unref (self->instances_ht);
+    self->instances_ht = NULL;
   }
 
   G_OBJECT_CLASS (gum_instance_tracker_parent_class)->dispose (object);
@@ -135,10 +124,8 @@ static void
 gum_instance_tracker_finalize (GObject * object)
 {
   GumInstanceTracker * self = GUM_INSTANCE_TRACKER (object);
-  GumInstanceTrackerPrivate * priv =
-      self->priv;
 
-  g_mutex_clear (&priv->mutex);
+  g_mutex_clear (&self->mutex);
 
   G_OBJECT_CLASS (gum_instance_tracker_parent_class)->finalize (object);
 }
@@ -146,7 +133,7 @@ gum_instance_tracker_finalize (GObject * object)
 GumInstanceTracker *
 gum_instance_tracker_new (void)
 {
-  return GUM_INSTANCE_TRACKER (g_object_new (GUM_TYPE_INSTANCE_TRACKER, NULL));
+  return g_object_new (GUM_TYPE_INSTANCE_TRACKER, NULL);
 }
 
 static gboolean
@@ -154,9 +141,12 @@ gum_instance_tracker_fill_vtable_if_module_is_gobject (
     const GumModuleDetails * details,
     gpointer user_data)
 {
-  GumInstanceTracker * self = GUM_INSTANCE_TRACKER_CAST (user_data);
-  GumInstanceVTable * vtable = &self->priv->vtable;
+  GumInstanceTracker * self;
+  GumInstanceVTable * vtable;
   gchar * name_lowercase;
+
+  self = GUM_INSTANCE_TRACKER (user_data);
+  vtable = &self->vtable;
 
   name_lowercase = g_ascii_strdown (details->name, -1);
 
@@ -191,64 +181,61 @@ void
 gum_instance_tracker_begin (GumInstanceTracker * self,
                             GumInstanceVTable * vtable)
 {
-  GumInstanceTrackerPrivate * priv = self->priv;
   GumAttachReturn attach_ret;
 
-  g_assert (!priv->is_active);
+  g_assert (!self->is_active);
 
   if (vtable != NULL)
   {
-    priv->vtable = *vtable;
+    self->vtable = *vtable;
   }
   else
   {
     gum_process_enumerate_modules (
         gum_instance_tracker_fill_vtable_if_module_is_gobject, self);
 
-    if (priv->vtable.create_instance == NULL)
+    if (self->vtable.create_instance == NULL)
     {
-      priv->vtable.create_instance = g_type_create_instance;
-      priv->vtable.free_instance = g_type_free_instance;
-      priv->vtable.type_id_to_name = g_type_name;
+      self->vtable.create_instance = g_type_create_instance;
+      self->vtable.free_instance = g_type_free_instance;
+      self->vtable.type_id_to_name = g_type_name;
     }
   }
 
-  gum_interceptor_begin_transaction (priv->interceptor);
+  gum_interceptor_begin_transaction (self->interceptor);
 
-  attach_ret = gum_interceptor_attach_listener (priv->interceptor,
-      GUM_FUNCPTR_TO_POINTER (priv->vtable.create_instance),
+  attach_ret = gum_interceptor_attach_listener (self->interceptor,
+      GUM_FUNCPTR_TO_POINTER (self->vtable.create_instance),
       GUM_INVOCATION_LISTENER (self),
       GUINT_TO_POINTER (FUNCTION_ID_CREATE_INSTANCE));
   g_assert (attach_ret == GUM_ATTACH_OK);
 
-  attach_ret = gum_interceptor_attach_listener (priv->interceptor,
-      GUM_FUNCPTR_TO_POINTER (priv->vtable.free_instance),
+  attach_ret = gum_interceptor_attach_listener (self->interceptor,
+      GUM_FUNCPTR_TO_POINTER (self->vtable.free_instance),
       GUM_INVOCATION_LISTENER (self),
       GUINT_TO_POINTER (FUNCTION_ID_FREE_INSTANCE));
   g_assert (attach_ret == GUM_ATTACH_OK);
 
-  gum_interceptor_end_transaction (priv->interceptor);
+  gum_interceptor_end_transaction (self->interceptor);
 
-  priv->is_active = TRUE;
+  self->is_active = TRUE;
 }
 
 void
 gum_instance_tracker_end (GumInstanceTracker * self)
 {
-  GumInstanceTrackerPrivate * priv = self->priv;
+  g_assert (self->is_active);
 
-  g_assert (priv->is_active);
-
-  gum_interceptor_detach_listener (priv->interceptor,
+  gum_interceptor_detach_listener (self->interceptor,
       GUM_INVOCATION_LISTENER (self));
 
-  priv->is_active = FALSE;
+  self->is_active = FALSE;
 }
 
 const GumInstanceVTable *
 gum_instance_tracker_get_current_vtable (GumInstanceTracker * self)
 {
-  return &self->priv->vtable;
+  return &self->vtable;
 }
 
 void
@@ -256,17 +243,14 @@ gum_instance_tracker_set_type_filter_function (GumInstanceTracker * self,
                                                GumFilterInstanceTypeFunc filter,
                                                gpointer user_data)
 {
-  GumInstanceTrackerPrivate * priv = self->priv;
-
-  priv->type_filter_func = filter;
-  priv->type_filter_func_user_data = user_data;
+  self->type_filter_func = filter;
+  self->type_filter_func_user_data = user_data;
 }
 
 guint
 gum_instance_tracker_peek_total_count (GumInstanceTracker * self,
                                        const gchar * type_name)
 {
-  GumInstanceTrackerPrivate * priv = self->priv;
   guint result = 0;
 
   if (type_name != NULL)
@@ -283,7 +267,7 @@ gum_instance_tracker_peek_total_count (GumInstanceTracker * self,
   else
   {
     GUM_INSTANCE_TRACKER_LOCK ();
-    result = g_hash_table_size (priv->instances_ht);
+    result = g_hash_table_size (self->instances_ht);
     GUM_INSTANCE_TRACKER_UNLOCK ();
   }
 
@@ -293,11 +277,10 @@ gum_instance_tracker_peek_total_count (GumInstanceTracker * self,
 GList *
 gum_instance_tracker_peek_instances (GumInstanceTracker * self)
 {
-  GumInstanceTrackerPrivate * priv = self->priv;
   GList * result;
 
   GUM_INSTANCE_TRACKER_LOCK ();
-  result = g_hash_table_get_keys (priv->instances_ht);
+  result = g_hash_table_get_keys (self->instances_ht);
   GUM_INSTANCE_TRACKER_UNLOCK ();
 
   return result;
@@ -308,7 +291,6 @@ gum_instance_tracker_walk_instances (GumInstanceTracker * self,
                                      GumWalkInstanceFunc func,
                                      gpointer user_data)
 {
-  GumInstanceTrackerPrivate * priv = self->priv;
   GHashTableIter iter;
   gpointer key, value;
   GType gobject_type;
@@ -317,7 +299,7 @@ gum_instance_tracker_walk_instances (GumInstanceTracker * self,
 
   GUM_INSTANCE_TRACKER_LOCK ();
 
-  g_hash_table_iter_init (&iter, priv->instances_ht);
+  g_hash_table_iter_init (&iter, self->instances_ht);
   while (g_hash_table_iter_next (&iter, &key, &value))
   {
     const GTypeInstance * instance = (const GTypeInstance *) key;
@@ -331,7 +313,7 @@ gum_instance_tracker_walk_instances (GumInstanceTracker * self,
       details.ref_count = ((const GObject *) instance)->ref_count;
     else
       details.ref_count = 1;
-    details.type_name = priv->vtable.type_id_to_name (type);
+    details.type_name = self->vtable.type_id_to_name (type);
 
     func (&details, user_data);
   }
@@ -344,16 +326,15 @@ gum_instance_tracker_add_instance (GumInstanceTracker * self,
                                    gpointer instance,
                                    GType instance_type)
 {
-  GumInstanceTrackerPrivate * priv = self->priv;
   guint count;
 
   if (instance_type == G_TYPE_FROM_INSTANCE (self))
     return;
 
-  if (priv->type_filter_func != NULL)
+  if (self->type_filter_func != NULL)
   {
-    if (!priv->type_filter_func (self, instance_type,
-        priv->type_filter_func_user_data))
+    if (!self->type_filter_func (self, instance_type,
+        self->type_filter_func_user_data))
     {
       return;
     }
@@ -361,8 +342,8 @@ gum_instance_tracker_add_instance (GumInstanceTracker * self,
 
   GUM_INSTANCE_TRACKER_LOCK ();
 
-  g_assert (g_hash_table_lookup (priv->instances_ht, instance) == NULL);
-  g_hash_table_add (priv->instances_ht, instance);
+  g_assert (g_hash_table_lookup (self->instances_ht, instance) == NULL);
+  g_hash_table_add (self->instances_ht, instance);
 
   count = COUNTER_TABLE_GET (instance_type);
   COUNTER_TABLE_SET (instance_type, count + 1);
@@ -375,12 +356,11 @@ gum_instance_tracker_remove_instance (GumInstanceTracker * self,
                                       gpointer instance,
                                       GType instance_type)
 {
-  GumInstanceTrackerPrivate * priv = self->priv;
   guint count;
 
   GUM_INSTANCE_TRACKER_LOCK ();
 
-  if (g_hash_table_remove (priv->instances_ht, instance))
+  if (g_hash_table_remove (self->instances_ht, instance))
   {
     count = COUNTER_TABLE_GET (instance_type);
     if (count > 0)
@@ -394,10 +374,11 @@ static void
 gum_instance_tracker_on_enter (GumInvocationListener * listener,
                                GumInvocationContext * context)
 {
-  GumInstanceTracker * self = GUM_INSTANCE_TRACKER_CAST (listener);
+  GumInstanceTracker * self;
   FunctionId function_id;
 
-  function_id = (FunctionId) GPOINTER_TO_INT (
+  self = GUM_INSTANCE_TRACKER (listener);
+  function_id = GPOINTER_TO_INT (
       gum_invocation_context_get_listener_function_data (context));
 
   if (function_id == FUNCTION_ID_FREE_INSTANCE)
@@ -417,10 +398,11 @@ static void
 gum_instance_tracker_on_leave (GumInvocationListener * listener,
                                GumInvocationContext * context)
 {
-  GumInstanceTracker * self = GUM_INSTANCE_TRACKER_CAST (listener);
+  GumInstanceTracker * self;
   FunctionId function_id;
 
-  function_id = (FunctionId) GPOINTER_TO_INT (
+  self = GUM_INSTANCE_TRACKER (listener);
+  function_id = GPOINTER_TO_INT (
       gum_invocation_context_get_listener_function_data (context));
 
   if (function_id == FUNCTION_ID_CREATE_INSTANCE)

@@ -15,8 +15,8 @@
 #include <string.h>
 #include <v8-inspector.h>
 
-#define GUM_V8_SCRIPT_BACKEND_LOCK()   (g_mutex_lock (&priv->mutex))
-#define GUM_V8_SCRIPT_BACKEND_UNLOCK() (g_mutex_unlock (&priv->mutex))
+#define GUM_V8_SCRIPT_BACKEND_LOCK()   (g_mutex_lock (&self->mutex))
+#define GUM_V8_SCRIPT_BACKEND_UNLOCK() (g_mutex_unlock (&self->mutex))
 
 #define GUM_V8_SCRIPT_BACKEND_GET_PLATFORM(backend) \
     ((GumV8Platform *) gum_v8_script_backend_get_platform (backend))
@@ -47,8 +47,10 @@ struct GumPersistent
   typedef Persistent<T, CopyablePersistentTraits<T> > type;
 };
 
-struct _GumV8ScriptBackendPrivate
+struct _GumV8ScriptBackend
 {
+  GObject parent;
+
   GMutex mutex;
 
   GumV8Platform * platform;
@@ -165,14 +167,12 @@ G_DEFINE_TYPE_EXTENDED (GumV8ScriptBackend,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_SCRIPT_BACKEND,
-                            gum_v8_script_backend_iface_init));
+                            gum_v8_script_backend_iface_init))
 
 static void
 gum_v8_script_backend_class_init (GumV8ScriptBackendClass * klass)
 {
   auto object_class = G_OBJECT_CLASS (klass);
-
-  g_type_class_add_private (klass, sizeof (GumV8ScriptBackendPrivate));
 
   object_class->dispose = gum_v8_script_backend_dispose;
   object_class->finalize = gum_v8_script_backend_finalize;
@@ -182,7 +182,7 @@ static void
 gum_v8_script_backend_iface_init (gpointer g_iface,
                                   gpointer iface_data)
 {
-  auto iface = (GumScriptBackendIface *) g_iface;
+  auto iface = (GumScriptBackendInterface *) g_iface;
 
   iface->create = gum_v8_script_backend_create;
   iface->create_finish = gum_v8_script_backend_create_finish;
@@ -206,26 +206,22 @@ gum_v8_script_backend_iface_init (gpointer g_iface,
 static void
 gum_v8_script_backend_init (GumV8ScriptBackend * self)
 {
-  auto priv = self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
-      GUM_V8_TYPE_SCRIPT_BACKEND, GumV8ScriptBackendPrivate);
+  g_mutex_init (&self->mutex);
 
-  g_mutex_init (&priv->mutex);
-
-  priv->platform = NULL;
+  self->platform = NULL;
 }
 
 static void
 gum_v8_script_backend_dispose (GObject * object)
 {
   auto self = GUM_V8_SCRIPT_BACKEND (object);
-  auto priv = self->priv;
 
-  g_clear_pointer (&priv->debug_handler_context, g_main_context_unref);
-  if (priv->debug_handler_data_destroy != NULL)
-    priv->debug_handler_data_destroy (priv->debug_handler_data);
-  priv->debug_handler = NULL;
-  priv->debug_handler_data = NULL;
-  priv->debug_handler_data_destroy = NULL;
+  g_clear_pointer (&self->debug_handler_context, g_main_context_unref);
+  if (self->debug_handler_data_destroy != NULL)
+    self->debug_handler_data_destroy (self->debug_handler_data);
+  self->debug_handler = NULL;
+  self->debug_handler_data = NULL;
+  self->debug_handler_data_destroy = NULL;
 
   gum_v8_script_backend_disable_debugger (self);
 
@@ -236,11 +232,10 @@ static void
 gum_v8_script_backend_finalize (GObject * object)
 {
   auto self = GUM_V8_SCRIPT_BACKEND (object);
-  auto priv = self->priv;
 
-  delete priv->platform;
+  delete self->platform;
 
-  g_mutex_clear (&priv->mutex);
+  g_mutex_clear (&self->mutex);
 
   G_OBJECT_CLASS (gum_v8_script_backend_parent_class)->finalize (object);
 }
@@ -248,16 +243,14 @@ gum_v8_script_backend_finalize (GObject * object)
 gpointer
 gum_v8_script_backend_get_platform (GumV8ScriptBackend * self)
 {
-  auto priv = self->priv;
-
-  if (priv->platform == NULL)
+  if (self->platform == NULL)
   {
     V8::SetFlagsFromString (GUM_V8_FLAGS, (int) strlen (GUM_V8_FLAGS));
-    priv->platform = new GumV8Platform ();
-    priv->platform->GetIsolate ()->SetData (0, self);
+    self->platform = new GumV8Platform ();
+    self->platform->GetIsolate ()->SetData (0, self);
   }
 
-  return priv->platform;
+  return self->platform;
 }
 
 gpointer
@@ -561,22 +554,21 @@ gum_v8_script_backend_set_debug_message_handler (
     GDestroyNotify data_destroy)
 {
   auto self = GUM_V8_SCRIPT_BACKEND (backend);
-  auto priv = self->priv;
 
-  if (priv->debug_handler_data_destroy != NULL)
-    priv->debug_handler_data_destroy (priv->debug_handler_data);
+  if (self->debug_handler_data_destroy != NULL)
+    self->debug_handler_data_destroy (self->debug_handler_data);
 
-  priv->debug_handler = handler;
-  priv->debug_handler_data = data;
-  priv->debug_handler_data_destroy = data_destroy;
+  self->debug_handler = handler;
+  self->debug_handler_data = data;
+  self->debug_handler_data_destroy = data_destroy;
 
   auto new_context = (handler != NULL)
       ? g_main_context_ref_thread_default ()
       : NULL;
 
   GUM_V8_SCRIPT_BACKEND_LOCK ();
-  auto old_context = priv->debug_handler_context;
-  priv->debug_handler_context = new_context;
+  auto old_context = self->debug_handler_context;
+  self->debug_handler_context = new_context;
   GUM_V8_SCRIPT_BACKEND_UNLOCK ();
 
   if (old_context != NULL)
@@ -593,7 +585,6 @@ gum_v8_script_backend_set_debug_message_handler (
 static void
 gum_v8_script_backend_enable_debugger (GumV8ScriptBackend * self)
 {
-  auto priv = self->priv;
   auto isolate = GUM_V8_SCRIPT_BACKEND_GET_ISOLATE (self);
 
   Locker locker (isolate);
@@ -601,27 +592,26 @@ gum_v8_script_backend_enable_debugger (GumV8ScriptBackend * self)
   HandleScope handle_scope (isolate);
 
   auto client = new GumInspectorClient ();
-  priv->inspector_client = client;
+  self->inspector_client = client;
 
   auto inspector = V8Inspector::create (isolate, client);
-  priv->inspector = inspector.release ();
+  self->inspector = inspector.release ();
 }
 
 static void
 gum_v8_script_backend_disable_debugger (GumV8ScriptBackend * self)
 {
-  auto priv = self->priv;
   auto isolate = GUM_V8_SCRIPT_BACKEND_GET_ISOLATE (self);
 
   Locker locker (isolate);
   Isolate::Scope isolate_scope (isolate);
   HandleScope handle_scope (isolate);
 
-  delete priv->inspector;
-  priv->inspector = nullptr;
+  delete self->inspector;
+  self->inspector = nullptr;
 
-  delete priv->inspector_client;
-  priv->inspector_client = nullptr;
+  delete self->inspector_client;
+  self->inspector_client = nullptr;
 }
 
 static void
@@ -629,9 +619,8 @@ gum_v8_script_backend_post_debug_message (GumScriptBackend * backend,
                                           const gchar * message)
 {
   auto self = GUM_V8_SCRIPT_BACKEND (backend);
-  auto priv = self->priv;
 
-  if (priv->debug_handler == NULL)
+  if (self->debug_handler == NULL)
     return;
 
   /* FIXME */

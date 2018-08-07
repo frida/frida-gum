@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -446,16 +446,6 @@ _gum_v8_interceptor_finalize (GumV8Interceptor * self)
   self->interceptor = NULL;
 }
 
-/*
- * Prototype:
- * [PRIVATE] Interceptor._attach(target, callbacks|probe)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
 {
   gpointer target;
@@ -553,31 +543,11 @@ gum_v8_interceptor_detach (GumV8Interceptor * self,
   g_hash_table_remove (self->invocation_listeners, listener);
 }
 
-/*
- * Prototype:
- * Interceptor.detachAll()
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_interceptor_detach_all)
 {
   g_hash_table_remove_all (module->invocation_listeners);
 }
 
-/*
- * Prototype:
- * [PRIVATE] Interceptor._replace(target, replacement)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
 {
   gpointer target, replacement;
@@ -636,16 +606,6 @@ gum_v8_replace_entry_free (GumV8ReplaceEntry * entry)
   g_slice_free (GumV8ReplaceEntry, entry);
 }
 
-/*
- * Prototype:
- * Interceptor.revert(target)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_interceptor_revert)
 {
   gpointer target;
@@ -655,16 +615,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_revert)
   g_hash_table_remove (module->replacement_by_address, target);
 }
 
-/*
- * Prototype:
- * Interceptor.flush()
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_interceptor_flush)
 {
   auto interceptor = module->interceptor;
@@ -673,16 +623,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_flush)
   gum_interceptor_begin_transaction (interceptor);
 }
 
-/*
- * Prototype:
- * InvocationListener.detach()
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_CLASS_METHOD (gumjs_invocation_listener_detach,
                            GumV8InvocationListener)
 {
@@ -813,9 +753,7 @@ static void
 gum_v8_call_listener_iface_init (gpointer g_iface,
                                  gpointer iface_data)
 {
-  auto iface = (GumInvocationListenerIface *) g_iface;
-
-  (void) iface_data;
+  auto iface = (GumInvocationListenerInterface *) g_iface;
 
   iface->on_enter = gum_v8_invocation_listener_on_enter;
   iface->on_leave = gum_v8_invocation_listener_on_leave;
@@ -824,7 +762,6 @@ gum_v8_call_listener_iface_init (gpointer g_iface,
 static void
 gum_v8_call_listener_init (GumV8CallListener * self)
 {
-  (void) self;
 }
 
 static void
@@ -849,9 +786,7 @@ static void
 gum_v8_probe_listener_iface_init (gpointer g_iface,
                                   gpointer iface_data)
 {
-  auto iface = (GumInvocationListenerIface *) g_iface;
-
-  (void) iface_data;
+  auto iface = (GumInvocationListenerInterface *) g_iface;
 
   iface->on_enter = gum_v8_invocation_listener_on_enter;
   iface->on_leave = NULL;
@@ -860,7 +795,6 @@ gum_v8_probe_listener_iface_init (gpointer g_iface,
 static void
 gum_v8_probe_listener_init (GumV8ProbeListener * self)
 {
-  (void) self;
 }
 
 static void

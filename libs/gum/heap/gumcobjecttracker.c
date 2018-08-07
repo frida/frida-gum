@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -11,16 +11,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-
-static void gum_cobject_tracker_listener_iface_init (gpointer g_iface,
-    gpointer iface_data);
-
-G_DEFINE_TYPE_EXTENDED (GumCObjectTracker,
-                        gum_cobject_tracker,
-                        G_TYPE_OBJECT,
-                        0,
-                        G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
-                                               gum_cobject_tracker_listener_iface_init))
 
 enum
 {
@@ -40,16 +30,19 @@ typedef void (* CObjectLeaveHandler) (GumCObjectTracker * self,
     gpointer handler_context, CObjectThreadContext * thread_context,
     GumInvocationContext * invocation_context);
 
-struct _GumCObjectTrackerPrivate
+struct _GumCObjectTracker
 {
+  GObject parent;
+
   gboolean disposed;
+
   GMutex mutex;
   GHashTable * types_ht;
   GHashTable * objects_ht;
   GumInterceptor * interceptor;
   GPtrArray * function_contexts;
 
-  GumBacktracerIface * backtracer_interface;
+  GumBacktracerInterface * backtracer_iface;
   GumBacktracer * backtracer_instance;
 };
 
@@ -76,11 +69,11 @@ struct _CObjectFunctionContext
   gpointer context;
 };
 
-#define GUM_COBJECT_TRACKER_GET_PRIVATE(o) ((o)->priv)
+#define GUM_COBJECT_TRACKER_LOCK() g_mutex_lock (&self->mutex)
+#define GUM_COBJECT_TRACKER_UNLOCK() g_mutex_unlock (&self->mutex)
 
-#define GUM_COBJECT_TRACKER_LOCK()   g_mutex_lock   (&priv->mutex)
-#define GUM_COBJECT_TRACKER_UNLOCK() g_mutex_unlock (&priv->mutex)
-
+static void gum_cobject_tracker_listener_iface_init (gpointer g_iface,
+    gpointer iface_data);
 static void gum_cobject_tracker_set_property (GObject * object,
     guint property_id, const GValue * value, GParamSpec * pspec);
 static void gum_cobject_tracker_get_property (GObject * object,
@@ -118,13 +111,18 @@ static void on_g_slice_free1_enter_handler (GumCObjectTracker * self,
     gpointer handler_context, CObjectThreadContext * thread_context,
     GumInvocationContext * invocation_context);
 
+G_DEFINE_TYPE_EXTENDED (GumCObjectTracker,
+                        gum_cobject_tracker,
+                        G_TYPE_OBJECT,
+                        0,
+                        G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
+                            gum_cobject_tracker_listener_iface_init))
+
 static void
 gum_cobject_tracker_class_init (GumCObjectTrackerClass * klass)
 {
   GObjectClass * gobject_class = G_OBJECT_CLASS (klass);
   GParamSpec * pspec;
-
-  g_type_class_add_private (klass, sizeof (GumCObjectTrackerPrivate));
 
   gobject_class->set_property = gum_cobject_tracker_set_property;
   gobject_class->get_property = gum_cobject_tracker_get_property;
@@ -142,9 +140,7 @@ static void
 gum_cobject_tracker_listener_iface_init (gpointer g_iface,
                                          gpointer iface_data)
 {
-  GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
-
-  (void) iface_data;
+  GumInvocationListenerInterface * iface = g_iface;
 
   iface->on_enter = gum_cobject_tracker_on_enter;
   iface->on_leave = gum_cobject_tracker_on_leave;
@@ -163,26 +159,19 @@ static const CObjectHandlers g_slice_free1_cobject_handlers =
 static void
 gum_cobject_tracker_init (GumCObjectTracker * self)
 {
-  GumCObjectTrackerPrivate * priv;
+  g_mutex_init (&self->mutex);
 
-  self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
-      GUM_TYPE_COBJECT_TRACKER, GumCObjectTrackerPrivate);
-
-  priv = GUM_COBJECT_TRACKER_GET_PRIVATE (self);
-
-  g_mutex_init (&priv->mutex);
-
-  priv->types_ht = g_hash_table_new_full (g_str_hash, g_str_equal,
+  self->types_ht = g_hash_table_new_full (g_str_hash, g_str_equal,
       g_free, (GDestroyNotify) object_type_free);
 
-  priv->objects_ht = g_hash_table_new_full (g_direct_hash, g_direct_equal,
+  self->objects_ht = g_hash_table_new_full (g_direct_hash, g_direct_equal,
       NULL, (GDestroyNotify) gum_cobject_free);
 
-  priv->interceptor = gum_interceptor_obtain ();
+  self->interceptor = gum_interceptor_obtain ();
 
-  priv->function_contexts = g_ptr_array_new ();
+  self->function_contexts = g_ptr_array_new ();
 
-  gum_interceptor_begin_transaction (priv->interceptor);
+  gum_interceptor_begin_transaction (self->interceptor);
 
   gum_cobject_tracker_attach_to_function (self,
       GUM_FUNCPTR_TO_POINTER (free),
@@ -191,7 +180,7 @@ gum_cobject_tracker_init (GumCObjectTracker * self)
       GUM_FUNCPTR_TO_POINTER (g_slice_free1),
       &g_slice_free1_cobject_handlers, NULL);
 
-  gum_interceptor_end_transaction (priv->interceptor);
+  gum_interceptor_end_transaction (self->interceptor);
 }
 
 static void
@@ -201,23 +190,22 @@ gum_cobject_tracker_set_property (GObject * object,
                                   GParamSpec * pspec)
 {
   GumCObjectTracker * self = GUM_COBJECT_TRACKER (object);
-  GumCObjectTrackerPrivate * priv = GUM_COBJECT_TRACKER_GET_PRIVATE (self);
 
   switch (property_id)
   {
     case PROP_BACKTRACER:
-      if (priv->backtracer_instance != NULL)
-        g_object_unref (priv->backtracer_instance);
-      priv->backtracer_instance = g_value_dup_object (value);
+      if (self->backtracer_instance != NULL)
+        g_object_unref (self->backtracer_instance);
+      self->backtracer_instance = g_value_dup_object (value);
 
-      if (priv->backtracer_instance != NULL)
+      if (self->backtracer_instance != NULL)
       {
-        priv->backtracer_interface =
-            GUM_BACKTRACER_GET_INTERFACE (priv->backtracer_instance);
+        self->backtracer_iface =
+            GUM_BACKTRACER_GET_IFACE (self->backtracer_instance);
       }
       else
       {
-        priv->backtracer_interface = NULL;
+        self->backtracer_iface = NULL;
       }
 
       break;
@@ -233,12 +221,11 @@ gum_cobject_tracker_get_property (GObject * object,
                                   GParamSpec * pspec)
 {
   GumCObjectTracker * self = GUM_COBJECT_TRACKER (object);
-  GumCObjectTrackerPrivate * priv = GUM_COBJECT_TRACKER_GET_PRIVATE (self);
 
   switch (property_id)
   {
     case PROP_BACKTRACER:
-      g_value_set_object (value, priv->backtracer_instance);
+      g_value_set_object (value, self->backtracer_instance);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -249,28 +236,24 @@ static void
 gum_cobject_tracker_dispose (GObject * object)
 {
   GumCObjectTracker * self = GUM_COBJECT_TRACKER (object);
-  GumCObjectTrackerPrivate * priv = GUM_COBJECT_TRACKER_GET_PRIVATE (self);
 
-  if (!priv->disposed)
+  if (!self->disposed)
   {
-    priv->disposed = TRUE;
+    self->disposed = TRUE;
 
-    gum_interceptor_detach_listener (priv->interceptor,
+    gum_interceptor_detach_listener (self->interceptor,
         GUM_INVOCATION_LISTENER (self));
-    g_object_unref (priv->interceptor);
+    g_object_unref (self->interceptor);
+    self->interceptor = NULL;
 
-    if (priv->backtracer_instance != NULL)
-    {
-      g_object_unref (priv->backtracer_instance);
-      priv->backtracer_instance = NULL;
-    }
-    priv->backtracer_interface = NULL;
+    g_clear_object (&self->backtracer_instance);
+    self->backtracer_iface = NULL;
 
-    g_hash_table_unref (priv->objects_ht);
-    priv->objects_ht = NULL;
+    g_hash_table_unref (self->objects_ht);
+    self->objects_ht = NULL;
 
-    g_hash_table_unref (priv->types_ht);
-    priv->types_ht = NULL;
+    g_hash_table_unref (self->types_ht);
+    self->types_ht = NULL;
   }
 
   G_OBJECT_CLASS (gum_cobject_tracker_parent_class)->dispose (object);
@@ -280,13 +263,11 @@ static void
 gum_cobject_tracker_finalize (GObject * object)
 {
   GumCObjectTracker * self = GUM_COBJECT_TRACKER (object);
-  GumCObjectTrackerPrivate * priv =
-      GUM_COBJECT_TRACKER_GET_PRIVATE (self);
 
-  g_ptr_array_foreach (priv->function_contexts, (GFunc) g_free, NULL);
-  g_ptr_array_free (priv->function_contexts, TRUE);
+  g_ptr_array_foreach (self->function_contexts, (GFunc) g_free, NULL);
+  g_ptr_array_free (self->function_contexts, TRUE);
 
-  g_mutex_clear (&priv->mutex);
+  g_mutex_clear (&self->mutex);
 
   G_OBJECT_CLASS (gum_cobject_tracker_parent_class)->finalize (object);
 }
@@ -294,14 +275,15 @@ gum_cobject_tracker_finalize (GObject * object)
 GumCObjectTracker *
 gum_cobject_tracker_new (void)
 {
-  return GUM_COBJECT_TRACKER (g_object_new (GUM_TYPE_COBJECT_TRACKER, NULL));
+  return g_object_new (GUM_TYPE_COBJECT_TRACKER, NULL);
 }
 
 GumCObjectTracker *
 gum_cobject_tracker_new_with_backtracer (GumBacktracer * backtracer)
 {
-  return GUM_COBJECT_TRACKER (g_object_new (GUM_TYPE_COBJECT_TRACKER,
-      "backtracer", backtracer, NULL));
+  return g_object_new (GUM_TYPE_COBJECT_TRACKER,
+      "backtracer", backtracer,
+      NULL);
 }
 
 static const CObjectHandlers object_type_cobject_handlers =
@@ -315,13 +297,12 @@ gum_cobject_tracker_track (GumCObjectTracker * self,
                            const gchar * type_name,
                            gpointer type_constructor)
 {
-  GumCObjectTrackerPrivate * priv = GUM_COBJECT_TRACKER_GET_PRIVATE (self);
   ObjectType * t;
 
   g_assert (strlen (type_name) <= GUM_MAX_TYPE_NAME);
 
   t = object_type_new (type_name);
-  g_hash_table_insert (priv->types_ht, g_strdup (type_name), t);
+  g_hash_table_insert (self->types_ht, g_strdup (type_name), t);
 
   gum_cobject_tracker_attach_to_function (self, type_constructor,
       &object_type_cobject_handlers, t);
@@ -330,40 +311,37 @@ gum_cobject_tracker_track (GumCObjectTracker * self,
 void
 gum_cobject_tracker_begin (GumCObjectTracker * self)
 {
-  (void) self;
 }
 
 void
 gum_cobject_tracker_end (GumCObjectTracker * self)
 {
-  (void) self;
 }
 
 guint
 gum_cobject_tracker_peek_total_count (GumCObjectTracker * self,
                                       const gchar * type_name)
 {
-  GumCObjectTrackerPrivate * priv = GUM_COBJECT_TRACKER_GET_PRIVATE (self);
   guint result;
 
   GUM_COBJECT_TRACKER_LOCK ();
-  gum_interceptor_ignore_current_thread (priv->interceptor);
+  gum_interceptor_ignore_current_thread (self->interceptor);
 
   if (type_name != NULL)
   {
     ObjectType * object_type;
 
-    object_type = g_hash_table_lookup (priv->types_ht, type_name);
+    object_type = g_hash_table_lookup (self->types_ht, type_name);
     g_assert (object_type != NULL);
 
     result = object_type->count;
   }
   else
   {
-    result = g_hash_table_size (priv->objects_ht);
+    result = g_hash_table_size (self->objects_ht);
   }
 
-  gum_interceptor_unignore_current_thread (priv->interceptor);
+  gum_interceptor_unignore_current_thread (self->interceptor);
   GUM_COBJECT_TRACKER_UNLOCK ();
 
   return result;
@@ -372,19 +350,18 @@ gum_cobject_tracker_peek_total_count (GumCObjectTracker * self,
 GList *
 gum_cobject_tracker_peek_object_list (GumCObjectTracker * self)
 {
-  GumCObjectTrackerPrivate * priv = GUM_COBJECT_TRACKER_GET_PRIVATE (self);
   GList * result = NULL, * cur;
 
   GUM_COBJECT_TRACKER_LOCK ();
-  gum_interceptor_ignore_current_thread (priv->interceptor);
+  gum_interceptor_ignore_current_thread (self->interceptor);
 
-  result = g_hash_table_get_values (priv->objects_ht);
+  result = g_hash_table_get_values (self->objects_ht);
   for (cur = result; cur != NULL; cur = cur->next)
   {
     cur->data = gum_cobject_copy ((GumCObject *) cur->data);
   }
 
-  gum_interceptor_unignore_current_thread (priv->interceptor);
+  gum_interceptor_unignore_current_thread (self->interceptor);
   GUM_COBJECT_TRACKER_UNLOCK ();
 
   return result;
@@ -412,12 +389,11 @@ static void
 gum_cobject_tracker_add_object (GumCObjectTracker * self,
                                 GumCObject * cobject)
 {
-  GumCObjectTrackerPrivate * priv = GUM_COBJECT_TRACKER_GET_PRIVATE (self);
   ObjectType * object_type = cobject->data;
 
   GUM_COBJECT_TRACKER_LOCK ();
 
-  g_hash_table_insert (priv->objects_ht, cobject->address, cobject);
+  g_hash_table_insert (self->objects_ht, cobject->address, cobject);
   object_type->count++;
 
   GUM_COBJECT_TRACKER_UNLOCK ();
@@ -427,17 +403,16 @@ static void
 gum_cobject_tracker_maybe_remove_object (GumCObjectTracker * self,
                                          gpointer address)
 {
-  GumCObjectTrackerPrivate * priv = GUM_COBJECT_TRACKER_GET_PRIVATE (self);
   GumCObject * cobject;
 
   GUM_COBJECT_TRACKER_LOCK ();
 
-  cobject = g_hash_table_lookup (priv->objects_ht, address);
+  cobject = g_hash_table_lookup (self->objects_ht, address);
   if (cobject != NULL)
   {
     ObjectType * object_type = cobject->data;
     object_type->count--;
-    g_hash_table_remove (priv->objects_ht, address);
+    g_hash_table_remove (self->objects_ht, address);
   }
 
   GUM_COBJECT_TRACKER_UNLOCK ();
@@ -449,16 +424,15 @@ gum_cobject_tracker_attach_to_function (GumCObjectTracker * self,
                                         const CObjectHandlers * handlers,
                                         gpointer context)
 {
-  GumCObjectTrackerPrivate * priv = GUM_COBJECT_TRACKER_GET_PRIVATE (self);
   CObjectFunctionContext * function_ctx;
   GumAttachReturn attach_ret;
 
   function_ctx = g_new (CObjectFunctionContext, 1);
   function_ctx->handlers = *handlers;
   function_ctx->context = context;
-  g_ptr_array_add (priv->function_contexts, function_ctx);
+  g_ptr_array_add (self->function_contexts, function_ctx);
 
-  attach_ret = gum_interceptor_attach_listener (priv->interceptor,
+  attach_ret = gum_interceptor_attach_listener (self->interceptor,
       function_address, GUM_INVOCATION_LISTENER (self), function_ctx);
   g_assert_cmpint (attach_ret, ==, GUM_ATTACH_OK);
 }
@@ -467,9 +441,10 @@ static void
 gum_cobject_tracker_on_enter (GumInvocationListener * listener,
                               GumInvocationContext * context)
 {
-  GumCObjectTracker * self = GUM_COBJECT_TRACKER_CAST (listener);
+  GumCObjectTracker * self;
   CObjectFunctionContext * function_ctx;
 
+  self = GUM_COBJECT_TRACKER (listener);
   function_ctx = GUM_LINCTX_GET_FUNC_DATA (context, CObjectFunctionContext *);
 
   if (function_ctx->handlers.enter_handler != NULL)
@@ -483,9 +458,10 @@ static void
 gum_cobject_tracker_on_leave (GumInvocationListener * listener,
                               GumInvocationContext * context)
 {
-  GumCObjectTracker * self = GUM_COBJECT_TRACKER_CAST (listener);
+  GumCObjectTracker * self;
   CObjectFunctionContext * function_ctx;
 
+  self = GUM_COBJECT_TRACKER (listener);
   function_ctx = GUM_LINCTX_GET_FUNC_DATA (context, CObjectFunctionContext *);
 
   if (function_ctx->handlers.leave_handler != NULL)
@@ -501,15 +477,14 @@ on_constructor_enter_handler (GumCObjectTracker * self,
                               CObjectThreadContext * thread_context,
                               GumInvocationContext * invocation_context)
 {
-  GumCObjectTrackerPrivate * priv = GUM_COBJECT_TRACKER_GET_PRIVATE (self);
   GumCObject * cobject;
 
   cobject = gum_cobject_new (NULL, object_type->name);
   cobject->data = object_type;
 
-  if (priv->backtracer_instance != NULL)
+  if (self->backtracer_instance != NULL)
   {
-    priv->backtracer_interface->generate (priv->backtracer_instance,
+    self->backtracer_iface->generate (self->backtracer_instance,
         invocation_context->cpu_context, &cobject->return_addresses);
   }
 
@@ -524,8 +499,6 @@ on_constructor_leave_handler (GumCObjectTracker * self,
 {
   GumCObject * cobject = (GumCObject *) thread_context->data;
 
-  (void) object_type;
-
   cobject->address =
       gum_invocation_context_get_return_value (invocation_context);
   gum_cobject_tracker_add_object (self, cobject);
@@ -539,9 +512,6 @@ on_free_enter_handler (GumCObjectTracker * self,
 {
   gpointer address;
 
-  (void) handler_context;
-  (void) thread_context;
-
   address = gum_invocation_context_get_nth_argument (invocation_context, 0);
 
   gum_cobject_tracker_maybe_remove_object (self, address);
@@ -554,9 +524,6 @@ on_g_slice_free1_enter_handler (GumCObjectTracker * self,
                                 GumInvocationContext * invocation_context)
 {
   gpointer mem_block;
-
-  (void) handler_context;
-  (void) thread_context;
 
   mem_block = gum_invocation_context_get_nth_argument (invocation_context, 1);
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -12,24 +12,13 @@
 #include <gum/gumdefs.h>
 #include <gum/guminvocationlistener.h>
 
+G_BEGIN_DECLS
+
 #define GUM_TYPE_INTERCEPTOR (gum_interceptor_get_type ())
-#define GUM_INTERCEPTOR(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
-    GUM_TYPE_INTERCEPTOR, GumInterceptor))
-#define GUM_INTERCEPTOR_CAST(obj) ((GumInterceptor *) (obj))
-#define GUM_INTERCEPTOR_CLASS(klass) (G_TYPE_CHECK_CLASS_CAST ((klass),\
-    GUM_TYPE_INTERCEPTOR, GumInterceptorClass))
-#define GUM_IS_INTERCEPTOR(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj),\
-    GUM_TYPE_INTERCEPTOR))
-#define GUM_IS_INTERCEPTOR_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE (\
-    (klass), GUM_TYPE_INTERCEPTOR))
-#define GUM_INTERCEPTOR_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS (\
-    (obj), GUM_TYPE_INTERCEPTOR, GumInterceptorClass))
+G_DECLARE_FINAL_TYPE (GumInterceptor, gum_interceptor, GUM, INTERCEPTOR,
+    GObject)
 
-typedef struct _GumInterceptor GumInterceptor;
-typedef struct _GumInterceptorClass GumInterceptorClass;
 typedef GArray GumInvocationStack;
-
-typedef struct _GumInterceptorPrivate GumInterceptorPrivate;
 
 typedef enum
 {
@@ -46,22 +35,6 @@ typedef enum
   GUM_REPLACE_ALREADY_REPLACED = -2,
   GUM_REPLACE_POLICY_VIOLATION = -3
 } GumReplaceReturn;
-
-struct _GumInterceptor
-{
-  GObject parent;
-
-  GumInterceptorPrivate * priv;
-};
-
-struct _GumInterceptorClass
-{
-  GObjectClass parent_class;
-};
-
-G_BEGIN_DECLS
-
-GUM_API GType gum_interceptor_get_type (void) G_GNUC_CONST;
 
 GUM_API GumInterceptor * gum_interceptor_obtain (void);
 

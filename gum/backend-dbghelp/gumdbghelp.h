@@ -22,10 +22,10 @@
 # pragma warning (pop)
 #endif
 
-typedef struct _GumDbgHelpImpl        GumDbgHelpImpl;
-typedef struct _GumDbgHelpImplPrivate GumDbgHelpImplPrivate;
+typedef struct _GumDbghelpImpl        GumDbghelpImpl;
+typedef struct _GumDbghelpImplPrivate GumDbghelpImplPrivate;
 
-struct _GumDbgHelpImpl
+struct _GumDbghelpImpl
 {
   BOOL (WINAPI * StackWalk64) (DWORD MachineType, HANDLE hProcess,
       HANDLE hThread, LPSTACKFRAME64 StackFrame, PVOID ContextRecord,
@@ -53,12 +53,12 @@ struct _GumDbgHelpImpl
   void (* Unlock) (void);
 
   /*< private */
-  GumDbgHelpImplPrivate * priv;
+  GumDbghelpImplPrivate * priv;
 };
 
 G_BEGIN_DECLS
 
-G_GNUC_INTERNAL GumDbgHelpImpl * gum_dbghelp_impl_try_obtain (void);
+G_GNUC_INTERNAL GumDbghelpImpl * gum_dbghelp_impl_try_obtain (void);
 
 G_END_DECLS
 

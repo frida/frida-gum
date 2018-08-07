@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010, 2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Eloi Vanderbeken <eloi.vanderbeken@synacktiv.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -20,11 +20,13 @@ typedef struct _GumPageDetails GumPageDetails;
 typedef struct _GumLiveRangeDetails GumLiveRangeDetails;
 typedef struct _GumRangeStats GumRangeStats;
 
-typedef gboolean (* GumFoundLiveRangeFunc) (
-    const GumLiveRangeDetails * details, gpointer user_data);
+typedef gboolean (* GumFoundLiveRangeFunc) (const GumLiveRangeDetails * details,
+    gpointer user_data);
 
-struct _GumMemoryAccessMonitorPrivate
+struct _GumMemoryAccessMonitor
 {
+  GObject parent;
+
   guint page_size;
 
   gboolean enabled;
@@ -84,15 +86,12 @@ static void gum_memory_access_monitor_enumerate_live_ranges (
 static gboolean gum_memory_access_monitor_on_exception (
     GumExceptionDetails * details, gpointer user_data);
 
-G_DEFINE_TYPE (GumMemoryAccessMonitor, gum_memory_access_monitor,
-    G_TYPE_OBJECT);
+G_DEFINE_TYPE (GumMemoryAccessMonitor, gum_memory_access_monitor, G_TYPE_OBJECT)
 
 static void
 gum_memory_access_monitor_class_init (GumMemoryAccessMonitorClass * klass)
 {
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
-
-  g_type_class_add_private (klass, sizeof (GumMemoryAccessMonitorPrivate));
 
   object_class->dispose = gum_memory_access_monitor_dispose;
   object_class->finalize = gum_memory_access_monitor_finalize;
@@ -101,27 +100,23 @@ gum_memory_access_monitor_class_init (GumMemoryAccessMonitorClass * klass)
 static void
 gum_memory_access_monitor_init (GumMemoryAccessMonitor * self)
 {
-  self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
-      GUM_TYPE_MEMORY_ACCESS_MONITOR, GumMemoryAccessMonitorPrivate);
-
-  self->priv->page_size = gum_query_page_size ();
+  self->page_size = gum_query_page_size ();
 }
 
 static void
 gum_memory_access_monitor_dispose (GObject * object)
 {
-  GumMemoryAccessMonitor * self = GUM_MEMORY_ACCESS_MONITOR_CAST (object);
-  GumMemoryAccessMonitorPrivate * priv = self->priv;
+  GumMemoryAccessMonitor * self = GUM_MEMORY_ACCESS_MONITOR (object);
 
   gum_memory_access_monitor_disable (self);
 
-  if (priv->notify_data_destroy != NULL)
+  if (self->notify_data_destroy != NULL)
   {
-    priv->notify_data_destroy (priv->notify_data);
-    priv->notify_data_destroy = NULL;
+    self->notify_data_destroy (self->notify_data);
+    self->notify_data_destroy = NULL;
   }
-  priv->notify_data = NULL;
-  priv->notify_func = NULL;
+  self->notify_data = NULL;
+  self->notify_func = NULL;
 
   G_OBJECT_CLASS (gum_memory_access_monitor_parent_class)->dispose (object);
 }
@@ -129,10 +124,9 @@ gum_memory_access_monitor_dispose (GObject * object)
 static void
 gum_memory_access_monitor_finalize (GObject * object)
 {
-  GumMemoryAccessMonitor * self = GUM_MEMORY_ACCESS_MONITOR_CAST (object);
-  GumMemoryAccessMonitorPrivate * priv = self->priv;
+  GumMemoryAccessMonitor * self = GUM_MEMORY_ACCESS_MONITOR (object);
 
-  g_free (priv->ranges);
+  g_free (self->ranges);
 
   G_OBJECT_CLASS (gum_memory_access_monitor_parent_class)->finalize (object);
 }
@@ -147,37 +141,34 @@ gum_memory_access_monitor_new (const GumMemoryRange * ranges,
                                GDestroyNotify data_destroy)
 {
   GumMemoryAccessMonitor * monitor;
-  GumMemoryAccessMonitorPrivate * priv;
   guint i;
 
-  monitor = GUM_MEMORY_ACCESS_MONITOR_CAST (
-      g_object_new (GUM_TYPE_MEMORY_ACCESS_MONITOR, NULL));
-  priv = monitor->priv;
+  monitor = g_object_new (GUM_TYPE_MEMORY_ACCESS_MONITOR, NULL);
 
-  priv->ranges = g_memdup (ranges, num_ranges * sizeof (GumMemoryRange));
-  priv->num_ranges = num_ranges;
-  priv->access_mask = access_mask;
-  priv->auto_reset = auto_reset;
+  monitor->ranges = g_memdup (ranges, num_ranges * sizeof (GumMemoryRange));
+  monitor->num_ranges = num_ranges;
+  monitor->access_mask = access_mask;
+  monitor->auto_reset = auto_reset;
   for (i = 0; i != num_ranges; i++)
   {
-    GumMemoryRange * r = &priv->ranges[i];
+    GumMemoryRange * r = &monitor->ranges[i];
     gsize aligned_start, aligned_end;
     guint num_pages;
 
-    aligned_start = r->base_address & ~((gsize) priv->page_size - 1);
-    aligned_end = (r->base_address + r->size + priv->page_size - 1) &
-        ~((gsize) priv->page_size - 1);
+    aligned_start = r->base_address & ~((gsize) monitor->page_size - 1);
+    aligned_end = (r->base_address + r->size + monitor->page_size - 1) &
+        ~((gsize) monitor->page_size - 1);
     r->base_address = aligned_start;
     r->size = aligned_end - aligned_start;
 
-    num_pages = r->size / priv->page_size;
-    g_atomic_int_add (&priv->pages_remaining, num_pages);
-    priv->pages_total += num_pages;
+    num_pages = r->size / monitor->page_size;
+    g_atomic_int_add (&monitor->pages_remaining, num_pages);
+    monitor->pages_total += num_pages;
   }
 
-  priv->notify_func = func;
-  priv->notify_data = data;
-  priv->notify_data_destroy = data_destroy;
+  monitor->notify_func = func;
+  monitor->notify_data = data;
+  monitor->notify_data_destroy = data_destroy;
 
   return monitor;
 }
@@ -186,10 +177,9 @@ gboolean
 gum_memory_access_monitor_enable (GumMemoryAccessMonitor * self,
                                   GError ** error)
 {
-  GumMemoryAccessMonitorPrivate * priv = self->priv;
   GumRangeStats stats;
 
-  if (priv->enabled)
+  if (self->enabled)
     return TRUE;
 
   stats.live_size = 0;
@@ -197,21 +187,21 @@ gum_memory_access_monitor_enable (GumMemoryAccessMonitor * self,
   gum_memory_access_monitor_enumerate_live_ranges (self,
       gum_collect_range_stats, &stats);
 
-  if (stats.live_size != priv->pages_total * priv->page_size)
+  if (stats.live_size != self->pages_total * self->page_size)
     goto error_invalid_pages;
   else if (stats.guarded_size != 0)
     goto error_guarded_pages;
 
-  priv->exceptor = gum_exceptor_obtain ();
-  gum_exceptor_add (priv->exceptor, gum_memory_access_monitor_on_exception,
+  self->exceptor = gum_exceptor_obtain ();
+  gum_exceptor_add (self->exceptor, gum_memory_access_monitor_on_exception,
       self);
 
-  priv->num_pages = 0;
-  priv->pages_details = NULL;
-  gum_memory_access_monitor_enumerate_live_ranges (self,
-      gum_set_guard_flag, self);
+  self->num_pages = 0;
+  self->pages_details = NULL;
+  gum_memory_access_monitor_enumerate_live_ranges (self, gum_set_guard_flag,
+      self);
 
-  priv->enabled = TRUE;
+  self->enabled = TRUE;
 
   return TRUE;
 
@@ -232,23 +222,21 @@ error_guarded_pages:
 void
 gum_memory_access_monitor_disable (GumMemoryAccessMonitor * self)
 {
-  GumMemoryAccessMonitorPrivate * priv = self->priv;
-
-  if (!priv->enabled)
+  if (!self->enabled)
     return;
 
   gum_memory_access_monitor_enumerate_live_ranges (self,
       gum_clear_guard_flag, self);
 
-  gum_exceptor_remove (priv->exceptor, gum_memory_access_monitor_on_exception,
+  gum_exceptor_remove (self->exceptor, gum_memory_access_monitor_on_exception,
       self);
-  g_object_unref (priv->exceptor);
-  priv->exceptor = NULL;
+  g_object_unref (self->exceptor);
+  self->exceptor = NULL;
 
-  g_free (priv->pages_details);
-  priv->num_pages = 0;
-  priv->pages_details = NULL;
-  priv->enabled = FALSE;
+  g_free (self->pages_details);
+  self->num_pages = 0;
+  self->pages_details = NULL;
+  self->enabled = FALSE;
 }
 
 static gboolean
@@ -268,18 +256,18 @@ static gboolean
 gum_set_guard_flag (const GumLiveRangeDetails * details,
                     gpointer user_data)
 {
-  GumMemoryAccessMonitor * self = GUM_MEMORY_ACCESS_MONITOR (user_data);
-  GumMemoryAccessMonitorPrivate * priv = self->priv;
+  GumMemoryAccessMonitor * self;
   DWORD old_prot, new_prot;
   BOOL success;
   gboolean is_guarded = FALSE;
   guint num_pages;
 
+  self = GUM_MEMORY_ACCESS_MONITOR (user_data);
   new_prot = PAGE_NOACCESS;
 
-  if ((priv->access_mask & GUM_PAGE_READ) != 0)
+  if ((self->access_mask & GUM_PAGE_READ) != 0)
   {
-    if (priv->auto_reset)
+    if (self->auto_reset)
     {
       is_guarded = TRUE;
       new_prot = details->prot | PAGE_GUARD;
@@ -294,33 +282,33 @@ gum_set_guard_flag (const GumLiveRangeDetails * details,
     switch (details->prot & 0xFF)
     {
     case PAGE_EXECUTE:
-      if ((priv->access_mask & GUM_PAGE_EXECUTE) != 0)
+      if ((self->access_mask & GUM_PAGE_EXECUTE) != 0)
         new_prot = PAGE_READONLY;
       else
         return TRUE;
       break;
     case PAGE_EXECUTE_READ:
-      if ((priv->access_mask & GUM_PAGE_EXECUTE) != 0)
+      if ((self->access_mask & GUM_PAGE_EXECUTE) != 0)
         new_prot = PAGE_READONLY;
       else
         return TRUE;
       break;
     case PAGE_EXECUTE_READWRITE:
-      if (priv->access_mask == GUM_PAGE_WRITE)
+      if (self->access_mask == GUM_PAGE_WRITE)
         new_prot = PAGE_EXECUTE_READ;
-      else if (priv->access_mask == (GUM_PAGE_EXECUTE | GUM_PAGE_WRITE))
+      else if (self->access_mask == (GUM_PAGE_EXECUTE | GUM_PAGE_WRITE))
         new_prot = PAGE_READONLY;
-      else if (priv->access_mask == GUM_PAGE_EXECUTE)
+      else if (self->access_mask == GUM_PAGE_EXECUTE)
         new_prot = PAGE_READWRITE;
       else
         g_assert_not_reached ();
       break;
     case PAGE_EXECUTE_WRITECOPY:
-      if (priv->access_mask == GUM_PAGE_WRITE)
+      if (self->access_mask == GUM_PAGE_WRITE)
         new_prot = PAGE_EXECUTE_READ;
-      else if (priv->access_mask == (GUM_PAGE_EXECUTE | GUM_PAGE_WRITE))
+      else if (self->access_mask == (GUM_PAGE_EXECUTE | GUM_PAGE_WRITE))
         new_prot = PAGE_READONLY;
-      else if (priv->access_mask == GUM_PAGE_EXECUTE)
+      else if (self->access_mask == GUM_PAGE_EXECUTE)
         new_prot = PAGE_WRITECOPY;
       else
         g_assert_not_reached ();
@@ -330,13 +318,13 @@ gum_set_guard_flag (const GumLiveRangeDetails * details,
     case PAGE_READONLY:
       return TRUE;
     case PAGE_READWRITE:
-      if ((priv->access_mask & GUM_PAGE_WRITE) != 0)
+      if ((self->access_mask & GUM_PAGE_WRITE) != 0)
         new_prot = PAGE_READONLY;
       else
         return TRUE;
       break;
     case PAGE_WRITECOPY:
-      if ((priv->access_mask & GUM_PAGE_WRITE) != 0)
+      if ((self->access_mask & GUM_PAGE_WRITE) != 0)
         new_prot = PAGE_READONLY;
       else
         return TRUE;
@@ -346,24 +334,24 @@ gum_set_guard_flag (const GumLiveRangeDetails * details,
     }
   }
 
-  num_pages = priv->num_pages;
+  num_pages = self->num_pages;
 
-  priv->pages_details = g_realloc (priv->pages_details, 
-      (num_pages + 1) * sizeof (priv->pages_details[0]));
+  self->pages_details = g_realloc (self->pages_details,
+      (num_pages + 1) * sizeof (self->pages_details[0]));
 
-  priv->pages_details[num_pages].range_index = details->range_index;
-  priv->pages_details[num_pages].original_protection = details->prot;
-  priv->pages_details[num_pages].address = 
+  self->pages_details[num_pages].range_index = details->range_index;
+  self->pages_details[num_pages].original_protection = details->prot;
+  self->pages_details[num_pages].address =
       (gpointer) details->range->base_address;
-  priv->pages_details[num_pages].is_guarded = is_guarded;
-  priv->pages_details[num_pages].completed = 0;
+  self->pages_details[num_pages].is_guarded = is_guarded;
+  self->pages_details[num_pages].completed = 0;
 
-  priv->num_pages++;
+  self->num_pages++;
 
   success = VirtualProtect (GSIZE_TO_POINTER (details->range->base_address),
       details->range->size, new_prot, &old_prot);
   if (!success)
-    g_atomic_int_add (&self->priv->pages_remaining, -1);
+    g_atomic_int_add (&self->self->pages_remaining, -1);
 
   return TRUE;
 }
@@ -374,13 +362,12 @@ gum_clear_guard_flag (const GumLiveRangeDetails * details,
 {
   DWORD old_prot;
   GumMemoryAccessMonitor * self = GUM_MEMORY_ACCESS_MONITOR (user_data);
-  GumMemoryAccessMonitorPrivate * priv = self->priv;
   guint i;
 
-  for (i = 0; i != priv->num_pages; i++)
+  for (i = 0; i != self->num_pages; i++)
   {
-    const GumPageDetails * page = &priv->pages_details[i];
-    const GumMemoryRange * r = &priv->ranges[page->range_index];
+    const GumPageDetails * page = &self->pages_details[i];
+    const GumMemoryRange * r = &self->ranges[page->range_index];
 
     if (GUM_MEMORY_RANGE_INCLUDES (r, details->range->base_address))
     {
@@ -396,13 +383,12 @@ gum_memory_access_monitor_enumerate_live_ranges (GumMemoryAccessMonitor * self,
                                                  GumFoundLiveRangeFunc func,
                                                  gpointer user_data)
 {
-  GumMemoryAccessMonitorPrivate * priv = self->priv;
   guint i;
   gboolean carry_on = TRUE;
 
-  for (i = 0; i != priv->num_ranges && carry_on; i++)
+  for (i = 0; i != self->num_ranges && carry_on; i++)
   {
-    GumMemoryRange * r = &priv->ranges[i];
+    GumMemoryRange * r = &self->ranges[i];
     gpointer cur = GSIZE_TO_POINTER (r->base_address);
     gpointer end = GSIZE_TO_POINTER (r->base_address + r->size);
 
@@ -418,7 +404,7 @@ gum_memory_access_monitor_enumerate_live_ranges (GumMemoryAccessMonitor * self,
         break;
 
       /* force the iteration one page at a time */
-      size = MIN (mbi.RegionSize, self->priv->page_size);
+      size = MIN (mbi.RegionSize, self->self->page_size);
 
       details.range = &range;
       details.prot = mbi.Protect;
@@ -440,25 +426,26 @@ static gboolean
 gum_memory_access_monitor_on_exception (GumExceptionDetails * details,
                                         gpointer user_data)
 {
-  GumMemoryAccessMonitor * self = GUM_MEMORY_ACCESS_MONITOR_CAST (user_data);
-  const GumMemoryAccessMonitorPrivate * priv = self->priv;
+  GumMemoryAccessMonitor * self;
   GumMemoryAccessDetails d;
   guint i;
+
+  self = GUM_MEMORY_ACCESS_MONITOR (user_data);
 
   d.operation = details->memory.operation;
   d.from = details->address;
   d.address = details->memory.address;
 
-  for (i = 0; i != priv->num_pages; i++)
+  for (i = 0; i != self->num_pages; i++)
   {
-    const GumPageDetails * page = &priv->pages_details[i];
-    const GumMemoryRange * r = &priv->ranges[page->range_index];
+    const GumPageDetails * page = &self->pages_details[i];
+    const GumMemoryRange * r = &self->ranges[page->range_index];
     guint operation_mask;
     guint operations_reported;
     guint pages_remaining;
 
-    if ((page->address <= d.address) && 
-        ((guint8 *) page->address + priv->page_size > (guint8*) d.address))
+    if ((page->address <= d.address) &&
+        ((guint8 *) page->address + self->page_size > (guint8*) d.address))
     {
       /* make sure that we don't misinterpret access violation / page guard */
       if (page->is_guarded)
@@ -468,7 +455,7 @@ gum_memory_access_monitor_on_exception (GumExceptionDetails * details,
       }
       else if (details->type == GUM_EXCEPTION_ACCESS_VIOLATION)
       {
-        GumPageProtection gum_original_protection = 
+        GumPageProtection gum_original_protection =
             gum_page_protection_from_windows (page->original_protection);
         switch (d.operation)
         {
@@ -488,39 +475,39 @@ gum_memory_access_monitor_on_exception (GumExceptionDetails * details,
           g_assert_not_reached();
         }
       }
-      else 
+      else
         return FALSE;
 
       /* restore the original protection if needed */
-      if (priv->auto_reset && !page->is_guarded)
+      if (self->auto_reset && !page->is_guarded)
       {
         DWORD old_prot;
         /* may be called multiple times in case of simultaneous access
          * but it should not be a problem */
         VirtualProtect (
-            (guint8 *) d.address - (((guintptr) d.address) % priv->page_size),
-            priv->page_size, page->original_protection, &old_prot);
+            (guint8 *) d.address - (((guintptr) d.address) % self->page_size),
+            self->page_size, page->original_protection, &old_prot);
       }
 
       /* if an operation was already reported, don't report it. */
       operation_mask = 1 << d.operation;
       operations_reported = g_atomic_int_or (&page->completed, operation_mask);
-      if ((operations_reported != 0) && priv->auto_reset)
+      if ((operations_reported != 0) && self->auto_reset)
         return FALSE;
 
       pages_remaining;
       if (!operations_reported)
-        pages_remaining = g_atomic_int_add (&priv->pages_remaining, -1) - 1;
+        pages_remaining = g_atomic_int_add (&self->pages_remaining, -1) - 1;
       else
-        pages_remaining = g_atomic_int_get (&priv->pages_remaining);
-      d.pages_completed = priv->pages_total - pages_remaining;
+        pages_remaining = g_atomic_int_get (&self->pages_remaining);
+      d.pages_completed = self->pages_total - pages_remaining;
 
       d.range_index = page->range_index;
       d.page_index = (guint8 *) d.address - (guint8 *) r->base_address;
-      d.page_index = d.page_index / priv->page_size;
-      d.pages_total = priv->pages_total;
+      d.page_index = d.page_index / self->page_size;
+      d.pages_total = self->pages_total;
 
-      priv->notify_func (self, &d, priv->notify_data);
+      self->notify_func (self, &d, self->notify_data);
 
       return TRUE;
     }

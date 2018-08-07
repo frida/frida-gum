@@ -31,7 +31,7 @@ static gint gum_module_details_compare_base (
 static gint gum_module_details_compare_to_key (const GumAddress * key_ptr,
     const GumModuleDetails * member);
 
-G_DEFINE_TYPE (GumModuleMap, gum_module_map, G_TYPE_OBJECT);
+G_DEFINE_TYPE (GumModuleMap, gum_module_map, G_TYPE_OBJECT)
 
 static void
 gum_module_map_class_init (GumModuleMapClass * klass)

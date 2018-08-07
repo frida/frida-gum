@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2012-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -48,7 +48,7 @@ G_DEFINE_TYPE_EXTENDED (GumV8EventSink,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_EVENT_SINK,
-                            gum_v8_event_sink_iface_init));
+                            gum_v8_event_sink_iface_init))
 
 static void
 gum_v8_event_sink_class_init (GumV8EventSinkClass * klass)
@@ -63,9 +63,7 @@ static void
 gum_v8_event_sink_iface_init (gpointer g_iface,
                               gpointer iface_data)
 {
-  auto iface = (GumEventSinkIface *) g_iface;
-
-  (void) iface_data;
+  auto iface = (GumEventSinkInterface *) g_iface;
 
   iface->query_mask = gum_v8_event_sink_query_mask;
   iface->start = gum_v8_event_sink_start;

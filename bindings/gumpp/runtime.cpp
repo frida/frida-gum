@@ -26,8 +26,6 @@ namespace Gum
 #ifndef GUMPP_STATIC
   extern "C" BOOL WINAPI DllMain (HINSTANCE inst_dll, DWORD reason, LPVOID reserved)
   {
-    (void) inst_dll;
-
     switch (reason)
     {
       case DLL_PROCESS_ATTACH:

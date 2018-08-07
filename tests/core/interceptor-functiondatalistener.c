@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -51,7 +51,7 @@ G_DEFINE_TYPE_EXTENDED (TestFunctionDataListener,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
-                            test_function_data_listener_iface_init));
+                            test_function_data_listener_iface_init))
 
 static void
 test_function_data_listener_init_thread_state (TestFunctionDataListener * self,
@@ -143,7 +143,7 @@ static void
 test_function_data_listener_iface_init (gpointer g_iface,
                                         gpointer iface_data)
 {
-  GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
+  GumInvocationListenerInterface * iface = g_iface;
 
   iface->on_enter = test_function_data_listener_on_enter;
   iface->on_leave = test_function_data_listener_on_leave;

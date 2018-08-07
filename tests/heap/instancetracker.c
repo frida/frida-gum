@@ -40,13 +40,13 @@ INSTRACKER_TESTCASE (total_count)
 
   g_assert_cmpuint (gum_instance_tracker_peek_total_count (t, NULL), ==, 0);
 
-  zebra = ZOO_ZEBRA (g_object_new (ZOO_TYPE_ZEBRA, NULL));
+  zebra = g_object_new (ZOO_TYPE_ZEBRA, NULL);
   g_assert_cmpuint (gum_instance_tracker_peek_total_count (t, NULL), ==, 1);
 
-  pony1 = MY_PONY (g_object_new (MY_TYPE_PONY, NULL));
+  pony1 = g_object_new (MY_TYPE_PONY, NULL);
   g_assert_cmpuint (gum_instance_tracker_peek_total_count (t, NULL), ==, 2);
 
-  pony2 = MY_PONY (g_object_new (MY_TYPE_PONY, NULL));
+  pony2 = g_object_new (MY_TYPE_PONY, NULL);
   g_assert_cmpuint (gum_instance_tracker_peek_total_count (t, NULL), ==, 3);
 
   g_assert_cmpuint (gum_instance_tracker_peek_total_count (t, "ZooZebra"),
@@ -79,11 +79,11 @@ INSTRACKER_TESTCASE (type_filter_function)
   gum_instance_tracker_set_type_filter_function (t, no_ponies_filter_func,
       &counter);
 
-  pony = MY_PONY (g_object_new (MY_TYPE_PONY, NULL));
+  pony = g_object_new (MY_TYPE_PONY, NULL);
   g_assert_cmpuint (gum_instance_tracker_peek_total_count (t, NULL),
       ==, 0);
 
-  zebra = ZOO_ZEBRA (g_object_new (ZOO_TYPE_ZEBRA, NULL));
+  zebra = g_object_new (ZOO_TYPE_ZEBRA, NULL);
   g_assert_cmpuint (gum_instance_tracker_peek_total_count (t, NULL),
       ==, 1);
   g_assert_cmpuint (gum_instance_tracker_peek_total_count (t, "ZooZebra"),
@@ -101,14 +101,14 @@ INSTRACKER_TESTCASE (nested_trackers)
   GumInstanceTracker * t2 = NULL;
   MyPony * pony1, * pony2;
 
-  pony1 = MY_PONY (g_object_new (MY_TYPE_PONY, NULL));
+  pony1 = g_object_new (MY_TYPE_PONY, NULL);
   g_assert_cmpuint (gum_instance_tracker_peek_total_count (t1, "MyPony"),
       ==, 1);
 
   t2 = gum_instance_tracker_new ();
   gum_instance_tracker_begin (t2, NULL);
 
-  pony2 = MY_PONY (g_object_new (MY_TYPE_PONY, NULL));
+  pony2 = g_object_new (MY_TYPE_PONY, NULL);
   g_assert_cmpuint (gum_instance_tracker_peek_total_count (t2, "MyPony"),
       ==, 1);
   g_assert_cmpuint (gum_instance_tracker_peek_total_count (t1, "MyPony"),
@@ -150,9 +150,9 @@ INSTRACKER_TESTCASE (peek_instances)
   g_test_message ("Should not be any instances around yet");
   g_assert (gum_instance_tracker_peek_instances (t) == NULL);
 
-  pony1 = MY_PONY (g_object_new (MY_TYPE_PONY, NULL));
-  pony2 = MY_PONY (g_object_new (MY_TYPE_PONY, NULL));
-  pony3 = MY_PONY (g_object_new (MY_TYPE_PONY, NULL));
+  pony1 = g_object_new (MY_TYPE_PONY, NULL);
+  pony2 = g_object_new (MY_TYPE_PONY, NULL);
+  pony3 = g_object_new (MY_TYPE_PONY, NULL);
 
   instances = gum_instance_tracker_peek_instances (t);
   g_test_message ("We should now have three instances");
@@ -194,11 +194,11 @@ INSTRACKER_TESTCASE (walk_instances)
   g_test_message ("Should not be any instances around yet");
   gum_instance_tracker_walk_instances (t, walk_instance, &ctx);
 
-  pony1 = MY_PONY (g_object_new (MY_TYPE_PONY, NULL));
+  pony1 = g_object_new (MY_TYPE_PONY, NULL);
   ctx.expected_instances = g_list_prepend (ctx.expected_instances, pony1);
-  pony2 = MY_PONY (g_object_new (MY_TYPE_PONY, NULL));
+  pony2 = g_object_new (MY_TYPE_PONY, NULL);
   ctx.expected_instances = g_list_prepend (ctx.expected_instances, pony2);
-  pony3 = MY_PONY (g_object_new (MY_TYPE_PONY, NULL));
+  pony3 = g_object_new (MY_TYPE_PONY, NULL);
   ctx.expected_instances = g_list_prepend (ctx.expected_instances, pony3);
 
   g_test_message ("We should now have three instances");

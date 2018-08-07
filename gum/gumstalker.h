@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2010 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -19,27 +19,14 @@
 #include <gum/gumeventsink.h>
 #include <gum/gumprocess.h>
 
+G_BEGIN_DECLS
+
 #define GUM_TYPE_STALKER (gum_stalker_get_type ())
-#define GUM_STALKER(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
-    GUM_TYPE_STALKER, GumStalker))
-#define GUM_STALKER_CAST(obj) ((GumStalker *) (obj))
-#define GUM_STALKER_CLASS(klass) (G_TYPE_CHECK_CLASS_CAST ((klass),\
-    GUM_TYPE_STALKER, GumStalkerClass))
-#define GUM_IS_STALKER(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj),\
-    GUM_TYPE_STALKER))
-#define GUM_IS_STALKER_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE (\
-    (klass), GUM_TYPE_STALKER))
-#define GUM_STALKER_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS (\
-    (obj), GUM_TYPE_STALKER, GumStalkerClass))
+G_DECLARE_FINAL_TYPE (GumStalker, gum_stalker, GUM, STALKER, GObject)
 
 #define GUM_TYPE_STALKER_TRANSFORMER (gum_stalker_transformer_get_type ())
-#define GUM_STALKER_TRANSFORMER(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
-    GUM_TYPE_STALKER_TRANSFORMER, GumStalkerTransformer))
-#define GUM_IS_STALKER_TRANSFORMER(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj),\
-    GUM_TYPE_STALKER_TRANSFORMER))
-#define GUM_STALKER_TRANSFORMER_GET_INTERFACE(inst) (\
-    G_TYPE_INSTANCE_GET_INTERFACE ((inst), GUM_TYPE_STALKER_TRANSFORMER,\
-    GumStalkerTransformerIface))
+G_DECLARE_INTERFACE (GumStalkerTransformer, gum_stalker_transformer, GUM,
+    STALKER_TRANSFORMER, GObject)
 
 #define GUM_TYPE_DEFAULT_STALKER_TRANSFORMER \
     (gum_default_stalker_transformer_get_type ())
@@ -53,14 +40,6 @@ G_DECLARE_FINAL_TYPE (GumCallbackStalkerTransformer,
     gum_callback_stalker_transformer, GUM, CALLBACK_STALKER_TRANSFORMER,
     GObject)
 
-G_BEGIN_DECLS
-
-typedef struct _GumStalker           GumStalker;
-typedef struct _GumStalkerClass      GumStalkerClass;
-typedef struct _GumStalkerPrivate    GumStalkerPrivate;
-
-typedef struct _GumStalkerTransformer GumStalkerTransformer;
-typedef struct _GumStalkerTransformerIface GumStalkerTransformerIface;
 typedef struct _GumStalkerIterator GumStalkerIterator;
 typedef union _GumStalkerWriter GumStalkerWriter;
 typedef void (* GumStalkerTransformerCallback) (GumStalkerIterator * iterator,
@@ -72,19 +51,7 @@ typedef guint GumProbeId;
 typedef struct _GumCallSite GumCallSite;
 typedef void (* GumCallProbeCallback) (GumCallSite * site, gpointer user_data);
 
-struct _GumStalker
-{
-  GObject parent;
-
-  GumStalkerPrivate * priv;
-};
-
-struct _GumStalkerClass
-{
-  GObjectClass parent_class;
-};
-
-struct _GumStalkerTransformerIface
+struct _GumStalkerTransformerInterface
 {
   GTypeInterface parent;
 
@@ -107,8 +74,6 @@ struct _GumCallSite
   gpointer stack_data;
   GumCpuContext * cpu_context;
 };
-
-GUM_API GType gum_stalker_get_type (void) G_GNUC_CONST;
 
 GUM_API GumStalker * gum_stalker_new (void);
 
@@ -141,8 +106,6 @@ GUM_API void gum_stalker_remove_call_probe (GumStalker * self,
     gum_cpu_context_get_nth_argument ((s)->cpu_context, n)
 #define gum_call_site_replace_nth_argument(s, n, v) \
     gum_cpu_context_replace_nth_argument ((s)->cpu_context, n, v)
-
-GType gum_stalker_transformer_get_type (void);
 
 GUM_API GumStalkerTransformer * gum_stalker_transformer_make_default (void);
 GUM_API GumStalkerTransformer * gum_stalker_transformer_make_from_callback (

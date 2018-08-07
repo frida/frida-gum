@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -10,22 +10,16 @@
 #include <gumjs/gumscript.h>
 #include <gumjs/gumscriptscheduler.h>
 
-#define GUM_TYPE_SCRIPT_BACKEND (gum_script_backend_get_type ())
-#define GUM_SCRIPT_BACKEND(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
-    GUM_TYPE_SCRIPT_BACKEND, GumScriptBackend))
-#define GUM_SCRIPT_BACKEND_CAST(obj) ((GumScriptBackend *) (obj))
-#define GUM_IS_SCRIPT_BACKEND(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj),\
-    GUM_TYPE_SCRIPT_BACKEND))
-#define GUM_SCRIPT_BACKEND_GET_INTERFACE(inst) (G_TYPE_INSTANCE_GET_INTERFACE (\
-    (inst), GUM_TYPE_SCRIPT_BACKEND, GumScriptBackendIface))
+G_BEGIN_DECLS
 
-typedef struct _GumScriptBackend GumScriptBackend;
-typedef struct _GumScriptBackendIface GumScriptBackendIface;
+#define GUM_TYPE_SCRIPT_BACKEND (gum_script_backend_get_type ())
+G_DECLARE_INTERFACE (GumScriptBackend, gum_script_backend, GUM, SCRIPT_BACKEND,
+    GObject)
 
 typedef void (* GumScriptBackendDebugMessageHandler) (const gchar * message,
     gpointer user_data);
 
-struct _GumScriptBackendIface
+struct _GumScriptBackendInterface
 {
   GTypeInterface parent;
 
@@ -60,10 +54,6 @@ struct _GumScriptBackendIface
 
   GumScriptScheduler * (* get_scheduler) (GumScriptBackend * self);
 };
-
-G_BEGIN_DECLS
-
-GUM_API GType gum_script_backend_get_type (void);
 
 GUM_API GumScriptBackend * gum_script_backend_obtain (void);
 GUM_API GumScriptBackend * gum_script_backend_obtain_v8 (void);

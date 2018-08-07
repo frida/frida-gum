@@ -139,21 +139,15 @@ _gum_duk_process_dispose (GumDukProcess * self)
 void
 _gum_duk_process_finalize (GumDukProcess * self)
 {
-  (void) self;
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_process_construct)
 {
-  (void) ctx;
-  (void) args;
-
   return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_is_debugger_attached)
 {
-  (void) args;
-
   duk_push_boolean (ctx,
       gum_process_is_debugger_attached () ? TRUE : FALSE);
   return 1;
@@ -161,8 +155,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_is_debugger_attached)
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_get_current_thread_id)
 {
-  (void) args;
-
   duk_push_number (ctx, gum_process_get_current_thread_id ());
   return 1;
 }
@@ -408,8 +400,6 @@ gum_emit_malloc_range (const GumMallocRangeDetails * details,
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
 {
-  (void) args;
-
   _gum_duk_throw (ctx, "not yet implemented for " GUM_SCRIPT_PLATFORM);
   return 0;
 }

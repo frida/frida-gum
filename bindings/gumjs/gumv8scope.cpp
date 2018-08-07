@@ -13,15 +13,15 @@ using namespace v8;
 ScriptScope::ScriptScope (GumV8Script * parent)
   : parent (parent),
     stalker_scope (parent),
-    locker (parent->priv->isolate),
-    isolate_scope (parent->priv->isolate),
-    handle_scope (parent->priv->isolate),
-    context (Local<Context>::New (parent->priv->isolate, *parent->priv->context)),
+    locker (parent->isolate),
+    isolate_scope (parent->isolate),
+    handle_scope (parent->isolate),
+    context (Local<Context>::New (parent->isolate, *parent->context)),
     context_scope (context),
-    trycatch (parent->priv->isolate),
+    trycatch (parent->isolate),
     interceptor_scope (parent)
 {
-  auto core = &parent->priv->core;
+  auto core = &parent->core;
 
   _gum_v8_core_pin (core);
 
@@ -34,8 +34,7 @@ ScriptScope::ScriptScope (GumV8Script * parent)
 
 ScriptScope::~ScriptScope ()
 {
-  auto priv = parent->priv;
-  auto core = &priv->core;
+  auto core = &parent->core;
 
   ProcessAnyPendingException ();
 
@@ -50,7 +49,7 @@ ScriptScope::~ScriptScope ()
   {
     core->flush_notify = NULL;
 
-    auto isolate = parent->priv->isolate;
+    auto isolate = parent->isolate;
     isolate->Exit ();
     {
       Unlocker ul (isolate);
@@ -68,7 +67,7 @@ ScriptScope::ProcessAnyPendingException ()
   {
     auto exception = trycatch.Exception ();
     trycatch.Reset ();
-    _gum_v8_core_on_unhandled_exception (&parent->priv->core, exception);
+    _gum_v8_core_on_unhandled_exception (&parent->core, exception);
     trycatch.Reset ();
   }
 }
@@ -76,12 +75,11 @@ ScriptScope::ProcessAnyPendingException ()
 void
 ScriptScope::PerformPendingIO ()
 {
-  auto priv = parent->priv;
-  auto core = &priv->core;
+  auto core = &parent->core;
 
   if (!g_queue_is_empty (&tick_callbacks))
   {
-    auto isolate = priv->isolate;
+    auto isolate = parent->isolate;
 
     GumPersistent<Function>::type * tick_callback;
     auto receiver = Undefined (isolate);
@@ -114,7 +112,7 @@ void
 ScriptScope::AddTickCallback (Handle<Function> callback)
 {
   g_queue_push_tail (&tick_callbacks, new GumPersistent<Function>::type (
-      parent->priv->isolate, callback));
+      parent->isolate, callback));
 }
 
 void
@@ -126,12 +124,12 @@ ScriptScope::AddScheduledSource (GSource * source)
 ScriptInterceptorScope::ScriptInterceptorScope (GumV8Script * parent)
   : parent (parent)
 {
-  gum_interceptor_begin_transaction (parent->priv->interceptor.interceptor);
+  gum_interceptor_begin_transaction (parent->interceptor.interceptor);
 }
 
 ScriptInterceptorScope::~ScriptInterceptorScope ()
 {
-  gum_interceptor_end_transaction (parent->priv->interceptor.interceptor);
+  gum_interceptor_end_transaction (parent->interceptor.interceptor);
 }
 
 ScriptStalkerScope::ScriptStalkerScope (GumV8Script * parent)
@@ -144,5 +142,5 @@ ScriptStalkerScope::ScriptStalkerScope (GumV8Script * parent)
 
 ScriptStalkerScope::~ScriptStalkerScope ()
 {
-  _gum_v8_stalker_process_pending (&parent->priv->stalker, this);
+  _gum_v8_stalker_process_pending (&parent->stalker, this);
 }

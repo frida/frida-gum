@@ -110,20 +110,15 @@ _gum_duk_module_init (GumDukModule * self,
 void
 _gum_duk_module_dispose (GumDukModule * self)
 {
-  (void) self;
 }
 
 void
 _gum_duk_module_finalize (GumDukModule * self)
 {
-  (void) self;
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_construct)
 {
-  (void) ctx;
-  (void) args;
-
   return 0;
 }
 

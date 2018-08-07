@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -17,6 +17,11 @@
 # define GUM_FP_IS_ALIGNED(F) ((GPOINTER_TO_SIZE (F) & 0x1) == 0)
 #endif
 
+struct _GumDarwinBacktracer
+{
+  GObject parent;
+};
+
 static void gum_darwin_backtracer_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_darwin_backtracer_generate (GumBacktracer * backtracer,
@@ -28,7 +33,7 @@ G_DEFINE_TYPE_EXTENDED (GumDarwinBacktracer,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_BACKTRACER,
-                                               gum_darwin_backtracer_iface_init));
+                            gum_darwin_backtracer_iface_init))
 
 static void
 gum_darwin_backtracer_class_init (GumDarwinBacktracerClass * klass)
@@ -39,7 +44,7 @@ static void
 gum_darwin_backtracer_iface_init (gpointer g_iface,
                                   gpointer iface_data)
 {
-  GumBacktracerIface * iface = (GumBacktracerIface *) g_iface;
+  GumBacktracerInterface * iface = g_iface;
 
   iface->generate = gum_darwin_backtracer_generate;
 }
@@ -123,4 +128,3 @@ gum_darwin_backtracer_generate (GumBacktracer * backtracer,
         invocation_stack, return_addresses->items[i]);
   }
 }
-

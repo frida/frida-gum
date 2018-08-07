@@ -54,6 +54,7 @@ namespace Gum {
 		public void unignore_other_threads ();
 	}
 
+	[CCode (type_cname = "GumInvocationListenerInterface")]
 	public interface InvocationListener : GLib.Object {
 		public virtual void on_enter (Gum.InvocationContext context);
 		public virtual void on_leave (Gum.InvocationContext context);
@@ -134,6 +135,7 @@ namespace Gum {
 		public delegate void CallProbeCallback (Gum.CallSite site);
 	}
 
+	[CCode (type_cname = "GumEventSinkInterface")]
 	public interface EventSink : GLib.Object {
 		public abstract Gum.EventType query_mask ();
 		public abstract void process (void * opaque_event);

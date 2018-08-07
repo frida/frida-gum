@@ -81,15 +81,11 @@ static gchar * gum_ansi_string_from_utf8 (const gchar * str_utf8);
 #define GUMJS_DEFINE_MEMORY_READ(T) \
   GUMJS_DEFINE_FUNCTION (gumjs_memory_read_##T) \
   { \
-    (void) ctx; \
-    \
     return gum_duk_memory_read (GUM_MEMORY_VALUE_##T, args); \
   }
 #define GUMJS_DEFINE_MEMORY_WRITE(T) \
   GUMJS_DEFINE_FUNCTION (gumjs_memory_write_##T) \
   { \
-    (void) ctx; \
-    \
     return gum_duk_memory_write (GUM_MEMORY_VALUE_##T, args); \
   }
 #define GUMJS_DEFINE_MEMORY_READ_WRITE(T) \
@@ -217,20 +213,15 @@ _gum_duk_memory_init (GumDukMemory * self,
 void
 _gum_duk_memory_dispose (GumDukMemory * self)
 {
-  (void) self;
 }
 
 void
 _gum_duk_memory_finalize (GumDukMemory * self)
 {
-  (void) self;
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_memory_construct)
 {
-  (void) ctx;
-  (void) args;
-
   return 0;
 }
 
@@ -795,8 +786,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_ansi_string)
   _gum_duk_push_native_resource (ctx, str_ansi, g_free, args->core);
   return 1;
 #else
-  (void) args;
-
   _gum_duk_throw (ctx, "ANSI API is only applicable on Windows");
   return 0;
 #endif
@@ -1012,16 +1001,11 @@ gum_append_match (GumAddress address,
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_memory_access_monitor_construct)
 {
-  (void) ctx;
-  (void) args;
-
   return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_enable)
 {
-  (void) args;
-
 #ifdef G_OS_WIN32
   _gum_duk_throw (ctx,
       "MemoryAccessMonitor is not yet available in the Duktape runtime");
@@ -1034,8 +1018,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_enable)
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_disable)
 {
-  (void) args;
-
 #ifdef G_OS_WIN32
   _gum_duk_throw (ctx,
       "MemoryAccessMonitor is not yet available in the Duktape runtime");

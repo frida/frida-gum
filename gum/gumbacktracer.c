@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -25,30 +25,18 @@
 # include "arch-mips/gummipsbacktracer.h"
 #endif
 
-GType
-gum_backtracer_get_type (void)
+G_DEFINE_INTERFACE (GumBacktracer, gum_backtracer, G_TYPE_OBJECT)
+
+static void
+gum_backtracer_default_init (GumBacktracerInterface * iface)
 {
-  static volatile gsize gonce_value;
-
-  if (g_once_init_enter (&gonce_value))
-  {
-    GType gtype;
-
-    gtype = g_type_register_static_simple (G_TYPE_INTERFACE, "GumBacktracer",
-        sizeof (GumBacktracerIface), NULL, 0, NULL, 0);
-    g_type_interface_add_prerequisite (gtype, G_TYPE_OBJECT);
-
-    g_once_init_leave (&gonce_value, gtype);
-  }
-
-  return (GType) gonce_value;
 }
 
 GumBacktracer *
 gum_backtracer_make_accurate (void)
 {
 #if defined (G_OS_WIN32)
-  GumDbgHelpImpl * dbghelp;
+  GumDbghelpImpl * dbghelp;
 
   dbghelp = gum_dbghelp_impl_try_obtain ();
   if (dbghelp == NULL)
@@ -84,7 +72,7 @@ gum_backtracer_generate (GumBacktracer * self,
                          const GumCpuContext * cpu_context,
                          GumReturnAddressArray * return_addresses)
 {
-  GumBacktracerIface * iface = GUM_BACKTRACER_GET_INTERFACE (self);
+  GumBacktracerInterface * iface = GUM_BACKTRACER_GET_IFACE (self);
 
   g_assert (iface->generate != NULL);
 

@@ -152,7 +152,7 @@ _gum_v8_socket_init (GumV8Socket * self,
   auto connection = _gum_v8_create_class ("SocketConnection",
       gumjs_socket_connection_construct, scope, module, isolate);
   auto io_stream (Local<FunctionTemplate>::New (isolate,
-      *core->script->priv->stream.io_stream));
+      *core->script->stream.io_stream));
   connection->Inherit (io_stream);
   _gum_v8_class_add (connection, gumjs_socket_connection_functions, module,
       isolate);
@@ -187,16 +187,6 @@ _gum_v8_socket_finalize (GumV8Socket * self)
   self->connection = nullptr;
 }
 
-/*
- * Prototype:
- * Socket.listen()
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_socket_listen)
 {
   Local<Value> family_value;
@@ -344,16 +334,6 @@ gum_v8_listen_operation_perform (GumV8ListenOperation * self)
   gum_v8_module_operation_finish (self);
 }
 
-/*
- * Prototype:
- * Socket.connect()
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_socket_connect)
 {
   Local<Value> family_value;
@@ -479,16 +459,6 @@ gum_v8_connect_operation_finish (GSocketClient * client,
   gum_v8_module_operation_finish (self);
 }
 
-/*
- * Prototype:
- * Socket.type(socket_ptr)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_socket_get_type)
 {
   gint handle;
@@ -558,16 +528,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_get_type)
     info.GetReturnValue ().SetNull ();
 }
 
-/*
- * Prototype:
- * Socket.localAddress(socket_ptr)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_socket_get_local_address)
 {
   gint handle;
@@ -583,16 +543,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_get_local_address)
     info.GetReturnValue ().SetNull ();
 }
 
-/*
- * Prototype:
- * Socket.peerAddress(socket_ptr)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_socket_get_peer_address)
 {
   gint handle;
@@ -743,7 +693,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_socket_connection_construct)
     return;
 
   auto base_ctor (Local<FunctionTemplate>::New (isolate,
-      *core->script->priv->stream.io_stream));
+      *core->script->stream.io_stream));
   Handle<Value> argv[] = { External::New (isolate, connection) };
   base_ctor->GetFunction ()->Call (context, wrapper, G_N_ELEMENTS (argv), argv)
       .ToLocalChecked ();

@@ -76,7 +76,6 @@ _gum_v8_file_dispose (GumV8File * self)
 void
 _gum_v8_file_finalize (GumV8File * self)
 {
-  (void) self;
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_file_construct)
@@ -107,16 +106,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_file_construct)
   wrapper->SetAlignedPointerInInternalField (0, file);
 }
 
-/*
- * Prototype:
- * File.write(data_val)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_CLASS_METHOD (gumjs_file_write, GumFile)
 {
   if (!gum_file_check_open (self, isolate))
@@ -133,16 +122,6 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_file_write, GumFile)
   g_bytes_unref (bytes);
 }
 
-/*
- * Prototype:
- * File.flush()
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_CLASS_METHOD (gumjs_file_flush, GumFile)
 {
   if (!gum_file_check_open (self, isolate))
@@ -151,16 +130,6 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_file_flush, GumFile)
   fflush (self->handle);
 }
 
-/*
- * Prototype:
- * File.close()
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_CLASS_METHOD (gumjs_file_close, GumFile)
 {
   if (!gum_file_check_open (self, isolate))

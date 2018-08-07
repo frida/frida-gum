@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -18,16 +18,6 @@
 
 #define DEFAULT_ENABLE_COUNTERS FALSE
 
-enum
-{
-  PROP_0,
-  PROP_ALLOCATION_TRACKER,
-  PROP_ENABLE_COUNTERS,
-  PROP_MALLOC_COUNT,
-  PROP_REALLOC_COUNT,
-  PROP_FREE_COUNT
-};
-
 typedef struct _FunctionContext      FunctionContext;
 typedef struct _HeapHandlers         HeapHandlers;
 typedef struct _ThreadContext        ThreadContext;
@@ -39,8 +29,10 @@ typedef void (* HeapEnterHandler) (GumAllocatorProbe * self,
 typedef void (* HeapLeaveHandler) (GumAllocatorProbe * self,
     gpointer thread_ctx, GumInvocationContext * invocation_ctx);
 
-struct _GumAllocatorProbePrivate
+struct _GumAllocatorProbe
 {
+  GObject parent;
+
   gboolean disposed;
 
   GumInterceptor * interceptor;
@@ -51,6 +43,16 @@ struct _GumAllocatorProbePrivate
   guint malloc_count;
   guint realloc_count;
   guint free_count;
+};
+
+enum
+{
+  PROP_0,
+  PROP_ALLOCATION_TRACKER,
+  PROP_ENABLE_COUNTERS,
+  PROP_MALLOC_COUNT,
+  PROP_REALLOC_COUNT,
+  PROP_FREE_COUNT
 };
 
 struct _ThreadContext
@@ -99,10 +101,8 @@ static void gum_allocator_probe_deinit (void);
 
 static void gum_allocator_probe_listener_iface_init (gpointer g_iface,
     gpointer iface_data);
-
 static void gum_allocator_probe_dispose (GObject * object);
 static void gum_allocator_probe_finalize (GObject * object);
-
 static void gum_allocator_probe_set_property (GObject * object,
     guint property_id, const GValue * value, GParamSpec * pspec);
 static void gum_allocator_probe_get_property (GObject * object,
@@ -157,7 +157,7 @@ G_DEFINE_TYPE_EXTENDED (GumAllocatorProbe,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
-                            gum_allocator_probe_listener_iface_init));
+                            gum_allocator_probe_listener_iface_init))
 
 G_LOCK_DEFINE (_gum_allocator_probe_ignored_functions);
 static GArray * _gum_allocator_probe_ignored_functions = NULL;
@@ -167,8 +167,6 @@ gum_allocator_probe_class_init (GumAllocatorProbeClass * klass)
 {
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
   GParamSpec * pspec;
-
-  g_type_class_add_private (klass, sizeof (GumAllocatorProbePrivate));
 
   object_class->set_property = gum_allocator_probe_set_property;
   object_class->get_property = gum_allocator_probe_get_property;
@@ -219,9 +217,7 @@ static void
 gum_allocator_probe_listener_iface_init (gpointer g_iface,
                                          gpointer iface_data)
 {
-  GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
-
-  (void) iface_data;
+  GumInvocationListenerInterface * iface = g_iface;
 
   iface->on_enter = gum_allocator_probe_on_enter;
   iface->on_leave = gum_allocator_probe_on_leave;
@@ -230,42 +226,26 @@ gum_allocator_probe_listener_iface_init (gpointer g_iface,
 static void
 gum_allocator_probe_init (GumAllocatorProbe * self)
 {
-  GumAllocatorProbePrivate * priv;
+  self->interceptor = gum_interceptor_obtain ();
+  self->function_contexts = g_ptr_array_sized_new (3);
 
-  self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self, GUM_TYPE_ALLOCATOR_PROBE,
-      GumAllocatorProbePrivate);
-
-  priv = self->priv;
-
-  priv->interceptor = gum_interceptor_obtain ();
-  priv->function_contexts = g_ptr_array_sized_new (3);
-
-  priv->enable_counters = DEFAULT_ENABLE_COUNTERS;
+  self->enable_counters = DEFAULT_ENABLE_COUNTERS;
 }
 
 static void
 gum_allocator_probe_dispose (GObject * object)
 {
   GumAllocatorProbe * self = GUM_ALLOCATOR_PROBE (object);
-  GumAllocatorProbePrivate * priv = self->priv;
 
-  if (!priv->disposed)
+  if (!self->disposed)
   {
-    priv->disposed = TRUE;
+    self->disposed = TRUE;
 
     gum_allocator_probe_detach (self);
 
-    if (priv->allocation_tracker != NULL)
-    {
-      g_object_unref (priv->allocation_tracker);
-      priv->allocation_tracker = NULL;
-    }
+    g_clear_object (&self->allocation_tracker);
 
-    if (priv->interceptor != NULL)
-    {
-      g_object_unref (priv->interceptor);
-      priv->interceptor = NULL;
-    }
+    g_clear_object (&self->interceptor);
   }
 
   G_OBJECT_CLASS (gum_allocator_probe_parent_class)->dispose (object);
@@ -275,9 +255,8 @@ static void
 gum_allocator_probe_finalize (GObject * object)
 {
   GumAllocatorProbe * self = GUM_ALLOCATOR_PROBE (object);
-  GumAllocatorProbePrivate * priv = self->priv;
 
-  g_ptr_array_free (priv->function_contexts, TRUE);
+  g_ptr_array_free (self->function_contexts, TRUE);
 
   G_OBJECT_CLASS (gum_allocator_probe_parent_class)->finalize (object);
 }
@@ -289,17 +268,16 @@ gum_allocator_probe_set_property (GObject * object,
                                   GParamSpec * pspec)
 {
   GumAllocatorProbe * self = GUM_ALLOCATOR_PROBE (object);
-  GumAllocatorProbePrivate * priv = self->priv;
 
   switch (property_id)
   {
     case PROP_ALLOCATION_TRACKER:
-      if (priv->allocation_tracker != NULL)
-        g_object_unref (priv->allocation_tracker);
-      priv->allocation_tracker = g_value_dup_object (value);
+      if (self->allocation_tracker != NULL)
+        g_object_unref (self->allocation_tracker);
+      self->allocation_tracker = g_value_dup_object (value);
       break;
     case PROP_ENABLE_COUNTERS:
-      priv->enable_counters = g_value_get_boolean (value);
+      self->enable_counters = g_value_get_boolean (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -313,24 +291,23 @@ gum_allocator_probe_get_property (GObject * object,
                                   GParamSpec * pspec)
 {
   GumAllocatorProbe * self = GUM_ALLOCATOR_PROBE (object);
-  GumAllocatorProbePrivate * priv = self->priv;
 
   switch (property_id)
   {
     case PROP_ALLOCATION_TRACKER:
-      g_value_set_object (value, priv->allocation_tracker);
+      g_value_set_object (value, self->allocation_tracker);
       break;
     case PROP_ENABLE_COUNTERS:
-      g_value_set_boolean (value, priv->enable_counters);
+      g_value_set_boolean (value, self->enable_counters);
       break;
     case PROP_MALLOC_COUNT:
-      g_value_set_uint (value, priv->malloc_count);
+      g_value_set_uint (value, self->malloc_count);
       break;
     case PROP_REALLOC_COUNT:
-      g_value_set_uint (value, priv->realloc_count);
+      g_value_set_uint (value, self->realloc_count);
       break;
     case PROP_FREE_COUNT:
-      g_value_set_uint (value, priv->free_count);
+      g_value_set_uint (value, self->free_count);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -396,7 +373,7 @@ gum_allocator_probe_add_suppression_addresses_if_glib (const GumModuleDetails * 
 static void
 gum_allocator_probe_apply_default_suppressions (GumAllocatorProbe * self)
 {
-  GumInterceptor * interceptor = self->priv->interceptor;
+  GumInterceptor * interceptor = self->interceptor;
   GArray * ignored;
   guint i;
 
@@ -461,13 +438,13 @@ static void
 gum_allocator_probe_on_enter (GumInvocationListener * listener,
                               GumInvocationContext * context)
 {
-  GumAllocatorProbe * self = GUM_ALLOCATOR_PROBE_CAST (listener);
-  GumAllocatorProbePrivate * priv = self->priv;
+  GumAllocatorProbe * self;
   FunctionContext * function_ctx;
 
+  self = GUM_ALLOCATOR_PROBE (listener);
   function_ctx = GUM_LINCTX_GET_FUNC_DATA (context, FunctionContext *);
 
-  gum_interceptor_ignore_current_thread (priv->interceptor);
+  gum_interceptor_ignore_current_thread (self->interceptor);
 
   if (function_ctx != NULL)
   {
@@ -484,10 +461,10 @@ static void
 gum_allocator_probe_on_leave (GumInvocationListener * listener,
                               GumInvocationContext * context)
 {
-  GumAllocatorProbe * self = GUM_ALLOCATOR_PROBE_CAST (listener);
-  GumAllocatorProbePrivate * priv = self->priv;
+  GumAllocatorProbe * self;
   FunctionContext * function_ctx;
 
+  self = GUM_ALLOCATOR_PROBE (listener);
   function_ctx = GUM_LINCTX_GET_FUNC_DATA (context, FunctionContext *);
 
   if (function_ctx != NULL)
@@ -506,14 +483,13 @@ gum_allocator_probe_on_leave (GumInvocationListener * listener,
     }
   }
 
-  gum_interceptor_unignore_current_thread (priv->interceptor);
+  gum_interceptor_unignore_current_thread (self->interceptor);
 }
 
 GumAllocatorProbe *
 gum_allocator_probe_new (void)
 {
-  return GUM_ALLOCATOR_PROBE_CAST (
-      g_object_new (GUM_TYPE_ALLOCATOR_PROBE, NULL));
+  return g_object_new (GUM_TYPE_ALLOCATOR_PROBE, NULL);
 }
 
 static const HeapHandlers gum_malloc_handlers =
@@ -580,11 +556,10 @@ void
 gum_allocator_probe_attach_to_apis (GumAllocatorProbe * self,
                                     const GumHeapApiList * apis)
 {
-  GumAllocatorProbePrivate * priv = self->priv;
   guint i;
 
-  gum_interceptor_ignore_current_thread (priv->interceptor);
-  gum_interceptor_begin_transaction (priv->interceptor);
+  gum_interceptor_ignore_current_thread (self->interceptor);
+  gum_interceptor_begin_transaction (self->interceptor);
 
   for (i = 0; i != apis->len; i++)
   {
@@ -606,35 +581,34 @@ gum_allocator_probe_attach_to_apis (GumAllocatorProbe * self,
 
   gum_allocator_probe_apply_default_suppressions (self);
 
-  gum_interceptor_end_transaction (priv->interceptor);
-  gum_interceptor_unignore_current_thread (priv->interceptor);
+  gum_interceptor_end_transaction (self->interceptor);
+  gum_interceptor_unignore_current_thread (self->interceptor);
 }
 
 void
 gum_allocator_probe_detach (GumAllocatorProbe * self)
 {
-  GumAllocatorProbePrivate * priv = self->priv;
   guint i;
 
-  gum_interceptor_ignore_current_thread (priv->interceptor);
+  gum_interceptor_ignore_current_thread (self->interceptor);
 
-  gum_interceptor_detach_listener (priv->interceptor,
+  gum_interceptor_detach_listener (self->interceptor,
       GUM_INVOCATION_LISTENER (self));
 
-  for (i = 0; i < priv->function_contexts->len; i++)
+  for (i = 0; i < self->function_contexts->len; i++)
   {
     FunctionContext * function_ctx = (FunctionContext *)
-        g_ptr_array_index (priv->function_contexts, i);
+        g_ptr_array_index (self->function_contexts, i);
     g_free (function_ctx);
   }
 
-  g_ptr_array_set_size (priv->function_contexts, 0);
+  g_ptr_array_set_size (self->function_contexts, 0);
 
-  priv->malloc_count = 0;
-  priv->realloc_count = 0;
-  priv->free_count = 0;
+  self->malloc_count = 0;
+  self->realloc_count = 0;
+  self->free_count = 0;
 
-  gum_interceptor_unignore_current_thread (priv->interceptor);
+  gum_interceptor_unignore_current_thread (self->interceptor);
 }
 
 static void
@@ -642,16 +616,15 @@ attach_to_function (GumAllocatorProbe * self,
                     gpointer function_address,
                     const HeapHandlers * function_handlers)
 {
-  GumAllocatorProbePrivate * priv = self->priv;
   GumInvocationListener * listener = GUM_INVOCATION_LISTENER (self);
   FunctionContext * function_ctx;
   GumAttachReturn attach_ret;
 
   function_ctx = g_new0 (FunctionContext, 1);
   function_ctx->handlers = *function_handlers;
-  g_ptr_array_add (priv->function_contexts, function_ctx);
+  g_ptr_array_add (self->function_contexts, function_ctx);
 
-  attach_ret = gum_interceptor_attach_listener (priv->interceptor,
+  attach_ret = gum_interceptor_attach_listener (self->interceptor,
       function_address, listener, function_ctx);
   g_assert (attach_ret == GUM_ATTACH_OK);
 }
@@ -660,11 +633,10 @@ void
 gum_allocator_probe_suppress (GumAllocatorProbe * self,
                               gpointer function_address)
 {
-  GumAllocatorProbePrivate * priv = self->priv;
   GumInvocationListener * listener = GUM_INVOCATION_LISTENER (self);
   GumAttachReturn attach_ret;
 
-  attach_ret = gum_interceptor_attach_listener (priv->interceptor,
+  attach_ret = gum_interceptor_attach_listener (self->interceptor,
       function_address, listener, NULL);
   g_assert (attach_ret == GUM_ATTACH_OK);
 }
@@ -675,14 +647,12 @@ gum_allocator_probe_on_malloc (GumAllocatorProbe * self,
                                guint size,
                                const GumCpuContext * cpu_context)
 {
-  GumAllocatorProbePrivate * priv = self->priv;
+  if (self->enable_counters)
+    self->malloc_count++;
 
-  if (priv->enable_counters)
-    priv->malloc_count++;
-
-  if (priv->allocation_tracker != NULL)
+  if (self->allocation_tracker != NULL)
   {
-    gum_allocation_tracker_on_malloc_full (priv->allocation_tracker, address,
+    gum_allocation_tracker_on_malloc_full (self->allocation_tracker, address,
         size, cpu_context);
   }
 }
@@ -692,14 +662,12 @@ gum_allocator_probe_on_free (GumAllocatorProbe * self,
                              gpointer address,
                              const GumCpuContext * cpu_context)
 {
-  GumAllocatorProbePrivate * priv = self->priv;
+  if (self->enable_counters)
+    self->free_count++;
 
-  if (priv->enable_counters)
-    priv->free_count++;
-
-  if (priv->allocation_tracker != NULL)
+  if (self->allocation_tracker != NULL)
   {
-    gum_allocation_tracker_on_free_full (priv->allocation_tracker, address,
+    gum_allocation_tracker_on_free_full (self->allocation_tracker, address,
         cpu_context);
   }
 }
@@ -711,14 +679,12 @@ gum_allocator_probe_on_realloc (GumAllocatorProbe * self,
                                 guint new_size,
                                 const GumCpuContext * cpu_context)
 {
-  GumAllocatorProbePrivate * priv = self->priv;
+  if (self->enable_counters)
+    self->realloc_count++;
 
-  if (priv->enable_counters)
-    priv->realloc_count++;
-
-  if (priv->allocation_tracker != NULL)
+  if (self->allocation_tracker != NULL)
   {
-    gum_allocation_tracker_on_realloc_full (priv->allocation_tracker,
+    gum_allocation_tracker_on_realloc_full (self->allocation_tracker,
         old_address, new_address, new_size, cpu_context);
   }
 }
@@ -728,8 +694,6 @@ on_malloc_enter_handler (GumAllocatorProbe * self,
                          AllocThreadContext * thread_ctx,
                          GumInvocationContext * invocation_ctx)
 {
-  (void) self;
-
   thread_ctx->cpu_context = *invocation_ctx->cpu_context;
   thread_ctx->size =
       (gsize) gum_invocation_context_get_nth_argument (invocation_ctx, 0);
@@ -741,8 +705,6 @@ on_calloc_enter_handler (GumAllocatorProbe * self,
                          GumInvocationContext * invocation_ctx)
 {
   gsize num, size;
-
-  (void) self;
 
   num = (gsize) gum_invocation_context_get_nth_argument (invocation_ctx, 0);
   size = (gsize) gum_invocation_context_get_nth_argument (invocation_ctx, 1);
@@ -772,8 +734,6 @@ on_realloc_enter_handler (GumAllocatorProbe * self,
                           ReallocThreadContext * thread_ctx,
                           GumInvocationContext * invocation_ctx)
 {
-  (void) self;
-
   thread_ctx->cpu_context = *invocation_ctx->cpu_context;
   thread_ctx->old_address =
       gum_invocation_context_get_nth_argument (invocation_ctx, 0);
@@ -803,8 +763,6 @@ on_free_enter_handler (GumAllocatorProbe * self,
                        GumInvocationContext * invocation_ctx)
 {
   gpointer address;
-
-  (void) thread_ctx;
 
   address = gum_invocation_context_get_nth_argument (invocation_ctx, 0);
 

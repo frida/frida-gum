@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -13,17 +13,18 @@ G_BEGIN_DECLS
 
 typedef struct _GumCodeSegment GumCodeSegment;
 
-gboolean gum_code_segment_is_supported (void);
+GUM_API gboolean gum_code_segment_is_supported (void);
 
-GumCodeSegment * gum_code_segment_new (gsize size, const GumAddressSpec * spec);
-void gum_code_segment_free (GumCodeSegment * segment);
+GUM_API GumCodeSegment * gum_code_segment_new (gsize size,
+    const GumAddressSpec * spec);
+GUM_API void gum_code_segment_free (GumCodeSegment * segment);
 
-gpointer gum_code_segment_get_address (GumCodeSegment * self);
-gsize gum_code_segment_get_size (GumCodeSegment * self);
-gsize gum_code_segment_get_virtual_size (GumCodeSegment * self);
+GUM_API gpointer gum_code_segment_get_address (GumCodeSegment * self);
+GUM_API gsize gum_code_segment_get_size (GumCodeSegment * self);
+GUM_API gsize gum_code_segment_get_virtual_size (GumCodeSegment * self);
 
-void gum_code_segment_realize (GumCodeSegment * self);
-void gum_code_segment_map (GumCodeSegment * self, gsize source_offset,
+GUM_API void gum_code_segment_realize (GumCodeSegment * self);
+GUM_API void gum_code_segment_map (GumCodeSegment * self, gsize source_offset,
     gsize source_size, gpointer target_address);
 
 G_END_DECLS

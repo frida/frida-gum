@@ -108,26 +108,12 @@ gum_sanity_checker_destroy (GumSanityChecker * checker)
 {
   GumSanityCheckerPrivate * priv = checker->priv;
 
-  if (priv->bounds_checker != NULL)
-  {
-    g_object_unref (priv->bounds_checker);
-    priv->bounds_checker = NULL;
-  }
+  g_clear_object (&priv->bounds_checker);
 
-  if (priv->instance_tracker != NULL)
-  {
-    g_object_unref (priv->instance_tracker);
-    priv->instance_tracker = NULL;
-  }
+  g_clear_object (&priv->instance_tracker);
 
-  if (priv->alloc_probe != NULL)
-  {
-    g_object_unref (priv->alloc_probe);
-    priv->alloc_probe = NULL;
-
-    g_object_unref (priv->alloc_tracker);
-    priv->alloc_tracker = NULL;
-  }
+  g_clear_object (&priv->alloc_probe);
+  g_clear_object (&priv->alloc_tracker);
 
   gum_heap_api_list_free (checker->priv->heap_apis);
 
@@ -334,8 +320,6 @@ gum_sanity_checker_filter_out_gparam (GumInstanceTracker * tracker,
   GumSanityChecker * self = (GumSanityChecker *) user_data;
   const GumInstanceVTable * vtable;
 
-  (void) tracker;
-
   vtable =
       gum_instance_tracker_get_current_vtable (self->priv->instance_tracker);
   return !g_str_has_prefix (vtable->type_id_to_name (gtype), "GParam");
@@ -348,9 +332,6 @@ gum_sanity_checker_filter_backtrace_block_size (GumAllocationTracker * tracker,
                                                 gpointer user_data)
 {
   GumSanityChecker * self = (GumSanityChecker *) user_data;
-
-  (void) tracker;
-  (void) address;
 
   return ((gint) size == self->priv->backtrace_block_size);
 }
@@ -595,8 +576,6 @@ gum_sanity_checker_compare_groups (gconstpointer a,
   GumAllocationGroup * group_a = (GumAllocationGroup *) a;
   GumAllocationGroup * group_b = (GumAllocationGroup *) b;
 
-  (void) user_data;
-
   if (group_a->alive_now > group_b->alive_now)
     return -1;
   else if (group_a->alive_now < group_b->alive_now)
@@ -618,8 +597,6 @@ gum_sanity_checker_compare_blocks (gconstpointer a,
   GumAllocationBlock * block_a = (GumAllocationBlock *) a;
   GumAllocationBlock * block_b = (GumAllocationBlock *) b;
   gsize addr_a, addr_b;
-
-  (void) user_data;
 
   if (block_a->size > block_b->size)
     return -1;

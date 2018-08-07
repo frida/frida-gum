@@ -162,8 +162,6 @@ void
 _gum_interceptor_backend_destroy_trampoline (GumInterceptorBackend * self,
                                              GumFunctionContext * ctx)
 {
-  (void) self;
-
   gum_code_slice_free (ctx->trampoline_slice);
   ctx->trampoline_slice = NULL;
 }
@@ -194,8 +192,6 @@ _gum_interceptor_backend_deactivate_trampoline (GumInterceptorBackend * self,
                                                 GumFunctionContext * ctx,
                                                 gpointer prologue)
 {
-  (void) self;
-
   memcpy (prologue, ctx->overwritten_prologue, ctx->overwritten_prologue_len);
 }
 
@@ -210,8 +206,6 @@ _gum_interceptor_backend_resolve_redirect (GumInterceptorBackend * self,
                                            gpointer address)
 {
   gpointer target;
-
-  (void) self;
 
   target = gum_x86_reader_try_get_relative_jump_target (address);
   if (target == NULL)

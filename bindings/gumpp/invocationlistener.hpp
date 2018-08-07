@@ -7,13 +7,7 @@ namespace Gum
 {
   typedef struct _GumInvocationListenerProxy GumInvocationListenerProxy;
 
-  struct InvocationListenerIface : public Object
-  {
-    virtual void on_enter (InvocationContext * context) = 0;
-    virtual void on_leave (InvocationContext * context) = 0;
-  };
-
-  class InvocationListenerProxy : public InvocationListenerIface
+  class InvocationListenerProxy : public Object
   {
   public:
     InvocationListenerProxy (InvocationListener * listener);

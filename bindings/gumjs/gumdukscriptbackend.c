@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -12,8 +12,8 @@
 
 #include <gum/guminterceptor.h>
 
-#define GUM_DUK_SCRIPT_BACKEND_LOCK()   (g_mutex_lock (&priv->mutex))
-#define GUM_DUK_SCRIPT_BACKEND_UNLOCK() (g_mutex_unlock (&priv->mutex))
+#define GUM_DUK_SCRIPT_BACKEND_LOCK()   (g_mutex_lock (&self->mutex))
+#define GUM_DUK_SCRIPT_BACKEND_UNLOCK() (g_mutex_unlock (&self->mutex))
 
 typedef guint GumDukScriptId;
 typedef struct _GumDukScriptWeakRef GumDukScriptWeakRef;
@@ -25,8 +25,10 @@ typedef struct _GumNotifyScriptRemovedData GumNotifyScriptRemovedData;
 typedef struct _GumNotifyDebuggerDetachedData GumNotifyDebuggerDetachedData;
 typedef struct _GumNotifyDebuggerOutputData GumNotifyDebuggerOutputData;
 
-struct _GumDukScriptBackendPrivate
+struct _GumDukScriptBackend
 {
+  GObject parent;
+
   GMutex mutex;
   GHashTable * scripts;
   GumDukScriptId next_script_id;
@@ -195,14 +197,12 @@ G_DEFINE_TYPE_EXTENDED (GumDukScriptBackend,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_SCRIPT_BACKEND,
-                            gum_duk_script_backend_iface_init));
+                            gum_duk_script_backend_iface_init))
 
 static void
 gum_duk_script_backend_class_init (GumDukScriptBackendClass * klass)
 {
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
-
-  g_type_class_add_private (klass, sizeof (GumDukScriptBackendPrivate));
 
   object_class->dispose = gum_duk_script_backend_dispose;
   object_class->finalize = gum_duk_script_backend_finalize;
@@ -212,9 +212,7 @@ static void
 gum_duk_script_backend_iface_init (gpointer g_iface,
                                    gpointer iface_data)
 {
-  GumScriptBackendIface * iface = (GumScriptBackendIface *) g_iface;
-
-  (void) iface_data;
+  GumScriptBackendInterface * iface = g_iface;
 
   iface->create = gum_duk_script_backend_create;
   iface->create_finish = gum_duk_script_backend_create_finish;
@@ -238,38 +236,32 @@ gum_duk_script_backend_iface_init (gpointer g_iface,
 static void
 gum_duk_script_backend_init (GumDukScriptBackend * self)
 {
-  GumDukScriptBackendPrivate * priv;
+  g_mutex_init (&self->mutex);
 
-  priv = self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
-      GUM_DUK_TYPE_SCRIPT_BACKEND, GumDukScriptBackendPrivate);
+  self->scripts = g_hash_table_new (NULL, NULL);
+  self->next_script_id = 1;
 
-  g_mutex_init (&priv->mutex);
+  self->scheduler = NULL;
 
-  priv->scripts = g_hash_table_new (NULL, NULL);
-  priv->next_script_id = 1;
-
-  priv->scheduler = NULL;
-
-  priv->debug_handler_announced_scripts = g_hash_table_new (NULL, NULL);
+  self->debug_handler_announced_scripts = g_hash_table_new (NULL, NULL);
 }
 
 static void
 gum_duk_script_backend_dispose (GObject * object)
 {
   GumDukScriptBackend * self = GUM_DUK_SCRIPT_BACKEND (object);
-  GumDukScriptBackendPrivate * priv = self->priv;
 
-  g_clear_pointer (&priv->debug_handler_announced_scripts, g_hash_table_unref);
-  g_clear_pointer (&priv->debug_handler_context, g_main_context_unref);
-  if (priv->debug_handler_data_destroy != NULL)
-    priv->debug_handler_data_destroy (priv->debug_handler_data);
-  priv->debug_handler = NULL;
-  priv->debug_handler_data = NULL;
-  priv->debug_handler_data_destroy = NULL;
+  g_clear_pointer (&self->debug_handler_announced_scripts, g_hash_table_unref);
+  g_clear_pointer (&self->debug_handler_context, g_main_context_unref);
+  if (self->debug_handler_data_destroy != NULL)
+    self->debug_handler_data_destroy (self->debug_handler_data);
+  self->debug_handler = NULL;
+  self->debug_handler_data = NULL;
+  self->debug_handler_data_destroy = NULL;
 
-  g_clear_object (&priv->scheduler);
+  g_clear_object (&self->scheduler);
 
-  g_clear_pointer (&priv->scripts, g_hash_table_unref);
+  g_clear_pointer (&self->scripts, g_hash_table_unref);
 
   G_OBJECT_CLASS (gum_duk_script_backend_parent_class)->dispose (object);
 }
@@ -279,7 +271,7 @@ gum_duk_script_backend_finalize (GObject * object)
 {
   GumDukScriptBackend * self = GUM_DUK_SCRIPT_BACKEND (object);
 
-  g_mutex_clear (&self->priv->mutex);
+  g_mutex_clear (&self->mutex);
 
   G_OBJECT_CLASS (gum_duk_script_backend_parent_class)->finalize (object);
 }
@@ -288,20 +280,19 @@ static void
 gum_duk_script_backend_add (GumDukScriptBackend * self,
                             GumDukScript * script)
 {
-  GumDukScriptBackendPrivate * priv = self->priv;
   GumDukScriptWeakRef * ref;
 
   ref = g_slice_new (GumDukScriptWeakRef);
   ref->backend = self;
   do
   {
-    ref->id = priv->next_script_id++;
+    ref->id = self->next_script_id++;
   }
   while (ref->id == 0);
   g_weak_ref_init (&ref->instance, script);
 
   GUM_DUK_SCRIPT_BACKEND_LOCK ();
-  g_hash_table_insert (priv->scripts, GSIZE_TO_POINTER (ref->id), ref);
+  g_hash_table_insert (self->scripts, GSIZE_TO_POINTER (ref->id), ref);
   GUM_DUK_SCRIPT_BACKEND_UNLOCK ();
 
   g_object_weak_ref (G_OBJECT (script),
@@ -319,14 +310,12 @@ static void
 gum_duk_script_weak_ref_on_notify (GumDukScriptWeakRef * ref,
                                    GObject * where_the_object_was)
 {
-  GumDukScriptBackendPrivate * priv = ref->backend->priv;
+  GumDukScriptBackend * self = ref->backend;
 
-  (void) where_the_object_was;
-
-  gum_duk_script_backend_on_script_removed (ref->backend, ref->id);
+  gum_duk_script_backend_on_script_removed (self, ref->id);
 
   GUM_DUK_SCRIPT_BACKEND_LOCK ();
-  g_hash_table_remove (priv->scripts, GSIZE_TO_POINTER (ref->id));
+  g_hash_table_remove (self->scripts, GSIZE_TO_POINTER (ref->id));
   GUM_DUK_SCRIPT_BACKEND_UNLOCK ();
 
   g_weak_ref_clear (&ref->instance);
@@ -337,8 +326,6 @@ gum_duk_script_weak_ref_on_notify (GumDukScriptWeakRef * ref,
 gpointer
 gum_duk_script_backend_create_heap (GumDukScriptBackend * self)
 {
-  (void) self;
-
   return duk_create_heap (gum_duk_alloc, gum_duk_realloc, gum_duk_free, self,
       gum_duk_script_backend_on_fatal_error);
 }
@@ -352,8 +339,6 @@ gum_duk_script_backend_push_program (GumDukScriptBackend * self,
 {
   gchar * url;
   gboolean valid;
-
-  (void) self;
 
   url = g_strconcat (name, ".js", NULL);
 
@@ -422,8 +407,6 @@ gum_duk_script_backend_create_finish (GumScriptBackend * backend,
                                       GAsyncResult * result,
                                       GError ** error)
 {
-  (void) backend;
-
   return gum_script_task_propagate_pointer (GUM_SCRIPT_TASK (result), error);
 }
 
@@ -479,8 +462,6 @@ gum_create_script_task_run (GumScriptTask * task,
   GumDukScript * script;
   GError * error = NULL;
 
-  (void) cancellable;
-
   script = g_object_new (GUM_DUK_TYPE_SCRIPT,
       "name", d->name,
       "source", d->source,
@@ -534,8 +515,6 @@ gum_duk_script_backend_create_from_bytes_finish (GumScriptBackend * backend,
                                                  GAsyncResult * result,
                                                  GError ** error)
 {
-  (void) backend;
-
   return gum_script_task_propagate_pointer (GUM_SCRIPT_TASK (result), error);
 }
 
@@ -589,8 +568,6 @@ gum_create_script_from_bytes_task_run (GumScriptTask * task,
   GumDukScript * script;
   GError * error = NULL;
 
-  (void) cancellable;
-
   script = g_object_new (GUM_DUK_TYPE_SCRIPT,
       "bytecode", d->bytes,
       "main-context", gum_script_task_get_context (task),
@@ -643,8 +620,6 @@ gum_duk_script_backend_compile_finish (GumScriptBackend * backend,
                                        GAsyncResult * result,
                                        GError ** error)
 {
-  (void) backend;
-
   return gum_script_task_propagate_pointer (GUM_SCRIPT_TASK (result), error);
 }
 
@@ -698,8 +673,6 @@ gum_compile_script_task_run (GumScriptTask * task,
   duk_context * ctx;
   GError * error = NULL;
 
-  (void) cancellable;
-
   ctx = gum_duk_script_backend_create_heap (self);
 
   gum_duk_script_backend_push_program (self, ctx, d->name, d->source, &error);
@@ -745,22 +718,21 @@ gum_duk_script_backend_set_debug_message_handler (
     GDestroyNotify data_destroy)
 {
   GumDukScriptBackend * self = GUM_DUK_SCRIPT_BACKEND (backend);
-  GumDukScriptBackendPrivate * priv = self->priv;
   GMainContext * new_context, * old_context;
 
-  if (priv->debug_handler_data_destroy != NULL)
-    priv->debug_handler_data_destroy (priv->debug_handler_data);
+  if (self->debug_handler_data_destroy != NULL)
+    self->debug_handler_data_destroy (self->debug_handler_data);
 
-  priv->debug_handler = handler;
-  priv->debug_handler_data = data;
-  priv->debug_handler_data_destroy = data_destroy;
+  self->debug_handler = handler;
+  self->debug_handler_data = data;
+  self->debug_handler_data_destroy = data_destroy;
 
   new_context = (handler != NULL)
       ? g_main_context_ref_thread_default ()
       : NULL;
   GUM_DUK_SCRIPT_BACKEND_LOCK ();
-  old_context = priv->debug_handler_context;
-  priv->debug_handler_context = new_context;
+  old_context = self->debug_handler_context;
+  self->debug_handler_context = new_context;
   GUM_DUK_SCRIPT_BACKEND_UNLOCK ();
 
   if (old_context != NULL)
@@ -775,12 +747,11 @@ gum_duk_script_backend_set_debug_message_handler (
 static GMainContext *
 gum_duk_script_backend_get_debug_context (GumDukScriptBackend * self)
 {
-  GumDukScriptBackendPrivate * priv = self->priv;
   GMainContext * context;
 
   GUM_DUK_SCRIPT_BACKEND_LOCK ();
-  context = (priv->debug_handler_context != NULL)
-      ? g_main_context_ref (priv->debug_handler_context)
+  context = (self->debug_handler_context != NULL)
+      ? g_main_context_ref (self->debug_handler_context)
       : NULL;
   GUM_DUK_SCRIPT_BACKEND_UNLOCK ();
 
@@ -792,7 +763,6 @@ gum_duk_script_backend_post_debug_message (GumScriptBackend * backend,
                                            const gchar * message)
 {
   GumDukScriptBackend * self = GUM_DUK_SCRIPT_BACKEND (backend);
-  GumDukScriptBackendPrivate * priv = self->priv;
   const gchar * id_start, * id_end;
   GumDukScriptId id;
   GumDukScriptWeakRef * ref;
@@ -808,7 +778,7 @@ gum_duk_script_backend_post_debug_message (GumScriptBackend * backend,
     return;
 
   GUM_DUK_SCRIPT_BACKEND_LOCK ();
-  ref = g_hash_table_lookup (priv->scripts, GSIZE_TO_POINTER (id));
+  ref = g_hash_table_lookup (self->scripts, GSIZE_TO_POINTER (id));
   script = (ref != NULL) ? g_weak_ref_get (&ref->instance) : NULL;
   GUM_DUK_SCRIPT_BACKEND_UNLOCK ();
 
@@ -844,34 +814,33 @@ gum_duk_script_backend_post_debug_message (GumScriptBackend * backend,
 static GumScriptScheduler *
 gum_duk_script_backend_get_scheduler_impl (GumScriptBackend * backend)
 {
-  GumDukScriptBackendPrivate * priv = GUM_DUK_SCRIPT_BACKEND (backend)->priv;
+  GumDukScriptBackend * self = GUM_DUK_SCRIPT_BACKEND (backend);
 
-  if (priv->scheduler == NULL)
+  if (self->scheduler == NULL)
   {
-    priv->scheduler = gum_script_scheduler_new ();
+    self->scheduler = gum_script_scheduler_new ();
   }
 
-  return priv->scheduler;
+  return self->scheduler;
 }
 
 static void
 gum_duk_script_backend_on_debug_handler_attached (GumDukScriptBackend * self)
 {
-  GumDukScriptBackendPrivate * priv = self->priv;
   GString * message;
   GHashTableIter iter;
   gpointer raw_id;
   GumDukScriptWeakRef * ref;
   guint script_index;
 
-  g_hash_table_remove_all (priv->debug_handler_announced_scripts);
+  g_hash_table_remove_all (self->debug_handler_announced_scripts);
 
   message = g_string_sized_new (64);
   g_string_append (message, "SYNC\n");
 
   GUM_DUK_SCRIPT_BACKEND_LOCK ();
 
-  g_hash_table_iter_init (&iter, priv->scripts);
+  g_hash_table_iter_init (&iter, self->scripts);
   script_index = 0;
 
   while (g_hash_table_iter_next (&iter, &raw_id, (gpointer *) &ref))
@@ -895,14 +864,14 @@ gum_duk_script_backend_on_debug_handler_attached (GumDukScriptBackend * self)
     g_free (name);
     g_object_unref (script);
 
-    g_hash_table_add (priv->debug_handler_announced_scripts, raw_id);
+    g_hash_table_add (self->debug_handler_announced_scripts, raw_id);
 
     script_index++;
   }
 
   GUM_DUK_SCRIPT_BACKEND_UNLOCK ();
 
-  priv->debug_handler (message->str, priv->debug_handler_data);
+  self->debug_handler (message->str, self->debug_handler_data);
 
   g_string_free (message, TRUE);
 }
@@ -910,15 +879,14 @@ gum_duk_script_backend_on_debug_handler_attached (GumDukScriptBackend * self)
 static void
 gum_duk_script_backend_on_debug_handler_detached (GumDukScriptBackend * self)
 {
-  GumDukScriptBackendPrivate * priv = self->priv;
   GHashTableIter iter;
   GumDukScriptWeakRef * ref;
 
-  g_hash_table_remove_all (priv->debug_handler_announced_scripts);
+  g_hash_table_remove_all (self->debug_handler_announced_scripts);
 
   GUM_DUK_SCRIPT_BACKEND_LOCK ();
 
-  g_hash_table_iter_init (&iter, priv->scripts);
+  g_hash_table_iter_init (&iter, self->scripts);
 
   while (g_hash_table_iter_next (&iter, NULL, (gpointer *) &ref))
   {
@@ -965,20 +933,20 @@ gum_duk_script_backend_on_script_added (GumDukScriptBackend * self,
 static gboolean
 gum_duk_script_backend_notify_script_added (GumNotifyScriptAddedData * d)
 {
-  GumDukScriptBackendPrivate * priv = d->backend->priv;
+  GumDukScriptBackend * self = d->backend;
   gpointer raw_id = GSIZE_TO_POINTER (d->id);
   gchar * name_escaped, * message;
 
-  if (priv->debug_handler == NULL)
+  if (self->debug_handler == NULL)
     return FALSE;
 
-  if (!g_hash_table_add (priv->debug_handler_announced_scripts, raw_id))
+  if (!g_hash_table_add (self->debug_handler_announced_scripts, raw_id))
     return FALSE;
 
   name_escaped = g_strescape (d->name, NULL);
   message = g_strdup_printf ("ADD %u %s.js", d->id, name_escaped);
 
-  priv->debug_handler (message, priv->debug_handler_data);
+  self->debug_handler (message, self->debug_handler_data);
 
   g_free (message);
   g_free (name_escaped);
@@ -1024,19 +992,19 @@ gum_duk_script_backend_on_script_removed (GumDukScriptBackend * self,
 static gboolean
 gum_duk_script_backend_notify_script_removed (GumNotifyScriptRemovedData * d)
 {
-  GumDukScriptBackendPrivate * priv = d->backend->priv;
+  GumDukScriptBackend * self = d->backend;
   gchar * message;
 
-  if (priv->debug_handler == NULL)
+  if (self->debug_handler == NULL)
     return FALSE;
 
-  if (!g_hash_table_remove (priv->debug_handler_announced_scripts,
+  if (!g_hash_table_remove (self->debug_handler_announced_scripts,
       GSIZE_TO_POINTER (d->id)))
     return FALSE;
 
   message = g_strdup_printf ("REMOVE %u", d->id);
 
-  priv->debug_handler (message, priv->debug_handler_data);
+  self->debug_handler (message, self->debug_handler_data);
 
   g_free (message);
 
@@ -1058,8 +1026,6 @@ gum_duk_script_backend_on_debugger_detached (GumDukScript * script,
   GMainContext * context;
   GumNotifyDebuggerDetachedData * d;
   GSource * source;
-
-  (void) script;
 
   context = gum_duk_script_backend_get_debug_context (ref->backend);
   if (context == NULL)
@@ -1083,15 +1049,15 @@ static gboolean
 gum_duk_script_backend_notify_debugger_detached (
     GumNotifyDebuggerDetachedData * d)
 {
-  GumDukScriptBackendPrivate * priv = d->backend->priv;
+  GumDukScriptBackend * self = d->backend;
   gchar * message;
 
-  if (priv->debug_handler == NULL)
+  if (self->debug_handler == NULL)
     return FALSE;
 
   message = g_strdup_printf ("DETACH %u", d->id);
 
-  priv->debug_handler (message, priv->debug_handler_data);
+  self->debug_handler (message, self->debug_handler_data);
 
   g_free (message);
 
@@ -1115,8 +1081,6 @@ gum_duk_script_backend_on_debugger_output (GumDukScript * script,
   GumNotifyDebuggerOutputData * d;
   GSource * source;
 
-  (void) script;
-
   context = gum_duk_script_backend_get_debug_context (ref->backend);
   if (context == NULL)
     return;
@@ -1139,7 +1103,7 @@ gum_duk_script_backend_on_debugger_output (GumDukScript * script,
 static gboolean
 gum_duk_script_backend_notify_debugger_output (GumNotifyDebuggerOutputData * d)
 {
-  GumDukScriptBackendPrivate * priv = d->backend->priv;
+  GumDukScriptBackend * self = d->backend;
   GString * message;
   gconstpointer data;
   gsize size;
@@ -1147,7 +1111,7 @@ gum_duk_script_backend_notify_debugger_output (GumNotifyDebuggerOutputData * d)
   gint state, save;
   const gboolean break_lines = FALSE;
 
-  if (priv->debug_handler == NULL)
+  if (self->debug_handler == NULL)
     return FALSE;
 
   data = g_bytes_get_data (d->bytes, &size);
@@ -1166,7 +1130,7 @@ gum_duk_script_backend_notify_debugger_output (GumNotifyDebuggerOutputData * d)
   message->len = cur - message->str;
   g_assert_cmpuint (message->len + 1, <=, message->allocated_len);
 
-  priv->debug_handler (message->str, priv->debug_handler_data);
+  self->debug_handler (message->str, self->debug_handler_data);
 
   g_string_free (message, TRUE);
 
@@ -1186,8 +1150,6 @@ static void
 gum_duk_script_backend_on_fatal_error (void * udata,
                                        const char * msg)
 {
-  (void) udata;
-
   g_log ("DUK", G_LOG_LEVEL_ERROR, "%s", msg);
   abort ();
 }
@@ -1196,8 +1158,6 @@ static void *
 gum_duk_alloc (void * udata,
                duk_size_t size)
 {
-  (void) udata;
-
   return g_malloc (size);
 }
 
@@ -1206,8 +1166,6 @@ gum_duk_realloc (void * udata,
                  void * ptr,
                  duk_size_t size)
 {
-  (void) udata;
-
   return g_realloc (ptr, size);
 }
 
@@ -1215,7 +1173,5 @@ static void
 gum_duk_free (void * udata,
               void * ptr)
 {
-  (void) udata;
-
   g_free (ptr);
 }

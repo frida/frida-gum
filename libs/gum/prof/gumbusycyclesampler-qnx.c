@@ -1,10 +1,15 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gumbusycyclesampler.h"
+
+struct _GumBusyCycleSampler
+{
+  GObject parent;
+};
 
 static void gum_busy_cycle_sampler_iface_init (gpointer g_iface,
     gpointer iface_data);
@@ -15,7 +20,7 @@ G_DEFINE_TYPE_EXTENDED (GumBusyCycleSampler,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_SAMPLER,
-                                               gum_busy_cycle_sampler_iface_init));
+                            gum_busy_cycle_sampler_iface_init))
 
 static void
 gum_busy_cycle_sampler_class_init (GumBusyCycleSamplerClass * klass)
@@ -26,7 +31,7 @@ static void
 gum_busy_cycle_sampler_iface_init (gpointer g_iface,
                                    gpointer iface_data)
 {
-  GumSamplerIface * iface = (GumSamplerIface *) g_iface;
+  GumSamplerInterface * iface = g_iface;
 
   iface->sample = gum_busy_cycle_sampler_sample;
 }
@@ -39,11 +44,7 @@ gum_busy_cycle_sampler_init (GumBusyCycleSampler * self)
 GumSampler *
 gum_busy_cycle_sampler_new (void)
 {
-  GumBusyCycleSampler * sampler;
-
-  sampler = g_object_new (GUM_TYPE_BUSY_CYCLE_SAMPLER, NULL);
-
-  return GUM_SAMPLER (sampler);
+  return g_object_new (GUM_TYPE_BUSY_CYCLE_SAMPLER, NULL);
 }
 
 gboolean

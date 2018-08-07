@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -12,11 +12,13 @@
 
 typedef struct _GumExceptionHandlerEntry GumExceptionHandlerEntry;
 
-#define GUM_EXCEPTOR_LOCK()   (g_mutex_lock (&priv->mutex))
-#define GUM_EXCEPTOR_UNLOCK() (g_mutex_unlock (&priv->mutex))
+#define GUM_EXCEPTOR_LOCK()   (g_mutex_lock (&self->mutex))
+#define GUM_EXCEPTOR_UNLOCK() (g_mutex_unlock (&self->mutex))
 
-struct _GumExceptorPrivate
+struct _GumExceptor
 {
+  GObject parent;
+
   GMutex mutex;
 
   GSList * handlers;
@@ -43,7 +45,7 @@ static gboolean gum_exceptor_handle_scope_exception (
 
 static void gum_exceptor_scope_perform_longjmp (GumExceptorScope * scope);
 
-G_DEFINE_TYPE (GumExceptor, gum_exceptor, G_TYPE_OBJECT);
+G_DEFINE_TYPE (GumExceptor, gum_exceptor, G_TYPE_OBJECT)
 
 G_LOCK_DEFINE_STATIC (the_exceptor);
 static GumExceptor * the_exceptor = NULL;
@@ -53,8 +55,6 @@ gum_exceptor_class_init (GumExceptorClass * klass)
 {
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
 
-  g_type_class_add_private (klass, sizeof (GumExceptorPrivate));
-
   object_class->dispose = gum_exceptor_dispose;
   object_class->finalize = gum_exceptor_finalize;
 }
@@ -62,18 +62,13 @@ gum_exceptor_class_init (GumExceptorClass * klass)
 static void
 gum_exceptor_init (GumExceptor * self)
 {
-  GumExceptorPrivate * priv;
+  g_mutex_init (&self->mutex);
 
-  self->priv = priv = G_TYPE_INSTANCE_GET_PRIVATE (self, GUM_TYPE_EXCEPTOR,
-      GumExceptorPrivate);
-
-  g_mutex_init (&priv->mutex);
-
-  priv->scopes = g_hash_table_new (NULL, NULL);
+  self->scopes = g_hash_table_new (NULL, NULL);
 
   gum_exceptor_add (self, gum_exceptor_handle_scope_exception, self);
 
-  priv->backend = gum_exceptor_backend_new (
+  self->backend = gum_exceptor_backend_new (
       (GumExceptionHandler) gum_exceptor_handle_exception, self);
 }
 
@@ -82,7 +77,7 @@ gum_exceptor_dispose (GObject * object)
 {
   GumExceptor * self = GUM_EXCEPTOR (object);
 
-  g_clear_object (&self->priv->backend);
+  g_clear_object (&self->backend);
 
   G_OBJECT_CLASS (gum_exceptor_parent_class)->dispose (object);
 }
@@ -91,13 +86,12 @@ static void
 gum_exceptor_finalize (GObject * object)
 {
   GumExceptor * self = GUM_EXCEPTOR (object);
-  GumExceptorPrivate * priv = self->priv;
 
   gum_exceptor_remove (self, gum_exceptor_handle_scope_exception, self);
 
-  g_hash_table_unref (priv->scopes);
+  g_hash_table_unref (self->scopes);
 
-  g_mutex_clear (&priv->mutex);
+  g_mutex_clear (&self->mutex);
 
   G_OBJECT_CLASS (gum_exceptor_parent_class)->finalize (object);
 }
@@ -111,11 +105,11 @@ gum_exceptor_obtain (void)
 
   if (the_exceptor != NULL)
   {
-    exceptor = GUM_EXCEPTOR_CAST (g_object_ref (the_exceptor));
+    exceptor = g_object_ref (the_exceptor);
   }
   else
   {
-    the_exceptor = GUM_EXCEPTOR_CAST (g_object_new (GUM_TYPE_EXCEPTOR, NULL));
+    the_exceptor = g_object_new (GUM_TYPE_EXCEPTOR, NULL);
     g_object_weak_ref (G_OBJECT (the_exceptor), the_exceptor_weak_notify, NULL);
 
     exceptor = the_exceptor;
@@ -130,8 +124,6 @@ static void
 the_exceptor_weak_notify (gpointer data,
                           GObject * where_the_object_was)
 {
-  (void) data;
-
   G_LOCK (the_exceptor);
 
   g_assert (the_exceptor == (GumExceptor *) where_the_object_was);
@@ -145,7 +137,6 @@ gum_exceptor_add (GumExceptor * self,
                   GumExceptionHandler func,
                   gpointer user_data)
 {
-  GumExceptorPrivate * priv = self->priv;
   GumExceptionHandlerEntry * entry;
 
   entry = g_slice_new (GumExceptionHandlerEntry);
@@ -153,7 +144,7 @@ gum_exceptor_add (GumExceptor * self,
   entry->user_data = user_data;
 
   GUM_EXCEPTOR_LOCK ();
-  priv->handlers = g_slist_append (priv->handlers, entry);
+  self->handlers = g_slist_append (self->handlers, entry);
   GUM_EXCEPTOR_UNLOCK ();
 }
 
@@ -162,13 +153,12 @@ gum_exceptor_remove (GumExceptor * self,
                      GumExceptionHandler func,
                      gpointer user_data)
 {
-  GumExceptorPrivate * priv = self->priv;
   GumExceptionHandlerEntry * matching_entry;
   GSList * cur;
 
   GUM_EXCEPTOR_LOCK ();
 
-  for (matching_entry = NULL, cur = priv->handlers;
+  for (matching_entry = NULL, cur = self->handlers;
       matching_entry == NULL && cur != NULL;
       cur = cur->next)
   {
@@ -180,7 +170,7 @@ gum_exceptor_remove (GumExceptor * self,
 
   g_assert (matching_entry != NULL);
 
-  priv->handlers = g_slist_remove (priv->handlers, matching_entry);
+  self->handlers = g_slist_remove (self->handlers, matching_entry);
 
   GUM_EXCEPTOR_UNLOCK ();
 
@@ -191,7 +181,6 @@ static gboolean
 gum_exceptor_handle_exception (GumExceptionDetails * details,
                                GumExceptor * self)
 {
-  GumExceptorPrivate * priv = self->priv;
   gboolean handled = FALSE;
   GSList * invoked = NULL;
   GumExceptionHandlerEntry e;
@@ -204,7 +193,7 @@ gum_exceptor_handle_exception (GumExceptionDetails * details,
     e.user_data = NULL;
 
     GUM_EXCEPTOR_LOCK ();
-    for (cur = priv->handlers; e.func == NULL && cur != NULL; cur = cur->next)
+    for (cur = self->handlers; e.func == NULL && cur != NULL; cur = cur->next)
     {
       GumExceptionHandlerEntry * entry = (GumExceptionHandlerEntry *) cur->data;
 
@@ -230,7 +219,6 @@ void
 _gum_exceptor_prepare_try (GumExceptor * self,
                            GumExceptorScope * scope)
 {
-  GumExceptorPrivate * priv = self->priv;
   gpointer thread_id_key;
 
   thread_id_key = GSIZE_TO_POINTER (gum_process_get_current_thread_id ());
@@ -242,8 +230,8 @@ _gum_exceptor_prepare_try (GumExceptor * self,
 #endif
 
   GUM_EXCEPTOR_LOCK ();
-  scope->next = g_hash_table_lookup (priv->scopes, thread_id_key);
-  g_hash_table_insert (priv->scopes, thread_id_key, scope);
+  scope->next = g_hash_table_lookup (self->scopes, thread_id_key);
+  g_hash_table_insert (self->scopes, thread_id_key, scope);
   GUM_EXCEPTOR_UNLOCK ();
 }
 
@@ -251,13 +239,12 @@ gboolean
 gum_exceptor_catch (GumExceptor * self,
                     GumExceptorScope * scope)
 {
-  GumExceptorPrivate * priv = self->priv;
   gpointer thread_id_key;
 
   thread_id_key = GSIZE_TO_POINTER (gum_process_get_current_thread_id ());
 
   GUM_EXCEPTOR_LOCK ();
-  g_hash_table_insert (priv->scopes, thread_id_key, scope->next);
+  g_hash_table_insert (self->scopes, thread_id_key, scope->next);
   GUM_EXCEPTOR_UNLOCK ();
 
   return scope->exception_occurred;
@@ -316,13 +303,12 @@ static gboolean
 gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
                                      gpointer user_data)
 {
-  GumExceptor * self = GUM_EXCEPTOR_CAST (user_data);
-  GumExceptorPrivate * priv = self->priv;
+  GumExceptor * self = GUM_EXCEPTOR (user_data);
   GumExceptorScope * scope;
   GumCpuContext * context = &details->context;
 
   GUM_EXCEPTOR_LOCK ();
-  scope = g_hash_table_lookup (priv->scopes,
+  scope = g_hash_table_lookup (self->scopes,
       GSIZE_TO_POINTER (details->thread_id));
   GUM_EXCEPTOR_UNLOCK ();
   if (scope == NULL)

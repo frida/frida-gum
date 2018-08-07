@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -387,9 +387,6 @@ gumjs_module_from_args (const GumDukArgs * args)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_interceptor_construct)
 {
-  (void) ctx;
-  (void) args;
-
   return 0;
 }
 
@@ -491,8 +488,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_detach_all)
 {
   GumDukInterceptor * self = gumjs_module_from_args (args);
 
-  (void) ctx;
-
   g_hash_table_remove_all (self->invocation_listeners);
 
   return 0;
@@ -571,8 +566,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_revert)
   GumDukInterceptor * self;
   gpointer target;
 
-  (void) ctx;
-
   self = gumjs_module_from_args (args);
 
   _gum_duk_args_parse (args, "p", &target);
@@ -586,8 +579,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_flush)
 {
   GumDukInterceptor * self;
 
-  (void) ctx;
-
   self = gumjs_module_from_args (args);
 
   gum_interceptor_end_transaction (self->interceptor);
@@ -598,9 +589,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_flush)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_invocation_listener_construct)
 {
-  (void) ctx;
-  (void) args;
-
   return 0;
 }
 
@@ -757,9 +745,7 @@ static void
 gum_duk_call_listener_iface_init (gpointer g_iface,
                                   gpointer iface_data)
 {
-  GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
-
-  (void) iface_data;
+  GumInvocationListenerInterface * iface = g_iface;
 
   iface->on_enter = gum_duk_invocation_listener_on_enter;
   iface->on_leave = gum_duk_invocation_listener_on_leave;
@@ -768,7 +754,6 @@ gum_duk_call_listener_iface_init (gpointer g_iface,
 static void
 gum_duk_call_listener_init (GumDukCallListener * self)
 {
-  (void) self;
 }
 
 static void
@@ -793,9 +778,7 @@ static void
 gum_duk_probe_listener_iface_init (gpointer g_iface,
                                    gpointer iface_data)
 {
-  GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
-
-  (void) iface_data;
+  GumInvocationListenerInterface * iface = g_iface;
 
   iface->on_enter = gum_duk_invocation_listener_on_enter;
   iface->on_leave = NULL;
@@ -804,7 +787,6 @@ gum_duk_probe_listener_iface_init (gpointer g_iface,
 static void
 gum_duk_probe_listener_init (GumDukProbeListener * self)
 {
-  (void) self;
 }
 
 static void
@@ -892,9 +874,6 @@ gumjs_invocation_context_from_args (const GumDukArgs * args)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_invocation_context_construct)
 {
-  (void) ctx;
-  (void) args;
-
   return 0;
 }
 
@@ -950,8 +929,6 @@ GUMJS_DEFINE_SETTER (gumjs_invocation_context_set_system_error)
   GumDukInvocationContext * self;
   gint value;
 
-  (void) ctx;
-
   self = gumjs_invocation_context_from_args (args);
 
   _gum_duk_args_parse (args, "i", &value);
@@ -982,8 +959,6 @@ GUMJS_DEFINE_SETTER (gumjs_invocation_context_set_property)
   GumDukInvocationContext * self;
   GumDukHeapPtr receiver;
   GumDukInterceptor * interceptor;
-
-  (void) args;
 
   self = _gum_duk_require_data (ctx, 0);
   receiver = duk_require_heapptr (ctx, 3);
@@ -1057,8 +1032,6 @@ gumjs_invocation_args_require_context (duk_context * ctx,
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_invocation_args_construct)
 {
-  (void) args;
-
   duk_push_this (ctx);
   _gum_duk_push_proxy (ctx, -1, gumjs_invocation_args_get_property,
       gumjs_invocation_args_set_property);
@@ -1169,9 +1142,6 @@ gum_duk_invocation_return_value_reset (GumDukInvocationReturnValue * self,
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_invocation_return_value_construct)
 {
-  (void) ctx;
-  (void) args;
-
   return 0;
 }
 

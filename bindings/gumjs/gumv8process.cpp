@@ -119,7 +119,6 @@ _gum_v8_process_init (GumV8Process * self,
 void
 _gum_v8_process_realize (GumV8Process * self)
 {
-  (void) self;
 }
 
 void
@@ -137,50 +136,18 @@ _gum_v8_process_dispose (GumV8Process * self)
 void
 _gum_v8_process_finalize (GumV8Process * self)
 {
-  (void) self;
 }
 
-/*
- * Prototype:
- * Process.isDebuggerAttached()
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_process_is_debugger_attached)
 {
   info.GetReturnValue ().Set (!!gum_process_is_debugger_attached ());
 }
 
-/*
- * Prototype:
- * Process.getCurrentThreadId()
- *
- * Docs:
- * Returns the current thread ID as an unsigned 32-bit integer.
- *
- * Example:
- * -> Process.getCurrentThreadId()
- * 3075
- */
 GUMJS_DEFINE_FUNCTION (gumjs_process_get_current_thread_id)
 {
   info.GetReturnValue ().Set ((uint32_t) gum_process_get_current_thread_id ());
 }
 
-/*
- * Prototype:
- * Process.enumerateThreads(callback)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_threads)
 {
   GumV8MatchContext mc;
@@ -232,16 +199,6 @@ gum_emit_thread (const GumThreadDetails * details,
   return proceed;
 }
 
-/*
- * Prototype:
- * Process.enumerateModules(callback)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_modules)
 {
   GumV8MatchContext mc;
@@ -285,16 +242,6 @@ gum_emit_module (const GumModuleDetails * details,
   return proceed;
 }
 
-/*
- * Prototype:
- * Process._enumerateRanges(prot, callback)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_ranges)
 {
   GumPageProtection prot;
@@ -352,17 +299,6 @@ gum_emit_range (const GumRangeDetails * details,
 
   return proceed;
 }
-
-/*
- * Prototype:
- * Process.enumerateMallocRanges(callback)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 
 #if defined (G_OS_WIN32) || defined (HAVE_DARWIN)
 
@@ -426,16 +362,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
 
 #endif
 
-/*
- * Prototype:
- * Process.setExceptionHandler(callback)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_process_set_exception_handler)
 {
   Local<Function> callback;

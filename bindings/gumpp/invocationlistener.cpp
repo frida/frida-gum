@@ -65,12 +65,11 @@ namespace Gum
                           G_TYPE_OBJECT,
                           0,
                           G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
-                              gum_invocation_listener_proxy_iface_init));
+                              gum_invocation_listener_proxy_iface_init))
 
   static void
   gum_invocation_listener_proxy_init (GumInvocationListenerProxy * self)
   {
-    (void) self;
   }
 
   static void
@@ -107,9 +106,8 @@ namespace Gum
   gum_invocation_listener_proxy_iface_init (gpointer g_iface,
                                             gpointer iface_data)
   {
-    GumInvocationListenerIface * iface = static_cast<GumInvocationListenerIface *> (g_iface);
-
-    (void) iface_data;
+    GumInvocationListenerInterface * iface =
+        static_cast<GumInvocationListenerInterface *> (g_iface);
 
     iface->on_enter = gum_invocation_listener_proxy_on_enter;
     iface->on_leave = gum_invocation_listener_proxy_on_leave;

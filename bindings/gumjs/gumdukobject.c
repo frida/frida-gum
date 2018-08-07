@@ -120,8 +120,6 @@ GUMJS_DEFINE_FINALIZER (gumjs_object_finalize)
 {
   GumDukObject * self;
 
-  (void) args;
-
   self = _gum_duk_steal_data (ctx, 0);
   if (self == NULL)
     return 0;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -34,6 +34,5 @@ static void
 test_sampler_fixture_teardown (TestSamplerFixture * fixture,
                                gconstpointer data)
 {
-  if (fixture->sampler != NULL)
-    g_object_unref (fixture->sampler);
+  g_clear_object (&fixture->sampler);
 }

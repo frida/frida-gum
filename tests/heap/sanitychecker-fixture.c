@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -64,9 +64,6 @@ static void test_sanity_checker_fixture_do_cleanup (
     TestSanityCheckerFixture * fixture);
 static void test_sanity_checker_fixture_do_output (const gchar * text,
     gpointer user_data);
-
-static void forget_block (gpointer * block);
-static void forget_object (gpointer object);
 
 static void
 test_sanity_checker_fixture_setup (TestSanityCheckerFixture * fixture,
@@ -151,24 +148,24 @@ simulation (gpointer user_data)
   if ((fixture->leak_flags & (LEAK_FIRST_PONY | LEAK_SECOND_PONY |
       LEAK_FIRST_ZEBRA | LEAK_SECOND_ZEBRA)) != 0)
   {
-    fixture->first_pony = MY_PONY (g_object_new (MY_TYPE_PONY, NULL));
-    fixture->second_pony = MY_PONY (g_object_new (MY_TYPE_PONY, NULL));
+    fixture->first_pony = g_object_new (MY_TYPE_PONY, NULL);
+    fixture->second_pony = g_object_new (MY_TYPE_PONY, NULL);
     g_object_ref (fixture->second_pony);
-    fixture->first_zebra = ZOO_ZEBRA (g_object_new (ZOO_TYPE_ZEBRA, NULL));
-    fixture->second_zebra = ZOO_ZEBRA (g_object_new (ZOO_TYPE_ZEBRA, NULL));
+    fixture->first_zebra = g_object_new (ZOO_TYPE_ZEBRA, NULL);
+    fixture->second_zebra = g_object_new (ZOO_TYPE_ZEBRA, NULL);
 
     if ((fixture->leak_flags & LEAK_FIRST_PONY) == 0)
-      forget_object (&fixture->first_pony);
+      g_clear_object (&fixture->first_pony);
     if ((fixture->leak_flags & LEAK_SECOND_PONY) == 0)
     {
       g_object_unref (fixture->second_pony);
-      forget_object (&fixture->second_pony);
+      g_clear_object (&fixture->second_pony);
     }
 
     if ((fixture->leak_flags & LEAK_FIRST_ZEBRA) == 0)
-      forget_object (&fixture->first_zebra);
+      g_clear_object (&fixture->first_zebra);
     if ((fixture->leak_flags & LEAK_SECOND_ZEBRA) == 0)
-      forget_object (&fixture->second_zebra);
+      g_clear_object (&fixture->second_zebra);
   }
 
   if ((fixture->leak_flags & (LEAK_FIRST_BLOCK | LEAK_SECOND_BLOCK |
@@ -182,11 +179,11 @@ simulation (gpointer user_data)
     free (malloc (42));
 
     if ((fixture->leak_flags & LEAK_FIRST_BLOCK) == 0)
-      forget_block (&fixture->first_block);
+      g_clear_pointer (&fixture->first_block, free);
     if ((fixture->leak_flags & LEAK_SECOND_BLOCK) == 0)
-      forget_block (&fixture->second_block);
+      g_clear_pointer (&fixture->second_block, free);
     if ((fixture->leak_flags & LEAK_THIRD_BLOCK) == 0)
-      forget_block (&fixture->third_block);
+      g_clear_pointer (&fixture->third_block, free);
   }
 
   if ((fixture->leak_flags & LEAK_GPARAM_ONCE) != 0 &&
@@ -208,18 +205,14 @@ test_sanity_checker_fixture_do_cleanup (TestSanityCheckerFixture * fixture)
     fixture->pspec = NULL;
   }
 
-  forget_block (&fixture->first_block);
-  forget_block (&fixture->second_block);
-  forget_block (&fixture->third_block);
+  g_clear_pointer (&fixture->first_block, free);
+  g_clear_pointer (&fixture->second_block, free);
+  g_clear_pointer (&fixture->third_block, free);
 
-  forget_object (&fixture->first_pony);
-  if (fixture->second_pony != NULL)
-  {
-    g_object_unref (fixture->second_pony);
-    forget_object (&fixture->second_pony);
-  }
-  forget_object (&fixture->first_zebra);
-  forget_object (&fixture->second_zebra);
+  g_clear_object (&fixture->first_pony);
+  g_clear_object (&fixture->second_pony);
+  g_clear_object (&fixture->first_zebra);
+  g_clear_object (&fixture->second_zebra);
 }
 
 static void
@@ -230,25 +223,6 @@ test_sanity_checker_fixture_do_output (const gchar * text,
 
   fixture->output_call_count++;
   g_string_append (fixture->output, text);
-}
-
-static void
-forget_block (gpointer * block)
-{
-  free (*block);
-  *block = NULL;
-}
-
-static void
-forget_object (gpointer object)
-{
-  gpointer * ptr = (gpointer *) object;
-
-  if (*ptr != NULL)
-  {
-    g_object_unref (*ptr);
-    *ptr = NULL;
-  }
 }
 
 #endif /* G_OS_WIN32 */

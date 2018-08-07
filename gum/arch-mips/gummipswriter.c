@@ -755,8 +755,6 @@ gum_mips_writer_describe_reg (GumMipsWriter * self,
                               mips_reg reg,
                               GumMipsRegInfo * ri)
 {
-  (void) self;
-
   if (reg >= MIPS_REG_0 && reg <= MIPS_REG_31)
   {
     ri->meta = GUM_MREG_R0 + (reg - MIPS_REG_0);

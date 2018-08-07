@@ -206,7 +206,6 @@ _gum_duk_socket_dispose (GumDukSocket * self)
 void
 _gum_duk_socket_finalize (GumDukSocket * self)
 {
-  (void) self;
 }
 
 static GumDukSocket *
@@ -217,9 +216,6 @@ gumjs_module_from_args (const GumDukArgs * args)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_socket_construct)
 {
-  (void) ctx;
-  (void) args;
-
   return 0;
 }
 
@@ -296,9 +292,9 @@ gum_duk_listen_operation_perform (GumDukListenOperation * self)
   GumDukScope scope;
   duk_context * ctx;
 
-  listener = G_SOCKET_LISTENER (g_object_new (G_TYPE_SOCKET_LISTENER,
+  listener = g_object_new (G_TYPE_SOCKET_LISTENER,
       "listen-backlog", self->backlog,
-      NULL));
+      NULL);
 
   if (self->address != NULL)
   {
@@ -423,9 +419,9 @@ gum_duk_connect_operation_start (GumDukConnectOperation * self)
 {
   GumDukModuleOperation * op = GUM_DUK_MODULE_OPERATION (self);
 
-  self->client = G_SOCKET_CLIENT (g_object_new (G_TYPE_SOCKET_CLIENT,
+  self->client = g_object_new (G_TYPE_SOCKET_CLIENT,
       "family", self->family,
-      NULL));
+      NULL);
 
   if (self->connectable != NULL)
   {
@@ -636,8 +632,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_listener_close)
   GumDukHeapPtr callback;
   GumDukCloseListenerOperation * op;
 
-  (void) ctx;
-
   self = _gum_duk_object_get (args);
 
   _gum_duk_args_parse (args, "F", &callback);
@@ -676,8 +670,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_listener_accept)
   GumDukObject * self;
   GumDukHeapPtr callback;
   GumDukAcceptOperation * op;
-
-  (void) ctx;
 
   self = _gum_duk_object_get (args);
 
@@ -769,8 +761,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_connection_set_no_delay)
   gboolean no_delay;
   GumDukHeapPtr callback;
   GumDukSetNoDelayOperation * op;
-
-  (void) ctx;
 
   self = _gum_duk_object_get (args);
 
@@ -890,8 +880,6 @@ gumjs_socket_address_to_value (duk_context * ctx,
                                GumDukCore * core)
 {
   GumDukHeapPtr result;
-
-  (void) core;
 
   switch (addr->sa_family)
   {
