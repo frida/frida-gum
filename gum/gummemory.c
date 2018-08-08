@@ -581,7 +581,7 @@ gum_match_token_free (GumMatchToken * token)
 {
   g_array_free (token->bytes, TRUE);
   if (token->masks != NULL)
-    g_array_free (token->bytes, TRUE);
+    g_array_free (token->masks, TRUE);
   g_slice_free (GumMatchToken, token);
 }
 
