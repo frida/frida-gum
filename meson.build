@@ -201,7 +201,7 @@ if get_option('enable_gumjs')
     enable_diet = enable_diet_value == 'yes'
   endif
   if not enable_diet
-    v8_dep = dependency('v8', version: '>=6.0.124', required: false)
+    v8_dep = dependency('v8', version: '>=7.0.110', required: false)
     have_v8 = v8_dep.found()
   else
     have_v8 = false
