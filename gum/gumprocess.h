@@ -12,6 +12,7 @@
 #define GUM_TYPE_CODE_SIGNING_POLICY (gum_code_signing_policy_get_type ())
 
 typedef guint GumCodeSigningPolicy;
+typedef guint GumProcessId;
 typedef gsize GumThreadId;
 typedef guint GumThreadState;
 typedef struct _GumThreadDetails GumThreadDetails;
@@ -162,6 +163,7 @@ GUM_API GumOS gum_process_get_native_os (void);
 GUM_API GumCodeSigningPolicy gum_process_get_code_signing_policy (void);
 GUM_API void gum_process_set_code_signing_policy (GumCodeSigningPolicy policy);
 GUM_API gboolean gum_process_is_debugger_attached (void);
+GUM_API GumProcessId gum_process_get_id (void);
 GUM_API GumThreadId gum_process_get_current_thread_id (void);
 GUM_API gboolean gum_process_modify_thread (GumThreadId thread_id,
     GumModifyThreadFunc func, gpointer user_data);

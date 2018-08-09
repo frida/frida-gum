@@ -300,6 +300,12 @@ gum_process_is_debugger_attached (void)
   return result;
 }
 
+GumProcessId
+gum_process_get_id (void)
+{
+  return getpid ();
+}
+
 GumThreadId
 gum_process_get_current_thread_id (void)
 {

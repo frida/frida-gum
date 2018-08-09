@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -34,6 +34,12 @@ gboolean
 gum_process_is_debugger_attached (void)
 {
   return IsDebuggerPresent ();
+}
+
+GumProcessId
+gum_process_get_id (void)
+{
+  return GetCurrentProcessId ();
 }
 
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4

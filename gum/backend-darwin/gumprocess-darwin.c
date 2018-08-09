@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -20,6 +20,7 @@
 #include <malloc/malloc.h>
 #include <pthread.h>
 #include <sys/sysctl.h>
+#include <unistd.h>
 
 #define GUM_PSR_THUMB 0x20
 #define MAX_MACH_HEADER_SIZE (64 * 1024)
@@ -319,6 +320,12 @@ gum_process_is_debugger_attached (void)
   g_assert_cmpint (result, ==, 0);
 
   return (info.kp_proc.p_flag & P_TRACED) != 0;
+}
+
+GumProcessId
+gum_process_get_id (void)
+{
+  return getpid ();
 }
 
 GumThreadId

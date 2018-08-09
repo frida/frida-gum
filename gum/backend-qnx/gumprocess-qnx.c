@@ -23,6 +23,7 @@
 #include <sys/states.h>
 #include <sys/types.h>
 #include <ucontext.h>
+#include <unistd.h>
 
 #define GUM_PSR_THUMB 0x20
 
@@ -94,6 +95,12 @@ gboolean
 gum_process_is_debugger_attached (void)
 {
   g_assert_not_reached ();
+}
+
+GumProcessId
+gum_process_get_id (void)
+{
+  return getpid ();
 }
 
 GumThreadId
