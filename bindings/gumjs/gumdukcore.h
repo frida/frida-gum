@@ -61,7 +61,7 @@ struct _GumDukCore
   duk_context * heap_ctx;
   GumDukScope * current_scope;
 
-  GRecMutex mutex;
+  GRecMutex * mutex;
   volatile guint usage_count;
   volatile guint mutex_depth;
   volatile gboolean heap_thread_in_use;
@@ -167,7 +167,7 @@ struct _GumDukNativeResource
 };
 
 G_GNUC_INTERNAL void _gum_duk_core_init (GumDukCore * self,
-    GumDukScript * script, const gchar * runtime_source_map,
+    GumDukScript * script, GRecMutex * mutex, const gchar * runtime_source_map,
     GumDukInterceptor * interceptor, GumDukStalker * stalker,
     GumDukMessageEmitter message_emitter, GumScriptScheduler * scheduler,
     duk_context * ctx);

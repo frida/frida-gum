@@ -2277,8 +2277,6 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
   auto isolate = core->isolate;
   gsize num_args_required = self->cif.nargs;
   gsize num_args_provided = (argv != nullptr) ? argc : info.Length ();
-  GumExceptorScope scope;
-  gint system_error = -1;
 
   if (num_args_provided != num_args_required)
   {
@@ -2329,43 +2327,44 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
     avalue = NULL;
   }
 
-  GumV8ExceptionsBehavior exceptions = self->exceptions;
-  GumV8ReturnValueShape return_shape = self->return_shape;
+  auto scheduling = self->scheduling;
+  auto exceptions = self->exceptions;
+  auto return_shape = self->return_shape;
+  GumExceptorScope exceptor_scope;
+  gint system_error = -1;
 
-  if (self->scheduling == GUM_V8_SCHEDULING_COOPERATIVE)
   {
-    GumInterceptor * interceptor = core->script->interceptor.interceptor;
-    ScriptUnlocker unlocker (core);
-
-    gum_interceptor_unignore_current_thread (interceptor);
+    auto unlocker = (ScriptUnlocker *) g_alloca (sizeof (ScriptUnlocker));
+    auto interceptor = core->script->interceptor.interceptor;
 
     if (exceptions == GUM_V8_EXCEPTIONS_PROPAGATE ||
-        gum_exceptor_try (core->exceptor, &scope))
+        gum_exceptor_try (core->exceptor, &exceptor_scope))
     {
+      if (scheduling == GUM_V8_SCHEDULING_COOPERATIVE)
+      {
+        new (unlocker) ScriptUnlocker (core);
+
+        gum_interceptor_unignore_current_thread (interceptor);
+      }
+
       ffi_call (&self->cif, FFI_FN (implementation), rvalue, avalue);
 
       if (return_shape == GUM_V8_RETURN_DETAILED)
         system_error = gum_thread_get_system_error ();
     }
 
-    gum_interceptor_ignore_current_thread (interceptor);
-  }
-  else
-  {
-    if (exceptions == GUM_V8_EXCEPTIONS_PROPAGATE ||
-        gum_exceptor_try (core->exceptor, &scope))
+    if (scheduling == GUM_V8_SCHEDULING_COOPERATIVE)
     {
-      ffi_call (&self->cif, FFI_FN (implementation), rvalue, avalue);
+      gum_interceptor_ignore_current_thread (interceptor);
 
-      if (return_shape == GUM_V8_RETURN_DETAILED)
-        system_error = gum_thread_get_system_error ();
+      unlocker->~ScriptUnlocker ();
     }
   }
 
   if (exceptions == GUM_V8_EXCEPTIONS_STEAL &&
-      gum_exceptor_catch (core->exceptor, &scope))
+      gum_exceptor_catch (core->exceptor, &exceptor_scope))
   {
-    _gum_v8_throw_native (&scope.exception, core);
+    _gum_v8_throw_native (&exceptor_scope.exception, core);
     return;
   }
 

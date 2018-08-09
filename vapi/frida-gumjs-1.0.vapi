@@ -9,6 +9,7 @@ namespace Gum {
 	[CCode (cheader_filename = "gumjs/gumscriptbackend.h", type_cname = "GumScriptBackendInterface")]
 	public interface ScriptBackend : GLib.Object {
 		public delegate void DebugMessageHandler (string message);
+		public delegate void LockedFunc ();
 
 		public static unowned ScriptBackend obtain ();
 		public static unowned ScriptBackend obtain_v8 ();
@@ -26,6 +27,9 @@ namespace Gum {
 		public void post_debug_message (string message);
 
 		public unowned ScriptScheduler get_scheduler ();
+
+		public void with_lock_held (Gum.ScriptBackend.LockedFunc func);
+		public bool is_locked ();
 	}
 
 	[CCode (cheader_filename = "gumjs/gumscript.h", type_cname = "GumScriptInterface")]

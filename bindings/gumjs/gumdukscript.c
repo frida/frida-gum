@@ -448,9 +448,11 @@ gum_duk_script_create_context (GumDukScript * self,
 
   self->ctx = ctx;
 
-  _gum_duk_core_init (core, self, gumjs_frida_source_map, &self->interceptor,
-      &self->stalker, gum_duk_script_emit,
-      gum_duk_script_backend_get_scheduler (self->backend), self->ctx);
+  _gum_duk_core_init (core, self,
+      gum_duk_script_backend_get_scope_mutex (self->backend),
+      gumjs_frida_source_map, &self->interceptor, &self->stalker,
+      gum_duk_script_emit, gum_duk_script_backend_get_scheduler (self->backend),
+      self->ctx);
 
   scope.ctx = self->ctx;
   core->current_scope = &scope;
