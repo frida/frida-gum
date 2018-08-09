@@ -224,6 +224,20 @@ gum_script_backend_post_debug_message (GumScriptBackend * self,
   GUM_SCRIPT_BACKEND_GET_IFACE (self)->post_debug_message (self, message);
 }
 
+void
+gum_script_backend_with_lock_held (GumScriptBackend * self,
+                                   GumScriptBackendLockedFunc func,
+                                   gpointer user_data)
+{
+  GUM_SCRIPT_BACKEND_GET_IFACE (self)->with_lock_held (self, func, user_data);
+}
+
+gboolean
+gum_script_backend_is_locked (GumScriptBackend * self)
+{
+  return GUM_SCRIPT_BACKEND_GET_IFACE (self)->is_locked (self);
+}
+
 GumScriptScheduler *
 gum_script_backend_get_scheduler (GumScriptBackend * self)
 {

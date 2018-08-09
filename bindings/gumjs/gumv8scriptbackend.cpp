@@ -221,6 +221,10 @@ static gboolean gum_v8_script_backend_do_emit_debug_message (
     GumEmitDebugMessageData * d);
 static void gum_emit_debug_message_data_free (GumEmitDebugMessageData * d);
 
+static void gum_v8_script_backend_with_lock_held (GumScriptBackend * backend,
+    GumScriptBackendLockedFunc func, gpointer user_data);
+static gboolean gum_v8_script_backend_is_locked (GumScriptBackend * backend);
+
 static GumScriptScheduler * gum_v8_script_backend_get_scheduler_impl (
     GumScriptBackend * backend);
 
@@ -278,6 +282,9 @@ gum_v8_script_backend_iface_init (gpointer g_iface,
   iface->set_debug_message_handler =
       gum_v8_script_backend_set_debug_message_handler;
   iface->post_debug_message = gum_v8_script_backend_post_debug_message;
+
+  iface->with_lock_held = gum_v8_script_backend_with_lock_held;
+  iface->is_locked = gum_v8_script_backend_is_locked;
 
   iface->get_scheduler = gum_v8_script_backend_get_scheduler_impl;
 }
@@ -894,6 +901,30 @@ gum_emit_debug_message_data_free (GumEmitDebugMessageData * d)
   g_object_unref (d->backend);
 
   g_slice_free (GumEmitDebugMessageData, d);
+}
+
+static void
+gum_v8_script_backend_with_lock_held (GumScriptBackend * backend,
+                                      GumScriptBackendLockedFunc func,
+                                      gpointer user_data)
+{
+  auto self = GUM_V8_SCRIPT_BACKEND (backend);
+  auto isolate = GUM_V8_SCRIPT_BACKEND_GET_ISOLATE (self);
+
+  {
+    Locker locker (isolate);
+
+    func (user_data);
+  }
+}
+
+static gboolean
+gum_v8_script_backend_is_locked (GumScriptBackend * backend)
+{
+  auto self = GUM_V8_SCRIPT_BACKEND (backend);
+  auto isolate = GUM_V8_SCRIPT_BACKEND_GET_ISOLATE (self);
+
+  return Locker::IsLockedByAnyThread (isolate);
 }
 
 static GumScriptScheduler *

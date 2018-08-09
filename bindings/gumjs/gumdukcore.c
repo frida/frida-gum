@@ -750,6 +750,7 @@ static const duk_function_list_entry gumjs_source_map_functions[] =
 void
 _gum_duk_core_init (GumDukCore * self,
                     GumDukScript * script,
+                    GRecMutex * mutex,
                     const gchar * runtime_source_map,
                     GumDukInterceptor * interceptor,
                     GumDukStalker * stalker,
@@ -772,7 +773,7 @@ _gum_duk_core_init (GumDukCore * self,
   self->heap_ctx = ctx;
   self->current_scope = NULL;
 
-  g_rec_mutex_init (&self->mutex);
+  self->mutex = mutex;
   self->usage_count = 0;
   self->mutex_depth = 0;
   self->heap_thread_in_use = FALSE;
@@ -1064,8 +1065,6 @@ _gum_duk_core_finalize (GumDukCore * self)
   g_mutex_clear (&self->event_mutex);
   g_cond_clear (&self->event_cond);
 
-  g_rec_mutex_clear (&self->mutex);
-
   g_assert (self->current_scope == NULL);
   self->heap_ctx = NULL;
 }
@@ -1134,9 +1133,9 @@ _gum_duk_scope_enter (GumDukScope * self,
 
   self->core = core;
 
-  gum_interceptor_begin_transaction (core->interceptor->interceptor);
+  g_rec_mutex_lock (core->mutex);
 
-  g_rec_mutex_lock (&core->mutex);
+  gum_interceptor_begin_transaction (core->interceptor->interceptor);
 
   _gum_duk_core_pin (core);
   core->mutex_depth++;
@@ -1202,7 +1201,7 @@ _gum_duk_scope_suspend (GumDukScope * self)
   core->mutex_depth = 0;
 
   for (i = 0; i != self->previous_mutex_depth; i++)
-    g_rec_mutex_unlock (&core->mutex);
+    g_rec_mutex_unlock (core->mutex);
 }
 
 void
@@ -1212,7 +1211,7 @@ _gum_duk_scope_resume (GumDukScope * self)
   guint i;
 
   for (i = 0; i != self->previous_mutex_depth; i++)
-    g_rec_mutex_lock (&core->mutex);
+    g_rec_mutex_lock (core->mutex);
 
   g_assert (core->current_scope == NULL);
   core->current_scope = g_steal_pointer (&self->previous_scope);
@@ -1356,9 +1355,9 @@ _gum_duk_scope_leave (GumDukScope * self)
     core->flush_notify = NULL;
   }
 
-  g_rec_mutex_unlock (&core->mutex);
-
   gum_interceptor_end_transaction (self->core->interceptor->interceptor);
+
+  g_rec_mutex_unlock (core->mutex);
 
   if (pending_flush_notify != NULL)
     gum_duk_core_notify_flushed (core, pending_flush_notify);
@@ -1785,14 +1784,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_gc)
 GUMJS_DEFINE_FUNCTION (gumjs_send)
 {
   GumDukCore * self = args->core;
-  GumDukScope scope = GUM_DUK_SCOPE_INIT (self);
   GumInterceptor * interceptor = self->interceptor->interceptor;
   const gchar * message;
   GBytes * data;
 
   _gum_duk_args_parse (args, "sB?", &message, &data);
-
-  _gum_duk_scope_suspend (&scope);
 
   /*
    * Synchronize Interceptor state before sending the message. The application
@@ -1806,8 +1802,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_send)
   self->message_emitter (self->script, message, data);
 
   g_bytes_unref (data);
-
-  _gum_duk_scope_resume (&scope);
 
   return 0;
 }
@@ -2839,7 +2833,7 @@ gum_duk_native_function_invoke (GumDukNativeFunction * self,
   GumDukExceptionsBehavior exceptions;
   GumDukReturnValueShape return_shape;
   GumExceptorScope exceptor_scope;
-  gint system_error = -1;
+  gint system_error;
 
   core = self->core;
   nargs = self->cif.nargs;
@@ -2891,21 +2885,22 @@ gum_duk_native_function_invoke (GumDukNativeFunction * self,
   scheduling = self->scheduling;
   exceptions = self->exceptions;
   return_shape = self->return_shape;
+  system_error = -1;
 
   {
     GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
     GumInterceptor * interceptor = core->interceptor->interceptor;
 
-    if (scheduling == GUM_DUK_SCHEDULING_COOPERATIVE)
-    {
-      _gum_duk_scope_suspend (&scope);
-
-      gum_interceptor_unignore_current_thread (interceptor);
-    }
-
     if (exceptions == GUM_DUK_EXCEPTIONS_PROPAGATE ||
         gum_exceptor_try (core->exceptor, &exceptor_scope))
     {
+      if (scheduling == GUM_DUK_SCHEDULING_COOPERATIVE)
+      {
+        _gum_duk_scope_suspend (&scope);
+
+        gum_interceptor_unignore_current_thread (interceptor);
+      }
+
       ffi_call (&self->cif, implementation, rvalue, avalue);
 
       if (return_shape == GUM_DUK_RETURN_DETAILED)
