@@ -274,6 +274,9 @@ gum_code_segment_try_realize (GumCodeSegment * self)
 
   self->fd = gum_file_open_tmp ("frida-XXXXXX.dylib", &dylib_path);
 
+  if (self->fd == -1)
+    return FALSE;
+
   unlink (dylib_path);
 
   gum_code_segment_compute_layout (self, &layout);
@@ -572,7 +575,6 @@ gum_file_open_tmp (const gchar * tmpl,
     g_free (path);
     path = g_build_filename ("/Library/Caches", tmpl, NULL);
     res = mkstemps (path, suffix_length);
-    g_assert (res != -1);
   }
 
   *name_used = path;
