@@ -719,6 +719,7 @@ _gum_duk_core_init (GumDukCore * self,
                     GumDukStalker * stalker,
                     GumDukMessageEmitter message_emitter,
                     GumScriptScheduler * scheduler,
+                    GRecMutex * mutex,
                     duk_context * ctx)
 {
   guint i;
@@ -736,7 +737,7 @@ _gum_duk_core_init (GumDukCore * self,
   self->heap_ctx = ctx;
   self->current_scope = NULL;
 
-  g_rec_mutex_init (&self->mutex);
+  self->mutex = mutex;
   self->usage_count = 0;
   self->mutex_depth = 0;
   self->heap_thread_in_use = FALSE;
@@ -1028,8 +1029,6 @@ _gum_duk_core_finalize (GumDukCore * self)
   g_mutex_clear (&self->event_mutex);
   g_cond_clear (&self->event_cond);
 
-  g_rec_mutex_clear (&self->mutex);
-
   g_assert (self->current_scope == NULL);
   self->heap_ctx = NULL;
 }
@@ -1100,7 +1099,7 @@ _gum_duk_scope_enter (GumDukScope * self,
 
   gum_interceptor_begin_transaction (core->interceptor->interceptor);
 
-  g_rec_mutex_lock (&core->mutex);
+  g_rec_mutex_lock (core->mutex);
 
   _gum_duk_core_pin (core);
   core->mutex_depth++;
@@ -1166,7 +1165,7 @@ _gum_duk_scope_suspend (GumDukScope * self)
   core->mutex_depth = 0;
 
   for (i = 0; i != self->previous_mutex_depth; i++)
-    g_rec_mutex_unlock (&core->mutex);
+    g_rec_mutex_unlock (core->mutex);
 }
 
 void
@@ -1176,7 +1175,7 @@ _gum_duk_scope_resume (GumDukScope * self)
   guint i;
 
   for (i = 0; i != self->previous_mutex_depth; i++)
-    g_rec_mutex_lock (&core->mutex);
+    g_rec_mutex_lock (core->mutex);
 
   g_assert (core->current_scope == NULL);
   core->current_scope = g_steal_pointer (&self->previous_scope);
@@ -1320,7 +1319,7 @@ _gum_duk_scope_leave (GumDukScope * self)
     core->flush_notify = NULL;
   }
 
-  g_rec_mutex_unlock (&core->mutex);
+  g_rec_mutex_unlock (core->mutex);
 
   gum_interceptor_end_transaction (self->core->interceptor->interceptor);
 
@@ -2420,13 +2419,14 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
 {
   GumDukCore * core = args->core;
   GumDukNativeFunctionParams params;
+  gboolean options_overload;
 
   if (!duk_is_constructor_call (ctx))
     _gum_duk_throw (ctx, "use `new NativeFunction()` to create a new instance");
 
   params.prototype = core->native_function_prototype;
-
   params.abi_name = NULL;
+
   _gum_duk_args_parse (args, "pVA|s", &params.implementation,
       &params.return_type, &params.argument_types, &params.abi_name);
 

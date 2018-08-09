@@ -30,6 +30,7 @@ struct _GumDukScriptBackend
   GObject parent;
 
   GMutex mutex;
+  GRecMutex scope_mutex;
   GHashTable * scripts;
   GumDukScriptId next_script_id;
 
@@ -192,6 +193,11 @@ static void * gum_duk_alloc (void * udata, duk_size_t size);
 static void * gum_duk_realloc (void * udata, void * ptr, duk_size_t size);
 static void gum_duk_free (void * udata, void * ptr);
 
+static void gum_duk_script_backend_run_locked_func (GumScriptBackend * backend,
+    GumScriptBackendLockedFunc func, gpointer data,
+    GDestroyNotify data_destroy);
+static gboolean gum_duk_script_backend_is_locked (GumScriptBackend * backend);
+
 G_DEFINE_TYPE_EXTENDED (GumDukScriptBackend,
                         gum_duk_script_backend,
                         G_TYPE_OBJECT,
@@ -231,12 +237,15 @@ gum_duk_script_backend_iface_init (gpointer g_iface,
   iface->post_debug_message = gum_duk_script_backend_post_debug_message;
 
   iface->get_scheduler = gum_duk_script_backend_get_scheduler_impl;
+  iface->run_locked_func = gum_duk_script_backend_run_locked_func;
+  iface->is_locked = gum_duk_script_backend_is_locked;
 }
 
 static void
 gum_duk_script_backend_init (GumDukScriptBackend * self)
 {
   g_mutex_init (&self->mutex);
+  g_rec_mutex_init (&self->scope_mutex);
 
   self->scripts = g_hash_table_new (NULL, NULL);
   self->next_script_id = 1;
@@ -272,6 +281,7 @@ gum_duk_script_backend_finalize (GObject * object)
   GumDukScriptBackend * self = GUM_DUK_SCRIPT_BACKEND (object);
 
   g_mutex_clear (&self->mutex);
+  g_rec_mutex_clear (&self->scope_mutex);
 
   G_OBJECT_CLASS (gum_duk_script_backend_parent_class)->finalize (object);
 }
@@ -382,6 +392,12 @@ gum_duk_script_backend_get_scheduler (GumDukScriptBackend * self)
   gum_script_scheduler_start (scheduler);
 
   return scheduler;
+}
+
+GRecMutex *
+gum_duk_script_backend_get_scope_mutex (GumDukScriptBackend * self)
+{
+  return &self->scope_mutex;
 }
 
 static void
@@ -822,6 +838,34 @@ gum_duk_script_backend_get_scheduler_impl (GumScriptBackend * backend)
   }
 
   return self->scheduler;
+}
+
+static void
+gum_duk_script_backend_run_locked_func (GumScriptBackend * backend,
+                                        GumScriptBackendLockedFunc func,
+                                        gpointer data,
+                                        GDestroyNotify data_destroy)
+{
+  GumDukScriptBackend * self = GUM_DUK_SCRIPT_BACKEND (backend);
+
+  g_rec_mutex_lock (&self->scope_mutex);
+  func (data);
+  g_rec_mutex_unlock (&self->scope_mutex);
+
+  if (data_destroy != NULL)
+    data_destroy (data);
+}
+
+static gboolean
+gum_duk_script_backend_is_locked (GumScriptBackend * backend)
+{
+  GumDukScriptBackend * self = GUM_DUK_SCRIPT_BACKEND (backend);
+
+  if (!g_rec_mutex_trylock (&self->scope_mutex))
+    return TRUE;
+
+  g_rec_mutex_unlock (&self->scope_mutex);
+  return FALSE;
 }
 
 static void

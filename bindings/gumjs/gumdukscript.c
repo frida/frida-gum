@@ -71,6 +71,7 @@ struct _GumDukScript
   GumScriptState state;
   GSList * on_unload;
   duk_context * ctx;
+  GRecMutex * mutex;
   GumDukHeapPtr code;
   GumDukCore core;
   GumDukKernel kernel;
@@ -144,6 +145,7 @@ struct _GumPostData
 
 static void gum_duk_script_iface_init (gpointer g_iface, gpointer iface_data);
 
+static void gum_duk_script_constructed (GObject * object);
 static void gum_duk_script_dispose (GObject * object);
 static void gum_duk_script_finalize (GObject * object);
 static void gum_duk_script_get_property (GObject * object, guint property_id,
@@ -233,6 +235,7 @@ gum_duk_script_class_init (GumDukScriptClass * klass)
 {
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
 
+  object_class->constructed = gum_duk_script_constructed;
   object_class->dispose = gum_duk_script_dispose;
   object_class->finalize = gum_duk_script_finalize;
   object_class->get_property = gum_duk_script_get_property;
@@ -297,6 +300,16 @@ gum_duk_script_init (GumDukScript * self)
 }
 
 static void
+gum_duk_script_constructed (GObject * object)
+{
+  GumDukScript * self = GUM_DUK_SCRIPT (object);
+
+  G_OBJECT_CLASS (gum_duk_script_parent_class)->constructed (object);
+
+  self->mutex = gum_duk_script_backend_get_scope_mutex (self->backend);
+}
+
+static void
 gum_duk_script_dispose (GObject * object)
 {
   GumDukScript * self = GUM_DUK_SCRIPT (object);
@@ -313,6 +326,7 @@ gum_duk_script_dispose (GObject * object)
   {
     g_clear_pointer (&self->main_context, g_main_context_unref);
     g_clear_pointer (&self->backend, g_object_unref);
+    self->mutex = NULL;
   }
 
   G_OBJECT_CLASS (gum_duk_script_parent_class)->dispose (object);
@@ -450,7 +464,8 @@ gum_duk_script_create_context (GumDukScript * self,
 
   _gum_duk_core_init (core, self, gumjs_frida_source_map, &self->interceptor,
       &self->stalker, gum_duk_script_emit,
-      gum_duk_script_backend_get_scheduler (self->backend), self->ctx);
+      gum_duk_script_backend_get_scheduler (self->backend),
+      self->mutex, self->ctx);
 
   scope.ctx = self->ctx;
   core->current_scope = &scope;

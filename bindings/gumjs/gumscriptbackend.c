@@ -233,6 +233,22 @@ gum_script_backend_get_scheduler (GumScriptBackend * self)
   return GUM_SCRIPT_BACKEND_GET_IFACE (self)->get_scheduler (self);
 }
 
+void
+gum_script_backend_run_locked_func (GumScriptBackend * self,
+                                    GumScriptBackendLockedFunc func,
+                                    gpointer data,
+                                    GDestroyNotify data_destroy)
+{
+  GUM_SCRIPT_BACKEND_GET_IFACE (self)->run_locked_func (self, func, data,
+      data_destroy);
+}
+
+gboolean
+gum_script_backend_is_locked (GumScriptBackend * self)
+{
+  return GUM_SCRIPT_BACKEND_GET_IFACE (self)->is_locked (self);
+}
+
 static void
 gum_script_backend_init_sqlite (void)
 {

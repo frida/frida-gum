@@ -18,6 +18,7 @@ G_DECLARE_INTERFACE (GumScriptBackend, gum_script_backend, GUM, SCRIPT_BACKEND,
 
 typedef void (* GumScriptBackendDebugMessageHandler) (const gchar * message,
     gpointer user_data);
+typedef void (* GumScriptBackendLockedFunc) (gpointer user_data);
 
 struct _GumScriptBackendInterface
 {
@@ -53,6 +54,11 @@ struct _GumScriptBackendInterface
   void (* post_debug_message) (GumScriptBackend * self, const gchar * message);
 
   GumScriptScheduler * (* get_scheduler) (GumScriptBackend * self);
+
+  void (* run_locked_func) (GumScriptBackend * self,
+    GumScriptBackendLockedFunc func, gpointer data,
+    GDestroyNotify data_destroy);
+  gboolean (* is_locked) (GumScriptBackend * self);
 };
 
 GUM_API GumScriptBackend * gum_script_backend_obtain (void);
@@ -93,6 +99,11 @@ GUM_API void gum_script_backend_post_debug_message (GumScriptBackend * self,
 
 GUM_API GumScriptScheduler * gum_script_backend_get_scheduler (
     GumScriptBackend * self);
+
+GUM_API void gum_script_backend_run_locked_func (GumScriptBackend * self,
+    GumScriptBackendLockedFunc func, gpointer data,
+    GDestroyNotify data_destroy);
+GUM_API gboolean gum_script_backend_is_locked (GumScriptBackend * self);
 
 G_END_DECLS
 

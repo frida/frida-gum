@@ -214,6 +214,10 @@ static void gum_emit_debug_message_data_free (GumEmitDebugMessageData * d);
 
 static GumScriptScheduler * gum_v8_script_backend_get_scheduler_impl (
     GumScriptBackend * backend);
+static void gum_v8_script_backend_run_locked_func (GumScriptBackend * backend,
+    GumScriptBackendLockedFunc func, gpointer user_data,
+    GDestroyNotify data_destroy);
+static gboolean gum_v8_script_backend_is_locked (GumScriptBackend * backend);
 
 static void gum_v8_script_backend_clear_inspector_channels (
     GumV8ScriptBackend * self);
@@ -271,6 +275,8 @@ gum_v8_script_backend_iface_init (gpointer g_iface,
   iface->post_debug_message = gum_v8_script_backend_post_debug_message;
 
   iface->get_scheduler = gum_v8_script_backend_get_scheduler_impl;
+  iface->run_locked_func = gum_v8_script_backend_run_locked_func;
+  iface->is_locked = gum_v8_script_backend_is_locked;
 }
 
 static void
@@ -893,6 +899,36 @@ gum_v8_script_backend_get_scheduler_impl (GumScriptBackend * backend)
   auto self = GUM_V8_SCRIPT_BACKEND (backend);
 
   return GUM_V8_SCRIPT_BACKEND_GET_PLATFORM (self)->GetScheduler ();
+}
+
+gum_v8_script_backend_run_locked_func (GumScriptBackend * backend,
+                                       GumScriptBackendLockedFunc func,
+                                       gpointer data,
+                                       GDestroyNotify data_destroy)
+{
+  auto self = GUM_V8_SCRIPT_BACKEND (backend);
+  auto isolate = GUM_V8_SCRIPT_BACKEND_GET_ISOLATE (self);
+
+  {
+    Locker locker (isolate);
+    Isolate::Scope isolate_scope (isolate);
+    HandleScope handle_scope (isolate);
+
+    func (data);
+  }
+
+  if (data_destroy != NULL)
+    data_destroy (data);
+}
+
+static gboolean
+gum_v8_script_backend_is_locked (GumScriptBackend * backend)
+{
+  auto self = GUM_V8_SCRIPT_BACKEND (backend);
+  auto isolate = GUM_V8_SCRIPT_BACKEND_GET_ISOLATE (self);
+
+  // TODO return isolate->isInUse();
+  return FALSE;
 }
 
 static void
