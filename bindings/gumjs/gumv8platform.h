@@ -36,7 +36,6 @@ public:
   const gchar * GetObjCSourceMap () const;
   GumV8Bundle * GetJavaBundle ();
   const gchar * GetJavaSourceMap () const;
-  GumV8Bundle * GetDebugBundle () const { return debug_bundle; }
   GumScriptScheduler * GetScheduler () const { return scheduler; }
   std::shared_ptr<GumV8Operation> ScheduleOnJSThread (std::function<void ()> f);
   std::shared_ptr<GumV8Operation> ScheduleOnJSThread (gint priority,
@@ -87,7 +86,6 @@ private:
   GumV8Bundle * runtime_bundle;
   GumV8Bundle * objc_bundle;
   GumV8Bundle * java_bundle;
-  GumV8Bundle * debug_bundle;
   GumScriptScheduler * scheduler;
   std::unordered_set<std::shared_ptr<GumV8Operation>> js_ops;
   std::unordered_set<std::shared_ptr<GumV8Operation>> pool_ops;

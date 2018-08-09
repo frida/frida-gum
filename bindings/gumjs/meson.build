@@ -3,6 +3,7 @@ gumjs_headers = [
   'gumscript.h',
   'gumscriptbackend.h',
   'gumscriptscheduler.h',
+  'guminspectorserver.h',
 ]
 
 gumjs_sources = [
@@ -10,6 +11,7 @@ gumjs_sources = [
   'gumscript.c',
   'gumscriptbackend.c',
   'gumscriptscheduler.c',
+  'guminspectorserver.c',
   'gumscripttask.c',
   'gumsourcemap.c',
   'gummemoryvfs.c',
@@ -132,7 +134,6 @@ gumjs_runtime_sources = [
   'runtime/promise.js',
   'runtime/objc.js',
   'runtime/java.js',
-  'frida-debug.js',
 ]
 gumjs_runtime_outputs = [
   'gumdukscript-runtime.h',
@@ -163,7 +164,7 @@ gumjs_sources += [gumjs_runtime]
 
 gumjs = library('frida-gumjs-' + api_version, gumjs_sources,
   include_directories: [bindings_inc],
-  dependencies: [gum_dep, gio_dep, json_glib_dep, ffi_dep, sqlite_dep] + gumjs_extra_deps,
+  dependencies: [gum_dep, gio_dep, json_glib_dep, ffi_dep, sqlite_dep, libsoup_dep] + gumjs_extra_deps,
   install: true,
 )
 

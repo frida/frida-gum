@@ -260,8 +260,12 @@ static gpointer invoke_target_function_trigger (gpointer data);
 
 static void measure_target_function_int_overhead (void);
 
-static void on_message (GumScript * script, const gchar * message,
+static void on_script_message (GumScript * script, const gchar * message,
     GBytes * data, gpointer user_data);
+static void on_incoming_debug_message (GumInspectorServer * server,
+    const gchar * message, gpointer user_data);
+static void on_outgoing_debug_message (const gchar * message,
+    gpointer user_data);
 
 static int target_function_int (int arg);
 static const guint8 * target_function_base_plus_offset (const guint8 * base,
@@ -5290,14 +5294,13 @@ SCRIPT_TESTCASE (exceptions_can_be_handled)
   EXPECT_NO_MESSAGES ();
 }
 
-#include "script-dukdebugserver.c"
-#include "script-v8debugserver.c"
-
 SCRIPT_TESTCASE (debugger_can_be_enabled)
 {
   GumScript * badger, * snake;
   GMainLoop * loop;
-  const guint16 port = 5858;
+  GumInspectorServer * server;
+  guint port;
+  GError * error;
 
   if (!g_test_slow ())
   {
@@ -5306,44 +5309,43 @@ SCRIPT_TESTCASE (debugger_can_be_enabled)
   }
 
   badger = gum_script_backend_create_sync (fixture->backend, "badger",
-      "setInterval(function () {\n"
+      "var badgerTimer = setInterval(function () {\n"
       "  send('badger');\n"
       "}, 1000);", NULL, NULL);
-  gum_script_set_message_handler (badger, on_message, "badger", NULL);
+  gum_script_set_message_handler (badger, on_script_message, "badger", NULL);
   gum_script_load_sync (badger, NULL);
 
   snake = gum_script_backend_create_sync (fixture->backend, "snake",
-      "setInterval(function () {\n"
+      "var snakeTimer = setInterval(function () {\n"
       "  send('snake');\n"
       "}, 1000);", NULL, NULL);
-  gum_script_set_message_handler (snake, on_message, "snake", NULL);
+  gum_script_set_message_handler (snake, on_script_message, "snake", NULL);
   gum_script_load_sync (snake, NULL);
 
   loop = g_main_loop_new (g_main_context_get_thread_default (), FALSE);
 
-  if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+  server = g_object_new (GUM_TYPE_INSPECTOR_SERVER, NULL);
+  g_signal_connect (server, "message", G_CALLBACK (on_incoming_debug_message),
+      fixture->backend);
+
+  gum_script_backend_set_debug_message_handler (fixture->backend,
+      on_outgoing_debug_message, server, NULL);
+
+  g_object_get (server, "port", &port, NULL);
+
+  error = NULL;
+  if (gum_inspector_server_start (server, &error))
   {
-    GumDukDebugServer * server;
-
-    server = gum_duk_debug_server_new (fixture->backend, port);
-
-    g_print ("Debugger enabled. You may now connect to port %u and upwards\n",
-        port);
+    g_print ("Inspector server running on port %u.\n", port);
     g_main_loop_run (loop);
-
-    gum_duk_debug_server_free (server);
   }
   else
   {
-    GumV8DebugServer * server;
-
-    server = gum_v8_debug_server_new (fixture->backend, port);
-
-    g_print ("Debugger enabled. You may now connect to port %u.\n", port);
-    g_main_loop_run (loop);
-
-    gum_v8_debug_server_free (server);
+    g_printerr ("Inspector server failed to start: %s\n", error->message);
+    g_error_free (error);
   }
+
+  g_object_unref (server);
 
   g_main_loop_unref (loop);
 }
@@ -5361,13 +5363,32 @@ SCRIPT_TESTCASE (java_api_is_embedded)
 }
 
 static void
-on_message (GumScript * script,
-            const gchar * message,
-            GBytes * data,
-            gpointer user_data)
+on_script_message (GumScript * script,
+                   const gchar * message,
+                   GBytes * data,
+                   gpointer user_data)
 {
   gchar * sender = user_data;
   g_print ("Message from %s: %s\n", sender, message);
+}
+
+static void
+on_incoming_debug_message (GumInspectorServer * server,
+                           const gchar * message,
+                           gpointer user_data)
+{
+  GumScriptBackend * backend = user_data;
+
+  gum_script_backend_post_debug_message (backend, message);
+}
+
+static void
+on_outgoing_debug_message (const gchar * message,
+                           gpointer user_data)
+{
+  GumInspectorServer * server = user_data;
+
+  gum_inspector_server_post_message (server, message);
 }
 
 GUM_NOINLINE static int

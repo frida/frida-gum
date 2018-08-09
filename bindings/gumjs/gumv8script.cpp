@@ -16,6 +16,13 @@ typedef void (* GumUnloadNotifyFunc) (GumV8Script * self, gpointer user_data);
 
 enum
 {
+  CONTEXT_CREATED,
+  CONTEXT_DESTROYED,
+  LAST_SIGNAL
+};
+
+enum
+{
   PROP_0,
   PROP_NAME,
   PROP_SOURCE,
@@ -109,6 +116,8 @@ G_DEFINE_TYPE_EXTENDED (GumV8Script,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_SCRIPT,
                             gum_v8_script_iface_init))
 
+static guint gum_v8_script_signals[LAST_SIGNAL] = { 0, };
+
 static void
 gum_v8_script_class_init (GumV8ScriptClass * klass)
 {
@@ -138,6 +147,13 @@ gum_v8_script_class_init (GumV8ScriptClass * klass)
       GUM_V8_TYPE_SCRIPT_BACKEND,
       (GParamFlags) (G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
       G_PARAM_STATIC_STRINGS)));
+
+  gum_v8_script_signals[CONTEXT_CREATED] = g_signal_new ("context-created",
+      G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST, 0, NULL, NULL,
+      g_cclosure_marshal_VOID__POINTER, G_TYPE_NONE, 1, G_TYPE_POINTER);
+  gum_v8_script_signals[CONTEXT_DESTROYED] = g_signal_new ("context-destroyed",
+      G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST, 0, NULL, NULL,
+      g_cclosure_marshal_VOID__POINTER, G_TYPE_NONE, 1, G_TYPE_POINTER);
 }
 
 static void
@@ -309,7 +325,8 @@ gum_v8_script_create_context (GumV8Script * self,
     _gum_v8_stalker_init (&self->stalker, &self->code_writer,
         &self->instruction, &self->core, global_templ);
 
-    auto context = Context::New (isolate, NULL, global_templ);
+    Local<Context> context (Context::New (isolate, NULL, global_templ));
+    g_signal_emit (self, gum_v8_script_signals[CONTEXT_CREATED], 0, &context);
     self->context = new GumPersistent<Context>::type (isolate, context);
     Context::Scope context_scope (context);
     _gum_v8_core_realize (&self->core);
@@ -388,6 +405,9 @@ gum_v8_script_destroy_context (GumV8Script * self)
     _gum_v8_memory_dispose (&self->memory);
     _gum_v8_kernel_dispose (&self->kernel);
     _gum_v8_core_dispose (&self->core);
+
+    auto context = Local<Context>::New (self->isolate, *self->context);
+    g_signal_emit (self, gum_v8_script_signals[CONTEXT_DESTROYED], 0, &context);
   }
 
   delete self->code;

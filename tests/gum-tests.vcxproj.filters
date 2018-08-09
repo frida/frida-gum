@@ -231,9 +231,6 @@
     <ClCompile Include="gumjs\script.c">
       <Filter>Tests\gumjs</Filter>
     </ClCompile>
-    <ClCompile Include="gumjs\script-debugserver.c">
-      <Filter>Tests\gumjs</Filter>
-    </ClCompile>
     <ClCompile Include="gumjs\script-fixture.c">
       <Filter>Tests\gumjs</Filter>
     </ClCompile>

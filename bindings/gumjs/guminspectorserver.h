@@ -1,0 +1,27 @@
+/*
+ * Copyright (C) 2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ *
+ * Licence: wxWindows Library Licence, Version 3.1
+ */
+
+#ifndef __GUM_INSPECTOR_SERVER_H__
+#define __GUM_INSPECTOR_SERVER_H__
+
+#include "gumscriptbackend.h"
+
+G_BEGIN_DECLS
+
+#define GUM_TYPE_INSPECTOR_SERVER (gum_inspector_server_get_type ())
+G_DECLARE_FINAL_TYPE (GumInspectorServer, gum_inspector_server, GUM,
+    INSPECTOR_SERVER, GObject)
+
+GUM_API gboolean gum_inspector_server_start (GumInspectorServer * self,
+    GError ** error);
+GUM_API void gum_inspector_server_stop (GumInspectorServer * self);
+
+GUM_API void gum_inspector_server_post_message (GumInspectorServer * self,
+    const gchar * message);
+
+G_END_DECLS
+
+#endif

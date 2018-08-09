@@ -210,7 +210,6 @@ if __name__ == '__main__':
     generate_runtime_v8("runtime", output_dir, "gumv8script-runtime.h", [runtime])
     generate_runtime_v8("objc", output_dir, "gumv8script-objc.h", [objc])
     generate_runtime_v8("java", output_dir, "gumv8script-java.h", [java])
-    generate_runtime_v8("debug", output_dir, "gumv8script-debug.h", [os.path.join(input_dir, "frida-debug.js")])
 
     duk_tmp_dir = os.path.join(output_dir, "runtime-build-duk")
     runtime = os.path.abspath(os.path.join(duk_tmp_dir, "frida.js"))

@@ -9,6 +9,7 @@
 
 #include "gum-init.h"
 #include "gumdukscriptbackend.h"
+#include "guminspectorserver.h"
 #include "gumscriptbackend.h"
 #include "valgrind.h"
 

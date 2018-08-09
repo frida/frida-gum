@@ -298,7 +298,6 @@ GumV8Platform::InitRuntime ()
   Context::Scope context_scope (context);
 
   runtime_bundle = gum_v8_bundle_new (isolate, gumjs_runtime_modules);
-  debug_bundle = gum_v8_bundle_new (isolate, gumjs_debug_modules);
 }
 
 void
@@ -314,7 +313,6 @@ GumV8Platform::Dispose ()
     g_clear_pointer (&objc_bundle, gum_v8_bundle_free);
     g_clear_pointer (&java_bundle, gum_v8_bundle_free);
 
-    g_clear_pointer (&debug_bundle, gum_v8_bundle_free);
     g_clear_pointer (&runtime_bundle, gum_v8_bundle_free);
   }
 

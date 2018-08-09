@@ -427,9 +427,6 @@
     <None Include="runtime\java.js">
       <Filter>runtime</Filter>
     </None>
-    <None Include="frida-debug.js">
-      <Filter>runtime</Filter>
-    </None>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="generate-bindings.py">

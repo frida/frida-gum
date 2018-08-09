@@ -63,4 +63,14 @@ namespace Gum {
 
 		public ScriptJob (ScriptScheduler scheduler, owned Func func);
 	}
+
+	[CCode (cheader_filename = "gumjs/guminspectorserver.h")]
+	public interface InspectorServer : GLib.Object {
+		public bool start () throws GLib.IOError;
+		public void stop ();
+
+		public void post_message (string message);
+
+		public signal void message (string message);
+	}
 }

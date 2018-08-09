@@ -177,6 +177,7 @@ if get_option('enable_gumjs')
 
   json_glib_dep = dependency('json-glib-1.0')
   sqlite_dep = dependency('sqlite3')
+  libsoup_dep = dependency('libsoup-2.4')
 
   if host_os_family == 'windows'
     gio_os_package_name = 'gio-windows-2.0'
