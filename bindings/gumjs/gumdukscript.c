@@ -99,8 +99,8 @@ struct _GumDukScript
 
 enum
 {
-  SIGNAL_DEBUGGER_DETACHED,
-  SIGNAL_DEBUGGER_OUTPUT,
+  DEBUGGER_DETACHED,
+  DEBUGGER_OUTPUT,
   LAST_SIGNAL
 };
 
@@ -256,11 +256,11 @@ gum_duk_script_class_init (GumDukScriptClass * klass)
       GUM_DUK_TYPE_SCRIPT_BACKEND,
       G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
 
-  gum_duk_script_signals[SIGNAL_DEBUGGER_DETACHED] =
+  gum_duk_script_signals[DEBUGGER_DETACHED] =
       g_signal_new ("debugger-detached", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, 0, NULL, NULL, g_cclosure_marshal_VOID__VOID,
       G_TYPE_NONE, 0);
-  gum_duk_script_signals[SIGNAL_DEBUGGER_OUTPUT] =
+  gum_duk_script_signals[DEBUGGER_OUTPUT] =
       g_signal_new ("debugger-output", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, 0, NULL, NULL, g_cclosure_marshal_VOID__BOXED,
       G_TYPE_NONE, 1, G_TYPE_BYTES);
@@ -1166,8 +1166,8 @@ gum_duk_script_debugger_on_write_flush (GumDukScriptDebugger * self)
   if (unwritten == NULL)
     return;
 
-  g_signal_emit (self->script, gum_duk_script_signals[SIGNAL_DEBUGGER_OUTPUT],
-      0, unwritten);
+  g_signal_emit (self->script, gum_duk_script_signals[DEBUGGER_OUTPUT], 0,
+      unwritten);
 
   g_bytes_unref (unwritten);
 }
@@ -1184,8 +1184,7 @@ gum_duk_script_debugger_on_detached (duk_context * ctx,
 
   GUM_DUK_SCRIPT_DEBUGGER_UNLOCK (self);
 
-  g_signal_emit (self->script, gum_duk_script_signals[SIGNAL_DEBUGGER_DETACHED],
-      0);
+  g_signal_emit (self->script, gum_duk_script_signals[DEBUGGER_DETACHED], 0);
 }
 
 static gboolean
