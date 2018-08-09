@@ -11,6 +11,11 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+typedef struct _GumElfEnumerateDepsContext GumElfEnumerateDepsContext;
+typedef struct _GumElfEnumerateImportsContext GumElfEnumerateImportsContext;
+typedef struct _GumElfEnumerateExportsContext GumElfEnumerateExportsContext;
+typedef struct _GumElfStoreSymtabParamsContext GumElfStoreSymtabParamsContext;
+
 enum
 {
   PROP_0,
@@ -18,11 +23,6 @@ enum
   PROP_PATH,
   PROP_BASE_ADDRESS
 };
-
-typedef struct _GumElfEnumerateDepsContext GumElfEnumerateDepsContext;
-typedef struct _GumElfEnumerateImportsContext GumElfEnumerateImportsContext;
-typedef struct _GumElfEnumerateExportsContext GumElfEnumerateExportsContext;
-typedef struct _GumElfStoreSymtabParamsContext GumElfStoreSymtabParamsContext;
 
 struct _GumElfEnumerateDepsContext
 {

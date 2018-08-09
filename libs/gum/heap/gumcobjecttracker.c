@@ -12,12 +12,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum
-{
-  PROP_0,
-  PROP_BACKTRACER,
-};
-
 typedef struct _ObjectType             ObjectType;
 typedef struct _CObjectFunctionContext CObjectFunctionContext;
 typedef struct _CObjectThreadContext   CObjectThreadContext;
@@ -44,6 +38,12 @@ struct _GumCObjectTracker
 
   GumBacktracerInterface * backtracer_iface;
   GumBacktracer * backtracer_instance;
+};
+
+enum
+{
+  PROP_0,
+  PROP_BACKTRACER,
 };
 
 struct _ObjectType

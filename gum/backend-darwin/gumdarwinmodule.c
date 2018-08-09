@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -14,16 +14,6 @@
 
 #define MAX_METADATA_SIZE (64 * 1024)
 
-enum
-{
-  PROP_0,
-  PROP_NAME,
-  PROP_TASK,
-  PROP_CPU_TYPE,
-  PROP_PAGE_SIZE,
-  PROP_BASE_ADDRESS
-};
-
 typedef struct _GumResolveSymbolContext GumResolveSymbolContext;
 
 typedef struct _GumEmitImportContext GumEmitImportContext;
@@ -36,6 +26,16 @@ typedef struct _GumExportsTrieForeachContext GumExportsTrieForeachContext;
 typedef struct _GumDyldCacheHeader GumDyldCacheHeader;
 typedef struct _GumDyldCacheMappingInfo GumDyldCacheMappingInfo;
 typedef struct _GumDyldCacheImageInfo GumDyldCacheImageInfo;
+
+enum
+{
+  PROP_0,
+  PROP_NAME,
+  PROP_TASK,
+  PROP_CPU_TYPE,
+  PROP_PAGE_SIZE,
+  PROP_BASE_ADDRESS
+};
 
 struct _GumResolveSymbolContext
 {

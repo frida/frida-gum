@@ -43,24 +43,6 @@ typedef void (* GumUnloadNotifyFunc) (GumDukScript * self, gpointer user_data);
 typedef struct _GumEmitData GumEmitData;
 typedef struct _GumPostData GumPostData;
 
-enum
-{
-  PROP_0,
-  PROP_NAME,
-  PROP_SOURCE,
-  PROP_BYTECODE,
-  PROP_MAIN_CONTEXT,
-  PROP_BACKEND
-};
-
-enum
-{
-  SIGNAL_DEBUGGER_DETACHED,
-  SIGNAL_DEBUGGER_OUTPUT,
-
-  LAST_SIGNAL
-};
-
 struct _GumDukScriptDebugger
 {
   GMutex mutex;
@@ -113,6 +95,23 @@ struct _GumDukScript
   GDestroyNotify message_handler_data_destroy;
 
   GumDukScriptDebugger debugger;
+};
+
+enum
+{
+  SIGNAL_DEBUGGER_DETACHED,
+  SIGNAL_DEBUGGER_OUTPUT,
+  LAST_SIGNAL
+};
+
+enum
+{
+  PROP_0,
+  PROP_NAME,
+  PROP_SOURCE,
+  PROP_BYTECODE,
+  PROP_MAIN_CONTEXT,
+  PROP_BACKEND
 };
 
 enum _GumScriptState

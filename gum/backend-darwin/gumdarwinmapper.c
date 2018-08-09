@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -43,16 +43,6 @@
 # define TERM_FOOTPRINT_SIZE_64 44
 #endif
 
-enum
-{
-  PROP_0,
-  PROP_NAME,
-  PROP_MODULE,
-  PROP_RESOLVER,
-  PROP_CACHE_FILE,
-  PROP_PARENT
-};
-
 typedef struct _GumDarwinMapping GumDarwinMapping;
 typedef struct _GumDarwinSymbolValue GumDarwinSymbolValue;
 
@@ -84,6 +74,16 @@ struct _GumDarwinMapper
   gboolean cache_file_load_attempted;
   GSList * children;
   GHashTable * mappings;
+};
+
+enum
+{
+  PROP_0,
+  PROP_NAME,
+  PROP_MODULE,
+  PROP_RESOLVER,
+  PROP_CACHE_FILE,
+  PROP_PARENT
 };
 
 struct _GumDarwinMapping

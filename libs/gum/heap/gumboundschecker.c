@@ -25,14 +25,6 @@
 #define BLOCK_FREE_RETADDRS(b) \
     ((GumReturnAddressArray *) ((guint8 *) (b)->guard + ((b)->guard_size / 2)))
 
-enum
-{
-  PROP_0,
-  PROP_BACKTRACER,
-  PROP_POOL_SIZE,
-  PROP_FRONT_ALIGNMENT
-};
-
 struct _GumBoundsChecker
 {
   GObject parent;
@@ -56,6 +48,14 @@ struct _GumBoundsChecker
   guint pool_size;
   guint front_alignment;
   GumPagePool * page_pool;
+};
+
+enum
+{
+  PROP_0,
+  PROP_BACKTRACER,
+  PROP_POOL_SIZE,
+  PROP_FRONT_ALIGNMENT
 };
 
 static void gum_bounds_checker_dispose (GObject * object);

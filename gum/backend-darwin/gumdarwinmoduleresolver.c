@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -10,13 +10,13 @@
 
 #include <mach-o/loader.h>
 
+typedef struct _GumCollectModulesContext GumCollectModulesContext;
+
 enum
 {
   PROP_0,
   PROP_TASK
 };
-
-typedef struct _GumCollectModulesContext GumCollectModulesContext;
 
 struct _GumCollectModulesContext
 {
