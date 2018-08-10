@@ -1579,6 +1579,7 @@ gum_linux_cpu_type_from_pid (pid_t pid,
   }
 
 beach:
+  g_free (auxv);
   g_free (auxv_path);
 
   return result;
