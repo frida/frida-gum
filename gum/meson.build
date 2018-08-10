@@ -194,7 +194,7 @@ gum_arm64_headers = [
   'arch-arm64/gumarm64writer.h',
   'arch-arm64/gumarm64relocator.h',
 ]
-if host_machine.cpu_family() == 'arm64'
+if host_machine.cpu_family() == 'aarch64'
   gum_arm64_headers += [
     'arch-arm64/gumarm64backtracer.h',
     'arch-arm64/gumarm64reader.h',

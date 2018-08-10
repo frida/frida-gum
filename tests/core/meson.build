@@ -47,7 +47,7 @@ if host_machine.cpu_family() == 'arm'
   ]
 endif
 
-if host_machine.cpu_family() == 'arm64'
+if host_machine.cpu_family() == 'aarch64'
   core_sources += [
     'arch-arm64/interceptor-arm64.c',
     'arch-arm64/stalker-arm64.c',

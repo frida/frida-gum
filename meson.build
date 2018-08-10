@@ -52,7 +52,7 @@ cpu_defines = [
   ['x86', 'HAVE_I386'],
   ['x86_64', 'HAVE_I386'],
   ['arm', 'HAVE_ARM'],
-  ['arm64', 'HAVE_ARM64'],
+  ['aarch64', 'HAVE_ARM64'],
   ['mips', 'HAVE_MIPS'],
 ]
 foreach d : cpu_defines
@@ -194,7 +194,7 @@ if get_option('enable_gumjs')
   enable_diet_value = get_option('enable_diet')
   if enable_diet_value == 'auto'
     cpu = host_machine.cpu_family()
-    is_embedded_linux = host_os == 'linux' and (cpu == 'arm' or cpu == 'arm64' or cpu == 'mips')
+    is_embedded_linux = host_os == 'linux' and (cpu == 'arm' or cpu == 'aarch64' or cpu == 'mips')
     is_arm_hardfloat_linux = host_os == 'linux' and cpu == 'arm' and host_machine.cpu().endswith('hf')
     enable_diet = host_os == 'ios' or (is_embedded_linux and not is_arm_hardfloat_linux) or host_os == 'qnx'
   else
