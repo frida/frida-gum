@@ -177,9 +177,6 @@
     <ClInclude Include="$(IntDir)gumjs\gumv8script-runtime.h">
       <Filter>runtime\generated</Filter>
     </ClInclude>
-    <ClInclude Include="$(IntDir)gumjs\gumv8script-debug.h">
-      <Filter>runtime\generated</Filter>
-    </ClInclude>
     <ClInclude Include="gumscript.h">
       <Filter>common</Filter>
     </ClInclude>

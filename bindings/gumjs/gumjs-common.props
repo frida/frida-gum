@@ -34,7 +34,6 @@
     <ClInclude Include="gumv8script-priv.h" />
     <ClInclude Include="gumv8platform.h" />
     <ClInclude Include="$(IntDir)gumjs\gumv8script-runtime.h" />
-    <ClInclude Include="$(IntDir)gumjs\gumv8script-debug.h" />
     <ClInclude Include="gumv8bundle.h" />
     <ClInclude Include="gumv8scope.h" />
     <ClInclude Include="gumv8value.h" />
@@ -178,7 +177,7 @@ REM. &gt; $(IntDir)gumjs\bindings.stamp
   <ItemGroup>
     <CustomBuild Include="generate-runtime.py">
       <FileType>Document</FileType>
-      <Outputs>$(IntDir)gumjs\runtime.stamp;$(IntDir)gumjs\gumv8script-runtime.h;$(IntDir)gumjs\gumv8script-objc.h;$(IntDir)gumjs\gumv8script-java.h;$(IntDir)gumjs\gumv8script-debug.h;$(IntDir)gumjs\gumdukscript-runtime.h;$(IntDir)gumjs\gumdukscript-objc.h;$(IntDir)gumjs\gumdukscript-java.h;$(IntDir)gumjs\gumdukscript-promise.h</Outputs>
+      <Outputs>$(IntDir)gumjs\runtime.stamp;$(IntDir)gumjs\gumv8script-runtime.h;$(IntDir)gumjs\gumv8script-objc.h;$(IntDir)gumjs\gumv8script-java.h;$(IntDir)gumjs\gumdukscript-runtime.h;$(IntDir)gumjs\gumdukscript-objc.h;$(IntDir)gumjs\gumdukscript-java.h;$(IntDir)gumjs\gumdukscript-promise.h</Outputs>
       <Message>Generating runtime</Message>
       <Command>mkdir $(IntDir)gumjs 2&gt;NUL
 generate-runtime.py $(ProjectDir) $(IntDir)gumjs || exit 1

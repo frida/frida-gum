@@ -143,7 +143,6 @@ gumjs_runtime_outputs = [
   'gumv8script-runtime.h',
   'gumv8script-objc.h',
   'gumv8script-java.h',
-  'gumv8script-debug.h',
 ]
 
 install_headers(gumjs_headers, subdir: install_header_basedir + '/gumjs')

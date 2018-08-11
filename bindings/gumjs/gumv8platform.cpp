@@ -6,7 +6,6 @@
 
 #include "gumv8platform.h"
 
-#include "gumv8script-debug.h"
 #include "gumv8script-java.h"
 #include "gumv8script-objc.h"
 #include "gumv8script-runtime.h"
