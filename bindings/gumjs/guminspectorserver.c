@@ -210,6 +210,20 @@ gum_inspector_server_set_property (GObject * object,
   }
 }
 
+GumInspectorServer *
+gum_inspector_server_new (void)
+{
+  return g_object_new (GUM_TYPE_INSPECTOR_SERVER, NULL);
+}
+
+GumInspectorServer *
+gum_inspector_server_new_with_port (guint port)
+{
+  return g_object_new (GUM_TYPE_INSPECTOR_SERVER,
+      "port", port,
+      NULL);
+}
+
 gboolean
 gum_inspector_server_start (GumInspectorServer * self,
                             GError ** error)

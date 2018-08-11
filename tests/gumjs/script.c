@@ -5324,7 +5324,7 @@ SCRIPT_TESTCASE (debugger_can_be_enabled)
 
   loop = g_main_loop_new (g_main_context_get_thread_default (), FALSE);
 
-  server = g_object_new (GUM_TYPE_INSPECTOR_SERVER, NULL);
+  server = gum_inspector_server_new ();
   g_signal_connect (server, "message", G_CALLBACK (on_incoming_debug_message),
       fixture->backend);
 

@@ -15,6 +15,9 @@ G_BEGIN_DECLS
 G_DECLARE_FINAL_TYPE (GumInspectorServer, gum_inspector_server, GUM,
     INSPECTOR_SERVER, GObject)
 
+GUM_API GumInspectorServer * gum_inspector_server_new (void);
+GUM_API GumInspectorServer * gum_inspector_server_new_with_port (guint port);
+
 GUM_API gboolean gum_inspector_server_start (GumInspectorServer * self,
     GError ** error);
 GUM_API void gum_inspector_server_stop (GumInspectorServer * self);
