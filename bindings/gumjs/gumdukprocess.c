@@ -8,10 +8,6 @@
 
 #include "gumdukmacros.h"
 
-#ifdef HAVE_DARWIN
-#include <mach/mach.h>
-#endif
-
 #if defined (HAVE_I386)
 # if GLIB_SIZEOF_VOID_P == 4
 #  define GUM_SCRIPT_ARCH "ia32"
@@ -77,9 +73,6 @@ static gboolean gum_emit_range (const GumRangeDetails * details,
     GumDukMatchContext * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
 GUMJS_DECLARE_FUNCTION (gumjs_process_set_exception_handler)
-#ifdef HAVE_DARWIN
-GUMJS_DECLARE_FUNCTION (gumjs_process_suspend_thread)
-#endif
 
 static GumDukExceptionHandler * gum_duk_exception_handler_new (
     GumDukHeapPtr callback, GumDukCore * core);
@@ -98,9 +91,6 @@ static const duk_function_list_entry gumjs_process_functions[] =
   { "_enumerateRanges", gumjs_process_enumerate_ranges, 2 },
   { "enumerateMallocRanges", gumjs_process_enumerate_malloc_ranges, 1 },
   { "setExceptionHandler", gumjs_process_set_exception_handler, 1 },
-#ifdef HAVE_DARWIN
-  { "suspendThread", gumjs_process_suspend_thread, 1 },
-#endif
 
   { NULL, NULL, 0 }
 };
@@ -505,65 +495,3 @@ gum_duk_exception_handler_on_exception (GumExceptionDetails * details,
 
   return handled;
 }
-
-#ifdef HAVE_DARWIN
-
-static gboolean
-_gum_duk_scope_try_resume (GumDukScope * self)
-{
-  GumDukCore * core = self->core;
-  guint i;
-
-  if (!g_rec_mutex_trylock (core->mutex))
-      return FALSE;
-
-  for (i = 1; i != self->previous_mutex_depth; i++)
-    g_rec_mutex_lock (core->mutex);
-
-  g_assert (core->current_scope == NULL);
-  core->current_scope = g_steal_pointer (&self->previous_scope);
-
-  core->mutex_depth = self->previous_mutex_depth;
-  self->previous_mutex_depth = 0;
-
-  duk_resume (self->ctx, &self->thread_state);
-
-  return TRUE;
-}
-
-GUMJS_DEFINE_FUNCTION (gumjs_process_suspend_thread)
-{
-  guint thread_id;
-  GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
-
-  _gum_duk_args_parse (args, "u", &thread_id);
-
-  while (TRUE)
-  {
-    g_print ("SUSPENDING %u...\n", thread_id);
-
-    thread_suspend (thread_id);
-
-    g_print ("TENTATIVELY SUSPENDED %u...\n", thread_id);
-
-    _gum_duk_scope_suspend (&scope);
-
-    if (!_gum_duk_scope_try_resume (&scope))
-    {
-      g_print ("CANT RESUME SCOPE...\n");
-      thread_resume (thread_id);
-
-      g_print ("GETTING LOCK AGAIN...\n");
-      _gum_duk_scope_resume (&scope);
-    }
-    else
-    {
-      g_print ("SUCCESSFULLY SUSPENDED %u...\n", thread_id);
-      break;
-    }
-  }
-
-  return 0;
-}
-
-#endif
