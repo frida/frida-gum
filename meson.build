@@ -211,7 +211,7 @@ if get_option('enable_gumjs')
   if have_v8
     cdata.set('HAVE_V8', 1)
     gumjs_extra_deps += [v8_dep]
-    gumjs_extra_requires += ['v8']
+    gumjs_extra_requires += ['v8-7.0']
   endif
 endif
 
