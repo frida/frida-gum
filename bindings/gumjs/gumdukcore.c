@@ -1432,7 +1432,7 @@ GUMJS_DEFINE_GETTER (gumjs_script_get_file_name)
   gchar * name, * file_name;
 
   g_object_get (args->core->script, "name", &name, NULL);
-  file_name = g_strconcat (name, ".js", NULL);
+  file_name = g_strconcat ("/", name, ".js", NULL);
   duk_push_string (ctx, file_name);
   g_free (file_name);
   g_free (name);

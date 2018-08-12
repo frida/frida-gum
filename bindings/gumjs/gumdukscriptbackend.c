@@ -337,16 +337,16 @@ gum_duk_script_backend_push_program (GumDukScriptBackend * self,
                                      const gchar * source,
                                      GError ** error)
 {
-  gchar * url;
+  gchar * filename;
   gboolean valid;
 
-  url = g_strconcat (name, ".js", NULL);
+  filename = g_strconcat ("/", name, ".js", NULL);
 
   duk_push_string (ctx, source);
-  duk_push_string (ctx, url);
+  duk_push_string (ctx, filename);
   valid = duk_pcompile (ctx, 0) == 0;
 
-  g_free (url);
+  g_free (filename);
 
   if (!valid)
   {
@@ -858,7 +858,7 @@ gum_duk_script_backend_on_debug_handler_attached (GumDukScriptBackend * self)
     if (script_index != 0)
       g_string_append_c (message, '\n');
 
-    g_string_append_printf (message, "%u %s.js", id, name_escaped);
+    g_string_append_printf (message, "%u /%s.js", id, name_escaped);
 
     g_free (name_escaped);
     g_free (name);
@@ -944,7 +944,7 @@ gum_duk_script_backend_notify_script_added (GumNotifyScriptAddedData * d)
     return FALSE;
 
   name_escaped = g_strescape (d->name, NULL);
-  message = g_strdup_printf ("ADD %u %s.js", d->id, name_escaped);
+  message = g_strdup_printf ("ADD %u /%s.js", d->id, name_escaped);
 
   self->debug_handler (message, self->debug_handler_data);
 

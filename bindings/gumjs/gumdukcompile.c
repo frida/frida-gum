@@ -14,7 +14,8 @@ main (int argc,
   duk_context * ctx;
   FILE * input = NULL;
   long input_size;
-  const char * input_name, * sep;
+  const char * input_basename, * sep;
+  char * input_filename;
   char * input_source = NULL;
   unsigned char * code;
   duk_size_t size, remaining;
@@ -29,20 +30,24 @@ main (int argc,
   input_path = argv[1];
   output_path = argv[2];
 
-  input_name = NULL;
+  input_basename = NULL;
 #if defined _WIN32 || defined __WIN32__
   sep = strrchr (input_path, '\\');
   if (sep != NULL)
-    input_name = sep + 1;
+    input_basename = sep + 1;
 #endif
-  if (input_name == NULL)
+  if (input_basename == NULL)
   {
     sep = strrchr (input_path, '/');
     if (sep != NULL)
-      input_name = sep + 1;
+      input_basename = sep + 1;
   }
-  if (input_name == NULL)
-    input_name = input_path;
+  if (input_basename == NULL)
+    input_basename = input_path;
+
+  input_filename = malloc (2 + strlen (input_basename) + 1);
+  strcpy (input_filename, "/_");
+  strcat (input_filename, input_basename);
 
   ctx = duk_create_heap (NULL, NULL, NULL, NULL, NULL);
 
@@ -66,7 +71,7 @@ main (int argc,
   input_source[input_size] = 0;
 
   duk_push_string (ctx, input_source);
-  duk_push_string (ctx, input_name);
+  duk_push_string (ctx, input_filename);
   if (duk_pcompile (ctx, DUK_COMPILE_EVAL) != 0)
   {
     fprintf (stderr, "%s: %s\n", input_path, duk_safe_to_string (ctx, -1));
@@ -116,6 +121,8 @@ beach:
 
   if (input != NULL)
     fclose (input);
+
+  free (input_filename);
 
   return exit_code;
 }
