@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -14,7 +14,7 @@
 
 #include <gum/gumexceptor.h>
 #include <gum/gumprocess.h>
-#include <v8.h>
+#include <v8/v8.h>
 
 #define GUMJS_NATIVE_POINTER_VALUE(o) \
     (o)->GetInternalField (0).As<External> ()->Value ()

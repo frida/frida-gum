@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -8,7 +8,7 @@
 #define __GUM_V8_BUNDLE_H__
 
 #include <glib.h>
-#include <v8.h>
+#include <v8/v8.h>
 
 struct GumV8Bundle
 {

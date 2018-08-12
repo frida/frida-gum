@@ -13,7 +13,7 @@
 
 #include <gum/guminterceptor.h>
 #include <string.h>
-#include <v8-inspector.h>
+#include <v8/v8-inspector.h>
 
 #define GUM_V8_SCRIPT_BACKEND_LOCK(o) g_mutex_lock (&(o)->mutex)
 #define GUM_V8_SCRIPT_BACKEND_UNLOCK(o) g_mutex_unlock (&(o)->mutex)

@@ -11,8 +11,8 @@
 #include "gumscriptscheduler.h"
 
 #include <map>
-#include <v8-platform.h>
 #include <unordered_set>
+#include <v8/v8-platform.h>
 
 class GumV8Operation;
 class GumV8MainContextOperation;
