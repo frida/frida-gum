@@ -5296,37 +5296,15 @@ SCRIPT_TESTCASE (exceptions_can_be_handled)
 
 SCRIPT_TESTCASE (debugger_can_be_enabled)
 {
+  GumScript * badger, * snake;
   GumInspectorServer * server;
   GError * error;
-  guint port;
-  GumScript * badger, * snake;
-  GMainLoop * loop;
 
   if (!g_test_slow ())
   {
     g_print ("<skipping, run in slow mode> ");
     return;
   }
-
-  server = gum_inspector_server_new ();
-  g_signal_connect (server, "message", G_CALLBACK (on_incoming_debug_message),
-      fixture->backend);
-  gum_script_backend_set_debug_message_handler (fixture->backend,
-      on_outgoing_debug_message, server, NULL);
-
-  error = NULL;
-  if (!gum_inspector_server_start (server, &error))
-  {
-    g_printerr ("Inspector server failed to start: %s\n", error->message);
-
-    g_error_free (error);
-    g_object_unref (server);
-
-    return;
-  }
-
-  g_object_get (server, "port", &port, NULL);
-  g_print ("Inspector server running on port %u.\n", port);
 
   badger = gum_script_backend_create_sync (fixture->backend, "badger",
       "var badgerTimer = setInterval(function () {\n"
@@ -5342,14 +5320,36 @@ SCRIPT_TESTCASE (debugger_can_be_enabled)
   gum_script_set_message_handler (snake, on_script_message, "snake", NULL);
   gum_script_load_sync (snake, NULL);
 
-  loop = g_main_loop_new (g_main_context_get_thread_default (), FALSE);
-  g_main_loop_run (loop);
-  g_main_loop_unref (loop);
+  server = gum_inspector_server_new ();
+  g_signal_connect (server, "message", G_CALLBACK (on_incoming_debug_message),
+      fixture->backend);
+  gum_script_backend_set_debug_message_handler (fixture->backend,
+      on_outgoing_debug_message, server, NULL);
+
+  error = NULL;
+  if (gum_inspector_server_start (server, &error))
+  {
+    guint port;
+    GMainLoop * loop;
+
+    g_object_get (server, "port", &port, NULL);
+    g_print ("Inspector server running on port %u.\n", port);
+
+    loop = g_main_loop_new (g_main_context_get_thread_default (), FALSE);
+    g_main_loop_run (loop);
+    g_main_loop_unref (loop);
+  }
+  else
+  {
+    g_printerr ("Inspector server failed to start: %s\n", error->message);
+
+    g_error_free (error);
+  }
+
+  g_object_unref (server);
 
   g_object_unref (snake);
   g_object_unref (badger);
-
-  g_object_unref (server);
 }
 
 SCRIPT_TESTCASE (objc_api_is_embedded)
