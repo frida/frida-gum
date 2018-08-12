@@ -347,7 +347,7 @@ gum_v8_script_create_context (GumV8Script * self,
     _gum_v8_code_relocator_realize (&self->code_relocator);
     _gum_v8_stalker_realize (&self->stalker);
 
-    auto resource_name_str = g_strconcat (self->name, ".js", NULL);
+    auto resource_name_str = g_strconcat ("/", self->name, ".js", NULL);
     auto resource_name = String::NewFromUtf8 (isolate, resource_name_str);
     ScriptOrigin origin (resource_name);
     g_free (resource_name_str);
