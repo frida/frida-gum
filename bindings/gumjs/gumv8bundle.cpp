@@ -26,7 +26,7 @@ gum_v8_bundle_new (Isolate * isolate,
 
   for (auto module = modules; module->name != NULL; module++)
   {
-    auto resource_name_str = g_strconcat ("/", module->name, NULL);
+    auto resource_name_str = g_strconcat ("/_", module->name, NULL);
     auto resource_name = _gum_v8_string_new_ascii (isolate, resource_name_str);
     ScriptOrigin origin (resource_name);
     g_free (resource_name_str);

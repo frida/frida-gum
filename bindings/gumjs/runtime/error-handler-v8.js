@@ -143,11 +143,11 @@ function mapEvalOrigin(origin) {
 function findSourceMap(source) {
   if (source === Script.fileName)
     return Script.sourceMap;
-  else if (source === 'frida.js')
+  else if (source === '/_frida.js')
     return Frida.sourceMap;
-  else if (source === 'objc.js')
+  else if (source === '/_objc.js')
     return Frida._objcSourceMap;
-  else if (source === 'java.js')
+  else if (source === '/_java.js')
     return Frida._javaSourceMap;
   else
     return null;
