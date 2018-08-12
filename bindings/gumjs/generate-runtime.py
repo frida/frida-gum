@@ -156,7 +156,7 @@ def extract_source_map(filename, source_code):
     return (stripped_source_code, raw_source_map)
 
 def to_canonical_source_path(path):
-    return os.path.join("frida", path).replace("\\", "/")
+    return "frida/" + path
 
 def write_bytes(data, sink):
     sink.write("\n  ")
