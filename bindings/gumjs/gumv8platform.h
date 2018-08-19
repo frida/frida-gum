@@ -10,6 +10,7 @@
 #include "gumv8bundle.h"
 #include "gumscriptscheduler.h"
 
+#include <functional>
 #include <map>
 #include <unordered_set>
 #include <v8/v8-platform.h>
