@@ -29,7 +29,7 @@ public:
   GumV8Platform & operator= (const GumV8Platform &) = delete;
   ~GumV8Platform ();
 
-  v8::Isolate * GetIsolate () const { return isolate; }
+  v8::Isolate * GetIsolate () const { return shared_isolate; }
   GumV8Bundle * GetRuntimeBundle () const { return runtime_bundle; }
   const gchar * GetRuntimeSourceMap () const;
   GumV8Bundle * GetObjCBundle ();
@@ -82,7 +82,7 @@ private:
   static void ReleaseDelayedThreadPoolOperation (gpointer data);
 
   GMutex lock;
-  v8::Isolate * isolate;
+  v8::Isolate * shared_isolate;
   GumV8Bundle * runtime_bundle;
   GumV8Bundle * objc_bundle;
   GumV8Bundle * java_bundle;

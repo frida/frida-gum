@@ -266,8 +266,8 @@ GumV8Platform::GumV8Platform ()
   Isolate::CreateParams params;
   params.array_buffer_allocator = array_buffer_allocator;
 
-  isolate = Isolate::New (params);
-  isolate->SetFatalErrorHandler (OnFatalError);
+  shared_isolate = Isolate::New (params);
+  shared_isolate->SetFatalErrorHandler (OnFatalError);
 
   InitRuntime ();
 }
@@ -290,13 +290,13 @@ GumV8Platform::~GumV8Platform ()
 void
 GumV8Platform::InitRuntime ()
 {
-  Locker locker (isolate);
-  Isolate::Scope isolate_scope (isolate);
-  HandleScope handle_scope (isolate);
-  Local<Context> context (Context::New (isolate));
+  Locker locker (shared_isolate);
+  Isolate::Scope isolate_scope (shared_isolate);
+  HandleScope handle_scope (shared_isolate);
+  Local<Context> context (Context::New (shared_isolate));
   Context::Scope context_scope (context);
 
-  runtime_bundle = gum_v8_bundle_new (isolate, gumjs_runtime_modules);
+  runtime_bundle = gum_v8_bundle_new (shared_isolate, gumjs_runtime_modules);
 }
 
 void
@@ -305,9 +305,9 @@ GumV8Platform::Dispose ()
   CancelPendingOperations ();
 
   {
-    Locker locker (isolate);
-    Isolate::Scope isolate_scope (isolate);
-    HandleScope handle_scope (isolate);
+    Locker locker (shared_isolate);
+    Isolate::Scope isolate_scope (shared_isolate);
+    HandleScope handle_scope (shared_isolate);
 
     g_clear_pointer (&objc_bundle, gum_v8_bundle_free);
     g_clear_pointer (&java_bundle, gum_v8_bundle_free);
@@ -315,7 +315,7 @@ GumV8Platform::Dispose ()
     g_clear_pointer (&runtime_bundle, gum_v8_bundle_free);
   }
 
-  isolate->Dispose ();
+  shared_isolate->Dispose ();
 
   CancelPendingOperations ();
 
@@ -379,7 +379,7 @@ GumV8Bundle *
 GumV8Platform::GetObjCBundle ()
 {
   if (objc_bundle == NULL)
-    objc_bundle = gum_v8_bundle_new (isolate, gumjs_objc_modules);
+    objc_bundle = gum_v8_bundle_new (shared_isolate, gumjs_objc_modules);
   return objc_bundle;
 }
 
@@ -393,7 +393,7 @@ GumV8Bundle *
 GumV8Platform::GetJavaBundle ()
 {
   if (java_bundle == NULL)
-    java_bundle = gum_v8_bundle_new (isolate, gumjs_java_modules);
+    java_bundle = gum_v8_bundle_new (shared_isolate, gumjs_java_modules);
   return java_bundle;
 }
 

@@ -133,7 +133,7 @@ private:
 
   GumV8ScriptBackend * backend;
   guint id;
-  std::unique_ptr<V8InspectorSession> session;
+  std::unique_ptr<V8InspectorSession> inspector_session;
 };
 
 static void gum_v8_script_backend_iface_init (gpointer g_iface,
@@ -1046,7 +1046,7 @@ GumInspectorChannel::GumInspectorChannel (GumV8ScriptBackend * backend,
 void
 GumInspectorChannel::takeSession (std::unique_ptr<V8InspectorSession> session)
 {
-  this->session = std::move (session);
+  inspector_session = std::move (session);
 }
 
 void
@@ -1054,13 +1054,13 @@ GumInspectorChannel::dispatchStanza (const char * stanza)
 {
   auto buffer = gum_string_buffer_from_utf8 (stanza);
 
-  session->dispatchProtocolMessage (buffer->string ());
+  inspector_session->dispatchProtocolMessage (buffer->string ());
 }
 
 void
 GumInspectorChannel::startSkippingAllPauses ()
 {
-  session->setSkipAllPauses (true);
+  inspector_session->setSkipAllPauses (true);
 }
 
 void
@@ -1111,6 +1111,6 @@ gum_string_view_to_utf8 (const StringView & view)
   if (view.is8Bit ())
     return g_strndup ((const gchar *) view.characters8 (), view.length ());
 
-  return g_utf16_to_utf8 (view.characters16 (), view.length (), NULL, NULL,
-        NULL);
+  return g_utf16_to_utf8 (view.characters16 (), (glong) view.length (), NULL,
+      NULL, NULL);
 }
