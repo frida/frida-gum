@@ -351,7 +351,7 @@ gum_set_guard_flag (const GumLiveRangeDetails * details,
   success = VirtualProtect (GSIZE_TO_POINTER (details->range->base_address),
       details->range->size, new_prot, &old_prot);
   if (!success)
-    g_atomic_int_add (&self->self->pages_remaining, -1);
+    g_atomic_int_add (&self->pages_remaining, -1);
 
   return TRUE;
 }
@@ -404,7 +404,7 @@ gum_memory_access_monitor_enumerate_live_ranges (GumMemoryAccessMonitor * self,
         break;
 
       /* force the iteration one page at a time */
-      size = MIN (mbi.RegionSize, self->self->page_size);
+      size = MIN (mbi.RegionSize, self->page_size);
 
       details.range = &range;
       details.prot = mbi.Protect;

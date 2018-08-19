@@ -3657,11 +3657,13 @@ static gboolean
 gum_stalker_on_exception (GumExceptionDetails * details,
                           gpointer user_data)
 {
-  GumStalker * self = GUM_STALKER_CAST (user_data);
+  GumStalker * self;
   GumExecCtx * ctx;
   GumExecBlock * block;
   GumCpuContext * cpu_context = &details->context;
   CONTEXT * context = details->native_context;
+
+  self = GUM_STALKER (user_data);
 
   if (details->type != GUM_EXCEPTION_SINGLE_STEP)
     return FALSE;
