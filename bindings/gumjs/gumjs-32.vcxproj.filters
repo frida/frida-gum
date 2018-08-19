@@ -10,6 +10,9 @@
     <ClCompile Include="gumscriptscheduler.c">
       <Filter>common</Filter>
     </ClCompile>
+    <ClCompile Include="guminspectorserver.c">
+      <Filter>common</Filter>
+    </ClCompile>
     <ClCompile Include="gumscripttask.c">
       <Filter>common</Filter>
     </ClCompile>
@@ -181,6 +184,9 @@
       <Filter>common</Filter>
     </ClInclude>
     <ClInclude Include="gumscriptscheduler.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="guminspectorserver.h">
       <Filter>common</Filter>
     </ClInclude>
     <ClInclude Include="gumscripttask.h">

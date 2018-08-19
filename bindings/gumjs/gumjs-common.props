@@ -12,6 +12,7 @@
     <ClInclude Include="gumscript.h" />
     <ClInclude Include="gumscriptbackend.h" />
     <ClInclude Include="gumscriptscheduler.h" />
+    <ClInclude Include="guminspectorserver.h" />
     <ClInclude Include="gumscripttask.h" />
     <ClInclude Include="gumsourcemap.h" />
     <ClInclude Include="gummemoryvfs.h" />
@@ -20,6 +21,7 @@
     <ClCompile Include="gumscript.c" />
     <ClCompile Include="gumscriptbackend.c" />
     <ClCompile Include="gumscriptscheduler.c" />
+    <ClCompile Include="guminspectorserver.c" />
     <ClCompile Include="gumscripttask.c" />
     <ClCompile Include="gumsourcemap.c" />
     <ClCompile Include="gummemoryvfs.c" />
