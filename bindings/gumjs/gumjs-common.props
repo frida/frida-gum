@@ -15,8 +15,6 @@
     <ClInclude Include="gumscripttask.h" />
     <ClInclude Include="gumsourcemap.h" />
     <ClInclude Include="gummemoryvfs.h" />
-    <ClInclude Include="sqlite3.h" />
-    <ClInclude Include="sqlite3ext.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="gumscript.c" />
@@ -25,7 +23,6 @@
     <ClCompile Include="gumscripttask.c" />
     <ClCompile Include="gumsourcemap.c" />
     <ClCompile Include="gummemoryvfs.c" />
-    <ClCompile Include="sqlite3.c" />
   </ItemGroup>
 
   <ItemGroup>

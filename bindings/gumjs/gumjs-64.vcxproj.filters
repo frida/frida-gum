@@ -19,9 +19,6 @@
     <ClCompile Include="gummemoryvfs.c">
       <Filter>common</Filter>
     </ClCompile>
-    <ClCompile Include="sqlite3.c">
-      <Filter>common</Filter>
-    </ClCompile>
     <ClCompile Include="gumdukcompat.c">
       <Filter>duk</Filter>
     </ClCompile>
@@ -193,12 +190,6 @@
       <Filter>common</Filter>
     </ClInclude>
     <ClInclude Include="gummemoryvfs.h">
-      <Filter>common</Filter>
-    </ClInclude>
-    <ClInclude Include="sqlite3.h">
-      <Filter>common</Filter>
-    </ClInclude>
-    <ClInclude Include="sqlite3ext.h">
       <Filter>common</Filter>
     </ClInclude>
     <ClInclude Include="gumdukcompat.h">
