@@ -259,6 +259,10 @@ GumV8Platform::GumV8Platform ()
 GumV8Platform::~GumV8Platform ()
 {
   auto dispose = ScheduleOnJSThread (G_PRIORITY_HIGH, [=]() { Dispose (); });
+  {
+    GumV8PlatformLocker locker (this);
+    js_ops.erase (dispose);
+  }
   dispose->Await ();
 
   g_object_unref (scheduler);
