@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -66,6 +66,7 @@ gum_collect_heap_api_if_crt_module (const GumModuleDetails * details,
       GUM_API_INIT_FIELD (_calloc_dbg);
       GUM_API_INIT_FIELD (_realloc_dbg);
       GUM_API_INIT_FIELD (_free_dbg);
+      GUM_API_INIT_FIELD (_CrtReportBlockType);
     }
 #endif
 

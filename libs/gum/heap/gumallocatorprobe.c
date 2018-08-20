@@ -14,9 +14,12 @@
 
 #include <gmodule.h>
 
+#define DEFAULT_ENABLE_COUNTERS FALSE
+
+#define GUM_DBGCRT_UNKNOWN_BLOCK (-1)
 #define GUM_DBGCRT_NORMAL_BLOCK (1)
 
-#define DEFAULT_ENABLE_COUNTERS FALSE
+#define GUM_DBGCRT_BLOCK_TYPE(type_bits) ((type_bits) & 0xffff)
 
 typedef struct _FunctionContext      FunctionContext;
 typedef struct _HeapHandlers         HeapHandlers;
@@ -25,9 +28,13 @@ typedef struct _AllocThreadContext   AllocThreadContext;
 typedef struct _ReallocThreadContext ReallocThreadContext;
 
 typedef void (* HeapEnterHandler) (GumAllocatorProbe * self,
-    gpointer thread_ctx, GumInvocationContext * invocation_ctx);
+    gpointer thread_ctx, GumInvocationContext * invocation_ctx,
+    gpointer user_data);
 typedef void (* HeapLeaveHandler) (GumAllocatorProbe * self,
-    gpointer thread_ctx, GumInvocationContext * invocation_ctx);
+    gpointer thread_ctx, GumInvocationContext * invocation_ctx,
+    gpointer user_data);
+
+typedef gint (* GumReportBlockTypeFunc) (gpointer block);
 
 struct _GumAllocatorProbe
 {
@@ -71,6 +78,7 @@ struct _HeapHandlers
 struct _FunctionContext
 {
   HeapHandlers handlers;
+  gpointer handler_data;
   ThreadContext thread_contexts[GUM_MAX_THREADS];
   volatile gint thread_context_count;
 };
@@ -117,7 +125,8 @@ static void gum_allocator_probe_on_leave (GumInvocationListener * listener,
     GumInvocationContext * context);
 
 static void attach_to_function (GumAllocatorProbe * self,
-    gpointer function_address, const HeapHandlers * function_handlers);
+    gpointer function_address, const HeapHandlers * function_handlers,
+    gpointer user_data);
 
 static void gum_allocator_probe_on_malloc (GumAllocatorProbe * self,
     gpointer address, guint size, const GumCpuContext * cpu_context);
@@ -147,7 +156,8 @@ static void on_calloc_dbg_enter_handler (GumAllocatorProbe * self,
 static void on_realloc_dbg_enter_handler (GumAllocatorProbe * self,
     ReallocThreadContext * thread_ctx, GumInvocationContext * invocation_ctx);
 static void on_free_dbg_enter_handler (GumAllocatorProbe * self,
-    ThreadContext * thread_ctx, GumInvocationContext * invocation_ctx);
+    ThreadContext * thread_ctx, GumInvocationContext * invocation_ctx,
+    gpointer user_data);
 
 static void decide_ignore_from_block_type (ThreadContext * thread_ctx,
     gint block_type);
@@ -453,7 +463,8 @@ gum_allocator_probe_on_enter (GumInvocationListener * listener,
     base_thread_ctx = GUM_LINCTX_GET_FUNC_INVDATA (context, ThreadContext);
     base_thread_ctx->ignored = FALSE;
 
-    function_ctx->handlers.enter_handler (self, base_thread_ctx, context);
+    function_ctx->handlers.enter_handler (self, base_thread_ctx, context,
+        function_ctx->handler_data);
   }
 }
 
@@ -478,7 +489,7 @@ gum_allocator_probe_on_leave (GumInvocationListener * listener,
       if (function_ctx->handlers.leave_handler != NULL)
       {
         function_ctx->handlers.leave_handler (self, base_thread_ctx,
-            context);
+            context, function_ctx->handler_data);
       }
     }
   }
@@ -550,7 +561,10 @@ gum_allocator_probe_attach (GumAllocatorProbe * self)
 
 #define GUM_ATTACH_TO_API_FUNC(name) \
     attach_to_function (self, GUM_FUNCPTR_TO_POINTER (api->name), \
-        &gum_##name##_handlers)
+        &gum_##name##_handlers, NULL)
+#define GUM_ATTACH_TO_API_FUNC_WITH_DATA(name, data) \
+    attach_to_function (self, GUM_FUNCPTR_TO_POINTER (api->name), \
+        &gum_##name##_handlers, data)
 
 void
 gum_allocator_probe_attach_to_apis (GumAllocatorProbe * self,
@@ -575,7 +589,8 @@ gum_allocator_probe_attach_to_apis (GumAllocatorProbe * self,
       GUM_ATTACH_TO_API_FUNC (_malloc_dbg);
       GUM_ATTACH_TO_API_FUNC (_calloc_dbg);
       GUM_ATTACH_TO_API_FUNC (_realloc_dbg);
-      GUM_ATTACH_TO_API_FUNC (_free_dbg);
+      GUM_ATTACH_TO_API_FUNC_WITH_DATA (_free_dbg,
+          GUM_FUNCPTR_TO_POINTER (api->_CrtReportBlockType));
     }
   }
 
@@ -614,7 +629,8 @@ gum_allocator_probe_detach (GumAllocatorProbe * self)
 static void
 attach_to_function (GumAllocatorProbe * self,
                     gpointer function_address,
-                    const HeapHandlers * function_handlers)
+                    const HeapHandlers * function_handlers,
+                    gpointer user_data)
 {
   GumInvocationListener * listener = GUM_INVOCATION_LISTENER (self);
   FunctionContext * function_ctx;
@@ -622,6 +638,7 @@ attach_to_function (GumAllocatorProbe * self,
 
   function_ctx = g_new0 (FunctionContext, 1);
   function_ctx->handlers = *function_handlers;
+  function_ctx->handler_data = user_data;
   g_ptr_array_add (self->function_contexts, function_ctx);
 
   attach_ret = gum_interceptor_attach_listener (self->interceptor,
@@ -820,12 +837,24 @@ on_realloc_dbg_enter_handler (GumAllocatorProbe * self,
 static void
 on_free_dbg_enter_handler (GumAllocatorProbe * self,
                            ThreadContext * thread_ctx,
-                           GumInvocationContext * invocation_ctx)
+                           GumInvocationContext * invocation_ctx,
+                           gpointer user_data)
 {
   gint block_type;
 
   block_type = (gint) GPOINTER_TO_SIZE (
       gum_invocation_context_get_nth_argument (invocation_ctx, 1));
+  if (block_type == GUM_DBGCRT_UNKNOWN_BLOCK)
+  {
+    gpointer block;
+    GumReportBlockTypeFunc report_block_type;
+
+    block = gum_invocation_context_get_nth_argument (invocation_ctx, 0);
+    report_block_type =
+        GUM_POINTER_TO_FUNCPTR (GumReportBlockTypeFunc, user_data);
+
+    block_type = GUM_DBGCRT_BLOCK_TYPE (report_block_type (block));
+  }
 
   decide_ignore_from_block_type ((ThreadContext *) thread_ctx, block_type);
 

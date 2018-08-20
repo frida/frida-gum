@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -443,6 +443,7 @@ test_util_heap_apis (void)
     api._calloc_dbg = _calloc_dbg;
     api._realloc_dbg = _realloc_dbg;
     api._free_dbg = _free_dbg;
+    api._CrtReportBlockType = _CrtReportBlockType;
 #endif
 
     _test_util_heap_apis = gum_heap_api_list_new ();

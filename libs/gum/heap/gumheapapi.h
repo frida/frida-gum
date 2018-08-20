@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -27,6 +27,7 @@ struct _GumHeapApi
   gpointer (* _realloc_dbg) (gpointer old_address, gsize new_size,
       gint block_type, const gchar * filename, gint linenumber);
   void (* _free_dbg) (gpointer address, gint block_type);
+  gint (* _CrtReportBlockType) (gpointer block);
 };
 
 G_BEGIN_DECLS
