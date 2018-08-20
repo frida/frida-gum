@@ -12,6 +12,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define GUM_COBJECT_TRACKER_CAST(o) ((GumCObjectTracker *) (o))
+
 typedef struct _ObjectType             ObjectType;
 typedef struct _CObjectFunctionContext CObjectFunctionContext;
 typedef struct _CObjectThreadContext   CObjectThreadContext;
@@ -444,7 +446,7 @@ gum_cobject_tracker_on_enter (GumInvocationListener * listener,
   GumCObjectTracker * self;
   CObjectFunctionContext * function_ctx;
 
-  self = GUM_COBJECT_TRACKER (listener);
+  self = GUM_COBJECT_TRACKER_CAST (listener);
   function_ctx = GUM_LINCTX_GET_FUNC_DATA (context, CObjectFunctionContext *);
 
   if (function_ctx->handlers.enter_handler != NULL)
@@ -461,7 +463,7 @@ gum_cobject_tracker_on_leave (GumInvocationListener * listener,
   GumCObjectTracker * self;
   CObjectFunctionContext * function_ctx;
 
-  self = GUM_COBJECT_TRACKER (listener);
+  self = GUM_COBJECT_TRACKER_CAST (listener);
   function_ctx = GUM_LINCTX_GET_FUNC_DATA (context, CObjectFunctionContext *);
 
   if (function_ctx->handlers.leave_handler != NULL)
