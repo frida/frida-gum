@@ -64,7 +64,6 @@ public:
   bool IdleTasksEnabled (v8::Isolate * isolate) override;
   double MonotonicallyIncreasingTime () override;
   double CurrentClockTimeMillis () override;
-  v8::MemoryBackend * GetMemoryBackend () override;
   v8::ThreadingBackend * GetThreadingBackend () override;
   v8::TracingController * GetTracingController () override;
 
@@ -93,7 +92,6 @@ private:
   std::map<v8::Isolate *, std::shared_ptr<v8::TaskRunner>> foreground_runners;
   const gint64 start_time;
   v8::ArrayBuffer::Allocator * array_buffer_allocator;
-  v8::MemoryBackend * memory_backend;
   v8::ThreadingBackend * threading_backend;
   v8::TracingController * tracing_controller;
 

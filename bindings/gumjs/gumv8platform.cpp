@@ -134,21 +134,6 @@ public:
   void Free (void * data, size_t length) override;
 };
 
-class GumV8MemoryBackend : public MemoryBackend
-{
-public:
-  GumV8MemoryBackend () = default;
-
-  void * Allocate (void * address, const size_t size, bool is_executable)
-      override;
-  bool Free (void * address, size_t size) override;
-  bool Release (void * address, size_t size) override;
-
-private:
-  static void Cloak (gpointer base, gsize size);
-  static void Uncloak (gpointer base, gsize size);
-};
-
 class GumV8ThreadingBackend : public ThreadingBackend
 {
 public:
@@ -254,7 +239,6 @@ GumV8Platform::GumV8Platform ()
     scheduler (gum_script_scheduler_new ()),
     start_time (g_get_monotonic_time ()),
     array_buffer_allocator (new GumV8ArrayBufferAllocator ()),
-    memory_backend (new GumV8MemoryBackend ()),
     threading_backend (new GumV8ThreadingBackend ()),
     tracing_controller (new TracingController ())
 {
@@ -281,7 +265,6 @@ GumV8Platform::~GumV8Platform ()
 
   delete tracing_controller;
   delete threading_backend;
-  delete memory_backend;
   delete array_buffer_allocator;
 
   g_mutex_clear (&lock);
@@ -668,12 +651,6 @@ GumV8Platform::CurrentClockTimeMillis ()
   return (double) (g_get_real_time () / G_GINT64_CONSTANT (1000));
 }
 
-MemoryBackend *
-GumV8Platform::GetMemoryBackend ()
-{
-  return memory_backend;
-}
-
 ThreadingBackend *
 GumV8Platform::GetThreadingBackend ()
 {
@@ -955,56 +932,6 @@ GumV8ArrayBufferAllocator::Free (void * data,
                                  size_t length)
 {
   g_free (data);
-}
-
-void *
-GumV8MemoryBackend::Allocate (void * address,
-                              const size_t size,
-                              bool is_executable)
-{
-  gpointer base = gum_memory_allocate (size,
-      is_executable ? GUM_PAGE_RWX : GUM_PAGE_RW, address);
-  if (base != NULL)
-    Cloak (base, size);
-  return base;
-}
-
-bool
-GumV8MemoryBackend::Free (void * address,
-                          size_t size)
-{
-  bool success = !!gum_memory_release (address, size);
-  if (success)
-    Uncloak (address, size);
-  return success;
-}
-
-bool
-GumV8MemoryBackend::Release (void * address,
-                             size_t size)
-{
-  // FIXME
-  return Free (address, size);
-}
-
-void
-GumV8MemoryBackend::Cloak (gpointer base,
-                           gsize size)
-{
-  GumMemoryRange r;
-  r.base_address = GUM_ADDRESS (base);
-  r.size = size;
-  gum_cloak_add_range (&r);
-}
-
-void
-GumV8MemoryBackend::Uncloak (gpointer base,
-                             gsize size)
-{
-  GumMemoryRange r;
-  r.base_address = GUM_ADDRESS (base);
-  r.size = size;
-  gum_cloak_remove_range (&r);
 }
 
 MutexImpl *
