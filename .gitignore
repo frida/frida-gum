@@ -1,2 +1,3 @@
+*.user
 /bindings/gumjs/node_modules
 /bindings/gumjs/package-lock.json
