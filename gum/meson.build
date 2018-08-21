@@ -251,6 +251,7 @@ install_headers(gum_arm64_headers, subdir: install_header_subdir + '/arch-arm64'
 install_headers(gum_mips_headers, subdir: install_header_subdir + '/arch-mips')
 
 gum = library('frida-gum-' + api_version, gum_sources,
+  c_args: frida_component_cflags,
   include_directories: gum_incdirs,
   link_args: extra_libs_private,
   dependencies: [glib_dep, gobject_dep, gio_dep, ffi_dep, capstone_dep] + extra_deps,

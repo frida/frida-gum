@@ -29,6 +29,7 @@ gum_heap_sources = [
 install_headers(gum_heap_headers, subdir: install_header_subdir + '/heap')
 
 gum_heap = library('frida-gum-heap-' + api_version, gum_heap_sources,
+  c_args: frida_component_cflags,
   include_directories: gum_incdirs,
   dependencies: [gum_dep, gmodule_dep],
   install: true,

@@ -47,7 +47,8 @@ endif
 
 install_headers(gum_prof_headers, subdir: install_header_subdir + '/prof')
 
-gum_prof = static_library('frida-gum-prof-' + api_version, gum_prof_sources,
+gum_prof = library('frida-gum-prof-' + api_version, gum_prof_sources,
+  c_args: frida_component_cflags,
   include_directories: gum_incdirs,
   dependencies: [gum_dep],
   install: true,

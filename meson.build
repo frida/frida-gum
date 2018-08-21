@@ -17,6 +17,16 @@ endif
 
 cc = meson.get_compiler('c')
 
+frida_component_cflags = []
+buildtype = get_option('buildtype')
+if buildtype == 'release' or buildtype == 'minsize'
+  frida_component_cflags += [
+    '-DG_DISABLE_ASSERT',
+    '-DG_DISABLE_CHECKS',
+    '-DG_DISABLE_CAST_CHECKS',
+  ]
+endif
+
 target_conditionals_prefix = '#include <TargetConditionals.h>'
 
 is_macos_src = target_conditionals_prefix + '''
