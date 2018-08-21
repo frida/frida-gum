@@ -500,8 +500,7 @@ gum_v8_script_perform_load_task (GumV8Script * self,
   {
     if (self->code == NULL)
     {
-      auto created = gum_v8_script_create_context (self, NULL);
-      g_assert (created);
+      gum_v8_script_create_context (self, NULL);
     }
 
     {

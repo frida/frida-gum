@@ -10,6 +10,8 @@
 #include "gummemory-priv.h"
 #include "gumwindows.h"
 
+#include <stdlib.h>
+
 static gpointer gum_virtual_alloc (gsize size, DWORD allocation_type,
     GumPageProtection page_prot, gpointer hint);
 
@@ -377,5 +379,9 @@ gum_page_protection_to_windows (GumPageProtection page_prot)
       return PAGE_EXECUTE_READWRITE;
   }
 
+#ifndef G_DISABLE_ASSERT
   g_assert_not_reached ();
+#else
+  abort ();
+#endif
 }
