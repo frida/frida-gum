@@ -1941,5 +1941,5 @@ gum_dyld_cache_offset_from_address (GumAddress address,
     }
   }
 
-  g_assert_not_reached ();
+  return 0;
 }

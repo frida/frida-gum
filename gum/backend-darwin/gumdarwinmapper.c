@@ -390,9 +390,11 @@ static GMappedFile *
 gum_darwin_mapper_try_load_cache_file (GumCpuType cpu_type)
 {
   GMappedFile * file;
-  const gchar ** candidates, ** candidate;
+  const gchar ** candidates;
+  const gchar ** candidate;
   gint fd, result;
 
+  candidates = NULL;
   switch (cpu_type)
   {
     case GUM_CPU_IA32:
@@ -1317,7 +1319,7 @@ static GumDarwinMapping *
 gum_darwin_mapper_dependency (GumDarwinMapper * self,
                               gint ordinal)
 {
-  GumDarwinMapping * result;
+  GumDarwinMapping * result = NULL;
 
   switch (ordinal)
   {
@@ -1520,8 +1522,7 @@ gum_darwin_mapper_resolve_symbol (GumDarwinMapper * self,
       value->resolver = 0;
       return TRUE;
     default:
-      g_assert_not_reached ();
-      break;
+      return FALSE;
   }
 }
 

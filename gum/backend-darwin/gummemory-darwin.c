@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -101,7 +101,7 @@ gum_darwin_query_page_size (mach_port_t task,
         char buf[256];
         size_t size;
         int res;
-        guint64 hw_page_size;
+        guint64 hw_page_size = 0;
 
         size = sizeof (buf);
         res = sysctlbyname ("hw.pagesize", buf, &size, NULL, 0);

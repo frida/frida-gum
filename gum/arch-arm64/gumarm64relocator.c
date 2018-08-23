@@ -388,7 +388,7 @@ gum_arm64_relocator_can_relocate (gpointer address,
     cs_insn * insn;
     const guint8 * current_code;
     uint64_t current_address;
-    gsize current_code_size;
+    size_t current_code_size;
     gpointer target;
     GHashTableIter iter;
 

@@ -1979,10 +1979,9 @@ gum_thread_state_from_darwin (integer_t run_state)
     case TH_STATE_STOPPED: return GUM_THREAD_STOPPED;
     case TH_STATE_WAITING: return GUM_THREAD_WAITING;
     case TH_STATE_UNINTERRUPTIBLE: return GUM_THREAD_UNINTERRUPTIBLE;
-    case TH_STATE_HALTED: return GUM_THREAD_HALTED;
+    case TH_STATE_HALTED:
     default:
-      g_assert_not_reached ();
-      break;
+      return GUM_THREAD_HALTED;
   }
 }
 

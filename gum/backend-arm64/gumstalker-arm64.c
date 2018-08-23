@@ -860,7 +860,7 @@ gum_stalker_create_exec_ctx (GumStalker * self,
   gum_spinlock_init (&ctx->callout_lock);
   ctx->sink = (GumEventSink *) g_object_ref (sink);
   ctx->sink_mask = gum_event_sink_query_mask (sink);
-  ctx->sink_process_impl = GUM_EVENT_SINK_GET_INTERFACE (sink)->process;
+  ctx->sink_process_impl = GUM_EVENT_SINK_GET_IFACE (sink)->process;
 
   gum_exec_ctx_create_thunks (ctx);
 
@@ -2443,15 +2443,14 @@ gum_exec_block_virtualize_ret_insn (GumExecBlock * block,
   {
     ret_reg = ARM64_REG_X30;
   }
-  else if (arm64->op_count == 1)
-  {
-    op = &arm64->operands[0];
-    g_assert (op->type == ARM64_OP_REG);
-    ret_reg = op->reg;
-  }
   else
   {
-    g_assert_not_reached ();
+    g_assert_cmpint (arm64->op_count, ==, 1);
+
+    op = &arm64->operands[0];
+    g_assert (op->type == ARM64_OP_REG);
+
+    ret_reg = op->reg;
   }
   gum_arm64_relocator_skip_one (gc->relocator);
   gum_exec_block_write_ret_transfer_code (block, gc, ret_reg);

@@ -433,9 +433,9 @@ test_util_heap_apis (void)
   {
     GumHeapApi api = { 0 };
 
-    api.malloc = malloc;
-    api.calloc = calloc;
-    api.realloc = realloc;
+    api.malloc = (gpointer (*) (gsize)) malloc;
+    api.calloc = (gpointer (*) (gsize, gsize)) calloc;
+    api.realloc = (gpointer (*) (gpointer, gsize)) realloc;
     api.free = free;
 
 #if defined (G_OS_WIN32) && defined (_DEBUG)

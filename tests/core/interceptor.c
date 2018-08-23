@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -571,7 +571,7 @@ INTERCEPTOR_TESTCASE (replace_function)
   malloc_impl = dlsym (libc, "malloc");
   dlclose (libc);
 #else
-  malloc_impl = malloc;
+  malloc_impl = (gpointer (*) (gsize)) malloc;
 #endif
 
   g_assert_cmpint (gum_interceptor_replace_function (fixture->interceptor,

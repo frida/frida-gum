@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -250,11 +250,15 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
             GUM_ARG_REGISTER, ARM64_REG_LR);
 
         if (dst_reg >= ARM64_REG_X0 && dst_reg <= ARM64_REG_X28)
+        {
           dst_reg_index = dst_reg - ARM64_REG_X0;
-        else if (dst_reg >= ARM64_REG_X29 && dst_reg <= ARM64_REG_X30)
-          dst_reg_index = dst_reg - ARM64_REG_X29;
+        }
         else
-          g_assert_not_reached ();
+        {
+          g_assert (dst_reg >= ARM64_REG_X29 && dst_reg <= ARM64_REG_X30);
+
+          dst_reg_index = dst_reg - ARM64_REG_X29;
+        }
 
         dst_reg_slot_index = (dst_reg_index * reg_size) / reg_pair_size;
 

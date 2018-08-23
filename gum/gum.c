@@ -14,7 +14,6 @@
 #include "gumtls-priv.h"
 #include "valgrind.h"
 
-#include <capstone/capstone.h>
 #include <ffi.h>
 #include <glib-object.h>
 #include <gio/gio.h>
@@ -147,7 +146,7 @@ gum_do_init (void)
     gum_cs_calloc,
     gum_cs_realloc,
     gum_cs_free,
-    gum_vsnprintf
+    (cs_vsnprintf_t) gum_vsnprintf
   };
 
   gum_memory_init ();
@@ -187,8 +186,8 @@ void
 gum_init_embedded (void)
 {
   ffi_mem_callbacks ffi_callbacks = {
-    gum_malloc,
-    gum_calloc,
+    (void * (*) (size_t)) gum_malloc,
+    (void * (*) (size_t, size_t)) gum_calloc,
     gum_free,
     gum_on_ffi_allocate,
     gum_on_ffi_deallocate

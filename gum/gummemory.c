@@ -672,21 +672,21 @@ gum_free (gpointer mem)
 }
 
 gpointer
-gum_cs_malloc (gsize size)
+gum_cs_malloc (size_t size)
 {
   return mspace_malloc (gum_mspace_capstone, size);
 }
 
 gpointer
-gum_cs_calloc (gsize count,
-               gsize size)
+gum_cs_calloc (size_t count,
+               size_t size)
 {
   return mspace_calloc (gum_mspace_capstone, count, size);
 }
 
 gpointer
 gum_cs_realloc (gpointer mem,
-                gsize size)
+                size_t size)
 {
   return mspace_realloc (gum_mspace_capstone, mem, size);
 }
