@@ -414,7 +414,6 @@ replacement_realloc (gpointer old_address,
   GumBoundsChecker * self;
   gpointer result = NULL;
   GumBlockDetails old_block;
-  gboolean success;
 
   ctx = gum_interceptor_get_current_invocation ();
   self = GUM_RINCTX_GET_FUNC_DATA (ctx, GumBoundsChecker *);
@@ -452,8 +451,7 @@ replacement_realloc (gpointer old_address,
     gum_memcpy (result, old_address, MIN (old_block.size, new_size));
 
   GUM_BOUNDS_CHECKER_LOCK ();
-  success = gum_bounds_checker_try_free (self, old_address, ctx);
-  g_assert (success);
+  gum_bounds_checker_try_free (self, old_address, ctx);
   GUM_BOUNDS_CHECKER_UNLOCK ();
 
   return result;

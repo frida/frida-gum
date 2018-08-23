@@ -363,12 +363,8 @@ gum_allocator_probe_add_suppression_addresses_if_glib (const GumModuleDetails * 
 
     for (i = 0; function_name[i] != NULL; i++)
     {
-      gpointer address;
-      gboolean found;
-
-      found = g_module_symbol (module, function_name[i], &address);
-      g_assert (found);
-
+      gpointer address = NULL;
+      g_module_symbol (module, function_name[i], &address);
       g_array_append_val (ignored, address);
     }
 
@@ -634,16 +630,14 @@ attach_to_function (GumAllocatorProbe * self,
 {
   GumInvocationListener * listener = GUM_INVOCATION_LISTENER (self);
   FunctionContext * function_ctx;
-  GumAttachReturn attach_ret;
 
   function_ctx = g_new0 (FunctionContext, 1);
   function_ctx->handlers = *function_handlers;
   function_ctx->handler_data = user_data;
   g_ptr_array_add (self->function_contexts, function_ctx);
 
-  attach_ret = gum_interceptor_attach_listener (self->interceptor,
+  gum_interceptor_attach_listener (self->interceptor,
       function_address, listener, function_ctx);
-  g_assert (attach_ret == GUM_ATTACH_OK);
 }
 
 void
@@ -651,11 +645,9 @@ gum_allocator_probe_suppress (GumAllocatorProbe * self,
                               gpointer function_address)
 {
   GumInvocationListener * listener = GUM_INVOCATION_LISTENER (self);
-  GumAttachReturn attach_ret;
 
-  attach_ret = gum_interceptor_attach_listener (self->interceptor,
+  gum_interceptor_attach_listener (self->interceptor,
       function_address, listener, NULL);
-  g_assert (attach_ret == GUM_ATTACH_OK);
 }
 
 static void

@@ -617,10 +617,7 @@ gum_duk_script_perform_load_task (GumDukScript * self,
 
     if (self->ctx == NULL)
     {
-      gboolean created;
-
-      created = gum_duk_script_create_context (self, NULL);
-      g_assert (created);
+      gum_duk_script_create_context (self, NULL);
     }
 
     ctx = _gum_duk_scope_enter (&scope, &self->core);

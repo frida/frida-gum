@@ -153,21 +153,15 @@ gum_instance_tracker_fill_vtable_if_module_is_gobject (
   if (g_strstr_len (name_lowercase, -1, "gobject-2.0") != NULL)
   {
     GModule * module;
-    gboolean found;
 
     module = g_module_open (details->path, (GModuleFlags) 0);
 
-    found = g_module_symbol (module, "g_type_create_instance",
+    g_module_symbol (module, "g_type_create_instance",
         (gpointer *) &vtable->create_instance);
-    g_assert (found);
-
-    found = g_module_symbol (module, "g_type_free_instance",
+    g_module_symbol (module, "g_type_free_instance",
         (gpointer *) &vtable->free_instance);
-    g_assert (found);
-
-    found = g_module_symbol (module, "g_type_name",
+    g_module_symbol (module, "g_type_name",
         (gpointer *) &vtable->type_id_to_name);
-    g_assert (found);
 
     g_module_close (module);
   }
@@ -181,8 +175,6 @@ void
 gum_instance_tracker_begin (GumInstanceTracker * self,
                             GumInstanceVTable * vtable)
 {
-  GumAttachReturn attach_ret;
-
   g_assert (!self->is_active);
 
   if (vtable != NULL)
@@ -204,17 +196,15 @@ gum_instance_tracker_begin (GumInstanceTracker * self,
 
   gum_interceptor_begin_transaction (self->interceptor);
 
-  attach_ret = gum_interceptor_attach_listener (self->interceptor,
+  gum_interceptor_attach_listener (self->interceptor,
       GUM_FUNCPTR_TO_POINTER (self->vtable.create_instance),
       GUM_INVOCATION_LISTENER (self),
       GUINT_TO_POINTER (FUNCTION_ID_CREATE_INSTANCE));
-  g_assert (attach_ret == GUM_ATTACH_OK);
 
-  attach_ret = gum_interceptor_attach_listener (self->interceptor,
+  gum_interceptor_attach_listener (self->interceptor,
       GUM_FUNCPTR_TO_POINTER (self->vtable.free_instance),
       GUM_INVOCATION_LISTENER (self),
       GUINT_TO_POINTER (FUNCTION_ID_FREE_INSTANCE));
-  g_assert (attach_ret == GUM_ATTACH_OK);
 
   gum_interceptor_end_transaction (self->interceptor);
 

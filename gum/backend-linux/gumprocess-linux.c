@@ -285,10 +285,9 @@ gum_process_is_debugger_attached (void)
 {
   gboolean result;
   gchar * status, * p;
-  gboolean success;
 
-  success = g_file_get_contents ("/proc/self/status", &status, NULL, NULL);
-  g_assert (success);
+  status = NULL;
+  g_file_get_contents ("/proc/self/status", &status, NULL, NULL);
 
   p = strstr (status, "TracerPid:");
   g_assert (p != NULL);
@@ -1051,9 +1050,9 @@ gum_linux_enumerate_ranges (pid_t pid,
     GumAddress end;
     gchar perms[5] = { 0, };
     guint64 inode;
-    gint length, n;
+    gint length;
 
-    n = sscanf (line,
+    sscanf (line,
         "%" G_GINT64_MODIFIER "x-%" G_GINT64_MODIFIER "x "
         "%4c "
         "%" G_GINT64_MODIFIER "x %*s %" G_GINT64_MODIFIER "d"
@@ -1062,7 +1061,6 @@ gum_linux_enumerate_ranges (pid_t pid,
         perms,
         &file.offset, &inode,
         &length);
-    g_assert (n == 5 || n == 6);
 
     range.size = end - range.base_address;
 
@@ -2191,10 +2189,9 @@ gum_thread_state_from_proc_status_character (gchar c)
     case 'D': return GUM_THREAD_UNINTERRUPTIBLE;
     case 'Z': return GUM_THREAD_UNINTERRUPTIBLE;
     case 'T': return GUM_THREAD_STOPPED;
-    case 'W': return GUM_THREAD_UNINTERRUPTIBLE;
+    case 'W':
     default:
-      g_assert_not_reached ();
-      break;
+      return GUM_THREAD_UNINTERRUPTIBLE;
   }
 }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -161,13 +161,11 @@ gum_free_pages (gpointer mem)
 {
   guint8 * start;
   gsize size;
-  gboolean success;
 
   start = mem - gum_query_page_size ();
   size = *((gsize *) start);
 
-  success = gum_memory_release (start, size);
-  g_assert (success);
+  gum_memory_release (start, size);
 }
 
 gpointer

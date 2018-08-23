@@ -1341,7 +1341,8 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   gum_x86_writer_put_breakpoint (cw); /* Should never get here */
 
   all_labels_resolved = gum_x86_writer_flush (cw);
-  g_assert (all_labels_resolved);
+  if (!all_labels_resolved)
+    g_error ("Failed to resolve labels");
 
   block->code_end = (guint8 *) gum_x86_writer_cur (cw);
 
@@ -3513,8 +3514,6 @@ gum_cpu_reg_from_capstone (x86_reg reg)
 {
   switch (reg)
   {
-    case X86_REG_INVALID: return GUM_REG_NONE;
-
     case X86_REG_EAX: return GUM_REG_EAX;
     case X86_REG_ECX: return GUM_REG_ECX;
     case X86_REG_EDX: return GUM_REG_EDX;
@@ -3552,7 +3551,7 @@ gum_cpu_reg_from_capstone (x86_reg reg)
     case X86_REG_RIP: return GUM_REG_RIP;
 
     default:
-      g_assert_not_reached ();
+      return GUM_REG_NONE;
   }
 }
 
@@ -3592,9 +3591,8 @@ gum_negate_jcc (x86_insn instruction_id)
     case X86_INS_JP:
       return X86_INS_JNP;
     case X86_INS_JS:
-      return X86_INS_JNS;
     default:
-      g_assert_not_reached ();
+      return X86_INS_JNS;
   }
 }
 

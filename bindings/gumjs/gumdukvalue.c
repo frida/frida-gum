@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -1755,11 +1755,10 @@ gum_exception_type_to_string (GumExceptionType type)
     case GUM_EXCEPTION_BREAKPOINT: return "breakpoint";
     case GUM_EXCEPTION_SINGLE_STEP: return "single-step";
     case GUM_EXCEPTION_SYSTEM: return "system";
-    default:
-      break;
+    default: break;
   }
 
-  g_assert_not_reached ();
+  return NULL;
 }
 
 const gchar *
@@ -1772,11 +1771,10 @@ _gum_duk_thread_state_to_string (GumThreadState state)
     case GUM_THREAD_WAITING: return "waiting";
     case GUM_THREAD_UNINTERRUPTIBLE: return "uninterruptible";
     case GUM_THREAD_HALTED: return "halted";
-    default:
-      break;
+    default: break;
   }
 
-  g_assert_not_reached ();
+  return NULL;
 }
 
 const gchar *
@@ -1788,7 +1786,8 @@ _gum_duk_memory_operation_to_string (GumMemoryOperation operation)
     case GUM_MEMOP_READ: return "read";
     case GUM_MEMOP_WRITE: return "write";
     case GUM_MEMOP_EXECUTE: return "execute";
-    default:
-      g_assert_not_reached ();
+    default: break;
   }
+
+  return NULL;
 }

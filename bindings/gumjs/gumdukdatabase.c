@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -350,11 +350,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_database_dump)
 
   if (self->is_virtual)
   {
-    gboolean found;
-
-    found = gum_memory_vfs_get_file_contents (self->module->memory_vfs,
-        self->path, &data, &size);
-    g_assert (found);
+    gum_memory_vfs_get_file_contents (self->module->memory_vfs, self->path,
+        &data, &size);
 
     malloc_data = NULL;
   }

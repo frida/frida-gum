@@ -83,10 +83,7 @@ gum_init_field_from_module_symbol (gpointer * field,
                                    GModule * module,
                                    const gchar * name)
 {
-  gboolean success;
-
-  success = g_module_symbol (module, name, field);
-  g_assert (success);
+  g_module_symbol (module, name, field);
 }
 
 GumHeapApiList *

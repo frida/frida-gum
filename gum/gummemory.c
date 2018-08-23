@@ -613,7 +613,8 @@ gum_mprotect (gpointer address,
   gboolean success;
 
   success = gum_try_mprotect (address, size, page_prot);
-  g_assert (success);
+  if (!success)
+    g_abort ();
 }
 
 guint

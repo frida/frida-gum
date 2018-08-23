@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -267,10 +267,7 @@ gum_thumb_relocator_peek_next_write_source (GumThumbRelocator * self)
 void
 gum_thumb_relocator_skip_one (GumThumbRelocator * self)
 {
-  cs_insn * next;
-
-  next = gum_thumb_relocator_peek_next_write_insn (self);
-  g_assert (next != NULL);
+  gum_thumb_relocator_peek_next_write_insn (self);
   gum_thumb_relocator_increment_outpos (self);
 }
 

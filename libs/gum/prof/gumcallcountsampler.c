@@ -212,11 +212,8 @@ void
 gum_call_count_sampler_add_function (GumCallCountSampler * self,
                                      gpointer function)
 {
-  GumAttachReturn attach_ret;
-
-  attach_ret = gum_interceptor_attach_listener (self->interceptor,
-      function, GUM_INVOCATION_LISTENER (self), NULL);
-  g_assert (attach_ret == GUM_ATTACH_OK);
+  gum_interceptor_attach_listener (self->interceptor, function,
+      GUM_INVOCATION_LISTENER (self), NULL);
 }
 
 GumSample

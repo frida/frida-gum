@@ -2934,12 +2934,11 @@ gum_meta_reg_from_cpu_reg (GumCpuReg reg)
 {
   if (reg >= GUM_REG_EAX && reg <= GUM_REG_R15D)
     return (GumMetaReg) (GUM_META_REG_XAX + reg - GUM_REG_EAX);
-  else if (reg >= GUM_REG_RAX && reg <= GUM_REG_R15)
+
+  if (reg >= GUM_REG_RAX && reg <= GUM_REG_R15)
     return (GumMetaReg) (GUM_META_REG_XAX + reg - GUM_REG_RAX);
-  else if (reg >= GUM_REG_XAX && reg <= GUM_REG_XDI)
-    return (GumMetaReg) (GUM_META_REG_XAX + reg - GUM_REG_XAX);
-  else
-    g_assert_not_reached ();
+
+  return (GumMetaReg) (GUM_META_REG_XAX + reg - GUM_REG_XAX);
 }
 
 static gboolean
@@ -3067,8 +3066,7 @@ gum_get_jcc_opcode (x86_insn instruction_id)
     case X86_INS_JCXZ:
     case X86_INS_JECXZ:
     case X86_INS_JRCXZ:
-      return 0xe3;
     default:
-      g_assert_not_reached ();
+      return 0xe3;
   }
 }

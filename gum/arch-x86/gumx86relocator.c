@@ -298,10 +298,7 @@ gum_x86_relocator_skip_one (GumX86Relocator * self)
 void
 gum_x86_relocator_skip_one_no_label (GumX86Relocator * self)
 {
-  cs_insn * next;
-
-  next = gum_x86_relocator_peek_next_write_insn (self);
-  g_assert (next != NULL);
+  gum_x86_relocator_peek_next_write_insn (self);
   gum_x86_relocator_increment_outpos (self);
 }
 
@@ -517,7 +514,7 @@ gum_x86_relocator_rewrite_unconditional_branch (GumX86Relocator * self,
   else
   {
     /* FIXME */
-    g_assert_not_reached ();
+    g_abort ();
   }
 }
 
@@ -560,7 +557,7 @@ gum_x86_relocator_rewrite_conditional_branch (GumX86Relocator * self,
   else
   {
     /* FIXME */
-    g_assert_not_reached ();
+    g_abort ();
   }
 
   return TRUE;

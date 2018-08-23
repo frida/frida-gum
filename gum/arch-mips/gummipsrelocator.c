@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -258,10 +258,7 @@ gum_mips_relocator_peek_next_write_source (GumMipsRelocator * self)
 void
 gum_mips_relocator_skip_one (GumMipsRelocator * self)
 {
-  cs_insn * next;
-
-  next = gum_mips_relocator_peek_next_write_insn (self);
-  g_assert (next != NULL);
+  gum_mips_relocator_peek_next_write_insn (self);
   gum_mips_relocator_increment_outpos (self);
 }
 
