@@ -8,6 +8,27 @@ api_version = '1.0'
 
 host_os_family = host_machine.system()
 host_os = host_os_family
+if host_machine.cpu_family() == 'arm'
+  host_arch = 'arm'
+  if host_machine.cpu().endswith('hf')
+    host_abi = 'armhf'
+  else
+    host_abi = 'arm'
+  endif
+elif host_machine.cpu_family() == 'aarch64'
+  host_arch = 'arm64'
+  host_abi = 'arm64'
+elif host_machine.cpu_family() == 'mips'
+  host_arch = 'mips'
+  if host_machine.endian() == 'little'
+    host_abi = 'mipsel'
+  else
+    host_abi = 'mips'
+  endif
+else
+  host_arch = host_machine.cpu_family()
+  host_abi = host_arch
+endif
 
 languages = ['c', 'cpp']
 if host_os_family == 'darwin'
@@ -62,11 +83,11 @@ cpu_defines = [
   ['x86', 'HAVE_I386'],
   ['x86_64', 'HAVE_I386'],
   ['arm', 'HAVE_ARM'],
-  ['aarch64', 'HAVE_ARM64'],
+  ['arm64', 'HAVE_ARM64'],
   ['mips', 'HAVE_MIPS'],
 ]
 foreach d : cpu_defines
-  if d.get(0) == host_machine.cpu_family()
+  if d.get(0) == host_arch
     cdata.set(d.get(1), 1)
   endif
 endforeach

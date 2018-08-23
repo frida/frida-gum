@@ -30,7 +30,7 @@ if host_os == 'android'
   ]
 endif
 
-if host_machine.cpu_family() == 'x86' or host_machine.cpu_family() == 'x86_64'
+if host_arch == 'x86' or host_arch == 'x86_64'
   core_sources += [
     'arch-x86/stalker-x86.c',
   ]
@@ -41,13 +41,13 @@ if host_machine.cpu_family() == 'x86' or host_machine.cpu_family() == 'x86_64'
   endif
 endif
 
-if host_machine.cpu_family() == 'arm'
+if host_arch == 'arm'
   core_sources += [
     'arch-arm/interceptor-arm.c',
   ]
 endif
 
-if host_machine.cpu_family() == 'aarch64'
+if host_arch == 'arm64'
   core_sources += [
     'arch-arm64/interceptor-arm64.c',
     'arch-arm64/stalker-arm64.c',
