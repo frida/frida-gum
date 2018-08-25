@@ -181,6 +181,11 @@ declare namespace Frida {
 
 declare namespace Process {
     /**
+     * PID of the current process.
+     */
+    const id: number;
+
+    /**
      * Architecture of the current process.
      */
     const arch: Architecture;
