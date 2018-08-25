@@ -26,7 +26,7 @@
     "frida-compile": "^6.0.0",
     "frida-java": "1.4.14",
     "frida-objc": "2.0.6",
-    "promiscuous": "^0.7.0"
+    "promiscuous": "0.7.1"
   },
   "repository": {
     "type": "git",
