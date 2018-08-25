@@ -112,7 +112,7 @@ struct _GumMipsRegInfo
 static void gum_mips_writer_put_argument_list_setup (GumMipsWriter * self,
     guint n_args, const GumArgument * args);
 static void gum_mips_writer_put_argument_list_setup_va (GumMipsWriter * self,
-    guint n_args, va_list vl);
+    guint n_args, va_list args);
 static void gum_mips_writer_put_argument_list_teardown (GumMipsWriter * self,
     guint n_args);
 
@@ -296,11 +296,11 @@ gum_mips_writer_put_call_address_with_arguments (GumMipsWriter * self,
                                                  guint n_args,
                                                  ...)
 {
-  va_list vl;
+  va_list args;
 
-  va_start (vl, n_args);
-  gum_mips_writer_put_argument_list_setup_va (self, n_args, vl);
-  va_end (vl);
+  va_start (args, n_args);
+  gum_mips_writer_put_argument_list_setup_va (self, n_args, args);
+  va_end (args);
 
   mips_reg target = MIPS_REG_T9;
   gum_mips_writer_put_la_reg_address (self, target, func);
@@ -331,11 +331,11 @@ gum_mips_writer_put_call_reg_with_arguments (GumMipsWriter * self,
                                              guint n_args,
                                              ...)
 {
-  va_list vl;
+  va_list args;
 
-  va_start (vl, n_args);
-  gum_mips_writer_put_argument_list_setup_va (self, n_args, vl);
-  va_end (vl);
+  va_start (args, n_args);
+  gum_mips_writer_put_argument_list_setup_va (self, n_args, args);
+  va_end (args);
 
   gum_mips_writer_put_jalr_reg (self, reg);
 
@@ -398,27 +398,27 @@ gum_mips_writer_put_argument_list_setup (GumMipsWriter * self,
 static void
 gum_mips_writer_put_argument_list_setup_va (GumMipsWriter * self,
                                             guint n_args,
-                                            va_list vl)
+                                            va_list args)
 {
-  GumArgument * args;
+  GumArgument * arg_values;
   guint arg_index;
 
-  args = g_alloca (n_args * sizeof (GumArgument));
+  arg_values = g_alloca (n_args * sizeof (GumArgument));
 
   for (arg_index = 0; arg_index != n_args; arg_index++)
   {
-    GumArgument * arg = &args[arg_index];
+    GumArgument * arg = &arg_values[arg_index];
 
-    arg->type = va_arg (vl, GumArgType);
+    arg->type = va_arg (args, GumArgType);
     if (arg->type == GUM_ARG_ADDRESS)
-      arg->value.address = va_arg (vl, GumAddress);
+      arg->value.address = va_arg (args, GumAddress);
     else if (arg->type == GUM_ARG_REGISTER)
-      arg->value.reg = va_arg (vl, mips_reg);
+      arg->value.reg = va_arg (args, mips_reg);
     else
       g_assert_not_reached ();
   }
 
-  gum_mips_writer_put_argument_list_setup (self, n_args, args);
+  gum_mips_writer_put_argument_list_setup (self, n_args, arg_values);
 }
 
 static void

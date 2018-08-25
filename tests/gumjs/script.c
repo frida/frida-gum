@@ -1482,13 +1482,13 @@ gum_sum (gint count,
          ...)
 {
   gint total = 0;
-  va_list vl;
+  va_list args;
   gint i;
 
-  va_start (vl, count);
+  va_start (args, count);
   for (i = 0; i != count; i++)
-    total += va_arg (vl, gint);
-  va_end (vl);
+    total += va_arg (args, gint);
+  va_end (args);
 
   return total;
 }
@@ -1506,12 +1506,12 @@ gum_add_pointers_and_float_variadic (gpointer a,
                                      gpointer b,
                                      ...)
 {
-  va_list vl;
+  va_list args;
   float c;
 
-  va_start (vl, b);
-  c = va_arg (vl, double); /* float is promoted to double */
-  va_end (vl);
+  va_start (args, b);
+  c = va_arg (args, double); /* float is promoted to double */
+  va_end (args);
 
   return GPOINTER_TO_SIZE (a) + GPOINTER_TO_SIZE (b) + (int) c;
 }

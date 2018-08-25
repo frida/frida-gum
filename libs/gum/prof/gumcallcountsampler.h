@@ -18,11 +18,11 @@ G_DECLARE_FINAL_TYPE (GumCallCountSampler, gum_call_count_sampler, GUM,
 
 GUM_API GumSampler * gum_call_count_sampler_new (gpointer first_function, ...);
 GUM_API GumSampler * gum_call_count_sampler_new_valist (gpointer first_function,
-    va_list var_args);
+    va_list args);
 GUM_API GumSampler * gum_call_count_sampler_new_by_name (
     const gchar * first_function_name, ...);
 GUM_API GumSampler * gum_call_count_sampler_new_by_name_valist (
-    const gchar * first_function_name, va_list var_args);
+    const gchar * first_function_name, va_list args);
 
 GUM_API void gum_call_count_sampler_add_function (GumCallCountSampler * self,
     gpointer function);

@@ -116,7 +116,7 @@ struct _GumArm64RegInfo
 static void gum_arm64_writer_put_argument_list_setup (GumArm64Writer * self,
     guint n_args, const GumArgument * args);
 static void gum_arm64_writer_put_argument_list_setup_va (GumArm64Writer * self,
-    guint n_args, va_list vl);
+    guint n_args, va_list args);
 static void gum_arm64_writer_put_argument_list_teardown (GumArm64Writer * self,
     guint n_args);
 static void gum_arm64_writer_put_load_store_pair (GumArm64Writer * self,
@@ -306,11 +306,11 @@ gum_arm64_writer_put_call_address_with_arguments (GumArm64Writer * self,
                                                   guint n_args,
                                                   ...)
 {
-  va_list vl;
+  va_list args;
 
-  va_start (vl, n_args);
-  gum_arm64_writer_put_argument_list_setup_va (self, n_args, vl);
-  va_end (vl);
+  va_start (args, n_args);
+  gum_arm64_writer_put_argument_list_setup_va (self, n_args, args);
+  va_end (args);
 
   if (gum_arm64_writer_can_branch_directly_between (self->pc, func))
   {
@@ -355,11 +355,11 @@ gum_arm64_writer_put_call_reg_with_arguments (GumArm64Writer * self,
                                               guint n_args,
                                               ...)
 {
-  va_list vl;
+  va_list args;
 
-  va_start (vl, n_args);
-  gum_arm64_writer_put_argument_list_setup_va (self, n_args, vl);
-  va_end (vl);
+  va_start (args, n_args);
+  gum_arm64_writer_put_argument_list_setup_va (self, n_args, args);
+  va_end (args);
 
   gum_arm64_writer_put_blr_reg (self, reg);
 
@@ -418,27 +418,27 @@ gum_arm64_writer_put_argument_list_setup (GumArm64Writer * self,
 static void
 gum_arm64_writer_put_argument_list_setup_va (GumArm64Writer * self,
                                              guint n_args,
-                                             va_list vl)
+                                             va_list args)
 {
-  GumArgument * args;
+  GumArgument * arg_values;
   guint arg_index;
 
-  args = g_alloca (n_args * sizeof (GumArgument));
+  arg_values = g_alloca (n_args * sizeof (GumArgument));
 
   for (arg_index = 0; arg_index != n_args; arg_index++)
   {
-    GumArgument * arg = &args[arg_index];
+    GumArgument * arg = &arg_values[arg_index];
 
-    arg->type = va_arg (vl, GumArgType);
+    arg->type = va_arg (args, GumArgType);
     if (arg->type == GUM_ARG_ADDRESS)
-      arg->value.address = va_arg (vl, GumAddress);
+      arg->value.address = va_arg (args, GumAddress);
     else if (arg->type == GUM_ARG_REGISTER)
-      arg->value.reg = va_arg (vl, arm64_reg);
+      arg->value.reg = va_arg (args, arm64_reg);
     else
       g_assert_not_reached ();
   }
 
-  gum_arm64_writer_put_argument_list_setup (self, n_args, args);
+  gum_arm64_writer_put_argument_list_setup (self, n_args, arg_values);
 }
 
 static void

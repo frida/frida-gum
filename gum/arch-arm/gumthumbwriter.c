@@ -52,7 +52,7 @@ enum _GumThumbMemoryOperation
 static void gum_thumb_writer_put_argument_list_setup (GumThumbWriter * self,
     guint n_args, const GumArgument * args);
 static void gum_thumb_writer_put_argument_list_setup_va (GumThumbWriter * self,
-    guint n_args, va_list vl);
+    guint n_args, va_list args);
 static void gum_thumb_writer_put_argument_list_teardown (GumThumbWriter * self,
     guint n_args);
 static void gum_thumb_writer_put_branch_imm (GumThumbWriter * self,
@@ -62,7 +62,7 @@ static gboolean gum_thumb_writer_put_push_or_pop_regs (GumThumbWriter * self,
     guint n_regs, const arm_reg * regs);
 static gboolean gum_thumb_writer_put_push_or_pop_regs_va (GumThumbWriter * self,
     guint16 narrow_opcode, guint16 wide_opcode, GumArmMetaReg special_reg,
-    guint n_regs, arm_reg first_reg, va_list vl);
+    guint n_regs, arm_reg first_reg, va_list args);
 static gboolean gum_thumb_writer_put_transfer_reg_reg_offset (
     GumThumbWriter * self, GumThumbMemoryOperation operation, arm_reg left_reg,
     arm_reg right_reg, gsize right_offset);
@@ -240,11 +240,11 @@ gum_thumb_writer_put_call_address_with_arguments (GumThumbWriter * self,
                                                   guint n_args,
                                                   ...)
 {
-  va_list vl;
+  va_list args;
 
-  va_start (vl, n_args);
-  gum_thumb_writer_put_argument_list_setup_va (self, n_args, vl);
-  va_end (vl);
+  va_start (args, n_args);
+  gum_thumb_writer_put_argument_list_setup_va (self, n_args, args);
+  va_end (args);
 
   gum_thumb_writer_put_ldr_reg_address (self, ARM_REG_LR, func);
   gum_thumb_writer_put_blx_reg (self, ARM_REG_LR);
@@ -273,11 +273,11 @@ gum_thumb_writer_put_call_reg_with_arguments (GumThumbWriter * self,
                                               guint n_args,
                                               ...)
 {
-  va_list vl;
+  va_list args;
 
-  va_start (vl, n_args);
-  gum_thumb_writer_put_argument_list_setup_va (self, n_args, vl);
-  va_end (vl);
+  va_start (args, n_args);
+  gum_thumb_writer_put_argument_list_setup_va (self, n_args, args);
+  va_end (args);
 
   gum_thumb_writer_put_blx_reg (self, reg);
 
@@ -340,27 +340,27 @@ gum_thumb_writer_put_argument_list_setup (GumThumbWriter * self,
 static void
 gum_thumb_writer_put_argument_list_setup_va (GumThumbWriter * self,
                                              guint n_args,
-                                             va_list vl)
+                                             va_list args)
 {
-  GumArgument * args;
+  GumArgument * arg_values;
   guint arg_index;
 
-  args = g_alloca (n_args * sizeof (GumArgument));
+  arg_values = g_alloca (n_args * sizeof (GumArgument));
 
   for (arg_index = 0; arg_index != n_args; arg_index++)
   {
-    GumArgument * arg = &args[arg_index];
+    GumArgument * arg = &arg_values[arg_index];
 
-    arg->type = va_arg (vl, GumArgType);
+    arg->type = va_arg (args, GumArgType);
     if (arg->type == GUM_ARG_ADDRESS)
-      arg->value.address = va_arg (vl, GumAddress);
+      arg->value.address = va_arg (args, GumAddress);
     else if (arg->type == GUM_ARG_REGISTER)
-      arg->value.reg = va_arg (vl, arm_reg);
+      arg->value.reg = va_arg (args, arm_reg);
     else
       g_assert_not_reached ();
   }
 
-  gum_thumb_writer_put_argument_list_setup (self, n_args, args);
+  gum_thumb_writer_put_argument_list_setup (self, n_args, arg_values);
 }
 
 static void
@@ -558,12 +558,12 @@ gum_thumb_writer_put_push_regs (GumThumbWriter * self,
                                 ...)
 {
   gboolean success;
-  va_list vl;
+  va_list args;
 
-  va_start (vl, first_reg);
+  va_start (args, first_reg);
   success = gum_thumb_writer_put_push_or_pop_regs_va (self, 0xb400, 0xe92d,
-      GUM_ARM_MREG_LR, n_regs, first_reg, vl);
-  va_end (vl);
+      GUM_ARM_MREG_LR, n_regs, first_reg, args);
+  va_end (args);
 
   return success;
 }
@@ -584,12 +584,12 @@ gum_thumb_writer_put_pop_regs (GumThumbWriter * self,
                                ...)
 {
   gboolean success;
-  va_list vl;
+  va_list args;
 
-  va_start (vl, first_reg);
+  va_start (args, first_reg);
   success = gum_thumb_writer_put_push_or_pop_regs_va (self, 0xbc00, 0xe8bd,
-      GUM_ARM_MREG_PC, n_regs, first_reg, vl);
-  va_end (vl);
+      GUM_ARM_MREG_PC, n_regs, first_reg, args);
+  va_end (args);
 
   return success;
 }
@@ -674,7 +674,7 @@ gum_thumb_writer_put_push_or_pop_regs_va (GumThumbWriter * self,
                                           GumArmMetaReg special_reg,
                                           guint n_regs,
                                           arm_reg first_reg,
-                                          va_list vl)
+                                          va_list args)
 {
   arm_reg * regs;
   guint reg_index;
@@ -685,7 +685,7 @@ gum_thumb_writer_put_push_or_pop_regs_va (GumThumbWriter * self,
 
   for (reg_index = 0; reg_index != n_regs; reg_index++)
   {
-    regs[reg_index] = (reg_index == 0) ? first_reg : va_arg (vl, arm_reg);
+    regs[reg_index] = (reg_index == 0) ? first_reg : va_arg (args, arm_reg);
   }
 
   return gum_thumb_writer_put_push_or_pop_regs (self, narrow_opcode,

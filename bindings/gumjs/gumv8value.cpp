@@ -1209,14 +1209,14 @@ _gum_v8_throw (Isolate * isolate,
                const gchar * format,
                ...)
 {
-  va_list ap;
-  va_start (ap, format);
+  va_list args;
+  va_start (args, format);
 
-  auto message = g_strdup_vprintf (format, ap);
+  auto message = g_strdup_vprintf (format, args);
   _gum_v8_throw_literal (isolate, message);
   g_free (message);
 
-  va_end (ap);
+  va_end (args);
 }
 
 void
@@ -1232,14 +1232,14 @@ _gum_v8_throw_ascii (Isolate * isolate,
                      const gchar * format,
                      ...)
 {
-  va_list ap;
-  va_start (ap, format);
+  va_list args;
+  va_start (args, format);
 
-  auto message = g_strdup_vprintf (format, ap);
+  auto message = g_strdup_vprintf (format, args);
   _gum_v8_throw_ascii_literal (isolate, message);
   g_free (message);
 
-  va_end (ap);
+  va_end (args);
 }
 
 void

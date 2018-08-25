@@ -133,7 +133,7 @@ gum_call_count_sampler_new (gpointer first_function,
 
 GumSampler *
 gum_call_count_sampler_new_valist (gpointer first_function,
-                                   va_list var_args)
+                                   va_list args)
 {
   GumInterceptor * interceptor;
   GumCallCountSampler * sampler;
@@ -149,7 +149,7 @@ gum_call_count_sampler_new_valist (gpointer first_function,
       g_object_new (GUM_TYPE_CALL_COUNT_SAMPLER, NULL));
 
   for (function = first_function; function != NULL;
-      function = va_arg (var_args, gpointer))
+      function = va_arg (args, gpointer))
   {
     gum_call_count_sampler_add_function (sampler, function);
   }
@@ -178,7 +178,7 @@ gum_call_count_sampler_new_by_name (const gchar * first_function_name,
 
 GumSampler *
 gum_call_count_sampler_new_by_name_valist (const gchar * first_function_name,
-                                           va_list var_args)
+                                           va_list args)
 {
   GumInterceptor * interceptor;
   const gchar * function_name;
@@ -191,7 +191,7 @@ gum_call_count_sampler_new_by_name_valist (const gchar * first_function_name,
   sampler = g_object_new (GUM_TYPE_CALL_COUNT_SAMPLER, NULL);
 
   for (function_name = first_function_name; function_name != NULL;
-      function_name = va_arg (var_args, const gchar *))
+      function_name = va_arg (args, const gchar *))
   {
     gpointer address;
 

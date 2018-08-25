@@ -1536,11 +1536,11 @@ _gum_duk_throw (duk_context * ctx,
                 const gchar * format,
                 ...)
 {
-  va_list ap;
+  va_list args;
 
-  va_start (ap, format);
-  duk_push_error_object_va (ctx, DUK_ERR_ERROR, format, ap);
-  va_end (ap);
+  va_start (args, format);
+  duk_push_error_object_va (ctx, DUK_ERR_ERROR, format, args);
+  va_end (args);
 
   (void) duk_throw (ctx);
 }
