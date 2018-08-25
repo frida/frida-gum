@@ -453,10 +453,9 @@ gum_on_log_message (const gchar * log_domain,
       priority = ANDROID_LOG_INFO;
       break;
     case G_LOG_LEVEL_DEBUG:
+    default:
       priority = ANDROID_LOG_DEBUG;
       break;
-    default:
-      g_assert_not_reached ();
   }
 
   __android_log_write (priority, log_domain, message);
