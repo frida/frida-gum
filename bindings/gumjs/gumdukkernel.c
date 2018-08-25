@@ -141,20 +141,19 @@ gum_emit_range (const GumRangeDetails * details,
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_alloc)
 {
   gpointer address;
-  gssize length;
-  gsize page_size;
+  gsize size, page_size;
   guint n_pages;
   GumDukCore * core = args->core;
 
   gum_duk_kernel_check_api_available (ctx);
 
-  _gum_duk_args_parse (args, "Z", &length);
+  _gum_duk_args_parse (args, "Z", &size);
 
-  if (length == 0 || length > 0x7fffffff)
+  if (size == 0 || size > 0x7fffffff)
     _gum_duk_throw (ctx, "invalid size");
 
   page_size = gum_kernel_query_page_size ();
-  n_pages = ((length + page_size - 1) & ~(page_size - 1)) / page_size;
+  n_pages = ((size + page_size - 1) & ~(page_size - 1)) / page_size;
 
   address = gum_kernel_alloc_n_pages (n_pages);
   _gum_duk_push_native_pointer (ctx, address, core);

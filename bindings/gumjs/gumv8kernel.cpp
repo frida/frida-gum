@@ -157,18 +157,18 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_alloc)
   if (!gum_v8_kernel_check_api_available (isolate))
     return;
 
-  gssize length;
-  if (!_gum_v8_args_parse (args, "Z", &length))
+  gsize size;
+  if (!_gum_v8_args_parse (args, "Z", &size))
     return;
 
-  if (length == 0 || length > 0x7fffffff)
+  if (size == 0 || size > 0x7fffffff)
   {
     _gum_v8_throw_ascii_literal (isolate, "invalid size");
     return;
   }
 
   gsize page_size = gum_kernel_query_page_size ();
-  guint n_pages = ((length + page_size - 1) & ~(page_size - 1)) / page_size;
+  guint n_pages = ((size + page_size - 1) & ~(page_size - 1)) / page_size;
 
   gpointer address = gum_kernel_alloc_n_pages (n_pages);
   info.GetReturnValue ().Set (_gum_v8_native_pointer_new (address, core));
