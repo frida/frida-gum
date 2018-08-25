@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -102,6 +102,8 @@ _gum_v8_process_init (GumV8Process * self,
   auto module = External::New (isolate, self);
 
   auto process = _gum_v8_create_module ("Process", scope, isolate);
+  process->Set (_gum_v8_string_new_ascii (isolate, "id"),
+      Number::New (isolate, gum_process_get_id ()), ReadOnly);
   process->Set (_gum_v8_string_new_ascii (isolate, "arch"),
       String::NewFromUtf8 (isolate, GUM_SCRIPT_ARCH), ReadOnly);
   process->Set (_gum_v8_string_new_ascii (isolate, "platform"),

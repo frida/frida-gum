@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -107,6 +107,8 @@ _gum_duk_process_init (GumDukProcess * self,
   duk_push_c_function (ctx, gumjs_process_construct, 0);
   duk_push_object (ctx);
   duk_put_function_list (ctx, -1, gumjs_process_functions);
+  duk_push_uint (ctx, gum_process_get_id ());
+  duk_put_prop_string (ctx, -2, "id");
   duk_push_string (ctx, GUM_SCRIPT_ARCH);
   duk_put_prop_string (ctx, -2, "arch");
   duk_push_string (ctx, GUM_SCRIPT_PLATFORM);

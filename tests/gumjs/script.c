@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -133,6 +133,7 @@ TEST_LIST_BEGIN (script)
 #ifndef HAVE_QNX
   SCRIPT_TESTENTRY (process_debugger_status_is_available)
 #endif
+  SCRIPT_TESTENTRY (process_id_is_available)
   SCRIPT_TESTENTRY (process_current_thread_id_is_available)
   SCRIPT_TESTENTRY (process_threads_can_be_enumerated)
   SCRIPT_TESTENTRY (process_threads_can_be_enumerated_synchronously)
@@ -2221,6 +2222,20 @@ SCRIPT_TESTCASE (process_debugger_status_is_available)
     EXPECT_SEND_MESSAGE_WITH ("true");
   else
     EXPECT_SEND_MESSAGE_WITH ("false");
+}
+
+SCRIPT_TESTCASE (process_id_is_available)
+{
+  TestScriptMessageItem * item;
+  gint pid;
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Process.id);");
+
+  item = test_script_fixture_pop_message (fixture);
+  pid = 0;
+  sscanf (item->message, "{\"type\":\"send\",\"payload\":%d}", &pid);
+  g_assert_cmpint (pid, ==, gum_process_get_id ());
+  test_script_message_item_free (item);
 }
 
 SCRIPT_TESTCASE (process_current_thread_id_is_available)
