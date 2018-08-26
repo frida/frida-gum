@@ -144,12 +144,6 @@ declare type ScheduledCallback = (...params: any[]) => void;
  */
 declare function gc(): void;
 
-declare namespace console {
-    function error(...args: any[]): void;
-    function log(...args: any[]): void;
-    function warn(...args: any[]): void;
-}
-
 declare namespace rpc {
     /**
      * Empty object that you can either replace or insert into to expose an RPC-style API to your application.
