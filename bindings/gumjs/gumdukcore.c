@@ -2419,7 +2419,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
 {
   GumDukCore * core = args->core;
   GumDukNativeFunctionParams params;
-  gboolean options_overload;
 
   if (!duk_is_constructor_call (ctx))
     _gum_duk_throw (ctx, "use `new NativeFunction()` to create a new instance");
@@ -2826,21 +2825,21 @@ gum_duk_native_function_invoke (GumDukNativeFunction * self,
     GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
     GumInterceptor * interceptor = core->interceptor->interceptor;
 
-    _gum_duk_scope_suspend (&scope);
-
-    gum_interceptor_unignore_current_thread (interceptor);
-
     if (gum_exceptor_try (core->exceptor, &exceptor_scope))
     {
+      _gum_duk_scope_suspend (&scope);
+
+      gum_interceptor_unignore_current_thread (interceptor);
+
       ffi_call (&self->cif, implementation, rvalue, avalue);
 
       if (self->enable_detailed_return)
         system_error = gum_thread_get_system_error ();
+
+      gum_interceptor_ignore_current_thread (interceptor);
+
+      _gum_duk_scope_resume (&scope);
     }
-
-    gum_interceptor_ignore_current_thread (interceptor);
-
-    _gum_duk_scope_resume (&scope);
   }
 
   if (gum_exceptor_catch (core->exceptor, &exceptor_scope))

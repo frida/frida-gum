@@ -2262,24 +2262,24 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
 
   auto interceptor = core->script->interceptor.interceptor;
 
-  isolate->Exit ();
+  if (gum_exceptor_try (core->exceptor, &scope))
   {
-    Unlocker ul (isolate);
-
-    gum_interceptor_unignore_current_thread (interceptor);
-
-    if (gum_exceptor_try (core->exceptor, &scope))
+    isolate->Exit ();
     {
+      Unlocker ul (isolate);
+
+      gum_interceptor_unignore_current_thread (interceptor);
+
       ffi_call (&self->cif, FFI_FN (implementation), rvalue, avalue);
 
       if (self->enable_detailed_return)
         system_error = gum_thread_get_system_error ();
+
+      gum_interceptor_ignore_current_thread (interceptor);
     }
 
-    gum_interceptor_ignore_current_thread (interceptor);
+    isolate->Enter ();
   }
-
-  isolate->Enter ();
 
   if (gum_exceptor_catch (core->exceptor, &scope))
   {
