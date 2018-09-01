@@ -155,7 +155,6 @@ if (Script.runtime === 'DUK') {
   };
 }
 
-makeEnumerateThreads(Kernel);
 makeEnumerateRanges(Kernel);
 
 makeEnumerateThreads(Process);
@@ -243,6 +242,36 @@ function makeEnumerateRanges(mod) {
     },
   });
 }
+
+Object.defineProperty(Kernel, 'enumerateModuleRangesSync', {
+  enumerable: true,
+  value: function (moduleName, specifier) {
+    const ranges = [];
+    Kernel.enumerateModuleRanges(moduleName, specifier, {
+      onMatch: function (r) {
+        ranges.push(r);
+      },
+      onComplete: function () {
+      }
+    });
+    return ranges;
+  }
+});
+
+Object.defineProperty(Kernel, 'enumerateModulesSync', {
+  enumerable: true,
+  value: function () {
+    const modules = [];
+    Kernel.enumerateModules({
+      onMatch: function (m) {
+        modules.push(m);
+      },
+      onComplete: function () {
+      }
+    });
+    return modules;
+  }
+});
 
 Object.defineProperties(Memory, {
   dup: {

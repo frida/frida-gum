@@ -20,14 +20,14 @@ gum_kernel_query_page_size (void)
   return 0;
 }
 
-gpointer
+GumAddress
 gum_kernel_alloc_n_pages (guint n_pages)
 {
-  return NULL;
+  return 0;
 }
 
 gboolean
-gum_kernel_try_mprotect (gpointer address,
+gum_kernel_try_mprotect (GumAddress address,
                          gsize size,
                          GumPageProtection page_prot)
 {
@@ -51,10 +51,38 @@ gum_kernel_write (GumAddress address,
 }
 
 void
+gum_kernel_scan (const GumMemoryRange * range,
+                 const GumMatchPattern * pattern,
+                 GumMemoryScanMatchFunc func,
+                 gpointer user_data)
+{
+}
+
+void
 gum_kernel_enumerate_ranges (GumPageProtection prot,
                              GumFoundRangeFunc func,
                              gpointer user_data)
 {
+}
+
+void
+gum_kernel_enumerate_module_ranges (const gchar * module_name,
+                                    GumPageProtection prot,
+                                    GumFoundKernelModuleRangeFunc func,
+                                    gpointer user_data)
+{
+}
+
+void
+gum_kernel_enumerate_modules (GumFoundModuleFunc func,
+                              gpointer user_data)
+{
+}
+
+GumAddress
+gum_kernel_find_base_address (void)
+{
+  return 0;
 }
 
 #endif

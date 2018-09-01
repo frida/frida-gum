@@ -11,17 +11,39 @@
 
 G_BEGIN_DECLS
 
+typedef struct _GumKernelModuleRangeDetails GumKernelModuleRangeDetails;
+
+struct _GumKernelModuleRangeDetails
+{
+  gchar name[48];
+  GumAddress address;
+  guint64 size;
+  GumPageProtection protection;
+};
+
+typedef gboolean (* GumFoundKernelModuleRangeFunc) (
+    const GumKernelModuleRangeDetails * details, gpointer user_data);
+
 GUM_API gboolean gum_kernel_api_is_available (void);
 GUM_API guint gum_kernel_query_page_size (void);
-GUM_API gpointer gum_kernel_alloc_n_pages (guint n_pages);
-GUM_API gboolean gum_kernel_try_mprotect (gpointer address, gsize size,
+GUM_API GumAddress gum_kernel_alloc_n_pages (guint n_pages);
+GUM_API gboolean gum_kernel_try_mprotect (GumAddress address, gsize size,
     GumPageProtection page_prot);
 GUM_API guint8 * gum_kernel_read (GumAddress address, gsize len,
     gsize * n_bytes_read);
 GUM_API gboolean gum_kernel_write (GumAddress address, const guint8 * bytes,
     gsize len);
+GUM_API void gum_kernel_scan (const GumMemoryRange * range,
+    const GumMatchPattern * pattern, GumMemoryScanMatchFunc func,
+    gpointer user_data);
 GUM_API void gum_kernel_enumerate_ranges (GumPageProtection prot,
     GumFoundRangeFunc func, gpointer user_data);
+GUM_API void gum_kernel_enumerate_module_ranges (const gchar * module_name,
+    GumPageProtection prot, GumFoundKernelModuleRangeFunc func,
+    gpointer user_data);
+GUM_API void gum_kernel_enumerate_modules (GumFoundModuleFunc func,
+    gpointer user_data);
+GUM_API GumAddress gum_kernel_find_base_address (void);
 
 G_END_DECLS
 
