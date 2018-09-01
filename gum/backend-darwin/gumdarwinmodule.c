@@ -8,11 +8,15 @@
 
 #include "gumdarwin.h"
 #include "gumleb.h"
+#include "gumkernel.h"
 
 #include <mach-o/fat.h>
 #include <mach-o/loader.h>
 
 #define MAX_METADATA_SIZE (64 * 1024)
+#define GUM_MEM_READ(task, addr, len, out_size) \
+    (self->is_kernel ? gum_kernel_read (addr, len, out_size) \
+      : gum_darwin_read (task, addr, len, out_size))
 
 typedef struct _GumResolveSymbolContext GumResolveSymbolContext;
 
@@ -216,6 +220,7 @@ gum_darwin_module_constructed (GObject * object)
   g_assert (self->task != MACH_PORT_NULL);
 
   self->is_local = self->task == mach_task_self ();
+  self->is_kernel = self->task == gum_kernel_get_task ();
 
   if (self->cpu_type == GUM_CPU_INVALID)
   {
@@ -613,9 +618,9 @@ gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
       ? sizeof (struct nlist_64)
       : sizeof (struct nlist);
 
-  symbols = gum_darwin_read (self->task, linkedit + symtab->symoff,
+  symbols = GUM_MEM_READ (self->task, linkedit + symtab->symoff,
       symtab->nsyms * symbol_size, NULL);
-  strings = gum_darwin_read (self->task, linkedit + symtab->stroff,
+  strings = GUM_MEM_READ (self->task, linkedit + symtab->stroff,
       symtab->strsize, NULL);
 
   for (symbol_index = 0; symbol_index != symtab->nsyms; symbol_index++)
@@ -730,8 +735,12 @@ gum_darwin_module_enumerate_sections (GumDarwinModule * self,
         {
           const struct section * s = sections +
               (section_index * sizeof (struct section));
-          details.segment_name = s->segname;
-          details.section_name = s->sectname;
+
+          g_strlcpy (details.segment_name, s->segname,
+              sizeof (details.segment_name));
+          g_strlcpy (details.section_name, s->sectname,
+              sizeof (details.section_name));
+
           details.vm_address = s->addr + (guint32) slide;
           details.size = s->size;
           details.file_offset = s->offset;
@@ -741,8 +750,12 @@ gum_darwin_module_enumerate_sections (GumDarwinModule * self,
         {
           const struct section_64 * s = sections +
               (section_index * sizeof (struct section_64));
-          details.segment_name = s->segname;
-          details.section_name = s->sectname;
+
+          g_strlcpy (details.segment_name, s->segname,
+              sizeof (details.segment_name));
+          g_strlcpy (details.section_name, s->sectname,
+              sizeof (details.section_name));
+
           details.vm_address = s->addr + (guint64) slide;
           details.size = s->size;
           details.file_offset = s->offset;
@@ -1390,7 +1403,7 @@ gum_darwin_module_load_image_from_memory (GumDarwinModule * self)
   }
   else
   {
-    data = gum_darwin_read (self->task, self->base_address,
+    data = GUM_MEM_READ (self->task, self->base_address,
         MAX_METADATA_SIZE, &data_size);
     if (data == NULL)
       return FALSE;
@@ -1438,7 +1451,8 @@ gum_darwin_module_take_image (GumDarwinModule * self,
         if (lc->cmd == LC_SEGMENT)
         {
           const struct segment_command * sc = command;
-          strcpy (segment.name, sc->segname);
+
+          g_strlcpy (segment.name, sc->segname, sizeof (segment.name));
           segment.vm_address = sc->vmaddr;
           segment.vm_size = sc->vmsize;
           segment.file_offset = sc->fileoff;
@@ -1448,7 +1462,8 @@ gum_darwin_module_take_image (GumDarwinModule * self,
         else
         {
           const struct segment_command_64 * sc = command;
-          strcpy (segment.name, sc->segname);
+
+          g_strlcpy (segment.name, sc->segname, sizeof (segment.name));
           segment.vm_address = sc->vmaddr;
           segment.vm_size = sc->vmsize;
           segment.file_offset = sc->fileoff;
@@ -1590,7 +1605,7 @@ gum_darwin_module_read_and_assign (GumDarwinModule * self,
     gpointer data;
     gsize n_bytes_read;
 
-    data = gum_darwin_read (self->task, address, size, &n_bytes_read);
+    data = GUM_MEM_READ (self->task, address, size, &n_bytes_read);
     *start = data;
     *end = (data != NULL) ? data + n_bytes_read : NULL;
     *malloc_data = data;

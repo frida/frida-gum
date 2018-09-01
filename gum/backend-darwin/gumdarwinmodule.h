@@ -55,6 +55,7 @@ struct _GumDarwinModule
 
   mach_port_t task;
   gboolean is_local;
+  gboolean is_kernel;
   GumCpuType cpu_type;
   gsize pointer_size;
   gsize page_size;
@@ -116,8 +117,8 @@ struct _GumDarwinModuleImageSegment
 
 struct _GumDarwinSectionDetails
 {
-  const gchar * segment_name;
-  const gchar * section_name;
+  gchar segment_name[17];
+  gchar section_name[17];
   GumAddress vm_address;
   guint64 size;
   vm_prot_t protection;
@@ -158,7 +159,7 @@ struct _GumDarwinTermPointersDetails
 
 struct _GumDarwinSegment
 {
-  gchar name[16];
+  gchar name[17];
   GumAddress vm_address;
   guint64 vm_size;
   guint64 file_offset;

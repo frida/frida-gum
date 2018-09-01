@@ -1856,7 +1856,7 @@ gum_darwin_find_linkedit (const guint8 * module,
     {
       struct segment_command * sc = (struct segment_command *) lc;
       struct segment_command_64 * sc64 = (struct segment_command_64 *) lc;
-      if (strcmp (sc->segname, "__LINKEDIT") == 0)
+      if (strncmp (sc->segname, "__LINKEDIT", 10) == 0)
       {
         if (header->magic == MH_MAGIC)
           *linkedit = sc->vmaddr - sc->fileoff;

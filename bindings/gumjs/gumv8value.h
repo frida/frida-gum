@@ -127,6 +127,9 @@ G_GNUC_INTERNAL gboolean _gum_v8_object_set_pointer (
 G_GNUC_INTERNAL gboolean _gum_v8_object_set_pointer (
     v8::Handle<v8::Object> object, const gchar * key, GumAddress value,
     GumV8Core * core);
+G_GNUC_INTERNAL gboolean _gum_v8_object_set_uint64 (
+    v8::Handle<v8::Object> object, const gchar * key, GumAddress value,
+    GumV8Core * core);
 G_GNUC_INTERNAL gboolean _gum_v8_object_set_ascii (
     v8::Handle<v8::Object> object, const gchar * key, const gchar * value,
     GumV8Core * core);
