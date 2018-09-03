@@ -339,8 +339,10 @@ SCRIPT_TESTCASE (instruction_can_be_parsed)
       "send(operands.length);"
       "send(operands[0].type);"
       "send(operands[0].value);"
+      "send(operands[0].size);"
       "send(operands[1].type);"
       "send(operands[1].value);"
+      "send(operands[1].size);"
       "send(mov.regsRead);"
       "send(mov.regsWritten);"
       "send(mov.groups);"
@@ -371,8 +373,10 @@ SCRIPT_TESTCASE (instruction_can_be_parsed)
   EXPECT_SEND_MESSAGE_WITH ("2");
   EXPECT_SEND_MESSAGE_WITH ("\"reg\"");
   EXPECT_SEND_MESSAGE_WITH ("\"eax\"");
+  EXPECT_SEND_MESSAGE_WITH ("4");
   EXPECT_SEND_MESSAGE_WITH ("\"imm\"");
   EXPECT_SEND_MESSAGE_WITH ("42");
+  EXPECT_SEND_MESSAGE_WITH ("4");
   EXPECT_SEND_MESSAGE_WITH ("[]");
   EXPECT_SEND_MESSAGE_WITH ("[]");
   EXPECT_SEND_MESSAGE_WITH ("[]");
