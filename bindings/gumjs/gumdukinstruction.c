@@ -464,8 +464,12 @@ gum_push_operands (duk_context * ctx,
       default:
         g_assert_not_reached ();
     }
+
     duk_put_prop_string (ctx, -3, "type");
     duk_put_prop_string (ctx, -2, "value");
+
+    duk_push_uint (ctx, op->size);
+    duk_put_prop_string (ctx, -2, "size");
 
     duk_put_prop_index (ctx, -2, op_index);
   }
@@ -564,6 +568,9 @@ gum_push_operands (duk_context * ctx,
     }
     duk_put_prop_string (ctx, -3, "type");
     duk_put_prop_string (ctx, -2, "value");
+
+    duk_push_uint (ctx, op->size);
+    duk_put_prop_string (ctx, -2, "size");
 
     if (op->shift.type != ARM_SFT_INVALID)
     {
@@ -720,6 +727,9 @@ gum_push_operands (duk_context * ctx,
     }
     duk_put_prop_string (ctx, -3, "type");
     duk_put_prop_string (ctx, -2, "value");
+
+    duk_push_uint (ctx, op->size);
+    duk_put_prop_string (ctx, -2, "size");
 
     if (op->shift.type != ARM64_SFT_INVALID)
     {
@@ -907,6 +917,9 @@ gum_push_operands (duk_context * ctx,
     }
     duk_put_prop_string (ctx, -3, "type");
     duk_put_prop_string (ctx, -2, "value");
+
+    duk_push_uint (ctx, op->size);
+    duk_put_prop_string (ctx, -2, "size");
 
     duk_put_prop_index (ctx, -2, op_index);
   }
