@@ -466,7 +466,6 @@ gum_parse_operands (const cs_insn * insn,
 
     auto type_key = "type";
     auto value_key = "value";
-    auto size_key = "size";
 
     switch (op->type)
     {
@@ -496,7 +495,7 @@ gum_parse_operands (const cs_insn * insn,
         g_assert_not_reached ();
     }
 
-    _gum_v8_object_set_uint (element, size_key, op->size, core);
+    _gum_v8_object_set_uint (element, "size", op->size, core);
 
     elements->Set (op_index, element);
   }
@@ -561,7 +560,6 @@ gum_parse_operands (const cs_insn * insn,
 
     auto type_key = "type";
     auto value_key = "value";
-    auto size_key = "size";
 
     switch (op->type)
     {
@@ -606,7 +604,7 @@ gum_parse_operands (const cs_insn * insn,
         g_assert_not_reached ();
     }
 
-    _gum_v8_object_set_uint (element, size_key, op->size, core);
+    _gum_v8_object_set_uint (element, "size", op->size, core);
 
     if (op->shift.type != ARM_SFT_INVALID)
     {
@@ -717,7 +715,6 @@ gum_parse_operands (const cs_insn * insn,
 
     auto type_key = "type";
     auto value_key = "value";
-    auto size_key = "size";
 
     switch (op->type)
     {
@@ -776,7 +773,7 @@ gum_parse_operands (const cs_insn * insn,
         g_assert_not_reached ();
     }
 
-    _gum_v8_object_set_uint (element, size_key, op->size, core);
+    _gum_v8_object_set_uint (element, "size", op->size, core);
 
     if (op->shift.type != ARM64_SFT_INVALID)
     {
@@ -952,7 +949,6 @@ gum_parse_operands (const cs_insn * insn,
 
     auto type_key = "type";
     auto value_key = "value";
-    auto size_key = "size";
 
     switch (op->type)
     {
@@ -974,7 +970,7 @@ gum_parse_operands (const cs_insn * insn,
         g_assert_not_reached ();
     }
 
-    _gum_v8_object_set_uint (element, size_key, op->size, core);
+    _gum_v8_object_set_uint (element, "size", op->size, core);
 
     elements->Set (op_index, element);
   }
