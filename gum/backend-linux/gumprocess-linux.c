@@ -803,7 +803,7 @@ gum_process_enumerate_modules_by_parsing_proc_maps (GumFoundModuleFunc func,
     GumAddress end;
     gchar perms[5] = { 0, };
     gint n;
-    gboolean readable, executable, shared;
+    gboolean readable, shared;
     gchar * name;
 
     if (!got_line)
@@ -829,9 +829,8 @@ gum_process_enumerate_modules_by_parsing_proc_maps (GumFoundModuleFunc func,
     g_assert_cmpint (n, ==, 4);
 
     readable = perms[0] == 'r';
-    executable = perms[2] == 'x';
     shared = perms[3] == 's';
-    if (!readable || !executable || shared)
+    if (!readable || shared)
       continue;
     else if (path[0] != '/' || g_str_has_prefix (path, "/dev/"))
       continue;
