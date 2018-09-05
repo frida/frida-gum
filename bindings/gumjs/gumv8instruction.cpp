@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -604,8 +604,6 @@ gum_parse_operands (const cs_insn * insn,
         g_assert_not_reached ();
     }
 
-    _gum_v8_object_set_uint (element, "size", op->size, core);
-
     if (op->shift.type != ARM_SFT_INVALID)
     {
       _gum_v8_object_set (element, "shift",
@@ -772,8 +770,6 @@ gum_parse_operands (const cs_insn * insn,
       default:
         g_assert_not_reached ();
     }
-
-    _gum_v8_object_set_uint (element, "size", op->size, core);
 
     if (op->shift.type != ARM64_SFT_INVALID)
     {
@@ -969,8 +965,6 @@ gum_parse_operands (const cs_insn * insn,
       default:
         g_assert_not_reached ();
     }
-
-    _gum_v8_object_set_uint (element, "size", op->size, core);
 
     elements->Set (op_index, element);
   }
