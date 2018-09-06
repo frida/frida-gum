@@ -635,6 +635,127 @@ declare namespace Memory {
     function writeAnsiString(address: NativePointerValue, value: string): void;
 }
 
+declare namespace Kernel {
+    /**
+     * Whether the Kernel API is available.
+     */
+    const available: boolean;
+
+    /**
+     * Base address of the kernel.
+     */
+    const base: UInt64;
+
+    /**
+     * Size of kernel page in bytes.
+     */
+    const pageSize: number;
+
+    /**
+     * Enumerate all kernel modules.
+     *
+     * @param callbacks Object with callbacks.
+     */
+    function enumerateModules(callbacks: EnumerateCallbacks<KernelModuleDetails>): void;
+
+    /**
+     * Synchronous version of `enumerateModules()`.
+     *
+     * @param callbacks Object with callbacks.
+     */
+    function enumerateModulesSync(): KernelModuleDetails[];
+
+    /**
+      * Enumerates all kernel memory ranges matching `specifier`.
+      *
+      * @param specifier The kind of ranges to include.
+      * @param callbacks Object with callbacks.
+      */
+    function enumerateRanges(specifier: PageProtection | EnumerateRangesSpecifier, callbacks: EnumerateCallbacks<KernelRangeDetails>): void;
+
+    /**
+     * Synchronous version of `enumerateRanges()`.
+     *
+     * @param specifier The kind of ranges to include.
+     */
+    function enumerateRangesSync(specifier: PageProtection | EnumerateRangesSpecifier): KernelRangeDetails[];
+
+    /**
+     * Enumerates all ranges of a kernel module.
+     *
+     * @param name Name of the module, or `null` for the main kernel.
+     * @param protection Include ranges with at least this protection.
+     * @param callbacks Object with callbacks.
+     */
+    function enumerateModuleRanges(name: string | null,  protection: PageProtection, callbacks: EnumerateCallbacks<KernelModuleRangeDetails>): void;
+
+    /**
+     * Synchronous version of `enumerateModuleRanges()`.
+     *
+     * @param name Name of the module, or `null` for the main kernel.
+     * @param protection Include ranges with at least this protection.
+     */
+    function enumerateModuleRangesSync(name: string | null,  protection: PageProtection): KernelModuleRangeDetails[];
+
+    /**
+     * Allocate kernel memory.
+     *
+     * @param size Size of the allocation in bytes (will be page aligned).
+     */
+    function alloc(size: number | UInt64): UInt64;
+
+    /**
+     * Changes the page protection on a region of kernel memory.
+     *
+     * @param address Starting address.
+     * @param size Number of bytes. Must be a multiple of Process#pageSize.
+     * @param protection Desired page protection.
+     */
+    function protect(address: UInt64, size: number | UInt64, protection: PageProtection): boolean;
+
+    /**
+     * Read kernel memory into an ArrayBuffer.
+     *
+     * @param address The kernel memory address to read from.
+     * @param size The number of bytes to read.
+     */
+    function readByteArray(address: UInt64, size: number): ArrayBuffer | null;
+
+    /**
+     * Write the contents of an ArrayBuffer or array to kernel memory.
+     *
+     * @param address The kernel memory address to read from.
+     * @param value The data to write.
+     */
+    function writeByteArray(address: UInt64, value: ArrayBuffer | number[]): void;
+
+    /**
+     * Scans kernel memory for occurences of `pattern` in the memory range given by `address` and `size`.
+     *
+     * @param address Starting address to scan from.
+     * @param size Number of bytes to scan.
+     * @param pattern Match pattern of the form “13 37 ?? ff” to match 0x13 followed by 0x37 followed by any byte
+     *                followed by 0xff. For more advanced matching it is also possible to specify an r2-style mask.
+     *                The mask is bitwise AND-ed against both the needle and the haystack. To specify the mask append
+     *                a `:` character after the needle, followed by the mask using the same syntax.
+     *                For example: “13 37 13 37 : 1f ff ff f1”.
+     *                For convenience it is also possible to specify nibble-level wildcards, like “?3 37 13 ?7”,
+     *                which gets translated into masks behind the scenes.
+     * @param callbacks Object with callbacks.
+     */
+    function scan(address: UInt64, size: number | UInt64, pattern: string, callbacks: KernelMemoryScanCallbacks): void;
+
+    /**
+     * Synchronous version of `scan()`.
+     *
+     * @param address Starting address to scan from.
+     * @param size Number of bytes to scan.
+     * @param pattern Match pattern, see `Memory.scan()` for details.
+     * @param callbacks Object with callbacks.
+     */
+    function scanSync(address: UInt64, size: number | UInt64, pattern: string): KernelMemoryScanMatch[];
+}
+
 declare enum Architecture {
     Ia32 = "ia32",
     X64 = "x64",
@@ -707,6 +828,23 @@ declare interface ModuleDetails {
      * Full filesystem path.
      */
     path: string;
+}
+
+declare interface KernelModuleDetails {
+    /**
+     * Canonical module name.
+     */
+    name: string;
+
+    /**
+     * Base address.
+     */
+    base: UInt64;
+
+    /**
+     * Size in bytes.
+     */
+    size: number;
 }
 
 declare interface ModuleImportDetails {
@@ -843,6 +981,45 @@ declare interface RangeDetails {
     file?: FileMapping;
 }
 
+declare interface KernelRangeDetails {
+    /**
+     * Base address.
+     */
+    base: UInt64;
+
+    /**
+     * Size in bytes.
+     */
+    size: number;
+
+    /**
+     * Protection.
+     */
+    protection: PageProtection;
+}
+
+declare interface KernelModuleRangeDetails {
+    /**
+     * Name.
+     */
+    name: string;
+
+    /**
+     * Base address.
+     */
+    base: UInt64;
+
+    /**
+     * Size in bytes.
+     */
+    size: number;
+
+    /**
+     * Protection.
+     */
+    protection: PageProtection;
+}
+
 declare interface FileMapping {
     /**
      * Full filesystem path.
@@ -971,6 +1148,40 @@ declare interface MemoryScanMatch {
      * Memory address where a match was found.
      */
     address: NativePointer;
+
+    /**
+     * Size of this match.
+     */
+    size: number;
+}
+
+declare interface KernelMemoryScanCallbacks {
+    /**
+     * Called with each occurence that was found.
+     *
+     * @param address Memory address where a match was found.
+     * @param size Size of this match.
+     */
+    onMatch: (address: UInt64, size: number) => void | EnumerateAction;
+
+    /**
+     * Called when there was a memory access error while scanning.
+     *
+     * @param reason Why the memory access failed.
+     */
+    onError?: (reason: string) => void;
+
+    /**
+     * Called when the memory range has been fully scanned.
+     */
+    onComplete: () => void;
+}
+
+declare interface KernelMemoryScanMatch {
+    /**
+     * Memory address where a match was found.
+     */
+    address: UInt64;
 
     /**
      * Size of this match.
@@ -1828,14 +2039,6 @@ declare namespace Java {
     function performNow(fn: any): void;
     function scheduleOnMainThread(fn: any): void;
     function use(className: any): any;
-}
-declare namespace Kernel {
-    const available: boolean;
-    function enumerateRanges(specifier: any, callbacks: any): void;
-    function enumerateRangesSync(specifier: any): any;
-    function enumerateThreadsSync(): any;
-    function readByteArray(pointer: any, size: number): any;
-    function writeByteArray(): any;
 }
 declare namespace MemoryAccessMonitor {
     function disable(): any;
