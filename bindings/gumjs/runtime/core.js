@@ -130,12 +130,15 @@ Object.defineProperties(engine, {
   },
 });
 
-NativePointer.prototype.equals = function (ptr) {
-  if (!(ptr instanceof NativePointer)) {
-    throw new Error('not a pointer');
-  }
-  return this.compare(ptr) === 0;
-};
+[
+  Int64,
+  UInt64,
+  NativePointer
+].forEach(klass => {
+  klass.prototype.equals = function (rhs) {
+    return this.compare(rhs) === 0;
+  };
+});
 
 const _nextTick = Script._nextTick;
 Script.nextTick = function (callback, ...args) {
