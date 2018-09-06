@@ -247,7 +247,7 @@ Object.defineProperty(Kernel, 'enumerateModuleRangesSync', {
   enumerable: true,
   value: function (moduleName, specifier) {
     const ranges = [];
-    Kernel._enumerateModuleRanges(moduleName, specifier, {
+    Kernel.enumerateModuleRanges(moduleName, specifier, {
       onMatch: function (r) {
         ranges.push(r);
       },

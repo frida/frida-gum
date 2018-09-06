@@ -48,6 +48,8 @@ GUMJS_DECLARE_GETTER (gumjs_kernel_get_base)
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_modules)
 static gboolean gum_emit_module (const GumModuleDetails * details,
     GumV8MatchContext * mc);
+static Local<Object> gum_parse_module_details (
+    const GumModuleDetails * details, GumV8Core * core);
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
     GumV8MatchContext * mc);
@@ -82,7 +84,7 @@ static const GumV8Function gumjs_kernel_functions[] =
 {
   { "enumerateModules", gumjs_kernel_enumerate_modules },
   { "_enumerateRanges", gumjs_kernel_enumerate_ranges },
-  { "_enumerateModuleRanges", gumjs_kernel_enumerate_module_ranges },
+  { "enumerateModuleRanges", gumjs_kernel_enumerate_module_ranges },
   { "alloc", gumjs_kernel_alloc },
   { "protect", gumjs_kernel_protect },
   { "readByteArray", gumjs_kernel_read_byte_array },
@@ -169,7 +171,7 @@ gum_emit_module (const GumModuleDetails * details,
   auto core = mc->core;
   auto isolate = core->isolate;
 
-  auto module = _gum_v8_parse_module_details (details, core);
+  auto module = gum_parse_module_details (details, core);
 
   Handle<Value> argv[] = { module };
   auto result =
@@ -185,6 +187,18 @@ gum_emit_module (const GumModuleDetails * details,
   }
 
   return proceed;
+}
+
+static Local<Object>
+gum_parse_module_details (const GumModuleDetails * details,
+                          GumV8Core * core)
+{
+  auto module = Object::New (core->isolate);
+  _gum_v8_object_set_utf8 (module, "name", details->name, core);
+  _gum_v8_object_set_uint64 (module, "base", details->range->base_address,
+      core);
+  _gum_v8_object_set_uint (module, "size", details->range->size, core);
+  return module;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_ranges)
@@ -221,15 +235,6 @@ gum_emit_range (const GumRangeDetails * details,
       core);
   _gum_v8_object_set_uint (range, "size", details->range->size, core);
   _gum_v8_object_set_page_protection (range, "protection", details->prot, core);
-
-  auto f = details->file;
-  if (f != NULL)
-  {
-    Local<Object> file (Object::New (isolate));
-    _gum_v8_object_set_utf8 (range, "path", f->path, core);
-    _gum_v8_object_set_uint (range, "offset", f->offset, core);
-    _gum_v8_object_set (range, "file", file, core);
-  }
 
   Handle<Value> argv[] = { range };
   auto result =

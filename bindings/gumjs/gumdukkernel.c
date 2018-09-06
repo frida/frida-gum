@@ -36,9 +36,13 @@ GUMJS_DECLARE_GETTER (gumjs_kernel_get_base)
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_modules)
 static gboolean gum_emit_module (const GumModuleDetails * details,
     GumDukMatchContext * mc);
+static void gum_push_module (duk_context * ctx,
+    const GumModuleDetails * details, GumDukCore * core);
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
     GumDukMatchContext * mc);
+static void gum_push_range (duk_context * ctx,
+    const GumRangeDetails * details, GumDukCore * core);
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_module_ranges)
 static gboolean gum_emit_module_range (
     const GumKernelModuleRangeDetails * details, GumDukMatchContext * mc);
@@ -70,7 +74,7 @@ static const duk_function_list_entry gumjs_kernel_functions[] =
 {
   { "enumerateModules", gumjs_kernel_enumerate_modules, 1 },
   { "_enumerateRanges", gumjs_kernel_enumerate_ranges, 2 },
-  { "_enumerateModuleRanges", gumjs_kernel_enumerate_module_ranges, 3 },
+  { "enumerateModuleRanges", gumjs_kernel_enumerate_module_ranges, 3 },
   { "alloc", gumjs_kernel_alloc, 2 },
   { "protect", gumjs_kernel_protect, 3 },
   { "readByteArray", gumjs_kernel_read_byte_array, 2 },
@@ -168,7 +172,7 @@ gum_emit_module (const GumModuleDetails * details,
   gboolean proceed = TRUE;
 
   duk_push_heapptr (ctx, mc->on_match);
-  _gum_duk_push_module (ctx, details, scope->core);
+  gum_push_module (ctx, details, scope->core);
 
   if (_gum_duk_scope_call_sync (scope, 1))
   {
@@ -182,6 +186,23 @@ gum_emit_module (const GumModuleDetails * details,
   duk_pop (ctx);
 
   return proceed;
+}
+
+static void
+gum_push_module (duk_context * ctx,
+                 const GumModuleDetails * details,
+                 GumDukCore * core)
+{
+  duk_push_object (ctx);
+
+  duk_push_string (ctx, details->name);
+  duk_put_prop_string (ctx, -2, "name");
+
+  _gum_duk_push_uint64 (ctx, details->range->base_address, core);
+  duk_put_prop_string (ctx, -2, "base");
+
+  duk_push_uint (ctx, details->range->size);
+  duk_put_prop_string (ctx, -2, "size");
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_ranges)
@@ -215,7 +236,7 @@ gum_emit_range (const GumRangeDetails * details,
   gboolean proceed = TRUE;
 
   duk_push_heapptr (ctx, mc->on_match);
-  _gum_duk_push_range (ctx, details, scope->core);
+  gum_push_range (ctx, details, scope->core);
 
   if (_gum_duk_scope_call_sync (scope, 1))
   {
@@ -229,6 +250,23 @@ gum_emit_range (const GumRangeDetails * details,
   duk_pop (ctx);
 
   return proceed;
+}
+
+static void
+gum_push_range (duk_context * ctx,
+                const GumRangeDetails * details,
+                GumDukCore * core)
+{
+  duk_push_object (ctx);
+
+  _gum_duk_push_uint64 (ctx, details->range->base_address, core);
+  duk_put_prop_string (ctx, -2, "base");
+
+  duk_push_uint (ctx, details->range->size);
+  duk_put_prop_string (ctx, -2, "size");
+
+  _gum_duk_push_page_protection (ctx, details->prot);
+  duk_put_prop_string (ctx, -2, "protection");
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_module_ranges)
