@@ -106,6 +106,8 @@ GUM_API vm_prot_t gum_page_protection_to_mach (GumPageProtection page_prot);
 
 GUM_API const char * gum_symbol_name_from_darwin (const char * s);
 
+GUM_API mach_port_t gum_kernel_get_task (void);
+
 G_END_DECLS
 
 #endif

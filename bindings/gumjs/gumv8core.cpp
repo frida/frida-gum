@@ -198,6 +198,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_int64_or)
 GUMJS_DECLARE_FUNCTION (gumjs_int64_xor)
 GUMJS_DECLARE_FUNCTION (gumjs_int64_shr)
 GUMJS_DECLARE_FUNCTION (gumjs_int64_shl)
+GUMJS_DECLARE_FUNCTION (gumjs_int64_not)
 GUMJS_DECLARE_FUNCTION (gumjs_int64_compare)
 GUMJS_DECLARE_FUNCTION (gumjs_int64_to_number)
 GUMJS_DECLARE_FUNCTION (gumjs_int64_to_string)
@@ -212,6 +213,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_uint64_or)
 GUMJS_DECLARE_FUNCTION (gumjs_uint64_xor)
 GUMJS_DECLARE_FUNCTION (gumjs_uint64_shr)
 GUMJS_DECLARE_FUNCTION (gumjs_uint64_shl)
+GUMJS_DECLARE_FUNCTION (gumjs_uint64_not)
 GUMJS_DECLARE_FUNCTION (gumjs_uint64_compare)
 GUMJS_DECLARE_FUNCTION (gumjs_uint64_to_number)
 GUMJS_DECLARE_FUNCTION (gumjs_uint64_to_string)
@@ -361,6 +363,7 @@ static const GumV8Function gumjs_int64_functions[] =
   { "xor", gumjs_int64_xor },
   { "shr", gumjs_int64_shr },
   { "shl", gumjs_int64_shl },
+  { "not", gumjs_int64_not },
   { "compare", gumjs_int64_compare },
   { "toNumber", gumjs_int64_to_number },
   { "toString", gumjs_int64_to_string },
@@ -379,6 +382,7 @@ static const GumV8Function gumjs_uint64_functions[] =
   { "xor", gumjs_uint64_xor },
   { "shr", gumjs_uint64_shr },
   { "shl", gumjs_uint64_shl },
+  { "not", gumjs_uint64_not },
   { "compare", gumjs_uint64_compare },
   { "toNumber", gumjs_uint64_to_number },
   { "toString", gumjs_uint64_to_string },
@@ -1577,6 +1581,18 @@ GUM_DEFINE_INT64_OP_IMPL (xor, ^)
 GUM_DEFINE_INT64_OP_IMPL (shr, >>)
 GUM_DEFINE_INT64_OP_IMPL (shl, <<)
 
+#define GUM_DEFINE_INT64_UNARY_OP_IMPL(name, op) \
+  GUMJS_DEFINE_FUNCTION (gumjs_int64_##name) \
+  { \
+    gint64 value = _gum_v8_int64_get_value (info.Holder ()); \
+    \
+    gint64 result = op value; \
+    \
+    info.GetReturnValue ().Set (_gum_v8_int64_new (result, core)); \
+  }
+
+GUM_DEFINE_INT64_UNARY_OP_IMPL (not, ~)
+
 GUMJS_DEFINE_FUNCTION (gumjs_int64_compare)
 {
   gint64 lhs = _gum_v8_int64_get_value (info.Holder ());
@@ -1671,6 +1687,18 @@ GUM_DEFINE_UINT64_OP_IMPL (or,  |)
 GUM_DEFINE_UINT64_OP_IMPL (xor, ^)
 GUM_DEFINE_UINT64_OP_IMPL (shr, >>)
 GUM_DEFINE_UINT64_OP_IMPL (shl, <<)
+
+#define GUM_DEFINE_UINT64_UNARY_OP_IMPL(name, op) \
+  GUMJS_DEFINE_FUNCTION (gumjs_uint64_##name) \
+  { \
+    guint64 value = _gum_v8_uint64_get_value (info.Holder ()); \
+    \
+    guint64 result = op value; \
+    \
+    info.GetReturnValue ().Set (_gum_v8_uint64_new (result, core)); \
+  }
+
+GUM_DEFINE_UINT64_UNARY_OP_IMPL (not, ~)
 
 GUMJS_DEFINE_FUNCTION (gumjs_uint64_compare)
 {

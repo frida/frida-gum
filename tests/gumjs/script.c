@@ -180,6 +180,8 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (native_pointer_provides_arithmetic_operations)
   SCRIPT_TESTENTRY (native_pointer_to_match_pattern)
   SCRIPT_TESTENTRY (native_pointer_can_be_constructed_from_64bit_value)
+  SCRIPT_TESTENTRY (uint64_provides_arithmetic_operations)
+  SCRIPT_TESTENTRY (int64_provides_arithmetic_operations)
   SCRIPT_TESTENTRY (native_function_can_be_invoked)
   SCRIPT_TESTENTRY (native_function_can_be_intercepted_when_thread_is_ignored)
   SCRIPT_TESTENTRY (native_function_should_implement_call_and_apply)
@@ -1447,6 +1449,48 @@ SCRIPT_TESTCASE (native_pointer_can_be_constructed_from_64bit_value)
       "send(ptr(int64(-1)).equals(ptr('0xffffffffffffffff')));");
   EXPECT_SEND_MESSAGE_WITH ("true");
 #endif
+}
+
+SCRIPT_TESTCASE (uint64_provides_arithmetic_operations)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(uint64(3).add(4).toNumber());"
+      "send(uint64(7).sub(4).toNumber());"
+      "send(uint64(6).and(3).toNumber());"
+      "send(uint64(6).or(3).toNumber());"
+      "send(uint64(6).xor(3).toNumber());"
+      "send(uint64(63).shr(4).toNumber());"
+      "send(uint64(1).shl(3).toNumber());"
+      "send(uint64(0).not().toString());");
+  EXPECT_SEND_MESSAGE_WITH ("7");
+  EXPECT_SEND_MESSAGE_WITH ("3");
+  EXPECT_SEND_MESSAGE_WITH ("2");
+  EXPECT_SEND_MESSAGE_WITH ("7");
+  EXPECT_SEND_MESSAGE_WITH ("5");
+  EXPECT_SEND_MESSAGE_WITH ("3");
+  EXPECT_SEND_MESSAGE_WITH ("8");
+  EXPECT_SEND_MESSAGE_WITH ("\"18446744073709551615\"");
+}
+
+SCRIPT_TESTCASE (int64_provides_arithmetic_operations)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(int64(3).add(4).toNumber());"
+      "send(int64(7).sub(4).toNumber());"
+      "send(int64(6).and(3).toNumber());"
+      "send(int64(6).or(3).toNumber());"
+      "send(int64(6).xor(3).toNumber());"
+      "send(int64(63).shr(4).toNumber());"
+      "send(int64(1).shl(3).toNumber());"
+      "send(int64(0).not().toNumber());");
+  EXPECT_SEND_MESSAGE_WITH ("7");
+  EXPECT_SEND_MESSAGE_WITH ("3");
+  EXPECT_SEND_MESSAGE_WITH ("2");
+  EXPECT_SEND_MESSAGE_WITH ("7");
+  EXPECT_SEND_MESSAGE_WITH ("5");
+  EXPECT_SEND_MESSAGE_WITH ("3");
+  EXPECT_SEND_MESSAGE_WITH ("8");
+  EXPECT_SEND_MESSAGE_WITH ("-1");
 }
 
 static gint

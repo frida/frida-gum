@@ -130,12 +130,15 @@ Object.defineProperties(engine, {
   },
 });
 
-NativePointer.prototype.equals = function (ptr) {
-  if (!(ptr instanceof NativePointer)) {
-    throw new Error('not a pointer');
-  }
-  return this.compare(ptr) === 0;
-};
+[
+  Int64,
+  UInt64,
+  NativePointer
+].forEach(klass => {
+  klass.prototype.equals = function (rhs) {
+    return this.compare(rhs) === 0;
+  };
+});
 
 const _nextTick = Script._nextTick;
 Script.nextTick = function (callback, ...args) {
@@ -152,7 +155,6 @@ if (Script.runtime === 'DUK') {
   };
 }
 
-makeEnumerateThreads(Kernel);
 makeEnumerateRanges(Kernel);
 
 makeEnumerateThreads(Process);
@@ -240,6 +242,36 @@ function makeEnumerateRanges(mod) {
     },
   });
 }
+
+Object.defineProperty(Kernel, 'enumerateModuleRangesSync', {
+  enumerable: true,
+  value: function (moduleName, specifier) {
+    const ranges = [];
+    Kernel.enumerateModuleRanges(moduleName, specifier, {
+      onMatch: function (r) {
+        ranges.push(r);
+      },
+      onComplete: function () {
+      }
+    });
+    return ranges;
+  }
+});
+
+Object.defineProperty(Kernel, 'enumerateModulesSync', {
+  enumerable: true,
+  value: function () {
+    const modules = [];
+    Kernel.enumerateModules({
+      onMatch: function (m) {
+        modules.push(m);
+      },
+      onComplete: function () {
+      }
+    });
+    return modules;
+  }
+});
 
 Object.defineProperties(Memory, {
   dup: {

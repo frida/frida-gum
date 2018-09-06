@@ -1504,6 +1504,18 @@ _gum_v8_object_set_pointer (Handle<Object> object,
 }
 
 gboolean
+_gum_v8_object_set_uint64 (Handle<Object> object,
+                            const gchar * key,
+                            GumAddress value,
+                            GumV8Core * core)
+{
+  return _gum_v8_object_set (object,
+      key,
+      _gum_v8_uint64_new (value, core),
+      core);
+}
+
+gboolean
 _gum_v8_object_set_ascii (Handle<Object> object,
                           const gchar * key,
                           const gchar * value,
