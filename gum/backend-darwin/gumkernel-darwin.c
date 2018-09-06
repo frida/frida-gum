@@ -105,12 +105,12 @@ static GumDarwinModule * gum_kernel_find_module_by_name (
 static gboolean gum_kernel_kext_by_name (GumDarwinModule * module,
     GumKernelKextByNameContext * ctx);
 static GumDarwinModule * gum_kernel_get_module (void);
-static GumAddress gum_kernel_do_find_base_address (void);
+static GumAddress * gum_kernel_do_find_base_address (void);
 static float gum_kernel_get_version (void);
 
 #ifdef HAVE_ARM64
 
-static GumAddress gum_kernel_bruteforece_base (GumAddress unslid_base);
+static GumAddress gum_kernel_bruteforce_base (GumAddress unslid_base);
 static gboolean gum_kernel_is_header (GumAddress address);
 static gboolean gum_kernel_has_kld (GumAddress address);
 static gboolean gum_kernel_find_first_hit (GumAddress address, gsize size,
@@ -648,25 +648,26 @@ gum_kernel_find_base_address (void)
 
   g_once (&get_base_once, (GThreadFunc) gum_kernel_do_find_base_address, NULL);
 
-  return (GumAddress) get_base_once.retval;
+  return *((GumAddress *) get_base_once.retval);
 }
 
-static GumAddress
+static GumAddress *
 gum_kernel_do_find_base_address (void)
 {
-  GumAddress base = 0;
+  GumAddress * result;
   float version;
+  GumAddress base;
 
   version = gum_kernel_get_version ();
 
 #ifdef HAVE_ARM64
   if (version >= 16.0) /* iOS 10.0+ */
-    base = gum_kernel_bruteforece_base (0xfffffff007004000LL);
+    base = gum_kernel_bruteforce_base (0xfffffff007004000LL);
   else if (version >= 15.0) /* iOS 9.0+ */
-    base = gum_kernel_bruteforece_base (0xffffff8004004000LL);
+    base = gum_kernel_bruteforce_base (0xffffff8004004000LL);
 #endif
 
-  return base;
+  return g_slice_dup (GumAddress, &base);
 }
 
 static float
@@ -689,7 +690,7 @@ gum_kernel_get_version (void)
 #ifdef HAVE_ARM64
 
 static GumAddress
-gum_kernel_bruteforece_base (GumAddress unslid_base)
+gum_kernel_bruteforce_base (GumAddress unslid_base)
 {
   /*
    * References & credits:
