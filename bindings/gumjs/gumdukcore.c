@@ -183,6 +183,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_int64_or)
 GUMJS_DECLARE_FUNCTION (gumjs_int64_xor)
 GUMJS_DECLARE_FUNCTION (gumjs_int64_shr)
 GUMJS_DECLARE_FUNCTION (gumjs_int64_shl)
+GUMJS_DECLARE_FUNCTION (gumjs_int64_not)
 GUMJS_DECLARE_FUNCTION (gumjs_int64_compare)
 GUMJS_DECLARE_FUNCTION (gumjs_int64_to_number)
 GUMJS_DECLARE_FUNCTION (gumjs_int64_to_string)
@@ -198,6 +199,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_uint64_or)
 GUMJS_DECLARE_FUNCTION (gumjs_uint64_xor)
 GUMJS_DECLARE_FUNCTION (gumjs_uint64_shr)
 GUMJS_DECLARE_FUNCTION (gumjs_uint64_shl)
+GUMJS_DECLARE_FUNCTION (gumjs_uint64_not)
 GUMJS_DECLARE_FUNCTION (gumjs_uint64_compare)
 GUMJS_DECLARE_FUNCTION (gumjs_uint64_to_number)
 GUMJS_DECLARE_FUNCTION (gumjs_uint64_to_string)
@@ -348,6 +350,7 @@ static const duk_function_list_entry gumjs_int64_functions[] =
   { "xor", gumjs_int64_xor, 1 },
   { "shr", gumjs_int64_shr, 1 },
   { "shl", gumjs_int64_shl, 1 },
+  { "not", gumjs_int64_not, 1 },
   { "compare", gumjs_int64_compare, 1 },
   { "toNumber", gumjs_int64_to_number, 0 },
   { "toString", gumjs_int64_to_string, 1 },
@@ -366,6 +369,7 @@ static const duk_function_list_entry gumjs_uint64_functions[] =
   { "xor", gumjs_uint64_xor, 1 },
   { "shr", gumjs_uint64_shr, 1 },
   { "shl", gumjs_uint64_shl, 1 },
+  { "not", gumjs_uint64_not, 1 },
   { "compare", gumjs_uint64_compare, 1 },
   { "toNumber", gumjs_uint64_to_number, 0 },
   { "toString", gumjs_uint64_to_string, 1 },
@@ -1935,6 +1939,21 @@ GUM_DEFINE_INT64_OP_IMPL (xor, ^)
 GUM_DEFINE_INT64_OP_IMPL (shr, >>)
 GUM_DEFINE_INT64_OP_IMPL (shl, <<)
 
+#define GUM_DEFINE_INT64_UNARY_OP_IMPL(name, op) \
+  GUMJS_DEFINE_FUNCTION (gumjs_int64_##name) \
+  { \
+    gint64 value, result; \
+    \
+    value = gumjs_int64_from_args (args); \
+    \
+    result = op value; \
+    \
+    _gum_duk_push_int64 (ctx, result, args->core); \
+    return 1; \
+  }
+
+GUM_DEFINE_INT64_UNARY_OP_IMPL (not, ~)
+
 GUMJS_DEFINE_FUNCTION (gumjs_int64_compare)
 {
   gint64 lhs, rhs;
@@ -2067,6 +2086,21 @@ GUM_DEFINE_UINT64_OP_IMPL (or,  |)
 GUM_DEFINE_UINT64_OP_IMPL (xor, ^)
 GUM_DEFINE_UINT64_OP_IMPL (shr, >>)
 GUM_DEFINE_UINT64_OP_IMPL (shl, <<)
+
+#define GUM_DEFINE_UINT64_UNARY_OP_IMPL(name, op) \
+  GUMJS_DEFINE_FUNCTION (gumjs_uint64_##name) \
+  { \
+    guint64 value, result; \
+    \
+    value = gumjs_uint64_from_args (args); \
+    \
+    result = op value; \
+    \
+    _gum_duk_push_uint64 (ctx, result, args->core); \
+    return 1; \
+  }
+
+GUM_DEFINE_UINT64_UNARY_OP_IMPL (not, ~)
 
 GUMJS_DEFINE_FUNCTION (gumjs_uint64_compare)
 {
