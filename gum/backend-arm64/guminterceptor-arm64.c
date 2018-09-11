@@ -190,16 +190,16 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   }
 
   gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X17, GUM_ADDRESS (ctx));
-  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X18,
+  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X16,
       GUM_ADDRESS (self->enter_thunk->data));
-  gum_arm64_writer_put_br_reg (aw, ARM64_REG_X18);
+  gum_arm64_writer_put_br_reg (aw, ARM64_REG_X16);
 
   ctx->on_leave_trampoline = gum_arm64_writer_cur (aw);
 
   gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X17, GUM_ADDRESS (ctx));
-  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X18,
+  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X16,
       GUM_ADDRESS (self->leave_thunk->data));
-  gum_arm64_writer_put_br_reg (aw, ARM64_REG_X18);
+  gum_arm64_writer_put_br_reg (aw, ARM64_REG_X16);
 
   gum_arm64_writer_flush (aw);
   g_assert_cmpuint (gum_arm64_writer_offset (aw),
@@ -349,12 +349,12 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
         gum_arm64_writer_put_b_imm (aw, on_enter);
         break;
       case 8:
-        gum_arm64_writer_put_adrp_reg_address (aw, ARM64_REG_X18, on_enter);
-        gum_arm64_writer_put_br_reg (aw, ARM64_REG_X18);
+        gum_arm64_writer_put_adrp_reg_address (aw, ARM64_REG_X16, on_enter);
+        gum_arm64_writer_put_br_reg (aw, ARM64_REG_X16);
         break;
       case 16:
-        gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X18, on_enter);
-        gum_arm64_writer_put_br_reg (aw, ARM64_REG_X18);
+        gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X16, on_enter);
+        gum_arm64_writer_put_br_reg (aw, ARM64_REG_X16);
         break;
       default:
         g_assert_not_reached ();
@@ -532,6 +532,6 @@ gum_emit_epilog (GumArm64Writer * aw)
   gum_arm64_writer_put_pop_reg_reg (aw, ARM64_REG_Q4, ARM64_REG_Q5);
   gum_arm64_writer_put_pop_reg_reg (aw, ARM64_REG_Q6, ARM64_REG_Q7);
 
-  gum_arm64_writer_put_pop_reg_reg (aw, ARM64_REG_X18, ARM64_REG_X17);
-  gum_arm64_writer_put_br_reg (aw, ARM64_REG_X18);
+  gum_arm64_writer_put_pop_reg_reg (aw, ARM64_REG_X16, ARM64_REG_X17);
+  gum_arm64_writer_put_br_reg (aw, ARM64_REG_X16);
 }
