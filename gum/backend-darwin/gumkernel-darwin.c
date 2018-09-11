@@ -655,7 +655,7 @@ static GumAddress *
 gum_kernel_do_find_base_address (void)
 {
   float version;
-  GumAddress base;
+  GumAddress base = 0;
 
   version = gum_kernel_get_version ();
 
