@@ -661,9 +661,9 @@ gum_kernel_do_find_base_address (void)
 
 #ifdef HAVE_ARM64
   if (version >= 16.0) /* iOS 10.0+ */
-    base = gum_kernel_bruteforce_base (0xfffffff007004000LL);
+    base = gum_kernel_bruteforce_base (G_GUINT64_CONSTANT (0xfffffff007004000));
   else if (version >= 15.0) /* iOS 9.0+ */
-    base = gum_kernel_bruteforce_base (0xffffff8004004000LL);
+    base = gum_kernel_bruteforce_base (G_GUINT64_CONSTANT (0xffffff8004004000));
 #endif
 
   return g_slice_dup (GumAddress, &base);
