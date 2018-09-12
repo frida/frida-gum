@@ -652,7 +652,7 @@ declare namespace Kernel {
     const pageSize: number;
 
     /**
-     * Enumerate all kernel modules.
+     * Enumerates all kernel modules.
      *
      * @param callbacks Object with callbacks.
      */
@@ -683,24 +683,24 @@ declare namespace Kernel {
     /**
      * Enumerates all ranges of a kernel module.
      *
-     * @param name Name of the module, or `null` for the main kernel.
+     * @param name Name of the module, or `null` for the module of the kernel itself.
      * @param protection Include ranges with at least this protection.
      * @param callbacks Object with callbacks.
      */
-    function enumerateModuleRanges(name: string | null,  protection: PageProtection, callbacks: EnumerateCallbacks<KernelModuleRangeDetails>): void;
+    function enumerateModuleRanges(name: string | null, protection: PageProtection, callbacks: EnumerateCallbacks<KernelModuleRangeDetails>): void;
 
     /**
      * Synchronous version of `enumerateModuleRanges()`.
      *
-     * @param name Name of the module, or `null` for the main kernel.
+     * @param name Name of the module, or `null` for the module of the kernel itself.
      * @param protection Include ranges with at least this protection.
      */
-    function enumerateModuleRangesSync(name: string | null,  protection: PageProtection): KernelModuleRangeDetails[];
+    function enumerateModuleRangesSync(name: string | null, protection: PageProtection): KernelModuleRangeDetails[];
 
     /**
-     * Allocate kernel memory.
+     * Allocates kernel memory.
      *
-     * @param size Size of the allocation in bytes (will be page aligned).
+     * @param size Size of the allocation in bytes (will be rounded up to a multiple of the kernel's page size).
      */
     function alloc(size: number | UInt64): UInt64;
 
@@ -714,7 +714,7 @@ declare namespace Kernel {
     function protect(address: UInt64, size: number | UInt64, protection: PageProtection): boolean;
 
     /**
-     * Read kernel memory into an ArrayBuffer.
+     * Reads kernel memory into an ArrayBuffer.
      *
      * @param address The kernel memory address to read from.
      * @param size The number of bytes to read.
@@ -722,7 +722,7 @@ declare namespace Kernel {
     function readByteArray(address: UInt64, size: number): ArrayBuffer | null;
 
     /**
-     * Write the contents of an ArrayBuffer or array to kernel memory.
+     * Writes the contents of an ArrayBuffer or array to kernel memory.
      *
      * @param address The kernel memory address to read from.
      * @param value The data to write.
