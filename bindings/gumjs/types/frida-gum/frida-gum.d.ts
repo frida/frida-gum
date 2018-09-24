@@ -2021,6 +2021,47 @@ declare namespace Kernel {
      * @param callbacks Object with callbacks.
      */
     function scanSync(address: UInt64, size: number | UInt64, pattern: string): KernelMemoryScanMatch[];
+
+    function readS8(address: UInt64): number;
+    function readU8(address: UInt64): number;
+    function readS16(address: UInt64): number;
+    function readU16(address: UInt64): number;
+    function readS32(address: UInt64): number;
+    function readU32(address: UInt64): number;
+    function readS64(address: UInt64): Int64;
+    function readU64(address: UInt64): UInt64;
+    function readShort(address: UInt64): number;
+    function readUShort(address: UInt64): number;
+    function readInt(address: UInt64): number;
+    function readUInt(address: UInt64): number;
+    function readLong(address: UInt64): number | Int64;
+    function readULong(address: UInt64): number | UInt64;
+    function readFloat(address: UInt64): number;
+    function readDouble(address: UInt64): number;
+    function readByteArray(address: UInt64, length: number): ArrayBuffer | null;
+    function readCString(address: UInt64, size: number): string | null;
+    function readUtf8String(address: UInt64, size: number): string | null;
+    function readUtf16String(address: UInt64, length: number): string | null;
+
+    function writeS8(address: UInt64, value: number | Int64): void;
+    function writeU8(address: UInt64, value: number | UInt64): void;
+    function writeS16(address: UInt64, value: number | Int64): void;
+    function writeU16(address: UInt64, value: number | UInt64): void;
+    function writeS32(address: UInt64, value: number | Int64): void;
+    function writeU32(address: UInt64, value: number | UInt64): void;
+    function writeS64(address: UInt64, value: number | Int64): void;
+    function writeU64(address: UInt64, value: number | UInt64): void;
+    function writeShort(address: UInt64, value: number | Int64): void;
+    function writeUShort(address: UInt64, value: number | UInt64): void;
+    function writeInt(address: UInt64, value: number | Int64): void;
+    function writeUInt(address: UInt64, value: number | UInt64): void;
+    function writeLong(address: UInt64, value: number | Int64): void;
+    function writeULong(address: UInt64, value: number | UInt64): void;
+    function writeFloat(address: UInt64, value: number): void;
+    function writeDouble(address: UInt64, value: number): void;
+    function writeByteArray(address: UInt64, value: ArrayBuffer | number[]): void;
+    function writeUtf8String(address: UInt64, value: string): void;
+    function writeUtf16String(address: UInt64, value: string): void;
 }
 
 declare class ApiResolver {
