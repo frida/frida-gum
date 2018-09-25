@@ -1986,7 +1986,7 @@ declare interface UnixInvocationContext extends PortableInvocationContext {
 }
 
 declare class ApiResolver {
-    constructor();
+    constructor(type: string);
     enumerateMatches(): any;
     enumerateMatchesSync(query: any): any;
 }
