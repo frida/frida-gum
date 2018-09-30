@@ -756,7 +756,7 @@ declare namespace Kernel {
     function scanSync(address: UInt64, size: number | UInt64, pattern: string): KernelMemoryScanMatch[];
 }
 
-declare enum Architecture {
+declare const enum Architecture {
     Ia32 = "ia32",
     X64 = "x64",
     Arm = "arm",
@@ -764,14 +764,14 @@ declare enum Architecture {
     Mips = "mips"
 }
 
-declare enum Platform {
+declare const enum Platform {
     Windows = "windows",
     Darwin = "darwin",
     Linux = "linux",
     Qnx = "qnx"
 }
 
-declare enum CodeSigningPolicy {
+declare const enum CodeSigningPolicy {
     Optional = "optional",
     Required = "required"
 }
@@ -783,7 +783,7 @@ declare type PageProtection = string;
 
 declare type ThreadId = number;
 
-declare enum ThreadState {
+declare const enum ThreadState {
     Running = "running",
     Stopped = "stopped",
     Waiting = "waiting",
@@ -918,17 +918,17 @@ declare interface ModuleSymbolDetails {
     address: NativePointer;
 }
 
-declare enum ModuleImportType {
+declare const enum ModuleImportType {
     Function = "function",
     Variable = "variable"
 }
 
-declare enum ModuleExportType {
+declare const enum ModuleExportType {
     Function = "function",
     Variable = "variable"
 }
 
-declare enum ModuleSymbolType {
+declare const enum ModuleSymbolType {
     // Common
     Unknown = "unknown",
     Section = "section",
@@ -1082,7 +1082,7 @@ declare interface ExceptionDetails {
     nativeContext: NativePointer;
 }
 
-declare enum ExceptionType {
+declare const enum ExceptionType {
     Abort = "abort",
     AccessViolation = "access-violation",
     GuardPage = "guard-page",
@@ -1106,7 +1106,7 @@ declare interface ExceptionMemoryDetails {
     address: NativePointer;
 }
 
-declare enum ExceptionMemoryOperation {
+declare const enum ExceptionMemoryOperation {
     read = "read",
     write = "write",
     execute = "execute"
@@ -1117,7 +1117,7 @@ declare interface EnumerateCallbacks<T> {
     onComplete: () => void;
 }
 
-declare enum EnumerateAction {
+declare const enum EnumerateAction {
     Stop = "stop"
 }
 
@@ -1471,7 +1471,7 @@ declare type NativeReturnValue = NativePointer | UInt64 | Int64 | number | boole
 
 declare type NativeType = string | any[];
 
-declare enum NativeABI {
+declare const enum NativeABI {
     Default = "default",
     SysV = "sysv",
     StdCall = "stdcall",
@@ -1755,13 +1755,13 @@ declare interface OutputStream {
     writeAll(data: ArrayBuffer | number[]): Promise<void>;
 }
 
-declare enum AddressFamily {
+declare const enum AddressFamily {
     Unix = "unix",
     IPv4 = "ipv4",
     IPv6 = "ipv6"
 }
 
-declare enum SocketType {
+declare const enum SocketType {
     Tcp = "tcp",
     Udp = "udp",
     Tcp6 = "tcp6",
@@ -1770,7 +1770,7 @@ declare enum SocketType {
     UnixDatagram = "unix:dgram"
 }
 
-declare enum UnixSocketType {
+declare const enum UnixSocketType {
     Anonymous = "anonymous",
     Path = "path",
     Abstract = "abstract",
@@ -2241,7 +2241,7 @@ declare namespace ObjC {
     /**
      * What kind of object an ObjC.Object represents.
      */
-    enum ObjectKind {
+    const enum ObjectKind {
         Instance = "instance",
         Class = "class",
         MetaClass = "meta-class"
