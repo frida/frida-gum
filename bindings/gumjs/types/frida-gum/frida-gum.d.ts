@@ -2008,10 +2008,10 @@ declare class SourceMap {
     constructor();
     resolve(generatedPosition: any): any;
 }
-declare const Backtracer: {
-    ACCURATE: any;
-    FUZZY: any;
-};
+declare class Backtracer {
+    static ACCURATE: Backtracer;
+    static FUZZY: Backtracer;
+}
 declare function UnixInputStream(): any;
 declare function UnixOutputStream(): any;
 declare namespace DebugSymbol {
@@ -2066,7 +2066,7 @@ declare namespace Stalker {
     function unfollow(): any;
 }
 declare namespace Thread {
-    function backtrace(context: any): NativePointer[];
+    function backtrace(context: CpuContext, backtracer?: Backtracer): NativePointer[];
     function sleep(duration: number): void;
 }
 
