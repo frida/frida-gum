@@ -3,6 +3,11 @@
   "version": "2.0.3",
   "description": "Type definitions for Frida's instrumentation core",
   "main": "index.js",
+  "files": [
+    "index.js",
+    "frida-gum/frida-gum.d.ts",
+    "frida-gum/package.json"
+  ],
   "author": "Frida Developers",
   "license": "LGPL-2.0 WITH WxWindows-exception-3.1"
 }
