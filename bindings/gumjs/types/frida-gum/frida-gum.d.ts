@@ -2066,7 +2066,7 @@ declare namespace Stalker {
     function unfollow(): any;
 }
 declare namespace Thread {
-    function backtrace(context: any): NativePointer[];
+    function backtrace(context: any, backtracer?: any): NativePointer[];
     function sleep(duration: number): void;
 }
 
