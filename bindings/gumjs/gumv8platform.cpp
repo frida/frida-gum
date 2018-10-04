@@ -922,13 +922,13 @@ GumV8ForegroundTaskRunner::Run (IdleTask * task)
 void *
 GumV8ArrayBufferAllocator::Allocate (size_t length)
 {
-  return g_malloc0 (length);
+  return g_malloc0 (MAX (length, 1));
 }
 
 void *
 GumV8ArrayBufferAllocator::AllocateUninitialized (size_t length)
 {
-  return g_malloc (length);
+  return g_malloc (MAX (length, 1));
 }
 
 void
