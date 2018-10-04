@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -49,14 +49,11 @@ ScriptScope::~ScriptScope ()
   {
     core->flush_notify = NULL;
 
-    auto isolate = parent->isolate;
-    isolate->Exit ();
     {
-      Unlocker ul (isolate);
+      ScriptUnlocker unlocker (core);
 
       _gum_v8_core_notify_flushed (core, pending_flush_notify);
     }
-    isolate->Enter ();
   }
 }
 
@@ -143,4 +140,34 @@ ScriptStalkerScope::ScriptStalkerScope (GumV8Script * parent)
 ScriptStalkerScope::~ScriptStalkerScope ()
 {
   _gum_v8_stalker_process_pending (&parent->stalker, this);
+}
+
+ScriptUnlocker::ScriptUnlocker (GumV8Core * core)
+  : exit_current_scope (core),
+    exit_isolate_scope (core->isolate),
+    unlocker (core->isolate)
+{
+}
+
+ScriptUnlocker::ExitCurrentScope::ExitCurrentScope (GumV8Core * core)
+  : core (core),
+    scope (core->current_scope)
+{
+  core->current_scope = nullptr;
+}
+
+ScriptUnlocker::ExitCurrentScope::~ExitCurrentScope ()
+{
+  core->current_scope = scope;
+}
+
+ScriptUnlocker::ExitIsolateScope::ExitIsolateScope (Isolate * isolate)
+  : isolate (isolate)
+{
+  isolate->Exit ();
+}
+
+ScriptUnlocker::ExitIsolateScope::~ExitIsolateScope ()
+{
+  isolate->Enter ();
 }

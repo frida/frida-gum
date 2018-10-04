@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
  *
@@ -1151,9 +1151,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
 
   core->current_scope->PerformPendingIO ();
 
-  core->isolate->Exit ();
   {
-    Unlocker ul (core->isolate);
+    ScriptUnlocker unlocker (core);
 
     auto context = gum_script_scheduler_get_js_context (core->scheduler);
     gboolean called_from_js_thread = g_main_context_is_owner (context);
@@ -1179,7 +1178,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
 
     g_mutex_unlock (&core->event_mutex);
   }
-  core->isolate->Enter ();
 
   if (!event_source_available)
     _gum_v8_throw_ascii_literal (isolate, "script is unloading");
@@ -2290,9 +2288,8 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
 
   auto interceptor = core->script->interceptor.interceptor;
 
-  isolate->Exit ();
   {
-    Unlocker ul (isolate);
+    ScriptUnlocker unlocker (core);
 
     gum_interceptor_unignore_current_thread (interceptor);
 
@@ -2306,8 +2303,6 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
 
     gum_interceptor_ignore_current_thread (interceptor);
   }
-
-  isolate->Enter ();
 
   if (gum_exceptor_catch (core->exceptor, &scope))
   {

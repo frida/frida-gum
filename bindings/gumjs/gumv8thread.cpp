@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -147,10 +147,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_sleep)
   if (delay < 0)
     return;
 
-  isolate->Exit ();
   {
-    Unlocker ul (isolate);
+    ScriptUnlocker unlocker (core);
+
     g_usleep (delay * G_USEC_PER_SEC);
   }
-  isolate->Enter ();
 }

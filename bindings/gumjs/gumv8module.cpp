@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -571,14 +571,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_find_export_by_name)
     return;
 
   GumAddress address;
-
-  core->isolate->Exit ();
   {
-    Unlocker ul (core->isolate);
+    ScriptUnlocker unlocker (core);
 
     address = gum_module_find_export_by_name (module_name, symbol_name);
   }
-  core->isolate->Enter ();
 
   if (address != 0)
   {

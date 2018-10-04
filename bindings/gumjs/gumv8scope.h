@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -10,6 +10,8 @@
 #include "gumv8script.h"
 
 #include <v8/v8.h>
+
+struct GumV8Core;
 
 class ScriptInterceptorScope
 {
@@ -62,6 +64,38 @@ private:
   ScriptScope * next;
   GQueue tick_callbacks;
   GQueue scheduled_sources;
+};
+
+class ScriptUnlocker
+{
+public:
+  ScriptUnlocker (GumV8Core * core);
+
+private:
+  class ExitCurrentScope
+  {
+  public:
+    ExitCurrentScope (GumV8Core * core);
+    ~ExitCurrentScope ();
+
+  private:
+    GumV8Core * core;
+    ScriptScope * scope;
+  };
+
+  class ExitIsolateScope
+  {
+  public:
+    ExitIsolateScope (v8::Isolate * isolate);
+    ~ExitIsolateScope ();
+
+  private:
+    v8::Isolate * isolate;
+  };
+
+  ExitCurrentScope exit_current_scope;
+  ExitIsolateScope exit_isolate_scope;
+  v8::Unlocker unlocker;
 };
 
 #endif

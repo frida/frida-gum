@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -232,21 +232,18 @@ void
 _gum_v8_stalker_flush (GumV8Stalker * self)
 {
   auto core = self->core;
-  auto isolate = core->isolate;
   gboolean pending_garbage;
 
   if (self->stalker == NULL)
     return;
 
-  isolate->Exit ();
   {
-    Unlocker ul (isolate);
+    ScriptUnlocker unlocker (core);
 
     gum_stalker_stop (self->stalker);
 
     pending_garbage = gum_stalker_garbage_collect (self->stalker);
   }
-  isolate->Enter ();
 
   if (pending_garbage)
   {
@@ -259,15 +256,13 @@ _gum_v8_stalker_flush (GumV8Stalker * self)
 
       _gum_v8_core_pin (core);
 
-      isolate->Exit ();
       {
-        Unlocker ul (isolate);
+        ScriptUnlocker unlocker (core);
 
         g_source_attach (source,
             gum_script_scheduler_get_js_context (core->scheduler));
         g_source_unref (source);
       }
-      isolate->Enter ();
     }
   }
   else

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -83,12 +83,11 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_api_resolver_construct)
     return;
 
   GumApiResolver * resolver;
-  isolate->Exit ();
   {
-    Unlocker ul (isolate);
+    ScriptUnlocker unlocker (core);
+
     resolver = gum_api_resolver_make (type);
   }
-  isolate->Enter ();
 
   g_free (type);
 

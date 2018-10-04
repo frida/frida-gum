@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -135,14 +135,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_address)
 
   symbol->details.address = GPOINTER_TO_SIZE (address);
 
-  isolate->Exit ();
   {
-    Unlocker ul (isolate);
+    ScriptUnlocker unlocker (core);
 
     symbol->resolved =
         gum_symbol_details_from_address (address, &symbol->details);
   }
-  isolate->Enter ();
 
   info.GetReturnValue ().Set (object);
 }
@@ -156,9 +154,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_name)
   GumSymbol * symbol;
   auto object = gum_symbol_new (module, &symbol);
 
-  isolate->Exit ();
   {
-    Unlocker ul (isolate);
+    ScriptUnlocker unlocker (core);
 
     auto address = gum_find_function (name);
     if (address != NULL)
@@ -172,7 +169,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_name)
       symbol->details.address = 0;
     }
   }
-  isolate->Enter ();
 
   g_free (name);
 
@@ -187,13 +183,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_get_function_by_name)
 
   gpointer address;
 
-  isolate->Exit ();
   {
-    Unlocker ul (isolate);
+    ScriptUnlocker unlocker (core);
 
     address = gum_find_function (name);
   }
-  isolate->Enter ();
 
   if (address != NULL)
   {
@@ -215,13 +209,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_named)
 
   GArray * functions;
 
-  isolate->Exit ();
   {
-    Unlocker ul (isolate);
+    ScriptUnlocker unlocker (core);
 
     functions = gum_find_functions_named (name);
   }
-  isolate->Enter ();
 
   auto result = Array::New (isolate, functions->len);
   for (guint i = 0; i != functions->len; i++)
@@ -245,13 +237,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_matching)
 
   GArray * functions;
 
-  isolate->Exit ();
   {
-    Unlocker ul (isolate);
+    ScriptUnlocker unlocker (core);
 
     functions = gum_find_functions_matching (str);
   }
-  isolate->Enter ();
 
   auto result = Array::New (isolate, functions->len);
   for (guint i = 0; i != functions->len; i++)

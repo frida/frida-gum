@@ -334,21 +334,18 @@ void
 _gum_v8_interceptor_flush (GumV8Interceptor * self)
 {
   auto core = self->core;
-  auto isolate = core->isolate;
   gboolean flushed;
 
   g_hash_table_remove_all (self->invocation_listeners);
   g_hash_table_remove_all (self->replacement_by_address);
 
-  isolate->Exit ();
   {
-    Unlocker ul (isolate);
+    ScriptUnlocker unlocker (core);
 
     gum_interceptor_end_transaction (self->interceptor);
     flushed = gum_interceptor_flush (self->interceptor);
     gum_interceptor_begin_transaction (self->interceptor);
   }
-  isolate->Enter ();
 
   if (!flushed && self->flush_timer == NULL)
   {
@@ -359,15 +356,13 @@ _gum_v8_interceptor_flush (GumV8Interceptor * self)
 
     _gum_v8_core_pin (core);
 
-    isolate->Exit ();
     {
-      Unlocker ul (isolate);
+      ScriptUnlocker unlocker (core);
 
       g_source_attach (source,
           gum_script_scheduler_get_js_context (core->scheduler));
       g_source_unref (source);
     }
-    isolate->Enter ();
   }
 }
 
