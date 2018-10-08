@@ -465,6 +465,12 @@ INTERCEPTOR_TESTCASE (should_retain_code_signing_status)
   gint res;
   uint32_t attributes;
 
+  if (g_file_test ("/electra", G_FILE_TEST_IS_DIR))
+  {
+    g_print ("<skipped on Electra> ");
+    return;
+  }
+
   close_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (
       "libsqlite3.dylib", "sqlite3_close"));
   interceptor_fixture_attach_listener (fixture, 0, close_impl, '>', '<');
