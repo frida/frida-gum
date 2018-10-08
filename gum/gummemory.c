@@ -698,6 +698,18 @@ gum_cs_free (gpointer mem)
 }
 
 gpointer
+gum_alloc_n_pages (guint n_pages,
+                   GumPageProtection page_prot)
+{
+  gpointer result;
+
+  result = gum_try_alloc_n_pages (n_pages, page_prot);
+  g_assert (result != NULL);
+
+  return result;
+}
+
+gpointer
 gum_alloc_n_pages_near (guint n_pages,
                         GumPageProtection page_prot,
                         const GumAddressSpec * address_spec)

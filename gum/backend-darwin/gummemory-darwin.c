@@ -395,8 +395,8 @@ gum_clear_cache (gpointer address,
 }
 
 gpointer
-gum_alloc_n_pages (guint n_pages,
-                   GumPageProtection page_prot)
+gum_try_alloc_n_pages (guint n_pages,
+                       GumPageProtection page_prot)
 {
   mach_vm_address_t result = 0;
   gsize page_size, size;
@@ -420,7 +420,8 @@ gum_alloc_n_pages (guint n_pages,
   {
     kr = mach_vm_allocate (mach_task_self (), &result, size, VM_FLAGS_ANYWHERE);
   }
-  g_assert_cmpint (kr, ==, KERN_SUCCESS);
+  if (kr != KERN_SUCCESS)
+    return NULL;
 
   *((gsize *) GSIZE_TO_POINTER (result)) = size;
 

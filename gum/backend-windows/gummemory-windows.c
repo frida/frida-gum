@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2011 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -179,8 +179,8 @@ gum_clear_cache (gpointer address,
 }
 
 gpointer
-gum_alloc_n_pages (guint n_pages,
-                   GumPageProtection page_prot)
+gum_try_alloc_n_pages (guint n_pages,
+                       GumPageProtection page_prot)
 {
   guint size;
   DWORD win_page_prot;
@@ -189,10 +189,7 @@ gum_alloc_n_pages (guint n_pages,
   size = n_pages * gum_query_page_size ();
   win_page_prot = gum_page_protection_to_windows (page_prot);
 
-  result = gum_memory_allocate (size, page_prot, NULL);
-  g_assert (result != NULL);
-
-  return result;
+  return gum_memory_allocate (size, page_prot, NULL);
 }
 
 gpointer

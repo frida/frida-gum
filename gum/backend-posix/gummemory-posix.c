@@ -63,8 +63,8 @@ _gum_memory_backend_query_page_size (void)
 }
 
 gpointer
-gum_alloc_n_pages (guint n_pages,
-                   GumPageProtection page_prot)
+gum_try_alloc_n_pages (guint n_pages,
+                       GumPageProtection page_prot)
 {
   guint8 * result;
   guint page_size, size;
@@ -73,7 +73,8 @@ gum_alloc_n_pages (guint n_pages,
   size = (1 + n_pages) * page_size;
 
   result = gum_memory_allocate (size, page_prot, NULL);
-  g_assert (result != NULL);
+  if (result == NULL)
+    return NULL;
 
   if ((page_prot & GUM_PAGE_WRITE) == 0)
     gum_mprotect (result, page_size, GUM_PAGE_RW);
