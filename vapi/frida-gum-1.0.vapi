@@ -109,6 +109,8 @@ namespace Gum {
 	}
 
 	public class Stalker : GLib.Object {
+		public static bool is_supported ();
+
 		public Stalker ();
 
 		public void exclude (Gum.MemoryRange range);

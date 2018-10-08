@@ -425,6 +425,12 @@ static gboolean gum_stalker_on_exception (GumExceptionDetails * details,
 
 G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
 
+gboolean
+gum_stalker_is_supported (void)
+{
+  return TRUE;
+}
+
 static void
 gum_stalker_class_init (GumStalkerClass * klass)
 {

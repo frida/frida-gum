@@ -368,6 +368,33 @@ static void gum_exec_block_close_prolog (GumExecBlock * block,
 
 G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
 
+gboolean
+gum_stalker_is_supported (void)
+{
+#ifdef HAVE_IOS
+  static gsize stalker_supported = 0;
+
+  if (g_once_init_enter (&stalker_supported))
+  {
+    gboolean supported = FALSE;
+    gpointer page;
+
+    page = gum_try_alloc_n_pages (1, GUM_PAGE_RWX);
+    if (page != NULL)
+    {
+      supported = TRUE;
+      gum_free_pages (page);
+    }
+
+    g_once_init_leave (&stalker_supported, supported + 1);
+  }
+
+  return stalker_supported - 1;
+#else
+  return TRUE;
+#endif
+}
+
 static void
 gum_stalker_class_init (GumStalkerClass * klass)
 {
