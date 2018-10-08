@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -130,6 +130,25 @@ main (gint argc, gchar * argv[])
           "\n");
       exit (1);
     }
+  }
+#endif
+
+#ifdef HAVE_IOS
+# define ELECTRA_FLAG_PLATFORMIZE (1 << 1)
+  if (g_file_test ("/usr/lib/libjailbreak.dylib", G_FILE_TEST_EXISTS))
+  {
+    GModule * module;
+    void (* entitle_now) (pid_t pid, uint32_t what);
+
+    module = g_module_open ("/usr/lib/libjailbreak.dylib", G_MODULE_BIND_LAZY);
+
+    entitle_now = NULL;
+    g_module_symbol (module, "jb_oneshot_entitle_now",
+        (gpointer *) &entitle_now);
+
+    entitle_now (getpid (), ELECTRA_FLAG_PLATFORMIZE);
+
+    g_module_close (module);
   }
 #endif
 
