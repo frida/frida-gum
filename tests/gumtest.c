@@ -197,15 +197,18 @@ main (gint argc, gchar * argv[])
 #if defined (HAVE_I386) && defined (G_OS_WIN32)
   TEST_RUN_LIST (memoryaccessmonitor);
 #endif
-#if defined (HAVE_I386) || defined (HAVE_ARM64)
-  TEST_RUN_LIST (stalker);
-#endif
+
+  if (gum_stalker_is_supported ())
+  {
+    TEST_RUN_LIST (stalker);
 #ifdef HAVE_MACOS
-  TEST_RUN_LIST (stalker_macos);
+    TEST_RUN_LIST (stalker_macos);
 #endif
 #if defined (HAVE_ARM64) && defined (HAVE_DARWIN)
-  TEST_RUN_LIST (stalker_darwin);
+    TEST_RUN_LIST (stalker_darwin);
 #endif
+  }
+
   TEST_RUN_LIST (api_resolver);
 #if !defined (HAVE_QNX) && !(defined (HAVE_ANDROID) && defined (HAVE_ARM64)) && !(defined (HAVE_MIPS))
   TEST_RUN_LIST (backtracer);
