@@ -136,12 +136,15 @@ gum_memory_enumerate_free_ranges (GumFoundFreeRangeFunc func,
                                   gpointer user_data)
 {
   mach_port_t self;
+  guint page_size, index;
   mach_vm_address_t address = MACH_VM_MIN_ADDRESS;
   GumAddress prev_end = 0;
 
   self = mach_task_self ();
 
-  while (TRUE)
+  page_size = gum_query_page_size ();
+
+  for (index = 0; TRUE; index++)
   {
     mach_vm_size_t size = 0;
     natural_t depth = 0;
@@ -152,7 +155,42 @@ gum_memory_enumerate_free_ranges (GumFoundFreeRangeFunc func,
     kr = mach_vm_region_recurse (self, &address, &size, &depth,
         (vm_region_recurse_info_t) &info, &info_count);
     if (kr != KERN_SUCCESS)
+    {
+      if (prev_end != 0)
+      {
+        GumAddress max_address;
+        GumMemoryRange r;
+
+#if GLIB_SIZEOF_VOID_P == 4
+        max_address = 0xffffffff;
+#elif defined (HAVE_I386)
+        max_address = G_GUINT64_CONSTANT (0x0001000000000000);
+#elif defined (HAVE_ARM64)
+        max_address = G_GUINT64_CONSTANT (0x0000000200000000);
+#endif
+
+        if (max_address > prev_end)
+        {
+          r.base_address = prev_end;
+          r.size = max_address - prev_end;
+
+          func (&r, user_data);
+        }
+      }
+
       break;
+    }
+
+    if (index == 0 && address > page_size)
+    {
+      GumMemoryRange r;
+
+      r.base_address = page_size;
+      r.size = address - page_size;
+
+      if (!func (&r, user_data))
+        break;
+    }
 
     if (prev_end != 0)
     {
@@ -168,7 +206,7 @@ gum_memory_enumerate_free_ranges (GumFoundFreeRangeFunc func,
         r.size = gap_size;
 
         if (!func (&r, user_data))
-          return;
+          break;
       }
     }
 
