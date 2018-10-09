@@ -200,7 +200,9 @@ main (gint argc, gchar * argv[])
 
   if (gum_stalker_is_supported ())
   {
+#if defined (HAVE_I386) || defined (HAVE_ARM64)
     TEST_RUN_LIST (stalker);
+#endif
 #ifdef HAVE_MACOS
     TEST_RUN_LIST (stalker_macos);
 #endif
