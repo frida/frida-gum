@@ -184,7 +184,6 @@ gum_try_alloc_n_pages (guint n_pages,
 {
   guint size;
   DWORD win_page_prot;
-  gpointer result;
 
   size = n_pages * gum_query_page_size ();
   win_page_prot = gum_page_protection_to_windows (page_prot);
