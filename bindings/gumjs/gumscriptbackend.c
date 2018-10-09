@@ -78,16 +78,13 @@ gum_script_backend_obtain_v8 (void)
   {
     GumScriptBackend * backend = NULL;
 
-    if (gum_query_is_rwx_supported ())
-    {
 #ifdef HAVE_V8
-      backend = GUM_SCRIPT_BACKEND (
-          g_object_new (GUM_V8_TYPE_SCRIPT_BACKEND, NULL));
+    backend = GUM_SCRIPT_BACKEND (
+        g_object_new (GUM_V8_TYPE_SCRIPT_BACKEND, NULL));
 #endif
 
-      if (backend != NULL)
-        _gum_register_early_destructor (gum_script_backend_deinit_v8);
-    }
+    if (backend != NULL)
+      _gum_register_early_destructor (gum_script_backend_deinit_v8);
 
     g_once_init_leave (&gonce_value, GPOINTER_TO_SIZE (backend) + 1);
   }

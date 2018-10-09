@@ -23,7 +23,16 @@
 #define GUM_V8_SCRIPT_BACKEND_GET_ISOLATE(backend) \
     ((Isolate *) gum_v8_script_backend_get_isolate (backend))
 
+#ifdef HAVE_IOS
+# define GUM_V8_PLATFORM_FLAGS \
+    "--write-protect-code-memory " \
+    "--wasm-write-protect-code-memory "
+#else
+# define GUM_V8_PLATFORM_FLAGS
+#endif
+
 #define GUM_V8_FLAGS \
+    GUM_V8_PLATFORM_FLAGS \
     "--es-staging " \
     "--harmony-do-expressions " \
     "--harmony-class-fields " \
