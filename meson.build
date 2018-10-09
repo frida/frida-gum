@@ -228,7 +228,7 @@ if get_option('enable_gumjs')
     cpu = host_machine.cpu_family()
     is_embedded_linux = host_os == 'linux' and (cpu == 'arm' or cpu == 'aarch64' or cpu == 'mips')
     is_arm_hardfloat_linux = host_os == 'linux' and cpu == 'arm' and host_machine.cpu().endswith('hf')
-    enable_diet = host_os == 'ios' or (is_embedded_linux and not is_arm_hardfloat_linux) or host_os == 'qnx'
+    enable_diet = (is_embedded_linux and not is_arm_hardfloat_linux) or host_os == 'qnx'
   else
     enable_diet = enable_diet_value == 'yes'
   endif
