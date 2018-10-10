@@ -1726,6 +1726,11 @@ declare interface TcpConnectOptions {
      * IP port to connect to.
      */
     port: number;
+
+    /**
+     * Whether to create a TLS connection. Defaults to `false`.
+     */
+    tls?: boolean;
 }
 
 declare interface UnixConnectOptions {
@@ -1743,6 +1748,11 @@ declare interface UnixConnectOptions {
      * Path to UNIX socket to connect to.
      */
     path: string;
+
+    /**
+     * Whether to create a TLS connection. Defaults to `false`.
+     */
+    tls?: boolean;
 }
 
 declare type SocketEndpointAddress = TcpEndpointAddress | UnixEndpointAddress;

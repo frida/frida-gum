@@ -199,6 +199,18 @@ else
   have_libdwarf = false
 endif
 
+if host_os_family == 'windows'
+  tls_provider_dep = dependency('glib-schannel-static', required: false)
+  if tls_provider_dep.found()
+    cdata.set('HAVE_GLIB_SCHANNEL_STATIC', 1)
+  endif
+else
+  tls_provider_dep = dependency('glib-openssl-static', required: false)
+  if tls_provider_dep.found()
+    cdata.set('HAVE_GLIB_OPENSSL_STATIC', 1)
+  endif
+endif
+
 if get_option('enable_gumpp')
   cdata.set('HAVE_GUMPP', 1)
 endif

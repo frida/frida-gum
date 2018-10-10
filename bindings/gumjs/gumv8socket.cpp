@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -46,6 +46,8 @@ struct GumV8ConnectOperation : public GumV8ModuleOperation<GumV8Socket>
   guint16 port;
 
   GSocketConnectable * connectable;
+
+  gboolean tls;
 };
 
 struct GumV8CloseListenerOperation
@@ -341,9 +343,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_connect)
   guint port;
   Local<Value> type_value;
   gchar * path;
+  gboolean tls;
   Local<Function> callback;
-  if (!_gum_v8_args_parse (args, "Vs?uVs?F", &family_value, &host, &port,
-      &type_value, &path, &callback))
+  if (!_gum_v8_args_parse (args, "Vs?uVs?tF", &family_value, &host, &port,
+      &type_value, &path, &tls, &callback))
     return;
 
   GSocketFamily family;
@@ -380,6 +383,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_connect)
   op->host = host;
   op->port = port;
   op->connectable = connectable;
+  op->tls = tls;
   gum_v8_module_operation_schedule (op);
 }
 
@@ -396,6 +400,7 @@ gum_v8_connect_operation_start (GumV8ConnectOperation * self)
 {
   self->client = G_SOCKET_CLIENT (g_object_new (G_TYPE_SOCKET_CLIENT,
       "family", self->family,
+      "tls", self->tls,
       NULL));
 
   if (self->connectable != NULL)

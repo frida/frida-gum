@@ -75,6 +75,12 @@
 /* Define to 1 if V8 is available. */
 #mesondefine HAVE_V8
 
+/* Define to 1 if glib-schannel-static is available. */
+#mesondefine HAVE_GLIB_SCHANNEL_STATIC
+
+/* Define to 1 if glib-openssl-static is available. */
+#mesondefine HAVE_GLIB_OPENSSL_STATIC
+
 #if defined (HAVE_QNX) && !defined (__cplusplus)
 # define NULL ((void *) 0)
 #endif

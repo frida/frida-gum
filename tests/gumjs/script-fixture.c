@@ -130,6 +130,7 @@ typedef struct _TestScriptMessageItem
 {
   gchar * message;
   gchar * data;
+  GBytes * raw_data;
 } TestScriptMessageItem;
 
 static void test_script_message_item_free (TestScriptMessageItem * item);
@@ -215,6 +216,7 @@ test_script_message_item_free (TestScriptMessageItem * item)
 {
   g_free (item->message);
   g_free (item->data);
+  g_bytes_unref (item->raw_data);
   g_slice_free (TestScriptMessageItem, item);
 }
 
@@ -247,10 +249,12 @@ test_script_fixture_store_message (GumScript * script,
     }
 
     item->data = g_string_free (s, FALSE);
+    item->raw_data = g_bytes_ref (data);
   }
   else
   {
     item->data = NULL;
+    item->raw_data = NULL;
   }
 
   g_queue_push_tail (&self->messages, item);

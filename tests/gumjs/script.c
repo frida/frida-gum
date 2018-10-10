@@ -165,6 +165,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (module_can_be_forcibly_initialized)
   SCRIPT_TESTENTRY (api_resolver_can_be_used_to_find_functions)
   SCRIPT_TESTENTRY (socket_connection_can_be_established)
+  SCRIPT_TESTENTRY (socket_connection_can_be_established_with_tls)
   SCRIPT_TESTENTRY (socket_type_can_be_inspected)
 #if !defined (HAVE_ANDROID) && !(defined (HAVE_LINUX) && defined (HAVE_ARM)) && \
   !(defined (HAVE_LINUX) && defined (HAVE_MIPS))
@@ -1886,6 +1887,93 @@ SCRIPT_TESTCASE (socket_connection_can_be_established)
         "31 33 33 37 0a");
   }
 #endif
+}
+
+SCRIPT_TESTCASE (socket_connection_can_be_established_with_tls)
+{
+  gboolean done;
+
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
+  PUSH_TIMEOUT (10000);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Socket.connect({"
+      "  family: 'ipv4',"
+      "  host: 'www.google.com',"
+      "  port: 443,"
+      "  tls: true,"
+      "})"
+      ".then(function (connection) {"
+      "  return connection.setNoDelay(true)"
+      "  .then(function () {"
+      "    var request = ["
+      "      'GET / HTTP/1.1',"
+      "      'Connection: close',"
+      "      'Host: www.google.com',"
+      "      'Accept: text/html',"
+      "      'User-Agent: Frida/" FRIDA_VERSION "',"
+      "      '',"
+      "      '',"
+      "    ].join('\\r\\n');"
+      "    var rawRequest = [];"
+      "    for (var i = 0; i !== request.length; i++)"
+      "      rawRequest.push(request.charCodeAt(i));"
+      "    send('request', rawRequest);"
+      "    return connection.output.writeAll(rawRequest)"
+      "    .then(function () {"
+      "      return connection.input.read(128 * 1024);"
+      "    })"
+      "    .then(function (data) {"
+      "      send('response', data);"
+      "    });"
+      "  });"
+      "})"
+      ".catch(function (error) {"
+      "  send('error: ' + error.message);"
+      "});");
+
+  g_printerr ("\n\n");
+
+  done = FALSE;
+  while (!done)
+  {
+    TestScriptMessageItem * item;
+
+    item = test_script_fixture_pop_message (fixture);
+
+    if (item->raw_data != NULL)
+    {
+      gboolean is_request;
+      const guint8 * raw_chunk;
+      gsize size;
+      gchar * chunk;
+
+      is_request = strstr (item->message, "\"request\"") != NULL;
+
+      raw_chunk = g_bytes_get_data (item->raw_data, &size);
+      chunk = g_strndup ((const gchar *) raw_chunk, size);
+
+      g_printerr ("*** %s %" G_GSIZE_MODIFIER "u bytes\n%s",
+          is_request ? "Sent" : "Received",
+          size,
+          chunk);
+
+      g_free (chunk);
+
+      done = !is_request;
+    }
+    else
+    {
+      g_printerr ("Got: %s\n", item->message);
+    }
+
+    test_script_message_item_free (item);
+  }
 }
 
 SCRIPT_TESTCASE (socket_type_can_be_inspected)

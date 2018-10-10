@@ -783,9 +783,11 @@ Object.defineProperties(Socket, {
 
           type = null,
           path = null,
+
+          tls = false,
         } = options;
 
-        Socket._connect(family, host, port, type, path, function (error, connection) {
+        Socket._connect(family, host, port, type, path, tls, function (error, connection) {
           if (error === null)
             resolve(connection);
           else

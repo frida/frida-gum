@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -59,6 +59,8 @@ struct _GumDukConnectOperation
   guint16 port;
 
   GSocketConnectable * connectable;
+
+  gboolean tls;
 };
 
 struct _GumDukCloseListenerOperation
@@ -118,7 +120,7 @@ static GumDukHeapPtr gumjs_socket_address_to_value (duk_context * ctx,
 static const duk_function_list_entry gumjs_socket_functions[] =
 {
   { "_listen", gumjs_socket_listen, 7 },
-  { "_connect", gumjs_socket_connect, 6 },
+  { "_connect", gumjs_socket_connect, 7 },
   { "type", gumjs_socket_get_type, 1 },
   { "localAddress", gumjs_socket_get_local_address, 1 },
   { "peerAddress", gumjs_socket_get_peer_address, 1 },
@@ -371,14 +373,15 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_connect)
   GUnixSocketAddressType type;
   GumDukHeapPtr type_value;
   const gchar * path;
+  gboolean tls;
   GumDukHeapPtr callback;
   GSocketConnectable * connectable = NULL;
   GumDukConnectOperation * op;
 
   module = gumjs_module_from_args (args);
 
-  _gum_duk_args_parse (args, "V?s?uV?s?F", &family_value, &host, &port,
-      &type_value, &path, &callback);
+  _gum_duk_args_parse (args, "V?s?uV?s?tF", &family_value, &host, &port,
+      &type_value, &path, &tls, &callback);
   gum_duk_get_socket_family (ctx, family_value, &family);
   gum_duk_get_unix_socket_address_type (ctx, type_value, &type);
 
@@ -401,6 +404,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_connect)
   op->host = g_strdup (host);
   op->port = port;
   op->connectable = connectable;
+  op->tls = tls;
   _gum_duk_module_operation_schedule (op);
 
   return 0;
@@ -421,6 +425,7 @@ gum_duk_connect_operation_start (GumDukConnectOperation * self)
 
   self->client = g_object_new (G_TYPE_SOCKET_CLIENT,
       "family", self->family,
+      "tls", self->tls,
       NULL);
 
   if (self->connectable != NULL)
