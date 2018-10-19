@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -20,6 +20,9 @@
 
 typedef struct _GumDukFlushCallback GumDukFlushCallback;
 typedef struct _GumDukNativeFunctionParams GumDukNativeFunctionParams;
+typedef guint8 GumDukSchedulingBehavior;
+typedef guint8 GumDukExceptionsBehavior;
+typedef guint8 GumDukReturnValueShape;
 typedef struct _GumDukNativeFunction GumDukNativeFunction;
 typedef struct _GumDukNativeCallback GumDukNativeCallback;
 typedef union _GumFFIValue GumFFIValue;
@@ -70,8 +73,27 @@ struct _GumDukNativeFunctionParams
   GumDukHeapPtr return_type;
   GumDukHeapPtr argument_types;
   const gchar * abi_name;
+  GumDukSchedulingBehavior scheduling;
+  GumDukExceptionsBehavior exceptions;
+  GumDukReturnValueShape return_shape;
+};
 
-  gboolean enable_detailed_return;
+enum _GumDukSchedulingBehavior
+{
+  GUM_DUK_SCHEDULING_COOPERATIVE,
+  GUM_DUK_SCHEDULING_EXCLUSIVE
+};
+
+enum _GumDukExceptionsBehavior
+{
+  GUM_DUK_EXCEPTIONS_STEAL,
+  GUM_DUK_EXCEPTIONS_PROPAGATE
+};
+
+enum _GumDukReturnValueShape
+{
+  GUM_DUK_RETURN_PLAIN,
+  GUM_DUK_RETURN_DETAILED
 };
 
 struct _GumDukNativeFunction
@@ -79,7 +101,9 @@ struct _GumDukNativeFunction
   GumDukNativePointer parent;
 
   GCallback implementation;
-  gboolean enable_detailed_return;
+  GumDukSchedulingBehavior scheduling;
+  GumDukExceptionsBehavior exceptions;
+  GumDukReturnValueShape return_shape;
   ffi_cif cif;
   ffi_type ** atypes;
   gsize arglist_size;
@@ -244,6 +268,14 @@ static int gum_duk_native_function_invoke (GumDukNativeFunction * self,
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_system_function_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_system_function_finalize)
+
+static void gum_duk_native_function_params_init (
+    GumDukNativeFunctionParams * params, GumDukHeapPtr prototype,
+    GumDukReturnValueShape return_shape, const GumDukArgs * args);
+static GumDukSchedulingBehavior gum_duk_require_scheduling_behavior (
+    duk_context * ctx, duk_idx_t index);
+static GumDukExceptionsBehavior gum_duk_require_exceptions_behavior (
+    duk_context * ctx, duk_idx_t index);
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_callback_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_native_callback_finalize)
@@ -2458,13 +2490,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
   if (!duk_is_constructor_call (ctx))
     _gum_duk_throw (ctx, "use `new NativeFunction()` to create a new instance");
 
-  params.prototype = core->native_function_prototype;
-
-  params.abi_name = NULL;
-  _gum_duk_args_parse (args, "pVA|s", &params.implementation,
-      &params.return_type, &params.argument_types, &params.abi_name);
-
-  params.enable_detailed_return = FALSE;
+  gum_duk_native_function_params_init (&params, core->native_function_prototype,
+      GUM_DUK_RETURN_PLAIN, args);
 
   return gumjs_native_function_init (ctx, &params, core);
 }
@@ -2637,7 +2664,9 @@ gumjs_native_function_init (duk_context * ctx,
   ptr = &func->parent;
   ptr->value = GUM_FUNCPTR_TO_POINTER (params->implementation);
   func->implementation = params->implementation;
-  func->enable_detailed_return = params->enable_detailed_return;
+  func->scheduling = params->scheduling;
+  func->exceptions = params->exceptions;
+  func->return_shape = params->return_shape;
   func->core = core;
 
   if (!gum_duk_get_ffi_type (ctx, params->return_type, &rtype, &func->data))
@@ -2806,6 +2835,9 @@ gum_duk_native_function_invoke (GumDukNativeFunction * self,
   GumFFIValue * rvalue;
   void ** avalue;
   guint8 * avalues;
+  GumDukSchedulingBehavior scheduling;
+  GumDukExceptionsBehavior exceptions;
+  GumDukReturnValueShape return_shape;
   GumExceptorScope exceptor_scope;
   gint system_error = -1;
 
@@ -2856,33 +2888,45 @@ gum_duk_native_function_invoke (GumDukNativeFunction * self,
     avalue = NULL;
   }
 
+  scheduling = self->scheduling;
+  exceptions = self->exceptions;
+  return_shape = self->return_shape;
+
   {
     GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
     GumInterceptor * interceptor = core->interceptor->interceptor;
 
-    _gum_duk_scope_suspend (&scope);
+    if (scheduling == GUM_DUK_SCHEDULING_COOPERATIVE)
+    {
+      _gum_duk_scope_suspend (&scope);
 
-    gum_interceptor_unignore_current_thread (interceptor);
+      gum_interceptor_unignore_current_thread (interceptor);
+    }
 
-    if (gum_exceptor_try (core->exceptor, &exceptor_scope))
+    if (exceptions == GUM_DUK_EXCEPTIONS_PROPAGATE ||
+        gum_exceptor_try (core->exceptor, &exceptor_scope))
     {
       ffi_call (&self->cif, implementation, rvalue, avalue);
 
-      if (self->enable_detailed_return)
+      if (return_shape == GUM_DUK_RETURN_DETAILED)
         system_error = gum_thread_get_system_error ();
     }
 
-    gum_interceptor_ignore_current_thread (interceptor);
+    if (scheduling == GUM_DUK_SCHEDULING_COOPERATIVE)
+    {
+      gum_interceptor_ignore_current_thread (interceptor);
 
-    _gum_duk_scope_resume (&scope);
+      _gum_duk_scope_resume (&scope);
+    }
   }
 
-  if (gum_exceptor_catch (core->exceptor, &exceptor_scope))
+  if (exceptions == GUM_DUK_EXCEPTIONS_STEAL &&
+      gum_exceptor_catch (core->exceptor, &exceptor_scope))
   {
     _gum_duk_throw_native (ctx, &exceptor_scope.exception, core);
   }
 
-  if (self->enable_detailed_return)
+  if (return_shape == GUM_DUK_RETURN_DETAILED)
   {
     duk_push_object (ctx);
 
@@ -2907,13 +2951,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_system_function_construct)
   if (!duk_is_constructor_call (ctx))
     _gum_duk_throw (ctx, "use `new SystemFunction()` to create a new instance");
 
-  params.prototype = core->system_function_prototype;
-
-  params.abi_name = NULL;
-  _gum_duk_args_parse (args, "pVA|s", &params.implementation,
-      &params.return_type, &params.argument_types, &params.abi_name);
-
-  params.enable_detailed_return = TRUE;
+  gum_duk_native_function_params_init (&params, core->system_function_prototype,
+      GUM_DUK_RETURN_DETAILED, args);
 
   return gumjs_native_function_init (ctx, &params, core);
 }
@@ -2929,6 +2968,112 @@ GUMJS_DEFINE_FINALIZER (gumjs_system_function_finalize)
   gum_duk_native_function_finalize (self);
 
   return 0;
+}
+
+static void
+gum_duk_native_function_params_init (GumDukNativeFunctionParams * params,
+                                     GumDukHeapPtr prototype,
+                                     GumDukReturnValueShape return_shape,
+                                     const GumDukArgs * args)
+{
+  duk_context * ctx = args->ctx;
+
+  params->prototype = prototype;
+  params->scheduling = GUM_DUK_SCHEDULING_COOPERATIVE;
+  params->exceptions = GUM_DUK_EXCEPTIONS_STEAL;
+  params->return_shape = return_shape;
+
+  if (duk_is_string (ctx, 1))
+  {
+    params->abi_name = NULL;
+    _gum_duk_args_parse (args, "pVA|s", &params->implementation,
+        &params->return_type, &params->argument_types, &params->abi_name);
+  }
+  else
+  {
+    GumDukHeapPtr options;
+
+    params->return_type = NULL;
+    params->argument_types = NULL;
+    params->abi_name = NULL;
+
+    options = NULL;
+    _gum_duk_args_parse (args, "p|O", &params->implementation, &options);
+
+    if (options != NULL)
+    {
+      duk_idx_t options_index;
+
+      duk_push_heapptr (ctx, options);
+      options_index = duk_require_top_index (ctx);
+
+      duk_get_prop_string (ctx, options_index, "returnType");
+      if (!duk_is_undefined (ctx, -1))
+        params->return_type = duk_require_heapptr (ctx, -1);
+
+      duk_get_prop_string (ctx, options_index, "argumentTypes");
+      if (!duk_is_undefined (ctx, -1))
+        params->argument_types = duk_require_heapptr (ctx, -1);
+
+      duk_get_prop_string (ctx, options_index, "abi");
+      if (!duk_is_undefined (ctx, -1))
+        params->abi_name = duk_require_string (ctx, -1);
+
+      duk_get_prop_string (ctx, options_index, "scheduling");
+      if (!duk_is_undefined (ctx, -1))
+        params->scheduling = gum_duk_require_scheduling_behavior (ctx, -1);
+
+      duk_get_prop_string (ctx, options_index, "exceptions");
+      if (!duk_is_undefined (ctx, -1))
+        params->exceptions = gum_duk_require_exceptions_behavior (ctx, -1);
+
+      duk_pop_n (ctx, 5);
+    }
+
+    if (params->return_type == NULL)
+    {
+      duk_push_string (ctx, "void");
+      params->return_type = duk_require_heapptr (ctx, -1);
+    }
+
+    if (params->argument_types == NULL)
+    {
+      duk_push_array (ctx);
+      params->argument_types = duk_require_heapptr (ctx, -1);
+    }
+  }
+}
+
+static GumDukSchedulingBehavior
+gum_duk_require_scheduling_behavior (duk_context * ctx,
+                                     duk_idx_t index)
+{
+  const gchar * value;
+
+  value = duk_require_string (ctx, index);
+
+  if (strcmp (value, "cooperative") == 0)
+    return GUM_DUK_SCHEDULING_COOPERATIVE;
+
+  if (strcmp (value, "exclusive") != 0)
+    _gum_duk_throw (ctx, "invalid scheduling behavior value");
+  return GUM_DUK_SCHEDULING_EXCLUSIVE;
+}
+
+static GumDukExceptionsBehavior
+gum_duk_require_exceptions_behavior (duk_context * ctx,
+                                     duk_idx_t index)
+{
+  const gchar * value;
+
+  value = duk_require_string (ctx, index);
+
+  if (strcmp (value, "steal") == 0)
+    return GUM_DUK_EXCEPTIONS_STEAL;
+
+  if (strcmp (value, "propagate") != 0)
+    _gum_duk_throw (ctx, "invalid exceptions behavior value");
+  return GUM_DUK_EXCEPTIONS_PROPAGATE;
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)

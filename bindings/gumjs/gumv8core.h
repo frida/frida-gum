@@ -95,6 +95,11 @@ struct GumV8Core
   GumPersistent<v8::String>::type * handle_key;
 
   GumPersistent<v8::FunctionTemplate>::type * native_function;
+  GumPersistent<v8::String>::type * return_type_key;
+  GumPersistent<v8::String>::type * argument_types_key;
+  GumPersistent<v8::String>::type * abi_key;
+  GumPersistent<v8::String>::type * scheduling_key;
+  GumPersistent<v8::String>::type * exceptions_key;
   GumPersistent<v8::Object>::type * native_return_value;
   GumPersistent<v8::String>::type * value_key;
   GumPersistent<v8::String>::type * system_error_key;

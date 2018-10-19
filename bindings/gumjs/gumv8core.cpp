@@ -21,6 +21,10 @@
 
 using namespace v8;
 
+typedef guint8 GumV8SchedulingBehavior;
+typedef guint8 GumV8ExceptionsBehavior;
+typedef guint8 GumV8ReturnValueShape;
+
 struct GumV8FlushCallback
 {
   GumV8FlushNotify func;
@@ -64,8 +68,27 @@ struct GumV8NativeFunctionParams
   Local<Value> return_type;
   Local<Array> argument_types;
   Local<Value> abi;
+  GumV8SchedulingBehavior scheduling;
+  GumV8ExceptionsBehavior exceptions;
+  GumV8ReturnValueShape return_shape;
+};
 
-  gboolean enable_detailed_return;
+enum _GumV8SchedulingBehavior
+{
+  GUM_V8_SCHEDULING_COOPERATIVE,
+  GUM_V8_SCHEDULING_EXCLUSIVE
+};
+
+enum _GumV8ExceptionsBehavior
+{
+  GUM_V8_EXCEPTIONS_STEAL,
+  GUM_V8_EXCEPTIONS_PROPAGATE
+};
+
+enum _GumV8ReturnValueShape
+{
+  GUM_V8_RETURN_PLAIN,
+  GUM_V8_RETURN_DETAILED
 };
 
 struct GumV8NativeFunction
@@ -73,7 +96,9 @@ struct GumV8NativeFunction
   GumPersistent<Object>::type * wrapper;
 
   GCallback implementation;
-  gboolean enable_detailed_return;
+  GumV8SchedulingBehavior scheduling;
+  GumV8ExceptionsBehavior exceptions;
+  GumV8ReturnValueShape return_shape;
   ffi_cif cif;
   ffi_type ** atypes;
   gsize arglist_size;
@@ -253,6 +278,14 @@ static void gum_v8_native_function_on_weak_notify (
     const WeakCallbackInfo<GumV8NativeFunction> & info);
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_system_function_construct)
+
+static gboolean gum_v8_native_function_params_init (
+    GumV8NativeFunctionParams * params, GumV8ReturnValueShape return_shape,
+    const GumV8Args * args);
+static gboolean gum_v8_scheduling_behavior_parse (Handle<Value> value,
+    GumV8SchedulingBehavior * behavior, Isolate * isolate);
+static gboolean gum_v8_exceptions_behavior_parse (Handle<Value> value,
+    GumV8ExceptionsBehavior * behavior, Isolate * isolate);
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_callback_construct)
 static void gum_v8_native_callback_on_weak_notify (
@@ -698,6 +731,16 @@ _gum_v8_core_realize (GumV8Core * self)
   self->handle_key = new GumPersistent<String>::type (isolate,
       _gum_v8_string_new_ascii (isolate, "handle"));
 
+  self->return_type_key = new GumPersistent<String>::type (isolate,
+      _gum_v8_string_new_ascii (isolate, "returnType"));
+  self->argument_types_key = new GumPersistent<String>::type (isolate,
+      _gum_v8_string_new_ascii (isolate, "argumentTypes"));
+  self->abi_key = new GumPersistent<String>::type (isolate,
+      _gum_v8_string_new_ascii (isolate, "abi"));
+  self->scheduling_key = new GumPersistent<String>::type (isolate,
+      _gum_v8_string_new_ascii (isolate, "scheduling"));
+  self->exceptions_key = new GumPersistent<String>::type (isolate,
+      _gum_v8_string_new_ascii (isolate, "exceptions"));
   auto value_key = _gum_v8_string_new_ascii (isolate, "value");
   self->value_key = new GumPersistent<String>::type (isolate, value_key);
   auto system_error_key =
@@ -847,8 +890,18 @@ _gum_v8_core_dispose (GumV8Core * self)
   self->handle_key = nullptr;
   self->native_pointer_value = nullptr;
 
+  delete self->return_type_key;
+  delete self->argument_types_key;
+  delete self->abi_key;
+  delete self->scheduling_key;
+  delete self->exceptions_key;
   delete self->value_key;
   delete self->system_error_key;
+  self->return_type_key = nullptr;
+  self->argument_types_key = nullptr;
+  self->abi_key = nullptr;
+  self->scheduling_key = nullptr;
+  self->exceptions_key = nullptr;
   self->value_key = nullptr;
   self->system_error_key = nullptr;
 
@@ -1916,12 +1969,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
   }
 
   GumV8NativeFunctionParams params;
-
-  if (!_gum_v8_args_parse (args, "pVA|V", &params.implementation,
-      &params.return_type, &params.argument_types, &params.abi))
+  if (!gum_v8_native_function_params_init (&params, GUM_V8_RETURN_PLAIN, args))
     return;
-
-  params.enable_detailed_return = FALSE;
 
   gumjs_native_function_init (wrapper, &params, core);
 }
@@ -2105,7 +2154,9 @@ gumjs_native_function_init (Handle<Object> wrapper,
 
   func = g_slice_new0 (GumV8NativeFunction);
   func->implementation = params->implementation;
-  func->enable_detailed_return = params->enable_detailed_return;
+  func->scheduling = params->scheduling;
+  func->exceptions = params->exceptions;
+  func->return_shape = params->return_shape;
   func->core = core;
 
   if (!gum_v8_ffi_type_get (core, params->return_type, &rtype, &func->data))
@@ -2286,55 +2337,68 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
     avalue = NULL;
   }
 
-  auto interceptor = core->script->interceptor.interceptor;
+  GumV8ExceptionsBehavior exceptions = self->exceptions;
+  GumV8ReturnValueShape return_shape = self->return_shape;
 
+  if (self->scheduling == GUM_V8_SCHEDULING_COOPERATIVE)
   {
+    GumInterceptor * interceptor = core->script->interceptor.interceptor;
     ScriptUnlocker unlocker (core);
 
     gum_interceptor_unignore_current_thread (interceptor);
 
-    if (gum_exceptor_try (core->exceptor, &scope))
+    if (exceptions == GUM_V8_EXCEPTIONS_PROPAGATE ||
+        gum_exceptor_try (core->exceptor, &scope))
     {
       ffi_call (&self->cif, FFI_FN (implementation), rvalue, avalue);
 
-      if (self->enable_detailed_return)
+      if (return_shape == GUM_V8_RETURN_DETAILED)
         system_error = gum_thread_get_system_error ();
     }
 
     gum_interceptor_ignore_current_thread (interceptor);
   }
+  else
+  {
+    if (exceptions == GUM_V8_EXCEPTIONS_PROPAGATE ||
+        gum_exceptor_try (core->exceptor, &scope))
+    {
+      ffi_call (&self->cif, FFI_FN (implementation), rvalue, avalue);
 
-  if (gum_exceptor_catch (core->exceptor, &scope))
+      if (return_shape == GUM_V8_RETURN_DETAILED)
+        system_error = gum_thread_get_system_error ();
+    }
+  }
+
+  if (exceptions == GUM_V8_EXCEPTIONS_STEAL &&
+      gum_exceptor_catch (core->exceptor, &scope))
   {
     _gum_v8_throw_native (&scope.exception, core);
     return;
   }
 
-  if (rtype != &ffi_type_void)
+  Local<Value> result;
+  if (!gum_v8_value_from_ffi_type (core, &result, rvalue, rtype))
+    return;
+
+  if (return_shape == GUM_V8_RETURN_DETAILED)
   {
-    Local<Value> result;
-    if (!gum_v8_value_from_ffi_type (core, &result, rvalue, rtype))
-      return;
+    auto context = isolate->GetCurrentContext ();
 
-    if (self->enable_detailed_return)
-    {
-      auto context = isolate->GetCurrentContext ();
-
-      auto template_return_value =
-          Local<Object>::New (isolate, *core->native_return_value);
-      auto return_value = template_return_value->Clone ();
-      return_value->Set (context,
-          Local<String>::New (isolate, *core->value_key),
-          result).FromJust ();
-      return_value->Set (context,
-          Local<String>::New (isolate, *core->system_error_key),
-          Integer::New (isolate, system_error)).FromJust ();
-      info.GetReturnValue ().Set (return_value);
-    }
-    else
-    {
-      info.GetReturnValue ().Set (result);
-    }
+    auto template_return_value =
+        Local<Object>::New (isolate, *core->native_return_value);
+    auto return_value = template_return_value->Clone ();
+    return_value->Set (context,
+        Local<String>::New (isolate, *core->value_key),
+        result).FromJust ();
+    return_value->Set (context,
+        Local<String>::New (isolate, *core->system_error_key),
+        Integer::New (isolate, system_error)).FromJust ();
+    info.GetReturnValue ().Set (return_value);
+  }
+  else
+  {
+    info.GetReturnValue ().Set (result);
   }
 }
 
@@ -2361,14 +2425,146 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_system_function_construct)
   }
 
   GumV8NativeFunctionParams params;
-
-  if (!_gum_v8_args_parse (args, "pVA|V", &params.implementation,
-      &params.return_type, &params.argument_types, &params.abi))
+  if (!gum_v8_native_function_params_init (&params, GUM_V8_RETURN_DETAILED,
+      args))
     return;
 
-  params.enable_detailed_return = TRUE;
-
   gumjs_native_function_init (wrapper, &params, core);
+}
+
+static gboolean
+gum_v8_native_function_params_init (GumV8NativeFunctionParams * params,
+                                    GumV8ReturnValueShape return_shape,
+                                    const GumV8Args * args)
+{
+  auto core = args->core;
+  auto isolate = core->isolate;
+
+  params->scheduling = GUM_V8_SCHEDULING_COOPERATIVE;
+  params->exceptions = GUM_V8_EXCEPTIONS_STEAL;
+  params->return_shape = return_shape;
+
+  if (args->info->Length () >= 2 && (*args->info)[0]->IsString ())
+  {
+    if (!_gum_v8_args_parse (args, "pVA|V", &params->implementation,
+        &params->return_type, &params->argument_types, &params->abi))
+      return FALSE;
+
+  }
+  else
+  {
+    Local<Object> options;
+    if (!_gum_v8_args_parse (args, "p|O", &params->implementation, &options))
+      return FALSE;
+
+    if (!options.IsEmpty ())
+    {
+      auto return_type = options->Get (
+          Local<String>::New (isolate, *core->return_type_key));
+      if (!return_type->IsUndefined ())
+        params->return_type = return_type;
+
+      auto argument_types = options->Get (
+          Local<String>::New (isolate, *core->argument_types_key));
+      if (!argument_types->IsUndefined ())
+      {
+        if (!argument_types->IsArray ())
+        {
+          _gum_v8_throw_ascii_literal (isolate, "expected an array");
+          return FALSE;
+        }
+        params->argument_types = argument_types.As<Array> ();
+      }
+
+      auto abi = options->Get (Local<String>::New (isolate, *core->abi_key));
+      if (!abi->IsUndefined ())
+        params->abi = abi;
+
+      auto scheduling = options->Get (
+          Local<String>::New (isolate, *core->scheduling_key));
+      if (!scheduling->IsUndefined ())
+      {
+        if (!gum_v8_scheduling_behavior_parse (scheduling, &params->scheduling,
+            isolate))
+          return FALSE;
+      }
+
+      auto exceptions = options->Get (
+          Local<String>::New (isolate, *core->exceptions_key));
+      if (!exceptions->IsUndefined ())
+      {
+        if (!gum_v8_exceptions_behavior_parse (exceptions, &params->exceptions,
+            isolate))
+          return FALSE;
+      }
+    }
+
+    if (params->return_type.IsEmpty ())
+    {
+      params->return_type = _gum_v8_string_new_ascii (isolate, "void");
+    }
+
+    if (params->argument_types.IsEmpty ())
+    {
+      params->argument_types = Local<Array> (Array::New (isolate));
+    }
+  }
+
+  return TRUE;
+}
+
+static gboolean
+gum_v8_scheduling_behavior_parse (Handle<Value> value,
+                                  GumV8SchedulingBehavior * behavior,
+                                  Isolate * isolate)
+{
+  if (value->IsString ())
+  {
+    String::Utf8Value str_value (value);
+    auto str = *str_value;
+
+    if (strcmp (str, "cooperative") == 0)
+    {
+      *behavior = GUM_V8_SCHEDULING_COOPERATIVE;
+      return TRUE;
+    }
+
+    if (strcmp (str, "exclusive") == 0)
+    {
+      *behavior = GUM_V8_SCHEDULING_EXCLUSIVE;
+      return TRUE;
+    }
+  }
+
+  _gum_v8_throw_ascii_literal (isolate, "invalid scheduling behavior value");
+  return FALSE;
+}
+
+static gboolean
+gum_v8_exceptions_behavior_parse (Handle<Value> value,
+                                  GumV8ExceptionsBehavior * behavior,
+                                  Isolate * isolate)
+{
+  if (value->IsString ())
+  {
+    String::Utf8Value str_value (value);
+    auto str = *str_value;
+
+    if (strcmp (str, "steal") == 0)
+    {
+      *behavior = GUM_V8_EXCEPTIONS_STEAL;
+      return TRUE;
+    }
+
+    if (strcmp (str, "propagate") == 0)
+    {
+      *behavior = GUM_V8_EXCEPTIONS_PROPAGATE;
+      return TRUE;
+    }
+  }
+
+  _gum_v8_throw_ascii_literal (isolate, "invalid exceptions behavior value");
+  return FALSE;
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)

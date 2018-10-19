@@ -1002,8 +1002,13 @@ SCRIPT_TESTCASE (native_function_crash_results_in_exception)
   }
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var targetWithString = new NativeFunction(" GUM_PTR_CONST ", "
-          "'pointer', ['pointer']);"
+      "var targetWithString = new NativeFunction(" GUM_PTR_CONST ", {"
+          "returnType: 'pointer',"
+          "argumentTypes: ['pointer'],"
+          "abi: 'default',"
+          "scheduling: 'exclusive',"
+          "exceptions: 'steal',"
+      "});"
       "try {"
       "  targetWithString(NULL);"
       "} catch (e) {"
