@@ -2444,12 +2444,11 @@ gum_v8_native_function_params_init (GumV8NativeFunctionParams * params,
   params->exceptions = GUM_V8_EXCEPTIONS_STEAL;
   params->return_shape = return_shape;
 
-  if (args->info->Length () >= 2 && (*args->info)[0]->IsString ())
+  if (args->info->Length () >= 3)
   {
     if (!_gum_v8_args_parse (args, "pVA|V", &params->implementation,
         &params->return_type, &params->argument_types, &params->abi))
       return FALSE;
-
   }
   else
   {

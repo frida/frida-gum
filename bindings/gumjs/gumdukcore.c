@@ -2983,7 +2983,7 @@ gum_duk_native_function_params_init (GumDukNativeFunctionParams * params,
   params->exceptions = GUM_DUK_EXCEPTIONS_STEAL;
   params->return_shape = return_shape;
 
-  if (duk_is_string (ctx, 1))
+  if (!duk_is_undefined (ctx, 2))
   {
     params->abi_name = NULL;
     _gum_duk_args_parse (args, "pVA|s", &params->implementation,
