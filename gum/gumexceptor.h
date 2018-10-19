@@ -93,14 +93,14 @@ GUM_API void gum_exceptor_remove (GumExceptor * self, GumExceptionHandler func,
  * the longjmp() is guaranteed to happen from code we control, but is not
  * reliable otherwise.
  */
-# define gum_exceptor_try(self, scope) \
+# define gum_exceptor_try(self, scope) ( \
     _gum_exceptor_prepare_try (self, scope), \
     ((int (*) (jmp_buf env, void * frame_pointer)) _setjmp) ( \
-        (scope)->env, NULL) == 0
+        (scope)->env, NULL) == 0)
 #else
-# define gum_exceptor_try(self, scope) \
+# define gum_exceptor_try(self, scope) ( \
     _gum_exceptor_prepare_try (self, scope), \
-    GUM_NATIVE_SETJMP ((scope)->env) == 0
+    GUM_NATIVE_SETJMP ((scope)->env) == 0)
 #endif
 GUM_API gboolean gum_exceptor_catch (GumExceptor * self,
     GumExceptorScope * scope);
