@@ -731,10 +731,6 @@ _gum_v8_core_realize (GumV8Core * self)
   self->handle_key = new GumPersistent<String>::type (isolate,
       _gum_v8_string_new_ascii (isolate, "handle"));
 
-  self->return_type_key = new GumPersistent<String>::type (isolate,
-      _gum_v8_string_new_ascii (isolate, "returnType"));
-  self->argument_types_key = new GumPersistent<String>::type (isolate,
-      _gum_v8_string_new_ascii (isolate, "argumentTypes"));
   self->abi_key = new GumPersistent<String>::type (isolate,
       _gum_v8_string_new_ascii (isolate, "abi"));
   self->scheduling_key = new GumPersistent<String>::type (isolate,
@@ -890,15 +886,11 @@ _gum_v8_core_dispose (GumV8Core * self)
   self->handle_key = nullptr;
   self->native_pointer_value = nullptr;
 
-  delete self->return_type_key;
-  delete self->argument_types_key;
   delete self->abi_key;
   delete self->scheduling_key;
   delete self->exceptions_key;
   delete self->value_key;
   delete self->system_error_key;
-  self->return_type_key = nullptr;
-  self->argument_types_key = nullptr;
   self->abi_key = nullptr;
   self->scheduling_key = nullptr;
   self->exceptions_key = nullptr;
@@ -2440,40 +2432,23 @@ gum_v8_native_function_params_init (GumV8NativeFunctionParams * params,
   auto core = args->core;
   auto isolate = core->isolate;
 
+  Local<Value> abi_or_options;
+  if (!_gum_v8_args_parse (args, "pVA|V", &params->implementation,
+      &params->return_type, &params->argument_types, &abi_or_options))
+    return FALSE;
   params->scheduling = GUM_V8_SCHEDULING_COOPERATIVE;
   params->exceptions = GUM_V8_EXCEPTIONS_STEAL;
   params->return_shape = return_shape;
 
-  if (args->info->Length () >= 3)
+  if (!abi_or_options.IsEmpty ())
   {
-    if (!_gum_v8_args_parse (args, "pVA|V", &params->implementation,
-        &params->return_type, &params->argument_types, &params->abi))
-      return FALSE;
-  }
-  else
-  {
-    Local<Object> options;
-    if (!_gum_v8_args_parse (args, "p|O", &params->implementation, &options))
-      return FALSE;
-
-    if (!options.IsEmpty ())
+    if (abi_or_options->IsString ())
     {
-      auto return_type = options->Get (
-          Local<String>::New (isolate, *core->return_type_key));
-      if (!return_type->IsUndefined ())
-        params->return_type = return_type;
-
-      auto argument_types = options->Get (
-          Local<String>::New (isolate, *core->argument_types_key));
-      if (!argument_types->IsUndefined ())
-      {
-        if (!argument_types->IsArray ())
-        {
-          _gum_v8_throw_ascii_literal (isolate, "expected an array");
-          return FALSE;
-        }
-        params->argument_types = argument_types.As<Array> ();
-      }
+      params->abi = abi_or_options;
+    }
+    else if (abi_or_options->IsObject () && !abi_or_options->IsNull ())
+    {
+      Local<Object> options = abi_or_options.As<Object> ();
 
       auto abi = options->Get (Local<String>::New (isolate, *core->abi_key));
       if (!abi->IsUndefined ())
@@ -2497,15 +2472,11 @@ gum_v8_native_function_params_init (GumV8NativeFunctionParams * params,
           return FALSE;
       }
     }
-
-    if (params->return_type.IsEmpty ())
+    else
     {
-      params->return_type = _gum_v8_string_new_ascii (isolate, "void");
-    }
-
-    if (params->argument_types.IsEmpty ())
-    {
-      params->argument_types = Local<Array> (Array::New (isolate));
+      _gum_v8_throw_ascii_literal (isolate,
+          "expected string or object containing options");
+      return FALSE;
     }
   }
 

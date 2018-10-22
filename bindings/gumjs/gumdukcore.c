@@ -2977,71 +2977,48 @@ gum_duk_native_function_params_init (GumDukNativeFunctionParams * params,
                                      const GumDukArgs * args)
 {
   duk_context * ctx = args->ctx;
+  GumDukHeapPtr abi_or_options;
 
   params->prototype = prototype;
+
+  abi_or_options = NULL;
+  _gum_duk_args_parse (args, "pVA|V", &params->implementation,
+      &params->return_type, &params->argument_types, &abi_or_options);
+  params->abi_name = NULL;
   params->scheduling = GUM_DUK_SCHEDULING_COOPERATIVE;
   params->exceptions = GUM_DUK_EXCEPTIONS_STEAL;
   params->return_shape = return_shape;
 
-  if (!duk_is_undefined (ctx, 2))
+  duk_push_heapptr (ctx, abi_or_options);
+  if (duk_is_string (ctx, -1))
   {
-    params->abi_name = NULL;
-    _gum_duk_args_parse (args, "pVA|s", &params->implementation,
-        &params->return_type, &params->argument_types, &params->abi_name);
+    params->abi_name = duk_require_string (ctx, -1);
   }
-  else
+  else if (duk_is_object (ctx, -1) && !duk_is_null (ctx, -1))
   {
-    GumDukHeapPtr options;
+    duk_idx_t options_index;
 
-    params->return_type = NULL;
-    params->argument_types = NULL;
-    params->abi_name = NULL;
+    options_index = duk_require_top_index (ctx);
 
-    options = NULL;
-    _gum_duk_args_parse (args, "p|O", &params->implementation, &options);
+    duk_get_prop_string (ctx, options_index, "abi");
+    if (!duk_is_undefined (ctx, -1))
+      params->abi_name = duk_require_string (ctx, -1);
 
-    if (options != NULL)
-    {
-      duk_idx_t options_index;
+    duk_get_prop_string (ctx, options_index, "scheduling");
+    if (!duk_is_undefined (ctx, -1))
+      params->scheduling = gum_duk_require_scheduling_behavior (ctx, -1);
 
-      duk_push_heapptr (ctx, options);
-      options_index = duk_require_top_index (ctx);
+    duk_get_prop_string (ctx, options_index, "exceptions");
+    if (!duk_is_undefined (ctx, -1))
+      params->exceptions = gum_duk_require_exceptions_behavior (ctx, -1);
 
-      duk_get_prop_string (ctx, options_index, "returnType");
-      if (!duk_is_undefined (ctx, -1))
-        params->return_type = duk_require_heapptr (ctx, -1);
-
-      duk_get_prop_string (ctx, options_index, "argumentTypes");
-      if (!duk_is_undefined (ctx, -1))
-        params->argument_types = duk_require_heapptr (ctx, -1);
-
-      duk_get_prop_string (ctx, options_index, "abi");
-      if (!duk_is_undefined (ctx, -1))
-        params->abi_name = duk_require_string (ctx, -1);
-
-      duk_get_prop_string (ctx, options_index, "scheduling");
-      if (!duk_is_undefined (ctx, -1))
-        params->scheduling = gum_duk_require_scheduling_behavior (ctx, -1);
-
-      duk_get_prop_string (ctx, options_index, "exceptions");
-      if (!duk_is_undefined (ctx, -1))
-        params->exceptions = gum_duk_require_exceptions_behavior (ctx, -1);
-
-      duk_pop_n (ctx, 5);
-    }
-
-    if (params->return_type == NULL)
-    {
-      duk_push_string (ctx, "void");
-      params->return_type = duk_require_heapptr (ctx, -1);
-    }
-
-    if (params->argument_types == NULL)
-    {
-      duk_push_array (ctx);
-      params->argument_types = duk_require_heapptr (ctx, -1);
-    }
+    duk_pop_3 (ctx);
   }
+  else if (!duk_is_undefined (ctx, -1))
+  {
+    _gum_duk_throw (ctx, "expected string or object containing options");
+  }
+  duk_pop (ctx);
 }
 
 static GumDukSchedulingBehavior
