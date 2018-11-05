@@ -178,8 +178,7 @@ gum_duk_event_sink_process (GumEventSink * sink,
 static void
 gum_duk_event_sink_flush (GumEventSink * sink)
 {
-  GumDukEventSink * self = GUM_DUK_EVENT_SINK (sink);
-  gum_duk_event_sink_drain (self);
+  gum_duk_event_sink_drain (GUM_DUK_EVENT_SINK (sink));
 }
 
 static void

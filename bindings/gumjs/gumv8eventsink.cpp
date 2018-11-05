@@ -184,8 +184,7 @@ gum_v8_event_sink_process (GumEventSink * sink,
 static void
 gum_v8_event_sink_flush (GumEventSink * sink)
 {
-  auto self = GUM_V8_EVENT_SINK (sink);
-  gum_v8_event_sink_drain (self);
+  gum_v8_event_sink_drain (GUM_V8_EVENT_SINK (sink));
 }
 
 static void

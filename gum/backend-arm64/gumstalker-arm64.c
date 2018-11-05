@@ -477,7 +477,8 @@ gum_stalker_flush (GumStalker * self)
   for (cur = self->contexts; cur != NULL; cur = cur->next)
   {
     GumExecCtx * ctx = cur->data;
-	sinks = g_slist_prepend (sinks, g_object_ref (ctx->sink));
+
+    sinks = g_slist_prepend (sinks, g_object_ref (ctx->sink));
   }
 
   GUM_STALKER_UNLOCK (self);
@@ -485,7 +486,8 @@ gum_stalker_flush (GumStalker * self)
   for (cur = sinks; cur != NULL; cur = cur->next)
   {
     GumEventSink * sink = cur->data;
-	gum_event_sink_flush (sink);
+
+    gum_event_sink_flush (sink);
   }
 
   g_slist_free_full (sinks, g_object_unref);
