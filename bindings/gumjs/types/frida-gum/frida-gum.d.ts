@@ -1326,6 +1326,7 @@ declare type NativePointerValue = NativePointer | ObjectWrapper;
 
 declare class NativeFunction extends NativePointer {
     constructor(address: NativePointerValue, retType: NativeType, argTypes: NativeType[], abi?: NativeABI);
+    constructor(address: NativePointerValue, retType: NativeType, argTypes: NativeType[], options?: NativeFunctionOptions);
     apply(thisArg: NativePointerValue | null | undefined, args: NativeArgumentValue[]): NativeReturnValue;
     call(): NativeReturnValue;
     call(thisArg: NativePointerValue | null | undefined, ...args: NativeArgumentValue[]): NativeReturnValue;
@@ -1333,6 +1334,7 @@ declare class NativeFunction extends NativePointer {
 
 declare class SystemFunction extends NativePointer {
     constructor(address: NativePointerValue, retType: NativeType, argTypes: NativeType[], abi?: NativeABI);
+    constructor(address: NativePointerValue, retType: NativeType, argTypes: NativeType[], options?: NativeFunctionOptions);
     apply(thisArg: NativePointerValue | null | undefined, args: NativeArgumentValue[]): SystemFunctionResult;
     call(): SystemFunctionResult;
     call(thisArg: NativePointerValue | null | undefined, ...args: NativeArgumentValue[]): SystemFunctionResult;
@@ -1370,6 +1372,22 @@ declare const enum NativeABI {
     Win64 = "win64",
     Unix64 = "unix64",
     VFP = "vfp"
+}
+
+declare interface NativeFunctionOptions {
+    abi?: NativeABI;
+    scheduling?: SchedulingBehavior;
+    exceptions?: ExceptionsBehavior;
+}
+
+declare const enum SchedulingBehavior {
+    Cooperative = "cooperative",
+    Exclusive = "exclusive"
+}
+
+declare const enum ExceptionsBehavior {
+    Steal = "steal",
+    Propagate = "propagate"
 }
 
 declare type CpuContext = PortableCpuContext | IA32CpuContext | X64CpuContext | ArmCpuContext | Arm64CpuContext | MipsCpuContext;
