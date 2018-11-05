@@ -54,6 +54,11 @@ gum_stalker_set_trust_threshold (GumStalker * self,
 }
 
 void
+gum_stalker_flush (GumStalker * self)
+{
+}
+
+void
 gum_stalker_stop (GumStalker * self)
 {
 }

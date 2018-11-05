@@ -19,6 +19,7 @@ static GumEventType gum_duk_event_sink_query_mask (GumEventSink * sink);
 static void gum_duk_event_sink_start (GumEventSink * sink);
 static void gum_duk_event_sink_process (GumEventSink * sink,
     const GumEvent * ev);
+static void gum_duk_event_sink_flush (GumEventSink * sink);
 static void gum_duk_event_sink_stop (GumEventSink * sink);
 static gboolean gum_duk_event_sink_stop_when_idle (GumDukEventSink * self);
 static gboolean gum_duk_event_sink_drain (GumDukEventSink * self);
@@ -65,6 +66,7 @@ gum_duk_event_sink_iface_init (gpointer g_iface,
   iface->query_mask = gum_duk_event_sink_query_mask;
   iface->start = gum_duk_event_sink_start;
   iface->process = gum_duk_event_sink_process;
+  iface->flush = gum_duk_event_sink_flush;
   iface->stop = gum_duk_event_sink_stop;
 }
 
@@ -171,6 +173,12 @@ gum_duk_event_sink_process (GumEventSink * sink,
   if (self->queue->len != self->queue_capacity)
     g_array_append_val (self->queue, *ev);
   gum_spinlock_release (&self->lock);
+}
+
+static void
+gum_duk_event_sink_flush (GumEventSink * sink)
+{
+  gum_duk_event_sink_drain (GUM_DUK_EVENT_SINK (sink));
 }
 
 static void

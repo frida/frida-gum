@@ -77,6 +77,7 @@ GUMJS_DECLARE_SETTER (gumjs_stalker_set_queue_capacity)
 GUMJS_DECLARE_GETTER (gumjs_stalker_get_queue_drain_interval)
 GUMJS_DECLARE_SETTER (gumjs_stalker_set_queue_drain_interval)
 
+GUMJS_DECLARE_FUNCTION (gumjs_stalker_flush)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_garbage_collect)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_follow)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_unfollow)
@@ -165,6 +166,7 @@ static const GumDukPropertyEntry gumjs_stalker_values[] =
 
 static const duk_function_list_entry gumjs_stalker_functions[] =
 {
+  { "flush", gumjs_stalker_flush, 0 },
   { "garbageCollect", gumjs_stalker_garbage_collect, 0 },
   { "_follow", gumjs_stalker_follow, 5 },
   { "unfollow", gumjs_stalker_unfollow, 1 },
@@ -421,6 +423,17 @@ GUMJS_DEFINE_SETTER (gumjs_stalker_set_queue_drain_interval)
   GumDukStalker * self = gumjs_module_from_args (args);
 
   _gum_duk_args_parse (args, "u", &self->queue_drain_interval);
+  return 0;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_stalker_flush)
+{
+  GumStalker * stalker;
+
+  stalker = _gum_duk_stalker_get (gumjs_module_from_args (args));
+
+  gum_stalker_flush (stalker);
+
   return 0;
 }
 

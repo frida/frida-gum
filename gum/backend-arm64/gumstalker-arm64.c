@@ -467,6 +467,33 @@ gum_stalker_set_trust_threshold (GumStalker * self,
 }
 
 void
+gum_stalker_flush (GumStalker * self)
+{
+  GSList * sinks, * cur;
+
+  GUM_STALKER_LOCK (self);
+
+  sinks = NULL;
+  for (cur = self->contexts; cur != NULL; cur = cur->next)
+  {
+    GumExecCtx * ctx = cur->data;
+
+    sinks = g_slist_prepend (sinks, g_object_ref (ctx->sink));
+  }
+
+  GUM_STALKER_UNLOCK (self);
+
+  for (cur = sinks; cur != NULL; cur = cur->next)
+  {
+    GumEventSink * sink = cur->data;
+
+    gum_event_sink_flush (sink);
+  }
+
+  g_slist_free_full (sinks, g_object_unref);
+}
+
+void
 gum_stalker_stop (GumStalker * self)
 {
   gboolean rescan_needed;

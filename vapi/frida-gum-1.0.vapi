@@ -118,6 +118,7 @@ namespace Gum {
 		public int get_trust_threshold ();
 		public void set_trust_threshold (int trust_threshold);
 
+		public void flush ();
 		public void stop ();
 		public bool garbage_collect ();
 
