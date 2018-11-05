@@ -86,6 +86,7 @@ GUM_API gint gum_stalker_get_trust_threshold (GumStalker * self);
 GUM_API void gum_stalker_set_trust_threshold (GumStalker * self,
     gint trust_threshold);
 
+GUM_API void gum_stalker_flush (GumStalker * self);
 GUM_API void gum_stalker_stop (GumStalker * self);
 GUM_API gboolean gum_stalker_garbage_collect (GumStalker * self);
 

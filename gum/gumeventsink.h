@@ -23,12 +23,14 @@ struct _GumEventSinkInterface
   GumEventType (* query_mask) (GumEventSink * self);
   void (* start) (GumEventSink * self);
   void (* process) (GumEventSink * self, const GumEvent * ev);
+  void (* flush) (GumEventSink * self);
   void (* stop) (GumEventSink * self);
 };
 
 GUM_API GumEventType gum_event_sink_query_mask (GumEventSink * self);
 GUM_API void gum_event_sink_start (GumEventSink * self);
 GUM_API void gum_event_sink_process (GumEventSink * self, const GumEvent * ev);
+GUM_API void gum_event_sink_flush (GumEventSink * self);
 GUM_API void gum_event_sink_stop (GumEventSink * self);
 
 G_END_DECLS

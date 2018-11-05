@@ -44,6 +44,15 @@ gum_event_sink_process (GumEventSink * self,
 }
 
 void
+gum_event_sink_flush (GumEventSink * self)
+{
+  GumEventSinkInterface * iface = GUM_EVENT_SINK_GET_IFACE (self);
+
+  if (iface->flush != NULL)
+    iface->flush (self);
+}
+
+void
 gum_event_sink_stop (GumEventSink * self)
 {
   GumEventSinkInterface * iface = GUM_EVENT_SINK_GET_IFACE (self);
