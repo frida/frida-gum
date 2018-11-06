@@ -13,7 +13,10 @@
 #include "gummemory.h"
 #include "gumprocess.h"
 
-#ifdef HAVE_IOS
+#include <TargetConditionals.h>
+#if TARGET_OS_OSX
+# include <mach/mach_vm.h>
+#else
   /*
    * HACK: the iOS 5.0 SDK provides a placeholder header containing nothing
    *       but an #error stating that this API is not available. So we work
@@ -21,8 +24,6 @@
    *       in our SDK's include directory. ICK!
    */
 # include "frida_mach_vm.h"
-#else
-# include <mach/mach_vm.h>
 #endif
 
 #if GLIB_SIZEOF_VOID_P == 4
