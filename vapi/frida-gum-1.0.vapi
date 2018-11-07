@@ -63,7 +63,7 @@ namespace Gum {
 	[Compact]
 	public class InvocationContext {
 		public void * function;
-		public void * cpu_context;
+		public CpuContext * cpu_context;
 
 		public void * backend;
 
@@ -147,7 +147,7 @@ namespace Gum {
 	public struct CallSite {
 		public void * block_address;
 		public void * stack_data;
-		public void * cpu_context;
+		public CpuContext * cpu_context;
 	}
 
 	namespace Process {
@@ -160,8 +160,7 @@ namespace Gum {
 		public void enumerate_modules (Gum.Process.FoundModuleFunc func);
 		public void enumerate_ranges (Gum.PageProtection prot, Gum.FoundRangeFunc func);
 
-		// FIXME: add wrapper for CpuContext
-		public delegate void ModifyThreadFunc (Gum.ThreadId thread_id, void * cpu_context);
+		public delegate void ModifyThreadFunc (Gum.ThreadId thread_id, CpuContext * cpu_context);
 		public delegate bool FoundThreadFunc (Gum.ThreadDetails details);
 		public delegate bool FoundModuleFunc (Gum.ModuleDetails details);
 	}
@@ -213,6 +212,114 @@ namespace Gum {
 		public delegate bool FoundFDFunc (int fd);
 	}
 
+	public struct CpuContext {
+	}
+
+	public struct IA32CpuContext {
+		public uint32 eip;
+
+		public uint32 edi;
+		public uint32 esi;
+		public uint32 ebp;
+		public uint32 esp;
+		public uint32 ebx;
+		public uint32 edx;
+		public uint32 ecx;
+		public uint32 eax;
+	}
+
+	public struct X64CpuContext {
+		public uint64 rip;
+
+		public uint64 r15;
+		public uint64 r14;
+		public uint64 r13;
+		public uint64 r12;
+		public uint64 r11;
+		public uint64 r10;
+		public uint64 r9;
+		public uint64 r8;
+
+		public uint64 rdi;
+		public uint64 rsi;
+		public uint64 rbp;
+		public uint64 rsp;
+		public uint64 rbx;
+		public uint64 rdx;
+		public uint64 rcx;
+		public uint64 rax;
+	}
+
+	public struct ArmCpuContext {
+		public uint32 cpsr;
+		public uint32 pc;
+		public uint32 sp;
+
+		public uint32 r8;
+		public uint32 r9;
+		public uint32 r10;
+		public uint32 r11;
+		public uint32 r12;
+
+		public uint32 r[8];
+		public uint32 lr;
+	}
+
+	public struct Arm64CpuContext {
+		public uint64 pc;
+		public uint64 sp;
+
+		public uint64 x[29];
+		public uint64 fp;
+		public uint64 lr;
+		public uint8 q[128];
+	}
+
+	public struct MipsCpuContext {
+		public uint32 pc;
+
+		public uint32 gp;
+		public uint32 sp;
+		public uint32 fp;
+		public uint32 ra;
+
+		public uint32 hi;
+		public uint32 lo;
+
+		public uint32 at;
+
+		public uint32 v0;
+		public uint32 v1;
+
+		public uint32 a0;
+		public uint32 a1;
+		public uint32 a2;
+		public uint32 a3;
+
+		public uint32 t0;
+		public uint32 t1;
+		public uint32 t2;
+		public uint32 t3;
+		public uint32 t4;
+		public uint32 t5;
+		public uint32 t6;
+		public uint32 t7;
+		public uint32 t8;
+		public uint32 t9;
+
+		public uint32 s0;
+		public uint32 s1;
+		public uint32 s2;
+		public uint32 s3;
+		public uint32 s4;
+		public uint32 s5;
+		public uint32 s6;
+		public uint32 s7;
+
+		public uint32 k0;
+		public uint32 k1;
+	}
+
 	public delegate bool FoundRangeFunc (Gum.RangeDetails details);
 
 	public struct ThreadId : size_t {
@@ -230,7 +337,7 @@ namespace Gum {
 	public struct ThreadDetails {
 		public Gum.ThreadId id;
 		public Gum.ThreadState state;
-		public void * cpu_context;
+		public CpuContext cpu_context;
 	}
 
 	public struct ModuleDetails {
