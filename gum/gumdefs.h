@@ -55,7 +55,24 @@ typedef guint GumCpuType;
 typedef guint GumArgType;
 typedef struct _GumArgument GumArgument;
 typedef guint GumBranchHint;
-typedef struct _GumCpuContext GumCpuContext;
+typedef struct _GumIA32CpuContext GumIA32CpuContext;
+typedef struct _GumX64CpuContext GumX64CpuContext;
+typedef struct _GumArmCpuContext GumArmCpuContext;
+typedef struct _GumArm64CpuContext GumArm64CpuContext;
+typedef struct _GumMipsCpuContext GumMipsCpuContext;
+#if !defined (__arm__) && !defined (__aarch64__) && !defined (__mips__)
+# if GLIB_SIZEOF_VOID_P == 4
+typedef GumIA32CpuContext GumCpuContext;
+# else
+typedef GumX64CpuContext GumCpuContext;
+# endif
+#elif defined (__arm__) && !defined (__aarch64__)
+typedef GumArmCpuContext GumCpuContext;
+#elif defined (__aarch64__)
+typedef GumArm64CpuContext GumCpuContext;
+#elif defined (__mips__)
+typedef GumMipsCpuContext GumCpuContext;
+#endif
 typedef guint GumRelocationScenario;
 
 enum _GumOS
@@ -114,10 +131,22 @@ enum _GumBranchHint
   GUM_UNLIKELY
 };
 
-struct _GumCpuContext
+struct _GumIA32CpuContext
 {
-#if !defined (__arm__) && !defined (__aarch64__) && !defined (__mips__)
-# if GLIB_SIZEOF_VOID_P == 8
+  guint32 eip;
+
+  guint32 edi;
+  guint32 esi;
+  guint32 ebp;
+  guint32 esp;
+  guint32 ebx;
+  guint32 edx;
+  guint32 ecx;
+  guint32 eax;
+};
+
+struct _GumX64CpuContext
+{
   guint64 rip;
 
   guint64 r15;
@@ -137,27 +166,10 @@ struct _GumCpuContext
   guint64 rdx;
   guint64 rcx;
   guint64 rax;
-# else
-  guint32 eip;
+};
 
-  guint32 edi;
-  guint32 esi;
-  guint32 ebp;
-  guint32 esp;
-  guint32 ebx;
-  guint32 edx;
-  guint32 ecx;
-  guint32 eax;
-# endif
-#elif defined (__aarch64__)
-  guint64 pc;
-  guint64 sp;
-
-  guint64 x[29];
-  guint64 fp;
-  guint64 lr;
-  guint8 q[128];
-#elif defined (__arm__) && !defined (__aarch64__)
+struct _GumArmCpuContext
+{
   guint32 cpsr;
   guint32 pc;
   guint32 sp;
@@ -170,7 +182,21 @@ struct _GumCpuContext
 
   guint32 r[8];
   guint32 lr;
-#elif defined (__mips__)
+};
+
+struct _GumArm64CpuContext
+{
+  guint64 pc;
+  guint64 sp;
+
+  guint64 x[29];
+  guint64 fp;
+  guint64 lr;
+  guint8 q[128];
+};
+
+struct _GumMipsCpuContext
+{
   guint32 pc;
 
   guint32 gp;
@@ -213,7 +239,6 @@ struct _GumCpuContext
 
   guint32 k0;
   guint32 k1;
-#endif
 };
 
 enum _GumRelocationScenario
