@@ -12,6 +12,7 @@ namespace Gum.Darwin {
 
 	public void enumerate_threads (Port task, Gum.Process.FoundThreadFunc func);
 	public void enumerate_modules (Port task, Gum.Process.FoundModuleFunc func);
+	public void enumerate_modules_forensically (Port task, Gum.Process.FoundModuleFunc func);
 	public void enumerate_ranges (Port task, Gum.PageProtection prot, Gum.FoundRangeFunc func);
 
 	public void enumerate_imports (Port task, string module_name, Gum.Module.FoundImportFunc func);

@@ -267,8 +267,6 @@ static kern_return_t gum_read_malloc_memory (task_t remote_task,
     vm_address_t remote_address, vm_size_t size, void ** local_memory);
 static gboolean gum_probe_range_for_entrypoint (const GumRangeDetails * details,
     gpointer user_data);
-static void gum_darwin_enumerate_modules_slow (mach_port_t task,
-    GumFoundModuleFunc func, gpointer user_data);
 static gboolean gum_store_range_of_potential_modules (
     const GumRangeDetails * details, gpointer user_data);
 static gboolean gum_emit_modules_in_range (const GumMemoryRange * range,
@@ -1289,7 +1287,7 @@ gum_darwin_enumerate_modules (mach_port_t task,
   goto beach;
 
 fallback:
-  gum_darwin_enumerate_modules_slow (task, func, user_data);
+  gum_darwin_enumerate_modules_forensically (task, func, user_data);
 
 beach:
   g_free (file_path_malloc_data);
@@ -1299,10 +1297,10 @@ beach:
   return;
 }
 
-static void
-gum_darwin_enumerate_modules_slow (mach_port_t task,
-                                   GumFoundModuleFunc func,
-                                   gpointer user_data)
+void
+gum_darwin_enumerate_modules_forensically (mach_port_t task,
+                                           GumFoundModuleFunc func,
+                                           gpointer user_data)
 {
   GumEnumerateModulesSlowContext ctx;
   guint i;

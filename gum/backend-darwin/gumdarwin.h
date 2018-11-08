@@ -78,6 +78,8 @@ GUM_API void gum_darwin_enumerate_threads (mach_port_t task,
     GumFoundThreadFunc func, gpointer user_data);
 GUM_API void gum_darwin_enumerate_modules (mach_port_t task,
     GumFoundModuleFunc func, gpointer user_data);
+GUM_API void gum_darwin_enumerate_modules_forensically (mach_port_t task,
+    GumFoundModuleFunc func, gpointer user_data);
 GUM_API void gum_darwin_enumerate_ranges (mach_port_t task,
     GumPageProtection prot, GumFoundRangeFunc func, gpointer user_data);
 GUM_API void gum_darwin_enumerate_imports (mach_port_t task,
