@@ -181,7 +181,7 @@ CODEWRITER_TESTCASE (call_indirect_label)
   };
 
   *(guint32 *) ((gpointer) (expected_ia32_code + 2)) =
-      (guint32) GUM_ADDRESS (fixture->output) + 7;
+      GUINT32_TO_LE((guint32) GUM_ADDRESS (fixture->output) + 7);
 
   gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
   gum_x86_writer_put_call_indirect_label (&fixture->cw, addr_lbl);
