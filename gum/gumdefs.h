@@ -53,6 +53,7 @@ typedef guint GumOS;
 typedef guint GumCallingConvention;
 typedef guint GumAbiType;
 typedef guint GumCpuType;
+#define GUM_TYPE_CPU_TYPE (gum_cpu_type_get_type ())
 typedef guint GumArgType;
 typedef struct _GumArgument GumArgument;
 typedef guint GumBranchHint;
@@ -415,6 +416,7 @@ GUM_API void gum_cpu_context_replace_return_value (GumCpuContext * self,
     gpointer value);
 
 GUM_API GType gum_address_get_type (void) G_GNUC_CONST;
+GUM_API GType gum_cpu_type_get_type (void) G_GNUC_CONST;
 
 G_END_DECLS
 
