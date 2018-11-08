@@ -18,6 +18,17 @@ namespace Gum.Darwin {
 	public void enumerate_exports (Port task, string module_name, Gum.Module.FoundExportFunc func);
 	public void enumerate_symbols (Port task, string module_name, Gum.Module.FoundSymbolFunc func);
 
+	public class Symbolicator : GLib.Object, GLib.Initable {
+		public Symbolicator (Port task) throws GLib.Error;
+
+		public bool details_from_address (Gum.Address address, out Gum.DebugSymbolDetails details);
+		public string? name_from_address (Gum.Address address);
+
+		public Gum.Address find_function (string name);
+		public Gum.Address[] find_functions_named (string name);
+		public Gum.Address[] find_functions_matching (string str);
+	}
+
 	[CCode (cname = "mach_task_self")]
 	public Port mach_task_self ();
 	[CCode (cname = "task_for_pid")]
