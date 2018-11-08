@@ -89,6 +89,7 @@ if host_os_family == 'darwin'
   gum_headers += [
     'backend-darwin/gumdarwin.h',
     'backend-darwin/gumdarwinbacktracer.h',
+    'backend-darwin/gumdarwinsymbolicator.h',
     'backend-darwin/gumdarwinmapper.h',
     'backend-darwin/gumdarwinmodule.h',
     'backend-darwin/gumdarwinmoduleresolver.h',
@@ -98,6 +99,7 @@ if host_os_family == 'darwin'
     'backend-darwin/gumobjcapiresolver.h',
     'backend-darwin/gumdarwinbacktracer.c',
     'backend-darwin/gumsymbolutil-darwin.c',
+    'backend-darwin/gumdarwinsymbolicator.c',
     'backend-darwin/gumkernel-darwin.c',
     'backend-darwin/gumtls-darwin.c',
     'backend-darwin/gummemory-darwin.c',
