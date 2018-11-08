@@ -437,6 +437,21 @@ namespace Gum {
 		public static Exceptor obtain ();
 	}
 
+	public bool symbol_details_from_address (void * address, out Gum.DebugSymbolDetails details);
+	public string symbol_name_from_address (void * address);
+
+	public void * find_function (string name);
+	public GLib.Array<void *> find_functions_named (string name);
+	public GLib.Array<void *> find_functions_matching (string str);
+
+	public struct DebugSymbolDetails {
+		public Gum.Address address;
+		public string module_name;
+		public string symbol_name;
+		public string file_name;
+		public uint line_number;
+	}
+
 	[CCode (cheader_filename = "gum/gum-heap.h")]
 	public class InstanceTracker : GLib.Object {
 		public InstanceTracker ();
