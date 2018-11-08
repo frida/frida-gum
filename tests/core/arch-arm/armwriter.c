@@ -28,7 +28,7 @@ ARMWRITER_TESTCASE (ldr_u32)
   gum_arm_writer_flush (&fixture->aw);
   assert_output_n_equals (0, 0xe59f0004);
   assert_output_n_equals (1, 0xe59f1004);
-  assert_output_n_equals (2, 0xe59f2004);
+  assert_output_n_equals (2, 0xe51f2004);
   g_assert_cmphex (GUINT32_FROM_LE (fixture->output[3 + 0]), ==, 0x1337);
   g_assert_cmphex (GUINT32_FROM_LE (fixture->output[3 + 1]), ==, 0x1227);
 }
