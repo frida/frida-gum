@@ -93,6 +93,9 @@ struct _GumCFApi
 
 static void gum_do_init (void);
 
+static GumAddress * gum_address_copy (const GumAddress * address);
+static void gum_address_free (GumAddress * address);
+
 static gboolean gum_initialized = FALSE;
 static GSList * gum_early_destructors = NULL;
 static GSList * gum_final_destructors = NULL;
@@ -101,6 +104,9 @@ static GPrivate gum_internal_thread_details_key = G_PRIVATE_INIT (
     (GDestroyNotify) gum_internal_thread_details_free);
 
 static GumInterceptor * gum_cached_interceptor = NULL;
+
+G_DEFINE_BOXED_TYPE (GumAddress, gum_address, gum_address_copy,
+    gum_address_free)
 
 void
 gum_init (void)
@@ -593,4 +599,16 @@ gum_on_log_message (const gchar * log_domain,
   fprintf (file, "[%s %s] %s\n", log_domain, severity, message);
   fflush (file);
 #endif
+}
+
+static GumAddress *
+gum_address_copy (const GumAddress * address)
+{
+  return g_slice_dup (GumAddress, address);
+}
+
+static void
+gum_address_free (GumAddress * address)
+{
+  g_slice_free (GumAddress, address);
 }

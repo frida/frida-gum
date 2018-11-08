@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,7 +7,7 @@
 #ifndef __GUMDEFS_H__
 #define __GUMDEFS_H__
 
-#include <glib.h>
+#include <glib-object.h>
 
 #if !defined (GUM_STATIC) && defined (G_OS_WIN32)
 #  ifdef GUM_EXPORTS
@@ -48,6 +48,7 @@ G_BEGIN_DECLS
 
 typedef guint64 GumAddress;
 #define GUM_ADDRESS(a) ((GumAddress) GPOINTER_TO_SIZE (a))
+#define GUM_TYPE_ADDRESS (gum_address_get_type ())
 typedef guint GumOS;
 typedef guint GumCallingConvention;
 typedef guint GumAbiType;
@@ -412,6 +413,8 @@ GUM_API void gum_cpu_context_replace_nth_argument (GumCpuContext * self,
 GUM_API gpointer gum_cpu_context_get_return_value (GumCpuContext * self);
 GUM_API void gum_cpu_context_replace_return_value (GumCpuContext * self,
     gpointer value);
+
+GUM_API GType gum_address_get_type (void) G_GNUC_CONST;
 
 G_END_DECLS
 
