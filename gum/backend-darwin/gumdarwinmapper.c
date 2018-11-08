@@ -320,8 +320,8 @@ gum_darwin_mapper_new_take_blob (const gchar * name,
   GumDarwinModule * module;
   GumDarwinMapper * mapper;
 
-  module = gum_darwin_module_new_from_blob (name, blob, resolver->task,
-      resolver->cpu_type, resolver->page_size);
+  module = gum_darwin_module_new_from_blob (blob, resolver->task,
+      resolver->cpu_type, resolver->page_size, NULL);
 
   mapper = g_object_new (GUM_DARWIN_TYPE_MAPPER,
       "name", name,
@@ -364,7 +364,7 @@ gum_darwin_mapper_new_from_file_with_parent (GumDarwinMapper * parent,
   }
 
   module = gum_darwin_module_new_from_file (path, resolver->task,
-      resolver->cpu_type, resolver->page_size, cache_file);
+      resolver->cpu_type, resolver->page_size, cache_file, NULL);
 
   mapper = g_object_new (GUM_DARWIN_TYPE_MAPPER,
       "name", path,

@@ -10,6 +10,7 @@
 #include "gumleb.h"
 #include "gumkernel.h"
 
+#include <gio/gio.h>
 #include <mach-o/fat.h>
 #include <mach-o/loader.h>
 
@@ -38,7 +39,10 @@ enum
   PROP_TASK,
   PROP_CPU_TYPE,
   PROP_PAGE_SIZE,
-  PROP_BASE_ADDRESS
+  PROP_BASE_ADDRESS,
+  PROP_SOURCE_PATH,
+  PROP_SOURCE_BLOB,
+  PROP_CACHE_FILE,
 };
 
 struct _GumResolveSymbolContext
@@ -113,7 +117,11 @@ struct _GumDyldCacheImageInfo
   guint32 padding;
 };
 
+static void gum_darwin_module_initable_iface_init (gpointer g_iface,
+    gpointer iface_data);
 static void gum_darwin_module_constructed (GObject * object);
+static gboolean gum_darwin_module_initable_init (GInitable * initable,
+    GCancellable * cancellable, GError ** error);
 static void gum_darwin_module_finalize (GObject * object);
 static void gum_darwin_module_get_property (GObject * object,
     guint property_id, GValue * value, GParamSpec * pspec);
@@ -130,18 +138,20 @@ static gboolean gum_emit_section_init_pointers (
     const GumDarwinSectionDetails * details, gpointer user_data);
 static gboolean gum_emit_section_term_pointers (
     const GumDarwinSectionDetails * details, gpointer user_data);
-static gboolean gum_darwin_module_ensure_image_loaded (GumDarwinModule * self);
+static gboolean gum_darwin_module_ensure_image_loaded (GumDarwinModule * self,
+    GError ** error);
 static gboolean gum_darwin_module_try_load_image_from_cache (
     GumDarwinModule * self, const gchar * name, GumCpuType cpu_type,
     GMappedFile * cache_file);
-static void gum_darwin_module_load_image_from_filesystem (
-    GumDarwinModule * self, const gchar * name, GumCpuType cpu_type);
-static void gum_darwin_module_load_image_from_blob (GumDarwinModule * self,
-    GBytes * blob);
+static gboolean gum_darwin_module_load_image_from_filesystem (
+    GumDarwinModule * self, const gchar * path, GumCpuType cpu_type,
+    GError ** error);
+static gboolean gum_darwin_module_load_image_from_blob (GumDarwinModule * self,
+    GBytes * blob, GError ** error);
 static gboolean gum_darwin_module_load_image_from_memory (
-    GumDarwinModule * self);
+    GumDarwinModule * self, GError ** error);
 static gboolean gum_darwin_module_take_image (GumDarwinModule * self,
-    GumDarwinModuleImage * image);
+    GumDarwinModuleImage * image, GError ** error);
 static void gum_darwin_module_read_and_assign (GumDarwinModule * self,
     GumAddress address, gsize size, const guint8 ** start, const guint8 ** end,
     gpointer * malloc_data);
@@ -171,7 +181,12 @@ static guint64 gum_dyld_cache_compute_image_size (
 static guint64 gum_dyld_cache_offset_from_address (GumAddress address,
     const GumDyldCacheMappingInfo * mappings, gsize mapping_count);
 
-G_DEFINE_TYPE (GumDarwinModule, gum_darwin_module, G_TYPE_OBJECT)
+G_DEFINE_TYPE_EXTENDED (GumDarwinModule,
+                        gum_darwin_module,
+                        G_TYPE_OBJECT,
+                        0,
+                        G_IMPLEMENT_INTERFACE (G_TYPE_INITABLE,
+                            gum_darwin_module_initable_iface_init))
 
 static void
 gum_darwin_module_class_init (GumDarwinModuleClass * klass)
@@ -200,6 +215,26 @@ gum_darwin_module_class_init (GumDarwinModuleClass * klass)
   g_object_class_install_property (object_class, PROP_BASE_ADDRESS,
       g_param_spec_uint64 ("base-address", "BaseAddress", "Base address", 0,
       G_MAXUINT64, 0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (object_class, PROP_SOURCE_PATH,
+      g_param_spec_string ("source-path", "SourcePath", "Source path", NULL,
+      G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (object_class, PROP_SOURCE_BLOB,
+      g_param_spec_boxed ("source-blob", "SourceBlob", "Source blob",
+      G_TYPE_BYTES,
+      G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (object_class, PROP_CACHE_FILE,
+      g_param_spec_boxed ("cache-file", "CacheFile", "Cache file used by dyld",
+      G_TYPE_MAPPED_FILE,
+      G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
+}
+
+static void
+gum_darwin_module_initable_iface_init (gpointer g_iface,
+                                       gpointer iface_data)
+{
+  GInitableIface * iface = g_iface;
+
+  iface->init = gum_darwin_module_initable_init;
 }
 
 static void
@@ -216,7 +251,6 @@ gum_darwin_module_constructed (GObject * object)
 {
   GumDarwinModule * self = GUM_DARWIN_MODULE (object);
 
-  g_assert (self->name != NULL);
   g_assert (self->task != MACH_PORT_NULL);
 
   self->is_local = self->task == mach_task_self ();
@@ -264,6 +298,41 @@ gum_darwin_module_constructed (GObject * object)
   }
 }
 
+static gboolean
+gum_darwin_module_initable_init (GInitable * initable,
+                                 GCancellable * cancellable,
+                                 GError ** error)
+{
+  GumDarwinModule * self = GUM_DARWIN_MODULE (initable);
+
+  if (self->source_path != NULL)
+  {
+    if (self->cache_file == NULL ||
+        !gum_darwin_module_try_load_image_from_cache (self, self->source_path,
+        self->cpu_type, self->cache_file))
+    {
+      if (!gum_darwin_module_load_image_from_filesystem (self, self->source_path,
+          self->cpu_type, error))
+      {
+        return FALSE;
+      }
+    }
+  }
+  else if (self->source_blob != NULL)
+  {
+    if (!gum_darwin_module_load_image_from_blob (self, self->source_blob,
+        error))
+    {
+      return FALSE;
+    }
+  }
+
+  if (self->name == NULL)
+    return gum_darwin_module_ensure_image_loaded (self, error);
+
+  return TRUE;
+}
+
 static void
 gum_darwin_module_finalize (GObject * object)
 {
@@ -282,6 +351,11 @@ gum_darwin_module_finalize (GObject * object)
 
   if (self->image != NULL)
     gum_darwin_module_image_free (self->image);
+
+  g_free (self->source_path);
+  g_bytes_unref (self->source_blob);
+  if (self->cache_file != NULL)
+    g_mapped_file_unref (self->cache_file);
 
   g_free (self->name);
 
@@ -312,6 +386,15 @@ gum_darwin_module_get_property (GObject * object,
       break;
     case PROP_BASE_ADDRESS:
       g_value_set_uint64 (value, self->base_address);
+      break;
+    case PROP_SOURCE_PATH:
+      g_value_set_string (value, self->source_path);
+      break;
+    case PROP_SOURCE_BLOB:
+      g_value_set_boxed (value, self->source_blob);
+      break;
+    case PROP_CACHE_FILE:
+      g_value_set_boxed (value, self->cache_file);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -344,54 +427,52 @@ gum_darwin_module_set_property (GObject * object,
     case PROP_BASE_ADDRESS:
       self->base_address = g_value_get_uint64 (value);
       break;
+    case PROP_SOURCE_PATH:
+      g_free (self->source_path);
+      self->source_path = g_value_dup_string (value);
+      break;
+    case PROP_SOURCE_BLOB:
+      g_clear_pointer (&self->source_blob, g_bytes_unref);
+      self->source_blob = g_value_dup_boxed (value);
+      break;
+    case PROP_CACHE_FILE:
+      g_clear_pointer (&self->cache_file, g_mapped_file_unref);
+      self->cache_file = g_value_dup_boxed (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
   }
 }
 
 GumDarwinModule *
-gum_darwin_module_new_from_file (const gchar * name,
+gum_darwin_module_new_from_file (const gchar * path,
                                  mach_port_t task,
                                  GumCpuType cpu_type,
                                  guint page_size,
-                                 GMappedFile * cache_file)
+                                 GMappedFile * cache_file,
+                                 GError ** error)
 {
-  GumDarwinModule * module;
-
-  module = g_object_new (GUM_DARWIN_TYPE_MODULE,
-      "name", name,
+  return g_initable_new (GUM_DARWIN_TYPE_MODULE, NULL, error,
       "task", task,
       "cpu-type", cpu_type,
       "page-size", page_size,
+      "source-path", path,
       NULL);
-  if (cache_file == NULL ||
-      !gum_darwin_module_try_load_image_from_cache (module, name, cpu_type,
-      cache_file))
-  {
-    gum_darwin_module_load_image_from_filesystem (module, name, cpu_type);
-  }
-
-  return module;
 }
 
 GumDarwinModule *
-gum_darwin_module_new_from_blob (const gchar * name,
-                                 GBytes * blob,
+gum_darwin_module_new_from_blob (GBytes * blob,
                                  mach_port_t task,
                                  GumCpuType cpu_type,
-                                 guint page_size)
+                                 guint page_size,
+                                 GError ** error)
 {
-  GumDarwinModule * module;
-
-  module = g_object_new (GUM_DARWIN_TYPE_MODULE,
-      "name", name,
+  return g_initable_new (GUM_DARWIN_TYPE_MODULE, NULL, error,
       "task", task,
       "cpu-type", cpu_type,
       "page-size", page_size,
+      "source-blob", blob,
       NULL);
-  gum_darwin_module_load_image_from_blob (module, blob);
-
-  return module;
 }
 
 GumDarwinModule *
@@ -399,9 +480,10 @@ gum_darwin_module_new_from_memory (const gchar * name,
                                    mach_port_t task,
                                    GumCpuType cpu_type,
                                    guint page_size,
-                                   GumAddress base_address)
+                                   GumAddress base_address,
+                                   GError ** error)
 {
-  return g_object_new (GUM_DARWIN_TYPE_MODULE,
+  return g_initable_new (GUM_DARWIN_TYPE_MODULE, NULL, error,
       "name", name,
       "task", task,
       "cpu-type", cpu_type,
@@ -415,7 +497,7 @@ gum_darwin_module_resolve_export (GumDarwinModule * self,
                                   const gchar * name,
                                   GumDarwinExportDetails * details)
 {
-  if (!gum_darwin_module_ensure_image_loaded (self))
+  if (!gum_darwin_module_ensure_image_loaded (self, NULL))
     return FALSE;
 
   if (self->exports != NULL)
@@ -475,7 +557,7 @@ gum_darwin_module_lacks_exports_for_reexports (GumDarwinModule * self)
 {
   uint32_t flags;
 
-  if (!gum_darwin_module_ensure_image_loaded (self))
+  if (!gum_darwin_module_ensure_image_loaded (self, NULL))
     return FALSE;
 
   /*
@@ -551,7 +633,7 @@ gum_darwin_module_enumerate_exports (GumDarwinModule * self,
                                      GumDarwinFoundExportFunc func,
                                      gpointer user_data)
 {
-  if (!gum_darwin_module_ensure_image_loaded (self))
+  if (!gum_darwin_module_ensure_image_loaded (self, NULL))
     return;
 
   if (self->exports != NULL)
@@ -600,7 +682,7 @@ gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
   gpointer symbols = NULL, strings = NULL;
   gsize symbol_index;
 
-  if (!gum_darwin_module_ensure_image_loaded (self))
+  if (!gum_darwin_module_ensure_image_loaded (self, NULL))
     goto beach;
   image = self->image;
 
@@ -675,7 +757,7 @@ const GumDarwinSegment *
 gum_darwin_module_segment (GumDarwinModule * self,
                            gsize index)
 {
-  if (!gum_darwin_module_ensure_image_loaded (self))
+  if (!gum_darwin_module_ensure_image_loaded (self, NULL))
     return NULL;
 
   return &g_array_index (self->segments, GumDarwinSegment, index);
@@ -691,7 +773,7 @@ gum_darwin_module_enumerate_sections (GumDarwinModule * self,
   gsize command_index;
   GumAddress slide;
 
-  if (!gum_darwin_module_ensure_image_loaded (self))
+  if (!gum_darwin_module_ensure_image_loaded (self, NULL))
     return;
 
   header = (struct mach_header *) self->image->data;
@@ -797,7 +879,7 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
   GumDarwinRebaseDetails details;
   guint64 max_offset;
 
-  if (!gum_darwin_module_ensure_image_loaded (self))
+  if (!gum_darwin_module_ensure_image_loaded (self, NULL))
     return;
 
   start = self->rebases;
@@ -909,7 +991,7 @@ gum_darwin_module_enumerate_binds (GumDarwinModule * self,
   GumDarwinBindDetails details;
   guint64 max_offset;
 
-  if (!gum_darwin_module_ensure_image_loaded (self))
+  if (!gum_darwin_module_ensure_image_loaded (self, NULL))
     return;
 
   start = self->binds;
@@ -1030,7 +1112,7 @@ gum_darwin_module_enumerate_lazy_binds (GumDarwinModule * self,
   GumDarwinBindDetails details;
   guint64 max_offset;
 
-  if (!gum_darwin_module_ensure_image_loaded (self))
+  if (!gum_darwin_module_ensure_image_loaded (self, NULL))
     return;
 
   start = self->lazy_binds;
@@ -1181,7 +1263,7 @@ gum_darwin_module_dependency (GumDarwinModule * self,
 
   g_assert_cmpint (ordinal, >=, 1);
 
-  if (!gum_darwin_module_ensure_image_loaded (self))
+  if (!gum_darwin_module_ensure_image_loaded (self, NULL))
     return NULL;
 
   result = g_ptr_array_index (self->dependencies, ordinal - 1);
@@ -1191,12 +1273,13 @@ gum_darwin_module_dependency (GumDarwinModule * self,
 }
 
 static gboolean
-gum_darwin_module_ensure_image_loaded (GumDarwinModule * self)
+gum_darwin_module_ensure_image_loaded (GumDarwinModule * self,
+                                       GError ** error)
 {
   if (self->image != NULL)
     return TRUE;
-  else
-    return gum_darwin_module_load_image_from_memory (self);
+
+  return gum_darwin_module_load_image_from_memory (self, NULL);
 }
 
 static gboolean
@@ -1262,24 +1345,27 @@ gum_darwin_module_try_load_image_from_cache (GumDarwinModule * self,
 
   module_image->bytes = g_mapped_file_get_bytes (cache_file);
 
-  success = gum_darwin_module_take_image (self, module_image);
+  success = gum_darwin_module_take_image (self, module_image, NULL);
   g_assert (success);
 
   return TRUE;
 }
 
-static void
+static gboolean
 gum_darwin_module_load_image_from_filesystem (GumDarwinModule * self,
-                                              const gchar * name,
-                                              GumCpuType cpu_type)
+                                              const gchar * path,
+                                              GumCpuType cpu_type,
+                                              GError ** error)
 {
+  gboolean success;
   GMappedFile * file;
   gsize size, size_in_pages, page_size;
   gpointer data;
   GBytes * blob;
 
-  file = g_mapped_file_new (name, FALSE, NULL);
-  g_assert (file != NULL);
+  file = g_mapped_file_new (path, FALSE, error);
+  if (file == NULL)
+    return FALSE;
 
   size = g_mapped_file_get_length (file);
   page_size = gum_query_page_size ();
@@ -1294,14 +1380,17 @@ gum_darwin_module_load_image_from_filesystem (GumDarwinModule * self,
 
   blob = g_bytes_new_with_free_func (data, size, gum_free_pages, data);
 
-  gum_darwin_module_load_image_from_blob (self, blob);
+  success = gum_darwin_module_load_image_from_blob (self, blob, error);
 
   g_bytes_unref (blob);
+
+  return success;
 }
 
-static void
+static gboolean
 gum_darwin_module_load_image_from_blob (GumDarwinModule * self,
-                                        GBytes * blob)
+                                        GBytes * blob,
+                                        GError ** error)
 {
   GumDarwinModuleImage * image;
   gpointer blob_data;
@@ -1311,7 +1400,6 @@ gum_darwin_module_load_image_from_blob (GumDarwinModule * self,
   struct mach_header_64 * header_64 = NULL;
   gsize size_32 = 0;
   gsize size_64 = 0;
-  gboolean success;
 
   image = gum_darwin_module_image_new ();
   image->bytes = g_bytes_ref (blob);
@@ -1341,8 +1429,7 @@ gum_darwin_module_load_image_from_blob (GumDarwinModule * self,
             size_64 = GUINT32_FROM_BE (fat_arch->size);
             break;
           default:
-            g_assert_not_reached ();
-            break;
+            goto invalid_blob;
         }
       }
 
@@ -1357,8 +1444,7 @@ gum_darwin_module_load_image_from_blob (GumDarwinModule * self,
       size_64 = blob_size;
       break;
     default:
-      g_assert_not_reached ();
-      break;
+      goto invalid_blob;
   }
 
   switch (self->cpu_type)
@@ -1382,12 +1468,21 @@ gum_darwin_module_load_image_from_blob (GumDarwinModule * self,
       break;
   }
 
-  success = gum_darwin_module_take_image (self, image);
-  g_assert (success);
+  return gum_darwin_module_take_image (self, image, error);
+
+invalid_blob:
+  {
+    gum_darwin_module_image_free (image);
+
+    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+        "Invalid Mach-O image");
+    return FALSE;
+  }
 }
 
 static gboolean
-gum_darwin_module_load_image_from_memory (GumDarwinModule * self)
+gum_darwin_module_load_image_from_memory (GumDarwinModule * self,
+                                          GError ** error)
 {
   gpointer data, malloc_data;
   gsize data_size;
@@ -1417,12 +1512,13 @@ gum_darwin_module_load_image_from_memory (GumDarwinModule * self)
 
   image->malloc_data = malloc_data;
 
-  return gum_darwin_module_take_image (self, image);
+  return gum_darwin_module_take_image (self, image, error);
 }
 
 static gboolean
 gum_darwin_module_take_image (GumDarwinModule * self,
-                              GumDarwinModuleImage * image)
+                              GumDarwinModuleImage * image,
+                              GError ** error)
 {
   gboolean success = FALSE;
   const struct mach_header * header;
@@ -1443,6 +1539,22 @@ gum_darwin_module_take_image (GumDarwinModule * self,
 
     switch (lc->cmd)
     {
+      case LC_ID_DYLIB:
+      {
+        if (self->name == NULL)
+        {
+          const struct dylib * dl = &((struct dylib_command *) lc)->dylib;
+          const gchar * raw_path;
+          guint raw_path_len;
+
+          raw_path = (gchar *) command + dl->name.offset;
+          raw_path_len = lc->cmdsize - sizeof (struct dylib_command);
+
+          self->name = g_strndup (raw_path, raw_path_len);
+        }
+
+        break;
+      }
       case LC_SEGMENT:
       case LC_SEGMENT_64:
       {
@@ -1574,13 +1686,16 @@ gum_darwin_module_take_image (GumDarwinModule * self,
         &self->exports_malloc_data);
   }
 
-  success = TRUE;
+  success = self->name != NULL;
 
 beach:
   if (!success)
   {
     self->image = NULL;
     gum_darwin_module_image_free (image);
+
+    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+        "Invalid Mach-O image");
   }
 
   return success;

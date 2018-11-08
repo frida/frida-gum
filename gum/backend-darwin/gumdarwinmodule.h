@@ -60,6 +60,9 @@ struct _GumDarwinModule
   gsize pointer_size;
   gsize page_size;
   GumAddress base_address;
+  gchar * source_path;
+  GBytes * source_blob;
+  GMappedFile * cache_file;
 
   GumDarwinModuleImage * image;
 
@@ -201,12 +204,12 @@ struct _GumDarwinSymbolDetails
 
 GUM_API GumDarwinModule * gum_darwin_module_new_from_file (const gchar * path,
     mach_port_t task, GumCpuType cpu_type, guint page_size,
-    GMappedFile * cache_file);
-GUM_API GumDarwinModule * gum_darwin_module_new_from_blob (const gchar * name,
-    GBytes * blob, mach_port_t task, GumCpuType cpu_type, guint page_size);
+    GMappedFile * cache_file, GError ** error);
+GUM_API GumDarwinModule * gum_darwin_module_new_from_blob (GBytes * blob,
+    mach_port_t task, GumCpuType cpu_type, guint page_size, GError ** error);
 GUM_API GumDarwinModule * gum_darwin_module_new_from_memory (const gchar * name,
     mach_port_t task, GumCpuType cpu_type, guint page_size,
-    GumAddress base_address);
+    GumAddress base_address, GError ** error);
 
 GUM_API gboolean gum_darwin_module_resolve_export (GumDarwinModule * self,
     const gchar * symbol, GumDarwinExportDetails * details);
