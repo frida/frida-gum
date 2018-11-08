@@ -402,13 +402,13 @@ gum_arm_writer_commit_literals (GumArmWriter * self)
 
     for (cur_slot = first_slot; cur_slot != last_slot; cur_slot++)
     {
-      if (*cur_slot == r->val)
+      if (*cur_slot == GUINT32_FROM_LE (r->val))
         break;
     }
 
     if (cur_slot == last_slot)
     {
-      *cur_slot = GUINT32_FROM_LE(r->val);
+      *cur_slot = GUINT32_FROM_LE (r->val);
       last_slot++;
     }
 
