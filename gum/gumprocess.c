@@ -139,7 +139,8 @@ gum_code_signing_policy_get_type (void)
     static const GEnumValue values[] =
     {
       { GUM_CODE_SIGNING_OPTIONAL, "GUM_CODE_SIGNING_OPTIONAL", "optional" },
-      { GUM_CODE_SIGNING_REQUIRED, "GUM_CODE_SIGNING_REQUIRED", "required" }
+      { GUM_CODE_SIGNING_REQUIRED, "GUM_CODE_SIGNING_REQUIRED", "required" },
+      { 0, NULL, NULL }
     };
     GType etype;
 
