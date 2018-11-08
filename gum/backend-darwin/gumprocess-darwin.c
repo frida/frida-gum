@@ -1416,9 +1416,7 @@ gum_emit_modules_in_range (const GumMemoryRange * range,
 
         raw_path = (gchar *) p + dl->name.offset;
         raw_path_len = lc->cmdsize - sizeof (struct dylib_command);
-        path = g_malloc (raw_path_len + 1);
-        memcpy (path, raw_path, raw_path_len);
-        path[raw_path_len] = '\0';
+        path = g_strndup (raw_path, raw_path_len);
         name = g_path_get_basename (path);
 
         details.name = name;
