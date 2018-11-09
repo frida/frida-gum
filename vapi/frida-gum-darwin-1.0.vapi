@@ -21,9 +21,14 @@ namespace Gum.Darwin {
 
 	public class Module : GLib.Object, GLib.Initable {
 		[NoAccessorMethod]
-		public string name {
+		public string? name {
 			owned get;
 			construct;
+		}
+
+		[NoAccessorMethod]
+		public string? uuid {
+			owned get;
 		}
 
 		public Module.from_file (string path, Port task, Gum.CpuType cpu_type, uint page_size, GLib.MappedFile? cache_file = null) throws GLib.Error;

@@ -36,6 +36,7 @@ enum
 {
   PROP_0,
   PROP_NAME,
+  PROP_UUID,
   PROP_TASK,
   PROP_CPU_TYPE,
   PROP_PAGE_SIZE,
@@ -201,6 +202,9 @@ gum_darwin_module_class_init (GumDarwinModuleClass * klass)
   g_object_class_install_property (object_class, PROP_NAME,
       g_param_spec_string ("name", "Name", "Name", NULL,
       G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (object_class, PROP_UUID,
+      g_param_spec_string ("uuid", "UUID", "UUID", NULL,
+      G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_TASK,
       g_param_spec_uint ("task", "Task", "Mach task", 0, G_MAXUINT,
       MACH_PORT_NULL, G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
@@ -358,6 +362,7 @@ gum_darwin_module_finalize (GObject * object)
     g_mapped_file_unref (self->cache_file);
 
   g_free (self->name);
+  g_free (self->uuid);
 
   G_OBJECT_CLASS (gum_darwin_module_parent_class)->finalize (object);
 }
@@ -374,6 +379,11 @@ gum_darwin_module_get_property (GObject * object,
   {
     case PROP_NAME:
       g_value_set_string (value, self->name);
+      break;
+    case PROP_UUID:
+      if (self->uuid == NULL)
+        gum_darwin_module_ensure_image_loaded (self, NULL);
+      g_value_set_string (value, self->uuid);
       break;
     case PROP_TASK:
       g_value_set_uint (value, self->task);
@@ -1551,6 +1561,21 @@ gum_darwin_module_take_image (GumDarwinModule * self,
           raw_path_len = lc->cmdsize - sizeof (struct dylib_command);
 
           self->name = g_strndup (raw_path, raw_path_len);
+        }
+
+        break;
+      }
+      case LC_UUID:
+      {
+        if (self->uuid == NULL)
+        {
+          const struct uuid_command * uc = command;
+          const uint8_t * u = uc->uuid;
+
+          self->uuid = g_strdup_printf ("%02X%02X%02X%02X-%02X%02X-%02X%02X-"
+              "%02X%02X-%02X%02X%02X%02X%02X%02X", u[0], u[1], u[2], u[3],
+              u[4], u[5], u[6], u[7], u[8], u[9], u[10], u[11], u[12], u[13],
+              u[14], u[15]);
         }
 
         break;
