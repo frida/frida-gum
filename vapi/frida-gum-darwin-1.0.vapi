@@ -19,6 +19,18 @@ namespace Gum.Darwin {
 	public void enumerate_exports (Port task, string module_name, Gum.Module.FoundExportFunc func);
 	public void enumerate_symbols (Port task, string module_name, Gum.Module.FoundSymbolFunc func);
 
+	public class Module : GLib.Object, GLib.Initable {
+		[NoAccessorMethod]
+		public string name {
+			owned get;
+			construct;
+		}
+
+		public Module.from_file (string path, Port task, Gum.CpuType cpu_type, uint page_size, GLib.MappedFile? cache_file = null) throws GLib.Error;
+		public Module.from_blob (GLib.Bytes blob, Port task, Gum.CpuType cpu_type, uint page_size) throws GLib.Error;
+		public Module.from_memory (string? name, Port task, Gum.CpuType cpu_type, uint page_size, Gum.Address base_address) throws GLib.Error;
+	}
+
 	public class Symbolicator : GLib.Object, GLib.Initable {
 		public Symbolicator (Port task) throws GLib.Error;
 
