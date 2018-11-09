@@ -563,7 +563,7 @@ gum_store_address_if_name_matches (const GumDarwinSymbolDetails * details,
 }
 
 gboolean
-gum_darwin_module_lacks_exports_for_reexports (GumDarwinModule * self)
+gum_darwin_module_get_lacks_exports_for_reexports (GumDarwinModule * self)
 {
   uint32_t flags;
 
@@ -617,7 +617,7 @@ gum_emit_import (const GumDarwinBindDetails * details,
       break;
     }
     default:
-      d.module = gum_darwin_module_dependency (ctx->module,
+      d.module = gum_darwin_module_get_dependency_by_ordinal (ctx->module,
           details->library_ordinal);
       break;
   }
@@ -626,7 +626,7 @@ gum_emit_import (const GumDarwinBindDetails * details,
   if (details->segment != NULL)
   {
     d.slot = details->offset + details->segment->vm_address +
-        gum_darwin_module_slide (ctx->module);
+        gum_darwin_module_get_slide (ctx->module);
   }
   else
   {
@@ -700,7 +700,7 @@ gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
   if (symtab == NULL)
     goto beach;
 
-  slide = gum_darwin_module_slide (self);
+  slide = gum_darwin_module_get_slide (self);
 
   if (!gum_darwin_find_linkedit (image->data, image->size, &linkedit))
     goto beach;
@@ -758,14 +758,14 @@ beach:
 }
 
 GumAddress
-gum_darwin_module_slide (GumDarwinModule * self)
+gum_darwin_module_get_slide (GumDarwinModule * self)
 {
   return self->base_address - self->preferred_address;
 }
 
 const GumDarwinSegment *
-gum_darwin_module_segment (GumDarwinModule * self,
-                           gsize index)
+gum_darwin_module_get_nth_segment (GumDarwinModule * self,
+                                   gsize index)
 {
   if (!gum_darwin_module_ensure_image_loaded (self, NULL))
     return NULL;
@@ -791,7 +791,7 @@ gum_darwin_module_enumerate_sections (GumDarwinModule * self,
     command = self->image->data + sizeof (struct mach_header);
   else
     command = self->image->data + sizeof (struct mach_header_64);
-  slide = gum_darwin_module_slide (self);
+  slide = gum_darwin_module_get_slide (self);
   for (command_index = 0; command_index != header->ncmds; command_index++)
   {
     const struct load_command * lc = command;
@@ -897,10 +897,10 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
   p = start;
   done = FALSE;
 
-  details.segment = gum_darwin_module_segment (self, 0);
+  details.segment = gum_darwin_module_get_nth_segment (self, 0);
   details.offset = 0;
   details.type = 0;
-  details.slide = gum_darwin_module_slide (self);
+  details.slide = gum_darwin_module_get_slide (self);
 
   max_offset = details.segment->file_size;
 
@@ -922,7 +922,8 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
       case REBASE_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB:
       {
         gint segment_index = immediate;
-        details.segment = gum_darwin_module_segment (self, segment_index);
+        details.segment =
+            gum_darwin_module_get_nth_segment (self, segment_index);
         details.offset = gum_read_uleb128 (&p, end);
         max_offset = details.segment->file_size;
         break;
@@ -1009,7 +1010,7 @@ gum_darwin_module_enumerate_binds (GumDarwinModule * self,
   p = start;
   done = FALSE;
 
-  details.segment = gum_darwin_module_segment (self, 0);
+  details.segment = gum_darwin_module_get_nth_segment (self, 0);
   details.offset = 0;
   details.type = 0;
   details.library_ordinal = 0;
@@ -1064,7 +1065,8 @@ gum_darwin_module_enumerate_binds (GumDarwinModule * self,
       case BIND_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB:
       {
         gint segment_index = immediate;
-        details.segment = gum_darwin_module_segment (self, segment_index);
+        details.segment =
+            gum_darwin_module_get_nth_segment (self, segment_index);
         details.offset = gum_read_uleb128 (&p, end);
         max_offset = details.segment->file_size;
         break;
@@ -1129,7 +1131,7 @@ gum_darwin_module_enumerate_lazy_binds (GumDarwinModule * self,
   end = self->lazy_binds_end;
   p = start;
 
-  details.segment = gum_darwin_module_segment (self, 0);
+  details.segment = gum_darwin_module_get_nth_segment (self, 0);
   details.offset = 0;
   details.type = BIND_TYPE_POINTER;
   details.library_ordinal = 0;
@@ -1183,7 +1185,8 @@ gum_darwin_module_enumerate_lazy_binds (GumDarwinModule * self,
       case BIND_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB:
       {
         gint segment_index = immediate;
-        details.segment = gum_darwin_module_segment (self, segment_index);
+        details.segment =
+            gum_darwin_module_get_nth_segment (self, segment_index);
         details.offset = gum_read_uleb128 (&p, end);
         max_offset = details.segment->file_size;
         break;
@@ -1266,8 +1269,8 @@ gum_emit_section_term_pointers (const GumDarwinSectionDetails * details,
 }
 
 const gchar *
-gum_darwin_module_dependency (GumDarwinModule * self,
-                              gint ordinal)
+gum_darwin_module_get_dependency_by_ordinal (GumDarwinModule * self,
+                                             gint ordinal)
 {
   const gchar * result;
 
@@ -1680,7 +1683,7 @@ gum_darwin_module_take_image (GumDarwinModule * self,
 
     if (!gum_darwin_find_linkedit (image->data, image->size, &linkedit))
       goto beach;
-    linkedit += gum_darwin_module_slide (self);
+    linkedit += gum_darwin_module_get_slide (self);
 
     gum_darwin_module_read_and_assign (self,
         linkedit + self->info->rebase_off,

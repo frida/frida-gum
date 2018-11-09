@@ -216,7 +216,7 @@ GUM_API gboolean gum_darwin_module_resolve_export (GumDarwinModule * self,
     const gchar * symbol, GumDarwinExportDetails * details);
 GUM_API GumAddress gum_darwin_module_resolve_symbol_address (
     GumDarwinModule * self, const gchar * symbol);
-GUM_API gboolean gum_darwin_module_lacks_exports_for_reexports (
+GUM_API gboolean gum_darwin_module_get_lacks_exports_for_reexports (
     GumDarwinModule * self);
 GUM_API void gum_darwin_module_enumerate_imports (GumDarwinModule * self,
     GumFoundImportFunc func, gpointer user_data);
@@ -224,8 +224,8 @@ GUM_API void gum_darwin_module_enumerate_exports (GumDarwinModule * self,
     GumDarwinFoundExportFunc func, gpointer user_data);
 GUM_API void gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
     GumDarwinFoundSymbolFunc func, gpointer user_data);
-GUM_API GumAddress gum_darwin_module_slide (GumDarwinModule * self);
-GUM_API const GumDarwinSegment * gum_darwin_module_segment (
+GUM_API GumAddress gum_darwin_module_get_slide (GumDarwinModule * self);
+GUM_API const GumDarwinSegment * gum_darwin_module_get_nth_segment (
     GumDarwinModule * self, gsize index);
 GUM_API void gum_darwin_module_enumerate_sections (GumDarwinModule * self,
     GumDarwinFoundSectionFunc func, gpointer user_data);
@@ -241,8 +241,8 @@ GUM_API void gum_darwin_module_enumerate_init_pointers (GumDarwinModule * self,
     GumDarwinFoundInitPointersFunc func, gpointer user_data);
 GUM_API void gum_darwin_module_enumerate_term_pointers (GumDarwinModule * self,
     GumDarwinFoundTermPointersFunc func, gpointer user_data);
-GUM_API const gchar * gum_darwin_module_dependency (GumDarwinModule * self,
-    gint ordinal);
+GUM_API const gchar * gum_darwin_module_get_dependency_by_ordinal (
+    GumDarwinModule * self, gint ordinal);
 
 GUM_API GumDarwinModuleImage * gum_darwin_module_image_new (void);
 GUM_API GumDarwinModuleImage * gum_darwin_module_image_dup (

@@ -31,7 +31,8 @@ do_init (gpointer data)
 {
   GumDarwinSymbolicator * symbolicator;
 
-  symbolicator = gum_darwin_symbolicator_new (mach_task_self (), NULL);
+  symbolicator =
+      gum_darwin_symbolicator_new_with_task (mach_task_self (), NULL);
   if (symbolicator == NULL)
     return NULL;
 

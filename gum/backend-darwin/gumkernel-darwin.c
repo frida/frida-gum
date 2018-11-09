@@ -462,7 +462,7 @@ gum_darwin_module_estimate_size (GumDarwinModule * module)
   {
     const GumDarwinSegment * segment;
 
-    segment = gum_darwin_module_segment (module, index++);
+    segment = gum_darwin_module_get_nth_segment (module, index++);
     size += segment->vm_size;
   }
   while (index < module->segments->len);

@@ -1466,7 +1466,7 @@ gum_darwin_mapper_resolve_symbol (GumDarwinMapper * self,
 
   if (!gum_darwin_module_resolve_export (module, name, &details))
   {
-    if (gum_darwin_module_lacks_exports_for_reexports (module))
+    if (gum_darwin_module_get_lacks_exports_for_reexports (module))
     {
       GPtrArray * reexports = module->reexports;
       guint i;
@@ -1493,7 +1493,7 @@ gum_darwin_mapper_resolve_symbol (GumDarwinMapper * self,
     const gchar * target_name;
     GumDarwinMapping * target;
 
-    target_name = gum_darwin_module_dependency (module,
+    target_name = gum_darwin_module_get_dependency_by_ordinal (module,
         details.reexport_library_ordinal);
     target = gum_darwin_mapper_resolve_dependency (self, target_name);
     return gum_darwin_mapper_resolve_symbol (self, target->module,
