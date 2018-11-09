@@ -36,8 +36,20 @@ struct _GumDarwinSymbolicator
 {
   GObject object;
 
+  gchar * path;
+  GumCpuType cpu_type;
+
   mach_port_t task;
+
   CSSymbolicatorRef handle;
+};
+
+enum
+{
+  PROP_0,
+  PROP_PATH,
+  PROP_CPU_TYPE,
+  PROP_TASK,
 };
 
 struct _CSRange
@@ -46,22 +58,18 @@ struct _CSRange
   uint64_t length;
 };
 
-enum
-{
-  PROP_0,
-  PROP_TASK,
-};
-
 static void gum_darwin_symbolicator_initable_iface_init (gpointer g_iface,
     gpointer iface_data);
 static gboolean gum_darwin_symbolicator_initable_init (GInitable * initable,
     GCancellable * cancellable, GError ** error);
 static void gum_darwin_symbolicator_dispose (GObject * object);
+static void gum_darwin_symbolicator_finalize (GObject * object);
 static void gum_darwin_symbolicator_get_property (GObject * object,
     guint property_id, GValue * value, GParamSpec * pspec);
 static void gum_darwin_symbolicator_set_property (GObject * object,
     guint property_id, const GValue * value, GParamSpec * pspec);
 
+static cpu_type_t gum_cpu_type_to_darwin (GumCpuType cpu_type);
 static GumAddress gum_cs_symbol_address (CSSymbolRef symbol);
 
 static gboolean gum_cs_ensure_library_loaded (void);
@@ -84,6 +92,8 @@ static void * gum_cs;
 GUM_DECLARE_CS_FUNC (IsNull, Boolean, (CSTypeRef cs));
 GUM_DECLARE_CS_FUNC (Release, void, (CSTypeRef cs));
 
+GUM_DECLARE_CS_FUNC (SymbolicatorCreateWithPathAndArchitecture,
+    CSSymbolicatorRef, (const char * path, cpu_type_t cpu_type));
 GUM_DECLARE_CS_FUNC (SymbolicatorCreateWithTask, CSSymbolicatorRef,
     (task_t task));
 GUM_DECLARE_CS_FUNC (SymbolicatorGetSymbolWithAddressAtTime, CSSymbolRef,
@@ -122,9 +132,17 @@ gum_darwin_symbolicator_class_init (GumDarwinSymbolicatorClass * klass)
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
 
   object_class->dispose = gum_darwin_symbolicator_dispose;
+  object_class->finalize = gum_darwin_symbolicator_finalize;
   object_class->get_property = gum_darwin_symbolicator_get_property;
   object_class->set_property = gum_darwin_symbolicator_set_property;
 
+  g_object_class_install_property (object_class, PROP_PATH,
+      g_param_spec_string ("path", "Path", "Path", NULL,
+      G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (object_class, PROP_CPU_TYPE,
+      g_param_spec_uint ("cpu-type", "CpuType", "CPU type", 0, G_MAXUINT,
+      GUM_CPU_INVALID, G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+      G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_TASK,
       g_param_spec_uint ("task", "Task", "Mach task", 0, G_MAXUINT,
       MACH_PORT_NULL, G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
@@ -155,9 +173,19 @@ gum_darwin_symbolicator_initable_init (GInitable * initable,
   if (!gum_cs_ensure_library_loaded ())
     goto not_available;
 
-  self->handle = CSSymbolicatorCreateWithTask (self->task);
-  if (CSIsNull (self->handle))
-    goto invalid_task;
+  if (self->path != NULL)
+  {
+    self->handle = CSSymbolicatorCreateWithPathAndArchitecture (self->path,
+        gum_cpu_type_to_darwin (self->cpu_type));
+    if (CSIsNull (self->handle))
+      goto invalid_path;
+  }
+  else
+  {
+    self->handle = CSSymbolicatorCreateWithTask (self->task);
+    if (CSIsNull (self->handle))
+      goto invalid_task;
+  }
 
   return TRUE;
 
@@ -165,6 +193,12 @@ not_available:
   {
     g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
         "CoreSymbolication not available");
+    return FALSE;
+  }
+invalid_path:
+  {
+    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+        "File not found");
     return FALSE;
   }
 invalid_task:
@@ -190,6 +224,16 @@ gum_darwin_symbolicator_dispose (GObject * object)
 }
 
 static void
+gum_darwin_symbolicator_finalize (GObject * object)
+{
+  GumDarwinSymbolicator * self = GUM_DARWIN_SYMBOLICATOR (object);
+
+  g_free (self->path);
+
+  G_OBJECT_CLASS (gum_darwin_symbolicator_parent_class)->finalize (object);
+}
+
+static void
 gum_darwin_symbolicator_get_property (GObject * object,
                                       guint property_id,
                                       GValue * value,
@@ -199,6 +243,12 @@ gum_darwin_symbolicator_get_property (GObject * object,
 
   switch (property_id)
   {
+    case PROP_PATH:
+      g_value_set_string (value, self->path);
+      break;
+    case PROP_CPU_TYPE:
+      g_value_set_uint (value, self->cpu_type);
+      break;
     case PROP_TASK:
       g_value_set_uint (value, self->task);
       break;
@@ -217,6 +267,13 @@ gum_darwin_symbolicator_set_property (GObject * object,
 
   switch (property_id)
   {
+    case PROP_PATH:
+      g_free (self->path);
+      self->path = g_value_dup_string (value);
+      break;
+    case PROP_CPU_TYPE:
+      self->cpu_type = g_value_get_uint (value);
+      break;
     case PROP_TASK:
       self->task = g_value_get_uint (value);
       break;
@@ -226,8 +283,18 @@ gum_darwin_symbolicator_set_property (GObject * object,
 }
 
 GumDarwinSymbolicator *
-gum_darwin_symbolicator_new (mach_port_t task,
-                             GError ** error)
+gum_darwin_symbolicator_new_with_path (const gchar * path,
+                                       GumCpuType cpu_type,
+                                       GError ** error)
+{
+  return g_initable_new (GUM_DARWIN_TYPE_SYMBOLICATOR, NULL, error,
+      "path", path,
+      NULL);
+}
+
+GumDarwinSymbolicator *
+gum_darwin_symbolicator_new_with_task (mach_port_t task,
+                                       GError ** error)
 {
   return g_initable_new (GUM_DARWIN_TYPE_SYMBOLICATOR, NULL, error,
       "task", task,
@@ -388,6 +455,22 @@ gum_darwin_symbolicator_find_functions_matching (GumDarwinSymbolicator * self,
   return (GumAddress *) g_array_free (result, FALSE);
 }
 
+static cpu_type_t
+gum_cpu_type_to_darwin (GumCpuType cpu_type)
+{
+  switch (cpu_type)
+  {
+    case GUM_CPU_IA32:  return CPU_TYPE_I386;
+    case GUM_CPU_AMD64: return CPU_TYPE_X86_64;
+    case GUM_CPU_ARM:   return CPU_TYPE_ARM;
+    case GUM_CPU_ARM64: return CPU_TYPE_ARM64;
+    default:
+      break;
+  }
+
+  return CPU_TYPE_ANY;
+}
+
 static GumAddress
 gum_cs_symbol_address (CSSymbolRef symbol)
 {
@@ -440,6 +523,7 @@ gum_cs_load_library (gpointer data)
   GUM_TRY_ASSIGN_CS_FUNC (IsNull);
   GUM_TRY_ASSIGN_CS_FUNC (Release);
 
+  GUM_TRY_ASSIGN_CS_FUNC (SymbolicatorCreateWithPathAndArchitecture);
   GUM_TRY_ASSIGN_CS_FUNC (SymbolicatorCreateWithTask);
   GUM_TRY_ASSIGN_CS_FUNC (SymbolicatorGetSymbolWithAddressAtTime);
   GUM_TRY_ASSIGN_CS_FUNC (SymbolicatorGetSourceInfoWithAddressAtTime);

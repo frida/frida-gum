@@ -170,7 +170,8 @@ namespace Gum.Darwin {
 	}
 
 	public class Symbolicator : GLib.Object, GLib.Initable {
-		public Symbolicator (Port task) throws GLib.Error;
+		public Symbolicator.with_path (string path, Gum.CpuType cpu_type) throws GLib.Error;
+		public Symbolicator.with_task (Port task) throws GLib.Error;
 
 		public bool details_from_address (Gum.Address address, out Gum.DebugSymbolDetails details);
 		public string? name_from_address (Gum.Address address);

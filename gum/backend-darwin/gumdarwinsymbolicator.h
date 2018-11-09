@@ -17,8 +17,10 @@ G_BEGIN_DECLS
 G_DECLARE_FINAL_TYPE (GumDarwinSymbolicator, gum_darwin_symbolicator,
     GUM_DARWIN, SYMBOLICATOR, GObject)
 
-GUM_API GumDarwinSymbolicator * gum_darwin_symbolicator_new (mach_port_t task,
-    GError ** error);
+GUM_API GumDarwinSymbolicator * gum_darwin_symbolicator_new_with_path (
+    const gchar * path, GumCpuType cpu_type, GError ** error);
+GUM_API GumDarwinSymbolicator * gum_darwin_symbolicator_new_with_task (
+    mach_port_t task, GError ** error);
 
 GUM_API gboolean gum_darwin_symbolicator_details_from_address (
     GumDarwinSymbolicator * self, GumAddress address,
