@@ -444,11 +444,12 @@ namespace Gum {
 	public GLib.Array<void *> find_functions_named (string name);
 	public GLib.Array<void *> find_functions_matching (string str);
 
+	[CCode (has_copy_function = false, has_destroy_function = false)]
 	public struct DebugSymbolDetails {
 		public Gum.Address address;
-		public string module_name;
-		public string symbol_name;
-		public string file_name;
+		public unowned string module_name;
+		public unowned string symbol_name;
+		public unowned string file_name;
 		public uint line_number;
 	}
 
