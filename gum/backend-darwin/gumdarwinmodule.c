@@ -1292,7 +1292,7 @@ gum_darwin_module_ensure_image_loaded (GumDarwinModule * self,
   if (self->image != NULL)
     return TRUE;
 
-  return gum_darwin_module_load_image_from_memory (self, NULL);
+  return gum_darwin_module_load_image_from_memory (self, error);
 }
 
 static gboolean
