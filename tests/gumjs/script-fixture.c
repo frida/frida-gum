@@ -88,6 +88,8 @@
         PAYLOAD, DATA)
 #define EXPECT_ERROR_MESSAGE_WITH(LINE_NUMBER, DESC) \
     test_script_fixture_expect_error_message_with (fixture, LINE_NUMBER, DESC)
+#define EXPECT_ERROR_MESSAGE_WITH_OR(LINE_NUMBER, DESC, ALT_DESC) \
+    test_kscript_fixture_expect_error_message_with (fixture, LINE_NUMBER, DESC, ALT_DESC)
 #define EXPECT_LOG_MESSAGE_WITH(LEVEL, PAYLOAD, ...) \
     test_script_fixture_expect_log_message_with (fixture, LEVEL, PAYLOAD, \
     ## __VA_ARGS__)
