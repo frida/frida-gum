@@ -465,6 +465,53 @@ test_script_fixture_expect_error_message_with (TestScriptFixture * fixture,
 }
 
 static void
+test_script_fixture_expect_error_message_with_or (TestScriptFixture * fixture,
+                                               gint line_number,
+                                               const gchar * description,
+                                               const gchar * alternative_description)
+{
+  TestScriptMessageItem * item;
+  gchar actual_description[1024];
+  gchar actual_stack[1024];
+  gchar actual_file_name[64];
+  gint actual_line_number;
+  gint actual_column_number;
+
+  item = test_script_fixture_pop_message (fixture);
+
+  actual_description[0] = '\0';
+  actual_stack[0] = '\0';
+  actual_file_name[0] = '\0';
+  actual_line_number = -1;
+  actual_column_number = -1;
+  sscanf (item->message, "{"
+          "\"type\":\"error\","
+          "\"description\":\"%[^\"]\","
+          "\"stack\":\"%[^\"]\","
+          "\"fileName\":\"%[^\"]\","
+          "\"lineNumber\":%d,"
+          "\"columnNumber\":%d"
+      "}",
+      actual_description,
+      actual_stack,
+      actual_file_name,
+      &actual_line_number,
+      &actual_column_number);
+  if (actual_column_number == -1)
+  {
+    sscanf (item->message, "{"
+            "\"type\":\"error\","
+            "\"description\":\"%[^\"]\""
+        "}",
+        actual_description);
+  }
+  if (line_number != ANY_LINE_NUMBER)
+    g_assert_cmpint (actual_line_number, ==, line_number);
+  g_assert (g_strcmp0 (actual_description, description) == 0 || g_strcmp0 (actual_description, alternative_description) == 0);
+  test_script_message_item_free (item);
+}
+
+static void
 test_script_fixture_expect_log_message_with (TestScriptFixture * fixture,
                                              const gchar * level,
                                              const gchar * payload_template,

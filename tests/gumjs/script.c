@@ -4975,7 +4975,20 @@ SCRIPT_TESTCASE (invalid_write_results_in_exception)
     source = g_strconcat ("Memory.write", primitive_type_name[i],
         "(ptr(\"1328\"), 13);", NULL);
     COMPILE_AND_LOAD_SCRIPT (source);
+
+#if (GLIB_SIZEOF_VOID_P == 8)
     EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation accessing 0x530");
+#else
+    /*
+     * On 32-bit platforms, when reading 64-bit values we must read 32-bits at a time. The JavaScript compiler is as liberty
+     * to read either the high dword, or low dword first and hence we may not fault on the first DWORD, of the value, but rather
+     * on the second. The ordering is likely dependent on endianness. As we see above, we don't perform operations on signed or 
+     * unsigned 64-bit values on 32-bit architectures, but the double type is 8 bytes in size.
+     */
+    EXPECT_ERROR_MESSAGE_WITH_OR (1, "Error: access violation accessing 0x530", "Error: access violation accessing 0x534");
+#endif
+    
+
     g_free (source);
   }
 
@@ -4986,7 +4999,17 @@ SCRIPT_TESTCASE (invalid_write_results_in_exception)
     source = g_strconcat ("Memory.write", string_type_name[i],
         "(ptr(\"1328\"), 'Hey');", NULL);
     COMPILE_AND_LOAD_SCRIPT (source);
+#if (GLIB_SIZEOF_VOID_P == 8)
     EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation accessing 0x530");
+#else    
+    /*
+     * On 32-bit platforms, when reading 64-bit values we must read 32-bits at a time. The JavaScript compiler is as liberty
+     * to read either the high dword, or low dword first and hence we may not fault on the first DWORD, of the value, but rather
+     * on the second. The ordering is likely dependent on endianness. As we see above, we don't perform operations on signed or 
+     * unsigned 64-bit values on 32-bit architectures, but the double type is 8 bytes in size.
+     */
+    EXPECT_ERROR_MESSAGE_WITH_OR (1, "Error: access violation accessing 0x530", "Error: access violation accessing 0x534");
+#endif
     g_free (source);
   }
 }

@@ -38,6 +38,9 @@
 #define EXPECT_ERROR_MESSAGE_WITH(LINE_NUMBER, DESC) \
     test_kscript_fixture_expect_error_message_with (fixture, LINE_NUMBER, DESC)
 
+#define EXPECT_ERROR_MESSAGE_WITH_OR(LINE_NUMBER, DESC, ALT_DESC) \
+    test_kscript_fixture_expect_error_message_with (fixture, LINE_NUMBER, DESC, ALT_DESC)
+
 #define GUM_PTR_CONST "ptr(\"0x%" G_GSIZE_MODIFIER "x\")"
 
 typedef struct _TestScriptFixture
