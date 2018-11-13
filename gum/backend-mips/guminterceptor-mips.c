@@ -503,7 +503,10 @@ gum_emit_prolog (GumMipsWriter * cw)
 #if (GLIB_SIZEOF_VOID_P == 8)
   /*
    * These expressions have been solved to prevent the compiler from 
-   * evaluating them at runtime rather than at compile time.
+   * evaluating them at runtime rather than at compile time. Here we
+   * are calculating the original stack pointer (before we stored) all
+   * the context above and saving it to the stack so that it can be 
+   * read as part of the CPU context structure
    */
   gum_mips_writer_put_addi_reg_reg_imm (cw, MIPS_REG_V0, MIPS_REG_SP, 0xf8); // 8 + (30 * 8);
 #else
