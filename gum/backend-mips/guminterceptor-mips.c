@@ -28,9 +28,9 @@
  * value takes rather more instructions.
  */
 #if (GLIB_SIZEOF_VOID_P == 8)
-  #define GUM_HOOK_SIZE 16
+  #define GUM_HOOK_SIZE 28  
 #else
-  #define GUM_HOOK_SIZE 28
+  #define GUM_HOOK_SIZE 16
 #endif
 
 #define GUM_FRAME_OFFSET_CPU_CONTEXT 0
