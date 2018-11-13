@@ -500,7 +500,7 @@ gum_emit_prolog (GumMipsWriter * cw)
 
   /* SP */
   gum_mips_writer_put_addi_reg_reg_imm (cw, MIPS_REG_V0, MIPS_REG_SP,
-      4 + (30 * 4));
+      GLIB_SIZEOF_VOID_P + (30 * GLIB_SIZEOF_VOID_P));
   gum_mips_writer_put_push_reg (cw, MIPS_REG_V0);
 
   gum_mips_writer_put_push_reg (cw, MIPS_REG_GP);

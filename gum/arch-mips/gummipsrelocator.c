@@ -67,11 +67,21 @@ gum_mips_relocator_init (GumMipsRelocator * relocator,
   relocator->ref_count = 1;
 
 #if G_BYTE_ORDER == G_LITTLE_ENDIAN
+  #if (GLIB_SIZEOF_VOID_P == 8)
+  err = cs_open (CS_ARCH_MIPS, CS_MODE_MIPS64 | CS_MODE_LITTLE_ENDIAN,
+      &relocator->capstone);
+  #else  
   err = cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_LITTLE_ENDIAN,
       &relocator->capstone);
+  #endif
 #else
+  #if (GLIB_SIZEOF_VOID_P == 8)
+  err = cs_open (CS_ARCH_MIPS, CS_MODE_MIPS64 | CS_MODE_BIG_ENDIAN,
+      &relocator->capstone);
+  #else
   err = cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_BIG_ENDIAN,
       &relocator->capstone);
+  #endif
 #endif
   g_assert_cmpint (err, ==, CS_ERR_OK);
   err = cs_option (relocator->capstone, CS_OPT_DETAIL, CS_OPT_ON);
@@ -200,6 +210,15 @@ gum_mips_relocator_read_one (GumMipsRelocator * self,
       self->eoi = FALSE;
       self->delay_slot_pending = TRUE;
       break;
+    case MIPS_INS_B:
+      /*
+       * Although there isn't actually a separate branch instruction as you just use 
+       * BEQ $zero,$zero to compare the zero register, capstone appears to decode it 
+       * differently (presumably as it make display easier and it makes more sense 
+       * that way. Easy to miss this one if just reading through manuals though. Oh 
+       * yeah, for those unfamiliar with MIPS there is a zero register which is 
+       * unmodifiable and whose value is always zero (odd!).
+       */
     case MIPS_INS_BEQ:
     case MIPS_INS_BEQL:
     case MIPS_INS_BGEZ:
@@ -292,8 +311,93 @@ gum_mips_relocator_write_one (GumMipsRelocator * self)
     ctx.delay_slot_detail = NULL;
   }
 
+  /*
+   * This section here deals with re-writing instructions from the original function 
+   * which have been over-written by the trampoline to redirect control flow into 
+   * frida. Before transferring control back to the original function, we need to 
+   * execute these instructions from another location in memory before branching back 
+   * to the tail of the original function which wasn't clobbered.
+   *
+   * If the original instruction was a branch, then the target will need to be 
+   * updated since in MIPS it is a singed offset from the current RIP. Jump 
+   * instructions use absolute addresses, but only the low 28 bits can be set 
+   * (since we have a 32 instruction stream we cannot include the whole address). 
+   * Given instructions in MIPS are aligned on a 32-bit boundary, the low 2 bits are 
+   * always clear and hence the whole offset or address can be right shifted by two 
+   * another 2 high bits used to increase the range.
+   * 
+   * Now the tricky bit! The destination for the branch is likely to be too far away 
+   * to be reached. These instructions can only use a 18 bit signed offset (16 bits 
+   * are stored in the instruction since the low 2 bits are always clear), a range 
+   * of 128kb. But the copied code is likely to be in a page somewhere else. For this 
+   * reason, we can simply replace a branch instruction with a jump. The destination 
+   * for a jump instruction can be anywhere within the same 256MB region as the 
+   * origin. If more distance is required, then an immediate could be loaded in a 
+   * similar way to the trampoline made by gum_mips_writer_put_prologue_trampoline 
+   * and the JR instruction used.
+   *
+   * I haven't encountered any other types in my testing or usage. But there is one 
+   * limitation with jump instructions, they aren't conditional! So to extend the 
+   * range of a conditional branch something like the following pseudo code may be 
+   * needed (e.g. for BEQ).
+   *
+   * BEQ (original condition), :taken
+   * B not_taken:
+   * taken:
+   * J (fixed up address from original instruction)
+   * not_taken:
+   * 
+   * Finally, MIPS architecture has the concept of a delay slot. The instruction 
+   * following a branch has already been fetched by the time the result of the branch 
+   * has been calculated and is hence executed whether the branch is taken or not. It 
+   * is therefore, not unusual to insert a NOP instruction after the branch to avoid 
+   * this. Finally, the behaviour when the processor encounters two consecutive 
+   * branches is undefined. The above pseudo code will need updating accordingly, 
+   * but the NOPs were excluded for simplicity.
+   *
+   * This applies equally to MIPS32 and MIPS64.
+   */
+
   switch (insn->id)
   {
+    case MIPS_INS_B:
+      { 
+        cs_mips_op * op;  
+        gssize target, offset;  
+        op = &ctx.detail->operands[ctx.detail->op_count - 1];  
+        g_assert_cmpint (op->type, ==, MIPS_OP_IMM); 
+        target = (gssize) op->imm;          
+        offset = self->output->pc - target; 
+        g_assert((target & 0x3) == 0);
+
+        /*
+         * If we are unlucky we might be outside the 256Mb range, better we know about 
+         * it then jump somewhere unintended.
+         */
+        g_assert((target & 0xfffffffff0000000) == (self->output->pc & 0xfffffffff0000000));  
+        gum_mips_writer_put_instruction (ctx.output, 0x08000000 | ((target & GUM_INT28_MASK) / 4));  
+        gum_mips_writer_put_bytes (ctx.output, delay_slot_insn->bytes, delay_slot_insn->size);  
+        break;  
+      } 
+    case MIPS_INS_J:  
+    case MIPS_INS_BEQ:  
+    case MIPS_INS_BEQL: 
+    case MIPS_INS_BGEZ: 
+    case MIPS_INS_BGEZL:  
+    case MIPS_INS_BGTZ: 
+    case MIPS_INS_BGTZL:  
+    case MIPS_INS_BLEZ: 
+    case MIPS_INS_BLEZL:  
+    case MIPS_INS_BLTZ: 
+    case MIPS_INS_BLTZL:  
+    case MIPS_INS_BNE:  
+    case MIPS_INS_BNEL: 
+      /*  
+       * No implementation for these yet. There is no conditional jump instruction for MIPS and the 
+       * range of branch instructions is +-128K. This makes things a bit tricky. 
+       */ 
+      g_assert_not_reached(); 
+      break;
     default:
       rewritten = FALSE;
       break;
@@ -398,11 +502,21 @@ gum_mips_relocator_can_relocate (gpointer address,
     gboolean eoi;
 
 #if G_BYTE_ORDER == G_LITTLE_ENDIAN
+    #if (GLIB_SIZEOF_VOID_P == 8)
+    err = cs_open (CS_ARCH_MIPS, CS_MODE_MIPS64 | CS_MODE_LITTLE_ENDIAN,
+        &capstone);
+    #else
     err = cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_LITTLE_ENDIAN,
         &capstone);
+    #endif
 #else
+    #if (GLIB_SIZEOF_VOID_P == 8)
+    err = cs_open (CS_ARCH_MIPS, CS_MODE_MIPS64 | CS_MODE_BIG_ENDIAN,
+        &capstone);
+    #else
     err = cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_BIG_ENDIAN,
         &capstone);
+    #endif
 #endif
     g_assert_cmpint (err, == , CS_ERR_OK);
     err = cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
@@ -426,14 +540,39 @@ gum_mips_relocator_can_relocate (gpointer address,
           op = &d->operands[0];
 
           g_assert_cmpint (op->type, ==, MIPS_OP_IMM);
+#if (GLIB_SIZEOF_VOID_P == 8)
+          target =
+              (gssize) (GPOINTER_TO_SIZE (insn[i].address & 0xfffffffff0000000)) |
+              (op->imm << 2);
+#else          
           target =
               (gssize) (GPOINTER_TO_SIZE (insn[i].address & 0xf0000000)) |
               (op->imm << 2);
+#endif
           offset = target - (gssize) GPOINTER_TO_SIZE (address);
           if (offset > 0 && offset < (gssize) n)
             n = offset;
           eoi = TRUE;
           break;
+        }
+        /*
+         * As mentioned above, capstone decodes unconditional branches differently 
+         * although they actually use the BEQ instruction. In this case, there is 
+         * only one argument since the $zero register arguments are omitted from 
+         * the decoding. Also the argument is the absolute target of the branch 
+         * rather than the immediate actually in the 3rd argument of the instruction.
+         */
+        case MIPS_INS_B:
+        {  
+          cs_mips_op * op;  
+          gssize target, offset;  
+          op =  &d->operands[d->op_count - 1];  
+           g_assert_cmpint (op->type, ==, MIPS_OP_IMM); 
+          target = (gssize) op->imm;  
+          offset = target - (gssize) GPOINTER_TO_SIZE (address);  
+          if (offset > 0 && offset < (gssize) n)  
+            n = offset; 
+          break;  
         }
         case MIPS_INS_BEQ:
         case MIPS_INS_BEQL:
@@ -454,8 +593,13 @@ gum_mips_relocator_can_relocate (gpointer address,
           op = d->op_count == 3 ? &d->operands[2] : &d->operands[1];
 
           g_assert_cmpint (op->type, ==, MIPS_OP_IMM);
+#if (GLIB_SIZEOF_VOID_P == 8)
+          target = (gssize) insn->address +
+              (op->imm & 0x8000 ? (0xffffffffffff0000 + op->imm) << 2 : op->imm << 2);
+#else          
           target = (gssize) insn->address +
               (op->imm & 0x8000 ? (0xffff0000 + op->imm) << 2 : op->imm << 2);
+#endif
           offset =
               target - (gssize) GPOINTER_TO_SIZE (address);
           if (offset > 0 && offset < (gssize) n)
@@ -555,6 +699,7 @@ gum_mips_has_delay_slot (const cs_insn * insn)
     case MIPS_INS_BLTZALL:
     case MIPS_INS_JAL:
     case MIPS_INS_JALR:
+    case MIPS_INS_B:
     case MIPS_INS_BEQ:
     case MIPS_INS_BEQL:
     case MIPS_INS_BGEZ:
