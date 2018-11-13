@@ -501,11 +501,13 @@ gum_emit_prolog (GumMipsWriter * cw)
 
   /* SP */
 #if (GLIB_SIZEOF_VOID_P == 8)
-  gum_mips_writer_put_addi_reg_reg_imm (cw, MIPS_REG_V0, MIPS_REG_SP,
-      8 + (30 * 8));
+  /*
+   * These expressions have been solved to prevent the compiler from 
+   * evaluating them at runtime rather than at compile time.
+   */
+  gum_mips_writer_put_addi_reg_reg_imm (cw, MIPS_REG_V0, MIPS_REG_SP, 0xf8); // 8 + (30 * 8);
 #else
-  gum_mips_writer_put_addi_reg_reg_imm (cw, MIPS_REG_V0, MIPS_REG_SP,
-      4 + (30 * 4));
+  gum_mips_writer_put_addi_reg_reg_imm (cw, MIPS_REG_V0, MIPS_REG_SP, 0x7c); // 4 + (30 * 4);
 #endif
   gum_mips_writer_put_push_reg (cw, MIPS_REG_V0);
 
