@@ -363,11 +363,10 @@ gum_mips_relocator_write_one (GumMipsRelocator * self)
     case MIPS_INS_B:
       { 
         cs_mips_op * op;  
-        gssize target, offset;  
+        gssize target;  
         op = &ctx.detail->operands[ctx.detail->op_count - 1];  
         g_assert_cmpint (op->type, ==, MIPS_OP_IMM); 
         target = (gssize) op->imm;          
-        offset = self->output->pc - target; 
         g_assert((target & 0x3) == 0);
 
         /*
