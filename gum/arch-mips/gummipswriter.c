@@ -649,25 +649,22 @@ gum_mips_writer_put_prologue_trampoline (GumMipsWriter * self,
                                          mips_reg reg, 
                                          GumAddress address)  
 { 
-  //g_print("gum_mips_writer_put_prologue_trampoline - pc: 0x%016lx, addr: 0x%016lx\n", self->pc, address); 
   if(self->pc % 8 == 0) 
   { 
     gum_mips_writer_put_j_address2(self, self->pc + 0x10);  
     gum_mips_write_put_ld_reg(self, MIPS_REG_T9, reg, 0x8); 
-    g_assert(self->pc % 8 == 0);  
-    gum_mips_writer_put_instruction(self, address >> 32); 
-    gum_mips_writer_put_instruction(self, address & 0xffffffff);  
   } 
   else  
   { 
     gum_mips_writer_put_j_address2(self, self->pc + 0x14);  
     gum_mips_write_put_ld_reg(self, MIPS_REG_T9, reg, 0xc); 
     gum_mips_writer_put_nop (self);
-    g_assert(self->pc % 8 == 0);  
-    gum_mips_writer_put_instruction(self, address >> 32); 
-    gum_mips_writer_put_instruction(self, address & 0xffffffff);  
-  } 
-  gum_mips_writer_put_jr_reg (self, reg); 
+
+  }
+  g_assert(self->pc % 8 == 0);
+  gum_mips_writer_put_instruction(self, address >> 32);
+  gum_mips_writer_put_instruction(self, address & 0xffffffff);
+  gum_mips_writer_put_jr_reg (self, reg);
 }
 #endif
 

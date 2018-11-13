@@ -175,6 +175,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   }
 
   /* TODO: save $t0 on the stack? */
+
 #if (GLIB_SIZEOF_VOID_P == 8)
   /*
    * On MIPS64 the calling convention is that 8 arguments are passed in registers.
@@ -182,8 +183,13 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
    * the registers t0-t3 used in MIPS32. Hence t4 is now our first available register,
    * otherwise we will start clobbering function parameters.
    */
+  #pragma message "8 byte"
+  #pragma message #GLIB_SIZEOF_VOID_P
   gum_mips_writer_put_la_reg_address (cw, MIPS_REG_T4, GUM_ADDRESS (ctx));
 #else
+  #pragma message "ELSE"
+  #pragma message #GLIB_SIZEOF_VOID_P
+
   gum_mips_writer_put_la_reg_address (cw, MIPS_REG_T0, GUM_ADDRESS (ctx));
 #endif
   gum_mips_writer_put_la_reg_address (cw, MIPS_REG_AT,
@@ -400,7 +406,7 @@ gum_emit_enter_thunk (GumMipsWriter * cw)
       GUM_ARG_REGISTER, MIPS_REG_A1,  // CPU CONTEXT
       GUM_ARG_REGISTER, MIPS_REG_A2,  // RA
       GUM_ARG_REGISTER, MIPS_REG_A3); // NEXT HOP
- #else 
+#else 
   gum_mips_writer_put_call_address_with_arguments (cw,
       GUM_ADDRESS (_gum_function_context_begin_invocation), 4,
       GUM_ARG_REGISTER, MIPS_REG_T0,
