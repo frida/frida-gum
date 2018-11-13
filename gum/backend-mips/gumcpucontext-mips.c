@@ -56,7 +56,7 @@ gum_cpu_context_replace_nth_argument (GumCpuContext * self,
   {
     switch (n)
     {
-      case 0:        case 0:
+      case 0:
         self->a0 = (guint64) value;
         break;
       case 1:
