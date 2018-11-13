@@ -171,48 +171,56 @@ struct _GumCpuContext
   guint32 r[8];
   guint32 lr;
 #elif defined (__mips__)
-  guint32 pc;
+  /*
+   * This structure represents the register state pushed onto the stack by the
+   * trampoline which allows us to vector from the original minimal assembly hook
+   * to architecture agnostic C code inside frida-gum. These registers are natively
+   * sized. Even if some have not been expanded to 64-bits from the MIPS32 architecture
+   * MIPS can only perform aligned data access and as such pushing zero extended values
+   * is simpler than attempting to push minimally sized data types.
+   */
+  gsize pc;
 
-  guint32 gp;
-  guint32 sp;
-  guint32 fp;
-  guint32 ra;
+  gsize gp;
+  gsize sp;
+  gsize fp;
+  gsize ra;
 
-  guint32 hi;
-  guint32 lo;
+  gsize hi;
+  gsize lo;
 
-  guint32 at;
+  gsize at;
 
-  guint32 v0;
-  guint32 v1;
+  gsize v0;
+  gsize v1;
 
-  guint32 a0;
-  guint32 a1;
-  guint32 a2;
-  guint32 a3;
+  gsize a0;
+  gsize a1;
+  gsize a2;
+  gsize a3;
 
-  guint32 t0;
-  guint32 t1;
-  guint32 t2;
-  guint32 t3;
-  guint32 t4;
-  guint32 t5;
-  guint32 t6;
-  guint32 t7;
-  guint32 t8;
-  guint32 t9;
+  gsize t0;
+  gsize t1;
+  gsize t2;
+  gsize t3;
+  gsize t4;
+  gsize t5;
+  gsize t6;
+  gsize t7;
+  gsize t8;
+  gsize t9;
 
-  guint32 s0;
-  guint32 s1;
-  guint32 s2;
-  guint32 s3;
-  guint32 s4;
-  guint32 s5;
-  guint32 s6;
-  guint32 s7;
+  gsize s0;
+  gsize s1;
+  gsize s2;
+  gsize s3;
+  gsize s4;
+  gsize s5;
+  gsize s6;
+  gsize s7;
 
-  guint32 k0;
-  guint32 k1;
+  gsize k0;
+  gsize k1;
 #endif
 };
 

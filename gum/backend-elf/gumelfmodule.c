@@ -851,6 +851,10 @@ gum_elf_module_detect_dynamic_address_state (GumElfModule * self)
 #ifdef HAVE_ANDROID
   return GUM_ELF_DYNAMIC_ADDRESS_PRISTINE;
 #elif HAVE_MIPS
+  /*
+   * This value was set for MIPS based upon experimentation. However,
+   * this may be influenced by platform configuration or other factors.
+   */
   return GUM_ELF_DYNAMIC_ADDRESS_PRISTINE;
 #else
   return GUM_ELF_DYNAMIC_ADDRESS_ADJUSTED;
