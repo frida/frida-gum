@@ -126,7 +126,7 @@ struct _GumDukNativeCallback
 };
 
 #if G_BYTE_ORDER == G_LITTLE_ENDIAN
-union GumFFIValue
+union _GumFFIValue
 {
   gpointer v_pointer;
   gint v_sint;
@@ -172,7 +172,7 @@ union GumFFIValue
  * Hence the structures below require padding when compiled for big endian 
  * architectures.
  */
-union GumFFIValue
+union _GumFFIValue
 {
 #if GLIB_SIZEOF_VOID_P == 8
   /* unpadded 64-bit types */
