@@ -172,6 +172,8 @@ union _GumFFIValue
  * Hence the structures below require padding when compiled for big endian 
  * architectures.
  */
+#pragma pack (push, 1)
+
 union _GumFFIValue
 {
 #if GLIB_SIZEOF_VOID_P == 8
@@ -241,6 +243,7 @@ union _GumFFIValue
     };
   };
 };
+#pragma pack (pop)
 #endif
 
 struct _GumFFITypeMapping
