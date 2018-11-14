@@ -128,6 +128,7 @@ struct GumV8SourceMap
   GumV8Core * core;
 };
 
+#if G_BYTE_ORDER == G_LITTLE_ENDIAN
 union GumFFIValue
 {
   gpointer v_pointer;
@@ -148,6 +149,102 @@ union GumFFIValue
   gint64 v_sint64;
   guint64 v_uint64;
 };
+#else
+/*
+ * On little endian the low order bytes of a value appear at the lowest address
+ * in memory. To the left in the diagram below. Thus it is trivial and transparent 
+ * to use a union to zero extend smaller types into larger types. The low order
+ * bits of the 32-bit value must overlap the low order bits of the 64-bit value:
+ *
+ * --------------------------------
+ * | 64-bit value                 |
+ * --------------------------------
+ * | 32-bit value |
+ * ----------------
+ *
+ * On big endian systems, however, the high order bytes appear first and hence
+ * the low order bits appear to the right of the diagram below. The 32-bit value
+ * must again overlap the low order bits of the 64-bit value.
+ *
+ * --------------------------------
+ * | 64-bit value                 |
+ * --------------------------------
+ *                 | 32-bit value |
+ *                 ----------------
+ *
+ * Hence the structures below require padding when compiled for big endian 
+ * architectures.
+ */
+union GumFFIValue
+{
+#if GLIB_SIZEOF_VOID_P == 8
+  /* unpadded 64-bit types */
+  gpointer v_pointer;
+  gdouble v_double;
+  gint64 v_sint64;
+  guint64 v_uint64;
+
+  /* padded 32-bit types */
+  struct {
+    guchar[4] _pad32;
+    union 
+    {
+      gint v_sint;
+      guint v_uint;
+      glong v_slong;
+      gulong v_ulong;
+      gfloat v_float;
+      gint32 v_sint32;
+      guint32 v_uint32;
+    };
+  };
+#else
+  /* unpadded 64-bit types */
+  gdouble v_double;
+  gint64 v_sint64;
+  guint64 v_uint64;
+
+  /* padded 32-bit types */
+  struct {
+    guchar[4] _pad32;
+    union 
+    {
+      gpointer v_pointer;
+      gint v_sint;
+      guint v_uint;
+      glong v_slong;
+      gulong v_ulong;
+      gfloat v_float;
+      gint32 v_sint32;
+      guint32 v_uint32;
+    };
+  };
+#endif  
+
+  /* padded 16-bit types */
+  struct {
+    guchar[6] _pad16;
+    union 
+    {
+      gint16 v_sint16;
+      guint16 v_uint16;
+    };
+  };
+
+
+  /* padded 8-bit types */
+  struct {
+    guchar[7] _pad8;
+    union 
+    {
+      gchar v_schar;
+      guchar v_uchar;
+      gint8 v_sint8;
+      guint8 v_uint8;
+    };
+  };
+};
+#endif
 
 struct GumFFITypeMapping
 {
