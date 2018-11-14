@@ -183,7 +183,7 @@ union GumFFIValue
 
   /* padded 32-bit types */
   struct {
-    guchar[4] _pad32;
+    guchar _pad32[4];
     union 
     {
       gint v_sint;
@@ -203,7 +203,7 @@ union GumFFIValue
 
   /* padded 32-bit types */
   struct {
-    guchar[4] _pad32;
+    guchar _pad32[4];
     union 
     {
       gpointer v_pointer;
@@ -220,7 +220,7 @@ union GumFFIValue
 
   /* padded 16-bit types */
   struct {
-    guchar[6] _pad16;
+    guchar _pad16[6];
     union 
     {
       gint16 v_sint16;
@@ -231,7 +231,7 @@ union GumFFIValue
 
   /* padded 8-bit types */
   struct {
-    guchar[7] _pad8;
+    guchar _pad8[7];
     union 
     {
       gchar v_schar;
