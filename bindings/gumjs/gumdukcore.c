@@ -197,28 +197,6 @@ union _GumFFIValue
       guint32 v_uint32;
     };
   };
-#else
-  /* unpadded 64-bit types */
-  gdouble v_double;
-  gint64 v_sint64;
-  guint64 v_uint64;
-
-  /* padded 32-bit types */
-  struct {
-    guchar _pad32[4];
-    union 
-    {
-      gpointer v_pointer;
-      gint v_sint;
-      guint v_uint;
-      glong v_slong;
-      gulong v_ulong;
-      gfloat v_float;
-      gint32 v_sint32;
-      guint32 v_uint32;
-    };
-  };
-#endif  
 
   /* padded 16-bit types */
   struct {
@@ -242,6 +220,48 @@ union _GumFFIValue
       guint8 v_uint8;
     };
   };
+#else
+  /* unpadded 64-bit types */
+  gdouble v_double;
+  gint64 v_sint64;
+  guint64 v_uint64;
+
+  /* 32-bit types */
+  gpointer v_pointer;
+  gint v_sint;
+  guint v_uint;
+  glong v_slong;
+  gulong v_ulong;
+  gfloat v_float;
+  gint32 v_sint32;
+  guint32 v_uint32;
+
+
+/* padded 16-bit types */
+  struct {
+    guchar _pad16[2];
+    union 
+    {
+      gint16 v_sint16;
+      guint16 v_uint16;
+    };
+  };
+
+
+  /* padded 8-bit types */
+  struct {
+    guchar _pad8[3];
+    union 
+    {
+      gchar v_schar;
+      guchar v_uchar;
+      gint8 v_sint8;
+      guint8 v_uint8;
+    };
+  };
+#endif  
+
+  
 };
 #pragma pack (pop)
 #endif
