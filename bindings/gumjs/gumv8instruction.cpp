@@ -28,11 +28,21 @@
 #elif defined (HAVE_MIPS)
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_MIPS
 # if G_BYTE_ORDER == G_LITTLE_ENDIAN
-#  define GUM_DEFAULT_CS_MODE \
-    ((cs_mode) (CS_MODE_MIPS32 | CS_MODE_LITTLE_ENDIAN))
+#   if GLIB_SIZEOF_VOID_P == 8
+#     define GUM_DEFAULT_CS_MODE \
+        ((cs_mode) (CS_MODE_MIPS64 | CS_MODE_LITTLE_ENDIAN))
+#   else
+#     define GUM_DEFAULT_CS_MODE \
+        ((cs_mode) (CS_MODE_MIPS32 | CS_MODE_LITTLE_ENDIAN))
+#endif
 # else
-#  define GUM_DEFAULT_CS_MODE \
-    ((cs_mode) (CS_MODE_MIPS32 | CS_MODE_BIG_ENDIAN))
+#   if GLIB_SIZEOF_VOID_P == 8
+#     define GUM_DEFAULT_CS_MODE \
+        ((cs_mode) (CS_MODE_MIPS64 | CS_MODE_BIG_ENDIAN))
+#   else
+#     define GUM_DEFAULT_CS_MODE \
+        ((cs_mode) (CS_MODE_MIPS32 | CS_MODE_BIG_ENDIAN))
+#   endif
 # endif
 #else
 # error Unsupported architecture
