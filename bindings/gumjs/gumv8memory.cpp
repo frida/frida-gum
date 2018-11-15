@@ -199,8 +199,8 @@ static const GumV8Function gumjs_memory_access_monitor_functions[] =
 
 void
 _gum_v8_memory_init (GumV8Memory * self,
-                         GumV8Core * core,
-                         Handle<ObjectTemplate> scope)
+                     GumV8Core * core,
+                     Handle<ObjectTemplate> scope)
 {
   auto isolate = core->isolate;
 
