@@ -95,15 +95,15 @@ G_GNUC_INTERNAL void _gum_v8_throw_ascii_literal (v8::Isolate * isolate,
 G_GNUC_INTERNAL void _gum_v8_throw_native (GumExceptionDetails * details,
     GumV8Core * core);
 G_GNUC_INTERNAL void _gum_v8_parse_exception_details (
-    const GumExceptionDetails * details, v8::Local<v8::Object> & exception,
+    GumExceptionDetails * details, v8::Local<v8::Object> & exception,
     v8::Local<v8::Object> & cpu_context, GumV8Core * core);
 
 G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_parse_module_details (
     const GumModuleDetails * details, GumV8Core * core);
 
-G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_cpu_context_new (
+G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_cpu_context_new_immutable (
     const GumCpuContext * cpu_context, GumV8Core * core);
-G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_cpu_context_new (
+G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_cpu_context_new_mutable (
     GumCpuContext * cpu_context, GumV8Core * core);
 G_GNUC_INTERNAL void _gum_v8_cpu_context_free_later (
     GumPersistent<v8::Object>::type * cpu_context, GumV8Core * core);

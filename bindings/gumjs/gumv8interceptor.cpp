@@ -899,7 +899,7 @@ GUMJS_DEFINE_CLASS_GETTER (gumjs_invocation_context_get_cpu_context,
   if (context == nullptr)
   {
     context = new GumPersistent<Object>::type (isolate,
-        _gum_v8_cpu_context_new (self->handle->cpu_context, core));
+        _gum_v8_cpu_context_new_mutable (self->handle->cpu_context, core));
     self->cpu_context = context;
   }
 

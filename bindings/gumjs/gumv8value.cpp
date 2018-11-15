@@ -1275,7 +1275,7 @@ _gum_v8_throw_native (GumExceptionDetails * details,
 }
 
 void
-_gum_v8_parse_exception_details (const GumExceptionDetails * details,
+_gum_v8_parse_exception_details (GumExceptionDetails * details,
                                  Local<Object> & exception,
                                  Local<Object> & cpu_context,
                                  GumV8Core * core)
@@ -1299,7 +1299,7 @@ _gum_v8_parse_exception_details (const GumExceptionDetails * details,
     _gum_v8_object_set (ex, "memory", memory, core);
   }
 
-  auto context = _gum_v8_cpu_context_new (&details->context, core);
+  auto context = _gum_v8_cpu_context_new_mutable (&details->context, core);
   _gum_v8_object_set (ex, "context", context, core);
   _gum_v8_object_set_pointer (ex, "nativeContext", details->native_context,
       core);
@@ -1343,8 +1343,8 @@ _gum_v8_parse_module_details (const GumModuleDetails * details,
 }
 
 Local<Object>
-_gum_v8_cpu_context_new (const GumCpuContext * cpu_context,
-                         GumV8Core * core)
+_gum_v8_cpu_context_new_immutable (const GumCpuContext * cpu_context,
+                                   GumV8Core * core)
 {
   auto isolate = core->isolate;
   auto cpu_context_value (Local<Object>::New (isolate,
@@ -1358,8 +1358,8 @@ _gum_v8_cpu_context_new (const GumCpuContext * cpu_context,
 }
 
 Local<Object>
-_gum_v8_cpu_context_new (GumCpuContext * cpu_context,
-                         GumV8Core * core)
+_gum_v8_cpu_context_new_mutable (GumCpuContext * cpu_context,
+                                 GumV8Core * core)
 {
   auto isolate = core->isolate;
   auto cpu_context_value (Local<Object>::New (isolate,

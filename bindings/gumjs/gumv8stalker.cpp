@@ -902,7 +902,7 @@ gum_v8_callout_on_invoke (GumCpuContext * cpu_context,
   ScriptScope scope (core->script);
   Isolate * isolate = core->isolate;
 
-  auto cpu_context_value = _gum_v8_cpu_context_new (cpu_context, core);
+  auto cpu_context_value = _gum_v8_cpu_context_new_mutable (cpu_context, core);
 
   auto callback (Local<Function>::New (isolate, *self->callback));
   Handle<Value> argv[] = { cpu_context_value };
