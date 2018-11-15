@@ -229,6 +229,12 @@ _gum_exceptor_prepare_try (GumExceptor * self,
   sigprocmask (SIG_SETMASK, NULL, &scope->mask);
 #endif
 
+#ifdef HAVE_MIPS
+  #if GLIB_SIZEOF_VOID_P == 8
+  sigprocmask (SIG_SETMASK, NULL, &scope->mask);
+  #endif
+#endif
+
   GUM_EXCEPTOR_LOCK ();
   scope->next = g_hash_table_lookup (self->scopes, thread_id_key);
   g_hash_table_insert (self->scopes, thread_id_key, scope);
