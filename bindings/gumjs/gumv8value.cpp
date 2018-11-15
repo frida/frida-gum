@@ -598,7 +598,19 @@ _gum_v8_bytes_try_get (Handle<Value> value,
     auto contents = value.As<ArrayBuffer> ()->GetContents ();
     return g_bytes_new (contents.Data (), contents.ByteLength ());
   }
-  else if (value->IsArray ())
+
+  if (value->IsArrayBufferView ())
+  {
+    auto view = value.As<ArrayBufferView> ();
+
+    auto data_length = view->ByteLength ();
+    auto data = g_malloc (data_length);
+    view->CopyContents (data, data_length);
+
+    return g_bytes_new_take (data, data_length);
+  }
+
+  if (value->IsArray ())
   {
     auto array = value.As<Array> ();
 

@@ -4685,6 +4685,15 @@ SCRIPT_TESTCASE (byte_array_can_be_written)
   g_assert_cmpint (val[1], ==, 0x02);
   g_assert_cmpint (val[2], ==, 0x03);
   g_assert_cmpint (val[3], ==, 0xff);
+
+  COMPILE_AND_LOAD_SCRIPT ("var bytes = new Uint8Array(2);"
+      "bytes[0] = 4;"
+      "bytes[1] = 5;"
+      "Memory.writeByteArray(" GUM_PTR_CONST ", bytes);", val);
+  EXPECT_NO_MESSAGES ();
+  g_assert_cmpint (val[0], ==, 0x04);
+  g_assert_cmpint (val[1], ==, 0x05);
+  g_assert_cmpint (val[2], ==, 0x03);
 }
 
 SCRIPT_TESTCASE (c_string_can_be_read)
