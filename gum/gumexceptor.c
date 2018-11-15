@@ -405,5 +405,10 @@ gum_exceptor_scope_perform_longjmp (GumExceptorScope * self)
 #ifdef HAVE_ANDROID
   sigprocmask (SIG_SETMASK, &self->mask, NULL);
 #endif
+#ifdef HAVE_MIPS
+  #if GLIB_SIZEOF_VOID_P == 8
+  sigprocmask (SIG_SETMASK, &self->mask, NULL);
+  #endif
+#endif
   GUM_NATIVE_LONGJMP (self->env, 1);
 }

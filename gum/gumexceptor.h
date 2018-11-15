@@ -75,6 +75,11 @@ struct _GumExceptorScope
 #ifdef __ANDROID__
   sigset_t mask;
 #endif
+#ifdef HAVE_MIPS
+  #if GLIB_SIZEOF_VOID_P == 8
+  sigset_t mask;
+  #endif
+#endif
 
   GumExceptorScope * next;
 };
