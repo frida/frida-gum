@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -237,15 +237,15 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
 
   page_size = gum_query_page_size ();
 
-  if (size < page_size)
+  if ((size % page_size) != 0)
   {
     _gum_duk_push_native_resource (ctx, g_malloc0 (size), g_free, core);
   }
   else
   {
-    guint n = ((size + page_size - 1) & ~(page_size - 1)) / page_size;
     _gum_duk_push_native_resource (ctx,
-        gum_alloc_n_pages (n, GUM_PAGE_RW), gum_free_pages, core);
+        gum_alloc_n_pages (size / page_size, GUM_PAGE_RW),
+        gum_free_pages, core);
   }
   return 1;
 }

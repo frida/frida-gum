@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -248,15 +248,15 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
   GumV8NativeResource * res;
 
   gsize page_size = gum_query_page_size ();
-  if (size < page_size)
+  if ((size % page_size) != 0)
   {
     res = _gum_v8_native_resource_new (g_malloc0 (size), size, g_free, core);
   }
   else
   {
-    guint n = ((size + page_size - 1) & ~(page_size - 1)) / page_size;
-    res = _gum_v8_native_resource_new (gum_alloc_n_pages (n, GUM_PAGE_RW),
-        n * page_size, gum_free_pages, core);
+    res = _gum_v8_native_resource_new (
+        gum_alloc_n_pages (size / page_size, GUM_PAGE_RW), size,
+        gum_free_pages, core);
   }
 
   info.GetReturnValue ().Set (Local<Object>::New (isolate, *res->instance));
