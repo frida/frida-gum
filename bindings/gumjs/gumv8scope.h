@@ -61,9 +61,12 @@ private:
   v8::Context::Scope context_scope;
   v8::TryCatch trycatch;
   ScriptInterceptorScope interceptor_scope;
-  ScriptScope * next;
-  GQueue tick_callbacks;
-  GQueue scheduled_sources;
+  ScriptScope * root_scope;
+  ScriptScope * next_scope;
+  GQueue * tick_callbacks;
+  GQueue * scheduled_sources;
+  GQueue tick_callbacks_storage;
+  GQueue scheduled_sources_storage;
 };
 
 class ScriptUnlocker

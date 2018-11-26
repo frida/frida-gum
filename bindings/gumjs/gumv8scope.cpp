@@ -25,11 +25,21 @@ ScriptScope::ScriptScope (GumV8Script * parent)
 
   _gum_v8_core_pin (core);
 
-  next = core->current_scope;
+  next_scope = core->current_scope;
   core->current_scope = this;
 
-  g_queue_init (&tick_callbacks);
-  g_queue_init (&scheduled_sources);
+  root_scope = this;
+  while (root_scope->next_scope != nullptr)
+    root_scope = root_scope->next_scope;
+
+  tick_callbacks = &root_scope->tick_callbacks_storage;
+  scheduled_sources = &root_scope->scheduled_sources_storage;
+
+  if (this == root_scope)
+  {
+    g_queue_init (&tick_callbacks_storage);
+    g_queue_init (&scheduled_sources_storage);
+  }
 }
 
 ScriptScope::~ScriptScope ()
@@ -38,9 +48,10 @@ ScriptScope::~ScriptScope ()
 
   ProcessAnyPendingException ();
 
-  PerformPendingIO ();
+  if (this == root_scope)
+    PerformPendingIO ();
 
-  core->current_scope = next;
+  core->current_scope = next_scope;
 
   _gum_v8_core_unpin (core);
 
@@ -82,12 +93,12 @@ ScriptScope::PerformPendingIO ()
 
     isolate->RunMicrotasks ();
 
-    if (!g_queue_is_empty (&tick_callbacks))
+    if (!g_queue_is_empty (tick_callbacks))
     {
       GumPersistent<Function>::type * tick_callback;
       auto receiver = Undefined (isolate);
       while ((tick_callback = (GumPersistent<Function>::type *)
-          g_queue_pop_head (&tick_callbacks)) != nullptr)
+          g_queue_pop_head (tick_callbacks)) != nullptr)
       {
         auto callback = Local<Function>::New (isolate, *tick_callback);
 
@@ -101,7 +112,7 @@ ScriptScope::PerformPendingIO ()
     }
 
     GSource * source;
-    while ((source = (GSource *) g_queue_pop_head (&scheduled_sources)) != NULL)
+    while ((source = (GSource *) g_queue_pop_head (scheduled_sources)) != NULL)
     {
       if (!g_source_is_destroyed (source))
       {
@@ -120,14 +131,14 @@ ScriptScope::PerformPendingIO ()
 void
 ScriptScope::AddTickCallback (Handle<Function> callback)
 {
-  g_queue_push_tail (&tick_callbacks, new GumPersistent<Function>::type (
+  g_queue_push_tail (tick_callbacks, new GumPersistent<Function>::type (
       parent->isolate, callback));
 }
 
 void
 ScriptScope::AddScheduledSource (GSource * source)
 {
-  g_queue_push_tail (&scheduled_sources, source);
+  g_queue_push_tail (scheduled_sources, source);
 }
 
 ScriptInterceptorScope::ScriptInterceptorScope (GumV8Script * parent)
