@@ -73,36 +73,48 @@ void
 ScriptScope::PerformPendingIO ()
 {
   auto core = &parent->core;
+  auto isolate = parent->isolate;
 
-  if (!g_queue_is_empty (&tick_callbacks))
+  bool io_performed;
+  do
   {
-    auto isolate = parent->isolate;
+    io_performed = false;
 
-    GumPersistent<Function>::type * tick_callback;
-    auto receiver = Undefined (isolate);
-    while ((tick_callback = (GumPersistent<Function>::type *)
-        g_queue_pop_head (&tick_callbacks)) != nullptr)
+    isolate->RunMicrotasks ();
+
+    if (!g_queue_is_empty (&tick_callbacks))
     {
-      auto callback = Local<Function>::New (isolate, *tick_callback);
+      GumPersistent<Function>::type * tick_callback;
+      auto receiver = Undefined (isolate);
+      while ((tick_callback = (GumPersistent<Function>::type *)
+          g_queue_pop_head (&tick_callbacks)) != nullptr)
+      {
+        auto callback = Local<Function>::New (isolate, *tick_callback);
 
-      callback->Call (receiver, 0, nullptr);
-      ProcessAnyPendingException ();
+        callback->Call (receiver, 0, nullptr);
+        ProcessAnyPendingException ();
 
-      delete tick_callback;
+        delete tick_callback;
+      }
+
+      io_performed = true;
+    }
+
+    GSource * source;
+    while ((source = (GSource *) g_queue_pop_head (&scheduled_sources)) != NULL)
+    {
+      if (!g_source_is_destroyed (source))
+      {
+        g_source_attach (source,
+            gum_script_scheduler_get_js_context (core->scheduler));
+      }
+
+      g_source_unref (source);
+
+      io_performed = true;
     }
   }
-
-  GSource * source;
-  while ((source = (GSource *) g_queue_pop_head (&scheduled_sources)) != NULL)
-  {
-    if (!g_source_is_destroyed (source))
-    {
-      g_source_attach (source,
-          gum_script_scheduler_get_js_context (core->scheduler));
-    }
-
-    g_source_unref (source);
-  }
+  while (io_performed);
 }
 
 void

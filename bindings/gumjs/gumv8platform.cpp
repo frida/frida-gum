@@ -252,6 +252,7 @@ GumV8Platform::GumV8Platform ()
 
   shared_isolate = Isolate::New (params);
   shared_isolate->SetFatalErrorHandler (OnFatalError);
+  shared_isolate->SetMicrotasksPolicy (MicrotasksPolicy::kExplicit);
 
   InitRuntime ();
 }
