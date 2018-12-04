@@ -146,11 +146,10 @@ main (gint argc, gchar * argv[])
 #endif
 
 #ifdef HAVE_IOS
-# define ELECTRA_FLAG_PLATFORMIZE (1 << 1)
   if (g_file_test ("/usr/lib/libjailbreak.dylib", G_FILE_TEST_EXISTS))
   {
     GModule * module;
-    void (* entitle_now) (pid_t pid, uint32_t what);
+    void (* entitle_now) (pid_t pid);
 
     module = g_module_open ("/usr/lib/libjailbreak.dylib", G_MODULE_BIND_LAZY);
 
@@ -158,7 +157,7 @@ main (gint argc, gchar * argv[])
     g_module_symbol (module, "jb_oneshot_entitle_now",
         (gpointer *) &entitle_now);
 
-    entitle_now (getpid (), ELECTRA_FLAG_PLATFORMIZE);
+    entitle_now (getpid ());
 
     g_module_close (module);
   }
