@@ -1380,6 +1380,29 @@ SCRIPT_TESTCASE (native_pointer_provides_arithmetic_operations)
   EXPECT_SEND_MESSAGE_WITH ("-1");
 }
 
+SCRIPT_TESTCASE (native_pointer_provides_unsigned_arithmetic_operations)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(ptr(3).add(4).toUInt32());"
+      "send(ptr(7).sub(4).toUInt32());"
+      "send(ptr(6).and(3).toUInt32());"
+      "send(ptr(6).or(3).toUInt32());"
+      "send(ptr(6).xor(3).toUInt32());"
+      "send(ptr(63).shr(4).toUInt32());"
+      "send(ptr(1).shl(3).toUInt32());"
+      "send(ptr(0).not().toUInt32());"
+      "send(ptr(1).sub(2).toUInt32());");
+  EXPECT_SEND_MESSAGE_WITH ("7");
+  EXPECT_SEND_MESSAGE_WITH ("3");
+  EXPECT_SEND_MESSAGE_WITH ("2");
+  EXPECT_SEND_MESSAGE_WITH ("7");
+  EXPECT_SEND_MESSAGE_WITH ("5");
+  EXPECT_SEND_MESSAGE_WITH ("3");
+  EXPECT_SEND_MESSAGE_WITH ("8");
+  EXPECT_SEND_MESSAGE_WITH ("0");
+  EXPECT_SEND_MESSAGE_WITH ("4294967295");
+}
+
 SCRIPT_TESTCASE (native_pointer_to_match_pattern)
 {
   const gchar * extra_checks;
