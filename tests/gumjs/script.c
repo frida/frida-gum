@@ -179,6 +179,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (hexdump_supports_native_pointer_conforming_object)
   SCRIPT_TESTENTRY (native_pointer_provides_is_null)
   SCRIPT_TESTENTRY (native_pointer_provides_arithmetic_operations)
+  SCRIPT_TESTENTRY (native_pointer_provides_uint32_conversion_functionality)
   SCRIPT_TESTENTRY (native_pointer_to_match_pattern)
   SCRIPT_TESTENTRY (native_pointer_can_be_constructed_from_64bit_value)
   SCRIPT_TESTENTRY (uint64_provides_arithmetic_operations)
@@ -1378,6 +1379,12 @@ SCRIPT_TESTCASE (native_pointer_provides_arithmetic_operations)
   EXPECT_SEND_MESSAGE_WITH ("3");
   EXPECT_SEND_MESSAGE_WITH ("8");
   EXPECT_SEND_MESSAGE_WITH ("-1");
+}
+
+SCRIPT_TESTCASE (native_pointer_provides_uint32_conversion_functionality)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send(ptr(1).toUInt32());");
+  EXPECT_SEND_MESSAGE_WITH ("1");
 }
 
 SCRIPT_TESTCASE (native_pointer_to_match_pattern)

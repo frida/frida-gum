@@ -257,6 +257,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_shl)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_not)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_compare)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_int32)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_uint32)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_string)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_json)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_match_pattern)
@@ -438,6 +439,7 @@ static const GumV8Function gumjs_native_pointer_functions[] =
   { "not", gumjs_native_pointer_not },
   { "compare", gumjs_native_pointer_compare },
   { "toInt32", gumjs_native_pointer_to_int32 },
+  { "toUInt32", gumjs_native_pointer_to_uint32 },
   { "toString", gumjs_native_pointer_to_string },
   { "toJSON", gumjs_native_pointer_to_json },
   { "toMatchPattern", gumjs_native_pointer_to_match_pattern },
@@ -1877,6 +1879,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_compare)
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_int32)
 {
   info.GetReturnValue ().Set ((int32_t) GPOINTER_TO_SIZE (
+      GUMJS_NATIVE_POINTER_VALUE (info.Holder ())));
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_uint32)
+{
+  info.GetReturnValue ().Set ((uint32_t) GPOINTER_TO_SIZE (
       GUMJS_NATIVE_POINTER_VALUE (info.Holder ())));
 }
 

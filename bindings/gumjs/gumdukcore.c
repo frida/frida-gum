@@ -243,6 +243,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_shl)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_not)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_compare)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_int32)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_uint32)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_string)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_json)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_match_pattern)
@@ -424,6 +425,7 @@ static const duk_function_list_entry gumjs_native_pointer_functions[] =
   { "not", gumjs_native_pointer_not, 0 },
   { "compare", gumjs_native_pointer_compare, 1 },
   { "toInt32", gumjs_native_pointer_to_int32, 0 },
+  { "toUInt32", gumjs_native_pointer_to_uint32, 0 },
   { "toString", gumjs_native_pointer_to_string, 1 },
   { "toJSON", gumjs_native_pointer_to_json, 0 },
   { "toMatchPattern", gumjs_native_pointer_to_match_pattern, 0 },
@@ -2352,6 +2354,19 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_int32)
   result = (gint32) GPOINTER_TO_SIZE (self->value);
 
   duk_push_int (ctx, result);
+  return 1;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_uint32)
+{
+  GumDukNativePointer * self;
+  guint32 result;
+
+  self = gumjs_native_pointer_from_args (args);
+
+  result = (guint32) GPOINTER_TO_SIZE (self->value);
+
+  duk_push_uint (ctx, result);
   return 1;
 }
 
