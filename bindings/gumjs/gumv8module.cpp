@@ -235,7 +235,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_ensure_initialized)
   if (!_gum_v8_args_parse (args, "s", &name))
     return;
 
-  auto success = gum_module_ensure_initialized (name);
+  gboolean success;
+  {
+    ScriptUnlocker unlocker (core);
+
+    success = gum_module_ensure_initialized (name);
+  }
+
   if (!success)
   {
     _gum_v8_throw (isolate, "unable to find module '%s'", name);
