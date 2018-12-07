@@ -159,6 +159,7 @@ makeEnumerateRanges(Kernel);
 
 makeEnumerateThreads(Process);
 makeEnumerateRanges(Process);
+makeVmmap(Process);
 
 function makeEnumerateThreads(mod) {
   Object.defineProperty(mod, 'enumerateThreadsSync', {
@@ -241,6 +242,45 @@ function makeEnumerateRanges(mod) {
       }
     },
   });
+}
+
+function makeVmmap(mod) {
+  Object.defineProperties(mod, {
+    vmmap: {
+      enumerable: true,
+      value: function () {
+        let mem = this.enumerateRangesSync('---');
+        let out = '';
+        let ps = this.pointerSize * 2;
+        let pad = '0'.repeat(ps);
+        for (let item in mem) {
+          try {
+            let base = parseInt(mem[item].base);
+            let prot = mem[item].protection;
+            let size = parseInt(mem[item].size);
+            let end  = base + size;
+
+            out += '0x' + String(pad + base.toString(16)).slice(ps * -1);
+            out += ' ';
+            out += ' 0x' + String(pad + end.toString(16)).slice(ps * -1);
+            out += ' [' + prot + ']';
+            out += ' ';
+            out += ' 0x' + String('0'.repeat(8) + size.toString(16)).slice(8 * -1);
+
+            if (mem[item].file) {
+              out += '  0x' + mem[item].file.offset.toString(16) +' ' + mem[item].file.path;
+            }
+
+            out += '\n';
+          }
+          catch(err) {
+            console.err(err);
+          }
+        }
+        return out;
+      }
+    }
+  })
 }
 
 Object.defineProperty(Kernel, 'enumerateModuleRangesSync', {
