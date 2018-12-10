@@ -125,11 +125,15 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_construct)
 GUMJS_DEFINE_FUNCTION (gumjs_module_ensure_initialized)
 {
   const gchar * name;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
   gboolean success;
 
   _gum_duk_args_parse (args, "s", &name);
 
+  _gum_duk_scope_suspend (&scope);
   success = gum_module_ensure_initialized (name);
+  _gum_duk_scope_resume (&scope);
+
   if (!success)
   {
     _gum_duk_throw (ctx, "unable to find module '%s'", name);
