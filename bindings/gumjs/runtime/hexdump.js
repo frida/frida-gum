@@ -11,6 +11,7 @@ function hexdump(target, options) {
   const useAnsi = options.hasOwnProperty('ansi') ? options.ansi : false;
 
   let buffer;
+  let startAddress = NULL;
   if (target instanceof ArrayBuffer) {
     if (length === undefined)
       length = target.byteLength;
@@ -19,6 +20,7 @@ function hexdump(target, options) {
     if (length === undefined)
       length = 256;
     buffer = Memory.readByteArray(target, length);
+    startAddress = target;
   }
 
   const bytes = new Uint8Array(buffer);
@@ -60,7 +62,7 @@ function hexdump(target, options) {
       result.push('\n');
 
     result.push(
-      offsetColor, pad(offset.toString(16), leftColumnWidth, '0'), resetColor,
+      offsetColor, pad(startAddress.add(offset).toString(16), leftColumnWidth, '0'), resetColor,
       columnPadding
     );
 
