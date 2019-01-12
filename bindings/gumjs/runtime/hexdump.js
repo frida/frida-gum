@@ -17,6 +17,8 @@ function hexdump(target, options) {
       length = target.byteLength;
     buffer = target;
   } else {
+    if (!(target instanceof NativePointer))
+      target = target.handle;
     if (length === undefined)
       length = 256;
     buffer = Memory.readByteArray(target, length);

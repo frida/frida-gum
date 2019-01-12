@@ -1341,14 +1341,18 @@ SCRIPT_TESTCASE (basic_hexdump_functionality_is_available)
 
 SCRIPT_TESTCASE (hexdump_supports_native_pointer_conforming_object)
 {
+  const gchar * message = "Hello hex world!";
+
   COMPILE_AND_LOAD_SCRIPT (
-      "var obj = { handle: Memory.allocUtf8String(\"Hello hex world!\") };"
-      "send(hexdump(obj, { length: 16 }));");
+      "var obj = { handle: " GUM_PTR_CONST "  };"
+      "send(hexdump(obj, { length: 16 }));", message);
   EXPECT_SEND_MESSAGE_WITH ("\""
       "           0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F  "
           "0123456789ABCDEF\\n"
-      "00000000  48 65 6c 6c 6f 20 68 65 78 20 77 6f 72 6c 64 21  "
-          "Hello hex world!\"");
+      "%08" G_GSIZE_MODIFIER "x  "
+          "48 65 6c 6c 6f 20 68 65 78 20 77 6f 72 6c 64 21  "
+          "Hello hex world!\"",
+      message);
 }
 
 SCRIPT_TESTCASE (native_pointer_provides_is_null)
