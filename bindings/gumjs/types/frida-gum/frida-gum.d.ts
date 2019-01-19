@@ -2071,6 +2071,7 @@ declare namespace Java {
     function openClassFile(filePath: any): any;
     function perform(fn: any, ...args: any[]): any;
     function performNow(fn: any): void;
+    function registerClass(spec: any): any;
     function scheduleOnMainThread(fn: any): void;
     function use(className: any): any;
 }
