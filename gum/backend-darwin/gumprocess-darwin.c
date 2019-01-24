@@ -381,7 +381,7 @@ gum_process_modify_thread (GumThreadId thread_id,
           if (!state_is_valid)
           {
             thread_resume (thread);
-            fail_count ++;
+            fail_count++;
             if (fail_count < GUM_MAX_THREAD_POLL)
               g_usleep (GUM_THREAD_POLL_STEP);
           }
