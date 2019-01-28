@@ -13,7 +13,7 @@
 #include <gio/gio.h>
 
 #define kCSNull ((CSTypeRef) { NULL, NULL })
-#define kCSNow  G_GUINT64_CONSTANT (0x80000000)
+#define kCSNow  G_GUINT64_CONSTANT (0x8000000000000000)
 
 typedef struct _CSTypeRef CSTypeRef;
 typedef struct _CSRange CSRange;
