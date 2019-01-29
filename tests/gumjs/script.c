@@ -122,9 +122,12 @@ TESTLIST_BEGIN (script)
     TESTENTRY (utf16_string_can_be_written)
     TESTENTRY (utf16_string_can_be_allocated)
 #ifdef G_OS_WIN32
-    TESTENTRY (ansi_string_can_be_read)
-    TESTENTRY (ansi_string_can_be_written)
-    TESTENTRY (ansi_string_can_be_allocated)
+    TESTENTRY (ansi_string_can_be_read_in_code_page_936)
+    TESTENTRY (ansi_string_can_be_read_in_code_page_1252)
+    TESTENTRY (ansi_string_can_be_written_in_code_page_936)
+    TESTENTRY (ansi_string_can_be_written_in_code_page_1252)
+    TESTENTRY (ansi_string_can_be_allocated_in_code_page_936)
+    TESTENTRY (ansi_string_can_be_allocated_in_code_page_1252)
 #endif
     TESTENTRY (invalid_read_results_in_exception)
     TESTENTRY (invalid_write_results_in_exception)
@@ -5655,13 +5658,83 @@ TESTCASE (utf16_string_can_be_allocated)
 
 #ifdef G_OS_WIN32
 
-TESTCASE (ansi_string_can_be_read)
+TESTCASE (ansi_string_can_be_read_in_code_page_936)
 {
-  const gchar * str_utf8 = "Bjørheimsbygd";
-  gunichar2 * str_utf16 = g_utf8_to_utf16 (str_utf8, -1, NULL, NULL, NULL);
-  gchar str[64];
-  WideCharToMultiByte (CP_THREAD_ACP, 0, (LPCWSTR) str_utf16, -1,
-      (LPSTR) str, sizeof (str), NULL, NULL);
+  CPINFOEX cpi;
+  const gchar * str_utf8;
+  WCHAR * str_utf16;
+  gchar str[13 + 1];
+
+  GetCPInfoEx (CP_THREAD_ACP, 0, &cpi);
+  if (cpi.CodePage != 936)
+  {
+    g_print ("<skipping, only available on systems with ANSI code page 936> ");
+    return;
+  }
+
+  str_utf8 = "test测试.";
+  str_utf16 = g_utf8_to_utf16 (str_utf8, -1, NULL, NULL, NULL);
+  WideCharToMultiByte (CP_THREAD_ACP, 0, str_utf16, -1, str, sizeof (str),
+      NULL, NULL);
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(" GUM_PTR_CONST "));",
+      str);
+  EXPECT_SEND_MESSAGE_WITH ("\"test测试.\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(" GUM_PTR_CONST
+      ", 5));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"test?\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(" GUM_PTR_CONST
+      ", 6));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"test测\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(" GUM_PTR_CONST
+      ", 0));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(" GUM_PTR_CONST
+      ", -1));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"test测试.\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(" GUM_PTR_CONST
+      ", int64(-1)));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"test测试.\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(ptr(\"0\")));", str);
+  EXPECT_SEND_MESSAGE_WITH ("null");
+
+  g_free (str_utf16);
+
+  str_utf8 = "Bjørheimsbygd";
+  str_utf16 = g_utf8_to_utf16 (str_utf8, -1, NULL, NULL, NULL);
+  WideCharToMultiByte (CP_THREAD_ACP, 0, str_utf16, -1, str, sizeof (str),
+      NULL, NULL);
+
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readAnsiString());", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bj?rheimsbygd\"");
+
+  g_free (str_utf16);
+}
+
+TESTCASE (ansi_string_can_be_read_in_code_page_1252)
+{
+  CPINFOEX cpi;
+  const gchar * str_utf8;
+  WCHAR * str_utf16;
+  gchar str[13 + 1];
+
+  GetCPInfoEx (CP_THREAD_ACP, 0, &cpi);
+  if (cpi.CodePage != 1252)
+  {
+    g_print ("<skipping, only available on systems with ANSI code page 1252> ");
+    return;
+  }
+
+  str_utf8 = "Bjørheimsbygd";
+  str_utf16 = g_utf8_to_utf16 (str_utf8, -1, NULL, NULL, NULL);
+  WideCharToMultiByte (CP_THREAD_ACP, 0, str_utf16, -1, str, sizeof (str),
+      NULL, NULL);
 
   COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readAnsiString());", str);
   EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
@@ -5685,16 +5758,61 @@ TESTCASE (ansi_string_can_be_read)
   g_free (str_utf16);
 }
 
-TESTCASE (ansi_string_can_be_written)
+TESTCASE (ansi_string_can_be_written_in_code_page_936)
 {
-  gchar str_ansi[17];
-  gunichar2 str_utf16[17];
+  CPINFOEX cpi;
+  gchar str_ansi[13 + 1];
+  gunichar2 str_utf16[13 + 1];
   gchar * str_utf8;
+
+  GetCPInfoEx (CP_THREAD_ACP, 0, &cpi);
+  if (cpi.CodePage != 936)
+  {
+    g_print ("<skipping, only available on systems with ANSI code page 936> ");
+    return;
+  }
+
+  strcpy (str_ansi, "truncate-plz");
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeAnsiString('test测试.');",
+      str_ansi);
+  MultiByteToWideChar (CP_THREAD_ACP, 0, str_ansi, -1,
+      str_utf16, sizeof (str_utf16));
+  str_utf8 = g_utf16_to_utf8 (str_utf16, -1, NULL, NULL, NULL);
+  g_assert_cmpstr (str_utf8, == , "test测试.");
+  g_free (str_utf8);
+  g_assert_cmphex (str_ansi[9], == , '\0');
+  g_assert_cmphex (str_ansi[10], == , 'l');
+  g_assert_cmphex (str_ansi[11], == , 'z');
+  g_assert_cmphex (str_ansi[12], == , '\0');
+
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeAnsiString('Bjørheimsbygd');",
+      str_ansi);
+  MultiByteToWideChar (CP_THREAD_ACP, 0, str_ansi, -1,
+      str_utf16, sizeof (str_utf16));
+  str_utf8 = g_utf16_to_utf8 (str_utf16, -1, NULL, NULL, NULL);
+  g_assert_cmpstr (str_utf8, == , "Bj?rheimsbygd");
+  g_free (str_utf8);
+}
+
+TESTCASE (ansi_string_can_be_written_in_code_page_1252)
+{
+  CPINFOEX cpi;
+  gchar str_ansi[16 + 1];
+  gunichar2 str_utf16[16 + 1];
+  gchar * str_utf8;
+
+  GetCPInfoEx (CP_THREAD_ACP, 0, &cpi);
+  if (cpi.CodePage != 1252)
+  {
+    g_print ("<skipping, only available on systems with ANSI code page 1252> ");
+    return;
+  }
 
   strcpy (str_ansi, "Kjempeforhaustar");
   COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeAnsiString('Bjørheimsbygd');",
       str_ansi);
-  MultiByteToWideChar (CP_ACP, 0, str_ansi, -1, str_utf16, sizeof (str_utf16));
+  MultiByteToWideChar (CP_THREAD_ACP, 0, str_ansi, -1,
+      str_utf16, sizeof (str_utf16));
   str_utf8 = g_utf16_to_utf8 (str_utf16, -1, NULL, NULL, NULL);
   g_assert_cmpstr (str_utf8, == , "Bjørheimsbygd");
   g_free (str_utf8);
@@ -5704,8 +5822,34 @@ TESTCASE (ansi_string_can_be_written)
   g_assert_cmphex (str_ansi[16], == , '\0');
 }
 
-TESTCASE (ansi_string_can_be_allocated)
+TESTCASE (ansi_string_can_be_allocated_in_code_page_936)
 {
+  CPINFOEX cpi;
+
+  GetCPInfoEx (CP_THREAD_ACP, 0, &cpi);
+  if (cpi.CodePage != 936)
+  {
+    g_print ("<skipping, only available on systems with ANSI code page 936> ");
+    return;
+  }
+
+  COMPILE_AND_LOAD_SCRIPT ("send("
+      "Memory.allocAnsiString('test测试.').readAnsiString()"
+      ");");
+  EXPECT_SEND_MESSAGE_WITH ("\"test测试.\"");
+}
+
+TESTCASE (ansi_string_can_be_allocated_in_code_page_1252)
+{
+  CPINFOEX cpi;
+
+  GetCPInfoEx (CP_THREAD_ACP, 0, &cpi);
+  if (cpi.CodePage != 1252)
+  {
+    g_print ("<skipping, only available on systems with ANSI code page 1252> ");
+    return;
+  }
+
   COMPILE_AND_LOAD_SCRIPT ("send("
       "Memory.allocAnsiString('Bjørheimsbygd').readAnsiString()"
       ");");
