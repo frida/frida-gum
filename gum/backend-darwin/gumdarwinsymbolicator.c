@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2018-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -24,6 +24,11 @@ typedef CSTypeRef CSSymbolRef;
 typedef CSTypeRef CSSymbolOwnerRef;
 typedef CSTypeRef CSSourceInfoRef;
 
+typedef long CSSymbolicatorFlags;
+typedef gpointer CSNotificationData;
+
+typedef void (^ CSNotificationBlock) (uint32_t notification_type,
+    CSNotificationData data);
 typedef int (^ CSEachSymbolBlock) (CSSymbolRef symbol);
 
 struct _CSTypeRef
@@ -50,6 +55,11 @@ enum
   PROP_PATH,
   PROP_CPU_TYPE,
   PROP_TASK,
+};
+
+enum _CSSymbolicatorFlags
+{
+  kCSSymbolicatorTrackDyldActivity = 1,
 };
 
 struct _CSRange
@@ -94,8 +104,9 @@ GUM_DECLARE_CS_FUNC (Release, void, (CSTypeRef cs));
 
 GUM_DECLARE_CS_FUNC (SymbolicatorCreateWithPathAndArchitecture,
     CSSymbolicatorRef, (const char * path, cpu_type_t cpu_type));
-GUM_DECLARE_CS_FUNC (SymbolicatorCreateWithTask, CSSymbolicatorRef,
-    (task_t task));
+GUM_DECLARE_CS_FUNC (SymbolicatorCreateWithTaskFlagsAndNotification,
+    CSSymbolicatorRef, (task_t task, CSSymbolicatorFlags flags,
+    CSNotificationBlock notification));
 GUM_DECLARE_CS_FUNC (SymbolicatorGetSymbolWithAddressAtTime, CSSymbolRef,
     (CSSymbolicatorRef symbolicator, mach_vm_address_t address, CSTime time));
 GUM_DECLARE_CS_FUNC (SymbolicatorGetSourceInfoWithAddressAtTime,
@@ -182,7 +193,11 @@ gum_darwin_symbolicator_initable_init (GInitable * initable,
   }
   else
   {
-    self->handle = CSSymbolicatorCreateWithTask (self->task);
+    self->handle = CSSymbolicatorCreateWithTaskFlagsAndNotification (self->task,
+        kCSSymbolicatorTrackDyldActivity,
+        ^(uint32_t notification_type, CSNotificationData data)
+        {
+        });
     if (CSIsNull (self->handle))
       goto invalid_task;
   }
@@ -524,7 +539,7 @@ gum_cs_load_library (gpointer data)
   GUM_TRY_ASSIGN_CS_FUNC (Release);
 
   GUM_TRY_ASSIGN_CS_FUNC (SymbolicatorCreateWithPathAndArchitecture);
-  GUM_TRY_ASSIGN_CS_FUNC (SymbolicatorCreateWithTask);
+  GUM_TRY_ASSIGN_CS_FUNC (SymbolicatorCreateWithTaskFlagsAndNotification);
   GUM_TRY_ASSIGN_CS_FUNC (SymbolicatorGetSymbolWithAddressAtTime);
   GUM_TRY_ASSIGN_CS_FUNC (SymbolicatorGetSourceInfoWithAddressAtTime);
   GUM_TRY_ASSIGN_CS_FUNC (SymbolicatorForeachSymbolAtTime);
