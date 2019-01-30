@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -15,8 +15,6 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <mach-o/dyld.h>
-#include <mach-o/dyld_images.h>
-#include <mach-o/nlist.h>
 #include <malloc/malloc.h>
 #include <pthread.h>
 #include <sys/sysctl.h>
@@ -257,9 +255,6 @@ struct proc_regionwithpathinfo
 
 extern int __proc_info (int callnum, int pid, int flavor, uint64_t arg,
     void * buffer, int buffersize);
-
-typedef const struct dyld_all_image_infos * (* DyldGetAllImageInfosFunc) (
-    void);
 
 static void gum_emit_malloc_ranges (task_t task,
     void * user_data, unsigned type, vm_range_t * ranges, unsigned count);
@@ -828,6 +823,118 @@ gum_darwin_cpu_type_from_pid (pid_t pid,
   return TRUE;
 }
 
+gboolean
+gum_darwin_query_all_image_infos (mach_port_t task,
+                                  GumDarwinAllImageInfos * infos)
+{
+  struct task_dyld_info info;
+  mach_msg_type_number_t count;
+  kern_return_t kr;
+  gboolean inprocess;
+
+#if defined (HAVE_ARM) || defined (HAVE_ARM64)
+  DyldInfo info_raw;
+  count = DYLD_INFO_COUNT;
+  kr = task_info (task, TASK_DYLD_INFO, (task_info_t) &info_raw, &count);
+  if (kr != KERN_SUCCESS)
+    return FALSE;
+  switch (count)
+  {
+    case DYLD_INFO_LEGACY_COUNT:
+      info.all_image_info_addr = info_raw.info_legacy.all_image_info_addr;
+      info.all_image_info_size = 0;
+      info.all_image_info_format = TASK_DYLD_ALL_IMAGE_INFO_32;
+      break;
+    case DYLD_INFO_32_COUNT:
+      info.all_image_info_addr = info_raw.info_32.all_image_info_addr;
+      info.all_image_info_size = info_raw.info_32.all_image_info_size;
+      info.all_image_info_format = info_raw.info_32.all_image_info_format;
+      break;
+    case DYLD_INFO_64_COUNT:
+      info.all_image_info_addr = info_raw.info_64.all_image_info_addr;
+      info.all_image_info_size = info_raw.info_64.all_image_info_size;
+      info.all_image_info_format = info_raw.info_64.all_image_info_format;
+      break;
+    default:
+      g_assert_not_reached ();
+  }
+#else
+  count = TASK_DYLD_INFO_COUNT;
+  kr = task_info (task, TASK_DYLD_INFO, (task_info_t) &info, &count);
+  if (kr != KERN_SUCCESS)
+    return FALSE;
+#endif
+
+  infos->format = info.all_image_info_format;
+
+  inprocess = task == mach_task_self ();
+
+  if (info.all_image_info_format == TASK_DYLD_ALL_IMAGE_INFO_64)
+  {
+    DyldAllImageInfos64 * all_info;
+    gpointer all_info_malloc_data = NULL;
+
+    if (inprocess)
+    {
+      all_info = (DyldAllImageInfos64 *) info.all_image_info_addr;
+    }
+    else
+    {
+      all_info = (DyldAllImageInfos64 *) gum_darwin_read (task,
+          info.all_image_info_addr,
+          sizeof (DyldAllImageInfos64),
+          NULL);
+      all_info_malloc_data = all_info;
+    }
+    if (all_info == NULL)
+      return FALSE;
+
+    infos->info_array_address = all_info->info_array;
+    infos->info_array_count = all_info->info_array_count;
+    infos->info_array_size =
+        all_info->info_array_count * DYLD_IMAGE_INFO_64_SIZE;
+
+    infos->notification_address = all_info->notification;
+
+    infos->dyld_image_load_address = all_info->dyld_image_load_address;
+
+    g_free (all_info_malloc_data);
+  }
+  else
+  {
+    DyldAllImageInfos32 * all_info;
+    gpointer all_info_malloc_data = NULL;
+
+    if (inprocess)
+    {
+      all_info = (DyldAllImageInfos32 *) info.all_image_info_addr;
+    }
+    else
+    {
+      all_info = (DyldAllImageInfos32 *) gum_darwin_read (task,
+          info.all_image_info_addr,
+          sizeof (DyldAllImageInfos32),
+          NULL);
+      all_info_malloc_data = all_info;
+    }
+    if (all_info == NULL)
+      return FALSE;
+
+    infos->info_array_address = all_info->info_array;
+    infos->info_array_count = all_info->info_array_count;
+    infos->info_array_size =
+        all_info->info_array_count * DYLD_IMAGE_INFO_32_SIZE;
+
+    infos->notification_address = all_info->notification;
+
+    infos->dyld_image_load_address = all_info->dyld_image_load_address;
+
+    g_free (all_info_malloc_data);
+  }
+
+  return TRUE;
+}
+
 GumAddress
 gum_darwin_find_entrypoint (mach_port_t task)
 {
@@ -1008,123 +1115,35 @@ gum_darwin_enumerate_modules (mach_port_t task,
                               GumFoundModuleFunc func,
                               gpointer user_data)
 {
-  struct task_dyld_info info;
-  mach_msg_type_number_t count;
-  kern_return_t kr;
+  GumDarwinAllImageInfos infos;
   gboolean inprocess;
-  gsize info_array_count, info_array_size, i;
-  GumAddress info_array_address, dyld_image_load_address;
+  gsize i;
   gpointer info_array, info_array_malloc_data = NULL;
   gpointer header_data, header_data_end, header_malloc_data = NULL;
   const guint header_data_initial_size = 4096;
   gchar * file_path, * file_path_malloc_data = NULL;
   gboolean carry_on = TRUE;
 
-#if defined (HAVE_ARM) || defined (HAVE_ARM64)
-  DyldInfo info_raw;
-  count = DYLD_INFO_COUNT;
-  kr = task_info (task, TASK_DYLD_INFO, (task_info_t) &info_raw, &count);
-  if (kr != KERN_SUCCESS)
+  if (!gum_darwin_query_all_image_infos (task, &infos))
     goto beach;
-  switch (count)
-  {
-    case DYLD_INFO_LEGACY_COUNT:
-      info.all_image_info_addr = info_raw.info_legacy.all_image_info_addr;
-      info.all_image_info_size = 0;
-      info.all_image_info_format = TASK_DYLD_ALL_IMAGE_INFO_32;
-      break;
-    case DYLD_INFO_32_COUNT:
-      info.all_image_info_addr = info_raw.info_32.all_image_info_addr;
-      info.all_image_info_size = info_raw.info_32.all_image_info_size;
-      info.all_image_info_format = info_raw.info_32.all_image_info_format;
-      break;
-    case DYLD_INFO_64_COUNT:
-      info.all_image_info_addr = info_raw.info_64.all_image_info_addr;
-      info.all_image_info_size = info_raw.info_64.all_image_info_size;
-      info.all_image_info_format = info_raw.info_64.all_image_info_format;
-      break;
-    default:
-      g_assert_not_reached ();
-  }
-#else
-  count = TASK_DYLD_INFO_COUNT;
-  kr = task_info (task, TASK_DYLD_INFO, (task_info_t) &info, &count);
-  if (kr != KERN_SUCCESS)
-    goto beach;
-#endif
+
+  if (infos.info_array_address == 0)
+    goto fallback;
 
   inprocess = task == mach_task_self ();
 
-  if (info.all_image_info_format == TASK_DYLD_ALL_IMAGE_INFO_64)
-  {
-    DyldAllImageInfos64 * all_info;
-    gpointer all_info_malloc_data = NULL;
-
-    if (inprocess)
-    {
-      all_info = (DyldAllImageInfos64 *) info.all_image_info_addr;
-    }
-    else
-    {
-      all_info = (DyldAllImageInfos64 *) gum_darwin_read (task,
-          info.all_image_info_addr,
-          sizeof (DyldAllImageInfos64),
-          NULL);
-      all_info_malloc_data = all_info;
-    }
-    if (all_info == NULL)
-      goto beach;
-
-    info_array_count = all_info->info_array_count;
-    info_array_size = info_array_count * DYLD_IMAGE_INFO_64_SIZE;
-    info_array_address = all_info->info_array;
-    dyld_image_load_address = all_info->dyld_image_load_address;
-
-    g_free (all_info_malloc_data);
-  }
-  else
-  {
-    DyldAllImageInfos32 * all_info;
-    gpointer all_info_malloc_data = NULL;
-
-    if (inprocess)
-    {
-      all_info = (DyldAllImageInfos32 *) info.all_image_info_addr;
-    }
-    else
-    {
-      all_info = (DyldAllImageInfos32 *) gum_darwin_read (task,
-          info.all_image_info_addr,
-          sizeof (DyldAllImageInfos32),
-          NULL);
-      all_info_malloc_data = all_info;
-    }
-    if (all_info == NULL)
-      goto beach;
-
-    info_array_count = all_info->info_array_count;
-    info_array_size = info_array_count * DYLD_IMAGE_INFO_32_SIZE;
-    info_array_address = all_info->info_array;
-    dyld_image_load_address = all_info->dyld_image_load_address;
-
-    g_free (all_info_malloc_data);
-  }
-
-  if (info_array_address == 0)
-    goto fallback;
-
   if (inprocess)
   {
-    info_array = GSIZE_TO_POINTER (info_array_address);
+    info_array = GSIZE_TO_POINTER (infos.info_array_address);
   }
   else
   {
-    info_array =
-        gum_darwin_read (task, info_array_address, info_array_size, NULL);
+    info_array = gum_darwin_read (task, infos.info_array_address,
+        infos.info_array_size, NULL);
     info_array_malloc_data = info_array;
   }
 
-  for (i = 0; i != info_array_count + 1 && carry_on; i++)
+  for (i = 0; i != infos.info_array_count + 1 && carry_on; i++)
   {
     GumAddress load_address;
     struct mach_header * header;
@@ -1134,11 +1153,11 @@ gum_darwin_enumerate_modules (mach_port_t task,
     gchar * name;
     GumModuleDetails details;
 
-    if (i != info_array_count)
+    if (i != infos.info_array_count)
     {
       GumAddress file_path_address;
 
-      if (info.all_image_info_format == TASK_DYLD_ALL_IMAGE_INFO_64)
+      if (infos.format == TASK_DYLD_ALL_IMAGE_INFO_64)
       {
         DyldImageInfo64 * info = info_array + (i * DYLD_IMAGE_INFO_64_SIZE);
         load_address = info->image_load_address;
@@ -1180,7 +1199,7 @@ gum_darwin_enumerate_modules (mach_port_t task,
     }
     else
     {
-      load_address = dyld_image_load_address;
+      load_address = infos.dyld_image_load_address;
 
       if (inprocess)
       {
@@ -1201,7 +1220,7 @@ gum_darwin_enumerate_modules (mach_port_t task,
     header_data_end = header_data + header_data_initial_size;
 
     header = (struct mach_header *) header_data;
-    if (info.all_image_info_format == TASK_DYLD_ALL_IMAGE_INFO_64)
+    if (infos.format == TASK_DYLD_ALL_IMAGE_INFO_64)
       first_command = header_data + sizeof (struct mach_header_64);
     else
       first_command = header_data + sizeof (struct mach_header);

@@ -27,6 +27,8 @@
 # include "frida_mach_vm.h"
 #endif
 
+G_BEGIN_DECLS
+
 #if GLIB_SIZEOF_VOID_P == 4
 # define GUM_LC_SEGMENT LC_SEGMENT
 typedef struct mach_header gum_mach_header_t;
@@ -61,7 +63,20 @@ typedef arm_thread_state64_t GumDarwinNativeThreadState;
 # define GUM_DARWIN_THREAD_STATE_FLAVOR ARM_UNIFIED_THREAD_STATE
 #endif
 
-G_BEGIN_DECLS
+typedef struct _GumDarwinAllImageInfos GumDarwinAllImageInfos;
+
+struct _GumDarwinAllImageInfos
+{
+  gint format;
+
+  GumAddress info_array_address;
+  gsize info_array_count;
+  gsize info_array_size;
+
+  GumAddress notification_address;
+
+  GumAddress dyld_image_load_address;
+};
 
 GUM_API gboolean gum_darwin_is_ios9_or_newer (void);
 
@@ -73,6 +88,8 @@ GUM_API gboolean gum_darwin_cpu_type_from_pid (pid_t pid,
     GumCpuType * cpu_type);
 GUM_API gboolean gum_darwin_query_page_size (mach_port_t task,
     guint * page_size);
+GUM_API gboolean gum_darwin_query_all_image_infos (mach_port_t task,
+    GumDarwinAllImageInfos * infos);
 GUM_API GumAddress gum_darwin_find_entrypoint (mach_port_t task);
 GUM_API void gum_darwin_enumerate_threads (mach_port_t task,
     GumFoundThreadFunc func, gpointer user_data);
