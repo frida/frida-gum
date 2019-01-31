@@ -19,6 +19,8 @@ G_DECLARE_FINAL_TYPE (GumSymbolCacheInvalidator, gum_symbol_cache_invalidator,
 struct _GumSymbolCacheInvalidator
 {
   GObject parent;
+
+  GumInterceptor * interceptor;
 };
 
 static void do_deinit (void);
@@ -29,6 +31,9 @@ static GArray * gum_pointer_array_new_take_addresses (GumAddress * addresses,
 
 static void gum_symbol_cache_invalidator_iface_init (gpointer g_iface,
     gpointer iface_data);
+static void gum_symbol_cache_invalidator_dispose (GObject * object);
+static void gum_symbol_cache_invalidator_stop (
+    GumSymbolCacheInvalidator * self);
 static void gum_symbol_cache_invalidator_on_dyld_debugger_notification (
     GumInvocationListener * self, GumInvocationContext * context);
 
@@ -77,6 +82,8 @@ do_deinit (void)
   G_LOCK (symbolicator);
 
   g_clear_object (&symbolicator);
+
+  gum_symbol_cache_invalidator_stop (invalidator);
   g_clear_object (&invalidator);
 
   G_UNLOCK (symbolicator);
@@ -199,6 +206,10 @@ gum_pointer_array_new_take_addresses (GumAddress * addresses,
 static void
 gum_symbol_cache_invalidator_class_init (GumSymbolCacheInvalidatorClass * klass)
 {
+  GObjectClass * object_class = G_OBJECT_CLASS (klass);
+
+  object_class->dispose = gum_symbol_cache_invalidator_dispose;
+
   (void) GUM_IS_SYMBOL_CACHE_INVALIDATOR;
   (void) GUM_SYMBOL_CACHE_INVALIDATOR;
   (void) glib_autoptr_cleanup_GumSymbolCacheInvalidator;
@@ -217,18 +228,32 @@ static void
 gum_symbol_cache_invalidator_init (GumSymbolCacheInvalidator * self)
 {
   GumDarwinAllImageInfos infos;
-  GumInterceptor * interceptor;
 
-  if (!gum_darwin_query_all_image_infos (mach_task_self (), &infos))
-    return;
+  self->interceptor = gum_interceptor_obtain ();
 
-  interceptor = gum_interceptor_obtain ();
+  if (gum_darwin_query_all_image_infos (mach_task_self (), &infos))
+  {
+    gum_interceptor_attach_listener (self->interceptor,
+        GSIZE_TO_POINTER (infos.notification_address),
+        GUM_INVOCATION_LISTENER (self), NULL);
+  }
+}
 
-  gum_interceptor_attach_listener (interceptor,
-      GSIZE_TO_POINTER (infos.notification_address),
-      GUM_INVOCATION_LISTENER (self), NULL);
+static void
+gum_symbol_cache_invalidator_dispose (GObject * object)
+{
+  GumSymbolCacheInvalidator * self = GUM_SYMBOL_CACHE_INVALIDATOR (object);
 
-  g_object_unref (interceptor);
+  g_clear_object (&self->interceptor);
+
+  G_OBJECT_CLASS (gum_symbol_cache_invalidator_parent_class)->dispose (object);
+}
+
+static void
+gum_symbol_cache_invalidator_stop (GumSymbolCacheInvalidator * self)
+{
+  gum_interceptor_detach_listener (self->interceptor,
+      GUM_INVOCATION_LISTENER (self));
 }
 
 static void
