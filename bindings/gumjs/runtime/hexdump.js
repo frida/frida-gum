@@ -11,7 +11,7 @@ function hexdump(target, options) {
   const useAnsi = options.hasOwnProperty('ansi') ? options.ansi : false;
 
   let buffer;
-  let startAddress = NULL;
+  let defaultStartAddress = NULL;
   if (target instanceof ArrayBuffer) {
     if (length === undefined)
       length = target.byteLength;
@@ -22,13 +22,16 @@ function hexdump(target, options) {
     if (length === undefined)
       length = 256;
     buffer = Memory.readByteArray(target, length);
-    startAddress = target;
+    defaultStartAddress = target;
   }
+
+  const startAddress = options.hasOwnProperty('address') ? options.address : defaultStartAddress;
+  const endAddress = startAddress.add(length);
 
   const bytes = new Uint8Array(buffer);
 
   const columnPadding = '  ';
-  const leftColumnWidth = 8;
+  const leftColumnWidth = Math.max(endAddress.toString(16).length, 8);
   const hexLegend = ' 0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F';
   const asciiLegend = '0123456789ABCDEF';
 
@@ -49,7 +52,7 @@ function hexdump(target, options) {
 
   if (showHeader) {
     result.push(
-      '        ',
+      pad('        ', leftColumnWidth, ' '),
       columnPadding,
       hexLegend,
       columnPadding,

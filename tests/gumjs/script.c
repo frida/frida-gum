@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -1337,6 +1337,17 @@ SCRIPT_TESTCASE (basic_hexdump_functionality_is_available)
           "Hello hex world!\\n"
       "00000010  20 77 30 30 74 00                                "
           " w00t.\"");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var str = Memory.allocUtf8String(\"Hello hex world! w00t\");"
+      "send(hexdump(str, { address: uint64('0x100000000'), length: 22 }));");
+  EXPECT_SEND_MESSAGE_WITH ("\""
+      "            0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F  "
+          "0123456789ABCDEF\\n"
+      "100000000  48 65 6c 6c 6f 20 68 65 78 20 77 6f 72 6c 64 21  "
+          "Hello hex world!\\n"
+      "100000010  20 77 30 30 74 00                                "
+          " w00t.\"");
 }
 
 SCRIPT_TESTCASE (hexdump_supports_native_pointer_conforming_object)
@@ -1345,14 +1356,12 @@ SCRIPT_TESTCASE (hexdump_supports_native_pointer_conforming_object)
 
   COMPILE_AND_LOAD_SCRIPT (
       "var obj = { handle: " GUM_PTR_CONST "  };"
-      "send(hexdump(obj, { length: 16 }));", message);
+      "send(hexdump(obj, { address: NULL, length: 16 }));", message);
   EXPECT_SEND_MESSAGE_WITH ("\""
       "           0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F  "
           "0123456789ABCDEF\\n"
-      "%08" G_GSIZE_MODIFIER "x  "
-          "48 65 6c 6c 6f 20 68 65 78 20 77 6f 72 6c 64 21  "
-          "Hello hex world!\"",
-      message);
+      "00000000  48 65 6c 6c 6f 20 68 65 78 20 77 6f 72 6c 64 21  "
+          "Hello hex world!\"");
 }
 
 SCRIPT_TESTCASE (native_pointer_provides_is_null)
