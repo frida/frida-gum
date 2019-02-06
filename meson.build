@@ -256,6 +256,8 @@ if get_option('enable_gumjs')
     gumjs_extra_deps += [v8_dep]
     gumjs_extra_requires += ['v8-7.0']
   endif
+else
+  have_v8 = false
 endif
 
 configure_file(input: 'config.h.in',
