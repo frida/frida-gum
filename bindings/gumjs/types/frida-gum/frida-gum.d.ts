@@ -2399,7 +2399,7 @@ declare namespace ObjC {
     function choose(specifier: ChooseSpecifier, callbacks: EnumerateCallbacks<ObjC.Object>): void;
 
     /**
-     * Synchronous version of `chooseSync()`.
+     * Synchronous version of `choose()`.
      *
      * @param specifier What kind of objects to look for.
      */
