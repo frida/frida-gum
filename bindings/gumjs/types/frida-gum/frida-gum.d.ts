@@ -2396,6 +2396,47 @@ declare namespace ObjC {
      */
     function getBoundData(obj: ObjC.Object | NativePointer): any;
 
+    /**
+     * Enumerates loaded classes.
+     *
+     * @param callbacks Object with callbacks.
+     */
+    function enumerateLoadedClasses(callbacks: EnumerateLoadedClassesCallbacks): void;
+
+    /**
+     * Enumerates loaded classes.
+     *
+     * @param options Options customizing the enumeration.
+     * @param callbacks Object with callbacks.
+     */
+    function enumerateLoadedClasses(options: EnumerateLoadedClassesOptions, callbacks: EnumerateLoadedClassesCallbacks): void;
+
+    /**
+     * Synchronous version of `enumerateLoadedClasses()`.
+     *
+     * @param options Options customizing the enumeration.
+     */
+    function enumerateLoadedClassesSync(options?: EnumerateLoadedClassesOptions): EnumerateLoadedClassesResult;
+
+    interface EnumerateLoadedClassesOptions {
+        /**
+         * Limit enumeration to modules in the given module map.
+         */
+        ownedBy?: ModuleMap;
+    }
+
+    interface EnumerateLoadedClassesCallbacks {
+        onMatch: (name: string, owner: string) => void;
+        onComplete: () => void;
+    }
+
+    interface EnumerateLoadedClassesResult {
+        /**
+         * Class names grouped by name of owner module.
+         */
+        [owner: string]: string[];
+    }
+
     function choose(specifier: ChooseSpecifier, callbacks: EnumerateCallbacks<ObjC.Object>): void;
 
     /**
