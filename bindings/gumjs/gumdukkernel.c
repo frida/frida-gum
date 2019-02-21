@@ -8,8 +8,29 @@
 
 #include "gumdukmacros.h"
 
+typedef guint GumMemoryValueType;
 typedef struct _GumDukMatchContext GumDukMatchContext;
 typedef struct _GumKernelScanContext GumKernelScanContext;
+
+enum _GumMemoryValueType
+{
+  GUM_MEMORY_VALUE_S8,
+  GUM_MEMORY_VALUE_U8,
+  GUM_MEMORY_VALUE_S16,
+  GUM_MEMORY_VALUE_U16,
+  GUM_MEMORY_VALUE_S32,
+  GUM_MEMORY_VALUE_U32,
+  GUM_MEMORY_VALUE_S64,
+  GUM_MEMORY_VALUE_U64,
+  GUM_MEMORY_VALUE_LONG,
+  GUM_MEMORY_VALUE_ULONG,
+  GUM_MEMORY_VALUE_FLOAT,
+  GUM_MEMORY_VALUE_DOUBLE,
+  GUM_MEMORY_VALUE_BYTE_ARRAY,
+  GUM_MEMORY_VALUE_C_STRING,
+  GUM_MEMORY_VALUE_UTF8_STRING,
+  GUM_MEMORY_VALUE_UTF16_STRING
+};
 
 struct _GumDukMatchContext
 {
@@ -48,8 +69,50 @@ static gboolean gum_emit_module_range (
     const GumKernelModuleRangeDetails * details, GumDukMatchContext * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_alloc)
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_protect)
-GUMJS_DECLARE_FUNCTION (gumjs_kernel_read_byte_array)
-GUMJS_DECLARE_FUNCTION (gumjs_kernel_write_byte_array)
+
+static int gum_duk_kernel_read (GumMemoryValueType type,
+    const GumDukArgs * args);
+static int gum_duk_kernel_write (GumMemoryValueType type,
+    const GumDukArgs * args);
+
+#define GUMJS_DEFINE_MEMORY_READ(T) \
+  GUMJS_DEFINE_FUNCTION (gumjs_kernel_read_##T) \
+  { \
+    return gum_duk_kernel_read (GUM_MEMORY_VALUE_##T, args); \
+  }
+#define GUMJS_DEFINE_MEMORY_WRITE(T) \
+  GUMJS_DEFINE_FUNCTION (gumjs_kernel_write_##T) \
+  { \
+    return gum_duk_kernel_write (GUM_MEMORY_VALUE_##T, args); \
+  }
+#define GUMJS_DEFINE_MEMORY_READ_WRITE(T) \
+  GUMJS_DEFINE_MEMORY_READ (T); \
+  GUMJS_DEFINE_MEMORY_WRITE (T)
+
+#define GUMJS_EXPORT_MEMORY_READ(N, T) \
+  { "read" N, gumjs_kernel_read_##T, 2 }
+#define GUMJS_EXPORT_MEMORY_WRITE(N, T) \
+  { "write" N, gumjs_kernel_write_##T, 2 }
+#define GUMJS_EXPORT_MEMORY_READ_WRITE(N, T) \
+  GUMJS_EXPORT_MEMORY_READ (N, T), \
+  GUMJS_EXPORT_MEMORY_WRITE (N, T)
+
+GUMJS_DEFINE_MEMORY_READ_WRITE (S8)
+GUMJS_DEFINE_MEMORY_READ_WRITE (U8)
+GUMJS_DEFINE_MEMORY_READ_WRITE (S16)
+GUMJS_DEFINE_MEMORY_READ_WRITE (U16)
+GUMJS_DEFINE_MEMORY_READ_WRITE (S32)
+GUMJS_DEFINE_MEMORY_READ_WRITE (U32)
+GUMJS_DEFINE_MEMORY_READ_WRITE (S64)
+GUMJS_DEFINE_MEMORY_READ_WRITE (U64)
+GUMJS_DEFINE_MEMORY_READ_WRITE (LONG)
+GUMJS_DEFINE_MEMORY_READ_WRITE (ULONG)
+GUMJS_DEFINE_MEMORY_READ_WRITE (FLOAT)
+GUMJS_DEFINE_MEMORY_READ_WRITE (DOUBLE)
+GUMJS_DEFINE_MEMORY_READ_WRITE (BYTE_ARRAY)
+GUMJS_DEFINE_MEMORY_READ (C_STRING)
+GUMJS_DEFINE_MEMORY_READ_WRITE (UTF8_STRING)
+GUMJS_DEFINE_MEMORY_READ_WRITE (UTF16_STRING)
 
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_scan)
 static void gum_kernel_scan_context_free (GumKernelScanContext * ctx);
@@ -77,8 +140,27 @@ static const duk_function_list_entry gumjs_kernel_functions[] =
   { "enumerateModuleRanges", gumjs_kernel_enumerate_module_ranges, 3 },
   { "alloc", gumjs_kernel_alloc, 2 },
   { "protect", gumjs_kernel_protect, 3 },
-  { "readByteArray", gumjs_kernel_read_byte_array, 2 },
-  { "writeByteArray", gumjs_kernel_write_byte_array, 2 },
+
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("S8", S8),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("U8", U8),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("S16", S16),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("U16", U16),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("S32", S32),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("U32", U32),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("S64", S64),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("U64", U64),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("Short", S16),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("UShort", U16),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("Int", S32),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("UInt", U32),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("Long", LONG),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("ULong", ULONG),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("Float", FLOAT),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("Double", DOUBLE),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("ByteArray", BYTE_ARRAY),
+  GUMJS_EXPORT_MEMORY_READ ("CString", C_STRING),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("Utf8String", UTF8_STRING),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("Utf16String", UTF16_STRING),
 
   { "scan", gumjs_kernel_scan, 4 },
   { "scanSync", gumjs_kernel_scan_sync, 3 },
@@ -378,20 +460,64 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_protect)
   return 1;
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_kernel_read_byte_array)
+static int
+gum_duk_kernel_read (GumMemoryValueType type,
+                     const GumDukArgs * args)
 {
+  duk_context * ctx = args->ctx;
+  GumDukCore * core = args->core;
   GumAddress address;
-  gssize length;
+  gssize length = 0;
   gsize n_bytes_read;
 
   gum_duk_kernel_check_api_available (ctx);
 
-  _gum_duk_args_parse (args, "QZ", &address, &length);
+  switch (type)
+  {
+    case GUM_MEMORY_VALUE_BYTE_ARRAY:
+    case GUM_MEMORY_VALUE_C_STRING:
+    case GUM_MEMORY_VALUE_UTF8_STRING:
+    case GUM_MEMORY_VALUE_UTF16_STRING:
+      _gum_duk_args_parse (args, "QZ", &address, &length);
+      break;
+    default:
+      _gum_duk_args_parse (args, "Q", &address);
+      break;
+  }
 
   if (address == 0)
   {
     duk_push_null (ctx);
     return 1;
+  }
+
+  if (length == 0)
+  {
+    switch (type)
+    {
+      case GUM_MEMORY_VALUE_S8:
+      case GUM_MEMORY_VALUE_U8:
+        length = 1;
+        break;
+      case GUM_MEMORY_VALUE_S16:
+      case GUM_MEMORY_VALUE_U16:
+        length = 2;
+        break;
+      case GUM_MEMORY_VALUE_S32:
+      case GUM_MEMORY_VALUE_U32:
+      case GUM_MEMORY_VALUE_FLOAT:
+        length = 4;
+        break;
+      case GUM_MEMORY_VALUE_S64:
+      case GUM_MEMORY_VALUE_U64:
+      case GUM_MEMORY_VALUE_LONG:
+      case GUM_MEMORY_VALUE_ULONG:
+      case GUM_MEMORY_VALUE_DOUBLE:
+        length = 8;
+        break;
+      default:
+        break;
+    }
   }
 
   if (length > 0)
@@ -406,42 +532,246 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_read_byte_array)
           address);
     }
 
-    buffer_data = duk_push_fixed_buffer (ctx, n_bytes_read);
-    memcpy (buffer_data, data, n_bytes_read);
+    switch (type)
+    {
+      case GUM_MEMORY_VALUE_S8:
+        duk_push_number (ctx, *((gint8 *) data));
+        break;
+      case GUM_MEMORY_VALUE_U8:
+        duk_push_number (ctx, *((guint8 *) data));
+        break;
+      case GUM_MEMORY_VALUE_S16:
+        duk_push_number (ctx, *((gint16 *) data));
+        break;
+      case GUM_MEMORY_VALUE_U16:
+        duk_push_number (ctx, *((guint16 *) data));
+        break;
+      case GUM_MEMORY_VALUE_S32:
+        duk_push_number (ctx, *((gint32 *) data));
+        break;
+      case GUM_MEMORY_VALUE_U32:
+        duk_push_number (ctx, *((guint32 *) data));
+        break;
+      case GUM_MEMORY_VALUE_S64:
+        _gum_duk_push_int64 (ctx, *((gint64 *) data), core);
+        break;
+      case GUM_MEMORY_VALUE_U64:
+        _gum_duk_push_uint64 (ctx, *((guint64 *) data), core);
+        break;
+      case GUM_MEMORY_VALUE_LONG:
+        _gum_duk_push_int64 (ctx, *((glong *) data), core);
+        break;
+      case GUM_MEMORY_VALUE_ULONG:
+        _gum_duk_push_uint64 (ctx, *((gulong *) data), core);
+        break;
+      case GUM_MEMORY_VALUE_FLOAT:
+        duk_push_number (ctx, *((gfloat *) data));
+        break;
+      case GUM_MEMORY_VALUE_DOUBLE:
+        duk_push_number (ctx, *((gdouble *) data));
+        break;
+      case GUM_MEMORY_VALUE_BYTE_ARRAY:
+      {
+        buffer_data = duk_push_fixed_buffer (ctx, n_bytes_read);
+        memcpy (buffer_data, data, n_bytes_read);
+
+        duk_push_buffer_object (ctx, -1, 0, n_bytes_read,
+            DUK_BUFOBJ_ARRAYBUFFER);
+
+        duk_swap (ctx, -2, -1);
+        duk_pop (ctx);
+
+        break;
+      }
+      case GUM_MEMORY_VALUE_C_STRING:
+      {
+        gchar * str;
+
+        str = g_utf8_make_valid ((gchar *) data, length);
+        duk_push_string (ctx, str);
+        g_free (str);
+
+        break;
+      }
+      case GUM_MEMORY_VALUE_UTF8_STRING:
+      {
+        const gchar * end;
+        gchar * slice;
+
+        if (!g_utf8_validate ((gchar *) data, length, &end))
+        {
+          _gum_duk_throw (ctx, "can't decode byte 0x%02x in position %u",
+              (guint8) *end, (guint) (end - (gchar *) data));
+        }
+
+        slice = g_strndup ((gchar *) data, length);
+        duk_push_string (ctx, slice);
+        g_free (slice);
+
+        break;
+      }
+      case GUM_MEMORY_VALUE_UTF16_STRING:
+      {
+        gunichar2 * str_utf16;
+        gchar * str_utf8;
+        glong size;
+
+        str_utf16 = (gunichar2 *) data;
+
+        str_utf8 = g_utf16_to_utf8 (str_utf16, length, NULL, &size, NULL);
+        if (str_utf8 == NULL)
+          _gum_duk_throw (ctx, "invalid string");
+        duk_push_string (ctx, str_utf8);
+        g_free (str_utf8);
+
+        break;
+      }
+      default:
+        g_assert_not_reached ();
+    }
 
     g_free (data);
   }
-  else
+  else if (type == GUM_MEMORY_VALUE_BYTE_ARRAY)
   {
-    n_bytes_read = 0;
-
     duk_push_fixed_buffer (ctx, 0);
   }
-
-  duk_push_buffer_object (ctx, -1, 0, n_bytes_read, DUK_BUFOBJ_ARRAYBUFFER);
-
-  duk_swap (ctx, -2, -1);
-  duk_pop (ctx);
+  else
+  {
+    _gum_duk_throw (ctx, "please provide a length > 0");
+  }
 
   return 1;
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_kernel_write_byte_array)
+static int
+gum_duk_kernel_write (GumMemoryValueType type,
+                      const GumDukArgs * args)
 {
+  duk_context * ctx = args->ctx;
   GumAddress address;
+  gssize s = 0;
+  gsize u = 0;
+  gint64 s64 = 0;
+  guint64 u64 = 0;
+  gdouble number = 0;
+  gfloat number32 = 0;
   GBytes * bytes;
+  const gchar * str = NULL;
+  gunichar2 * str_utf16 = NULL;
   const guint8 * data;
-  gsize length;
+  gsize str_length = 0;
+  gsize length = 0;
   gboolean success;
 
   gum_duk_kernel_check_api_available (ctx);
 
-  _gum_duk_args_parse (args, "QB", &address, &bytes);
+  switch (type)
+  {
+    case GUM_MEMORY_VALUE_S8:
+    case GUM_MEMORY_VALUE_S16:
+    case GUM_MEMORY_VALUE_S32:
+      _gum_duk_args_parse (args, "Qz", &address, &s);
+      break;
+    case GUM_MEMORY_VALUE_U8:
+    case GUM_MEMORY_VALUE_U16:
+    case GUM_MEMORY_VALUE_U32:
+      _gum_duk_args_parse (args, "QZ", &address, &u);
+      break;
+    case GUM_MEMORY_VALUE_S64:
+    case GUM_MEMORY_VALUE_LONG:
+      _gum_duk_args_parse (args, "Qq", &address, &s64);
+      break;
+    case GUM_MEMORY_VALUE_U64:
+    case GUM_MEMORY_VALUE_ULONG:
+      _gum_duk_args_parse (args, "QQ", &address, &u64);
+      break;
+    case GUM_MEMORY_VALUE_FLOAT:
+    case GUM_MEMORY_VALUE_DOUBLE:
+      _gum_duk_args_parse (args, "Qn", &address, &number);
+      number32 = (gfloat) number;
+      break;
+    case GUM_MEMORY_VALUE_BYTE_ARRAY:
+      _gum_duk_args_parse (args, "QB", &address, &bytes);
+      break;
+    case GUM_MEMORY_VALUE_UTF8_STRING:
+    case GUM_MEMORY_VALUE_UTF16_STRING:
+      _gum_duk_args_parse (args, "Qs", &address, &str);
 
-  data = g_bytes_get_data (bytes, &length);
+      str_length = g_utf8_strlen (str, -1);
+      if (type == GUM_MEMORY_VALUE_UTF16_STRING)
+        str_utf16 = g_utf8_to_utf16 (str, -1, NULL, NULL, NULL);
+      break;
+    default:
+      g_assert_not_reached ();
+  }
+
+  switch (type)
+  {
+    case GUM_MEMORY_VALUE_S8:
+      data = (guint8 *) &s;
+      length = 1;
+      break;
+    case GUM_MEMORY_VALUE_U8:
+      data = (guint8 *) &u;
+      length = 1;
+      break;
+    case GUM_MEMORY_VALUE_S16:
+      data = (guint8 *) &s;
+      length = 2;
+      break;
+    case GUM_MEMORY_VALUE_U16:
+      data = (guint8 *) &u;
+      length = 2;
+      break;
+    case GUM_MEMORY_VALUE_S32:
+      data = (guint8 *) &s;
+      length = 4;
+      break;
+    case GUM_MEMORY_VALUE_U32:
+      data = (guint8 *) &u;
+      length = 4;
+      break;
+    case GUM_MEMORY_VALUE_LONG:
+    case GUM_MEMORY_VALUE_S64:
+      data = (guint8 *) &s64;
+      length = 8;
+      break;
+    case GUM_MEMORY_VALUE_ULONG:
+    case GUM_MEMORY_VALUE_U64:
+      data = (guint8 *) &u64;
+      length = 8;
+      break;
+    case GUM_MEMORY_VALUE_FLOAT:
+      data = (guint8 *) &number32;
+      length = 4;
+      break;
+    case GUM_MEMORY_VALUE_DOUBLE:
+      data = (guint8 *) &number;
+      length = 8;
+      break;
+    case GUM_MEMORY_VALUE_BYTE_ARRAY:
+      data = g_bytes_get_data (bytes, &length);
+      break;
+    case GUM_MEMORY_VALUE_UTF8_STRING:
+      data = (guint8 *) str;
+      length = g_utf8_offset_to_pointer (str, str_length) - str + 1;
+      break;
+    case GUM_MEMORY_VALUE_UTF16_STRING:
+      data = (guint8 *) str_utf16;
+      length = (str_length + 1) * sizeof (gunichar2);
+      break;
+    default:
+      g_assert_not_reached ();
+  }
+
+  if (length <= 0)
+    _gum_duk_throw (ctx, "please provide a length > 0");
+
   success = gum_kernel_write (address, data, length);
 
   g_bytes_unref (bytes);
+  g_free (str_utf16);
 
   if (!success)
   {
