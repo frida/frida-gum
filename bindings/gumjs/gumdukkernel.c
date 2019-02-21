@@ -765,22 +765,18 @@ gum_duk_kernel_write (GumMemoryValueType type,
       g_assert_not_reached ();
   }
 
-  if (length > 0)
-  {
-    success = gum_kernel_write (address, data, length);
-
-    g_bytes_unref (bytes);
-    g_free (str_utf16);
-
-    if (!success)
-    {
-      _gum_duk_throw (ctx, "access violation writing to 0x%" G_GINT64_MODIFIER "x",
-          address);
-    }
-  }
-  else
-  {
+  if (length <= 0)
     _gum_duk_throw (ctx, "please provide a length > 0");
+
+  success = gum_kernel_write (address, data, length);
+
+  g_bytes_unref (bytes);
+  g_free (str_utf16);
+
+  if (!success)
+  {
+    _gum_duk_throw (ctx, "access violation writing to 0x%" G_GINT64_MODIFIER "x",
+        address);
   }
 
   return 0;
