@@ -659,7 +659,7 @@ gum_duk_kernel_write (GumMemoryValueType type,
   GBytes * bytes = NULL;
   const gchar * str = NULL;
   gunichar2 * str_utf16 = NULL;
-  const guint8 * data;
+  const guint8 * data = NULL;
   gsize str_length = 0;
   gsize length = 0;
   gboolean success;
