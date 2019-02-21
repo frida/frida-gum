@@ -575,7 +575,8 @@ gum_duk_kernel_read (GumMemoryValueType type,
         buffer_data = duk_push_fixed_buffer (ctx, n_bytes_read);
         memcpy (buffer_data, data, n_bytes_read);
 
-        duk_push_buffer_object (ctx, -1, 0, n_bytes_read, DUK_BUFOBJ_ARRAYBUFFER);
+        duk_push_buffer_object (ctx, -1, 0, n_bytes_read,
+            DUK_BUFOBJ_ARRAYBUFFER);
 
         duk_swap (ctx, -2, -1);
         duk_pop (ctx);
@@ -615,7 +616,7 @@ gum_duk_kernel_read (GumMemoryValueType type,
         gchar * str_utf8;
         glong size;
 
-        str_utf16 = (gunichar2*) data;
+        str_utf16 = (gunichar2 *) data;
 
         str_utf8 = g_utf16_to_utf8 (str_utf16, length, NULL, &size, NULL);
         if (str_utf8 == NULL)
