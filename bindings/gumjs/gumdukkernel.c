@@ -649,14 +649,14 @@ gum_duk_kernel_write (GumMemoryValueType type,
                       const GumDukArgs * args)
 {
   duk_context * ctx = args->ctx;
-  GumAddress address;
+  GumAddress address = 0;
   gssize s = 0;
   gsize u = 0;
   gint64 s64 = 0;
   guint64 u64 = 0;
   gdouble number = 0;
   gfloat number32 = 0;
-  GBytes * bytes;
+  GBytes * bytes = NULL;
   const gchar * str = NULL;
   gunichar2 * str_utf16 = NULL;
   const guint8 * data;
