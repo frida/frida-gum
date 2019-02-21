@@ -516,7 +516,7 @@ gum_duk_kernel_read (GumMemoryValueType type,
         length = 8;
         break;
       default:
-        g_assert_not_reached ();
+        break;
     }
   }
 
@@ -530,7 +530,6 @@ gum_duk_kernel_read (GumMemoryValueType type,
     {
       _gum_duk_throw (ctx, "access violation reading 0x%" G_GINT64_MODIFIER "x",
           address);
-      return 1;
     }
 
     switch (type)
