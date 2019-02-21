@@ -573,8 +573,8 @@ gum_v8_kernel_read (GumMemoryValueType type,
           break;
         }
 
-        result = String::NewFromUtf8 (isolate, (gchar *) data, String::kNormalString,
-            length);
+        result = String::NewFromUtf8 (isolate, (gchar *) data,
+            String::kNormalString, length);
 
         break;
       }
