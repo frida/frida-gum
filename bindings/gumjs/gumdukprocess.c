@@ -47,6 +47,7 @@ struct _GumDukMatchContext
   GumDukHeapPtr on_complete;
 
   GumDukScope * scope;
+  GumDukProcess * module;
 };
 
 struct _GumDukFindRangeByAddressContext
@@ -97,12 +98,16 @@ static const duk_function_list_entry gumjs_process_functions[] =
 
 void
 _gum_duk_process_init (GumDukProcess * self,
+                       GumDukModule * module,
                        GumDukCore * core)
 {
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   duk_context * ctx = scope.ctx;
 
+  self->module = module;
   self->core = core;
+
+  _gum_duk_store_module_data (ctx, "process", self);
 
   duk_push_c_function (ctx, gumjs_process_construct, 0);
   duk_push_object (ctx);
@@ -143,6 +148,12 @@ _gum_duk_process_finalize (GumDukProcess * self)
 {
 }
 
+static GumDukProcess *
+gumjs_module_from_args (const GumDukArgs * args)
+{
+  return _gum_duk_load_module_data (args->ctx, "process");
+}
+
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_process_construct)
 {
   return 0;
@@ -169,6 +180,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_threads)
   _gum_duk_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
       &mc.on_complete);
   mc.scope = &scope;
+  mc.module = gumjs_module_from_args (args);
 
   gum_process_enumerate_threads ((GumFoundThreadFunc) gum_emit_thread, &mc);
   _gum_duk_scope_flush (&scope);
@@ -221,6 +233,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_modules)
   _gum_duk_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
       &mc.on_complete);
   mc.scope = &scope;
+  mc.module = gumjs_module_from_args (args);
 
   gum_process_enumerate_modules ((GumFoundModuleFunc) gum_emit_module, &mc);
   _gum_duk_scope_flush (&scope);
@@ -241,7 +254,7 @@ gum_emit_module (const GumModuleDetails * details,
   gboolean proceed = TRUE;
 
   duk_push_heapptr (ctx, mc->on_match);
-  _gum_duk_push_module (ctx, details, scope->core);
+  _gum_duk_push_module (ctx, details, mc->module->module);
 
   if (_gum_duk_scope_call_sync (scope, 1))
   {
@@ -304,6 +317,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_ranges)
   _gum_duk_args_parse (args, "mF{onMatch,onComplete}", &prot, &mc.on_match,
       &mc.on_complete);
   mc.scope = &scope;
+  mc.module = gumjs_module_from_args (args);
 
   gum_process_enumerate_ranges (prot, (GumFoundRangeFunc) gum_emit_range, &mc);
   _gum_duk_scope_flush (&scope);
@@ -353,6 +367,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
   _gum_duk_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
       &mc.on_complete);
   mc.scope = &scope;
+  mc.module = gumjs_module_from_args (args);
 
   gum_process_enumerate_malloc_ranges (
       (GumFoundMallocRangeFunc) gum_emit_malloc_range, &mc);

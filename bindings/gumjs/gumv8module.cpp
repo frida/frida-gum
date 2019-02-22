@@ -75,7 +75,7 @@ struct GumV8ModuleFilter
 {
   GumPersistent<Function>::type * callback;
 
-  GumV8Core * core;
+  GumV8Module * module;
 };
 
 GUMJS_DECLARE_FUNCTION (gumjs_module_ensure_initialized)
@@ -112,7 +112,7 @@ static void gum_v8_module_filter_free (GumV8ModuleFilter * filter);
 static gboolean gum_v8_module_filter_matches (const GumModuleDetails * details,
     GumV8ModuleFilter * self);
 
-static const GumV8Function gumjs_module_functions[] =
+static const GumV8Function gumjs_module_static_functions[] =
 {
   { "ensureInitialized", gumjs_module_ensure_initialized },
   { "_enumerateImports", gumjs_module_enumerate_imports },
@@ -148,8 +148,10 @@ _gum_v8_module_init (GumV8Module * self,
 
   auto module = External::New (isolate, self);
 
-  auto object = _gum_v8_create_module ("Module", scope, isolate);
-  _gum_v8_module_add (module, object, gumjs_module_functions, isolate);
+  auto klass = _gum_v8_create_class ("Module", nullptr, scope, module, isolate);
+  _gum_v8_class_add_static (klass, gumjs_module_static_functions, module,
+      isolate);
+  self->klass = new GumPersistent<FunctionTemplate>::type (isolate, klass);
 
   auto map = _gum_v8_create_class ("ModuleMap", gumjs_module_map_construct,
       scope, module, isolate);
@@ -205,6 +207,9 @@ _gum_v8_module_dispose (GumV8Module * self)
   g_hash_table_unref (self->maps);
   self->maps = NULL;
 
+  delete self->klass;
+  self->klass = nullptr;
+
   delete self->import_value;
   delete self->export_value;
   self->import_value = nullptr;
@@ -227,6 +232,25 @@ _gum_v8_module_dispose (GumV8Module * self)
 void
 _gum_v8_module_finalize (GumV8Module * self)
 {
+}
+
+Local<Object>
+_gum_v8_module_value_new (const GumModuleDetails * details,
+                          GumV8Module * module)
+{
+  auto core = module->core;
+  auto isolate = core->isolate;
+  auto context = isolate->GetCurrentContext ();
+
+  auto klass = Local<FunctionTemplate>::New (isolate, *module->klass);
+  auto value = klass->GetFunction ()->NewInstance (context, 0, nullptr)
+      .ToLocalChecked ();
+  _gum_v8_object_set_utf8 (value, "name", details->name, core);
+  _gum_v8_object_set_pointer (value, "base", details->range->base_address,
+      core);
+  _gum_v8_object_set_uint (value, "size", details->range->size, core);
+  _gum_v8_object_set_utf8 (value, "path", details->path, core);
+  return value;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_module_ensure_initialized)
@@ -622,7 +646,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_map_construct)
     filter = g_slice_new (GumV8ModuleFilter);
     filter->callback =
         new GumPersistent<Function>::type (isolate, filter_callback);
-    filter->core = core;
+    filter->module = module;
 
     handle = gum_module_map_new_filtered (
         (GumModuleMapFilterFunc) gum_v8_module_filter_matches,
@@ -657,7 +681,7 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_module_map_find, GumV8ModuleMap)
     return;
   }
 
-  info.GetReturnValue ().Set (_gum_v8_parse_module_details (details, core));
+  info.GetReturnValue ().Set (_gum_v8_module_value_new (details, module));
 }
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_module_map_find_name, GumV8ModuleMap)
@@ -765,10 +789,10 @@ static gboolean
 gum_v8_module_filter_matches (const GumModuleDetails * details,
                               GumV8ModuleFilter * self)
 {
-  auto core = self->core;
+  auto core = self->module->core;
   Isolate * isolate = core->isolate;
 
-  auto module = _gum_v8_parse_module_details (details, core);
+  auto module = _gum_v8_module_value_new (details, self->module);
 
   auto callback (Local<Function>::New (isolate, *self->callback));
   Handle<Value> argv[] = { module };

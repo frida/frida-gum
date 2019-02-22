@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -307,9 +307,10 @@ gum_v8_script_create_context (GumV8Script * self,
         isolate, global_templ);
     _gum_v8_kernel_init (&self->kernel, &self->core, global_templ);
     _gum_v8_memory_init (&self->memory, &self->core, global_templ);
-    _gum_v8_process_init (&self->process, &self->core, global_templ);
-    _gum_v8_thread_init (&self->thread, &self->core, global_templ);
     _gum_v8_module_init (&self->module, &self->core, global_templ);
+    _gum_v8_process_init (&self->process, &self->module, &self->core,
+        global_templ);
+    _gum_v8_thread_init (&self->thread, &self->core, global_templ);
     _gum_v8_file_init (&self->file, &self->core, global_templ);
     _gum_v8_stream_init (&self->stream, &self->core, global_templ);
     _gum_v8_socket_init (&self->socket, &self->core, global_templ);
@@ -332,9 +333,9 @@ gum_v8_script_create_context (GumV8Script * self,
     _gum_v8_core_realize (&self->core);
     _gum_v8_kernel_realize (&self->kernel);
     _gum_v8_memory_realize (&self->memory);
+    _gum_v8_module_realize (&self->module);
     _gum_v8_process_realize (&self->process);
     _gum_v8_thread_realize (&self->thread);
-    _gum_v8_module_realize (&self->module);
     _gum_v8_file_realize (&self->file);
     _gum_v8_stream_realize (&self->stream);
     _gum_v8_socket_realize (&self->socket);
@@ -399,9 +400,9 @@ gum_v8_script_destroy_context (GumV8Script * self)
     _gum_v8_socket_dispose (&self->socket);
     _gum_v8_stream_dispose (&self->stream);
     _gum_v8_file_dispose (&self->file);
-    _gum_v8_module_dispose (&self->module);
     _gum_v8_thread_dispose (&self->thread);
     _gum_v8_process_dispose (&self->process);
+    _gum_v8_module_dispose (&self->module);
     _gum_v8_memory_dispose (&self->memory);
     _gum_v8_kernel_dispose (&self->kernel);
     _gum_v8_core_dispose (&self->core);
@@ -426,9 +427,9 @@ gum_v8_script_destroy_context (GumV8Script * self)
   _gum_v8_socket_finalize (&self->socket);
   _gum_v8_stream_finalize (&self->stream);
   _gum_v8_file_finalize (&self->file);
-  _gum_v8_module_finalize (&self->module);
   _gum_v8_thread_finalize (&self->thread);
   _gum_v8_process_finalize (&self->process);
+  _gum_v8_module_finalize (&self->module);
   _gum_v8_memory_finalize (&self->memory);
   _gum_v8_kernel_finalize (&self->kernel);
   _gum_v8_core_finalize (&self->core);

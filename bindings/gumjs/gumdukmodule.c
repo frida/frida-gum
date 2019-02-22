@@ -23,7 +23,7 @@ struct _GumDukModuleFilter
 {
   GumDukHeapPtr callback;
 
-  GumDukCore * core;
+  GumDukModule * module;
 };
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_module_construct)
@@ -90,12 +90,13 @@ _gum_duk_module_init (GumDukModule * self,
 
   self->core = core;
 
+  _gum_duk_store_module_data (ctx, "module", self);
+
   duk_push_c_function (ctx, gumjs_module_construct, 0);
   duk_push_object (ctx);
-  duk_put_function_list (ctx, -1, gumjs_module_functions);
   duk_put_prop_string (ctx, -2, "prototype");
-  duk_new (ctx, 0);
-  _gum_duk_put_data (ctx, -1, self);
+  self->klass = _gum_duk_require_heapptr (ctx, -1);
+  duk_put_function_list (ctx, -1, gumjs_module_functions);
   duk_put_global_string (ctx, "Module");
 
   duk_push_c_function (ctx, gumjs_module_map_construct, 3);
@@ -110,11 +111,42 @@ _gum_duk_module_init (GumDukModule * self,
 void
 _gum_duk_module_dispose (GumDukModule * self)
 {
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (self->core);
+
+  _gum_duk_release_heapptr (scope.ctx, self->klass);
 }
 
 void
 _gum_duk_module_finalize (GumDukModule * self)
 {
+}
+
+void
+_gum_duk_push_module (duk_context * ctx,
+                      const GumModuleDetails * details,
+                      GumDukModule * module)
+{
+  duk_push_heapptr (ctx, module->klass);
+  duk_new (ctx, 0);
+
+  duk_push_string (ctx, details->name);
+  duk_put_prop_string (ctx, -2, "name");
+
+  _gum_duk_push_native_pointer (ctx,
+      GSIZE_TO_POINTER (details->range->base_address), module->core);
+  duk_put_prop_string (ctx, -2, "base");
+
+  duk_push_uint (ctx, details->range->size);
+  duk_put_prop_string (ctx, -2, "size");
+
+  duk_push_string (ctx, details->path);
+  duk_put_prop_string (ctx, -2, "path");
+}
+
+static GumDukModule *
+gumjs_module_from_args (const GumDukArgs * args)
+{
+  return _gum_duk_load_module_data (args->ctx, "module");
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_construct)
@@ -470,7 +502,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_map_construct)
     filter = g_slice_new (GumDukModuleFilter);
     _gum_duk_protect (ctx, filter_callback);
     filter->callback = filter_callback;
-    filter->core = args->core;
+    filter->module = gumjs_module_from_args (args);
 
     module_map = gum_module_map_new_filtered (
         (GumModuleMapFilterFunc) gum_duk_module_filter_matches,
@@ -530,7 +562,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_map_find)
     return 1;
   }
 
-  _gum_duk_push_module (ctx, details, args->core);
+  _gum_duk_push_module (ctx, details, gumjs_module_from_args (args));
   return 1;
 }
 
@@ -585,10 +617,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_map_update)
 GUMJS_DEFINE_FUNCTION (gumjs_module_map_copy_values)
 {
   GumModuleMap * self;
+  GumDukModule * module;
   const GArray * values;
   guint i;
 
   self = gumjs_module_map_from_args (args);
+  module = gumjs_module_from_args (args);
   values = gum_module_map_get_values (self);
 
   duk_push_array (ctx);
@@ -597,7 +631,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_map_copy_values)
     GumModuleDetails * details;
 
     details = &g_array_index (values, GumModuleDetails, i);
-    _gum_duk_push_module (ctx, details, args->core);
+    _gum_duk_push_module (ctx, details, module);
     duk_put_prop_index (ctx, -2, i);
   }
 
@@ -607,8 +641,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_map_copy_values)
 static void
 gum_duk_module_filter_free (GumDukModuleFilter * filter)
 {
-  GumDukCore * core = filter->core;
-  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (filter->module->core);
 
   _gum_duk_unprotect (scope.ctx, filter->callback);
 
@@ -619,13 +652,13 @@ static gboolean
 gum_duk_module_filter_matches (const GumModuleDetails * details,
                                GumDukModuleFilter * self)
 {
-  GumDukCore * core = self->core;
-  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+  GumDukModule * module = self->module;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (module->core);
   duk_context * ctx = scope.ctx;
   gboolean result = FALSE;
 
   duk_push_heapptr (ctx, self->callback);
-  _gum_duk_push_module (ctx, details, core);
+  _gum_duk_push_module (ctx, details, module);
   if (_gum_duk_scope_call (&scope, 1))
   {
     result = duk_is_boolean (ctx, -1) && duk_require_boolean (ctx, -1);

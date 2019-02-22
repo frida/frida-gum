@@ -2763,15 +2763,22 @@ SCRIPT_TESTCASE (process_malloc_ranges_can_be_enumerated_legacy_style)
 SCRIPT_TESTCASE (module_imports_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var imports = Module.enumerateImports(\"" GUM_TESTS_MODULE_NAME "\");"
-      "send(imports.length > 0);");
+      "var imports = Process.getModuleByName('%s').enumerateImports();"
+      "send(imports.length > 0);",
+      GUM_TESTS_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
 SCRIPT_TESTCASE (module_imports_can_be_enumerated_legacy_style)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "Module.enumerateImports(\"" GUM_TESTS_MODULE_NAME "\", {"
+      "var imports = Module.enumerateImports('%s');"
+      "send(imports.length > 0);",
+      GUM_TESTS_MODULE_NAME);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Module.enumerateImports('%s', {"
         "onMatch: function (imp) {"
         "  send('onMatch');"
         "  return 'stop';"
@@ -2779,20 +2786,22 @@ SCRIPT_TESTCASE (module_imports_can_be_enumerated_legacy_style)
         "onComplete: function () {"
         "  send('onComplete');"
         "}"
-      "});");
+      "});",
+      GUM_TESTS_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 
   COMPILE_AND_LOAD_SCRIPT (
-      "send(Module.enumerateImportsSync(\"" GUM_TESTS_MODULE_NAME "\")"
-      ".length > 1);");
+      "var imports = Module.enumerateImportsSync('%s');"
+      "send(imports.length > 0);",
+      GUM_TESTS_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
 SCRIPT_TESTCASE (module_exports_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var exports = Module.enumerateExports(\"%s\");"
+      "var exports = Process.getModuleByName('%s').enumerateExports();"
       "send(exports.length > 0);"
       "var e = exports[0];"
       "send(typeof e.type === 'string');"
@@ -2810,7 +2819,13 @@ SCRIPT_TESTCASE (module_exports_can_be_enumerated)
 SCRIPT_TESTCASE (module_exports_can_be_enumerated_legacy_style)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "Module.enumerateExports(\"%s\", {"
+      "var exports = Module.enumerateExports('%s');"
+      "send(exports.length > 0);",
+      SYSTEM_MODULE_NAME);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Module.enumerateExports('%s', {"
         "onMatch: function (exp) {"
         "  send('onMatch');"
         "  return 'stop';"
@@ -2824,7 +2839,8 @@ SCRIPT_TESTCASE (module_exports_can_be_enumerated_legacy_style)
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 
   COMPILE_AND_LOAD_SCRIPT (
-      "send(Module.enumerateExportsSync(\"%s\").length > 1);",
+      "var exports = Module.enumerateExportsSync('%s');"
+      "send(exports.length > 0);",
       SYSTEM_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
@@ -2835,8 +2851,9 @@ SCRIPT_TESTCASE (module_exports_enumeration_performance)
   gint duration;
 
   COMPILE_AND_LOAD_SCRIPT (
+      "var module = Process.getModuleByName('%s');"
       "var start = Date.now();"
-      "Module.enumerateExports(\"%s\");"
+      "module.enumerateExports();"
       "send(Date.now() - start);",
       SYSTEM_MODULE_NAME);
   item = test_script_fixture_pop_message (fixture);
@@ -2849,7 +2866,7 @@ SCRIPT_TESTCASE (module_symbols_can_be_enumerated)
 {
 #if defined (HAVE_DARWIN) || defined (HAVE_LINUX)
   COMPILE_AND_LOAD_SCRIPT (
-      "var symbols = Module.enumerateSymbols(\"%s\");"
+      "var symbols = Process.getModuleByName('%s').enumerateSymbols();"
       "send(symbols.length > 0);"
       "var s = symbols[0];"
       "send(typeof s.isGlobal === 'boolean');"
@@ -2864,14 +2881,22 @@ SCRIPT_TESTCASE (module_symbols_can_be_enumerated)
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
+#else
+  g_print ("<skipping on this platform> ");
 #endif
 }
 
 SCRIPT_TESTCASE (module_symbols_can_be_enumerated_legacy_style)
 {
-#ifdef HAVE_DARWIN
+#if defined (HAVE_DARWIN) || defined (HAVE_LINUX)
   COMPILE_AND_LOAD_SCRIPT (
-      "Module.enumerateSymbols(\"%s\", {"
+      "var symbols = Module.enumerateSymbols('%s');"
+      "send(symbols.length > 0);",
+      GUM_TESTS_MODULE_NAME);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Module.enumerateSymbols('%s', {"
         "onMatch: function (sym) {"
         "  send('onMatch');"
         "  return 'stop';"
@@ -2885,16 +2910,19 @@ SCRIPT_TESTCASE (module_symbols_can_be_enumerated_legacy_style)
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 
   COMPILE_AND_LOAD_SCRIPT (
-      "send(Module.enumerateSymbolsSync(\"%s\").length > 1);",
+      "var symbols = Module.enumerateSymbolsSync('%s');"
+      "send(symbols.length > 0);",
       GUM_TESTS_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("true");
+#else
+  g_print ("<skipping on this platform> ");
 #endif
 }
 
 SCRIPT_TESTCASE (module_ranges_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var ranges = Module.enumerateRanges(\"%s\", '--x');"
+      "var ranges = Process.getModuleByName('%s').enumerateRanges('--x');"
       "send(ranges.length > 0);",
       SYSTEM_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("true");
@@ -2903,7 +2931,13 @@ SCRIPT_TESTCASE (module_ranges_can_be_enumerated)
 SCRIPT_TESTCASE (module_ranges_can_be_enumerated_legacy_style)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "Module.enumerateRanges(\"%s\", '--x', {"
+      "var ranges = Module.enumerateRanges('%s', '--x');"
+      "send(ranges.length > 0);",
+      SYSTEM_MODULE_NAME);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Module.enumerateRanges('%s', '--x', {"
         "onMatch: function (range) {"
         "  send('onMatch');"
         "  return 'stop';"
@@ -2917,7 +2951,8 @@ SCRIPT_TESTCASE (module_ranges_can_be_enumerated_legacy_style)
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 
   COMPILE_AND_LOAD_SCRIPT (
-      "send(Module.enumerateRangesSync(\"%s\", '--x').length > 0);",
+      "var ranges = Module.enumerateRangesSync('%s', '--x');"
+      "send(ranges.length > 0);",
       SYSTEM_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
@@ -2925,7 +2960,8 @@ SCRIPT_TESTCASE (module_ranges_can_be_enumerated_legacy_style)
 SCRIPT_TESTCASE (module_base_address_can_be_found)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "send(Module.findBaseAddress('%s') !== null);", SYSTEM_MODULE_NAME);
+      "send(Module.findBaseAddress('%s') !== null);",
+      SYSTEM_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 

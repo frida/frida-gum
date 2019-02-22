@@ -159,11 +159,6 @@ makeEnumerateApi(Kernel, 'enumerateModules', 0);
 makeEnumerateRanges(Kernel);
 makeEnumerateApi(Kernel, 'enumerateModuleRanges', 2);
 
-makeEnumerateApi(Process, 'enumerateThreads', 0);
-makeEnumerateApi(Process, 'enumerateModules', 0);
-makeEnumerateRanges(Process);
-makeEnumerateApi(Process, 'enumerateMallocRanges', 0);
-
 Object.defineProperties(Memory, {
   dup: {
     enumerable: true,
@@ -181,6 +176,73 @@ Object.defineProperties(Memory, {
     }
   },
 });
+
+makeEnumerateApi(Module, 'enumerateImports', 1);
+makeEnumerateApi(Module, 'enumerateExports', 1);
+makeEnumerateApi(Module, 'enumerateSymbols', 1);
+makeEnumerateApi(Module, 'enumerateRanges', 2);
+
+Object.defineProperties(Module.prototype, {
+  enumerateImports: {
+    enumerable: true,
+    value: function () {
+      return Module.enumerateImports(this.path);
+    }
+  },
+  enumerateExports: {
+    enumerable: true,
+    value: function () {
+      return Module.enumerateExports(this.path);
+    }
+  },
+  enumerateSymbols: {
+    enumerable: true,
+    value: function () {
+      return Module.enumerateSymbols(this.path);
+    }
+  },
+  enumerateRanges: {
+    enumerable: true,
+    value: function (protection) {
+      return Module.enumerateRanges(this.path, protection);
+    }
+  },
+});
+
+Object.defineProperties(ModuleMap.prototype, {
+  get: {
+    enumerable: true,
+    value: function (address) {
+      const details = this.find(address);
+      if (details === null)
+        throw new Error('unable to find module containing ' + address);
+      return details;
+    }
+  },
+  getName: {
+    enumerable: true,
+    value: function (address) {
+      const name = this.findName(address);
+      if (name === null)
+        throw new Error('unable to find module containing ' + address);
+      return name;
+    }
+  },
+  getPath: {
+    enumerable: true,
+    value: function (address) {
+      const path = this.findPath(address);
+      if (path === null)
+        throw new Error('unable to find module containing ' + address);
+      return path;
+    }
+  },
+});
+
+makeEnumerateApi(Process, 'enumerateThreads', 0);
+makeEnumerateApi(Process, 'enumerateModules', 0);
+makeEnumerateRanges(Process);
+makeEnumerateApi(Process, 'enumerateMallocRanges', 0);
 
 Object.defineProperties(Process, {
   findModuleByAddress: {
@@ -268,41 +330,6 @@ if (Process.findRangeByAddress === undefined) {
     }
   });
 }
-
-makeEnumerateApi(Module, 'enumerateImports', 1);
-makeEnumerateApi(Module, 'enumerateExports', 1);
-makeEnumerateApi(Module, 'enumerateSymbols', 1);
-makeEnumerateApi(Module, 'enumerateRanges', 2);
-
-Object.defineProperties(ModuleMap.prototype, {
-  get: {
-    enumerable: true,
-    value: function (address) {
-      const details = this.find(address);
-      if (details === null)
-        throw new Error('unable to find module containing ' + address);
-      return details;
-    }
-  },
-  getName: {
-    enumerable: true,
-    value: function (address) {
-      const name = this.findName(address);
-      if (name === null)
-        throw new Error('unable to find module containing ' + address);
-      return name;
-    }
-  },
-  getPath: {
-    enumerable: true,
-    value: function (address) {
-      const path = this.findPath(address);
-      if (path === null)
-        throw new Error('unable to find module containing ' + address);
-      return path;
-    }
-  },
-});
 
 Object.defineProperties(Interceptor, {
   attach: {

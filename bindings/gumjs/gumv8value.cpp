@@ -1330,19 +1330,6 @@ gum_exception_type_to_string (GumExceptionType type)
 }
 
 Local<Object>
-_gum_v8_parse_module_details (const GumModuleDetails * details,
-                              GumV8Core * core)
-{
-  auto module = Object::New (core->isolate);
-  _gum_v8_object_set_utf8 (module, "name", details->name, core);
-  _gum_v8_object_set_pointer (module, "base", details->range->base_address,
-      core);
-  _gum_v8_object_set_uint (module, "size", details->range->size, core);
-  _gum_v8_object_set_utf8 (module, "path", details->path, core);
-  return module;
-}
-
-Local<Object>
 _gum_v8_cpu_context_new_immutable (const GumCpuContext * cpu_context,
                                    GumV8Core * core)
 {

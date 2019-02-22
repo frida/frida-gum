@@ -1434,27 +1434,6 @@ _gum_duk_push_exception_details (duk_context * ctx,
 }
 
 void
-_gum_duk_push_module (duk_context * ctx,
-                      const GumModuleDetails * details,
-                      GumDukCore * core)
-{
-  duk_push_object (ctx);
-
-  duk_push_string (ctx, details->name);
-  duk_put_prop_string (ctx, -2, "name");
-
-  _gum_duk_push_native_pointer (ctx,
-      GSIZE_TO_POINTER (details->range->base_address), core);
-  duk_put_prop_string (ctx, -2, "base");
-
-  duk_push_uint (ctx, details->range->size);
-  duk_put_prop_string (ctx, -2, "size");
-
-  duk_push_string (ctx, details->path);
-  duk_put_prop_string (ctx, -2, "path");
-}
-
-void
 _gum_duk_push_range (duk_context * ctx,
                      const GumRangeDetails * details,
                      GumDukCore * core)

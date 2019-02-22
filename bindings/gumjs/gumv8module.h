@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -14,6 +14,8 @@ struct GumV8Module
   GumV8Core * core;
 
   GHashTable * maps;
+
+  GumPersistent<v8::FunctionTemplate>::type * klass;
 
   GumPersistent<v8::Object>::type * import_value;
   GumPersistent<v8::Object>::type * export_value;
@@ -31,5 +33,8 @@ G_GNUC_INTERNAL void _gum_v8_module_init (GumV8Module * self,
 G_GNUC_INTERNAL void _gum_v8_module_realize (GumV8Module * self);
 G_GNUC_INTERNAL void _gum_v8_module_dispose (GumV8Module * self);
 G_GNUC_INTERNAL void _gum_v8_module_finalize (GumV8Module * self);
+
+G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_module_value_new (
+    const GumModuleDetails * details, GumV8Module * module);
 
 #endif

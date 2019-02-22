@@ -49,7 +49,7 @@ struct GumV8MatchContext
   Local<Function> on_match;
   Local<Function> on_complete;
 
-  GumV8Core * core;
+  GumV8Process * parent;
 
   gboolean has_pending_exception;
 };
@@ -92,14 +92,14 @@ static const GumV8Function gumjs_process_functions[] =
 
 void
 _gum_v8_process_init (GumV8Process * self,
+                      GumV8Module * module,
                       GumV8Core * core,
                       Handle<ObjectTemplate> scope)
 {
   auto isolate = core->isolate;
 
+  self->module = module;
   self->core = core;
-
-  auto module = External::New (isolate, self);
 
   auto process = _gum_v8_create_module ("Process", scope, isolate);
   process->Set (_gum_v8_string_new_ascii (isolate, "id"),
@@ -115,7 +115,8 @@ _gum_v8_process_init (GumV8Process * self,
   process->Set (_gum_v8_string_new_ascii (isolate, "codeSigningPolicy"),
       String::NewFromUtf8 (isolate, gum_code_signing_policy_to_string (
       gum_process_get_code_signing_policy ())), ReadOnly);
-  _gum_v8_module_add (module, process, gumjs_process_functions, isolate);
+  _gum_v8_module_add (External::New (isolate, self), process,
+      gumjs_process_functions, isolate);
 }
 
 void
@@ -156,7 +157,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_threads)
   if (!_gum_v8_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
       &mc.on_complete))
     return;
-  mc.core = core;
+  mc.parent = module;
 
   mc.has_pending_exception = FALSE;
 
@@ -172,7 +173,7 @@ static gboolean
 gum_emit_thread (const GumThreadDetails * details,
                  GumV8MatchContext * mc)
 {
-  auto core = mc->core;
+  auto core = mc->parent->core;
   auto isolate = core->isolate;
 
   auto thread = Object::New (isolate);
@@ -208,7 +209,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_modules)
   if (!_gum_v8_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
       &mc.on_complete))
     return;
-  mc.core = core;
+  mc.parent = module;
 
   mc.has_pending_exception = FALSE;
 
@@ -224,10 +225,10 @@ static gboolean
 gum_emit_module (const GumModuleDetails * details,
                  GumV8MatchContext * mc)
 {
-  auto core = mc->core;
+  auto core = mc->parent->core;
   auto isolate = core->isolate;
 
-  auto module = _gum_v8_parse_module_details (details, core);
+  auto module = _gum_v8_module_value_new (details, mc->parent->module);
 
   Handle<Value> argv[] = { module };
   auto result =
@@ -252,7 +253,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_ranges)
   if (!_gum_v8_args_parse (args, "mF{onMatch,onComplete}", &prot, &mc.on_match,
       &mc.on_complete))
     return;
-  mc.core = core;
+  mc.parent = module;
 
   mc.has_pending_exception = FALSE;
 
@@ -268,7 +269,7 @@ static gboolean
 gum_emit_range (const GumRangeDetails * details,
                 GumV8MatchContext * mc)
 {
-  auto core = mc->core;
+  auto core = mc->parent->core;
   auto isolate = core->isolate;
 
   auto range = Object::New (isolate);
@@ -314,7 +315,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
   if (!_gum_v8_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
       &mc.on_complete))
     return;
-  mc.core = core;
+  mc.parent = module;
 
   mc.has_pending_exception = FALSE;
 
@@ -331,7 +332,7 @@ static gboolean
 gum_emit_malloc_range (const GumMallocRangeDetails * details,
                        GumV8MatchContext * mc)
 {
-  auto core = mc->core;
+  auto core = mc->parent->core;
   auto isolate = core->isolate;
 
   auto range = Object::New (isolate);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -75,9 +75,9 @@ struct _GumDukScript
   GumDukCore core;
   GumDukKernel kernel;
   GumDukMemory memory;
+  GumDukModule module;
   GumDukProcess process;
   GumDukThread thread;
-  GumDukModule module;
   GumDukFile file;
   GumDukStream stream;
   GumDukSocket socket;
@@ -459,9 +459,9 @@ gum_duk_script_create_context (GumDukScript * self,
 
   _gum_duk_kernel_init (&self->kernel, core);
   _gum_duk_memory_init (&self->memory, core);
-  _gum_duk_process_init (&self->process, core);
-  _gum_duk_thread_init (&self->thread, core);
   _gum_duk_module_init (&self->module, core);
+  _gum_duk_process_init (&self->process, &self->module, core);
+  _gum_duk_thread_init (&self->thread, core);
   _gum_duk_file_init (&self->file, core);
   _gum_duk_stream_init (&self->stream, core);
   _gum_duk_socket_init (&self->socket, core);
@@ -504,9 +504,9 @@ gum_duk_script_destroy_context (GumDukScript * self)
     _gum_duk_socket_dispose (&self->socket);
     _gum_duk_stream_dispose (&self->stream);
     _gum_duk_file_dispose (&self->file);
-    _gum_duk_module_dispose (&self->module);
     _gum_duk_thread_dispose (&self->thread);
     _gum_duk_process_dispose (&self->process);
+    _gum_duk_module_dispose (&self->module);
     _gum_duk_memory_dispose (&self->memory);
     _gum_duk_kernel_dispose (&self->kernel);
     _gum_duk_core_dispose (core);
@@ -540,9 +540,9 @@ gum_duk_script_destroy_context (GumDukScript * self)
   _gum_duk_socket_finalize (&self->socket);
   _gum_duk_stream_finalize (&self->stream);
   _gum_duk_file_finalize (&self->file);
-  _gum_duk_module_finalize (&self->module);
   _gum_duk_thread_finalize (&self->thread);
   _gum_duk_process_finalize (&self->process);
+  _gum_duk_module_finalize (&self->module);
   _gum_duk_memory_finalize (&self->memory);
   _gum_duk_kernel_finalize (&self->kernel);
   _gum_duk_core_finalize (core);
