@@ -3313,6 +3313,8 @@ invoke_target_function_int_worker (gpointer data)
 
 SCRIPT_TESTCASE (message_can_be_logged)
 {
+  DISABLE_LOG_MESSAGE_HANDLING ();
+
   COMPILE_AND_LOAD_SCRIPT ("console.log('Hello', undefined, null, 1337, "
       "'world', true, { color: 'pink' });");
   EXPECT_LOG_MESSAGE_WITH ("info", "Hello undefined null 1337 world "
