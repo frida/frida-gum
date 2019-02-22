@@ -33,6 +33,7 @@
 #endif
 
 typedef struct _GumDukMatchContext GumDukMatchContext;
+typedef struct _GumDukFindModuleByNameContext GumDukFindModuleByNameContext;
 typedef struct _GumDukFindRangeByAddressContext GumDukFindRangeByAddressContext;
 
 struct _GumDukExceptionHandler
@@ -50,6 +51,14 @@ struct _GumDukMatchContext
   GumDukProcess * module;
 };
 
+struct _GumDukFindModuleByNameContext
+{
+  const gchar * name;
+  gboolean name_is_canonical;
+
+  GumDukProcess * module;
+};
+
 struct _GumDukFindRangeByAddressContext
 {
   GumAddress address;
@@ -63,6 +72,9 @@ GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_thread_id)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_threads)
 static gboolean gum_emit_thread (const GumThreadDetails * details,
     GumDukMatchContext * mc);
+GUMJS_DECLARE_FUNCTION (gumjs_process_find_module_by_name)
+static gboolean gum_push_module_if_name_matches (
+    const GumModuleDetails * details, GumDukFindModuleByNameContext * fc);
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_modules)
 static gboolean gum_emit_module (const GumModuleDetails * details,
     GumDukMatchContext * mc);
@@ -87,6 +99,7 @@ static const duk_function_list_entry gumjs_process_functions[] =
   { "isDebuggerAttached", gumjs_process_is_debugger_attached, 0 },
   { "getCurrentThreadId", gumjs_process_get_current_thread_id, 0 },
   { "_enumerateThreads", gumjs_process_enumerate_threads, 1 },
+  { "findModuleByName", gumjs_process_find_module_by_name, 1 },
   { "_enumerateModules", gumjs_process_enumerate_modules, 1 },
   { "findRangeByAddress", gumjs_process_find_range_by_address, 1 },
   { "_enumerateRanges", gumjs_process_enumerate_ranges, 2 },
@@ -221,6 +234,46 @@ gum_emit_thread (const GumThreadDetails * details,
     proceed = FALSE;
   }
   duk_pop (ctx);
+
+  return proceed;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_process_find_module_by_name)
+{
+  GumDukFindModuleByNameContext fc;
+
+  _gum_duk_args_parse (args, "s", &fc.name);
+  fc.name_is_canonical = g_path_is_absolute (fc.name);
+  fc.module = gumjs_module_from_args (args);
+
+  duk_push_null (ctx);
+
+  gum_process_enumerate_modules (
+      (GumFoundModuleFunc) gum_push_module_if_name_matches, &fc);
+
+  return 1;
+}
+
+static gboolean
+gum_push_module_if_name_matches (const GumModuleDetails * details,
+                                 GumDukFindModuleByNameContext * fc)
+{
+  gboolean proceed = TRUE;
+  const gchar * key;
+
+  key = fc->name_is_canonical ? details->path : details->name;
+
+  if (strcmp (key, fc->name) == 0)
+  {
+    GumDukProcess * module = fc->module;
+    GumDukScope scope = GUM_DUK_SCOPE_INIT (module->core);
+    duk_context * ctx = scope.ctx;
+
+    duk_pop (ctx);
+    _gum_duk_push_module (ctx, details, module->module);
+
+    proceed = FALSE;
+  }
 
   return proceed;
 }

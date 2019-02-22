@@ -272,24 +272,6 @@ Object.defineProperties(Process, {
       return module;
     }
   },
-  findModuleByName: {
-    enumerable: true,
-    value: function (name) {
-      let module = null;
-      const nameLowercase = name.toLowerCase();
-      Process._enumerateModules({
-        onMatch(m) {
-          if (m.name.toLowerCase() === nameLowercase) {
-            module = m;
-            return 'stop';
-          }
-        },
-        onComplete() {
-        }
-      });
-      return module;
-    }
-  },
   getModuleByName: {
     enumerable: true,
     value: function (name) {

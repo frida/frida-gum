@@ -54,11 +54,24 @@ struct GumV8MatchContext
   gboolean has_pending_exception;
 };
 
+struct GumV8FindModuleByNameContext
+{
+  gchar * name;
+  gboolean name_is_canonical;
+
+  Local<Object> module;
+
+  GumV8Process * parent;
+};
+
 GUMJS_DECLARE_FUNCTION (gumjs_process_is_debugger_attached)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_thread_id)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_threads)
 static gboolean gum_emit_thread (const GumThreadDetails * details,
     GumV8MatchContext * mc);
+GUMJS_DECLARE_FUNCTION (gumjs_process_find_module_by_name)
+static gboolean gum_store_module_if_name_matches (
+    const GumModuleDetails * details, GumV8FindModuleByNameContext * fc);
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_modules)
 static gboolean gum_emit_module (const GumModuleDetails * details,
     GumV8MatchContext * mc);
@@ -82,6 +95,7 @@ static const GumV8Function gumjs_process_functions[] =
   { "isDebuggerAttached", gumjs_process_is_debugger_attached },
   { "getCurrentThreadId", gumjs_process_get_current_thread_id },
   { "_enumerateThreads", gumjs_process_enumerate_threads },
+  { "findModuleByName", gumjs_process_find_module_by_name },
   { "_enumerateModules", gumjs_process_enumerate_modules },
   { "_enumerateRanges", gumjs_process_enumerate_ranges },
   { "_enumerateMallocRanges", gumjs_process_enumerate_malloc_ranges },
@@ -199,6 +213,43 @@ gum_emit_thread (const GumThreadDetails * details,
 
   _gum_v8_cpu_context_free_later (
       new GumPersistent<Object>::type (isolate, cpu_context), core);
+
+  return proceed;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_process_find_module_by_name)
+{
+  GumV8FindModuleByNameContext fc;
+  if (!_gum_v8_args_parse (args, "s", &fc.name))
+    return;
+  fc.name_is_canonical = g_path_is_absolute (fc.name);
+  fc.parent = module;
+
+  gum_process_enumerate_modules (
+      (GumFoundModuleFunc) gum_store_module_if_name_matches, &fc);
+
+  if (!fc.module.IsEmpty ())
+    info.GetReturnValue ().Set (fc.module);
+  else
+    info.GetReturnValue ().SetNull ();
+
+  g_free (fc.name);
+}
+
+static gboolean
+gum_store_module_if_name_matches (const GumModuleDetails * details,
+                                  GumV8FindModuleByNameContext * fc)
+{
+  gboolean proceed = TRUE;
+
+  const gchar * key = fc->name_is_canonical ? details->path : details->name;
+
+  if (strcmp (key, fc->name) == 0)
+  {
+    fc->module = _gum_v8_module_value_new (details, fc->parent->module);
+
+    proceed = FALSE;
+  }
 
   return proceed;
 }
