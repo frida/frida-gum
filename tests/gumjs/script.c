@@ -4851,6 +4851,44 @@ SCRIPT_TESTCASE (utf16_string_can_be_allocated)
 
 #ifdef G_OS_WIN32
 
+#ifdef G_OS_ACP_936
+
+SCRIPT_TESTCASE (ansi_string_can_be_read)
+{
+  const gchar * str_utf8 = "test测试.";
+  gunichar2 * str_utf16 = g_utf8_to_utf16 (str_utf8, -1, NULL, NULL, NULL);
+  gchar str[64];
+  WideCharToMultiByte (CP_THREAD_ACP, 0, (LPCWSTR) str_utf16, -1,
+      (LPSTR) str, sizeof (str), NULL, NULL);
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(" GUM_PTR_CONST "));",
+      str);
+  EXPECT_SEND_MESSAGE_WITH ("\"test测试."");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(" GUM_PTR_CONST
+      ", 5));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"test测\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(" GUM_PTR_CONST
+      ", 0));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(" GUM_PTR_CONST
+      ", -1));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"test测试.\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(" GUM_PTR_CONST
+      ", int64(-1)));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"test测试.\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(ptr(\"0\")));", str);
+  EXPECT_SEND_MESSAGE_WITH ("null");
+
+  g_free (str_utf16);
+}
+
+#else
+
 SCRIPT_TESTCASE (ansi_string_can_be_read)
 {
   const gchar * str_utf8 = "Bjørheimsbygd";
@@ -4884,6 +4922,8 @@ SCRIPT_TESTCASE (ansi_string_can_be_read)
 
   g_free (str_utf16);
 }
+
+#endif
 
 SCRIPT_TESTCASE (ansi_string_can_be_written)
 {
