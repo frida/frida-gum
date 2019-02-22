@@ -144,9 +144,9 @@ static const GumV8Property gumjs_kernel_values[] =
 
 static const GumV8Function gumjs_kernel_functions[] =
 {
-  { "enumerateModules", gumjs_kernel_enumerate_modules },
+  { "_enumerateModules", gumjs_kernel_enumerate_modules },
   { "_enumerateRanges", gumjs_kernel_enumerate_ranges },
-  { "enumerateModuleRanges", gumjs_kernel_enumerate_module_ranges },
+  { "_enumerateModuleRanges", gumjs_kernel_enumerate_module_ranges },
   { "alloc", gumjs_kernel_alloc },
   { "protect", gumjs_kernel_protect },
 

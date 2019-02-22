@@ -136,34 +136,35 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (process_id_is_available)
   SCRIPT_TESTENTRY (process_current_thread_id_is_available)
   SCRIPT_TESTENTRY (process_threads_can_be_enumerated)
-  SCRIPT_TESTENTRY (process_threads_can_be_enumerated_synchronously)
+  SCRIPT_TESTENTRY (process_threads_can_be_enumerated_legacy_style)
   SCRIPT_TESTENTRY (process_modules_can_be_enumerated)
-  SCRIPT_TESTENTRY (process_modules_can_be_enumerated_synchronously)
+  SCRIPT_TESTENTRY (process_modules_can_be_enumerated_legacy_style)
   SCRIPT_TESTENTRY (process_module_can_be_looked_up_from_address)
   SCRIPT_TESTENTRY (process_module_can_be_looked_up_from_name)
   SCRIPT_TESTENTRY (process_ranges_can_be_enumerated)
-  SCRIPT_TESTENTRY (process_ranges_can_be_enumerated_synchronously)
+  SCRIPT_TESTENTRY (process_ranges_can_be_enumerated_legacy_style)
   SCRIPT_TESTENTRY (process_ranges_can_be_enumerated_with_neighbors_coalesced)
   SCRIPT_TESTENTRY (process_range_can_be_looked_up_from_address)
 #ifdef HAVE_DARWIN
   SCRIPT_TESTENTRY (process_malloc_ranges_can_be_enumerated)
-  SCRIPT_TESTENTRY (process_malloc_ranges_can_be_enumerated_synchronously)
+  SCRIPT_TESTENTRY (process_malloc_ranges_can_be_enumerated_legacy_style)
 #endif
 #ifndef HAVE_QNX
   SCRIPT_TESTENTRY (module_imports_can_be_enumerated)
-  SCRIPT_TESTENTRY (module_imports_can_be_enumerated_synchronously)
+  SCRIPT_TESTENTRY (module_imports_can_be_enumerated_legacy_style)
 #endif
   SCRIPT_TESTENTRY (module_exports_can_be_enumerated)
-  SCRIPT_TESTENTRY (module_exports_can_be_enumerated_synchronously)
+  SCRIPT_TESTENTRY (module_exports_can_be_enumerated_legacy_style)
   SCRIPT_TESTENTRY (module_exports_enumeration_performance)
   SCRIPT_TESTENTRY (module_symbols_can_be_enumerated)
-  SCRIPT_TESTENTRY (module_symbols_can_be_enumerated_synchronously)
+  SCRIPT_TESTENTRY (module_symbols_can_be_enumerated_legacy_style)
   SCRIPT_TESTENTRY (module_ranges_can_be_enumerated)
-  SCRIPT_TESTENTRY (module_ranges_can_be_enumerated_synchronously)
+  SCRIPT_TESTENTRY (module_ranges_can_be_enumerated_legacy_style)
   SCRIPT_TESTENTRY (module_base_address_can_be_found)
   SCRIPT_TESTENTRY (module_export_can_be_found_by_name)
   SCRIPT_TESTENTRY (module_can_be_forcibly_initialized)
   SCRIPT_TESTENTRY (api_resolver_can_be_used_to_find_functions)
+  SCRIPT_TESTENTRY (api_resolver_can_be_used_to_find_functions_legacy_style)
   SCRIPT_TESTENTRY (socket_connection_can_be_established)
   SCRIPT_TESTENTRY (socket_connection_can_be_established_with_tls)
   SCRIPT_TESTENTRY (socket_type_can_be_inspected)
@@ -2421,20 +2422,12 @@ SCRIPT_TESTCASE (process_threads_can_be_enumerated)
   }
 
   COMPILE_AND_LOAD_SCRIPT (
-      "Process.enumerateThreads({"
-        "onMatch: function (thread) {"
-        "  send('onMatch');"
-        "  return 'stop';"
-        "},"
-        "onComplete: function () {"
-        "  send('onComplete');"
-        "}"
-      "});");
-  EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
-  EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
+      "var threads = Process.enumerateThreads();"
+      "send(threads.length > 0);");
+  EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
-SCRIPT_TESTCASE (process_threads_can_be_enumerated_synchronously)
+SCRIPT_TESTCASE (process_threads_can_be_enumerated_legacy_style)
 {
   gboolean done = FALSE;
   GThread * thread_a, * thread_b;
@@ -2452,6 +2445,19 @@ SCRIPT_TESTCASE (process_threads_can_be_enumerated_synchronously)
     g_print ("<skipping, not compatible with Valgrind> ");
     return;
   }
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Process.enumerateThreads({"
+        "onMatch: function (thread) {"
+        "  send('onMatch');"
+        "  return 'stop';"
+        "},"
+        "onComplete: function () {"
+        "  send('onComplete');"
+        "}"
+      "});");
+  EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 
   thread_a = g_thread_new ("script-test-sleeping-dummy-a", sleeping_dummy,
       &done);
@@ -2480,14 +2486,28 @@ sleeping_dummy (gpointer data)
 SCRIPT_TESTCASE (process_modules_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
+      "var modules = Process.enumerateModules();"
+      "send(modules.length > 0);"
+      "var m = modules[0];"
+      "send(typeof m.name === 'string');"
+      "send(typeof m.path === 'string');"
+      "send(m.base instanceof NativePointer);"
+      "send(typeof m.size === 'number');"
+      "send(JSON.stringify(m) !== \"{}\");");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+SCRIPT_TESTCASE (process_modules_can_be_enumerated_legacy_style)
+{
+  COMPILE_AND_LOAD_SCRIPT (
       "Process.enumerateModules({"
         "onMatch: function (module) {"
         "  send('onMatch');"
-        "  send(typeof module.name === 'string');"
-        "  send(typeof module.path === 'string');"
-        "  send(module.base instanceof NativePointer);"
-        "  send(typeof module.size === 'number');"
-        "  send(JSON.stringify(module) !== \"{}\");"
         "  return 'stop';"
         "},"
         "onComplete: function () {"
@@ -2495,16 +2515,8 @@ SCRIPT_TESTCASE (process_modules_can_be_enumerated)
         "}"
       "});");
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
-  EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
-}
 
-SCRIPT_TESTCASE (process_modules_can_be_enumerated_synchronously)
-{
   COMPILE_AND_LOAD_SCRIPT ("send(Process.enumerateModulesSync().length > 1);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
@@ -2534,7 +2546,7 @@ SCRIPT_TESTCASE (process_module_can_be_looked_up_from_address)
 #endif
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var someModule = Process.enumerateModulesSync()[1];"
+      "var someModule = Process.enumerateModules()[1];"
       "var foundModule = Process.findModuleByAddress(someModule.base);"
       "send(foundModule !== null);"
       "send(foundModule.name === someModule.name);");
@@ -2544,7 +2556,7 @@ SCRIPT_TESTCASE (process_module_can_be_looked_up_from_address)
 
   COMPILE_AND_LOAD_SCRIPT (
       "var map = new ModuleMap();"
-      "var someModule = Process.enumerateModulesSync()[1];"
+      "var someModule = Process.enumerateModules()[1];"
 
       "send(map.has(someModule.base));"
       "send(map.has(ptr(1)));"
@@ -2605,7 +2617,7 @@ SCRIPT_TESTCASE (process_module_can_be_looked_up_from_address)
 
 #ifdef HAVE_DARWIN
   COMPILE_AND_LOAD_SCRIPT (
-      "var systemModule = Process.enumerateModulesSync()"
+      "var systemModule = Process.enumerateModules()"
       "  .filter(function (m) {"
       "    return m.path.indexOf('/System/') === 0;"
       "  })[0];"
@@ -2635,6 +2647,14 @@ SCRIPT_TESTCASE (process_module_can_be_looked_up_from_name)
 SCRIPT_TESTCASE (process_ranges_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
+      "var ranges = Process.enumerateRanges('--x');"
+      "send(ranges.length > 0);");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+SCRIPT_TESTCASE (process_ranges_can_be_enumerated_legacy_style)
+{
+  COMPILE_AND_LOAD_SCRIPT (
       "Process.enumerateRanges('--x', {"
         "onMatch: function (range) {"
         "  send('onMatch');"
@@ -2646,10 +2666,7 @@ SCRIPT_TESTCASE (process_ranges_can_be_enumerated)
       "});");
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
-}
 
-SCRIPT_TESTCASE (process_ranges_can_be_enumerated_synchronously)
-{
   COMPILE_AND_LOAD_SCRIPT (
       "send(Process.enumerateRangesSync('--x').length > 1);");
   EXPECT_SEND_MESSAGE_WITH ("true");
@@ -2658,8 +2675,8 @@ SCRIPT_TESTCASE (process_ranges_can_be_enumerated_synchronously)
 SCRIPT_TESTCASE (process_ranges_can_be_enumerated_with_neighbors_coalesced)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var a = Process.enumerateRangesSync('--x');"
-      "var b = Process.enumerateRangesSync({"
+      "var a = Process.enumerateRanges('--x');"
+      "var b = Process.enumerateRanges({"
         "protection: '--x',"
         "coalesce: true"
       "});"
@@ -2684,7 +2701,7 @@ SCRIPT_TESTCASE (process_range_can_be_looked_up_from_address)
   EXPECT_SEND_MESSAGE_WITH ("true");
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var someRange = Process.enumerateRangesSync('r-x')[1];"
+      "var someRange = Process.enumerateRanges('r-x')[1];"
       "var foundRange = Process.findRangeByAddress(someRange.base);"
       "send(foundRange !== null);"
       "send(foundRange.base.equals(someRange.base));");
@@ -2710,6 +2727,20 @@ SCRIPT_TESTCASE (process_malloc_ranges_can_be_enumerated)
   }
 
   COMPILE_AND_LOAD_SCRIPT (
+      "var ranges = Process.enumerateMallocRanges();"
+      "send(ranges.length > 0);");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+SCRIPT_TESTCASE (process_malloc_ranges_can_be_enumerated_legacy_style)
+{
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
+  COMPILE_AND_LOAD_SCRIPT (
       "Process.enumerateMallocRanges({"
         "onMatch: function (range) {"
         "  send('onMatch');"
@@ -2721,24 +2752,23 @@ SCRIPT_TESTCASE (process_malloc_ranges_can_be_enumerated)
       "});");
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
-}
-
-SCRIPT_TESTCASE (process_malloc_ranges_can_be_enumerated_synchronously)
-{
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping, run in slow mode> ");
-    return;
-  }
 
   COMPILE_AND_LOAD_SCRIPT (
-      "send(Process.enumerateMallocRangesSync().length > 1);");
+      "send(Process.enumerateMallocRangesSync().length > 0);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
 #endif
 
 SCRIPT_TESTCASE (module_imports_can_be_enumerated)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var imports = Module.enumerateImports(\"" GUM_TESTS_MODULE_NAME "\");"
+      "send(imports.length > 0);");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+SCRIPT_TESTCASE (module_imports_can_be_enumerated_legacy_style)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Module.enumerateImports(\"" GUM_TESTS_MODULE_NAME "\", {"
@@ -2752,10 +2782,7 @@ SCRIPT_TESTCASE (module_imports_can_be_enumerated)
       "});");
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
-}
 
-SCRIPT_TESTCASE (module_imports_can_be_enumerated_synchronously)
-{
   COMPILE_AND_LOAD_SCRIPT (
       "send(Module.enumerateImportsSync(\"" GUM_TESTS_MODULE_NAME "\")"
       ".length > 1);");
@@ -2765,29 +2792,37 @@ SCRIPT_TESTCASE (module_imports_can_be_enumerated_synchronously)
 SCRIPT_TESTCASE (module_exports_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
+      "var exports = Module.enumerateExports(\"%s\");"
+      "send(exports.length > 0);"
+      "var e = exports[0];"
+      "send(typeof e.type === 'string');"
+      "send(typeof e.name === 'string');"
+      "send(e.address instanceof NativePointer);"
+      "send(JSON.stringify(e) !== \"{}\");",
+      SYSTEM_MODULE_NAME);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+SCRIPT_TESTCASE (module_exports_can_be_enumerated_legacy_style)
+{
+  COMPILE_AND_LOAD_SCRIPT (
       "Module.enumerateExports(\"%s\", {"
         "onMatch: function (exp) {"
         "  send('onMatch');"
-        "  send(typeof exp.type === 'string');"
-        "  send(typeof exp.name === 'string');"
-        "  send(exp.address instanceof NativePointer);"
-        "  send(JSON.stringify(exp) !== \"{}\");"
         "  return 'stop';"
         "},"
         "onComplete: function () {"
         "  send('onComplete');"
         "}"
-      "});", SYSTEM_MODULE_NAME);
+      "});",
+      SYSTEM_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
-  EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
-}
 
-SCRIPT_TESTCASE (module_exports_can_be_enumerated_synchronously)
-{
   COMPILE_AND_LOAD_SCRIPT (
       "send(Module.enumerateExportsSync(\"%s\").length > 1);",
       SYSTEM_MODULE_NAME);
@@ -2800,14 +2835,9 @@ SCRIPT_TESTCASE (module_exports_enumeration_performance)
   gint duration;
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var start = new Date();"
-      "Module.enumerateExports(\"%s\", {"
-        "onMatch: function (exp) {"
-        "},"
-        "onComplete: function () {"
-        "}"
-      "});"
-      "send((new Date()).getTime() - start.getTime());",
+      "var start = Date.now();"
+      "Module.enumerateExports(\"%s\");"
+      "send(Date.now() - start);",
       SYSTEM_MODULE_NAME);
   item = test_script_fixture_pop_message (fixture);
   sscanf (item->message, "{\"type\":\"send\",\"payload\":%d}", &duration);
@@ -2819,33 +2849,41 @@ SCRIPT_TESTCASE (module_symbols_can_be_enumerated)
 {
 #if defined (HAVE_DARWIN) || defined (HAVE_LINUX)
   COMPILE_AND_LOAD_SCRIPT (
+      "var symbols = Module.enumerateSymbols(\"%s\");"
+      "send(symbols.length > 0);"
+      "var s = symbols[0];"
+      "send(typeof s.isGlobal === 'boolean');"
+      "send(typeof s.type === 'string');"
+      "send(typeof s.name === 'string');"
+      "send(s.address instanceof NativePointer);"
+      "send(JSON.stringify(s) !== \"{}\");",
+      GUM_TESTS_MODULE_NAME);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+#endif
+}
+
+SCRIPT_TESTCASE (module_symbols_can_be_enumerated_legacy_style)
+{
+#ifdef HAVE_DARWIN
+  COMPILE_AND_LOAD_SCRIPT (
       "Module.enumerateSymbols(\"%s\", {"
         "onMatch: function (sym) {"
         "  send('onMatch');"
-        "  send(typeof sym.isGlobal === 'boolean');"
-        "  send(typeof sym.type === 'string');"
-        "  send(typeof sym.name === 'string');"
-        "  send(sym.address instanceof NativePointer);"
-        "  send(JSON.stringify(sym) !== \"{}\");"
         "  return 'stop';"
         "},"
         "onComplete: function () {"
         "  send('onComplete');"
         "}"
-      "});", GUM_TESTS_MODULE_NAME);
+      "});",
+      GUM_TESTS_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
-  EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
-#endif
-}
 
-SCRIPT_TESTCASE (module_symbols_can_be_enumerated_synchronously)
-{
-#ifdef HAVE_DARWIN
   COMPILE_AND_LOAD_SCRIPT (
       "send(Module.enumerateSymbolsSync(\"%s\").length > 1);",
       GUM_TESTS_MODULE_NAME);
@@ -2856,6 +2894,15 @@ SCRIPT_TESTCASE (module_symbols_can_be_enumerated_synchronously)
 SCRIPT_TESTCASE (module_ranges_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
+      "var ranges = Module.enumerateRanges(\"%s\", '--x');"
+      "send(ranges.length > 0);",
+      SYSTEM_MODULE_NAME);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+SCRIPT_TESTCASE (module_ranges_can_be_enumerated_legacy_style)
+{
+  COMPILE_AND_LOAD_SCRIPT (
       "Module.enumerateRanges(\"%s\", '--x', {"
         "onMatch: function (range) {"
         "  send('onMatch');"
@@ -2864,13 +2911,11 @@ SCRIPT_TESTCASE (module_ranges_can_be_enumerated)
         "onComplete: function () {"
         "  send('onComplete');"
         "}"
-      "});", SYSTEM_MODULE_NAME);
+      "});",
+      SYSTEM_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
-}
 
-SCRIPT_TESTCASE (module_ranges_can_be_enumerated_synchronously)
-{
   COMPILE_AND_LOAD_SCRIPT (
       "send(Module.enumerateRangesSync(\"%s\", '--x').length > 0);",
       SYSTEM_MODULE_NAME);
@@ -2922,14 +2967,24 @@ SCRIPT_TESTCASE (module_can_be_forcibly_initialized)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (api_resolver_can_be_used_to_find_functions)
-{
 #ifdef G_OS_WIN32
-  const gchar * query = "exports:*!_open*";
+# define API_RESOLVER_TEST_QUERY "exports:*!_open*"
 #else
-  const gchar * query = "exports:*!open*";
+# define API_RESOLVER_TEST_QUERY "exports:*!open*"
 #endif
 
+SCRIPT_TESTCASE (api_resolver_can_be_used_to_find_functions)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var resolver = new ApiResolver('module');"
+      "var matches = resolver.enumerateMatches('%s');"
+      "send(matches.length > 0);",
+      API_RESOLVER_TEST_QUERY);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+SCRIPT_TESTCASE (api_resolver_can_be_used_to_find_functions_legacy_style)
+{
   COMPILE_AND_LOAD_SCRIPT (
       "var resolver = new ApiResolver('module');"
       "resolver.enumerateMatches('%s', {"
@@ -2941,7 +2996,7 @@ SCRIPT_TESTCASE (api_resolver_can_be_used_to_find_functions)
       "    send('onComplete');"
       "  }"
       "});",
-      query);
+      API_RESOLVER_TEST_QUERY);
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 
@@ -2949,7 +3004,7 @@ SCRIPT_TESTCASE (api_resolver_can_be_used_to_find_functions)
       "var resolver = new ApiResolver('module');"
       "var matches = resolver.enumerateMatchesSync('%s');"
       "send(matches.length > 0);",
-      query);
+      API_RESOLVER_TEST_QUERY);
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -81,10 +81,10 @@ static const GumV8Function gumjs_process_functions[] =
 {
   { "isDebuggerAttached", gumjs_process_is_debugger_attached },
   { "getCurrentThreadId", gumjs_process_get_current_thread_id },
-  { "enumerateThreads", gumjs_process_enumerate_threads },
-  { "enumerateModules", gumjs_process_enumerate_modules },
+  { "_enumerateThreads", gumjs_process_enumerate_threads },
+  { "_enumerateModules", gumjs_process_enumerate_modules },
   { "_enumerateRanges", gumjs_process_enumerate_ranges },
-  { "enumerateMallocRanges", gumjs_process_enumerate_malloc_ranges },
+  { "_enumerateMallocRanges", gumjs_process_enumerate_malloc_ranges },
   { "setExceptionHandler", gumjs_process_set_exception_handler },
 
   { NULL, NULL }

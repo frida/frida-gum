@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -115,10 +115,10 @@ static gboolean gum_v8_module_filter_matches (const GumModuleDetails * details,
 static const GumV8Function gumjs_module_functions[] =
 {
   { "ensureInitialized", gumjs_module_ensure_initialized },
-  { "enumerateImports", gumjs_module_enumerate_imports },
-  { "enumerateExports", gumjs_module_enumerate_exports },
-  { "enumerateSymbols", gumjs_module_enumerate_symbols },
-  { "enumerateRanges", gumjs_module_enumerate_ranges },
+  { "_enumerateImports", gumjs_module_enumerate_imports },
+  { "_enumerateExports", gumjs_module_enumerate_exports },
+  { "_enumerateSymbols", gumjs_module_enumerate_symbols },
+  { "_enumerateRanges", gumjs_module_enumerate_ranges },
   { "findBaseAddress", gumjs_module_find_base_address },
   { "findExportByName", gumjs_module_find_export_by_name },
 

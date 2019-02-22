@@ -155,123 +155,14 @@ if (Script.runtime === 'DUK') {
   };
 }
 
+makeEnumerateApi(Kernel, 'enumerateModules', 0);
 makeEnumerateRanges(Kernel);
+makeEnumerateApi(Kernel, 'enumerateModuleRanges', 2);
 
-makeEnumerateThreads(Process);
+makeEnumerateApi(Process, 'enumerateThreads', 0);
+makeEnumerateApi(Process, 'enumerateModules', 0);
 makeEnumerateRanges(Process);
-
-function makeEnumerateThreads(mod) {
-  Object.defineProperty(mod, 'enumerateThreadsSync', {
-    enumerable: true,
-    value: function () {
-      const threads = [];
-      mod.enumerateThreads({
-        onMatch: function (t) {
-          threads.push(t);
-        },
-        onComplete: function () {
-        }
-      });
-      return threads;
-    }
-  });
-}
-
-function makeEnumerateRanges(mod) {
-  Object.defineProperties(mod, {
-    enumerateRanges: {
-      enumerable: true,
-      value: function (specifier, callbacks) {
-        let protection;
-        let coalesce = false;
-        if (typeof specifier === 'string') {
-          protection = specifier;
-        } else {
-          protection = specifier.protection;
-          coalesce = specifier.coalesce;
-        }
-
-        if (coalesce) {
-          let current = null;
-          const onMatch = callbacks.onMatch;
-          mod._enumerateRanges(protection, {
-            onMatch: function (r) {
-              if (current !== null) {
-                if (r.base.equals(current.base.add(current.size)) && r.protection === current.protection) {
-                  const coalescedRange = {
-                    base: current.base,
-                    size: current.size + r.size,
-                    protection: current.protection
-                  };
-                  if (current.hasOwnProperty('file'))
-                    coalescedRange.file = current.file;
-                  Object.freeze(coalescedRange);
-                  current = coalescedRange;
-                } else {
-                  onMatch(current);
-                  current = r;
-                }
-              } else {
-                current = r;
-              }
-            },
-            onComplete: function () {
-              if (current !== null)
-                onMatch(current);
-              callbacks.onComplete();
-            }
-          });
-        } else {
-          mod._enumerateRanges(protection, callbacks);
-        }
-      }
-    },
-    enumerateRangesSync: {
-      enumerable: true,
-      value: function (specifier) {
-        const ranges = [];
-        mod.enumerateRanges(specifier, {
-          onMatch: function (r) {
-            ranges.push(r);
-          },
-          onComplete: function () {
-          }
-        });
-        return ranges;
-      }
-    },
-  });
-}
-
-Object.defineProperty(Kernel, 'enumerateModuleRangesSync', {
-  enumerable: true,
-  value: function (moduleName, specifier) {
-    const ranges = [];
-    Kernel.enumerateModuleRanges(moduleName, specifier, {
-      onMatch: function (r) {
-        ranges.push(r);
-      },
-      onComplete: function () {
-      }
-    });
-    return ranges;
-  }
-});
-
-Object.defineProperty(Kernel, 'enumerateModulesSync', {
-  enumerable: true,
-  value: function () {
-    const modules = [];
-    Kernel.enumerateModules({
-      onMatch: function (m) {
-        modules.push(m);
-      },
-      onComplete: function () {
-      }
-    });
-    return modules;
-  }
-});
+makeEnumerateApi(Process, 'enumerateMallocRanges', 0);
 
 Object.defineProperties(Memory, {
   dup: {
@@ -296,15 +187,15 @@ Object.defineProperties(Process, {
     enumerable: true,
     value: function (address) {
       let module = null;
-      Process.enumerateModules({
-        onMatch: function (m) {
+      Process._enumerateModules({
+        onMatch(m) {
           const base = m.base;
           if (base.compare(address) <= 0 && base.add(m.size).compare(address) > 0) {
             module = m;
             return 'stop';
           }
         },
-        onComplete: function () {
+        onComplete() {
         }
       });
       return module;
@@ -324,14 +215,14 @@ Object.defineProperties(Process, {
     value: function (name) {
       let module = null;
       const nameLowercase = name.toLowerCase();
-      Process.enumerateModules({
-        onMatch: function (m) {
+      Process._enumerateModules({
+        onMatch(m) {
           if (m.name.toLowerCase() === nameLowercase) {
             module = m;
             return 'stop';
           }
         },
-        onComplete: function () {
+        onComplete() {
         }
       });
       return module;
@@ -346,20 +237,6 @@ Object.defineProperties(Process, {
       return module;
     }
   },
-  enumerateModulesSync: {
-    enumerable: true,
-    value: function () {
-      const modules = [];
-      Process.enumerateModules({
-        onMatch: function (m) {
-          modules.push(m);
-        },
-        onComplete: function () {
-        }
-      });
-      return modules;
-    }
-  },
   getRangeByAddress: {
     enumerable: true,
     value: function (address) {
@@ -369,20 +246,6 @@ Object.defineProperties(Process, {
       return range;
     }
   },
-  enumerateMallocRangesSync: {
-    enumerable: true,
-    value: function () {
-      const ranges = [];
-      Process.enumerateMallocRanges({
-        onMatch: function (r) {
-          ranges.push(r);
-        },
-        onComplete: function () {
-        }
-      });
-      return ranges;
-    }
-  },
 });
 
 if (Process.findRangeByAddress === undefined) {
@@ -390,15 +253,15 @@ if (Process.findRangeByAddress === undefined) {
     enumerable: true,
     value: function (address) {
       let range = null;
-      Process.enumerateRanges('---', {
-        onMatch: function (r) {
+      Process._enumerateRanges('---', {
+        onMatch(r) {
           const base = r.base;
           if (base.compare(address) <= 0 && base.add(r.size).compare(address) > 0) {
             range = r;
             return 'stop';
           }
         },
-        onComplete: function () {
+        onComplete() {
         }
       });
       return range;
@@ -406,64 +269,10 @@ if (Process.findRangeByAddress === undefined) {
   });
 }
 
-Object.defineProperties(Module, {
-  enumerateImportsSync: {
-    enumerable: true,
-    value: function (name) {
-      const imports = [];
-      Module.enumerateImports(name, {
-        onMatch: function (imp) {
-          imports.push(imp);
-        },
-        onComplete: function () {
-        }
-      });
-      return imports;
-    }
-  },
-  enumerateExportsSync: {
-    enumerable: true,
-    value: function (name) {
-      const exports = [];
-      Module.enumerateExports(name, {
-        onMatch: function (exp) {
-          exports.push(exp);
-        },
-        onComplete: function () {
-        }
-      });
-      return exports;
-    }
-  },
-  enumerateSymbolsSync: {
-    enumerable: true,
-    value: function (name) {
-      const symbols = [];
-      Module.enumerateSymbols(name, {
-        onMatch: function (sym) {
-          symbols.push(sym);
-        },
-        onComplete: function () {
-        }
-      });
-      return symbols;
-    }
-  },
-  enumerateRangesSync: {
-    enumerable: true,
-    value: function (name, prot) {
-      const ranges = [];
-      Module.enumerateRanges(name, prot, {
-        onMatch: function (r) {
-          ranges.push(r);
-        },
-        onComplete: function () {
-        }
-      });
-      return ranges;
-    }
-  },
-});
+makeEnumerateApi(Module, 'enumerateImports', 1);
+makeEnumerateApi(Module, 'enumerateExports', 1);
+makeEnumerateApi(Module, 'enumerateSymbols', 1);
+makeEnumerateApi(Module, 'enumerateRanges', 2);
 
 Object.defineProperties(ModuleMap.prototype, {
   get: {
@@ -586,20 +395,7 @@ Object.defineProperty(Instruction, 'parse', {
   }
 });
 
-Object.defineProperty(ApiResolver.prototype, 'enumerateMatchesSync', {
-  enumerable: true,
-  value: function (query) {
-    const matches = [];
-    this.enumerateMatches(query, {
-      onMatch: function (m) {
-        matches.push(m);
-      },
-      onComplete: function () {
-      }
-    });
-    return matches;
-  }
-});
+makeEnumerateApi(ApiResolver.prototype, 'enumerateMatches', 1);
 
 const _closeIOStream = IOStream.prototype._close;
 IOStream.prototype.close = function () {
@@ -846,5 +642,106 @@ Object.defineProperties(SqliteDatabase, {
     }
   }
 });
+
+function makeEnumerateApi(mod, name, arity) {
+  const impl = mod['_' + name];
+
+  Object.defineProperty(mod, name, {
+    enumerable: true,
+    value: function (...args) {
+      const callbacks = args[arity];
+      if (callbacks === undefined)
+        return enumerateSync(impl, this, args);
+
+      impl.apply(this, args);
+    }
+  });
+
+  Object.defineProperty(mod, name + 'Sync', {
+    enumerable: true,
+    value: function (...args) {
+      return enumerateSync(impl, this, args);
+    }
+  });
+}
+
+function enumerateSync(impl, self, args) {
+  const items = [];
+  impl.call(self, ...args, {
+    onMatch(item) {
+      items.push(item);
+    },
+    onComplete() {
+    }
+  });
+  return items;
+}
+
+function makeEnumerateRanges(mod) {
+  const impl = mod['_enumerateRanges'];
+
+  Object.defineProperties(mod, {
+    enumerateRanges: {
+      enumerable: true,
+      value: function (specifier, callbacks) {
+        if (callbacks === undefined)
+          return enumerateSync(enumerateRanges.bind(this, impl, this), this, [specifier]);
+
+        enumerateRanges(impl, this, specifier, callbacks);
+      }
+    },
+    enumerateRangesSync: {
+      enumerable: true,
+      value: function (specifier) {
+        return enumerateSync(enumerateRanges.bind(this, impl, this), this, [specifier]);
+      }
+    },
+  });
+}
+
+function enumerateRanges(impl, self, specifier, callbacks) {
+  let protection;
+  let coalesce = false;
+  if (typeof specifier === 'string') {
+    protection = specifier;
+  } else {
+    protection = specifier.protection;
+    coalesce = specifier.coalesce;
+  }
+
+  if (coalesce) {
+    const {onMatch, onComplete} = callbacks;
+    let current = null;
+    impl.call(self, protection, {
+      onMatch(r) {
+        if (current !== null) {
+          if (r.base.equals(current.base.add(current.size)) && r.protection === current.protection) {
+            const coalescedRange = {
+              base: current.base,
+              size: current.size + r.size,
+              protection: current.protection
+            };
+            if (current.hasOwnProperty('file'))
+              coalescedRange.file = current.file;
+            Object.freeze(coalescedRange);
+            current = coalescedRange;
+          } else {
+            onMatch(current);
+            current = r;
+          }
+        } else {
+          current = r;
+        }
+      },
+      onComplete() {
+        if (current !== null)
+          onMatch(current);
+        onComplete();
+      }
+    });
+  } else {
+    impl.call(self, protection, callbacks);
+  }
+}
 
 initialize();

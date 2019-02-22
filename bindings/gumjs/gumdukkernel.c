@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -135,9 +135,9 @@ static const GumDukPropertyEntry gumjs_kernel_values[] =
 
 static const duk_function_list_entry gumjs_kernel_functions[] =
 {
-  { "enumerateModules", gumjs_kernel_enumerate_modules, 1 },
+  { "_enumerateModules", gumjs_kernel_enumerate_modules, 1 },
   { "_enumerateRanges", gumjs_kernel_enumerate_ranges, 2 },
-  { "enumerateModuleRanges", gumjs_kernel_enumerate_module_ranges, 3 },
+  { "_enumerateModuleRanges", gumjs_kernel_enumerate_module_ranges, 3 },
   { "alloc", gumjs_kernel_alloc, 2 },
   { "protect", gumjs_kernel_protect, 3 },
 
