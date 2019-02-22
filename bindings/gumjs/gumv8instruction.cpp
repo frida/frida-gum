@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -140,15 +140,13 @@ _gum_v8_instruction_init (GumV8Instruction * self,
 
   auto module = External::New (isolate, self);
 
-  auto api = _gum_v8_create_module ("Instruction", scope, isolate);
-  _gum_v8_module_add (module, api, gumjs_instruction_module_functions, isolate);
-
-  auto value = _gum_v8_create_class ("InstructionValue", nullptr, scope, module,
+  auto klass = _gum_v8_create_class ("Instruction", nullptr, scope, module,
       isolate);
-  _gum_v8_class_add (value, gumjs_instruction_values, module, isolate);
-  _gum_v8_class_add (value, gumjs_instruction_functions, module, isolate);
-  self->constructor =
-      new GumPersistent<FunctionTemplate>::type (isolate, value);
+  _gum_v8_class_add_static (klass, gumjs_instruction_module_functions, module,
+      isolate);
+  _gum_v8_class_add (klass, gumjs_instruction_values, module, isolate);
+  _gum_v8_class_add (klass, gumjs_instruction_functions, module, isolate);
+  self->klass = new GumPersistent<FunctionTemplate>::type (isolate, klass);
 }
 
 void
@@ -160,8 +158,8 @@ _gum_v8_instruction_realize (GumV8Instruction * self)
   self->instructions = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_v8_instruction_free);
 
-  auto constructor = Local<FunctionTemplate>::New (isolate, *self->constructor);
-  auto object = constructor->GetFunction ()->NewInstance (context, 0, nullptr)
+  auto klass = Local<FunctionTemplate>::New (isolate, *self->klass);
+  auto object = klass->GetFunction ()->NewInstance (context, 0, nullptr)
       .ToLocalChecked ();
   self->template_object = new GumPersistent<Object>::type (isolate, object);
 }
@@ -175,8 +173,8 @@ _gum_v8_instruction_dispose (GumV8Instruction * self)
   delete self->template_object;
   self->template_object = nullptr;
 
-  delete self->constructor;
-  self->constructor = nullptr;
+  delete self->klass;
+  self->klass = nullptr;
 }
 
 void

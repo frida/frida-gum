@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -80,15 +80,13 @@ _gum_v8_symbol_init (GumV8Symbol * self,
 
   auto module = External::New (isolate, self);
 
-  auto api = _gum_v8_create_module ("DebugSymbol", scope, isolate);
-  _gum_v8_module_add (module, api, gumjs_symbol_module_functions, isolate);
-
-  auto value = _gum_v8_create_class ("DebugSymbolValue", nullptr, scope, module,
+  auto klass = _gum_v8_create_class ("DebugSymbol", nullptr, scope, module,
       isolate);
-  _gum_v8_class_add (value, gumjs_symbol_values, module, isolate);
-  _gum_v8_class_add (value, gumjs_symbol_functions, module, isolate);
-  self->constructor =
-      new GumPersistent<FunctionTemplate>::type (isolate, value);
+  _gum_v8_class_add_static (klass, gumjs_symbol_module_functions, module,
+      isolate);
+  _gum_v8_class_add (klass, gumjs_symbol_values, module, isolate);
+  _gum_v8_class_add (klass, gumjs_symbol_functions, module, isolate);
+  self->klass = new GumPersistent<FunctionTemplate>::type (isolate, klass);
 }
 
 void
@@ -100,8 +98,8 @@ _gum_v8_symbol_realize (GumV8Symbol * self)
   self->symbols = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_symbol_free);
 
-  auto constructor = Local<FunctionTemplate>::New (isolate, *self->constructor);
-  auto object = constructor->GetFunction ()->NewInstance (context, 0, nullptr)
+  auto klass = Local<FunctionTemplate>::New (isolate, *self->klass);
+  auto object = klass->GetFunction ()->NewInstance (context, 0, nullptr)
       .ToLocalChecked ();
   self->template_object = new GumPersistent<Object>::type (isolate, object);
 }
@@ -115,8 +113,8 @@ _gum_v8_symbol_dispose (GumV8Symbol * self)
   delete self->template_object;
   self->template_object = nullptr;
 
-  delete self->constructor;
-  self->constructor = nullptr;
+  delete self->klass;
+  self->klass = nullptr;
 }
 
 void

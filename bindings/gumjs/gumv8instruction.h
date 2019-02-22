@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -18,7 +18,7 @@ struct GumV8Instruction
   csh capstone;
   GHashTable * instructions;
 
-  GumPersistent<v8::FunctionTemplate>::type * constructor;
+  GumPersistent<v8::FunctionTemplate>::type * klass;
   GumPersistent<v8::Object>::type * template_object;
 };
 
