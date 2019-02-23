@@ -648,8 +648,8 @@ gum_v8_kernel_write (GumMemoryValueType type,
   if (!gum_v8_kernel_check_api_available (isolate))
     return;
 
-  GumAddress address;
-  guint8 * data;
+  GumAddress address = 0;
+  guint8 * data = NULL;
 
   switch (type)
   {
