@@ -815,7 +815,7 @@ SCRIPT_TESTCASE (native_function_can_be_invoked)
 
 #ifdef G_OS_WIN32
   COMPILE_AND_LOAD_SCRIPT (
-      "var impl = Module.findExportByName(\"user32.dll\", \"GetKeyState\");"
+      "var impl = Module.getExportByName(\"user32.dll\", \"GetKeyState\");"
       "var f = new NativeFunction(impl, 'int16', ['int']);"
       "var result = f(0x41);"
       "send(typeof result);");
@@ -1867,9 +1867,9 @@ SCRIPT_TESTCASE (socket_connection_can_be_established)
 
     COMPILE_AND_LOAD_SCRIPT (
         "var getpid = new NativeFunction("
-        "    Module.findExportByName(null, 'getpid'), 'int', []);"
+        "    Module.getExportByName(null, 'getpid'), 'int', []);"
         "var unlink = new NativeFunction("
-        "    Module.findExportByName(null, 'unlink'), 'int', ['pointer']);"
+        "    Module.getExportByName(null, 'unlink'), 'int', ['pointer']);"
         ""
         "Socket.listen({"
         "  type: 'path',"
@@ -2960,13 +2960,60 @@ SCRIPT_TESTCASE (module_ranges_can_be_enumerated_legacy_style)
 SCRIPT_TESTCASE (module_base_address_can_be_found)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "send(Module.findBaseAddress('%s') !== null);",
+      "var sysModuleName = '%s';"
+      "var badModuleName = 'nope_' + sysModuleName;"
+
+      "var base = Module.findBaseAddress(sysModuleName);"
+      "send(base !== null);"
+
+      "send(Module.findBaseAddress(badModuleName) === null);"
+
+      "try {"
+          "send(Module.getBaseAddress(sysModuleName).equals(base));"
+
+          "Module.getBaseAddress(badModuleName);"
+          "send('should not get here');"
+      "} catch (e) {"
+          "send(/unable to find module/.test(e.message));"
+      "}",
       SYSTEM_MODULE_NAME);
+
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
+  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
 SCRIPT_TESTCASE (module_export_can_be_found_by_name)
 {
+  COMPILE_AND_LOAD_SCRIPT (
+      "var sysModuleName = '%s';"
+      "var sysModuleExport = '%s';"
+      "var badModuleName = 'nope_' + sysModuleName;"
+      "var badModuleExport = sysModuleExport + '_does_not_exist';"
+
+      "var impl = Module.findExportByName(sysModuleName, sysModuleExport);"
+      "send(impl !== null);"
+
+      "send(Module.findExportByName(badModuleName, badModuleExport) === null);"
+
+      "try {"
+          "send(Module.getExportByName(sysModuleName, sysModuleExport).equals(impl));"
+
+          "Module.getExportByName(badModuleName, badModuleExport);"
+          "send('should not get here');"
+      "} catch (e) {"
+          "send(/unable to find export/.test(e.message));"
+      "}",
+      SYSTEM_MODULE_NAME, SYSTEM_MODULE_EXPORT);
+
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
 #ifdef G_OS_WIN32
   HMODULE mod;
   gpointer actual_address;
@@ -2982,11 +3029,6 @@ SCRIPT_TESTCASE (module_export_can_be_found_by_name)
   COMPILE_AND_LOAD_SCRIPT (
       "send(Module.findExportByName('kernel32.dll', 'Sleep').toString(16));");
   EXPECT_SEND_MESSAGE_WITH (actual_address_str);
-#else
-  COMPILE_AND_LOAD_SCRIPT (
-      "send(Module.findExportByName('%s', '%s') !== null);",
-      SYSTEM_MODULE_NAME, SYSTEM_MODULE_EXPORT);
-  EXPECT_SEND_MESSAGE_WITH ("true");
 #endif
 }
 

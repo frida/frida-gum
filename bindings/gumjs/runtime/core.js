@@ -182,6 +182,29 @@ makeEnumerateApi(Module, 'enumerateExports', 1);
 makeEnumerateApi(Module, 'enumerateSymbols', 1);
 makeEnumerateApi(Module, 'enumerateRanges', 2);
 
+Object.defineProperties(Module, {
+  getBaseAddress: {
+    enumerable: true,
+    value: function (moduleName) {
+      const base = Module.findBaseAddress(moduleName);
+      if (base === null)
+        throw new Error("unable to find module '" + moduleName + "'");
+      return base;
+    }
+  },
+  getExportByName: {
+    enumerable: true,
+    value: function (moduleName, symbolName) {
+      const address = Module.findExportByName(moduleName, symbolName);
+      if (address === null) {
+        const prefix = (moduleName !== null) ? (moduleName + ': ') : '';
+        throw new Error(prefix + "unable to find export '" + symbolName + "'");
+      }
+      return address;
+    }
+  },
+});
+
 Object.defineProperties(Module.prototype, {
   enumerateImports: {
     enumerable: true,
