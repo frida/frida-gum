@@ -225,6 +225,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_find_module_by_name)
   fc.name_is_canonical = g_path_is_absolute (fc.name);
   fc.parent = module;
 
+#ifdef G_OS_WIN32
+  gchar * folded_name = g_utf8_casefold (fc.name, -1);
+  g_free (fc.name);
+  fc.name = folded_name;
+#endif
+
   gum_process_enumerate_modules (
       (GumFoundModuleFunc) gum_store_module_if_name_matches, &fc);
 
@@ -243,6 +249,12 @@ gum_store_module_if_name_matches (const GumModuleDetails * details,
   gboolean proceed = TRUE;
 
   const gchar * key = fc->name_is_canonical ? details->path : details->name;
+  gchar * allocated_key = NULL;
+
+#ifdef G_OS_WIN32
+  allocated_key = g_utf8_casefold (key, -1);
+  key = allocated_key;
+#endif
 
   if (strcmp (key, fc->name) == 0)
   {
@@ -250,6 +262,8 @@ gum_store_module_if_name_matches (const GumModuleDetails * details,
 
     proceed = FALSE;
   }
+
+  g_free (allocated_key);
 
   return proceed;
 }

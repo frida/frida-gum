@@ -241,15 +241,23 @@ gum_emit_thread (const GumThreadDetails * details,
 GUMJS_DEFINE_FUNCTION (gumjs_process_find_module_by_name)
 {
   GumDukFindModuleByNameContext fc;
+  gchar * allocated_name = NULL;
 
   _gum_duk_args_parse (args, "s", &fc.name);
   fc.name_is_canonical = g_path_is_absolute (fc.name);
   fc.module = gumjs_module_from_args (args);
 
+#ifdef G_OS_WIN32
+  allocated_name = g_utf8_casefold (fc.name, -1);
+  fc.name = allocated_name;
+#endif
+
   duk_push_null (ctx);
 
   gum_process_enumerate_modules (
       (GumFoundModuleFunc) gum_push_module_if_name_matches, &fc);
+
+  g_free (allocated_name);
 
   return 1;
 }
@@ -260,8 +268,14 @@ gum_push_module_if_name_matches (const GumModuleDetails * details,
 {
   gboolean proceed = TRUE;
   const gchar * key;
+  gchar * allocated_key = NULL;
 
   key = fc->name_is_canonical ? details->path : details->name;
+
+#ifdef G_OS_WIN32
+  allocated_key = g_utf8_casefold (key, -1);
+  key = allocated_key;
+#endif
 
   if (strcmp (key, fc->name) == 0)
   {
@@ -274,6 +288,8 @@ gum_push_module_if_name_matches (const GumModuleDetails * details,
 
     proceed = FALSE;
   }
+
+  g_free (allocated_key);
 
   return proceed;
 }
