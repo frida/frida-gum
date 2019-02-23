@@ -219,51 +219,33 @@ declare namespace Process {
 
     /**
      * Enumerates all threads.
-     *
-     * @param callbacks Object with callbacks.
      */
-    function enumerateThreads(callbacks: EnumerateCallbacks<ThreadDetails>): void;
-
-    /**
-     * Synchronous version of `enumerateThreads()`.
-     *
-     * @param callbacks Object with callbacks.
-     */
-    function enumerateThreadsSync(): ThreadDetails[];
+    function enumerateThreads(): ThreadDetails[];
 
     /**
      * Looks up a module by address. Returns null if not found.
      */
-    function findModuleByAddress(address: any): ModuleDetails | null;
+    function findModuleByAddress(address: any): Module | null;
 
     /**
      * Looks up a module by address. Throws an exception if not found.
      */
-    function getModuleByAddress(address: any): ModuleDetails;
+    function getModuleByAddress(address: any): Module;
 
     /**
      * Looks up a module by name. Returns null if not found.
      */
-    function findModuleByName(name: any): ModuleDetails | null;
+    function findModuleByName(name: any): Module | null;
 
     /**
      * Looks up a module by name. Throws an exception if not found.
      */
-    function getModuleByName(name: any): ModuleDetails;
+    function getModuleByName(name: any): Module;
 
     /**
-     * Enumerates all modules.
-     *
-     * @param callbacks Object with callbacks.
+     * Enumerates modules loaded right now.
      */
-    function enumerateModules(callbacks: EnumerateCallbacks<ModuleDetails>): void;
-
-    /**
-     * Synchronous version of `enumerateModules()`.
-     *
-     * @param callbacks Object with callbacks.
-     */
-    function enumerateModulesSync(): ModuleDetails[];
+    function enumerateModules(): Module[];
 
     /**
      * Looks up a memory range by address. Returns null if not found.
@@ -276,29 +258,16 @@ declare namespace Process {
     function getRangeByAddress(address: any): RangeDetails;
 
     /**
-      * Enumerates all memory ranges matching `specifier`.
+      * Enumerates memory ranges satisfying `specifier`.
       *
       * @param specifier The kind of ranges to include.
-      * @param callbacks Object with callbacks.
       */
-    function enumerateRanges(specifier: PageProtection | EnumerateRangesSpecifier, callbacks: EnumerateCallbacks<RangeDetails>): void;
-
-    /**
-     * Synchronous version of `enumerateRanges()`.
-     *
-     * @param specifier The kind of ranges to include.
-     */
-    function enumerateRangesSync(specifier: PageProtection | EnumerateRangesSpecifier): RangeDetails[];
+    function enumerateRanges(specifier: PageProtection | EnumerateRangesSpecifier): RangeDetails[];
 
     /**
      * Just like `enumerateRanges()`, but for individual memory allocations known to the system heap.
      */
-    function enumerateMallocRanges(callbacks: EnumerateCallbacks<RangeDetails>): void;
-
-    /**
-     * Synchronous version of `enumerateMallocRanges()`.
-     */
-    function enumerateMallocRangesSync(): RangeDetails[];
+    function enumerateMallocRanges(): RangeDetails[];
 
     /**
      * Installs a process-wide exception handler callback that gets a chance to handle native exceptions before the
@@ -317,92 +286,92 @@ declare namespace Process {
     function setExceptionHandler(callback: ExceptionHandlerCallback): void;
 }
 
-declare namespace Module {
+declare class Module {
+    /**
+     * Canonical module name.
+     */
+    name: string;
+
+    /**
+     * Base address.
+     */
+    base: NativePointer;
+
+    /**
+     * Size in bytes.
+     */
+    size: number;
+
+    /**
+     * Full filesystem path.
+     */
+    path: string;
+
+    /**
+     * Enumerates imports of module.
+     */
+    enumerateImports(): ModuleImportDetails[];
+
+    /**
+     * Enumerates exports of module.
+     */
+    enumerateExports(): ModuleExportDetails[];
+
+    /**
+     * Enumerates symbols of module.
+     */
+    enumerateSymbols(): ModuleSymbolDetails[];
+
+    /**
+     * Enumerates memory ranges of module with the `name` as seen in `Process#enumerateModules()`.
+     *
+     * @param protection Minimum protection of ranges to include.
+     */
+    enumerateRanges(protection: PageProtection): RangeDetails[];
+
     /**
      * Ensures that initializers of the specified module have been run. This is important during early instrumentation,
      * i.e. code run early in the process lifetime, to be able to safely interact with APIs.
      *
      * One such use-case is interacting with ObjC classes provided by a given module.
      */
-    function ensureInitialized(name: string): void;
+    static ensureInitialized(name: string): void;
 
     /**
-     * Enumerates imports of module with the `name` as seen in `Process#enumerateModules()`.
-     *
-     * @param name Module name or path.
-     * @param callbacks Object with callbacks.
-     */
-    function enumerateImports(name: string, callbacks: EnumerateCallbacks<ModuleImportDetails>): void;
-
-    /**
-     * Synchronous version of `enumerateImports()`.
+     * Looks up the base address of the `name` module. Returns null if the module isn’t loaded.
      *
      * @param name Module name or path.
      */
-    function enumerateImportsSync(name: string): ModuleImportDetails[];
+    static findBaseAddress(name: string): NativePointer | null;
 
     /**
-     * Enumerates exports of module with the `name` as seen in `Process#enumerateModules()`.
-     *
-     * @param name Module name or path.
-     * @param callbacks Object with callbacks.
-     */
-    function enumerateExports(name: string, callbacks: EnumerateCallbacks<ModuleExportDetails>): void;
-
-    /**
-     * Synchronous version of `enumerateExports()`.
+     * Looks up the base address of the `name` module. Throws an exception if the module isn’t loaded.
      *
      * @param name Module name or path.
      */
-    function enumerateExportsSync(name: string): ModuleExportDetails[];
-
-    /**
-     * Enumerates symbols of module with the `name` as seen in `Process#enumerateModules()`.
-     *
-     * @param name Module name or path.
-     * @param callbacks Object with callbacks.
-     */
-    function enumerateSymbols(name: string, callbacks: EnumerateCallbacks<ModuleSymbolDetails>): void;
-
-    /**
-     * Synchronous version of `enumerateSymbols()`.
-     *
-     * @param name Module name or path.
-     */
-    function enumerateSymbolsSync(name: string): ModuleSymbolDetails[];
-
-    /**
-     * Enumerates memory ranges of module with the `name` as seen in `Process#enumerateModules()`.
-     *
-     * @param name Module name or path.
-     * @param protection Minimum protection of ranges to include.
-     * @param callbacks Object with callbacks.
-     */
-    function enumerateRanges(name: string, protection: PageProtection, callbacks: EnumerateCallbacks<RangeDetails>): void;
-
-    /**
-     * Synchronous version of `enumerateRanges()`.
-     *
-     * @param name Module name or path.
-     * @param protection Minimum protection of ranges to include.
-     */
-    function enumerateRangesSync(name: string, protection: PageProtection): RangeDetails[];
-
-    /**
-     * Looks up the base address of the `name` module, or null if the module isn’t loaded.
-     *
-     * @param name Module name or path.
-     */
-    function findBaseAddress(name: string): NativePointer | null;
+    static getBaseAddress(name: string): NativePointer;
 
     /**
      * Looks up the absolute address of the export named `exportName` in `moduleName`. If the module isn’t known you may
      * pass null instead of its name, but this can be a costly search and should be avoided.
      *
+     * Returns null if the module or export doesn't exist.
+     *
      * @param moduleName Module name or path.
      * @param exportName Export name to find the address of.
      */
-    function findExportByName(moduleName: string | null, exportName: string): NativePointer | null;
+    static findExportByName(moduleName: string | null, exportName: string): NativePointer | null;
+
+    /**
+     * Looks up the absolute address of the export named `exportName` in `moduleName`. If the module isn’t known you may
+     * pass null instead of its name, but this can be a costly search and should be avoided.
+     *
+     * Throws an exception if the module or export doesn't exist.
+     *
+     * @param moduleName Module name or path.
+     * @param exportName Export name to find the address of.
+     */
+    static getExportByName(moduleName: string | null, exportName: string): NativePointer;
 }
 
 declare class ModuleMap {
@@ -432,14 +401,14 @@ declare class ModuleMap {
      *
      * @param address Address that might belong to a module in the map.
      */
-    find(address: NativePointerValue): ModuleDetails | null;
+    find(address: NativePointerValue): Module | null;
 
     /**
      * Looks up a module by address. Throws an exception if not found.
      *
      * @param address Address that might belong to a module in the map.
      */
-    get(address: NativePointerValue): ModuleDetails;
+    get(address: NativePointerValue): Module;
 
     /**
      * Just like `find()`, but only returns the `name` field, which means less overhead when you don’t need the
@@ -484,10 +453,10 @@ declare class ModuleMap {
      * Gets the modules currently in the map. The returned array is a deep copy and will not mutate after a
      * call to `update()`.
      */
-    values(): ModuleDetails[];
+    values(): Module[];
 }
 
-type ModuleMapFilter = (m: ModuleDetails) => boolean;
+type ModuleMapFilter = (m: Module) => boolean;
 
 declare namespace Memory {
     /**
@@ -512,7 +481,6 @@ declare namespace Memory {
      * @param address Starting address to scan from.
      * @param size Number of bytes to scan.
      * @param pattern Match pattern, see `Memory.scan()` for details.
-     * @param callbacks Object with callbacks.
      */
     function scanSync(address: NativePointerValue, size: number | UInt64, pattern: string): MemoryScanMatch[];
 
@@ -695,28 +663,6 @@ declare interface ThreadDetails {
      * Snapshot of CPU registers.
      */
     context: CpuContext;
-}
-
-declare interface ModuleDetails {
-    /**
-     * Canonical module name.
-     */
-    name: string;
-
-    /**
-     * Base address.
-     */
-    base: NativePointer;
-
-    /**
-     * Size in bytes.
-     */
-    size: number;
-
-    /**
-     * Full filesystem path.
-     */
-    path: string;
 }
 
 declare interface KernelModuleDetails {
@@ -1919,50 +1865,24 @@ declare namespace Kernel {
     const pageSize: number;
 
     /**
-     * Enumerates all kernel modules.
-     *
-     * @param callbacks Object with callbacks.
+     * Enumerates kernel modules loaded right now.
      */
-    function enumerateModules(callbacks: EnumerateCallbacks<KernelModuleDetails>): void;
-
-    /**
-     * Synchronous version of `enumerateModules()`.
-     *
-     * @param callbacks Object with callbacks.
-     */
-    function enumerateModulesSync(): KernelModuleDetails[];
+    function enumerateModules(): KernelModuleDetails[];
 
     /**
       * Enumerates all kernel memory ranges matching `specifier`.
       *
       * @param specifier The kind of ranges to include.
-      * @param callbacks Object with callbacks.
       */
-    function enumerateRanges(specifier: PageProtection | EnumerateRangesSpecifier, callbacks: EnumerateCallbacks<KernelRangeDetails>): void;
-
-    /**
-     * Synchronous version of `enumerateRanges()`.
-     *
-     * @param specifier The kind of ranges to include.
-     */
-    function enumerateRangesSync(specifier: PageProtection | EnumerateRangesSpecifier): KernelRangeDetails[];
+    function enumerateRanges(specifier: PageProtection | EnumerateRangesSpecifier): KernelRangeDetails[];
 
     /**
      * Enumerates all ranges of a kernel module.
      *
      * @param name Name of the module, or `null` for the module of the kernel itself.
      * @param protection Include ranges with at least this protection.
-     * @param callbacks Object with callbacks.
      */
-    function enumerateModuleRanges(name: string | null, protection: PageProtection, callbacks: EnumerateCallbacks<KernelModuleRangeDetails>): void;
-
-    /**
-     * Synchronous version of `enumerateModuleRanges()`.
-     *
-     * @param name Name of the module, or `null` for the module of the kernel itself.
-     * @param protection Include ranges with at least this protection.
-     */
-    function enumerateModuleRangesSync(name: string | null, protection: PageProtection): KernelModuleRangeDetails[];
+    function enumerateModuleRanges(name: string | null, protection: PageProtection): KernelModuleRangeDetails[];
 
     /**
      * Allocates kernel memory.
@@ -2018,7 +1938,6 @@ declare namespace Kernel {
      * @param address Starting address to scan from.
      * @param size Number of bytes to scan.
      * @param pattern Match pattern, see `Memory.scan()` for details.
-     * @param callbacks Object with callbacks.
      */
     function scanSync(address: UInt64, size: number | UInt64, pattern: string): KernelMemoryScanMatch[];
 
@@ -2066,8 +1985,7 @@ declare namespace Kernel {
 
 declare class ApiResolver {
     constructor(type: string);
-    enumerateMatches(query: any, callbacks: any): any;
-    enumerateMatchesSync(query: any): any;
+    enumerateMatches(query: any): any;
 }
 declare class DebugSymbolValue {
     constructor();
