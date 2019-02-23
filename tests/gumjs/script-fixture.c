@@ -282,7 +282,7 @@ test_script_fixture_try_handle_log_message (TestScriptFixture * self,
   JsonReader * reader;
   const gchar * text;
   const gchar * level;
-  guint color;
+  guint color = 37;
 
   if (!self->enable_log_message_handling)
     return FALSE;

@@ -700,7 +700,7 @@ gum_v8_kernel_write (GumMemoryValueType type,
       g_assert_not_reached ();
   }
 
-  gsize length;
+  gsize length = 0;
 
   switch (type)
   {
