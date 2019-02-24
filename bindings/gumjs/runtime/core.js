@@ -135,10 +135,12 @@ Object.defineProperties(engine, {
   UInt64,
   NativePointer
 ].forEach(klass => {
-  klass.prototype.equals = function (rhs) {
-    return this.compare(rhs) === 0;
-  };
+  klass.prototype.equals = numberWrapperEquals;
 });
+
+function numberWrapperEquals(rhs) {
+  return this.compare(rhs) === 0;
+}
 
 const _nextTick = Script._nextTick;
 Script.nextTick = function (callback, ...args) {
