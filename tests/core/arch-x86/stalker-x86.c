@@ -11,67 +11,67 @@
 # include <lzma.h>
 #endif
 
-TEST_LIST_BEGIN (stalker)
-  STALKER_TESTENTRY (no_events)
-  STALKER_TESTENTRY (call)
-  STALKER_TESTENTRY (ret)
-  STALKER_TESTENTRY (exec)
-  STALKER_TESTENTRY (call_depth)
-  STALKER_TESTENTRY (call_probe)
-  STALKER_TESTENTRY (custom_transformer)
+TESTLIST_BEGIN (stalker)
+  TESTENTRY (no_events)
+  TESTENTRY (call)
+  TESTENTRY (ret)
+  TESTENTRY (exec)
+  TESTENTRY (call_depth)
+  TESTENTRY (call_probe)
+  TESTENTRY (custom_transformer)
 
-  STALKER_TESTENTRY (unconditional_jumps)
-  STALKER_TESTENTRY (short_conditional_jump_true)
-  STALKER_TESTENTRY (short_conditional_jump_false)
-  STALKER_TESTENTRY (short_conditional_jcxz_true)
-  STALKER_TESTENTRY (short_conditional_jcxz_false)
-  STALKER_TESTENTRY (long_conditional_jump)
-  STALKER_TESTENTRY (follow_return)
-  STALKER_TESTENTRY (follow_stdcall)
-  STALKER_TESTENTRY (follow_repne_ret)
-  STALKER_TESTENTRY (follow_repne_jb)
-  STALKER_TESTENTRY (unfollow_deep)
-  STALKER_TESTENTRY (call_followed_by_junk)
-  STALKER_TESTENTRY (indirect_call_with_immediate)
-  STALKER_TESTENTRY (indirect_call_with_register_and_no_immediate)
-  STALKER_TESTENTRY (indirect_call_with_register_and_positive_byte_immediate)
-  STALKER_TESTENTRY (indirect_call_with_register_and_negative_byte_immediate)
-  STALKER_TESTENTRY (indirect_call_with_register_and_positive_dword_immediate)
-  STALKER_TESTENTRY (indirect_call_with_register_and_negative_dword_immediate)
+  TESTENTRY (unconditional_jumps)
+  TESTENTRY (short_conditional_jump_true)
+  TESTENTRY (short_conditional_jump_false)
+  TESTENTRY (short_conditional_jcxz_true)
+  TESTENTRY (short_conditional_jcxz_false)
+  TESTENTRY (long_conditional_jump)
+  TESTENTRY (follow_return)
+  TESTENTRY (follow_stdcall)
+  TESTENTRY (follow_repne_ret)
+  TESTENTRY (follow_repne_jb)
+  TESTENTRY (unfollow_deep)
+  TESTENTRY (call_followed_by_junk)
+  TESTENTRY (indirect_call_with_immediate)
+  TESTENTRY (indirect_call_with_register_and_no_immediate)
+  TESTENTRY (indirect_call_with_register_and_positive_byte_immediate)
+  TESTENTRY (indirect_call_with_register_and_negative_byte_immediate)
+  TESTENTRY (indirect_call_with_register_and_positive_dword_immediate)
+  TESTENTRY (indirect_call_with_register_and_negative_dword_immediate)
 #if GLIB_SIZEOF_VOID_P == 8
-  STALKER_TESTENTRY (indirect_call_with_extended_registers_and_immediate)
+  TESTENTRY (indirect_call_with_extended_registers_and_immediate)
 #endif
-  STALKER_TESTENTRY (indirect_call_with_esp_and_byte_immediate)
-  STALKER_TESTENTRY (indirect_call_with_esp_and_dword_immediate)
-  STALKER_TESTENTRY (indirect_jump_with_immediate)
-  STALKER_TESTENTRY (indirect_jump_with_immediate_and_scaled_register)
-  STALKER_TESTENTRY (direct_call_with_register)
+  TESTENTRY (indirect_call_with_esp_and_byte_immediate)
+  TESTENTRY (indirect_call_with_esp_and_dword_immediate)
+  TESTENTRY (indirect_jump_with_immediate)
+  TESTENTRY (indirect_jump_with_immediate_and_scaled_register)
+  TESTENTRY (direct_call_with_register)
 #if GLIB_SIZEOF_VOID_P == 8
-  STALKER_TESTENTRY (direct_call_with_extended_register)
+  TESTENTRY (direct_call_with_extended_register)
 #endif
-  STALKER_TESTENTRY (popcnt)
+  TESTENTRY (popcnt)
 #if GLIB_SIZEOF_VOID_P == 4
-  STALKER_TESTENTRY (no_register_clobber)
+  TESTENTRY (no_register_clobber)
 #endif
-  STALKER_TESTENTRY (no_red_zone_clobber)
-  STALKER_TESTENTRY (big_block)
+  TESTENTRY (no_red_zone_clobber)
+  TESTENTRY (big_block)
 
-  STALKER_TESTENTRY (heap_api)
-  STALKER_TESTENTRY (follow_syscall)
-  STALKER_TESTENTRY (follow_thread)
+  TESTENTRY (heap_api)
+  TESTENTRY (follow_syscall)
+  TESTENTRY (follow_thread)
 #ifndef G_OS_WIN32
-  STALKER_TESTENTRY (performance)
+  TESTENTRY (performance)
 #endif
 
 #ifdef G_OS_WIN32
 # if GLIB_SIZEOF_VOID_P == 4
-  STALKER_TESTENTRY (win32_indirect_call_seg)
+  TESTENTRY (win32_indirect_call_seg)
 # endif
-  STALKER_TESTENTRY (win32_messagebeep_api)
-  STALKER_TESTENTRY (win32_follow_user_to_kernel_to_callback)
-  STALKER_TESTENTRY (win32_follow_callback_to_kernel_to_user)
+  TESTENTRY (win32_messagebeep_api)
+  TESTENTRY (win32_follow_user_to_kernel_to_callback)
+  TESTENTRY (win32_follow_callback_to_kernel_to_user)
 #endif
-TEST_LIST_END ()
+TESTLIST_END ()
 
 #ifndef G_OS_WIN32
 static gboolean store_range_of_test_runner (const GumModuleDetails * details,
@@ -87,7 +87,7 @@ static void invoke_unfollow_deep_code (TestStalkerFixture * fixture);
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
 
-STALKER_TESTCASE (heap_api)
+TESTCASE (heap_api)
 {
   gpointer p;
 
@@ -104,7 +104,7 @@ STALKER_TESTCASE (heap_api)
   /*gum_fake_event_sink_dump (fixture->sink);*/
 }
 
-STALKER_TESTCASE (follow_syscall)
+TESTCASE (follow_syscall)
 {
 #ifdef G_OS_WIN32
   if (!g_test_slow ())
@@ -126,7 +126,7 @@ STALKER_TESTCASE (follow_syscall)
   /*gum_fake_event_sink_dump (fixture->sink);*/
 }
 
-STALKER_TESTCASE (follow_thread)
+TESTCASE (follow_thread)
 {
   StalkerVictimContext ctx;
   GumThreadId thread_id;
@@ -238,7 +238,7 @@ stalker_victim (gpointer data)
 
 #ifndef G_OS_WIN32
 
-STALKER_TESTCASE (performance)
+TESTCASE (performance)
 {
   GumMemoryRange runner_range;
   GTimer * timer;
@@ -382,13 +382,13 @@ invoke_flat (TestStalkerFixture * fixture,
   return invoke_flat_expecting_return_value (fixture, mask, 2);
 }
 
-STALKER_TESTCASE (no_events)
+TESTCASE (no_events)
 {
   invoke_flat (fixture, GUM_NOTHING);
   g_assert_cmpuint (fixture->sink->events->len, ==, 0);
 }
 
-STALKER_TESTCASE (call)
+TESTCASE (call)
 {
   StalkerTestFunc func;
   GumCallEvent * ev;
@@ -403,7 +403,7 @@ STALKER_TESTCASE (call)
   GUM_ASSERT_CMPADDR (ev->target, ==, func);
 }
 
-STALKER_TESTCASE (ret)
+TESTCASE (ret)
 {
   StalkerTestFunc func;
   GumRetEvent * ev;
@@ -419,7 +419,7 @@ STALKER_TESTCASE (ret)
   GUM_ASSERT_CMPADDR (ev->target, ==, fixture->last_invoke_retaddr);
 }
 
-STALKER_TESTCASE (exec)
+TESTCASE (exec)
 {
   StalkerTestFunc func;
   GumRetEvent * ev;
@@ -434,7 +434,7 @@ STALKER_TESTCASE (exec)
   GUM_ASSERT_CMPADDR (ev->location, ==, func);
 }
 
-STALKER_TESTCASE (call_depth)
+TESTCASE (call_depth)
 {
   const guint8 code[] =
   {
@@ -482,7 +482,7 @@ struct _CallProbeContext
 
 static void probe_func_a_invocation (GumCallSite * site, gpointer user_data);
 
-STALKER_TESTCASE (call_probe)
+TESTCASE (call_probe)
 {
   const guint8 code_template[] =
   {
@@ -607,7 +607,7 @@ invoke_jumpy (TestStalkerFixture * fixture,
   return func;
 }
 
-STALKER_TESTCASE (custom_transformer)
+TESTCASE (custom_transformer)
 {
   gsize last_xax = 0;
 
@@ -659,7 +659,7 @@ store_xax (GumCpuContext * cpu_context,
   *last_xax = GUM_CPU_CONTEXT_XAX (cpu_context);
 }
 
-STALKER_TESTCASE (unconditional_jumps)
+TESTCASE (unconditional_jumps)
 {
   invoke_jumpy (fixture, GUM_EXEC);
 
@@ -706,7 +706,7 @@ invoke_short_condy (TestStalkerFixture * fixture,
   return func;
 }
 
-STALKER_TESTCASE (short_conditional_jump_true)
+TESTCASE (short_conditional_jump_true)
 {
   invoke_short_condy (fixture, GUM_EXEC, 42);
 
@@ -721,7 +721,7 @@ STALKER_TESTCASE (short_conditional_jump_true)
       ==, fixture->code + 15);
 }
 
-STALKER_TESTCASE (short_conditional_jump_false)
+TESTCASE (short_conditional_jump_false)
 {
   invoke_short_condy (fixture, GUM_EXEC, 43);
 
@@ -767,7 +767,7 @@ invoke_short_jcxz (TestStalkerFixture * fixture,
   return func;
 }
 
-STALKER_TESTCASE (short_conditional_jcxz_true)
+TESTCASE (short_conditional_jcxz_true)
 {
   invoke_short_jcxz (fixture, GUM_EXEC, 0);
 
@@ -780,7 +780,7 @@ STALKER_TESTCASE (short_conditional_jcxz_true)
       ==, fixture->code + 12);
 }
 
-STALKER_TESTCASE (short_conditional_jcxz_false)
+TESTCASE (short_conditional_jcxz_false)
 {
   invoke_short_jcxz (fixture, GUM_EXEC, 0x11223344);
 
@@ -856,7 +856,7 @@ invoke_long_condy (TestStalkerFixture * fixture,
   return func;
 }
 
-STALKER_TESTCASE (long_conditional_jump)
+TESTCASE (long_conditional_jump)
 {
   invoke_long_condy (fixture, GUM_EXEC, TRUE);
   invoke_long_condy (fixture, GUM_EXEC, FALSE);
@@ -872,7 +872,7 @@ STALKER_TESTCASE (long_conditional_jump)
 # endif
 #endif
 
-STALKER_TESTCASE (follow_return)
+TESTCASE (follow_return)
 {
   fixture->sink->mask = GUM_EXEC;
 
@@ -932,7 +932,7 @@ invoke_follow_return_code (TestStalkerFixture * fixture)
   gum_free_pages (code);
 }
 
-STALKER_TESTCASE (follow_stdcall)
+TESTCASE (follow_stdcall)
 {
   const guint8 stdcall_code[] =
   {
@@ -961,7 +961,7 @@ STALKER_TESTCASE (follow_stdcall)
   g_assert_cmpint (ret, ==, 0xbeef);
 }
 
-STALKER_TESTCASE (follow_repne_ret)
+TESTCASE (follow_repne_ret)
 {
   const guint8 repne_ret_code[] =
   {
@@ -984,7 +984,7 @@ STALKER_TESTCASE (follow_repne_ret)
   g_assert_cmpint (ret, ==, 0xbeef);
 }
 
-STALKER_TESTCASE (follow_repne_jb)
+TESTCASE (follow_repne_jb)
 {
   const guint8 repne_jb_code[] =
   {
@@ -1027,7 +1027,7 @@ STALKER_TESTCASE (follow_repne_jb)
 # endif
 #endif
 
-STALKER_TESTCASE (unfollow_deep)
+TESTCASE (unfollow_deep)
 {
   fixture->sink->mask = GUM_EXEC;
 
@@ -1096,7 +1096,7 @@ invoke_unfollow_deep_code (TestStalkerFixture * fixture)
   gum_free_pages (code);
 }
 
-STALKER_TESTCASE (call_followed_by_junk)
+TESTCASE (call_followed_by_junk)
 {
   const guint8 code[] =
   {
@@ -1208,7 +1208,7 @@ probe_template_func_invocation (GumCallSite * site,
 {
 }
 
-STALKER_TESTCASE (indirect_call_with_immediate)
+TESTCASE (indirect_call_with_immediate)
 {
   const guint8 code[] = {
       0xeb, 0x08,                         /* jmp +8          */
@@ -1239,7 +1239,7 @@ STALKER_TESTCASE (indirect_call_with_immediate)
   invoke_call_from_template (fixture, &call_template);
 }
 
-STALKER_TESTCASE (indirect_call_with_register_and_no_immediate)
+TESTCASE (indirect_call_with_register_and_no_immediate)
 {
   const guint8 code[] = {
       0x90, 0xb8, 0x00, 0x00, 0x00, 0x00, /* mov xax, X           */
@@ -1264,7 +1264,7 @@ STALKER_TESTCASE (indirect_call_with_register_and_no_immediate)
   invoke_call_from_template (fixture, &call_template);
 }
 
-STALKER_TESTCASE (indirect_call_with_register_and_positive_byte_immediate)
+TESTCASE (indirect_call_with_register_and_positive_byte_immediate)
 {
   const guint8 code[] = {
       0x90, 0xb8, 0x00, 0x00, 0x00, 0x00, /* mov xax, X           */
@@ -1290,7 +1290,7 @@ STALKER_TESTCASE (indirect_call_with_register_and_positive_byte_immediate)
   invoke_call_from_template (fixture, &call_template);
 }
 
-STALKER_TESTCASE (indirect_call_with_register_and_negative_byte_immediate)
+TESTCASE (indirect_call_with_register_and_negative_byte_immediate)
 {
   const guint8 code[] = {
       0x90, 0xbd, 0x00, 0x00, 0x00, 0x00, /* mov xbp, X           */
@@ -1316,7 +1316,7 @@ STALKER_TESTCASE (indirect_call_with_register_and_negative_byte_immediate)
   invoke_call_from_template (fixture, &call_template);
 }
 
-STALKER_TESTCASE (indirect_call_with_register_and_positive_dword_immediate)
+TESTCASE (indirect_call_with_register_and_positive_dword_immediate)
 {
   const guint8 code[] = {
       0x90, 0xb8, 0x00, 0x00, 0x00, 0x00, /* mov xax, X           */
@@ -1342,7 +1342,7 @@ STALKER_TESTCASE (indirect_call_with_register_and_positive_dword_immediate)
   invoke_call_from_template (fixture, &call_template);
 }
 
-STALKER_TESTCASE (indirect_call_with_register_and_negative_dword_immediate)
+TESTCASE (indirect_call_with_register_and_negative_dword_immediate)
 {
   const guint8 code[] = {
       0x90, 0xb8, 0x00, 0x00, 0x00, 0x00, /* mov xax, X           */
@@ -1370,7 +1370,7 @@ STALKER_TESTCASE (indirect_call_with_register_and_negative_dword_immediate)
 
 #if GLIB_SIZEOF_VOID_P == 8
 
-STALKER_TESTCASE (indirect_call_with_extended_registers_and_immediate)
+TESTCASE (indirect_call_with_extended_registers_and_immediate)
 {
   const guint8 code[] = {
       0x49, 0xbb, 0x00, 0x00, 0x00, 0x00, /* mov r11, X                   */
@@ -1399,7 +1399,7 @@ STALKER_TESTCASE (indirect_call_with_extended_registers_and_immediate)
 
 #endif
 
-STALKER_TESTCASE (indirect_call_with_esp_and_byte_immediate)
+TESTCASE (indirect_call_with_esp_and_byte_immediate)
 {
   const guint8 code[] = {
       0x90, 0xb8, 0x00, 0x00, 0x00, 0x00, /* mov xax, X          */
@@ -1432,7 +1432,7 @@ STALKER_TESTCASE (indirect_call_with_esp_and_byte_immediate)
   invoke_call_from_template (fixture, &call_template);
 }
 
-STALKER_TESTCASE (indirect_call_with_esp_and_dword_immediate)
+TESTCASE (indirect_call_with_esp_and_dword_immediate)
 {
   const guint8 code[] = {
       0x90, 0xb8, 0x00, 0x00, 0x00, 0x00,         /* mov xax, X          */
@@ -1465,7 +1465,7 @@ STALKER_TESTCASE (indirect_call_with_esp_and_dword_immediate)
   invoke_call_from_template (fixture, &call_template);
 }
 
-STALKER_TESTCASE (direct_call_with_register)
+TESTCASE (direct_call_with_register)
 {
   const guint8 code[] = {
       0x90, 0xb8, 0x00, 0x00, 0x00, 0x00, /* mov xax, X          */
@@ -1493,7 +1493,7 @@ STALKER_TESTCASE (direct_call_with_register)
 
 #if GLIB_SIZEOF_VOID_P == 8
 
-STALKER_TESTCASE (direct_call_with_extended_register)
+TESTCASE (direct_call_with_extended_register)
 {
   const guint8 code[] = {
       0x49, 0xb9, 0x00, 0x00, 0x00, 0x00, /* mov r9, X            */
@@ -1521,7 +1521,7 @@ STALKER_TESTCASE (direct_call_with_extended_register)
 
 #endif
 
-STALKER_TESTCASE (popcnt)
+TESTCASE (popcnt)
 {
   const guint8 code[] =
   {
@@ -1588,7 +1588,7 @@ invoke_jump (TestStalkerFixture * fixture,
   return func;
 }
 
-STALKER_TESTCASE (indirect_jump_with_immediate)
+TESTCASE (indirect_jump_with_immediate)
 {
   const guint8 code[] = {
       0xeb, 0x08,                         /* jmp +8          */
@@ -1618,7 +1618,7 @@ STALKER_TESTCASE (indirect_jump_with_immediate)
   invoke_jump (fixture, &jump_template);
 }
 
-STALKER_TESTCASE (indirect_jump_with_immediate_and_scaled_register)
+TESTCASE (indirect_jump_with_immediate_and_scaled_register)
 {
   guint8 code[] = {
       0x90, 0xbe, 0x00, 0x00, 0x00, 0x00,       /* mov xsi, addr                    */
@@ -1657,7 +1657,7 @@ STALKER_TESTCASE (indirect_jump_with_immediate_and_scaled_register)
 
 typedef void (* ClobberFunc) (GumCpuContext * ctx);
 
-STALKER_TESTCASE (no_register_clobber)
+TESTCASE (no_register_clobber)
 {
   guint8 * code;
   GumX86Writer cw;
@@ -1749,7 +1749,7 @@ STALKER_TESTCASE (no_register_clobber)
 
 #endif
 
-STALKER_TESTCASE (no_red_zone_clobber)
+TESTCASE (no_red_zone_clobber)
 {
   guint8 code_template[] =
   {
@@ -1790,7 +1790,7 @@ STALKER_TESTCASE (no_red_zone_clobber)
   g_assert_cmpint (ret, ==, 1337);
 }
 
-STALKER_TESTCASE (big_block)
+TESTCASE (big_block)
 {
   const guint nop_instruction_count = 1000000;
   guint8 * code;
@@ -1888,7 +1888,7 @@ invoke_indirect_call_seg (TestStalkerFixture * fixture,
   return func;
 }
 
-STALKER_TESTCASE (win32_indirect_call_seg)
+TESTCASE (win32_indirect_call_seg)
 {
   if (!g_test_slow ())
   {
@@ -1904,7 +1904,7 @@ STALKER_TESTCASE (win32_indirect_call_seg)
 
 #endif
 
-STALKER_TESTCASE (win32_messagebeep_api)
+TESTCASE (win32_messagebeep_api)
 {
   if (!g_test_slow ())
   {
@@ -1920,7 +1920,7 @@ STALKER_TESTCASE (win32_messagebeep_api)
   gum_stalker_unfollow_me (fixture->stalker);
 }
 
-STALKER_TESTCASE (win32_follow_user_to_kernel_to_callback)
+TESTCASE (win32_follow_user_to_kernel_to_callback)
 {
   TestWindow * window;
 
@@ -1941,7 +1941,7 @@ STALKER_TESTCASE (win32_follow_user_to_kernel_to_callback)
   destroy_test_window (window);
 }
 
-STALKER_TESTCASE (win32_follow_callback_to_kernel_to_user)
+TESTCASE (win32_follow_callback_to_kernel_to_user)
 {
   TestWindow * window;
 

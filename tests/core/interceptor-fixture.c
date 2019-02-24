@@ -21,11 +21,11 @@
 # include <unistd.h>
 #endif
 
-#define INTERCEPTOR_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_interceptor_ ## NAME ( \
         TestInterceptorFixture * fixture, gconstpointer data)
-#define INTERCEPTOR_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Core/Interceptor", \
+#define TESTENTRY(NAME) \
+    TESTENTRY_WITH_FIXTURE ("Core/Interceptor", \
         test_interceptor, NAME, TestInterceptorFixture)
 
 /* TODO: fix this in GLib */

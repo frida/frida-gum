@@ -37,18 +37,18 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define TESTUTIL_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_testutil_ ## NAME (void)
-#define TESTUTIL_TESTENTRY(NAME) \
-    TEST_ENTRY_SIMPLE ("TestUtil", test_testutil, NAME)
+#define TESTENTRY(NAME) \
+    TESTENTRY_SIMPLE ("TestUtil", test_testutil, NAME)
 
-TEST_LIST_BEGIN (testutil)
-  TESTUTIL_TESTENTRY (line_diff)
-  TESTUTIL_TESTENTRY (binary_diff)
-  TESTUTIL_TESTENTRY (text_diff)
-  TESTUTIL_TESTENTRY (xml_pretty_split)
-  TESTUTIL_TESTENTRY (xml_multiline_diff_same_size)
-TEST_LIST_END ()
+TESTLIST_BEGIN (testutil)
+  TESTENTRY (line_diff)
+  TESTENTRY (binary_diff)
+  TESTENTRY (text_diff)
+  TESTENTRY (xml_pretty_split)
+  TESTENTRY (xml_multiline_diff_same_size)
+TESTLIST_END ()
 
 #ifndef G_OS_WIN32
 static gchar * find_data_dir_from_executable_path (const gchar * path);
@@ -69,7 +69,7 @@ static gchar * diff_line (const gchar * expected_line,
     const gchar * actual_line);
 static void append_indent (GString * str, guint indent_level);
 
-TESTUTIL_TESTCASE (binary_diff)
+TESTCASE (binary_diff)
 {
   const guint8 expected_bytes[] = { 0x48, 0x8b, 0x40, 0x07 };
   const guint8 bad_bytes[] = { 0x4c, 0x8b, 0x40, 0x07 };
@@ -94,7 +94,7 @@ TESTUTIL_TESTCASE (binary_diff)
   g_free (diff);
 }
 
-TESTUTIL_TESTCASE (text_diff)
+TESTCASE (text_diff)
 {
   const gchar * expected_text = "Badger\nSnake\nMushroom";
   const gchar * bad_text      = "Badger\nSnakE\nMushroom";
@@ -112,7 +112,7 @@ TESTUTIL_TESTCASE (text_diff)
   g_free (diff);
 }
 
-TESTUTIL_TESTCASE (xml_pretty_split)
+TESTCASE (xml_pretty_split)
 {
   const gchar * input_xml = "<foo><bar id=\"2\">Woot</bar></foo>";
   const gchar * expected_xml =
@@ -128,7 +128,7 @@ TESTUTIL_TESTCASE (xml_pretty_split)
   g_free (output_xml);
 }
 
-TESTUTIL_TESTCASE (xml_multiline_diff_same_size)
+TESTCASE (xml_multiline_diff_same_size)
 {
   const gchar * expected_xml = "<foo><bar id=\"4\"></bar></foo>";
   const gchar * bad_xml      = "<foo><bar id=\"5\"></bar></foo>";
@@ -147,7 +147,7 @@ TESTUTIL_TESTCASE (xml_multiline_diff_same_size)
   g_free (diff);
 }
 
-TESTUTIL_TESTCASE (line_diff)
+TESTCASE (line_diff)
 {
   const gchar * expected_xml = "<tag/>";
   const gchar * bad_xml = "<taG/>";

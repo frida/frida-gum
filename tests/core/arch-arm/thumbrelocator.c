@@ -6,30 +6,30 @@
 
 #include "thumbrelocator-fixture.c"
 
-TEST_LIST_BEGIN (thumbrelocator)
-  RELOCATOR_TESTENTRY (one_to_one)
-  RELOCATOR_TESTENTRY (handle_extended_instructions)
+TESTLIST_BEGIN (thumbrelocator)
+  TESTENTRY (one_to_one)
+  TESTENTRY (handle_extended_instructions)
 
-  RELOCATOR_TESTENTRY (ldrpc_t1_should_be_rewritten)
-  RELOCATOR_TESTENTRY (ldrpc_t2_should_be_rewritten)
-  RELOCATOR_TESTENTRY (addh_should_be_rewritten_if_pc_relative)
-  RELOCATOR_TESTENTRY (bl_sequence_should_be_rewritten)
-  RELOCATOR_TESTENTRY (b_imm_t2_positive_should_be_rewritten)
-  RELOCATOR_TESTENTRY (b_imm_t2_negative_should_be_rewritten)
-  RELOCATOR_TESTENTRY (b_imm_t4_positive_should_be_rewritten)
-  RELOCATOR_TESTENTRY (b_imm_t4_negative_should_be_rewritten)
-  RELOCATOR_TESTENTRY (bl_imm_t1_positive_should_be_rewritten)
-  RELOCATOR_TESTENTRY (bl_imm_t1_negative_should_be_rewritten)
-  RELOCATOR_TESTENTRY (blx_imm_t2_positive_should_be_rewritten)
-  RELOCATOR_TESTENTRY (blx_imm_t2_negative_should_be_rewritten)
-  RELOCATOR_TESTENTRY (cbz_should_be_rewritten)
-  RELOCATOR_TESTENTRY (cbnz_should_be_rewritten)
-  RELOCATOR_TESTENTRY (b_cond_should_be_rewritten)
-  RELOCATOR_TESTENTRY (it_block_should_be_rewritten_as_a_whole)
-  RELOCATOR_TESTENTRY (eob_and_eoi_on_ret)
-TEST_LIST_END ()
+  TESTENTRY (ldrpc_t1_should_be_rewritten)
+  TESTENTRY (ldrpc_t2_should_be_rewritten)
+  TESTENTRY (addh_should_be_rewritten_if_pc_relative)
+  TESTENTRY (bl_sequence_should_be_rewritten)
+  TESTENTRY (b_imm_t2_positive_should_be_rewritten)
+  TESTENTRY (b_imm_t2_negative_should_be_rewritten)
+  TESTENTRY (b_imm_t4_positive_should_be_rewritten)
+  TESTENTRY (b_imm_t4_negative_should_be_rewritten)
+  TESTENTRY (bl_imm_t1_positive_should_be_rewritten)
+  TESTENTRY (bl_imm_t1_negative_should_be_rewritten)
+  TESTENTRY (blx_imm_t2_positive_should_be_rewritten)
+  TESTENTRY (blx_imm_t2_negative_should_be_rewritten)
+  TESTENTRY (cbz_should_be_rewritten)
+  TESTENTRY (cbnz_should_be_rewritten)
+  TESTENTRY (b_cond_should_be_rewritten)
+  TESTENTRY (it_block_should_be_rewritten_as_a_whole)
+  TESTENTRY (eob_and_eoi_on_ret)
+TESTLIST_END ()
 
-RELOCATOR_TESTCASE (one_to_one)
+TESTCASE (one_to_one)
 {
   const guint16 input[] = {
     GUINT16_TO_LE (0xb580), /* push {r7, lr}  */
@@ -61,7 +61,7 @@ RELOCATOR_TESTCASE (one_to_one)
   g_assert (!gum_thumb_relocator_write_one (&fixture->rl));
 }
 
-RELOCATOR_TESTCASE (handle_extended_instructions)
+TESTCASE (handle_extended_instructions)
 {
   const guint16 input[] = {
     /* stmdb sp!, {r4, r5, r6, r7, r8, r9, sl, fp, lr} */
@@ -82,7 +82,7 @@ RELOCATOR_TESTCASE (handle_extended_instructions)
   g_assert_cmpint (memcmp (fixture->output, input, sizeof (input)), ==, 0);
 }
 
-RELOCATOR_TESTCASE (ldrpc_t1_should_be_rewritten)
+TESTCASE (ldrpc_t1_should_be_rewritten)
 {
   const guint16 input[] = {
     GUINT16_TO_LE (0x4a03), /* ldr r2, [pc, #12] */
@@ -113,7 +113,7 @@ RELOCATOR_TESTCASE (ldrpc_t1_should_be_rewritten)
       sizeof (expected_output)), ==, 0);
 }
 
-RELOCATOR_TESTCASE (ldrpc_t2_should_be_rewritten)
+TESTCASE (ldrpc_t2_should_be_rewritten)
 {
   const guint16 input[] = {
     GUINT16_TO_LE (0xf8df), GUINT16_TO_LE (0x2768) /* ldr.w r2, [pc, #1896] */
@@ -144,7 +144,7 @@ RELOCATOR_TESTCASE (ldrpc_t2_should_be_rewritten)
       sizeof (expected_output)), ==, 0);
 }
 
-RELOCATOR_TESTCASE (addh_should_be_rewritten_if_pc_relative)
+TESTCASE (addh_should_be_rewritten_if_pc_relative)
 {
   const guint16 input[] = {
     GUINT16_TO_LE (0x447a),   /* add r2, pc       */
@@ -177,7 +177,7 @@ RELOCATOR_TESTCASE (addh_should_be_rewritten_if_pc_relative)
       sizeof (expected_output)), ==, 0);
 }
 
-RELOCATOR_TESTCASE (bl_sequence_should_be_rewritten)
+TESTCASE (bl_sequence_should_be_rewritten)
 {
   const guint16 input[] = {
     GUINT16_TO_LE (0xb573),      /* push {r0, r1, r4, r5, r6, lr} */
@@ -244,7 +244,7 @@ struct _BranchScenario
 static void branch_scenario_execute (BranchScenario * bs,
     TestThumbRelocatorFixture * fixture);
 
-RELOCATOR_TESTCASE (b_imm_t2_positive_should_be_rewritten)
+TESTCASE (b_imm_t2_positive_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_B,
@@ -264,7 +264,7 @@ RELOCATOR_TESTCASE (b_imm_t2_positive_should_be_rewritten)
   branch_scenario_execute (&bs, fixture);
 }
 
-RELOCATOR_TESTCASE (b_imm_t2_negative_should_be_rewritten)
+TESTCASE (b_imm_t2_negative_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_B,
@@ -284,7 +284,7 @@ RELOCATOR_TESTCASE (b_imm_t2_negative_should_be_rewritten)
   branch_scenario_execute (&bs, fixture);
 }
 
-RELOCATOR_TESTCASE (b_imm_t4_positive_should_be_rewritten)
+TESTCASE (b_imm_t4_positive_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_B,
@@ -304,7 +304,7 @@ RELOCATOR_TESTCASE (b_imm_t4_positive_should_be_rewritten)
   branch_scenario_execute (&bs, fixture);
 }
 
-RELOCATOR_TESTCASE (b_imm_t4_negative_should_be_rewritten)
+TESTCASE (b_imm_t4_negative_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_B,
@@ -324,7 +324,7 @@ RELOCATOR_TESTCASE (b_imm_t4_negative_should_be_rewritten)
   branch_scenario_execute (&bs, fixture);
 }
 
-RELOCATOR_TESTCASE (bl_imm_t1_positive_should_be_rewritten)
+TESTCASE (bl_imm_t1_positive_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_BL,
@@ -344,7 +344,7 @@ RELOCATOR_TESTCASE (bl_imm_t1_positive_should_be_rewritten)
   branch_scenario_execute (&bs, fixture);
 }
 
-RELOCATOR_TESTCASE (bl_imm_t1_negative_should_be_rewritten)
+TESTCASE (bl_imm_t1_negative_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_BL,
@@ -364,7 +364,7 @@ RELOCATOR_TESTCASE (bl_imm_t1_negative_should_be_rewritten)
   branch_scenario_execute (&bs, fixture);
 }
 
-RELOCATOR_TESTCASE (blx_imm_t2_positive_should_be_rewritten)
+TESTCASE (blx_imm_t2_positive_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_BLX,
@@ -384,7 +384,7 @@ RELOCATOR_TESTCASE (blx_imm_t2_positive_should_be_rewritten)
   branch_scenario_execute (&bs, fixture);
 }
 
-RELOCATOR_TESTCASE (blx_imm_t2_negative_should_be_rewritten)
+TESTCASE (blx_imm_t2_negative_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_BLX,
@@ -434,7 +434,7 @@ branch_scenario_execute (BranchScenario * bs,
       bs->expected_output_length * sizeof (guint16)), ==, 0);
 }
 
-RELOCATOR_TESTCASE (cbz_should_be_rewritten)
+TESTCASE (cbz_should_be_rewritten)
 {
   const guint16 input[] = {
     GUINT16_TO_LE (0xb1e8),     /* cbz r0, #imm     */
@@ -476,7 +476,7 @@ RELOCATOR_TESTCASE (cbz_should_be_rewritten)
       sizeof (expected_output)), ==, 0);
 }
 
-RELOCATOR_TESTCASE (cbnz_should_be_rewritten)
+TESTCASE (cbnz_should_be_rewritten)
 {
   const guint16 input[] = {
     GUINT16_TO_LE (0xb912),     /* cbnz r2, #imm    */
@@ -518,7 +518,7 @@ RELOCATOR_TESTCASE (cbnz_should_be_rewritten)
       sizeof (expected_output)), ==, 0);
 }
 
-RELOCATOR_TESTCASE (b_cond_should_be_rewritten)
+TESTCASE (b_cond_should_be_rewritten)
 {
   const guint16 input[] = {
     GUINT16_TO_LE (0xd01b),     /* beq #imm         */
@@ -560,7 +560,7 @@ RELOCATOR_TESTCASE (b_cond_should_be_rewritten)
       sizeof (expected_output)), ==, 0);
 }
 
-RELOCATOR_TESTCASE (it_block_should_be_rewritten_as_a_whole)
+TESTCASE (it_block_should_be_rewritten_as_a_whole)
 {
   const guint16 input[] = {
     GUINT16_TO_LE (0x2800), /* cmp r0, #0     */
@@ -596,7 +596,7 @@ RELOCATOR_TESTCASE (it_block_should_be_rewritten_as_a_whole)
   g_assert (!gum_thumb_relocator_write_one (&fixture->rl));
 }
 
-RELOCATOR_TESTCASE (eob_and_eoi_on_ret)
+TESTCASE (eob_and_eoi_on_ret)
 {
   const guint16 input[] = {
     GUINT16_TO_LE (0x4770)  /* bx lr */

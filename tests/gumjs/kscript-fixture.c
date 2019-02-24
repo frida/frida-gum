@@ -16,10 +16,10 @@
 #ifndef KSCRIPT_SUITE
 # define KSCRIPT_SUITE ""
 #endif
-#define KSCRIPT_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_kscript_ ## NAME (TestScriptFixture * fixture, gconstpointer data)
-#define KSCRIPT_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("GumJS/KScript" KSCRIPT_SUITE, test_kscript, \
+#define TESTENTRY(NAME) \
+    TESTENTRY_WITH_FIXTURE ("GumJS/KScript" KSCRIPT_SUITE, test_kscript, \
         NAME, TestScriptFixture)
 
 #define COMPILE_AND_LOAD_SCRIPT(SOURCE, ...) \

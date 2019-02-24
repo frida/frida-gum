@@ -9,46 +9,46 @@
 
 #include <lzma.h>
 
-TEST_LIST_BEGIN (stalker)
+TESTLIST_BEGIN (stalker)
 
   /* EVENTS */
-  STALKER_TESTENTRY (no_events)
-  STALKER_TESTENTRY (call)
-  STALKER_TESTENTRY (ret)
-  STALKER_TESTENTRY (exec)
-  STALKER_TESTENTRY (call_depth)
+  TESTENTRY (no_events)
+  TESTENTRY (call)
+  TESTENTRY (ret)
+  TESTENTRY (exec)
+  TESTENTRY (call_depth)
 
   /* PROBES */
-  STALKER_TESTENTRY (call_probe)
+  TESTENTRY (call_probe)
 
   /* TRANSFORMERS */
-  STALKER_TESTENTRY (custom_transformer)
+  TESTENTRY (custom_transformer)
 
   /* EXCLUSION */
-  STALKER_TESTENTRY (exclude_bl)
-  STALKER_TESTENTRY (exclude_blr)
-  STALKER_TESTENTRY (exclude_bl_with_unfollow)
-  STALKER_TESTENTRY (exclude_blr_with_unfollow)
+  TESTENTRY (exclude_bl)
+  TESTENTRY (exclude_blr)
+  TESTENTRY (exclude_bl_with_unfollow)
+  TESTENTRY (exclude_blr_with_unfollow)
 
   /* BRANCH */
-  STALKER_TESTENTRY (unconditional_branch)
-  STALKER_TESTENTRY (unconditional_branch_reg)
-  STALKER_TESTENTRY (conditional_branch)
-  STALKER_TESTENTRY (compare_and_branch)
-  STALKER_TESTENTRY (test_bit_and_branch)
+  TESTENTRY (unconditional_branch)
+  TESTENTRY (unconditional_branch_reg)
+  TESTENTRY (conditional_branch)
+  TESTENTRY (compare_and_branch)
+  TESTENTRY (test_bit_and_branch)
 
   /* FOLLOWS */
-  STALKER_TESTENTRY (follow_std_call)
-  STALKER_TESTENTRY (follow_return)
-  STALKER_TESTENTRY (follow_syscall)
-  STALKER_TESTENTRY (follow_thread)
+  TESTENTRY (follow_std_call)
+  TESTENTRY (follow_return)
+  TESTENTRY (follow_syscall)
+  TESTENTRY (follow_thread)
 
   /* EXTRA */
-  STALKER_TESTENTRY (heap_api)
-  STALKER_TESTENTRY (no_register_clobber)
-  STALKER_TESTENTRY (performance)
+  TESTENTRY (heap_api)
+  TESTENTRY (no_register_clobber)
+  TESTENTRY (performance)
 
-TEST_LIST_END ()
+TESTLIST_END ()
 
 static void insert_extra_add_after_sub (GumStalkerIterator * iterator,
     GumStalkerWriter * output, gpointer user_data);
@@ -92,13 +92,13 @@ invoke_flat (TestArm64StalkerFixture * fixture,
   return invoke_flat_expecting_return_value (fixture, mask, 2);
 }
 
-STALKER_TESTCASE (no_events)
+TESTCASE (no_events)
 {
   invoke_flat (fixture, GUM_NOTHING);
   g_assert_cmpuint (fixture->sink->events->len, ==, 0);
 }
 
-STALKER_TESTCASE (call)
+TESTCASE (call)
 {
   StalkerTestFunc func;
   GumCallEvent * ev;
@@ -113,7 +113,7 @@ STALKER_TESTCASE (call)
   GUM_ASSERT_CMPADDR (ev->target, ==, func);
 }
 
-STALKER_TESTCASE (ret)
+TESTCASE (ret)
 {
   StalkerTestFunc func;
   GumRetEvent * ev;
@@ -131,7 +131,7 @@ STALKER_TESTCASE (ret)
   GUM_ASSERT_CMPADDR (ev->target, ==, fixture->last_invoke_retaddr);
 }
 
-STALKER_TESTCASE (exec)
+TESTCASE (exec)
 {
   StalkerTestFunc func;
   GumRetEvent * ev;
@@ -146,7 +146,7 @@ STALKER_TESTCASE (exec)
   GUM_ASSERT_CMPADDR (ev->location, ==, func);
 }
 
-STALKER_TESTCASE (call_depth)
+TESTCASE (call_depth)
 {
   guint8 * code;
   GumArm64Writer cw;
@@ -222,7 +222,7 @@ struct _CallProbeContext
 
 static void probe_func_a_invocation (GumCallSite * site, gpointer user_data);
 
-STALKER_TESTCASE (call_probe)
+TESTCASE (call_probe)
 {
   const guint32 code_template[] =
   {
@@ -309,7 +309,7 @@ probe_func_a_invocation (GumCallSite * site,
   g_assert_cmphex (((gsize *) site->stack_data)[1], ==, 0x22);
 }
 
-STALKER_TESTCASE (custom_transformer)
+TESTCASE (custom_transformer)
 {
   guint64 last_x0 = 0;
 
@@ -362,7 +362,7 @@ store_x0 (GumCpuContext * cpu_context,
   *last_x0 = cpu_context->x[0];
 }
 
-STALKER_TESTCASE (exclude_bl)
+TESTCASE (exclude_bl)
 {
   const guint32 code_template[] =
   {
@@ -413,7 +413,7 @@ STALKER_TESTCASE (exclude_bl)
   g_assert_cmpuint (fixture->sink->events->len, ==, 24);
 }
 
-STALKER_TESTCASE (exclude_blr)
+TESTCASE (exclude_blr)
 {
   StalkerTestFunc func;
   guint8 * code;
@@ -479,7 +479,7 @@ STALKER_TESTCASE (exclude_blr)
   gum_free_pages (code);
 }
 
-STALKER_TESTCASE (exclude_bl_with_unfollow)
+TESTCASE (exclude_bl_with_unfollow)
 {
   StalkerTestFunc func;
   guint8 * code;
@@ -541,7 +541,7 @@ STALKER_TESTCASE (exclude_bl_with_unfollow)
   gum_free_pages (code);
 }
 
-STALKER_TESTCASE (exclude_blr_with_unfollow)
+TESTCASE (exclude_blr_with_unfollow)
 {
   StalkerTestFunc func;
   guint8 * code;
@@ -605,7 +605,7 @@ STALKER_TESTCASE (exclude_blr_with_unfollow)
   gum_free_pages (code);
 }
 
-STALKER_TESTCASE (unconditional_branch)
+TESTCASE (unconditional_branch)
 {
   guint8 * code;
   GumArm64Writer cw;
@@ -655,7 +655,7 @@ STALKER_TESTCASE (unconditional_branch)
   gum_free_pages (code);
 }
 
-STALKER_TESTCASE (unconditional_branch_reg)
+TESTCASE (unconditional_branch_reg)
 {
   guint8 * code;
   GumArm64Writer cw;
@@ -711,7 +711,7 @@ STALKER_TESTCASE (unconditional_branch_reg)
   gum_free_pages (code);
 }
 
-STALKER_TESTCASE (conditional_branch)
+TESTCASE (conditional_branch)
 {
   guint8 * code;
   GumArm64Writer cw;
@@ -765,7 +765,7 @@ STALKER_TESTCASE (conditional_branch)
   gum_free_pages (code);
 }
 
-STALKER_TESTCASE (compare_and_branch)
+TESTCASE (compare_and_branch)
 {
   guint8 * code;
   GumArm64Writer cw;
@@ -818,7 +818,7 @@ STALKER_TESTCASE (compare_and_branch)
   gum_free_pages (code);
 }
 
-STALKER_TESTCASE (test_bit_and_branch)
+TESTCASE (test_bit_and_branch)
 {
   guint8 * code;
   GumArm64Writer cw;
@@ -871,7 +871,7 @@ STALKER_TESTCASE (test_bit_and_branch)
   gum_free_pages (code);
 }
 
-STALKER_TESTCASE (follow_std_call)
+TESTCASE (follow_std_call)
 {
   guint8 * code;
   GumArm64Writer cw;
@@ -925,7 +925,7 @@ STALKER_TESTCASE (follow_std_call)
   gum_free_pages (code);
 }
 
-STALKER_TESTCASE (follow_return)
+TESTCASE (follow_return)
 {
   guint8 * code;
   GumArm64Writer cw;
@@ -985,7 +985,7 @@ STALKER_TESTCASE (follow_return)
   gum_free_pages (code);
 }
 
-STALKER_TESTCASE (follow_syscall)
+TESTCASE (follow_syscall)
 {
   fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
 
@@ -1034,7 +1034,7 @@ stalker_victim (gpointer data)
   return NULL;
 }
 
-STALKER_TESTCASE (follow_thread)
+TESTCASE (follow_thread)
 {
   StalkerVictimContext ctx;
   GumThreadId thread_id;
@@ -1107,7 +1107,7 @@ STALKER_TESTCASE (follow_thread)
   g_cond_clear (&ctx.cond);
 }
 
-STALKER_TESTCASE (heap_api)
+TESTCASE (heap_api)
 {
   gpointer p;
 
@@ -1124,7 +1124,7 @@ STALKER_TESTCASE (heap_api)
 
 typedef void (* ClobberFunc) (GumCpuContext * ctx);
 
-STALKER_TESTCASE (no_register_clobber)
+TESTCASE (no_register_clobber)
 {
 #ifndef HAVE_DARWIN
   guint8 * code;
@@ -1198,7 +1198,7 @@ STALKER_TESTCASE (no_register_clobber)
 #endif
 }
 
-STALKER_TESTCASE (performance)
+TESTCASE (performance)
 {
   GumMemoryRange runner_range;
   GTimer * timer;

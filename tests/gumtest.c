@@ -169,73 +169,73 @@ main (gint argc, gchar * argv[])
 #endif
 
   /* Core */
-  TEST_RUN_LIST (testutil);
-  TEST_RUN_LIST (tls);
-  TEST_RUN_LIST (cloak);
-  TEST_RUN_LIST (memory);
-  TEST_RUN_LIST (process);
+  TESTLIST_REGISTER (testutil);
+  TESTLIST_REGISTER (tls);
+  TESTLIST_REGISTER (cloak);
+  TESTLIST_REGISTER (memory);
+  TESTLIST_REGISTER (process);
 #if !defined (HAVE_QNX) && !(defined (HAVE_ANDROID) && defined (HAVE_ARM64))
-  TEST_RUN_LIST (symbolutil);
+  TESTLIST_REGISTER (symbolutil);
 #endif
-  TEST_RUN_LIST (codewriter);
+  TESTLIST_REGISTER (codewriter);
   if (cs_support (CS_ARCH_X86))
-    TEST_RUN_LIST (relocator);
-  TEST_RUN_LIST (armwriter);
+    TESTLIST_REGISTER (relocator);
+  TESTLIST_REGISTER (armwriter);
   if (cs_support (CS_ARCH_ARM))
-    TEST_RUN_LIST (armrelocator);
-  TEST_RUN_LIST (thumbwriter);
+    TESTLIST_REGISTER (armrelocator);
+  TESTLIST_REGISTER (thumbwriter);
   if (cs_support (CS_ARCH_ARM))
-    TEST_RUN_LIST (thumbrelocator);
-  TEST_RUN_LIST (arm64writer);
+    TESTLIST_REGISTER (thumbrelocator);
+  TESTLIST_REGISTER (arm64writer);
   if (cs_support (CS_ARCH_ARM64))
-    TEST_RUN_LIST (arm64relocator);
-  TEST_RUN_LIST (interceptor);
+    TESTLIST_REGISTER (arm64relocator);
+  TESTLIST_REGISTER (interceptor);
 #ifdef HAVE_DARWIN
-  TEST_RUN_LIST (interceptor_darwin);
+  TESTLIST_REGISTER (interceptor_darwin);
 #endif
 #ifdef HAVE_ANDROID
-  TEST_RUN_LIST (interceptor_android);
+  TESTLIST_REGISTER (interceptor_android);
 #endif
 #ifdef HAVE_ARM
-  TEST_RUN_LIST (interceptor_arm);
+  TESTLIST_REGISTER (interceptor_arm);
 #endif
 #ifdef HAVE_ARM64
-  TEST_RUN_LIST (interceptor_arm64);
+  TESTLIST_REGISTER (interceptor_arm64);
 #endif
 #ifdef HAVE_DARWIN
-  TEST_RUN_LIST (exceptor_darwin);
+  TESTLIST_REGISTER (exceptor_darwin);
 #endif
 #if defined (HAVE_I386) && defined (G_OS_WIN32)
-  TEST_RUN_LIST (memoryaccessmonitor);
+  TESTLIST_REGISTER (memoryaccessmonitor);
 #endif
 
   if (gum_stalker_is_supported ())
   {
 #if defined (HAVE_I386) || defined (HAVE_ARM64)
-    TEST_RUN_LIST (stalker);
+    TESTLIST_REGISTER (stalker);
 #endif
 #ifdef HAVE_MACOS
-    TEST_RUN_LIST (stalker_macos);
+    TESTLIST_REGISTER (stalker_macos);
 #endif
 #if defined (HAVE_ARM64) && defined (HAVE_DARWIN)
-    TEST_RUN_LIST (stalker_darwin);
+    TESTLIST_REGISTER (stalker_darwin);
 #endif
   }
 
-  TEST_RUN_LIST (api_resolver);
+  TESTLIST_REGISTER (api_resolver);
 #if !defined (HAVE_QNX) && !(defined (HAVE_ANDROID) && defined (HAVE_ARM64)) && !(defined (HAVE_MIPS))
-  TEST_RUN_LIST (backtracer);
+  TESTLIST_REGISTER (backtracer);
 #endif
 
   /* Heap */
-  TEST_RUN_LIST (allocation_tracker);
+  TESTLIST_REGISTER (allocation_tracker);
 #ifdef G_OS_WIN32
-  TEST_RUN_LIST (allocator_probe);
-  TEST_RUN_LIST (allocator_probe_cxx);
-  TEST_RUN_LIST (cobjecttracker);
-  TEST_RUN_LIST (instancetracker);
+  TESTLIST_REGISTER (allocator_probe);
+  TESTLIST_REGISTER (allocator_probe_cxx);
+  TESTLIST_REGISTER (cobjecttracker);
+  TESTLIST_REGISTER (instancetracker);
 #endif
-  TEST_RUN_LIST (pagepool);
+  TESTLIST_REGISTER (pagepool);
 #ifndef G_OS_WIN32
   if (gum_is_debugger_present ())
   {
@@ -250,19 +250,19 @@ main (gint argc, gchar * argv[])
 #endif
   {
 #ifdef G_OS_WIN32
-    TEST_RUN_LIST (boundschecker);
+    TESTLIST_REGISTER (boundschecker);
 #endif
   }
 #ifdef G_OS_WIN32
-  TEST_RUN_LIST (sanitychecker);
+  TESTLIST_REGISTER (sanitychecker);
 #endif
 
   /* Prof */
 #if !defined (HAVE_IOS) && !(defined (HAVE_ANDROID) && defined (HAVE_ARM64))
-  TEST_RUN_LIST (sampler);
+  TESTLIST_REGISTER (sampler);
 #endif
 #ifdef G_OS_WIN32
-  TEST_RUN_LIST (profiler);
+  TESTLIST_REGISTER (profiler);
 #endif
 
 #if defined (HAVE_GUMJS)
@@ -278,14 +278,14 @@ main (gint argc, gchar * argv[])
 #  endif
 
     if (v8_backend != NULL)
-      TEST_RUN_LIST_WITH_DATA (script, v8_backend);
+      TESTLIST_REGISTER_WITH_DATA (script, v8_backend);
 # endif
-    TEST_RUN_LIST_WITH_DATA (script, gum_script_backend_obtain_duk ());
+    TESTLIST_REGISTER_WITH_DATA (script, gum_script_backend_obtain_duk ());
 
 #if 0
 # ifndef HAVE_ASAN
     if (gum_kernel_api_is_available ())
-      TEST_RUN_LIST (kscript);
+      TESTLIST_REGISTER (kscript);
 # endif
 #endif
   }
@@ -293,7 +293,7 @@ main (gint argc, gchar * argv[])
 
 #if defined (HAVE_GUMPP) && defined (G_OS_WIN32)
   /* Gum++ */
-  TEST_RUN_LIST (gumpp_backtracer);
+  TESTLIST_REGISTER (gumpp_backtracer);
 #endif
 
 #ifdef _MSC_VER

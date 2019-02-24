@@ -19,42 +19,42 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define PROCESS_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_process_ ## NAME (void)
-#define PROCESS_TESTENTRY(NAME) \
-    TEST_ENTRY_SIMPLE ("Core/Process", test_process, NAME)
+#define TESTENTRY(NAME) \
+    TESTENTRY_SIMPLE ("Core/Process", test_process, NAME)
 
-TEST_LIST_BEGIN (process)
-  PROCESS_TESTENTRY (process_threads)
-  PROCESS_TESTENTRY (process_threads_exclude_cloaked)
-  PROCESS_TESTENTRY (process_modules)
-  PROCESS_TESTENTRY (process_ranges)
-  PROCESS_TESTENTRY (process_ranges_exclude_cloaked)
-  PROCESS_TESTENTRY (module_imports)
-  PROCESS_TESTENTRY (module_exports)
-  PROCESS_TESTENTRY (module_symbols)
-  PROCESS_TESTENTRY (module_ranges_can_be_enumerated)
-  PROCESS_TESTENTRY (module_base)
-  PROCESS_TESTENTRY (module_export_can_be_found)
-  PROCESS_TESTENTRY (module_export_matches_system_lookup)
+TESTLIST_BEGIN (process)
+  TESTENTRY (process_threads)
+  TESTENTRY (process_threads_exclude_cloaked)
+  TESTENTRY (process_modules)
+  TESTENTRY (process_ranges)
+  TESTENTRY (process_ranges_exclude_cloaked)
+  TESTENTRY (module_imports)
+  TESTENTRY (module_exports)
+  TESTENTRY (module_symbols)
+  TESTENTRY (module_ranges_can_be_enumerated)
+  TESTENTRY (module_base)
+  TESTENTRY (module_export_can_be_found)
+  TESTENTRY (module_export_matches_system_lookup)
 #ifdef G_OS_WIN32
-  PROCESS_TESTENTRY (get_set_system_error)
-  PROCESS_TESTENTRY (get_current_thread_id)
+  TESTENTRY (get_set_system_error)
+  TESTENTRY (get_current_thread_id)
 #endif
 #ifdef HAVE_DARWIN
-  PROCESS_TESTENTRY (darwin_enumerate_modules)
-  PROCESS_TESTENTRY (darwin_enumerate_modules_should_include_core_foundation)
-  PROCESS_TESTENTRY (darwin_enumerate_ranges)
-  PROCESS_TESTENTRY (darwin_module_exports)
-  PROCESS_TESTENTRY (darwin_module_exports_should_support_dyld)
+  TESTENTRY (darwin_enumerate_modules)
+  TESTENTRY (darwin_enumerate_modules_should_include_core_foundation)
+  TESTENTRY (darwin_enumerate_ranges)
+  TESTENTRY (darwin_module_exports)
+  TESTENTRY (darwin_module_exports_should_support_dyld)
 #endif
 #if defined (G_OS_WIN32) || defined (HAVE_DARWIN)
-  PROCESS_TESTENTRY (process_malloc_ranges)
+  TESTENTRY (process_malloc_ranges)
 #endif
 #ifdef HAVE_LINUX
-  PROCESS_TESTENTRY (linux_process_modules)
+  TESTENTRY (linux_process_modules)
 #endif
-TEST_LIST_END ()
+TESTLIST_END ()
 
 typedef struct _TestForEachContext TestForEachContext;
 typedef struct _TestThreadContext TestThreadContext;
@@ -127,7 +127,7 @@ static gboolean malloc_range_check_cb (
     const GumMallocRangeDetails * details, gpointer user_data);
 #endif
 
-PROCESS_TESTCASE (process_threads)
+TESTCASE (process_threads)
 {
   volatile gboolean done = FALSE;
   GThread * thread_a, * thread_b;
@@ -165,7 +165,7 @@ PROCESS_TESTCASE (process_threads)
   g_thread_join (thread_a);
 }
 
-PROCESS_TESTCASE (process_threads_exclude_cloaked)
+TESTCASE (process_threads_exclude_cloaked)
 {
   TestThreadContext ctx;
 
@@ -197,7 +197,7 @@ PROCESS_TESTCASE (process_threads_exclude_cloaked)
   gum_cloak_remove_thread (ctx.needle);
 }
 
-PROCESS_TESTCASE (process_modules)
+TESTCASE (process_modules)
 {
   TestForEachContext ctx;
 
@@ -228,7 +228,7 @@ static gboolean find_module_bounds (const GumRangeDetails * details,
 static gboolean verify_module_bounds (const GumModuleDetails * details,
     gpointer user_data);
 
-PROCESS_TESTCASE (linux_process_modules)
+TESTCASE (linux_process_modules)
 {
   void * lib;
   ModuleBounds bounds;
@@ -297,7 +297,7 @@ verify_module_bounds (const GumModuleDetails * details,
 
 #endif
 
-PROCESS_TESTCASE (process_ranges)
+TESTCASE (process_ranges)
 {
   {
     TestForEachContext ctx;
@@ -348,7 +348,7 @@ PROCESS_TESTCASE (process_ranges)
   }
 }
 
-PROCESS_TESTCASE (process_ranges_exclude_cloaked)
+TESTCASE (process_ranges_exclude_cloaked)
 {
   GumMemoryRange first = { 0, };
   GumMemoryRange range = { 0, };
@@ -379,7 +379,7 @@ PROCESS_TESTCASE (process_ranges_exclude_cloaked)
 
 #define TEST_STACK_BUFFER_SIZE 50
 
-PROCESS_TESTCASE (process_malloc_ranges)
+TESTCASE (process_malloc_ranges)
 {
   if (!g_test_slow ())
   {
@@ -439,7 +439,7 @@ PROCESS_TESTCASE (process_malloc_ranges)
 
 #endif
 
-PROCESS_TESTCASE (module_imports)
+TESTCASE (module_imports)
 {
 #ifndef HAVE_QNX
   TestForEachContext ctx;
@@ -458,7 +458,7 @@ PROCESS_TESTCASE (module_imports)
 #endif
 }
 
-PROCESS_TESTCASE (module_exports)
+TESTCASE (module_exports)
 {
   TestForEachContext ctx;
 
@@ -473,7 +473,7 @@ PROCESS_TESTCASE (module_exports)
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
 
-PROCESS_TESTCASE (module_symbols)
+TESTCASE (module_symbols)
 {
 #if defined (HAVE_DARWIN) || defined (HAVE_LINUX)
   TestForEachContext ctx;
@@ -492,7 +492,7 @@ PROCESS_TESTCASE (module_symbols)
 #endif
 }
 
-PROCESS_TESTCASE (module_ranges_can_be_enumerated)
+TESTCASE (module_ranges_can_be_enumerated)
 {
   TestForEachContext ctx;
 
@@ -509,18 +509,18 @@ PROCESS_TESTCASE (module_ranges_can_be_enumerated)
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
 
-PROCESS_TESTCASE (module_base)
+TESTCASE (module_base)
 {
   g_assert (gum_module_find_base_address (SYSTEM_MODULE_NAME) != 0);
 }
 
-PROCESS_TESTCASE (module_export_can_be_found)
+TESTCASE (module_export_can_be_found)
 {
   g_assert (gum_module_find_export_by_name (SYSTEM_MODULE_NAME,
       SYSTEM_MODULE_EXPORT) != 0);
 }
 
-PROCESS_TESTCASE (module_export_matches_system_lookup)
+TESTCASE (module_export_matches_system_lookup)
 {
 #ifndef G_OS_WIN32
   void * lib, * system_address;
@@ -562,13 +562,13 @@ store_export_address_if_tricky_module_export (const GumExportDetails * details,
 #endif
 
 #ifdef G_OS_WIN32
-PROCESS_TESTCASE (get_current_thread_id)
+TESTCASE (get_current_thread_id)
 {
   g_assert_cmphex (gum_process_get_current_thread_id (), ==,
       GetCurrentThreadId ());
 }
 
-PROCESS_TESTCASE (get_set_system_error)
+TESTCASE (get_set_system_error)
 {
   gum_thread_set_system_error (0x12345678);
   g_assert_cmpint (GetLastError (), ==, 0x12345678);
@@ -598,7 +598,7 @@ gum_test_get_target_task (void)
 #endif
 }
 
-PROCESS_TESTCASE (darwin_enumerate_modules)
+TESTCASE (darwin_enumerate_modules)
 {
   mach_port_t task;
   TestForEachContext ctx;
@@ -616,7 +616,7 @@ PROCESS_TESTCASE (darwin_enumerate_modules)
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
 
-PROCESS_TESTCASE (darwin_enumerate_modules_should_include_core_foundation)
+TESTCASE (darwin_enumerate_modules_should_include_core_foundation)
 {
   mach_port_t task;
   gboolean found;
@@ -628,7 +628,7 @@ PROCESS_TESTCASE (darwin_enumerate_modules_should_include_core_foundation)
   g_assert (found);
 }
 
-PROCESS_TESTCASE (darwin_enumerate_ranges)
+TESTCASE (darwin_enumerate_ranges)
 {
   mach_port_t task;
   TestForEachContext ctx;
@@ -646,7 +646,7 @@ PROCESS_TESTCASE (darwin_enumerate_ranges)
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
 
-PROCESS_TESTCASE (darwin_module_exports)
+TESTCASE (darwin_module_exports)
 {
   mach_port_t task;
   TestForEachContext ctx;
@@ -680,7 +680,7 @@ PROCESS_TESTCASE (darwin_module_exports)
   g_assert_cmphex (actual_mach_msg_address, ==, expected_mach_msg_address);
 }
 
-PROCESS_TESTCASE (darwin_module_exports_should_support_dyld)
+TESTCASE (darwin_module_exports_should_support_dyld)
 {
   mach_port_t task;
   TestForEachContext ctx;

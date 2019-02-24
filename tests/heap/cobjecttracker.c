@@ -8,13 +8,13 @@
 
 #ifdef G_OS_WIN32
 
-TEST_LIST_BEGIN (cobjecttracker)
-  COBJTRACKER_TESTENTRY (total_count_increase)
-  COBJTRACKER_TESTENTRY (total_count_decrease)
-  COBJTRACKER_TESTENTRY (object_list)
-TEST_LIST_END ()
+TESTLIST_BEGIN (cobjecttracker)
+  TESTENTRY (total_count_increase)
+  TESTENTRY (total_count_decrease)
+  TESTENTRY (object_list)
+TESTLIST_END ()
 
-COBJTRACKER_TESTCASE (total_count_increase)
+TESTCASE (total_count_increase)
 {
   GumCObjectTracker * t = fixture->tracker;
 
@@ -40,7 +40,7 @@ COBJTRACKER_TESTCASE (total_count_increase)
   g_assert_cmpuint (gum_cobject_tracker_peek_total_count (t, NULL), ==, 3);
 }
 
-COBJTRACKER_TESTCASE (total_count_decrease)
+TESTCASE (total_count_decrease)
 {
   GumCObjectTracker * t = fixture->tracker;
 
@@ -70,7 +70,7 @@ COBJTRACKER_TESTCASE (total_count_decrease)
   g_assert_cmpuint (gum_cobject_tracker_peek_total_count (t, NULL), ==, 0);
 }
 
-COBJTRACKER_TESTCASE (object_list)
+TESTCASE (object_list)
 {
   GList * cobjects, * cur;
 

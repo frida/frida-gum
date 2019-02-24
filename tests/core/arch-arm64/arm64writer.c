@@ -6,7 +6,7 @@
 
 #include "arm64writer-fixture.c"
 
-TEST_LIST_BEGIN (arm64writer)
+TESTLIST_BEGIN (arm64writer)
   TESTENTRY (cbz_reg_label)
 
   TESTENTRY (b_imm)
@@ -39,7 +39,7 @@ TEST_LIST_BEGIN (arm64writer)
   TESTENTRY (cmp_reg_reg)
 
   TESTENTRY (call_reg)
-TEST_LIST_END ()
+TESTLIST_END ()
 
 #ifdef HAVE_ARM64
 static void gum_emit_ldr_in_large_block (gpointer mem, gpointer user_data);

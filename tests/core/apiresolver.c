@@ -6,17 +6,17 @@
 
 #include "apiresolver-fixture.c"
 
-TEST_LIST_BEGIN (api_resolver)
-  API_RESOLVER_TESTENTRY (module_exports_can_be_resolved)
-  API_RESOLVER_TESTENTRY (module_imports_can_be_resolved)
-  API_RESOLVER_TESTENTRY (objc_methods_can_be_resolved)
+TESTLIST_BEGIN (api_resolver)
+  TESTENTRY (module_exports_can_be_resolved)
+  TESTENTRY (module_imports_can_be_resolved)
+  TESTENTRY (objc_methods_can_be_resolved)
 
 #ifdef HAVE_ANDROID
-  API_RESOLVER_TESTENTRY (linker_exports_can_be_resolved_on_android)
+  TESTENTRY (linker_exports_can_be_resolved_on_android)
 #endif
-TEST_LIST_END ()
+TESTLIST_END ()
 
-API_RESOLVER_TESTCASE (module_exports_can_be_resolved)
+TESTCASE (module_exports_can_be_resolved)
 {
   TestForEachContext ctx;
   GError * error = NULL;
@@ -44,7 +44,7 @@ API_RESOLVER_TESTCASE (module_exports_can_be_resolved)
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
 
-API_RESOLVER_TESTCASE (module_imports_can_be_resolved)
+TESTCASE (module_imports_can_be_resolved)
 {
 #ifdef HAVE_DARWIN
   GError * error = NULL;
@@ -75,7 +75,7 @@ check_module_import (const GumApiDetails * details,
   return TRUE;
 }
 
-API_RESOLVER_TESTCASE (objc_methods_can_be_resolved)
+TESTCASE (objc_methods_can_be_resolved)
 {
   TestForEachContext ctx;
   GError * error = NULL;
@@ -126,7 +126,7 @@ struct _TestLinkerExportsContext
 static gboolean check_linker_export (const GumApiDetails * details,
     gpointer user_data);
 
-API_RESOLVER_TESTCASE (linker_exports_can_be_resolved_on_android)
+TESTCASE (linker_exports_can_be_resolved_on_android)
 {
   const gchar * linker_name = (sizeof (gpointer) == 4)
       ? "/system/bin/linker"

@@ -14,7 +14,7 @@
     void test_arm64_writer_ ## NAME (TestArm64WriterFixture * fixture, \
         gconstpointer data)
 #define TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Core/Arm64Writer", test_arm64_writer, NAME, \
+    TESTENTRY_WITH_FIXTURE ("Core/Arm64Writer", test_arm64_writer, NAME, \
         TestArm64WriterFixture)
 
 typedef struct _TestArm64WriterFixture

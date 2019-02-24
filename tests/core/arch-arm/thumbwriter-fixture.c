@@ -10,11 +10,11 @@
 
 #include <string.h>
 
-#define THUMBWRITER_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_thumb_writer_ ## NAME ( \
         TestThumbWriterFixture * fixture, gconstpointer data)
-#define THUMBWRITER_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Core/ThumbWriter", test_thumb_writer, NAME, \
+#define TESTENTRY(NAME) \
+    TESTENTRY_WITH_FIXTURE ("Core/ThumbWriter", test_thumb_writer, NAME, \
         TestThumbWriterFixture)
 
 typedef struct _TestThumbWriterFixture

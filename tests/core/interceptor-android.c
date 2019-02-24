@@ -6,13 +6,13 @@
 
 #include "interceptor-android-fixture.c"
 
-TEST_LIST_BEGIN (interceptor_android)
-  INTERCEPTOR_TESTENTRY (can_attach_to_dlopen)
-  INTERCEPTOR_TESTENTRY (can_attach_to_fork)
-  INTERCEPTOR_TESTENTRY (can_attach_to_set_argv0)
-TEST_LIST_END ()
+TESTLIST_BEGIN (interceptor_android)
+  TESTENTRY (can_attach_to_dlopen)
+  TESTENTRY (can_attach_to_fork)
+  TESTENTRY (can_attach_to_set_argv0)
+TESTLIST_END ()
 
-INTERCEPTOR_TESTCASE (can_attach_to_dlopen)
+TESTCASE (can_attach_to_dlopen)
 {
   void * (* dlopen_impl) (const char * filename, int flags);
   void * libc;
@@ -33,7 +33,7 @@ INTERCEPTOR_TESTCASE (can_attach_to_dlopen)
   g_string_truncate (fixture->result, 0);
 }
 
-INTERCEPTOR_TESTCASE (can_attach_to_fork)
+TESTCASE (can_attach_to_fork)
 {
   pid_t (* fork_impl) (void);
   pid_t pid;
@@ -66,7 +66,7 @@ struct _GumRuntimeBounds
 static gboolean gum_store_runtime_bounds (const GumModuleDetails * details,
     GumRuntimeBounds * bounds);
 
-INTERCEPTOR_TESTCASE (can_attach_to_set_argv0)
+TESTCASE (can_attach_to_set_argv0)
 {
   JNIEnv * env = java_env;
   jclass process;

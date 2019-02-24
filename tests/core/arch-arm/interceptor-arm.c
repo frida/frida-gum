@@ -6,13 +6,13 @@
 
 #include "interceptor-arm-fixture.c"
 
-TEST_LIST_BEGIN (interceptor_arm)
+TESTLIST_BEGIN (interceptor_arm)
 #ifndef HAVE_IOS
-  INTERCEPTOR_TESTENTRY (attach_to_unaligned_function)
+  TESTENTRY (attach_to_unaligned_function)
 #endif
-  INTERCEPTOR_TESTENTRY (attach_to_thumb_thunk_reading_lr)
-  INTERCEPTOR_TESTENTRY (attach_to_thumb_function_reading_lr)
-TEST_LIST_END ()
+  TESTENTRY (attach_to_thumb_thunk_reading_lr)
+  TESTENTRY (attach_to_thumb_function_reading_lr)
+TESTLIST_END ()
 
 #ifndef HAVE_IOS
 
@@ -24,7 +24,7 @@ TEST_LIST_END ()
 
 #include "gumthumbwriter.h"
 
-INTERCEPTOR_TESTCASE (attach_to_unaligned_function)
+TESTCASE (attach_to_unaligned_function)
 {
   gpointer page, code;
   GumThumbWriter tw;
@@ -88,7 +88,7 @@ struct _GumEmitLrFuncContext
 static void gum_emit_lr_thunk (gpointer mem, gpointer user_data);
 static void gum_emit_lr_func (gpointer mem, gpointer user_data);
 
-INTERCEPTOR_TESTCASE (attach_to_thumb_thunk_reading_lr)
+TESTCASE (attach_to_thumb_thunk_reading_lr)
 {
   const gsize code_size_in_pages = 1;
   gsize code_size;
@@ -144,7 +144,7 @@ gum_emit_lr_thunk (gpointer mem,
   gum_thumb_writer_clear (&tw);
 }
 
-INTERCEPTOR_TESTCASE (attach_to_thumb_function_reading_lr)
+TESTCASE (attach_to_thumb_function_reading_lr)
 {
   const gsize code_size_in_pages = 1;
   gsize code_size;

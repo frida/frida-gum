@@ -11,17 +11,17 @@
 
 #include <mach/mach.h>
 
-#define EXCEPTOR_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_exceptor_ ## NAME (void)
-#define EXCEPTOR_TESTENTRY(NAME) \
-    TEST_ENTRY_SIMPLE ("Core/Exceptor/Darwin", test_exceptor, NAME)
+#define TESTENTRY(NAME) \
+    TESTENTRY_SIMPLE ("Core/Exceptor/Darwin", test_exceptor, NAME)
 
-TEST_LIST_BEGIN (exceptor_darwin)
-  EXCEPTOR_TESTENTRY (task_get_exception_ports_should_hide_our_handler)
-  EXCEPTOR_TESTENTRY (task_swap_exception_ports_should_not_obstruct_us)
-TEST_LIST_END ()
+TESTLIST_BEGIN (exceptor_darwin)
+  TESTENTRY (task_get_exception_ports_should_hide_our_handler)
+  TESTENTRY (task_swap_exception_ports_should_not_obstruct_us)
+TESTLIST_END ()
 
-EXCEPTOR_TESTCASE (task_get_exception_ports_should_hide_our_handler)
+TESTCASE (task_get_exception_ports_should_hide_our_handler)
 {
   mach_port_t self_task;
   mach_msg_type_number_t old_count, new_count, i;
@@ -87,7 +87,7 @@ EXCEPTOR_TESTCASE (task_get_exception_ports_should_hide_our_handler)
   g_object_unref (exceptor);
 }
 
-EXCEPTOR_TESTCASE (task_swap_exception_ports_should_not_obstruct_us)
+TESTCASE (task_swap_exception_ports_should_not_obstruct_us)
 {
   GumExceptor * exceptor;
   mach_port_t self_task, server_port;

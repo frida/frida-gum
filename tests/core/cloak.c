@@ -6,22 +6,22 @@
 
 #include "testutil.h"
 
-#define CLOAK_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_cloak_ ## NAME (void)
-#define CLOAK_TESTENTRY(NAME) \
-    TEST_ENTRY_SIMPLE ("Core/Cloak", test_cloak, NAME)
+#define TESTENTRY(NAME) \
+    TESTENTRY_SIMPLE ("Core/Cloak", test_cloak, NAME)
 
-TEST_LIST_BEGIN (cloak)
-  CLOAK_TESTENTRY (range_clip_should_not_include_uncloaked)
-  CLOAK_TESTENTRY (range_clip_should_handle_full_clip)
-  CLOAK_TESTENTRY (range_clip_should_handle_bottom_clip)
-  CLOAK_TESTENTRY (range_clip_should_handle_middle_clip)
-  CLOAK_TESTENTRY (range_clip_should_handle_top_clip)
-  CLOAK_TESTENTRY (full_range_removal_should_impact_clip)
-  CLOAK_TESTENTRY (partial_range_removal_should_impact_clip)
-TEST_LIST_END ()
+TESTLIST_BEGIN (cloak)
+  TESTENTRY (range_clip_should_not_include_uncloaked)
+  TESTENTRY (range_clip_should_handle_full_clip)
+  TESTENTRY (range_clip_should_handle_bottom_clip)
+  TESTENTRY (range_clip_should_handle_middle_clip)
+  TESTENTRY (range_clip_should_handle_top_clip)
+  TESTENTRY (full_range_removal_should_impact_clip)
+  TESTENTRY (partial_range_removal_should_impact_clip)
+TESTLIST_END ()
 
-CLOAK_TESTCASE (range_clip_should_not_include_uncloaked)
+TESTCASE (range_clip_should_not_include_uncloaked)
 {
   gpointer page;
   GumMemoryRange range;
@@ -35,7 +35,7 @@ CLOAK_TESTCASE (range_clip_should_not_include_uncloaked)
   gum_free_pages (page);
 }
 
-CLOAK_TESTCASE (range_clip_should_handle_full_clip)
+TESTCASE (range_clip_should_handle_full_clip)
 {
   gpointer page;
   GumMemoryRange range;
@@ -57,7 +57,7 @@ CLOAK_TESTCASE (range_clip_should_handle_full_clip)
   gum_free_pages (page);
 }
 
-CLOAK_TESTCASE (range_clip_should_handle_bottom_clip)
+TESTCASE (range_clip_should_handle_bottom_clip)
 {
   gpointer pages;
   guint page_size;
@@ -89,7 +89,7 @@ CLOAK_TESTCASE (range_clip_should_handle_bottom_clip)
   gum_free_pages (pages);
 }
 
-CLOAK_TESTCASE (range_clip_should_handle_middle_clip)
+TESTCASE (range_clip_should_handle_middle_clip)
 {
   gpointer pages;
   guint page_size;
@@ -124,7 +124,7 @@ CLOAK_TESTCASE (range_clip_should_handle_middle_clip)
   gum_free_pages (pages);
 }
 
-CLOAK_TESTCASE (range_clip_should_handle_top_clip)
+TESTCASE (range_clip_should_handle_top_clip)
 {
   gpointer pages;
   guint page_size;
@@ -156,7 +156,7 @@ CLOAK_TESTCASE (range_clip_should_handle_top_clip)
   gum_free_pages (pages);
 }
 
-CLOAK_TESTCASE (full_range_removal_should_impact_clip)
+TESTCASE (full_range_removal_should_impact_clip)
 {
   gpointer page;
   GumMemoryRange range;
@@ -174,7 +174,7 @@ CLOAK_TESTCASE (full_range_removal_should_impact_clip)
   gum_free_pages (page);
 }
 
-CLOAK_TESTCASE (partial_range_removal_should_impact_clip)
+TESTCASE (partial_range_removal_should_impact_clip)
 {
   gpointer pages;
   guint page_size;

@@ -15,27 +15,27 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-TEST_LIST_BEGIN (interceptor_darwin)
-  INTERCEPTOR_TESTENTRY (can_attach_to_errno)
-  INTERCEPTOR_TESTENTRY (can_attach_to_strcmp)
-  INTERCEPTOR_TESTENTRY (can_attach_to_strrchr)
-  INTERCEPTOR_TESTENTRY (can_attach_to_read)
-  INTERCEPTOR_TESTENTRY (can_attach_to_accept)
-  INTERCEPTOR_TESTENTRY (can_attach_to_posix_spawnattr_setbinpref_np)
-  INTERCEPTOR_TESTENTRY (can_attach_to_pid_for_task)
-  INTERCEPTOR_TESTENTRY (can_attach_to_mach_host_self)
-  INTERCEPTOR_TESTENTRY (can_attach_to_xpc_retain)
-  INTERCEPTOR_TESTENTRY (can_attach_to_sqlite3_close)
-  INTERCEPTOR_TESTENTRY (can_attach_to_sqlite3_thread_cleanup)
+TESTLIST_BEGIN (interceptor_darwin)
+  TESTENTRY (can_attach_to_errno)
+  TESTENTRY (can_attach_to_strcmp)
+  TESTENTRY (can_attach_to_strrchr)
+  TESTENTRY (can_attach_to_read)
+  TESTENTRY (can_attach_to_accept)
+  TESTENTRY (can_attach_to_posix_spawnattr_setbinpref_np)
+  TESTENTRY (can_attach_to_pid_for_task)
+  TESTENTRY (can_attach_to_mach_host_self)
+  TESTENTRY (can_attach_to_xpc_retain)
+  TESTENTRY (can_attach_to_sqlite3_close)
+  TESTENTRY (can_attach_to_sqlite3_thread_cleanup)
 
-  INTERCEPTOR_TESTENTRY (attach_performance)
-  INTERCEPTOR_TESTENTRY (replace_performance)
+  TESTENTRY (attach_performance)
+  TESTENTRY (replace_performance)
 
 #ifdef HAVE_IOS
-  INTERCEPTOR_TESTENTRY (should_retain_code_signing_status)
-  INTERCEPTOR_TESTENTRY (cydia_substrate_replace_performance)
+  TESTENTRY (should_retain_code_signing_status)
+  TESTENTRY (cydia_substrate_replace_performance)
 #endif
-TEST_LIST_END ()
+TESTLIST_END ()
 
 typedef struct _TestPerformanceContext TestPerformanceContext;
 
@@ -58,7 +58,7 @@ static gboolean replace_if_function_export (const GumExportDetails * details,
 
 static void dummy_replacement_never_called (void);
 
-INTERCEPTOR_TESTCASE (can_attach_to_errno)
+TESTCASE (can_attach_to_errno)
 {
   int * (* error_impl) (void);
   int ret;
@@ -74,7 +74,7 @@ INTERCEPTOR_TESTCASE (can_attach_to_errno)
   g_assert_cmpstr (fixture->result->str, ==, "><><");
 }
 
-INTERCEPTOR_TESTCASE (can_attach_to_strcmp)
+TESTCASE (can_attach_to_strcmp)
 {
   int (* strcmp_impl) (const char * s1, const char * s2);
 
@@ -86,7 +86,7 @@ INTERCEPTOR_TESTCASE (can_attach_to_strcmp)
   g_assert_cmpint (strcmp_impl ("badger", "badger"), ==, 0);
 }
 
-INTERCEPTOR_TESTCASE (can_attach_to_strrchr)
+TESTCASE (can_attach_to_strrchr)
 {
   char * (* strrchr_impl) (const char * s, int c);
   const char * s = "badger";
@@ -100,7 +100,7 @@ INTERCEPTOR_TESTCASE (can_attach_to_strrchr)
   g_assert_cmpstr (fixture->result->str, ==, "><");
 }
 
-INTERCEPTOR_TESTCASE (can_attach_to_read)
+TESTCASE (can_attach_to_read)
 {
   ssize_t (* read_impl) (int fd, void * buf, size_t n);
   int ret, fds[2];
@@ -132,7 +132,7 @@ INTERCEPTOR_TESTCASE (can_attach_to_read)
   close (fds[1]);
 }
 
-INTERCEPTOR_TESTCASE (can_attach_to_accept)
+TESTCASE (can_attach_to_accept)
 {
   int server, client, ret;
   int (* accept_impl) (int socket, struct sockaddr * address,
@@ -173,7 +173,7 @@ INTERCEPTOR_TESTCASE (can_attach_to_accept)
   close (server);
 }
 
-INTERCEPTOR_TESTCASE (can_attach_to_posix_spawnattr_setbinpref_np)
+TESTCASE (can_attach_to_posix_spawnattr_setbinpref_np)
 {
   int (* posix_spawnattr_setbinpref_np_impl) (posix_spawnattr_t * attr,
       size_t count, cpu_type_t * pref, size_t * ocount);
@@ -197,7 +197,7 @@ INTERCEPTOR_TESTCASE (can_attach_to_posix_spawnattr_setbinpref_np)
   posix_spawnattr_destroy (&attr);
 }
 
-INTERCEPTOR_TESTCASE (can_attach_to_pid_for_task)
+TESTCASE (can_attach_to_pid_for_task)
 {
   mach_port_t self;
   int * (* pid_for_task_impl) (void);
@@ -218,7 +218,7 @@ INTERCEPTOR_TESTCASE (can_attach_to_pid_for_task)
   g_assert_cmpint (pid, ==, getpid ());
 }
 
-INTERCEPTOR_TESTCASE (can_attach_to_mach_host_self)
+TESTCASE (can_attach_to_mach_host_self)
 {
   mach_port_t (* mach_host_self_impl) (void);
   mach_port_t host;
@@ -238,7 +238,7 @@ INTERCEPTOR_TESTCASE (can_attach_to_mach_host_self)
   g_assert_cmpint (host, ==, mach_host_self_impl ());
 }
 
-INTERCEPTOR_TESTCASE (can_attach_to_xpc_retain)
+TESTCASE (can_attach_to_xpc_retain)
 {
   gpointer (* xpc_dictionary_create_impl) (const gchar * const * keys,
       gconstpointer * values, gsize count);
@@ -268,7 +268,7 @@ INTERCEPTOR_TESTCASE (can_attach_to_xpc_retain)
   xpc_release_impl (dict);
 }
 
-INTERCEPTOR_TESTCASE (can_attach_to_sqlite3_close)
+TESTCASE (can_attach_to_sqlite3_close)
 {
   gint (* close_impl) (gpointer connection);
 
@@ -281,7 +281,7 @@ INTERCEPTOR_TESTCASE (can_attach_to_sqlite3_close)
   g_assert_cmpstr (fixture->result->str, ==, "><");
 }
 
-INTERCEPTOR_TESTCASE (can_attach_to_sqlite3_thread_cleanup)
+TESTCASE (can_attach_to_sqlite3_thread_cleanup)
 {
 #ifndef HAVE_ARM
   void (* thread_cleanup_impl) (void);
@@ -314,7 +314,7 @@ perform_read (gpointer data)
   return NULL;
 }
 
-INTERCEPTOR_TESTCASE (attach_performance)
+TESTCASE (attach_performance)
 {
   gpointer sqlite;
   TestPerformanceContext ctx;
@@ -351,7 +351,7 @@ INTERCEPTOR_TESTCASE (attach_performance)
   g_object_unref (ctx.listener);
 }
 
-INTERCEPTOR_TESTCASE (replace_performance)
+TESTCASE (replace_performance)
 {
   gpointer sqlite;
   TestPerformanceContext ctx;
@@ -459,7 +459,7 @@ extern int csops (pid_t pid, unsigned int ops, void * useraddr,
 static gboolean replace_with_cydia_substrate_if_function_export (
     const GumExportDetails * details, gpointer user_data);
 
-INTERCEPTOR_TESTCASE (should_retain_code_signing_status)
+TESTCASE (should_retain_code_signing_status)
 {
   gint (* close_impl) (gpointer connection);
   gint res;
@@ -486,7 +486,7 @@ INTERCEPTOR_TESTCASE (should_retain_code_signing_status)
   g_assert ((attributes & CS_VALID) != 0);
 }
 
-INTERCEPTOR_TESTCASE (cydia_substrate_replace_performance)
+TESTCASE (cydia_substrate_replace_performance)
 {
   gpointer cydia_substrate, sqlite;
   TestPerformanceContext ctx;

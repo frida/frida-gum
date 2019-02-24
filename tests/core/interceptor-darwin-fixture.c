@@ -12,11 +12,11 @@
 #include <dlfcn.h>
 #include <string.h>
 
-#define INTERCEPTOR_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_interceptor_ ## NAME ( \
         TestInterceptorFixture * fixture, gconstpointer data)
-#define INTERCEPTOR_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Core/Interceptor/Darwin", \
+#define TESTENTRY(NAME) \
+    TESTENTRY_WITH_FIXTURE ("Core/Interceptor/Darwin", \
         test_interceptor, NAME, TestInterceptorFixture)
 
 typedef struct _TestInterceptorFixture     TestInterceptorFixture;

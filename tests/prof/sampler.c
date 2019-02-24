@@ -7,20 +7,20 @@
 
 #include "sampler-fixture.c"
 
-TEST_LIST_BEGIN (sampler)
-  SAMPLER_TESTENTRY (cycle)
-  SAMPLER_TESTENTRY (busy_cycle)
-  SAMPLER_TESTENTRY (malloc_count)
-  SAMPLER_TESTENTRY (multiple_call_counters)
-  SAMPLER_TESTENTRY (wallclock)
-TEST_LIST_END ()
+TESTLIST_BEGIN (sampler)
+  TESTENTRY (cycle)
+  TESTENTRY (busy_cycle)
+  TESTENTRY (malloc_count)
+  TESTENTRY (multiple_call_counters)
+  TESTENTRY (wallclock)
+TESTLIST_END ()
 
 static void spin_for_one_tenth_second (void);
 static gpointer malloc_count_helper_thread (gpointer data);
 static void nop_function_a (void);
 static void nop_function_b (void);
 
-SAMPLER_TESTCASE (cycle)
+TESTCASE (cycle)
 {
   GumSample sample_a, sample_b;
 
@@ -37,7 +37,7 @@ SAMPLER_TESTCASE (cycle)
   }
 }
 
-SAMPLER_TESTCASE (busy_cycle)
+TESTCASE (busy_cycle)
 {
   GumSample spin_start, spin_diff;
   GumSample sleep_start, sleep_diff;
@@ -72,7 +72,7 @@ struct _MallocCountHelperContext
   GumSample count;
 };
 
-SAMPLER_TESTCASE (malloc_count)
+TESTCASE (malloc_count)
 {
   GumSample sample_a, sample_b;
   MallocCountHelperContext helper = { 0, };
@@ -115,7 +115,7 @@ SAMPLER_TESTCASE (malloc_count)
       GUM_CALL_COUNT_SAMPLER (fixture->sampler)), >=, 3 + 1);
 }
 
-SAMPLER_TESTCASE (multiple_call_counters)
+TESTCASE (multiple_call_counters)
 {
   GumSampler * sampler1, * sampler2;
 
@@ -131,7 +131,7 @@ SAMPLER_TESTCASE (multiple_call_counters)
   g_object_unref (sampler1);
 }
 
-SAMPLER_TESTCASE (wallclock)
+TESTCASE (wallclock)
 {
   GumSample sample_a, sample_b;
 

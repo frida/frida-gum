@@ -9,20 +9,20 @@
 #define PRINT_BACKTRACES        0
 #define ENABLE_PERFORMANCE_TEST 0
 
-TEST_LIST_BEGIN (backtracer)
-  BACKTRACER_TESTENTRY (basics)
-  BACKTRACER_TESTENTRY (full_cycle_with_interceptor)
-  BACKTRACER_TESTENTRY (full_cycle_with_allocation_tracker)
+TESTLIST_BEGIN (backtracer)
+  TESTENTRY (basics)
+  TESTENTRY (full_cycle_with_interceptor)
+  TESTENTRY (full_cycle_with_allocation_tracker)
 #if ENABLE_PERFORMANCE_TEST
-  BACKTRACER_TESTENTRY (performance)
+  TESTENTRY (performance)
 #endif
-TEST_LIST_END ()
+TESTLIST_END ()
 
 #if PRINT_BACKTRACES
 static void print_backtrace (GumReturnAddressArray * ret_addrs);
 #endif
 
-BACKTRACER_TESTCASE (basics)
+TESTCASE (basics)
 {
   GumReturnAddressArray ret_addrs = { 0, };
   guint expected_line_number;
@@ -58,7 +58,7 @@ BACKTRACER_TESTCASE (basics)
 #endif
 }
 
-BACKTRACER_TESTCASE (full_cycle_with_interceptor)
+TESTCASE (full_cycle_with_interceptor)
 {
   GumInterceptor * interceptor;
   BacktraceCollector * collector;
@@ -115,7 +115,7 @@ BACKTRACER_TESTCASE (full_cycle_with_interceptor)
   g_object_unref (interceptor);
 }
 
-BACKTRACER_TESTCASE (full_cycle_with_allocation_tracker)
+TESTCASE (full_cycle_with_allocation_tracker)
 {
   GumAllocatorProbe * probe;
   GumAllocationTracker * tracker;
@@ -191,7 +191,7 @@ BACKTRACER_TESTCASE (full_cycle_with_allocation_tracker)
 
 #if ENABLE_PERFORMANCE_TEST
 
-BACKTRACER_TESTCASE (performance)
+TESTCASE (performance)
 {
   GumReturnAddressArray ret_addrs = { 0, };
   GTimer * timer;

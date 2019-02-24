@@ -6,7 +6,7 @@
 
 #include "arm64relocator-fixture.c"
 
-TEST_LIST_BEGIN (arm64relocator)
+TESTLIST_BEGIN (arm64relocator)
   TESTENTRY (one_to_one)
   TESTENTRY (ldr_x_should_be_rewritten)
   TESTENTRY (ldr_w_should_be_rewritten)
@@ -22,7 +22,7 @@ TEST_LIST_BEGIN (arm64relocator)
   TESTENTRY (cannot_relocate_with_early_br)
   TESTENTRY (eob_and_eoi_on_br)
   TESTENTRY (eob_and_eoi_on_ret)
-TEST_LIST_END ()
+TESTLIST_END ()
 
 TESTCASE (one_to_one)
 {

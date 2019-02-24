@@ -42,16 +42,16 @@
 #ifndef SCRIPT_SUITE
 # define SCRIPT_SUITE ""
 #endif
-#define SCRIPT_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_script_ ## NAME (TestScriptFixture * fixture, gconstpointer data)
-#define SCRIPT_TESTENTRY(NAME)                                            \
+#define TESTENTRY(NAME)                                            \
   G_STMT_START                                                            \
   {                                                                       \
     extern void test_script_ ##NAME (TestScriptFixture * fixture,         \
         gconstpointer data);                                              \
     gchar * path;                                                         \
                                                                           \
-    path = g_strconcat ("/GumJS/Script/" SCRIPT_SUITE "/" #NAME "#",      \
+    path = g_strconcat ("/GumJS/Script/" SCRIPT_SUITE, group, #NAME "#",  \
         GUM_DUK_IS_SCRIPT_BACKEND (fixture_data) ? "DUK" : "V8",          \
         NULL);                                                            \
                                                                           \

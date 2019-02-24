@@ -10,14 +10,14 @@
 
 G_BEGIN_DECLS
 
-#define GUMPP_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
   void test_gumpp_backtracer_ ## NAME (void)
-#define GUMPP_TESTENTRY(NAME) \
-  TEST_ENTRY_SIMPLE ("Gum++/Backtracer", test_gumpp_backtracer, NAME)
+#define TESTENTRY(NAME) \
+  TESTENTRY_SIMPLE ("Gum++/Backtracer", test_gumpp_backtracer, NAME)
 
-TEST_LIST_BEGIN (gumpp_backtracer)
-  GUMPP_TESTENTRY (can_get_stack_trace_from_invocation_context)
-TEST_LIST_END ()
+TESTLIST_BEGIN (gumpp_backtracer)
+  TESTENTRY (can_get_stack_trace_from_invocation_context)
+TESTLIST_END ()
 
 gpointer gumpp_test_target_function (GString * str);
 
@@ -56,7 +56,7 @@ public:
   Gum::RefPtr<Gum::Backtracer> backtracer;
 };
 
-GUMPP_TESTCASE (can_get_stack_trace_from_invocation_context)
+TESTCASE (can_get_stack_trace_from_invocation_context)
 {
   GumBacktracer * backtracer = gum_backtracer_make_accurate ();
   if (backtracer == NULL)

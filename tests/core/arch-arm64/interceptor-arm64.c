@@ -6,10 +6,10 @@
 
 #include "interceptor-arm64-fixture.c"
 
-TEST_LIST_BEGIN (interceptor_arm64)
-  INTERCEPTOR_TESTENTRY (attach_to_thunk_reading_lr)
-  INTERCEPTOR_TESTENTRY (attach_to_function_reading_lr)
-TEST_LIST_END ()
+TESTLIST_BEGIN (interceptor_arm64)
+  TESTENTRY (attach_to_thunk_reading_lr)
+  TESTENTRY (attach_to_function_reading_lr)
+TESTLIST_END ()
 
 typedef struct _GumEmitLrThunkContext GumEmitLrThunkContext;
 typedef struct _GumEmitLrFuncContext GumEmitLrFuncContext;
@@ -33,7 +33,7 @@ struct _GumEmitLrFuncContext
 static void gum_emit_lr_thunk (gpointer mem, gpointer user_data);
 static void gum_emit_lr_func (gpointer mem, gpointer user_data);
 
-INTERCEPTOR_TESTCASE (attach_to_thunk_reading_lr)
+TESTCASE (attach_to_thunk_reading_lr)
 {
   const gsize code_size_in_pages = 1;
   gsize code_size;
@@ -90,7 +90,7 @@ gum_emit_lr_thunk (gpointer mem,
   gum_arm64_writer_clear (&aw);
 }
 
-INTERCEPTOR_TESTCASE (attach_to_function_reading_lr)
+TESTCASE (attach_to_function_reading_lr)
 {
   const gsize code_size_in_pages = 1;
   gsize code_size;

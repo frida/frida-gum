@@ -20,11 +20,11 @@
 #include <tchar.h>
 #endif
 
-#define STALKER_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_stalker_ ## NAME ( \
         TestStalkerFixture * fixture, gconstpointer data)
-#define STALKER_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Core/Stalker", test_stalker, NAME, \
+#define TESTENTRY(NAME) \
+    TESTENTRY_WITH_FIXTURE ("Core/Stalker", test_stalker, NAME, \
         TestStalkerFixture)
 
 #if defined (G_OS_WIN32) && GLIB_SIZEOF_VOID_P == 4

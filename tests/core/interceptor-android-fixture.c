@@ -14,11 +14,11 @@
 #include <string.h>
 #include <sys/system_properties.h>
 
-#define INTERCEPTOR_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_interceptor_ ## NAME ( \
         TestInterceptorFixture * fixture, gconstpointer data)
-#define INTERCEPTOR_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Core/Interceptor/Android", \
+#define TESTENTRY(NAME) \
+    TESTENTRY_WITH_FIXTURE ("Core/Interceptor/Android", \
         test_interceptor, NAME, TestInterceptorFixture)
 
 typedef struct _TestInterceptorFixture     TestInterceptorFixture;

@@ -9,36 +9,36 @@
 
 #ifdef G_OS_WIN32
 
-TEST_LIST_BEGIN (profiler)
+TESTLIST_BEGIN (profiler)
 #ifdef HAVE_I386
-  PROFILER_TESTENTRY (i_can_has_instrumentability)
+  TESTENTRY (i_can_has_instrumentability)
 #endif
-  PROFILER_TESTENTRY (already_instrumented)
+  TESTENTRY (already_instrumented)
 
-  PROFILER_TESTENTRY (flat_function)
-  PROFILER_TESTENTRY (two_calls)
-  PROFILER_TESTENTRY (profile_matching_functions)
-  PROFILER_TESTENTRY (recursion)
-  PROFILER_TESTENTRY (deep_recursion)
-  PROFILER_TESTENTRY (worst_case_duration)
-  PROFILER_TESTENTRY (worst_case_info)
-  PROFILER_TESTENTRY (worst_case_info_on_recursion)
+  TESTENTRY (flat_function)
+  TESTENTRY (two_calls)
+  TESTENTRY (profile_matching_functions)
+  TESTENTRY (recursion)
+  TESTENTRY (deep_recursion)
+  TESTENTRY (worst_case_duration)
+  TESTENTRY (worst_case_info)
+  TESTENTRY (worst_case_info_on_recursion)
 
-  PROFILEREPORT_TESTENTRY (bottleneck)
-  PROFILEREPORT_TESTENTRY (bottlenecks)
-  PROFILEREPORT_TESTENTRY (child_depth)
-  PROFILEREPORT_TESTENTRY (cyclic_recursion)
-  PROFILEREPORT_TESTENTRY (xml_basic)
-  PROFILEREPORT_TESTENTRY (xml_loop)
-  PROFILEREPORT_TESTENTRY (xml_loop_implicit)
-  PROFILEREPORT_TESTENTRY (xml_multiple_threads)
-  PROFILEREPORT_TESTENTRY (xml_worst_case_info)
-  PROFILEREPORT_TESTENTRY (xml_thread_ordering)
-TEST_LIST_END ()
+  TESTENTRY (bottleneck)
+  TESTENTRY (bottlenecks)
+  TESTENTRY (child_depth)
+  TESTENTRY (cyclic_recursion)
+  TESTENTRY (xml_basic)
+  TESTENTRY (xml_loop)
+  TESTENTRY (xml_loop_implicit)
+  TESTENTRY (xml_multiple_threads)
+  TESTENTRY (xml_worst_case_info)
+  TESTENTRY (xml_thread_ordering)
+TESTLIST_END ()
 
 #ifdef HAVE_I386
 
-PROFILER_TESTCASE (i_can_has_instrumentability)
+TESTCASE (i_can_has_instrumentability)
 {
   UnsupportedFunction * unsupported_functions;
   guint count;
@@ -54,7 +54,7 @@ PROFILER_TESTCASE (i_can_has_instrumentability)
 
 #endif
 
-PROFILER_TESTCASE (already_instrumented)
+TESTCASE (already_instrumented)
 {
   g_assert_cmpint (gum_profiler_instrument_function (fixture->profiler,
       &sleepy_function, fixture->sampler), ==, GUM_INSTRUMENT_OK);
@@ -63,7 +63,7 @@ PROFILER_TESTCASE (already_instrumented)
       GUM_INSTRUMENT_WAS_INSTRUMENTED);
 }
 
-PROFILER_TESTCASE (flat_function)
+TESTCASE (flat_function)
 {
   GumProfiler * prof = fixture->profiler;
 
@@ -81,7 +81,7 @@ PROFILER_TESTCASE (flat_function)
       &sleepy_function), ==, 1000);
 }
 
-PROFILER_TESTCASE (two_calls)
+TESTCASE (two_calls)
 {
   GumProfiler * prof = fixture->profiler;
 
@@ -99,7 +99,7 @@ PROFILER_TESTCASE (two_calls)
       &sleepy_function), ==, 2 * 1000);
 }
 
-PROFILEREPORT_TESTCASE (bottleneck)
+TESTCASE (bottleneck)
 {
   instrument_example_functions (fixture);
 
@@ -108,7 +108,7 @@ PROFILEREPORT_TESTCASE (bottleneck)
   assert_n_top_nodes (fixture, 1, "example_a", "example_c");
 }
 
-PROFILEREPORT_TESTCASE (bottlenecks)
+TESTCASE (bottlenecks)
 {
   instrument_example_functions (fixture);
 
@@ -120,7 +120,7 @@ PROFILEREPORT_TESTCASE (bottlenecks)
       "example_a", "example_c");
 }
 
-PROFILEREPORT_TESTCASE (child_depth)
+TESTCASE (child_depth)
 {
   instrument_example_functions (fixture);
 
@@ -131,7 +131,7 @@ PROFILEREPORT_TESTCASE (child_depth)
       "example_g", NULL);
 }
 
-PROFILEREPORT_TESTCASE (cyclic_recursion)
+TESTCASE (cyclic_recursion)
 {
   instrument_example_functions (fixture);
 
@@ -144,7 +144,7 @@ PROFILEREPORT_TESTCASE (cyclic_recursion)
       &example_cyclic_a), ==, 4);
 }
 
-PROFILEREPORT_TESTCASE (xml_basic)
+TESTCASE (xml_basic)
 {
   instrument_example_functions (fixture);
 
@@ -163,7 +163,7 @@ PROFILEREPORT_TESTCASE (xml_basic)
       "</ProfileReport>");
 }
 
-PROFILEREPORT_TESTCASE (xml_loop)
+TESTCASE (xml_loop)
 {
   instrument_example_functions (fixture);
 
@@ -182,7 +182,7 @@ PROFILEREPORT_TESTCASE (xml_loop)
       "</ProfileReport>");
 }
 
-PROFILEREPORT_TESTCASE (xml_loop_implicit)
+TESTCASE (xml_loop_implicit)
 {
   instrument_example_functions (fixture);
 
@@ -208,7 +208,7 @@ PROFILEREPORT_TESTCASE (xml_loop_implicit)
       "</ProfileReport>");
 }
 
-PROFILEREPORT_TESTCASE (xml_multiple_threads)
+TESTCASE (xml_multiple_threads)
 {
   instrument_example_functions (fixture);
 
@@ -237,7 +237,7 @@ PROFILEREPORT_TESTCASE (xml_multiple_threads)
       "</ProfileReport>");
 }
 
-PROFILEREPORT_TESTCASE (xml_worst_case_info)
+TESTCASE (xml_worst_case_info)
 {
   gum_profiler_instrument_function_with_inspector (fixture->profiler,
       &example_worst_case_info, fixture->sampler, inspect_worst_case_info,
@@ -257,7 +257,7 @@ PROFILEREPORT_TESTCASE (xml_worst_case_info)
       "</ProfileReport>");
 }
 
-PROFILEREPORT_TESTCASE (xml_thread_ordering)
+TESTCASE (xml_thread_ordering)
 {
   instrument_simple_functions (fixture);
 
@@ -287,7 +287,7 @@ PROFILEREPORT_TESTCASE (xml_thread_ordering)
       "</ProfileReport>");
 }
 
-PROFILER_TESTCASE (profile_matching_functions)
+TESTCASE (profile_matching_functions)
 {
   gum_profiler_instrument_functions_matching (fixture->profiler, "simple_*",
       fixture->sampler, exclude_simple_stdcall_50, NULL);
@@ -304,14 +304,14 @@ PROFILER_TESTCASE (profile_matching_functions)
       &simple_stdcall_50), ==, 0);
 }
 
-PROFILER_TESTCASE (recursion)
+TESTCASE (recursion)
 {
   gum_profiler_instrument_function (fixture->profiler, &recursive_function,
       fixture->sampler);
   recursive_function (2);
 }
 
-PROFILER_TESTCASE (deep_recursion)
+TESTCASE (deep_recursion)
 {
   gum_profiler_instrument_function (fixture->profiler,
       &deep_recursive_function, fixture->sampler);
@@ -320,7 +320,7 @@ PROFILER_TESTCASE (deep_recursion)
   deep_recursive_function (3);
 }
 
-PROFILER_TESTCASE (worst_case_duration)
+TESTCASE (worst_case_duration)
 {
   gum_profiler_instrument_function (fixture->profiler,
       &example_a_calls_b_thrice, fixture->sampler);
@@ -336,7 +336,7 @@ PROFILER_TESTCASE (worst_case_duration)
       0, &example_b_dynamic), ==, 3);
 }
 
-PROFILER_TESTCASE (worst_case_info)
+TESTCASE (worst_case_info)
 {
   gum_profiler_instrument_function_with_inspector (fixture->profiler,
       &example_worst_case_info, fixture->sampler, inspect_worst_case_info,
@@ -353,7 +353,7 @@ PROFILER_TESTCASE (worst_case_info)
       &example_worst_case_info), ==, "mid");
 }
 
-PROFILER_TESTCASE (worst_case_info_on_recursion)
+TESTCASE (worst_case_info_on_recursion)
 {
   gum_profiler_instrument_function_with_inspector (fixture->profiler,
       &example_worst_case_recursive, fixture->sampler,

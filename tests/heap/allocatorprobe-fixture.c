@@ -13,11 +13,11 @@
 
 #include <stdlib.h>
 
-#define ALLOCPROBE_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_allocator_probe_ ## NAME (TestAllocatorProbeFixture * fixture, \
         gconstpointer data)
-#define ALLOCPROBE_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Heap/AllocatorProbe", test_allocator_probe, \
+#define TESTENTRY(NAME) \
+    TESTENTRY_WITH_FIXTURE ("Heap/AllocatorProbe", test_allocator_probe, \
         NAME, TestAllocatorProbeFixture)
 
 typedef struct _TestAllocatorProbeFixture

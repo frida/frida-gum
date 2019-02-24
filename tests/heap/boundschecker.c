@@ -6,24 +6,24 @@
 
 #include "boundschecker-fixture.c"
 
-TEST_LIST_BEGIN (boundschecker)
-  BOUNDSCHECKER_TESTENTRY (tail_checking_malloc)
-  BOUNDSCHECKER_TESTENTRY (tail_checking_calloc)
-  BOUNDSCHECKER_TESTENTRY (tail_checking_realloc)
-  BOUNDSCHECKER_TESTENTRY (realloc_shrink)
-  BOUNDSCHECKER_TESTENTRY (tail_checking_realloc_null)
-  BOUNDSCHECKER_TESTENTRY (realloc_migration_pool_to_pool)
-  BOUNDSCHECKER_TESTENTRY (realloc_migration_pool_to_heap)
-  BOUNDSCHECKER_TESTENTRY (protected_after_free)
-  BOUNDSCHECKER_TESTENTRY (calloc_initializes_to_zero)
-  BOUNDSCHECKER_TESTENTRY (custom_front_alignment)
+TESTLIST_BEGIN (boundschecker)
+  TESTENTRY (tail_checking_malloc)
+  TESTENTRY (tail_checking_calloc)
+  TESTENTRY (tail_checking_realloc)
+  TESTENTRY (realloc_shrink)
+  TESTENTRY (tail_checking_realloc_null)
+  TESTENTRY (realloc_migration_pool_to_pool)
+  TESTENTRY (realloc_migration_pool_to_heap)
+  TESTENTRY (protected_after_free)
+  TESTENTRY (calloc_initializes_to_zero)
+  TESTENTRY (custom_front_alignment)
 #ifndef HAVE_QNX
-  BOUNDSCHECKER_TESTENTRY (output_report_on_access_beyond_end)
-  BOUNDSCHECKER_TESTENTRY (output_report_on_access_after_free)
+  TESTENTRY (output_report_on_access_beyond_end)
+  TESTENTRY (output_report_on_access_after_free)
 #endif
-TEST_LIST_END ()
+TESTLIST_END ()
 
-BOUNDSCHECKER_TESTCASE (output_report_on_access_beyond_end)
+TESTCASE (output_report_on_access_beyond_end)
 {
   guint8 * p;
 
@@ -47,7 +47,7 @@ BOUNDSCHECKER_TESTCASE (output_report_on_access_beyond_end)
       malloc_backtrace[0], malloc_backtrace[1]);
 }
 
-BOUNDSCHECKER_TESTCASE (output_report_on_access_after_free)
+TESTCASE (output_report_on_access_after_free)
 {
   guint8 * p;
 
@@ -75,7 +75,7 @@ BOUNDSCHECKER_TESTCASE (output_report_on_access_after_free)
       free_backtrace[0], free_backtrace[1]);
 }
 
-BOUNDSCHECKER_TESTCASE (tail_checking_malloc)
+TESTCASE (tail_checking_malloc)
 {
   guint8 * a;
   gboolean exception_on_read, exception_on_write;
@@ -90,7 +90,7 @@ BOUNDSCHECKER_TESTCASE (tail_checking_malloc)
   g_assert (exception_on_read && exception_on_write);
 }
 
-BOUNDSCHECKER_TESTCASE (tail_checking_calloc)
+TESTCASE (tail_checking_calloc)
 {
   guint8 * a;
   gboolean exception_on_read, exception_on_write;
@@ -105,7 +105,7 @@ BOUNDSCHECKER_TESTCASE (tail_checking_calloc)
   g_assert (exception_on_read && exception_on_write);
 }
 
-BOUNDSCHECKER_TESTCASE (tail_checking_realloc)
+TESTCASE (tail_checking_realloc)
 {
   guint8 * a;
   gboolean exception_on_read, exception_on_write;
@@ -121,7 +121,7 @@ BOUNDSCHECKER_TESTCASE (tail_checking_realloc)
   g_assert (exception_on_read && exception_on_write);
 }
 
-BOUNDSCHECKER_TESTCASE (realloc_shrink)
+TESTCASE (realloc_shrink)
 {
   guint8 * a;
 
@@ -132,7 +132,7 @@ BOUNDSCHECKER_TESTCASE (realloc_shrink)
   DETACH_CHECKER ();
 }
 
-BOUNDSCHECKER_TESTCASE (tail_checking_realloc_null)
+TESTCASE (tail_checking_realloc_null)
 {
   guint8 * a;
   gboolean exception_on_read, exception_on_write;
@@ -147,7 +147,7 @@ BOUNDSCHECKER_TESTCASE (tail_checking_realloc_null)
   g_assert (exception_on_read && exception_on_write);
 }
 
-BOUNDSCHECKER_TESTCASE (realloc_migration_pool_to_pool)
+TESTCASE (realloc_migration_pool_to_pool)
 {
   guint32 * p;
   guint32 value_after_migration;
@@ -163,7 +163,7 @@ BOUNDSCHECKER_TESTCASE (realloc_migration_pool_to_pool)
   g_assert_cmphex (value_after_migration, ==, 0x1234face);
 }
 
-BOUNDSCHECKER_TESTCASE (realloc_migration_pool_to_heap)
+TESTCASE (realloc_migration_pool_to_heap)
 {
   guint32 * a;
   guint32 value_after_migration;
@@ -181,7 +181,7 @@ BOUNDSCHECKER_TESTCASE (realloc_migration_pool_to_heap)
   g_assert_cmphex (value_after_migration, ==, 0x1234face);
 }
 
-BOUNDSCHECKER_TESTCASE (protected_after_free)
+TESTCASE (protected_after_free)
 {
   guint8 * a;
   gboolean exception_on_read, exception_on_write;
@@ -196,7 +196,7 @@ BOUNDSCHECKER_TESTCASE (protected_after_free)
   g_assert (exception_on_read && exception_on_write);
 }
 
-BOUNDSCHECKER_TESTCASE (calloc_initializes_to_zero)
+TESTCASE (calloc_initializes_to_zero)
 {
   guint8 * p;
   guint8 expected[1024] = { 0, };
@@ -213,7 +213,7 @@ BOUNDSCHECKER_TESTCASE (calloc_initializes_to_zero)
   DETACH_CHECKER ();
 }
 
-BOUNDSCHECKER_TESTCASE (custom_front_alignment)
+TESTCASE (custom_front_alignment)
 {
   guint8 * a;
   gboolean exception_on_read, exception_on_write;

@@ -6,18 +6,18 @@
 
 #include "pagepool-fixture.c"
 
-TEST_LIST_BEGIN (pagepool)
-  PAGEPOOL_TESTENTRY (alloc_sizes)
-  PAGEPOOL_TESTENTRY (alloc_alignment)
-  PAGEPOOL_TESTENTRY (alloc_protection)
-  PAGEPOOL_TESTENTRY (free)
-  PAGEPOOL_TESTENTRY (free_protection)
-  PAGEPOOL_TESTENTRY (query_block_details)
-  PAGEPOOL_TESTENTRY (peek_used)
-  PAGEPOOL_TESTENTRY (alloc_and_fill_full_cycle)
-TEST_LIST_END ()
+TESTLIST_BEGIN (pagepool)
+  TESTENTRY (alloc_sizes)
+  TESTENTRY (alloc_alignment)
+  TESTENTRY (alloc_protection)
+  TESTENTRY (free)
+  TESTENTRY (free_protection)
+  TESTENTRY (query_block_details)
+  TESTENTRY (peek_used)
+  TESTENTRY (alloc_and_fill_full_cycle)
+TESTLIST_END ()
 
-PAGEPOOL_TESTCASE (alloc_sizes)
+TESTCASE (alloc_sizes)
 {
   GumPagePool * pool;
   guint page_size;
@@ -40,7 +40,7 @@ PAGEPOOL_TESTCASE (alloc_sizes)
   g_assert_cmpuint (gum_page_pool_peek_available (pool), ==, 0);
 }
 
-PAGEPOOL_TESTCASE (alloc_alignment)
+TESTCASE (alloc_alignment)
 {
   GumPagePool * pool;
   guint page_size;
@@ -63,7 +63,7 @@ PAGEPOOL_TESTCASE (alloc_alignment)
   g_assert_cmphex (GPOINTER_TO_SIZE (p2), ==, GPOINTER_TO_SIZE (expected_p2));
 }
 
-PAGEPOOL_TESTCASE (alloc_protection)
+TESTCASE (alloc_protection)
 {
   GumPagePool * pool;
   GumAddress p1, p2;
@@ -79,7 +79,7 @@ PAGEPOOL_TESTCASE (alloc_protection)
   g_assert (!gum_memory_is_readable (p2 + 32, 1));
 }
 
-PAGEPOOL_TESTCASE (free)
+TESTCASE (free)
 {
   GumPagePool * pool;
   guint page_size;
@@ -107,7 +107,7 @@ PAGEPOOL_TESTCASE (free)
   g_assert_cmpuint (gum_page_pool_peek_available (pool), ==, 0);
 }
 
-PAGEPOOL_TESTCASE (free_protection)
+TESTCASE (free_protection)
 {
   GumPagePool * pool;
   gpointer p;
@@ -122,7 +122,7 @@ PAGEPOOL_TESTCASE (free_protection)
   g_assert (!gum_memory_is_readable (address + 16, 1));
 }
 
-PAGEPOOL_TESTCASE (query_block_details)
+TESTCASE (query_block_details)
 {
   GumPagePool * pool;
   guint page_size, size;
@@ -165,7 +165,7 @@ PAGEPOOL_TESTCASE (query_block_details)
   g_assert (!details.allocated);
 }
 
-PAGEPOOL_TESTCASE (peek_used)
+TESTCASE (peek_used)
 {
   GumPagePool * pool;
   guint8 * p;
@@ -179,7 +179,7 @@ PAGEPOOL_TESTCASE (peek_used)
   g_assert_cmpuint (gum_page_pool_peek_used (pool), ==, 0);
 }
 
-PAGEPOOL_TESTCASE (alloc_and_fill_full_cycle)
+TESTCASE (alloc_and_fill_full_cycle)
 {
   guint page_size, pool_size;
   GumPagePool * pool;

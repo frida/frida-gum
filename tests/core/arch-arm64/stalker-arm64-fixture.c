@@ -15,11 +15,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define STALKER_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_arm64_stalker_ ## NAME ( \
     TestArm64StalkerFixture * fixture, gconstpointer data)
-#define STALKER_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Core/Stalker", test_arm64_stalker, NAME, \
+#define TESTENTRY(NAME) \
+    TESTENTRY_WITH_FIXTURE ("Core/Stalker", test_arm64_stalker, NAME, \
     TestArm64StalkerFixture)
 
 #define NTH_EVENT_AS_CALL(N) \

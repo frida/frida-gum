@@ -6,21 +6,21 @@
 
 #include "armwriter-fixture.c"
 
-TEST_LIST_BEGIN (armwriter)
-  ARMWRITER_TESTENTRY (ldr_u32)
-  ARMWRITER_TESTENTRY (ldr_pc_u32)
+TESTLIST_BEGIN (armwriter)
+  TESTENTRY (ldr_u32)
+  TESTENTRY (ldr_pc_u32)
 #ifdef HAVE_ARM
-  ARMWRITER_TESTENTRY (ldr_in_large_block)
+  TESTENTRY (ldr_in_large_block)
 #endif
 
-  ARMWRITER_TESTENTRY (nop)
-TEST_LIST_END ()
+  TESTENTRY (nop)
+TESTLIST_END ()
 
 #ifdef HAVE_ARM
 static void gum_emit_ldr_in_large_block (gpointer mem, gpointer user_data);
 #endif
 
-ARMWRITER_TESTCASE (ldr_u32)
+TESTCASE (ldr_u32)
 {
   gum_arm_writer_put_ldr_reg_u32 (&fixture->aw, ARM_REG_R0, 0x1337);
   gum_arm_writer_put_ldr_reg_u32 (&fixture->aw, ARM_REG_R1, 0x1227);
@@ -33,7 +33,7 @@ ARMWRITER_TESTCASE (ldr_u32)
   g_assert_cmphex (GUINT32_FROM_LE (fixture->output[3 + 1]), ==, 0x1227);
 }
 
-ARMWRITER_TESTCASE (ldr_pc_u32)
+TESTCASE (ldr_pc_u32)
 {
   gum_arm_writer_put_ldr_reg_u32 (&fixture->aw, ARM_REG_PC, 0xdeadbeef);
   gum_arm_writer_flush (&fixture->aw);
@@ -43,7 +43,7 @@ ARMWRITER_TESTCASE (ldr_pc_u32)
 
 #ifdef HAVE_ARM
 
-ARMWRITER_TESTCASE (ldr_in_large_block)
+TESTCASE (ldr_in_large_block)
 {
   const gsize code_size_in_pages = 2;
   gsize code_size;
@@ -82,7 +82,7 @@ gum_emit_ldr_in_large_block (gpointer mem,
 
 #endif
 
-ARMWRITER_TESTCASE (nop)
+TESTCASE (nop)
 {
   gum_arm_writer_put_nop (&fixture->aw);
   assert_output_equals (0xe1a00000); /* mov r0, r0 */

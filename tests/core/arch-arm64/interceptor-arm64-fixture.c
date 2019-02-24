@@ -10,11 +10,11 @@
 
 #include <string.h>
 
-#define INTERCEPTOR_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void interceptor_ ## NAME ( \
         InterceptorFixture * fixture, gconstpointer data)
-#define INTERCEPTOR_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Core/Interceptor/Arm64", \
+#define TESTENTRY(NAME) \
+    TESTENTRY_WITH_FIXTURE ("Core/Interceptor/Arm64", \
         interceptor, NAME, InterceptorFixture)
 
 typedef struct _InterceptorFixture        InterceptorFixture;

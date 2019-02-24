@@ -8,11 +8,11 @@
 
 #include "testutil.h"
 
-#define MAMONITOR_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_memory_access_monitor_ ## NAME (TestMAMonitorFixture * fixture, \
         gconstpointer data)
-#define MAMONITOR_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Core/MemoryAccessMonitor", \
+#define TESTENTRY(NAME) \
+    TESTENTRY_WITH_FIXTURE ("Core/MemoryAccessMonitor", \
         test_memory_access_monitor, NAME, TestMAMonitorFixture)
 
 typedef struct _TestMAMonitorFixture

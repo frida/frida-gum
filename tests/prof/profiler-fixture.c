@@ -17,18 +17,18 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define PROFILER_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_profiler_ ## NAME ( \
         TestProfilerFixture * fixture, gconstpointer data)
-#define PROFILER_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Prof/Profiler", test_profiler, NAME, \
+#define TESTENTRY(NAME) \
+    TESTENTRY_WITH_FIXTURE ("Prof/Profiler", test_profiler, NAME, \
         TestProfilerFixture)
 
-#define PROFILEREPORT_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_profile_report_ ## NAME ( \
         TestProfileReportFixture * fixture, gconstpointer data)
-#define PROFILEREPORT_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Prof/ProfileReport", test_profile_report, NAME, \
+#define TESTENTRY(NAME) \
+    TESTENTRY_WITH_FIXTURE ("Prof/ProfileReport", test_profile_report, NAME, \
         TestProfileReportFixture)
 
 typedef struct _TestProfilerFixture

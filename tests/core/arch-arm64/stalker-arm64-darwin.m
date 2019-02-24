@@ -8,11 +8,11 @@
 
 #import <UIKit/UIKit.h>
 
-TEST_LIST_BEGIN (stalker_darwin)
-  STALKER_TESTENTRY (foundation)
-TEST_LIST_END ()
+TESTLIST_BEGIN (stalker_darwin)
+  TESTENTRY (foundation)
+TESTLIST_END ()
 
-STALKER_TESTCASE (foundation)
+TESTCASE (foundation)
 {
   if (!g_test_slow ())
   {

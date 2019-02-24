@@ -10,11 +10,11 @@
 
 #include <string.h>
 
-#define API_RESOLVER_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_api_resolver_ ## NAME ( \
         TestApiResolverFixture * fixture, gconstpointer data)
-#define API_RESOLVER_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Core/ApiResolver", test_api_resolver, NAME, \
+#define TESTENTRY(NAME) \
+    TESTENTRY_WITH_FIXTURE ("Core/ApiResolver", test_api_resolver, NAME, \
         TestApiResolverFixture)
 
 typedef struct _TestApiResolverFixture TestApiResolverFixture;

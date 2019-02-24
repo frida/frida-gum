@@ -8,28 +8,28 @@
 
 #include "gummemory-priv.h"
 
-#define MEMORY_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_memory_ ## NAME (void)
-#define MEMORY_TESTENTRY(NAME) \
-    TEST_ENTRY_SIMPLE ("Core/Memory", test_memory, NAME)
+#define TESTENTRY(NAME) \
+    TESTENTRY_SIMPLE ("Core/Memory", test_memory, NAME)
 
-TEST_LIST_BEGIN (memory)
-  MEMORY_TESTENTRY (read_from_valid_address_should_succeed)
-  MEMORY_TESTENTRY (read_from_invalid_address_should_fail)
-  MEMORY_TESTENTRY (read_from_unaligned_address_should_succeed)
-  MEMORY_TESTENTRY (read_across_two_pages_should_return_correct_data)
-  MEMORY_TESTENTRY (read_beyond_page_should_return_partial_data)
-  MEMORY_TESTENTRY (write_to_valid_address_should_succeed)
-  MEMORY_TESTENTRY (write_to_invalid_address_should_fail)
-  MEMORY_TESTENTRY (match_pattern_from_string_does_proper_validation)
-  MEMORY_TESTENTRY (scan_range_finds_three_exact_matches)
-  MEMORY_TESTENTRY (scan_range_finds_three_wildcarded_matches)
-  MEMORY_TESTENTRY (scan_range_finds_three_masked_matches)
-  MEMORY_TESTENTRY (is_memory_readable_handles_mixed_page_protections)
-  MEMORY_TESTENTRY (alloc_n_pages_returns_aligned_rw_address)
-  MEMORY_TESTENTRY (alloc_n_pages_near_returns_aligned_rw_address_within_range)
-  MEMORY_TESTENTRY (mprotect_handles_page_boundaries)
-TEST_LIST_END ()
+TESTLIST_BEGIN (memory)
+  TESTENTRY (read_from_valid_address_should_succeed)
+  TESTENTRY (read_from_invalid_address_should_fail)
+  TESTENTRY (read_from_unaligned_address_should_succeed)
+  TESTENTRY (read_across_two_pages_should_return_correct_data)
+  TESTENTRY (read_beyond_page_should_return_partial_data)
+  TESTENTRY (write_to_valid_address_should_succeed)
+  TESTENTRY (write_to_invalid_address_should_fail)
+  TESTENTRY (match_pattern_from_string_does_proper_validation)
+  TESTENTRY (scan_range_finds_three_exact_matches)
+  TESTENTRY (scan_range_finds_three_wildcarded_matches)
+  TESTENTRY (scan_range_finds_three_masked_matches)
+  TESTENTRY (is_memory_readable_handles_mixed_page_protections)
+  TESTENTRY (alloc_n_pages_returns_aligned_rw_address)
+  TESTENTRY (alloc_n_pages_near_returns_aligned_rw_address_within_range)
+  TESTENTRY (mprotect_handles_page_boundaries)
+TESTLIST_END ()
 
 typedef struct _TestForEachContext {
   gboolean value_to_return;
@@ -42,7 +42,7 @@ typedef struct _TestForEachContext {
 static gboolean match_found_cb (GumAddress address, gsize size,
     gpointer user_data);
 
-MEMORY_TESTCASE (read_from_valid_address_should_succeed)
+TESTCASE (read_from_valid_address_should_succeed)
 {
   guint8 magic[2] = { 0x13, 0x37 };
   gsize n_bytes_read;
@@ -59,13 +59,13 @@ MEMORY_TESTCASE (read_from_valid_address_should_succeed)
   g_free (result);
 }
 
-MEMORY_TESTCASE (read_from_invalid_address_should_fail)
+TESTCASE (read_from_invalid_address_should_fail)
 {
   GumAddress invalid_address = 0x42;
   g_assert (gum_memory_read (invalid_address, 1, NULL) == NULL);
 }
 
-MEMORY_TESTCASE (read_from_unaligned_address_should_succeed)
+TESTCASE (read_from_unaligned_address_should_succeed)
 {
   gpointer page;
   guint page_size;
@@ -87,7 +87,7 @@ MEMORY_TESTCASE (read_from_unaligned_address_should_succeed)
   gum_free_pages (page);
 }
 
-MEMORY_TESTCASE (read_across_two_pages_should_return_correct_data)
+TESTCASE (read_across_two_pages_should_return_correct_data)
 {
   GRand * rand;
   guint8 * pages;
@@ -122,7 +122,7 @@ MEMORY_TESTCASE (read_across_two_pages_should_return_correct_data)
   g_rand_free (rand);
 }
 
-MEMORY_TESTCASE (read_beyond_page_should_return_partial_data)
+TESTCASE (read_beyond_page_should_return_partial_data)
 {
   guint8 * page;
   guint page_size;
@@ -147,7 +147,7 @@ MEMORY_TESTCASE (read_beyond_page_should_return_partial_data)
   gum_free_pages (page);
 }
 
-MEMORY_TESTCASE (write_to_valid_address_should_succeed)
+TESTCASE (write_to_valid_address_should_succeed)
 {
   guint8 bytes[3] = { 0x00, 0x00, 0x12 };
   guint8 magic[2] = { 0x13, 0x37 };
@@ -161,7 +161,7 @@ MEMORY_TESTCASE (write_to_valid_address_should_succeed)
   g_assert_cmphex (bytes[2], ==, 0x12);
 }
 
-MEMORY_TESTCASE (write_to_invalid_address_should_fail)
+TESTCASE (write_to_invalid_address_should_fail)
 {
   guint8 bytes[3] = { 0x00, 0x00, 0x12 };
   GumAddress invalid_address = 0x42;
@@ -177,7 +177,7 @@ MEMORY_TESTCASE (write_to_invalid_address_should_fail)
     (g_array_index (((GumMatchToken *) g_ptr_array_index (p->tokens, \
         n))->masks, guint8, b))
 
-MEMORY_TESTCASE (match_pattern_from_string_does_proper_validation)
+TESTCASE (match_pattern_from_string_does_proper_validation)
 {
   GumMatchPattern * pattern;
 
@@ -275,7 +275,7 @@ MEMORY_TESTCASE (match_pattern_from_string_does_proper_validation)
   g_assert (pattern == NULL);
 }
 
-MEMORY_TESTCASE (scan_range_finds_three_exact_matches)
+TESTCASE (scan_range_finds_three_exact_matches)
 {
   guint8 buf[] = {
     0x13, 0x37,
@@ -311,7 +311,7 @@ MEMORY_TESTCASE (scan_range_finds_three_exact_matches)
   gum_match_pattern_free (pattern);
 }
 
-MEMORY_TESTCASE (scan_range_finds_three_wildcarded_matches)
+TESTCASE (scan_range_finds_three_wildcarded_matches)
 {
   guint8 buf[] = {
     0x12, 0x11, 0x13, 0x37,
@@ -344,7 +344,7 @@ MEMORY_TESTCASE (scan_range_finds_three_wildcarded_matches)
   gum_match_pattern_free (pattern);
 }
 
-MEMORY_TESTCASE (scan_range_finds_three_masked_matches)
+TESTCASE (scan_range_finds_three_masked_matches)
 {
   guint8 buf[] = {
     0x12, 0x11, 0x13, 0x35,
@@ -377,7 +377,7 @@ MEMORY_TESTCASE (scan_range_finds_three_masked_matches)
   gum_match_pattern_free (pattern);
 }
 
-MEMORY_TESTCASE (is_memory_readable_handles_mixed_page_protections)
+TESTCASE (is_memory_readable_handles_mixed_page_protections)
 {
   guint8 * pages;
   guint page_size;
@@ -412,7 +412,7 @@ MEMORY_TESTCASE (is_memory_readable_handles_mixed_page_protections)
   gum_free_pages (pages);
 }
 
-MEMORY_TESTCASE (alloc_n_pages_returns_aligned_rw_address)
+TESTCASE (alloc_n_pages_returns_aligned_rw_address)
 {
   gpointer page;
   guint page_size;
@@ -432,7 +432,7 @@ MEMORY_TESTCASE (alloc_n_pages_returns_aligned_rw_address)
   gum_free_pages (page);
 }
 
-MEMORY_TESTCASE (alloc_n_pages_near_returns_aligned_rw_address_within_range)
+TESTCASE (alloc_n_pages_near_returns_aligned_rw_address_within_range)
 {
   GumAddressSpec as;
   guint variable_on_stack;
@@ -462,7 +462,7 @@ MEMORY_TESTCASE (alloc_n_pages_near_returns_aligned_rw_address_within_range)
   gum_free_pages (page);
 }
 
-MEMORY_TESTCASE (mprotect_handles_page_boundaries)
+TESTCASE (mprotect_handles_page_boundaries)
 {
   guint8 * pages;
   guint page_size;

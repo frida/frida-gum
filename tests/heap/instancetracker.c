@@ -10,15 +10,15 @@
 
 #include <string.h>
 
-TEST_LIST_BEGIN (instancetracker)
-  INSTRACKER_TESTENTRY (total_count)
-  INSTRACKER_TESTENTRY (type_filter_function)
-  INSTRACKER_TESTENTRY (nested_trackers)
-  INSTRACKER_TESTENTRY (ignore_other_trackers)
-  INSTRACKER_TESTENTRY (peek_instances)
-  INSTRACKER_TESTENTRY (walk_instances)
-  INSTRACKER_TESTENTRY (avoid_heap)
-TEST_LIST_END ()
+TESTLIST_BEGIN (instancetracker)
+  TESTENTRY (total_count)
+  TESTENTRY (type_filter_function)
+  TESTENTRY (nested_trackers)
+  TESTENTRY (ignore_other_trackers)
+  TESTENTRY (peek_instances)
+  TESTENTRY (walk_instances)
+  TESTENTRY (avoid_heap)
+TESTLIST_END ()
 
 typedef struct _WalkInstancesContext WalkInstancesContext;
 
@@ -32,7 +32,7 @@ static gboolean no_ponies_filter_func (GumInstanceTracker * tracker,
     GType gtype, gpointer user_data);
 static void walk_instance (GumInstanceDetails * id, gpointer user_data);
 
-INSTRACKER_TESTCASE (total_count)
+TESTCASE (total_count)
 {
   GumInstanceTracker * t = fixture->tracker;
   ZooZebra * zebra;
@@ -69,7 +69,7 @@ INSTRACKER_TESTCASE (total_count)
   g_assert_cmpuint (gum_instance_tracker_peek_total_count (t, NULL), ==, 0);
 }
 
-INSTRACKER_TESTCASE (type_filter_function)
+TESTCASE (type_filter_function)
 {
   GumInstanceTracker * t = fixture->tracker;
   MyPony * pony;
@@ -95,7 +95,7 @@ INSTRACKER_TESTCASE (type_filter_function)
   g_object_unref (pony);
 }
 
-INSTRACKER_TESTCASE (nested_trackers)
+TESTCASE (nested_trackers)
 {
   GumInstanceTracker * t1 = fixture->tracker;
   GumInstanceTracker * t2 = NULL;
@@ -131,7 +131,7 @@ INSTRACKER_TESTCASE (nested_trackers)
   g_object_unref (t2);
 }
 
-INSTRACKER_TESTCASE (ignore_other_trackers)
+TESTCASE (ignore_other_trackers)
 {
   GumInstanceTracker * t1 = fixture->tracker;
   GumInstanceTracker * t2;
@@ -141,7 +141,7 @@ INSTRACKER_TESTCASE (ignore_other_trackers)
   g_object_unref (t2);
 }
 
-INSTRACKER_TESTCASE (peek_instances)
+TESTCASE (peek_instances)
 {
   GumInstanceTracker * t = fixture->tracker;
   MyPony * pony1, * pony2, * pony3;
@@ -182,7 +182,7 @@ INSTRACKER_TESTCASE (peek_instances)
   g_object_unref (pony3);
 }
 
-INSTRACKER_TESTCASE (walk_instances)
+TESTCASE (walk_instances)
 {
   GumInstanceTracker * t = fixture->tracker;
   WalkInstancesContext ctx;
@@ -219,7 +219,7 @@ INSTRACKER_TESTCASE (walk_instances)
   g_list_free (ctx.expected_instances);
 }
 
-INSTRACKER_TESTCASE (avoid_heap)
+TESTCASE (avoid_heap)
 {
   GumInstanceTracker * t = fixture->tracker;
   GumSampler * heap_access_counter;

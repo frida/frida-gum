@@ -8,18 +8,18 @@
 
 #ifdef G_OS_WIN32
 
-TEST_LIST_BEGIN (allocator_probe)
-  ALLOCPROBE_TESTENTRY (basics)
-  ALLOCPROBE_TESTENTRY (ignore_gquark)
+TESTLIST_BEGIN (allocator_probe)
+  TESTENTRY (basics)
+  TESTENTRY (ignore_gquark)
 #ifdef _DEBUG
-  ALLOCPROBE_TESTENTRY (nonstandard_basics)
-  ALLOCPROBE_TESTENTRY (nonstandard_ignored)
+  TESTENTRY (nonstandard_basics)
+  TESTENTRY (nonstandard_ignored)
 #endif
-  ALLOCPROBE_TESTENTRY (full_cycle)
-  ALLOCPROBE_TESTENTRY (gtype_interop)
-TEST_LIST_END ()
+  TESTENTRY (full_cycle)
+  TESTENTRY (gtype_interop)
+TESTLIST_END ()
 
-ALLOCPROBE_TESTCASE (basics)
+TESTCASE (basics)
 {
   guint malloc_count, realloc_count, free_count;
   gpointer a, b;
@@ -73,7 +73,7 @@ ALLOCPROBE_TESTCASE (basics)
   g_assert_cmpuint (free_count, ==, 0);
 }
 
-ALLOCPROBE_TESTCASE (ignore_gquark)
+TESTCASE (ignore_gquark)
 {
   guint malloc_count, realloc_count, free_count;
 
@@ -95,7 +95,7 @@ ALLOCPROBE_TESTCASE (ignore_gquark)
 
 #include <crtdbg.h>
 
-ALLOCPROBE_TESTCASE (nonstandard_basics)
+TESTCASE (nonstandard_basics)
 {
   g_object_set (fixture->ap, "enable-counters", TRUE, NULL);
 
@@ -104,7 +104,7 @@ ALLOCPROBE_TESTCASE (nonstandard_basics)
   DETACH_PROBE ();
 }
 
-ALLOCPROBE_TESTCASE (nonstandard_ignored)
+TESTCASE (nonstandard_ignored)
 {
   g_object_set (fixture->ap, "enable-counters", TRUE, NULL);
   ATTACH_PROBE ();
@@ -116,7 +116,7 @@ ALLOCPROBE_TESTCASE (nonstandard_ignored)
 
 #endif
 
-ALLOCPROBE_TESTCASE (full_cycle)
+TESTCASE (full_cycle)
 {
   GumAllocationTracker * t;
   gpointer a, b;
@@ -165,7 +165,7 @@ ALLOCPROBE_TESTCASE (full_cycle)
  * FIXME: This test covers both AllocatorProbe and Interceptor, so the
  *        latter should obviously also have a test covering its own layer.
  */
-ALLOCPROBE_TESTCASE (gtype_interop)
+TESTCASE (gtype_interop)
 {
   MyPony * pony;
 

@@ -15,17 +15,17 @@
 # include <pthread.h>
 #endif
 
-#define TLS_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_tls_ ## NAME (void)
-#define TLS_TESTENTRY(NAME) \
-    TEST_ENTRY_SIMPLE ("Core/Tls", test_tls, NAME)
+#define TESTENTRY(NAME) \
+    TESTENTRY_SIMPLE ("Core/Tls", test_tls, NAME)
 
-TEST_LIST_BEGIN (tls)
-  TLS_TESTENTRY (get_should_work_like_the_system_implementation)
-  TLS_TESTENTRY (set_should_work_like_the_system_implementation)
-TEST_LIST_END ()
+TESTLIST_BEGIN (tls)
+  TESTENTRY (get_should_work_like_the_system_implementation)
+  TESTENTRY (set_should_work_like_the_system_implementation)
+TESTLIST_END ()
 
-TLS_TESTCASE (get_should_work_like_the_system_implementation)
+TESTCASE (get_should_work_like_the_system_implementation)
 {
   GumTlsKey key;
 
@@ -42,7 +42,7 @@ TLS_TESTCASE (get_should_work_like_the_system_implementation)
   gum_tls_key_free (key);
 }
 
-TLS_TESTCASE (set_should_work_like_the_system_implementation)
+TESTCASE (set_should_work_like_the_system_implementation)
 {
   GumTlsKey key;
 

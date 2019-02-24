@@ -10,11 +10,11 @@
 
 #include <string.h>
 
-#define CODEWRITER_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_code_writer_ ## NAME ( \
         TestCodeWriterFixture * fixture, gconstpointer data)
-#define CODEWRITER_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Core/X86Writer", test_code_writer, NAME, \
+#define TESTENTRY(NAME) \
+    TESTENTRY_WITH_FIXTURE ("Core/X86Writer", test_code_writer, NAME, \
         TestCodeWriterFixture)
 
 typedef struct _TestCodeWriterFixture

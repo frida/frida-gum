@@ -10,11 +10,11 @@
 
 #include <string.h>
 
-#define ARMWRITER_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_arm_writer_ ## NAME ( \
         TestArmWriterFixture * fixture, gconstpointer data)
-#define ARMWRITER_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Core/ArmWriter", test_arm_writer, NAME, \
+#define TESTENTRY(NAME) \
+    TESTENTRY_WITH_FIXTURE ("Core/ArmWriter", test_arm_writer, NAME, \
         TestArmWriterFixture)
 
 typedef struct _TestArmWriterFixture
