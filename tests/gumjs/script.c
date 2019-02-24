@@ -67,7 +67,9 @@ TESTLIST_BEGIN (script)
 
   TESTGROUP_BEGIN ("Memory")
     TESTENTRY (pointer_can_be_read)
+    TESTENTRY (pointer_can_be_read_legacy_style)
     TESTENTRY (pointer_can_be_written)
+    TESTENTRY (pointer_can_be_written_legacy_style)
     TESTENTRY (memory_can_be_allocated)
     TESTENTRY (memory_can_be_copied)
     TESTENTRY (memory_can_be_duped)
@@ -472,7 +474,7 @@ TESTCASE (instruction_can_be_parsed)
       "send(operands[1].value.base);"
       "send(operands[1].value.scale);"
       "var disp = operands[1].value.disp;"
-      "send(Memory.readU32(ldr.address.add(4 + disp)));"
+      "send(ldr.address.add(4 + disp).readU32());"
 
       "var bl = Instruction.parse(ldr.next);"
       "send(bl.mnemonic);"
@@ -552,7 +554,7 @@ TESTCASE (instruction_can_be_parsed)
       "send(operands[0].type);"
       "send(operands[0].value);"
       "send(operands[1].type);"
-      "send(Memory.readU64(ptr(operands[1].value)).valueOf());"
+      "send(ptr(operands[1].value).readU64().valueOf());"
 
       "var str = Instruction.parse(ldr.next);"
       "send(str.mnemonic);"
@@ -882,9 +884,9 @@ TESTCASE (native_function_can_be_invoked)
   COMPILE_AND_LOAD_SCRIPT (
       "var classify = new NativeFunction(" GUM_PTR_CONST ", "
           "'int64', ['int64']);"
-      "send(classify(new Int64(\"-42\")));"
-      "send(classify(new Int64(\"0\")));"
-      "send(classify(new Int64(\"42\")));",
+      "send(classify(int64(\"-42\")));"
+      "send(classify(int64(\"0\")));"
+      "send(classify(int64(\"42\")));",
       gum_classify_timestamp);
   EXPECT_SEND_MESSAGE_WITH ("\"-1\"");
   EXPECT_SEND_MESSAGE_WITH ("\"0\"");
@@ -894,9 +896,9 @@ TESTCASE (native_function_can_be_invoked)
   COMPILE_AND_LOAD_SCRIPT (
       "var square = new NativeFunction(" GUM_PTR_CONST ", "
           "'uint64', ['uint64']);"
-      "send(square(new UInt64(\"2\")));"
-      "send(square(new UInt64(\"4\")));"
-      "send(square(new UInt64(\"6\")));",
+      "send(square(uint64(\"2\")));"
+      "send(square(uint64(\"4\")));"
+      "send(square(uint64(\"6\")));",
       gum_square);
   EXPECT_SEND_MESSAGE_WITH ("\"4\"");
   EXPECT_SEND_MESSAGE_WITH ("\"16\"");
@@ -1087,7 +1089,7 @@ TESTCASE (nested_native_function_crash_is_handled_gracefully)
       "var targetWithCallback = new NativeFunction(" GUM_PTR_CONST ", "
           "'pointer', ['int', 'pointer', 'pointer']);"
       "var callback = new NativeCallback(function (value) {"
-      "  send(Memory.readInt(value));"
+      "  send(value.readInt());"
       "}, 'void', ['pointer']);"
       "try {"
       "  targetWithCallback(42, callback, NULL);"
@@ -1142,10 +1144,10 @@ TESTCASE (native_callback_can_be_invoked)
       "  var count = 0;"
       "  while (count < limit || limit === -1) {"
       "    var p = str.add(count);"
-      "    var b = Memory.readU8(p);"
+      "    var b = p.readU8();"
       "    if (b === 0)"
       "      break;"
-      "    Memory.writeU8(p, String.fromCharCode(b).toUpperCase().charCodeAt(0));"
+      "    p.writeU8(String.fromCharCode(b).toUpperCase().charCodeAt(0));"
       "    count++;"
       "  }"
       "  return (limit === -1) ? -count : count;"
@@ -1385,7 +1387,7 @@ TESTCASE (basic_hexdump_functionality_is_available)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "var str = Memory.allocUtf8String(\"Hello hex world! w00t\");"
-      "var buf = Memory.readByteArray(str, 22);"
+      "var buf = str.readByteArray(22);"
       "send(hexdump(buf));");
   EXPECT_SEND_MESSAGE_WITH ("\""
       "           0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F  "
@@ -1659,7 +1661,7 @@ TESTCASE (file_can_be_written_to)
   COMPILE_AND_LOAD_SCRIPT (
       "var log = new File(\"/tmp/script-test.log\", 'a');"
       "log.write(\"Hello \");"
-      "log.write(Memory.readByteArray(" GUM_PTR_CONST ", 4));"
+      "log.write(" GUM_PTR_CONST ".readByteArray(4));"
       "log.write(\"!\\n\");"
       "log.close();",
       d00d);
@@ -2365,8 +2367,8 @@ TESTCASE (stalker_events_can_be_parsed)
   ev.call.location = GSIZE_TO_POINTER (7);
   ev.call.target = GSIZE_TO_POINTER (12);
   ev.call.depth = 42;
-  COMPILE_AND_LOAD_SCRIPT ("send(Stalker.parse(Memory.readByteArray("
-      GUM_PTR_CONST ", %" G_GSIZE_FORMAT ")));", &ev, sizeof (ev));
+  COMPILE_AND_LOAD_SCRIPT ("send(Stalker.parse(" GUM_PTR_CONST ".readByteArray("
+      "%" G_GSIZE_FORMAT ")));", &ev, sizeof (ev));
   EXPECT_SEND_MESSAGE_WITH ("[[\"call\",\"0x7\",\"0xc\",42]]");
 
   COMPILE_AND_LOAD_SCRIPT ("send(Stalker.parse(new ArrayBuffer(0)));");
@@ -3182,7 +3184,7 @@ TESTCASE (rpc_can_be_performed)
       "};"
       "rpc.exports.badger = function () {"
           "var buf = Memory.allocUtf8String(\"Yo\");"
-          "return Memory.readByteArray(buf, 2);"
+          "return buf.readByteArray(2);"
       "};");
   EXPECT_NO_MESSAGES ();
 
@@ -4448,11 +4450,30 @@ TESTCASE (pointer_can_be_read)
 {
   gpointer val = GSIZE_TO_POINTER (0x1337000);
   COMPILE_AND_LOAD_SCRIPT (
+      "send(" GUM_PTR_CONST ".readPointer().toString());", &val);
+  EXPECT_SEND_MESSAGE_WITH ("\"0x1337000\"");
+}
+
+TESTCASE (pointer_can_be_read_legacy_style)
+{
+  gpointer val = GSIZE_TO_POINTER (0x1337000);
+  COMPILE_AND_LOAD_SCRIPT (
       "send(Memory.readPointer(" GUM_PTR_CONST ").toString());", &val);
   EXPECT_SEND_MESSAGE_WITH ("\"0x1337000\"");
 }
 
 TESTCASE (pointer_can_be_written)
+{
+  gpointer vals[2] = { NULL, NULL };
+  COMPILE_AND_LOAD_SCRIPT (
+      GUM_PTR_CONST ".writePointer(ptr(\"0x1337000\"))"
+      ".add(Process.pointerSize).writePointer(ptr(\"0x1338000\"))",
+      vals);
+  g_assert_cmphex (GPOINTER_TO_SIZE (vals[0]), ==, 0x1337000);
+  g_assert_cmphex (GPOINTER_TO_SIZE (vals[1]), ==, 0x1338000);
+}
+
+TESTCASE (pointer_can_be_written_legacy_style)
 {
   gpointer val = NULL;
   COMPILE_AND_LOAD_SCRIPT (
@@ -4467,14 +4488,14 @@ TESTCASE (memory_can_be_allocated)
 
   COMPILE_AND_LOAD_SCRIPT (
       "var p = Memory.alloc(8);"
-      "Memory.writePointer(p, ptr(\"1337\"));"
-      "send(Memory.readPointer(p).toInt32() === 1337);");
+      "p.writePointer(ptr('1337'));"
+      "send(p.readPointer().toInt32() === 1337);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 
   COMPILE_AND_LOAD_SCRIPT (
       "var p = Memory.alloc(uint64(8));"
-      "Memory.writePointer(p, ptr(\"1337\"));"
-      "send(Memory.readPointer(p).toInt32() === 1337);");
+      "p.writePointer(ptr('1337'));"
+      "send(p.readPointer().toInt32() === 1337);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 
   COMPILE_AND_LOAD_SCRIPT (
@@ -4490,7 +4511,7 @@ TESTCASE (memory_can_be_allocated)
 
   COMPILE_AND_LOAD_SCRIPT(
       "var p = Memory.alloc(5);"
-      "send('p', Memory.readByteArray(p, 5));");
+      "send('p', p.readByteArray(5));");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA("\"p\"", "00 00 00 00 00");
 }
 
@@ -4533,18 +4554,18 @@ TESTCASE (memory_can_be_duped)
 
   COMPILE_AND_LOAD_SCRIPT (
       "var p = Memory.dup(" GUM_PTR_CONST ", 3);"
-      "Memory.writeU8(p, 0x12);"
-      "send('p', Memory.readByteArray(p, 3));"
-      "send('buf', Memory.readByteArray(" GUM_PTR_CONST ", 3));",
+      "p.writeU8(0x12);"
+      "send('p', p.readByteArray(3));"
+      "send('buf', " GUM_PTR_CONST ".readByteArray(3));",
       buf, buf);
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"p\"", "12 37 42");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"buf\"", "13 37 42");
 
   COMPILE_AND_LOAD_SCRIPT (
       "var p = Memory.dup(" GUM_PTR_CONST ", uint64(2));"
-      "Memory.writeU8(p, 0x12);"
-      "send('p', Memory.readByteArray(p, 2));"
-      "send('buf', Memory.readByteArray(" GUM_PTR_CONST ", 2));",
+      "p.writeU8(0x12);"
+      "send('p', p.readByteArray(2));"
+      "send('buf', " GUM_PTR_CONST ".readByteArray(2));",
       buf, buf);
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"p\"", "12 37");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"buf\"", "13 37");
@@ -4594,7 +4615,7 @@ TESTCASE (code_can_be_patched)
 
   COMPILE_AND_LOAD_SCRIPT ("Memory.patchCode(" GUM_PTR_CONST ", 1, "
       "function (ptr) {"
-          "Memory.writeU8(ptr, 0x90);"
+          "ptr.writeU8(0x90);"
       "});", code + 7);
   g_assert_cmphex (code[7], ==, 0x90);
 
@@ -4604,84 +4625,84 @@ TESTCASE (code_can_be_patched)
 TESTCASE (s8_can_be_read)
 {
   gint8 val = -42;
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readS8(" GUM_PTR_CONST "));", &val);
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readS8());", &val);
   EXPECT_SEND_MESSAGE_WITH ("-42");
 }
 
 TESTCASE (s8_can_be_written)
 {
   gint8 val = 0;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeS8(" GUM_PTR_CONST ", -42);", &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeS8(-42);", &val);
   g_assert_cmpint (val, ==, -42);
 }
 
 TESTCASE (u8_can_be_read)
 {
   guint8 val = 42;
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readU8(" GUM_PTR_CONST "));", &val);
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readU8());", &val);
   EXPECT_SEND_MESSAGE_WITH ("42");
 }
 
 TESTCASE (u8_can_be_written)
 {
   guint8 val = 0;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeU8(" GUM_PTR_CONST ", 42);", &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeU8(42);", &val);
   g_assert_cmpint (val, ==, 42);
 }
 
 TESTCASE (s16_can_be_read)
 {
   gint16 val = -12123;
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readS16(" GUM_PTR_CONST "));", &val);
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readS16());", &val);
   EXPECT_SEND_MESSAGE_WITH ("-12123");
 }
 
 TESTCASE (s16_can_be_written)
 {
   gint16 val = 0;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeS16(" GUM_PTR_CONST ", -12123);", &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeS16(-12123);", &val);
   g_assert_cmpint (val, ==, -12123);
 }
 
 TESTCASE (u16_can_be_read)
 {
   guint16 val = 12123;
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readU16(" GUM_PTR_CONST "));", &val);
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readU16());", &val);
   EXPECT_SEND_MESSAGE_WITH ("12123");
 }
 
 TESTCASE (u16_can_be_written)
 {
   guint16 val = 0;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeU16(" GUM_PTR_CONST ", 12123);", &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeU16(12123);", &val);
   g_assert_cmpint (val, ==, 12123);
 }
 
 TESTCASE (s32_can_be_read)
 {
   gint32 val = -120123;
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readS32(" GUM_PTR_CONST "));", &val);
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readS32());", &val);
   EXPECT_SEND_MESSAGE_WITH ("-120123");
 }
 
 TESTCASE (s32_can_be_written)
 {
   gint32 val = 0;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeS32(" GUM_PTR_CONST ", -120123);", &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeS32(-120123);", &val);
   g_assert_cmpint (val, ==, -120123);
 }
 
 TESTCASE (u32_can_be_read)
 {
   guint32 val = 120123;
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readU32(" GUM_PTR_CONST "));", &val);
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readU32());", &val);
   EXPECT_SEND_MESSAGE_WITH ("120123");
 }
 
 TESTCASE (u32_can_be_written)
 {
   guint32 val = 0;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeU32(" GUM_PTR_CONST ", 120123);", &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeU32(120123);", &val);
   g_assert_cmpint (val, ==, 120123);
 }
 
@@ -4689,7 +4710,7 @@ TESTCASE (s64_can_be_read)
 {
   gint64 val = G_GINT64_CONSTANT (-1201239876783);
   COMPILE_AND_LOAD_SCRIPT (
-      "var value = Memory.readS64(" GUM_PTR_CONST ");"
+      "var value = " GUM_PTR_CONST ".readS64();"
       "send(value instanceof Int64);"
       "send(value);",
       &val);
@@ -4700,8 +4721,8 @@ TESTCASE (s64_can_be_read)
 TESTCASE (s64_can_be_written)
 {
   gint64 val = 0;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeS64(" GUM_PTR_CONST
-      ", new Int64(\"-1201239876783\"));", &val);
+  COMPILE_AND_LOAD_SCRIPT (
+      GUM_PTR_CONST ".writeS64(int64('-1201239876783'));", &val);
   g_assert_cmpint (val, ==, G_GINT64_CONSTANT (-1201239876783));
 }
 
@@ -4709,7 +4730,7 @@ TESTCASE (u64_can_be_read)
 {
   guint64 val = G_GUINT64_CONSTANT (1201239876783);
   COMPILE_AND_LOAD_SCRIPT (
-      "var value = Memory.readU64(" GUM_PTR_CONST ");"
+      "var value = " GUM_PTR_CONST ".readU64();"
       "send(value instanceof UInt64);"
       "send(value);",
       &val);
@@ -4720,138 +4741,128 @@ TESTCASE (u64_can_be_read)
 TESTCASE (u64_can_be_written)
 {
   gint64 val = 0;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeU64(" GUM_PTR_CONST
-      ", new UInt64(\"1201239876783\"));", &val);
+  COMPILE_AND_LOAD_SCRIPT (
+      GUM_PTR_CONST ".writeU64(uint64('1201239876783'));", &val);
   g_assert_cmpint (val, ==, G_GUINT64_CONSTANT (1201239876783));
 }
 
 TESTCASE (short_can_be_read)
 {
   short val = -12123;
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readShort(" GUM_PTR_CONST "));", &val);
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readShort());", &val);
   EXPECT_SEND_MESSAGE_WITH ("-12123");
 }
 
 TESTCASE (short_can_be_written)
 {
   short val = 0;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeShort(" GUM_PTR_CONST ", -12123);",
-    &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeShort(-12123);", &val);
   g_assert_cmpint (val, ==, -12123);
 
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeShort(" GUM_PTR_CONST
-    ", int64(-1234));", &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeShort(int64(-1234));", &val);
   g_assert_cmpint (val, ==, -1234);
 }
 
 TESTCASE (ushort_can_be_read)
 {
   unsigned short val = 12123;
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUShort(" GUM_PTR_CONST "));", &val);
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readUShort());", &val);
   EXPECT_SEND_MESSAGE_WITH ("12123");
 }
 
 TESTCASE (ushort_can_be_written)
 {
   unsigned short val = 0;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeUShort(" GUM_PTR_CONST ", 12123);",
-    &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeUShort(12123);", &val);
   g_assert_cmpint (val, ==, 12123);
 
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeUShort(" GUM_PTR_CONST
-      ", uint64(1234));", &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeUShort(uint64(1234));", &val);
   g_assert_cmpint (val, ==, 1234);
 }
 
 TESTCASE (int_can_be_read)
 {
   int val = -120123;
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readInt(" GUM_PTR_CONST "));", &val);
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readInt());", &val);
   EXPECT_SEND_MESSAGE_WITH ("-120123");
 }
 
 TESTCASE (int_can_be_written)
 {
   int val = 0;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeInt(" GUM_PTR_CONST ", -120123);",
-    &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeInt(-120123);", &val);
   g_assert_cmpint (val, ==, -120123);
 }
 
 TESTCASE (uint_can_be_read)
 {
   unsigned int val = 120123;
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUInt(" GUM_PTR_CONST "));", &val);
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readUInt());", &val);
   EXPECT_SEND_MESSAGE_WITH ("120123");
 }
 
 TESTCASE (uint_can_be_written)
 {
   unsigned int val = 0;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeUInt(" GUM_PTR_CONST ", 120123);",
-    &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeUInt(120123);", &val);
   g_assert_cmpint (val, ==, 120123);
 }
 
 TESTCASE (long_can_be_read)
 {
   long val = -123;
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readLong(" GUM_PTR_CONST "));", &val);
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readLong());", &val);
   EXPECT_SEND_MESSAGE_WITH ("\"-123\"");
 }
 
 TESTCASE (long_can_be_written)
 {
   long val = 0;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeLong(" GUM_PTR_CONST ", 1350966097);",
-    &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeLong(1350966097);", &val);
   g_assert_cmpint (val, ==, 1350966097);
 }
 
 TESTCASE (ulong_can_be_read)
 {
   unsigned long val = 4294967295UL;
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readULong(" GUM_PTR_CONST "));", &val);
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readULong());", &val);
   EXPECT_SEND_MESSAGE_WITH ("\"4294967295\"");
 }
 
 TESTCASE (ulong_can_be_written)
 {
   unsigned long val = 0;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeULong(" GUM_PTR_CONST ", 4294967295);",
-    &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeULong(4294967295);", &val);
   g_assert_cmpint (val, ==, 4294967295UL);
 }
 
 TESTCASE (float_can_be_read)
 {
   float val = 123.456f;
-  COMPILE_AND_LOAD_SCRIPT ("send(Math.abs(Memory.readFloat(" GUM_PTR_CONST
-      ") - 123.456) < 0.00001);", &val);
+  COMPILE_AND_LOAD_SCRIPT ("send(Math.abs(" GUM_PTR_CONST ".readFloat()"
+      " - 123.456) < 0.00001);", &val);
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
 TESTCASE (float_can_be_written)
 {
   float val = 0.f;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeFloat(" GUM_PTR_CONST ", 123.456);",
-      &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeFloat(123.456);", &val);
   g_assert_cmpfloat (ABS (val - 123.456f), <, 0.00001f);
 }
 
 TESTCASE (double_can_be_read)
 {
   double val = 123.456;
-  COMPILE_AND_LOAD_SCRIPT ("send(Math.abs(Memory.readDouble(" GUM_PTR_CONST
-      ") - 123.456)  < 0.00001);", &val);
+  COMPILE_AND_LOAD_SCRIPT ("send(Math.abs(" GUM_PTR_CONST ".readDouble()"
+      " - 123.456) < 0.00001);", &val);
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
 TESTCASE (double_can_be_written)
 {
   double val = 0.0;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeDouble(" GUM_PTR_CONST ", 123.456);",
-      &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeDouble(123.456);", &val);
   g_assert_cmpfloat (ABS (val - 123.456), <, 0.00001);
 }
 
@@ -4859,11 +4870,11 @@ TESTCASE (byte_array_can_be_read)
 {
   guint8 buf[3] = { 0x13, 0x37, 0x42 };
   COMPILE_AND_LOAD_SCRIPT (
-      "var buffer = Memory.readByteArray(" GUM_PTR_CONST ", 3);"
+      "var buffer = " GUM_PTR_CONST ".readByteArray(3);"
       "send('badger', buffer);"
-      "send('badger', Memory.readByteArray(" GUM_PTR_CONST ", int64(3)));"
-      "send('badger', Memory.readByteArray(" GUM_PTR_CONST ", uint64(3)));"
-      "var emptyBuffer = Memory.readByteArray(" GUM_PTR_CONST ", 0);"
+      "send('badger', " GUM_PTR_CONST ".readByteArray(int64(3)));"
+      "send('badger', " GUM_PTR_CONST ".readByteArray(uint64(3)));"
+      "var emptyBuffer = " GUM_PTR_CONST ".readByteArray(0);"
       "send('snake', emptyBuffer);"
       "send(buffer instanceof ArrayBuffer);"
       "send(emptyBuffer instanceof ArrayBuffer);",
@@ -4881,26 +4892,31 @@ TESTCASE (byte_array_can_be_written)
   guint8 val[4] = { 0x00, 0x00, 0x00, 0xff };
   const guint8 other[3] = { 0x01, 0x02, 0x03 };
 
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeByteArray(" GUM_PTR_CONST
-      ", [0x13, 0x37, 0x42]);", val);
+  COMPILE_AND_LOAD_SCRIPT (
+      GUM_PTR_CONST ".writeByteArray([0x13, 0x37, 0x42]);",
+      val);
   EXPECT_NO_MESSAGES ();
   g_assert_cmpint (val[0], ==, 0x13);
   g_assert_cmpint (val[1], ==, 0x37);
   g_assert_cmpint (val[2], ==, 0x42);
   g_assert_cmpint (val[3], ==, 0xff);
 
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeByteArray(" GUM_PTR_CONST
-      ", Memory.readByteArray(" GUM_PTR_CONST ", 3));", val, other);
+  COMPILE_AND_LOAD_SCRIPT (
+      "var other = " GUM_PTR_CONST ".readByteArray(3);"
+      GUM_PTR_CONST ".writeByteArray(other);",
+      other, val);
   EXPECT_NO_MESSAGES ();
   g_assert_cmpint (val[0], ==, 0x01);
   g_assert_cmpint (val[1], ==, 0x02);
   g_assert_cmpint (val[2], ==, 0x03);
   g_assert_cmpint (val[3], ==, 0xff);
 
-  COMPILE_AND_LOAD_SCRIPT ("var bytes = new Uint8Array(2);"
+  COMPILE_AND_LOAD_SCRIPT (
+      "var bytes = new Uint8Array(2);"
       "bytes[0] = 4;"
       "bytes[1] = 5;"
-      "Memory.writeByteArray(" GUM_PTR_CONST ", bytes);", val);
+      GUM_PTR_CONST ".writeByteArray(bytes);",
+      val);
   EXPECT_NO_MESSAGES ();
   g_assert_cmpint (val[0], ==, 0x04);
   g_assert_cmpint (val[1], ==, 0x05);
@@ -4912,35 +4928,33 @@ TESTCASE (c_string_can_be_read)
   const gchar * str = "Hello";
   const gchar * uni = "Bjøærheimsbygd";
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readCString(" GUM_PTR_CONST "));",
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readCString());",
       str);
   EXPECT_SEND_MESSAGE_WITH ("\"Hello\"");
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readCString(" GUM_PTR_CONST ", 3));",
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readCString(3));",
       str);
   EXPECT_SEND_MESSAGE_WITH ("\"Hel\"");
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readCString(" GUM_PTR_CONST ", 0));",
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readCString(0));",
       str);
   EXPECT_SEND_MESSAGE_WITH ("\"\"");
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readCString(" GUM_PTR_CONST ", -1));",
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readCString(-1));",
       str);
   EXPECT_SEND_MESSAGE_WITH ("\"Hello\"");
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readCString(" GUM_PTR_CONST
-      ", int64(-1)));", str);
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readCString(int64(-1)));",
+      str);
   EXPECT_SEND_MESSAGE_WITH ("\"Hello\"");
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readCString(ptr(\"0\")));", str);
+  COMPILE_AND_LOAD_SCRIPT ("send(ptr('0').readCString());", str);
   EXPECT_SEND_MESSAGE_WITH ("null");
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readCString(" GUM_PTR_CONST
-      ", 4));", uni);
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readCString(4));", uni);
   EXPECT_SEND_MESSAGE_WITH ("\"Bjø\"");
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readCString(" GUM_PTR_CONST
-      ", 3));", uni);
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readCString(3));", uni);
   EXPECT_SEND_MESSAGE_WITH ("\"Bj\357\277\275\"");
 }
 
@@ -4948,32 +4962,28 @@ TESTCASE (utf8_string_can_be_read)
 {
   const gchar * str = "Bjøærheimsbygd";
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(" GUM_PTR_CONST "));",
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readUtf8String());", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjøærheimsbygd\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readUtf8String(4));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjø\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readUtf8String(0));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readUtf8String(-1));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjøærheimsbygd\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readUtf8String(int64(-1)));",
       str);
   EXPECT_SEND_MESSAGE_WITH ("\"Bjøærheimsbygd\"");
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(" GUM_PTR_CONST
-      ", 4));", str);
-  EXPECT_SEND_MESSAGE_WITH ("\"Bjø\"");
-
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(" GUM_PTR_CONST
-      ", 0));", str);
-  EXPECT_SEND_MESSAGE_WITH ("\"\"");
-
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(" GUM_PTR_CONST
-      ", -1));", str);
-  EXPECT_SEND_MESSAGE_WITH ("\"Bjøærheimsbygd\"");
-
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(" GUM_PTR_CONST
-      ", int64(-1)));", str);
-  EXPECT_SEND_MESSAGE_WITH ("\"Bjøærheimsbygd\"");
-
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(ptr(\"0\")));", str);
+  COMPILE_AND_LOAD_SCRIPT ("send(ptr('0').readUtf8String());", str);
   EXPECT_SEND_MESSAGE_WITH ("null");
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(" GUM_PTR_CONST
-      ", 3));", str);
-  EXPECT_ERROR_MESSAGE_WITH (1, "Error: can't decode byte 0xc3 in position 2");
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readUtf8String(3));", str);
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "Error: can't decode byte 0xc3 in position 2");
 }
 
 TESTCASE (utf8_string_can_be_written)
@@ -4981,8 +4991,7 @@ TESTCASE (utf8_string_can_be_written)
   gchar str[6];
 
   strcpy (str, "Hello");
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeUtf8String(" GUM_PTR_CONST ", 'Bye');",
-      str);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeUtf8String('Bye');", str);
   g_assert_cmpstr (str, ==, "Bye");
   g_assert_cmphex (str[4], ==, 'o');
   g_assert_cmphex (str[5], ==, '\0');
@@ -4990,8 +4999,9 @@ TESTCASE (utf8_string_can_be_written)
 
 TESTCASE (utf8_string_can_be_allocated)
 {
-  COMPILE_AND_LOAD_SCRIPT (
-      "send(Memory.readUtf8String(Memory.allocUtf8String('Bjørheimsbygd')));");
+  COMPILE_AND_LOAD_SCRIPT ("send("
+      "Memory.allocUtf8String('Bjørheimsbygd').readUtf8String()"
+      ");");
   EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
 }
 
@@ -5000,27 +5010,25 @@ TESTCASE (utf16_string_can_be_read)
   const gchar * str_utf8 = "Bjørheimsbygd";
   gunichar2 * str = g_utf8_to_utf16 (str_utf8, -1, NULL, NULL, NULL);
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf16String(" GUM_PTR_CONST "));",
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readUtf16String());", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readUtf16String(3));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjø\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readUtf16String(0));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readUtf16String(-1));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send("
+      GUM_PTR_CONST ".readUtf16String(int64(-1))"
+      ");",
       str);
   EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf16String(" GUM_PTR_CONST
-      ", 3));", str);
-  EXPECT_SEND_MESSAGE_WITH ("\"Bjø\"");
-
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf16String(" GUM_PTR_CONST
-      ", 0));", str);
-  EXPECT_SEND_MESSAGE_WITH ("\"\"");
-
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf16String(" GUM_PTR_CONST
-      ", -1));", str);
-  EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
-
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf16String(" GUM_PTR_CONST
-      ", int64(-1)));", str);
-  EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
-
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf16String(ptr(\"0\")));", str);
+  COMPILE_AND_LOAD_SCRIPT ("send(ptr('0').readUtf16String());", str);
   EXPECT_SEND_MESSAGE_WITH ("null");
 
   g_free (str);
@@ -5030,8 +5038,7 @@ TESTCASE (utf16_string_can_be_written)
 {
   gunichar2 * str = g_utf8_to_utf16 ("Hello", -1, NULL, NULL, NULL);
 
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeUtf16String(" GUM_PTR_CONST ", 'Bye');",
-      str);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeUtf16String('Bye');", str);
   g_assert_cmphex (str[0], ==, 'B');
   g_assert_cmphex (str[1], ==, 'y');
   g_assert_cmphex (str[2], ==, 'e');
@@ -5044,8 +5051,9 @@ TESTCASE (utf16_string_can_be_written)
 
 TESTCASE (utf16_string_can_be_allocated)
 {
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf16String("
-      "Memory.allocUtf16String('Bjørheimsbygd')));");
+  COMPILE_AND_LOAD_SCRIPT ("send("
+      "Memory.allocUtf16String('Bjørheimsbygd').readUtf16String()"
+      ");");
   EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
 }
 
@@ -5059,27 +5067,23 @@ TESTCASE (ansi_string_can_be_read)
   WideCharToMultiByte (CP_THREAD_ACP, 0, (LPCWSTR) str_utf16, -1,
       (LPSTR) str, sizeof (str), NULL, NULL);
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(" GUM_PTR_CONST "));",
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readAnsiString());", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readAnsiString(3));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjø\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readAnsiString(0));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readAnsiString(-1));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readAnsiString(int64(-1)));",
       str);
   EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(" GUM_PTR_CONST
-      ", 3));", str);
-  EXPECT_SEND_MESSAGE_WITH ("\"Bjø\"");
-
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(" GUM_PTR_CONST
-      ", 0));", str);
-  EXPECT_SEND_MESSAGE_WITH ("\"\"");
-
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(" GUM_PTR_CONST
-      ", -1));", str);
-  EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
-
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(" GUM_PTR_CONST
-      ", int64(-1)));", str);
-  EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
-
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(ptr(\"0\")));", str);
+  COMPILE_AND_LOAD_SCRIPT ("send(ptr('0').readAnsiString());", str);
   EXPECT_SEND_MESSAGE_WITH ("null");
 
   g_free (str_utf16);
@@ -5092,8 +5096,8 @@ TESTCASE (ansi_string_can_be_written)
   gchar * str_utf8;
 
   strcpy (str_ansi, "Kjempeforhaustar");
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeAnsiString(" GUM_PTR_CONST
-      ", 'Bjørheimsbygd');", str_ansi);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeAnsiString('Bjørheimsbygd');",
+      str_ansi);
   MultiByteToWideChar (CP_ACP, 0, str_ansi, -1, str_utf16, sizeof (str_utf16));
   str_utf8 = g_utf16_to_utf8 (str_utf16, -1, NULL, NULL, NULL);
   g_assert_cmpstr (str_utf8, == , "Bjørheimsbygd");
@@ -5106,8 +5110,9 @@ TESTCASE (ansi_string_can_be_written)
 
 TESTCASE (ansi_string_can_be_allocated)
 {
-  COMPILE_AND_LOAD_SCRIPT (
-      "send(Memory.readAnsiString(Memory.allocAnsiString('Bjørheimsbygd')));");
+  COMPILE_AND_LOAD_SCRIPT ("send("
+      "Memory.allocAnsiString('Bjørheimsbygd').readAnsiString()"
+      ");");
   EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
 }
 
@@ -5152,10 +5157,10 @@ TESTCASE (invalid_read_results_in_exception)
   {
     gchar * source;
 
-    source = g_strconcat ("Memory.read", type_name[i], "(ptr(\"1328\"));",
-        NULL);
+    source = g_strconcat ("ptr('1328').read", type_name[i], "();", NULL);
     COMPILE_AND_LOAD_SCRIPT (source);
-    EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation accessing 0x530");
+    EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+        "Error: access violation accessing 0x530");
     g_free (source);
   }
 }
@@ -5192,10 +5197,11 @@ TESTCASE (invalid_write_results_in_exception)
   {
     gchar * source;
 
-    source = g_strconcat ("Memory.write", primitive_type_name[i],
-        "(ptr(\"1328\"), 13);", NULL);
+    source = g_strconcat ("ptr('1328').write", primitive_type_name[i], "(13);",
+        NULL);
     COMPILE_AND_LOAD_SCRIPT (source);
-    EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation accessing 0x530");
+    EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+        "Error: access violation accessing 0x530");
     g_free (source);
   }
 
@@ -5203,10 +5209,11 @@ TESTCASE (invalid_write_results_in_exception)
   {
     gchar * source;
 
-    source = g_strconcat ("Memory.write", string_type_name[i],
-        "(ptr(\"1328\"), 'Hey');", NULL);
+    source = g_strconcat ("ptr('1328').write", string_type_name[i], "('Hey');",
+        NULL);
     COMPILE_AND_LOAD_SCRIPT (source);
-    EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation accessing 0x530");
+    EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+        "Error: access violation accessing 0x530");
     g_free (source);
   }
 }
@@ -5219,12 +5226,14 @@ TESTCASE (invalid_read_write_execute_results_in_exception)
     return;
   }
 
-  COMPILE_AND_LOAD_SCRIPT ("Memory.readU8(ptr(\"1328\"));");
-  EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation accessing 0x530");
+  COMPILE_AND_LOAD_SCRIPT ("ptr('1328').readU8();");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "Error: access violation accessing 0x530");
   EXPECT_NO_MESSAGES ();
 
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeU8(ptr(\"1328\"), 42);");
-  EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation accessing 0x530");
+  COMPILE_AND_LOAD_SCRIPT ("ptr('1328').writeU8(42);");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "Error: access violation accessing 0x530");
   EXPECT_NO_MESSAGES ();
 
   COMPILE_AND_LOAD_SCRIPT ("var data = Memory.alloc(Process.pageSize);"

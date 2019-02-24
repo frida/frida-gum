@@ -79,7 +79,7 @@ declare function send(message: any): void;
 
 /**
  * Sends a JSON-serializable message to your Frida-based application, along with some raw binary data.
- * This is useful if you e.g. dumped some memory using `Memory.readByteArray()`.
+ * This is useful if you e.g. dumped some memory using `NativePointer#readByteArray()`.
  */
 declare function send(message: any, data: ArrayBuffer | number[] | null): void;
 
@@ -556,51 +556,6 @@ declare namespace Memory {
      * @param apply Function that applies the desired changes.
      */
     function patchCode(address: NativePointerValue, size: number | UInt64, apply: MemoryPatchApplyCallback): void;
-
-    function readPointer(address: NativePointerValue): NativePointer;
-    function readS8(address: NativePointerValue): number;
-    function readU8(address: NativePointerValue): number;
-    function readS16(address: NativePointerValue): number;
-    function readU16(address: NativePointerValue): number;
-    function readS32(address: NativePointerValue): number;
-    function readU32(address: NativePointerValue): number;
-    function readS64(address: NativePointerValue): Int64;
-    function readU64(address: NativePointerValue): UInt64;
-    function readShort(address: NativePointerValue): number;
-    function readUShort(address: NativePointerValue): number;
-    function readInt(address: NativePointerValue): number;
-    function readUInt(address: NativePointerValue): number;
-    function readLong(address: NativePointerValue): number | Int64;
-    function readULong(address: NativePointerValue): number | UInt64;
-    function readFloat(address: NativePointerValue): number;
-    function readDouble(address: NativePointerValue): number;
-    function readByteArray(address: NativePointerValue, length: number): ArrayBuffer | null;
-    function readCString(address: NativePointerValue, size?: number): string | null;
-    function readUtf8String(address: NativePointerValue, size?: number): string | null;
-    function readUtf16String(address: NativePointerValue, length?: number): string | null;
-    function readAnsiString(address: NativePointerValue, size?: number): string | null;
-
-    function writePointer(address: NativePointerValue, value: NativePointerValue): void;
-    function writeS8(address: NativePointerValue, value: number | Int64): void;
-    function writeU8(address: NativePointerValue, value: number | UInt64): void;
-    function writeS16(address: NativePointerValue, value: number | Int64): void;
-    function writeU16(address: NativePointerValue, value: number | UInt64): void;
-    function writeS32(address: NativePointerValue, value: number | Int64): void;
-    function writeU32(address: NativePointerValue, value: number | UInt64): void;
-    function writeS64(address: NativePointerValue, value: number | Int64): void;
-    function writeU64(address: NativePointerValue, value: number | UInt64): void;
-    function writeShort(address: NativePointerValue, value: number | Int64): void;
-    function writeUShort(address: NativePointerValue, value: number | UInt64): void;
-    function writeInt(address: NativePointerValue, value: number | Int64): void;
-    function writeUInt(address: NativePointerValue, value: number | UInt64): void;
-    function writeLong(address: NativePointerValue, value: number | Int64): void;
-    function writeULong(address: NativePointerValue, value: number | UInt64): void;
-    function writeFloat(address: NativePointerValue, value: number): void;
-    function writeDouble(address: NativePointerValue, value: number): void;
-    function writeByteArray(address: NativePointerValue, value: ArrayBuffer | number[]): void;
-    function writeUtf8String(address: NativePointerValue, value: string): void;
-    function writeUtf16String(address: NativePointerValue, value: string): void;
-    function writeAnsiString(address: NativePointerValue, value: string): void;
 }
 
 declare namespace Thread {
@@ -1262,6 +1217,51 @@ declare class NativePointer {
      * Returns a string containing a `Memory#scan()`-compatible match pattern for this pointer’s raw value.
      */
     toMatchPattern(): string;
+
+    readPointer(): NativePointer;
+    readS8(): number;
+    readU8(): number;
+    readS16(): number;
+    readU16(): number;
+    readS32(): number;
+    readU32(): number;
+    readS64(): Int64;
+    readU64(): UInt64;
+    readShort(): number;
+    readUShort(): number;
+    readInt(): number;
+    readUInt(): number;
+    readLong(): number | Int64;
+    readULong(): number | UInt64;
+    readFloat(): number;
+    readDouble(): number;
+    readByteArray(length: number): ArrayBuffer | null;
+    readCString(size?: number): string | null;
+    readUtf8String(size?: number): string | null;
+    readUtf16String(length?: number): string | null;
+    readAnsiString(size?: number): string | null;
+
+    writePointer(value: NativePointerValue): NativePointer;
+    writeS8(value: number | Int64): NativePointer;
+    writeU8(value: number | UInt64): NativePointer;
+    writeS16(value: number | Int64): NativePointer;
+    writeU16(value: number | UInt64): NativePointer;
+    writeS32(value: number | Int64): NativePointer;
+    writeU32(value: number | UInt64): NativePointer;
+    writeS64(value: number | Int64): NativePointer;
+    writeU64(value: number | UInt64): NativePointer;
+    writeShort(value: number | Int64): NativePointer;
+    writeUShort(value: number | UInt64): NativePointer;
+    writeInt(value: number | Int64): NativePointer;
+    writeUInt(value: number | UInt64): NativePointer;
+    writeLong(value: number | Int64): NativePointer;
+    writeULong(value: number | UInt64): NativePointer;
+    writeFloat(value: number): NativePointer;
+    writeDouble(value: number): NativePointer;
+    writeByteArray(value: ArrayBuffer | number[]): NativePointer;
+    writeUtf8String(value: string): NativePointer;
+    writeUtf16String(value: string): NativePointer;
+    writeAnsiString(value: string): NativePointer;
 }
 
 declare interface ObjectWrapper {

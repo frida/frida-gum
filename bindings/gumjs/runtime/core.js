@@ -130,6 +130,30 @@ Object.defineProperties(engine, {
   },
 });
 
+const pointerPrototype = NativePointer.prototype;
+
+Object.keys(Memory)
+  .forEach(methodName => {
+    if (methodName.indexOf('read') === 0) {
+      pointerPrototype[methodName] = makePointerReadMethod(Memory[methodName]);
+    } else if (methodName.indexOf('write') === 0) {
+      pointerPrototype[methodName] = makePointerWriteMethod(Memory[methodName]);
+    }
+  });
+
+function makePointerReadMethod(read) {
+  return function (...args) {
+    return read.call(Memory, this, ...args);
+  };
+}
+
+function makePointerWriteMethod(write) {
+  return function (...args) {
+    write.call(Memory, this, ...args);
+    return this;
+  };
+}
+
 [
   Int64,
   UInt64,
@@ -173,7 +197,7 @@ Object.defineProperties(Memory, {
   patchCode: {
     enumerable: true,
     value: function (address, size, apply) {
-      Memory.readU8(address);
+      address.readU8();
       Memory._patchCode(address, size, apply);
     }
   },
@@ -342,14 +366,14 @@ Object.defineProperties(Interceptor, {
   attach: {
     enumerable: true,
     value: function (target, callbacks) {
-      Memory.readU8(target);
+      target.readU8();
       return Interceptor._attach(target, callbacks);
     }
   },
   replace: {
     enumerable: true,
     value: function (target, replacement) {
-      Memory.readU8(target);
+      target.readU8();
       Interceptor._replace(target, replacement);
     }
   },
@@ -424,7 +448,7 @@ Object.defineProperties(Stalker, {
 Object.defineProperty(Instruction, 'parse', {
   enumerable: true,
   value: function (target) {
-    Memory.readU8(target);
+    target.readU8();
     return Instruction._parse(target);
   }
 });

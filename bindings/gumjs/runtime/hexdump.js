@@ -21,7 +21,7 @@ function hexdump(target, options) {
       target = target.handle;
     if (length === undefined)
       length = 256;
-    buffer = Memory.readByteArray(target, length);
+    buffer = target.readByteArray(length);
     defaultStartAddress = target;
   }
 
