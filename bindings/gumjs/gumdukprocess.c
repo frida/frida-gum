@@ -66,7 +66,6 @@ struct _GumDukFindRangeByAddressContext
   GumDukCore * core;
 };
 
-GUMJS_DECLARE_CONSTRUCTOR (gumjs_process_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_process_is_debugger_attached)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_thread_id)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_threads)
@@ -122,9 +121,7 @@ _gum_duk_process_init (GumDukProcess * self,
 
   _gum_duk_store_module_data (ctx, "process", self);
 
-  duk_push_c_function (ctx, gumjs_process_construct, 0);
   duk_push_object (ctx);
-  duk_put_function_list (ctx, -1, gumjs_process_functions);
   duk_push_uint (ctx, gum_process_get_id ());
   duk_put_prop_string (ctx, -2, "id");
   duk_push_string (ctx, GUM_SCRIPT_ARCH);
@@ -138,9 +135,7 @@ _gum_duk_process_init (GumDukProcess * self,
   duk_push_string (ctx, gum_code_signing_policy_to_string (
       gum_process_get_code_signing_policy ()));
   duk_put_prop_string (ctx, -2, "codeSigningPolicy");
-  duk_put_prop_string (ctx, -2, "prototype");
-  duk_new (ctx, 0);
-  _gum_duk_put_data (ctx, -1, self);
+  duk_put_function_list (ctx, -1, gumjs_process_functions);
   duk_put_global_string (ctx, "Process");
 }
 
@@ -165,11 +160,6 @@ static GumDukProcess *
 gumjs_module_from_args (const GumDukArgs * args)
 {
   return _gum_duk_load_module_data (args->ctx, "process");
-}
-
-GUMJS_DEFINE_CONSTRUCTOR (gumjs_process_construct)
-{
-  return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_is_debugger_attached)
@@ -498,9 +488,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_set_exception_handler)
   GumDukHeapPtr callback;
   GumDukExceptionHandler * new_handler, * old_handler;
 
-  duk_push_this (ctx);
-  self = _gum_duk_require_data (ctx, -1);
-  duk_pop (ctx);
+  self = gumjs_module_from_args (args);
 
   _gum_duk_args_parse (args, "F?", &callback);
 

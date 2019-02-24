@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -172,7 +172,6 @@ GUMJS_DECLARE_FUNCTION (gumjs_wait_for_event)
 
 GUMJS_DECLARE_GETTER (gumjs_get_promise)
 
-GUMJS_DECLARE_CONSTRUCTOR (gumjs_frida_construct)
 GUMJS_DECLARE_GETTER (gumjs_frida_get_heap_size)
 GUMJS_DECLARE_GETTER (gumjs_frida_get_source_map)
 GUMJS_DECLARE_GETTER (gumjs_frida_objc_get_source_map)
@@ -180,7 +179,6 @@ GUMJS_DECLARE_GETTER (gumjs_frida_java_get_source_map)
 GUMJS_DECLARE_FUNCTION (gumjs_frida_objc_load)
 GUMJS_DECLARE_FUNCTION (gumjs_frida_java_load)
 
-GUMJS_DECLARE_CONSTRUCTOR (gumjs_script_construct)
 GUMJS_DECLARE_GETTER (gumjs_script_get_file_name)
 GUMJS_DECLARE_GETTER (gumjs_script_get_source_map)
 GUMJS_DECLARE_FUNCTION (gumjs_script_next_tick)
@@ -191,7 +189,6 @@ static int gum_duk_core_on_global_enumerate (duk_context * ctx, void * udata);
 static int gum_duk_core_on_global_get (duk_context * ctx, const char * name,
     void * udata);
 
-GUMJS_DECLARE_CONSTRUCTOR (gumjs_weak_ref_module_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_weak_ref_bind)
 GUMJS_DECLARE_FUNCTION (gumjs_weak_ref_unbind)
 
@@ -807,25 +804,24 @@ _gum_duk_core_init (GumDukCore * self,
       DUK_DEFPROP_SET_CONFIGURABLE | DUK_DEFPROP_HAVE_GETTER);
   duk_pop (ctx);
 
-  duk_push_c_function (ctx, gumjs_frida_construct, 0);
   duk_push_object (ctx);
+  duk_push_string (ctx, FRIDA_VERSION);
+  duk_put_prop_string (ctx, -2, "version");
+  _gum_duk_add_properties_to_class_by_heapptr (ctx,
+      duk_require_heapptr (ctx, -1), gumjs_frida_values);
   duk_put_function_list (ctx, -1, gumjs_frida_functions);
-  duk_put_prop_string (ctx, -2, "prototype");
-  duk_new (ctx, 0);
   duk_put_global_string (ctx, "Frida");
 
-  duk_push_c_function (ctx, gumjs_script_construct, 0);
   duk_push_object (ctx);
+  duk_push_string (ctx, "DUK");
+  duk_put_prop_string (ctx, -2, "runtime");
+  _gum_duk_add_properties_to_class_by_heapptr (ctx,
+      duk_require_heapptr (ctx, -1), gumjs_script_values);
   duk_put_function_list (ctx, -1, gumjs_script_functions);
-  duk_put_prop_string (ctx, -2, "prototype");
-  duk_new (ctx, 0);
   duk_put_global_string (ctx, "Script");
 
-  duk_push_c_function (ctx, gumjs_weak_ref_module_construct, 0);
   duk_push_object (ctx);
   duk_put_function_list (ctx, -1, gumjs_weak_ref_module_functions);
-  duk_put_prop_string (ctx, -2, "prototype");
-  duk_new (ctx, 0);
   duk_put_global_string (ctx, "WeakRef");
 
   duk_push_c_function (ctx, gumjs_weak_ref_construct, 2);
@@ -1388,21 +1384,6 @@ GUMJS_DEFINE_GETTER (gumjs_get_promise)
   return 1;
 }
 
-GUMJS_DEFINE_CONSTRUCTOR (gumjs_frida_construct)
-{
-  duk_push_this (ctx);
-
-  duk_push_string (ctx, FRIDA_VERSION);
-  duk_put_prop_string (ctx, -2, "version");
-
-  _gum_duk_add_properties_to_class_by_heapptr (ctx,
-      duk_require_heapptr (ctx, -1), gumjs_frida_values);
-
-  duk_pop (ctx);
-
-  return 0;
-}
-
 GUMJS_DEFINE_GETTER (gumjs_frida_get_heap_size)
 {
   duk_push_uint (ctx, gum_peek_private_memory_usage ());
@@ -1445,21 +1426,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_frida_objc_load)
 GUMJS_DEFINE_FUNCTION (gumjs_frida_java_load)
 {
   gum_duk_bundle_load (gumjs_java_modules, ctx);
-
-  return 0;
-}
-
-GUMJS_DEFINE_CONSTRUCTOR (gumjs_script_construct)
-{
-  duk_push_this (ctx);
-
-  duk_push_string (ctx, "DUK");
-  duk_put_prop_string (ctx, -2, "runtime");
-
-  _gum_duk_add_properties_to_class_by_heapptr (ctx,
-      duk_require_heapptr (ctx, -1), gumjs_script_values);
-
-  duk_pop (ctx);
 
   return 0;
 }
@@ -1655,11 +1621,6 @@ gum_duk_core_on_global_get (duk_context * ctx,
   }
 
   return result;
-}
-
-GUMJS_DEFINE_CONSTRUCTOR (gumjs_weak_ref_module_construct)
-{
-  return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_bind)

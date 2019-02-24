@@ -51,7 +51,6 @@ struct _GumKernelScanContext
   GumDukCore * core;
 };
 
-GUMJS_DECLARE_CONSTRUCTOR (gumjs_kernel_construct)
 GUMJS_DECLARE_GETTER (gumjs_kernel_get_available)
 GUMJS_DECLARE_GETTER (gumjs_kernel_get_base)
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_modules)
@@ -177,16 +176,12 @@ _gum_duk_kernel_init (GumDukKernel * self,
 
   self->core = core;
 
-  duk_push_c_function (ctx, gumjs_kernel_construct, 0);
   duk_push_object (ctx);
-  duk_put_function_list (ctx, -1, gumjs_kernel_functions);
   duk_push_uint (ctx, gum_kernel_query_page_size ());
   duk_put_prop_string (ctx, -2, "pageSize");
-  duk_put_prop_string (ctx, -2, "prototype");
-  duk_new (ctx, 0);
   _gum_duk_add_properties_to_class_by_heapptr (ctx,
       duk_require_heapptr (ctx, -1), gumjs_kernel_values);
-  _gum_duk_put_data (ctx, -1, self);
+  duk_put_function_list (ctx, -1, gumjs_kernel_functions);
   duk_put_global_string (ctx, "Kernel");
 }
 
@@ -198,11 +193,6 @@ _gum_duk_kernel_dispose (GumDukKernel * self)
 void
 _gum_duk_kernel_finalize (GumDukKernel * self)
 {
-}
-
-GUMJS_DEFINE_CONSTRUCTOR (gumjs_kernel_construct)
-{
-  return 0;
 }
 
 GUMJS_DEFINE_GETTER (gumjs_kernel_get_available)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -79,7 +79,6 @@ struct _GumDukSetNoDelayOperation
   gboolean no_delay;
 };
 
-GUMJS_DECLARE_CONSTRUCTOR (gumjs_socket_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_socket_listen)
 static void gum_duk_listen_operation_dispose (GumDukListenOperation * self);
 static void gum_duk_listen_operation_perform (GumDukListenOperation * self);
@@ -154,12 +153,8 @@ _gum_duk_socket_init (GumDukSocket * self,
 
   _gum_duk_store_module_data (ctx, "socket", self);
 
-  duk_push_c_function (ctx, gumjs_socket_construct, 0);
   duk_push_object (ctx);
   duk_put_function_list (ctx, -1, gumjs_socket_functions);
-  duk_put_prop_string (ctx, -2, "prototype");
-  duk_new (ctx, 0);
-  _gum_duk_put_data (ctx, -1, self);
   duk_put_global_string (ctx, "Socket");
 
   duk_push_c_function (ctx, gumjs_socket_listener_construct, 1);
@@ -214,11 +209,6 @@ static GumDukSocket *
 gumjs_module_from_args (const GumDukArgs * args)
 {
   return _gum_duk_load_module_data (args->ctx, "socket");
-}
-
-GUMJS_DEFINE_CONSTRUCTOR (gumjs_socket_construct)
-{
-  return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_socket_listen)

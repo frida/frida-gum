@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -60,7 +60,6 @@ struct _GumMemoryScanContext
   GumDukCore * core;
 };
 
-GUMJS_DECLARE_CONSTRUCTOR (gumjs_memory_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_alloc)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_copy)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_protect)
@@ -132,7 +131,6 @@ GUMJS_DECLARE_FUNCTION (gumjs_memory_scan_sync)
 static gboolean gum_append_match (GumAddress address, gsize size,
     GumDukCore * core);
 
-GUMJS_DECLARE_CONSTRUCTOR (gumjs_memory_access_monitor_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_enable)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_disable)
 
@@ -193,20 +191,12 @@ _gum_duk_memory_init (GumDukMemory * self,
 
   self->core = core;
 
-  duk_push_c_function (ctx, gumjs_memory_construct, 0);
   duk_push_object (ctx);
   duk_put_function_list (ctx, -1, gumjs_memory_functions);
-  duk_put_prop_string (ctx, -2, "prototype");
-  duk_new (ctx, 0);
-  _gum_duk_put_data (ctx, -1, self);
   duk_put_global_string (ctx, "Memory");
 
-  duk_push_c_function (ctx, gumjs_memory_access_monitor_construct, 0);
   duk_push_object (ctx);
   duk_put_function_list (ctx, -1, gumjs_memory_access_monitor_functions);
-  duk_put_prop_string (ctx, -2, "prototype");
-  duk_new (ctx, 0);
-  _gum_duk_put_data (ctx, -1, self);
   duk_put_global_string (ctx, "MemoryAccessMonitor");
 }
 
@@ -218,11 +208,6 @@ _gum_duk_memory_dispose (GumDukMemory * self)
 void
 _gum_duk_memory_finalize (GumDukMemory * self)
 {
-}
-
-GUMJS_DEFINE_CONSTRUCTOR (gumjs_memory_construct)
-{
-  return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
@@ -997,11 +982,6 @@ gum_append_match (GumAddress address,
   duk_put_prop_index (ctx, -2, (duk_uarridx_t) duk_get_length (ctx, -2));
 
   return TRUE;
-}
-
-GUMJS_DEFINE_CONSTRUCTOR (gumjs_memory_access_monitor_construct)
-{
-  return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_enable)
