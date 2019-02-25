@@ -24,10 +24,10 @@
     TESTENTRY_WITH_FIXTURE ("Prof/Profiler", test_profiler, NAME, \
         TestProfilerFixture)
 
-#define TESTCASE(NAME) \
+#define REPORT_TESTCASE(NAME) \
     void test_profile_report_ ## NAME ( \
         TestProfileReportFixture * fixture, gconstpointer data)
-#define TESTENTRY(NAME) \
+#define REPORT_TESTENTRY(NAME) \
     TESTENTRY_WITH_FIXTURE ("Prof/ProfileReport", test_profile_report, NAME, \
         TestProfileReportFixture)
 

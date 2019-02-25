@@ -24,16 +24,16 @@ TESTLIST_BEGIN (profiler)
   TESTENTRY (worst_case_info)
   TESTENTRY (worst_case_info_on_recursion)
 
-  TESTENTRY (bottleneck)
-  TESTENTRY (bottlenecks)
-  TESTENTRY (child_depth)
-  TESTENTRY (cyclic_recursion)
-  TESTENTRY (xml_basic)
-  TESTENTRY (xml_loop)
-  TESTENTRY (xml_loop_implicit)
-  TESTENTRY (xml_multiple_threads)
-  TESTENTRY (xml_worst_case_info)
-  TESTENTRY (xml_thread_ordering)
+  REPORT_TESTENTRY (bottleneck)
+  REPORT_TESTENTRY (bottlenecks)
+  REPORT_TESTENTRY (child_depth)
+  REPORT_TESTENTRY (cyclic_recursion)
+  REPORT_TESTENTRY (xml_basic)
+  REPORT_TESTENTRY (xml_loop)
+  REPORT_TESTENTRY (xml_loop_implicit)
+  REPORT_TESTENTRY (xml_multiple_threads)
+  REPORT_TESTENTRY (xml_worst_case_info)
+  REPORT_TESTENTRY (xml_thread_ordering)
 TESTLIST_END ()
 
 #ifdef HAVE_I386
@@ -99,7 +99,7 @@ TESTCASE (two_calls)
       &sleepy_function), ==, 2 * 1000);
 }
 
-TESTCASE (bottleneck)
+REPORT_TESTCASE (bottleneck)
 {
   instrument_example_functions (fixture);
 
@@ -108,7 +108,7 @@ TESTCASE (bottleneck)
   assert_n_top_nodes (fixture, 1, "example_a", "example_c");
 }
 
-TESTCASE (bottlenecks)
+REPORT_TESTCASE (bottlenecks)
 {
   instrument_example_functions (fixture);
 
@@ -120,7 +120,7 @@ TESTCASE (bottlenecks)
       "example_a", "example_c");
 }
 
-TESTCASE (child_depth)
+REPORT_TESTCASE (child_depth)
 {
   instrument_example_functions (fixture);
 
@@ -131,7 +131,7 @@ TESTCASE (child_depth)
       "example_g", NULL);
 }
 
-TESTCASE (cyclic_recursion)
+REPORT_TESTCASE (cyclic_recursion)
 {
   instrument_example_functions (fixture);
 
@@ -144,7 +144,7 @@ TESTCASE (cyclic_recursion)
       &example_cyclic_a), ==, 4);
 }
 
-TESTCASE (xml_basic)
+REPORT_TESTCASE (xml_basic)
 {
   instrument_example_functions (fixture);
 
@@ -163,7 +163,7 @@ TESTCASE (xml_basic)
       "</ProfileReport>");
 }
 
-TESTCASE (xml_loop)
+REPORT_TESTCASE (xml_loop)
 {
   instrument_example_functions (fixture);
 
@@ -182,7 +182,7 @@ TESTCASE (xml_loop)
       "</ProfileReport>");
 }
 
-TESTCASE (xml_loop_implicit)
+REPORT_TESTCASE (xml_loop_implicit)
 {
   instrument_example_functions (fixture);
 
@@ -208,7 +208,7 @@ TESTCASE (xml_loop_implicit)
       "</ProfileReport>");
 }
 
-TESTCASE (xml_multiple_threads)
+REPORT_TESTCASE (xml_multiple_threads)
 {
   instrument_example_functions (fixture);
 
@@ -237,7 +237,7 @@ TESTCASE (xml_multiple_threads)
       "</ProfileReport>");
 }
 
-TESTCASE (xml_worst_case_info)
+REPORT_TESTCASE (xml_worst_case_info)
 {
   gum_profiler_instrument_function_with_inspector (fixture->profiler,
       &example_worst_case_info, fixture->sampler, inspect_worst_case_info,
@@ -257,7 +257,7 @@ TESTCASE (xml_worst_case_info)
       "</ProfileReport>");
 }
 
-TESTCASE (xml_thread_ordering)
+REPORT_TESTCASE (xml_thread_ordering)
 {
   instrument_simple_functions (fixture);
 
