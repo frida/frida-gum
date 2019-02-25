@@ -123,6 +123,7 @@ static mach_port_t gum_kernel_do_init (void);
 static void gum_kernel_do_deinit (void);
 
 static GumDarwinModule * gum_kernel_cached_module = NULL;
+static GumAddress gum_kernel_external_base = 0;
 
 gboolean
 gum_kernel_api_is_available (void)
@@ -164,6 +165,39 @@ gum_kernel_alloc_n_pages (guint n_pages)
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
 
   return result + page_size;
+}
+
+gboolean
+gum_kernel_try_free_pages (GumAddress mem)
+{
+  mach_port_t task;
+  gsize page_size;
+  mach_vm_address_t address;
+  mach_vm_size_t *size;
+  gsize bytes_read;
+  kern_return_t kr;
+
+  task = gum_kernel_get_task ();
+  if (task == MACH_PORT_NULL)
+    return FALSE;
+
+  page_size = vm_kernel_page_size;
+
+  address = mem - page_size;
+  size = (mach_vm_size_t*) gum_kernel_read (address, sizeof (mach_vm_size_t),
+      &bytes_read);
+  if (size == NULL)
+    return FALSE;
+  if (bytes_read < sizeof (mach_vm_size_t))
+  {
+    g_free (size);
+    return FALSE;
+  }
+
+  kr = mach_vm_deallocate (task, address, *size);
+  g_free (size);
+
+  return kr == KERN_SUCCESS;
 }
 
 gboolean
@@ -646,9 +680,18 @@ gum_kernel_find_base_address (void)
 {
   static GOnce get_base_once = G_ONCE_INIT;
 
+  if (gum_kernel_external_base != 0)
+    return gum_kernel_external_base;
+
   g_once (&get_base_once, (GThreadFunc) gum_kernel_do_find_base_address, NULL);
 
   return *((GumAddress *) get_base_once.retval);
+}
+
+void
+gum_kernel_set_base_address (GumAddress base)
+{
+  gum_kernel_external_base = base;
 }
 
 static GumAddress *
@@ -688,6 +731,20 @@ gum_kernel_get_version (void)
 
 #ifdef HAVE_ARM64
 
+static bool
+gum_kernel_is_debug (void)
+{
+  char buf[256];
+  size_t size;
+  int res;
+
+  size = sizeof (buf);
+  res = sysctlbyname ("kern.bootargs", buf, &size, NULL, 0);
+  g_assert_cmpint (res, ==, 0);
+
+  return strstr (buf, "debug") != NULL;
+}
+
 static GumAddress
 gum_kernel_bruteforce_base (GumAddress unslid_base)
 {
@@ -704,6 +761,12 @@ gum_kernel_bruteforce_base (GumAddress unslid_base)
    */
 
   gint slide_byte;
+  bool is_debug;
+
+  is_debug = gum_kernel_is_debug ();
+
+  if (is_debug && gum_kernel_is_header (unslid_base))
+    return unslid_base;
 
   if (gum_kernel_is_header (unslid_base + 0x21000000))
     return unslid_base + 0x21000000;

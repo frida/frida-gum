@@ -65,6 +65,7 @@ struct GumKernelScanSyncContext
 
 GUMJS_DECLARE_GETTER (gumjs_kernel_get_available)
 GUMJS_DECLARE_GETTER (gumjs_kernel_get_base)
+GUMJS_DECLARE_SETTER (gumjs_kernel_set_base)
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_modules)
 static gboolean gum_emit_module (const GumModuleDetails * details,
     GumV8MatchContext * mc);
@@ -77,6 +78,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_module_ranges)
 static gboolean gum_emit_module_range (
     const GumKernelModuleRangeDetails * details, GumV8MatchContext * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_alloc)
+GUMJS_DECLARE_FUNCTION (gumjs_kernel_free)
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_protect)
 
 static void gum_v8_kernel_read (GumMemoryValueType type,
@@ -137,7 +139,7 @@ static gboolean gum_v8_kernel_check_api_available (Isolate * isolate);
 static const GumV8Property gumjs_kernel_values[] =
 {
   { "available", gumjs_kernel_get_available, NULL },
-  { "base", gumjs_kernel_get_base, NULL },
+  { "base", gumjs_kernel_get_base, gumjs_kernel_set_base },
 
   { NULL, NULL, NULL }
 };
@@ -148,6 +150,7 @@ static const GumV8Function gumjs_kernel_functions[] =
   { "_enumerateRanges", gumjs_kernel_enumerate_ranges },
   { "_enumerateModuleRanges", gumjs_kernel_enumerate_module_ranges },
   { "alloc", gumjs_kernel_alloc },
+  { "free", gumjs_kernel_free },
   { "protect", gumjs_kernel_protect },
 
   GUMJS_EXPORT_MEMORY_READ_WRITE ("S8", S8),
@@ -222,6 +225,18 @@ GUMJS_DEFINE_GETTER (gumjs_kernel_get_base)
 
   GumAddress address = gum_kernel_find_base_address ();
   info.GetReturnValue ().Set (_gum_v8_uint64_new (address, core));
+}
+
+GUMJS_DEFINE_SETTER (gumjs_kernel_set_base)
+{
+  if (!gum_v8_kernel_check_api_available (isolate))
+    return;
+
+  GumAddress address;
+  if (!_gum_v8_uint64_get (value, &address, core))
+    return;
+
+  gum_kernel_set_base_address (address);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_modules)
@@ -367,7 +382,7 @@ gum_emit_module_range (const GumKernelModuleRangeDetails * details,
 
   auto range = Object::New (isolate);
   _gum_v8_object_set_utf8 (range, "name", details->name, core);
-  _gum_v8_object_set_uint64 (range, "address", details->address, core);
+  _gum_v8_object_set_uint64 (range, "base", details->address, core);
   _gum_v8_object_set_uint (range, "size", details->size, core);
   _gum_v8_object_set_page_protection (range, "protection",
     details->protection, core);
@@ -408,6 +423,19 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_alloc)
 
   GumAddress address = gum_kernel_alloc_n_pages (n_pages);
   info.GetReturnValue ().Set (_gum_v8_uint64_new (address, core));
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_kernel_free)
+{
+  if (!gum_v8_kernel_check_api_available (isolate))
+    return;
+
+  GumAddress address;
+  if (!_gum_v8_args_parse (args, "Q", &address))
+    return;
+
+  if (!gum_kernel_try_free_pages (address))
+    _gum_v8_throw_ascii_literal (isolate, "cannot free that range");
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_protect)
