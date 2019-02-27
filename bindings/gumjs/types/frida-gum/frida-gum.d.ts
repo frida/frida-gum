@@ -1875,9 +1875,9 @@ declare namespace Kernel {
     const available: boolean;
 
     /**
-     * Base address of the kernel.
+     * Base address of the kernel. Can be overridden with any non-zero UInt64.
      */
-    const base: UInt64;
+    let base: UInt64;
 
     /**
      * Size of kernel page in bytes.
