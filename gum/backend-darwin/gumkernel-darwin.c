@@ -173,7 +173,7 @@ gum_kernel_try_free_pages (GumAddress mem)
   mach_port_t task;
   gsize page_size;
   mach_vm_address_t address;
-  mach_vm_size_t *size;
+  mach_vm_size_t * size;
   gsize bytes_read;
   kern_return_t kr;
 
@@ -184,7 +184,7 @@ gum_kernel_try_free_pages (GumAddress mem)
   page_size = vm_kernel_page_size;
 
   address = mem - page_size;
-  size = (mach_vm_size_t*) gum_kernel_read (address, sizeof (mach_vm_size_t),
+  size = (mach_vm_size_t *) gum_kernel_read (address, sizeof (mach_vm_size_t),
       &bytes_read);
   if (size == NULL)
     return FALSE;
@@ -731,7 +731,7 @@ gum_kernel_get_version (void)
 
 #ifdef HAVE_ARM64
 
-static bool
+static gboolean
 gum_kernel_is_debug (void)
 {
   char buf[256];
@@ -761,7 +761,7 @@ gum_kernel_bruteforce_base (GumAddress unslid_base)
    */
 
   gint slide_byte;
-  bool is_debug;
+  gboolean is_debug;
 
   is_debug = gum_kernel_is_debug ();
 
