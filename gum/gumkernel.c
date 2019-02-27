@@ -26,10 +26,9 @@ gum_kernel_alloc_n_pages (guint n_pages)
   return 0;
 }
 
-gboolean
-gum_kernel_try_free_pages (GumAddress mem)
+void
+gum_kernel_free_pages (GumAddress mem)
 {
-  return FALSE;
 }
 
 gboolean

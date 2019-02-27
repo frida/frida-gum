@@ -42,11 +42,13 @@ typedef struct _GumDukNativePointerImpl GumDukNativePointerImpl;
 typedef struct _GumDukCpuContext GumDukCpuContext;
 typedef guint GumDukCpuContextAccess;
 typedef struct _GumDukNativeResource GumDukNativeResource;
+typedef struct _GumDukKernelResource GumDukKernelResource;
 
 typedef void (* GumDukWeakNotify) (gpointer data);
 typedef void (* GumDukFlushNotify) (GumDukScript * script);
 typedef void (* GumDukMessageEmitter) (GumDukScript * script,
     const gchar * message, GBytes * data);
+typedef void (* GumDukKernelNotify) (guint64 data);
 
 struct _GumDukCore
 {
@@ -94,6 +96,8 @@ struct _GumDukCore
   GumDukHeapPtr native_resource;
   GumDukHeapPtr native_function;
   GumDukHeapPtr native_function_prototype;
+  GumDukHeapPtr kernel_pointer;
+  GumDukHeapPtr kernel_resource;
   GumDukHeapPtr system_function;
   GumDukHeapPtr system_function_prototype;
   GumDukHeapPtr cpu_context;
@@ -164,6 +168,13 @@ struct _GumDukNativeResource
   GumDukNativePointer parent;
 
   GDestroyNotify notify;
+};
+
+struct _GumDukKernelResource
+{
+  GumDukUInt64 parent;
+
+  GumDukKernelNotify notify;
 };
 
 G_GNUC_INTERNAL void _gum_duk_core_init (GumDukCore * self,

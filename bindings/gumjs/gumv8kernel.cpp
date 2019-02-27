@@ -78,7 +78,6 @@ GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_module_ranges)
 static gboolean gum_emit_module_range (
     const GumKernelModuleRangeDetails * details, GumV8MatchContext * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_alloc)
-GUMJS_DECLARE_FUNCTION (gumjs_kernel_free)
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_protect)
 
 static void gum_v8_kernel_read (GumMemoryValueType type,
@@ -150,7 +149,6 @@ static const GumV8Function gumjs_kernel_functions[] =
   { "_enumerateRanges", gumjs_kernel_enumerate_ranges },
   { "_enumerateModuleRanges", gumjs_kernel_enumerate_module_ranges },
   { "alloc", gumjs_kernel_alloc },
-  { "free", gumjs_kernel_free },
   { "protect", gumjs_kernel_protect },
 
   GUMJS_EXPORT_MEMORY_READ_WRITE ("S8", S8),
@@ -422,20 +420,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_alloc)
   guint n_pages = ((size + page_size - 1) & ~(page_size - 1)) / page_size;
 
   GumAddress address = gum_kernel_alloc_n_pages (n_pages);
-  info.GetReturnValue ().Set (_gum_v8_uint64_new (address, core));
-}
 
-GUMJS_DEFINE_FUNCTION (gumjs_kernel_free)
-{
-  if (!gum_v8_kernel_check_api_available (isolate))
-    return;
+  GumV8KernelResource * res = _gum_v8_kernel_resource_new (address, n_pages * page_size,
+      gum_kernel_free_pages, core);
 
-  GumAddress address;
-  if (!_gum_v8_args_parse (args, "Q", &address))
-    return;
-
-  if (!gum_kernel_try_free_pages (address))
-    _gum_v8_throw_ascii_literal (isolate, "cannot free that range");
+  info.GetReturnValue ().Set (Local<Object>::New (isolate, *res->instance));
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_protect)

@@ -68,7 +68,6 @@ GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_module_ranges)
 static gboolean gum_emit_module_range (
     const GumKernelModuleRangeDetails * details, GumDukMatchContext * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_alloc)
-GUMJS_DECLARE_FUNCTION (gumjs_kernel_free)
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_protect)
 
 static int gum_duk_kernel_read (GumMemoryValueType type,
@@ -140,7 +139,6 @@ static const duk_function_list_entry gumjs_kernel_functions[] =
   { "_enumerateRanges", gumjs_kernel_enumerate_ranges, 2 },
   { "_enumerateModuleRanges", gumjs_kernel_enumerate_module_ranges, 3 },
   { "alloc", gumjs_kernel_alloc, 2 },
-  { "free", gumjs_kernel_free, 1 },
   { "protect", gumjs_kernel_protect, 3 },
 
   GUMJS_EXPORT_MEMORY_READ_WRITE ("S8", S8),
@@ -437,23 +435,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_alloc)
   n_pages = ((size + page_size - 1) & ~(page_size - 1)) / page_size;
 
   address = gum_kernel_alloc_n_pages (n_pages);
-  _gum_duk_push_uint64 (ctx, address, core);
 
+  _gum_duk_push_kernel_resource (ctx, address,
+      gum_kernel_free_pages, core);
   return 1;
-}
-
-GUMJS_DEFINE_FUNCTION (gumjs_kernel_free)
-{
-  GumAddress address;
-
-  gum_duk_kernel_check_api_available (ctx);
-
-  _gum_duk_args_parse (args, "Q", &address);
-
-  if (!gum_kernel_try_free_pages (address))
-    _gum_duk_throw (ctx, "cannot free that range");
-
-  return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_protect)

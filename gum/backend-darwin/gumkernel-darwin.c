@@ -167,8 +167,8 @@ gum_kernel_alloc_n_pages (guint n_pages)
   return result + page_size;
 }
 
-gboolean
-gum_kernel_try_free_pages (GumAddress mem)
+void
+gum_kernel_free_pages (GumAddress mem)
 {
   mach_port_t task;
   gsize page_size;
@@ -179,7 +179,7 @@ gum_kernel_try_free_pages (GumAddress mem)
 
   task = gum_kernel_get_task ();
   if (task == MACH_PORT_NULL)
-    return FALSE;
+    return;
 
   page_size = vm_kernel_page_size;
 
@@ -187,17 +187,16 @@ gum_kernel_try_free_pages (GumAddress mem)
   size = (mach_vm_size_t *) gum_kernel_read (address, sizeof (mach_vm_size_t),
       &bytes_read);
   if (size == NULL)
-    return FALSE;
+    return;
   if (bytes_read < sizeof (mach_vm_size_t))
   {
     g_free (size);
-    return FALSE;
+    return;
   }
 
   kr = mach_vm_deallocate (task, address, *size);
   g_free (size);
-
-  return kr == KERN_SUCCESS;
+  g_assert_cmpint (kr, ==, KERN_SUCCESS);
 }
 
 gboolean

@@ -77,6 +77,8 @@ struct GumCpuContextWrapper
 
 static void gum_v8_native_resource_on_weak_notify (
     const WeakCallbackInfo<GumV8NativeResource> & info);
+static void gum_v8_kernel_resource_on_weak_notify (
+    const WeakCallbackInfo<GumV8KernelResource> & info);
 
 static const gchar * gum_exception_type_to_string (GumExceptionType type);
 
@@ -697,6 +699,51 @@ gum_v8_native_resource_on_weak_notify (
   HandleScope handle_scope (info.GetIsolate ());
   auto self = info.GetParameter ();
   g_hash_table_remove (self->core->native_resources, self);
+}
+
+GumV8KernelResource *
+_gum_v8_kernel_resource_new (guint64 data,
+                             gsize size,
+                             GumV8KernelNotify notify,
+                             GumV8Core * core)
+{
+  auto resource = g_slice_new (GumV8KernelResource);
+  resource->instance = new GumPersistent<Object>::type (core->isolate,
+      _gum_v8_uint64_new (data, core));
+  resource->instance->MarkIndependent ();
+  resource->instance->SetWeak (resource, gum_v8_kernel_resource_on_weak_notify,
+      WeakCallbackType::kParameter);
+  resource->data = data;
+  resource->size = size;
+  resource->notify = notify;
+  resource->core = core;
+
+  core->isolate->AdjustAmountOfExternalAllocatedMemory (size);
+
+  g_hash_table_add (core->kernel_resources, resource);
+
+  return resource;
+}
+
+void
+_gum_v8_kernel_resource_free (GumV8KernelResource * resource)
+{
+  resource->core->isolate->AdjustAmountOfExternalAllocatedMemory (
+      -((gssize) resource->size));
+
+  delete resource->instance;
+  if (resource->notify != NULL)
+    resource->notify (resource->data);
+  g_slice_free (GumV8KernelResource, resource);
+}
+
+static void
+gum_v8_kernel_resource_on_weak_notify (
+    const WeakCallbackInfo<GumV8KernelResource> & info)
+{
+  HandleScope handle_scope (info.GetIsolate ());
+  auto self = info.GetParameter ();
+  g_hash_table_remove (self->core->kernel_resources, self);
 }
 
 gboolean
