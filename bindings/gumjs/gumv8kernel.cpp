@@ -421,8 +421,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_alloc)
 
   GumAddress address = gum_kernel_alloc_n_pages (n_pages);
 
-  GumV8KernelResource * res = _gum_v8_kernel_resource_new (address, n_pages * page_size,
-      gum_kernel_free_pages, core);
+  GumV8KernelResource * res = _gum_v8_kernel_resource_new (address,
+      n_pages * page_size, gum_kernel_free_pages, core);
 
   info.GetReturnValue ().Set (Local<Object>::New (isolate, *res->instance));
 }

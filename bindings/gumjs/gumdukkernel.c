@@ -436,8 +436,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_alloc)
 
   address = gum_kernel_alloc_n_pages (n_pages);
 
-  _gum_duk_push_kernel_resource (ctx, address,
-      gum_kernel_free_pages, core);
+  _gum_duk_push_kernel_resource (ctx, address, gum_kernel_free_pages, core);
   return 1;
 }
 
