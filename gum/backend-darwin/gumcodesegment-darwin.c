@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -10,6 +10,7 @@
 #include "gumdarwin.h"
 
 #include <CommonCrypto/CommonDigest.h>
+#include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <mach-o/loader.h>
@@ -32,6 +33,7 @@ typedef struct _GumCsSuperBlob GumCsSuperBlob;
 typedef struct _GumCsBlobIndex GumCsBlobIndex;
 typedef struct _GumCsDirectory GumCsDirectory;
 typedef struct _GumCsRequirements GumCsRequirements;
+typedef guint GumSandboxFilterType;
 
 struct _GumCodeSegment
 {
@@ -98,6 +100,11 @@ struct _GumCsRequirements
   guint32 count;
 };
 
+enum _GumSandboxFilterType
+{
+  GUM_SANDBOX_FILTER_PATH = 1,
+};
+
 static gboolean gum_code_segment_is_realize_supported (void);
 static gboolean gum_code_segment_try_realize (GumCodeSegment * self);
 static gboolean gum_code_segment_try_map (GumCodeSegment * self,
@@ -116,6 +123,9 @@ static void gum_put_code_signature (gconstpointer header, gconstpointer text,
 static gint gum_file_open_tmp (const gchar * tmpl, gchar ** name_used);
 static void gum_file_write_all (gint fd, gssize offset, gconstpointer data,
     gsize size);
+static gboolean gum_file_check_sandbox_allows (const gchar * path,
+    const gchar * operation);
+static gint gum_mkstemps (gchar * tmpl, gint suffix_length);
 
 gboolean
 gum_code_segment_is_supported (void)
@@ -568,15 +578,25 @@ gum_file_open_tmp (const gchar * tmpl,
   suffix_length = strlen (tmpl) - (strrchr (tmpl, 'X') + 1 - tmpl);
 
   path = g_build_filename (g_get_tmp_dir (), tmpl, NULL);
-  res = mkstemps (path, suffix_length);
-  if (res == -1)
+  res = gum_mkstemps (path, suffix_length);
+  if (res == -1 || !gum_file_check_sandbox_allows (path, "file-map-executable"))
   {
+    if (res != -1)
+      close (res);
     g_free (path);
     path = g_build_filename ("/Library/Caches", tmpl, NULL);
-    res = mkstemps (path, suffix_length);
+    res = gum_mkstemps (path, suffix_length);
   }
 
-  *name_used = path;
+  if (res != -1)
+  {
+    *name_used = path;
+  }
+  else
+  {
+    *name_used = NULL;
+    g_free (path);
+  }
 
   return res;
 }
@@ -609,4 +629,59 @@ gum_file_write_all (gint fd,
     written += res;
   }
   while (written != size);
+}
+
+static gboolean
+gum_file_check_sandbox_allows (const gchar * path,
+                               const gchar * operation)
+{
+  static volatile gsize initialized = FALSE;
+  static volatile gint (* check) (pid_t pid, const gchar * operation,
+      GumSandboxFilterType type, ...) = NULL;
+  static volatile GumSandboxFilterType no_report = 0;
+
+  if (g_once_init_enter (&initialized))
+  {
+    void * sandbox;
+
+    sandbox = dlopen ("/usr/lib/system/libsystem_sandbox.dylib",
+        RTLD_NOLOAD | RTLD_LAZY);
+    if (sandbox != NULL)
+    {
+      GumSandboxFilterType * no_report_ptr;
+
+      no_report_ptr = dlsym (sandbox, "SANDBOX_CHECK_NO_REPORT");
+      if (no_report_ptr != NULL)
+      {
+        no_report = *no_report_ptr;
+
+        check = dlsym (sandbox, "sandbox_check");
+      }
+
+      dlclose (sandbox);
+    }
+
+    g_once_init_leave (&initialized, TRUE);
+  }
+
+  if (check == NULL)
+    return TRUE;
+
+  return !check (getpid (), operation, GUM_SANDBOX_FILTER_PATH | no_report,
+      path);
+}
+
+static gint
+gum_mkstemps (gchar * tmpl,
+              gint suffix_length)
+{
+  gint res;
+
+  do
+  {
+    res = mkstemps (tmpl, suffix_length);
+  }
+  while (res == -1 && errno == EINTR);
+
+  return res;
 }
