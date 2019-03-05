@@ -65,6 +65,7 @@ struct GumKernelScanSyncContext
 
 GUMJS_DECLARE_GETTER (gumjs_kernel_get_available)
 GUMJS_DECLARE_GETTER (gumjs_kernel_get_base)
+GUMJS_DECLARE_SETTER (gumjs_kernel_set_base)
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_modules)
 static gboolean gum_emit_module (const GumModuleDetails * details,
     GumV8MatchContext * mc);
@@ -137,7 +138,7 @@ static gboolean gum_v8_kernel_check_api_available (Isolate * isolate);
 static const GumV8Property gumjs_kernel_values[] =
 {
   { "available", gumjs_kernel_get_available, NULL },
-  { "base", gumjs_kernel_get_base, NULL },
+  { "base", gumjs_kernel_get_base, gumjs_kernel_set_base },
 
   { NULL, NULL, NULL }
 };
@@ -222,6 +223,18 @@ GUMJS_DEFINE_GETTER (gumjs_kernel_get_base)
 
   GumAddress address = gum_kernel_find_base_address ();
   info.GetReturnValue ().Set (_gum_v8_uint64_new (address, core));
+}
+
+GUMJS_DEFINE_SETTER (gumjs_kernel_set_base)
+{
+  if (!gum_v8_kernel_check_api_available (isolate))
+    return;
+
+  GumAddress address;
+  if (!_gum_v8_uint64_get (value, &address, core))
+    return;
+
+  gum_kernel_set_base_address (address);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_modules)
@@ -367,7 +380,7 @@ gum_emit_module_range (const GumKernelModuleRangeDetails * details,
 
   auto range = Object::New (isolate);
   _gum_v8_object_set_utf8 (range, "name", details->name, core);
-  _gum_v8_object_set_uint64 (range, "address", details->address, core);
+  _gum_v8_object_set_uint64 (range, "base", details->address, core);
   _gum_v8_object_set_uint (range, "size", details->size, core);
   _gum_v8_object_set_page_protection (range, "protection",
     details->protection, core);
@@ -407,7 +420,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_alloc)
   guint n_pages = ((size + page_size - 1) & ~(page_size - 1)) / page_size;
 
   GumAddress address = gum_kernel_alloc_n_pages (n_pages);
-  info.GetReturnValue ().Set (_gum_v8_uint64_new (address, core));
+
+  GumV8KernelResource * res = _gum_v8_kernel_resource_new (address,
+      n_pages * page_size, gum_kernel_free_pages, core);
+
+  info.GetReturnValue ().Set (Local<Object>::New (isolate, *res->instance));
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_protect)

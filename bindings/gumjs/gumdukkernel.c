@@ -53,6 +53,7 @@ struct _GumKernelScanContext
 
 GUMJS_DECLARE_GETTER (gumjs_kernel_get_available)
 GUMJS_DECLARE_GETTER (gumjs_kernel_get_base)
+GUMJS_DECLARE_SETTER (gumjs_kernel_set_base)
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_modules)
 static gboolean gum_emit_module (const GumModuleDetails * details,
     GumDukMatchContext * mc);
@@ -127,7 +128,7 @@ static void gum_duk_kernel_check_api_available (duk_context * ctx);
 static const GumDukPropertyEntry gumjs_kernel_values[] =
 {
   { "available", gumjs_kernel_get_available, NULL },
-  { "base", gumjs_kernel_get_base, NULL },
+  { "base", gumjs_kernel_get_base, gumjs_kernel_set_base },
 
   { NULL, NULL, NULL }
 };
@@ -212,6 +213,18 @@ GUMJS_DEFINE_GETTER (gumjs_kernel_get_base)
   _gum_duk_push_uint64 (ctx, address, core);
 
   return 1;
+}
+
+GUMJS_DEFINE_SETTER (gumjs_kernel_set_base)
+{
+  GumAddress address;
+
+  gum_duk_kernel_check_api_available (ctx);
+
+  _gum_duk_args_parse (args, "Q", &address);
+
+  gum_kernel_set_base_address (address);
+  return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_modules)
@@ -382,7 +395,7 @@ gum_emit_module_range (const GumKernelModuleRangeDetails * details,
   duk_put_prop_string (ctx, -2, "name");
 
   _gum_duk_push_uint64 (ctx, details->address, scope->core);
-  duk_put_prop_string (ctx, -2, "address");
+  duk_put_prop_string (ctx, -2, "base");
 
   duk_push_uint (ctx, details->size);
   duk_put_prop_string (ctx, -2, "size");
@@ -422,8 +435,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_alloc)
   n_pages = ((size + page_size - 1) & ~(page_size - 1)) / page_size;
 
   address = gum_kernel_alloc_n_pages (n_pages);
-  _gum_duk_push_uint64 (ctx, address, core);
 
+  _gum_duk_push_kernel_resource (ctx, address, gum_kernel_free_pages, core);
   return 1;
 }
 

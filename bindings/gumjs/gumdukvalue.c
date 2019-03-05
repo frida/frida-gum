@@ -1292,6 +1292,18 @@ _gum_duk_push_native_resource (duk_context * ctx,
   duk_new (ctx, 2);
 }
 
+void
+_gum_duk_push_kernel_resource (duk_context * ctx,
+                               guint64 data,
+                               GumDukKernelNotify notify,
+                               GumDukCore * core)
+{
+  duk_push_heapptr (ctx, core->kernel_resource);
+  _gum_duk_push_uint64 (ctx, data, core);
+  duk_push_pointer (ctx, GUM_FUNCPTR_TO_POINTER (notify));
+  duk_new (ctx, 2);
+}
+
 GumDukCpuContext *
 _gum_duk_push_cpu_context (duk_context * ctx,
                            GumCpuContext * handle,

@@ -247,6 +247,8 @@ GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_match_pattern)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_resource_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_native_resource_finalize)
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_kernel_resource_construct)
+GUMJS_DECLARE_FINALIZER (gumjs_kernel_resource_finalize)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_function_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_native_function_finalize)
@@ -876,6 +878,12 @@ _gum_duk_core_init (GumDukCore * self,
       gumjs_native_resource_construct, 2, gumjs_native_resource_finalize);
   duk_get_global_string (ctx, "NativeResource");
   self->native_resource = _gum_duk_require_heapptr (ctx, -1);
+  duk_pop (ctx);
+
+  _gum_duk_create_subclass (ctx, "UInt64", "KernelResource",
+      gumjs_kernel_resource_construct, 2, gumjs_kernel_resource_finalize);
+  duk_get_global_string (ctx, "KernelResource");
+  self->kernel_resource = _gum_duk_require_heapptr (ctx, -1);
   duk_pop (ctx);
 
   _gum_duk_create_subclass (ctx, "NativePointer", "NativeFunction",
@@ -2448,6 +2456,46 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_resource_finalize)
     self->notify (self->parent.value);
 
   g_slice_free (GumDukNativeResource, self);
+
+  return 0;
+}
+
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_kernel_resource_construct)
+{
+  GumDukCore * core = args->core;
+  guint64 data;
+  GumDukKernelNotify notify;
+  GumDukKernelResource * resource;
+  GumDukUInt64 * u64;
+
+  data = _gum_duk_require_uint64 (ctx, 0, core);
+  notify = GUM_POINTER_TO_FUNCPTR (GumDukKernelNotify,
+      duk_require_pointer (ctx, 1));
+
+  resource = g_slice_new (GumDukKernelResource);
+  u64 = &resource->parent;
+  u64->value = data;
+  resource->notify = notify;
+
+  duk_push_this (ctx);
+  _gum_duk_put_data (ctx, -1, resource);
+  duk_pop (ctx);
+
+  return 0;
+}
+
+GUMJS_DEFINE_FINALIZER (gumjs_kernel_resource_finalize)
+{
+  GumDukKernelResource * self;
+
+  self = _gum_duk_steal_data (ctx, 0);
+  if (self == NULL)
+    return 0;
+
+  if (self->notify != NULL)
+    self->notify (self->parent.value);
+
+  g_slice_free (GumDukKernelResource, self);
 
   return 0;
 }

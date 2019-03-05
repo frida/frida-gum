@@ -26,6 +26,11 @@ gum_kernel_alloc_n_pages (guint n_pages)
   return 0;
 }
 
+void
+gum_kernel_free_pages (GumAddress mem)
+{
+}
+
 gboolean
 gum_kernel_try_mprotect (GumAddress address,
                          gsize size,
@@ -83,6 +88,11 @@ GumAddress
 gum_kernel_find_base_address (void)
 {
   return 0;
+}
+
+void
+gum_kernel_set_base_address (GumAddress base)
+{
 }
 
 #endif

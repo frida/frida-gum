@@ -708,6 +708,8 @@ _gum_v8_core_realize (GumV8Core * self)
 
   self->native_resources = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) _gum_v8_native_resource_free);
+  self->kernel_resources = g_hash_table_new_full (NULL, NULL, NULL,
+      (GDestroyNotify) _gum_v8_kernel_resource_free);
 
   self->source_maps = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_v8_source_map_free);
@@ -857,6 +859,8 @@ _gum_v8_core_dispose (GumV8Core * self)
   g_hash_table_unref (self->source_maps);
   self->source_maps = NULL;
 
+  g_hash_table_unref (self->kernel_resources);
+  self->kernel_resources = NULL;
   g_hash_table_unref (self->native_resources);
   self->native_resources = NULL;
 

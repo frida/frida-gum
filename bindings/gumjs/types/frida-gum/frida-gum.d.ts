@@ -1027,9 +1027,19 @@ declare class Int64 {
     shl(v: Int64 | number | string): Int64;
 
     /**
+     * Makes a new Int64 whose value is ~`this`.
+     */
+    not(): Int64;
+
+    /**
      * Returns an integer comparison result just like String#localeCompare().
      */
     compare(v: Int64 | number | string): number;
+
+    /**
+     * Returns a boolean indicating whether `v` is equal to `this`.
+     */
+    equals(v: Int64 | number | string): boolean;
 
     /**
      * Converts to a number.
@@ -1103,9 +1113,19 @@ declare class UInt64 {
     shl(v: UInt64 | number | string): UInt64;
 
     /**
+     * Makes a new UInt64 whose value is ~`this`.
+     */
+    not(): UInt64;
+
+    /**
      * Returns an integer comparison result just like String#localeCompare().
      */
     compare(v: UInt64 | number | string): number;
+
+    /**
+     * Returns a boolean indicating whether `v` is equal to `this`.
+     */
+    equals(v: UInt64 | number | string): boolean;
 
     /**
      * Converts to a number.
@@ -1855,9 +1875,9 @@ declare namespace Kernel {
     const available: boolean;
 
     /**
-     * Base address of the kernel.
+     * Base address of the kernel. Can be overridden with any non-zero UInt64.
      */
-    const base: UInt64;
+    let base: UInt64;
 
     /**
      * Size of kernel page in bytes.
@@ -1899,22 +1919,6 @@ declare namespace Kernel {
      * @param protection Desired page protection.
      */
     function protect(address: UInt64, size: number | UInt64, protection: PageProtection): boolean;
-
-    /**
-     * Reads kernel memory into an ArrayBuffer.
-     *
-     * @param address The kernel memory address to read from.
-     * @param size The number of bytes to read.
-     */
-    function readByteArray(address: UInt64, size: number): ArrayBuffer | null;
-
-    /**
-     * Writes the contents of an ArrayBuffer or array to kernel memory.
-     *
-     * @param address The kernel memory address to read from.
-     * @param value The data to write.
-     */
-    function writeByteArray(address: UInt64, value: ArrayBuffer | number[]): void;
 
     /**
      * Scans kernel memory for occurences of `pattern` in the memory range given by `address` and `size`.
