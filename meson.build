@@ -95,6 +95,7 @@ endforeach
 headers = [
   'elf.h',
   'stdint.h',
+  'asm/ptrace.h',
   'sys/elf.h',
   'sys/user.h',
 ]
