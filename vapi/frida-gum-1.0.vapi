@@ -64,13 +64,18 @@ namespace Gum {
 	public class InvocationContext {
 		public void * function;
 		public CpuContext * cpu_context;
+		public int system_error;
 
 		public void * backend;
+
+		public Gum.PointCut get_point_cut ();
 
 		public void * get_nth_argument (uint n);
 		public void replace_nth_argument (uint n, void * val);
 		public void * get_return_value ();
 		public void replace_return_value (void * val);
+
+		public void * get_return_address ();
 
 		public uint get_thread_id ();
 		public uint get_depth ();
@@ -80,6 +85,12 @@ namespace Gum {
 		public void * get_listener_function_invocation_data (size_t required_size);
 
 		public void * get_replacement_function_data ();
+	}
+
+	[CCode (cprefix = "GUM_POINT_")]
+	public enum PointCut {
+		ENTER,
+		LEAVE
 	}
 
 	public class MemoryAccessMonitor : GLib.Object {
