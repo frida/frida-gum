@@ -2012,11 +2012,11 @@ declare class SourceMap {
 declare function UnixInputStream(): any;
 declare function UnixOutputStream(): any;
 declare namespace DebugSymbol {
-    function findFunctionsMatching(): any;
-    function findFunctionsNamed(): any;
-    function fromAddress(): any;
-    function fromName(): any;
-    function getFunctionByName(): any;
+    function findFunctionsMatching(pattern: string): any;
+    function findFunctionsNamed(name: string): any;
+    function fromAddress(address: NativePointerValue): any;
+    function fromName(name: string): any;
+    function getFunctionByName(name: string): any;
 }
 declare namespace Instruction {
     function parse(target: any): any;
@@ -2053,15 +2053,37 @@ declare namespace Script {
         function resolve(generatedPosition: any): any;
     }
 }
+
+declare interface StalkerOptions {
+    events?: {
+        call?: boolean;
+        ret?: boolean;
+        exec?: boolean;
+        block?: boolean;
+        compile?: boolean;
+    }
+    onReceive?: (events: any) => void;
+    onCallSummary?: (summary: any) => void;
+}
+
+declare interface StalkerParseOptions {
+    annotate?: boolean;
+    stringify?: boolean;
+}
+
+declare type CallProbeId = number;
+
 declare namespace Stalker {
     const queueCapacity: number;
     const queueDrainInterval: number;
     const trustThreshold: number;
-    function addCallProbe(): any;
-    function follow(first: any, second: any): any;
+    function addCallProbe(address: NativePointerValue, callback: InvocationListenerCallbacks): CallProbeId;
+    function follow(threadId?: ThreadId, options?: StalkerOptions): any;
     function garbageCollect(): any;
-    function removeCallProbe(): any;
-    function unfollow(): any;
+    function removeCallProbe(callbackId: CallProbeId): any;
+    function flush(): void;
+    function parse(events: any, options: StalkerParseOptions): any;
+    function unfollow(threadId?: ThreadId): any;
 }
 
 declare namespace ObjC {
