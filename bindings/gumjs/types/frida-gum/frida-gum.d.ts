@@ -2037,6 +2037,7 @@ declare namespace Java {
     function registerClass(spec: any): any;
     function scheduleOnMainThread(fn: any): void;
     function use(className: any): any;
+    function array(type: any, arr: any[]);
 }
 declare namespace MemoryAccessMonitor {
     function disable(): any;
