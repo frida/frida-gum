@@ -1996,10 +1996,10 @@ declare class DebugSymbolValue {
     toString(): any;
 }
 declare class File {
-    constructor();
-    close(): any;
-    flush(): any;
-    write(): any;
+    constructor(filePath: string, mode: string);
+    close(): void;
+    flush(): void;
+    write(data: string | ArrayBuffer): void;
 }
 declare class InstructionValue {
     constructor();
