@@ -2619,3 +2619,25 @@ declare namespace WeakRef {
     function bind(): any;
     function unbind(): any;
 }
+
+declare class SQliteStatement {
+    bindInteger(index: number, value: number): void;
+    bindFloat(index: number, value: number): void;
+    bindText(index: number, value): void;
+    bindBlob(index: number, bytes: ArrayBuffer): void;
+    bindNull(index: number): void;
+    step(): any[];
+    reset(): void;
+}
+
+declare namespace SqliteDatabase {
+    class Database {
+        close(): void;
+        exec(sql: string): void;
+        prepare(sql: string): SQliteStatement;
+        dump(): ArrayBuffer;
+    }
+
+    function open(path: string): Database;
+    function openInline(encodedContents: ArrayBuffer): Database;
+}
