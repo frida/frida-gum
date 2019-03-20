@@ -2649,10 +2649,10 @@ declare namespace WeakRef {
 declare class SQliteStatement {
     bindInteger(index: number, value: number): void;
     bindFloat(index: number, value: number): void;
-    bindText(index: number, value): void;
+    bindText(index: number, value: string): void;
     bindBlob(index: number, bytes: ArrayBuffer): void;
     bindNull(index: number): void;
-    step(): any[];
+    step(): any[] | null;
     reset(): void;
 }
 
