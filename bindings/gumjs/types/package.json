@@ -1,6 +1,6 @@
 {
   "name": "frida-gum-types",
-  "version": "4.0.1",
+  "version": "4.0.2",
   "description": "Type definitions for Frida's instrumentation core",
   "main": "index.js",
   "files": [
