@@ -2021,24 +2021,6 @@ declare namespace DebugSymbol {
 declare namespace Instruction {
     function parse(target: any): any;
 }
-declare namespace Java {
-    const androidVersion: string;
-    const available: boolean;
-    const classFactory: any;
-    const vm: any;
-    function cast(obj: any, C: any): any;
-    function choose(className: any, callbacks: any): any;
-    function enumerateLoadedClasses(callbacks: any): void;
-    function enumerateLoadedClassesSync(): any;
-    function isMainThread(): any;
-    function openClassFile(filePath: any): any;
-    function perform(fn: any, ...args: any[]): any;
-    function performNow(fn: any): void;
-    function registerClass(spec: any): any;
-    function scheduleOnMainThread(fn: any): void;
-    function use(className: any): any;
-    function array(type: string, elements: any[]): any;
-}
 declare namespace MemoryAccessMonitor {
     function disable(): any;
     function enable(): any;
@@ -2614,6 +2596,49 @@ declare namespace ObjC {
          */
         subclasses?: boolean;
     }
+}
+
+declare namespace Java {
+    /**
+     * Whether the current process has a Java runtime loaded. Do not invoke any other Java properties or
+     * methods unless this is the case.
+     */
+    const available: boolean;
+
+    const androidVersion: string;
+
+    const vm: any;
+
+    const classFactory: any;
+
+    function synchronized(obj: any, fn: () => void): void;
+
+    function enumerateLoadedClasses(callbacks: any): void;
+    function enumerateLoadedClassesSync(): string[];
+
+    function enumerateClassLoaders(callbacks: any): void;
+    function enumerateClassLoadersSync(): any[];
+
+    function scheduleOnMainThread(fn: () => void): void;
+
+    function perform(fn: () => void): void;
+    function performNow(fn: () => void): void;
+
+    function use(className: string): any;
+
+    function openClassFile(filePath: string): any;
+
+    function choose(className: string, callbacks: any): void;
+
+    function cast(obj: any, C: any): any;
+
+    function array(type: string, elements: any[]): any;
+
+    function isMainThread(): boolean;
+
+    function registerClass(spec: any): any;
+
+    function deoptimizeEverything(): void;
 }
 
 declare namespace WeakRef {
