@@ -63,16 +63,29 @@ typedef struct _GumArmCpuContext GumArmCpuContext;
 typedef struct _GumArm64CpuContext GumArm64CpuContext;
 typedef struct _GumMipsCpuContext GumMipsCpuContext;
 #if !defined (__arm__) && !defined (__aarch64__) && !defined (__mips__)
+# define GUM_DEFAULT_CS_ARCH CS_ARCH_X86
 # if GLIB_SIZEOF_VOID_P == 4
+#  define GUM_DEFAULT_CS_MODE CS_MODE_32
 typedef GumIA32CpuContext GumCpuContext;
 # else
+#  define GUM_DEFAULT_CS_MODE CS_MODE_64
 typedef GumX64CpuContext GumCpuContext;
 # endif
 #elif defined (__arm__) && !defined (__aarch64__)
+# define GUM_DEFAULT_CS_ARCH CS_ARCH_ARM
+# define GUM_DEFAULT_CS_MODE CS_MODE_ARM
 typedef GumArmCpuContext GumCpuContext;
 #elif defined (__aarch64__)
+# define GUM_DEFAULT_CS_ARCH CS_ARCH_ARM64
+# define GUM_DEFAULT_CS_MODE CS_MODE_ARM
 typedef GumArm64CpuContext GumCpuContext;
 #elif defined (__mips__)
+# define GUM_DEFAULT_CS_ARCH CS_ARCH_MIPS
+# if G_BYTE_ORDER == G_LITTLE_ENDIAN
+#  define GUM_DEFAULT_CS_MODE (CS_MODE_MIPS32 | CS_MODE_LITTLE_ENDIAN)
+# else
+#  define GUM_DEFAULT_CS_MODE (CS_MODE_MIPS32 | CS_MODE_BIG_ENDIAN)
+# endif
 typedef GumMipsCpuContext GumCpuContext;
 #endif
 typedef guint GumRelocationScenario;

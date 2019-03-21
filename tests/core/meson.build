@@ -7,6 +7,7 @@ core_sources = [
   'apiresolver.c',
   'backtracer.c',
   'interceptor.c',
+  'capstone.c',
   'arch-x86/codewriter.c',
   'arch-x86/relocator.c',
   'arch-arm/armwriter.c',

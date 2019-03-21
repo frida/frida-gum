@@ -44,7 +44,7 @@
 #endif
 #define TESTCASE(NAME) \
     void test_script_ ## NAME (TestScriptFixture * fixture, gconstpointer data)
-#define TESTENTRY(NAME)                                            \
+#define TESTENTRY(NAME)                                                   \
   G_STMT_START                                                            \
   {                                                                       \
     extern void test_script_ ##NAME (TestScriptFixture * fixture,         \

@@ -12,32 +12,6 @@
 
 #define GUMJS_MODULE_NAME Instruction
 
-#if defined (HAVE_I386)
-# define GUM_DEFAULT_CS_ARCH CS_ARCH_X86
-# if GLIB_SIZEOF_VOID_P == 8
-#  define GUM_DEFAULT_CS_MODE CS_MODE_64
-# else
-#  define GUM_DEFAULT_CS_MODE CS_MODE_32
-# endif
-#elif defined (HAVE_ARM)
-# define GUM_DEFAULT_CS_ARCH CS_ARCH_ARM
-# define GUM_DEFAULT_CS_MODE CS_MODE_ARM
-#elif defined (HAVE_ARM64)
-# define GUM_DEFAULT_CS_ARCH CS_ARCH_ARM64
-# define GUM_DEFAULT_CS_MODE CS_MODE_ARM
-#elif defined (HAVE_MIPS)
-# define GUM_DEFAULT_CS_ARCH CS_ARCH_MIPS
-# if G_BYTE_ORDER == G_LITTLE_ENDIAN
-#  define GUM_DEFAULT_CS_MODE \
-    ((cs_mode) (CS_MODE_MIPS32 | CS_MODE_LITTLE_ENDIAN))
-# else
-#  define GUM_DEFAULT_CS_MODE \
-    ((cs_mode) (CS_MODE_MIPS32 | CS_MODE_BIG_ENDIAN))
-# endif
-#else
-# error Unsupported architecture
-#endif
-
 #define GUM_INSTRUCTION_FOOTPRINT_ESTIMATE 256
 
 using namespace v8;
