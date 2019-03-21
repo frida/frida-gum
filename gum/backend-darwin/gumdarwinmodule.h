@@ -45,6 +45,8 @@ typedef gboolean (* GumDarwinFoundInitPointersFunc) (
     const GumDarwinInitPointersDetails * details, gpointer user_data);
 typedef gboolean (* GumDarwinFoundTermPointersFunc) (
     const GumDarwinTermPointersDetails * details, gpointer user_data);
+typedef gboolean (* GumDarwinFoundDependencyFunc) (const gchar * dependency,
+    gpointer user_data);
 typedef gpointer (* GumDarwinModuleResolverFunc) (void);
 
 struct _GumDarwinModule
@@ -94,6 +96,8 @@ struct _GumDarwinModule
 
   GPtrArray * dependencies;
   GPtrArray * reexports;
+
+  gboolean header_only;
 };
 
 struct _GumDarwinModuleImage
@@ -205,7 +209,7 @@ struct _GumDarwinSymbolDetails
 
 GUM_API GumDarwinModule * gum_darwin_module_new_from_file (const gchar * path,
     mach_port_t task, GumCpuType cpu_type, guint page_size,
-    GMappedFile * cache_file, GError ** error);
+    GMappedFile * cache_file, gboolean header_only, GError ** error);
 GUM_API GumDarwinModule * gum_darwin_module_new_from_blob (GBytes * blob,
     mach_port_t task, GumCpuType cpu_type, guint page_size, GError ** error);
 GUM_API GumDarwinModule * gum_darwin_module_new_from_memory (const gchar * name,
@@ -241,6 +245,8 @@ GUM_API void gum_darwin_module_enumerate_init_pointers (GumDarwinModule * self,
     GumDarwinFoundInitPointersFunc func, gpointer user_data);
 GUM_API void gum_darwin_module_enumerate_term_pointers (GumDarwinModule * self,
     GumDarwinFoundTermPointersFunc func, gpointer user_data);
+GUM_API void gum_darwin_module_enumerate_dependencies (GumDarwinModule * self,
+    GumDarwinFoundDependencyFunc func, gpointer user_data);
 GUM_API const gchar * gum_darwin_module_get_dependency_by_ordinal (
     GumDarwinModule * self, gint ordinal);
 
