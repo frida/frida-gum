@@ -19,6 +19,13 @@ G_BEGIN_DECLS
 G_DECLARE_FINAL_TYPE (GumDarwinModule, gum_darwin_module, GUM_DARWIN, MODULE,
     GObject)
 
+#define GUM_DARWIN_TYPE_MODULE_FLAGS (gum_darwin_module_flags_get_type ())
+
+typedef enum {
+  GUM_DARWIN_MODULE_FLAGS_NONE = 0,
+  GUM_DARWIN_MODULE_FLAGS_HEADER_ONLY = (1<<0),
+} GumDarwinModuleFlags;
+
 typedef struct _GumDarwinModuleImage GumDarwinModuleImage;
 
 typedef struct _GumDarwinModuleImageSegment GumDarwinModuleImageSegment;
@@ -45,6 +52,8 @@ typedef gboolean (* GumDarwinFoundInitPointersFunc) (
     const GumDarwinInitPointersDetails * details, gpointer user_data);
 typedef gboolean (* GumDarwinFoundTermPointersFunc) (
     const GumDarwinTermPointersDetails * details, gpointer user_data);
+typedef gboolean (* GumDarwinFoundDependencyFunc) (const gchar * path,
+    gpointer user_data);
 typedef gpointer (* GumDarwinModuleResolverFunc) (void);
 
 struct _GumDarwinModule
@@ -64,6 +73,7 @@ struct _GumDarwinModule
   gchar * source_path;
   GBytes * source_blob;
   GMappedFile * cache_file;
+  GumDarwinModuleFlags flags;
 
   GumDarwinModuleImage * image;
 
@@ -205,12 +215,13 @@ struct _GumDarwinSymbolDetails
 
 GUM_API GumDarwinModule * gum_darwin_module_new_from_file (const gchar * path,
     mach_port_t task, GumCpuType cpu_type, guint page_size,
-    GMappedFile * cache_file, GError ** error);
+    GMappedFile * cache_file, GumDarwinModuleFlags flags, GError ** error);
 GUM_API GumDarwinModule * gum_darwin_module_new_from_blob (GBytes * blob,
-    mach_port_t task, GumCpuType cpu_type, guint page_size, GError ** error);
+    mach_port_t task, GumCpuType cpu_type, guint page_size,
+    GumDarwinModuleFlags flags, GError ** error);
 GUM_API GumDarwinModule * gum_darwin_module_new_from_memory (const gchar * name,
     mach_port_t task, GumCpuType cpu_type, guint page_size,
-    GumAddress base_address, GError ** error);
+    GumAddress base_address, GumDarwinModuleFlags flags, GError ** error);
 
 GUM_API gboolean gum_darwin_module_resolve_export (GumDarwinModule * self,
     const gchar * symbol, GumDarwinExportDetails * details);
@@ -241,6 +252,8 @@ GUM_API void gum_darwin_module_enumerate_init_pointers (GumDarwinModule * self,
     GumDarwinFoundInitPointersFunc func, gpointer user_data);
 GUM_API void gum_darwin_module_enumerate_term_pointers (GumDarwinModule * self,
     GumDarwinFoundTermPointersFunc func, gpointer user_data);
+GUM_API void gum_darwin_module_enumerate_dependencies (GumDarwinModule * self,
+    GumDarwinFoundDependencyFunc func, gpointer user_data);
 GUM_API const gchar * gum_darwin_module_get_dependency_by_ordinal (
     GumDarwinModule * self, gint ordinal);
 
@@ -248,6 +261,8 @@ GUM_API GumDarwinModuleImage * gum_darwin_module_image_new (void);
 GUM_API GumDarwinModuleImage * gum_darwin_module_image_dup (
     const GumDarwinModuleImage * other);
 GUM_API void gum_darwin_module_image_free (GumDarwinModuleImage * image);
+
+GUM_API GType gum_darwin_module_flags_get_type (void) G_GNUC_CONST;
 
 G_END_DECLS
 

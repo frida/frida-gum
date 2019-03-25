@@ -317,7 +317,8 @@ gum_store_module (const GumModuleDetails * details,
   }
 
   module = gum_darwin_module_new_from_memory (details->path, self->task,
-      self->cpu_type, self->page_size, details->range->base_address, NULL);
+      self->cpu_type, self->page_size, details->range->base_address,
+      GUM_DARWIN_MODULE_FLAGS_NONE, NULL);
   g_hash_table_insert (self->modules, g_strdup (details->name),
       module);
   g_hash_table_insert (self->modules, g_strdup (details->path),

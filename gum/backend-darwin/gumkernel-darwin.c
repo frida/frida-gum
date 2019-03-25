@@ -451,7 +451,7 @@ gum_kernel_enumerate_kexts (GumFoundKextFunc func,
       continue;
 
     module = gum_darwin_module_new_from_memory (kext->name, task, GUM_CPU_ARM64,
-        vm_kernel_page_size, kext->address, NULL);
+        vm_kernel_page_size, kext->address, GUM_DARWIN_MODULE_FLAGS_NONE, NULL);
 
     if (module == NULL)
       continue;
@@ -669,7 +669,8 @@ gum_kernel_get_module (void)
   base = gum_kernel_find_base_address ();
 
   gum_kernel_cached_module = gum_darwin_module_new_from_memory ("Kernel", task,
-      GUM_CPU_ARM64, vm_kernel_page_size, base, NULL);
+      GUM_CPU_ARM64, vm_kernel_page_size, base, GUM_DARWIN_MODULE_FLAGS_NONE,
+      NULL);
 
   return gum_kernel_cached_module;
 }

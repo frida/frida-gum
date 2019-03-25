@@ -52,9 +52,15 @@ namespace Gum.Darwin {
 			get;
 		}
 
-		public Module.from_file (string path, Port task, Gum.CpuType cpu_type, uint page_size, GLib.MappedFile? cache_file = null) throws GLib.Error;
-		public Module.from_blob (GLib.Bytes blob, Port task, Gum.CpuType cpu_type, uint page_size) throws GLib.Error;
-		public Module.from_memory (string? name, Port task, Gum.CpuType cpu_type, uint page_size, Gum.Address base_address) throws GLib.Error;
+		[Flags]
+		public enum Flags {
+			NONE,
+			HEADER_ONLY,
+		}
+
+		public Module.from_file (string path, Port task, Gum.CpuType cpu_type, uint page_size, GLib.MappedFile? cache_file = null, Gum.Darwin.Module.Flags flags = NONE) throws GLib.Error;
+		public Module.from_blob (GLib.Bytes blob, Port task, Gum.CpuType cpu_type, uint page_size, Gum.Darwin.Module.Flags flags = NONE) throws GLib.Error;
+		public Module.from_memory (string? name, Port task, Gum.CpuType cpu_type, uint page_size, Gum.Address base_address, Gum.Darwin.Module.Flags flags = NONE) throws GLib.Error;
 
 		public bool resolve_export (string symbol, out ExportDetails details);
 		public Gum.Address resolve_symbol_address (string symbol);
@@ -68,6 +74,7 @@ namespace Gum.Darwin {
 		public void enumerate_lazy_binds (FoundBindFunc func);
 		public void enumerate_init_pointers (FoundInitPointersFunc func);
 		public void enumerate_term_pointers (FoundTermPointersFunc func);
+		public void enumerate_dependencies (FoundDependenciesFunc func);
 		public unowned string? get_dependency_by_ordinal (int ordinal);
 
 		public delegate bool FoundExportFunc (ExportDetails details);
@@ -77,6 +84,7 @@ namespace Gum.Darwin {
 		public delegate bool FoundBindFunc (BindDetails details);
 		public delegate bool FoundInitPointersFunc (InitPointersDetails details);
 		public delegate bool FoundTermPointersFunc (TermPointersDetails details);
+		public delegate bool FoundDependenciesFunc (string path);
 	}
 
 	[Compact]
