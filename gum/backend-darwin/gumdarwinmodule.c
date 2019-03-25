@@ -2338,8 +2338,8 @@ gum_darwin_module_flags_get_type (void)
   {
     static const GFlagsValue values[] =
     {
-      { GUM_DARWIN_MODULE_FLAGS_NONE, "GUM_DARWIN_MODULE_FLAGS_NONE", "default" },
-      { GUM_DARWIN_MODULE_FLAGS_HEADER_ONLY, "GUM_DARWIN_MODULE_FLAGS_HEADER_ONLY", "optional" },
+      { GUM_DARWIN_MODULE_FLAGS_NONE, "GUM_DARWIN_MODULE_FLAGS_NONE", "none" },
+      { GUM_DARWIN_MODULE_FLAGS_HEADER_ONLY, "GUM_DARWIN_MODULE_FLAGS_HEADER_ONLY", "header-only" },
       { 0, NULL, NULL }
     };
     GType ftype;
