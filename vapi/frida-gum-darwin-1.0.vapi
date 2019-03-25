@@ -53,10 +53,9 @@ namespace Gum.Darwin {
 		}
 
 		[Flags]
-		[CCode (cprefix = "GUM_DARWIN_MODULE_FLAGS_")]
 		public enum Flags {
-			NONE = 0,
-			HEADER_ONLY	  = (1 << 0),
+			NONE,
+			HEADER_ONLY,
 		}
 
 		public Module.from_file (string path, Port task, Gum.CpuType cpu_type, uint page_size, GLib.MappedFile? cache_file = null, Gum.Darwin.Module.Flags flags = NONE) throws GLib.Error;

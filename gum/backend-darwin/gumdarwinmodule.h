@@ -19,6 +19,8 @@ G_BEGIN_DECLS
 G_DECLARE_FINAL_TYPE (GumDarwinModule, gum_darwin_module, GUM_DARWIN, MODULE,
     GObject)
 
+#define GUM_DARWIN_TYPE_MODULE_FLAGS (gum_darwin_module_flags_get_type ())
+
 typedef enum {
   GUM_DARWIN_MODULE_FLAGS_NONE = 0,
   GUM_DARWIN_MODULE_FLAGS_HEADER_ONLY = (1<<0),
@@ -71,6 +73,7 @@ struct _GumDarwinModule
   gchar * source_path;
   GBytes * source_blob;
   GMappedFile * cache_file;
+  GumDarwinModuleFlags flags;
 
   GumDarwinModuleImage * image;
 
@@ -101,8 +104,6 @@ struct _GumDarwinModule
 
   GPtrArray * dependencies;
   GPtrArray * reexports;
-
-  GumDarwinModuleFlags flags;
 };
 
 struct _GumDarwinModuleImage
@@ -260,6 +261,8 @@ GUM_API GumDarwinModuleImage * gum_darwin_module_image_new (void);
 GUM_API GumDarwinModuleImage * gum_darwin_module_image_dup (
     const GumDarwinModuleImage * other);
 GUM_API void gum_darwin_module_image_free (GumDarwinModuleImage * image);
+
+GUM_API GType gum_darwin_module_flags_get_type (void) G_GNUC_CONST;
 
 G_END_DECLS
 

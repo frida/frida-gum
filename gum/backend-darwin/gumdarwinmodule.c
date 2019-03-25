@@ -241,8 +241,8 @@ gum_darwin_module_class_init (GumDarwinModuleClass * klass)
       G_TYPE_MAPPED_FILE,
       G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_FLAGS,
-      g_param_spec_uint ("flags", "Flags", "Optional flags", 0, G_MAXUINT,
-      GUM_DARWIN_MODULE_FLAGS_NONE,
+      g_param_spec_flags ("flags", "Flags", "Optional flags",
+      GUM_DARWIN_TYPE_MODULE_FLAGS, GUM_DARWIN_MODULE_FLAGS_NONE,
       G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
 }
 
@@ -432,7 +432,7 @@ gum_darwin_module_get_property (GObject * object,
       g_value_set_boxed (value, self->cache_file);
       break;
     case PROP_FLAGS:
-      g_value_set_uint (value, self->flags);
+      g_value_set_flags (value, self->flags);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -478,7 +478,7 @@ gum_darwin_module_set_property (GObject * object,
       self->cache_file = g_value_dup_boxed (value);
       break;
     case PROP_FLAGS:
-      self->flags = g_value_get_uint (value);
+      self->flags = g_value_get_flags (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -2327,4 +2327,27 @@ gum_dyld_cache_offset_from_address (GumAddress address,
   }
 
   return 0;
+}
+
+GType
+gum_darwin_module_flags_get_type (void)
+{
+  static volatile gsize gonce_value;
+
+  if (g_once_init_enter (&gonce_value))
+  {
+    static const GFlagsValue values[] =
+    {
+      { GUM_DARWIN_MODULE_FLAGS_NONE, "GUM_DARWIN_MODULE_FLAGS_NONE", "default" },
+      { GUM_DARWIN_MODULE_FLAGS_HEADER_ONLY, "GUM_DARWIN_MODULE_FLAGS_HEADER_ONLY", "optional" },
+      { 0, NULL, NULL }
+    };
+    GType ftype;
+
+    ftype = g_flags_register_static ("GumDarwinModuleFlags", values);
+
+    g_once_init_leave (&gonce_value, ftype);
+  }
+
+  return (GType) gonce_value;
 }
