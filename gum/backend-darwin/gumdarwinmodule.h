@@ -21,10 +21,7 @@ G_DECLARE_FINAL_TYPE (GumDarwinModule, gum_darwin_module, GUM_DARWIN, MODULE,
 
 #define GUM_DARWIN_TYPE_MODULE_FLAGS (gum_darwin_module_flags_get_type ())
 
-typedef enum {
-  GUM_DARWIN_MODULE_FLAGS_NONE = 0,
-  GUM_DARWIN_MODULE_FLAGS_HEADER_ONLY = (1<<0),
-} GumDarwinModuleFlags;
+typedef guint GumDarwinModuleFlags;
 
 typedef struct _GumDarwinModuleImage GumDarwinModuleImage;
 
@@ -104,6 +101,12 @@ struct _GumDarwinModule
 
   GPtrArray * dependencies;
   GPtrArray * reexports;
+};
+
+enum _GumDarwinModuleFlags
+{
+  GUM_DARWIN_MODULE_FLAGS_NONE = 0,
+  GUM_DARWIN_MODULE_FLAGS_HEADER_ONLY = (1 << 0),
 };
 
 struct _GumDarwinModuleImage
