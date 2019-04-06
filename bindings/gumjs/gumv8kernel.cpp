@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,6 +7,7 @@
 #include "gumv8kernel.h"
 
 #include "gumv8macros.h"
+#include "gumv8matchcontext.h"
 
 #include <gum/gumkernel.h>
 #include <string.h>
@@ -35,22 +36,11 @@ enum GumMemoryValueType
   GUM_MEMORY_VALUE_UTF16_STRING
 };
 
-struct GumV8MatchContext
-{
-  Local<Function> on_match;
-  Local<Function> on_complete;
-
-  GumV8Core * core;
-
-  gboolean has_pending_exception;
-};
-
 struct GumKernelScanContext
 {
   GumMemoryRange range;
   GumMatchPattern * pattern;
   GumPersistent<Function>::type * on_match;
-  GumPersistent<Function>::type * on_error;
   GumPersistent<Function>::type * on_complete;
 
   GumV8Core * core;
@@ -68,15 +58,16 @@ GUMJS_DECLARE_GETTER (gumjs_kernel_get_base)
 GUMJS_DECLARE_SETTER (gumjs_kernel_set_base)
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_modules)
 static gboolean gum_emit_module (const GumModuleDetails * details,
-    GumV8MatchContext * mc);
+    GumV8MatchContext<GumV8Kernel> * mc);
 static Local<Object> gum_parse_module_details (
     const GumModuleDetails * details, GumV8Core * core);
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
-    GumV8MatchContext * mc);
+    GumV8MatchContext<GumV8Kernel> * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_module_ranges)
 static gboolean gum_emit_module_range (
-    const GumKernelModuleRangeDetails * details, GumV8MatchContext * mc);
+    const GumKernelModuleRangeDetails * details,
+    GumV8MatchContext<GumV8Kernel> * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_alloc)
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_protect)
 
@@ -242,45 +233,23 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_modules)
   if (!gum_v8_kernel_check_api_available (isolate))
     return;
 
-  GumV8MatchContext mc;
+  GumV8MatchContext<GumV8Kernel> mc (isolate, module);
   if (!_gum_v8_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
       &mc.on_complete))
     return;
-  mc.core = core;
-
-  mc.has_pending_exception = FALSE;
 
   gum_kernel_enumerate_modules ((GumFoundModuleFunc) gum_emit_module, &mc);
 
-  if (!mc.has_pending_exception)
-  {
-    mc.on_complete->Call (Undefined (isolate), 0, nullptr);
-  }
+  mc.OnComplete ();
 }
 
 static gboolean
 gum_emit_module (const GumModuleDetails * details,
-                 GumV8MatchContext * mc)
+                 GumV8MatchContext<GumV8Kernel> * mc)
 {
-  auto core = mc->core;
-  auto isolate = core->isolate;
+  auto module = gum_parse_module_details (details, mc->parent->core);
 
-  auto module = gum_parse_module_details (details, core);
-
-  Handle<Value> argv[] = { module };
-  auto result =
-      mc->on_match->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
-
-  mc->has_pending_exception = result.IsEmpty ();
-
-  gboolean proceed = !mc->has_pending_exception;
-  if (proceed && result->IsString ())
-  {
-    String::Utf8Value str (result);
-    proceed = strcmp (*str, "stop") != 0;
-  }
-
-  return proceed;
+  return mc->OnMatch (module);
 }
 
 static Local<Object>
@@ -300,50 +269,30 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_ranges)
   if (!gum_v8_kernel_check_api_available (isolate))
     return;
 
-  GumV8MatchContext mc;
   GumPageProtection prot;
+  GumV8MatchContext<GumV8Kernel> mc (isolate, module);
   if (!_gum_v8_args_parse (args, "mF{onMatch,onComplete}", &prot, &mc.on_match,
       &mc.on_complete))
     return;
-  mc.core = core;
-
-  mc.has_pending_exception = FALSE;
 
   gum_kernel_enumerate_ranges (prot, (GumFoundRangeFunc) gum_emit_range, &mc);
 
-  if (!mc.has_pending_exception)
-  {
-    mc.on_complete->Call (Undefined (isolate), 0, nullptr);
-  }
+  mc.OnComplete ();
 }
 
 static gboolean
 gum_emit_range (const GumRangeDetails * details,
-                GumV8MatchContext * mc)
+                GumV8MatchContext<GumV8Kernel> * mc)
 {
-  auto core = mc->core;
-  auto isolate = core->isolate;
+  auto core = mc->parent->core;
 
-  auto range = Object::New (isolate);
+  auto range = Object::New (mc->isolate);
   _gum_v8_object_set_uint64 (range, "base", details->range->base_address,
       core);
   _gum_v8_object_set_uint (range, "size", details->range->size, core);
   _gum_v8_object_set_page_protection (range, "protection", details->prot, core);
 
-  Handle<Value> argv[] = { range };
-  auto result =
-      mc->on_match->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
-
-  mc->has_pending_exception = result.IsEmpty ();
-
-  gboolean proceed = !mc->has_pending_exception;
-  if (proceed && result->IsString ())
-  {
-    String::Utf8Value str (result);
-    proceed = strcmp (*str, "stop") != 0;
-  }
-
-  return proceed;
+  return mc->OnMatch (range);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_module_ranges)
@@ -351,54 +300,34 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_module_ranges)
   if (!gum_v8_kernel_check_api_available (isolate))
     return;
 
-  GumV8MatchContext mc;
   gchar * module_name;
   GumPageProtection prot;
+  GumV8MatchContext<GumV8Kernel> mc (isolate, module);
   if (!_gum_v8_args_parse (args, "s?mF{onMatch,onComplete}", &module_name,
       &prot, &mc.on_match, &mc.on_complete))
     return;
-  mc.core = core;
-
-  mc.has_pending_exception = FALSE;
 
   gum_kernel_enumerate_module_ranges (
     (module_name == NULL) ? "Kernel" : module_name, prot,
     (GumFoundKernelModuleRangeFunc) gum_emit_module_range, &mc);
 
-  if (!mc.has_pending_exception)
-  {
-    mc.on_complete->Call (Undefined (isolate), 0, nullptr);
-  }
+  mc.OnComplete ();
 }
 
 static gboolean
 gum_emit_module_range (const GumKernelModuleRangeDetails * details,
-                       GumV8MatchContext * mc)
+                       GumV8MatchContext<GumV8Kernel> * mc)
 {
-  auto core = mc->core;
-  auto isolate = core->isolate;
+  auto core = mc->parent->core;
 
-  auto range = Object::New (isolate);
+  auto range = Object::New (mc->isolate);
   _gum_v8_object_set_utf8 (range, "name", details->name, core);
   _gum_v8_object_set_uint64 (range, "base", details->address, core);
   _gum_v8_object_set_uint (range, "size", details->size, core);
   _gum_v8_object_set_page_protection (range, "protection",
     details->protection, core);
 
-  Handle<Value> argv[] = { range };
-  auto result =
-      mc->on_match->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
-
-  mc->has_pending_exception = result.IsEmpty ();
-
-  gboolean proceed = !mc->has_pending_exception;
-  if (proceed && result->IsString ())
-  {
-    String::Utf8Value str (result);
-    proceed = strcmp (*str, "stop") != 0;
-  }
-
-  return proceed;
+  return mc->OnMatch (range);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_alloc)
@@ -808,9 +737,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_scan)
   GumAddress address;
   gsize size;
   gchar * match_str;
-  Local<Function> on_match, on_error, on_complete;
-  if (!_gum_v8_args_parse (args, "QZsF{onMatch,onError?,onComplete}",
-      &address, &size, &match_str, &on_match, &on_error, &on_complete))
+  Local<Function> on_match, on_complete;
+  if (!_gum_v8_args_parse (args, "QZsF{onMatch,onComplete}", &address, &size,
+      &match_str, &on_match, &on_complete))
     return;
 
   GumMemoryRange range;
@@ -821,25 +750,22 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_scan)
 
   g_free (match_str);
 
-  if (pattern != NULL)
-  {
-    auto ctx = g_slice_new0 (GumKernelScanContext);
-    ctx->range = range;
-    ctx->pattern = pattern;
-    ctx->on_match = new GumPersistent<Function>::type (isolate, on_match);
-    if (!on_error.IsEmpty ())
-      ctx->on_error = new GumPersistent<Function>::type (isolate, on_error);
-    ctx->on_complete = new GumPersistent<Function>::type (isolate, on_complete);
-    ctx->core = core;
-
-    _gum_v8_core_pin (core);
-    _gum_v8_core_push_job (core, (GumScriptJobFunc) gum_kernel_scan_context_run,
-        ctx, (GDestroyNotify) gum_kernel_scan_context_free);
-  }
-  else
+  if (pattern == NULL)
   {
     _gum_v8_throw_ascii_literal (isolate, "invalid match pattern");
+    return;
   }
+
+  auto ctx = g_slice_new0 (GumKernelScanContext);
+  ctx->range = range;
+  ctx->pattern = pattern;
+  ctx->on_match = new GumPersistent<Function>::type (isolate, on_match);
+  ctx->on_complete = new GumPersistent<Function>::type (isolate, on_complete);
+  ctx->core = core;
+
+  _gum_v8_core_pin (core);
+  _gum_v8_core_push_job (core, (GumScriptJobFunc) gum_kernel_scan_context_run,
+      ctx, (GDestroyNotify) gum_kernel_scan_context_free);
 }
 
 static void
@@ -853,7 +779,6 @@ gum_kernel_scan_context_free (GumKernelScanContext * self)
     ScriptScope script_scope (core->script);
 
     delete self->on_match;
-    delete self->on_error;
     delete self->on_complete;
 
     _gum_v8_core_unpin (core);
@@ -862,44 +787,20 @@ gum_kernel_scan_context_free (GumKernelScanContext * self)
   g_slice_free (GumKernelScanContext, self);
 }
 
-#ifdef _MSC_VER
-# pragma warning (push)
-# pragma warning (disable: 4611)
-#endif
-
 static void
 gum_kernel_scan_context_run (GumKernelScanContext * self)
 {
   auto core = self->core;
-  auto exceptor = core->exceptor;
   auto isolate = core->isolate;
-  GumExceptorScope scope;
+  auto context = isolate->GetCurrentContext ();
 
-  if (gum_exceptor_try (exceptor, &scope))
-  {
-    gum_kernel_scan (&self->range, self->pattern,
-        (GumMemoryScanMatchFunc) gum_kernel_scan_context_emit_match, self);
-  }
+  gum_kernel_scan (&self->range, self->pattern,
+      (GumMemoryScanMatchFunc) gum_kernel_scan_context_emit_match, self);
 
-  if (gum_exceptor_catch (exceptor, &scope) && self->on_error != nullptr)
-  {
-    ScriptScope script_scope (core->script);
-
-    auto message = gum_exception_details_to_string (&scope.exception);
-
-    auto on_error = Local<Function>::New (isolate, *self->on_error);
-    Handle<Value> argv[] = { String::NewFromUtf8 (isolate, message) };
-    on_error->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
-
-    g_free (message);
-  }
-
-  {
-    ScriptScope script_scope (core->script);
-
-    auto on_complete (Local<Function>::New (isolate, *self->on_complete));
-    on_complete->Call (Undefined (isolate), 0, nullptr);
-  }
+  ScriptScope script_scope (core->script);
+  auto on_complete (Local<Function>::New (isolate, *self->on_complete));
+  auto recv = Undefined (isolate);
+  (void) on_complete->Call (context, recv, 0, nullptr);
 }
 
 static gboolean
@@ -909,18 +810,21 @@ gum_kernel_scan_context_emit_match (GumAddress address,
 {
   ScriptScope scope (self->core->script);
   auto isolate = self->core->isolate;
+  auto context = isolate->GetCurrentContext ();
+
+  gboolean proceed = TRUE;
 
   auto on_match = Local<Function>::New (isolate, *self->on_match);
+  auto recv = Undefined (isolate);
   Handle<Value> argv[] = {
     _gum_v8_uint64_new (address, self->core),
     Integer::NewFromUnsigned (isolate, size)
   };
-  auto result = on_match->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
-
-  gboolean proceed = TRUE;
-  if (!result.IsEmpty () && result->IsString ())
+  Local<Value> result;
+  if (on_match->Call (context, recv, G_N_ELEMENTS (argv), argv)
+      .ToLocal (&result) && result->IsString ())
   {
-    String::Utf8Value str (result);
+    v8::String::Utf8Value str (isolate, result);
     proceed = strcmp (*str, "stop") != 0;
   }
 
@@ -998,10 +902,6 @@ gum_append_match (GumAddress address,
 
   return TRUE;
 }
-
-#ifdef _MSC_VER
-# pragma warning (pop)
-#endif
 
 static gboolean
 gum_v8_kernel_check_api_available (Isolate * isolate)

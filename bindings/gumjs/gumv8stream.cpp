@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -231,8 +231,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_io_stream_construct)
       External::New (isolate, g_object_ref (
           g_io_stream_get_input_stream (stream)))
     };
-    auto input = ctor->GetFunction ()->NewInstance (context,
-        G_N_ELEMENTS (argv), argv).ToLocalChecked ();
+    auto input = ctor->GetFunction (context).ToLocalChecked ()
+        ->NewInstance (context, G_N_ELEMENTS (argv), argv).ToLocalChecked ();
     _gum_v8_object_set (wrapper, "input", input, core);
   }
 
@@ -242,8 +242,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_io_stream_construct)
       External::New (isolate, g_object_ref (
           g_io_stream_get_output_stream (stream)))
     };
-    auto output = ctor->GetFunction ()->NewInstance (context,
-        G_N_ELEMENTS (argv), argv).ToLocalChecked ();
+    auto output = ctor->GetFunction (context).ToLocalChecked ()
+        ->NewInstance (context, G_N_ELEMENTS (argv), argv).ToLocalChecked ();
     _gum_v8_object_set (wrapper, "output", output, core);
   }
 }
@@ -308,6 +308,7 @@ gum_v8_close_io_stream_operation_finish (GIOStream * stream,
     auto core = self->core;
     ScriptScope scope (core->script);
     auto isolate = core->isolate;
+    auto context = isolate->GetCurrentContext ();
 
     Local<Value> error_value;
     auto success_value = success ? True (isolate) : False (isolate);
@@ -325,7 +326,8 @@ gum_v8_close_io_stream_operation_finish (GIOStream * stream,
 
     Handle<Value> argv[] = { error_value, success_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
-    callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
+    auto recv = Undefined (isolate);
+    (void) callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
   }
 
   gum_v8_object_operation_finish (self);
@@ -374,6 +376,7 @@ gum_v8_close_input_operation_finish (GInputStream * stream,
     auto core = self->core;
     ScriptScope scope (core->script);
     auto isolate = core->isolate;
+    auto context = isolate->GetCurrentContext ();
 
     Local<Value> error_value;
     auto success_value = success ? True (isolate) : False (isolate);
@@ -391,7 +394,8 @@ gum_v8_close_input_operation_finish (GInputStream * stream,
 
     Handle<Value> argv[] = { error_value, success_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
-    callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
+    auto recv = Undefined (isolate);
+    (void) callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
   }
 
   gum_v8_object_operation_finish (self);
@@ -479,6 +483,7 @@ gum_v8_read_operation_finish (GInputStream * stream,
     auto core = self->core;
     ScriptScope scope (core->script);
     auto isolate = core->isolate;
+    auto context = isolate->GetCurrentContext ();
 
     Local<Value> error_value, data_value, null_value;
     null_value = Null (isolate);
@@ -509,7 +514,8 @@ gum_v8_read_operation_finish (GInputStream * stream,
 
     Handle<Value> argv[] = { error_value, data_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
-    callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
+    auto recv = Undefined (isolate);
+    (void) callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
   }
 
   gum_v8_object_operation_finish (self);
@@ -558,6 +564,7 @@ gum_v8_close_output_operation_finish (GOutputStream * stream,
     auto core = self->core;
     ScriptScope scope (core->script);
     auto isolate = core->isolate;
+    auto context = isolate->GetCurrentContext ();
 
     Local<Value> error_value;
     auto success_value = success ? True (isolate) : False (isolate);
@@ -575,7 +582,8 @@ gum_v8_close_output_operation_finish (GOutputStream * stream,
 
     Handle<Value> argv[] = { error_value, success_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
-    callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
+    auto recv = Undefined (isolate);
+    (void) callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
   }
 
   gum_v8_object_operation_finish (self);
@@ -680,6 +688,7 @@ gum_v8_write_operation_finish (GOutputStream * stream,
     auto core = self->core;
     ScriptScope scope (core->script);
     auto isolate = core->isolate;
+    auto context = isolate->GetCurrentContext ();
 
     Local<Value> error_value;
     auto size_value = Integer::NewFromUnsigned (isolate, bytes_written);
@@ -705,7 +714,8 @@ gum_v8_write_operation_finish (GOutputStream * stream,
 
     Handle<Value> argv[] = { error_value, size_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
-    callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
+    auto recv = Undefined (isolate);
+    (void) callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
   }
 
   gum_v8_object_operation_finish (self);
@@ -731,11 +741,12 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_input_stream_construct)
   auto stream = g_unix_input_stream_new (handle, auto_close);
 #endif
 
+  auto context = isolate->GetCurrentContext ();
   auto base_ctor (Local<FunctionTemplate>::New (isolate,
       *module->input_stream));
   Handle<Value> argv[] = { External::New (isolate, stream) };
-  base_ctor->GetFunction ()->Call (isolate->GetCurrentContext (), wrapper,
-      G_N_ELEMENTS (argv), argv).ToLocalChecked ();
+  base_ctor->GetFunction (context).ToLocalChecked ()
+      ->Call (context, wrapper, G_N_ELEMENTS (argv), argv).ToLocalChecked ();
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_output_stream_construct)
@@ -758,11 +769,12 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_output_stream_construct)
   auto stream = g_unix_output_stream_new (handle, auto_close);
 #endif
 
+  auto context = isolate->GetCurrentContext ();
   auto base_ctor (Local<FunctionTemplate>::New (isolate,
       *module->output_stream));
   Handle<Value> argv[] = { External::New (isolate, stream) };
-  base_ctor->GetFunction ()->Call (isolate->GetCurrentContext (), wrapper,
-      G_N_ELEMENTS (argv), argv).ToLocalChecked ();
+  base_ctor->GetFunction (context).ToLocalChecked ()
+      ->Call (context, wrapper, G_N_ELEMENTS (argv), argv).ToLocalChecked ();
 }
 
 static gboolean
@@ -778,11 +790,15 @@ gum_v8_native_stream_ctor_args_parse (const GumV8Args * args,
   *auto_close = FALSE;
   if (!options.IsEmpty ())
   {
-    auto auto_close_key = _gum_v8_string_new_ascii (core->isolate, "autoClose");
-    if (options->Has (auto_close_key))
+    auto isolate = core->isolate;
+    auto context = isolate->GetCurrentContext ();
+
+    auto auto_close_key = _gum_v8_string_new_ascii (isolate, "autoClose");
+    Local<Value> value;
+    if (options->Get (context, auto_close_key).ToLocal (&value) &&
+        value->IsBoolean ())
     {
-      *auto_close =
-          options->Get (auto_close_key)->ToBoolean ()->BooleanValue ();
+      *auto_close = value.As<Boolean> ()->BooleanValue (isolate);
     }
   }
 

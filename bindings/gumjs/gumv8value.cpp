@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -295,7 +295,7 @@ _gum_v8_args_parse (const GumV8Args * args,
         }
         else if (arg->IsString ())
         {
-          String::Utf8Value arg_utf8 (arg);
+          String::Utf8Value arg_utf8 (isolate, arg);
           str = scope.strdup (*arg_utf8);
         }
         else
@@ -316,7 +316,7 @@ _gum_v8_args_parse (const GumV8Args * args,
           return FALSE;
         }
 
-        String::Utf8Value arg_utf8 (arg);
+        String::Utf8Value arg_utf8 (isolate, arg);
         *va_arg (ap, std::string *) = *arg_utf8;
 
         break;
@@ -583,7 +583,7 @@ _gum_v8_bytes_parse (Handle<Value> value,
 {
   if (value->IsString ())
   {
-    String::Utf8Value value_as_utf8 (value);
+    String::Utf8Value value_as_utf8 (core->isolate, value);
     auto value_as_string = *value_as_utf8;
     return g_bytes_new (value_as_string, strlen (value_as_string));
   }
@@ -800,16 +800,18 @@ _gum_v8_int64_get (Handle<Value> value,
                    gint64 * i,
                    GumV8Core * core)
 {
+  auto isolate = core->isolate;
+
   if (value->IsNumber ())
   {
-    *i = value->IntegerValue ();
+    *i = value->IntegerValue (isolate->GetCurrentContext ()).ToChecked ();
     return TRUE;
   }
 
-  auto int64 (Local<FunctionTemplate>::New (core->isolate, *core->int64));
+  auto int64 (Local<FunctionTemplate>::New (isolate, *core->int64));
   if (!int64->HasInstance (value))
   {
-    _gum_v8_throw_ascii_literal (core->isolate, "expected an integer");
+    _gum_v8_throw_ascii_literal (isolate, "expected an integer");
     return FALSE;
   }
 
@@ -824,7 +826,9 @@ _gum_v8_int64_parse (Handle<Value> value,
 {
   if (value->IsString ())
   {
-    String::Utf8Value value_as_utf8 (value);
+    auto isolate = core->isolate;
+
+    String::Utf8Value value_as_utf8 (isolate, value);
     auto value_as_string = *value_as_utf8;
     gchar * end;
     if (g_str_has_prefix (value_as_string, "0x"))
@@ -832,8 +836,7 @@ _gum_v8_int64_parse (Handle<Value> value,
       *i = g_ascii_strtoll (value_as_string + 2, &end, 16);
       if (end == value_as_string + 2)
       {
-        _gum_v8_throw_ascii_literal (core->isolate,
-            "invalid hexadecimal string");
+        _gum_v8_throw_ascii_literal (isolate, "invalid hexadecimal string");
         return FALSE;
       }
     }
@@ -842,8 +845,7 @@ _gum_v8_int64_parse (Handle<Value> value,
       *i = g_ascii_strtoll (value_as_string, &end, 10);
       if (end == value_as_string)
       {
-        _gum_v8_throw_ascii_literal (core->isolate,
-            "invalid hexadecimal string");
+        _gum_v8_throw_ascii_literal (isolate, "invalid hexadecimal string");
         return FALSE;
       }
     }
@@ -940,16 +942,18 @@ _gum_v8_uint64_get (Handle<Value> value,
                     guint64 * u,
                     GumV8Core * core)
 {
+  auto isolate = core->isolate;
+
   if (value->IsNumber ())
   {
-    *u = value->IntegerValue ();
+    *u = value->IntegerValue (isolate->GetCurrentContext ()).ToChecked ();
     return TRUE;
   }
 
-  auto uint64 (Local<FunctionTemplate>::New (core->isolate, *core->uint64));
+  auto uint64 (Local<FunctionTemplate>::New (isolate, *core->uint64));
   if (!uint64->HasInstance (value))
   {
-    _gum_v8_throw_ascii_literal (core->isolate, "expected an unsigned integer");
+    _gum_v8_throw_ascii_literal (isolate, "expected an unsigned integer");
     return FALSE;
   }
 
@@ -964,7 +968,9 @@ _gum_v8_uint64_parse (Handle<Value> value,
 {
   if (value->IsString ())
   {
-    String::Utf8Value value_as_utf8 (value);
+    auto isolate = core->isolate;
+
+    String::Utf8Value value_as_utf8 (isolate, value);
     auto value_as_string = *value_as_utf8;
     gchar * end;
     if (g_str_has_prefix (value_as_string, "0x"))
@@ -972,8 +978,7 @@ _gum_v8_uint64_parse (Handle<Value> value,
       *u = g_ascii_strtoull (value_as_string + 2, &end, 16);
       if (end == value_as_string + 2)
       {
-        _gum_v8_throw_ascii_literal (core->isolate,
-            "invalid hexadecimal string");
+        _gum_v8_throw_ascii_literal (isolate, "invalid hexadecimal string");
         return FALSE;
       }
     }
@@ -982,8 +987,7 @@ _gum_v8_uint64_parse (Handle<Value> value,
       *u = g_ascii_strtoull (value_as_string, &end, 10);
       if (end == value_as_string)
       {
-        _gum_v8_throw_ascii_literal (core->isolate,
-            "invalid hexadecimal string");
+        _gum_v8_throw_ascii_literal (isolate, "invalid hexadecimal string");
         return FALSE;
       }
     }
@@ -1060,10 +1064,11 @@ _gum_v8_size_get (Handle<Value> value,
 
   if (value->IsNumber ())
   {
-    auto integer_value = value->IntegerValue ();
-    if (integer_value >= 0)
+    int64_t i = value->IntegerValue (isolate->GetCurrentContext ())
+        .ToChecked ();
+    if (i >= 0)
     {
-      *size = (gsize) integer_value;
+      *size = (gsize) i;
       return TRUE;
     }
   }
@@ -1101,7 +1106,8 @@ _gum_v8_ssize_get (Handle<Value> value,
 
   if (value->IsNumber ())
   {
-    *size = (gssize) value->IntegerValue ();
+    *size = (gsize) value->IntegerValue (isolate->GetCurrentContext ())
+        .ToChecked ();
     return TRUE;
   }
   else
@@ -1195,9 +1201,11 @@ _gum_v8_native_pointer_parse (Handle<Value> value,
                               gpointer * ptr,
                               GumV8Core * core)
 {
+  auto isolate = core->isolate;
+
   if (value->IsString ())
   {
-    String::Utf8Value ptr_as_utf8 (value);
+    String::Utf8Value ptr_as_utf8 (isolate, value);
     auto ptr_as_string = *ptr_as_utf8;
     gchar * endptr;
     if (g_str_has_prefix (ptr_as_string, "0x"))
@@ -1206,8 +1214,7 @@ _gum_v8_native_pointer_parse (Handle<Value> value,
           g_ascii_strtoull (ptr_as_string + 2, &endptr, 16));
       if (endptr == ptr_as_string + 2)
       {
-        _gum_v8_throw_ascii_literal (core->isolate,
-            "invalid hexadecimal string");
+        _gum_v8_throw_ascii_literal (isolate, "invalid hexadecimal string");
         return FALSE;
       }
     }
@@ -1216,7 +1223,7 @@ _gum_v8_native_pointer_parse (Handle<Value> value,
       *ptr = GSIZE_TO_POINTER (g_ascii_strtoull (ptr_as_string, &endptr, 10));
       if (endptr == ptr_as_string)
       {
-        _gum_v8_throw_ascii_literal (core->isolate, "invalid decimal string");
+        _gum_v8_throw_ascii_literal (isolate, "invalid decimal string");
         return FALSE;
       }
     }
@@ -1246,20 +1253,21 @@ _gum_v8_native_pointer_parse (Handle<Value> value,
   }
   else
   {
-    auto uint64 (Local<FunctionTemplate>::New (core->isolate, *core->uint64));
+    auto uint64 (Local<FunctionTemplate>::New (isolate, *core->uint64));
     if (uint64->HasInstance (value))
     {
       *ptr = GSIZE_TO_POINTER (_gum_v8_uint64_get_value (value.As<Object> ()));
       return TRUE;
     }
 
-    auto int64 (Local<FunctionTemplate>::New (core->isolate, *core->int64));
+    auto int64 (Local<FunctionTemplate>::New (isolate, *core->int64));
     if (int64->HasInstance (value))
     {
       *ptr = GSIZE_TO_POINTER (_gum_v8_int64_get_value (value.As<Object> ()));
       return TRUE;
     }
   }
+
   return _gum_v8_native_pointer_get (value, ptr, core);
 }
 
@@ -1721,7 +1729,7 @@ _gum_v8_memory_range_get (Handle<Value> value,
   }
 
   range->base_address = GUM_ADDRESS (base);
-  range->size = size_value.As<Number> ()->Uint32Value ();
+  range->size = size_value.As<Number> ()->Uint32Value (context).ToChecked ();
   return TRUE;
 }
 
@@ -1730,13 +1738,15 @@ _gum_v8_page_protection_get (Handle<Value> prot_val,
                              GumPageProtection * prot,
                              GumV8Core * core)
 {
+  auto isolate = core->isolate;
+
   if (!prot_val->IsString ())
   {
-    _gum_v8_throw_ascii_literal (core->isolate,
+    _gum_v8_throw_ascii_literal (isolate,
         "expected a string specifying memory protection");
     return FALSE;
   }
-  String::Utf8Value prot_str (prot_val);
+  String::Utf8Value prot_str (isolate, prot_val);
 
   *prot = GUM_PAGE_NO_ACCESS;
   for (const gchar * ch = *prot_str; *ch != '\0'; ch++)
@@ -1755,8 +1765,8 @@ _gum_v8_page_protection_get (Handle<Value> prot_val,
       case '-':
         break;
       default:
-        _gum_v8_throw_ascii_literal (core->isolate, "invalid character in "
-            "memory protection specifier string");
+        _gum_v8_throw_ascii_literal (isolate, "invalid character in memory "
+            "protection specifier string");
         return FALSE;
     }
   }

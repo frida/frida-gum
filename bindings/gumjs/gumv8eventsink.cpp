@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2012-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -270,6 +270,8 @@ gum_v8_event_sink_drain (GumV8EventSink * self)
 
     ScriptScope scope (self->core->script);
     auto isolate = self->core->isolate;
+    auto context = isolate->GetCurrentContext ();
+    auto recv = Undefined (isolate);
 
     if (frequencies != NULL)
     {
@@ -292,7 +294,7 @@ gum_v8_event_sink_drain (GumV8EventSink * self)
       Local<Value> argv[] = { summary };
       auto on_call_summary =
           Local<Function>::New (isolate, *self->on_call_summary);
-      on_call_summary->Call (on_call_summary, G_N_ELEMENTS (argv), argv);
+      (void) on_call_summary->Call (context, recv, G_N_ELEMENTS (argv), argv);
       scope.ProcessAnyPendingException ();
     }
 
@@ -303,7 +305,7 @@ gum_v8_event_sink_drain (GumV8EventSink * self)
         ArrayBuffer::New (isolate, buffer, size,
             ArrayBufferCreationMode::kInternalized)
       };
-      on_receive->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
+      (void) on_receive->Call (context, recv, G_N_ELEMENTS (argv), argv);
       scope.ProcessAnyPendingException ();
     }
     else

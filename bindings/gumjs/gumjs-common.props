@@ -35,6 +35,7 @@
     <ClInclude Include="$(IntDir)gumjs\gumv8script-runtime.h" />
     <ClInclude Include="gumv8bundle.h" />
     <ClInclude Include="gumv8scope.h" />
+    <ClInclude Include="gumv8matchcontext.h" />
     <ClInclude Include="gumv8value.h" />
     <ClInclude Include="gumv8object.h" />
     <ClInclude Include="gumv8macros.h" />

@@ -7,6 +7,7 @@
 #include "gumv8module.h"
 
 #include "gumv8macros.h"
+#include "gumv8matchcontext.h"
 
 #include <gum/gum-init.h>
 #include <string.h>
@@ -15,11 +16,13 @@
 
 using namespace v8;
 
-struct GumV8ImportsContext
+class GumV8ImportsContext : public GumV8MatchContext<GumV8Module>
 {
-  Local<Function> on_match;
-  Local<Function> on_complete;
-  Local<Value> receiver;
+public:
+  GumV8ImportsContext (Isolate * isolate, GumV8Module * parent)
+    : GumV8MatchContext (isolate, parent)
+  {
+  }
 
   Local<Object> imp;
   Local<String> type;
@@ -28,39 +31,21 @@ struct GumV8ImportsContext
   Local<String> address;
   Local<String> slot;
   Local<String> variable;
-
-  GumV8Core * core;
-  Local<Context> context;
-
-  gboolean has_pending_exception;
 };
 
-struct GumV8ExportsContext
+struct GumV8ExportsContext : public GumV8MatchContext<GumV8Module>
 {
-  Local<Function> on_match;
-  Local<Function> on_complete;
-  Local<Value> receiver;
+public:
+  GumV8ExportsContext (Isolate * isolate, GumV8Module * parent)
+    : GumV8MatchContext (isolate, parent)
+  {
+  }
 
   Local<Object> exp;
   Local<String> type;
   Local<String> name;
   Local<String> address;
   Local<String> variable;
-
-  GumV8Core * core;
-  Local<Context> context;
-
-  gboolean has_pending_exception;
-};
-
-struct GumV8MatchContext
-{
-  Local<Function> on_match;
-  Local<Function> on_complete;
-
-  GumV8Core * core;
-
-  gboolean has_pending_exception;
 };
 
 struct GumV8ModuleMap
@@ -87,10 +72,10 @@ static gboolean gum_emit_export (const GumExportDetails * details,
     GumV8ExportsContext * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_symbols)
 static gboolean gum_emit_symbol (const GumSymbolDetails * details,
-    GumV8MatchContext * mc);
+    GumV8MatchContext<GumV8Module> * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
-    GumV8MatchContext * mc);
+    GumV8MatchContext<GumV8Module> * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_base_address)
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_export_by_name)
 
@@ -243,8 +228,8 @@ _gum_v8_module_value_new (const GumModuleDetails * details,
   auto context = isolate->GetCurrentContext ();
 
   auto klass = Local<FunctionTemplate>::New (isolate, *module->klass);
-  auto value = klass->GetFunction ()->NewInstance (context, 0, nullptr)
-      .ToLocalChecked ();
+  auto value = klass->GetFunction (context).ToLocalChecked ()
+      ->NewInstance (context, 0, nullptr).ToLocalChecked ();
   _gum_v8_object_set_utf8 (value, "name", details->name, core);
   _gum_v8_object_set_pointer (value, "base", details->range->base_address,
       core);
@@ -277,11 +262,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_ensure_initialized)
 GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_imports)
 {
   gchar * name;
-  GumV8ImportsContext ic;
+  GumV8ImportsContext ic (isolate, module);
   if (!_gum_v8_args_parse (args, "sF{onMatch,onComplete}", &name, &ic.on_match,
       &ic.on_complete))
     return;
-  ic.receiver = Undefined (isolate);
 
   ic.imp = Local<Object>::New (isolate, *module->import_value);
   ic.type = Local<String>::New (isolate, *module->type_key);
@@ -291,18 +275,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_imports)
   ic.slot = Local<String>::New (isolate, *module->slot_key);
   ic.variable = Local<String>::New (isolate, *module->variable_value);
 
-  ic.core = core;
-  ic.context = isolate->GetCurrentContext ();
-
-  ic.has_pending_exception = FALSE;
-
   gum_module_enumerate_imports (name, (GumFoundImportFunc) gum_emit_import,
       &ic);
 
-  if (!ic.has_pending_exception)
-  {
-    ic.on_complete->Call (ic.receiver, 0, nullptr);
-  }
+  ic.OnComplete ();
 
   g_free (name);
 }
@@ -311,8 +287,8 @@ static gboolean
 gum_emit_import (const GumImportDetails * details,
                  GumV8ImportsContext * ic)
 {
-  auto core = ic->core;
-  auto isolate = core->isolate;
+  auto core = ic->parent->core;
+  auto isolate = ic->isolate;
   auto context = ic->context;
 
   auto imp = ic->imp->Clone ();
@@ -376,29 +352,16 @@ gum_emit_import (const GumImportDetails * details,
     imp->Delete (context, ic->slot).FromJust ();
   }
 
-  Handle<Value> argv[] = { imp };
-  auto result = ic->on_match->Call (ic->receiver, G_N_ELEMENTS (argv), argv);
-
-  ic->has_pending_exception = result.IsEmpty ();
-
-  gboolean proceed = !ic->has_pending_exception;
-  if (proceed && result->IsString ())
-  {
-    String::Utf8Value str (result);
-    proceed = strcmp (*str, "stop") != 0;
-  }
-
-  return proceed;
+  return ic->OnMatch (imp);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_exports)
 {
   gchar * name;
-  GumV8ExportsContext ec;
+  GumV8ExportsContext ec (isolate, module);
   if (!_gum_v8_args_parse (args, "sF{onMatch,onComplete}", &name, &ec.on_match,
       &ec.on_complete))
     return;
-  ec.receiver = Undefined (isolate);
 
   ec.exp = Local<Object>::New (isolate, *module->export_value);
   ec.type = Local<String>::New (isolate, *module->type_key);
@@ -406,18 +369,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_exports)
   ec.address = Local<String>::New (isolate, *module->address_key);
   ec.variable = Local<String>::New (isolate, *module->variable_value);
 
-  ec.core = core;
-  ec.context = isolate->GetCurrentContext ();
-
-  ec.has_pending_exception = FALSE;
-
   gum_module_enumerate_exports (name, (GumFoundExportFunc) gum_emit_export,
       &ec);
 
-  if (!ec.has_pending_exception)
-  {
-    ec.on_complete->Call (ec.receiver, 0, nullptr);
-  }
+  ec.OnComplete ();
 
   g_free (name);
 }
@@ -426,8 +381,8 @@ static gboolean
 gum_emit_export (const GumExportDetails * details,
                  GumV8ExportsContext * ec)
 {
-  auto core = ec->core;
-  auto isolate = core->isolate;
+  auto core = ec->parent->core;
+  auto isolate = ec->isolate;
   auto context = ec->context;
 
   auto exp = ec->exp->Clone ();
@@ -444,49 +399,31 @@ gum_emit_export (const GumExportDetails * details,
       _gum_v8_native_pointer_new (GSIZE_TO_POINTER (details->address), core))
       .FromJust ();
 
-  Handle<Value> argv[] = { exp };
-  auto result = ec->on_match->Call (ec->receiver, G_N_ELEMENTS (argv), argv);
-
-  ec->has_pending_exception = result.IsEmpty ();
-
-  gboolean proceed = !ec->has_pending_exception;
-  if (proceed && result->IsString ())
-  {
-    String::Utf8Value str (result);
-    proceed = strcmp (*str, "stop") != 0;
-  }
-
-  return proceed;
+  return ec->OnMatch (exp);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_symbols)
 {
   gchar * name;
-  GumV8MatchContext mc;
+  GumV8MatchContext<GumV8Module> mc (isolate, module);
   if (!_gum_v8_args_parse (args, "sF{onMatch,onComplete}", &name, &mc.on_match,
       &mc.on_complete))
     return;
-  mc.core = core;
-
-  mc.has_pending_exception = FALSE;
 
   gum_module_enumerate_symbols (name, (GumFoundSymbolFunc) gum_emit_symbol,
       &mc);
 
-  if (!mc.has_pending_exception)
-  {
-    mc.on_complete->Call (Undefined (isolate), 0, nullptr);
-  }
+  mc.OnComplete ();
 
   g_free (name);
 }
 
 static gboolean
 gum_emit_symbol (const GumSymbolDetails * details,
-                 GumV8MatchContext * mc)
+                 GumV8MatchContext<GumV8Module> * mc)
 {
-  auto core = mc->core;
-  auto isolate = core->isolate;
+  auto core = mc->parent->core;
+  auto isolate = mc->isolate;
 
   auto symbol = Object::New (isolate);
   _gum_v8_object_set (symbol, "isGlobal",
@@ -506,51 +443,32 @@ gum_emit_symbol (const GumSymbolDetails * details,
   _gum_v8_object_set_ascii (symbol, "name", details->name, core);
   _gum_v8_object_set_pointer (symbol, "address", details->address, core);
 
-  Handle<Value> argv[] = { symbol };
-  auto result =
-      mc->on_match->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
-
-  mc->has_pending_exception = result.IsEmpty ();
-
-  gboolean proceed = !mc->has_pending_exception;
-  if (proceed && result->IsString ())
-  {
-    String::Utf8Value str (result);
-    proceed = strcmp (*str, "stop") != 0;
-  }
-
-  return proceed;
+  return mc->OnMatch (symbol);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_ranges)
 {
   gchar * name;
   GumPageProtection prot;
-  GumV8MatchContext mc;
+  GumV8MatchContext<GumV8Module> mc (isolate, module);
   if (!_gum_v8_args_parse (args, "smF{onMatch,onComplete}", &name, &prot,
       &mc.on_match, &mc.on_complete))
     return;
-  mc.core = core;
-
-  mc.has_pending_exception = FALSE;
 
   gum_module_enumerate_ranges (name, prot, (GumFoundRangeFunc) gum_emit_range,
       &mc);
 
-  if (!mc.has_pending_exception)
-  {
-    mc.on_complete->Call (Undefined (isolate), 0, nullptr);
-  }
+  mc.OnComplete ();
 
   g_free (name);
 }
 
 static gboolean
 gum_emit_range (const GumRangeDetails * details,
-                GumV8MatchContext * mc)
+                GumV8MatchContext<GumV8Module> * mc)
 {
-  auto core = mc->core;
-  auto isolate = core->isolate;
+  auto core = mc->parent->core;
+  auto isolate = mc->isolate;
 
   auto range = Object::New (isolate);
   _gum_v8_object_set_pointer (range, "base", details->range->base_address,
@@ -558,20 +476,7 @@ gum_emit_range (const GumRangeDetails * details,
   _gum_v8_object_set_uint (range, "size", details->range->size, core);
   _gum_v8_object_set_page_protection (range, "protection", details->prot, core);
 
-  Handle<Value> argv[] = { range };
-  auto result =
-      mc->on_match->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
-
-  mc->has_pending_exception = result.IsEmpty ();
-
-  gboolean proceed = !mc->has_pending_exception;
-  if (proceed && result->IsString ())
-  {
-    String::Utf8Value str (result);
-    proceed = strcmp (*str, "stop") != 0;
-  }
-
-  return proceed;
+  return mc->OnMatch (range);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_module_find_base_address)
@@ -790,20 +695,23 @@ gum_v8_module_filter_matches (const GumModuleDetails * details,
                               GumV8ModuleFilter * self)
 {
   auto core = self->module->core;
-  Isolate * isolate = core->isolate;
+  auto isolate = core->isolate;
+  auto context = isolate->GetCurrentContext ();
 
   auto module = _gum_v8_module_value_new (details, self->module);
 
   auto callback (Local<Function>::New (isolate, *self->callback));
+  auto recv = Undefined (isolate);
   Handle<Value> argv[] = { module };
-
-  auto result = callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
-
-  if (result.IsEmpty ())
+  Local<Value> result;
+  if (callback->Call (context, recv, G_N_ELEMENTS (argv), argv)
+      .ToLocal (&result))
+  {
+    return result->IsBoolean () && result.As<Boolean> ()->Value ();
+  }
+  else
   {
     core->current_scope->ProcessAnyPendingException ();
     return FALSE;
   }
-
-  return result->IsBoolean () && result.As<Boolean> ()->Value ();
 }

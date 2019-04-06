@@ -141,6 +141,7 @@ public:
 
   MutexImpl * CreatePlainMutex () override;
   MutexImpl * CreateRecursiveMutex () override;
+  SharedMutexImpl * CreateSharedMutex () override;
   ConditionVariableImpl * CreateConditionVariable () override;
 };
 
@@ -172,6 +173,23 @@ public:
 
 private:
   GRecMutex mutex;
+};
+
+class GumSharedMutex : public SharedMutexImpl
+{
+public:
+  GumSharedMutex ();
+  ~GumSharedMutex () override;
+
+  void LockShared () override;
+  void LockExclusive () override;
+  void UnlockShared () override;
+  void UnlockExclusive () override;
+  bool TryLockShared () override;
+  bool TryLockExclusive () override;
+
+private:
+  GRWLock lock;
 };
 
 class GumConditionVariable : public ConditionVariableImpl
@@ -951,6 +969,12 @@ GumV8ThreadingBackend::CreateRecursiveMutex ()
   return new GumRecursiveMutex ();
 }
 
+SharedMutexImpl *
+GumV8ThreadingBackend::CreateSharedMutex ()
+{
+  return new GumSharedMutex ();
+}
+
 ConditionVariableImpl *
 GumV8ThreadingBackend::CreateConditionVariable ()
 {
@@ -1011,6 +1035,52 @@ bool
 GumRecursiveMutex::TryLock ()
 {
   return !!g_rec_mutex_trylock (&mutex);
+}
+
+GumSharedMutex::GumSharedMutex ()
+{
+  g_rw_lock_init (&lock);
+}
+
+GumSharedMutex::~GumSharedMutex ()
+{
+  g_rw_lock_clear (&lock);
+}
+
+void
+GumSharedMutex::LockShared ()
+{
+  g_rw_lock_reader_lock (&lock);
+}
+
+void
+GumSharedMutex::LockExclusive ()
+{
+  g_rw_lock_writer_lock (&lock);
+}
+
+void
+GumSharedMutex::UnlockShared ()
+{
+  g_rw_lock_reader_unlock (&lock);
+}
+
+void
+GumSharedMutex::UnlockExclusive ()
+{
+  g_rw_lock_writer_unlock (&lock);
+}
+
+bool
+GumSharedMutex::TryLockShared ()
+{
+  return !!g_rw_lock_reader_trylock (&lock);
+}
+
+bool
+GumSharedMutex::TryLockExclusive ()
+{
+  return !!g_rw_lock_writer_trylock (&lock);
 }
 
 GumConditionVariable::GumConditionVariable ()

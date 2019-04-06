@@ -7,6 +7,7 @@
 #include "gumv8process.h"
 
 #include "gumv8macros.h"
+#include "gumv8matchcontext.h"
 #include "gumv8scope.h"
 
 #include <string.h>
@@ -44,15 +45,6 @@ struct GumV8ExceptionHandler
   GumV8Core * core;
 };
 
-struct GumV8MatchContext
-{
-  Local<Function> on_match;
-  Local<Function> on_complete;
-
-  GumV8Process * parent;
-
-  gboolean has_pending_exception;
-};
 
 struct GumV8FindModuleByNameContext
 {
@@ -68,16 +60,16 @@ GUMJS_DECLARE_FUNCTION (gumjs_process_is_debugger_attached)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_thread_id)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_threads)
 static gboolean gum_emit_thread (const GumThreadDetails * details,
-    GumV8MatchContext * mc);
+    GumV8MatchContext<GumV8Process> * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_process_find_module_by_name)
 static gboolean gum_store_module_if_name_matches (
     const GumModuleDetails * details, GumV8FindModuleByNameContext * fc);
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_modules)
 static gboolean gum_emit_module (const GumModuleDetails * details,
-    GumV8MatchContext * mc);
+    GumV8MatchContext<GumV8Process> * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
-    GumV8MatchContext * mc);
+    GumV8MatchContext<GumV8Process> * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
 GUMJS_DECLARE_FUNCTION (gumjs_process_set_exception_handler)
 
@@ -167,25 +159,19 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_get_current_thread_id)
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_threads)
 {
-  GumV8MatchContext mc;
+  GumV8MatchContext<GumV8Process> mc (isolate, module);
   if (!_gum_v8_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
       &mc.on_complete))
     return;
-  mc.parent = module;
-
-  mc.has_pending_exception = FALSE;
 
   gum_process_enumerate_threads ((GumFoundThreadFunc) gum_emit_thread, &mc);
 
-  if (!mc.has_pending_exception)
-  {
-    mc.on_complete->Call (Undefined (isolate), 0, nullptr);
-  }
+  mc.OnComplete ();
 }
 
 static gboolean
 gum_emit_thread (const GumThreadDetails * details,
-                 GumV8MatchContext * mc)
+                 GumV8MatchContext<GumV8Process> * mc)
 {
   auto core = mc->parent->core;
   auto isolate = core->isolate;
@@ -198,18 +184,7 @@ gum_emit_thread (const GumThreadDetails * details,
       _gum_v8_cpu_context_new_immutable (&details->cpu_context, core);
   _gum_v8_object_set (thread, "context", cpu_context, core);
 
-  Handle<Value> argv[] = { thread };
-  auto result =
-      mc->on_match->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
-
-  mc->has_pending_exception = result.IsEmpty ();
-
-  gboolean proceed = !mc->has_pending_exception;
-  if (proceed && result->IsString ())
-  {
-    String::Utf8Value str (result);
-    proceed = strcmp (*str, "stop") != 0;
-  }
+  auto proceed = mc->OnMatch (thread);
 
   _gum_v8_cpu_context_free_later (
       new GumPersistent<Object>::type (isolate, cpu_context), core);
@@ -270,69 +245,41 @@ gum_store_module_if_name_matches (const GumModuleDetails * details,
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_modules)
 {
-  GumV8MatchContext mc;
+  GumV8MatchContext<GumV8Process> mc (isolate, module);
   if (!_gum_v8_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
       &mc.on_complete))
     return;
-  mc.parent = module;
-
-  mc.has_pending_exception = FALSE;
 
   gum_process_enumerate_modules ((GumFoundModuleFunc) gum_emit_module, &mc);
 
-  if (!mc.has_pending_exception)
-  {
-    mc.on_complete->Call (Undefined (isolate), 0, nullptr);
-  }
+  mc.OnComplete ();
 }
 
 static gboolean
 gum_emit_module (const GumModuleDetails * details,
-                 GumV8MatchContext * mc)
+                 GumV8MatchContext<GumV8Process> * mc)
 {
-  auto core = mc->parent->core;
-  auto isolate = core->isolate;
-
   auto module = _gum_v8_module_value_new (details, mc->parent->module);
 
-  Handle<Value> argv[] = { module };
-  auto result =
-      mc->on_match->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
-
-  mc->has_pending_exception = result.IsEmpty ();
-
-  gboolean proceed = !mc->has_pending_exception;
-  if (proceed && result->IsString ())
-  {
-    String::Utf8Value str (result);
-    proceed = strcmp (*str, "stop") != 0;
-  }
-
-  return proceed;
+  return mc->OnMatch (module);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_ranges)
 {
   GumPageProtection prot;
-  GumV8MatchContext mc;
+  GumV8MatchContext<GumV8Process> mc (isolate, module);
   if (!_gum_v8_args_parse (args, "mF{onMatch,onComplete}", &prot, &mc.on_match,
       &mc.on_complete))
     return;
-  mc.parent = module;
-
-  mc.has_pending_exception = FALSE;
 
   gum_process_enumerate_ranges (prot, (GumFoundRangeFunc) gum_emit_range, &mc);
 
-  if (!mc.has_pending_exception)
-  {
-    mc.on_complete->Call (Undefined (isolate), 0, nullptr);
-  }
+  mc.OnComplete ();
 }
 
 static gboolean
 gum_emit_range (const GumRangeDetails * details,
-                GumV8MatchContext * mc)
+                GumV8MatchContext<GumV8Process> * mc)
 {
   auto core = mc->parent->core;
   auto isolate = core->isolate;
@@ -353,72 +300,39 @@ gum_emit_range (const GumRangeDetails * details,
     _gum_v8_object_set (range, "file", file, core);
   }
 
-  Handle<Value> argv[] = { range };
-  auto result =
-      mc->on_match->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
-
-  mc->has_pending_exception = result.IsEmpty ();
-
-  gboolean proceed = !mc->has_pending_exception;
-  if (proceed && result->IsString ())
-  {
-    String::Utf8Value str (result);
-    proceed = strcmp (*str, "stop") != 0;
-  }
-
-  return proceed;
+  return mc->OnMatch (range);
 }
 
 #if defined (G_OS_WIN32) || defined (HAVE_DARWIN)
 
 static gboolean gum_emit_malloc_range (const GumMallocRangeDetails * details,
-    GumV8MatchContext * mc);
+    GumV8MatchContext<GumV8Process> * mc);
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
 {
-  GumV8MatchContext mc;
+  GumV8MatchContext<GumV8Process> mc (isolate, module);
   if (!_gum_v8_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
       &mc.on_complete))
     return;
-  mc.parent = module;
-
-  mc.has_pending_exception = FALSE;
 
   gum_process_enumerate_malloc_ranges (
       (GumFoundMallocRangeFunc) gum_emit_malloc_range, &mc);
 
-  if (!mc.has_pending_exception)
-  {
-    mc.on_complete->Call (Undefined (isolate), 0, nullptr);
-  }
+  mc.OnComplete ();
 }
 
 static gboolean
 gum_emit_malloc_range (const GumMallocRangeDetails * details,
-                       GumV8MatchContext * mc)
+                       GumV8MatchContext<GumV8Process> * mc)
 {
   auto core = mc->parent->core;
-  auto isolate = core->isolate;
 
-  auto range = Object::New (isolate);
+  auto range = Object::New (mc->isolate);
   _gum_v8_object_set_pointer (range, "base", details->range->base_address,
       core);
   _gum_v8_object_set_uint (range, "size", details->range->size, core);
 
-  Handle<Value> argv[] = { range };
-  auto result =
-      mc->on_match->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
-
-  mc->has_pending_exception = result.IsEmpty ();
-
-  gboolean proceed = !mc->has_pending_exception;
-  if (proceed && result->IsString ())
-  {
-    String::Utf8Value str (result);
-    proceed = strcmp (*str, "stop") != 0;
-  }
-
-  return proceed;
+  return mc->OnMatch (range);
 }
 
 #else
@@ -488,17 +402,18 @@ gum_v8_exception_handler_on_exception (GumExceptionDetails * details,
   Local<Object> ex, context;
   _gum_v8_parse_exception_details (details, ex, context, core);
 
+  gboolean handled = FALSE;
   Handle<Value> argv[] = { ex };
-  auto result = callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
+  Local<Value> result;
+  if (callback->Call (isolate->GetCurrentContext (), Undefined (isolate),
+      G_N_ELEMENTS (argv), argv).ToLocal (&result))
+  {
+    if (result->IsBoolean ())
+      handled = result.As<Boolean> ()->Value ();
+  }
 
   _gum_v8_cpu_context_free_later (
       new GumPersistent<Object>::type (isolate, context), core);
 
-  if (!result.IsEmpty () && result->IsBoolean ())
-  {
-    bool handled = result.As<Boolean> ()->Value ();
-    return handled ? TRUE : FALSE;
-  }
-
-  return FALSE;
+  return handled;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -95,6 +95,8 @@ ScriptScope::PerformPendingIO ()
 
     if (!g_queue_is_empty (tick_callbacks))
     {
+      auto context = isolate->GetCurrentContext ();
+
       GumPersistent<Function>::type * tick_callback;
       auto receiver = Undefined (isolate);
       while ((tick_callback = (GumPersistent<Function>::type *)
@@ -102,7 +104,7 @@ ScriptScope::PerformPendingIO ()
       {
         auto callback = Local<Function>::New (isolate, *tick_callback);
 
-        callback->Call (receiver, 0, nullptr);
+        (void) callback->Call (context, receiver, 0, nullptr);
         ProcessAnyPendingException ();
 
         delete tick_callback;

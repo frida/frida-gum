@@ -99,8 +99,8 @@ _gum_v8_symbol_realize (GumV8Symbol * self)
       (GDestroyNotify) gum_symbol_free);
 
   auto klass = Local<FunctionTemplate>::New (isolate, *self->klass);
-  auto object = klass->GetFunction ()->NewInstance (context, 0, nullptr)
-      .ToLocalChecked ();
+  auto object = klass->GetFunction (context).ToLocalChecked ()
+      ->NewInstance (context, 0, nullptr).ToLocalChecked ();
   self->template_object = new GumPersistent<Object>::type (isolate, object);
 }
 

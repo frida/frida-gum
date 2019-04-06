@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -343,11 +343,12 @@ static void
 gum_memory_patch_context_apply (gpointer mem,
                                 GumMemoryPatchContext * self)
 {
-  Handle<Value> argv[] = {
-    _gum_v8_native_pointer_new (mem, self->core)
-  };
-  auto result = self->apply->Call (Undefined (self->core->isolate),
-      G_N_ELEMENTS (argv), argv);
+  auto isolate = self->core->isolate;
+  auto context = isolate->GetCurrentContext ();
+
+  auto recv = Undefined (isolate);
+  Handle<Value> argv[] = { _gum_v8_native_pointer_new (mem, self->core) };
+  auto result = self->apply->Call (context, recv, G_N_ELEMENTS (argv), argv);
   self->has_pending_exception = result.IsEmpty ();
 }
 
@@ -924,21 +925,25 @@ gum_memory_scan_context_run (GumMemoryScanContext * self)
   if (gum_exceptor_catch (exceptor, &scope) && self->on_error != nullptr)
   {
     ScriptScope script_scope (core->script);
+    auto context = isolate->GetCurrentContext ();
 
     auto message = gum_exception_details_to_string (&scope.exception);
 
     auto on_error = Local<Function>::New (isolate, *self->on_error);
+    auto recv = Undefined (isolate);
     Handle<Value> argv[] = { String::NewFromUtf8 (isolate, message) };
-    on_error->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
+    (void) on_error->Call (context, recv, G_N_ELEMENTS (argv), argv);
 
     g_free (message);
   }
 
   {
     ScriptScope script_scope (core->script);
+    auto context = isolate->GetCurrentContext ();
 
     auto on_complete (Local<Function>::New (isolate, *self->on_complete));
-    on_complete->Call (Undefined (isolate), 0, nullptr);
+    auto recv = Undefined (isolate);
+    (void) on_complete->Call (context, recv, 0, nullptr);
   }
 }
 
@@ -949,18 +954,20 @@ gum_memory_scan_context_emit_match (GumAddress address,
 {
   ScriptScope scope (self->core->script);
   auto isolate = self->core->isolate;
+  auto context = isolate->GetCurrentContext ();
 
+  gboolean proceed = TRUE;
   auto on_match = Local<Function>::New (isolate, *self->on_match);
+  auto recv = Undefined (isolate);
   Handle<Value> argv[] = {
     _gum_v8_native_pointer_new (GSIZE_TO_POINTER (address), self->core),
     Integer::NewFromUnsigned (isolate, size)
   };
-  auto result = on_match->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
-
-  gboolean proceed = TRUE;
-  if (!result.IsEmpty () && result->IsString ())
+  Local<Value> result;
+  if (on_match->Call (context, recv, G_N_ELEMENTS (argv), argv)
+      .ToLocal (&result) && result->IsString ())
   {
-    String::Utf8Value str (result);
+    String::Utf8Value str (isolate, result);
     proceed = strcmp (*str, "stop") != 0;
   }
 

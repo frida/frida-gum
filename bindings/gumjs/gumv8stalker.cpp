@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -212,8 +212,8 @@ _gum_v8_stalker_realize (GumV8Stalker * self)
   auto context = isolate->GetCurrentContext ();
 
   auto iter = Local<FunctionTemplate>::New (isolate, *self->iterator);
-  auto iter_value = iter->GetFunction ()->NewInstance (context, 0, nullptr)
-      .ToLocalChecked ();
+  auto iter_value = iter->GetFunction (context).ToLocalChecked ()
+      ->NewInstance (context, 0, nullptr).ToLocalChecked ();
   self->iterator_value = new GumPersistent<Object>::type (isolate, iter_value);
 
   auto args = ObjectTemplate::New (isolate);
@@ -670,6 +670,7 @@ gum_v8_callback_transformer_transform_block (
   auto core = module->core;
   ScriptScope scope (core->script);
   auto isolate = core->isolate;
+  auto context = isolate->GetCurrentContext ();
 
   auto callback = Local<Function>::New (isolate, *self->callback);
 
@@ -679,8 +680,9 @@ gum_v8_callback_transformer_transform_block (
   gum_v8_stalker_iterator_reset (iter_value, iterator);
   auto iter_object = Local<Object>::New (isolate, *output_value->object);
 
+  auto recv = Undefined (isolate);
   Handle<Value> argv[] = { iter_object };
-  callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
+  (void) callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
 
   gum_v8_stalker_iterator_reset (iter_value, NULL);
   _gum_v8_native_writer_reset (output_value, NULL);
@@ -738,17 +740,19 @@ gum_v8_call_probe_on_fire (GumCallSite * site,
 {
   auto core = self->module->core;
   ScriptScope scope (core->script);
-  Isolate * isolate = core->isolate;
+  auto isolate = core->isolate;
+  auto context = isolate->GetCurrentContext ();
 
   auto probe_args =
       Local<ObjectTemplate>::New (isolate, *self->module->probe_args);
-  auto args = probe_args->NewInstance ();
+  auto args = probe_args->NewInstance (context).ToLocalChecked ();
   args->SetAlignedPointerInInternalField (0, self);
   args->SetAlignedPointerInInternalField (1, site);
 
   auto callback (Local<Function>::New (isolate, *self->callback));
+  auto recv = Undefined (isolate);
   Handle<Value> argv[] = { args };
-  callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
+  (void) callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
 
   args->SetAlignedPointerInInternalField (0, nullptr);
   args->SetAlignedPointerInInternalField (1, nullptr);
@@ -900,13 +904,15 @@ gum_v8_callout_on_invoke (GumCpuContext * cpu_context,
 {
   auto core = self->module->core;
   ScriptScope scope (core->script);
-  Isolate * isolate = core->isolate;
+  auto isolate = core->isolate;
+  auto context = isolate->GetCurrentContext ();
 
   auto cpu_context_value = _gum_v8_cpu_context_new_mutable (cpu_context, core);
 
   auto callback (Local<Function>::New (isolate, *self->callback));
+  auto recv = Undefined (isolate);
   Handle<Value> argv[] = { cpu_context_value };
-  callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
+  (void) callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
 
   _gum_v8_cpu_context_free_later (
       new GumPersistent<Object>::type (isolate, cpu_context_value), core);

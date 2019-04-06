@@ -1361,7 +1361,7 @@ def generate_v8_parse_call_arg_array_element(component, api):
     {{
       item->type = GUM_ARG_REGISTER;
 
-      String::Utf8Value value_as_utf8 (value.As<String> ());
+      String::Utf8Value value_as_utf8 (isolate, value);
       {native_register_type} value_as_reg;
       if (!gum_parse_{arch}_register (isolate, *value_as_utf8, &value_as_reg))
         return;
@@ -1386,7 +1386,7 @@ def generate_v8_parse_register_array_element(component, api):
       return;
     }}
 
-    String::Utf8Value value_as_utf8 (value.As<String> ());
+    String::Utf8Value value_as_utf8 (isolate, value);
     {native_register_type} value_as_reg;
     if (!gum_parse_{arch}_register (isolate, *value_as_utf8, &value_as_reg))
       return;
@@ -1509,8 +1509,8 @@ _{wrapper_function_prefix}_new_persistent (GumV8CodeWriter * module)
   auto writer_value = External::New (isolate, writer);
   Handle<Value> argv[] = {{ writer_value }};
 
-  auto object = writer_class->GetFunction ()->NewInstance (
-      context, G_N_ELEMENTS (argv), argv).ToLocalChecked ();
+  auto object = writer_class->GetFunction (context).ToLocalChecked ()
+      ->NewInstance (context, G_N_ELEMENTS (argv), argv).ToLocalChecked ();
 
   writer->object = new GumPersistent<Object>::type (isolate, object);
 
@@ -1840,8 +1840,8 @@ _{wrapper_function_prefix}_new_persistent (GumV8CodeRelocator * module)
   auto relocator_value = External::New (isolate, relocator);
   Handle<Value> argv[] = {{ relocator_value }};
 
-  auto object = relocator_class->GetFunction ()->NewInstance (
-      context, G_N_ELEMENTS (argv), argv).ToLocalChecked ();
+  auto object = relocator_class->GetFunction (context).ToLocalChecked ()
+      ->NewInstance (context, G_N_ELEMENTS (argv), argv).ToLocalChecked ();
 
   relocator->object = new GumPersistent<Object>::type (isolate, object);
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -294,26 +294,26 @@ _gum_v8_interceptor_realize (GumV8Interceptor * self)
 
   auto listener = Local<FunctionTemplate>::New (isolate,
       *self->invocation_listener);
-  auto listener_value = listener->GetFunction ()->NewInstance (context,
-      0, nullptr).ToLocalChecked ();
+  auto listener_value = listener->GetFunction (context).ToLocalChecked ()
+      ->NewInstance (context, 0, nullptr).ToLocalChecked ();
   self->invocation_listener_value =
       new GumPersistent<Object>::type (isolate, listener_value);
 
   auto ic = Local<FunctionTemplate>::New (isolate, *self->invocation_context);
-  auto ic_value =
-      ic->GetFunction ()->NewInstance (context, 0, nullptr).ToLocalChecked ();
+  auto ic_value = ic->GetFunction (context).ToLocalChecked ()
+      ->NewInstance (context, 0, nullptr).ToLocalChecked ();
   self->invocation_context_value =
       new GumPersistent<Object>::type (isolate, ic_value);
 
   auto ia = Local<FunctionTemplate>::New (isolate, *self->invocation_args);
-  auto ia_value =
-      ia->GetFunction ()->NewInstance (context, 0, nullptr).ToLocalChecked ();
+  auto ia_value = ia->GetFunction (context).ToLocalChecked ()
+      ->NewInstance (context, 0, nullptr).ToLocalChecked ();
   self->invocation_args_value =
       new GumPersistent<Object>::type (isolate, ia_value);
 
   auto ir = Local<FunctionTemplate>::New (isolate, *self->invocation_return);
-  auto ir_value =
-      ir->GetFunction ()->NewInstance (context, 0, nullptr).ToLocalChecked ();
+  auto ir_value = ir->GetFunction (context).ToLocalChecked ()
+      ->NewInstance (context, 0, nullptr).ToLocalChecked ();
   self->invocation_return_value = new GumPersistent<Object>::type (isolate,
       ir_value);
 
@@ -654,19 +654,20 @@ gum_v8_invocation_listener_on_enter (GumInvocationListener * listener,
     auto core = module->core;
     ScriptScope scope (core->script);
     auto isolate = core->isolate;
+    auto context = isolate->GetCurrentContext ();
 
     auto on_enter = Local<Function>::New (isolate, *self->on_enter);
 
     auto jic = _gum_v8_interceptor_obtain_invocation_context (module);
     _gum_v8_invocation_context_reset (jic, ic);
-    auto receiver = Local<Object>::New (isolate, *jic->object);
+    auto recv = Local<Object>::New (isolate, *jic->object);
 
     auto args = gum_v8_interceptor_obtain_invocation_args (module);
     gum_v8_invocation_args_reset (args, ic);
     auto args_object = Local<Object>::New (isolate, *args->object);
 
     Handle<Value> argv[] = { args_object };
-    on_enter->Call (receiver, G_N_ELEMENTS (argv), argv);
+    (void) on_enter->Call (context, recv, G_N_ELEMENTS (argv), argv);
 
     gum_v8_invocation_args_reset (args, NULL);
     gum_v8_interceptor_release_invocation_args (module, args);
@@ -701,6 +702,7 @@ gum_v8_invocation_listener_on_leave (GumInvocationListener * listener,
     auto core = module->core;
     ScriptScope scope (core->script);
     auto isolate = core->isolate;
+    auto context = isolate->GetCurrentContext ();
 
     auto on_leave = Local<Function>::New (isolate, *self->on_leave);
 
@@ -710,7 +712,7 @@ gum_v8_invocation_listener_on_leave (GumInvocationListener * listener,
       jic = _gum_v8_interceptor_obtain_invocation_context (module);
     }
     _gum_v8_invocation_context_reset (jic, ic);
-    auto receiver = Local<Object>::New (isolate, *jic->object);
+    auto recv = Local<Object>::New (isolate, *jic->object);
 
     auto retval = gum_v8_interceptor_obtain_invocation_return_value (module);
     gum_v8_invocation_return_value_reset (retval, ic);
@@ -719,7 +721,7 @@ gum_v8_invocation_listener_on_leave (GumInvocationListener * listener,
         gum_invocation_context_get_return_value (ic)));
 
     Handle<Value> argv[] = { retval_object };
-    on_leave->Call (receiver, G_N_ELEMENTS (argv), argv);
+    (void) on_leave->Call (context, recv, G_N_ELEMENTS (argv), argv);
 
     gum_v8_invocation_return_value_reset (retval, NULL);
     gum_v8_interceptor_release_invocation_return_value (module, retval);

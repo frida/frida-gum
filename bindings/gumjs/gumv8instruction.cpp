@@ -133,8 +133,8 @@ _gum_v8_instruction_realize (GumV8Instruction * self)
       (GDestroyNotify) gum_v8_instruction_free);
 
   auto klass = Local<FunctionTemplate>::New (isolate, *self->klass);
-  auto object = klass->GetFunction ()->NewInstance (context, 0, nullptr)
-      .ToLocalChecked ();
+  auto object = klass->GetFunction (context).ToLocalChecked ()
+      ->NewInstance (context, 0, nullptr).ToLocalChecked ();
   self->template_object = new GumPersistent<Object>::type (isolate, object);
 }
 

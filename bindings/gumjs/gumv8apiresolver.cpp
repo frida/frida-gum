@@ -7,6 +7,7 @@
 #include "gumv8apiresolver.h"
 
 #include "gumv8macros.h"
+#include "gumv8matchcontext.h"
 
 #include <string.h>
 
@@ -14,20 +15,10 @@
 
 using namespace v8;
 
-struct GumV8MatchContext
-{
-  Local<Function> on_match;
-  Local<Function> on_complete;
-
-  GumV8Core * core;
-
-  gboolean has_pending_exception;
-};
-
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_api_resolver_construct);
 GUMJS_DECLARE_FUNCTION (gumjs_api_resolver_enumerate_matches)
 static gboolean gum_emit_match (const GumApiDetails * details,
-    GumV8MatchContext * mc);
+    GumV8MatchContext<GumV8ApiResolver> * mc);
 
 static const GumV8Function gumjs_api_resolver_functions[] =
 {
@@ -105,13 +96,10 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_api_resolver_enumerate_matches,
                            GumV8ApiResolverObject)
 {
   gchar * query;
-  GumV8MatchContext mc;
+  GumV8MatchContext<GumV8ApiResolver> mc (isolate, module);
   if (!_gum_v8_args_parse (args, "sF{onMatch,onComplete}", &query, &mc.on_match,
       &mc.on_complete))
     return;
-  mc.core = core;
-
-  mc.has_pending_exception = FALSE;
 
   GError * error = NULL;
   gum_api_resolver_enumerate_matches (self->handle, query,
@@ -126,35 +114,18 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_api_resolver_enumerate_matches,
     return;
   }
 
-  if (!mc.has_pending_exception)
-  {
-    mc.on_complete->Call (Undefined (isolate), 0, nullptr);
-  }
+  mc.OnComplete ();
 }
 
 static gboolean
 gum_emit_match (const GumApiDetails * details,
-                GumV8MatchContext * mc)
+                GumV8MatchContext<GumV8ApiResolver> * mc)
 {
-  auto core = mc->core;
-  auto isolate = core->isolate;
+  auto core = mc->parent->core;
 
-  auto match = Object::New (isolate);
+  auto match = Object::New (core->isolate);
   _gum_v8_object_set_utf8 (match, "name", details->name, core);
   _gum_v8_object_set_pointer (match, "address", details->address, core);
 
-  Handle<Value> argv[] = { match };
-  auto result =
-      mc->on_match->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
-
-  mc->has_pending_exception = result.IsEmpty ();
-
-  gboolean proceed = !mc->has_pending_exception;
-  if (proceed && result->IsString ())
-  {
-    String::Utf8Value str (result);
-    proceed = strcmp (*str, "stop") != 0;
-  }
-
-  return proceed;
+  return mc->OnMatch (match);
 }

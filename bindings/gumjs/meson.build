@@ -163,6 +163,7 @@ gumjs_sources += [gumjs_runtime]
 
 gumjs = library('frida-gumjs-' + api_version, gumjs_sources,
   c_args: frida_component_cflags,
+  override_options: ['cpp_std=c++11'],
   include_directories: [bindings_inc],
   dependencies: [gum_dep, gio_dep, json_glib_dep, ffi_dep, sqlite_dep, libsoup_dep] + gumjs_extra_deps,
   install: true,

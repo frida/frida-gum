@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -68,6 +68,9 @@ static void
 gum_v8_bundle_script_run (Persistent<UnboundScript> * script,
                           GumV8Bundle * bundle)
 {
-  auto s = Local<UnboundScript>::New (bundle->isolate, *script);
-  s->BindToCurrentContext ()->Run ();
+  auto isolate = bundle->isolate;
+  auto context = isolate->GetCurrentContext ();
+
+  auto s = Local<UnboundScript>::New (isolate, *script);
+  s->BindToCurrentContext ()->Run (context).ToLocalChecked ();
 }
