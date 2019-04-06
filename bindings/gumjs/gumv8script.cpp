@@ -513,7 +513,7 @@ gum_v8_script_perform_load_task (GumV8Script * self,
       gum_v8_bundle_run (platform->GetRuntimeBundle ());
 
       auto code = Local<Script>::New (isolate, *self->code);
-      code->Run (isolate->GetCurrentContext ());
+      (void) code->Run (isolate->GetCurrentContext ());
     }
 
     self->state = GUM_SCRIPT_STATE_LOADED;
