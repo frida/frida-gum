@@ -268,13 +268,13 @@ gum_dep = declare_dependency(link_with: gum,
 )
 
 pkg = import('pkgconfig')
-pkg.generate(filebase: 'frida-gum-' + api_version,
+pkg.generate(gum,
+  filebase: 'frida-gum-' + api_version,
   name: 'Gum',
   version: gum_version,
   description: 'Low-level code instrumentation library',
   requires: ['glib-2.0', 'gobject-2.0', 'gio-2.0', 'capstone'],
   requires_private: extra_requires_private,
   subdirs: install_header_basedir,
-  libraries: [gum],
   libraries_private: extra_libs_private,
 )
