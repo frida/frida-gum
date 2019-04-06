@@ -867,24 +867,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_scan_sync)
   ctx.matches = Array::New (isolate);
   ctx.core = core;
 
-  GumExceptorScope scope;
+  gum_kernel_scan (&range, pattern, (GumMemoryScanMatchFunc) gum_append_match,
+      &ctx);
 
-  if (gum_exceptor_try (core->exceptor, &scope))
-  {
-    gum_kernel_scan (&range, pattern, (GumMemoryScanMatchFunc) gum_append_match,
-        &ctx);
-  }
+  info.GetReturnValue ().Set (ctx.matches);
 
   gum_match_pattern_free (pattern);
-
-  if (gum_exceptor_catch (core->exceptor, &scope))
-  {
-    _gum_v8_throw_native (&scope.exception, core);
-  }
-  else
-  {
-    info.GetReturnValue ().Set (ctx.matches);
-  }
 }
 
 static gboolean
