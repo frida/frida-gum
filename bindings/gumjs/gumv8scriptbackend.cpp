@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -34,9 +34,8 @@
 #define GUM_V8_FLAGS \
     GUM_V8_PLATFORM_FLAGS \
     "--es-staging " \
-    "--harmony-do-expressions " \
     "--harmony-class-fields " \
-    "--harmony-static-fields " \
+    "--harmony-private-methods " \
     "--experimental-wasm-simd " \
     "--experimental-wasm-eh " \
     "--experimental-wasm-mv " \
