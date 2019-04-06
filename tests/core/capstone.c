@@ -31,16 +31,25 @@ TESTCASE (simple_x86_instruction_should_be_supported)
 
 TESTCASE (vbroadcasti128_instructions_should_be_unsupported_for_now)
 {
-  const guint8 vbroadcast6[] = { 0xc4, 0xe2, 0x7d, 0x5a, 0x0c, 0x0e };
-  const guint8 vbroadcast7[] = { 0xc4, 0x02, 0x7d, 0x5a, 0x44, 0x05, 0x00 };
+  {
+    const guint8 vbroadcast6[] = { 0xc4, 0xe2, 0x7d, 0x5a, 0x0c, 0x0e };
 
-  DECODE (vbroadcast6);
-  EXPECT (X86_INS_NOP, "<bug> vbroadcasti128 instructions missing in capstone");
-  g_assert_cmpuint (fixture->insn->size, ==, 6);
+    DECODE (vbroadcast6);
+    EXPECT (X86_INS_NOP,
+        "<bug> vbroadcasti128 instructions missing in capstone");
+    g_assert_cmpuint (fixture->insn->size, ==, 6);
+  }
 
-  DECODE (vbroadcast7);
-  EXPECT (X86_INS_NOP, "<bug> vbroadcasti128 instructions missing in capstone");
-  g_assert_cmpuint (fixture->insn->size, ==, 7);
+#if GLIB_SIZEOF_VOID_P == 8
+  {
+    const guint8 vbroadcast7[] = { 0xc4, 0x02, 0x7d, 0x5a, 0x44, 0x05, 0x00 };
+
+    DECODE (vbroadcast7);
+    EXPECT (X86_INS_NOP,
+        "<bug> vbroadcasti128 instructions missing in capstone");
+    g_assert_cmpuint (fixture->insn->size, ==, 7);
+  }
+#endif
 }
 
 #elif defined (HAVE_ARM)
