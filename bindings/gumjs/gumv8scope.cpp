@@ -95,8 +95,6 @@ ScriptScope::PerformPendingIO ()
 
     if (!g_queue_is_empty (tick_callbacks))
     {
-      auto context = isolate->GetCurrentContext ();
-
       GumPersistent<Function>::type * tick_callback;
       auto receiver = Undefined (isolate);
       while ((tick_callback = (GumPersistent<Function>::type *)

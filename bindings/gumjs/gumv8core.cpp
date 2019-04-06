@@ -3231,7 +3231,6 @@ gum_v8_value_to_ffi_type (GumV8Core * core,
 
     auto field_values = (guint8 *) value;
     gsize offset = 0;
-    auto context = isolate->GetCurrentContext ();
     for (gsize i = 0; i != length; i++)
     {
       auto field_type = field_types[i];
