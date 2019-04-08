@@ -8,6 +8,7 @@
 #include "stalker-arm64-fixture.c"
 
 #include <lzma.h>
+#include <sys/prctl.h>
 
 TESTLIST_BEGIN (stalker)
 
@@ -1039,6 +1040,7 @@ TESTCASE (follow_thread)
   StalkerVictimContext ctx;
   GumThreadId thread_id;
   GThread * thread;
+  int prev_dumpable;
 
 #ifdef HAVE_ANDROID
   if (!g_test_slow ())
@@ -1047,6 +1049,10 @@ TESTCASE (follow_thread)
     return;
   }
 #endif
+
+  /* Android spawns non-debuggable applications as not dumpable by default. */
+  prev_dumpable = prctl (PR_GET_DUMPABLE);
+  prctl (PR_SET_DUMPABLE, 0);
 
   ctx.state = STALKER_VICTIM_CREATED;
   g_mutex_init (&ctx.mutex);
@@ -1105,6 +1111,8 @@ TESTCASE (follow_thread)
 
   g_mutex_clear (&ctx.mutex);
   g_cond_clear (&ctx.cond);
+
+  prctl (PR_SET_DUMPABLE, prev_dumpable);
 }
 
 TESTCASE (heap_api)
