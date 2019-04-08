@@ -20,6 +20,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <gio/gio.h>
+#include <sys/prctl.h>
 #include <sys/ptrace.h>
 #ifdef HAVE_ASM_PTRACE_H
 # include <asm/ptrace.h>
@@ -347,6 +348,7 @@ gum_process_modify_thread (GumThreadId thread_id,
     gssize child;
     gpointer stack, tls;
     GumUserDesc * desc;
+    int prev_dumpable;
 
     res = socketpair (AF_UNIX, SOCK_STREAM, 0, ctx.fd);
     g_assert_cmpint (res, ==, 0);
@@ -380,6 +382,17 @@ gum_process_modify_thread (GumThreadId thread_id,
 #else
     desc = tls;
 #endif
+
+    /*
+     * Some systems (notably Android on release applications) spawn processes as
+     * not dumpable by default, disabling ptrace() on that process for anyone
+     * other than root.
+     *
+     * To allow our child to ptrace() this process, we enable this temporarily.
+     */
+    prev_dumpable = prctl (PR_GET_DUMPABLE);
+    if (prev_dumpable != -1 && prev_dumpable != 1)
+      prctl (PR_SET_DUMPABLE, 1);
 
     /*
      * It seems like the only reliable way to read/write the registers of
@@ -438,6 +451,12 @@ gum_process_modify_thread (GumThreadId thread_id,
 
         success = gum_await_ack (fd, GUM_ACK_WROTE_CONTEXT);
       }
+    }
+
+    if (prev_dumpable != -1 && prev_dumpable != 1)
+    {
+      int res = prctl (PR_SET_DUMPABLE, prev_dumpable);
+      g_assert (res == 0);
     }
 
     waitpid (child, NULL, __WCLONE);
