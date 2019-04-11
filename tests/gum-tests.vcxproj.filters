@@ -54,9 +54,6 @@
     <ClCompile Include="core\interceptor.c">
       <Filter>Tests\core</Filter>
     </ClCompile>
-    <ClCompile Include="core\capstone.c">
-      <Filter>Tests\core</Filter>
-    </ClCompile>
     <ClCompile Include="core\arch-x86\codewriter.c">
       <Filter>Tests\core\arch-x86</Filter>
     </ClCompile>

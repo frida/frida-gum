@@ -170,7 +170,6 @@ main (gint argc, gchar * argv[])
 
   /* Core */
   TESTLIST_REGISTER (testutil);
-  TESTLIST_REGISTER (capstone);
   TESTLIST_REGISTER (tls);
   TESTLIST_REGISTER (cloak);
   TESTLIST_REGISTER (memory);
