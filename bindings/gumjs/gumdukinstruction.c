@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -44,7 +44,6 @@ static void gum_arm64_push_shift_details (duk_context * ctx,
 static const gchar * gum_arm64_shifter_to_string (arm64_shifter type);
 static const gchar * gum_arm64_extender_to_string (arm64_extender ext);
 static const gchar * gum_arm64_vas_to_string (arm64_vas vas);
-static const gchar * gum_arm64_vess_to_string (arm64_vess vess);
 #elif defined (HAVE_MIPS)
 static void gum_mips_push_memory_operand_value (duk_context * ctx,
     const mips_op_mem * mem, GumDukInstruction * module);
@@ -719,12 +718,6 @@ gum_push_operands (duk_context * ctx,
       duk_put_prop_string (ctx, -2, "vas");
     }
 
-    if (op->vess != ARM64_VESS_INVALID)
-    {
-      duk_push_string (ctx, gum_arm64_vess_to_string (op->vess));
-      duk_put_prop_string (ctx, -2, "vess");
-    }
-
     if (op->vector_index != -1)
     {
       duk_push_uint (ctx, op->vector_index);
@@ -825,22 +818,6 @@ gum_arm64_vas_to_string (arm64_vas vas)
     case ARM64_VAS_1D:  return "1d";
     case ARM64_VAS_2D:  return "2d";
     case ARM64_VAS_1Q:  return "1q";
-    default:
-      g_assert_not_reached ();
-  }
-
-  return NULL;
-}
-
-static const gchar *
-gum_arm64_vess_to_string (arm64_vess vess)
-{
-  switch (vess)
-  {
-    case ARM64_VESS_B: return "b";
-    case ARM64_VESS_H: return "h";
-    case ARM64_VESS_S: return "s";
-    case ARM64_VESS_D: return "d";
     default:
       g_assert_not_reached ();
   }

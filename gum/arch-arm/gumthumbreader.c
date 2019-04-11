@@ -6,7 +6,7 @@
 
 #include "gumthumbreader.h"
 
-#include <capstone/capstone.h>
+#include <capstone.h>
 
 static cs_insn * disassemble_instruction_at (gconstpointer address);
 

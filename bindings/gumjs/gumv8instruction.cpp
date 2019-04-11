@@ -55,7 +55,6 @@ static Local<Object> gum_arm64_parse_shift_details (const cs_arm64_op * op,
 static const gchar * gum_arm64_shifter_to_string (arm64_shifter type);
 static const gchar * gum_arm64_extender_to_string (arm64_extender ext);
 static const gchar * gum_arm64_vas_to_string (arm64_vas vas);
-static const gchar * gum_arm64_vess_to_string (arm64_vess vess);
 #elif defined (HAVE_MIPS)
 static Local<Object> gum_mips_parse_memory_operand_value (
     const mips_op_mem * mem, GumV8Instruction * module);
@@ -761,12 +760,6 @@ gum_parse_operands (const cs_insn * insn,
           gum_arm64_vas_to_string (op->vas), core);
     }
 
-    if (op->vess != ARM64_VESS_INVALID)
-    {
-      _gum_v8_object_set_ascii (element, "vess",
-          gum_arm64_vess_to_string (op->vess), core);
-    }
-
     if (op->vector_index != -1)
     {
       _gum_v8_object_set_uint (element, "vectorIndex", op->vector_index, core);
@@ -871,22 +864,6 @@ gum_arm64_vas_to_string (arm64_vas vas)
     case ARM64_VAS_1D:  return "1d";
     case ARM64_VAS_2D:  return "2d";
     case ARM64_VAS_1Q:  return "1q";
-    default:
-      g_assert_not_reached ();
-  }
-
-  return NULL;
-}
-
-static const gchar *
-gum_arm64_vess_to_string (arm64_vess vess)
-{
-  switch (vess)
-  {
-    case ARM64_VESS_B: return "b";
-    case ARM64_VESS_H: return "h";
-    case ARM64_VESS_S: return "s";
-    case ARM64_VESS_D: return "d";
     default:
       g_assert_not_reached ();
   }

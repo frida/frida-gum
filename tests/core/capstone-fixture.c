@@ -4,7 +4,7 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#include <capstone/capstone.h>
+#include <capstone.h>
 
 #include "testutil.h"
 

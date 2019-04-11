@@ -7,7 +7,7 @@
 
 #include "gumdefs.h"
 
-#include <capstone/capstone.h>
+#include <capstone.h>
 
 G_BEGIN_DECLS
 

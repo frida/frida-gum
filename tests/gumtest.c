@@ -16,7 +16,7 @@
 #endif
 #include "valgrind.h"
 
-#include <capstone/capstone.h>
+#include <capstone.h>
 #include <glib.h>
 #include <gio/gio.h>
 #ifdef HAVE_GLIB_SCHANNEL_STATIC
