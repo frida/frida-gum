@@ -454,10 +454,7 @@ gum_process_modify_thread (GumThreadId thread_id,
     }
 
     if (prev_dumpable != -1 && prev_dumpable != 1)
-    {
-      int res = prctl (PR_SET_DUMPABLE, prev_dumpable);
-      g_assert (res == 0);
-    }
+      prctl (PR_SET_DUMPABLE, prev_dumpable);
 
     waitpid (child, NULL, __WCLONE);
 

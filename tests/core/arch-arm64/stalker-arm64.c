@@ -8,7 +8,9 @@
 #include "stalker-arm64-fixture.c"
 
 #include <lzma.h>
-#include <sys/prctl.h>
+#ifdef HAVE_LINUX
+# include <sys/prctl.h>
+#endif
 
 TESTLIST_BEGIN (stalker)
 
@@ -1050,9 +1052,11 @@ TESTCASE (follow_thread)
   }
 #endif
 
+#ifdef HAVE_LINUX
   /* Android spawns non-debuggable applications as not dumpable by default. */
   prev_dumpable = prctl (PR_GET_DUMPABLE);
   prctl (PR_SET_DUMPABLE, 0);
+#endif
 
   ctx.state = STALKER_VICTIM_CREATED;
   g_mutex_init (&ctx.mutex);
@@ -1112,7 +1116,9 @@ TESTCASE (follow_thread)
   g_mutex_clear (&ctx.mutex);
   g_cond_clear (&ctx.cond);
 
+#ifdef HAVE_LINUX
   prctl (PR_SET_DUMPABLE, prev_dumpable);
+#endif
 }
 
 TESTCASE (heap_api)
