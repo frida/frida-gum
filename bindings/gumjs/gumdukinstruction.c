@@ -96,10 +96,10 @@ _gum_duk_instruction_init (GumDukInstruction * self,
   self->core = core;
 
   err = cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &self->capstone);
-  g_assert_cmpint (err, ==, CS_ERR_OK);
+  g_assert (err == CS_ERR_OK);
 
   err = cs_option (self->capstone, CS_OPT_DETAIL, CS_OPT_ON);
-  g_assert_cmpint (err, ==, CS_ERR_OK);
+  g_assert (err == CS_ERR_OK);
 
   _gum_duk_store_module_data (ctx, "instruction", self);
 

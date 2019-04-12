@@ -30,7 +30,7 @@ TESTCASE (range_clip_should_not_include_uncloaked)
 
   range.base_address = GUM_ADDRESS (page);
   range.size = gum_query_page_size ();
-  g_assert (gum_cloak_clip_range (&range) == NULL);
+  g_assert_null (gum_cloak_clip_range (&range));
 
   gum_free_pages (page);
 }
@@ -48,7 +48,7 @@ TESTCASE (range_clip_should_handle_full_clip)
   gum_cloak_add_range (&range);
 
   clipped = gum_cloak_clip_range (&range);
-  g_assert (clipped != NULL);
+  g_assert_nonnull (clipped);
   g_assert_cmpuint (clipped->len, ==, 0);
   g_array_free (clipped, TRUE);
 
@@ -77,7 +77,7 @@ TESTCASE (range_clip_should_handle_bottom_clip)
   full_range.base_address = GUM_ADDRESS (pages);
   full_range.size = 2 * page_size;
   clipped = gum_cloak_clip_range (&full_range);
-  g_assert (clipped != NULL);
+  g_assert_nonnull (clipped);
   g_assert_cmpuint (clipped->len, ==, 1);
   r = &g_array_index (clipped, GumMemoryRange, 0);
   g_assert_cmphex (r->base_address, ==, GUM_ADDRESS (pages) + page_size);
@@ -109,7 +109,7 @@ TESTCASE (range_clip_should_handle_middle_clip)
   full_range.base_address = GUM_ADDRESS (pages);
   full_range.size = 3 * page_size;
   clipped = gum_cloak_clip_range (&full_range);
-  g_assert (clipped != NULL);
+  g_assert_nonnull (clipped);
   g_assert_cmpuint (clipped->len, ==, 2);
   r = &g_array_index (clipped, GumMemoryRange, 0);
   g_assert_cmphex (r->base_address, ==, GUM_ADDRESS (pages));
@@ -144,7 +144,7 @@ TESTCASE (range_clip_should_handle_top_clip)
   full_range.base_address = GUM_ADDRESS (pages);
   full_range.size = 2 * page_size;
   clipped = gum_cloak_clip_range (&full_range);
-  g_assert (clipped != NULL);
+  g_assert_nonnull (clipped);
   g_assert_cmpuint (clipped->len, ==, 1);
   r = &g_array_index (clipped, GumMemoryRange, 0);
   g_assert_cmphex (r->base_address, ==, GUM_ADDRESS (pages));
@@ -169,7 +169,7 @@ TESTCASE (full_range_removal_should_impact_clip)
   gum_cloak_add_range (&range);
   gum_cloak_remove_range (&range);
 
-  g_assert (gum_cloak_clip_range (&range) == NULL);
+  g_assert_null (gum_cloak_clip_range (&range));
 
   gum_free_pages (page);
 }
@@ -200,7 +200,7 @@ TESTCASE (partial_range_removal_should_impact_clip)
   full_range.base_address = GUM_ADDRESS (pages);
   full_range.size = 3 * page_size;
   clipped = gum_cloak_clip_range (&full_range);
-  g_assert (clipped != NULL);
+  g_assert_nonnull (clipped);
   g_assert_cmpuint (clipped->len, ==, 2);
   r = &g_array_index (clipped, GumMemoryRange, 0);
   g_assert_cmphex (r->base_address, ==, GUM_ADDRESS (pages));
@@ -215,7 +215,7 @@ TESTCASE (partial_range_removal_should_impact_clip)
   gum_cloak_remove_range (&cloaked_range);
 
   clipped = gum_cloak_clip_range (&full_range);
-  g_assert (clipped == NULL);
+  g_assert_null (clipped);
 
   gum_free_pages (pages);
 }

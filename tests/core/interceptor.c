@@ -377,8 +377,8 @@ TESTCASE (function_data)
   g_assert_cmpuint (fd_listener->on_enter_call_count, ==, 1);
   g_assert_cmpuint (fd_listener->on_leave_call_count, ==, 1);
   g_assert_cmpuint (fd_listener->init_thread_state_count, ==, 1);
-  g_assert (fd_listener->last_on_enter_data.function_data == a_data);
-  g_assert (fd_listener->last_on_leave_data.function_data == a_data);
+  g_assert_true (fd_listener->last_on_enter_data.function_data == a_data);
+  g_assert_true (fd_listener->last_on_leave_data.function_data == a_data);
   g_assert_cmpstr (fd_listener->last_on_enter_data.thread_data.name, ==, "a1");
   g_assert_cmpstr (fd_listener->last_on_leave_data.thread_data.name, ==, "a1");
   g_assert_cmpstr (fd_listener->last_on_enter_data.invocation_data.arg,
@@ -390,8 +390,8 @@ TESTCASE (function_data)
   g_assert_cmpuint (fd_listener->on_enter_call_count, ==, 2);
   g_assert_cmpuint (fd_listener->on_leave_call_count, ==, 2);
   g_assert_cmpuint (fd_listener->init_thread_state_count, ==, 1);
-  g_assert (fd_listener->last_on_enter_data.function_data == a_data);
-  g_assert (fd_listener->last_on_leave_data.function_data == a_data);
+  g_assert_true (fd_listener->last_on_enter_data.function_data == a_data);
+  g_assert_true (fd_listener->last_on_leave_data.function_data == a_data);
   g_assert_cmpstr (fd_listener->last_on_enter_data.thread_data.name, ==, "a1");
   g_assert_cmpstr (fd_listener->last_on_leave_data.thread_data.name, ==, "a1");
   g_assert_cmpstr (fd_listener->last_on_enter_data.invocation_data.arg,
@@ -405,8 +405,8 @@ TESTCASE (function_data)
   g_assert_cmpuint (fd_listener->on_enter_call_count, ==, 1);
   g_assert_cmpuint (fd_listener->on_leave_call_count, ==, 1);
   g_assert_cmpuint (fd_listener->init_thread_state_count, ==, 0);
-  g_assert (fd_listener->last_on_enter_data.function_data == b_data);
-  g_assert (fd_listener->last_on_leave_data.function_data == b_data);
+  g_assert_true (fd_listener->last_on_enter_data.function_data == b_data);
+  g_assert_true (fd_listener->last_on_leave_data.function_data == b_data);
   g_assert_cmpstr (fd_listener->last_on_enter_data.thread_data.name, ==, "a1");
   g_assert_cmpstr (fd_listener->last_on_leave_data.thread_data.name, ==, "a1");
   g_assert_cmpstr (fd_listener->last_on_enter_data.invocation_data.arg,
@@ -421,8 +421,8 @@ TESTCASE (function_data)
   g_assert_cmpuint (fd_listener->on_enter_call_count, ==, 1);
   g_assert_cmpuint (fd_listener->on_leave_call_count, ==, 1);
   g_assert_cmpuint (fd_listener->init_thread_state_count, ==, 1);
-  g_assert (fd_listener->last_on_enter_data.function_data == a_data);
-  g_assert (fd_listener->last_on_leave_data.function_data == a_data);
+  g_assert_true (fd_listener->last_on_enter_data.function_data == a_data);
+  g_assert_true (fd_listener->last_on_leave_data.function_data == a_data);
   g_assert_cmpstr (fd_listener->last_on_enter_data.thread_data.name, ==, "a2");
   g_assert_cmpstr (fd_listener->last_on_leave_data.thread_data.name, ==, "a2");
   g_assert_cmpstr (fd_listener->last_on_enter_data.invocation_data.arg,
@@ -583,7 +583,7 @@ TESTCASE (replace_function)
    * to after revert_function().  We do the real assert after reverting,
    * as failing asserts with broken malloc() are quite tricky to debug. :)
    */
-  g_assert (ret != NULL);
+  g_assert_nonnull (ret);
 
   gum_interceptor_revert_function (fixture->interceptor, malloc_impl);
   g_assert_cmpint (counter, ==, 1);
@@ -616,7 +616,7 @@ TESTCASE (two_replaced_functions)
       free, replacement_free_doing_nothing, &free_counter);
 
   ret = malloc (0x42);
-  g_assert (ret != NULL);
+  g_assert_nonnull (ret);
 
   gum_interceptor_revert_function (fixture->interceptor, malloc);
   gum_interceptor_revert_function (fixture->interceptor, free);
@@ -634,7 +634,7 @@ replacement_malloc_calling_malloc_and_replaced_free (gsize size)
   gpointer result;
 
   ctx = gum_interceptor_get_current_invocation ();
-  g_assert (ctx != NULL);
+  g_assert_nonnull (ctx);
 
   counter = (guint *)
       gum_invocation_context_get_replacement_function_data (ctx);
@@ -653,7 +653,7 @@ replacement_free_doing_nothing (gpointer mem)
   guint * counter;
 
   ctx = gum_interceptor_get_current_invocation ();
-  g_assert (ctx != NULL);
+  g_assert_nonnull (ctx);
 
   counter = (guint *)
       gum_invocation_context_get_replacement_function_data (ctx);
@@ -724,7 +724,7 @@ TESTCASE (intercept_malloc_and_create_thread)
 
   interceptor_fixture_attach_listener (fixture, 0, malloc, 'a', 'b');
 
-  g_assert (pthread_key_create (&key, NULL) == 0);
+  g_assert_cmpint (pthread_key_create (&key, NULL), ==, 0);
 
   pthread_create (&thread1, NULL, thread_doing_nothing, NULL);
   /* The target thread MUST be the highest number thread to date in the
@@ -794,7 +794,7 @@ replacement_malloc (gsize size)
   gpointer a;
 
   ctx = gum_interceptor_get_current_invocation ();
-  g_assert (ctx != NULL);
+  g_assert_nonnull (ctx);
 
   malloc_impl = (MallocFunc) ctx->function;
   counter = (guint *)

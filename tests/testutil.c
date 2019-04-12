@@ -417,7 +417,7 @@ test_util_get_system_module_name (void)
       p = popen ("grep -E \".*libc[-.].*so.*\" /proc/self/maps | head -1"
           " | cut -d\" \" -f 6- | xargs basename | tr -d \"\\n\"", "r");
       result = fgets (_test_util_system_module_name, 64, p);
-      g_assert (result != NULL);
+      g_assert_nonnull (result);
       pclose (p);
     }
   }

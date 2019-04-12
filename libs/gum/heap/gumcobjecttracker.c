@@ -436,7 +436,7 @@ gum_cobject_tracker_attach_to_function (GumCObjectTracker * self,
 
   attach_ret = gum_interceptor_attach_listener (self->interceptor,
       function_address, GUM_INVOCATION_LISTENER (self), function_ctx);
-  g_assert_cmpint (attach_ret, ==, GUM_ATTACH_OK);
+  g_assert (attach_ret == GUM_ATTACH_OK);
 }
 
 static void

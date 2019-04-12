@@ -44,13 +44,13 @@ TESTCASE (begin)
 
   g_assert_cmpuint (gum_allocation_tracker_peek_block_count (t), ==, 0);
   g_assert_cmpuint (gum_allocation_tracker_peek_block_total_size (t), ==, 0);
-  g_assert (gum_allocation_tracker_peek_block_list (t) == NULL);
-  g_assert (gum_allocation_tracker_peek_block_groups (t) == NULL);
+  g_assert_null (gum_allocation_tracker_peek_block_list (t));
+  g_assert_null (gum_allocation_tracker_peek_block_groups (t));
   gum_allocation_tracker_on_malloc (t, DUMMY_BLOCK_A, 123);
   g_assert_cmpuint (gum_allocation_tracker_peek_block_count (t), ==, 0);
   g_assert_cmpuint (gum_allocation_tracker_peek_block_total_size (t), ==, 0);
-  g_assert (gum_allocation_tracker_peek_block_list (t) == NULL);
-  g_assert (gum_allocation_tracker_peek_block_groups (t) == NULL);
+  g_assert_null (gum_allocation_tracker_peek_block_list (t));
+  g_assert_null (gum_allocation_tracker_peek_block_groups (t));
 
   gum_allocation_tracker_begin (t);
 
@@ -77,8 +77,8 @@ TESTCASE (end)
 
   gum_allocation_tracker_on_malloc (t, DUMMY_BLOCK_A, 313);
 
-  g_assert (gum_allocation_tracker_peek_block_list (t) == NULL);
-  g_assert (gum_allocation_tracker_peek_block_groups (t) == NULL);
+  g_assert_null (gum_allocation_tracker_peek_block_list (t));
+  g_assert_null (gum_allocation_tracker_peek_block_groups (t));
 
   g_assert_cmpuint (gum_allocation_tracker_peek_block_count (t), ==, 0);
   g_assert_cmpuint (gum_allocation_tracker_peek_block_total_size (t), ==, 0);
@@ -148,7 +148,7 @@ TESTCASE (block_list_pointers)
     for (cur = blocks; cur != NULL; cur = cur->next)
     {
       GumAllocationBlock * block = cur->data;
-      g_assert (block->address == DUMMY_BLOCK_A ||
+      g_assert_true (block->address == DUMMY_BLOCK_A ||
           block->address == DUMMY_BLOCK_B);
     }
 
@@ -165,7 +165,7 @@ TESTCASE (block_list_pointers)
     g_assert_cmpuint (g_list_length (blocks), ==, 1);
 
     block = blocks->data;
-    g_assert (block->address == DUMMY_BLOCK_B);
+    g_assert_true (block->address == DUMMY_BLOCK_B);
 
     gum_allocation_block_list_free (blocks);
   }
@@ -220,11 +220,13 @@ TESTCASE (block_list_backtraces)
   g_assert_cmpuint (g_list_length (blocks), ==, 1);
 
   block = (GumAllocationBlock *) blocks->data;
-  g_assert (block->address == DUMMY_BLOCK_A);
+  g_assert_true (block->address == DUMMY_BLOCK_A);
 
   g_assert_cmpuint (block->return_addresses.len, ==, 2);
-  g_assert (block->return_addresses.items[0] == dummy_return_addresses_a[0]);
-  g_assert (block->return_addresses.items[1] == dummy_return_addresses_a[1]);
+  g_assert_true (block->return_addresses.items[0] ==
+      dummy_return_addresses_a[0]);
+  g_assert_true (block->return_addresses.items[1] ==
+      dummy_return_addresses_a[1]);
 
   gum_allocation_block_list_free (blocks);
 
@@ -389,7 +391,7 @@ TESTCASE (realloc_backtrace)
   blocks_after = gum_allocation_tracker_peek_block_list (t);
   addrs_after = &GUM_ALLOCATION_BLOCK (blocks_after->data)->return_addresses;
 
-  g_assert (gum_return_address_array_is_equal (addrs_before, addrs_after));
+  g_assert_true (gum_return_address_array_is_equal (addrs_before, addrs_after));
 
   gum_allocation_block_list_free (blocks_before);
   gum_allocation_block_list_free (blocks_after);

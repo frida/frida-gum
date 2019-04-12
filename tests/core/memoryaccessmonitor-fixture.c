@@ -68,11 +68,11 @@ memory_access_notify_cb (GumMemoryAccessMonitor * monitor,
 }
 
 #define ENABLE_MONITOR() \
-    g_assert (fixture->monitor == NULL); \
+    g_assert_null (fixture->monitor); \
     fixture->monitor = gum_memory_access_monitor_new (&fixture->range, 1, \
         GUM_PAGE_RWX, TRUE, memory_access_notify_cb, fixture, NULL); \
-    g_assert (fixture->monitor != NULL); \
-    g_assert (gum_memory_access_monitor_enable (fixture->monitor, NULL)); \
+    g_assert_nonnull (fixture->monitor); \
+    g_assert_true (gum_memory_access_monitor_enable (fixture->monitor, NULL)); \
     g_assert_cmpuint (fixture->number_of_notifies, ==, 0)
 #define DISABLE_MONITOR() \
     gum_memory_access_monitor_disable (fixture->monitor)

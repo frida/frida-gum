@@ -351,7 +351,7 @@ gum_process_modify_thread (GumThreadId thread_id,
     int prev_dumpable;
 
     res = socketpair (AF_UNIX, SOCK_STREAM, 0, ctx.fd);
-    g_assert_cmpint (res, ==, 0);
+    g_assert (res == 0);
     ctx.thread_id = thread_id;
 
     fd = ctx.fd[0];
@@ -429,7 +429,7 @@ gum_process_modify_thread (GumThreadId thread_id,
         NULL,
         desc,
         NULL);
-    g_assert_cmpint (child, >, 0);
+    g_assert (child > 0);
 
     if (gum_await_ack (fd, GUM_ACK_ATTACHED))
     {
@@ -842,7 +842,7 @@ gum_process_enumerate_modules_by_parsing_proc_maps (GumFoundModuleFunc func,
         path);
     if (n == 3)
       continue;
-    g_assert_cmpint (n, ==, 4);
+    g_assert (n == 4);
 
     readable = perms[0] == 'r';
     shared = perms[3] == 's';
@@ -946,7 +946,7 @@ gum_process_build_named_range_indexes (GHashTable ** names,
         name);
     if (n == 2)
       continue;
-    g_assert_cmpint (n, ==, 3);
+    g_assert (n == 3);
 
     range.size = end - range.base_address;
 

@@ -1221,7 +1221,7 @@ TESTCASE (performance)
   runner_range.base_address = 0;
   runner_range.size = 0;
   gum_process_enumerate_modules (store_range_of_test_runner, &runner_range);
-  g_assert (runner_range.base_address != 0 && runner_range.size != 0);
+  g_assert_true (runner_range.base_address != 0 && runner_range.size != 0);
 
   timer = g_timer_new ();
   pretend_workload (&runner_range);

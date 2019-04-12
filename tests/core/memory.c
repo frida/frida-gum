@@ -49,7 +49,7 @@ TESTCASE (read_from_valid_address_should_succeed)
   guint8 * result;
 
   result = gum_memory_read (GUM_ADDRESS (magic), sizeof (magic), &n_bytes_read);
-  g_assert (result != NULL);
+  g_assert_nonnull (result);
 
   g_assert_cmpuint (n_bytes_read, ==, sizeof (magic));
 
@@ -62,7 +62,7 @@ TESTCASE (read_from_valid_address_should_succeed)
 TESTCASE (read_from_invalid_address_should_fail)
 {
   GumAddress invalid_address = 0x42;
-  g_assert (gum_memory_read (invalid_address, 1, NULL) == NULL);
+  g_assert_null (gum_memory_read (invalid_address, 1, NULL));
 }
 
 TESTCASE (read_from_unaligned_address_should_succeed)
@@ -79,7 +79,7 @@ TESTCASE (read_from_unaligned_address_should_succeed)
   last_byte = ((guint8 *) page) + page_size - 1;
   *last_byte = 42;
   data = gum_memory_read (GUM_ADDRESS (last_byte), 1, &n_bytes_read);
-  g_assert (data != NULL);
+  g_assert_nonnull (data);
   g_assert_cmpuint (n_bytes_read, ==, 1);
   g_assert_cmpuint (*data, ==, 42);
   g_free (data);
@@ -109,7 +109,7 @@ TESTCASE (read_across_two_pages_should_return_correct_data)
 
   data = gum_memory_read (GUM_ADDRESS (pages + start_offset),
       size - start_offset, &n_bytes_read);
-  g_assert (data != NULL);
+  g_assert_nonnull (data);
   g_assert_cmpuint (n_bytes_read, ==, size - start_offset);
   actual_checksum =
       g_compute_checksum_for_data (G_CHECKSUM_SHA1, data, n_bytes_read);
@@ -134,13 +134,13 @@ TESTCASE (read_beyond_page_should_return_partial_data)
   gum_mprotect (page + page_size, page_size, GUM_PAGE_NO_ACCESS);
 
   data = gum_memory_read (GUM_ADDRESS (page), 2 * page_size, &n_bytes_read);
-  g_assert (data != NULL);
+  g_assert_nonnull (data);
   g_assert_cmpuint (n_bytes_read, ==, page_size);
   g_free (data);
 
   data = gum_memory_read (GUM_ADDRESS (page + page_size - 1), 1 + page_size,
       &n_bytes_read);
-  g_assert (data != NULL);
+  g_assert_nonnull (data);
   g_assert_cmpuint (n_bytes_read, ==, 1);
   g_free (data);
 
@@ -151,10 +151,8 @@ TESTCASE (write_to_valid_address_should_succeed)
 {
   guint8 bytes[3] = { 0x00, 0x00, 0x12 };
   guint8 magic[2] = { 0x13, 0x37 };
-  gboolean success;
 
-  success = gum_memory_write (GUM_ADDRESS (bytes), magic, sizeof (magic));
-  g_assert (success);
+  g_assert_true (gum_memory_write (GUM_ADDRESS (bytes), magic, sizeof (magic)));
 
   g_assert_cmphex (bytes[0], ==, 0x13);
   g_assert_cmphex (bytes[1], ==, 0x37);
@@ -165,7 +163,7 @@ TESTCASE (write_to_invalid_address_should_fail)
 {
   guint8 bytes[3] = { 0x00, 0x00, 0x12 };
   GumAddress invalid_address = 0x42;
-  g_assert (gum_memory_write (invalid_address, bytes, sizeof (bytes)) == FALSE);
+  g_assert_false (gum_memory_write (invalid_address, bytes, sizeof (bytes)));
 }
 
 #define GUM_PATTERN_NTH_TOKEN(p, n) \
@@ -182,7 +180,7 @@ TESTCASE (match_pattern_from_string_does_proper_validation)
   GumMatchPattern * pattern;
 
   pattern = gum_match_pattern_new_from_string ("1337");
-  g_assert (pattern != NULL);
+  g_assert_nonnull (pattern);
   g_assert_cmpuint (pattern->size, ==, 2);
   g_assert_cmpuint (pattern->tokens->len, ==, 1);
   g_assert_cmpuint (GUM_PATTERN_NTH_TOKEN (pattern, 0)->bytes->len, ==, 2);
@@ -191,7 +189,7 @@ TESTCASE (match_pattern_from_string_does_proper_validation)
   gum_match_pattern_free (pattern);
 
   pattern = gum_match_pattern_new_from_string ("13 37");
-  g_assert (pattern != NULL);
+  g_assert_nonnull (pattern);
   g_assert_cmpuint (pattern->size, ==, 2);
   g_assert_cmpuint (pattern->tokens->len, ==, 1);
   g_assert_cmpuint (GUM_PATTERN_NTH_TOKEN (pattern, 0)->bytes->len, ==, 2);
@@ -200,16 +198,16 @@ TESTCASE (match_pattern_from_string_does_proper_validation)
   gum_match_pattern_free (pattern);
 
   pattern = gum_match_pattern_new_from_string ("1 37");
-  g_assert (pattern == NULL);
+  g_assert_null (pattern);
 
   pattern = gum_match_pattern_new_from_string ("13 3");
-  g_assert (pattern == NULL);
+  g_assert_null (pattern);
 
   pattern = gum_match_pattern_new_from_string ("13+37");
-  g_assert (pattern == NULL);
+  g_assert_null (pattern);
 
   pattern = gum_match_pattern_new_from_string ("13 ?? 37");
-  g_assert (pattern != NULL);
+  g_assert_nonnull (pattern);
   g_assert_cmpuint (pattern->size, ==, 3);
   g_assert_cmpuint (pattern->tokens->len, ==, 3);
   g_assert_cmpuint (GUM_PATTERN_NTH_TOKEN (pattern, 0)->bytes->len, ==, 1);
@@ -221,25 +219,25 @@ TESTCASE (match_pattern_from_string_does_proper_validation)
   gum_match_pattern_free (pattern);
 
   pattern = gum_match_pattern_new_from_string ("13 ? 37");
-  g_assert (pattern == NULL);
+  g_assert_null (pattern);
 
   pattern = gum_match_pattern_new_from_string ("??");
-  g_assert (pattern == NULL);
+  g_assert_null (pattern);
 
   pattern = gum_match_pattern_new_from_string ("?? 13");
-  g_assert (pattern == NULL);
+  g_assert_null (pattern);
 
   pattern = gum_match_pattern_new_from_string ("13 ??");
-  g_assert (pattern == NULL);
+  g_assert_null (pattern);
 
   pattern = gum_match_pattern_new_from_string (" ");
-  g_assert (pattern == NULL);
+  g_assert_null (pattern);
 
   pattern = gum_match_pattern_new_from_string ("");
-  g_assert (pattern == NULL);
+  g_assert_null (pattern);
 
   pattern = gum_match_pattern_new_from_string ("1337:ff0f");
-  g_assert (pattern != NULL);
+  g_assert_nonnull (pattern);
   g_assert_cmpuint (pattern->size, ==, 2);
   g_assert_cmpuint (pattern->tokens->len, ==, 2);
   g_assert_cmpuint (GUM_PATTERN_NTH_TOKEN (pattern, 0)->bytes->len, ==, 1);
@@ -250,7 +248,7 @@ TESTCASE (match_pattern_from_string_does_proper_validation)
   gum_match_pattern_free (pattern);
 
   pattern = gum_match_pattern_new_from_string ("13 37 : ff 0f");
-  g_assert (pattern != NULL);
+  g_assert_nonnull (pattern);
   g_assert_cmpuint (pattern->size, ==, 2);
   g_assert_cmpuint (pattern->tokens->len, ==, 2);
   g_assert_cmpuint (GUM_PATTERN_NTH_TOKEN (pattern, 0)->bytes->len, ==, 1);
@@ -261,7 +259,7 @@ TESTCASE (match_pattern_from_string_does_proper_validation)
   gum_match_pattern_free (pattern);
 
   pattern = gum_match_pattern_new_from_string ("13 ?7");
-  g_assert (pattern != NULL);
+  g_assert_nonnull (pattern);
   g_assert_cmpuint (pattern->size, ==, 2);
   g_assert_cmpuint (pattern->tokens->len, ==, 2);
   g_assert_cmpuint (GUM_PATTERN_NTH_TOKEN (pattern, 0)->bytes->len, ==, 1);
@@ -272,7 +270,7 @@ TESTCASE (match_pattern_from_string_does_proper_validation)
   gum_match_pattern_free (pattern);
 
   pattern = gum_match_pattern_new_from_string ("13 37 : ff");
-  g_assert (pattern == NULL);
+  g_assert_null (pattern);
 }
 
 TESTCASE (scan_range_finds_three_exact_matches)
@@ -291,7 +289,7 @@ TESTCASE (scan_range_finds_three_exact_matches)
   range.size = sizeof (buf);
 
   pattern = gum_match_pattern_new_from_string ("13 37");
-  g_assert (pattern != NULL);
+  g_assert_nonnull (pattern);
 
   ctx.expected_address[0] = buf + 0;
   ctx.expected_address[1] = buf + 2 + 1;
@@ -327,7 +325,7 @@ TESTCASE (scan_range_finds_three_wildcarded_matches)
   range.size = sizeof (buf);
 
   pattern = gum_match_pattern_new_from_string ("12 ?? 13 37");
-  g_assert (pattern != NULL);
+  g_assert_nonnull (pattern);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
@@ -360,7 +358,7 @@ TESTCASE (scan_range_finds_three_masked_matches)
   range.size = sizeof (buf);
 
   pattern = gum_match_pattern_new_from_string ("12 ?? 13 37 : 1f ff ff f1");
-  g_assert (pattern != NULL);
+  g_assert_nonnull (pattern);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
@@ -395,19 +393,19 @@ TESTCASE (is_memory_readable_handles_mixed_page_protections)
   gum_mprotect (GSIZE_TO_POINTER (left_guard), page_size, GUM_PAGE_NO_ACCESS);
   gum_mprotect (GSIZE_TO_POINTER (right_guard), page_size, GUM_PAGE_NO_ACCESS);
 
-  g_assert (gum_memory_is_readable (first_page, 1));
-  g_assert (gum_memory_is_readable (first_page + page_size - 1, 1));
-  g_assert (gum_memory_is_readable (first_page, page_size));
+  g_assert_true (gum_memory_is_readable (first_page, 1));
+  g_assert_true (gum_memory_is_readable (first_page + page_size - 1, 1));
+  g_assert_true (gum_memory_is_readable (first_page, page_size));
 
-  g_assert (gum_memory_is_readable (second_page, 1));
-  g_assert (gum_memory_is_readable (second_page + page_size - 1, 1));
-  g_assert (gum_memory_is_readable (second_page, page_size));
+  g_assert_true (gum_memory_is_readable (second_page, 1));
+  g_assert_true (gum_memory_is_readable (second_page + page_size - 1, 1));
+  g_assert_true (gum_memory_is_readable (second_page, page_size));
 
-  g_assert (gum_memory_is_readable (first_page + page_size - 1, 2));
-  g_assert (gum_memory_is_readable (first_page, 2 * page_size));
+  g_assert_true (gum_memory_is_readable (first_page + page_size - 1, 2));
+  g_assert_true (gum_memory_is_readable (first_page, 2 * page_size));
 
-  g_assert (!gum_memory_is_readable (second_page + page_size, 1));
-  g_assert (!gum_memory_is_readable (second_page + page_size - 1, 2));
+  g_assert_false (gum_memory_is_readable (second_page + page_size, 1));
+  g_assert_false (gum_memory_is_readable (second_page + page_size - 1, 2));
 
   gum_free_pages (pages);
 }
@@ -421,9 +419,9 @@ TESTCASE (alloc_n_pages_returns_aligned_rw_address)
 
   page_size = gum_query_page_size ();
 
-  g_assert (GPOINTER_TO_SIZE (page) % page_size == 0);
+  g_assert_cmpuint (GPOINTER_TO_SIZE (page) % page_size, ==, 0);
 
-  g_assert (gum_memory_is_readable (GUM_ADDRESS (page), page_size));
+  g_assert_true (gum_memory_is_readable (GUM_ADDRESS (page), page_size));
 
   g_assert_cmpuint (*((gsize *) page), ==, 0);
   *((gsize *) page) = 42;
@@ -444,13 +442,13 @@ TESTCASE (alloc_n_pages_near_returns_aligned_rw_address_within_range)
   as.max_distance = G_MAXINT32;
 
   page = gum_alloc_n_pages_near (1, GUM_PAGE_RW, &as);
-  g_assert (page != NULL);
+  g_assert_nonnull (page);
 
   page_size = gum_query_page_size ();
 
-  g_assert (GPOINTER_TO_SIZE (page) % page_size == 0);
+  g_assert_cmpuint (GPOINTER_TO_SIZE (page) % page_size, ==, 0);
 
-  g_assert (gum_memory_is_readable (GUM_ADDRESS (page), page_size));
+  g_assert_true (gum_memory_is_readable (GUM_ADDRESS (page), page_size));
 
   g_assert_cmpuint (*((gsize *) page), ==, 0);
   *((gsize *) page) = 42;
@@ -486,7 +484,7 @@ match_found_cb (GumAddress address,
 
   g_assert_cmpuint (ctx->number_of_calls, <, 3);
 
-  g_assert (address ==
+  g_assert_cmpuint (address, ==,
       GUM_ADDRESS (ctx->expected_address[ctx->number_of_calls]));
   g_assert_cmpuint (size, ==, ctx->expected_size);
 

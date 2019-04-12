@@ -27,20 +27,20 @@ TESTCASE (module_exports_can_be_resolved)
 #endif
 
   fixture->resolver = gum_api_resolver_make ("module");
-  g_assert (fixture->resolver != NULL);
+  g_assert_nonnull (fixture->resolver);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
   gum_api_resolver_enumerate_matches (fixture->resolver, query, match_found_cb,
       &ctx, &error);
-  g_assert (error == NULL);
+  g_assert_null (error);
   g_assert_cmpuint (ctx.number_of_calls, >, 1);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = FALSE;
   gum_api_resolver_enumerate_matches (fixture->resolver, query, match_found_cb,
       &ctx, &error);
-  g_assert (error == NULL);
+  g_assert_null (error);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
 
@@ -52,11 +52,11 @@ TESTCASE (module_imports_can_be_resolved)
   guint number_of_imports_seen = 0;
 
   fixture->resolver = gum_api_resolver_make ("module");
-  g_assert (fixture->resolver != NULL);
+  g_assert_nonnull (fixture->resolver);
 
   gum_api_resolver_enumerate_matches (fixture->resolver, query,
       check_module_import, &number_of_imports_seen, &error);
-  g_assert (error == NULL);
+  g_assert_null (error);
 #else
   (void) check_module_import;
 #endif
@@ -68,7 +68,7 @@ check_module_import (const GumApiDetails * details,
 {
   guint * number_of_imports_seen = user_data;
 
-  g_assert (strstr (details->name, "gum-tests") == NULL);
+  g_assert_null (strstr (details->name, "gum-tests"));
 
   (*number_of_imports_seen)++;
 
@@ -91,14 +91,14 @@ TESTCASE (objc_methods_can_be_resolved)
   ctx.value_to_return = TRUE;
   gum_api_resolver_enumerate_matches (fixture->resolver, "+[*Arr* arr*]",
       match_found_cb, &ctx, &error);
-  g_assert (error == NULL);
+  g_assert_null (error);
   g_assert_cmpuint (ctx.number_of_calls, >, 1);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = FALSE;
   gum_api_resolver_enumerate_matches (fixture->resolver, "+[*Arr* arr*]",
       match_found_cb, &ctx, &error);
-  g_assert (error == NULL);
+  g_assert_null (error);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
 
@@ -141,7 +141,7 @@ TESTCASE (linker_exports_can_be_resolved_on_android)
   guint i;
 
   fixture->resolver = gum_api_resolver_make ("module");
-  g_assert (fixture->resolver != NULL);
+  g_assert_nonnull (fixture->resolver);
 
   for (i = 0; i != G_N_ELEMENTS (linker_exports); i++)
   {
@@ -154,11 +154,11 @@ TESTCASE (linker_exports_can_be_resolved_on_android)
 
     ctx.number_of_calls = 0;
     ctx.expected_address = gum_module_find_export_by_name (linker_name, name);
-    g_assert (ctx.expected_address != 0);
+    g_assert_cmpuint (ctx.expected_address, !=, 0);
 
     gum_api_resolver_enumerate_matches (fixture->resolver, query,
         check_linker_export, &ctx, &error);
-    g_assert (error == NULL);
+    g_assert_null (error);
     g_assert_cmpuint (ctx.number_of_calls, >=, 1);
 
     g_free (query);

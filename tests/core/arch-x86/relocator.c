@@ -61,15 +61,15 @@ TESTCASE (one_to_one)
   g_assert_cmpint (insn->id, ==, X86_INS_MOV);
   assert_outbuf_still_zeroed_from_offset (0);
 
-  g_assert (gum_x86_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_x86_relocator_write_one (&fixture->rl));
   g_assert_cmpint (memcmp (fixture->output, input, 1), ==, 0);
   assert_outbuf_still_zeroed_from_offset (1);
 
-  g_assert (gum_x86_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_x86_relocator_write_one (&fixture->rl));
   g_assert_cmpint (memcmp (fixture->output + 1, input + 1, 2), ==, 0);
   assert_outbuf_still_zeroed_from_offset (3);
 
-  g_assert (!gum_x86_relocator_write_one (&fixture->rl));
+  g_assert_false (gum_x86_relocator_write_one (&fixture->rl));
 }
 
 TESTCASE (call_near_relative)
@@ -128,7 +128,7 @@ TESTCASE (call_near_relative_to_next_instruction)
   SETUP_RELOCATOR_WITH (input);
 
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 5);
-  g_assert (!gum_x86_relocator_eob (&fixture->rl));
+  g_assert_false (gum_x86_relocator_eob (&fixture->rl));
   gum_x86_relocator_write_all (&fixture->rl);
   g_assert_cmpuint (gum_x86_writer_offset (&fixture->cw), ==,
       sizeof (expected_output));
@@ -157,7 +157,7 @@ TESTCASE (call_near_gnu_get_pc_thunk)
   SETUP_RELOCATOR_WITH (input);
 
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 5);
-  g_assert (!gum_x86_relocator_eob (&fixture->rl));
+  g_assert_false (gum_x86_relocator_eob (&fixture->rl));
   gum_x86_relocator_write_all (&fixture->rl);
   g_assert_cmpuint (gum_x86_writer_offset (&fixture->cw), ==,
       sizeof (expected_output));
@@ -184,7 +184,7 @@ TESTCASE (call_near_android_get_pc_thunk)
   SETUP_RELOCATOR_WITH (input);
 
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 5);
-  g_assert (!gum_x86_relocator_eob (&fixture->rl));
+  g_assert_false (gum_x86_relocator_eob (&fixture->rl));
   gum_x86_relocator_write_all (&fixture->rl);
   g_assert_cmpuint (gum_x86_writer_offset (&fixture->cw), ==,
       sizeof (expected_output));
@@ -458,12 +458,12 @@ TESTCASE (peek_next_write)
       ==, X86_INS_INC);
   g_assert_cmpint (gum_x86_relocator_peek_next_write_insn (&fixture->rl)->id,
       ==, X86_INS_INC);
-  g_assert (gum_x86_relocator_peek_next_write_source (&fixture->rl)
+  g_assert_true (gum_x86_relocator_peek_next_write_source (&fixture->rl)
       == input + 2);
-  g_assert (gum_x86_relocator_write_one (&fixture->rl));
-  g_assert (gum_x86_relocator_peek_next_write_insn (&fixture->rl) == NULL);
-  g_assert (gum_x86_relocator_peek_next_write_source (&fixture->rl) == NULL);
-  g_assert (!gum_x86_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_x86_relocator_write_one (&fixture->rl));
+  g_assert_null (gum_x86_relocator_peek_next_write_insn (&fixture->rl));
+  g_assert_null (gum_x86_relocator_peek_next_write_source (&fixture->rl));
+  g_assert_false (gum_x86_relocator_write_one (&fixture->rl));
 }
 
 TESTCASE (skip_instruction)
@@ -510,8 +510,8 @@ TESTCASE (eob_and_eoi_on_jmp)
   SETUP_RELOCATOR_WITH (input);
 
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 2);
-  g_assert (gum_x86_relocator_eob (&fixture->rl));
-  g_assert (gum_x86_relocator_eoi (&fixture->rl));
+  g_assert_true (gum_x86_relocator_eob (&fixture->rl));
+  g_assert_true (gum_x86_relocator_eoi (&fixture->rl));
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 0);
 }
 
@@ -524,8 +524,8 @@ TESTCASE (eob_but_not_eoi_on_call)
   SETUP_RELOCATOR_WITH (input);
 
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 5);
-  g_assert (gum_x86_relocator_eob (&fixture->rl));
-  g_assert (!gum_x86_relocator_eoi (&fixture->rl));
+  g_assert_true (gum_x86_relocator_eob (&fixture->rl));
+  g_assert_false (gum_x86_relocator_eoi (&fixture->rl));
 }
 
 TESTCASE (eob_and_eoi_on_ret)
@@ -537,8 +537,8 @@ TESTCASE (eob_and_eoi_on_ret)
   SETUP_RELOCATOR_WITH (input);
 
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 3);
-  g_assert (gum_x86_relocator_eob (&fixture->rl));
-  g_assert (gum_x86_relocator_eoi (&fixture->rl));
+  g_assert_true (gum_x86_relocator_eob (&fixture->rl));
+  g_assert_true (gum_x86_relocator_eoi (&fixture->rl));
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 0);
 }
 
@@ -552,10 +552,10 @@ TESTCASE (eob_but_not_eoi_on_jcc)
   SETUP_RELOCATOR_WITH (input);
 
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 2);
-  g_assert (gum_x86_relocator_eob (&fixture->rl));
-  g_assert (!gum_x86_relocator_eoi (&fixture->rl));
+  g_assert_true (gum_x86_relocator_eob (&fixture->rl));
+  g_assert_false (gum_x86_relocator_eoi (&fixture->rl));
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 3);
-  g_assert (gum_x86_relocator_eoi (&fixture->rl));
+  g_assert_true (gum_x86_relocator_eoi (&fixture->rl));
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 0);
 }
 
@@ -569,10 +569,10 @@ TESTCASE (eob_but_not_eoi_on_jcxz)
   SETUP_RELOCATOR_WITH (input);
 
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 2);
-  g_assert (gum_x86_relocator_eob (&fixture->rl));
-  g_assert (!gum_x86_relocator_eoi (&fixture->rl));
+  g_assert_true (gum_x86_relocator_eob (&fixture->rl));
+  g_assert_false (gum_x86_relocator_eoi (&fixture->rl));
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 3);
-  g_assert (gum_x86_relocator_eoi (&fixture->rl));
+  g_assert_true (gum_x86_relocator_eoi (&fixture->rl));
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 0);
 }
 

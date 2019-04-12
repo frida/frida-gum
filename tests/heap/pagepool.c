@@ -29,14 +29,14 @@ TESTCASE (alloc_sizes)
   g_assert_cmpuint (gum_page_pool_peek_available (pool), ==, 4);
 
   p1 = gum_page_pool_try_alloc (pool, 1);
-  g_assert (p1 != NULL);
+  g_assert_nonnull (p1);
   g_assert_cmpuint (gum_page_pool_peek_available (pool), ==, 2);
 
   p2 = gum_page_pool_try_alloc (pool, page_size + 1);
-  g_assert (p2 == NULL);
+  g_assert_null (p2);
   g_assert_cmpuint (gum_page_pool_peek_available (pool), ==, 2);
   p2 = gum_page_pool_try_alloc (pool, page_size);
-  g_assert (p2 != NULL);
+  g_assert_nonnull (p2);
   g_assert_cmpuint (gum_page_pool_peek_available (pool), ==, 0);
 }
 
@@ -71,12 +71,12 @@ TESTCASE (alloc_protection)
   SETUP_POOL (&pool, GUM_PROTECT_MODE_ABOVE, 4);
 
   p1 = GUM_ADDRESS (gum_page_pool_try_alloc (pool, 1));
-  g_assert (gum_memory_is_readable (p1, 16));
-  g_assert (!gum_memory_is_readable (p1 + 16, 1));
+  g_assert_true (gum_memory_is_readable (p1, 16));
+  g_assert_false (gum_memory_is_readable (p1 + 16, 1));
 
   p2 = GUM_ADDRESS (gum_page_pool_try_alloc (pool, 17));
-  g_assert (gum_memory_is_readable (p2, 32));
-  g_assert (!gum_memory_is_readable (p2 + 32, 1));
+  g_assert_true (gum_memory_is_readable (p2, 32));
+  g_assert_false (gum_memory_is_readable (p2 + 32, 1));
 }
 
 TESTCASE (free)
@@ -88,22 +88,22 @@ TESTCASE (free)
   SETUP_POOL (&pool, GUM_PROTECT_MODE_ABOVE, 5);
   g_object_get (pool, "page-size", &page_size, NULL);
 
-  g_assert (!gum_page_pool_try_free (pool, GSIZE_TO_POINTER (1)));
+  g_assert_false (gum_page_pool_try_free (pool, GSIZE_TO_POINTER (1)));
 
   p1 = (guint8 *) gum_page_pool_try_alloc (pool, page_size + 1);
   p2 = (guint8 *) gum_page_pool_try_alloc (pool, 1);
   g_assert_cmpuint (gum_page_pool_peek_available (pool), ==, 0);
 
-  g_assert (gum_page_pool_try_free (pool, p1));
+  g_assert_true (gum_page_pool_try_free (pool, p1));
   g_assert_cmpuint (gum_page_pool_peek_available (pool), ==, 3);
   p1 = (guint8 *) gum_page_pool_try_alloc (pool, page_size + 1);
-  g_assert (p1 != NULL);
+  g_assert_nonnull (p1);
   g_assert_cmpuint (gum_page_pool_peek_available (pool), ==, 0);
 
-  g_assert (gum_page_pool_try_free (pool, p2));
+  g_assert_true (gum_page_pool_try_free (pool, p2));
   g_assert_cmpuint (gum_page_pool_peek_available (pool), ==, 2);
   p2 = (guint8 *) gum_page_pool_try_alloc (pool, 1);
-  g_assert (p2 != NULL);
+  g_assert_nonnull (p2);
   g_assert_cmpuint (gum_page_pool_peek_available (pool), ==, 0);
 }
 
@@ -116,10 +116,10 @@ TESTCASE (free_protection)
   SETUP_POOL (&pool, GUM_PROTECT_MODE_ABOVE, 4);
 
   p = gum_page_pool_try_alloc (pool, 1);
-  g_assert (gum_page_pool_try_free (pool, p));
+  g_assert_true (gum_page_pool_try_free (pool, p));
   address = GUM_ADDRESS (p);
-  g_assert (!gum_memory_is_readable (address, 16));
-  g_assert (!gum_memory_is_readable (address + 16, 1));
+  g_assert_false (gum_memory_is_readable (address, 16));
+  g_assert_false (gum_memory_is_readable (address + 16, 1));
 }
 
 TESTCASE (query_block_details)
@@ -133,36 +133,37 @@ TESTCASE (query_block_details)
 
   g_object_get (pool, "page-size", &page_size, NULL);
 
-  g_assert (!gum_page_pool_query_block_details (pool, GSIZE_TO_POINTER (1),
+  g_assert_false (gum_page_pool_query_block_details (pool, GSIZE_TO_POINTER (1),
       &details));
   size = page_size + 1;
   p = (guint8 *) gum_page_pool_try_alloc (pool, size);
 
-  g_assert (gum_page_pool_query_block_details (pool, p, &details));
+  g_assert_true (gum_page_pool_query_block_details (pool, p, &details));
   g_assert_cmphex (GPOINTER_TO_SIZE (details.address),
       ==, GPOINTER_TO_SIZE (p));
   g_assert_cmpuint (details.size, ==, size);
-  g_assert (details.allocated);
+  g_assert_true (details.allocated);
 
-  g_assert (gum_page_pool_query_block_details (pool, p + 1, &details));
+  g_assert_true (gum_page_pool_query_block_details (pool, p + 1, &details));
   g_assert_cmphex (GPOINTER_TO_SIZE (details.address),
       ==, GPOINTER_TO_SIZE (p));
   g_assert_cmpuint (details.size, ==, size);
-  g_assert (details.allocated);
+  g_assert_true (details.allocated);
 
-  g_assert (gum_page_pool_query_block_details (pool, p + size - 1, &details));
+  g_assert_true (gum_page_pool_query_block_details (pool, p + size - 1,
+      &details));
   g_assert_cmphex (GPOINTER_TO_SIZE (details.address),
       ==, GPOINTER_TO_SIZE (p));
   g_assert_cmpuint (details.size, ==, size);
-  g_assert (details.allocated);
+  g_assert_true (details.allocated);
 
   gum_page_pool_try_free (pool, p);
 
-  g_assert (gum_page_pool_query_block_details (pool, p, &details));
+  g_assert_true (gum_page_pool_query_block_details (pool, p, &details));
   g_assert_cmphex (GPOINTER_TO_SIZE (details.address),
       ==, GPOINTER_TO_SIZE (p));
   g_assert_cmpuint (details.size, ==, size);
-  g_assert (!details.allocated);
+  g_assert_false (details.allocated);
 }
 
 TESTCASE (peek_used)
@@ -198,7 +199,7 @@ TESTCASE (alloc_and_fill_full_cycle)
   gum_page_pool_get_bounds (pool, &start, &end);
 
   p = (guint8 *) gum_page_pool_try_alloc (pool, buffer_size);
-  g_assert (p != NULL);
+  g_assert_nonnull (p);
 
   g_assert_cmpuint (gum_page_pool_peek_available (pool), ==, 0);
 
@@ -207,10 +208,11 @@ TESTCASE (alloc_and_fill_full_cycle)
 
   for (i = 0; i < pool_size - 1; i++)
   {
-    g_assert (gum_memory_is_readable (GUM_ADDRESS (
+    g_assert_true (gum_memory_is_readable (GUM_ADDRESS (
         start + (i * page_size)), page_size));
   }
-  g_assert (!gum_memory_is_readable (GUM_ADDRESS (end - page_size), page_size));
+  g_assert_false (gum_memory_is_readable (GUM_ADDRESS (end - page_size),
+      page_size));
 
   memset (p, 0, buffer_size);
 }

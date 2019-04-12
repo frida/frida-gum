@@ -930,7 +930,7 @@ gum_stalker_remove_call_probe (GumStalker * self,
         break;
       }
     }
-    g_assert_cmpint (match_index, !=, -1);
+    g_assert (match_index != -1);
 
     probe = &g_array_index (probes, GumCallProbe, match_index);
     if (probe->user_notify != NULL)
@@ -1250,7 +1250,7 @@ gum_disasm (guint8 * code,
   size_t count, i;
 
   err = cs_open (CS_ARCH_X86, GUM_CPU_MODE, &capstone);
-  g_assert_cmpint (err, == , CS_ERR_OK);
+  g_assert (err == CS_ERR_OK);
 
   count = cs_disasm (capstone, code, size, GPOINTER_TO_SIZE (code), 0, &insn);
   g_assert (insn != NULL);
@@ -2158,7 +2158,7 @@ gum_exec_ctx_write_push_branch_target_address (GumExecCtx * ctx,
   }
   else if (target->base == X86_REG_INVALID && target->index == X86_REG_INVALID)
   {
-    g_assert_cmpint (target->scale, ==, 1);
+    g_assert (target->scale == 1);
     g_assert (target->absolute_address != NULL);
     g_assert (target->relative_offset == 0);
 

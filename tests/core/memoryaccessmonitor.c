@@ -28,8 +28,8 @@ TESTCASE (notify_on_read_access)
   val = bytes[fixture->offset_in_first_page];
   g_assert_cmpuint (fixture->number_of_notifies, ==, 1);
   g_assert_cmpint (d->operation, ==, GUM_MEMOP_READ);
-  g_assert (d->from != NULL && d->from != d->address);
-  g_assert (d->address == bytes + fixture->offset_in_first_page);
+  g_assert_true (d->from != NULL && d->from != d->address);
+  g_assert_true (d->address == bytes + fixture->offset_in_first_page);
   g_assert_cmpuint (val, ==, 0x13);
 
   val = bytes[fixture->offset_in_first_page];
@@ -39,8 +39,8 @@ TESTCASE (notify_on_read_access)
   val = bytes[fixture->offset_in_second_page];
   g_assert_cmpuint (fixture->number_of_notifies, ==, 2);
   g_assert_cmpint (d->operation, ==, GUM_MEMOP_READ);
-  g_assert (d->from != NULL && d->from != d->address);
-  g_assert (d->address == bytes + fixture->offset_in_second_page);
+  g_assert_true (d->from != NULL && d->from != d->address);
+  g_assert_true (d->address == bytes + fixture->offset_in_second_page);
   g_assert_cmpuint (val, ==, 0x37);
 
   val = bytes[fixture->offset_in_second_page];
@@ -61,8 +61,8 @@ TESTCASE (notify_on_write_access)
   bytes[fixture->offset_in_first_page] = 0x14;
   g_assert_cmpuint (fixture->number_of_notifies, ==, 1);
   g_assert_cmpint (d->operation, ==, GUM_MEMOP_WRITE);
-  g_assert (d->from != NULL && d->from != d->address);
-  g_assert (d->address == bytes + fixture->offset_in_first_page);
+  g_assert_true (d->from != NULL && d->from != d->address);
+  g_assert_true (d->address == bytes + fixture->offset_in_first_page);
 
   val = bytes[fixture->offset_in_first_page];
   g_assert_cmpuint (fixture->number_of_notifies, ==, 1);
@@ -78,7 +78,7 @@ TESTCASE (notify_on_execute_access)
   fixture->nop_function_in_first_page ();
   g_assert_cmpuint (fixture->number_of_notifies, ==, 1);
   g_assert_cmpint (d->operation, ==, GUM_MEMOP_EXECUTE);
-  g_assert (d->from != NULL && d->from == d->address);
+  g_assert_true (d->from != NULL && d->from == d->address);
 
   fixture->nop_function_in_first_page ();
   g_assert_cmpuint (fixture->number_of_notifies, ==, 1);

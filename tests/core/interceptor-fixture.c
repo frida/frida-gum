@@ -146,30 +146,30 @@ test_interceptor_fixture_setup (TestInterceptorFixture * fixture,
     lib = dlopen (filename, RTLD_NOW | RTLD_GLOBAL);
     if (lib == NULL)
       g_print ("failed to open '%s'\n", filename);
-    g_assert (lib != NULL);
+    g_assert_nonnull (lib);
     g_free (filename);
 
     target_function = dlsym (lib, "gum_test_target_function");
-    g_assert (target_function != NULL);
+    g_assert_nonnull (target_function);
 
     target_nop_function_a = dlsym (lib, "gum_test_target_nop_function_a");
-    g_assert (target_nop_function_a != NULL);
+    g_assert_nonnull (target_nop_function_a);
 
     target_nop_function_b = dlsym (lib, "gum_test_target_nop_function_b");
-    g_assert (target_nop_function_b != NULL);
+    g_assert_nonnull (target_nop_function_b);
 
     target_nop_function_c = dlsym (lib, "gum_test_target_nop_function_c");
-    g_assert (target_nop_function_c != NULL);
+    g_assert_nonnull (target_nop_function_c);
 
     filename = g_build_filename (testdir,
         "specialfunctions-" GUM_TEST_SHLIB_OS "-" GUM_TEST_SHLIB_ARCH
         "." G_MODULE_SUFFIX, NULL);
     lib = dlopen (filename, RTLD_LAZY | RTLD_GLOBAL);
-    g_assert (lib != NULL);
+    g_assert_nonnull (lib);
     g_free (filename);
 
     special_function = dlsym (lib, "gum_test_special_function");
-    g_assert (special_function != NULL);
+    g_assert_nonnull (special_function);
 
     g_free (testdir);
 #endif

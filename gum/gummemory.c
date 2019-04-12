@@ -136,7 +136,7 @@ gum_query_is_rwx_supported (void)
 
     kr = mach_vm_allocate (task, &page, gum_cached_page_size,
         VM_FLAGS_ANYWHERE);
-    g_assert_cmpint (kr, ==, KERN_SUCCESS);
+    g_assert (kr == KERN_SUCCESS);
 
     gum_mprotect (GSIZE_TO_POINTER (page), gum_cached_page_size, GUM_PAGE_RWX);
 

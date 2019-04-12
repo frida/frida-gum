@@ -87,7 +87,7 @@ TESTCASE (tail_checking_malloc)
   free (a);
   DETACH_CHECKER ();
 
-  g_assert (exception_on_read && exception_on_write);
+  g_assert_true (exception_on_read && exception_on_write);
 }
 
 TESTCASE (tail_checking_calloc)
@@ -102,7 +102,7 @@ TESTCASE (tail_checking_calloc)
   free (a);
   DETACH_CHECKER ();
 
-  g_assert (exception_on_read && exception_on_write);
+  g_assert_true (exception_on_read && exception_on_write);
 }
 
 TESTCASE (tail_checking_realloc)
@@ -118,7 +118,7 @@ TESTCASE (tail_checking_realloc)
   free (a);
   DETACH_CHECKER ();
 
-  g_assert (exception_on_read && exception_on_write);
+  g_assert_true (exception_on_read && exception_on_write);
 }
 
 TESTCASE (realloc_shrink)
@@ -144,7 +144,7 @@ TESTCASE (tail_checking_realloc_null)
   free (a);
   DETACH_CHECKER ();
 
-  g_assert (exception_on_read && exception_on_write);
+  g_assert_true (exception_on_read && exception_on_write);
 }
 
 TESTCASE (realloc_migration_pool_to_pool)
@@ -193,7 +193,7 @@ TESTCASE (protected_after_free)
   gum_try_read_and_write_at (a, 0, &exception_on_read, &exception_on_write);
   DETACH_CHECKER ();
 
-  g_assert (exception_on_read && exception_on_write);
+  g_assert_true (exception_on_read && exception_on_write);
 }
 
 TESTCASE (calloc_initializes_to_zero)
@@ -226,5 +226,5 @@ TESTCASE (custom_front_alignment)
   free (a);
   DETACH_CHECKER ();
 
-  g_assert (exception_on_read && exception_on_write);
+  g_assert_true (exception_on_read && exception_on_write);
 }

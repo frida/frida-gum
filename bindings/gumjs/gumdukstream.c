@@ -472,7 +472,7 @@ gum_duk_read_operation_start (GumDukReadOperation * self)
   }
   else
   {
-    g_assert_cmpuint (self->strategy, ==, GUM_DUK_READ_ALL);
+    g_assert (self->strategy == GUM_DUK_READ_ALL);
 
     g_input_stream_read_all_async (stream->handle, self->buffer,
         self->buffer_size, G_PRIORITY_DEFAULT, stream->cancellable,
@@ -502,7 +502,7 @@ gum_duk_read_operation_finish (GInputStream * stream,
   }
   else
   {
-    g_assert_cmpuint (self->strategy, ==, GUM_DUK_READ_ALL);
+    g_assert (self->strategy == GUM_DUK_READ_ALL);
 
     g_input_stream_read_all_finish (stream, result, &bytes_read, &error);
   }
@@ -726,7 +726,7 @@ gum_duk_write_operation_start (GumDukWriteOperation * self)
     gsize size;
     gconstpointer data;
 
-    g_assert_cmpuint (self->strategy, ==, GUM_DUK_WRITE_ALL);
+    g_assert (self->strategy == GUM_DUK_WRITE_ALL);
 
     data = g_bytes_get_data (self->bytes, &size);
 
@@ -757,7 +757,7 @@ gum_duk_write_operation_finish (GOutputStream * stream,
   }
   else
   {
-    g_assert_cmpuint (self->strategy, ==, GUM_DUK_WRITE_ALL);
+    g_assert (self->strategy == GUM_DUK_WRITE_ALL);
 
     g_output_stream_write_all_finish (stream, result, &bytes_written, &error);
   }

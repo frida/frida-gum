@@ -186,13 +186,13 @@ TESTCASE (process_threads_exclude_cloaked)
   ctx.needle = gum_process_get_current_thread_id ();
   ctx.found = FALSE;
   gum_process_enumerate_threads (thread_check_cb, &ctx);
-  g_assert (ctx.found);
+  g_assert_true (ctx.found);
 
   gum_cloak_add_thread (ctx.needle);
 
   ctx.found = FALSE;
   gum_process_enumerate_threads (thread_check_cb, &ctx);
-  g_assert (!ctx.found);
+  g_assert_false (ctx.found);
 
   gum_cloak_remove_thread (ctx.needle);
 }
@@ -234,7 +234,7 @@ TESTCASE (linux_process_modules)
   ModuleBounds bounds;
 
   lib = dlopen (TRICKY_MODULE_NAME, RTLD_NOW | RTLD_GLOBAL);
-  g_assert (lib != NULL);
+  g_assert_nonnull (lib);
 
   bounds.name = TRICKY_MODULE_NAME;
   bounds.start = 0;
@@ -243,8 +243,8 @@ TESTCASE (linux_process_modules)
   gum_process_enumerate_ranges (GUM_PAGE_NO_ACCESS, find_module_bounds,
       &bounds);
 
-  g_assert (bounds.start != 0);
-  g_assert (bounds.end != 0);
+  g_assert_true (bounds.start != 0);
+  g_assert_true (bounds.end != 0);
 
   gum_process_enumerate_modules (verify_module_bounds, &bounds);
 
@@ -328,14 +328,14 @@ TESTCASE (process_ranges)
     ctx.found = FALSE;
     ctx.found_exact = FALSE;
     gum_process_enumerate_ranges (GUM_PAGE_RW, range_check_cb, &ctx);
-    g_assert (ctx.found);
+    g_assert_true (ctx.found);
 
     ctx.range.base_address = GUM_ADDRESS (malloc_buf) + 1;
     ctx.range.size = malloc_buf_size - 1;
     ctx.found = FALSE;
     ctx.found_exact = FALSE;
     gum_process_enumerate_ranges (GUM_PAGE_RW, range_check_cb, &ctx);
-    g_assert (ctx.found);
+    g_assert_true (ctx.found);
 
     free (malloc_buf);
 
@@ -344,7 +344,7 @@ TESTCASE (process_ranges)
     ctx.found = FALSE;
     ctx.found_exact = FALSE;
     gum_process_enumerate_ranges (GUM_PAGE_RW, range_check_cb, &ctx);
-    g_assert (ctx.found);
+    g_assert_true (ctx.found);
   }
 }
 
@@ -372,7 +372,7 @@ TESTCASE (process_ranges_exclude_cloaked)
   ctx.found_exact = FALSE;
   gum_process_enumerate_ranges (GUM_PAGE_RW, range_check_cb, &ctx);
   gum_free (block);
-  g_assert (!ctx.found);
+  g_assert_false (ctx.found);
 }
 
 #if defined (G_OS_WIN32) || defined (HAVE_DARWIN)
@@ -414,16 +414,16 @@ TESTCASE (process_malloc_ranges)
     ctx.found = FALSE;
     ctx.found_exact = FALSE;
     gum_process_enumerate_malloc_ranges (malloc_range_check_cb, &ctx);
-    g_assert (ctx.found);
-    g_assert (ctx.found_exact);
+    g_assert_true (ctx.found);
+    g_assert_true (ctx.found_exact);
 
     ctx.range.base_address = GUM_ADDRESS (malloc_buf) + 1;
     ctx.range.size = malloc_buf_size - 1;
     ctx.found = FALSE;
     ctx.found_exact = FALSE;
     gum_process_enumerate_malloc_ranges (malloc_range_check_cb, &ctx);
-    g_assert (ctx.found);
-    g_assert (!ctx.found_exact);
+    g_assert_true (ctx.found);
+    g_assert_false (ctx.found_exact);
 
     free (malloc_buf);
 
@@ -432,8 +432,8 @@ TESTCASE (process_malloc_ranges)
     ctx.found = FALSE;
     ctx.found_exact = FALSE;
     gum_process_enumerate_malloc_ranges (malloc_range_check_cb, &ctx);
-    g_assert (!ctx.found);
-    g_assert (!ctx.found_exact);
+    g_assert_false (ctx.found);
+    g_assert_false (ctx.found_exact);
   }
 }
 
@@ -511,12 +511,12 @@ TESTCASE (module_ranges_can_be_enumerated)
 
 TESTCASE (module_base)
 {
-  g_assert (gum_module_find_base_address (SYSTEM_MODULE_NAME) != 0);
+  g_assert_true (gum_module_find_base_address (SYSTEM_MODULE_NAME) != 0);
 }
 
 TESTCASE (module_export_can_be_found)
 {
-  g_assert (gum_module_find_export_by_name (SYSTEM_MODULE_NAME,
+  g_assert_true (gum_module_find_export_by_name (SYSTEM_MODULE_NAME,
       SYSTEM_MODULE_EXPORT) != 0);
 }
 
@@ -527,13 +527,13 @@ TESTCASE (module_export_matches_system_lookup)
   GumAddress enumerate_address, find_by_name_address;
 
   lib = dlopen (TRICKY_MODULE_NAME, RTLD_NOW | RTLD_GLOBAL);
-  g_assert (lib != NULL);
+  g_assert_true (lib != NULL);
   system_address = dlsym (lib, TRICKY_MODULE_EXPORT);
 
   enumerate_address = 0;
   gum_module_enumerate_exports (TRICKY_MODULE_NAME,
       store_export_address_if_tricky_module_export, &enumerate_address);
-  g_assert (enumerate_address != 0);
+  g_assert_true (enumerate_address != 0);
 
   find_by_name_address =
       gum_module_find_export_by_name (TRICKY_MODULE_NAME, TRICKY_MODULE_EXPORT);
@@ -625,7 +625,7 @@ TESTCASE (darwin_enumerate_modules_should_include_core_foundation)
 
   found = FALSE;
   gum_darwin_enumerate_modules (task, assign_true_if_core_foundation, &found);
-  g_assert (found);
+  g_assert_true (found);
 }
 
 TESTCASE (darwin_enumerate_ranges)
@@ -670,11 +670,11 @@ TESTCASE (darwin_module_exports)
 
   gum_darwin_enumerate_exports (task, SYSTEM_MODULE_NAME,
       store_export_address_if_mach_msg, &actual_mach_msg_address);
-  g_assert (actual_mach_msg_address != 0);
+  g_assert_true (actual_mach_msg_address != 0);
 
   module = dlopen (SYSTEM_MODULE_NAME, 0);
   expected_mach_msg_address = GUM_ADDRESS (dlsym (module, "mach_msg"));
-  g_assert (expected_mach_msg_address != 0);
+  g_assert_true (expected_mach_msg_address != 0);
   dlclose (module);
 
   g_assert_cmphex (actual_mach_msg_address, ==, expected_mach_msg_address);

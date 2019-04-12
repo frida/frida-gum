@@ -171,8 +171,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   gum_mips_writer_put_jr_reg (cw, MIPS_REG_AT);
 
   gum_mips_writer_flush (cw);
-  g_assert_cmpuint (gum_mips_writer_offset (cw),
-      <=, ctx->trampoline_slice->size);
+  g_assert (gum_mips_writer_offset (cw) <= ctx->trampoline_slice->size);
 
   ctx->on_invoke_trampoline = gum_mips_writer_cur (cw);
 
@@ -185,7 +184,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   do
   {
     reloc_bytes = gum_mips_relocator_read_one (rl, NULL);
-    g_assert_cmpuint (reloc_bytes, !=, 0);
+    g_assert (reloc_bytes != 0);
   }
   while (reloc_bytes < data->redirect_code_size || rl->delay_slot_pending);
 
@@ -201,8 +200,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   }
 
   gum_mips_writer_flush (cw);
-  g_assert_cmpuint (gum_mips_writer_offset (cw),
-      <=, ctx->trampoline_slice->size);
+  g_assert (gum_mips_writer_offset (cw) <= ctx->trampoline_slice->size);
 
   ctx->overwritten_prologue_len = reloc_bytes;
   memcpy (ctx->overwritten_prologue, function_address, reloc_bytes);
@@ -255,7 +253,7 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
   }
 
   gum_mips_writer_flush (cw);
-  g_assert_cmpuint (gum_mips_writer_offset (cw), <=, data->redirect_code_size);
+  g_assert (gum_mips_writer_offset (cw) <= data->redirect_code_size);
 }
 
 void
@@ -289,13 +287,13 @@ gum_interceptor_backend_create_thunks (GumInterceptorBackend * self)
   gum_mips_writer_reset (cw, self->enter_thunk->data);
   gum_emit_enter_thunk (cw);
   gum_mips_writer_flush (cw);
-  g_assert_cmpuint (gum_mips_writer_offset (cw), <=, self->enter_thunk->size);
+  g_assert (gum_mips_writer_offset (cw) <= self->enter_thunk->size);
 
   self->leave_thunk = gum_code_allocator_alloc_slice (self->allocator);
   gum_mips_writer_reset (cw, self->leave_thunk->data);
   gum_emit_leave_thunk (cw);
   gum_mips_writer_flush (cw);
-  g_assert_cmpuint (gum_mips_writer_offset (cw), <=, self->leave_thunk->size);
+  g_assert (gum_mips_writer_offset (cw) <= self->leave_thunk->size);
 }
 
 static void

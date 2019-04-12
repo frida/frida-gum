@@ -155,14 +155,14 @@ gum_kernel_alloc_n_pages (guint n_pages)
 
   result = 0;
   kr = mach_vm_allocate (task, &result, size, VM_FLAGS_ANYWHERE);
-  g_assert_cmpint (kr, ==, KERN_SUCCESS);
+  g_assert (kr == KERN_SUCCESS);
 
   written = gum_darwin_write (task, result, (guint8 *) &size, sizeof (gsize));
   g_assert (written);
 
   kr = vm_protect (task, result + page_size, size - page_size,
       TRUE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE);
-  g_assert_cmpint (kr, ==, KERN_SUCCESS);
+  g_assert (kr == KERN_SUCCESS);
 
   return result + page_size;
 }
@@ -196,7 +196,7 @@ gum_kernel_free_pages (GumAddress mem)
 
   kr = mach_vm_deallocate (task, address, *size);
   g_free (size);
-  g_assert_cmpint (kr, ==, KERN_SUCCESS);
+  g_assert (kr == KERN_SUCCESS);
 }
 
 gboolean
@@ -266,7 +266,7 @@ gum_kernel_read (GumAddress address,
         (vm_address_t) (result + offset), &n_bytes_read);
     if (kr != KERN_SUCCESS)
       break;
-    g_assert_cmpuint (n_bytes_read, ==, chunk_size);
+    g_assert (n_bytes_read == chunk_size);
 
     offset += chunk_size;
   }
@@ -722,7 +722,7 @@ gum_kernel_get_version (void)
 
   size = sizeof (buf);
   res = sysctlbyname ("kern.osrelease", buf, &size, NULL, 0);
-  g_assert_cmpint (res, ==, 0);
+  g_assert (res == 0);
 
   version = atof (buf);
 
@@ -740,7 +740,7 @@ gum_kernel_is_debug (void)
 
   size = sizeof (buf);
   res = sysctlbyname ("kern.bootargs", buf, &size, NULL, 0);
-  g_assert_cmpint (res, ==, 0);
+  g_assert (res == 0);
 
   return strstr (buf, "debug") != NULL;
 }

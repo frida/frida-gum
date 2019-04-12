@@ -45,15 +45,15 @@ TESTCASE (basics)
 #endif
 
   first_address = ret_addrs.items[0];
-  g_assert (first_address != NULL);
+  g_assert_nonnull (first_address);
 
-  g_assert (gum_return_address_details_from_address (first_address, &rad));
-  g_assert (g_str_has_prefix (rad.module_name, "gum-tests") ||
+  g_assert_true (gum_return_address_details_from_address (first_address, &rad));
+  g_assert_true (g_str_has_prefix (rad.module_name, "gum-tests") ||
       g_str_has_prefix (rad.module_name, "lt-gum-tests"));
   g_assert_cmpstr (rad.function_name, ==, __FUNCTION__);
 #ifndef HAVE_DARWIN
-  g_assert (g_str_has_suffix (rad.file_name, "backtracer.c"));
-  g_assert (rad.line_number == expected_line_number ||
+  g_assert_true (g_str_has_suffix (rad.file_name, "backtracer.c"));
+  g_assert_true (rad.line_number == expected_line_number ||
       rad.line_number == expected_line_number + 1);
 #endif
 }
@@ -86,8 +86,8 @@ TESTCASE (full_cycle_with_interceptor)
   g_assert_cmpuint (collector->last_on_enter.len, ==, 0);
   g_assert_cmpuint (collector->last_on_leave.len, ==, 0);
   fd = open_impl ("badger.txt", O_RDONLY);
-  g_assert (collector->last_on_enter.len != 0);
-  g_assert (collector->last_on_leave.len != 0);
+  g_assert_cmpuint (collector->last_on_enter.len, !=, 0);
+  g_assert_cmpuint (collector->last_on_leave.len, !=, 0);
 
   gum_interceptor_detach_listener (interceptor,
       GUM_INVOCATION_LISTENER (collector));
@@ -103,11 +103,11 @@ TESTCASE (full_cycle_with_interceptor)
   print_backtrace (&collector->last_on_leave);
 #endif
 
-  g_assert (gum_return_address_details_from_address (
+  g_assert_true (gum_return_address_details_from_address (
       collector->last_on_enter.items[0], &on_enter));
   g_assert_cmpstr (on_enter.function_name, ==, __FUNCTION__);
 
-  g_assert (gum_return_address_details_from_address (
+  g_assert_true (gum_return_address_details_from_address (
       collector->last_on_leave.items[0], &on_leave));
   g_assert_cmpstr (on_leave.function_name, ==, __FUNCTION__);
 
@@ -161,20 +161,21 @@ TESTCASE (full_cycle_with_allocation_tracker)
   g_assert_cmpuint (block->return_addresses.len, >=, 1);
 
   first_address = block->return_addresses.items[0];
-  g_assert (first_address != NULL);
+  g_assert_nonnull (first_address);
 
   {
 #ifdef G_OS_WIN32
     GumReturnAddressDetails rad;
 
-    g_assert (gum_return_address_details_from_address (first_address, &rad));
-    g_assert (g_str_has_prefix (rad.module_name, "gum-tests"));
+    g_assert_true (gum_return_address_details_from_address (first_address,
+        &rad));
+    g_assert_true (g_str_has_prefix (rad.module_name, "gum-tests"));
     g_assert_cmpstr (rad.function_name, ==, __FUNCTION__);
-    g_assert (g_str_has_suffix (rad.file_name, "backtracer.c"));
+    g_assert_true (g_str_has_suffix (rad.file_name, "backtracer.c"));
     if (rad.line_number != alternate_line_number)
       g_assert_cmpuint (rad.line_number, ==, expected_line_number);
 #else
-    g_assert (first_address != NULL);
+    g_assert_nonnull (first_address);
     (void) expected_line_number;
     (void) alternate_line_number;
 #endif

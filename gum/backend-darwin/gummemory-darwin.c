@@ -105,7 +105,7 @@ gum_darwin_query_page_size (mach_port_t task,
 
         size = sizeof (buf);
         res = sysctlbyname ("hw.pagesize", buf, &size, NULL, 0);
-        g_assert_cmpint (res, ==, 0);
+        g_assert (res == 0);
 
         if (size == 8)
           hw_page_size = *((guint64 *) buf);
@@ -285,7 +285,7 @@ gum_darwin_read (mach_port_t task,
         (vm_address_t) (result + offset), &n_bytes_read);
     if (kr != KERN_SUCCESS)
       break;
-    g_assert_cmpuint (n_bytes_read, ==, chunk_size);
+    g_assert (n_bytes_read == chunk_size);
 #else
     vm_offset_t result_data;
     mach_msg_type_number_t result_size;
@@ -295,7 +295,7 @@ gum_darwin_read (mach_port_t task,
         &result_data, &result_size);
     if (kr != KERN_SUCCESS)
       break;
-    g_assert_cmpuint (result_size, ==, page_size);
+    g_assert (result_size == page_size);
     memcpy (result + offset, (gpointer) (result_data + page_offset),
         chunk_size);
     mach_vm_deallocate (self, result_data, result_size);
@@ -585,7 +585,7 @@ gum_free_pages (gpointer mem)
   size = *((gsize *) address);
 
   kr = mach_vm_deallocate (mach_task_self (), address, size);
-  g_assert_cmpint (kr, ==, KERN_SUCCESS);
+  g_assert (kr == KERN_SUCCESS);
 }
 
 gpointer

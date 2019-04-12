@@ -28,10 +28,11 @@ TESTCASE (symbol_details_from_address)
 {
   GumDebugSymbolDetails details;
 
-  g_assert (gum_symbol_details_from_address (gum_dummy_function_0, &details));
+  g_assert_true (gum_symbol_details_from_address (gum_dummy_function_0,
+      &details));
   g_assert_cmphex (GPOINTER_TO_SIZE (details.address), ==,
       GPOINTER_TO_SIZE (gum_dummy_function_0));
-  g_assert (g_str_has_prefix (details.module_name, "gum-tests"));
+  g_assert_true (g_str_has_prefix (details.module_name, "gum-tests"));
   g_assert_cmpstr (details.symbol_name, ==, "gum_dummy_function_0");
 #ifndef HAVE_IOS
   assert_basename_equals (__FILE__, details.file_name);
@@ -50,7 +51,7 @@ TESTCASE (symbol_name_from_address)
 
 TESTCASE (find_external_public_function)
 {
-  g_assert (gum_find_function ("g_thread_new") != NULL);
+  g_assert_nonnull (gum_find_function ("g_thread_new"));
 }
 
 TESTCASE (find_local_static_function)

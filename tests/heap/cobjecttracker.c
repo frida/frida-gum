@@ -86,7 +86,7 @@ TESTCASE (object_list)
   {
     GumCObject * cobject = (GumCObject *) cur->data;
 
-    g_assert (cobject->address == fixture->ht1 ||
+    g_assert_true (cobject->address == fixture->ht1 ||
         cobject->address == fixture->mo);
 
     if (cobject->address == fixture->ht1)
@@ -98,12 +98,12 @@ TESTCASE (object_list)
 #ifdef G_OS_WIN32
       GumReturnAddressDetails rad;
 
-      g_assert (gum_return_address_details_from_address (
+      g_assert_true (gum_return_address_details_from_address (
           cobject->return_addresses.items[0], &rad));
       g_assert_cmpstr (rad.function_name, ==, __FUNCTION__);
       g_assert_cmpint (rad.line_number, >, 0);
 #else
-      g_assert (cobject->return_addresses.items[0] != NULL);
+      g_assert_nonnull (cobject->return_addresses.items[0]);
 #endif
     }
   }

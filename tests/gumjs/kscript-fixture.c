@@ -28,7 +28,7 @@
 #define POST_MESSAGE(MSG) \
     gum_script_post_message (fixture->kscript, MSG)
 #define EXPECT_NO_MESSAGES() \
-    g_assert (test_kscript_fixture_try_pop_message (fixture, 1) == NULL)
+    g_assert_null (test_kscript_fixture_try_pop_message (fixture, 1))
 #define EXPECT_SEND_MESSAGE_WITH(PAYLOAD, ...) \
     test_kscript_fixture_expect_send_message_with (fixture, PAYLOAD, \
     ## __VA_ARGS__)
@@ -173,8 +173,8 @@ test_kscript_fixture_compile_and_load_kscript (TestScriptFixture * fixture,
 
   fixture->kscript = gum_script_backend_create_sync (fixture->backend,
       "testcase", source, NULL, &err);
-  g_assert (fixture->kscript != NULL);
-  g_assert (err == NULL);
+  g_assert_nonnull (fixture->kscript);
+  g_assert_null (err);
 
   g_free (source);
 
@@ -220,7 +220,7 @@ test_kscript_fixture_pop_message (TestScriptFixture * fixture)
   TestScriptMessageItem * item;
 
   item = test_kscript_fixture_try_pop_message (fixture, fixture->timeout);
-  g_assert (item != NULL);
+  g_assert_nonnull (item);
 
   return item;
 }
@@ -264,12 +264,12 @@ test_kscript_fixture_expect_send_message_with_payload_and_data (
   g_assert_cmpstr (item->message, ==, expected_message);
   if (data != NULL)
   {
-    g_assert (item->data != NULL);
+    g_assert_nonnull (item->data);
     g_assert_cmpstr (item->data, ==, data);
   }
   else
   {
-    g_assert (item->data == NULL);
+    g_assert_null (item->data);
   }
   test_kscript_message_item_free (item);
   g_free (expected_message);

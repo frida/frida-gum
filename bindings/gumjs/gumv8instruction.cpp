@@ -106,10 +106,10 @@ _gum_v8_instruction_init (GumV8Instruction * self,
 
   auto err =
       cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &self->capstone);
-  g_assert_cmpint (err, ==, CS_ERR_OK);
+  g_assert (err == CS_ERR_OK);
 
   err = cs_option (self->capstone, CS_OPT_DETAIL, CS_OPT_ON);
-  g_assert_cmpint (err, ==, CS_ERR_OK);
+  g_assert (err == CS_ERR_OK);
 
   auto module = External::New (isolate, self);
 

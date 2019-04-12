@@ -221,13 +221,13 @@ init_java_vm (JavaVM ** vm,
       ? "libart.so"
       : "libdvm.so",
       RTLD_LAZY | RTLD_GLOBAL);
-  g_assert (vm_module != NULL);
+  g_assert_nonnull (vm_module);
 
   runtime_module = dlopen ("libandroid_runtime.so", RTLD_LAZY | RTLD_GLOBAL);
-  g_assert (runtime_module != NULL);
+  g_assert_nonnull (runtime_module);
 
   create_java_vm = dlsym (vm_module, "JNI_CreateJavaVM");
-  g_assert (create_java_vm != NULL);
+  g_assert_nonnull (create_java_vm);
 
   options[0].optionString = "-verbose:jni";
   options[1].optionString = "-verbose:gc";
@@ -252,7 +252,7 @@ init_java_vm (JavaVM ** vm,
   {
     register_natives_legacy = dlsym (runtime_module,
         "Java_com_android_internal_util_WithFramework_registerNatives");
-    g_assert (register_natives_legacy != NULL);
+    g_assert_nonnull (register_natives_legacy);
 
     result = register_natives_legacy (*env, NULL);
     g_assert_cmpint (result, ==, JNI_OK);

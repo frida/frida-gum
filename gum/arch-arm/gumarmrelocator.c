@@ -74,9 +74,9 @@ gum_arm_relocator_init (GumArmRelocator * relocator,
   relocator->ref_count = 1;
 
   err = cs_open (CS_ARCH_ARM, CS_MODE_ARM, &relocator->capstone);
-  g_assert_cmpint (err, ==, CS_ERR_OK);
+  g_assert (err == CS_ERR_OK);
   err = cs_option (relocator->capstone, CS_OPT_DETAIL, CS_OPT_ON);
-  g_assert_cmpint (err, ==, CS_ERR_OK);
+  g_assert (err == CS_ERR_OK);
   relocator->input_insns = g_new0 (cs_insn *, GUM_MAX_INPUT_INSN_COUNT);
 
   relocator->output = NULL;
@@ -143,14 +143,14 @@ static void
 gum_arm_relocator_increment_inpos (GumArmRelocator * self)
 {
   self->inpos++;
-  g_assert_cmpint (self->inpos, >, self->outpos);
+  g_assert (self->inpos > self->outpos);
 }
 
 static void
 gum_arm_relocator_increment_outpos (GumArmRelocator * self)
 {
   self->outpos++;
-  g_assert_cmpint (self->outpos, <=, self->inpos);
+  g_assert (self->outpos <= self->inpos);
 }
 
 guint
@@ -299,7 +299,7 @@ gum_arm_relocator_write_all (GumArmRelocator * self)
   while (gum_arm_relocator_write_one (self))
     count++;
 
-  g_assert_cmpuint (count, >, 0);
+  g_assert (count > 0);
 }
 
 gboolean
@@ -366,7 +366,7 @@ gum_arm_relocator_relocate (gpointer from,
   do
   {
     reloc_bytes = gum_arm_relocator_read_one (&rl, NULL);
-    g_assert_cmpuint (reloc_bytes, !=, 0);
+    g_assert (reloc_bytes != 0);
   }
   while (reloc_bytes < min_bytes);
 

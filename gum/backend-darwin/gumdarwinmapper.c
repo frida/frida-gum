@@ -768,7 +768,7 @@ gum_emit_runtime (GumDarwinMapper * self)
   gum_x86_writer_put_ret (&cw);
 
   gum_x86_writer_flush (&cw);
-  g_assert_cmpint (gum_x86_writer_offset (&cw), <=, self->runtime_file_size);
+  g_assert (gum_x86_writer_offset (&cw) <= self->runtime_file_size);
   gum_x86_writer_clear (&cw);
 }
 
@@ -975,7 +975,7 @@ gum_emit_arm_runtime (GumDarwinMapper * self)
       ARM_REG_R7, ARM_REG_PC);
 
   gum_thumb_writer_flush (&tw);
-  g_assert_cmpint (gum_thumb_writer_offset (&tw), <=, self->runtime_file_size);
+  g_assert (gum_thumb_writer_offset (&tw) <= self->runtime_file_size);
   gum_thumb_writer_clear (&tw);
 }
 
@@ -1138,7 +1138,7 @@ gum_emit_arm64_runtime (GumDarwinMapper * self)
   gum_arm64_writer_put_ret (&aw);
 
   gum_arm64_writer_flush (&aw);
-  g_assert_cmpint (gum_arm64_writer_offset (&aw), <=, self->runtime_file_size);
+  g_assert (gum_arm64_writer_offset (&aw) <= self->runtime_file_size);
   gum_arm64_writer_clear (&aw);
 }
 
@@ -1305,13 +1305,13 @@ gum_darwin_mapper_data_from_offset (GumDarwinMapper * self,
 
   if (source_offset != 0)
   {
-    g_assert_cmpint (offset, >=, source_offset);
-    g_assert_cmpint (offset, <, source_offset + image->shared_offset +
+    g_assert (offset >= source_offset);
+    g_assert (offset < source_offset + image->shared_offset +
         image->shared_size);
   }
   else
   {
-    g_assert_cmpint (offset, <, image->size);
+    g_assert (offset < image->size);
   }
 
   return image->data + (offset - source_offset);
@@ -1581,7 +1581,7 @@ gum_darwin_mapper_rebase (const GumDarwinRebaseDetails * details,
   GumDarwinMapper * self = user_data;
   gpointer entry;
 
-  g_assert_cmpint (details->offset, <, details->segment->file_size);
+  g_assert (details->offset < details->segment->file_size);
 
   entry = gum_darwin_mapper_data_from_offset (self,
       details->segment->file_offset + details->offset);
@@ -1613,7 +1613,7 @@ gum_darwin_mapper_bind (const GumDarwinBindDetails * details,
   gboolean success, is_weak_import;
   gpointer entry;
 
-  g_assert_cmpint (details->type, ==, BIND_TYPE_POINTER);
+  g_assert (details->type == BIND_TYPE_POINTER);
 
   dependency = gum_darwin_mapper_dependency (self, details->library_ordinal);
   success = gum_darwin_mapper_resolve_symbol (self, dependency->module,

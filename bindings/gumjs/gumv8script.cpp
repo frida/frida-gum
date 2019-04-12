@@ -596,7 +596,7 @@ gum_v8_script_complete_unload_task (GumV8Script * self,
 static void
 gum_v8_script_try_unload (GumV8Script * self)
 {
-  g_assert_cmpuint (self->state, ==, GUM_SCRIPT_STATE_UNLOADING);
+  g_assert (self->state == GUM_SCRIPT_STATE_UNLOADING);
 
   gboolean success;
 

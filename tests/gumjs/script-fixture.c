@@ -76,7 +76,7 @@
 #define POST_MESSAGE(MSG) \
     gum_script_post (fixture->script, MSG, NULL)
 #define EXPECT_NO_MESSAGES() \
-    g_assert (test_script_fixture_try_pop_message (fixture, 1) == NULL)
+    g_assert_null (test_script_fixture_try_pop_message (fixture, 1))
 #define EXPECT_SEND_MESSAGE_WITH(PAYLOAD, ...) \
     test_script_fixture_expect_send_message_with (fixture, PAYLOAD, \
     ## __VA_ARGS__)
@@ -353,8 +353,8 @@ test_script_fixture_compile_and_load_script (TestScriptFixture * fixture,
       "testcase", source, NULL, &err);
   if (err != NULL)
     g_printerr ("%s\n", err->message);
-  g_assert (fixture->script != NULL);
-  g_assert (err == NULL);
+  g_assert_nonnull (fixture->script);
+  g_assert_null (err);
 
   g_free (source);
   g_free (raw_source);
@@ -404,7 +404,7 @@ test_script_fixture_pop_message (TestScriptFixture * fixture)
   timeout = GPOINTER_TO_UINT (g_queue_peek_tail (&fixture->timeouts));
 
   item = test_script_fixture_try_pop_message (fixture, timeout);
-  g_assert (item != NULL);
+  g_assert_nonnull (item);
 
   return item;
 }
@@ -451,7 +451,7 @@ test_script_fixture_expect_send_message_with_prefix (
   item = test_script_fixture_pop_message (fixture);
   expected_message_prefix =
       g_strconcat ("{\"type\":\"send\",\"payload\":", prefix, NULL);
-  g_assert (g_str_has_prefix (item->message, expected_message_prefix));
+  g_assert_true (g_str_has_prefix (item->message, expected_message_prefix));
   test_script_message_item_free (item);
   g_free (expected_message_prefix);
 
@@ -473,12 +473,12 @@ test_script_fixture_expect_send_message_with_payload_and_data (
   g_assert_cmpstr (item->message, ==, expected_message);
   if (data != NULL)
   {
-    g_assert (item->data != NULL);
+    g_assert_nonnull (item->data);
     g_assert_cmpstr (item->data, ==, data);
   }
   else
   {
-    g_assert (item->data == NULL);
+    g_assert_null (item->data);
   }
   test_script_message_item_free (item);
   g_free (expected_message);

@@ -73,9 +73,9 @@ gum_mips_relocator_init (GumMipsRelocator * relocator,
   err = cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_BIG_ENDIAN,
       &relocator->capstone);
 #endif
-  g_assert_cmpint (err, ==, CS_ERR_OK);
+  g_assert (err == CS_ERR_OK);
   err = cs_option (relocator->capstone, CS_OPT_DETAIL, CS_OPT_ON);
-  g_assert_cmpint (err, ==, CS_ERR_OK);
+  g_assert (err == CS_ERR_OK);
   relocator->input_insns = g_new0 (cs_insn *, GUM_MAX_INPUT_INSN_COUNT);
 
   relocator->output = NULL;
@@ -143,14 +143,14 @@ static void
 gum_mips_relocator_increment_inpos (GumMipsRelocator * self)
 {
   self->inpos++;
-  g_assert_cmpint (self->inpos, >, self->outpos);
+  g_assert (self->inpos > self->outpos);
 }
 
 static void
 gum_mips_relocator_increment_outpos (GumMipsRelocator * self)
 {
   self->outpos++;
-  g_assert_cmpint (self->outpos, <=, self->inpos);
+  g_assert (self->outpos <= self->inpos);
 }
 
 guint
@@ -321,7 +321,7 @@ gum_mips_relocator_write_all (GumMipsRelocator * self)
   while (gum_mips_relocator_write_one (self))
     count++;
 
-  g_assert_cmpuint (count, >, 0);
+  g_assert (count > 0);
 }
 
 gboolean
@@ -404,9 +404,9 @@ gum_mips_relocator_can_relocate (gpointer address,
     err = cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_BIG_ENDIAN,
         &capstone);
 #endif
-    g_assert_cmpint (err, == , CS_ERR_OK);
+    g_assert (err == CS_ERR_OK);
     err = cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
-    g_assert_cmpint (err, ==, CS_ERR_OK);
+    g_assert (err == CS_ERR_OK);
 
     count = cs_disasm (capstone, rl.input_cur, 1024, rl.input_pc, 0, &insn);
     g_assert (insn != NULL);
@@ -425,7 +425,7 @@ gum_mips_relocator_can_relocate (gpointer address,
 
           op = &d->operands[0];
 
-          g_assert_cmpint (op->type, ==, MIPS_OP_IMM);
+          g_assert (op->type == MIPS_OP_IMM);
           target =
               (gssize) (GPOINTER_TO_SIZE (insn[i].address & 0xf0000000)) |
               (op->imm << 2);
@@ -453,7 +453,7 @@ gum_mips_relocator_can_relocate (gpointer address,
 
           op = d->op_count == 3 ? &d->operands[2] : &d->operands[1];
 
-          g_assert_cmpint (op->type, ==, MIPS_OP_IMM);
+          g_assert (op->type == MIPS_OP_IMM);
           target = (gssize) insn->address +
               (op->imm & 0x8000 ? (0xffff0000 + op->imm) << 2 : op->imm << 2);
           offset =
@@ -531,7 +531,7 @@ gum_mips_relocator_relocate (gpointer from,
   do
   {
     reloc_bytes = gum_mips_relocator_read_one (&rl, NULL);
-    g_assert_cmpuint (reloc_bytes, !=, 0);
+    g_assert (reloc_bytes != 0);
   }
   while (reloc_bytes < min_bytes || rl.delay_slot_pending);
 

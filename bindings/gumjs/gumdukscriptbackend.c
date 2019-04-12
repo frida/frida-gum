@@ -1171,7 +1171,7 @@ gum_duk_script_backend_notify_debugger_output (GumNotifyDebuggerOutputData * d)
   cur += g_base64_encode_close (break_lines, cur, &state, &save);
   *cur++ = '\0';
   message->len = cur - message->str;
-  g_assert_cmpuint (message->len + 1, <=, message->allocated_len);
+  g_assert (message->len + 1 <= message->allocated_len);
 
   self->debug_handler (message->str, self->debug_handler_data);
 

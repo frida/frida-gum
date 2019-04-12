@@ -85,9 +85,9 @@ gum_x86_relocator_init (GumX86Relocator * relocator,
   err = cs_open (CS_ARCH_X86,
       (output->target_cpu == GUM_CPU_AMD64) ? CS_MODE_64 : CS_MODE_32,
       &relocator->capstone);
-  g_assert_cmpint (err, ==, CS_ERR_OK);
+  g_assert (err == CS_ERR_OK);
   err = cs_option (relocator->capstone, CS_OPT_DETAIL, CS_OPT_ON);
-  g_assert_cmpint (err, ==, CS_ERR_OK);
+  g_assert (err == CS_ERR_OK);
   relocator->input_insns = g_new0 (cs_insn *, GUM_MAX_INPUT_INSN_COUNT);
 
   relocator->output = NULL;
@@ -153,14 +153,14 @@ static void
 gum_x86_relocator_increment_inpos (GumX86Relocator * self)
 {
   self->inpos++;
-  g_assert_cmpint (self->inpos, >, self->outpos);
+  g_assert (self->inpos > self->outpos);
 }
 
 static void
 gum_x86_relocator_increment_outpos (GumX86Relocator * self)
 {
   self->outpos++;
-  g_assert_cmpint (self->outpos, <=, self->inpos);
+  g_assert (self->outpos <= self->inpos);
 }
 
 guint
@@ -336,7 +336,7 @@ gum_x86_relocator_write_all (GumX86Relocator * self)
   while (gum_x86_relocator_write_one (self))
     count++;
 
-  g_assert_cmpuint (count, >, 0);
+  g_assert (count > 0);
 }
 
 gboolean
@@ -410,7 +410,7 @@ gum_x86_relocator_relocate (gpointer from,
   do
   {
     reloc_bytes = gum_x86_relocator_read_one (&rl, NULL);
-    g_assert_cmpuint (reloc_bytes, !=, 0);
+    g_assert (reloc_bytes != 0);
   }
   while (reloc_bytes < min_bytes);
 
@@ -579,7 +579,7 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
       continue;
     rip_reg_index = i;
   }
-  g_assert_cmpint (rip_reg_index, !=, -1);
+  g_assert (rip_reg_index != -1);
   rip_reg = cpu_regs[rip_reg_index];
 
   mod = 2;

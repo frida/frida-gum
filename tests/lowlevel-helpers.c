@@ -31,7 +31,7 @@ lowlevel_helpers_init (void)
 {
   GumX86Writer cw;
 
-  g_assert (clobber_test_function == NULL);
+  g_assert_null (clobber_test_function);
 
   clobber_test_function = GUM_POINTER_TO_FUNCPTR (ClobberTestFunc,
       gum_alloc_n_pages (1, GUM_PAGE_RWX));
@@ -48,7 +48,7 @@ lowlevel_helpers_init (void)
 void
 lowlevel_helpers_deinit (void)
 {
-  g_assert (clobber_test_function != NULL);
+  g_assert_nonnull (clobber_test_function);
 
   gum_free_pages (GUM_FUNCPTR_TO_POINTER (clobber_test_function));
   clobber_test_function = NULL;

@@ -481,7 +481,7 @@ gum_module_enumerate_exports (const gchar * module_name,
             {
               if (gnu_buckets[i] != 0)
               {
-                g_assert_cmpuint (gnu_buckets[i], >=, symndx);
+                g_assert (gnu_buckets[i] >= symndx);
 
                 if (maxchain == 0xffffffff || gnu_buckets[i] > maxchain)
                   maxchain = gnu_buckets[i];
@@ -541,7 +541,7 @@ gum_module_enumerate_exports (const gchar * module_name,
       dynsym_section_size = dyn_symentsize * num_symbols;
       dynsym_entry_size = dyn_symentsize;
 
-      g_assert_cmpuint (dynsym_section_size % dynsym_entry_size, ==, 0);
+      g_assert (dynsym_section_size % dynsym_entry_size == 0);
     }
   }
 

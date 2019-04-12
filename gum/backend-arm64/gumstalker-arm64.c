@@ -824,7 +824,7 @@ gum_stalker_remove_call_probe (GumStalker * self,
         break;
       }
     }
-    g_assert_cmpint (match_index, !=, -1);
+    g_assert (match_index != -1);
 
     probe = &g_array_index (probes, GumCallProbe, match_index);
     if (probe->user_notify != NULL)
@@ -2499,7 +2499,7 @@ gum_exec_block_virtualize_ret_insn (GumExecBlock * block,
   }
   else
   {
-    g_assert_cmpint (arm64->op_count, ==, 1);
+    g_assert (arm64->op_count == 1);
 
     op = &arm64->operands[0];
     g_assert (op->type == ARM64_OP_REG);

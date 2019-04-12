@@ -81,9 +81,9 @@ gum_arm64_relocator_init (GumArm64Relocator * relocator,
   relocator->ref_count = 1;
 
   err = cs_open (CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN, &relocator->capstone);
-  g_assert_cmpint (err, ==, CS_ERR_OK);
+  g_assert (err == CS_ERR_OK);
   err = cs_option (relocator->capstone, CS_OPT_DETAIL, CS_OPT_ON);
-  g_assert_cmpint (err, ==, CS_ERR_OK);
+  g_assert (err == CS_ERR_OK);
   relocator->input_insns = g_new0 (cs_insn *, GUM_MAX_INPUT_INSN_COUNT);
 
   relocator->output = NULL;
@@ -150,14 +150,14 @@ static void
 gum_arm64_relocator_increment_inpos (GumArm64Relocator * self)
 {
   self->inpos++;
-  g_assert_cmpint (self->inpos, >, self->outpos);
+  g_assert (self->inpos > self->outpos);
 }
 
 static void
 gum_arm64_relocator_increment_outpos (GumArm64Relocator * self)
 {
   self->outpos++;
-  g_assert_cmpint (self->outpos, <=, self->inpos);
+  g_assert (self->outpos <= self->inpos);
 }
 
 guint
@@ -312,7 +312,7 @@ gum_arm64_relocator_write_all (GumArm64Relocator * self)
   while (gum_arm64_relocator_write_one (self))
     count++;
 
-  g_assert_cmpuint (count, >, 0);
+  g_assert (count > 0);
 }
 
 gboolean
@@ -396,9 +396,9 @@ gum_arm64_relocator_can_relocate (gpointer address,
     targets_to_check = g_hash_table_new (NULL, NULL);
 
     err = cs_open (CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN, &capstone);
-    g_assert_cmpint (err, == , CS_ERR_OK);
+    g_assert (err == CS_ERR_OK);
     err = cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
-    g_assert_cmpint (err, ==, CS_ERR_OK);
+    g_assert (err == CS_ERR_OK);
 
     insn = cs_malloc (capstone);
     current_code = rl.input_cur;
@@ -568,7 +568,7 @@ gum_arm64_relocator_relocate (gpointer from,
   do
   {
     reloc_bytes = gum_arm64_relocator_read_one (&rl, NULL);
-    g_assert_cmpuint (reloc_bytes, !=, 0);
+    g_assert (reloc_bytes != 0);
   }
   while (reloc_bytes < min_bytes);
 
@@ -618,7 +618,7 @@ gum_arm64_relocator_rewrite_ldr (GumArm64Relocator * self,
     gum_arm64_writer_put_push_reg_reg (ctx->output, tmp_reg, ARM64_REG_X1);
 
     gum_arm64_writer_put_ldr_reg_address (ctx->output, tmp_reg, src->imm);
-    g_assert_cmpuint (insn_id, ==, ARM64_INS_LDR);
+    g_assert (insn_id == ARM64_INS_LDR);
     gum_arm64_writer_put_ldr_reg_reg_offset (ctx->output, dst->reg, tmp_reg, 0);
 
     gum_arm64_writer_put_pop_reg_reg (ctx->output, tmp_reg, ARM64_REG_X1);
@@ -655,7 +655,7 @@ gum_arm64_relocator_rewrite_adr (GumArm64Relocator * self,
   const cs_arm64_op * dst = &ctx->detail->operands[0];
   const cs_arm64_op * label = &ctx->detail->operands[1];
 
-  g_assert_cmpuint (label->type, ==, ARM64_OP_IMM);
+  g_assert (label->type == ARM64_OP_IMM);
 
   gum_arm64_writer_put_ldr_reg_address (ctx->output, dst->reg, label->imm);
   return TRUE;

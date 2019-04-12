@@ -250,8 +250,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
       GUM_ADDRESS (self->leave_thunk));
 
   gum_thumb_writer_flush (tw);
-  g_assert_cmpuint (gum_thumb_writer_offset (tw),
-      <=, ctx->trampoline_slice->size);
+  g_assert (gum_thumb_writer_offset (tw) <= ctx->trampoline_slice->size);
 
   if (is_thumb)
   {
@@ -396,8 +395,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   }
 
   gum_thumb_writer_flush (tw);
-  g_assert_cmpuint (gum_thumb_writer_offset (tw),
-      <=, ctx->trampoline_slice->size);
+  g_assert (gum_thumb_writer_offset (tw) <= ctx->trampoline_slice->size);
 
   ctx->overwritten_prologue_len = reloc_bytes;
   memcpy (ctx->overwritten_prologue, function_address, reloc_bytes);
@@ -444,8 +442,8 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
       }
       else
       {
-        g_assert_cmpuint (data->redirect_code_size,
-            ==, GUM_INTERCEPTOR_THUMB_TINY_REDIRECT_SIZE);
+        g_assert (data->redirect_code_size ==
+            GUM_INTERCEPTOR_THUMB_TINY_REDIRECT_SIZE);
         gum_thumb_writer_put_b_imm (tw,
             GUM_ADDRESS (ctx->trampoline_deflector->trampoline));
       }
@@ -457,8 +455,7 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
     }
 
     gum_thumb_writer_flush (tw);
-    g_assert_cmpuint (gum_thumb_writer_offset (tw),
-        <=, data->redirect_code_size);
+    g_assert (gum_thumb_writer_offset (tw) <= data->redirect_code_size);
   }
   else
   {
@@ -469,8 +466,8 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
 
     if (ctx->trampoline_deflector != NULL)
     {
-      g_assert_cmpuint (data->redirect_code_size,
-          ==, GUM_INTERCEPTOR_ARM_TINY_REDIRECT_SIZE);
+      g_assert (data->redirect_code_size ==
+          GUM_INTERCEPTOR_ARM_TINY_REDIRECT_SIZE);
       gum_arm_writer_put_b_imm (aw,
           GUM_ADDRESS (ctx->trampoline_deflector->trampoline));
     }
@@ -481,8 +478,7 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
     }
 
     gum_arm_writer_flush (aw);
-    g_assert_cmpuint (gum_arm_writer_offset (aw),
-        ==, data->redirect_code_size);
+    g_assert (gum_arm_writer_offset (aw) == data->redirect_code_size);
   }
 }
 
@@ -537,7 +533,7 @@ gum_interceptor_backend_create_thunks (GumInterceptorBackend * self)
   gum_emit_leave_thunk (tw);
 
   gum_thumb_writer_flush (tw);
-  g_assert_cmpuint (gum_thumb_writer_offset (tw), <=, self->thunks->size);
+  g_assert (gum_thumb_writer_offset (tw) <= self->thunks->size);
 }
 
 static void

@@ -247,7 +247,8 @@ TESTCASE (performance)
   runner_range.base_address = 0;
   runner_range.size = 0;
   gum_process_enumerate_modules (store_range_of_test_runner, &runner_range);
-  g_assert (runner_range.base_address != 0 && runner_range.size != 0);
+  g_assert_cmpuint (runner_range.base_address, !=, 0);
+  g_assert_cmpuint (runner_range.size, !=, 0);
 
   timer = g_timer_new ();
   pretend_workload (&runner_range);
@@ -843,7 +844,7 @@ invoke_long_condy (TestStalkerFixture * fixture,
   StalkerTestFunc func;
   gint ret;
 
-  g_assert (arg == FALSE || arg == TRUE);
+  g_assert_true (arg == FALSE || arg == TRUE);
 
   func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc,
       test_stalker_fixture_dup_code (fixture, code, sizeof (code)));
@@ -1936,7 +1937,7 @@ TESTCASE (win32_follow_user_to_kernel_to_callback)
       GUM_EVENT_SINK (fixture->sink));
   send_message_and_pump_messages_briefly (window, do_unfollow,
       fixture->stalker);
-  g_assert (!gum_stalker_is_following_me (fixture->stalker));
+  g_assert_false (gum_stalker_is_following_me (fixture->stalker));
 
   destroy_test_window (window);
 }
@@ -1954,7 +1955,7 @@ TESTCASE (win32_follow_callback_to_kernel_to_user)
   window = create_test_window (fixture->stalker);
 
   send_message_and_pump_messages_briefly (window, do_follow, fixture->sink);
-  g_assert (gum_stalker_is_following_me (fixture->stalker));
+  g_assert_true (gum_stalker_is_following_me (fixture->stalker));
   gum_stalker_unfollow_me (fixture->stalker);
 
   destroy_test_window (window);
@@ -1986,7 +1987,7 @@ create_test_window (GumStalker * stalker)
   wc.hInstance = GetModuleHandle (NULL);
   wc.lpszClassName = _T ("GumTestWindowClass");
   window->klass = (LPTSTR) GSIZE_TO_POINTER (RegisterClass (&wc));
-  g_assert (window->klass != 0);
+  g_assert_nonnull (window->klass);
 
 #pragma warning (push)
 #pragma warning (disable: 4306)
@@ -1994,7 +1995,7 @@ create_test_window (GumStalker * stalker)
       WS_CAPTION, 10, 10, 320, 240, HWND_MESSAGE, NULL,
       GetModuleHandle (NULL), NULL);
 #pragma warning (pop)
-  g_assert (window->handle != NULL);
+  g_assert_nonnull (window->handle);
 
   SetWindowLongPtr (window->handle, GWLP_USERDATA, (LONG_PTR) window);
   ShowWindow (window->handle, SW_SHOWNORMAL);
@@ -2005,7 +2006,7 @@ create_test_window (GumStalker * stalker)
 static void
 destroy_test_window (TestWindow * window)
 {
-  g_assert (UnregisterClass (window->klass, GetModuleHandle (NULL)));
+  g_assert_true (UnregisterClass (window->klass, GetModuleHandle (NULL)));
 
   g_slice_free (TestWindow, window);
 }

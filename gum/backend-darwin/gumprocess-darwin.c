@@ -310,7 +310,7 @@ gum_process_is_debugger_attached (void)
 
   size = sizeof (info);
   result = sysctl (mib, G_N_ELEMENTS (mib), &info, &size, NULL, 0);
-  g_assert_cmpint (result, ==, 0);
+  g_assert (result == 0);
 
   return (info.kp_proc.p_flag & P_TRACED) != 0;
 }
@@ -788,7 +788,7 @@ gum_darwin_is_ios9_or_newer (void)
 
     size = sizeof (buf);
     res = sysctlbyname ("kern.osrelease", buf, &size, NULL, 0);
-    g_assert_cmpint (res, ==, 0);
+    g_assert (res == 0);
 
     ios9_or_newer = atoi (buf) >= 15;
 

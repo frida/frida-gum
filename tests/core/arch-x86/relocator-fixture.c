@@ -93,8 +93,8 @@ test_relocator_fixture_assert_output_equals (TestRelocatorFixture * fixture,
     }
   }
 
-  g_assert (same_length);
-  g_assert (same_content);
+  g_assert_true (same_length);
+  g_assert_true (same_content);
 }
 
 static const guint8 cleared_outbuf[TEST_OUTBUF_SIZE] = { 0, };

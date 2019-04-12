@@ -70,7 +70,7 @@ gum_busy_cycle_sampler_sample (GumSampler * sampler)
   port = mach_thread_self ();
   kr = thread_info (port, THREAD_BASIC_INFO,
       (thread_info_t) &info, &info_count);
-  g_assert_cmpint (kr, ==, KERN_SUCCESS);
+  g_assert (kr == KERN_SUCCESS);
   mach_port_deallocate (mach_task_self (), port);
 
   /*

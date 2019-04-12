@@ -23,7 +23,7 @@ TESTCASE (can_attach_to_dlopen)
   interceptor_fixture_attach_listener (fixture, 0, dlopen_impl, '>', '<');
 
   libc = dlopen ("libc.so", RTLD_LAZY | RTLD_GLOBAL);
-  g_assert (libc != NULL);
+  g_assert_nonnull (libc);
 
   dlclose (libc);
 
@@ -76,17 +76,17 @@ TESTCASE (can_attach_to_set_argv0)
   gpointer set_argv0_impl = NULL;
 
   process = (*env)->FindClass (env, "android/os/Process");
-  g_assert (process != NULL);
+  g_assert_nonnull (process);
 
   set_argv0 = (*env)->GetStaticMethodID (env, process, "setArgV0",
       "(Ljava/lang/String;)V");
-  g_assert (set_argv0 != NULL);
+  g_assert_nonnull (set_argv0);
 
   runtime_bounds.start = NULL;
   runtime_bounds.end = NULL;
   gum_process_enumerate_modules ((GumFoundModuleFunc) gum_store_runtime_bounds,
       &runtime_bounds);
-  g_assert (runtime_bounds.end != runtime_bounds.start);
+  g_assert_cmpuint (runtime_bounds.end, !=, runtime_bounds.start);
 
   for (offset = 0; offset != 64; offset += 4)
   {

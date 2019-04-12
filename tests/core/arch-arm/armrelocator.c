@@ -39,15 +39,15 @@ TESTCASE (one_to_one)
   g_assert_cmpint (insn->id, ==, ARM_INS_PUSH);
   assert_outbuf_still_zeroed_from_offset (0);
 
-  g_assert (gum_arm_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_arm_relocator_write_one (&fixture->rl));
   g_assert_cmpint (memcmp (fixture->output, input, 4), ==, 0);
   assert_outbuf_still_zeroed_from_offset (4);
 
-  g_assert (gum_arm_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_arm_relocator_write_one (&fixture->rl));
   g_assert_cmpint (memcmp (fixture->output + 4, input + 1, 4), ==, 0);
   assert_outbuf_still_zeroed_from_offset (8);
 
-  g_assert (!gum_arm_relocator_write_one (&fixture->rl));
+  g_assert_false (gum_arm_relocator_write_one (&fixture->rl));
 }
 
 typedef struct _BranchScenario BranchScenario;
@@ -265,7 +265,7 @@ branch_scenario_execute (BranchScenario * bs,
 
   g_assert_cmpuint (gum_arm_relocator_read_one (&fixture->rl, &insn), ==, 4);
   g_assert_cmpint (insn->id, ==, bs->instruction_id);
-  g_assert (gum_arm_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_arm_relocator_write_one (&fixture->rl));
   gum_arm_writer_flush (&fixture->aw);
   g_assert_cmpint (memcmp (fixture->output, bs->expected_output,
       bs->expected_output_length * sizeof (guint32)), ==, 0);

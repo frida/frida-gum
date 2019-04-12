@@ -188,7 +188,7 @@ gum_memory_get_protection (GumAddress address,
     gchar protection[16];
 
     n_items = sscanf (line, "%p-%p %s ", &start, &end, protection);
-    g_assert_cmpint (n_items, ==, 3);
+    g_assert (n_items == 3);
 
     if (GUM_ADDRESS (start) > address)
       break;

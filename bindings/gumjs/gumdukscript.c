@@ -717,7 +717,7 @@ gum_duk_script_try_unload (GumDukScript * self)
   GumDukScope scope;
   gboolean success;
 
-  g_assert_cmpuint (self->state, ==, GUM_SCRIPT_STATE_UNLOADING);
+  g_assert (self->state == GUM_SCRIPT_STATE_UNLOADING);
 
   _gum_duk_scope_enter (&scope, &self->core);
 

@@ -202,8 +202,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   gum_arm64_writer_put_br_reg (aw, ARM64_REG_X16);
 
   gum_arm64_writer_flush (aw);
-  g_assert_cmpuint (gum_arm64_writer_offset (aw),
-      <=, ctx->trampoline_slice->size);
+  g_assert (gum_arm64_writer_offset (aw) <= ctx->trampoline_slice->size);
 
   ctx->on_invoke_trampoline = gum_arm64_writer_cur (aw);
 
@@ -215,7 +214,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
     const cs_insn * insn;
 
     reloc_bytes = gum_arm64_relocator_read_one (ar, &insn);
-    g_assert_cmpuint (reloc_bytes, !=, 0);
+    g_assert (reloc_bytes != 0);
 
     switch (insn->id)
     {
@@ -294,8 +293,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   }
 
   gum_arm64_writer_flush (aw);
-  g_assert_cmpuint (gum_arm64_writer_offset (aw),
-      <=, ctx->trampoline_slice->size);
+  g_assert (gum_arm64_writer_offset (aw) <= ctx->trampoline_slice->size);
 
   ctx->overwritten_prologue_len = reloc_bytes;
   memcpy (ctx->overwritten_prologue, function_address, reloc_bytes);
@@ -336,7 +334,7 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
     }
     else
     {
-      g_assert_cmpuint (data->redirect_code_size, ==, 4);
+      g_assert (data->redirect_code_size == 4);
       gum_arm64_writer_put_b_imm (aw,
           GUM_ADDRESS (ctx->trampoline_deflector->trampoline));
     }
@@ -362,7 +360,7 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
   }
 
   gum_arm64_writer_flush (aw);
-  g_assert_cmpuint (gum_arm64_writer_offset (aw), <=, data->redirect_code_size);
+  g_assert (gum_arm64_writer_offset (aw) <= data->redirect_code_size);
 }
 
 void
@@ -395,13 +393,13 @@ gum_interceptor_backend_create_thunks (GumInterceptorBackend * self)
   gum_arm64_writer_reset (aw, self->enter_thunk->data);
   gum_emit_enter_thunk (aw);
   gum_arm64_writer_flush (aw);
-  g_assert_cmpuint (gum_arm64_writer_offset (aw), <=, self->enter_thunk->size);
+  g_assert (gum_arm64_writer_offset (aw) <= self->enter_thunk->size);
 
   self->leave_thunk = gum_code_allocator_alloc_slice (self->allocator);
   gum_arm64_writer_reset (aw, self->leave_thunk->data);
   gum_emit_leave_thunk (aw);
   gum_arm64_writer_flush (aw);
-  g_assert_cmpuint (gum_arm64_writer_offset (aw), <=, self->leave_thunk->size);
+  g_assert (gum_arm64_writer_offset (aw) <= self->leave_thunk->size);
 }
 
 static void

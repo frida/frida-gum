@@ -1158,7 +1158,7 @@ TESTCASE (native_callback_can_be_invoked)
   item = test_script_fixture_pop_message (fixture);
   sscanf (item->message, "{\"type\":\"send\",\"payload\":"
       "\"0x%" G_GSIZE_MODIFIER "x\"}", (gsize *) &toupper_impl);
-  g_assert (toupper_impl != NULL);
+  g_assert_nonnull (toupper_impl);
   test_script_message_item_free (item);
 
   strcpy (str, "badger");
@@ -1224,7 +1224,7 @@ TESTCASE (native_callback_memory_should_be_eagerly_reclaimed)
         "\tusage before: %u\n"
         "\t    vs after: %u\n\n",
         usage_before, usage_after);
-    g_assert (difference_is_less_than_2x);
+    g_assert_true (difference_is_less_than_2x);
   }
 }
 
@@ -2112,7 +2112,7 @@ TESTCASE (socket_type_can_be_inspected)
   close (fd);
 
   fd = open ("/etc/hosts", O_RDONLY);
-  g_assert (fd >= 0);
+  g_assert_cmpint (fd, >=, 0);
   COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
   EXPECT_SEND_MESSAGE_WITH ("null");
   close (fd);
@@ -2160,7 +2160,7 @@ TESTCASE (socket_endpoints_can_be_inspected)
     while (g_main_context_pending (context))
       g_main_context_iteration (context, FALSE);
 
-    g_assert (g_socket_connect (socket, server_address, NULL, NULL));
+    g_assert_true (g_socket_connect (socket, server_address, NULL, NULL));
 
     g_object_get (socket, "local-address", &client_address, NULL);
     client_port =
@@ -2588,7 +2588,7 @@ TESTCASE (process_module_can_be_looked_up_from_address)
 
   m = g_module_open (SYSTEM_MODULE_NAME, G_MODULE_BIND_LAZY);
   found = g_module_symbol (m, SYSTEM_MODULE_EXPORT, &f);
-  g_assert (found);
+  g_assert_true (found);
   g_module_close (m);
 
   COMPILE_AND_LOAD_SCRIPT (
@@ -2750,7 +2750,7 @@ TESTCASE (process_range_can_be_looked_up_from_address)
 
   m = g_module_open (SYSTEM_MODULE_NAME, G_MODULE_BIND_LAZY);
   found = g_module_symbol (m, SYSTEM_MODULE_EXPORT, &f);
-  g_assert (found);
+  g_assert_true (found);
   g_module_close (m);
 
   COMPILE_AND_LOAD_SCRIPT (
@@ -3078,9 +3078,9 @@ TESTCASE (module_export_can_be_found_by_name)
   char actual_address_str[32];
 
   mod = GetModuleHandle (_T ("kernel32.dll"));
-  g_assert (mod != NULL);
+  g_assert_nonnull (mod);
   actual_address = GetProcAddress (mod, "Sleep");
-  g_assert (actual_address != NULL);
+  g_assert_nonnull (actual_address);
   sprintf_s (actual_address_str, sizeof (actual_address_str),
       "\"%" G_GSIZE_MODIFIER "x\"", GPOINTER_TO_SIZE (actual_address));
 
@@ -3148,13 +3148,14 @@ TESTCASE (invalid_script_should_return_null)
 {
   GError * err = NULL;
 
-  g_assert (gum_script_backend_create_sync (fixture->backend, "testcase", "'",
-      NULL, NULL) == NULL);
+  g_assert_null (gum_script_backend_create_sync (fixture->backend, "testcase",
+      "'", NULL, NULL));
 
-  g_assert (gum_script_backend_create_sync (fixture->backend, "testcase", "'",
-      NULL, &err) == NULL);
-  g_assert (err != NULL);
-  g_assert (g_str_has_prefix (err->message, "Script(line 1): SyntaxError: "));
+  g_assert_null (gum_script_backend_create_sync (fixture->backend, "testcase",
+      "'", NULL, &err));
+  g_assert_nonnull (err);
+  g_assert_true (g_str_has_prefix (err->message,
+      "Script(line 1): SyntaxError: "));
 }
 
 TESTCASE (array_buffer_can_be_created)
@@ -3306,11 +3307,11 @@ TESTCASE (recv_can_be_waited_for_from_an_application_thread)
 
   g_usleep (G_USEC_PER_SEC / 25);
   EXPECT_NO_MESSAGES ();
-  g_assert (!ctx.finished);
+  g_assert_false (ctx.finished);
 
   POST_MESSAGE ("{\"type\":\"poke\"}");
   g_thread_join (worker_thread);
-  g_assert (ctx.finished);
+  g_assert_true (ctx.finished);
   EXPECT_SEND_MESSAGE_WITH ("\"pokeBack\"");
   EXPECT_SEND_MESSAGE_WITH ("\"pokeReceived\"");
   EXPECT_NO_MESSAGES ();
@@ -3369,11 +3370,11 @@ TESTCASE (recv_wait_in_an_application_thread_should_throw_on_unload)
 
   g_usleep (G_USEC_PER_SEC / 25);
   EXPECT_NO_MESSAGES ();
-  g_assert (!ctx.finished);
+  g_assert_false (ctx.finished);
 
   UNLOAD_SCRIPT ();
   g_thread_join (worker_thread);
-  g_assert (ctx.finished);
+  g_assert_true (ctx.finished);
   EXPECT_SEND_MESSAGE_WITH ("\"oops: script is unloading\"");
   EXPECT_NO_MESSAGES ();
 }
@@ -3876,7 +3877,7 @@ TESTCASE (invocations_provide_thread_id)
     item = test_script_fixture_pop_message (fixture);
     id = 0;
     sscanf (item->message, "{\"type\":\"send\",\"payload\":%d}", &id);
-    g_assert (id != 0);
+    g_assert_cmpuint (id, !=, 0);
     test_script_message_item_free (item);
     g_assert_cmpint (id, ==, gum_process_get_current_thread_id ());
   }
@@ -4505,7 +4506,7 @@ TESTCASE (memory_can_be_allocated)
   p = 0;
   sscanf (item->message, "{\"type\":\"send\",\"payload\":"
       "\"0x%" G_GSIZE_MODIFIER "x\"}", &p);
-  g_assert (p != 0);
+  g_assert_cmpuint (p, !=, 0);
   test_script_message_item_free (item);
   g_assert_cmpuint (p & (gum_query_page_size () - 1), ==, 0);
 
@@ -4587,8 +4588,8 @@ TESTCASE (memory_can_be_protected)
   UNLOAD_SCRIPT ();
 
   gum_try_read_and_write_at (buf, 0, &exception_on_read, &exception_on_write);
-  g_assert (!exception_on_read);
-  g_assert (exception_on_write);
+  g_assert_false (exception_on_read);
+  g_assert_true (exception_on_write);
 
   COMPILE_AND_LOAD_SCRIPT (
       "send(Memory.protect(" GUM_PTR_CONST ", uint64(1), '---'));",
@@ -4599,8 +4600,8 @@ TESTCASE (memory_can_be_protected)
   UNLOAD_SCRIPT ();
 
   gum_try_read_and_write_at (buf, 0, &exception_on_read, &exception_on_write);
-  g_assert (exception_on_read);
-  g_assert (exception_on_write);
+  g_assert_true (exception_on_read);
+  g_assert_true (exception_on_write);
 
   gum_free_pages (buf);
 }
@@ -5259,23 +5260,23 @@ TESTCASE (script_can_be_compiled_to_bytecode)
       "send(1337);\noops;", NULL, &error);
   if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
   {
-    g_assert (code != NULL);
-    g_assert (error == NULL);
+    g_assert_nonnull (code);
+    g_assert_null (error);
 
-    g_assert (gum_script_backend_compile_sync (fixture->backend, "failcase1",
-        "'", NULL, NULL) == NULL);
+    g_assert_null (gum_script_backend_compile_sync (fixture->backend,
+        "failcase1", "'", NULL, NULL));
 
-    g_assert (gum_script_backend_compile_sync (fixture->backend, "failcase2",
-        "'", NULL, &error) == NULL);
-    g_assert (error != NULL);
-    g_assert (g_str_has_prefix (error->message,
+    g_assert_null (gum_script_backend_compile_sync (fixture->backend,
+        "failcase2", "'", NULL, &error));
+    g_assert_nonnull (error);
+    g_assert_true (g_str_has_prefix (error->message,
         "Script(line 1): SyntaxError: "));
     g_clear_error (&error);
   }
   else
   {
-    g_assert (code == NULL);
-    g_assert (error != NULL);
+    g_assert_null (code);
+    g_assert_nonnull (error);
     g_assert_cmpstr (error->message, ==, "not yet supported by the V8 runtime");
     g_clear_error (&error);
 
@@ -5288,8 +5289,8 @@ TESTCASE (script_can_be_compiled_to_bytecode)
   {
     TestScriptMessageItem * item;
 
-    g_assert (script != NULL);
-    g_assert (error == NULL);
+    g_assert_nonnull (script);
+    g_assert_null (error);
 
     gum_script_set_message_handler (script, test_script_fixture_store_message,
         fixture, NULL);
@@ -5299,9 +5300,9 @@ TESTCASE (script_can_be_compiled_to_bytecode)
     EXPECT_SEND_MESSAGE_WITH ("1337");
 
     item = test_script_fixture_pop_message (fixture);
-    g_assert (strstr (item->message, "ReferenceError") != NULL);
-    g_assert (strstr (item->message, "agent.js") == NULL);
-    g_assert (strstr (item->message, "testcase.js") != NULL);
+    g_assert_nonnull (strstr (item->message, "ReferenceError"));
+    g_assert_null (strstr (item->message, "agent.js"));
+    g_assert_nonnull (strstr (item->message, "testcase.js"));
     test_script_message_item_free (item);
 
     EXPECT_NO_MESSAGES ();
@@ -5310,8 +5311,8 @@ TESTCASE (script_can_be_compiled_to_bytecode)
   }
   else
   {
-    g_assert (script == NULL);
-    g_assert (error != NULL);
+    g_assert_null (script);
+    g_assert_nonnull (error);
     g_assert_cmpstr (error->message, ==, "not yet supported by the V8 runtime");
     g_clear_error (&error);
   }
@@ -5386,7 +5387,7 @@ TESTCASE (source_maps_should_be_supported_for_our_runtime)
   COMPILE_AND_LOAD_SCRIPT ("hexdump(null);");
 
   item = test_script_fixture_pop_message (fixture);
-  g_assert (strstr (item->message, " (frida/runtime/hexdump.js:") != NULL);
+  g_assert_nonnull (strstr (item->message, " (frida/runtime/hexdump.js:"));
   test_script_message_item_free (item);
 
   EXPECT_NO_MESSAGES ();
@@ -5470,23 +5471,22 @@ TESTCASE (source_maps_should_be_supported_for_user_scripts)
 
   item = test_script_fixture_pop_message (fixture);
   if (!GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
-    g_assert (strstr (item->message, "testcase.js") == NULL);
-  g_assert (strstr (item->message, "\"type\":\"send\"") != NULL);
+    g_assert_null (strstr (item->message, "testcase.js"));
+  g_assert_nonnull (strstr (item->message, "\"type\":\"send\""));
   if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
   {
-    g_assert (strstr (item->message,
+    g_assert_nonnull (strstr (item->message,
         "\"payload\":\"Error: not yet implemented\\n"
         "    at math.js:5\\n"
         "    at index.js:6\\n"
         "    at s (node_modules/frida/node_modules/browserify/node_modules/"
             "browser-pack/_prelude.js:1)\\n"
         "    at e (node_modules/frida/node_modules/browserify/node_modules/"
-            "browser-pack/_prelude.js:1)\\n")
-        != NULL);
+            "browser-pack/_prelude.js:1)\\n"));
   }
   else
   {
-    g_assert (strstr (item->message,
+    g_assert_nonnull (strstr (item->message,
         "\"payload\":\"Error: not yet implemented\\n"
         "    at Object.add (math.js:5:1)\\n"
         "    at Object.1../math (index.js:6:1)\\n"
@@ -5495,27 +5495,27 @@ TESTCASE (source_maps_should_be_supported_for_user_scripts)
         "    at e (node_modules/frida/node_modules/browserify/node_modules/"
             "browser-pack/_prelude.js:1:1)\\n"
         "    at node_modules/frida/node_modules/browserify/node_modules/"
-            "browser-pack/_prelude.js:1:1\"") != NULL);
+            "browser-pack/_prelude.js:1:1\""));
   }
   test_script_message_item_free (item);
 
   item = test_script_fixture_pop_message (fixture);
-  g_assert (strstr (item->message, "testcase.js") == NULL);
-  g_assert (strstr (item->message, "\"type\":\"error\"") != NULL);
-  g_assert (strstr (item->message, "\"description\":\"Error: Oops!\"") != NULL);
+  g_assert_null (strstr (item->message, "testcase.js"));
+  g_assert_nonnull (strstr (item->message, "\"type\":\"error\""));
+  g_assert_nonnull (strstr (item->message, "\"description\":\"Error: Oops!\""));
   if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
   {
-    g_assert (strstr (item->message, "\"stack\":\"Error: Oops!\\n"
-        "    at index.js:12\\n") != NULL);
+    g_assert_nonnull (strstr (item->message, "\"stack\":\"Error: Oops!\\n"
+        "    at index.js:12\\n"));
   }
   else
   {
-    g_assert (strstr (item->message, "\"stack\":\"Error: Oops!\\n"
-        "    at index.js:12:1\\n") != NULL);
+    g_assert_nonnull (strstr (item->message, "\"stack\":\"Error: Oops!\\n"
+        "    at index.js:12:1\\n"));
   }
-  g_assert (strstr (item->message, "\"fileName\":\"index.js\"") != NULL);
-  g_assert (strstr (item->message, "\"lineNumber\":12") != NULL);
-  g_assert (strstr (item->message, "\"columnNumber\":1") != NULL);
+  g_assert_nonnull (strstr (item->message, "\"fileName\":\"index.js\""));
+  g_assert_nonnull (strstr (item->message, "\"lineNumber\":12"));
+  g_assert_nonnull (strstr (item->message, "\"columnNumber\":1"));
   test_script_message_item_free (item);
 }
 
@@ -5669,8 +5669,8 @@ TESTCASE (exceptions_can_be_handled)
   page = gum_alloc_n_pages (1, GUM_PAGE_RW);
   gum_mprotect (page, gum_query_page_size (), GUM_PAGE_NO_ACCESS);
   gum_try_read_and_write_at (page, 0, &exception_on_read, &exception_on_write);
-  g_assert (exception_on_read);
-  g_assert (exception_on_write);
+  g_assert_true (exception_on_read);
+  g_assert_true (exception_on_write);
   gum_free_pages (page);
 
   EXPECT_SEND_MESSAGE_WITH ("\"w00t\"");

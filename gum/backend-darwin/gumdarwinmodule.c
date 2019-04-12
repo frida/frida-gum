@@ -984,7 +984,7 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
 
         for (i = 0; i != immediate; i++)
         {
-          g_assert_cmpuint (details.offset, <, max_offset);
+          g_assert (details.offset < max_offset);
           if (!func (&details, user_data))
             return;
           details.offset += self->pointer_size;
@@ -999,7 +999,7 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
         count = gum_read_uleb128 (&p, end);
         for (i = 0; i != count; i++)
         {
-          g_assert_cmpuint (details.offset, <, max_offset);
+          g_assert (details.offset < max_offset);
           if (!func (&details, user_data))
             return;
           details.offset += self->pointer_size;
@@ -1008,7 +1008,7 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
         break;
       }
       case REBASE_OPCODE_DO_REBASE_ADD_ADDR_ULEB:
-        g_assert_cmpuint (details.offset, <, max_offset);
+        g_assert (details.offset < max_offset);
         if (!func (&details, user_data))
           return;
         details.offset += self->pointer_size + gum_read_uleb128 (&p, end);
@@ -1021,7 +1021,7 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
         skip = gum_read_uleb128 (&p, end);
         for (i = 0; i != count; ++i)
         {
-          g_assert_cmpuint (details.offset, <, max_offset);
+          g_assert (details.offset < max_offset);
           if (!func (&details, user_data))
             return;
           details.offset += self->pointer_size + skip;
@@ -1122,19 +1122,19 @@ gum_darwin_module_enumerate_binds (GumDarwinModule * self,
         details.offset += gum_read_uleb128 (&p, end);
         break;
       case BIND_OPCODE_DO_BIND:
-        g_assert_cmpuint (details.offset, <, max_offset);
+        g_assert (details.offset < max_offset);
         if (!func (&details, user_data))
           return;
         details.offset += self->pointer_size;
         break;
       case BIND_OPCODE_DO_BIND_ADD_ADDR_ULEB:
-        g_assert_cmpuint (details.offset, <, max_offset);
+        g_assert (details.offset < max_offset);
         if (!func (&details, user_data))
           return;
         details.offset += self->pointer_size + gum_read_uleb128 (&p, end);
         break;
       case BIND_OPCODE_DO_BIND_ADD_ADDR_IMM_SCALED:
-        g_assert_cmpuint (details.offset, <, max_offset);
+        g_assert (details.offset < max_offset);
         if (!func (&details, user_data))
           return;
         details.offset += self->pointer_size + (immediate * self->pointer_size);
@@ -1147,7 +1147,7 @@ gum_darwin_module_enumerate_binds (GumDarwinModule * self,
         skip = gum_read_uleb128 (&p, end);
         for (i = 0; i != count; ++i)
         {
-          g_assert_cmpuint (details.offset, <, max_offset);
+          g_assert (details.offset < max_offset);
           if (!func (&details, user_data))
             return;
           details.offset += self->pointer_size + skip;
@@ -1245,7 +1245,7 @@ gum_darwin_module_enumerate_lazy_binds (GumDarwinModule * self,
         details.offset += gum_read_uleb128 (&p, end);
         break;
       case BIND_OPCODE_DO_BIND:
-        g_assert_cmpuint (details.offset, <, max_offset);
+        g_assert (details.offset < max_offset);
         if (!func (&details, user_data))
           return;
         details.offset += self->pointer_size;
@@ -1347,7 +1347,7 @@ gum_darwin_module_get_dependency_by_ordinal (GumDarwinModule * self,
 {
   const gchar * result;
 
-  g_assert_cmpint (ordinal, >=, 1);
+  g_assert (ordinal >= 1);
 
   if (!gum_darwin_module_ensure_image_loaded (self, NULL))
     return NULL;
@@ -1403,9 +1403,8 @@ gum_darwin_module_try_load_image_from_cache (GumDarwinModule * self,
   image_size = gum_dyld_cache_compute_image_size (image, images,
       header->images_count);
 
-  g_assert_cmpint (image_offset, >=, first_mapping->offset);
-  g_assert_cmpint (image_offset, <, first_mapping->offset +
-      first_mapping->size);
+  g_assert (image_offset >= first_mapping->offset);
+  g_assert (image_offset < first_mapping->offset + first_mapping->size);
 
   module_image = gum_darwin_module_image_new ();
 
@@ -1726,7 +1725,7 @@ gum_darwin_module_load_image_from_memory (GumDarwinModule * self,
   gsize data_size;
   GumDarwinModuleImage * image;
 
-  g_assert_cmpint (self->base_address, !=, 0);
+  g_assert (self->base_address != 0);
 
   if (self->is_local)
   {

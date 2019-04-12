@@ -148,7 +148,7 @@ TESTCASE (peek_instances)
   GList * instances, * cur;
 
   g_test_message ("Should not be any instances around yet");
-  g_assert (gum_instance_tracker_peek_instances (t) == NULL);
+  g_assert_null (gum_instance_tracker_peek_instances (t));
 
   pony1 = g_object_new (MY_TYPE_PONY, NULL);
   pony2 = g_object_new (MY_TYPE_PONY, NULL);
@@ -156,12 +156,15 @@ TESTCASE (peek_instances)
 
   instances = gum_instance_tracker_peek_instances (t);
   g_test_message ("We should now have three instances");
-  g_assert (instances != NULL);
+  g_assert_nonnull (instances);
   g_assert_cmpuint (g_list_length (instances), ==, 3);
 
   g_test_message ("The instances should be our ponies");
   for (cur = instances; cur != NULL; cur = cur->next)
-    g_assert (cur->data == pony1 || cur->data == pony2 || cur->data == pony3);
+  {
+    g_assert_true (cur->data == pony1 || cur->data == pony2 ||
+        cur->data == pony3);
+  }
 
   g_list_free (instances); instances = NULL;
 
@@ -169,12 +172,12 @@ TESTCASE (peek_instances)
 
   instances = gum_instance_tracker_peek_instances (t);
   g_test_message ("We should now have two instances");
-  g_assert (instances != NULL);
+  g_assert_nonnull (instances);
   g_assert_cmpuint (g_list_length (instances), ==, 2);
 
   g_test_message ("Only pony1 and pony3 should be left now");
   for (cur = instances; cur != NULL; cur = cur->next)
-    g_assert (cur->data == pony1 || cur->data == pony3);
+    g_assert_true (cur->data == pony1 || cur->data == pony3);
 
   g_list_free (instances); instances = NULL;
 
@@ -255,10 +258,10 @@ walk_instance (GumInstanceDetails * id, gpointer user_data)
   const GTypeInstance * expected_instance, * cur_instance;
 
   entry = g_list_find (ctx->expected_instances, id->address);
-  g_assert (entry != NULL);
+  g_assert_nonnull (entry);
   expected_instance = (const GTypeInstance *) entry->data;
   cur_instance = (const GTypeInstance *) id->address;
-  g_assert (cur_instance == expected_instance);
+  g_assert_true (cur_instance == expected_instance);
   g_assert_cmpuint (id->ref_count,
       ==, G_OBJECT (expected_instance)->ref_count);
   g_assert_cmpint (strcmp (id->type_name,

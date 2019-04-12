@@ -80,8 +80,8 @@ test_code_writer_fixture_assert_output_equals (TestCodeWriterFixture * fixture,
     }
   }
 
-  g_assert (same_length);
-  g_assert (same_content);
+  g_assert_true (same_length);
+  g_assert_true (same_content);
 }
 
 #ifdef HAVE_I386

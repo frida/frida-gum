@@ -618,7 +618,7 @@ gum_insert_deflector (gpointer cave,
       gum_arm_writer_put_ldr_reg_address (&aw, ARM_REG_PC,
           GUM_ADDRESS (ctx->dedicated_target));
       gum_arm_writer_flush (&aw);
-      g_assert_cmpuint (gum_arm_writer_offset (&aw), <=, ctx->max_size);
+      g_assert (gum_arm_writer_offset (&aw) <= ctx->max_size);
       gum_arm_writer_clear (&aw);
 
       dispatcher->trampoline = GSIZE_TO_POINTER (ctx->pc);
@@ -640,7 +640,7 @@ gum_insert_deflector (gpointer cave,
   }
 
   gum_thumb_writer_flush (&tw);
-  g_assert_cmpuint (gum_thumb_writer_offset (&tw), <=, ctx->max_size);
+  g_assert (gum_thumb_writer_offset (&tw) <= ctx->max_size);
   gum_thumb_writer_clear (&tw);
 
   dispatcher->trampoline = GSIZE_TO_POINTER (ctx->pc + 1);
@@ -666,7 +666,7 @@ gum_insert_deflector (gpointer cave,
   }
 
   gum_arm64_writer_flush (&aw);
-  g_assert_cmpuint (gum_arm64_writer_offset (&aw), <=, ctx->max_size);
+  g_assert (gum_arm64_writer_offset (&aw) <= ctx->max_size);
   gum_arm64_writer_clear (&aw);
 
   dispatcher->trampoline = GSIZE_TO_POINTER (ctx->pc);

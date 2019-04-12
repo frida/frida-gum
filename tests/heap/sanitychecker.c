@@ -21,7 +21,7 @@ TESTLIST_END ()
 TESTCASE (no_leaks)
 {
   run_simulation (fixture, 0);
-  g_assert (fixture->run_returned_true);
+  g_assert_true (fixture->run_returned_true);
   g_assert_cmpuint (fixture->simulation_call_count, ==, 4);
   g_assert_cmpuint (fixture->output_call_count, ==, 0);
 }
@@ -30,7 +30,7 @@ TESTCASE (three_leaked_instances)
 {
   run_simulation (fixture,
       LEAK_FIRST_PONY | LEAK_SECOND_PONY | LEAK_FIRST_ZEBRA);
-  g_assert (!fixture->run_returned_true);
+  g_assert_false (fixture->run_returned_true);
   g_assert_cmpuint (fixture->simulation_call_count, ==, 2);
   g_assert_cmpuint (fixture->output_call_count, >, 0);
   assert_same_output (fixture,
@@ -53,7 +53,7 @@ TESTCASE (three_leaked_blocks)
 {
   run_simulation (fixture,
       LEAK_FIRST_BLOCK | LEAK_SECOND_BLOCK | LEAK_THIRD_BLOCK);
-  g_assert (!fixture->run_returned_true);
+  g_assert_false (fixture->run_returned_true);
   g_assert_cmpuint (fixture->simulation_call_count, ==, 3);
   g_assert_cmpuint (fixture->output_call_count, >, 0);
   assert_same_output (fixture,
@@ -78,7 +78,7 @@ TESTCASE (three_leaked_blocks)
 TESTCASE (ignore_gparam_instances)
 {
   run_simulation (fixture, LEAK_GPARAM_ONCE);
-  g_assert (fixture->run_returned_true);
+  g_assert_true (fixture->run_returned_true);
   g_assert_cmpuint (fixture->simulation_call_count, ==, 4);
   g_assert_cmpuint (fixture->output_call_count, ==, 0);
 }
@@ -103,8 +103,8 @@ TESTCASE (array_access_out_of_bounds_causes_exception)
   free (bytes);
   gum_sanity_checker_end (fixture->checker);
 
-  g_assert (exception_on_read);
-  g_assert (exception_on_write);
+  g_assert_true (exception_on_read);
+  g_assert_true (exception_on_write);
 }
 
 TESTCASE (multiple_checks_at_once_should_not_collide)
@@ -114,7 +114,7 @@ TESTCASE (multiple_checks_at_once_should_not_collide)
   gum_sanity_checker_begin (fixture->checker,
       GUM_CHECK_BLOCK_LEAKS | GUM_CHECK_INSTANCE_LEAKS | GUM_CHECK_BOUNDS);
   all_checks_pass = gum_sanity_checker_end (fixture->checker);
-  g_assert (all_checks_pass);
+  g_assert_true (all_checks_pass);
   g_assert_cmpuint (fixture->output->len, ==, 0);
 }
 

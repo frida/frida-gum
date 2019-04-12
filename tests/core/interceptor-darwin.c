@@ -96,7 +96,7 @@ TESTCASE (can_attach_to_strrchr)
 
   interceptor_fixture_attach_listener (fixture, 0, strrchr_impl, '>', '<');
 
-  g_assert (strrchr_impl (s, 'd') == s + 2);
+  g_assert_true (strrchr_impl (s, 'd') == s + 2);
   g_assert_cmpstr (fixture->result->str, ==, "><");
 }
 
@@ -111,7 +111,7 @@ TESTCASE (can_attach_to_read)
       gum_module_find_export_by_name ("libSystem.B.dylib", "read"));
 
   ret = pipe (fds);
-  g_assert (ret == 0);
+  g_assert_cmpint (ret, ==, 0);
 
   read_thread =
       g_thread_new ("perform-read", perform_read, GSIZE_TO_POINTER (fds[0]));
@@ -141,23 +141,23 @@ TESTCASE (can_attach_to_accept)
   socklen_t addr_len;
 
   server = socket (AF_INET, SOCK_STREAM, 0);
-  g_assert (server != -1);
+  g_assert_cmpint (server, !=, -1);
 
   addr.sin_family = AF_INET;
   addr.sin_port = g_random_int_range (1337, 31337);
   addr.sin_addr.s_addr = INADDR_ANY;
   ret = bind (server, (struct sockaddr *) &addr, sizeof (addr));
-  g_assert (ret == 0);
+  g_assert_cmpint (ret, ==, 0);
 
   ret = listen (server, 1);
-  g_assert (ret == 0);
+  g_assert_cmpint (ret, ==, 0);
 
   client = socket (AF_INET, SOCK_STREAM, 0);
-  g_assert (client != -1);
+  g_assert_cmpint (client, !=, -1);
   ret = fcntl (client, F_SETFL, O_NONBLOCK);
-  g_assert (ret == 0);
+  g_assert_cmpint (ret, ==, 0);
   ret = connect (client, (struct sockaddr *) &addr, sizeof (addr));
-  g_assert (ret == -1 && errno == EINPROGRESS);
+  g_assert_true (ret == -1 && errno == EINPROGRESS);
 
   accept_impl = GSIZE_TO_POINTER (
       gum_module_find_export_by_name ("libSystem.B.dylib", "accept"));
@@ -166,7 +166,7 @@ TESTCASE (can_attach_to_accept)
 
   addr_len = sizeof (addr);
   ret = accept_impl (server, (struct sockaddr *) &addr, &addr_len);
-  g_assert (ret >= 0);
+  g_assert_cmpint (ret, >=, 0);
 
   close (ret);
   close (client);
@@ -331,7 +331,7 @@ TESTCASE (attach_performance)
   ctx.count = 0;
 
   sqlite = dlopen ("/usr/lib/libsqlite3.0.dylib", RTLD_LAZY | RTLD_GLOBAL);
-  g_assert (sqlite != NULL);
+  g_assert_nonnull (sqlite);
 
   timer = g_timer_new ();
 
@@ -368,7 +368,7 @@ TESTCASE (replace_performance)
   ctx.count = 0;
 
   sqlite = dlopen ("/usr/lib/libsqlite3.0.dylib", RTLD_LAZY | RTLD_GLOBAL);
-  g_assert (sqlite != NULL);
+  g_assert_nonnull (sqlite);
 
   timer = g_timer_new ();
 
@@ -481,9 +481,9 @@ TESTCASE (should_retain_code_signing_status)
 
   attributes = 0;
   res = csops (0, CS_OPS_STATUS, &attributes, sizeof (attributes));
-  g_assert (res != -1);
+  g_assert_cmpint (res, !=, -1);
 
-  g_assert ((attributes & CS_VALID) != 0);
+  g_assert_true ((attributes & CS_VALID) != 0);
 }
 
 TESTCASE (cydia_substrate_replace_performance)
@@ -501,15 +501,15 @@ TESTCASE (cydia_substrate_replace_performance)
   cydia_substrate = dlopen (
       "/Library/Frameworks/CydiaSubstrate.framework/CydiaSubstrate",
       RTLD_LAZY | RTLD_GLOBAL);
-  g_assert (cydia_substrate != NULL);
+  g_assert_nonnull (cydia_substrate);
 
   ctx.MSHookFunction = dlsym (cydia_substrate, "MSHookFunction");
-  g_assert (ctx.MSHookFunction != NULL);
+  g_assert_nonnull (ctx.MSHookFunction);
 
   ctx.count = 0;
 
   sqlite = dlopen ("/usr/lib/libsqlite3.0.dylib", RTLD_LAZY | RTLD_GLOBAL);
-  g_assert (sqlite != NULL);
+  g_assert_nonnull (sqlite);
 
   timer = g_timer_new ();
 

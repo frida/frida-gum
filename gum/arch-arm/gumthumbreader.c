@@ -41,9 +41,9 @@ disassemble_instruction_at (gconstpointer address)
   cs_insn * insn = NULL;
 
   err = cs_open (CS_ARCH_ARM, CS_MODE_THUMB, &capstone);
-  g_assert_cmpint (err, ==, CS_ERR_OK);
+  g_assert (err == CS_ERR_OK);
   err = cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
-  g_assert_cmpint (err, ==, CS_ERR_OK);
+  g_assert (err == CS_ERR_OK);
 
   cs_disasm (capstone, code, 16, GPOINTER_TO_SIZE (code), 1, &insn);
 

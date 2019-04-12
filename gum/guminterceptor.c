@@ -596,8 +596,7 @@ gum_interceptor_ignore_other_threads (GumInterceptor * self)
 void
 gum_interceptor_unignore_other_threads (GumInterceptor * self)
 {
-  g_assert_cmpuint (self->selected_thread_id,
-      ==, gum_process_get_current_thread_id ());
+  g_assert (self->selected_thread_id == gum_process_get_current_thread_id ());
   self->selected_thread_id = 0;
 }
 

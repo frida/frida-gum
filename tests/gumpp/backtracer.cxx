@@ -31,7 +31,8 @@ public:
 
   virtual void on_enter (Gum::InvocationContext * context)
   {
-    g_string_append_c (static_cast<GString *> (context->get_listener_function_data_ptr ()), '>');
+    g_string_append_c (static_cast<GString *> (
+        context->get_listener_function_data_ptr ()), '>');
 
     Gum::ReturnAddressArray return_addresses;
     backtracer->generate (context->get_cpu_context (), return_addresses);
@@ -40,8 +41,9 @@ public:
 #if !defined (HAVE_DARWIN) && !defined (HAVE_ANDROID)
     Gum::ReturnAddress first_address = return_addresses.items[0];
     Gum::ReturnAddressDetails rad;
-    g_assert (Gum::ReturnAddressDetails_from_address (first_address, rad));
-    g_assert (g_str_has_suffix (rad.function_name, "_can_get_stack_trace_from_invocation_context"));
+    g_assert_true (Gum::ReturnAddressDetails_from_address (first_address, rad));
+    g_assert_true (g_str_has_suffix (rad.function_name,
+        "_can_get_stack_trace_from_invocation_context"));
     gchar * file_basename = g_path_get_basename (rad.file_name);
     g_assert_cmpstr (file_basename, ==, "backtracer.cxx");
     g_free (file_basename);
@@ -50,7 +52,8 @@ public:
 
   virtual void on_leave (Gum::InvocationContext * context)
   {
-    g_string_append_c (static_cast<GString *> (context->get_listener_function_data_ptr ()), '<');
+    g_string_append_c (static_cast<GString *> (
+        context->get_listener_function_data_ptr ()), '<');
   }
 
   Gum::RefPtr<Gum::Backtracer> backtracer;
@@ -72,7 +75,8 @@ TESTCASE (can_get_stack_trace_from_invocation_context)
   BacktraceTestListener listener;
 
   GString * output = g_string_new ("");
-  interceptor->attach_listener (reinterpret_cast<void *> (gumpp_test_target_function), &listener, output);
+  interceptor->attach_listener (reinterpret_cast<void *> (
+      gumpp_test_target_function), &listener, output);
 
   gumpp_test_target_function (output);
   g_assert_cmpstr (output->str, ==, ">|<");

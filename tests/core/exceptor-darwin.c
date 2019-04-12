@@ -141,7 +141,7 @@ TESTCASE (task_swap_exception_ports_should_not_obstruct_us)
     g_free (message);
   }
 
-  g_assert (caught);
+  g_assert_true (caught);
 
   for (i = 0; i != count; i++)
   {

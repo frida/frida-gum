@@ -323,7 +323,7 @@ gum_bounds_checker_detach (GumBoundsChecker * self)
     self->attached = FALSE;
     self->detaching = TRUE;
 
-    g_assert_cmpuint (gum_page_pool_peek_used (self->page_pool), ==, 0);
+    g_assert (gum_page_pool_peek_used (self->page_pool) == 0);
 
     gum_interceptor_begin_transaction (self->interceptor);
 
@@ -495,8 +495,7 @@ gum_bounds_checker_try_alloc (GumBoundsChecker * self,
 
     gum_mprotect (block.guard, block.guard_size, GUM_PAGE_RW);
 
-    g_assert_cmpuint (block.guard_size / 2,
-        >=, sizeof (GumReturnAddressArray));
+    g_assert (block.guard_size / 2 >= sizeof (GumReturnAddressArray));
     self->backtracer_iface->generate (self->backtracer_instance,
         ctx->cpu_context, BLOCK_ALLOC_RETADDRS (&block));
 
@@ -525,8 +524,7 @@ gum_bounds_checker_try_free (GumBoundsChecker * self,
 
     gum_mprotect (block.guard, block.guard_size, GUM_PAGE_RW);
 
-    g_assert_cmpuint (block.guard_size / 2,
-        >=, sizeof (GumReturnAddressArray));
+    g_assert (block.guard_size / 2 >= sizeof (GumReturnAddressArray));
     self->backtracer_iface->generate (self->backtracer_instance,
         ctx->cpu_context, BLOCK_FREE_RETADDRS (&block));
 

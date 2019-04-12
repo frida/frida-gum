@@ -49,16 +49,16 @@ TESTCASE (one_to_one)
   g_assert_cmpint (insn->id, ==, ARM_INS_ADD);
   assert_outbuf_still_zeroed_from_offset (0);
 
-  g_assert (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   g_assert_cmpint (memcmp (fixture->output, input, 2), ==, 0);
   assert_outbuf_still_zeroed_from_offset (2);
 
-  g_assert (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   g_assert_cmpint (memcmp (((guint8 *) fixture->output) + 2, input + 1, 2),
       ==, 0);
   assert_outbuf_still_zeroed_from_offset (4);
 
-  g_assert (!gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_false (gum_thumb_relocator_write_one (&fixture->rl));
 }
 
 TESTCASE (handle_extended_instructions)
@@ -75,10 +75,10 @@ TESTCASE (handle_extended_instructions)
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, NULL), ==, 4);
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, NULL), ==, 6);
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, NULL), ==, 10);
-  g_assert (gum_thumb_relocator_write_one (&fixture->rl));
-  g_assert (gum_thumb_relocator_write_one (&fixture->rl));
-  g_assert (gum_thumb_relocator_write_one (&fixture->rl));
-  g_assert (!gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_false (gum_thumb_relocator_write_one (&fixture->rl));
   g_assert_cmpint (memcmp (fixture->output, input, sizeof (input)), ==, 0);
 }
 
@@ -107,7 +107,7 @@ TESTCASE (ldrpc_t1_should_be_rewritten)
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
   g_assert_cmpint (insn->id, ==, ARM_INS_LDR);
-  g_assert (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
   g_assert_cmpint (memcmp (fixture->output, expected_output,
       sizeof (expected_output)), ==, 0);
@@ -138,7 +138,7 @@ TESTCASE (ldrpc_t2_should_be_rewritten)
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 4);
   g_assert_cmpint (insn->id, ==, ARM_INS_LDR);
-  g_assert (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
   g_assert_cmpint (memcmp (fixture->output, expected_output,
       sizeof (expected_output)), ==, 0);
@@ -171,7 +171,7 @@ TESTCASE (addh_should_be_rewritten_if_pc_relative)
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
   g_assert_cmpint (insn->id, ==, ARM_INS_ADD);
-  g_assert (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
   g_assert_cmpint (memcmp (fixture->output, expected_output,
       sizeof (expected_output)), ==, 0);
@@ -428,7 +428,7 @@ branch_scenario_execute (BranchScenario * bs,
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn),
       ==, bs->instruction_length);
   g_assert_cmpint (insn->id, ==, bs->instruction_id);
-  g_assert (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
   g_assert_cmpint (memcmp (fixture->output, bs->expected_output,
       bs->expected_output_length * sizeof (guint16)), ==, 0);
@@ -469,8 +469,8 @@ TESTCASE (cbz_should_be_rewritten)
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
   g_assert_cmpint (insn->id, ==, ARM_INS_CBZ);
   gum_thumb_relocator_read_one (&fixture->rl, &insn);
-  g_assert (gum_thumb_relocator_write_one (&fixture->rl));
-  g_assert (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
   g_assert_cmpint (memcmp (fixture->output, expected_output,
       sizeof (expected_output)), ==, 0);
@@ -511,8 +511,8 @@ TESTCASE (cbnz_should_be_rewritten)
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
   g_assert_cmpint (insn->id, ==, ARM_INS_CBNZ);
   gum_thumb_relocator_read_one (&fixture->rl, &insn);
-  g_assert (gum_thumb_relocator_write_one (&fixture->rl));
-  g_assert (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
   g_assert_cmpint (memcmp (fixture->output, expected_output,
       sizeof (expected_output)), ==, 0);
@@ -553,8 +553,8 @@ TESTCASE (b_cond_should_be_rewritten)
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
   g_assert_cmpint (insn->id, ==, ARM_INS_B);
   gum_thumb_relocator_read_one (&fixture->rl, &insn);
-  g_assert (gum_thumb_relocator_write_one (&fixture->rl));
-  g_assert (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
   g_assert_cmpint (memcmp (fixture->output, expected_output,
       sizeof (expected_output)), ==, 0);
@@ -582,18 +582,18 @@ TESTCASE (it_block_should_be_rewritten_as_a_whole)
   g_assert_cmpint (insn->id, ==, ARM_INS_IT);
   assert_outbuf_still_zeroed_from_offset (0);
 
-  g_assert (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   g_assert_cmpint (memcmp (fixture->output, input, 2), ==, 0);
   assert_outbuf_still_zeroed_from_offset (2);
 
-  g_assert (gum_thumb_relocator_write_one (&fixture->rl));
-  g_assert (gum_thumb_relocator_write_one (&fixture->rl));
-  g_assert (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   g_assert_cmpint (memcmp (((guint8 *) fixture->output) + 2, input + 1, 6),
       ==, 0);
   assert_outbuf_still_zeroed_from_offset (8);
 
-  g_assert (!gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_false (gum_thumb_relocator_write_one (&fixture->rl));
 }
 
 TESTCASE (eob_and_eoi_on_ret)
@@ -605,7 +605,7 @@ TESTCASE (eob_and_eoi_on_ret)
   SETUP_RELOCATOR_WITH (input);
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, NULL), ==, 2);
-  g_assert (gum_thumb_relocator_eob (&fixture->rl));
-  g_assert (gum_thumb_relocator_eoi (&fixture->rl));
+  g_assert_true (gum_thumb_relocator_eob (&fixture->rl));
+  g_assert_true (gum_thumb_relocator_eoi (&fixture->rl));
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, NULL), ==, 0);
 }

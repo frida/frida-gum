@@ -78,7 +78,7 @@ gum_tls_key_new (void)
   gint res;
 
   res = pthread_key_create (&key, NULL);
-  g_assert_cmpint (res, ==, 0);
+  g_assert (res == 0);
 
   return key;
 }

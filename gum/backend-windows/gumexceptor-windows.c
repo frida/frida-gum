@@ -81,9 +81,9 @@ gum_exceptor_backend_init (GumExceptorBackend * self)
   g_assert (self->dispatcher_impl != NULL);
 
   err = cs_open (CS_ARCH_X86, GUM_CPU_MODE, &capstone);
-  g_assert_cmpint (err, == , CS_ERR_OK);
+  g_assert (err == CS_ERR_OK);
   err = cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
-  g_assert_cmpint (err, == , CS_ERR_OK);
+  g_assert (err == CS_ERR_OK);
 
   offset = 0;
   while (self->system_handler == NULL)
