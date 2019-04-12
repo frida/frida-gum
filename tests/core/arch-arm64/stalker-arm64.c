@@ -1042,17 +1042,9 @@ TESTCASE (follow_thread)
   StalkerVictimContext ctx;
   GumThreadId thread_id;
   GThread * thread;
+#ifdef HAVE_LINUX
   int prev_dumpable;
 
-#ifdef HAVE_ANDROID
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping, run in slow mode> ");
-    return;
-  }
-#endif
-
-#ifdef HAVE_LINUX
   /* Android spawns non-debuggable applications as not dumpable by default. */
   prev_dumpable = prctl (PR_GET_DUMPABLE);
   prctl (PR_SET_DUMPABLE, 0);
