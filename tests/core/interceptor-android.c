@@ -86,7 +86,7 @@ TESTCASE (can_attach_to_set_argv0)
   runtime_bounds.end = NULL;
   gum_process_enumerate_modules ((GumFoundModuleFunc) gum_store_runtime_bounds,
       &runtime_bounds);
-  g_assert_cmpuint (runtime_bounds.end, !=, runtime_bounds.start);
+  g_assert_true (runtime_bounds.end != runtime_bounds.start);
 
   for (offset = 0; offset != 64; offset += 4)
   {
