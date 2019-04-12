@@ -1200,7 +1200,7 @@ TESTCASE (native_callback_memory_should_be_eagerly_reclaimed)
       "}");
   EXPECT_NO_MESSAGES ();
 
-  POST_MESSAGE ("{\"type\":\"start\",\"iterations\":3}");
+  POST_MESSAGE ("{\"type\":\"start\",\"iterations\":5000}");
   EXPECT_SEND_MESSAGE_WITH ("\"done\"");
   EXPECT_NO_MESSAGES ();
 
