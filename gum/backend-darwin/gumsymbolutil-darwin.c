@@ -55,17 +55,17 @@ gum_try_obtain_symbolicator (void)
 
   G_LOCK (symbolicator);
 
+  if (symbolicator == NULL)
+  {
+    symbolicator =
+        gum_darwin_symbolicator_new_with_task (mach_task_self (), NULL);
+  }
+
   if (invalidator == NULL)
   {
     invalidator = g_object_new (GUM_TYPE_SYMBOL_CACHE_INVALIDATOR, NULL);
 
     _gum_register_early_destructor (do_deinit);
-  }
-
-  if (symbolicator == NULL)
-  {
-    symbolicator =
-        gum_darwin_symbolicator_new_with_task (mach_task_self (), NULL);
   }
 
   if (symbolicator != NULL)
