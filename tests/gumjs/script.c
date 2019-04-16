@@ -1200,11 +1200,11 @@ TESTCASE (native_callback_memory_should_be_eagerly_reclaimed)
       "}");
   EXPECT_NO_MESSAGES ();
 
+  PUSH_TIMEOUT (20000);
+
   POST_MESSAGE ("{\"type\":\"start\",\"iterations\":5000}");
   EXPECT_SEND_MESSAGE_WITH ("\"done\"");
   EXPECT_NO_MESSAGES ();
-
-  PUSH_TIMEOUT (20000);
 
   usage_before = gum_peek_private_memory_usage ();
 
