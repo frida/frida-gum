@@ -591,9 +591,7 @@ TESTCASE (instruction_can_be_parsed)
       "var fmov = Instruction.parse(vadd.next);"
       "send(fmov.mnemonic);"
       "operands = fmov.operands;"
-      "send(typeof operands[0].vess);"
       "send(typeof operands[0].vectorIndex);"
-      "send(operands[1].vess);"
       "send(operands[1].vectorIndex);");
 
   EXPECT_SEND_MESSAGE_WITH ("\"ldr\"");
@@ -627,8 +625,6 @@ TESTCASE (instruction_can_be_parsed)
 
   EXPECT_SEND_MESSAGE_WITH ("\"fmov\"");
   EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
-  EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
-  EXPECT_SEND_MESSAGE_WITH ("\"d\"");
   EXPECT_SEND_MESSAGE_WITH ("1");
 #endif
 }
