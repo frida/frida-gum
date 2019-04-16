@@ -15,6 +15,7 @@
 #include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <gio/gio.h>
 #include <mach-o/loader.h>
 #include <math.h>
 #include <string.h>
@@ -41,8 +42,8 @@ struct _GumCodeSegment
 {
   gpointer data;
   gsize size;
-
   gsize virtual_size;
+  gboolean owns_data;
 
   gint fd;
 };
@@ -107,6 +108,9 @@ enum _GumSandboxFilterType
   GUM_SANDBOX_FILTER_PATH = 1,
 };
 
+static GumCodeSegment * gum_code_segment_new_full (gpointer data, gsize size,
+    gsize virtual_size, gboolean owns_data);
+
 static gboolean gum_code_segment_is_realize_supported (void);
 static gboolean gum_code_segment_try_realize (GumCodeSegment * self);
 static gboolean gum_code_segment_try_map (GumCodeSegment * self,
@@ -152,15 +156,14 @@ GumCodeSegment *
 gum_code_segment_new (gsize size,
                       const GumAddressSpec * spec)
 {
-  guint page_size, size_in_pages;
+  gsize page_size, size_in_pages, virtual_size;
   gpointer data;
-  GumCodeSegment * segment;
-  GumMemoryRange range;
 
   page_size = gum_query_page_size ();
   size_in_pages = size / page_size;
   if (size % page_size != 0)
     size_in_pages++;
+  virtual_size = size_in_pages * page_size;
 
   if (spec == NULL)
   {
@@ -173,18 +176,42 @@ gum_code_segment_new (gsize size,
       return NULL;
   }
 
+  return gum_code_segment_new_full (data, size, virtual_size, TRUE);
+}
+
+static GumCodeSegment *
+gum_code_segment_new_static (gpointer data,
+                             gsize size)
+{
+  return gum_code_segment_new_full (data, size, size, FALSE);
+}
+
+static GumCodeSegment *
+gum_code_segment_new_full (gpointer data,
+                           gsize size,
+                           gsize virtual_size,
+                           gboolean owns_data)
+{
+  GumCodeSegment * segment;
+
   segment = g_slice_new (GumCodeSegment);
 
   segment->data = data;
   segment->size = size;
-
-  segment->virtual_size = size_in_pages * page_size;
+  segment->virtual_size = virtual_size;
+  segment->owns_data = owns_data;
 
   segment->fd = -1;
 
-  gum_query_page_allocation_range (segment->data, segment->virtual_size,
-      &range);
-  gum_cloak_add_range (&range);
+  if (owns_data)
+  {
+    GumMemoryRange range;
+
+    gum_query_page_allocation_range (segment->data, segment->virtual_size,
+        &range);
+
+    gum_cloak_add_range (&range);
+  }
 
   return segment;
 }
@@ -192,16 +219,20 @@ gum_code_segment_new (gsize size,
 void
 gum_code_segment_free (GumCodeSegment * segment)
 {
-  GumMemoryRange range;
-
   if (segment->fd != -1)
     close (segment->fd);
 
-  gum_free_pages (segment->data);
+  if (segment->owns_data)
+  {
+    GumMemoryRange range;
 
-  gum_query_page_allocation_range (segment->data, segment->virtual_size,
-      &range);
-  gum_cloak_remove_range (&range);
+    gum_query_page_allocation_range (segment->data, segment->virtual_size,
+        &range);
+
+    gum_free_pages (segment->data);
+
+    gum_cloak_remove_range (&range);
+  }
 
   g_slice_free (GumCodeSegment, segment);
 }
@@ -285,6 +316,59 @@ gum_code_segment_map (GumCodeSegment * self,
   }
 
   g_assert (mapped_successfully);
+}
+
+gboolean
+gum_code_segment_mark (gpointer code,
+                       gsize size,
+                       GError ** error)
+{
+  if (gum_code_segment_is_realize_supported ())
+  {
+    GumCodeSegment * segment;
+
+    segment = gum_code_segment_new_static (code, size);
+
+    gum_code_segment_realize (segment);
+    gum_code_segment_map (segment, 0, size, code);
+
+    gum_code_segment_free (segment);
+
+    return TRUE;
+  }
+  else
+  {
+    mach_port_t server_port;
+    mach_vm_address_t address;
+    kern_return_t kr;
+
+    server_port = gum_try_get_substrated_port ();
+    if (server_port == MACH_PORT_NULL)
+    {
+      if (!gum_try_mprotect (code, size, GUM_PAGE_RX))
+      {
+        g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+            "Invalid address");
+        return FALSE;
+      }
+
+      return TRUE;
+    }
+
+    address = GPOINTER_TO_SIZE (code);
+
+    kr = substrated_mark (server_port, mach_task_self (), address, size,
+        &address);
+
+    if (kr != KERN_SUCCESS)
+    {
+      g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
+          "Unable to mark code (substrated returned %d)", kr);
+      return FALSE;
+    }
+
+    return TRUE;
+  }
 }
 
 static gboolean

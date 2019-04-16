@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -55,6 +55,15 @@ gum_code_segment_map (GumCodeSegment * self,
                       gsize source_size,
                       gpointer target_address)
 {
+}
+
+gboolean
+gum_code_segment_mark (gpointer code,
+                       gsize size,
+                       GError ** error)
+{
+  g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED, "Not supported");
+  return FALSE;
 }
 
 #endif
