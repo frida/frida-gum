@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -11,9 +11,6 @@
 #include "gumwindows.h"
 
 #include <stdlib.h>
-
-static gpointer gum_virtual_alloc (gsize size, DWORD allocation_type,
-    GumPageProtection page_prot, gpointer hint);
 
 void
 _gum_memory_backend_init (void)
@@ -255,26 +252,13 @@ gum_memory_allocate (gsize size,
                      GumPageProtection page_prot,
                      gpointer hint)
 {
-  return gum_virtual_alloc (size, MEM_COMMIT | MEM_RESERVE, page_prot, hint);
-}
-
-gpointer
-gum_memory_reserve (gsize size,
-                    gpointer hint)
-{
-  return gum_virtual_alloc (size, MEM_RESERVE, GUM_PAGE_NO_ACCESS, hint);
-}
-
-static gpointer
-gum_virtual_alloc (gsize size,
-                   DWORD allocation_type,
-                   GumPageProtection page_prot,
-                   gpointer hint)
-{
   gpointer result = NULL;
-  DWORD win_page_prot;
+  DWORD flags, win_page_prot;
   static BOOL use_aslr = -1;
 
+  flags = (page_prot == GUM_PAGE_NO_ACCESS)
+      ? MEM_RESERVE
+      : MEM_RESERVE | MEM_COMMIT;
   win_page_prot = gum_page_protection_to_windows (page_prot);
 
   /* Replicate V8's behavior: only use ASLR on 64-bit systems. */
@@ -288,50 +272,45 @@ gum_virtual_alloc (gsize size,
   if (use_aslr &&
       (page_prot == GUM_PAGE_NO_ACCESS || page_prot == GUM_PAGE_RWX))
   {
-    result = VirtualAlloc (hint, size, allocation_type, win_page_prot);
+    result = VirtualAlloc (hint, size, flags, win_page_prot);
   }
 
   if (result == NULL)
   {
-    result = VirtualAlloc (NULL, size, allocation_type, win_page_prot);
+    result = VirtualAlloc (NULL, size, flags, win_page_prot);
   }
 
   return result;
 }
 
 gboolean
-gum_memory_commit (gpointer base,
+gum_memory_free (gpointer address,
+                 gsize size)
+{
+  return VirtualFree (address, size, MEM_RELEASE);
+}
+
+gboolean
+gum_memory_release (gpointer address,
+                    gsize size)
+{
+  return VirtualFree (address, size, MEM_DECOMMIT);
+}
+
+gboolean
+gum_memory_commit (gpointer address,
                    gsize size,
                    GumPageProtection page_prot)
 {
-  DWORD win_page_prot;
-
-  win_page_prot = gum_page_protection_to_windows (page_prot);
-
-  return VirtualAlloc (base, size, MEM_COMMIT, win_page_prot) != NULL;
+  return VirtualAlloc (address, size, MEM_COMMIT,
+      gum_page_protection_to_windows (page_prot)) != NULL;
 }
 
 gboolean
-gum_memory_uncommit (gpointer base,
+gum_memory_decommit (gpointer address,
                      gsize size)
 {
-  return VirtualFree (base, size, MEM_DECOMMIT);
-}
-
-gboolean
-gum_memory_release_partial (gpointer base,
-                            gsize size,
-                            gpointer free_start,
-                            gsize free_size)
-{
-  return VirtualFree (free_start, free_size, MEM_DECOMMIT);
-}
-
-gboolean
-gum_memory_release (gpointer base,
-                    gsize size)
-{
-  return VirtualFree (base, 0, MEM_RELEASE);
+  return VirtualFree (address, size, MEM_DECOMMIT);
 }
 
 GumPageProtection

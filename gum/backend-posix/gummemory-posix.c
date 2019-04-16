@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -9,6 +9,7 @@
 #include "gummemory-priv.h"
 #include "gumprocess-priv.h"
 
+#include <errno.h>
 #include <unistd.h>
 #include <sys/mman.h>
 
@@ -185,60 +186,45 @@ gum_memory_allocate (gsize size,
   return (result != MAP_FAILED) ? result : NULL;
 }
 
-gpointer
-gum_memory_reserve (gsize size,
-                    gpointer hint)
+gboolean
+gum_memory_free (gpointer address,
+                 gsize size)
 {
-  gpointer result;
-  gint posix_page_prot, flags;
-
-  posix_page_prot = PROT_NONE;
-  flags = MAP_PRIVATE | MAP_ANONYMOUS | GUM_MAP_LAZY;
-
-  result = mmap (hint, size, posix_page_prot, flags, -1, 0);
-
-  return (result != MAP_FAILED) ? result : NULL;
+  return munmap (address, size) == 0;
 }
 
 gboolean
-gum_memory_commit (gpointer base,
+gum_memory_release (gpointer address,
+                    gsize size)
+{
+  return gum_memory_free (address, size);
+}
+
+gboolean
+gum_memory_commit (gpointer address,
                    gsize size,
                    GumPageProtection page_prot)
 {
-  gint posix_page_prot, flags;
-
-  posix_page_prot = _gum_page_protection_to_posix (page_prot);
-  flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED;
-
-  return mmap (base, size, posix_page_prot, flags, -1, 0) != MAP_FAILED;
+  return TRUE;
 }
 
 gboolean
-gum_memory_uncommit (gpointer base,
+gum_memory_decommit (gpointer address,
                      gsize size)
 {
-  gint posix_page_prot, flags;
+  int res;
 
-  posix_page_prot = PROT_NONE;
-  flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | GUM_MAP_LAZY;
+  res = madvise (address, size, MADV_FREE);
+  if (res != 0)
+  {
+    if (errno == ENOSYS)
+      return TRUE;
 
-  return mmap (base, size, posix_page_prot, flags, -1, 0) != MAP_FAILED;
-}
+    if (errno == EINVAL)
+      res = madvise (address, size, MADV_DONTNEED);
+  }
 
-gboolean
-gum_memory_release_partial (gpointer base,
-                            gsize size,
-                            gpointer free_start,
-                            gsize free_size)
-{
-  return munmap (free_start, free_size) == 0;
-}
-
-gboolean
-gum_memory_release (gpointer base,
-                    gsize size)
-{
-  return munmap (base, size) == 0;
+  return res == 0;
 }
 
 static void

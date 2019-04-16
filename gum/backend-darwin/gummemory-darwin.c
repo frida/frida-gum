@@ -1,18 +1,18 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gummemory.h"
 
-#include "fridajitclient.h"
 #include "gumdarwin.h"
 #include "gummemory-priv.h"
 
 #include <unistd.h>
 #include <libkern/OSCacheControl.h>
 #include <mach/mach.h>
+#include <sys/mman.h>
 #include <sys/sysctl.h>
 
 typedef gboolean (* GumFoundFreeRangeFunc) (const GumMemoryRange * range,
@@ -25,39 +25,20 @@ struct _GumAllocNearContext
   gpointer result;
   gsize size;
   const GumAddressSpec * address_spec;
-  gboolean using_jit_server;
   mach_port_t task;
 };
 
 static gboolean gum_try_alloc_in_range_if_near_enough (
     const GumMemoryRange * range, gpointer user_data);
 
-#ifdef HAVE_IOS
-kern_return_t bootstrap_look_up (mach_port_t bp, const char * service_name,
-    mach_port_t * sp);
-
-static mach_port_t frida_jit = MACH_PORT_NULL;
-#endif
-
 void
 _gum_memory_backend_init (void)
 {
-#ifdef HAVE_IOS
-  bootstrap_look_up (bootstrap_port, "com.apple.uikit.viewservice.frida",
-      &frida_jit);
-#endif
 }
 
 void
 _gum_memory_backend_deinit (void)
 {
-#ifdef HAVE_IOS
-  if (frida_jit != MACH_PORT_NULL)
-  {
-    mach_port_deallocate (mach_task_self (), frida_jit);
-    frida_jit = MACH_PORT_NULL;
-  }
-#endif
 }
 
 guint
@@ -439,25 +420,11 @@ gum_try_alloc_n_pages (guint n_pages,
   mach_vm_address_t result = 0;
   gsize page_size, size;
   kern_return_t kr;
-  gboolean using_jit_server = FALSE;
 
   page_size = gum_query_page_size ();
   size = (1 + n_pages) * page_size;
 
-#ifdef HAVE_IOS
-  using_jit_server = (page_prot == GUM_PAGE_RWX &&
-      !gum_query_is_rwx_supported () &&
-      frida_jit != MACH_PORT_NULL);
-  if (using_jit_server)
-  {
-    kr = frida_jit_alloc (frida_jit, mach_task_self (), &result, size,
-        VM_FLAGS_ANYWHERE);
-  }
-  else
-#endif
-  {
-    kr = mach_vm_allocate (mach_task_self (), &result, size, VM_FLAGS_ANYWHERE);
-  }
+  kr = mach_vm_allocate (mach_task_self (), &result, size, VM_FLAGS_ANYWHERE);
   if (kr != KERN_SUCCESS)
     return NULL;
 
@@ -465,7 +432,7 @@ gum_try_alloc_n_pages (guint n_pages,
 
   gum_mprotect (GSIZE_TO_POINTER (result), page_size, GUM_PAGE_READ);
 
-  if (page_prot != GUM_PAGE_RW && !using_jit_server)
+  if (page_prot != GUM_PAGE_RW)
   {
     gum_mprotect (GSIZE_TO_POINTER (result + page_size), size - page_size,
         page_prot);
@@ -487,12 +454,6 @@ gum_try_alloc_n_pages_near (guint n_pages,
   ctx.result = NULL;
   ctx.size = (1 + n_pages) * gum_query_page_size ();
   ctx.address_spec = address_spec;
-#ifdef HAVE_IOS
-  ctx.using_jit_server = (page_prot == GUM_PAGE_RWX &&
-      !gum_query_is_rwx_supported () && frida_jit != MACH_PORT_NULL);
-#else
-  ctx.using_jit_server = FALSE;
-#endif
   ctx.task = mach_task_self ();
 
   gum_memory_enumerate_free_ranges (gum_try_alloc_in_range_if_near_enough,
@@ -507,7 +468,7 @@ gum_try_alloc_n_pages_near (guint n_pages,
     gum_mprotect (ctx.result, page_size, GUM_PAGE_READ);
   }
 
-  if (page_prot != GUM_PAGE_RW && !ctx.using_jit_server)
+  if (page_prot != GUM_PAGE_RW)
   {
     gum_mprotect (ctx.result + page_size, ctx.size - page_size, page_prot);
   }
@@ -542,17 +503,7 @@ gum_try_alloc_in_range_if_near_enough (const GumMemoryRange * range,
     return TRUE;
 
   address = base_address;
-#ifdef HAVE_IOS
-  if (ctx->using_jit_server)
-  {
-    kr = frida_jit_alloc (frida_jit, ctx->task, &address, ctx->size,
-        VM_FLAGS_FIXED);
-  }
-  else
-#endif
-  {
-    kr = mach_vm_allocate (ctx->task, &address, ctx->size, VM_FLAGS_FIXED);
-  }
+  kr = mach_vm_allocate (ctx->task, &address, ctx->size, VM_FLAGS_FIXED);
   if (kr != KERN_SUCCESS)
     return TRUE;
 
@@ -593,78 +544,64 @@ gum_memory_allocate (gsize size,
                      GumPageProtection page_prot,
                      gpointer hint)
 {
-  mach_vm_address_t result = 0;
-  gboolean using_jit_server = FALSE;
+  mach_vm_address_t result;
+  mach_port_t self;
   kern_return_t kr;
 
-#ifdef HAVE_IOS
-  using_jit_server = !gum_query_is_rwx_supported () &&
-      frida_jit != MACH_PORT_NULL;
-  if (using_jit_server)
-  {
-    kr = frida_jit_alloc (frida_jit, mach_task_self (), &result, size,
-        VM_FLAGS_ANYWHERE);
-  }
-  else
-#endif
-  {
-    kr = mach_vm_allocate (mach_task_self (), &result, size, VM_FLAGS_ANYWHERE);
-  }
-  if (kr != KERN_SUCCESS)
-    return NULL;
+  self = mach_task_self ();
 
-  if (using_jit_server)
+  if (hint != NULL)
   {
-    if (page_prot != GUM_PAGE_RWX)
-      gum_mprotect (GSIZE_TO_POINTER (result), size, page_prot);
+    result = GPOINTER_TO_SIZE (hint);
+    kr = mach_vm_allocate (self, &result, size, VM_FLAGS_FIXED);
   }
   else
   {
-    if (page_prot != GUM_PAGE_RW)
-      gum_mprotect (GSIZE_TO_POINTER (result), size, page_prot);
+    kr = KERN_FAILURE;
   }
+
+  if (kr != KERN_SUCCESS)
+  {
+    result = 0;
+    kr = mach_vm_allocate (self, &result, size, VM_FLAGS_ANYWHERE);
+    if (kr != KERN_SUCCESS)
+      return NULL;
+  }
+
+  if (page_prot != GUM_PAGE_RW)
+    gum_mprotect (GSIZE_TO_POINTER (result), size, page_prot);
 
   return GSIZE_TO_POINTER (result);
 }
 
-gpointer
-gum_memory_reserve (gsize size,
-                    gpointer hint)
+gboolean
+gum_memory_free (gpointer address,
+                 gsize size)
 {
-  /* MAP_NORESERVE is not used by the kernel anyway. */
-  return gum_memory_allocate (size, GUM_PAGE_NO_ACCESS, hint);
+  return mach_vm_deallocate (mach_task_self (), GPOINTER_TO_SIZE (address),
+      size) == KERN_SUCCESS;
 }
 
 gboolean
-gum_memory_commit (gpointer base,
+gum_memory_release (gpointer address,
+                    gsize size)
+{
+  return gum_memory_free (address, size);
+}
+
+gboolean
+gum_memory_commit (gpointer address,
                    gsize size,
                    GumPageProtection page_prot)
 {
-  return gum_try_mprotect (base, size, page_prot);
+  return madvise (address, size, MADV_FREE_REUSE) == 0;
 }
 
 gboolean
-gum_memory_uncommit (gpointer base,
+gum_memory_decommit (gpointer address,
                      gsize size)
 {
-  return gum_try_mprotect (base, size, GUM_PAGE_NO_ACCESS);
-}
-
-gboolean
-gum_memory_release_partial (gpointer base,
-                            gsize size,
-                            gpointer free_start,
-                            gsize free_size)
-{
-  return gum_memory_release (free_start, free_size);
-}
-
-gboolean
-gum_memory_release (gpointer base,
-                    gsize size)
-{
-  return mach_vm_deallocate (mach_task_self (), (mach_vm_address_t) base,
-      size) == KERN_SUCCESS;
+  return madvise (address, size, MADV_FREE_REUSABLE) == 0;
 }
 
 GumPageProtection

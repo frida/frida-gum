@@ -117,13 +117,11 @@ GUM_API void gum_free_pages (gpointer mem);
 
 GUM_API gpointer gum_memory_allocate (gsize size, GumPageProtection page_prot,
     gpointer hint);
-GUM_API gpointer gum_memory_reserve (gsize size, gpointer hint);
-GUM_API gboolean gum_memory_commit (gpointer base, gsize size,
+GUM_API gboolean gum_memory_free (gpointer address, gsize size);
+GUM_API gboolean gum_memory_release (gpointer address, gsize size);
+GUM_API gboolean gum_memory_commit (gpointer address, gsize size,
     GumPageProtection page_prot);
-GUM_API gboolean gum_memory_uncommit (gpointer base, gsize size);
-GUM_API gboolean gum_memory_release_partial (gpointer base, gsize size,
-    gpointer free_start, gsize free_size);
-GUM_API gboolean gum_memory_release (gpointer base, gsize size);
+GUM_API gboolean gum_memory_decommit (gpointer address, gsize size);
 
 GUM_API GType gum_memory_range_get_type (void) G_GNUC_CONST;
 
