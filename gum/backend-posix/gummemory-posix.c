@@ -15,6 +15,9 @@
 
 #if defined (HAVE_LINUX)
 # define GUM_MAP_LAZY MAP_NORESERVE
+# ifndef MADV_FREE
+#  define MADV_FREE 8
+# endif
 #elif defined (HAVE_QNX)
 # define GUM_MAP_LAZY MAP_LAZY
 #else
