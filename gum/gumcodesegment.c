@@ -8,6 +8,8 @@
 
 #ifndef HAVE_DARWIN
 
+#include <gio/gio.h>
+
 gboolean
 gum_code_segment_is_supported (void)
 {
