@@ -221,6 +221,7 @@ gum_memory_patch_code (GumAddress address,
 
     gum_code_segment_realize (segment);
     gum_code_segment_map (segment, 0, range_size, start_page);
+
     gum_code_segment_free (segment);
   }
 
