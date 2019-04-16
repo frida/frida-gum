@@ -179,13 +179,20 @@ gpointer
 gum_try_alloc_n_pages (guint n_pages,
                        GumPageProtection page_prot)
 {
+  gpointer result;
   guint size;
   DWORD win_page_prot;
 
   size = n_pages * gum_query_page_size ();
   win_page_prot = gum_page_protection_to_windows (page_prot);
 
-  return gum_memory_allocate (size, page_prot, NULL);
+  result = gum_memory_allocate (size, page_prot, NULL);
+  if (result != NULL && page_prot == GUM_PAGE_NO_ACCESS)
+  {
+    gum_memory_commit (result, size, page_prot);
+  }
+
+  return result;
 }
 
 gpointer
