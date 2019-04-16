@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -11,9 +11,13 @@
 #include "gumv8script-runtime.h"
 
 #include <gum/gumcloak.h>
+#include <gum/gumcodesegment.h>
 #include <gum/gummemory.h>
 
 using namespace v8;
+
+static GumPageProtection gum_page_protection_from_v8 (
+    PageAllocator::Permission permission);
 
 class GumV8MainContextOperation : public GumV8Operation
 {
@@ -122,6 +126,21 @@ private:
   GumV8Platform * platform;
   Isolate * isolate;
   GHashTable * pending;
+};
+
+class GumV8PageAllocator : public PageAllocator
+{
+public:
+  size_t AllocatePageSize () override;
+  size_t CommitPageSize () override;
+  void SetRandomMmapSeed (int64_t seed) override;
+  void * GetRandomMmapAddr () override;
+  void * AllocatePages (void * address, size_t length, size_t alignment,
+      Permission permissions) override;
+  bool FreePages (void * address, size_t length) override;
+  bool ReleasePages (void * address, size_t length, size_t new_length) override;
+  bool SetPermissions (void * address, size_t length,
+      Permission permissions) override;
 };
 
 class GumV8ArrayBufferAllocator : public ArrayBuffer::Allocator
@@ -256,6 +275,7 @@ GumV8Platform::GumV8Platform ()
     java_bundle (NULL),
     scheduler (gum_script_scheduler_new ()),
     start_time (g_get_monotonic_time ()),
+    page_allocator (new GumV8PageAllocator ()),
     array_buffer_allocator (new GumV8ArrayBufferAllocator ()),
     threading_backend (new GumV8ThreadingBackend ()),
     tracing_controller (new TracingController ())
@@ -266,7 +286,7 @@ GumV8Platform::GumV8Platform ()
   V8::Initialize ();
 
   Isolate::CreateParams params;
-  params.array_buffer_allocator = array_buffer_allocator;
+  params.array_buffer_allocator = array_buffer_allocator.get ();
 
   shared_isolate = Isolate::New (params);
   shared_isolate->SetFatalErrorHandler (OnFatalError);
@@ -285,10 +305,6 @@ GumV8Platform::~GumV8Platform ()
   dispose->Await ();
 
   g_object_unref (scheduler);
-
-  delete tracing_controller;
-  delete threading_backend;
-  delete array_buffer_allocator;
 
   g_mutex_clear (&lock);
 }
@@ -593,6 +609,12 @@ GumV8Platform::ReleaseDelayedThreadPoolOperation (gpointer data)
   delete ptr;
 }
 
+PageAllocator *
+GumV8Platform::GetPageAllocator ()
+{
+  return page_allocator.get ();
+}
+
 int
 GumV8Platform::NumberOfWorkerThreads ()
 {
@@ -677,13 +699,13 @@ GumV8Platform::CurrentClockTimeMillis ()
 ThreadingBackend *
 GumV8Platform::GetThreadingBackend ()
 {
-  return threading_backend;
+  return threading_backend.get ();
 }
 
 TracingController *
 GumV8Platform::GetTracingController ()
 {
-  return tracing_controller;
+  return tracing_controller.get ();
 }
 
 GumV8MainContextOperation::GumV8MainContextOperation (
@@ -938,6 +960,136 @@ GumV8ForegroundTaskRunner::Run (IdleTask * task)
   task->Run (deadline_in_seconds);
 }
 
+size_t
+GumV8PageAllocator::AllocatePageSize ()
+{
+  return gum_query_page_size ();
+}
+
+size_t
+GumV8PageAllocator::CommitPageSize ()
+{
+  return gum_query_page_size ();
+}
+
+void
+GumV8PageAllocator::SetRandomMmapSeed (int64_t seed)
+{
+}
+
+void *
+GumV8PageAllocator::GetRandomMmapAddr ()
+{
+  return GSIZE_TO_POINTER (16384);
+}
+
+void *
+GumV8PageAllocator::AllocatePages (void * address,
+                                   size_t length,
+                                   size_t alignment,
+                                   Permission permissions)
+{
+  gsize page_size = gum_query_page_size ();
+
+  gsize allocation_size = length + (alignment - page_size);
+  allocation_size = GUM_ALIGN_SIZE (allocation_size, page_size);
+
+  guint8 * base = (guint8 *) gum_memory_allocate (allocation_size,
+      gum_page_protection_from_v8 (permissions), NULL);
+  if (base == NULL)
+    return NULL;
+
+  guint8 * aligned_base = GUM_ALIGN_POINTER (guint8 *, base, alignment);
+
+  if (aligned_base != base)
+  {
+    gsize prefix_size = aligned_base - base;
+    gum_memory_release (base, prefix_size);
+    allocation_size -= prefix_size;
+  }
+
+  if (allocation_size != length)
+  {
+    gsize suffix_size = allocation_size - length;
+    gum_memory_release (aligned_base + length, suffix_size);
+    allocation_size -= suffix_size;
+  }
+
+  g_assert (allocation_size == length);
+
+  GumMemoryRange range;
+  range.base_address = GPOINTER_TO_SIZE (aligned_base);
+  range.size = length;
+  gum_cloak_add_range (&range);
+
+  return aligned_base;
+}
+
+bool
+GumV8PageAllocator::FreePages (void * address,
+                               size_t length)
+{
+  if (!gum_memory_free (address, length))
+    return false;
+
+  GumMemoryRange range;
+  range.base_address = GPOINTER_TO_SIZE (address);
+  range.size = length;
+  gum_cloak_remove_range (&range);
+
+  return true;
+}
+
+bool
+GumV8PageAllocator::ReleasePages (void * address,
+                                  size_t length,
+                                  size_t new_length)
+{
+  const gpointer released_base = (guint8 *) address + new_length;
+  const gsize released_size = length - new_length;
+  if (!gum_memory_release (released_base, released_size))
+    return false;
+
+#ifndef HAVE_WINDOWS
+  GumMemoryRange range;
+  range.base_address = GPOINTER_TO_SIZE (released_base);
+  range.size = released_size;
+  gum_cloak_remove_range (&range);
+#endif
+
+  return true;
+}
+
+bool
+GumV8PageAllocator::SetPermissions (void * address,
+                                    size_t length,
+                                    Permission permissions)
+{
+  GumPageProtection page_prot = gum_page_protection_from_v8 (permissions);
+
+#ifndef HAVE_WINDOWS
+  gboolean success;
+  if (permissions == PageAllocator::kReadExecute &&
+      gum_code_segment_is_supported ())
+  {
+    success = gum_code_segment_mark (address, length, NULL);
+  }
+  else
+  {
+    success = gum_try_mprotect (address, length, page_prot);
+  }
+  if (!success)
+    return false;
+#endif
+
+  if (permissions == PageAllocator::kNoAccess)
+    gum_memory_decommit (address, length);
+  else
+    gum_memory_commit (address, length, page_prot);
+
+  return true;
+}
+
 void *
 GumV8ArrayBufferAllocator::Allocate (size_t length)
 {
@@ -1119,4 +1271,24 @@ GumConditionVariable::WaitFor (MutexImpl * mutex,
   GumMutex * m = (GumMutex *) mutex;
   gint64 deadline = g_get_monotonic_time () + delta_in_microseconds;
   return !!g_cond_wait_until (&cond, &m->mutex, deadline);
+}
+
+static GumPageProtection
+gum_page_protection_from_v8 (PageAllocator::Permission permission)
+{
+  switch (permission)
+  {
+    case PageAllocator::kNoAccess:
+      return GUM_PAGE_NO_ACCESS;
+    case PageAllocator::kRead:
+      return GUM_PAGE_READ;
+    case PageAllocator::kReadWrite:
+      return GUM_PAGE_RW;
+    case PageAllocator::kReadExecute:
+      return GUM_PAGE_RX;
+    case PageAllocator::kReadWriteExecute:
+    default:
+      g_assert_not_reached ();
+      return GUM_PAGE_NO_ACCESS;
+  }
 }
