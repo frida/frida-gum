@@ -30,6 +30,9 @@ struct _GumAllocNearContext
 
 static gboolean gum_try_alloc_in_range_if_near_enough (
     const GumMemoryRange * range, gpointer user_data);
+static gpointer gum_allocate_page_aligned (gpointer address, gsize size,
+    gint prot);
+static gint gum_page_protection_to_bsd (GumPageProtection page_prot);
 
 void
 _gum_memory_backend_init (void)
@@ -540,46 +543,64 @@ gum_free_pages (gpointer mem)
 }
 
 gpointer
-gum_memory_allocate (gsize size,
-                     GumPageProtection page_prot,
-                     gpointer hint)
+gum_memory_allocate (gpointer address,
+                     gsize size,
+                     gsize alignment,
+                     GumPageProtection page_prot)
 {
-  mach_vm_address_t result;
-  mach_port_t self;
-  kern_return_t kr;
+  gsize page_size, allocation_size;
+  guint8 * base, * aligned_base;
 
-  self = mach_task_self ();
+  address = GUM_ALIGN_POINTER (gpointer, address, alignment);
 
-  if (hint != NULL)
+  page_size = gum_query_page_size ();
+  allocation_size = size + (alignment - page_size);
+  allocation_size = GUM_ALIGN_SIZE (allocation_size, page_size);
+
+  base = gum_allocate_page_aligned (address, allocation_size,
+      gum_page_protection_to_bsd (page_prot));
+  if (base == NULL)
+    return NULL;
+
+  aligned_base = GUM_ALIGN_POINTER (guint8 *, base, alignment);
+
+  if (aligned_base != base)
   {
-    result = GPOINTER_TO_SIZE (hint);
-    kr = mach_vm_allocate (self, &result, size, VM_FLAGS_FIXED);
+    gsize prefix_size = aligned_base - base;
+    gum_memory_free (base, prefix_size);
+    allocation_size -= prefix_size;
   }
-  else
+
+  if (allocation_size != size)
   {
-    kr = KERN_FAILURE;
+    gsize suffix_size = allocation_size - size;
+    gum_memory_free (aligned_base + size, suffix_size);
+    allocation_size -= suffix_size;
   }
 
-  if (kr != KERN_SUCCESS)
-  {
-    result = 0;
-    kr = mach_vm_allocate (self, &result, size, VM_FLAGS_ANYWHERE);
-    if (kr != KERN_SUCCESS)
-      return NULL;
-  }
+  g_assert (allocation_size == length);
 
-  if (page_prot != GUM_PAGE_RW)
-    gum_mprotect (GSIZE_TO_POINTER (result), size, page_prot);
+  return aligned_base;
+}
 
-  return GSIZE_TO_POINTER (result);
+static gpointer
+gum_allocate_page_aligned (gpointer address,
+                           gsize size,
+                           gint prot)
+{
+  gpointer result;
+
+  result = mmap (address, size, prot, MAP_PRIVATE | MAP_ANONYMOUS,
+      VM_MAKE_TAG (255), 0);
+
+  return (result != MAP_FAILED) ? result : NULL;
 }
 
 gboolean
 gum_memory_free (gpointer address,
                  gsize size)
 {
-  return mach_vm_deallocate (mach_task_self (), GPOINTER_TO_SIZE (address),
-      size) == KERN_SUCCESS;
+  return munmap (address, size) == 0;
 }
 
 gboolean
@@ -632,4 +653,19 @@ gum_page_protection_to_mach (GumPageProtection page_prot)
     mach_page_prot |= VM_PROT_EXECUTE;
 
   return mach_page_prot;
+}
+
+static gint
+gum_page_protection_to_bsd (GumPageProtection page_prot)
+{
+  gint posix_page_prot = PROT_NONE;
+
+  if ((page_prot & GUM_PAGE_READ) != 0)
+    posix_page_prot |= PROT_READ;
+  if ((page_prot & GUM_PAGE_WRITE) != 0)
+    posix_page_prot |= PROT_WRITE;
+  if ((page_prot & GUM_PAGE_EXECUTE) != 0)
+    posix_page_prot |= PROT_EXEC;
+
+  return posix_page_prot;
 }

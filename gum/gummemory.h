@@ -115,8 +115,8 @@ GUM_API void gum_query_page_allocation_range (gconstpointer mem, guint size,
     GumMemoryRange * range);
 GUM_API void gum_free_pages (gpointer mem);
 
-GUM_API gpointer gum_memory_allocate (gsize size, GumPageProtection page_prot,
-    gpointer hint);
+GUM_API gpointer gum_memory_allocate (gpointer address, gsize size,
+    gsize alignment, GumPageProtection page_prot);
 GUM_API gboolean gum_memory_free (gpointer address, gsize size);
 GUM_API gboolean gum_memory_release (gpointer address, gsize size);
 GUM_API gboolean gum_memory_commit (gpointer address, gsize size,

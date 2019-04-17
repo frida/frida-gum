@@ -989,40 +989,15 @@ GumV8PageAllocator::AllocatePages (void * address,
                                    size_t alignment,
                                    Permission permissions)
 {
-  gsize page_size = gum_query_page_size ();
-
-  gsize allocation_size = length + (alignment - page_size);
-  allocation_size = GUM_ALIGN_SIZE (allocation_size, page_size);
-
-  guint8 * base = (guint8 *) gum_memory_allocate (allocation_size,
-      gum_page_protection_from_v8 (permissions), NULL);
-  if (base == NULL)
-    return NULL;
-
-  guint8 * aligned_base = GUM_ALIGN_POINTER (guint8 *, base, alignment);
-
-  if (aligned_base != base)
-  {
-    gsize prefix_size = aligned_base - base;
-    gum_memory_release (base, prefix_size);
-    allocation_size -= prefix_size;
-  }
-
-  if (allocation_size != length)
-  {
-    gsize suffix_size = allocation_size - length;
-    gum_memory_release (aligned_base + length, suffix_size);
-    allocation_size -= suffix_size;
-  }
-
-  g_assert (allocation_size == length);
+  gpointer base = gum_memory_allocate (NULL, length, alignment,
+      gum_page_protection_from_v8 (permissions));
 
   GumMemoryRange range;
-  range.base_address = GPOINTER_TO_SIZE (aligned_base);
+  range.base_address = GPOINTER_TO_SIZE (base);
   range.size = length;
   gum_cloak_add_range (&range);
 
-  return aligned_base;
+  return base;
 }
 
 bool

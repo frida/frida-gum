@@ -44,7 +44,8 @@ struct _GumEnumerateFreeRangesContext
 
 static gboolean gum_try_alloc_in_range_if_near_enough (
     const GumRangeDetails * details, gpointer user_data);
-
+static gpointer gum_allocate_page_aligned (gpointer address, gsize size,
+    gint prot);
 static void gum_enumerate_free_ranges (GumFoundRangeFunc func,
     gpointer user_data);
 static gboolean gum_emit_free_range (const GumRangeDetails * details,
@@ -71,12 +72,12 @@ gum_try_alloc_n_pages (guint n_pages,
                        GumPageProtection page_prot)
 {
   guint8 * result;
-  guint page_size, size;
+  gsize page_size, size;
 
   page_size = gum_query_page_size ();
   size = (1 + n_pages) * page_size;
 
-  result = gum_memory_allocate (size, page_prot, NULL);
+  result = gum_memory_allocate (NULL, size, page_size, page_prot);
   if (result == NULL)
     return NULL;
 
@@ -174,17 +175,54 @@ gum_free_pages (gpointer mem)
 }
 
 gpointer
-gum_memory_allocate (gsize size,
-                     GumPageProtection page_prot,
-                     gpointer hint)
+gum_memory_allocate (gpointer address,
+                     gsize size,
+                     gsize alignment,
+                     GumPageProtection page_prot)
+{
+  gsize page_size, allocation_size;
+  guint8 * base, * aligned_base;
+
+  address = GUM_ALIGN_POINTER (gpointer, address, alignment);
+
+  page_size = gum_query_page_size ();
+  allocation_size = size + (alignment - page_size);
+  allocation_size = GUM_ALIGN_SIZE (allocation_size, page_size);
+
+  base = gum_allocate_page_aligned (address, allocation_size,
+      _gum_page_protection_to_posix (page_prot));
+  if (base == NULL)
+    return NULL;
+
+  aligned_base = GUM_ALIGN_POINTER (guint8 *, base, alignment);
+
+  if (aligned_base != base)
+  {
+    gsize prefix_size = aligned_base - base;
+    gum_memory_free (base, prefix_size);
+    allocation_size -= prefix_size;
+  }
+
+  if (allocation_size != size)
+  {
+    gsize suffix_size = allocation_size - size;
+    gum_memory_free (aligned_base + size, suffix_size);
+    allocation_size -= suffix_size;
+  }
+
+  g_assert (allocation_size == length);
+
+  return aligned_base;
+}
+
+static gpointer
+gum_allocate_page_aligned (gpointer address,
+                           gsize size,
+                           gint prot)
 {
   gpointer result;
-  gint posix_page_prot, flags;
 
-  posix_page_prot = _gum_page_protection_to_posix (page_prot);
-  flags = MAP_PRIVATE | MAP_ANONYMOUS;
-
-  result = mmap (hint, size, posix_page_prot, flags, -1, 0);
+  result = mmap (address, size, prot, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
   return (result != MAP_FAILED) ? result : NULL;
 }

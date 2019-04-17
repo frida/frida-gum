@@ -539,7 +539,8 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller,
 
     thunk_size = gum_query_page_size ();
 
-    dispatcher->thunk = gum_memory_allocate (thunk_size, GUM_PAGE_RW, NULL);
+    dispatcher->thunk =
+        gum_memory_allocate (NULL, thunk_size, thunk_size, GUM_PAGE_RW);
     dispatcher->thunk_size = thunk_size;
 
     gum_memory_patch_code (GUM_ADDRESS (dispatcher->thunk),

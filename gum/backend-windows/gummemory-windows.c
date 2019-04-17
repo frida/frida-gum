@@ -12,6 +12,9 @@
 
 #include <stdlib.h>
 
+static gpointer gum_virtual_alloc (gpointer address, gsize size,
+    DWORD allocation_type, DWORD page_protection);
+
 void
 _gum_memory_backend_init (void)
 {
@@ -180,13 +183,12 @@ gum_try_alloc_n_pages (guint n_pages,
                        GumPageProtection page_prot)
 {
   gpointer result;
-  guint size;
-  DWORD win_page_prot;
+  gsize page_size, size;
 
-  size = n_pages * gum_query_page_size ();
-  win_page_prot = gum_page_protection_to_windows (page_prot);
+  page_size = gum_query_page_size ();
+  size = n_pages * page_size;
 
-  result = gum_memory_allocate (size, page_prot, NULL);
+  result = gum_memory_allocate (NULL, size, page_size, page_prot);
   if (result != NULL && page_prot == GUM_PAGE_NO_ACCESS)
   {
     gum_memory_commit (result, size, page_prot);
@@ -255,36 +257,69 @@ gum_free_pages (gpointer mem)
 }
 
 gpointer
-gum_memory_allocate (gsize size,
-                     GumPageProtection page_prot,
-                     gpointer hint)
+gum_memory_allocate (gpointer address,
+                     gsize size,
+                     gsize alignment,
+                     GumPageProtection page_prot)
 {
-  gpointer result = NULL;
-  DWORD flags, win_page_prot;
-  static BOOL use_aslr = -1;
+  DWORD allocation_type, win_prot;
+  gpointer base, aligned_base;
+  gsize padded_size;
+  gint retries = 3;
 
-  flags = (page_prot == GUM_PAGE_NO_ACCESS)
+  allocation_type = (page_prot == GUM_PAGE_NO_ACCESS)
       ? MEM_RESERVE
       : MEM_RESERVE | MEM_COMMIT;
-  win_page_prot = gum_page_protection_to_windows (page_prot);
 
-  /* Replicate V8's behavior: only use ASLR on 64-bit systems. */
-#if GLIB_SIZEOF_VOID_P == 4
-  if (use_aslr == -1 && !IsWow64Process (GetCurrentProcess (), &use_aslr))
-    use_aslr = FALSE;
-#else
-  use_aslr = TRUE;
-#endif
+  win_prot = gum_page_protection_to_windows (page_prot);
 
-  if (use_aslr &&
-      (page_prot == GUM_PAGE_NO_ACCESS || page_prot == GUM_PAGE_RWX))
+  base = gum_virtual_alloc (address, size, allocation_type, win_prot);
+  if (base == NULL)
+    return NULL;
+
+  aligned_base = GUM_ALIGN_POINTER (gpointer, base, alignment);
+  if (aligned_base == base)
+    return base;
+
+  gum_memory_free (base, size);
+  base = NULL;
+  aligned_base = NULL;
+  address = NULL;
+
+  padded_size = size + (alignment - gum_query_page_size ());
+
+  while (retries-- != 0)
   {
-    result = VirtualAlloc (hint, size, flags, win_page_prot);
+    base = gum_virtual_alloc (address, padded_size, allocation_type, win_prot);
+    if (base == NULL)
+      return NULL;
+
+    gum_memory_free (base, padded_size);
+    aligned_base = GUM_ALIGN_POINTER (gpointer, base, alignment);
+    base = VirtualAlloc (aligned_base, size, allocation_type, win_prot);
+    if (base != NULL)
+      break;
+  }
+
+  return base;
+}
+
+static gpointer
+gum_virtual_alloc (gpointer address,
+                   gsize size,
+                   DWORD allocation_type,
+                   DWORD page_protection)
+{
+  gpointer result = NULL;
+
+  if (address != NULL)
+  {
+    result = VirtualAlloc (address, size, allocation_type, page_protection);
   }
 
   if (result == NULL)
   {
-    result = VirtualAlloc (NULL, size, flags, win_page_prot);
+    result = VirtualAlloc (NULL, size, allocation_type, page_protection);
   }
 
   return result;
@@ -294,7 +329,7 @@ gboolean
 gum_memory_free (gpointer address,
                  gsize size)
 {
-  return VirtualFree (address, size, MEM_RELEASE);
+  return VirtualFree (address, 0, MEM_RELEASE);
 }
 
 gboolean
