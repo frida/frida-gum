@@ -27,6 +27,7 @@
 #include <gum/gummemorymap.h>
 #include <gum/gummoduleapiresolver.h>
 #include <gum/gummodulemap.h>
+#include <gum/gumprintf.h>
 #include <gum/gumprocess.h>
 #include <gum/gumreturnaddress.h>
 #include <gum/gumspinlock.h>

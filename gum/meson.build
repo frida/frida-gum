@@ -19,6 +19,7 @@ gum_headers = [
   'gummemorymap.h',
   'gummoduleapiresolver.h',
   'gummodulemap.h',
+  'gumprintf.h',
   'gumprocess.h',
   'gumreturnaddress.h',
   'gumspinlock.h',
