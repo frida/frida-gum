@@ -45,7 +45,6 @@ struct GumV8ExceptionHandler
   GumV8Core * core;
 };
 
-
 struct GumV8FindModuleByNameContext
 {
   gchar * name;
