@@ -91,7 +91,7 @@
       <ProgramDataBaseFileName>$(IntDir)\$(ProjectName).pdb</ProgramDataBaseFileName>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>gum-32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>capstone-32.lib;gum-32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ImportLibrary>$(TargetDir)$(ProjectName).lib</ImportLibrary>
       <SubSystem>Windows</SubSystem>
     </Link>
@@ -104,7 +104,7 @@
       <ProgramDataBaseFileName>$(IntDir)\$(ProjectName).pdb</ProgramDataBaseFileName>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>gum-64.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>capstone-64.lib;gum-64.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ImportLibrary>$(TargetDir)$(ProjectName).lib</ImportLibrary>
       <SubSystem>Windows</SubSystem>
     </Link>
@@ -117,7 +117,7 @@
       <ProgramDataBaseFileName>$(IntDir)\$(ProjectName).pdb</ProgramDataBaseFileName>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>gum-32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>capstone-32.lib;gum-32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ImportLibrary>$(TargetDir)$(ProjectName).lib</ImportLibrary>
       <SubSystem>Windows</SubSystem>
     </Link>
@@ -130,7 +130,7 @@
       <ProgramDataBaseFileName>$(IntDir)\$(ProjectName).pdb</ProgramDataBaseFileName>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>gum-64.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>capstone-64.lib;gum-64.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ImportLibrary>$(TargetDir)$(ProjectName).lib</ImportLibrary>
       <SubSystem>Windows</SubSystem>
     </Link>

@@ -94,7 +94,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <TargetMachine>MachineX86</TargetMachine>
-      <AdditionalDependencies>gum-32.lib;gumjs-32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>capstone-32.lib;gum-32.lib;gumjs-32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\dbghelp-32.dll" "$(TargetDir)dbghelp-32.dll"
@@ -115,7 +115,7 @@ copy /B /Y "$(SolutionDir)build\frida-windows\$(Platform)-$(ConfigurationName)\b
     <Link>
       <SubSystem>Console</SubSystem>
       <TargetMachine>MachineX64</TargetMachine>
-      <AdditionalDependencies>gum-64.lib;gumjs-64.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>capstone-64.lib;gum-64.lib;gumjs-64.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\dbghelp-32.dll" "$(TargetDir)dbghelp-32.dll"
@@ -136,7 +136,7 @@ copy /B /Y "$(SolutionDir)build\frida-windows\$(Platform)-$(ConfigurationName)\b
     <Link>
       <SubSystem>Console</SubSystem>
       <TargetMachine>MachineX86</TargetMachine>
-      <AdditionalDependencies>gum-32.lib;gumjs-32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>capstone-32.lib;gum-32.lib;gumjs-32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\dbghelp-32.dll" "$(TargetDir)dbghelp-32.dll"
@@ -157,7 +157,7 @@ copy /B /Y "$(SolutionDir)build\frida-windows\$(Platform)-$(ConfigurationName)\b
     <Link>
       <SubSystem>Console</SubSystem>
       <TargetMachine>MachineX64</TargetMachine>
-      <AdditionalDependencies>gum-64.lib;gumjs-64.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>capstone-64.lib;gum-64.lib;gumjs-64.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\dbghelp-32.dll" "$(TargetDir)dbghelp-32.dll"
