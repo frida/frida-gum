@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -101,6 +101,7 @@ GUM_API gpointer gum_malloc (gsize size);
 GUM_API gpointer gum_malloc0 (gsize size);
 GUM_API gpointer gum_calloc (gsize count, gsize size);
 GUM_API gpointer gum_realloc (gpointer mem, gsize size);
+GUM_API gpointer gum_memalign (gsize alignment, gsize size);
 GUM_API gpointer gum_memdup (gconstpointer mem, gsize byte_size);
 GUM_API void gum_free (gpointer mem);
 

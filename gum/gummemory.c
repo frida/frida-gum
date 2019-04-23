@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -652,6 +652,13 @@ gum_realloc (gpointer mem,
              gsize size)
 {
   return mspace_realloc (gum_mspace_main, mem, size);
+}
+
+gpointer
+gum_memalign (gsize alignment,
+              gsize size)
+{
+  return mspace_memalign (gum_mspace_main, alignment, size);
 }
 
 gpointer
