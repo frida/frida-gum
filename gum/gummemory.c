@@ -238,7 +238,17 @@ gum_memory_mark_code (gpointer address,
 
   if (gum_code_segment_is_supported ())
   {
-    success = gum_code_segment_mark (address, size, NULL);
+    gsize page_size;
+    guint8 * start_page, * end_page;
+
+    page_size = gum_query_page_size ();
+    start_page =
+        GSIZE_TO_POINTER (GPOINTER_TO_SIZE (address) & ~(page_size - 1));
+    end_page = GSIZE_TO_POINTER (
+        (GPOINTER_TO_SIZE (address) + size - 1) & ~(page_size - 1));
+
+    success = gum_code_segment_mark (start_page,
+        end_page - start_page + page_size, NULL);
   }
   else
   {
