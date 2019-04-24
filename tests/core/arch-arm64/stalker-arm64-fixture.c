@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -108,8 +108,9 @@ test_arm64_stalker_fixture_dup_code (TestArm64StalkerFixture * fixture,
   if (fixture->code != NULL)
     gum_free_pages (fixture->code);
   fixture->code = gum_alloc_n_pages_near (
-      (tpl_size / gum_query_page_size ()) + 1, GUM_PAGE_RWX, &spec);
+      (tpl_size / gum_query_page_size ()) + 1, GUM_PAGE_RW, &spec);
   memcpy (fixture->code, tpl_code, tpl_size);
+  gum_memory_mark_code (fixture->code, tpl_size);
 
   return fixture->code;
 }
@@ -131,7 +132,7 @@ test_arm64_stalker_fixture_follow_and_invoke (TestArm64StalkerFixture * fixture,
 
   spec.near_address = gum_stalker_follow_me;
   spec.max_distance = G_MAXINT32 / 2;
-  code = gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &spec);
+  code = gum_alloc_n_pages_near (1, GUM_PAGE_RW, &spec);
 
   gum_arm64_writer_init (&cw, code);
 
@@ -160,7 +161,7 @@ test_arm64_stalker_fixture_follow_and_invoke (TestArm64StalkerFixture * fixture,
   gum_arm64_writer_put_ret (&cw);
 
   gum_arm64_writer_flush (&cw);
-  gum_clear_cache (cw.base, gum_arm64_writer_offset (&cw));
+  gum_memory_mark_code (cw.base, gum_arm64_writer_offset (&cw));
   gum_arm64_writer_clear (&cw);
 
   invoke_func = GUM_POINTER_TO_FUNCPTR (GCallback, code);
