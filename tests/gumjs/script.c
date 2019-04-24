@@ -9,6 +9,7 @@
 
 TESTLIST_BEGIN (script)
   TESTENTRY (invalid_script_should_return_null)
+  TESTENTRY (strict_mode_should_be_enforced)
   TESTENTRY (array_buffer_can_be_created)
   TESTENTRY (message_can_be_sent)
   TESTENTRY (message_can_be_sent_with_data)
@@ -3154,6 +3155,19 @@ TESTCASE (invalid_script_should_return_null)
       "Script(line 1): SyntaxError: "));
 }
 
+TESTCASE (strict_mode_should_be_enforced)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "function run() {"
+      "  oops = 1337;"
+      "}"
+      "run();");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend)
+      ? "ReferenceError: identifier 'oops' undefined"
+      : "ReferenceError: oops is not defined");
+}
+
 TESTCASE (array_buffer_can_be_created)
 {
   COMPILE_AND_LOAD_SCRIPT ("new ArrayBuffer(16);");
@@ -5345,7 +5359,7 @@ TESTCASE (script_memory_usage)
 
   /* Warm up */
   script = gum_script_backend_create_sync (fixture->backend, "testcase",
-      "'use strict';", NULL, NULL);
+      "var foo = 42;", NULL, NULL);
   gum_script_load_sync (script, NULL);
   gum_script_unload_sync (script, NULL);
   g_object_unref (script);
@@ -5356,7 +5370,7 @@ TESTCASE (script_memory_usage)
 
   g_timer_reset (timer);
   script = gum_script_backend_create_sync (fixture->backend, "testcase",
-      "'use strict';", NULL, NULL);
+      "var foo = 42;", NULL, NULL);
   g_print ("created in %u ms\n",
       (guint) (g_timer_elapsed (timer, NULL) * 1000.0));
 

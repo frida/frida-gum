@@ -33,6 +33,7 @@
 
 #define GUM_V8_FLAGS \
     GUM_V8_PLATFORM_FLAGS \
+    "--use-strict " \
     "--es-staging " \
     "--harmony-class-fields " \
     "--harmony-private-methods " \

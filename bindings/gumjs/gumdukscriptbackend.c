@@ -357,7 +357,7 @@ gum_duk_script_backend_push_program (GumDukScriptBackend * self,
 
   duk_push_string (ctx, source);
   duk_push_string (ctx, filename);
-  valid = duk_pcompile (ctx, 0) == 0;
+  valid = duk_pcompile (ctx, DUK_COMPILE_STRICT) == 0;
 
   g_free (filename);
 
