@@ -230,6 +230,26 @@ gum_memory_patch_code (gpointer address,
   return TRUE;
 }
 
+gboolean
+gum_memory_mark_code (gpointer address,
+                      gsize size)
+{
+  gboolean success;
+
+  if (gum_code_segment_is_supported ())
+  {
+    success = gum_code_segment_mark (address, size, NULL);
+  }
+  else
+  {
+    success = gum_try_mprotect (address, size, GUM_PAGE_RX);
+  }
+
+  gum_clear_cache (address, size);
+
+  return success;
+}
+
 void
 gum_memory_scan (const GumMemoryRange * range,
                  const GumMatchPattern * pattern,

@@ -74,6 +74,7 @@ GUM_API gboolean gum_memory_write (gpointer address, const guint8 * bytes,
     gsize len);
 GUM_API gboolean gum_memory_patch_code (gpointer address, gsize size,
     GumMemoryPatchApplyFunc apply, gpointer apply_data);
+GUM_API gboolean gum_memory_mark_code (gpointer address, gsize size);
 
 GUM_API void gum_memory_scan (const GumMemoryRange * range,
     const GumMatchPattern * pattern, GumMemoryScanMatchFunc func,
