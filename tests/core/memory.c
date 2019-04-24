@@ -48,7 +48,7 @@ TESTCASE (read_from_valid_address_should_succeed)
   gsize n_bytes_read;
   guint8 * result;
 
-  result = gum_memory_read (GUM_ADDRESS (magic), sizeof (magic), &n_bytes_read);
+  result = gum_memory_read (magic, sizeof (magic), &n_bytes_read);
   g_assert_nonnull (result);
 
   g_assert_cmpuint (n_bytes_read, ==, sizeof (magic));
@@ -61,7 +61,7 @@ TESTCASE (read_from_valid_address_should_succeed)
 
 TESTCASE (read_from_invalid_address_should_fail)
 {
-  GumAddress invalid_address = 0x42;
+  guint8 * invalid_address = GSIZE_TO_POINTER (0x42);
   g_assert_null (gum_memory_read (invalid_address, 1, NULL));
 }
 
@@ -78,7 +78,7 @@ TESTCASE (read_from_unaligned_address_should_succeed)
 
   last_byte = ((guint8 *) page) + page_size - 1;
   *last_byte = 42;
-  data = gum_memory_read (GUM_ADDRESS (last_byte), 1, &n_bytes_read);
+  data = gum_memory_read (last_byte, 1, &n_bytes_read);
   g_assert_nonnull (data);
   g_assert_cmpuint (n_bytes_read, ==, 1);
   g_assert_cmpuint (*data, ==, 42);
@@ -97,7 +97,7 @@ TESTCASE (read_across_two_pages_should_return_correct_data)
   gsize n_bytes_read;
 
   rand = g_rand_new_with_seed (42);
-  pages = (guint8 *) gum_alloc_n_pages (2, GUM_PAGE_RW);
+  pages = gum_alloc_n_pages (2, GUM_PAGE_RW);
   size = 2 * gum_query_page_size ();
   start_offset = (size / 2) - 1;
   for (i = start_offset; i != size; i++)
@@ -107,8 +107,8 @@ TESTCASE (read_across_two_pages_should_return_correct_data)
   expected_checksum = g_compute_checksum_for_data (G_CHECKSUM_SHA1,
       pages + start_offset, size - start_offset);
 
-  data = gum_memory_read (GUM_ADDRESS (pages + start_offset),
-      size - start_offset, &n_bytes_read);
+  data = gum_memory_read (pages + start_offset, size - start_offset,
+      &n_bytes_read);
   g_assert_nonnull (data);
   g_assert_cmpuint (n_bytes_read, ==, size - start_offset);
   actual_checksum =
@@ -129,17 +129,16 @@ TESTCASE (read_beyond_page_should_return_partial_data)
   gsize n_bytes_read;
   guint8 * data;
 
-  page = (guint8 *) gum_alloc_n_pages (2, GUM_PAGE_RW);
+  page = gum_alloc_n_pages (2, GUM_PAGE_RW);
   page_size = gum_query_page_size ();
   gum_mprotect (page + page_size, page_size, GUM_PAGE_NO_ACCESS);
 
-  data = gum_memory_read (GUM_ADDRESS (page), 2 * page_size, &n_bytes_read);
+  data = gum_memory_read (page, 2 * page_size, &n_bytes_read);
   g_assert_nonnull (data);
   g_assert_cmpuint (n_bytes_read, ==, page_size);
   g_free (data);
 
-  data = gum_memory_read (GUM_ADDRESS (page + page_size - 1), 1 + page_size,
-      &n_bytes_read);
+  data = gum_memory_read (page + page_size - 1, 1 + page_size, &n_bytes_read);
   g_assert_nonnull (data);
   g_assert_cmpuint (n_bytes_read, ==, 1);
   g_free (data);
@@ -152,7 +151,7 @@ TESTCASE (write_to_valid_address_should_succeed)
   guint8 bytes[3] = { 0x00, 0x00, 0x12 };
   guint8 magic[2] = { 0x13, 0x37 };
 
-  g_assert_true (gum_memory_write (GUM_ADDRESS (bytes), magic, sizeof (magic)));
+  g_assert_true (gum_memory_write (bytes, magic, sizeof (magic)));
 
   g_assert_cmphex (bytes[0], ==, 0x13);
   g_assert_cmphex (bytes[1], ==, 0x37);
@@ -162,7 +161,7 @@ TESTCASE (write_to_valid_address_should_succeed)
 TESTCASE (write_to_invalid_address_should_fail)
 {
   guint8 bytes[3] = { 0x00, 0x00, 0x12 };
-  GumAddress invalid_address = 0x42;
+  guint8 * invalid_address = GSIZE_TO_POINTER (0x42);
   g_assert_false (gum_memory_write (invalid_address, bytes, sizeof (bytes)));
 }
 
@@ -379,19 +378,19 @@ TESTCASE (is_memory_readable_handles_mixed_page_protections)
 {
   guint8 * pages;
   guint page_size;
-  GumAddress left_guard, first_page, second_page, right_guard;
+  guint8 * left_guard, * first_page, * second_page, * right_guard;
 
   pages = gum_alloc_n_pages (4, GUM_PAGE_RW);
 
   page_size = gum_query_page_size ();
 
-  left_guard = GUM_ADDRESS (pages);
+  left_guard = pages;
   first_page = left_guard + page_size;
   second_page = first_page + page_size;
   right_guard = second_page + page_size;
 
-  gum_mprotect (GSIZE_TO_POINTER (left_guard), page_size, GUM_PAGE_NO_ACCESS);
-  gum_mprotect (GSIZE_TO_POINTER (right_guard), page_size, GUM_PAGE_NO_ACCESS);
+  gum_mprotect (left_guard, page_size, GUM_PAGE_NO_ACCESS);
+  gum_mprotect (right_guard, page_size, GUM_PAGE_NO_ACCESS);
 
   g_assert_true (gum_memory_is_readable (first_page, 1));
   g_assert_true (gum_memory_is_readable (first_page + page_size - 1, 1));
@@ -421,7 +420,7 @@ TESTCASE (alloc_n_pages_returns_aligned_rw_address)
 
   g_assert_cmpuint (GPOINTER_TO_SIZE (page) % page_size, ==, 0);
 
-  g_assert_true (gum_memory_is_readable (GUM_ADDRESS (page), page_size));
+  g_assert_true (gum_memory_is_readable (page, page_size));
 
   g_assert_cmpuint (*((gsize *) page), ==, 0);
   *((gsize *) page) = 42;
@@ -448,7 +447,7 @@ TESTCASE (alloc_n_pages_near_returns_aligned_rw_address_within_range)
 
   g_assert_cmpuint (GPOINTER_TO_SIZE (page) % page_size, ==, 0);
 
-  g_assert_true (gum_memory_is_readable (GUM_ADDRESS (page), page_size));
+  g_assert_true (gum_memory_is_readable (page, page_size));
 
   g_assert_cmpuint (*((gsize *) page), ==, 0);
   *((gsize *) page) = 42;

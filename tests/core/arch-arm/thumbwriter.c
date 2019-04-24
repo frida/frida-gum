@@ -269,8 +269,7 @@ TESTCASE (ldr_in_large_block)
 
   code_size = code_size_in_pages * gum_query_page_size ();
   code = gum_alloc_n_pages (code_size_in_pages, GUM_PAGE_RW);
-  gum_memory_patch_code (GUM_ADDRESS (code), code_size,
-      gum_emit_ldr_in_large_block, code);
+  gum_memory_patch_code (code, code_size, gum_emit_ldr_in_large_block, code);
 
   impl = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (code) | 1);
   g_assert_cmpint (impl (), ==, 0x1337);

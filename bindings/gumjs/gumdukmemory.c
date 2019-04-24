@@ -295,7 +295,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_patch_code)
   _gum_duk_args_parse (args, "pZF", &address, &size, &pc.apply);
   pc.scope = &scope;
 
-  success = gum_memory_patch_code (GUM_ADDRESS (address), size,
+  success = gum_memory_patch_code (address, size,
       (GumMemoryPatchApplyFunc) gum_memory_patch_context_apply, &pc);
   if (!success)
     _gum_duk_throw (ctx, "invalid address");

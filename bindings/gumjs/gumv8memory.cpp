@@ -333,7 +333,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_patch_code)
   pc.has_pending_exception = FALSE;
   pc.core = core;
 
-  success = gum_memory_patch_code (GUM_ADDRESS (address), size,
+  success = gum_memory_patch_code (address, size,
       (GumMemoryPatchApplyFunc) gum_memory_patch_context_apply, &pc);
   if (!success && !pc.has_pending_exception)
     _gum_v8_throw_ascii_literal (isolate, "invalid address");

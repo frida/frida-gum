@@ -201,7 +201,7 @@ gum_memory_enumerate_free_ranges (GumFoundFreeRangeFunc func,
 }
 
 gboolean
-gum_memory_is_readable (GumAddress address,
+gum_memory_is_readable (gconstpointer address,
                         gsize len)
 {
   gboolean is_readable;
@@ -216,19 +216,21 @@ gum_memory_is_readable (GumAddress address,
 }
 
 guint8 *
-gum_memory_read (GumAddress address,
+gum_memory_read (gconstpointer address,
                  gsize len,
                  gsize * n_bytes_read)
 {
-  return gum_darwin_read (mach_task_self (), address, len, n_bytes_read);
+  return gum_darwin_read (mach_task_self (), GUM_ADDRESS (address), len,
+      n_bytes_read);
 }
 
 gboolean
-gum_memory_write (GumAddress address,
+gum_memory_write (gpointer address,
                   const guint8 * bytes,
                   gsize len)
 {
-  return gum_darwin_write (mach_task_self (), address, bytes, len);
+  return gum_darwin_write (mach_task_self (), GUM_ADDRESS (address), bytes,
+      len);
 }
 
 guint8 *

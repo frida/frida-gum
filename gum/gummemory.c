@@ -175,7 +175,7 @@ gum_query_is_rwx_supported (void)
 }
 
 gboolean
-gum_memory_patch_code (GumAddress address,
+gum_memory_patch_code (gpointer address,
                        gsize size,
                        GumMemoryPatchApplyFunc apply,
                        gpointer apply_data)
@@ -186,10 +186,10 @@ gum_memory_patch_code (GumAddress address,
   gboolean rwx_supported;
 
   page_size = gum_query_page_size ();
-  start_page = GSIZE_TO_POINTER (((gsize) address) & ~(page_size - 1));
+  start_page = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (address) & ~(page_size - 1));
   end_page = GSIZE_TO_POINTER (
-      ((gsize) (address + size - 1)) & ~(page_size - 1));
-  page_offset = ((guint8 *) GSIZE_TO_POINTER (address)) - start_page;
+      (GPOINTER_TO_SIZE (address) + size - 1) & ~(page_size - 1));
+  page_offset = ((guint8 *) address) - start_page;
   range_size = (end_page + page_size) - start_page;
 
   rwx_supported = gum_query_is_rwx_supported ();
@@ -203,7 +203,7 @@ gum_memory_patch_code (GumAddress address,
     if (!gum_try_mprotect (start_page, range_size, protection))
       return FALSE;
 
-    apply (GSIZE_TO_POINTER (address), apply_data);
+    apply (address, apply_data);
 
     if (!gum_try_mprotect (start_page, range_size, GUM_PAGE_RX))
       return FALSE;
@@ -225,7 +225,7 @@ gum_memory_patch_code (GumAddress address,
     gum_code_segment_free (segment);
   }
 
-  gum_clear_cache (GSIZE_TO_POINTER (address), size);
+  gum_clear_cache (address, size);
 
   return TRUE;
 }

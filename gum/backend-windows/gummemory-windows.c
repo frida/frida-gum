@@ -14,6 +14,8 @@
 
 static gpointer gum_virtual_alloc (gpointer address, gsize size,
     DWORD allocation_type, DWORD page_protection);
+static gboolean gum_memory_get_protection (gconstpointer address, gsize len,
+    GumPageProtection * prot);
 
 void
 _gum_memory_backend_init (void)
@@ -35,64 +37,8 @@ _gum_memory_backend_query_page_size (void)
   return si.dwPageSize;
 }
 
-static gboolean
-gum_memory_get_protection (GumAddress address,
-                           gsize len,
-                           GumPageProtection * prot)
-{
-  gboolean success = FALSE;
-  MEMORY_BASIC_INFORMATION mbi;
-
-  if (prot == NULL)
-  {
-    GumPageProtection ignored_prot;
-
-    return gum_memory_get_protection (address, len, &ignored_prot);
-  }
-
-  *prot = GUM_PAGE_NO_ACCESS;
-
-  if (len > 1)
-  {
-    GumAddress page_size, start_page, end_page, cur_page;
-
-    page_size = gum_query_page_size ();
-
-    start_page = address & ~(page_size - 1);
-    end_page = (address + len - 1) & ~(page_size - 1);
-
-    success = gum_memory_get_protection (start_page, 1, prot);
-
-    for (cur_page = start_page + page_size;
-        cur_page != end_page + page_size;
-        cur_page += page_size)
-    {
-      GumPageProtection cur_prot;
-
-      if (gum_memory_get_protection (cur_page, 1, &cur_prot))
-      {
-        success = TRUE;
-        *prot &= cur_prot;
-      }
-      else
-      {
-        *prot = GUM_PAGE_NO_ACCESS;
-        break;
-      }
-    }
-
-    return success;
-  }
-
-  success = VirtualQuery (GSIZE_TO_POINTER (address), &mbi, sizeof (mbi)) != 0;
-  if (success)
-    *prot = gum_page_protection_from_windows (mbi.Protect);
-
-  return success;
-}
-
 gboolean
-gum_memory_is_readable (GumAddress address,
+gum_memory_is_readable (gconstpointer address,
                         gsize len)
 {
   GumPageProtection prot;
@@ -104,7 +50,7 @@ gum_memory_is_readable (GumAddress address,
 }
 
 guint8 *
-gum_memory_read (GumAddress address,
+gum_memory_read (gconstpointer address,
                  gsize len,
                  gsize * n_bytes_read)
 {
@@ -121,18 +67,19 @@ gum_memory_read (GumAddress address,
 
   while (offset != len)
   {
-    GumAddress chunk_address, page_address;
-    gsize chunk_size, page_offset;
+    const guint8 * chunk_address, * page_address;
+    gsize page_offset, chunk_size;
     SIZE_T n;
     BOOL success;
 
-    chunk_address = address + offset;
-    page_address = chunk_address & ~(page_size - 1);
+    chunk_address = (const guint8 *) address + offset;
+    page_address = GSIZE_TO_POINTER (
+        GPOINTER_TO_SIZE (chunk_address) & ~(page_size - 1));
     page_offset = chunk_address - page_address;
     chunk_size = MIN (len - offset, page_size - page_offset);
 
-    success = ReadProcessMemory (self, GSIZE_TO_POINTER (chunk_address),
-        result + offset, chunk_size, &n);
+    success = ReadProcessMemory (self, chunk_address, result + offset,
+        chunk_size, &n);
     if (!success)
       break;
     offset += n;
@@ -151,12 +98,11 @@ gum_memory_read (GumAddress address,
 }
 
 gboolean
-gum_memory_write (GumAddress address,
+gum_memory_write (gpointer address,
                   const guint8 * bytes,
                   gsize len)
 {
-  return WriteProcessMemory (GetCurrentProcess (), GSIZE_TO_POINTER (address),
-      bytes, len, NULL);
+  return WriteProcessMemory (GetCurrentProcess (), address, bytes, len, NULL);
 }
 
 gboolean
@@ -353,6 +299,63 @@ gum_memory_decommit (gpointer address,
                      gsize size)
 {
   return VirtualFree (address, size, MEM_DECOMMIT);
+}
+
+static gboolean
+gum_memory_get_protection (gconstpointer address,
+                           gsize len,
+                           GumPageProtection * prot)
+{
+  gboolean success = FALSE;
+  MEMORY_BASIC_INFORMATION mbi;
+
+  if (prot == NULL)
+  {
+    GumPageProtection ignored_prot;
+
+    return gum_memory_get_protection (address, len, &ignored_prot);
+  }
+
+  *prot = GUM_PAGE_NO_ACCESS;
+
+  if (len > 1)
+  {
+    gsize page_size, start_page, end_page, cur_page;
+
+    page_size = gum_query_page_size ();
+
+    start_page = GPOINTER_TO_SIZE (address) & ~(page_size - 1);
+    end_page = (GPOINTER_TO_SIZE (address) + len - 1) & ~(page_size - 1);
+
+    success = gum_memory_get_protection (GSIZE_TO_POINTER (start_page), 1,
+        prot);
+
+    for (cur_page = start_page + page_size;
+        cur_page != end_page + page_size;
+        cur_page += page_size)
+    {
+      GumPageProtection cur_prot;
+
+      if (gum_memory_get_protection (GSIZE_TO_POINTER (cur_page), 1, &cur_prot))
+      {
+        success = TRUE;
+        *prot &= cur_prot;
+      }
+      else
+      {
+        *prot = GUM_PAGE_NO_ACCESS;
+        break;
+      }
+    }
+
+    return success;
+  }
+
+  success = VirtualQuery (address, &mbi, sizeof (mbi)) != 0;
+  if (success)
+    *prot = gum_page_protection_from_windows (mbi.Protect);
+
+  return success;
 }
 
 GumPageProtection

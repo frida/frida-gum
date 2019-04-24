@@ -45,8 +45,7 @@ TESTCASE (attach_to_thunk_reading_lr)
   ctx.thunk = NULL;
   ctx.expected_lr = 0;
 
-  gum_memory_patch_code (GUM_ADDRESS (ctx.code), code_size, gum_emit_lr_thunk,
-      &ctx);
+  gum_memory_patch_code (ctx.code, code_size, gum_emit_lr_thunk, &ctx);
 
   g_assert_cmphex (ctx.run (), ==, ctx.expected_lr);
 
@@ -102,8 +101,7 @@ TESTCASE (attach_to_function_reading_lr)
   ctx.func = NULL;
   ctx.caller_lr = 0;
 
-  gum_memory_patch_code (GUM_ADDRESS (ctx.code), code_size, gum_emit_lr_func,
-      &ctx);
+  gum_memory_patch_code (ctx.code, code_size, gum_emit_lr_func, &ctx);
 
   g_assert_cmphex (ctx.run (), ==, ctx.caller_lr);
 

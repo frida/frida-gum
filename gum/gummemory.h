@@ -67,12 +67,12 @@ GUM_API void gum_memory_deinit (void);
 
 GUM_API guint gum_query_page_size (void);
 GUM_API gboolean gum_query_is_rwx_supported (void);
-GUM_API gboolean gum_memory_is_readable (GumAddress address, gsize len);
-GUM_API guint8 * gum_memory_read (GumAddress address, gsize len,
+GUM_API gboolean gum_memory_is_readable (gconstpointer address, gsize len);
+GUM_API guint8 * gum_memory_read (gconstpointer address, gsize len,
     gsize * n_bytes_read);
-GUM_API gboolean gum_memory_write (GumAddress address, const guint8 * bytes,
+GUM_API gboolean gum_memory_write (gpointer address, const guint8 * bytes,
     gsize len);
-GUM_API gboolean gum_memory_patch_code (GumAddress address, gsize size,
+GUM_API gboolean gum_memory_patch_code (gpointer address, gsize size,
     GumMemoryPatchApplyFunc apply, gpointer apply_data);
 
 GUM_API void gum_memory_scan (const GumMemoryRange * range,
