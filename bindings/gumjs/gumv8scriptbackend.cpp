@@ -369,7 +369,19 @@ gum_v8_script_backend_get_platform (GumV8ScriptBackend * self)
 {
   if (self->platform == NULL)
   {
-    V8::SetFlagsFromString (GUM_V8_FLAGS, (int) strlen (GUM_V8_FLAGS));
+    GString * flags;
+
+    flags = g_string_new (GUM_V8_FLAGS);
+
+    if (gum_process_get_code_signing_policy () == GUM_CODE_SIGNING_REQUIRED)
+    {
+      g_string_append (flags, " --jitless");
+    }
+
+    V8::SetFlagsFromString (flags->str, flags->len);
+
+    g_string_free (flags, TRUE);
+
     self->platform = new GumV8Platform ();
     self->platform->GetIsolate ()->SetData (0, self);
 
