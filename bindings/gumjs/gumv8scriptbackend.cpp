@@ -34,16 +34,21 @@
 #define GUM_V8_FLAGS \
     GUM_V8_PLATFORM_FLAGS \
     "--use-strict " \
+    "--expose-gc " \
     "--es-staging " \
     "--harmony-class-fields " \
     "--harmony-private-methods " \
-    "--experimental-wasm-simd " \
-    "--experimental-wasm-eh " \
+    "--harmony-regexp-sequence " \
     "--experimental-wasm-mv " \
+    "--experimental-wasm-eh " \
     "--experimental-wasm-threads " \
-    "--experimental-wasm-sat-f2i-conversions " \
+    "--experimental-wasm-simd " \
     "--experimental-wasm-anyref " \
-    "--expose-gc"
+    "--experimental-wasm-bigint " \
+    "--experimental-wasm-bulk-memory " \
+    "--experimental-wasm-return-call " \
+    "--experimental-wasm-type-reflection " \
+    "--experimental-wasm-compilation-hints"
 
 using namespace v8;
 using namespace v8_inspector;
