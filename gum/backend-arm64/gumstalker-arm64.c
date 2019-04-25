@@ -406,8 +406,10 @@ gum_stalker_init (GumStalker * self)
       g_hash_table_new_full (NULL, NULL, NULL, gum_stalker_free_probe_array);
 
   self->page_size = gum_query_page_size ();
-  self->slab_size = GUM_ALIGN_SIZE (GUM_CODE_SLAB_MAX_SIZE, self->page_size);
-  self->slab_header_size = self->page_size;
+  self->slab_size =
+      GUM_ALIGN_SIZE (GUM_CODE_SLAB_MAX_SIZE, self->page_size);
+  self->slab_header_size =
+      GUM_ALIGN_SIZE (GUM_CODE_SLAB_MAX_SIZE / 12, self->page_size);
   self->slab_max_blocks = (self->slab_header_size -
       G_STRUCT_OFFSET (GumSlab, blocks)) / sizeof (GumExecBlock);
   self->is_rwx_supported = gum_query_is_rwx_supported ();
