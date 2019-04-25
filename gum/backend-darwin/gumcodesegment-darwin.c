@@ -323,6 +323,9 @@ gum_code_segment_mark (gpointer code,
                        gsize size,
                        GError ** error)
 {
+  if (gum_process_is_debugger_attached ())
+    goto fallback;
+
   if (gum_code_segment_is_realize_supported ())
   {
     GumCodeSegment * segment;
@@ -344,16 +347,7 @@ gum_code_segment_mark (gpointer code,
 
     server_port = gum_try_get_substrated_port ();
     if (server_port == MACH_PORT_NULL)
-    {
-      if (!gum_try_mprotect (code, size, GUM_PAGE_RX))
-      {
-        g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
-            "Invalid address");
-        return FALSE;
-      }
-
-      return TRUE;
-    }
+      goto fallback;
 
     address = GPOINTER_TO_SIZE (code);
 
@@ -364,6 +358,18 @@ gum_code_segment_mark (gpointer code,
     {
       g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
           "Unable to mark code (substrated returned %d)", kr);
+      return FALSE;
+    }
+
+    return TRUE;
+  }
+
+fallback:
+  {
+    if (!gum_try_mprotect (code, size, GUM_PAGE_RX))
+    {
+      g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+          "Invalid address");
       return FALSE;
     }
 
