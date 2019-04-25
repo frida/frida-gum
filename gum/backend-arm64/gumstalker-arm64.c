@@ -2161,9 +2161,9 @@ gum_exec_block_backpatch_call (GumExecBlock * block,
       block->recycle_count >= stalker->trust_threshold)
   {
     GumArm64Writer * cw = &ctx->code_writer;
+    const gsize code_max_size = ret_code_address - code_start;
 
-    gum_stalker_thaw (stalker, code_start,
-        block->code_end - (guint8 *) code_start);
+    gum_stalker_thaw (stalker, code_start, code_max_size);
     gum_arm64_writer_reset (cw, code_start);
 
     if (opened_prolog == GUM_PROLOG_NONE)
@@ -2200,7 +2200,8 @@ gum_exec_block_backpatch_call (GumExecBlock * block,
     gum_exec_block_write_jmp_to_block_start (block, target_address);
 
     gum_arm64_writer_flush (cw);
-    gum_stalker_freeze (stalker, cw->base, gum_arm64_writer_offset (cw));
+    g_assert (gum_arm64_writer_offset (cw) <= code_max_size);
+    gum_stalker_freeze (stalker, code_start, code_max_size);
   }
 }
 
@@ -2226,8 +2227,9 @@ gum_exec_block_backpatch_jmp (GumExecBlock * block,
   if (ctx->state == GUM_EXEC_CTX_ACTIVE &&
       block->recycle_count >= stalker->trust_threshold)
   {
-    gum_stalker_thaw (stalker, code_start,
-        block->code_end - (guint8 *) code_start);
+    const gsize code_max_size = 128;
+
+    gum_stalker_thaw (stalker, code_start, code_max_size);
     gum_arm64_writer_reset (cw, code_start);
 
     if (opened_prolog != GUM_PROLOG_NONE)
@@ -2238,7 +2240,8 @@ gum_exec_block_backpatch_jmp (GumExecBlock * block,
     gum_exec_block_write_jmp_to_block_start (block, target_address);
 
     gum_arm64_writer_flush (cw);
-    gum_stalker_freeze (stalker, cw->base, gum_arm64_writer_offset (cw));
+    g_assert (gum_arm64_writer_offset (cw) <= code_max_size);
+    gum_stalker_freeze (stalker, code_start, code_max_size);
   }
 }
 
@@ -2263,8 +2266,9 @@ gum_exec_block_backpatch_ret (GumExecBlock * block,
   if (ctx->state == GUM_EXEC_CTX_ACTIVE &&
       block->recycle_count >= stalker->trust_threshold)
   {
-    gum_stalker_thaw (stalker, code_start,
-        block->code_end - (guint8 *) code_start);
+    const gsize code_max_size = 128;
+
+    gum_stalker_thaw (stalker, code_start, code_max_size);
     gum_arm64_writer_reset (cw, code_start);
 
     gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X16,
@@ -2274,7 +2278,8 @@ gum_exec_block_backpatch_ret (GumExecBlock * block,
     gum_exec_block_write_jmp_to_block_start (block, target_address);
 
     gum_arm64_writer_flush (cw);
-    gum_stalker_freeze (stalker, cw->base, gum_arm64_writer_offset (cw));
+    g_assert (gum_arm64_writer_offset (cw) <= code_max_size);
+    gum_stalker_freeze (stalker, code_start, code_max_size);
   }
 }
 
