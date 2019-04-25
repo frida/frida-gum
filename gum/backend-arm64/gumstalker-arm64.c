@@ -2125,20 +2125,17 @@ gum_exec_block_check_address_for_exclusion (GumExecBlock * block,
 static void
 gum_exec_block_commit (GumExecBlock * block)
 {
-  guint real_size;
-  guint8 * aligned_end;
+  gsize code_size, real_size;
+
+  code_size = block->code_end - block->code_begin;
+  block->slab->offset += code_size;
 
   real_size = block->real_end - block->real_begin;
   block->real_snapshot = block->code_end;
   memcpy (block->real_snapshot, block->real_begin, real_size);
   block->slab->offset += real_size;
 
-  aligned_end = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (block->real_snapshot +
-      real_size));
-  block->slab->offset += aligned_end - block->code_begin;
-
-  gum_stalker_freeze (block->ctx->stalker, block->code_begin,
-      block->code_end - block->code_begin);
+  gum_stalker_freeze (block->ctx->stalker, block->code_begin, code_size);
 }
 
 static void
