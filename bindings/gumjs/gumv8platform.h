@@ -91,7 +91,6 @@ private:
   std::unordered_set<std::shared_ptr<GumV8Operation>> js_ops;
   std::unordered_set<std::shared_ptr<GumV8Operation>> pool_ops;
   std::map<v8::Isolate *, std::shared_ptr<v8::TaskRunner>> foreground_runners;
-  const gint64 start_time;
   std::unique_ptr<v8::PageAllocator> page_allocator;
   std::unique_ptr<v8::ArrayBuffer::Allocator> array_buffer_allocator;
   std::unique_ptr<v8::ThreadingBackend> threading_backend;

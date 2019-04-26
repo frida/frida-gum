@@ -274,7 +274,6 @@ GumV8Platform::GumV8Platform ()
   : objc_bundle (NULL),
     java_bundle (NULL),
     scheduler (gum_script_scheduler_new ()),
-    start_time (g_get_monotonic_time ()),
     page_allocator (new GumV8PageAllocator ()),
     array_buffer_allocator (new GumV8ArrayBufferAllocator ()),
     threading_backend (new GumV8ThreadingBackend ()),
@@ -685,9 +684,7 @@ GumV8Platform::IdleTasksEnabled (Isolate * isolate)
 double
 GumV8Platform::MonotonicallyIncreasingTime ()
 {
-  gint64 delta = g_get_monotonic_time () - start_time;
-
-  return ((double) (delta / G_GINT64_CONSTANT (1000))) / 1000.0;
+  return (double) g_get_monotonic_time () / (double) G_USEC_PER_SEC;
 }
 
 double
