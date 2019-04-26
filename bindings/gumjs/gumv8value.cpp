@@ -665,7 +665,6 @@ _gum_v8_native_resource_new (gpointer data,
   auto resource = g_slice_new (GumV8NativeResource);
   resource->instance = new GumPersistent<Object>::type (core->isolate,
       _gum_v8_native_pointer_new (data, core));
-  resource->instance->MarkIndependent ();
   resource->instance->SetWeak (resource, gum_v8_native_resource_on_weak_notify,
       WeakCallbackType::kParameter);
   resource->data = data;
@@ -710,7 +709,6 @@ _gum_v8_kernel_resource_new (guint64 data,
   auto resource = g_slice_new (GumV8KernelResource);
   resource->instance = new GumPersistent<Object>::type (core->isolate,
       _gum_v8_uint64_new (data, core));
-  resource->instance->MarkIndependent ();
   resource->instance->SetWeak (resource, gum_v8_kernel_resource_on_weak_notify,
       WeakCallbackType::kParameter);
   resource->data = data;
@@ -1434,7 +1432,6 @@ _gum_v8_cpu_context_free_later (GumPersistent<Object>::type * cpu_context,
 
   cpu_context->SetWeak (wrapper, gum_cpu_context_on_weak_notify,
       WeakCallbackType::kParameter);
-  cpu_context->MarkIndependent ();
 }
 
 static void

@@ -828,7 +828,6 @@ gum_v8_invocation_context_new_persistent (GumV8Interceptor * parent)
 static void
 gum_v8_invocation_context_release_persistent (GumV8InvocationContext * self)
 {
-  self->object->MarkIndependent ();
   self->object->SetWeak (self, gum_v8_invocation_context_on_weak_notify,
       WeakCallbackType::kParameter);
 
@@ -993,7 +992,6 @@ gum_v8_invocation_args_new_persistent (GumV8Interceptor * parent)
 static void
 gum_v8_invocation_args_release_persistent (GumV8InvocationArgs * self)
 {
-  self->object->MarkIndependent ();
   self->object->SetWeak (self, gum_v8_invocation_args_on_weak_notify,
       WeakCallbackType::kParameter);
 
@@ -1096,7 +1094,6 @@ static void
 gum_v8_invocation_return_value_release_persistent (
     GumV8InvocationReturnValue * self)
 {
-  self->object->MarkIndependent ();
   self->object->SetWeak (self, gum_v8_invocation_return_value_on_weak_notify,
       WeakCallbackType::kParameter);
 

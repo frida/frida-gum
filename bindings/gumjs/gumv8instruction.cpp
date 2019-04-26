@@ -179,7 +179,6 @@ _gum_v8_instruction_new (csh capstone,
   }
   value->target = target;
 
-  value->object->MarkIndependent ();
   value->object->SetWeak (value, gum_v8_instruction_on_weak_notify,
       WeakCallbackType::kParameter);
 
@@ -208,7 +207,6 @@ _gum_v8_instruction_release_persistent (GumV8InstructionValue * value)
 {
   gum_v8_instruction_dispose (value);
 
-  value->object->MarkIndependent ();
   value->object->SetWeak (value, gum_v8_instruction_on_weak_notify,
       WeakCallbackType::kParameter);
 

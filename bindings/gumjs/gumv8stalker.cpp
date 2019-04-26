@@ -787,7 +787,6 @@ gum_v8_stalker_iterator_release_persistent (GumV8StalkerIterator * self)
 {
   auto object = self->parent.object;
 
-  object->MarkIndependent ();
   object->SetWeak (self, gum_v8_stalker_iterator_on_weak_notify,
       WeakCallbackType::kParameter);
 

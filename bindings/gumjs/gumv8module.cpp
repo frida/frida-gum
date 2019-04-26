@@ -653,7 +653,6 @@ gum_v8_module_map_new (Handle<Object> wrapper,
   auto map = g_slice_new (GumV8ModuleMap);
   map->wrapper =
       new GumPersistent<Object>::type (module->core->isolate, wrapper);
-  map->wrapper->MarkIndependent ();
   map->wrapper->SetWeak (map, gum_v8_module_map_on_weak_notify,
       WeakCallbackType::kParameter);
   map->handle = handle;

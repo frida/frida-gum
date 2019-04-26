@@ -146,7 +146,6 @@ gum_file_new (Handle<Object> wrapper,
   auto file = g_slice_new (GumFile);
   file->wrapper =
       new GumPersistent<Object>::type (module->core->isolate, wrapper);
-  file->wrapper->MarkIndependent ();
   file->wrapper->SetWeak (file, gum_file_on_weak_notify,
       WeakCallbackType::kParameter);
   file->handle = handle;

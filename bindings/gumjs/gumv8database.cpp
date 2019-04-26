@@ -363,7 +363,6 @@ gum_database_new (sqlite3 * handle,
 
   auto database = g_slice_new (GumDatabase);
   database->wrapper = new GumPersistent<Object>::type (isolate, object);
-  database->wrapper->MarkIndependent ();
   database->wrapper->SetWeak (database, gum_database_on_weak_notify,
       WeakCallbackType::kParameter);
   database->handle = handle;
@@ -524,7 +523,6 @@ gum_statement_new (sqlite3_stmt * handle,
 
   auto statement = g_slice_new (GumStatement);
   statement->wrapper = new GumPersistent<Object>::type (isolate, object);
-  statement->wrapper->MarkIndependent ();
   statement->wrapper->SetWeak (statement, gum_statement_on_weak_notify,
       WeakCallbackType::kParameter);
   statement->handle = handle;

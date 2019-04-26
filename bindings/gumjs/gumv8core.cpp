@@ -1510,7 +1510,6 @@ gum_v8_weak_ref_new (guint id,
   ref->target = new GumPersistent<Value>::type (core->isolate, target);
   ref->target->SetWeak (ref, gum_v8_weak_ref_on_weak_notify,
       WeakCallbackType::kParameter);
-  ref->target->MarkIndependent ();
   ref->callback = new GumPersistent<Function>::type (core->isolate, callback);
 
   ref->core = core;
@@ -2260,7 +2259,6 @@ gumjs_native_function_init (Handle<Object> wrapper,
   func->wrapper = new GumPersistent<Object>::type (isolate, wrapper);
   func->wrapper->SetWeak (func, gum_v8_native_function_on_weak_notify,
       WeakCallbackType::kParameter);
-  func->wrapper->MarkIndependent ();
 
   g_hash_table_add (core->native_functions, func);
 
@@ -2638,7 +2636,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
   callback->wrapper = new GumPersistent<Object>::type (isolate, wrapper);
   callback->wrapper->SetWeak (callback,
       gum_v8_native_callback_on_weak_notify, WeakCallbackType::kParameter);
-  callback->wrapper->MarkIndependent ();
 
   g_hash_table_add (core->native_callbacks, callback);
 
@@ -2887,7 +2884,6 @@ gum_v8_source_map_new (Handle<Object> wrapper,
 {
   auto map = g_slice_new (GumV8SourceMap);
   map->wrapper = new GumPersistent<Object>::type (core->isolate, wrapper);
-  map->wrapper->MarkIndependent ();
   map->wrapper->SetWeak (map, gum_v8_source_map_on_weak_notify,
       WeakCallbackType::kParameter);
   map->handle = handle;

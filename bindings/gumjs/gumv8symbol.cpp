@@ -266,7 +266,6 @@ gum_symbol_new (GumV8Symbol * module,
 
   auto s = g_slice_new (GumSymbol);
   s->wrapper = new GumPersistent<Object>::type (isolate, object);
-  s->wrapper->MarkIndependent ();
   s->wrapper->SetWeak (s, gum_symbol_on_weak_notify,
       WeakCallbackType::kParameter);
   s->module = module;

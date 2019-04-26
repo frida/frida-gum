@@ -1588,7 +1588,6 @@ static void
 static void
 {wrapper_function_prefix}_mark_weak ({wrapper_struct_name} * self)
 {{
-  self->object->MarkIndependent ();
   self->object->SetWeak (self, {wrapper_function_prefix}_on_weak_notify,
       WeakCallbackType::kParameter);
 
@@ -1919,7 +1918,6 @@ static void
 static void
 {wrapper_function_prefix}_mark_weak ({wrapper_struct_name} * self)
 {{
-  self->object->MarkIndependent ();
   self->object->SetWeak (self, {wrapper_function_prefix}_on_weak_notify,
       WeakCallbackType::kParameter);
 

@@ -78,7 +78,6 @@ _gum_v8_object_manager_add (GumV8ObjectManager * self,
   auto object = g_slice_new (GumV8AnyObject);
 
   auto * w = new GumPersistent<Object>::type (core->isolate, wrapper);
-  w->MarkIndependent ();
   w->SetWeak (object, gum_v8_object_on_weak_notify,
       WeakCallbackType::kParameter);
   object->wrapper = w;
