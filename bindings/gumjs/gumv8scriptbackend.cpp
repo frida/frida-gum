@@ -378,7 +378,7 @@ gum_v8_script_backend_get_platform (GumV8ScriptBackend * self)
       g_string_append (flags, " --jitless");
     }
 
-    V8::SetFlagsFromString (flags->str, flags->len);
+    V8::SetFlagsFromString (flags->str, (size_t) flags->len);
 
     g_string_free (flags, TRUE);
 
