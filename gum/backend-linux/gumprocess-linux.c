@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -344,14 +344,14 @@ gum_process_modify_thread (GumThreadId thread_id,
   else
   {
     GumModifyThreadContext ctx;
-    gint res, fd;
+    gint fd;
     gssize child;
     gpointer stack, tls;
     GumUserDesc * desc;
     int prev_dumpable;
 
-    res = socketpair (AF_UNIX, SOCK_STREAM, 0, ctx.fd);
-    g_assert (res == 0);
+    if (socketpair (AF_UNIX, SOCK_STREAM, 0, ctx.fd) != 0)
+      return FALSE;
     ctx.thread_id = thread_id;
 
     fd = ctx.fd[0];

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -27,10 +27,8 @@ GumTlsKey
 gum_tls_key_new (void)
 {
   pthread_key_t key;
-  gint res;
 
-  res = pthread_key_create (&key, NULL);
-  g_assert (res == 0);
+  pthread_key_create (&key, NULL);
 
   return key;
 }

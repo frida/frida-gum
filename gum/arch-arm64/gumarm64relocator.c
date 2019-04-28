@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -76,14 +76,10 @@ gum_arm64_relocator_init (GumArm64Relocator * relocator,
                           gconstpointer input_code,
                           GumArm64Writer * output)
 {
-  cs_err err;
-
   relocator->ref_count = 1;
 
-  err = cs_open (CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN, &relocator->capstone);
-  g_assert (err == CS_ERR_OK);
-  err = cs_option (relocator->capstone, CS_OPT_DETAIL, CS_OPT_ON);
-  g_assert (err == CS_ERR_OK);
+  cs_open (CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN, &relocator->capstone);
+  cs_option (relocator->capstone, CS_OPT_DETAIL, CS_OPT_ON);
   relocator->input_insns = g_new0 (cs_insn *, GUM_MAX_INPUT_INSN_COUNT);
 
   relocator->output = NULL;
@@ -384,7 +380,6 @@ gum_arm64_relocator_can_relocate (gpointer address,
   {
     GHashTable * checked_targets, * targets_to_check;
     csh capstone;
-    cs_err err;
     cs_insn * insn;
     const guint8 * current_code;
     uint64_t current_address;
@@ -395,10 +390,8 @@ gum_arm64_relocator_can_relocate (gpointer address,
     checked_targets = g_hash_table_new (NULL, NULL);
     targets_to_check = g_hash_table_new (NULL, NULL);
 
-    err = cs_open (CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN, &capstone);
-    g_assert (err == CS_ERR_OK);
-    err = cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
-    g_assert (err == CS_ERR_OK);
+    cs_open (CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN, &capstone);
+    cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
 
     insn = cs_malloc (capstone);
     current_code = rl.input_cur;

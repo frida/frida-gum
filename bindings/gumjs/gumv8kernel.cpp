@@ -800,7 +800,8 @@ gum_kernel_scan_context_run (GumKernelScanContext * self)
   ScriptScope script_scope (core->script);
   auto on_complete (Local<Function>::New (isolate, *self->on_complete));
   auto recv = Undefined (isolate);
-  (void) on_complete->Call (context, recv, 0, nullptr);
+  auto result = on_complete->Call (context, recv, 0, nullptr);
+  _gum_v8_ignore_result (result);
 }
 
 static gboolean

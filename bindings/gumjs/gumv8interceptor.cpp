@@ -667,7 +667,9 @@ gum_v8_invocation_listener_on_enter (GumInvocationListener * listener,
     auto args_object = Local<Object>::New (isolate, *args->object);
 
     Handle<Value> argv[] = { args_object };
-    (void) on_enter->Call (context, recv, G_N_ELEMENTS (argv), argv);
+    auto result = on_enter->Call (context, recv, G_N_ELEMENTS (argv), argv);
+    if (result.IsEmpty ())
+      scope.ProcessAnyPendingException ();
 
     gum_v8_invocation_args_reset (args, NULL);
     gum_v8_interceptor_release_invocation_args (module, args);
@@ -721,7 +723,9 @@ gum_v8_invocation_listener_on_leave (GumInvocationListener * listener,
         gum_invocation_context_get_return_value (ic)));
 
     Handle<Value> argv[] = { retval_object };
-    (void) on_leave->Call (context, recv, G_N_ELEMENTS (argv), argv);
+    auto result = on_leave->Call (context, recv, G_N_ELEMENTS (argv), argv);
+    if (result.IsEmpty ())
+      scope.ProcessAnyPendingException ();
 
     gum_v8_invocation_return_value_reset (retval, NULL);
     gum_v8_interceptor_release_invocation_return_value (module, retval);

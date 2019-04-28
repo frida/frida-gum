@@ -78,16 +78,12 @@ gum_x86_relocator_init (GumX86Relocator * relocator,
                         gconstpointer input_code,
                         GumX86Writer * output)
 {
-  cs_err err;
-
   relocator->ref_count = 1;
 
-  err = cs_open (CS_ARCH_X86,
+  cs_open (CS_ARCH_X86,
       (output->target_cpu == GUM_CPU_AMD64) ? CS_MODE_64 : CS_MODE_32,
       &relocator->capstone);
-  g_assert (err == CS_ERR_OK);
-  err = cs_option (relocator->capstone, CS_OPT_DETAIL, CS_OPT_ON);
-  g_assert (err == CS_ERR_OK);
+  cs_option (relocator->capstone, CS_OPT_DETAIL, CS_OPT_ON);
   relocator->input_insns = g_new0 (cs_insn *, GUM_MAX_INPUT_INSN_COUNT);
 
   relocator->output = NULL;

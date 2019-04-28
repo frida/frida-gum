@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -73,14 +73,10 @@ gum_thumb_relocator_init (GumThumbRelocator * relocator,
                           gconstpointer input_code,
                           GumThumbWriter * output)
 {
-  cs_err err;
-
   relocator->ref_count = 1;
 
-  err = cs_open (CS_ARCH_ARM, CS_MODE_THUMB, &relocator->capstone);
-  g_assert (err == CS_ERR_OK);
-  err = cs_option (relocator->capstone, CS_OPT_DETAIL, CS_OPT_ON);
-  g_assert (err == CS_ERR_OK);
+  cs_open (CS_ARCH_ARM, CS_MODE_THUMB, &relocator->capstone);
+  cs_option (relocator->capstone, CS_OPT_DETAIL, CS_OPT_ON);
   relocator->input_insns = g_new0 (cs_insn *, GUM_MAX_INPUT_INSN_COUNT);
 
   relocator->output = NULL;
@@ -410,15 +406,12 @@ gum_thumb_relocator_can_relocate (gpointer address,
   else
   {
     csh capstone;
-    cs_err err;
     cs_insn * insn;
     size_t count, i;
     gboolean eoi;
 
-    err = cs_open (CS_ARCH_ARM, CS_MODE_THUMB, &capstone);
-    g_assert (err == CS_ERR_OK);
-    err = cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
-    g_assert (err == CS_ERR_OK);
+    cs_open (CS_ARCH_ARM, CS_MODE_THUMB, &capstone);
+    cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
 
     count = cs_disasm (capstone, rl.input_cur, 1024, rl.input_pc, 0, &insn);
     g_assert (insn != NULL);

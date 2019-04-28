@@ -185,12 +185,10 @@ gum_memory_get_protection (gconstpointer address,
 
   while (fgets (line, sizeof (line), fp) != NULL)
   {
-    gint n_items;
     gpointer start, end;
     gchar protection[16];
 
-    n_items = sscanf (line, "%p-%p %s ", &start, &end, protection);
-    g_assert (n_items == 3);
+    sscanf (line, "%p-%p %s ", &start, &end, protection);
 
     if (start > address)
       break;

@@ -91,15 +91,11 @@ _gum_duk_instruction_init (GumDukInstruction * self,
 {
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   duk_context * ctx = scope.ctx;
-  cs_err err;
 
   self->core = core;
 
-  err = cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &self->capstone);
-  g_assert (err == CS_ERR_OK);
-
-  err = cs_option (self->capstone, CS_OPT_DETAIL, CS_OPT_ON);
-  g_assert (err == CS_ERR_OK);
+  cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &self->capstone);
+  cs_option (self->capstone, CS_OPT_DETAIL, CS_OPT_ON);
 
   _gum_duk_store_module_data (ctx, "instruction", self);
 

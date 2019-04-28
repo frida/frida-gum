@@ -55,7 +55,8 @@ public:
     if (has_pending_exception)
       return;
 
-    (void) on_complete->Call (context, recv, 0, nullptr);
+    auto result = on_complete->Call (context, recv, 0, nullptr);
+    _gum_v8_ignore_result (result);
   }
 
   v8::Local<v8::Function> on_match;

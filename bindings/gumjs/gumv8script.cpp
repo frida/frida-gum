@@ -9,6 +9,7 @@
 
 #include "gumscripttask.h"
 #include "gumv8script-priv.h"
+#include "gumv8value.h"
 
 using namespace v8;
 
@@ -513,7 +514,8 @@ gum_v8_script_perform_load_task (GumV8Script * self,
       gum_v8_bundle_run (platform->GetRuntimeBundle ());
 
       auto code = Local<Script>::New (isolate, *self->code);
-      (void) code->Run (isolate->GetCurrentContext ());
+      auto result = code->Run (isolate->GetCurrentContext ());
+      _gum_v8_ignore_result (result);
     }
 
     self->state = GUM_SCRIPT_STATE_LOADED;

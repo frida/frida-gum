@@ -102,8 +102,9 @@ ScriptScope::PerformPendingIO ()
       {
         auto callback = Local<Function>::New (isolate, *tick_callback);
 
-        (void) callback->Call (context, receiver, 0, nullptr);
-        ProcessAnyPendingException ();
+        auto result = callback->Call (context, receiver, 0, nullptr);
+        if (result.IsEmpty ())
+          ProcessAnyPendingException ();
 
         delete tick_callback;
       }

@@ -332,7 +332,8 @@ gum_v8_listen_operation_perform (GumV8ListenOperation * self)
     Handle<Value> argv[] = { error_value, listener_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
     auto recv = Undefined (isolate);
-    (void) callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+    auto result = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+    _gum_v8_ignore_result (result);
   }
 
   gum_v8_module_operation_finish (self);
@@ -462,7 +463,8 @@ gum_v8_connect_operation_finish (GSocketClient * client,
     Handle<Value> argv[] = { error_value, connection_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
     auto recv = Undefined (isolate);
-    (void) callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+    auto result = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+    _gum_v8_ignore_result (result);
   }
 
   gum_v8_module_operation_finish (self);
@@ -615,7 +617,8 @@ gum_v8_close_listener_operation_perform (GumV8CloseListenerOperation * self)
 
     auto callback (Local<Function>::New (isolate, *self->callback));
     auto recv = Undefined (isolate);
-    (void) callback->Call (context, recv, 0, nullptr);
+    auto result = callback->Call (context, recv, 0, nullptr);
+    _gum_v8_ignore_result (result);
   }
 
   gum_v8_object_operation_finish (self);
@@ -677,7 +680,8 @@ gum_v8_accept_operation_finish (GSocketListener * listener,
     Handle<Value> argv[] = { error_value, connection_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
     auto recv = Undefined (isolate);
-    (void) callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+    auto result = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+    _gum_v8_ignore_result (result);
   }
 
   gum_v8_object_operation_finish (self);
@@ -757,7 +761,8 @@ gum_v8_set_no_delay_operation_perform (GumV8SetNoDelayOperation * self)
     Handle<Value> argv[] = { error_value, success_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
     auto recv = Undefined (isolate);
-    (void) callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+    auto result = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+    _gum_v8_ignore_result (result);
   }
 
   gum_v8_object_operation_finish (self);

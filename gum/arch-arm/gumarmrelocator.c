@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -69,14 +69,10 @@ gum_arm_relocator_init (GumArmRelocator * relocator,
                         gconstpointer input_code,
                         GumArmWriter * output)
 {
-  cs_err err;
-
   relocator->ref_count = 1;
 
-  err = cs_open (CS_ARCH_ARM, CS_MODE_ARM, &relocator->capstone);
-  g_assert (err == CS_ERR_OK);
-  err = cs_option (relocator->capstone, CS_OPT_DETAIL, CS_OPT_ON);
-  g_assert (err == CS_ERR_OK);
+  cs_open (CS_ARCH_ARM, CS_MODE_ARM, &relocator->capstone);
+  cs_option (relocator->capstone, CS_OPT_DETAIL, CS_OPT_ON);
   relocator->input_insns = g_new0 (cs_insn *, GUM_MAX_INPUT_INSN_COUNT);
 
   relocator->output = NULL;

@@ -682,7 +682,9 @@ gum_v8_callback_transformer_transform_block (
 
   auto recv = Undefined (isolate);
   Handle<Value> argv[] = { iter_object };
-  (void) callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+  auto result = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+  if (result.IsEmpty ())
+    scope.ProcessAnyPendingException ();
 
   gum_v8_stalker_iterator_reset (iter_value, NULL);
   _gum_v8_native_writer_reset (output_value, NULL);
@@ -752,7 +754,9 @@ gum_v8_call_probe_on_fire (GumCallSite * site,
   auto callback (Local<Function>::New (isolate, *self->callback));
   auto recv = Undefined (isolate);
   Handle<Value> argv[] = { args };
-  (void) callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+  auto result = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+  if (result.IsEmpty ())
+    scope.ProcessAnyPendingException ();
 
   args->SetAlignedPointerInInternalField (0, nullptr);
   args->SetAlignedPointerInInternalField (1, nullptr);
@@ -911,7 +915,9 @@ gum_v8_callout_on_invoke (GumCpuContext * cpu_context,
   auto callback (Local<Function>::New (isolate, *self->callback));
   auto recv = Undefined (isolate);
   Handle<Value> argv[] = { cpu_context_value };
-  (void) callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+  auto result = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+  if (result.IsEmpty ())
+    scope.ProcessAnyPendingException ();
 
   _gum_v8_cpu_context_free_later (
       new GumPersistent<Object>::type (isolate, cpu_context_value), core);

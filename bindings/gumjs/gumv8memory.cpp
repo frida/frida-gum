@@ -932,7 +932,8 @@ gum_memory_scan_context_run (GumMemoryScanContext * self)
     auto on_error = Local<Function>::New (isolate, *self->on_error);
     auto recv = Undefined (isolate);
     Handle<Value> argv[] = { String::NewFromUtf8 (isolate, message) };
-    (void) on_error->Call (context, recv, G_N_ELEMENTS (argv), argv);
+    auto result = on_error->Call (context, recv, G_N_ELEMENTS (argv), argv);
+    _gum_v8_ignore_result (result);
 
     g_free (message);
   }
@@ -943,7 +944,8 @@ gum_memory_scan_context_run (GumMemoryScanContext * self)
 
     auto on_complete (Local<Function>::New (isolate, *self->on_complete));
     auto recv = Undefined (isolate);
-    (void) on_complete->Call (context, recv, 0, nullptr);
+    auto result = on_complete->Call (context, recv, 0, nullptr);
+    _gum_v8_ignore_result (result);
   }
 }
 

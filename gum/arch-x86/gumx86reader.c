@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2009-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -122,13 +122,10 @@ static cs_insn *
 disassemble_instruction_at (gconstpointer address)
 {
   csh capstone;
-  cs_err err;
   cs_insn * insn = NULL;
 
-  err = cs_open (CS_ARCH_X86, GUM_CPU_MODE, &capstone);
-  g_assert (err == CS_ERR_OK);
-  err = cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
-  g_assert (err == CS_ERR_OK);
+  cs_open (CS_ARCH_X86, GUM_CPU_MODE, &capstone);
+  cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
 
   cs_disasm (capstone, address, 16, GPOINTER_TO_SIZE (address), 1, &insn);
 

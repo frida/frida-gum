@@ -1132,7 +1132,8 @@ gum_v8_scheduled_callback_invoke (GumV8ScheduledCallback * self)
 
   auto func = Local<Function>::New (isolate, *self->func);
   auto recv = Undefined (isolate);
-  (void) func->Call (context, recv, 0, nullptr);
+  auto result = func->Call (context, recv, 0, nullptr);
+  _gum_v8_ignore_result (result);
 
   if (!self->repeat)
   {
@@ -1588,8 +1589,10 @@ gum_v8_core_invoke_pending_weak_callbacks (GumV8Core * self,
       g_queue_pop_head (&self->pending_weak_callbacks)) != nullptr)
   {
     auto callback = Local<Function>::New (isolate, *weak_callback);
-    (void) callback->Call (context, recv, 0, nullptr);
-    scope->ProcessAnyPendingException ();
+
+    auto result = callback->Call (context, recv, 0, nullptr);
+    if (result.IsEmpty ())
+      scope->ProcessAnyPendingException ();
 
     delete weak_callback;
   }
@@ -2941,7 +2944,8 @@ gum_v8_exception_sink_handle_exception (GumV8ExceptionSink * self,
   auto callback (Local<Function>::New (isolate, *self->callback));
   auto recv = Undefined (isolate);
   Handle<Value> argv[] = { exception };
-  (void) callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+  auto result = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+  _gum_v8_ignore_result (result);
 }
 
 static GumV8MessageSink *
@@ -2989,7 +2993,8 @@ gum_v8_message_sink_post (GumV8MessageSink * self,
     String::NewFromUtf8 (isolate, message),
     data_value
   };
-  (void) callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+  auto result = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+  _gum_v8_ignore_result (result);
 }
 
 static const GumFFITypeMapping gum_ffi_type_mappings[] =

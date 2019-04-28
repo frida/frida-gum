@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -178,5 +178,7 @@ G_GNUC_INTERNAL void _gum_v8_class_add (v8::Handle<v8::FunctionTemplate> klass,
 G_GNUC_INTERNAL void _gum_v8_class_add (v8::Handle<v8::FunctionTemplate> klass,
     const GumV8Function * functions, v8::Handle<v8::External> module,
     v8::Isolate * isolate);
+
+template <typename T> void _gum_v8_ignore_result (T unused_result) {}
 
 #endif

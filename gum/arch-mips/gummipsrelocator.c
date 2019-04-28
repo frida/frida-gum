@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -62,20 +62,16 @@ gum_mips_relocator_init (GumMipsRelocator * relocator,
                          gconstpointer input_code,
                          GumMipsWriter * output)
 {
-  cs_err err;
-
   relocator->ref_count = 1;
 
 #if G_BYTE_ORDER == G_LITTLE_ENDIAN
-  err = cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_LITTLE_ENDIAN,
+  cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_LITTLE_ENDIAN,
       &relocator->capstone);
 #else
-  err = cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_BIG_ENDIAN,
+  cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_BIG_ENDIAN,
       &relocator->capstone);
 #endif
-  g_assert (err == CS_ERR_OK);
-  err = cs_option (relocator->capstone, CS_OPT_DETAIL, CS_OPT_ON);
-  g_assert (err == CS_ERR_OK);
+  cs_option (relocator->capstone, CS_OPT_DETAIL, CS_OPT_ON);
   relocator->input_insns = g_new0 (cs_insn *, GUM_MAX_INPUT_INSN_COUNT);
 
   relocator->output = NULL;
@@ -392,21 +388,16 @@ gum_mips_relocator_can_relocate (gpointer address,
   if (!rl.eoi)
   {
     csh capstone;
-    cs_err err;
     cs_insn * insn;
     size_t count, i;
     gboolean eoi;
 
 #if G_BYTE_ORDER == G_LITTLE_ENDIAN
-    err = cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_LITTLE_ENDIAN,
-        &capstone);
+    cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_LITTLE_ENDIAN, &capstone);
 #else
-    err = cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_BIG_ENDIAN,
-        &capstone);
+    cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_BIG_ENDIAN, &capstone);
 #endif
-    g_assert (err == CS_ERR_OK);
-    err = cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
-    g_assert (err == CS_ERR_OK);
+    cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
 
     count = cs_disasm (capstone, rl.input_cur, 1024, rl.input_pc, 0, &insn);
     g_assert (insn != NULL);

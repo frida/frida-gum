@@ -294,8 +294,10 @@ gum_v8_event_sink_drain (GumV8EventSink * self)
       Local<Value> argv[] = { summary };
       auto on_call_summary =
           Local<Function>::New (isolate, *self->on_call_summary);
-      (void) on_call_summary->Call (context, recv, G_N_ELEMENTS (argv), argv);
-      scope.ProcessAnyPendingException ();
+      auto result =
+          on_call_summary->Call (context, recv, G_N_ELEMENTS (argv), argv);
+      if (result.IsEmpty ())
+        scope.ProcessAnyPendingException ();
     }
 
     if (self->on_receive != nullptr)
@@ -305,8 +307,9 @@ gum_v8_event_sink_drain (GumV8EventSink * self)
         ArrayBuffer::New (isolate, buffer, size,
             ArrayBufferCreationMode::kInternalized)
       };
-      (void) on_receive->Call (context, recv, G_N_ELEMENTS (argv), argv);
-      scope.ProcessAnyPendingException ();
+      auto result = on_receive->Call (context, recv, G_N_ELEMENTS (argv), argv);
+      if (result.IsEmpty ())
+        scope.ProcessAnyPendingException ();
     }
     else
     {
