@@ -417,6 +417,9 @@ namespace Gum {
 	}
 
 	public struct Address : uint64 {
+		public static Gum.Address from_pointer (void * p) {
+			return (Gum.Address) (uintptr) p;
+		}
 	}
 
 	public struct MemoryRange {
