@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  *
@@ -88,6 +88,8 @@ struct _TestThreadSyncData
   volatile gboolean * volatile done;
 };
 
+static gboolean check_thread_enumeration_testable (void);
+
 #ifndef G_OS_WIN32
 static gboolean store_export_address_if_tricky_module_export (
     const GumExportDetails * details, gpointer user_data);
@@ -133,19 +135,8 @@ TESTCASE (process_threads)
   GThread * thread_a, * thread_b;
   TestForEachContext ctx;
 
-#if defined (HAVE_ANDROID) || defined (HAVE_MIPS)
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping, run in slow mode> ");
+  if (!check_thread_enumeration_testable ())
     return;
-  }
-#endif
-
-  if (RUNNING_ON_VALGRIND)
-  {
-    g_print ("<skipping, not compatible with Valgrind> ");
-    return;
-  }
 
   thread_a = create_sleeping_dummy_thread_sync (&done);
   thread_b = create_sleeping_dummy_thread_sync (&done);
@@ -169,19 +160,8 @@ TESTCASE (process_threads_exclude_cloaked)
 {
   TestThreadContext ctx;
 
-#if defined (HAVE_ANDROID) || defined (HAVE_MIPS)
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping, run in slow mode> ");
+  if (!check_thread_enumeration_testable ())
     return;
-  }
-#endif
-
-  if (RUNNING_ON_VALGRIND)
-  {
-    g_print ("<skipping, not compatible with Valgrind> ");
-    return;
-  }
 
   ctx.needle = gum_process_get_current_thread_id ();
   ctx.found = FALSE;
@@ -195,6 +175,34 @@ TESTCASE (process_threads_exclude_cloaked)
   g_assert_false (ctx.found);
 
   gum_cloak_remove_thread (ctx.needle);
+}
+
+static gboolean
+check_thread_enumeration_testable (void)
+{
+#ifdef HAVE_LINUX
+  if (gum_process_is_debugger_attached ())
+  {
+    g_print ("<skipping, debugger is attached> ");
+    return FALSE;
+  }
+#endif
+
+#ifdef HAVE_MIPS
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return FALSE;
+  }
+#endif
+
+  if (RUNNING_ON_VALGRIND)
+  {
+    g_print ("<skipping, not compatible with Valgrind> ");
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 TESTCASE (process_modules)

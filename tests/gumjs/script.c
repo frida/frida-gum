@@ -325,6 +325,8 @@ static gpointer invoke_target_function_trigger (gpointer data);
 
 static void measure_target_function_int_overhead (void);
 
+static gboolean check_exception_handling_testable (void);
+
 static void on_script_message (GumScript * script, const gchar * message,
     GBytes * data, gpointer user_data);
 static void on_incoming_debug_message (GumInspectorServer * server,
@@ -369,7 +371,7 @@ TESTCASE (instruction_can_be_parsed)
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_NO_MESSAGES ();
 
-  if (!RUNNING_ON_VALGRIND)
+  if (!gum_process_is_debugger_attached () && !RUNNING_ON_VALGRIND)
   {
     COMPILE_AND_LOAD_SCRIPT ("Instruction.parse(ptr(\"0x1\"));");
     EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
@@ -1052,11 +1054,8 @@ gum_clobber_system_error (gint value)
 
 TESTCASE (native_function_crash_results_in_exception)
 {
-  if (RUNNING_ON_VALGRIND)
-  {
-    g_print ("<skipping, not compatible with Valgrind> ");
+  if (!check_exception_handling_testable ())
     return;
-  }
 
   COMPILE_AND_LOAD_SCRIPT (
       "var targetWithString = new NativeFunction(" GUM_PTR_CONST ", 'pointer', "
@@ -1076,11 +1075,8 @@ TESTCASE (native_function_crash_results_in_exception)
 
 TESTCASE (nested_native_function_crash_is_handled_gracefully)
 {
-  if (RUNNING_ON_VALGRIND)
-  {
-    g_print ("<skipping, not compatible with Valgrind> ");
+  if (!check_exception_handling_testable ())
     return;
-  }
 
   COMPILE_AND_LOAD_SCRIPT (
       "var targetWithCallback = new NativeFunction(" GUM_PTR_CONST ", "
@@ -1326,6 +1322,12 @@ TESTCASE (unix_fd_can_be_written_to)
   gint fds[2];
   guint8 buffer[8];
   sig_t original_sigpipe_handler;
+
+  if (gum_process_is_debugger_attached ())
+  {
+    g_print ("<skipping, debugger is attached> ");
+    return;
+  }
 
   original_sigpipe_handler = signal (SIGPIPE, SIG_IGN);
 
@@ -2462,19 +2464,18 @@ TESTCASE (process_current_thread_id_is_available)
 
 TESTCASE (process_threads_can_be_enumerated)
 {
-#if defined (HAVE_ANDROID) || defined (HAVE_MIPS)
+#ifdef HAVE_LINUX
+  if (!check_exception_handling_testable ())
+    return;
+#endif
+
+#ifdef HAVE_MIPS
   if (!g_test_slow ())
   {
     g_print ("<skipping, run in slow mode> ");
     return;
   }
 #endif
-
-  if (RUNNING_ON_VALGRIND)
-  {
-    g_print ("<skipping, not compatible with Valgrind> ");
-    return;
-  }
 
   COMPILE_AND_LOAD_SCRIPT (
       "var threads = Process.enumerateThreads();"
@@ -2487,6 +2488,11 @@ TESTCASE (process_threads_can_be_enumerated_legacy_style)
   gboolean done = FALSE;
   GThread * thread_a, * thread_b;
 
+#ifdef HAVE_LINUX
+  if (!check_exception_handling_testable ())
+    return;
+#endif
+
 #if defined (HAVE_ANDROID) || defined (HAVE_MIPS)
   if (!g_test_slow ())
   {
@@ -2494,12 +2500,6 @@ TESTCASE (process_threads_can_be_enumerated_legacy_style)
     return;
   }
 #endif
-
-  if (RUNNING_ON_VALGRIND)
-  {
-    g_print ("<skipping, not compatible with Valgrind> ");
-    return;
-  }
 
   COMPILE_AND_LOAD_SCRIPT (
       "Process.enumerateThreads({"
@@ -4185,11 +4185,8 @@ TESTCASE (instructions_can_be_probed)
 
 TESTCASE (interceptor_handles_invalid_arguments)
 {
-  if (RUNNING_ON_VALGRIND)
-  {
-    g_print ("<skipping, not compatible with Valgrind> ");
+  if (!check_exception_handling_testable ())
     return;
-  }
 
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(ptr(\"0x1\"), {"
@@ -4380,11 +4377,8 @@ TESTCASE (memory_scan_should_be_interruptible)
 
 TESTCASE (memory_scan_handles_unreadable_memory)
 {
-  if (RUNNING_ON_VALGRIND)
-  {
-    g_print ("<skipping, not compatible with Valgrind> ");
+  if (!check_exception_handling_testable ())
     return;
-  }
 
   COMPILE_AND_LOAD_SCRIPT (
       "Memory.scan(ptr(\"1328\"), 7, '13 37', {"
@@ -4550,7 +4544,7 @@ TESTCASE (memory_can_be_copied)
 
   /* TODO: investigate */
 #if !(defined (HAVE_LINUX) && defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4)
-  if (!RUNNING_ON_VALGRIND)
+  if (!gum_process_is_debugger_attached () && !RUNNING_ON_VALGRIND)
   {
     COMPILE_AND_LOAD_SCRIPT (
         "Memory.copy(" GUM_PTR_CONST ", ptr(\"1337\"), 1);", to);
@@ -4593,6 +4587,15 @@ TESTCASE (memory_can_be_protected)
       "send(Memory.protect(" GUM_PTR_CONST ", 1, 'r--'));",
       buf, gum_query_page_size ());
   EXPECT_SEND_MESSAGE_WITH ("true");
+
+  if (gum_process_is_debugger_attached ())
+  {
+    g_print ("<only partially tested, debugger is attached> ");
+
+    gum_free_pages (buf);
+
+    return;
+  }
 
   /* avoid overlapping signal handlers */
   UNLOAD_SCRIPT ();
@@ -5158,11 +5161,8 @@ TESTCASE (invalid_read_results_in_exception)
   };
   guint i;
 
-  if (RUNNING_ON_VALGRIND)
-  {
-    g_print ("<skipping, not compatible with Valgrind> ");
+  if (!check_exception_handling_testable ())
     return;
-  }
 
   for (i = 0; i != G_N_ELEMENTS (type_name); i++)
   {
@@ -5198,11 +5198,8 @@ TESTCASE (invalid_write_results_in_exception)
   };
   guint i;
 
-  if (RUNNING_ON_VALGRIND)
-  {
-    g_print ("<skipping, not compatible with Valgrind> ");
+  if (!check_exception_handling_testable ())
     return;
-  }
 
   for (i = 0; i != G_N_ELEMENTS (primitive_type_name); i++)
   {
@@ -5231,11 +5228,8 @@ TESTCASE (invalid_write_results_in_exception)
 
 TESTCASE (invalid_read_write_execute_results_in_exception)
 {
-  if (RUNNING_ON_VALGRIND)
-  {
-    g_print ("<skipping, not compatible with Valgrind> ");
+  if (!check_exception_handling_testable ())
     return;
-  }
 
   COMPILE_AND_LOAD_SCRIPT ("ptr('1328').readU8();");
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
@@ -5669,6 +5663,9 @@ TESTCASE (exceptions_can_be_handled)
   gpointer page;
   gboolean exception_on_read, exception_on_write;
 
+  if (!check_exception_handling_testable ())
+    return;
+
   COMPILE_AND_LOAD_SCRIPT (
       "Process.setExceptionHandler(function (ex) {"
       "  send('w00t');"
@@ -5756,6 +5753,24 @@ TESTCASE (java_api_is_embedded)
 {
   COMPILE_AND_LOAD_SCRIPT ("send(typeof Java.available);");
   EXPECT_SEND_MESSAGE_WITH ("\"boolean\"");
+}
+
+static gboolean
+check_exception_handling_testable (void)
+{
+  if (gum_process_is_debugger_attached ())
+  {
+    g_print ("<skipping, debugger is attached> ");
+    return FALSE;
+  }
+
+  if (RUNNING_ON_VALGRIND)
+  {
+    g_print ("<skipping, not compatible with Valgrind> ");
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 static void
