@@ -220,6 +220,7 @@ static void gum_process_enumerate_modules_by_parsing_proc_maps (
 
 static void gum_process_build_named_range_indexes (GHashTable ** names,
     GHashTable ** sizes);
+static gboolean gum_try_translate_vdso_name (gchar * name);
 #ifdef HAVE_ANDROID
 static gboolean gum_copy_linker_module (const GumModuleDetails * details,
     gpointer user_data);
@@ -844,6 +845,8 @@ gum_process_enumerate_modules_by_parsing_proc_maps (GumFoundModuleFunc func,
       continue;
     g_assert (n == 4);
 
+    gum_try_translate_vdso_name (path);
+
     readable = perms[0] == 'r';
     shared = perms[3] == 's';
     if (!readable || shared)
@@ -870,11 +873,17 @@ gum_process_enumerate_modules_by_parsing_proc_maps (GumFoundModuleFunc func,
           "%*x-%" G_GINT64_MODIFIER "x %*c%*c%*c%*c %*x %*s %*d %s",
           &end,
           next_path);
-      if (n == 1 || (n == 2 && next_path[0] == '['))
+      if (n == 1)
       {
         continue;
       }
-      else if (n == 2 && strcmp (next_path, path) == 0)
+      else if (n == 2 && next_path[0] == '[')
+      {
+        if (!gum_try_translate_vdso_name (next_path))
+          continue;
+      }
+
+      if (n == 2 && strcmp (next_path, path) == 0)
       {
         range.size = end - range.base_address;
       }
@@ -948,6 +957,8 @@ gum_process_build_named_range_indexes (GHashTable ** names,
       continue;
     g_assert (n == 3);
 
+    gum_try_translate_vdso_name (name);
+
     range.size = end - range.base_address;
 
     while (fgets (line, line_size, fp) != NULL)
@@ -956,11 +967,17 @@ gum_process_build_named_range_indexes (GHashTable ** names,
           "%*x-%" G_GINT64_MODIFIER "x %*c%*c%*c%*c %*x %*s %*d %s",
           &end,
           next_name);
-      if (n == 1 || (n == 2 && next_name[0] == '['))
+      if (n == 1)
       {
         continue;
       }
-      else if (n == 2 && strcmp (next_name, name) == 0)
+      else if (n == 2 && next_name[0] == '[')
+      {
+        if (!gum_try_translate_vdso_name (next_name))
+          continue;
+      }
+
+      if (n == 2 && strcmp (next_name, name) == 0)
       {
         range.size = end - range.base_address;
       }
@@ -983,6 +1000,18 @@ gum_process_build_named_range_indexes (GHashTable ** names,
   g_free (line);
 
   fclose (fp);
+}
+
+static gboolean
+gum_try_translate_vdso_name (gchar * name)
+{
+  if (strcmp (name, "[vdso]") == 0)
+  {
+    strcpy (name, "linux-vdso.so.1");
+    return TRUE;
+  }
+
+  return FALSE;
 }
 
 #ifdef HAVE_ANDROID
