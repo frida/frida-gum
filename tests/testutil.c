@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -26,6 +26,9 @@
 #  include <sys/types.h>
 # else
 #  include <stdio.h>
+# endif
+# ifdef HAVE_LINUX
+#  include <dlfcn.h>
 # endif
 # ifdef HAVE_QNX
 #  include <devctl.h>
@@ -403,23 +406,36 @@ test_util_get_system_module_name (void)
 #else
   if (_test_util_system_module_name == NULL)
   {
-    if (RUNNING_ON_VALGRIND)
+    gpointer libc_open;
+    Dl_info info;
+    gchar * target, * libc_path;
+
+    libc_open = dlsym (RTLD_DEFAULT, "fopen");
+    g_assert_nonnull (libc_open);
+
+    g_assert_true (dladdr (libc_open, &info) != 0);
+    g_assert_nonnull (info.dli_fname);
+
+    target = g_file_read_link (info.dli_fname, NULL);
+    if (target != NULL)
     {
-      /* FIXME: popen() does not seem to play too well with Valgrind */
-      _test_util_system_module_name = g_strdup ("libc-2.23.so");
+      gchar * libc_dir;
+
+      libc_dir = g_path_get_dirname (info.dli_fname);
+
+      libc_path = g_canonicalize_filename (target, libc_dir);
+
+      g_free (libc_dir);
+      g_free (target);
     }
     else
     {
-      FILE * p;
-      char * result;
-
-      _test_util_system_module_name = g_malloc (64);
-      p = popen ("grep -E \".*libc[-.].*so.*\" /proc/self/maps | head -1"
-          " | cut -d\" \" -f 6- | xargs basename | tr -d \"\\n\"", "r");
-      result = fgets (_test_util_system_module_name, 64, p);
-      g_assert_nonnull (result);
-      pclose (p);
+      libc_path = g_strdup (info.dli_fname);
     }
+
+    _test_util_system_module_name = g_path_get_basename (libc_path);
+
+    g_free (libc_path);
   }
 
   return _test_util_system_module_name;
