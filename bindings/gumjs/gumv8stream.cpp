@@ -327,8 +327,8 @@ gum_v8_close_io_stream_operation_finish (GIOStream * stream,
     Handle<Value> argv[] = { error_value, success_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
     auto recv = Undefined (isolate);
-    auto result = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
-    _gum_v8_ignore_result (result);
+    auto res = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+    _gum_v8_ignore_result (res);
   }
 
   gum_v8_object_operation_finish (self);
@@ -396,8 +396,8 @@ gum_v8_close_input_operation_finish (GInputStream * stream,
     Handle<Value> argv[] = { error_value, success_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
     auto recv = Undefined (isolate);
-    auto result = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
-    _gum_v8_ignore_result (result);
+    auto res = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+    _gum_v8_ignore_result (res);
   }
 
   gum_v8_object_operation_finish (self);
@@ -517,8 +517,8 @@ gum_v8_read_operation_finish (GInputStream * stream,
     Handle<Value> argv[] = { error_value, data_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
     auto recv = Undefined (isolate);
-    auto result = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
-    _gum_v8_ignore_result (result);
+    auto res = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+    _gum_v8_ignore_result (res);
   }
 
   gum_v8_object_operation_finish (self);
@@ -586,8 +586,8 @@ gum_v8_close_output_operation_finish (GOutputStream * stream,
     Handle<Value> argv[] = { error_value, success_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
     auto recv = Undefined (isolate);
-    auto result = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
-    _gum_v8_ignore_result (result);
+    auto res = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+    _gum_v8_ignore_result (res);
   }
 
   gum_v8_object_operation_finish (self);
@@ -719,8 +719,8 @@ gum_v8_write_operation_finish (GOutputStream * stream,
     Handle<Value> argv[] = { error_value, size_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
     auto recv = Undefined (isolate);
-    auto result = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
-    _gum_v8_ignore_result (result);
+    auto res = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+    _gum_v8_ignore_result (res);
   }
 
   gum_v8_object_operation_finish (self);

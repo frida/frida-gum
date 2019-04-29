@@ -463,8 +463,8 @@ gum_v8_connect_operation_finish (GSocketClient * client,
     Handle<Value> argv[] = { error_value, connection_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
     auto recv = Undefined (isolate);
-    auto result = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
-    _gum_v8_ignore_result (result);
+    auto res = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+    _gum_v8_ignore_result (res);
   }
 
   gum_v8_module_operation_finish (self);
@@ -680,8 +680,8 @@ gum_v8_accept_operation_finish (GSocketListener * listener,
     Handle<Value> argv[] = { error_value, connection_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
     auto recv = Undefined (isolate);
-    auto result = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
-    _gum_v8_ignore_result (result);
+    auto res = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+    _gum_v8_ignore_result (res);
   }
 
   gum_v8_object_operation_finish (self);
