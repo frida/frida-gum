@@ -8,6 +8,7 @@
 
 #include "gumwindows.h"
 
+#include <gio/gio.h>
 #include <intrin.h>
 #include <psapi.h>
 #include <tlhelp32.h>
@@ -447,7 +448,7 @@ gum_module_load (const gchar * module_name,
   HMODULE module;
 
   wide_name = g_utf8_to_utf16 (module_name, -1, NULL, NULL, NULL);
-  module = module = LoadLibraryW ((LPCWSTR) wide_name);
+  module = LoadLibraryW ((LPCWSTR) wide_name);
   g_free (wide_name);
 
   if (module == NULL)

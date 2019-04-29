@@ -13,6 +13,7 @@
 
 #include <dlfcn.h>
 #include <errno.h>
+#include <gio/gio.h>
 #include <stdlib.h>
 #include <mach-o/dyld.h>
 #include <malloc/malloc.h>
