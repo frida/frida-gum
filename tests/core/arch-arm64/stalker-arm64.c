@@ -1210,6 +1210,14 @@ TESTCASE (performance)
   GTimer * timer;
   gdouble duration_direct, duration_stalked;
 
+#ifdef HAVE_IOS
+  if (!gum_process_is_debugger_attached ())
+  {
+    g_print ("<skipping, no debugger attached> ");
+    return;
+  }
+#endif
+
   runner_range.base_address = 0;
   runner_range.size = 0;
   gum_process_enumerate_modules (store_range_of_test_runner, &runner_range);
