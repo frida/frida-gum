@@ -651,11 +651,16 @@ gum_mprotect (gpointer address,
 guint
 gum_peek_private_memory_usage (void)
 {
+  guint total = 0;
   struct mallinfo info;
 
   info = mspace_mallinfo (gum_mspace_main);
+  total += (guint) info.uordblks;
 
-  return (guint) info.uordblks;
+  info = mspace_mallinfo (gum_mspace_capstone);
+  total += (guint) info.uordblks;
+
+  return total;
 }
 
 gpointer
