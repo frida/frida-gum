@@ -256,6 +256,18 @@ Object.defineProperties(Module.prototype, {
       return Module.enumerateRanges(this.path, protection);
     }
   },
+  findExportByName: {
+    enumerable: true,
+    value: function (exportName) {
+      return Module.findExportByName(this.path, exportName);
+    }
+  },
+  getExportByName: {
+    enumerable: true,
+    value: function (exportName) {
+      return Module.getExportByName(this.path, exportName);
+    }
+  },
 });
 
 Object.defineProperties(ModuleMap.prototype, {

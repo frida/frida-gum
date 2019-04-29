@@ -330,6 +330,24 @@ declare class Module {
     enumerateRanges(protection: PageProtection): RangeDetails[];
 
     /**
+     * Looks up the absolute address of the export named `exportName`.
+     *
+     * Returns null if the export doesn't exist.
+     *
+     * @param exportName Export name to find the address of.
+     */
+    findExportByName(exportName: string): NativePointer | null;
+
+    /**
+     * Looks up the absolute address of the export named `exportName`.
+     *
+     * Throws an exception if the export doesn't exist.
+     *
+     * @param exportName Export name to find the address of.
+     */
+    getExportByName(exportName: string): NativePointer;
+
+    /**
      * Ensures that initializers of the specified module have been run. This is important during early instrumentation,
      * i.e. code run early in the process lifetime, to be able to safely interact with APIs.
      *
