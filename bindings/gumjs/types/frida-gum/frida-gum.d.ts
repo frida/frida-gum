@@ -348,6 +348,11 @@ declare class Module {
     getExportByName(exportName: string): NativePointer;
 
     /**
+     * Loads the specified module.
+     */
+    static load(name: string): Module;
+
+    /**
      * Ensures that initializers of the specified module have been run. This is important during early instrumentation,
      * i.e. code run early in the process lifetime, to be able to safely interact with APIs.
      *

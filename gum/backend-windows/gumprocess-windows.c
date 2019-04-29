@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -438,6 +438,30 @@ gum_thread_set_system_error (gint value)
 }
 
 #endif
+
+gboolean
+gum_module_load (const gchar * module_name,
+                 GError ** error)
+{
+  gunichar2 * wide_name;
+  HMODULE module;
+
+  wide_name = g_utf8_to_utf16 (module_name, -1, NULL, NULL, NULL);
+  module = module = LoadLibraryW ((LPCWSTR) wide_name);
+  g_free (wide_name);
+
+  if (module == NULL)
+    goto not_found;
+
+  return TRUE;
+
+not_found:
+  {
+    g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND,
+        "LoadLibrary failed: 0x%08lx", GetLastError ());
+    return FALSE;
+  }
+}
 
 gboolean
 gum_module_ensure_initialized (const gchar * module_name)

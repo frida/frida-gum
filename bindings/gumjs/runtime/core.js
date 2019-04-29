@@ -209,6 +209,13 @@ makeEnumerateApi(Module, 'enumerateSymbols', 1);
 makeEnumerateApi(Module, 'enumerateRanges', 2);
 
 Object.defineProperties(Module, {
+  load: {
+    enumerable: true,
+    value: function (moduleName) {
+      Module._load(moduleName);
+      return Process.getModuleByName(moduleName);
+    }
+  },
   getBaseAddress: {
     enumerable: true,
     value: function (moduleName) {

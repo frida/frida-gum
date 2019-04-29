@@ -177,6 +177,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (module_ranges_can_be_enumerated_legacy_style)
     TESTENTRY (module_base_address_can_be_found)
     TESTENTRY (module_export_can_be_found_by_name)
+    TESTENTRY (module_can_be_loaded)
     TESTENTRY (module_can_be_forcibly_initialized)
   TESTGROUP_END ()
 
@@ -3085,6 +3086,25 @@ TESTCASE (module_export_can_be_found_by_name)
       "send(Module.findExportByName('kernel32.dll', 'Sleep').toString(16));");
   EXPECT_SEND_MESSAGE_WITH (actual_address_str);
 #endif
+}
+
+TESTCASE (module_can_be_loaded)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var moduleName = '%s';"
+      "var moduleExport = '%s';"
+      "var m = Module.load(moduleName);"
+      "send(m.getExportByName(moduleExport).equals("
+          "Module.getExportByName(moduleName, moduleExport)));"
+      "try {"
+      "  Module.load(moduleName + '_nope');"
+      "  send('success');"
+      "} catch (e) {"
+      "  send('error');"
+      "}",
+      SYSTEM_MODULE_NAME, SYSTEM_MODULE_EXPORT);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("\"error\"");
 }
 
 TESTCASE (module_can_be_forcibly_initialized)

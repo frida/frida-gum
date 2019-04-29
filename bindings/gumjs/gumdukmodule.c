@@ -27,6 +27,7 @@ struct _GumDukModuleFilter
 };
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_module_construct)
+GUMJS_DECLARE_FUNCTION (gumjs_module_load)
 GUMJS_DECLARE_FUNCTION (gumjs_module_ensure_initialized)
 GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_imports)
 static gboolean gum_emit_import (const GumImportDetails * details,
@@ -58,6 +59,7 @@ static gboolean gum_duk_module_filter_matches (const GumModuleDetails * details,
 
 static const duk_function_list_entry gumjs_module_functions[] =
 {
+  { "_load", gumjs_module_load, 1 },
   { "ensureInitialized", gumjs_module_ensure_initialized, 1 },
   { "_enumerateImports", gumjs_module_enumerate_imports, 2 },
   { "_enumerateExports", gumjs_module_enumerate_exports, 2 },
@@ -151,6 +153,29 @@ gumjs_module_from_args (const GumDukArgs * args)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_construct)
 {
+  return 0;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_module_load)
+{
+  const gchar * name;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
+  GError * error;
+
+  _gum_duk_args_parse (args, "s", &name);
+
+  _gum_duk_scope_suspend (&scope);
+  error = NULL;
+  gum_module_load (name, &error);
+  _gum_duk_scope_resume (&scope);
+
+  if (error != NULL)
+  {
+    duk_push_error_object (ctx, DUK_ERR_ERROR, "%s", error->message);
+    g_error_free (error);
+    (void) duk_throw (ctx);
+  }
+
   return 0;
 }
 

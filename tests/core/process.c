@@ -30,6 +30,7 @@ TESTLIST_BEGIN (process)
   TESTENTRY (process_modules)
   TESTENTRY (process_ranges)
   TESTENTRY (process_ranges_exclude_cloaked)
+  TESTENTRY (module_can_be_loaded)
   TESTENTRY (module_imports)
   TESTENTRY (module_exports)
   TESTENTRY (module_symbols)
@@ -446,6 +447,21 @@ TESTCASE (process_malloc_ranges)
 }
 
 #endif
+
+TESTCASE (module_can_be_loaded)
+{
+  GError * error = NULL;
+  gchar * invalid_name;
+
+  g_assert_true (gum_module_load (SYSTEM_MODULE_NAME, &error));
+  g_assert_null (error);
+
+  invalid_name = g_strconcat (SYSTEM_MODULE_NAME, "_nope", NULL);
+  g_assert_false (gum_module_load (invalid_name, &error));
+  g_assert_nonnull (error);
+  g_error_free (error);
+  g_free (invalid_name);
+}
 
 TESTCASE (module_imports)
 {

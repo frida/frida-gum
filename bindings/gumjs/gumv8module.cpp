@@ -63,6 +63,7 @@ struct GumV8ModuleFilter
   GumV8Module * module;
 };
 
+GUMJS_DECLARE_FUNCTION (gumjs_module_load)
 GUMJS_DECLARE_FUNCTION (gumjs_module_ensure_initialized)
 GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_imports)
 static gboolean gum_emit_import (const GumImportDetails * details,
@@ -99,6 +100,7 @@ static gboolean gum_v8_module_filter_matches (const GumModuleDetails * details,
 
 static const GumV8Function gumjs_module_static_functions[] =
 {
+  { "_load", gumjs_module_load },
   { "ensureInitialized", gumjs_module_ensure_initialized },
   { "_enumerateImports", gumjs_module_enumerate_imports },
   { "_enumerateExports", gumjs_module_enumerate_exports },
@@ -236,6 +238,29 @@ _gum_v8_module_value_new (const GumModuleDetails * details,
   _gum_v8_object_set_uint (value, "size", details->range->size, core);
   _gum_v8_object_set_utf8 (value, "path", details->path, core);
   return value;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_module_load)
+{
+  gchar * name;
+  if (!_gum_v8_args_parse (args, "s", &name))
+    return;
+
+  GError * error;
+  {
+    ScriptUnlocker unlocker (core);
+
+    error = NULL;
+    gum_module_load (name, &error);
+  }
+
+  if (error != NULL)
+  {
+    _gum_v8_throw (isolate, "%s", error->message);
+    g_error_free (error);
+  }
+
+  g_free (name);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_module_ensure_initialized)

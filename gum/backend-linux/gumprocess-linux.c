@@ -1165,6 +1165,22 @@ gum_thread_set_system_error (gint value)
 }
 
 gboolean
+gum_module_load (const gchar * module_name,
+                 GError ** error)
+{
+  if (dlopen (module_name, RTLD_LAZY | RTLD_GLOBAL) == NULL)
+    goto not_found;
+
+  return TRUE;
+
+not_found:
+  {
+    g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND, "%s", dlerror ());
+    return FALSE;
+  }
+}
+
+gboolean
 gum_module_ensure_initialized (const gchar * module_name)
 {
   gboolean success;
