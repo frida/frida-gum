@@ -579,7 +579,7 @@ gboolean
 gum_module_load (const gchar * module_name,
                  GError ** error)
 {
-  if (dlopen (module_name, RTLD_LAZY | RTLD_GLOBAL) == NULL)
+  if (dlopen (module_name, RTLD_LAZY) == NULL)
     goto not_found;
 
   return TRUE;

@@ -1183,7 +1183,7 @@ gum_module_load (const gchar * module_name,
   gum_find_bionic_dlopen (&dlopen_impl);
 #endif
 
-  if (dlopen_impl (module_name, RTLD_LAZY | RTLD_GLOBAL) == NULL)
+  if (dlopen_impl (module_name, RTLD_LAZY) == NULL)
     goto not_found;
 
   return TRUE;
