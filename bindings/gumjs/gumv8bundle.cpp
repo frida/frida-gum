@@ -71,6 +71,17 @@ gum_v8_bundle_script_run (Persistent<UnboundScript> * script,
   auto isolate = bundle->isolate;
   auto context = isolate->GetCurrentContext ();
 
-  auto s = Local<UnboundScript>::New (isolate, *script);
-  s->BindToCurrentContext ()->Run (context).ToLocalChecked ();
+  auto unbound_script = Local<UnboundScript>::New (isolate, *script);
+  auto bound_script = unbound_script->BindToCurrentContext ();
+
+  TryCatch trycatch (isolate);
+  auto result = bound_script->Run (context);
+  if (result.IsEmpty ())
+  {
+    auto stack = trycatch.StackTrace (context).ToLocalChecked ();
+    String::Utf8Value stack_str (isolate, stack);
+    g_critical ("%s", *stack_str);
+
+    abort ();
+  }
 }
