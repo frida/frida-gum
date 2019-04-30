@@ -1235,7 +1235,7 @@ gum_init_bionic_dlopen (void)
   if (gum_bionic_dlopen == NULL)
     return NULL;
 
-  libc = dlopen ("libc.so", RTLD_LAZY | RTLD_GLOBAL);
+  libc = dlopen ("libc.so", RTLD_LAZY);
   gum_bionic_trusted_caller = dlsym (libc, "open");
   dlclose (libc);
 
@@ -1441,7 +1441,7 @@ gum_module_ensure_initialized (const gchar * module_name)
   if (name == NULL)
     goto beach;
 
-  module = dlopen (name, RTLD_LAZY | RTLD_GLOBAL);
+  module = dlopen (name, RTLD_LAZY);
   if (module == NULL)
     goto beach;
   dlclose (module);
@@ -1749,7 +1749,7 @@ gum_module_find_export_by_name (const gchar * module_name,
     }
 #endif
 
-    module = dlopen (name, RTLD_LAZY | RTLD_GLOBAL);
+    module = dlopen (name, RTLD_LAZY);
 
     g_free (name);
 
@@ -1903,7 +1903,7 @@ gum_resolve_module_name (const gchar * name,
 #if defined (HAVE_GLIBC)
   struct link_map * map;
 
-  map = dlopen (name, RTLD_LAZY | RTLD_GLOBAL | RTLD_NOLOAD);
+  map = dlopen (name, RTLD_LAZY | RTLD_NOLOAD);
   if (map != NULL)
   {
     ctx.name = g_file_read_link (map->l_name, NULL);

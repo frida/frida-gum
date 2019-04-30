@@ -393,7 +393,7 @@ gum_module_ensure_initialized (const gchar * module_name)
   if (name == NULL)
     goto beach;
 
-  module = dlopen (name, RTLD_LAZY | RTLD_GLOBAL);
+  module = dlopen (name, RTLD_LAZY);
   if (module == NULL)
     goto beach;
   dlclose (module);
@@ -644,7 +644,7 @@ gum_module_find_export_by_name (const gchar * module_name,
     name = gum_resolve_module_name (module_name, NULL);
     if (name == NULL)
       return 0;
-    module = dlopen (name, RTLD_LAZY | RTLD_GLOBAL);
+    module = dlopen (name, RTLD_LAZY);
     g_free (name);
 
     if (module == NULL)
@@ -803,7 +803,7 @@ gum_resolve_module_name (const gchar * name,
   GumResolveModuleNameContext ctx;
   struct link_map * map;
 
-  map = dlopen (name, RTLD_LAZY | RTLD_GLOBAL | RTLD_NOLOAD);
+  map = dlopen (name, RTLD_LAZY | RTLD_NOLOAD);
   if (map != NULL)
   {
     ctx.name = g_file_read_link (map->l_name, NULL);

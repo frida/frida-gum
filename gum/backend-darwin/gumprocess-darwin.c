@@ -604,12 +604,12 @@ gum_module_ensure_initialized (const gchar * module_name)
   if (name == NULL)
     goto beach;
 
-  module = dlopen (name, RTLD_LAZY | RTLD_GLOBAL | RTLD_NOLOAD);
+  module = dlopen (name, RTLD_LAZY | RTLD_NOLOAD);
   if (module == NULL)
     goto beach;
   dlclose (module);
 
-  module = dlopen (name, RTLD_LAZY | RTLD_GLOBAL);
+  module = dlopen (name, RTLD_LAZY);
   if (module == NULL)
     goto beach;
   dlclose (module);
@@ -773,7 +773,7 @@ gum_module_find_export_by_name (const gchar * module_name,
       return result;
     }
 
-    module = dlopen (name, RTLD_LAZY | RTLD_GLOBAL | RTLD_NOLOAD);
+    module = dlopen (name, RTLD_LAZY | RTLD_NOLOAD);
 
     g_free (name);
   }
