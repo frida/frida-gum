@@ -97,6 +97,10 @@ typedef gint (* GumFoundDlPhdrFunc) (struct dl_phdr_info * info,
     gsize size, gpointer data);
 typedef void (* GumDlIteratePhdrImpl) (GumFoundDlPhdrFunc func, gpointer data);
 typedef void * (* GumDlopenImpl) (const char * path, int mode);
+#ifdef HAVE_ANDROID
+typedef void * (* GumBionicDlopenImpl) (const char * path, int mode,
+    void * caller);
+#endif
 
 typedef struct _GumUserDesc GumUserDesc;
 
@@ -233,10 +237,7 @@ static GumModuleDetails * gum_module_details_dup (
     const GumModuleDetails * module);
 static void gum_module_details_free (GumModuleDetails * module);
 #endif
-
-#ifdef HAVE_ANDROID
-static gboolean gum_find_bionic_dlopen (GumDlopenImpl * impl);
-#endif
+static void * gum_module_get_handle (const gchar * module_name);
 
 static gboolean gum_emit_import (const GumImportDetails * details,
     gpointer user_data);
@@ -264,6 +265,8 @@ static gboolean gum_module_path_equals (const gchar * path,
 static GumElfModule * gum_open_elf_module (const gchar * name);
 
 #ifdef HAVE_ANDROID
+static gboolean gum_find_bionic_dlopen (GumDlopenImpl * wrapper,
+    GumBionicDlopenImpl * impl);
 static gboolean gum_module_name_is_android_linker (const gchar * name);
 #endif
 
@@ -1180,7 +1183,10 @@ gum_module_load (const gchar * module_name,
   GumDlopenImpl dlopen_impl = dlopen;
 
 #ifdef HAVE_ANDROID
-  gum_find_bionic_dlopen (&dlopen_impl);
+  if (gum_module_get_handle (module_name) != NULL)
+    return TRUE;
+
+  gum_find_bionic_dlopen (&dlopen_impl, NULL);
 #endif
 
   if (dlopen_impl (module_name, RTLD_LAZY) == NULL)
@@ -1195,263 +1201,66 @@ not_found:
   }
 }
 
-#ifdef HAVE_ANDROID
-
-typedef void * (* GumBionicDlopenImpl) (const char * path, int mode,
-    void * caller);
-
-static GumDlopenImpl gum_init_bionic_dlopen (void);
-static void * gum_call_bionic_dlopen (const char * path, int mode);
-static GumBionicDlopenImpl gum_resolve_bionic_inner_dlopen (void);
-# if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
-static GumBionicDlopenImpl gum_make_bionic_dlopen_pic_thunk (
-    GumBionicDlopenImpl impl, gsize pic_value);
-#endif
-static guint gum_get_android_api_level (void);
-
-static GumBionicDlopenImpl gum_bionic_dlopen = NULL;
-static gpointer gum_bionic_trusted_caller = NULL;
-
-static gboolean
-gum_find_bionic_dlopen (GumDlopenImpl * impl)
-{
-  static GOnce once = G_ONCE_INIT;
-
-  g_once (&once, (GThreadFunc) gum_init_bionic_dlopen, NULL);
-
-  if (once.retval == NULL)
-    return FALSE;
-
-  *impl = once.retval;
-  return TRUE;
-}
-
-static GumDlopenImpl
-gum_init_bionic_dlopen (void)
-{
-  void * libc;
-
-  gum_bionic_dlopen = gum_resolve_bionic_inner_dlopen ();
-  if (gum_bionic_dlopen == NULL)
-    return NULL;
-
-  libc = dlopen ("libc.so", RTLD_LAZY);
-  gum_bionic_trusted_caller = dlsym (libc, "open");
-  dlclose (libc);
-
-  return gum_call_bionic_dlopen;
-}
-
 static void *
-gum_call_bionic_dlopen (const char * path,
-                        int mode)
+gum_module_get_handle (const gchar * module_name)
 {
-  return gum_bionic_dlopen (path, mode, gum_bionic_trusted_caller);
-}
+#ifdef HAVE_ANDROID
+  void * module;
+  gchar * name;
+  GumAddress base;
+  GumBionicDlopenImpl bionic_dlopen;
 
-static GumBionicDlopenImpl
-gum_resolve_bionic_inner_dlopen (void)
-{
-  GumBionicDlopenImpl impl;
-  csh capstone;
-  cs_insn * insn;
-  size_t count;
-
-  if (gum_get_android_api_level () < 26)
+  name = gum_resolve_module_name (module_name, &base);
+  if (name == NULL)
     return NULL;
 
-  impl = NULL;
-  insn = NULL;
-
-#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
-  cs_open (CS_ARCH_X86, CS_MODE_32, &capstone);
-  cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
-
-  count = cs_disasm (capstone, (const uint8_t *) dlopen, 48,
-      GPOINTER_TO_SIZE (dlopen), 18, &insn);
-
+  if (gum_module_name_is_android_linker (name))
   {
-    gsize pic_value = 0;
-    size_t i;
+    g_free (name);
 
-    for (i = 0; i != count; i++)
-    {
-      const cs_insn * cur = &insn[i];
-      const cs_x86_op * op1 = &cur->detail->x86.operands[0];
-      const cs_x86_op * op2 = &cur->detail->x86.operands[1];
-
-      switch (cur->id)
-      {
-        case X86_INS_CALL:
-          if (op1->type == X86_OP_IMM)
-            impl = GSIZE_TO_POINTER (op1->imm);
-          break;
-        case X86_INS_POP:
-          if (op1->reg == X86_REG_EBX && pic_value == 0)
-            pic_value = cur->address;
-          break;
-        case X86_INS_ADD:
-          if (op1->reg == X86_REG_EBX)
-            pic_value += op2->imm;
-          break;
-      }
-    }
-
-    if (pic_value != 0)
-      impl = gum_make_bionic_dlopen_pic_thunk (impl, pic_value);
-  }
-#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
-  cs_open (CS_ARCH_X86, CS_MODE_64, &capstone);
-  cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
-
-  count = cs_disasm (capstone, (const uint8_t *) dlopen, 16,
-      GPOINTER_TO_SIZE (dlopen), 4, &insn);
-
-  {
-    size_t i;
-
-    for (i = 0; i != count; i++)
-    {
-      const cs_insn * cur = &insn[i];
-      const cs_x86_op * op = &cur->detail->x86.operands[0];
-
-      if (cur->id == X86_INS_JMP)
-      {
-        if (op->type == X86_OP_IMM)
-          impl = GSIZE_TO_POINTER (op->imm);
-        break;
-      }
-    }
-  }
-#elif defined (HAVE_ARM)
-  cs_open (CS_ARCH_ARM, CS_MODE_THUMB, &capstone);
-  cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
-
-  {
-    gsize dlopen_address = GPOINTER_TO_SIZE (dlopen) & (gsize) ~1;
-
-    count = cs_disasm (capstone, GSIZE_TO_POINTER (dlopen_address), 10,
-        dlopen_address, 4, &insn);
+    return RTLD_DEFAULT;
   }
 
-  if (count == 4 &&
-      insn[0].id == ARM_INS_PUSH &&
-      (insn[1].id == ARM_INS_MOV &&
-          insn[1].detail->arm.operands[0].reg == ARM_REG_R2 &&
-          insn[1].detail->arm.operands[1].reg == ARM_REG_LR) &&
-      (insn[2].id == ARM_INS_BL || insn[2].id == ARM_INS_BLX) &&
-      insn[3].id == ARM_INS_POP)
-  {
-    gsize thumb_bit = (insn[2].id == ARM_INS_BL) ? 1 : 0;
-    impl = GSIZE_TO_POINTER (insn[2].detail->arm.operands[0].imm | thumb_bit);
-  }
-#elif defined (HAVE_ARM64)
-  cs_open (CS_ARCH_ARM64, CS_MODE_ARM, &capstone);
-  cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
+  /*
+   * Bad things happen on newer Android if a non-app component calls
+   * dlopen() on an already loaded library belonging to an app.
+   *
+   * We get away with it by making it look like it's the library
+   * calling dlopen().
+   */
+  if (gum_find_bionic_dlopen (NULL, &bionic_dlopen))
+    module = bionic_dlopen (name, RTLD_LAZY, GSIZE_TO_POINTER (base));
+  else
+    module = dlopen (name, RTLD_LAZY);
 
-  count = cs_disasm (capstone, (const uint8_t *) dlopen, 6 * sizeof (guint32),
-      GPOINTER_TO_SIZE (dlopen), 6, &insn);
+  g_free (name);
 
-  if (count == 6 &&
-      insn[0].id == ARM64_INS_STP &&
-      insn[1].id == ARM64_INS_MOV &&
-      (insn[2].id == ARM64_INS_MOV &&
-          insn[2].detail->arm64.operands[0].reg == ARM64_REG_X2 &&
-          insn[2].detail->arm64.operands[1].reg == ARM64_REG_LR) &&
-      insn[3].id == ARM64_INS_BL &&
-      insn[4].id == ARM64_INS_LDP &&
-      insn[5].id == ARM64_INS_RET)
-  {
-    impl = GSIZE_TO_POINTER (insn[3].detail->arm64.operands[0].imm);
-  }
+  return module;
 #else
-# error Unsupported architecture
+  return dlopen (module_name, RTLD_LAZY | RTLD_NOLOAD);
 #endif
-
-  cs_free (insn, count);
-
-  cs_close (&capstone);
-
-  return impl;
 }
-
-# if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
-
-static void gum_free_bionic_dlopen_pic_thunk (void);
-
-static gpointer gum_bionic_dlopen_pic_thunk = NULL;
-
-static GumBionicDlopenImpl
-gum_make_bionic_dlopen_pic_thunk (GumBionicDlopenImpl impl,
-                                  gsize pic_value)
-{
-  gpointer thunk;
-  gsize page_size;
-  GumX86Writer cw;
-
-  g_assert (gum_bionic_dlopen_pic_thunk == NULL);
-
-  page_size = gum_query_page_size ();
-  thunk = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
-
-  gum_x86_writer_init (&cw, thunk);
-  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_REG_EBX, pic_value);
-  gum_x86_writer_put_jmp_address (&cw, GUM_ADDRESS (impl));
-  gum_x86_writer_clear (&cw);
-
-  gum_memory_mark_code (thunk, page_size);
-
-  gum_bionic_dlopen_pic_thunk = thunk;
-  _gum_register_destructor (gum_free_bionic_dlopen_pic_thunk);
-
-  return thunk;
-}
-
-static void
-gum_free_bionic_dlopen_pic_thunk (void)
-{
-  gum_memory_free (gum_bionic_dlopen_pic_thunk, gum_query_page_size ());
-}
-
-# endif
-
-static guint
-gum_get_android_api_level (void)
-{
-  gchar sdk_version[PROP_VALUE_MAX];
-
-  sdk_version[0] = '\0';
-  __system_property_get ("ro.build.version.sdk", sdk_version);
-
-  return atoi (sdk_version);
-}
-
-#endif
 
 gboolean
 gum_module_ensure_initialized (const gchar * module_name)
 {
-  gboolean success;
-  gchar * name;
   void * module;
 
-  success = FALSE;
-
-  name = gum_resolve_module_name (module_name, NULL);
-  if (name == NULL)
-    goto beach;
-
-  module = dlopen (name, RTLD_LAZY);
+  module = gum_module_get_handle (module_name);
   if (module == NULL)
-    goto beach;
+    return FALSE;
+  if (module == RTLD_DEFAULT)
+    return TRUE;
   dlclose (module);
 
-  success = TRUE;
+#ifndef HAVE_ANDROID
+  module = dlopen (module_name, RTLD_LAZY);
+  if (module == NULL)
+    return FALSE;
+  dlclose (module);
+#endif
 
-beach:
-  g_free (name);
-
-  return success;
+  return TRUE;
 }
 
 void
@@ -1733,33 +1542,9 @@ gum_module_find_export_by_name (const gchar * module_name,
   void * module;
 
   if (module_name != NULL)
-  {
-    gchar * name;
-
-    name = gum_resolve_module_name (module_name, NULL);
-    if (name == NULL)
-      return 0;
-
-#ifdef HAVE_ANDROID
-    if (gum_module_name_is_android_linker (name))
-    {
-      g_free (name);
-
-      return GUM_ADDRESS (dlsym (RTLD_DEFAULT, symbol_name));
-    }
-#endif
-
-    module = dlopen (name, RTLD_LAZY);
-
-    g_free (name);
-
-    if (module == NULL)
-      return 0;
-  }
+    module = gum_module_get_handle (module_name);
   else
-  {
     module = RTLD_DEFAULT;
-  }
 
   result = GUM_ADDRESS (dlsym (module, symbol_name));
 
@@ -1929,8 +1714,9 @@ gum_resolve_module_name (const gchar * name,
 }
 
 static gboolean
-gum_store_module_path_and_base_if_name_matches (const GumModuleDetails * details,
-                                                gpointer user_data)
+gum_store_module_path_and_base_if_name_matches (
+    const GumModuleDetails * details,
+    gpointer user_data)
 {
   GumResolveModuleNameContext * ctx = user_data;
 
@@ -1979,6 +1765,18 @@ gum_open_elf_module (const gchar * name)
 
 #ifdef HAVE_ANDROID
 
+static GumDlopenImpl gum_init_bionic_dlopen (void);
+static void * gum_call_bionic_dlopen (const char * path, int mode);
+static GumBionicDlopenImpl gum_resolve_bionic_inner_dlopen (void);
+# if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+static GumBionicDlopenImpl gum_make_bionic_dlopen_pic_thunk (
+    GumBionicDlopenImpl impl, gsize pic_value);
+#endif
+static guint gum_get_android_api_level (void);
+
+static GumBionicDlopenImpl gum_bionic_dlopen = NULL;
+static gpointer gum_bionic_trusted_caller = NULL;
+
 static gboolean
 gum_module_name_is_android_linker (const gchar * name)
 {
@@ -1986,6 +1784,226 @@ gum_module_name_is_android_linker (const gchar * name)
       ? "/system/bin/linker"
       : "/system/bin/linker64";
   return strcmp (name, linker_name) == 0;
+}
+
+static gboolean
+gum_find_bionic_dlopen (GumDlopenImpl * wrapper,
+                        GumBionicDlopenImpl * impl)
+{
+  static GOnce once = G_ONCE_INIT;
+
+  g_once (&once, (GThreadFunc) gum_init_bionic_dlopen, NULL);
+
+  if (once.retval == NULL)
+    return FALSE;
+
+  if (wrapper != NULL)
+    *wrapper = once.retval;
+
+  if (impl != NULL)
+    *impl = gum_bionic_dlopen;
+
+  return TRUE;
+}
+
+static GumDlopenImpl
+gum_init_bionic_dlopen (void)
+{
+  void * libc;
+
+  gum_bionic_dlopen = gum_resolve_bionic_inner_dlopen ();
+  if (gum_bionic_dlopen == NULL)
+    return NULL;
+
+  libc = dlopen ("libc.so", RTLD_LAZY);
+  gum_bionic_trusted_caller = dlsym (libc, "open");
+  dlclose (libc);
+
+  return gum_call_bionic_dlopen;
+}
+
+static void *
+gum_call_bionic_dlopen (const char * path,
+                        int mode)
+{
+  return gum_bionic_dlopen (path, mode, gum_bionic_trusted_caller);
+}
+
+static GumBionicDlopenImpl
+gum_resolve_bionic_inner_dlopen (void)
+{
+  GumBionicDlopenImpl impl;
+  csh capstone;
+  cs_insn * insn;
+  size_t count;
+
+  if (gum_get_android_api_level () < 26)
+    return NULL;
+
+  impl = NULL;
+  insn = NULL;
+
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+  cs_open (CS_ARCH_X86, CS_MODE_32, &capstone);
+  cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
+
+  count = cs_disasm (capstone, (const uint8_t *) dlopen, 48,
+      GPOINTER_TO_SIZE (dlopen), 18, &insn);
+
+  {
+    gsize pic_value = 0;
+    size_t i;
+
+    for (i = 0; i != count; i++)
+    {
+      const cs_insn * cur = &insn[i];
+      const cs_x86_op * op1 = &cur->detail->x86.operands[0];
+      const cs_x86_op * op2 = &cur->detail->x86.operands[1];
+
+      switch (cur->id)
+      {
+        case X86_INS_CALL:
+          if (op1->type == X86_OP_IMM)
+            impl = GSIZE_TO_POINTER (op1->imm);
+          break;
+        case X86_INS_POP:
+          if (op1->reg == X86_REG_EBX && pic_value == 0)
+            pic_value = cur->address;
+          break;
+        case X86_INS_ADD:
+          if (op1->reg == X86_REG_EBX)
+            pic_value += op2->imm;
+          break;
+      }
+    }
+
+    if (pic_value != 0)
+      impl = gum_make_bionic_dlopen_pic_thunk (impl, pic_value);
+  }
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+  cs_open (CS_ARCH_X86, CS_MODE_64, &capstone);
+  cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
+
+  count = cs_disasm (capstone, (const uint8_t *) dlopen, 16,
+      GPOINTER_TO_SIZE (dlopen), 4, &insn);
+
+  {
+    size_t i;
+
+    for (i = 0; i != count; i++)
+    {
+      const cs_insn * cur = &insn[i];
+      const cs_x86_op * op = &cur->detail->x86.operands[0];
+
+      if (cur->id == X86_INS_JMP)
+      {
+        if (op->type == X86_OP_IMM)
+          impl = GSIZE_TO_POINTER (op->imm);
+        break;
+      }
+    }
+  }
+#elif defined (HAVE_ARM)
+  cs_open (CS_ARCH_ARM, CS_MODE_THUMB, &capstone);
+  cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
+
+  {
+    gsize dlopen_address = GPOINTER_TO_SIZE (dlopen) & (gsize) ~1;
+
+    count = cs_disasm (capstone, GSIZE_TO_POINTER (dlopen_address), 10,
+        dlopen_address, 4, &insn);
+  }
+
+  if (count == 4 &&
+      insn[0].id == ARM_INS_PUSH &&
+      (insn[1].id == ARM_INS_MOV &&
+          insn[1].detail->arm.operands[0].reg == ARM_REG_R2 &&
+          insn[1].detail->arm.operands[1].reg == ARM_REG_LR) &&
+      (insn[2].id == ARM_INS_BL || insn[2].id == ARM_INS_BLX) &&
+      insn[3].id == ARM_INS_POP)
+  {
+    gsize thumb_bit = (insn[2].id == ARM_INS_BL) ? 1 : 0;
+    impl = GSIZE_TO_POINTER (insn[2].detail->arm.operands[0].imm | thumb_bit);
+  }
+#elif defined (HAVE_ARM64)
+  cs_open (CS_ARCH_ARM64, CS_MODE_ARM, &capstone);
+  cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
+
+  count = cs_disasm (capstone, (const uint8_t *) dlopen, 6 * sizeof (guint32),
+      GPOINTER_TO_SIZE (dlopen), 6, &insn);
+
+  if (count == 6 &&
+      insn[0].id == ARM64_INS_STP &&
+      insn[1].id == ARM64_INS_MOV &&
+      (insn[2].id == ARM64_INS_MOV &&
+          insn[2].detail->arm64.operands[0].reg == ARM64_REG_X2 &&
+          insn[2].detail->arm64.operands[1].reg == ARM64_REG_LR) &&
+      insn[3].id == ARM64_INS_BL &&
+      insn[4].id == ARM64_INS_LDP &&
+      insn[5].id == ARM64_INS_RET)
+  {
+    impl = GSIZE_TO_POINTER (insn[3].detail->arm64.operands[0].imm);
+  }
+#else
+# error Unsupported architecture
+#endif
+
+  cs_free (insn, count);
+
+  cs_close (&capstone);
+
+  return impl;
+}
+
+# if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+
+static void gum_free_bionic_dlopen_pic_thunk (void);
+
+static gpointer gum_bionic_dlopen_pic_thunk = NULL;
+
+static GumBionicDlopenImpl
+gum_make_bionic_dlopen_pic_thunk (GumBionicDlopenImpl impl,
+                                  gsize pic_value)
+{
+  gpointer thunk;
+  gsize page_size;
+  GumX86Writer cw;
+
+  g_assert (gum_bionic_dlopen_pic_thunk == NULL);
+
+  page_size = gum_query_page_size ();
+  thunk = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
+
+  gum_x86_writer_init (&cw, thunk);
+  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_REG_EBX, pic_value);
+  gum_x86_writer_put_jmp_address (&cw, GUM_ADDRESS (impl));
+  gum_x86_writer_clear (&cw);
+
+  gum_memory_mark_code (thunk, page_size);
+
+  gum_bionic_dlopen_pic_thunk = thunk;
+  _gum_register_destructor (gum_free_bionic_dlopen_pic_thunk);
+
+  return thunk;
+}
+
+static void
+gum_free_bionic_dlopen_pic_thunk (void)
+{
+  gum_memory_free (gum_bionic_dlopen_pic_thunk, gum_query_page_size ());
+}
+
+# endif
+
+static guint
+gum_get_android_api_level (void)
+{
+  gchar sdk_version[PROP_VALUE_MAX];
+
+  sdk_version[0] = '\0';
+  __system_property_get ("ro.build.version.sdk", sdk_version);
+
+  return atoi (sdk_version);
 }
 
 #endif
