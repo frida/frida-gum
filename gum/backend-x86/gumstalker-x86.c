@@ -2643,7 +2643,7 @@ gum_exec_block_virtualize_wow64transition (GumExecBlock * block,
 
   gum_x86_writer_put_bytes (cw, code, sizeof (code));
 
-  gum_exec_block_write_sysenter_continuation_code(block, gc, saved_ret_addr, resolve_dynamically_label);
+  gum_exec_block_write_sysenter_continuation_code (block, gc, saved_ret_addr);
 
   return GUM_REQUIRE_NOTHING;
 }
