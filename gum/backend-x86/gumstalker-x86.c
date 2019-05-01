@@ -78,7 +78,7 @@ struct _GumStalker
   GumExceptor * exceptor;
   gpointer user32_start, user32_end;
   gpointer ki_user_callback_dispatcher_impl;
-  gpointer wow64transition_address;
+  gpointer wow64_transition_address;
 #endif
 };
 
@@ -503,7 +503,7 @@ gum_stalker_init (GumStalker * self)
         GetProcAddress (ntmod, "KiUserCallbackDispatcher"));
     g_assert (self->ki_user_callback_dispatcher_impl != NULL);
 
-    self->wow64transition_address = GUM_FUNCPTR_TO_POINTER (
+    self->wow64_transition_address = GUM_FUNCPTR_TO_POINTER (
         GetProcAddress (ntmod, "Wow64Transition"));
   }
 #endif
@@ -2609,25 +2609,28 @@ gum_exec_block_backpatch_inline_cache (GumExecBlock * block,
 }
 
 
-#if GLIB_SIZEOF_VOID_P == 4 && !defined (HAVE_QNX) && defined (HAVE_WINDOWS)
+#if GLIB_SIZEOF_VOID_P == 4 && defined (HAVE_WINDOWS)
 static GumVirtualizationRequirements
-gum_exec_block_virtualize_wow64transition (GumExecBlock * block,
+gum_exec_block_virtualize_wow64_transition (GumExecBlock * block,
                                            GumGeneratorContext * gc,
                                            GumExecCtx *ec)
 {
   GumX86Writer * cw = gc->code_writer;
   guint8 code[] = {
-    /* 0x00 */ 0x50,                                           /* push eax */
-    /* 0x01 */ 0x8b, 0x44, 0x24, 0x04,                         /* mov eax, dword [esp + 4] */
-    /* 0x05 */ 0x89, 0x05, 0xaa, 0xaa, 0xaa, 0xaa,             /* mov dword [0xaaaaaaaa], eax */
-    /* 0x0b */ 0xc7, 0x44, 0x24, 0x04, 0xbb, 0xbb, 0xbb, 0xbb, /* mov dword [esp + 4], 0xbbbbbbbb */
-    /* 0x13 */ 0x58,                                           /* pop eax */
-    /* 0x14 */ 0xff, 0x25, 0xcc, 0xcc, 0xcc, 0xcc,             /* jmp dword [0xcccccccc] */
-    /* 0x1a */ 0x90, 0x90, 0x90, 0x90                          /* <saved ret-addr here> */
+    /* 00 */ 0x50,                        /* push eax */
+    /* 01 */ 0x8b, 0x44, 0x24, 0x04,      /* mov eax, dword [esp + 4] */
+    /* 05 */ 0x89, 0x05, 0xaa, 0xaa, 0xaa,
+             0xaa,                        /* mov dword [0xaaaaaaaa], eax */
+    /* 0b */ 0xc7, 0x44, 0x24, 0x04, 0xbb,
+             0xbb, 0xbb, 0xbb,            /* mov dword [esp + 4], 0xbbbbbbbb */
+    /* 13 */ 0x58,                        /* pop eax */
+    /* 14 */ 0xff, 0x25, 0xcc, 0xcc, 0xcc,
+             0xcc,                        /* jmp dword [0xcccccccc] */
+    /* 1a */ 0x90, 0x90, 0x90, 0x90       /* <saved ret-addr here> */
   };
   const gsize store_ret_addr_offset = 0x05 + 2;
   const gsize load_continuation_addr_offset = 0x0b + 4;
-  const gsize wow64transition_addr_offset = 0x14 + 2;
+  const gsize wow64_transition_addr_offset = 0x14 + 2;
   const gsize saved_ret_addr_offset = 0x1a;
 
   gum_exec_block_close_prolog (block, gc);
@@ -2637,7 +2640,8 @@ gum_exec_block_virtualize_wow64transition (GumExecBlock * block,
 
   *((gpointer *) (code + store_ret_addr_offset)) = saved_ret_addr;
   *((gpointer *) (code + load_continuation_addr_offset)) = continuation;
-  *((gpointer *) (code + wow64transition_addr_offset)) = ec->stalker->wow64transition_address;
+  *((gpointer *) (code + wow64_transition_addr_offset)) =
+      ec->stalker->wow64_transition_address;
 
   gum_x86_writer_put_bytes (cw, code, sizeof (code));
 
@@ -2677,13 +2681,13 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
   else if (op->type == X86_OP_MEM)
   {
 #if GLIB_SIZEOF_VOID_P == 4 && defined (HAVE_WINDOWS)
-    if (ec->stalker->wow64transition_address != NULL
-        && op->mem.disp == ec->stalker->wow64transition_address
+    if (ec->stalker->wow64_transition_address != NULL
+        && op->mem.disp == ec->stalker->wow64_transition_address
         && op->mem.segment == X86_REG_INVALID
         && op->mem.base == X86_REG_INVALID
         && op->mem.index == X86_REG_INVALID)
     {
-      return gum_exec_block_virtualize_wow64transition (block, gc, ec);
+      return gum_exec_block_virtualize_wow64_transition (block, gc, ec);
     }
 #endif
 
