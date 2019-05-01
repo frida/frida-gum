@@ -1501,7 +1501,7 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
   {
     case X86_INS_CALL:
     case X86_INS_JMP:
-      requirements = gum_exec_block_virtualize_branch_insn (block, gc, ec);
+      requirements = gum_exec_block_virtualize_branch_insn (block, gc);
       break;
     case X86_INS_RET:
       requirements = gum_exec_block_virtualize_ret_insn (block, gc);
@@ -1511,11 +1511,11 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
       break;
     case X86_INS_JECXZ:
     case X86_INS_JRCXZ:
-      requirements = gum_exec_block_virtualize_branch_insn (block, gc, ec);
+      requirements = gum_exec_block_virtualize_branch_insn (block, gc);
       break;
     default:
       if (gum_x86_reader_insn_is_jcc (insn))
-        requirements = gum_exec_block_virtualize_branch_insn (block, gc, ec);
+        requirements = gum_exec_block_virtualize_branch_insn (block, gc);
       else
         requirements = GUM_REQUIRE_RELOCATION;
       break;
@@ -2612,8 +2612,7 @@ gum_exec_block_backpatch_inline_cache (GumExecBlock * block,
 #if GLIB_SIZEOF_VOID_P == 4 && defined (HAVE_WINDOWS)
 static GumVirtualizationRequirements
 gum_exec_block_virtualize_wow64_transition (GumExecBlock * block,
-                                           GumGeneratorContext * gc,
-                                           GumExecCtx *ec)
+                                           GumGeneratorContext * gc)
 {
   GumX86Writer * cw = gc->code_writer;
   guint8 code[] = {
@@ -2641,7 +2640,7 @@ gum_exec_block_virtualize_wow64_transition (GumExecBlock * block,
   *((gpointer *) (code + store_ret_addr_offset)) = saved_ret_addr;
   *((gpointer *) (code + load_continuation_addr_offset)) = continuation;
   *((gpointer *) (code + wow64_transition_addr_offset)) =
-      ec->stalker->wow64_transition_address;
+      block->ctx->stalker->wow64_transition_address;
 
   gum_x86_writer_put_bytes (cw, code, sizeof (code));
 
@@ -2654,8 +2653,7 @@ gum_exec_block_virtualize_wow64_transition (GumExecBlock * block,
 
 static GumVirtualizationRequirements
 gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
-                                       GumGeneratorContext * gc,
-                                       GumExecCtx * ec)
+                                       GumGeneratorContext * gc)
 {
   GumInstruction * insn = gc->instruction;
   GumX86Writer * cw = gc->code_writer;
@@ -2681,13 +2679,13 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
   else if (op->type == X86_OP_MEM)
   {
 #if GLIB_SIZEOF_VOID_P == 4 && defined (HAVE_WINDOWS)
-    if (ec->stalker->wow64_transition_address != NULL
-        && op->mem.disp == ec->stalker->wow64_transition_address
+    if (block->ctx->stalker->wow64_transition_address != NULL
+        && op->mem.disp == block->ctx->stalker->wow64_transition_address
         && op->mem.segment == X86_REG_INVALID
         && op->mem.base == X86_REG_INVALID
         && op->mem.index == X86_REG_INVALID)
     {
-      return gum_exec_block_virtualize_wow64_transition (block, gc, ec);
+      return gum_exec_block_virtualize_wow64_transition (block, gc);
     }
 #endif
 
