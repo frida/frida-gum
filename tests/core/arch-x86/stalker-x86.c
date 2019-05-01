@@ -106,14 +106,6 @@ TESTCASE (heap_api)
 
 TESTCASE (follow_syscall)
 {
-#ifdef G_OS_WIN32
-  if (!g_test_slow ())
-  {
-    g_print ("<not yet stable on this OS; skipping, run in slow mode> ");
-    return;
-  }
-#endif
-
   fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
 
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
