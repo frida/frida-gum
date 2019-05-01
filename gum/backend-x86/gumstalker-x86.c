@@ -78,6 +78,7 @@ struct _GumStalker
   GumExceptor * exceptor;
   gpointer user32_start, user32_end;
   gpointer ki_user_callback_dispatcher_impl;
+  gpointer wow64transition_address;
 #endif
 };
 
@@ -407,6 +408,9 @@ static void gum_exec_block_write_unfollow_check_code (GumExecBlock * block,
 static void gum_exec_block_write_call_probe_code (GumExecBlock * block,
     const GumBranchTarget * target, GumGeneratorContext * gc);
 
+static void gum_exec_block_write_sysenter_continuation_code (GumExecBlock * block,
+    GumGeneratorContext * gc, gpointer saved_ret_addr, gpointer resolve_dynamically_label);
+
 static void gum_exec_block_open_prolog (GumExecBlock * block,
     GumPrologType type, GumGeneratorContext * gc);
 static void gum_exec_block_close_prolog (GumExecBlock * block,
@@ -498,6 +502,9 @@ gum_stalker_init (GumStalker * self)
     self->ki_user_callback_dispatcher_impl = GUM_FUNCPTR_TO_POINTER (
         GetProcAddress (ntmod, "KiUserCallbackDispatcher"));
     g_assert (self->ki_user_callback_dispatcher_impl != NULL);
+
+    self->wow64transition_address = GUM_FUNCPTR_TO_POINTER (
+        GetProcAddress (ntmod, "Wow64Transition"));
   }
 #endif
 
@@ -1494,7 +1501,7 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
   {
     case X86_INS_CALL:
     case X86_INS_JMP:
-      requirements = gum_exec_block_virtualize_branch_insn (block, gc);
+      requirements = gum_exec_block_virtualize_branch_insn (block, gc, ec);
       break;
     case X86_INS_RET:
       requirements = gum_exec_block_virtualize_ret_insn (block, gc);
@@ -1504,11 +1511,11 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
       break;
     case X86_INS_JECXZ:
     case X86_INS_JRCXZ:
-      requirements = gum_exec_block_virtualize_branch_insn (block, gc);
+      requirements = gum_exec_block_virtualize_branch_insn (block, gc, ec);
       break;
     default:
       if (gum_x86_reader_insn_is_jcc (insn))
-        requirements = gum_exec_block_virtualize_branch_insn (block, gc);
+        requirements = gum_exec_block_virtualize_branch_insn (block, gc, ec);
       else
         requirements = GUM_REQUIRE_RELOCATION;
       break;
@@ -2601,9 +2608,52 @@ gum_exec_block_backpatch_inline_cache (GumExecBlock * block,
   }
 }
 
+
+#if GLIB_SIZEOF_VOID_P == 4 && !defined (HAVE_QNX) && defined (HAVE_WINDOWS)
+static GumVirtualizationRequirements
+gum_exec_block_virtualize_wow64transition (GumExecBlock * block,
+                                           GumGeneratorContext * gc,
+                                           GumExecCtx *ec)
+{
+  GumX86Writer * cw = gc->code_writer;
+  guint8 code[] = {
+    /* 0x00 */ 0x50,                                           /* push eax */
+    /* 0x01 */ 0x8b, 0x44, 0x24, 0x04,                         /* mov eax, dword [esp + 4] */
+    /* 0x05 */ 0x89, 0x05, 0xaa, 0xaa, 0xaa, 0xaa,             /* mov dword [0xaaaaaaaa], eax */
+    /* 0x0b */ 0xc7, 0x44, 0x24, 0x04, 0xbb, 0xbb, 0xbb, 0xbb, /* mov dword [esp + 4], 0xbbbbbbbb */
+    /* 0x13 */ 0x58,                                           /* pop eax */
+    /* 0x14 */ 0xff, 0x25, 0xcc, 0xcc, 0xcc, 0xcc,             /* jmp dword [0xcccccccc] */
+    /* 0x1a */ 0x90, 0x90, 0x90, 0x90                          /* <saved ret-addr here> */
+  };
+  const gsize store_ret_addr_offset = 0x05 + 2;
+  const gsize load_continuation_addr_offset = 0x0b + 4;
+  const gsize wow64transition_addr_offset = 0x14 + 2;
+  const gsize saved_ret_addr_offset = 0x1a;
+
+  gconstpointer resolve_dynamically_label = cw->code;
+
+  gum_exec_block_close_prolog (block, gc);
+
+  gpointer * saved_ret_addr = (gpointer *) (cw->code + saved_ret_addr_offset);
+  gpointer continuation = cw->code + saved_ret_addr_offset + 4;
+
+  *((gpointer *) (code + store_ret_addr_offset)) = saved_ret_addr;
+  *((gpointer *) (code + load_continuation_addr_offset)) = continuation;
+  *((gpointer *) (code + wow64transition_addr_offset)) = ec->stalker->wow64transition_address;
+
+  gum_x86_writer_put_bytes (cw, code, sizeof (code));
+
+  gum_exec_block_write_sysenter_continuation_code(block, gc, saved_ret_addr, resolve_dynamically_label);
+
+  return GUM_REQUIRE_NOTHING;
+}
+#endif
+
+
 static GumVirtualizationRequirements
 gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
-                                       GumGeneratorContext * gc)
+                                       GumGeneratorContext * gc,
+                                       GumExecCtx * ec)
 {
   GumInstruction * insn = gc->instruction;
   GumX86Writer * cw = gc->code_writer;
@@ -2628,6 +2678,17 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
   }
   else if (op->type == X86_OP_MEM)
   {
+#if GLIB_SIZEOF_VOID_P == 4 && !defined (HAVE_QNX) && defined (HAVE_WINDOWS)
+    if (ec->stalker->wow64transition_address != NULL
+        && op->mem.disp == ec->stalker->wow64transition_address
+        && op->mem.segment == X86_REG_INVALID
+        && op->mem.base == X86_REG_INVALID
+        && op->mem.index == X86_REG_INVALID)
+    {
+      return gum_exec_block_virtualize_wow64transition (block, gc, ec);
+    }
+#endif
+
 #ifdef G_OS_WIN32
     /* Can't follow WoW64 */
     if (op->mem.segment == X86_REG_FS && op->mem.disp == 0xc0)
@@ -2849,79 +2910,7 @@ gum_exec_block_virtualize_sysenter_insn (GumExecBlock * block,
 
   gum_x86_writer_put_bytes (cw, code, sizeof (code));
 
-  gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_EDX,
-      GUM_ADDRESS (saved_ret_addr));
-
-  if ((block->ctx->sink_mask & GUM_RET) != 0)
-  {
-    gum_exec_block_write_ret_event_code (block, gc, GUM_CODE_UNINTERRUPTIBLE);
-    gum_exec_block_close_prolog (block, gc);
-  }
-
-  /*
-   * Fast path (try the stack)
-   */
-  gum_x86_writer_put_pushfx (cw);
-  gum_x86_writer_put_push_reg (cw, GUM_REG_EAX);
-
-  /* But first, check if we've been asked to unfollow,
-   * in which case we'll enter the Stalker so the unfollow can
-   * be completed... */
-  gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_EAX,
-      GUM_ADDRESS (&block->ctx->state));
-  gum_x86_writer_put_cmp_reg_i32 (cw, GUM_REG_EAX,
-      GUM_EXEC_CTX_UNFOLLOW_PENDING);
-  gum_x86_writer_put_jcc_short_label (cw, X86_INS_JE,
-      resolve_dynamically_label, GUM_UNLIKELY);
-
-  /* Check frame at the top of the stack */
-  gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_EAX,
-      GUM_ADDRESS (&block->ctx->current_frame));
-  gum_x86_writer_put_cmp_reg_offset_ptr_reg (cw,
-      GUM_REG_EAX, G_STRUCT_OFFSET (GumExecFrame, real_address),
-      GUM_REG_EDX);
-  gum_x86_writer_put_jcc_short_label (cw, X86_INS_JNE,
-      resolve_dynamically_label, GUM_UNLIKELY);
-
-  /* Replace return address */
-  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_EDX,
-      GUM_REG_EAX, G_STRUCT_OFFSET (GumExecFrame, code_address));
-
-  /* Pop from our stack */
-  gum_x86_writer_put_add_reg_imm (cw, GUM_REG_EAX, sizeof (GumExecFrame));
-  gum_x86_writer_put_mov_near_ptr_reg (cw,
-      GUM_ADDRESS (&block->ctx->current_frame), GUM_REG_EAX);
-
-  /* Proceeed to block */
-  gum_x86_writer_put_pop_reg (cw, GUM_REG_EAX);
-  gum_x86_writer_put_popfx (cw);
-  gum_x86_writer_put_jmp_reg (cw, GUM_REG_EDX);
-
-  gum_x86_writer_put_label (cw, resolve_dynamically_label);
-  gum_x86_writer_put_pop_reg (cw, GUM_REG_EAX);
-  gum_x86_writer_put_popfx (cw);
-
-  /*
-   * Slow path (resolve dynamically)
-   */
-  gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
-
-  gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_THUNK_REG_ARG1,
-      GUM_ADDRESS (saved_ret_addr));
-  gum_x86_writer_put_mov_reg_address (cw, GUM_THUNK_REG_ARG0,
-      GUM_ADDRESS (block->ctx));
-  gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_ESP,
-      GUM_THUNK_ARGLIST_STACK_RESERVE);
-  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
-      GUM_ADDRESS (GUM_ENTRYGATE (sysenter_slow_path)));
-  gum_x86_writer_put_call_reg (cw, GUM_REG_XAX);
-  gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XSP,
-      GUM_THUNK_ARGLIST_STACK_RESERVE);
-
-  gum_exec_block_close_prolog (block, gc);
-  gum_x86_writer_put_jmp_near_ptr (cw, GUM_ADDRESS (&block->ctx->resume_at));
-
-  gum_x86_relocator_skip_one_no_label (gc->relocator);
+  gum_exec_block_write_sysenter_continuation_code (block, gc, saved_ret_addr, resolve_dynamically_label);
 
   return GUM_REQUIRE_NOTHING;
 #else
@@ -3469,6 +3458,91 @@ gum_exec_block_write_call_probe_code (GumExecBlock * block,
         GUM_ARG_REGISTER, GUM_REG_XBX);
   }
 }
+
+#if GLIB_SIZEOF_VOID_P == 4 && !defined (HAVE_QNX)
+static void
+gum_exec_block_write_sysenter_continuation_code (GumExecBlock * block,
+                                     GumGeneratorContext * gc,
+                                     gpointer saved_ret_addr,
+                                     gpointer resolve_dynamically_label)
+{
+  GumX86Writer * cw = gc->code_writer;
+
+  gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_EDX,
+      GUM_ADDRESS (saved_ret_addr));
+
+  if ((block->ctx->sink_mask & GUM_RET) != 0)
+  {
+    gum_exec_block_write_ret_event_code (block, gc, GUM_CODE_UNINTERRUPTIBLE);
+    gum_exec_block_close_prolog (block, gc);
+  }
+
+  /*
+   * Fast path (try the stack)
+   */
+  gum_x86_writer_put_pushfx (cw);
+  gum_x86_writer_put_push_reg (cw, GUM_REG_EAX);
+
+  /* But first, check if we've been asked to unfollow,
+   * in which case we'll enter the Stalker so the unfollow can
+   * be completed... */
+  gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_EAX,
+      GUM_ADDRESS (&block->ctx->state));
+  gum_x86_writer_put_cmp_reg_i32 (cw, GUM_REG_EAX,
+      GUM_EXEC_CTX_UNFOLLOW_PENDING);
+  gum_x86_writer_put_jcc_short_label (cw, X86_INS_JE,
+      resolve_dynamically_label, GUM_UNLIKELY);
+
+  /* Check frame at the top of the stack */
+  gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_EAX,
+      GUM_ADDRESS (&block->ctx->current_frame));
+  gum_x86_writer_put_cmp_reg_offset_ptr_reg (cw,
+      GUM_REG_EAX, G_STRUCT_OFFSET (GumExecFrame, real_address),
+      GUM_REG_EDX);
+  gum_x86_writer_put_jcc_short_label (cw, X86_INS_JNE,
+      resolve_dynamically_label, GUM_UNLIKELY);
+
+  /* Replace return address */
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_EDX,
+      GUM_REG_EAX, G_STRUCT_OFFSET (GumExecFrame, code_address));
+
+  /* Pop from our stack */
+  gum_x86_writer_put_add_reg_imm (cw, GUM_REG_EAX, sizeof (GumExecFrame));
+  gum_x86_writer_put_mov_near_ptr_reg (cw,
+      GUM_ADDRESS (&block->ctx->current_frame), GUM_REG_EAX);
+
+  /* Proceeed to block */
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_EAX);
+  gum_x86_writer_put_popfx (cw);
+  gum_x86_writer_put_jmp_reg (cw, GUM_REG_EDX);
+
+  gum_x86_writer_put_label (cw, resolve_dynamically_label);
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_EAX);
+  gum_x86_writer_put_popfx (cw);
+
+  /*
+   * Slow path (resolve dynamically)
+   */
+  gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
+
+  gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_THUNK_REG_ARG1,
+      GUM_ADDRESS (saved_ret_addr));
+  gum_x86_writer_put_mov_reg_address (cw, GUM_THUNK_REG_ARG0,
+      GUM_ADDRESS (block->ctx));
+  gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_ESP,
+      GUM_THUNK_ARGLIST_STACK_RESERVE);
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
+      GUM_ADDRESS (GUM_ENTRYGATE (sysenter_slow_path)));
+  gum_x86_writer_put_call_reg (cw, GUM_REG_XAX);
+  gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XSP,
+      GUM_THUNK_ARGLIST_STACK_RESERVE);
+
+  gum_exec_block_close_prolog (block, gc);
+  gum_x86_writer_put_jmp_near_ptr (cw, GUM_ADDRESS (&block->ctx->resume_at));
+
+  gum_x86_relocator_skip_one_no_label (gc->relocator);
+}
+#endif
 
 static void
 gum_exec_block_open_prolog (GumExecBlock * block,
