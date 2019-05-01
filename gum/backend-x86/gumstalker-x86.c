@@ -408,8 +408,8 @@ static void gum_exec_block_write_unfollow_check_code (GumExecBlock * block,
 static void gum_exec_block_write_call_probe_code (GumExecBlock * block,
     const GumBranchTarget * target, GumGeneratorContext * gc);
 
-static void gum_exec_block_write_sysenter_continuation_code (GumExecBlock * block,
-    GumGeneratorContext * gc, gpointer saved_ret_addr, gpointer resolve_dynamically_label);
+static void gum_exec_block_write_sysenter_continuation_code (
+    GumExecBlock * block, GumGeneratorContext * gc, gpointer saved_ret_addr);
 
 static void gum_exec_block_open_prolog (GumExecBlock * block,
     GumPrologType type, GumGeneratorContext * gc);
@@ -2630,8 +2630,6 @@ gum_exec_block_virtualize_wow64transition (GumExecBlock * block,
   const gsize wow64transition_addr_offset = 0x14 + 2;
   const gsize saved_ret_addr_offset = 0x1a;
 
-  gconstpointer resolve_dynamically_label = cw->code;
-
   gum_exec_block_close_prolog (block, gc);
 
   gpointer * saved_ret_addr = (gpointer *) (cw->code + saved_ret_addr_offset);
@@ -2899,7 +2897,6 @@ gum_exec_block_virtualize_sysenter_insn (GumExecBlock * block,
 #endif
   gpointer * saved_ret_addr;
   gpointer continuation;
-  gconstpointer resolve_dynamically_label = cw->code;
 
   gum_exec_block_close_prolog (block, gc);
 
@@ -2910,7 +2907,7 @@ gum_exec_block_virtualize_sysenter_insn (GumExecBlock * block,
 
   gum_x86_writer_put_bytes (cw, code, sizeof (code));
 
-  gum_exec_block_write_sysenter_continuation_code (block, gc, saved_ret_addr, resolve_dynamically_label);
+  gum_exec_block_write_sysenter_continuation_code (block, gc, saved_ret_addr);
 
   return GUM_REQUIRE_NOTHING;
 #else
@@ -3463,10 +3460,10 @@ gum_exec_block_write_call_probe_code (GumExecBlock * block,
 static void
 gum_exec_block_write_sysenter_continuation_code (GumExecBlock * block,
                                      GumGeneratorContext * gc,
-                                     gpointer saved_ret_addr,
-                                     gpointer resolve_dynamically_label)
+                                     gpointer saved_ret_addr)
 {
   GumX86Writer * cw = gc->code_writer;
+  gconstpointer resolve_dynamically_label = cw->code;
 
   gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_EDX,
       GUM_ADDRESS (saved_ret_addr));
