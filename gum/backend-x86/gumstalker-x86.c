@@ -2612,7 +2612,7 @@ gum_exec_block_backpatch_inline_cache (GumExecBlock * block,
 #if GLIB_SIZEOF_VOID_P == 4 && defined (HAVE_WINDOWS)
 static GumVirtualizationRequirements
 gum_exec_block_virtualize_wow64_transition (GumExecBlock * block,
-                                           GumGeneratorContext * gc)
+                                            GumGeneratorContext * gc)
 {
   GumX86Writer * cw = gc->code_writer;
   guint8 code[] = {
