@@ -2678,7 +2678,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
   }
   else if (op->type == X86_OP_MEM)
   {
-#if GLIB_SIZEOF_VOID_P == 4 && !defined (HAVE_QNX) && defined (HAVE_WINDOWS)
+#if GLIB_SIZEOF_VOID_P == 4 && defined (HAVE_WINDOWS)
     if (ec->stalker->wow64transition_address != NULL
         && op->mem.disp == ec->stalker->wow64transition_address
         && op->mem.segment == X86_REG_INVALID
