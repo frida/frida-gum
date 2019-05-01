@@ -2644,7 +2644,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
 #if GLIB_SIZEOF_VOID_P == 4 && defined (HAVE_WINDOWS)
     if (block->ctx->stalker->wow64_transition_address != NULL &&
         op->mem.disp == GPOINTER_TO_UINT (
-          block->ctx->stalker->wow64_transition_address) &&
+            block->ctx->stalker->wow64_transition_address) &&
         op->mem.segment == X86_REG_INVALID &&
         op->mem.base == X86_REG_INVALID &&
         op->mem.index == X86_REG_INVALID)
