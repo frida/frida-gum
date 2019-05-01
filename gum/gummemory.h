@@ -11,6 +11,17 @@
 #include <glib-object.h>
 #include <gum/gumdefs.h>
 
+#define GUM_TYPE_MEMORY_RANGE (gum_memory_range_get_type ())
+#define GUM_MEMORY_RANGE_INCLUDES(r, a) ((a) >= (r)->base_address && \
+    (a) < ((r)->base_address + (r)->size))
+
+#define GUM_PAGE_RW ((GumPageProtection) (GUM_PAGE_READ | GUM_PAGE_WRITE))
+#define GUM_PAGE_RX ((GumPageProtection) (GUM_PAGE_READ | GUM_PAGE_EXECUTE))
+#define GUM_PAGE_RWX ((GumPageProtection) (GUM_PAGE_READ | GUM_PAGE_WRITE | \
+    GUM_PAGE_EXECUTE))
+
+G_BEGIN_DECLS
+
 typedef guint GumMemoryOperation;
 typedef guint GumPageProtection;
 typedef struct _GumAddressSpec GumAddressSpec;
@@ -46,17 +57,6 @@ struct _GumMemoryRange
   GumAddress base_address;
   gsize size;
 };
-
-#define GUM_TYPE_MEMORY_RANGE (gum_memory_range_get_type ())
-#define GUM_MEMORY_RANGE_INCLUDES(r, a) ((a) >= (r)->base_address && \
-    (a) < ((r)->base_address + (r)->size))
-
-#define GUM_PAGE_RW ((GumPageProtection) (GUM_PAGE_READ | GUM_PAGE_WRITE))
-#define GUM_PAGE_RX ((GumPageProtection) (GUM_PAGE_READ | GUM_PAGE_EXECUTE))
-#define GUM_PAGE_RWX ((GumPageProtection) (GUM_PAGE_READ | GUM_PAGE_WRITE | \
-    GUM_PAGE_EXECUTE))
-
-G_BEGIN_DECLS
 
 typedef void (* GumMemoryPatchApplyFunc) (gpointer mem, gpointer user_data);
 typedef gboolean (* GumMemoryScanMatchFunc) (GumAddress address, gsize size,
@@ -126,6 +126,8 @@ GUM_API gboolean gum_memory_commit (gpointer address, gsize size,
 GUM_API gboolean gum_memory_decommit (gpointer address, gsize size);
 
 GUM_API GType gum_memory_range_get_type (void) G_GNUC_CONST;
+GUM_API GumMemoryRange * gum_memory_range_copy (const GumMemoryRange * range);
+GUM_API void gum_memory_range_free (GumMemoryRange * range);
 
 G_END_DECLS
 

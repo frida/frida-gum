@@ -39,6 +39,9 @@
 /* Define to 1 if libunwind is available. */
 #mesondefine HAVE_LIBUNWIND
 
+/* Define to 1 if you have the <link.h> header file. */
+#mesondefine HAVE_LINK_H
+
 /* Define to 1 if OS is Linux based. */
 #mesondefine HAVE_LINUX
 

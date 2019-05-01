@@ -125,6 +125,11 @@ if host_os_family == 'linux'
     'backend-posix/gumtls-posix.c',
     'backend-posix/gumexceptor-posix.c',
   ]
+  if host_os == 'android'
+    gum_sources += [
+      'backend-linux/gumandroid.c',
+    ]
+  endif
 endif
 
 if host_os_family == 'qnx'

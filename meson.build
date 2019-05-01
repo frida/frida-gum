@@ -94,6 +94,7 @@ endforeach
 
 headers = [
   'elf.h',
+  'link.h',
   'stdint.h',
   'asm/ptrace.h',
   'sys/elf.h',

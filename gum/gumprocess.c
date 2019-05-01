@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -29,6 +29,9 @@ static gboolean gum_emit_range_if_not_cloaked (const GumRangeDetails * details,
     gpointer user_data);
 
 static GumCodeSigningPolicy gum_code_signing_policy = GUM_CODE_SIGNING_OPTIONAL;
+
+G_DEFINE_BOXED_TYPE (GumModuleDetails, gum_module_details,
+    gum_module_details_copy, gum_module_details_free)
 
 GumOS
 gum_process_get_native_os (void)
@@ -163,6 +166,33 @@ gum_code_signing_policy_to_string (GumCodeSigningPolicy policy)
 
   g_assert_not_reached ();
   return NULL;
+}
+
+GumModuleDetails *
+gum_module_details_copy (const GumModuleDetails * module)
+{
+  GumModuleDetails * copy;
+
+  copy = g_slice_new (GumModuleDetails);
+
+  copy->name = g_strdup (module->name);
+  copy->range = gum_memory_range_copy (module->range);
+  copy->path = g_strdup (module->path);
+
+  return copy;
+}
+
+void
+gum_module_details_free (GumModuleDetails * module)
+{
+  if (module == NULL)
+    return;
+
+  g_free ((gpointer) module->name);
+  gum_memory_range_free ((GumMemoryRange *) module->range);
+  g_free ((gpointer) module->path);
+
+  g_slice_free (GumModuleDetails, module);
 }
 
 const gchar *

@@ -6,22 +6,24 @@
 
 #include "gumprocess-priv.h"
 
-#include "arch-x86/gumx86writer.h"
 #include "backend-elf/gumelfmodule.h"
 #include "gum-init.h"
+#include "gumandroid.h"
 #include "gumlinux.h"
 #include "gummodulemap.h"
 #include "valgrind.h"
 
 #include <dlfcn.h>
 #include <errno.h>
-#include <link.h>
 #include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <gio/gio.h>
+#ifdef HAVE_LINK_H
+# include <link.h>
+#endif
 #include <sys/prctl.h>
 #include <sys/ptrace.h>
 #ifdef HAVE_ASM_PTRACE_H
@@ -34,11 +36,6 @@
 #include <sys/wait.h>
 #ifdef HAVE_SYS_USER_H
 # include <sys/user.h>
-#endif
-#ifdef HAVE_ANDROID
-# include <sys/system_properties.h>
-#else
-# include <link.h>
 #endif
 
 #define GUM_MAPS_LINE_SIZE (1024 + PATH_MAX)
@@ -86,7 +83,6 @@ typedef guint8 GumModifyThreadAck;
 
 typedef struct _GumEnumerateModulesContext GumEnumerateModulesContext;
 typedef struct _GumEmitExecutableModuleContext GumEmitExecutableModuleContext;
-typedef struct _GumCopyLinkerModuleContext GumCopyLinkerModuleContext;
 typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
 typedef struct _GumDependencyExport GumDependencyExport;
 typedef struct _GumEnumerateModuleSymbolContext GumEnumerateModuleSymbolContext;
@@ -96,11 +92,6 @@ typedef struct _GumResolveModuleNameContext GumResolveModuleNameContext;
 typedef gint (* GumFoundDlPhdrFunc) (struct dl_phdr_info * info,
     gsize size, gpointer data);
 typedef void (* GumDlIteratePhdrImpl) (GumFoundDlPhdrFunc func, gpointer data);
-typedef void * (* GumDlopenImpl) (const char * path, int mode);
-#ifdef HAVE_ANDROID
-typedef void * (* GumBionicDlopenImpl) (const char * path, int mode,
-    void * caller);
-#endif
 
 typedef struct _GumUserDesc GumUserDesc;
 
@@ -146,12 +137,6 @@ struct _GumEmitExecutableModuleContext
   gpointer user_data;
 
   gboolean carry_on;
-};
-
-struct _GumCopyLinkerModuleContext
-{
-  GumAddress address_in_linker;
-  GumModuleDetails * linker_module;
 };
 
 struct _GumEnumerateImportsContext
@@ -224,19 +209,9 @@ static gboolean gum_emit_executable_module (const GumModuleDetails * details,
     gpointer user_data);
 #endif
 
-static void gum_process_enumerate_modules_by_parsing_proc_maps (
-    GumFoundModuleFunc func, gpointer user_data);
-
 static void gum_process_build_named_range_indexes (GHashTable ** names,
     GHashTable ** sizes);
 static gboolean gum_try_translate_vdso_name (gchar * name);
-#ifdef HAVE_ANDROID
-static gboolean gum_copy_linker_module (const GumModuleDetails * details,
-    gpointer user_data);
-static GumModuleDetails * gum_module_details_dup (
-    const GumModuleDetails * module);
-static void gum_module_details_free (GumModuleDetails * module);
-#endif
 static void * gum_module_get_handle (const gchar * module_name);
 
 static gboolean gum_emit_import (const GumImportDetails * details,
@@ -263,12 +238,6 @@ static gboolean gum_module_path_equals (const gchar * path,
     const gchar * name_or_path);
 
 static GumElfModule * gum_open_elf_module (const gchar * name);
-
-#ifdef HAVE_ANDROID
-static gboolean gum_find_bionic_dlopen (GumDlopenImpl * wrapper,
-    GumBionicDlopenImpl * impl);
-static gboolean gum_module_name_is_android_linker (const gchar * name);
-#endif
 
 static gboolean gum_thread_read_state (GumThreadId tid, GumThreadState * state);
 static GumThreadState gum_thread_state_from_proc_status_character (gchar c);
@@ -627,7 +596,7 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
   }
   else
   {
-    gum_process_enumerate_modules_by_parsing_proc_maps (func, user_data);
+    gum_linux_enumerate_modules_using_proc_maps (func, user_data);
   }
 }
 
@@ -653,22 +622,10 @@ gum_process_enumerate_modules_by_using_libc (GumDlIteratePhdrImpl iterate_phdr,
   if (ctx.carry_on)
   {
     if (ctx.linker_module == NULL)
-    {
-      GumCopyLinkerModuleContext clmc;
-
-      clmc.address_in_linker = GUM_ADDRESS (dlsym (RTLD_DEFAULT, "dlopen"));
-      clmc.linker_module = NULL;
-
-      gum_process_enumerate_modules_by_parsing_proc_maps (
-          gum_copy_linker_module, &clmc);
-
-      ctx.linker_module = clmc.linker_module;
-    }
+      ctx.linker_module = gum_android_get_linker_module ();
 
     if (ctx.linker_module != NULL)
-    {
       func (ctx.linker_module, user_data);
-    }
   }
 
   gum_module_details_free (ctx.linker_module);
@@ -718,9 +675,9 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
 
 #ifdef HAVE_ANDROID
   if (ctx->linker_module == NULL &&
-      gum_module_name_is_android_linker (info->dlpi_name))
+      gum_android_is_linker_module_name (info->dlpi_name))
   {
-    ctx->linker_module = gum_module_details_dup (&details);
+    ctx->linker_module = gum_module_details_copy (&details);
   }
   else
 #endif
@@ -742,8 +699,8 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
 
         emc.carry_on = TRUE;
 
-        gum_process_enumerate_modules_by_parsing_proc_maps (
-            gum_emit_executable_module, &emc);
+        gum_linux_enumerate_modules_using_proc_maps (gum_emit_executable_module,
+            &emc);
 
         ctx->carry_on = emc.carry_on;
       }
@@ -806,9 +763,9 @@ gum_emit_executable_module (const GumModuleDetails * details,
 
 #endif
 
-static void
-gum_process_enumerate_modules_by_parsing_proc_maps (GumFoundModuleFunc func,
-                                                    gpointer user_data)
+void
+gum_linux_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
+                                             gpointer user_data)
 {
   FILE * fp;
   const guint line_size = GUM_MAPS_LINE_SIZE;
@@ -1026,49 +983,6 @@ gum_try_translate_vdso_name (gchar * name)
   return FALSE;
 }
 
-#ifdef HAVE_ANDROID
-
-static gboolean
-gum_copy_linker_module (const GumModuleDetails * details,
-                        gpointer user_data)
-{
-  GumCopyLinkerModuleContext * ctx = user_data;
-
-  if (!GUM_MEMORY_RANGE_INCLUDES (details->range, ctx->address_in_linker))
-    return TRUE;
-
-  ctx->linker_module = gum_module_details_dup (details);
-
-  return FALSE;
-}
-
-static GumModuleDetails *
-gum_module_details_dup (const GumModuleDetails * module)
-{
-  GumModuleDetails * copy;
-
-  copy = g_slice_new (GumModuleDetails);
-  copy->name = g_strdup (module->name);
-  copy->range = g_slice_dup (GumMemoryRange, module->range);
-  copy->path = g_strdup (module->path);
-
-  return copy;
-}
-
-static void
-gum_module_details_free (GumModuleDetails * module)
-{
-  if (module == NULL)
-    return;
-
-  g_free ((gpointer) module->name);
-  g_slice_free (GumMemoryRange, (gpointer) module->range);
-  g_free ((gpointer) module->path);
-  g_slice_free (GumModuleDetails, module);
-}
-
-#endif
-
 void
 _gum_process_enumerate_ranges (GumPageProtection prot,
                                GumFoundRangeFunc func,
@@ -1180,13 +1094,13 @@ gboolean
 gum_module_load (const gchar * module_name,
                  GError ** error)
 {
-  GumDlopenImpl dlopen_impl = dlopen;
+  GumGenericDlopenImpl dlopen_impl = dlopen;
 
 #ifdef HAVE_ANDROID
   if (gum_module_get_handle (module_name) != NULL)
     return TRUE;
 
-  gum_find_bionic_dlopen (&dlopen_impl, NULL);
+  gum_android_find_unrestricted_dlopen (&dlopen_impl, NULL);
 #endif
 
   if (dlopen_impl (module_name, RTLD_LAZY) == NULL)
@@ -1208,13 +1122,13 @@ gum_module_get_handle (const gchar * module_name)
   void * module;
   gchar * name;
   GumAddress base;
-  GumBionicDlopenImpl bionic_dlopen;
+  GumAndroidDlopenImpl android_dlopen;
 
   name = gum_resolve_module_name (module_name, &base);
   if (name == NULL)
     return NULL;
 
-  if (gum_module_name_is_android_linker (name))
+  if (gum_android_is_linker_module_name (name))
   {
     g_free (name);
 
@@ -1228,8 +1142,8 @@ gum_module_get_handle (const gchar * module_name)
    * We get away with it by making it look like it's the library
    * calling dlopen().
    */
-  if (gum_find_bionic_dlopen (NULL, &bionic_dlopen))
-    module = bionic_dlopen (name, RTLD_LAZY, GSIZE_TO_POINTER (base));
+  if (gum_android_find_unrestricted_dlopen (NULL, &android_dlopen))
+    module = android_dlopen (name, RTLD_LAZY, GSIZE_TO_POINTER (base));
   else
     module = dlopen (name, RTLD_LAZY);
 
@@ -1762,251 +1676,6 @@ gum_open_elf_module (const gchar * name)
 
   return module;
 }
-
-#ifdef HAVE_ANDROID
-
-static GumDlopenImpl gum_init_bionic_dlopen (void);
-static void * gum_call_bionic_dlopen (const char * path, int mode);
-static GumBionicDlopenImpl gum_resolve_bionic_inner_dlopen (void);
-# if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
-static GumBionicDlopenImpl gum_make_bionic_dlopen_pic_thunk (
-    GumBionicDlopenImpl impl, gsize pic_value);
-#endif
-static guint gum_get_android_api_level (void);
-
-static GumBionicDlopenImpl gum_bionic_dlopen = NULL;
-static gpointer gum_bionic_trusted_caller = NULL;
-
-static gboolean
-gum_module_name_is_android_linker (const gchar * name)
-{
-  const gchar * linker_name = (sizeof (gpointer) == 4)
-      ? "/system/bin/linker"
-      : "/system/bin/linker64";
-  return strcmp (name, linker_name) == 0;
-}
-
-static gboolean
-gum_find_bionic_dlopen (GumDlopenImpl * wrapper,
-                        GumBionicDlopenImpl * impl)
-{
-  static GOnce once = G_ONCE_INIT;
-
-  g_once (&once, (GThreadFunc) gum_init_bionic_dlopen, NULL);
-
-  if (once.retval == NULL)
-    return FALSE;
-
-  if (wrapper != NULL)
-    *wrapper = once.retval;
-
-  if (impl != NULL)
-    *impl = gum_bionic_dlopen;
-
-  return TRUE;
-}
-
-static GumDlopenImpl
-gum_init_bionic_dlopen (void)
-{
-  void * libc;
-
-  gum_bionic_dlopen = gum_resolve_bionic_inner_dlopen ();
-  if (gum_bionic_dlopen == NULL)
-    return NULL;
-
-  libc = dlopen ("libc.so", RTLD_LAZY);
-  gum_bionic_trusted_caller = dlsym (libc, "open");
-  dlclose (libc);
-
-  return gum_call_bionic_dlopen;
-}
-
-static void *
-gum_call_bionic_dlopen (const char * path,
-                        int mode)
-{
-  return gum_bionic_dlopen (path, mode, gum_bionic_trusted_caller);
-}
-
-static GumBionicDlopenImpl
-gum_resolve_bionic_inner_dlopen (void)
-{
-  GumBionicDlopenImpl impl;
-  csh capstone;
-  cs_insn * insn;
-  size_t count;
-
-  if (gum_get_android_api_level () < 26)
-    return NULL;
-
-  impl = NULL;
-  insn = NULL;
-
-#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
-  cs_open (CS_ARCH_X86, CS_MODE_32, &capstone);
-  cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
-
-  count = cs_disasm (capstone, (const uint8_t *) dlopen, 48,
-      GPOINTER_TO_SIZE (dlopen), 18, &insn);
-
-  {
-    gsize pic_value = 0;
-    size_t i;
-
-    for (i = 0; i != count; i++)
-    {
-      const cs_insn * cur = &insn[i];
-      const cs_x86_op * op1 = &cur->detail->x86.operands[0];
-      const cs_x86_op * op2 = &cur->detail->x86.operands[1];
-
-      switch (cur->id)
-      {
-        case X86_INS_CALL:
-          if (op1->type == X86_OP_IMM)
-            impl = GSIZE_TO_POINTER (op1->imm);
-          break;
-        case X86_INS_POP:
-          if (op1->reg == X86_REG_EBX && pic_value == 0)
-            pic_value = cur->address;
-          break;
-        case X86_INS_ADD:
-          if (op1->reg == X86_REG_EBX)
-            pic_value += op2->imm;
-          break;
-      }
-    }
-
-    if (pic_value != 0)
-      impl = gum_make_bionic_dlopen_pic_thunk (impl, pic_value);
-  }
-#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
-  cs_open (CS_ARCH_X86, CS_MODE_64, &capstone);
-  cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
-
-  count = cs_disasm (capstone, (const uint8_t *) dlopen, 16,
-      GPOINTER_TO_SIZE (dlopen), 4, &insn);
-
-  {
-    size_t i;
-
-    for (i = 0; i != count; i++)
-    {
-      const cs_insn * cur = &insn[i];
-      const cs_x86_op * op = &cur->detail->x86.operands[0];
-
-      if (cur->id == X86_INS_JMP)
-      {
-        if (op->type == X86_OP_IMM)
-          impl = GSIZE_TO_POINTER (op->imm);
-        break;
-      }
-    }
-  }
-#elif defined (HAVE_ARM)
-  cs_open (CS_ARCH_ARM, CS_MODE_THUMB, &capstone);
-  cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
-
-  {
-    gsize dlopen_address = GPOINTER_TO_SIZE (dlopen) & (gsize) ~1;
-
-    count = cs_disasm (capstone, GSIZE_TO_POINTER (dlopen_address), 10,
-        dlopen_address, 4, &insn);
-  }
-
-  if (count == 4 &&
-      insn[0].id == ARM_INS_PUSH &&
-      (insn[1].id == ARM_INS_MOV &&
-          insn[1].detail->arm.operands[0].reg == ARM_REG_R2 &&
-          insn[1].detail->arm.operands[1].reg == ARM_REG_LR) &&
-      (insn[2].id == ARM_INS_BL || insn[2].id == ARM_INS_BLX) &&
-      insn[3].id == ARM_INS_POP)
-  {
-    gsize thumb_bit = (insn[2].id == ARM_INS_BL) ? 1 : 0;
-    impl = GSIZE_TO_POINTER (insn[2].detail->arm.operands[0].imm | thumb_bit);
-  }
-#elif defined (HAVE_ARM64)
-  cs_open (CS_ARCH_ARM64, CS_MODE_ARM, &capstone);
-  cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
-
-  count = cs_disasm (capstone, (const uint8_t *) dlopen, 6 * sizeof (guint32),
-      GPOINTER_TO_SIZE (dlopen), 6, &insn);
-
-  if (count == 6 &&
-      insn[0].id == ARM64_INS_STP &&
-      insn[1].id == ARM64_INS_MOV &&
-      (insn[2].id == ARM64_INS_MOV &&
-          insn[2].detail->arm64.operands[0].reg == ARM64_REG_X2 &&
-          insn[2].detail->arm64.operands[1].reg == ARM64_REG_LR) &&
-      insn[3].id == ARM64_INS_BL &&
-      insn[4].id == ARM64_INS_LDP &&
-      insn[5].id == ARM64_INS_RET)
-  {
-    impl = GSIZE_TO_POINTER (insn[3].detail->arm64.operands[0].imm);
-  }
-#else
-# error Unsupported architecture
-#endif
-
-  cs_free (insn, count);
-
-  cs_close (&capstone);
-
-  return impl;
-}
-
-# if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
-
-static void gum_free_bionic_dlopen_pic_thunk (void);
-
-static gpointer gum_bionic_dlopen_pic_thunk = NULL;
-
-static GumBionicDlopenImpl
-gum_make_bionic_dlopen_pic_thunk (GumBionicDlopenImpl impl,
-                                  gsize pic_value)
-{
-  gpointer thunk;
-  gsize page_size;
-  GumX86Writer cw;
-
-  g_assert (gum_bionic_dlopen_pic_thunk == NULL);
-
-  page_size = gum_query_page_size ();
-  thunk = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
-
-  gum_x86_writer_init (&cw, thunk);
-  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_REG_EBX, pic_value);
-  gum_x86_writer_put_jmp_address (&cw, GUM_ADDRESS (impl));
-  gum_x86_writer_clear (&cw);
-
-  gum_memory_mark_code (thunk, page_size);
-
-  gum_bionic_dlopen_pic_thunk = thunk;
-  _gum_register_destructor (gum_free_bionic_dlopen_pic_thunk);
-
-  return thunk;
-}
-
-static void
-gum_free_bionic_dlopen_pic_thunk (void)
-{
-  gum_memory_free (gum_bionic_dlopen_pic_thunk, gum_query_page_size ());
-}
-
-# endif
-
-static guint
-gum_get_android_api_level (void)
-{
-  gchar sdk_version[PROP_VALUE_MAX];
-
-  sdk_version[0] = '\0';
-  __system_property_get ("ro.build.version.sdk", sdk_version);
-
-  return atoi (sdk_version);
-}
-
-#endif
 
 void
 gum_linux_parse_ucontext (const ucontext_t * uc,
