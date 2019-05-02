@@ -515,34 +515,34 @@ gum_cs_load_library (gpointer data)
   if (gum_cs == NULL)
     goto api_error;
 
-#define GUM_TRY_ASSIGN_CS_FUNC(N) \
-  G_PASTE (CS, N) = dlsym (gum_cs, G_STRINGIFY (G_PASTE (CS, N))); \
-  if (G_PASTE (CS, N) == NULL) \
-    goto api_error
+#define GUM_TRY_ASSIGN(name) \
+    G_PASTE (CS, name) = dlsym (gum_cs, G_STRINGIFY (G_PASTE (CS, name))); \
+    if (G_PASTE (CS, name) == NULL) \
+      goto api_error
 
-  GUM_TRY_ASSIGN_CS_FUNC (IsNull);
-  GUM_TRY_ASSIGN_CS_FUNC (Release);
+  GUM_TRY_ASSIGN (IsNull);
+  GUM_TRY_ASSIGN (Release);
 
-  GUM_TRY_ASSIGN_CS_FUNC (SymbolicatorCreateWithPathAndArchitecture);
-  GUM_TRY_ASSIGN_CS_FUNC (SymbolicatorCreateWithTask);
-  GUM_TRY_ASSIGN_CS_FUNC (SymbolicatorGetSymbolWithAddressAtTime);
-  GUM_TRY_ASSIGN_CS_FUNC (SymbolicatorGetSourceInfoWithAddressAtTime);
-  GUM_TRY_ASSIGN_CS_FUNC (SymbolicatorForeachSymbolAtTime);
-  GUM_TRY_ASSIGN_CS_FUNC (SymbolicatorForeachSymbolWithNameAtTime);
+  GUM_TRY_ASSIGN (SymbolicatorCreateWithPathAndArchitecture);
+  GUM_TRY_ASSIGN (SymbolicatorCreateWithTask);
+  GUM_TRY_ASSIGN (SymbolicatorGetSymbolWithAddressAtTime);
+  GUM_TRY_ASSIGN (SymbolicatorGetSourceInfoWithAddressAtTime);
+  GUM_TRY_ASSIGN (SymbolicatorForeachSymbolAtTime);
+  GUM_TRY_ASSIGN (SymbolicatorForeachSymbolWithNameAtTime);
 
-  GUM_TRY_ASSIGN_CS_FUNC (SymbolGetName);
-  GUM_TRY_ASSIGN_CS_FUNC (SymbolGetRange);
-  GUM_TRY_ASSIGN_CS_FUNC (SymbolGetSymbolOwner);
-  GUM_TRY_ASSIGN_CS_FUNC (SymbolIsFunction);
-  GUM_TRY_ASSIGN_CS_FUNC (SymbolIsThumb);
+  GUM_TRY_ASSIGN (SymbolGetName);
+  GUM_TRY_ASSIGN (SymbolGetRange);
+  GUM_TRY_ASSIGN (SymbolGetSymbolOwner);
+  GUM_TRY_ASSIGN (SymbolIsFunction);
+  GUM_TRY_ASSIGN (SymbolIsThumb);
 
-  GUM_TRY_ASSIGN_CS_FUNC (SymbolOwnerGetName);
-  GUM_TRY_ASSIGN_CS_FUNC (SymbolOwnerGetBaseAddress);
+  GUM_TRY_ASSIGN (SymbolOwnerGetName);
+  GUM_TRY_ASSIGN (SymbolOwnerGetBaseAddress);
 
-  GUM_TRY_ASSIGN_CS_FUNC (SourceInfoGetFilename);
-  GUM_TRY_ASSIGN_CS_FUNC (SourceInfoGetLineNumber);
+  GUM_TRY_ASSIGN (SourceInfoGetFilename);
+  GUM_TRY_ASSIGN (SourceInfoGetLineNumber);
 
-#undef GUM_TRY_ASSIGN_CS_FUNC
+#undef GUM_TRY_ASSIGN
 
   _gum_register_destructor (gum_cs_unload_library);
 
