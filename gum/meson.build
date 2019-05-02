@@ -126,6 +126,9 @@ if host_os_family == 'linux'
     'backend-posix/gumexceptor-posix.c',
   ]
   if host_os == 'android'
+    gum_headers += [
+      'backend-linux/gumandroid.h',
+    ]
     gum_sources += [
       'backend-linux/gumandroid.c',
     ]

@@ -122,12 +122,9 @@ struct _GumEnumerateModulesContext
   GumFoundModuleFunc func;
   gpointer user_data;
 
-  GHashTable * names;
-  GHashTable * sizes;
+  GHashTable * named_ranges;
 
   guint index;
-  gboolean carry_on;
-  GumModuleDetails * linker_module;
 };
 
 struct _GumEmitExecutableModuleContext
@@ -197,6 +194,7 @@ static void gum_put_ack (gint fd, GumModifyThreadAck ack);
 static void gum_store_cpu_context (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 
+#ifndef HAVE_ANDROID
 static void gum_process_enumerate_modules_by_using_libc (
     GumDlIteratePhdrImpl iterate_phdr, GumFoundModuleFunc func,
     gpointer user_data);
@@ -204,15 +202,14 @@ static gint gum_emit_module_from_phdr (struct dl_phdr_info * info, gsize size,
     gpointer user_data);
 static GumAddress gum_resolve_base_address_from_phdr (
     struct dl_phdr_info * info);
-#ifndef HAVE_ANDROID
 static gboolean gum_emit_executable_module (const GumModuleDetails * details,
     gpointer user_data);
 #endif
 
-static void gum_process_build_named_range_indexes (GHashTable ** names,
-    GHashTable ** sizes);
+static void gum_linux_named_range_free (GumLinuxNamedRange * range);
 static gboolean gum_try_translate_vdso_name (gchar * name);
 static void * gum_module_get_handle (const gchar * module_name);
+static void * gum_module_get_symbol (void * module, const gchar * symbol_name);
 
 static gboolean gum_emit_import (const GumImportDetails * details,
     gpointer user_data);
@@ -234,8 +231,6 @@ static gboolean gum_emit_range_if_module_name_matches (
 static gchar * gum_resolve_module_name (const gchar * name, GumAddress * base);
 static gboolean gum_store_module_path_and_base_if_name_matches (
     const GumModuleDetails * details, gpointer user_data);
-static gboolean gum_module_path_equals (const gchar * path,
-    const gchar * name_or_path);
 
 static GumElfModule * gum_open_elf_module (const gchar * name);
 
@@ -573,6 +568,17 @@ gum_store_cpu_context (GumThreadId thread_id,
   memcpy (user_data, cpu_context, sizeof (GumCpuContext));
 }
 
+#ifdef HAVE_ANDROID
+
+void
+gum_process_enumerate_modules (GumFoundModuleFunc func,
+                               gpointer user_data)
+{
+  gum_android_enumerate_modules (func, user_data);
+}
+
+#else
+
 void
 gum_process_enumerate_modules (GumFoundModuleFunc func,
                                gpointer user_data)
@@ -584,7 +590,8 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
   {
     gsize impl;
 
-    impl = GPOINTER_TO_SIZE (dlsym (RTLD_DEFAULT, "dl_iterate_phdr"));
+    impl = GPOINTER_TO_SIZE (
+        gum_module_get_symbol (RTLD_DEFAULT, "dl_iterate_phdr"));
 
     g_once_init_leave (&iterate_phdr_value, impl + 1);
   }
@@ -610,29 +617,13 @@ gum_process_enumerate_modules_by_using_libc (GumDlIteratePhdrImpl iterate_phdr,
   ctx.func = func;
   ctx.user_data = user_data;
 
-  gum_process_build_named_range_indexes (&ctx.names, &ctx.sizes);
+  ctx.named_ranges = gum_linux_collect_named_ranges ();
 
   ctx.index = 0;
-  ctx.carry_on = TRUE;
-  ctx.linker_module = NULL;
 
   iterate_phdr (gum_emit_module_from_phdr, &ctx);
 
-#ifdef HAVE_ANDROID
-  if (ctx.carry_on)
-  {
-    if (ctx.linker_module == NULL)
-      ctx.linker_module = gum_android_get_linker_module ();
-
-    if (ctx.linker_module != NULL)
-      func (ctx.linker_module, user_data);
-  }
-
-  gum_module_details_free (ctx.linker_module);
-#endif
-
-  g_hash_table_unref (ctx.sizes);
-  g_hash_table_unref (ctx.names);
+  g_hash_table_unref (ctx.named_ranges);
 }
 
 static gint
@@ -643,10 +634,12 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
   GumEnumerateModulesContext * ctx = user_data;
   gboolean is_special_module;
   GumAddress base_address;
+  GumLinuxNamedRange * named_range;
   const gchar * path;
   gchar * name;
   GumModuleDetails details;
   GumMemoryRange range;
+  gboolean carry_on;
 
   is_special_module = info->dlpi_addr == 0 || info->dlpi_name == NULL ||
       info->dlpi_name[0] == '\0';
@@ -655,9 +648,10 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
 
   base_address = gum_resolve_base_address_from_phdr (info);
 
-  path = g_hash_table_lookup (ctx->names, GSIZE_TO_POINTER (base_address));
-  if (path == NULL)
-    path = info->dlpi_name;
+  named_range =
+      g_hash_table_lookup (ctx->named_ranges, GSIZE_TO_POINTER (base_address));
+
+  path = (named_range != NULL) ? named_range->name : info->dlpi_name;
 
   is_special_module = path[0] == '[';
   if (is_special_module)
@@ -670,56 +664,45 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
   details.path = path;
 
   range.base_address = base_address;
-  range.size = GPOINTER_TO_SIZE (
-      g_hash_table_lookup (ctx->sizes, GSIZE_TO_POINTER (base_address)));
+  range.size = (named_range != NULL) ? named_range->size : 0;
 
-#ifdef HAVE_ANDROID
-  if (ctx->linker_module == NULL &&
-      gum_android_is_linker_module_name (info->dlpi_name))
+  carry_on = TRUE;
+
+  if (ctx->index == 0)
   {
-    ctx->linker_module = gum_module_details_copy (&details);
-  }
-  else
-#endif
-  {
-#ifndef HAVE_ANDROID
-    if (ctx->index == 0)
+    gchar * executable_path;
+
+    executable_path = g_file_read_link ("/proc/self/exe", NULL);
+    if (executable_path != NULL &&
+        strcmp (details.path, executable_path) != 0)
     {
-      gchar * executable_path;
+      GumEmitExecutableModuleContext emc;
 
-      executable_path = g_file_read_link ("/proc/self/exe", NULL);
-      if (executable_path != NULL &&
-          strcmp (details.path, executable_path) != 0)
-      {
-        GumEmitExecutableModuleContext emc;
+      emc.executable_path = executable_path;
+      emc.func = ctx->func;
+      emc.user_data = ctx->user_data;
 
-        emc.executable_path = executable_path;
-        emc.func = ctx->func;
-        emc.user_data = ctx->user_data;
+      emc.carry_on = TRUE;
 
-        emc.carry_on = TRUE;
+      gum_linux_enumerate_modules_using_proc_maps (gum_emit_executable_module,
+          &emc);
 
-        gum_linux_enumerate_modules_using_proc_maps (gum_emit_executable_module,
-            &emc);
-
-        ctx->carry_on = emc.carry_on;
-      }
-
-      g_free (executable_path);
-    }
-#endif
-
-    if (ctx->carry_on)
-    {
-      ctx->carry_on = ctx->func (&details, ctx->user_data);
+      carry_on = emc.carry_on;
     }
 
-    ctx->index++;
+    g_free (executable_path);
   }
+
+  if (carry_on)
+  {
+    carry_on = ctx->func (&details, ctx->user_data);
+  }
+
+  ctx->index++;
 
   g_free (name);
 
-  return ctx->carry_on ? 0 : 1;
+  return carry_on ? 0 : 1;
 }
 
 static GumAddress
@@ -744,8 +727,6 @@ gum_resolve_base_address_from_phdr (struct dl_phdr_info * info)
 
   return base_address;
 }
-
-#ifndef HAVE_ANDROID
 
 static gboolean
 gum_emit_executable_module (const GumModuleDetails * details,
@@ -877,18 +858,18 @@ gum_linux_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
   fclose (fp);
 }
 
-static void
-gum_process_build_named_range_indexes (GHashTable ** names,
-                                       GHashTable ** sizes)
+GHashTable *
+gum_linux_collect_named_ranges (void)
 {
+  GHashTable * result;
   FILE * fp;
   const guint line_size = GUM_MAPS_LINE_SIZE;
   gchar * line, * name, * next_name;
   gboolean carry_on = TRUE;
   gboolean got_line = FALSE;
 
-  *names = g_hash_table_new_full (NULL, NULL, NULL, g_free);
-  *sizes = g_hash_table_new (NULL, NULL);
+  result = g_hash_table_new_full (NULL, NULL, NULL,
+      (GDestroyNotify) gum_linux_named_range_free);
 
   fp = fopen ("/proc/self/maps", "r");
   g_assert (fp != NULL);
@@ -900,10 +881,10 @@ gum_process_build_named_range_indexes (GHashTable ** names,
 
   do
   {
-    GumMemoryRange range;
-    GumAddress end;
+    GumAddress start, end;
+    gsize size;
     gint n;
-    gpointer base;
+    GumLinuxNamedRange * range;
 
     if (!got_line)
     {
@@ -920,7 +901,7 @@ gum_process_build_named_range_indexes (GHashTable ** names,
         "%*4c "
         "%*x %*s %*d "
         "%s",
-        &range.base_address, &end,
+        &start, &end,
         name);
     if (n == 2)
       continue;
@@ -928,7 +909,7 @@ gum_process_build_named_range_indexes (GHashTable ** names,
 
     gum_try_translate_vdso_name (name);
 
-    range.size = end - range.base_address;
+    size = end - start;
 
     while (fgets (line, line_size, fp) != NULL)
     {
@@ -948,7 +929,7 @@ gum_process_build_named_range_indexes (GHashTable ** names,
 
       if (n == 2 && strcmp (next_name, name) == 0)
       {
-        range.size = end - range.base_address;
+        size = end - start;
       }
       else
       {
@@ -957,9 +938,13 @@ gum_process_build_named_range_indexes (GHashTable ** names,
       }
     }
 
-    base = GSIZE_TO_POINTER (range.base_address);
-    g_hash_table_insert (*names, base, g_strdup (name));
-    g_hash_table_insert (*sizes, base, GSIZE_TO_POINTER (range.size));
+    range = g_slice_new (GumLinuxNamedRange);
+
+    range->name = g_strdup (name);
+    range->base = GSIZE_TO_POINTER (start);
+    range->size = size;
+
+    g_hash_table_insert (result, range->base, range);
   }
   while (carry_on);
 
@@ -969,6 +954,16 @@ gum_process_build_named_range_indexes (GHashTable ** names,
   g_free (line);
 
   fclose (fp);
+
+  return result;
+}
+
+static void
+gum_linux_named_range_free (GumLinuxNamedRange * range)
+{
+  g_free ((gpointer) range->name);
+
+  g_slice_free (GumLinuxNamedRange, range);
 }
 
 static gboolean
@@ -1100,7 +1095,7 @@ gum_module_load (const gchar * module_name,
   if (gum_module_get_handle (module_name) != NULL)
     return TRUE;
 
-  gum_android_find_unrestricted_dlopen (&dlopen_impl, NULL);
+  gum_android_find_unrestricted_dlopen (&dlopen_impl);
 #endif
 
   if (dlopen_impl (module_name, RTLD_LAZY) == NULL)
@@ -1119,62 +1114,45 @@ static void *
 gum_module_get_handle (const gchar * module_name)
 {
 #ifdef HAVE_ANDROID
-  void * module;
-  gchar * name;
-  GumAddress base;
-  GumAndroidDlopenImpl android_dlopen;
-
-  name = gum_resolve_module_name (module_name, &base);
-  if (name == NULL)
-    return NULL;
-
-  if (gum_android_is_linker_module_name (name))
-  {
-    g_free (name);
-
-    return RTLD_DEFAULT;
-  }
-
-  /*
-   * Bad things happen on newer Android if a non-app component calls
-   * dlopen() on an already loaded library belonging to an app.
-   *
-   * We get away with it by making it look like it's the library
-   * calling dlopen().
-   */
-  if (gum_android_find_unrestricted_dlopen (NULL, &android_dlopen))
-    module = android_dlopen (name, RTLD_LAZY, GSIZE_TO_POINTER (base));
-  else
-    module = dlopen (name, RTLD_LAZY);
-
-  g_free (name);
-
-  return module;
+  return gum_android_get_module_handle (module_name);
 #else
   return dlopen (module_name, RTLD_LAZY | RTLD_NOLOAD);
 #endif
 }
 
+static void *
+gum_module_get_symbol (void * module,
+                       const gchar * symbol)
+{
+  GumGenericDlsymImpl dlsym_impl = dlsym;
+
+#ifdef HAVE_ANDROID
+  gum_android_find_unrestricted_dlsym (&dlsym_impl);
+#endif
+
+  return dlsym_impl (module, symbol);
+}
+
 gboolean
 gum_module_ensure_initialized (const gchar * module_name)
 {
+#ifdef HAVE_ANDROID
+  return gum_android_ensure_module_initialized (module_name);
+#else
   void * module;
 
   module = gum_module_get_handle (module_name);
   if (module == NULL)
     return FALSE;
-  if (module == RTLD_DEFAULT)
-    return TRUE;
   dlclose (module);
 
-#ifndef HAVE_ANDROID
   module = dlopen (module_name, RTLD_LAZY);
   if (module == NULL)
     return FALSE;
   dlclose (module);
-#endif
 
   return TRUE;
+#endif
 }
 
 void
@@ -1230,7 +1208,8 @@ gum_emit_import (const GumImportDetails * details,
   else
   {
     d.module = NULL;
-    d.address = GUM_ADDRESS (dlsym (RTLD_DEFAULT, details->name));
+    d.address = GUM_ADDRESS (
+        gum_module_get_symbol (RTLD_DEFAULT, details->name));
 
     if (d.address != 0)
     {
@@ -1456,11 +1435,17 @@ gum_module_find_export_by_name (const gchar * module_name,
   void * module;
 
   if (module_name != NULL)
+  {
     module = gum_module_get_handle (module_name);
+    if (module == NULL)
+      return 0;
+  }
   else
+  {
     module = RTLD_DEFAULT;
+  }
 
-  result = GUM_ADDRESS (dlsym (module, symbol_name));
+  result = GUM_ADDRESS (gum_module_get_symbol (module, symbol_name));
 
   if (module != RTLD_DEFAULT)
     dlclose (module);
@@ -1634,7 +1619,7 @@ gum_store_module_path_and_base_if_name_matches (
 {
   GumResolveModuleNameContext * ctx = user_data;
 
-  if (gum_module_path_equals (details->path, ctx->name))
+  if (gum_linux_module_path_matches (details->path, ctx->name))
   {
     ctx->path = g_strdup (details->path);
     ctx->base = details->range->base_address;
@@ -1644,11 +1629,11 @@ gum_store_module_path_and_base_if_name_matches (
   return TRUE;
 }
 
-static gboolean
-gum_module_path_equals (const gchar * path,
-                        const gchar * name_or_path)
+gboolean
+gum_linux_module_path_matches (const gchar * path,
+                               const gchar * name_or_path)
 {
-  gchar * s;
+  const gchar * s;
 
   if (name_or_path[0] == '/')
     return strcmp (name_or_path, path) == 0;
