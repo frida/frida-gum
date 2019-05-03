@@ -47,7 +47,7 @@
 G_BEGIN_DECLS
 
 typedef guint64 GumAddress;
-#define GUM_ADDRESS(a) ((GumAddress) GPOINTER_TO_SIZE (a))
+#define GUM_ADDRESS(a) ((GumAddress) (guintptr) (a))
 #define GUM_TYPE_ADDRESS (gum_address_get_type ())
 typedef guint GumOS;
 typedef guint GumCallingConvention;
