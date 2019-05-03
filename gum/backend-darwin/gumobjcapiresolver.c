@@ -366,19 +366,19 @@ gum_objc_api_resolver_create_snapshot (GumObjcApiResolver * self)
 static void
 gum_objc_class_metadata_free (GumObjcClassMetadata * klass)
 {
-  if (libc_free == NULL)
+  if (gum_libc_free == NULL)
   {
-    libc_free = (GumLibcFreeFunc) gum_module_find_export_by_name (
+    gum_libc_free = (GumLibcFreeFunc) gum_module_find_export_by_name (
         "/usr/lib/system/libsystem_malloc.dylib", "free");
   }
 
   g_slist_free (klass->subclasses);
 
   if (klass->instance_methods != NULL)
-    libc_free (klass->instance_methods);
+    gum_libc_free (klass->instance_methods);
 
   if (klass->class_methods != NULL)
-    libc_free (klass->class_methods);
+    gum_libc_free (klass->class_methods);
 
   g_slice_free (GumObjcClassMetadata, klass);
 }
