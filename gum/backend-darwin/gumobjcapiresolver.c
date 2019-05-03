@@ -6,7 +6,7 @@
 
 #include "gumobjcapiresolver.h"
 
-#include "backend-darwin/gumdarwin.h"
+#include "gumprocess.h"
 
 #include <dlfcn.h>
 #include <gio/gio.h>
