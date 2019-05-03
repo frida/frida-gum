@@ -789,7 +789,7 @@ gum_linux_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
     GumAddress end;
     gchar perms[5] = { 0, };
     gint n;
-    gboolean readable, shared;
+    gboolean is_vdso, readable, shared;
     gchar * name;
 
     if (!got_line)
@@ -814,13 +814,13 @@ gum_linux_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
       continue;
     g_assert (n == 4);
 
-    gum_try_translate_vdso_name (path);
+    is_vdso = gum_try_translate_vdso_name (path);
 
     readable = perms[0] == 'r';
     shared = perms[3] == 's';
     if (!readable || shared)
       continue;
-    else if (path[0] != '/' || g_str_has_prefix (path, "/dev/"))
+    else if ((path[0] != '/' && !is_vdso) || g_str_has_prefix (path, "/dev/"))
       continue;
     else if (RUNNING_ON_VALGRIND && strstr (path, "/valgrind/") != NULL)
       continue;
