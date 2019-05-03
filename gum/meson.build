@@ -146,6 +146,9 @@ if host_os_family == 'qnx'
 endif
 
 if host_os_family == 'linux' or host_os_family == 'qnx'
+  gum_headers += [
+    'backend-elf/gumelfmodule.h',
+  ]
   gum_sources += [
     'backend-elf/gumelfmodule.c',
   ]

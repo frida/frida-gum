@@ -291,6 +291,12 @@ gum_incdirs = [
   include_directories('libs/gum/prof'),
 ]
 
+if host_os_family == 'linux' or host_os_family == 'qnx'
+  gum_incdirs += [
+    include_directories('gum/backend-elf'),
+  ]
+endif
+
 install_header_basedir = 'frida-' + api_version
 install_header_subdir = install_header_basedir + '/gum'
 

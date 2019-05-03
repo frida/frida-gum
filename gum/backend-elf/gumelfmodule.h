@@ -101,27 +101,28 @@ struct _GumElfSectionDetails
   GumPageProtection prot;
 };
 
-GumElfModule * gum_elf_module_new_from_memory (const gchar * path,
+GUM_API GumElfModule * gum_elf_module_new_from_memory (const gchar * path,
     GumAddress base_address);
 
-void gum_elf_module_enumerate_dependencies (GumElfModule * self,
+GUM_API void gum_elf_module_enumerate_dependencies (GumElfModule * self,
     GumElfFoundDependencyFunc func, gpointer user_data);
-void gum_elf_module_enumerate_imports (GumElfModule * self,
+GUM_API void gum_elf_module_enumerate_imports (GumElfModule * self,
     GumFoundImportFunc func, gpointer user_data);
-void gum_elf_module_enumerate_exports (GumElfModule * self,
+GUM_API void gum_elf_module_enumerate_exports (GumElfModule * self,
     GumFoundExportFunc func, gpointer user_data);
-void gum_elf_module_enumerate_dynamic_symbols (GumElfModule * self,
+GUM_API void gum_elf_module_enumerate_dynamic_symbols (GumElfModule * self,
     GumElfFoundSymbolFunc func, gpointer user_data);
-void gum_elf_module_enumerate_symbols (GumElfModule * self,
+GUM_API void gum_elf_module_enumerate_symbols (GumElfModule * self,
     GumElfFoundSymbolFunc func, gpointer user_data);
-void gum_elf_module_enumerate_dynamic_entries (GumElfModule * self,
+GUM_API void gum_elf_module_enumerate_dynamic_entries (GumElfModule * self,
     GumElfFoundDynamicEntryFunc func, gpointer user_data);
-void gum_elf_module_enumerate_sections (GumElfModule * self,
+GUM_API void gum_elf_module_enumerate_sections (GumElfModule * self,
     GumElfFoundSectionFunc func, gpointer user_data);
-gboolean gum_elf_module_find_section_header_by_index (GumElfModule * self,
-    guint index, Elf_Scn ** scn, GElf_Shdr * shdr);
-gboolean gum_elf_module_find_section_header_by_type (GumElfModule * self,
-    GumElfSectionHeaderType type, Elf_Scn ** scn, GElf_Shdr * shdr);
+GUM_API gboolean gum_elf_module_find_section_header_by_index (
+    GumElfModule * self, guint index, Elf_Scn ** scn, GElf_Shdr * shdr);
+GUM_API gboolean gum_elf_module_find_section_header_by_type (
+    GumElfModule * self, GumElfSectionHeaderType type, Elf_Scn ** scn,
+    GElf_Shdr * shdr);
 
 G_END_DECLS
 
