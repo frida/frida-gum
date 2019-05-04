@@ -6,12 +6,15 @@
 
 #include "gumobjcapiresolver.h"
 
+#include "gumprocess.h"
+
 #include <dlfcn.h>
 #include <gio/gio.h>
 #include <objc/runtime.h>
 #include <stdlib.h>
 
 typedef struct _GumObjcClassMetadata GumObjcClassMetadata;
+typedef void (* GumLibcFreeFunc) (gpointer mem);
 
 struct _GumObjcApiResolver
 {
@@ -77,6 +80,8 @@ G_DEFINE_TYPE_EXTENDED (GumObjcApiResolver,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_API_RESOLVER,
                             gum_objc_api_resolver_iface_init))
+
+static GumLibcFreeFunc gum_libc_free = NULL;
 
 static void
 gum_objc_api_resolver_class_init (GumObjcApiResolverClass * klass)
@@ -361,13 +366,19 @@ gum_objc_api_resolver_create_snapshot (GumObjcApiResolver * self)
 static void
 gum_objc_class_metadata_free (GumObjcClassMetadata * klass)
 {
+  if (gum_libc_free == NULL)
+  {
+    gum_libc_free = (GumLibcFreeFunc) gum_module_find_export_by_name (
+        "/usr/lib/system/libsystem_malloc.dylib", "free");
+  }
+
   g_slist_free (klass->subclasses);
 
   if (klass->instance_methods != NULL)
-    free (klass->instance_methods);
+    gum_libc_free (klass->instance_methods);
 
   if (klass->class_methods != NULL)
-    free (klass->class_methods);
+    gum_libc_free (klass->class_methods);
 
   g_slice_free (GumObjcClassMetadata, klass);
 }
