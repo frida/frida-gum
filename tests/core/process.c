@@ -86,6 +86,7 @@ struct _TestThreadSyncData
   GMutex mutex;
   GCond cond;
   volatile gboolean started;
+  volatile GumThreadId thread_id;
   volatile gboolean * volatile done;
 };
 
@@ -103,7 +104,8 @@ static gboolean store_export_address_if_mach_msg (
     const GumExportDetails * details, gpointer user_data);
 #endif
 
-static GThread * create_sleeping_dummy_thread_sync (volatile gboolean * done);
+static GThread * create_sleeping_dummy_thread_sync (volatile gboolean * done,
+    GumThreadId * thread_id);
 static gpointer sleeping_dummy (gpointer data);
 static gboolean thread_found_cb (const GumThreadDetails * details,
     gpointer user_data);
@@ -139,8 +141,8 @@ TESTCASE (process_threads)
   if (!check_thread_enumeration_testable ())
     return;
 
-  thread_a = create_sleeping_dummy_thread_sync (&done);
-  thread_b = create_sleeping_dummy_thread_sync (&done);
+  thread_a = create_sleeping_dummy_thread_sync (&done, NULL);
+  thread_b = create_sleeping_dummy_thread_sync (&done, NULL);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
@@ -159,12 +161,15 @@ TESTCASE (process_threads)
 
 TESTCASE (process_threads_exclude_cloaked)
 {
+  volatile gboolean done = FALSE;
+  GThread * thread;
   TestThreadContext ctx;
 
   if (!check_thread_enumeration_testable ())
     return;
 
-  ctx.needle = gum_process_get_current_thread_id ();
+  thread = create_sleeping_dummy_thread_sync (&done, &ctx.needle);
+
   ctx.found = FALSE;
   gum_process_enumerate_threads (thread_check_cb, &ctx);
   g_assert_true (ctx.found);
@@ -176,6 +181,9 @@ TESTCASE (process_threads_exclude_cloaked)
   g_assert_false (ctx.found);
 
   gum_cloak_remove_thread (ctx.needle);
+
+  done = TRUE;
+  g_thread_join (thread);
 }
 
 static gboolean
@@ -749,7 +757,8 @@ store_export_address_if_mach_msg (const GumExportDetails * details,
 #endif
 
 static GThread *
-create_sleeping_dummy_thread_sync (volatile gboolean * done)
+create_sleeping_dummy_thread_sync (volatile gboolean * done,
+                                   GumThreadId * thread_id)
 {
   TestThreadSyncData sync_data;
   GThread * thread;
@@ -757,6 +766,7 @@ create_sleeping_dummy_thread_sync (volatile gboolean * done)
   g_mutex_init (&sync_data.mutex);
   g_cond_init (&sync_data.cond);
   sync_data.started = FALSE;
+  sync_data.thread_id = 0;
   sync_data.done = done;
 
   g_mutex_lock (&sync_data.mutex);
@@ -766,6 +776,9 @@ create_sleeping_dummy_thread_sync (volatile gboolean * done)
 
   while (!sync_data.started)
     g_cond_wait (&sync_data.cond, &sync_data.mutex);
+
+  if (thread_id != NULL)
+    *thread_id = sync_data.thread_id;
 
   g_mutex_unlock (&sync_data.mutex);
 
@@ -783,6 +796,7 @@ sleeping_dummy (gpointer data)
 
   g_mutex_lock (&sync_data->mutex);
   sync_data->started = TRUE;
+  sync_data->thread_id = gum_process_get_current_thread_id ();
   g_cond_signal (&sync_data->cond);
   g_mutex_unlock (&sync_data->mutex);
 
