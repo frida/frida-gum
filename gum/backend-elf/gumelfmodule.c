@@ -125,7 +125,6 @@ static void
 gum_elf_module_constructed (GObject * object)
 {
   GumElfModule * self = GUM_ELF_MODULE (object);
-  int fd;
   GElf_Half type;
 
   if (self->name == NULL)
@@ -133,19 +132,33 @@ gum_elf_module_constructed (GObject * object)
     self->name = g_path_get_basename (self->path);
   }
 
-  fd = open (self->path, O_RDONLY);
-  if (fd == -1)
-    goto error;
+  if (strcmp (self->path, "linux-vdso.so.1") == 0)
+  {
+    self->file_data = GSIZE_TO_POINTER (self->base_address);
+    self->file_size = gum_query_page_size ();
+    self->is_linux_vdso = TRUE;
+  }
+  else
+  {
+    int fd;
 
-  self->file_size = lseek (fd, 0, SEEK_END);
-  lseek (fd, 0, SEEK_SET);
+    fd = open (self->path, O_RDONLY);
+    if (fd == -1)
+      goto error;
 
-  self->file_data = mmap (NULL, self->file_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    self->file_size = lseek (fd, 0, SEEK_END);
+    lseek (fd, 0, SEEK_SET);
 
-  close (fd);
+    self->file_data =
+        mmap (NULL, self->file_size, PROT_READ, MAP_PRIVATE, fd, 0);
 
-  if (self->file_data == MAP_FAILED)
-    goto mmap_failed;
+    close (fd);
+
+    if (self->file_data == MAP_FAILED)
+      goto mmap_failed;
+
+    self->is_linux_vdso = FALSE;
+  }
 
   self->elf = elf_memory (self->file_data, self->file_size);
   if (self->elf == NULL)
@@ -190,7 +203,7 @@ gum_elf_module_finalize (GObject * object)
   if (self->elf != NULL)
     elf_end (self->elf);
 
-  if (self->file_data != NULL)
+  if (self->file_data != NULL && !self->is_linux_vdso)
     munmap (self->file_data, self->file_size);
 
   g_free (self->path);
@@ -848,6 +861,10 @@ static GumElfDynamicAddressState
 gum_elf_module_detect_dynamic_address_state (GumElfModule * self)
 {
   /* FIXME: this is not very generic */
+
+  if (self->is_linux_vdso)
+    return GUM_ELF_DYNAMIC_ADDRESS_PRISTINE;
+
 #ifdef HAVE_ANDROID
   return GUM_ELF_DYNAMIC_ADDRESS_PRISTINE;
 #else
