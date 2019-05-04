@@ -14,7 +14,7 @@
 #include <stdlib.h>
 
 typedef struct _GumObjcClassMetadata GumObjcClassMetadata;
-typedef void (* GumLibcFreeFunc) (void *);
+typedef void (* GumLibcFreeFunc) (gpointer mem);
 
 struct _GumObjcApiResolver
 {
