@@ -1,10 +1,14 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gumelfmodule.h"
+
+#ifdef HAVE_ANDROID
+# include "backend-linux/gumandroid.h"
+#endif
 
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -359,28 +363,21 @@ gum_elf_module_enumerate_exports (GumElfModule * self,
   GumElfEnumerateExportsContext ctx;
 
 #ifdef HAVE_ANDROID
-  const gchar * linker_name = (sizeof (gpointer) == 4)
-      ? "/system/bin/linker"
-      : "/system/bin/linker64";
-  if (strcmp (self->path, linker_name) == 0)
+  if (gum_android_is_linker_module_name (self->path))
   {
-    const gchar * linker_exports[] =
-    {
-      "dlopen",
-      "dlsym",
-      "dlclose",
-      "dlerror",
-    };
+    const gchar ** magic_exports;
     guint i;
 
-    for (i = 0; i != G_N_ELEMENTS (linker_exports); i++)
+    magic_exports = gum_android_get_magic_linker_export_names ();
+
+    for (i = 0; magic_exports[i] != NULL; i++)
     {
-      const gchar * name = linker_exports[i];
+      const gchar * name = magic_exports[i];
       GumExportDetails d;
 
       d.type = GUM_EXPORT_FUNCTION;
       d.name = name;
-      d.address = gum_module_find_export_by_name (linker_name, name);
+      d.address = gum_module_find_export_by_name (self->path, name);
       g_assert (d.address != 0);
 
       if (!func (&d, user_data))

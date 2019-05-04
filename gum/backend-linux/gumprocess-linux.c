@@ -1434,6 +1434,11 @@ gum_module_find_export_by_name (const gchar * module_name,
   GumAddress result;
   void * module;
 
+#ifdef HAVE_ANDROID
+  if (gum_android_try_resolve_magic_export (module_name, symbol_name, &result))
+    return result;
+#endif
+
   if (module_name != NULL)
   {
     module = gum_module_get_handle (module_name);

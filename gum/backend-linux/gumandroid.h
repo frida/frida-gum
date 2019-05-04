@@ -28,11 +28,19 @@ struct _GumAndroidUnrestrictedLinkerApi
   GumAndroidDlsymImpl dlsym;
 };
 
+GUM_API guint gum_android_get_api_level (void);
+
 GUM_API GumElfModule * gum_android_open_linker_module (void);
+GUM_API gboolean gum_android_is_linker_module_name (const gchar * name);
+GUM_API const gchar ** gum_android_get_magic_linker_export_names (void);
+GUM_API gboolean gum_android_try_resolve_magic_export (
+    const gchar * module_name, const gchar * symbol_name, GumAddress * result);
+
 GUM_API void * gum_android_get_module_handle (const gchar * name);
 GUM_API gboolean gum_android_ensure_module_initialized (const gchar * name);
 GUM_API void gum_android_enumerate_modules (GumFoundModuleFunc func,
     gpointer user_data);
+
 GUM_API gboolean gum_android_find_unrestricted_dlopen (
     GumGenericDlopenImpl * generic_dlopen);
 GUM_API gboolean gum_android_find_unrestricted_dlsym (

@@ -20,10 +20,12 @@
 #endif
 
 #if GLIB_SIZEOF_VOID_P == 4
-# define GUM_ANDROID_LINKER_MODULE_NAME "/system/bin/linker"
+# define GUM_ANDROID_LINKER_MODULE_BASENAME "linker"
 #else
-# define GUM_ANDROID_LINKER_MODULE_NAME "/system/bin/linker64"
+# define GUM_ANDROID_LINKER_MODULE_BASENAME "linker64"
 #endif
+#define GUM_ANDROID_LINKER_MODULE_NAME \
+    "/system/bin/" GUM_ANDROID_LINKER_MODULE_BASENAME
 #define GUM_ANDROID_VDSO_MODULE_NAME "linux-vdso.so.1"
 
 #if GLIB_SIZEOF_VOID_P == 4
@@ -284,18 +286,98 @@ static const char * gum_soinfo_get_path_fallback (const GumSoinfo * self);
 static void * gum_call_inner_dlopen (const char * filename, int flags);
 static void * gum_call_inner_dlsym (void * handle, const char * symbol);
 
-static guint gum_android_get_api_level (void);
-
 static const char * gum_libcxx_string_get_data (const GumLibcxxString * self);
 
 static GumLinkerApi gum_linker;
 static GumMemoryRange gum_linker_range;
+
+static const gchar * gum_magic_linker_export_names_pre_api_level_26[] =
+{
+  "dlopen",
+  "dlsym",
+  "dlclose",
+  "dlerror",
+  NULL
+};
+
+static const gchar * gum_magic_linker_export_names_post_api_level_26[] =
+{
+  NULL
+};
+
+guint
+gum_android_get_api_level (void)
+{
+  static guint cached_api_level = 0;
+
+  if (cached_api_level == 0)
+  {
+    gchar sdk_version[PROP_VALUE_MAX];
+
+    sdk_version[0] = '\0';
+    __system_property_get ("ro.build.version.sdk", sdk_version);
+
+    cached_api_level = atoi (sdk_version);
+  }
+
+  return cached_api_level;
+}
 
 GumElfModule *
 gum_android_open_linker_module (void)
 {
   return gum_elf_module_new_from_memory (GUM_ANDROID_LINKER_MODULE_NAME,
       gum_get_linker_range ()->base_address);
+}
+
+gboolean
+gum_android_is_linker_module_name (const gchar * name)
+{
+  if (name[0] != '/')
+    return strcmp (name, GUM_ANDROID_LINKER_MODULE_BASENAME) == 0;
+
+  return strcmp (name, GUM_ANDROID_LINKER_MODULE_NAME) == 0;
+}
+
+const gchar **
+gum_android_get_magic_linker_export_names (void)
+{
+  return (gum_android_get_api_level () < 26)
+      ? gum_magic_linker_export_names_pre_api_level_26
+      : gum_magic_linker_export_names_post_api_level_26;
+}
+
+gboolean
+gum_android_try_resolve_magic_export (const gchar * module_name,
+                                      const gchar * symbol_name,
+                                      GumAddress * result)
+{
+  const gchar ** magic_exports;
+  guint i;
+
+  magic_exports = gum_android_get_magic_linker_export_names ();
+  if (magic_exports[0] == NULL)
+    return FALSE;
+
+  if (module_name == NULL || !gum_android_is_linker_module_name (module_name))
+    return FALSE;
+
+  for (i = 0; magic_exports[i] != NULL; i++)
+  {
+    if (strcmp (symbol_name, magic_exports[i]) == 0)
+    {
+      *result = GUM_ADDRESS (dlsym (RTLD_DEFAULT, symbol_name));
+      return TRUE;
+    }
+  }
+
+  return FALSE;
+}
+
+static gboolean
+gum_android_is_vdso_module_name (const gchar * name)
+{
+  return strcmp (name, GUM_ANDROID_VDSO_MODULE_NAME) == 0;
 }
 
 static const GumMemoryRange *
@@ -559,12 +641,12 @@ gum_enumerate_soinfo (GumFoundSoinfoFunc func,
       continue;
 
     details.path = gum_resolve_soinfo_path (si, api, &ranges);
-    if (strcmp (details.path, GUM_ANDROID_VDSO_MODULE_NAME) == 0)
+    if (gum_android_is_vdso_module_name (details.path))
     {
       sovdso = si;
       continue;
     }
-    if (strcmp (details.path, GUM_ANDROID_LINKER_MODULE_NAME) == 0)
+    if (gum_android_is_linker_module_name (details.path))
     {
       solinker = si;
       continue;
@@ -840,24 +922,6 @@ gum_call_inner_dlsym (void * handle,
                       const char * symbol)
 {
   return gum_linker.dlsym (handle, symbol, NULL, gum_linker.trusted_caller);
-}
-
-static guint
-gum_android_get_api_level (void)
-{
-  static guint cached_api_level = 0;
-
-  if (cached_api_level == 0)
-  {
-    gchar sdk_version[PROP_VALUE_MAX];
-
-    sdk_version[0] = '\0';
-    __system_property_get ("ro.build.version.sdk", sdk_version);
-
-    cached_api_level = atoi (sdk_version);
-  }
-
-  return cached_api_level;
 }
 
 static const char *
