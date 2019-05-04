@@ -51,7 +51,11 @@ if host_os_family == 'darwin'
   extra_link_args += ['-Wl,-exported_symbols_list,' + join_paths(meson.current_source_dir(), symlist)]
   extra_link_depends += [symlist]
 elif host_os_family != 'windows'
-  symscript = 'gum-tests.version'
+  if host_os == 'android'
+    symscript = 'gum-tests-android.version'
+  else
+    symscript = 'gum-tests.version'
+  endif
   extra_link_args += ['-Wl,--version-script,' + join_paths(meson.current_source_dir(), symscript)]
   extra_link_depends += [symscript]
 endif
