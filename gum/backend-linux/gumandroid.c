@@ -32,7 +32,6 @@
 # define GUM_LIBCXX_TINY_STRING_CAPACITY 23
 #endif
 
-typedef struct _GumInitLinkerBaseContext GumInitLinkerBaseContext;
 typedef struct _GumGetModuleHandleContext GumGetModuleHandleContext;
 typedef struct _GumEnsureModuleInitializedContext
     GumEnsureModuleInitializedContext;
@@ -52,12 +51,6 @@ typedef struct _GumSoinfoListEntry GumSoinfoListEntry;
 typedef union _GumLibcxxString GumLibcxxString;
 typedef struct _GumLibcxxTinyString GumLibcxxTinyString;
 typedef struct _GumLibcxxHugeString GumLibcxxHugeString;
-
-struct _GumInitLinkerBaseContext
-{
-  gboolean found_vdso;
-  gpointer linker_base;
-};
 
 struct _GumGetModuleHandleContext
 {
@@ -268,10 +261,8 @@ enum _GumSoinfoFlags
 
 static gpointer gum_get_linker_base (void);
 static gpointer gum_try_init_linker_base (void);
-static gboolean gum_find_linker_base (const GumModuleDetails * details,
-    gpointer user_data);
-static gboolean gum_is_linker_module_name (const gchar * name);
-static gboolean gum_is_vdso_module_name (const gchar * name);
+static gboolean gum_try_parse_linker_proc_maps_line (const gchar * line,
+    gpointer * base);
 static gboolean gum_store_module_handle_if_name_matches (
     const GumSoinfoDetails * details, gpointer user_data);
 static gboolean gum_emit_module_from_soinfo (const GumSoinfoDetails * details,
@@ -324,55 +315,78 @@ gum_get_linker_base (void)
 static gpointer
 gum_try_init_linker_base (void)
 {
-  GumInitLinkerBaseContext ctx;
-
-  ctx.found_vdso = FALSE;
-  ctx.linker_base = NULL;
-
-  gum_linux_enumerate_modules_using_proc_maps (gum_find_linker_base, &ctx);
-
-  return ctx.linker_base;
-}
-
-static gboolean
-gum_find_linker_base (const GumModuleDetails * details,
-                      gpointer user_data)
-{
-  GumInitLinkerBaseContext * ctx = user_data;
-  const gchar * path = details->path;
+  gpointer base = NULL;
+  gchar * maps, ** lines;
+  gint num_lines, vdso_index, i;
 
   /*
    * Using /proc/self/maps means there might be false positives, as the
    * application – or even Frida itself – may have mmap()ed the module.
    *
-   * Knowing that the linker is mapped right after the vdso, with no gap
-   * between, we just have to find the vdso, and we can count on the the
-   * next one being the actual linker.
+   * Knowing that the linker is mapped right around the vdso, with no
+   * empty space between, we just have to find the vdso, and we can
+   * count on the the next or previous linker mapping being the actual
+   * linker.
    */
-  if (!ctx->found_vdso)
+  g_file_get_contents ("/proc/self/maps", &maps, NULL, NULL);
+  lines = g_strsplit (maps, "\n", 0);
+  num_lines = g_strv_length (lines);
+
+  vdso_index = -1;
+  for (i = 0; i != num_lines; i++)
   {
-    ctx->found_vdso = gum_is_vdso_module_name (path);
-    return TRUE;
+    const gchar * line = lines[i];
+
+    if (g_str_has_suffix (line, " [vdso]"))
+    {
+      vdso_index = i;
+      break;
+    }
+  }
+  if (vdso_index == -1)
+    goto beach;
+
+  for (i = vdso_index + 1; i != num_lines; i++)
+  {
+    if (gum_try_parse_linker_proc_maps_line (lines[i], &base))
+      goto beach;
   }
 
-  if (!gum_is_linker_module_name (path))
-    return TRUE;
+  for (i = vdso_index - 1; i >= 0; i--)
+  {
+    if (gum_try_parse_linker_proc_maps_line (lines[i], &base))
+      goto beach;
+  }
 
-  ctx->linker_base = GSIZE_TO_POINTER (details->range->base_address);
+beach:
+  g_strfreev (lines);
+  g_free (maps);
 
-  return FALSE;
+  return base;
 }
 
 static gboolean
-gum_is_linker_module_name (const gchar * name)
+gum_try_parse_linker_proc_maps_line (const gchar * line,
+                                     gpointer * base)
 {
-  return strcmp (name, GUM_ANDROID_LINKER_MODULE_NAME) == 0;
-}
+  GumAddress start;
+  gchar perms[5] = { 0, };
+  const guint8 elf_magic[] = { 0x7f, 'E', 'L', 'F' };
 
-static gboolean
-gum_is_vdso_module_name (const gchar * name)
-{
-  return strcmp (name, GUM_ANDROID_VDSO_MODULE_NAME) == 0;
+  if (!g_str_has_suffix (line, " " GUM_ANDROID_LINKER_MODULE_NAME))
+    return FALSE;
+
+  sscanf (line, "%" G_GINT64_MODIFIER "x-%*x %4c ", &start, perms);
+
+  if (perms[0] != 'r' || perms[2] != 'x')
+    return FALSE;
+
+  if (memcmp (GSIZE_TO_POINTER (start), elf_magic, sizeof (elf_magic)) != 0)
+    return FALSE;
+
+  *base = GSIZE_TO_POINTER (start);
+
+  return TRUE;
 }
 
 void *
@@ -527,12 +541,12 @@ gum_enumerate_soinfo (GumFoundSoinfoFunc func,
       continue;
 
     details.path = gum_resolve_soinfo_path (si, api, &ranges);
-    if (gum_is_vdso_module_name (details.path))
+    if (strcmp (details.path, GUM_ANDROID_VDSO_MODULE_NAME) == 0)
     {
       sovdso = si;
       continue;
     }
-    if (gum_is_linker_module_name (details.path))
+    if (strcmp (details.path, GUM_ANDROID_LINKER_MODULE_NAME) == 0)
     {
       solinker = si;
       continue;
