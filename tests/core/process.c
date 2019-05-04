@@ -52,7 +52,7 @@ TESTLIST_BEGIN (process)
 #if defined (G_OS_WIN32) || defined (HAVE_DARWIN)
   TESTENTRY (process_malloc_ranges)
 #endif
-#ifdef HAVE_LINUX
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
   TESTENTRY (linux_process_modules)
 #endif
 TESTLIST_END ()
@@ -229,7 +229,7 @@ TESTCASE (process_modules)
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
 
-#ifdef HAVE_LINUX
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
 
 typedef struct _ModuleBounds ModuleBounds;
 
