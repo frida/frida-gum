@@ -14,11 +14,11 @@ G_BEGIN_DECLS
 
 typedef struct _GumAndroidUnrestrictedLinkerApi GumAndroidUnrestrictedLinkerApi;
 
-typedef void * (* GumGenericDlopenImpl) (const char * path, int mode);
+typedef void * (* GumGenericDlopenImpl) (const char * filename, int flags);
 typedef void * (* GumGenericDlsymImpl) (void * handle, const char * symbol);
 
-typedef void * (* GumAndroidDlopenImpl) (const char * path, int mode,
-    void * caller);
+typedef void * (* GumAndroidDlopenImpl) (const char * filename, int flags,
+    void * caller_addr);
 typedef void * (* GumAndroidDlsymImpl) (void * handle, const char * symbol,
     const char * version, const void * caller_addr);
 
