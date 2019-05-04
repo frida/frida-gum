@@ -580,7 +580,7 @@ gum_memory_allocate (gpointer address,
     allocation_size -= suffix_size;
   }
 
-  g_assert (allocation_size == length);
+  g_assert (allocation_size == size);
 
   return aligned_base;
 }
