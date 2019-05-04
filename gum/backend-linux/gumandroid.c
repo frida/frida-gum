@@ -704,8 +704,10 @@ gum_store_linker_symbol_if_needed (const GumElfSymbolDetails * details,
   guint * pending = user_data;
 
   /* Restricted dlopen() implemented in API level >= 26 (Android >= 8.0). */
-  GUM_TRY_ASSIGN (dlopen, "__dl__Z8__dlopenPKciPKv");
-  GUM_TRY_ASSIGN (dlsym, "__dl__Z8__dlvsymPvPKcS1_PKv");
+  GUM_TRY_ASSIGN (dlopen, "__dl___loader_dlopen");        /* >= 28 */
+  GUM_TRY_ASSIGN (dlsym, "__dl___loader_dlvsym");         /* >= 28 */
+  GUM_TRY_ASSIGN (dlopen, "__dl__Z8__dlopenPKciPKv");     /* >= 26 */
+  GUM_TRY_ASSIGN (dlsym, "__dl__Z8__dlvsymPvPKcS1_PKv");  /* >= 26 */
   /* Namespaces implemented in API level >= 24 (Android >= 7.0). */
   GUM_TRY_ASSIGN_OPTIONAL (do_dlopen,
       "__dl__Z9do_dlopenPKciPK17android_dlextinfoPv");
