@@ -722,22 +722,23 @@ gum_store_linker_symbol_if_needed (const GumElfSymbolDetails * details,
   guint * pending = user_data;
 
   /* Restricted dlopen() implemented in API level >= 26 (Android >= 8.0). */
-  GUM_TRY_ASSIGN (dlopen, "__dl___loader_dlopen");        /* >= 28 */
-  GUM_TRY_ASSIGN (dlsym, "__dl___loader_dlvsym");         /* >= 28 */
-  GUM_TRY_ASSIGN (dlopen, "__dl__Z8__dlopenPKciPKv");     /* >= 26 */
-  GUM_TRY_ASSIGN (dlsym, "__dl__Z8__dlvsymPvPKcS1_PKv");  /* >= 26 */
+  GUM_TRY_ASSIGN (dlopen, "__dl___loader_dlopen");       /* >= 28 */
+  GUM_TRY_ASSIGN (dlsym, "__dl___loader_dlvsym");        /* >= 28 */
+  GUM_TRY_ASSIGN (dlopen, "__dl__Z8__dlopenPKciPKv");    /* >= 26 */
+  GUM_TRY_ASSIGN (dlsym, "__dl__Z8__dlvsymPvPKcS1_PKv"); /* >= 26 */
   /* Namespaces implemented in API level >= 24 (Android >= 7.0). */
   GUM_TRY_ASSIGN_OPTIONAL (do_dlopen,
       "__dl__Z9do_dlopenPKciPK17android_dlextinfoPv");
 
-  GUM_TRY_ASSIGN (dl_mutex, "__dl__ZL10g_dl_mutex");
+  GUM_TRY_ASSIGN (dl_mutex, "__dl__ZL10g_dl_mutex"); /* >= 21 */
+  GUM_TRY_ASSIGN (dl_mutex, "__dl__ZL8gDlMutex");    /*  < 21 */
 
   GUM_TRY_ASSIGN (solist_get_head, "__dl__Z15solist_get_headv"); /* >= 26 */
-  GUM_TRY_ASSIGN_OPTIONAL (solist, "__dl__ZL6solist");
-  GUM_TRY_ASSIGN_OPTIONAL (libdl_info, "__dl_libdl_info");
+  GUM_TRY_ASSIGN_OPTIONAL (solist, "__dl__ZL6solist");           /* >= 21 */
+  GUM_TRY_ASSIGN_OPTIONAL (libdl_info, "__dl_libdl_info");       /*  < 21 */
 
   GUM_TRY_ASSIGN (solist_get_somain, "__dl__Z17solist_get_somainv"); /* >= 26 */
-  GUM_TRY_ASSIGN_OPTIONAL (somain, "__dl__ZL6somain");
+  GUM_TRY_ASSIGN_OPTIONAL (somain, "__dl__ZL6somain");               /* "any" */
 
   /*
    * Realpath getter implemented in API level >= 23+ (6.0+), but may have
