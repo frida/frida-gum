@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -120,6 +120,8 @@ typedef struct _TestLinkerExportsContext TestLinkerExportsContext;
 struct _TestLinkerExportsContext
 {
   guint number_of_calls;
+
+  gchar * expected_name;
   GumAddress expected_address;
 };
 
@@ -131,6 +133,9 @@ TESTCASE (linker_exports_can_be_resolved_on_android)
   const gchar * linker_name = (sizeof (gpointer) == 4)
       ? "/system/bin/linker"
       : "/system/bin/linker64";
+  const gchar * libdl_name = (sizeof (gpointer) == 4)
+      ? "/system/lib/libdl.so"
+      : "/system/lib64/libdl.so";
   const gchar * linker_exports[] =
   {
     "dlopen",
@@ -138,28 +143,48 @@ TESTCASE (linker_exports_can_be_resolved_on_android)
     "dlclose",
     "dlerror",
   };
+  const gchar * correct_module_name, * incorrect_module_name;
   guint i;
+
+  if (gum_android_get_api_level () >= 26)
+  {
+    correct_module_name = libdl_name;
+    incorrect_module_name = linker_name;
+  }
+  else
+  {
+    correct_module_name = linker_name;
+    incorrect_module_name = libdl_name;
+  }
 
   fixture->resolver = gum_api_resolver_make ("module");
   g_assert_nonnull (fixture->resolver);
 
   for (i = 0; i != G_N_ELEMENTS (linker_exports); i++)
   {
-    const gchar * name = linker_exports[i];
+    const gchar * func_name = linker_exports[i];
     gchar * query;
     TestLinkerExportsContext ctx;
     GError * error = NULL;
 
-    query = g_strconcat ("exports:*!", name, NULL);
+    query = g_strconcat ("exports:*!", func_name, NULL);
+
+    g_assert_true (
+        gum_module_find_export_by_name (incorrect_module_name, func_name) == 0);
 
     ctx.number_of_calls = 0;
-    ctx.expected_address = gum_module_find_export_by_name (linker_name, name);
+    ctx.expected_name =
+        g_strdup_printf ("%s!%s", correct_module_name, func_name);
+    ctx.expected_address =
+        gum_module_find_export_by_name (correct_module_name, func_name);
     g_assert_cmpuint (ctx.expected_address, !=, 0);
 
     gum_api_resolver_enumerate_matches (fixture->resolver, query,
         check_linker_export, &ctx, &error);
     g_assert_null (error);
     g_assert_cmpuint (ctx.number_of_calls, >=, 1);
+
+    g_free (ctx.expected_name);
 
     g_free (query);
   }
@@ -171,6 +196,7 @@ check_linker_export (const GumApiDetails * details,
 {
   TestLinkerExportsContext * ctx = (TestLinkerExportsContext *) user_data;
 
+  g_assert_cmpstr (details->name, ==, ctx->expected_name);
   g_assert_cmphex (details->address, ==, ctx->expected_address);
 
   ctx->number_of_calls++;
