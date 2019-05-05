@@ -450,9 +450,7 @@ test_util_get_system_module_name (void)
 const gchar *
 test_util_get_android_java_vm_module_name (void)
 {
-  return (gum_android_get_api_level () >= 21)
-      ? "libart.so"
-      : "libdvm.so";
+  return (gum_android_get_api_level () >= 21) ? "libart.so" : "libdvm.so";
 }
 
 #endif
