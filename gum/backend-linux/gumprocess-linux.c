@@ -2339,7 +2339,7 @@ gum_libc_clone (GumCloneFunc child_func,
         [child_tidptr]"g" (child_tidptr),
         [tls]"g" (tls),
         [exit_syscall]"i" (__NR_exit)
-      : "rax", "rdi", "rsi", "rdx", "r10", "r8", "rcx", "r11", "rsp", "cc",
+      : "rax", "rdi", "rsi", "rdx", "r10", "r8", "rcx", "r11", "cc",
         "memory"
   );
 #elif defined (HAVE_ARM)
@@ -2377,7 +2377,7 @@ gum_libc_clone (GumCloneFunc child_func,
         [result]"=r" (result)
       : [clone_syscall]"i" (__NR_clone),
         [exit_syscall]"i" (__NR_exit)
-      : "r0", "r1", "r2", "r3", "r4", "r7", "sp", "cc", "memory"
+      : "r0", "r1", "r2", "r3", "r4", "r7", "cc", "memory"
   );
 #elif defined (HAVE_ARM64)
   *(--child_sp) = child_func;
@@ -2416,7 +2416,7 @@ gum_libc_clone (GumCloneFunc child_func,
         [tls]"r" (tls),
         [child_tidptr]"r" (child_tidptr),
         [exit_syscall]"i" (__NR_exit)
-      : "x0", "x1", "x2", "x3", "x4", "x8", "sp", "memory"
+      : "x0", "x1", "x2", "x3", "x4", "x8", "memory"
   );
 #endif
 
@@ -2505,7 +2505,7 @@ gum_libc_syscall_4 (gsize n,
         [b]"g" (b),
         [c]"g" (c),
         [d]"g" (d)
-      : "rax", "rdi", "rsi", "rdx", "r10", "rcx", "r11", "rsp", "memory"
+      : "rax", "rdi", "rsi", "rdx", "r10", "rcx", "r11", "memory"
   );
 #elif defined (HAVE_ARM)
   const gsize args[] = { a, b, c, d, n };
@@ -2520,7 +2520,7 @@ gum_libc_syscall_4 (gsize n,
       : [next_args]"+r" (next_args),
         [result]"=r" (result)
       :
-      : "r0", "r1", "r2", "r3", "r7", "sp", "memory"
+      : "r0", "r1", "r2", "r3", "r7", "memory"
   );
 #elif defined (HAVE_ARM64)
   asm volatile (
@@ -2543,7 +2543,7 @@ gum_libc_syscall_4 (gsize n,
         [b]"r" (b),
         [c]"r" (c),
         [d]"r" (d)
-      : "x0", "x1", "x2", "x3", "x4", "x8", "sp", "memory"
+      : "x0", "x1", "x2", "x3", "x4", "x8", "memory"
   );
 #endif
 
