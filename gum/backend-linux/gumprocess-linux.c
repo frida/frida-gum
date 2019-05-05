@@ -2295,55 +2295,41 @@ gum_libc_clone (GumCloneFunc child_func,
   *(--child_sp) = arg;
   *(--child_sp) = child_func;
 
-  asm volatile (
-      "pushq %%rax\n\t"
-      "pushq %%rdi\n\t"
-      "pushq %%rsi\n\t"
-      "pushq %%rdx\n\t"
-      "pushq %%r10\n\t"
-      "pushq %%r8\n\t"
-      "pushq %%rcx\n\t"
-      "pushq %%r11\n\t"
-      "movq %[clone_syscall], %%rax\n\t"
-      "movq %[flags], %%rdi\n\t"
-      "movq %[child_sp], %%rsi\n\t"
-      "movq %[parent_tidptr], %%rdx\n\t"
-      "movq %[child_tidptr], %%r10\n\t"
-      "movq %[tls], %%r8\n\t"
-      "syscall\n\t"
-      "test %%rax, %%rax\n\t"
-      "jnz 1f\n\t"
+  {
+    register        gssize rax asm ("rax") = __NR_clone;
+    register          gint rdi asm ("rdi") = flags;
+    register    gpointer * rsi asm ("rsi") = child_sp;
+    register       pid_t * rdx asm ("rdx") = parent_tidptr;
+    register GumUserDesc * r10 asm ("r10") = tls;
+    register       pid_t *  r8 asm ( "r8") = child_tidptr;
 
-      /* child: */
-      "popq %%rax\n\t"
-      "popq %%rdi\n\t"
-      "call *%%rax\n\t"
-      "movq %%rax, %%rdi\n\t"
-      "movq %[exit_syscall], %%rax\n\t"
-      "syscall\n\t"
+    asm volatile (
+        "syscall\n\t"
+        "test %%rax, %%rax\n\t"
+        "jnz 1f\n\t"
 
-      /* parent: */
-      "1:\n\t"
-      "movq %%rax, %[result]\n\t"
-      "popq %%r11\n\t"
-      "popq %%rcx\n\t"
-      "popq %%r8\n\t"
-      "popq %%r10\n\t"
-      "popq %%rdx\n\t"
-      "popq %%rsi\n\t"
-      "popq %%rdi\n\t"
-      "popq %%rax\n\t"
-      : [result]"=g" (result)
-      : [clone_syscall]"g" (__NR_clone),
-        [flags]"g" (flags),
-        [child_sp]"g" (child_sp),
-        [parent_tidptr]"g" (parent_tidptr),
-        [child_tidptr]"g" (child_tidptr),
-        [tls]"g" (tls),
-        [exit_syscall]"i" (__NR_exit)
-      : "rax", "rdi", "rsi", "rdx", "r10", "r8", "rcx", "r11", "cc",
-        "memory"
-  );
+        /* child: */
+        "popq %%rax\n\t"
+        "popq %%rdi\n\t"
+        "call *%%rax\n\t"
+        "movq %%rax, %%rdi\n\t"
+        "movq %[exit_syscall], %%rax\n\t"
+        "syscall\n\t"
+
+        /* parent: */
+        "1:\n\t"
+        : "+r" (rax)
+        : "r" (rdi),
+          "r" (rsi),
+          "r" (rdx),
+          "r" (r10),
+          "r" (r8),
+          [exit_syscall] "i" (__NR_exit)
+        : "rcx", "r9", "r11", "cc", "memory"
+    );
+
+    result = rax;
+  }
 #elif defined (HAVE_ARM)
   *(--child_sp) = child_func;
   *(--child_sp) = arg;
@@ -2481,36 +2467,25 @@ gum_libc_syscall_4 (gsize n,
     result = eax;
   }
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
-  asm volatile (
-      "pushq %%rax\n\t"
-      "pushq %%rdi\n\t"
-      "pushq %%rsi\n\t"
-      "pushq %%rdx\n\t"
-      "pushq %%r10\n\t"
-      "pushq %%rcx\n\t"
-      "pushq %%r11\n\t"
-      "movq %[n], %%rax\n\t"
-      "movq %[a], %%rdi\n\t"
-      "movq %[b], %%rsi\n\t"
-      "movq %[c], %%rdx\n\t"
-      "movq %[d], %%r10\n\t"
-      "syscall\n\t"
-      "movq %%rax, %[result]\n\t"
-      "popq %%r11\n\t"
-      "popq %%rcx\n\t"
-      "popq %%r10\n\t"
-      "popq %%rdx\n\t"
-      "popq %%rsi\n\t"
-      "popq %%rdi\n\t"
-      "popq %%rax\n\t"
-      : [result]"=r" (result)
-      : [n]"g" (n),
-        [a]"g" (a),
-        [b]"g" (b),
-        [c]"g" (c),
-        [d]"g" (d)
-      : "rax", "rdi", "rsi", "rdx", "r10", "rcx", "r11", "memory"
-  );
+  {
+    register gssize rax asm ("rax") = n;
+    register  gsize rdi asm ("rdi") = a;
+    register  gsize rsi asm ("rsi") = b;
+    register  gsize rdx asm ("rdx") = c;
+    register  gsize r10 asm ("r10") = d;
+
+    asm volatile (
+        "syscall\n\t"
+        : "+r" (rax)
+        : "r" (rdi),
+          "r" (rsi),
+          "r" (rdx),
+          "r" (r10)
+        : "rcx", "r8", "r9", "r11", "cc", "memory"
+    );
+
+    result = rax;
+  }
 #elif defined (HAVE_ARM)
   const gsize args[] = { a, b, c, d, n };
   const gsize * next_args = args + G_N_ELEMENTS (args);
