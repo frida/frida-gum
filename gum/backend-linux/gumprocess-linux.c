@@ -2334,39 +2334,42 @@ gum_libc_clone (GumCloneFunc child_func,
   *(--child_sp) = child_func;
   *(--child_sp) = arg;
 
-  const gpointer args[] = {
-    GSIZE_TO_POINTER (flags),
-    child_sp,
-    parent_tidptr,
-    tls,
-    child_tidptr
-  };
-  const gpointer * next_args = args + G_N_ELEMENTS (args);
+  {
+    register        gssize r6 asm ("r6") = __NR_clone;
+    register          gint r0 asm ("r0") = flags;
+    register    gpointer * r1 asm ("r1") = child_sp;
+    register       pid_t * r2 asm ("r2") = parent_tidptr;
+    register GumUserDesc * r3 asm ("r3") = tls;
+    register       pid_t * r4 asm ("r4") = child_tidptr;
 
-  asm volatile (
-      "push {r0, r1, r2, r3, r4, r7}\n\t"
-      "mov r7, %[clone_syscall]\n\t"
-      "ldmdb %[next_args]!, {r0, r1, r2, r3, r4}\n\t"
-      "swi 0x0\n\t"
-      "cmp r0, #0\n\t"
-      "bne 1f\n\t"
+    asm volatile (
+        "push {r7}\n\t"
+        "mov r7, r6\n\t"
+        "swi 0x0\n\t"
+        "cmp r0, #0\n\t"
+        "bne 1f\n\t"
 
-      /* child: */
-      "pop {r0, r1}\n\t"
-      "blx r1\n\t"
-      "mov r7, %[exit_syscall]\n\t"
-      "swi 0x0\n\t"
+        /* child: */
+        "pop {r0, r1}\n\t"
+        "blx r1\n\t"
+        "mov r7, %[exit_syscall]\n\t"
+        "swi 0x0\n\t"
 
-      /* parent: */
-      "1:\n\t"
-      "mov %[result], r0\n\t"
-      "pop {r0, r1, r2, r3, r4, r7}\n\t"
-      : [next_args]"+r" (next_args),
-        [result]"=r" (result)
-      : [clone_syscall]"i" (__NR_clone),
-        [exit_syscall]"i" (__NR_exit)
-      : "r0", "r1", "r2", "r3", "r4", "r7", "cc", "memory"
-  );
+        /* parent: */
+        "1:\n\t"
+        "pop {r7}\n\t"
+        : "+r" (r0)
+        : "r" (r1),
+          "r" (r2),
+          "r" (r3),
+          "r" (r4),
+          "r" (r6),
+          [exit_syscall] "i" (__NR_exit)
+        : "r5", "cc", "memory"
+    );
+
+    result = r0;
+  }
 #elif defined (HAVE_ARM64)
   *(--child_sp) = child_func;
   *(--child_sp) = arg;
@@ -2487,20 +2490,28 @@ gum_libc_syscall_4 (gsize n,
     result = rax;
   }
 #elif defined (HAVE_ARM)
-  const gsize args[] = { a, b, c, d, n };
-  const gsize * next_args = args + G_N_ELEMENTS (args);
+  {
+    register gssize r6 asm ("r6") = n;
+    register  gsize r0 asm ("r0") = a;
+    register  gsize r1 asm ("r1") = b;
+    register  gsize r2 asm ("r2") = c;
+    register  gsize r3 asm ("r3") = d;
 
-  asm volatile (
-      "push {r0, r1, r2, r3, r7}\n\t"
-      "ldmdb %[next_args]!, {r0, r1, r2, r3, r7}\n\t"
-      "swi 0x0\n\t"
-      "mov %[result], r0\n\t"
-      "pop {r0, r1, r2, r3, r7}\n\t"
-      : [next_args]"+r" (next_args),
-        [result]"=r" (result)
-      :
-      : "r0", "r1", "r2", "r3", "r7", "memory"
-  );
+    asm volatile (
+        "push {r7}\n\t"
+        "mov r7, r6\n\t"
+        "swi 0x0\n\t"
+        "pop {r7}\n\t"
+        : "+r" (r0)
+        : "r" (r1),
+          "r" (r2),
+          "r" (r3),
+          "r" (r6)
+        : "r4", "r5", "cc", "memory"
+    );
+
+    result = r0;
+  }
 #elif defined (HAVE_ARM64)
   asm volatile (
       "stp x0, x1, [sp, #-16]!\n\t"
