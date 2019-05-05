@@ -2467,7 +2467,7 @@ gum_libc_syscall_4 (gsize n,
                     gsize c,
                     gsize d)
 {
-  gsize result;
+  gssize result;
 
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
   asm volatile (
