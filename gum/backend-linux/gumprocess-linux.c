@@ -2258,7 +2258,6 @@ gum_libc_clone (GumCloneFunc child_func,
   *(--child_sp) = child_func;
 
   {
-    register        gssize eax asm ("eax") = __NR_clone;
     register          gint ebx asm ("ebx") = flags;
     register    gpointer * ecx asm ("ecx") = child_sp;
     register       pid_t * edx asm ("edx") = parent_tidptr;
@@ -2279,8 +2278,9 @@ gum_libc_clone (GumCloneFunc child_func,
 
         /* parent: */
         "1:\n\t"
-        : "+r" (eax)
-        : "r" (ebx),
+        : "=a" (result)
+        : "0" (__NR_clone),
+          "r" (ebx),
           "r" (ecx),
           "r" (edx),
           "r" (esi),
@@ -2288,15 +2288,12 @@ gum_libc_clone (GumCloneFunc child_func,
           [exit_syscall] "i" (__NR_exit)
         : "cc", "memory"
     );
-
-    result = eax;
   }
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
   *(--child_sp) = arg;
   *(--child_sp) = child_func;
 
   {
-    register        gssize rax asm ("rax") = __NR_clone;
     register          gint rdi asm ("rdi") = flags;
     register    gpointer * rsi asm ("rsi") = child_sp;
     register       pid_t * rdx asm ("rdx") = parent_tidptr;
@@ -2318,17 +2315,16 @@ gum_libc_clone (GumCloneFunc child_func,
 
         /* parent: */
         "1:\n\t"
-        : "+r" (rax)
-        : "r" (rdi),
+        : "=a" (result)
+        : "0" (__NR_clone),
+          "r" (rdi),
           "r" (rsi),
           "r" (rdx),
           "r" (r10),
           "r" (r8),
           [exit_syscall] "i" (__NR_exit)
-        : "rcx", "r9", "r11", "cc", "memory"
+        : "rcx", "r11", "cc", "memory"
     );
-
-    result = rax;
   }
 #elif defined (HAVE_ARM)
   *(--child_sp) = child_func;
@@ -2344,6 +2340,8 @@ gum_libc_clone (GumCloneFunc child_func,
 
     asm volatile (
         "push {r7}\n\t"
+        ".cfi_adjust_cfa_offset 4\n\t"
+        ".cfi_rel_offset r7, 0\n\t"
         "mov r7, r6\n\t"
         "swi 0x0\n\t"
         "cmp r0, #0\n\t"
@@ -2358,6 +2356,8 @@ gum_libc_clone (GumCloneFunc child_func,
         /* parent: */
         "1:\n\t"
         "pop {r7}\n\t"
+        ".cfi_adjust_cfa_offset -4\n\t"
+        ".cfi_restore r7\n\t"
         : "+r" (r0)
         : "r" (r1),
           "r" (r2),
@@ -2365,7 +2365,7 @@ gum_libc_clone (GumCloneFunc child_func,
           "r" (r4),
           "r" (r6),
           [exit_syscall] "i" (__NR_exit)
-        : "r5", "cc", "memory"
+        : "cc", "memory"
     );
 
     result = r0;
@@ -2374,41 +2374,38 @@ gum_libc_clone (GumCloneFunc child_func,
   *(--child_sp) = child_func;
   *(--child_sp) = arg;
 
-  asm volatile (
-      "stp x0, x1, [sp, #-16]!\n\t"
-      "stp x2, x3, [sp, #-16]!\n\t"
-      "stp x4, x8, [sp, #-16]!\n\t"
-      "mov x8, %x[clone_syscall]\n\t"
-      "mov x0, %x[flags]\n\t"
-      "mov x1, %x[child_sp]\n\t"
-      "mov x2, %x[parent_tidptr]\n\t"
-      "mov x3, %x[tls]\n\t"
-      "mov x4, %x[child_tidptr]\n\t"
-      "svc 0x0\n\t"
-      "cbnz x0, 1f\n\t"
+  {
+    register        gssize x8 asm ("x8") = __NR_clone;
+    register          gint x0 asm ("x0") = flags;
+    register    gpointer * x1 asm ("x1") = child_sp;
+    register       pid_t * x2 asm ("x2") = parent_tidptr;
+    register GumUserDesc * x3 asm ("x3") = tls;
+    register       pid_t * x4 asm ("x4") = child_tidptr;
 
-      /* child: */
-      "ldp x0, x1, [sp], #16\n\t"
-      "blr x1\n\t"
-      "mov x8, %x[exit_syscall]\n\t"
-      "svc 0x0\n\t"
+    asm volatile (
+        "svc 0x0\n\t"
+        "cbnz x0, 1f\n\t"
 
-      /* parent: */
-      "1:\n\t"
-      "mov %x[result], x0\n\t"
-      "ldp x4, x8, [sp], #16\n\t"
-      "ldp x2, x3, [sp], #16\n\t"
-      "ldp x0, x1, [sp], #16\n\t"
-      : [result]"=r" (result)
-      : [clone_syscall]"i" (__NR_clone),
-        [flags]"r" ((gsize) flags),
-        [child_sp]"r" (child_sp),
-        [parent_tidptr]"r" (parent_tidptr),
-        [tls]"r" (tls),
-        [child_tidptr]"r" (child_tidptr),
-        [exit_syscall]"i" (__NR_exit)
-      : "x0", "x1", "x2", "x3", "x4", "x8", "memory"
-  );
+        /* child: */
+        "ldp x0, x1, [sp], #16\n\t"
+        "blr x1\n\t"
+        "mov x8, %x[exit_syscall]\n\t"
+        "svc 0x0\n\t"
+
+        /* parent: */
+        "1:\n\t"
+        : "+r" (x0)
+        : "r" (x1),
+          "r" (x2),
+          "r" (x3),
+          "r" (x4),
+          "r" (x8),
+          [exit_syscall] "i" (__NR_exit)
+        : "cc", "memory"
+    );
+
+    result = x0;
+  }
 #endif
 
   return result;
@@ -2451,43 +2448,39 @@ gum_libc_syscall_4 (gsize n,
 
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
   {
-    register gssize eax asm ("eax") = n;
-    register  gsize ebx asm ("ebx") = a;
-    register  gsize ecx asm ("ecx") = b;
-    register  gsize edx asm ("edx") = c;
-    register  gsize esi asm ("esi") = d;
+    register gsize ebx asm ("ebx") = a;
+    register gsize ecx asm ("ecx") = b;
+    register gsize edx asm ("edx") = c;
+    register gsize esi asm ("esi") = d;
 
     asm volatile (
         "int $0x80\n\t"
-        : "+r" (eax)
-        : "r" (ebx),
+        : "=a" (result)
+        : "0" (n),
+          "r" (ebx),
           "r" (ecx),
           "r" (edx),
           "r" (esi)
         : "cc", "memory"
     );
-
-    result = eax;
   }
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
   {
-    register gssize rax asm ("rax") = n;
-    register  gsize rdi asm ("rdi") = a;
-    register  gsize rsi asm ("rsi") = b;
-    register  gsize rdx asm ("rdx") = c;
-    register  gsize r10 asm ("r10") = d;
+    register gsize rdi asm ("rdi") = a;
+    register gsize rsi asm ("rsi") = b;
+    register gsize rdx asm ("rdx") = c;
+    register gsize r10 asm ("r10") = d;
 
     asm volatile (
         "syscall\n\t"
-        : "+r" (rax)
-        : "r" (rdi),
+        : "=a" (result)
+        : "0" (n),
+          "r" (rdi),
           "r" (rsi),
           "r" (rdx),
           "r" (r10)
-        : "rcx", "r8", "r9", "r11", "cc", "memory"
+        : "rcx", "r11", "cc", "memory"
     );
-
-    result = rax;
   }
 #elif defined (HAVE_ARM)
   {
@@ -2499,42 +2492,43 @@ gum_libc_syscall_4 (gsize n,
 
     asm volatile (
         "push {r7}\n\t"
+        ".cfi_adjust_cfa_offset 4\n\t"
+        ".cfi_rel_offset r7, 0\n\t"
         "mov r7, r6\n\t"
         "swi 0x0\n\t"
         "pop {r7}\n\t"
+        ".cfi_adjust_cfa_offset -4\n\t"
+        ".cfi_restore r7\n\t"
         : "+r" (r0)
         : "r" (r1),
           "r" (r2),
           "r" (r3),
           "r" (r6)
-        : "r4", "r5", "cc", "memory"
+        : "memory"
     );
 
     result = r0;
   }
 #elif defined (HAVE_ARM64)
-  asm volatile (
-      "stp x0, x1, [sp, #-16]!\n\t"
-      "stp x2, x3, [sp, #-16]!\n\t"
-      "stp x4, x8, [sp, #-16]!\n\t"
-      "mov x8, %x[n]\n\t"
-      "mov x0, %x[a]\n\t"
-      "mov x1, %x[b]\n\t"
-      "mov x2, %x[c]\n\t"
-      "mov x3, %x[d]\n\t"
-      "svc 0x0\n\t"
-      "mov %x[result], x0\n\t"
-      "ldp x4, x8, [sp], #16\n\t"
-      "ldp x2, x3, [sp], #16\n\t"
-      "ldp x0, x1, [sp], #16\n\t"
-      : [result]"=r" (result)
-      : [n]"i" (n),
-        [a]"r" (a),
-        [b]"r" (b),
-        [c]"r" (c),
-        [d]"r" (d)
-      : "x0", "x1", "x2", "x3", "x4", "x8", "memory"
-  );
+  {
+    register gssize x8 asm ("x8") = n;
+    register  gsize x0 asm ("x0") = a;
+    register  gsize x1 asm ("x1") = b;
+    register  gsize x2 asm ("x2") = c;
+    register  gsize x3 asm ("x3") = d;
+
+    asm volatile (
+        "svc 0x0\n\t"
+        : "+r" (x0)
+        : "r" (x1),
+          "r" (x2),
+          "r" (x3),
+          "r" (x8)
+        : "memory"
+    );
+
+    result = x0;
+  }
 #endif
 
   return result;
