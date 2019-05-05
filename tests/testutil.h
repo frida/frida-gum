@@ -83,7 +83,7 @@
 # define SYSTEM_MODULE_EXPORT "sendto"
 #endif
 #ifdef HAVE_ANDROID
-# define TRICKY_MODULE_NAME "libart.so"
+# define TRICKY_MODULE_NAME test_util_get_android_java_vm_module_name ()
 # define TRICKY_MODULE_EXPORT "JNI_GetCreatedJavaVMs"
 #else
 # define TRICKY_MODULE_NAME SYSTEM_MODULE_NAME
@@ -110,6 +110,9 @@ gchar * test_util_diff_xml (const gchar * expected_xml,
 
 gchar * test_util_get_data_dir (void);
 const gchar * test_util_get_system_module_name (void);
+#ifdef HAVE_ANDROID
+const gchar * test_util_get_android_java_vm_module_name (void);
+#endif
 
 const GumHeapApiList * test_util_heap_apis (void);
 

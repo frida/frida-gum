@@ -8,6 +8,9 @@
 #include "testutil.h"
 
 #include "valgrind.h"
+#ifdef HAVE_ANDROID
+# include "backend-linux/gumandroid.h"
+#endif
 
 #if defined (G_OS_WIN32) && defined (_DEBUG)
 # include <crtdbg.h>
@@ -441,6 +444,18 @@ test_util_get_system_module_name (void)
   return _test_util_system_module_name;
 #endif
 }
+
+#ifdef HAVE_ANDROID
+
+const gchar *
+test_util_get_android_java_vm_module_name (void)
+{
+  return (gum_android_get_api_level () >= 21)
+      ? "libart.so"
+      : "libdvm.so";
+}
+
+#endif
 
 const GumHeapApiList *
 test_util_heap_apis (void)
