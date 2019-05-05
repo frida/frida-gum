@@ -2257,19 +2257,14 @@ gum_libc_clone (GumCloneFunc child_func,
   *(--child_sp) = arg;
   *(--child_sp) = child_func;
 
+  register        gssize eax asm ("eax") = __NR_clone;
+  register          gint ebx asm ("ebx") = flags;
+  register    gpointer * ecx asm ("ecx") = child_sp;
+  register       pid_t * edx asm ("edx") = parent_tidptr;
+  register GumUserDesc * esi asm ("esi") = tls;
+  register       pid_t * edi asm ("edi") = child_tidptr;
+
   asm volatile (
-      "pushl %%eax\n\t"
-      "pushl %%ebx\n\t"
-      "pushl %%ecx\n\t"
-      "pushl %%edx\n\t"
-      "pushl %%esi\n\t"
-      "pushl %%edi\n\t"
-      "movl %[clone_syscall], %%eax\n\t"
-      "movl %[flags], %%ebx\n\t"
-      "movl %[child_sp], %%ecx\n\t"
-      "movl %[parent_tidptr], %%edx\n\t"
-      "movl %[tls], %%esi\n\t"
-      "movl %[child_tidptr], %%edi\n\t"
       "int $0x80\n\t"
       "test %%eax, %%eax\n\t"
       "jnz 1f\n\t"
@@ -2283,23 +2278,17 @@ gum_libc_clone (GumCloneFunc child_func,
 
       /* parent: */
       "1:\n\t"
-      "movl %%eax, %[result]\n\t"
-      "popl %%edi\n\t"
-      "popl %%esi\n\t"
-      "popl %%edx\n\t"
-      "popl %%ecx\n\t"
-      "popl %%ebx\n\t"
-      "popl %%eax\n\t"
-      : [result]"=m" (result)
-      : [clone_syscall]"i" (__NR_clone),
-        [flags]"m" (flags),
-        [child_sp]"m" (child_sp),
-        [parent_tidptr]"m" (parent_tidptr),
-        [tls]"m" (tls),
-        [child_tidptr]"m" (child_tidptr),
+      : "+r" (eax)
+      : "r" (ebx),
+        "r" (ecx),
+        "r" (edx),
+        "r" (esi),
+        "r" (edi),
         [exit_syscall]"i" (__NR_exit)
-      : "esp", "cc", "memory"
+      : "cc", "memory"
   );
+
+  result = eax;
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
   *(--child_sp) = arg;
   *(--child_sp) = child_func;
@@ -2470,32 +2459,23 @@ gum_libc_syscall_4 (gsize n,
   gssize result;
 
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+  register gssize eax asm ("eax") = n;
+  register  gsize ebx asm ("ebx") = a;
+  register  gsize ecx asm ("ecx") = b;
+  register  gsize edx asm ("edx") = c;
+  register  gsize esi asm ("esi") = d;
+
   asm volatile (
-      "pushl %%eax\n\t"
-      "pushl %%ebx\n\t"
-      "pushl %%ecx\n\t"
-      "pushl %%edx\n\t"
-      "pushl %%esi\n\t"
-      "movl %[n], %%eax\n\t"
-      "movl %[a], %%ebx\n\t"
-      "movl %[b], %%ecx\n\t"
-      "movl %[c], %%edx\n\t"
-      "movl %[d], %%esi\n\t"
       "int $0x80\n\t"
-      "movl %%eax, %[result]\n\t"
-      "popl %%esi\n\t"
-      "popl %%edx\n\t"
-      "popl %%ecx\n\t"
-      "popl %%ebx\n\t"
-      "popl %%eax\n\t"
-      : [result]"=r" (result)
-      : [n]"g" (n),
-        [a]"g" (a),
-        [b]"g" (b),
-        [c]"g" (c),
-        [d]"g" (d)
-      : "eax", "ecx", "edx", "esi", "esp", "memory"
+      : "+r" (eax)
+      : "r" (ebx),
+        "r" (ecx),
+        "r" (edx),
+        "r" (esi)
+      : "cc", "memory"
   );
+
+  result = eax;
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
   asm volatile (
       "pushq %%rax\n\t"
