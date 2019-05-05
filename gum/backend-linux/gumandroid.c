@@ -19,13 +19,6 @@
 # define GUM_ANDROID_LEGACY_SOINFO 1
 #endif
 
-#if GLIB_SIZEOF_VOID_P == 4
-# define GUM_ANDROID_LINKER_MODULE_BASENAME "linker"
-#else
-# define GUM_ANDROID_LINKER_MODULE_BASENAME "linker64"
-#endif
-#define GUM_ANDROID_LINKER_MODULE_NAME \
-    "/system/bin/" GUM_ANDROID_LINKER_MODULE_BASENAME
 #define GUM_ANDROID_VDSO_MODULE_NAME "linux-vdso.so.1"
 
 #if GLIB_SIZEOF_VOID_P == 4
@@ -43,6 +36,7 @@ typedef struct _GumSoinfoDetails GumSoinfoDetails;
 typedef gboolean (* GumFoundSoinfoFunc) (const GumSoinfoDetails * details,
     gpointer user_data);
 
+typedef struct _GumLinkerLocation GumLinkerLocation;
 typedef struct _GumLinkerApi GumLinkerApi;
 
 typedef struct _GumSoinfo GumSoinfo;
@@ -77,6 +71,13 @@ struct _GumSoinfoDetails
   const gchar * path;
   GumSoinfo * si;
   GumLinkerApi * api;
+};
+
+struct _GumLinkerLocation
+{
+  const gchar * name;
+  const gchar * path;
+  GumMemoryRange range;
 };
 
 struct _GumLinkerApi
@@ -261,10 +262,10 @@ enum _GumSoinfoFlags
   GUM_SOINFO_NEW_FORMAT = 0x40000000,
 };
 
-static const GumMemoryRange * gum_get_linker_range (void);
-static const GumMemoryRange * gum_try_init_linker_range (void);
+static const GumLinkerLocation * gum_get_linker_location (void);
+static const GumLinkerLocation * gum_try_init_linker_location (void);
 static gboolean gum_try_parse_linker_proc_maps_line (const gchar * line,
-    GumMemoryRange * range);
+    GumLinkerLocation * location);
 static gboolean gum_store_module_handle_if_name_matches (
     const GumSoinfoDetails * details, gpointer user_data);
 static gboolean gum_emit_module_from_soinfo (const GumSoinfoDetails * details,
@@ -288,8 +289,8 @@ static void * gum_call_inner_dlsym (void * handle, const char * symbol);
 
 static const char * gum_libcxx_string_get_data (const GumLibcxxString * self);
 
-static GumLinkerApi gum_linker;
-static GumMemoryRange gum_linker_range;
+static GumLinkerLocation gum_dl_location;
+static GumLinkerApi gum_dl_api;
 
 static const gchar * gum_magic_linker_export_names_pre_api_level_26[] =
 {
@@ -326,17 +327,25 @@ gum_android_get_api_level (void)
 GumElfModule *
 gum_android_open_linker_module (void)
 {
-  return gum_elf_module_new_from_memory (GUM_ANDROID_LINKER_MODULE_NAME,
-      gum_get_linker_range ()->base_address);
+  const GumLinkerLocation * location;
+
+  location = gum_get_linker_location ();
+
+  return gum_elf_module_new_from_memory (location->path,
+      location->range.base_address);
 }
 
 gboolean
 gum_android_is_linker_module_name (const gchar * name)
 {
-  if (name[0] != '/')
-    return strcmp (name, GUM_ANDROID_LINKER_MODULE_BASENAME) == 0;
+  const GumLinkerLocation * location;
 
-  return strcmp (name, GUM_ANDROID_LINKER_MODULE_NAME) == 0;
+  location = gum_get_linker_location ();
+
+  if (name[0] != '/')
+    return strcmp (name, location->name) == 0;
+
+  return strcmp (name, location->path) == 0;
 }
 
 const gchar **
@@ -380,26 +389,26 @@ gum_android_is_vdso_module_name (const gchar * name)
   return strcmp (name, GUM_ANDROID_VDSO_MODULE_NAME) == 0;
 }
 
-static const GumMemoryRange *
-gum_get_linker_range (void)
+static const GumLinkerLocation *
+gum_get_linker_location (void)
 {
   static GOnce once = G_ONCE_INIT;
 
-  g_once (&once, (GThreadFunc) gum_try_init_linker_range, NULL);
+  g_once (&once, (GThreadFunc) gum_try_init_linker_location, NULL);
 
   if (once.retval == NULL)
   {
-    g_critical ("Unable to determine linker memory range; please file a bug");
+    g_critical ("Unable to determine linker location; please file a bug");
     g_abort ();
   }
 
   return once.retval;
 }
 
-static const GumMemoryRange *
-gum_try_init_linker_range (void)
+static const GumLinkerLocation *
+gum_try_init_linker_location (void)
 {
-  const GumMemoryRange * result = NULL;
+  const GumLinkerLocation * result = NULL;
   gchar * maps, ** lines;
   gint num_lines, vdso_index, i;
 
@@ -432,18 +441,18 @@ gum_try_init_linker_range (void)
 
   for (i = vdso_index + 1; i != num_lines; i++)
   {
-    if (gum_try_parse_linker_proc_maps_line (lines[i], &gum_linker_range))
+    if (gum_try_parse_linker_proc_maps_line (lines[i], &gum_dl_location))
     {
-      result = &gum_linker_range;
+      result = &gum_dl_location;
       goto beach;
     }
   }
 
   for (i = vdso_index - 1; i >= 0; i--)
   {
-    if (gum_try_parse_linker_proc_maps_line (lines[i], &gum_linker_range))
+    if (gum_try_parse_linker_proc_maps_line (lines[i], &gum_dl_location))
     {
-      result = &gum_linker_range;
+      result = &gum_dl_location;
       goto beach;
     }
   }
@@ -457,27 +466,54 @@ beach:
 
 static gboolean
 gum_try_parse_linker_proc_maps_line (const gchar * line,
-                                     GumMemoryRange * range)
+                                     GumLinkerLocation * location)
 {
   GumAddress start, end;
   gchar perms[5] = { 0, };
+  gchar path[PATH_MAX];
+  gint n;
+  const gchar * new_path, * old_path, * linker_path;
   const guint8 elf_magic[] = { 0x7f, 'E', 'L', 'F' };
 
-  if (!g_str_has_suffix (line, " " GUM_ANDROID_LINKER_MODULE_NAME))
+  n = sscanf (line,
+      "%" G_GINT64_MODIFIER "x-%" G_GINT64_MODIFIER "x "
+      "%4c "
+      "%*x %*s %*d "
+      "%s",
+      &start, &end,
+      perms,
+      path);
+  if (n != 4)
     return FALSE;
 
-  sscanf (line, "%" G_GINT64_MODIFIER "x-%" G_GINT64_MODIFIER "x %4c ",
-      &start, &end,
-      perms);
+  if (sizeof (gpointer) == 4)
+  {
+    new_path = "/bionic/bin/linker";
+    old_path = "/system/bin/linker";
+  }
+  else
+  {
+    new_path = "/bionic/bin/linker64";
+    old_path = "/system/bin/linker64";
+  }
 
-  if (perms[0] != 'r' || perms[2] != 'x')
+  if (strcmp (path, new_path) == 0)
+    linker_path = new_path;
+  else if (strcmp (path, old_path) == 0)
+    linker_path = old_path;
+  else
+    return FALSE;
+
+  if (perms[0] != 'r')
     return FALSE;
 
   if (memcmp (GSIZE_TO_POINTER (start), elf_magic, sizeof (elf_magic)) != 0)
     return FALSE;
 
-  range->base_address = start;
-  range->size = end - start;
+  location->name = strrchr (linker_path, '/') + 1;
+  location->path = linker_path;
+  location->range.base_address = start;
+  location->range.size = end - start;
 
   return TRUE;
 }
@@ -595,7 +631,7 @@ gum_emit_module_from_soinfo (const GumSoinfoDetails * details,
 
   if (gum_soinfo_is_linker (si))
   {
-    range = *gum_get_linker_range ();
+    range = gum_get_linker_location ()->range;
   }
   else
   {
@@ -689,13 +725,13 @@ gum_resolve_soinfo_path (GumSoinfo * si,
     if (strcmp (result, "[vdso]") == 0)
       result = GUM_ANDROID_VDSO_MODULE_NAME;
     else if (strcmp (result, "libdl.so") == 0)
-      result = GUM_ANDROID_LINKER_MODULE_NAME;
+      result = gum_get_linker_location ()->path;
     else if (result[0] != '/')
       result = NULL;
   }
   else if (gum_soinfo_is_linker (si))
   {
-    result = GUM_ANDROID_LINKER_MODULE_NAME;
+    result = gum_get_linker_location ()->path;
   }
 
   if (result == NULL)
@@ -745,39 +781,39 @@ gum_linker_api_try_init (void)
   gum_elf_module_enumerate_symbols (linker, gum_store_linker_symbol_if_needed,
       &pending);
 
-  if (api_level < 26 && gum_linker.dlopen == NULL && gum_linker.dlsym == NULL)
+  if (api_level < 26 && gum_dl_api.dlopen == NULL && gum_dl_api.dlsym == NULL)
   {
     pending -= 2;
   }
 
-  if (gum_linker.solist_get_head == NULL &&
-      (gum_linker.solist != NULL || gum_linker.libdl_info != NULL))
+  if (gum_dl_api.solist_get_head == NULL &&
+      (gum_dl_api.solist != NULL || gum_dl_api.libdl_info != NULL))
   {
-    gum_linker.solist_get_head = gum_solist_get_head_fallback;
+    gum_dl_api.solist_get_head = gum_solist_get_head_fallback;
     pending--;
   }
 
-  if (gum_linker.solist_get_somain == NULL && gum_linker.somain != NULL)
+  if (gum_dl_api.solist_get_somain == NULL && gum_dl_api.somain != NULL)
   {
-    gum_linker.solist_get_somain = gum_solist_get_somain_fallback;
+    gum_dl_api.solist_get_somain = gum_solist_get_somain_fallback;
     pending--;
   }
 
-  if (gum_linker.soinfo_get_path == NULL)
+  if (gum_dl_api.soinfo_get_path == NULL)
   {
     if (api_level >= 24)
     {
-      gum_linker.soinfo_get_path = gum_soinfo_get_path_fallback;
+      gum_dl_api.soinfo_get_path = gum_soinfo_get_path_fallback;
     }
 
     pending--;
   }
 
-  gum_linker.trusted_caller = dlsym (RTLD_DEFAULT, "open");
+  gum_dl_api.trusted_caller = dlsym (RTLD_DEFAULT, "open");
 
   g_object_unref (linker);
 
-  return (pending == 0) ? &gum_linker : NULL;
+  return (pending == 0) ? &gum_dl_api : NULL;
 }
 
 #define GUM_TRY_ASSIGN(field_name, symbol_name) \
@@ -787,10 +823,10 @@ gum_linker_api_try_init (void)
 #define _GUM_TRY_ASSIGN(field_name, symbol_name, pending_delta) \
     G_STMT_START \
     { \
-      if (gum_linker.field_name == NULL && \
+      if (gum_dl_api.field_name == NULL && \
           strcmp (details->name, symbol_name) == 0) \
       { \
-        gum_linker.field_name = GSIZE_TO_POINTER (details->address); \
+        gum_dl_api.field_name = GSIZE_TO_POINTER (details->address); \
         *pending -= pending_delta; \
         goto beach; \
       } \
@@ -839,15 +875,15 @@ beach:
 static GumSoinfo *
 gum_solist_get_head_fallback (void)
 {
-  return (gum_linker.solist != NULL)
-      ? *gum_linker.solist
-      : gum_linker.libdl_info;
+  return (gum_dl_api.solist != NULL)
+      ? *gum_dl_api.solist
+      : gum_dl_api.libdl_info;
 }
 
 static GumSoinfo *
 gum_solist_get_somain_fallback (void)
 {
-  return *gum_linker.somain;
+  return *gum_dl_api.somain;
 }
 
 static gboolean
@@ -914,14 +950,14 @@ static void *
 gum_call_inner_dlopen (const char * filename,
                        int flags)
 {
-  return gum_linker.dlopen (filename, flags, gum_linker.trusted_caller);
+  return gum_dl_api.dlopen (filename, flags, gum_dl_api.trusted_caller);
 }
 
 static void *
 gum_call_inner_dlsym (void * handle,
                       const char * symbol)
 {
-  return gum_linker.dlsym (handle, symbol, NULL, gum_linker.trusted_caller);
+  return gum_dl_api.dlsym (handle, symbol, NULL, gum_dl_api.trusted_caller);
 }
 
 static const char *
