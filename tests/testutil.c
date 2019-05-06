@@ -460,12 +460,28 @@ test_util_heap_apis (void)
 {
   if (_test_util_heap_apis == NULL)
   {
-    GumHeapApi api = { 0 };
+    GumHeapApi api = { 0, };
 
+#ifdef HAVE_LINUX
+    {
+      void * libc;
+
+      libc = dlopen (test_util_get_system_module_name (),
+          RTLD_LAZY | RTLD_GLOBAL);
+
+      api.malloc = dlsym (libc, "malloc");
+      api.calloc = dlsym (libc, "calloc");
+      api.realloc = dlsym (libc, "realloc");
+      api.free = dlsym (libc, "free");
+
+      dlclose (libc);
+    }
+#else
     api.malloc = (gpointer (*) (gsize)) malloc;
     api.calloc = (gpointer (*) (gsize, gsize)) calloc;
     api.realloc = (gpointer (*) (gpointer, gsize)) realloc;
     api.free = free;
+#endif
 
 #if defined (G_OS_WIN32) && defined (_DEBUG)
     api._malloc_dbg = _malloc_dbg;

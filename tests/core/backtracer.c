@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -117,6 +117,8 @@ TESTCASE (full_cycle_with_interceptor)
 
 TESTCASE (full_cycle_with_allocation_tracker)
 {
+  const GumHeapApiList * heap_apis;
+  const GumHeapApi * api;
   GumAllocatorProbe * probe;
   GumAllocationTracker * tracker;
   GumInterceptor * interceptor;
@@ -132,6 +134,9 @@ TESTCASE (full_cycle_with_allocation_tracker)
     return;
   }
 
+  heap_apis = test_util_heap_apis ();
+  api = gum_heap_api_list_get_nth (heap_apis, 0);
+
   tracker = gum_allocation_tracker_new_with_backtracer (fixture->backtracer);
   gum_allocation_tracker_begin (tracker);
 
@@ -139,10 +144,10 @@ TESTCASE (full_cycle_with_allocation_tracker)
   g_object_set (probe, "allocation-tracker", tracker, NULL);
   interceptor = gum_interceptor_obtain ();
   gum_interceptor_ignore_other_threads (interceptor);
-  gum_allocator_probe_attach_to_apis (probe, test_util_heap_apis ());
+  gum_allocator_probe_attach_to_apis (probe, heap_apis);
 
   expected_line_number = __LINE__ + 1;
-  a = malloc (1337);
+  a = api->malloc (1337);
 
   /* TODO: Remove this once reentrancy protection has been implemented to also
    *       cover AllocationTracker's methods */
@@ -183,7 +188,8 @@ TESTCASE (full_cycle_with_allocation_tracker)
 
   gum_allocation_block_list_free (blocks);
 
-  free (a);
+  api->free (a);
+
   gum_interceptor_unignore_other_threads (interceptor);
   g_object_unref (interceptor);
   g_object_unref (probe);

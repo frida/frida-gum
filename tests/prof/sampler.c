@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -68,12 +68,15 @@ typedef struct _MallocCountHelperContext MallocCountHelperContext;
 struct _MallocCountHelperContext
 {
   GumSampler * sampler;
+  const GumHeapApi * api;
   volatile gboolean allowed_to_start;
   GumSample count;
 };
 
 TESTCASE (malloc_count)
 {
+  const GumHeapApiList * heap_apis;
+  const GumHeapApi * api;
   GumSample sample_a, sample_b;
   MallocCountHelperContext helper = { 0, };
   GThread * helper_thread;
@@ -86,25 +89,29 @@ TESTCASE (malloc_count)
     return;
   }
 
-  fixture->sampler = gum_malloc_count_sampler_new ();
+  heap_apis = test_util_heap_apis ();
+  api = gum_heap_api_list_get_nth (heap_apis, 0);
+
+  fixture->sampler = gum_malloc_count_sampler_new_with_heap_apis (heap_apis);
 
   helper.sampler = fixture->sampler;
+  helper.api = api;
   helper_thread = g_thread_new ("sampler-test-malloc-count",
       malloc_count_helper_thread, &helper);
 
   interceptor = gum_interceptor_obtain ();
 
   sample_a = gum_sampler_sample (fixture->sampler);
-  a = malloc (1);
+  a = api->malloc (1);
   helper.allowed_to_start = TRUE;
   gum_interceptor_ignore_current_thread (interceptor);
   g_thread_join (helper_thread);
   gum_interceptor_unignore_current_thread (interceptor);
-  b = calloc (2, 2);
-  c = realloc (c, 6);
-  free (c);
-  free (b);
-  free (a);
+  b = api->calloc (2, 2);
+  c = api->realloc (c, 6);
+  api->free (c);
+  api->free (b);
+  api->free (a);
   sample_b = gum_sampler_sample (fixture->sampler);
 
   g_object_unref (interceptor);
@@ -167,6 +174,7 @@ static gpointer
 malloc_count_helper_thread (gpointer data)
 {
   MallocCountHelperContext * helper = (MallocCountHelperContext *) data;
+  const GumHeapApi * api = helper->api;
   GumSample sample_a, sample_b;
   volatile gpointer p;
 
@@ -174,8 +182,8 @@ malloc_count_helper_thread (gpointer data)
     g_thread_yield ();
 
   sample_a = gum_sampler_sample (helper->sampler);
-  p = malloc (3);
-  free (p);
+  p = api->malloc (3);
+  api->free (p);
   sample_b = gum_sampler_sample (helper->sampler);
 
   helper->count = sample_b - sample_a;

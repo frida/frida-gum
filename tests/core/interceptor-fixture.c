@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -247,6 +247,18 @@ interceptor_fixture_detach_listener (TestInterceptorFixture * h,
 {
   gum_interceptor_detach_listener (h->interceptor,
     GUM_INVOCATION_LISTENER (h->listener_context[listener_index]));
+}
+
+gpointer
+interceptor_fixture_get_libc_malloc (void)
+{
+  return gum_heap_api_list_get_nth (test_util_heap_apis (), 0)->malloc;
+}
+
+gpointer
+interceptor_fixture_get_libc_free (void)
+{
+  return gum_heap_api_list_get_nth (test_util_heap_apis (), 0)->free;
 }
 
 static void

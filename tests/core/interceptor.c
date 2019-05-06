@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -138,6 +138,7 @@ TESTCASE (attach_to_pthread_key_create)
 
 TESTCASE (attach_to_heap_api)
 {
+  gpointer malloc_impl, free_impl;
   volatile gpointer p;
 
   if (RUNNING_ON_VALGRIND)
@@ -146,9 +147,12 @@ TESTCASE (attach_to_heap_api)
     return;
   }
 
+  malloc_impl = interceptor_fixture_get_libc_malloc ();
+  free_impl = interceptor_fixture_get_libc_free ();
+
   gum_interceptor_ignore_current_thread (fixture->interceptor);
-  interceptor_fixture_attach_listener (fixture, 0, malloc, '>', '<');
-  interceptor_fixture_attach_listener (fixture, 1, free, 'a', 'b');
+  interceptor_fixture_attach_listener (fixture, 0, malloc_impl, '>', '<');
+  interceptor_fixture_attach_listener (fixture, 1, free_impl, 'a', 'b');
   gum_interceptor_unignore_current_thread (fixture->interceptor);
   p = malloc (1);
   free (p);
@@ -234,7 +238,8 @@ TESTCASE (thread_id)
 
 TESTCASE (intercepted_free_in_thread_exit)
 {
-  interceptor_fixture_attach_listener (fixture, 0, free, 'a', 'b');
+  interceptor_fixture_attach_listener (fixture, 0,
+      interceptor_fixture_get_libc_free (), 'a', 'b');
   g_thread_join (g_thread_new ("interceptor-test-thread-exit",
       target_nop_function_a, NULL));
 }
@@ -561,18 +566,7 @@ TESTCASE (replace_function)
     return;
   }
 
-#ifdef HAVE_LINUX
-  /*
-   * Get the address of malloc dynamically, as GCC is too smart about
-   * malloc() and assumes the last part of this function is unreachable.
-   */
-  void * libc = dlopen (test_util_get_system_module_name (),
-      RTLD_LAZY | RTLD_GLOBAL);
-  malloc_impl = dlsym (libc, "malloc");
-  dlclose (libc);
-#else
-  malloc_impl = (gpointer (*) (gsize)) malloc;
-#endif
+  malloc_impl = interceptor_fixture_get_libc_malloc ();
 
   g_assert_cmpint (gum_interceptor_replace_function (fixture->interceptor,
       malloc_impl, replacement_malloc, &counter), ==, GUM_REPLACE_OK);
@@ -600,6 +594,7 @@ static void replacement_free_doing_nothing (gpointer mem);
 
 TESTCASE (two_replaced_functions)
 {
+  gpointer malloc_impl, free_impl;
   guint malloc_counter = 0, free_counter = 0;
   volatile gpointer ret;
 
@@ -609,17 +604,20 @@ TESTCASE (two_replaced_functions)
     return;
   }
 
+  malloc_impl = interceptor_fixture_get_libc_malloc ();
+  free_impl = interceptor_fixture_get_libc_free ();
+
   gum_interceptor_replace_function (fixture->interceptor,
-      malloc, replacement_malloc_calling_malloc_and_replaced_free,
+      malloc_impl, replacement_malloc_calling_malloc_and_replaced_free,
       &malloc_counter);
   gum_interceptor_replace_function (fixture->interceptor,
-      free, replacement_free_doing_nothing, &free_counter);
+      free_impl, replacement_free_doing_nothing, &free_counter);
 
   ret = malloc (0x42);
   g_assert_nonnull (ret);
 
-  gum_interceptor_revert_function (fixture->interceptor, malloc);
-  gum_interceptor_revert_function (fixture->interceptor, free);
+  gum_interceptor_revert_function (fixture->interceptor, malloc_impl);
+  gum_interceptor_revert_function (fixture->interceptor, free_impl);
   g_assert_cmpint (malloc_counter, ==, 1);
   g_assert_cmpint (free_counter, ==, 1);
 
