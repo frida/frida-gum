@@ -1241,7 +1241,8 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   gum_arm64_writer_put_brk_imm (cw, 14);
 
   all_labels_resolved = gum_arm64_writer_flush (cw);
-  g_assert (all_labels_resolved);
+  if (!all_labels_resolved)
+    g_error ("Failed to resolve labels");
 
   block->code_end = (guint8 *) gum_arm64_writer_cur (cw);
 
@@ -2328,9 +2329,9 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
   gboolean is_conditional;
   cs_arm64 * arm64;
 
-  cs_arm64_op * op;
-  cs_arm64_op * op2;
-  cs_arm64_op * op3;
+  cs_arm64_op * op = NULL;
+  cs_arm64_op * op2 = NULL;
+  cs_arm64_op * op3 = NULL;
 
   arm64_cc cc;
   arm64_cc not_cc;
