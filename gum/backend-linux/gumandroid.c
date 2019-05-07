@@ -380,7 +380,7 @@ gum_try_init_linker_details (void)
     }
   }
   if (vdso_index == -1)
-    goto beach;
+    goto no_vdso;
 
   for (i = vdso_index + 1; i != num_lines; i++)
   {
@@ -393,6 +393,19 @@ gum_try_init_linker_details (void)
   }
 
   for (i = vdso_index - 1; i >= 0; i--)
+  {
+    if (gum_try_parse_linker_proc_maps_line (lines[i], &gum_dl_module,
+        &gum_dl_range))
+    {
+      result = &gum_dl_module;
+      goto beach;
+    }
+  }
+
+  goto beach;
+
+no_vdso:
+  for (i = num_lines - 1; i >= 0; i--)
   {
     if (gum_try_parse_linker_proc_maps_line (lines[i], &gum_dl_module,
         &gum_dl_range))
