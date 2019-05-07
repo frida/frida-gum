@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,10 +7,9 @@
 #ifndef __GUM_BOUNDS_CHECKER_H__
 #define __GUM_BOUNDS_CHECKER_H__
 
-#include "gumheapapi.h"
-
 #include <glib-object.h>
 #include <gum/gumbacktracer.h>
+#include <gum/gumheapapi.h>
 
 G_BEGIN_DECLS
 

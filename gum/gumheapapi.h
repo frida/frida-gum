@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -8,6 +8,8 @@
 #define __GUM_HEAP_API_H__
 
 #include <gum/gumdefs.h>
+
+G_BEGIN_DECLS
 
 typedef struct _GumHeapApi GumHeapApi;
 typedef GArray GumHeapApiList;
@@ -29,8 +31,6 @@ struct _GumHeapApi
   void (* _free_dbg) (gpointer address, gint block_type);
   gint (* _CrtReportBlockType) (gpointer block);
 };
-
-G_BEGIN_DECLS
 
 GUM_API GumHeapApiList * gum_process_find_heap_apis (void);
 

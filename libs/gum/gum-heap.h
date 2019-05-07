@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -16,7 +16,6 @@
 #include <gum/heap/gumboundschecker.h>
 #include <gum/heap/gumcobject.h>
 #include <gum/heap/gumcobjecttracker.h>
-#include <gum/heap/gumheapapi.h>
 #include <gum/heap/guminstancetracker.h>
 #include <gum/heap/gumsanitychecker.h>
 

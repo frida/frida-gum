@@ -8,8 +8,9 @@
 #ifndef __GUM_MALLOC_COUNT_SAMPLER_H__
 #define __GUM_MALLOC_COUNT_SAMPLER_H__
 
-#include "gumheapapi.h"
 #include "gumsampler.h"
+
+#include <gum/gumheapapi.h>
 
 G_BEGIN_DECLS
 
