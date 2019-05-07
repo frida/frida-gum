@@ -39,9 +39,12 @@ gum_malloc_count_sampler_new_with_heap_apis (const GumHeapApiList * heap_apis)
   {
     const GumHeapApi * api = gum_heap_api_list_get_nth (heap_apis, i);
 
-    gum_call_count_sampler_add_function (sampler, api->malloc);
-    gum_call_count_sampler_add_function (sampler, api->calloc);
-    gum_call_count_sampler_add_function (sampler, api->realloc);
+    gum_call_count_sampler_add_function (sampler,
+        GUM_FUNCPTR_TO_POINTER (api->malloc));
+    gum_call_count_sampler_add_function (sampler,
+        GUM_FUNCPTR_TO_POINTER (api->calloc));
+    gum_call_count_sampler_add_function (sampler,
+        GUM_FUNCPTR_TO_POINTER (api->realloc));
   }
 
   gum_interceptor_end_transaction (interceptor);
