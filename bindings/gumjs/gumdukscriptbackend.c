@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -161,9 +161,6 @@ static void gum_duk_script_backend_with_lock_held (GumScriptBackend * backend,
     GumScriptBackendLockedFunc func, gpointer user_data);
 static gboolean gum_duk_script_backend_is_locked (GumScriptBackend * backend);
 
-static GumScriptScheduler * gum_duk_script_backend_get_scheduler_impl (
-    GumScriptBackend * backend);
-
 static void gum_duk_script_backend_on_debug_handler_attached (
     GumDukScriptBackend * self);
 static void gum_duk_script_backend_on_debug_handler_detached (
@@ -240,8 +237,6 @@ gum_duk_script_backend_iface_init (gpointer g_iface,
 
   iface->with_lock_held = gum_duk_script_backend_with_lock_held;
   iface->is_locked = gum_duk_script_backend_is_locked;
-
-  iface->get_scheduler = gum_duk_script_backend_get_scheduler_impl;
 }
 
 static void
@@ -253,7 +248,7 @@ gum_duk_script_backend_init (GumDukScriptBackend * self)
   self->scripts = g_hash_table_new (NULL, NULL);
   self->next_script_id = 1;
 
-  self->scheduler = NULL;
+  self->scheduler = g_object_ref (gum_script_backend_get_scheduler ());
 
   self->debug_handler_announced_scripts = g_hash_table_new (NULL, NULL);
 }
@@ -394,13 +389,7 @@ gum_duk_script_backend_get_scope_mutex (GumDukScriptBackend * self)
 GumScriptScheduler *
 gum_duk_script_backend_get_scheduler (GumDukScriptBackend * self)
 {
-  GumScriptScheduler * scheduler;
-
-  scheduler = gum_script_backend_get_scheduler (GUM_SCRIPT_BACKEND (self));
-
-  gum_script_scheduler_start (scheduler);
-
-  return scheduler;
+  return self->scheduler;
 }
 
 static void
@@ -416,8 +405,7 @@ gum_duk_script_backend_create (GumScriptBackend * backend,
 
   task = gum_create_script_task_new (self, name, source, cancellable, callback,
       user_data);
-  gum_script_task_run_in_js_thread (task,
-      gum_duk_script_backend_get_scheduler (self));
+  gum_script_task_run_in_js_thread (task, self->scheduler);
   g_object_unref (task);
 }
 
@@ -442,8 +430,7 @@ gum_duk_script_backend_create_sync (GumScriptBackend * backend,
 
   task = gum_create_script_task_new (self, name, source, cancellable, NULL,
       NULL);
-  gum_script_task_run_in_js_thread_sync (task,
-      gum_duk_script_backend_get_scheduler (self));
+  gum_script_task_run_in_js_thread_sync (task, self->scheduler);
   script = gum_script_task_propagate_pointer (task, error);
   g_object_unref (task);
 
@@ -524,8 +511,7 @@ gum_duk_script_backend_create_from_bytes (GumScriptBackend * backend,
 
   task = gum_create_script_from_bytes_task_new (self, bytes, cancellable,
       callback, user_data);
-  gum_script_task_run_in_js_thread (task,
-      gum_duk_script_backend_get_scheduler (self));
+  gum_script_task_run_in_js_thread (task, self->scheduler);
   g_object_unref (task);
 }
 
@@ -549,8 +535,7 @@ gum_duk_script_backend_create_from_bytes_sync (GumScriptBackend * backend,
 
   task = gum_create_script_from_bytes_task_new (self, bytes, cancellable, NULL,
       NULL);
-  gum_script_task_run_in_js_thread_sync (task,
-      gum_duk_script_backend_get_scheduler (self));
+  gum_script_task_run_in_js_thread_sync (task, self->scheduler);
   script = GUM_SCRIPT (gum_script_task_propagate_pointer (task, error));
   g_object_unref (task);
 
@@ -629,8 +614,7 @@ gum_duk_script_backend_compile (GumScriptBackend * backend,
 
   task = gum_compile_script_task_new (self, name, source, cancellable, callback,
       user_data);
-  gum_script_task_run_in_js_thread (task,
-      gum_duk_script_backend_get_scheduler (self));
+  gum_script_task_run_in_js_thread (task, self->scheduler);
   g_object_unref (task);
 }
 
@@ -655,8 +639,7 @@ gum_duk_script_backend_compile_sync (GumScriptBackend * backend,
 
   task = gum_compile_script_task_new (self, name, source, cancellable, NULL,
       NULL);
-  gum_script_task_run_in_js_thread_sync (task,
-      gum_duk_script_backend_get_scheduler (self));
+  gum_script_task_run_in_js_thread_sync (task, self->scheduler);
   bytes = gum_script_task_propagate_pointer (task, error);
   g_object_unref (task);
 
@@ -852,19 +835,6 @@ gum_duk_script_backend_is_locked (GumScriptBackend * backend)
 
   g_rec_mutex_unlock (&self->scope_mutex);
   return FALSE;
-}
-
-static GumScriptScheduler *
-gum_duk_script_backend_get_scheduler_impl (GumScriptBackend * backend)
-{
-  GumDukScriptBackend * self = GUM_DUK_SCRIPT_BACKEND (backend);
-
-  if (self->scheduler == NULL)
-  {
-    self->scheduler = gum_script_scheduler_new ();
-  }
-
-  return self->scheduler;
 }
 
 static void

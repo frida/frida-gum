@@ -1,12 +1,10 @@
 /*
- * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gumscriptscheduler.h"
-
-#include "gumscriptscheduler-priv.h"
 
 struct _GumScriptScheduler
 {
@@ -18,6 +16,7 @@ struct _GumScriptScheduler
   GThread * js_thread;
   GMainLoop * js_loop;
   GMainContext * js_context;
+  volatile gint start_request_seqno;
 
   GThreadPool * thread_pool;
 };
@@ -42,39 +41,6 @@ static gpointer gum_script_scheduler_run_js_loop (GumScriptScheduler * self);
 
 G_DEFINE_TYPE (GumScriptScheduler, gum_script_scheduler, G_TYPE_OBJECT)
 
-G_LOCK_DEFINE_STATIC (gum_script_schedulers);
-static GSList * gum_script_schedulers = NULL;
-
-void
-_gum_script_scheduler_prepare_to_fork (void)
-{
-  GSList * cur;
-
-  G_LOCK (gum_script_schedulers);
-
-  for (cur = gum_script_schedulers; cur != NULL; cur = cur->next)
-  {
-    gum_script_scheduler_stop (cur->data);
-  }
-
-  G_UNLOCK (gum_script_schedulers);
-}
-
-void
-_gum_script_scheduler_recover_from_fork (void)
-{
-  GSList * cur;
-
-  G_LOCK (gum_script_schedulers);
-
-  for (cur = gum_script_schedulers; cur != NULL; cur = cur->next)
-  {
-    gum_script_scheduler_start (cur->data);
-  }
-
-  G_UNLOCK (gum_script_schedulers);
-}
-
 static void
 gum_script_scheduler_class_init (GumScriptSchedulerClass * klass)
 {
@@ -96,10 +62,6 @@ gum_script_scheduler_init (GumScriptScheduler * self)
       4,
       FALSE,
       NULL);
-
-  G_LOCK (gum_script_schedulers);
-  gum_script_schedulers = g_slist_prepend (gum_script_schedulers, self);
-  G_UNLOCK (gum_script_schedulers);
 }
 
 static void
@@ -110,10 +72,6 @@ gum_script_scheduler_dispose (GObject * obj)
   if (!self->disposed)
   {
     self->disposed = TRUE;
-
-    G_LOCK (gum_script_schedulers);
-    gum_script_schedulers = g_slist_remove (gum_script_schedulers, self);
-    G_UNLOCK (gum_script_schedulers);
 
     g_thread_pool_free (self->thread_pool, FALSE, TRUE);
     self->thread_pool = NULL;
@@ -155,7 +113,8 @@ gum_script_scheduler_start (GumScriptScheduler * self)
   if (self->disposed)
     return;
 
-  if (self->enable_background_thread && self->js_thread == NULL)
+  if (self->enable_background_thread && self->js_thread == NULL &&
+      g_atomic_int_add (&self->start_request_seqno, 1) == 0)
   {
     self->js_loop = g_main_loop_new (self->js_context, TRUE);
 
@@ -176,6 +135,8 @@ gum_script_scheduler_stop (GumScriptScheduler * self)
 
     g_main_loop_unref (self->js_loop);
     self->js_loop = NULL;
+
+    g_atomic_int_set (&self->start_request_seqno, 0);
   }
 }
 
@@ -205,6 +166,8 @@ gum_script_scheduler_push_job_on_js_thread (GumScriptScheduler * self,
       (GDestroyNotify) gum_script_job_free);
   g_source_attach (source, self->js_context);
   g_source_unref (source);
+
+  gum_script_scheduler_start (self);
 }
 
 void
@@ -293,5 +256,7 @@ gum_script_job_start_on_js_thread (GumScriptJob * job)
         NULL);
     g_source_attach (source, js_context);
     g_source_unref (source);
+
+    gum_script_scheduler_start (job->scheduler);
   }
 }

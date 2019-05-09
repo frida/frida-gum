@@ -24,6 +24,8 @@ struct _GumSqliteBlock
   int padding;
 };
 
+static void gum_script_backend_deinit_scheduler (void);
+
 static void gum_script_backend_init_sqlite (void);
 static void gum_script_backend_deinit_sqlite (void);
 
@@ -68,15 +70,14 @@ gum_script_backend_obtain_duk (void)
   {
     GumScriptBackend * backend;
 
-    backend = GUM_SCRIPT_BACKEND (
-        g_object_new (GUM_DUK_TYPE_SCRIPT_BACKEND, NULL));
+    backend = g_object_new (GUM_DUK_TYPE_SCRIPT_BACKEND, NULL);
 
     _gum_register_early_destructor (gum_script_backend_deinit_duk);
 
     g_once_init_leave (&gonce_value, GPOINTER_TO_SIZE (backend) + 1);
   }
 
-  return GUM_SCRIPT_BACKEND (GSIZE_TO_POINTER (gonce_value - 1));
+  return GSIZE_TO_POINTER (gonce_value - 1);
 }
 
 static void
@@ -106,17 +107,16 @@ gum_script_backend_obtain_v8 (void)
 
   if (g_once_init_enter (&gonce_value))
   {
-    GumScriptBackend * backend = NULL;
+    GumScriptBackend * backend;
 
-    backend = GUM_SCRIPT_BACKEND (
-        g_object_new (GUM_V8_TYPE_SCRIPT_BACKEND, NULL));
+    backend = g_object_new (GUM_V8_TYPE_SCRIPT_BACKEND, NULL);
 
     _gum_register_early_destructor (gum_script_backend_deinit_v8);
 
     g_once_init_leave (&gonce_value, GPOINTER_TO_SIZE (backend) + 1);
   }
 
-  return GUM_SCRIPT_BACKEND (GSIZE_TO_POINTER (gonce_value - 1));
+  return GSIZE_TO_POINTER (gonce_value - 1);
 }
 
 static void
@@ -262,9 +262,28 @@ gum_script_backend_is_locked (GumScriptBackend * self)
 }
 
 GumScriptScheduler *
-gum_script_backend_get_scheduler (GumScriptBackend * self)
+gum_script_backend_get_scheduler (void)
 {
-  return GUM_SCRIPT_BACKEND_GET_IFACE (self)->get_scheduler (self);
+  static volatile gsize gonce_value;
+
+  if (g_once_init_enter (&gonce_value))
+  {
+    GumScriptScheduler * scheduler;
+
+    scheduler = gum_script_scheduler_new ();
+
+    _gum_register_destructor (gum_script_backend_deinit_scheduler);
+
+    g_once_init_leave (&gonce_value, GPOINTER_TO_SIZE (scheduler) + 1);
+  }
+
+  return GSIZE_TO_POINTER (gonce_value - 1);
+}
+
+static void
+gum_script_backend_deinit_scheduler (void)
+{
+  g_object_unref (gum_script_backend_get_scheduler ());
 }
 
 static void

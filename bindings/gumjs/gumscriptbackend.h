@@ -56,8 +56,6 @@ struct _GumScriptBackendInterface
   void (* with_lock_held) (GumScriptBackend * self,
       GumScriptBackendLockedFunc func, gpointer user_data);
   gboolean (* is_locked) (GumScriptBackend * self);
-
-  GumScriptScheduler * (* get_scheduler) (GumScriptBackend * self);
 };
 
 GUM_API GumScriptBackend * gum_script_backend_obtain (void);
@@ -100,8 +98,7 @@ GUM_API void gum_script_backend_with_lock_held (GumScriptBackend * self,
     GumScriptBackendLockedFunc func, gpointer user_data);
 GUM_API gboolean gum_script_backend_is_locked (GumScriptBackend * self);
 
-GUM_API GumScriptScheduler * gum_script_backend_get_scheduler (
-    GumScriptBackend * self);
+GUM_API GumScriptScheduler * gum_script_backend_get_scheduler (void);
 
 G_END_DECLS
 

@@ -26,7 +26,7 @@ namespace Gum {
 		public void set_debug_message_handler (owned Gum.ScriptBackend.DebugMessageHandler? handler);
 		public void post_debug_message (string message);
 
-		public unowned ScriptScheduler get_scheduler ();
+		public static unowned ScriptScheduler get_scheduler ();
 
 		public void with_lock_held (Gum.ScriptBackend.LockedFunc func);
 		public bool is_locked ();

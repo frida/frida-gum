@@ -230,9 +230,6 @@ static void gum_v8_script_backend_with_lock_held (GumScriptBackend * backend,
     GumScriptBackendLockedFunc func, gpointer user_data);
 static gboolean gum_v8_script_backend_is_locked (GumScriptBackend * backend);
 
-static GumScriptScheduler * gum_v8_script_backend_get_scheduler_impl (
-    GumScriptBackend * backend);
-
 static void gum_v8_script_backend_clear_inspector_channels (
     GumV8ScriptBackend * self);
 static void gum_v8_script_backend_notify_context_created (
@@ -290,8 +287,6 @@ gum_v8_script_backend_iface_init (gpointer g_iface,
 
   iface->with_lock_held = gum_v8_script_backend_with_lock_held;
   iface->is_locked = gum_v8_script_backend_is_locked;
-
-  iface->get_scheduler = gum_v8_script_backend_get_scheduler_impl;
 }
 
 static void
@@ -409,13 +404,7 @@ gum_v8_script_backend_get_isolate (GumV8ScriptBackend * self)
 GumScriptScheduler *
 gum_v8_script_backend_get_scheduler (GumV8ScriptBackend * self)
 {
-  GumScriptScheduler * scheduler;
-
-  scheduler = GUM_V8_SCRIPT_BACKEND_GET_PLATFORM (self)->GetScheduler ();
-
-  gum_script_scheduler_start (scheduler);
-
-  return scheduler;
+  return GUM_V8_SCRIPT_BACKEND_GET_PLATFORM (self)->GetScheduler ();
 }
 
 static void
@@ -942,14 +931,6 @@ gum_v8_script_backend_is_locked (GumScriptBackend * backend)
   auto isolate = GUM_V8_SCRIPT_BACKEND_GET_ISOLATE (self);
 
   return Locker::IsLockedByAnyThread (isolate);
-}
-
-static GumScriptScheduler *
-gum_v8_script_backend_get_scheduler_impl (GumScriptBackend * backend)
-{
-  auto self = GUM_V8_SCRIPT_BACKEND (backend);
-
-  return GUM_V8_SCRIPT_BACKEND_GET_PLATFORM (self)->GetScheduler ();
 }
 
 static void

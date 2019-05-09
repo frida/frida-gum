@@ -6,6 +6,7 @@
 
 #include "gumv8platform.h"
 
+#include "gumscriptbackend.h"
 #include "gumv8script-java.h"
 #include "gumv8script-objc.h"
 #include "gumv8script-runtime.h"
@@ -273,13 +274,15 @@ private:
 GumV8Platform::GumV8Platform ()
   : objc_bundle (NULL),
     java_bundle (NULL),
-    scheduler (gum_script_scheduler_new ()),
+    scheduler (gum_script_backend_get_scheduler ()),
     page_allocator (new GumV8PageAllocator ()),
     array_buffer_allocator (new GumV8ArrayBufferAllocator ()),
     threading_backend (new GumV8ThreadingBackend ()),
     tracing_controller (new TracingController ())
 {
   g_mutex_init (&lock);
+
+  g_object_ref (scheduler);
 
   V8::InitializePlatform (this);
   V8::Initialize ();
