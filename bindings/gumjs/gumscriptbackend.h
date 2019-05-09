@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -61,8 +61,8 @@ struct _GumScriptBackendInterface
 };
 
 GUM_API GumScriptBackend * gum_script_backend_obtain (void);
-GUM_API GumScriptBackend * gum_script_backend_obtain_v8 (void);
 GUM_API GumScriptBackend * gum_script_backend_obtain_duk (void);
+GUM_API GumScriptBackend * gum_script_backend_obtain_v8 (void);
 
 GUM_API void gum_script_backend_create (GumScriptBackend * self,
     const gchar * name, const gchar * source, GCancellable * cancellable,

@@ -15,6 +15,9 @@
 /* Define to 1 if OS is Darwin based. */
 #mesondefine HAVE_DARWIN
 
+/* Define to 1 if Duktape runtime is available. */
+#mesondefine HAVE_DUKTAPE
+
 /* Define to 1 if you have the <elf.h> header file. */
 #mesondefine HAVE_ELF_H
 
@@ -78,7 +81,7 @@
 /* Define to 1 if the system has the type 'unsigned long long int'. */
 #mesondefine HAVE_UNSIGNED_LONG_LONG_INT
 
-/* Define to 1 if V8 is available. */
+/* Define to 1 if V8 runtime is available. */
 #mesondefine HAVE_V8
 
 /* Define to 1 if glib-schannel-static is available. */

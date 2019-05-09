@@ -15,7 +15,7 @@ test_incdirs = [
 subdir('core')
 subdir('heap')
 subdir('prof')
-if get_option('enable_gumjs')
+if have_gumjs
   subdir('gumjs')
 else
   gum_tests_gumjs = []
@@ -32,11 +32,11 @@ extra_test_deps = [lzma_dep]
 extra_link_args = []
 extra_link_depends = []
 
-if get_option('enable_gumjs')
+if have_gumjs
   extra_test_deps += [gumjs_dep]
 endif
 
-force_cpp_linking = get_option('enable_gumpp') or have_v8
+force_cpp_linking = have_gumpp or have_v8
 if force_cpp_linking
   if host_os_family == 'darwin'
     # Work around Meson bug: https://github.com/mesonbuild/meson/issues/1766

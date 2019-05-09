@@ -213,11 +213,13 @@ else
   endif
 endif
 
-if get_option('enable_gumpp')
+have_gumpp = not get_option('gumpp').disabled()
+if have_gumpp
   cdata.set('HAVE_GUMPP', 1)
 endif
 
-if get_option('enable_gumjs')
+have_gumjs = not get_option('gumjs').disabled()
+if have_gumjs
   cdata.set('HAVE_GUMJS', 1)
 
   json_glib_dep = dependency('json-glib-1.0')
@@ -237,25 +239,21 @@ if get_option('enable_gumjs')
     gumjs_extra_libraries += ['-lm']
   endif
 
-  enable_diet_value = get_option('enable_diet')
-  if enable_diet_value == 'auto'
-    enable_diet = host_os == 'qnx'
-  else
-    enable_diet = enable_diet_value == 'yes'
-  endif
-  if not enable_diet
-    v8_dep = dependency('v8-7.0', version: '>=7.0.110', required: false)
-    have_v8 = v8_dep.found()
-  else
-    have_v8 = false
-  endif
+  have_duktape = not get_option('duktape').disabled()
 
+  v8_dep = dependency('v8-7.0', version: '>=7.6.48', required: get_option('v8'))
+  have_v8 = v8_dep.found()
   if have_v8
     cdata.set('HAVE_V8', 1)
     gumjs_extra_deps += [v8_dep]
     gumjs_extra_requires += ['v8-7.0']
   endif
+
+  if not (have_duktape or have_v8)
+    error('Cannot build JavaScript bindings without any runtimes enabled')
+  endif
 else
+  have_duktape = false
   have_v8 = false
 endif
 
@@ -301,4 +299,7 @@ subdir('gum')
 subdir('libs')
 subdir('bindings')
 subdir('vapi')
-subdir('tests')
+
+if get_option('tests')
+  subdir('tests')
+endif

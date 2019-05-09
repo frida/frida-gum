@@ -12,8 +12,8 @@ namespace Gum {
 		public delegate void LockedFunc ();
 
 		public static unowned ScriptBackend obtain ();
-		public static unowned ScriptBackend obtain_v8 ();
-		public static unowned ScriptBackend obtain_duk ();
+		public static unowned ScriptBackend? obtain_duk ();
+		public static unowned ScriptBackend? obtain_v8 ();
 
 		public async Script create (string name, string source, GLib.Cancellable? cancellable = null) throws GLib.IOError;
 		public Script create_sync (string name, string source, GLib.Cancellable? cancellable = null) throws GLib.IOError;

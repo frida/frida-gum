@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -268,26 +268,24 @@ main (gint argc, gchar * argv[])
 #if defined (HAVE_GUMJS)
   /* GumJS */
   {
-# ifdef HAVE_V8
-    GumScriptBackend * v8_backend;
+    GumScriptBackend * duk_backend, * v8_backend;
 
-#  ifndef HAVE_ASAN
+    duk_backend = gum_script_backend_obtain_duk ();
+    if (duk_backend != NULL)
+      TESTLIST_REGISTER_WITH_DATA (script, duk_backend);
+
+# ifndef HAVE_ASAN
     v8_backend = gum_script_backend_obtain_v8 ();
-#  else
+# else
     v8_backend = NULL;
-#  endif
-
+# endif
     if (v8_backend != NULL)
       TESTLIST_REGISTER_WITH_DATA (script, v8_backend);
-# endif
-    TESTLIST_REGISTER_WITH_DATA (script, gum_script_backend_obtain_duk ());
 
-#if 0
 # ifndef HAVE_ASAN
     if (gum_kernel_api_is_available ())
       TESTLIST_REGISTER (kscript);
 # endif
-#endif
   }
 #endif
 
