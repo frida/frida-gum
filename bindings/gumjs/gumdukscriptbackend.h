@@ -22,6 +22,8 @@ G_GNUC_INTERNAL gboolean gum_duk_script_backend_push_program (
     const gchar * source, GError ** error);
 G_GNUC_INTERNAL GRecMutex * gum_duk_script_backend_get_scope_mutex (
     GumDukScriptBackend * self);
+G_GNUC_INTERNAL GumScriptScheduler * gum_duk_script_backend_get_scheduler (
+    GumDukScriptBackend * self);
 
 G_END_DECLS
 
