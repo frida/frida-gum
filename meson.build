@@ -240,6 +240,9 @@ if have_gumjs
   endif
 
   have_duktape = not get_option('duktape').disabled()
+  if have_duktape
+    cdata.set('HAVE_DUKTAPE', 1)
+  endif
 
   v8_dep = dependency('v8-7.0', version: '>=7.6.48', required: get_option('v8'))
   have_v8 = v8_dep.found()
