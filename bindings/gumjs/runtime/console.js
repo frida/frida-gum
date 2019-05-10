@@ -1,5 +1,3 @@
-'use strict';
-
 const hexdump = require('./hexdump');
 
 const engine = global;

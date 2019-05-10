@@ -1,5 +1,3 @@
-'use strict';
-
 const Console = require('./console');
 const hexdump = require('./hexdump');
 const MessageDispatcher = require('./message-dispatcher');

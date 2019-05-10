@@ -1,5 +1,3 @@
-'use strict';
-
 const engine = global;
 
 module.exports = MessageDispatcher;

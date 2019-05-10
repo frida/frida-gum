@@ -1,5 +1,3 @@
-'use strict';
-
 global._setUnhandledExceptionCallback(function (error) {
   const message = {
     type: 'error',
