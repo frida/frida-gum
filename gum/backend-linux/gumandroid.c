@@ -43,6 +43,8 @@ typedef guint32 GumSoinfoFlags;
 typedef struct _GumSoinfoList GumSoinfoList;
 typedef struct _GumSoinfoListEntry GumSoinfoListEntry;
 
+typedef struct _GumFindDlMutexContext GumFindDlMutexContext;
+
 typedef union _GumLibcxxString GumLibcxxString;
 typedef struct _GumLibcxxTinyString GumLibcxxTinyString;
 typedef struct _GumLibcxxHugeString GumLibcxxHugeString;
@@ -88,6 +90,7 @@ struct _GumLinkerApi
   GumSoinfo * libdl_info;
   GumSoinfo * (* solist_get_somain) (void);
   GumSoinfo ** somain;
+  GumSoinfo * somain_node;
 
   const char * (* soinfo_get_path) (const GumSoinfo * si);
 };
@@ -251,7 +254,14 @@ struct _GumSoinfo
 
 enum _GumSoinfoFlags
 {
+  GUM_SOINFO_EXE        = 0x00000004,
   GUM_SOINFO_NEW_FORMAT = 0x40000000,
+};
+
+struct _GumFindDlMutexContext
+{
+  GumElfModule * linker;
+  pthread_mutex_t * dl_mutex;
 };
 
 static const GumModuleDetails * gum_try_init_linker_details (void);
@@ -259,9 +269,9 @@ static gboolean gum_try_parse_linker_proc_maps_line (const gchar * line,
     GumModuleDetails * module, GumMemoryRange * range);
 
 static gboolean gum_store_module_handle_if_name_matches (
-    const GumSoinfoDetails * details, gpointer user_data);
+    const GumSoinfoDetails * details, GumGetModuleHandleContext * ctx);
 static gboolean gum_emit_module_from_soinfo (const GumSoinfoDetails * details,
-    gpointer user_data);
+    GumEnumerateModulesContext * ctx);
 
 static void gum_enumerate_soinfo (GumFoundSoinfoFunc func, gpointer user_data);
 static const gchar * gum_resolve_soinfo_path (GumSoinfo * si,
@@ -270,7 +280,18 @@ static const gchar * gum_resolve_soinfo_path (GumSoinfo * si,
 static GumLinkerApi * gum_linker_api_get (void);
 static GumLinkerApi * gum_linker_api_try_init (void);
 static gboolean gum_store_linker_symbol_if_needed (
-    const GumElfSymbolDetails * details, gpointer user_data);
+    const GumElfSymbolDetails * details, guint * pending);
+static gboolean gum_try_find_dl_mutex_forensically (GumElfModule * linker,
+    pthread_mutex_t ** dl_mutex);
+static gboolean gum_store_dl_mutex_pointer_if_found_in_section (
+    const GumElfSectionDetails * details, GumFindDlMutexContext * ctx);
+static gboolean gum_try_find_libdl_info_forensically (GumElfModule * linker,
+    GumSoinfo ** libdl_info);
+static gboolean gum_store_libdl_info_pointer_if_found_in_section (
+    const GumElfSectionDetails * details, GumSoinfo ** libdl_info);
+static gboolean gum_try_find_somain_forensically (GumLinkerApi * api);
+static gboolean gum_store_first_scan_match (GumAddress address, gsize size,
+    gpointer user_data);
 static GumSoinfo * gum_solist_get_head_fallback (void);
 static GumSoinfo * gum_solist_get_somain_fallback (void);
 static gboolean gum_soinfo_is_linker (const GumSoinfo * self);
@@ -533,16 +554,16 @@ gum_android_get_module_handle (const gchar * name)
   ctx.name = name;
   ctx.module = NULL;
 
-  gum_enumerate_soinfo (gum_store_module_handle_if_name_matches, &ctx);
+  gum_enumerate_soinfo (
+      (GumFoundSoinfoFunc) gum_store_module_handle_if_name_matches, &ctx);
 
   return ctx.module;
 }
 
 static gboolean
 gum_store_module_handle_if_name_matches (const GumSoinfoDetails * details,
-                                         gpointer user_data)
+                                         GumGetModuleHandleContext * ctx)
 {
-  GumGetModuleHandleContext * ctx = user_data;
   GumLinkerApi * api = details->api;
 
   if (gum_linux_module_path_matches (details->path, ctx->name))
@@ -616,14 +637,13 @@ gum_android_enumerate_modules (GumFoundModuleFunc func,
   ctx.func = func;
   ctx.user_data = user_data;
 
-  gum_enumerate_soinfo (gum_emit_module_from_soinfo, &ctx);
+  gum_enumerate_soinfo ((GumFoundSoinfoFunc) gum_emit_module_from_soinfo, &ctx);
 }
 
 static gboolean
 gum_emit_module_from_soinfo (const GumSoinfoDetails * details,
-                             gpointer user_data)
+                             GumEnumerateModulesContext * ctx)
 {
-  GumEnumerateModulesContext * ctx = user_data;
   GumSoinfo * si = details->si;
   gchar * name;
   GumModuleDetails module;
@@ -785,22 +805,31 @@ gum_linker_api_try_init (void)
   api_level = gum_android_get_api_level ();
 
   pending = 6;
-  gum_elf_module_enumerate_symbols (linker, gum_store_linker_symbol_if_needed,
-      &pending);
+  gum_elf_module_enumerate_symbols (linker,
+      (GumElfFoundSymbolFunc) gum_store_linker_symbol_if_needed, &pending);
 
   if (api_level < 26 && gum_dl_api.dlopen == NULL && gum_dl_api.dlsym == NULL)
   {
     pending -= 2;
   }
 
+  if (gum_dl_api.dl_mutex == NULL &&
+      gum_try_find_dl_mutex_forensically (linker, &gum_dl_api.dl_mutex))
+  {
+    pending--;
+  }
+
   if (gum_dl_api.solist_get_head == NULL &&
-      (gum_dl_api.solist != NULL || gum_dl_api.libdl_info != NULL))
+      (gum_dl_api.solist != NULL || gum_dl_api.libdl_info != NULL ||
+       gum_try_find_libdl_info_forensically (linker, &gum_dl_api.libdl_info)))
   {
     gum_dl_api.solist_get_head = gum_solist_get_head_fallback;
     pending--;
   }
 
-  if (gum_dl_api.solist_get_somain == NULL && gum_dl_api.somain != NULL)
+  if (gum_dl_api.solist_get_somain == NULL &&
+      (gum_dl_api.somain != NULL ||
+       gum_try_find_somain_forensically (&gum_dl_api)))
   {
     gum_dl_api.solist_get_somain = gum_solist_get_somain_fallback;
     pending--;
@@ -842,10 +871,8 @@ gum_linker_api_try_init (void)
 
 static gboolean
 gum_store_linker_symbol_if_needed (const GumElfSymbolDetails * details,
-                                   gpointer user_data)
+                                   guint * pending)
 {
-  guint * pending = user_data;
-
   /* Restricted dlopen() implemented in API level >= 26 (Android >= 8.0). */
   GUM_TRY_ASSIGN (dlopen, "__dl___loader_dlopen");       /* >= 28 */
   GUM_TRY_ASSIGN (dlsym, "__dl___loader_dlvsym");        /* >= 28 */
@@ -879,6 +906,125 @@ beach:
 #undef GUM_TRY_ASSIGN_OPTIONAL
 #undef _GUM_TRY_ASSIGN
 
+static gboolean
+gum_try_find_dl_mutex_forensically (GumElfModule * linker,
+                                    pthread_mutex_t ** dl_mutex)
+{
+  GumFindDlMutexContext ctx;
+
+  ctx.linker = linker;
+  ctx.dl_mutex = NULL;
+
+  gum_elf_module_enumerate_sections (linker,
+      (GumElfFoundSectionFunc) gum_store_dl_mutex_pointer_if_found_in_section,
+      &ctx);
+
+  *dl_mutex = ctx.dl_mutex;
+
+  return *dl_mutex != NULL;
+}
+
+static gboolean
+gum_store_dl_mutex_pointer_if_found_in_section (
+    const GumElfSectionDetails * details,
+    GumFindDlMutexContext * ctx)
+{
+  GumMemoryRange range;
+  GumMatchPattern * pattern;
+  gpointer mutex_in_file;
+
+  if (strcmp (details->name, ".data") != 0)
+    return TRUE;
+
+  range.base_address = GUM_ADDRESS (ctx->linker->file_data) + details->offset;
+  range.size = details->size;
+
+  pattern = gum_match_pattern_new_from_string ("00 40 00 00");
+
+  mutex_in_file = NULL;
+  gum_memory_scan (&range, pattern, gum_store_first_scan_match, &mutex_in_file);
+
+  if (mutex_in_file != NULL)
+  {
+    ctx->dl_mutex = GSIZE_TO_POINTER (
+        details->address + (GUM_ADDRESS (mutex_in_file) - range.base_address));
+  }
+
+  gum_match_pattern_free (pattern);
+
+  return FALSE;
+}
+
+static gboolean
+gum_try_find_libdl_info_forensically (GumElfModule * linker,
+                                      GumSoinfo ** libdl_info)
+{
+  gum_elf_module_enumerate_sections (linker,
+      (GumElfFoundSectionFunc) gum_store_libdl_info_pointer_if_found_in_section,
+      libdl_info);
+
+  return *libdl_info != NULL;
+}
+
+static gboolean
+gum_store_libdl_info_pointer_if_found_in_section (
+    const GumElfSectionDetails * details,
+    GumSoinfo ** libdl_info)
+{
+  GumMemoryRange range;
+  GumMatchPattern * pattern;
+
+  if (strcmp (details->name, ".data") != 0)
+    return TRUE;
+
+  range.base_address = details->address;
+  range.size = details->size;
+
+  pattern = gum_match_pattern_new_from_string ("6c 69 62 64 6c 2e 73 6f 00");
+
+  gum_memory_scan (&range, pattern, gum_store_first_scan_match, libdl_info);
+
+  gum_match_pattern_free (pattern);
+
+  return FALSE;
+}
+
+static gboolean
+gum_try_find_somain_forensically (GumLinkerApi * api)
+{
+  GumSoinfo * si;
+
+  if (api->dl_mutex == NULL || api->solist_get_head == NULL)
+    return FALSE;
+
+  pthread_mutex_lock (api->dl_mutex);
+
+  for (si = api->solist_get_head (); si != NULL; si = si->next)
+  {
+    if ((si->flags & GUM_SOINFO_EXE) != 0)
+    {
+      api->somain_node = si;
+      break;
+    }
+  }
+
+  pthread_mutex_unlock (api->dl_mutex);
+
+  return api->somain_node != NULL;
+}
+
+static gboolean
+gum_store_first_scan_match (GumAddress address,
+                            gsize size,
+                            gpointer user_data)
+{
+  gpointer * match = user_data;
+
+  *match = GSIZE_TO_POINTER (address);
+
+  return FALSE;
+}
+
 static GumSoinfo *
 gum_solist_get_head_fallback (void)
 {
@@ -890,7 +1036,9 @@ gum_solist_get_head_fallback (void)
 static GumSoinfo *
 gum_solist_get_somain_fallback (void)
 {
-  return *gum_dl_api.somain;
+  return (gum_dl_api.somain != NULL)
+      ? *gum_dl_api.somain
+      : gum_dl_api.somain_node;
 }
 
 static gboolean
