@@ -39,6 +39,9 @@ typedef gboolean (* GumFoundSoinfoFunc) (const GumSoinfoDetails * details,
 typedef struct _GumLinkerApi GumLinkerApi;
 
 typedef struct _GumSoinfo GumSoinfo;
+typedef struct _GumSoinfoHead GumSoinfoHead;
+typedef struct _GumSoinfoBody GumSoinfoBody;
+typedef struct _GumSoinfoLegacy GumSoinfoLegacy;
 typedef guint32 GumSoinfoFlags;
 typedef struct _GumSoinfoList GumSoinfoList;
 typedef struct _GumSoinfoListEntry GumSoinfoListEntry;
@@ -74,6 +77,7 @@ struct _GumSoinfoDetails
 {
   const gchar * path;
   GumSoinfo * si;
+  GumSoinfoBody * body;
   GumLinkerApi * api;
 };
 
@@ -97,7 +101,7 @@ struct _GumLinkerApi
   GumSoinfo ** somain;
   GumSoinfo * somain_node;
 
-  const char * (* soinfo_get_path) (const GumSoinfo * si);
+  const char * (* soinfo_get_path) (GumSoinfo * si);
 };
 
 struct _GumSoinfoList
@@ -131,7 +135,7 @@ union _GumLibcxxString
   GumLibcxxHugeString huge;
 };
 
-struct _GumSoinfo
+struct _GumSoinfoHead
 {
 #ifdef GUM_ANDROID_LEGACY_SOINFO
   gchar old_name[128];
@@ -139,7 +143,10 @@ struct _GumSoinfo
 
   const ElfW(Phdr) * phdr;
   gsize phnum;
+};
 
+struct _GumSoinfoBody
+{
 #ifdef GUM_ANDROID_LEGACY_SOINFO
   ElfW(Addr) unused0;
 #endif
@@ -257,6 +264,25 @@ struct _GumSoinfo
   /* For now we don't need anything from version >= 3. */
 };
 
+struct _GumSoinfoLegacy
+{
+#ifndef GUM_ANDROID_LEGACY_SOINFO
+  ElfW(Addr) entry;
+#endif
+  GumSoinfoBody body;
+};
+
+struct _GumSoinfo
+{
+  GumSoinfoHead head;
+
+  union
+  {
+    GumSoinfoLegacy legacy;
+    GumSoinfoBody body_26p;
+  };
+};
+
 enum _GumSoinfoFlags
 {
   GUM_SOINFO_LINKED     = 0x00000001,
@@ -304,6 +330,8 @@ static gboolean gum_emit_module_from_soinfo (const GumSoinfoDetails * details,
     GumEnumerateModulesContext * ctx);
 
 static void gum_enumerate_soinfo (GumFoundSoinfoFunc func, gpointer user_data);
+static void gum_init_soinfo_details (GumSoinfoDetails * details, GumSoinfo * si,
+    GumLinkerApi * api, GHashTable ** ranges);
 static const gchar * gum_resolve_soinfo_path (GumSoinfo * si,
     GumLinkerApi * api, GHashTable ** ranges);
 
@@ -334,8 +362,9 @@ static gboolean gum_store_first_scan_match (GumAddress address, gsize size,
     gpointer user_data);
 static GumSoinfo * gum_solist_get_head_fallback (void);
 static GumSoinfo * gum_solist_get_somain_fallback (void);
-static gboolean gum_soinfo_is_linker (const GumSoinfo * self);
-static const char * gum_soinfo_get_path_fallback (const GumSoinfo * self);
+static GumSoinfoBody * gum_soinfo_get_body (GumSoinfo * self);
+static gboolean gum_soinfo_is_linker (GumSoinfo * self);
+static const char * gum_soinfo_get_path_fallback (GumSoinfo * self);
 
 static void * gum_call_inner_dlopen (const char * filename, int flags);
 static void * gum_call_inner_dlsym (void * handle, const char * symbol);
@@ -737,25 +766,25 @@ gum_store_module_handle_if_name_matches (const GumSoinfoDetails * details,
 
   if (gum_linux_module_path_matches (details->path, ctx->name))
   {
-    GumSoinfo * si = details->si;
+    GumSoinfoBody * sb = details->body;
     int flags = RTLD_LAZY;
     void * caller_addr = api->trusted_caller;
 
-    if ((si->flags & GUM_SOINFO_NEW_FORMAT) != 0)
+    if ((sb->flags & GUM_SOINFO_NEW_FORMAT) != 0)
     {
       GumSoinfo * parent;
 
-      parent = (si->parents.head != NULL)
-          ? si->parents.head->element
+      parent = (sb->parents.head != NULL)
+          ? sb->parents.head->element
           : NULL;
       if (parent != NULL)
       {
-        caller_addr = GSIZE_TO_POINTER (parent->base);
+        caller_addr = GSIZE_TO_POINTER (gum_soinfo_get_body (parent)->base);
       }
 
-      if (si->version >= 1)
+      if (sb->version >= 1)
       {
-        flags = si->rtld_flags;
+        flags = sb->rtld_flags;
       }
     }
 
@@ -813,7 +842,6 @@ static gboolean
 gum_emit_module_from_soinfo (const GumSoinfoDetails * details,
                              GumEnumerateModulesContext * ctx)
 {
-  GumSoinfo * si = details->si;
   gchar * name;
   GumModuleDetails module;
   GumMemoryRange range;
@@ -825,14 +853,16 @@ gum_emit_module_from_soinfo (const GumSoinfoDetails * details,
   module.range = &range;
   module.path = details->path;
 
-  if (gum_soinfo_is_linker (si))
+  if (gum_soinfo_is_linker (details->si))
   {
     range = *gum_android_get_linker_module_details ()->range;
   }
   else
   {
-    range.base_address = si->base;
-    range.size = si->size;
+    GumSoinfoBody * sb = details->body;
+
+    range.base_address = sb->base;
+    range.size = sb->size;
   }
 
   carry_on = ctx->func (&module, ctx->user_data);
@@ -847,7 +877,7 @@ gum_enumerate_soinfo (GumFoundSoinfoFunc func,
                       gpointer user_data)
 {
   GumLinkerApi * api;
-  GumSoinfo * somain, * sovdso, * solinker, * si;
+  GumSoinfo * somain, * sovdso, * solinker, * si, * next;
   GHashTable * ranges;
   GumSoinfoDetails details;
   gboolean carry_on;
@@ -862,42 +892,44 @@ gum_enumerate_soinfo (GumFoundSoinfoFunc func,
 
   ranges = NULL;
 
-  details.path = gum_resolve_soinfo_path (somain, api, &ranges);
-  details.si = somain;
-  details.api = api;
+  gum_init_soinfo_details (&details, somain, api, &ranges);
   carry_on = func (&details, user_data);
 
-  for (si = api->solist_get_head (); carry_on && si != NULL; si = si->next)
+  next = NULL;
+  for (si = api->solist_get_head (); carry_on && si != NULL; si = next)
   {
-    if (si == somain)
-      continue;
+    gum_init_soinfo_details (&details, si, api, &ranges);
 
-    details.path = gum_resolve_soinfo_path (si, api, &ranges);
+    if (si == somain)
+      goto skip;
+
     if (gum_android_is_vdso_module_name (details.path))
     {
       sovdso = si;
-      continue;
+      goto skip;
     }
+
     if (gum_android_is_linker_module_name (details.path))
     {
       solinker = si;
-      continue;
+      goto skip;
     }
-    details.si = si;
+
     carry_on = func (&details, user_data);
+
+skip:
+    next = details.body->next;
   }
 
   if (carry_on && sovdso != NULL)
   {
-    details.path = gum_resolve_soinfo_path (sovdso, api, &ranges);
-    details.si = sovdso;
+    gum_init_soinfo_details (&details, sovdso, api, &ranges);
     carry_on = func (&details, user_data);
   }
 
   if (carry_on && solinker != NULL)
   {
-    details.path = gum_resolve_soinfo_path (solinker, api, &ranges);
-    details.si = solinker;
+    gum_init_soinfo_details (&details, solinker, api, &ranges);
     carry_on = func (&details, user_data);
   }
 
@@ -905,6 +937,18 @@ gum_enumerate_soinfo (GumFoundSoinfoFunc func,
 
   if (ranges != NULL)
     g_hash_table_unref (ranges);
+}
+
+static void
+gum_init_soinfo_details (GumSoinfoDetails * details,
+                         GumSoinfo * si,
+                         GumLinkerApi * api,
+                         GHashTable ** ranges)
+{
+  details->path = gum_resolve_soinfo_path (si, api, ranges);
+  details->si = si;
+  details->body = gum_soinfo_get_body (si);
+  details->api = api;
 }
 
 static const gchar *
@@ -939,7 +983,8 @@ gum_resolve_soinfo_path (GumSoinfo * si,
       *ranges = gum_linux_collect_named_ranges ();
     }
 
-    range = g_hash_table_lookup (*ranges, GSIZE_TO_POINTER (si->base));
+    range = g_hash_table_lookup (*ranges,
+        GSIZE_TO_POINTER (gum_soinfo_get_body (si)->base));
 
     result = (range != NULL) ? range->name : "<unknown>";
   }
@@ -1246,12 +1291,6 @@ gum_store_libdl_info_pointer_if_found_in_section (
   }
   else if (strcmp (details->name, ".bss") == 0)
   {
-#ifdef GUM_ANDROID_LEGACY_SOINFO
-    pattern = gum_match_pattern_new_from_string (
-        "6c 64 2d 61 6e 64 72 6f 69 64 2e 73 6f 00");
-    gum_memory_scan (&range, pattern, gum_store_first_scan_match, libdl_info);
-    gum_match_pattern_free (pattern);
-#else
     guint offset;
 
     for (offset = 0;
@@ -1259,15 +1298,17 @@ gum_store_libdl_info_pointer_if_found_in_section (
         offset += sizeof (gpointer))
     {
       GumSoinfo * si = GSIZE_TO_POINTER (details->address + offset);
+      GumSoinfoBody * sb;
 
-      if ((si->flags & ~GUM_SOINFO_GNU_HASH) ==
+      sb = gum_soinfo_get_body (si);
+
+      if ((sb->flags & ~GUM_SOINFO_GNU_HASH) ==
           (GUM_SOINFO_NEW_FORMAT | GUM_SOINFO_LINKED))
       {
         *libdl_info = si;
         break;
       }
     }
-#endif
   }
 
   return *libdl_info == NULL;
@@ -1276,20 +1317,25 @@ gum_store_libdl_info_pointer_if_found_in_section (
 static gboolean
 gum_try_find_somain_forensically (GumLinkerApi * api)
 {
-  GumSoinfo * si;
+  GumSoinfo * si, * next;
 
   if (api->dl_mutex == NULL || api->solist_get_head == NULL)
     return FALSE;
 
   pthread_mutex_lock (api->dl_mutex);
 
-  for (si = api->solist_get_head (); si != NULL; si = si->next)
+  next = NULL;
+  for (si = api->solist_get_head (); si != NULL; si = next)
   {
-    if ((si->flags & GUM_SOINFO_EXE) != 0)
+    GumSoinfoBody * sb = gum_soinfo_get_body (si);
+
+    if ((sb->flags & GUM_SOINFO_EXE) != 0)
     {
       api->somain_node = si;
       break;
     }
+
+    next = sb->next;
   }
 
   pthread_mutex_unlock (api->dl_mutex);
@@ -1369,22 +1415,32 @@ gum_solist_get_somain_fallback (void)
       : gum_dl_api.somain_node;
 }
 
-static gboolean
-gum_soinfo_is_linker (const GumSoinfo * self)
+GumSoinfoBody *
+gum_soinfo_get_body (GumSoinfo * self)
 {
-  return self->base == 0;
+  return (gum_android_get_api_level () >= 26)
+      ? &self->body_26p
+      : &self->legacy.body;
+}
+
+static gboolean
+gum_soinfo_is_linker (GumSoinfo * self)
+{
+  return gum_soinfo_get_body (self)->base == 0;
 }
 
 static const char *
-gum_soinfo_get_path_fallback (const GumSoinfo * self)
+gum_soinfo_get_path_fallback (GumSoinfo * self)
 {
+  GumSoinfoBody * sb = gum_soinfo_get_body (self);
+
 #ifdef GUM_ANDROID_LEGACY_SOINFO
-  if ((self->flags & GUM_SOINFO_NEW_FORMAT) != 0 && self->version >= 2)
-    return gum_libcxx_string_get_data (&self->realpath);
+  if ((sb->flags & GUM_SOINFO_NEW_FORMAT) != 0 && sb->version >= 2)
+    return gum_libcxx_string_get_data (&sb->realpath);
   else
-    return self->old_name;
+    return self->head.old_name;
 #else
-  return gum_libcxx_string_get_data (&self->realpath);
+  return gum_libcxx_string_get_data (&sb->realpath);
 #endif
 }
 
