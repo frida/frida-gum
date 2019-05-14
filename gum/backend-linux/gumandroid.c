@@ -43,7 +43,7 @@ typedef guint32 GumSoinfoFlags;
 typedef struct _GumSoinfoList GumSoinfoList;
 typedef struct _GumSoinfoListEntry GumSoinfoListEntry;
 
-typedef struct _GumFindDlOpenAndSymContext GumFindDlOpenAndSymContext;
+typedef struct _GumFindDlopenApiContext GumFindDlopenApiContext;
 typedef struct _GumFindDlMutexContext GumFindDlMutexContext;
 typedef struct _GumFindFunctionSignatureContext GumFindFunctionSignatureContext;
 typedef struct _GumFunctionSignature GumFunctionSignature;
@@ -85,6 +85,8 @@ struct _GumLinkerApi
 
   void * (* do_dlopen) (const char * filename, int flags, const void * extinfo,
       void * caller_addr);
+  guint8 (* do_dlsym) (void * handle, const char * sym_name,
+      const char * sym_ver, void * caller_addr, void ** symbol);
 
   pthread_mutex_t * dl_mutex;
 
@@ -263,7 +265,7 @@ enum _GumSoinfoFlags
   GUM_SOINFO_NEW_FORMAT = 0x40000000,
 };
 
-struct _GumFindDlOpenAndSymContext
+struct _GumFindDlopenApiContext
 {
   GumElfModule * linker;
 
@@ -309,12 +311,12 @@ static GumLinkerApi * gum_linker_api_get (void);
 static GumLinkerApi * gum_linker_api_try_init (void);
 static gboolean gum_store_linker_symbol_if_needed (
     const GumElfSymbolDetails * details, guint * pending);
-static gboolean gum_try_find_dlopen_and_dlsym_api245_forensically (
-    GumElfModule * linker, GumLinkerApi * api);
-static gboolean gum_try_find_dlopen_and_dlsym_api26p_forensically (
-    GumElfModule * linker, GumLinkerApi * api);
-static gboolean gum_store_dlopen_and_dlsym_if_found_in_section (
-    const GumElfSectionDetails * details, GumFindDlOpenAndSymContext * ctx);
+static gboolean gum_try_find_dlopen_api245_forensically (GumElfModule * linker,
+    GumLinkerApi * api);
+static gboolean gum_try_find_dlopen_api26p_forensically (GumElfModule * linker,
+    GumLinkerApi * api);
+static gboolean gum_store_dlopen_api_if_found_in_section (
+    const GumElfSectionDetails * details, GumFindDlopenApiContext * ctx);
 static gboolean gum_try_find_dl_mutex_forensically (GumElfModule * linker,
     pthread_mutex_t ** dl_mutex);
 static gboolean gum_store_dl_mutex_pointer_if_found_in_section (
@@ -363,6 +365,62 @@ static const gchar * gum_magic_linker_export_names_post_api_level_26[] =
 /*
  * The following signatures have been tested on:
  *
+ * - Xiaomi iRedmi Note 3 running LineageOS 14.1 (Android 7.1.2)
+ */
+
+static const GumFunctionSignature gum_dlopen_signatures_api245[] =
+{
+#ifdef HAVE_ARM
+  {
+    "93 46 "        /* mov r11, r2                             */
+    "0c 46 "        /* mov r4, r1                              */
+    "78 44 "        /* add r0, pc                              */
+    "05 68",        /* ldr r5, [r0]                            */
+    -12 + 1
+  },
+#endif
+#ifdef HAVE_ARM64
+  {
+    "f4 4f 04 a9 "  /* stp x20, x19, [sp, #0x40]               */
+    "fd 7b 05 a9 "  /* stp x29, x30, [sp, #0x50]               */
+    "fd 43 01 91 "  /* add x29, sp, #0x50                      */
+    "ff c3 04 d1 "  /* sub sp, sp, #0x130                      */
+    "?? ?? ?? ?? "  /* adrp x8, #0xb1000                       */
+    "?? ?? ?? ?? "  /* ldr x21, [x8, #0x688]                   */
+    "f4 03 02 aa",  /* mov x20, x2                             */
+    -16
+  },
+#endif
+  { NULL, 0 }
+};
+
+static const GumFunctionSignature gum_dlsym_signatures_api245[] =
+{
+#ifdef HAVE_ARM
+  {
+    "14 46 "        /* mov r4, r2                              */
+    "88 46 "        /* mov r8, r1                              */
+    "?? ?? "        /* cbz r6, loc_52a6                        */
+    "b8 f1 00 0f",  /* cmp.w r8, #0                            */
+    -8 + 1
+  },
+#endif
+#ifdef HAVE_ARM64
+  {
+    "ff c3 01 d1 "  /* sub sp, sp, #0x70                       */
+    "f3 03 04 aa "  /* mov x19, x4                             */
+    "f4 03 02 aa "  /* mov x20, x2                             */
+    "f5 03 01 aa "  /* mov x21, x1                             */
+    "e8 03 00 aa",  /* mov x8, x0                              */
+    -16
+  },
+#endif
+  { NULL, 0 }
+};
+
+/*
+ * The following signatures have been tested on:
+ *
  * - Pixel 3 running Android 9.0
  */
 
@@ -375,7 +433,7 @@ static const GumFunctionSignature gum_dlopen_signatures_api26p[] =
     "?? ?? ?? ?? "  /* bl __dl_pthread_mutex_lock              */
     "?? ?? "        /* ldr r0, =0xbd62a                        */
     "78 44",        /* add r0, pc                              */
-    -7
+    -8 + 1
   },
 #endif
 #ifdef HAVE_ARM64
@@ -410,7 +468,7 @@ static const GumFunctionSignature gum_dlsym_signatures_api26p[] =
     "00 68 "        /* ldr r0, [r0]                            */
     "?? ?? ?? ?? "  /* bl __dl__ZN12LinkerLogger10ResetStateEv */
     "02 a8",        /* add r0, sp, #8                          */
-    -7
+    -8 + 1
   },
 #endif
 #ifdef HAVE_ARM64
@@ -920,18 +978,20 @@ gum_linker_api_try_init (void)
   gum_elf_module_enumerate_symbols (linker,
       (GumElfFoundSymbolFunc) gum_store_linker_symbol_if_needed, &pending);
 
-  got_dlopen_api245 = gum_dl_api.do_dlopen != NULL;
-  got_dlopen_api26p = gum_dl_api.dlopen != NULL && gum_dl_api.dlsym != NULL;
+  got_dlopen_api245 =
+      (gum_dl_api.do_dlopen != NULL) && (gum_dl_api.do_dlsym != NULL);
+  got_dlopen_api26p =
+      (gum_dl_api.dlopen != NULL) && (gum_dl_api.dlsym != NULL);
 
   if (api_level >= 24)
   {
-    if (api_level < 26 && !got_dlopen_api245 &&
-        gum_try_find_dlopen_and_dlsym_api245_forensically (linker, &gum_dl_api))
+    if (api_level < 26 && (got_dlopen_api245 ||
+        gum_try_find_dlopen_api245_forensically (linker, &gum_dl_api)))
     {
       pending -= 2;
     }
-    else if (api_level >= 26 && !got_dlopen_api26p &&
-        gum_try_find_dlopen_and_dlsym_api26p_forensically (linker, &gum_dl_api))
+    else if (api_level >= 26 && (got_dlopen_api26p ||
+        gum_try_find_dlopen_api26p_forensically (linker, &gum_dl_api)))
     {
       pending -= 2;
     }
@@ -1009,6 +1069,7 @@ gum_store_linker_symbol_if_needed (const GumElfSymbolDetails * details,
   /* Namespaces implemented in API level >= 24 (Android >= 7.0). */
   GUM_TRY_ASSIGN_OPTIONAL (do_dlopen,
       "__dl__Z9do_dlopenPKciPK17android_dlextinfoPv");
+  GUM_TRY_ASSIGN_OPTIONAL (do_dlsym, "__dl__Z8do_dlsymPvPKcS1_S_PS_");
 
   GUM_TRY_ASSIGN (dl_mutex, "__dl__ZL10g_dl_mutex"); /* >= 21 */
   GUM_TRY_ASSIGN (dl_mutex, "__dl__ZL8gDlMutex");    /*  < 21 */
@@ -1035,18 +1096,37 @@ beach:
 #undef _GUM_TRY_ASSIGN
 
 static gboolean
-gum_try_find_dlopen_and_dlsym_api245_forensically (GumElfModule * linker,
-                                                   GumLinkerApi * api)
+gum_try_find_dlopen_api245_forensically (GumElfModule * linker,
+                                         GumLinkerApi * api)
 {
-  /* TODO: implement */
-  return FALSE;
+  GumFindDlopenApiContext ctx;
+
+  ctx.linker = linker;
+
+  ctx.dlopen_signatures = gum_dlopen_signatures_api245;
+  ctx.dlopen = NULL;
+
+  ctx.dlsym_signatures = gum_dlsym_signatures_api245;
+  ctx.dlsym = NULL;
+
+  gum_elf_module_enumerate_sections (linker,
+      (GumElfFoundSectionFunc) gum_store_dlopen_api_if_found_in_section,
+      &ctx);
+
+  if (ctx.dlopen == NULL || ctx.dlsym == NULL)
+    return FALSE;
+
+  api->do_dlopen = ctx.dlopen;
+  api->do_dlsym = ctx.dlsym;
+
+  return TRUE;
 }
 
 static gboolean
-gum_try_find_dlopen_and_dlsym_api26p_forensically (GumElfModule * linker,
-                                                   GumLinkerApi * api)
+gum_try_find_dlopen_api26p_forensically (GumElfModule * linker,
+                                         GumLinkerApi * api)
 {
-  GumFindDlOpenAndSymContext ctx;
+  GumFindDlopenApiContext ctx;
 
   ctx.linker = linker;
 
@@ -1057,7 +1137,7 @@ gum_try_find_dlopen_and_dlsym_api26p_forensically (GumElfModule * linker,
   ctx.dlsym = NULL;
 
   gum_elf_module_enumerate_sections (linker,
-      (GumElfFoundSectionFunc) gum_store_dlopen_and_dlsym_if_found_in_section,
+      (GumElfFoundSectionFunc) gum_store_dlopen_api_if_found_in_section,
       &ctx);
 
   if (ctx.dlopen == NULL || ctx.dlsym == NULL)
@@ -1070,9 +1150,8 @@ gum_try_find_dlopen_and_dlsym_api26p_forensically (GumElfModule * linker,
 }
 
 static gboolean
-gum_store_dlopen_and_dlsym_if_found_in_section (
-    const GumElfSectionDetails * details,
-    GumFindDlOpenAndSymContext * ctx)
+gum_store_dlopen_api_if_found_in_section (const GumElfSectionDetails * details,
+                                          GumFindDlopenApiContext * ctx)
 {
   if (strcmp (details->name, ".text") != 0)
     return TRUE;
