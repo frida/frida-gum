@@ -43,7 +43,10 @@ typedef guint32 GumSoinfoFlags;
 typedef struct _GumSoinfoList GumSoinfoList;
 typedef struct _GumSoinfoListEntry GumSoinfoListEntry;
 
+typedef struct _GumFindDlOpenAndSymContext GumFindDlOpenAndSymContext;
 typedef struct _GumFindDlMutexContext GumFindDlMutexContext;
+typedef struct _GumFindFunctionSignatureContext GumFindFunctionSignatureContext;
+typedef struct _GumFunctionSignature GumFunctionSignature;
 
 typedef union _GumLibcxxString GumLibcxxString;
 typedef struct _GumLibcxxTinyString GumLibcxxTinyString;
@@ -254,14 +257,39 @@ struct _GumSoinfo
 
 enum _GumSoinfoFlags
 {
+  GUM_SOINFO_LINKED     = 0x00000001,
   GUM_SOINFO_EXE        = 0x00000004,
+  GUM_SOINFO_GNU_HASH   = 0x00000040,
   GUM_SOINFO_NEW_FORMAT = 0x40000000,
+};
+
+struct _GumFindDlOpenAndSymContext
+{
+  GumElfModule * linker;
+
+  const GumFunctionSignature * dlopen_signatures;
+  gpointer dlopen;
+
+  const GumFunctionSignature * dlsym_signatures;
+  gpointer dlsym;
 };
 
 struct _GumFindDlMutexContext
 {
   GumElfModule * linker;
   pthread_mutex_t * dl_mutex;
+};
+
+struct _GumFindFunctionSignatureContext
+{
+  GumAddress match;
+  guint num_matches;
+};
+
+struct _GumFunctionSignature
+{
+  const gchar * signature;
+  gint displacement;
 };
 
 static const GumModuleDetails * gum_try_init_linker_details (void);
@@ -281,6 +309,12 @@ static GumLinkerApi * gum_linker_api_get (void);
 static GumLinkerApi * gum_linker_api_try_init (void);
 static gboolean gum_store_linker_symbol_if_needed (
     const GumElfSymbolDetails * details, guint * pending);
+static gboolean gum_try_find_dlopen_and_dlsym_api245_forensically (
+    GumElfModule * linker, GumLinkerApi * api);
+static gboolean gum_try_find_dlopen_and_dlsym_api26p_forensically (
+    GumElfModule * linker, GumLinkerApi * api);
+static gboolean gum_store_dlopen_and_dlsym_if_found_in_section (
+    const GumElfSectionDetails * details, GumFindDlOpenAndSymContext * ctx);
 static gboolean gum_try_find_dl_mutex_forensically (GumElfModule * linker,
     pthread_mutex_t ** dl_mutex);
 static gboolean gum_store_dl_mutex_pointer_if_found_in_section (
@@ -290,6 +324,10 @@ static gboolean gum_try_find_libdl_info_forensically (GumElfModule * linker,
 static gboolean gum_store_libdl_info_pointer_if_found_in_section (
     const GumElfSectionDetails * details, GumSoinfo ** libdl_info);
 static gboolean gum_try_find_somain_forensically (GumLinkerApi * api);
+static gpointer gum_find_function_by_signature (GumAddress address, gsize size,
+    const GumFunctionSignature * signatures);
+static gboolean gum_store_function_signature_match (GumAddress address,
+    gsize size, GumFindFunctionSignatureContext * ctx);
 static gboolean gum_store_first_scan_match (GumAddress address, gsize size,
     gpointer user_data);
 static GumSoinfo * gum_solist_get_head_fallback (void);
@@ -320,6 +358,79 @@ static const gchar * gum_magic_linker_export_names_pre_api_level_26[] =
 static const gchar * gum_magic_linker_export_names_post_api_level_26[] =
 {
   NULL
+};
+
+/*
+ * The following signatures have been tested on:
+ *
+ * - Pixel 3 running Android 9.0
+ */
+
+static const GumFunctionSignature gum_dlopen_signatures_api26p[] =
+{
+#ifdef HAVE_ARM
+  {
+    "0d 46 "        /* mov r5, r1                              */
+    "78 44 "        /* add r0, pc                              */
+    "?? ?? ?? ?? "  /* bl __dl_pthread_mutex_lock              */
+    "?? ?? "        /* ldr r0, =0xbd62a                        */
+    "78 44",        /* add r0, pc                              */
+    -7
+  },
+#endif
+#ifdef HAVE_ARM64
+  {
+    "f3 03 02 aa "  /* mov x19, x2                             */
+    "f4 03 01 2a "  /* mov w20, w1                             */
+    "f5 03 00 aa "  /* mov x21, x0                             */
+    "?? ?? ?? ?? "  /* adrp x0, #0x150000                      */
+    "?? ?? ?? ?? "  /* add x0, x0, #0                          */
+    "?? ?? ?? ?4 "  /* bl __dl_pthread_mutex_lock              */
+    "?? ?? ?? ?? "  /* adrp x0, #0x14f000                      */
+    "?? ?? ?? ?? "  /* ldr x0, [x0, #0x840]                    */
+    "?? ?? ?? ?4 "  /* bl __dl__ZN12LinkerLogger10ResetStateEv */
+    "e0 03 15 aa ", /* mov x0, x21                             */
+    -16
+  },
+#endif
+  { NULL, 0 }
+};
+
+static const GumFunctionSignature gum_dlsym_signatures_api26p[] =
+{
+#ifdef HAVE_ARM
+  {
+    "1c 46 "        /* mov r4, r3                              */
+    "15 46 "        /* mov r5, r2                              */
+    "0e 46 "        /* mov r6, r1                              */
+    "78 44 "        /* add r0, pc                              */
+    "?? ?? ?? ?? "  /* bl __dl_pthread_mutex_lock              */
+    "?? ?? "        /* ldr r0, =0xbd5ce                        */
+    "78 44 "        /* add r0, pc                              */
+    "00 68 "        /* ldr r0, [r0]                            */
+    "?? ?? ?? ?? "  /* bl __dl__ZN12LinkerLogger10ResetStateEv */
+    "02 a8",        /* add r0, sp, #8                          */
+    -7
+  },
+#endif
+#ifdef HAVE_ARM64
+  {
+    "fd c3 00 91 "  /* add x29, sp, #0x30                      */
+    "f3 03 03 aa "  /* mov x19, x3                             */
+    "f4 03 02 aa "  /* mov x20, x2                             */
+    "f5 03 01 aa "  /* mov x21, x1                             */
+    "f6 03 00 aa "  /* mov x22, x0                             */
+    "?? ?? ?? ?? "  /* adrp x0, #0x150000                      */
+    "?? ?? ?? ?? "  /* add x0, x0, #0                          */
+    "?? ?? ?? ?4 "  /* bl __dl_pthread_mutex_lock              */
+    "?? ?? ?? ?? "  /* adrp x0, #0x14f000                      */
+    "?? ?? ?? ?? "  /* ldr x0, [x0, #0x840]                    */
+    "?? ?? ?? ?4 "  /* bl __dl__ZN12LinkerLogger10ResetStateEv */
+    "e4 23 00 91",  /* add x4, sp, #8                          */
+    -16
+  },
+#endif
+  { NULL, 0 }
 };
 
 guint
@@ -799,6 +910,7 @@ gum_linker_api_try_init (void)
 {
   GumElfModule * linker;
   guint api_level, pending;
+  gboolean got_dlopen_api245, got_dlopen_api26p;
 
   linker = gum_android_open_linker_module ();
 
@@ -808,7 +920,23 @@ gum_linker_api_try_init (void)
   gum_elf_module_enumerate_symbols (linker,
       (GumElfFoundSymbolFunc) gum_store_linker_symbol_if_needed, &pending);
 
-  if (api_level < 26 && gum_dl_api.dlopen == NULL && gum_dl_api.dlsym == NULL)
+  got_dlopen_api245 = gum_dl_api.do_dlopen != NULL;
+  got_dlopen_api26p = gum_dl_api.dlopen != NULL && gum_dl_api.dlsym != NULL;
+
+  if (api_level >= 24)
+  {
+    if (api_level < 26 && !got_dlopen_api245 &&
+        gum_try_find_dlopen_and_dlsym_api245_forensically (linker, &gum_dl_api))
+    {
+      pending -= 2;
+    }
+    else if (api_level >= 26 && !got_dlopen_api26p &&
+        gum_try_find_dlopen_and_dlsym_api26p_forensically (linker, &gum_dl_api))
+    {
+      pending -= 2;
+    }
+  }
+  else if (!got_dlopen_api245 && !got_dlopen_api26p)
   {
     pending -= 2;
   }
@@ -907,6 +1035,58 @@ beach:
 #undef _GUM_TRY_ASSIGN
 
 static gboolean
+gum_try_find_dlopen_and_dlsym_api245_forensically (GumElfModule * linker,
+                                                   GumLinkerApi * api)
+{
+  /* TODO: implement */
+  return FALSE;
+}
+
+static gboolean
+gum_try_find_dlopen_and_dlsym_api26p_forensically (GumElfModule * linker,
+                                                   GumLinkerApi * api)
+{
+  GumFindDlOpenAndSymContext ctx;
+
+  ctx.linker = linker;
+
+  ctx.dlopen_signatures = gum_dlopen_signatures_api26p;
+  ctx.dlopen = NULL;
+
+  ctx.dlsym_signatures = gum_dlsym_signatures_api26p;
+  ctx.dlsym = NULL;
+
+  gum_elf_module_enumerate_sections (linker,
+      (GumElfFoundSectionFunc) gum_store_dlopen_and_dlsym_if_found_in_section,
+      &ctx);
+
+  if (ctx.dlopen == NULL || ctx.dlsym == NULL)
+    return FALSE;
+
+  api->dlopen = ctx.dlopen;
+  api->dlsym = ctx.dlsym;
+
+  return TRUE;
+}
+
+static gboolean
+gum_store_dlopen_and_dlsym_if_found_in_section (
+    const GumElfSectionDetails * details,
+    GumFindDlOpenAndSymContext * ctx)
+{
+  if (strcmp (details->name, ".text") != 0)
+    return TRUE;
+
+  ctx->dlopen = gum_find_function_by_signature (details->address, details->size,
+      ctx->dlopen_signatures);
+
+  ctx->dlsym = gum_find_function_by_signature (details->address, details->size,
+      ctx->dlsym_signatures);
+
+  return FALSE;
+}
+
+static gboolean
 gum_try_find_dl_mutex_forensically (GumElfModule * linker,
                                     pthread_mutex_t ** dl_mutex)
 {
@@ -959,6 +1139,8 @@ static gboolean
 gum_try_find_libdl_info_forensically (GumElfModule * linker,
                                       GumSoinfo ** libdl_info)
 {
+  *libdl_info = NULL;
+
   gum_elf_module_enumerate_sections (linker,
       (GumElfFoundSectionFunc) gum_store_libdl_info_pointer_if_found_in_section,
       libdl_info);
@@ -974,19 +1156,42 @@ gum_store_libdl_info_pointer_if_found_in_section (
   GumMemoryRange range;
   GumMatchPattern * pattern;
 
-  if (strcmp (details->name, ".data") != 0)
-    return TRUE;
-
   range.base_address = details->address;
   range.size = details->size;
 
-  pattern = gum_match_pattern_new_from_string ("6c 69 62 64 6c 2e 73 6f 00");
+  if (strcmp (details->name, ".data") == 0)
+  {
+    pattern = gum_match_pattern_new_from_string ("6c 69 62 64 6c 2e 73 6f 00");
+    gum_memory_scan (&range, pattern, gum_store_first_scan_match, libdl_info);
+    gum_match_pattern_free (pattern);
+  }
+  else if (strcmp (details->name, ".bss") == 0)
+  {
+#ifdef GUM_ANDROID_LEGACY_SOINFO
+    pattern = gum_match_pattern_new_from_string (
+        "6c 64 2d 61 6e 64 72 6f 69 64 2e 73 6f 00");
+    gum_memory_scan (&range, pattern, gum_store_first_scan_match, libdl_info);
+    gum_match_pattern_free (pattern);
+#else
+    guint offset;
 
-  gum_memory_scan (&range, pattern, gum_store_first_scan_match, libdl_info);
+    for (offset = 0;
+        offset <= details->size - sizeof (GumSoinfo);
+        offset += sizeof (gpointer))
+    {
+      GumSoinfo * si = GSIZE_TO_POINTER (details->address + offset);
 
-  gum_match_pattern_free (pattern);
+      if ((si->flags & ~GUM_SOINFO_GNU_HASH) ==
+          (GUM_SOINFO_NEW_FORMAT | GUM_SOINFO_LINKED))
+      {
+        *libdl_info = si;
+        break;
+      }
+    }
+#endif
+  }
 
-  return FALSE;
+  return *libdl_info == NULL;
 }
 
 static gboolean
@@ -1011,6 +1216,50 @@ gum_try_find_somain_forensically (GumLinkerApi * api)
   pthread_mutex_unlock (api->dl_mutex);
 
   return api->somain_node != NULL;
+}
+
+static gpointer
+gum_find_function_by_signature (GumAddress address,
+                                gsize size,
+                                const GumFunctionSignature * signatures)
+{
+  GumFindFunctionSignatureContext ctx;
+  GumMemoryRange range;
+  const GumFunctionSignature * s;
+
+  range.base_address = address;
+  range.size = size;
+
+  for (s = signatures; s->signature != NULL; s++)
+  {
+    GumMatchPattern * pattern;
+
+    ctx.match = 0;
+    ctx.num_matches = 0;
+
+    pattern = gum_match_pattern_new_from_string (s->signature);
+
+    gum_memory_scan (&range, pattern,
+        (GumMemoryScanMatchFunc) gum_store_function_signature_match, &ctx);
+
+    gum_match_pattern_free (pattern);
+
+    if (ctx.num_matches == 1)
+      return GSIZE_TO_POINTER (ctx.match + s->displacement);
+  }
+
+  return NULL;
+}
+
+static gboolean
+gum_store_function_signature_match (GumAddress address,
+                                    gsize size,
+                                    GumFindFunctionSignatureContext * ctx)
+{
+  ctx->match = address;
+  ctx->num_matches++;
+
+  return TRUE;
 }
 
 static gboolean
