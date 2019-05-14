@@ -1035,8 +1035,8 @@ gum_linker_api_try_init (void)
     {
       pending -= 2;
     }
-    else if (api_level >= 26 && (got_dlopen_api26p ||
-        gum_try_find_dlopen_api26p_forensically (linker, &gum_dl_api)))
+    else if (api_level >= 26 && !got_dlopen_api26p &&
+        gum_try_find_dlopen_api26p_forensically (linker, &gum_dl_api))
     {
       pending -= 2;
     }
