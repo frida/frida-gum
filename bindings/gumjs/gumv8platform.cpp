@@ -271,6 +271,26 @@ private:
   GumV8Platform * platform;
 };
 
+class GumV8InterceptorIgnoreScope
+{
+public:
+  GumV8InterceptorIgnoreScope ()
+  {
+    interceptor = gum_interceptor_obtain ();
+    gum_interceptor_ignore_current_thread (interceptor);
+  }
+
+
+  ~GumV8InterceptorIgnoreScope ()
+  {
+    gum_interceptor_unignore_current_thread (interceptor);
+    g_object_unref (interceptor);
+  }
+
+private:
+  GumInterceptor * interceptor;
+};
+
 GumV8Platform::GumV8Platform ()
   : objc_bundle (NULL),
     java_bundle (NULL),
@@ -989,6 +1009,8 @@ GumV8PageAllocator::AllocatePages (void * address,
                                    size_t alignment,
                                    Permission permissions)
 {
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
+
   gpointer base = gum_memory_allocate (NULL, length, alignment,
       gum_page_protection_from_v8 (permissions));
 
@@ -1004,6 +1026,8 @@ bool
 GumV8PageAllocator::FreePages (void * address,
                                size_t length)
 {
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
+
   if (!gum_memory_free (address, length))
     return false;
 
@@ -1020,6 +1044,8 @@ GumV8PageAllocator::ReleasePages (void * address,
                                   size_t length,
                                   size_t new_length)
 {
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
+
   const gpointer released_base = (guint8 *) address + new_length;
   const gsize released_size = length - new_length;
   if (!gum_memory_release (released_base, released_size))
@@ -1040,6 +1066,8 @@ GumV8PageAllocator::SetPermissions (void * address,
                                     size_t length,
                                     Permission permissions)
 {
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
+
   GumPageProtection page_prot = gum_page_protection_from_v8 (permissions);
 
 #ifndef HAVE_WINDOWS
