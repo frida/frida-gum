@@ -319,12 +319,7 @@ GumV8Platform::GumV8Platform ()
 
 GumV8Platform::~GumV8Platform ()
 {
-  auto dispose = ScheduleOnJSThread (G_PRIORITY_HIGH, [=]() { Dispose (); });
-  {
-    GumV8PlatformLocker locker (this);
-    js_ops.erase (dispose);
-  }
-  dispose->Await ();
+  PerformOnJSThread (G_PRIORITY_HIGH, [=]() { Dispose (); });
 
   g_object_unref (scheduler);
 
@@ -493,6 +488,29 @@ GumV8Platform::ScheduleOnJSThreadDelayed (guint delay_in_milliseconds,
   return op;
 }
 
+void
+GumV8Platform::PerformOnJSThread (std::function<void ()> f)
+{
+  PerformOnJSThread (G_PRIORITY_DEFAULT, f);
+}
+
+void
+GumV8Platform::PerformOnJSThread (gint priority,
+                                  std::function<void ()> f)
+{
+  GSource * source = g_idle_source_new ();
+  g_source_set_priority (source, priority);
+
+  auto op = std::make_shared<GumV8MainContextOperation> (this, f, source);
+
+  g_source_set_callback (source, PerformMainContextOperation,
+      new std::shared_ptr<GumV8MainContextOperation> (op),
+      ReleaseSynchronousMainContextOperation);
+  g_source_attach (source, gum_script_scheduler_get_js_context (scheduler));
+
+  op->Await ();
+}
+
 std::shared_ptr<GumV8Operation>
 GumV8Platform::ScheduleOnThreadPool (std::function<void ()> f)
 {
@@ -555,6 +573,14 @@ GumV8Platform::ReleaseMainContextOperation (gpointer data)
 
     platform->js_ops.erase (op);
   }
+
+  delete ptr;
+}
+
+void
+GumV8Platform::ReleaseSynchronousMainContextOperation (gpointer data)
+{
+  auto ptr = (std::shared_ptr<GumV8MainContextOperation> *) data;
 
   delete ptr;
 }

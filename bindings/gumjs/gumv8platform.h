@@ -45,6 +45,8 @@ public:
       guint delay_in_milliseconds, std::function<void ()> f);
   std::shared_ptr<GumV8Operation> ScheduleOnJSThreadDelayed (
       guint delay_in_milliseconds, gint priority, std::function<void ()> f);
+  void PerformOnJSThread (std::function<void ()> f);
+  void PerformOnJSThread (gint priority, std::function<void ()> f);
   std::shared_ptr<GumV8Operation> ScheduleOnThreadPool (
       std::function<void ()> f);
   std::shared_ptr<GumV8Operation> ScheduleOnThreadPoolDelayed (
@@ -76,6 +78,7 @@ private:
 
   static gboolean PerformMainContextOperation (gpointer data);
   static void ReleaseMainContextOperation (gpointer data);
+  static void ReleaseSynchronousMainContextOperation (gpointer data);
   static void PerformThreadPoolOperation (gpointer data);
   static void ReleaseThreadPoolOperation (gpointer data);
   static gboolean StartDelayedThreadPoolOperation (gpointer data);
