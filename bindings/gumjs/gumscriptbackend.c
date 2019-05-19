@@ -272,7 +272,7 @@ gum_script_backend_get_scheduler (void)
 
     scheduler = gum_script_scheduler_new ();
 
-    _gum_register_destructor (gum_script_backend_deinit_scheduler);
+    _gum_register_early_destructor (gum_script_backend_deinit_scheduler);
 
     g_once_init_leave (&gonce_value, GPOINTER_TO_SIZE (scheduler) + 1);
   }
