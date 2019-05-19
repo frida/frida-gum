@@ -10,7 +10,9 @@
 TESTLIST_BEGIN (sampler)
   TESTENTRY (cycle)
   TESTENTRY (busy_cycle)
+#ifndef HAVE_ASAN
   TESTENTRY (malloc_count)
+#endif
   TESTENTRY (multiple_call_counters)
   TESTENTRY (wallclock)
 TESTLIST_END ()

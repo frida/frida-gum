@@ -37,7 +37,9 @@ TESTLIST_BEGIN (process)
   TESTENTRY (module_ranges_can_be_enumerated)
   TESTENTRY (module_base)
   TESTENTRY (module_export_can_be_found)
+#ifndef HAVE_ASAN
   TESTENTRY (module_export_matches_system_lookup)
+#endif
 #ifdef G_OS_WIN32
   TESTENTRY (get_set_system_error)
   TESTENTRY (get_current_thread_id)

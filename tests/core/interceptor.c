@@ -37,7 +37,7 @@ TESTLIST_BEGIN (interceptor)
   TESTENTRY (attach_detach_torture)
 #endif
   TESTENTRY (thread_id)
-#if !(defined (HAVE_ANDROID) && defined (HAVE_ARM64))
+#if !(defined (HAVE_ANDROID) && defined (HAVE_ARM64)) && !defined (HAVE_ASAN)
   TESTENTRY (intercepted_free_in_thread_exit)
 #endif
   TESTENTRY (function_arguments)
