@@ -770,8 +770,6 @@ _gum_v8_core_flush (GumV8Core * self,
                     GumV8FlushNotify flush_notify)
 {
   gboolean done;
-  GHashTableIter iter;
-  GumV8ScheduledCallback * callback;
 
   self->flush_notify = flush_notify;
 
@@ -784,18 +782,26 @@ _gum_v8_core_flush (GumV8Core * self,
   if (self->usage_count > 1)
     return FALSE;
 
-  g_hash_table_iter_init (&iter, self->scheduled_callbacks);
-  while (g_hash_table_iter_next (&iter, NULL, (gpointer *) &callback))
+  do
   {
-    _gum_v8_core_pin (self);
-    g_source_destroy (callback->source);
+    GHashTableIter iter;
+    GumV8ScheduledCallback * callback;
+
+    g_hash_table_iter_init (&iter, self->scheduled_callbacks);
+    while (g_hash_table_iter_next (&iter, NULL, (gpointer *) &callback))
+    {
+      _gum_v8_core_pin (self);
+      g_source_destroy (callback->source);
+    }
+    g_hash_table_remove_all (self->scheduled_callbacks);
+
+    if (self->usage_count > 1)
+      return FALSE;
+
+    gum_v8_core_clear_weak_refs (self);
   }
-  g_hash_table_remove_all (self->scheduled_callbacks);
-
-  if (self->usage_count > 1)
-    return FALSE;
-
-  gum_v8_core_clear_weak_refs (self);
+  while (g_hash_table_size (self->scheduled_callbacks) > 0 ||
+      g_hash_table_size (self->weak_refs) > 0);
 
   done = self->usage_count == 1;
   if (done)
