@@ -768,7 +768,7 @@ gum_store_module_handle_if_name_matches (const GumSoinfoDetails * details,
   {
     GumSoinfoBody * sb = details->body;
     int flags = RTLD_LAZY;
-    void * caller_addr = api->trusted_caller;
+    void * caller_addr = GSIZE_TO_POINTER (sb->base);
 
     if ((sb->flags & GUM_SOINFO_NEW_FORMAT) != 0)
     {
