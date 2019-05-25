@@ -15,6 +15,7 @@ gum_headers = [
   'guminvocationcontext.h',
   'guminvocationlistener.h',
   'gumkernel.h',
+  'gumlibc.h',
   'gummemory.h',
   'gummemoryaccessmonitor.h',
   'gummemorymap.h',
