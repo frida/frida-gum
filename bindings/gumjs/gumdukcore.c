@@ -1197,6 +1197,8 @@ _gum_duk_scope_suspend (GumDukScope * self)
   GumDukCore * core = self->core;
   guint i;
 
+  gum_interceptor_end_transaction (core->interceptor->interceptor);
+
   duk_suspend (self->ctx, &self->thread_state);
 
   g_assert (core->current_scope != NULL);
@@ -1226,6 +1228,8 @@ _gum_duk_scope_resume (GumDukScope * self)
   self->previous_mutex_depth = 0;
 
   duk_resume (self->ctx, &self->thread_state);
+
+  gum_interceptor_begin_transaction (core->interceptor->interceptor);
 }
 
 gboolean

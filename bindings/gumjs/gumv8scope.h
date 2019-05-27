@@ -75,6 +75,16 @@ public:
   ScriptUnlocker (GumV8Core * core);
 
 private:
+  class ExitInterceptorScope
+  {
+  public:
+    ExitInterceptorScope (GumV8Core * core);
+    ~ExitInterceptorScope ();
+
+  private:
+    GumInterceptor * interceptor;
+  };
+
   class ExitCurrentScope
   {
   public:
@@ -96,6 +106,7 @@ private:
     v8::Isolate * isolate;
   };
 
+  ExitInterceptorScope exit_interceptor_scope;
   ExitCurrentScope exit_current_scope;
   ExitIsolateScope exit_isolate_scope;
   v8::Unlocker unlocker;

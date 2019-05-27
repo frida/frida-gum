@@ -167,10 +167,23 @@ ScriptStalkerScope::~ScriptStalkerScope ()
 }
 
 ScriptUnlocker::ScriptUnlocker (GumV8Core * core)
-  : exit_current_scope (core),
+  : exit_interceptor_scope (core),
+    exit_current_scope (core),
     exit_isolate_scope (core->isolate),
     unlocker (core->isolate)
 {
+}
+
+ScriptUnlocker::ExitInterceptorScope::ExitInterceptorScope (
+    GumV8Core * core)
+  : interceptor (core->script->interceptor.interceptor)
+{
+  gum_interceptor_end_transaction (interceptor);
+}
+
+ScriptUnlocker::ExitInterceptorScope::~ExitInterceptorScope ()
+{
+  gum_interceptor_begin_transaction (interceptor);
 }
 
 ScriptUnlocker::ExitCurrentScope::ExitCurrentScope (GumV8Core * core)
