@@ -4146,7 +4146,8 @@ TESTCASE (function_can_be_replaced_and_called_immediately)
       "  send(arg);"
       "  return 1337;"
       "}, 'int', ['int']));"
-      "var f = new NativeFunction(address, 'int', ['int']);"
+      "var f = new NativeFunction(address, 'int', ['int'],"
+      "    { scheduling: 'exclusive' });"
       "f(7);"
       "Interceptor.flush();"
       "f(8);",
