@@ -342,9 +342,7 @@ _gum_v8_interceptor_flush (GumV8Interceptor * self)
   {
     ScriptUnlocker unlocker (core);
 
-    gum_interceptor_end_transaction (self->interceptor);
     flushed = gum_interceptor_flush (self->interceptor);
-    gum_interceptor_begin_transaction (self->interceptor);
   }
 
   if (!flushed && self->flush_timer == NULL)

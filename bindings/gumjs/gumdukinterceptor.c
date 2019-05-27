@@ -301,9 +301,7 @@ _gum_duk_interceptor_flush (GumDukInterceptor * self)
 
   _gum_duk_scope_suspend (&scope);
 
-  gum_interceptor_end_transaction (self->interceptor);
   flushed = gum_interceptor_flush (self->interceptor);
-  gum_interceptor_begin_transaction (self->interceptor);
 
   _gum_duk_scope_resume (&scope);
 
