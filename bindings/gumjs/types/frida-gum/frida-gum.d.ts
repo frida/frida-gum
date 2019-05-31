@@ -3064,3 +3064,2358 @@ declare namespace SqliteDatabase {
     function open(path: string): Database;
     function openInline(encodedContents: ArrayBuffer): Database;
 }
+
+/**
+ * Generates machine code for x86.
+ */
+declare class X86Writer {
+    /**
+     * Creates a new code writer for generating x86 machine code
+     * written directly to memory at `codeAddress`.
+     *
+     * @param codeAddress Memory address to write generated code to.
+     * @param options Options for customizing code generation.
+     */
+    constructor(codeAddress: NativePointerValue, options?: X86WriterOptions);
+
+    /**
+     * Recycles instance.
+     */
+    reset(codeAddress: NativePointerValue, options?: X86WriterOptions): void;
+
+    /**
+     * Eagerly cleans up memory.
+     */
+    dispose(): void;
+
+    /**
+     * Resolves label references and writes pending data to memory. You
+     * should always call this once you've finished generating code. It
+     * is usually also desirable to do this between pieces of unrelated
+     * code, e.g. when generating multiple functions in one go.
+     */
+    flush(): void;
+
+    /**
+     * Memory location of the first byte of output.
+     */
+    base: NativePointer;
+
+    /**
+     * Memory location of the next byte of output.
+     */
+    code: NativePointer;
+
+    /**
+     * Program counter at the next byte of output.
+     */
+    pc: NativePointer;
+
+    /**
+     * Current offset in bytes.
+     */
+    offset: number;
+
+    /**
+     * Puts a label at the current position, where `id` is an identifier
+     * that may be referenced in past and future `put*Label()` calls.
+     */
+    putLabel(id: string): void;
+
+    /**
+     * Puts code needed for calling a C function with the specified `args`.
+     */
+    putCallAddressWithArguments(func: NativePointerValue, args: X86CallArgument[]): void;
+
+    /**
+     * Like `putCallWithArguments()`, but also
+     * ensures that the argument list is aligned on a 16 byte boundary.
+     */
+    putCallAddressWithAlignedArguments(func: NativePointerValue, args: X86CallArgument[]): void;
+
+    /**
+     * Puts code needed for calling a C function with the specified `args`.
+     */
+    putCallRegWithArguments(reg: X86Register, args: X86CallArgument[]): void;
+
+    /**
+     * Like `putCallWithArguments()`, but also
+     * ensures that the argument list is aligned on a 16 byte boundary.
+     */
+    putCallRegWithAlignedArguments(reg: X86Register, args: X86CallArgument[]): void;
+
+    /**
+     * Puts code needed for calling a C function with the specified `args`.
+     */
+    putCallRegOffsetPtrWithArguments(reg: X86Register, offset: number | Int64 | UInt64, args: X86CallArgument[]): void;
+
+    /**
+     * Puts a CALL instruction.
+     */
+    putCallAddress(address: NativePointerValue): void;
+
+    /**
+     * Puts a CALL instruction.
+     */
+    putCallReg(reg: X86Register): void;
+
+    /**
+     * Puts a CALL instruction.
+     */
+    putCallRegOffsetPtr(reg: X86Register, offset: number | Int64 | UInt64): void;
+
+    /**
+     * Puts a CALL instruction.
+     */
+    putCallIndirect(addr: NativePointerValue): void;
+
+    /**
+     * Puts a CALL instruction referencing `labelId`, defined by a past
+     * or future `putLabel()`.
+     */
+    putCallIndirectLabel(labelId: string): void;
+
+    /**
+     * Puts a CALL instruction referencing `labelId`, defined by a past
+     * or future `putLabel()`.
+     */
+    putCallNearLabel(labelId: string): void;
+
+    /**
+     * Puts a LEAVE instruction.
+     */
+    putLeave(): void;
+
+    /**
+     * Puts a RET instruction.
+     */
+    putRet(): void;
+
+    /**
+     * Puts a RET instruction.
+     */
+    putRetImm(immValue: number): void;
+
+    /**
+     * Puts a JMP instruction.
+     */
+    putJmpAddress(address: NativePointerValue): void;
+
+    /**
+     * Puts a JMP instruction referencing `labelId`, defined by a past
+     * or future `putLabel()`.
+     */
+    putJmpShortLabel(labelId: string): void;
+
+    /**
+     * Puts a JMP instruction referencing `labelId`, defined by a past
+     * or future `putLabel()`.
+     */
+    putJmpNearLabel(labelId: string): void;
+
+    /**
+     * Puts a JMP instruction.
+     */
+    putJmpReg(reg: X86Register): void;
+
+    /**
+     * Puts a JMP instruction.
+     */
+    putJmpRegPtr(reg: X86Register): void;
+
+    /**
+     * Puts a JMP instruction.
+     */
+    putJmpRegOffsetPtr(reg: X86Register, offset: number | Int64 | UInt64): void;
+
+    /**
+     * Puts a JMP instruction.
+     */
+    putJmpNearPtr(address: NativePointerValue): void;
+
+    /**
+     * Puts a JCC instruction.
+     */
+    putJccShort(instructionId: X86InstructionId, target: NativePointerValue, hint: X86BranchHint): void;
+
+    /**
+     * Puts a JCC instruction.
+     */
+    putJccNear(instructionId: X86InstructionId, target: NativePointerValue, hint: X86BranchHint): void;
+
+    /**
+     * Puts a JCC instruction referencing `labelId`, defined by a past
+     * or future `putLabel()`.
+     */
+    putJccShortLabel(instructionId: X86InstructionId, labelId: string, hint: X86BranchHint): void;
+
+    /**
+     * Puts a JCC instruction referencing `labelId`, defined by a past
+     * or future `putLabel()`.
+     */
+    putJccNearLabel(instructionId: X86InstructionId, labelId: string, hint: X86BranchHint): void;
+
+    /**
+     * Puts an ADD instruction.
+     */
+    putAddRegImm(reg: X86Register, immValue: number | Int64 | UInt64): void;
+
+    /**
+     * Puts an ADD instruction.
+     */
+    putAddRegReg(dstReg: X86Register, srcReg: X86Register): void;
+
+    /**
+     * Puts an ADD instruction.
+     */
+    putAddRegNearPtr(dstReg: X86Register, srcAddress: NativePointerValue): void;
+
+    /**
+     * Puts a SUB instruction.
+     */
+    putSubRegImm(reg: X86Register, immValue: number | Int64 | UInt64): void;
+
+    /**
+     * Puts a SUB instruction.
+     */
+    putSubRegReg(dstReg: X86Register, srcReg: X86Register): void;
+
+    /**
+     * Puts a SUB instruction.
+     */
+    putSubRegNearPtr(dstReg: X86Register, srcAddress: NativePointerValue): void;
+
+    /**
+     * Puts an INC instruction.
+     */
+    putIncReg(reg: X86Register): void;
+
+    /**
+     * Puts a DEC instruction.
+     */
+    putDecReg(reg: X86Register): void;
+
+    /**
+     * Puts an INC instruction.
+     */
+    putIncRegPtr(target: X86PointerTarget, reg: X86Register): void;
+
+    /**
+     * Puts a DEC instruction.
+     */
+    putDecRegPtr(target: X86PointerTarget, reg: X86Register): void;
+
+    /**
+     * Puts a LOCK XADD instruction.
+     */
+    putLockXaddRegPtrReg(dstReg: X86Register, srcReg: X86Register): void;
+
+    /**
+     * Puts a LOCK CMPXCHG instruction.
+     */
+    putLockCmpxchgRegPtrReg(dstReg: X86Register, srcReg: X86Register): void;
+
+    /**
+     * Puts a LOCK INC IMM32 instruction.
+     */
+    putLockIncImm32Ptr(target: NativePointerValue): void;
+
+    /**
+     * Puts a LOCK DEC IMM32 instruction.
+     */
+    putLockDecImm32Ptr(target: NativePointerValue): void;
+
+    /**
+     * Puts an AND instruction.
+     */
+    putAndRegReg(dstReg: X86Register, srcReg: X86Register): void;
+
+    /**
+     * Puts an AND instruction.
+     */
+    putAndRegU32(reg: X86Register, immValue: number): void;
+
+    /**
+     * Puts a SHL instruction.
+     */
+    putShlRegU8(reg: X86Register, immValue: number): void;
+
+    /**
+     * Puts a SHR instruction.
+     */
+    putShrRegU8(reg: X86Register, immValue: number): void;
+
+    /**
+     * Puts an XOR instruction.
+     */
+    putXorRegReg(dstReg: X86Register, srcReg: X86Register): void;
+
+    /**
+     * Puts a MOV instruction.
+     */
+    putMovRegReg(dstReg: X86Register, srcReg: X86Register): void;
+
+    /**
+     * Puts a MOV instruction.
+     */
+    putMovRegU32(dstReg: X86Register, immValue: number): void;
+
+    /**
+     * Puts a MOV instruction.
+     */
+    putMovRegU64(dstReg: X86Register, immValue: number | UInt64): void;
+
+    /**
+     * Puts a MOV instruction.
+     */
+    putMovRegAddress(dstReg: X86Register, address: NativePointerValue): void;
+
+    /**
+     * Puts a MOV instruction.
+     */
+    putMovRegPtrU32(dstReg: X86Register, immValue: number): void;
+
+    /**
+     * Puts a MOV instruction.
+     */
+    putMovRegOffsetPtrU32(dstReg: X86Register, dstOffset: number | Int64 | UInt64, immValue: number): void;
+
+    /**
+     * Puts a MOV instruction.
+     */
+    putMovRegPtrReg(dstReg: X86Register, srcReg: X86Register): void;
+
+    /**
+     * Puts a MOV instruction.
+     */
+    putMovRegOffsetPtrReg(dstReg: X86Register, dstOffset: number | Int64 | UInt64, srcReg: X86Register): void;
+
+    /**
+     * Puts a MOV instruction.
+     */
+    putMovRegRegPtr(dstReg: X86Register, srcReg: X86Register): void;
+
+    /**
+     * Puts a MOV instruction.
+     */
+    putMovRegRegOffsetPtr(dstReg: X86Register, srcReg: X86Register, srcOffset: number | Int64 | UInt64): void;
+
+    /**
+     * Puts a MOV instruction.
+     */
+    putMovRegBaseIndexScaleOffsetPtr(dstReg: X86Register, baseReg: X86Register, indexReg: X86Register, scale: number, offset: number | Int64 | UInt64): void;
+
+    /**
+     * Puts a MOV instruction.
+     */
+    putMovRegNearPtr(dstReg: X86Register, srcAddress: NativePointerValue): void;
+
+    /**
+     * Puts a MOV instruction.
+     */
+    putMovNearPtrReg(dstAddress: NativePointerValue, srcReg: X86Register): void;
+
+    /**
+     * Puts a MOV FS instruction.
+     */
+    putMovFsU32PtrReg(fsOffset: number, srcReg: X86Register): void;
+
+    /**
+     * Puts a MOV FS instruction.
+     */
+    putMovRegFsU32Ptr(dstReg: X86Register, fsOffset: number): void;
+
+    /**
+     * Puts a MOV GS instruction.
+     */
+    putMovGsU32PtrReg(fsOffset: number, srcReg: X86Register): void;
+
+    /**
+     * Puts a MOV GS instruction.
+     */
+    putMovRegGsU32Ptr(dstReg: X86Register, fsOffset: number): void;
+
+    /**
+     * Puts a MOVQ XMM0 ESP instruction.
+     */
+    putMovqXmm0EspOffsetPtr(offset: number): void;
+
+    /**
+     * Puts a MOVQ EAX XMM0 instruction.
+     */
+    putMovqEaxOffsetPtrXmm0(offset: number): void;
+
+    /**
+     * Puts a MOVDQU XMM0 ESP instruction.
+     */
+    putMovdquXmm0EspOffsetPtr(offset: number): void;
+
+    /**
+     * Puts a MOVDQU EAX XMM0 instruction.
+     */
+    putMovdquEaxOffsetPtrXmm0(offset: number): void;
+
+    /**
+     * Puts a LEA instruction.
+     */
+    putLeaRegRegOffset(dstReg: X86Register, srcReg: X86Register, srcOffset: number | Int64 | UInt64): void;
+
+    /**
+     * Puts an XCHG instruction.
+     */
+    putXchgRegRegPtr(leftReg: X86Register, rightReg: X86Register): void;
+
+    /**
+     * Puts a PUSH instruction.
+     */
+    putPushU32(immValue: number): void;
+
+    /**
+     * Puts a PUSH instruction.
+     */
+    putPushNearPtr(address: NativePointerValue): void;
+
+    /**
+     * Puts a PUSH instruction.
+     */
+    putPushReg(reg: X86Register): void;
+
+    /**
+     * Puts a POP instruction.
+     */
+    putPopReg(reg: X86Register): void;
+
+    /**
+     * Puts a PUSH instruction.
+     */
+    putPushImmPtr(immPtr: NativePointerValue): void;
+
+    /**
+     * Puts a PUSHAX instruction.
+     */
+    putPushax(): void;
+
+    /**
+     * Puts a POPAX instruction.
+     */
+    putPopax(): void;
+
+    /**
+     * Puts a PUSHFX instruction.
+     */
+    putPushfx(): void;
+
+    /**
+     * Puts a POPFX instruction.
+     */
+    putPopfx(): void;
+
+    /**
+     * Puts a TEST instruction.
+     */
+    putTestRegReg(regA: X86Register, regB: X86Register): void;
+
+    /**
+     * Puts a TEST instruction.
+     */
+    putTestRegU32(reg: X86Register, immValue: number): void;
+
+    /**
+     * Puts a CMP instruction.
+     */
+    putCmpRegI32(reg: X86Register, immValue: number): void;
+
+    /**
+     * Puts a CMP instruction.
+     */
+    putCmpRegOffsetPtrReg(regA: X86Register, offset: number | Int64 | UInt64, regB: X86Register): void;
+
+    /**
+     * Puts a CMP instruction.
+     */
+    putCmpImmPtrImmU32(immPtr: NativePointerValue, immValue: number): void;
+
+    /**
+     * Puts a CMP instruction.
+     */
+    putCmpRegReg(regA: X86Register, regB: X86Register): void;
+
+    /**
+     * Puts a CLC instruction.
+     */
+    putClc(): void;
+
+    /**
+     * Puts a STC instruction.
+     */
+    putStc(): void;
+
+    /**
+     * Puts a CLD instruction.
+     */
+    putCld(): void;
+
+    /**
+     * Puts a STD instruction.
+     */
+    putStd(): void;
+
+    /**
+     * Puts a CPUID instruction.
+     */
+    putCpuid(): void;
+
+    /**
+     * Puts an LFENCE instruction.
+     */
+    putLfence(): void;
+
+    /**
+     * Puts an RDTSC instruction.
+     */
+    putRdtsc(): void;
+
+    /**
+     * Puts a PAUSE instruction.
+     */
+    putPause(): void;
+
+    /**
+     * Puts a NOP instruction.
+     */
+    putNop(): void;
+
+    /**
+     * Puts an OS/architecture-specific breakpoint instruction.
+     */
+    putBreakpoint(): void;
+
+    /**
+     * Puts `n` guard instruction.
+     */
+    putPadding(n: number): void;
+
+    /**
+     * Puts `n` NOP instructions.
+     */
+    putNopPadding(n: number): void;
+
+    /**
+     * Puts a uint8.
+     */
+    putU8(value: number): void;
+
+    /**
+     * Puts an int8.
+     */
+    putS8(value: number): void;
+
+    /**
+     * Puts raw data.
+     */
+    putBytes(data: ArrayBuffer | number[] | string): void;
+}
+
+declare interface X86WriterOptions {
+    /**
+     * Specifies the initial program counter, which is useful when
+     * generating code to a scratch buffer. This is essential when using
+     * `Memory.patchCode()` on iOS, which may provide you with a
+     * temporary location that later gets mapped into memory at the
+     * intended memory location.
+     */
+    pc?: NativePointer;
+}
+
+declare type X86CallArgument = X86Register | number | UInt64 | Int64 | NativePointerValue;
+
+/**
+ * Relocates machine code for x86.
+ */
+declare class X86Relocator {
+    /**
+     * Creates a new code relocator for copying x86 instructions
+     * from one memory location to another, taking care to adjust
+     * position-dependent instructions accordingly.
+     *
+     * @param inputCode Source address to copy instructions from.
+     * @param output X86Writer pointed at the desired target memory
+     *               address.
+     */
+    constructor(inputCode: NativePointerValue, output: X86Writer);
+
+    /**
+     * Recycles instance.
+     */
+    reset(inputCode: NativePointerValue, output: X86Writer): void;
+
+    /**
+     * Eagerly cleans up memory.
+     */
+    dispose(): void;
+
+    /**
+     * Latest `Instruction` read so far. Starts out `null` and changes
+     * on every call to `readOne()`.
+     */
+    input: Instruction | null;
+
+    /**
+     * Indicates whether end-of-block has been reached, i.e. we've
+     * reached a branch of any kind, like CALL, JMP, BL, RET.
+     */
+    eob: boolean;
+
+    /**
+     * Indicates whether end-of-input has been reached, e.g. we've
+     * reached JMP/B/RET, an instruction after which there may or may
+     * not be valid code.
+     */
+    eoi: boolean;
+
+    /**
+     * Reads the next instruction into the relocator's internal buffer
+     * and returns the number of bytes read so far, including previous
+     * calls.
+     *
+     * You may keep calling this method to keep buffering, or immediately
+     * call either `writeOne()` or `skipOne()`. Or, you can buffer up
+     * until the desired point and then call `writeAll()`.
+     *
+     * Returns zero when end-of-input is reached, which means the `eoi`
+     * property is now `true`.
+     */
+    readOne(): number;
+
+    /**
+     * Peeks at the next `Instruction` to be written or skipped.
+     */
+    peekNextWriteInsn(): Instruction | null;
+
+    /**
+     * Peeks at the address of the next instruction to be written or skipped.
+     */
+    peekNextWriteSource(): NativePointer;
+
+    /**
+     * Skips the instruction that would have been written next.
+     */
+    skipOne(): void;
+
+    /**
+     * Skips the instruction that would have been written next,
+     * but without a label for internal use. This breaks relocation of branches to
+     * locations inside the relocated range, and is an optimization for use-cases
+     * where all branches are rewritten (e.g. Frida's Stalker).
+     */
+    skipOneNoLabel(): void;
+
+    /**
+     * write the next buffered instruction.
+     */
+    writeOne(): boolean;
+
+    /**
+     * write the next buffered instruction, but without a
+     * label for internal use. This breaks relocation of branches to locations
+     * inside the relocated range, and is an optimization for use-cases where all
+     * branches are rewritten (e.g. Frida's Stalker).
+     */
+    writeOneNoLabel(): boolean;
+
+    /**
+     * Writes all buffered instructions.
+     */
+    writeAll(): void;
+}
+
+declare const enum X86Register {
+    Xax = "xax",
+    Xcx = "xcx",
+    Xdx = "xdx",
+    Xbx = "xbx",
+    Xsp = "xsp",
+    Xbp = "xbp",
+    Xsi = "xsi",
+    Xdi = "xdi",
+    Eax = "eax",
+    Ecx = "ecx",
+    Edx = "edx",
+    Ebx = "ebx",
+    Esp = "esp",
+    Ebp = "ebp",
+    Esi = "esi",
+    Edi = "edi",
+    Rax = "rax",
+    Rcx = "rcx",
+    Rdx = "rdx",
+    Rbx = "rbx",
+    Rsp = "rsp",
+    Rbp = "rbp",
+    Rsi = "rsi",
+    Rdi = "rdi",
+    R8 = "r8",
+    R9 = "r9",
+    R10 = "r10",
+    R11 = "r11",
+    R12 = "r12",
+    R13 = "r13",
+    R14 = "r14",
+    R15 = "r15",
+    R8d = "r8d",
+    R9d = "r9d",
+    R10d = "r10d",
+    R11d = "r11d",
+    R12d = "r12d",
+    R13d = "r13d",
+    R14d = "r14d",
+    R15d = "r15d",
+    Xip = "xip",
+    Eip = "eip",
+    Rip = "rip",
+}
+
+declare const enum X86InstructionId {
+    Jo = "jo",
+    Jno = "jno",
+    Jb = "jb",
+    Jae = "jae",
+    Je = "je",
+    Jne = "jne",
+    Jbe = "jbe",
+    Ja = "ja",
+    Js = "js",
+    Jns = "jns",
+    Jp = "jp",
+    Jnp = "jnp",
+    Jl = "jl",
+    Jge = "jge",
+    Jle = "jle",
+    Jg = "jg",
+    Jcxz = "jcxz",
+    Jecxz = "jecxz",
+    Jrcxz = "jrcxz",
+}
+
+declare const enum X86BranchHint {
+    NoHint = "no-hint",
+    Likely = "likely",
+    Unlikely = "unlikely",
+}
+
+declare const enum X86PointerTarget {
+    Byte = "byte",
+    Dword = "dword",
+    Qword = "qword",
+}
+
+/**
+ * Generates machine code for arm.
+ */
+declare class ArmWriter {
+    /**
+     * Creates a new code writer for generating ARM machine code
+     * written directly to memory at `codeAddress`.
+     *
+     * @param codeAddress Memory address to write generated code to.
+     * @param options Options for customizing code generation.
+     */
+    constructor(codeAddress: NativePointerValue, options?: ArmWriterOptions);
+
+    /**
+     * Recycles instance.
+     */
+    reset(codeAddress: NativePointerValue, options?: ArmWriterOptions): void;
+
+    /**
+     * Eagerly cleans up memory.
+     */
+    dispose(): void;
+
+    /**
+     * Resolves label references and writes pending data to memory. You
+     * should always call this once you've finished generating code. It
+     * is usually also desirable to do this between pieces of unrelated
+     * code, e.g. when generating multiple functions in one go.
+     */
+    flush(): void;
+
+    /**
+     * Memory location of the first byte of output.
+     */
+    base: NativePointer;
+
+    /**
+     * Memory location of the next byte of output.
+     */
+    code: NativePointer;
+
+    /**
+     * Program counter at the next byte of output.
+     */
+    pc: NativePointer;
+
+    /**
+     * Current offset in bytes.
+     */
+    offset: number;
+
+    /**
+     * Skips `nBytes`.
+     */
+    skip(nBytes: number): void;
+
+    /**
+     * Puts a label at the current position, where `id` is an identifier
+     * that may be referenced in past and future `put*Label()` calls.
+     */
+    putLabel(id: string): void;
+
+    /**
+     * Puts a B instruction.
+     */
+    putBImm(target: NativePointerValue): void;
+
+    /**
+     * Puts a BX instruction.
+     */
+    putBxReg(reg: ArmRegister): void;
+
+    /**
+     * Puts a B instruction referencing `labelId`, defined by a past
+     * or future `putLabel()`.
+     */
+    putBLabel(labelId: string): void;
+
+    /**
+     * Puts an LDR instruction.
+     */
+    putLdrRegAddress(reg: ArmRegister, address: NativePointerValue): void;
+
+    /**
+     * Puts an LDR instruction.
+     */
+    putLdrRegU32(reg: ArmRegister, val: number): void;
+
+    /**
+     * Puts an ADD instruction.
+     */
+    putAddRegRegImm(dstReg: ArmRegister, srcReg: ArmRegister, immVal: number): void;
+
+    /**
+     * Puts an LDR instruction.
+     */
+    putLdrRegRegImm(dstReg: ArmRegister, srcReg: ArmRegister, immVal: number): void;
+
+    /**
+     * Puts a NOP instruction.
+     */
+    putNop(): void;
+
+    /**
+     * Puts an OS/architecture-specific breakpoint instruction.
+     */
+    putBreakpoint(): void;
+
+    /**
+     * Puts a raw instruction.
+     */
+    putInstruction(insn: number): void;
+
+    /**
+     * Puts raw data.
+     */
+    putBytes(data: ArrayBuffer | number[] | string): void;
+}
+
+declare interface ArmWriterOptions {
+    /**
+     * Specifies the initial program counter, which is useful when
+     * generating code to a scratch buffer. This is essential when using
+     * `Memory.patchCode()` on iOS, which may provide you with a
+     * temporary location that later gets mapped into memory at the
+     * intended memory location.
+     */
+    pc?: NativePointer;
+}
+
+declare type ArmCallArgument = ArmRegister | number | UInt64 | Int64 | NativePointerValue;
+
+/**
+ * Relocates machine code for arm.
+ */
+declare class ArmRelocator {
+    /**
+     * Creates a new code relocator for copying ARM instructions
+     * from one memory location to another, taking care to adjust
+     * position-dependent instructions accordingly.
+     *
+     * @param inputCode Source address to copy instructions from.
+     * @param output ArmWriter pointed at the desired target memory
+     *               address.
+     */
+    constructor(inputCode: NativePointerValue, output: ArmWriter);
+
+    /**
+     * Recycles instance.
+     */
+    reset(inputCode: NativePointerValue, output: ArmWriter): void;
+
+    /**
+     * Eagerly cleans up memory.
+     */
+    dispose(): void;
+
+    /**
+     * Latest `Instruction` read so far. Starts out `null` and changes
+     * on every call to `readOne()`.
+     */
+    input: Instruction | null;
+
+    /**
+     * Indicates whether end-of-block has been reached, i.e. we've
+     * reached a branch of any kind, like CALL, JMP, BL, RET.
+     */
+    eob: boolean;
+
+    /**
+     * Indicates whether end-of-input has been reached, e.g. we've
+     * reached JMP/B/RET, an instruction after which there may or may
+     * not be valid code.
+     */
+    eoi: boolean;
+
+    /**
+     * Reads the next instruction into the relocator's internal buffer
+     * and returns the number of bytes read so far, including previous
+     * calls.
+     *
+     * You may keep calling this method to keep buffering, or immediately
+     * call either `writeOne()` or `skipOne()`. Or, you can buffer up
+     * until the desired point and then call `writeAll()`.
+     *
+     * Returns zero when end-of-input is reached, which means the `eoi`
+     * property is now `true`.
+     */
+    readOne(): number;
+
+    /**
+     * Peeks at the next `Instruction` to be written or skipped.
+     */
+    peekNextWriteInsn(): Instruction | null;
+
+    /**
+     * Peeks at the address of the next instruction to be written or skipped.
+     */
+    peekNextWriteSource(): NativePointer;
+
+    /**
+     * Skips the instruction that would have been written next.
+     */
+    skipOne(): void;
+
+    /**
+     * write the next buffered instruction.
+     */
+    writeOne(): boolean;
+
+    /**
+     * Writes all buffered instructions.
+     */
+    writeAll(): void;
+}
+
+/**
+ * Generates machine code for arm.
+ */
+declare class ThumbWriter {
+    /**
+     * Creates a new code writer for generating ARM machine code
+     * written directly to memory at `codeAddress`.
+     *
+     * @param codeAddress Memory address to write generated code to.
+     * @param options Options for customizing code generation.
+     */
+    constructor(codeAddress: NativePointerValue, options?: ThumbWriterOptions);
+
+    /**
+     * Recycles instance.
+     */
+    reset(codeAddress: NativePointerValue, options?: ThumbWriterOptions): void;
+
+    /**
+     * Eagerly cleans up memory.
+     */
+    dispose(): void;
+
+    /**
+     * Resolves label references and writes pending data to memory. You
+     * should always call this once you've finished generating code. It
+     * is usually also desirable to do this between pieces of unrelated
+     * code, e.g. when generating multiple functions in one go.
+     */
+    flush(): void;
+
+    /**
+     * Memory location of the first byte of output.
+     */
+    base: NativePointer;
+
+    /**
+     * Memory location of the next byte of output.
+     */
+    code: NativePointer;
+
+    /**
+     * Program counter at the next byte of output.
+     */
+    pc: NativePointer;
+
+    /**
+     * Current offset in bytes.
+     */
+    offset: number;
+
+    /**
+     * Skips `nBytes`.
+     */
+    skip(nBytes: number): void;
+
+    /**
+     * Puts a label at the current position, where `id` is an identifier
+     * that may be referenced in past and future `put*Label()` calls.
+     */
+    putLabel(id: string): void;
+
+    /**
+     * Puts code needed for calling a C function with the specified `args`.
+     */
+    putCallAddressWithArguments(func: NativePointerValue, args: ArmCallArgument[]): void;
+
+    /**
+     * Puts code needed for calling a C function with the specified `args`.
+     */
+    putCallRegWithArguments(reg: ArmRegister, args: ArmCallArgument[]): void;
+
+    /**
+     * Puts a B instruction.
+     */
+    putBImm(target: NativePointerValue): void;
+
+    /**
+     * Puts a B instruction referencing `labelId`, defined by a past
+     * or future `putLabel()`.
+     */
+    putBLabel(labelId: string): void;
+
+    /**
+     * Puts a B WIDE instruction.
+     */
+    putBLabelWide(labelId: string): void;
+
+    /**
+     * Puts a BX instruction.
+     */
+    putBxReg(reg: ArmRegister): void;
+
+    /**
+     * Puts a BL instruction.
+     */
+    putBlImm(target: NativePointerValue): void;
+
+    /**
+     * Puts a BL instruction referencing `labelId`, defined by a past
+     * or future `putLabel()`.
+     */
+    putBlLabel(labelId: string): void;
+
+    /**
+     * Puts a BLX instruction.
+     */
+    putBlxImm(target: NativePointerValue): void;
+
+    /**
+     * Puts a BLX instruction.
+     */
+    putBlxReg(reg: ArmRegister): void;
+
+    /**
+     * Puts a CMP instruction.
+     */
+    putCmpRegImm(reg: ArmRegister, immValue: number): void;
+
+    /**
+     * Puts a BEQ instruction referencing `labelId`, defined by a past
+     * or future `putLabel()`.
+     */
+    putBeqLabel(labelId: string): void;
+
+    /**
+     * Puts a BNE instruction referencing `labelId`, defined by a past
+     * or future `putLabel()`.
+     */
+    putBneLabel(labelId: string): void;
+
+    /**
+     * Puts a B COND instruction referencing `labelId`, defined by a past
+     * or future `putLabel()`.
+     */
+    putBCondLabel(cc: ArmConditionCode, labelId: string): void;
+
+    /**
+     * Puts a B COND WIDE instruction.
+     */
+    putBCondLabelWide(cc: ArmConditionCode, labelId: string): void;
+
+    /**
+     * Puts a CBZ instruction referencing `labelId`, defined by a past
+     * or future `putLabel()`.
+     */
+    putCbzRegLabel(reg: ArmRegister, labelId: string): void;
+
+    /**
+     * Puts a CBNZ instruction referencing `labelId`, defined by a past
+     * or future `putLabel()`.
+     */
+    putCbnzRegLabel(reg: ArmRegister, labelId: string): void;
+
+    /**
+     * Puts a PUSH instruction with the specified registers.
+     */
+    putPushRegs(regs: ArmRegister[]): void;
+
+    /**
+     * Puts a POP instruction with the specified registers.
+     */
+    putPopRegs(regs: ArmRegister[]): void;
+
+    /**
+     * Puts an LDR instruction.
+     */
+    putLdrRegAddress(reg: ArmRegister, address: NativePointerValue): void;
+
+    /**
+     * Puts an LDR instruction.
+     */
+    putLdrRegU32(reg: ArmRegister, val: number): void;
+
+    /**
+     * Puts an LDR instruction.
+     */
+    putLdrRegReg(dstReg: ArmRegister, srcReg: ArmRegister): void;
+
+    /**
+     * Puts an LDR instruction.
+     */
+    putLdrRegRegOffset(dstReg: ArmRegister, srcReg: ArmRegister, srcOffset: number | Int64 | UInt64): void;
+
+    /**
+     * Puts a STR instruction.
+     */
+    putStrRegReg(srcReg: ArmRegister, dstReg: ArmRegister): void;
+
+    /**
+     * Puts a STR instruction.
+     */
+    putStrRegRegOffset(srcReg: ArmRegister, dstReg: ArmRegister, dstOffset: number | Int64 | UInt64): void;
+
+    /**
+     * Puts a MOV instruction.
+     */
+    putMovRegReg(dstReg: ArmRegister, srcReg: ArmRegister): void;
+
+    /**
+     * Puts a MOV instruction.
+     */
+    putMovRegU8(dstReg: ArmRegister, immValue: number): void;
+
+    /**
+     * Puts an ADD instruction.
+     */
+    putAddRegImm(dstReg: ArmRegister, immValue: number | Int64 | UInt64): void;
+
+    /**
+     * Puts an ADD instruction.
+     */
+    putAddRegReg(dstReg: ArmRegister, srcReg: ArmRegister): void;
+
+    /**
+     * Puts an ADD instruction.
+     */
+    putAddRegRegReg(dstReg: ArmRegister, leftReg: ArmRegister, rightReg: ArmRegister): void;
+
+    /**
+     * Puts an ADD instruction.
+     */
+    putAddRegRegImm(dstReg: ArmRegister, leftReg: ArmRegister, rightValue: number | Int64 | UInt64): void;
+
+    /**
+     * Puts a SUB instruction.
+     */
+    putSubRegImm(dstReg: ArmRegister, immValue: number | Int64 | UInt64): void;
+
+    /**
+     * Puts a SUB instruction.
+     */
+    putSubRegReg(dstReg: ArmRegister, srcReg: ArmRegister): void;
+
+    /**
+     * Puts a SUB instruction.
+     */
+    putSubRegRegReg(dstReg: ArmRegister, leftReg: ArmRegister, rightReg: ArmRegister): void;
+
+    /**
+     * Puts a SUB instruction.
+     */
+    putSubRegRegImm(dstReg: ArmRegister, leftReg: ArmRegister, rightValue: number | Int64 | UInt64): void;
+
+    /**
+     * Puts a MRS instruction.
+     */
+    putMrsRegReg(dstReg: ArmRegister, srcReg: ArmSystemRegister): void;
+
+    /**
+     * Puts a MSR instruction.
+     */
+    putMsrRegReg(dstReg: ArmSystemRegister, srcReg: ArmRegister): void;
+
+    /**
+     * Puts a NOP instruction.
+     */
+    putNop(): void;
+
+    /**
+     * Puts a BKPT instruction.
+     */
+    putBkptImm(imm: number): void;
+
+    /**
+     * Puts an OS/architecture-specific breakpoint instruction.
+     */
+    putBreakpoint(): void;
+
+    /**
+     * Puts a raw instruction.
+     */
+    putInstruction(insn: number): void;
+
+    /**
+     * Puts a raw Thumb-2 instruction.
+     */
+    putInstructionWide(upper: number, lower: number): void;
+
+    /**
+     * Puts raw data.
+     */
+    putBytes(data: ArrayBuffer | number[] | string): void;
+}
+
+declare interface ThumbWriterOptions {
+    /**
+     * Specifies the initial program counter, which is useful when
+     * generating code to a scratch buffer. This is essential when using
+     * `Memory.patchCode()` on iOS, which may provide you with a
+     * temporary location that later gets mapped into memory at the
+     * intended memory location.
+     */
+    pc?: NativePointer;
+}
+
+/**
+ * Relocates machine code for arm.
+ */
+declare class ThumbRelocator {
+    /**
+     * Creates a new code relocator for copying ARM instructions
+     * from one memory location to another, taking care to adjust
+     * position-dependent instructions accordingly.
+     *
+     * @param inputCode Source address to copy instructions from.
+     * @param output ThumbWriter pointed at the desired target memory
+     *               address.
+     */
+    constructor(inputCode: NativePointerValue, output: ThumbWriter);
+
+    /**
+     * Recycles instance.
+     */
+    reset(inputCode: NativePointerValue, output: ThumbWriter): void;
+
+    /**
+     * Eagerly cleans up memory.
+     */
+    dispose(): void;
+
+    /**
+     * Latest `Instruction` read so far. Starts out `null` and changes
+     * on every call to `readOne()`.
+     */
+    input: Instruction | null;
+
+    /**
+     * Indicates whether end-of-block has been reached, i.e. we've
+     * reached a branch of any kind, like CALL, JMP, BL, RET.
+     */
+    eob: boolean;
+
+    /**
+     * Indicates whether end-of-input has been reached, e.g. we've
+     * reached JMP/B/RET, an instruction after which there may or may
+     * not be valid code.
+     */
+    eoi: boolean;
+
+    /**
+     * Reads the next instruction into the relocator's internal buffer
+     * and returns the number of bytes read so far, including previous
+     * calls.
+     *
+     * You may keep calling this method to keep buffering, or immediately
+     * call either `writeOne()` or `skipOne()`. Or, you can buffer up
+     * until the desired point and then call `writeAll()`.
+     *
+     * Returns zero when end-of-input is reached, which means the `eoi`
+     * property is now `true`.
+     */
+    readOne(): number;
+
+    /**
+     * Peeks at the next `Instruction` to be written or skipped.
+     */
+    peekNextWriteInsn(): Instruction | null;
+
+    /**
+     * Peeks at the address of the next instruction to be written or skipped.
+     */
+    peekNextWriteSource(): NativePointer;
+
+    /**
+     * Skips the instruction that would have been written next.
+     */
+    skipOne(): void;
+
+    /**
+     * write the next buffered instruction.
+     */
+    writeOne(): boolean;
+
+    /**
+     * Writes all buffered instructions.
+     */
+    writeAll(): void;
+}
+
+declare const enum ArmRegister {
+    R0 = "r0",
+    R1 = "r1",
+    R2 = "r2",
+    R3 = "r3",
+    R4 = "r4",
+    R5 = "r5",
+    R6 = "r6",
+    R7 = "r7",
+    R8 = "r8",
+    R9 = "r9",
+    R10 = "r10",
+    R11 = "r11",
+    R12 = "r12",
+    R13 = "r13",
+    R14 = "r14",
+    R15 = "r15",
+    Sp = "sp",
+    Lr = "lr",
+    Sb = "sb",
+    Sl = "sl",
+    Fp = "fp",
+    Ip = "ip",
+    Pc = "pc",
+}
+
+declare const enum ArmSystemRegister {
+    ApsrNzcvq = "apsr-nzcvq",
+}
+
+declare const enum ArmConditionCode {
+    Eq = "eq",
+    Ne = "ne",
+    Hs = "hs",
+    Lo = "lo",
+    Mi = "mi",
+    Pl = "pl",
+    Vs = "vs",
+    Vc = "vc",
+    Hi = "hi",
+    Ls = "ls",
+    Ge = "ge",
+    Lt = "lt",
+    Gt = "gt",
+    Le = "le",
+    Al = "al",
+}
+
+/**
+ * Generates machine code for arm64.
+ */
+declare class Arm64Writer {
+    /**
+     * Creates a new code writer for generating AArch64 machine code
+     * written directly to memory at `codeAddress`.
+     *
+     * @param codeAddress Memory address to write generated code to.
+     * @param options Options for customizing code generation.
+     */
+    constructor(codeAddress: NativePointerValue, options?: Arm64WriterOptions);
+
+    /**
+     * Recycles instance.
+     */
+    reset(codeAddress: NativePointerValue, options?: Arm64WriterOptions): void;
+
+    /**
+     * Eagerly cleans up memory.
+     */
+    dispose(): void;
+
+    /**
+     * Resolves label references and writes pending data to memory. You
+     * should always call this once you've finished generating code. It
+     * is usually also desirable to do this between pieces of unrelated
+     * code, e.g. when generating multiple functions in one go.
+     */
+    flush(): void;
+
+    /**
+     * Memory location of the first byte of output.
+     */
+    base: NativePointer;
+
+    /**
+     * Memory location of the next byte of output.
+     */
+    code: NativePointer;
+
+    /**
+     * Program counter at the next byte of output.
+     */
+    pc: NativePointer;
+
+    /**
+     * Current offset in bytes.
+     */
+    offset: number;
+
+    /**
+     * Skips `nBytes`.
+     */
+    skip(nBytes: number): void;
+
+    /**
+     * Puts a label at the current position, where `id` is an identifier
+     * that may be referenced in past and future `put*Label()` calls.
+     */
+    putLabel(id: string): void;
+
+    /**
+     * Puts code needed for calling a C function with the specified `args`.
+     */
+    putCallAddressWithArguments(func: NativePointerValue, args: Arm64CallArgument[]): void;
+
+    /**
+     * Puts code needed for calling a C function with the specified `args`.
+     */
+    putCallRegWithArguments(reg: Arm64Register, args: Arm64CallArgument[]): void;
+
+    /**
+     * Puts a BRANCH instruction.
+     */
+    putBranchAddress(address: NativePointerValue): void;
+
+    /**
+     * Puts a B instruction.
+     */
+    putBImm(address: NativePointerValue): void;
+
+    /**
+     * Puts a B instruction referencing `labelId`, defined by a past
+     * or future `putLabel()`.
+     */
+    putBLabel(labelId: string): void;
+
+    /**
+     * Puts a B COND instruction referencing `labelId`, defined by a past
+     * or future `putLabel()`.
+     */
+    putBCondLabel(cc: Arm64ConditionCode, labelId: string): void;
+
+    /**
+     * Puts a BL instruction.
+     */
+    putBlImm(address: NativePointerValue): void;
+
+    /**
+     * Puts a BL instruction referencing `labelId`, defined by a past
+     * or future `putLabel()`.
+     */
+    putBlLabel(labelId: string): void;
+
+    /**
+     * Puts a BR instruction.
+     */
+    putBrReg(reg: Arm64Register): void;
+
+    /**
+     * Puts a BLR instruction.
+     */
+    putBlrReg(reg: Arm64Register): void;
+
+    /**
+     * Puts a RET instruction.
+     */
+    putRet(): void;
+
+    /**
+     * Puts a CBZ instruction referencing `labelId`, defined by a past
+     * or future `putLabel()`.
+     */
+    putCbzRegLabel(reg: Arm64Register, labelId: string): void;
+
+    /**
+     * Puts a CBNZ instruction referencing `labelId`, defined by a past
+     * or future `putLabel()`.
+     */
+    putCbnzRegLabel(reg: Arm64Register, labelId: string): void;
+
+    /**
+     * Puts a TBZ instruction referencing `labelId`, defined by a past
+     * or future `putLabel()`.
+     */
+    putTbzRegImmLabel(reg: Arm64Register, bit: number, labelId: string): void;
+
+    /**
+     * Puts a TBNZ instruction referencing `labelId`, defined by a past
+     * or future `putLabel()`.
+     */
+    putTbnzRegImmLabel(reg: Arm64Register, bit: number, labelId: string): void;
+
+    /**
+     * Puts a PUSH instruction.
+     */
+    putPushRegReg(regA: Arm64Register, regB: Arm64Register): void;
+
+    /**
+     * Puts a POP instruction.
+     */
+    putPopRegReg(regA: Arm64Register, regB: Arm64Register): void;
+
+    /**
+     * Puts code needed for pushing all X registers on the stack.
+     */
+    putPushAllXRegisters(): void;
+
+    /**
+     * Puts code needed for popping all X registers off the stack.
+     */
+    putPopAllXRegisters(): void;
+
+    /**
+     * Puts code needed for pushing all Q registers on the stack.
+     */
+    putPushAllQRegisters(): void;
+
+    /**
+     * Puts code needed for popping all Q registers off the stack.
+     */
+    putPopAllQRegisters(): void;
+
+    /**
+     * Puts an LDR instruction.
+     */
+    putLdrRegAddress(reg: Arm64Register, address: NativePointerValue): void;
+
+    /**
+     * Puts an LDR instruction.
+     */
+    putLdrRegU64(reg: Arm64Register, val: number | UInt64): void;
+
+    /**
+     * Puts an LDR instruction with a dangling data reference,
+     * returning an opaque ref value that should be passed to `putLdrRegValue()`
+     * at the desired location.
+     */
+    putLdrRegRef(reg: Arm64Register): number;
+
+    /**
+     * Puts the value and updates the LDR instruction
+     * from a previous `putLdrRegRef()`.
+     */
+    putLdrRegValue(ref: number, value: NativePointerValue): void;
+
+    /**
+     * Puts an LDR instruction.
+     */
+    putLdrRegRegOffset(dstReg: Arm64Register, srcReg: Arm64Register, srcOffset: number | Int64 | UInt64): void;
+
+    /**
+     * Puts an LDRSW instruction.
+     */
+    putLdrswRegRegOffset(dstReg: Arm64Register, srcReg: Arm64Register, srcOffset: number | Int64 | UInt64): void;
+
+    /**
+     * Puts an ADRP instruction.
+     */
+    putAdrpRegAddress(reg: Arm64Register, address: NativePointerValue): void;
+
+    /**
+     * Puts a STR instruction.
+     */
+    putStrRegRegOffset(srcReg: Arm64Register, dstReg: Arm64Register, dstOffset: number | Int64 | UInt64): void;
+
+    /**
+     * Puts an LDP instruction.
+     */
+    putLdpRegRegRegOffset(regA: Arm64Register, regB: Arm64Register, regSrc: Arm64Register, srcOffset: number | Int64 | UInt64, mode: Arm64IndexMode): void;
+
+    /**
+     * Puts a STP instruction.
+     */
+    putStpRegRegRegOffset(regA: Arm64Register, regB: Arm64Register, regDst: Arm64Register, dstOffset: number | Int64 | UInt64, mode: Arm64IndexMode): void;
+
+    /**
+     * Puts a MOV instruction.
+     */
+    putMovRegReg(dstReg: Arm64Register, srcReg: Arm64Register): void;
+
+    /**
+     * Puts an UXTW instruction.
+     */
+    putUxtwRegReg(dstReg: Arm64Register, srcReg: Arm64Register): void;
+
+    /**
+     * Puts an ADD instruction.
+     */
+    putAddRegRegImm(dstReg: Arm64Register, leftReg: Arm64Register, rightValue: number | Int64 | UInt64): void;
+
+    /**
+     * Puts an ADD instruction.
+     */
+    putAddRegRegReg(dstReg: Arm64Register, leftReg: Arm64Register, rightReg: Arm64Register): void;
+
+    /**
+     * Puts a SUB instruction.
+     */
+    putSubRegRegImm(dstReg: Arm64Register, leftReg: Arm64Register, rightValue: number | Int64 | UInt64): void;
+
+    /**
+     * Puts a SUB instruction.
+     */
+    putSubRegRegReg(dstReg: Arm64Register, leftReg: Arm64Register, rightReg: Arm64Register): void;
+
+    /**
+     * Puts an AND instruction.
+     */
+    putAndRegRegImm(dstReg: Arm64Register, leftReg: Arm64Register, rightValue: number | Int64 | UInt64): void;
+
+    /**
+     * Puts a TST instruction.
+     */
+    putTstRegImm(reg: Arm64Register, immValue: number | UInt64): void;
+
+    /**
+     * Puts a CMP instruction.
+     */
+    putCmpRegReg(regA: Arm64Register, regB: Arm64Register): void;
+
+    /**
+     * Puts a NOP instruction.
+     */
+    putNop(): void;
+
+    /**
+     * Puts a BRK instruction.
+     */
+    putBrkImm(imm: number): void;
+
+    /**
+     * Puts a raw instruction.
+     */
+    putInstruction(insn: number): void;
+
+    /**
+     * Puts raw data.
+     */
+    putBytes(data: ArrayBuffer | number[] | string): void;
+}
+
+declare interface Arm64WriterOptions {
+    /**
+     * Specifies the initial program counter, which is useful when
+     * generating code to a scratch buffer. This is essential when using
+     * `Memory.patchCode()` on iOS, which may provide you with a
+     * temporary location that later gets mapped into memory at the
+     * intended memory location.
+     */
+    pc?: NativePointer;
+}
+
+declare type Arm64CallArgument = Arm64Register | number | UInt64 | Int64 | NativePointerValue;
+
+/**
+ * Relocates machine code for arm64.
+ */
+declare class Arm64Relocator {
+    /**
+     * Creates a new code relocator for copying AArch64 instructions
+     * from one memory location to another, taking care to adjust
+     * position-dependent instructions accordingly.
+     *
+     * @param inputCode Source address to copy instructions from.
+     * @param output Arm64Writer pointed at the desired target memory
+     *               address.
+     */
+    constructor(inputCode: NativePointerValue, output: Arm64Writer);
+
+    /**
+     * Recycles instance.
+     */
+    reset(inputCode: NativePointerValue, output: Arm64Writer): void;
+
+    /**
+     * Eagerly cleans up memory.
+     */
+    dispose(): void;
+
+    /**
+     * Latest `Instruction` read so far. Starts out `null` and changes
+     * on every call to `readOne()`.
+     */
+    input: Instruction | null;
+
+    /**
+     * Indicates whether end-of-block has been reached, i.e. we've
+     * reached a branch of any kind, like CALL, JMP, BL, RET.
+     */
+    eob: boolean;
+
+    /**
+     * Indicates whether end-of-input has been reached, e.g. we've
+     * reached JMP/B/RET, an instruction after which there may or may
+     * not be valid code.
+     */
+    eoi: boolean;
+
+    /**
+     * Reads the next instruction into the relocator's internal buffer
+     * and returns the number of bytes read so far, including previous
+     * calls.
+     *
+     * You may keep calling this method to keep buffering, or immediately
+     * call either `writeOne()` or `skipOne()`. Or, you can buffer up
+     * until the desired point and then call `writeAll()`.
+     *
+     * Returns zero when end-of-input is reached, which means the `eoi`
+     * property is now `true`.
+     */
+    readOne(): number;
+
+    /**
+     * Peeks at the next `Instruction` to be written or skipped.
+     */
+    peekNextWriteInsn(): Instruction | null;
+
+    /**
+     * Peeks at the address of the next instruction to be written or skipped.
+     */
+    peekNextWriteSource(): NativePointer;
+
+    /**
+     * Skips the instruction that would have been written next.
+     */
+    skipOne(): void;
+
+    /**
+     * write the next buffered instruction.
+     */
+    writeOne(): boolean;
+
+    /**
+     * Writes all buffered instructions.
+     */
+    writeAll(): void;
+}
+
+declare const enum Arm64Register {
+    X0 = "x0",
+    X1 = "x1",
+    X2 = "x2",
+    X3 = "x3",
+    X4 = "x4",
+    X5 = "x5",
+    X6 = "x6",
+    X7 = "x7",
+    X8 = "x8",
+    X9 = "x9",
+    X10 = "x10",
+    X11 = "x11",
+    X12 = "x12",
+    X13 = "x13",
+    X14 = "x14",
+    X15 = "x15",
+    X16 = "x16",
+    X17 = "x17",
+    X18 = "x18",
+    X19 = "x19",
+    X20 = "x20",
+    X21 = "x21",
+    X22 = "x22",
+    X23 = "x23",
+    X24 = "x24",
+    X25 = "x25",
+    X26 = "x26",
+    X27 = "x27",
+    X28 = "x28",
+    X29 = "x29",
+    X30 = "x30",
+    W0 = "w0",
+    W1 = "w1",
+    W2 = "w2",
+    W3 = "w3",
+    W4 = "w4",
+    W5 = "w5",
+    W6 = "w6",
+    W7 = "w7",
+    W8 = "w8",
+    W9 = "w9",
+    W10 = "w10",
+    W11 = "w11",
+    W12 = "w12",
+    W13 = "w13",
+    W14 = "w14",
+    W15 = "w15",
+    W16 = "w16",
+    W17 = "w17",
+    W18 = "w18",
+    W19 = "w19",
+    W20 = "w20",
+    W21 = "w21",
+    W22 = "w22",
+    W23 = "w23",
+    W24 = "w24",
+    W25 = "w25",
+    W26 = "w26",
+    W27 = "w27",
+    W28 = "w28",
+    W29 = "w29",
+    W30 = "w30",
+    Sp = "sp",
+    Lr = "lr",
+    Fp = "fp",
+    Wsp = "wsp",
+    Wzr = "wzr",
+    Xzr = "xzr",
+    Nzcv = "nzcv",
+    Ip0 = "ip0",
+    Ip1 = "ip1",
+    S0 = "s0",
+    S1 = "s1",
+    S2 = "s2",
+    S3 = "s3",
+    S4 = "s4",
+    S5 = "s5",
+    S6 = "s6",
+    S7 = "s7",
+    S8 = "s8",
+    S9 = "s9",
+    S10 = "s10",
+    S11 = "s11",
+    S12 = "s12",
+    S13 = "s13",
+    S14 = "s14",
+    S15 = "s15",
+    S16 = "s16",
+    S17 = "s17",
+    S18 = "s18",
+    S19 = "s19",
+    S20 = "s20",
+    S21 = "s21",
+    S22 = "s22",
+    S23 = "s23",
+    S24 = "s24",
+    S25 = "s25",
+    S26 = "s26",
+    S27 = "s27",
+    S28 = "s28",
+    S29 = "s29",
+    S30 = "s30",
+    S31 = "s31",
+    D0 = "d0",
+    D1 = "d1",
+    D2 = "d2",
+    D3 = "d3",
+    D4 = "d4",
+    D5 = "d5",
+    D6 = "d6",
+    D7 = "d7",
+    D8 = "d8",
+    D9 = "d9",
+    D10 = "d10",
+    D11 = "d11",
+    D12 = "d12",
+    D13 = "d13",
+    D14 = "d14",
+    D15 = "d15",
+    D16 = "d16",
+    D17 = "d17",
+    D18 = "d18",
+    D19 = "d19",
+    D20 = "d20",
+    D21 = "d21",
+    D22 = "d22",
+    D23 = "d23",
+    D24 = "d24",
+    D25 = "d25",
+    D26 = "d26",
+    D27 = "d27",
+    D28 = "d28",
+    D29 = "d29",
+    D30 = "d30",
+    D31 = "d31",
+    Q0 = "q0",
+    Q1 = "q1",
+    Q2 = "q2",
+    Q3 = "q3",
+    Q4 = "q4",
+    Q5 = "q5",
+    Q6 = "q6",
+    Q7 = "q7",
+    Q8 = "q8",
+    Q9 = "q9",
+    Q10 = "q10",
+    Q11 = "q11",
+    Q12 = "q12",
+    Q13 = "q13",
+    Q14 = "q14",
+    Q15 = "q15",
+    Q16 = "q16",
+    Q17 = "q17",
+    Q18 = "q18",
+    Q19 = "q19",
+    Q20 = "q20",
+    Q21 = "q21",
+    Q22 = "q22",
+    Q23 = "q23",
+    Q24 = "q24",
+    Q25 = "q25",
+    Q26 = "q26",
+    Q27 = "q27",
+    Q28 = "q28",
+    Q29 = "q29",
+    Q30 = "q30",
+    Q31 = "q31",
+}
+
+declare const enum Arm64ConditionCode {
+    Eq = "eq",
+    Ne = "ne",
+    Hs = "hs",
+    Lo = "lo",
+    Mi = "mi",
+    Pl = "pl",
+    Vs = "vs",
+    Vc = "vc",
+    Hi = "hi",
+    Ls = "ls",
+    Ge = "ge",
+    Lt = "lt",
+    Gt = "gt",
+    Le = "le",
+    Al = "al",
+    Nv = "nv",
+}
+
+declare const enum Arm64IndexMode {
+    PostAdjust = "post-adjust",
+    SignedOffset = "signed-offset",
+    PreAdjust = "pre-adjust",
+}
+
+/**
+ * Generates machine code for mips.
+ */
+declare class MipsWriter {
+    /**
+     * Creates a new code writer for generating MIPS machine code
+     * written directly to memory at `codeAddress`.
+     *
+     * @param codeAddress Memory address to write generated code to.
+     * @param options Options for customizing code generation.
+     */
+    constructor(codeAddress: NativePointerValue, options?: MipsWriterOptions);
+
+    /**
+     * Recycles instance.
+     */
+    reset(codeAddress: NativePointerValue, options?: MipsWriterOptions): void;
+
+    /**
+     * Eagerly cleans up memory.
+     */
+    dispose(): void;
+
+    /**
+     * Resolves label references and writes pending data to memory. You
+     * should always call this once you've finished generating code. It
+     * is usually also desirable to do this between pieces of unrelated
+     * code, e.g. when generating multiple functions in one go.
+     */
+    flush(): void;
+
+    /**
+     * Memory location of the first byte of output.
+     */
+    base: NativePointer;
+
+    /**
+     * Memory location of the next byte of output.
+     */
+    code: NativePointer;
+
+    /**
+     * Program counter at the next byte of output.
+     */
+    pc: NativePointer;
+
+    /**
+     * Current offset in bytes.
+     */
+    offset: number;
+
+    /**
+     * Skips `nBytes`.
+     */
+    skip(nBytes: number): void;
+
+    /**
+     * Puts a label at the current position, where `id` is an identifier
+     * that may be referenced in past and future `put*Label()` calls.
+     */
+    putLabel(id: string): void;
+
+    /**
+     * Puts code needed for calling a C function with the specified `args`.
+     */
+    putCallAddressWithArguments(func: NativePointerValue, args: MipsCallArgument[]): void;
+
+    /**
+     * Puts code needed for calling a C function with the specified `args`.
+     */
+    putCallRegWithArguments(reg: MipsRegister, args: MipsCallArgument[]): void;
+
+    /**
+     * Puts a J instruction.
+     */
+    putJAddress(address: NativePointerValue): void;
+
+    /**
+     * Puts a J instruction referencing `labelId`, defined by a past
+     * or future `putLabel()`.
+     */
+    putJLabel(labelId: string): void;
+
+    /**
+     * Puts a JR instruction.
+     */
+    putJrReg(reg: MipsRegister): void;
+
+    /**
+     * Puts a JAL instruction.
+     */
+    putJalAddress(address: number): void;
+
+    /**
+     * Puts a JALR instruction.
+     */
+    putJalrReg(reg: MipsRegister): void;
+
+    /**
+     * Puts a B instruction.
+     */
+    putBOffset(offset: number): void;
+
+    /**
+     * Puts a BEQ instruction referencing `labelId`, defined by a past
+     * or future `putLabel()`.
+     */
+    putBeqRegRegLabel(rightReg: MipsRegister, leftReg: MipsRegister, labelId: string): void;
+
+    /**
+     * Puts a RET instruction.
+     */
+    putRet(): void;
+
+    /**
+     * Puts a LA instruction.
+     */
+    putLaRegAddress(reg: MipsRegister, address: NativePointerValue): void;
+
+    /**
+     * Puts a LUI instruction.
+     */
+    putLuiRegImm(reg: MipsRegister, imm: number): void;
+
+    /**
+     * Puts an ORI instruction.
+     */
+    putOriRegRegImm(rt: MipsRegister, rs: MipsRegister, imm: number): void;
+
+    /**
+     * Puts a LW instruction.
+     */
+    putLwRegRegOffset(dstReg: MipsRegister, srcReg: MipsRegister, srcOffset: number | Int64 | UInt64): void;
+
+    /**
+     * Puts a SW instruction.
+     */
+    putSwRegRegOffset(srcReg: MipsRegister, dstReg: MipsRegister, dstOffset: number | Int64 | UInt64): void;
+
+    /**
+     * Puts a MOVE instruction.
+     */
+    putMoveRegReg(dstReg: MipsRegister, srcReg: MipsRegister): void;
+
+    /**
+     * Puts an ADDU instruction.
+     */
+    putAdduRegRegReg(dstReg: MipsRegister, leftReg: MipsRegister, rightReg: MipsRegister): void;
+
+    /**
+     * Puts an ADDI instruction.
+     */
+    putAddiRegRegImm(destReg: MipsRegister, leftReg: MipsRegister, imm: number): void;
+
+    /**
+     * Puts an ADDI instruction.
+     */
+    putAddiRegImm(destReg: MipsRegister, imm: number): void;
+
+    /**
+     * Puts a SUB instruction.
+     */
+    putSubRegRegImm(destReg: MipsRegister, leftReg: MipsRegister, imm: number): void;
+
+    /**
+     * Puts a PUSH instruction.
+     */
+    putPushReg(reg: MipsRegister): void;
+
+    /**
+     * Puts a POP instruction.
+     */
+    putPopReg(reg: MipsRegister): void;
+
+    /**
+     * Puts a MFHI instruction.
+     */
+    putMfhiReg(reg: MipsRegister): void;
+
+    /**
+     * Puts a MFLO instruction.
+     */
+    putMfloReg(reg: MipsRegister): void;
+
+    /**
+     * Puts a MTHI instruction.
+     */
+    putMthiReg(reg: MipsRegister): void;
+
+    /**
+     * Puts a MTLO instruction.
+     */
+    putMtloReg(reg: MipsRegister): void;
+
+    /**
+     * Puts a NOP instruction.
+     */
+    putNop(): void;
+
+    /**
+     * Puts a BREAK instruction.
+     */
+    putBreak(): void;
+
+    /**
+     * Puts a raw instruction.
+     */
+    putInstruction(insn: number): void;
+
+    /**
+     * Puts raw data.
+     */
+    putBytes(data: ArrayBuffer | number[] | string): void;
+}
+
+declare interface MipsWriterOptions {
+    /**
+     * Specifies the initial program counter, which is useful when
+     * generating code to a scratch buffer. This is essential when using
+     * `Memory.patchCode()` on iOS, which may provide you with a
+     * temporary location that later gets mapped into memory at the
+     * intended memory location.
+     */
+    pc?: NativePointer;
+}
+
+declare type MipsCallArgument = MipsRegister | number | UInt64 | Int64 | NativePointerValue;
+
+/**
+ * Relocates machine code for mips.
+ */
+declare class MipsRelocator {
+    /**
+     * Creates a new code relocator for copying MIPS instructions
+     * from one memory location to another, taking care to adjust
+     * position-dependent instructions accordingly.
+     *
+     * @param inputCode Source address to copy instructions from.
+     * @param output MipsWriter pointed at the desired target memory
+     *               address.
+     */
+    constructor(inputCode: NativePointerValue, output: MipsWriter);
+
+    /**
+     * Recycles instance.
+     */
+    reset(inputCode: NativePointerValue, output: MipsWriter): void;
+
+    /**
+     * Eagerly cleans up memory.
+     */
+    dispose(): void;
+
+    /**
+     * Latest `Instruction` read so far. Starts out `null` and changes
+     * on every call to `readOne()`.
+     */
+    input: Instruction | null;
+
+    /**
+     * Indicates whether end-of-block has been reached, i.e. we've
+     * reached a branch of any kind, like CALL, JMP, BL, RET.
+     */
+    eob: boolean;
+
+    /**
+     * Indicates whether end-of-input has been reached, e.g. we've
+     * reached JMP/B/RET, an instruction after which there may or may
+     * not be valid code.
+     */
+    eoi: boolean;
+
+    /**
+     * Reads the next instruction into the relocator's internal buffer
+     * and returns the number of bytes read so far, including previous
+     * calls.
+     *
+     * You may keep calling this method to keep buffering, or immediately
+     * call either `writeOne()` or `skipOne()`. Or, you can buffer up
+     * until the desired point and then call `writeAll()`.
+     *
+     * Returns zero when end-of-input is reached, which means the `eoi`
+     * property is now `true`.
+     */
+    readOne(): number;
+
+    /**
+     * Peeks at the next `Instruction` to be written or skipped.
+     */
+    peekNextWriteInsn(): Instruction | null;
+
+    /**
+     * Peeks at the address of the next instruction to be written or skipped.
+     */
+    peekNextWriteSource(): NativePointer;
+
+    /**
+     * Skips the instruction that would have been written next.
+     */
+    skipOne(): void;
+
+    /**
+     * write the next buffered instruction.
+     */
+    writeOne(): boolean;
+
+    /**
+     * Writes all buffered instructions.
+     */
+    writeAll(): void;
+}
+
+declare const enum MipsRegister {
+    V0 = "v0",
+    V1 = "v1",
+    A0 = "a0",
+    A1 = "a1",
+    A2 = "a2",
+    A3 = "a3",
+    T0 = "t0",
+    T1 = "t1",
+    T2 = "t2",
+    T3 = "t3",
+    T4 = "t4",
+    T5 = "t5",
+    T6 = "t6",
+    T7 = "t7",
+    S0 = "s0",
+    S1 = "s1",
+    S2 = "s2",
+    S3 = "s3",
+    S4 = "s4",
+    S5 = "s5",
+    S6 = "s6",
+    S7 = "s7",
+    T8 = "t8",
+    T9 = "t9",
+    K0 = "k0",
+    K1 = "k1",
+    Gp = "gp",
+    Sp = "sp",
+    Fp = "fp",
+    S8 = "s8",
+    Ra = "ra",
+    Hi = "hi",
+    Lo = "lo",
+    Zero = "zero",
+    At = "at",
+    R0 = "0",
+    R1 = "1",
+    R2 = "2",
+    R3 = "3",
+    R4 = "4",
+    R5 = "5",
+    R6 = "6",
+    R7 = "7",
+    R8 = "8",
+    R9 = "9",
+    R10 = "10",
+    R11 = "11",
+    R12 = "12",
+    R13 = "13",
+    R14 = "14",
+    R15 = "15",
+    R16 = "16",
+    R17 = "17",
+    R18 = "18",
+    R19 = "19",
+    R20 = "20",
+    R21 = "21",
+    R22 = "22",
+    R23 = "23",
+    R24 = "24",
+    R25 = "25",
+    R26 = "26",
+    R27 = "27",
+    R28 = "28",
+    R29 = "29",
+    R30 = "30",
+    R31 = "31",
+}
