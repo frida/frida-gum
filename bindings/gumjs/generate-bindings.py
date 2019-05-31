@@ -23,6 +23,7 @@ def generate_and_write_bindings(source_dir, output_dir):
         ("mips", "mips"),
     ]
 
+    tsds = {}
     docs = {}
 
     for name, options in binding_params:
@@ -41,15 +42,24 @@ def generate_and_write_bindings(source_dir, output_dir):
                 with codecs.open(os.path.join(output_dir, filename), "w", 'utf-8') as f:
                     f.write(code)
 
+            tsds.update(bindings.tsds)
             docs.update(bindings.docs)
 
-    sections = []
+    tsd_sections = []
+    doc_sections = []
     for arch, flavor in flavor_combos:
         for name, options in binding_params:
-            sections.append(docs["{0}-{1}.md".format(flavor, name)])
+            tsd_sections.append(tsds["{}-{}.d.ts".format(flavor, name)])
+            doc_sections.append(docs["{}-{}.md".format(flavor, name)])
         if flavor != "arm":
-            sections.append(docs["{0}-enums.md".format(arch)])
-    api_reference = "\n\n".join(sections)
+            tsd_sections.append(tsds["{}-enums.d.ts".format(arch)])
+            doc_sections.append(docs["{}-enums.md".format(arch)])
+
+    tsd_source = "\n\n".join(tsd_sections)
+    with codecs.open(os.path.join(output_dir, "api-types.d.ts"), "w", 'utf-8') as f:
+        f.write(tsd_source)
+
+    api_reference = "\n\n".join(doc_sections)
     with codecs.open(os.path.join(output_dir, "api-reference.md"), "w", 'utf-8') as f:
         f.write(api_reference)
 
@@ -124,20 +134,23 @@ typedef {impl_struct_name} {native_struct_name}Impl;
     return (filename, code)
 
 class Bindings(object):
-    def __init__(self, code, docs):
+    def __init__(self, code, tsds, docs):
         self.code = code
+        self.tsds = tsds
         self.docs = docs
 
 def generate_bindings(name, arch, flavor, api_header, options):
-    api = parse_api(name, flavor, api_header, options)
+    api = parse_api(name, arch, flavor, api_header, options)
 
     code = {}
     code.update(generate_duk_bindings(name, arch, flavor, api))
     code.update(generate_v8_bindings(name, arch, flavor, api))
 
+    tsds = generate_tsds(name, arch, flavor, api)
+
     docs = generate_docs(name, arch, flavor, api)
 
-    return Bindings(code, docs)
+    return Bindings(code, tsds, docs)
 
 def generate_duk_bindings(name, arch, flavor, api):
     component = Component(name, arch, flavor, "duk")
@@ -2156,7 +2169,7 @@ writer_enums = {
             "sp", "lr", "sb", "sl", "fp", "ip", "pc",
         ]),
         ("arm_system_register", "arm_sysreg", "ARM_SYSREG_", [
-            "apsr_nzcvq",
+            "apsr-nzcvq",
         ]),
         ("arm_condition_code", "arm_cc", "ARM_CC_", [
             "eq", "ne", "hs", "lo", "mi", "pl", "vs", "vc",
@@ -2256,6 +2269,290 @@ gum_try_parse_{name} (
     )
 
     return (decls, code.split("\n"))
+
+def generate_tsds(name, arch, flavor, api):
+    tsds = {}
+    tsds.update(generate_class_type_definitions(name, arch, flavor, api))
+    tsds.update(generate_enum_type_definitions(name, arch, flavor, api))
+    return tsds
+
+def generate_class_type_definitions(name, arch, flavor, api):
+    lines = []
+
+    class_name = to_camel_case("{0}_{1}".format(flavor, name), start_high=True)
+    writer_class_name = to_camel_case("{0}_writer".format(flavor, "writer"), start_high=True)
+
+    params = {
+        "arch": arch,
+        "arch_name": arch_names[arch],
+        "arch_namespace": arch.title(),
+        "class_name": class_name,
+        "writer_class_name": writer_class_name,
+    }
+
+    if name == "writer":
+        class_description = "Generates machine code for {}.".format(arch)
+    else:
+        class_description = "Relocates machine code for {}.".format(arch)
+
+    lines.extend([
+        "/**",
+        " * " + class_description,
+        " */",
+        "declare class {} {{".format(class_name),
+    ])
+
+    if name == "writer":
+        lines.extend("""\
+    /**
+     * Creates a new code writer for generating {arch_name} machine code
+     * written directly to memory at `codeAddress`.
+     *
+     * @param codeAddress Memory address to write generated code to.
+     * @param options Options for customizing code generation.
+     */
+    constructor(codeAddress: NativePointerValue, options?: {class_name}Options);
+
+    /**
+     * Recycles instance.
+     */
+    reset(codeAddress: NativePointerValue, options?: {class_name}Options): void;
+
+    /**
+     * Eagerly cleans up memory.
+     */
+    dispose(): void;
+
+    /**
+     * Resolves label references and writes pending data to memory. You
+     * should always call this once you've finished generating code. It
+     * is usually also desirable to do this between pieces of unrelated
+     * code, e.g. when generating multiple functions in one go.
+     */
+    flush(): void;
+
+    /**
+     * Memory location of the first byte of output.
+     */
+    base: NativePointer;
+
+    /**
+     * Memory location of the next byte of output.
+     */
+    code: NativePointer;
+
+    /**
+     * Program counter at the next byte of output.
+     */
+    pc: NativePointer;
+
+    /**
+     * Current offset in bytes.
+     */
+    offset: number;""".format(**params).split("\n"))
+    elif name == "relocator":
+        lines.extend("""\
+    /**
+     * Creates a new code relocator for copying {arch_name} instructions
+     * from one memory location to another, taking care to adjust
+     * position-dependent instructions accordingly.
+     *
+     * @param inputCode Source address to copy instructions from.
+     * @param output {writer_class_name} pointed at the desired target memory
+     *               address.
+     */
+    constructor(inputCode: NativePointerValue, output: {writer_class_name});
+
+    /**
+     * Recycles instance.
+     */
+    reset(inputCode: NativePointerValue, output: {writer_class_name}): void;
+
+    /**
+     * Eagerly cleans up memory.
+     */
+    dispose(): void;
+
+    /**
+     * Latest `Instruction` read so far. Starts out `null` and changes
+     * on every call to `readOne()`.
+     */
+    input: Instruction | null;
+
+    /**
+     * Indicates whether end-of-block has been reached, i.e. we've
+     * reached a branch of any kind, like CALL, JMP, BL, RET.
+     */
+    eob: boolean;
+
+    /**
+     * Indicates whether end-of-input has been reached, e.g. we've
+     * reached JMP/B/RET, an instruction after which there may or may
+     * not be valid code.
+     */
+    eoi: boolean;
+
+    /**
+     * Reads the next instruction into the relocator's internal buffer
+     * and returns the number of bytes read so far, including previous
+     * calls.
+     *
+     * You may keep calling this method to keep buffering, or immediately
+     * call either `writeOne()` or `skipOne()`. Or, you can buffer up
+     * until the desired point and then call `writeAll()`.
+     *
+     * Returns zero when end-of-input is reached, which means the `eoi`
+     * property is now `true`.
+     */
+    readOne(): number;""".format(**params).split("\n"))
+
+    for method in api.instance_methods:
+        arg_names = [arg.name_js for arg in method.args]
+
+        description = ""
+        if method.name.startswith("put_"):
+            if method.name == "put_label":
+                description = """Puts a label at the current position, where `id` is an identifier
+     * that may be referenced in past and future `put*Label()` calls"""
+            elif method.name.startswith("put_call") and "_with_arguments" in method.name:
+                description = """Puts code needed for calling a C function with the specified `args`"""
+                arg_names[-1] = "args"
+            elif method.name.startswith("put_call") and "_with_aligned_arguments" in method.name:
+                description = """Like `putCallWithArguments()`, but also
+     * ensures that the argument list is aligned on a 16 byte boundary"""
+                arg_names[-1] = "args"
+            elif method.name in ("put_push_regs", "put_pop_regs"):
+                if method.name.startswith("put_push_"):
+                    mnemonic = "PUSH"
+                else:
+                    mnemonic = "POP"
+                description = """Puts a {mnemonic} instruction with the specified registers""".format(mnemonic=mnemonic)
+                arg_names[-1] = "regs"
+            elif method.name == "put_push_all_x_registers":
+                description = """Puts code needed for pushing all X registers on the stack"""
+            elif method.name == "put_push_all_q_registers":
+                description = """Puts code needed for pushing all Q registers on the stack"""
+            elif method.name == "put_pop_all_x_registers":
+                description = """Puts code needed for popping all X registers off the stack"""
+            elif method.name == "put_pop_all_q_registers":
+                description = """Puts code needed for popping all Q registers off the stack"""
+            elif method.name == "put_ldr_reg_ref":
+                description = """Puts an LDR instruction with a dangling data reference,
+     * returning an opaque ref value that should be passed to `putLdrRegValue()`
+     * at the desired location"""
+            elif method.name == "put_ldr_reg_value":
+                description = """Puts the value and updates the LDR instruction
+     * from a previous `putLdrRegRef()`"""
+            elif method.name == "put_breakpoint":
+                description = "Puts an OS/architecture-specific breakpoint instruction"
+            elif method.name == "put_padding":
+                description = "Puts `n` guard instruction"
+            elif method.name == "put_nop_padding":
+                description = "Puts `n` NOP instructions"
+            elif method.name == "put_instruction":
+                description = "Puts a raw instruction"
+            elif method.name == "put_instruction_wide":
+                description = "Puts a raw Thumb-2 instruction"
+            elif method.name == "put_u8":
+                description = "Puts a uint8"
+            elif method.name == "put_s8":
+                description = "Puts an int8"
+            elif method.name == "put_bytes":
+                description = "Puts raw data"
+            else:
+                types = set(["reg", "imm", "offset", "indirect", "short", "near", "ptr", "base", "index", "scale", "address", "label", "u8", "i32", "u32", "u64"])
+                opcode = " ".join(filter(lambda token: token not in types, method.name.split("_")[1:])).upper()
+                description = "Puts {0} instruction".format(make_indefinite(opcode))
+                if method.name.endswith("_label"):
+                    description += """ referencing `labelId`, defined by a past
+     * or future `putLabel()`"""
+        elif method.name == "skip":
+            description = "Skips `nBytes`"
+        elif method.name == "peek_next_write_insn":
+            description = "Peeks at the next `Instruction` to be written or skipped".format(**params)
+        elif method.name == "peek_next_write_source":
+            description = "Peeks at the address of the next instruction to be written or skipped"
+        elif method.name.startswith("skip_one"):
+            description = "Skips the instruction that would have been written next"
+            if method.name.endswith("_no_label"):
+                description += """,
+     * but without a label for internal use. This breaks relocation of branches to
+     * locations inside the relocated range, and is an optimization for use-cases
+     * where all branches are rewritten (e.g. Frida's Stalker)"""
+        elif method.name.startswith("write_one"):
+            description = "write the next buffered instruction"
+            if method.name.endswith("_no_label"):
+                description += """, but without a
+     * label for internal use. This breaks relocation of branches to locations
+     * inside the relocated range, and is an optimization for use-cases where all
+     * branches are rewritten (e.g. Frida's Stalker)"""
+        elif method.name.startswith("write_all"):
+            description = "Writes all buffered instructions"
+
+        p = {}
+        p.update(params)
+        p.update({
+            "method_name": method.name_js,
+            "method_arglist": ", ".join([n + ": " + t for n, t in zip(arg_names, [arg.type_ts for arg in method.args])]),
+            "method_return_type": method.return_type_ts,
+            "method_description": description,
+        })
+
+        lines.extend("""\
+
+    /**
+     * {method_description}.
+     */
+    {method_name}({method_arglist}): {method_return_type};""".format(**p).split("\n"))
+
+    lines.append("}")
+
+    if name == "writer":
+        lines.extend("""
+declare interface {class_name}Options {{
+    /**
+     * Specifies the initial program counter, which is useful when
+     * generating code to a scratch buffer. This is essential when using
+     * `Memory.patchCode()` on iOS, which may provide you with a
+     * temporary location that later gets mapped into memory at the
+     * intended memory location.
+     */
+    pc?: NativePointer;
+}}""".format(**params).split("\n"))
+
+        if flavor != "thumb":
+            lines.extend([
+                "",
+                "declare type {arch_namespace}CallArgument = {arch_namespace}Register | number | UInt64 | Int64 | NativePointerValue;".format(**params),
+            ])
+
+    return {
+        "{0}-{1}.d.ts".format(flavor, name): "\n".join(lines),
+    }
+
+def generate_enum_type_definitions(name, arch, flavor, api):
+    lines = []
+
+    for name, type, prefix, values in writer_enums[arch]:
+        name_ts = to_camel_case(name, start_high=True)
+        name_components = name.replace("_", " ").title().split(" ")
+
+        if len(lines) > 0:
+            lines.append("")
+
+        lines.append("declare const enum {} {{".format(name_ts))
+
+        for val in values:
+            identifier = to_camel_case(val.replace("-", "_"), start_high=True)
+            if identifier[0].isdigit():
+                identifier = name_components[1][0] + identifier
+            lines.append("    {} = \"{}\",".format(identifier, val))
+
+        lines.append("}")
+
+    return {
+        "{0}-enums.d.ts".format(arch): "\n".join(lines),
+    }
 
 def generate_docs(name, arch, flavor, api):
     docs = {}
@@ -2557,10 +2854,22 @@ class Method(object):
         self.is_put_regs = is_put_regs
 
         self.return_type = return_type
+        if return_type == "void" or (return_type == "gboolean" and name.startswith("put_")):
+            self.return_type_ts = "void"
+        elif return_type == "gboolean":
+            self.return_type_ts = "boolean"
+        elif return_type == "guint":
+            self.return_type_ts = "number"
+        elif return_type == "gpointer":
+            self.return_type_ts = "NativePointer"
+        elif return_type == "cs_insn *":
+            self.return_type_ts = "Instruction | null"
+        else:
+            raise ValueError("Unsupported return type: {}".format(return_type))
         self.args = args
 
 class MethodArgument(object):
-    def __init__(self, type, name):
+    def __init__(self, type, name, arch):
         self.type = type
 
         name_raw = None
@@ -2569,76 +2878,99 @@ class MethodArgument(object):
         if type in ("GumCpuReg", "arm_reg", "arm64_reg", "mips_reg"):
             self.type_raw = "const gchar *"
             self.type_format = "s"
+            self.type_ts = to_camel_case("x86_register" if type == "GumCpuReg" else type.replace("_reg", "_register"), start_high=True)
             converter = "register"
         elif type in ("arm_sysreg",):
             self.type_raw = "const gchar *"
             self.type_format = "s"
+            self.type_ts = "ArmSystemRegister"
             converter = "system_register"
         elif type in ("gint", "gint8", "gint16", "gint32"):
             self.type_raw = "gint"
             self.type_format = "i"
+            self.type_ts = "number"
         elif type in ("guint", "guint8", "guint16", "guint32"):
             self.type_raw = "guint"
             self.type_format = "u"
+            self.type_ts = "number"
         elif type == "gint64":
             self.type_raw = type
             self.type_format = "q"
+            self.type_ts = "number | Int64"
         elif type == "guint64":
             self.type_raw = type
             self.type_format = "Q"
+            self.type_ts = "number | UInt64"
         elif type == "gssize":
             self.type_raw = type
             self.type_format = "z"
+            self.type_ts = "number | Int64 | UInt64"
         elif type == "gsize":
             self.type_raw = type
             self.type_format = "Z"
+            self.type_ts = "number | Int64 | UInt64"
         elif type in ("gpointer", "gconstpointer", "gconstpointer *"):
             self.type_raw = type
             self.type_format = "p"
+            self.type_ts = "NativePointerValue"
         elif type == "GumAddress":
             self.type_raw = "gpointer"
             self.type_format = "p"
+            self.type_ts = "NativePointerValue"
             converter = "address"
         elif type == "$label":
             self.type_raw = "const gchar *"
             self.type_format = "s"
+            self.type_ts = "string"
             converter = "label"
         elif type == "$array":
             self.type_raw = "GBytes *"
             self.type_format = "B~"
+            self.type_ts = "ArrayBuffer | number[] | string"
             converter = "bytes"
         elif type == "x86_insn":
             self.type_raw = "const gchar *"
             self.type_format = "s"
+            self.type_ts = "X86InstructionId"
             converter = "instruction_id"
         elif type == "GumCallingConvention":
             self.type_raw = "const gchar *"
             self.type_format = "s"
+            self.type_ts = "CallingConvention"
             converter = "calling_convention"
         elif type in ("const GumArgument *", "const arm_reg *"):
             self.type_raw = "$array"
             self.type_format = "A"
+            if type == "const GumArgument *":
+                self.type_ts = arch.title() + "CallArgument[]"
+            else:
+                self.type_ts = "ArmRegister[]"
             name = "items"
             name_raw = "items_value"
         elif type == "GumBranchHint":
             self.type_raw = "const gchar *"
             self.type_format = "s"
+            self.type_ts = "X86BranchHint"
             converter = "branch_hint"
         elif type == "GumPtrTarget":
             self.type_raw = "const gchar *"
             self.type_format = "s"
+            self.type_ts = "X86PointerTarget"
             converter = "pointer_target"
         elif type in ("arm_cc", "arm64_cc"):
             self.type_raw = "const gchar *"
             self.type_format = "s"
+            self.type_ts = "ArmConditionCode" if type == "arm_cc" else "Arm64ConditionCode"
             converter = "condition_code"
         elif type == "GumArm64IndexMode":
             self.type_raw = "const gchar *"
             self.type_format = "s"
+            self.type_ts = "Arm64IndexMode"
             converter = "index_mode"
         elif type == "GumRelocationScenario":
             self.type_raw = "const gchar *"
             self.type_format = "s"
+            self.type_ts = "RelocationScenario"
             converter = "relocator_scenario"
         else:
             raise ValueError("Unhandled type: {0}".format(type))
@@ -2672,7 +3004,7 @@ class MethodArgument(object):
             return "label"
         return self.type_converter
 
-def parse_api(name, flavor, api_header, options):
+def parse_api(name, arch, flavor, api_header, options):
     static_methods = []
     instance_methods = []
 
@@ -2694,9 +3026,9 @@ def parse_api(name, flavor, api_header, options):
             raw_args = raw_args[1:]
 
         if not is_static and method_name == "put_bytes":
-            args = [MethodArgument("$array", "data")]
+            args = [MethodArgument("$array", "data", arch)]
         else:
-            args = [parse_arg(raw_arg) for raw_arg in raw_args]
+            args = [parse_arg(raw_arg, arch) for raw_arg in raw_args]
 
         method = Method(method_name, return_type, args)
         if is_static:
@@ -2706,15 +3038,15 @@ def parse_api(name, flavor, api_header, options):
 
     return Api(static_methods, instance_methods)
 
-def parse_arg(raw_arg):
+def parse_arg(raw_arg, arch):
     tokens = raw_arg.split(" ")
     raw_type = " ".join(tokens[0:-1])
     name = tokens[-1]
     if raw_type == "gconstpointer":
         if name in ("id", "label_id"):
-            return MethodArgument("$label", name)
-        return MethodArgument(raw_type, name)
-    return MethodArgument(raw_type, name)
+            return MethodArgument("$label", name, arch)
+        return MethodArgument(raw_type, name, arch)
+    return MethodArgument(raw_type, name, arch)
 
 def to_camel_case(name, start_high):
     result = ""
