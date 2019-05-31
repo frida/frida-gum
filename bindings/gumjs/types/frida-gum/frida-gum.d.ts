@@ -1891,6 +1891,387 @@ declare interface UnixInvocationContext extends PortableInvocationContext {
     errno: number;
 }
 
+declare class Instruction {
+    /**
+     * Parses the instruction at the `target` address in memory.
+     *
+     * Note that on 32-bit ARM this address must have its least significant bit
+     * set to 0 for ARM functions, and 1 for Thumb functions. Frida takes care
+     * of this detail for you if you get the address from a Frida API, for
+     * example `Module.getExportByName()`.
+     *
+     * @param target Memory location containing instruction to parse.
+     */
+    static parse(target: NativePointerValue): Instruction | X86Instruction | ArmInstruction | Arm64Instruction | MipsInstruction;
+
+    /**
+     * Address (EIP) of this instruction.
+     */
+    address: NativePointer;
+
+    /**
+     * Pointer to the next instruction, so you can `parse()` it.
+     */
+    next: NativePointer;
+
+    /**
+     * Size of this instruction.
+     */
+    size: number;
+
+    /**
+     * Instruction mnemonic.
+     */
+    mnemonic: string;
+
+    /**
+     * String representation of instruction operands.
+     */
+    opStr: string;
+
+    /**
+     * Group names that this instruction belongs to.
+     */
+    groups: string[];
+
+    /**
+     * Converts to a human-readable string.
+     */
+    toString(): string;
+}
+
+declare class X86Instruction extends Instruction {
+    /**
+     * Array of objects describing each operand.
+     */
+    operands: X86Operand[];
+
+    /**
+     * Registers implicitly read by this instruction.
+     */
+    regsRead: X86Register[];
+
+    /**
+     * Registers implicitly written to by this instruction.
+     */
+    regsWritten: X86Register[];
+}
+
+declare class ArmInstruction extends Instruction {
+    /**
+     * Array of objects describing each operand.
+     */
+    operands: ArmOperand[];
+
+    /**
+     * Registers implicitly read by this instruction.
+     */
+    regsRead: ArmRegister[];
+
+    /**
+     * Registers implicitly written to by this instruction.
+     */
+    regsWritten: ArmRegister[];
+}
+
+declare class Arm64Instruction extends Instruction {
+    /**
+     * Array of objects describing each operand.
+     */
+    operands: Arm64Operand[];
+
+    /**
+     * Registers implicitly read by this instruction.
+     */
+    regsRead: Arm64Register[];
+
+    /**
+     * Registers implicitly written to by this instruction.
+     */
+    regsWritten: Arm64Register[];
+}
+
+declare class MipsInstruction extends Instruction {
+    /**
+     * Array of objects describing each operand.
+     */
+    operands: MipsOperand[];
+
+    /**
+     * Registers implicitly read by this instruction.
+     */
+    regsRead: MipsRegister[];
+
+    /**
+     * Registers implicitly written to by this instruction.
+     */
+    regsWritten: MipsRegister[];
+}
+
+declare type X86Operand = X86RegOperand | X86ImmOperand | X86MemOperand;
+
+declare const enum X86OperandType {
+    Reg = "reg",
+    Imm = "imm",
+    Mem = "mem",
+}
+
+declare interface X86BaseOperand {
+    size: number;
+}
+
+declare interface X86RegOperand extends X86BaseOperand {
+    type: X86OperandType.Reg;
+    value: X86Register;
+}
+
+declare interface X86ImmOperand extends X86BaseOperand {
+    type: X86OperandType.Imm;
+    value: number | Int64;
+}
+
+declare interface X86MemOperand extends X86BaseOperand {
+    type: X86OperandType.Mem;
+    value: {
+        segment?: X86Register;
+        base?: X86Register;
+        index?: X86Register;
+        scale: number;
+        disp: number;
+    };
+}
+
+declare type ArmOperand = ArmRegOperand | ArmImmOperand | ArmMemOperand |
+    ArmFpOperand | ArmCimmOperand | ArmPimmOperand | ArmSetendOperand |
+    ArmSysregOperand;
+
+declare const enum ArmOperandType {
+    Reg = "reg",
+    Imm = "imm",
+    Mem = "mem",
+    Fp = "fp",
+    Cimm = "cimm",
+    Pimm = "pimm",
+    Setend = "setend",
+    Sysreg = "sysreg",
+}
+
+declare interface ArmBaseOperand {
+    shift?: {
+        type: ArmShifter;
+        value: number;
+    };
+    vectorIndex?: number;
+    subtracted: boolean;
+}
+
+declare interface ArmRegOperand extends ArmBaseOperand {
+    type: ArmOperandType.Reg;
+    value: ArmRegister;
+}
+
+declare interface ArmImmOperand extends ArmBaseOperand {
+    type: ArmOperandType.Imm;
+    value: number;
+}
+
+declare interface ArmMemOperand extends ArmBaseOperand {
+    type: ArmOperandType.Mem;
+    value: {
+        base?: ArmRegister;
+        index?: ArmRegister;
+        scale: number;
+        disp: number;
+    };
+}
+
+declare interface ArmFpOperand extends ArmBaseOperand {
+    type: ArmOperandType.Fp;
+    value: number;
+}
+
+declare interface ArmCimmOperand extends ArmBaseOperand {
+    type: ArmOperandType.Cimm;
+    value: number;
+}
+
+declare interface ArmPimmOperand extends ArmBaseOperand {
+    type: ArmOperandType.Pimm;
+    value: number;
+}
+
+declare interface ArmSetendOperand extends ArmBaseOperand {
+    type: ArmOperandType.Setend;
+    value: Endian;
+}
+
+declare interface ArmSysregOperand extends ArmBaseOperand {
+    type: ArmOperandType.Sysreg;
+    value: ArmRegister;
+}
+
+declare const enum ArmShifter {
+    Asr = "asr",
+    Lsl = "lsl",
+    Lsr = "lsr",
+    Ror = "ror",
+    Rrx = "rrx",
+    AsrReg = "asr-reg",
+    LslReg = "lsl-reg",
+    LsrReg = "lsr-reg",
+    RorReg = "ror-reg",
+    RrxReg = "rrx-reg",
+}
+
+declare type Arm64Operand = Arm64RegOperand | Arm64ImmOperand | Arm64MemOperand |
+    Arm64FpOperand | Arm64CimmOperand | Arm64RegMrsOperand | Arm64RegMsrOperand |
+    Arm64PstateOperand | Arm64SysOperand | Arm64PrefetchOperand | Arm64BarrierOperand;
+
+declare const enum Arm64OperandType {
+    Reg = "reg",
+    Imm = "imm",
+    Mem = "mem",
+    Fp = "fp",
+    Cimm = "cimm",
+    RegMrs = "reg-mrs",
+    RegMsr = "reg-msr",
+    Pstate = "pstate",
+    Sys = "sys",
+    Prefetch = "prefetch",
+    Barrier = "barrier",
+}
+
+declare interface Arm64BaseOperand {
+    shift?: {
+        type: Arm64Shifter;
+        value: number;
+    };
+    ext?: Arm64Extender;
+    vas?: Arm64Vas;
+    vectorIndex?: number;
+}
+
+declare interface Arm64RegOperand extends Arm64BaseOperand {
+    type: Arm64OperandType.Reg;
+    value: Arm64Register;
+}
+
+declare interface Arm64ImmOperand extends Arm64BaseOperand {
+    type: Arm64OperandType.Imm;
+    value: Int64;
+}
+
+declare interface Arm64MemOperand extends Arm64BaseOperand {
+    type: Arm64OperandType.Mem;
+    value: {
+        base?: Arm64Register;
+        index?: Arm64Register;
+        disp: number;
+    };
+}
+
+declare interface Arm64FpOperand extends Arm64BaseOperand {
+    type: Arm64OperandType.Fp;
+    value: number;
+}
+
+declare interface Arm64CimmOperand extends Arm64BaseOperand {
+    type: Arm64OperandType.Cimm;
+    value: Int64;
+}
+
+declare interface Arm64RegMrsOperand extends Arm64BaseOperand {
+    type: Arm64OperandType.RegMrs;
+    value: Arm64Register;
+}
+
+declare interface Arm64RegMsrOperand extends Arm64BaseOperand {
+    type: Arm64OperandType.RegMsr;
+    value: Arm64Register;
+}
+
+declare interface Arm64PstateOperand extends Arm64BaseOperand {
+    type: Arm64OperandType.Pstate;
+    value: number;
+}
+
+declare interface Arm64SysOperand extends Arm64BaseOperand {
+    type: Arm64OperandType.Sys;
+    value: number;
+}
+
+declare interface Arm64PrefetchOperand extends Arm64BaseOperand {
+    type: Arm64OperandType.Prefetch;
+    value: number;
+}
+
+declare interface Arm64BarrierOperand extends Arm64BaseOperand {
+    type: Arm64OperandType.Barrier;
+    value: number;
+}
+
+declare const enum Arm64Shifter {
+    Lsl = "lsl",
+    Msl = "msl",
+    Lsr = "lsr",
+    Asr = "asr",
+    Ror = "ror",
+}
+
+declare const enum Arm64Extender {
+    Uxtb = "uxtb",
+    Uxth = "uxth",
+    Uxtw = "uxtw",
+    Uxtx = "uxtx",
+    Sxtb = "sxtb",
+    Sxth = "sxth",
+    Sxtw = "sxtw",
+    Sxtx = "sxtx",
+}
+
+declare const enum Arm64Vas {
+    A8b = "8b",
+    A16b = "16b",
+    A4h = "4h",
+    A8h = "8h",
+    A2s = "2s",
+    A4s = "4s",
+    A1d = "1d",
+    A2d = "2d",
+    A1q = "1q",
+}
+
+declare type MipsOperand = MipsRegOperand | MipsImmOperand | MipsMemOperand;
+
+declare const enum MipsOperandType {
+    Reg = "reg",
+    Imm = "imm",
+    Mem = "mem",
+}
+
+declare interface MipsRegOperand {
+    type: MipsOperandType.Reg;
+    value: MipsRegister;
+}
+
+declare interface MipsImmOperand {
+    type: MipsOperandType.Imm;
+    value: number;
+}
+
+declare interface MipsMemOperand {
+    type: MipsOperandType.Mem;
+    value: {
+        base?: MipsRegister;
+        disp: number;
+    };
+}
+
+declare const enum Endian {
+    Big = "be",
+    Little = "le",
+}
+
 declare namespace Kernel {
     /**
      * Whether the Kernel API is available.
@@ -2024,10 +2405,6 @@ declare class File {
     flush(): void;
     write(data: string | ArrayBuffer): void;
 }
-declare class InstructionValue {
-    constructor();
-    toString(): any;
-}
 declare class SourceMap {
     constructor();
     resolve(generatedPosition: any): any;
@@ -2040,9 +2417,6 @@ declare namespace DebugSymbol {
     function fromAddress(address: NativePointerValue): any;
     function fromName(name: string): any;
     function getFunctionByName(name: string): any;
-}
-declare namespace Instruction {
-    function parse(target: any): any;
 }
 declare namespace MemoryAccessMonitor {
     function disable(): any;
