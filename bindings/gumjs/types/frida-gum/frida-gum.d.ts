@@ -1227,6 +1227,11 @@ declare class NativePointer {
     shl(v: NativePointerValue | UInt64 | Int64 | number | string): NativePointer;
 
     /**
+     * Makes a new NativePointer whose value is ~`this`.
+     */
+    not(): NativePointer;
+
+    /**
      * Returns a boolean indicating whether `v` is equal to `this`; i.e. it contains the same memory address.
      */
     equals(v: NativePointerValue | UInt64 | Int64 | number | string): boolean;
