@@ -49,11 +49,11 @@ def generate_and_write_bindings(source_dir, output_dir):
     doc_sections = []
     for arch, flavor in flavor_combos:
         for name, options in binding_params:
-            tsd_sections.append(tsds["{}-{}.d.ts".format(flavor, name)])
-            doc_sections.append(docs["{}-{}.md".format(flavor, name)])
+            tsd_sections.append(tsds["{0}-{1}.d.ts".format(flavor, name)])
+            doc_sections.append(docs["{0}-{1}.md".format(flavor, name)])
         if flavor != "arm":
-            tsd_sections.append(tsds["{}-enums.d.ts".format(arch)])
-            doc_sections.append(docs["{}-enums.md".format(arch)])
+            tsd_sections.append(tsds["{0}-enums.d.ts".format(arch)])
+            doc_sections.append(docs["{0}-enums.md".format(arch)])
 
     tsd_source = "\n\n".join(tsd_sections)
     with codecs.open(os.path.join(output_dir, "api-types.d.ts"), "w", 'utf-8') as f:
@@ -2291,15 +2291,15 @@ def generate_class_type_definitions(name, arch, flavor, api):
     }
 
     if name == "writer":
-        class_description = "Generates machine code for {}.".format(arch)
+        class_description = "Generates machine code for {0}.".format(arch)
     else:
-        class_description = "Relocates machine code for {}.".format(arch)
+        class_description = "Relocates machine code for {0}.".format(arch)
 
     lines.extend([
         "/**",
         " * " + class_description,
         " */",
-        "declare class {} {{".format(class_name),
+        "declare class {0} {{".format(class_name),
     ])
 
     if name == "writer":
@@ -2540,13 +2540,13 @@ def generate_enum_type_definitions(name, arch, flavor, api):
         if len(lines) > 0:
             lines.append("")
 
-        lines.append("declare const enum {} {{".format(name_ts))
+        lines.append("declare const enum {0} {{".format(name_ts))
 
         for val in values:
             identifier = to_camel_case(val.replace("-", "_"), start_high=True)
             if identifier[0].isdigit():
                 identifier = name_components[1][0] + identifier
-            lines.append("    {} = \"{}\",".format(identifier, val))
+            lines.append("    {0} = \"{1}\",".format(identifier, val))
 
         lines.append("}")
 
@@ -2865,7 +2865,7 @@ class Method(object):
         elif return_type == "cs_insn *":
             self.return_type_ts = "Instruction | null"
         else:
-            raise ValueError("Unsupported return type: {}".format(return_type))
+            raise ValueError("Unsupported return type: {0}".format(return_type))
         self.args = args
 
 class MethodArgument(object):
