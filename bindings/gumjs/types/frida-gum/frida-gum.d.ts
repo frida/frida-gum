@@ -140,7 +140,11 @@ declare interface ImmediateId {}
 declare type ScheduledCallback = (...params: any[]) => void;
 
 /**
- * Force garbage collection.
+ * Forces garbage collection.
+ *
+ * Useful for testing `WeakRef.bind()` logic, but also sometimes needed when
+ * using the Duktape runtime and its default GC heuristics proving a bit too
+ * lazy.
  */
 declare function gc(): void;
 
