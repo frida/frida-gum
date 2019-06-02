@@ -2161,6 +2161,13 @@ declare interface StalkerOptions {
      *                the current time window.
      */
     onCallSummary?: (summary: any) => void;
+
+    /**
+     * Callback that transforms each basic block compiled whenever Stalker
+     * wants to recompile a basic block of the code that's about to be executed
+     * by the stalked thread.
+     */
+    transform?: (iterator: StalkerIterator) => void;
 }
 
 declare interface StalkerParseOptions {
@@ -2208,6 +2215,22 @@ declare type StalkerBlockEventBare = [                         NativePointer | s
 
 declare type StalkerCompileEventFull = [ StalkerEventType.Compile, NativePointer | string, NativePointer | string ];
 declare type StalkerCompileEventBare = [                           NativePointer | string, NativePointer | string ];
+
+declare type StalkerIterator = StalkerX86Iterator | StalkerArm64Iterator;
+
+declare abstract class StalkerX86Iterator extends X86Writer {
+    next(): X86Instruction | null;
+    keep(): void;
+    putCallout(callout: StalkerCallout): void;
+}
+
+declare abstract class StalkerArm64Iterator extends Arm64Writer {
+    next(): Arm64Instruction | null;
+    keep(): void;
+    putCallout(callout: StalkerCallout): void;
+}
+
+declare type StalkerCallout = (context: CpuContext) => void;
 
 declare class Instruction {
     /**
