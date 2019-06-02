@@ -1789,6 +1789,41 @@ declare interface UnixEndpointAddress {
 }
 
 /**
+ * Provides basic filesystem access.
+ */
+declare class File {
+    /**
+     * Opens or creates the file at `filePath` with `mode` specifying how
+     * it should be opened. For example `"wb"` to open the file for writing
+     * in binary mode. This is the same format as `fopen()` from the C
+     * standard library.
+     *
+     * @param filePath Path to file to open or create.
+     * @param mode Mode to use.
+     */
+    constructor(filePath: string, mode: string);
+
+    /**
+     * Synchronously writes `data` to the file.
+     *
+     * @param data Data to write.
+     */
+    write(data: string | ArrayBuffer): void;
+
+    /**
+     * Flushes any buffered data to the underlying file.
+     */
+    flush(): void;
+
+    /**
+     * Closes the file. You should call this function when you’re done with
+     * the file unless you are fine with this happening when the object is
+     * garbage-collected or the script is unloaded.
+     */
+    close(): void;
+}
+
+/**
  * Intercepts execution through inline hooking.
  */
 declare namespace Interceptor {
@@ -2403,12 +2438,6 @@ declare class ApiResolver {
 declare class DebugSymbolValue {
     constructor();
     toString(): any;
-}
-declare class File {
-    constructor(filePath: string, mode: string);
-    close(): void;
-    flush(): void;
-    write(data: string | ArrayBuffer): void;
 }
 declare class SourceMap {
     constructor();
