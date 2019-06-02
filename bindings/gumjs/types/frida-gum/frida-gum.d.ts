@@ -56,7 +56,7 @@ declare const NULL: NativePointer;
 declare function recv(callback: MessageCallback): MessageRecvOperation;
 
 /**
- * Requests callback to be called when the next message of the given type has been received from your
+ * Requests callback to be called when the next message of the given `type` has been received from your
  * Frida-based application.
  *
  * This will only give you one message, so you need to call `recv()` again to receive the next one.
@@ -171,6 +171,81 @@ declare namespace Frida {
      * the hosting process.
      */
     const heapSize: number;
+
+    /**
+     * Source map for the GumJS runtime.
+     */
+    const sourceMap: SourceMap;
+}
+
+declare namespace Script {
+    /**
+     * Runtime being used.
+     */
+    const runtime: ScriptRuntime;
+
+    /**
+     * File name of the current script.
+     */
+    const fileName: string;
+
+    /**
+     * Source map of the current script.
+     */
+    const sourceMap: SourceMap;
+
+    /**
+     * Runs `func` on the next tick, i.e. when the current native thread exits
+     * the JavaScript runtime. Any additional `params` are passed to it.
+     */
+    function nextTick(func: ScheduledCallback, ...params: any[]): void;
+
+    /**
+     * Temporarily prevents the current script from being unloaded.
+     * This is reference-counted, so there must be one matching `unpin()`
+     * happening at a later point.
+     *
+     * Typically used in the callback of `WeakRef.bind()` when you need to
+     * schedule cleanup on another thread.
+     */
+    function pin(): void;
+
+    /**
+     * Reverses a previous `pin()` so the current script may be unloaded.
+     */
+    function unpin(): void;
+
+    /**
+     * Installs or uninstalls a handler that is used to resolve attempts to
+     * access non-existent global variables.
+     *
+     * Useful for implementing a REPL where unknown identifiers may be fetched
+     * lazily from a database.
+     *
+     * @param handler The handler to install, or `null` to uninstall a
+     *                previously installed handler.
+     */
+    function setGlobalAccessHandler(handler: GlobalAccessHandler | null): void;
+}
+
+declare const enum ScriptRuntime {
+    Duk = "DUK",
+    V8 = "V8",
+}
+
+declare interface GlobalAccessHandler {
+    /**
+     * Queries which additional globals exist.
+     */
+    enumerate(): string[];
+
+    /**
+     * Called whenever an attempt to access a non-existent global variable is
+     * made. Return `undefined` to treat the variable as inexistent.
+     *
+     * @param property Name of non-existent global that is being accessed.
+     */
+    get(property: string): any;
 }
 
 declare namespace Process {
@@ -225,22 +300,22 @@ declare namespace Process {
     /**
      * Looks up a module by address. Returns null if not found.
      */
-    function findModuleByAddress(address: any): Module | null;
+    function findModuleByAddress(address: NativePointerValue): Module | null;
 
     /**
      * Looks up a module by address. Throws an exception if not found.
      */
-    function getModuleByAddress(address: any): Module;
+    function getModuleByAddress(address: NativePointerValue): Module;
 
     /**
      * Looks up a module by name. Returns null if not found.
      */
-    function findModuleByName(name: any): Module | null;
+    function findModuleByName(name: string): Module | null;
 
     /**
      * Looks up a module by name. Throws an exception if not found.
      */
-    function getModuleByName(name: any): Module;
+    function getModuleByName(name: string): Module;
 
     /**
      * Enumerates modules loaded right now.
@@ -250,12 +325,12 @@ declare namespace Process {
     /**
      * Looks up a memory range by address. Returns null if not found.
      */
-    function findRangeByAddress(address: any): RangeDetails | null;
+    function findRangeByAddress(address: NativePointerValue): RangeDetails | null;
 
     /**
      * Looks up a memory range by address. Throws an exception if not found.
      */
-    function getRangeByAddress(address: any): RangeDetails;
+    function getRangeByAddress(address: NativePointerValue): RangeDetails;
 
     /**
       * Enumerates memory ranges satisfying `specifier`.
@@ -581,13 +656,130 @@ declare namespace Memory {
     function patchCode(address: NativePointerValue, size: number | UInt64, apply: MemoryPatchApplyCallback): void;
 }
 
+/**
+ * Monitors one or more memory ranges for access, and notifies on the first
+ * access of each contained memory page.
+ *
+ * Only available on Windows for now. We would love to support this on the other
+ * platforms too, so if you find this useful and would like to help out, please
+ * get in touch.
+ */
+declare namespace MemoryAccessMonitor {
+    /**
+     * Starts monitoring one or more memory ranges for access, and notifies on
+     * the first access of each contained memory page.
+     *
+     * @param ranges One or more ranges to monitor.
+     * @param callbacks Callbacks to be notified on access.
+     */
+    function enable(ranges: MemoryAccessRange | MemoryAccessRange[], callbacks: MemoryAccessCallbacks): void;
+
+    /**
+     * Stops monitoring the remaining memory ranges passed to
+     * `MemoryAccessMonitor.enable()`.
+     */
+    function disable(): void;
+}
+
+declare interface MemoryAccessRange {
+    /**
+     * Base address.
+     */
+    base: NativePointer;
+
+    /**
+     * Size in bytes.
+     */
+    size: number;
+}
+
+/**
+ * Callbacks to be notified synchronously on memory access.
+ */
+declare interface MemoryAccessCallbacks {
+    onAccess: (details: MemoryAccessDetails) => void;
+}
+
+declare interface MemoryAccessDetails {
+    /**
+     * The kind of operation that triggered the access.
+     */
+    operation: MemoryOperation;
+
+    /**
+     * Address of instruction performing the access.
+     */
+    from: NativePointer;
+
+    /**
+     * Address being accessed.
+     */
+    address: NativePointer;
+
+    /**
+     * Index of the accessed range in the ranges provided to
+     * `MemoryAccessMonitor.enable()`.
+     */
+    rangeIndex: number;
+
+    /**
+     * Index of the accessed memory page inside the specified range.
+     */
+    pageIndex: number;
+
+    /**
+     * Overall number of pages which have been accessed so far, and are thus
+     * no longer being monitored.
+     */
+    pagesCompleted: number;
+
+    /**
+     * Overall number of pages that were initially monitored.
+     */
+    pagesTotal: number;
+}
+
 declare namespace Thread {
-    function backtrace(context: CpuContext, backtracer?: Backtracer): NativePointer[];
-    function sleep(duration: number): void;
+    /**
+     * Generates a backtrace for the given thread's `context`.
+     *
+     * If you call this from Interceptor's `onEnter` or `onLeave` callbacks
+     * you should provide `this.context` for the optional `context` argument,
+     * as it will give you a more accurate backtrace. Omitting `context` means
+     * the backtrace will be generated from the current stack location, which
+     * may not give you a very good backtrace due to the JavaScript VM's
+     * potentially JITed stack frames.
+     *
+     * @param context CPU context to use for generating the backtrace.
+     * @param backtracer The kind of backtracer to use. Must be either
+     *                   `Backtracer.FUZZY` or `Backtracer.ACCURATE`,
+     *                   where the latter is the default if not specified.
+     */
+    function backtrace(context?: CpuContext, backtracer?: Backtracer): NativePointer[];
+
+    /**
+     * Suspends execution of the current thread for `delay` seconds.
+     *
+     * For example `0.05` to sleep for 50 ms.
+     *
+     * @param delay Delay in seconds.
+     */
+    function sleep(delay: number): void;
 }
 
 declare class Backtracer {
+    /**
+     * The accurate kind of backtracers rely on debugger-friendly binaries or
+     * presence of debug information to do a good job, but avoid false
+     * positives.
+     */
     static ACCURATE: Backtracer;
+
+    /**
+     * The fuzzy backtracers perform forensics on the stack in order to guess
+     * the return addresses, which means you will get false positives, but it
+     * will work on any binary.
+     */
     static FUZZY: Backtracer;
 }
 
@@ -911,7 +1103,7 @@ declare interface ExceptionMemoryDetails {
     /**
      * The kind of operation that triggered the exception.
      */
-    operation: ExceptionMemoryOperation;
+    operation: MemoryOperation;
 
     /**
      * Address that was accessed when the exception occurred.
@@ -919,7 +1111,7 @@ declare interface ExceptionMemoryDetails {
     address: NativePointer;
 }
 
-declare const enum ExceptionMemoryOperation {
+declare const enum MemoryOperation {
     read = "read",
     write = "write",
     execute = "execute"
@@ -1347,7 +1539,7 @@ declare interface UnixSystemFunctionResult {
 }
 
 declare class NativeCallback extends NativePointer {
-    constructor(func: any, retType: NativeType, argTypes: NativeType[]);
+    constructor(func: AnyFunction, retType: NativeType, argTypes: NativeType[]);
 }
 
 declare type NativeArgumentValue = NativePointerValue | UInt64 | Int64 | number | boolean | any[];
@@ -1520,6 +1712,60 @@ declare interface MipsCpuContext extends PortableCpuContext {
 
     k0: NativePointer;
     k1: NativePointer;
+}
+
+/**
+ * Helper used internally for source map parsing in order to provide helpful
+ * JavaScript stack-traces.
+ */
+declare class SourceMap {
+    /**
+     * Constructs a source map from JSON.
+     *
+     * @param json String containing the source map encoded as JSON.
+     */
+    constructor(json: string);
+
+    /**
+     * Attempts to map a generated source position back to the original.
+     *
+     * @param generatedPosition Position in generated code.
+     */
+    resolve(generatedPosition: GeneratedSourcePosition): OriginalSourcePosition | null;
+}
+
+declare interface GeneratedSourcePosition {
+    /**
+     * Line number.
+     */
+    line: number;
+
+    /**
+     * Column number, if available.
+     */
+    column?: number;
+}
+
+declare interface OriginalSourcePosition {
+    /**
+     * Source file name.
+     */
+    source: string;
+
+    /**
+     * Line number.
+     */
+    line: number;
+
+    /**
+     * Column number.
+     */
+    column: number;
+
+    /**
+     * Identifier, if available.
+     */
+    name: string | null;
 }
 
 /**
@@ -1900,6 +2146,128 @@ declare class File {
 }
 
 /**
+ * Provides read/write access to a SQLite database. Useful for persistence
+ * and to embed a cache in an agent.
+ */
+declare class SqliteDatabase {
+    /**
+     * Opens the SQLite v3 database at `path` on the filesystem. The database
+     * will be opened read-write, and the returned `SqliteDatabase` object will
+     * allow you to perform queries on it. Throws an exception if the database
+     * cannot be opened.
+     *
+     * @param path Filesystem path to database.
+     */
+    static open(path: string): SqliteDatabase;
+
+    /**
+     * Just like `open()` but the contents of the database is provided as a
+     * string containing its data, Base64-encoded. We recommend gzipping the
+     * database before Base64-encoding it, but this is optional and detected
+     * by looking for a gzip magic marker. The database is opened read-write,
+     * but is 100% in-memory and never touches the filesystem. Throws an
+     * exception if the database is malformed.
+     *
+     * This is useful for agents that need to bundle a cache of precomputed
+     * data, e.g. static analysis data used to guide dynamic analysis.
+     *
+     * @param encodedContents Base64-encoded database contents.
+     */
+    static openInline(encodedContents: string): SqliteDatabase;
+
+    /**
+     * Closes the database. You should call this function when you're done with
+     * the database, unless you are fine with this happening when the object is
+     * garbage-collected or the script is unloaded.
+     */
+    close(): void;
+
+    /**
+     * Executes a raw SQL query. Throws an exception if the query is invalid.
+     *
+     * The query's result is ignored, so this should only be used for queries
+     * for setting up the database, e.g. table creation.
+     *
+     * @param sql Text-representation of the SQL query.
+     */
+    exec(sql: string): void;
+
+    /**
+     * Compiles the provided SQL into a `SqliteStatement` object. Throws an
+     * exception if the query is invalid.
+     *
+     * @param sql Text-representation of the SQL query.
+     */
+    prepare(sql: string): SqliteStatement;
+
+    /**
+     * Dumps the database to a gzip-compressed blob encoded as Base64.
+     *
+     * This is useful for inlining a cache in your agent's code, loaded by
+     * calling `SqliteDatabase.openInline()`.
+     */
+    dump(): string;
+}
+
+/**
+ * Pre-compiled SQL statement.
+ */
+declare class SqliteStatement {
+    /**
+     * Binds the integer `value` to `index`.
+     *
+     * @param index 1-based index.
+     * @param value Integer value to bind.
+     */
+    bindInteger(index: number, value: number): void;
+
+    /**
+     * Binds the floating point `value` to `index`.
+     *
+     * @param index 1-based index.
+     * @param value Floating point value to bind.
+     */
+    bindFloat(index: number, value: number): void;
+
+    /**
+     * Binds the text `value` to `index`.
+     * @param index 1-based index.
+     * @param value Text value to bind.
+     */
+    bindText(index: number, value: string): void;
+
+    /**
+     * Binds the blob `bytes` to `index`.
+     *
+     * @param index 1-based index.
+     * @param bytes Blob value to bind.
+     */
+    bindBlob(index: number, bytes: ArrayBuffer | number[] | string): void;
+
+    /**
+     * Binds a `null` value to `index`.
+     *
+     * @param index 1-based index.
+     */
+    bindNull(index: number): void;
+
+    /**
+     * Either starts a new query and gets the first result, or moves to the
+     * next one.
+     *
+     * Returns an array containing the values in the order specified by the
+     * query, or `null` when the last result is reached. You should call
+     * `reset()` at that point if you intend to use this object again.
+     */
+    step(): any[] | null;
+
+    /**
+     * Resets internal state to allow subsequent queries.
+     */
+    reset(): void;
+}
+
+/**
  * Intercepts execution through inline hooking.
  */
 declare namespace Interceptor {
@@ -2057,14 +2425,14 @@ declare namespace Stalker {
      * @param callback Function to be called synchronously when a stalked
      *                 thread is about to call the function at `address`.
      */
-    function addCallProbe(address: NativePointerValue, callback: CallProbeCallback): CallProbeId;
+    function addCallProbe(address: NativePointerValue, callback: StalkerCallProbeCallback): StalkerCallProbeId;
 
     /**
      * Removes a call probe added by `addCallProbe()`.
      *
      * @param callbackId ID of probe to remove.
      */
-    function removeCallProbe(callbackId: CallProbeId): void;
+    function removeCallProbe(callbackId: StalkerCallProbeId): void;
 
     /**
      * How many times a piece of code needs to be executed before it is assumed
@@ -2160,7 +2528,7 @@ declare interface StalkerOptions {
      * @param summary Key-value mapping of call target to number of calls, in
      *                the current time window.
      */
-    onCallSummary?: (summary: any) => void;
+    onCallSummary?: (summary: StalkerCallSummary) => void;
 
     /**
      * Callback that transforms each basic block compiled whenever Stalker
@@ -2184,9 +2552,13 @@ declare interface StalkerParseOptions {
     stringify?: boolean;
 }
 
-declare type CallProbeCallback = (args: InvocationArguments) => void;
+declare interface StalkerCallSummary {
+    [target: string]: number;
+}
 
-declare type CallProbeId = number;
+declare type StalkerCallProbeCallback = (args: InvocationArguments) => void;
+
+declare type StalkerCallProbeId = number;
 
 declare const enum StalkerEventType {
     Call = "call",
@@ -2234,6 +2606,140 @@ declare abstract class StalkerArm64Iterator extends Arm64Writer {
 }
 
 declare type StalkerCallout = (context: CpuContext) => void;
+
+/**
+ * Provides efficient API resolving using globs, allowing you to quickly
+ * find functions by name, with globs permitted.
+ */
+declare class ApiResolver {
+    /**
+     * Creates a new resolver of the given `type`.
+     *
+     * Precisely which resolvers are available depends on the current
+     * platform and runtimes loaded in the current process.
+     *
+     * The resolver will load the minimum amount of data required on creation,
+     * and lazy-load the rest depending on the queries it receives. It is thus
+     * recommended to use the same instance for a batch of queries, but
+     * recreate it for future batches to avoid looking at stale data.
+     *
+     * @type The type of resolver to create.
+     */
+    constructor(type: ApiResolverType);
+
+    /**
+     * Performs the resolver-specific query.
+     *
+     * @param query Resolver-specific query.
+     */
+    enumerateMatches(query: string): ApiResolverMatch[];
+}
+
+declare interface ApiResolverMatch {
+    /**
+     * Canonical name of the function that was found.
+     */
+    name: string;
+
+    /**
+     * Memory address that the given function is loaded at.
+     */
+    address: NativePointer;
+}
+
+declare const enum ApiResolverType {
+    /**
+     * Resolves exported and imported functions of shared libraries
+     * currently loaded.
+     *
+     * Always available.
+     *
+     * Example query: `"exports:*!open*"`
+     * Which may resolve to: `"/usr/lib/libSystem.B.dylib!opendir$INODE64"`
+     */
+    Module = "module",
+
+    /**
+     * Resolves Objective-C methods of classes currently loaded.
+     *
+     * Available on macOS and iOS in processes that have the Objective-C
+     * runtime loaded. Use `ObjC.available` to check at runtime, or wrap
+     * your `new ApiResolver(ApiResolverType.ObjC)` call in a try-catch.
+     *
+     * Example query: `"-[NSURL* *HTTP*]"`
+     * Which may resolve to: `"-[NSURLRequest valueForHTTPHeaderField:]"`
+     */
+    ObjC = "objc",
+}
+
+declare class DebugSymbol {
+    /**
+     * Address that this symbol is for.
+     */
+    address: NativePointer;
+
+    /**
+     * Name of the symbol.
+     */
+    name: string;
+
+    /**
+     * Module name owning this symbol.
+     */
+    moduleName: string;
+
+    /**
+     * File name owning this symbol.
+     */
+    fileName: string;
+
+    /**
+     * Line number in `fileName`.
+     */
+    lineNumber: number;
+
+    /**
+     * Looks up debug information for `address`.
+     *
+     * @param address Address to look up details for.
+     */
+    static fromAddress(address: NativePointerValue): DebugSymbol;
+
+    /**
+     * Looks up debug information for `name`.
+     *
+     * @param name Name to look up details for.
+     */
+    static fromName(name: string): DebugSymbol;
+
+    /**
+     * Resolves a function name and returns its address. Returns the first if
+     * more than one function is found. Throws an exception if the name cannot
+     * be resolved.
+     *
+     * @param name Function name to resolve the address of.
+     */
+    static getFunctionByName(name: string): NativePointer;
+
+    /**
+     * Resolves a function name and returns its addresses.
+     *
+     * @param name Function name to resolve the addresses of.
+     */
+    static findFunctionsNamed(name: string): NativePointer[];
+
+    /**
+     * Resolves function names matching `glob` and returns their addresses.
+     *
+     * @param glob Glob matching functions to resolve the addresses of.
+     */
+    static findFunctionsMatching(glob: string): NativePointer[];
+
+    /**
+     * Converts to a human-readable string.
+     */
+    toString(): string;
+}
 
 declare class Instruction {
     /**
@@ -2733,41 +3239,6 @@ declare namespace Kernel {
     function writeByteArray(address: UInt64, value: ArrayBuffer | number[]): void;
     function writeUtf8String(address: UInt64, value: string): void;
     function writeUtf16String(address: UInt64, value: string): void;
-}
-
-declare class ApiResolver {
-    constructor(type: string);
-    enumerateMatches(query: any): any;
-}
-declare class DebugSymbolValue {
-    constructor();
-    toString(): any;
-}
-declare class SourceMap {
-    constructor();
-    resolve(generatedPosition: any): any;
-}
-declare namespace DebugSymbol {
-    function findFunctionsMatching(pattern: string): any;
-    function findFunctionsNamed(name: string): any;
-    function fromAddress(address: NativePointerValue): any;
-    function fromName(name: string): any;
-    function getFunctionByName(name: string): any;
-}
-declare namespace MemoryAccessMonitor {
-    function disable(): any;
-    function enable(): any;
-}
-declare namespace Script {
-    const fileName: string;
-    const runtime: string;
-    function nextTick(callback: any, args: any): void;
-    function pin(): any;
-    function setGlobalAccessHandler(): any;
-    function unpin(): any;
-    namespace sourceMap {
-        function resolve(generatedPosition: any): any;
-    }
 }
 
 declare namespace ObjC {
@@ -3342,32 +3813,42 @@ declare namespace Java {
     function deoptimizeEverything(): void;
 }
 
+/**
+ * Monitors the lifetime of a heap-allocated JavaScript value.
+ *
+ * Useful when you're building a language-binding where you need to free
+ * native resources when a JS value is no longer needed.
+ */
 declare namespace WeakRef {
-    function bind(): any;
-    function unbind(): any;
+    /**
+     * Starts monitoring the lifetime of `target`. Calls `callback` as soon as
+     * value has been garbage-collected, or the script is about to get
+     * unloaded.
+     *
+     * Be careful so `callback` is not a closure that accidentally captures
+     * `target` and keeps it alive beyond its intended lifetime.
+     *
+     * @param target Heap-allocated JavaScript value to monitor lifetime of.
+     * @param callback Function to call when `target` gets GCed.
+     */
+    function bind(target: any, callback: WeakRefCallback): WeakRefId;
+
+    /**
+     * Stops monitoring the value passed to `WeakRef.bind()` and calls the
+     * callback immediately.
+     *
+     * @param id ID returned by a previous call to `WeakRef.bind()`.
+     */
+    function unbind(id: WeakRefId): void;
 }
 
-declare class SQliteStatement {
-    bindInteger(index: number, value: number): void;
-    bindFloat(index: number, value: number): void;
-    bindText(index: number, value: string): void;
-    bindBlob(index: number, bytes: ArrayBuffer): void;
-    bindNull(index: number): void;
-    step(): any[] | null;
-    reset(): void;
-}
+declare type WeakRefCallback = () => void;
 
-declare namespace SqliteDatabase {
-    class Database {
-        close(): void;
-        exec(sql: string): void;
-        prepare(sql: string): SQliteStatement;
-        dump(): ArrayBuffer;
-    }
-
-    function open(path: string): Database;
-    function openInline(encodedContents: ArrayBuffer): Database;
-}
+/**
+ * Opaque ID returned by `WeakRef.bind()`. Pass it to `WeakRef.unbind()` to
+ * stop monitoring the target value.
+ */
+declare type WeakRefId = number;
 
 /**
  * Generates machine code for x86.
