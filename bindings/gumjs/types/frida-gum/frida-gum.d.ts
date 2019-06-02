@@ -2029,12 +2029,12 @@ declare namespace Stalker {
     function unfollow(threadId?: ThreadId): void;
 
     /**
-     * Parses a `Gum.Event` binary blob.
+     * Parses a binary blob comprised of `Gum.Event` values.
      *
      * @param events Binary blob containing zero or more `Gum.Event` values.
      * @param options Options for customizing the output.
      */
-    function parse(events: ArrayBuffer, options?: StalkerParseOptions): any;
+    function parse(events: ArrayBuffer, options?: StalkerParseOptions): StalkerEventFull[] | StalkerEventBare[];
 
     /**
      * Flushes out any buffered events. Useful when you don't want to wait
@@ -2180,6 +2180,34 @@ declare interface StalkerParseOptions {
 declare type CallProbeCallback = (args: InvocationArguments) => void;
 
 declare type CallProbeId = number;
+
+declare const enum StalkerEventType {
+    Call = "call",
+    Ret = "ret",
+    Exec = "exec",
+    Block = "block",
+    Compile = "compile",
+}
+
+declare type StalkerEventFull = StalkerCallEventFull | StalkerRetEventFull | StalkerExecEventFull |
+    StalkerBlockEventFull | StalkerCompileEventFull;
+declare type StalkerEventBare = StalkerCallEventBare | StalkerRetEventBare | StalkerExecEventBare |
+    StalkerBlockEventBare | StalkerCompileEventBare;
+
+declare type StalkerCallEventFull = [ StalkerEventType.Call, NativePointer | string, NativePointer | string, number ];
+declare type StalkerCallEventBare = [                        NativePointer | string, NativePointer | string, number ];
+
+declare type StalkerRetEventFull = [ StalkerEventType.Ret, NativePointer | string, NativePointer | string, number ];
+declare type StalkerRetEventBare = [                       NativePointer | string, NativePointer | string, number ];
+
+declare type StalkerExecEventFull = [ StalkerEventType.Exec, NativePointer | string ];
+declare type StalkerExecEventBare = [                        NativePointer | string ];
+
+declare type StalkerBlockEventFull = [ StalkerEventType.Block, NativePointer | string, NativePointer | string ];
+declare type StalkerBlockEventBare = [                         NativePointer | string, NativePointer | string ];
+
+declare type StalkerCompileEventFull = [ StalkerEventType.Compile, NativePointer | string, NativePointer | string ];
+declare type StalkerCompileEventBare = [                           NativePointer | string, NativePointer | string ];
 
 declare class Instruction {
     /**
