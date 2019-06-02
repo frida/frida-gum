@@ -1587,7 +1587,7 @@ declare interface UnixListener extends BaseListener {
     path: string;
 }
 
-declare interface SocketConnection extends IOStream {
+declare abstract class SocketConnection extends IOStream {
     /**
      * Disables the Nagle algorithm if `noDelay` is `true`, otherwise enables it. The Nagle algorithm is enabled
      * by default, so it is only necessary to call this method if you wish to optimize for low delay instead of
@@ -1596,7 +1596,7 @@ declare interface SocketConnection extends IOStream {
     setNoDelay(noDelay: boolean): Promise<void>;
 }
 
-declare interface IOStream {
+declare abstract class IOStream {
     /**
      * The `InputStream` to read from.
      */
@@ -1615,7 +1615,7 @@ declare interface IOStream {
     close(): Promise<void>;
 }
 
-declare interface InputStream {
+declare abstract class InputStream {
     /**
      * Closes the stream, releasing resources related to it. Once the stream is closed, all other operations will fail.
      * Closing a stream multiple times is allowed and will not result in an error.
@@ -1636,7 +1636,7 @@ declare interface InputStream {
     readAll(size: number): Promise<ArrayBuffer>;
 }
 
-declare interface OutputStream {
+declare abstract class OutputStream {
     /**
      * Closes the stream, releasing resources related to it. Once the stream is closed, all other operations will fail.
      * Closing a stream multiple times is allowed and will not result in an error.
@@ -1654,6 +1654,82 @@ declare interface OutputStream {
      * before the error occurred.
      */
     writeAll(data: ArrayBuffer | number[]): Promise<void>;
+}
+
+/**
+ * Input stream backed by a file descriptor.
+ *
+ * Only available on UNIX-like OSes.
+ */
+declare class UnixInputStream extends InputStream {
+    /**
+     * Creates a new input stream from the specified file descriptor `fd`.
+     *
+     * @param fd File descriptor to read from.
+     * @param options Options to customize the stream.
+     */
+    constructor(fd: number, options?: UnixStreamOptions);
+}
+
+/**
+ * Output stream backed by a file descriptor.
+ *
+ * Only available on UNIX-like OSes.
+ */
+declare class UnixOutputStream extends OutputStream {
+    /**
+     * Creates a new output stream from the specified file descriptor `fd`.
+     *
+     * @param fd File descriptor to write to.
+     * @param options Options to customize the stream.
+     */
+    constructor(fd: number, options?: UnixStreamOptions);
+}
+
+/**
+ * Input stream backed by a Windows file handle.
+ *
+ * Only available on Windows.
+ */
+declare class Win32InputStream extends InputStream {
+    /**
+     * Creates a new input stream from the specified Windows file handle.
+     *
+     * @param handle Windows file `HANDLE` to read from.
+     * @param options Options to customize the stream.
+     */
+    constructor(handle: NativePointerValue, options?: WindowsStreamOptions);
+}
+
+/**
+ * Output stream backed by a Windows file handle.
+ *
+ * Only available on Windows.
+ */
+declare class Win32OutputStream extends OutputStream {
+    /**
+     * Creates a new output stream from the specified Windows file handle.
+     *
+     * @param handle Windows file `HANDLE` to write to.
+     * @param options Options to customize the stream.
+     */
+    constructor(handle: NativePointerValue, options?: WindowsStreamOptions);
+}
+
+declare interface UnixStreamOptions {
+    /**
+     * Whether the file descriptor should be closed when the stream is closed,
+     * either through `close()` or future garbage-collection.
+     */
+    autoClose?: boolean;
+}
+
+declare interface WindowsStreamOptions {
+    /**
+     * Whether the Windows `HANDLE` should be closed when the stream is closed,
+     * either through `close()` or future garbage-collection.
+     */
+    autoClose?: boolean;
 }
 
 declare const enum AddressFamily {
@@ -2443,8 +2519,6 @@ declare class SourceMap {
     constructor();
     resolve(generatedPosition: any): any;
 }
-declare function UnixInputStream(): any;
-declare function UnixOutputStream(): any;
 declare namespace DebugSymbol {
     function findFunctionsMatching(pattern: string): any;
     function findFunctionsNamed(name: string): any;
