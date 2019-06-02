@@ -2167,7 +2167,7 @@ declare interface StalkerOptions {
      * wants to recompile a basic block of the code that's about to be executed
      * by the stalked thread.
      */
-    transform?: (iterator: StalkerIterator) => void;
+    transform?: StalkerTransformCallback;
 }
 
 declare interface StalkerParseOptions {
@@ -2216,7 +2216,10 @@ declare type StalkerBlockEventBare = [                         NativePointer | s
 declare type StalkerCompileEventFull = [ StalkerEventType.Compile, NativePointer | string, NativePointer | string ];
 declare type StalkerCompileEventBare = [                           NativePointer | string, NativePointer | string ];
 
-declare type StalkerIterator = StalkerX86Iterator | StalkerArm64Iterator;
+declare type StalkerTransformCallback = StalkerX86TransformCallback | StalkerArm64TransformCallback;
+
+declare type StalkerX86TransformCallback = (iterator: StalkerX86Iterator) => void;
+declare type StalkerArm64TransformCallback = (iterator: StalkerArm64Iterator) => void;
 
 declare abstract class StalkerX86Iterator extends X86Writer {
     next(): X86Instruction | null;
