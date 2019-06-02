@@ -2007,6 +2007,180 @@ declare interface UnixInvocationContext extends PortableInvocationContext {
     errno: number;
 }
 
+/**
+ * Follows execution on a per thread basis.
+ */
+declare namespace Stalker {
+    /**
+     * Starts following the execution of a given thread.
+     *
+     * @param threadId Thread ID to start following the execution of, or the
+     *                 current thread if omitted.
+     * @param options Options to customize the instrumentation.
+     */
+    function follow(threadId?: ThreadId, options?: StalkerOptions): void;
+
+    /**
+     * Stops following the execution of a given thread.
+     *
+     * @param threadId Thread ID to stop following the execution of, or the
+     *                 current thread if omitted.
+     */
+    function unfollow(threadId?: ThreadId): void;
+
+    /**
+     * Parses a `Gum.Event` binary blob.
+     *
+     * @param events Binary blob containing zero or more `Gum.Event` values.
+     * @param options Options for customizing the output.
+     */
+    function parse(events: ArrayBuffer, options?: StalkerParseOptions): any;
+
+    /**
+     * Flushes out any buffered events. Useful when you don't want to wait
+     * until the next `queueDrainInterval` tick.
+     */
+    function flush(): void;
+
+    /**
+     * Frees accumulated memory at a safe point after `unfollow()`. This is
+     * needed to avoid race-conditions where the thread just unfollowed is
+     * executing its last instructions.
+     */
+    function garbageCollect(): void;
+
+    /**
+     * Calls `callback` synchronously when a `CALL` is made to `address`.
+     * Returns an id that can be passed to `removeCallProbe()` later.
+     *
+     * @param address Address of function to monitor stalked calls to.
+     * @param callback Function to be called synchronously when a stalked
+     *                 thread is about to call the function at `address`.
+     */
+    function addCallProbe(address: NativePointerValue, callback: CallProbeCallback): CallProbeId;
+
+    /**
+     * Removes a call probe added by `addCallProbe()`.
+     *
+     * @param callbackId ID of probe to remove.
+     */
+    function removeCallProbe(callbackId: CallProbeId): void;
+
+    /**
+     * How many times a piece of code needs to be executed before it is assumed
+     * it can be trusted to not mutate. Specify -1 for no trust (slow), 0 to
+     * trust code from the get-go, and N to trust code after it has been
+     * executed N times.
+     *
+     * Defaults to 1.
+     */
+    let trustThreshold: number;
+
+    /**
+     * Capacity of the event queue in number of events.
+     *
+     * Defaults to 16384 events.
+     */
+    let queueCapacity: number;
+
+    /**
+     * Time in milliseconds between each time the event queue is drained.
+     *
+     * Defaults to 250 ms, which means that the event queue is drained four
+     * times per second.
+     */
+    let queueDrainInterval: number;
+}
+
+/**
+ * Options to customize Stalker's instrumentation.
+ *
+ * Note that the callbacks provided have a significant impact on performance.
+ * If you only need periodic call summaries but do not care about the raw
+ * events, or the other way around, make sure you omit the callback that you
+ * don't need; i.e. avoid putting your logic in `onCallSummary` and leaving
+ * `onReceive` in there as an empty callback.
+ */
+declare interface StalkerOptions {
+    /**
+     * Which events, if any, should be generated and periodically delivered to
+     * `onReceive()` and/or `onCallSummary()`.
+     */
+    events?: {
+        /**
+         * Whether to generate events for CALL/BLR instructions.
+         */
+        call?: boolean;
+
+        /**
+         * Whether to generate events for RET instructions.
+         */
+        ret?: boolean;
+
+        /**
+         * Whether to generate events for all instructions.
+         *
+         * Not recommended as it's potentially a lot of data.
+         */
+        exec?: boolean;
+
+        /**
+         * Whether to generate an event whenever a basic block is executed.
+         *
+         * Useful to record a coarse execution trace.
+         */
+        block?: boolean;
+
+        /**
+         * Whether to generate an event whenever a basic block is compiled.
+         *
+         * Useful for coverage.
+         */
+        compile?: boolean;
+    }
+
+    /**
+     * Callback that periodically receives batches of events.
+     *
+     * @param events Binary blob comprised of one or more `Gum.Event` structs.
+     *               See `gumevent.h` for details about the format.
+     *               Use `Stalker.parse()` to examine the data.
+     */
+    onReceive?: (events: ArrayBuffer) => void;
+
+    /**
+     * Callback that periodically receives a summary of `call` events that
+     * happened in each time window.
+     *
+     * You would typically implement this instead of `onReceive()` for
+     * efficiency, i.e. when you only want to know which targets were called
+     * and how many times, but don't care about the order that the calls
+     * happened in.
+     *
+     * @param summary Key-value mapping of call target to number of calls, in
+     *                the current time window.
+     */
+    onCallSummary?: (summary: any) => void;
+}
+
+declare interface StalkerParseOptions {
+    /**
+     * Whether to include the type of each event. Defaults to `true`.
+     */
+    annotate?: boolean;
+
+    /**
+     * Whether to format pointer values as strings instead of `NativePointer`
+     * values, i.e. less overhead if you're just going to `send()` the result
+     * and not actually parse the data agent-side.
+     */
+    stringify?: boolean;
+}
+
+declare type CallProbeCallback = (args: InvocationArguments) => void;
+
+declare type CallProbeId = number;
+
 declare class Instruction {
     /**
      * Parses the instruction at the `target` address in memory.
@@ -2540,38 +2714,6 @@ declare namespace Script {
     namespace sourceMap {
         function resolve(generatedPosition: any): any;
     }
-}
-
-declare interface StalkerOptions {
-    events?: {
-        call?: boolean;
-        ret?: boolean;
-        exec?: boolean;
-        block?: boolean;
-        compile?: boolean;
-    }
-    onReceive?: (events: any) => void;
-    onCallSummary?: (summary: any) => void;
-}
-
-declare interface StalkerParseOptions {
-    annotate?: boolean;
-    stringify?: boolean;
-}
-
-declare type CallProbeId = number;
-
-declare namespace Stalker {
-    const queueCapacity: number;
-    const queueDrainInterval: number;
-    const trustThreshold: number;
-    function addCallProbe(address: NativePointerValue, callback: InvocationListenerCallbacks): CallProbeId;
-    function follow(threadId?: ThreadId, options?: StalkerOptions): any;
-    function garbageCollect(): any;
-    function removeCallProbe(callbackId: CallProbeId): any;
-    function flush(): void;
-    function parse(events: any, options: StalkerParseOptions): any;
-    function unfollow(threadId?: ThreadId): any;
 }
 
 declare namespace ObjC {
