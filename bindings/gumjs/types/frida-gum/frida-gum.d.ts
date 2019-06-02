@@ -3781,40 +3781,491 @@ declare namespace Java {
      */
     const available: boolean;
 
+    /**
+     * Which version of Android we're running on.
+     */
     const androidVersion: string;
 
-    const vm: any;
+    /**
+     * Calls `func` with the `obj` lock held.
+     *
+     * @param obj Instance whose lock to hold.
+     * @param fn Function to call with lock held.
+     */
+    function synchronized(obj: Wrapper, fn: () => void): void;
 
-    const classFactory: any;
+    /**
+     * Enumerates loaded classes.
+     *
+     * @param callbacks Object with callbacks.
+     */
+    function enumerateLoadedClasses(callbacks: EnumerateLoadedClassesCallbacks): void;
 
-    function synchronized(obj: any, fn: () => void): void;
-
-    function enumerateLoadedClasses(callbacks: any): void;
+    /**
+     * Synchronous version of `enumerateLoadedClasses()`.
+     */
     function enumerateLoadedClassesSync(): string[];
 
-    function enumerateClassLoaders(callbacks: any): void;
-    function enumerateClassLoadersSync(): any[];
+    /**
+     * Enumerates class loaders.
+     *
+     * You may assign such a loader to `Java.classFactory.loader` to make
+     * `Java.use()` look for classes on a specific loader instead of the default
+     * loader used by the app.
+     *
+     * @param callbacks Object with callbacks.
+     */
+    function enumerateClassLoaders(callbacks: EnumerateClassLoadersCallbacks): void;
 
+    /**
+     * Synchronous version of `enumerateClassLoaders()`.
+     */
+    function enumerateClassLoadersSync(): Wrapper[];
+
+    /**
+     * Runs `fn` on the main thread of the VM.
+     *
+     * @param fn Function to run on the main thread of the VM.
+     */
     function scheduleOnMainThread(fn: () => void): void;
 
+    /**
+     * Ensures that the current thread is attached to the VM and calls `fn`.
+     * (This isn't necessary in callbacks from Java.)
+     *
+     * Will defer calling `fn` if the app's class loader is not available yet.
+     * Use `Java.performNow()` if access to the app's classes is not needed.
+     *
+     * @param fn Function to run while attached to the VM.
+     */
     function perform(fn: () => void): void;
+
+    /**
+     * Ensures that the current thread is attached to the VM and calls `fn`.
+     * (This isn't necessary in callbacks from Java.)
+     *
+     * @param fn Function to run while attached to the VM.
+     */
     function performNow(fn: () => void): void;
 
-    function use(className: string): any;
+    /**
+     * Dynamically generates a JavaScript wrapper for `className` that you can
+     * instantiate objects from by calling `$new()` on to invoke a constructor.
+     * Call `$dispose()` on an instance to clean it up explicitly, or wait for
+     * the JavaScript object to get garbage-collected, or script to get
+     * unloaded. Static and non-static methods are available, and you can even
+     * replace method implementations.
+     *
+     * Uses the app's class loader by default, but you may customize this by
+     * assigning a different loader instance to `Java.classFactory.loader`.
+     *
+     * @param className Canonical class name to get a wrapper for.
+     */
+    function use(className: string): Wrapper;
 
-    function openClassFile(filePath: string): any;
+    /**
+     * Opens the .dex file at `filePath`.
+     *
+     * @param filePath Path to .dex to open.
+     */
+    function openClassFile(filePath: string): DexFile;
 
-    function choose(className: string, callbacks: any): void;
+    /**
+     * Enumerates live instances of the `className` class by scanning the Java
+     * VM's heap.
+     *
+     * @param className Name of class to enumerate instances of.
+     * @param callbacks Object with callbacks.
+     */
+    function choose(className: string, callbacks: ChooseCallbacks): void;
 
-    function cast(obj: any, C: any): any;
+    /**
+     * Creates a JavaScript wrapper given the existing instance at `handle` of
+     * given class `klass` as returned from `Java.use()`.
+     *
+     * @param handle An existing wrapper or a JNI handle.
+     * @param klass Class wrapper for type to cast to.
+     */
+    function cast(handle: any, klass: Wrapper): Wrapper;
 
-    function array(type: string, elements: any[]): any;
+    /**
+     * Creates a Java array with elements of the specified `type`, from a
+     * JavaScript array `elements`. The resulting Java array behaves like
+     * a JS array, but can be passed by reference to Java APIs in order to
+     * allow them to modify its contents.
+     *
+     * @param type Type name of elements.
+     * @param elements Array of JavaScript values to use for constructing the
+     *                 Java array.
+     */
+    function array(type: string, elements: any[]): any[];
 
+    /**
+     * Determines whether the caller is running on the main thread.
+     */
     function isMainThread(): boolean;
 
-    function registerClass(spec: any): any;
+    /**
+     * Creates a new Java class.
+     *
+     * @param spec Object describing the class to be created.
+     */
+    function registerClass(spec: ClassSpec): Wrapper;
 
+    /**
+     * Forces the VM to execute everything with its interpreter. Necessary to
+     * prevent optimizations from bypassing method hooks in some cases, and
+     * allows ART's Instrumentation APIs to be used for tracing the runtime.
+     */
     function deoptimizeEverything(): void;
+
+    const vm: VM;
+
+    const classFactory: ClassFactory;
+
+    interface EnumerateLoadedClassesCallbacks {
+        /**
+         * Called with the name of each currently loaded class.
+         *
+         * Pass this to `Java.use()` to get a JavaScript wrapper.
+         */
+        onMatch: (className: string) => void;
+
+        /**
+         * Called when all loaded classes have been enumerated.
+         */
+        onComplete: () => void;
+    }
+
+    interface EnumerateClassLoadersCallbacks {
+        /**
+         * Called with a `java.lang.ClassLoader` wrapper for each class loader
+         * found in the VM.
+         */
+        onMatch: (loader: Wrapper) => void;
+
+        /**
+         * Called when all class loaders have been enumerated.
+         */
+        onComplete: () => void;
+    }
+
+    interface ChooseCallbacks {
+        /**
+         * Called with each live instance found with a ready-to-use `instance`
+         * just as if you would have called `Java.cast()` with a raw handle to
+         * this particular instance.
+         *
+         * May return `EnumerateAction.Stop` to stop the enumeration early.
+         */
+        onMatch: (instance: Wrapper) => void | EnumerateAction;
+
+        /**
+         * Called when all instances have been enumerated.
+         */
+        onComplete: () => void;
+    }
+
+    /**
+     * Dynamically generated wrapper for any Java class, instance, or interface.
+     */
+    interface Wrapper {
+        /**
+         * Allocates and initializes a new instance of the given class.
+         *
+         * Use this to create a new instance.
+         */
+        $new: MethodDispatcher;
+
+        /**
+         * Allocates a new instance without initializing it.
+         *
+         * Call `$init()` to initialize it.
+         */
+        $alloc: MethodDispatcher;
+
+        /**
+         * Initializes an instance that was allocated but not yet initialized.
+         * This wraps the constructor(s).
+         *
+         * Replace the `implementation` property to hook a given constructor.
+         */
+        $init: MethodDispatcher;
+
+        /**
+         * Retrieves a `java.lang.Class` wrapper for the current class.
+         */
+        class: Wrapper;
+
+        /**
+         * Canonical name of class being wrapped.
+         */
+        $className: string;
+
+        /**
+         * Methods and fields.
+         */
+        [name: string]: any;
+    }
+
+    interface MethodDispatcher extends Method {
+        /**
+         * Available overloads.
+         */
+        overloads: Method[];
+
+        /**
+         * Obtains a specific overload.
+         *
+         * @param args Signature of the overload to obtain.
+         *             For example: `"java.lang.String", "int"`.
+         */
+        overload(...args: string[]): Method;
+    }
+
+    interface Method {
+        (...params: any[]): any;
+
+        /**
+         * Name of this method.
+         */
+        methodName: string;
+
+        /**
+         * Class that this method belongs to.
+         */
+        holder: Wrapper;
+
+        /**
+         * What kind of method this is, i.e. constructor vs static vs instance.
+         */
+        type: MethodType;
+
+        /**
+         * Pointer to the VM's underlying method object.
+         */
+        handle: NativePointer;
+
+        /**
+         * Implementation. Assign to this property to replace it.
+         */
+        implementation: (...params: any[]) => any;
+
+        /**
+         * Method return type.
+         */
+        returnType: Type;
+
+        /**
+         * Method argument types.
+         */
+        argumentTypes: Type[];
+
+        /**
+         * Queries whether the method may be invoked with a given argument list.
+         */
+        canInvokeWith: (...args: any[]) => boolean;
+    }
+
+    interface Field {
+        /**
+         * Current value of this field. Assign to update the field's value.
+         */
+        value: any;
+
+        /**
+         * Class that this field belongs to.
+         */
+        holder: Wrapper;
+
+        /**
+         * What kind of field this is, i.e. static vs instance.
+         */
+        fieldType: FieldType;
+
+        /**
+         * Type of value.
+         */
+        fieldReturnType: Type;
+    }
+
+    const enum MethodType {
+        Constructor = 1,
+        Static = 2,
+        Instance = 3,
+    }
+
+    const enum FieldType {
+        Static = 1,
+        Instance = 2,
+    }
+
+    interface Type {
+        /**
+         * VM type name. For example `I` for `int`.
+         */
+        name: string;
+
+        /**
+         * Frida type name. For example `pointer` for a handle.
+         */
+        type: string;
+
+        /**
+         * Size in words.
+         */
+        size: number;
+
+        /**
+         * Size in bytes.
+         */
+        byteSize: number;
+
+        /**
+         * Class name, if applicable.
+         */
+        className?: string;
+
+        /**
+         * Checks whether a given JavaScript `value` is compatible.
+         */
+        isCompatible: (value: any) => boolean;
+
+        /**
+         * Converts `value` from a JNI value to a JavaScript value.
+         */
+        fromJni?: (value: any) => any;
+
+        /**
+         * Converts `value` from a JavaScript value to a JNI value.
+         */
+        toJni?: (value: any) => any;
+
+        /**
+         * Reads a value from memory.
+         */
+        read?: (address: NativePointerValue) => any;
+
+        /**
+         * Writes a value to memory.
+         */
+        write?: (address: NativePointerValue, value: any) => void;
+    }
+
+    interface DexFile {
+        /**
+         * Loads the contained classes into the VM.
+         */
+        load(): void;
+
+        /**
+         * Determines available class names.
+         */
+        getClassNames(): string[];
+    }
+
+    interface ClassSpec {
+        /**
+         * Name of the class.
+         */
+        name: string;
+
+        /**
+         * Interfaces implemented by this class.
+         */
+        implements?: Wrapper[];
+
+        /**
+         * Methods to implement.
+         */
+        methods?: {
+            [name: string]: AnyFunction | MethodSpec | MethodSpec[];
+        };
+    }
+
+    interface MethodSpec {
+        /**
+         * Return type. Defaults to `void` if omitted.
+         */
+        returnType?: string;
+
+        /**
+         * Argument types. Defaults to `[]` if omitted.
+         */
+        argumentTypes?: string[];
+
+        /**
+         * Implementation.
+         */
+        implementation: AnyFunction;
+    }
+
+    interface VM {
+        /**
+         * Ensures that the current thread is attached to the VM and calls `fn`.
+         * (This isn't necessary in callbacks from Java.)
+         *
+         * @param fn Function to run while attached to the VM.
+         */
+        perform(fn: () => void): void;
+
+        /**
+         * Gets a wrapper for the current thread's `JNIEnv`.
+         *
+         * Throws an exception if the current thread is not attached to the VM.
+         */
+        getEnv(): Env;
+
+        /**
+         * Tries to get a wrapper for the current thread's `JNIEnv`.
+         *
+         * Returns `null` if the current thread is not attached to the VM.
+         */
+        tryGetEnv(): Env | null;
+    }
+
+    type Env = any;
+
+    interface ClassFactory {
+        /**
+         * Class loader currently being used. Typically updated by the
+         * first call to `Java.perform()`.
+         *
+         * You may assign a different `java.lang.ClassLoader` to make
+         * `Java.use()` look for classes on a specific loader instead of
+         * the default loader used by the app.
+         */
+        loader: Wrapper;
+
+        /**
+         * Path to cache directory currently being used. Typically updated by
+         * the first call to `Java.perform()`.
+         */
+        cacheDir: string;
+
+        /**
+         * Naming convention to use for temporary files.
+         *
+         * Defaults to `{ prefix: "frida", suffix: "dat" }`.
+         */
+        tempFileNaming: TempFileNaming;
+    }
+
+    interface TempFileNaming {
+        /**
+         * File name prefix to use.
+         *
+         * For example: `frida`.
+         */
+        prefix: string;
+
+        /**
+         * File name suffix to use.
+         *
+         * For example: `dat`.
+         */
+        suffix: string;
+    }
 }
 
 /**
