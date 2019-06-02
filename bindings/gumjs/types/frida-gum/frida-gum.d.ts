@@ -4235,7 +4235,7 @@ declare namespace Java {
          * `Java.use()` look for classes on a specific loader instead of
          * the default loader used by the app.
          */
-        loader: Wrapper;
+        loader: Wrapper | null;
 
         /**
          * Path to cache directory currently being used. Typically updated by
