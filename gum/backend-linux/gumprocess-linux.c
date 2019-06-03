@@ -24,6 +24,7 @@
 #ifdef HAVE_LINK_H
 # include <link.h>
 #endif
+#include <asm/prctl.h>
 #include <sys/prctl.h>
 #include <sys/ptrace.h>
 #ifdef HAVE_ASM_PTRACE_H
@@ -94,6 +95,7 @@ typedef gint (* GumFoundDlPhdrFunc) (struct dl_phdr_info * info,
 typedef void (* GumDlIteratePhdrImpl) (GumFoundDlPhdrFunc func, gpointer data);
 
 typedef struct _GumUserDesc GumUserDesc;
+typedef struct _GumTcbHead GumTcbHead;
 
 typedef gint (* GumCloneFunc) (gpointer arg);
 
@@ -185,6 +187,18 @@ struct _GumUserDesc
   guint limit_in_pages : 1;
   guint seg_not_present : 1;
   guint useable : 1;
+};
+
+struct _GumTcbHead
+{
+#ifdef HAVE_I386
+  gpointer tcb;
+  gpointer dtv;
+  gpointer self;
+#else
+  gpointer dtv;
+  gpointer priv;
+#endif
 };
 
 static gint gum_do_modify_thread (gpointer data);
@@ -358,6 +372,16 @@ gum_process_modify_thread (GumThreadId thread_id,
     desc = &segment;
 #else
     desc = tls;
+#endif
+
+#if defined (HAVE_I386)
+    {
+      GumTcbHead * head = tls;
+
+      head->tcb = tls;
+      head->dtv = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (tls) + 1024);
+      head->self = tls;
+    }
 #endif
 
     /*
@@ -2292,6 +2316,7 @@ gum_libc_clone (GumCloneFunc child_func,
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
   *(--child_sp) = arg;
   *(--child_sp) = child_func;
+  *(--child_sp) = tls;
 
   {
     register          gint rdi asm ("rdi") = flags;
@@ -2306,6 +2331,11 @@ gum_libc_clone (GumCloneFunc child_func,
         "jnz 1f\n\t"
 
         /* child: */
+        "movq %[prctl_syscall], %%rax\n\t"
+        "movq %[arch_set_fs], %%rdi\n\t"
+        "popq %%rsi\n\t"
+        "syscall\n\t"
+
         "popq %%rax\n\t"
         "popq %%rdi\n\t"
         "call *%%rax\n\t"
@@ -2322,6 +2352,8 @@ gum_libc_clone (GumCloneFunc child_func,
           "r" (rdx),
           "r" (r10),
           "r" (r8),
+          [prctl_syscall] "i" (__NR_arch_prctl),
+          [arch_set_fs] "i" (ARCH_SET_FS),
           [exit_syscall] "i" (__NR_exit)
         : "rcx", "r11", "cc", "memory"
     );
