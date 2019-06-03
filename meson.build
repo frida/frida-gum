@@ -96,6 +96,7 @@ headers = [
   'elf.h',
   'link.h',
   'stdint.h',
+  'asm/prctl.h',
   'asm/ptrace.h',
   'sys/elf.h',
   'sys/user.h',

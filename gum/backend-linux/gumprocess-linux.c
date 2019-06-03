@@ -24,7 +24,9 @@
 #ifdef HAVE_LINK_H
 # include <link.h>
 #endif
-#include <asm/prctl.h>
+#ifdef HAVE_ASM_PRCTL_H
+# include <asm/prctl.h>
+#endif
 #include <sys/prctl.h>
 #include <sys/ptrace.h>
 #ifdef HAVE_ASM_PTRACE_H
