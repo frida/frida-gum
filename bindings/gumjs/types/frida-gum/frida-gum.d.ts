@@ -1,3 +1,9 @@
+// Type definitions for non-npm package frida-gum 12.6
+// Project: https://github.com/frida/frida
+// Definitions by: Ole André Vadla Ravnås <https://github.com/oleavr>
+// Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped
+// TypeScript Version: 3.4
+
 /**
  * Returns a hexdump of the provided ArrayBuffer or NativePointerValue target.
  *
@@ -63,7 +69,7 @@ declare function recv(callback: MessageCallback): MessageRecvOperation;
  */
 declare function recv(type: string, callback: MessageCallback): MessageRecvOperation;
 
-declare interface MessageCallback { (message: any, data: ArrayBuffer | null): void }
+declare interface MessageCallback { (message: any, data: ArrayBuffer | null): void; }
 
 declare interface MessageRecvOperation {
     /**
@@ -73,27 +79,22 @@ declare interface MessageRecvOperation {
 }
 
 /**
- * Sends a JSON-serializable message to your Frida-based application.
+ * Sends a JSON-serializable message to your Frida-based application,
+ * with (optionally) some raw binary data included. The latter is useful
+ * if you e.g. dumped some memory using `NativePointer#readByteArray()`.
+ *
+ * @param message Any JSON-serializable value.
+ * @param data Raw binary data.
  */
-declare function send(message: any): void;
+declare function send(message: any, data?: ArrayBuffer | number[] | null): void;
 
 /**
- * Sends a JSON-serializable message to your Frida-based application, along with some raw binary data.
- * This is useful if you e.g. dumped some memory using `NativePointer#readByteArray()`.
- */
-declare function send(message: any, data: ArrayBuffer | number[] | null): void;
-
-/**
- * Calls `func` when Frida's event loop is idle.
+ * Calls `func` after `delay` milliseconds, or if omitted: as soon as Frida's
+ * JavaScript thread is idle. Any additional `params` are passed along.
+ *
  * Returns an id that can be passed to `clearTimeout()` to cancel it.
  */
-declare function setTimeout(func: ScheduledCallback): TimeoutId;
-
-/**
- * Calls `func` after delay milliseconds, optionally passing it the provided params.
- * Returns an id that can be passed to `clearTimeout()` to cancel it.
- */
-declare function setTimeout(func: ScheduledCallback, delay: number, ...params: any[]): TimeoutId;
+declare function setTimeout(func: ScheduledCallback, delay?: number, ...params: any[]): TimeoutId;
 
 /**
  * Cancels a previously scheduled `setTimeout()`.
@@ -103,7 +104,7 @@ declare function clearTimeout(id: TimeoutId): void;
 /**
  * Opaque ID returned by `setTimeout()`. Pass it to `clearTimeout()` to cancel a pending `setTimeout()`.
  */
-declare interface TimeoutId {}
+declare type TimeoutId = number;
 
 /**
  * Calls `func` every `delay` milliseconds, optionally passing it the provided params.
@@ -119,7 +120,7 @@ declare function clearInterval(id: IntervalId): void;
 /**
  * Opaque ID returned by `setInterval()`. Pass it to `clearInterval()` to cancel a pending `setInterval()`.
  */
-declare interface IntervalId {}
+declare type IntervalId = number;
 
 /**
  * Schedules `func` to be called on Frida's JavaScript thread, optionally passing it the provided params.
@@ -135,7 +136,7 @@ declare function clearImmediate(id: ImmediateId): void;
 /**
  * Opaque ID returned by `setImmediate()`. Pass it to `clearImmediate()` to cancel a pending `setImmediate()`.
  */
-declare interface ImmediateId {}
+declare type ImmediateId = number;
 
 declare type ScheduledCallback = (...params: any[]) => void;
 
@@ -337,10 +338,10 @@ declare namespace Process {
     function getRangeByAddress(address: NativePointerValue): RangeDetails;
 
     /**
-      * Enumerates memory ranges satisfying `specifier`.
-      *
-      * @param specifier The kind of ranges to include.
-      */
+     * Enumerates memory ranges satisfying `specifier`.
+     *
+     * @param specifier The kind of ranges to include.
+     */
     function enumerateRanges(specifier: PageProtection | EnumerateRangesSpecifier): RangeDetails[];
 
     /**
@@ -349,18 +350,20 @@ declare namespace Process {
     function enumerateMallocRanges(): RangeDetails[];
 
     /**
-     * Installs a process-wide exception handler callback that gets a chance to handle native exceptions before the
-     * hosting process itself does.
+     * Installs a process-wide exception handler callback that gets a chance to
+     * handle native exceptions before the hosting process itself does.
      *
-     * It is up to your callback to decide what to do with the exception. It could for example:
+     * It is up to your callback to decide what to do with the exception.
+     * It could for example:
      * - Log the issue.
      * - Notify your application through a `send()` followed by a blocking `recv()` for acknowledgement of the sent data
      *   being received.
      * - Modify registers and memory to recover from the exception.
      *
-     * You should return true if you did handle the exception, in which case Frida will resume the thread immediately.
-     * If you do not return true, Frida will forward the exception to the hosting process’ exception handler, if it has
-     * one, or let the OS terminate the process.
+     * You should return `true` if you did handle the exception, in which case
+     * Frida will resume the thread immediately. If you do not return `true`,
+     * Frida will forward the exception to the hosting process' exception
+     * handler, if it has one, or let the OS terminate the process.
      */
     function setExceptionHandler(callback: ExceptionHandlerCallback): void;
 }
@@ -771,20 +774,20 @@ declare namespace Thread {
     function sleep(delay: number): void;
 }
 
-declare class Backtracer {
+declare enum Backtracer {
     /**
      * The accurate kind of backtracers rely on debugger-friendly binaries or
      * presence of debug information to do a good job, but avoid false
      * positives.
      */
-    static ACCURATE: Backtracer;
+    Accurate,
 
     /**
      * The fuzzy backtracers perform forensics on the stack in order to guess
      * the return addresses, which means you will get false positives, but it
      * will work on any binary.
      */
-    static FUZZY: Backtracer;
+    Fuzzy,
 }
 
 declare const enum Architecture {
@@ -1266,14 +1269,9 @@ declare class Int64 {
     toNumber(): number;
 
     /**
-     * Converts to a string.
+     * Converts to a string, optionally with a custom `radix`.
      */
-    toString(): string;
-
-    /**
-     * Converts to a string with `radix`.
-     */
-    toString(radix: number): string;
+    toString(radix?: number): string;
 
     /**
      * Converts to a JSON-serializable value. Same as `toString()`.
@@ -1352,14 +1350,9 @@ declare class UInt64 {
     toNumber(): number;
 
     /**
-     * Converts to a string.
+     * Converts to a string, optionally with a custom `radix`.
      */
-    toString(): string;
-
-    /**
-     * Converts to a string with `radix`.
-     */
-    toString(radix: number): string;
+    toString(radix?: number): string;
 
     /**
      * Converts to a JSON-serializable value. Same as `toString()`.
@@ -1443,14 +1436,10 @@ declare class NativePointer {
     toInt32(): number;
 
     /**
-     * Converts to a “0x”-prefixed hexadecimal string.
+     * Converts to a “0x”-prefixed hexadecimal string, unless a `radix`
+     * is specified.
      */
-    toString(): string;
-
-    /**
-     * Converts to a string with `radix`.
-     */
-    toString(radix: number): string;
+    toString(radix?: number): string;
 
     /**
      * Converts to a JSON-serializable value. Same as `toString()`.
@@ -1515,19 +1504,15 @@ declare interface ObjectWrapper {
 declare type NativePointerValue = NativePointer | ObjectWrapper;
 
 declare class NativeFunction extends NativePointer {
-    constructor(address: NativePointerValue, retType: NativeType, argTypes: NativeType[], abi?: NativeABI);
-    constructor(address: NativePointerValue, retType: NativeType, argTypes: NativeType[], options?: NativeFunctionOptions);
+    constructor(address: NativePointerValue, retType: NativeType, argTypes: NativeType[], abiOrOptions?: NativeABI | NativeFunctionOptions);
     apply(thisArg: NativePointerValue | null | undefined, args: NativeArgumentValue[]): NativeReturnValue;
-    call(): NativeReturnValue;
-    call(thisArg: NativePointerValue | null | undefined, ...args: NativeArgumentValue[]): NativeReturnValue;
+    call(thisArg?: NativePointerValue | null, ...args: NativeArgumentValue[]): NativeReturnValue;
 }
 
 declare class SystemFunction extends NativePointer {
-    constructor(address: NativePointerValue, retType: NativeType, argTypes: NativeType[], abi?: NativeABI);
-    constructor(address: NativePointerValue, retType: NativeType, argTypes: NativeType[], options?: NativeFunctionOptions);
+    constructor(address: NativePointerValue, retType: NativeType, argTypes: NativeType[], abiOrOptions?: NativeABI | NativeFunctionOptions);
     apply(thisArg: NativePointerValue | null | undefined, args: NativeArgumentValue[]): SystemFunctionResult;
-    call(): SystemFunctionResult;
-    call(thisArg: NativePointerValue | null | undefined, ...args: NativeArgumentValue[]): SystemFunctionResult;
+    call(thisArg?: NativePointerValue | null, ...args: NativeArgumentValue[]): SystemFunctionResult;
 }
 
 declare type SystemFunctionResult = WindowsSystemFunctionResult | UnixSystemFunctionResult;
@@ -2276,14 +2261,11 @@ declare class SqliteStatement {
  */
 declare namespace Interceptor {
     /**
-     * Intercepts calls to function at `target`.
+     * Intercepts calls to function/instruction at `target`. It is important
+     * to specify a `InstructionProbeCallback` if `target` is not the first
+     * instruction of a function.
      */
-    function attach(target: NativePointerValue, callbacks: InvocationListenerCallbacks): InvocationListener;
-
-    /**
-     * Intercepts execution of instruction at `target`.
-     */
-    function attach(target: NativePointerValue, probe: InstructionProbeCallback): InvocationListener;
+    function attach(target: NativePointerValue, callbacksOrProbe: InvocationListenerCallbacks | InstructionProbeCallback): InvocationListener;
 
     /**
      * Detaches all previously attached listeners.
@@ -2509,7 +2491,7 @@ declare interface StalkerOptions {
          * Useful for coverage.
          */
         compile?: boolean;
-    }
+    };
 
     /**
      * Callback that periodically receives batches of events.
@@ -2627,7 +2609,7 @@ declare class ApiResolver {
      * recommended to use the same instance for a batch of queries, but
      * recreate it for future batches to avoid looking at stale data.
      *
-     * @type The type of resolver to create.
+     * @param type The type of resolver to create.
      */
     constructor(type: ApiResolverType);
 
@@ -3148,10 +3130,10 @@ declare namespace Kernel {
     function enumerateModules(): KernelModuleDetails[];
 
     /**
-      * Enumerates all kernel memory ranges matching `specifier`.
-      *
-      * @param specifier The kind of ranges to include.
-      */
+     * Enumerates all kernel memory ranges matching `specifier`.
+     *
+     * @param specifier The kind of ranges to include.
+     */
     function enumerateRanges(specifier: PageProtection | EnumerateRangesSpecifier): KernelRangeDetails[];
 
     /**
@@ -3285,7 +3267,7 @@ declare namespace ObjC {
      * Dynamically generated bindings for each of the currently registered protocols.
      */
     const protocols: {
-        [name: string]: ObjC.Protocol
+        [name: string]: Protocol
     };
 
     /**
@@ -3314,8 +3296,8 @@ declare namespace ObjC {
     /**
      * Dynamically generated wrapper for any Objective-C instance, class, or meta-class.
      */
-    class Object implements ObjectWrapper, ObjC.ObjectMethods {
-        constructor(handle: NativePointer, protocol?: ObjC.Protocol);
+    class Object implements ObjectWrapper, ObjectMethods {
+        constructor(handle: NativePointer, protocol?: Protocol);
 
         handle: NativePointer;
 
@@ -3348,7 +3330,7 @@ declare namespace ObjC {
          * Protocols that this object conforms to.
          */
         $protocols: {
-            [name: string]: ObjC.Protocol
+            [name: string]: Protocol
         };
 
         /**
@@ -3395,7 +3377,7 @@ declare namespace ObjC {
          *
          * You may replace it by assigning to this property. See `ObjC.implement()` for details.
          */
-        implementation: Function | NativePointer;
+        implementation: AnyFunction | NativePointer;
 
         /**
          * Return type name.
@@ -3439,7 +3421,7 @@ declare namespace ObjC {
          * Protocols that this protocol conforms to.
          */
         protocols: {
-            [name: string]: ObjC.Protocol
+            [name: string]: Protocol
         };
 
         /**
@@ -3516,7 +3498,7 @@ declare namespace ObjC {
      *
      * @param spec Protocol specification.
      */
-    function registerProtocol(spec: ProtocolSpec): ObjC.Protocol;
+    function registerProtocol(spec: ProtocolSpec): Protocol;
 
     /**
      * Binds some JavaScript data to an Objective-C instance.
@@ -3608,7 +3590,7 @@ declare namespace ObjC {
         /**
          * Protocols this proxy class conforms to.
          */
-        protocols?: ObjC.Protocol[];
+        protocols?: Protocol[];
 
         /**
          * Methods to implement.
@@ -3629,7 +3611,7 @@ declare namespace ObjC {
              * @param name Name of method that is about to get called.
              */
             forward?(name: string): void;
-        }
+        };
     }
 
     /**
@@ -3657,7 +3639,7 @@ declare namespace ObjC {
         /**
          * Protocols this class conforms to.
          */
-        protocols?: ObjC.Protocol[];
+        protocols?: Protocol[];
 
         /**
          * Methods to implement.
@@ -3717,7 +3699,7 @@ declare namespace ObjC {
         /**
          * Protocols this protocol conforms to.
          */
-        protocols?: ObjC.Protocol[];
+        protocols?: Protocol[];
 
         methods?: {
             [name: string]: ProtocolMethodSpec;
