@@ -826,6 +826,7 @@ gum_stalker_infect (GumThreadId thread_id,
   GumInfectContext * infect_context = (GumInfectContext *) user_data;
   GumStalker * self = infect_context->stalker;
   GumExecCtx * ctx;
+  const guint max_syscall_size = 2;
   gpointer code_address;
   GumX86Writer cw;
 
@@ -834,16 +835,27 @@ gum_stalker_infect (GumThreadId thread_id,
 
   ctx->current_block = gum_exec_ctx_obtain_block_for (ctx,
       GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XIP (cpu_context)), &code_address);
-  GUM_CPU_CONTEXT_XIP (cpu_context) = GPOINTER_TO_SIZE (ctx->infect_thunk);
+  GUM_CPU_CONTEXT_XIP (cpu_context) =
+      GPOINTER_TO_SIZE (ctx->infect_thunk) + max_syscall_size;
 
   gum_x86_writer_init (&cw, ctx->infect_thunk);
+
+  /*
+   * In case the thread is in a Linux system call we should allow it to be
+   * restarted by bringing along the syscall instruction.
+   */
+  gum_x86_writer_put_bytes (&cw,
+      ctx->current_block->real_begin - max_syscall_size, max_syscall_size);
+
   gum_exec_ctx_write_prolog (ctx, GUM_PROLOG_MINIMAL, &cw);
   gum_x86_writer_put_call_address_with_aligned_arguments (&cw, GUM_CALL_CAPI,
       GUM_ADDRESS (gum_tls_key_set_value), 2,
       GUM_ARG_ADDRESS, GUM_ADDRESS (self->exec_ctx),
       GUM_ARG_ADDRESS, GUM_ADDRESS (ctx));
   gum_exec_ctx_write_epilog (ctx, GUM_PROLOG_MINIMAL, &cw);
+
   gum_x86_writer_put_jmp_address (&cw, GUM_ADDRESS (code_address));
+
   gum_x86_writer_clear (&cw);
 
   gum_event_sink_start (infect_context->sink);

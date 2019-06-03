@@ -695,6 +695,7 @@ gum_stalker_infect (GumThreadId thread_id,
   GumInfectContext * infect_context;
   GumStalker * self;
   GumExecCtx * ctx;
+  const guint potential_svc_size = 4;
   gpointer code_address;
   GumArm64Writer cw;
 
@@ -705,10 +706,17 @@ gum_stalker_infect (GumThreadId thread_id,
 
   ctx->current_block = gum_exec_ctx_obtain_block_for (ctx,
       GSIZE_TO_POINTER (cpu_context->pc), &code_address);
-  cpu_context->pc = GPOINTER_TO_SIZE (ctx->infect_thunk);
+  cpu_context->pc = GPOINTER_TO_SIZE (ctx->infect_thunk) + potential_svc_size;
 
   gum_stalker_thaw (self, ctx->thunks, self->page_size);
   gum_arm64_writer_init (&cw, ctx->infect_thunk);
+
+  /*
+   * In case the thread is in a Linux system call we should allow it to be
+   * restarted by bringing along the SVC instruction.
+   */
+  gum_arm64_writer_put_bytes (&cw,
+      ctx->current_block->real_begin - potential_svc_size, potential_svc_size);
 
   gum_exec_ctx_write_prolog (ctx, GUM_PROLOG_MINIMAL, &cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
