@@ -774,20 +774,20 @@ declare namespace Thread {
     function sleep(delay: number): void;
 }
 
-declare enum Backtracer {
+declare class Backtracer {
     /**
      * The accurate kind of backtracers rely on debugger-friendly binaries or
      * presence of debug information to do a good job, but avoid false
      * positives.
      */
-    Accurate,
+    static ACCURATE: Backtracer;
 
     /**
      * The fuzzy backtracers perform forensics on the stack in order to guess
      * the return addresses, which means you will get false positives, but it
      * will work on any binary.
      */
-    Fuzzy,
+    static FUZZY: Backtracer;
 }
 
 declare const enum Architecture {
