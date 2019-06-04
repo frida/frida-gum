@@ -2147,7 +2147,7 @@ declare class SqliteDatabase {
      *
      * @param path Filesystem path to database.
      */
-    static open(path: string): SqliteDatabase;
+    static open(path: string, options?: SqliteOpenOptions): SqliteDatabase;
 
     /**
      * Just like `open()` but the contents of the database is provided as a
@@ -2196,6 +2196,16 @@ declare class SqliteDatabase {
      * calling `SqliteDatabase.openInline()`.
      */
     dump(): string;
+}
+
+declare interface SqliteOpenOptions {
+    flags?: SqliteOpenFlag[];
+}
+
+declare const enum SqliteOpenFlag {
+    ReadOnly = "readonly",
+    ReadWrite = "readwrite",
+    Create = "create",
 }
 
 /**
