@@ -2141,11 +2141,12 @@ declare class File {
 declare class SqliteDatabase {
     /**
      * Opens the SQLite v3 database at `path` on the filesystem. The database
-     * will be opened read-write, and the returned `SqliteDatabase` object will
-     * allow you to perform queries on it. Throws an exception if the database
-     * cannot be opened.
+     * will by default be opened read-write, and the returned `SqliteDatabase`
+     * object will allow you to perform queries on it. Throws an exception if
+     * the database cannot be opened.
      *
      * @param path Filesystem path to database.
+     * @param options Options to customize how the database should be opened.
      */
     static open(path: string, options?: SqliteOpenOptions): SqliteDatabase;
 
