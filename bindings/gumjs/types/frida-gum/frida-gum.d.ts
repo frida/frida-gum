@@ -1503,14 +1503,28 @@ declare interface ObjectWrapper {
 
 declare type NativePointerValue = NativePointer | ObjectWrapper;
 
-declare class NativeFunction extends NativePointer {
-    constructor(address: NativePointerValue, retType: NativeType, argTypes: NativeType[], abiOrOptions?: NativeABI | NativeFunctionOptions);
+declare const NativeFunction: NativeFunctionConstructor;
+
+declare interface NativeFunctionConstructor {
+    new(address: NativePointerValue, retType: NativeType, argTypes: NativeType[], abiOrOptions?: NativeABI | NativeFunctionOptions): NativeFunction;
+    readonly prototype: NativeFunction;
+}
+
+declare interface NativeFunction extends NativePointer {
+    (...args: NativeArgumentValue[]): NativeReturnValue;
     apply(thisArg: NativePointerValue | null | undefined, args: NativeArgumentValue[]): NativeReturnValue;
     call(thisArg?: NativePointerValue | null, ...args: NativeArgumentValue[]): NativeReturnValue;
 }
 
-declare class SystemFunction extends NativePointer {
-    constructor(address: NativePointerValue, retType: NativeType, argTypes: NativeType[], abiOrOptions?: NativeABI | NativeFunctionOptions);
+declare const SystemFunction: SystemFunctionConstructor;
+
+declare interface SystemFunctionConstructor {
+    new(address: NativePointerValue, retType: NativeType, argTypes: NativeType[], abiOrOptions?: NativeABI | NativeFunctionOptions): SystemFunction;
+    readonly prototype: SystemFunction;
+}
+
+declare interface SystemFunction extends NativePointer {
+    (...args: NativeArgumentValue[]): SystemFunctionResult;
     apply(thisArg: NativePointerValue | null | undefined, args: NativeArgumentValue[]): SystemFunctionResult;
     call(thisArg?: NativePointerValue | null, ...args: NativeArgumentValue[]): SystemFunctionResult;
 }
