@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -255,13 +255,15 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   if (is_thumb)
   {
     GumThumbRelocator * tr = &self->thumb_relocator;
+    GString * signature;
     gboolean is_eligible_for_lr_rewriting;
 
     ctx->on_invoke_trampoline = gum_thumb_writer_cur (tw) + 1;
 
     gum_thumb_relocator_reset (tr, function_address, tw);
 
-    is_eligible_for_lr_rewriting = TRUE;
+    signature = g_string_sized_new (16);
+
     do
     {
       const cs_insn * insn;
@@ -270,15 +272,9 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
       if (reloc_bytes != 0)
       {
-        switch (insn->id)
-        {
-          case ARM_INS_MOV:
-          case ARM_INS_B:
-            break;
-          default:
-            is_eligible_for_lr_rewriting = FALSE;
-            break;
-        }
+        if (signature->len != 0)
+          g_string_append_c (signature, ';');
+        g_string_append (signature, insn->mnemonic);
       }
       else
       {
@@ -286,6 +282,30 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
       }
     }
     while (reloc_bytes < data->redirect_code_size);
+
+    /*
+     * Try to deal with minimal thunks that determine their caller and pass
+     * it along to some inner function. This is important to support hooking
+     * dlopen() on Android, where the dynamic linker uses the caller address
+     * to decide on namespace and whether to allow the particular library to
+     * be used by a particular caller.
+     *
+     * Because we potentially replace LR in order to trap the return, we end
+     * up breaking dlopen() in such cases. We work around this by detecting
+     * LR being read, and replace that instruction with a load of the actual
+     * caller.
+     *
+     * This is however a bit risky done blindly, so we try to limit the
+     * scope to the bare minimum. A potentially better longer term solution
+     * is to analyze the function and patch each point of return, so we don't
+     * have to replace LR on entry. That is however a bit complex, so we
+     * opt for this simpler solution for now.
+     */
+    is_eligible_for_lr_rewriting = strcmp (signature->str, "mov;b") == 0 ||
+        strcmp (signature->str, "mov;bx") == 0 ||
+        g_str_has_prefix (signature->str, "push;mov;bl");
+
+    g_string_free (signature, TRUE);
 
     if (is_eligible_for_lr_rewriting)
     {
