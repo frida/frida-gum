@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -78,7 +78,6 @@ gum_emit_lr_thunk (gpointer mem,
 
   ctx->thunk = GSIZE_TO_POINTER (aw.pc);
   gum_arm64_writer_put_label (&aw, thunk_start);
-  gum_arm64_writer_put_mov_reg_reg (&aw, ARM64_REG_X2, ARM64_REG_XZR);
   gum_arm64_writer_put_mov_reg_reg (&aw, ARM64_REG_X3, ARM64_REG_LR);
   gum_arm64_writer_put_b_label (&aw, inner_start);
 
