@@ -14,6 +14,7 @@
 #include "valgrind.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <gio/gio.h>
 #ifdef G_OS_WIN32

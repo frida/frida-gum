@@ -61,6 +61,8 @@ TESTLIST_BEGIN (script)
     TESTENTRY (replaced_function_should_have_invocation_context)
     TESTENTRY (instructions_can_be_probed)
     TESTENTRY (interceptor_handles_invalid_arguments)
+  TESTGROUP_END ()
+  TESTGROUP_BEGIN ("Interceptor/Performance")
     TESTENTRY (interceptor_on_enter_performance)
     TESTENTRY (interceptor_on_leave_performance)
     TESTENTRY (interceptor_on_enter_and_leave_performance)
@@ -325,6 +327,8 @@ static gpointer invoke_target_function_int_worker (gpointer data);
 static gpointer invoke_target_function_trigger (gpointer data);
 
 static void measure_target_function_int_overhead (void);
+static int compare_measurements (gconstpointer element_a,
+    gconstpointer element_b);
 
 static gboolean check_exception_handling_testable (void);
 
@@ -4278,42 +4282,54 @@ static void
 measure_target_function_int_overhead (void)
 {
   GTimer * timer;
-  guint measurement[1000], i, t_min, t_max, t_total, t_avg;
+  guint i, n;
+  gdouble measurement[1000], t_min, t_max, t_median;
+
+  n = G_N_ELEMENTS (measurement);
 
   timer = g_timer_new ();
 
-  for (i = 0; i != G_N_ELEMENTS (measurement); i++)
+  for (i = 0; i != n; i++)
   {
     target_function_int (7);
   }
 
-  for (i = 0; i != G_N_ELEMENTS (measurement); i++)
+  for (i = 0; i != n; i++)
   {
-    gdouble elapsed;
-
     g_timer_reset (timer);
     target_function_int (7);
-    elapsed = g_timer_elapsed (timer, NULL);
-
-    measurement[i] = elapsed * G_USEC_PER_SEC;
+    measurement[i] = g_timer_elapsed (timer, NULL);
   }
 
-  t_min = G_MAXUINT;
-  t_max = 0;
-  t_total = 0;
-  for (i = 0; i != G_N_ELEMENTS (measurement); i++)
-  {
-    guint m = measurement[i];
+  qsort (measurement, n, sizeof (gdouble), compare_measurements);
 
-    t_min = MIN (m, t_min);
-    t_max = MAX (m, t_max);
-    t_total += m;
-  }
-  t_avg = t_total / G_N_ELEMENTS (measurement);
+  t_min = measurement[0];
+  t_max = measurement[n - 1];
+  g_assert (n % 2 == 0);
+  t_median = (measurement[n / 2] + measurement[(n / 2) - 1]) / 2.0;
 
-  g_print ("min=%u max=%u avg=%u ", t_min, t_max, t_avg);
+  g_print ("<min: %.1f µs, max: %.1f µs, median: %.1f µs> ",
+      t_min * (gdouble) G_USEC_PER_SEC,
+      t_max * (gdouble) G_USEC_PER_SEC,
+      t_median * (gdouble) G_USEC_PER_SEC);
 
   g_timer_destroy (timer);
+}
+
+static int
+compare_measurements (gconstpointer element_a,
+                      gconstpointer element_b)
+{
+  const gdouble a = *(const gdouble *) element_a;
+  const gdouble b = *(const gdouble *) element_b;
+
+  if (a > b)
+    return 1;
+
+  if (a < b)
+    return -1;
+
+  return 0;
 }
 
 TESTCASE (memory_can_be_scanned)
