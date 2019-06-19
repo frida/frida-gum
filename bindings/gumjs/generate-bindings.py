@@ -2509,7 +2509,7 @@ def generate_class_type_definitions(name, arch, flavor, api):
 
     if name == "writer":
         lines.extend("""
-declare interface {class_name}Options {{
+interface {class_name}Options {{
     /**
      * Specifies the initial program counter, which is useful when
      * generating code to a scratch buffer. This is essential when using
@@ -2523,7 +2523,7 @@ declare interface {class_name}Options {{
         if flavor != "thumb":
             lines.extend([
                 "",
-                "declare type {arch_namespace}CallArgument = {arch_namespace}Register | number | UInt64 | Int64 | NativePointerValue;".format(**params),
+                "type {arch_namespace}CallArgument = {arch_namespace}Register | number | UInt64 | Int64 | NativePointerValue;".format(**params),
             ])
 
     return {
@@ -2540,19 +2540,23 @@ def generate_enum_type_definitions(name, arch, flavor, api):
         if len(lines) > 0:
             lines.append("")
 
-        lines.append("declare const enum {0} {{".format(name_ts))
-
-        for val in values:
-            identifier = to_camel_case(val.replace("-", "_"), start_high=True)
-            if identifier[0].isdigit():
-                identifier = name_components[1][0] + identifier
-            lines.append("    {0} = \"{1}\",".format(identifier, val))
-
-        lines.append("}")
+        values_ts = " | ".join(["\"{0}\"".format(val) for val in values])
+        raw_decl = "type {0} = {1};".format(name_ts, values_ts)
+        lines.extend(reflow_enum_declaration(raw_decl))
 
     return {
         "{0}-enums.d.ts".format(arch): "\n".join(lines),
     }
+
+def reflow_enum_declaration(decl):
+    if len(decl.split(" | ")) <= 3:
+        return [decl]
+
+    first_line, rest = decl.split(" = ", 1)
+
+    values = rest.rstrip(";").split(" | ")
+
+    return [first_line + " ="] + ["    | {0}".format(val) for val in values] + ["    ;"]
 
 def generate_docs(name, arch, flavor, api):
     docs = {}
