@@ -545,8 +545,7 @@ gum_thread_try_get_ranges (GumMemoryRange * ranges,
 
   stack_addr = GUM_ADDRESS (GUM_PTHREAD_GET_FIELD (thread,
       GUM_PTHREAD_FIELD_STACKADDR + skew, void *));
-  stack_size = GUM_PTHREAD_GET_FIELD (thread,
-      GUM_PTHREAD_FIELD_STACKSIZE + skew, size_t);
+  stack_size = pthread_get_stacksize_np (thread);
   guard_size = GUM_PTHREAD_GET_FIELD (thread,
       GUM_PTHREAD_FIELD_GUARDSIZE + skew, size_t);
 
