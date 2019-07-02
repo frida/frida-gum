@@ -374,7 +374,7 @@ gum_cloak_enumerate_ranges (GumCloakFoundRangeFunc func,
                             gpointer user_data)
 {
   guint length, size, i;
-  GumMemoryRange * ranges;
+  GumCloakedRange * ranges;
 
   gum_spinlock_acquire (&cloak_lock);
 
@@ -387,7 +387,13 @@ gum_cloak_enumerate_ranges (GumCloakFoundRangeFunc func,
 
   for (i = 0; i != length; i++)
   {
-    if (!func (&ranges[i], user_data))
+    GumCloakedRange * cr = &ranges[i];
+    GumMemoryRange mr;
+
+    mr.base_address = GPOINTER_TO_SIZE (cr->start);
+    mr.size = cr->end - cr->start;
+
+    if (!func (&mr, user_data))
       return;
   }
 }
