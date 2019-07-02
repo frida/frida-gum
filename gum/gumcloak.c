@@ -285,8 +285,6 @@ gum_cloak_clip_range (const GumMemoryRange * range)
       gum_metal_array_get_extents (&cloaked_ranges,
           (gpointer *) &ranges.start, (gpointer *) &ranges.end);
 
-      /* FIXME: also consider the arrays themselves */
-
       for (cloaked_index = 0;
           cloaked_index != 2 + cloaked_ranges.length && !found_match;
           cloaked_index++)
