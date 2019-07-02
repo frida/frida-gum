@@ -163,13 +163,43 @@ gum_thread_id_compare (gconstpointer element_a,
 void
 gum_cloak_add_range (const GumMemoryRange * range)
 {
-  GumCloakedRange * r;
+  const guint8 * start, * end;
+  gboolean added_to_existing;
+  guint i;
+
+  start = GSIZE_TO_POINTER (range->base_address);
+  end = start + range->size;
 
   gum_spinlock_acquire (&cloak_lock);
 
-  r = gum_metal_array_append (&cloaked_ranges);
-  r->start = GSIZE_TO_POINTER (range->base_address);
-  r->end = r->start + range->size;
+  added_to_existing = FALSE;
+
+  for (i = 0; i != cloaked_ranges.length && !added_to_existing; i++)
+  {
+    GumCloakedRange * cloaked;
+
+    cloaked = gum_metal_array_element_at (&cloaked_ranges, i);
+
+    if (cloaked->start == end)
+    {
+      cloaked->start = start;
+      added_to_existing = TRUE;
+    }
+    else if (cloaked->end == start)
+    {
+      cloaked->end = end;
+      added_to_existing = TRUE;
+    }
+  }
+
+  if (!added_to_existing)
+  {
+    GumCloakedRange * r;
+
+    r = gum_metal_array_append (&cloaked_ranges);
+    r->start = start;
+    r->end = end;
+  }
 
   gum_spinlock_release (&cloak_lock);
 }
