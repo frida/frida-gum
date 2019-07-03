@@ -244,6 +244,8 @@ gum_cloak_remove_range (const GumMemoryRange * range)
       }
       else
       {
+        const guint8 * previous_top_end = cloaked->end;
+
         if (bottom_remainder != 0)
         {
           cloaked->end = cloaked->start + bottom_remainder;
@@ -254,7 +256,7 @@ gum_cloak_remove_range (const GumMemoryRange * range)
         {
           GumMemoryRange top;
 
-          top.base_address = GUM_ADDRESS (cloaked->end - top_remainder);
+          top.base_address = GUM_ADDRESS (previous_top_end - top_remainder);
           top.size = top_remainder;
 
           if (slot_available)
