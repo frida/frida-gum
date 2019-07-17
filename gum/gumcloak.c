@@ -27,6 +27,9 @@ static gint gum_thread_id_compare (gconstpointer element_a,
 static gint gum_cloak_index_of_fd (gint fd);
 static gint gum_fd_compare (gconstpointer element_a, gconstpointer element_b);
 
+static void gum_cloak_add_range_unlocked (const GumMemoryRange * range);
+static void gum_cloak_remove_range_unlocked (const GumMemoryRange * range);
+
 static GumSpinlock cloak_lock;
 static GumMetalArray cloaked_threads;
 static GumMetalArray cloaked_ranges;
@@ -163,14 +166,32 @@ gum_thread_id_compare (gconstpointer element_a,
 void
 gum_cloak_add_range (const GumMemoryRange * range)
 {
+  gum_spinlock_acquire (&cloak_lock);
+
+  gum_cloak_add_range_unlocked (range);
+
+  gum_spinlock_release (&cloak_lock);
+}
+
+void
+gum_cloak_remove_range (const GumMemoryRange * range)
+{
+  gum_spinlock_acquire (&cloak_lock);
+
+  gum_cloak_remove_range_unlocked (range);
+
+  gum_spinlock_release (&cloak_lock);
+}
+
+static void
+gum_cloak_add_range_unlocked (const GumMemoryRange * range)
+{
   const guint8 * start, * end;
   gboolean added_to_existing;
   guint i;
 
   start = GSIZE_TO_POINTER (range->base_address);
   end = start + range->size;
-
-  gum_spinlock_acquire (&cloak_lock);
 
   added_to_existing = FALSE;
 
@@ -200,12 +221,10 @@ gum_cloak_add_range (const GumMemoryRange * range)
     r->start = start;
     r->end = end;
   }
-
-  gum_spinlock_release (&cloak_lock);
 }
 
-void
-gum_cloak_remove_range (const GumMemoryRange * range)
+static void
+gum_cloak_remove_range_unlocked (const GumMemoryRange * range)
 {
   const guint8 * start, * end;
   gboolean found_match;
@@ -218,8 +237,6 @@ gum_cloak_remove_range (const GumMemoryRange * range)
     guint i;
 
     found_match = FALSE;
-
-    gum_spinlock_acquire (&cloak_lock);
 
     for (i = 0; i != cloaked_ranges.length && !found_match; i++)
     {
@@ -266,15 +283,11 @@ gum_cloak_remove_range (const GumMemoryRange * range)
           }
           else
           {
-            gum_spinlock_release (&cloak_lock);
-            gum_cloak_add_range (&top);
-            gum_spinlock_acquire (&cloak_lock);
+            gum_cloak_add_range_unlocked (&top);
           }
         }
       }
     }
-
-    gum_spinlock_release (&cloak_lock);
   }
   while (found_match);
 }
