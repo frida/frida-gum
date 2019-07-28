@@ -145,6 +145,8 @@ struct _GumExecCtx
   GumEvent tmp_event;
 
   gboolean unfollow_called_while_still_following;
+  gboolean running_transform;
+
   GumExecBlock * current_block;
   GumExecFrame * current_frame;
   GumExecFrame * first_frame;
@@ -727,8 +729,9 @@ gum_stalker_unfollow_me (GumStalker * self)
 
   gum_event_sink_stop (ctx->sink);
 
-  if (ctx->current_block != NULL &&
-      ctx->current_block->has_call_to_excluded_range)
+  if ((ctx->current_block != NULL &&
+        ctx->current_block->has_call_to_excluded_range) ||
+      ctx->running_transform)
   {
     ctx->state = GUM_EXEC_CTX_UNFOLLOW_PENDING;
   }
@@ -1382,8 +1385,10 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   iterator.instruction.end = NULL;
   iterator.requirements = GUM_REQUIRE_NOTHING;
 
+  ctx->running_transform = TRUE;
   gum_stalker_transformer_transform_block (ctx->transformer, &iterator,
       (GumStalkerWriter *) cw);
+  ctx->running_transform = FALSE;
 
   if (gc.continuation_real_address != NULL)
   {
