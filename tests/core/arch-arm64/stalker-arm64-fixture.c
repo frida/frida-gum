@@ -183,6 +183,7 @@ silence_warnings (void)
 
 typedef struct _StalkerVictimContext StalkerVictimContext;
 typedef guint StalkerVictimState;
+typedef struct _UnfollowTransformContext UnfollowTransformContext;
 
 struct _StalkerVictimContext
 {
@@ -201,4 +202,12 @@ enum _StalkerVictimState
   STALKER_VICTIM_IS_UNFOLLOWED,
   STALKER_VICTIM_READY_FOR_SHUTDOWN,
   STALKER_VICTIM_IS_SHUTDOWN
+};
+
+struct _UnfollowTransformContext
+{
+  GumStalker * stalker;
+  guint num_blocks_transformed;
+  guint target_block;
+  gint max_instructions;
 };
