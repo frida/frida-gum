@@ -26,6 +26,12 @@ TESTLIST_BEGIN (stalker)
 
   /* TRANSFORMERS */
   TESTENTRY (custom_transformer)
+  TESTENTRY (unfollow_should_be_allowed_before_first_transform)
+  TESTENTRY (unfollow_should_be_allowed_mid_first_transform)
+  TESTENTRY (unfollow_should_be_allowed_after_first_transform)
+  TESTENTRY (unfollow_should_be_allowed_before_second_transform)
+  TESTENTRY (unfollow_should_be_allowed_mid_second_transform)
+  TESTENTRY (unfollow_should_be_allowed_after_second_transform)
 
   /* EXCLUSION */
   TESTENTRY (exclude_bl)
@@ -56,6 +62,8 @@ TESTLIST_END ()
 static void insert_extra_add_after_sub (GumStalkerIterator * iterator,
     GumStalkerWriter * output, gpointer user_data);
 static void store_x0 (GumCpuContext * cpu_context, gpointer user_data);
+static void unfollow_during_transform (GumStalkerIterator * iterator,
+    GumStalkerWriter * output, gpointer user_data);
 static gboolean store_range_of_test_runner (const GumModuleDetails * details,
     gpointer user_data);
 static void pretend_workload (GumMemoryRange * runner_range);
@@ -363,6 +371,125 @@ store_x0 (GumCpuContext * cpu_context,
   guint64 * last_x0 = user_data;
 
   *last_x0 = cpu_context->x[0];
+}
+
+TESTCASE (unfollow_should_be_allowed_before_first_transform)
+{
+  UnfollowTransformContext ctx;
+
+  ctx.stalker = fixture->stalker;
+  ctx.num_blocks_transformed = 0;
+  ctx.target_block = 0;
+  ctx.max_instructions = 0;
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      unfollow_during_transform, &ctx, NULL);
+
+  invoke_flat_expecting_return_value (fixture, GUM_NOTHING, 2);
+}
+
+TESTCASE (unfollow_should_be_allowed_mid_first_transform)
+{
+  UnfollowTransformContext ctx;
+
+  ctx.stalker = fixture->stalker;
+  ctx.num_blocks_transformed = 0;
+  ctx.target_block = 0;
+  ctx.max_instructions = 1;
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      unfollow_during_transform, &ctx, NULL);
+
+  invoke_flat_expecting_return_value (fixture, GUM_NOTHING, 2);
+}
+
+TESTCASE (unfollow_should_be_allowed_after_first_transform)
+{
+  UnfollowTransformContext ctx;
+
+  ctx.stalker = fixture->stalker;
+  ctx.num_blocks_transformed = 0;
+  ctx.target_block = 0;
+  ctx.max_instructions = -1;
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      unfollow_during_transform, &ctx, NULL);
+
+  invoke_flat_expecting_return_value (fixture, GUM_NOTHING, 2);
+}
+
+TESTCASE (unfollow_should_be_allowed_before_second_transform)
+{
+  UnfollowTransformContext ctx;
+
+  ctx.stalker = fixture->stalker;
+  ctx.num_blocks_transformed = 0;
+  ctx.target_block = 1;
+  ctx.max_instructions = 0;
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      unfollow_during_transform, &ctx, NULL);
+
+  invoke_flat_expecting_return_value (fixture, GUM_NOTHING, 2);
+}
+
+TESTCASE (unfollow_should_be_allowed_mid_second_transform)
+{
+  UnfollowTransformContext ctx;
+
+  ctx.stalker = fixture->stalker;
+  ctx.num_blocks_transformed = 0;
+  ctx.target_block = 1;
+  ctx.max_instructions = 1;
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      unfollow_during_transform, &ctx, NULL);
+
+  invoke_flat_expecting_return_value (fixture, GUM_NOTHING, 2);
+}
+
+TESTCASE (unfollow_should_be_allowed_after_second_transform)
+{
+  UnfollowTransformContext ctx;
+
+  ctx.stalker = fixture->stalker;
+  ctx.num_blocks_transformed = 0;
+  ctx.target_block = 1;
+  ctx.max_instructions = -1;
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      unfollow_during_transform, &ctx, NULL);
+
+  invoke_flat_expecting_return_value (fixture, GUM_NOTHING, 2);
+}
+
+static void
+unfollow_during_transform (GumStalkerIterator * iterator,
+                           GumStalkerWriter * output,
+                           gpointer user_data)
+{
+  UnfollowTransformContext * ctx = user_data;
+  const cs_insn * insn;
+
+  if (ctx->num_blocks_transformed == ctx->target_block)
+  {
+    gint n;
+
+    for (n = 0; n != ctx->max_instructions &&
+        gum_stalker_iterator_next (iterator, &insn); n++)
+    {
+      gum_stalker_iterator_keep (iterator);
+    }
+
+    gum_stalker_unfollow_me (ctx->stalker);
+  }
+  else
+  {
+    while (gum_stalker_iterator_next (iterator, &insn))
+      gum_stalker_iterator_keep (iterator);
+  }
+
+  ctx->num_blocks_transformed++;
 }
 
 TESTCASE (exclude_bl)

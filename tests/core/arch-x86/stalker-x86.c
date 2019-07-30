@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2010-2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -19,6 +19,12 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (call_depth)
   TESTENTRY (call_probe)
   TESTENTRY (custom_transformer)
+  TESTENTRY (unfollow_should_be_allowed_before_first_transform)
+  TESTENTRY (unfollow_should_be_allowed_mid_first_transform)
+  TESTENTRY (unfollow_should_be_allowed_after_first_transform)
+  TESTENTRY (unfollow_should_be_allowed_before_second_transform)
+  TESTENTRY (unfollow_should_be_allowed_mid_second_transform)
+  TESTENTRY (unfollow_should_be_allowed_after_second_transform)
 
   TESTENTRY (unconditional_jumps)
   TESTENTRY (short_conditional_jump_true)
@@ -82,6 +88,8 @@ static gpointer stalker_victim (gpointer data);
 static void insert_extra_increment_after_xor (GumStalkerIterator * iterator,
     GumStalkerWriter * output, gpointer user_data);
 static void store_xax (GumCpuContext * cpu_context, gpointer user_data);
+static void unfollow_during_transform (GumStalkerIterator * iterator,
+    GumStalkerWriter * output, gpointer user_data);
 static void invoke_follow_return_code (TestStalkerFixture * fixture);
 static void invoke_unfollow_deep_code (TestStalkerFixture * fixture);
 
@@ -650,6 +658,125 @@ store_xax (GumCpuContext * cpu_context,
   gsize * last_xax = user_data;
 
   *last_xax = GUM_CPU_CONTEXT_XAX (cpu_context);
+}
+
+TESTCASE (unfollow_should_be_allowed_before_first_transform)
+{
+  UnfollowTransformContext ctx;
+
+  ctx.stalker = fixture->stalker;
+  ctx.num_blocks_transformed = 0;
+  ctx.target_block = 0;
+  ctx.max_instructions = 0;
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      unfollow_during_transform, &ctx, NULL);
+
+  invoke_flat_expecting_return_value (fixture, GUM_NOTHING, 2);
+}
+
+TESTCASE (unfollow_should_be_allowed_mid_first_transform)
+{
+  UnfollowTransformContext ctx;
+
+  ctx.stalker = fixture->stalker;
+  ctx.num_blocks_transformed = 0;
+  ctx.target_block = 0;
+  ctx.max_instructions = 1;
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      unfollow_during_transform, &ctx, NULL);
+
+  invoke_flat_expecting_return_value (fixture, GUM_NOTHING, 2);
+}
+
+TESTCASE (unfollow_should_be_allowed_after_first_transform)
+{
+  UnfollowTransformContext ctx;
+
+  ctx.stalker = fixture->stalker;
+  ctx.num_blocks_transformed = 0;
+  ctx.target_block = 0;
+  ctx.max_instructions = -1;
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      unfollow_during_transform, &ctx, NULL);
+
+  invoke_flat_expecting_return_value (fixture, GUM_NOTHING, 2);
+}
+
+TESTCASE (unfollow_should_be_allowed_before_second_transform)
+{
+  UnfollowTransformContext ctx;
+
+  ctx.stalker = fixture->stalker;
+  ctx.num_blocks_transformed = 0;
+  ctx.target_block = 1;
+  ctx.max_instructions = 0;
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      unfollow_during_transform, &ctx, NULL);
+
+  invoke_flat_expecting_return_value (fixture, GUM_NOTHING, 2);
+}
+
+TESTCASE (unfollow_should_be_allowed_mid_second_transform)
+{
+  UnfollowTransformContext ctx;
+
+  ctx.stalker = fixture->stalker;
+  ctx.num_blocks_transformed = 0;
+  ctx.target_block = 1;
+  ctx.max_instructions = 1;
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      unfollow_during_transform, &ctx, NULL);
+
+  invoke_flat_expecting_return_value (fixture, GUM_NOTHING, 2);
+}
+
+TESTCASE (unfollow_should_be_allowed_after_second_transform)
+{
+  UnfollowTransformContext ctx;
+
+  ctx.stalker = fixture->stalker;
+  ctx.num_blocks_transformed = 0;
+  ctx.target_block = 1;
+  ctx.max_instructions = -1;
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      unfollow_during_transform, &ctx, NULL);
+
+  invoke_flat_expecting_return_value (fixture, GUM_NOTHING, 2);
+}
+
+static void
+unfollow_during_transform (GumStalkerIterator * iterator,
+                           GumStalkerWriter * output,
+                           gpointer user_data)
+{
+  UnfollowTransformContext * ctx = user_data;
+  const cs_insn * insn;
+
+  if (ctx->num_blocks_transformed == ctx->target_block)
+  {
+    gint n;
+
+    for (n = 0; n != ctx->max_instructions &&
+        gum_stalker_iterator_next (iterator, &insn); n++)
+    {
+      gum_stalker_iterator_keep (iterator);
+    }
+
+    gum_stalker_unfollow_me (ctx->stalker);
+  }
+  else
+  {
+    while (gum_stalker_iterator_next (iterator, &insn))
+      gum_stalker_iterator_keep (iterator);
+  }
+
+  ctx->num_blocks_transformed++;
 }
 
 TESTCASE (unconditional_jumps)
