@@ -218,7 +218,7 @@ if __name__ == '__main__':
     java = os.path.abspath(os.path.join(duk_tmp_dir, "java.js"))
 
     subprocess.check_call([node_script_path("frida-compile"), "./runtime/entrypoint-duktape.js", "-o", runtime, "-c"], cwd=input_dir)
-    subprocess.check_call([node_script_path("frida-compile"), "./runtime/promise.js", "-o", promise, "-c"], cwd=input_dir)
+    subprocess.check_call([node_script_path("frida-compile"), "./runtime/promise.js", "-o", promise, "-c", "-x"], cwd=input_dir)
     subprocess.check_call([node_script_path("frida-compile"), "./runtime/objc.js", "-o", objc, "-c"], cwd=input_dir)
     subprocess.check_call([node_script_path("frida-compile"), "./runtime/java.js", "-o", java, "-c"], cwd=input_dir)
 
