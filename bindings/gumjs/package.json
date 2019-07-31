@@ -5,13 +5,9 @@
   "private": true,
   "main": "runtime/index.js",
   "devDependencies": {
-    "@babel/core": "^7.1.2",
-    "@babel/plugin-transform-runtime": "^7.1.0",
-    "@babel/preset-env": "^7.1.0",
-    "@babel/runtime-corejs2": "^7.1.2",
-    "frida-compile": "^8.0.0",
-    "frida-java": "2.0.26",
-    "frida-objc": "3.2.0",
+    "frida-compile": "^9.0.3",
+    "frida-java": "3.0.1",
+    "frida-objc": "4.0.1",
     "promiscuous": "0.7.2"
   },
   "repository": {
