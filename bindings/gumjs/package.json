@@ -5,7 +5,7 @@
   "private": true,
   "main": "runtime/index.js",
   "devDependencies": {
-    "frida-compile": "^9.0.3",
+    "frida-compile": "^9.0.4",
     "frida-java": "3.0.1",
     "frida-objc": "4.0.1",
     "promiscuous": "0.7.2"
