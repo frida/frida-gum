@@ -95,7 +95,7 @@ main (gint argc, gchar * argv[])
       RTLD_LAZY | RTLD_GLOBAL);
 #endif
 
-  gum_memory_init ();
+  gum_internal_heap_ref ();
 #if !DEBUG_HEAP_LEAKS && !defined (HAVE_ASAN)
   if (RUNNING_ON_VALGRIND)
   {
@@ -328,7 +328,7 @@ main (gint argc, gchar * argv[])
   gum_deinit ();
   gio_deinit ();
   glib_deinit ();
-  gum_memory_deinit ();
+  gum_internal_heap_unref ();
 
 # ifdef G_OS_WIN32
   WSACleanup ();

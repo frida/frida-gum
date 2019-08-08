@@ -155,7 +155,7 @@ gum_do_init (void)
     (cs_vsnprintf_t) gum_vsnprintf
   };
 
-  gum_memory_init ();
+  gum_internal_heap_ref ();
 
   glib_init ();
   gobject_init ();
@@ -241,7 +241,7 @@ gum_init_embedded (void)
   _CrtSetDbgFlag (tmp_flag);
 #endif
 
-  gum_memory_init ();
+  gum_internal_heap_ref ();
   ffi_set_mem_callbacks (&ffi_callbacks);
   g_thread_set_callbacks (&thread_callbacks);
   g_platform_audit_set_fd_callbacks (&fd_callbacks);
@@ -286,7 +286,7 @@ gum_deinit_embedded (void)
   gio_deinit ();
   glib_deinit ();
   ffi_deinit ();
-  gum_memory_deinit ();
+  gum_internal_heap_unref ();
 
   gum_initialized = FALSE;
 }
