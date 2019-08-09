@@ -60,7 +60,7 @@ static void gum_match_token_append (GumMatchToken * self, guint8 byte);
 static void gum_match_token_append_with_mask (GumMatchToken * self,
     guint8 byte, guint8 mask);
 
-static guint gum_memory_usage_count = 0;
+static guint gum_heap_ref_count = 0;
 static mspace gum_mspace_main = NULL;
 static mspace gum_mspace_capstone = NULL;
 static guint gum_cached_page_size;
@@ -71,7 +71,7 @@ G_DEFINE_BOXED_TYPE (GumMemoryRange, gum_memory_range, gum_memory_range_copy,
 void
 gum_internal_heap_ref (void)
 {
-  if (gum_memory_usage_count++ > 0)
+  if (gum_heap_ref_count++ > 0)
     return;
 
   _gum_memory_backend_init ();
@@ -87,8 +87,8 @@ gum_internal_heap_ref (void)
 void
 gum_internal_heap_unref (void)
 {
-  g_assert (gum_memory_usage_count != 0);
-  if (--gum_memory_usage_count > 0)
+  g_assert (gum_heap_ref_count != 0);
+  if (--gum_heap_ref_count > 0)
     return;
 
   destroy_mspace (gum_mspace_capstone);
