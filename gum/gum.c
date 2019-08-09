@@ -115,6 +115,7 @@ gum_init (void)
     return;
   gum_initialized = TRUE;
 
+  gum_internal_heap_ref ();
   gum_do_init ();
 }
 
@@ -154,8 +155,6 @@ gum_do_init (void)
     gum_cs_free,
     (cs_vsnprintf_t) gum_vsnprintf
   };
-
-  gum_internal_heap_ref ();
 
   glib_init ();
   gobject_init ();
