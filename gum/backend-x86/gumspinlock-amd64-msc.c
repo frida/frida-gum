@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -19,11 +19,6 @@ gum_spinlock_init (GumSpinlock * spinlock)
   GumSpinlockImpl * self = (GumSpinlockImpl *) spinlock;
 
   self->is_held = FALSE;
-}
-
-void
-gum_spinlock_free (GumSpinlock * spinlock)
-{
 }
 
 void

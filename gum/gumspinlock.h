@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -8,6 +8,8 @@
 #define __GUM_SPINLOCK_H__
 
 #include <glib.h>
+
+#define GUM_SPINLOCK_INIT { { 0, } }
 
 G_BEGIN_DECLS
 
@@ -19,7 +21,6 @@ struct _GumSpinlock
 };
 
 void gum_spinlock_init (GumSpinlock * spinlock);
-void gum_spinlock_free (GumSpinlock * spinlock);
 
 void gum_spinlock_acquire (GumSpinlock * spinlock);
 void gum_spinlock_release (GumSpinlock * spinlock);

@@ -116,7 +116,6 @@ gum_v8_event_sink_finalize (GObject * obj)
 
   g_assert (self->source == NULL);
 
-  gum_spinlock_free (&self->lock);
   g_array_free (self->queue, TRUE);
 
   G_OBJECT_CLASS (gum_v8_event_sink_parent_class)->finalize (obj);

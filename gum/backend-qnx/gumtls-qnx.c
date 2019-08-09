@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -26,7 +26,7 @@ struct _GumTmpTlsKey
 };
 
 static GumTmpTlsKey _gum_tls_tmp_keys[MAX_TMP_TLS_KEYS];
-static GumSpinlock _gum_tls_tmp_keys_lock;
+static GumSpinlock _gum_tls_tmp_keys_lock = GUM_SPINLOCK_INIT;
 
 static gboolean _gum_tls_key_get_tmp_value (GumTlsKey key, gpointer * value);
 static void _gum_tls_key_set_tmp_value (GumTlsKey key, gpointer value);
@@ -38,7 +38,6 @@ static int _gum_tls_replacement_pthread_setspecific (pthread_key_t key,
 void
 _gum_tls_init (void)
 {
-  gum_spinlock_init (&_gum_tls_tmp_keys_lock);
   memset (_gum_tls_tmp_keys, 0, sizeof (_gum_tls_tmp_keys));
 }
 

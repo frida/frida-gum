@@ -430,8 +430,6 @@ gum_stalker_finalize (GObject * object)
   g_hash_table_unref (self->probe_array_by_address);
   g_hash_table_unref (self->probe_target_by_id);
 
-  gum_spinlock_free (&self->probe_lock);
-
   g_array_free (self->exclusions, TRUE);
 
   g_assert (self->contexts == NULL);
@@ -1054,7 +1052,6 @@ gum_exec_ctx_free (GumExecCtx * ctx)
 
   g_object_unref (ctx->sink);
   gum_exec_ctx_finalize_callouts (ctx);
-  gum_spinlock_free (&ctx->callout_lock);
   g_object_unref (ctx->transformer);
 
   gum_arm64_relocator_clear (&ctx->relocator);

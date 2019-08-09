@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -14,17 +14,9 @@ gum_spinlock_init (GumSpinlock * spinlock)
   gum_memset (spinlock, 0, sizeof (GumSpinlock));
 }
 
-void
-gum_spinlock_free (GumSpinlock * spinlock)
-{
-  (void) spinlock;
-}
-
 __declspec (naked) void
 gum_spinlock_acquire (GumSpinlock * spinlock)
 {
-  (void) spinlock;
-
   __asm
   {
     mov ecx, [esp + 4];
@@ -46,8 +38,6 @@ beach:
 __declspec (naked) void
 gum_spinlock_release (GumSpinlock * spinlock)
 {
-  (void) spinlock;
-
   __asm
   {
     mov ecx, [esp + 4];

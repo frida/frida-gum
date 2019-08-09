@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -30,7 +30,7 @@ static gint gum_fd_compare (gconstpointer element_a, gconstpointer element_b);
 static void gum_cloak_add_range_unlocked (const GumMemoryRange * range);
 static void gum_cloak_remove_range_unlocked (const GumMemoryRange * range);
 
-static GumSpinlock cloak_lock;
+static GumSpinlock cloak_lock = GUM_SPINLOCK_INIT;
 static GumMetalArray cloaked_threads;
 static GumMetalArray cloaked_ranges;
 static GumMetalArray cloaked_fds;
@@ -38,8 +38,6 @@ static GumMetalArray cloaked_fds;
 void
 _gum_cloak_init (void)
 {
-  gum_spinlock_init (&cloak_lock);
-
   gum_metal_array_init (&cloaked_threads, sizeof (GumThreadId));
   gum_metal_array_init (&cloaked_ranges, sizeof (GumCloakedRange));
   gum_metal_array_init (&cloaked_fds, sizeof (gint));
@@ -51,8 +49,6 @@ _gum_cloak_deinit (void)
   gum_metal_array_free (&cloaked_fds);
   gum_metal_array_free (&cloaked_ranges);
   gum_metal_array_free (&cloaked_threads);
-
-  gum_spinlock_free (&cloak_lock);
 }
 
 void

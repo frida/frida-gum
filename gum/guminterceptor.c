@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -203,7 +203,7 @@ G_DEFINE_TYPE (GumInterceptor, gum_interceptor, G_TYPE_OBJECT)
 static GMutex _gum_interceptor_lock;
 static GumInterceptor * _the_interceptor = NULL;
 
-static GumSpinlock gum_interceptor_thread_context_lock;
+static GumSpinlock gum_interceptor_thread_context_lock = GUM_SPINLOCK_INIT;
 static GHashTable * gum_interceptor_thread_contexts;
 static GPrivate gum_interceptor_context_private =
     G_PRIVATE_INIT ((GDestroyNotify) release_interceptor_thread_context);
@@ -223,7 +223,6 @@ gum_interceptor_class_init (GumInterceptorClass * klass)
 void
 _gum_interceptor_init (void)
 {
-  gum_spinlock_init (&gum_interceptor_thread_context_lock);
   gum_interceptor_thread_contexts = g_hash_table_new_full (NULL, NULL,
       (GDestroyNotify) interceptor_thread_context_destroy, NULL);
 
@@ -237,8 +236,6 @@ _gum_interceptor_deinit (void)
 
   g_hash_table_unref (gum_interceptor_thread_contexts);
   gum_interceptor_thread_contexts = NULL;
-
-  gum_spinlock_free (&gum_interceptor_thread_context_lock);
 }
 
 static void

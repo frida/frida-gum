@@ -1,5 +1,5 @@
 /*
-* Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+* Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
 * Copyright (C) 2015 Eloi Vanderbeken <eloi.vanderbeken@synacktiv.com>
 *
 * Licence: wxWindows Library Licence, Version 3.1
@@ -33,7 +33,7 @@ static void _gum_tls_key_set_tmp_value (GumTlsKey key, gpointer value);
 static void _gum_tls_key_del_tmp_value (GumTlsKey key);
 
 static GumTmpTlsKey _gum_tls_tmp_keys[MAX_TMP_TLS_KEY];
-static GumSpinlock _gum_tls_tmp_keys_lock;
+static GumSpinlock _gum_tls_tmp_keys_lock = GUM_SPINLOCK_INIT;
 
 #endif
 
@@ -58,7 +58,6 @@ void
 _gum_tls_init (void)
 {
 #if defined (HAVE_I386)
-  gum_spinlock_init (&_gum_tls_tmp_keys_lock);
   memset (_gum_tls_tmp_keys, 0, sizeof (_gum_tls_tmp_keys));
 #endif
 }
