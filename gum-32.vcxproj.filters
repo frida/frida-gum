@@ -69,6 +69,9 @@
     <ClCompile Include="gum\gumeventsink.c">
       <Filter>core</Filter>
     </ClCompile>
+    <ClCompile Include="gum\gumheapapi.c">
+      <Filter>core</Filter>
+    </ClCompile>
     <ClCompile Include="gum\backend-x86\gumstalker-x86.c">
       <Filter>core\backend-x86</Filter>
     </ClCompile>
@@ -191,9 +194,6 @@
     </ClCompile>
     <ClCompile Include="gum\gumprocess.c">
       <Filter>core</Filter>
-    </ClCompile>
-    <ClCompile Include="libs\gum\heap\gumheapapi.c">
-      <Filter>libs\heap</Filter>
     </ClCompile>
     <ClCompile Include="gum\backend-windows\gumprocess-windows.c">
       <Filter>core\backend-windows</Filter>
@@ -386,6 +386,9 @@
     <ClInclude Include="gum\gumfunction.h">
       <Filter>core</Filter>
     </ClInclude>
+    <ClInclude Include="gum\gumheapapi.h">
+      <Filter>core</Filter>
+    </ClInclude>
     <ClInclude Include="gum\gumexceptor.h">
       <Filter>core</Filter>
     </ClInclude>
@@ -412,9 +415,6 @@
     </ClInclude>
     <ClInclude Include="gum\gummemoryaccessmonitor.h">
       <Filter>core</Filter>
-    </ClInclude>
-    <ClInclude Include="libs\gum\heap\gumheapapi.h">
-      <Filter>libs\heap</Filter>
     </ClInclude>
     <ClInclude Include="gum\arch-arm64\gumarm64relocator.h">
       <Filter>core\arch-arm64</Filter>

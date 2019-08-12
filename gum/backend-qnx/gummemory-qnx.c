@@ -16,18 +16,11 @@
 #include <sys/neutrino.h>
 #include <sys/procfs.h>
 
-static gboolean gum_memory_get_protection (GumAddress address, gsize n,
+static gboolean gum_memory_get_protection (gconstpointer address, gsize n,
     gsize * size, GumPageProtection * prot);
 
-void
-gum_clear_cache (gpointer address,
-                 gsize size)
-{
-  msync (address, size, MS_SYNC | MS_INVALIDATE_ICACHE);
-}
-
 gboolean
-gum_memory_is_readable (GumAddress address,
+gum_memory_is_readable (gconstpointer address,
                         gsize len)
 {
   gsize size;
@@ -40,7 +33,7 @@ gum_memory_is_readable (GumAddress address,
 }
 
 static gboolean
-gum_memory_is_writable (GumAddress address,
+gum_memory_is_writable (gconstpointer address,
                         gsize len)
 {
   gsize size;
@@ -53,7 +46,7 @@ gum_memory_is_writable (GumAddress address,
 }
 
 guint8 *
-gum_memory_read (GumAddress address,
+gum_memory_read (gconstpointer address,
                  gsize len,
                  gsize * n_bytes_read)
 {
@@ -64,8 +57,8 @@ gum_memory_read (GumAddress address,
 
   fd = open ("/proc/self/as", O_RDONLY);
   g_assert (fd != -1);
-  res = lseek (fd, address, SEEK_SET);
-  g_assert (res == address);
+  res = lseek (fd, GPOINTER_TO_SIZE (address), SEEK_SET);
+  g_assert (GINT_TO_POINTER (res) == address);
 
   buffer = g_malloc (len);
   num_read = read (fd, buffer, len);
@@ -83,7 +76,7 @@ gum_memory_read (GumAddress address,
 }
 
 gboolean
-gum_memory_write (GumAddress address,
+gum_memory_write (gpointer address,
                   const guint8 * bytes,
                   gsize len)
 {
@@ -97,8 +90,8 @@ gum_memory_write (GumAddress address,
 
   fd = open ("/proc/self/as", O_RDWR);
   g_assert (fd != -1);
-  res = lseek (fd, address, SEEK_SET);
-  g_assert (res == address);
+  res = lseek (fd, GPOINTER_TO_SIZE (address), SEEK_SET);
+  g_assert (GINT_TO_POINTER (res) == address);
 
   num_written = write (fd, bytes, len);
   if (num_written == len)
@@ -171,8 +164,15 @@ gum_try_mprotect (gpointer address,
   return result == 0;
 }
 
+void
+gum_clear_cache (gpointer address,
+                 gsize size)
+{
+  msync (address, size, MS_SYNC | MS_INVALIDATE_ICACHE);
+}
+
 static gboolean
-gum_memory_get_protection (GumAddress address,
+gum_memory_get_protection (gconstpointer address,
                            gsize n,
                            gsize * size,
                            GumPageProtection * prot)
@@ -196,25 +196,27 @@ gum_memory_get_protection (GumAddress address,
 
   if (n > 1)
   {
-    GumAddress page_size, start_page, end_page, cur_page;
+    gsize page_size, start_page, end_page, cur_page;
 
     page_size = gum_query_page_size ();
 
-    start_page = address & ~(page_size - 1);
-    end_page = (address + n - 1) & ~(page_size - 1);
+    start_page = GPOINTER_TO_SIZE (address) & ~(page_size - 1);
+    end_page = (GPOINTER_TO_SIZE (address) + n - 1) & ~(page_size - 1);
 
-    success = gum_memory_get_protection (start_page, 1, NULL, prot);
+    success = gum_memory_get_protection (GSIZE_TO_POINTER (start_page), 1, NULL,
+        prot);
     if (success)
     {
-      *size = page_size - (address - start_page);
+      *size = page_size - (GPOINTER_TO_SIZE (address) - start_page);
       for (cur_page = start_page + page_size;
            cur_page != end_page + page_size;
            cur_page += page_size)
       {
         GumPageProtection cur_prot;
 
-        if (gum_memory_get_protection (cur_page, 1, NULL, &cur_prot)
-            && (cur_prot != GUM_PAGE_NO_ACCESS || *prot == GUM_PAGE_NO_ACCESS))
+        if (gum_memory_get_protection (GSIZE_TO_POINTER (cur_page), 1, NULL,
+            &cur_prot) && (cur_prot != GUM_PAGE_NO_ACCESS ||
+            *prot == GUM_PAGE_NO_ACCESS))
         {
           *size += page_size;
           *prot &= cur_prot;
@@ -251,10 +253,9 @@ gum_memory_get_protection (GumAddress address,
     start = GSIZE_TO_POINTER (mapinfos[i].vaddr & 0xffffffff);
     end = start + mapinfos[i].size;
 
-    if (GUM_ADDRESS (start) > address)
+    if (start > address)
       break;
-    else if (address >= GUM_ADDRESS (start) &&
-        address + n -1 < GUM_ADDRESS (end))
+    else if (address >= start && address + n - 1 < end)
     {
       success = TRUE;
       *size = 1;

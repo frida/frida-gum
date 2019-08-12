@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -68,6 +68,20 @@ static void
 gum_v8_bundle_script_run (Persistent<UnboundScript> * script,
                           GumV8Bundle * bundle)
 {
-  auto s = Local<UnboundScript>::New (bundle->isolate, *script);
-  s->BindToCurrentContext ()->Run ();
+  auto isolate = bundle->isolate;
+  auto context = isolate->GetCurrentContext ();
+
+  auto unbound_script = Local<UnboundScript>::New (isolate, *script);
+  auto bound_script = unbound_script->BindToCurrentContext ();
+
+  TryCatch trycatch (isolate);
+  auto result = bound_script->Run (context);
+  if (result.IsEmpty ())
+  {
+    auto stack = trycatch.StackTrace (context).ToLocalChecked ();
+    String::Utf8Value stack_str (isolate, stack);
+    g_critical ("%s", *stack_str);
+
+    abort ();
+  }
 }

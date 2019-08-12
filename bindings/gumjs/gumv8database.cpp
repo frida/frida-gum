@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -358,12 +358,11 @@ gum_database_new (sqlite3 * handle,
 
   auto constructor = Local<FunctionTemplate>::New (isolate,
       *module->database);
-  auto object = constructor->GetFunction ()->NewInstance (context, 0, nullptr)
-      .ToLocalChecked ();
+  auto object = constructor->GetFunction (context).ToLocalChecked ()
+      ->NewInstance (context, 0, nullptr).ToLocalChecked ();
 
   auto database = g_slice_new (GumDatabase);
   database->wrapper = new GumPersistent<Object>::type (isolate, object);
-  database->wrapper->MarkIndependent ();
   database->wrapper->SetWeak (database, gum_database_on_weak_notify,
       WeakCallbackType::kParameter);
   database->handle = handle;
@@ -519,12 +518,11 @@ gum_statement_new (sqlite3_stmt * handle,
 
   auto constructor = Local<FunctionTemplate>::New (isolate,
       *module->statement);
-  auto object = constructor->GetFunction ()->NewInstance (context, 0, nullptr)
-      .ToLocalChecked ();
+  auto object = constructor->GetFunction (context).ToLocalChecked ()
+      ->NewInstance (context, 0, nullptr).ToLocalChecked ();
 
   auto statement = g_slice_new (GumStatement);
   statement->wrapper = new GumPersistent<Object>::type (isolate, object);
-  statement->wrapper->MarkIndependent ();
   statement->wrapper->SetWeak (statement, gum_statement_on_weak_notify,
       WeakCallbackType::kParameter);
   statement->handle = handle;

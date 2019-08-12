@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -60,10 +60,7 @@ static void gum_match_token_append (GumMatchToken * self, guint8 byte);
 static void gum_match_token_append_with_mask (GumMatchToken * self,
     guint8 byte, guint8 mask);
 
-static GumMemoryRange * gum_memory_range_copy (const GumMemoryRange * range);
-static void gum_memory_range_free (GumMemoryRange * range);
-
-static gboolean gum_memory_initialized = FALSE;
+static guint gum_heap_ref_count = 0;
 static mspace gum_mspace_main = NULL;
 static mspace gum_mspace_capstone = NULL;
 static guint gum_cached_page_size;
@@ -72,11 +69,10 @@ G_DEFINE_BOXED_TYPE (GumMemoryRange, gum_memory_range, gum_memory_range_copy,
     gum_memory_range_free)
 
 void
-gum_memory_init (void)
+gum_internal_heap_ref (void)
 {
-  if (gum_memory_initialized)
+  if (gum_heap_ref_count++ > 0)
     return;
-  gum_memory_initialized = TRUE;
 
   _gum_memory_backend_init ();
 
@@ -89,9 +85,11 @@ gum_memory_init (void)
 }
 
 void
-gum_memory_deinit (void)
+gum_internal_heap_unref (void)
 {
-  g_assert (gum_memory_initialized);
+  g_assert (gum_heap_ref_count != 0);
+  if (--gum_heap_ref_count > 0)
+    return;
 
   destroy_mspace (gum_mspace_capstone);
   gum_mspace_capstone = NULL;
@@ -104,8 +102,6 @@ gum_memory_deinit (void)
   _gum_cloak_deinit ();
 
   _gum_memory_backend_deinit ();
-
-  gum_memory_initialized = FALSE;
 }
 
 guint
@@ -136,7 +132,7 @@ gum_query_is_rwx_supported (void)
 
     kr = mach_vm_allocate (task, &page, gum_cached_page_size,
         VM_FLAGS_ANYWHERE);
-    g_assert_cmpint (kr, ==, KERN_SUCCESS);
+    g_assert (kr == KERN_SUCCESS);
 
     gum_mprotect (GSIZE_TO_POINTER (page), gum_cached_page_size, GUM_PAGE_RWX);
 
@@ -175,7 +171,7 @@ gum_query_is_rwx_supported (void)
 }
 
 gboolean
-gum_memory_patch_code (GumAddress address,
+gum_memory_patch_code (gpointer address,
                        gsize size,
                        GumMemoryPatchApplyFunc apply,
                        gpointer apply_data)
@@ -186,10 +182,10 @@ gum_memory_patch_code (GumAddress address,
   gboolean rwx_supported;
 
   page_size = gum_query_page_size ();
-  start_page = GSIZE_TO_POINTER (((gsize) address) & ~(page_size - 1));
+  start_page = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (address) & ~(page_size - 1));
   end_page = GSIZE_TO_POINTER (
-      ((gsize) (address + size - 1)) & ~(page_size - 1));
-  page_offset = ((guint8 *) GSIZE_TO_POINTER (address)) - start_page;
+      (GPOINTER_TO_SIZE (address) + size - 1) & ~(page_size - 1));
+  page_offset = ((guint8 *) address) - start_page;
   range_size = (end_page + page_size) - start_page;
 
   rwx_supported = gum_query_is_rwx_supported ();
@@ -203,7 +199,7 @@ gum_memory_patch_code (GumAddress address,
     if (!gum_try_mprotect (start_page, range_size, protection))
       return FALSE;
 
-    apply (GSIZE_TO_POINTER (address), apply_data);
+    apply (address, apply_data);
 
     if (!gum_try_mprotect (start_page, range_size, GUM_PAGE_RX))
       return FALSE;
@@ -221,12 +217,43 @@ gum_memory_patch_code (GumAddress address,
 
     gum_code_segment_realize (segment);
     gum_code_segment_map (segment, 0, range_size, start_page);
+
     gum_code_segment_free (segment);
   }
 
-  gum_clear_cache (GSIZE_TO_POINTER (address), size);
+  gum_clear_cache (address, size);
 
   return TRUE;
+}
+
+gboolean
+gum_memory_mark_code (gpointer address,
+                      gsize size)
+{
+  gboolean success;
+
+  if (gum_code_segment_is_supported ())
+  {
+    gsize page_size;
+    guint8 * start_page, * end_page;
+
+    page_size = gum_query_page_size ();
+    start_page =
+        GSIZE_TO_POINTER (GPOINTER_TO_SIZE (address) & ~(page_size - 1));
+    end_page = GSIZE_TO_POINTER (
+        (GPOINTER_TO_SIZE (address) + size - 1) & ~(page_size - 1));
+
+    success = gum_code_segment_mark (start_page,
+        end_page - start_page + page_size, NULL);
+  }
+  else
+  {
+    success = gum_try_mprotect (address, size, GUM_PAGE_RX);
+  }
+
+  gum_clear_cache (address, size);
+
+  return success;
 }
 
 void
@@ -620,11 +647,16 @@ gum_mprotect (gpointer address,
 guint
 gum_peek_private_memory_usage (void)
 {
+  guint total = 0;
   struct mallinfo info;
 
   info = mspace_mallinfo (gum_mspace_main);
+  total += (guint) info.uordblks;
 
-  return (guint) info.uordblks;
+  info = mspace_mallinfo (gum_mspace_capstone);
+  total += (guint) info.uordblks;
+
+  return total;
 }
 
 gpointer
@@ -651,6 +683,13 @@ gum_realloc (gpointer mem,
              gsize size)
 {
   return mspace_realloc (gum_mspace_main, mem, size);
+}
+
+gpointer
+gum_memalign (gsize alignment,
+              gsize size)
+{
+  return mspace_memalign (gum_mspace_main, alignment, size);
 }
 
 gpointer
@@ -722,13 +761,13 @@ gum_alloc_n_pages_near (guint n_pages,
   return result;
 }
 
-static GumMemoryRange *
+GumMemoryRange *
 gum_memory_range_copy (const GumMemoryRange * range)
 {
   return g_slice_dup (GumMemoryRange, range);
 }
 
-static void
+void
 gum_memory_range_free (GumMemoryRange * range)
 {
   g_slice_free (GumMemoryRange, range);

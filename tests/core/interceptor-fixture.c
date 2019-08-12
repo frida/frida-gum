@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -21,11 +21,11 @@
 # include <unistd.h>
 #endif
 
-#define INTERCEPTOR_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_interceptor_ ## NAME ( \
         TestInterceptorFixture * fixture, gconstpointer data)
-#define INTERCEPTOR_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Core/Interceptor", \
+#define TESTENTRY(NAME) \
+    TESTENTRY_WITH_FIXTURE ("Core/Interceptor", \
         test_interceptor, NAME, TestInterceptorFixture)
 
 /* TODO: fix this in GLib */
@@ -154,30 +154,30 @@ test_interceptor_fixture_setup (TestInterceptorFixture * fixture,
     lib = dlopen (filename, RTLD_NOW | RTLD_GLOBAL);
     if (lib == NULL)
       g_print ("failed to open '%s'\n", filename);
-    g_assert (lib != NULL);
+    g_assert_nonnull (lib);
     g_free (filename);
 
     target_function = dlsym (lib, "gum_test_target_function");
-    g_assert (target_function != NULL);
+    g_assert_nonnull (target_function);
 
     target_nop_function_a = dlsym (lib, "gum_test_target_nop_function_a");
-    g_assert (target_nop_function_a != NULL);
+    g_assert_nonnull (target_nop_function_a);
 
     target_nop_function_b = dlsym (lib, "gum_test_target_nop_function_b");
-    g_assert (target_nop_function_b != NULL);
+    g_assert_nonnull (target_nop_function_b);
 
     target_nop_function_c = dlsym (lib, "gum_test_target_nop_function_c");
-    g_assert (target_nop_function_c != NULL);
+    g_assert_nonnull (target_nop_function_c);
 
     filename = g_build_filename (testdir,
         "specialfunctions-" GUM_TEST_SHLIB_OS "-" GUM_TEST_SHLIB_ARCH
         "." G_MODULE_SUFFIX, NULL);
     lib = dlopen (filename, RTLD_LAZY | RTLD_GLOBAL);
-    g_assert (lib != NULL);
+    g_assert_nonnull (lib);
     g_free (filename);
 
     special_function = dlsym (lib, "gum_test_special_function");
-    g_assert (special_function != NULL);
+    g_assert_nonnull (special_function);
 
     g_free (testdir);
 #endif
@@ -255,6 +255,18 @@ interceptor_fixture_detach_listener (TestInterceptorFixture * h,
 {
   gum_interceptor_detach_listener (h->interceptor,
     GUM_INVOCATION_LISTENER (h->listener_context[listener_index]));
+}
+
+gpointer
+interceptor_fixture_get_libc_malloc (void)
+{
+  return gum_heap_api_list_get_nth (test_util_heap_apis (), 0)->malloc;
+}
+
+gpointer
+interceptor_fixture_get_libc_free (void)
+{
+  return gum_heap_api_list_get_nth (test_util_heap_apis (), 0)->free;
 }
 
 static void

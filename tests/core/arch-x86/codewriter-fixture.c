@@ -10,11 +10,11 @@
 
 #include <string.h>
 
-#define CODEWRITER_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_code_writer_ ## NAME ( \
         TestCodeWriterFixture * fixture, gconstpointer data)
-#define CODEWRITER_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Core/X86Writer", test_code_writer, NAME, \
+#define TESTENTRY(NAME) \
+    TESTENTRY_WITH_FIXTURE ("Core/X86Writer", test_code_writer, NAME, \
         TestCodeWriterFixture)
 
 typedef struct _TestCodeWriterFixture
@@ -80,8 +80,8 @@ test_code_writer_fixture_assert_output_equals (TestCodeWriterFixture * fixture,
     }
   }
 
-  g_assert (same_length);
-  g_assert (same_content);
+  g_assert_true (same_length);
+  g_assert_true (same_content);
 }
 
 #ifdef HAVE_I386

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,7 +7,7 @@
 #ifndef __GUMDEFS_H__
 #define __GUMDEFS_H__
 
-#include <glib.h>
+#include <glib-object.h>
 
 #if !defined (GUM_STATIC) && defined (G_OS_WIN32)
 #  ifdef GUM_EXPORTS
@@ -47,15 +47,47 @@
 G_BEGIN_DECLS
 
 typedef guint64 GumAddress;
-#define GUM_ADDRESS(a) ((GumAddress) GPOINTER_TO_SIZE (a))
+#define GUM_ADDRESS(a) ((GumAddress) (guintptr) (a))
+#define GUM_TYPE_ADDRESS (gum_address_get_type ())
 typedef guint GumOS;
 typedef guint GumCallingConvention;
 typedef guint GumAbiType;
 typedef guint GumCpuType;
+#define GUM_TYPE_CPU_TYPE (gum_cpu_type_get_type ())
 typedef guint GumArgType;
 typedef struct _GumArgument GumArgument;
 typedef guint GumBranchHint;
-typedef struct _GumCpuContext GumCpuContext;
+typedef struct _GumIA32CpuContext GumIA32CpuContext;
+typedef struct _GumX64CpuContext GumX64CpuContext;
+typedef struct _GumArmCpuContext GumArmCpuContext;
+typedef struct _GumArm64CpuContext GumArm64CpuContext;
+typedef struct _GumMipsCpuContext GumMipsCpuContext;
+#if !defined (__arm__) && !defined (__aarch64__) && !defined (__mips__)
+# define GUM_DEFAULT_CS_ARCH CS_ARCH_X86
+# if GLIB_SIZEOF_VOID_P == 4
+#  define GUM_DEFAULT_CS_MODE CS_MODE_32
+typedef GumIA32CpuContext GumCpuContext;
+# else
+#  define GUM_DEFAULT_CS_MODE CS_MODE_64
+typedef GumX64CpuContext GumCpuContext;
+# endif
+#elif defined (__arm__) && !defined (__aarch64__)
+# define GUM_DEFAULT_CS_ARCH CS_ARCH_ARM
+# define GUM_DEFAULT_CS_MODE CS_MODE_ARM
+typedef GumArmCpuContext GumCpuContext;
+#elif defined (__aarch64__)
+# define GUM_DEFAULT_CS_ARCH CS_ARCH_ARM64
+# define GUM_DEFAULT_CS_MODE CS_MODE_ARM
+typedef GumArm64CpuContext GumCpuContext;
+#elif defined (__mips__)
+# define GUM_DEFAULT_CS_ARCH CS_ARCH_MIPS
+# if G_BYTE_ORDER == G_LITTLE_ENDIAN
+#  define GUM_DEFAULT_CS_MODE (CS_MODE_MIPS32 | CS_MODE_LITTLE_ENDIAN)
+# else
+#  define GUM_DEFAULT_CS_MODE (CS_MODE_MIPS32 | CS_MODE_BIG_ENDIAN)
+# endif
+typedef GumMipsCpuContext GumCpuContext;
+#endif
 typedef guint GumRelocationScenario;
 
 enum _GumOS
@@ -114,10 +146,22 @@ enum _GumBranchHint
   GUM_UNLIKELY
 };
 
-struct _GumCpuContext
+struct _GumIA32CpuContext
 {
-#if !defined (__arm__) && !defined (__aarch64__) && !defined (__mips__)
-# if GLIB_SIZEOF_VOID_P == 8
+  guint32 eip;
+
+  guint32 edi;
+  guint32 esi;
+  guint32 ebp;
+  guint32 esp;
+  guint32 ebx;
+  guint32 edx;
+  guint32 ecx;
+  guint32 eax;
+};
+
+struct _GumX64CpuContext
+{
   guint64 rip;
 
   guint64 r15;
@@ -137,27 +181,10 @@ struct _GumCpuContext
   guint64 rdx;
   guint64 rcx;
   guint64 rax;
-# else
-  guint32 eip;
+};
 
-  guint32 edi;
-  guint32 esi;
-  guint32 ebp;
-  guint32 esp;
-  guint32 ebx;
-  guint32 edx;
-  guint32 ecx;
-  guint32 eax;
-# endif
-#elif defined (__aarch64__)
-  guint64 pc;
-  guint64 sp;
-
-  guint64 x[29];
-  guint64 fp;
-  guint64 lr;
-  guint8 q[128];
-#elif defined (__arm__) && !defined (__aarch64__)
+struct _GumArmCpuContext
+{
   guint32 cpsr;
   guint32 pc;
   guint32 sp;
@@ -171,56 +198,48 @@ struct _GumCpuContext
   guint32 r[8];
   guint32 lr;
 #elif defined (__mips__)
-  /*
-   * This structure represents the register state pushed onto the stack by the
-   * trampoline which allows us to vector from the original minimal assembly hook
-   * to architecture agnostic C code inside frida-gum. These registers are natively
-   * sized. Even if some have not been expanded to 64-bits from the MIPS32 architecture
-   * MIPS can only perform aligned data access and as such pushing zero extended values
-   * is simpler than attempting to push minimally sized data types.
-   */
-  gsize pc;
+  guint32 pc;
 
-  gsize gp;
-  gsize sp;
-  gsize fp;
-  gsize ra;
+  guint32 gp;
+  guint32 sp;
+  guint32 fp;
+  guint32 ra;
 
-  gsize hi;
-  gsize lo;
+  guint32 hi;
+  guint32 lo;
 
-  gsize at;
+  guint32 at;
 
-  gsize v0;
-  gsize v1;
+  guint32 v0;
+  guint32 v1;
 
-  gsize a0;
-  gsize a1;
-  gsize a2;
-  gsize a3;
+  guint32 a0;
+  guint32 a1;
+  guint32 a2;
+  guint32 a3;
 
-  gsize t0;
-  gsize t1;
-  gsize t2;
-  gsize t3;
-  gsize t4;
-  gsize t5;
-  gsize t6;
-  gsize t7;
-  gsize t8;
-  gsize t9;
+  guint32 t0;
+  guint32 t1;
+  guint32 t2;
+  guint32 t3;
+  guint32 t4;
+  guint32 t5;
+  guint32 t6;
+  guint32 t7;
+  guint32 t8;
+  guint32 t9;
 
-  gsize s0;
-  gsize s1;
-  gsize s2;
-  gsize s3;
-  gsize s4;
-  gsize s5;
-  gsize s6;
-  gsize s7;
+  guint32 s0;
+  guint32 s1;
+  guint32 s2;
+  guint32 s3;
+  guint32 s4;
+  guint32 s5;
+  guint32 s6;
+  guint32 s7;
 
-  gsize k0;
-  gsize k1;
+  guint32 k0;
+  guint32 k1;
 #endif
 };
 
@@ -395,6 +414,9 @@ GUM_API void gum_cpu_context_replace_nth_argument (GumCpuContext * self,
 GUM_API gpointer gum_cpu_context_get_return_value (GumCpuContext * self);
 GUM_API void gum_cpu_context_replace_return_value (GumCpuContext * self,
     gpointer value);
+
+GUM_API GType gum_address_get_type (void) G_GNUC_CONST;
+GUM_API GType gum_cpu_type_get_type (void) G_GNUC_CONST;
 
 G_END_DECLS
 

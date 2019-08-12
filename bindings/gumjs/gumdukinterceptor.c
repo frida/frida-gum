@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -87,7 +87,6 @@ struct _GumDukReplaceEntry
 static gboolean gum_duk_interceptor_on_flush_timer_tick (
     GumDukInterceptor * self);
 
-GUMJS_DECLARE_CONSTRUCTOR (gumjs_interceptor_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_attach)
 static void gum_duk_invocation_listener_destroy (
     GumDukInvocationListener * listener);
@@ -239,11 +238,8 @@ _gum_duk_interceptor_init (GumDukInterceptor * self,
 
   _gum_duk_store_module_data (ctx, "interceptor", self);
 
-  duk_push_c_function (ctx, gumjs_interceptor_construct, 0);
   duk_push_object (ctx);
   duk_put_function_list (ctx, -1, gumjs_interceptor_functions);
-  duk_put_prop_string (ctx, -2, "prototype");
-  duk_new (ctx, 0);
   duk_put_global_string (ctx, "Interceptor");
 
   duk_push_c_function (ctx, gumjs_invocation_listener_construct, 2);
@@ -305,9 +301,7 @@ _gum_duk_interceptor_flush (GumDukInterceptor * self)
 
   _gum_duk_scope_suspend (&scope);
 
-  gum_interceptor_end_transaction (self->interceptor);
   flushed = gum_interceptor_flush (self->interceptor);
-  gum_interceptor_begin_transaction (self->interceptor);
 
   _gum_duk_scope_resume (&scope);
 
@@ -383,11 +377,6 @@ static GumDukInterceptor *
 gumjs_module_from_args (const GumDukArgs * args)
 {
   return _gum_duk_load_module_data (args->ctx, "interceptor");
-}
-
-GUMJS_DEFINE_CONSTRUCTOR (gumjs_interceptor_construct)
-{
-  return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)

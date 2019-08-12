@@ -1292,6 +1292,18 @@ _gum_duk_push_native_resource (duk_context * ctx,
   duk_new (ctx, 2);
 }
 
+void
+_gum_duk_push_kernel_resource (duk_context * ctx,
+                               guint64 data,
+                               GumDukKernelNotify notify,
+                               GumDukCore * core)
+{
+  duk_push_heapptr (ctx, core->kernel_resource);
+  _gum_duk_push_uint64 (ctx, data, core);
+  duk_push_pointer (ctx, GUM_FUNCPTR_TO_POINTER (notify));
+  duk_new (ctx, 2);
+}
+
 GumDukCpuContext *
 _gum_duk_push_cpu_context (duk_context * ctx,
                            GumCpuContext * handle,
@@ -1431,27 +1443,6 @@ _gum_duk_push_exception_details (duk_context * ctx,
   duk_put_prop_string (ctx, -2, "context");
   _gum_duk_push_native_pointer (ctx, details->native_context, core);
   duk_put_prop_string (ctx, -2, "nativeContext");
-}
-
-void
-_gum_duk_push_module (duk_context * ctx,
-                      const GumModuleDetails * details,
-                      GumDukCore * core)
-{
-  duk_push_object (ctx);
-
-  duk_push_string (ctx, details->name);
-  duk_put_prop_string (ctx, -2, "name");
-
-  _gum_duk_push_native_pointer (ctx,
-      GSIZE_TO_POINTER (details->range->base_address), core);
-  duk_put_prop_string (ctx, -2, "base");
-
-  duk_push_uint (ctx, details->range->size);
-  duk_put_prop_string (ctx, -2, "size");
-
-  duk_push_string (ctx, details->path);
-  duk_put_prop_string (ctx, -2, "path");
 }
 
 void

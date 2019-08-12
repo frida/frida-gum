@@ -17,18 +17,18 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define PROFILER_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_profiler_ ## NAME ( \
         TestProfilerFixture * fixture, gconstpointer data)
-#define PROFILER_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Prof/Profiler", test_profiler, NAME, \
+#define TESTENTRY(NAME) \
+    TESTENTRY_WITH_FIXTURE ("Prof/Profiler", test_profiler, NAME, \
         TestProfilerFixture)
 
-#define PROFILEREPORT_TESTCASE(NAME) \
+#define REPORT_TESTCASE(NAME) \
     void test_profile_report_ ## NAME ( \
         TestProfileReportFixture * fixture, gconstpointer data)
-#define PROFILEREPORT_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Prof/ProfileReport", test_profile_report, NAME, \
+#define REPORT_TESTENTRY(NAME) \
+    TESTENTRY_WITH_FIXTURE ("Prof/ProfileReport", test_profile_report, NAME, \
         TestProfileReportFixture)
 
 typedef struct _TestProfilerFixture
@@ -91,11 +91,11 @@ static const GPtrArray *
 test_profile_report_fixture_get_root_nodes (TestProfileReportFixture * fixture)
 {
   fixture->report = gum_profiler_generate_report (fixture->profiler);
-  g_assert (fixture->report != NULL);
+  g_assert_nonnull (fixture->report);
 
   fixture->root_nodes =
       gum_profile_report_get_root_nodes_for_thread (fixture->report, 0);
-  g_assert (fixture->root_nodes != NULL);
+  g_assert_nonnull (fixture->root_nodes);
 
   return fixture->root_nodes;
 }
@@ -124,7 +124,7 @@ assert_n_top_nodes (TestProfileReportFixture * fixture,
 
     node = (GumProfileReportNode *) g_ptr_array_index (root_nodes, i);
     g_assert_cmpstr (node->name, ==, name);
-    g_assert (node->child != NULL);
+    g_assert_nonnull (node->child);
     g_assert_cmpstr (node->child->name, ==, child_name);
   }
 }
@@ -150,7 +150,7 @@ assert_depth_from_root_node (TestProfileReportFixture * fixture,
     expected_node_name = va_arg (args, const gchar *);
     if (expected_node_name == NULL)
     {
-      g_assert (cur_node == NULL);
+      g_assert_null (cur_node);
       break;
     }
 
@@ -167,7 +167,7 @@ assert_same_xml (TestProfileReportFixture * fixture,
   gchar * generated_xml;
 
   fixture->report = gum_profiler_generate_report (fixture->profiler);
-  g_assert (fixture->report != NULL);
+  g_assert_nonnull (fixture->report);
 
   generated_xml = gum_profile_report_emit_xml (fixture->report);
   if (strcmp (generated_xml, expected_xml) != 0)

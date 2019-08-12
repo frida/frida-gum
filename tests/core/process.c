@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  *
@@ -19,42 +19,45 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define PROCESS_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_process_ ## NAME (void)
-#define PROCESS_TESTENTRY(NAME) \
-    TEST_ENTRY_SIMPLE ("Core/Process", test_process, NAME)
+#define TESTENTRY(NAME) \
+    TESTENTRY_SIMPLE ("Core/Process", test_process, NAME)
 
-TEST_LIST_BEGIN (process)
-  PROCESS_TESTENTRY (process_threads)
-  PROCESS_TESTENTRY (process_threads_exclude_cloaked)
-  PROCESS_TESTENTRY (process_modules)
-  PROCESS_TESTENTRY (process_ranges)
-  PROCESS_TESTENTRY (process_ranges_exclude_cloaked)
-  PROCESS_TESTENTRY (module_imports)
-  PROCESS_TESTENTRY (module_exports)
-  PROCESS_TESTENTRY (module_symbols)
-  PROCESS_TESTENTRY (module_ranges_can_be_enumerated)
-  PROCESS_TESTENTRY (module_base)
-  PROCESS_TESTENTRY (module_export_can_be_found)
-  PROCESS_TESTENTRY (module_export_matches_system_lookup)
+TESTLIST_BEGIN (process)
+  TESTENTRY (process_threads)
+  TESTENTRY (process_threads_exclude_cloaked)
+  TESTENTRY (process_modules)
+  TESTENTRY (process_ranges)
+  TESTENTRY (process_ranges_exclude_cloaked)
+  TESTENTRY (module_can_be_loaded)
+  TESTENTRY (module_imports)
+  TESTENTRY (module_exports)
+  TESTENTRY (module_symbols)
+  TESTENTRY (module_ranges_can_be_enumerated)
+  TESTENTRY (module_base)
+  TESTENTRY (module_export_can_be_found)
+#ifndef HAVE_ASAN
+  TESTENTRY (module_export_matches_system_lookup)
+#endif
 #ifdef G_OS_WIN32
-  PROCESS_TESTENTRY (get_set_system_error)
-  PROCESS_TESTENTRY (get_current_thread_id)
+  TESTENTRY (get_set_system_error)
+  TESTENTRY (get_current_thread_id)
 #endif
 #ifdef HAVE_DARWIN
-  PROCESS_TESTENTRY (darwin_enumerate_modules)
-  PROCESS_TESTENTRY (darwin_enumerate_modules_should_include_core_foundation)
-  PROCESS_TESTENTRY (darwin_enumerate_ranges)
-  PROCESS_TESTENTRY (darwin_module_exports)
-  PROCESS_TESTENTRY (darwin_module_exports_should_support_dyld)
+  TESTENTRY (darwin_enumerate_modules)
+  TESTENTRY (darwin_enumerate_modules_should_include_core_foundation)
+  TESTENTRY (darwin_enumerate_ranges)
+  TESTENTRY (darwin_module_exports)
+  TESTENTRY (darwin_module_exports_should_support_dyld)
 #endif
 #if defined (G_OS_WIN32) || defined (HAVE_DARWIN)
-  PROCESS_TESTENTRY (process_malloc_ranges)
+  TESTENTRY (process_malloc_ranges)
 #endif
-#ifdef HAVE_LINUX
-  PROCESS_TESTENTRY (linux_process_modules)
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+  TESTENTRY (linux_process_modules)
 #endif
-TEST_LIST_END ()
+TESTLIST_END ()
 
 typedef struct _TestForEachContext TestForEachContext;
 typedef struct _TestThreadContext TestThreadContext;
@@ -85,8 +88,11 @@ struct _TestThreadSyncData
   GMutex mutex;
   GCond cond;
   volatile gboolean started;
+  volatile GumThreadId thread_id;
   volatile gboolean * volatile done;
 };
+
+static gboolean check_thread_enumeration_testable (void);
 
 #ifndef G_OS_WIN32
 static gboolean store_export_address_if_tricky_module_export (
@@ -100,7 +106,8 @@ static gboolean store_export_address_if_mach_msg (
     const GumExportDetails * details, gpointer user_data);
 #endif
 
-static GThread * create_sleeping_dummy_thread_sync (volatile gboolean * done);
+static GThread * create_sleeping_dummy_thread_sync (volatile gboolean * done,
+    GumThreadId * thread_id);
 static gpointer sleeping_dummy (gpointer data);
 static gboolean thread_found_cb (const GumThreadDetails * details,
     gpointer user_data);
@@ -127,28 +134,17 @@ static gboolean malloc_range_check_cb (
     const GumMallocRangeDetails * details, gpointer user_data);
 #endif
 
-PROCESS_TESTCASE (process_threads)
+TESTCASE (process_threads)
 {
   volatile gboolean done = FALSE;
   GThread * thread_a, * thread_b;
   TestForEachContext ctx;
 
-#if defined (HAVE_ANDROID) || defined (HAVE_MIPS)
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping, run in slow mode> ");
+  if (!check_thread_enumeration_testable ())
     return;
-  }
-#endif
 
-  if (RUNNING_ON_VALGRIND)
-  {
-    g_print ("<skipping, not compatible with Valgrind> ");
-    return;
-  }
-
-  thread_a = create_sleeping_dummy_thread_sync (&done);
-  thread_b = create_sleeping_dummy_thread_sync (&done);
+  thread_a = create_sleeping_dummy_thread_sync (&done, NULL);
+  thread_b = create_sleeping_dummy_thread_sync (&done, NULL);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
@@ -165,39 +161,62 @@ PROCESS_TESTCASE (process_threads)
   g_thread_join (thread_a);
 }
 
-PROCESS_TESTCASE (process_threads_exclude_cloaked)
+TESTCASE (process_threads_exclude_cloaked)
 {
+  volatile gboolean done = FALSE;
+  GThread * thread;
   TestThreadContext ctx;
 
-#if defined (HAVE_ANDROID) || defined (HAVE_MIPS)
+  if (!check_thread_enumeration_testable ())
+    return;
+
+  thread = create_sleeping_dummy_thread_sync (&done, &ctx.needle);
+
+  ctx.found = FALSE;
+  gum_process_enumerate_threads (thread_check_cb, &ctx);
+  g_assert_true (ctx.found);
+
+  gum_cloak_add_thread (ctx.needle);
+
+  ctx.found = FALSE;
+  gum_process_enumerate_threads (thread_check_cb, &ctx);
+  g_assert_false (ctx.found);
+
+  gum_cloak_remove_thread (ctx.needle);
+
+  done = TRUE;
+  g_thread_join (thread);
+}
+
+static gboolean
+check_thread_enumeration_testable (void)
+{
+#ifdef HAVE_LINUX
+  if (gum_process_is_debugger_attached ())
+  {
+    g_print ("<skipping, debugger is attached> ");
+    return FALSE;
+  }
+#endif
+
+#ifdef HAVE_MIPS
   if (!g_test_slow ())
   {
     g_print ("<skipping, run in slow mode> ");
-    return;
+    return FALSE;
   }
 #endif
 
   if (RUNNING_ON_VALGRIND)
   {
     g_print ("<skipping, not compatible with Valgrind> ");
-    return;
+    return FALSE;
   }
 
-  ctx.needle = gum_process_get_current_thread_id ();
-  ctx.found = FALSE;
-  gum_process_enumerate_threads (thread_check_cb, &ctx);
-  g_assert (ctx.found);
-
-  gum_cloak_add_thread (ctx.needle);
-
-  ctx.found = FALSE;
-  gum_process_enumerate_threads (thread_check_cb, &ctx);
-  g_assert (!ctx.found);
-
-  gum_cloak_remove_thread (ctx.needle);
+  return TRUE;
 }
 
-PROCESS_TESTCASE (process_modules)
+TESTCASE (process_modules)
 {
   TestForEachContext ctx;
 
@@ -212,7 +231,7 @@ PROCESS_TESTCASE (process_modules)
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
 
-#ifdef HAVE_LINUX
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
 
 typedef struct _ModuleBounds ModuleBounds;
 
@@ -228,13 +247,13 @@ static gboolean find_module_bounds (const GumRangeDetails * details,
 static gboolean verify_module_bounds (const GumModuleDetails * details,
     gpointer user_data);
 
-PROCESS_TESTCASE (linux_process_modules)
+TESTCASE (linux_process_modules)
 {
   void * lib;
   ModuleBounds bounds;
 
   lib = dlopen (TRICKY_MODULE_NAME, RTLD_NOW | RTLD_GLOBAL);
-  g_assert (lib != NULL);
+  g_assert_nonnull (lib);
 
   bounds.name = TRICKY_MODULE_NAME;
   bounds.start = 0;
@@ -243,8 +262,8 @@ PROCESS_TESTCASE (linux_process_modules)
   gum_process_enumerate_ranges (GUM_PAGE_NO_ACCESS, find_module_bounds,
       &bounds);
 
-  g_assert (bounds.start != 0);
-  g_assert (bounds.end != 0);
+  g_assert_true (bounds.start != 0);
+  g_assert_true (bounds.end != 0);
 
   gum_process_enumerate_modules (verify_module_bounds, &bounds);
 
@@ -297,7 +316,7 @@ verify_module_bounds (const GumModuleDetails * details,
 
 #endif
 
-PROCESS_TESTCASE (process_ranges)
+TESTCASE (process_ranges)
 {
   {
     TestForEachContext ctx;
@@ -328,14 +347,14 @@ PROCESS_TESTCASE (process_ranges)
     ctx.found = FALSE;
     ctx.found_exact = FALSE;
     gum_process_enumerate_ranges (GUM_PAGE_RW, range_check_cb, &ctx);
-    g_assert (ctx.found);
+    g_assert_true (ctx.found);
 
     ctx.range.base_address = GUM_ADDRESS (malloc_buf) + 1;
     ctx.range.size = malloc_buf_size - 1;
     ctx.found = FALSE;
     ctx.found_exact = FALSE;
     gum_process_enumerate_ranges (GUM_PAGE_RW, range_check_cb, &ctx);
-    g_assert (ctx.found);
+    g_assert_true (ctx.found);
 
     free (malloc_buf);
 
@@ -344,11 +363,11 @@ PROCESS_TESTCASE (process_ranges)
     ctx.found = FALSE;
     ctx.found_exact = FALSE;
     gum_process_enumerate_ranges (GUM_PAGE_RW, range_check_cb, &ctx);
-    g_assert (ctx.found);
+    g_assert_true (ctx.found);
   }
 }
 
-PROCESS_TESTCASE (process_ranges_exclude_cloaked)
+TESTCASE (process_ranges_exclude_cloaked)
 {
   GumMemoryRange first = { 0, };
   GumMemoryRange range = { 0, };
@@ -372,14 +391,14 @@ PROCESS_TESTCASE (process_ranges_exclude_cloaked)
   ctx.found_exact = FALSE;
   gum_process_enumerate_ranges (GUM_PAGE_RW, range_check_cb, &ctx);
   gum_free (block);
-  g_assert (!ctx.found);
+  g_assert_false (ctx.found);
 }
 
 #if defined (G_OS_WIN32) || defined (HAVE_DARWIN)
 
 #define TEST_STACK_BUFFER_SIZE 50
 
-PROCESS_TESTCASE (process_malloc_ranges)
+TESTCASE (process_malloc_ranges)
 {
   if (!g_test_slow ())
   {
@@ -414,16 +433,16 @@ PROCESS_TESTCASE (process_malloc_ranges)
     ctx.found = FALSE;
     ctx.found_exact = FALSE;
     gum_process_enumerate_malloc_ranges (malloc_range_check_cb, &ctx);
-    g_assert (ctx.found);
-    g_assert (ctx.found_exact);
+    g_assert_true (ctx.found);
+    g_assert_true (ctx.found_exact);
 
     ctx.range.base_address = GUM_ADDRESS (malloc_buf) + 1;
     ctx.range.size = malloc_buf_size - 1;
     ctx.found = FALSE;
     ctx.found_exact = FALSE;
     gum_process_enumerate_malloc_ranges (malloc_range_check_cb, &ctx);
-    g_assert (ctx.found);
-    g_assert (!ctx.found_exact);
+    g_assert_true (ctx.found);
+    g_assert_false (ctx.found_exact);
 
     free (malloc_buf);
 
@@ -432,14 +451,29 @@ PROCESS_TESTCASE (process_malloc_ranges)
     ctx.found = FALSE;
     ctx.found_exact = FALSE;
     gum_process_enumerate_malloc_ranges (malloc_range_check_cb, &ctx);
-    g_assert (!ctx.found);
-    g_assert (!ctx.found_exact);
+    g_assert_false (ctx.found);
+    g_assert_false (ctx.found_exact);
   }
 }
 
 #endif
 
-PROCESS_TESTCASE (module_imports)
+TESTCASE (module_can_be_loaded)
+{
+  GError * error = NULL;
+  gchar * invalid_name;
+
+  g_assert_true (gum_module_load (SYSTEM_MODULE_NAME, &error));
+  g_assert_null (error);
+
+  invalid_name = g_strconcat (SYSTEM_MODULE_NAME, "_nope", NULL);
+  g_assert_false (gum_module_load (invalid_name, &error));
+  g_assert_nonnull (error);
+  g_error_free (error);
+  g_free (invalid_name);
+}
+
+TESTCASE (module_imports)
 {
 #ifndef HAVE_QNX
   TestForEachContext ctx;
@@ -458,7 +492,7 @@ PROCESS_TESTCASE (module_imports)
 #endif
 }
 
-PROCESS_TESTCASE (module_exports)
+TESTCASE (module_exports)
 {
   TestForEachContext ctx;
 
@@ -473,7 +507,7 @@ PROCESS_TESTCASE (module_exports)
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
 
-PROCESS_TESTCASE (module_symbols)
+TESTCASE (module_symbols)
 {
 #if defined (HAVE_DARWIN) || defined (HAVE_LINUX)
   TestForEachContext ctx;
@@ -492,7 +526,7 @@ PROCESS_TESTCASE (module_symbols)
 #endif
 }
 
-PROCESS_TESTCASE (module_ranges_can_be_enumerated)
+TESTCASE (module_ranges_can_be_enumerated)
 {
   TestForEachContext ctx;
 
@@ -509,31 +543,31 @@ PROCESS_TESTCASE (module_ranges_can_be_enumerated)
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
 
-PROCESS_TESTCASE (module_base)
+TESTCASE (module_base)
 {
-  g_assert (gum_module_find_base_address (SYSTEM_MODULE_NAME) != 0);
+  g_assert_true (gum_module_find_base_address (SYSTEM_MODULE_NAME) != 0);
 }
 
-PROCESS_TESTCASE (module_export_can_be_found)
+TESTCASE (module_export_can_be_found)
 {
-  g_assert (gum_module_find_export_by_name (SYSTEM_MODULE_NAME,
+  g_assert_true (gum_module_find_export_by_name (SYSTEM_MODULE_NAME,
       SYSTEM_MODULE_EXPORT) != 0);
 }
 
-PROCESS_TESTCASE (module_export_matches_system_lookup)
+TESTCASE (module_export_matches_system_lookup)
 {
 #ifndef G_OS_WIN32
   void * lib, * system_address;
   GumAddress enumerate_address, find_by_name_address;
 
   lib = dlopen (TRICKY_MODULE_NAME, RTLD_NOW | RTLD_GLOBAL);
-  g_assert (lib != NULL);
+  g_assert_true (lib != NULL);
   system_address = dlsym (lib, TRICKY_MODULE_EXPORT);
 
   enumerate_address = 0;
   gum_module_enumerate_exports (TRICKY_MODULE_NAME,
       store_export_address_if_tricky_module_export, &enumerate_address);
-  g_assert (enumerate_address != 0);
+  g_assert_true (enumerate_address != 0);
 
   find_by_name_address =
       gum_module_find_export_by_name (TRICKY_MODULE_NAME, TRICKY_MODULE_EXPORT);
@@ -562,13 +596,13 @@ store_export_address_if_tricky_module_export (const GumExportDetails * details,
 #endif
 
 #ifdef G_OS_WIN32
-PROCESS_TESTCASE (get_current_thread_id)
+TESTCASE (get_current_thread_id)
 {
   g_assert_cmphex (gum_process_get_current_thread_id (), ==,
       GetCurrentThreadId ());
 }
 
-PROCESS_TESTCASE (get_set_system_error)
+TESTCASE (get_set_system_error)
 {
   gum_thread_set_system_error (0x12345678);
   g_assert_cmpint (GetLastError (), ==, 0x12345678);
@@ -598,7 +632,7 @@ gum_test_get_target_task (void)
 #endif
 }
 
-PROCESS_TESTCASE (darwin_enumerate_modules)
+TESTCASE (darwin_enumerate_modules)
 {
   mach_port_t task;
   TestForEachContext ctx;
@@ -616,7 +650,7 @@ PROCESS_TESTCASE (darwin_enumerate_modules)
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
 
-PROCESS_TESTCASE (darwin_enumerate_modules_should_include_core_foundation)
+TESTCASE (darwin_enumerate_modules_should_include_core_foundation)
 {
   mach_port_t task;
   gboolean found;
@@ -625,10 +659,10 @@ PROCESS_TESTCASE (darwin_enumerate_modules_should_include_core_foundation)
 
   found = FALSE;
   gum_darwin_enumerate_modules (task, assign_true_if_core_foundation, &found);
-  g_assert (found);
+  g_assert_true (found);
 }
 
-PROCESS_TESTCASE (darwin_enumerate_ranges)
+TESTCASE (darwin_enumerate_ranges)
 {
   mach_port_t task;
   TestForEachContext ctx;
@@ -646,7 +680,7 @@ PROCESS_TESTCASE (darwin_enumerate_ranges)
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
 
-PROCESS_TESTCASE (darwin_module_exports)
+TESTCASE (darwin_module_exports)
 {
   mach_port_t task;
   TestForEachContext ctx;
@@ -670,17 +704,17 @@ PROCESS_TESTCASE (darwin_module_exports)
 
   gum_darwin_enumerate_exports (task, SYSTEM_MODULE_NAME,
       store_export_address_if_mach_msg, &actual_mach_msg_address);
-  g_assert (actual_mach_msg_address != 0);
+  g_assert_true (actual_mach_msg_address != 0);
 
   module = dlopen (SYSTEM_MODULE_NAME, 0);
   expected_mach_msg_address = GUM_ADDRESS (dlsym (module, "mach_msg"));
-  g_assert (expected_mach_msg_address != 0);
+  g_assert_true (expected_mach_msg_address != 0);
   dlclose (module);
 
   g_assert_cmphex (actual_mach_msg_address, ==, expected_mach_msg_address);
 }
 
-PROCESS_TESTCASE (darwin_module_exports_should_support_dyld)
+TESTCASE (darwin_module_exports_should_support_dyld)
 {
   mach_port_t task;
   TestForEachContext ctx;
@@ -725,7 +759,8 @@ store_export_address_if_mach_msg (const GumExportDetails * details,
 #endif
 
 static GThread *
-create_sleeping_dummy_thread_sync (volatile gboolean * done)
+create_sleeping_dummy_thread_sync (volatile gboolean * done,
+                                   GumThreadId * thread_id)
 {
   TestThreadSyncData sync_data;
   GThread * thread;
@@ -733,6 +768,7 @@ create_sleeping_dummy_thread_sync (volatile gboolean * done)
   g_mutex_init (&sync_data.mutex);
   g_cond_init (&sync_data.cond);
   sync_data.started = FALSE;
+  sync_data.thread_id = 0;
   sync_data.done = done;
 
   g_mutex_lock (&sync_data.mutex);
@@ -742,6 +778,9 @@ create_sleeping_dummy_thread_sync (volatile gboolean * done)
 
   while (!sync_data.started)
     g_cond_wait (&sync_data.cond, &sync_data.mutex);
+
+  if (thread_id != NULL)
+    *thread_id = sync_data.thread_id;
 
   g_mutex_unlock (&sync_data.mutex);
 
@@ -759,6 +798,7 @@ sleeping_dummy (gpointer data)
 
   g_mutex_lock (&sync_data->mutex);
   sync_data->started = TRUE;
+  sync_data->thread_id = gum_process_get_current_thread_id ();
   g_cond_signal (&sync_data->cond);
   g_mutex_unlock (&sync_data->mutex);
 

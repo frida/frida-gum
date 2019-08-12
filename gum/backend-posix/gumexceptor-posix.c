@@ -149,7 +149,7 @@ gum_exceptor_backend_attach (GumExceptorBackend * self)
   highest = 0;
   for (i = 0; i != G_N_ELEMENTS (handled_signals); i++)
     highest = MAX (handled_signals[i], highest);
-  g_assert_cmpint (highest, >, 0);
+  g_assert (highest > 0);
   self->num_old_handlers = highest + 1;
   self->old_handlers = g_new0 (struct sigaction *, self->num_old_handlers);
 

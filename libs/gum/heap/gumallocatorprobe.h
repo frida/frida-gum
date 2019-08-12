@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -9,7 +9,8 @@
 #define __GUM_ALLOCATOR_PROBE_H__
 
 #include "gumallocationtracker.h"
-#include "gumheapapi.h"
+
+#include <gum/gumheapapi.h>
 
 G_BEGIN_DECLS
 

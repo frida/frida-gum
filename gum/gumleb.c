@@ -20,7 +20,7 @@ gum_read_sleb128 (const guint8 ** data,
     gint64 chunk;
 
     g_assert (p != end);
-    g_assert_cmpint (offset, <=, 63);
+    g_assert (offset <= 63);
 
     value = *p;
     chunk = value & 0x7f;
@@ -50,7 +50,7 @@ gum_read_uleb128 (const guint8 ** data,
     guint64 chunk;
 
     g_assert (p != end);
-    g_assert_cmpint (offset, <=, 63);
+    g_assert (offset <= 63);
 
     chunk = *p & 0x7f;
     result |= (chunk << offset);

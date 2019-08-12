@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,21 +7,29 @@
 #include "gumprocess-priv.h"
 
 #include "backend-elf/gumelfmodule.h"
+#include "gum-init.h"
+#include "gumandroid.h"
 #include "gumlinux.h"
 #include "gummodulemap.h"
 #include "valgrind.h"
 
 #include <dlfcn.h>
 #include <errno.h>
-#include <link.h>
 #include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <gio/gio.h>
+#ifdef HAVE_LINK_H
+# include <link.h>
+#endif
+#ifdef HAVE_ASM_PRCTL_H
+# include <asm/prctl.h>
+#endif
+#include <sys/prctl.h>
 #include <sys/ptrace.h>
-#if defined (HAVE_ARM) || defined (HAVE_MIPS)
+#ifdef HAVE_ASM_PTRACE_H
 # include <asm/ptrace.h>
 #endif
 #include <sys/socket.h>
@@ -31,9 +39,6 @@
 #include <sys/wait.h>
 #ifdef HAVE_SYS_USER_H
 # include <sys/user.h>
-#endif
-#ifndef HAVE_ANDROID
-# include <link.h>
 #endif
 
 #define GUM_MAPS_LINE_SIZE (1024 + PATH_MAX)
@@ -81,7 +86,6 @@ typedef guint8 GumModifyThreadAck;
 
 typedef struct _GumEnumerateModulesContext GumEnumerateModulesContext;
 typedef struct _GumEmitExecutableModuleContext GumEmitExecutableModuleContext;
-typedef struct _GumCopyLinkerModuleContext GumCopyLinkerModuleContext;
 typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
 typedef struct _GumDependencyExport GumDependencyExport;
 typedef struct _GumEnumerateModuleSymbolContext GumEnumerateModuleSymbolContext;
@@ -93,6 +97,7 @@ typedef gint (* GumFoundDlPhdrFunc) (struct dl_phdr_info * info,
 typedef void (* GumDlIteratePhdrImpl) (GumFoundDlPhdrFunc func, gpointer data);
 
 typedef struct _GumUserDesc GumUserDesc;
+typedef struct _GumTcbHead GumTcbHead;
 
 typedef gint (* GumCloneFunc) (gpointer arg);
 
@@ -121,12 +126,9 @@ struct _GumEnumerateModulesContext
   GumFoundModuleFunc func;
   gpointer user_data;
 
-  GHashTable * names;
-  GHashTable * sizes;
+  GHashTable * named_ranges;
 
   guint index;
-  gboolean carry_on;
-  GumModuleDetails * linker_module;
 };
 
 struct _GumEmitExecutableModuleContext
@@ -136,12 +138,6 @@ struct _GumEmitExecutableModuleContext
   gpointer user_data;
 
   gboolean carry_on;
-};
-
-struct _GumCopyLinkerModuleContext
-{
-  GumAddress address_in_linker;
-  GumModuleDetails * linker_module;
 };
 
 struct _GumEnumerateImportsContext
@@ -195,6 +191,18 @@ struct _GumUserDesc
   guint useable : 1;
 };
 
+struct _GumTcbHead
+{
+#ifdef HAVE_I386
+  gpointer tcb;
+  gpointer dtv;
+  gpointer self;
+#else
+  gpointer dtv;
+  gpointer priv;
+#endif
+};
+
 static gint gum_do_modify_thread (gpointer data);
 static gboolean gum_await_ack (gint fd, GumModifyThreadAck expected_ack);
 static void gum_put_ack (gint fd, GumModifyThreadAck ack);
@@ -202,6 +210,7 @@ static void gum_put_ack (gint fd, GumModifyThreadAck ack);
 static void gum_store_cpu_context (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 
+#ifndef HAVE_ANDROID
 static void gum_process_enumerate_modules_by_using_libc (
     GumDlIteratePhdrImpl iterate_phdr, GumFoundModuleFunc func,
     gpointer user_data);
@@ -209,23 +218,14 @@ static gint gum_emit_module_from_phdr (struct dl_phdr_info * info, gsize size,
     gpointer user_data);
 static GumAddress gum_resolve_base_address_from_phdr (
     struct dl_phdr_info * info);
-#ifndef HAVE_ANDROID
 static gboolean gum_emit_executable_module (const GumModuleDetails * details,
     gpointer user_data);
 #endif
 
-static void gum_process_enumerate_modules_by_parsing_proc_maps (
-    GumFoundModuleFunc func, gpointer user_data);
-
-static void gum_process_build_named_range_indexes (GHashTable ** names,
-    GHashTable ** sizes);
-#ifdef HAVE_ANDROID
-static gboolean gum_copy_linker_module (const GumModuleDetails * details,
-    gpointer user_data);
-static GumModuleDetails * gum_module_details_dup (
-    const GumModuleDetails * module);
-static void gum_module_details_free (GumModuleDetails * module);
-#endif
+static void gum_linux_named_range_free (GumLinuxNamedRange * range);
+static gboolean gum_try_translate_vdso_name (gchar * name);
+static void * gum_module_get_handle (const gchar * module_name);
+static void * gum_module_get_symbol (void * module, const gchar * symbol_name);
 
 static gboolean gum_emit_import (const GumImportDetails * details,
     gpointer user_data);
@@ -247,14 +247,8 @@ static gboolean gum_emit_range_if_module_name_matches (
 static gchar * gum_resolve_module_name (const gchar * name, GumAddress * base);
 static gboolean gum_store_module_path_and_base_if_name_matches (
     const GumModuleDetails * details, gpointer user_data);
-static gboolean gum_module_path_equals (const gchar * path,
-    const gchar * name_or_path);
 
 static GumElfModule * gum_open_elf_module (const gchar * name);
-
-#ifdef HAVE_ANDROID
-static gboolean gum_module_name_is_android_linker (const gchar * name);
-#endif
 
 static gboolean gum_thread_read_state (GumThreadId tid, GumThreadState * state);
 static GumThreadState gum_thread_state_from_proc_status_character (gchar c);
@@ -343,13 +337,14 @@ gum_process_modify_thread (GumThreadId thread_id,
   else
   {
     GumModifyThreadContext ctx;
-    gint res, fd;
+    gint fd;
     gssize child;
     gpointer stack, tls;
     GumUserDesc * desc;
+    int prev_dumpable;
 
-    res = socketpair (AF_UNIX, SOCK_STREAM, 0, ctx.fd);
-    g_assert_cmpint (res, ==, 0);
+    if (socketpair (AF_UNIX, SOCK_STREAM, 0, ctx.fd) != 0)
+      return FALSE;
     ctx.thread_id = thread_id;
 
     fd = ctx.fd[0];
@@ -380,6 +375,27 @@ gum_process_modify_thread (GumThreadId thread_id,
 #else
     desc = tls;
 #endif
+
+#if defined (HAVE_I386)
+    {
+      GumTcbHead * head = tls;
+
+      head->tcb = tls;
+      head->dtv = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (tls) + 1024);
+      head->self = tls;
+    }
+#endif
+
+    /*
+     * Some systems (notably Android on release applications) spawn processes as
+     * not dumpable by default, disabling ptrace() on that process for anyone
+     * other than root.
+     *
+     * To allow our child to ptrace() this process, we enable this temporarily.
+     */
+    prev_dumpable = prctl (PR_GET_DUMPABLE);
+    if (prev_dumpable != -1 && prev_dumpable != 1)
+      prctl (PR_SET_DUMPABLE, 1);
 
     /*
      * It seems like the only reliable way to read/write the registers of
@@ -416,7 +432,7 @@ gum_process_modify_thread (GumThreadId thread_id,
         NULL,
         desc,
         NULL);
-    g_assert_cmpint (child, >, 0);
+    g_assert (child > 0);
 
     if (gum_await_ack (fd, GUM_ACK_ATTACHED))
     {
@@ -439,6 +455,9 @@ gum_process_modify_thread (GumThreadId thread_id,
         success = gum_await_ack (fd, GUM_ACK_WROTE_CONTEXT);
       }
     }
+
+    if (prev_dumpable != -1 && prev_dumpable != 1)
+      prctl (PR_SET_DUMPABLE, prev_dumpable);
 
     waitpid (child, NULL, __WCLONE);
 
@@ -575,6 +594,17 @@ gum_store_cpu_context (GumThreadId thread_id,
   memcpy (user_data, cpu_context, sizeof (GumCpuContext));
 }
 
+#ifdef HAVE_ANDROID
+
+void
+gum_process_enumerate_modules (GumFoundModuleFunc func,
+                               gpointer user_data)
+{
+  gum_android_enumerate_modules (func, user_data);
+}
+
+#else
+
 void
 gum_process_enumerate_modules (GumFoundModuleFunc func,
                                gpointer user_data)
@@ -586,7 +616,8 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
   {
     gsize impl;
 
-    impl = GPOINTER_TO_SIZE (dlsym (RTLD_DEFAULT, "dl_iterate_phdr"));
+    impl = GPOINTER_TO_SIZE (
+        gum_module_get_symbol (RTLD_DEFAULT, "dl_iterate_phdr"));
 
     g_once_init_leave (&iterate_phdr_value, impl + 1);
   }
@@ -598,7 +629,7 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
   }
   else
   {
-    gum_process_enumerate_modules_by_parsing_proc_maps (func, user_data);
+    gum_linux_enumerate_modules_using_proc_maps (func, user_data);
   }
 }
 
@@ -612,41 +643,13 @@ gum_process_enumerate_modules_by_using_libc (GumDlIteratePhdrImpl iterate_phdr,
   ctx.func = func;
   ctx.user_data = user_data;
 
-  gum_process_build_named_range_indexes (&ctx.names, &ctx.sizes);
+  ctx.named_ranges = gum_linux_collect_named_ranges ();
 
   ctx.index = 0;
-  ctx.carry_on = TRUE;
-  ctx.linker_module = NULL;
 
   iterate_phdr (gum_emit_module_from_phdr, &ctx);
 
-#ifdef HAVE_ANDROID
-  if (ctx.carry_on)
-  {
-    if (ctx.linker_module == NULL)
-    {
-      GumCopyLinkerModuleContext clmc;
-
-      clmc.address_in_linker = GUM_ADDRESS (dlsym (RTLD_DEFAULT, "dlopen"));
-      clmc.linker_module = NULL;
-
-      gum_process_enumerate_modules_by_parsing_proc_maps (
-          gum_copy_linker_module, &clmc);
-
-      ctx.linker_module = clmc.linker_module;
-    }
-
-    if (ctx.linker_module != NULL)
-    {
-      func (ctx.linker_module, user_data);
-    }
-  }
-
-  gum_module_details_free (ctx.linker_module);
-#endif
-
-  g_hash_table_unref (ctx.sizes);
-  g_hash_table_unref (ctx.names);
+  g_hash_table_unref (ctx.named_ranges);
 }
 
 static gint
@@ -657,10 +660,12 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
   GumEnumerateModulesContext * ctx = user_data;
   gboolean is_special_module;
   GumAddress base_address;
+  GumLinuxNamedRange * named_range;
   const gchar * path;
   gchar * name;
   GumModuleDetails details;
   GumMemoryRange range;
+  gboolean carry_on;
 
   is_special_module = info->dlpi_addr == 0 || info->dlpi_name == NULL ||
       info->dlpi_name[0] == '\0';
@@ -669,9 +674,10 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
 
   base_address = gum_resolve_base_address_from_phdr (info);
 
-  path = g_hash_table_lookup (ctx->names, GSIZE_TO_POINTER (base_address));
-  if (path == NULL)
-    path = info->dlpi_name;
+  named_range =
+      g_hash_table_lookup (ctx->named_ranges, GSIZE_TO_POINTER (base_address));
+
+  path = (named_range != NULL) ? named_range->name : info->dlpi_name;
 
   is_special_module = path[0] == '[';
   if (is_special_module)
@@ -684,56 +690,45 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
   details.path = path;
 
   range.base_address = base_address;
-  range.size = GPOINTER_TO_SIZE (
-      g_hash_table_lookup (ctx->sizes, GSIZE_TO_POINTER (base_address)));
+  range.size = (named_range != NULL) ? named_range->size : 0;
 
-#ifdef HAVE_ANDROID
-  if (ctx->linker_module == NULL &&
-      gum_module_name_is_android_linker (info->dlpi_name))
+  carry_on = TRUE;
+
+  if (ctx->index == 0)
   {
-    ctx->linker_module = gum_module_details_dup (&details);
-  }
-  else
-#endif
-  {
-#ifndef HAVE_ANDROID
-    if (ctx->index == 0)
+    gchar * executable_path;
+
+    executable_path = g_file_read_link ("/proc/self/exe", NULL);
+    if (executable_path != NULL &&
+        strcmp (details.path, executable_path) != 0)
     {
-      gchar * executable_path;
+      GumEmitExecutableModuleContext emc;
 
-      executable_path = g_file_read_link ("/proc/self/exe", NULL);
-      if (executable_path != NULL &&
-          strcmp (details.path, executable_path) != 0)
-      {
-        GumEmitExecutableModuleContext emc;
+      emc.executable_path = executable_path;
+      emc.func = ctx->func;
+      emc.user_data = ctx->user_data;
 
-        emc.executable_path = executable_path;
-        emc.func = ctx->func;
-        emc.user_data = ctx->user_data;
+      emc.carry_on = TRUE;
 
-        emc.carry_on = TRUE;
+      gum_linux_enumerate_modules_using_proc_maps (gum_emit_executable_module,
+          &emc);
 
-        gum_process_enumerate_modules_by_parsing_proc_maps (
-            gum_emit_executable_module, &emc);
-
-        ctx->carry_on = emc.carry_on;
-      }
-
-      g_free (executable_path);
-    }
-#endif
-
-    if (ctx->carry_on)
-    {
-      ctx->carry_on = ctx->func (&details, ctx->user_data);
+      carry_on = emc.carry_on;
     }
 
-    ctx->index++;
+    g_free (executable_path);
   }
+
+  if (carry_on)
+  {
+    carry_on = ctx->func (&details, ctx->user_data);
+  }
+
+  ctx->index++;
 
   g_free (name);
 
-  return ctx->carry_on ? 0 : 1;
+  return carry_on ? 0 : 1;
 }
 
 static GumAddress
@@ -759,8 +754,6 @@ gum_resolve_base_address_from_phdr (struct dl_phdr_info * info)
   return base_address;
 }
 
-#ifndef HAVE_ANDROID
-
 static gboolean
 gum_emit_executable_module (const GumModuleDetails * details,
                             gpointer user_data)
@@ -777,9 +770,9 @@ gum_emit_executable_module (const GumModuleDetails * details,
 
 #endif
 
-static void
-gum_process_enumerate_modules_by_parsing_proc_maps (GumFoundModuleFunc func,
-                                                    gpointer user_data)
+void
+gum_linux_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
+                                             gpointer user_data)
 {
   FILE * fp;
   const guint line_size = GUM_MAPS_LINE_SIZE;
@@ -803,7 +796,7 @@ gum_process_enumerate_modules_by_parsing_proc_maps (GumFoundModuleFunc func,
     GumAddress end;
     gchar perms[5] = { 0, };
     gint n;
-    gboolean readable, shared;
+    gboolean is_vdso, readable, shared;
     gchar * name;
 
     if (!got_line)
@@ -826,13 +819,15 @@ gum_process_enumerate_modules_by_parsing_proc_maps (GumFoundModuleFunc func,
         path);
     if (n == 3)
       continue;
-    g_assert_cmpint (n, ==, 4);
+    g_assert (n == 4);
+
+    is_vdso = gum_try_translate_vdso_name (path);
 
     readable = perms[0] == 'r';
     shared = perms[3] == 's';
     if (!readable || shared)
       continue;
-    else if (path[0] != '/' || g_str_has_prefix (path, "/dev/"))
+    else if ((path[0] != '/' && !is_vdso) || g_str_has_prefix (path, "/dev/"))
       continue;
     else if (RUNNING_ON_VALGRIND && strstr (path, "/valgrind/") != NULL)
       continue;
@@ -854,11 +849,17 @@ gum_process_enumerate_modules_by_parsing_proc_maps (GumFoundModuleFunc func,
           "%*x-%" G_GINT64_MODIFIER "x %*c%*c%*c%*c %*x %*s %*d %s",
           &end,
           next_path);
-      if (n == 1 || (n == 2 && next_path[0] == '['))
+      if (n == 1)
       {
         continue;
       }
-      else if (n == 2 && strcmp (next_path, path) == 0)
+      else if (n == 2 && next_path[0] == '[')
+      {
+        if (!gum_try_translate_vdso_name (next_path))
+          continue;
+      }
+
+      if (n == 2 && strcmp (next_path, path) == 0)
       {
         range.size = end - range.base_address;
       }
@@ -883,18 +884,18 @@ gum_process_enumerate_modules_by_parsing_proc_maps (GumFoundModuleFunc func,
   fclose (fp);
 }
 
-static void
-gum_process_build_named_range_indexes (GHashTable ** names,
-                                       GHashTable ** sizes)
+GHashTable *
+gum_linux_collect_named_ranges (void)
 {
+  GHashTable * result;
   FILE * fp;
   const guint line_size = GUM_MAPS_LINE_SIZE;
   gchar * line, * name, * next_name;
   gboolean carry_on = TRUE;
   gboolean got_line = FALSE;
 
-  *names = g_hash_table_new_full (NULL, NULL, NULL, g_free);
-  *sizes = g_hash_table_new (NULL, NULL);
+  result = g_hash_table_new_full (NULL, NULL, NULL,
+      (GDestroyNotify) gum_linux_named_range_free);
 
   fp = fopen ("/proc/self/maps", "r");
   g_assert (fp != NULL);
@@ -906,10 +907,10 @@ gum_process_build_named_range_indexes (GHashTable ** names,
 
   do
   {
-    GumMemoryRange range;
-    GumAddress end;
+    GumAddress start, end;
+    gsize size;
     gint n;
-    gpointer base;
+    GumLinuxNamedRange * range;
 
     if (!got_line)
     {
@@ -926,13 +927,15 @@ gum_process_build_named_range_indexes (GHashTable ** names,
         "%*4c "
         "%*x %*s %*d "
         "%s",
-        &range.base_address, &end,
+        &start, &end,
         name);
     if (n == 2)
       continue;
-    g_assert_cmpint (n, ==, 3);
+    g_assert (n == 3);
 
-    range.size = end - range.base_address;
+    gum_try_translate_vdso_name (name);
+
+    size = end - start;
 
     while (fgets (line, line_size, fp) != NULL)
     {
@@ -940,13 +943,19 @@ gum_process_build_named_range_indexes (GHashTable ** names,
           "%*x-%" G_GINT64_MODIFIER "x %*c%*c%*c%*c %*x %*s %*d %s",
           &end,
           next_name);
-      if (n == 1 || (n == 2 && next_name[0] == '['))
+      if (n == 1)
       {
         continue;
       }
-      else if (n == 2 && strcmp (next_name, name) == 0)
+      else if (n == 2 && next_name[0] == '[')
       {
-        range.size = end - range.base_address;
+        if (!gum_try_translate_vdso_name (next_name))
+          continue;
+      }
+
+      if (n == 2 && strcmp (next_name, name) == 0)
+      {
+        size = end - start;
       }
       else
       {
@@ -955,9 +964,13 @@ gum_process_build_named_range_indexes (GHashTable ** names,
       }
     }
 
-    base = GSIZE_TO_POINTER (range.base_address);
-    g_hash_table_insert (*names, base, g_strdup (name));
-    g_hash_table_insert (*sizes, base, GSIZE_TO_POINTER (range.size));
+    range = g_slice_new (GumLinuxNamedRange);
+
+    range->name = g_strdup (name);
+    range->base = GSIZE_TO_POINTER (start);
+    range->size = size;
+
+    g_hash_table_insert (result, range->base, range);
   }
   while (carry_on);
 
@@ -967,50 +980,29 @@ gum_process_build_named_range_indexes (GHashTable ** names,
   g_free (line);
 
   fclose (fp);
-}
 
-#ifdef HAVE_ANDROID
-
-static gboolean
-gum_copy_linker_module (const GumModuleDetails * details,
-                        gpointer user_data)
-{
-  GumCopyLinkerModuleContext * ctx = user_data;
-
-  if (!GUM_MEMORY_RANGE_INCLUDES (details->range, ctx->address_in_linker))
-    return TRUE;
-
-  ctx->linker_module = gum_module_details_dup (details);
-
-  return FALSE;
-}
-
-static GumModuleDetails *
-gum_module_details_dup (const GumModuleDetails * module)
-{
-  GumModuleDetails * copy;
-
-  copy = g_slice_new (GumModuleDetails);
-  copy->name = g_strdup (module->name);
-  copy->range = g_slice_dup (GumMemoryRange, module->range);
-  copy->path = g_strdup (module->path);
-
-  return copy;
+  return result;
 }
 
 static void
-gum_module_details_free (GumModuleDetails * module)
+gum_linux_named_range_free (GumLinuxNamedRange * range)
 {
-  if (module == NULL)
-    return;
+  g_free ((gpointer) range->name);
 
-  g_free ((gpointer) module->name);
-  g_slice_free (GumMemoryRange, (gpointer) module->range);
-  g_free ((gpointer) module->path);
-  g_slice_free (GumModuleDetails, module);
+  g_slice_free (GumLinuxNamedRange, range);
 }
 
-#endif
+static gboolean
+gum_try_translate_vdso_name (gchar * name)
+{
+  if (strcmp (name, "[vdso]") == 0)
+  {
+    strcpy (name, "linux-vdso.so.1");
+    return TRUE;
+  }
+
+  return FALSE;
+}
 
 void
 _gum_process_enumerate_ranges (GumPageProtection prot,
@@ -1120,29 +1112,73 @@ gum_thread_set_system_error (gint value)
 }
 
 gboolean
+gum_module_load (const gchar * module_name,
+                 GError ** error)
+{
+  GumGenericDlopenImpl dlopen_impl = dlopen;
+
+#ifdef HAVE_ANDROID
+  if (gum_module_get_handle (module_name) != NULL)
+    return TRUE;
+
+  gum_android_find_unrestricted_dlopen (&dlopen_impl);
+#endif
+
+  if (dlopen_impl (module_name, RTLD_LAZY) == NULL)
+    goto not_found;
+
+  return TRUE;
+
+not_found:
+  {
+    g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND, "%s", dlerror ());
+    return FALSE;
+  }
+}
+
+static void *
+gum_module_get_handle (const gchar * module_name)
+{
+#ifdef HAVE_ANDROID
+  return gum_android_get_module_handle (module_name);
+#else
+  return dlopen (module_name, RTLD_LAZY | RTLD_NOLOAD);
+#endif
+}
+
+static void *
+gum_module_get_symbol (void * module,
+                       const gchar * symbol)
+{
+  GumGenericDlsymImpl dlsym_impl = dlsym;
+
+#ifdef HAVE_ANDROID
+  gum_android_find_unrestricted_dlsym (&dlsym_impl);
+#endif
+
+  return dlsym_impl (module, symbol);
+}
+
+gboolean
 gum_module_ensure_initialized (const gchar * module_name)
 {
-  gboolean success;
-  gchar * name;
+#ifdef HAVE_ANDROID
+  return gum_android_ensure_module_initialized (module_name);
+#else
   void * module;
 
-  success = FALSE;
-
-  name = gum_resolve_module_name (module_name, NULL);
-  if (name == NULL)
-    goto beach;
-
-  module = dlopen (name, RTLD_LAZY | RTLD_GLOBAL);
+  module = gum_module_get_handle (module_name);
   if (module == NULL)
-    goto beach;
+    return FALSE;
   dlclose (module);
 
-  success = TRUE;
+  module = dlopen (module_name, RTLD_LAZY);
+  if (module == NULL)
+    return FALSE;
+  dlclose (module);
 
-beach:
-  g_free (name);
-
-  return success;
+  return TRUE;
+#endif
 }
 
 void
@@ -1198,7 +1234,8 @@ gum_emit_import (const GumImportDetails * details,
   else
   {
     d.module = NULL;
-    d.address = GUM_ADDRESS (dlsym (RTLD_DEFAULT, details->name));
+    d.address = GUM_ADDRESS (
+        gum_module_get_symbol (RTLD_DEFAULT, details->name));
 
     if (d.address != 0)
     {
@@ -1423,27 +1460,14 @@ gum_module_find_export_by_name (const gchar * module_name,
   GumAddress result;
   void * module;
 
-  if (module_name != NULL)
-  {
-    gchar * name;
-
-    name = gum_resolve_module_name (module_name, NULL);
-    if (name == NULL)
-      return 0;
-
 #ifdef HAVE_ANDROID
-    if (gum_module_name_is_android_linker (name))
-    {
-      g_free (name);
-
-      return GUM_ADDRESS (dlsym (RTLD_DEFAULT, symbol_name));
-    }
+  if (gum_android_try_resolve_magic_export (module_name, symbol_name, &result))
+    return result;
 #endif
 
-    module = dlopen (name, RTLD_LAZY | RTLD_GLOBAL);
-
-    g_free (name);
-
+  if (module_name != NULL)
+  {
+    module = gum_module_get_handle (module_name);
     if (module == NULL)
       return 0;
   }
@@ -1452,7 +1476,7 @@ gum_module_find_export_by_name (const gchar * module_name,
     module = RTLD_DEFAULT;
   }
 
-  result = GUM_ADDRESS (dlsym (module, symbol_name));
+  result = GUM_ADDRESS (gum_module_get_symbol (module, symbol_name));
 
   if (module != RTLD_DEFAULT)
     dlclose (module);
@@ -1594,7 +1618,7 @@ gum_resolve_module_name (const gchar * name,
 #if defined (HAVE_GLIBC)
   struct link_map * map;
 
-  map = dlopen (name, RTLD_LAZY | RTLD_GLOBAL | RTLD_NOLOAD);
+  map = dlopen (name, RTLD_LAZY | RTLD_NOLOAD);
   if (map != NULL)
   {
     ctx.name = g_file_read_link (map->l_name, NULL);
@@ -1620,12 +1644,13 @@ gum_resolve_module_name (const gchar * name,
 }
 
 static gboolean
-gum_store_module_path_and_base_if_name_matches (const GumModuleDetails * details,
-                                                gpointer user_data)
+gum_store_module_path_and_base_if_name_matches (
+    const GumModuleDetails * details,
+    gpointer user_data)
 {
   GumResolveModuleNameContext * ctx = user_data;
 
-  if (gum_module_path_equals (details->path, ctx->name))
+  if (gum_linux_module_path_matches (details->path, ctx->name))
   {
     ctx->path = g_strdup (details->path);
     ctx->base = details->range->base_address;
@@ -1635,11 +1660,11 @@ gum_store_module_path_and_base_if_name_matches (const GumModuleDetails * details
   return TRUE;
 }
 
-static gboolean
-gum_module_path_equals (const gchar * path,
-                        const gchar * name_or_path)
+gboolean
+gum_linux_module_path_matches (const gchar * path,
+                               const gchar * name_or_path)
 {
-  gchar * s;
+  const gchar * s;
 
   if (name_or_path[0] == '/')
     return strcmp (name_or_path, path) == 0;
@@ -1667,19 +1692,6 @@ gum_open_elf_module (const gchar * name)
 
   return module;
 }
-
-#ifdef HAVE_ANDROID
-
-static gboolean
-gum_module_name_is_android_linker (const gchar * name)
-{
-  const gchar * linker_name = (sizeof (gpointer) == 4)
-      ? "/system/bin/linker"
-      : "/system/bin/linker64";
-  return strcmp (name, linker_name) == 0;
-}
-
-#endif
 
 void
 gum_linux_parse_ucontext (const ucontext_t * uc,
@@ -2271,178 +2283,163 @@ gum_libc_clone (GumCloneFunc child_func,
   *(--child_sp) = arg;
   *(--child_sp) = child_func;
 
-  asm volatile (
-      "pushl %%eax\n\t"
-      "pushl %%ebx\n\t"
-      "pushl %%ecx\n\t"
-      "pushl %%edx\n\t"
-      "pushl %%esi\n\t"
-      "pushl %%edi\n\t"
-      "movl %[clone_syscall], %%eax\n\t"
-      "movl %[flags], %%ebx\n\t"
-      "movl %[child_sp], %%ecx\n\t"
-      "movl %[parent_tidptr], %%edx\n\t"
-      "movl %[tls], %%esi\n\t"
-      "movl %[child_tidptr], %%edi\n\t"
-      "int $0x80\n\t"
-      "test %%eax, %%eax\n\t"
-      "jnz 1f\n\t"
+  {
+    register          gint ebx asm ("ebx") = flags;
+    register    gpointer * ecx asm ("ecx") = child_sp;
+    register       pid_t * edx asm ("edx") = parent_tidptr;
+    register GumUserDesc * esi asm ("esi") = tls;
+    register       pid_t * edi asm ("edi") = child_tidptr;
 
-      /* child: */
-      "popl %%eax\n\t"
-      "call *%%eax\n\t"
-      "movl %%eax, %%ebx\n\t"
-      "movl %[exit_syscall], %%eax\n\t"
-      "int $0x80\n\t"
+    asm volatile (
+        "int $0x80\n\t"
+        "test %%eax, %%eax\n\t"
+        "jnz 1f\n\t"
 
-      /* parent: */
-      "1:\n\t"
-      "movl %%eax, %[result]\n\t"
-      "popl %%edi\n\t"
-      "popl %%esi\n\t"
-      "popl %%edx\n\t"
-      "popl %%ecx\n\t"
-      "popl %%ebx\n\t"
-      "popl %%eax\n\t"
-      : [result]"=m" (result)
-      : [clone_syscall]"i" (__NR_clone),
-        [flags]"m" (flags),
-        [child_sp]"m" (child_sp),
-        [parent_tidptr]"m" (parent_tidptr),
-        [tls]"m" (tls),
-        [child_tidptr]"m" (child_tidptr),
-        [exit_syscall]"i" (__NR_exit)
-      : "esp", "cc", "memory"
-  );
+        /* child: */
+        "popl %%eax\n\t"
+        "call *%%eax\n\t"
+        "movl %%eax, %%ebx\n\t"
+        "movl %[exit_syscall], %%eax\n\t"
+        "int $0x80\n\t"
+
+        /* parent: */
+        "1:\n\t"
+        : "=a" (result)
+        : "0" (__NR_clone),
+          "r" (ebx),
+          "r" (ecx),
+          "r" (edx),
+          "r" (esi),
+          "r" (edi),
+          [exit_syscall] "i" (__NR_exit)
+        : "cc", "memory"
+    );
+  }
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
   *(--child_sp) = arg;
   *(--child_sp) = child_func;
+  *(--child_sp) = tls;
 
-  asm volatile (
-      "pushq %%rax\n\t"
-      "pushq %%rdi\n\t"
-      "pushq %%rsi\n\t"
-      "pushq %%rdx\n\t"
-      "pushq %%r10\n\t"
-      "pushq %%r8\n\t"
-      "pushq %%rcx\n\t"
-      "pushq %%r11\n\t"
-      "movq %[clone_syscall], %%rax\n\t"
-      "movq %[flags], %%rdi\n\t"
-      "movq %[child_sp], %%rsi\n\t"
-      "movq %[parent_tidptr], %%rdx\n\t"
-      "movq %[child_tidptr], %%r10\n\t"
-      "movq %[tls], %%r8\n\t"
-      "syscall\n\t"
-      "test %%rax, %%rax\n\t"
-      "jnz 1f\n\t"
+  {
+    register          gint rdi asm ("rdi") = flags;
+    register    gpointer * rsi asm ("rsi") = child_sp;
+    register       pid_t * rdx asm ("rdx") = parent_tidptr;
+    register GumUserDesc * r10 asm ("r10") = tls;
+    register       pid_t *  r8 asm ( "r8") = child_tidptr;
 
-      /* child: */
-      "popq %%rax\n\t"
-      "popq %%rdi\n\t"
-      "call *%%rax\n\t"
-      "movq %%rax, %%rdi\n\t"
-      "movq %[exit_syscall], %%rax\n\t"
-      "syscall\n\t"
+    asm volatile (
+        "syscall\n\t"
+        "test %%rax, %%rax\n\t"
+        "jnz 1f\n\t"
 
-      /* parent: */
-      "1:\n\t"
-      "movq %%rax, %[result]\n\t"
-      "popq %%r11\n\t"
-      "popq %%rcx\n\t"
-      "popq %%r8\n\t"
-      "popq %%r10\n\t"
-      "popq %%rdx\n\t"
-      "popq %%rsi\n\t"
-      "popq %%rdi\n\t"
-      "popq %%rax\n\t"
-      : [result]"=g" (result)
-      : [clone_syscall]"g" (__NR_clone),
-        [flags]"g" (flags),
-        [child_sp]"g" (child_sp),
-        [parent_tidptr]"g" (parent_tidptr),
-        [child_tidptr]"g" (child_tidptr),
-        [tls]"g" (tls),
-        [exit_syscall]"i" (__NR_exit)
-      : "rax", "rdi", "rsi", "rdx", "r10", "r8", "rcx", "r11", "rsp", "cc",
-        "memory"
-  );
+        /* child: */
+        "movq %[prctl_syscall], %%rax\n\t"
+        "movq %[arch_set_fs], %%rdi\n\t"
+        "popq %%rsi\n\t"
+        "syscall\n\t"
+
+        "popq %%rax\n\t"
+        "popq %%rdi\n\t"
+        "call *%%rax\n\t"
+        "movq %%rax, %%rdi\n\t"
+        "movq %[exit_syscall], %%rax\n\t"
+        "syscall\n\t"
+
+        /* parent: */
+        "1:\n\t"
+        : "=a" (result)
+        : "0" (__NR_clone),
+          "r" (rdi),
+          "r" (rsi),
+          "r" (rdx),
+          "r" (r10),
+          "r" (r8),
+          [prctl_syscall] "i" (__NR_arch_prctl),
+          [arch_set_fs] "i" (ARCH_SET_FS),
+          [exit_syscall] "i" (__NR_exit)
+        : "rcx", "r11", "cc", "memory"
+    );
+  }
 #elif defined (HAVE_ARM)
   *(--child_sp) = child_func;
   *(--child_sp) = arg;
 
-  const gpointer args[] = {
-    GSIZE_TO_POINTER (flags),
-    child_sp,
-    parent_tidptr,
-    tls,
-    child_tidptr
-  };
-  const gpointer * next_args = args + G_N_ELEMENTS (args);
+  {
+    register        gssize r6 asm ("r6") = __NR_clone;
+    register          gint r0 asm ("r0") = flags;
+    register    gpointer * r1 asm ("r1") = child_sp;
+    register       pid_t * r2 asm ("r2") = parent_tidptr;
+    register GumUserDesc * r3 asm ("r3") = tls;
+    register       pid_t * r4 asm ("r4") = child_tidptr;
 
-  asm volatile (
-      "push {r0, r1, r2, r3, r4, r7}\n\t"
-      "mov r7, %[clone_syscall]\n\t"
-      "ldmdb %[next_args]!, {r0, r1, r2, r3, r4}\n\t"
-      "swi 0x0\n\t"
-      "cmp r0, #0\n\t"
-      "bne 1f\n\t"
+    asm volatile (
+        "push {r7}\n\t"
+        ".cfi_adjust_cfa_offset 4\n\t"
+        ".cfi_rel_offset r7, 0\n\t"
+        "mov r7, r6\n\t"
+        "swi 0x0\n\t"
+        "cmp r0, #0\n\t"
+        "bne 1f\n\t"
 
-      /* child: */
-      "pop {r0, r1}\n\t"
-      "blx r1\n\t"
-      "mov r7, %[exit_syscall]\n\t"
-      "swi 0x0\n\t"
+        /* child: */
+        "pop {r0, r1}\n\t"
+        "blx r1\n\t"
+        "mov r7, %[exit_syscall]\n\t"
+        "swi 0x0\n\t"
 
-      /* parent: */
-      "1:\n\t"
-      "mov %[result], r0\n\t"
-      "pop {r0, r1, r2, r3, r4, r7}\n\t"
-      : [next_args]"+r" (next_args),
-        [result]"=r" (result)
-      : [clone_syscall]"i" (__NR_clone),
-        [exit_syscall]"i" (__NR_exit)
-      : "r0", "r1", "r2", "r3", "r4", "r7", "sp", "cc", "memory"
-  );
+        /* parent: */
+        "1:\n\t"
+        "pop {r7}\n\t"
+        ".cfi_adjust_cfa_offset -4\n\t"
+        ".cfi_restore r7\n\t"
+        : "+r" (r0)
+        : "r" (r1),
+          "r" (r2),
+          "r" (r3),
+          "r" (r4),
+          "r" (r6),
+          [exit_syscall] "i" (__NR_exit)
+        : "cc", "memory"
+    );
+
+    result = r0;
+  }
 #elif defined (HAVE_ARM64)
   *(--child_sp) = child_func;
   *(--child_sp) = arg;
 
-  asm volatile (
-      "stp x0, x1, [sp, #-16]!\n\t"
-      "stp x2, x3, [sp, #-16]!\n\t"
-      "stp x4, x8, [sp, #-16]!\n\t"
-      "mov x8, %x[clone_syscall]\n\t"
-      "mov x0, %x[flags]\n\t"
-      "mov x1, %x[child_sp]\n\t"
-      "mov x2, %x[parent_tidptr]\n\t"
-      "mov x3, %x[tls]\n\t"
-      "mov x4, %x[child_tidptr]\n\t"
-      "svc 0x0\n\t"
-      "cbnz x0, 1f\n\t"
+  {
+    register        gssize x8 asm ("x8") = __NR_clone;
+    register          gint x0 asm ("x0") = flags;
+    register    gpointer * x1 asm ("x1") = child_sp;
+    register       pid_t * x2 asm ("x2") = parent_tidptr;
+    register GumUserDesc * x3 asm ("x3") = tls;
+    register       pid_t * x4 asm ("x4") = child_tidptr;
 
-      /* child: */
-      "ldp x0, x1, [sp], #16\n\t"
-      "blr x1\n\t"
-      "mov x8, %x[exit_syscall]\n\t"
-      "svc 0x0\n\t"
+    asm volatile (
+        "svc 0x0\n\t"
+        "cbnz x0, 1f\n\t"
 
-      /* parent: */
-      "1:\n\t"
-      "mov %x[result], x0\n\t"
-      "ldp x4, x8, [sp], #16\n\t"
-      "ldp x2, x3, [sp], #16\n\t"
-      "ldp x0, x1, [sp], #16\n\t"
-      : [result]"=r" (result)
-      : [clone_syscall]"i" (__NR_clone),
-        [flags]"r" ((gsize) flags),
-        [child_sp]"r" (child_sp),
-        [parent_tidptr]"r" (parent_tidptr),
-        [tls]"r" (tls),
-        [child_tidptr]"r" (child_tidptr),
-        [exit_syscall]"i" (__NR_exit)
-      : "x0", "x1", "x2", "x3", "x4", "x8", "sp", "memory"
-  );
+        /* child: */
+        "ldp x0, x1, [sp], #16\n\t"
+        "blr x1\n\t"
+        "mov x8, %x[exit_syscall]\n\t"
+        "svc 0x0\n\t"
+
+        /* parent: */
+        "1:\n\t"
+        : "+r" (x0)
+        : "r" (x1),
+          "r" (x2),
+          "r" (x3),
+          "r" (x4),
+          "r" (x8),
+          [exit_syscall] "i" (__NR_exit)
+        : "cc", "memory"
+    );
+
+    result = x0;
+  }
 #endif
 
   return result;
@@ -2481,104 +2478,91 @@ gum_libc_syscall_4 (gsize n,
                     gsize c,
                     gsize d)
 {
-  gsize result;
+  gssize result;
 
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
-  asm volatile (
-      "pushl %%eax\n\t"
-      "pushl %%ebx\n\t"
-      "pushl %%ecx\n\t"
-      "pushl %%edx\n\t"
-      "pushl %%esi\n\t"
-      "movl %[n], %%eax\n\t"
-      "movl %[a], %%ebx\n\t"
-      "movl %[b], %%ecx\n\t"
-      "movl %[c], %%edx\n\t"
-      "movl %[d], %%esi\n\t"
-      "int $0x80\n\t"
-      "movl %%eax, %[result]\n\t"
-      "popl %%esi\n\t"
-      "popl %%edx\n\t"
-      "popl %%ecx\n\t"
-      "popl %%ebx\n\t"
-      "popl %%eax\n\t"
-      : [result]"=r" (result)
-      : [n]"g" (n),
-        [a]"g" (a),
-        [b]"g" (b),
-        [c]"g" (c),
-        [d]"g" (d)
-      : "eax", "ecx", "edx", "esi", "esp", "memory"
-  );
-#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
-  asm volatile (
-      "pushq %%rax\n\t"
-      "pushq %%rdi\n\t"
-      "pushq %%rsi\n\t"
-      "pushq %%rdx\n\t"
-      "pushq %%r10\n\t"
-      "pushq %%rcx\n\t"
-      "pushq %%r11\n\t"
-      "movq %[n], %%rax\n\t"
-      "movq %[a], %%rdi\n\t"
-      "movq %[b], %%rsi\n\t"
-      "movq %[c], %%rdx\n\t"
-      "movq %[d], %%r10\n\t"
-      "syscall\n\t"
-      "movq %%rax, %[result]\n\t"
-      "popq %%r11\n\t"
-      "popq %%rcx\n\t"
-      "popq %%r10\n\t"
-      "popq %%rdx\n\t"
-      "popq %%rsi\n\t"
-      "popq %%rdi\n\t"
-      "popq %%rax\n\t"
-      : [result]"=r" (result)
-      : [n]"g" (n),
-        [a]"g" (a),
-        [b]"g" (b),
-        [c]"g" (c),
-        [d]"g" (d)
-      : "rax", "rdi", "rsi", "rdx", "r10", "rcx", "r11", "rsp", "memory"
-  );
-#elif defined (HAVE_ARM)
-  const gsize args[] = { a, b, c, d, n };
-  const gsize * next_args = args + G_N_ELEMENTS (args);
+  {
+    register gsize ebx asm ("ebx") = a;
+    register gsize ecx asm ("ecx") = b;
+    register gsize edx asm ("edx") = c;
+    register gsize esi asm ("esi") = d;
 
-  asm volatile (
-      "push {r0, r1, r2, r3, r7}\n\t"
-      "ldmdb %[next_args]!, {r0, r1, r2, r3, r7}\n\t"
-      "swi 0x0\n\t"
-      "mov %[result], r0\n\t"
-      "pop {r0, r1, r2, r3, r7}\n\t"
-      : [next_args]"+r" (next_args),
-        [result]"=r" (result)
-      :
-      : "r0", "r1", "r2", "r3", "r7", "sp", "memory"
-  );
+    asm volatile (
+        "int $0x80\n\t"
+        : "=a" (result)
+        : "0" (n),
+          "r" (ebx),
+          "r" (ecx),
+          "r" (edx),
+          "r" (esi)
+        : "cc", "memory"
+    );
+  }
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+  {
+    register gsize rdi asm ("rdi") = a;
+    register gsize rsi asm ("rsi") = b;
+    register gsize rdx asm ("rdx") = c;
+    register gsize r10 asm ("r10") = d;
+
+    asm volatile (
+        "syscall\n\t"
+        : "=a" (result)
+        : "0" (n),
+          "r" (rdi),
+          "r" (rsi),
+          "r" (rdx),
+          "r" (r10)
+        : "rcx", "r11", "cc", "memory"
+    );
+  }
+#elif defined (HAVE_ARM)
+  {
+    register gssize r6 asm ("r6") = n;
+    register  gsize r0 asm ("r0") = a;
+    register  gsize r1 asm ("r1") = b;
+    register  gsize r2 asm ("r2") = c;
+    register  gsize r3 asm ("r3") = d;
+
+    asm volatile (
+        "push {r7}\n\t"
+        ".cfi_adjust_cfa_offset 4\n\t"
+        ".cfi_rel_offset r7, 0\n\t"
+        "mov r7, r6\n\t"
+        "swi 0x0\n\t"
+        "pop {r7}\n\t"
+        ".cfi_adjust_cfa_offset -4\n\t"
+        ".cfi_restore r7\n\t"
+        : "+r" (r0)
+        : "r" (r1),
+          "r" (r2),
+          "r" (r3),
+          "r" (r6)
+        : "memory"
+    );
+
+    result = r0;
+  }
 #elif defined (HAVE_ARM64)
-  asm volatile (
-      "stp x0, x1, [sp, #-16]!\n\t"
-      "stp x2, x3, [sp, #-16]!\n\t"
-      "stp x4, x8, [sp, #-16]!\n\t"
-      "mov x8, %x[n]\n\t"
-      "mov x0, %x[a]\n\t"
-      "mov x1, %x[b]\n\t"
-      "mov x2, %x[c]\n\t"
-      "mov x3, %x[d]\n\t"
-      "svc 0x0\n\t"
-      "mov %x[result], x0\n\t"
-      "ldp x4, x8, [sp], #16\n\t"
-      "ldp x2, x3, [sp], #16\n\t"
-      "ldp x0, x1, [sp], #16\n\t"
-      : [result]"=r" (result)
-      : [n]"i" (n),
-        [a]"r" (a),
-        [b]"r" (b),
-        [c]"r" (c),
-        [d]"r" (d)
-      : "x0", "x1", "x2", "x3", "x4", "x8", "sp", "memory"
-  );
+  {
+    register gssize x8 asm ("x8") = n;
+    register  gsize x0 asm ("x0") = a;
+    register  gsize x1 asm ("x1") = b;
+    register  gsize x2 asm ("x2") = c;
+    register  gsize x3 asm ("x3") = d;
+
+    asm volatile (
+        "svc 0x0\n\t"
+        : "+r" (x0)
+        : "r" (x1),
+          "r" (x2),
+          "r" (x3),
+          "r" (x8)
+        : "memory"
+    );
+
+    result = x0;
+  }
 #endif
 
   return result;

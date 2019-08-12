@@ -1,22 +1,22 @@
 /*
- * Copyright (C) 2016-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "apiresolver-fixture.c"
 
-TEST_LIST_BEGIN (api_resolver)
-  API_RESOLVER_TESTENTRY (module_exports_can_be_resolved)
-  API_RESOLVER_TESTENTRY (module_imports_can_be_resolved)
-  API_RESOLVER_TESTENTRY (objc_methods_can_be_resolved)
+TESTLIST_BEGIN (api_resolver)
+  TESTENTRY (module_exports_can_be_resolved)
+  TESTENTRY (module_imports_can_be_resolved)
+  TESTENTRY (objc_methods_can_be_resolved)
 
 #ifdef HAVE_ANDROID
-  API_RESOLVER_TESTENTRY (linker_exports_can_be_resolved_on_android)
+  TESTENTRY (linker_exports_can_be_resolved_on_android)
 #endif
-TEST_LIST_END ()
+TESTLIST_END ()
 
-API_RESOLVER_TESTCASE (module_exports_can_be_resolved)
+TESTCASE (module_exports_can_be_resolved)
 {
   TestForEachContext ctx;
   GError * error = NULL;
@@ -27,24 +27,24 @@ API_RESOLVER_TESTCASE (module_exports_can_be_resolved)
 #endif
 
   fixture->resolver = gum_api_resolver_make ("module");
-  g_assert (fixture->resolver != NULL);
+  g_assert_nonnull (fixture->resolver);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
   gum_api_resolver_enumerate_matches (fixture->resolver, query, match_found_cb,
       &ctx, &error);
-  g_assert (error == NULL);
+  g_assert_null (error);
   g_assert_cmpuint (ctx.number_of_calls, >, 1);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = FALSE;
   gum_api_resolver_enumerate_matches (fixture->resolver, query, match_found_cb,
       &ctx, &error);
-  g_assert (error == NULL);
+  g_assert_null (error);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
 
-API_RESOLVER_TESTCASE (module_imports_can_be_resolved)
+TESTCASE (module_imports_can_be_resolved)
 {
 #ifdef HAVE_DARWIN
   GError * error = NULL;
@@ -52,11 +52,11 @@ API_RESOLVER_TESTCASE (module_imports_can_be_resolved)
   guint number_of_imports_seen = 0;
 
   fixture->resolver = gum_api_resolver_make ("module");
-  g_assert (fixture->resolver != NULL);
+  g_assert_nonnull (fixture->resolver);
 
   gum_api_resolver_enumerate_matches (fixture->resolver, query,
       check_module_import, &number_of_imports_seen, &error);
-  g_assert (error == NULL);
+  g_assert_null (error);
 #else
   (void) check_module_import;
 #endif
@@ -68,14 +68,14 @@ check_module_import (const GumApiDetails * details,
 {
   guint * number_of_imports_seen = user_data;
 
-  g_assert (strstr (details->name, "gum-tests") == NULL);
+  g_assert_null (strstr (details->name, "gum-tests"));
 
   (*number_of_imports_seen)++;
 
   return TRUE;
 }
 
-API_RESOLVER_TESTCASE (objc_methods_can_be_resolved)
+TESTCASE (objc_methods_can_be_resolved)
 {
   TestForEachContext ctx;
   GError * error = NULL;
@@ -91,14 +91,14 @@ API_RESOLVER_TESTCASE (objc_methods_can_be_resolved)
   ctx.value_to_return = TRUE;
   gum_api_resolver_enumerate_matches (fixture->resolver, "+[*Arr* arr*]",
       match_found_cb, &ctx, &error);
-  g_assert (error == NULL);
+  g_assert_null (error);
   g_assert_cmpuint (ctx.number_of_calls, >, 1);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = FALSE;
   gum_api_resolver_enumerate_matches (fixture->resolver, "+[*Arr* arr*]",
       match_found_cb, &ctx, &error);
-  g_assert (error == NULL);
+  g_assert_null (error);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
 
@@ -120,17 +120,22 @@ typedef struct _TestLinkerExportsContext TestLinkerExportsContext;
 struct _TestLinkerExportsContext
 {
   guint number_of_calls;
+
+  gchar * expected_name;
   GumAddress expected_address;
 };
 
 static gboolean check_linker_export (const GumApiDetails * details,
     gpointer user_data);
 
-API_RESOLVER_TESTCASE (linker_exports_can_be_resolved_on_android)
+TESTCASE (linker_exports_can_be_resolved_on_android)
 {
   const gchar * linker_name = (sizeof (gpointer) == 4)
       ? "/system/bin/linker"
       : "/system/bin/linker64";
+  const gchar * libdl_name = (sizeof (gpointer) == 4)
+      ? "/system/lib/libdl.so"
+      : "/system/lib64/libdl.so";
   const gchar * linker_exports[] =
   {
     "dlopen",
@@ -138,28 +143,48 @@ API_RESOLVER_TESTCASE (linker_exports_can_be_resolved_on_android)
     "dlclose",
     "dlerror",
   };
+  const gchar * correct_module_name, * incorrect_module_name;
   guint i;
 
+  if (gum_android_get_api_level () >= 26)
+  {
+    correct_module_name = libdl_name;
+    incorrect_module_name = linker_name;
+  }
+  else
+  {
+    correct_module_name = linker_name;
+    incorrect_module_name = libdl_name;
+  }
+
   fixture->resolver = gum_api_resolver_make ("module");
-  g_assert (fixture->resolver != NULL);
+  g_assert_nonnull (fixture->resolver);
 
   for (i = 0; i != G_N_ELEMENTS (linker_exports); i++)
   {
-    const gchar * name = linker_exports[i];
+    const gchar * func_name = linker_exports[i];
     gchar * query;
     TestLinkerExportsContext ctx;
     GError * error = NULL;
 
-    query = g_strconcat ("exports:*!", name, NULL);
+    query = g_strconcat ("exports:*!", func_name, NULL);
+
+    g_assert_true (
+        gum_module_find_export_by_name (incorrect_module_name, func_name) == 0);
 
     ctx.number_of_calls = 0;
-    ctx.expected_address = gum_module_find_export_by_name (linker_name, name);
-    g_assert (ctx.expected_address != 0);
+    ctx.expected_name =
+        g_strdup_printf ("%s!%s", correct_module_name, func_name);
+    ctx.expected_address =
+        gum_module_find_export_by_name (correct_module_name, func_name);
+    g_assert_cmpuint (ctx.expected_address, !=, 0);
 
     gum_api_resolver_enumerate_matches (fixture->resolver, query,
         check_linker_export, &ctx, &error);
-    g_assert (error == NULL);
+    g_assert_null (error);
     g_assert_cmpuint (ctx.number_of_calls, >=, 1);
+
+    g_free (ctx.expected_name);
 
     g_free (query);
   }
@@ -171,6 +196,7 @@ check_linker_export (const GumApiDetails * details,
 {
   TestLinkerExportsContext * ctx = (TestLinkerExportsContext *) user_data;
 
+  g_assert_cmpstr (details->name, ==, ctx->expected_name);
   g_assert_cmphex (details->address, ==, ctx->expected_address);
 
   ctx->number_of_calls++;

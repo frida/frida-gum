@@ -93,6 +93,9 @@ struct _GumCFApi
 
 static void gum_do_init (void);
 
+static GumAddress * gum_address_copy (const GumAddress * address);
+static void gum_address_free (GumAddress * address);
+
 static gboolean gum_initialized = FALSE;
 static GSList * gum_early_destructors = NULL;
 static GSList * gum_final_destructors = NULL;
@@ -102,6 +105,9 @@ static GPrivate gum_internal_thread_details_key = G_PRIVATE_INIT (
 
 static GumInterceptor * gum_cached_interceptor = NULL;
 
+G_DEFINE_BOXED_TYPE (GumAddress, gum_address, gum_address_copy,
+    gum_address_free)
+
 void
 gum_init (void)
 {
@@ -109,6 +115,7 @@ gum_init (void)
     return;
   gum_initialized = TRUE;
 
+  gum_internal_heap_ref ();
   gum_do_init ();
 }
 
@@ -148,8 +155,6 @@ gum_do_init (void)
     gum_cs_free,
     (cs_vsnprintf_t) gum_vsnprintf
   };
-
-  gum_memory_init ();
 
   glib_init ();
   gobject_init ();
@@ -235,7 +240,7 @@ gum_init_embedded (void)
   _CrtSetDbgFlag (tmp_flag);
 #endif
 
-  gum_memory_init ();
+  gum_internal_heap_ref ();
   ffi_set_mem_callbacks (&ffi_callbacks);
   g_thread_set_callbacks (&thread_callbacks);
   g_platform_audit_set_fd_callbacks (&fd_callbacks);
@@ -255,6 +260,8 @@ gum_init_embedded (void)
   g_assertion_set_handler (gum_on_assert_failure, NULL);
   g_log_set_default_handler (gum_on_log_message, NULL);
   gum_do_init ();
+
+  g_set_prgname ("frida");
 
 #if defined (HAVE_LINUX) && defined (HAVE_GLIBC)
   gum_libdl_prevent_unload ();
@@ -278,7 +285,7 @@ gum_deinit_embedded (void)
   gio_deinit ();
   glib_deinit ();
   ffi_deinit ();
-  gum_memory_deinit ();
+  gum_internal_heap_unref ();
 
   gum_initialized = FALSE;
 }
@@ -593,4 +600,43 @@ gum_on_log_message (const gchar * log_domain,
   fprintf (file, "[%s %s] %s\n", log_domain, severity, message);
   fflush (file);
 #endif
+}
+
+static GumAddress *
+gum_address_copy (const GumAddress * address)
+{
+  return g_slice_dup (GumAddress, address);
+}
+
+static void
+gum_address_free (GumAddress * address)
+{
+  g_slice_free (GumAddress, address);
+}
+
+GType
+gum_cpu_type_get_type (void)
+{
+  static volatile gsize gonce_value;
+
+  if (g_once_init_enter (&gonce_value))
+  {
+    static const GEnumValue values[] =
+    {
+      { GUM_CPU_INVALID, "GUM_CPU_INVALID", "invalid" },
+      { GUM_CPU_IA32, "GUM_CPU_IA32", "ia32" },
+      { GUM_CPU_AMD64, "GUM_CPU_AMD64", "amd64" },
+      { GUM_CPU_ARM, "GUM_CPU_ARM", "arm" },
+      { GUM_CPU_ARM64, "GUM_CPU_ARM64", "arm64" },
+      { GUM_CPU_MIPS, "GUM_CPU_MIPS", "mips" },
+      { 0, NULL, NULL }
+    };
+    GType etype;
+
+    etype = g_enum_register_static ("GumCpuType", values);
+
+    g_once_init_leave (&gonce_value, etype);
+  }
+
+  return (GType) gonce_value;
 }

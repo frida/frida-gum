@@ -6,15 +6,15 @@
 
 #include "memoryaccessmonitor-fixture.c"
 
-TEST_LIST_BEGIN (memoryaccessmonitor)
-  MAMONITOR_TESTENTRY (notify_on_read_access)
-  MAMONITOR_TESTENTRY (notify_on_write_access)
-  MAMONITOR_TESTENTRY (notify_on_execute_access)
-  MAMONITOR_TESTENTRY (notify_should_include_progress)
-  MAMONITOR_TESTENTRY (disable)
-TEST_LIST_END ()
+TESTLIST_BEGIN (memoryaccessmonitor)
+  TESTENTRY (notify_on_read_access)
+  TESTENTRY (notify_on_write_access)
+  TESTENTRY (notify_on_execute_access)
+  TESTENTRY (notify_should_include_progress)
+  TESTENTRY (disable)
+TESTLIST_END ()
 
-MAMONITOR_TESTCASE (notify_on_read_access)
+TESTCASE (notify_on_read_access)
 {
   volatile guint8 * bytes = (guint8 *) fixture->range.base_address;
   guint8 val;
@@ -28,8 +28,8 @@ MAMONITOR_TESTCASE (notify_on_read_access)
   val = bytes[fixture->offset_in_first_page];
   g_assert_cmpuint (fixture->number_of_notifies, ==, 1);
   g_assert_cmpint (d->operation, ==, GUM_MEMOP_READ);
-  g_assert (d->from != NULL && d->from != d->address);
-  g_assert (d->address == bytes + fixture->offset_in_first_page);
+  g_assert_true (d->from != NULL && d->from != d->address);
+  g_assert_true (d->address == bytes + fixture->offset_in_first_page);
   g_assert_cmpuint (val, ==, 0x13);
 
   val = bytes[fixture->offset_in_first_page];
@@ -39,8 +39,8 @@ MAMONITOR_TESTCASE (notify_on_read_access)
   val = bytes[fixture->offset_in_second_page];
   g_assert_cmpuint (fixture->number_of_notifies, ==, 2);
   g_assert_cmpint (d->operation, ==, GUM_MEMOP_READ);
-  g_assert (d->from != NULL && d->from != d->address);
-  g_assert (d->address == bytes + fixture->offset_in_second_page);
+  g_assert_true (d->from != NULL && d->from != d->address);
+  g_assert_true (d->address == bytes + fixture->offset_in_second_page);
   g_assert_cmpuint (val, ==, 0x37);
 
   val = bytes[fixture->offset_in_second_page];
@@ -48,7 +48,7 @@ MAMONITOR_TESTCASE (notify_on_read_access)
   g_assert_cmpuint (val, ==, 0x37);
 }
 
-MAMONITOR_TESTCASE (notify_on_write_access)
+TESTCASE (notify_on_write_access)
 {
   volatile guint8 * bytes = (guint8 *) fixture->range.base_address;
   guint8 val;
@@ -61,15 +61,15 @@ MAMONITOR_TESTCASE (notify_on_write_access)
   bytes[fixture->offset_in_first_page] = 0x14;
   g_assert_cmpuint (fixture->number_of_notifies, ==, 1);
   g_assert_cmpint (d->operation, ==, GUM_MEMOP_WRITE);
-  g_assert (d->from != NULL && d->from != d->address);
-  g_assert (d->address == bytes + fixture->offset_in_first_page);
+  g_assert_true (d->from != NULL && d->from != d->address);
+  g_assert_true (d->address == bytes + fixture->offset_in_first_page);
 
   val = bytes[fixture->offset_in_first_page];
   g_assert_cmpuint (fixture->number_of_notifies, ==, 1);
   g_assert_cmpuint (val, ==, 0x14);
 }
 
-MAMONITOR_TESTCASE (notify_on_execute_access)
+TESTCASE (notify_on_execute_access)
 {
   volatile GumMemoryAccessDetails * d = &fixture->last_details;
 
@@ -78,13 +78,13 @@ MAMONITOR_TESTCASE (notify_on_execute_access)
   fixture->nop_function_in_first_page ();
   g_assert_cmpuint (fixture->number_of_notifies, ==, 1);
   g_assert_cmpint (d->operation, ==, GUM_MEMOP_EXECUTE);
-  g_assert (d->from != NULL && d->from == d->address);
+  g_assert_true (d->from != NULL && d->from == d->address);
 
   fixture->nop_function_in_first_page ();
   g_assert_cmpuint (fixture->number_of_notifies, ==, 1);
 }
 
-MAMONITOR_TESTCASE (notify_should_include_progress)
+TESTCASE (notify_should_include_progress)
 {
   volatile GumMemoryAccessDetails * d = &fixture->last_details;
   volatile guint8 * bytes = (guint8 *) fixture->range.base_address;
@@ -106,7 +106,7 @@ MAMONITOR_TESTCASE (notify_should_include_progress)
   g_assert_cmpuint (d->pages_total, ==, 2);
 }
 
-MAMONITOR_TESTCASE (disable)
+TESTCASE (disable)
 {
   volatile guint8 * bytes = (guint8 *) fixture->range.base_address;
   guint8 val;

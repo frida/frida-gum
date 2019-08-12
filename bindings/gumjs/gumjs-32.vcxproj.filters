@@ -243,6 +243,9 @@
     <ClInclude Include="gumv8scope.h">
       <Filter>v8</Filter>
     </ClInclude>
+    <ClInclude Include="gumv8matchcontext.h">
+      <Filter>v8</Filter>
+    </ClInclude>
     <ClInclude Include="gumv8value.h">
       <Filter>v8</Filter>
     </ClInclude>

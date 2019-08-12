@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -25,11 +25,21 @@ ScriptScope::ScriptScope (GumV8Script * parent)
 
   _gum_v8_core_pin (core);
 
-  next = core->current_scope;
+  next_scope = core->current_scope;
   core->current_scope = this;
 
-  g_queue_init (&tick_callbacks);
-  g_queue_init (&scheduled_sources);
+  root_scope = this;
+  while (root_scope->next_scope != nullptr)
+    root_scope = root_scope->next_scope;
+
+  tick_callbacks = &root_scope->tick_callbacks_storage;
+  scheduled_sources = &root_scope->scheduled_sources_storage;
+
+  if (this == root_scope)
+  {
+    g_queue_init (&tick_callbacks_storage);
+    g_queue_init (&scheduled_sources_storage);
+  }
 }
 
 ScriptScope::~ScriptScope ()
@@ -38,9 +48,10 @@ ScriptScope::~ScriptScope ()
 
   ProcessAnyPendingException ();
 
-  PerformPendingIO ();
+  if (this == root_scope)
+    PerformPendingIO ();
 
-  core->current_scope = next;
+  core->current_scope = next_scope;
 
   _gum_v8_core_unpin (core);
 
@@ -73,49 +84,62 @@ void
 ScriptScope::PerformPendingIO ()
 {
   auto core = &parent->core;
+  auto isolate = parent->isolate;
 
-  if (!g_queue_is_empty (&tick_callbacks))
+  bool io_performed;
+  do
   {
-    auto isolate = parent->isolate;
+    io_performed = false;
 
-    GumPersistent<Function>::type * tick_callback;
-    auto receiver = Undefined (isolate);
-    while ((tick_callback = (GumPersistent<Function>::type *)
-        g_queue_pop_head (&tick_callbacks)) != nullptr)
+    isolate->RunMicrotasks ();
+
+    if (!g_queue_is_empty (tick_callbacks))
     {
-      auto callback = Local<Function>::New (isolate, *tick_callback);
+      GumPersistent<Function>::type * tick_callback;
+      auto receiver = Undefined (isolate);
+      while ((tick_callback = (GumPersistent<Function>::type *)
+          g_queue_pop_head (tick_callbacks)) != nullptr)
+      {
+        auto callback = Local<Function>::New (isolate, *tick_callback);
 
-      callback->Call (receiver, 0, nullptr);
-      ProcessAnyPendingException ();
+        auto result = callback->Call (context, receiver, 0, nullptr);
+        if (result.IsEmpty ())
+          ProcessAnyPendingException ();
 
-      delete tick_callback;
+        delete tick_callback;
+      }
+
+      io_performed = true;
+    }
+
+    GSource * source;
+    while ((source = (GSource *) g_queue_pop_head (scheduled_sources)) != NULL)
+    {
+      if (!g_source_is_destroyed (source))
+      {
+        g_source_attach (source,
+            gum_script_scheduler_get_js_context (core->scheduler));
+      }
+
+      g_source_unref (source);
+
+      io_performed = true;
     }
   }
-
-  GSource * source;
-  while ((source = (GSource *) g_queue_pop_head (&scheduled_sources)) != NULL)
-  {
-    if (!g_source_is_destroyed (source))
-    {
-      g_source_attach (source,
-          gum_script_scheduler_get_js_context (core->scheduler));
-    }
-
-    g_source_unref (source);
-  }
+  while (io_performed);
 }
 
 void
 ScriptScope::AddTickCallback (Handle<Function> callback)
 {
-  g_queue_push_tail (&tick_callbacks, new GumPersistent<Function>::type (
+  g_queue_push_tail (tick_callbacks, new GumPersistent<Function>::type (
       parent->isolate, callback));
 }
 
 void
 ScriptScope::AddScheduledSource (GSource * source)
 {
-  g_queue_push_tail (&scheduled_sources, source);
+  g_queue_push_tail (scheduled_sources, source);
 }
 
 ScriptInterceptorScope::ScriptInterceptorScope (GumV8Script * parent)
@@ -143,10 +167,23 @@ ScriptStalkerScope::~ScriptStalkerScope ()
 }
 
 ScriptUnlocker::ScriptUnlocker (GumV8Core * core)
-  : exit_current_scope (core),
+  : exit_interceptor_scope (core),
+    exit_current_scope (core),
     exit_isolate_scope (core->isolate),
     unlocker (core->isolate)
 {
+}
+
+ScriptUnlocker::ExitInterceptorScope::ExitInterceptorScope (
+    GumV8Core * core)
+  : interceptor (core->script->interceptor.interceptor)
+{
+  gum_interceptor_end_transaction (interceptor);
+}
+
+ScriptUnlocker::ExitInterceptorScope::~ExitInterceptorScope ()
+{
+  gum_interceptor_begin_transaction (interceptor);
 }
 
 ScriptUnlocker::ExitCurrentScope::ExitCurrentScope (GumV8Core * core)

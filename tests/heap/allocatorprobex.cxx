@@ -10,14 +10,14 @@
 
 G_BEGIN_DECLS
 
-TEST_LIST_BEGIN (allocator_probe_cxx)
-  ALLOCPROBE_TESTENTRY (new_delete)
-  ALLOCPROBE_TESTENTRY (concurrency)
-TEST_LIST_END ()
+TESTLIST_BEGIN (allocator_probe_cxx)
+  TESTENTRY (new_delete)
+  TESTENTRY (concurrency)
+TESTLIST_END ()
 
 static gpointer concurrency_torture_helper (gpointer data);
 
-ALLOCPROBE_TESTCASE (new_delete)
+TESTCASE (new_delete)
 {
   guint malloc_count, realloc_count, free_count;
   int * a;
@@ -59,7 +59,7 @@ ALLOCPROBE_TESTCASE (new_delete)
   g_assert_cmpuint (free_count, ==, 0);
 }
 
-ALLOCPROBE_TESTCASE (concurrency)
+TESTCASE (concurrency)
 {
   gum_interceptor_unignore_other_threads (fixture->interceptor);
 

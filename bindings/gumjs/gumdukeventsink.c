@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -115,7 +115,6 @@ gum_duk_event_sink_finalize (GObject * obj)
 
   g_assert (self->source == NULL);
 
-  gum_spinlock_free (&self->lock);
   g_array_free (self->queue, TRUE);
 
   G_OBJECT_CLASS (gum_duk_event_sink_parent_class)->finalize (obj);

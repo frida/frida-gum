@@ -11,11 +11,11 @@
 #include "dummyclasses.h"
 #include "testutil.h"
 
-#define INSTRACKER_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_instance_tracker_ ## NAME ( \
         TestInstanceTrackerFixture * fixture, gconstpointer data)
-#define INSTRACKER_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Heap/InstanceTracker", test_instance_tracker, \
+#define TESTENTRY(NAME) \
+    TESTENTRY_WITH_FIXTURE ("Heap/InstanceTracker", test_instance_tracker, \
         NAME, TestInstanceTrackerFixture)
 
 typedef struct _TestInstanceTrackerFixture

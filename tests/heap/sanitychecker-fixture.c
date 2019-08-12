@@ -14,11 +14,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define SANITYCHECKER_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_sanity_checker_ ## NAME ( \
         TestSanityCheckerFixture * fixture, gconstpointer data)
-#define SANITYCHECKER_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Heap/SanityChecker", \
+#define TESTENTRY(NAME) \
+    TESTENTRY_WITH_FIXTURE ("Heap/SanityChecker", \
         test_sanity_checker, NAME, TestSanityCheckerFixture)
 
 typedef struct _TestSanityCheckerFixture

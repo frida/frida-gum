@@ -20,11 +20,11 @@
 # include <unistd.h>
 #endif
 
-#define BACKTRACER_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_backtracer_ ## NAME ( \
         TestBacktracerFixture * fixture, gconstpointer data)
-#define BACKTRACER_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Core/Backtracer", test_backtracer, NAME, \
+#define TESTENTRY(NAME) \
+    TESTENTRY_WITH_FIXTURE ("Core/Backtracer", test_backtracer, NAME, \
         TestBacktracerFixture)
 
 #define GUM_TEST_TYPE_BACKTRACE_COLLECTOR (backtrace_collector_get_type ())

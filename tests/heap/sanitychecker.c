@@ -8,29 +8,29 @@
 
 #ifdef G_OS_WIN32
 
-TEST_LIST_BEGIN (sanitychecker)
-  SANITYCHECKER_TESTENTRY (no_leaks)
-  SANITYCHECKER_TESTENTRY (three_leaked_instances)
-  SANITYCHECKER_TESTENTRY (three_leaked_blocks)
-  SANITYCHECKER_TESTENTRY (ignore_gparam_instances)
-  SANITYCHECKER_TESTENTRY (array_access_out_of_bounds_causes_exception)
-  SANITYCHECKER_TESTENTRY (multiple_checks_at_once_should_not_collide)
-  SANITYCHECKER_TESTENTRY (checker_itself_does_not_leak)
-TEST_LIST_END ()
+TESTLIST_BEGIN (sanitychecker)
+  TESTENTRY (no_leaks)
+  TESTENTRY (three_leaked_instances)
+  TESTENTRY (three_leaked_blocks)
+  TESTENTRY (ignore_gparam_instances)
+  TESTENTRY (array_access_out_of_bounds_causes_exception)
+  TESTENTRY (multiple_checks_at_once_should_not_collide)
+  TESTENTRY (checker_itself_does_not_leak)
+TESTLIST_END ()
 
-SANITYCHECKER_TESTCASE (no_leaks)
+TESTCASE (no_leaks)
 {
   run_simulation (fixture, 0);
-  g_assert (fixture->run_returned_true);
+  g_assert_true (fixture->run_returned_true);
   g_assert_cmpuint (fixture->simulation_call_count, ==, 4);
   g_assert_cmpuint (fixture->output_call_count, ==, 0);
 }
 
-SANITYCHECKER_TESTCASE (three_leaked_instances)
+TESTCASE (three_leaked_instances)
 {
   run_simulation (fixture,
       LEAK_FIRST_PONY | LEAK_SECOND_PONY | LEAK_FIRST_ZEBRA);
-  g_assert (!fixture->run_returned_true);
+  g_assert_false (fixture->run_returned_true);
   g_assert_cmpuint (fixture->simulation_call_count, ==, 2);
   g_assert_cmpuint (fixture->output_call_count, >, 0);
   assert_same_output (fixture,
@@ -49,11 +49,11 @@ SANITYCHECKER_TESTCASE (three_leaked_instances)
       fixture->second_pony, fixture->first_pony, fixture->first_zebra);
 }
 
-SANITYCHECKER_TESTCASE (three_leaked_blocks)
+TESTCASE (three_leaked_blocks)
 {
   run_simulation (fixture,
       LEAK_FIRST_BLOCK | LEAK_SECOND_BLOCK | LEAK_THIRD_BLOCK);
-  g_assert (!fixture->run_returned_true);
+  g_assert_false (fixture->run_returned_true);
   g_assert_cmpuint (fixture->simulation_call_count, ==, 3);
   g_assert_cmpuint (fixture->output_call_count, >, 0);
   assert_same_output (fixture,
@@ -75,15 +75,15 @@ SANITYCHECKER_TESTCASE (three_leaked_blocks)
       fixture->first_block);
 }
 
-SANITYCHECKER_TESTCASE (ignore_gparam_instances)
+TESTCASE (ignore_gparam_instances)
 {
   run_simulation (fixture, LEAK_GPARAM_ONCE);
-  g_assert (fixture->run_returned_true);
+  g_assert_true (fixture->run_returned_true);
   g_assert_cmpuint (fixture->simulation_call_count, ==, 4);
   g_assert_cmpuint (fixture->output_call_count, ==, 0);
 }
 
-SANITYCHECKER_TESTCASE (array_access_out_of_bounds_causes_exception)
+TESTCASE (array_access_out_of_bounds_causes_exception)
 {
   guint8 * bytes;
   gboolean exception_on_read = FALSE, exception_on_write = FALSE;
@@ -103,22 +103,22 @@ SANITYCHECKER_TESTCASE (array_access_out_of_bounds_causes_exception)
   free (bytes);
   gum_sanity_checker_end (fixture->checker);
 
-  g_assert (exception_on_read);
-  g_assert (exception_on_write);
+  g_assert_true (exception_on_read);
+  g_assert_true (exception_on_write);
 }
 
-SANITYCHECKER_TESTCASE (multiple_checks_at_once_should_not_collide)
+TESTCASE (multiple_checks_at_once_should_not_collide)
 {
   gboolean all_checks_pass;
 
   gum_sanity_checker_begin (fixture->checker,
       GUM_CHECK_BLOCK_LEAKS | GUM_CHECK_INSTANCE_LEAKS | GUM_CHECK_BOUNDS);
   all_checks_pass = gum_sanity_checker_end (fixture->checker);
-  g_assert (all_checks_pass);
+  g_assert_true (all_checks_pass);
   g_assert_cmpuint (fixture->output->len, ==, 0);
 }
 
-SANITYCHECKER_TESTCASE (checker_itself_does_not_leak)
+TESTCASE (checker_itself_does_not_leak)
 {
   GumSanityChecker * checker;
 

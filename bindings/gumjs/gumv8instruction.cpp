@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -11,42 +11,6 @@
 #include <string.h>
 
 #define GUMJS_MODULE_NAME Instruction
-
-#if defined (HAVE_I386)
-# define GUM_DEFAULT_CS_ARCH CS_ARCH_X86
-# if GLIB_SIZEOF_VOID_P == 8
-#  define GUM_DEFAULT_CS_MODE CS_MODE_64
-# else
-#  define GUM_DEFAULT_CS_MODE CS_MODE_32
-# endif
-#elif defined (HAVE_ARM)
-# define GUM_DEFAULT_CS_ARCH CS_ARCH_ARM
-# define GUM_DEFAULT_CS_MODE CS_MODE_ARM
-#elif defined (HAVE_ARM64)
-# define GUM_DEFAULT_CS_ARCH CS_ARCH_ARM64
-# define GUM_DEFAULT_CS_MODE CS_MODE_ARM
-#elif defined (HAVE_MIPS)
-# define GUM_DEFAULT_CS_ARCH CS_ARCH_MIPS
-# if G_BYTE_ORDER == G_LITTLE_ENDIAN
-#   if GLIB_SIZEOF_VOID_P == 8
-#     define GUM_DEFAULT_CS_MODE \
-        ((cs_mode) (CS_MODE_MIPS64 | CS_MODE_LITTLE_ENDIAN))
-#   else
-#     define GUM_DEFAULT_CS_MODE \
-        ((cs_mode) (CS_MODE_MIPS32 | CS_MODE_LITTLE_ENDIAN))
-#endif
-# else
-#   if GLIB_SIZEOF_VOID_P == 8
-#     define GUM_DEFAULT_CS_MODE \
-        ((cs_mode) (CS_MODE_MIPS64 | CS_MODE_BIG_ENDIAN))
-#   else
-#     define GUM_DEFAULT_CS_MODE \
-        ((cs_mode) (CS_MODE_MIPS32 | CS_MODE_BIG_ENDIAN))
-#   endif
-# endif
-#else
-# error Unsupported architecture
-#endif
 
 #define GUM_INSTRUCTION_FOOTPRINT_ESTIMATE 256
 
@@ -91,7 +55,6 @@ static Local<Object> gum_arm64_parse_shift_details (const cs_arm64_op * op,
 static const gchar * gum_arm64_shifter_to_string (arm64_shifter type);
 static const gchar * gum_arm64_extender_to_string (arm64_extender ext);
 static const gchar * gum_arm64_vas_to_string (arm64_vas vas);
-static const gchar * gum_arm64_vess_to_string (arm64_vess vess);
 #elif defined (HAVE_MIPS)
 static Local<Object> gum_mips_parse_memory_operand_value (
     const mips_op_mem * mem, GumV8Instruction * module);
@@ -141,24 +104,18 @@ _gum_v8_instruction_init (GumV8Instruction * self,
 
   self->core = core;
 
-  auto err =
-      cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &self->capstone);
-  g_assert_cmpint (err, ==, CS_ERR_OK);
-
-  err = cs_option (self->capstone, CS_OPT_DETAIL, CS_OPT_ON);
-  g_assert_cmpint (err, ==, CS_ERR_OK);
+  cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &self->capstone);
+  cs_option (self->capstone, CS_OPT_DETAIL, CS_OPT_ON);
 
   auto module = External::New (isolate, self);
 
-  auto api = _gum_v8_create_module ("Instruction", scope, isolate);
-  _gum_v8_module_add (module, api, gumjs_instruction_module_functions, isolate);
-
-  auto value = _gum_v8_create_class ("InstructionValue", nullptr, scope, module,
+  auto klass = _gum_v8_create_class ("Instruction", nullptr, scope, module,
       isolate);
-  _gum_v8_class_add (value, gumjs_instruction_values, module, isolate);
-  _gum_v8_class_add (value, gumjs_instruction_functions, module, isolate);
-  self->constructor =
-      new GumPersistent<FunctionTemplate>::type (isolate, value);
+  _gum_v8_class_add_static (klass, gumjs_instruction_module_functions, module,
+      isolate);
+  _gum_v8_class_add (klass, gumjs_instruction_values, module, isolate);
+  _gum_v8_class_add (klass, gumjs_instruction_functions, module, isolate);
+  self->klass = new GumPersistent<FunctionTemplate>::type (isolate, klass);
 }
 
 void
@@ -170,9 +127,9 @@ _gum_v8_instruction_realize (GumV8Instruction * self)
   self->instructions = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_v8_instruction_free);
 
-  auto constructor = Local<FunctionTemplate>::New (isolate, *self->constructor);
-  auto object = constructor->GetFunction ()->NewInstance (context, 0, nullptr)
-      .ToLocalChecked ();
+  auto klass = Local<FunctionTemplate>::New (isolate, *self->klass);
+  auto object = klass->GetFunction (context).ToLocalChecked ()
+      ->NewInstance (context, 0, nullptr).ToLocalChecked ();
   self->template_object = new GumPersistent<Object>::type (isolate, object);
 }
 
@@ -185,8 +142,8 @@ _gum_v8_instruction_dispose (GumV8Instruction * self)
   delete self->template_object;
   self->template_object = nullptr;
 
-  delete self->constructor;
-  self->constructor = nullptr;
+  delete self->klass;
+  self->klass = nullptr;
 }
 
 void
@@ -218,7 +175,6 @@ _gum_v8_instruction_new (csh capstone,
   }
   value->target = target;
 
-  value->object->MarkIndependent ();
   value->object->SetWeak (value, gum_v8_instruction_on_weak_notify,
       WeakCallbackType::kParameter);
 
@@ -247,7 +203,6 @@ _gum_v8_instruction_release_persistent (GumV8InstructionValue * value)
 {
   gum_v8_instruction_dispose (value);
 
-  value->object->MarkIndependent ();
   value->object->SetWeak (value, gum_v8_instruction_on_weak_notify,
       WeakCallbackType::kParameter);
 
@@ -799,12 +754,6 @@ gum_parse_operands (const cs_insn * insn,
           gum_arm64_vas_to_string (op->vas), core);
     }
 
-    if (op->vess != ARM64_VESS_INVALID)
-    {
-      _gum_v8_object_set_ascii (element, "vess",
-          gum_arm64_vess_to_string (op->vess), core);
-    }
-
     if (op->vector_index != -1)
     {
       _gum_v8_object_set_uint (element, "vectorIndex", op->vector_index, core);
@@ -909,22 +858,6 @@ gum_arm64_vas_to_string (arm64_vas vas)
     case ARM64_VAS_1D:  return "1d";
     case ARM64_VAS_2D:  return "2d";
     case ARM64_VAS_1Q:  return "1q";
-    default:
-      g_assert_not_reached ();
-  }
-
-  return NULL;
-}
-
-static const gchar *
-gum_arm64_vess_to_string (arm64_vess vess)
-{
-  switch (vess)
-  {
-    case ARM64_VESS_B: return "b";
-    case ARM64_VESS_H: return "h";
-    case ARM64_VESS_S: return "s";
-    case ARM64_VESS_D: return "d";
     default:
       g_assert_not_reached ();
   }

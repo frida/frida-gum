@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -199,8 +199,8 @@ static const GumV8Function gumjs_memory_access_monitor_functions[] =
 
 void
 _gum_v8_memory_init (GumV8Memory * self,
-                         GumV8Core * core,
-                         Handle<ObjectTemplate> scope)
+                     GumV8Core * core,
+                     Handle<ObjectTemplate> scope)
 {
   auto isolate = core->isolate;
 
@@ -248,15 +248,15 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
   GumV8NativeResource * res;
 
   gsize page_size = gum_query_page_size ();
-  if (size < page_size)
+  if ((size % page_size) != 0)
   {
     res = _gum_v8_native_resource_new (g_malloc0 (size), size, g_free, core);
   }
   else
   {
-    guint n = ((size + page_size - 1) & ~(page_size - 1)) / page_size;
-    res = _gum_v8_native_resource_new (gum_alloc_n_pages (n, GUM_PAGE_RW),
-        n * page_size, gum_free_pages, core);
+    res = _gum_v8_native_resource_new (
+        gum_alloc_n_pages (size / page_size, GUM_PAGE_RW), size,
+        gum_free_pages, core);
   }
 
   info.GetReturnValue ().Set (Local<Object>::New (isolate, *res->instance));
@@ -333,7 +333,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_patch_code)
   pc.has_pending_exception = FALSE;
   pc.core = core;
 
-  success = gum_memory_patch_code (GUM_ADDRESS (address), size,
+  success = gum_memory_patch_code (address, size,
       (GumMemoryPatchApplyFunc) gum_memory_patch_context_apply, &pc);
   if (!success && !pc.has_pending_exception)
     _gum_v8_throw_ascii_literal (isolate, "invalid address");
@@ -343,11 +343,12 @@ static void
 gum_memory_patch_context_apply (gpointer mem,
                                 GumMemoryPatchContext * self)
 {
-  Handle<Value> argv[] = {
-    _gum_v8_native_pointer_new (mem, self->core)
-  };
-  auto result = self->apply->Call (Undefined (self->core->isolate),
-      G_N_ELEMENTS (argv), argv);
+  auto isolate = self->core->isolate;
+  auto context = isolate->GetCurrentContext ();
+
+  auto recv = Undefined (isolate);
+  Handle<Value> argv[] = { _gum_v8_native_pointer_new (mem, self->core) };
+  auto result = self->apply->Call (context, recv, G_N_ELEMENTS (argv), argv);
   self->has_pending_exception = result.IsEmpty ();
 }
 
@@ -924,21 +925,27 @@ gum_memory_scan_context_run (GumMemoryScanContext * self)
   if (gum_exceptor_catch (exceptor, &scope) && self->on_error != nullptr)
   {
     ScriptScope script_scope (core->script);
+    auto context = isolate->GetCurrentContext ();
 
     auto message = gum_exception_details_to_string (&scope.exception);
 
     auto on_error = Local<Function>::New (isolate, *self->on_error);
+    auto recv = Undefined (isolate);
     Handle<Value> argv[] = { String::NewFromUtf8 (isolate, message) };
-    on_error->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
+    auto result = on_error->Call (context, recv, G_N_ELEMENTS (argv), argv);
+    _gum_v8_ignore_result (result);
 
     g_free (message);
   }
 
   {
     ScriptScope script_scope (core->script);
+    auto context = isolate->GetCurrentContext ();
 
     auto on_complete (Local<Function>::New (isolate, *self->on_complete));
-    on_complete->Call (Undefined (isolate), 0, nullptr);
+    auto recv = Undefined (isolate);
+    auto result = on_complete->Call (context, recv, 0, nullptr);
+    _gum_v8_ignore_result (result);
   }
 }
 
@@ -949,18 +956,20 @@ gum_memory_scan_context_emit_match (GumAddress address,
 {
   ScriptScope scope (self->core->script);
   auto isolate = self->core->isolate;
+  auto context = isolate->GetCurrentContext ();
 
+  gboolean proceed = TRUE;
   auto on_match = Local<Function>::New (isolate, *self->on_match);
+  auto recv = Undefined (isolate);
   Handle<Value> argv[] = {
     _gum_v8_native_pointer_new (GSIZE_TO_POINTER (address), self->core),
     Integer::NewFromUnsigned (isolate, size)
   };
-  auto result = on_match->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
-
-  gboolean proceed = TRUE;
-  if (!result.IsEmpty () && result->IsString ())
+  Local<Value> result;
+  if (on_match->Call (context, recv, G_N_ELEMENTS (argv), argv)
+      .ToLocal (&result) && result->IsString ())
   {
-    String::Utf8Value str (result);
+    String::Utf8Value str (isolate, result);
     proceed = strcmp (*str, "stop") != 0;
   }
 

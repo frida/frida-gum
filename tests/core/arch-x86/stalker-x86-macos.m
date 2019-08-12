@@ -8,14 +8,14 @@
 
 #import <Cocoa/Cocoa.h>
 
-TEST_LIST_BEGIN (stalker_macos)
-  STALKER_TESTENTRY (cocoa_performance)
-TEST_LIST_END ()
+TESTLIST_BEGIN (stalker_macos)
+  TESTENTRY (cocoa_performance)
+TESTLIST_END ()
 
 static void configure_app (void);
 static void create_and_destroy_window (void);
 
-STALKER_TESTCASE (cocoa_performance)
+TESTCASE (cocoa_performance)
 {
   GTimer * timer;
   gdouble duration_direct, duration_stalked;

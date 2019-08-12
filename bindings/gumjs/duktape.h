@@ -6,7 +6,7 @@
  *  comments.  Other parts of the header are Duktape internal and related to
  *  e.g. platform/compiler/feature detection.
  *
- *  Git commit a2a1a87b892531c4e0a2f92557040e63f1c37ed2 (v2.3.0-17-ga2a1a87b).
+ *  Git commit 603471691b03ab858a9d0a532ba54ed5f3122f1b (v2.3.0-87-g60347169).
  *  Git branch master.
  *
  *  See Duktape AUTHORS.rst and LICENSE.txt for copyright and
@@ -100,6 +100,10 @@
  *  * Michal Kasperek (https://github.com/michalkas)
  *  * Andrew Janke (https://github.com/apjanke)
  *  * Steve Fan (https://github.com/stevefan1999)
+ *  * Edward Betts (https://github.com/edwardbetts)
+ *  * Ozhan Duz (https://github.com/webfolderio)
+ *  * Akos Kiss (https://github.com/akosthekiss)
+ *  * TheBrokenRail (https://github.com/TheBrokenRail)
  *  
  *  Other contributions
  *  ===================
@@ -140,6 +144,7 @@
  *  * Neil Kolban (https://github.com/nkolban)
  *  * Wilhelm Wanecek (https://github.com/wanecek)
  *  * Andrew Janke (https://github.com/apjanke)
+ *  * Unamer (https://github.com/unamer)
  *  
  *  If you are accidentally missing from this list, send me an e-mail
  *  (``sami.vaarala@iki.fi``) and I'll fix the omission.
@@ -171,8 +176,8 @@
  * which Duktape snapshot was used.  Not available in the ECMAScript
  * environment.
  */
-#define DUK_GIT_COMMIT                    "a2a1a87b892531c4e0a2f92557040e63f1c37ed2"
-#define DUK_GIT_DESCRIBE                  "v2.3.0-17-ga2a1a87b"
+#define DUK_GIT_COMMIT                    "603471691b03ab858a9d0a532ba54ed5f3122f1b"
+#define DUK_GIT_DESCRIBE                  "v2.3.0-87-g60347169"
 #define DUK_GIT_BRANCH                    "master"
 
 /* External duk_config.h provides platform/compiler/OS dependent
@@ -714,6 +719,7 @@ DUK_EXTERNAL_DECL void duk_push_thread_stash(duk_context *ctx, duk_context *targ
 DUK_EXTERNAL_DECL duk_idx_t duk_push_object(duk_context *ctx);
 DUK_EXTERNAL_DECL duk_idx_t duk_push_bare_object(duk_context *ctx);
 DUK_EXTERNAL_DECL duk_idx_t duk_push_array(duk_context *ctx);
+DUK_EXTERNAL_DECL duk_idx_t duk_push_bare_array(duk_context *ctx);
 DUK_EXTERNAL_DECL duk_idx_t duk_push_c_function(duk_context *ctx, duk_c_function func, duk_idx_t nargs);
 DUK_EXTERNAL_DECL duk_idx_t duk_push_c_lightfunc(duk_context *ctx, duk_c_function func, duk_idx_t nargs, duk_idx_t length, duk_int_t magic);
 DUK_EXTERNAL_DECL duk_idx_t duk_push_thread_raw(duk_context *ctx, duk_uint_t flags);
@@ -997,6 +1003,8 @@ DUK_EXTERNAL_DECL void duk_to_primitive(duk_context *ctx, duk_idx_t idx, duk_int
 
 /* safe variants of a few coercion operations */
 DUK_EXTERNAL_DECL const char *duk_safe_to_lstring(duk_context *ctx, duk_idx_t idx, duk_size_t *out_len);
+DUK_EXTERNAL_DECL const char *duk_to_stacktrace(duk_context *ctx, duk_idx_t idx);
+DUK_EXTERNAL_DECL const char *duk_safe_to_stacktrace(duk_context *ctx, duk_idx_t idx);
 #define duk_safe_to_string(ctx,idx) \
 	duk_safe_to_lstring((ctx), (idx), NULL)
 

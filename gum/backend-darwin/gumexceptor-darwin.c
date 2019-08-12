@@ -224,11 +224,11 @@ gum_exceptor_backend_attach (GumExceptorBackend * self)
 
   kr = mach_port_allocate (self_task, MACH_PORT_RIGHT_RECEIVE,
       &self->server_port);
-  g_assert_cmpint (kr, ==, KERN_SUCCESS);
+  g_assert (kr == KERN_SUCCESS);
 
   kr = mach_port_insert_right (self_task, self->server_port, self->server_port,
       MACH_MSG_TYPE_MAKE_SEND);
-  g_assert_cmpint (kr, ==, KERN_SUCCESS);
+  g_assert (kr == KERN_SUCCESS);
 
   self->exception_mask = EXC_MASK_ARITHMETIC |
       EXC_MASK_BAD_ACCESS |
@@ -248,7 +248,7 @@ gum_exceptor_backend_attach (GumExceptorBackend * self)
       old_ports->handlers,
       old_ports->behaviors,
       old_ports->flavors);
-  g_assert_cmpint (kr, ==, KERN_SUCCESS);
+  g_assert (kr == KERN_SUCCESS);
 
   self->old_abort_handler_present = TRUE;
   action.sa_sigaction = gum_exceptor_backend_on_signal;
@@ -310,7 +310,7 @@ gum_exceptor_backend_detach (GumExceptorBackend * self)
         old_ports->handlers[port_index],
         old_ports->behaviors[port_index],
         old_ports->flavors[port_index]);
-    g_assert_cmpint (kr, ==, KERN_SUCCESS);
+    g_assert (kr == KERN_SUCCESS);
   }
 
   gum_exceptor_backend_stop_worker_thread (self);
@@ -358,7 +358,7 @@ gum_exceptor_backend_send_stop_request (GumExceptorBackend * self)
   header.msgh_reserved = 0;
   header.msgh_id = GUM_EXCEPTOR_BACKEND_MESSAGE_STOP;
   kr = mach_msg_send (&header);
-  g_assert_cmpint (kr, ==, KERN_SUCCESS);
+  g_assert (kr == KERN_SUCCESS);
 }
 
 static gpointer
@@ -379,7 +379,7 @@ gum_exceptor_backend_process_messages (GumExceptorBackend * self)
     header_in->msgh_local_port = self->server_port;
 
     kr = mach_msg_receive (header_in);
-    g_assert_cmpint (kr, ==, KERN_SUCCESS);
+    g_assert (kr == KERN_SUCCESS);
 
     if (header_in->msgh_id == GUM_EXCEPTOR_BACKEND_MESSAGE_STOP)
     {
@@ -622,7 +622,7 @@ gum_exceptor_backend_on_signal (int sig,
   GumCpuContext * cpu_context = &ed.context;
   struct sigaction * action;
 
-  g_assert_cmpint (sig, ==, SIGABRT);
+  g_assert (sig == SIGABRT);
 
   action = &self->old_abort_handler;
 

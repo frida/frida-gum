@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -26,6 +26,9 @@ GUM_API gsize gum_code_segment_get_virtual_size (GumCodeSegment * self);
 GUM_API void gum_code_segment_realize (GumCodeSegment * self);
 GUM_API void gum_code_segment_map (GumCodeSegment * self, gsize source_offset,
     gsize source_size, gpointer target_address);
+
+GUM_API gboolean gum_code_segment_mark (gpointer code, gsize size,
+    GError ** error);
 
 G_END_DECLS
 

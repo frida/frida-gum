@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -16,7 +16,7 @@
 #endif
 #include "valgrind.h"
 
-#include <capstone/capstone.h>
+#include <capstone.h>
 #include <glib.h>
 #include <gio/gio.h>
 #ifdef HAVE_GLIB_SCHANNEL_STATIC
@@ -95,7 +95,7 @@ main (gint argc, gchar * argv[])
       RTLD_LAZY | RTLD_GLOBAL);
 #endif
 
-  gum_memory_init ();
+  gum_internal_heap_ref ();
 #if !DEBUG_HEAP_LEAKS && !defined (HAVE_ASAN)
   if (RUNNING_ON_VALGRIND)
   {
@@ -146,11 +146,10 @@ main (gint argc, gchar * argv[])
 #endif
 
 #ifdef HAVE_IOS
-# define ELECTRA_FLAG_PLATFORMIZE (1 << 1)
   if (g_file_test ("/usr/lib/libjailbreak.dylib", G_FILE_TEST_EXISTS))
   {
     GModule * module;
-    void (* entitle_now) (pid_t pid, uint32_t what);
+    void (* entitle_now) (pid_t pid);
 
     module = g_module_open ("/usr/lib/libjailbreak.dylib", G_MODULE_BIND_LAZY);
 
@@ -158,7 +157,7 @@ main (gint argc, gchar * argv[])
     g_module_symbol (module, "jb_oneshot_entitle_now",
         (gpointer *) &entitle_now);
 
-    entitle_now (getpid (), ELECTRA_FLAG_PLATFORMIZE);
+    entitle_now (getpid ());
 
     g_module_close (module);
   }
@@ -170,73 +169,73 @@ main (gint argc, gchar * argv[])
 #endif
 
   /* Core */
-  TEST_RUN_LIST (testutil);
-  TEST_RUN_LIST (tls);
-  TEST_RUN_LIST (cloak);
-  TEST_RUN_LIST (memory);
-  TEST_RUN_LIST (process);
+  TESTLIST_REGISTER (testutil);
+  TESTLIST_REGISTER (tls);
+  TESTLIST_REGISTER (cloak);
+  TESTLIST_REGISTER (memory);
+  TESTLIST_REGISTER (process);
 #if !defined (HAVE_QNX) && !(defined (HAVE_ANDROID) && defined (HAVE_ARM64))
-  TEST_RUN_LIST (symbolutil);
+  TESTLIST_REGISTER (symbolutil);
 #endif
-  TEST_RUN_LIST (codewriter);
+  TESTLIST_REGISTER (codewriter);
   if (cs_support (CS_ARCH_X86))
-    TEST_RUN_LIST (relocator);
-  TEST_RUN_LIST (armwriter);
+    TESTLIST_REGISTER (relocator);
+  TESTLIST_REGISTER (armwriter);
   if (cs_support (CS_ARCH_ARM))
-    TEST_RUN_LIST (armrelocator);
-  TEST_RUN_LIST (thumbwriter);
+    TESTLIST_REGISTER (armrelocator);
+  TESTLIST_REGISTER (thumbwriter);
   if (cs_support (CS_ARCH_ARM))
-    TEST_RUN_LIST (thumbrelocator);
-  TEST_RUN_LIST (arm64writer);
+    TESTLIST_REGISTER (thumbrelocator);
+  TESTLIST_REGISTER (arm64writer);
   if (cs_support (CS_ARCH_ARM64))
-    TEST_RUN_LIST (arm64relocator);
-  TEST_RUN_LIST (interceptor);
+    TESTLIST_REGISTER (arm64relocator);
+  TESTLIST_REGISTER (interceptor);
 #ifdef HAVE_DARWIN
-  TEST_RUN_LIST (interceptor_darwin);
+  TESTLIST_REGISTER (interceptor_darwin);
 #endif
 #ifdef HAVE_ANDROID
-  TEST_RUN_LIST (interceptor_android);
+  TESTLIST_REGISTER (interceptor_android);
 #endif
 #ifdef HAVE_ARM
-  TEST_RUN_LIST (interceptor_arm);
+  TESTLIST_REGISTER (interceptor_arm);
 #endif
 #ifdef HAVE_ARM64
-  TEST_RUN_LIST (interceptor_arm64);
+  TESTLIST_REGISTER (interceptor_arm64);
 #endif
 #ifdef HAVE_DARWIN
-  TEST_RUN_LIST (exceptor_darwin);
+  TESTLIST_REGISTER (exceptor_darwin);
 #endif
 #if defined (HAVE_I386) && defined (G_OS_WIN32)
-  TEST_RUN_LIST (memoryaccessmonitor);
+  TESTLIST_REGISTER (memoryaccessmonitor);
 #endif
 
   if (gum_stalker_is_supported ())
   {
 #if defined (HAVE_I386) || defined (HAVE_ARM64)
-    TEST_RUN_LIST (stalker);
+    TESTLIST_REGISTER (stalker);
 #endif
 #ifdef HAVE_MACOS
-    TEST_RUN_LIST (stalker_macos);
+    TESTLIST_REGISTER (stalker_macos);
 #endif
 #if defined (HAVE_ARM64) && defined (HAVE_DARWIN)
-    TEST_RUN_LIST (stalker_darwin);
+    TESTLIST_REGISTER (stalker_darwin);
 #endif
   }
 
-  TEST_RUN_LIST (api_resolver);
+  TESTLIST_REGISTER (api_resolver);
 #if !defined (HAVE_QNX) && !(defined (HAVE_ANDROID) && defined (HAVE_ARM64)) && !(defined (HAVE_MIPS))
-  TEST_RUN_LIST (backtracer);
+  TESTLIST_REGISTER (backtracer);
 #endif
 
   /* Heap */
-  TEST_RUN_LIST (allocation_tracker);
+  TESTLIST_REGISTER (allocation_tracker);
 #ifdef G_OS_WIN32
-  TEST_RUN_LIST (allocator_probe);
-  TEST_RUN_LIST (allocator_probe_cxx);
-  TEST_RUN_LIST (cobjecttracker);
-  TEST_RUN_LIST (instancetracker);
+  TESTLIST_REGISTER (allocator_probe);
+  TESTLIST_REGISTER (allocator_probe_cxx);
+  TESTLIST_REGISTER (cobjecttracker);
+  TESTLIST_REGISTER (instancetracker);
 #endif
-  TEST_RUN_LIST (pagepool);
+  TESTLIST_REGISTER (pagepool);
 #ifndef G_OS_WIN32
   if (gum_is_debugger_present ())
   {
@@ -251,59 +250,48 @@ main (gint argc, gchar * argv[])
 #endif
   {
 #ifdef G_OS_WIN32
-    TEST_RUN_LIST (boundschecker);
+    TESTLIST_REGISTER (boundschecker);
 #endif
   }
 #ifdef G_OS_WIN32
-  TEST_RUN_LIST (sanitychecker);
+  TESTLIST_REGISTER (sanitychecker);
 #endif
 
   /* Prof */
 #if !defined (HAVE_IOS) && !(defined (HAVE_ANDROID) && defined (HAVE_ARM64))
-  TEST_RUN_LIST (sampler);
+  TESTLIST_REGISTER (sampler);
 #endif
 #ifdef G_OS_WIN32
-  TEST_RUN_LIST (profiler);
+  TESTLIST_REGISTER (profiler);
 #endif
 
 #if defined (HAVE_GUMJS)
   /* GumJS */
   {
-# ifdef HAVE_V8
-    GumScriptBackend * v8_backend;
+    GumScriptBackend * duk_backend, * v8_backend;
 
-#  ifndef HAVE_ASAN
+    duk_backend = gum_script_backend_obtain_duk ();
+    if (duk_backend != NULL)
+      TESTLIST_REGISTER_WITH_DATA (script, duk_backend);
+
+# ifndef HAVE_ASAN
     v8_backend = gum_script_backend_obtain_v8 ();
-#  else
+# else
     v8_backend = NULL;
-#  endif
-
-    if (v8_backend != NULL)
-      TEST_RUN_LIST_WITH_DATA (script, v8_backend);
 # endif
-    TEST_RUN_LIST_WITH_DATA (script, gum_script_backend_obtain_duk ());
-
-# ifdef HAVE_DARWIN
-#  ifdef HAVE_V8
     if (v8_backend != NULL)
-      TEST_RUN_LIST_WITH_DATA (script_darwin, v8_backend);
-#  endif
+      TESTLIST_REGISTER_WITH_DATA (script, v8_backend);
 
-    TEST_RUN_LIST_WITH_DATA (script_darwin, gum_script_backend_obtain_duk ());
-# endif
-
-#if 0
 # ifndef HAVE_ASAN
     if (gum_kernel_api_is_available ())
-      TEST_RUN_LIST (kscript);
+      TESTLIST_REGISTER (kscript);
 # endif
-#endif
   }
 #endif
 
 #if defined (HAVE_GUMPP) && defined (G_OS_WIN32)
   /* Gum++ */
-  TEST_RUN_LIST (gumpp_backtracer);
+  TESTLIST_REGISTER (gumpp_backtracer);
 #endif
 
 #ifdef _MSC_VER
@@ -340,7 +328,7 @@ main (gint argc, gchar * argv[])
   gum_deinit ();
   gio_deinit ();
   glib_deinit ();
-  gum_memory_deinit ();
+  gum_internal_heap_unref ();
 
 # ifdef G_OS_WIN32
   WSACleanup ();

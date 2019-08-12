@@ -10,15 +10,15 @@
 
 #include <string.h>
 
-TEST_LIST_BEGIN (instancetracker)
-  INSTRACKER_TESTENTRY (total_count)
-  INSTRACKER_TESTENTRY (type_filter_function)
-  INSTRACKER_TESTENTRY (nested_trackers)
-  INSTRACKER_TESTENTRY (ignore_other_trackers)
-  INSTRACKER_TESTENTRY (peek_instances)
-  INSTRACKER_TESTENTRY (walk_instances)
-  INSTRACKER_TESTENTRY (avoid_heap)
-TEST_LIST_END ()
+TESTLIST_BEGIN (instancetracker)
+  TESTENTRY (total_count)
+  TESTENTRY (type_filter_function)
+  TESTENTRY (nested_trackers)
+  TESTENTRY (ignore_other_trackers)
+  TESTENTRY (peek_instances)
+  TESTENTRY (walk_instances)
+  TESTENTRY (avoid_heap)
+TESTLIST_END ()
 
 typedef struct _WalkInstancesContext WalkInstancesContext;
 
@@ -32,7 +32,7 @@ static gboolean no_ponies_filter_func (GumInstanceTracker * tracker,
     GType gtype, gpointer user_data);
 static void walk_instance (GumInstanceDetails * id, gpointer user_data);
 
-INSTRACKER_TESTCASE (total_count)
+TESTCASE (total_count)
 {
   GumInstanceTracker * t = fixture->tracker;
   ZooZebra * zebra;
@@ -69,7 +69,7 @@ INSTRACKER_TESTCASE (total_count)
   g_assert_cmpuint (gum_instance_tracker_peek_total_count (t, NULL), ==, 0);
 }
 
-INSTRACKER_TESTCASE (type_filter_function)
+TESTCASE (type_filter_function)
 {
   GumInstanceTracker * t = fixture->tracker;
   MyPony * pony;
@@ -95,7 +95,7 @@ INSTRACKER_TESTCASE (type_filter_function)
   g_object_unref (pony);
 }
 
-INSTRACKER_TESTCASE (nested_trackers)
+TESTCASE (nested_trackers)
 {
   GumInstanceTracker * t1 = fixture->tracker;
   GumInstanceTracker * t2 = NULL;
@@ -131,7 +131,7 @@ INSTRACKER_TESTCASE (nested_trackers)
   g_object_unref (t2);
 }
 
-INSTRACKER_TESTCASE (ignore_other_trackers)
+TESTCASE (ignore_other_trackers)
 {
   GumInstanceTracker * t1 = fixture->tracker;
   GumInstanceTracker * t2;
@@ -141,14 +141,14 @@ INSTRACKER_TESTCASE (ignore_other_trackers)
   g_object_unref (t2);
 }
 
-INSTRACKER_TESTCASE (peek_instances)
+TESTCASE (peek_instances)
 {
   GumInstanceTracker * t = fixture->tracker;
   MyPony * pony1, * pony2, * pony3;
   GList * instances, * cur;
 
   g_test_message ("Should not be any instances around yet");
-  g_assert (gum_instance_tracker_peek_instances (t) == NULL);
+  g_assert_null (gum_instance_tracker_peek_instances (t));
 
   pony1 = g_object_new (MY_TYPE_PONY, NULL);
   pony2 = g_object_new (MY_TYPE_PONY, NULL);
@@ -156,12 +156,15 @@ INSTRACKER_TESTCASE (peek_instances)
 
   instances = gum_instance_tracker_peek_instances (t);
   g_test_message ("We should now have three instances");
-  g_assert (instances != NULL);
+  g_assert_nonnull (instances);
   g_assert_cmpuint (g_list_length (instances), ==, 3);
 
   g_test_message ("The instances should be our ponies");
   for (cur = instances; cur != NULL; cur = cur->next)
-    g_assert (cur->data == pony1 || cur->data == pony2 || cur->data == pony3);
+  {
+    g_assert_true (cur->data == pony1 || cur->data == pony2 ||
+        cur->data == pony3);
+  }
 
   g_list_free (instances); instances = NULL;
 
@@ -169,12 +172,12 @@ INSTRACKER_TESTCASE (peek_instances)
 
   instances = gum_instance_tracker_peek_instances (t);
   g_test_message ("We should now have two instances");
-  g_assert (instances != NULL);
+  g_assert_nonnull (instances);
   g_assert_cmpuint (g_list_length (instances), ==, 2);
 
   g_test_message ("Only pony1 and pony3 should be left now");
   for (cur = instances; cur != NULL; cur = cur->next)
-    g_assert (cur->data == pony1 || cur->data == pony3);
+    g_assert_true (cur->data == pony1 || cur->data == pony3);
 
   g_list_free (instances); instances = NULL;
 
@@ -182,7 +185,7 @@ INSTRACKER_TESTCASE (peek_instances)
   g_object_unref (pony3);
 }
 
-INSTRACKER_TESTCASE (walk_instances)
+TESTCASE (walk_instances)
 {
   GumInstanceTracker * t = fixture->tracker;
   WalkInstancesContext ctx;
@@ -219,7 +222,7 @@ INSTRACKER_TESTCASE (walk_instances)
   g_list_free (ctx.expected_instances);
 }
 
-INSTRACKER_TESTCASE (avoid_heap)
+TESTCASE (avoid_heap)
 {
   GumInstanceTracker * t = fixture->tracker;
   GumSampler * heap_access_counter;
@@ -255,10 +258,10 @@ walk_instance (GumInstanceDetails * id, gpointer user_data)
   const GTypeInstance * expected_instance, * cur_instance;
 
   entry = g_list_find (ctx->expected_instances, id->address);
-  g_assert (entry != NULL);
+  g_assert_nonnull (entry);
   expected_instance = (const GTypeInstance *) entry->data;
   cur_instance = (const GTypeInstance *) id->address;
-  g_assert (cur_instance == expected_instance);
+  g_assert_true (cur_instance == expected_instance);
   g_assert_cmpuint (id->ref_count,
       ==, G_OBJECT (expected_instance)->ref_count);
   g_assert_cmpint (strcmp (id->type_name,

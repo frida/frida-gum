@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,38 +7,6 @@
 #include "gumdukinstruction.h"
 
 #include "gumdukmacros.h"
-
-#if defined (HAVE_I386)
-# define GUM_DEFAULT_CS_ARCH CS_ARCH_X86
-# if GLIB_SIZEOF_VOID_P == 8
-#  define GUM_DEFAULT_CS_MODE CS_MODE_64
-# else
-#  define GUM_DEFAULT_CS_MODE CS_MODE_32
-# endif
-#elif defined (HAVE_ARM)
-# define GUM_DEFAULT_CS_ARCH CS_ARCH_ARM
-# define GUM_DEFAULT_CS_MODE CS_MODE_ARM
-#elif defined (HAVE_ARM64)
-# define GUM_DEFAULT_CS_ARCH CS_ARCH_ARM64
-# define GUM_DEFAULT_CS_MODE CS_MODE_ARM
-#elif defined (HAVE_MIPS)
-# define GUM_DEFAULT_CS_ARCH CS_ARCH_MIPS
-# if G_BYTE_ORDER == G_LITTLE_ENDIAN
-#   if GLIB_SIZEOF_VOID_P == 8
-#     define GUM_DEFAULT_CS_MODE CS_MODE_MIPS64 | CS_MODE_LITTLE_ENDIAN
-#   else
-#     define GUM_DEFAULT_CS_MODE CS_MODE_MIPS32 | CS_MODE_LITTLE_ENDIAN
-#   endif
-# else
-#   if GLIB_SIZEOF_VOID_P == 8
-#     define GUM_DEFAULT_CS_MODE CS_MODE_MIPS64 | CS_MODE_BIG_ENDIAN
-#   else
-#     define GUM_DEFAULT_CS_MODE CS_MODE_MIPS32 | CS_MODE_BIG_ENDIAN
-#   endif
-# endif
-#else
-# error Unsupported architecture
-#endif
 
 GUMJS_DECLARE_FUNCTION (gumjs_instruction_parse)
 
@@ -76,7 +44,6 @@ static void gum_arm64_push_shift_details (duk_context * ctx,
 static const gchar * gum_arm64_shifter_to_string (arm64_shifter type);
 static const gchar * gum_arm64_extender_to_string (arm64_extender ext);
 static const gchar * gum_arm64_vas_to_string (arm64_vas vas);
-static const gchar * gum_arm64_vess_to_string (arm64_vess vess);
 #elif defined (HAVE_MIPS)
 static void gum_mips_push_memory_operand_value (duk_context * ctx,
     const mips_op_mem * mem, GumDukInstruction * module);
@@ -124,15 +91,11 @@ _gum_duk_instruction_init (GumDukInstruction * self,
 {
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   duk_context * ctx = scope.ctx;
-  cs_err err;
 
   self->core = core;
 
-  err = cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &self->capstone);
-  g_assert_cmpint (err, ==, CS_ERR_OK);
-
-  err = cs_option (self->capstone, CS_OPT_DETAIL, CS_OPT_ON);
-  g_assert_cmpint (err, ==, CS_ERR_OK);
+  cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &self->capstone);
+  cs_option (self->capstone, CS_OPT_DETAIL, CS_OPT_ON);
 
   _gum_duk_store_module_data (ctx, "instruction", self);
 
@@ -751,12 +714,6 @@ gum_push_operands (duk_context * ctx,
       duk_put_prop_string (ctx, -2, "vas");
     }
 
-    if (op->vess != ARM64_VESS_INVALID)
-    {
-      duk_push_string (ctx, gum_arm64_vess_to_string (op->vess));
-      duk_put_prop_string (ctx, -2, "vess");
-    }
-
     if (op->vector_index != -1)
     {
       duk_push_uint (ctx, op->vector_index);
@@ -857,22 +814,6 @@ gum_arm64_vas_to_string (arm64_vas vas)
     case ARM64_VAS_1D:  return "1d";
     case ARM64_VAS_2D:  return "2d";
     case ARM64_VAS_1Q:  return "1q";
-    default:
-      g_assert_not_reached ();
-  }
-
-  return NULL;
-}
-
-static const gchar *
-gum_arm64_vess_to_string (arm64_vess vess)
-{
-  switch (vess)
-  {
-    case ARM64_VESS_B: return "b";
-    case ARM64_VESS_H: return "h";
-    case ARM64_VESS_S: return "s";
-    case ARM64_VESS_D: return "d";
     default:
       g_assert_not_reached ();
   }

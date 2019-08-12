@@ -39,6 +39,7 @@ struct GumPersistent
 typedef void (* GumV8FlushNotify) (GumV8Script * script);
 typedef void (* GumV8MessageEmitter) (GumV8Script * script,
     const gchar * message, GBytes * data);
+typedef void (* GumV8KernelNotify) (guint64 data);
 
 struct GumV8Core
 {
@@ -81,6 +82,7 @@ struct GumV8Core
   GHashTable * native_callbacks;
 
   GHashTable * native_resources;
+  GHashTable * kernel_resources;
 
   GHashTable * source_maps;
 
@@ -114,6 +116,15 @@ struct GumV8NativeResource
   gpointer data;
   gsize size;
   GDestroyNotify notify;
+  GumV8Core * core;
+};
+
+struct GumV8KernelResource
+{
+  GumPersistent<v8::Object>::type * instance;
+  guint64 data;
+  gsize size;
+  GumV8KernelNotify notify;
   GumV8Core * core;
 };
 

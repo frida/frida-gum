@@ -15,32 +15,37 @@ gumjs_sources = [
   'gumscripttask.c',
   'gumsourcemap.c',
   'gummemoryvfs.c',
-  'gumdukscriptbackend.c',
-  'gumdukscript.c',
-  'gumdukbundle.c',
-  'gumdukvalue.c',
-  'gumdukobject.c',
-  'gumdukcore.c',
-  'gumdukkernel.c',
-  'gumdukmemory.c',
-  'gumdukprocess.c',
-  'gumdukthread.c',
-  'gumdukmodule.c',
-  'gumdukfile.c',
-  'gumdukstream.c',
-  'gumduksocket.c',
-  'gumdukdatabase.c',
-  'gumdukinterceptor.c',
-  'gumdukstalker.c',
-  'gumdukeventsink.c',
-  'gumdukapiresolver.c',
-  'gumduksymbol.c',
-  'gumdukinstruction.c',
-  'gumdukcodewriter.c',
-  'gumdukcoderelocator.c',
-  'gumdukcompat.c',
-  'duktape.c',
 ]
+
+if have_duktape
+  gumjs_sources += [
+    'gumdukscriptbackend.c',
+    'gumdukscript.c',
+    'gumdukbundle.c',
+    'gumdukvalue.c',
+    'gumdukobject.c',
+    'gumdukcore.c',
+    'gumdukkernel.c',
+    'gumdukmemory.c',
+    'gumdukprocess.c',
+    'gumdukthread.c',
+    'gumdukmodule.c',
+    'gumdukfile.c',
+    'gumdukstream.c',
+    'gumduksocket.c',
+    'gumdukdatabase.c',
+    'gumdukinterceptor.c',
+    'gumdukstalker.c',
+    'gumdukeventsink.c',
+    'gumdukapiresolver.c',
+    'gumduksymbol.c',
+    'gumdukinstruction.c',
+    'gumdukcodewriter.c',
+    'gumdukcoderelocator.c',
+    'gumdukcompat.c',
+    'duktape.c',
+  ]
+endif
 
 if have_v8
   gumjs_sources += [
@@ -89,7 +94,10 @@ foreach o : gumjs_generated_origins
   gumjs_generated_inputs += join_paths(meson.source_root(), 'gum', o)
 endforeach
 gumjs_generated_outputs = []
-runtimes = ['duk']
+runtimes = []
+if have_duktape
+  runtimes += 'duk'
+endif
 if have_v8
   runtimes += 'v8'
 endif
@@ -163,6 +171,7 @@ gumjs_sources += [gumjs_runtime]
 
 gumjs = library('frida-gumjs-' + api_version, gumjs_sources,
   c_args: frida_component_cflags,
+  override_options: ['cpp_std=c++11'],
   include_directories: [bindings_inc],
   dependencies: [gum_dep, gio_dep, json_glib_dep, ffi_dep, sqlite_dep, libsoup_dep] + gumjs_extra_deps,
   install: true,
@@ -183,4 +192,8 @@ pkg.generate(filebase: 'frida-gumjs-' + api_version,
   subdirs: install_header_basedir,
   libraries: [gumjs],
   libraries_private: gumjs_extra_libraries,
+  variables: [
+    'gumjs_duktape=' + have_duktape.to_string('enabled', 'disabled'),
+    'gumjs_v8=' + have_v8.to_string('enabled', 'disabled'),
+  ],
 )

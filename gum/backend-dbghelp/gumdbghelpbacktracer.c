@@ -169,7 +169,7 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
     {
       if (i >= skip_count)
       {
-        g_assert_cmpuint (return_addresses->len, <,
+        g_assert (return_addresses->len <
             G_N_ELEMENTS (return_addresses->items));
         return_addresses->items[return_addresses->len++] =
             GSIZE_TO_POINTER (frame.AddrPC.Offset);

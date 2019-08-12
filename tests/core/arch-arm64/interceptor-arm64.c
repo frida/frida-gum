@@ -1,15 +1,15 @@
 /*
- * Copyright (C) 2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "interceptor-arm64-fixture.c"
 
-TEST_LIST_BEGIN (interceptor_arm64)
-  INTERCEPTOR_TESTENTRY (attach_to_thunk_reading_lr)
-  INTERCEPTOR_TESTENTRY (attach_to_function_reading_lr)
-TEST_LIST_END ()
+TESTLIST_BEGIN (interceptor_arm64)
+  TESTENTRY (attach_to_thunk_reading_lr)
+  TESTENTRY (attach_to_function_reading_lr)
+TESTLIST_END ()
 
 typedef struct _GumEmitLrThunkContext GumEmitLrThunkContext;
 typedef struct _GumEmitLrFuncContext GumEmitLrFuncContext;
@@ -33,7 +33,7 @@ struct _GumEmitLrFuncContext
 static void gum_emit_lr_thunk (gpointer mem, gpointer user_data);
 static void gum_emit_lr_func (gpointer mem, gpointer user_data);
 
-INTERCEPTOR_TESTCASE (attach_to_thunk_reading_lr)
+TESTCASE (attach_to_thunk_reading_lr)
 {
   const gsize code_size_in_pages = 1;
   gsize code_size;
@@ -45,8 +45,7 @@ INTERCEPTOR_TESTCASE (attach_to_thunk_reading_lr)
   ctx.thunk = NULL;
   ctx.expected_lr = 0;
 
-  gum_memory_patch_code (GUM_ADDRESS (ctx.code), code_size, gum_emit_lr_thunk,
-      &ctx);
+  gum_memory_patch_code (ctx.code, code_size, gum_emit_lr_thunk, &ctx);
 
   g_assert_cmphex (ctx.run (), ==, ctx.expected_lr);
 
@@ -79,7 +78,6 @@ gum_emit_lr_thunk (gpointer mem,
 
   ctx->thunk = GSIZE_TO_POINTER (aw.pc);
   gum_arm64_writer_put_label (&aw, thunk_start);
-  gum_arm64_writer_put_mov_reg_reg (&aw, ARM64_REG_X2, ARM64_REG_XZR);
   gum_arm64_writer_put_mov_reg_reg (&aw, ARM64_REG_X3, ARM64_REG_LR);
   gum_arm64_writer_put_b_label (&aw, inner_start);
 
@@ -90,7 +88,7 @@ gum_emit_lr_thunk (gpointer mem,
   gum_arm64_writer_clear (&aw);
 }
 
-INTERCEPTOR_TESTCASE (attach_to_function_reading_lr)
+TESTCASE (attach_to_function_reading_lr)
 {
   const gsize code_size_in_pages = 1;
   gsize code_size;
@@ -102,8 +100,7 @@ INTERCEPTOR_TESTCASE (attach_to_function_reading_lr)
   ctx.func = NULL;
   ctx.caller_lr = 0;
 
-  gum_memory_patch_code (GUM_ADDRESS (ctx.code), code_size, gum_emit_lr_func,
-      &ctx);
+  gum_memory_patch_code (ctx.code, code_size, gum_emit_lr_func, &ctx);
 
   g_assert_cmphex (ctx.run (), ==, ctx.caller_lr);
 

@@ -62,7 +62,7 @@ struct _GumCodeDeflectorDispatcher
 {
   GSList * callers;
 
-  GumAddress address;
+  gpointer address;
 
   gpointer original_data;
   gsize original_size;
@@ -435,7 +435,8 @@ gum_code_allocator_alloc_deflector (GumCodeAllocator * self,
       GumCodeDeflectorDispatcher * d = cur->data;
       gsize distance;
 
-      distance = ABS ((gssize) d->address - (gssize) caller->near_address);
+      distance = ABS ((gssize) GPOINTER_TO_SIZE (d->address) -
+          (gssize) caller->near_address);
       if (distance <= caller->max_distance)
       {
         dispatcher = d;
@@ -526,9 +527,9 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller,
 
   dispatcher = g_slice_new0 (GumCodeDeflectorDispatcher);
 
-  dispatcher->address = probe_ctx.cave.base_address;
+  dispatcher->address = GSIZE_TO_POINTER (probe_ctx.cave.base_address);
 
-  dispatcher->original_data = g_memdup (GSIZE_TO_POINTER (dispatcher->address),
+  dispatcher->original_data = g_memdup (dispatcher->address,
       probe_ctx.cave.size);
   dispatcher->original_size = probe_ctx.cave.size;
 
@@ -539,11 +540,11 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller,
 
     thunk_size = gum_query_page_size ();
 
-    dispatcher->thunk = gum_memory_allocate (thunk_size, GUM_PAGE_RW, NULL);
+    dispatcher->thunk =
+        gum_memory_allocate (NULL, thunk_size, thunk_size, GUM_PAGE_RW);
     dispatcher->thunk_size = thunk_size;
 
-    gum_memory_patch_code (GUM_ADDRESS (dispatcher->thunk),
-        GUM_MAX_CODE_DEFLECTOR_THUNK_SIZE,
+    gum_memory_patch_code (dispatcher->thunk, GUM_MAX_CODE_DEFLECTOR_THUNK_SIZE,
         (GumMemoryPatchApplyFunc) gum_write_thunk, dispatcher);
 
     range.base_address = GUM_ADDRESS (dispatcher->thunk);
@@ -551,7 +552,7 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller,
     gum_cloak_add_range (&range);
   }
 
-  insert_ctx.pc = dispatcher->address;
+  insert_ctx.pc = GUM_ADDRESS (dispatcher->address);
   insert_ctx.max_size = dispatcher->original_size;
   insert_ctx.return_address = return_address;
   insert_ctx.dedicated_target = dedicated_target;
@@ -618,7 +619,7 @@ gum_insert_deflector (gpointer cave,
       gum_arm_writer_put_ldr_reg_address (&aw, ARM_REG_PC,
           GUM_ADDRESS (ctx->dedicated_target));
       gum_arm_writer_flush (&aw);
-      g_assert_cmpuint (gum_arm_writer_offset (&aw), <=, ctx->max_size);
+      g_assert (gum_arm_writer_offset (&aw) <= ctx->max_size);
       gum_arm_writer_clear (&aw);
 
       dispatcher->trampoline = GSIZE_TO_POINTER (ctx->pc);
@@ -640,7 +641,7 @@ gum_insert_deflector (gpointer cave,
   }
 
   gum_thumb_writer_flush (&tw);
-  g_assert_cmpuint (gum_thumb_writer_offset (&tw), <=, ctx->max_size);
+  g_assert (gum_thumb_writer_offset (&tw) <= ctx->max_size);
   gum_thumb_writer_clear (&tw);
 
   dispatcher->trampoline = GSIZE_TO_POINTER (ctx->pc + 1);
@@ -666,7 +667,7 @@ gum_insert_deflector (gpointer cave,
   }
 
   gum_arm64_writer_flush (&aw);
-  g_assert_cmpuint (gum_arm64_writer_offset (&aw), <=, ctx->max_size);
+  g_assert (gum_arm64_writer_offset (&aw) <= ctx->max_size);
   gum_arm64_writer_clear (&aw);
 
   dispatcher->trampoline = GSIZE_TO_POINTER (ctx->pc);

@@ -98,6 +98,8 @@ G_GNUC_INTERNAL GumDukNativePointer * _gum_duk_require_native_pointer (
 
 G_GNUC_INTERNAL void _gum_duk_push_native_resource (duk_context * ctx,
     gpointer data, GDestroyNotify notify, GumDukCore * core);
+G_GNUC_INTERNAL void _gum_duk_push_kernel_resource (duk_context * ctx,
+    guint64 data, GumDukKernelNotify notify, GumDukCore * core);
 
 G_GNUC_INTERNAL GumDukCpuContext * _gum_duk_push_cpu_context (duk_context * ctx,
     GumCpuContext * handle, GumDukCpuContextAccess access,
@@ -115,9 +117,6 @@ G_GNUC_INTERNAL void _gum_duk_cpu_context_make_read_only (
 G_GNUC_INTERNAL void _gum_duk_push_exception_details (duk_context * ctx,
     GumExceptionDetails * details, GumDukCore * core,
     GumDukCpuContext ** cpu_context);
-
-G_GNUC_INTERNAL void _gum_duk_push_module (duk_context * ctx,
-    const GumModuleDetails * details, GumDukCore * core);
 
 G_GNUC_INTERNAL void _gum_duk_push_range (duk_context * ctx,
     const GumRangeDetails * details, GumDukCore * core);

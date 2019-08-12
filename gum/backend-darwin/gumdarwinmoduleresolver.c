@@ -202,7 +202,7 @@ gum_darwin_module_resolver_find_export_by_mangled_name (
   {
     m = module;
   }
-  else if (gum_darwin_module_lacks_exports_for_reexports (module))
+  else if (gum_darwin_module_get_lacks_exports_for_reexports (module))
   {
     GPtrArray * reexports = module->reexports;
     guint i;
@@ -245,7 +245,7 @@ gum_darwin_module_resolver_resolve_export (
     GumDarwinModule * target_module;
     gboolean is_reexporting_itself;
 
-    target_module_name = gum_darwin_module_dependency (module,
+    target_module_name = gum_darwin_module_get_dependency_by_ordinal (module,
         export->reexport_library_ordinal);
     target_module = gum_darwin_module_resolver_find_module (self,
         target_module_name);
@@ -317,7 +317,8 @@ gum_store_module (const GumModuleDetails * details,
   }
 
   module = gum_darwin_module_new_from_memory (details->path, self->task,
-      self->cpu_type, self->page_size, details->range->base_address);
+      self->cpu_type, self->page_size, details->range->base_address,
+      GUM_DARWIN_MODULE_FLAGS_NONE, NULL);
   g_hash_table_insert (self->modules, g_strdup (details->name),
       module);
   g_hash_table_insert (self->modules, g_strdup (details->path),

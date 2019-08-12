@@ -1,17 +1,21 @@
 /*
- * Copyright (C) 2016-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gumcodesegment.h"
 
+#include "gum-init.h"
 #include "gumcloak.h"
 #include "gumdarwin.h"
+#include "substratedclient.h"
 
 #include <CommonCrypto/CommonDigest.h>
+#include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <gio/gio.h>
 #include <mach-o/loader.h>
 #include <math.h>
 #include <string.h>
@@ -32,13 +36,14 @@ typedef struct _GumCsSuperBlob GumCsSuperBlob;
 typedef struct _GumCsBlobIndex GumCsBlobIndex;
 typedef struct _GumCsDirectory GumCsDirectory;
 typedef struct _GumCsRequirements GumCsRequirements;
+typedef guint GumSandboxFilterType;
 
 struct _GumCodeSegment
 {
   gpointer data;
   gsize size;
-
   gsize virtual_size;
+  gboolean owns_data;
 
   gint fd;
 };
@@ -98,12 +103,23 @@ struct _GumCsRequirements
   guint32 count;
 };
 
+enum _GumSandboxFilterType
+{
+  GUM_SANDBOX_FILTER_PATH = 1,
+};
+
+static GumCodeSegment * gum_code_segment_new_full (gpointer data, gsize size,
+    gsize virtual_size, gboolean owns_data);
+
 static gboolean gum_code_segment_is_realize_supported (void);
 static gboolean gum_code_segment_try_realize (GumCodeSegment * self);
 static gboolean gum_code_segment_try_map (GumCodeSegment * self,
     gsize source_offset, gsize source_size, gpointer target_address);
-static gboolean gum_code_segment_try_remap (GumCodeSegment * self, gsize source_offset,
-    gsize source_size, gpointer target_address);
+static gboolean gum_code_segment_try_remap_locally (GumCodeSegment * self,
+    gsize source_offset, gsize source_size, gpointer target_address);
+static gboolean gum_code_segment_try_remap_using_substrated (
+    GumCodeSegment * self, gsize source_offset, gsize source_size,
+    gpointer target_address);
 
 static void gum_code_segment_compute_layout (GumCodeSegment * self,
     GumCodeLayout * layout);
@@ -116,6 +132,15 @@ static void gum_put_code_signature (gconstpointer header, gconstpointer text,
 static gint gum_file_open_tmp (const gchar * tmpl, gchar ** name_used);
 static void gum_file_write_all (gint fd, gssize offset, gconstpointer data,
     gsize size);
+static gboolean gum_file_check_sandbox_allows (const gchar * path,
+    const gchar * operation);
+static gint gum_mkstemps (gchar * tmpl, gint suffix_length);
+
+static mach_port_t gum_try_get_substrated_port (void);
+static void gum_deallocate_substrated_port (void);
+
+kern_return_t bootstrap_look_up (mach_port_t bp, const char * service_name,
+    mach_port_t * sp);
 
 gboolean
 gum_code_segment_is_supported (void)
@@ -131,15 +156,14 @@ GumCodeSegment *
 gum_code_segment_new (gsize size,
                       const GumAddressSpec * spec)
 {
-  guint page_size, size_in_pages;
+  gsize page_size, size_in_pages, virtual_size;
   gpointer data;
-  GumCodeSegment * segment;
-  GumMemoryRange range;
 
   page_size = gum_query_page_size ();
   size_in_pages = size / page_size;
   if (size % page_size != 0)
     size_in_pages++;
+  virtual_size = size_in_pages * page_size;
 
   if (spec == NULL)
   {
@@ -152,18 +176,42 @@ gum_code_segment_new (gsize size,
       return NULL;
   }
 
+  return gum_code_segment_new_full (data, size, virtual_size, TRUE);
+}
+
+static GumCodeSegment *
+gum_code_segment_new_static (gpointer data,
+                             gsize size)
+{
+  return gum_code_segment_new_full (data, size, size, FALSE);
+}
+
+static GumCodeSegment *
+gum_code_segment_new_full (gpointer data,
+                           gsize size,
+                           gsize virtual_size,
+                           gboolean owns_data)
+{
+  GumCodeSegment * segment;
+
   segment = g_slice_new (GumCodeSegment);
 
   segment->data = data;
   segment->size = size;
-
-  segment->virtual_size = size_in_pages * page_size;
+  segment->virtual_size = virtual_size;
+  segment->owns_data = owns_data;
 
   segment->fd = -1;
 
-  gum_query_page_allocation_range (segment->data, segment->virtual_size,
-      &range);
-  gum_cloak_add_range (&range);
+  if (owns_data)
+  {
+    GumMemoryRange range;
+
+    gum_query_page_allocation_range (segment->data, segment->virtual_size,
+        &range);
+
+    gum_cloak_add_range (&range);
+  }
 
   return segment;
 }
@@ -171,16 +219,20 @@ gum_code_segment_new (gsize size,
 void
 gum_code_segment_free (GumCodeSegment * segment)
 {
-  GumMemoryRange range;
-
   if (segment->fd != -1)
     close (segment->fd);
 
-  gum_free_pages (segment->data);
+  if (segment->owns_data)
+  {
+    GumMemoryRange range;
 
-  gum_query_page_allocation_range (segment->data, segment->virtual_size,
-      &range);
-  gum_cloak_remove_range (&range);
+    gum_query_page_allocation_range (segment->data, segment->virtual_size,
+        &range);
+
+    gum_free_pages (segment->data);
+
+    gum_cloak_remove_range (&range);
+  }
 
   g_slice_free (GumCodeSegment, segment);
 }
@@ -254,11 +306,75 @@ gum_code_segment_map (GumCodeSegment * self,
   }
   else
   {
-    mapped_successfully = gum_code_segment_try_remap (self, source_offset,
-        source_size, target_address);
+    mapped_successfully = gum_code_segment_try_remap_using_substrated (self,
+        source_offset, source_size, target_address);
+    if (!mapped_successfully)
+    {
+      mapped_successfully = gum_code_segment_try_remap_locally (self,
+          source_offset, source_size, target_address);
+    }
   }
 
   g_assert (mapped_successfully);
+}
+
+gboolean
+gum_code_segment_mark (gpointer code,
+                       gsize size,
+                       GError ** error)
+{
+  if (gum_process_is_debugger_attached ())
+    goto fallback;
+
+  if (gum_code_segment_is_realize_supported ())
+  {
+    GumCodeSegment * segment;
+
+    segment = gum_code_segment_new_static (code, size);
+
+    gum_code_segment_realize (segment);
+    gum_code_segment_map (segment, 0, size, code);
+
+    gum_code_segment_free (segment);
+
+    return TRUE;
+  }
+  else
+  {
+    mach_port_t server_port;
+    mach_vm_address_t address;
+    kern_return_t kr;
+
+    server_port = gum_try_get_substrated_port ();
+    if (server_port == MACH_PORT_NULL)
+      goto fallback;
+
+    address = GPOINTER_TO_SIZE (code);
+
+    kr = substrated_mark (server_port, mach_task_self (), address, size,
+        &address);
+
+    if (kr != KERN_SUCCESS)
+    {
+      g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
+          "Unable to mark code (substrated returned %d)", kr);
+      return FALSE;
+    }
+
+    return TRUE;
+  }
+
+fallback:
+  {
+    if (!gum_try_mprotect (code, size, GUM_PAGE_RX))
+    {
+      g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+          "Invalid address");
+      return FALSE;
+    }
+
+    return TRUE;
+  }
 }
 
 static gboolean
@@ -275,8 +391,6 @@ gum_code_segment_try_realize (GumCodeSegment * self)
   self->fd = gum_file_open_tmp ("frida-XXXXXX.dylib", &dylib_path);
   if (self->fd == -1)
     return FALSE;
-
-  unlink (dylib_path);
 
   gum_code_segment_compute_layout (self, &layout);
 
@@ -298,6 +412,8 @@ gum_code_segment_try_realize (GumCodeSegment * self)
   sigs.fs_blob_size = layout.code_signature_file_size;
 
   res = fcntl (self->fd, F_ADDFILESIGS, &sigs);
+
+  unlink (dylib_path);
 
   g_free (code_signature);
   g_free (dylib_header);
@@ -322,10 +438,10 @@ gum_code_segment_try_map (GumCodeSegment * self,
 }
 
 static gboolean
-gum_code_segment_try_remap (GumCodeSegment * self,
-                            gsize source_offset,
-                            gsize source_size,
-                            gpointer target_address)
+gum_code_segment_try_remap_locally (GumCodeSegment * self,
+                                    gsize source_offset,
+                                    gsize source_size,
+                                    gpointer target_address)
 {
   mach_port_t self_task;
   mach_vm_address_t address;
@@ -343,7 +459,30 @@ gum_code_segment_try_remap (GumCodeSegment * self,
       VM_FLAGS_OVERWRITE | VM_FLAGS_FIXED, self_task, source_address, TRUE,
       &cur_protection, &max_protection, VM_INHERIT_COPY);
 
-  return kr == 0;
+  return kr == KERN_SUCCESS;
+}
+
+static gboolean
+gum_code_segment_try_remap_using_substrated (GumCodeSegment * self,
+                                             gsize source_offset,
+                                             gsize source_size,
+                                             gpointer target_address)
+{
+  mach_port_t server_port;
+  mach_vm_address_t source_address, target_address_value;
+  kern_return_t kr;
+
+  server_port = gum_try_get_substrated_port ();
+  if (server_port == MACH_PORT_NULL)
+    return FALSE;
+
+  source_address = (mach_vm_address_t) self->data + source_offset;
+  target_address_value = GPOINTER_TO_SIZE (target_address);
+
+  kr = substrated_mark (server_port, mach_task_self (), source_address,
+      source_size, &target_address_value);
+
+  return kr == KERN_SUCCESS;
 }
 
 static void
@@ -568,15 +707,25 @@ gum_file_open_tmp (const gchar * tmpl,
   suffix_length = strlen (tmpl) - (strrchr (tmpl, 'X') + 1 - tmpl);
 
   path = g_build_filename (g_get_tmp_dir (), tmpl, NULL);
-  res = mkstemps (path, suffix_length);
-  if (res == -1)
+  res = gum_mkstemps (path, suffix_length);
+  if (res == -1 || !gum_file_check_sandbox_allows (path, "file-map-executable"))
   {
+    if (res != -1)
+      close (res);
     g_free (path);
     path = g_build_filename ("/Library/Caches", tmpl, NULL);
-    res = mkstemps (path, suffix_length);
+    res = gum_mkstemps (path, suffix_length);
   }
 
-  *name_used = path;
+  if (res != -1)
+  {
+    *name_used = path;
+  }
+  else
+  {
+    *name_used = NULL;
+    g_free (path);
+  }
 
   return res;
 }
@@ -609,4 +758,103 @@ gum_file_write_all (gint fd,
     written += res;
   }
   while (written != size);
+}
+
+static gboolean
+gum_file_check_sandbox_allows (const gchar * path,
+                               const gchar * operation)
+{
+  static volatile gsize initialized = FALSE;
+  static volatile gint (* check) (pid_t pid, const gchar * operation,
+      GumSandboxFilterType type, ...) = NULL;
+  static volatile GumSandboxFilterType no_report = 0;
+
+  if (g_once_init_enter (&initialized))
+  {
+    void * sandbox;
+
+    sandbox = dlopen ("/usr/lib/system/libsystem_sandbox.dylib",
+        RTLD_NOLOAD | RTLD_LAZY);
+    if (sandbox != NULL)
+    {
+      GumSandboxFilterType * no_report_ptr;
+
+      no_report_ptr = dlsym (sandbox, "SANDBOX_CHECK_NO_REPORT");
+      if (no_report_ptr != NULL)
+      {
+        no_report = *no_report_ptr;
+
+        check = dlsym (sandbox, "sandbox_check");
+      }
+
+      dlclose (sandbox);
+    }
+
+    g_once_init_leave (&initialized, TRUE);
+  }
+
+  if (check == NULL)
+    return TRUE;
+
+  return !check (getpid (), operation, GUM_SANDBOX_FILTER_PATH | no_report,
+      path);
+}
+
+static gint
+gum_mkstemps (gchar * tmpl,
+              gint suffix_length)
+{
+  gint res;
+
+  do
+  {
+    res = mkstemps (tmpl, suffix_length);
+  }
+  while (res == -1 && errno == EINTR);
+
+  return res;
+}
+
+static mach_port_t
+gum_try_get_substrated_port (void)
+{
+  static volatile gsize cached_result = 0;
+
+  if (g_once_init_enter (&cached_result))
+  {
+    mach_port_t server_port = MACH_PORT_NULL;
+
+    if (getpid () == 1)
+    {
+      host_get_special_port (mach_host_self (), HOST_LOCAL_NODE,
+          HOST_LOCKD_PORT, &server_port);
+    }
+    else
+    {
+      mach_port_t self_task, bootstrap_port;
+
+      self_task = mach_task_self ();
+
+      if (task_get_bootstrap_port (self_task, &bootstrap_port) == KERN_SUCCESS)
+      {
+        bootstrap_look_up (bootstrap_port, "cy:com.saurik.substrated",
+            &server_port);
+
+        mach_port_deallocate (self_task, bootstrap_port);
+      }
+    }
+
+    if (server_port != MACH_PORT_NULL)
+      _gum_register_destructor (gum_deallocate_substrated_port);
+
+    g_once_init_leave (&cached_result, server_port + 1);
+  }
+
+  return cached_result - 1;
+}
+
+static void
+gum_deallocate_substrated_port (void)
+{
+  mach_port_deallocate (mach_task_self (), gum_try_get_substrated_port ());
 }

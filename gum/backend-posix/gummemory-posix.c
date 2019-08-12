@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -9,11 +9,15 @@
 #include "gummemory-priv.h"
 #include "gumprocess-priv.h"
 
+#include <errno.h>
 #include <unistd.h>
 #include <sys/mman.h>
 
 #if defined (HAVE_LINUX)
 # define GUM_MAP_LAZY MAP_NORESERVE
+# ifndef MADV_FREE
+#  define MADV_FREE 8
+# endif
 #elif defined (HAVE_QNX)
 # define GUM_MAP_LAZY MAP_LAZY
 #else
@@ -40,7 +44,8 @@ struct _GumEnumerateFreeRangesContext
 
 static gboolean gum_try_alloc_in_range_if_near_enough (
     const GumRangeDetails * details, gpointer user_data);
-
+static gpointer gum_allocate_page_aligned (gpointer address, gsize size,
+    gint prot);
 static void gum_enumerate_free_ranges (GumFoundRangeFunc func,
     gpointer user_data);
 static gboolean gum_emit_free_range (const GumRangeDetails * details,
@@ -67,12 +72,12 @@ gum_try_alloc_n_pages (guint n_pages,
                        GumPageProtection page_prot)
 {
   guint8 * result;
-  guint page_size, size;
+  gsize page_size, size;
 
   page_size = gum_query_page_size ();
   size = (1 + n_pages) * page_size;
 
-  result = gum_memory_allocate (size, page_prot, NULL);
+  result = gum_memory_allocate (NULL, size, page_size, page_prot);
   if (result == NULL)
     return NULL;
 
@@ -170,75 +175,97 @@ gum_free_pages (gpointer mem)
 }
 
 gpointer
-gum_memory_allocate (gsize size,
-                     GumPageProtection page_prot,
-                     gpointer hint)
+gum_memory_allocate (gpointer address,
+                     gsize size,
+                     gsize alignment,
+                     GumPageProtection page_prot)
 {
-  gpointer result;
-  gint posix_page_prot, flags;
+  gsize page_size, allocation_size;
+  guint8 * base, * aligned_base;
 
-  posix_page_prot = _gum_page_protection_to_posix (page_prot);
-  flags = MAP_PRIVATE | MAP_ANONYMOUS;
+  address = GUM_ALIGN_POINTER (gpointer, address, alignment);
 
-  result = mmap (hint, size, posix_page_prot, flags, -1, 0);
+  page_size = gum_query_page_size ();
+  allocation_size = size + (alignment - page_size);
+  allocation_size = GUM_ALIGN_SIZE (allocation_size, page_size);
 
-  return (result != MAP_FAILED) ? result : NULL;
+  base = gum_allocate_page_aligned (address, allocation_size,
+      _gum_page_protection_to_posix (page_prot));
+  if (base == NULL)
+    return NULL;
+
+  aligned_base = GUM_ALIGN_POINTER (guint8 *, base, alignment);
+
+  if (aligned_base != base)
+  {
+    gsize prefix_size = aligned_base - base;
+    gum_memory_free (base, prefix_size);
+    allocation_size -= prefix_size;
+  }
+
+  if (allocation_size != size)
+  {
+    gsize suffix_size = allocation_size - size;
+    gum_memory_free (aligned_base + size, suffix_size);
+    allocation_size -= suffix_size;
+  }
+
+  g_assert (allocation_size == size);
+
+  return aligned_base;
 }
 
-gpointer
-gum_memory_reserve (gsize size,
-                    gpointer hint)
+static gpointer
+gum_allocate_page_aligned (gpointer address,
+                           gsize size,
+                           gint prot)
 {
   gpointer result;
-  gint posix_page_prot, flags;
 
-  posix_page_prot = PROT_NONE;
-  flags = MAP_PRIVATE | MAP_ANONYMOUS | GUM_MAP_LAZY;
-
-  result = mmap (hint, size, posix_page_prot, flags, -1, 0);
+  result = mmap (address, size, prot, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
   return (result != MAP_FAILED) ? result : NULL;
 }
 
 gboolean
-gum_memory_commit (gpointer base,
+gum_memory_free (gpointer address,
+                 gsize size)
+{
+  return munmap (address, size) == 0;
+}
+
+gboolean
+gum_memory_release (gpointer address,
+                    gsize size)
+{
+  return gum_memory_free (address, size);
+}
+
+gboolean
+gum_memory_commit (gpointer address,
                    gsize size,
                    GumPageProtection page_prot)
 {
-  gint posix_page_prot, flags;
-
-  posix_page_prot = _gum_page_protection_to_posix (page_prot);
-  flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED;
-
-  return mmap (base, size, posix_page_prot, flags, -1, 0) != MAP_FAILED;
+  return TRUE;
 }
 
 gboolean
-gum_memory_uncommit (gpointer base,
+gum_memory_decommit (gpointer address,
                      gsize size)
 {
-  gint posix_page_prot, flags;
+  int res;
 
-  posix_page_prot = PROT_NONE;
-  flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | GUM_MAP_LAZY;
+  res = madvise (address, size, MADV_FREE);
+  if (res != 0)
+  {
+    if (errno == ENOSYS)
+      return TRUE;
 
-  return mmap (base, size, posix_page_prot, flags, -1, 0) != MAP_FAILED;
-}
+    if (errno == EINVAL)
+      res = madvise (address, size, MADV_DONTNEED);
+  }
 
-gboolean
-gum_memory_release_partial (gpointer base,
-                            gsize size,
-                            gpointer free_start,
-                            gsize free_size)
-{
-  return munmap (free_start, free_size) == 0;
-}
-
-gboolean
-gum_memory_release (gpointer base,
-                    gsize size)
-{
-  return munmap (base, size) == 0;
+  return res == 0;
 }
 
 static void

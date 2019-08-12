@@ -10,15 +10,18 @@ gum_headers = [
   'gumeventsink.h',
   'gumexceptor.h',
   'gumfunction.h',
+  'gumheapapi.h',
   'guminterceptor.h',
   'guminvocationcontext.h',
   'guminvocationlistener.h',
   'gumkernel.h',
+  'gumlibc.h',
   'gummemory.h',
   'gummemoryaccessmonitor.h',
   'gummemorymap.h',
   'gummoduleapiresolver.h',
   'gummodulemap.h',
+  'gumprintf.h',
   'gumprocess.h',
   'gumreturnaddress.h',
   'gumspinlock.h',
@@ -37,6 +40,7 @@ gum_sources = [
   'gumcodesegment.c',
   'gumexceptor.c',
   'gumeventsink.c',
+  'gumheapapi.c',
   'guminterceptor.c',
   'guminvocationcontext.c',
   'guminvocationlistener.c',
@@ -89,6 +93,7 @@ if host_os_family == 'darwin'
   gum_headers += [
     'backend-darwin/gumdarwin.h',
     'backend-darwin/gumdarwinbacktracer.h',
+    'backend-darwin/gumdarwinsymbolicator.h',
     'backend-darwin/gumdarwinmapper.h',
     'backend-darwin/gumdarwinmodule.h',
     'backend-darwin/gumdarwinmoduleresolver.h',
@@ -98,20 +103,17 @@ if host_os_family == 'darwin'
     'backend-darwin/gumobjcapiresolver.h',
     'backend-darwin/gumdarwinbacktracer.c',
     'backend-darwin/gumsymbolutil-darwin.c',
+    'backend-darwin/gumdarwinsymbolicator.c',
     'backend-darwin/gumkernel-darwin.c',
     'backend-darwin/gumtls-darwin.c',
     'backend-darwin/gummemory-darwin.c',
     'backend-darwin/gumprocess-darwin.c',
     'backend-darwin/gumcodesegment-darwin.c',
+    'backend-darwin/substratedclient.c',
     'backend-darwin/gumexceptor-darwin.c',
     'backend-darwin/gumdarwinmapper.c',
     'backend-darwin/gumdarwinmodule.c',
     'backend-darwin/gumdarwinmoduleresolver.c',
-  ]
-endif
-if host_os == 'ios'
-  gum_sources += [
-    'backend-darwin/fridajitclient.c',
   ]
 endif
 
@@ -126,6 +128,14 @@ if host_os_family == 'linux'
     'backend-posix/gumtls-posix.c',
     'backend-posix/gumexceptor-posix.c',
   ]
+  if host_os == 'android'
+    gum_headers += [
+      'backend-linux/gumandroid.h',
+    ]
+    gum_sources += [
+      'backend-linux/gumandroid.c',
+    ]
+  endif
 endif
 
 if host_os_family == 'qnx'
@@ -142,6 +152,9 @@ if host_os_family == 'qnx'
 endif
 
 if host_os_family == 'linux' or host_os_family == 'qnx'
+  gum_headers += [
+    'backend-elf/gumelfmodule.h',
+  ]
   gum_sources += [
     'backend-elf/gumelfmodule.c',
   ]
@@ -265,13 +278,13 @@ gum_dep = declare_dependency(link_with: gum,
 )
 
 pkg = import('pkgconfig')
-pkg.generate(filebase: 'frida-gum-' + api_version,
+pkg.generate(gum,
+  filebase: 'frida-gum-' + api_version,
   name: 'Gum',
   version: gum_version,
   description: 'Low-level code instrumentation library',
   requires: ['glib-2.0', 'gobject-2.0', 'gio-2.0', 'capstone'],
   requires_private: extra_requires_private,
   subdirs: install_header_basedir,
-  libraries: [gum],
   libraries_private: extra_libs_private,
 )

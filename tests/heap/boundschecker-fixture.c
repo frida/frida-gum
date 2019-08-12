@@ -13,11 +13,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define BOUNDSCHECKER_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_bounds_checker_ ## NAME ( \
         TestBoundsCheckerFixture * fixture, gconstpointer data)
-#define BOUNDSCHECKER_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Heap/BoundsChecker", \
+#define TESTENTRY(NAME) \
+    TESTENTRY_WITH_FIXTURE ("Heap/BoundsChecker", \
         test_bounds_checker, NAME, TestBoundsCheckerFixture)
 
 typedef struct _TestBoundsCheckerFixture

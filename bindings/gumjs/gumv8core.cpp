@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
  *
@@ -375,6 +375,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_shl)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_not)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_compare)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_int32)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_uint32)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_string)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_json)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_match_pattern)
@@ -556,6 +557,7 @@ static const GumV8Function gumjs_native_pointer_functions[] =
   { "not", gumjs_native_pointer_not },
   { "compare", gumjs_native_pointer_compare },
   { "toInt32", gumjs_native_pointer_to_int32 },
+  { "toUInt32", gumjs_native_pointer_to_uint32 },
   { "toString", gumjs_native_pointer_to_string },
   { "toJSON", gumjs_native_pointer_to_json },
   { "toMatchPattern", gumjs_native_pointer_to_match_pattern },
@@ -824,6 +826,8 @@ _gum_v8_core_realize (GumV8Core * self)
 
   self->native_resources = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) _gum_v8_native_resource_free);
+  self->kernel_resources = g_hash_table_new_full (NULL, NULL, NULL,
+      (GDestroyNotify) _gum_v8_kernel_resource_free);
 
   self->source_maps = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_v8_source_map_free);
@@ -831,19 +835,19 @@ _gum_v8_core_realize (GumV8Core * self)
   Local<Value> zero = Integer::New (isolate, 0);
 
   auto int64 = Local<FunctionTemplate>::New (isolate, *self->int64);
-  auto int64_value =
-      int64->GetFunction ()->NewInstance (context, 1, &zero).ToLocalChecked ();
+  auto int64_value = int64->GetFunction (context).ToLocalChecked ()
+      ->NewInstance (context, 1, &zero).ToLocalChecked ();
   self->int64_value = new GumPersistent<Object>::type (isolate, int64_value);
 
   auto uint64 = Local<FunctionTemplate>::New (isolate, *self->uint64);
-  auto uint64_value = uint64->GetFunction ()->NewInstance (context, 1, &zero)
-      .ToLocalChecked ();
+  auto uint64_value = uint64->GetFunction (context).ToLocalChecked ()
+      ->NewInstance (context, 1, &zero).ToLocalChecked ();
   self->uint64_value = new GumPersistent<Object>::type (isolate, uint64_value);
 
   auto native_pointer = Local<FunctionTemplate>::New (isolate,
       *self->native_pointer);
-  auto native_pointer_value = native_pointer->GetFunction ()->NewInstance (
-      context, 1, &zero).ToLocalChecked ();
+  auto native_pointer_value = native_pointer->GetFunction (context)
+      .ToLocalChecked ()->NewInstance (context, 1, &zero).ToLocalChecked ();
   self->native_pointer_value = new GumPersistent<Object>::type (isolate,
       native_pointer_value);
   self->handle_key = new GumPersistent<String>::type (isolate,
@@ -873,8 +877,8 @@ _gum_v8_core_realize (GumV8Core * self)
     External::New (isolate, NULL),
     Boolean::New (isolate, false)
   };
-  auto cpu_context_value = cpu_context->GetFunction ()->NewInstance (context,
-      G_N_ELEMENTS (args), args).ToLocalChecked ();
+  auto cpu_context_value = cpu_context->GetFunction (context).ToLocalChecked ()
+      ->NewInstance (context, G_N_ELEMENTS (args), args).ToLocalChecked ();
   self->cpu_context_value = new GumPersistent<Object>::type (isolate,
       cpu_context_value);
 }
@@ -884,8 +888,6 @@ _gum_v8_core_flush (GumV8Core * self,
                     GumV8FlushNotify flush_notify)
 {
   gboolean done;
-  GHashTableIter iter;
-  GumV8ScheduledCallback * callback;
 
   self->flush_notify = flush_notify;
 
@@ -898,18 +900,26 @@ _gum_v8_core_flush (GumV8Core * self,
   if (self->usage_count > 1)
     return FALSE;
 
-  g_hash_table_iter_init (&iter, self->scheduled_callbacks);
-  while (g_hash_table_iter_next (&iter, NULL, (gpointer *) &callback))
+  do
   {
-    _gum_v8_core_pin (self);
-    g_source_destroy (callback->source);
+    GHashTableIter iter;
+    GumV8ScheduledCallback * callback;
+
+    g_hash_table_iter_init (&iter, self->scheduled_callbacks);
+    while (g_hash_table_iter_next (&iter, NULL, (gpointer *) &callback))
+    {
+      _gum_v8_core_pin (self);
+      g_source_destroy (callback->source);
+    }
+    g_hash_table_remove_all (self->scheduled_callbacks);
+
+    if (self->usage_count > 1)
+      return FALSE;
+
+    gum_v8_core_clear_weak_refs (self);
   }
-  g_hash_table_remove_all (self->scheduled_callbacks);
-
-  if (self->usage_count > 1)
-    return FALSE;
-
-  gum_v8_core_clear_weak_refs (self);
+  while (g_hash_table_size (self->scheduled_callbacks) > 0 ||
+      g_hash_table_size (self->weak_refs) > 0);
 
   done = self->usage_count == 1;
   if (done)
@@ -973,6 +983,8 @@ _gum_v8_core_dispose (GumV8Core * self)
   g_hash_table_unref (self->source_maps);
   self->source_maps = NULL;
 
+  g_hash_table_unref (self->kernel_resources);
+  self->kernel_resources = NULL;
   g_hash_table_unref (self->native_resources);
   self->native_resources = NULL;
 
@@ -1239,8 +1251,13 @@ gum_v8_scheduled_callback_invoke (GumV8ScheduledCallback * self)
   auto core = self->core;
 
   ScriptScope scope (core->script);
-  auto func = Local<Function>::New (core->isolate, *self->func);
-  func->Call (Undefined (core->isolate), 0, nullptr);
+  auto isolate = core->isolate;
+  auto context = isolate->GetCurrentContext ();
+
+  auto func = Local<Function>::New (isolate, *self->func);
+  auto recv = Undefined (isolate);
+  auto result = func->Call (context, recv, 0, nullptr);
+  _gum_v8_ignore_result (result);
 
   if (!self->repeat)
   {
@@ -1356,12 +1373,14 @@ gumjs_global_get (Local<Name> property,
     return;
 
   auto isolate = info.GetIsolate ();
+  auto context = isolate->GetCurrentContext ();
 
   auto get (Local<Function>::New (isolate, *self->on_global_get));
-  auto receiver (Local<Object>::New (isolate, *self->global_receiver));
+  auto recv (Local<Object>::New (isolate, *self->global_receiver));
   Handle<Value> argv[] = { property };
-  auto result = get->Call (receiver, G_N_ELEMENTS (argv), argv);
-  if (!result.IsEmpty () && !result->IsUndefined ())
+  Local<Value> result;
+  if (get->Call (context, recv, G_N_ELEMENTS (argv), argv).ToLocal (&result) &&
+      !result->IsUndefined ())
   {
     info.GetReturnValue ().Set (result);
   }
@@ -1377,12 +1396,14 @@ gumjs_global_query (Local<Name> property,
     return;
 
   auto isolate = info.GetIsolate ();
+  auto context = isolate->GetCurrentContext ();
 
   auto get (Local<Function>::New (isolate, *self->on_global_get));
-  auto receiver (Local<Object>::New (isolate, *self->global_receiver));
+  auto recv (Local<Object>::New (isolate, *self->global_receiver));
   Handle<Value> argv[] = { property };
-  auto result = get->Call (receiver, G_N_ELEMENTS (argv), argv);
-  if (!result.IsEmpty () && !result->IsUndefined ())
+  Local<Value> result;
+  if (get->Call (context, recv, G_N_ELEMENTS (argv), argv).ToLocal (&result) &&
+      !result->IsUndefined ())
   {
     info.GetReturnValue ().Set (PropertyAttribute::ReadOnly |
         PropertyAttribute::DontDelete);
@@ -1398,11 +1419,13 @@ gumjs_global_enumerate (const PropertyCallbackInfo<Array> & info)
     return;
 
   auto isolate = info.GetIsolate ();
+  auto context = isolate->GetCurrentContext ();
 
   auto enumerate (Local<Function>::New (isolate, *self->on_global_enumerate));
-  auto receiver (Local<Object>::New (isolate, *self->global_receiver));
-  auto result = enumerate->Call (receiver, 0, nullptr);
-  if (!result.IsEmpty () && result->IsArray ())
+  auto recv (Local<Object>::New (isolate, *self->global_receiver));
+  Local<Value> result;
+  if (enumerate->Call (context, recv, 0, nullptr).ToLocal (&result) &&
+      result->IsArray ())
   {
     info.GetReturnValue ().Set (result.As<Array> ());
   }
@@ -1487,7 +1510,7 @@ GUMJS_DEFINE_GETTER (gumjs_script_get_source_map)
     auto url_value = code->GetUnboundScript ()->GetSourceMappingURL ();
     if (url_value->IsString ())
     {
-      String::Utf8Value url_utf8 (url_value);
+      String::Utf8Value url_utf8 (isolate, url_value);
       auto url = *url_utf8;
 
       auto base64_start = strstr (url, "base64,");
@@ -1612,7 +1635,6 @@ gum_v8_weak_ref_new (guint id,
   ref->target = new GumPersistent<Value>::type (core->isolate, target);
   ref->target->SetWeak (ref, gum_v8_weak_ref_on_weak_notify,
       WeakCallbackType::kParameter);
-  ref->target->MarkIndependent ();
   ref->callback = new GumPersistent<Function>::type (core->isolate, callback);
 
   ref->core = core;
@@ -1682,14 +1704,20 @@ gum_v8_core_invoke_pending_weak_callbacks (GumV8Core * self,
                                            ScriptScope * scope)
 {
   auto isolate = self->isolate;
+  auto context = isolate->GetCurrentContext ();
+
+  auto recv = Undefined (isolate);
 
   GumPersistent<Function>::type * weak_callback;
   while ((weak_callback = (GumPersistent<Function>::type *)
       g_queue_pop_head (&self->pending_weak_callbacks)) != nullptr)
   {
     auto callback = Local<Function>::New (isolate, *weak_callback);
-    callback->Call (Undefined (isolate), 0, nullptr);
-    scope->ProcessAnyPendingException ();
+
+    auto result = callback->Call (context, recv, 0, nullptr);
+    if (result.IsEmpty ())
+      scope->ProcessAnyPendingException ();
+
     delete weak_callback;
   }
 }
@@ -1998,6 +2026,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_int32)
       GUMJS_NATIVE_POINTER_VALUE (info.Holder ())));
 }
 
+GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_uint32)
+{
+  info.GetReturnValue ().Set ((uint32_t) GPOINTER_TO_SIZE (
+      GUMJS_NATIVE_POINTER_VALUE (info.Holder ())));
+}
+
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_string)
 {
   gint radix = 0;
@@ -2279,7 +2313,7 @@ gumjs_native_function_init (Handle<Object> wrapper,
   {
     auto type = params->argument_types->Get (i);
 
-    String::Utf8Value type_utf8 (type);
+    String::Utf8Value type_utf8 (isolate, type);
     if (strcmp (*type_utf8, "...") == 0)
     {
       if (is_variadic)
@@ -2352,7 +2386,6 @@ gumjs_native_function_init (Handle<Object> wrapper,
   func->wrapper = new GumPersistent<Object>::type (isolate, wrapper);
   func->wrapper->SetWeak (func, gum_v8_native_function_on_weak_notify,
       WeakCallbackType::kParameter);
-  func->wrapper->MarkIndependent ();
 
   g_hash_table_add (core->native_functions, func);
 
@@ -2607,7 +2640,7 @@ gum_v8_scheduling_behavior_parse (Handle<Value> value,
 {
   if (value->IsString ())
   {
-    String::Utf8Value str_value (value);
+    String::Utf8Value str_value (isolate, value);
     auto str = *str_value;
 
     if (strcmp (str, "cooperative") == 0)
@@ -2634,7 +2667,7 @@ gum_v8_exceptions_behavior_parse (Handle<Value> value,
 {
   if (value->IsString ())
   {
-    String::Utf8Value str_value (value);
+    String::Utf8Value str_value (isolate, value);
     auto str = *str_value;
 
     if (strcmp (str, "steal") == 0)
@@ -2730,7 +2763,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
   callback->wrapper = new GumPersistent<Object>::type (isolate, wrapper);
   callback->wrapper->SetWeak (callback,
       gum_v8_native_callback_on_weak_notify, WeakCallbackType::kParameter);
-  callback->wrapper->MarkIndependent ();
 
   g_hash_table_add (core->native_callbacks, callback);
 
@@ -2777,6 +2809,7 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
   auto self = (GumV8NativeCallback *) user_data;
   ScriptScope scope (self->core->script);
   auto isolate = self->core->isolate;
+  auto context = isolate->GetCurrentContext ();
 
   auto rtype = cif->rtype;
   auto retval = (GumFFIValue *) return_value;
@@ -2805,7 +2838,7 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
 
   auto func (Local<Function>::New (isolate, *self->func));
 
-  Local<Value> receiver;
+  Local<Value> recv;
   auto interceptor = &self->core->script->interceptor;
   GumV8InvocationContext * jic = NULL;
   auto ic = gum_interceptor_get_current_invocation ();
@@ -2813,14 +2846,16 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
   {
     jic = _gum_v8_interceptor_obtain_invocation_context (interceptor);
     _gum_v8_invocation_context_reset (jic, ic);
-    receiver = Local<Object>::New (isolate, *jic->object);
+    recv = Local<Object>::New (isolate, *jic->object);
   }
   else
   {
-    receiver = Undefined (isolate);
+    recv = Undefined (isolate);
   }
 
-  auto result = func->Call (receiver, cif->nargs, argv);
+  Local<Value> result;
+  bool have_result = func->Call (context, recv, cif->nargs, argv)
+      .ToLocal (&result);
 
   if (jic != NULL)
   {
@@ -2830,7 +2865,7 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
 
   if (cif->rtype != &ffi_type_void)
   {
-    if (!scope.HasPendingException ())
+    if (have_result)
       gum_v8_value_to_ffi_type (self->core, result, retval, cif->rtype);
   }
 
@@ -2903,7 +2938,8 @@ gumjs_source_map_new (const gchar * json,
     String::NewFromUtf8 (isolate, json)
   };
 
-  return ctor->GetFunction ()->NewInstance (context, G_N_ELEMENTS (args), args);
+  return ctor->GetFunction (context).ToLocalChecked ()
+      ->NewInstance (context, G_N_ELEMENTS (args), args);
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_source_map_construct)
@@ -2975,7 +3011,6 @@ gum_v8_source_map_new (Handle<Object> wrapper,
 {
   auto map = g_slice_new (GumV8SourceMap);
   map->wrapper = new GumPersistent<Object>::type (core->isolate, wrapper);
-  map->wrapper->MarkIndependent ();
   map->wrapper->SetWeak (map, gum_v8_source_map_on_weak_notify,
       WeakCallbackType::kParameter);
   map->handle = handle;
@@ -3028,9 +3063,13 @@ gum_v8_exception_sink_handle_exception (GumV8ExceptionSink * self,
                                         Handle<Value> exception)
 {
   auto isolate = self->isolate;
+  auto context = isolate->GetCurrentContext ();
+
   auto callback (Local<Function>::New (isolate, *self->callback));
+  auto recv = Undefined (isolate);
   Handle<Value> argv[] = { exception };
-  callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
+  auto result = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+  _gum_v8_ignore_result (result);
 }
 
 static GumV8MessageSink *
@@ -3057,6 +3096,7 @@ gum_v8_message_sink_post (GumV8MessageSink * self,
                           GBytes * data)
 {
   auto isolate = self->isolate;
+  auto context = isolate->GetCurrentContext ();
 
   Local<Value> data_value;
   if (data != NULL)
@@ -3072,11 +3112,13 @@ gum_v8_message_sink_post (GumV8MessageSink * self,
   }
 
   auto callback (Local<Function>::New (isolate, *self->callback));
+  auto recv = Undefined (isolate);
   Handle<Value> argv[] = {
     String::NewFromUtf8 (isolate, message),
     data_value
   };
-  callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
+  auto result = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+  _gum_v8_ignore_result (result);
 }
 
 static const GumFFITypeMapping gum_ffi_type_mappings[] =
@@ -3135,7 +3177,7 @@ gum_v8_ffi_type_get (GumV8Core * core,
 
   if (name->IsString ())
   {
-    String::Utf8Value str_value (name);
+    String::Utf8Value str_value (isolate, name);
     auto str = *str_value;
     for (guint i = 0; i != G_N_ELEMENTS (gum_ffi_type_mappings); i++)
     {
@@ -3191,13 +3233,15 @@ gum_v8_ffi_abi_get (GumV8Core * core,
                     Handle<Value> name,
                     ffi_abi * abi)
 {
+  auto isolate = core->isolate;
+
   if (!name->IsString ())
   {
-    _gum_v8_throw_ascii_literal (core->isolate, "invalid abi specified");
+    _gum_v8_throw_ascii_literal (isolate, "invalid abi specified");
     return FALSE;
   }
 
-  String::Utf8Value str_value (name);
+  String::Utf8Value str_value (isolate, name);
   auto str = *str_value;
   for (guint i = 0; i != G_N_ELEMENTS (gum_ffi_abi_mappings); i++)
   {
@@ -3209,7 +3253,7 @@ gum_v8_ffi_abi_get (GumV8Core * core,
     }
   }
 
-  _gum_v8_throw_ascii_literal (core->isolate, "invalid abi specified");
+  _gum_v8_throw_ascii_literal (isolate, "invalid abi specified");
   return FALSE;
 }
 
@@ -3220,6 +3264,7 @@ gum_v8_value_to_ffi_type (GumV8Core * core,
                           const ffi_type * type)
 {
   auto isolate = core->isolate;
+  auto context = isolate->GetCurrentContext ();
 
   if (type == &ffi_type_void)
   {
@@ -3234,37 +3279,37 @@ gum_v8_value_to_ffi_type (GumV8Core * core,
   {
     if (!svalue->IsNumber ())
       goto error_expected_number;
-    value->v_sint8 = (gint8) svalue->Int32Value ();
+    value->v_sint8 = (gint8) svalue->Int32Value (context).ToChecked ();
   }
   else if (type == &ffi_type_uint8)
   {
     if (!svalue->IsNumber ())
       goto error_expected_number;
-    value->v_uint8 = (guint8) svalue->Uint32Value ();
+    value->v_uint8 = (guint8) svalue->Uint32Value (context).ToChecked ();
   }
   else if (type == &ffi_type_sint16)
   {
     if (!svalue->IsNumber ())
       goto error_expected_number;
-    value->v_sint16 = (gint16) svalue->Int32Value ();
+    value->v_sint16 = (gint16) svalue->Int32Value (context).ToChecked ();
   }
   else if (type == &ffi_type_uint16)
   {
     if (!svalue->IsNumber ())
       goto error_expected_number;
-    value->v_uint16 = (guint16) svalue->Uint32Value ();
+    value->v_uint16 = (guint16) svalue->Uint32Value (context).ToChecked ();
   }
   else if (type == &ffi_type_sint32)
   {
     if (!svalue->IsNumber ())
       goto error_expected_number;
-    value->v_sint32 = (gint32) svalue->Int32Value ();
+    value->v_sint32 = (gint32) svalue->Int32Value (context).ToChecked ();
   }
   else if (type == &ffi_type_uint32)
   {
     if (!svalue->IsNumber ())
       goto error_expected_number;
-    value->v_uint32 = (guint32) svalue->Uint32Value ();
+    value->v_uint32 = (guint32) svalue->Uint32Value (context).ToChecked ();
   }
   else if (type == &ffi_type_sint64)
   {
@@ -3280,13 +3325,13 @@ gum_v8_value_to_ffi_type (GumV8Core * core,
   {
     if (!svalue->IsNumber ())
       goto error_expected_number;
-    value->v_float = svalue->NumberValue ();
+    value->v_float = svalue->NumberValue (context).ToChecked ();
   }
   else if (type == &ffi_type_double)
   {
     if (!svalue->IsNumber ())
       goto error_expected_number;
-    value->v_double = svalue->NumberValue ();
+    value->v_double = svalue->NumberValue (context).ToChecked ();
   }
   else if (type->type == FFI_TYPE_STRUCT)
   {
@@ -3311,7 +3356,6 @@ gum_v8_value_to_ffi_type (GumV8Core * core,
 
     auto field_values = (guint8 *) value;
     gsize offset = 0;
-    auto context = isolate->GetCurrentContext ();
     for (gsize i = 0; i != length; i++)
     {
       auto field_type = field_types[i];

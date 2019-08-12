@@ -10,11 +10,11 @@
 #include "fakebacktracer.h"
 #include "testutil.h"
 
-#define ALLOCTRACKER_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_allocation_tracker_ ## NAME ( \
         TestAllocationTrackerFixture * fixture, gconstpointer data)
-#define ALLOCTRACKER_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Heap/AllocationTracker", \
+#define TESTENTRY(NAME) \
+    TESTENTRY_WITH_FIXTURE ("Heap/AllocationTracker", \
         test_allocation_tracker, NAME, TestAllocationTrackerFixture)
 
 typedef struct _TestAllocationTrackerFixture

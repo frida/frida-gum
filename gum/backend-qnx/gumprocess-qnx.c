@@ -365,6 +365,22 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
 }
 
 gboolean
+gum_module_load (const gchar * module_name,
+                 GError ** error)
+{
+  if (dlopen (module_name, RTLD_LAZY) == NULL)
+    goto not_found;
+
+  return TRUE;
+
+not_found:
+  {
+    g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND, "%s", dlerror ());
+    return FALSE;
+  }
+}
+
+gboolean
 gum_module_ensure_initialized (const gchar * module_name)
 {
   gboolean success;
@@ -377,7 +393,7 @@ gum_module_ensure_initialized (const gchar * module_name)
   if (name == NULL)
     goto beach;
 
-  module = dlopen (name, RTLD_LAZY | RTLD_GLOBAL);
+  module = dlopen (name, RTLD_LAZY);
   if (module == NULL)
     goto beach;
   dlclose (module);
@@ -481,7 +497,7 @@ gum_module_enumerate_exports (const gchar * module_name,
             {
               if (gnu_buckets[i] != 0)
               {
-                g_assert_cmpuint (gnu_buckets[i], >=, symndx);
+                g_assert (gnu_buckets[i] >= symndx);
 
                 if (maxchain == 0xffffffff || gnu_buckets[i] > maxchain)
                   maxchain = gnu_buckets[i];
@@ -541,7 +557,7 @@ gum_module_enumerate_exports (const gchar * module_name,
       dynsym_section_size = dyn_symentsize * num_symbols;
       dynsym_entry_size = dyn_symentsize;
 
-      g_assert_cmpuint (dynsym_section_size % dynsym_entry_size, ==, 0);
+      g_assert (dynsym_section_size % dynsym_entry_size == 0);
     }
   }
 
@@ -628,7 +644,7 @@ gum_module_find_export_by_name (const gchar * module_name,
     name = gum_resolve_module_name (module_name, NULL);
     if (name == NULL)
       return 0;
-    module = dlopen (name, RTLD_LAZY | RTLD_GLOBAL);
+    module = dlopen (name, RTLD_LAZY);
     g_free (name);
 
     if (module == NULL)
@@ -787,7 +803,7 @@ gum_resolve_module_name (const gchar * name,
   GumResolveModuleNameContext ctx;
   struct link_map * map;
 
-  map = dlopen (name, RTLD_LAZY | RTLD_GLOBAL | RTLD_NOLOAD);
+  map = dlopen (name, RTLD_LAZY | RTLD_NOLOAD);
   if (map != NULL)
   {
     ctx.name = g_file_read_link (map->l_name, NULL);

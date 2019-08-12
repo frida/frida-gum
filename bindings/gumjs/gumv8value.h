@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -44,6 +44,10 @@ G_GNUC_INTERNAL GBytes * _gum_v8_bytes_try_get (v8::Handle<v8::Value> value,
 G_GNUC_INTERNAL GumV8NativeResource * _gum_v8_native_resource_new (
     gpointer data, gsize size, GDestroyNotify notify, GumV8Core * core);
 G_GNUC_INTERNAL void _gum_v8_native_resource_free (GumV8NativeResource * block);
+
+G_GNUC_INTERNAL GumV8KernelResource * _gum_v8_kernel_resource_new (
+    guint64 data, gsize size, GumV8KernelNotify notify, GumV8Core * core);
+G_GNUC_INTERNAL void _gum_v8_kernel_resource_free (GumV8KernelResource * block);
 
 G_GNUC_INTERNAL gboolean _gum_v8_int_get (v8::Handle<v8::Value> value, gint * i,
     GumV8Core * core);
@@ -95,15 +99,12 @@ G_GNUC_INTERNAL void _gum_v8_throw_ascii_literal (v8::Isolate * isolate,
 G_GNUC_INTERNAL void _gum_v8_throw_native (GumExceptionDetails * details,
     GumV8Core * core);
 G_GNUC_INTERNAL void _gum_v8_parse_exception_details (
-    const GumExceptionDetails * details, v8::Local<v8::Object> & exception,
+    GumExceptionDetails * details, v8::Local<v8::Object> & exception,
     v8::Local<v8::Object> & cpu_context, GumV8Core * core);
 
-G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_parse_module_details (
-    const GumModuleDetails * details, GumV8Core * core);
-
-G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_cpu_context_new (
+G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_cpu_context_new_immutable (
     const GumCpuContext * cpu_context, GumV8Core * core);
-G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_cpu_context_new (
+G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_cpu_context_new_mutable (
     GumCpuContext * cpu_context, GumV8Core * core);
 G_GNUC_INTERNAL void _gum_v8_cpu_context_free_later (
     GumPersistent<v8::Object>::type * cpu_context, GumV8Core * core);
@@ -177,5 +178,7 @@ G_GNUC_INTERNAL void _gum_v8_class_add (v8::Handle<v8::FunctionTemplate> klass,
 G_GNUC_INTERNAL void _gum_v8_class_add (v8::Handle<v8::FunctionTemplate> klass,
     const GumV8Function * functions, v8::Handle<v8::External> module,
     v8::Isolate * isolate);
+
+template <typename T> void _gum_v8_ignore_result (T unused_result) {}
 
 #endif

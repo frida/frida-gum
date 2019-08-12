@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -9,7 +9,10 @@
 
 #include <gum/gummemory.h>
 
+#define GUM_TYPE_MODULE_DETAILS (gum_module_details_get_type ())
 #define GUM_TYPE_CODE_SIGNING_POLICY (gum_code_signing_policy_get_type ())
+
+G_BEGIN_DECLS
 
 typedef guint GumCodeSigningPolicy;
 typedef guint GumProcessId;
@@ -140,8 +143,6 @@ struct _GumMallocRangeDetails
   const GumMemoryRange * range;
 };
 
-G_BEGIN_DECLS
-
 typedef void (* GumModifyThreadFunc) (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 typedef gboolean (* GumFoundThreadFunc) (const GumThreadDetails * details,
@@ -179,6 +180,7 @@ GUM_API guint gum_thread_try_get_ranges (GumMemoryRange * ranges,
     guint max_length);
 GUM_API gint gum_thread_get_system_error (void);
 GUM_API void gum_thread_set_system_error (gint value);
+GUM_API gboolean gum_module_load (const gchar * module_name, GError ** error);
 GUM_API gboolean gum_module_ensure_initialized (const gchar * module_name);
 GUM_API void gum_module_enumerate_imports (const gchar * module_name,
     GumFoundImportFunc func, gpointer user_data);
@@ -195,6 +197,12 @@ GUM_API GumAddress gum_module_find_export_by_name (const gchar * module_name,
 GUM_API GType gum_code_signing_policy_get_type (void) G_GNUC_CONST;
 GUM_API const gchar * gum_code_signing_policy_to_string (
     GumCodeSigningPolicy policy);
+
+GUM_API GType gum_module_details_get_type (void) G_GNUC_CONST;
+GUM_API GumModuleDetails * gum_module_details_copy (
+    const GumModuleDetails * module);
+GUM_API void gum_module_details_free (GumModuleDetails * module);
+
 GUM_API const gchar * gum_symbol_type_to_string (GumSymbolType type);
 
 G_END_DECLS

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -87,6 +87,8 @@ gum_unw_backtracer_generate (GumBacktracer * backtracer,
   {
     start_index = 0;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-value"
 #ifdef __clang__
 # pragma clang diagnostic push
 # pragma clang diagnostic ignored "-Winline-asm"
@@ -95,6 +97,7 @@ gum_unw_backtracer_generate (GumBacktracer * backtracer,
 #ifdef __clang__
 # pragma clang diagnostic pop
 #endif
+#pragma GCC diagnostic pop
   }
 
   unw_init_local (&cursor, &context);
@@ -192,7 +195,10 @@ gum_cpu_context_to_unw (const GumCpuContext * ctx,
 #elif defined (UNW_TARGET_AARCH64)
   mcontext_t * mc = &uc->uc_mcontext;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-value"
   unw_getcontext (uc);
+#pragma GCC diagnostic pop
 
   mc->pc = ctx->pc - 4;
   mc->sp = ctx->sp;

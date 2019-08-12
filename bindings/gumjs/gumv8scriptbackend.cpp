@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -33,17 +33,22 @@
 
 #define GUM_V8_FLAGS \
     GUM_V8_PLATFORM_FLAGS \
+    "--use-strict " \
+    "--expose-gc " \
     "--es-staging " \
-    "--harmony-do-expressions " \
     "--harmony-class-fields " \
-    "--harmony-static-fields " \
-    "--experimental-wasm-simd " \
-    "--experimental-wasm-eh " \
+    "--harmony-private-methods " \
+    "--harmony-regexp-sequence " \
     "--experimental-wasm-mv " \
+    "--experimental-wasm-eh " \
     "--experimental-wasm-threads " \
-    "--experimental-wasm-sat-f2i-conversions " \
+    "--experimental-wasm-simd " \
     "--experimental-wasm-anyref " \
-    "--expose-gc"
+    "--experimental-wasm-bigint " \
+    "--experimental-wasm-bulk-memory " \
+    "--experimental-wasm-return-call " \
+    "--experimental-wasm-type-reflection " \
+    "--experimental-wasm-compilation-hints"
 
 using namespace v8;
 using namespace v8_inspector;
@@ -225,9 +230,6 @@ static void gum_v8_script_backend_with_lock_held (GumScriptBackend * backend,
     GumScriptBackendLockedFunc func, gpointer user_data);
 static gboolean gum_v8_script_backend_is_locked (GumScriptBackend * backend);
 
-static GumScriptScheduler * gum_v8_script_backend_get_scheduler_impl (
-    GumScriptBackend * backend);
-
 static void gum_v8_script_backend_clear_inspector_channels (
     GumV8ScriptBackend * self);
 static void gum_v8_script_backend_notify_context_created (
@@ -285,8 +287,6 @@ gum_v8_script_backend_iface_init (gpointer g_iface,
 
   iface->with_lock_held = gum_v8_script_backend_with_lock_held;
   iface->is_locked = gum_v8_script_backend_is_locked;
-
-  iface->get_scheduler = gum_v8_script_backend_get_scheduler_impl;
 }
 
 static void
@@ -364,7 +364,19 @@ gum_v8_script_backend_get_platform (GumV8ScriptBackend * self)
 {
   if (self->platform == NULL)
   {
-    V8::SetFlagsFromString (GUM_V8_FLAGS, (int) strlen (GUM_V8_FLAGS));
+    GString * flags;
+
+    flags = g_string_new (GUM_V8_FLAGS);
+
+    if (gum_process_get_code_signing_policy () == GUM_CODE_SIGNING_REQUIRED)
+    {
+      g_string_append (flags, " --jitless");
+    }
+
+    V8::SetFlagsFromString (flags->str, (size_t) flags->len);
+
+    g_string_free (flags, TRUE);
+
     self->platform = new GumV8Platform ();
     self->platform->GetIsolate ()->SetData (0, self);
 
@@ -392,13 +404,7 @@ gum_v8_script_backend_get_isolate (GumV8ScriptBackend * self)
 GumScriptScheduler *
 gum_v8_script_backend_get_scheduler (GumV8ScriptBackend * self)
 {
-  GumScriptScheduler * scheduler;
-
-  scheduler = GUM_V8_SCRIPT_BACKEND_GET_PLATFORM (self)->GetScheduler ();
-
-  gum_script_scheduler_start (scheduler);
-
-  return scheduler;
+  return GUM_V8_SCRIPT_BACKEND_GET_PLATFORM (self)->GetScheduler ();
 }
 
 static void
@@ -925,14 +931,6 @@ gum_v8_script_backend_is_locked (GumScriptBackend * backend)
   auto isolate = GUM_V8_SCRIPT_BACKEND_GET_ISOLATE (self);
 
   return Locker::IsLockedByAnyThread (isolate);
-}
-
-static GumScriptScheduler *
-gum_v8_script_backend_get_scheduler_impl (GumScriptBackend * backend)
-{
-  auto self = GUM_V8_SCRIPT_BACKEND (backend);
-
-  return GUM_V8_SCRIPT_BACKEND_GET_PLATFORM (self)->GetScheduler ();
 }
 
 static void

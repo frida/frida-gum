@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -135,20 +135,21 @@ GumSampler *
 gum_call_count_sampler_new_valist (gpointer first_function,
                                    va_list args)
 {
-  GumInterceptor * interceptor;
   GumCallCountSampler * sampler;
+  GumInterceptor * interceptor;
   gpointer function;
 
-  g_assert (first_function != NULL);
+  if (first_function == NULL)
+    return g_object_new (GUM_TYPE_CALL_COUNT_SAMPLER, NULL);
 
   interceptor = gum_interceptor_obtain ();
   gum_interceptor_ignore_current_thread (interceptor);
   gum_interceptor_begin_transaction (interceptor);
 
-  sampler = GUM_CALL_COUNT_SAMPLER (
-      g_object_new (GUM_TYPE_CALL_COUNT_SAMPLER, NULL));
+  sampler = g_object_new (GUM_TYPE_CALL_COUNT_SAMPLER, NULL);
 
-  for (function = first_function; function != NULL;
+  for (function = first_function;
+      function != NULL;
       function = va_arg (args, gpointer))
   {
     gum_call_count_sampler_add_function (sampler, function);

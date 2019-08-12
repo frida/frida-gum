@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -437,9 +437,8 @@ gum_module_entry_from_address (gpointer address,
   path = dl_info.dli_fname;
   if (!g_path_is_absolute (path))
   {
-    path_malloc_data = realpath (path, NULL);
-    if (path_malloc_data != NULL)
-      path = path_malloc_data;
+    path_malloc_data = g_canonicalize_filename (path, NULL);
+    path = path_malloc_data;
   }
   else
   {
@@ -449,7 +448,7 @@ gum_module_entry_from_address (gpointer address,
   entry = gum_module_entry_from_path_and_base (path,
       GUM_ADDRESS (dl_info.dli_fbase));
 
-  free (path_malloc_data);
+  g_free (path_malloc_data);
 
   return entry;
 }

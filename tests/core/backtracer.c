@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -9,20 +9,20 @@
 #define PRINT_BACKTRACES        0
 #define ENABLE_PERFORMANCE_TEST 0
 
-TEST_LIST_BEGIN (backtracer)
-  BACKTRACER_TESTENTRY (basics)
-  BACKTRACER_TESTENTRY (full_cycle_with_interceptor)
-  BACKTRACER_TESTENTRY (full_cycle_with_allocation_tracker)
+TESTLIST_BEGIN (backtracer)
+  TESTENTRY (basics)
+  TESTENTRY (full_cycle_with_interceptor)
+  TESTENTRY (full_cycle_with_allocation_tracker)
 #if ENABLE_PERFORMANCE_TEST
-  BACKTRACER_TESTENTRY (performance)
+  TESTENTRY (performance)
 #endif
-TEST_LIST_END ()
+TESTLIST_END ()
 
 #if PRINT_BACKTRACES
 static void print_backtrace (GumReturnAddressArray * ret_addrs);
 #endif
 
-BACKTRACER_TESTCASE (basics)
+TESTCASE (basics)
 {
   GumReturnAddressArray ret_addrs = { 0, };
   guint expected_line_number;
@@ -45,20 +45,20 @@ BACKTRACER_TESTCASE (basics)
 #endif
 
   first_address = ret_addrs.items[0];
-  g_assert (first_address != NULL);
+  g_assert_nonnull (first_address);
 
-  g_assert (gum_return_address_details_from_address (first_address, &rad));
-  g_assert (g_str_has_prefix (rad.module_name, "gum-tests") ||
+  g_assert_true (gum_return_address_details_from_address (first_address, &rad));
+  g_assert_true (g_str_has_prefix (rad.module_name, "gum-tests") ||
       g_str_has_prefix (rad.module_name, "lt-gum-tests"));
   g_assert_cmpstr (rad.function_name, ==, __FUNCTION__);
 #ifndef HAVE_DARWIN
-  g_assert (g_str_has_suffix (rad.file_name, "backtracer.c"));
-  g_assert (rad.line_number == expected_line_number ||
+  g_assert_true (g_str_has_suffix (rad.file_name, "backtracer.c"));
+  g_assert_true (rad.line_number == expected_line_number ||
       rad.line_number == expected_line_number + 1);
 #endif
 }
 
-BACKTRACER_TESTCASE (full_cycle_with_interceptor)
+TESTCASE (full_cycle_with_interceptor)
 {
   GumInterceptor * interceptor;
   BacktraceCollector * collector;
@@ -86,8 +86,8 @@ BACKTRACER_TESTCASE (full_cycle_with_interceptor)
   g_assert_cmpuint (collector->last_on_enter.len, ==, 0);
   g_assert_cmpuint (collector->last_on_leave.len, ==, 0);
   fd = open_impl ("badger.txt", O_RDONLY);
-  g_assert (collector->last_on_enter.len != 0);
-  g_assert (collector->last_on_leave.len != 0);
+  g_assert_cmpuint (collector->last_on_enter.len, !=, 0);
+  g_assert_cmpuint (collector->last_on_leave.len, !=, 0);
 
   gum_interceptor_detach_listener (interceptor,
       GUM_INVOCATION_LISTENER (collector));
@@ -103,11 +103,11 @@ BACKTRACER_TESTCASE (full_cycle_with_interceptor)
   print_backtrace (&collector->last_on_leave);
 #endif
 
-  g_assert (gum_return_address_details_from_address (
+  g_assert_true (gum_return_address_details_from_address (
       collector->last_on_enter.items[0], &on_enter));
   g_assert_cmpstr (on_enter.function_name, ==, __FUNCTION__);
 
-  g_assert (gum_return_address_details_from_address (
+  g_assert_true (gum_return_address_details_from_address (
       collector->last_on_leave.items[0], &on_leave));
   g_assert_cmpstr (on_leave.function_name, ==, __FUNCTION__);
 
@@ -115,8 +115,10 @@ BACKTRACER_TESTCASE (full_cycle_with_interceptor)
   g_object_unref (interceptor);
 }
 
-BACKTRACER_TESTCASE (full_cycle_with_allocation_tracker)
+TESTCASE (full_cycle_with_allocation_tracker)
 {
+  const GumHeapApiList * heap_apis;
+  const GumHeapApi * api;
   GumAllocatorProbe * probe;
   GumAllocationTracker * tracker;
   GumInterceptor * interceptor;
@@ -132,6 +134,9 @@ BACKTRACER_TESTCASE (full_cycle_with_allocation_tracker)
     return;
   }
 
+  heap_apis = test_util_heap_apis ();
+  api = gum_heap_api_list_get_nth (heap_apis, 0);
+
   tracker = gum_allocation_tracker_new_with_backtracer (fixture->backtracer);
   gum_allocation_tracker_begin (tracker);
 
@@ -139,10 +144,10 @@ BACKTRACER_TESTCASE (full_cycle_with_allocation_tracker)
   g_object_set (probe, "allocation-tracker", tracker, NULL);
   interceptor = gum_interceptor_obtain ();
   gum_interceptor_ignore_other_threads (interceptor);
-  gum_allocator_probe_attach_to_apis (probe, test_util_heap_apis ());
+  gum_allocator_probe_attach_to_apis (probe, heap_apis);
 
   expected_line_number = __LINE__ + 1;
-  a = malloc (1337);
+  a = api->malloc (1337);
 
   /* TODO: Remove this once reentrancy protection has been implemented to also
    *       cover AllocationTracker's methods */
@@ -161,20 +166,21 @@ BACKTRACER_TESTCASE (full_cycle_with_allocation_tracker)
   g_assert_cmpuint (block->return_addresses.len, >=, 1);
 
   first_address = block->return_addresses.items[0];
-  g_assert (first_address != NULL);
+  g_assert_nonnull (first_address);
 
   {
 #ifdef G_OS_WIN32
     GumReturnAddressDetails rad;
 
-    g_assert (gum_return_address_details_from_address (first_address, &rad));
-    g_assert (g_str_has_prefix (rad.module_name, "gum-tests"));
+    g_assert_true (gum_return_address_details_from_address (first_address,
+        &rad));
+    g_assert_true (g_str_has_prefix (rad.module_name, "gum-tests"));
     g_assert_cmpstr (rad.function_name, ==, __FUNCTION__);
-    g_assert (g_str_has_suffix (rad.file_name, "backtracer.c"));
+    g_assert_true (g_str_has_suffix (rad.file_name, "backtracer.c"));
     if (rad.line_number != alternate_line_number)
       g_assert_cmpuint (rad.line_number, ==, expected_line_number);
 #else
-    g_assert (first_address != NULL);
+    g_assert_nonnull (first_address);
     (void) expected_line_number;
     (void) alternate_line_number;
 #endif
@@ -182,7 +188,8 @@ BACKTRACER_TESTCASE (full_cycle_with_allocation_tracker)
 
   gum_allocation_block_list_free (blocks);
 
-  free (a);
+  api->free (a);
+
   gum_interceptor_unignore_other_threads (interceptor);
   g_object_unref (interceptor);
   g_object_unref (probe);
@@ -191,7 +198,7 @@ BACKTRACER_TESTCASE (full_cycle_with_allocation_tracker)
 
 #if ENABLE_PERFORMANCE_TEST
 
-BACKTRACER_TESTCASE (performance)
+TESTCASE (performance)
 {
   GumReturnAddressArray ret_addrs = { 0, };
   GTimer * timer;

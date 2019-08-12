@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -7,63 +7,63 @@
 
 #include "interceptor-fixture.c"
 
-TEST_LIST_BEGIN (interceptor)
+TESTLIST_BEGIN (interceptor)
 #ifdef HAVE_I386
-  INTERCEPTOR_TESTENTRY (cpu_register_clobber)
-  INTERCEPTOR_TESTENTRY (cpu_flag_clobber)
+  TESTENTRY (cpu_register_clobber)
+  TESTENTRY (cpu_flag_clobber)
 #endif
 
-  INTERCEPTOR_TESTENTRY (i_can_has_attachability)
+  TESTENTRY (i_can_has_attachability)
 #ifdef HAVE_I386
-  INTERCEPTOR_TESTENTRY (already_attached)
-  INTERCEPTOR_TESTENTRY (relative_proxy_function)
-  INTERCEPTOR_TESTENTRY (absolute_indirect_proxy_function)
-  INTERCEPTOR_TESTENTRY (two_indirects_to_function)
-  INTERCEPTOR_TESTENTRY (relocation_of_early_call)
+  TESTENTRY (already_attached)
+  TESTENTRY (relative_proxy_function)
+  TESTENTRY (absolute_indirect_proxy_function)
+  TESTENTRY (two_indirects_to_function)
+  TESTENTRY (relocation_of_early_call)
 #endif
 
-  INTERCEPTOR_TESTENTRY (attach_one)
-  INTERCEPTOR_TESTENTRY (attach_two)
-  INTERCEPTOR_TESTENTRY (attach_to_recursive_function)
-  INTERCEPTOR_TESTENTRY (attach_to_special_function)
+  TESTENTRY (attach_one)
+  TESTENTRY (attach_two)
+  TESTENTRY (attach_to_recursive_function)
+  TESTENTRY (attach_to_special_function)
 #ifdef G_OS_UNIX
-  INTERCEPTOR_TESTENTRY (attach_to_pthread_key_create)
+  TESTENTRY (attach_to_pthread_key_create)
 #endif
 #if !defined (HAVE_QNX) && !(defined (HAVE_ANDROID) && defined (HAVE_ARM64))
-  INTERCEPTOR_TESTENTRY (attach_to_heap_api)
+  TESTENTRY (attach_to_heap_api)
 #endif
-  INTERCEPTOR_TESTENTRY (attach_to_own_api)
+  TESTENTRY (attach_to_own_api)
 #ifdef G_OS_WIN32
-  INTERCEPTOR_TESTENTRY (attach_detach_torture)
+  TESTENTRY (attach_detach_torture)
 #endif
-  INTERCEPTOR_TESTENTRY (thread_id)
-#if !(defined (HAVE_ANDROID) && defined (HAVE_ARM64))
-  INTERCEPTOR_TESTENTRY (intercepted_free_in_thread_exit)
+  TESTENTRY (thread_id)
+#if !(defined (HAVE_ANDROID) && defined (HAVE_ARM64)) && !defined (HAVE_ASAN)
+  TESTENTRY (intercepted_free_in_thread_exit)
 #endif
-  INTERCEPTOR_TESTENTRY (function_arguments)
-  INTERCEPTOR_TESTENTRY (function_return_value)
+  TESTENTRY (function_arguments)
+  TESTENTRY (function_return_value)
 #ifdef HAVE_I386
-  INTERCEPTOR_TESTENTRY (function_cpu_context_on_enter)
+  TESTENTRY (function_cpu_context_on_enter)
 #endif
-  INTERCEPTOR_TESTENTRY (ignore_current_thread)
-  INTERCEPTOR_TESTENTRY (ignore_current_thread_nested)
-  INTERCEPTOR_TESTENTRY (ignore_other_threads)
-  INTERCEPTOR_TESTENTRY (detach)
-  INTERCEPTOR_TESTENTRY (listener_ref_count)
-  INTERCEPTOR_TESTENTRY (function_data)
+  TESTENTRY (ignore_current_thread)
+  TESTENTRY (ignore_current_thread_nested)
+  TESTENTRY (ignore_other_threads)
+  TESTENTRY (detach)
+  TESTENTRY (listener_ref_count)
+  TESTENTRY (function_data)
 
-  INTERCEPTOR_TESTENTRY (i_can_has_replaceability)
-  INTERCEPTOR_TESTENTRY (already_replaced)
+  TESTENTRY (i_can_has_replaceability)
+  TESTENTRY (already_replaced)
 # ifndef HAVE_ASAN
-  INTERCEPTOR_TESTENTRY (replace_function)
-  INTERCEPTOR_TESTENTRY (two_replaced_functions)
+  TESTENTRY (replace_function)
+  TESTENTRY (two_replaced_functions)
 # endif
-  INTERCEPTOR_TESTENTRY (replace_function_then_attach_to_it)
+  TESTENTRY (replace_function_then_attach_to_it)
 
 #ifdef HAVE_QNX
-  INTERCEPTOR_TESTENTRY (intercept_malloc_and_create_thread)
+  TESTENTRY (intercept_malloc_and_create_thread)
 #endif
-TEST_LIST_END ()
+TESTLIST_END ()
 
 #ifdef HAVE_QNX
 static gpointer thread_doing_nothing (gpointer data);
@@ -75,14 +75,14 @@ static gpointer hit_target_function_repeatedly (gpointer data);
 static gpointer replacement_malloc (gsize size);
 static gpointer replacement_target_function (GString * str);
 
-INTERCEPTOR_TESTCASE (attach_one)
+TESTCASE (attach_one)
 {
   interceptor_fixture_attach_listener (fixture, 0, target_function, '>', '<');
   target_function (fixture->result);
   g_assert_cmpstr (fixture->result->str, ==, ">|<");
 }
 
-INTERCEPTOR_TESTCASE (attach_two)
+TESTCASE (attach_two)
 {
   interceptor_fixture_attach_listener (fixture, 0, target_function, 'a', 'b');
   interceptor_fixture_attach_listener (fixture, 1, target_function, 'c', 'd');
@@ -100,7 +100,7 @@ recursive_function (GString * str,
   g_string_append_printf (str, "%d", count);
 }
 
-INTERCEPTOR_TESTCASE (attach_to_recursive_function)
+TESTCASE (attach_to_recursive_function)
 {
   interceptor_fixture_attach_listener (fixture, 0, recursive_function,
       '>', '<');
@@ -108,7 +108,7 @@ INTERCEPTOR_TESTCASE (attach_to_recursive_function)
   g_assert_cmpstr (fixture->result->str, ==, ">>>>>0<1<2<3<4<");
 }
 
-INTERCEPTOR_TESTCASE (attach_to_special_function)
+TESTCASE (attach_to_special_function)
 {
   interceptor_fixture_attach_listener (fixture, 0, special_function, '>', '<');
   special_function (fixture->result);
@@ -117,7 +117,7 @@ INTERCEPTOR_TESTCASE (attach_to_special_function)
 
 #ifdef G_OS_UNIX
 
-INTERCEPTOR_TESTCASE (attach_to_pthread_key_create)
+TESTCASE (attach_to_pthread_key_create)
 {
   int (* pthread_key_create_impl) (pthread_key_t * key,
       void (* destructor) (void *));
@@ -136,8 +136,9 @@ INTERCEPTOR_TESTCASE (attach_to_pthread_key_create)
 
 #endif
 
-INTERCEPTOR_TESTCASE (attach_to_heap_api)
+TESTCASE (attach_to_heap_api)
 {
+  gpointer malloc_impl, free_impl;
   volatile gpointer p;
 
   if (RUNNING_ON_VALGRIND)
@@ -146,9 +147,12 @@ INTERCEPTOR_TESTCASE (attach_to_heap_api)
     return;
   }
 
+  malloc_impl = interceptor_fixture_get_libc_malloc ();
+  free_impl = interceptor_fixture_get_libc_free ();
+
   gum_interceptor_ignore_current_thread (fixture->interceptor);
-  interceptor_fixture_attach_listener (fixture, 0, malloc, '>', '<');
-  interceptor_fixture_attach_listener (fixture, 1, free, 'a', 'b');
+  interceptor_fixture_attach_listener (fixture, 0, malloc_impl, '>', '<');
+  interceptor_fixture_attach_listener (fixture, 1, free_impl, 'a', 'b');
   gum_interceptor_unignore_current_thread (fixture->interceptor);
   p = malloc (1);
   free (p);
@@ -160,7 +164,7 @@ INTERCEPTOR_TESTCASE (attach_to_heap_api)
   g_assert_cmpstr (fixture->result->str, ==, "><ab");
 }
 
-INTERCEPTOR_TESTCASE (attach_to_own_api)
+TESTCASE (attach_to_own_api)
 {
   TestCallbackListener * listener;
 
@@ -182,7 +186,7 @@ INTERCEPTOR_TESTCASE (attach_to_own_api)
 
 #ifdef G_OS_WIN32
 
-INTERCEPTOR_TESTCASE (attach_detach_torture)
+TESTCASE (attach_detach_torture)
 {
   GThread * th;
   volatile guint n_passes = 100;
@@ -216,7 +220,7 @@ INTERCEPTOR_TESTCASE (attach_detach_torture)
 
 #endif
 
-INTERCEPTOR_TESTCASE (thread_id)
+TESTCASE (thread_id)
 {
   GumThreadId first_thread_id, second_thread_id;
 
@@ -232,14 +236,15 @@ INTERCEPTOR_TESTCASE (thread_id)
   g_assert_cmpuint (second_thread_id, !=, first_thread_id);
 }
 
-INTERCEPTOR_TESTCASE (intercepted_free_in_thread_exit)
+TESTCASE (intercepted_free_in_thread_exit)
 {
-  interceptor_fixture_attach_listener (fixture, 0, free, 'a', 'b');
+  interceptor_fixture_attach_listener (fixture, 0,
+      interceptor_fixture_get_libc_free (), 'a', 'b');
   g_thread_join (g_thread_new ("interceptor-test-thread-exit",
       target_nop_function_a, NULL));
 }
 
-INTERCEPTOR_TESTCASE (function_arguments)
+TESTCASE (function_arguments)
 {
   interceptor_fixture_attach_listener (fixture, 0, target_nop_function_a, 'a',
       'b');
@@ -248,7 +253,7 @@ INTERCEPTOR_TESTCASE (function_arguments)
       ==, 0x12349876);
 }
 
-INTERCEPTOR_TESTCASE (function_return_value)
+TESTCASE (function_return_value)
 {
   gpointer return_value;
 
@@ -262,7 +267,7 @@ INTERCEPTOR_TESTCASE (function_return_value)
 
 #ifdef HAVE_I386
 
-INTERCEPTOR_TESTCASE (function_cpu_context_on_enter)
+TESTCASE (function_cpu_context_on_enter)
 {
   GumCpuContext input, output;
 
@@ -278,7 +283,7 @@ INTERCEPTOR_TESTCASE (function_cpu_context_on_enter)
 
 #endif
 
-INTERCEPTOR_TESTCASE (ignore_current_thread)
+TESTCASE (ignore_current_thread)
 {
   interceptor_fixture_attach_listener (fixture, 0, target_function, '>',
       '<');
@@ -299,7 +304,7 @@ INTERCEPTOR_TESTCASE (ignore_current_thread)
   g_assert_cmpstr (fixture->result->str, ==, ">|<");
 }
 
-INTERCEPTOR_TESTCASE (ignore_current_thread_nested)
+TESTCASE (ignore_current_thread_nested)
 {
   interceptor_fixture_attach_listener (fixture, 0, target_function, '>',
       '<');
@@ -312,7 +317,7 @@ INTERCEPTOR_TESTCASE (ignore_current_thread_nested)
   gum_interceptor_unignore_current_thread (fixture->interceptor);
 }
 
-INTERCEPTOR_TESTCASE (ignore_other_threads)
+TESTCASE (ignore_other_threads)
 {
   interceptor_fixture_attach_listener (fixture, 0, target_function, '>', '<');
 
@@ -332,7 +337,7 @@ INTERCEPTOR_TESTCASE (ignore_other_threads)
   g_assert_cmpstr (fixture->result->str, ==, ">|<|>|<");
 }
 
-INTERCEPTOR_TESTCASE (detach)
+TESTCASE (detach)
 {
   interceptor_fixture_attach_listener (fixture, 0, target_function, 'a', 'b');
   interceptor_fixture_attach_listener (fixture, 1, target_function, 'c', 'd');
@@ -347,7 +352,7 @@ INTERCEPTOR_TESTCASE (detach)
   g_assert_cmpstr (fixture->result->str, ==, "c|d");
 }
 
-INTERCEPTOR_TESTCASE (listener_ref_count)
+TESTCASE (listener_ref_count)
 {
   interceptor_fixture_attach_listener (fixture, 0, target_function, 'a', 'b');
   g_assert_cmpuint (G_OBJECT (fixture->listener_context[0])->ref_count, ==, 1);
@@ -355,7 +360,7 @@ INTERCEPTOR_TESTCASE (listener_ref_count)
 
 #include "interceptor-functiondatalistener.c"
 
-INTERCEPTOR_TESTCASE (function_data)
+TESTCASE (function_data)
 {
   TestFunctionDataListener * fd_listener;
   GumInvocationListener * listener;
@@ -377,8 +382,8 @@ INTERCEPTOR_TESTCASE (function_data)
   g_assert_cmpuint (fd_listener->on_enter_call_count, ==, 1);
   g_assert_cmpuint (fd_listener->on_leave_call_count, ==, 1);
   g_assert_cmpuint (fd_listener->init_thread_state_count, ==, 1);
-  g_assert (fd_listener->last_on_enter_data.function_data == a_data);
-  g_assert (fd_listener->last_on_leave_data.function_data == a_data);
+  g_assert_true (fd_listener->last_on_enter_data.function_data == a_data);
+  g_assert_true (fd_listener->last_on_leave_data.function_data == a_data);
   g_assert_cmpstr (fd_listener->last_on_enter_data.thread_data.name, ==, "a1");
   g_assert_cmpstr (fd_listener->last_on_leave_data.thread_data.name, ==, "a1");
   g_assert_cmpstr (fd_listener->last_on_enter_data.invocation_data.arg,
@@ -390,8 +395,8 @@ INTERCEPTOR_TESTCASE (function_data)
   g_assert_cmpuint (fd_listener->on_enter_call_count, ==, 2);
   g_assert_cmpuint (fd_listener->on_leave_call_count, ==, 2);
   g_assert_cmpuint (fd_listener->init_thread_state_count, ==, 1);
-  g_assert (fd_listener->last_on_enter_data.function_data == a_data);
-  g_assert (fd_listener->last_on_leave_data.function_data == a_data);
+  g_assert_true (fd_listener->last_on_enter_data.function_data == a_data);
+  g_assert_true (fd_listener->last_on_leave_data.function_data == a_data);
   g_assert_cmpstr (fd_listener->last_on_enter_data.thread_data.name, ==, "a1");
   g_assert_cmpstr (fd_listener->last_on_leave_data.thread_data.name, ==, "a1");
   g_assert_cmpstr (fd_listener->last_on_enter_data.invocation_data.arg,
@@ -405,8 +410,8 @@ INTERCEPTOR_TESTCASE (function_data)
   g_assert_cmpuint (fd_listener->on_enter_call_count, ==, 1);
   g_assert_cmpuint (fd_listener->on_leave_call_count, ==, 1);
   g_assert_cmpuint (fd_listener->init_thread_state_count, ==, 0);
-  g_assert (fd_listener->last_on_enter_data.function_data == b_data);
-  g_assert (fd_listener->last_on_leave_data.function_data == b_data);
+  g_assert_true (fd_listener->last_on_enter_data.function_data == b_data);
+  g_assert_true (fd_listener->last_on_leave_data.function_data == b_data);
   g_assert_cmpstr (fd_listener->last_on_enter_data.thread_data.name, ==, "a1");
   g_assert_cmpstr (fd_listener->last_on_leave_data.thread_data.name, ==, "a1");
   g_assert_cmpstr (fd_listener->last_on_enter_data.invocation_data.arg,
@@ -421,8 +426,8 @@ INTERCEPTOR_TESTCASE (function_data)
   g_assert_cmpuint (fd_listener->on_enter_call_count, ==, 1);
   g_assert_cmpuint (fd_listener->on_leave_call_count, ==, 1);
   g_assert_cmpuint (fd_listener->init_thread_state_count, ==, 1);
-  g_assert (fd_listener->last_on_enter_data.function_data == a_data);
-  g_assert (fd_listener->last_on_leave_data.function_data == a_data);
+  g_assert_true (fd_listener->last_on_enter_data.function_data == a_data);
+  g_assert_true (fd_listener->last_on_leave_data.function_data == a_data);
   g_assert_cmpstr (fd_listener->last_on_enter_data.thread_data.name, ==, "a2");
   g_assert_cmpstr (fd_listener->last_on_leave_data.thread_data.name, ==, "a2");
   g_assert_cmpstr (fd_listener->last_on_enter_data.invocation_data.arg,
@@ -436,7 +441,7 @@ INTERCEPTOR_TESTCASE (function_data)
 
 #ifdef HAVE_I386
 
-INTERCEPTOR_TESTCASE (cpu_register_clobber)
+TESTCASE (cpu_register_clobber)
 {
   GumCpuContext input, output;
 
@@ -449,7 +454,7 @@ INTERCEPTOR_TESTCASE (cpu_register_clobber)
   assert_cpu_contexts_are_equal (&input, &output);
 }
 
-INTERCEPTOR_TESTCASE (cpu_flag_clobber)
+TESTCASE (cpu_flag_clobber)
 {
   gsize flags_input, flags_output;
 
@@ -463,7 +468,7 @@ INTERCEPTOR_TESTCASE (cpu_flag_clobber)
 
 #endif
 
-INTERCEPTOR_TESTCASE (i_can_has_attachability)
+TESTCASE (i_can_has_attachability)
 {
   UnsupportedFunction * unsupported_functions;
   guint count, i;
@@ -484,7 +489,7 @@ INTERCEPTOR_TESTCASE (i_can_has_attachability)
 
 #ifdef HAVE_I386
 
-INTERCEPTOR_TESTCASE (already_attached)
+TESTCASE (already_attached)
 {
   interceptor_fixture_attach_listener (fixture, 0, target_function, '>', '<');
   g_assert_cmpint (gum_interceptor_attach_listener (fixture->interceptor,
@@ -492,7 +497,7 @@ INTERCEPTOR_TESTCASE (already_attached)
       NULL), ==, GUM_ATTACH_ALREADY_ATTACHED);
 }
 
-INTERCEPTOR_TESTCASE (relative_proxy_function)
+TESTCASE (relative_proxy_function)
 {
   ProxyFunc proxy_func;
 
@@ -505,7 +510,7 @@ INTERCEPTOR_TESTCASE (relative_proxy_function)
   proxy_func_free (proxy_func);
 }
 
-INTERCEPTOR_TESTCASE (absolute_indirect_proxy_function)
+TESTCASE (absolute_indirect_proxy_function)
 {
   ProxyFunc proxy_func;
 
@@ -518,7 +523,7 @@ INTERCEPTOR_TESTCASE (absolute_indirect_proxy_function)
   proxy_func_free (proxy_func);
 }
 
-INTERCEPTOR_TESTCASE (two_indirects_to_function)
+TESTCASE (two_indirects_to_function)
 {
   ProxyFunc proxy_func;
 
@@ -531,7 +536,7 @@ INTERCEPTOR_TESTCASE (two_indirects_to_function)
   proxy_func_free (proxy_func);
 }
 
-INTERCEPTOR_TESTCASE (relocation_of_early_call)
+TESTCASE (relocation_of_early_call)
 {
   ProxyFunc proxy_func;
 
@@ -549,7 +554,7 @@ INTERCEPTOR_TESTCASE (relocation_of_early_call)
 
 #ifndef HAVE_ASAN
 
-INTERCEPTOR_TESTCASE (replace_function)
+TESTCASE (replace_function)
 {
   gpointer (* malloc_impl) (gsize size);
   guint counter = 0;
@@ -561,18 +566,7 @@ INTERCEPTOR_TESTCASE (replace_function)
     return;
   }
 
-#ifdef HAVE_LINUX
-  /*
-   * Get the address of malloc dynamically, as GCC is too smart about
-   * malloc() and assumes the last part of this function is unreachable.
-   */
-  void * libc = dlopen (test_util_get_system_module_name (),
-      RTLD_LAZY | RTLD_GLOBAL);
-  malloc_impl = dlsym (libc, "malloc");
-  dlclose (libc);
-#else
-  malloc_impl = (gpointer (*) (gsize)) malloc;
-#endif
+  malloc_impl = interceptor_fixture_get_libc_malloc ();
 
   g_assert_cmpint (gum_interceptor_replace_function (fixture->interceptor,
       malloc_impl, replacement_malloc, &counter), ==, GUM_REPLACE_OK);
@@ -583,7 +577,7 @@ INTERCEPTOR_TESTCASE (replace_function)
    * to after revert_function().  We do the real assert after reverting,
    * as failing asserts with broken malloc() are quite tricky to debug. :)
    */
-  g_assert (ret != NULL);
+  g_assert_nonnull (ret);
 
   gum_interceptor_revert_function (fixture->interceptor, malloc_impl);
   g_assert_cmpint (counter, ==, 1);
@@ -598,8 +592,9 @@ static gpointer replacement_malloc_calling_malloc_and_replaced_free (
     gsize size);
 static void replacement_free_doing_nothing (gpointer mem);
 
-INTERCEPTOR_TESTCASE (two_replaced_functions)
+TESTCASE (two_replaced_functions)
 {
+  gpointer malloc_impl, free_impl;
   guint malloc_counter = 0, free_counter = 0;
   volatile gpointer ret;
 
@@ -609,17 +604,20 @@ INTERCEPTOR_TESTCASE (two_replaced_functions)
     return;
   }
 
+  malloc_impl = interceptor_fixture_get_libc_malloc ();
+  free_impl = interceptor_fixture_get_libc_free ();
+
   gum_interceptor_replace_function (fixture->interceptor,
-      malloc, replacement_malloc_calling_malloc_and_replaced_free,
+      malloc_impl, replacement_malloc_calling_malloc_and_replaced_free,
       &malloc_counter);
   gum_interceptor_replace_function (fixture->interceptor,
-      free, replacement_free_doing_nothing, &free_counter);
+      free_impl, replacement_free_doing_nothing, &free_counter);
 
   ret = malloc (0x42);
-  g_assert (ret != NULL);
+  g_assert_nonnull (ret);
 
-  gum_interceptor_revert_function (fixture->interceptor, malloc);
-  gum_interceptor_revert_function (fixture->interceptor, free);
+  gum_interceptor_revert_function (fixture->interceptor, malloc_impl);
+  gum_interceptor_revert_function (fixture->interceptor, free_impl);
   g_assert_cmpint (malloc_counter, ==, 1);
   g_assert_cmpint (free_counter, ==, 1);
 
@@ -634,7 +632,7 @@ replacement_malloc_calling_malloc_and_replaced_free (gsize size)
   gpointer result;
 
   ctx = gum_interceptor_get_current_invocation ();
-  g_assert (ctx != NULL);
+  g_assert_nonnull (ctx);
 
   counter = (guint *)
       gum_invocation_context_get_replacement_function_data (ctx);
@@ -653,7 +651,7 @@ replacement_free_doing_nothing (gpointer mem)
   guint * counter;
 
   ctx = gum_interceptor_get_current_invocation ();
-  g_assert (ctx != NULL);
+  g_assert_nonnull (ctx);
 
   counter = (guint *)
       gum_invocation_context_get_replacement_function_data (ctx);
@@ -662,7 +660,7 @@ replacement_free_doing_nothing (gpointer mem)
 
 #endif
 
-INTERCEPTOR_TESTCASE (replace_function_then_attach_to_it)
+TESTCASE (replace_function_then_attach_to_it)
 {
   guint target_counter = 0;
 
@@ -687,7 +685,7 @@ replacement_target_function (GString * str)
   return result;
 }
 
-INTERCEPTOR_TESTCASE (i_can_has_replaceability)
+TESTCASE (i_can_has_replaceability)
 {
   UnsupportedFunction * unsupported_functions;
   guint count, i;
@@ -706,7 +704,7 @@ INTERCEPTOR_TESTCASE (i_can_has_replaceability)
   unsupported_function_list_free (unsupported_functions);
 }
 
-INTERCEPTOR_TESTCASE (already_replaced)
+TESTCASE (already_replaced)
 {
   g_assert_cmpint (gum_interceptor_replace_function (fixture->interceptor,
         target_function, malloc, NULL), ==, GUM_REPLACE_OK);
@@ -717,14 +715,14 @@ INTERCEPTOR_TESTCASE (already_replaced)
 
 #ifdef HAVE_QNX
 
-INTERCEPTOR_TESTCASE (intercept_malloc_and_create_thread)
+TESTCASE (intercept_malloc_and_create_thread)
 {
   pthread_key_t key;
   pthread_t thread1, thread2;
 
   interceptor_fixture_attach_listener (fixture, 0, malloc, 'a', 'b');
 
-  g_assert (pthread_key_create (&key, NULL) == 0);
+  g_assert_cmpint (pthread_key_create (&key, NULL), ==, 0);
 
   pthread_create (&thread1, NULL, thread_doing_nothing, NULL);
   /* The target thread MUST be the highest number thread to date in the
@@ -794,7 +792,7 @@ replacement_malloc (gsize size)
   gpointer a;
 
   ctx = gum_interceptor_get_current_invocation ();
-  g_assert (ctx != NULL);
+  g_assert_nonnull (ctx);
 
   malloc_impl = (MallocFunc) ctx->function;
   counter = (guint *)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -56,13 +56,11 @@ struct _GumScriptBackendInterface
   void (* with_lock_held) (GumScriptBackend * self,
       GumScriptBackendLockedFunc func, gpointer user_data);
   gboolean (* is_locked) (GumScriptBackend * self);
-
-  GumScriptScheduler * (* get_scheduler) (GumScriptBackend * self);
 };
 
 GUM_API GumScriptBackend * gum_script_backend_obtain (void);
-GUM_API GumScriptBackend * gum_script_backend_obtain_v8 (void);
 GUM_API GumScriptBackend * gum_script_backend_obtain_duk (void);
+GUM_API GumScriptBackend * gum_script_backend_obtain_v8 (void);
 
 GUM_API void gum_script_backend_create (GumScriptBackend * self,
     const gchar * name, const gchar * source, GCancellable * cancellable,
@@ -100,8 +98,7 @@ GUM_API void gum_script_backend_with_lock_held (GumScriptBackend * self,
     GumScriptBackendLockedFunc func, gpointer user_data);
 GUM_API gboolean gum_script_backend_is_locked (GumScriptBackend * self);
 
-GUM_API GumScriptScheduler * gum_script_backend_get_scheduler (
-    GumScriptBackend * self);
+GUM_API GumScriptScheduler * gum_script_backend_get_scheduler (void);
 
 G_END_DECLS
 

@@ -1,3 +1,29 @@
-option('enable_diet', type: 'combo', choices: ['auto', 'no', 'yes'], value: 'auto')
-option('enable_gumpp', type: 'boolean', value: true)
-option('enable_gumjs', type: 'boolean', value: true)
+option('gumpp',
+  type: 'feature',
+  value: 'enabled',
+  description: 'Build C++ bindings'
+)
+
+option('gumjs',
+  type: 'feature',
+  value: 'enabled',
+  description: 'Build JavaScript bindings'
+)
+
+option('duktape',
+  type: 'feature',
+  value: 'enabled',
+  description: 'Build JavaScript bindings with Duktape runtime included'
+)
+
+option('v8',
+  type: 'feature',
+  value: 'auto',
+  description: 'Build JavaScript bindings with V8 runtime included'
+)
+
+option('tests',
+  type: 'boolean',
+  value: true,
+  description: 'Build tests'
+)

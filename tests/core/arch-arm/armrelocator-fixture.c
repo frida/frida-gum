@@ -11,11 +11,11 @@
 
 #include <string.h>
 
-#define RELOCATOR_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_arm_relocator_ ## NAME ( \
         TestArmRelocatorFixture * fixture, gconstpointer data)
-#define RELOCATOR_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Core/ArmRelocator", test_arm_relocator, \
+#define TESTENTRY(NAME) \
+    TESTENTRY_WITH_FIXTURE ("Core/ArmRelocator", test_arm_relocator, \
         NAME, TestArmRelocatorFixture)
 
 #define TEST_OUTBUF_SIZE 32

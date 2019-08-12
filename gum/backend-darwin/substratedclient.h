@@ -1,7 +1,7 @@
-#ifndef	_frida_jit_user_
-#define	_frida_jit_user_
+#ifndef	_substrated_user_
+#define	_substrated_user_
 
-/* Module frida_jit */
+/* Module substrated */
 
 #include <string.h>
 #include <mach/ndr.h>
@@ -73,9 +73,9 @@ typedef function_table_entry   *function_table_t;
 #endif /* FUNCTION_PTR_T */
 #endif /* AUTOTEST */
 
-#ifndef	frida_jit_MSG_COUNT
-#define	frida_jit_MSG_COUNT	1
-#endif	/* frida_jit_MSG_COUNT */
+#ifndef	substrated_MSG_COUNT
+#define	substrated_MSG_COUNT	1
+#endif	/* substrated_MSG_COUNT */
 
 #include <mach/std_types.h>
 #include <mach/mig.h>
@@ -90,19 +90,19 @@ __BeforeMigUserHeader
 __BEGIN_DECLS
 
 
-/* Routine frida_jit_alloc */
+/* Routine substrated_mark */
 #ifdef	mig_external
 mig_external
 #else
 extern
 #endif	/* mig_external */
-kern_return_t frida_jit_alloc
+kern_return_t substrated_mark
 (
 	mach_port_t server,
 	vm_map_t task,
-	mach_vm_address_t *address,
-	mach_vm_size_t size,
-	int flags
+	mach_vm_address_t source_address,
+	mach_vm_size_t source_size,
+	mach_vm_address_t *target_address
 );
 
 __END_DECLS
@@ -120,8 +120,8 @@ __END_DECLS
 
 /* typedefs for all requests */
 
-#ifndef __Request__frida_jit_subsystem__defined
-#define __Request__frida_jit_subsystem__defined
+#ifndef __Request__substrated_subsystem__defined
+#define __Request__substrated_subsystem__defined
 
 #ifdef  __MigPackStructs
 #pragma pack(4)
@@ -133,27 +133,27 @@ __END_DECLS
 		mach_msg_port_descriptor_t task;
 		/* end of the kernel processed data */
 		NDR_record_t NDR;
-		mach_vm_address_t address;
-		mach_vm_size_t size;
-		int flags;
-	} __Request__frida_jit_alloc_t __attribute__((unused));
+		mach_vm_address_t source_address;
+		mach_vm_size_t source_size;
+		mach_vm_address_t target_address;
+	} __Request__substrated_mark_t __attribute__((unused));
 #ifdef  __MigPackStructs
 #pragma pack()
 #endif
-#endif /* !__Request__frida_jit_subsystem__defined */
+#endif /* !__Request__substrated_subsystem__defined */
 
 /* union of all requests */
 
-#ifndef __RequestUnion__frida_jit_subsystem__defined
-#define __RequestUnion__frida_jit_subsystem__defined
-union __RequestUnion__frida_jit_subsystem {
-	__Request__frida_jit_alloc_t Request_frida_jit_alloc;
+#ifndef __RequestUnion__substrated_subsystem__defined
+#define __RequestUnion__substrated_subsystem__defined
+union __RequestUnion__substrated_subsystem {
+	__Request__substrated_mark_t Request_substrated_mark;
 };
-#endif /* !__RequestUnion__frida_jit_subsystem__defined */
+#endif /* !__RequestUnion__substrated_subsystem__defined */
 /* typedefs for all replies */
 
-#ifndef __Reply__frida_jit_subsystem__defined
-#define __Reply__frida_jit_subsystem__defined
+#ifndef __Reply__substrated_subsystem__defined
+#define __Reply__substrated_subsystem__defined
 
 #ifdef  __MigPackStructs
 #pragma pack(4)
@@ -162,29 +162,29 @@ union __RequestUnion__frida_jit_subsystem {
 		mach_msg_header_t Head;
 		NDR_record_t NDR;
 		kern_return_t RetCode;
-		mach_vm_address_t address;
-	} __Reply__frida_jit_alloc_t __attribute__((unused));
+		mach_vm_address_t target_address;
+	} __Reply__substrated_mark_t __attribute__((unused));
 #ifdef  __MigPackStructs
 #pragma pack()
 #endif
-#endif /* !__Reply__frida_jit_subsystem__defined */
+#endif /* !__Reply__substrated_subsystem__defined */
 
 /* union of all replies */
 
-#ifndef __ReplyUnion__frida_jit_subsystem__defined
-#define __ReplyUnion__frida_jit_subsystem__defined
-union __ReplyUnion__frida_jit_subsystem {
-	__Reply__frida_jit_alloc_t Reply_frida_jit_alloc;
+#ifndef __ReplyUnion__substrated_subsystem__defined
+#define __ReplyUnion__substrated_subsystem__defined
+union __ReplyUnion__substrated_subsystem {
+	__Reply__substrated_mark_t Reply_substrated_mark;
 };
-#endif /* !__RequestUnion__frida_jit_subsystem__defined */
+#endif /* !__RequestUnion__substrated_subsystem__defined */
 
-#ifndef subsystem_to_name_map_frida_jit
-#define subsystem_to_name_map_frida_jit \
-    { "frida_jit_alloc", 421337 }
+#ifndef subsystem_to_name_map_substrated
+#define subsystem_to_name_map_substrated \
+    { "substrated_mark", 9000 }
 #endif
 
 #ifdef __AfterMigUserHeader
 __AfterMigUserHeader
 #endif /* __AfterMigUserHeader */
 
-#endif	 /* _frida_jit_user_ */
+#endif	 /* _substrated_user_ */

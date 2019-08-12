@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -33,6 +33,7 @@
 #endif
 
 typedef struct _GumDukMatchContext GumDukMatchContext;
+typedef struct _GumDukFindModuleByNameContext GumDukFindModuleByNameContext;
 typedef struct _GumDukFindRangeByAddressContext GumDukFindRangeByAddressContext;
 
 struct _GumDukExceptionHandler
@@ -47,6 +48,15 @@ struct _GumDukMatchContext
   GumDukHeapPtr on_complete;
 
   GumDukScope * scope;
+  GumDukProcess * module;
+};
+
+struct _GumDukFindModuleByNameContext
+{
+  const gchar * name;
+  gboolean name_is_canonical;
+
+  GumDukProcess * module;
 };
 
 struct _GumDukFindRangeByAddressContext
@@ -56,12 +66,14 @@ struct _GumDukFindRangeByAddressContext
   GumDukCore * core;
 };
 
-GUMJS_DECLARE_CONSTRUCTOR (gumjs_process_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_process_is_debugger_attached)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_thread_id)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_threads)
 static gboolean gum_emit_thread (const GumThreadDetails * details,
     GumDukMatchContext * mc);
+GUMJS_DECLARE_FUNCTION (gumjs_process_find_module_by_name)
+static gboolean gum_push_module_if_name_matches (
+    const GumModuleDetails * details, GumDukFindModuleByNameContext * fc);
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_modules)
 static gboolean gum_emit_module (const GumModuleDetails * details,
     GumDukMatchContext * mc);
@@ -85,11 +97,12 @@ static const duk_function_list_entry gumjs_process_functions[] =
 {
   { "isDebuggerAttached", gumjs_process_is_debugger_attached, 0 },
   { "getCurrentThreadId", gumjs_process_get_current_thread_id, 0 },
-  { "enumerateThreads", gumjs_process_enumerate_threads, 1 },
-  { "enumerateModules", gumjs_process_enumerate_modules, 1 },
+  { "_enumerateThreads", gumjs_process_enumerate_threads, 1 },
+  { "findModuleByName", gumjs_process_find_module_by_name, 1 },
+  { "_enumerateModules", gumjs_process_enumerate_modules, 1 },
   { "findRangeByAddress", gumjs_process_find_range_by_address, 1 },
   { "_enumerateRanges", gumjs_process_enumerate_ranges, 2 },
-  { "enumerateMallocRanges", gumjs_process_enumerate_malloc_ranges, 1 },
+  { "_enumerateMallocRanges", gumjs_process_enumerate_malloc_ranges, 1 },
   { "setExceptionHandler", gumjs_process_set_exception_handler, 1 },
 
   { NULL, NULL, 0 }
@@ -97,16 +110,18 @@ static const duk_function_list_entry gumjs_process_functions[] =
 
 void
 _gum_duk_process_init (GumDukProcess * self,
+                       GumDukModule * module,
                        GumDukCore * core)
 {
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   duk_context * ctx = scope.ctx;
 
+  self->module = module;
   self->core = core;
 
-  duk_push_c_function (ctx, gumjs_process_construct, 0);
+  _gum_duk_store_module_data (ctx, "process", self);
+
   duk_push_object (ctx);
-  duk_put_function_list (ctx, -1, gumjs_process_functions);
   duk_push_uint (ctx, gum_process_get_id ());
   duk_put_prop_string (ctx, -2, "id");
   duk_push_string (ctx, GUM_SCRIPT_ARCH);
@@ -120,9 +135,7 @@ _gum_duk_process_init (GumDukProcess * self,
   duk_push_string (ctx, gum_code_signing_policy_to_string (
       gum_process_get_code_signing_policy ()));
   duk_put_prop_string (ctx, -2, "codeSigningPolicy");
-  duk_put_prop_string (ctx, -2, "prototype");
-  duk_new (ctx, 0);
-  _gum_duk_put_data (ctx, -1, self);
+  duk_put_function_list (ctx, -1, gumjs_process_functions);
   duk_put_global_string (ctx, "Process");
 }
 
@@ -143,9 +156,10 @@ _gum_duk_process_finalize (GumDukProcess * self)
 {
 }
 
-GUMJS_DEFINE_CONSTRUCTOR (gumjs_process_construct)
+static GumDukProcess *
+gumjs_module_from_args (const GumDukArgs * args)
 {
-  return 0;
+  return _gum_duk_load_module_data (args->ctx, "process");
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_is_debugger_attached)
@@ -169,6 +183,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_threads)
   _gum_duk_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
       &mc.on_complete);
   mc.scope = &scope;
+  mc.module = gumjs_module_from_args (args);
 
   gum_process_enumerate_threads ((GumFoundThreadFunc) gum_emit_thread, &mc);
   _gum_duk_scope_flush (&scope);
@@ -213,6 +228,62 @@ gum_emit_thread (const GumThreadDetails * details,
   return proceed;
 }
 
+GUMJS_DEFINE_FUNCTION (gumjs_process_find_module_by_name)
+{
+  GumDukFindModuleByNameContext fc;
+  gchar * allocated_name = NULL;
+
+  _gum_duk_args_parse (args, "s", &fc.name);
+  fc.name_is_canonical = g_path_is_absolute (fc.name);
+  fc.module = gumjs_module_from_args (args);
+
+#ifdef G_OS_WIN32
+  allocated_name = g_utf8_casefold (fc.name, -1);
+  fc.name = allocated_name;
+#endif
+
+  duk_push_null (ctx);
+
+  gum_process_enumerate_modules (
+      (GumFoundModuleFunc) gum_push_module_if_name_matches, &fc);
+
+  g_free (allocated_name);
+
+  return 1;
+}
+
+static gboolean
+gum_push_module_if_name_matches (const GumModuleDetails * details,
+                                 GumDukFindModuleByNameContext * fc)
+{
+  gboolean proceed = TRUE;
+  const gchar * key;
+  gchar * allocated_key = NULL;
+
+  key = fc->name_is_canonical ? details->path : details->name;
+
+#ifdef G_OS_WIN32
+  allocated_key = g_utf8_casefold (key, -1);
+  key = allocated_key;
+#endif
+
+  if (strcmp (key, fc->name) == 0)
+  {
+    GumDukProcess * module = fc->module;
+    GumDukScope scope = GUM_DUK_SCOPE_INIT (module->core);
+    duk_context * ctx = scope.ctx;
+
+    duk_pop (ctx);
+    _gum_duk_push_module (ctx, details, module->module);
+
+    proceed = FALSE;
+  }
+
+  g_free (allocated_key);
+
+  return proceed;
+}
+
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_modules)
 {
   GumDukMatchContext mc;
@@ -221,6 +292,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_modules)
   _gum_duk_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
       &mc.on_complete);
   mc.scope = &scope;
+  mc.module = gumjs_module_from_args (args);
 
   gum_process_enumerate_modules ((GumFoundModuleFunc) gum_emit_module, &mc);
   _gum_duk_scope_flush (&scope);
@@ -241,7 +313,7 @@ gum_emit_module (const GumModuleDetails * details,
   gboolean proceed = TRUE;
 
   duk_push_heapptr (ctx, mc->on_match);
-  _gum_duk_push_module (ctx, details, scope->core);
+  _gum_duk_push_module (ctx, details, mc->module->module);
 
   if (_gum_duk_scope_call_sync (scope, 1))
   {
@@ -304,6 +376,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_ranges)
   _gum_duk_args_parse (args, "mF{onMatch,onComplete}", &prot, &mc.on_match,
       &mc.on_complete);
   mc.scope = &scope;
+  mc.module = gumjs_module_from_args (args);
 
   gum_process_enumerate_ranges (prot, (GumFoundRangeFunc) gum_emit_range, &mc);
   _gum_duk_scope_flush (&scope);
@@ -353,6 +426,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
   _gum_duk_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
       &mc.on_complete);
   mc.scope = &scope;
+  mc.module = gumjs_module_from_args (args);
 
   gum_process_enumerate_malloc_ranges (
       (GumFoundMallocRangeFunc) gum_emit_malloc_range, &mc);
@@ -414,9 +488,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_set_exception_handler)
   GumDukHeapPtr callback;
   GumDukExceptionHandler * new_handler, * old_handler;
 
-  duk_push_this (ctx);
-  self = _gum_duk_require_data (ctx, -1);
-  duk_pop (ctx);
+  self = gumjs_module_from_args (args);
 
   _gum_duk_args_parse (args, "F?", &callback);
 

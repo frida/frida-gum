@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  * Copyright (C) 2009 Haakon Sporsheim <haakon.sporsheim@gmail.com>
  *
@@ -13,34 +13,52 @@
 #include <gum/gum-heap.h>
 #include <gum/gum-prof.h>
 
-#define TEST_LIST_BEGIN(NAME) \
-  void test_ ##NAME## _add_tests (gpointer fixture_data) \
-  {
-#define TEST_LIST_END() \
+#define TESTLIST_BEGIN(NAME)                                              \
+  void test_ ##NAME## _add_tests (gpointer fixture_data)                  \
+  {                                                                       \
+    const gchar * group = "/";
+#define TESTLIST_END()                                                    \
   }
 
-#define TEST_ENTRY_SIMPLE(NAME, PREFIX, FUNC)                             \
+#define TESTENTRY_SIMPLE(NAME, PREFIX, FUNC)                              \
   G_STMT_START                                                            \
   {                                                                       \
+    gchar * path;                                                         \
     extern void PREFIX## _ ##FUNC (void);                                 \
-    g_test_add_func ("/" NAME "/" #FUNC, PREFIX## _ ##FUNC);              \
+                                                                          \
+    path = g_strconcat ("/" NAME, group, #FUNC, NULL);                    \
+                                                                          \
+    g_test_add_func (path, PREFIX## _ ##FUNC);                            \
+                                                                          \
+    g_free (path);                                                        \
   }                                                                       \
   G_STMT_END;
-#define TEST_ENTRY_WITH_FIXTURE(NAME, PREFIX, FUNC, STRUCT)               \
+#define TESTENTRY_WITH_FIXTURE(NAME, PREFIX, FUNC, STRUCT)                \
   G_STMT_START                                                            \
   {                                                                       \
+    gchar * path;                                                         \
     extern void PREFIX## _ ##FUNC (STRUCT * fixture, gconstpointer data); \
-    g_test_add ("/" NAME "/" #FUNC,                                       \
+                                                                          \
+    path = g_strconcat ("/" NAME, group, #FUNC, NULL);                    \
+                                                                          \
+    g_test_add (path,                                                     \
         STRUCT,                                                           \
         fixture_data,                                                     \
         PREFIX## _fixture_setup,                                          \
         PREFIX## _ ##FUNC,                                                \
         PREFIX## _fixture_teardown);                                      \
+                                                                          \
+    g_free (path);                                                        \
   }                                                                       \
   G_STMT_END;
 
-#define TEST_RUN_LIST(NAME) TEST_RUN_LIST_WITH_DATA (NAME, NULL)
-#define TEST_RUN_LIST_WITH_DATA(NAME, FIXTURE_DATA)                       \
+#define TESTGROUP_BEGIN(NAME)                                             \
+    group = "/" NAME "/";
+#define TESTGROUP_END()                                                   \
+    group = "/";
+
+#define TESTLIST_REGISTER(NAME) TESTLIST_REGISTER_WITH_DATA (NAME, NULL)
+#define TESTLIST_REGISTER_WITH_DATA(NAME, FIXTURE_DATA)                   \
   G_STMT_START                                                            \
   {                                                                       \
     extern void test_ ##NAME## _add_tests (gpointer fixture_data);        \
@@ -65,7 +83,7 @@
 # define SYSTEM_MODULE_EXPORT "sendto"
 #endif
 #ifdef HAVE_ANDROID
-# define TRICKY_MODULE_NAME "libart.so"
+# define TRICKY_MODULE_NAME test_util_get_android_java_vm_module_name ()
 # define TRICKY_MODULE_EXPORT "JNI_GetCreatedJavaVMs"
 #else
 # define TRICKY_MODULE_NAME SYSTEM_MODULE_NAME
@@ -92,6 +110,9 @@ gchar * test_util_diff_xml (const gchar * expected_xml,
 
 gchar * test_util_get_data_dir (void);
 const gchar * test_util_get_system_module_name (void);
+#ifdef HAVE_ANDROID
+const gchar * test_util_get_android_java_vm_module_name (void);
+#endif
 
 const GumHeapApiList * test_util_heap_apis (void);
 

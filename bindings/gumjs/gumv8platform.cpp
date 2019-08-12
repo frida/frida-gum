@@ -1,19 +1,24 @@
 /*
- * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gumv8platform.h"
 
+#include "gumscriptbackend.h"
 #include "gumv8script-java.h"
 #include "gumv8script-objc.h"
 #include "gumv8script-runtime.h"
 
 #include <gum/gumcloak.h>
+#include <gum/gumcodesegment.h>
 #include <gum/gummemory.h>
 
 using namespace v8;
+
+static GumPageProtection gum_page_protection_from_v8 (
+    PageAllocator::Permission permission);
 
 class GumV8MainContextOperation : public GumV8Operation
 {
@@ -124,6 +129,21 @@ private:
   GHashTable * pending;
 };
 
+class GumV8PageAllocator : public PageAllocator
+{
+public:
+  size_t AllocatePageSize () override;
+  size_t CommitPageSize () override;
+  void SetRandomMmapSeed (int64_t seed) override;
+  void * GetRandomMmapAddr () override;
+  void * AllocatePages (void * address, size_t length, size_t alignment,
+      Permission permissions) override;
+  bool FreePages (void * address, size_t length) override;
+  bool ReleasePages (void * address, size_t length, size_t new_length) override;
+  bool SetPermissions (void * address, size_t length,
+      Permission permissions) override;
+};
+
 class GumV8ArrayBufferAllocator : public ArrayBuffer::Allocator
 {
 public:
@@ -141,6 +161,7 @@ public:
 
   MutexImpl * CreatePlainMutex () override;
   MutexImpl * CreateRecursiveMutex () override;
+  SharedMutexImpl * CreateSharedMutex () override;
   ConditionVariableImpl * CreateConditionVariable () override;
 };
 
@@ -172,6 +193,23 @@ public:
 
 private:
   GRecMutex mutex;
+};
+
+class GumSharedMutex : public SharedMutexImpl
+{
+public:
+  GumSharedMutex ();
+  ~GumSharedMutex () override;
+
+  void LockShared () override;
+  void LockExclusive () override;
+  void UnlockShared () override;
+  void UnlockExclusive () override;
+  bool TryLockShared () override;
+  bool TryLockExclusive () override;
+
+private:
+  GRWLock lock;
 };
 
 class GumConditionVariable : public ConditionVariableImpl
@@ -233,43 +271,57 @@ private:
   GumV8Platform * platform;
 };
 
+class GumV8InterceptorIgnoreScope
+{
+public:
+  GumV8InterceptorIgnoreScope ()
+  {
+    interceptor = gum_interceptor_obtain ();
+    gum_interceptor_ignore_current_thread (interceptor);
+  }
+
+
+  ~GumV8InterceptorIgnoreScope ()
+  {
+    gum_interceptor_unignore_current_thread (interceptor);
+    g_object_unref (interceptor);
+  }
+
+private:
+  GumInterceptor * interceptor;
+};
+
 GumV8Platform::GumV8Platform ()
   : objc_bundle (NULL),
     java_bundle (NULL),
-    scheduler (gum_script_scheduler_new ()),
-    start_time (g_get_monotonic_time ()),
+    scheduler (gum_script_backend_get_scheduler ()),
+    page_allocator (new GumV8PageAllocator ()),
     array_buffer_allocator (new GumV8ArrayBufferAllocator ()),
     threading_backend (new GumV8ThreadingBackend ()),
     tracing_controller (new TracingController ())
 {
   g_mutex_init (&lock);
 
+  g_object_ref (scheduler);
+
   V8::InitializePlatform (this);
   V8::Initialize ();
 
   Isolate::CreateParams params;
-  params.array_buffer_allocator = array_buffer_allocator;
+  params.array_buffer_allocator = array_buffer_allocator.get ();
 
   shared_isolate = Isolate::New (params);
   shared_isolate->SetFatalErrorHandler (OnFatalError);
+  shared_isolate->SetMicrotasksPolicy (MicrotasksPolicy::kExplicit);
 
   InitRuntime ();
 }
 
 GumV8Platform::~GumV8Platform ()
 {
-  auto dispose = ScheduleOnJSThread (G_PRIORITY_HIGH, [=]() { Dispose (); });
-  {
-    GumV8PlatformLocker locker (this);
-    js_ops.erase (dispose);
-  }
-  dispose->Await ();
+  PerformOnJSThread (G_PRIORITY_HIGH, [=]() { Dispose (); });
 
   g_object_unref (scheduler);
-
-  delete tracing_controller;
-  delete threading_backend;
-  delete array_buffer_allocator;
 
   g_mutex_clear (&lock);
 }
@@ -436,6 +488,29 @@ GumV8Platform::ScheduleOnJSThreadDelayed (guint delay_in_milliseconds,
   return op;
 }
 
+void
+GumV8Platform::PerformOnJSThread (std::function<void ()> f)
+{
+  PerformOnJSThread (G_PRIORITY_DEFAULT, f);
+}
+
+void
+GumV8Platform::PerformOnJSThread (gint priority,
+                                  std::function<void ()> f)
+{
+  GSource * source = g_idle_source_new ();
+  g_source_set_priority (source, priority);
+
+  auto op = std::make_shared<GumV8MainContextOperation> (this, f, source);
+
+  g_source_set_callback (source, PerformMainContextOperation,
+      new std::shared_ptr<GumV8MainContextOperation> (op),
+      ReleaseSynchronousMainContextOperation);
+  g_source_attach (source, gum_script_scheduler_get_js_context (scheduler));
+
+  op->Await ();
+}
+
 std::shared_ptr<GumV8Operation>
 GumV8Platform::ScheduleOnThreadPool (std::function<void ()> f)
 {
@@ -498,6 +573,14 @@ GumV8Platform::ReleaseMainContextOperation (gpointer data)
 
     platform->js_ops.erase (op);
   }
+
+  delete ptr;
+}
+
+void
+GumV8Platform::ReleaseSynchronousMainContextOperation (gpointer data)
+{
+  auto ptr = (std::shared_ptr<GumV8MainContextOperation> *) data;
 
   delete ptr;
 }
@@ -574,6 +657,12 @@ GumV8Platform::ReleaseDelayedThreadPoolOperation (gpointer data)
   delete ptr;
 }
 
+PageAllocator *
+GumV8Platform::GetPageAllocator ()
+{
+  return page_allocator.get ();
+}
+
 int
 GumV8Platform::NumberOfWorkerThreads ()
 {
@@ -644,9 +733,7 @@ GumV8Platform::IdleTasksEnabled (Isolate * isolate)
 double
 GumV8Platform::MonotonicallyIncreasingTime ()
 {
-  gint64 delta = g_get_monotonic_time () - start_time;
-
-  return ((double) (delta / G_GINT64_CONSTANT (1000))) / 1000.0;
+  return (double) g_get_monotonic_time () / (double) G_USEC_PER_SEC;
 }
 
 double
@@ -658,13 +745,13 @@ GumV8Platform::CurrentClockTimeMillis ()
 ThreadingBackend *
 GumV8Platform::GetThreadingBackend ()
 {
-  return threading_backend;
+  return threading_backend.get ();
 }
 
 TracingController *
 GumV8Platform::GetTracingController ()
 {
-  return tracing_controller;
+  return tracing_controller.get ();
 }
 
 GumV8MainContextOperation::GumV8MainContextOperation (
@@ -919,6 +1006,119 @@ GumV8ForegroundTaskRunner::Run (IdleTask * task)
   task->Run (deadline_in_seconds);
 }
 
+size_t
+GumV8PageAllocator::AllocatePageSize ()
+{
+  return gum_query_page_size ();
+}
+
+size_t
+GumV8PageAllocator::CommitPageSize ()
+{
+  return gum_query_page_size ();
+}
+
+void
+GumV8PageAllocator::SetRandomMmapSeed (int64_t seed)
+{
+}
+
+void *
+GumV8PageAllocator::GetRandomMmapAddr ()
+{
+  return GSIZE_TO_POINTER (16384);
+}
+
+void *
+GumV8PageAllocator::AllocatePages (void * address,
+                                   size_t length,
+                                   size_t alignment,
+                                   Permission permissions)
+{
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
+
+  gpointer base = gum_memory_allocate (NULL, length, alignment,
+      gum_page_protection_from_v8 (permissions));
+
+  GumMemoryRange range;
+  range.base_address = GPOINTER_TO_SIZE (base);
+  range.size = length;
+  gum_cloak_add_range (&range);
+
+  return base;
+}
+
+bool
+GumV8PageAllocator::FreePages (void * address,
+                               size_t length)
+{
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
+
+  if (!gum_memory_free (address, length))
+    return false;
+
+  GumMemoryRange range;
+  range.base_address = GPOINTER_TO_SIZE (address);
+  range.size = length;
+  gum_cloak_remove_range (&range);
+
+  return true;
+}
+
+bool
+GumV8PageAllocator::ReleasePages (void * address,
+                                  size_t length,
+                                  size_t new_length)
+{
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
+
+  const gpointer released_base = (guint8 *) address + new_length;
+  const gsize released_size = length - new_length;
+  if (!gum_memory_release (released_base, released_size))
+    return false;
+
+#ifndef HAVE_WINDOWS
+  GumMemoryRange range;
+  range.base_address = GPOINTER_TO_SIZE (released_base);
+  range.size = released_size;
+  gum_cloak_remove_range (&range);
+#endif
+
+  return true;
+}
+
+bool
+GumV8PageAllocator::SetPermissions (void * address,
+                                    size_t length,
+                                    Permission permissions)
+{
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
+
+  GumPageProtection page_prot = gum_page_protection_from_v8 (permissions);
+
+#ifndef HAVE_WINDOWS
+  gboolean success;
+  if (permissions == PageAllocator::kReadExecute &&
+      gum_code_segment_is_supported ())
+  {
+    success = gum_code_segment_mark (address, length, NULL);
+  }
+  else
+  {
+    success = gum_try_mprotect (address, length, page_prot);
+  }
+  if (!success)
+    return false;
+#endif
+
+  if (permissions == PageAllocator::kNoAccess)
+    gum_memory_decommit (address, length);
+  else
+    gum_memory_commit (address, length, page_prot);
+
+  return true;
+}
+
 void *
 GumV8ArrayBufferAllocator::Allocate (size_t length)
 {
@@ -948,6 +1148,12 @@ MutexImpl *
 GumV8ThreadingBackend::CreateRecursiveMutex ()
 {
   return new GumRecursiveMutex ();
+}
+
+SharedMutexImpl *
+GumV8ThreadingBackend::CreateSharedMutex ()
+{
+  return new GumSharedMutex ();
 }
 
 ConditionVariableImpl *
@@ -1012,6 +1218,52 @@ GumRecursiveMutex::TryLock ()
   return !!g_rec_mutex_trylock (&mutex);
 }
 
+GumSharedMutex::GumSharedMutex ()
+{
+  g_rw_lock_init (&lock);
+}
+
+GumSharedMutex::~GumSharedMutex ()
+{
+  g_rw_lock_clear (&lock);
+}
+
+void
+GumSharedMutex::LockShared ()
+{
+  g_rw_lock_reader_lock (&lock);
+}
+
+void
+GumSharedMutex::LockExclusive ()
+{
+  g_rw_lock_writer_lock (&lock);
+}
+
+void
+GumSharedMutex::UnlockShared ()
+{
+  g_rw_lock_reader_unlock (&lock);
+}
+
+void
+GumSharedMutex::UnlockExclusive ()
+{
+  g_rw_lock_writer_unlock (&lock);
+}
+
+bool
+GumSharedMutex::TryLockShared ()
+{
+  return !!g_rw_lock_reader_trylock (&lock);
+}
+
+bool
+GumSharedMutex::TryLockExclusive ()
+{
+  return !!g_rw_lock_writer_trylock (&lock);
+}
+
 GumConditionVariable::GumConditionVariable ()
 {
   g_cond_init (&cond);
@@ -1048,4 +1300,24 @@ GumConditionVariable::WaitFor (MutexImpl * mutex,
   GumMutex * m = (GumMutex *) mutex;
   gint64 deadline = g_get_monotonic_time () + delta_in_microseconds;
   return !!g_cond_wait_until (&cond, &m->mutex, deadline);
+}
+
+static GumPageProtection
+gum_page_protection_from_v8 (PageAllocator::Permission permission)
+{
+  switch (permission)
+  {
+    case PageAllocator::kNoAccess:
+      return GUM_PAGE_NO_ACCESS;
+    case PageAllocator::kRead:
+      return GUM_PAGE_READ;
+    case PageAllocator::kReadWrite:
+      return GUM_PAGE_RW;
+    case PageAllocator::kReadExecute:
+      return GUM_PAGE_RX;
+    case PageAllocator::kReadWriteExecute:
+    default:
+      g_assert_not_reached ();
+      return GUM_PAGE_NO_ACCESS;
+  }
 }

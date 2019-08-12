@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -10,7 +10,6 @@
 
 #include <gum/gumsymbolutil.h>
 
-GUMJS_DECLARE_CONSTRUCTOR (gumjs_symbol_module_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_symbol_from_address)
 GUMJS_DECLARE_FUNCTION (gumjs_symbol_from_name)
 GUMJS_DECLARE_FUNCTION (gumjs_symbol_get_function_by_name)
@@ -52,19 +51,13 @@ _gum_duk_symbol_init (GumDukSymbol * self,
 
   _gum_duk_store_module_data (ctx, "debug-symbol", self);
 
-  duk_push_c_function (ctx, gumjs_symbol_module_construct, 0);
-  duk_push_object (ctx);
-  duk_put_function_list (ctx, -1, gumjs_symbol_module_functions);
-  duk_put_prop_string (ctx, -2, "prototype");
-  duk_new (ctx, 0);
-  duk_put_global_string (ctx, "DebugSymbol");
-
   duk_push_c_function (ctx, gumjs_symbol_construct, 2);
   duk_push_object (ctx);
   duk_put_function_list (ctx, -1, gumjs_symbol_functions);
   duk_put_prop_string (ctx, -2, "prototype");
+  duk_put_function_list (ctx, -1, gumjs_symbol_module_functions);
   self->symbol = _gum_duk_require_heapptr (ctx, -1);
-  duk_pop (ctx);
+  duk_put_global_string (ctx, "DebugSymbol");
 }
 
 void
@@ -85,11 +78,6 @@ static GumDukSymbol *
 gumjs_module_from_args (const GumDukArgs * args)
 {
   return _gum_duk_load_module_data (args->ctx, "debug-symbol");
-}
-
-GUMJS_DEFINE_CONSTRUCTOR (gumjs_symbol_module_construct)
-{
-  return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_address)

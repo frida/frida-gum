@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -28,7 +28,7 @@ static gboolean gum_emit_match (const GumApiDetails * details,
 
 static const duk_function_list_entry gumjs_api_resolver_functions[] =
 {
-  { "enumerateMatches", gumjs_api_resolver_enumerate_matches, 2 },
+  { "_enumerateMatches", gumjs_api_resolver_enumerate_matches, 2 },
 
   { NULL, NULL, 0 }
 };

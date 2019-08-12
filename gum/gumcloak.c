@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -27,7 +27,10 @@ static gint gum_thread_id_compare (gconstpointer element_a,
 static gint gum_cloak_index_of_fd (gint fd);
 static gint gum_fd_compare (gconstpointer element_a, gconstpointer element_b);
 
-static GumSpinlock cloak_lock;
+static void gum_cloak_add_range_unlocked (const GumMemoryRange * range);
+static void gum_cloak_remove_range_unlocked (const GumMemoryRange * range);
+
+static GumSpinlock cloak_lock = GUM_SPINLOCK_INIT;
 static GumMetalArray cloaked_threads;
 static GumMetalArray cloaked_ranges;
 static GumMetalArray cloaked_fds;
@@ -35,8 +38,6 @@ static GumMetalArray cloaked_fds;
 void
 _gum_cloak_init (void)
 {
-  gum_spinlock_init (&cloak_lock);
-
   gum_metal_array_init (&cloaked_threads, sizeof (GumThreadId));
   gum_metal_array_init (&cloaked_ranges, sizeof (GumCloakedRange));
   gum_metal_array_init (&cloaked_fds, sizeof (gint));
@@ -48,8 +49,6 @@ _gum_cloak_deinit (void)
   gum_metal_array_free (&cloaked_fds);
   gum_metal_array_free (&cloaked_ranges);
   gum_metal_array_free (&cloaked_threads);
-
-  gum_spinlock_free (&cloak_lock);
 }
 
 void
@@ -163,19 +162,65 @@ gum_thread_id_compare (gconstpointer element_a,
 void
 gum_cloak_add_range (const GumMemoryRange * range)
 {
-  GumCloakedRange * r;
-
   gum_spinlock_acquire (&cloak_lock);
 
-  r = gum_metal_array_append (&cloaked_ranges);
-  r->start = GSIZE_TO_POINTER (range->base_address);
-  r->end = r->start + range->size;
+  gum_cloak_add_range_unlocked (range);
 
   gum_spinlock_release (&cloak_lock);
 }
 
 void
 gum_cloak_remove_range (const GumMemoryRange * range)
+{
+  gum_spinlock_acquire (&cloak_lock);
+
+  gum_cloak_remove_range_unlocked (range);
+
+  gum_spinlock_release (&cloak_lock);
+}
+
+static void
+gum_cloak_add_range_unlocked (const GumMemoryRange * range)
+{
+  const guint8 * start, * end;
+  gboolean added_to_existing;
+  guint i;
+
+  start = GSIZE_TO_POINTER (range->base_address);
+  end = start + range->size;
+
+  added_to_existing = FALSE;
+
+  for (i = 0; i != cloaked_ranges.length && !added_to_existing; i++)
+  {
+    GumCloakedRange * cloaked;
+
+    cloaked = gum_metal_array_element_at (&cloaked_ranges, i);
+
+    if (cloaked->start == end)
+    {
+      cloaked->start = start;
+      added_to_existing = TRUE;
+    }
+    else if (cloaked->end == start)
+    {
+      cloaked->end = end;
+      added_to_existing = TRUE;
+    }
+  }
+
+  if (!added_to_existing)
+  {
+    GumCloakedRange * r;
+
+    r = gum_metal_array_append (&cloaked_ranges);
+    r->start = start;
+    r->end = end;
+  }
+}
+
+static void
+gum_cloak_remove_range_unlocked (const GumMemoryRange * range)
 {
   const guint8 * start, * end;
   gboolean found_match;
@@ -188,8 +233,6 @@ gum_cloak_remove_range (const GumMemoryRange * range)
     guint i;
 
     found_match = FALSE;
-
-    gum_spinlock_acquire (&cloak_lock);
 
     for (i = 0; i != cloaked_ranges.length && !found_match; i++)
     {
@@ -214,6 +257,8 @@ gum_cloak_remove_range (const GumMemoryRange * range)
       }
       else
       {
+        const guint8 * previous_top_end = cloaked->end;
+
         if (bottom_remainder != 0)
         {
           cloaked->end = cloaked->start + bottom_remainder;
@@ -224,7 +269,7 @@ gum_cloak_remove_range (const GumMemoryRange * range)
         {
           GumMemoryRange top;
 
-          top.base_address = GUM_ADDRESS (cloaked->end - top_remainder);
+          top.base_address = GUM_ADDRESS (previous_top_end - top_remainder);
           top.size = top_remainder;
 
           if (slot_available)
@@ -234,15 +279,11 @@ gum_cloak_remove_range (const GumMemoryRange * range)
           }
           else
           {
-            gum_spinlock_release (&cloak_lock);
-            gum_cloak_add_range (&top);
-            gum_spinlock_acquire (&cloak_lock);
+            gum_cloak_add_range_unlocked (&top);
           }
         }
       }
     }
-
-    gum_spinlock_release (&cloak_lock);
   }
   while (found_match);
 }
@@ -284,8 +325,6 @@ gum_cloak_clip_range (const GumMemoryRange * range)
           (gpointer *) &threads.start, (gpointer *) &threads.end);
       gum_metal_array_get_extents (&cloaked_ranges,
           (gpointer *) &ranges.start, (gpointer *) &ranges.end);
-
-      /* FIXME: also consider the arrays themselves */
 
       for (cloaked_index = 0;
           cloaked_index != 2 + cloaked_ranges.length && !found_match;
@@ -376,7 +415,7 @@ gum_cloak_enumerate_ranges (GumCloakFoundRangeFunc func,
                             gpointer user_data)
 {
   guint length, size, i;
-  GumMemoryRange * ranges;
+  GumCloakedRange * ranges;
 
   gum_spinlock_acquire (&cloak_lock);
 
@@ -389,7 +428,13 @@ gum_cloak_enumerate_ranges (GumCloakFoundRangeFunc func,
 
   for (i = 0; i != length; i++)
   {
-    if (!func (&ranges[i], user_data))
+    GumCloakedRange * cr = &ranges[i];
+    GumMemoryRange mr;
+
+    mr.base_address = GPOINTER_TO_SIZE (cr->start);
+    mr.size = cr->end - cr->start;
+
+    if (!func (&mr, user_data))
       return;
   }
 }

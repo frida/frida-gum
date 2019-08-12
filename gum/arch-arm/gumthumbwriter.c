@@ -679,7 +679,7 @@ gum_thumb_writer_put_push_or_pop_regs_va (GumThumbWriter * self,
   arm_reg * regs;
   guint reg_index;
 
-  g_assert_cmpuint (n_regs, !=, 0);
+  g_assert (n_regs != 0);
 
   regs = g_alloca (n_regs * sizeof (GumArmRegInfo));
 

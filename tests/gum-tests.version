@@ -1,0 +1,4 @@
+GUM_TESTS {
+  local:
+    *;
+};

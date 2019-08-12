@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -8,6 +8,9 @@
 #include "testutil.h"
 
 #include "valgrind.h"
+#ifdef HAVE_ANDROID
+# include "backend-linux/gumandroid.h"
+#endif
 
 #if defined (G_OS_WIN32) && defined (_DEBUG)
 # include <crtdbg.h>
@@ -27,6 +30,9 @@
 # else
 #  include <stdio.h>
 # endif
+# ifdef HAVE_LINUX
+#  include <dlfcn.h>
+# endif
 # ifdef HAVE_QNX
 #  include <devctl.h>
 #  include <errno.h>
@@ -37,18 +43,18 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define TESTUTIL_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_testutil_ ## NAME (void)
-#define TESTUTIL_TESTENTRY(NAME) \
-    TEST_ENTRY_SIMPLE ("TestUtil", test_testutil, NAME)
+#define TESTENTRY(NAME) \
+    TESTENTRY_SIMPLE ("TestUtil", test_testutil, NAME)
 
-TEST_LIST_BEGIN (testutil)
-  TESTUTIL_TESTENTRY (line_diff)
-  TESTUTIL_TESTENTRY (binary_diff)
-  TESTUTIL_TESTENTRY (text_diff)
-  TESTUTIL_TESTENTRY (xml_pretty_split)
-  TESTUTIL_TESTENTRY (xml_multiline_diff_same_size)
-TEST_LIST_END ()
+TESTLIST_BEGIN (testutil)
+  TESTENTRY (line_diff)
+  TESTENTRY (binary_diff)
+  TESTENTRY (text_diff)
+  TESTENTRY (xml_pretty_split)
+  TESTENTRY (xml_multiline_diff_same_size)
+TESTLIST_END ()
 
 #ifndef G_OS_WIN32
 static gchar * find_data_dir_from_executable_path (const gchar * path);
@@ -69,7 +75,7 @@ static gchar * diff_line (const gchar * expected_line,
     const gchar * actual_line);
 static void append_indent (GString * str, guint indent_level);
 
-TESTUTIL_TESTCASE (binary_diff)
+TESTCASE (binary_diff)
 {
   const guint8 expected_bytes[] = { 0x48, 0x8b, 0x40, 0x07 };
   const guint8 bad_bytes[] = { 0x4c, 0x8b, 0x40, 0x07 };
@@ -94,7 +100,7 @@ TESTUTIL_TESTCASE (binary_diff)
   g_free (diff);
 }
 
-TESTUTIL_TESTCASE (text_diff)
+TESTCASE (text_diff)
 {
   const gchar * expected_text = "Badger\nSnake\nMushroom";
   const gchar * bad_text      = "Badger\nSnakE\nMushroom";
@@ -112,7 +118,7 @@ TESTUTIL_TESTCASE (text_diff)
   g_free (diff);
 }
 
-TESTUTIL_TESTCASE (xml_pretty_split)
+TESTCASE (xml_pretty_split)
 {
   const gchar * input_xml = "<foo><bar id=\"2\">Woot</bar></foo>";
   const gchar * expected_xml =
@@ -128,7 +134,7 @@ TESTUTIL_TESTCASE (xml_pretty_split)
   g_free (output_xml);
 }
 
-TESTUTIL_TESTCASE (xml_multiline_diff_same_size)
+TESTCASE (xml_multiline_diff_same_size)
 {
   const gchar * expected_xml = "<foo><bar id=\"4\"></bar></foo>";
   const gchar * bad_xml      = "<foo><bar id=\"5\"></bar></foo>";
@@ -147,7 +153,7 @@ TESTUTIL_TESTCASE (xml_multiline_diff_same_size)
   g_free (diff);
 }
 
-TESTUTIL_TESTCASE (line_diff)
+TESTCASE (line_diff)
 {
   const gchar * expected_xml = "<tag/>";
   const gchar * bad_xml = "<taG/>";
@@ -403,40 +409,79 @@ test_util_get_system_module_name (void)
 #else
   if (_test_util_system_module_name == NULL)
   {
-    if (RUNNING_ON_VALGRIND)
+    gpointer libc_open;
+    Dl_info info;
+    gchar * target, * libc_path;
+
+    libc_open = dlsym (RTLD_DEFAULT, "fopen");
+    g_assert_nonnull (libc_open);
+
+    g_assert_true (dladdr (libc_open, &info) != 0);
+    g_assert_nonnull (info.dli_fname);
+
+    target = g_file_read_link (info.dli_fname, NULL);
+    if (target != NULL)
     {
-      /* FIXME: popen() does not seem to play too well with Valgrind */
-      _test_util_system_module_name = g_strdup ("libc-2.23.so");
+      gchar * libc_dir;
+
+      libc_dir = g_path_get_dirname (info.dli_fname);
+
+      libc_path = g_canonicalize_filename (target, libc_dir);
+
+      g_free (libc_dir);
+      g_free (target);
     }
     else
     {
-      FILE * p;
-      char * result;
-
-      _test_util_system_module_name = g_malloc (64);
-      p = popen ("grep -E \".*libc[-.].*so.*\" /proc/self/maps | head -1"
-          " | cut -d\" \" -f 6- | xargs basename | tr -d \"\\n\"", "r");
-      result = fgets (_test_util_system_module_name, 64, p);
-      g_assert (result != NULL);
-      pclose (p);
+      libc_path = g_strdup (info.dli_fname);
     }
+
+    _test_util_system_module_name = g_path_get_basename (libc_path);
+
+    g_free (libc_path);
   }
 
   return _test_util_system_module_name;
 #endif
 }
 
+#ifdef HAVE_ANDROID
+
+const gchar *
+test_util_get_android_java_vm_module_name (void)
+{
+  return (gum_android_get_api_level () >= 21) ? "libart.so" : "libdvm.so";
+}
+
+#endif
+
 const GumHeapApiList *
 test_util_heap_apis (void)
 {
   if (_test_util_heap_apis == NULL)
   {
-    GumHeapApi api = { 0 };
+    GumHeapApi api = { 0, };
 
+#ifdef HAVE_LINUX
+    {
+      void * libc;
+
+      libc = dlopen (test_util_get_system_module_name (),
+          RTLD_LAZY | RTLD_GLOBAL);
+
+      api.malloc = dlsym (libc, "malloc");
+      api.calloc = dlsym (libc, "calloc");
+      api.realloc = dlsym (libc, "realloc");
+      api.free = dlsym (libc, "free");
+
+      dlclose (libc);
+    }
+#else
     api.malloc = (gpointer (*) (gsize)) malloc;
     api.calloc = (gpointer (*) (gsize, gsize)) calloc;
     api.realloc = (gpointer (*) (gpointer, gsize)) realloc;
     api.free = free;
+#endif
 
 #if defined (G_OS_WIN32) && defined (_DEBUG)
     api._malloc_dbg = _malloc_dbg;

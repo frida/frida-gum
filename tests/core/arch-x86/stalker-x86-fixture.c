@@ -20,11 +20,11 @@
 #include <tchar.h>
 #endif
 
-#define STALKER_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_stalker_ ## NAME ( \
         TestStalkerFixture * fixture, gconstpointer data)
-#define STALKER_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Core/Stalker", test_stalker, NAME, \
+#define TESTENTRY(NAME) \
+    TESTENTRY_WITH_FIXTURE ("Core/Stalker", test_stalker, NAME, \
         TestStalkerFixture)
 
 #if defined (G_OS_WIN32) && GLIB_SIZEOF_VOID_P == 4
@@ -199,6 +199,7 @@ silence_warnings (void)
 
 typedef struct _StalkerVictimContext StalkerVictimContext;
 typedef guint StalkerVictimState;
+typedef struct _UnfollowTransformContext UnfollowTransformContext;
 
 struct _StalkerVictimContext
 {
@@ -217,4 +218,12 @@ enum _StalkerVictimState
   STALKER_VICTIM_IS_UNFOLLOWED,
   STALKER_VICTIM_READY_FOR_SHUTDOWN,
   STALKER_VICTIM_IS_SHUTDOWN
+};
+
+struct _UnfollowTransformContext
+{
+  GumStalker * stalker;
+  guint num_blocks_transformed;
+  guint target_block;
+  gint max_instructions;
 };

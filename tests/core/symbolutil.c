@@ -7,31 +7,32 @@
 
 #include "testutil.h"
 
-#define SYMUTIL_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_symbolutil_ ## NAME (void)
-#define SYMUTIL_TESTENTRY(NAME) \
-    TEST_ENTRY_SIMPLE ("Core/SymbolUtil", test_symbolutil, NAME)
+#define TESTENTRY(NAME) \
+    TESTENTRY_SIMPLE ("Core/SymbolUtil", test_symbolutil, NAME)
 
-TEST_LIST_BEGIN (symbolutil)
-  SYMUTIL_TESTENTRY (symbol_details_from_address)
-  SYMUTIL_TESTENTRY (symbol_name_from_address)
-  SYMUTIL_TESTENTRY (find_external_public_function)
-  SYMUTIL_TESTENTRY (find_local_static_function)
-  SYMUTIL_TESTENTRY (find_functions_named)
-  SYMUTIL_TESTENTRY (find_functions_matching)
-TEST_LIST_END ()
+TESTLIST_BEGIN (symbolutil)
+  TESTENTRY (symbol_details_from_address)
+  TESTENTRY (symbol_name_from_address)
+  TESTENTRY (find_external_public_function)
+  TESTENTRY (find_local_static_function)
+  TESTENTRY (find_functions_named)
+  TESTENTRY (find_functions_matching)
+TESTLIST_END ()
 
 static void GUM_CDECL gum_dummy_function_0 (void);
 static void GUM_STDCALL gum_dummy_function_1 (void);
 
-SYMUTIL_TESTCASE (symbol_details_from_address)
+TESTCASE (symbol_details_from_address)
 {
   GumDebugSymbolDetails details;
 
-  g_assert (gum_symbol_details_from_address (gum_dummy_function_0, &details));
+  g_assert_true (gum_symbol_details_from_address (gum_dummy_function_0,
+      &details));
   g_assert_cmphex (GPOINTER_TO_SIZE (details.address), ==,
       GPOINTER_TO_SIZE (gum_dummy_function_0));
-  g_assert (g_str_has_prefix (details.module_name, "gum-tests"));
+  g_assert_true (g_str_has_prefix (details.module_name, "gum-tests"));
   g_assert_cmpstr (details.symbol_name, ==, "gum_dummy_function_0");
 #ifndef HAVE_IOS
   assert_basename_equals (__FILE__, details.file_name);
@@ -39,7 +40,7 @@ SYMUTIL_TESTCASE (symbol_details_from_address)
 #endif
 }
 
-SYMUTIL_TESTCASE (symbol_name_from_address)
+TESTCASE (symbol_name_from_address)
 {
   gchar * symbol_name;
 
@@ -48,12 +49,12 @@ SYMUTIL_TESTCASE (symbol_name_from_address)
   g_free (symbol_name);
 }
 
-SYMUTIL_TESTCASE (find_external_public_function)
+TESTCASE (find_external_public_function)
 {
-  g_assert (gum_find_function ("g_thread_new") != NULL);
+  g_assert_nonnull (gum_find_function ("g_thread_new"));
 }
 
-SYMUTIL_TESTCASE (find_local_static_function)
+TESTCASE (find_local_static_function)
 {
   gpointer function_address;
 
@@ -62,7 +63,7 @@ SYMUTIL_TESTCASE (find_local_static_function)
       GPOINTER_TO_SIZE (gum_dummy_function_0));
 }
 
-SYMUTIL_TESTCASE (find_functions_named)
+TESTCASE (find_functions_named)
 {
   GArray * functions;
 
@@ -71,7 +72,7 @@ SYMUTIL_TESTCASE (find_functions_named)
   g_array_free (functions, TRUE);
 }
 
-SYMUTIL_TESTCASE (find_functions_matching)
+TESTCASE (find_functions_matching)
 {
   GArray * functions;
   gpointer a, b;

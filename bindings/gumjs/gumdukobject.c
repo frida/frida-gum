@@ -137,7 +137,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_object_finalize)
 static void
 gum_duk_object_free (GumDukObject * self)
 {
-  g_assert_cmpuint (self->num_active_operations, ==, 0);
+  g_assert (self->num_active_operations == 0);
   g_assert (g_queue_is_empty (self->pending_operations));
   g_queue_free (self->pending_operations);
 

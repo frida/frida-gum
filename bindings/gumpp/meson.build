@@ -30,6 +30,7 @@ install_headers(gumpp_headers, subdir: install_header_basedir + '/gumpp')
 
 gumpp = shared_library('frida-gumpp-' + api_version, gumpp_sources,
   c_args: frida_component_cflags,
+  override_options: ['cpp_std=c++11'],
   link_args: extra_link_args,
   link_depends: extra_link_depends,
   vs_module_defs: 'gumpp.def',

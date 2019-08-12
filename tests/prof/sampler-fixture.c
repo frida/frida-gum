@@ -12,11 +12,11 @@
 
 #include <stdlib.h>
 
-#define SAMPLER_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_sampler_ ## NAME ( \
         TestSamplerFixture * fixture, gconstpointer data)
-#define SAMPLER_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Prof/Sampler", test_sampler, NAME, \
+#define TESTENTRY(NAME) \
+    TESTENTRY_WITH_FIXTURE ("Prof/Sampler", test_sampler, NAME, \
         TestSamplerFixture)
 
 typedef struct _TestSamplerFixture

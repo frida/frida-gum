@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -294,26 +294,26 @@ _gum_v8_interceptor_realize (GumV8Interceptor * self)
 
   auto listener = Local<FunctionTemplate>::New (isolate,
       *self->invocation_listener);
-  auto listener_value = listener->GetFunction ()->NewInstance (context,
-      0, nullptr).ToLocalChecked ();
+  auto listener_value = listener->GetFunction (context).ToLocalChecked ()
+      ->NewInstance (context, 0, nullptr).ToLocalChecked ();
   self->invocation_listener_value =
       new GumPersistent<Object>::type (isolate, listener_value);
 
   auto ic = Local<FunctionTemplate>::New (isolate, *self->invocation_context);
-  auto ic_value =
-      ic->GetFunction ()->NewInstance (context, 0, nullptr).ToLocalChecked ();
+  auto ic_value = ic->GetFunction (context).ToLocalChecked ()
+      ->NewInstance (context, 0, nullptr).ToLocalChecked ();
   self->invocation_context_value =
       new GumPersistent<Object>::type (isolate, ic_value);
 
   auto ia = Local<FunctionTemplate>::New (isolate, *self->invocation_args);
-  auto ia_value =
-      ia->GetFunction ()->NewInstance (context, 0, nullptr).ToLocalChecked ();
+  auto ia_value = ia->GetFunction (context).ToLocalChecked ()
+      ->NewInstance (context, 0, nullptr).ToLocalChecked ();
   self->invocation_args_value =
       new GumPersistent<Object>::type (isolate, ia_value);
 
   auto ir = Local<FunctionTemplate>::New (isolate, *self->invocation_return);
-  auto ir_value =
-      ir->GetFunction ()->NewInstance (context, 0, nullptr).ToLocalChecked ();
+  auto ir_value = ir->GetFunction (context).ToLocalChecked ()
+      ->NewInstance (context, 0, nullptr).ToLocalChecked ();
   self->invocation_return_value = new GumPersistent<Object>::type (isolate,
       ir_value);
 
@@ -342,9 +342,7 @@ _gum_v8_interceptor_flush (GumV8Interceptor * self)
   {
     ScriptUnlocker unlocker (core);
 
-    gum_interceptor_end_transaction (self->interceptor);
     flushed = gum_interceptor_flush (self->interceptor);
-    gum_interceptor_begin_transaction (self->interceptor);
   }
 
   if (!flushed && self->flush_timer == NULL)
@@ -654,19 +652,22 @@ gum_v8_invocation_listener_on_enter (GumInvocationListener * listener,
     auto core = module->core;
     ScriptScope scope (core->script);
     auto isolate = core->isolate;
+    auto context = isolate->GetCurrentContext ();
 
     auto on_enter = Local<Function>::New (isolate, *self->on_enter);
 
     auto jic = _gum_v8_interceptor_obtain_invocation_context (module);
     _gum_v8_invocation_context_reset (jic, ic);
-    auto receiver = Local<Object>::New (isolate, *jic->object);
+    auto recv = Local<Object>::New (isolate, *jic->object);
 
     auto args = gum_v8_interceptor_obtain_invocation_args (module);
     gum_v8_invocation_args_reset (args, ic);
     auto args_object = Local<Object>::New (isolate, *args->object);
 
     Handle<Value> argv[] = { args_object };
-    on_enter->Call (receiver, G_N_ELEMENTS (argv), argv);
+    auto result = on_enter->Call (context, recv, G_N_ELEMENTS (argv), argv);
+    if (result.IsEmpty ())
+      scope.ProcessAnyPendingException ();
 
     gum_v8_invocation_args_reset (args, NULL);
     gum_v8_interceptor_release_invocation_args (module, args);
@@ -701,6 +702,7 @@ gum_v8_invocation_listener_on_leave (GumInvocationListener * listener,
     auto core = module->core;
     ScriptScope scope (core->script);
     auto isolate = core->isolate;
+    auto context = isolate->GetCurrentContext ();
 
     auto on_leave = Local<Function>::New (isolate, *self->on_leave);
 
@@ -710,7 +712,7 @@ gum_v8_invocation_listener_on_leave (GumInvocationListener * listener,
       jic = _gum_v8_interceptor_obtain_invocation_context (module);
     }
     _gum_v8_invocation_context_reset (jic, ic);
-    auto receiver = Local<Object>::New (isolate, *jic->object);
+    auto recv = Local<Object>::New (isolate, *jic->object);
 
     auto retval = gum_v8_interceptor_obtain_invocation_return_value (module);
     gum_v8_invocation_return_value_reset (retval, ic);
@@ -719,7 +721,9 @@ gum_v8_invocation_listener_on_leave (GumInvocationListener * listener,
         gum_invocation_context_get_return_value (ic)));
 
     Handle<Value> argv[] = { retval_object };
-    on_leave->Call (receiver, G_N_ELEMENTS (argv), argv);
+    auto result = on_leave->Call (context, recv, G_N_ELEMENTS (argv), argv);
+    if (result.IsEmpty ())
+      scope.ProcessAnyPendingException ();
 
     gum_v8_invocation_return_value_reset (retval, NULL);
     gum_v8_interceptor_release_invocation_return_value (module, retval);
@@ -826,7 +830,6 @@ gum_v8_invocation_context_new_persistent (GumV8Interceptor * parent)
 static void
 gum_v8_invocation_context_release_persistent (GumV8InvocationContext * self)
 {
-  self->object->MarkIndependent ();
   self->object->SetWeak (self, gum_v8_invocation_context_on_weak_notify,
       WeakCallbackType::kParameter);
 
@@ -899,7 +902,7 @@ GUMJS_DEFINE_CLASS_GETTER (gumjs_invocation_context_get_cpu_context,
   if (context == nullptr)
   {
     context = new GumPersistent<Object>::type (isolate,
-        _gum_v8_cpu_context_new (self->handle->cpu_context, core));
+        _gum_v8_cpu_context_new_mutable (self->handle->cpu_context, core));
     self->cpu_context = context;
   }
 
@@ -991,7 +994,6 @@ gum_v8_invocation_args_new_persistent (GumV8Interceptor * parent)
 static void
 gum_v8_invocation_args_release_persistent (GumV8InvocationArgs * self)
 {
-  self->object->MarkIndependent ();
   self->object->SetWeak (self, gum_v8_invocation_args_on_weak_notify,
       WeakCallbackType::kParameter);
 
@@ -1094,7 +1096,6 @@ static void
 gum_v8_invocation_return_value_release_persistent (
     GumV8InvocationReturnValue * self)
 {
-  self->object->MarkIndependent ();
   self->object->SetWeak (self, gum_v8_invocation_return_value_on_weak_notify,
       WeakCallbackType::kParameter);
 

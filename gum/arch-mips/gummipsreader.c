@@ -6,7 +6,7 @@
 
 #include "gummipsreader.h"
 
-#include <capstone/capstone.h>
+#include <capstone.h>
 
 gpointer
 gum_mips_reader_try_get_relative_jump_target (gconstpointer address)

@@ -12,11 +12,11 @@
 
 #include <string.h>
 
-#define COBJTRACKER_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_cobject_tracker_ ## NAME (TestCObjectTrackerFixture * fixture, \
         gconstpointer data)
-#define COBJTRACKER_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Heap/CObjectTracker", test_cobject_tracker, \
+#define TESTENTRY(NAME) \
+    TESTENTRY_WITH_FIXTURE ("Heap/CObjectTracker", test_cobject_tracker, \
         NAME, TestCObjectTrackerFixture)
 
 typedef struct _MyObject MyObject;

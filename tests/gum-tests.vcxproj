@@ -88,13 +88,13 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\gum\arch-arm;..\gum\arch-arm64;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\bindings\gumjs;..\bindings\gumpp;$(IntDir)..\gum-32;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_GUMPP=1;HAVE_GUMJS=1;HAVE_V8=1;_CRT_SECURE_NO_WARNINGS;HAVE_GLIB_SCHANNEL_STATIC=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_GUMPP=1;HAVE_GUMJS=1;HAVE_DUKTAPE=1;HAVE_V8=1;_CRT_SECURE_NO_WARNINGS;HAVE_GLIB_SCHANNEL_STATIC=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4100;4152;4210;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <TargetMachine>MachineX86</TargetMachine>
-      <AdditionalDependencies>gum-32.lib;gumjs-32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>capstone-32.lib;gum-32.lib;gumjs-32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\dbghelp-32.dll" "$(TargetDir)dbghelp-32.dll"
@@ -109,13 +109,13 @@ copy /B /Y "$(SolutionDir)build\frida-windows\$(Platform)-$(ConfigurationName)\b
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\gum\arch-arm;..\gum\arch-arm64;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\bindings\gumjs;..\bindings\gumpp;$(IntDir)..\gum-64;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_GUMPP=1;HAVE_GUMJS=1;HAVE_V8=1;_CRT_SECURE_NO_WARNINGS;HAVE_GLIB_SCHANNEL_STATIC=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_GUMPP=1;HAVE_GUMJS=1;HAVE_DUKTAPE=1;HAVE_V8=1;_CRT_SECURE_NO_WARNINGS;HAVE_GLIB_SCHANNEL_STATIC=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4100;4152;4210;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <TargetMachine>MachineX64</TargetMachine>
-      <AdditionalDependencies>gum-64.lib;gumjs-64.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>capstone-64.lib;gum-64.lib;gumjs-64.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\dbghelp-32.dll" "$(TargetDir)dbghelp-32.dll"
@@ -130,13 +130,13 @@ copy /B /Y "$(SolutionDir)build\frida-windows\$(Platform)-$(ConfigurationName)\b
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
       <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\gum\arch-arm;..\gum\arch-arm64;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\bindings\gumjs;..\bindings\gumpp;$(IntDir)..\gum-32;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_GUMPP=1;HAVE_GUMJS=1;HAVE_V8=1;_CRT_SECURE_NO_WARNINGS;HAVE_GLIB_SCHANNEL_STATIC=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_GUMPP=1;HAVE_GUMJS=1;HAVE_DUKTAPE=1;HAVE_V8=1;_CRT_SECURE_NO_WARNINGS;HAVE_GLIB_SCHANNEL_STATIC=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4100;4152;4210;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <TargetMachine>MachineX86</TargetMachine>
-      <AdditionalDependencies>gum-32.lib;gumjs-32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>capstone-32.lib;gum-32.lib;gumjs-32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\dbghelp-32.dll" "$(TargetDir)dbghelp-32.dll"
@@ -151,13 +151,13 @@ copy /B /Y "$(SolutionDir)build\frida-windows\$(Platform)-$(ConfigurationName)\b
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\gum\arch-arm;..\gum\arch-arm64;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\bindings\gumjs;..\bindings\gumpp;$(IntDir)..\gum-64;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_GUMPP=1;HAVE_GUMJS=1;HAVE_V8=1;_CRT_SECURE_NO_WARNINGS;HAVE_GLIB_SCHANNEL_STATIC=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_GUMPP=1;HAVE_GUMJS=1;HAVE_DUKTAPE=1;HAVE_V8=1;_CRT_SECURE_NO_WARNINGS;HAVE_GLIB_SCHANNEL_STATIC=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4100;4152;4210;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <TargetMachine>MachineX64</TargetMachine>
-      <AdditionalDependencies>gum-64.lib;gumjs-64.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>capstone-64.lib;gum-64.lib;gumjs-64.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\dbghelp-32.dll" "$(TargetDir)dbghelp-32.dll"

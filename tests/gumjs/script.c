@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -7,226 +7,290 @@
 
 #include "script-fixture.c"
 
-TEST_LIST_BEGIN (script)
-  SCRIPT_TESTENTRY (invalid_script_should_return_null)
-  SCRIPT_TESTENTRY (array_buffer_can_be_created)
-  SCRIPT_TESTENTRY (message_can_be_sent)
-  SCRIPT_TESTENTRY (message_can_be_sent_with_data)
-  SCRIPT_TESTENTRY (message_can_be_received)
-  SCRIPT_TESTENTRY (message_can_be_received_with_data)
-  SCRIPT_TESTENTRY (recv_may_specify_desired_message_type)
-  SCRIPT_TESTENTRY (recv_can_be_waited_for_from_an_application_thread)
-  SCRIPT_TESTENTRY (recv_can_be_waited_for_from_our_js_thread)
-  SCRIPT_TESTENTRY (recv_wait_in_an_application_thread_should_throw_on_unload)
-  SCRIPT_TESTENTRY (recv_wait_in_our_js_thread_should_throw_on_unload)
-  SCRIPT_TESTENTRY (rpc_can_be_performed)
-  SCRIPT_TESTENTRY (message_can_be_logged)
-  SCRIPT_TESTENTRY (thread_can_be_forced_to_sleep)
-  SCRIPT_TESTENTRY (timeout_can_be_scheduled)
-  SCRIPT_TESTENTRY (timeout_can_be_cancelled)
-  SCRIPT_TESTENTRY (interval_can_be_scheduled)
-  SCRIPT_TESTENTRY (interval_can_be_cancelled)
-  SCRIPT_TESTENTRY (callback_can_be_scheduled)
-  SCRIPT_TESTENTRY (callback_can_be_scheduled_from_a_scheduled_callback)
-  SCRIPT_TESTENTRY (callback_can_be_cancelled)
-  SCRIPT_TESTENTRY (callback_can_be_scheduled_on_next_tick)
-  SCRIPT_TESTENTRY (timer_cancellation_apis_should_be_forgiving)
-  SCRIPT_TESTENTRY (argument_can_be_read)
-  SCRIPT_TESTENTRY (argument_can_be_replaced)
-  SCRIPT_TESTENTRY (return_value_can_be_read)
-  SCRIPT_TESTENTRY (return_value_can_be_replaced)
-  SCRIPT_TESTENTRY (return_address_can_be_read)
-  SCRIPT_TESTENTRY (register_can_be_read)
-  SCRIPT_TESTENTRY (register_can_be_written)
-  SCRIPT_TESTENTRY (system_error_can_be_read_from_interceptor_listener)
-  SCRIPT_TESTENTRY (system_error_can_be_read_from_replacement_function)
-  SCRIPT_TESTENTRY (system_error_can_be_replaced_from_interceptor_listener)
-  SCRIPT_TESTENTRY (system_error_can_be_replaced_from_replacement_function)
-  SCRIPT_TESTENTRY (invocations_are_bound_on_tls_object)
-  SCRIPT_TESTENTRY (invocations_provide_thread_id)
-  SCRIPT_TESTENTRY (invocations_provide_call_depth)
+TESTLIST_BEGIN (script)
+  TESTENTRY (invalid_script_should_return_null)
+  TESTENTRY (strict_mode_should_be_enforced)
+  TESTENTRY (array_buffer_can_be_created)
+  TESTENTRY (message_can_be_sent)
+  TESTENTRY (message_can_be_sent_with_data)
+  TESTENTRY (message_can_be_received)
+  TESTENTRY (message_can_be_received_with_data)
+  TESTENTRY (recv_may_specify_desired_message_type)
+  TESTENTRY (recv_can_be_waited_for_from_an_application_thread)
+  TESTENTRY (recv_can_be_waited_for_from_our_js_thread)
+  TESTENTRY (recv_wait_in_an_application_thread_should_throw_on_unload)
+  TESTENTRY (recv_wait_in_our_js_thread_should_throw_on_unload)
+  TESTENTRY (rpc_can_be_performed)
+  TESTENTRY (message_can_be_logged)
+  TESTENTRY (thread_can_be_forced_to_sleep)
+  TESTENTRY (timeout_can_be_scheduled)
+  TESTENTRY (timeout_can_be_cancelled)
+  TESTENTRY (interval_can_be_scheduled)
+  TESTENTRY (interval_can_be_cancelled)
+  TESTENTRY (callback_can_be_scheduled)
+  TESTENTRY (callback_can_be_scheduled_from_a_scheduled_callback)
+  TESTENTRY (callback_can_be_cancelled)
+  TESTENTRY (callback_can_be_scheduled_on_next_tick)
+  TESTENTRY (timer_cancellation_apis_should_be_forgiving)
+
+  TESTGROUP_BEGIN ("Interceptor")
+    TESTENTRY (argument_can_be_read)
+    TESTENTRY (argument_can_be_replaced)
+    TESTENTRY (return_value_can_be_read)
+    TESTENTRY (return_value_can_be_replaced)
+    TESTENTRY (return_address_can_be_read)
+    TESTENTRY (register_can_be_read)
+    TESTENTRY (register_can_be_written)
+    TESTENTRY (system_error_can_be_read_from_interceptor_listener)
+    TESTENTRY (system_error_can_be_read_from_replacement_function)
+    TESTENTRY (system_error_can_be_replaced_from_interceptor_listener)
+    TESTENTRY (system_error_can_be_replaced_from_replacement_function)
+    TESTENTRY (invocations_are_bound_on_tls_object)
+    TESTENTRY (invocations_provide_thread_id)
+    TESTENTRY (invocations_provide_call_depth)
 #if !defined (HAVE_QNX) && !defined (HAVE_MIPS)
-  SCRIPT_TESTENTRY (invocations_provide_context_for_backtrace)
+    TESTENTRY (invocations_provide_context_for_backtrace)
 #endif
-  SCRIPT_TESTENTRY (invocations_provide_context_serializable_to_json)
-  SCRIPT_TESTENTRY (listener_can_be_detached)
-  SCRIPT_TESTENTRY (listener_can_be_detached_by_destruction_mid_call)
-  SCRIPT_TESTENTRY (all_listeners_can_be_detached)
-  SCRIPT_TESTENTRY (function_can_be_replaced)
-  SCRIPT_TESTENTRY (function_can_be_replaced_and_called_immediately)
-  SCRIPT_TESTENTRY (function_can_be_reverted)
-  SCRIPT_TESTENTRY (replaced_function_should_have_invocation_context)
-  SCRIPT_TESTENTRY (instructions_can_be_probed)
-  SCRIPT_TESTENTRY (interceptor_handles_invalid_arguments)
-  SCRIPT_TESTENTRY (interceptor_on_enter_performance)
-  SCRIPT_TESTENTRY (interceptor_on_leave_performance)
-  SCRIPT_TESTENTRY (interceptor_on_enter_and_leave_performance)
-  SCRIPT_TESTENTRY (pointer_can_be_read)
-  SCRIPT_TESTENTRY (pointer_can_be_written)
-  SCRIPT_TESTENTRY (memory_can_be_allocated)
-  SCRIPT_TESTENTRY (memory_can_be_copied)
-  SCRIPT_TESTENTRY (memory_can_be_duped)
-  SCRIPT_TESTENTRY (memory_can_be_protected)
-  SCRIPT_TESTENTRY (code_can_be_patched)
-  SCRIPT_TESTENTRY (s8_can_be_read)
-  SCRIPT_TESTENTRY (s8_can_be_written)
-  SCRIPT_TESTENTRY (u8_can_be_read)
-  SCRIPT_TESTENTRY (u8_can_be_written)
-  SCRIPT_TESTENTRY (s16_can_be_read)
-  SCRIPT_TESTENTRY (s16_can_be_written)
-  SCRIPT_TESTENTRY (u16_can_be_read)
-  SCRIPT_TESTENTRY (u16_can_be_written)
-  SCRIPT_TESTENTRY (s32_can_be_read)
-  SCRIPT_TESTENTRY (s32_can_be_written)
-  SCRIPT_TESTENTRY (u32_can_be_read)
-  SCRIPT_TESTENTRY (u32_can_be_written)
-  SCRIPT_TESTENTRY (s64_can_be_read)
-  SCRIPT_TESTENTRY (s64_can_be_written)
-  SCRIPT_TESTENTRY (u64_can_be_read)
-  SCRIPT_TESTENTRY (u64_can_be_written)
-  SCRIPT_TESTENTRY (short_can_be_read)
-  SCRIPT_TESTENTRY (short_can_be_written)
-  SCRIPT_TESTENTRY (ushort_can_be_read)
-  SCRIPT_TESTENTRY (ushort_can_be_written)
-  SCRIPT_TESTENTRY (int_can_be_read)
-  SCRIPT_TESTENTRY (int_can_be_written)
-  SCRIPT_TESTENTRY (uint_can_be_read)
-  SCRIPT_TESTENTRY (uint_can_be_written)
-  SCRIPT_TESTENTRY (long_can_be_read)
-  SCRIPT_TESTENTRY (long_can_be_written)
-  SCRIPT_TESTENTRY (ulong_can_be_read)
-  SCRIPT_TESTENTRY (ulong_can_be_written)
-  SCRIPT_TESTENTRY (float_can_be_read)
-  SCRIPT_TESTENTRY (float_can_be_written)
-  SCRIPT_TESTENTRY (double_can_be_read)
-  SCRIPT_TESTENTRY (double_can_be_written)
-  SCRIPT_TESTENTRY (byte_array_can_be_read)
-  SCRIPT_TESTENTRY (byte_array_can_be_written)
-  SCRIPT_TESTENTRY (c_string_can_be_read)
-  SCRIPT_TESTENTRY (utf8_string_can_be_read)
-  SCRIPT_TESTENTRY (utf8_string_can_be_written)
-  SCRIPT_TESTENTRY (utf8_string_can_be_allocated)
-  SCRIPT_TESTENTRY (utf16_string_can_be_read)
-  SCRIPT_TESTENTRY (utf16_string_can_be_written)
-  SCRIPT_TESTENTRY (utf16_string_can_be_allocated)
+    TESTENTRY (invocations_provide_context_serializable_to_json)
+    TESTENTRY (listener_can_be_detached)
+    TESTENTRY (listener_can_be_detached_by_destruction_mid_call)
+    TESTENTRY (all_listeners_can_be_detached)
+    TESTENTRY (function_can_be_replaced)
+    TESTENTRY (function_can_be_replaced_and_called_immediately)
+    TESTENTRY (function_can_be_reverted)
+    TESTENTRY (replaced_function_should_have_invocation_context)
+    TESTENTRY (instructions_can_be_probed)
+    TESTENTRY (interceptor_handles_invalid_arguments)
+  TESTGROUP_END ()
+  TESTGROUP_BEGIN ("Interceptor/Performance")
+    TESTENTRY (interceptor_on_enter_performance)
+    TESTENTRY (interceptor_on_leave_performance)
+    TESTENTRY (interceptor_on_enter_and_leave_performance)
+  TESTGROUP_END ()
+
+  TESTGROUP_BEGIN ("Memory")
+    TESTENTRY (pointer_can_be_read)
+    TESTENTRY (pointer_can_be_read_legacy_style)
+    TESTENTRY (pointer_can_be_written)
+    TESTENTRY (pointer_can_be_written_legacy_style)
+    TESTENTRY (memory_can_be_allocated)
+    TESTENTRY (memory_can_be_copied)
+    TESTENTRY (memory_can_be_duped)
+    TESTENTRY (memory_can_be_protected)
+    TESTENTRY (code_can_be_patched)
+    TESTENTRY (s8_can_be_read)
+    TESTENTRY (s8_can_be_written)
+    TESTENTRY (u8_can_be_read)
+    TESTENTRY (u8_can_be_written)
+    TESTENTRY (s16_can_be_read)
+    TESTENTRY (s16_can_be_written)
+    TESTENTRY (u16_can_be_read)
+    TESTENTRY (u16_can_be_written)
+    TESTENTRY (s32_can_be_read)
+    TESTENTRY (s32_can_be_written)
+    TESTENTRY (u32_can_be_read)
+    TESTENTRY (u32_can_be_written)
+    TESTENTRY (s64_can_be_read)
+    TESTENTRY (s64_can_be_written)
+    TESTENTRY (u64_can_be_read)
+    TESTENTRY (u64_can_be_written)
+    TESTENTRY (short_can_be_read)
+    TESTENTRY (short_can_be_written)
+    TESTENTRY (ushort_can_be_read)
+    TESTENTRY (ushort_can_be_written)
+    TESTENTRY (int_can_be_read)
+    TESTENTRY (int_can_be_written)
+    TESTENTRY (uint_can_be_read)
+    TESTENTRY (uint_can_be_written)
+    TESTENTRY (long_can_be_read)
+    TESTENTRY (long_can_be_written)
+    TESTENTRY (ulong_can_be_read)
+    TESTENTRY (ulong_can_be_written)
+    TESTENTRY (float_can_be_read)
+    TESTENTRY (float_can_be_written)
+    TESTENTRY (double_can_be_read)
+    TESTENTRY (double_can_be_written)
+    TESTENTRY (byte_array_can_be_read)
+    TESTENTRY (byte_array_can_be_written)
+    TESTENTRY (c_string_can_be_read)
+    TESTENTRY (utf8_string_can_be_read)
+    TESTENTRY (utf8_string_can_be_written)
+    TESTENTRY (utf8_string_can_be_allocated)
+    TESTENTRY (utf16_string_can_be_read)
+    TESTENTRY (utf16_string_can_be_written)
+    TESTENTRY (utf16_string_can_be_allocated)
 #ifdef G_OS_WIN32
-  SCRIPT_TESTENTRY (ansi_string_can_be_read)
-  SCRIPT_TESTENTRY (ansi_string_can_be_written)
-  SCRIPT_TESTENTRY (ansi_string_can_be_allocated)
+    TESTENTRY (ansi_string_can_be_read)
+    TESTENTRY (ansi_string_can_be_written)
+    TESTENTRY (ansi_string_can_be_allocated)
 #endif
-  SCRIPT_TESTENTRY (invalid_read_results_in_exception)
-  SCRIPT_TESTENTRY (invalid_write_results_in_exception)
-  SCRIPT_TESTENTRY (invalid_read_write_execute_results_in_exception)
-  SCRIPT_TESTENTRY (memory_can_be_scanned)
-  SCRIPT_TESTENTRY (memory_can_be_scanned_synchronously)
-  SCRIPT_TESTENTRY (memory_scan_should_be_interruptible)
-  SCRIPT_TESTENTRY (memory_scan_handles_unreadable_memory)
+    TESTENTRY (invalid_read_results_in_exception)
+    TESTENTRY (invalid_write_results_in_exception)
+    TESTENTRY (invalid_read_write_execute_results_in_exception)
+    TESTENTRY (memory_can_be_scanned)
+    TESTENTRY (memory_can_be_scanned_synchronously)
+    TESTENTRY (memory_scan_should_be_interruptible)
+    TESTENTRY (memory_scan_handles_unreadable_memory)
 #ifdef G_OS_WIN32
-  SCRIPT_TESTENTRY (memory_access_can_be_monitored)
+    TESTENTRY (memory_access_can_be_monitored)
 #endif
-  SCRIPT_TESTENTRY (frida_version_is_available)
-  SCRIPT_TESTENTRY (frida_heap_size_can_be_queried)
-  SCRIPT_TESTENTRY (process_arch_is_available)
-  SCRIPT_TESTENTRY (process_platform_is_available)
-  SCRIPT_TESTENTRY (process_page_size_is_available)
-  SCRIPT_TESTENTRY (process_pointer_size_is_available)
+  TESTGROUP_END ()
+
+  TESTENTRY (frida_version_is_available)
+  TESTENTRY (frida_heap_size_can_be_queried)
+
+  TESTGROUP_BEGIN ("Process")
+    TESTENTRY (process_arch_is_available)
+    TESTENTRY (process_platform_is_available)
+    TESTENTRY (process_page_size_is_available)
+    TESTENTRY (process_pointer_size_is_available)
 #ifndef HAVE_QNX
-  SCRIPT_TESTENTRY (process_debugger_status_is_available)
+    TESTENTRY (process_debugger_status_is_available)
 #endif
-  SCRIPT_TESTENTRY (process_id_is_available)
-  SCRIPT_TESTENTRY (process_current_thread_id_is_available)
-  SCRIPT_TESTENTRY (process_threads_can_be_enumerated)
-  SCRIPT_TESTENTRY (process_threads_can_be_enumerated_synchronously)
-  SCRIPT_TESTENTRY (process_modules_can_be_enumerated)
-  SCRIPT_TESTENTRY (process_modules_can_be_enumerated_synchronously)
-  SCRIPT_TESTENTRY (process_module_can_be_looked_up_from_address)
-  SCRIPT_TESTENTRY (process_module_can_be_looked_up_from_name)
-  SCRIPT_TESTENTRY (process_ranges_can_be_enumerated)
-  SCRIPT_TESTENTRY (process_ranges_can_be_enumerated_synchronously)
-  SCRIPT_TESTENTRY (process_ranges_can_be_enumerated_with_neighbors_coalesced)
-  SCRIPT_TESTENTRY (process_range_can_be_looked_up_from_address)
+    TESTENTRY (process_id_is_available)
+    TESTENTRY (process_current_thread_id_is_available)
+    TESTENTRY (process_threads_can_be_enumerated)
+    TESTENTRY (process_threads_can_be_enumerated_legacy_style)
+    TESTENTRY (process_modules_can_be_enumerated)
+    TESTENTRY (process_modules_can_be_enumerated_legacy_style)
+    TESTENTRY (process_module_can_be_looked_up_from_address)
+    TESTENTRY (process_module_can_be_looked_up_from_name)
+    TESTENTRY (process_ranges_can_be_enumerated)
+    TESTENTRY (process_ranges_can_be_enumerated_legacy_style)
+    TESTENTRY (process_ranges_can_be_enumerated_with_neighbors_coalesced)
+    TESTENTRY (process_range_can_be_looked_up_from_address)
 #ifdef HAVE_DARWIN
-  SCRIPT_TESTENTRY (process_malloc_ranges_can_be_enumerated)
-  SCRIPT_TESTENTRY (process_malloc_ranges_can_be_enumerated_synchronously)
+    TESTENTRY (process_malloc_ranges_can_be_enumerated)
+    TESTENTRY (process_malloc_ranges_can_be_enumerated_legacy_style)
 #endif
+  TESTGROUP_END ()
+
+  TESTGROUP_BEGIN ("Module")
 #ifndef HAVE_QNX
-  SCRIPT_TESTENTRY (module_imports_can_be_enumerated)
-  SCRIPT_TESTENTRY (module_imports_can_be_enumerated_synchronously)
+    TESTENTRY (module_imports_can_be_enumerated)
+    TESTENTRY (module_imports_can_be_enumerated_legacy_style)
 #endif
-  SCRIPT_TESTENTRY (module_exports_can_be_enumerated)
-  SCRIPT_TESTENTRY (module_exports_can_be_enumerated_synchronously)
-  SCRIPT_TESTENTRY (module_exports_enumeration_performance)
-  SCRIPT_TESTENTRY (module_symbols_can_be_enumerated)
-  SCRIPT_TESTENTRY (module_symbols_can_be_enumerated_synchronously)
-  SCRIPT_TESTENTRY (module_ranges_can_be_enumerated)
-  SCRIPT_TESTENTRY (module_ranges_can_be_enumerated_synchronously)
-  SCRIPT_TESTENTRY (module_base_address_can_be_found)
-  SCRIPT_TESTENTRY (module_export_can_be_found_by_name)
-  SCRIPT_TESTENTRY (module_can_be_forcibly_initialized)
-  SCRIPT_TESTENTRY (api_resolver_can_be_used_to_find_functions)
-  SCRIPT_TESTENTRY (socket_connection_can_be_established)
-  SCRIPT_TESTENTRY (socket_connection_can_be_established_with_tls)
-  SCRIPT_TESTENTRY (socket_type_can_be_inspected)
+    TESTENTRY (module_exports_can_be_enumerated)
+    TESTENTRY (module_exports_can_be_enumerated_legacy_style)
+    TESTENTRY (module_exports_enumeration_performance)
+    TESTENTRY (module_symbols_can_be_enumerated)
+    TESTENTRY (module_symbols_can_be_enumerated_legacy_style)
+    TESTENTRY (module_ranges_can_be_enumerated)
+    TESTENTRY (module_ranges_can_be_enumerated_legacy_style)
+    TESTENTRY (module_base_address_can_be_found)
+    TESTENTRY (module_export_can_be_found_by_name)
+    TESTENTRY (module_can_be_loaded)
+    TESTENTRY (module_can_be_forcibly_initialized)
+  TESTGROUP_END ()
+
+  TESTGROUP_BEGIN ("ApiResolver")
+    TESTENTRY (api_resolver_can_be_used_to_find_functions)
+    TESTENTRY (api_resolver_can_be_used_to_find_functions_legacy_style)
+  TESTGROUP_END ()
+
+  TESTGROUP_BEGIN ("Socket")
+    TESTENTRY (socket_connection_can_be_established)
+    TESTENTRY (socket_connection_can_be_established_with_tls)
+    TESTENTRY (socket_type_can_be_inspected)
 #if !defined (HAVE_ANDROID) && !(defined (HAVE_LINUX) && defined (HAVE_ARM)) && \
-  !(defined (HAVE_LINUX) && defined (HAVE_MIPS))
-  SCRIPT_TESTENTRY (socket_endpoints_can_be_inspected)
+    !(defined (HAVE_LINUX) && defined (HAVE_MIPS))
+    TESTENTRY (socket_endpoints_can_be_inspected)
 #endif
+  TESTGROUP_END ()
+
+  TESTGROUP_BEGIN ("Stream")
 #ifdef G_OS_UNIX
-  SCRIPT_TESTENTRY (unix_fd_can_be_read_from)
-  SCRIPT_TESTENTRY (unix_fd_can_be_written_to)
+    TESTENTRY (unix_fd_can_be_read_from)
+    TESTENTRY (unix_fd_can_be_written_to)
 #endif
-  SCRIPT_TESTENTRY (basic_hexdump_functionality_is_available)
-  SCRIPT_TESTENTRY (hexdump_supports_native_pointer_conforming_object)
-  SCRIPT_TESTENTRY (native_pointer_provides_is_null)
-  SCRIPT_TESTENTRY (native_pointer_provides_arithmetic_operations)
-  SCRIPT_TESTENTRY (native_pointer_to_match_pattern)
-  SCRIPT_TESTENTRY (native_pointer_can_be_constructed_from_64bit_value)
-  SCRIPT_TESTENTRY (uint64_provides_arithmetic_operations)
-  SCRIPT_TESTENTRY (int64_provides_arithmetic_operations)
-  SCRIPT_TESTENTRY (native_function_can_be_invoked)
-  SCRIPT_TESTENTRY (native_function_can_be_intercepted_when_thread_is_ignored)
-  SCRIPT_TESTENTRY (native_function_should_implement_call_and_apply)
-  SCRIPT_TESTENTRY (system_function_can_be_invoked)
-  SCRIPT_TESTENTRY (native_function_crash_results_in_exception)
-  SCRIPT_TESTENTRY (nested_native_function_crash_is_handled_gracefully)
-  SCRIPT_TESTENTRY (variadic_native_function_can_be_invoked)
-  SCRIPT_TESTENTRY (native_function_is_a_native_pointer)
-  SCRIPT_TESTENTRY (native_callback_can_be_invoked)
-  SCRIPT_TESTENTRY (native_callback_is_a_native_pointer)
-  SCRIPT_TESTENTRY (native_callback_memory_should_be_eagerly_reclaimed)
-  SCRIPT_TESTENTRY (address_can_be_resolved_to_symbol)
-  SCRIPT_TESTENTRY (name_can_be_resolved_to_symbol)
-  SCRIPT_TESTENTRY (function_can_be_found_by_name)
-  SCRIPT_TESTENTRY (functions_can_be_found_by_name)
-  SCRIPT_TESTENTRY (functions_can_be_found_by_matching)
-  SCRIPT_TESTENTRY (instruction_can_be_parsed)
-  SCRIPT_TESTENTRY (instruction_can_be_generated)
-  SCRIPT_TESTENTRY (instruction_can_be_relocated)
-  SCRIPT_TESTENTRY (file_can_be_written_to)
-  SCRIPT_TESTENTRY (inline_sqlite_database_can_be_queried)
-  SCRIPT_TESTENTRY (external_sqlite_database_can_be_queried)
-  SCRIPT_TESTENTRY (external_sqlite_database_can_be_opened_with_flags)
+  TESTGROUP_END ()
+
+  TESTGROUP_BEGIN ("Hexdump")
+    TESTENTRY (basic_hexdump_functionality_is_available)
+    TESTENTRY (hexdump_supports_native_pointer_conforming_object)
+  TESTGROUP_END ()
+
+  TESTGROUP_BEGIN ("NativePointer")
+    TESTENTRY (native_pointer_provides_is_null)
+    TESTENTRY (native_pointer_provides_arithmetic_operations)
+    TESTENTRY (native_pointer_provides_uint32_conversion_functionality)
+    TESTENTRY (native_pointer_to_match_pattern)
+    TESTENTRY (native_pointer_can_be_constructed_from_64bit_value)
+  TESTGROUP_END ()
+
+  TESTGROUP_BEGIN ("UInt64")
+    TESTENTRY (uint64_provides_arithmetic_operations)
+  TESTGROUP_END ()
+
+  TESTGROUP_BEGIN ("Int64")
+    TESTENTRY (int64_provides_arithmetic_operations)
+  TESTGROUP_END ()
+
+  TESTGROUP_BEGIN ("NativeFunction")
+    TESTENTRY (native_function_can_be_invoked)
+    TESTENTRY (native_function_can_be_intercepted_when_thread_is_ignored)
+    TESTENTRY (native_function_should_implement_call_and_apply)
+    TESTENTRY (system_function_can_be_invoked)
+    TESTENTRY (native_function_crash_results_in_exception)
+    TESTENTRY (nested_native_function_crash_is_handled_gracefully)
+    TESTENTRY (variadic_native_function_can_be_invoked)
+    TESTENTRY (native_function_is_a_native_pointer)
+  TESTGROUP_END ()
+
+  TESTGROUP_BEGIN ("NativeCallback")
+    TESTENTRY (native_callback_can_be_invoked)
+    TESTENTRY (native_callback_is_a_native_pointer)
+    TESTENTRY (native_callback_memory_should_be_eagerly_reclaimed)
+  TESTGROUP_END ()
+
+  TESTGROUP_BEGIN ("DebugSymbol")
+    TESTENTRY (address_can_be_resolved_to_symbol)
+    TESTENTRY (name_can_be_resolved_to_symbol)
+    TESTENTRY (function_can_be_found_by_name)
+    TESTENTRY (functions_can_be_found_by_name)
+    TESTENTRY (functions_can_be_found_by_matching)
+  TESTGROUP_END ()
+
+  TESTGROUP_BEGIN ("Instruction")
+    TESTENTRY (instruction_can_be_parsed)
+    TESTENTRY (instruction_can_be_generated)
+    TESTENTRY (instruction_can_be_relocated)
+  TESTGROUP_END ()
+
+  TESTGROUP_BEGIN ("File")
+    TESTENTRY (file_can_be_written_to)
+  TESTGROUP_END ()
+
+  TESTGROUP_BEGIN ("Database")
+    TESTENTRY (inline_sqlite_database_can_be_queried)
+    TESTENTRY (external_sqlite_database_can_be_queried)
+    TESTENTRY (external_sqlite_database_can_be_opened_with_flags)
+  TESTGROUP_END ()
+
+  TESTGROUP_BEGIN ("Stalker")
 #if defined (HAVE_I386) || defined (HAVE_ARM64)
-  SCRIPT_TESTENTRY (execution_can_be_traced)
-  SCRIPT_TESTENTRY (execution_can_be_traced_with_custom_transformer)
-  SCRIPT_TESTENTRY (call_can_be_probed)
+    TESTENTRY (execution_can_be_traced)
+    TESTENTRY (execution_can_be_traced_with_custom_transformer)
+    TESTENTRY (call_can_be_probed)
 #endif
-  SCRIPT_TESTENTRY (stalker_events_can_be_parsed)
-  SCRIPT_TESTENTRY (script_can_be_compiled_to_bytecode)
-  SCRIPT_TESTENTRY (script_can_be_reloaded)
-  SCRIPT_TESTENTRY (script_memory_usage)
-  SCRIPT_TESTENTRY (source_maps_should_be_supported_for_our_runtime)
-  SCRIPT_TESTENTRY (source_maps_should_be_supported_for_user_scripts)
-  SCRIPT_TESTENTRY (types_handle_invalid_construction)
-  SCRIPT_TESTENTRY (weak_callback_is_triggered_on_gc)
-  SCRIPT_TESTENTRY (weak_callback_is_triggered_on_unload)
-  SCRIPT_TESTENTRY (weak_callback_is_triggered_on_unbind)
-  SCRIPT_TESTENTRY (globals_can_be_dynamically_generated)
-  SCRIPT_TESTENTRY (exceptions_can_be_handled)
-  SCRIPT_TESTENTRY (debugger_can_be_enabled)
-  SCRIPT_TESTENTRY (objc_api_is_embedded)
-  SCRIPT_TESTENTRY (java_api_is_embedded)
-TEST_LIST_END ()
+    TESTENTRY (stalker_events_can_be_parsed)
+  TESTGROUP_END ()
+
+  TESTENTRY (script_can_be_compiled_to_bytecode)
+  TESTENTRY (script_can_be_reloaded)
+  TESTENTRY (script_memory_usage)
+  TESTENTRY (source_maps_should_be_supported_for_our_runtime)
+  TESTENTRY (source_maps_should_be_supported_for_user_scripts)
+  TESTENTRY (types_handle_invalid_construction)
+  TESTENTRY (weak_callback_is_triggered_on_gc)
+  TESTENTRY (weak_callback_is_triggered_on_unload)
+  TESTENTRY (weak_callback_is_triggered_on_unbind)
+  TESTENTRY (globals_can_be_dynamically_generated)
+  TESTENTRY (exceptions_can_be_handled)
+  TESTENTRY (debugger_can_be_enabled)
+  TESTENTRY (objc_api_is_embedded)
+  TESTENTRY (java_api_is_embedded)
+TESTLIST_END ()
 
 typedef struct _TestTrigger TestTrigger;
 
@@ -263,6 +327,10 @@ static gpointer invoke_target_function_int_worker (gpointer data);
 static gpointer invoke_target_function_trigger (gpointer data);
 
 static void measure_target_function_int_overhead (void);
+static int compare_measurements (gconstpointer element_a,
+    gconstpointer element_b);
+
+static gboolean check_exception_handling_testable (void);
 
 static void on_script_message (GumScript * script, const gchar * message,
     GBytes * data, gpointer user_data);
@@ -284,7 +352,7 @@ static int target_function_nested_c (int arg);
 
 gint gum_script_dummy_global_to_trick_optimizer = 0;
 
-SCRIPT_TESTCASE (instruction_can_be_parsed)
+TESTCASE (instruction_can_be_parsed)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "var first = Instruction.parse(" GUM_PTR_CONST ");"
@@ -308,7 +376,7 @@ SCRIPT_TESTCASE (instruction_can_be_parsed)
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_NO_MESSAGES ();
 
-  if (!RUNNING_ON_VALGRIND)
+  if (!gum_process_is_debugger_attached () && !RUNNING_ON_VALGRIND)
   {
     COMPILE_AND_LOAD_SCRIPT ("Instruction.parse(ptr(\"0x1\"));");
     EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
@@ -414,7 +482,7 @@ SCRIPT_TESTCASE (instruction_can_be_parsed)
       "send(operands[1].value.base);"
       "send(operands[1].value.scale);"
       "var disp = operands[1].value.disp;"
-      "send(Memory.readU32(ldr.address.add(4 + disp)));"
+      "send(ldr.address.add(4 + disp).readU32());"
 
       "var bl = Instruction.parse(ldr.next);"
       "send(bl.mnemonic);"
@@ -494,7 +562,7 @@ SCRIPT_TESTCASE (instruction_can_be_parsed)
       "send(operands[0].type);"
       "send(operands[0].value);"
       "send(operands[1].type);"
-      "send(Memory.readU64(ptr(operands[1].value)).valueOf());"
+      "send(ptr(operands[1].value).readU64().valueOf());"
 
       "var str = Instruction.parse(ldr.next);"
       "send(str.mnemonic);"
@@ -531,9 +599,7 @@ SCRIPT_TESTCASE (instruction_can_be_parsed)
       "var fmov = Instruction.parse(vadd.next);"
       "send(fmov.mnemonic);"
       "operands = fmov.operands;"
-      "send(typeof operands[0].vess);"
       "send(typeof operands[0].vectorIndex);"
-      "send(operands[1].vess);"
       "send(operands[1].vectorIndex);");
 
   EXPECT_SEND_MESSAGE_WITH ("\"ldr\"");
@@ -567,13 +633,11 @@ SCRIPT_TESTCASE (instruction_can_be_parsed)
 
   EXPECT_SEND_MESSAGE_WITH ("\"fmov\"");
   EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
-  EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
-  EXPECT_SEND_MESSAGE_WITH ("\"d\"");
   EXPECT_SEND_MESSAGE_WITH ("1");
 #endif
 }
 
-SCRIPT_TESTCASE (instruction_can_be_generated)
+TESTCASE (instruction_can_be_generated)
 {
 #if defined (HAVE_I386)
   COMPILE_AND_LOAD_SCRIPT (
@@ -621,7 +685,7 @@ SCRIPT_TESTCASE (instruction_can_be_generated)
 #endif
 }
 
-SCRIPT_TESTCASE (instruction_can_be_relocated)
+TESTCASE (instruction_can_be_relocated)
 {
 #if defined (HAVE_I386)
   COMPILE_AND_LOAD_SCRIPT (
@@ -687,7 +751,7 @@ SCRIPT_TESTCASE (instruction_can_be_relocated)
 #endif
 }
 
-SCRIPT_TESTCASE (address_can_be_resolved_to_symbol)
+TESTCASE (address_can_be_resolved_to_symbol)
 {
 #ifdef HAVE_ANDROID
   if (!g_test_slow ())
@@ -709,7 +773,7 @@ SCRIPT_TESTCASE (address_can_be_resolved_to_symbol)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (name_can_be_resolved_to_symbol)
+TESTCASE (name_can_be_resolved_to_symbol)
 {
   gchar * expected;
 
@@ -730,7 +794,7 @@ SCRIPT_TESTCASE (name_can_be_resolved_to_symbol)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (function_can_be_found_by_name)
+TESTCASE (function_can_be_found_by_name)
 {
 #ifdef HAVE_ANDROID
   if (!g_test_slow ())
@@ -752,7 +816,7 @@ SCRIPT_TESTCASE (function_can_be_found_by_name)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (functions_can_be_found_by_name)
+TESTCASE (functions_can_be_found_by_name)
 {
 #ifdef HAVE_ANDROID
   if (!g_test_slow ())
@@ -769,7 +833,7 @@ SCRIPT_TESTCASE (functions_can_be_found_by_name)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (functions_can_be_found_by_matching)
+TESTCASE (functions_can_be_found_by_matching)
 {
 #ifdef HAVE_ANDROID
   if (!g_test_slow ())
@@ -787,7 +851,7 @@ SCRIPT_TESTCASE (functions_can_be_found_by_matching)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (native_function_can_be_invoked)
+TESTCASE (native_function_can_be_invoked)
 {
   gchar str[7];
 
@@ -813,7 +877,7 @@ SCRIPT_TESTCASE (native_function_can_be_invoked)
 
 #ifdef G_OS_WIN32
   COMPILE_AND_LOAD_SCRIPT (
-      "var impl = Module.findExportByName(\"user32.dll\", \"GetKeyState\");"
+      "var impl = Module.getExportByName(\"user32.dll\", \"GetKeyState\");"
       "var f = new NativeFunction(impl, 'int16', ['int']);"
       "var result = f(0x41);"
       "send(typeof result);");
@@ -824,9 +888,9 @@ SCRIPT_TESTCASE (native_function_can_be_invoked)
   COMPILE_AND_LOAD_SCRIPT (
       "var classify = new NativeFunction(" GUM_PTR_CONST ", "
           "'int64', ['int64']);"
-      "send(classify(new Int64(\"-42\")));"
-      "send(classify(new Int64(\"0\")));"
-      "send(classify(new Int64(\"42\")));",
+      "send(classify(int64(\"-42\")));"
+      "send(classify(int64(\"0\")));"
+      "send(classify(int64(\"42\")));",
       gum_classify_timestamp);
   EXPECT_SEND_MESSAGE_WITH ("\"-1\"");
   EXPECT_SEND_MESSAGE_WITH ("\"0\"");
@@ -836,9 +900,9 @@ SCRIPT_TESTCASE (native_function_can_be_invoked)
   COMPILE_AND_LOAD_SCRIPT (
       "var square = new NativeFunction(" GUM_PTR_CONST ", "
           "'uint64', ['uint64']);"
-      "send(square(new UInt64(\"2\")));"
-      "send(square(new UInt64(\"4\")));"
-      "send(square(new UInt64(\"6\")));",
+      "send(square(uint64(\"2\")));"
+      "send(square(uint64(\"4\")));"
+      "send(square(uint64(\"6\")));",
       gum_square);
   EXPECT_SEND_MESSAGE_WITH ("\"4\"");
   EXPECT_SEND_MESSAGE_WITH ("\"16\"");
@@ -846,7 +910,7 @@ SCRIPT_TESTCASE (native_function_can_be_invoked)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (native_function_can_be_intercepted_when_thread_is_ignored)
+TESTCASE (native_function_can_be_intercepted_when_thread_is_ignored)
 {
   GumInterceptor * interceptor;
   GMainContext * js_context;
@@ -855,7 +919,7 @@ SCRIPT_TESTCASE (native_function_can_be_intercepted_when_thread_is_ignored)
   interceptor = gum_interceptor_obtain ();
 
   js_context = gum_script_scheduler_get_js_context (
-      gum_script_backend_get_scheduler (fixture->backend));
+      gum_script_backend_get_scheduler ());
 
   source = g_idle_source_new ();
   g_source_set_callback (source, (GSourceFunc) ignore_thread,
@@ -908,7 +972,7 @@ unignore_thread (GumInterceptor * interceptor)
   return FALSE;
 }
 
-SCRIPT_TESTCASE (native_function_should_implement_call_and_apply)
+TESTCASE (native_function_should_implement_call_and_apply)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "var f = new NativeFunction(" GUM_PTR_CONST ", 'int', ['int']);"
@@ -946,7 +1010,7 @@ SCRIPT_TESTCASE (native_function_should_implement_call_and_apply)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (system_function_can_be_invoked)
+TESTCASE (system_function_can_be_invoked)
 {
 #ifdef G_OS_WIN32
   COMPILE_AND_LOAD_SCRIPT (
@@ -993,13 +1057,10 @@ gum_clobber_system_error (gint value)
   return value * 2;
 }
 
-SCRIPT_TESTCASE (native_function_crash_results_in_exception)
+TESTCASE (native_function_crash_results_in_exception)
 {
-  if (RUNNING_ON_VALGRIND)
-  {
-    g_print ("<skipping, not compatible with Valgrind> ");
+  if (!check_exception_handling_testable ())
     return;
-  }
 
   COMPILE_AND_LOAD_SCRIPT (
       "var targetWithString = new NativeFunction(" GUM_PTR_CONST ", 'pointer', "
@@ -1017,19 +1078,16 @@ SCRIPT_TESTCASE (native_function_crash_results_in_exception)
   EXPECT_SEND_MESSAGE_WITH ("\"access-violation\"");
 }
 
-SCRIPT_TESTCASE (nested_native_function_crash_is_handled_gracefully)
+TESTCASE (nested_native_function_crash_is_handled_gracefully)
 {
-  if (RUNNING_ON_VALGRIND)
-  {
-    g_print ("<skipping, not compatible with Valgrind> ");
+  if (!check_exception_handling_testable ())
     return;
-  }
 
   COMPILE_AND_LOAD_SCRIPT (
       "var targetWithCallback = new NativeFunction(" GUM_PTR_CONST ", "
           "'pointer', ['int', 'pointer', 'pointer']);"
       "var callback = new NativeCallback(function (value) {"
-      "  send(Memory.readInt(value));"
+      "  send(value.readInt());"
       "}, 'void', ['pointer']);"
       "try {"
       "  targetWithCallback(42, callback, NULL);"
@@ -1042,7 +1100,7 @@ SCRIPT_TESTCASE (nested_native_function_crash_is_handled_gracefully)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (variadic_native_function_can_be_invoked)
+TESTCASE (variadic_native_function_can_be_invoked)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "var sum = new NativeFunction(" GUM_PTR_CONST ", "
@@ -1061,7 +1119,7 @@ SCRIPT_TESTCASE (variadic_native_function_can_be_invoked)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (native_function_is_a_native_pointer)
+TESTCASE (native_function_is_a_native_pointer)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "var toupper = new NativeFunction(" GUM_PTR_CONST ", "
@@ -1073,7 +1131,7 @@ SCRIPT_TESTCASE (native_function_is_a_native_pointer)
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
-SCRIPT_TESTCASE (native_callback_can_be_invoked)
+TESTCASE (native_callback_can_be_invoked)
 {
   TestScriptMessageItem * item;
   gint (* toupper_impl) (gchar * str, gint limit);
@@ -1084,10 +1142,10 @@ SCRIPT_TESTCASE (native_callback_can_be_invoked)
       "  var count = 0;"
       "  while (count < limit || limit === -1) {"
       "    var p = str.add(count);"
-      "    var b = Memory.readU8(p);"
+      "    var b = p.readU8();"
       "    if (b === 0)"
       "      break;"
-      "    Memory.writeU8(p, String.fromCharCode(b).toUpperCase().charCodeAt(0));"
+      "    p.writeU8(String.fromCharCode(b).toUpperCase().charCodeAt(0));"
       "    count++;"
       "  }"
       "  return (limit === -1) ? -count : count;"
@@ -1098,7 +1156,7 @@ SCRIPT_TESTCASE (native_callback_can_be_invoked)
   item = test_script_fixture_pop_message (fixture);
   sscanf (item->message, "{\"type\":\"send\",\"payload\":"
       "\"0x%" G_GSIZE_MODIFIER "x\"}", (gsize *) &toupper_impl);
-  g_assert (toupper_impl != NULL);
+  g_assert_nonnull (toupper_impl);
   test_script_message_item_free (item);
 
   strcpy (str, "badger");
@@ -1108,7 +1166,7 @@ SCRIPT_TESTCASE (native_callback_can_be_invoked)
   g_assert_cmpstr (str, ==, "BADGER");
 }
 
-SCRIPT_TESTCASE (native_callback_is_a_native_pointer)
+TESTCASE (native_callback_is_a_native_pointer)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "var cb = new NativeCallback(function () {}, 'void', []);"
@@ -1116,7 +1174,7 @@ SCRIPT_TESTCASE (native_callback_is_a_native_pointer)
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
-SCRIPT_TESTCASE (native_callback_memory_should_be_eagerly_reclaimed)
+TESTCASE (native_callback_memory_should_be_eagerly_reclaimed)
 {
   guint usage_before, usage_after;
   gboolean difference_is_less_than_2x;
@@ -1140,11 +1198,11 @@ SCRIPT_TESTCASE (native_callback_memory_should_be_eagerly_reclaimed)
       "}");
   EXPECT_NO_MESSAGES ();
 
-  POST_MESSAGE ("{\"type\":\"start\",\"iterations\":3}");
+  PUSH_TIMEOUT (20000);
+
+  POST_MESSAGE ("{\"type\":\"start\",\"iterations\":5000}");
   EXPECT_SEND_MESSAGE_WITH ("\"done\"");
   EXPECT_NO_MESSAGES ();
-
-  PUSH_TIMEOUT (20000);
 
   usage_before = gum_peek_private_memory_usage ();
 
@@ -1164,7 +1222,7 @@ SCRIPT_TESTCASE (native_callback_memory_should_be_eagerly_reclaimed)
         "\tusage before: %u\n"
         "\t    vs after: %u\n\n",
         usage_before, usage_after);
-    g_assert (difference_is_less_than_2x);
+    g_assert_true (difference_is_less_than_2x);
   }
 }
 
@@ -1180,7 +1238,7 @@ SCRIPT_TESTCASE (native_callback_memory_should_be_eagerly_reclaimed)
     __result; \
   })
 
-SCRIPT_TESTCASE (unix_fd_can_be_read_from)
+TESTCASE (unix_fd_can_be_read_from)
 {
   gint fds[2];
   const guint8 message[7] = { 0x13, 0x37, 0xca, 0xfe, 0xba, 0xbe, 0xff };
@@ -1264,11 +1322,17 @@ SCRIPT_TESTCASE (unix_fd_can_be_read_from)
   close (fds[0]);
 }
 
-SCRIPT_TESTCASE (unix_fd_can_be_written_to)
+TESTCASE (unix_fd_can_be_written_to)
 {
   gint fds[2];
   guint8 buffer[8];
   sig_t original_sigpipe_handler;
+
+  if (gum_process_is_debugger_attached ())
+  {
+    g_print ("<skipping, debugger is attached> ");
+    return;
+  }
 
   original_sigpipe_handler = signal (SIGPIPE, SIG_IGN);
 
@@ -1323,11 +1387,11 @@ SCRIPT_TESTCASE (unix_fd_can_be_written_to)
 
 #endif
 
-SCRIPT_TESTCASE (basic_hexdump_functionality_is_available)
+TESTCASE (basic_hexdump_functionality_is_available)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "var str = Memory.allocUtf8String(\"Hello hex world! w00t\");"
-      "var buf = Memory.readByteArray(str, 22);"
+      "var buf = str.readByteArray(22);"
       "send(hexdump(buf));");
   EXPECT_SEND_MESSAGE_WITH ("\""
       "           0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F  "
@@ -1336,13 +1400,26 @@ SCRIPT_TESTCASE (basic_hexdump_functionality_is_available)
           "Hello hex world!\\n"
       "00000010  20 77 30 30 74 00                                "
           " w00t.\"");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var str = Memory.allocUtf8String(\"Hello hex world! w00t\");"
+      "send(hexdump(str, { address: uint64('0x100000000'), length: 22 }));");
+  EXPECT_SEND_MESSAGE_WITH ("\""
+      "            0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F  "
+          "0123456789ABCDEF\\n"
+      "100000000  48 65 6c 6c 6f 20 68 65 78 20 77 6f 72 6c 64 21  "
+          "Hello hex world!\\n"
+      "100000010  20 77 30 30 74 00                                "
+          " w00t.\"");
 }
 
-SCRIPT_TESTCASE (hexdump_supports_native_pointer_conforming_object)
+TESTCASE (hexdump_supports_native_pointer_conforming_object)
 {
+  const gchar * message = "Hello hex world!";
+
   COMPILE_AND_LOAD_SCRIPT (
-      "var obj = { handle: Memory.allocUtf8String(\"Hello hex world!\") };"
-      "send(hexdump(obj, { length: 16 }));");
+      "var obj = { handle: " GUM_PTR_CONST "  };"
+      "send(hexdump(obj, { address: NULL, length: 16 }));", message);
   EXPECT_SEND_MESSAGE_WITH ("\""
       "           0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F  "
           "0123456789ABCDEF\\n"
@@ -1350,7 +1427,7 @@ SCRIPT_TESTCASE (hexdump_supports_native_pointer_conforming_object)
           "Hello hex world!\"");
 }
 
-SCRIPT_TESTCASE (native_pointer_provides_is_null)
+TESTCASE (native_pointer_provides_is_null)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "send(ptr(\"0\").isNull());"
@@ -1359,7 +1436,7 @@ SCRIPT_TESTCASE (native_pointer_provides_is_null)
   EXPECT_SEND_MESSAGE_WITH ("false");
 }
 
-SCRIPT_TESTCASE (native_pointer_provides_arithmetic_operations)
+TESTCASE (native_pointer_provides_arithmetic_operations)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "send(ptr(3).add(4).toInt32());"
@@ -1380,7 +1457,13 @@ SCRIPT_TESTCASE (native_pointer_provides_arithmetic_operations)
   EXPECT_SEND_MESSAGE_WITH ("-1");
 }
 
-SCRIPT_TESTCASE (native_pointer_to_match_pattern)
+TESTCASE (native_pointer_provides_uint32_conversion_functionality)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send(ptr(1).toUInt32());");
+  EXPECT_SEND_MESSAGE_WITH ("1");
+}
+
+TESTCASE (native_pointer_to_match_pattern)
 {
   const gchar * extra_checks;
 
@@ -1437,7 +1520,7 @@ SCRIPT_TESTCASE (native_pointer_to_match_pattern)
 #endif
 }
 
-SCRIPT_TESTCASE (native_pointer_can_be_constructed_from_64bit_value)
+TESTCASE (native_pointer_can_be_constructed_from_64bit_value)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "send(ptr(uint64(0x1ffffffff)).equals(ptr(0x1ffffffff)));"
@@ -1456,7 +1539,7 @@ SCRIPT_TESTCASE (native_pointer_can_be_constructed_from_64bit_value)
 #endif
 }
 
-SCRIPT_TESTCASE (uint64_provides_arithmetic_operations)
+TESTCASE (uint64_provides_arithmetic_operations)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "send(uint64(3).add(4).toNumber());"
@@ -1477,7 +1560,7 @@ SCRIPT_TESTCASE (uint64_provides_arithmetic_operations)
   EXPECT_SEND_MESSAGE_WITH ("\"18446744073709551615\"");
 }
 
-SCRIPT_TESTCASE (int64_provides_arithmetic_operations)
+TESTCASE (int64_provides_arithmetic_operations)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "send(int64(3).add(4).toNumber());"
@@ -1569,7 +1652,7 @@ gum_add_pointers_and_float_variadic (gpointer a,
   return GPOINTER_TO_SIZE (a) + GPOINTER_TO_SIZE (b) + (int) c;
 }
 
-SCRIPT_TESTCASE (file_can_be_written_to)
+TESTCASE (file_can_be_written_to)
 {
   gchar d00d[4] = { 0x64, 0x30, 0x30, 0x64 };
 
@@ -1582,14 +1665,14 @@ SCRIPT_TESTCASE (file_can_be_written_to)
   COMPILE_AND_LOAD_SCRIPT (
       "var log = new File(\"/tmp/script-test.log\", 'a');"
       "log.write(\"Hello \");"
-      "log.write(Memory.readByteArray(" GUM_PTR_CONST ", 4));"
+      "log.write(" GUM_PTR_CONST ".readByteArray(4));"
       "log.write(\"!\\n\");"
       "log.close();",
       d00d);
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (inline_sqlite_database_can_be_queried)
+TESTCASE (inline_sqlite_database_can_be_queried)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "var db = SqliteDatabase.openInline('"
@@ -1678,7 +1761,7 @@ SCRIPT_TESTCASE (inline_sqlite_database_can_be_queried)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (external_sqlite_database_can_be_queried)
+TESTCASE (external_sqlite_database_can_be_queried)
 {
   TestScriptMessageItem * item;
 
@@ -1712,7 +1795,7 @@ SCRIPT_TESTCASE (external_sqlite_database_can_be_queried)
   test_script_message_item_free (item);
 }
 
-SCRIPT_TESTCASE (external_sqlite_database_can_be_opened_with_flags)
+TESTCASE (external_sqlite_database_can_be_opened_with_flags)
 {
   if (!g_test_slow ())
   {
@@ -1780,7 +1863,7 @@ SCRIPT_TESTCASE (external_sqlite_database_can_be_opened_with_flags)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (socket_connection_can_be_established)
+TESTCASE (socket_connection_can_be_established)
 {
 #ifdef HAVE_ANDROID
   if (!g_test_slow ())
@@ -1846,9 +1929,9 @@ SCRIPT_TESTCASE (socket_connection_can_be_established)
 
     COMPILE_AND_LOAD_SCRIPT (
         "var getpid = new NativeFunction("
-        "    Module.findExportByName(null, 'getpid'), 'int', []);"
+        "    Module.getExportByName(null, 'getpid'), 'int', []);"
         "var unlink = new NativeFunction("
-        "    Module.findExportByName(null, 'unlink'), 'int', ['pointer']);"
+        "    Module.getExportByName(null, 'unlink'), 'int', ['pointer']);"
         ""
         "Socket.listen({"
         "  type: 'path',"
@@ -1893,7 +1976,7 @@ SCRIPT_TESTCASE (socket_connection_can_be_established)
 #endif
 }
 
-SCRIPT_TESTCASE (socket_connection_can_be_established_with_tls)
+TESTCASE (socket_connection_can_be_established_with_tls)
 {
   gboolean done;
 
@@ -1980,7 +2063,7 @@ SCRIPT_TESTCASE (socket_connection_can_be_established_with_tls)
   }
 }
 
-SCRIPT_TESTCASE (socket_type_can_be_inspected)
+TESTCASE (socket_type_can_be_inspected)
 {
   int fd;
   struct sockaddr_in addr = { 0, };
@@ -2033,7 +2116,7 @@ SCRIPT_TESTCASE (socket_type_can_be_inspected)
   close (fd);
 
   fd = open ("/etc/hosts", O_RDONLY);
-  g_assert (fd >= 0);
+  g_assert_cmpint (fd, >=, 0);
   COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
   EXPECT_SEND_MESSAGE_WITH ("null");
   close (fd);
@@ -2042,7 +2125,7 @@ SCRIPT_TESTCASE (socket_type_can_be_inspected)
 
 #ifndef HAVE_ANDROID
 
-SCRIPT_TESTCASE (socket_endpoints_can_be_inspected)
+TESTCASE (socket_endpoints_can_be_inspected)
 {
   GSocketFamily family[] = { G_SOCKET_FAMILY_IPV4, G_SOCKET_FAMILY_IPV6 };
   guint i;
@@ -2081,7 +2164,7 @@ SCRIPT_TESTCASE (socket_endpoints_can_be_inspected)
     while (g_main_context_pending (context))
       g_main_context_iteration (context, FALSE);
 
-    g_assert (g_socket_connect (socket, server_address, NULL, NULL));
+    g_assert_true (g_socket_connect (socket, server_address, NULL, NULL));
 
     g_object_get (socket, "local-address", &client_address, NULL);
     client_port =
@@ -2173,7 +2256,7 @@ on_read_ready (GObject * source_object,
 
 #if defined (HAVE_I386) || defined (HAVE_ARM64)
 
-SCRIPT_TESTCASE (execution_can_be_traced)
+TESTCASE (execution_can_be_traced)
 {
   GumThreadId test_thread_id;
 
@@ -2209,7 +2292,7 @@ SCRIPT_TESTCASE (execution_can_be_traced)
   EXPECT_SEND_MESSAGE_WITH ("\"onReceive: true\"");
 }
 
-SCRIPT_TESTCASE (execution_can_be_traced_with_custom_transformer)
+TESTCASE (execution_can_be_traced_with_custom_transformer)
 {
   GumThreadId test_thread_id;
 
@@ -2251,7 +2334,7 @@ SCRIPT_TESTCASE (execution_can_be_traced_with_custom_transformer)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (call_can_be_probed)
+TESTCASE (call_can_be_probed)
 {
   GumThreadId test_thread_id;
 
@@ -2280,7 +2363,7 @@ SCRIPT_TESTCASE (call_can_be_probed)
 
 #endif
 
-SCRIPT_TESTCASE (stalker_events_can_be_parsed)
+TESTCASE (stalker_events_can_be_parsed)
 {
   GumEvent ev;
 
@@ -2288,8 +2371,8 @@ SCRIPT_TESTCASE (stalker_events_can_be_parsed)
   ev.call.location = GSIZE_TO_POINTER (7);
   ev.call.target = GSIZE_TO_POINTER (12);
   ev.call.depth = 42;
-  COMPILE_AND_LOAD_SCRIPT ("send(Stalker.parse(Memory.readByteArray("
-      GUM_PTR_CONST ", %" G_GSIZE_FORMAT ")));", &ev, sizeof (ev));
+  COMPILE_AND_LOAD_SCRIPT ("send(Stalker.parse(" GUM_PTR_CONST ".readByteArray("
+      "%" G_GSIZE_FORMAT ")));", &ev, sizeof (ev));
   EXPECT_SEND_MESSAGE_WITH ("[[\"call\",\"0x7\",\"0xc\",42]]");
 
   COMPILE_AND_LOAD_SCRIPT ("send(Stalker.parse(new ArrayBuffer(0)));");
@@ -2303,19 +2386,19 @@ SCRIPT_TESTCASE (stalker_events_can_be_parsed)
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER, "Error: invalid event type");
 }
 
-SCRIPT_TESTCASE (frida_version_is_available)
+TESTCASE (frida_version_is_available)
 {
   COMPILE_AND_LOAD_SCRIPT ("send(typeof Frida.version);");
   EXPECT_SEND_MESSAGE_WITH ("\"string\"");
 }
 
-SCRIPT_TESTCASE (frida_heap_size_can_be_queried)
+TESTCASE (frida_heap_size_can_be_queried)
 {
   COMPILE_AND_LOAD_SCRIPT ("send(typeof Frida.heapSize);");
   EXPECT_SEND_MESSAGE_WITH ("\"number\"");
 }
 
-SCRIPT_TESTCASE (process_arch_is_available)
+TESTCASE (process_arch_is_available)
 {
   COMPILE_AND_LOAD_SCRIPT ("send(Process.arch);");
 #if defined (HAVE_I386)
@@ -2331,7 +2414,7 @@ SCRIPT_TESTCASE (process_arch_is_available)
 #endif
 }
 
-SCRIPT_TESTCASE (process_platform_is_available)
+TESTCASE (process_platform_is_available)
 {
   COMPILE_AND_LOAD_SCRIPT ("send(Process.platform);");
 #if defined (HAVE_LINUX)
@@ -2343,19 +2426,19 @@ SCRIPT_TESTCASE (process_platform_is_available)
 #endif
 }
 
-SCRIPT_TESTCASE (process_page_size_is_available)
+TESTCASE (process_page_size_is_available)
 {
   COMPILE_AND_LOAD_SCRIPT ("send(Process.pageSize);");
   EXPECT_SEND_MESSAGE_WITH ("%d", gum_query_page_size ());
 }
 
-SCRIPT_TESTCASE (process_pointer_size_is_available)
+TESTCASE (process_pointer_size_is_available)
 {
   COMPILE_AND_LOAD_SCRIPT ("send(Process.pointerSize);");
   EXPECT_SEND_MESSAGE_WITH (G_STRINGIFY (GLIB_SIZEOF_VOID_P));
 }
 
-SCRIPT_TESTCASE (process_debugger_status_is_available)
+TESTCASE (process_debugger_status_is_available)
 {
   COMPILE_AND_LOAD_SCRIPT ("send(Process.isDebuggerAttached());");
   if (gum_process_is_debugger_attached ())
@@ -2364,7 +2447,7 @@ SCRIPT_TESTCASE (process_debugger_status_is_available)
     EXPECT_SEND_MESSAGE_WITH ("false");
 }
 
-SCRIPT_TESTCASE (process_id_is_available)
+TESTCASE (process_id_is_available)
 {
   TestScriptMessageItem * item;
   gint pid;
@@ -2378,15 +2461,20 @@ SCRIPT_TESTCASE (process_id_is_available)
   test_script_message_item_free (item);
 }
 
-SCRIPT_TESTCASE (process_current_thread_id_is_available)
+TESTCASE (process_current_thread_id_is_available)
 {
   COMPILE_AND_LOAD_SCRIPT ("send(typeof Process.getCurrentThreadId());");
   EXPECT_SEND_MESSAGE_WITH ("\"number\"");
 }
 
-SCRIPT_TESTCASE (process_threads_can_be_enumerated)
+TESTCASE (process_threads_can_be_enumerated)
 {
-#if defined (HAVE_ANDROID) || defined (HAVE_MIPS)
+#ifdef HAVE_LINUX
+  if (!check_exception_handling_testable ())
+    return;
+#endif
+
+#ifdef HAVE_MIPS
   if (!g_test_slow ())
   {
     g_print ("<skipping, run in slow mode> ");
@@ -2394,11 +2482,29 @@ SCRIPT_TESTCASE (process_threads_can_be_enumerated)
   }
 #endif
 
-  if (RUNNING_ON_VALGRIND)
+  COMPILE_AND_LOAD_SCRIPT (
+      "var threads = Process.enumerateThreads();"
+      "send(threads.length > 0);");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+TESTCASE (process_threads_can_be_enumerated_legacy_style)
+{
+  gboolean done = FALSE;
+  GThread * thread_a, * thread_b;
+
+#ifdef HAVE_LINUX
+  if (!check_exception_handling_testable ())
+    return;
+#endif
+
+#if defined (HAVE_ANDROID) || defined (HAVE_MIPS)
+  if (!g_test_slow ())
   {
-    g_print ("<skipping, not compatible with Valgrind> ");
+    g_print ("<skipping, run in slow mode> ");
     return;
   }
+#endif
 
   COMPILE_AND_LOAD_SCRIPT (
       "Process.enumerateThreads({"
@@ -2412,26 +2518,6 @@ SCRIPT_TESTCASE (process_threads_can_be_enumerated)
       "});");
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
-}
-
-SCRIPT_TESTCASE (process_threads_can_be_enumerated_synchronously)
-{
-  gboolean done = FALSE;
-  GThread * thread_a, * thread_b;
-
-#if defined (HAVE_ANDROID) || defined (HAVE_MIPS)
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping, run in slow mode> ");
-    return;
-  }
-#endif
-
-  if (RUNNING_ON_VALGRIND)
-  {
-    g_print ("<skipping, not compatible with Valgrind> ");
-    return;
-  }
 
   thread_a = g_thread_new ("script-test-sleeping-dummy-a", sleeping_dummy,
       &done);
@@ -2457,17 +2543,31 @@ sleeping_dummy (gpointer data)
   return NULL;
 }
 
-SCRIPT_TESTCASE (process_modules_can_be_enumerated)
+TESTCASE (process_modules_can_be_enumerated)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var modules = Process.enumerateModules();"
+      "send(modules.length > 0);"
+      "var m = modules[0];"
+      "send(typeof m.name === 'string');"
+      "send(typeof m.path === 'string');"
+      "send(m.base instanceof NativePointer);"
+      "send(typeof m.size === 'number');"
+      "send(JSON.stringify(m) !== \"{}\");");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+TESTCASE (process_modules_can_be_enumerated_legacy_style)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Process.enumerateModules({"
         "onMatch: function (module) {"
         "  send('onMatch');"
-        "  send(typeof module.name === 'string');"
-        "  send(typeof module.path === 'string');"
-        "  send(module.base instanceof NativePointer);"
-        "  send(typeof module.size === 'number');"
-        "  send(JSON.stringify(module) !== \"{}\");"
         "  return 'stop';"
         "},"
         "onComplete: function () {"
@@ -2475,21 +2575,13 @@ SCRIPT_TESTCASE (process_modules_can_be_enumerated)
         "}"
       "});");
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
-  EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
-}
 
-SCRIPT_TESTCASE (process_modules_can_be_enumerated_synchronously)
-{
   COMPILE_AND_LOAD_SCRIPT ("send(Process.enumerateModulesSync().length > 1);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
-SCRIPT_TESTCASE (process_module_can_be_looked_up_from_address)
+TESTCASE (process_module_can_be_looked_up_from_address)
 {
 #ifndef HAVE_LINUX
   GModule * m;
@@ -2498,7 +2590,7 @@ SCRIPT_TESTCASE (process_module_can_be_looked_up_from_address)
 
   m = g_module_open (SYSTEM_MODULE_NAME, G_MODULE_BIND_LAZY);
   found = g_module_symbol (m, SYSTEM_MODULE_EXPORT, &f);
-  g_assert (found);
+  g_assert_true (found);
   g_module_close (m);
 
   COMPILE_AND_LOAD_SCRIPT (
@@ -2514,7 +2606,7 @@ SCRIPT_TESTCASE (process_module_can_be_looked_up_from_address)
 #endif
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var someModule = Process.enumerateModulesSync()[1];"
+      "var someModule = Process.enumerateModules()[1];"
       "var foundModule = Process.findModuleByAddress(someModule.base);"
       "send(foundModule !== null);"
       "send(foundModule.name === someModule.name);");
@@ -2524,7 +2616,7 @@ SCRIPT_TESTCASE (process_module_can_be_looked_up_from_address)
 
   COMPILE_AND_LOAD_SCRIPT (
       "var map = new ModuleMap();"
-      "var someModule = Process.enumerateModulesSync()[1];"
+      "var someModule = Process.enumerateModules()[1];"
 
       "send(map.has(someModule.base));"
       "send(map.has(ptr(1)));"
@@ -2585,7 +2677,7 @@ SCRIPT_TESTCASE (process_module_can_be_looked_up_from_address)
 
 #ifdef HAVE_DARWIN
   COMPILE_AND_LOAD_SCRIPT (
-      "var systemModule = Process.enumerateModulesSync()"
+      "var systemModule = Process.enumerateModules()"
       "  .filter(function (m) {"
       "    return m.path.indexOf('/System/') === 0;"
       "  })[0];"
@@ -2599,7 +2691,7 @@ SCRIPT_TESTCASE (process_module_can_be_looked_up_from_address)
 #endif
 }
 
-SCRIPT_TESTCASE (process_module_can_be_looked_up_from_name)
+TESTCASE (process_module_can_be_looked_up_from_name)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "send(Process.findModuleByName('%s') !== null);",
@@ -2612,7 +2704,15 @@ SCRIPT_TESTCASE (process_module_can_be_looked_up_from_name)
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
-SCRIPT_TESTCASE (process_ranges_can_be_enumerated)
+TESTCASE (process_ranges_can_be_enumerated)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var ranges = Process.enumerateRanges('--x');"
+      "send(ranges.length > 0);");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+TESTCASE (process_ranges_can_be_enumerated_legacy_style)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Process.enumerateRanges('--x', {"
@@ -2626,20 +2726,17 @@ SCRIPT_TESTCASE (process_ranges_can_be_enumerated)
       "});");
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
-}
 
-SCRIPT_TESTCASE (process_ranges_can_be_enumerated_synchronously)
-{
   COMPILE_AND_LOAD_SCRIPT (
       "send(Process.enumerateRangesSync('--x').length > 1);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
-SCRIPT_TESTCASE (process_ranges_can_be_enumerated_with_neighbors_coalesced)
+TESTCASE (process_ranges_can_be_enumerated_with_neighbors_coalesced)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var a = Process.enumerateRangesSync('--x');"
-      "var b = Process.enumerateRangesSync({"
+      "var a = Process.enumerateRanges('--x');"
+      "var b = Process.enumerateRanges({"
         "protection: '--x',"
         "coalesce: true"
       "});"
@@ -2647,7 +2744,7 @@ SCRIPT_TESTCASE (process_ranges_can_be_enumerated_with_neighbors_coalesced)
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
-SCRIPT_TESTCASE (process_range_can_be_looked_up_from_address)
+TESTCASE (process_range_can_be_looked_up_from_address)
 {
   GModule * m;
   gpointer f;
@@ -2655,7 +2752,7 @@ SCRIPT_TESTCASE (process_range_can_be_looked_up_from_address)
 
   m = g_module_open (SYSTEM_MODULE_NAME, G_MODULE_BIND_LAZY);
   found = g_module_symbol (m, SYSTEM_MODULE_EXPORT, &f);
-  g_assert (found);
+  g_assert_true (found);
   g_module_close (m);
 
   COMPILE_AND_LOAD_SCRIPT (
@@ -2664,7 +2761,7 @@ SCRIPT_TESTCASE (process_range_can_be_looked_up_from_address)
   EXPECT_SEND_MESSAGE_WITH ("true");
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var someRange = Process.enumerateRangesSync('r-x')[1];"
+      "var someRange = Process.enumerateRanges('r-x')[1];"
       "var foundRange = Process.findRangeByAddress(someRange.base);"
       "send(foundRange !== null);"
       "send(foundRange.base.equals(someRange.base));");
@@ -2681,7 +2778,21 @@ SCRIPT_TESTCASE (process_range_can_be_looked_up_from_address)
 
 #ifdef HAVE_DARWIN
 
-SCRIPT_TESTCASE (process_malloc_ranges_can_be_enumerated)
+TESTCASE (process_malloc_ranges_can_be_enumerated)
+{
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var ranges = Process.enumerateMallocRanges();"
+      "send(ranges.length > 0);");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+TESTCASE (process_malloc_ranges_can_be_enumerated_legacy_style)
 {
   if (!g_test_slow ())
   {
@@ -2701,27 +2812,33 @@ SCRIPT_TESTCASE (process_malloc_ranges_can_be_enumerated)
       "});");
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
-}
-
-SCRIPT_TESTCASE (process_malloc_ranges_can_be_enumerated_synchronously)
-{
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping, run in slow mode> ");
-    return;
-  }
 
   COMPILE_AND_LOAD_SCRIPT (
-      "send(Process.enumerateMallocRangesSync().length > 1);");
+      "send(Process.enumerateMallocRangesSync().length > 0);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
 #endif
 
-SCRIPT_TESTCASE (module_imports_can_be_enumerated)
+TESTCASE (module_imports_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "Module.enumerateImports(\"" GUM_TESTS_MODULE_NAME "\", {"
+      "var imports = Process.getModuleByName('%s').enumerateImports();"
+      "send(imports.length > 0);",
+      GUM_TESTS_MODULE_NAME);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+TESTCASE (module_imports_can_be_enumerated_legacy_style)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var imports = Module.enumerateImports('%s');"
+      "send(imports.length > 0);",
+      GUM_TESTS_MODULE_NAME);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Module.enumerateImports('%s', {"
         "onMatch: function (imp) {"
         "  send('onMatch');"
         "  return 'stop';"
@@ -2729,65 +2846,75 @@ SCRIPT_TESTCASE (module_imports_can_be_enumerated)
         "onComplete: function () {"
         "  send('onComplete');"
         "}"
-      "});");
+      "});",
+      GUM_TESTS_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
-}
 
-SCRIPT_TESTCASE (module_imports_can_be_enumerated_synchronously)
-{
   COMPILE_AND_LOAD_SCRIPT (
-      "send(Module.enumerateImportsSync(\"" GUM_TESTS_MODULE_NAME "\")"
-      ".length > 1);");
+      "var imports = Module.enumerateImportsSync('%s');"
+      "send(imports.length > 0);",
+      GUM_TESTS_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
-SCRIPT_TESTCASE (module_exports_can_be_enumerated)
+TESTCASE (module_exports_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "Module.enumerateExports(\"%s\", {"
+      "var exports = Process.getModuleByName('%s').enumerateExports();"
+      "send(exports.length > 0);"
+      "var e = exports[0];"
+      "send(typeof e.type === 'string');"
+      "send(typeof e.name === 'string');"
+      "send(e.address instanceof NativePointer);"
+      "send(JSON.stringify(e) !== \"{}\");",
+      SYSTEM_MODULE_NAME);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+TESTCASE (module_exports_can_be_enumerated_legacy_style)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var exports = Module.enumerateExports('%s');"
+      "send(exports.length > 0);",
+      SYSTEM_MODULE_NAME);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Module.enumerateExports('%s', {"
         "onMatch: function (exp) {"
         "  send('onMatch');"
-        "  send(typeof exp.type === 'string');"
-        "  send(typeof exp.name === 'string');"
-        "  send(exp.address instanceof NativePointer);"
-        "  send(JSON.stringify(exp) !== \"{}\");"
         "  return 'stop';"
         "},"
         "onComplete: function () {"
         "  send('onComplete');"
         "}"
-      "});", SYSTEM_MODULE_NAME);
+      "});",
+      SYSTEM_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
-  EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
-}
 
-SCRIPT_TESTCASE (module_exports_can_be_enumerated_synchronously)
-{
   COMPILE_AND_LOAD_SCRIPT (
-      "send(Module.enumerateExportsSync(\"%s\").length > 1);",
+      "var exports = Module.enumerateExportsSync('%s');"
+      "send(exports.length > 0);",
       SYSTEM_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
-SCRIPT_TESTCASE (module_exports_enumeration_performance)
+TESTCASE (module_exports_enumeration_performance)
 {
   TestScriptMessageItem * item;
   gint duration;
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var start = new Date();"
-      "Module.enumerateExports(\"%s\", {"
-        "onMatch: function (exp) {"
-        "},"
-        "onComplete: function () {"
-        "}"
-      "});"
-      "send((new Date()).getTime() - start.getTime());",
+      "var module = Process.getModuleByName('%s');"
+      "var start = Date.now();"
+      "module.enumerateExports();"
+      "send(Date.now() - start);",
       SYSTEM_MODULE_NAME);
   item = test_script_fixture_pop_message (fixture);
   sscanf (item->message, "{\"type\":\"send\",\"payload\":%d}", &duration);
@@ -2795,48 +2922,82 @@ SCRIPT_TESTCASE (module_exports_enumeration_performance)
   test_script_message_item_free (item);
 }
 
-SCRIPT_TESTCASE (module_symbols_can_be_enumerated)
+TESTCASE (module_symbols_can_be_enumerated)
 {
 #if defined (HAVE_DARWIN) || defined (HAVE_LINUX)
   COMPILE_AND_LOAD_SCRIPT (
-      "Module.enumerateSymbols(\"%s\", {"
+      "var symbols = Process.getModuleByName('%s').enumerateSymbols();"
+      "send(symbols.length > 0);"
+      "var s = symbols[0];"
+      "send(typeof s.isGlobal === 'boolean');"
+      "send(typeof s.type === 'string');"
+      "send(typeof s.name === 'string');"
+      "send(s.address instanceof NativePointer);"
+      "send(JSON.stringify(s) !== \"{}\");",
+      GUM_TESTS_MODULE_NAME);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+#else
+  g_print ("<skipping on this platform> ");
+#endif
+}
+
+TESTCASE (module_symbols_can_be_enumerated_legacy_style)
+{
+#if defined (HAVE_DARWIN) || defined (HAVE_LINUX)
+  COMPILE_AND_LOAD_SCRIPT (
+      "var symbols = Module.enumerateSymbols('%s');"
+      "send(symbols.length > 0);",
+      GUM_TESTS_MODULE_NAME);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Module.enumerateSymbols('%s', {"
         "onMatch: function (sym) {"
         "  send('onMatch');"
-        "  send(typeof sym.isGlobal === 'boolean');"
-        "  send(typeof sym.type === 'string');"
-        "  send(typeof sym.name === 'string');"
-        "  send(sym.address instanceof NativePointer);"
-        "  send(JSON.stringify(sym) !== \"{}\");"
         "  return 'stop';"
         "},"
         "onComplete: function () {"
         "  send('onComplete');"
         "}"
-      "});", GUM_TESTS_MODULE_NAME);
+      "});",
+      GUM_TESTS_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
-  EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
-#endif
-}
 
-SCRIPT_TESTCASE (module_symbols_can_be_enumerated_synchronously)
-{
-#ifdef HAVE_DARWIN
   COMPILE_AND_LOAD_SCRIPT (
-      "send(Module.enumerateSymbolsSync(\"%s\").length > 1);",
+      "var symbols = Module.enumerateSymbolsSync('%s');"
+      "send(symbols.length > 0);",
       GUM_TESTS_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("true");
+#else
+  g_print ("<skipping on this platform> ");
 #endif
 }
 
-SCRIPT_TESTCASE (module_ranges_can_be_enumerated)
+TESTCASE (module_ranges_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "Module.enumerateRanges(\"%s\", '--x', {"
+      "var ranges = Process.getModuleByName('%s').enumerateRanges('--x');"
+      "send(ranges.length > 0);",
+      SYSTEM_MODULE_NAME);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+TESTCASE (module_ranges_can_be_enumerated_legacy_style)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var ranges = Module.enumerateRanges('%s', '--x');"
+      "send(ranges.length > 0);",
+      SYSTEM_MODULE_NAME);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Module.enumerateRanges('%s', '--x', {"
         "onMatch: function (range) {"
         "  send('onMatch');"
         "  return 'stop';"
@@ -2844,52 +3005,113 @@ SCRIPT_TESTCASE (module_ranges_can_be_enumerated)
         "onComplete: function () {"
         "  send('onComplete');"
         "}"
-      "});", SYSTEM_MODULE_NAME);
+      "});",
+      SYSTEM_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
-}
 
-SCRIPT_TESTCASE (module_ranges_can_be_enumerated_synchronously)
-{
   COMPILE_AND_LOAD_SCRIPT (
-      "send(Module.enumerateRangesSync(\"%s\", '--x').length > 0);",
+      "var ranges = Module.enumerateRangesSync('%s', '--x');"
+      "send(ranges.length > 0);",
       SYSTEM_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
-SCRIPT_TESTCASE (module_base_address_can_be_found)
+TESTCASE (module_base_address_can_be_found)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "send(Module.findBaseAddress('%s') !== null);", SYSTEM_MODULE_NAME);
+      "var sysModuleName = '%s';"
+      "var badModuleName = 'nope_' + sysModuleName;"
+
+      "var base = Module.findBaseAddress(sysModuleName);"
+      "send(base !== null);"
+
+      "send(Module.findBaseAddress(badModuleName) === null);"
+
+      "try {"
+          "send(Module.getBaseAddress(sysModuleName).equals(base));"
+
+          "Module.getBaseAddress(badModuleName);"
+          "send('should not get here');"
+      "} catch (e) {"
+          "send(/unable to find module/.test(e.message));"
+      "}",
+      SYSTEM_MODULE_NAME);
+
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
+  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
-SCRIPT_TESTCASE (module_export_can_be_found_by_name)
+TESTCASE (module_export_can_be_found_by_name)
 {
+  COMPILE_AND_LOAD_SCRIPT (
+      "var sysModuleName = '%s';"
+      "var sysModuleExport = '%s';"
+      "var badModuleName = 'nope_' + sysModuleName;"
+      "var badModuleExport = sysModuleExport + '_does_not_exist';"
+
+      "var impl = Module.findExportByName(sysModuleName, sysModuleExport);"
+      "send(impl !== null);"
+
+      "send(Module.findExportByName(badModuleName, badModuleExport) === null);"
+
+      "try {"
+          "send(Module.getExportByName(sysModuleName, sysModuleExport).equals(impl));"
+
+          "Module.getExportByName(badModuleName, badModuleExport);"
+          "send('should not get here');"
+      "} catch (e) {"
+          "send(/unable to find export/.test(e.message));"
+      "}",
+      SYSTEM_MODULE_NAME, SYSTEM_MODULE_EXPORT);
+
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
 #ifdef G_OS_WIN32
   HMODULE mod;
   gpointer actual_address;
   char actual_address_str[32];
 
   mod = GetModuleHandle (_T ("kernel32.dll"));
-  g_assert (mod != NULL);
+  g_assert_nonnull (mod);
   actual_address = GetProcAddress (mod, "Sleep");
-  g_assert (actual_address != NULL);
+  g_assert_nonnull (actual_address);
   sprintf_s (actual_address_str, sizeof (actual_address_str),
       "\"%" G_GSIZE_MODIFIER "x\"", GPOINTER_TO_SIZE (actual_address));
 
   COMPILE_AND_LOAD_SCRIPT (
       "send(Module.findExportByName('kernel32.dll', 'Sleep').toString(16));");
   EXPECT_SEND_MESSAGE_WITH (actual_address_str);
-#else
-  COMPILE_AND_LOAD_SCRIPT (
-      "send(Module.findExportByName('%s', '%s') !== null);",
-      SYSTEM_MODULE_NAME, SYSTEM_MODULE_EXPORT);
-  EXPECT_SEND_MESSAGE_WITH ("true");
 #endif
 }
 
-SCRIPT_TESTCASE (module_can_be_forcibly_initialized)
+TESTCASE (module_can_be_loaded)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var moduleName = '%s';"
+      "var moduleExport = '%s';"
+      "var m = Module.load(moduleName);"
+      "send(m.getExportByName(moduleExport).equals("
+          "Module.getExportByName(moduleName, moduleExport)));"
+      "try {"
+      "  Module.load(moduleName + '_nope');"
+      "  send('success');"
+      "} catch (e) {"
+      "  send('error');"
+      "}",
+      SYSTEM_MODULE_NAME, SYSTEM_MODULE_EXPORT);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("\"error\"");
+}
+
+TESTCASE (module_can_be_forcibly_initialized)
 {
   COMPILE_AND_LOAD_SCRIPT ("Module.ensureInitialized('%s');",
       SYSTEM_MODULE_NAME);
@@ -2902,14 +3124,24 @@ SCRIPT_TESTCASE (module_can_be_forcibly_initialized)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (api_resolver_can_be_used_to_find_functions)
-{
 #ifdef G_OS_WIN32
-  const gchar * query = "exports:*!_open*";
+# define API_RESOLVER_TEST_QUERY "exports:*!_open*"
 #else
-  const gchar * query = "exports:*!open*";
+# define API_RESOLVER_TEST_QUERY "exports:*!open*"
 #endif
 
+TESTCASE (api_resolver_can_be_used_to_find_functions)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var resolver = new ApiResolver('module');"
+      "var matches = resolver.enumerateMatches('%s');"
+      "send(matches.length > 0);",
+      API_RESOLVER_TEST_QUERY);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+TESTCASE (api_resolver_can_be_used_to_find_functions_legacy_style)
+{
   COMPILE_AND_LOAD_SCRIPT (
       "var resolver = new ApiResolver('module');"
       "resolver.enumerateMatches('%s', {"
@@ -2921,7 +3153,7 @@ SCRIPT_TESTCASE (api_resolver_can_be_used_to_find_functions)
       "    send('onComplete');"
       "  }"
       "});",
-      query);
+      API_RESOLVER_TEST_QUERY);
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 
@@ -2929,30 +3161,44 @@ SCRIPT_TESTCASE (api_resolver_can_be_used_to_find_functions)
       "var resolver = new ApiResolver('module');"
       "var matches = resolver.enumerateMatchesSync('%s');"
       "send(matches.length > 0);",
-      query);
+      API_RESOLVER_TEST_QUERY);
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
-SCRIPT_TESTCASE (invalid_script_should_return_null)
+TESTCASE (invalid_script_should_return_null)
 {
   GError * err = NULL;
 
-  g_assert (gum_script_backend_create_sync (fixture->backend, "testcase", "'",
-      NULL, NULL) == NULL);
+  g_assert_null (gum_script_backend_create_sync (fixture->backend, "testcase",
+      "'", NULL, NULL));
 
-  g_assert (gum_script_backend_create_sync (fixture->backend, "testcase", "'",
-      NULL, &err) == NULL);
-  g_assert (err != NULL);
-  g_assert (g_str_has_prefix (err->message, "Script(line 1): SyntaxError: "));
+  g_assert_null (gum_script_backend_create_sync (fixture->backend, "testcase",
+      "'", NULL, &err));
+  g_assert_nonnull (err);
+  g_assert_true (g_str_has_prefix (err->message,
+      "Script(line 1): SyntaxError: "));
 }
 
-SCRIPT_TESTCASE (array_buffer_can_be_created)
+TESTCASE (strict_mode_should_be_enforced)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "function run() {"
+      "  oops = 1337;"
+      "}"
+      "run();");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend)
+      ? "ReferenceError: identifier 'oops' undefined"
+      : "ReferenceError: oops is not defined");
+}
+
+TESTCASE (array_buffer_can_be_created)
 {
   COMPILE_AND_LOAD_SCRIPT ("new ArrayBuffer(16);");
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (rpc_can_be_performed)
+TESTCASE (rpc_can_be_performed)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "rpc.exports.foo = function (a, b) {"
@@ -2973,7 +3219,7 @@ SCRIPT_TESTCASE (rpc_can_be_performed)
       "};"
       "rpc.exports.badger = function () {"
           "var buf = Memory.allocUtf8String(\"Yo\");"
-          "return Memory.readByteArray(buf, 2);"
+          "return buf.readByteArray(2);"
       "};");
   EXPECT_NO_MESSAGES ();
 
@@ -3002,19 +3248,19 @@ SCRIPT_TESTCASE (rpc_can_be_performed)
       "59 6f");
 }
 
-SCRIPT_TESTCASE (message_can_be_sent)
+TESTCASE (message_can_be_sent)
 {
   COMPILE_AND_LOAD_SCRIPT ("send(1234);");
   EXPECT_SEND_MESSAGE_WITH ("1234");
 }
 
-SCRIPT_TESTCASE (message_can_be_sent_with_data)
+TESTCASE (message_can_be_sent_with_data)
 {
   COMPILE_AND_LOAD_SCRIPT ("send(1234, [0x13, 0x37]);");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("1234", "13 37");
 }
 
-SCRIPT_TESTCASE (message_can_be_received)
+TESTCASE (message_can_be_received)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "recv(function (message) {"
@@ -3026,7 +3272,7 @@ SCRIPT_TESTCASE (message_can_be_received)
   EXPECT_SEND_MESSAGE_WITH ("\"pong\"");
 }
 
-SCRIPT_TESTCASE (message_can_be_received_with_data)
+TESTCASE (message_can_be_received_with_data)
 {
   const guint8 data_to_send[2] = { 0x13, 0x37 };
   GBytes * bytes;
@@ -3045,7 +3291,7 @@ SCRIPT_TESTCASE (message_can_be_received_with_data)
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"pong\"", "13 37");
 }
 
-SCRIPT_TESTCASE (recv_may_specify_desired_message_type)
+TESTCASE (recv_may_specify_desired_message_type)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "recv('wobble', function (message) {"
@@ -3068,7 +3314,7 @@ struct _GumInvokeTargetContext
   volatile gboolean finished;
 };
 
-SCRIPT_TESTCASE (recv_can_be_waited_for_from_an_application_thread)
+TESTCASE (recv_can_be_waited_for_from_an_application_thread)
 {
   GThread * worker_thread;
   GumInvokeTargetContext ctx;
@@ -3095,17 +3341,17 @@ SCRIPT_TESTCASE (recv_can_be_waited_for_from_an_application_thread)
 
   g_usleep (G_USEC_PER_SEC / 25);
   EXPECT_NO_MESSAGES ();
-  g_assert (!ctx.finished);
+  g_assert_false (ctx.finished);
 
   POST_MESSAGE ("{\"type\":\"poke\"}");
   g_thread_join (worker_thread);
-  g_assert (ctx.finished);
+  g_assert_true (ctx.finished);
   EXPECT_SEND_MESSAGE_WITH ("\"pokeBack\"");
   EXPECT_SEND_MESSAGE_WITH ("\"pokeReceived\"");
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (recv_can_be_waited_for_from_our_js_thread)
+TESTCASE (recv_can_be_waited_for_from_our_js_thread)
 {
   /*
    * We do the wait() in a setTimeout() as our test fixture loads the
@@ -3127,7 +3373,7 @@ SCRIPT_TESTCASE (recv_can_be_waited_for_from_our_js_thread)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (recv_wait_in_an_application_thread_should_throw_on_unload)
+TESTCASE (recv_wait_in_an_application_thread_should_throw_on_unload)
 {
   GThread * worker_thread;
   GumInvokeTargetContext ctx;
@@ -3158,16 +3404,16 @@ SCRIPT_TESTCASE (recv_wait_in_an_application_thread_should_throw_on_unload)
 
   g_usleep (G_USEC_PER_SEC / 25);
   EXPECT_NO_MESSAGES ();
-  g_assert (!ctx.finished);
+  g_assert_false (ctx.finished);
 
   UNLOAD_SCRIPT ();
   g_thread_join (worker_thread);
-  g_assert (ctx.finished);
+  g_assert_true (ctx.finished);
   EXPECT_SEND_MESSAGE_WITH ("\"oops: script is unloading\"");
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (recv_wait_in_our_js_thread_should_throw_on_unload)
+TESTCASE (recv_wait_in_our_js_thread_should_throw_on_unload)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "setTimeout(function () {"
@@ -3200,8 +3446,10 @@ invoke_target_function_int_worker (gpointer data)
   return NULL;
 }
 
-SCRIPT_TESTCASE (message_can_be_logged)
+TESTCASE (message_can_be_logged)
 {
+  DISABLE_LOG_MESSAGE_HANDLING ();
+
   COMPILE_AND_LOAD_SCRIPT ("console.log('Hello', undefined, null, 1337, "
       "'world', true, { color: 'pink' });");
   EXPECT_LOG_MESSAGE_WITH ("info", "Hello undefined null 1337 world "
@@ -3214,7 +3462,7 @@ SCRIPT_TESTCASE (message_can_be_logged)
   EXPECT_LOG_MESSAGE_WITH ("error", "Oh noes");
 }
 
-SCRIPT_TESTCASE (thread_can_be_forced_to_sleep)
+TESTCASE (thread_can_be_forced_to_sleep)
 {
   GTimer * timer = g_timer_new ();
   COMPILE_AND_LOAD_SCRIPT ("Thread.sleep(0.25);");
@@ -3223,7 +3471,7 @@ SCRIPT_TESTCASE (thread_can_be_forced_to_sleep)
   g_timer_destroy (timer);
 }
 
-SCRIPT_TESTCASE (timeout_can_be_scheduled)
+TESTCASE (timeout_can_be_scheduled)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "setTimeout(function () {"
@@ -3254,7 +3502,7 @@ SCRIPT_TESTCASE (timeout_can_be_scheduled)
   EXPECT_SEND_MESSAGE_WITH ("1227");
 }
 
-SCRIPT_TESTCASE (timeout_can_be_cancelled)
+TESTCASE (timeout_can_be_cancelled)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "var timeout = setTimeout(function () {"
@@ -3265,7 +3513,7 @@ SCRIPT_TESTCASE (timeout_can_be_cancelled)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (interval_can_be_scheduled)
+TESTCASE (interval_can_be_scheduled)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "setInterval(function (value) {"
@@ -3280,7 +3528,7 @@ SCRIPT_TESTCASE (interval_can_be_scheduled)
   EXPECT_SEND_MESSAGE_WITH ("1337");
 }
 
-SCRIPT_TESTCASE (interval_can_be_cancelled)
+TESTCASE (interval_can_be_cancelled)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "var count = 1;"
@@ -3300,7 +3548,7 @@ SCRIPT_TESTCASE (interval_can_be_cancelled)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (callback_can_be_scheduled)
+TESTCASE (callback_can_be_scheduled)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "setImmediate(function () {"
@@ -3310,7 +3558,7 @@ SCRIPT_TESTCASE (callback_can_be_scheduled)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (callback_can_be_scheduled_from_a_scheduled_callback)
+TESTCASE (callback_can_be_scheduled_from_a_scheduled_callback)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "setImmediate(function () {"
@@ -3324,7 +3572,7 @@ SCRIPT_TESTCASE (callback_can_be_scheduled_from_a_scheduled_callback)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (callback_can_be_cancelled)
+TESTCASE (callback_can_be_cancelled)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "var id = setImmediate(function () {"
@@ -3335,7 +3583,7 @@ SCRIPT_TESTCASE (callback_can_be_cancelled)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (callback_can_be_scheduled_on_next_tick)
+TESTCASE (callback_can_be_scheduled_on_next_tick)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Script.nextTick(send, 1337, [0x13, 0x37, 0x0a]);");
@@ -3343,7 +3591,7 @@ SCRIPT_TESTCASE (callback_can_be_scheduled_on_next_tick)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (timer_cancellation_apis_should_be_forgiving)
+TESTCASE (timer_cancellation_apis_should_be_forgiving)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "clearTimeout(undefined);"
@@ -3352,7 +3600,7 @@ SCRIPT_TESTCASE (timer_cancellation_apis_should_be_forgiving)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (argument_can_be_read)
+TESTCASE (argument_can_be_read)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
@@ -3370,7 +3618,7 @@ SCRIPT_TESTCASE (argument_can_be_read)
   EXPECT_SEND_MESSAGE_WITH ("-42");
 }
 
-SCRIPT_TESTCASE (argument_can_be_replaced)
+TESTCASE (argument_can_be_replaced)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "var replacementString = Memory.allocUtf8String('Hei');"
@@ -3387,7 +3635,7 @@ SCRIPT_TESTCASE (argument_can_be_replaced)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (return_value_can_be_read)
+TESTCASE (return_value_can_be_read)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
@@ -3401,7 +3649,7 @@ SCRIPT_TESTCASE (return_value_can_be_read)
   EXPECT_SEND_MESSAGE_WITH ("315");
 }
 
-SCRIPT_TESTCASE (return_value_can_be_replaced)
+TESTCASE (return_value_can_be_replaced)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
@@ -3441,7 +3689,7 @@ SCRIPT_TESTCASE (return_value_can_be_replaced)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (return_address_can_be_read)
+TESTCASE (return_address_can_be_read)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
@@ -3461,7 +3709,7 @@ SCRIPT_TESTCASE (return_address_can_be_read)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (register_can_be_read)
+TESTCASE (register_can_be_read)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
@@ -3475,7 +3723,7 @@ SCRIPT_TESTCASE (register_can_be_read)
   EXPECT_SEND_MESSAGE_WITH ("1890");
 }
 
-SCRIPT_TESTCASE (register_can_be_written)
+TESTCASE (register_can_be_written)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
@@ -3489,7 +3737,7 @@ SCRIPT_TESTCASE (register_can_be_written)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (system_error_can_be_read_from_interceptor_listener)
+TESTCASE (system_error_can_be_read_from_interceptor_listener)
 {
 #ifdef G_OS_WIN32
   COMPILE_AND_LOAD_SCRIPT (
@@ -3520,7 +3768,7 @@ SCRIPT_TESTCASE (system_error_can_be_read_from_interceptor_listener)
   EXPECT_SEND_MESSAGE_WITH ("37");
 }
 
-SCRIPT_TESTCASE (system_error_can_be_read_from_replacement_function)
+TESTCASE (system_error_can_be_read_from_replacement_function)
 {
   GumInterceptor * interceptor;
 
@@ -3562,7 +3810,7 @@ SCRIPT_TESTCASE (system_error_can_be_read_from_replacement_function)
   g_object_unref (interceptor);
 }
 
-SCRIPT_TESTCASE (system_error_can_be_replaced_from_interceptor_listener)
+TESTCASE (system_error_can_be_replaced_from_interceptor_listener)
 {
 #ifdef G_OS_WIN32
   COMPILE_AND_LOAD_SCRIPT (
@@ -3589,7 +3837,7 @@ SCRIPT_TESTCASE (system_error_can_be_replaced_from_interceptor_listener)
 #endif
 }
 
-SCRIPT_TESTCASE (system_error_can_be_replaced_from_replacement_function)
+TESTCASE (system_error_can_be_replaced_from_replacement_function)
 {
 #ifdef G_OS_WIN32
   COMPILE_AND_LOAD_SCRIPT (
@@ -3616,7 +3864,7 @@ SCRIPT_TESTCASE (system_error_can_be_replaced_from_replacement_function)
 #endif
 }
 
-SCRIPT_TESTCASE (invocations_are_bound_on_tls_object)
+TESTCASE (invocations_are_bound_on_tls_object)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
@@ -3638,7 +3886,7 @@ SCRIPT_TESTCASE (invocations_are_bound_on_tls_object)
   EXPECT_SEND_MESSAGE_WITH ("11");
 }
 
-SCRIPT_TESTCASE (invocations_provide_thread_id)
+TESTCASE (invocations_provide_thread_id)
 {
   guint i;
 
@@ -3663,13 +3911,13 @@ SCRIPT_TESTCASE (invocations_provide_thread_id)
     item = test_script_fixture_pop_message (fixture);
     id = 0;
     sscanf (item->message, "{\"type\":\"send\",\"payload\":%d}", &id);
-    g_assert (id != 0);
+    g_assert_cmpuint (id, !=, 0);
     test_script_message_item_free (item);
     g_assert_cmpint (id, ==, gum_process_get_current_thread_id ());
   }
 }
 
-SCRIPT_TESTCASE (invocations_provide_call_depth)
+TESTCASE (invocations_provide_call_depth)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
@@ -3711,7 +3959,7 @@ SCRIPT_TESTCASE (invocations_provide_call_depth)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (invocations_provide_context_for_backtrace)
+TESTCASE (invocations_provide_context_for_backtrace)
 {
   if (RUNNING_ON_VALGRIND)
   {
@@ -3742,7 +3990,7 @@ SCRIPT_TESTCASE (invocations_provide_context_for_backtrace)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (invocations_provide_context_serializable_to_json)
+TESTCASE (invocations_provide_context_serializable_to_json)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
@@ -3762,7 +4010,7 @@ SCRIPT_TESTCASE (invocations_provide_context_serializable_to_json)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (listener_can_be_detached)
+TESTCASE (listener_can_be_detached)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "var firstListener, secondListener;"
@@ -3798,7 +4046,7 @@ SCRIPT_TESTCASE (listener_can_be_detached)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (listener_can_be_detached_by_destruction_mid_call)
+TESTCASE (listener_can_be_detached_by_destruction_mid_call)
 {
   const guint repeats = 10;
   guint i;
@@ -3857,7 +4105,7 @@ invoke_target_function_trigger (gpointer data)
   return NULL;
 }
 
-SCRIPT_TESTCASE (all_listeners_can_be_detached)
+TESTCASE (all_listeners_can_be_detached)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
@@ -3873,7 +4121,7 @@ SCRIPT_TESTCASE (all_listeners_can_be_detached)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (function_can_be_replaced)
+TESTCASE (function_can_be_replaced)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.replace(" GUM_PTR_CONST ","
@@ -3893,7 +4141,7 @@ SCRIPT_TESTCASE (function_can_be_replaced)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (function_can_be_replaced_and_called_immediately)
+TESTCASE (function_can_be_replaced_and_called_immediately)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "var address = " GUM_PTR_CONST ";"
@@ -3902,7 +4150,8 @@ SCRIPT_TESTCASE (function_can_be_replaced_and_called_immediately)
       "  send(arg);"
       "  return 1337;"
       "}, 'int', ['int']));"
-      "var f = new NativeFunction(address, 'int', ['int']);"
+      "var f = new NativeFunction(address, 'int', ['int'],"
+      "    { scheduling: 'exclusive' });"
       "f(7);"
       "Interceptor.flush();"
       "f(8);",
@@ -3911,7 +4160,7 @@ SCRIPT_TESTCASE (function_can_be_replaced_and_called_immediately)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (function_can_be_reverted)
+TESTCASE (function_can_be_reverted)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.replace(" GUM_PTR_CONST ", new NativeCallback(function (arg) {"
@@ -3926,7 +4175,7 @@ SCRIPT_TESTCASE (function_can_be_reverted)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (replaced_function_should_have_invocation_context)
+TESTCASE (replaced_function_should_have_invocation_context)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.replace(" GUM_PTR_CONST ", new NativeCallback(function (arg) {"
@@ -3941,7 +4190,7 @@ SCRIPT_TESTCASE (replaced_function_should_have_invocation_context)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (instructions_can_be_probed)
+TESTCASE (instructions_can_be_probed)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", function () {"
@@ -3959,13 +4208,10 @@ SCRIPT_TESTCASE (instructions_can_be_probed)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (interceptor_handles_invalid_arguments)
+TESTCASE (interceptor_handles_invalid_arguments)
 {
-  if (RUNNING_ON_VALGRIND)
-  {
-    g_print ("<skipping, not compatible with Valgrind> ");
+  if (!check_exception_handling_testable ())
     return;
-  }
 
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(ptr(\"0x1\"), {"
@@ -3982,7 +4228,7 @@ SCRIPT_TESTCASE (interceptor_handles_invalid_arguments)
       "Error: access violation accessing 0x1");
 }
 
-SCRIPT_TESTCASE (interceptor_on_enter_performance)
+TESTCASE (interceptor_on_enter_performance)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
@@ -3998,7 +4244,7 @@ SCRIPT_TESTCASE (interceptor_on_enter_performance)
 #endif
 }
 
-SCRIPT_TESTCASE (interceptor_on_leave_performance)
+TESTCASE (interceptor_on_leave_performance)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
@@ -4014,7 +4260,7 @@ SCRIPT_TESTCASE (interceptor_on_leave_performance)
 #endif
 }
 
-SCRIPT_TESTCASE (interceptor_on_enter_and_leave_performance)
+TESTCASE (interceptor_on_enter_and_leave_performance)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
@@ -4036,45 +4282,57 @@ static void
 measure_target_function_int_overhead (void)
 {
   GTimer * timer;
-  guint measurement[1000], i, t_min, t_max, t_total, t_avg;
+  guint i, n;
+  gdouble measurement[1000], t_min, t_max, t_median;
+
+  n = G_N_ELEMENTS (measurement);
 
   timer = g_timer_new ();
 
-  for (i = 0; i != G_N_ELEMENTS (measurement); i++)
+  for (i = 0; i != n; i++)
   {
     target_function_int (7);
   }
 
-  for (i = 0; i != G_N_ELEMENTS (measurement); i++)
+  for (i = 0; i != n; i++)
   {
-    gdouble elapsed;
-
     g_timer_reset (timer);
     target_function_int (7);
-    elapsed = g_timer_elapsed (timer, NULL);
-
-    measurement[i] = elapsed * G_USEC_PER_SEC;
+    measurement[i] = g_timer_elapsed (timer, NULL);
   }
 
-  t_min = G_MAXUINT;
-  t_max = 0;
-  t_total = 0;
-  for (i = 0; i != G_N_ELEMENTS (measurement); i++)
-  {
-    guint m = measurement[i];
+  qsort (measurement, n, sizeof (gdouble), compare_measurements);
 
-    t_min = MIN (m, t_min);
-    t_max = MAX (m, t_max);
-    t_total += m;
-  }
-  t_avg = t_total / G_N_ELEMENTS (measurement);
+  t_min = measurement[0];
+  t_max = measurement[n - 1];
+  g_assert (n % 2 == 0);
+  t_median = (measurement[n / 2] + measurement[(n / 2) - 1]) / 2.0;
 
-  g_print ("min=%u max=%u avg=%u ", t_min, t_max, t_avg);
+  g_print ("<min: %.1f µs, max: %.1f µs, median: %.1f µs> ",
+      t_min * (gdouble) G_USEC_PER_SEC,
+      t_max * (gdouble) G_USEC_PER_SEC,
+      t_median * (gdouble) G_USEC_PER_SEC);
 
   g_timer_destroy (timer);
 }
 
-SCRIPT_TESTCASE (memory_can_be_scanned)
+static int
+compare_measurements (gconstpointer element_a,
+                      gconstpointer element_b)
+{
+  const gdouble a = *(const gdouble *) element_a;
+  const gdouble b = *(const gdouble *) element_b;
+
+  if (a > b)
+    return 1;
+
+  if (a < b)
+    return -1;
+
+  return 0;
+}
+
+TESTCASE (memory_can_be_scanned)
 {
   guint8 haystack[] = { 0x01, 0x02, 0x13, 0x37, 0x03, 0x13, 0x37 };
 
@@ -4107,7 +4365,7 @@ SCRIPT_TESTCASE (memory_can_be_scanned)
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 }
 
-SCRIPT_TESTCASE (memory_can_be_scanned_synchronously)
+TESTCASE (memory_can_be_scanned_synchronously)
 {
   guint8 haystack[] = { 0x01, 0x02, 0x13, 0x37, 0x03, 0x13, 0x37 };
 
@@ -4136,7 +4394,7 @@ SCRIPT_TESTCASE (memory_can_be_scanned_synchronously)
   EXPECT_SEND_MESSAGE_WITH ("\"done\"");
 }
 
-SCRIPT_TESTCASE (memory_scan_should_be_interruptible)
+TESTCASE (memory_scan_should_be_interruptible)
 {
   guint8 haystack[] = { 0x01, 0x02, 0x13, 0x37, 0x03, 0x13, 0x37 };
   COMPILE_AND_LOAD_SCRIPT (
@@ -4154,13 +4412,10 @@ SCRIPT_TESTCASE (memory_scan_should_be_interruptible)
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 }
 
-SCRIPT_TESTCASE (memory_scan_handles_unreadable_memory)
+TESTCASE (memory_scan_handles_unreadable_memory)
 {
-  if (RUNNING_ON_VALGRIND)
-  {
-    g_print ("<skipping, not compatible with Valgrind> ");
+  if (!check_exception_handling_testable ())
     return;
-  }
 
   COMPILE_AND_LOAD_SCRIPT (
       "Memory.scan(ptr(\"1328\"), 7, '13 37', {"
@@ -4188,7 +4443,7 @@ SCRIPT_TESTCASE (memory_scan_handles_unreadable_memory)
 
 #ifdef G_OS_WIN32
 
-SCRIPT_TESTCASE (memory_access_can_be_monitored)
+TESTCASE (memory_access_can_be_monitored)
 {
   volatile guint8 * a, * b;
   guint page_size;
@@ -4233,7 +4488,15 @@ SCRIPT_TESTCASE (memory_access_can_be_monitored)
 
 #endif
 
-SCRIPT_TESTCASE (pointer_can_be_read)
+TESTCASE (pointer_can_be_read)
+{
+  gpointer val = GSIZE_TO_POINTER (0x1337000);
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(" GUM_PTR_CONST ".readPointer().toString());", &val);
+  EXPECT_SEND_MESSAGE_WITH ("\"0x1337000\"");
+}
+
+TESTCASE (pointer_can_be_read_legacy_style)
 {
   gpointer val = GSIZE_TO_POINTER (0x1337000);
   COMPILE_AND_LOAD_SCRIPT (
@@ -4241,7 +4504,18 @@ SCRIPT_TESTCASE (pointer_can_be_read)
   EXPECT_SEND_MESSAGE_WITH ("\"0x1337000\"");
 }
 
-SCRIPT_TESTCASE (pointer_can_be_written)
+TESTCASE (pointer_can_be_written)
+{
+  gpointer vals[2] = { NULL, NULL };
+  COMPILE_AND_LOAD_SCRIPT (
+      GUM_PTR_CONST ".writePointer(ptr(\"0x1337000\"))"
+      ".add(Process.pointerSize).writePointer(ptr(\"0x1338000\"))",
+      vals);
+  g_assert_cmphex (GPOINTER_TO_SIZE (vals[0]), ==, 0x1337000);
+  g_assert_cmphex (GPOINTER_TO_SIZE (vals[1]), ==, 0x1338000);
+}
+
+TESTCASE (pointer_can_be_written_legacy_style)
 {
   gpointer val = NULL;
   COMPILE_AND_LOAD_SCRIPT (
@@ -4249,21 +4523,21 @@ SCRIPT_TESTCASE (pointer_can_be_written)
   g_assert_cmphex (GPOINTER_TO_SIZE (val), ==, 0x1337000);
 }
 
-SCRIPT_TESTCASE (memory_can_be_allocated)
+TESTCASE (memory_can_be_allocated)
 {
   TestScriptMessageItem * item;
   gsize p;
 
   COMPILE_AND_LOAD_SCRIPT (
       "var p = Memory.alloc(8);"
-      "Memory.writePointer(p, ptr(\"1337\"));"
-      "send(Memory.readPointer(p).toInt32() === 1337);");
+      "p.writePointer(ptr('1337'));"
+      "send(p.readPointer().toInt32() === 1337);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 
   COMPILE_AND_LOAD_SCRIPT (
       "var p = Memory.alloc(uint64(8));"
-      "Memory.writePointer(p, ptr(\"1337\"));"
-      "send(Memory.readPointer(p).toInt32() === 1337);");
+      "p.writePointer(ptr('1337'));"
+      "send(p.readPointer().toInt32() === 1337);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 
   COMPILE_AND_LOAD_SCRIPT (
@@ -4273,17 +4547,17 @@ SCRIPT_TESTCASE (memory_can_be_allocated)
   p = 0;
   sscanf (item->message, "{\"type\":\"send\",\"payload\":"
       "\"0x%" G_GSIZE_MODIFIER "x\"}", &p);
-  g_assert (p != 0);
+  g_assert_cmpuint (p, !=, 0);
   test_script_message_item_free (item);
   g_assert_cmpuint (p & (gum_query_page_size () - 1), ==, 0);
 
   COMPILE_AND_LOAD_SCRIPT(
       "var p = Memory.alloc(5);"
-      "send('p', Memory.readByteArray(p, 5));");
+      "send('p', p.readByteArray(5));");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA("\"p\"", "00 00 00 00 00");
 }
 
-SCRIPT_TESTCASE (memory_can_be_copied)
+TESTCASE (memory_can_be_copied)
 {
   const gchar * from = "Hei";
   gchar to[5] = { 0x01, 0x02, 0x03, 0x04, 0x05 };
@@ -4307,7 +4581,7 @@ SCRIPT_TESTCASE (memory_can_be_copied)
 
   /* TODO: investigate */
 #if !(defined (HAVE_LINUX) && defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4)
-  if (!RUNNING_ON_VALGRIND)
+  if (!gum_process_is_debugger_attached () && !RUNNING_ON_VALGRIND)
   {
     COMPILE_AND_LOAD_SCRIPT (
         "Memory.copy(" GUM_PTR_CONST ", ptr(\"1337\"), 1);", to);
@@ -4316,30 +4590,30 @@ SCRIPT_TESTCASE (memory_can_be_copied)
 #endif
 }
 
-SCRIPT_TESTCASE (memory_can_be_duped)
+TESTCASE (memory_can_be_duped)
 {
   guint8 buf[3] = { 0x13, 0x37, 0x42 };
 
   COMPILE_AND_LOAD_SCRIPT (
       "var p = Memory.dup(" GUM_PTR_CONST ", 3);"
-      "Memory.writeU8(p, 0x12);"
-      "send('p', Memory.readByteArray(p, 3));"
-      "send('buf', Memory.readByteArray(" GUM_PTR_CONST ", 3));",
+      "p.writeU8(0x12);"
+      "send('p', p.readByteArray(3));"
+      "send('buf', " GUM_PTR_CONST ".readByteArray(3));",
       buf, buf);
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"p\"", "12 37 42");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"buf\"", "13 37 42");
 
   COMPILE_AND_LOAD_SCRIPT (
       "var p = Memory.dup(" GUM_PTR_CONST ", uint64(2));"
-      "Memory.writeU8(p, 0x12);"
-      "send('p', Memory.readByteArray(p, 2));"
-      "send('buf', Memory.readByteArray(" GUM_PTR_CONST ", 2));",
+      "p.writeU8(0x12);"
+      "send('p', p.readByteArray(2));"
+      "send('buf', " GUM_PTR_CONST ".readByteArray(2));",
       buf, buf);
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"p\"", "12 37");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"buf\"", "13 37");
 }
 
-SCRIPT_TESTCASE (memory_can_be_protected)
+TESTCASE (memory_can_be_protected)
 {
   gpointer buf;
   gboolean exception_on_read, exception_on_write;
@@ -4351,12 +4625,21 @@ SCRIPT_TESTCASE (memory_can_be_protected)
       buf, gum_query_page_size ());
   EXPECT_SEND_MESSAGE_WITH ("true");
 
+  if (gum_process_is_debugger_attached ())
+  {
+    g_print ("<only partially tested, debugger is attached> ");
+
+    gum_free_pages (buf);
+
+    return;
+  }
+
   /* avoid overlapping signal handlers */
   UNLOAD_SCRIPT ();
 
   gum_try_read_and_write_at (buf, 0, &exception_on_read, &exception_on_write);
-  g_assert (!exception_on_read);
-  g_assert (exception_on_write);
+  g_assert_false (exception_on_read);
+  g_assert_true (exception_on_write);
 
   COMPILE_AND_LOAD_SCRIPT (
       "send(Memory.protect(" GUM_PTR_CONST ", uint64(1), '---'));",
@@ -4367,13 +4650,13 @@ SCRIPT_TESTCASE (memory_can_be_protected)
   UNLOAD_SCRIPT ();
 
   gum_try_read_and_write_at (buf, 0, &exception_on_read, &exception_on_write);
-  g_assert (exception_on_read);
-  g_assert (exception_on_write);
+  g_assert_true (exception_on_read);
+  g_assert_true (exception_on_write);
 
   gum_free_pages (buf);
 }
 
-SCRIPT_TESTCASE (code_can_be_patched)
+TESTCASE (code_can_be_patched)
 {
   guint8 * code;
 
@@ -4383,102 +4666,102 @@ SCRIPT_TESTCASE (code_can_be_patched)
 
   COMPILE_AND_LOAD_SCRIPT ("Memory.patchCode(" GUM_PTR_CONST ", 1, "
       "function (ptr) {"
-          "Memory.writeU8(ptr, 0x90);"
+          "ptr.writeU8(0x90);"
       "});", code + 7);
   g_assert_cmphex (code[7], ==, 0x90);
 
   gum_free_pages (code);
 }
 
-SCRIPT_TESTCASE (s8_can_be_read)
+TESTCASE (s8_can_be_read)
 {
   gint8 val = -42;
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readS8(" GUM_PTR_CONST "));", &val);
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readS8());", &val);
   EXPECT_SEND_MESSAGE_WITH ("-42");
 }
 
-SCRIPT_TESTCASE (s8_can_be_written)
+TESTCASE (s8_can_be_written)
 {
   gint8 val = 0;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeS8(" GUM_PTR_CONST ", -42);", &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeS8(-42);", &val);
   g_assert_cmpint (val, ==, -42);
 }
 
-SCRIPT_TESTCASE (u8_can_be_read)
+TESTCASE (u8_can_be_read)
 {
   guint8 val = 42;
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readU8(" GUM_PTR_CONST "));", &val);
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readU8());", &val);
   EXPECT_SEND_MESSAGE_WITH ("42");
 }
 
-SCRIPT_TESTCASE (u8_can_be_written)
+TESTCASE (u8_can_be_written)
 {
   guint8 val = 0;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeU8(" GUM_PTR_CONST ", 42);", &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeU8(42);", &val);
   g_assert_cmpint (val, ==, 42);
 }
 
-SCRIPT_TESTCASE (s16_can_be_read)
+TESTCASE (s16_can_be_read)
 {
   gint16 val = -12123;
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readS16(" GUM_PTR_CONST "));", &val);
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readS16());", &val);
   EXPECT_SEND_MESSAGE_WITH ("-12123");
 }
 
-SCRIPT_TESTCASE (s16_can_be_written)
+TESTCASE (s16_can_be_written)
 {
   gint16 val = 0;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeS16(" GUM_PTR_CONST ", -12123);", &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeS16(-12123);", &val);
   g_assert_cmpint (val, ==, -12123);
 }
 
-SCRIPT_TESTCASE (u16_can_be_read)
+TESTCASE (u16_can_be_read)
 {
   guint16 val = 12123;
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readU16(" GUM_PTR_CONST "));", &val);
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readU16());", &val);
   EXPECT_SEND_MESSAGE_WITH ("12123");
 }
 
-SCRIPT_TESTCASE (u16_can_be_written)
+TESTCASE (u16_can_be_written)
 {
   guint16 val = 0;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeU16(" GUM_PTR_CONST ", 12123);", &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeU16(12123);", &val);
   g_assert_cmpint (val, ==, 12123);
 }
 
-SCRIPT_TESTCASE (s32_can_be_read)
+TESTCASE (s32_can_be_read)
 {
   gint32 val = -120123;
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readS32(" GUM_PTR_CONST "));", &val);
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readS32());", &val);
   EXPECT_SEND_MESSAGE_WITH ("-120123");
 }
 
-SCRIPT_TESTCASE (s32_can_be_written)
+TESTCASE (s32_can_be_written)
 {
   gint32 val = 0;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeS32(" GUM_PTR_CONST ", -120123);", &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeS32(-120123);", &val);
   g_assert_cmpint (val, ==, -120123);
 }
 
-SCRIPT_TESTCASE (u32_can_be_read)
+TESTCASE (u32_can_be_read)
 {
   guint32 val = 120123;
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readU32(" GUM_PTR_CONST "));", &val);
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readU32());", &val);
   EXPECT_SEND_MESSAGE_WITH ("120123");
 }
 
-SCRIPT_TESTCASE (u32_can_be_written)
+TESTCASE (u32_can_be_written)
 {
   guint32 val = 0;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeU32(" GUM_PTR_CONST ", 120123);", &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeU32(120123);", &val);
   g_assert_cmpint (val, ==, 120123);
 }
 
-SCRIPT_TESTCASE (s64_can_be_read)
+TESTCASE (s64_can_be_read)
 {
   gint64 val = G_GINT64_CONSTANT (-1201239876783);
   COMPILE_AND_LOAD_SCRIPT (
-      "var value = Memory.readS64(" GUM_PTR_CONST ");"
+      "var value = " GUM_PTR_CONST ".readS64();"
       "send(value instanceof Int64);"
       "send(value);",
       &val);
@@ -4486,19 +4769,19 @@ SCRIPT_TESTCASE (s64_can_be_read)
   EXPECT_SEND_MESSAGE_WITH ("\"-1201239876783\"");
 }
 
-SCRIPT_TESTCASE (s64_can_be_written)
+TESTCASE (s64_can_be_written)
 {
   gint64 val = 0;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeS64(" GUM_PTR_CONST
-      ", new Int64(\"-1201239876783\"));", &val);
+  COMPILE_AND_LOAD_SCRIPT (
+      GUM_PTR_CONST ".writeS64(int64('-1201239876783'));", &val);
   g_assert_cmpint (val, ==, G_GINT64_CONSTANT (-1201239876783));
 }
 
-SCRIPT_TESTCASE (u64_can_be_read)
+TESTCASE (u64_can_be_read)
 {
   guint64 val = G_GUINT64_CONSTANT (1201239876783);
   COMPILE_AND_LOAD_SCRIPT (
-      "var value = Memory.readU64(" GUM_PTR_CONST ");"
+      "var value = " GUM_PTR_CONST ".readU64();"
       "send(value instanceof UInt64);"
       "send(value);",
       &val);
@@ -4506,153 +4789,143 @@ SCRIPT_TESTCASE (u64_can_be_read)
   EXPECT_SEND_MESSAGE_WITH ("\"1201239876783\"");
 }
 
-SCRIPT_TESTCASE (u64_can_be_written)
+TESTCASE (u64_can_be_written)
 {
   gint64 val = 0;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeU64(" GUM_PTR_CONST
-      ", new UInt64(\"1201239876783\"));", &val);
+  COMPILE_AND_LOAD_SCRIPT (
+      GUM_PTR_CONST ".writeU64(uint64('1201239876783'));", &val);
   g_assert_cmpint (val, ==, G_GUINT64_CONSTANT (1201239876783));
 }
 
-SCRIPT_TESTCASE (short_can_be_read)
+TESTCASE (short_can_be_read)
 {
   short val = -12123;
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readShort(" GUM_PTR_CONST "));", &val);
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readShort());", &val);
   EXPECT_SEND_MESSAGE_WITH ("-12123");
 }
 
-SCRIPT_TESTCASE (short_can_be_written)
+TESTCASE (short_can_be_written)
 {
   short val = 0;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeShort(" GUM_PTR_CONST ", -12123);",
-    &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeShort(-12123);", &val);
   g_assert_cmpint (val, ==, -12123);
 
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeShort(" GUM_PTR_CONST
-    ", int64(-1234));", &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeShort(int64(-1234));", &val);
   g_assert_cmpint (val, ==, -1234);
 }
 
-SCRIPT_TESTCASE (ushort_can_be_read)
+TESTCASE (ushort_can_be_read)
 {
   unsigned short val = 12123;
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUShort(" GUM_PTR_CONST "));", &val);
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readUShort());", &val);
   EXPECT_SEND_MESSAGE_WITH ("12123");
 }
 
-SCRIPT_TESTCASE (ushort_can_be_written)
+TESTCASE (ushort_can_be_written)
 {
   unsigned short val = 0;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeUShort(" GUM_PTR_CONST ", 12123);",
-    &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeUShort(12123);", &val);
   g_assert_cmpint (val, ==, 12123);
 
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeUShort(" GUM_PTR_CONST
-      ", uint64(1234));", &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeUShort(uint64(1234));", &val);
   g_assert_cmpint (val, ==, 1234);
 }
 
-SCRIPT_TESTCASE (int_can_be_read)
+TESTCASE (int_can_be_read)
 {
   int val = -120123;
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readInt(" GUM_PTR_CONST "));", &val);
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readInt());", &val);
   EXPECT_SEND_MESSAGE_WITH ("-120123");
 }
 
-SCRIPT_TESTCASE (int_can_be_written)
+TESTCASE (int_can_be_written)
 {
   int val = 0;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeInt(" GUM_PTR_CONST ", -120123);",
-    &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeInt(-120123);", &val);
   g_assert_cmpint (val, ==, -120123);
 }
 
-SCRIPT_TESTCASE (uint_can_be_read)
+TESTCASE (uint_can_be_read)
 {
   unsigned int val = 120123;
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUInt(" GUM_PTR_CONST "));", &val);
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readUInt());", &val);
   EXPECT_SEND_MESSAGE_WITH ("120123");
 }
 
-SCRIPT_TESTCASE (uint_can_be_written)
+TESTCASE (uint_can_be_written)
 {
   unsigned int val = 0;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeUInt(" GUM_PTR_CONST ", 120123);",
-    &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeUInt(120123);", &val);
   g_assert_cmpint (val, ==, 120123);
 }
 
-SCRIPT_TESTCASE (long_can_be_read)
+TESTCASE (long_can_be_read)
 {
   long val = -123;
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readLong(" GUM_PTR_CONST "));", &val);
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readLong());", &val);
   EXPECT_SEND_MESSAGE_WITH ("\"-123\"");
 }
 
-SCRIPT_TESTCASE (long_can_be_written)
+TESTCASE (long_can_be_written)
 {
   long val = 0;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeLong(" GUM_PTR_CONST ", 1350966097);",
-    &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeLong(1350966097);", &val);
   g_assert_cmpint (val, ==, 1350966097);
 }
 
-SCRIPT_TESTCASE (ulong_can_be_read)
+TESTCASE (ulong_can_be_read)
 {
   unsigned long val = 4294967295UL;
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readULong(" GUM_PTR_CONST "));", &val);
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readULong());", &val);
   EXPECT_SEND_MESSAGE_WITH ("\"4294967295\"");
 }
 
-SCRIPT_TESTCASE (ulong_can_be_written)
+TESTCASE (ulong_can_be_written)
 {
   unsigned long val = 0;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeULong(" GUM_PTR_CONST ", 4294967295);",
-    &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeULong(4294967295);", &val);
   g_assert_cmpint (val, ==, 4294967295UL);
 }
 
-SCRIPT_TESTCASE (float_can_be_read)
+TESTCASE (float_can_be_read)
 {
   float val = 123.456f;
-  COMPILE_AND_LOAD_SCRIPT ("send(Math.abs(Memory.readFloat(" GUM_PTR_CONST
-      ") - 123.456) < 0.00001);", &val);
+  COMPILE_AND_LOAD_SCRIPT ("send(Math.abs(" GUM_PTR_CONST ".readFloat()"
+      " - 123.456) < 0.00001);", &val);
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
-SCRIPT_TESTCASE (float_can_be_written)
+TESTCASE (float_can_be_written)
 {
   float val = 0.f;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeFloat(" GUM_PTR_CONST ", 123.456);",
-      &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeFloat(123.456);", &val);
   g_assert_cmpfloat (ABS (val - 123.456f), <, 0.00001f);
 }
 
-SCRIPT_TESTCASE (double_can_be_read)
+TESTCASE (double_can_be_read)
 {
   double val = 123.456;
-  COMPILE_AND_LOAD_SCRIPT ("send(Math.abs(Memory.readDouble(" GUM_PTR_CONST
-      ") - 123.456)  < 0.00001);", &val);
+  COMPILE_AND_LOAD_SCRIPT ("send(Math.abs(" GUM_PTR_CONST ".readDouble()"
+      " - 123.456) < 0.00001);", &val);
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
-SCRIPT_TESTCASE (double_can_be_written)
+TESTCASE (double_can_be_written)
 {
   double val = 0.0;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeDouble(" GUM_PTR_CONST ", 123.456);",
-      &val);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeDouble(123.456);", &val);
   g_assert_cmpfloat (ABS (val - 123.456), <, 0.00001);
 }
 
-SCRIPT_TESTCASE (byte_array_can_be_read)
+TESTCASE (byte_array_can_be_read)
 {
   guint8 buf[3] = { 0x13, 0x37, 0x42 };
   COMPILE_AND_LOAD_SCRIPT (
-      "var buffer = Memory.readByteArray(" GUM_PTR_CONST ", 3);"
+      "var buffer = " GUM_PTR_CONST ".readByteArray(3);"
       "send('badger', buffer);"
-      "send('badger', Memory.readByteArray(" GUM_PTR_CONST ", int64(3)));"
-      "send('badger', Memory.readByteArray(" GUM_PTR_CONST ", uint64(3)));"
-      "var emptyBuffer = Memory.readByteArray(" GUM_PTR_CONST ", 0);"
+      "send('badger', " GUM_PTR_CONST ".readByteArray(int64(3)));"
+      "send('badger', " GUM_PTR_CONST ".readByteArray(uint64(3)));"
+      "var emptyBuffer = " GUM_PTR_CONST ".readByteArray(0);"
       "send('snake', emptyBuffer);"
       "send(buffer instanceof ArrayBuffer);"
       "send(emptyBuffer instanceof ArrayBuffer);",
@@ -4665,153 +4938,158 @@ SCRIPT_TESTCASE (byte_array_can_be_read)
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
-SCRIPT_TESTCASE (byte_array_can_be_written)
+TESTCASE (byte_array_can_be_written)
 {
   guint8 val[4] = { 0x00, 0x00, 0x00, 0xff };
   const guint8 other[3] = { 0x01, 0x02, 0x03 };
 
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeByteArray(" GUM_PTR_CONST
-      ", [0x13, 0x37, 0x42]);", val);
+  COMPILE_AND_LOAD_SCRIPT (
+      GUM_PTR_CONST ".writeByteArray([0x13, 0x37, 0x42]);",
+      val);
   EXPECT_NO_MESSAGES ();
   g_assert_cmpint (val[0], ==, 0x13);
   g_assert_cmpint (val[1], ==, 0x37);
   g_assert_cmpint (val[2], ==, 0x42);
   g_assert_cmpint (val[3], ==, 0xff);
 
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeByteArray(" GUM_PTR_CONST
-      ", Memory.readByteArray(" GUM_PTR_CONST ", 3));", val, other);
+  COMPILE_AND_LOAD_SCRIPT (
+      "var other = " GUM_PTR_CONST ".readByteArray(3);"
+      GUM_PTR_CONST ".writeByteArray(other);",
+      other, val);
   EXPECT_NO_MESSAGES ();
   g_assert_cmpint (val[0], ==, 0x01);
   g_assert_cmpint (val[1], ==, 0x02);
   g_assert_cmpint (val[2], ==, 0x03);
   g_assert_cmpint (val[3], ==, 0xff);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var bytes = new Uint8Array(2);"
+      "bytes[0] = 4;"
+      "bytes[1] = 5;"
+      GUM_PTR_CONST ".writeByteArray(bytes);",
+      val);
+  EXPECT_NO_MESSAGES ();
+  g_assert_cmpint (val[0], ==, 0x04);
+  g_assert_cmpint (val[1], ==, 0x05);
+  g_assert_cmpint (val[2], ==, 0x03);
 }
 
-SCRIPT_TESTCASE (c_string_can_be_read)
+TESTCASE (c_string_can_be_read)
 {
   const gchar * str = "Hello";
   const gchar * uni = "Bjøærheimsbygd";
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readCString(" GUM_PTR_CONST "));",
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readCString());",
       str);
   EXPECT_SEND_MESSAGE_WITH ("\"Hello\"");
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readCString(" GUM_PTR_CONST ", 3));",
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readCString(3));",
       str);
   EXPECT_SEND_MESSAGE_WITH ("\"Hel\"");
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readCString(" GUM_PTR_CONST ", 0));",
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readCString(0));",
       str);
   EXPECT_SEND_MESSAGE_WITH ("\"\"");
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readCString(" GUM_PTR_CONST ", -1));",
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readCString(-1));",
       str);
   EXPECT_SEND_MESSAGE_WITH ("\"Hello\"");
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readCString(" GUM_PTR_CONST
-      ", int64(-1)));", str);
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readCString(int64(-1)));",
+      str);
   EXPECT_SEND_MESSAGE_WITH ("\"Hello\"");
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readCString(ptr(\"0\")));", str);
+  COMPILE_AND_LOAD_SCRIPT ("send(ptr('0').readCString());", str);
   EXPECT_SEND_MESSAGE_WITH ("null");
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readCString(" GUM_PTR_CONST
-      ", 4));", uni);
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readCString(4));", uni);
   EXPECT_SEND_MESSAGE_WITH ("\"Bjø\"");
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readCString(" GUM_PTR_CONST
-      ", 3));", uni);
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readCString(3));", uni);
   EXPECT_SEND_MESSAGE_WITH ("\"Bj\357\277\275\"");
 }
 
-SCRIPT_TESTCASE (utf8_string_can_be_read)
+TESTCASE (utf8_string_can_be_read)
 {
   const gchar * str = "Bjøærheimsbygd";
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(" GUM_PTR_CONST "));",
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readUtf8String());", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjøærheimsbygd\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readUtf8String(4));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjø\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readUtf8String(0));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readUtf8String(-1));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjøærheimsbygd\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readUtf8String(int64(-1)));",
       str);
   EXPECT_SEND_MESSAGE_WITH ("\"Bjøærheimsbygd\"");
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(" GUM_PTR_CONST
-      ", 4));", str);
-  EXPECT_SEND_MESSAGE_WITH ("\"Bjø\"");
-
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(" GUM_PTR_CONST
-      ", 0));", str);
-  EXPECT_SEND_MESSAGE_WITH ("\"\"");
-
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(" GUM_PTR_CONST
-      ", -1));", str);
-  EXPECT_SEND_MESSAGE_WITH ("\"Bjøærheimsbygd\"");
-
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(" GUM_PTR_CONST
-      ", int64(-1)));", str);
-  EXPECT_SEND_MESSAGE_WITH ("\"Bjøærheimsbygd\"");
-
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(ptr(\"0\")));", str);
+  COMPILE_AND_LOAD_SCRIPT ("send(ptr('0').readUtf8String());", str);
   EXPECT_SEND_MESSAGE_WITH ("null");
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(" GUM_PTR_CONST
-      ", 3));", str);
-  EXPECT_ERROR_MESSAGE_WITH (1, "Error: can't decode byte 0xc3 in position 2");
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readUtf8String(3));", str);
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "Error: can't decode byte 0xc3 in position 2");
 }
 
-SCRIPT_TESTCASE (utf8_string_can_be_written)
+TESTCASE (utf8_string_can_be_written)
 {
   gchar str[6];
 
   strcpy (str, "Hello");
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeUtf8String(" GUM_PTR_CONST ", 'Bye');",
-      str);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeUtf8String('Bye');", str);
   g_assert_cmpstr (str, ==, "Bye");
   g_assert_cmphex (str[4], ==, 'o');
   g_assert_cmphex (str[5], ==, '\0');
 }
 
-SCRIPT_TESTCASE (utf8_string_can_be_allocated)
+TESTCASE (utf8_string_can_be_allocated)
 {
-  COMPILE_AND_LOAD_SCRIPT (
-      "send(Memory.readUtf8String(Memory.allocUtf8String('Bjørheimsbygd')));");
+  COMPILE_AND_LOAD_SCRIPT ("send("
+      "Memory.allocUtf8String('Bjørheimsbygd').readUtf8String()"
+      ");");
   EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
 }
 
-SCRIPT_TESTCASE (utf16_string_can_be_read)
+TESTCASE (utf16_string_can_be_read)
 {
   const gchar * str_utf8 = "Bjørheimsbygd";
   gunichar2 * str = g_utf8_to_utf16 (str_utf8, -1, NULL, NULL, NULL);
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf16String(" GUM_PTR_CONST "));",
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readUtf16String());", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readUtf16String(3));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjø\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readUtf16String(0));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readUtf16String(-1));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send("
+      GUM_PTR_CONST ".readUtf16String(int64(-1))"
+      ");",
       str);
   EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf16String(" GUM_PTR_CONST
-      ", 3));", str);
-  EXPECT_SEND_MESSAGE_WITH ("\"Bjø\"");
-
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf16String(" GUM_PTR_CONST
-      ", 0));", str);
-  EXPECT_SEND_MESSAGE_WITH ("\"\"");
-
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf16String(" GUM_PTR_CONST
-      ", -1));", str);
-  EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
-
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf16String(" GUM_PTR_CONST
-      ", int64(-1)));", str);
-  EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
-
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf16String(ptr(\"0\")));", str);
+  COMPILE_AND_LOAD_SCRIPT ("send(ptr('0').readUtf16String());", str);
   EXPECT_SEND_MESSAGE_WITH ("null");
 
   g_free (str);
 }
 
-SCRIPT_TESTCASE (utf16_string_can_be_written)
+TESTCASE (utf16_string_can_be_written)
 {
   gunichar2 * str = g_utf8_to_utf16 ("Hello", -1, NULL, NULL, NULL);
 
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeUtf16String(" GUM_PTR_CONST ", 'Bye');",
-      str);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeUtf16String('Bye');", str);
   g_assert_cmphex (str[0], ==, 'B');
   g_assert_cmphex (str[1], ==, 'y');
   g_assert_cmphex (str[2], ==, 'e');
@@ -4822,16 +5100,17 @@ SCRIPT_TESTCASE (utf16_string_can_be_written)
   g_free (str);
 }
 
-SCRIPT_TESTCASE (utf16_string_can_be_allocated)
+TESTCASE (utf16_string_can_be_allocated)
 {
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf16String("
-      "Memory.allocUtf16String('Bjørheimsbygd')));");
+  COMPILE_AND_LOAD_SCRIPT ("send("
+      "Memory.allocUtf16String('Bjørheimsbygd').readUtf16String()"
+      ");");
   EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
 }
 
 #ifdef G_OS_WIN32
 
-SCRIPT_TESTCASE (ansi_string_can_be_read)
+TESTCASE (ansi_string_can_be_read)
 {
   const gchar * str_utf8 = "Bjørheimsbygd";
   gunichar2 * str_utf16 = g_utf8_to_utf16 (str_utf8, -1, NULL, NULL, NULL);
@@ -4839,41 +5118,37 @@ SCRIPT_TESTCASE (ansi_string_can_be_read)
   WideCharToMultiByte (CP_THREAD_ACP, 0, (LPCWSTR) str_utf16, -1,
       (LPSTR) str, sizeof (str), NULL, NULL);
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(" GUM_PTR_CONST "));",
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readAnsiString());", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readAnsiString(3));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjø\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readAnsiString(0));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readAnsiString(-1));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(" GUM_PTR_CONST ".readAnsiString(int64(-1)));",
       str);
   EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(" GUM_PTR_CONST
-      ", 3));", str);
-  EXPECT_SEND_MESSAGE_WITH ("\"Bjø\"");
-
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(" GUM_PTR_CONST
-      ", 0));", str);
-  EXPECT_SEND_MESSAGE_WITH ("\"\"");
-
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(" GUM_PTR_CONST
-      ", -1));", str);
-  EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
-
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(" GUM_PTR_CONST
-      ", int64(-1)));", str);
-  EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
-
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(ptr(\"0\")));", str);
+  COMPILE_AND_LOAD_SCRIPT ("send(ptr('0').readAnsiString());", str);
   EXPECT_SEND_MESSAGE_WITH ("null");
 
   g_free (str_utf16);
 }
 
-SCRIPT_TESTCASE (ansi_string_can_be_written)
+TESTCASE (ansi_string_can_be_written)
 {
   gchar str_ansi[17];
   gunichar2 str_utf16[17];
   gchar * str_utf8;
 
   strcpy (str_ansi, "Kjempeforhaustar");
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeAnsiString(" GUM_PTR_CONST
-      ", 'Bjørheimsbygd');", str_ansi);
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeAnsiString('Bjørheimsbygd');",
+      str_ansi);
   MultiByteToWideChar (CP_ACP, 0, str_ansi, -1, str_utf16, sizeof (str_utf16));
   str_utf8 = g_utf16_to_utf8 (str_utf16, -1, NULL, NULL, NULL);
   g_assert_cmpstr (str_utf8, == , "Bjørheimsbygd");
@@ -4884,16 +5159,17 @@ SCRIPT_TESTCASE (ansi_string_can_be_written)
   g_assert_cmphex (str_ansi[16], == , '\0');
 }
 
-SCRIPT_TESTCASE (ansi_string_can_be_allocated)
+TESTCASE (ansi_string_can_be_allocated)
 {
-  COMPILE_AND_LOAD_SCRIPT (
-      "send(Memory.readAnsiString(Memory.allocAnsiString('Bjørheimsbygd')));");
+  COMPILE_AND_LOAD_SCRIPT ("send("
+      "Memory.allocAnsiString('Bjørheimsbygd').readAnsiString()"
+      ");");
   EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
 }
 
 #endif
 
-SCRIPT_TESTCASE (invalid_read_results_in_exception)
+TESTCASE (invalid_read_results_in_exception)
 {
   const gchar * type_name[] = {
       "Pointer",
@@ -4922,25 +5198,22 @@ SCRIPT_TESTCASE (invalid_read_results_in_exception)
   };
   guint i;
 
-  if (RUNNING_ON_VALGRIND)
-  {
-    g_print ("<skipping, not compatible with Valgrind> ");
+  if (!check_exception_handling_testable ())
     return;
-  }
 
   for (i = 0; i != G_N_ELEMENTS (type_name); i++)
   {
     gchar * source;
 
-    source = g_strconcat ("Memory.read", type_name[i], "(ptr(\"1328\"));",
-        NULL);
+    source = g_strconcat ("ptr('1328').read", type_name[i], "();", NULL);
     COMPILE_AND_LOAD_SCRIPT (source);
-    EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation accessing 0x530");
+    EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+        "Error: access violation accessing 0x530");
     g_free (source);
   }
 }
 
-SCRIPT_TESTCASE (invalid_write_results_in_exception)
+TESTCASE (invalid_write_results_in_exception)
 {
   const gchar * primitive_type_name[] = {
       "S8",
@@ -4962,18 +5235,15 @@ SCRIPT_TESTCASE (invalid_write_results_in_exception)
   };
   guint i;
 
-  if (RUNNING_ON_VALGRIND)
-  {
-    g_print ("<skipping, not compatible with Valgrind> ");
+  if (!check_exception_handling_testable ())
     return;
-  }
 
   for (i = 0; i != G_N_ELEMENTS (primitive_type_name); i++)
   {
     gchar * source;
 
-    source = g_strconcat ("Memory.write", primitive_type_name[i],
-        "(ptr(\"1328\"), 13);", NULL);
+    source = g_strconcat ("ptr('1328').write", primitive_type_name[i], "(13);",
+        NULL);
     COMPILE_AND_LOAD_SCRIPT (source);
 
 #if (GLIB_SIZEOF_VOID_P == 8)
@@ -4996,8 +5266,8 @@ SCRIPT_TESTCASE (invalid_write_results_in_exception)
   {
     gchar * source;
 
-    source = g_strconcat ("Memory.write", string_type_name[i],
-        "(ptr(\"1328\"), 'Hey');", NULL);
+    source = g_strconcat ("ptr('1328').write", string_type_name[i], "('Hey');",
+        NULL);
     COMPILE_AND_LOAD_SCRIPT (source);
 #if (GLIB_SIZEOF_VOID_P == 8)
     EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation accessing 0x530");
@@ -5014,20 +5284,19 @@ SCRIPT_TESTCASE (invalid_write_results_in_exception)
   }
 }
 
-SCRIPT_TESTCASE (invalid_read_write_execute_results_in_exception)
+TESTCASE (invalid_read_write_execute_results_in_exception)
 {
-  if (RUNNING_ON_VALGRIND)
-  {
-    g_print ("<skipping, not compatible with Valgrind> ");
+  if (!check_exception_handling_testable ())
     return;
-  }
 
-  COMPILE_AND_LOAD_SCRIPT ("Memory.readU8(ptr(\"1328\"));");
-  EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation accessing 0x530");
+  COMPILE_AND_LOAD_SCRIPT ("ptr('1328').readU8();");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "Error: access violation accessing 0x530");
   EXPECT_NO_MESSAGES ();
 
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeU8(ptr(\"1328\"), 42);");
-  EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation accessing 0x530");
+  COMPILE_AND_LOAD_SCRIPT ("ptr('1328').writeU8(42);");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "Error: access violation accessing 0x530");
   EXPECT_NO_MESSAGES ();
 
   COMPILE_AND_LOAD_SCRIPT ("var data = Memory.alloc(Process.pageSize);"
@@ -5042,7 +5311,7 @@ SCRIPT_TESTCASE (invalid_read_write_execute_results_in_exception)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (script_can_be_compiled_to_bytecode)
+TESTCASE (script_can_be_compiled_to_bytecode)
 {
   GError * error;
   GBytes * code;
@@ -5053,23 +5322,23 @@ SCRIPT_TESTCASE (script_can_be_compiled_to_bytecode)
       "send(1337);\noops;", NULL, &error);
   if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
   {
-    g_assert (code != NULL);
-    g_assert (error == NULL);
+    g_assert_nonnull (code);
+    g_assert_null (error);
 
-    g_assert (gum_script_backend_compile_sync (fixture->backend, "failcase1",
-        "'", NULL, NULL) == NULL);
+    g_assert_null (gum_script_backend_compile_sync (fixture->backend,
+        "failcase1", "'", NULL, NULL));
 
-    g_assert (gum_script_backend_compile_sync (fixture->backend, "failcase2",
-        "'", NULL, &error) == NULL);
-    g_assert (error != NULL);
-    g_assert (g_str_has_prefix (error->message,
+    g_assert_null (gum_script_backend_compile_sync (fixture->backend,
+        "failcase2", "'", NULL, &error));
+    g_assert_nonnull (error);
+    g_assert_true (g_str_has_prefix (error->message,
         "Script(line 1): SyntaxError: "));
     g_clear_error (&error);
   }
   else
   {
-    g_assert (code == NULL);
-    g_assert (error != NULL);
+    g_assert_null (code);
+    g_assert_nonnull (error);
     g_assert_cmpstr (error->message, ==, "not yet supported by the V8 runtime");
     g_clear_error (&error);
 
@@ -5082,8 +5351,8 @@ SCRIPT_TESTCASE (script_can_be_compiled_to_bytecode)
   {
     TestScriptMessageItem * item;
 
-    g_assert (script != NULL);
-    g_assert (error == NULL);
+    g_assert_nonnull (script);
+    g_assert_null (error);
 
     gum_script_set_message_handler (script, test_script_fixture_store_message,
         fixture, NULL);
@@ -5093,9 +5362,9 @@ SCRIPT_TESTCASE (script_can_be_compiled_to_bytecode)
     EXPECT_SEND_MESSAGE_WITH ("1337");
 
     item = test_script_fixture_pop_message (fixture);
-    g_assert (strstr (item->message, "ReferenceError") != NULL);
-    g_assert (strstr (item->message, "agent.js") == NULL);
-    g_assert (strstr (item->message, "testcase.js") != NULL);
+    g_assert_nonnull (strstr (item->message, "ReferenceError"));
+    g_assert_null (strstr (item->message, "agent.js"));
+    g_assert_nonnull (strstr (item->message, "testcase.js"));
     test_script_message_item_free (item);
 
     EXPECT_NO_MESSAGES ();
@@ -5104,8 +5373,8 @@ SCRIPT_TESTCASE (script_can_be_compiled_to_bytecode)
   }
   else
   {
-    g_assert (script == NULL);
-    g_assert (error != NULL);
+    g_assert_null (script);
+    g_assert_nonnull (error);
     g_assert_cmpstr (error->message, ==, "not yet supported by the V8 runtime");
     g_clear_error (&error);
   }
@@ -5113,7 +5382,7 @@ SCRIPT_TESTCASE (script_can_be_compiled_to_bytecode)
   g_bytes_unref (code);
 }
 
-SCRIPT_TESTCASE (script_can_be_reloaded)
+TESTCASE (script_can_be_reloaded)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "send(typeof global.badger);"
@@ -5128,7 +5397,7 @@ SCRIPT_TESTCASE (script_can_be_reloaded)
   EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
 }
 
-SCRIPT_TESTCASE (script_memory_usage)
+TESTCASE (script_memory_usage)
 {
   GumScript * script;
   GTimer * timer;
@@ -5142,7 +5411,7 @@ SCRIPT_TESTCASE (script_memory_usage)
 
   /* Warm up */
   script = gum_script_backend_create_sync (fixture->backend, "testcase",
-      "'use strict';", NULL, NULL);
+      "var foo = 42;", NULL, NULL);
   gum_script_load_sync (script, NULL);
   gum_script_unload_sync (script, NULL);
   g_object_unref (script);
@@ -5153,7 +5422,7 @@ SCRIPT_TESTCASE (script_memory_usage)
 
   g_timer_reset (timer);
   script = gum_script_backend_create_sync (fixture->backend, "testcase",
-      "'use strict';", NULL, NULL);
+      "var foo = 42;", NULL, NULL);
   g_print ("created in %u ms\n",
       (guint) (g_timer_elapsed (timer, NULL) * 1000.0));
 
@@ -5173,20 +5442,20 @@ SCRIPT_TESTCASE (script_memory_usage)
   g_object_unref (script);
 }
 
-SCRIPT_TESTCASE (source_maps_should_be_supported_for_our_runtime)
+TESTCASE (source_maps_should_be_supported_for_our_runtime)
 {
   TestScriptMessageItem * item;
 
   COMPILE_AND_LOAD_SCRIPT ("hexdump(null);");
 
   item = test_script_fixture_pop_message (fixture);
-  g_assert (strstr (item->message, " (frida/runtime/hexdump.js:") != NULL);
+  g_assert_nonnull (strstr (item->message, " (frida/runtime/hexdump.js:"));
   test_script_message_item_free (item);
 
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (source_maps_should_be_supported_for_user_scripts)
+TESTCASE (source_maps_should_be_supported_for_user_scripts)
 {
   TestScriptMessageItem * item;
 
@@ -5264,23 +5533,22 @@ SCRIPT_TESTCASE (source_maps_should_be_supported_for_user_scripts)
 
   item = test_script_fixture_pop_message (fixture);
   if (!GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
-    g_assert (strstr (item->message, "testcase.js") == NULL);
-  g_assert (strstr (item->message, "\"type\":\"send\"") != NULL);
+    g_assert_null (strstr (item->message, "testcase.js"));
+  g_assert_nonnull (strstr (item->message, "\"type\":\"send\""));
   if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
   {
-    g_assert (strstr (item->message,
+    g_assert_nonnull (strstr (item->message,
         "\"payload\":\"Error: not yet implemented\\n"
         "    at math.js:5\\n"
         "    at index.js:6\\n"
         "    at s (node_modules/frida/node_modules/browserify/node_modules/"
             "browser-pack/_prelude.js:1)\\n"
         "    at e (node_modules/frida/node_modules/browserify/node_modules/"
-            "browser-pack/_prelude.js:1)\\n")
-        != NULL);
+            "browser-pack/_prelude.js:1)\\n"));
   }
   else
   {
-    g_assert (strstr (item->message,
+    g_assert_nonnull (strstr (item->message,
         "\"payload\":\"Error: not yet implemented\\n"
         "    at Object.add (math.js:5:1)\\n"
         "    at Object.1../math (index.js:6:1)\\n"
@@ -5289,31 +5557,31 @@ SCRIPT_TESTCASE (source_maps_should_be_supported_for_user_scripts)
         "    at e (node_modules/frida/node_modules/browserify/node_modules/"
             "browser-pack/_prelude.js:1:1)\\n"
         "    at node_modules/frida/node_modules/browserify/node_modules/"
-            "browser-pack/_prelude.js:1:1\"") != NULL);
+            "browser-pack/_prelude.js:1:1\""));
   }
   test_script_message_item_free (item);
 
   item = test_script_fixture_pop_message (fixture);
-  g_assert (strstr (item->message, "testcase.js") == NULL);
-  g_assert (strstr (item->message, "\"type\":\"error\"") != NULL);
-  g_assert (strstr (item->message, "\"description\":\"Error: Oops!\"") != NULL);
+  g_assert_null (strstr (item->message, "testcase.js"));
+  g_assert_nonnull (strstr (item->message, "\"type\":\"error\""));
+  g_assert_nonnull (strstr (item->message, "\"description\":\"Error: Oops!\""));
   if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
   {
-    g_assert (strstr (item->message, "\"stack\":\"Error: Oops!\\n"
-        "    at index.js:12\\n") != NULL);
+    g_assert_nonnull (strstr (item->message, "\"stack\":\"Error: Oops!\\n"
+        "    at index.js:12\\n"));
   }
   else
   {
-    g_assert (strstr (item->message, "\"stack\":\"Error: Oops!\\n"
-        "    at index.js:12:1\\n") != NULL);
+    g_assert_nonnull (strstr (item->message, "\"stack\":\"Error: Oops!\\n"
+        "    at index.js:12:1\\n"));
   }
-  g_assert (strstr (item->message, "\"fileName\":\"index.js\"") != NULL);
-  g_assert (strstr (item->message, "\"lineNumber\":12") != NULL);
-  g_assert (strstr (item->message, "\"columnNumber\":1") != NULL);
+  g_assert_nonnull (strstr (item->message, "\"fileName\":\"index.js\""));
+  g_assert_nonnull (strstr (item->message, "\"lineNumber\":12"));
+  g_assert_nonnull (strstr (item->message, "\"columnNumber\":1"));
   test_script_message_item_free (item);
 }
 
-SCRIPT_TESTCASE (types_handle_invalid_construction)
+TESTCASE (types_handle_invalid_construction)
 {
   /* FIXME: there seems to be a TryCatch issue with V8 on macos-x86_64 */
 #if !(defined (HAVE_MACOS) && GLIB_SIZEOF_VOID_P == 8)
@@ -5354,7 +5622,7 @@ SCRIPT_TESTCASE (types_handle_invalid_construction)
 #endif
 }
 
-SCRIPT_TESTCASE (weak_callback_is_triggered_on_gc)
+TESTCASE (weak_callback_is_triggered_on_gc)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "(function () {"
@@ -5369,7 +5637,7 @@ SCRIPT_TESTCASE (weak_callback_is_triggered_on_gc)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (weak_callback_is_triggered_on_unload)
+TESTCASE (weak_callback_is_triggered_on_unload)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "var val = {};"
@@ -5382,7 +5650,7 @@ SCRIPT_TESTCASE (weak_callback_is_triggered_on_unload)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (weak_callback_is_triggered_on_unbind)
+TESTCASE (weak_callback_is_triggered_on_unbind)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "var val = {};"
@@ -5393,7 +5661,7 @@ SCRIPT_TESTCASE (weak_callback_is_triggered_on_unbind)
   EXPECT_SEND_MESSAGE_WITH ("\"weak notify\"");
 }
 
-SCRIPT_TESTCASE (globals_can_be_dynamically_generated)
+TESTCASE (globals_can_be_dynamically_generated)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "var lengthBefore = Object.getOwnPropertyNames(global).length;"
@@ -5448,10 +5716,13 @@ SCRIPT_TESTCASE (globals_can_be_dynamically_generated)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (exceptions_can_be_handled)
+TESTCASE (exceptions_can_be_handled)
 {
   gpointer page;
   gboolean exception_on_read, exception_on_write;
+
+  if (!check_exception_handling_testable ())
+    return;
 
   COMPILE_AND_LOAD_SCRIPT (
       "Process.setExceptionHandler(function (ex) {"
@@ -5463,8 +5734,8 @@ SCRIPT_TESTCASE (exceptions_can_be_handled)
   page = gum_alloc_n_pages (1, GUM_PAGE_RW);
   gum_mprotect (page, gum_query_page_size (), GUM_PAGE_NO_ACCESS);
   gum_try_read_and_write_at (page, 0, &exception_on_read, &exception_on_write);
-  g_assert (exception_on_read);
-  g_assert (exception_on_write);
+  g_assert_true (exception_on_read);
+  g_assert_true (exception_on_write);
   gum_free_pages (page);
 
   EXPECT_SEND_MESSAGE_WITH ("\"w00t\"");
@@ -5472,7 +5743,7 @@ SCRIPT_TESTCASE (exceptions_can_be_handled)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (debugger_can_be_enabled)
+TESTCASE (debugger_can_be_enabled)
 {
   GumScript * badger, * snake;
   GumInspectorServer * server;
@@ -5530,16 +5801,34 @@ SCRIPT_TESTCASE (debugger_can_be_enabled)
   g_object_unref (badger);
 }
 
-SCRIPT_TESTCASE (objc_api_is_embedded)
+TESTCASE (objc_api_is_embedded)
 {
   COMPILE_AND_LOAD_SCRIPT ("send(typeof ObjC.available);");
   EXPECT_SEND_MESSAGE_WITH ("\"boolean\"");
 }
 
-SCRIPT_TESTCASE (java_api_is_embedded)
+TESTCASE (java_api_is_embedded)
 {
   COMPILE_AND_LOAD_SCRIPT ("send(typeof Java.available);");
   EXPECT_SEND_MESSAGE_WITH ("\"boolean\"");
+}
+
+static gboolean
+check_exception_handling_testable (void)
+{
+  if (gum_process_is_debugger_attached ())
+  {
+    g_print ("<skipping, debugger is attached> ");
+    return FALSE;
+  }
+
+  if (RUNNING_ON_VALGRIND)
+  {
+    g_print ("<skipping, not compatible with Valgrind> ");
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 static void

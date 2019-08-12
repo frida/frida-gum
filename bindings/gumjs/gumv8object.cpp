@@ -78,7 +78,6 @@ _gum_v8_object_manager_add (GumV8ObjectManager * self,
   auto object = g_slice_new (GumV8AnyObject);
 
   auto * w = new GumPersistent<Object>::type (core->isolate, wrapper);
-  w->MarkIndependent ();
   w->SetWeak (object, gum_v8_object_on_weak_notify,
       WeakCallbackType::kParameter);
   object->wrapper = w;
@@ -118,7 +117,7 @@ gum_v8_object_on_weak_notify (
 static void
 gum_v8_object_free (GumV8AnyObject * self)
 {
-  g_assert_cmpuint (self->num_active_operations, ==, 0);
+  g_assert (self->num_active_operations == 0);
   g_assert (g_queue_is_empty (self->pending_operations));
   g_queue_free (self->pending_operations);
 

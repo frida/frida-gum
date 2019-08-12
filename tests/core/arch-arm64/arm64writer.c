@@ -6,7 +6,7 @@
 
 #include "arm64writer-fixture.c"
 
-TEST_LIST_BEGIN (arm64writer)
+TESTLIST_BEGIN (arm64writer)
   TESTENTRY (cbz_reg_label)
 
   TESTENTRY (b_imm)
@@ -39,7 +39,7 @@ TEST_LIST_BEGIN (arm64writer)
   TESTENTRY (cmp_reg_reg)
 
   TESTENTRY (call_reg)
-TEST_LIST_END ()
+TESTLIST_END ()
 
 #ifdef HAVE_ARM64
 static void gum_emit_ldr_in_large_block (gpointer mem, gpointer user_data);
@@ -89,14 +89,14 @@ TESTCASE (cbz_reg_label)
 TESTCASE (b_imm)
 {
   GumAddress from = 1024;
-  g_assert (gum_arm64_writer_can_branch_directly_between (from,
+  g_assert_true (gum_arm64_writer_can_branch_directly_between (from,
       1024 + 134217727));
-  g_assert (!gum_arm64_writer_can_branch_directly_between (from,
+  g_assert_false (gum_arm64_writer_can_branch_directly_between (from,
       1024 + 134217728));
 
   from = 1024 + 134217728;
-  g_assert (gum_arm64_writer_can_branch_directly_between (from, 1024));
-  g_assert (!gum_arm64_writer_can_branch_directly_between (from, 1023));
+  g_assert_true (gum_arm64_writer_can_branch_directly_between (from, 1024));
+  g_assert_false (gum_arm64_writer_can_branch_directly_between (from, 1023));
 
   fixture->aw.pc = 1024;
   gum_arm64_writer_put_b_imm (&fixture->aw, 2048);
@@ -219,8 +219,7 @@ TESTCASE (ldr_in_large_block)
 
   code_size = code_size_in_pages * gum_query_page_size ();
   code = gum_alloc_n_pages (code_size_in_pages, GUM_PAGE_RW);
-  gum_memory_patch_code (GUM_ADDRESS (code), code_size,
-      gum_emit_ldr_in_large_block, code);
+  gum_memory_patch_code (code, code_size, gum_emit_ldr_in_large_block, code);
 
   impl = code;
   g_assert_cmpint (impl (), ==, 0x1337);

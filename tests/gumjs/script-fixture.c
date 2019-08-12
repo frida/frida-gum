@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -14,6 +14,7 @@
 #include "valgrind.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <gio/gio.h>
 #ifdef G_OS_WIN32
@@ -42,16 +43,16 @@
 #ifndef SCRIPT_SUITE
 # define SCRIPT_SUITE ""
 #endif
-#define SCRIPT_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_script_ ## NAME (TestScriptFixture * fixture, gconstpointer data)
-#define SCRIPT_TESTENTRY(NAME)                                            \
+#define TESTENTRY(NAME)                                                   \
   G_STMT_START                                                            \
   {                                                                       \
     extern void test_script_ ##NAME (TestScriptFixture * fixture,         \
         gconstpointer data);                                              \
     gchar * path;                                                         \
                                                                           \
-    path = g_strconcat ("/GumJS/Script/" SCRIPT_SUITE "/" #NAME "#",      \
+    path = g_strconcat ("/GumJS/Script/" SCRIPT_SUITE, group, #NAME "#",  \
         GUM_DUK_IS_SCRIPT_BACKEND (fixture_data) ? "DUK" : "V8",          \
         NULL);                                                            \
                                                                           \
@@ -76,7 +77,7 @@
 #define POST_MESSAGE(MSG) \
     gum_script_post (fixture->script, MSG, NULL)
 #define EXPECT_NO_MESSAGES() \
-    g_assert (test_script_fixture_try_pop_message (fixture, 1) == NULL)
+    g_assert_null (test_script_fixture_try_pop_message (fixture, 1))
 #define EXPECT_SEND_MESSAGE_WITH(PAYLOAD, ...) \
     test_script_fixture_expect_send_message_with (fixture, PAYLOAD, \
     ## __VA_ARGS__)
@@ -95,6 +96,8 @@
     ## __VA_ARGS__)
 #define PUSH_TIMEOUT(value) test_script_fixture_push_timeout (fixture, value)
 #define POP_TIMEOUT() test_script_fixture_pop_timeout (fixture)
+#define DISABLE_LOG_MESSAGE_HANDLING() \
+    fixture->enable_log_message_handling = FALSE
 
 #define GUM_PTR_CONST "ptr(\"0x%" G_GSIZE_MODIFIER "x\")"
 
@@ -118,7 +121,10 @@
 # error Unsupported architecture
 #endif
 
-typedef struct _TestScriptFixture
+typedef struct _TestScriptFixture TestScriptFixture;
+typedef struct _TestScriptMessageItem TestScriptMessageItem;
+
+struct _TestScriptFixture
 {
   GumScriptBackend * backend;
   GumScript * script;
@@ -126,16 +132,19 @@ typedef struct _TestScriptFixture
   GMainContext * context;
   GQueue messages;
   GQueue timeouts;
-} TestScriptFixture;
+  gboolean enable_log_message_handling;
+};
 
-typedef struct _TestScriptMessageItem
+struct _TestScriptMessageItem
 {
   gchar * message;
   gchar * data;
   GBytes * raw_data;
-} TestScriptMessageItem;
+};
 
 static void test_script_message_item_free (TestScriptMessageItem * item);
+static gboolean test_script_fixture_try_handle_log_message (
+    TestScriptFixture * self, const gchar * raw_message);
 static TestScriptMessageItem * test_script_fixture_try_pop_message (
     TestScriptFixture * fixture, guint timeout);
 static gboolean test_script_fixture_stop_loop (TestScriptFixture * fixture);
@@ -178,6 +187,7 @@ test_script_fixture_setup (TestScriptFixture * fixture,
   fixture->loop = g_main_loop_new (fixture->context, FALSE);
   g_queue_init (&fixture->messages);
   g_queue_init (&fixture->timeouts);
+  fixture->enable_log_message_handling = TRUE;
 
   test_script_fixture_push_timeout (fixture,
       SCRIPT_MESSAGE_DEFAULT_TIMEOUT_MSEC);
@@ -233,6 +243,9 @@ test_script_fixture_store_message (GumScript * script,
   TestScriptFixture * self = (TestScriptFixture *) user_data;
   TestScriptMessageItem * item;
 
+  if (test_script_fixture_try_handle_log_message (self, message))
+    return;
+
   item = g_slice_new (TestScriptMessageItem);
   item->message = g_strdup (message);
 
@@ -265,13 +278,67 @@ test_script_fixture_store_message (GumScript * script,
   g_main_loop_quit (self->loop);
 }
 
+static gboolean
+test_script_fixture_try_handle_log_message (TestScriptFixture * self,
+                                            const gchar * raw_message)
+{
+  gboolean handled = FALSE;
+  JsonNode * message;
+  JsonReader * reader;
+  const gchar * text;
+  const gchar * level;
+  guint color = 37;
+
+  if (!self->enable_log_message_handling)
+    return FALSE;
+
+  message = json_from_string (raw_message, NULL);
+  reader = json_reader_new (message);
+  json_node_unref (message);
+
+  json_reader_read_member (reader, "type");
+  if (strcmp (json_reader_get_string_value (reader), "log") != 0)
+    goto beach;
+  json_reader_end_member (reader);
+
+  json_reader_read_member (reader, "payload");
+  text = json_reader_get_string_value (reader);
+  json_reader_end_member (reader);
+
+  json_reader_read_member (reader, "level");
+  level = json_reader_get_string_value (reader);
+  json_reader_end_member (reader);
+  if (strcmp (level, "info") == 0)
+    color = 36;
+  else if (strcmp (level, "warning") == 0)
+    color = 33;
+  else if (strcmp (level, "error") == 0)
+    color = 31;
+  else
+    g_assert_not_reached ();
+
+  g_printerr (
+      "\033[0;%um"
+      "%s"
+      "\033[0m"
+      "\n",
+      color, text);
+
+  handled = TRUE;
+
+beach:
+  g_object_unref (reader);
+
+  return handled;
+}
+
 static void
 test_script_fixture_compile_and_load_script (TestScriptFixture * fixture,
                                              const gchar * source_template,
                                              ...)
 {
   va_list args;
-  gchar * raw_source, * source;
+  gchar * source;
   GError * err = NULL;
 
   if (fixture->script != NULL)
@@ -282,20 +349,17 @@ test_script_fixture_compile_and_load_script (TestScriptFixture * fixture,
   }
 
   va_start (args, source_template);
-  raw_source = g_strdup_vprintf (source_template, args);
+  source = g_strdup_vprintf (source_template, args);
   va_end (args);
-
-  source = g_strconcat ("\"use strict\"; ", raw_source, NULL);
 
   fixture->script = gum_script_backend_create_sync (fixture->backend,
       "testcase", source, NULL, &err);
   if (err != NULL)
     g_printerr ("%s\n", err->message);
-  g_assert (fixture->script != NULL);
-  g_assert (err == NULL);
+  g_assert_nonnull (fixture->script);
+  g_assert_null (err);
 
   g_free (source);
-  g_free (raw_source);
 
   gum_script_set_message_handler (fixture->script,
       test_script_fixture_store_message, fixture, NULL);
@@ -342,7 +406,7 @@ test_script_fixture_pop_message (TestScriptFixture * fixture)
   timeout = GPOINTER_TO_UINT (g_queue_peek_tail (&fixture->timeouts));
 
   item = test_script_fixture_try_pop_message (fixture, timeout);
-  g_assert (item != NULL);
+  g_assert_nonnull (item);
 
   return item;
 }
@@ -389,7 +453,7 @@ test_script_fixture_expect_send_message_with_prefix (
   item = test_script_fixture_pop_message (fixture);
   expected_message_prefix =
       g_strconcat ("{\"type\":\"send\",\"payload\":", prefix, NULL);
-  g_assert (g_str_has_prefix (item->message, expected_message_prefix));
+  g_assert_true (g_str_has_prefix (item->message, expected_message_prefix));
   test_script_message_item_free (item);
   g_free (expected_message_prefix);
 
@@ -411,12 +475,12 @@ test_script_fixture_expect_send_message_with_payload_and_data (
   g_assert_cmpstr (item->message, ==, expected_message);
   if (data != NULL)
   {
-    g_assert (item->data != NULL);
+    g_assert_nonnull (item->data);
     g_assert_cmpstr (item->data, ==, data);
   }
   else
   {
-    g_assert (item->data == NULL);
+    g_assert_null (item->data);
   }
   test_script_message_item_free (item);
   g_free (expected_message);

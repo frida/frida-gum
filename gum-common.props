@@ -23,6 +23,7 @@
     <ClInclude Include="gum\gumevent.h" />
     <ClInclude Include="gum\gumeventsink.h" />
     <ClInclude Include="gum\gumfunction.h" />
+    <ClInclude Include="gum\gumheapapi.h" />
     <ClInclude Include="gum\guminterceptor.h" />
     <ClInclude Include="gum\guminterceptor-priv.h" />
     <ClInclude Include="gum\guminvocationcontext.h" />
@@ -58,6 +59,7 @@
     <ClCompile Include="gum\gumcodesegment.c" />
     <ClCompile Include="gum\gumexceptor.c" />
     <ClCompile Include="gum\gumeventsink.c" />
+    <ClCompile Include="gum\gumheapapi.c" />
     <ClCompile Include="gum\guminterceptor.c" />
     <ClCompile Include="gum\guminvocationcontext.c" />
     <ClCompile Include="gum\guminvocationlistener.c" />
@@ -153,7 +155,6 @@
     <ClInclude Include="libs\gum\heap\gumboundschecker.h" />
     <ClInclude Include="libs\gum\heap\gumcobject.h" />
     <ClInclude Include="libs\gum\heap\gumcobjecttracker.h" />
-    <ClInclude Include="libs\gum\heap\gumheapapi.h" />
     <ClInclude Include="libs\gum\heap\guminstancetracker.h" />
     <ClInclude Include="libs\gum\heap\gumpagepool.h" />
     <ClInclude Include="libs\gum\heap\gumsanitychecker.h" />
@@ -167,7 +168,6 @@
     <ClCompile Include="libs\gum\heap\gumboundschecker.c" />
     <ClCompile Include="libs\gum\heap\gumcobject.c" />
     <ClCompile Include="libs\gum\heap\gumcobjecttracker.c" />
-    <ClCompile Include="libs\gum\heap\gumheapapi.c" />
     <ClCompile Include="libs\gum\heap\guminstancetracker.c" />
     <ClCompile Include="libs\gum\heap\gumpagepool.c" />
     <ClCompile Include="libs\gum\heap\gumsanitychecker.c" />

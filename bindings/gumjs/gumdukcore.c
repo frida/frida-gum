@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -292,7 +292,6 @@ GUMJS_DECLARE_FUNCTION (gumjs_wait_for_event)
 
 GUMJS_DECLARE_GETTER (gumjs_get_promise)
 
-GUMJS_DECLARE_CONSTRUCTOR (gumjs_frida_construct)
 GUMJS_DECLARE_GETTER (gumjs_frida_get_heap_size)
 GUMJS_DECLARE_GETTER (gumjs_frida_get_source_map)
 GUMJS_DECLARE_GETTER (gumjs_frida_objc_get_source_map)
@@ -300,7 +299,6 @@ GUMJS_DECLARE_GETTER (gumjs_frida_java_get_source_map)
 GUMJS_DECLARE_FUNCTION (gumjs_frida_objc_load)
 GUMJS_DECLARE_FUNCTION (gumjs_frida_java_load)
 
-GUMJS_DECLARE_CONSTRUCTOR (gumjs_script_construct)
 GUMJS_DECLARE_GETTER (gumjs_script_get_file_name)
 GUMJS_DECLARE_GETTER (gumjs_script_get_source_map)
 GUMJS_DECLARE_FUNCTION (gumjs_script_next_tick)
@@ -311,7 +309,6 @@ static int gum_duk_core_on_global_enumerate (duk_context * ctx, void * udata);
 static int gum_duk_core_on_global_get (duk_context * ctx, const char * name,
     void * udata);
 
-GUMJS_DECLARE_CONSTRUCTOR (gumjs_weak_ref_module_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_weak_ref_bind)
 GUMJS_DECLARE_FUNCTION (gumjs_weak_ref_unbind)
 
@@ -363,12 +360,15 @@ GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_shl)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_not)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_compare)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_int32)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_uint32)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_string)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_json)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_match_pattern)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_resource_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_native_resource_finalize)
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_kernel_resource_construct)
+GUMJS_DECLARE_FINALIZER (gumjs_kernel_resource_finalize)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_function_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_native_function_finalize)
@@ -544,6 +544,7 @@ static const duk_function_list_entry gumjs_native_pointer_functions[] =
   { "not", gumjs_native_pointer_not, 0 },
   { "compare", gumjs_native_pointer_compare, 1 },
   { "toInt32", gumjs_native_pointer_to_int32, 0 },
+  { "toUInt32", gumjs_native_pointer_to_uint32, 0 },
   { "toString", gumjs_native_pointer_to_string, 1 },
   { "toJSON", gumjs_native_pointer_to_json, 0 },
   { "toMatchPattern", gumjs_native_pointer_to_match_pattern, 0 },
@@ -925,25 +926,24 @@ _gum_duk_core_init (GumDukCore * self,
       DUK_DEFPROP_SET_CONFIGURABLE | DUK_DEFPROP_HAVE_GETTER);
   duk_pop (ctx);
 
-  duk_push_c_function (ctx, gumjs_frida_construct, 0);
   duk_push_object (ctx);
+  duk_push_string (ctx, FRIDA_VERSION);
+  duk_put_prop_string (ctx, -2, "version");
+  _gum_duk_add_properties_to_class_by_heapptr (ctx,
+      duk_require_heapptr (ctx, -1), gumjs_frida_values);
   duk_put_function_list (ctx, -1, gumjs_frida_functions);
-  duk_put_prop_string (ctx, -2, "prototype");
-  duk_new (ctx, 0);
   duk_put_global_string (ctx, "Frida");
 
-  duk_push_c_function (ctx, gumjs_script_construct, 0);
   duk_push_object (ctx);
+  duk_push_string (ctx, "DUK");
+  duk_put_prop_string (ctx, -2, "runtime");
+  _gum_duk_add_properties_to_class_by_heapptr (ctx,
+      duk_require_heapptr (ctx, -1), gumjs_script_values);
   duk_put_function_list (ctx, -1, gumjs_script_functions);
-  duk_put_prop_string (ctx, -2, "prototype");
-  duk_new (ctx, 0);
   duk_put_global_string (ctx, "Script");
 
-  duk_push_c_function (ctx, gumjs_weak_ref_module_construct, 0);
   duk_push_object (ctx);
   duk_put_function_list (ctx, -1, gumjs_weak_ref_module_functions);
-  duk_put_prop_string (ctx, -2, "prototype");
-  duk_new (ctx, 0);
   duk_put_global_string (ctx, "WeakRef");
 
   duk_push_c_function (ctx, gumjs_weak_ref_construct, 2);
@@ -998,6 +998,12 @@ _gum_duk_core_init (GumDukCore * self,
       gumjs_native_resource_construct, 2, gumjs_native_resource_finalize);
   duk_get_global_string (ctx, "NativeResource");
   self->native_resource = _gum_duk_require_heapptr (ctx, -1);
+  duk_pop (ctx);
+
+  _gum_duk_create_subclass (ctx, "UInt64", "KernelResource",
+      gumjs_kernel_resource_construct, 2, gumjs_kernel_resource_finalize);
+  duk_get_global_string (ctx, "KernelResource");
+  self->kernel_resource = _gum_duk_require_heapptr (ctx, -1);
   duk_pop (ctx);
 
   _gum_duk_create_subclass (ctx, "NativePointer", "NativeFunction",
@@ -1311,6 +1317,8 @@ _gum_duk_scope_suspend (GumDukScope * self)
   GumDukCore * core = self->core;
   guint i;
 
+  gum_interceptor_end_transaction (core->interceptor->interceptor);
+
   duk_suspend (self->ctx, &self->thread_state);
 
   g_assert (core->current_scope != NULL);
@@ -1340,6 +1348,8 @@ _gum_duk_scope_resume (GumDukScope * self)
   self->previous_mutex_depth = 0;
 
   duk_resume (self->ctx, &self->thread_state);
+
+  gum_interceptor_begin_transaction (core->interceptor->interceptor);
 }
 
 gboolean
@@ -1506,21 +1516,6 @@ GUMJS_DEFINE_GETTER (gumjs_get_promise)
   return 1;
 }
 
-GUMJS_DEFINE_CONSTRUCTOR (gumjs_frida_construct)
-{
-  duk_push_this (ctx);
-
-  duk_push_string (ctx, FRIDA_VERSION);
-  duk_put_prop_string (ctx, -2, "version");
-
-  _gum_duk_add_properties_to_class_by_heapptr (ctx,
-      duk_require_heapptr (ctx, -1), gumjs_frida_values);
-
-  duk_pop (ctx);
-
-  return 0;
-}
-
 GUMJS_DEFINE_GETTER (gumjs_frida_get_heap_size)
 {
   duk_push_uint (ctx, gum_peek_private_memory_usage ());
@@ -1563,21 +1558,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_frida_objc_load)
 GUMJS_DEFINE_FUNCTION (gumjs_frida_java_load)
 {
   gum_duk_bundle_load (gumjs_java_modules, ctx);
-
-  return 0;
-}
-
-GUMJS_DEFINE_CONSTRUCTOR (gumjs_script_construct)
-{
-  duk_push_this (ctx);
-
-  duk_push_string (ctx, "DUK");
-  duk_put_prop_string (ctx, -2, "runtime");
-
-  _gum_duk_add_properties_to_class_by_heapptr (ctx,
-      duk_require_heapptr (ctx, -1), gumjs_script_values);
-
-  duk_pop (ctx);
 
   return 0;
 }
@@ -1773,11 +1753,6 @@ gum_duk_core_on_global_get (duk_context * ctx,
   }
 
   return result;
-}
-
-GUMJS_DEFINE_CONSTRUCTOR (gumjs_weak_ref_module_construct)
-{
-  return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_bind)
@@ -2475,6 +2450,19 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_int32)
   return 1;
 }
 
+GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_uint32)
+{
+  GumDukNativePointer * self;
+  guint32 result;
+
+  self = gumjs_native_pointer_from_args (args);
+
+  result = (guint32) GPOINTER_TO_SIZE (self->value);
+
+  duk_push_uint (ctx, result);
+  return 1;
+}
+
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_string)
 {
   GumDukNativePointer * self;
@@ -2592,6 +2580,46 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_resource_finalize)
     self->notify (self->parent.value);
 
   g_slice_free (GumDukNativeResource, self);
+
+  return 0;
+}
+
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_kernel_resource_construct)
+{
+  GumDukCore * core = args->core;
+  guint64 data;
+  GumDukKernelNotify notify;
+  GumDukKernelResource * resource;
+  GumDukUInt64 * u64;
+
+  data = _gum_duk_require_uint64 (ctx, 0, core);
+  notify = GUM_POINTER_TO_FUNCPTR (GumDukKernelNotify,
+      duk_require_pointer (ctx, 1));
+
+  resource = g_slice_new (GumDukKernelResource);
+  u64 = &resource->parent;
+  u64->value = data;
+  resource->notify = notify;
+
+  duk_push_this (ctx);
+  _gum_duk_put_data (ctx, -1, resource);
+  duk_pop (ctx);
+
+  return 0;
+}
+
+GUMJS_DEFINE_FINALIZER (gumjs_kernel_resource_finalize)
+{
+  GumDukKernelResource * self;
+
+  self = _gum_duk_steal_data (ctx, 0);
+  if (self == NULL)
+    return 0;
+
+  if (self->notify != NULL)
+    self->notify (self->parent.value);
+
+  g_slice_free (GumDukKernelResource, self);
 
   return 0;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -62,8 +62,6 @@ gum_mips_relocator_init (GumMipsRelocator * relocator,
                          gconstpointer input_code,
                          GumMipsWriter * output)
 {
-  cs_err err;
-
   relocator->ref_count = 1;
 
 #if G_BYTE_ORDER == G_LITTLE_ENDIAN
@@ -83,9 +81,7 @@ gum_mips_relocator_init (GumMipsRelocator * relocator,
       &relocator->capstone);
   #endif
 #endif
-  g_assert_cmpint (err, ==, CS_ERR_OK);
-  err = cs_option (relocator->capstone, CS_OPT_DETAIL, CS_OPT_ON);
-  g_assert_cmpint (err, ==, CS_ERR_OK);
+  cs_option (relocator->capstone, CS_OPT_DETAIL, CS_OPT_ON);
   relocator->input_insns = g_new0 (cs_insn *, GUM_MAX_INPUT_INSN_COUNT);
 
   relocator->output = NULL;
@@ -153,14 +149,14 @@ static void
 gum_mips_relocator_increment_inpos (GumMipsRelocator * self)
 {
   self->inpos++;
-  g_assert_cmpint (self->inpos, >, self->outpos);
+  g_assert (self->inpos > self->outpos);
 }
 
 static void
 gum_mips_relocator_increment_outpos (GumMipsRelocator * self)
 {
   self->outpos++;
-  g_assert_cmpint (self->outpos, <=, self->inpos);
+  g_assert (self->outpos <= self->inpos);
 }
 
 guint
@@ -424,7 +420,7 @@ gum_mips_relocator_write_all (GumMipsRelocator * self)
   while (gum_mips_relocator_write_one (self))
     count++;
 
-  g_assert_cmpuint (count, >, 0);
+  g_assert (count > 0);
 }
 
 gboolean
@@ -495,7 +491,6 @@ gum_mips_relocator_can_relocate (gpointer address,
   if (!rl.eoi)
   {
     csh capstone;
-    cs_err err;
     cs_insn * insn;
     size_t count, i;
     gboolean eoi;
@@ -517,9 +512,7 @@ gum_mips_relocator_can_relocate (gpointer address,
         &capstone);
     #endif
 #endif
-    g_assert_cmpint (err, == , CS_ERR_OK);
-    err = cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
-    g_assert_cmpint (err, ==, CS_ERR_OK);
+    cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
 
     count = cs_disasm (capstone, rl.input_cur, 1024, rl.input_pc, 0, &insn);
     g_assert (insn != NULL);
@@ -674,7 +667,7 @@ gum_mips_relocator_relocate (gpointer from,
   do
   {
     reloc_bytes = gum_mips_relocator_read_one (&rl, NULL);
-    g_assert_cmpuint (reloc_bytes, !=, 0);
+    g_assert (reloc_bytes != 0);
   }
   while (reloc_bytes < min_bytes || rl.delay_slot_pending);
 

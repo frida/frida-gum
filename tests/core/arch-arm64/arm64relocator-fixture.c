@@ -15,7 +15,7 @@
     void test_arm64_relocator_ ## NAME ( \
         TestArm64RelocatorFixture * fixture, gconstpointer data)
 #define TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Core/Arm64Relocator", test_arm64_relocator, \
+    TESTENTRY_WITH_FIXTURE ("Core/Arm64Relocator", test_arm64_relocator, \
         NAME, TestArm64RelocatorFixture)
 
 #define TEST_OUTBUF_SIZE 32

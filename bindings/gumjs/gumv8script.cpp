@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -9,6 +9,7 @@
 
 #include "gumscripttask.h"
 #include "gumv8script-priv.h"
+#include "gumv8value.h"
 
 using namespace v8;
 
@@ -307,9 +308,10 @@ gum_v8_script_create_context (GumV8Script * self,
         isolate, global_templ);
     _gum_v8_kernel_init (&self->kernel, &self->core, global_templ);
     _gum_v8_memory_init (&self->memory, &self->core, global_templ);
-    _gum_v8_process_init (&self->process, &self->core, global_templ);
-    _gum_v8_thread_init (&self->thread, &self->core, global_templ);
     _gum_v8_module_init (&self->module, &self->core, global_templ);
+    _gum_v8_process_init (&self->process, &self->module, &self->core,
+        global_templ);
+    _gum_v8_thread_init (&self->thread, &self->core, global_templ);
     _gum_v8_file_init (&self->file, &self->core, global_templ);
     _gum_v8_stream_init (&self->stream, &self->core, global_templ);
     _gum_v8_socket_init (&self->socket, &self->core, global_templ);
@@ -332,9 +334,9 @@ gum_v8_script_create_context (GumV8Script * self,
     _gum_v8_core_realize (&self->core);
     _gum_v8_kernel_realize (&self->kernel);
     _gum_v8_memory_realize (&self->memory);
+    _gum_v8_module_realize (&self->module);
     _gum_v8_process_realize (&self->process);
     _gum_v8_thread_realize (&self->thread);
-    _gum_v8_module_realize (&self->module);
     _gum_v8_file_realize (&self->file);
     _gum_v8_stream_realize (&self->stream);
     _gum_v8_socket_realize (&self->socket);
@@ -365,9 +367,9 @@ gum_v8_script_create_context (GumV8Script * self,
     {
       Handle<Message> message = trycatch.Message ();
       Handle<Value> exception = trycatch.Exception ();
-      String::Utf8Value exception_str (exception);
+      String::Utf8Value exception_str (isolate, exception);
       g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED, "Script(line %d): %s",
-          message->GetLineNumber (), *exception_str);
+          message->GetLineNumber (context).FromMaybe (-1), *exception_str);
     }
   }
 
@@ -399,9 +401,9 @@ gum_v8_script_destroy_context (GumV8Script * self)
     _gum_v8_socket_dispose (&self->socket);
     _gum_v8_stream_dispose (&self->stream);
     _gum_v8_file_dispose (&self->file);
-    _gum_v8_module_dispose (&self->module);
     _gum_v8_thread_dispose (&self->thread);
     _gum_v8_process_dispose (&self->process);
+    _gum_v8_module_dispose (&self->module);
     _gum_v8_memory_dispose (&self->memory);
     _gum_v8_kernel_dispose (&self->kernel);
     _gum_v8_core_dispose (&self->core);
@@ -426,9 +428,9 @@ gum_v8_script_destroy_context (GumV8Script * self)
   _gum_v8_socket_finalize (&self->socket);
   _gum_v8_stream_finalize (&self->stream);
   _gum_v8_file_finalize (&self->file);
-  _gum_v8_module_finalize (&self->module);
   _gum_v8_thread_finalize (&self->thread);
   _gum_v8_process_finalize (&self->process);
+  _gum_v8_module_finalize (&self->module);
   _gum_v8_memory_finalize (&self->memory);
   _gum_v8_kernel_finalize (&self->kernel);
   _gum_v8_core_finalize (&self->core);
@@ -505,13 +507,15 @@ gum_v8_script_perform_load_task (GumV8Script * self,
 
     {
       ScriptScope scope (self);
+      auto isolate = self->isolate;
+
       auto platform =
           (GumV8Platform *) gum_v8_script_backend_get_platform (self->backend);
-
       gum_v8_bundle_run (platform->GetRuntimeBundle ());
 
-      auto code = Local<Script>::New (self->isolate, *self->code);
-      code->Run ();
+      auto code = Local<Script>::New (isolate, *self->code);
+      auto result = code->Run (isolate->GetCurrentContext ());
+      _gum_v8_ignore_result (result);
     }
 
     self->state = GUM_SCRIPT_STATE_LOADED;
@@ -594,7 +598,7 @@ gum_v8_script_complete_unload_task (GumV8Script * self,
 static void
 gum_v8_script_try_unload (GumV8Script * self)
 {
-  g_assert_cmpuint (self->state, ==, GUM_SCRIPT_STATE_UNLOADING);
+  g_assert (self->state == GUM_SCRIPT_STATE_UNLOADING);
 
   gboolean success;
 

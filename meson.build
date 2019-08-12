@@ -94,7 +94,10 @@ endforeach
 
 headers = [
   'elf.h',
+  'link.h',
   'stdint.h',
+  'asm/prctl.h',
+  'asm/ptrace.h',
   'sys/elf.h',
   'sys/user.h',
 ]
@@ -151,7 +154,7 @@ if cc.compiles(asan_src, name: 'compiling with ASan')
   cdata.set('HAVE_ASAN', 1)
 endif
 
-glib_dep = dependency('glib-2.0', version: '>=2.53')
+glib_dep = dependency('glib-2.0', version: '>=2.60')
 gobject_dep = dependency('gobject-2.0')
 gmodule_dep = dependency('gmodule-2.0')
 gio_dep = dependency('gio-2.0')
@@ -211,11 +214,13 @@ else
   endif
 endif
 
-if get_option('enable_gumpp')
+have_gumpp = not get_option('gumpp').disabled()
+if have_gumpp
   cdata.set('HAVE_GUMPP', 1)
 endif
 
-if get_option('enable_gumjs')
+have_gumjs = not get_option('gumjs').disabled()
+if have_gumjs
   cdata.set('HAVE_GUMJS', 1)
 
   json_glib_dep = dependency('json-glib-1.0')
@@ -235,27 +240,25 @@ if get_option('enable_gumjs')
     gumjs_extra_libraries += ['-lm']
   endif
 
-  enable_diet_value = get_option('enable_diet')
-  if enable_diet_value == 'auto'
-    cpu = host_machine.cpu_family()
-    is_embedded_linux = host_os == 'linux' and (cpu == 'arm' or cpu == 'aarch64' or cpu == 'mips')
-    is_arm_hardfloat_linux = host_os == 'linux' and cpu == 'arm' and host_machine.cpu().endswith('hf')
-    enable_diet = (is_embedded_linux and not is_arm_hardfloat_linux) or host_os == 'qnx'
-  else
-    enable_diet = enable_diet_value == 'yes'
-  endif
-  if not enable_diet
-    v8_dep = dependency('v8-7.0', version: '>=7.0.110', required: false)
-    have_v8 = v8_dep.found()
-  else
-    have_v8 = false
+  have_duktape = not get_option('duktape').disabled()
+  if have_duktape
+    cdata.set('HAVE_DUKTAPE', 1)
   endif
 
+  v8_dep = dependency('v8-7.0', version: '>=7.6.48', required: get_option('v8'))
+  have_v8 = v8_dep.found()
   if have_v8
     cdata.set('HAVE_V8', 1)
     gumjs_extra_deps += [v8_dep]
     gumjs_extra_requires += ['v8-7.0']
   endif
+
+  if not (have_duktape or have_v8)
+    error('Cannot build JavaScript bindings without any runtimes enabled')
+  endif
+else
+  have_duktape = false
+  have_v8 = false
 endif
 
 configure_file(input: 'config.h.in',
@@ -287,6 +290,12 @@ gum_incdirs = [
   include_directories('libs/gum/prof'),
 ]
 
+if host_os_family == 'linux' or host_os_family == 'qnx'
+  gum_incdirs += [
+    include_directories('gum/backend-elf'),
+  ]
+endif
+
 install_header_basedir = 'frida-' + api_version
 install_header_subdir = install_header_basedir + '/gum'
 
@@ -294,4 +303,7 @@ subdir('gum')
 subdir('libs')
 subdir('bindings')
 subdir('vapi')
-subdir('tests')
+
+if get_option('tests')
+  subdir('tests')
+endif

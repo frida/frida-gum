@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -294,6 +294,7 @@ gum_v8_listen_operation_perform (GumV8ListenOperation * self)
     auto core = self->core;
     ScriptScope scope (core->script);
     auto isolate = core->isolate;
+    auto context = isolate->GetCurrentContext ();
 
     Local<Value> error_value;
     Local<Value> listener_value;
@@ -330,7 +331,9 @@ gum_v8_listen_operation_perform (GumV8ListenOperation * self)
 
     Handle<Value> argv[] = { error_value, listener_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
-    callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
+    auto recv = Undefined (isolate);
+    auto result = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+    _gum_v8_ignore_result (result);
   }
 
   gum_v8_module_operation_finish (self);
@@ -438,6 +441,7 @@ gum_v8_connect_operation_finish (GSocketClient * client,
     auto core = self->core;
     ScriptScope scope (core->script);
     auto isolate = core->isolate;
+    auto context = isolate->GetCurrentContext ();
 
     Local<Value> error_value;
     Local<Value> connection_value;
@@ -458,7 +462,9 @@ gum_v8_connect_operation_finish (GSocketClient * client,
 
     Handle<Value> argv[] = { error_value, connection_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
-    callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
+    auto recv = Undefined (isolate);
+    auto res = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+    _gum_v8_ignore_result (res);
   }
 
   gum_v8_module_operation_finish (self);
@@ -572,8 +578,8 @@ gum_v8_socket_listener_new (GSocketListener * listener,
 
   auto ctor (Local<FunctionTemplate>::New (isolate, *module->listener));
   Handle<Value> argv[] = { External::New (isolate, listener) };
-  return ctor->GetFunction ()->NewInstance (context, G_N_ELEMENTS (argv),
-      argv).ToLocalChecked ();
+  return ctor->GetFunction (context).ToLocalChecked ()
+      ->NewInstance (context, G_N_ELEMENTS (argv), argv).ToLocalChecked ();
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_socket_listener_construct)
@@ -607,9 +613,12 @@ gum_v8_close_listener_operation_perform (GumV8CloseListenerOperation * self)
     auto core = self->core;
     ScriptScope scope (core->script);
     auto isolate = core->isolate;
+    auto context = isolate->GetCurrentContext ();
 
     auto callback (Local<Function>::New (isolate, *self->callback));
-    callback->Call (Undefined (isolate), 0, nullptr);
+    auto recv = Undefined (isolate);
+    auto result = callback->Call (context, recv, 0, nullptr);
+    _gum_v8_ignore_result (result);
   }
 
   gum_v8_object_operation_finish (self);
@@ -649,6 +658,7 @@ gum_v8_accept_operation_finish (GSocketListener * listener,
     auto core = self->core;
     ScriptScope scope (core->script);
     auto isolate = core->isolate;
+    auto context = isolate->GetCurrentContext ();
 
     Local<Value> error_value;
     Local<Value> connection_value;
@@ -669,7 +679,9 @@ gum_v8_accept_operation_finish (GSocketListener * listener,
 
     Handle<Value> argv[] = { error_value, connection_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
-    callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
+    auto recv = Undefined (isolate);
+    auto res = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+    _gum_v8_ignore_result (res);
   }
 
   gum_v8_object_operation_finish (self);
@@ -685,8 +697,8 @@ gum_v8_socket_connection_new (GSocketConnection * connection,
   Local<FunctionTemplate> ctor (
       Local<FunctionTemplate>::New (isolate, *module->connection));
   Handle<Value> argv[] = { External::New (isolate, connection) };
-  return ctor->GetFunction ()->NewInstance (context, G_N_ELEMENTS (argv),
-      argv).ToLocalChecked ();
+  return ctor->GetFunction (context).ToLocalChecked ()
+      ->NewInstance (context, G_N_ELEMENTS (argv), argv).ToLocalChecked ();
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_socket_connection_construct)
@@ -700,8 +712,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_socket_connection_construct)
   auto base_ctor (Local<FunctionTemplate>::New (isolate,
       *core->script->stream.io_stream));
   Handle<Value> argv[] = { External::New (isolate, connection) };
-  base_ctor->GetFunction ()->Call (context, wrapper, G_N_ELEMENTS (argv), argv)
-      .ToLocalChecked ();
+  base_ctor->GetFunction (context).ToLocalChecked ()
+      ->Call (context, wrapper, G_N_ELEMENTS (argv), argv).ToLocalChecked ();
 }
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_socket_connection_set_no_delay, GumV8IOStream)
@@ -730,6 +742,7 @@ gum_v8_set_no_delay_operation_perform (GumV8SetNoDelayOperation * self)
     auto core = self->core;
     ScriptScope scope (core->script);
     auto isolate = core->isolate;
+    auto context = isolate->GetCurrentContext ();
 
     Local<Value> error_value;
     auto success_value = success ? True (isolate) : False (isolate);
@@ -747,7 +760,9 @@ gum_v8_set_no_delay_operation_perform (GumV8SetNoDelayOperation * self)
 
     Handle<Value> argv[] = { error_value, success_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
-    callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
+    auto recv = Undefined (isolate);
+    auto result = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+    _gum_v8_ignore_result (result);
   }
 
   gum_v8_object_operation_finish (self);
@@ -771,7 +786,7 @@ gum_v8_socket_family_get (Handle<Value> value,
     _gum_v8_throw_ascii_literal (isolate, "invalid socket address family");
     return FALSE;
   }
-  String::Utf8Value value_utf8 (value.As<String> ());
+  String::Utf8Value value_utf8 (isolate, value);
   auto value_str = *value_utf8;
 
   if (strcmp (value_str, "unix") == 0)
@@ -814,7 +829,7 @@ gum_v8_unix_socket_address_type_get (Handle<Value> value,
     _gum_v8_throw_ascii_literal (isolate, "invalid UNIX socket address type");
     return FALSE;
   }
-  String::Utf8Value value_utf8 (value.As<String> ());
+  String::Utf8Value value_utf8 (isolate, value);
   auto value_str = *value_utf8;
 
   if (strcmp (value_str, "anonymous") == 0)

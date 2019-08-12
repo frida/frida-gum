@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,14 +7,17 @@
 #include "gumapiresolver.h"
 
 #include "testutil.h"
+#ifdef HAVE_ANDROID
+# include "backend-linux/gumandroid.h"
+#endif
 
 #include <string.h>
 
-#define API_RESOLVER_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_api_resolver_ ## NAME ( \
         TestApiResolverFixture * fixture, gconstpointer data)
-#define API_RESOLVER_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Core/ApiResolver", test_api_resolver, NAME, \
+#define TESTENTRY(NAME) \
+    TESTENTRY_WITH_FIXTURE ("Core/ApiResolver", test_api_resolver, NAME, \
         TestApiResolverFixture)
 
 typedef struct _TestApiResolverFixture TestApiResolverFixture;

@@ -11,11 +11,11 @@
 
 #include <string.h>
 
-#define PAGEPOOL_TESTCASE(NAME) \
+#define TESTCASE(NAME) \
     void test_page_pool_ ## NAME ( \
         TestPagePoolFixture * fixture, gconstpointer data)
-#define PAGEPOOL_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Heap/PagePool", test_page_pool, NAME, \
+#define TESTENTRY(NAME) \
+    TESTENTRY_WITH_FIXTURE ("Heap/PagePool", test_page_pool, NAME, \
         TestPagePoolFixture)
 
 typedef struct _TestPagePoolFixture

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,7 +7,9 @@
 #ifndef __GUM_SANITY_CHECKER_H__
 #define __GUM_SANITY_CHECKER_H__
 
-#include "gumheapapi.h"
+#include <gum/gumheapapi.h>
+
+G_BEGIN_DECLS
 
 typedef guint GumSanityCheckFlags;
 
@@ -28,8 +30,6 @@ struct _GumSanityChecker
 {
   GumSanityCheckerPrivate * priv;
 };
-
-G_BEGIN_DECLS
 
 GUM_API GumSanityChecker * gum_sanity_checker_new (GumSanityOutputFunc func,
     gpointer user_data);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -8,51 +8,62 @@
 #include "stalker-arm64-fixture.c"
 
 #include <lzma.h>
+#ifdef HAVE_LINUX
+# include <sys/prctl.h>
+#endif
 
-TEST_LIST_BEGIN (stalker)
+TESTLIST_BEGIN (stalker)
 
   /* EVENTS */
-  STALKER_TESTENTRY (no_events)
-  STALKER_TESTENTRY (call)
-  STALKER_TESTENTRY (ret)
-  STALKER_TESTENTRY (exec)
-  STALKER_TESTENTRY (call_depth)
+  TESTENTRY (no_events)
+  TESTENTRY (call)
+  TESTENTRY (ret)
+  TESTENTRY (exec)
+  TESTENTRY (call_depth)
 
   /* PROBES */
-  STALKER_TESTENTRY (call_probe)
+  TESTENTRY (call_probe)
 
   /* TRANSFORMERS */
-  STALKER_TESTENTRY (custom_transformer)
+  TESTENTRY (custom_transformer)
+  TESTENTRY (unfollow_should_be_allowed_before_first_transform)
+  TESTENTRY (unfollow_should_be_allowed_mid_first_transform)
+  TESTENTRY (unfollow_should_be_allowed_after_first_transform)
+  TESTENTRY (unfollow_should_be_allowed_before_second_transform)
+  TESTENTRY (unfollow_should_be_allowed_mid_second_transform)
+  TESTENTRY (unfollow_should_be_allowed_after_second_transform)
 
   /* EXCLUSION */
-  STALKER_TESTENTRY (exclude_bl)
-  STALKER_TESTENTRY (exclude_blr)
-  STALKER_TESTENTRY (exclude_bl_with_unfollow)
-  STALKER_TESTENTRY (exclude_blr_with_unfollow)
+  TESTENTRY (exclude_bl)
+  TESTENTRY (exclude_blr)
+  TESTENTRY (exclude_bl_with_unfollow)
+  TESTENTRY (exclude_blr_with_unfollow)
 
   /* BRANCH */
-  STALKER_TESTENTRY (unconditional_branch)
-  STALKER_TESTENTRY (unconditional_branch_reg)
-  STALKER_TESTENTRY (conditional_branch)
-  STALKER_TESTENTRY (compare_and_branch)
-  STALKER_TESTENTRY (test_bit_and_branch)
+  TESTENTRY (unconditional_branch)
+  TESTENTRY (unconditional_branch_reg)
+  TESTENTRY (conditional_branch)
+  TESTENTRY (compare_and_branch)
+  TESTENTRY (test_bit_and_branch)
 
   /* FOLLOWS */
-  STALKER_TESTENTRY (follow_std_call)
-  STALKER_TESTENTRY (follow_return)
-  STALKER_TESTENTRY (follow_syscall)
-  STALKER_TESTENTRY (follow_thread)
+  TESTENTRY (follow_std_call)
+  TESTENTRY (follow_return)
+  TESTENTRY (follow_syscall)
+  TESTENTRY (follow_thread)
 
   /* EXTRA */
-  STALKER_TESTENTRY (heap_api)
-  STALKER_TESTENTRY (no_register_clobber)
-  STALKER_TESTENTRY (performance)
+  TESTENTRY (heap_api)
+  TESTENTRY (no_register_clobber)
+  TESTENTRY (performance)
 
-TEST_LIST_END ()
+TESTLIST_END ()
 
 static void insert_extra_add_after_sub (GumStalkerIterator * iterator,
     GumStalkerWriter * output, gpointer user_data);
 static void store_x0 (GumCpuContext * cpu_context, gpointer user_data);
+static void unfollow_during_transform (GumStalkerIterator * iterator,
+    GumStalkerWriter * output, gpointer user_data);
 static gboolean store_range_of_test_runner (const GumModuleDetails * details,
     gpointer user_data);
 static void pretend_workload (GumMemoryRange * runner_range);
@@ -92,13 +103,13 @@ invoke_flat (TestArm64StalkerFixture * fixture,
   return invoke_flat_expecting_return_value (fixture, mask, 2);
 }
 
-STALKER_TESTCASE (no_events)
+TESTCASE (no_events)
 {
   invoke_flat (fixture, GUM_NOTHING);
   g_assert_cmpuint (fixture->sink->events->len, ==, 0);
 }
 
-STALKER_TESTCASE (call)
+TESTCASE (call)
 {
   StalkerTestFunc func;
   GumCallEvent * ev;
@@ -113,7 +124,7 @@ STALKER_TESTCASE (call)
   GUM_ASSERT_CMPADDR (ev->target, ==, func);
 }
 
-STALKER_TESTCASE (ret)
+TESTCASE (ret)
 {
   StalkerTestFunc func;
   GumRetEvent * ev;
@@ -131,7 +142,7 @@ STALKER_TESTCASE (ret)
   GUM_ASSERT_CMPADDR (ev->target, ==, fixture->last_invoke_retaddr);
 }
 
-STALKER_TESTCASE (exec)
+TESTCASE (exec)
 {
   StalkerTestFunc func;
   GumRetEvent * ev;
@@ -146,7 +157,7 @@ STALKER_TESTCASE (exec)
   GUM_ASSERT_CMPADDR (ev->location, ==, func);
 }
 
-STALKER_TESTCASE (call_depth)
+TESTCASE (call_depth)
 {
   guint8 * code;
   GumArm64Writer cw;
@@ -155,7 +166,7 @@ STALKER_TESTCASE (call_depth)
   StalkerTestFunc func;
   gint r;
 
-  code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  code = gum_alloc_n_pages (1, GUM_PAGE_RW);
   gum_arm64_writer_init (&cw, code);
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
@@ -193,7 +204,7 @@ STALKER_TESTCASE (call_depth)
   gum_arm64_writer_put_ret (&cw);
 
   gum_arm64_writer_flush (&cw);
-  gum_clear_cache (cw.base, gum_arm64_writer_offset (&cw));
+  gum_memory_mark_code (code, gum_arm64_writer_offset (&cw));
   gum_arm64_writer_clear (&cw);
 
   fixture->sink->mask = GUM_CALL | GUM_RET;
@@ -222,7 +233,7 @@ struct _CallProbeContext
 
 static void probe_func_a_invocation (GumCallSite * site, gpointer user_data);
 
-STALKER_TESTCASE (call_probe)
+TESTCASE (call_probe)
 {
   const guint32 code_template[] =
   {
@@ -309,7 +320,7 @@ probe_func_a_invocation (GumCallSite * site,
   g_assert_cmphex (((gsize *) site->stack_data)[1], ==, 0x22);
 }
 
-STALKER_TESTCASE (custom_transformer)
+TESTCASE (custom_transformer)
 {
   guint64 last_x0 = 0;
 
@@ -362,7 +373,126 @@ store_x0 (GumCpuContext * cpu_context,
   *last_x0 = cpu_context->x[0];
 }
 
-STALKER_TESTCASE (exclude_bl)
+TESTCASE (unfollow_should_be_allowed_before_first_transform)
+{
+  UnfollowTransformContext ctx;
+
+  ctx.stalker = fixture->stalker;
+  ctx.num_blocks_transformed = 0;
+  ctx.target_block = 0;
+  ctx.max_instructions = 0;
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      unfollow_during_transform, &ctx, NULL);
+
+  invoke_flat_expecting_return_value (fixture, GUM_NOTHING, 2);
+}
+
+TESTCASE (unfollow_should_be_allowed_mid_first_transform)
+{
+  UnfollowTransformContext ctx;
+
+  ctx.stalker = fixture->stalker;
+  ctx.num_blocks_transformed = 0;
+  ctx.target_block = 0;
+  ctx.max_instructions = 1;
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      unfollow_during_transform, &ctx, NULL);
+
+  invoke_flat_expecting_return_value (fixture, GUM_NOTHING, 2);
+}
+
+TESTCASE (unfollow_should_be_allowed_after_first_transform)
+{
+  UnfollowTransformContext ctx;
+
+  ctx.stalker = fixture->stalker;
+  ctx.num_blocks_transformed = 0;
+  ctx.target_block = 0;
+  ctx.max_instructions = -1;
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      unfollow_during_transform, &ctx, NULL);
+
+  invoke_flat_expecting_return_value (fixture, GUM_NOTHING, 2);
+}
+
+TESTCASE (unfollow_should_be_allowed_before_second_transform)
+{
+  UnfollowTransformContext ctx;
+
+  ctx.stalker = fixture->stalker;
+  ctx.num_blocks_transformed = 0;
+  ctx.target_block = 1;
+  ctx.max_instructions = 0;
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      unfollow_during_transform, &ctx, NULL);
+
+  invoke_flat_expecting_return_value (fixture, GUM_NOTHING, 2);
+}
+
+TESTCASE (unfollow_should_be_allowed_mid_second_transform)
+{
+  UnfollowTransformContext ctx;
+
+  ctx.stalker = fixture->stalker;
+  ctx.num_blocks_transformed = 0;
+  ctx.target_block = 1;
+  ctx.max_instructions = 1;
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      unfollow_during_transform, &ctx, NULL);
+
+  invoke_flat_expecting_return_value (fixture, GUM_NOTHING, 2);
+}
+
+TESTCASE (unfollow_should_be_allowed_after_second_transform)
+{
+  UnfollowTransformContext ctx;
+
+  ctx.stalker = fixture->stalker;
+  ctx.num_blocks_transformed = 0;
+  ctx.target_block = 1;
+  ctx.max_instructions = -1;
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      unfollow_during_transform, &ctx, NULL);
+
+  invoke_flat_expecting_return_value (fixture, GUM_NOTHING, 2);
+}
+
+static void
+unfollow_during_transform (GumStalkerIterator * iterator,
+                           GumStalkerWriter * output,
+                           gpointer user_data)
+{
+  UnfollowTransformContext * ctx = user_data;
+  const cs_insn * insn;
+
+  if (ctx->num_blocks_transformed == ctx->target_block)
+  {
+    gint n;
+
+    for (n = 0; n != ctx->max_instructions &&
+        gum_stalker_iterator_next (iterator, &insn); n++)
+    {
+      gum_stalker_iterator_keep (iterator);
+    }
+
+    gum_stalker_unfollow_me (ctx->stalker);
+  }
+  else
+  {
+    while (gum_stalker_iterator_next (iterator, &insn))
+      gum_stalker_iterator_keep (iterator);
+  }
+
+  ctx->num_blocks_transformed++;
+}
+
+TESTCASE (exclude_bl)
 {
   const guint32 code_template[] =
   {
@@ -413,7 +543,7 @@ STALKER_TESTCASE (exclude_bl)
   g_assert_cmpuint (fixture->sink->events->len, ==, 24);
 }
 
-STALKER_TESTCASE (exclude_blr)
+TESTCASE (exclude_blr)
 {
   StalkerTestFunc func;
   guint8 * code;
@@ -424,7 +554,7 @@ STALKER_TESTCASE (exclude_blr)
 
   fixture->sink->mask = GUM_EXEC;
 
-  code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  code = gum_alloc_n_pages (1, GUM_PAGE_RW);
   gum_arm64_writer_init (&cw, code);
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
@@ -457,7 +587,7 @@ STALKER_TESTCASE (exclude_blr)
   gum_arm64_writer_put_ret (&cw);
 
   gum_arm64_writer_flush (&cw);
-  gum_clear_cache (cw.base, gum_arm64_writer_offset (&cw));
+  gum_memory_mark_code (code, gum_arm64_writer_offset (&cw));
   gum_arm64_writer_clear (&cw);
 
   memory_range.base_address = GUM_ADDRESS (func_a);
@@ -479,7 +609,7 @@ STALKER_TESTCASE (exclude_blr)
   gum_free_pages (code);
 }
 
-STALKER_TESTCASE (exclude_bl_with_unfollow)
+TESTCASE (exclude_bl_with_unfollow)
 {
   StalkerTestFunc func;
   guint8 * code;
@@ -490,7 +620,7 @@ STALKER_TESTCASE (exclude_bl_with_unfollow)
 
   fixture->sink->mask = GUM_EXEC;
 
-  code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  code = gum_alloc_n_pages (1, GUM_PAGE_RW);
   gum_arm64_writer_init (&cw, code);
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
@@ -523,7 +653,7 @@ STALKER_TESTCASE (exclude_bl_with_unfollow)
   gum_arm64_writer_put_ret (&cw);
 
   gum_arm64_writer_flush (&cw);
-  gum_clear_cache (cw.base, gum_arm64_writer_offset (&cw));
+  gum_memory_mark_code (code, gum_arm64_writer_offset (&cw));
   gum_arm64_writer_clear (&cw);
 
   memory_range.base_address = GUM_ADDRESS (func_a);
@@ -541,7 +671,7 @@ STALKER_TESTCASE (exclude_bl_with_unfollow)
   gum_free_pages (code);
 }
 
-STALKER_TESTCASE (exclude_blr_with_unfollow)
+TESTCASE (exclude_blr_with_unfollow)
 {
   StalkerTestFunc func;
   guint8 * code;
@@ -552,7 +682,7 @@ STALKER_TESTCASE (exclude_blr_with_unfollow)
 
   fixture->sink->mask = GUM_EXEC;
 
-  code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  code = gum_alloc_n_pages (1, GUM_PAGE_RW);
   gum_arm64_writer_init (&cw, code);
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
@@ -587,7 +717,7 @@ STALKER_TESTCASE (exclude_blr_with_unfollow)
   gum_arm64_writer_put_ret (&cw);
 
   gum_arm64_writer_flush (&cw);
-  gum_clear_cache (cw.base, gum_arm64_writer_offset (&cw));
+  gum_memory_mark_code (code, gum_arm64_writer_offset (&cw));
   gum_arm64_writer_clear (&cw);
 
   memory_range.base_address = GUM_ADDRESS (func_a);
@@ -605,7 +735,7 @@ STALKER_TESTCASE (exclude_blr_with_unfollow)
   gum_free_pages (code);
 }
 
-STALKER_TESTCASE (unconditional_branch)
+TESTCASE (unconditional_branch)
 {
   guint8 * code;
   GumArm64Writer cw;
@@ -613,7 +743,7 @@ STALKER_TESTCASE (unconditional_branch)
   const gchar * my_ken_lbl = "my_ken";
   StalkerTestFunc func;
 
-  code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  code = gum_alloc_n_pages (1, GUM_PAGE_RW);
   gum_arm64_writer_init (&cw, code);
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
@@ -644,7 +774,7 @@ STALKER_TESTCASE (unconditional_branch)
   gum_arm64_writer_put_b_imm (&cw, address);
 
   gum_arm64_writer_flush (&cw);
-  gum_clear_cache (cw.base, gum_arm64_writer_offset (&cw));
+  gum_memory_mark_code (code, gum_arm64_writer_offset (&cw));
   gum_arm64_writer_clear (&cw);
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
@@ -655,7 +785,7 @@ STALKER_TESTCASE (unconditional_branch)
   gum_free_pages (code);
 }
 
-STALKER_TESTCASE (unconditional_branch_reg)
+TESTCASE (unconditional_branch_reg)
 {
   guint8 * code;
   GumArm64Writer cw;
@@ -664,7 +794,7 @@ STALKER_TESTCASE (unconditional_branch_reg)
   StalkerTestFunc func;
   arm64_reg reg = ARM64_REG_X13;
 
-  code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  code = gum_alloc_n_pages (1, GUM_PAGE_RW);
   gum_arm64_writer_init (&cw, code);
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
@@ -700,7 +830,7 @@ STALKER_TESTCASE (unconditional_branch_reg)
   gum_arm64_writer_put_br_reg (&cw, reg);
 
   gum_arm64_writer_flush (&cw);
-  gum_clear_cache (cw.base, gum_arm64_writer_offset (&cw));
+  gum_memory_mark_code (code, gum_arm64_writer_offset (&cw));
   gum_arm64_writer_clear (&cw);
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
@@ -711,7 +841,7 @@ STALKER_TESTCASE (unconditional_branch_reg)
   gum_free_pages (code);
 }
 
-STALKER_TESTCASE (conditional_branch)
+TESTCASE (conditional_branch)
 {
   guint8 * code;
   GumArm64Writer cw;
@@ -721,7 +851,7 @@ STALKER_TESTCASE (conditional_branch)
   StalkerTestFunc func;
   gint r;
 
-  code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  code = gum_alloc_n_pages (1, GUM_PAGE_RW);
   gum_arm64_writer_init (&cw, code);
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
@@ -753,7 +883,7 @@ STALKER_TESTCASE (conditional_branch)
   gum_arm64_writer_put_b_imm (&cw, address);
 
   gum_arm64_writer_flush (&cw);
-  gum_clear_cache (cw.base, gum_arm64_writer_offset (&cw));
+  gum_memory_mark_code (code, gum_arm64_writer_offset (&cw));
   gum_arm64_writer_clear (&cw);
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
@@ -765,7 +895,7 @@ STALKER_TESTCASE (conditional_branch)
   gum_free_pages (code);
 }
 
-STALKER_TESTCASE (compare_and_branch)
+TESTCASE (compare_and_branch)
 {
   guint8 * code;
   GumArm64Writer cw;
@@ -774,7 +904,7 @@ STALKER_TESTCASE (compare_and_branch)
   StalkerTestFunc func;
   gint r;
 
-  code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  code = gum_alloc_n_pages (1, GUM_PAGE_RW);
   gum_arm64_writer_init (&cw, code);
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
@@ -806,7 +936,7 @@ STALKER_TESTCASE (compare_and_branch)
   gum_arm64_writer_put_cbnz_reg_label (&cw, ARM64_REG_X0, my_nken_lbl);
 
   gum_arm64_writer_flush (&cw);
-  gum_clear_cache (cw.base, gum_arm64_writer_offset (&cw));
+  gum_memory_mark_code (code, gum_arm64_writer_offset (&cw));
   gum_arm64_writer_clear (&cw);
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
@@ -818,7 +948,7 @@ STALKER_TESTCASE (compare_and_branch)
   gum_free_pages (code);
 }
 
-STALKER_TESTCASE (test_bit_and_branch)
+TESTCASE (test_bit_and_branch)
 {
   guint8 * code;
   GumArm64Writer cw;
@@ -827,7 +957,7 @@ STALKER_TESTCASE (test_bit_and_branch)
   StalkerTestFunc func;
   gint r;
 
-  code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  code = gum_alloc_n_pages (1, GUM_PAGE_RW);
   gum_arm64_writer_init (&cw, code);
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
@@ -859,7 +989,7 @@ STALKER_TESTCASE (test_bit_and_branch)
   gum_arm64_writer_put_tbnz_reg_imm_label (&cw, ARM64_REG_W0, 0, my_nken_lbl);
 
   gum_arm64_writer_flush (&cw);
-  gum_clear_cache (cw.base, gum_arm64_writer_offset (&cw));
+  gum_memory_mark_code (code, gum_arm64_writer_offset (&cw));
   gum_arm64_writer_clear (&cw);
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
@@ -871,7 +1001,7 @@ STALKER_TESTCASE (test_bit_and_branch)
   gum_free_pages (code);
 }
 
-STALKER_TESTCASE (follow_std_call)
+TESTCASE (follow_std_call)
 {
   guint8 * code;
   GumArm64Writer cw;
@@ -880,7 +1010,7 @@ STALKER_TESTCASE (follow_std_call)
   StalkerTestFunc func;
   gint r;
 
-  code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  code = gum_alloc_n_pages (1, GUM_PAGE_RW);
   gum_arm64_writer_init (&cw, code);
 
   gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X30, ARM64_REG_X29);
@@ -913,7 +1043,7 @@ STALKER_TESTCASE (follow_std_call)
   gum_arm64_writer_put_ret (&cw);
 
   gum_arm64_writer_flush (&cw);
-  gum_clear_cache (cw.base, gum_arm64_writer_offset (&cw));
+  gum_memory_mark_code (code, gum_arm64_writer_offset (&cw));
   gum_arm64_writer_clear (&cw);
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
@@ -925,7 +1055,7 @@ STALKER_TESTCASE (follow_std_call)
   gum_free_pages (code);
 }
 
-STALKER_TESTCASE (follow_return)
+TESTCASE (follow_return)
 {
   guint8 * code;
   GumArm64Writer cw;
@@ -934,7 +1064,7 @@ STALKER_TESTCASE (follow_return)
   StalkerTestFunc func;
   gint r;
 
-  code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  code = gum_alloc_n_pages (1, GUM_PAGE_RW);
   gum_arm64_writer_init (&cw, code);
 
   gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X30, ARM64_REG_X29);
@@ -973,7 +1103,7 @@ STALKER_TESTCASE (follow_return)
   gum_arm64_writer_put_ret (&cw);
 
   gum_arm64_writer_flush (&cw);
-  gum_clear_cache (cw.base, gum_arm64_writer_offset (&cw));
+  gum_memory_mark_code (code, gum_arm64_writer_offset (&cw));
   gum_arm64_writer_clear (&cw);
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
@@ -985,7 +1115,7 @@ STALKER_TESTCASE (follow_return)
   gum_free_pages (code);
 }
 
-STALKER_TESTCASE (follow_syscall)
+TESTCASE (follow_syscall)
 {
   fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
 
@@ -1034,18 +1164,17 @@ stalker_victim (gpointer data)
   return NULL;
 }
 
-STALKER_TESTCASE (follow_thread)
+TESTCASE (follow_thread)
 {
   StalkerVictimContext ctx;
   GumThreadId thread_id;
   GThread * thread;
+#ifdef HAVE_LINUX
+  int prev_dumpable;
 
-#ifdef HAVE_ANDROID
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping, run in slow mode> ");
-    return;
-  }
+  /* Android spawns non-debuggable applications as not dumpable by default. */
+  prev_dumpable = prctl (PR_GET_DUMPABLE);
+  prctl (PR_SET_DUMPABLE, 0);
 #endif
 
   ctx.state = STALKER_VICTIM_CREATED;
@@ -1105,9 +1234,13 @@ STALKER_TESTCASE (follow_thread)
 
   g_mutex_clear (&ctx.mutex);
   g_cond_clear (&ctx.cond);
+
+#ifdef HAVE_LINUX
+  prctl (PR_SET_DUMPABLE, prev_dumpable);
+#endif
 }
 
-STALKER_TESTCASE (heap_api)
+TESTCASE (heap_api)
 {
   gpointer p;
 
@@ -1124,7 +1257,7 @@ STALKER_TESTCASE (heap_api)
 
 typedef void (* ClobberFunc) (GumCpuContext * ctx);
 
-STALKER_TESTCASE (no_register_clobber)
+TESTCASE (no_register_clobber)
 {
 #ifndef HAVE_DARWIN
   guint8 * code;
@@ -1133,7 +1266,7 @@ STALKER_TESTCASE (no_register_clobber)
   ClobberFunc func;
   GumCpuContext ctx;
 
-  code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  code = gum_alloc_n_pages (1, GUM_PAGE_RW);
   gum_arm64_writer_init (&cw, code);
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
@@ -1180,7 +1313,7 @@ STALKER_TESTCASE (no_register_clobber)
   gum_arm64_writer_put_ret (&cw);
 
   gum_arm64_writer_flush (&cw);
-  gum_clear_cache (cw.base, gum_arm64_writer_offset (&cw));
+  gum_memory_mark_code (code, gum_arm64_writer_offset (&cw));
   gum_arm64_writer_clear (&cw);
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
@@ -1198,16 +1331,24 @@ STALKER_TESTCASE (no_register_clobber)
 #endif
 }
 
-STALKER_TESTCASE (performance)
+TESTCASE (performance)
 {
   GumMemoryRange runner_range;
   GTimer * timer;
   gdouble duration_direct, duration_stalked;
 
+#ifdef HAVE_IOS
+  if (!gum_process_is_debugger_attached ())
+  {
+    g_print ("<skipping, no debugger attached> ");
+    return;
+  }
+#endif
+
   runner_range.base_address = 0;
   runner_range.size = 0;
   gum_process_enumerate_modules (store_range_of_test_runner, &runner_range);
-  g_assert (runner_range.base_address != 0 && runner_range.size != 0);
+  g_assert_true (runner_range.base_address != 0 && runner_range.size != 0);
 
   timer = g_timer_new ();
   pretend_workload (&runner_range);

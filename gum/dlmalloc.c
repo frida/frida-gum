@@ -1735,7 +1735,7 @@ static FORCEINLINE void* win32direct_mmap(size_t size) {
 static FORCEINLINE int win32munmap(void* ptr, size_t size) {
   MEMORY_BASIC_INFORMATION minfo;
   char* cptr = (char*)ptr;
-  GumMemoryRange range;
+  GumMemoryRange range = { GUM_ADDRESS(ptr), size };
 
   while (size) {
     if (VirtualQuery(cptr, &minfo, sizeof(minfo)) == 0)
@@ -1749,8 +1749,6 @@ static FORCEINLINE int win32munmap(void* ptr, size_t size) {
     size -= minfo.RegionSize;
   }
 
-  range.base_address = GUM_ADDRESS(ptr);
-  range.size = size;
   gum_cloak_remove_range(&range);
 
   return 0;

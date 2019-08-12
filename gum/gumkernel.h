@@ -27,6 +27,7 @@ typedef gboolean (* GumFoundKernelModuleRangeFunc) (
 GUM_API gboolean gum_kernel_api_is_available (void);
 GUM_API guint gum_kernel_query_page_size (void);
 GUM_API GumAddress gum_kernel_alloc_n_pages (guint n_pages);
+GUM_API void gum_kernel_free_pages (GumAddress mem);
 GUM_API gboolean gum_kernel_try_mprotect (GumAddress address, gsize size,
     GumPageProtection page_prot);
 GUM_API guint8 * gum_kernel_read (GumAddress address, gsize len,
@@ -44,6 +45,7 @@ GUM_API void gum_kernel_enumerate_module_ranges (const gchar * module_name,
 GUM_API void gum_kernel_enumerate_modules (GumFoundModuleFunc func,
     gpointer user_data);
 GUM_API GumAddress gum_kernel_find_base_address (void);
+GUM_API void gum_kernel_set_base_address (GumAddress base);
 
 G_END_DECLS
 

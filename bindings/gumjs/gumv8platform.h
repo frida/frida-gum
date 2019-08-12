@@ -45,11 +45,14 @@ public:
       guint delay_in_milliseconds, std::function<void ()> f);
   std::shared_ptr<GumV8Operation> ScheduleOnJSThreadDelayed (
       guint delay_in_milliseconds, gint priority, std::function<void ()> f);
+  void PerformOnJSThread (std::function<void ()> f);
+  void PerformOnJSThread (gint priority, std::function<void ()> f);
   std::shared_ptr<GumV8Operation> ScheduleOnThreadPool (
       std::function<void ()> f);
   std::shared_ptr<GumV8Operation> ScheduleOnThreadPoolDelayed (
       guint delay_in_milliseconds, std::function<void ()> f);
 
+  v8::PageAllocator * GetPageAllocator () override;
   int NumberOfWorkerThreads () override;
   std::shared_ptr<v8::TaskRunner> GetForegroundTaskRunner (
       v8::Isolate * isolate) override;
@@ -75,6 +78,7 @@ private:
 
   static gboolean PerformMainContextOperation (gpointer data);
   static void ReleaseMainContextOperation (gpointer data);
+  static void ReleaseSynchronousMainContextOperation (gpointer data);
   static void PerformThreadPoolOperation (gpointer data);
   static void ReleaseThreadPoolOperation (gpointer data);
   static gboolean StartDelayedThreadPoolOperation (gpointer data);
@@ -90,10 +94,10 @@ private:
   std::unordered_set<std::shared_ptr<GumV8Operation>> js_ops;
   std::unordered_set<std::shared_ptr<GumV8Operation>> pool_ops;
   std::map<v8::Isolate *, std::shared_ptr<v8::TaskRunner>> foreground_runners;
-  const gint64 start_time;
-  v8::ArrayBuffer::Allocator * array_buffer_allocator;
-  v8::ThreadingBackend * threading_backend;
-  v8::TracingController * tracing_controller;
+  std::unique_ptr<v8::PageAllocator> page_allocator;
+  std::unique_ptr<v8::ArrayBuffer::Allocator> array_buffer_allocator;
+  std::unique_ptr<v8::ThreadingBackend> threading_backend;
+  std::unique_ptr<v8::TracingController> tracing_controller;
 
   friend class GumV8MainContextOperation;
   friend class GumV8ThreadPoolOperation;

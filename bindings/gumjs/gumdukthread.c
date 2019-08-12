@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -14,7 +14,6 @@ enum _GumBacktracerType
   GUM_BACKTRACER_FUZZY = 2
 };
 
-GUMJS_DECLARE_CONSTRUCTOR (gumjs_thread_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_thread_backtrace)
 GUMJS_DECLARE_FUNCTION (gumjs_thread_sleep)
 
@@ -35,12 +34,10 @@ _gum_duk_thread_init (GumDukThread * self,
 
   self->core = core;
 
-  duk_push_c_function (ctx, gumjs_thread_construct, 0);
+  _gum_duk_store_module_data (ctx, "thread", self);
+
   duk_push_object (ctx);
   duk_put_function_list (ctx, -1, gumjs_thread_functions);
-  duk_put_prop_string (ctx, -2, "prototype");
-  duk_new (ctx, 0);
-  _gum_duk_put_data (ctx, -1, self);
   duk_put_global_string (ctx, "Thread");
 
   duk_push_object (ctx);
@@ -49,11 +46,6 @@ _gum_duk_thread_init (GumDukThread * self,
   duk_push_uint (ctx, GUM_BACKTRACER_FUZZY);
   duk_put_prop_string (ctx, -2, "FUZZY");
   duk_put_global_string (ctx, "Backtracer");
-}
-
-GUMJS_DEFINE_CONSTRUCTOR (gumjs_thread_construct)
-{
-  return 0;
 }
 
 void
@@ -68,6 +60,12 @@ _gum_duk_thread_finalize (GumDukThread * self)
   g_clear_pointer (&self->fuzzy_backtracer, g_object_unref);
 }
 
+static GumDukThread *
+gumjs_module_from_args (const GumDukArgs * args)
+{
+  return _gum_duk_load_module_data (args->ctx, "thread");
+}
+
 GUMJS_DEFINE_FUNCTION (gumjs_thread_backtrace)
 {
   GumDukThread * self;
@@ -77,9 +75,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_backtrace)
   GumReturnAddressArray ret_addrs;
   guint i;
 
-  duk_push_this (ctx);
-  self = _gum_duk_require_data (ctx, -1);
-  duk_pop (ctx);
+  self = gumjs_module_from_args (args);
 
   _gum_duk_args_parse (args, "|C?i", &cpu_context, &selector);
 

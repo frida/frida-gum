@@ -6,42 +6,42 @@
 
 #include "relocator-fixture.c"
 
-TEST_LIST_BEGIN (relocator)
-  RELOCATOR_TESTENTRY (one_to_one)
-  RELOCATOR_TESTENTRY (call_near_relative)
-  RELOCATOR_TESTENTRY (call_near_relative_to_next_instruction)
+TESTLIST_BEGIN (relocator)
+  TESTENTRY (one_to_one)
+  TESTENTRY (call_near_relative)
+  TESTENTRY (call_near_relative_to_next_instruction)
 #if GLIB_SIZEOF_VOID_P == 4
-  RELOCATOR_TESTENTRY (call_near_gnu_get_pc_thunk)
-  RELOCATOR_TESTENTRY (call_near_android_get_pc_thunk)
+  TESTENTRY (call_near_gnu_get_pc_thunk)
+  TESTENTRY (call_near_android_get_pc_thunk)
 #endif
-  RELOCATOR_TESTENTRY (call_near_indirect)
-  RELOCATOR_TESTENTRY (jmp_short_outside_block)
-  RELOCATOR_TESTENTRY (jmp_near_outside_block)
-  RELOCATOR_TESTENTRY (jmp_register)
-  RELOCATOR_TESTENTRY (jmp_indirect)
-  RELOCATOR_TESTENTRY (jcc_short_within_block)
-  RELOCATOR_TESTENTRY (jcc_short_outside_block)
-  RELOCATOR_TESTENTRY (jcc_near_outside_block)
-  RELOCATOR_TESTENTRY (jcxz_short_within_block)
-  RELOCATOR_TESTENTRY (jcxz_short_outside_block)
-  RELOCATOR_TESTENTRY (peek_next_write)
-  RELOCATOR_TESTENTRY (skip_instruction)
-  RELOCATOR_TESTENTRY (eob_and_eoi_on_jmp)
-  RELOCATOR_TESTENTRY (eob_but_not_eoi_on_call)
-  RELOCATOR_TESTENTRY (eob_and_eoi_on_ret)
-  RELOCATOR_TESTENTRY (eob_but_not_eoi_on_jcc)
-  RELOCATOR_TESTENTRY (eob_but_not_eoi_on_jcxz)
+  TESTENTRY (call_near_indirect)
+  TESTENTRY (jmp_short_outside_block)
+  TESTENTRY (jmp_near_outside_block)
+  TESTENTRY (jmp_register)
+  TESTENTRY (jmp_indirect)
+  TESTENTRY (jcc_short_within_block)
+  TESTENTRY (jcc_short_outside_block)
+  TESTENTRY (jcc_near_outside_block)
+  TESTENTRY (jcxz_short_within_block)
+  TESTENTRY (jcxz_short_outside_block)
+  TESTENTRY (peek_next_write)
+  TESTENTRY (skip_instruction)
+  TESTENTRY (eob_and_eoi_on_jmp)
+  TESTENTRY (eob_but_not_eoi_on_call)
+  TESTENTRY (eob_and_eoi_on_ret)
+  TESTENTRY (eob_but_not_eoi_on_jcc)
+  TESTENTRY (eob_but_not_eoi_on_jcxz)
 
 #if GLIB_SIZEOF_VOID_P == 8
-  RELOCATOR_TESTENTRY (rip_relative_move_different_target)
-  RELOCATOR_TESTENTRY (rip_relative_move_same_target)
-  RELOCATOR_TESTENTRY (rip_relative_push)
-  RELOCATOR_TESTENTRY (rip_relative_push_red_zone)
-  RELOCATOR_TESTENTRY (rip_relative_cmpxchg)
+  TESTENTRY (rip_relative_move_different_target)
+  TESTENTRY (rip_relative_move_same_target)
+  TESTENTRY (rip_relative_push)
+  TESTENTRY (rip_relative_push_red_zone)
+  TESTENTRY (rip_relative_cmpxchg)
 #endif
-TEST_LIST_END ()
+TESTLIST_END ()
 
-RELOCATOR_TESTCASE (one_to_one)
+TESTCASE (one_to_one)
 {
   guint8 input[] = {
     0x55,                         /* push ebp     */
@@ -61,18 +61,18 @@ RELOCATOR_TESTCASE (one_to_one)
   g_assert_cmpint (insn->id, ==, X86_INS_MOV);
   assert_outbuf_still_zeroed_from_offset (0);
 
-  g_assert (gum_x86_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_x86_relocator_write_one (&fixture->rl));
   g_assert_cmpint (memcmp (fixture->output, input, 1), ==, 0);
   assert_outbuf_still_zeroed_from_offset (1);
 
-  g_assert (gum_x86_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_x86_relocator_write_one (&fixture->rl));
   g_assert_cmpint (memcmp (fixture->output + 1, input + 1, 2), ==, 0);
   assert_outbuf_still_zeroed_from_offset (3);
 
-  g_assert (!gum_x86_relocator_write_one (&fixture->rl));
+  g_assert_false (gum_x86_relocator_write_one (&fixture->rl));
 }
 
-RELOCATOR_TESTCASE (call_near_relative)
+TESTCASE (call_near_relative)
 {
   guint8 input[] = {
     0x55,                         /* push ebp     */
@@ -101,7 +101,7 @@ RELOCATOR_TESTCASE (call_near_relative)
   g_assert_cmpint (reloc_distance, ==, expected_distance);
 }
 
-RELOCATOR_TESTCASE (call_near_relative_to_next_instruction)
+TESTCASE (call_near_relative_to_next_instruction)
 {
   guint8 input[] = {
     0xe8, 0x00, 0x00, 0x00, 0x00, /* call +0         */
@@ -128,7 +128,7 @@ RELOCATOR_TESTCASE (call_near_relative_to_next_instruction)
   SETUP_RELOCATOR_WITH (input);
 
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 5);
-  g_assert (!gum_x86_relocator_eob (&fixture->rl));
+  g_assert_false (gum_x86_relocator_eob (&fixture->rl));
   gum_x86_relocator_write_all (&fixture->rl);
   g_assert_cmpuint (gum_x86_writer_offset (&fixture->cw), ==,
       sizeof (expected_output));
@@ -138,7 +138,7 @@ RELOCATOR_TESTCASE (call_near_relative_to_next_instruction)
 
 #if GLIB_SIZEOF_VOID_P == 4
 
-RELOCATOR_TESTCASE (call_near_gnu_get_pc_thunk)
+TESTCASE (call_near_gnu_get_pc_thunk)
 {
   const guint8 input[] = {
     0xe8, 0x01, 0x00, 0x00, 0x00, /* call +1         */
@@ -157,7 +157,7 @@ RELOCATOR_TESTCASE (call_near_gnu_get_pc_thunk)
   SETUP_RELOCATOR_WITH (input);
 
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 5);
-  g_assert (!gum_x86_relocator_eob (&fixture->rl));
+  g_assert_false (gum_x86_relocator_eob (&fixture->rl));
   gum_x86_relocator_write_all (&fixture->rl);
   g_assert_cmpuint (gum_x86_writer_offset (&fixture->cw), ==,
       sizeof (expected_output));
@@ -165,7 +165,7 @@ RELOCATOR_TESTCASE (call_near_gnu_get_pc_thunk)
       sizeof (expected_output)), ==, 0);
 }
 
-RELOCATOR_TESTCASE (call_near_android_get_pc_thunk)
+TESTCASE (call_near_android_get_pc_thunk)
 {
   const guint8 input[] = {
     0xe8, 0x01, 0x00, 0x00, 0x00, /* call +1         */
@@ -184,7 +184,7 @@ RELOCATOR_TESTCASE (call_near_android_get_pc_thunk)
   SETUP_RELOCATOR_WITH (input);
 
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 5);
-  g_assert (!gum_x86_relocator_eob (&fixture->rl));
+  g_assert_false (gum_x86_relocator_eob (&fixture->rl));
   gum_x86_relocator_write_all (&fixture->rl);
   g_assert_cmpuint (gum_x86_writer_offset (&fixture->cw), ==,
       sizeof (expected_output));
@@ -194,7 +194,7 @@ RELOCATOR_TESTCASE (call_near_android_get_pc_thunk)
 
 #endif
 
-RELOCATOR_TESTCASE (call_near_indirect)
+TESTCASE (call_near_indirect)
 {
   guint8 input[] = {
     0xff, 0x15, 0x78, 0x56, 0x34, 0x12 /* call ds:012345678h */
@@ -207,7 +207,7 @@ RELOCATOR_TESTCASE (call_near_indirect)
   g_assert_cmpint (memcmp (fixture->output, input, 6), ==, 0);
 }
 
-RELOCATOR_TESTCASE (jmp_short_outside_block)
+TESTCASE (jmp_short_outside_block)
 {
   guint8 input[] = {
     0xeb, 0x01  /* jmp +1 */
@@ -230,7 +230,7 @@ RELOCATOR_TESTCASE (jmp_short_outside_block)
   g_assert_cmpint (reloc_distance, ==, expected_distance);
 }
 
-RELOCATOR_TESTCASE (jmp_near_outside_block)
+TESTCASE (jmp_near_outside_block)
 {
   guint8 input[] = {
     0xe9, 0x01, 0x00, 0x00, 0x00, /* jmp +1 */
@@ -252,7 +252,7 @@ RELOCATOR_TESTCASE (jmp_near_outside_block)
   g_assert_cmpint (reloc_distance, ==, expected_distance);
 }
 
-RELOCATOR_TESTCASE (jmp_register)
+TESTCASE (jmp_register)
 {
   guint8 input[] = {
     0xff, 0xe0 /* jmp eax */
@@ -267,7 +267,7 @@ RELOCATOR_TESTCASE (jmp_register)
   g_assert_cmpint (memcmp (fixture->output, input, 2), ==, 0);
 }
 
-RELOCATOR_TESTCASE (jmp_indirect)
+TESTCASE (jmp_indirect)
 {
   guint8 input[] = {
 #if GLIB_SIZEOF_VOID_P == 8
@@ -285,7 +285,7 @@ RELOCATOR_TESTCASE (jmp_indirect)
   g_assert_cmpint (memcmp (fixture->output, input, sizeof (input)), == , 0);
 }
 
-RELOCATOR_TESTCASE (jcc_short_within_block)
+TESTCASE (jcc_short_within_block)
 {
   guint8 input[] = {
     0x31, 0xc0,                         /* xor eax,eax */
@@ -329,7 +329,7 @@ RELOCATOR_TESTCASE (jcc_short_within_block)
   g_assert_cmpint (memcmp (fixture->output + 10 + 2, input + 10, 3), ==, 0);
 }
 
-RELOCATOR_TESTCASE (jcc_short_outside_block)
+TESTCASE (jcc_short_outside_block)
 {
   guint8 input[] = {
     0x75, 0xfd, /* jnz -3 */
@@ -351,7 +351,7 @@ RELOCATOR_TESTCASE (jcc_short_outside_block)
   g_assert_cmphex (fixture->output[6], ==, input[2]);
 }
 
-RELOCATOR_TESTCASE (jcc_near_outside_block)
+TESTCASE (jcc_near_outside_block)
 {
   guint8 input[] = {
     0x0f, 0x84, 0xda, 0x00, 0x00, 0x00, /* jz +218 */
@@ -373,7 +373,7 @@ RELOCATOR_TESTCASE (jcc_near_outside_block)
   g_assert_cmphex (fixture->output[6], ==, input[6]);
 }
 
-RELOCATOR_TESTCASE (jcxz_short_within_block)
+TESTCASE (jcxz_short_within_block)
 {
   guint8 input[] = {
     0xe3, 0x02,                         /* jecxz/jrcxz beach */
@@ -407,7 +407,7 @@ RELOCATOR_TESTCASE (jcxz_short_within_block)
   assert_output_equals (expected_output);
 }
 
-RELOCATOR_TESTCASE (jcxz_short_outside_block)
+TESTCASE (jcxz_short_outside_block)
 {
   guint8 input[] = {
     0xe3, 0xfd, /* jecxz/jrcxz -3      */
@@ -439,7 +439,7 @@ RELOCATOR_TESTCASE (jcxz_short_outside_block)
   assert_output_equals (expected_output);
 }
 
-RELOCATOR_TESTCASE (peek_next_write)
+TESTCASE (peek_next_write)
 {
   guint8 input[] = {
     0x31, 0xc0, /* xor eax,eax */
@@ -458,15 +458,15 @@ RELOCATOR_TESTCASE (peek_next_write)
       ==, X86_INS_INC);
   g_assert_cmpint (gum_x86_relocator_peek_next_write_insn (&fixture->rl)->id,
       ==, X86_INS_INC);
-  g_assert (gum_x86_relocator_peek_next_write_source (&fixture->rl)
+  g_assert_true (gum_x86_relocator_peek_next_write_source (&fixture->rl)
       == input + 2);
-  g_assert (gum_x86_relocator_write_one (&fixture->rl));
-  g_assert (gum_x86_relocator_peek_next_write_insn (&fixture->rl) == NULL);
-  g_assert (gum_x86_relocator_peek_next_write_source (&fixture->rl) == NULL);
-  g_assert (!gum_x86_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_x86_relocator_write_one (&fixture->rl));
+  g_assert_null (gum_x86_relocator_peek_next_write_insn (&fixture->rl));
+  g_assert_null (gum_x86_relocator_peek_next_write_source (&fixture->rl));
+  g_assert_false (gum_x86_relocator_write_one (&fixture->rl));
 }
 
-RELOCATOR_TESTCASE (skip_instruction)
+TESTCASE (skip_instruction)
 {
   guint8 input[] = {
     0x31, 0xc0,                         /* xor eax,eax */
@@ -501,7 +501,7 @@ RELOCATOR_TESTCASE (skip_instruction)
   g_assert_cmpint (memcmp (fixture->output, input, sizeof (input) - 1), ==, 0);
 }
 
-RELOCATOR_TESTCASE (eob_and_eoi_on_jmp)
+TESTCASE (eob_and_eoi_on_jmp)
 {
   guint8 input[] = {
     0xeb, 0x01  /* jmp +1 */
@@ -510,12 +510,12 @@ RELOCATOR_TESTCASE (eob_and_eoi_on_jmp)
   SETUP_RELOCATOR_WITH (input);
 
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 2);
-  g_assert (gum_x86_relocator_eob (&fixture->rl));
-  g_assert (gum_x86_relocator_eoi (&fixture->rl));
+  g_assert_true (gum_x86_relocator_eob (&fixture->rl));
+  g_assert_true (gum_x86_relocator_eoi (&fixture->rl));
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 0);
 }
 
-RELOCATOR_TESTCASE (eob_but_not_eoi_on_call)
+TESTCASE (eob_but_not_eoi_on_call)
 {
   guint8 input[] = {
     0xe8, 0x42, 0x00, 0x00, 0x00  /* call +0x42 */
@@ -524,11 +524,11 @@ RELOCATOR_TESTCASE (eob_but_not_eoi_on_call)
   SETUP_RELOCATOR_WITH (input);
 
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 5);
-  g_assert (gum_x86_relocator_eob (&fixture->rl));
-  g_assert (!gum_x86_relocator_eoi (&fixture->rl));
+  g_assert_true (gum_x86_relocator_eob (&fixture->rl));
+  g_assert_false (gum_x86_relocator_eoi (&fixture->rl));
 }
 
-RELOCATOR_TESTCASE (eob_and_eoi_on_ret)
+TESTCASE (eob_and_eoi_on_ret)
 {
   guint8 input[] = {
     0xc2, 0x04, 0x00  /* retn 4 */
@@ -537,12 +537,12 @@ RELOCATOR_TESTCASE (eob_and_eoi_on_ret)
   SETUP_RELOCATOR_WITH (input);
 
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 3);
-  g_assert (gum_x86_relocator_eob (&fixture->rl));
-  g_assert (gum_x86_relocator_eoi (&fixture->rl));
+  g_assert_true (gum_x86_relocator_eob (&fixture->rl));
+  g_assert_true (gum_x86_relocator_eoi (&fixture->rl));
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 0);
 }
 
-RELOCATOR_TESTCASE (eob_but_not_eoi_on_jcc)
+TESTCASE (eob_but_not_eoi_on_jcc)
 {
   guint8 input[] = {
     0x74, 0x01, /* jz +1  */
@@ -552,14 +552,14 @@ RELOCATOR_TESTCASE (eob_but_not_eoi_on_jcc)
   SETUP_RELOCATOR_WITH (input);
 
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 2);
-  g_assert (gum_x86_relocator_eob (&fixture->rl));
-  g_assert (!gum_x86_relocator_eoi (&fixture->rl));
+  g_assert_true (gum_x86_relocator_eob (&fixture->rl));
+  g_assert_false (gum_x86_relocator_eoi (&fixture->rl));
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 3);
-  g_assert (gum_x86_relocator_eoi (&fixture->rl));
+  g_assert_true (gum_x86_relocator_eoi (&fixture->rl));
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 0);
 }
 
-RELOCATOR_TESTCASE (eob_but_not_eoi_on_jcxz)
+TESTCASE (eob_but_not_eoi_on_jcxz)
 {
   guint8 input[] = {
     0xe3, 0x01, /* jecxz/jrcxz +1 */
@@ -569,16 +569,16 @@ RELOCATOR_TESTCASE (eob_but_not_eoi_on_jcxz)
   SETUP_RELOCATOR_WITH (input);
 
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 2);
-  g_assert (gum_x86_relocator_eob (&fixture->rl));
-  g_assert (!gum_x86_relocator_eoi (&fixture->rl));
+  g_assert_true (gum_x86_relocator_eob (&fixture->rl));
+  g_assert_false (gum_x86_relocator_eoi (&fixture->rl));
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 3);
-  g_assert (gum_x86_relocator_eoi (&fixture->rl));
+  g_assert_true (gum_x86_relocator_eoi (&fixture->rl));
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 0);
 }
 
 #if GLIB_SIZEOF_VOID_P == 8
 
-RELOCATOR_TESTCASE (rip_relative_move_different_target)
+TESTCASE (rip_relative_move_different_target)
 {
   guint8 input[] = {
     0x8b, 0x15, 0x01, 0x00, 0x00, 0x00, /* mov edx, [rip + 1] */
@@ -603,7 +603,7 @@ RELOCATOR_TESTCASE (rip_relative_move_different_target)
   assert_output_equals (expected_output);
 }
 
-RELOCATOR_TESTCASE (rip_relative_move_same_target)
+TESTCASE (rip_relative_move_same_target)
 {
   guint8 input[] = {
     0x8b, 0x05, 0x01, 0x00, 0x00, 0x00, /* mov eax, [rip + 1] */
@@ -628,7 +628,7 @@ RELOCATOR_TESTCASE (rip_relative_move_same_target)
   assert_output_equals (expected_output);
 }
 
-RELOCATOR_TESTCASE (rip_relative_push)
+TESTCASE (rip_relative_push)
 {
   const guint8 input[] = {
     0xff, 0x35,                         /* push [rip + imm32]   */
@@ -659,7 +659,7 @@ RELOCATOR_TESTCASE (rip_relative_push)
   assert_output_equals (expected_output);
 }
 
-RELOCATOR_TESTCASE (rip_relative_push_red_zone)
+TESTCASE (rip_relative_push_red_zone)
 {
   const guint8 input[] = {
     0xff, 0x35,                         /* push [rip + imm32]   */
@@ -695,7 +695,7 @@ RELOCATOR_TESTCASE (rip_relative_push_red_zone)
   assert_output_equals (expected_output);
 }
 
-RELOCATOR_TESTCASE (rip_relative_cmpxchg)
+TESTCASE (rip_relative_cmpxchg)
 {
   const guint8 input[] = {
     0xf0, 0x48, 0x0f, 0xb1, 0x0d,       /* lock cmpxchg [rip + 1], rcx */

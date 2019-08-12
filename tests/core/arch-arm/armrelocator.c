@@ -6,20 +6,20 @@
 
 #include "armrelocator-fixture.c"
 
-TEST_LIST_BEGIN (armrelocator)
-  RELOCATOR_TESTENTRY (one_to_one)
-  RELOCATOR_TESTENTRY (pc_relative_ldr_should_be_rewritten)
-  RELOCATOR_TESTENTRY (pc_relative_ldr_with_large_displacement_should_be_rewritten)
-  RELOCATOR_TESTENTRY (pc_relative_add_should_be_rewritten)
-  RELOCATOR_TESTENTRY (b_imm_a1_positive_should_be_rewritten)
-  RELOCATOR_TESTENTRY (b_imm_a1_negative_should_be_rewritten)
-  RELOCATOR_TESTENTRY (bl_imm_a1_positive_should_be_rewritten)
-  RELOCATOR_TESTENTRY (bl_imm_a1_negative_should_be_rewritten)
-  RELOCATOR_TESTENTRY (blx_imm_a2_positive_should_be_rewritten)
-  RELOCATOR_TESTENTRY (blx_imm_a2_negative_should_be_rewritten)
-TEST_LIST_END ()
+TESTLIST_BEGIN (armrelocator)
+  TESTENTRY (one_to_one)
+  TESTENTRY (pc_relative_ldr_should_be_rewritten)
+  TESTENTRY (pc_relative_ldr_with_large_displacement_should_be_rewritten)
+  TESTENTRY (pc_relative_add_should_be_rewritten)
+  TESTENTRY (b_imm_a1_positive_should_be_rewritten)
+  TESTENTRY (b_imm_a1_negative_should_be_rewritten)
+  TESTENTRY (bl_imm_a1_positive_should_be_rewritten)
+  TESTENTRY (bl_imm_a1_negative_should_be_rewritten)
+  TESTENTRY (blx_imm_a2_positive_should_be_rewritten)
+  TESTENTRY (blx_imm_a2_negative_should_be_rewritten)
+TESTLIST_END ()
 
-RELOCATOR_TESTCASE (one_to_one)
+TESTCASE (one_to_one)
 {
   const guint32 input[] = {
     GUINT32_TO_LE (0xe1a0c00d), /* mov ip, sp    */
@@ -39,15 +39,15 @@ RELOCATOR_TESTCASE (one_to_one)
   g_assert_cmpint (insn->id, ==, ARM_INS_PUSH);
   assert_outbuf_still_zeroed_from_offset (0);
 
-  g_assert (gum_arm_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_arm_relocator_write_one (&fixture->rl));
   g_assert_cmpint (memcmp (fixture->output, input, 4), ==, 0);
   assert_outbuf_still_zeroed_from_offset (4);
 
-  g_assert (gum_arm_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_arm_relocator_write_one (&fixture->rl));
   g_assert_cmpint (memcmp (fixture->output + 4, input + 1, 4), ==, 0);
   assert_outbuf_still_zeroed_from_offset (8);
 
-  g_assert (!gum_arm_relocator_write_one (&fixture->rl));
+  g_assert_false (gum_arm_relocator_write_one (&fixture->rl));
 }
 
 typedef struct _BranchScenario BranchScenario;
@@ -68,7 +68,7 @@ struct _BranchScenario
 static void branch_scenario_execute (BranchScenario * bs,
     TestArmRelocatorFixture * fixture);
 
-RELOCATOR_TESTCASE (pc_relative_ldr_should_be_rewritten)
+TESTCASE (pc_relative_ldr_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_LDR,
@@ -86,7 +86,7 @@ RELOCATOR_TESTCASE (pc_relative_ldr_should_be_rewritten)
   branch_scenario_execute (&bs, fixture);
 }
 
-RELOCATOR_TESTCASE (pc_relative_ldr_with_large_displacement_should_be_rewritten)
+TESTCASE (pc_relative_ldr_with_large_displacement_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_LDR,
@@ -105,7 +105,7 @@ RELOCATOR_TESTCASE (pc_relative_ldr_with_large_displacement_should_be_rewritten)
   branch_scenario_execute (&bs, fixture);
 }
 
-RELOCATOR_TESTCASE (pc_relative_add_should_be_rewritten)
+TESTCASE (pc_relative_add_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_ADD,
@@ -122,7 +122,7 @@ RELOCATOR_TESTCASE (pc_relative_add_should_be_rewritten)
   branch_scenario_execute (&bs, fixture);
 }
 
-RELOCATOR_TESTCASE (b_imm_a1_positive_should_be_rewritten)
+TESTCASE (b_imm_a1_positive_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_B,
@@ -138,7 +138,7 @@ RELOCATOR_TESTCASE (b_imm_a1_positive_should_be_rewritten)
   branch_scenario_execute (&bs, fixture);
 }
 
-RELOCATOR_TESTCASE (b_imm_a1_negative_should_be_rewritten)
+TESTCASE (b_imm_a1_negative_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_B,
@@ -154,7 +154,7 @@ RELOCATOR_TESTCASE (b_imm_a1_negative_should_be_rewritten)
   branch_scenario_execute (&bs, fixture);
 }
 
-RELOCATOR_TESTCASE (bl_imm_a1_positive_should_be_rewritten)
+TESTCASE (bl_imm_a1_positive_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_BL,
@@ -173,7 +173,7 @@ RELOCATOR_TESTCASE (bl_imm_a1_positive_should_be_rewritten)
   branch_scenario_execute (&bs, fixture);
 }
 
-RELOCATOR_TESTCASE (bl_imm_a1_negative_should_be_rewritten)
+TESTCASE (bl_imm_a1_negative_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_BL,
@@ -192,7 +192,7 @@ RELOCATOR_TESTCASE (bl_imm_a1_negative_should_be_rewritten)
   branch_scenario_execute (&bs, fixture);
 }
 
-RELOCATOR_TESTCASE (blx_imm_a2_positive_should_be_rewritten)
+TESTCASE (blx_imm_a2_positive_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_BLX,
@@ -211,7 +211,7 @@ RELOCATOR_TESTCASE (blx_imm_a2_positive_should_be_rewritten)
   branch_scenario_execute (&bs, fixture);
 }
 
-RELOCATOR_TESTCASE (blx_imm_a2_negative_should_be_rewritten)
+TESTCASE (blx_imm_a2_negative_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_BLX,
@@ -265,7 +265,7 @@ branch_scenario_execute (BranchScenario * bs,
 
   g_assert_cmpuint (gum_arm_relocator_read_one (&fixture->rl, &insn), ==, 4);
   g_assert_cmpint (insn->id, ==, bs->instruction_id);
-  g_assert (gum_arm_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_arm_relocator_write_one (&fixture->rl));
   gum_arm_writer_flush (&fixture->aw);
   g_assert_cmpint (memcmp (fixture->output, bs->expected_output,
       bs->expected_output_length * sizeof (guint32)), ==, 0);

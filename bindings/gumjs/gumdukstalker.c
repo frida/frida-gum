@@ -67,7 +67,6 @@ struct _GumDukProbeArgs
 
 static gboolean gum_duk_stalker_on_flush_timer_tick (GumDukStalker * self);
 
-GUMJS_DECLARE_CONSTRUCTOR (gumjs_stalker_construct)
 GUMJS_DECLARE_GETTER (gumjs_stalker_get_trust_threshold)
 GUMJS_DECLARE_SETTER (gumjs_stalker_set_trust_threshold)
 
@@ -207,13 +206,10 @@ _gum_duk_stalker_init (GumDukStalker * self,
 
   _gum_duk_store_module_data (ctx, "stalker", self);
 
-  duk_push_c_function (ctx, gumjs_stalker_construct, 0);
   duk_push_object (ctx);
-  duk_put_function_list (ctx, -1, gumjs_stalker_functions);
-  duk_put_prop_string (ctx, -2, "prototype");
-  duk_new (ctx, 0);
   _gum_duk_add_properties_to_class_by_heapptr (ctx,
       duk_require_heapptr (ctx, -1), gumjs_stalker_values);
+  duk_put_function_list (ctx, -1, gumjs_stalker_functions);
   duk_put_global_string (ctx, "Stalker");
 
   _gum_duk_create_subclass (ctx, GUM_DUK_NATIVE_WRITER_CLASS_NAME,
@@ -366,11 +362,6 @@ static GumDukStalker *
 gumjs_module_from_args (const GumDukArgs * args)
 {
   return _gum_duk_load_module_data (args->ctx, "stalker");
-}
-
-GUMJS_DEFINE_CONSTRUCTOR (gumjs_stalker_construct)
-{
-  return 0;
 }
 
 GUMJS_DEFINE_GETTER (gumjs_stalker_get_trust_threshold)
