@@ -66,18 +66,18 @@ gum_mips_relocator_init (GumMipsRelocator * relocator,
 
 #if G_BYTE_ORDER == G_LITTLE_ENDIAN
   #if (GLIB_SIZEOF_VOID_P == 8)
-  err = cs_open (CS_ARCH_MIPS, CS_MODE_MIPS64 | CS_MODE_LITTLE_ENDIAN,
+  cs_open (CS_ARCH_MIPS, CS_MODE_MIPS64 | CS_MODE_LITTLE_ENDIAN,
       &relocator->capstone);
   #else  
-  err = cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_LITTLE_ENDIAN,
+  cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_LITTLE_ENDIAN,
       &relocator->capstone);
   #endif
 #else
   #if (GLIB_SIZEOF_VOID_P == 8)
-  err = cs_open (CS_ARCH_MIPS, CS_MODE_MIPS64 | CS_MODE_BIG_ENDIAN,
+  cs_open (CS_ARCH_MIPS, CS_MODE_MIPS64 | CS_MODE_BIG_ENDIAN,
       &relocator->capstone);
   #else
-  err = cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_BIG_ENDIAN,
+  cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_BIG_ENDIAN,
       &relocator->capstone);
   #endif
 #endif
@@ -497,18 +497,18 @@ gum_mips_relocator_can_relocate (gpointer address,
 
 #if G_BYTE_ORDER == G_LITTLE_ENDIAN
     #if (GLIB_SIZEOF_VOID_P == 8)
-    err = cs_open (CS_ARCH_MIPS, CS_MODE_MIPS64 | CS_MODE_LITTLE_ENDIAN,
+    cs_open (CS_ARCH_MIPS, CS_MODE_MIPS64 | CS_MODE_LITTLE_ENDIAN,
         &capstone);
     #else
-    err = cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_LITTLE_ENDIAN,
+    cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_LITTLE_ENDIAN,
         &capstone);
     #endif
 #else
     #if (GLIB_SIZEOF_VOID_P == 8)
-    err = cs_open (CS_ARCH_MIPS, CS_MODE_MIPS64 | CS_MODE_BIG_ENDIAN,
+    cs_open (CS_ARCH_MIPS, CS_MODE_MIPS64 | CS_MODE_BIG_ENDIAN,
         &capstone);
     #else
-    err = cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_BIG_ENDIAN,
+    cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_BIG_ENDIAN,
         &capstone);
     #endif
 #endif
