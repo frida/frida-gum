@@ -60,6 +60,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (function_can_be_reverted)
     TESTENTRY (replaced_function_should_have_invocation_context)
     TESTENTRY (instructions_can_be_probed)
+    TESTENTRY (interceptor_should_support_native_pointer_values)
     TESTENTRY (interceptor_handles_invalid_arguments)
   TESTGROUP_END ()
   TESTGROUP_BEGIN ("Interceptor/Performance")
@@ -4205,6 +4206,31 @@ TESTCASE (instructions_can_be_probed)
 
   target_function_int (42);
   EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (interceptor_should_support_native_pointer_values)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var value = { handle: " GUM_PTR_CONST " };"
+      "Interceptor.attach(value, {"
+      "  onEnter: function (args) {"
+      "    send(args[0].toInt32());"
+      "  }"
+      "});", target_function_int);
+  EXPECT_NO_MESSAGES ();
+  target_function_int (42);
+  EXPECT_SEND_MESSAGE_WITH ("42");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var value = { handle: " GUM_PTR_CONST " };"
+      "Interceptor.replace(value,"
+      "    new NativeCallback(function (arg) {"
+      "  return 1337;"
+      "}, 'int', ['int']));",
+      target_function_int);
+  EXPECT_NO_MESSAGES ();
+  g_assert_cmpint (target_function_int (7), ==, 1337);
   EXPECT_NO_MESSAGES ();
 }
 
