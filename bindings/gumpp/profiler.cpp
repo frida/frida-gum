@@ -54,7 +54,7 @@ namespace Gum
 
     virtual ProfileReport * generate_report ()
     {
-      return new ProfileReportImpl (gum_profiler_generate_report (handle));      
+      return new ProfileReportImpl (gum_profiler_generate_report (handle));
     }
 
   private:
