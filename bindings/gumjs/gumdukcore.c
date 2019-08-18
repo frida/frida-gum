@@ -242,7 +242,7 @@ union _GumFFIValue
   /* Padded 16-bit types */
   struct
   {
-    guchar _pad16[2];
+    guint8 _pad16[2];
     union
     {
       gint16 v_sint16;
@@ -250,10 +250,10 @@ union _GumFFIValue
     };
   };
 
-  /* Padded 8-bit types */
+  /* padded 8-bit types */
   struct
   {
-    guchar _pad8[3];
+    guint8 _pad8[3];
     union
     {
       gchar v_schar;
