@@ -544,7 +544,7 @@ gum_mips_relocator_can_relocate (gpointer address,
           op = &d->operands[0];
 
           g_assert_cmpint (op->type, ==, MIPS_OP_IMM);
-#if (GLIB_SIZEOF_VOID_P == 8)
+#if GLIB_SIZEOF_VOID_P == 8
           target =
               (gssize) (GPOINTER_TO_SIZE (
                 insn[i].address & 0xfffffffff0000000)) |
@@ -599,7 +599,7 @@ gum_mips_relocator_can_relocate (gpointer address,
           op = d->op_count == 3 ? &d->operands[2] : &d->operands[1];
 
           g_assert_cmpint (op->type, ==, MIPS_OP_IMM);
-#if (GLIB_SIZEOF_VOID_P == 8)
+#if GLIB_SIZEOF_VOID_P == 8
           target = (gssize) insn->address +
               (op->imm & 0x8000 ?
                 (0xffffffffffff0000 + op->imm) << 2 : op->imm << 2);

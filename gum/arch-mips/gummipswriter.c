@@ -367,7 +367,7 @@ gum_mips_writer_put_argument_list_setup (GumMipsWriter * self,
     const GumArgument * arg = &args[arg_index];
     mips_reg r = MIPS_REG_A0 + arg_index;
 
-#if (GLIB_SIZEOF_VOID_P == 8)
+#if GLIB_SIZEOF_VOID_P == 8
     /*
      * MIPS64 passes 8 arguments in registers
      */
@@ -434,7 +434,7 @@ gum_mips_writer_put_argument_list_teardown (GumMipsWriter * self,
                                             guint n_args)
 {
 
-#if (GLIB_SIZEOF_VOID_P == 8)
+#if GLIB_SIZEOF_VOID_P == 8
   /*
    * MIPS64 passes 8 arguments in registers
    */
@@ -456,7 +456,7 @@ gboolean
 gum_mips_writer_can_branch_directly_between (GumAddress from,
                                              GumAddress to)
 {
-#if (GLIB_SIZEOF_VOID_P == 8)
+#if GLIB_SIZEOF_VOID_P == 8
   gint64 lower_limit = (from & 0xfffffffff0000000);
   gint64 upper_limit = (from & 0xfffffffff0000000) + GUM_INT28_MASK;
 #else
@@ -471,7 +471,7 @@ gboolean
 gum_mips_writer_put_j_address (GumMipsWriter * self,
                                GumAddress address)
 {
-#if (GLIB_SIZEOF_VOID_P == 8)
+#if GLIB_SIZEOF_VOID_P == 8
   if ((address & 0xfffffffff0000000) !=
       (self->pc & 0xfffffffff0000000) || address % 4 != 0)
   {
@@ -566,7 +566,7 @@ gum_mips_writer_put_ret (GumMipsWriter * self)
   gum_mips_writer_put_nop (self);
 }
 
-#if (GLIB_SIZEOF_VOID_P == 8)
+#if GLIB_SIZEOF_VOID_P == 8
 /*
  * Instruction used to load a 64 bit value from the address in
  * a register + an offset.
@@ -628,7 +628,7 @@ gum_mips_writer_put_la_reg_address (GumMipsWriter * self,
                                     mips_reg reg,
                                     GumAddress address)
 {
-#if (GLIB_SIZEOF_VOID_P == 8)
+#if GLIB_SIZEOF_VOID_P == 8
   gum_mips_writer_put_lui_reg_imm(self, reg, (address >> 48));
   gum_mips_writer_put_ori_reg_reg_imm(self, reg, reg, (address >> 32) & 0xffff);
   gum_mips_writer_put_dsll_reg_reg(self, reg, reg, 16);
@@ -651,7 +651,7 @@ gum_mips_writer_put_la_reg_address (GumMipsWriter * self,
  * one instruction larger if the function is not 64 bit aligned (the
  * instruction stream need only be 32 bit aligned).
  */
-#if (GLIB_SIZEOF_VOID_P == 8)
+#if GLIB_SIZEOF_VOID_P == 8
 void
 gum_mips_writer_put_prologue_trampoline (GumMipsWriter * self,
                                          mips_reg reg,
@@ -715,7 +715,7 @@ gum_mips_writer_put_lw_reg_reg_offset (GumMipsWriter * self,
   gum_mips_writer_describe_reg (self, dst_reg, &rt);
   gum_mips_writer_describe_reg (self, base_reg, &rb);
 
-#if (GLIB_SIZEOF_VOID_P == 8)
+#if GLIB_SIZEOF_VOID_P == 8
   /*
    * A number of the other MIPS instructions being written here need to
    * be modified. MIPS64 retained backward compatibility with MIPS32 and
@@ -742,7 +742,7 @@ gum_mips_writer_put_sw_reg_reg_offset (GumMipsWriter * self,
   gum_mips_writer_describe_reg (self, src_reg, &rt);
   gum_mips_writer_describe_reg (self, base_reg, &rb);
 
-#if (GLIB_SIZEOF_VOID_P == 8)
+#if GLIB_SIZEOF_VOID_P == 8
   /*
    * A number of the other MIPS instructions being written here need to
    * be modified. MIPS64 retained backward compatibility with MIPS32 and
@@ -778,7 +778,7 @@ gum_mips_writer_put_addu_reg_reg_reg (GumMipsWriter * self,
   gum_mips_writer_describe_reg (self, left_reg, &rs);
   gum_mips_writer_describe_reg (self, right_reg, &rt);
 
-#if (GLIB_SIZEOF_VOID_P == 8)
+#if GLIB_SIZEOF_VOID_P == 8
   /*
    * A number of the other MIPS instructions being written here need to
    * be modified. MIPS64 retained backward compatibility with MIPS32 and
@@ -806,7 +806,7 @@ gum_mips_writer_put_addi_reg_reg_imm (GumMipsWriter * self,
   gum_mips_writer_describe_reg (self, left_reg, &rs);
 
   g_assert(imm & 0xffff = imm);
-#if (GLIB_SIZEOF_VOID_P == 8)
+#if GLIB_SIZEOF_VOID_P == 8
   /*
    * A number of the other MIPS instructions being written here need to
    * be modified. MIPS64 retained backward compatibility with MIPS32 and

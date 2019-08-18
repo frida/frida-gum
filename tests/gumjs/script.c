@@ -5250,7 +5250,7 @@ TESTCASE (invalid_write_results_in_exception)
         NULL);
     COMPILE_AND_LOAD_SCRIPT (source);
 
-#if (GLIB_SIZEOF_VOID_P == 8)
+#if GLIB_SIZEOF_VOID_P == 8
     EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation accessing 0x530");
 #else
     /*
@@ -5279,7 +5279,7 @@ TESTCASE (invalid_write_results_in_exception)
     source = g_strconcat ("ptr('1328').write", string_type_name[i], "('Hey');",
         NULL);
     COMPILE_AND_LOAD_SCRIPT (source);
-#if (GLIB_SIZEOF_VOID_P == 8)
+#if GLIB_SIZEOF_VOID_P == 8
     EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation accessing 0x530");
 #else
     /*

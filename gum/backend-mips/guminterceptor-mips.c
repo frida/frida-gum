@@ -27,7 +27,7 @@
  * to load 16 bit immediate values at a time. Hence loading a 64-bit immediate
  * value takes rather more instructions.
  */
-#if (GLIB_SIZEOF_VOID_P == 8)
+#if GLIB_SIZEOF_VOID_P == 8
 # define GUM_HOOK_SIZE 28
 #else
 # define GUM_HOOK_SIZE 16
@@ -176,7 +176,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
   /* TODO: save $t0 on the stack? */
 
-#if (GLIB_SIZEOF_VOID_P == 8)
+#if GLIB_SIZEOF_VOID_P == 8
   /*
    * On MIPS64 the calling convention is that 8 arguments are passed in
    * registers. The additional registers used for these arguments are a4-a7,
@@ -194,7 +194,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   ctx->on_leave_trampoline = gum_mips_writer_cur (cw);
 
   /* TODO: save $t0 on the stack? */
-#if (GLIB_SIZEOF_VOID_P == 8)
+#if GLIB_SIZEOF_VOID_P == 8
   /*
    * On MIPS64 the calling convention is that 8 arguments are passed in
    * registers. The additional registers used for these arguments are a4-a7,
@@ -311,7 +311,7 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
         break;
 
       case GUM_HOOK_SIZE:
-#if (GLIB_SIZEOF_VOID_P == 8)
+#if GLIB_SIZEOF_VOID_P == 8
         gum_mips_writer_put_prologue_trampoline (cw, MIPS_REG_AT, on_enter);
 #else
         gum_mips_writer_put_la_reg_address (cw, MIPS_REG_AT, on_enter);
@@ -387,7 +387,7 @@ gum_emit_enter_thunk (GumMipsWriter * cw)
   gum_mips_writer_put_addi_reg_reg_imm (cw, MIPS_REG_A3, MIPS_REG_SP,
       GUM_FRAME_OFFSET_NEXT_HOP);
 
-#if (GLIB_SIZEOF_VOID_P == 8)
+#if GLIB_SIZEOF_VOID_P == 8
   /*
    * On MIPS64 the calling convention is that 8 arguments are passed in
    * registers. The additional registers used for these arguments are a4-a7,
@@ -421,7 +421,7 @@ gum_emit_leave_thunk (GumMipsWriter * cw)
       GUM_FRAME_OFFSET_CPU_CONTEXT);
   gum_mips_writer_put_addi_reg_reg_imm (cw, MIPS_REG_A2, MIPS_REG_SP,
       GUM_FRAME_OFFSET_NEXT_HOP);
-#if (GLIB_SIZEOF_VOID_P == 8)
+#if GLIB_SIZEOF_VOID_P == 8
   /*
    * On MIPS64 the calling convention is that 8 arguments are passed in
    * registers. The additional registers used for these arguments are a4-a7,
@@ -499,7 +499,7 @@ gum_emit_prolog (GumMipsWriter * cw)
   gum_mips_writer_put_push_reg (cw, MIPS_REG_FP);
 
   /* SP */
-#if (GLIB_SIZEOF_VOID_P == 8)
+#if GLIB_SIZEOF_VOID_P == 8
   /*
    * These expressions have been solved to prevent the compiler from
    * evaluating them at runtime rather than at compile time. Here we

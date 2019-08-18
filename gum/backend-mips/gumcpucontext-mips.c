@@ -6,7 +6,7 @@
 
 #include "gumdefs.h"
 
-#if (GLIB_SIZEOF_VOID_P == 8)
+#if GLIB_SIZEOF_VOID_P == 8
 /*
  * On MIPS64 8 registers are used for passing arguments, t0 through t3 are
  * renamed a4-a7 in the instruction set architecture.
