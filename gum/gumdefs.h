@@ -203,11 +203,12 @@ struct _GumMipsCpuContext
 {
   /*
    * This structure represents the register state pushed onto the stack by the
-   * trampoline which allows us to vector from the original minimal assembly hook
-   * to architecture agnostic C code inside frida-gum. These registers are natively
-   * sized. Even if some have not been expanded to 64-bits from the MIPS32 architecture
-   * MIPS can only perform aligned data access and as such pushing zero extended values
-   * is simpler than attempting to push minimally sized data types.
+   * trampoline which allows us to vector from the original minimal assembly
+   * hook to architecture agnostic C code inside frida-gum. These registers are
+   * natively sized. Even if some have not been expanded to 64-bits from the
+   * MIPS32 architecture MIPS can only perform aligned data access and as such
+   * pushing zero extended values is simpler than attempting to push minimally
+   * sized data types.
    */
   gsize pc;
 

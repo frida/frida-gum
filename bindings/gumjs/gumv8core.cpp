@@ -152,9 +152,10 @@ union GumFFIValue
 #else
 /*
  * On little endian the low order bytes of a value appear at the lowest address
- * in memory. To the left in the diagram below. Thus it is trivial and transparent 
- * to use a union to zero extend smaller types into larger types. The low order
- * bits of the 32-bit value must overlap the low order bits of the 64-bit value:
+ * in memory. To the left in the diagram below. Thus it is trivial and
+ * transparent to use a union to zero extend smaller types into larger types.
+ * The low order bits of the 32-bit value must overlap the low order bits of the
+ * 64-bit value:
  *
  * --------------------------------
  * | 64-bit value                 |
@@ -172,7 +173,7 @@ union GumFFIValue
  *                 | 32-bit value |
  *                 ----------------
  *
- * Hence the structures below require padding when compiled for big endian 
+ * Hence the structures below require padding when compiled for big endian
  * architectures.
  */
 
@@ -190,7 +191,7 @@ union GumFFIValue
   /* padded 32-bit types */
   struct {
     guchar _pad32[4];
-    union 
+    union
     {
       gint v_sint;
       guint v_uint;
@@ -205,7 +206,7 @@ union GumFFIValue
   /* padded 16-bit types */
   struct {
     guchar _pad16[6];
-    union 
+    union
     {
       gint16 v_sint16;
       guint16 v_uint16;
@@ -216,7 +217,7 @@ union GumFFIValue
   /* padded 8-bit types */
   struct {
     guchar _pad8[7];
-    union 
+    union
     {
       gchar v_schar;
       guchar v_uchar;
@@ -244,7 +245,7 @@ union GumFFIValue
 /* padded 16-bit types */
   struct {
     guchar _pad16[2];
-    union 
+    union
     {
       gint16 v_sint16;
       guint16 v_uint16;
@@ -255,7 +256,7 @@ union GumFFIValue
   /* padded 8-bit types */
   struct {
     guchar _pad8[3];
-    union 
+    union
     {
       gchar v_schar;
       guchar v_uchar;

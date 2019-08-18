@@ -22,13 +22,13 @@
  * stores the CPU context and transitions to C code passing the necessary
  * landmarks.
  *
- * On MIPS64, whilst data access can be 64-bits wide, the instruction stream 
- * is only 32-bits. With fixed width 32-bit instructions, it is only possible 
+ * On MIPS64, whilst data access can be 64-bits wide, the instruction stream
+ * is only 32-bits. With fixed width 32-bit instructions, it is only possible
  * to load 16 bit immediate values at a time. Hence loading a 64-bit immediate
  * value takes rather more instructions.
  */
 #if (GLIB_SIZEOF_VOID_P == 8)
-  #define GUM_HOOK_SIZE 28  
+  #define GUM_HOOK_SIZE 28
 #else
   #define GUM_HOOK_SIZE 16
 #endif
@@ -178,10 +178,10 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
 #if (GLIB_SIZEOF_VOID_P == 8)
   /*
-   * On MIPS64 the calling convention is that 8 arguments are passed in registers.
-   * The additional registers used for these arguments are a4-a7, these replace
-   * the registers t0-t3 used in MIPS32. Hence t4 is now our first available register,
-   * otherwise we will start clobbering function parameters.
+   * On MIPS64 the calling convention is that 8 arguments are passed in
+   * registers. The additional registers used for these arguments are a4-a7,
+   * these replace the registers t0-t3 used in MIPS32. Hence t4 is now our first
+   * available register, otherwise we will start clobbering function parameters.
    */
   gum_mips_writer_put_la_reg_address (cw, MIPS_REG_T4, GUM_ADDRESS (ctx));
 #else
@@ -196,11 +196,11 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   /* TODO: save $t0 on the stack? */
 #if (GLIB_SIZEOF_VOID_P == 8)
   /*
-   * On MIPS64 the calling convention is that 8 arguments are passed in registers.
-   * The additional registers used for these arguments are a4-a7, these replace
-   * the registers t0-t3 used in MIPS32. Hence t4 is now our first available register,
-   * otherwise we will start clobbering function parameters.
-   */  
+   * On MIPS64 the calling convention is that 8 arguments are passed in
+   * registers. The additional registers used for these arguments are a4-a7,
+   * these replace the registers t0-t3 used in MIPS32. Hence t4 is now our first
+   * available register, otherwise we will start clobbering function parameters.
+   */
   gum_mips_writer_put_la_reg_address (cw, MIPS_REG_T4, GUM_ADDRESS (ctx));
 #else
   gum_mips_writer_put_la_reg_address (cw, MIPS_REG_T0, GUM_ADDRESS (ctx));
@@ -262,25 +262,26 @@ _gum_interceptor_backend_destroy_trampoline (GumInterceptorBackend * self,
  * loaded at a time since instructions are only 32-bits wide. This results in a
  * large number of instructions both for the loading as well as logical shifting
  * of the immediate.
- * 
- * Therefore on 64-bit platforms we instead embed the immediate in the code stream
- * and read its value from there. However, we need to know the address from which
- * to load the value. Since our hook is to be written over the prolog of an existing
- * function, we can rely upon this.
  *
- * MIPS has no architectural visibility of the instruction pointer. That is its value
- * cannot be read and there is no RIP-relative addressing. Therefore convention is that
- * a general purpose register (T9) is set to the address of the function to be called.
- * We can therefore use this register to locate the immediate we need to load. However,
- * this mechanism only works for loading immediates for the hook since if we are writing
- * instructions to load an immediate elsewhere, we don't know how far our RIP is from
- * the start of the function. However, in these cases we don't care about code size
- * and we can instead revert to the old method of shuffling 16-bits at a time.
+ * Therefore on 64-bit platforms we instead embed the immediate in the code
+ * stream and read its value from there. However, we need to know the address
+ * from which to load the value. Since our hook is to be written over the prolog
+ * of an existing function, we can rely upon this.
+ *
+ * MIPS has no architectural visibility of the instruction pointer. That is its
+ * value cannot be read and there is no RIP-relative addressing. Therefore
+ * convention is that a general purpose register (T9) is set to the address of
+ * the function to be called. We can therefore use this register to locate the
+ * immediate we need to load. However, this mechanism only works for loading
+ * immediates for the hook since if we are writing instructions to load an
+ * immediate elsewhere, we don't know how far our RIP is from the start of the
+ * function. However, in these cases we don't care about code size and we can
+ * instead revert to the old method of shuffling 16-bits at a time.
  */
-extern  
-void  
-gum_mips_writer_put_prologue_trampoline (GumMipsWriter * self,  
-                                         mips_reg reg,  
+extern
+void
+gum_mips_writer_put_prologue_trampoline (GumMipsWriter * self,
+                                         mips_reg reg,
                                          GumAddress address);
 
 void
@@ -310,7 +311,7 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
         break;
 
       case GUM_HOOK_SIZE:
-#if (GLIB_SIZEOF_VOID_P == 8)      
+#if (GLIB_SIZEOF_VOID_P == 8)
         gum_mips_writer_put_prologue_trampoline (cw, MIPS_REG_AT, on_enter);
 #else
         gum_mips_writer_put_la_reg_address (cw, MIPS_REG_AT, on_enter);
@@ -388,18 +389,18 @@ gum_emit_enter_thunk (GumMipsWriter * cw)
 
 #if (GLIB_SIZEOF_VOID_P == 8)
   /*
-   * On MIPS64 the calling convention is that 8 arguments are passed in registers.
-   * The additional registers used for these arguments are a4-a7, these replace
-   * the registers t0-t3 used in MIPS32. Hence t4 is now our first available register,
-   * otherwise we will start clobbering function parameters.
-   */ 
+   * On MIPS64 the calling convention is that 8 arguments are passed in
+   * registers. The additional registers used for these arguments are a4-a7,
+   * these replace the registers t0-t3 used in MIPS32. Hence t4 is now our first
+   * available register, otherwise we will start clobbering function parameters.
+   */
   gum_mips_writer_put_call_address_with_arguments (cw,
       GUM_ADDRESS (_gum_function_context_begin_invocation), 4,
       GUM_ARG_REGISTER, MIPS_REG_T4,
       GUM_ARG_REGISTER, MIPS_REG_A1,  // CPU CONTEXT
       GUM_ARG_REGISTER, MIPS_REG_A2,  // RA
       GUM_ARG_REGISTER, MIPS_REG_A3); // NEXT HOP
-#else 
+#else
   gum_mips_writer_put_call_address_with_arguments (cw,
       GUM_ADDRESS (_gum_function_context_begin_invocation), 4,
       GUM_ARG_REGISTER, MIPS_REG_T0,
@@ -422,11 +423,11 @@ gum_emit_leave_thunk (GumMipsWriter * cw)
       GUM_FRAME_OFFSET_NEXT_HOP);
 #if (GLIB_SIZEOF_VOID_P == 8)
   /*
-   * On MIPS64 the calling convention is that 8 arguments are passed in registers.
-   * The additional registers used for these arguments are a4-a7, these replace
-   * the registers t0-t3 used in MIPS32. Hence t4 is now our first available register,
-   * otherwise we will start clobbering function parameters.
-   */  
+   * On MIPS64 the calling convention is that 8 arguments are passed in
+   * registers. The additional registers used for these arguments are a4-a7,
+   * these replace the registers t0-t3 used in MIPS32. Hence t4 is now our first
+   * available register, otherwise we will start clobbering function parameters.
+   */
   gum_mips_writer_put_call_address_with_arguments (cw,
       GUM_ADDRESS (_gum_function_context_end_invocation), 3,
       GUM_ARG_REGISTER, MIPS_REG_T4,
@@ -500,15 +501,18 @@ gum_emit_prolog (GumMipsWriter * cw)
   /* SP */
 #if (GLIB_SIZEOF_VOID_P == 8)
   /*
-   * These expressions have been solved to prevent the compiler from 
+   * These expressions have been solved to prevent the compiler from
    * evaluating them at runtime rather than at compile time. Here we
    * are calculating the original stack pointer (before we stored) all
-   * the context above and saving it to the stack so that it can be 
+   * the context above and saving it to the stack so that it can be
    * read as part of the CPU context structure
    */
-  gum_mips_writer_put_addi_reg_reg_imm (cw, MIPS_REG_V0, MIPS_REG_SP, 0xf8); // 8 + (30 * 8);
+
+  /* 8 + (30 * 8);*/
+  gum_mips_writer_put_addi_reg_reg_imm (cw, MIPS_REG_V0, MIPS_REG_SP, 0xf8);
 #else
-  gum_mips_writer_put_addi_reg_reg_imm (cw, MIPS_REG_V0, MIPS_REG_SP, 0x7c); // 4 + (30 * 4);
+  /* 4 + (30 * 4) */
+  gum_mips_writer_put_addi_reg_reg_imm (cw, MIPS_REG_V0, MIPS_REG_SP, 0x7c);
 #endif
   gum_mips_writer_put_push_reg (cw, MIPS_REG_V0);
 

@@ -473,10 +473,12 @@ TESTCASE (lock_inc_dec_imm32_ptr)
 
 #if GLIB_SIZEOF_VOID_P == 4
   gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_IA32);
-  *((guint32 *) (expected_code + 3)) = GUINT32_TO_LE (GPOINTER_TO_SIZE (target));
+  *((guint32 *) (expected_code + 3)) = GUINT32_TO_LE (
+    GPOINTER_TO_SIZE (target));
 #else
   gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
-  *((gint32 *) (expected_code + 3)) = GUINT32_TO_LE (GPOINTER_TO_SIZE (32 - sizeof (expected_code)));
+  *((gint32 *) (expected_code + 3)) = GUINT32_TO_LE (
+    GPOINTER_TO_SIZE (32 - sizeof (expected_code)));
 #endif
 
   gum_x86_writer_put_lock_inc_imm32_ptr (&fixture->cw, target);

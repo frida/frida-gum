@@ -472,11 +472,16 @@ gum_mips_writer_put_j_address (GumMipsWriter * self,
                                GumAddress address)
 {
 #if (GLIB_SIZEOF_VOID_P == 8)
-  if ((address & 0xfffffffff0000000) != (self->pc & 0xfffffffff0000000) || address % 4 != 0)
+  if ((address & 0xfffffffff0000000) !=
+      (self->pc & 0xfffffffff0000000) || address % 4 != 0)
+  {
     return FALSE;
+  }
 #else
   if ((address & 0xf0000000) != (self->pc & 0xf0000000) || address % 4 != 0)
+  {
     return FALSE;
+  }
 #endif
 
   gum_mips_writer_put_instruction (self,
@@ -563,54 +568,57 @@ gum_mips_writer_put_ret (GumMipsWriter * self)
 
 #if (GLIB_SIZEOF_VOID_P == 8)
 /*
- * Instruction used to load a 64 bit value from the address in 
+ * Instruction used to load a 64 bit value from the address in
  * a register + an offset.
  */
-void  
+void
 gum_mips_write_put_ld_reg( GumMipsWriter * self,
-                           mips_reg base_reg,  
-                           mips_reg dest_reg,  
-                           gushort offset) 
-{ 
-  GumMipsRegInfo base;  
-  gum_mips_writer_describe_reg (self, base_reg, &base); 
-  GumMipsRegInfo rt; 
-  gum_mips_writer_describe_reg (self, dest_reg, &rt); 
-  gum_mips_writer_put_instruction (self, 0x68000000 | (base.index << 21) | 
-    (rt.index << 16) | offset); 
+                           mips_reg base_reg,
+                           mips_reg dest_reg,
+                           gushort offset)
+{
+  GumMipsRegInfo base;
+  gum_mips_writer_describe_reg (self, base_reg, &base);
+  GumMipsRegInfo rt;
+  gum_mips_writer_describe_reg (self, dest_reg, &rt);
+  gum_mips_writer_put_instruction (self, 0x68000000 | (base.index << 21) |
+    (rt.index << 16) | offset);
 }
 
 /*
- * A variant of gum_mips_writer_put_j_address without the trailing nop, 
+ * A variant of gum_mips_writer_put_j_address without the trailing nop,
  * used to minimise the size of the trampoline we build.
  */
-void  
+void
 gum_mips_writer_put_j_address2 (GumMipsWriter * self,
-                                GumAddress address) 
-{ 
-  g_assert((address & 0xf0000000) == (self->pc & 0xf0000000));  
-  g_assert(address % 4 == 0); 
-  gum_mips_writer_put_instruction (self, 
-    0x08000000 | ((address & GUM_INT28_MASK) / 4)); 
-} 
+                                GumAddress address)
+{
+  g_assert((address & 0xf0000000) == (self->pc & 0xf0000000));
+  g_assert(address % 4 == 0);
+  gum_mips_writer_put_instruction (self,
+    0x08000000 | ((address & GUM_INT28_MASK) / 4));
+}
 
-/* double shift logical left instruction used to shift a 64bit value by a 
- * given number of bits (<32). This is used when loading a 64 bit immediate 
- * 16 bits at a time when we cannot rely on the value of T9 and we aren't 
+/* double shift logical left instruction used to shift a 64bit value by a
+ * given number of bits (<32). This is used when loading a 64 bit immediate
+ * 16 bits at a time when we cannot rely on the value of T9 and we aren't
  * size constrained.
  */
-void 
+void
 gum_mips_writer_put_dsll_reg_reg (GumMipsWriter * self,
-                                  mips_reg rt_reg,  
-                                  mips_reg rd_reg,  
-                                  guint sa) 
-{ 
-  GumMipsRegInfo rt;  
-  gum_mips_writer_describe_reg (self, rt_reg, &rt); 
-  GumMipsRegInfo rd; 
-  gum_mips_writer_describe_reg (self, rd_reg, &rd); 
-  g_assert(sa & 0x1f == sa); 
-  gum_mips_writer_put_instruction (self, (rt.index << 16) | (rd.index << 11) | (sa << 6) | 0x38);  
+                                  mips_reg rt_reg,
+                                  mips_reg rd_reg,
+                                  guint sa)
+{
+  GumMipsRegInfo rt;
+  gum_mips_writer_describe_reg (self, rt_reg, &rt);
+  GumMipsRegInfo rd;
+  gum_mips_writer_describe_reg (self, rd_reg, &rd);
+  g_assert(sa & 0x1f == sa);
+
+  gum_mips_writer_put_instruction (
+    self,
+    (rt.index << 16) | (rd.index << 11) | (sa << 6) | 0x38);
 }
 
 #endif
@@ -622,10 +630,10 @@ gum_mips_writer_put_la_reg_address (GumMipsWriter * self,
 {
 #if (GLIB_SIZEOF_VOID_P == 8)
   gum_mips_writer_put_lui_reg_imm(self, reg, (address >> 48));
-  gum_mips_writer_put_ori_reg_reg_imm(self, reg, reg, (address >> 32) & 0xffff);  
-  gum_mips_writer_put_dsll_reg_reg(self, reg, reg, 16); 
-  gum_mips_writer_put_ori_reg_reg_imm(self, reg, reg, (address >> 16) & 0xffff);  
-  gum_mips_writer_put_dsll_reg_reg(self, reg, reg, 16); 
+  gum_mips_writer_put_ori_reg_reg_imm(self, reg, reg, (address >> 32) & 0xffff);
+  gum_mips_writer_put_dsll_reg_reg(self, reg, reg, 16);
+  gum_mips_writer_put_ori_reg_reg_imm(self, reg, reg, (address >> 16) & 0xffff);
+  gum_mips_writer_put_dsll_reg_reg(self, reg, reg, 16);
   gum_mips_writer_put_ori_reg_reg_imm(self, reg, reg, address & 0xffff);
 #else
   gum_mips_writer_put_lui_reg_imm (self, reg, address >> 16);
@@ -634,30 +642,30 @@ gum_mips_writer_put_la_reg_address (GumMipsWriter * self,
 }
 
 /*
- * This builds our minimal sized trampoline. We place our address raw into the 
- * instruction stream and jump over it. We use R9 (which points to the start 
- * of the function) to reference the immediate in the instruction stream. Note 
- * that this load is executed from the branch delay slot. Finally, MIPS64 only 
- * supports aligned 64 bit loads and hence we must align the address in the 
- * instruction stream accordingly. We can see therefore that the trampoline is 
- * one instruction larger if the function is not 64 bit aligned (the 
+ * This builds our minimal sized trampoline. We place our address raw into the
+ * instruction stream and jump over it. We use R9 (which points to the start
+ * of the function) to reference the immediate in the instruction stream. Note
+ * that this load is executed from the branch delay slot. Finally, MIPS64 only
+ * supports aligned 64 bit loads and hence we must align the address in the
+ * instruction stream accordingly. We can see therefore that the trampoline is
+ * one instruction larger if the function is not 64 bit aligned (the
  * instruction stream need only be 32 bit aligned).
  */
 #if (GLIB_SIZEOF_VOID_P == 8)
-void  
+void
 gum_mips_writer_put_prologue_trampoline (GumMipsWriter * self,
-                                         mips_reg reg, 
-                                         GumAddress address)  
-{ 
-  if(self->pc % 8 == 0) 
-  { 
-    gum_mips_writer_put_j_address2(self, self->pc + 0x10);  
-    gum_mips_write_put_ld_reg(self, MIPS_REG_T9, reg, 0x8); 
-  } 
-  else  
-  { 
-    gum_mips_writer_put_j_address2(self, self->pc + 0x14);  
-    gum_mips_write_put_ld_reg(self, MIPS_REG_T9, reg, 0xc); 
+                                         mips_reg reg,
+                                         GumAddress address)
+{
+  if(self->pc % 8 == 0)
+  {
+    gum_mips_writer_put_j_address2(self, self->pc + 0x10);
+    gum_mips_write_put_ld_reg(self, MIPS_REG_T9, reg, 0x8);
+  }
+  else
+  {
+    gum_mips_writer_put_j_address2(self, self->pc + 0x14);
+    gum_mips_write_put_ld_reg(self, MIPS_REG_T9, reg, 0xc);
     gum_mips_writer_put_nop (self);
 
   }
@@ -709,13 +717,13 @@ gum_mips_writer_put_lw_reg_reg_offset (GumMipsWriter * self,
 
 #if (GLIB_SIZEOF_VOID_P == 8)
   /*
-   * A number of the other MIPS instructions being written here need to 
-   * be modified. MIPS64 retained backward compatibility with MIPS32 and 
-   * introduced new instructions for 64 bit data manipulation. MIPS 
-   * refers to these as doublewords. The mnemonic for the instruction 
+   * A number of the other MIPS instructions being written here need to
+   * be modified. MIPS64 retained backward compatibility with MIPS32 and
+   * introduced new instructions for 64 bit data manipulation. MIPS
+   * refers to these as doublewords. The mnemonic for the instruction
    * is different to the original.
    */
-  gum_mips_writer_put_instruction (self, 0xdc000000 | (rb.index << 21) |  
+  gum_mips_writer_put_instruction (self, 0xdc000000 | (rb.index << 21) |
       (rt.index << 16) | (src_offset & 0xffff));
 #else
   gum_mips_writer_put_instruction (self, 0x8c000000 | (rb.index << 21) |
@@ -736,13 +744,13 @@ gum_mips_writer_put_sw_reg_reg_offset (GumMipsWriter * self,
 
 #if (GLIB_SIZEOF_VOID_P == 8)
   /*
-   * A number of the other MIPS instructions being written here need to 
-   * be modified. MIPS64 retained backward compatibility with MIPS32 and 
-   * introduced new instructions for 64 bit data manipulation. MIPS 
-   * refers to these as doublewords. The mnemonic for the instruction 
+   * A number of the other MIPS instructions being written here need to
+   * be modified. MIPS64 retained backward compatibility with MIPS32 and
+   * introduced new instructions for 64 bit data manipulation. MIPS
+   * refers to these as doublewords. The mnemonic for the instruction
    * is different to the original.
    */
-  gum_mips_writer_put_instruction (self, 0xfc000000 | (rb.index << 21) |  
+  gum_mips_writer_put_instruction (self, 0xfc000000 | (rb.index << 21) |
       (rt.index << 16) | (dest_offset & 0xffff));
 #else
   gum_mips_writer_put_instruction (self, 0xac000000 | (rb.index << 21) |
@@ -772,13 +780,13 @@ gum_mips_writer_put_addu_reg_reg_reg (GumMipsWriter * self,
 
 #if (GLIB_SIZEOF_VOID_P == 8)
   /*
-   * A number of the other MIPS instructions being written here need to 
-   * be modified. MIPS64 retained backward compatibility with MIPS32 and 
-   * introduced new instructions for 64 bit data manipulation. MIPS 
-   * refers to these as doublewords. The mnemonic for the instruction 
+   * A number of the other MIPS instructions being written here need to
+   * be modified. MIPS64 retained backward compatibility with MIPS32 and
+   * introduced new instructions for 64 bit data manipulation. MIPS
+   * refers to these as doublewords. The mnemonic for the instruction
    * is different to the original.
    */
-  gum_mips_writer_put_instruction (self, 0x000000a5 | (rs.index << 21) |  
+  gum_mips_writer_put_instruction (self, 0x000000a5 | (rs.index << 21) |
       (rt.index << 16) | (rd.index << 11));
 #else
   gum_mips_writer_put_instruction (self, 0x00000021 | (rs.index << 21) |
@@ -800,13 +808,13 @@ gum_mips_writer_put_addi_reg_reg_imm (GumMipsWriter * self,
   g_assert(imm & 0xffff = imm);
 #if (GLIB_SIZEOF_VOID_P == 8)
   /*
-   * A number of the other MIPS instructions being written here need to 
-   * be modified. MIPS64 retained backward compatibility with MIPS32 and 
-   * introduced new instructions for 64 bit data manipulation. MIPS 
-   * refers to these as doublewords. The mnemonic for the instruction 
+   * A number of the other MIPS instructions being written here need to
+   * be modified. MIPS64 retained backward compatibility with MIPS32 and
+   * introduced new instructions for 64 bit data manipulation. MIPS
+   * refers to these as doublewords. The mnemonic for the instruction
    * is different to the original.
    */
-  gum_mips_writer_put_instruction (self, 0x64000000 | (rs.index << 21) |  
+  gum_mips_writer_put_instruction (self, 0x64000000 | (rs.index << 21) |
       (rt.index << 16) | (imm & 0xffff));
 #else
   gum_mips_writer_put_instruction (self, 0x20000000 | (rs.index << 21) |

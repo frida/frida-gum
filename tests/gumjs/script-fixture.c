@@ -90,7 +90,11 @@
 #define EXPECT_ERROR_MESSAGE_WITH(LINE_NUMBER, DESC) \
     test_script_fixture_expect_error_message_with (fixture, LINE_NUMBER, DESC)
 #define EXPECT_ERROR_MESSAGE_WITH_OR(LINE_NUMBER, DESC, ALT_DESC) \
-    test_script_fixture_expect_error_message_with_or (fixture, LINE_NUMBER, DESC, ALT_DESC)
+    test_script_fixture_expect_error_message_with_or (
+      fixture,
+      LINE_NUMBER,
+      DESC,
+      ALT_DESC)
 #define EXPECT_LOG_MESSAGE_WITH(LEVEL, PAYLOAD, ...) \
     test_script_fixture_expect_log_message_with (fixture, LEVEL, PAYLOAD, \
     ## __VA_ARGS__)
@@ -155,7 +159,10 @@ static void test_script_fixture_expect_send_message_with_payload_and_data (
 static void test_script_fixture_expect_error_message_with (
     TestScriptFixture * fixture, gint line_number, const gchar * description);
 static void test_script_fixture_expect_error_message_with_or (
-    TestScriptFixture * fixture, gint line_number, const gchar * description, const gchar * alternative_description);
+    TestScriptFixture * fixture,
+    gint line_number,
+    const gchar * description,
+    const gchar * alternative_description);
 static void test_script_fixture_expect_log_message_with (
     TestScriptFixture * fixture, const gchar * level,
     const gchar * payload_template, ...);

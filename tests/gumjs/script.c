@@ -192,8 +192,8 @@ TESTLIST_BEGIN (script)
     TESTENTRY (socket_connection_can_be_established)
     TESTENTRY (socket_connection_can_be_established_with_tls)
     TESTENTRY (socket_type_can_be_inspected)
-#if !defined (HAVE_ANDROID) && !(defined (HAVE_LINUX) && defined (HAVE_ARM)) && \
-    !(defined (HAVE_LINUX) && defined (HAVE_MIPS))
+#if !defined (HAVE_ANDROID) && !(defined (HAVE_LINUX) && \
+    defined (HAVE_ARM)) &&  !(defined (HAVE_LINUX) && defined (HAVE_MIPS))
     TESTENTRY (socket_endpoints_can_be_inspected)
 #endif
   TESTGROUP_END ()
@@ -3059,7 +3059,9 @@ TESTCASE (module_export_can_be_found_by_name)
       "send(Module.findExportByName(badModuleName, badModuleExport) === null);"
 
       "try {"
-          "send(Module.getExportByName(sysModuleName, sysModuleExport).equals(impl));"
+          "send(Module.getExportByName(
+            sysModuleName,
+            sysModuleExport).equals(impl));"
 
           "Module.getExportByName(badModuleName, badModuleExport);"
           "send('should not get here');"
@@ -4163,10 +4165,11 @@ TESTCASE (function_can_be_replaced_and_called_immediately)
 TESTCASE (function_can_be_reverted)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "Interceptor.replace(" GUM_PTR_CONST ", new NativeCallback(function (arg) {"
-      "  send(arg);"
-      "  return 1337;"
-      "}, 'int', ['int']));"
+      "Interceptor.replace(" GUM_PTR_CONST ", new NativeCallback("
+      "  function (arg) {"
+      "    send(arg);"
+      "    return 1337;"
+      "  }, 'int', ['int']));"
       "Interceptor.revert(" GUM_PTR_CONST ");",
       target_function_int, target_function_int);
 
@@ -4178,10 +4181,11 @@ TESTCASE (function_can_be_reverted)
 TESTCASE (replaced_function_should_have_invocation_context)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "Interceptor.replace(" GUM_PTR_CONST ", new NativeCallback(function (arg) {"
-      "  send(this.returnAddress instanceof NativePointer);"
-      "  return 0;"
-      "}, 'int', ['int']));",
+      "Interceptor.replace(" GUM_PTR_CONST ", new NativeCallback("
+      "  function (arg) {"
+      "    send(this.returnAddress instanceof NativePointer);"
+      "    return 0;"
+      "  }, 'int', ['int']));",
       target_function_int);
 
   EXPECT_NO_MESSAGES ();
@@ -5250,14 +5254,20 @@ TESTCASE (invalid_write_results_in_exception)
     EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation accessing 0x530");
 #else
     /*
-     * On 32-bit platforms, when reading 64-bit values we must read 32-bits at a time. The JavaScript compiler is as liberty
-     * to read either the high dword, or low dword first and hence we may not fault on the first DWORD, of the value, but rather
-     * on the second. The ordering is likely dependent on endianness. As we see above, we don't perform operations on signed or 
-     * unsigned 64-bit values on 32-bit architectures, but the double type is 8 bytes in size.
+     * On 32-bit platforms, when reading 64-bit values we must read 32-bits at a
+     * time. The JavaScript compiler is as liberty to read either the high
+     * dword, or low dword first and hence we may not fault on the first DWORD,
+     * of the value, but rather on the second. The ordering is likely dependent
+     * on endianness. As we see above, we don't perform operations on signed or
+     * unsigned 64-bit values on 32-bit architectures, but the double type is 8
+     * bytes in size.
      */
-    EXPECT_ERROR_MESSAGE_WITH_OR (1, "Error: access violation accessing 0x530", "Error: access violation accessing 0x534");
+    EXPECT_ERROR_MESSAGE_WITH_OR (
+      1,
+      "Error: access violation accessing 0x530",
+      "Error: access violation accessing 0x534");
 #endif
-    
+
 
     g_free (source);
   }
@@ -5271,14 +5281,20 @@ TESTCASE (invalid_write_results_in_exception)
     COMPILE_AND_LOAD_SCRIPT (source);
 #if (GLIB_SIZEOF_VOID_P == 8)
     EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation accessing 0x530");
-#else    
+#else
     /*
-     * On 32-bit platforms, when reading 64-bit values we must read 32-bits at a time. The JavaScript compiler is as liberty
-     * to read either the high dword, or low dword first and hence we may not fault on the first DWORD, of the value, but rather
-     * on the second. The ordering is likely dependent on endianness. As we see above, we don't perform operations on signed or 
-     * unsigned 64-bit values on 32-bit architectures, but the double type is 8 bytes in size.
+     * On 32-bit platforms, when reading 64-bit values we must read 32-bits at a
+     * time. The JavaScript compiler is as liberty to read either the high
+     * dword, or low dword first and hence we may not fault on the first DWORD,
+     * of the value, but rather on the second. The ordering is likely dependent
+     * on endianness. As we see above, we don't perform operations on signed or
+     * unsigned 64-bit values on 32-bit architectures, but the double type is 8
+     * bytes in size.
      */
-    EXPECT_ERROR_MESSAGE_WITH_OR (1, "Error: access violation accessing 0x530", "Error: access violation accessing 0x534");
+    EXPECT_ERROR_MESSAGE_WITH_OR (
+      1,
+      "Error: access violation accessing 0x530",
+      "Error: access violation accessing 0x534");
 #endif
     g_free (source);
   }
