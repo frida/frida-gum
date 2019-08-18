@@ -152,6 +152,12 @@ function makePointerWriteMethod(write) {
   };
 }
 
+const {readU8} = Memory;
+
+function checkPointer(p) {
+  readU8.call(Memory, p);
+}
+
 [
   Int64,
   UInt64,
@@ -195,7 +201,7 @@ Object.defineProperties(Memory, {
   patchCode: {
     enumerable: true,
     value: function (address, size, apply) {
-      address.readU8();
+      checkPointer(address);
       Memory._patchCode(address, size, apply);
     }
   },
@@ -383,14 +389,14 @@ Object.defineProperties(Interceptor, {
   attach: {
     enumerable: true,
     value: function (target, callbacks) {
-      target.readU8();
+      checkPointer(target);
       return Interceptor._attach(target, callbacks);
     }
   },
   replace: {
     enumerable: true,
     value: function (target, replacement) {
-      target.readU8();
+      checkPointer(target);
       Interceptor._replace(target, replacement);
     }
   },
@@ -465,7 +471,7 @@ Object.defineProperties(Stalker, {
 Object.defineProperty(Instruction, 'parse', {
   enumerable: true,
   value: function (target) {
-    target.readU8();
+    checkPointer(target);
     return Instruction._parse(target);
   }
 });

@@ -1,1 +1,1 @@
-Frida._objc = require('frida-objc');
+Frida._objc = require('frida-objc-bridge');
