@@ -667,7 +667,6 @@ gum_mips_writer_put_prologue_trampoline (GumMipsWriter * self,
     gum_mips_writer_put_j_address2(self, self->pc + 0x14);
     gum_mips_write_put_ld_reg(self, MIPS_REG_T9, reg, 0xc);
     gum_mips_writer_put_nop (self);
-
   }
   g_assert(self->pc % 8 == 0);
   gum_mips_writer_put_instruction(self, address >> 32);

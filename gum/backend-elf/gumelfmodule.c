@@ -300,7 +300,6 @@ gum_elf_module_enumerate_dependencies (GumElfModule * self,
   gum_elf_module_enumerate_dynamic_entries (self, gum_emit_each_needed, &ctx);
 }
 
-
 static gboolean
 gum_emit_each_needed (const GumElfDynamicEntryDetails * details,
                       gpointer user_data)
@@ -558,7 +557,6 @@ gum_store_symtab_params (const GumElfDynamicEntryDetails * details,
 
           highest_index++;
         }
-
       }
 
       ctx->entry_count = highest_index + 1;

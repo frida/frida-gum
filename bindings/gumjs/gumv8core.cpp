@@ -213,7 +213,6 @@ union GumFFIValue
     };
   };
 
-
   /* padded 8-bit types */
   struct {
     guchar _pad8[7];
@@ -241,7 +240,6 @@ union GumFFIValue
   gint32 v_sint32;
   guint32 v_uint32;
 
-
 /* padded 16-bit types */
   struct {
     guchar _pad16[2];
@@ -251,7 +249,6 @@ union GumFFIValue
       guint16 v_uint16;
     };
   };
-
 
   /* padded 8-bit types */
   struct {

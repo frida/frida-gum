@@ -5268,7 +5268,6 @@ TESTCASE (invalid_write_results_in_exception)
       "Error: access violation accessing 0x534");
 #endif
 
-
     g_free (source);
   }
 

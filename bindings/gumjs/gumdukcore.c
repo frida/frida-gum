@@ -177,7 +177,7 @@ union _GumFFIValue
 
 union _GumFFIValue
 {
-#if GLIB_SIZEOF_VOID_P == 8
+# if GLIB_SIZEOF_VOID_P == 8
   /* unpadded 64-bit types */
   gpointer v_pointer;
   gdouble v_double;
@@ -209,7 +209,6 @@ union _GumFFIValue
     };
   };
 
-
   /* padded 8-bit types */
   struct {
     guchar _pad8[7];
@@ -221,7 +220,7 @@ union _GumFFIValue
       guint8 v_uint8;
     };
   };
-#else
+# else
   /* unpadded 64-bit types */
   gdouble v_double;
   gint64 v_sint64;
@@ -237,7 +236,6 @@ union _GumFFIValue
   gint32 v_sint32;
   guint32 v_uint32;
 
-
 /* padded 16-bit types */
   struct {
     guchar _pad16[2];
@@ -247,7 +245,6 @@ union _GumFFIValue
       guint16 v_uint16;
     };
   };
-
 
   /* padded 8-bit types */
   struct {
@@ -260,9 +257,7 @@ union _GumFFIValue
       guint8 v_uint8;
     };
   };
-#endif
-
-
+# endif
 };
 #pragma pack (pop)
 #endif
