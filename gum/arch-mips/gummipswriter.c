@@ -755,7 +755,7 @@ gum_mips_writer_put_sw_reg_reg_offset (GumMipsWriter * self,
 #else
   gum_mips_writer_put_instruction (self, 0xac000000 | (rb.index << 21) |
       (rt.index << 16) | (dest_offset & 0xffff));
-  #endif
+#endif
 }
 
 void

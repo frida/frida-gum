@@ -65,21 +65,21 @@ gum_mips_relocator_init (GumMipsRelocator * relocator,
   relocator->ref_count = 1;
 
 #if G_BYTE_ORDER == G_LITTLE_ENDIAN
-  #if (GLIB_SIZEOF_VOID_P == 8)
+# if (GLIB_SIZEOF_VOID_P == 8)
   cs_open (CS_ARCH_MIPS, CS_MODE_MIPS64 | CS_MODE_LITTLE_ENDIAN,
       &relocator->capstone);
-  #else
+# else
   cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_LITTLE_ENDIAN,
       &relocator->capstone);
-  #endif
+# endif
 #else
-  #if (GLIB_SIZEOF_VOID_P == 8)
+# if (GLIB_SIZEOF_VOID_P == 8)
   cs_open (CS_ARCH_MIPS, CS_MODE_MIPS64 | CS_MODE_BIG_ENDIAN,
       &relocator->capstone);
-  #else
+# else
   cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_BIG_ENDIAN,
       &relocator->capstone);
-  #endif
+# endif
 #endif
   cs_option (relocator->capstone, CS_OPT_DETAIL, CS_OPT_ON);
   relocator->input_insns = g_new0 (cs_insn *, GUM_MAX_INPUT_INSN_COUNT);
@@ -508,21 +508,21 @@ gum_mips_relocator_can_relocate (gpointer address,
     gboolean eoi;
 
 #if G_BYTE_ORDER == G_LITTLE_ENDIAN
-    #if (GLIB_SIZEOF_VOID_P == 8)
+# if (GLIB_SIZEOF_VOID_P == 8)
     cs_open (CS_ARCH_MIPS, CS_MODE_MIPS64 | CS_MODE_LITTLE_ENDIAN,
         &capstone);
-    #else
+# else
     cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_LITTLE_ENDIAN,
         &capstone);
-    #endif
+# endif
 #else
-    #if (GLIB_SIZEOF_VOID_P == 8)
+# if (GLIB_SIZEOF_VOID_P == 8)
     cs_open (CS_ARCH_MIPS, CS_MODE_MIPS64 | CS_MODE_BIG_ENDIAN,
         &capstone);
-    #else
+# else
     cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_BIG_ENDIAN,
         &capstone);
-    #endif
+# endif
 #endif
     cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
 
