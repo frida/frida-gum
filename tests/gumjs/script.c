@@ -3059,9 +3059,9 @@ TESTCASE (module_export_can_be_found_by_name)
       "send(Module.findExportByName(badModuleName, badModuleExport) === null);"
 
       "try {"
-          "send(Module.getExportByName(
-            sysModuleName,
-            sysModuleExport).equals(impl));"
+          "send(Module.getExportByName("
+            "sysModuleName,"
+            "sysModuleExport).equals(impl));"
 
           "Module.getExportByName(badModuleName, badModuleExport);"
           "send('should not get here');"
