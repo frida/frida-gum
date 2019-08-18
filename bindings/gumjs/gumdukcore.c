@@ -173,19 +173,20 @@ union _GumFFIValue
  * Hence the structures below require padding when compiled for big endian
  * architectures.
  */
-#pragma pack (push, 1)
+# pragma pack (push, 1)
 
 union _GumFFIValue
 {
 # if GLIB_SIZEOF_VOID_P == 8
-  /* unpadded 64-bit types */
+  /* Unpadded 64-bit types */
   gpointer v_pointer;
   gdouble v_double;
   gint64 v_sint64;
   guint64 v_uint64;
 
-  /* padded 32-bit types */
-  struct {
+  /* Padded 32-bit types */
+  struct
+  {
     guchar _pad32[4];
     union
     {
@@ -199,8 +200,9 @@ union _GumFFIValue
     };
   };
 
-  /* padded 16-bit types */
-  struct {
+  /* Padded 16-bit types */
+  struct
+  {
     guchar _pad16[6];
     union
     {
@@ -209,8 +211,9 @@ union _GumFFIValue
     };
   };
 
-  /* padded 8-bit types */
-  struct {
+  /* Padded 8-bit types */
+  struct
+  {
     guchar _pad8[7];
     union
     {
@@ -221,7 +224,7 @@ union _GumFFIValue
     };
   };
 # else
-  /* unpadded 64-bit types */
+  /* Unpadded 64-bit types */
   gdouble v_double;
   gint64 v_sint64;
   guint64 v_uint64;
@@ -236,9 +239,10 @@ union _GumFFIValue
   gint32 v_sint32;
   guint32 v_uint32;
 
-/* padded 16-bit types */
-  struct {
-    guchar _pad16[2];
+  /* Padded 16-bit types */
+  struct
+  {
+    guint8 _pad16[2];
     union
     {
       gint16 v_sint16;
@@ -247,8 +251,9 @@ union _GumFFIValue
   };
 
   /* padded 8-bit types */
-  struct {
-    guchar _pad8[3];
+  struct
+  {
+    guint8 _pad8[3];
     union
     {
       gchar v_schar;
@@ -259,7 +264,7 @@ union _GumFFIValue
   };
 # endif
 };
-#pragma pack (pop)
+# pragma pack (pop)
 #endif
 
 struct _GumFFITypeMapping
