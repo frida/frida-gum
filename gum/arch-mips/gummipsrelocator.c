@@ -209,9 +209,9 @@ gum_mips_relocator_read_one (GumMipsRelocator * self,
     case MIPS_INS_B:
       /*
        * Although there isn't actually a separate branch instruction as you just
-       * use BEQ $zero,$zero to compare the zero register, capstone appears to
+       * use BEQ $zero, $zero to compare the zero register, Capstone appears to
        * decode it differently (presumably as it make display easier and it
-       * makes more sense that way. Easy to miss this one if just reading
+       * makes more sense that way). Easy to miss this one if just reading
        * through manuals though. Oh yeah, for those unfamiliar with MIPS there
        * is a zero register which is unmodifiable and whose value is always zero
        * (odd!).
