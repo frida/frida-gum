@@ -366,6 +366,8 @@ gum_mips_relocator_write_one (GumMipsRelocator * self)
       gum_mips_writer_put_bytes (ctx.output, delay_slot_insn->bytes,
           delay_slot_insn->size);
 
+      rewritten = TRUE;
+
       break;
     }
     case MIPS_INS_J:
@@ -387,7 +389,6 @@ gum_mips_relocator_write_one (GumMipsRelocator * self)
        * This makes things a bit tricky.
        */
       g_assert_not_reached ();
-      break;
     default:
       rewritten = FALSE;
       break;
