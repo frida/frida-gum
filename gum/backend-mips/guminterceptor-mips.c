@@ -397,16 +397,16 @@ gum_emit_enter_thunk (GumMipsWriter * cw)
   gum_mips_writer_put_call_address_with_arguments (cw,
       GUM_ADDRESS (_gum_function_context_begin_invocation), 4,
       GUM_ARG_REGISTER, MIPS_REG_T4,
-      GUM_ARG_REGISTER, MIPS_REG_A1,  // CPU CONTEXT
-      GUM_ARG_REGISTER, MIPS_REG_A2,  // RA
-      GUM_ARG_REGISTER, MIPS_REG_A3); // NEXT HOP
+      GUM_ARG_REGISTER, MIPS_REG_A1,  /* CPU CONTEXT */
+      GUM_ARG_REGISTER, MIPS_REG_A2,  /* RA */
+      GUM_ARG_REGISTER, MIPS_REG_A3); /* NEXT HOP */
 #else
   gum_mips_writer_put_call_address_with_arguments (cw,
       GUM_ADDRESS (_gum_function_context_begin_invocation), 4,
       GUM_ARG_REGISTER, MIPS_REG_T0,
-      GUM_ARG_REGISTER, MIPS_REG_A1,  // CPU CONTEXT
-      GUM_ARG_REGISTER, MIPS_REG_A2,  // RA
-      GUM_ARG_REGISTER, MIPS_REG_A3); // NEXT HOP
+      GUM_ARG_REGISTER, MIPS_REG_A1,  /* CPU CONTEXT */
+      GUM_ARG_REGISTER, MIPS_REG_A2,  /* RA */
+      GUM_ARG_REGISTER, MIPS_REG_A3); /* NEXT HOP */
 #endif
 
   gum_emit_epilog (cw);
@@ -431,14 +431,14 @@ gum_emit_leave_thunk (GumMipsWriter * cw)
   gum_mips_writer_put_call_address_with_arguments (cw,
       GUM_ADDRESS (_gum_function_context_end_invocation), 3,
       GUM_ARG_REGISTER, MIPS_REG_T4,
-      GUM_ARG_REGISTER, MIPS_REG_A1,  // CPU CONTEXT
-      GUM_ARG_REGISTER, MIPS_REG_A2); // NEXT HOP
+      GUM_ARG_REGISTER, MIPS_REG_A1,  /* CPU CONTEXT */
+      GUM_ARG_REGISTER, MIPS_REG_A2); /* NEXT HOP */
 #else
   gum_mips_writer_put_call_address_with_arguments (cw,
       GUM_ADDRESS (_gum_function_context_end_invocation), 3,
       GUM_ARG_REGISTER, MIPS_REG_T0,
-      GUM_ARG_REGISTER, MIPS_REG_A1,  // CPU CONTEXT
-      GUM_ARG_REGISTER, MIPS_REG_A2); // NEXT HOP
+      GUM_ARG_REGISTER, MIPS_REG_A1,  /* CPU CONTEXT */
+      GUM_ARG_REGISTER, MIPS_REG_A2); /* NEXT HOP */
 #endif
 
   gum_emit_epilog (cw);
