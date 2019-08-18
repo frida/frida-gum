@@ -359,32 +359,32 @@ gum_mips_relocator_write_one (GumMipsRelocator * self)
   switch (insn->id)
   {
     case MIPS_INS_B:
-      {
-        cs_mips_op * op;
-        gssize target;
-        op = &ctx.detail->operands[ctx.detail->op_count - 1];
-        g_assert_cmpint (op->type, ==, MIPS_OP_IMM);
-        target = (gssize) op->imm;
-        g_assert((target & 0x3) == 0);
+    {
+      cs_mips_op * op;
+      gssize target;
+      op = &ctx.detail->operands[ctx.detail->op_count - 1];
+      g_assert_cmpint (op->type, ==, MIPS_OP_IMM);
+      target = (gssize) op->imm;
+      g_assert((target & 0x3) == 0);
 
-        /*
-         * If we are unlucky we might be outside the 256Mb range, better we know
-         * about it then jump somewhere unintended.
-         */
-        g_assert(
-          (target & 0xfffffffff0000000) ==
-          (self->output->pc & 0xfffffffff0000000));
+      /*
+       * If we are unlucky we might be outside the 256Mb range, better we know
+       * about it then jump somewhere unintended.
+       */
+      g_assert(
+        (target & 0xfffffffff0000000) ==
+        (self->output->pc & 0xfffffffff0000000));
 
-        gum_mips_writer_put_instruction (
-          ctx.output,
-          0x08000000 | ((target & GUM_INT28_MASK) / 4));
+      gum_mips_writer_put_instruction (
+        ctx.output,
+        0x08000000 | ((target & GUM_INT28_MASK) / 4));
 
-        gum_mips_writer_put_bytes (
-          ctx.output,
-          delay_slot_insn->bytes,
-          delay_slot_insn->size);
-        break;
-      }
+      gum_mips_writer_put_bytes (
+        ctx.output,
+        delay_slot_insn->bytes,
+        delay_slot_insn->size);
+      break;
+    }
     case MIPS_INS_J:
     case MIPS_INS_BEQ:
     case MIPS_INS_BEQL:
