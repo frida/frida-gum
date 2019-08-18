@@ -12,6 +12,7 @@
 #include "gumdukscript-objc.h"
 #include "gumdukscript-promise.h"
 #include "gumdukstalker.h"
+#include "gumffi.h"
 #include "gumsourcemap.h"
 
 #include <ffi.h>
@@ -25,9 +26,6 @@ typedef guint8 GumDukExceptionsBehavior;
 typedef guint8 GumDukReturnValueShape;
 typedef struct _GumDukNativeFunction GumDukNativeFunction;
 typedef struct _GumDukNativeCallback GumDukNativeCallback;
-typedef union _GumFFIValue GumFFIValue;
-typedef struct _GumFFITypeMapping GumFFITypeMapping;
-typedef struct _GumFFIABIMapping GumFFIABIMapping;
 
 struct _GumDukFlushCallback
 {
@@ -123,39 +121,6 @@ struct _GumDukNativeCallback
   GSList * data;
 
   GumDukCore * core;
-};
-
-union _GumFFIValue
-{
-  gpointer v_pointer;
-  gint v_sint;
-  guint v_uint;
-  glong v_slong;
-  gulong v_ulong;
-  gchar v_schar;
-  guchar v_uchar;
-  gfloat v_float;
-  gdouble v_double;
-  gint8 v_sint8;
-  guint8 v_uint8;
-  gint16 v_sint16;
-  guint16 v_uint16;
-  gint32 v_sint32;
-  guint32 v_uint32;
-  gint64 v_sint64;
-  guint64 v_uint64;
-};
-
-struct _GumFFITypeMapping
-{
-  const gchar * name;
-  ffi_type * type;
-};
-
-struct _GumFFIABIMapping
-{
-  const gchar * name;
-  ffi_abi abi;
 };
 
 static void gum_duk_flush_callback_free (GumDukFlushCallback * self);
@@ -3679,52 +3644,6 @@ gum_duk_message_sink_post (GumDukMessageSink * self,
   duk_pop (ctx);
 }
 
-static const GumFFITypeMapping gum_ffi_type_mappings[] =
-{
-  { "void", &ffi_type_void },
-  { "pointer", &ffi_type_pointer },
-  { "int", &ffi_type_sint },
-  { "uint", &ffi_type_uint },
-  { "long", &ffi_type_slong },
-  { "ulong", &ffi_type_ulong },
-  { "char", &ffi_type_schar },
-  { "uchar", &ffi_type_uchar },
-  { "float", &ffi_type_float },
-  { "double", &ffi_type_double },
-  { "int8", &ffi_type_sint8 },
-  { "uint8", &ffi_type_uint8 },
-  { "int16", &ffi_type_sint16 },
-  { "uint16", &ffi_type_uint16 },
-  { "int32", &ffi_type_sint32 },
-  { "uint32", &ffi_type_uint32 },
-  { "int64", &ffi_type_sint64 },
-  { "uint64", &ffi_type_uint64 },
-  { "bool", &ffi_type_schar }
-};
-
-static const GumFFIABIMapping gum_ffi_abi_mappings[] =
-{
-  { "default", FFI_DEFAULT_ABI },
-#if defined (X86_WIN64)
-  { "win64", FFI_WIN64 },
-#elif defined (X86_ANY) && GLIB_SIZEOF_VOID_P == 8
-  { "unix64", FFI_UNIX64 },
-#elif defined (X86_ANY) && GLIB_SIZEOF_VOID_P == 4
-  { "sysv", FFI_SYSV },
-  { "stdcall", FFI_STDCALL },
-  { "thiscall", FFI_THISCALL },
-  { "fastcall", FFI_FASTCALL },
-# if defined (X86_WIN32)
-  { "mscdecl", FFI_MS_CDECL },
-# endif
-#elif defined (ARM)
-  { "sysv", FFI_SYSV },
-# if GLIB_SIZEOF_VOID_P == 4
-  { "vfp", FFI_VFP },
-# endif
-#endif
-};
-
 static gboolean
 gum_duk_get_ffi_type (duk_context * ctx,
                       GumDukHeapPtr value,
@@ -3740,17 +3659,7 @@ gum_duk_get_ffi_type (duk_context * ctx,
   {
     const gchar * type_name = duk_require_string (ctx, -1);
 
-    for (i = 0; i != G_N_ELEMENTS (gum_ffi_type_mappings); i++)
-    {
-      const GumFFITypeMapping * m = &gum_ffi_type_mappings[i];
-
-      if (strcmp (m->name, type_name) == 0)
-      {
-        *type = m->type;
-        success = TRUE;
-        break;
-      }
-    }
+    success = gum_ffi_try_get_type_by_name (type_name, type);
   }
   else if (duk_is_array (ctx, -1))
   {
@@ -3796,18 +3705,8 @@ gum_duk_get_ffi_abi (duk_context * ctx,
                      const gchar * name,
                      ffi_abi * abi)
 {
-  guint i;
-
-  for (i = 0; i != G_N_ELEMENTS (gum_ffi_abi_mappings); i++)
-  {
-    const GumFFIABIMapping * m = &gum_ffi_abi_mappings[i];
-
-    if (strcmp (name, m->name) == 0)
-    {
-      *abi = m->abi;
-      return TRUE;
-    }
-  }
+  if (gum_ffi_try_get_abi_by_name (name, abi))
+    return TRUE;
 
   _gum_duk_throw (ctx, "invalid abi specified");
   return FALSE;

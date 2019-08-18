@@ -8,6 +8,7 @@
 
 #include "gumv8core.h"
 
+#include "gumffi.h"
 #include "gumsourcemap.h"
 #include "gumv8macros.h"
 #include "gumv8scope.h"
@@ -126,39 +127,6 @@ struct GumV8SourceMap
   GumSourceMap * handle;
 
   GumV8Core * core;
-};
-
-union GumFFIValue
-{
-  gpointer v_pointer;
-  gint v_sint;
-  guint v_uint;
-  glong v_slong;
-  gulong v_ulong;
-  gchar v_schar;
-  guchar v_uchar;
-  gfloat v_float;
-  gdouble v_double;
-  gint8 v_sint8;
-  guint8 v_uint8;
-  gint16 v_sint16;
-  guint16 v_uint16;
-  gint32 v_sint32;
-  guint32 v_uint32;
-  gint64 v_sint64;
-  guint64 v_uint64;
-};
-
-struct GumFFITypeMapping
-{
-  const gchar * name;
-  ffi_type * type;
-};
-
-struct GumFFIABIMapping
-{
-  const gchar * name;
-  ffi_abi abi;
 };
 
 static void gum_v8_core_clear_weak_refs (GumV8Core * self);
@@ -3003,52 +2971,6 @@ gum_v8_message_sink_post (GumV8MessageSink * self,
   _gum_v8_ignore_result (result);
 }
 
-static const GumFFITypeMapping gum_ffi_type_mappings[] =
-{
-  { "void", &ffi_type_void },
-  { "pointer", &ffi_type_pointer },
-  { "int", &ffi_type_sint },
-  { "uint", &ffi_type_uint },
-  { "long", &ffi_type_slong },
-  { "ulong", &ffi_type_ulong },
-  { "char", &ffi_type_schar },
-  { "uchar", &ffi_type_uchar },
-  { "float", &ffi_type_float },
-  { "double", &ffi_type_double },
-  { "int8", &ffi_type_sint8 },
-  { "uint8", &ffi_type_uint8 },
-  { "int16", &ffi_type_sint16 },
-  { "uint16", &ffi_type_uint16 },
-  { "int32", &ffi_type_sint32 },
-  { "uint32", &ffi_type_uint32 },
-  { "int64", &ffi_type_sint64 },
-  { "uint64", &ffi_type_uint64 },
-  { "bool", &ffi_type_schar }
-};
-
-static const GumFFIABIMapping gum_ffi_abi_mappings[] =
-{
-  { "default", FFI_DEFAULT_ABI },
-#if defined (X86_WIN64)
-  { "win64", FFI_WIN64 },
-#elif defined (X86_ANY) && GLIB_SIZEOF_VOID_P == 8
-  { "unix64", FFI_UNIX64 },
-#elif defined (X86_ANY) && GLIB_SIZEOF_VOID_P == 4
-  { "sysv", FFI_SYSV },
-  { "stdcall", FFI_STDCALL },
-  { "thiscall", FFI_THISCALL },
-  { "fastcall", FFI_FASTCALL },
-# if defined (X86_WIN32)
-  { "mscdecl", FFI_MS_CDECL },
-# endif
-#elif defined (ARM)
-  { "sysv", FFI_SYSV },
-# if GLIB_SIZEOF_VOID_P == 4
-  { "vfp", FFI_VFP },
-# endif
-#endif
-};
-
 static gboolean
 gum_v8_ffi_type_get (GumV8Core * core,
                      Handle<Value> name,
@@ -3060,16 +2982,8 @@ gum_v8_ffi_type_get (GumV8Core * core,
   if (name->IsString ())
   {
     String::Utf8Value str_value (isolate, name);
-    auto str = *str_value;
-    for (guint i = 0; i != G_N_ELEMENTS (gum_ffi_type_mappings); i++)
-    {
-      auto m = &gum_ffi_type_mappings[i];
-      if (strcmp (str, m->name) == 0)
-      {
-        *type = m->type;
-        return TRUE;
-      }
-    }
+    if (gum_ffi_try_get_type_by_name (*str_value, type))
+      return TRUE;
   }
   else if (name->IsArray ())
   {
@@ -3124,16 +3038,8 @@ gum_v8_ffi_abi_get (GumV8Core * core,
   }
 
   String::Utf8Value str_value (isolate, name);
-  auto str = *str_value;
-  for (guint i = 0; i != G_N_ELEMENTS (gum_ffi_abi_mappings); i++)
-  {
-    auto m = &gum_ffi_abi_mappings[i];
-    if (strcmp (str, m->name) == 0)
-    {
-      *abi = m->abi;
-      return TRUE;
-    }
-  }
+  if (gum_ffi_try_get_abi_by_name (*str_value, abi))
+    return TRUE;
 
   _gum_v8_throw_ascii_literal (isolate, "invalid abi specified");
   return FALSE;

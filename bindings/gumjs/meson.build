@@ -15,6 +15,7 @@ gumjs_sources = [
   'gumscripttask.c',
   'gumsourcemap.c',
   'gummemoryvfs.c',
+  'gumffi.c',
 ]
 
 if have_duktape

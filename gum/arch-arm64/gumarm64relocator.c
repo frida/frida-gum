@@ -78,7 +78,7 @@ gum_arm64_relocator_init (GumArm64Relocator * relocator,
 {
   relocator->ref_count = 1;
 
-  cs_open (CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN, &relocator->capstone);
+  cs_open (CS_ARCH_ARM64, GUM_DEFAULT_CS_ENDIAN, &relocator->capstone);
   cs_option (relocator->capstone, CS_OPT_DETAIL, CS_OPT_ON);
   relocator->input_insns = g_new0 (cs_insn *, GUM_MAX_INPUT_INSN_COUNT);
 
@@ -390,7 +390,7 @@ gum_arm64_relocator_can_relocate (gpointer address,
     checked_targets = g_hash_table_new (NULL, NULL);
     targets_to_check = g_hash_table_new (NULL, NULL);
 
-    cs_open (CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN, &capstone);
+    cs_open (CS_ARCH_ARM64, GUM_DEFAULT_CS_ENDIAN, &capstone);
     cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
 
     insn = cs_malloc (capstone);

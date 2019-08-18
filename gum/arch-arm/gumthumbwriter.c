@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -1313,13 +1314,13 @@ gum_thumb_writer_commit_literals (GumThumbWriter * self)
 
     for (slot = first_slot; slot != last_slot; slot++)
     {
-      if (*slot == r->val)
+      if (*slot == GUINT32_FROM_LE (r->val))
         break;
     }
 
     if (slot == last_slot)
     {
-      *slot = r->val;
+      *slot = GUINT32_FROM_LE (r->val);
       self->code += 2;
       self->pc += 4;
       last_slot++;

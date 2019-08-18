@@ -22,6 +22,9 @@
     <ClCompile Include="gummemoryvfs.c">
       <Filter>common</Filter>
     </ClCompile>
+    <ClCompile Include="gumffi.c">
+      <Filter>common</Filter>
+    </ClCompile>
     <ClCompile Include="gumv8bundle.cpp">
       <Filter>v8</Filter>
     </ClCompile>
@@ -196,6 +199,9 @@
       <Filter>common</Filter>
     </ClInclude>
     <ClInclude Include="gummemoryvfs.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="gumffi.h">
       <Filter>common</Filter>
     </ClInclude>
     <ClInclude Include="gumv8bundle.h">

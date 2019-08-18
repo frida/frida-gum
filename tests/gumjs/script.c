@@ -193,8 +193,8 @@ TESTLIST_BEGIN (script)
     TESTENTRY (socket_connection_can_be_established)
     TESTENTRY (socket_connection_can_be_established_with_tls)
     TESTENTRY (socket_type_can_be_inspected)
-#if !defined (HAVE_ANDROID) && !(defined (HAVE_LINUX) && defined (HAVE_ARM)) && \
-    !(defined (HAVE_LINUX) && defined (HAVE_MIPS))
+#if !defined (HAVE_ANDROID) && !(defined (HAVE_LINUX) && \
+    defined (HAVE_ARM)) && !(defined (HAVE_LINUX) && defined (HAVE_MIPS))
     TESTENTRY (socket_endpoints_can_be_inspected)
 #endif
   TESTGROUP_END ()
@@ -3060,7 +3060,8 @@ TESTCASE (module_export_can_be_found_by_name)
       "send(Module.findExportByName(badModuleName, badModuleExport) === null);"
 
       "try {"
-          "send(Module.getExportByName(sysModuleName, sysModuleExport).equals(impl));"
+          "send(Module.getExportByName(sysModuleName, sysModuleExport)"
+              ".equals(impl));"
 
           "Module.getExportByName(badModuleName, badModuleExport);"
           "send('should not get here');"
@@ -4164,10 +4165,11 @@ TESTCASE (function_can_be_replaced_and_called_immediately)
 TESTCASE (function_can_be_reverted)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "Interceptor.replace(" GUM_PTR_CONST ", new NativeCallback(function (arg) {"
-      "  send(arg);"
-      "  return 1337;"
-      "}, 'int', ['int']));"
+      "Interceptor.replace(" GUM_PTR_CONST ", new NativeCallback("
+      "  function (arg) {"
+      "    send(arg);"
+      "    return 1337;"
+      "  }, 'int', ['int']));"
       "Interceptor.revert(" GUM_PTR_CONST ");",
       target_function_int, target_function_int);
 
@@ -4179,10 +4181,11 @@ TESTCASE (function_can_be_reverted)
 TESTCASE (replaced_function_should_have_invocation_context)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "Interceptor.replace(" GUM_PTR_CONST ", new NativeCallback(function (arg) {"
-      "  send(this.returnAddress instanceof NativePointer);"
-      "  return 0;"
-      "}, 'int', ['int']));",
+      "Interceptor.replace(" GUM_PTR_CONST ", new NativeCallback("
+      "  function (arg) {"
+      "    send(this.returnAddress instanceof NativePointer);"
+      "    return 0;"
+      "  }, 'int', ['int']));",
       target_function_int);
 
   EXPECT_NO_MESSAGES ();
@@ -5206,16 +5209,9 @@ TESTCASE (invalid_read_results_in_exception)
       "S32",
       "U32",
       "Float",
-      /*
-       * We don't know if the compiler will decide to access the lower or higher
-       * part first, so we can't know the exact error message for these.
-       * Hence we limit this part of the test to 64 bit builds...
-       */
-#if GLIB_SIZEOF_VOID_P == 8
       "Double",
       "S64",
       "U64",
-#endif
       "Utf8String",
       "Utf16String",
 #ifdef G_OS_WIN32
@@ -5233,8 +5229,21 @@ TESTCASE (invalid_read_results_in_exception)
 
     source = g_strconcat ("ptr('1328').read", type_name[i], "();", NULL);
     COMPILE_AND_LOAD_SCRIPT (source);
+
+#if GLIB_SIZEOF_VOID_P == 8
     EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
         "Error: access violation accessing 0x530");
+#else
+    /*
+     * On 32-bit platforms, when reading 64-bit values we must read 32-bits at a
+     * time. The compiler is at liberty to read either the high or low part
+     * first, and hence we may not fault on the first part of the value, but
+     * rather on the second. The ordering is likely dependent on endianness.
+     */
+    EXPECT_ERROR_MESSAGE_MATCHING (ANY_LINE_NUMBER,
+        "Error: access violation accessing 0x53(0|4)");
+#endif
+
     g_free (source);
   }
 }
@@ -5250,10 +5259,8 @@ TESTCASE (invalid_write_results_in_exception)
       "U32",
       "Float",
       "Double",
-#if GLIB_SIZEOF_VOID_P == 8
       "S64",
       "U64"
-#endif
   };
   const gchar * string_type_name[] = {
       "Utf8String",
@@ -5271,8 +5278,16 @@ TESTCASE (invalid_write_results_in_exception)
     source = g_strconcat ("ptr('1328').write", primitive_type_name[i], "(13);",
         NULL);
     COMPILE_AND_LOAD_SCRIPT (source);
+
+#if GLIB_SIZEOF_VOID_P == 8
     EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
         "Error: access violation accessing 0x530");
+#else
+    /* See note in previous test. */
+    EXPECT_ERROR_MESSAGE_MATCHING (ANY_LINE_NUMBER,
+        "Error: access violation accessing 0x53(0|4)");
+#endif
+
     g_free (source);
   }
 
@@ -5283,8 +5298,16 @@ TESTCASE (invalid_write_results_in_exception)
     source = g_strconcat ("ptr('1328').write", string_type_name[i], "('Hey');",
         NULL);
     COMPILE_AND_LOAD_SCRIPT (source);
+
+#if GLIB_SIZEOF_VOID_P == 8
     EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
         "Error: access violation accessing 0x530");
+#else
+    /* See note in previous test. */
+    EXPECT_ERROR_MESSAGE_MATCHING (ANY_LINE_NUMBER,
+        "Error: access violation accessing 0x53(0|4)");
+#endif
+
     g_free (source);
   }
 }

@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2014-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -62,6 +63,8 @@ GUM_API gboolean gum_mips_writer_can_branch_directly_between (GumAddress from,
     GumAddress to);
 GUM_API gboolean gum_mips_writer_put_j_address (GumMipsWriter * self,
     GumAddress address);
+GUM_API gboolean gum_mips_writer_put_j_address_without_nop (
+    GumMipsWriter * self, GumAddress address);
 GUM_API void gum_mips_writer_put_j_label (GumMipsWriter * self,
     gconstpointer label_id);
 GUM_API void gum_mips_writer_put_jr_reg (GumMipsWriter * self, mips_reg reg);
@@ -77,8 +80,12 @@ GUM_API void gum_mips_writer_put_la_reg_address (GumMipsWriter * self,
     mips_reg reg, GumAddress address);
 GUM_API void gum_mips_writer_put_lui_reg_imm (GumMipsWriter * self,
     mips_reg reg, guint imm);
+GUM_API void gum_mips_writer_put_dsll_reg_reg (GumMipsWriter * self,
+    mips_reg dst_reg, mips_reg src_reg, guint amount);
 GUM_API void gum_mips_writer_put_ori_reg_reg_imm (GumMipsWriter * self,
     mips_reg rt, mips_reg rs, guint imm);
+GUM_API void gum_mips_writer_put_ld_reg_reg_offset (GumMipsWriter * self,
+    mips_reg dst_reg, mips_reg src_reg, gsize src_offset);
 GUM_API void gum_mips_writer_put_lw_reg_reg_offset (GumMipsWriter * self,
     mips_reg dst_reg, mips_reg src_reg, gsize src_offset);
 GUM_API void gum_mips_writer_put_sw_reg_reg_offset (GumMipsWriter * self,
@@ -88,11 +95,11 @@ GUM_API void gum_mips_writer_put_move_reg_reg (GumMipsWriter * self,
 GUM_API void gum_mips_writer_put_addu_reg_reg_reg (GumMipsWriter * self,
     mips_reg dst_reg, mips_reg left_reg, mips_reg right_reg);
 GUM_API void gum_mips_writer_put_addi_reg_reg_imm (GumMipsWriter * self,
-    mips_reg dest_reg, mips_reg left_reg, gint32 imm);
+    mips_reg dst_reg, mips_reg left_reg, gint32 imm);
 GUM_API void gum_mips_writer_put_addi_reg_imm (GumMipsWriter * self,
-    mips_reg dest_reg, gint32 imm);
+    mips_reg dst_reg, gint32 imm);
 GUM_API void gum_mips_writer_put_sub_reg_reg_imm (GumMipsWriter * self,
-    mips_reg dest_reg, mips_reg left_reg, gint32 imm);
+    mips_reg dst_reg, mips_reg left_reg, gint32 imm);
 
 GUM_API void gum_mips_writer_put_push_reg (GumMipsWriter * self, mips_reg reg);
 GUM_API void gum_mips_writer_put_pop_reg (GumMipsWriter * self, mips_reg reg);
@@ -104,6 +111,9 @@ GUM_API void gum_mips_writer_put_mtlo_reg (GumMipsWriter * self, mips_reg reg);
 
 GUM_API void gum_mips_writer_put_nop (GumMipsWriter * self);
 GUM_API void gum_mips_writer_put_break (GumMipsWriter * self);
+
+GUM_API void gum_mips_writer_put_prologue_trampoline (GumMipsWriter * self,
+    mips_reg reg, GumAddress address);
 
 GUM_API void gum_mips_writer_put_instruction (GumMipsWriter * self,
     guint32 insn);

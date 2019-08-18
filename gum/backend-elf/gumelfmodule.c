@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -300,7 +301,6 @@ gum_elf_module_enumerate_dependencies (GumElfModule * self,
   gum_elf_module_enumerate_dynamic_entries (self, gum_emit_each_needed, &ctx);
 }
 
-
 static gboolean
 gum_emit_each_needed (const GumElfDynamicEntryDetails * details,
                       gpointer user_data)
@@ -558,7 +558,6 @@ gum_store_symtab_params (const GumElfDynamicEntryDetails * details,
 
           highest_index++;
         }
-
       }
 
       ctx->entry_count = highest_index + 1;
@@ -863,6 +862,12 @@ gum_elf_module_detect_dynamic_address_state (GumElfModule * self)
     return GUM_ELF_DYNAMIC_ADDRESS_PRISTINE;
 
 #ifdef HAVE_ANDROID
+  return GUM_ELF_DYNAMIC_ADDRESS_PRISTINE;
+#elif HAVE_MIPS
+  /*
+   * This value was set for MIPS based upon experimentation. However,
+   * this may be influenced by platform configuration or other factors.
+   */
   return GUM_ELF_DYNAMIC_ADDRESS_PRISTINE;
 #else
   return GUM_ELF_DYNAMIC_ADDRESS_ADJUSTED;

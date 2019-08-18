@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2014-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
+ * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -1406,13 +1407,13 @@ gum_arm64_writer_commit_literals (GumArm64Writer * self)
 
     for (cur_slot = first_slot; cur_slot != last_slot; cur_slot++)
     {
-      if (*cur_slot == r->val)
+      if (*cur_slot == GUINT64_FROM_LE (r->val))
         break;
     }
 
     if (cur_slot == last_slot)
     {
-      *cur_slot = r->val;
+      *cur_slot = GUINT64_FROM_LE (r->val);
       last_slot++;
     }
 

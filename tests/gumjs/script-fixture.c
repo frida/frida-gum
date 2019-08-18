@@ -89,6 +89,9 @@
         PAYLOAD, DATA)
 #define EXPECT_ERROR_MESSAGE_WITH(LINE_NUMBER, DESC) \
     test_script_fixture_expect_error_message_with (fixture, LINE_NUMBER, DESC)
+#define EXPECT_ERROR_MESSAGE_MATCHING(LINE_NUMBER, PATTERN) \
+    test_script_fixture_expect_error_message_matching (fixture, LINE_NUMBER, \
+        PATTERN)
 #define EXPECT_LOG_MESSAGE_WITH(LEVEL, PAYLOAD, ...) \
     test_script_fixture_expect_log_message_with (fixture, LEVEL, PAYLOAD, \
     ## __VA_ARGS__)
@@ -152,6 +155,8 @@ static void test_script_fixture_expect_send_message_with_payload_and_data (
     TestScriptFixture * fixture, const gchar * payload, const gchar * data);
 static void test_script_fixture_expect_error_message_with (
     TestScriptFixture * fixture, gint line_number, const gchar * description);
+static void test_script_fixture_expect_error_message_matching (
+    TestScriptFixture * fixture, gint line_number, const gchar * pattern);
 static void test_script_fixture_expect_log_message_with (
     TestScriptFixture * fixture, const gchar * level,
     const gchar * payload_template, ...);
@@ -175,6 +180,7 @@ test_script_fixture_setup (TestScriptFixture * fixture,
   (void) test_script_fixture_expect_send_message_with_prefix;
   (void) test_script_fixture_expect_send_message_with_payload_and_data;
   (void) test_script_fixture_expect_error_message_with;
+  (void) test_script_fixture_expect_error_message_matching;
   (void) test_script_fixture_expect_log_message_with;
   (void) test_script_fixture_pop_timeout;
 
@@ -482,25 +488,21 @@ test_script_fixture_expect_send_message_with_payload_and_data (
   g_free (expected_message);
 }
 
-static void
-test_script_fixture_expect_error_message_with (TestScriptFixture * fixture,
-                                               gint line_number,
-                                               const gchar * description)
+static gchar *
+test_script_fixture_pop_error_description (TestScriptFixture * fixture,
+                                           gint * line_number)
 {
   TestScriptMessageItem * item;
-  gchar actual_description[1024];
-  gchar actual_stack[1024];
-  gchar actual_file_name[64];
-  gint actual_line_number;
-  gint actual_column_number;
+  gchar description[1024], stack[1024], file_name[64];
+  gint line, column;
 
   item = test_script_fixture_pop_message (fixture);
 
-  actual_description[0] = '\0';
-  actual_stack[0] = '\0';
-  actual_file_name[0] = '\0';
-  actual_line_number = -1;
-  actual_column_number = -1;
+  description[0] = '\0';
+  stack[0] = '\0';
+  file_name[0] = '\0';
+  line = -1;
+  column = -1;
   sscanf (item->message, "{"
           "\"type\":\"error\","
           "\"description\":\"%[^\"]\","
@@ -509,23 +511,66 @@ test_script_fixture_expect_error_message_with (TestScriptFixture * fixture,
           "\"lineNumber\":%d,"
           "\"columnNumber\":%d"
       "}",
-      actual_description,
-      actual_stack,
-      actual_file_name,
-      &actual_line_number,
-      &actual_column_number);
-  if (actual_column_number == -1)
+      description,
+      stack,
+      file_name,
+      &line,
+      &column);
+  if (column == -1)
   {
     sscanf (item->message, "{"
             "\"type\":\"error\","
             "\"description\":\"%[^\"]\""
         "}",
-        actual_description);
+        description);
   }
+
+  test_script_message_item_free (item);
+
+  g_assert_false (description[0] == '\0');
+
+  if (line_number != NULL)
+    *line_number = line;
+
+  return g_strdup (description);
+}
+
+static void
+test_script_fixture_expect_error_message_with (TestScriptFixture * fixture,
+                                               gint line_number,
+                                               const gchar * description)
+{
+  gchar * actual_description;
+  gint actual_line_number;
+
+  actual_description =
+      test_script_fixture_pop_error_description (fixture, &actual_line_number);
+
   if (line_number != ANY_LINE_NUMBER)
     g_assert_cmpint (actual_line_number, ==, line_number);
+
   g_assert_cmpstr (actual_description, ==, description);
-  test_script_message_item_free (item);
+
+  g_free (actual_description);
+}
+
+static void
+test_script_fixture_expect_error_message_matching (TestScriptFixture * fixture,
+                                                   gint line_number,
+                                                   const gchar * pattern)
+{
+  gchar * actual_description;
+  gint actual_line_number;
+
+  actual_description =
+      test_script_fixture_pop_error_description (fixture, &actual_line_number);
+
+  if (line_number != ANY_LINE_NUMBER)
+    g_assert_cmpint (actual_line_number, ==, line_number);
+
+  g_assert_true (g_regex_match_simple (pattern, actual_description, 0, 0));
+
+  g_free (actual_description);
 }
 
 static void

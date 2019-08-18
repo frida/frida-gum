@@ -62,9 +62,17 @@
 # define GUM_TEST_SHLIB_ARCH "arm64"
 #elif defined (HAVE_MIPS)
 # if G_BYTE_ORDER == G_LITTLE_ENDIAN
-#  define GUM_TEST_SHLIB_ARCH "mipsel"
+#  if GLIB_SIZEOF_VOID_P == 8
+#    define GUM_TEST_SHLIB_ARCH "mips64el"
+#  else
+#    define GUM_TEST_SHLIB_ARCH "mipsel"
+#  endif
 # else
-#  define GUM_TEST_SHLIB_ARCH "mips"
+#  if GLIB_SIZEOF_VOID_P == 8
+#    define GUM_TEST_SHLIB_ARCH "mips64"
+#  else
+#    define GUM_TEST_SHLIB_ARCH "mips"
+#  endif
 # endif
 #else
 # error Unknown CPU
