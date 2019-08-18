@@ -8,7 +8,7 @@
 
 #if (GLIB_SIZEOF_VOID_P == 8)
 /*
- * On MIPS64 8 registers are used for passing arguments, t0 through t3 are 
+ * On MIPS64 8 registers are used for passing arguments, t0 through t3 are
  * renamed a4-a7 in the instruction set architecture.
  */
 gpointer
@@ -27,13 +27,13 @@ gum_cpu_context_get_nth_argument (GumCpuContext * self,
         return (gpointer) self->a2;
       case 3:
         return (gpointer) self->a3;
-      case 4: 
-        return (gpointer) self->t0; 
-      case 5: 
-        return (gpointer) self->t1; 
-      case 6: 
-        return (gpointer) self->t2; 
-      case 7: 
+      case 4:
+        return (gpointer) self->t0;
+      case 5:
+        return (gpointer) self->t1;
+      case 6:
+        return (gpointer) self->t2;
+      case 7:
         return (gpointer) self->t3;
     }
   }
@@ -67,18 +67,18 @@ gum_cpu_context_replace_nth_argument (GumCpuContext * self,
         break;
       case 3:
         self->a3 = (guint64) value;
-        break;  
-      case 4: 
-        self->t0 = (guint64) value; 
-        break;  
-      case 5: 
-        self->t1 = (guint64) value; 
-        break;  
-      case 6: 
-        self->t2 = (guint64) value; 
-        break;  
-      case 7: 
-        self->t3 = (guint64) value; 
+        break;
+      case 4:
+        self->t0 = (guint64) value;
+        break;
+      case 5:
+        self->t1 = (guint64) value;
+        break;
+      case 6:
+        self->t2 = (guint64) value;
+        break;
+      case 7:
+        self->t3 = (guint64) value;
         break;
     }
   }
