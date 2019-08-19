@@ -19,7 +19,6 @@
 #endif
 
 typedef struct _GumMipsLabelRef GumMipsLabelRef;
-typedef struct _GumMipsLiteralRef GumMipsLiteralRef;
 typedef guint GumMipsMemPairOperandSize;
 typedef guint GumMipsMetaReg;
 typedef struct _GumMipsRegInfo GumMipsRegInfo;
@@ -28,12 +27,6 @@ struct _GumMipsLabelRef
 {
   gconstpointer id;
   guint32 * insn;
-};
-
-struct _GumMipsLiteralRef
-{
-  guint32 * insn;
-  gint64 val;
 };
 
 enum _GumMipsMetaReg
