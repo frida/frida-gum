@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -1305,29 +1305,29 @@ gum_thumb_writer_commit_literals (GumThumbWriter * self)
   {
     GumThumbLiteralRef * r;
     guint16 insn;
-    guint32 * slot;
+    guint32 * cur_slot;
     GumAddress slot_pc;
     gsize distance_in_bytes;
 
     r = &g_array_index (self->literal_refs, GumThumbLiteralRef, ref_index);
     insn = GUINT16_FROM_LE (r->insn[0]);
 
-    for (slot = first_slot; slot != last_slot; slot++)
+    for (cur_slot = first_slot; cur_slot != last_slot; cur_slot++)
     {
-      if (*slot == GUINT32_FROM_LE (r->val))
+      if (GUINT32_FROM_LE (*cur_slot) == r->val)
         break;
     }
 
-    if (slot == last_slot)
+    if (cur_slot == last_slot)
     {
-      *slot = GUINT32_FROM_LE (r->val);
+      *cur_slot = GUINT32_TO_LE (r->val);
       self->code += 2;
       self->pc += 4;
       last_slot++;
     }
 
     slot_pc = self->pc - ((guint8 *) last_slot - (guint8 *) first_slot) +
-        ((guint8 *) slot - (guint8 *) first_slot);
+        ((guint8 *) cur_slot - (guint8 *) first_slot);
 
     distance_in_bytes = slot_pc - (r->pc & ~((GumAddress) 3));
 
