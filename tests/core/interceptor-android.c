@@ -29,8 +29,6 @@ TESTCASE (can_attach_to_dlopen)
 
   g_assert_cmpstr (fixture->result->str, ==, "><");
 
-  interceptor_fixture_detach_listener (fixture, 0);
-  g_string_truncate (fixture->result, 0);
 }
 
 TESTCASE (can_attach_to_fork)
@@ -50,9 +48,6 @@ TESTCASE (can_attach_to_fork)
   }
   g_assert_cmpint (pid, !=, -1);
   g_assert_cmpstr (fixture->result->str, ==, "><");
-
-  interceptor_fixture_detach_listener (fixture, 0);
-  g_string_truncate (fixture->result, 0);
 }
 
 typedef struct _GumRuntimeBounds GumRuntimeBounds;

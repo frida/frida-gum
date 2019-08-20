@@ -50,6 +50,8 @@ struct _TestInterceptorFixture
   AndroidListenerContext * listener_context[2];
 };
 
+static void interceptor_fixture_detach_listener (TestInterceptorFixture * h,
+    guint listener_index);
 static void android_listener_context_iface_init (gpointer g_iface,
     gpointer iface_data);
 
@@ -78,6 +80,8 @@ test_interceptor_fixture_setup (TestInterceptorFixture * fixture,
   {
     init_java_vm (&java_vm, &java_env);
   }
+
+  (void) interceptor_fixture_detach_listener;
 }
 
 static void
