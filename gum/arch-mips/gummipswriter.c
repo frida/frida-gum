@@ -597,7 +597,7 @@ gum_mips_writer_put_dsll_reg_reg (GumMipsWriter * self,
 
   gum_mips_writer_describe_reg (self, dst_reg, &rd);
   gum_mips_writer_describe_reg (self, src_reg, &rs);
-  g_assert (amount & 0x1f == amount);
+  g_assert ((amount & 0x1f) == amount);
 
   gum_mips_writer_put_instruction (self, (rs.index << 16) | (rd.index << 11) |
       (amount << 6) | 0x38);
@@ -722,7 +722,7 @@ gum_mips_writer_put_addi_reg_reg_imm (GumMipsWriter * self,
   gum_mips_writer_describe_reg (self, dst_reg, &rd);
   gum_mips_writer_describe_reg (self, left_reg, &rs);
 
-  g_assert (imm & 0xffff == imm);
+  g_assert ((imm & 0xffff) == imm);
 
   gum_mips_writer_put_instruction (self,
       /* See MIPS64 comment in put_lw_reg_reg_offset(). */
