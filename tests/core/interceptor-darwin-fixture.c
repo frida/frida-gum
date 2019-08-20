@@ -137,7 +137,7 @@ interceptor_fixture_detach_listener (TestInterceptorFixture * h,
                                      guint listener_index)
 {
   gum_interceptor_detach_listener (h->interceptor,
-    GUM_INVOCATION_LISTENER (h->listener_context[listener_index]));
+      GUM_INVOCATION_LISTENER (h->listener_context[listener_index]));
 }
 
 static void
