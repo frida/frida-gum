@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -12,6 +12,8 @@
 #include <jni.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/eventfd.h>
 #include <sys/system_properties.h>
 
 #define TESTCASE(NAME) \

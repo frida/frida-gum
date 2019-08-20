@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,10 +7,29 @@
 #include "interceptor-android-fixture.c"
 
 TESTLIST_BEGIN (interceptor_android)
+  TESTENTRY (can_attach_to_close)
   TESTENTRY (can_attach_to_dlopen)
   TESTENTRY (can_attach_to_fork)
   TESTENTRY (can_attach_to_set_argv0)
 TESTLIST_END ()
+
+TESTCASE (can_attach_to_close)
+{
+  int (* close_impl) (int fd);
+  int fd;
+
+  close_impl = GSIZE_TO_POINTER (
+      gum_module_find_export_by_name (NULL, "close"));
+
+  fd = eventfd (FALSE, EFD_CLOEXEC);
+  g_assert_true (fd != -1);
+
+  interceptor_fixture_attach_listener (fixture, 0, close_impl, '>', '<');
+
+  close_impl (fd);
+
+  g_assert_cmpstr (fixture->result->str, ==, "><");
+}
 
 TESTCASE (can_attach_to_dlopen)
 {
@@ -28,7 +47,6 @@ TESTCASE (can_attach_to_dlopen)
   dlclose (libc);
 
   g_assert_cmpstr (fixture->result->str, ==, "><");
-
 }
 
 TESTCASE (can_attach_to_fork)
