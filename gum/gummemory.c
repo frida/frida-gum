@@ -201,6 +201,8 @@ gum_memory_patch_code (gpointer address,
 
     apply (address, apply_data);
 
+    gum_clear_cache (address, size);
+
     if (!gum_try_mprotect (start_page, range_size, GUM_PAGE_RX))
       return FALSE;
   }
@@ -219,9 +221,9 @@ gum_memory_patch_code (gpointer address,
     gum_code_segment_map (segment, 0, range_size, start_page);
 
     gum_code_segment_free (segment);
-  }
 
-  gum_clear_cache (address, size);
+    gum_clear_cache (address, size);
+  }
 
   return TRUE;
 }
