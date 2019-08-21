@@ -122,3 +122,11 @@ function findSourceMap(source) {
   else
     return null;
 }
+
+// fixed for duktape's Reflect.get() restriction
+if (typeof Reflect !== "undefined" && Reflect.get) {
+  const original = Reflect.get;
+  Reflect.get = function (target, propertyKey, receiver) {
+    return original(target, propertyKey);
+  }
+}
