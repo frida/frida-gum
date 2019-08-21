@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -166,8 +166,7 @@ gum_profiler_dispose (GObject * object)
   {
     self->disposed = TRUE;
 
-    gum_interceptor_detach_listener (self->interceptor,
-        GUM_INVOCATION_LISTENER (self));
+    gum_interceptor_detach (self->interceptor, GUM_INVOCATION_LISTENER (self));
 
     g_hash_table_foreach (self->function_by_address,
         unstrument_and_free_function, self);
@@ -207,9 +206,9 @@ gum_profiler_on_enter (GumInvocationListener * listener,
   GumFunctionContext * fctx;
   GumFunctionThreadContext * tctx;
 
-  inv = GUM_LINCTX_GET_FUNC_INVDATA (context, GumProfilerInvocation);
+  inv = GUM_IC_GET_INVOCATION_DATA (context, GumProfilerInvocation);
 
-  inv->profiler = GUM_LINCTX_GET_THREAD_DATA (context, GumProfilerContext);
+  inv->profiler = GUM_IC_GET_THREAD_DATA (context, GumProfilerContext);
   if (inv->profiler->stack == NULL)
   {
     GumProfiler * self = GUM_PROFILER (listener);
@@ -222,7 +221,7 @@ gum_profiler_on_enter (GumInvocationListener * listener,
     GUM_PROFILER_UNLOCK ();
   }
 
-  inv->function = GUM_LINCTX_GET_FUNC_DATA (context, GumFunctionContext *);
+  inv->function = GUM_IC_GET_FUNC_DATA (context, GumFunctionContext *);
   inv->thread = gum_function_context_get_current_thread (inv->function,
       context);
 
@@ -258,7 +257,7 @@ gum_profiler_on_leave (GumInvocationListener * listener,
   GumFunctionThreadContext * tctx;
   GArray * stack;
 
-  inv = GUM_LINCTX_GET_FUNC_INVDATA (context, GumProfilerInvocation);
+  inv = GUM_IC_GET_INVOCATION_DATA (context, GumProfilerInvocation);
 
   fctx = inv->function;
   tctx = inv->thread;
@@ -372,8 +371,8 @@ gum_profiler_instrument_function_with_inspector (
 
   ctx = g_new0 (GumFunctionContext, 1);
 
-  attach_ret = gum_interceptor_attach_listener (self->interceptor,
-      function_address, GUM_INVOCATION_LISTENER (self), ctx);
+  attach_ret = gum_interceptor_attach (self->interceptor, function_address,
+      GUM_INVOCATION_LISTENER (self), ctx);
   if (attach_ret != GUM_ATTACH_OK)
     goto error;
 

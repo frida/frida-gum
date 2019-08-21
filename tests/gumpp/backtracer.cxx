@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2011-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -75,15 +75,15 @@ TESTCASE (can_get_stack_trace_from_invocation_context)
   BacktraceTestListener listener;
 
   GString * output = g_string_new ("");
-  interceptor->attach_listener (reinterpret_cast<void *> (
-      gumpp_test_target_function), &listener, output);
+  interceptor->attach (reinterpret_cast<void *> (gumpp_test_target_function),
+      &listener, output);
 
   gumpp_test_target_function (output);
   g_assert_cmpstr (output->str, ==, ">|<");
 
   g_string_free (output, TRUE);
 
-  interceptor->detach_listener (&listener);
+  interceptor->detach (&listener);
 }
 
 gpointer GUM_NOINLINE

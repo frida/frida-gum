@@ -27,7 +27,7 @@ namespace Gum
       Runtime::unref ();
     }
 
-    virtual bool attach_listener (void * function_address, InvocationListener * listener, void * listener_function_data)
+    virtual bool attach (void * function_address, InvocationListener * listener, void * listener_function_data)
     {
       RefPtr<InvocationListenerProxy> proxy;
 
@@ -44,11 +44,11 @@ namespace Gum
       }
       g_mutex_unlock (&mutex);
 
-      GumAttachReturn attach_ret = gum_interceptor_attach_listener (handle, function_address, GUM_INVOCATION_LISTENER (proxy->get_handle ()), listener_function_data);
+      GumAttachReturn attach_ret = gum_interceptor_attach (handle, function_address, GUM_INVOCATION_LISTENER (proxy->get_handle ()), listener_function_data);
       return (attach_ret == GUM_ATTACH_OK);
     }
 
-    virtual void detach_listener (InvocationListener * listener)
+    virtual void detach (InvocationListener * listener)
     {
       RefPtr<InvocationListenerProxy> proxy;
 
@@ -64,17 +64,17 @@ namespace Gum
       if (proxy.is_null ())
         return;
 
-      gum_interceptor_detach_listener (handle, GUM_INVOCATION_LISTENER (proxy->get_handle ()));
+      gum_interceptor_detach (handle, GUM_INVOCATION_LISTENER (proxy->get_handle ()));
     }
 
-    virtual void replace_function (void * function_address, void * replacement_address, void * replacement_function_data)
+    virtual void replace (void * function_address, void * replacement_address, void * replacement_data)
     {
-      gum_interceptor_replace_function (handle, function_address, replacement_address, replacement_function_data);
+      gum_interceptor_replace (handle, function_address, replacement_address, replacement_data);
     }
 
-    virtual void revert_function (void * function_address)
+    virtual void revert (void * function_address)
     {
-      gum_interceptor_revert_function (handle, function_address);
+      gum_interceptor_revert (handle, function_address);
     }
 
     virtual void begin_transaction ()

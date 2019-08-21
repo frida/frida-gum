@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -168,9 +168,9 @@ gum_exceptor_backend_attach (GumExceptorBackend * self)
 
   gum_interceptor_begin_transaction (interceptor);
 
-  gum_interceptor_replace_function (interceptor, signal,
+  gum_interceptor_replace (interceptor, signal,
       gum_exceptor_backend_replacement_signal, self);
-  gum_interceptor_replace_function (interceptor, sigaction,
+  gum_interceptor_replace (interceptor, sigaction,
       gum_exceptor_backend_replacement_sigaction, self);
 
   gum_interceptor_end_transaction (interceptor);
@@ -184,8 +184,8 @@ gum_exceptor_backend_detach (GumExceptorBackend * self)
 
   gum_interceptor_begin_transaction (interceptor);
 
-  gum_interceptor_revert_function (interceptor, signal);
-  gum_interceptor_revert_function (interceptor, sigaction);
+  gum_interceptor_revert (interceptor, signal);
+  gum_interceptor_revert (interceptor, sigaction);
 
   gum_interceptor_end_transaction (interceptor);
 
@@ -234,7 +234,7 @@ gum_exceptor_backend_replacement_signal (int sig,
   g_assert (ctx != NULL);
 
   self = GUM_EXCEPTOR_BACKEND (
-      gum_invocation_context_get_replacement_function_data (ctx));
+      gum_invocation_context_get_replacement_data (ctx));
 
   old_handler = gum_exceptor_backend_get_old_handler (self, sig);
   if (old_handler == NULL)
@@ -263,7 +263,7 @@ gum_exceptor_backend_replacement_sigaction (int sig,
   g_assert (ctx != NULL);
 
   self = GUM_EXCEPTOR_BACKEND (
-      gum_invocation_context_get_replacement_function_data (ctx));
+      gum_invocation_context_get_replacement_data (ctx));
 
   old_handler = gum_exceptor_backend_get_old_handler (self, sig);
   if (old_handler == NULL)

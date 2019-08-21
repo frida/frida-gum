@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -448,7 +448,7 @@ gum_allocator_probe_on_enter (GumInvocationListener * listener,
   FunctionContext * function_ctx;
 
   self = GUM_ALLOCATOR_PROBE (listener);
-  function_ctx = GUM_LINCTX_GET_FUNC_DATA (context, FunctionContext *);
+  function_ctx = GUM_IC_GET_FUNC_DATA (context, FunctionContext *);
 
   gum_interceptor_ignore_current_thread (self->interceptor);
 
@@ -456,7 +456,7 @@ gum_allocator_probe_on_enter (GumInvocationListener * listener,
   {
     ThreadContext * base_thread_ctx;
 
-    base_thread_ctx = GUM_LINCTX_GET_FUNC_INVDATA (context, ThreadContext);
+    base_thread_ctx = GUM_IC_GET_INVOCATION_DATA (context, ThreadContext);
     base_thread_ctx->ignored = FALSE;
 
     function_ctx->handlers.enter_handler (self, base_thread_ctx, context,
@@ -472,13 +472,13 @@ gum_allocator_probe_on_leave (GumInvocationListener * listener,
   FunctionContext * function_ctx;
 
   self = GUM_ALLOCATOR_PROBE (listener);
-  function_ctx = GUM_LINCTX_GET_FUNC_DATA (context, FunctionContext *);
+  function_ctx = GUM_IC_GET_FUNC_DATA (context, FunctionContext *);
 
   if (function_ctx != NULL)
   {
     ThreadContext * base_thread_ctx;
 
-    base_thread_ctx = GUM_LINCTX_GET_FUNC_INVDATA (context, ThreadContext);
+    base_thread_ctx = GUM_IC_GET_INVOCATION_DATA (context, ThreadContext);
 
     if (!base_thread_ctx->ignored)
     {
@@ -603,8 +603,7 @@ gum_allocator_probe_detach (GumAllocatorProbe * self)
 
   gum_interceptor_ignore_current_thread (self->interceptor);
 
-  gum_interceptor_detach_listener (self->interceptor,
-      GUM_INVOCATION_LISTENER (self));
+  gum_interceptor_detach (self->interceptor, GUM_INVOCATION_LISTENER (self));
 
   for (i = 0; i < self->function_contexts->len; i++)
   {
@@ -636,8 +635,8 @@ attach_to_function (GumAllocatorProbe * self,
   function_ctx->handler_data = user_data;
   g_ptr_array_add (self->function_contexts, function_ctx);
 
-  gum_interceptor_attach_listener (self->interceptor,
-      function_address, listener, function_ctx);
+  gum_interceptor_attach (self->interceptor, function_address, listener,
+      function_ctx);
 }
 
 void
@@ -646,8 +645,7 @@ gum_allocator_probe_suppress (GumAllocatorProbe * self,
 {
   GumInvocationListener * listener = GUM_INVOCATION_LISTENER (self);
 
-  gum_interceptor_attach_listener (self->interceptor,
-      function_address, listener, NULL);
+  gum_interceptor_attach (self->interceptor, function_address, listener, NULL);
 }
 
 static void

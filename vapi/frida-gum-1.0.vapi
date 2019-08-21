@@ -35,11 +35,11 @@ namespace Gum {
 	public class Interceptor : GLib.Object {
 		public static Interceptor obtain ();
 
-		public Gum.AttachReturn attach_listener (void * function_address, Gum.InvocationListener listener, void * listener_function_data = null);
-		public void detach_listener (Gum.InvocationListener listener);
+		public Gum.AttachReturn attach (void * function_address, Gum.InvocationListener listener, void * listener_function_data = null);
+		public void detach (Gum.InvocationListener listener);
 
-		public Gum.ReplaceReturn replace_function (void * function_address, void * replacement_function, void * replacement_function_data = null);
-		public void revert_function (void * function_address);
+		public Gum.ReplaceReturn replace (void * function_address, void * replacement_function, void * replacement_data = null);
+		public void revert (void * function_address);
 
 		public void begin_transaction ();
 		public void end_transaction ();
@@ -82,9 +82,9 @@ namespace Gum {
 
 		public void * get_listener_thread_data (size_t required_size);
 		public void * get_listener_function_data ();
-		public void * get_listener_function_invocation_data (size_t required_size);
+		public void * get_listener_invocation_data (size_t required_size);
 
-		public void * get_replacement_function_data ();
+		public void * get_replacement_data ();
 	}
 
 	[CCode (cprefix = "GUM_POINT_")]

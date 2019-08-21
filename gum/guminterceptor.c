@@ -325,10 +325,10 @@ the_interceptor_weak_notify (gpointer data,
 }
 
 GumAttachReturn
-gum_interceptor_attach_listener (GumInterceptor * self,
-                                 gpointer function_address,
-                                 GumInvocationListener * listener,
-                                 gpointer listener_function_data)
+gum_interceptor_attach (GumInterceptor * self,
+                        gpointer function_address,
+                        GumInvocationListener * listener,
+                        gpointer listener_function_data)
 {
   GumAttachReturn result = GUM_ATTACH_OK;
   GumFunctionContext * function_ctx;
@@ -380,8 +380,8 @@ beach:
 }
 
 void
-gum_interceptor_detach_listener (GumInterceptor * self,
-                                 GumInvocationListener * listener)
+gum_interceptor_detach (GumInterceptor * self,
+                        GumInvocationListener * listener)
 {
   GHashTableIter iter;
   GumFunctionContext * function_ctx;
@@ -421,10 +421,10 @@ gum_interceptor_detach_listener (GumInterceptor * self,
 }
 
 GumReplaceReturn
-gum_interceptor_replace_function (GumInterceptor * self,
-                                  gpointer function_address,
-                                  gpointer replacement_function,
-                                  gpointer replacement_function_data)
+gum_interceptor_replace (GumInterceptor * self,
+                         gpointer function_address,
+                         gpointer replacement_function,
+                         gpointer replacement_data)
 {
   GumReplaceReturn result = GUM_REPLACE_OK;
   GumFunctionContext * function_ctx;
@@ -445,7 +445,7 @@ gum_interceptor_replace_function (GumInterceptor * self,
   if (function_ctx->replacement_function != NULL)
     goto already_replaced;
 
-  function_ctx->replacement_function_data = replacement_function_data;
+  function_ctx->replacement_data = replacement_data;
   function_ctx->replacement_function = replacement_function;
 
   goto beach;
@@ -474,8 +474,8 @@ beach:
 }
 
 void
-gum_interceptor_revert_function (GumInterceptor * self,
-                                 gpointer function_address)
+gum_interceptor_revert (GumInterceptor * self,
+                        gpointer function_address)
 {
   GumFunctionContext * function_ctx;
 
@@ -491,7 +491,7 @@ gum_interceptor_revert_function (GumInterceptor * self,
     goto beach;
 
   function_ctx->replacement_function = NULL;
-  function_ctx->replacement_function_data = NULL;
+  function_ctx->replacement_data = NULL;
 
   if (gum_function_context_is_empty (function_ctx))
   {
@@ -1290,7 +1290,7 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
     stack_entry->original_system_error = system_error;
     invocation_ctx->cpu_context = &stack_entry->cpu_context;
     invocation_ctx->backend = &interceptor_ctx->replacement_backend;
-    invocation_ctx->backend->data = function_ctx->replacement_function_data;
+    invocation_ctx->backend->data = function_ctx->replacement_data;
 
     *next_hop = function_ctx->replacement_function;
   }
@@ -1493,7 +1493,7 @@ gum_interceptor_invocation_get_listener_function_data (
 }
 
 static gpointer
-gum_interceptor_invocation_get_listener_function_invocation_data (
+gum_interceptor_invocation_get_listener_invocation_data (
     GumInvocationContext * context,
     gsize required_size)
 {
@@ -1508,8 +1508,7 @@ gum_interceptor_invocation_get_listener_function_invocation_data (
 }
 
 static gpointer
-gum_interceptor_invocation_get_replacement_function_data (
-    GumInvocationContext * context)
+gum_interceptor_invocation_get_replacement_data (GumInvocationContext * context)
 {
   return context->backend->data;
 }
@@ -1524,7 +1523,7 @@ gum_interceptor_listener_invocation_backend =
 
   gum_interceptor_invocation_get_listener_thread_data,
   gum_interceptor_invocation_get_listener_function_data,
-  gum_interceptor_invocation_get_listener_function_invocation_data,
+  gum_interceptor_invocation_get_listener_invocation_data,
 
   NULL,
 
@@ -1544,7 +1543,7 @@ gum_interceptor_replacement_invocation_backend =
   NULL,
   NULL,
 
-  gum_interceptor_invocation_get_replacement_function_data,
+  gum_interceptor_invocation_get_replacement_data,
 
   NULL,
   NULL

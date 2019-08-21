@@ -49,11 +49,11 @@ TESTCASE (attach_to_thunk_reading_lr)
 
   g_assert_cmphex (ctx.run (), ==, ctx.expected_lr);
 
-  interceptor_fixture_attach_listener (fixture, 0, ctx.thunk, '>', '<');
+  interceptor_fixture_attach (fixture, 0, ctx.thunk, '>', '<');
   g_assert_cmphex (ctx.run (), ==, ctx.expected_lr);
   g_assert_cmpstr (fixture->result->str, ==, "><");
 
-  interceptor_fixture_detach_listener (fixture, 0);
+  interceptor_fixture_detach (fixture, 0);
   gum_free_pages (ctx.code);
 }
 
@@ -104,11 +104,11 @@ TESTCASE (attach_to_function_reading_lr)
 
   g_assert_cmphex (ctx.run (), ==, ctx.caller_lr);
 
-  interceptor_fixture_attach_listener (fixture, 0, ctx.func, '>', '<');
+  interceptor_fixture_attach (fixture, 0, ctx.func, '>', '<');
   g_assert_cmphex (ctx.run (), !=, ctx.caller_lr);
   g_assert_cmpstr (fixture->result->str, ==, "><");
 
-  interceptor_fixture_detach_listener (fixture, 0);
+  interceptor_fixture_detach (fixture, 0);
   gum_free_pages (ctx.code);
 }
 

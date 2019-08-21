@@ -52,7 +52,7 @@ struct _TestInterceptorFixture
   AndroidListenerContext * listener_context[2];
 };
 
-static void interceptor_fixture_detach_listener (TestInterceptorFixture * h,
+static void interceptor_fixture_detach (TestInterceptorFixture * h,
     guint listener_index);
 static void android_listener_context_iface_init (gpointer g_iface,
     gpointer iface_data);
@@ -83,7 +83,7 @@ test_interceptor_fixture_setup (TestInterceptorFixture * fixture,
     init_java_vm (&java_vm, &java_env);
   }
 
-  (void) interceptor_fixture_detach_listener;
+  (void) interceptor_fixture_detach;
 }
 
 static void
@@ -98,7 +98,7 @@ test_interceptor_fixture_teardown (TestInterceptorFixture * fixture,
 
     if (ctx != NULL)
     {
-      gum_interceptor_detach_listener (fixture->interceptor,
+      gum_interceptor_detach (fixture->interceptor,
           GUM_INVOCATION_LISTENER (ctx));
       g_object_unref (ctx);
     }
@@ -109,11 +109,11 @@ test_interceptor_fixture_teardown (TestInterceptorFixture * fixture,
 }
 
 static GumAttachReturn
-interceptor_fixture_try_attaching_listener (TestInterceptorFixture * h,
-                                            guint listener_index,
-                                            gpointer test_func,
-                                            gchar enter_char,
-                                            gchar leave_char)
+interceptor_fixture_try_attach (TestInterceptorFixture * h,
+                                guint listener_index,
+                                gpointer test_func,
+                                gchar enter_char,
+                                gchar leave_char)
 {
   GumAttachReturn result;
   AndroidListenerContext * ctx;
@@ -125,7 +125,7 @@ interceptor_fixture_try_attaching_listener (TestInterceptorFixture * h,
   ctx->enter_char = enter_char;
   ctx->leave_char = leave_char;
 
-  result = gum_interceptor_attach_listener (h->interceptor, test_func,
+  result = gum_interceptor_attach (h->interceptor, test_func,
       GUM_INVOCATION_LISTENER (ctx), NULL);
   if (result == GUM_ATTACH_OK)
   {
@@ -140,22 +140,21 @@ interceptor_fixture_try_attaching_listener (TestInterceptorFixture * h,
 }
 
 static void
-interceptor_fixture_attach_listener (TestInterceptorFixture * h,
-                                     guint listener_index,
-                                     gpointer test_func,
-                                     gchar enter_char,
-                                     gchar leave_char)
+interceptor_fixture_attach (TestInterceptorFixture * h,
+                            guint listener_index,
+                            gpointer test_func,
+                            gchar enter_char,
+                            gchar leave_char)
 {
-  g_assert_cmpint (interceptor_fixture_try_attaching_listener (h,
-      listener_index, test_func, enter_char, leave_char), ==,
-      GUM_ATTACH_OK);
+  g_assert_cmpint (interceptor_fixture_try_attach (h, listener_index, test_func,
+      enter_char, leave_char), ==, GUM_ATTACH_OK);
 }
 
 static void
-interceptor_fixture_detach_listener (TestInterceptorFixture * h,
-                                     guint listener_index)
+interceptor_fixture_detach (TestInterceptorFixture * h,
+                            guint listener_index)
 {
-  gum_interceptor_detach_listener (h->interceptor,
+  gum_interceptor_detach (h->interceptor,
       GUM_INVOCATION_LISTENER (h->listener_context[listener_index]));
 }
 

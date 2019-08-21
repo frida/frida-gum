@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -66,7 +66,7 @@ TESTCASE (can_attach_to_errno)
   error_impl = GSIZE_TO_POINTER (
       gum_module_find_export_by_name ("libSystem.B.dylib", "__error"));
 
-  interceptor_fixture_attach_listener (fixture, 0, error_impl, '>', '<');
+  interceptor_fixture_attach (fixture, 0, error_impl, '>', '<');
 
   errno = ECONNREFUSED;
   ret = *(error_impl ());
@@ -81,7 +81,7 @@ TESTCASE (can_attach_to_strcmp)
   strcmp_impl = GSIZE_TO_POINTER (
       gum_module_find_export_by_name ("libSystem.B.dylib", "strcmp"));
 
-  interceptor_fixture_attach_listener (fixture, 0, strcmp_impl, '>', '<');
+  interceptor_fixture_attach (fixture, 0, strcmp_impl, '>', '<');
 
   g_assert_cmpint (strcmp_impl ("badger", "badger"), ==, 0);
 }
@@ -94,7 +94,7 @@ TESTCASE (can_attach_to_strrchr)
   strrchr_impl = GSIZE_TO_POINTER (
       gum_module_find_export_by_name ("libSystem.B.dylib", "strrchr"));
 
-  interceptor_fixture_attach_listener (fixture, 0, strrchr_impl, '>', '<');
+  interceptor_fixture_attach (fixture, 0, strrchr_impl, '>', '<');
 
   g_assert_true (strrchr_impl (s, 'd') == s + 2);
   g_assert_cmpstr (fixture->result->str, ==, "><");
@@ -116,7 +116,7 @@ TESTCASE (can_attach_to_read)
   read_thread =
       g_thread_new ("perform-read", perform_read, GSIZE_TO_POINTER (fds[0]));
   g_usleep (G_USEC_PER_SEC / 10);
-  interceptor_fixture_attach_listener (fixture, 0, read_impl, '>', '<');
+  interceptor_fixture_attach (fixture, 0, read_impl, '>', '<');
   write (fds[1], &value, sizeof (value));
   g_thread_join (read_thread);
   g_assert_cmpstr (fixture->result->str, ==, "");
@@ -162,7 +162,7 @@ TESTCASE (can_attach_to_accept)
   accept_impl = GSIZE_TO_POINTER (
       gum_module_find_export_by_name ("libSystem.B.dylib", "accept"));
 
-  interceptor_fixture_attach_listener (fixture, 0, accept_impl, '>', '<');
+  interceptor_fixture_attach (fixture, 0, accept_impl, '>', '<');
 
   addr_len = sizeof (addr);
   ret = accept_impl (server, (struct sockaddr *) &addr, &addr_len);
@@ -186,8 +186,8 @@ TESTCASE (can_attach_to_posix_spawnattr_setbinpref_np)
       gum_module_find_export_by_name ("libSystem.B.dylib",
       "posix_spawnattr_setbinpref_np"));
 
-  interceptor_fixture_attach_listener (fixture, 0,
-      posix_spawnattr_setbinpref_np_impl, '>', '<');
+  interceptor_fixture_attach (fixture, 0, posix_spawnattr_setbinpref_np_impl,
+      '>', '<');
 
   posix_spawnattr_init (&attr);
   pref = CPU_TYPE_ARM64;
@@ -208,8 +208,7 @@ TESTCASE (can_attach_to_pid_for_task)
   pid_for_task_impl = GSIZE_TO_POINTER (
       gum_module_find_export_by_name ("libSystem.B.dylib", "pid_for_task"));
 
-  interceptor_fixture_attach_listener (fixture, 0, pid_for_task_impl,
-      '>', '<');
+  interceptor_fixture_attach (fixture, 0, pid_for_task_impl, '>', '<');
 
   ret = pid_for_task (self, &pid);
   g_assert_cmpint (ret, ==, KERN_SUCCESS);
@@ -226,14 +225,13 @@ TESTCASE (can_attach_to_mach_host_self)
   mach_host_self_impl = GSIZE_TO_POINTER (
       gum_module_find_export_by_name ("libSystem.B.dylib", "mach_host_self"));
 
-  interceptor_fixture_attach_listener (fixture, 0, mach_host_self_impl,
-      '>', '<');
+  interceptor_fixture_attach (fixture, 0, mach_host_self_impl, '>', '<');
 
   host = mach_host_self_impl ();
   g_assert_cmpint (host, !=, 0);
   g_assert_cmpstr (fixture->result->str, ==, "><");
 
-  interceptor_fixture_detach_listener (fixture, 0);
+  interceptor_fixture_detach (fixture, 0);
 
   g_assert_cmpint (host, ==, mach_host_self_impl ());
 }
@@ -258,7 +256,7 @@ TESTCASE (can_attach_to_xpc_retain)
 
   xpc_retain_impl (dict);
 
-  interceptor_fixture_attach_listener (fixture, 0, xpc_retain_impl, '>', '<');
+  interceptor_fixture_attach (fixture, 0, xpc_retain_impl, '>', '<');
 
   xpc_retain_impl (dict);
   g_assert_cmpstr (fixture->result->str, ==, "><");
@@ -275,7 +273,7 @@ TESTCASE (can_attach_to_sqlite3_close)
   close_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (
       "libsqlite3.dylib", "sqlite3_close"));
 
-  interceptor_fixture_attach_listener (fixture, 0, close_impl, '>', '<');
+  interceptor_fixture_attach (fixture, 0, close_impl, '>', '<');
 
   close_impl (NULL);
   g_assert_cmpstr (fixture->result->str, ==, "><");
@@ -289,13 +287,12 @@ TESTCASE (can_attach_to_sqlite3_thread_cleanup)
   thread_cleanup_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (
       "libsqlite3.dylib", "sqlite3_thread_cleanup"));
 
-  interceptor_fixture_attach_listener (fixture, 0, thread_cleanup_impl,
-      '>', '<');
+  interceptor_fixture_attach (fixture, 0, thread_cleanup_impl, '>', '<');
 
   thread_cleanup_impl ();
   g_assert_cmpstr (fixture->result->str, ==, "><");
 
-  interceptor_fixture_detach_listener (fixture, 0);
+  interceptor_fixture_detach (fixture, 0);
   g_string_truncate (fixture->result, 0);
 #endif
 }
@@ -396,7 +393,7 @@ attach_if_function_export (const GumExportDetails * details,
     TestPerformanceContext * ctx = user_data;
     GumAttachReturn attach_ret;
 
-    attach_ret = gum_interceptor_attach_listener (ctx->interceptor,
+    attach_ret = gum_interceptor_attach (ctx->interceptor,
         GSIZE_TO_POINTER (details->address), ctx->listener, NULL);
     if (attach_ret == GUM_ATTACH_OK)
     {
@@ -424,7 +421,7 @@ replace_if_function_export (const GumExportDetails * details,
     TestPerformanceContext * ctx = user_data;
     GumReplaceReturn replace_ret;
 
-    replace_ret = gum_interceptor_replace_function (ctx->interceptor,
+    replace_ret = gum_interceptor_replace (ctx->interceptor,
         GSIZE_TO_POINTER (details->address), dummy_replacement_never_called,
         NULL);
     if (replace_ret == GUM_REPLACE_OK)
@@ -473,7 +470,7 @@ TESTCASE (should_retain_code_signing_status)
 
   close_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (
       "libsqlite3.dylib", "sqlite3_close"));
-  interceptor_fixture_attach_listener (fixture, 0, close_impl, '>', '<');
+  interceptor_fixture_attach (fixture, 0, close_impl, '>', '<');
 
   g_assert_cmpstr (fixture->result->str, ==, "");
   close_impl (NULL);

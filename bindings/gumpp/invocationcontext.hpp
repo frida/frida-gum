@@ -56,14 +56,14 @@ namespace Gum
       return gum_invocation_context_get_listener_function_data (context);
     }
 
-    virtual void * get_listener_function_invocation_data_ptr (size_t required_size) const
+    virtual void * get_listener_invocation_data_ptr (size_t required_size) const
     {
-      return gum_invocation_context_get_listener_function_invocation_data (context, required_size);
+      return gum_invocation_context_get_listener_invocation_data (context, required_size);
     }
 
-    virtual void * get_replacement_function_data_ptr () const
+    virtual void * get_replacement_data_ptr () const
     {
-      return gum_invocation_context_get_replacement_function_data (context);
+      return gum_invocation_context_get_replacement_data (context);
     }
 
     virtual CpuContext * get_cpu_context () const

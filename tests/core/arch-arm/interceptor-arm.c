@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -52,12 +52,12 @@ TESTCASE (attach_to_unaligned_function)
 
   f = code + 1;
 
-  interceptor_fixture_attach_listener (fixture, 0, f, '>', '<');
+  interceptor_fixture_attach (fixture, 0, f, '>', '<');
   g_assert_cmpint (f (), ==, 1337);
   g_assert_cmpstr (fixture->result->str, ==, "><");
 
   g_string_truncate (fixture->result, 0);
-  interceptor_fixture_detach_listener (fixture, 0);
+  interceptor_fixture_detach (fixture, 0);
   g_assert_cmpint (f (), ==, 1337);
   g_assert_cmpstr (fixture->result->str, ==, "");
 
@@ -104,11 +104,11 @@ TESTCASE (attach_to_thumb_thunk_reading_lr)
 
   g_assert_cmphex (ctx.run (), ==, ctx.expected_lr);
 
-  interceptor_fixture_attach_listener (fixture, 0, ctx.thunk, '>', '<');
+  interceptor_fixture_attach (fixture, 0, ctx.thunk, '>', '<');
   g_assert_cmphex (ctx.run (), ==, ctx.expected_lr);
   g_assert_cmpstr (fixture->result->str, ==, "><");
 
-  interceptor_fixture_detach_listener (fixture, 0);
+  interceptor_fixture_detach (fixture, 0);
   gum_free_pages (ctx.code);
 }
 
@@ -159,11 +159,11 @@ TESTCASE (attach_to_thumb_function_reading_lr)
 
   g_assert_cmphex (ctx.run (), ==, ctx.caller_lr);
 
-  interceptor_fixture_attach_listener (fixture, 0, ctx.func, '>', '<');
+  interceptor_fixture_attach (fixture, 0, ctx.func, '>', '<');
   g_assert_cmphex (ctx.run (), !=, ctx.caller_lr);
   g_assert_cmpstr (fixture->result->str, ==, "><");
 
-  interceptor_fixture_detach_listener (fixture, 0);
+  interceptor_fixture_detach (fixture, 0);
   gum_free_pages (ctx.code);
 }
 

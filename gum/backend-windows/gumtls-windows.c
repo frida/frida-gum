@@ -28,12 +28,12 @@ struct _GumTmpTlsKey
   gpointer value;
 };
 
-static gpointer _gum_tls_key_get_tmp_value (GumTlsKey key);
-static void _gum_tls_key_set_tmp_value (GumTlsKey key, gpointer value);
-static void _gum_tls_key_del_tmp_value (GumTlsKey key);
+static gpointer gum_tls_key_get_tmp_value (GumTlsKey key);
+static void gum_tls_key_set_tmp_value (GumTlsKey key, gpointer value);
+static void gum_tls_key_del_tmp_value (GumTlsKey key);
 
-static GumTmpTlsKey _gum_tls_tmp_keys[MAX_TMP_TLS_KEY];
-static GumSpinlock _gum_tls_tmp_keys_lock = GUM_SPINLOCK_INIT;
+static GumTmpTlsKey gum_tls_tmp_keys[MAX_TMP_TLS_KEY];
+static GumSpinlock gum_tls_tmp_keys_lock = GUM_SPINLOCK_INIT;
 
 #endif
 
@@ -58,7 +58,7 @@ void
 _gum_tls_init (void)
 {
 #if defined (HAVE_I386)
-  memset (_gum_tls_tmp_keys, 0, sizeof (_gum_tls_tmp_keys));
+  memset (gum_tls_tmp_keys, 0, sizeof (gum_tls_tmp_keys));
 #endif
 }
 
@@ -75,7 +75,7 @@ _gum_tls_deinit (void)
 #if defined (HAVE_I386)
 
 static gpointer
-_gum_tls_key_get_tmp_value (GumTlsKey key)
+gum_tls_key_get_tmp_value (GumTlsKey key)
 {
   GumThreadId tid;
   gpointer value;
@@ -84,69 +84,69 @@ _gum_tls_key_get_tmp_value (GumTlsKey key)
   tid = gum_process_get_current_thread_id ();
   value = NULL;
 
-  gum_spinlock_acquire (&_gum_tls_tmp_keys_lock);
+  gum_spinlock_acquire (&gum_tls_tmp_keys_lock);
 
   for (i = 0; i != MAX_TMP_TLS_KEY; i++)
   {
-    if (_gum_tls_tmp_keys[i].tid == tid && _gum_tls_tmp_keys[i].key == key)
+    if (gum_tls_tmp_keys[i].tid == tid && gum_tls_tmp_keys[i].key == key)
     {
-      value = _gum_tls_tmp_keys[i].value;
+      value = gum_tls_tmp_keys[i].value;
       break;
     }
   }
 
-  gum_spinlock_release (&_gum_tls_tmp_keys_lock);
+  gum_spinlock_release (&gum_tls_tmp_keys_lock);
 
   return value;
 }
 
 static void
-_gum_tls_key_set_tmp_value (GumTlsKey key,
-                            gpointer value)
+gum_tls_key_set_tmp_value (GumTlsKey key,
+                           gpointer value)
 {
   GumThreadId tid;
   guint i;
 
   tid = gum_process_get_current_thread_id ();
 
-  gum_spinlock_acquire (&_gum_tls_tmp_keys_lock);
+  gum_spinlock_acquire (&gum_tls_tmp_keys_lock);
 
   for (i = 0; i != MAX_TMP_TLS_KEY; i++)
   {
-    if (_gum_tls_tmp_keys[i].tid == 0)
+    if (gum_tls_tmp_keys[i].tid == 0)
     {
-      _gum_tls_tmp_keys[i].tid = tid;
-      _gum_tls_tmp_keys[i].key = key;
-      _gum_tls_tmp_keys[i].value = value;
+      gum_tls_tmp_keys[i].tid = tid;
+      gum_tls_tmp_keys[i].key = key;
+      gum_tls_tmp_keys[i].value = value;
       break;
     }
   }
   g_assert (i < MAX_TMP_TLS_KEY);
 
-  gum_spinlock_release (&_gum_tls_tmp_keys_lock);
+  gum_spinlock_release (&gum_tls_tmp_keys_lock);
 }
 
 static void
-_gum_tls_key_del_tmp_value (GumTlsKey key)
+gum_tls_key_del_tmp_value (GumTlsKey key)
 {
   GumThreadId tid;
   guint i;
 
   tid = gum_process_get_current_thread_id ();
 
-  gum_spinlock_acquire (&_gum_tls_tmp_keys_lock);
+  gum_spinlock_acquire (&gum_tls_tmp_keys_lock);
 
   for (i = 0; i != MAX_TMP_TLS_KEY; i++)
   {
-    if (_gum_tls_tmp_keys[i].tid == tid && _gum_tls_tmp_keys[i].key == key)
+    if (gum_tls_tmp_keys[i].tid == tid && gum_tls_tmp_keys[i].key == key)
     {
-      memset (&_gum_tls_tmp_keys[i], 0, sizeof (_gum_tls_tmp_keys[i]));
+      memset (&gum_tls_tmp_keys[i], 0, sizeof (gum_tls_tmp_keys[i]));
       break;
     }
   }
   g_assert (i < MAX_TMP_TLS_KEY);
 
-  gum_spinlock_release (&_gum_tls_tmp_keys_lock);
+  gum_spinlock_release (&gum_tls_tmp_keys_lock);
 }
 
 # if GLIB_SIZEOF_VOID_P == 4
@@ -166,7 +166,7 @@ gum_tls_key_get_value (GumTlsKey key)
     if (tls_expansion_slots != NULL)
       return tls_expansion_slots[key - 64];
 
-    return _gum_tls_key_get_tmp_value (key);
+    return gum_tls_key_get_tmp_value (key);
   }
 
   return NULL;
@@ -191,9 +191,9 @@ gum_tls_key_set_value (GumTlsKey key,
     }
     else
     {
-      _gum_tls_key_set_tmp_value (key, value);
+      gum_tls_key_set_tmp_value (key, value);
       TlsSetValue (key, value);
-      _gum_tls_key_del_tmp_value (key);
+      gum_tls_key_del_tmp_value (key);
     }
   }
 }
@@ -215,7 +215,7 @@ gum_tls_key_get_value (GumTlsKey key)
     if (tls_expansion_slots != NULL)
       return tls_expansion_slots[key - 64];
 
-    return _gum_tls_key_get_tmp_value (key);
+    return gum_tls_key_get_tmp_value (key);
   }
   return NULL;
 }
@@ -239,9 +239,9 @@ gum_tls_key_set_value (GumTlsKey key,
     }
     else
     {
-      _gum_tls_key_set_tmp_value (key, value);
+      gum_tls_key_set_tmp_value (key, value);
       TlsSetValue (key, value);
-      _gum_tls_key_del_tmp_value (key);
+      gum_tls_key_del_tmp_value (key);
     }
   }
 }

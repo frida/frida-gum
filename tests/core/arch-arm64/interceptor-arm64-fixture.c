@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2018-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -73,7 +73,7 @@ interceptor_fixture_teardown (InterceptorFixture * fixture,
 
     if (ctx != NULL)
     {
-      gum_interceptor_detach_listener (fixture->interceptor,
+      gum_interceptor_detach (fixture->interceptor,
           GUM_INVOCATION_LISTENER (ctx));
       g_object_unref (ctx);
     }
@@ -84,11 +84,11 @@ interceptor_fixture_teardown (InterceptorFixture * fixture,
 }
 
 static GumAttachReturn
-interceptor_fixture_try_attaching_listener (InterceptorFixture * h,
-                                            guint listener_index,
-                                            gpointer test_func,
-                                            gchar enter_char,
-                                            gchar leave_char)
+interceptor_fixture_try_attach (InterceptorFixture * h,
+                                guint listener_index,
+                                gpointer test_func,
+                                gchar enter_char,
+                                gchar leave_char)
 {
   GumAttachReturn result;
   Arm64ListenerContext * ctx;
@@ -100,7 +100,7 @@ interceptor_fixture_try_attaching_listener (InterceptorFixture * h,
   ctx->enter_char = enter_char;
   ctx->leave_char = leave_char;
 
-  result = gum_interceptor_attach_listener (h->interceptor, test_func,
+  result = gum_interceptor_attach (h->interceptor, test_func,
       GUM_INVOCATION_LISTENER (ctx), NULL);
   if (result == GUM_ATTACH_OK)
   {
@@ -115,23 +115,22 @@ interceptor_fixture_try_attaching_listener (InterceptorFixture * h,
 }
 
 static void
-interceptor_fixture_attach_listener (InterceptorFixture * h,
-                                     guint listener_index,
-                                     gpointer test_func,
-                                     gchar enter_char,
-                                     gchar leave_char)
+interceptor_fixture_attach (InterceptorFixture * h,
+                            guint listener_index,
+                            gpointer test_func,
+                            gchar enter_char,
+                            gchar leave_char)
 {
-  g_assert_cmpint (interceptor_fixture_try_attaching_listener (h,
-      listener_index, test_func, enter_char, leave_char), ==,
-      GUM_ATTACH_OK);
+  g_assert_cmpint (interceptor_fixture_try_attach (h, listener_index, test_func,
+      enter_char, leave_char), ==, GUM_ATTACH_OK);
 }
 
 static void
-interceptor_fixture_detach_listener (InterceptorFixture * h,
-                                     guint listener_index)
+interceptor_fixture_detach (InterceptorFixture * h,
+                            guint listener_index)
 {
-  gum_interceptor_detach_listener (h->interceptor,
-    GUM_INVOCATION_LISTENER (h->listener_context[listener_index]));
+  gum_interceptor_detach (h->interceptor,
+      GUM_INVOCATION_LISTENER (h->listener_context[listener_index]));
 }
 
 static void

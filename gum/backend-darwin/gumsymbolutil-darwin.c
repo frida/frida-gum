@@ -233,7 +233,7 @@ gum_symbol_cache_invalidator_init (GumSymbolCacheInvalidator * self)
 
   if (gum_darwin_query_all_image_infos (mach_task_self (), &infos))
   {
-    gum_interceptor_attach_listener (self->interceptor,
+    gum_interceptor_attach (self->interceptor,
         GSIZE_TO_POINTER (infos.notification_address),
         GUM_INVOCATION_LISTENER (self), NULL);
   }
@@ -252,8 +252,7 @@ gum_symbol_cache_invalidator_dispose (GObject * object)
 static void
 gum_symbol_cache_invalidator_stop (GumSymbolCacheInvalidator * self)
 {
-  gum_interceptor_detach_listener (self->interceptor,
-      GUM_INVOCATION_LISTENER (self));
+  gum_interceptor_detach (self->interceptor, GUM_INVOCATION_LISTENER (self));
 }
 
 static void

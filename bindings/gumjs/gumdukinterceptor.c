@@ -408,7 +408,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
   listener->on_leave = on_leave;
   listener->module = self;
 
-  attach_ret = gum_interceptor_attach_listener (self->interceptor, target,
+  attach_ret = gum_interceptor_attach (self->interceptor, target,
       GUM_INVOCATION_LISTENER (listener), NULL);
 
   if (attach_ret != GUM_ATTACH_OK)
@@ -461,7 +461,7 @@ unable_to_attach:
 static void
 gum_duk_invocation_listener_destroy (GumDukInvocationListener * listener)
 {
-  gum_interceptor_detach_listener (listener->module->interceptor,
+  gum_interceptor_detach (listener->module->interceptor,
       GUM_INVOCATION_LISTENER (listener));
   g_object_unref (listener);
 }
@@ -506,8 +506,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
   entry->replacement = replacement_value;
   entry->core = core;
 
-  replace_ret = gum_interceptor_replace_function (self->interceptor, target,
-      replacement, NULL);
+  replace_ret = gum_interceptor_replace (self->interceptor, target, replacement,
+      NULL);
   if (replace_ret != GUM_REPLACE_OK)
     goto unable_to_replace;
 
@@ -543,7 +543,7 @@ gum_duk_replace_entry_free (GumDukReplaceEntry * entry)
 {
   GumDukScope scope = GUM_DUK_SCOPE_INIT (entry->core);
 
-  gum_interceptor_revert_function (entry->interceptor, entry->target);
+  gum_interceptor_revert (entry->interceptor, entry->target);
 
   _gum_duk_unprotect (scope.ctx, entry->replacement);
 
@@ -617,7 +617,7 @@ gum_duk_invocation_listener_on_enter (GumInvocationListener * listener,
   GumDukInvocationState * state;
 
   self = GUM_DUK_INVOCATION_LISTENER_CAST (listener);
-  state = GUM_LINCTX_GET_FUNC_INVDATA (ic, GumDukInvocationState);
+  state = GUM_IC_GET_INVOCATION_DATA (ic, GumDukInvocationState);
 
   if (self->on_enter != NULL)
   {
@@ -672,7 +672,7 @@ gum_duk_invocation_listener_on_leave (GumInvocationListener * listener,
   GumDukInvocationState * state;
 
   self = GUM_DUK_INVOCATION_LISTENER_CAST (listener);
-  state = GUM_LINCTX_GET_FUNC_INVDATA (ic, GumDukInvocationState);
+  state = GUM_IC_GET_INVOCATION_DATA (ic, GumDukInvocationState);
 
   if (self->on_leave != NULL)
   {

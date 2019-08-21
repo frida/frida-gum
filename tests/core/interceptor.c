@@ -55,10 +55,10 @@ TESTLIST_BEGIN (interceptor)
   TESTENTRY (i_can_has_replaceability)
   TESTENTRY (already_replaced)
 # ifndef HAVE_ASAN
-  TESTENTRY (replace_function)
-  TESTENTRY (two_replaced_functions)
+  TESTENTRY (replace_one)
+  TESTENTRY (replace_two)
 # endif
-  TESTENTRY (replace_function_then_attach_to_it)
+  TESTENTRY (replace_then_attach)
 
 #ifdef HAVE_QNX
   TESTENTRY (intercept_malloc_and_create_thread)
@@ -77,15 +77,15 @@ static gpointer replacement_target_function (GString * str);
 
 TESTCASE (attach_one)
 {
-  interceptor_fixture_attach_listener (fixture, 0, target_function, '>', '<');
+  interceptor_fixture_attach (fixture, 0, target_function, '>', '<');
   target_function (fixture->result);
   g_assert_cmpstr (fixture->result->str, ==, ">|<");
 }
 
 TESTCASE (attach_two)
 {
-  interceptor_fixture_attach_listener (fixture, 0, target_function, 'a', 'b');
-  interceptor_fixture_attach_listener (fixture, 1, target_function, 'c', 'd');
+  interceptor_fixture_attach (fixture, 0, target_function, 'a', 'b');
+  interceptor_fixture_attach (fixture, 1, target_function, 'c', 'd');
   target_function (fixture->result);
   g_assert_cmpstr (fixture->result->str, ==, "ac|bd");
 }
@@ -102,15 +102,14 @@ recursive_function (GString * str,
 
 TESTCASE (attach_to_recursive_function)
 {
-  interceptor_fixture_attach_listener (fixture, 0, recursive_function,
-      '>', '<');
+  interceptor_fixture_attach (fixture, 0, recursive_function, '>', '<');
   recursive_function (fixture->result, 4);
   g_assert_cmpstr (fixture->result->str, ==, ">>>>>0<1<2<3<4<");
 }
 
 TESTCASE (attach_to_special_function)
 {
-  interceptor_fixture_attach_listener (fixture, 0, special_function, '>', '<');
+  interceptor_fixture_attach (fixture, 0, special_function, '>', '<');
   special_function (fixture->result);
   g_assert_cmpstr (fixture->result->str, ==, ">|<");
 }
@@ -126,8 +125,7 @@ TESTCASE (attach_to_pthread_key_create)
   pthread_key_create_impl = GSIZE_TO_POINTER (
       gum_module_find_export_by_name (NULL, "pthread_key_create"));
 
-  interceptor_fixture_attach_listener (fixture, 0, pthread_key_create_impl, '>',
-      '<');
+  interceptor_fixture_attach (fixture, 0, pthread_key_create_impl, '>', '<');
 
   g_assert_cmpint (pthread_key_create_impl (&key, NULL), ==, 0);
 
@@ -151,15 +149,15 @@ TESTCASE (attach_to_heap_api)
   free_impl = interceptor_fixture_get_libc_free ();
 
   gum_interceptor_ignore_current_thread (fixture->interceptor);
-  interceptor_fixture_attach_listener (fixture, 0, malloc_impl, '>', '<');
-  interceptor_fixture_attach_listener (fixture, 1, free_impl, 'a', 'b');
+  interceptor_fixture_attach (fixture, 0, malloc_impl, '>', '<');
+  interceptor_fixture_attach (fixture, 1, free_impl, 'a', 'b');
   gum_interceptor_unignore_current_thread (fixture->interceptor);
   p = malloc (1);
   free (p);
   g_assert_cmpstr (fixture->result->str, ==, "><ab");
 
-  interceptor_fixture_detach_listener (fixture, 0);
-  interceptor_fixture_detach_listener (fixture, 1);
+  interceptor_fixture_detach (fixture, 0);
+  interceptor_fixture_detach (fixture, 1);
 
   g_assert_cmpstr (fixture->result->str, ==, "><ab");
 }
@@ -173,10 +171,10 @@ TESTCASE (attach_to_own_api)
   listener->on_leave = (TestCallbackListenerFunc) target_function;
   listener->user_data = fixture->result;
 
-  gum_interceptor_attach_listener (fixture->interceptor, target_function,
+  gum_interceptor_attach (fixture->interceptor, target_function,
       GUM_INVOCATION_LISTENER (listener), NULL);
   target_function (fixture->result);
-  gum_interceptor_detach_listener (fixture->interceptor,
+  gum_interceptor_detach (fixture->interceptor,
       GUM_INVOCATION_LISTENER (listener));
 
   g_assert_cmpstr (fixture->result->str, ==, "|||");
@@ -200,16 +198,15 @@ TESTCASE (attach_detach_torture)
   {
     TestCallbackListener * listener;
 
-    interceptor_fixture_attach_listener (fixture, 0, target_function,
-        'a', 'b');
+    interceptor_fixture_attach (fixture, 0, target_function, 'a', 'b');
 
     listener = test_callback_listener_new ();
 
-    gum_interceptor_attach_listener (fixture->interceptor, target_function,
+    gum_interceptor_attach (fixture->interceptor, target_function,
         GUM_INVOCATION_LISTENER (listener), NULL);
-    gum_interceptor_detach_listener (fixture->interceptor,
+    gum_interceptor_detach (fixture->interceptor,
         GUM_INVOCATION_LISTENER (listener));
-    interceptor_fixture_detach_listener (fixture, 0);
+    interceptor_fixture_detach (fixture, 0);
 
     g_object_unref (listener);
   }
@@ -224,7 +221,7 @@ TESTCASE (thread_id)
 {
   GumThreadId first_thread_id, second_thread_id;
 
-  interceptor_fixture_attach_listener (fixture, 0, target_function, 'a', 'b');
+  interceptor_fixture_attach (fixture, 0, target_function, 'a', 'b');
 
   target_function (fixture->result);
   first_thread_id = fixture->listener_context[0]->last_thread_id;
@@ -238,16 +235,15 @@ TESTCASE (thread_id)
 
 TESTCASE (intercepted_free_in_thread_exit)
 {
-  interceptor_fixture_attach_listener (fixture, 0,
-      interceptor_fixture_get_libc_free (), 'a', 'b');
+  interceptor_fixture_attach (fixture, 0, interceptor_fixture_get_libc_free (),
+      'a', 'b');
   g_thread_join (g_thread_new ("interceptor-test-thread-exit",
       target_nop_function_a, NULL));
 }
 
 TESTCASE (function_arguments)
 {
-  interceptor_fixture_attach_listener (fixture, 0, target_nop_function_a, 'a',
-      'b');
+  interceptor_fixture_attach (fixture, 0, target_nop_function_a, 'a', 'b');
   target_nop_function_a (GSIZE_TO_POINTER (0x12349876));
   g_assert_cmphex (fixture->listener_context[0]->last_seen_argument,
       ==, 0x12349876);
@@ -257,8 +253,7 @@ TESTCASE (function_return_value)
 {
   gpointer return_value;
 
-  interceptor_fixture_attach_listener (fixture, 0, target_nop_function_a, 'a',
-      'b');
+  interceptor_fixture_attach (fixture, 0, target_nop_function_a, 'a', 'b');
   return_value = target_nop_function_a (NULL);
   g_assert_cmphex (
       GPOINTER_TO_SIZE (fixture->listener_context[0]->last_return_value),
@@ -271,8 +266,7 @@ TESTCASE (function_cpu_context_on_enter)
 {
   GumCpuContext input, output;
 
-  interceptor_fixture_attach_listener (fixture, 0, clobber_test_function, 'a',
-      'b');
+  interceptor_fixture_attach (fixture, 0, clobber_test_function, 'a', 'b');
 
   fill_cpu_context_with_magic_values (&input);
   invoke_clobber_test_function_with_cpu_context (&input, &output);
@@ -285,8 +279,7 @@ TESTCASE (function_cpu_context_on_enter)
 
 TESTCASE (ignore_current_thread)
 {
-  interceptor_fixture_attach_listener (fixture, 0, target_function, '>',
-      '<');
+  interceptor_fixture_attach (fixture, 0, target_function, '>', '<');
 
   target_function (fixture->result);
   g_assert_cmpstr (fixture->result->str, ==, ">|<");
@@ -306,8 +299,7 @@ TESTCASE (ignore_current_thread)
 
 TESTCASE (ignore_current_thread_nested)
 {
-  interceptor_fixture_attach_listener (fixture, 0, target_function, '>',
-      '<');
+  interceptor_fixture_attach (fixture, 0, target_function, '>', '<');
 
   gum_interceptor_ignore_current_thread (fixture->interceptor);
   gum_interceptor_ignore_current_thread (fixture->interceptor);
@@ -319,7 +311,7 @@ TESTCASE (ignore_current_thread_nested)
 
 TESTCASE (ignore_other_threads)
 {
-  interceptor_fixture_attach_listener (fixture, 0, target_function, '>', '<');
+  interceptor_fixture_attach (fixture, 0, target_function, '>', '<');
 
   gum_interceptor_ignore_other_threads (fixture->interceptor);
 
@@ -339,13 +331,13 @@ TESTCASE (ignore_other_threads)
 
 TESTCASE (detach)
 {
-  interceptor_fixture_attach_listener (fixture, 0, target_function, 'a', 'b');
-  interceptor_fixture_attach_listener (fixture, 1, target_function, 'c', 'd');
+  interceptor_fixture_attach (fixture, 0, target_function, 'a', 'b');
+  interceptor_fixture_attach (fixture, 1, target_function, 'c', 'd');
 
   target_function (fixture->result);
   g_assert_cmpstr (fixture->result->str, ==, "ac|bd");
 
-  interceptor_fixture_detach_listener (fixture, 0);
+  interceptor_fixture_detach (fixture, 0);
   g_string_truncate (fixture->result, 0);
 
   target_function (fixture->result);
@@ -354,7 +346,7 @@ TESTCASE (detach)
 
 TESTCASE (listener_ref_count)
 {
-  interceptor_fixture_attach_listener (fixture, 0, target_function, 'a', 'b');
+  interceptor_fixture_attach (fixture, 0, target_function, 'a', 'b');
   g_assert_cmpuint (G_OBJECT (fixture->listener_context[0])->ref_count, ==, 1);
 }
 
@@ -369,9 +361,9 @@ TESTCASE (function_data)
   fd_listener = (TestFunctionDataListener *)
       g_object_new (TEST_TYPE_FUNCTION_DATA_LISTENER, NULL);
   listener = GUM_INVOCATION_LISTENER (fd_listener);
-  g_assert_cmpint (gum_interceptor_attach_listener (fixture->interceptor,
+  g_assert_cmpint (gum_interceptor_attach (fixture->interceptor,
       target_nop_function_a, listener, a_data), ==, GUM_ATTACH_OK);
-  g_assert_cmpint (gum_interceptor_attach_listener (fixture->interceptor,
+  g_assert_cmpint (gum_interceptor_attach (fixture->interceptor,
       target_nop_function_b, listener, b_data), ==, GUM_ATTACH_OK);
 
   g_assert_cmpuint (fd_listener->on_enter_call_count, ==, 0);
@@ -435,7 +427,7 @@ TESTCASE (function_data)
   g_assert_cmpstr (fd_listener->last_on_leave_data.invocation_data.arg,
       ==, "bdgr");
 
-  gum_interceptor_detach_listener (fixture->interceptor, listener);
+  gum_interceptor_detach (fixture->interceptor, listener);
   g_object_unref (fd_listener);
 }
 
@@ -445,8 +437,7 @@ TESTCASE (cpu_register_clobber)
 {
   GumCpuContext input, output;
 
-  interceptor_fixture_attach_listener (fixture, 0, clobber_test_function,
-      '>', '<');
+  interceptor_fixture_attach (fixture, 0, clobber_test_function, '>', '<');
 
   fill_cpu_context_with_magic_values (&input);
   invoke_clobber_test_function_with_cpu_context (&input, &output);
@@ -458,8 +449,7 @@ TESTCASE (cpu_flag_clobber)
 {
   gsize flags_input, flags_output;
 
-  interceptor_fixture_attach_listener (fixture, 0, clobber_test_function,
-      '>', '<');
+  interceptor_fixture_attach (fixture, 0, clobber_test_function, '>', '<');
 
   invoke_clobber_test_function_with_carry_set (&flags_input, &flags_output);
   g_assert_cmpstr (fixture->result->str, ==, "><");
@@ -479,7 +469,7 @@ TESTCASE (i_can_has_attachability)
   {
     UnsupportedFunction * func = &unsupported_functions[i];
 
-    g_assert_cmpint (interceptor_fixture_try_attaching_listener (fixture, 0,
+    g_assert_cmpint (interceptor_fixture_try_attach (fixture, 0,
         func->code + func->code_offset, '>', '<'),
         ==, GUM_ATTACH_WRONG_SIGNATURE);
   }
@@ -491,8 +481,8 @@ TESTCASE (i_can_has_attachability)
 
 TESTCASE (already_attached)
 {
-  interceptor_fixture_attach_listener (fixture, 0, target_function, '>', '<');
-  g_assert_cmpint (gum_interceptor_attach_listener (fixture->interceptor,
+  interceptor_fixture_attach (fixture, 0, target_function, '>', '<');
+  g_assert_cmpint (gum_interceptor_attach (fixture->interceptor,
       target_function, GUM_INVOCATION_LISTENER (fixture->listener_context[0]),
       NULL), ==, GUM_ATTACH_ALREADY_ATTACHED);
 }
@@ -503,7 +493,7 @@ TESTCASE (relative_proxy_function)
 
   proxy_func = proxy_func_new_relative_with_target (target_function);
 
-  interceptor_fixture_attach_listener (fixture, 0, proxy_func, '>', '<');
+  interceptor_fixture_attach (fixture, 0, proxy_func, '>', '<');
   proxy_func (fixture->result);
   g_assert_cmpstr (fixture->result->str, ==, ">|<");
 
@@ -516,7 +506,7 @@ TESTCASE (absolute_indirect_proxy_function)
 
   proxy_func = proxy_func_new_absolute_indirect_with_target (target_function);
 
-  interceptor_fixture_attach_listener (fixture, 0, proxy_func, '>', '<');
+  interceptor_fixture_attach (fixture, 0, proxy_func, '>', '<');
   proxy_func (fixture->result);
   g_assert_cmpstr (fixture->result->str, ==, ">|<");
 
@@ -529,7 +519,7 @@ TESTCASE (two_indirects_to_function)
 
   proxy_func = proxy_func_new_two_jumps_with_target (target_function);
 
-  interceptor_fixture_attach_listener (fixture, 0, proxy_func, '>', '<');
+  interceptor_fixture_attach (fixture, 0, proxy_func, '>', '<');
   proxy_func (fixture->result);
   g_assert_cmpstr (fixture->result->str, ==, ">|<");
 
@@ -542,10 +532,10 @@ TESTCASE (relocation_of_early_call)
 
   proxy_func = proxy_func_new_early_call_with_target (target_function);
 
-  interceptor_fixture_attach_listener (fixture, 0, proxy_func, '>', '<');
+  interceptor_fixture_attach (fixture, 0, proxy_func, '>', '<');
   proxy_func (fixture->result);
   g_assert_cmpstr (fixture->result->str, ==, ">|<");
-  interceptor_fixture_detach_listener (fixture, 0);
+  interceptor_fixture_detach (fixture, 0);
 
   proxy_func_free (proxy_func);
 }
@@ -554,7 +544,7 @@ TESTCASE (relocation_of_early_call)
 
 #ifndef HAVE_ASAN
 
-TESTCASE (replace_function)
+TESTCASE (replace_one)
 {
   gpointer (* malloc_impl) (gsize size);
   guint counter = 0;
@@ -568,18 +558,18 @@ TESTCASE (replace_function)
 
   malloc_impl = interceptor_fixture_get_libc_malloc ();
 
-  g_assert_cmpint (gum_interceptor_replace_function (fixture->interceptor,
-      malloc_impl, replacement_malloc, &counter), ==, GUM_REPLACE_OK);
+  g_assert_cmpint (gum_interceptor_replace (fixture->interceptor, malloc_impl,
+      replacement_malloc, &counter), ==, GUM_REPLACE_OK);
   ret = malloc_impl (0x42);
 
   /*
    * This statement is needed so the compiler doesn't move the malloc() call
-   * to after revert_function().  We do the real assert after reverting,
-   * as failing asserts with broken malloc() are quite tricky to debug. :)
+   * to after revert().  We do the real assert after reverting, as failing
+   * asserts with broken malloc() are quite tricky to debug. :)
    */
   g_assert_nonnull (ret);
 
-  gum_interceptor_revert_function (fixture->interceptor, malloc_impl);
+  gum_interceptor_revert (fixture->interceptor, malloc_impl);
   g_assert_cmpint (counter, ==, 1);
   g_assert_cmphex (GPOINTER_TO_SIZE (ret), ==, 0x42);
 
@@ -592,7 +582,7 @@ static gpointer replacement_malloc_calling_malloc_and_replaced_free (
     gsize size);
 static void replacement_free_doing_nothing (gpointer mem);
 
-TESTCASE (two_replaced_functions)
+TESTCASE (replace_two)
 {
   gpointer malloc_impl, free_impl;
   guint malloc_counter = 0, free_counter = 0;
@@ -607,17 +597,16 @@ TESTCASE (two_replaced_functions)
   malloc_impl = interceptor_fixture_get_libc_malloc ();
   free_impl = interceptor_fixture_get_libc_free ();
 
-  gum_interceptor_replace_function (fixture->interceptor,
-      malloc_impl, replacement_malloc_calling_malloc_and_replaced_free,
-      &malloc_counter);
-  gum_interceptor_replace_function (fixture->interceptor,
-      free_impl, replacement_free_doing_nothing, &free_counter);
+  gum_interceptor_replace (fixture->interceptor, malloc_impl,
+      replacement_malloc_calling_malloc_and_replaced_free, &malloc_counter);
+  gum_interceptor_replace (fixture->interceptor, free_impl,
+      replacement_free_doing_nothing, &free_counter);
 
   ret = malloc (0x42);
   g_assert_nonnull (ret);
 
-  gum_interceptor_revert_function (fixture->interceptor, malloc_impl);
-  gum_interceptor_revert_function (fixture->interceptor, free_impl);
+  gum_interceptor_revert (fixture->interceptor, malloc_impl);
+  gum_interceptor_revert (fixture->interceptor, free_impl);
   g_assert_cmpint (malloc_counter, ==, 1);
   g_assert_cmpint (free_counter, ==, 1);
 
@@ -634,8 +623,7 @@ replacement_malloc_calling_malloc_and_replaced_free (gsize size)
   ctx = gum_interceptor_get_current_invocation ();
   g_assert_nonnull (ctx);
 
-  counter = (guint *)
-      gum_invocation_context_get_replacement_function_data (ctx);
+  counter = (guint *) gum_invocation_context_get_replacement_data (ctx);
   (*counter)++;
 
   result = malloc (1);
@@ -653,24 +641,23 @@ replacement_free_doing_nothing (gpointer mem)
   ctx = gum_interceptor_get_current_invocation ();
   g_assert_nonnull (ctx);
 
-  counter = (guint *)
-      gum_invocation_context_get_replacement_function_data (ctx);
+  counter = (guint *) gum_invocation_context_get_replacement_data (ctx);
   (*counter)++;
 }
 
 #endif
 
-TESTCASE (replace_function_then_attach_to_it)
+TESTCASE (replace_then_attach)
 {
   guint target_counter = 0;
 
-  g_assert_cmpint (gum_interceptor_replace_function (fixture->interceptor,
+  g_assert_cmpint (gum_interceptor_replace (fixture->interceptor,
       target_function, replacement_target_function, &target_counter),
       ==, GUM_REPLACE_OK);
-  interceptor_fixture_attach_listener (fixture, 0, target_function, '>', '<');
+  interceptor_fixture_attach (fixture, 0, target_function, '>', '<');
   target_function (fixture->result);
   g_assert_cmpstr (fixture->result->str, ==, ">/|\\<");
-  gum_interceptor_revert_function (fixture->interceptor, target_function);
+  gum_interceptor_revert (fixture->interceptor, target_function);
 }
 
 static gpointer
@@ -696,7 +683,7 @@ TESTCASE (i_can_has_replaceability)
   {
     UnsupportedFunction * func = &unsupported_functions[i];
 
-    g_assert_cmpint (gum_interceptor_replace_function (fixture->interceptor,
+    g_assert_cmpint (gum_interceptor_replace (fixture->interceptor,
         func->code + func->code_offset, replacement_malloc, NULL),
         ==, GUM_REPLACE_WRONG_SIGNATURE);
   }
@@ -706,11 +693,11 @@ TESTCASE (i_can_has_replaceability)
 
 TESTCASE (already_replaced)
 {
-  g_assert_cmpint (gum_interceptor_replace_function (fixture->interceptor,
+  g_assert_cmpint (gum_interceptor_replace (fixture->interceptor,
         target_function, malloc, NULL), ==, GUM_REPLACE_OK);
-  g_assert_cmpint (gum_interceptor_replace_function (fixture->interceptor,
+  g_assert_cmpint (gum_interceptor_replace (fixture->interceptor,
         target_function, malloc, NULL), ==, GUM_REPLACE_ALREADY_REPLACED);
-  gum_interceptor_revert_function (fixture->interceptor, target_function);
+  gum_interceptor_revert (fixture->interceptor, target_function);
 }
 
 #ifdef HAVE_QNX
@@ -720,7 +707,7 @@ TESTCASE (intercept_malloc_and_create_thread)
   pthread_key_t key;
   pthread_t thread1, thread2;
 
-  interceptor_fixture_attach_listener (fixture, 0, malloc, 'a', 'b');
+  interceptor_fixture_attach (fixture, 0, malloc, 'a', 'b');
 
   g_assert_cmpint (pthread_key_create (&key, NULL), ==, 0);
 
@@ -795,8 +782,7 @@ replacement_malloc (gsize size)
   g_assert_nonnull (ctx);
 
   malloc_impl = (MallocFunc) ctx->function;
-  counter = (guint *)
-      gum_invocation_context_get_replacement_function_data (ctx);
+  counter = (guint *) gum_invocation_context_get_replacement_data (ctx);
 
   (*counter)++;
 

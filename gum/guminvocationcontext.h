@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -12,18 +12,18 @@
 #include <glib-object.h>
 #include <gum/gumdefs.h>
 
-#define GUM_LINCTX_GET_THREAD_DATA(context, data_type) \
+#define GUM_IC_GET_THREAD_DATA(context, data_type) \
     ((data_type *) gum_invocation_context_get_listener_thread_data (context, \
         sizeof (data_type)))
-#define GUM_LINCTX_GET_FUNC_DATA(context, data_type) \
+#define GUM_IC_GET_FUNC_DATA(context, data_type) \
     ((data_type) gum_invocation_context_get_listener_function_data (context))
-#define GUM_LINCTX_GET_FUNC_INVDATA(context, data_type) \
+#define GUM_IC_GET_INVOCATION_DATA(context, data_type) \
     ((data_type *) \
-        gum_invocation_context_get_listener_function_invocation_data (context,\
+        gum_invocation_context_get_listener_invocation_data (context,\
             sizeof (data_type)))
 
-#define GUM_RINCTX_GET_FUNC_DATA(ctx, data_type) \
-    ((data_type) gum_invocation_context_get_replacement_function_data (ctx))
+#define GUM_IC_GET_REPLACEMENT_DATA(ctx, data_type) \
+    ((data_type) gum_invocation_context_get_replacement_data (ctx))
 
 typedef struct _GumInvocationBackend GumInvocationBackend;
 typedef struct _GumInvocationContext GumInvocationContext;
@@ -39,10 +39,10 @@ struct _GumInvocationBackend
   gpointer (* get_listener_thread_data) (GumInvocationContext * context,
       gsize required_size);
   gpointer (* get_listener_function_data) (GumInvocationContext * context);
-  gpointer (* get_listener_function_invocation_data) (
+  gpointer (* get_listener_invocation_data) (
       GumInvocationContext * context, gsize required_size);
 
-  gpointer (* get_replacement_function_data) (GumInvocationContext * context);
+  gpointer (* get_replacement_data) (GumInvocationContext * context);
 
   gpointer state;
   gpointer data;
@@ -90,10 +90,10 @@ GUM_API gpointer gum_invocation_context_get_listener_thread_data (
     GumInvocationContext * context, gsize required_size);
 GUM_API gpointer gum_invocation_context_get_listener_function_data (
     GumInvocationContext * context);
-GUM_API gpointer gum_invocation_context_get_listener_function_invocation_data (
+GUM_API gpointer gum_invocation_context_get_listener_invocation_data (
     GumInvocationContext * context, gsize required_size);
 
-GUM_API gpointer gum_invocation_context_get_replacement_function_data (
+GUM_API gpointer gum_invocation_context_get_replacement_data (
     GumInvocationContext * context);
 
 G_END_DECLS

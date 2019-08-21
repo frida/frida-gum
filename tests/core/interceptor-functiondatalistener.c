@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -99,16 +99,16 @@ test_function_data_listener_on_enter (GumInvocationListener * listener,
   TestFuncThreadState * thread_state;
   TestFuncInvState * invocation_state;
 
-  function_data = GUM_LINCTX_GET_FUNC_DATA (context, gpointer);
+  function_data = GUM_IC_GET_FUNC_DATA (context, gpointer);
 
-  thread_state = GUM_LINCTX_GET_THREAD_DATA (context, TestFuncThreadState);
+  thread_state = GUM_IC_GET_THREAD_DATA (context, TestFuncThreadState);
   if (!thread_state->initialized)
   {
     test_function_data_listener_init_thread_state (self, thread_state,
         function_data);
   }
 
-  invocation_state = GUM_LINCTX_GET_FUNC_INVDATA (context, TestFuncInvState);
+  invocation_state = GUM_IC_GET_INVOCATION_DATA (context, TestFuncInvState);
   g_strlcpy (invocation_state->arg,
       (const gchar *) gum_invocation_context_get_nth_argument (context, 0),
       sizeof (invocation_state->arg));
@@ -128,13 +128,13 @@ test_function_data_listener_on_leave (GumInvocationListener * listener,
   TestFuncThreadState * thread_state;
   TestFuncInvState * invocation_state;
 
-  thread_state = GUM_LINCTX_GET_THREAD_DATA (context, TestFuncThreadState);
+  thread_state = GUM_IC_GET_THREAD_DATA (context, TestFuncThreadState);
 
-  invocation_state = GUM_LINCTX_GET_FUNC_INVDATA (context, TestFuncInvState);
+  invocation_state = GUM_IC_GET_INVOCATION_DATA (context, TestFuncInvState);
 
   self->on_leave_call_count++;
   self->last_on_leave_data.function_data =
-      GUM_LINCTX_GET_FUNC_DATA (context, gpointer);
+      GUM_IC_GET_FUNC_DATA (context, gpointer);
   self->last_on_leave_data.thread_data = *thread_state;
   self->last_on_leave_data.invocation_data = *invocation_state;
 }

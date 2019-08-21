@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -258,16 +258,16 @@ gum_exceptor_backend_attach (GumExceptorBackend * self)
 
   gum_interceptor_begin_transaction (interceptor);
 
-  gum_interceptor_replace_function (interceptor, task_get_exception_ports,
+  gum_interceptor_replace (interceptor, task_get_exception_ports,
       gum_exceptor_backend_replacement_task_get_exception_ports, self);
-  gum_interceptor_replace_function (interceptor, task_set_exception_ports,
+  gum_interceptor_replace (interceptor, task_set_exception_ports,
       gum_exceptor_backend_replacement_task_set_exception_ports, self);
-  gum_interceptor_replace_function (interceptor, task_swap_exception_ports,
+  gum_interceptor_replace (interceptor, task_swap_exception_ports,
       gum_exceptor_backend_replacement_task_swap_exception_ports, self);
 
-  gum_interceptor_replace_function (interceptor, signal,
+  gum_interceptor_replace (interceptor, signal,
       gum_exceptor_backend_replacement_signal, self);
-  gum_interceptor_replace_function (interceptor, sigaction,
+  gum_interceptor_replace (interceptor, sigaction,
       gum_exceptor_backend_replacement_sigaction, self);
 
   gum_interceptor_end_transaction (interceptor);
@@ -289,12 +289,12 @@ gum_exceptor_backend_detach (GumExceptorBackend * self)
 
   gum_interceptor_begin_transaction (interceptor);
 
-  gum_interceptor_revert_function (interceptor, task_get_exception_ports);
-  gum_interceptor_revert_function (interceptor, task_set_exception_ports);
-  gum_interceptor_revert_function (interceptor, task_swap_exception_ports);
+  gum_interceptor_revert (interceptor, task_get_exception_ports);
+  gum_interceptor_revert (interceptor, task_set_exception_ports);
+  gum_interceptor_revert (interceptor, task_swap_exception_ports);
 
-  gum_interceptor_revert_function (interceptor, signal);
-  gum_interceptor_revert_function (interceptor, sigaction);
+  gum_interceptor_revert (interceptor, signal);
+  gum_interceptor_revert (interceptor, sigaction);
 
   gum_interceptor_end_transaction (interceptor);
 
@@ -705,7 +705,7 @@ gum_exceptor_backend_replacement_task_get_exception_ports (
   g_assert (ctx != NULL);
 
   self = GUM_EXCEPTOR_BACKEND (
-      gum_invocation_context_get_replacement_function_data (ctx));
+      gum_invocation_context_get_replacement_data (ctx));
 
   kr = task_get_exception_ports (task, exception_mask, all_ports.masks,
       &all_ports.count, all_ports.handlers, all_ports.behaviors,
@@ -780,7 +780,7 @@ gum_exceptor_backend_replacement_task_set_exception_ports (
   g_assert (ctx != NULL);
 
   self = GUM_EXCEPTOR_BACKEND (
-      gum_invocation_context_get_replacement_function_data (ctx));
+      gum_invocation_context_get_replacement_data (ctx));
 
   inside_mask = self->exception_mask & exception_mask;
   if (inside_mask == 0)
@@ -850,7 +850,7 @@ gum_exceptor_backend_replacement_task_swap_exception_ports (
   g_assert (ctx != NULL);
 
   self = GUM_EXCEPTOR_BACKEND (
-      gum_invocation_context_get_replacement_function_data (ctx));
+      gum_invocation_context_get_replacement_data (ctx));
 
   inside_mask = self->exception_mask & exception_mask;
   if (inside_mask == 0)
@@ -922,7 +922,7 @@ gum_exceptor_backend_replacement_signal (int sig,
   g_assert (ctx != NULL);
 
   self = GUM_EXCEPTOR_BACKEND (
-      gum_invocation_context_get_replacement_function_data (ctx));
+      gum_invocation_context_get_replacement_data (ctx));
 
   if (sig != SIGABRT || !self->old_abort_handler_present)
     return signal (sig, handler);
@@ -952,7 +952,7 @@ gum_exceptor_backend_replacement_sigaction (int sig,
   g_assert (ctx != NULL);
 
   self = GUM_EXCEPTOR_BACKEND (
-      gum_invocation_context_get_replacement_function_data (ctx));
+      gum_invocation_context_get_replacement_data (ctx));
 
   if (sig != SIGABRT || !self->old_abort_handler_present)
     return sigaction (sig, act, oact);

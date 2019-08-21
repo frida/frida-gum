@@ -479,8 +479,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
 
   listener->module = module;
 
-  auto attach_ret = gum_interceptor_attach_listener (module->interceptor,
-      target, GUM_INVOCATION_LISTENER (listener), NULL);
+  auto attach_ret = gum_interceptor_attach (module->interceptor, target,
+      GUM_INVOCATION_LISTENER (listener), NULL);
 
   if (attach_ret == GUM_ATTACH_OK)
   {
@@ -524,7 +524,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
 static void
 gum_v8_invocation_listener_destroy (GumV8InvocationListener * listener)
 {
-  gum_interceptor_detach_listener (listener->module->interceptor,
+  gum_interceptor_detach (listener->module->interceptor,
       GUM_INVOCATION_LISTENER (listener));
   g_object_unref (listener);
 }
@@ -554,8 +554,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
   entry->replacement = new GumPersistent<Value>::type (isolate,
       replacement_value);
 
-  auto replace_ret = gum_interceptor_replace_function (module->interceptor,
-      target, replacement, NULL);
+  auto replace_ret = gum_interceptor_replace (module->interceptor, target,
+      replacement, NULL);
 
   if (replace_ret == GUM_REPLACE_OK)
   {
@@ -592,7 +592,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
 static void
 gum_v8_replace_entry_free (GumV8ReplaceEntry * entry)
 {
-  gum_interceptor_revert_function (entry->interceptor, entry->target);
+  gum_interceptor_revert (entry->interceptor, entry->target);
 
   delete entry->replacement;
 
@@ -644,7 +644,7 @@ gum_v8_invocation_listener_on_enter (GumInvocationListener * listener,
                                      GumInvocationContext * ic)
 {
   auto self = GUM_V8_INVOCATION_LISTENER_CAST (listener);
-  auto state = GUM_LINCTX_GET_FUNC_INVDATA (ic, GumV8InvocationState);
+  auto state = GUM_IC_GET_INVOCATION_DATA (ic, GumV8InvocationState);
 
   if (self->on_enter != nullptr)
   {
@@ -694,7 +694,7 @@ gum_v8_invocation_listener_on_leave (GumInvocationListener * listener,
                                      GumInvocationContext * ic)
 {
   auto self = GUM_V8_INVOCATION_LISTENER_CAST (listener);
-  auto state = GUM_LINCTX_GET_FUNC_INVDATA (ic, GumV8InvocationState);
+  auto state = GUM_IC_GET_INVOCATION_DATA (ic, GumV8InvocationState);
 
   if (self->on_leave != nullptr)
   {

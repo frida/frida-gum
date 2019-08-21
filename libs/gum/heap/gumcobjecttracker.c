@@ -243,8 +243,7 @@ gum_cobject_tracker_dispose (GObject * object)
   {
     self->disposed = TRUE;
 
-    gum_interceptor_detach_listener (self->interceptor,
-        GUM_INVOCATION_LISTENER (self));
+    gum_interceptor_detach (self->interceptor, GUM_INVOCATION_LISTENER (self));
     g_object_unref (self->interceptor);
     self->interceptor = NULL;
 
@@ -433,7 +432,7 @@ gum_cobject_tracker_attach_to_function (GumCObjectTracker * self,
   function_ctx->context = context;
   g_ptr_array_add (self->function_contexts, function_ctx);
 
-  gum_interceptor_attach_listener (self->interceptor, function_address,
+  gum_interceptor_attach (self->interceptor, function_address,
       GUM_INVOCATION_LISTENER (self), function_ctx);
 }
 
@@ -445,12 +444,12 @@ gum_cobject_tracker_on_enter (GumInvocationListener * listener,
   CObjectFunctionContext * function_ctx;
 
   self = GUM_COBJECT_TRACKER_CAST (listener);
-  function_ctx = GUM_LINCTX_GET_FUNC_DATA (context, CObjectFunctionContext *);
+  function_ctx = GUM_IC_GET_FUNC_DATA (context, CObjectFunctionContext *);
 
   if (function_ctx->handlers.enter_handler != NULL)
   {
     function_ctx->handlers.enter_handler (self, function_ctx->context,
-        GUM_LINCTX_GET_FUNC_INVDATA (context, CObjectThreadContext), context);
+        GUM_IC_GET_INVOCATION_DATA (context, CObjectThreadContext), context);
   }
 }
 
@@ -462,12 +461,12 @@ gum_cobject_tracker_on_leave (GumInvocationListener * listener,
   CObjectFunctionContext * function_ctx;
 
   self = GUM_COBJECT_TRACKER_CAST (listener);
-  function_ctx = GUM_LINCTX_GET_FUNC_DATA (context, CObjectFunctionContext *);
+  function_ctx = GUM_IC_GET_FUNC_DATA (context, CObjectFunctionContext *);
 
   if (function_ctx->handlers.leave_handler != NULL)
   {
     function_ctx->handlers.leave_handler (self, function_ctx->context,
-        GUM_LINCTX_GET_FUNC_INVDATA (context, CObjectThreadContext), context);
+        GUM_IC_GET_INVOCATION_DATA (context, CObjectThreadContext), context);
   }
 }
 

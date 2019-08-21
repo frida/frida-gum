@@ -27,9 +27,9 @@ TESTCASE (can_attach_to_close_with_two_unrelated_interceptors)
   fd = eventfd (FALSE, EFD_CLOEXEC);
   g_assert_true (fd != -1);
 
-  interceptor_fixture_attach_listener (fixture, 0, close_impl, '>', '<');
+  interceptor_fixture_attach (fixture, 0, close_impl, '>', '<');
 
-  gum_interceptor_attach_listener (other_interceptor, close_impl,
+  gum_interceptor_attach (other_interceptor, close_impl,
       GUM_INVOCATION_LISTENER (fixture->listener_context[0]), NULL);
 
   close_impl (fd);
@@ -47,7 +47,7 @@ TESTCASE (can_attach_to_dlopen)
   dlopen_impl = GSIZE_TO_POINTER (
       gum_module_find_export_by_name (NULL, "dlopen"));
 
-  interceptor_fixture_attach_listener (fixture, 0, dlopen_impl, '>', '<');
+  interceptor_fixture_attach (fixture, 0, dlopen_impl, '>', '<');
 
   libc = dlopen ("libc.so", RTLD_LAZY | RTLD_GLOBAL);
   g_assert_nonnull (libc);
@@ -65,7 +65,7 @@ TESTCASE (can_attach_to_fork)
   fork_impl = GSIZE_TO_POINTER (
       gum_module_find_export_by_name ("libc.so", "fork"));
 
-  interceptor_fixture_attach_listener (fixture, 0, fork_impl, '>', '<');
+  interceptor_fixture_attach (fixture, 0, fork_impl, '>', '<');
 
   pid = fork_impl ();
   if (pid == 0)
@@ -120,7 +120,7 @@ TESTCASE (can_attach_to_set_argv0)
     }
   }
 
-  interceptor_fixture_attach_listener (fixture, 0, set_argv0_impl, '>', '<');
+  interceptor_fixture_attach (fixture, 0, set_argv0_impl, '>', '<');
 }
 
 static gboolean

@@ -50,11 +50,11 @@ namespace Gum
 
   struct Interceptor : public Object
   {
-    virtual bool attach_listener (void * function_address, InvocationListener * listener, void * listener_function_data = 0) = 0;
-    virtual void detach_listener (InvocationListener * listener) = 0;
+    virtual bool attach (void * function_address, InvocationListener * listener, void * listener_function_data = 0) = 0;
+    virtual void detach (InvocationListener * listener) = 0;
 
-    virtual void replace_function (void * function_address, void * replacement_address, void * replacement_function_data = 0) = 0;
-    virtual void revert_function (void * function_address) = 0;
+    virtual void replace (void * function_address, void * replacement_address, void * replacement_data = 0) = 0;
+    virtual void revert (void * function_address) = 0;
 
     virtual void begin_transaction () = 0;
     virtual void end_transaction () = 0;
@@ -105,18 +105,18 @@ namespace Gum
     }
     virtual void * get_listener_function_data_ptr () const = 0;
     template <typename T>
-    T * get_listener_function_invocation_data () const
+    T * get_listener_invocation_data () const
     {
-      return static_cast<T *> (get_listener_function_invocation_data_ptr (sizeof (T)));
+      return static_cast<T *> (get_listener_invocation_data_ptr (sizeof (T)));
     }
-    virtual void * get_listener_function_invocation_data_ptr (size_t required_size) const = 0;
+    virtual void * get_listener_invocation_data_ptr (size_t required_size) const = 0;
 
     template <typename T>
-    T * get_replacement_function_data () const
+    T * get_replacement_data () const
     {
-      return static_cast<T *> (get_replacement_function_data_ptr ());
+      return static_cast<T *> (get_replacement_data_ptr ());
     }
-    virtual void * get_replacement_function_data_ptr () const = 0;
+    virtual void * get_replacement_data_ptr () const = 0;
 
     virtual CpuContext * get_cpu_context () const = 0;
   };

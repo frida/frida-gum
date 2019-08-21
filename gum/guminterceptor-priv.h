@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -46,7 +46,7 @@ struct _GumFunctionContext
   volatile GPtrArray * listener_entries;
 
   gpointer replacement_function;
-  gpointer replacement_function_data;
+  gpointer replacement_data;
 
   GumFunctionContextBackendData backend_data;
 

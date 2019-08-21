@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -76,17 +76,16 @@ gum_invocation_context_get_listener_function_data (
 }
 
 gpointer
-gum_invocation_context_get_listener_function_invocation_data (
+gum_invocation_context_get_listener_invocation_data (
     GumInvocationContext * context,
     gsize required_size)
 {
-  return context->backend->get_listener_function_invocation_data (context,
+  return context->backend->get_listener_invocation_data (context,
       required_size);
 }
 
 gpointer
-gum_invocation_context_get_replacement_function_data (
-    GumInvocationContext * context)
+gum_invocation_context_get_replacement_data (GumInvocationContext * context)
 {
-  return context->backend->get_replacement_function_data (context);
+  return context->backend->get_replacement_data (context);
 }

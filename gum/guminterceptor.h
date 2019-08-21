@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -38,16 +38,16 @@ typedef enum
 
 GUM_API GumInterceptor * gum_interceptor_obtain (void);
 
-GUM_API GumAttachReturn gum_interceptor_attach_listener (GumInterceptor * self,
+GUM_API GumAttachReturn gum_interceptor_attach (GumInterceptor * self,
     gpointer function_address, GumInvocationListener * listener,
     gpointer listener_function_data);
-GUM_API void gum_interceptor_detach_listener (GumInterceptor * self,
+GUM_API void gum_interceptor_detach (GumInterceptor * self,
     GumInvocationListener * listener);
 
-GUM_API GumReplaceReturn gum_interceptor_replace_function (
-    GumInterceptor * self, gpointer function_address,
-    gpointer replacement_function, gpointer replacement_function_data);
-GUM_API void gum_interceptor_revert_function (GumInterceptor * self,
+GUM_API GumReplaceReturn gum_interceptor_replace (GumInterceptor * self,
+    gpointer function_address, gpointer replacement_function,
+    gpointer replacement_data);
+GUM_API void gum_interceptor_revert (GumInterceptor * self,
     gpointer function_address);
 
 GUM_API void gum_interceptor_begin_transaction (GumInterceptor * self);

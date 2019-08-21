@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -296,7 +296,7 @@ gum_bounds_checker_attach_to_apis (GumBoundsChecker * self,
     const GumHeapApi * api = gum_heap_api_list_get_nth (apis, i);
 
 #define GUM_REPLACE_API_FUNC(name) \
-    gum_interceptor_replace_function (self->interceptor, \
+    gum_interceptor_replace (self->interceptor, \
         GUM_FUNCPTR_TO_POINTER (api->name), \
         GUM_FUNCPTR_TO_POINTER (replacement_##name), self)
 
@@ -332,7 +332,7 @@ gum_bounds_checker_detach (GumBoundsChecker * self)
       const GumHeapApi * api = gum_heap_api_list_get_nth (self->heap_apis, i);
 
 #define GUM_REVERT_API_FUNC(name) \
-      gum_interceptor_revert_function (self->interceptor, \
+      gum_interceptor_revert (self->interceptor, \
           GUM_FUNCPTR_TO_POINTER (api->name))
 
       GUM_REVERT_API_FUNC (malloc);
@@ -361,7 +361,7 @@ replacement_malloc (gsize size)
   gpointer result;
 
   ctx = gum_interceptor_get_current_invocation ();
-  self = GUM_RINCTX_GET_FUNC_DATA (ctx, GumBoundsChecker *);
+  self = GUM_IC_GET_REPLACEMENT_DATA (ctx, GumBoundsChecker *);
 
   if (self->detaching || self->handled_invalid_access)
     goto fallback;
@@ -387,7 +387,7 @@ replacement_calloc (gsize num,
   gpointer result;
 
   ctx = gum_interceptor_get_current_invocation ();
-  self = GUM_RINCTX_GET_FUNC_DATA (ctx, GumBoundsChecker *);
+  self = GUM_IC_GET_REPLACEMENT_DATA (ctx, GumBoundsChecker *);
 
   if (self->detaching || self->handled_invalid_access)
     goto fallback;
@@ -416,7 +416,7 @@ replacement_realloc (gpointer old_address,
   GumBlockDetails old_block;
 
   ctx = gum_interceptor_get_current_invocation ();
-  self = GUM_RINCTX_GET_FUNC_DATA (ctx, GumBoundsChecker *);
+  self = GUM_IC_GET_REPLACEMENT_DATA (ctx, GumBoundsChecker *);
 
   if (old_address == NULL)
     return malloc (new_size);
@@ -468,7 +468,7 @@ replacement_free (gpointer address)
   gboolean freed;
 
   ctx = gum_interceptor_get_current_invocation ();
-  self = GUM_RINCTX_GET_FUNC_DATA (ctx, GumBoundsChecker *);
+  self = GUM_IC_GET_REPLACEMENT_DATA (ctx, GumBoundsChecker *);
 
   GUM_BOUNDS_CHECKER_LOCK ();
   freed = gum_bounds_checker_try_free (self, address, ctx);

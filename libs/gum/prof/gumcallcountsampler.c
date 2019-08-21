@@ -95,8 +95,7 @@ gum_call_count_sampler_dispose (GObject * object)
   {
     self->disposed = TRUE;
 
-    gum_interceptor_detach_listener (self->interceptor,
-        GUM_INVOCATION_LISTENER (self));
+    gum_interceptor_detach (self->interceptor, GUM_INVOCATION_LISTENER (self));
     g_object_unref (self->interceptor);
   }
 
@@ -213,7 +212,7 @@ void
 gum_call_count_sampler_add_function (GumCallCountSampler * self,
                                      gpointer function)
 {
-  gum_interceptor_attach_listener (self->interceptor, function,
+  gum_interceptor_attach (self->interceptor, function,
       GUM_INVOCATION_LISTENER (self), NULL);
 }
 

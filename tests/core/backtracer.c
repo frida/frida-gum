@@ -80,7 +80,7 @@ TESTCASE (full_cycle_with_interceptor)
       GSIZE_TO_POINTER (gum_module_find_export_by_name (NULL, "close"));
 #endif
 
-  gum_interceptor_attach_listener (interceptor, open_impl,
+  gum_interceptor_attach (interceptor, open_impl,
       GUM_INVOCATION_LISTENER (collector), NULL);
 
   g_assert_cmpuint (collector->last_on_enter.len, ==, 0);
@@ -89,8 +89,7 @@ TESTCASE (full_cycle_with_interceptor)
   g_assert_cmpuint (collector->last_on_enter.len, !=, 0);
   g_assert_cmpuint (collector->last_on_leave.len, !=, 0);
 
-  gum_interceptor_detach_listener (interceptor,
-      GUM_INVOCATION_LISTENER (collector));
+  gum_interceptor_detach (interceptor, GUM_INVOCATION_LISTENER (collector));
 
   if (fd != -1)
     close_impl (fd);

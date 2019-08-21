@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -196,12 +196,12 @@ gum_instance_tracker_begin (GumInstanceTracker * self,
 
   gum_interceptor_begin_transaction (self->interceptor);
 
-  gum_interceptor_attach_listener (self->interceptor,
+  gum_interceptor_attach (self->interceptor,
       GUM_FUNCPTR_TO_POINTER (self->vtable.create_instance),
       GUM_INVOCATION_LISTENER (self),
       GUINT_TO_POINTER (FUNCTION_ID_CREATE_INSTANCE));
 
-  gum_interceptor_attach_listener (self->interceptor,
+  gum_interceptor_attach (self->interceptor,
       GUM_FUNCPTR_TO_POINTER (self->vtable.free_instance),
       GUM_INVOCATION_LISTENER (self),
       GUINT_TO_POINTER (FUNCTION_ID_FREE_INSTANCE));
@@ -216,8 +216,7 @@ gum_instance_tracker_end (GumInstanceTracker * self)
 {
   g_assert (self->is_active);
 
-  gum_interceptor_detach_listener (self->interceptor,
-      GUM_INVOCATION_LISTENER (self));
+  gum_interceptor_detach (self->interceptor, GUM_INVOCATION_LISTENER (self));
 
   self->is_active = FALSE;
 }
