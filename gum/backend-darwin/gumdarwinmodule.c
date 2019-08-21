@@ -499,6 +499,7 @@ gum_darwin_module_new_from_file (const gchar * path,
       "cpu-type", cpu_type,
       "page-size", page_size,
       "source-path", path,
+      "cache-file", cache_file,
       "flags", flags,
       NULL);
 }
