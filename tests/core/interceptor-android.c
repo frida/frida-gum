@@ -7,16 +7,19 @@
 #include "interceptor-android-fixture.c"
 
 TESTLIST_BEGIN (interceptor_android)
-  TESTENTRY (can_attach_to_close)
+  TESTENTRY (can_attach_to_close_with_two_unrelated_interceptors)
   TESTENTRY (can_attach_to_dlopen)
   TESTENTRY (can_attach_to_fork)
   TESTENTRY (can_attach_to_set_argv0)
 TESTLIST_END ()
 
-TESTCASE (can_attach_to_close)
+TESTCASE (can_attach_to_close_with_two_unrelated_interceptors)
 {
+  GumInterceptor * other_interceptor;
   int (* close_impl) (int fd);
   int fd;
+
+  other_interceptor = g_object_new (GUM_TYPE_INTERCEPTOR, NULL);
 
   close_impl = GSIZE_TO_POINTER (
       gum_module_find_export_by_name (NULL, "close"));
@@ -26,9 +29,14 @@ TESTCASE (can_attach_to_close)
 
   interceptor_fixture_attach_listener (fixture, 0, close_impl, '>', '<');
 
+  gum_interceptor_attach_listener (other_interceptor, close_impl,
+      GUM_INVOCATION_LISTENER (fixture->listener_context[0]), NULL);
+
   close_impl (fd);
 
-  g_assert_cmpstr (fixture->result->str, ==, "><");
+  g_assert_cmpstr (fixture->result->str, ==, ">><<");
+
+  g_object_unref (other_interceptor);
 }
 
 TESTCASE (can_attach_to_dlopen)

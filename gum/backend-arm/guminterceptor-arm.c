@@ -256,6 +256,8 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   {
     GumThumbRelocator * tr = &self->thumb_relocator;
     GString * signature;
+    const cs_insn * insn, * trailing_bl;
+    gboolean is_branch_back_needed;
     gboolean is_eligible_for_lr_rewriting;
 
     ctx->on_invoke_trampoline = gum_thumb_writer_cur (tw) + 1;
@@ -264,10 +266,9 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
     signature = g_string_sized_new (16);
 
+    insn = NULL;
     do
     {
-      const cs_insn * insn;
-
       reloc_bytes = gum_thumb_relocator_read_one (tr, &insn);
 
       if (reloc_bytes != 0)
@@ -282,6 +283,19 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
       }
     }
     while (reloc_bytes < data->redirect_code_size);
+
+    /*
+     * When we are hooking a function already hooked by another copy of
+     * Gum, we need to be very careful when relocating BL instructions.
+     * This is because the deflector trampoline looks at LR to determine
+     * which hook is invoking it. So when the last of the overwritten
+     * instructions is a BL, we might as well just transform it so it
+     * looks just as if it had executed at its original memory location.
+     */
+    trailing_bl = (insn != NULL && insn->id == ARM_INS_BL &&
+        insn->detail->arm.operands[0].type == ARM_OP_IMM) ? insn : NULL;
+
+    is_branch_back_needed = !gum_thumb_relocator_eoi (tr);
 
     /*
      * Try to deal with minimal thunks that determine their caller and pass
@@ -364,12 +378,27 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
         }
       }
     }
+    else if (trailing_bl != NULL)
+    {
+      const cs_arm_op * target = &trailing_bl->detail->arm.operands[0];
+
+      while (gum_thumb_relocator_peek_next_write_insn (tr) != trailing_bl)
+        gum_thumb_relocator_write_one (tr);
+      gum_thumb_relocator_skip_one (tr);
+
+      gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_LR,
+          trailing_bl->address + trailing_bl->size + 1);
+      gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_PC,
+          target->imm | 1);
+
+      is_branch_back_needed = FALSE;
+    }
     else
     {
       gum_thumb_relocator_write_all (tr);
     }
 
-    if (!gum_thumb_relocator_eoi (tr))
+    if (is_branch_back_needed)
     {
       gum_thumb_writer_put_push_regs (tw, 2, ARM_REG_R0, ARM_REG_R1);
       gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_R0,
