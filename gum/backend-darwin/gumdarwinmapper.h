@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -22,13 +22,13 @@ typedef void (* GumDarwinMapperConstructor) (void);
 typedef void (* GumDarwinMapperDestructor) (void);
 
 GUM_API GumDarwinMapper * gum_darwin_mapper_new_from_file (const gchar * path,
-    GumDarwinModuleResolver * resolver);
+    GumDarwinModuleResolver * resolver, GError ** error);
 GUM_API GumDarwinMapper * gum_darwin_mapper_new_take_blob (const gchar * name,
-    GBytes * blob, GumDarwinModuleResolver * resolver);
+    GBytes * blob, GumDarwinModuleResolver * resolver, GError ** error);
 
 GUM_API gsize gum_darwin_mapper_size (GumDarwinMapper * self);
-GUM_API void gum_darwin_mapper_map (GumDarwinMapper * self,
-    GumAddress base_address);
+GUM_API gboolean gum_darwin_mapper_map (GumDarwinMapper * self,
+    GumAddress base_address, GError ** error);
 
 GUM_API GumAddress gum_darwin_mapper_constructor (GumDarwinMapper * self);
 GUM_API GumAddress gum_darwin_mapper_destructor (GumDarwinMapper * self);
