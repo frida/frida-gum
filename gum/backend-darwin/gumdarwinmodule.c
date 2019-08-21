@@ -1345,17 +1345,15 @@ const gchar *
 gum_darwin_module_get_dependency_by_ordinal (GumDarwinModule * self,
                                              gint ordinal)
 {
-  const gchar * result;
-
-  g_assert (ordinal >= 1);
+  gint i = ordinal - 1;
 
   if (!gum_darwin_module_ensure_image_loaded (self, NULL))
     return NULL;
 
-  result = g_ptr_array_index (self->dependencies, ordinal - 1);
-  g_assert (result != NULL);
+  if (i < 0 || i >= self->dependencies->len)
+    return NULL;
 
-  return result;
+  return g_ptr_array_index (self->dependencies, i);
 }
 
 static gboolean
