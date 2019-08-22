@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -8,6 +8,7 @@
 
 #include "gumdarwin.h"
 
+#include <gio/gio.h>
 #include <mach-o/loader.h>
 
 typedef struct _GumCollectModulesContext GumCollectModulesContext;
@@ -26,7 +27,11 @@ struct _GumCollectModulesContext
   guint sysroot_length;
 };
 
+static void gum_darwin_module_resolver_initable_iface_init (gpointer g_iface,
+    gpointer iface_data);
 static void gum_darwin_module_resolver_constructed (GObject * object);
+static gboolean gum_darwin_module_resolver_initable_init (GInitable * initable,
+    GCancellable * cancellable, GError ** error);
 static void gum_darwin_module_resolver_finalize (GObject * object);
 static void gum_darwin_module_resolver_get_property (GObject * object,
     guint property_id, GValue * value, GParamSpec * pspec);
@@ -36,9 +41,12 @@ static void gum_darwin_module_resolver_set_property (GObject * object,
 static gboolean gum_store_module (const GumModuleDetails * details,
     gpointer user_data);
 
-G_DEFINE_TYPE (GumDarwinModuleResolver,
-               gum_darwin_module_resolver,
-               G_TYPE_OBJECT)
+G_DEFINE_TYPE_EXTENDED (GumDarwinModuleResolver,
+                        gum_darwin_module_resolver,
+                        G_TYPE_OBJECT,
+                        0,
+                        G_IMPLEMENT_INTERFACE (G_TYPE_INITABLE,
+                            gum_darwin_module_resolver_initable_iface_init))
 
 static void
 gum_darwin_module_resolver_class_init (GumDarwinModuleResolverClass * klass)
@@ -57,6 +65,15 @@ gum_darwin_module_resolver_class_init (GumDarwinModuleResolverClass * klass)
 }
 
 static void
+gum_darwin_module_resolver_initable_iface_init (gpointer g_iface,
+                                                gpointer iface_data)
+{
+  GInitableIface * iface = g_iface;
+
+  iface->init = gum_darwin_module_resolver_initable_init;
+}
+
+static void
 gum_darwin_module_resolver_init (GumDarwinModuleResolver * self)
 {
   self->modules = g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
@@ -67,32 +84,53 @@ static void
 gum_darwin_module_resolver_constructed (GObject * object)
 {
   GumDarwinModuleResolver * self = GUM_DARWIN_MODULE_RESOLVER (object);
-  int pid;
 
   g_assert (self->task != MACH_PORT_NULL);
+}
+
+static gboolean
+gum_darwin_module_resolver_initable_init (GInitable * initable,
+                                          GCancellable * cancellable,
+                                          GError ** error)
+{
+  GumDarwinModuleResolver * self = GUM_DARWIN_MODULE_RESOLVER (initable);
+  int pid;
+  GumCollectModulesContext ctx;
 
   if (self->task == mach_task_self ())
-    self->page_size = gum_query_page_size ();
-  else
-    gum_darwin_query_page_size (self->task, &self->page_size);
-
-  if (pid_for_task (self->task, &pid) == KERN_SUCCESS &&
-      gum_darwin_cpu_type_from_pid (pid, &self->cpu_type))
   {
-    GumCollectModulesContext ctx;
-
-    ctx.self = self;
-    ctx.index = 0;
-    ctx.sysroot = NULL;
-    ctx.sysroot_length = 0;
-
-    gum_darwin_enumerate_modules (self->task, gum_store_module, &ctx);
-
-    self->sysroot = ctx.sysroot;
+    self->page_size = gum_query_page_size ();
   }
   else
   {
-    self->cpu_type = GUM_NATIVE_CPU;
+    if (!gum_darwin_query_page_size (self->task, &self->page_size))
+      goto invalid_task;
+  }
+
+  if (pid_for_task (self->task, &pid) != KERN_SUCCESS)
+    goto invalid_task;
+
+  if (!gum_darwin_cpu_type_from_pid (pid, &self->cpu_type))
+    goto invalid_task;
+
+  ctx.self = self;
+  ctx.index = 0;
+  ctx.sysroot = NULL;
+  ctx.sysroot_length = 0;
+
+  gum_darwin_enumerate_modules (self->task, gum_store_module, &ctx);
+  if (ctx.index == 0)
+    goto invalid_task;
+
+  self->sysroot = ctx.sysroot;
+
+  return TRUE;
+
+invalid_task:
+  {
+    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+        "Process is dead");
+    return FALSE;
   }
 }
 
@@ -144,9 +182,12 @@ gum_darwin_module_resolver_set_property (GObject * object,
 }
 
 GumDarwinModuleResolver *
-gum_darwin_module_resolver_new (mach_port_t task)
+gum_darwin_module_resolver_new (mach_port_t task,
+                                GError ** error)
 {
-  return g_object_new (GUM_DARWIN_TYPE_MODULE_RESOLVER, "task", task, NULL);
+  return g_initable_new (GUM_DARWIN_TYPE_MODULE_RESOLVER, NULL, error,
+      "task", task,
+      NULL);
 }
 
 GumDarwinModule *

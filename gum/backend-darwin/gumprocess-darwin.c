@@ -752,7 +752,8 @@ gum_module_find_export_by_name (const gchar * module_name,
       GumDarwinModuleResolver * resolver;
       GumDarwinModule * dm;
 
-      resolver = gum_darwin_module_resolver_new (mach_task_self ());
+      resolver = gum_darwin_module_resolver_new (mach_task_self (), NULL);
+      g_assert (resolver != NULL);
 
       dm = gum_darwin_module_resolver_find_module (resolver, name);
       if (dm != NULL)
@@ -1614,15 +1615,16 @@ gum_darwin_enumerate_imports (mach_port_t task,
   ctx.func = func;
   ctx.user_data = user_data;
 
-  ctx.resolver = gum_darwin_module_resolver_new (task);
+  ctx.resolver = gum_darwin_module_resolver_new (task, NULL);
+  if (ctx.resolver == NULL)
+    return;
   ctx.module_map = NULL;
 
   module = gum_darwin_module_resolver_find_module (ctx.resolver, module_name);
   if (module != NULL)
     gum_darwin_module_enumerate_imports (module, gum_emit_import, &ctx);
 
-  if (ctx.module_map != NULL)
-    g_object_unref (ctx.module_map);
+  g_clear_object (&ctx.module_map);
   g_object_unref (ctx.resolver);
 }
 
@@ -1686,7 +1688,9 @@ gum_darwin_enumerate_exports (mach_port_t task,
   ctx.func = func;
   ctx.user_data = user_data;
 
-  ctx.resolver = gum_darwin_module_resolver_new (task);
+  ctx.resolver = gum_darwin_module_resolver_new (task, NULL);
+  if (ctx.resolver == NULL)
+    return;
   ctx.module = gum_darwin_module_resolver_find_module (ctx.resolver,
       module_name);
   ctx.carry_on = TRUE;
@@ -1744,7 +1748,9 @@ gum_darwin_enumerate_symbols (mach_port_t task,
   GumDarwinModuleResolver * resolver;
   GumDarwinModule * module;
 
-  resolver = gum_darwin_module_resolver_new (task);
+  resolver = gum_darwin_module_resolver_new (task, NULL);
+  if (resolver == NULL)
+    return;
 
   module = gum_darwin_module_resolver_find_module (resolver, module_name);
   if (module != NULL)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -28,7 +28,7 @@ struct _GumDarwinModuleResolver
 };
 
 GUM_API GumDarwinModuleResolver * gum_darwin_module_resolver_new (
-    mach_port_t task);
+    mach_port_t task, GError ** error);
 GUM_API GumDarwinModule * gum_darwin_module_resolver_find_module (
     GumDarwinModuleResolver * self, const gchar * module_name);
 GUM_API gboolean gum_darwin_module_resolver_find_export (
