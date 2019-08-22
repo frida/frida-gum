@@ -10,23 +10,25 @@ gint
 main (gint argc,
       gchar * argv[])
 {
+  gint result = 1;
   const gchar * dylib_path;
   mach_port_t task;
   GumCpuType cpu_type;
-  GumDarwinModuleResolver * resolver;
-  GumDarwinMapper * mapper;
+  GError * error = NULL;
+  GumDarwinModuleResolver * resolver = NULL;
+  GumDarwinMapper * mapper = NULL;
   mach_vm_address_t base_address = 0;
   kern_return_t kr;
   GumDarwinMapperConstructor constructor;
   GumDarwinMapperDestructor destructor;
   UnixAttackerEntrypoint entrypoint;
 
-  glib_init ();
+  gum_init ();
 
   if (argc != 2)
   {
     g_printerr ("usage: %s <dylib_path>\n", argv[0]);
-    return 1;
+    goto beach;
   }
 
   dylib_path = argv[1];
@@ -43,14 +45,20 @@ main (gint argc,
 # error Unsupported CPU type
 #endif
 
-  resolver = gum_darwin_module_resolver_new (task);
-  mapper = gum_darwin_mapper_new_from_file (dylib_path, resolver);
+  resolver = gum_darwin_module_resolver_new (task, &error);
+  if (error != NULL)
+    goto failure;
+  mapper = gum_darwin_mapper_new_from_file (dylib_path, resolver, &error);
+  if (error != NULL)
+    goto failure;
 
   kr = mach_vm_allocate (task, &base_address, gum_darwin_mapper_size (mapper),
       VM_FLAGS_ANYWHERE);
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
 
-  gum_darwin_mapper_map (mapper, base_address);
+  gum_darwin_mapper_map (mapper, base_address, &error);
+  if (error != NULL)
+    goto failure;
 
   constructor = (GumDarwinMapperConstructor) gum_darwin_mapper_constructor (
       mapper);
@@ -63,13 +71,30 @@ main (gint argc,
   entrypoint ("");
   destructor ();
 
-  kr = mach_vm_deallocate (task, base_address, gum_darwin_mapper_size (mapper));
-  g_assert_cmpint (kr, ==, KERN_SUCCESS);
+  result = 0;
+  goto beach;
 
-  g_object_unref (mapper);
-  g_object_unref (resolver);
+failure:
+  {
+    g_printerr ("%s\n", error->message);
+    g_error_free (error);
 
-  return 0;
+    goto beach;
+  }
+beach:
+  {
+    if (base_address != 0)
+    {
+      kr = mach_vm_deallocate (task, base_address,
+          gum_darwin_mapper_size (mapper));
+      g_assert_cmpint (kr, ==, KERN_SUCCESS);
+    }
+
+    g_clear_object (&mapper);
+    g_clear_object (&resolver);
+
+    return result;
+  }
 }
 
 #else

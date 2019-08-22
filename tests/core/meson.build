@@ -63,3 +63,12 @@ gum_tests_core = static_library('gum-tests-core', core_sources,
   include_directories: test_incdirs,
   dependencies: [gum_dep],
 )
+
+if host_os_family == 'darwin'
+  symlist = 'mapper.symbols'
+  executable('mapper-test', 'mapper.c',
+    dependencies: [gum_dep],
+    link_args: ['-Wl,-exported_symbols_list,' + join_paths(meson.current_source_dir(), symlist)],
+    link_depends: [symlist],
+  )
+endif
