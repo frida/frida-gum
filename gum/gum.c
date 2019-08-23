@@ -498,6 +498,13 @@ gum_on_log_message (const gchar * log_domain,
       g_assert (api->CFLog != NULL);
 
       dlclose (cf);
+
+      /*
+       * In case Foundation is also loaded, make sure it's initialized
+       * so CFLog() doesn't crash if called early.
+       */
+      gum_module_ensure_initialized ("/System/Library/Frameworks/"
+          "Foundation.framework/Foundation");
     }
     else
     {
