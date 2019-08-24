@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -46,9 +46,6 @@ static void gum_module_api_resolver_finalize (GObject * object);
 static void gum_module_api_resolver_enumerate_matches (
     GumApiResolver * resolver, const gchar * query, GumFoundApiFunc func,
     gpointer user_data, GError ** error);
-
-static GPatternSpec * gum_pattern_spec_from_match_info (GMatchInfo * match_info,
-    gint match_num);
 
 static GHashTable * gum_module_api_resolver_create_snapshot (void);
 static gboolean gum_module_api_resolver_collect_module (
@@ -125,7 +122,8 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
 {
   GumModuleApiResolver * self = GUM_MODULE_API_RESOLVER (resolver);
   GMatchInfo * query_info;
-  gchar * collection;
+  gchar * collection, * module_query, * function_query;
+  gboolean no_wildcards_in_function_query;
   GPatternSpec * module_spec, * function_spec;
   GHashTableIter module_iter;
   GHashTable * seen_modules;
@@ -137,8 +135,15 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
     goto invalid_query;
 
   collection = g_match_info_fetch (query_info, 1);
-  module_spec = gum_pattern_spec_from_match_info (query_info, 2);
-  function_spec = gum_pattern_spec_from_match_info (query_info, 3);
+  module_query = g_match_info_fetch (query_info, 2);
+  function_query = g_match_info_fetch (query_info, 3);
+
+  no_wildcards_in_function_query =
+      strchr (function_query, '*') == NULL &&
+      strchr (function_query, '?') == NULL;
+
+  module_spec = g_pattern_spec_new (module_query);
+  function_spec = g_pattern_spec_new (function_query);
 
   g_hash_table_iter_init (&module_iter, self->module_by_name);
   seen_modules = g_hash_table_new (NULL, NULL);
@@ -157,6 +162,24 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
       GHashTable * functions;
       GHashTableIter function_iter;
       GumFunctionMetadata * function;
+
+      if (collection[0] == 'e' && no_wildcards_in_function_query)
+      {
+        GumApiDetails details;
+
+        details.address =
+            gum_module_find_export_by_name (module->path, function_query);
+        if (details.address != 0)
+        {
+          details.name = g_strconcat (module->path, "!", function_query, NULL);
+
+          carry_on = func (&details, user_data);
+
+          g_free ((gpointer) details.name);
+        }
+
+        continue;
+      }
 
       functions = (collection[0] == 'i')
           ? gum_module_metadata_get_imports (module)
@@ -189,6 +212,9 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
 
   g_pattern_spec_free (function_spec);
   g_pattern_spec_free (module_spec);
+
+  g_free (function_query);
+  g_free (module_query);
   g_free (collection);
 
   return;
@@ -199,20 +225,6 @@ invalid_query:
         "invalid query; format is: "
         "exports:*!open*, exports:libc.so!* or imports:notepad.exe!*");
   }
-}
-
-static GPatternSpec *
-gum_pattern_spec_from_match_info (GMatchInfo * match_info,
-                                  gint match_num)
-{
-  gchar * pattern;
-  GPatternSpec * spec;
-
-  pattern = g_match_info_fetch (match_info, match_num);
-  spec = g_pattern_spec_new (pattern);
-  g_free (pattern);
-
-  return spec;
 }
 
 static GHashTable *
