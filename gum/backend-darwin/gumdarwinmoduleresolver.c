@@ -83,9 +83,6 @@ gum_darwin_module_resolver_init (GumDarwinModuleResolver * self)
 static void
 gum_darwin_module_resolver_constructed (GObject * object)
 {
-  GumDarwinModuleResolver * self = GUM_DARWIN_MODULE_RESOLVER (object);
-
-  g_assert (self->task != MACH_PORT_NULL);
 }
 
 static gboolean
