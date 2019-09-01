@@ -13,6 +13,8 @@ function hexdump(target, options) {
   if (target instanceof ArrayBuffer) {
     if (length === undefined)
       length = target.byteLength;
+    else if (length > target.byteLength) 
+      length = target.byteLength
     buffer = target;
   } else {
     if (!(target instanceof NativePointer))
