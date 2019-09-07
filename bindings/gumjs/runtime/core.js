@@ -388,16 +388,16 @@ if (Process.findRangeByAddress === undefined) {
 Object.defineProperties(Interceptor, {
   attach: {
     enumerable: true,
-    value: function (target, callbacks) {
+    value: function (target, callbacks, data) {
       checkPointer(target);
-      return Interceptor._attach(target, callbacks);
+      return Interceptor._attach(target, callbacks, data);
     }
   },
   replace: {
     enumerable: true,
-    value: function (target, replacement) {
+    value: function (target, replacement, data) {
       checkPointer(target);
-      Interceptor._replace(target, replacement);
+      Interceptor._replace(target, replacement, data);
     }
   },
 });
@@ -441,6 +441,7 @@ Object.defineProperties(Stalker, {
         events = {},
         onReceive = null,
         onCallSummary = null,
+        data = NULL,
       } = options;
 
       if (events === null || typeof events !== 'object')
@@ -458,7 +459,7 @@ Object.defineProperties(Stalker, {
         return enabled ? (result | value) : result;
       }, 0);
 
-      Stalker._follow(threadId, transform, eventMask, onReceive, onCallSummary);
+      Stalker._follow(threadId, transform, eventMask, onReceive, onCallSummary, data);
     }
   },
   parse: {

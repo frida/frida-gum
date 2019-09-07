@@ -175,6 +175,15 @@
     <ClCompile Include="gumv8thread.cpp">
       <Filter>v8</Filter>
     </ClCompile>
+    <ClCompile Include="gumdukcmodule.c">
+      <Filter>duk</Filter>
+    </ClCompile>
+    <ClCompile Include="gumv8cmodule.cpp">
+      <Filter>v8</Filter>
+    </ClCompile>
+    <ClCompile Include="gumcmodule.c">
+      <Filter>common</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(IntDir)gumjs\gumv8script-runtime.h">
@@ -372,6 +381,18 @@
     <ClInclude Include="$(IntDir)gumjs\gumdukscript-runtime.h">
       <Filter>runtime\generated</Filter>
     </ClInclude>
+    <ClInclude Include="gumdukcmodule.h">
+      <Filter>duk</Filter>
+    </ClInclude>
+    <ClInclude Include="gumv8cmodule.h">
+      <Filter>v8</Filter>
+    </ClInclude>
+    <ClInclude Include="$(IntDir)gumjs\gumcmodule-runtime.h">
+      <Filter>runtime\generated</Filter>
+    </ClInclude>
+    <ClInclude Include="gumcmodule.h">
+      <Filter>common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="vapi">
@@ -391,6 +412,12 @@
     </Filter>
     <Filter Include="v8">
       <UniqueIdentifier>{f123372e-85cf-470a-9209-46be608567b6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="runtime\cmodule">
+      <UniqueIdentifier>{4edcf146-5bb2-43af-b9c4-8b089d5bb5a7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="runtime\cmodule\gum">
+      <UniqueIdentifier>{90018666-6236-4d92-905d-42c0cdf134e3}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -429,6 +456,33 @@
     </None>
     <None Include="runtime\java.js">
       <Filter>runtime</Filter>
+    </None>
+    <None Include="runtime\cmodule\inttypes.h">
+      <Filter>runtime\cmodule</Filter>
+    </None>
+    <None Include="runtime\cmodule\stdint.h">
+      <Filter>runtime\cmodule</Filter>
+    </None>
+    <None Include="runtime\cmodule\stdio.h">
+      <Filter>runtime\cmodule</Filter>
+    </None>
+    <None Include="runtime\cmodule\stdlib.h">
+      <Filter>runtime\cmodule</Filter>
+    </None>
+    <None Include="runtime\cmodule\string.h">
+      <Filter>runtime\cmodule</Filter>
+    </None>
+    <None Include="runtime\cmodule\glib.h">
+      <Filter>runtime\cmodule</Filter>
+    </None>
+    <None Include="runtime\cmodule\gum\gumdefs.h">
+      <Filter>runtime\cmodule\gum</Filter>
+    </None>
+    <None Include="runtime\cmodule\gum\guminterceptor.h">
+      <Filter>runtime\cmodule\gum</Filter>
+    </None>
+    <None Include="runtime\cmodule\gum\gumstalker.h">
+      <Filter>runtime\cmodule\gum</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

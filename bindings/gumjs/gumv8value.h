@@ -140,13 +140,6 @@ G_GNUC_INTERNAL gboolean _gum_v8_object_set_page_protection (
     v8::Handle<v8::Object> object, const gchar * key, GumPageProtection prot,
     GumV8Core * core);
 
-G_GNUC_INTERNAL gboolean _gum_v8_callbacks_get (
-    v8::Handle<v8::Object> callbacks, const gchar * name,
-    v8::Handle<v8::Function> * callback_function, GumV8Core * core);
-G_GNUC_INTERNAL gboolean _gum_v8_callbacks_get_opt (
-    v8::Handle<v8::Object> callbacks, const gchar * name,
-    v8::Handle<v8::Function> * callback_function, GumV8Core * core);
-
 G_GNUC_INTERNAL GArray * _gum_v8_memory_ranges_get (v8::Handle<v8::Value> value,
     GumV8Core * core);
 G_GNUC_INTERNAL gboolean _gum_v8_memory_range_get (v8::Handle<v8::Value> value,

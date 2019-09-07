@@ -87,6 +87,8 @@
 #define EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA(PAYLOAD, DATA) \
     test_script_fixture_expect_send_message_with_payload_and_data (fixture, \
         PAYLOAD, DATA)
+#define EXPECT_SEND_MESSAGE_WITH_POINTER() \
+    test_script_fixture_expect_send_message_with_pointer (fixture)
 #define EXPECT_ERROR_MESSAGE_WITH(LINE_NUMBER, DESC) \
     test_script_fixture_expect_error_message_with (fixture, LINE_NUMBER, DESC)
 #define EXPECT_ERROR_MESSAGE_MATCHING(LINE_NUMBER, PATTERN) \
@@ -486,6 +488,22 @@ test_script_fixture_expect_send_message_with_payload_and_data (
   }
   test_script_message_item_free (item);
   g_free (expected_message);
+}
+
+static gpointer
+test_script_fixture_expect_send_message_with_pointer (
+    TestScriptFixture * fixture)
+{
+  TestScriptMessageItem * item;
+  gpointer ptr;
+
+  item = test_script_fixture_pop_message (fixture);
+  ptr = NULL;
+  sscanf (item->message, "{\"type\":\"send\",\"payload\":"
+      "\"0x%" G_GSIZE_MODIFIER "x\"}", (gsize *) &ptr);
+  test_script_message_item_free (item);
+
+  return ptr;
 }
 
 static gchar *

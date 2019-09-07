@@ -299,6 +299,7 @@ endif
 install_header_basedir = 'frida-' + api_version
 install_header_subdir = install_header_basedir + '/gum'
 
+subdir('ext')
 subdir('gum')
 subdir('libs')
 subdir('bindings')

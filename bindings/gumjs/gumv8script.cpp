@@ -320,6 +320,7 @@ gum_v8_script_create_context (GumV8Script * self,
         global_templ);
     _gum_v8_api_resolver_init (&self->api_resolver, &self->core, global_templ);
     _gum_v8_symbol_init (&self->symbol, &self->core, global_templ);
+    _gum_v8_cmodule_init (&self->cmodule, &self->core, global_templ);
     _gum_v8_instruction_init (&self->instruction, &self->core, global_templ);
     _gum_v8_code_writer_init (&self->code_writer, &self->core, global_templ);
     _gum_v8_code_relocator_init (&self->code_relocator, &self->code_writer,
@@ -344,6 +345,7 @@ gum_v8_script_create_context (GumV8Script * self,
     _gum_v8_interceptor_realize (&self->interceptor);
     _gum_v8_api_resolver_realize (&self->api_resolver);
     _gum_v8_symbol_realize (&self->symbol);
+    _gum_v8_cmodule_realize (&self->cmodule);
     _gum_v8_instruction_realize (&self->instruction);
     _gum_v8_code_writer_realize (&self->code_writer);
     _gum_v8_code_relocator_realize (&self->code_relocator);
@@ -394,6 +396,7 @@ gum_v8_script_destroy_context (GumV8Script * self)
     _gum_v8_code_relocator_dispose (&self->code_relocator);
     _gum_v8_code_writer_dispose (&self->code_writer);
     _gum_v8_instruction_dispose (&self->instruction);
+    _gum_v8_cmodule_dispose (&self->cmodule);
     _gum_v8_symbol_dispose (&self->symbol);
     _gum_v8_api_resolver_dispose (&self->api_resolver);
     _gum_v8_interceptor_dispose (&self->interceptor);
@@ -421,6 +424,7 @@ gum_v8_script_destroy_context (GumV8Script * self)
   _gum_v8_code_relocator_finalize (&self->code_relocator);
   _gum_v8_code_writer_finalize (&self->code_writer);
   _gum_v8_instruction_finalize (&self->instruction);
+  _gum_v8_cmodule_finalize (&self->cmodule);
   _gum_v8_symbol_finalize (&self->symbol);
   _gum_v8_api_resolver_finalize (&self->api_resolver);
   _gum_v8_interceptor_finalize (&self->interceptor);

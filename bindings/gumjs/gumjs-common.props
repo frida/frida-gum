@@ -4,7 +4,7 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <PreprocessorDefinitions>G_LOG_DOMAIN=&quot;Frida&quot;;GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_DUKTAPE=1;HAVE_V8=1;HAVE_LOG2=1;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(IntDir)gumjs;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(IntDir)gumjs;..\..\ext\tinycc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
 
@@ -17,6 +17,8 @@
     <ClInclude Include="gumsourcemap.h" />
     <ClInclude Include="gummemoryvfs.h" />
     <ClInclude Include="gumffi.h" />
+    <ClInclude Include="gumcmodule.h" />
+    <ClInclude Include="$(IntDir)gumjs\gumcmodule-runtime.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="gumscript.c" />
@@ -27,6 +29,7 @@
     <ClCompile Include="gumsourcemap.c" />
     <ClCompile Include="gummemoryvfs.c" />
     <ClCompile Include="gumffi.c" />
+    <ClCompile Include="gumcmodule.c" />
   </ItemGroup>
 
   <ItemGroup>
@@ -56,6 +59,7 @@
     <ClInclude Include="gumv8eventsink.h" />
     <ClInclude Include="gumv8apiresolver.h" />
     <ClInclude Include="gumv8symbol.h" />
+    <ClInclude Include="gumv8cmodule.h" />
     <ClInclude Include="gumv8instruction.h" />
     <ClInclude Include="gumv8codewriter.h" />
     <ClInclude Include="gumv8coderelocator.h" />
@@ -83,6 +87,7 @@
     <ClCompile Include="gumv8eventsink.cpp" />
     <ClCompile Include="gumv8apiresolver.cpp" />
     <ClCompile Include="gumv8symbol.cpp" />
+    <ClCompile Include="gumv8cmodule.cpp" />
     <ClCompile Include="gumv8instruction.cpp" />
     <ClCompile Include="gumv8codewriter.cpp" />
     <ClCompile Include="gumv8coderelocator.cpp" />
@@ -111,6 +116,7 @@
     <ClInclude Include="gumdukstalker.h" />
     <ClInclude Include="gumdukapiresolver.h" />
     <ClInclude Include="gumduksymbol.h" />
+    <ClInclude Include="gumdukcmodule.h" />
     <ClInclude Include="gumdukinstruction.h" />
     <ClInclude Include="gumdukcodewriter.h" />
     <ClInclude Include="gumdukcoderelocator.h" />
@@ -139,6 +145,7 @@
     <ClCompile Include="gumdukeventsink.c" />
     <ClCompile Include="gumdukapiresolver.c" />
     <ClCompile Include="gumduksymbol.c" />
+    <ClCompile Include="gumdukcmodule.c" />
     <ClCompile Include="gumdukinstruction.c" />
     <ClCompile Include="gumdukcodewriter.c" />
     <ClCompile Include="gumdukcoderelocator.c" />
@@ -160,6 +167,15 @@
     <None Include="runtime\promise.js" />
     <None Include="runtime\objc.js" />
     <None Include="runtime\java.js" />
+    <None Include="runtime\cmodule\inttypes.h" />
+    <None Include="runtime\cmodule\stdint.h" />
+    <None Include="runtime\cmodule\stdio.h" />
+    <None Include="runtime\cmodule\stdlib.h" />
+    <None Include="runtime\cmodule\string.h" />
+    <None Include="runtime\cmodule\glib.h" />
+    <None Include="runtime\cmodule\gum\gumdefs.h" />
+    <None Include="runtime\cmodule\gum\guminterceptor.h" />
+    <None Include="runtime\cmodule\gum\gumstalker.h" />
   </ItemGroup>
 
   <ItemGroup>
@@ -179,14 +195,14 @@ REM. &gt; $(IntDir)gumjs\bindings.stamp
   <ItemGroup>
     <CustomBuild Include="generate-runtime.py">
       <FileType>Document</FileType>
-      <Outputs>$(IntDir)gumjs\runtime.stamp;$(IntDir)gumjs\gumv8script-runtime.h;$(IntDir)gumjs\gumv8script-objc.h;$(IntDir)gumjs\gumv8script-java.h;$(IntDir)gumjs\gumdukscript-runtime.h;$(IntDir)gumjs\gumdukscript-objc.h;$(IntDir)gumjs\gumdukscript-java.h;$(IntDir)gumjs\gumdukscript-promise.h</Outputs>
+      <Outputs>$(IntDir)gumjs\runtime.stamp;$(IntDir)gumjs\gumv8script-runtime.h;$(IntDir)gumjs\gumv8script-objc.h;$(IntDir)gumjs\gumv8script-java.h;$(IntDir)gumjs\gumdukscript-runtime.h;$(IntDir)gumjs\gumdukscript-objc.h;$(IntDir)gumjs\gumdukscript-java.h;$(IntDir)gumjs\gumdukscript-promise.h;$(IntDir)gumjs\gumcmodule-runtime.h</Outputs>
       <Message>Generating runtime</Message>
       <Command>mkdir $(IntDir)gumjs 2&gt;NUL
-generate-runtime.py $(ProjectDir) $(IntDir)gumjs || exit 1
+generate-runtime.py $(PlatformShortName) $(ProjectDir) ..\..\gum $(SolutionDir)capstone\include\capstone $(IntDir)gumjs || exit 1
 REM. &gt; $(IntDir)gumjs\runtime.stamp
 </Command>
       <LinkObjects>false</LinkObjects>
-      <AdditionalInputs>runtime\entrypoint-v8.js;runtime\entrypoint-duktape.js;runtime\core.js;runtime\message-dispatcher.js;runtime\error-handler-v8.js;runtime\error-handler-duktape.js;runtime\console.js;runtime\hexdump.js;runtime\promise.js;runtime\objc.js;runtime\java.js;%(AdditionalInputs)</AdditionalInputs>
+      <AdditionalInputs>runtime\entrypoint-v8.js;runtime\entrypoint-duktape.js;runtime\core.js;runtime\message-dispatcher.js;runtime\error-handler-v8.js;runtime\error-handler-duktape.js;runtime\console.js;runtime\hexdump.js;runtime\promise.js;runtime\objc.js;runtime\java.js;runtime\cmodule\inttypes.h;runtime\cmodule\stdint.h;runtime\cmodule\stdio.h;runtime\cmodule\stdlib.h;runtime\cmodule\string.h;runtime\cmodule\glib.h;runtime\cmodule\gum\gumdefs.h;runtime\cmodule\gum\guminterceptor.h;runtime\cmodule\gum\gumstalker.h;%(AdditionalInputs)</AdditionalInputs>
     </CustomBuild>
   </ItemGroup>
 

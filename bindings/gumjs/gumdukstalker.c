@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -169,9 +169,9 @@ static const duk_function_list_entry gumjs_stalker_functions[] =
   { "flush", gumjs_stalker_flush, 0 },
   { "garbageCollect", gumjs_stalker_garbage_collect, 0 },
   { "_exclude", gumjs_stalker_exclude, 2 },
-  { "_follow", gumjs_stalker_follow, 5 },
+  { "_follow", gumjs_stalker_follow, 6 },
   { "unfollow", gumjs_stalker_unfollow, 1 },
-  { "addCallProbe", gumjs_stalker_add_call_probe, 2 },
+  { "addCallProbe", gumjs_stalker_add_call_probe, 3 },
   { "removeCallProbe", gumjs_stalker_remove_call_probe, 1 },
   { "_parse", gumjs_stalker_parse, 3 },
 
@@ -182,7 +182,7 @@ static const duk_function_list_entry gumjs_stalker_iterator_functions[] =
 {
   { "next", gumjs_stalker_iterator_next, 0 },
   { "keep", gumjs_stalker_iterator_keep, 0 },
-  { "putCallout", gumjs_stalker_iterator_put_callout, 1 },
+  { "putCallout", gumjs_stalker_iterator_put_callout, 2 },
 
   { NULL, NULL, 0 }
 };
@@ -466,8 +466,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
   GumStalker * stalker;
   GumDukCore * core;
   GumThreadId thread_id;
-  GumDukHeapPtr transformer_callback;
+  GumDukHeapPtr transformer_callback_js;
+  GumStalkerTransformerCallback transformer_callback_c;
   GumDukEventSinkOptions so;
+  gpointer user_data;
   GumStalkerTransformer * transformer;
   GumEventSink * sink;
 
@@ -480,19 +482,25 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
   so.queue_capacity = module->queue_capacity;
   so.queue_drain_interval = module->queue_drain_interval;
 
-  _gum_duk_args_parse (args, "ZF?uF?F?", &thread_id, &transformer_callback,
-      &so.event_mask, &so.on_receive, &so.on_call_summary);
+  _gum_duk_args_parse (args, "ZF*?uF?F?p", &thread_id, &transformer_callback_js,
+      &transformer_callback_c, &so.event_mask, &so.on_receive,
+      &so.on_call_summary, &user_data);
 
-  if (transformer_callback != NULL)
+  if (transformer_callback_js != NULL)
   {
     GumDukCallbackTransformer * cbt;
 
     cbt = g_object_new (GUM_DUK_TYPE_CALLBACK_TRANSFORMER, NULL);
-    _gum_duk_protect (ctx, transformer_callback);
-    cbt->callback = transformer_callback;
+    _gum_duk_protect (ctx, transformer_callback_js);
+    cbt->callback = transformer_callback_js;
     cbt->module = module;
 
     transformer = GUM_STALKER_TRANSFORMER (cbt);
+  }
+  else if (transformer_callback_c != NULL)
+  {
+    transformer = gum_stalker_transformer_make_from_callback (
+        transformer_callback_c, user_data, NULL);
   }
   else
   {
@@ -546,24 +554,38 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_unfollow)
 
 GUMJS_DEFINE_FUNCTION (gumjs_stalker_add_call_probe)
 {
-  GumDukStalker * module;
-  gpointer target_address;
-  GumDukHeapPtr callback;
-  GumDukCallProbe * probe;
   GumProbeId id;
+  GumDukStalker * module;
+  GumStalker * stalker;
+  gpointer target_address;
+  GumDukHeapPtr callback_js;
+  GumCallProbeCallback callback_c;
+  gpointer user_data;
+  GumDukCallProbe * probe;
 
   module = gumjs_module_from_args (args);
+  stalker = _gum_duk_stalker_get (module);
 
-  _gum_duk_args_parse (args, "pF", &target_address, &callback);
+  user_data = NULL;
+  _gum_duk_args_parse (args, "pF*|p", &target_address, &callback_js,
+      &callback_c, &user_data);
 
-  probe = g_slice_new (GumDukCallProbe);
-  _gum_duk_protect (ctx, callback);
-  probe->callback = callback;
-  probe->module = module;
+  if (callback_js != NULL)
+  {
+    probe = g_slice_new (GumDukCallProbe);
+    _gum_duk_protect (ctx, callback_js);
+    probe->callback = callback_js;
+    probe->module = module;
 
-  id = gum_stalker_add_call_probe (_gum_duk_stalker_get (module),
-      target_address, (GumCallProbeCallback) gum_duk_call_probe_on_fire, probe,
-      (GDestroyNotify) gum_duk_call_probe_free);
+    id = gum_stalker_add_call_probe (stalker, target_address,
+        (GumCallProbeCallback) gum_duk_call_probe_on_fire, probe,
+        (GDestroyNotify) gum_duk_call_probe_free);
+  }
+  else
+  {
+    id = gum_stalker_add_call_probe (stalker, target_address, callback_c,
+        user_data, NULL);
+  }
 
   duk_push_uint (ctx, id);
   return 1;
@@ -955,21 +977,33 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_iterator_keep)
 GUMJS_DEFINE_FUNCTION (gumjs_stalker_iterator_put_callout)
 {
   GumDukStalkerIterator * self;
-  GumDukHeapPtr callback;
-  GumDukCallout * callout;
+  GumDukHeapPtr callback_js;
+  GumStalkerCallout callback_c;
+  gpointer user_data;
 
   self = gumjs_stalker_iterator_from_args (args);
 
-  _gum_duk_args_parse (args, "F", &callback);
+  user_data = NULL;
+  _gum_duk_args_parse (args, "F*|p", &callback_js, &callback_c, &user_data);
 
-  callout = g_slice_new (GumDukCallout);
-  _gum_duk_protect (ctx, callback);
-  callout->callback = callback;
-  callout->module = self->module;
+  if (callback_js != NULL)
+  {
+    GumDukCallout * callout;
 
-  gum_stalker_iterator_put_callout (self->handle,
-      (GumStalkerCallout) gum_duk_callout_on_invoke, callout,
-      (GDestroyNotify) gum_duk_callout_free);
+    callout = g_slice_new (GumDukCallout);
+    _gum_duk_protect (ctx, callback_js);
+    callout->callback = callback_js;
+    callout->module = self->module;
+
+    gum_stalker_iterator_put_callout (self->handle,
+        (GumStalkerCallout) gum_duk_callout_on_invoke, callout,
+        (GDestroyNotify) gum_duk_callout_free);
+  }
+  else
+  {
+    gum_stalker_iterator_put_callout (self->handle, callback_c, user_data,
+        NULL);
+  }
 
   return 0;
 }

@@ -433,7 +433,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
 
   GumThreadId thread_id;
 
-  Local<Function> transformer_callback;
+  Local<Function> transformer_callback_js;
+  GumStalkerTransformerCallback transformer_callback_c;
 
   GumV8EventSinkOptions so;
   so.core = core;
@@ -441,21 +442,30 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
   so.queue_capacity = module->queue_capacity;
   so.queue_drain_interval = module->queue_drain_interval;
 
-  if (!_gum_v8_args_parse (args, "ZF?uF?F?", &thread_id, &transformer_callback,
-      &so.event_mask, &so.on_receive, &so.on_call_summary))
+  gpointer user_data;
+
+  if (!_gum_v8_args_parse (args, "ZF*?uF?F?p", &thread_id,
+      &transformer_callback_js, &transformer_callback_c,
+      &so.event_mask, &so.on_receive, &so.on_call_summary,
+      &user_data))
     return;
 
   GumStalkerTransformer * transformer = NULL;
 
-  if (!transformer_callback.IsEmpty ())
+  if (!transformer_callback_js.IsEmpty ())
   {
     auto cbt = (GumV8CallbackTransformer *)
         g_object_new (GUM_V8_TYPE_CALLBACK_TRANSFORMER, NULL);
     cbt->callback = new GumPersistent<Function>::type (isolate,
-        transformer_callback);
+        transformer_callback_js);
     cbt->module = module;
 
     transformer = GUM_STALKER_TRANSFORMER (cbt);
+  }
+  else if (transformer_callback_c != NULL)
+  {
+    transformer = gum_stalker_transformer_make_from_callback (
+        transformer_callback_c, user_data, NULL);
   }
 
   auto sink = gum_v8_event_sink_new (&so);
@@ -497,18 +507,32 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_unfollow)
 
 GUMJS_DEFINE_FUNCTION (gumjs_stalker_add_call_probe)
 {
+  GumStalker * stalker = _gum_v8_stalker_get (module);
+
   gpointer target_address;
-  Local<Function> callback;
-  if (!_gum_v8_args_parse (args, "pF", &target_address, &callback))
+  Local<Function> callback_js;
+  GumCallProbeCallback callback_c;
+  gpointer user_data = NULL;
+  if (!_gum_v8_args_parse (args, "pF*|p", &target_address, &callback_js,
+      &callback_c, &user_data))
     return;
 
-  auto probe = g_slice_new (GumV8CallProbe);
-  probe->callback = new GumPersistent<Function>::type (isolate, callback);
-  probe->module = module;
+  GumProbeId id;
+  if (!callback_js.IsEmpty ())
+  {
+    auto probe = g_slice_new (GumV8CallProbe);
+    probe->callback = new GumPersistent<Function>::type (isolate, callback_js);
+    probe->module = module;
 
-  auto id = gum_stalker_add_call_probe (_gum_v8_stalker_get (module),
-      target_address, (GumCallProbeCallback) gum_v8_call_probe_on_fire, probe,
-      (GDestroyNotify) gum_v8_call_probe_free);
+    id = gum_stalker_add_call_probe (stalker, target_address,
+        (GumCallProbeCallback) gum_v8_call_probe_on_fire, probe,
+        (GDestroyNotify) gum_v8_call_probe_free);
+  }
+  else
+  {
+    id = gum_stalker_add_call_probe (stalker, target_address, callback_c,
+        user_data, NULL);
+  }
 
   info.GetReturnValue ().Set (id);
 }
@@ -896,17 +920,28 @@ GUMJS_DEFINE_DIRECT_SUBCLASS_METHOD (gumjs_stalker_iterator_put_callout,
   if (!gum_v8_stalker_iterator_check_valid (self, isolate))
     return;
 
-  Local<Function> callback;
-  if (!_gum_v8_args_parse (args, "F", &callback))
+  Local<Function> callback_js;
+  GumStalkerCallout callback_c;
+  gpointer user_data = NULL;
+  if (!_gum_v8_args_parse (args, "F*|p", &callback_js, &callback_c, &user_data))
     return;
 
-  auto callout = g_slice_new (GumV8Callout);
-  callout->callback = new GumPersistent<Function>::type (isolate, callback);
-  callout->module = self->module;
+  if (!callback_js.IsEmpty ())
+  {
+    auto callout = g_slice_new (GumV8Callout);
+    callout->callback =
+        new GumPersistent<Function>::type (isolate, callback_js);
+    callout->module = self->module;
 
-  gum_stalker_iterator_put_callout (self->handle,
-      (GumStalkerCallout) gum_v8_callout_on_invoke, callout,
-      (GDestroyNotify) gum_v8_callout_free);
+    gum_stalker_iterator_put_callout (self->handle,
+        (GumStalkerCallout) gum_v8_callout_on_invoke, callout,
+        (GDestroyNotify) gum_v8_callout_free);
+  }
+  else
+  {
+    gum_stalker_iterator_put_callout (self->handle, callback_c, user_data,
+        NULL);
+  }
 }
 
 static void

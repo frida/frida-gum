@@ -8,6 +8,7 @@
 #define __GUM_V8_SCRIPT_PRIV_H__
 
 #include "gumv8apiresolver.h"
+#include "gumv8cmodule.h"
 #include "gumv8coderelocator.h"
 #include "gumv8codewriter.h"
 #include "gumv8core.h"
@@ -56,6 +57,7 @@ struct _GumV8Script
   GumV8Interceptor interceptor;
   GumV8ApiResolver api_resolver;
   GumV8Symbol symbol;
+  GumV8CModule cmodule;
   GumV8Instruction instruction;
   GumV8CodeWriter code_writer;
   GumV8CodeRelocator code_relocator;

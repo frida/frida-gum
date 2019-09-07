@@ -16,6 +16,7 @@ gumjs_sources = [
   'gumsourcemap.c',
   'gummemoryvfs.c',
   'gumffi.c',
+  'gumcmodule.c',
 ]
 
 if have_duktape
@@ -40,6 +41,7 @@ if have_duktape
     'gumdukeventsink.c',
     'gumdukapiresolver.c',
     'gumduksymbol.c',
+    'gumdukcmodule.c',
     'gumdukinstruction.c',
     'gumdukcodewriter.c',
     'gumdukcoderelocator.c',
@@ -72,6 +74,7 @@ if have_v8
     'gumv8eventsink.cpp',
     'gumv8apiresolver.cpp',
     'gumv8symbol.cpp',
+    'gumv8cmodule.cpp',
     'gumv8instruction.cpp',
     'gumv8codewriter.cpp',
     'gumv8coderelocator.cpp',
@@ -143,6 +146,15 @@ gumjs_runtime_sources = [
   'runtime/promise.js',
   'runtime/objc.js',
   'runtime/java.js',
+  'runtime/cmodule/inttypes.h',
+  'runtime/cmodule/stdint.h',
+  'runtime/cmodule/stdio.h',
+  'runtime/cmodule/stdlib.h',
+  'runtime/cmodule/string.h',
+  'runtime/cmodule/glib.h',
+  'runtime/cmodule/gum/gumdefs.h',
+  'runtime/cmodule/gum/guminterceptor.h',
+  'runtime/cmodule/gum/gumstalker.h',
 ]
 gumjs_runtime_outputs = [
   'gumdukscript-runtime.h',
@@ -152,6 +164,7 @@ gumjs_runtime_outputs = [
   'gumv8script-runtime.h',
   'gumv8script-objc.h',
   'gumv8script-java.h',
+  'gumcmodule-runtime.h',
 ]
 
 install_headers(gumjs_headers, subdir: install_header_basedir + '/gumjs')
@@ -159,14 +172,25 @@ install_headers(gumjs_headers, subdir: install_header_basedir + '/gumjs')
 gumjs_generated_bindings = custom_target('gumjs-generated-bindings',
   input: gumjs_generated_inputs,
   output: gumjs_generated_outputs,
-  command: [find_program('generate-bindings.py'), join_paths(meson.source_root(), 'gum'), meson.current_build_dir()],
+  command: [
+    find_program('generate-bindings.py'),
+    join_paths(meson.source_root(), 'gum'),
+    meson.current_build_dir(),
+  ],
 )
 gumjs_sources += [gumjs_generated_bindings]
 
 gumjs_runtime = custom_target('gumjs-runtime',
   input: gumjs_runtime_sources,
   output: gumjs_runtime_outputs,
-  command: [find_program('generate-runtime.py'), meson.current_source_dir(), meson.current_build_dir()],
+  command: [
+    find_program('generate-runtime.py'),
+    host_arch,
+    meson.current_source_dir(),
+    join_paths(meson.source_root(), 'gum'),
+    capstone_dep.get_pkgconfig_variable('includedir'),
+    meson.current_build_dir(),
+  ],
 )
 gumjs_sources += [gumjs_runtime]
 
@@ -174,7 +198,8 @@ gumjs = library('frida-gumjs-' + api_version, gumjs_sources,
   c_args: frida_component_cflags,
   override_options: ['cpp_std=c++11'],
   include_directories: [bindings_inc],
-  dependencies: [gum_dep, gio_dep, json_glib_dep, ffi_dep, sqlite_dep, libsoup_dep] + gumjs_extra_deps,
+  dependencies: [gum_dep, gio_dep, json_glib_dep, ffi_dep, tinycc_dep, sqlite_dep, libsoup_dep] + gumjs_extra_deps,
+  objects: tinycc.extract_all_objects(),
   install: true,
 )
 

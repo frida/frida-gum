@@ -153,9 +153,8 @@ _gum_v8_args_parse (const GumV8Args * args,
       case 'q':
       {
         gint64 i;
-        gboolean is_fuzzy;
 
-        is_fuzzy = t[1] == '~';
+        gboolean is_fuzzy = t[1] == '~';
         if (is_fuzzy)
           t++;
 
@@ -177,9 +176,8 @@ _gum_v8_args_parse (const GumV8Args * args,
       case 'Q':
       {
         guint64 u;
-        gboolean is_fuzzy;
 
-        is_fuzzy = t[1] == '~';
+        gboolean is_fuzzy = t[1] == '~';
         if (is_fuzzy)
           t++;
 
@@ -247,9 +245,8 @@ _gum_v8_args_parse (const GumV8Args * args,
       case 'p':
       {
         gpointer ptr;
-        gboolean is_fuzzy;
 
-        is_fuzzy = t[1] == '~';
+        gboolean is_fuzzy = t[1] == '~';
         if (is_fuzzy)
           t++;
 
@@ -283,9 +280,8 @@ _gum_v8_args_parse (const GumV8Args * args,
       case 's':
       {
         gchar * str;
-        gboolean is_nullable;
 
-        is_nullable = t[1] == '?';
+        gboolean is_nullable = t[1] == '?';
         if (is_nullable)
           t++;
 
@@ -361,9 +357,7 @@ _gum_v8_args_parse (const GumV8Args * args,
       }
       case 'O':
       {
-        gboolean is_nullable;
-
-        is_nullable = t[1] == '?';
+        gboolean is_nullable = t[1] == '?';
         if (is_nullable)
           t++;
 
@@ -385,9 +379,7 @@ _gum_v8_args_parse (const GumV8Args * args,
       }
       case 'A':
       {
-        gboolean is_nullable;
-
-        is_nullable = t[1] == '?';
+        gboolean is_nullable = t[1] == '?';
         if (is_nullable)
           t++;
 
@@ -409,16 +401,16 @@ _gum_v8_args_parse (const GumV8Args * args,
       }
       case 'F':
       {
-        gboolean is_expecting_object, is_nullable;
+        gboolean accepts_pointer = t[1] == '*';
+        if (accepts_pointer)
+          t++;
 
-        is_expecting_object = t[1] == '{';
+        gboolean is_expecting_object = t[1] == '{';
         if (is_expecting_object)
           t += 2;
 
         if (is_expecting_object)
         {
-          const gchar * next, * end, * t_end;
-
           if (!arg->IsObject ())
           {
             _gum_v8_throw_ascii_literal (isolate,
@@ -427,35 +419,57 @@ _gum_v8_args_parse (const GumV8Args * args,
           }
           Local<Object> callbacks = arg.As<Object> ();
 
+          const gchar * end, * t_end;
+
           do
           {
             gchar name[64];
-            gsize length;
 
-            next = strchr (t, ',');
+            const gchar * next = strchr (t, ',');
             end = strchr (t, '}');
             t_end = (next != NULL && next < end) ? next : end;
-            length = t_end - t;
+            gsize length = t_end - t;
             strncpy (name, t, length);
 
-            is_nullable = name[length - 1] == '?';
-            if (is_nullable)
+            gboolean is_optional = name[length - 1] == '?';
+            if (is_optional)
               name[length - 1] = '\0';
             else
               name[length] = '\0';
 
-            Local<Function> * func = va_arg (ap, Local<Function> *);
+            Local<Function> func_js;
+            gpointer func_c;
 
-            if (is_nullable)
+            auto value = callbacks->Get (
+                _gum_v8_string_new_ascii (isolate, name));
+            if (value->IsFunction ())
             {
-              if (!_gum_v8_callbacks_get_opt (callbacks, name, func, core))
-                return FALSE;
+              func_js = value.As<Function> ();
+              func_c = NULL;
+            }
+            else if (is_optional && value->IsUndefined ())
+            {
+              func_c = NULL;
             }
             else
             {
-              if (!_gum_v8_callbacks_get (callbacks, name, func, core))
+              auto native_pointer = Local<FunctionTemplate>::New (isolate,
+                  *core->native_pointer);
+              if (accepts_pointer && native_pointer->HasInstance (value))
+              {
+                func_c = GUMJS_NATIVE_POINTER_VALUE (value.As<Object> ());
+              }
+              else
+              {
+                _gum_v8_throw_ascii_literal (isolate,
+                    "expected a callback value");
                 return FALSE;
+              }
             }
+
+            *va_arg (ap, Local<Function> *) = func_js;
+            if (accepts_pointer)
+              *va_arg (ap, gpointer *) = func_c;
 
             t = t_end + 1;
           }
@@ -465,23 +479,41 @@ _gum_v8_args_parse (const GumV8Args * args,
         }
         else
         {
-          is_nullable = t[1] == '?';
+          gboolean is_nullable = t[1] == '?';
           if (is_nullable)
             t++;
 
+          Local<Function> func_js;
+          gpointer func_c;
+
           if (arg->IsFunction ())
           {
-            *va_arg (ap, Local<Function> *) = arg.As<Function> ();
+            func_js = arg.As<Function> ();
+            func_c = NULL;
           }
           else if (is_nullable && arg->IsNull ())
           {
-            *va_arg (ap, Local<Function> *) = Local<Function> ();
+            func_c = NULL;
           }
           else
           {
-            _gum_v8_throw_ascii_literal (isolate, "expected a function");
-            return FALSE;
+            auto native_pointer = Local<FunctionTemplate>::New (isolate,
+                *core->native_pointer);
+            if (accepts_pointer && native_pointer->HasInstance (arg))
+            {
+              func_c = GUMJS_NATIVE_POINTER_VALUE (arg.As<Object> ());
+            }
+            else
+            {
+              _gum_v8_throw_ascii_literal (isolate,
+                  "expected a function");
+              return FALSE;
+            }
           }
+
+          *va_arg (ap, Local<Function> *) = func_js;
+          if (accepts_pointer)
+            *va_arg (ap, gpointer *) = func_c;
         }
 
         break;
@@ -489,12 +521,12 @@ _gum_v8_args_parse (const GumV8Args * args,
       case 'B':
       {
         GBytes * bytes;
-        gboolean is_fuzzy, is_nullable;
 
-        is_fuzzy = t[1] == '~';
+        gboolean is_fuzzy = t[1] == '~';
         if (is_fuzzy)
           t++;
-        is_nullable = t[1] == '?';
+
+        gboolean is_nullable = t[1] == '?';
         if (is_nullable)
           t++;
 
@@ -521,9 +553,8 @@ _gum_v8_args_parse (const GumV8Args * args,
       case 'C':
       {
         GumCpuContext * cpu_context;
-        gboolean is_nullable;
 
-        is_nullable = t[1] == '?';
+        gboolean is_nullable = t[1] == '?';
         if (is_nullable)
           t++;
 
@@ -1604,44 +1635,6 @@ _gum_v8_object_set_page_protection (Handle<Object> object,
     prot_str[2] = 'x';
 
   return _gum_v8_object_set_ascii (object, key, prot_str, core);
-}
-
-gboolean
-_gum_v8_callbacks_get (Handle<Object> callbacks,
-                       const gchar * name,
-                       Handle<Function> * callback_function,
-                       GumV8Core * core)
-{
-  if (!_gum_v8_callbacks_get_opt (callbacks, name, callback_function, core))
-    return FALSE;
-
-  if ((*callback_function).IsEmpty ())
-  {
-    _gum_v8_throw_ascii (core->isolate, "%s callback is required", name);
-    return FALSE;
-  }
-
-  return TRUE;
-}
-
-gboolean
-_gum_v8_callbacks_get_opt (Handle<Object> callbacks,
-                           const gchar * name,
-                           Handle<Function> * callback_function,
-                           GumV8Core * core)
-{
-  auto value = callbacks->Get (_gum_v8_string_new_ascii (core->isolate, name));
-  if (value->IsUndefined () || value->IsNull ())
-    return TRUE;
-
-  if (!value->IsFunction ())
-  {
-    _gum_v8_throw_ascii (core->isolate, "%s must be a function", name);
-    return FALSE;
-  }
-
-  *callback_function = value.As<Function> ();
-  return TRUE;
 }
 
 GArray *

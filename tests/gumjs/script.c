@@ -252,6 +252,22 @@ TESTLIST_BEGIN (script)
     TESTENTRY (functions_can_be_found_by_matching)
   TESTGROUP_END ()
 
+  TESTGROUP_BEGIN ("CModule")
+    TESTENTRY (cmodule_can_be_defined)
+    TESTENTRY (cmodule_symbols_can_be_provided)
+    TESTENTRY (cmodule_should_report_parsing_errors)
+    TESTENTRY (cmodule_should_report_linking_errors)
+    TESTENTRY (cmodule_should_provide_lifecycle_hooks)
+    TESTENTRY (cmodule_can_be_used_with_interceptor_attach)
+    TESTENTRY (cmodule_can_be_used_with_interceptor_replace)
+    TESTENTRY (cmodule_can_be_used_with_stalker_transform)
+    TESTENTRY (cmodule_can_be_used_with_stalker_callout)
+    TESTENTRY (cmodule_can_be_used_with_stalker_call_probe)
+    TESTENTRY (cmodule_should_provide_some_builtin_string_functions)
+    TESTENTRY (cmodule_should_support_varargs)
+    TESTENTRY (cmodule_should_provide_access_to_cpu_registers)
+  TESTGROUP_END ()
+
   TESTGROUP_BEGIN ("Instruction")
     TESTENTRY (instruction_can_be_parsed)
     TESTENTRY (instruction_can_be_generated)
@@ -1134,7 +1150,6 @@ TESTCASE (native_function_is_a_native_pointer)
 
 TESTCASE (native_callback_can_be_invoked)
 {
-  TestScriptMessageItem * item;
   gint (* toupper_impl) (gchar * str, gint limit);
   gchar str[7];
 
@@ -1154,11 +1169,8 @@ TESTCASE (native_callback_can_be_invoked)
       "gc();"
       "send(toupper);");
 
-  item = test_script_fixture_pop_message (fixture);
-  sscanf (item->message, "{\"type\":\"send\",\"payload\":"
-      "\"0x%" G_GSIZE_MODIFIER "x\"}", (gsize *) &toupper_impl);
+  toupper_impl = EXPECT_SEND_MESSAGE_WITH_POINTER ();
   g_assert_nonnull (toupper_impl);
-  test_script_message_item_free (item);
 
   strcpy (str, "badger");
   g_assert_cmpint (toupper_impl (str, 3), ==, 3);
@@ -4565,7 +4577,6 @@ TESTCASE (pointer_can_be_written_legacy_style)
 
 TESTCASE (memory_can_be_allocated)
 {
-  TestScriptMessageItem * item;
   gsize p;
 
   COMPILE_AND_LOAD_SCRIPT (
@@ -4583,12 +4594,8 @@ TESTCASE (memory_can_be_allocated)
   COMPILE_AND_LOAD_SCRIPT (
       "var p = Memory.alloc(Process.pageSize);"
       "send(p);");
-  item = test_script_fixture_pop_message (fixture);
-  p = 0;
-  sscanf (item->message, "{\"type\":\"send\",\"payload\":"
-      "\"0x%" G_GSIZE_MODIFIER "x\"}", &p);
+  p = GPOINTER_TO_SIZE (EXPECT_SEND_MESSAGE_WITH_POINTER ());
   g_assert_cmpuint (p, !=, 0);
-  test_script_message_item_free (item);
   g_assert_cmpuint (p & (gum_query_page_size () - 1), ==, 0);
 
   COMPILE_AND_LOAD_SCRIPT(
@@ -5348,6 +5355,591 @@ TESTCASE (invalid_read_write_execute_results_in_exception)
       "}");
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (cmodule_can_be_defined)
+{
+  int (* add_impl) (int a, int b);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var m = new CModule('"
+      ""
+      "int\\n"
+      "add (int a,\\n"
+      "     int b)\\n"
+      "{\\n"
+      "  return a + b;\\n"
+      "}"
+      "');"
+      "send(m.add);");
+
+  add_impl = EXPECT_SEND_MESSAGE_WITH_POINTER ();
+  g_assert_nonnull (add_impl);
+  g_assert_cmpint (add_impl (3, 4), ==, 7);
+}
+
+TESTCASE (cmodule_symbols_can_be_provided)
+{
+  int a = 42;
+  int b = 1337;
+  int (* get_magic_impl) (void);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var m = new CModule('"
+      ""
+      "extern int a;\\n"
+      "extern int b;\\n"
+      "\\n"
+      "int\\n"
+      "get_magic (void)\\n"
+      "{\\n"
+      "  return a + b;\\n"
+      "}"
+      "', { a: " GUM_PTR_CONST ", b: " GUM_PTR_CONST " });"
+      "send(m.get_magic);",
+      &a, &b);
+
+  get_magic_impl = EXPECT_SEND_MESSAGE_WITH_POINTER ();
+  g_assert_nonnull (get_magic_impl);
+  g_assert_cmpint (get_magic_impl (), ==, 1379);
+}
+
+TESTCASE (cmodule_should_report_parsing_errors)
+{
+  COMPILE_AND_LOAD_SCRIPT ("new CModule('void foo (int a');");
+  EXPECT_ERROR_MESSAGE_MATCHING (ANY_LINE_NUMBER,
+      "Error: Compilation failed.+");
+}
+
+TESTCASE (cmodule_should_report_linking_errors)
+{
+  COMPILE_AND_LOAD_SCRIPT ("new CModule('"
+      "extern int v; int f (void) { return v; }');");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "Error: Compilation failed: tcc: error: undefined symbol 'v'");
+}
+
+TESTCASE (cmodule_should_provide_lifecycle_hooks)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var m = new CModule('"
+      ""
+      "extern void notify (int n);\\n"
+      "\\n"
+      "void\\n"
+      "init (void)\\n"
+      "{\\n"
+      "  notify (1);\\n"
+      "}\\n"
+      "\\n"
+      "void\\n"
+      "finalize (void)\\n"
+      "{\\n"
+      "  notify (2);\\n"
+      "}\\n"
+      "', {"
+      "  notify: new NativeCallback(function (n) { send(n); }, 'void', ['int'])"
+      "});");
+  EXPECT_SEND_MESSAGE_WITH ("1");
+  EXPECT_NO_MESSAGES ();
+
+  UNLOAD_SCRIPT ();
+  EXPECT_SEND_MESSAGE_WITH ("2");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (cmodule_can_be_used_with_interceptor_attach)
+{
+  int seen_argval = -1;
+  int seen_retval = -1;
+  gpointer seen_return_address = NULL;
+  guint seen_thread_id = 0;
+  guint seen_depth = G_MAXUINT;
+  int seen_function_data = -1;
+  int seen_thread_state_calls = -1;
+  int seen_invocation_state_arg = -1;
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(" GUM_PTR_CONST ", new CModule('"
+      "#include <gum/guminterceptor.h>\\n"
+      "\\n"
+      "  typedef struct _ThreadState ThreadState;\\n"
+      "  typedef struct _InvState InvState;\\n"
+      "\\n"
+      "  struct _ThreadState\\n"
+      "  {\\n"
+      "    int calls;\\n"
+      "  };\\n"
+      "\\n"
+      "  struct _InvState\\n"
+      "  {\\n"
+      "    int arg;\\n"
+      "  };\\n"
+      "\\n"
+      "  extern int seenArgval;\\n"
+      "  extern int seenRetval;\\n"
+      "  extern gpointer seenReturnAddress;\\n"
+      "  extern guint seenThreadId;\\n"
+      "  extern guint seenDepth;\\n"
+      "  extern int seenFunctionData;\\n"
+      "  extern int seenThreadStateCalls;\\n"
+      "  extern int seenInvocationStateArg;\\n"
+      "\\n"
+      "  void\\n"
+      "  onEnter (GumInvocationContext * ic)\\n"
+      "  {\\n"
+      "    int arg = (int) gum_invocation_context_get_nth_argument (ic, 0);\\n"
+      "\\n"
+      "    seenArgval = arg;\\n"
+      "    gum_invocation_context_replace_nth_argument (ic, 0,\\n"
+      "        (gpointer) (arg + 1));\\n"
+      "\\n"
+      "    seenReturnAddress =\\n"
+      "        gum_invocation_context_get_return_address (ic);\\n"
+      "    seenThreadId = gum_invocation_context_get_thread_id (ic);\\n"
+      "    seenDepth = gum_invocation_context_get_depth (ic);\\n"
+      "\\n"
+      "    seenFunctionData = GUM_IC_GET_FUNC_DATA (ic, int);\\n"
+      "\\n"
+      "    ThreadState * ts = GUM_IC_GET_THREAD_DATA (ic, ThreadState);\\n"
+      "    ts->calls++;\\n"
+      "\\n"
+      "    InvState * is = GUM_IC_GET_INVOCATION_DATA (ic, InvState);\\n"
+      "    is->arg = seenArgval;\\n"
+      "  }\\n"
+      "\\n"
+      "  void\\n"
+      "  onLeave (GumInvocationContext * ic)\\n"
+      "  {\\n"
+      "    seenRetval = (int) gum_invocation_context_get_return_value (ic);\\n"
+      "    gum_invocation_context_replace_return_value (ic, (gpointer) 42);\\n"
+      "\\n"
+      "    ThreadState * ts = GUM_IC_GET_THREAD_DATA (ic, ThreadState);\\n"
+      "    seenThreadStateCalls = ts->calls;\\n"
+      "\\n"
+      "    InvState * is = GUM_IC_GET_INVOCATION_DATA (ic, InvState);\\n"
+      "    seenInvocationStateArg = is->arg;\\n"
+      "  }\\n"
+      "', {"
+      "  seenArgval: " GUM_PTR_CONST ","
+      "  seenRetval: " GUM_PTR_CONST ","
+      "  seenReturnAddress: " GUM_PTR_CONST ","
+      "  seenThreadId: " GUM_PTR_CONST ","
+      "  seenDepth: " GUM_PTR_CONST ","
+      "  seenFunctionData: " GUM_PTR_CONST ","
+      "  seenThreadStateCalls: " GUM_PTR_CONST ","
+      "  seenInvocationStateArg: " GUM_PTR_CONST
+      "}), ptr(1911));",
+      target_function_int,
+      &seen_argval,
+      &seen_retval,
+      &seen_return_address,
+      &seen_thread_id,
+      &seen_depth,
+      &seen_function_data,
+      &seen_thread_state_calls,
+      &seen_invocation_state_arg);
+
+  EXPECT_NO_MESSAGES ();
+
+  g_assert_cmpint (target_function_int (1), ==, 42);
+  g_assert_cmpint (seen_argval, ==, 1);
+  g_assert_cmpint (seen_retval, ==, 90);
+  g_assert_nonnull (seen_return_address);
+  g_assert_cmpuint (seen_thread_id, ==, gum_process_get_current_thread_id ());
+  g_assert_cmpuint (seen_depth, ==, 0);
+  g_assert_cmpint (seen_function_data, ==, 1911);
+  g_assert_cmpint (seen_thread_state_calls, ==, 1);
+  g_assert_cmpint (seen_invocation_state_arg, ==, 1);
+
+  target_function_int (12);
+  g_assert_cmpint (seen_thread_state_calls, ==, 2);
+  g_assert_cmpint (seen_invocation_state_arg, ==, 12);
+}
+
+TESTCASE (cmodule_can_be_used_with_interceptor_replace)
+{
+  int seen_replacement_data = -1;
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var m = new CModule('"
+      "#include <gum/guminterceptor.h>\\n"
+      "\\n"
+      "extern int seenReplacementData;\\n"
+      "\\n"
+      "int\\n"
+      "dummy (int arg)\\n"
+      "{\\n"
+      "  GumInvocationContext * ic =\\n"
+      "      gum_interceptor_get_current_invocation ();\\n"
+      "  seenReplacementData = GUM_IC_GET_REPLACEMENT_DATA (ic, int);\\n"
+      "\\n"
+      "  return 1337;\\n"
+      "}\\n"
+      "', { seenReplacementData: " GUM_PTR_CONST " });"
+      "Interceptor.replace(" GUM_PTR_CONST ", m.dummy, ptr(1911));",
+      &seen_replacement_data, target_function_int);
+
+  EXPECT_NO_MESSAGES ();
+  g_assert_cmpint (target_function_int (7), ==, 1337);
+  g_assert_cmpint (seen_replacement_data, ==, 1911);
+
+  gum_script_unload_sync (fixture->script, NULL);
+  g_assert_cmpint (target_function_int (7), ==, 315);
+}
+
+TESTCASE (cmodule_can_be_used_with_stalker_transform)
+{
+  GumThreadId test_thread_id;
+  guint num_transforms = 0;
+  gsize seen_user_data = 0;
+
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
+  test_thread_id = gum_process_get_current_thread_id ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var m = new CModule('"
+      "#include <stdio.h>\\n"
+      "#include <gum/gumstalker.h>\\n"
+      "\\n"
+      "static void on_ret (GumCpuContext * cpu_context, gpointer user_data);\\n"
+      "\\n"
+      "extern guint numTransforms;\\n"
+      "extern gpointer seenUserData;\\n"
+      "\\n"
+      "void\\n"
+      "transform (GumStalkerIterator * iterator,\\n"
+      "           GumStalkerWriter * output,\\n"
+      "           gpointer user_data)\\n"
+      "{\\n"
+      "  printf (\"\\\\ntransform()\\\\n\");\\n"
+      "  cs_insn * insn = NULL;\\n"
+      "  while (gum_stalker_iterator_next (iterator, &insn))\\n"
+      "  {\\n"
+      "    printf (\"\\\\t%%s %%s\\\\n\", insn->mnemonic, insn->op_str);\\n"
+      "    if (insn->id == X86_INS_RET)\\n"
+      "    {\\n"
+      "      gum_x86_writer_put_nop (output);\\n"
+      "      gum_stalker_iterator_put_callout (iterator, on_ret, NULL,\\n"
+      "          NULL);\\n"
+      "    }\\n"
+      "    gum_stalker_iterator_keep (iterator);\\n"
+      "  }\\n"
+      "  numTransforms++;\\n"
+      "  seenUserData = user_data;\\n"
+      "}\\n"
+      "\\n"
+      "static void\\n"
+      "on_ret (GumCpuContext * cpu_context,"
+      "        gpointer user_data)\\n"
+      "{\\n"
+      "  // printf (\"\\\\non_ret() cpu_context=%%p\\\\n\", cpu_context);\\n"
+      "}\\n"
+      "', {"
+      "  numTransforms: " GUM_PTR_CONST ","
+      "  seenUserData: " GUM_PTR_CONST
+      "});"
+      "var instructionsSeen = 0;"
+      "Stalker.follow(%" G_GSIZE_FORMAT ", {"
+      "  transform: m.transform,"
+      "  data: ptr(3)"
+      "});"
+      "recv('stop', function (message) {"
+      "  Stalker.unfollow(%" G_GSIZE_FORMAT ");"
+      "  send('done');"
+      "});",
+      &num_transforms,
+      &seen_user_data,
+      test_thread_id,
+      test_thread_id);
+  g_usleep (1);
+  EXPECT_NO_MESSAGES ();
+  POST_MESSAGE ("{\"type\":\"stop\"}");
+  EXPECT_SEND_MESSAGE_WITH ("\"done\"");
+  EXPECT_NO_MESSAGES ();
+  g_assert_true (num_transforms > 0);
+  g_assert_cmphex (seen_user_data, ==, 3);
+}
+
+TESTCASE (cmodule_can_be_used_with_stalker_callout)
+{
+  GumThreadId test_thread_id;
+  guint num_callouts = 0;
+  gsize seen_user_data = 0;
+
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
+  test_thread_id = gum_process_get_current_thread_id ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var m = new CModule('"
+      "#include <stdio.h>\\n"
+      "#include <gum/gumstalker.h>\\n"
+      "\\n"
+      "extern guint numCallouts;\\n"
+      "extern gpointer seenUserData;\\n"
+      "\\n"
+      "void\\n"
+      "onBeforeFirstInstruction (GumCpuContext * cpu_context,"
+      "                          gpointer user_data)\\n"
+      "{\\n"
+      "  printf (\"cpu_context=%%p\\\\n\", cpu_context);\\n"
+      "  numCallouts++;\\n"
+      "  seenUserData = user_data;\\n"
+      "}\\n"
+      "', {"
+      "  numCallouts: " GUM_PTR_CONST ","
+      "  seenUserData: " GUM_PTR_CONST
+      "});"
+      "var instructionsSeen = 0;"
+      "Stalker.follow(%" G_GSIZE_FORMAT ", {"
+      "  transform: function (iterator) {"
+      "    var instruction;"
+
+      "    while ((instruction = iterator.next()) !== null) {"
+      "      if (instructionsSeen === 0) {"
+      "        iterator.putCallout(m.onBeforeFirstInstruction, ptr(7));"
+      "      }"
+
+      "      iterator.keep();"
+
+      "      instructionsSeen++;"
+      "    }"
+      "  }"
+      "});"
+      "recv('stop', function (message) {"
+      "  Stalker.unfollow(%" G_GSIZE_FORMAT ");"
+      "  send(instructionsSeen > 0);"
+      "});",
+      &num_callouts,
+      &seen_user_data,
+      test_thread_id,
+      test_thread_id);
+  g_usleep (1);
+  EXPECT_NO_MESSAGES ();
+  POST_MESSAGE ("{\"type\":\"stop\"}");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+  g_assert_true (num_callouts > 0);
+  g_assert_cmphex (seen_user_data, ==, 7);
+}
+
+TESTCASE (cmodule_can_be_used_with_stalker_call_probe)
+{
+  GumThreadId test_thread_id;
+
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
+  test_thread_id = gum_process_get_current_thread_id ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var m = new CModule('"
+      "#include <stdio.h>\\n"
+      "#include <gum/gumstalker.h>\\n"
+      "\\n"
+      "extern void send (gpointer v);\\n"
+      ""
+      "void\\n"
+      "onCall (GumCallSite * site,"
+      "        gpointer user_data)\\n"
+      "{\\n"
+      "  printf (\"block_address=%%p\\\\n\", site->block_address);\\n"
+      "  send (user_data);\\n"
+      "}\\n"
+      "', {"
+      "  send: new NativeCallback(function (v) { send(v.toUInt32()); }, "
+          "'void', ['pointer'])"
+      "});"
+      "Stalker.addCallProbe(" GUM_PTR_CONST ", m.onCall, ptr(12));"
+      "Stalker.follow(%" G_GSIZE_FORMAT ");"
+      "recv('stop', function (message) {"
+      "  Stalker.unfollow(%" G_GSIZE_FORMAT ");"
+      "});"
+      "send('ready');",
+      target_function_int,
+      test_thread_id,
+      test_thread_id);
+  EXPECT_SEND_MESSAGE_WITH ("\"ready\"");
+  target_function_int (1337);
+  EXPECT_SEND_MESSAGE_WITH ("12");
+  POST_MESSAGE ("{\"type\":\"stop\"}");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (cmodule_should_provide_some_builtin_string_functions)
+{
+  guint8 buf[2] = { 0, 0 };
+  int (* score_impl) (const char * str);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var m = new CModule('"
+      "#include <glib.h>\\n"
+      "#include <string.h>\\n"
+      "\\n"
+      "extern guint8 buf[2];"
+      ""
+      "int\\n"
+      "score (const char * str)\\n"
+      "{\\n"
+      "  if (strlen (str) == 1)\\n"
+      "    return 1;\\n"
+      "  if (strcmp (str, \"1234\") == 0)\\n"
+      "    return 2;\\n"
+      "  if (strstr (str, \"badger\") == str + 4)\\n"
+      "    return 3;\\n"
+      "  if (strchr (str, \\'!\\') == str + 3)\\n"
+      "    return 4;\\n"
+      "  if (strrchr (str, \\'/\\') == str + 8)\\n"
+      "    return 5;\\n"
+      "  if (strlen (str) == 2)\\n"
+      "  {\\n"
+      "    memcpy (buf, str, 2);\\n"
+      "    return 6;\\n"
+      "  }\\n"
+      "  if (strlen (str) == 3)\\n"
+      "  {\\n"
+      "    memmove (buf, str + 1, 2);\\n"
+      "    return 7;\\n"
+      "  }\\n"
+      "  if (strlen (str) == 4)\\n"
+      "  {\\n"
+      "    memset (buf, 88, 2);\\n"
+      "    return 8;\\n"
+      "  }\\n"
+      "  if (strncmp (str, \"w00t\", 4) == 0)\\n"
+      "    return 9;\\n"
+      "  return -1;\\n"
+      "}"
+      "', { buf: " GUM_PTR_CONST " });"
+      "send(m.score);",
+      buf);
+
+  score_impl = EXPECT_SEND_MESSAGE_WITH_POINTER ();
+  g_assert_nonnull (score_impl);
+
+  g_assert_cmpint (score_impl ("x"), ==, 1);
+  g_assert_cmpint (score_impl ("1234"), ==, 2);
+  g_assert_cmpint (score_impl ("Goodbadger"), ==, 3);
+  g_assert_cmpint (score_impl ("Yay!"), ==, 4);
+  g_assert_cmpint (score_impl ("/path/to/file"), ==, 5);
+
+  g_assert_cmphex (buf[0], ==, 0);
+  g_assert_cmphex (buf[1], ==, 0);
+  g_assert_cmpint (score_impl ("xy"), ==, 6);
+  g_assert_cmphex (buf[0], ==, 'x');
+  g_assert_cmphex (buf[1], ==, 'y');
+
+  memset (buf, 0, sizeof (buf));
+  g_assert_cmpint (score_impl ("xyz"), ==, 7);
+  g_assert_cmphex (buf[0], ==, 'y');
+  g_assert_cmphex (buf[1], ==, 'z');
+
+  memset (buf, 0, sizeof (buf));
+  g_assert_cmpint (score_impl ("xyzx"), ==, 8);
+  g_assert_cmphex (buf[0], ==, 'X');
+  g_assert_cmphex (buf[1], ==, 'X');
+
+  g_assert_cmpint (score_impl ("w00tage"), ==, 9);
+}
+
+TESTCASE (cmodule_should_support_varargs)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var m = new CModule('"
+      "#include <glib.h>\\n"
+      "\\n"
+      "extern void deliver (const gchar * message);\\n"
+      "\\n"
+      "static void log (const gchar * format, ...);\\n"
+      "\\n"
+      "void\\n"
+      "sayHello (const gchar * name,\\n"
+      "          guint n)\\n"
+      "{\\n"
+      "  log (\"Hello %%s, n=%%u\", name, n);\\n"
+      "}\\n"
+      "\\n"
+      "static void\\n"
+      "log (const gchar * format,\\n"
+      "     ...)\\n"
+      "{\\n"
+      "  gchar * message;\\n"
+      "  va_list args;\\n"
+      "\\n"
+      "  va_start (args, format);\\n"
+      "  message = g_strdup_vprintf (format, args);\\n"
+      "  va_end (args);\\n"
+      "\\n"
+      "  deliver (message);\\n"
+      "\\n"
+      "  g_free (message);\\n"
+      "}\\n"
+      "', {"
+      "  deliver: new NativeCallback(function (m) {"
+      "    send(m.readUtf8String());"
+      "  }, 'void', ['pointer'])"
+      "});"
+      "\n"
+      "var sayHello = new NativeFunction(m.sayHello, 'void',\n"
+      "    ['pointer', 'uint']);\n"
+      "sayHello(Memory.allocUtf8String('World'), 42);\n");
+
+  EXPECT_SEND_MESSAGE_WITH ("\"Hello World, n=42\"");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (cmodule_should_provide_access_to_cpu_registers)
+{
+  int seen_value = -1;
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+# define GUM_IC_GET_FIRST_ARG(ic) *((int *) ((ic)->cpu_context->esp + 4))
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+# ifdef G_OS_WIN32
+# define GUM_IC_GET_FIRST_ARG(ic) (ic)->cpu_context->rcx
+# else
+# define GUM_IC_GET_FIRST_ARG(ic) (ic)->cpu_context->rdi
+# endif
+#elif defined (HAVE_ARM)
+# define GUM_IC_GET_FIRST_ARG(ic) (ic)->cpu_context->r[0]
+#elif defined (HAVE_ARM64)
+# define GUM_IC_GET_FIRST_ARG(ic) (ic)->cpu_context->x[0]
+#elif defined (HAVE_MIPS)
+# define GUM_IC_GET_FIRST_ARG(ic) (ic)->cpu_context->a0
+#endif
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(" GUM_PTR_CONST ", new CModule('"
+      "#include <gum/guminterceptor.h>\\n"
+      "\\n"
+      "  extern int seenValue;\\n"
+      ""
+      "  void\\n"
+      "  onEnter (GumInvocationContext * ic)\\n"
+      "  {\\n"
+      "    seenValue = " G_STRINGIFY (GUM_IC_GET_FIRST_ARG (ic)) ";\\n"
+      "  }\\n"
+      "\\n"
+      "', { seenValue: " GUM_PTR_CONST "}));",
+      target_function_int,
+      &seen_value);
+
+  EXPECT_NO_MESSAGES ();
+
+  target_function_int (42);
+  g_assert_cmpint (seen_value, ==, 42);
 }
 
 TESTCASE (script_can_be_compiled_to_bytecode)

@@ -7,6 +7,7 @@
 #include "gumdukscript.h"
 
 #include "gumdukapiresolver.h"
+#include "gumdukcmodule.h"
 #include "gumdukcoderelocator.h"
 #include "gumdukcodewriter.h"
 #include "gumdukcore.h"
@@ -85,6 +86,7 @@ struct _GumDukScript
   GumDukInterceptor interceptor;
   GumDukApiResolver api_resolver;
   GumDukSymbol symbol;
+  GumDukCModule cmodule;
   GumDukInstruction instruction;
   GumDukCodeWriter code_writer;
   GumDukCodeRelocator code_relocator;
@@ -469,6 +471,7 @@ gum_duk_script_create_context (GumDukScript * self,
   _gum_duk_interceptor_init (&self->interceptor, core);
   _gum_duk_api_resolver_init (&self->api_resolver, core);
   _gum_duk_symbol_init (&self->symbol, core);
+  _gum_duk_cmodule_init (&self->cmodule, core);
   _gum_duk_instruction_init (&self->instruction, core);
   _gum_duk_code_writer_init (&self->code_writer, core);
   _gum_duk_code_relocator_init (&self->code_relocator, &self->code_writer,
@@ -497,6 +500,7 @@ gum_duk_script_destroy_context (GumDukScript * self)
     _gum_duk_code_relocator_dispose (&self->code_relocator);
     _gum_duk_code_writer_dispose (&self->code_writer);
     _gum_duk_instruction_dispose (&self->instruction);
+    _gum_duk_cmodule_dispose (&self->cmodule);
     _gum_duk_symbol_dispose (&self->symbol);
     _gum_duk_api_resolver_dispose (&self->api_resolver);
     _gum_duk_interceptor_dispose (&self->interceptor);
@@ -533,6 +537,7 @@ gum_duk_script_destroy_context (GumDukScript * self)
   _gum_duk_code_relocator_finalize (&self->code_relocator);
   _gum_duk_code_writer_finalize (&self->code_writer);
   _gum_duk_instruction_finalize (&self->instruction);
+  _gum_duk_cmodule_finalize (&self->cmodule);
   _gum_duk_symbol_finalize (&self->symbol);
   _gum_duk_api_resolver_finalize (&self->api_resolver);
   _gum_duk_interceptor_finalize (&self->interceptor);

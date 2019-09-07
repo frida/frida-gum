@@ -11,6 +11,12 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\ext\tinycc\tinycc-64.vcxproj">
+      <Project>{9cdf2d78-15b7-4bae-b533-5f830fbd73e7}</Project>
+      <Private>false</Private>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <LinkLibraryDependencies>true</LinkLibraryDependencies>
+    </ProjectReference>
     <ProjectReference Include="..\..\gum-64.vcxproj">
       <Project>{dc30a450-95bc-4476-a2f9-45100562424e}</Project>
       <Private>false</Private>
