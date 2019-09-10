@@ -2270,22 +2270,27 @@ TESTCASE (execution_can_be_traced)
   test_thread_id = gum_process_get_current_thread_id ();
 
   COMPILE_AND_LOAD_SCRIPT (
-    "Stalker.follow(%" G_GSIZE_FORMAT ", {"
-    "  events: {"
-    "    call: true,"
-    "    ret: false,"
-    "    exec: false"
-    "  },"
-    "  onReceive: function (events) {"
-    "    send('onReceive: ' + (events.byteLength > 0));"
-    "  },"
-    "  onCallSummary: function (summary) {"
-    "    send('onCallSummary: ' + (Object.keys(summary).length > 0));"
-    "  }"
-    "});"
-    "recv('stop', function (message) {"
-    "  Stalker.unfollow(%" G_GSIZE_FORMAT ");"
-    "});", test_thread_id, test_thread_id);
+      "var libcRange = Process.getModuleByName('%s');"
+      "Stalker.exclude(libcRange);"
+      "Stalker.follow(%" G_GSIZE_FORMAT ", {"
+      "  events: {"
+      "    call: true,"
+      "    ret: false,"
+      "    exec: false"
+      "  },"
+      "  onReceive: function (events) {"
+      "    send('onReceive: ' + (events.byteLength > 0));"
+      "  },"
+      "  onCallSummary: function (summary) {"
+      "    send('onCallSummary: ' + (Object.keys(summary).length > 0));"
+      "  }"
+      "});"
+      "recv('stop', function (message) {"
+      "  Stalker.unfollow(%" G_GSIZE_FORMAT ");"
+      "});",
+      SYSTEM_MODULE_NAME,
+      test_thread_id,
+      test_thread_id);
   g_usleep (1);
   EXPECT_NO_MESSAGES ();
   POST_MESSAGE ("{\"type\":\"stop\"}");
@@ -2306,28 +2311,31 @@ TESTCASE (execution_can_be_traced_with_custom_transformer)
   test_thread_id = gum_process_get_current_thread_id ();
 
   COMPILE_AND_LOAD_SCRIPT (
-    "var instructionsSeen = 0;"
-    "Stalker.follow(%" G_GSIZE_FORMAT ", {"
-    "  transform: function (iterator) {"
-    "    var instruction;"
+      "var instructionsSeen = 0;"
+      "Stalker.follow(%" G_GSIZE_FORMAT ", {"
+      "  transform: function (iterator) {"
+      "    var instruction;"
 
-    "    while ((instruction = iterator.next()) !== null) {"
-    "      if (instructionsSeen === 0) {"
-    "        iterator.putCallout(onBeforeFirstInstruction);"
-    "      }"
+      "    while ((instruction = iterator.next()) !== null) {"
+      "      if (instructionsSeen === 0) {"
+      "        iterator.putCallout(onBeforeFirstInstruction);"
+      "      }"
 
-    "      iterator.keep();"
+      "      iterator.keep();"
 
-    "      instructionsSeen++;"
-    "    }"
-    "  }"
-    "});"
-    "function onBeforeFirstInstruction (context) {"
-    "}"
-    "recv('stop', function (message) {"
-    "  Stalker.unfollow(%" G_GSIZE_FORMAT ");"
-    "  send(instructionsSeen > 0);"
-    "});", test_thread_id, test_thread_id);
+      "      instructionsSeen++;"
+      "    }"
+      "  }"
+      "});"
+      "function onBeforeFirstInstruction (context) {"
+      "  console.log(JSON.stringify(context, null, 2));"
+      "}"
+      "recv('stop', function (message) {"
+      "  Stalker.unfollow(%" G_GSIZE_FORMAT ");"
+      "  send(instructionsSeen > 0);"
+      "});",
+      test_thread_id,
+      test_thread_id);
   g_usleep (1);
   EXPECT_NO_MESSAGES ();
   POST_MESSAGE ("{\"type\":\"stop\"}");
@@ -2348,14 +2356,17 @@ TESTCASE (call_can_be_probed)
   test_thread_id = gum_process_get_current_thread_id ();
 
   COMPILE_AND_LOAD_SCRIPT (
-    "Stalker.addCallProbe(" GUM_PTR_CONST ", function (args) {"
-    "  send(args[0].toInt32());"
-    "});"
-    "Stalker.follow(%" G_GSIZE_FORMAT ");"
-    "recv('stop', function (message) {"
-    "  Stalker.unfollow(%" G_GSIZE_FORMAT ");"
-    "});"
-    "send('ready');", target_function_int, test_thread_id, test_thread_id);
+      "Stalker.addCallProbe(" GUM_PTR_CONST ", function (args) {"
+      "  send(args[0].toInt32());"
+      "});"
+      "Stalker.follow(%" G_GSIZE_FORMAT ");"
+      "recv('stop', function (message) {"
+      "  Stalker.unfollow(%" G_GSIZE_FORMAT ");"
+      "});"
+      "send('ready');",
+      target_function_int,
+      test_thread_id,
+      test_thread_id);
   EXPECT_SEND_MESSAGE_WITH ("\"ready\"");
   target_function_int (1337);
   EXPECT_SEND_MESSAGE_WITH ("1337");

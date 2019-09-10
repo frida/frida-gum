@@ -411,6 +411,12 @@ const stalkerEventType = {
 };
 
 Object.defineProperties(Stalker, {
+  exclude: {
+    enumerable: true,
+    value: function (range) {
+      Stalker._exclude(range.base, range.size);
+    }
+  },
   follow: {
     enumerable: true,
     value: function (first, second) {
