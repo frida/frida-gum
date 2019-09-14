@@ -4,6 +4,7 @@
 #include <glib.h>
 
 typedef guint64 GumAddress;
+typedef guint GumOS;
 typedef guint GumCallingConvention;
 typedef guint GumAbiType;
 typedef guint GumCpuType;
