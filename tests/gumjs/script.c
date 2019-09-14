@@ -5416,7 +5416,7 @@ TESTCASE (cmodule_should_report_linking_errors)
   COMPILE_AND_LOAD_SCRIPT ("new CModule('"
       "extern int v; int f (void) { return v; }');");
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
-      "Error: Compilation failed: tcc: error: undefined symbol 'v'");
+      "Error: Linking failed: tcc: error: undefined symbol 'v'");
 }
 
 TESTCASE (cmodule_should_provide_lifecycle_hooks)

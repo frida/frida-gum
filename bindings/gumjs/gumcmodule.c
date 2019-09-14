@@ -37,7 +37,7 @@ struct _GumEnumerateSymbolsContext
   gpointer user_data;
 };
 
-static void gum_propagate_tcc_error (void * opaque, const char * msg);
+static void gum_append_tcc_error (void * opaque, const char * msg);
 static int gum_emit_symbol (void * opaque, const TCCSymbolDetails * details);
 static const char * gum_cmodule_load_header (void * opaque, const char * path,
     int * len);
@@ -56,6 +56,7 @@ gum_cmodule_new (const gchar * source,
 {
   GumCModule * cmodule;
   TCCState * state;
+  GString * error_messages;
   gchar * combined_source;
   gint res;
 
@@ -64,7 +65,8 @@ gum_cmodule_new (const gchar * source,
   state = tcc_new ();
   cmodule->state = state;
 
-  tcc_set_error_func (state, error, gum_propagate_tcc_error);
+  error_messages = NULL;
+  tcc_set_error_func (state, &error_messages, gum_append_tcc_error);
 
   tcc_set_cpp_load_func (state, cmodule, gum_cmodule_load_header);
   tcc_set_linker_resolve_func (state, cmodule, gum_cmodule_resolve_symbol);
@@ -98,7 +100,7 @@ gum_cmodule_new (const gchar * source,
 
   tcc_set_error_func (state, NULL, NULL);
 
-  if (res == -1)
+  if (error_messages != NULL)
     goto failure;
 
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8 && !defined (_MSC_VER)
@@ -110,7 +112,12 @@ gum_cmodule_new (const gchar * source,
 
 failure:
   {
+    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+        "Compilation failed: %s", error_messages->str);
+    g_string_free (error_messages, TRUE);
+
     gum_cmodule_free (cmodule);
+
     return NULL;
   }
 }
@@ -156,6 +163,7 @@ gum_cmodule_link (GumCModule * self,
                   GError ** error)
 {
   TCCState * state = self->state;
+  GString * error_messages;
   gint res;
   guint size;
   gpointer base;
@@ -163,7 +171,8 @@ gum_cmodule_link (GumCModule * self,
   g_assert (state != NULL);
   g_assert (self->range.base_address == 0);
 
-  tcc_set_error_func (state, error, gum_propagate_tcc_error);
+  error_messages = NULL;
+  tcc_set_error_func (state, &error_messages, gum_append_tcc_error);
 
   res = tcc_relocate (state, NULL);
   if (res == -1)
@@ -201,19 +210,30 @@ gum_cmodule_link (GumCModule * self,
 beach:
   tcc_set_error_func (state, NULL, NULL);
 
+  if (error_messages != NULL)
+  {
+    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+        "Linking failed: %s", error_messages->str);
+    g_string_free (error_messages, TRUE);
+  }
+
   return res == 0;
 }
 
 static void
-gum_propagate_tcc_error (void * opaque,
-                         const char * msg)
+gum_append_tcc_error (void * opaque,
+                      const char * msg)
 {
-  GError ** error = opaque;
+  GString ** messages = opaque;
 
-  if (error != NULL && *error == NULL)
+  if (*messages == NULL)
   {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
-        "Compilation failed: %s", msg);
+    *messages = g_string_new (msg);
+  }
+  else
+  {
+    g_string_append_c (*messages, '\n');
+    g_string_append (*messages, msg);
   }
 }
 
