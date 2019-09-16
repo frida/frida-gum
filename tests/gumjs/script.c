@@ -264,6 +264,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (cmodule_can_be_used_with_stalker_callout)
     TESTENTRY (cmodule_can_be_used_with_stalker_call_probe)
     TESTENTRY (cmodule_should_provide_some_builtin_string_functions)
+    TESTENTRY (cmodule_should_support_floating_point)
     TESTENTRY (cmodule_should_support_varargs)
     TESTENTRY (cmodule_should_provide_access_to_cpu_registers)
   TESTGROUP_END ()
@@ -5853,6 +5854,25 @@ TESTCASE (cmodule_should_provide_some_builtin_string_functions)
   g_assert_cmphex (buf[1], ==, 'X');
 
   g_assert_cmpint (score_impl ("w00tage"), ==, 9);
+}
+
+TESTCASE (cmodule_should_support_floating_point)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var m = new CModule([\n"
+      "  '#include <glib.h>',\n"
+      "  '',\n"
+      "  'gdouble',\n"
+      "  'measure (void)',\n"
+      "  '{',\n"
+      "  '  return 42.0;',\n"
+      "  '}',\n"
+      "].join('\\n'));\n"
+      "\n"
+      "var measure = new NativeFunction(m.measure, 'double', []);\n"
+      "send(measure().toFixed(0));\n");
+  EXPECT_SEND_MESSAGE_WITH ("\"42\"");
+  EXPECT_NO_MESSAGES ();
 }
 
 TESTCASE (cmodule_should_support_varargs)
