@@ -5,6 +5,7 @@ typedef struct _JsonBuilder JsonBuilder;
 typedef struct _JsonNode JsonNode;
 
 JsonBuilder * json_builder_new_immutable (void);
+
 JsonNode * json_builder_get_root (JsonBuilder * builder);
 void json_builder_reset (JsonBuilder * builder);
 
@@ -23,6 +24,9 @@ JsonBuilder * json_builder_add_boolean_value (JsonBuilder * builder,
 JsonBuilder * json_builder_add_string_value (JsonBuilder * builder,
     const gchar * value);
 JsonBuilder * json_builder_add_null_value (JsonBuilder * builder);
+
+JsonNode * json_node_ref (JsonNode * node);
+void json_node_unref (JsonNode * node);
 
 char * json_to_string (JsonNode * node, gboolean pretty);
 

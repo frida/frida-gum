@@ -303,4 +303,7 @@ void g_usleep (gulong microseconds);
 gint64 g_get_monotonic_time (void);
 gint64 g_get_real_time (void);
 
+gpointer g_object_ref (gpointer object);
+void g_object_unref (gpointer object);
+
 #endif
