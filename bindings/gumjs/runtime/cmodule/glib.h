@@ -4,17 +4,46 @@
 #include <stdarg.h>
 #include <stddef.h>
 
+#undef MAX
+#define MAX(a, b) (((a) > (b)) ? (a) : (b))
+
+#undef MIN
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
+
+#undef ABS
+#define ABS(a) (((a) < 0) ? -(a) : (a))
+
+#undef CLAMP
+#define CLAMP(x, low, high) \
+    (((x) > (high)) ? (high) : (((x) < (low)) ? (low) : (x)))
+
+#define G_APPROX_VALUE(a, b, epsilon) \
+    (((a) > (b) ? (a) - (b) : (b) - (a)) < (epsilon))
+
+#define G_N_ELEMENTS(arr) (sizeof (arr) / sizeof ((arr)[0]))
+
+#define G_STRUCT_OFFSET(struct_type, member) \
+    ((glong) offsetof (struct_type, member))
+
 #define G_BEGIN_DECLS
 #define G_END_DECLS
 
+typedef char gchar;
+typedef short gshort;
+typedef long glong;
+typedef int gint;
+typedef gint gboolean;
+
+typedef unsigned char guchar;
+typedef unsigned short gushort;
+typedef unsigned long gulong;
+typedef unsigned int guint;
+
+typedef float gfloat;
+typedef double gdouble;
+
 typedef void * gpointer;
 typedef const void * gconstpointer;
-
-typedef ssize_t gssize;
-typedef size_t gsize;
-
-typedef int gint;
-typedef unsigned int guint;
 
 typedef int8_t gint8;
 typedef uint8_t guint8;
@@ -28,13 +57,37 @@ typedef uint32_t guint32;
 typedef int64_t gint64;
 typedef uint64_t guint64;
 
-typedef char gchar;
-typedef unsigned char guchar;
+typedef ssize_t gssize;
+typedef size_t gsize;
+
+#define GPOINTER_TO_SIZE(p) ((gsize) (p))
+#define GSIZE_TO_POINTER(s) ((gpointer) (gsize) (s))
+
+#if defined (__ILP32__)
+# define GPOINTER_TO_INT(p) ((gint) (p))
+# define GPOINTER_TO_UINT(p) ((guint) (p))
+# define GINT_TO_POINTER(i) ((gpointer) (gint) (i))
+# define GUINT_TO_POINTER(u) ((gpointer) (guint) (u))
+typedef signed int gintptr;
+typedef unsigned int guintptr;
+#elif defined (__LLP64__)
+# define GPOINTER_TO_INT(p) ((gint) (gint64) (p))
+# define GPOINTER_TO_UINT(p) ((guint) (guint64) (p))
+# define GINT_TO_POINTER(i) ((gpointer) (gint64) (i))
+# define GUINT_TO_POINTER(u) ((gpointer) (guint64) (u))
+typedef signed long long gintptr;
+typedef unsigned long long guintptr;
+#elif defined (__LP64__)
+# define GPOINTER_TO_INT(p) ((gint) (glong) (p))
+# define GPOINTER_TO_UINT(p) ((guint) (gulong) (p))
+# define GINT_TO_POINTER(i) ((gpointer) (glong) (i))
+# define GUINT_TO_POINTER(u) ((gpointer) (gulong) (u))
+typedef signed long gintptr;
+typedef unsigned long guintptr;
+#endif
 
 typedef guint32 gunichar;
 typedef guint16 gunichar2;
-
-typedef gint gboolean;
 
 typedef void (* GCallback) (void);
 typedef void (* GDestroyNotify) (gpointer data);
@@ -233,5 +286,21 @@ guint g_double_hash (gconstpointer v);
 
 guint g_direct_hash (gconstpointer v);
 gboolean g_direct_equal (gconstpointer v1, gconstpointer v2);
+
+typedef struct _GTimer GTimer;
+
+#define G_USEC_PER_SEC 1000000
+
+GTimer * g_timer_new (void);
+void g_timer_destroy (GTimer * timer);
+void g_timer_start (GTimer * timer);
+void g_timer_stop (GTimer * timer);
+void g_timer_continue (GTimer * timer);
+gdouble g_timer_elapsed (GTimer * timer, gulong * microseconds);
+
+void g_usleep (gulong microseconds);
+
+gint64 g_get_monotonic_time (void);
+gint64 g_get_real_time (void);
 
 #endif

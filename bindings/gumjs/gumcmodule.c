@@ -7,8 +7,9 @@
 #include "gumcmodule.h"
 
 #include <gio/gio.h>
-#include <gum/gum.h>
 #include <gum/gum-init.h>
+#include <gum/gum.h>
+#include <json-glib/json-glib.h>
 #include <libtcc.h>
 
 typedef struct _GumEnumerateSymbolsContext GumEnumerateSymbolsContext;
@@ -78,8 +79,7 @@ gum_cmodule_new (const gchar * source,
       "-isystem /frida "
       "-isystem /frida/capstone"
   );
-  tcc_define_symbol (state, "TRUE", "1");
-  tcc_define_symbol (state, "FALSE", "0");
+
 #if defined (HAVE_I386)
   tcc_define_symbol (state, "HAVE_I386", NULL);
 #elif defined (HAVE_ARM)
@@ -89,16 +89,23 @@ gum_cmodule_new (const gchar * source,
 #elif defined (HAVE_MIPS)
   tcc_define_symbol (state, "HAVE_MIPS", NULL);
 #endif
-  tcc_define_symbol (state, "GLIB_SIZEOF_VOID_P",
-      G_STRINGIFY (GLIB_SIZEOF_VOID_P));
+
+  tcc_define_symbol (state, "TRUE", "1");
+  tcc_define_symbol (state, "FALSE", "0");
+
   gum_define_symbol_str (state, "G_GINT16_MODIFIER", G_GINT16_MODIFIER);
   gum_define_symbol_str (state, "G_GINT32_MODIFIER", G_GINT32_MODIFIER);
   gum_define_symbol_str (state, "G_GINT64_MODIFIER", G_GINT64_MODIFIER);
   gum_define_symbol_str (state, "G_GSIZE_MODIFIER", G_GSIZE_MODIFIER);
   gum_define_symbol_str (state, "G_GSSIZE_MODIFIER", G_GSSIZE_MODIFIER);
+
+  tcc_define_symbol (state, "GLIB_SIZEOF_VOID_P",
+      G_STRINGIFY (GLIB_SIZEOF_VOID_P));
+
 #ifdef G_OS_WIN32
   tcc_define_symbol (state, "extern", "__attribute__ ((dllimport))");
 #endif
+
   tcc_set_output_type (state, TCC_OUTPUT_MEMORY);
 
   combined_source = g_strconcat ("#line 1 \"module.c\"\n", source, NULL);
