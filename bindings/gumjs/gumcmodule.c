@@ -42,6 +42,8 @@ static int gum_emit_symbol (void * opaque, const TCCSymbolDetails * details);
 static const char * gum_cmodule_load_header (void * opaque, const char * path,
     int * len);
 static void * gum_cmodule_resolve_symbol (void * opaque, const char * name);
+static void gum_define_symbol_str (TCCState * state, const gchar * name,
+    const gchar * value);
 
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8 && !defined (_MSC_VER)
 extern void __va_start (void * ap, void * fp);
@@ -76,6 +78,8 @@ gum_cmodule_new (const gchar * source,
       "-isystem /frida "
       "-isystem /frida/capstone"
   );
+  tcc_define_symbol (state, "TRUE", "1");
+  tcc_define_symbol (state, "FALSE", "0");
 #if defined (HAVE_I386)
   tcc_define_symbol (state, "HAVE_I386", NULL);
 #elif defined (HAVE_ARM)
@@ -87,6 +91,11 @@ gum_cmodule_new (const gchar * source,
 #endif
   tcc_define_symbol (state, "GLIB_SIZEOF_VOID_P",
       G_STRINGIFY (GLIB_SIZEOF_VOID_P));
+  gum_define_symbol_str (state, "G_GINT16_MODIFIER", G_GINT16_MODIFIER);
+  gum_define_symbol_str (state, "G_GINT32_MODIFIER", G_GINT32_MODIFIER);
+  gum_define_symbol_str (state, "G_GINT64_MODIFIER", G_GINT64_MODIFIER);
+  gum_define_symbol_str (state, "G_GSIZE_MODIFIER", G_GSIZE_MODIFIER);
+  gum_define_symbol_str (state, "G_GSSIZE_MODIFIER", G_GSSIZE_MODIFIER);
 #ifdef G_OS_WIN32
   tcc_define_symbol (state, "extern", "__attribute__ ((dllimport))");
 #endif
@@ -317,4 +326,18 @@ gum_cmodule_resolve_symbol (void * opaque,
                             const char * name)
 {
   return g_hash_table_lookup (gum_cmodule_get_symbols (), name);
+}
+
+static void
+gum_define_symbol_str (TCCState * state,
+                       const gchar * name,
+                       const gchar * value)
+{
+  gchar * raw_value;
+
+  raw_value = g_strconcat ("\"", value, "\"", NULL);
+
+  tcc_define_symbol (state, name, raw_value);
+
+  g_free (raw_value);
 }
