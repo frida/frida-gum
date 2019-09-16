@@ -61,7 +61,6 @@ gum_cmodule_new (const gchar * source,
   TCCState * state;
   GString * error_messages;
   gchar * combined_source;
-  gint res;
 
   cmodule = g_slice_new0 (GumCModule);
 
@@ -110,7 +109,7 @@ gum_cmodule_new (const gchar * source,
 
   combined_source = g_strconcat ("#line 1 \"module.c\"\n", source, NULL);
 
-  res = tcc_compile_string (state, combined_source);
+  tcc_compile_string (state, combined_source);
 
   g_free (combined_source);
 
