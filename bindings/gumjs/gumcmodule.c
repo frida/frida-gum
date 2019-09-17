@@ -161,6 +161,12 @@ gum_cmodule_free (GumCModule * cmodule)
   g_slice_free (GumCModule, cmodule);
 }
 
+const GumMemoryRange *
+gum_cmodule_get_range (GumCModule * self)
+{
+  return &self->range;
+}
+
 void
 gum_cmodule_add_symbol (GumCModule * self,
                         const gchar * name,

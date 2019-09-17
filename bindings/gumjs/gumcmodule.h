@@ -7,7 +7,7 @@
 #ifndef __GUM_CMODULE_H__
 #define __GUM_CMODULE_H__
 
-#include <gum/gumdefs.h>
+#include <gum/gummemory.h>
 
 G_BEGIN_DECLS
 
@@ -25,6 +25,8 @@ typedef gboolean (* GumFoundCSymbolFunc) (const GumCSymbolDetails * details,
 
 GUM_API GumCModule * gum_cmodule_new (const gchar * source, GError ** error);
 GUM_API void gum_cmodule_free (GumCModule * cmodule);
+
+GUM_API const GumMemoryRange * gum_cmodule_get_range (GumCModule * self);
 
 GUM_API void gum_cmodule_add_symbol (GumCModule * self, const gchar * name,
     gconstpointer value);

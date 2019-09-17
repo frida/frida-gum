@@ -191,6 +191,7 @@ gum_cmodule_entry_new (Handle<Object> wrapper,
                        GumV8CModule * module)
 {
   auto isolate = module->core->isolate;
+  const GumMemoryRange * range;
 
   auto entry = g_slice_new (GumCModuleEntry);
   entry->wrapper = new GumPersistent<Object>::type (isolate, wrapper);
@@ -200,6 +201,9 @@ gum_cmodule_entry_new (Handle<Object> wrapper,
   entry->handle = handle;
   entry->module = module;
 
+  range = gum_cmodule_get_range (handle);
+  module->core->isolate->AdjustAmountOfExternalAllocatedMemory (range->size);
+
   g_hash_table_add (module->cmodules, entry);
 
   return entry;
@@ -208,6 +212,12 @@ gum_cmodule_entry_new (Handle<Object> wrapper,
 static void
 gum_cmodule_entry_free (GumCModuleEntry * self)
 {
+  const GumMemoryRange * range;
+
+  range = gum_cmodule_get_range (self->handle);
+  self->module->core->isolate->AdjustAmountOfExternalAllocatedMemory (
+      -((gssize) range->size));
+
   gum_cmodule_free (self->handle);
 
   delete self->symbols;
