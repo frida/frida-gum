@@ -180,7 +180,7 @@ gum_cmodule_link (GumCModule * self,
   TCCState * state = self->state;
   GString * error_messages;
   gint res;
-  guint size;
+  guint size, page_size;
   gpointer base;
 
   g_assert (state != NULL);
@@ -194,7 +194,9 @@ gum_cmodule_link (GumCModule * self,
     goto beach;
   size = res;
 
-  base = gum_memory_allocate (NULL, size, gum_query_page_size (), GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+
+  base = gum_memory_allocate (NULL, size, page_size, GUM_PAGE_RW);
 
   res = tcc_relocate (state, base);
   if (res == 0)
@@ -203,7 +205,7 @@ gum_cmodule_link (GumCModule * self,
     GumCModuleInitFunc init;
 
     r->base_address = GUM_ADDRESS (base);
-    r->size = size;
+    r->size = GUM_ALIGN_SIZE (size, page_size);
 
     gum_memory_mark_code (base, size);
 
