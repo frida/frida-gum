@@ -13,6 +13,14 @@ GUMJS_DECLARE_CONSTRUCTOR (gumjs_cmodule_construct)
 static gboolean gum_put_csymbol (const GumCSymbolDetails * details,
     GumDukScope * scope);
 GUMJS_DECLARE_FINALIZER (gumjs_cmodule_finalize)
+GUMJS_DECLARE_FUNCTION (gumjs_cmodule_dispose)
+
+static const duk_function_list_entry gumjs_cmodule_functions[] =
+{
+  { "dispose", gumjs_cmodule_dispose, 0 },
+
+  { NULL, NULL, 0 }
+};
 
 void
 _gum_duk_cmodule_init (GumDukCModule * self,
@@ -30,6 +38,7 @@ _gum_duk_cmodule_init (GumDukCModule * self,
 
   duk_push_c_function (ctx, gumjs_cmodule_construct, 2);
   duk_push_object (ctx);
+  duk_put_function_list (ctx, -1, gumjs_cmodule_functions);
   duk_push_c_function (ctx, gumjs_cmodule_finalize, 1);
   duk_set_finalizer (ctx, -2);
   duk_put_prop_string (ctx, -2, "prototype");
@@ -141,6 +150,15 @@ GUMJS_DEFINE_FINALIZER (gumjs_cmodule_finalize)
 {
   g_hash_table_remove (gumjs_module_from_args (args)->cmodules,
       duk_require_heapptr (ctx, 0));
+
+  return 0;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_cmodule_dispose)
+{
+  duk_push_this (ctx);
+  g_hash_table_remove (gumjs_module_from_args (args)->cmodules,
+      duk_require_heapptr (ctx, -1));
 
   return 0;
 }

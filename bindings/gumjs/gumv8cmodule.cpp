@@ -30,12 +30,20 @@ struct GumAddCSymbolsContext
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_cmodule_construct)
 static gboolean gum_add_csymbol (const GumCSymbolDetails * details,
     GumAddCSymbolsContext * ctx);
+GUMJS_DECLARE_FUNCTION (gumjs_cmodule_dispose)
 
 static GumCModuleEntry * gum_cmodule_entry_new (Handle<Object> wrapper,
     Handle<Object> symbols, GumCModule * handle, GumV8CModule * module);
 static void gum_cmodule_entry_free (GumCModuleEntry * self);
 static void gum_cmodule_entry_on_weak_notify (
     const WeakCallbackInfo<GumCModuleEntry> & info);
+
+static const GumV8Function gumjs_cmodule_functions[] =
+{
+  { "dispose", gumjs_cmodule_dispose },
+
+  { NULL, NULL }
+};
 
 void
 _gum_v8_cmodule_init (GumV8CModule * self,
@@ -48,8 +56,9 @@ _gum_v8_cmodule_init (GumV8CModule * self,
 
   auto module = External::New (isolate, self);
 
-  _gum_v8_create_class ("CModule", gumjs_cmodule_construct, scope, module,
-      isolate);
+  auto cmodule = _gum_v8_create_class ("CModule", gumjs_cmodule_construct,
+      scope, module, isolate);
+  _gum_v8_class_add (cmodule, gumjs_cmodule_functions, module, isolate);
 }
 
 void
@@ -182,6 +191,16 @@ gum_add_csymbol (const GumCSymbolDetails * details,
       details->address, ctx->core);
 
   return TRUE;
+}
+
+GUMJS_DEFINE_CLASS_METHOD (gumjs_cmodule_dispose, GumCModuleEntry)
+{
+  if (self != NULL)
+  {
+    wrapper->SetAlignedPointerInInternalField (0, NULL);
+
+    g_hash_table_remove (module->cmodules, self);
+  }
 }
 
 static GumCModuleEntry *
