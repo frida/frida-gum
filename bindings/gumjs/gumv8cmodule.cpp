@@ -197,7 +197,7 @@ gum_cmodule_entry_new (Handle<Object> wrapper,
   entry->wrapper = new GumPersistent<Object>::type (isolate, wrapper);
   entry->wrapper->SetWeak (entry, gum_cmodule_entry_on_weak_notify,
       WeakCallbackType::kParameter);
-  entry->symbols = new GumPersistent<Object>::type (isolate, wrapper);
+  entry->symbols = new GumPersistent<Object>::type (isolate, symbols);
   entry->handle = handle;
   entry->module = module;
 
