@@ -1,0 +1,8 @@
+os=$(uname -s)
+
+if [ $os = "Linux" ]; then
+	os="linux"
+else
+	os="macos"
+fi
+

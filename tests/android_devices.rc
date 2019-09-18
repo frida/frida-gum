@@ -1,0 +1,7 @@
+device=$1
+
+if [ -z $device ]; then
+	echo "Specify the device to run the test"
+	echo "$0 <device> <flags>"
+	exit
+fi
