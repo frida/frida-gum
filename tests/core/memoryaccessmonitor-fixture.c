@@ -36,8 +36,15 @@ test_memory_access_monitor_fixture_setup (TestMAMonitorFixture * fixture,
   fixture->range.size = 2 * gum_query_page_size ();
   fixture->offset_in_first_page = gum_query_page_size () / 2;
   fixture->offset_in_second_page =
-      fixture->offset_in_first_page + gum_query_page_size ();
-  *((guint8 *) fixture->range.base_address) = 0xc3; /* ret instruction */
+    fixture->offset_in_first_page + gum_query_page_size ();
+  /* ret instruction */
+#if defined (HAVE_I386)
+  *((guint8 *) fixture->range.base_address) = 0xc3;
+#elif defined (HAVE_ARM)
+  *((guint32 *) fixture->range.base_address) = 0xe1a0f00e;
+#elif defined (HAVE_ARM64)
+  *((guint32 *) fixture->range.base_address) = 0xd65f03c0;
+#endif
   fixture->nop_function_in_first_page =
       GUM_POINTER_TO_FUNCPTR (GCallback, fixture->range.base_address);
 

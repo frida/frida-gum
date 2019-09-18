@@ -89,6 +89,10 @@ if host_os_family == 'windows'
     'backend-dbghelp/gumdbghelpbacktracer.c',
     'backend-dbghelp/gumsymbolutil-dbghelp.c',
   ]
+else
+  gum_sources += [
+    'backend-posix/gummemoryaccessmonitor-posix.c',
+  ]
 endif
 
 if host_os_family == 'darwin'

@@ -9,6 +9,7 @@ core_sources = [
   'interceptor.c',
   'interceptor-callbacklistener.c',
   'interceptor-functiondatalistener.c',
+  'memoryaccessmonitor.c',
   'arch-x86/codewriter.c',
   'arch-x86/relocator.c',
   'arch-arm/armwriter.c',

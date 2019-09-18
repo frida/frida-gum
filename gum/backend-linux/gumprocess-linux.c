@@ -1860,10 +1860,6 @@ gum_linux_unparse_ucontext (const GumCpuContext * ctx,
   struct sigcontext * sc = &uc->uc_mcontext;
 
   sc->arm_cpsr = ctx->cpsr;
-  if (ctx->pc & 1)
-    sc->arm_cpsr |= GUM_PSR_THUMB;
-  else
-    sc->arm_cpsr &= ~GUM_PSR_THUMB;
   sc->arm_pc = ctx->pc & ~1;
   sc->arm_sp = ctx->sp;
 
