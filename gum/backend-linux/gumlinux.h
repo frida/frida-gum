@@ -8,18 +8,27 @@
 #define __GUM_LINUX_H__
 
 #include "gumprocess.h"
+#include "gummemory.h"
 
 #include <ucontext.h>
 
 G_BEGIN_DECLS
 
 typedef struct _GumLinuxNamedRange GumLinuxNamedRange;
+typedef struct _GumLinuxRange GumLinuxRange;
 
 struct _GumLinuxNamedRange
 {
   const gchar * name;
   gpointer base;
   gsize size;
+};
+
+struct _GumLinuxRange
+{
+  GumAddress base;
+  gsize size;
+  GumPageProtection prot;
 };
 
 GUM_API GumCpuType gum_linux_cpu_type_from_file (const gchar * path,
@@ -29,6 +38,7 @@ GUM_API void gum_linux_enumerate_modules_using_proc_maps (
     GumFoundModuleFunc func, gpointer user_data);
 GUM_API void gum_linux_enumerate_ranges (pid_t pid, GumPageProtection prot,
     GumFoundRangeFunc func, gpointer user_data);
+GUM_API GList * gum_linux_collect_ranges (void);
 GUM_API GHashTable * gum_linux_collect_named_ranges (void);
 
 GUM_API gboolean gum_linux_module_path_matches (const gchar * path,

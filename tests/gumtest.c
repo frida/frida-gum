@@ -208,6 +208,9 @@ main (gint argc, gchar * argv[])
 #if defined (HAVE_I386) && defined (G_OS_WIN32)
   TESTLIST_REGISTER (memoryaccessmonitor);
 #endif
+#if defined (HAVE_LINUX)
+  TESTLIST_REGISTER (memoryaccessmonitor);
+#endif
 
   if (gum_stalker_is_supported ())
   {

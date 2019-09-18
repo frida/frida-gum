@@ -884,6 +884,68 @@ gum_linux_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
   fclose (fp);
 }
 
+GList *
+gum_linux_collect_ranges (void)
+{
+  FILE * fp;
+  gchar * line, * next_name;
+  const guint line_size = GUM_MAPS_LINE_SIZE;
+  gboolean got_line = FALSE;
+  GList * result = NULL;
+
+  fp = fopen ("/proc/self/maps", "r");
+  g_assert (fp != NULL);
+
+  line = g_malloc (line_size);
+  next_name = g_malloc (PATH_MAX);
+
+  do
+  {
+    GumAddress start, end;
+    gchar perms[5] = { 0, };
+    gsize size;
+    gint n;
+    GumLinuxRange * range;
+
+    if (!got_line)
+    {
+      if (fgets (line, line_size, fp) == NULL)
+        break;
+    }
+    else
+    {
+      got_line = FALSE;
+    }
+
+    n = sscanf (line,
+        "%" G_GINT64_MODIFIER "x-%" G_GINT64_MODIFIER "x "
+        "%4c "
+        "%*x %*s %*d "
+        "%*s",
+        &start, &end, perms);
+    if (n == 2)
+      continue;
+    g_assert (n == 4);
+
+    size = end - start;
+
+    range = g_slice_new (GumLinuxRange);
+    range->base = start;
+    range->size = size;
+    range->prot = gum_page_protection_from_proc_perms_string (perms);
+
+    result = g_list_prepend (result, range);
+  }
+  while (TRUE);
+
+  g_free (next_name);
+  g_free (line);
+
+  fclose (fp);
+
+  return result;
+}
+
 GHashTable *
 gum_linux_collect_named_ranges (void)
 {
@@ -1860,10 +1922,6 @@ gum_linux_unparse_ucontext (const GumCpuContext * ctx,
   struct sigcontext * sc = &uc->uc_mcontext;
 
   sc->arm_cpsr = ctx->cpsr;
-  if (ctx->pc & 1)
-    sc->arm_cpsr |= GUM_PSR_THUMB;
-  else
-    sc->arm_cpsr &= ~GUM_PSR_THUMB;
   sc->arm_pc = ctx->pc & ~1;
   sc->arm_sp = ctx->sp;
 
