@@ -930,6 +930,9 @@ gum_v8_script_backend_is_locked (GumScriptBackend * backend)
   auto self = GUM_V8_SCRIPT_BACKEND (backend);
   auto isolate = GUM_V8_SCRIPT_BACKEND_GET_ISOLATE (self);
 
+  if (Locker::IsLocked (isolate))
+    return FALSE;
+
   return Locker::IsLockedByAnyThread (isolate);
 }
 
