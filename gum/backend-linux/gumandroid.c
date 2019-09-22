@@ -650,7 +650,7 @@ gum_try_parse_linker_proc_maps_line (const gchar * line,
   gchar perms[5] = { 0, };
   gchar path[PATH_MAX];
   gint n;
-  const gchar * new_path, * old_path, * linker_path;
+  const gchar * suffix, * linker_path;
   const guint8 elf_magic[] = { 0x7f, 'E', 'L', 'F' };
 
   n = sscanf (line,
@@ -666,19 +666,16 @@ gum_try_parse_linker_proc_maps_line (const gchar * line,
 
   if (sizeof (gpointer) == 4)
   {
-    new_path = "/bionic/bin/linker";
-    old_path = "/system/bin/linker";
+    suffix = "linker";
   }
   else
   {
-    new_path = "/bionic/bin/linker64";
-    old_path = "/system/bin/linker64";
+    suffix = "linker64";
   }
 
-  if (strcmp (path, new_path) == 0)
-    linker_path = new_path;
-  else if (strcmp (path, old_path) == 0)
-    linker_path = old_path;
+  if(g_str_has_suffix(path, suffix)){
+	linker_path = path;  
+  }
   else
     return FALSE;
 
