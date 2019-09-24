@@ -60,6 +60,8 @@ struct _GumMemoryScanContext
   GumDukCore * core;
 };
 
+static GumDukMemory * gumjs_memory_module_from_args (const GumDukArgs * args);
+
 GUMJS_DECLARE_FUNCTION (gumjs_memory_alloc)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_copy)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_protect)
@@ -71,6 +73,9 @@ static int gum_duk_memory_read (GumMemoryValueType type,
     const GumDukArgs * args);
 static int gum_duk_memory_write (GumMemoryValueType type,
     const GumDukArgs * args);
+
+static void gum_duk_memory_on_access (GumMemoryAccessMonitor * monitor,
+    const GumMemoryAccessDetails * details, GumDukMemory * self);
 
 #ifdef G_OS_WIN32
 static gchar * gum_ansi_string_to_utf8 (const gchar * str_ansi, gint length);
@@ -133,6 +138,16 @@ static gboolean gum_append_match (GumAddress address, gsize size,
 
 GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_enable)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_disable)
+static void gum_duk_memory_clear_monitor (GumDukMemory * self);
+
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_memory_access_details_construct)
+GUMJS_DECLARE_GETTER (gumjs_memory_access_details_get_operation)
+GUMJS_DECLARE_GETTER (gumjs_memory_access_details_get_from)
+GUMJS_DECLARE_GETTER (gumjs_memory_access_details_get_address)
+GUMJS_DECLARE_GETTER (gumjs_memory_access_details_get_range_index)
+GUMJS_DECLARE_GETTER (gumjs_memory_access_details_get_page_index)
+GUMJS_DECLARE_GETTER (gumjs_memory_access_details_get_pages_completed)
+GUMJS_DECLARE_GETTER (gumjs_memory_access_details_get_pages_total)
 
 static const duk_function_list_entry gumjs_memory_functions[] =
 {
@@ -176,10 +191,23 @@ static const duk_function_list_entry gumjs_memory_functions[] =
 
 static const duk_function_list_entry gumjs_memory_access_monitor_functions[] =
 {
-  { "enable", gumjs_memory_access_monitor_enable, 0 },
+  { "enable", gumjs_memory_access_monitor_enable, 2 },
   { "disable", gumjs_memory_access_monitor_disable, 0 },
 
   { NULL, NULL, 0 }
+};
+
+static const GumDukPropertyEntry gumjs_memory_access_details_values[] =
+{
+  { "operation", gumjs_memory_access_details_get_operation, NULL },
+  { "from", gumjs_memory_access_details_get_from, NULL },
+  { "address", gumjs_memory_access_details_get_address, NULL },
+  { "rangeIndex", gumjs_memory_access_details_get_range_index, NULL },
+  { "pageIndex", gumjs_memory_access_details_get_page_index, NULL },
+  { "pagesCompleted", gumjs_memory_access_details_get_pages_completed, NULL },
+  { "pagesTotal", gumjs_memory_access_details_get_pages_total, NULL },
+
+  { NULL, NULL, NULL }
 };
 
 void
@@ -190,6 +218,10 @@ _gum_duk_memory_init (GumDukMemory * self,
   duk_context * ctx = scope.ctx;
 
   self->core = core;
+  self->monitor = NULL;
+  self->on_access = NULL;
+
+  _gum_duk_store_module_data (ctx, "memory", self);
 
   duk_push_object (ctx);
   duk_put_function_list (ctx, -1, gumjs_memory_functions);
@@ -198,16 +230,36 @@ _gum_duk_memory_init (GumDukMemory * self,
   duk_push_object (ctx);
   duk_put_function_list (ctx, -1, gumjs_memory_access_monitor_functions);
   duk_put_global_string (ctx, "MemoryAccessMonitor");
+
+  duk_push_c_function (ctx, gumjs_memory_access_details_construct, 0);
+  duk_push_object (ctx);
+  duk_put_prop_string (ctx, -2, "prototype");
+  self->memory_access_details = _gum_duk_require_heapptr (ctx, -1);
+  duk_put_global_string (ctx, "MemoryAccessDetails");
+  _gum_duk_add_properties_to_class (ctx, "MemoryAccessDetails",
+      gumjs_memory_access_details_values);
 }
 
 void
 _gum_duk_memory_dispose (GumDukMemory * self)
 {
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (self->core);
+  duk_context * ctx = scope.ctx;
+
+  gum_duk_memory_clear_monitor (self);
+
+  _gum_duk_release_heapptr (ctx, self->memory_access_details);
 }
 
 void
 _gum_duk_memory_finalize (GumDukMemory * self)
 {
+}
+
+static GumDukMemory *
+gumjs_memory_module_from_args (const GumDukArgs * args)
+{
+  return _gum_duk_load_module_data (args->ctx, "memory");
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
@@ -986,24 +1038,178 @@ gum_append_match (GumAddress address,
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_enable)
 {
-#ifdef G_OS_WIN32
-  _gum_duk_throw (ctx,
-      "MemoryAccessMonitor is not yet available in the Duktape runtime");
-#else
-  _gum_duk_throw (ctx,
-      "MemoryAccessMonitor is only available on Windows for now");
-#endif
+  GumDukMemory * self;
+  GArray * ranges;
+  GumDukHeapPtr on_access;
+  GError *error;
+
+  self = gumjs_memory_module_from_args (args);
+
+  _gum_duk_args_parse (args, "RF{onAccess}", &ranges, &on_access);
+
+  if (ranges->len == 0)
+  {
+    g_array_free (ranges, TRUE);
+    _gum_duk_throw (ctx, "expected one or more ranges");
+  }
+
+  gum_duk_memory_clear_monitor (self);
+
+  _gum_duk_protect (ctx, on_access);
+  self->on_access = on_access;
+  self->monitor = gum_memory_access_monitor_new (
+      (GumMemoryRange *) ranges->data, ranges->len, GUM_PAGE_RWX, TRUE,
+      (GumMemoryAccessNotify) gum_duk_memory_on_access, self, NULL);
+
+  g_array_free (ranges, TRUE);
+
+  if (!gum_memory_access_monitor_enable (self->monitor, &error))
+  {
+    duk_push_error_object (ctx, DUK_ERR_ERROR, "%s", error->message);
+    g_error_free (error);
+
+    gum_duk_memory_clear_monitor (self);
+
+    (void) duk_throw (ctx);
+  }
+
   return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_disable)
 {
-#ifdef G_OS_WIN32
-  _gum_duk_throw (ctx,
-      "MemoryAccessMonitor is not yet available in the Duktape runtime");
-#else
-  _gum_duk_throw (ctx,
-      "MemoryAccessMonitor is only available on Windows for now");
-#endif
+  GumDukMemory * self = gumjs_memory_module_from_args (args);
+
+  gum_duk_memory_clear_monitor (self);
+
   return 0;
+}
+
+static void
+gum_duk_memory_clear_monitor (GumDukMemory * self)
+{
+  if (self->monitor != NULL)
+  {
+    gum_memory_access_monitor_disable (self->monitor);
+    g_object_unref (self->monitor);
+    self->monitor = NULL;
+  }
+
+  g_clear_pointer (&self->on_access, _gum_duk_unprotect);
+}
+
+static void
+gum_duk_memory_on_access (GumMemoryAccessMonitor * monitor,
+                          const GumMemoryAccessDetails * details,
+                          GumDukMemory * self)
+{
+  GumDukCore * core = self->core;
+  GumDukScope scope;
+  duk_context * ctx;
+
+  ctx = _gum_duk_scope_enter (&scope, core);
+
+  duk_push_heapptr (ctx, self->memory_access_details);
+  duk_new (ctx, 0);
+  _gum_duk_put_data (ctx, -1, (gpointer) details);
+
+  duk_push_heapptr (ctx, self->on_access);
+  duk_dup (ctx, -2);
+  _gum_duk_scope_call (&scope, 1);
+
+  _gum_duk_put_data (ctx, -2, NULL);
+
+  _gum_duk_scope_leave (&scope);
+}
+
+static const GumMemoryAccessDetails *
+gumjs_memory_access_details_from_args (const GumDukArgs * args)
+{
+  const GumMemoryAccessDetails * details;
+  duk_context * ctx = args->ctx;
+
+  duk_push_this (ctx);
+  details = _gum_duk_require_data (ctx, -1);
+  duk_pop (ctx);
+
+  if (details == NULL)
+    _gum_duk_throw (ctx, "invalid operation");
+
+  return details;
+}
+
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_memory_access_details_construct)
+{
+  return 0;
+}
+
+GUMJS_DEFINE_GETTER (gumjs_memory_access_details_get_operation)
+{
+  const GumMemoryAccessDetails * details =
+      gumjs_memory_access_details_from_args (args);
+
+  duk_push_string (ctx,
+      _gum_duk_memory_operation_to_string (details->operation));
+
+  return 1;
+}
+
+GUMJS_DEFINE_GETTER (gumjs_memory_access_details_get_from)
+{
+  const GumMemoryAccessDetails * details =
+      gumjs_memory_access_details_from_args (args);
+
+  _gum_duk_push_native_pointer (ctx, details->from, args->core);
+
+  return 1;
+}
+
+GUMJS_DEFINE_GETTER (gumjs_memory_access_details_get_address)
+{
+  const GumMemoryAccessDetails * details =
+      gumjs_memory_access_details_from_args (args);
+
+  _gum_duk_push_native_pointer (ctx, details->address, args->core);
+
+  return 1;
+}
+
+GUMJS_DEFINE_GETTER (gumjs_memory_access_details_get_range_index)
+{
+  const GumMemoryAccessDetails * details =
+      gumjs_memory_access_details_from_args (args);
+
+  duk_push_number (ctx, details->range_index);
+
+  return 1;
+}
+
+GUMJS_DEFINE_GETTER (gumjs_memory_access_details_get_page_index)
+{
+  const GumMemoryAccessDetails * details =
+      gumjs_memory_access_details_from_args (args);
+
+  duk_push_number (ctx, details->page_index);
+
+  return 1;
+}
+
+GUMJS_DEFINE_GETTER (gumjs_memory_access_details_get_pages_completed)
+{
+  const GumMemoryAccessDetails * details =
+      gumjs_memory_access_details_from_args (args);
+
+  duk_push_number (ctx, details->pages_completed);
+
+  return 1;
+}
+
+GUMJS_DEFINE_GETTER (gumjs_memory_access_details_get_pages_total)
+{
+  const GumMemoryAccessDetails * details =
+      gumjs_memory_access_details_from_args (args);
+
+  duk_push_number (ctx, details->pages_total);
+
+  return 1;
 }

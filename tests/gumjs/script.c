@@ -133,9 +133,8 @@ TESTLIST_BEGIN (script)
     TESTENTRY (memory_can_be_scanned_synchronously)
     TESTENTRY (memory_scan_should_be_interruptible)
     TESTENTRY (memory_scan_handles_unreadable_memory)
-#ifdef G_OS_WIN32
     TESTENTRY (memory_access_can_be_monitored)
-#endif
+    TESTENTRY (memory_access_can_be_monitored_one_range)
   TESTGROUP_END ()
 
   TESTENTRY (frida_version_is_available)
@@ -4541,18 +4540,10 @@ TESTCASE (memory_scan_handles_unreadable_memory)
   EXPECT_SEND_MESSAGE_WITH ("\"access violation accessing 0x530\"");
 }
 
-#ifdef G_OS_WIN32
-
 TESTCASE (memory_access_can_be_monitored)
 {
   volatile guint8 * a, * b;
   guint page_size;
-
-  if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
-  {
-    g_print ("<skipping, not yet implemented in the Duktape runtime> ");
-    return;
-  }
 
   a = gum_alloc_n_pages (2, GUM_PAGE_RW);
   b = gum_alloc_n_pages (1, GUM_PAGE_RW);
@@ -4586,7 +4577,35 @@ TESTCASE (memory_access_can_be_monitored)
   gum_free_pages ((gpointer) a);
 }
 
-#endif
+TESTCASE (memory_access_can_be_monitored_one_range)
+{
+  volatile guint8 * a;
+  guint page_size;
+
+  a = gum_alloc_n_pages (2, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "MemoryAccessMonitor.enable({ base: " GUM_PTR_CONST ", size: %u }, {"
+        "onAccess: function (details) {"
+          "send([details.operation, !!details.from, details.address,"
+            "details.rangeIndex, details.pageIndex, details.pagesCompleted,"
+            "details.pagesTotal]);"
+        "}"
+      "});",
+      a + page_size, page_size);
+  EXPECT_NO_MESSAGES ();
+
+  a[0] = 1;
+  a[page_size - 1] = 2;
+  EXPECT_NO_MESSAGES ();
+
+  a[page_size] = 3;
+  EXPECT_SEND_MESSAGE_WITH ("[\"write\",true,\"0x%" G_GSIZE_MODIFIER "x\","
+      "0,0,1,1]", GPOINTER_TO_SIZE (a + page_size));
+
+  gum_free_pages ((gpointer) a);
+}
 
 TESTCASE (pointer_can_be_read)
 {

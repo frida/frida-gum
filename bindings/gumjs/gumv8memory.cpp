@@ -144,10 +144,8 @@ static gboolean gum_append_match (GumAddress address, gsize size,
 GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_enable)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_disable)
 static void gum_v8_memory_clear_monitor (GumV8Memory * self);
-#ifdef G_OS_WIN32
 static void gum_v8_memory_on_access (GumMemoryAccessMonitor * monitor,
     const GumMemoryAccessDetails * details, GumV8Memory * self);
-#endif
 
 static const GumV8Function gumjs_memory_functions[] =
 {
@@ -230,7 +228,6 @@ _gum_v8_memory_dispose (GumV8Memory * self)
 void
 _gum_v8_memory_finalize (GumV8Memory * self)
 {
-  g_clear_object (&self->monitor);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
@@ -1044,7 +1041,6 @@ gum_append_match (GumAddress address,
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_enable)
 {
-#ifdef G_OS_WIN32
   GArray * ranges;
   Local<Function> on_access;
   if (!_gum_v8_args_parse (args, "RF{onAccess}", &ranges, &on_access))
@@ -1085,26 +1081,16 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_enable)
     g_object_unref (module->monitor);
     module->monitor = NULL;
   }
-#else
-  _gum_v8_throw_ascii_literal (isolate,
-      "MemoryAccessMonitor is only available on Windows for now");
-#endif
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_disable)
 {
-#ifdef G_OS_WIN32
   gum_v8_memory_clear_monitor (module);
-#else
-  _gum_v8_throw_ascii_literal (isolate,
-      "MemoryAccessMonitor is only available on Windows for now");
-#endif
 }
 
 static void
 gum_v8_memory_clear_monitor (GumV8Memory * self)
 {
-#ifdef G_OS_WIN32
   if (self->monitor != NULL)
   {
     gum_memory_access_monitor_disable (self->monitor);
@@ -1114,10 +1100,7 @@ gum_v8_memory_clear_monitor (GumV8Memory * self)
 
   delete self->on_access;
   self->on_access = nullptr;
-#endif
 }
-
-#ifdef G_OS_WIN32
 
 static void
 gum_v8_memory_on_access (GumMemoryAccessMonitor * monitor,
@@ -1145,5 +1128,3 @@ gum_v8_memory_on_access (GumMemoryAccessMonitor * monitor,
       Undefined (isolate), G_N_ELEMENTS (argv), argv);
   (void) result;
 }
-
-#endif

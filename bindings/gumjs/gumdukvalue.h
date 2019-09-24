@@ -121,6 +121,11 @@ G_GNUC_INTERNAL void _gum_duk_push_exception_details (duk_context * ctx,
 G_GNUC_INTERNAL void _gum_duk_push_range (duk_context * ctx,
     const GumRangeDetails * details, GumDukCore * core);
 
+G_GNUC_INTERNAL GArray * _gum_duk_get_memory_ranges (duk_context * ctx,
+    duk_idx_t index, GumDukCore * core);
+G_GNUC_INTERNAL gboolean _gum_duk_get_memory_range (duk_context * ctx,
+    duk_idx_t index, GumDukCore * core, GumMemoryRange * range);
+
 G_GNUC_INTERNAL void _gum_duk_push_page_protection (duk_context * ctx,
     GumPageProtection prot);
 

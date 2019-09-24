@@ -199,6 +199,18 @@ _gum_duk_args_parse (const GumDukArgs * args,
 
         break;
       }
+      case 'R':
+      {
+        GArray * ranges;
+
+        ranges = _gum_duk_get_memory_ranges (ctx, arg_index, core);
+        if (ranges == NULL)
+          goto expected_array_ranges;
+
+        *va_arg (ap, GArray **) = ranges;
+
+        break;
+      }
       case 'm':
       {
         GumPageProtection prot;
@@ -528,6 +540,11 @@ expected_bytes:
 expected_cpu_context:
   {
     error_message = "expected a CpuContext object";
+    goto error;
+  }
+expected_array_ranges:
+  {
+    error_message = "expected a range object or array of ranges objects";
     goto error;
   }
 error:
@@ -1512,6 +1529,89 @@ _gum_duk_push_range (duk_context * ctx,
 
     duk_put_prop_string (ctx, -2, "file");
   }
+}
+
+GArray *
+_gum_duk_get_memory_ranges (duk_context * ctx,
+                            duk_idx_t index,
+                            GumDukCore * core)
+{
+  GArray * ranges = NULL;
+  GumMemoryRange range;
+
+  if (duk_is_array (ctx, index))
+  {
+    duk_uarridx_t size, i;
+
+    size = duk_get_length (ctx, index);
+
+    ranges = g_array_sized_new (FALSE, FALSE, sizeof (GumMemoryRange), size);
+
+    for (i = 0; i != size; i++)
+    {
+      gboolean is_valid;
+
+      duk_get_prop_index (ctx, index, i);
+      is_valid = _gum_duk_get_memory_range (ctx, -1, core, &range);
+      duk_pop (ctx);
+
+      if (!is_valid)
+      {
+        g_array_free (ranges, TRUE);
+        return NULL;
+      }
+
+      g_array_append_val (ranges, range);
+    }
+
+    return ranges;
+  }
+  else if (_gum_duk_get_memory_range (ctx, index, core, &range))
+  {
+    ranges = g_array_sized_new (FALSE, FALSE, sizeof (GumMemoryRange), 1);
+    g_array_append_val (ranges, range);
+  }
+
+  return ranges;
+}
+
+gboolean
+_gum_duk_get_memory_range (duk_context * ctx,
+                           duk_idx_t index,
+                           GumDukCore * core,
+                           GumMemoryRange * range)
+{
+  gpointer base;
+  gsize size;
+
+  if (!duk_is_object (ctx, index) || duk_is_null (ctx, index))
+    return FALSE;
+
+  if (!duk_get_prop_string (ctx, index, "base"))
+    goto invalid_memory_range;
+
+  if (!_gum_duk_get_pointer (ctx, -1, core, &base))
+    goto invalid_memory_range;
+
+  duk_pop (ctx);
+
+  if (!duk_get_prop_string (ctx, index, "size"))
+    goto invalid_memory_range;
+
+  if (!_gum_duk_get_size (ctx, -1, core, &size))
+    goto invalid_memory_range;
+
+  range->base_address = GUM_ADDRESS (base);
+  range->size = size;
+
+  duk_pop (ctx);
+
+  return TRUE;
+
+invalid_memory_range:
+  duk_pop (ctx);
+
+  return FALSE;
 }
 
 void
