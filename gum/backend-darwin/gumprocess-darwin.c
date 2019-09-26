@@ -16,6 +16,7 @@
 #include <gio/gio.h>
 #include <stdlib.h>
 #include <mach-o/dyld.h>
+#include <mach-o/nlist.h>
 #include <malloc/malloc.h>
 #include <pthread.h>
 #include <sys/sysctl.h>
@@ -1861,44 +1862,6 @@ gum_darwin_find_slide (GumAddress module_address,
           *slide = module_address - sc->vmaddr;
         else
           *slide = module_address - sc64->vmaddr;
-        return TRUE;
-      }
-    }
-
-    p += lc->cmdsize;
-  }
-
-  return FALSE;
-}
-
-gboolean
-gum_darwin_find_linkedit (const guint8 * module,
-                          gsize module_size,
-                          GumAddress * linkedit)
-{
-  struct mach_header * header;
-  const guint8 * p;
-  guint cmd_index;
-
-  header = (struct mach_header *) module;
-  if (header->magic == MH_MAGIC)
-    p = module + sizeof (struct mach_header);
-  else
-    p = module + sizeof (struct mach_header_64);
-  for (cmd_index = 0; cmd_index != header->ncmds; cmd_index++)
-  {
-    struct load_command * lc = (struct load_command *) p;
-
-    if (lc->cmd == LC_SEGMENT || lc->cmd == LC_SEGMENT_64)
-    {
-      struct segment_command * sc = (struct segment_command *) lc;
-      struct segment_command_64 * sc64 = (struct segment_command_64 *) lc;
-      if (strncmp (sc->segname, "__LINKEDIT", 10) == 0)
-      {
-        if (header->magic == MH_MAGIC)
-          *linkedit = sc->vmaddr - sc->fileoff;
-        else
-          *linkedit = sc64->vmaddr - sc64->fileoff;
         return TRUE;
       }
     }

@@ -6,7 +6,9 @@
 
 #include "gumdarwinmodule.h"
 
-#include "gumdarwin.h"
+#ifdef HAVE_DARWIN
+# include "backend-darwin/gumdarwin.h"
+#endif
 #include "gumleb.h"
 #include "gumkernel.h"
 
@@ -14,10 +16,16 @@
 #include <mach-o/fat.h>
 #include <mach-o/loader.h>
 
+#define GUM_DARWIN_N_EXT 0x01
+
 #define MAX_METADATA_SIZE (64 * 1024)
-#define GUM_MEM_READ(task, addr, len, out_size) \
+#ifdef HAVE_DARWIN
+# define GUM_MEM_READ(task, addr, len, out_size) \
     (self->is_kernel ? gum_kernel_read (addr, len, out_size) \
       : gum_darwin_read (task, addr, len, out_size))
+#else
+# define GUM_MEM_READ(task, addr, len, out_size) NULL
+#endif
 
 #define HAS_HEADER_ONLY(self) \
     ((self->flags & GUM_DARWIN_MODULE_FLAGS_HEADER_ONLY) != 0)
@@ -34,6 +42,9 @@ typedef struct _GumExportsTrieForeachContext GumExportsTrieForeachContext;
 typedef struct _GumDyldCacheHeader GumDyldCacheHeader;
 typedef struct _GumDyldCacheMappingInfo GumDyldCacheMappingInfo;
 typedef struct _GumDyldCacheImageInfo GumDyldCacheImageInfo;
+
+typedef struct _GumNList32 GumNList32;
+typedef struct _GumNList64 GumNList64;
 
 enum
 {
@@ -122,6 +133,24 @@ struct _GumDyldCacheImageInfo
   guint32 padding;
 };
 
+struct _GumNList32
+{
+  guint32 n_strx;
+  guint8 n_type;
+  guint8 n_sect;
+  gint16 n_desc;
+  guint32 n_value;
+};
+
+struct _GumNList64
+{
+  guint32 n_strx;
+  guint8 n_type;
+  guint8 n_sect;
+  guint16 n_desc;
+  guint64 n_value;
+};
+
 static void gum_darwin_module_initable_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_darwin_module_constructed (GObject * object);
@@ -166,6 +195,8 @@ static gboolean gum_darwin_module_get_header_offset_size (
 static void gum_darwin_module_read_and_assign (GumDarwinModule * self,
     GumAddress address, gsize size, const guint8 ** start, const guint8 ** end,
     gpointer * malloc_data);
+static gboolean gum_find_linkedit (const guint8 * module, gsize module_size,
+    GumAddress * linkedit);
 static gboolean gum_add_text_range_if_text_section (
     const GumDarwinSectionDetails * details, gpointer user_data);
 static gboolean gum_section_flags_indicate_text_section (uint32_t flags);
@@ -217,7 +248,7 @@ gum_darwin_module_class_init (GumDarwinModuleClass * klass)
       G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_TASK,
       g_param_spec_uint ("task", "Task", "Mach task", 0, G_MAXUINT,
-      MACH_PORT_NULL, G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+      GUM_DARWIN_PORT_NULL, G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
       G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_CPU_TYPE,
       g_param_spec_uint ("cpu-type", "CpuType", "CPU type", 0, G_MAXUINT,
@@ -242,7 +273,7 @@ gum_darwin_module_class_init (GumDarwinModuleClass * klass)
       G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_FLAGS,
       g_param_spec_flags ("flags", "Flags", "Optional flags",
-      GUM_DARWIN_TYPE_MODULE_FLAGS, GUM_DARWIN_MODULE_FLAGS_NONE,
+      GUM_TYPE_DARWIN_MODULE_FLAGS, GUM_DARWIN_MODULE_FLAGS_NONE,
       G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
 }
 
@@ -269,21 +300,28 @@ gum_darwin_module_constructed (GObject * object)
 {
   GumDarwinModule * self = GUM_DARWIN_MODULE (object);
 
-  g_assert (self->task != MACH_PORT_NULL);
-
-  self->is_local = self->task == mach_task_self ();
-  self->is_kernel = self->task == gum_kernel_get_task ();
+#ifdef HAVE_DARWIN
+  if (self->task != GUM_DARWIN_PORT_NULL)
+  {
+    self->is_local = self->task == mach_task_self ();
+    self->is_kernel = self->task == gum_kernel_get_task ();
+  }
 
   if (self->cpu_type == GUM_CPU_INVALID)
   {
     int pid;
 
-    if (pid_for_task (self->task, &pid) != KERN_SUCCESS ||
+    if (self->task == GUM_DARWIN_PORT_NULL ||
+        pid_for_task (self->task, &pid) != KERN_SUCCESS ||
         !gum_darwin_cpu_type_from_pid (pid, &self->cpu_type))
     {
       self->cpu_type = GUM_NATIVE_CPU;
     }
   }
+#else
+  if (self->cpu_type == GUM_CPU_INVALID)
+    self->cpu_type = GUM_NATIVE_CPU;
+#endif
 
   switch (self->cpu_type)
   {
@@ -301,6 +339,7 @@ gum_darwin_module_constructed (GObject * object)
 
   if (self->page_size == 0)
   {
+#ifdef HAVE_DARWIN
     if (self->is_local)
     {
       self->page_size = gum_query_page_size ();
@@ -313,6 +352,9 @@ gum_darwin_module_constructed (GObject * object)
 
       self->page_size = page_size;
     }
+#else
+    self->page_size = 4096;
+#endif
   }
 }
 
@@ -487,14 +529,14 @@ gum_darwin_module_set_property (GObject * object,
 
 GumDarwinModule *
 gum_darwin_module_new_from_file (const gchar * path,
-                                 mach_port_t task,
+                                 GumDarwinPort task,
                                  GumCpuType cpu_type,
                                  guint page_size,
                                  GMappedFile * cache_file,
                                  GumDarwinModuleFlags flags,
                                  GError ** error)
 {
-  return g_initable_new (GUM_DARWIN_TYPE_MODULE, NULL, error,
+  return g_initable_new (GUM_TYPE_DARWIN_MODULE, NULL, error,
       "task", task,
       "cpu-type", cpu_type,
       "page-size", page_size,
@@ -506,13 +548,13 @@ gum_darwin_module_new_from_file (const gchar * path,
 
 GumDarwinModule *
 gum_darwin_module_new_from_blob (GBytes * blob,
-                                 mach_port_t task,
+                                 GumDarwinPort task,
                                  GumCpuType cpu_type,
                                  guint page_size,
                                  GumDarwinModuleFlags flags,
                                  GError ** error)
 {
-  return g_initable_new (GUM_DARWIN_TYPE_MODULE, NULL, error,
+  return g_initable_new (GUM_TYPE_DARWIN_MODULE, NULL, error,
       "task", task,
       "cpu-type", cpu_type,
       "page-size", page_size,
@@ -523,14 +565,14 @@ gum_darwin_module_new_from_blob (GBytes * blob,
 
 GumDarwinModule *
 gum_darwin_module_new_from_memory (const gchar * name,
-                                   mach_port_t task,
+                                   GumDarwinPort task,
                                    GumCpuType cpu_type,
                                    guint page_size,
                                    GumAddress base_address,
                                    GumDarwinModuleFlags flags,
                                    GError ** error)
 {
-  return g_initable_new (GUM_DARWIN_TYPE_MODULE, NULL, error,
+  return g_initable_new (GUM_TYPE_DARWIN_MODULE, NULL, error,
       "name", name,
       "task", task,
       "cpu-type", cpu_type,
@@ -708,7 +750,7 @@ gum_emit_export_from_symbol (const GumDarwinSymbolDetails * details,
   GumEmitExportFromSymbolContext * ctx = user_data;
   GumDarwinExportDetails d;
 
-  if ((details->type & N_EXT) == 0)
+  if ((details->type & GUM_DARWIN_N_EXT) == 0)
     return TRUE;
 
   d.name = details->name;
@@ -744,13 +786,13 @@ gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
 
   slide = gum_darwin_module_get_slide (self);
 
-  if (!gum_darwin_find_linkedit (image->data, image->size, &linkedit))
+  if (!gum_find_linkedit (image->data, image->size, &linkedit))
     goto beach;
   linkedit += slide;
 
   symbol_size = (self->pointer_size == 8)
-      ? sizeof (struct nlist_64)
-      : sizeof (struct nlist);
+      ? sizeof (GumNList64)
+      : sizeof (GumNList32);
 
   symbols = GUM_MEM_READ (self->task, linkedit + symtab->symoff,
       symtab->nsyms * symbol_size, NULL);
@@ -764,11 +806,11 @@ gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
 
     if (self->pointer_size == 8)
     {
-      struct nlist_64 * symbol;
+      GumNList64 * symbol;
 
-      symbol = symbols + (symbol_index * sizeof (struct nlist_64));
+      symbol = symbols + (symbol_index * sizeof (GumNList64));
 
-      details.name = strings + symbol->n_un.n_strx;
+      details.name = strings + symbol->n_strx;
       details.address = (symbol->n_value != 0) ? symbol->n_value + slide : 0;
 
       details.type = symbol->n_type;
@@ -777,11 +819,11 @@ gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
     }
     else
     {
-      struct nlist * symbol;
+      GumNList32 * symbol;
 
-      symbol = symbols + (symbol_index * sizeof (struct nlist));
+      symbol = symbols + (symbol_index * sizeof (GumNList32));
 
-      details.name = strings + symbol->n_un.n_strx;
+      details.name = strings + symbol->n_strx;
       details.address = (symbol->n_value != 0) ? symbol->n_value + slide : 0;
 
       details.type = symbol->n_type;
@@ -1734,6 +1776,7 @@ gum_darwin_module_load_image_from_memory (GumDarwinModule * self,
   }
   else
   {
+    data_size = 0;
     data = GUM_MEM_READ (self->task, self->base_address,
         MAX_METADATA_SIZE, &data_size);
     if (data == NULL)
@@ -1906,7 +1949,7 @@ gum_darwin_module_take_image (GumDarwinModule * self,
   {
     GumAddress linkedit;
 
-    if (!gum_darwin_find_linkedit (image->data, image->size, &linkedit))
+    if (!gum_find_linkedit (image->data, image->size, &linkedit))
       goto beach;
     linkedit += gum_darwin_module_get_slide (self);
 
@@ -1973,11 +2016,50 @@ gum_darwin_module_read_and_assign (GumDarwinModule * self,
     gpointer data;
     gsize n_bytes_read;
 
+    n_bytes_read = 0;
     data = GUM_MEM_READ (self->task, address, size, &n_bytes_read);
     *start = data;
     *end = (data != NULL) ? data + n_bytes_read : NULL;
     *malloc_data = data;
   }
+}
+
+static gboolean
+gum_find_linkedit (const guint8 * module,
+                   gsize module_size,
+                   GumAddress * linkedit)
+{
+  struct mach_header * header;
+  const guint8 * p;
+  guint cmd_index;
+
+  header = (struct mach_header *) module;
+  if (header->magic == MH_MAGIC)
+    p = module + sizeof (struct mach_header);
+  else
+    p = module + sizeof (struct mach_header_64);
+  for (cmd_index = 0; cmd_index != header->ncmds; cmd_index++)
+  {
+    struct load_command * lc = (struct load_command *) p;
+
+    if (lc->cmd == LC_SEGMENT || lc->cmd == LC_SEGMENT_64)
+    {
+      struct segment_command * sc = (struct segment_command *) lc;
+      struct segment_command_64 * sc64 = (struct segment_command_64 *) lc;
+      if (strncmp (sc->segname, "__LINKEDIT", 10) == 0)
+      {
+        if (header->magic == MH_MAGIC)
+          *linkedit = sc->vmaddr - sc->fileoff;
+        else
+          *linkedit = sc64->vmaddr - sc64->fileoff;
+        return TRUE;
+      }
+    }
+
+    p += lc->cmdsize;
+  }
+
+  return FALSE;
 }
 
 static gboolean
@@ -2337,7 +2419,8 @@ gum_darwin_module_flags_get_type (void)
     static const GFlagsValue values[] =
     {
       { GUM_DARWIN_MODULE_FLAGS_NONE, "GUM_DARWIN_MODULE_FLAGS_NONE", "none" },
-      { GUM_DARWIN_MODULE_FLAGS_HEADER_ONLY, "GUM_DARWIN_MODULE_FLAGS_HEADER_ONLY", "header-only" },
+      { GUM_DARWIN_MODULE_FLAGS_HEADER_ONLY,
+        "GUM_DARWIN_MODULE_FLAGS_HEADER_ONLY", "header-only" },
       { 0, NULL, NULL }
     };
     GType ftype;

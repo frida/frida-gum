@@ -203,7 +203,7 @@ gum_darwin_mapper_class_init (GumDarwinMapperClass * klass)
       G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_MODULE,
       g_param_spec_object ("module", "Module", "Module",
-      GUM_DARWIN_TYPE_MODULE, G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+      GUM_TYPE_DARWIN_MODULE, G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
       G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_RESOLVER,
       g_param_spec_object ("resolver", "Resolver", "Module resolver",

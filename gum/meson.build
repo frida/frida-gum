@@ -5,6 +5,7 @@ gum_headers = [
   'gumcloak.h',
   'gumcodeallocator.h',
   'gumcodesegment.h',
+  'gumdarwinmodule.h',
   'gumdefs.h',
   'gumevent.h',
   'gumeventsink.h',
@@ -38,6 +39,7 @@ gum_sources = [
   'gumcloak.c',
   'gumcodeallocator.c',
   'gumcodesegment.c',
+  'gumdarwinmodule.c',
   'gumexceptor.c',
   'gumeventsink.c',
   'gumheapapi.c',
@@ -95,7 +97,6 @@ if host_os_family == 'darwin'
     'backend-darwin/gumdarwinbacktracer.h',
     'backend-darwin/gumdarwinsymbolicator.h',
     'backend-darwin/gumdarwinmapper.h',
-    'backend-darwin/gumdarwinmodule.h',
     'backend-darwin/gumdarwinmoduleresolver.h',
   ]
   gum_sources += [
@@ -112,7 +113,6 @@ if host_os_family == 'darwin'
     'backend-darwin/substratedclient.c',
     'backend-darwin/gumexceptor-darwin.c',
     'backend-darwin/gumdarwinmapper.c',
-    'backend-darwin/gumdarwinmodule.c',
     'backend-darwin/gumdarwinmoduleresolver.c',
   ]
 endif

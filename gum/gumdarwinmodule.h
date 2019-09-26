@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -8,18 +8,18 @@
 #define __GUM_DARWIN_MODULE_H__
 
 #include <gum/gum.h>
-#include <mach-o/nlist.h>
-#include <mach/mach.h>
 
 #define GUM_DARWIN_EXPORT_SYMBOL_FLAGS_KIND_ABSOLUTE 2
 
 G_BEGIN_DECLS
 
-#define GUM_DARWIN_TYPE_MODULE (gum_darwin_module_get_type ())
+#define GUM_TYPE_DARWIN_MODULE (gum_darwin_module_get_type ())
 G_DECLARE_FINAL_TYPE (GumDarwinModule, gum_darwin_module, GUM_DARWIN, MODULE,
     GObject)
 
-#define GUM_DARWIN_TYPE_MODULE_FLAGS (gum_darwin_module_flags_get_type ())
+#define GUM_TYPE_DARWIN_MODULE_FLAGS (gum_darwin_module_flags_get_type ())
+
+#define GUM_DARWIN_PORT_NULL 0
 
 typedef guint GumDarwinModuleFlags;
 
@@ -34,6 +34,9 @@ typedef struct _GumDarwinTermPointersDetails GumDarwinTermPointersDetails;
 typedef struct _GumDarwinSegment GumDarwinSegment;
 typedef struct _GumDarwinExportDetails GumDarwinExportDetails;
 typedef struct _GumDarwinSymbolDetails GumDarwinSymbolDetails;
+
+typedef guint GumDarwinPort;
+typedef gint GumDarwinPageProtection;
 
 typedef gboolean (* GumDarwinFoundExportFunc) (
     const GumDarwinExportDetails * details, gpointer user_data);
@@ -60,7 +63,7 @@ struct _GumDarwinModule
   gchar * name;
   gchar * uuid;
 
-  mach_port_t task;
+  GumDarwinPort task;
   gboolean is_local;
   gboolean is_kernel;
   GumCpuType cpu_type;
@@ -129,7 +132,7 @@ struct _GumDarwinModuleImageSegment
 {
   guint64 offset;
   guint64 size;
-  gint protection;
+  GumDarwinPageProtection protection;
 };
 
 struct _GumDarwinSectionDetails
@@ -138,7 +141,7 @@ struct _GumDarwinSectionDetails
   gchar section_name[17];
   GumAddress vm_address;
   guint64 size;
-  vm_prot_t protection;
+  GumDarwinPageProtection protection;
   guint32 file_offset;
   guint32 flags;
 };
@@ -181,7 +184,7 @@ struct _GumDarwinSegment
   guint64 vm_size;
   guint64 file_offset;
   guint64 file_size;
-  vm_prot_t protection;
+  GumDarwinPageProtection protection;
 };
 
 struct _GumDarwinExportDetails
@@ -217,13 +220,13 @@ struct _GumDarwinSymbolDetails
 };
 
 GUM_API GumDarwinModule * gum_darwin_module_new_from_file (const gchar * path,
-    mach_port_t task, GumCpuType cpu_type, guint page_size,
+    GumDarwinPort task, GumCpuType cpu_type, guint page_size,
     GMappedFile * cache_file, GumDarwinModuleFlags flags, GError ** error);
 GUM_API GumDarwinModule * gum_darwin_module_new_from_blob (GBytes * blob,
-    mach_port_t task, GumCpuType cpu_type, guint page_size,
+    GumDarwinPort task, GumCpuType cpu_type, guint page_size,
     GumDarwinModuleFlags flags, GError ** error);
 GUM_API GumDarwinModule * gum_darwin_module_new_from_memory (const gchar * name,
-    mach_port_t task, GumCpuType cpu_type, guint page_size,
+    GumDarwinPort task, GumCpuType cpu_type, guint page_size,
     GumAddress base_address, GumDarwinModuleFlags flags, GError ** error);
 
 GUM_API gboolean gum_darwin_module_resolve_export (GumDarwinModule * self,

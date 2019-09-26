@@ -15,6 +15,7 @@
 #include "gumprocess.h"
 
 #include <TargetConditionals.h>
+#include <mach/mach.h>
 #if TARGET_OS_OSX
 # include <mach/mach_vm.h>
 #else
@@ -108,8 +109,6 @@ GUM_API void gum_darwin_enumerate_symbols (mach_port_t task,
 
 GUM_API gboolean gum_darwin_find_slide (GumAddress module_address,
     const guint8 * module, gsize module_size, gint64 * slide);
-GUM_API gboolean gum_darwin_find_linkedit (const guint8 * module,
-    gsize module_size, GumAddress * linkedit);
 GUM_API gboolean gum_darwin_find_command (guint id, const guint8 * module,
     gsize module_size, gpointer * command);
 

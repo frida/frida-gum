@@ -556,4 +556,170 @@ namespace Gum {
 
 		public void * location;
 	}
+
+	public class DarwinModule : GLib.Object, GLib.Initable {
+		public string? name;
+		public string? uuid;
+
+		public DarwinPort task;
+		public bool is_local;
+		public bool is_kernel;
+		public Gum.CpuType cpu_type;
+		public size_t pointer_size;
+		public size_t page_size;
+		public Gum.Address base_address;
+		public string? source_path;
+		public GLib.Bytes? source_blob;
+		public GLib.MappedFile? cache_file;
+
+		public DarwinModuleImage image;
+
+		public void * info;
+		public void * symtab;
+		public void * dysymtab;
+
+		public Gum.Address preferred_address;
+
+		public GLib.Array<DarwinSegment> segments;
+
+		public bool lacks_exports_for_reexports {
+			get;
+		}
+
+		public Gum.Address slide {
+			get;
+		}
+
+		[Flags]
+		public enum Flags {
+			NONE        = 0,
+			HEADER_ONLY = (1 << 0),
+		}
+
+		public DarwinModule.from_file (string path, Gum.DarwinPort task, Gum.CpuType cpu_type, uint page_size, GLib.MappedFile? cache_file = null, Gum.DarwinModule.Flags flags = NONE) throws GLib.Error;
+		public DarwinModule.from_blob (GLib.Bytes blob, Gum.DarwinPort task, Gum.CpuType cpu_type, uint page_size, Gum.DarwinModule.Flags flags = NONE) throws GLib.Error;
+		public DarwinModule.from_memory (string? name, Gum.DarwinPort task, Gum.CpuType cpu_type, uint page_size, Gum.Address base_address, Gum.DarwinModule.Flags flags = NONE) throws GLib.Error;
+
+		public bool resolve_export (string symbol, out Gum.DarwinExportDetails details);
+		public Gum.Address resolve_symbol_address (string symbol);
+		public void enumerate_imports (Gum.Module.FoundImportFunc func);
+		public void enumerate_exports (FoundExportFunc func);
+		public void enumerate_symbols (FoundSymbolFunc func);
+		public void enumerate_sections (FoundSectionFunc func);
+		public bool is_address_in_text_section (Gum.Address address);
+		public void enumerate_rebases (FoundRebaseFunc func);
+		public void enumerate_binds (FoundBindFunc func);
+		public void enumerate_lazy_binds (FoundBindFunc func);
+		public void enumerate_init_pointers (FoundInitPointersFunc func);
+		public void enumerate_term_pointers (FoundTermPointersFunc func);
+		public void enumerate_dependencies (FoundDependenciesFunc func);
+		public unowned string? get_dependency_by_ordinal (int ordinal);
+
+		public delegate bool FoundExportFunc (Gum.DarwinExportDetails details);
+		public delegate bool FoundSymbolFunc (Gum.DarwinSymbolDetails details);
+		public delegate bool FoundSectionFunc (Gum.DarwinSectionDetails details);
+		public delegate bool FoundRebaseFunc (Gum.DarwinRebaseDetails details);
+		public delegate bool FoundBindFunc (Gum.DarwinBindDetails details);
+		public delegate bool FoundInitPointersFunc (Gum.DarwinInitPointersDetails details);
+		public delegate bool FoundTermPointersFunc (Gum.DarwinTermPointersDetails details);
+		public delegate bool FoundDependenciesFunc (string path);
+	}
+
+	[Compact]
+	public class DarwinModuleImage {
+		public void * data;
+		public uint64 size;
+		public void * linkedit;
+
+		public uint64 source_offset;
+		public uint64 source_size;
+		public uint64 shared_offset;
+		public uint64 shared_size;
+		public GLib.Array<Gum.DarwinModuleImageSegment> shared_segments;
+
+		public GLib.Bytes bytes;
+		public void * malloc_data;
+	}
+
+	public struct DarwinModuleImageSegment {
+		public uint64 offset;
+		public uint64 size;
+		public int protection;
+	}
+
+	public struct DarwinSectionDetails {
+		public string segment_name;
+		public string section_name;
+		public Gum.Address vm_address;
+		public uint64 size;
+		public Gum.DarwinPageProtection protection;
+		public uint32 file_offset;
+		public uint32 flags;
+	}
+
+	public struct DarwinRebaseDetails {
+		public Gum.DarwinSegment? segment;
+		public uint64 offset;
+		public uint8 type;
+		public Gum.Address slide;
+	}
+
+	public struct DarwinBindDetails {
+		public Gum.DarwinSegment? segment;
+		public uint64 offset;
+		public uint8 type;
+		public int library_ordinal;
+		public string symbol_name;
+		public uint8 symbol_flags;
+		public int64 addend;
+	}
+
+	public struct DarwinInitPointersDetails {
+		public Gum.Address address;
+		public uint64 count;
+	}
+
+	public struct DarwinTermPointersDetails {
+		public Gum.Address address;
+		public uint64 count;
+	}
+
+	public struct DarwinSegment {
+		public string name;
+		public Gum.Address vm_address;
+		public uint64 vm_size;
+		public uint64 file_offset;
+		public uint64 file_size;
+		public Gum.DarwinPageProtection protection;
+	}
+
+	public struct DarwinExportDetails {
+		public string name;
+		public uint64 flags;
+
+		public uint64 offset;
+
+		public uint64 stub;
+		public uint64 resolver;
+
+		public int reexport_library_ordinal;
+		public string reexport_symbol;
+	}
+
+	public struct DarwinSymbolDetails {
+		public string name;
+		public Gum.Address address;
+
+		public uint8 type;
+		public uint8 section;
+		public uint16 description;
+	}
+
+	[CCode (has_type_id = false)]
+	public struct DarwinPort : uint {
+	}
+
+	[CCode (has_type_id = false)]
+	public struct DarwinPageProtection : int {
+	}
 }
