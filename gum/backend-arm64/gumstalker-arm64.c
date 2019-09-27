@@ -18,6 +18,8 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/syscall.h>
 
 #define GUM_CODE_SLAB_MAX_SIZE  (4 * 1024 * 1024)
 #define GUM_EXEC_BLOCK_MIN_SIZE 1024
@@ -346,6 +348,10 @@ static GumVirtualizationRequirements gum_exec_block_virtualize_ret_insn (
     GumExecBlock * block, GumGeneratorContext * gc);
 static GumVirtualizationRequirements gum_exec_block_virtualize_sysenter_insn (
     GumExecBlock * block, GumGeneratorContext * gc);
+#ifdef HAVE_LINUX
+static GumVirtualizationRequirements gum_exec_block_virtualize_linux_sysenter (
+    GumExecBlock * block, GumGeneratorContext * gc);
+#endif
 
 static void gum_exec_block_write_call_invoke_code (GumExecBlock * block,
     const GumBranchTarget * target, GumGeneratorContext * gc);
@@ -2616,8 +2622,70 @@ static GumVirtualizationRequirements
 gum_exec_block_virtualize_sysenter_insn (GumExecBlock * block,
                                          GumGeneratorContext * gc)
 {
+#ifdef HAVE_LINUX
+  return gum_exec_block_virtualize_linux_sysenter (block, gc);
+#else
   return GUM_REQUIRE_RELOCATION;
+#endif
 }
+
+#ifdef HAVE_LINUX
+
+static GumVirtualizationRequirements
+gum_exec_block_virtualize_linux_sysenter (GumExecBlock * block,
+                                          GumGeneratorContext * gc)
+{
+  GumArm64Writer * cw = gc->code_writer;
+  const cs_insn * insn = gc->instruction->ci;
+  gconstpointer perform_regular_syscall = cw->code + 1;
+  gconstpointer perform_next_instruction = cw->code + 2;
+  const guint32 mrs_x15_nzcv = 0xd53b420f;
+  const guint32 msr_nzcv_x15 = 0xd51b420f;
+
+  gum_arm64_relocator_skip_one (gc->relocator);
+
+  if (gc->opened_prolog != GUM_PROLOG_NONE)
+    gum_exec_block_close_prolog (block, gc);
+
+  gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X15, ARM64_REG_X17,
+      ARM64_REG_SP, -(16 + GUM_RED_ZONE_SIZE), GUM_INDEX_PRE_ADJUST);
+  gum_arm64_writer_put_instruction (cw, mrs_x15_nzcv);
+
+  gum_arm64_writer_put_sub_reg_reg_imm (cw, ARM64_REG_X17,
+      ARM64_REG_X8, __NR_clone);
+  gum_arm64_writer_put_cbnz_reg_label (cw, ARM64_REG_X17,
+      perform_regular_syscall);
+
+  gum_arm64_writer_put_instruction (cw, msr_nzcv_x15);
+  gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X15,
+      ARM64_REG_X17, ARM64_REG_SP, 16 + GUM_RED_ZONE_SIZE,
+      GUM_INDEX_POST_ADJUST);
+  gum_arm64_writer_put_bytes (cw, insn->bytes, 4);
+  gum_arm64_writer_put_cbnz_reg_label (cw, ARM64_REG_X0,
+      perform_next_instruction);
+
+  /*
+   * We are on the child return to the original next instruction
+   *
+   * TODO: Is there any way we can avoid clobbering X17 here?
+   */
+  gum_arm64_writer_put_ldr_reg_address (cw, ARM64_REG_X17,
+      GUM_ADDRESS (gc->instruction->begin + 4));
+  gum_arm64_writer_put_br_reg (cw, ARM64_REG_X17);
+
+  gum_arm64_writer_put_label (cw, perform_regular_syscall);
+  gum_arm64_writer_put_instruction (cw, msr_nzcv_x15);
+  gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X15,
+      ARM64_REG_X17, ARM64_REG_SP, 16 + GUM_RED_ZONE_SIZE,
+      GUM_INDEX_POST_ADJUST);
+  gum_arm64_writer_put_bytes (cw, insn->bytes, 4);
+
+  gum_arm64_writer_put_label (cw, perform_next_instruction);
+
+  return GUM_REQUIRE_NOTHING;
+}
+
+#endif
 
 static void
 gum_exec_block_write_call_invoke_code (GumExecBlock * block,

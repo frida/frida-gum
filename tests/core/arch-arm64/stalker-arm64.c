@@ -53,6 +53,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (follow_thread)
 
   /* EXTRA */
+  TESTENTRY (pthread_create)
   TESTENTRY (heap_api)
   TESTENTRY (no_register_clobber)
   TESTENTRY (performance)
@@ -64,6 +65,7 @@ static void insert_extra_add_after_sub (GumStalkerIterator * iterator,
 static void store_x0 (GumCpuContext * cpu_context, gpointer user_data);
 static void unfollow_during_transform (GumStalkerIterator * iterator,
     GumStalkerWriter * output, gpointer user_data);
+static gpointer increment_integer (gpointer data);
 static gboolean store_range_of_test_runner (const GumModuleDetails * details,
     gpointer user_data);
 static void pretend_workload (GumMemoryRange * runner_range);
@@ -1238,6 +1240,36 @@ TESTCASE (follow_thread)
 #ifdef HAVE_LINUX
   prctl (PR_SET_DUMPABLE, prev_dumpable);
 #endif
+}
+
+TESTCASE (pthread_create)
+{
+  int ret;
+  pthread_t thread;
+  int number = 0;
+
+  fixture->sink->mask = (GumEventType) GUM_COMPILE;
+
+  gum_stalker_follow_me (fixture->stalker, fixture->transformer,
+      GUM_EVENT_SINK (fixture->sink));
+
+  ret = pthread_create (&thread, NULL, increment_integer, (gpointer) &number);
+  g_assert_cmpint (ret, ==, 0);
+
+  ret = pthread_join (thread, NULL);
+  g_assert_cmpint (ret, ==, 0);
+
+  g_assert_cmpint (number, ==, 1);
+
+  gum_stalker_unfollow_me (fixture->stalker);
+}
+
+static gpointer
+increment_integer (gpointer data)
+{
+  int * number = (int *) data;
+  *number += 1;
+  return NULL;
 }
 
 TESTCASE (heap_api)
