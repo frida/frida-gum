@@ -1247,18 +1247,20 @@ TESTCASE (pthread_create)
   int ret;
   pthread_t thread;
   int number = 0;
-  fixture->sink->mask = (GumEventType) (GUM_COMPILE);
+
+  fixture->sink->mask = (GumEventType) GUM_COMPILE;
 
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
       GUM_EVENT_SINK (fixture->sink));
 
   ret = pthread_create (&thread, NULL, increment_integer, (gpointer) &number);
-  g_assert_cmpuint (ret, ==, 0);
+  g_assert_cmpint (ret, ==, 0);
 
   ret = pthread_join (thread, NULL);
-  g_assert_cmpuint (ret, ==, 0);
+  g_assert_cmpint (ret, ==, 0);
 
-  g_assert_cmpuint (number, ==, 1);
+  g_assert_cmpint (number, ==, 1);
+
   gum_stalker_unfollow_me (fixture->stalker);
 }
 
