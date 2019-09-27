@@ -2643,7 +2643,8 @@ gum_exec_block_virtualize_linux_sysenter (GumExecBlock * block,
   if (gc->opened_prolog != GUM_PROLOG_NONE)
     gum_exec_block_close_prolog (block, gc);
 
-  gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X15, ARM64_REG_X17);
+  gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X15, ARM64_REG_X17,
+      ARM64_REG_SP, -(16 + GUM_RED_ZONE_SIZE), GUM_INDEX_PRE_ADJUST);
   gum_arm64_writer_put_instruction (cw, mrs_x15_nzcv);
 
   gum_arm64_writer_put_sub_reg_reg_imm (cw, ARM64_REG_X17,
@@ -2651,7 +2652,9 @@ gum_exec_block_virtualize_linux_sysenter (GumExecBlock * block,
   gum_arm64_writer_put_cbnz_reg_label (cw, ARM64_REG_X17, continue_normally);
 
   gum_arm64_writer_put_instruction (cw, msr_nzcv_x15);
-  gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X15, ARM64_REG_X17);
+  gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X15,
+      ARM64_REG_X17, ARM64_REG_SP, 16 + GUM_RED_ZONE_SIZE,
+      GUM_INDEX_POST_ADJUST);
   gum_arm64_writer_put_bytes (cw, insn->bytes, 4);
   gum_arm64_writer_put_cbnz_reg_label (cw, ARM64_REG_X0, end_payload);
 
@@ -2662,7 +2665,9 @@ gum_exec_block_virtualize_linux_sysenter (GumExecBlock * block,
 
   gum_arm64_writer_put_label (cw, continue_normally);
   gum_arm64_writer_put_instruction (cw, msr_nzcv_x15);
-  gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X15, ARM64_REG_X17);
+  gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X15,
+      ARM64_REG_X17, ARM64_REG_SP, 16 + GUM_RED_ZONE_SIZE,
+      GUM_INDEX_POST_ADJUST);
   gum_arm64_writer_put_bytes (cw, insn->bytes, 4);
   gum_arm64_writer_put_label (cw, end_payload);
 
