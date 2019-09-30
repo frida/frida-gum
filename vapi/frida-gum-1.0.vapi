@@ -717,6 +717,8 @@ namespace Gum {
 
 	[CCode (has_type_id = false)]
 	public struct DarwinPort : uint {
+		[CCode (cname = "GUM_DARWIN_PORT_NULL")]
+		public const DarwinPort NULL;
 	}
 
 	[CCode (has_type_id = false)]
