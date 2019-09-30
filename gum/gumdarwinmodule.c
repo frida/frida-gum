@@ -1828,8 +1828,25 @@ gum_darwin_module_take_image (GumDarwinModule * self,
           const gchar * raw_path;
           guint raw_path_len;
 
-          raw_path = (gchar *) command + dl->name.offset;
+          raw_path = (const gchar *) command + dl->name.offset;
           raw_path_len = lc->cmdsize - sizeof (struct dylib_command);
+
+          self->name = g_strndup (raw_path, raw_path_len);
+        }
+
+        break;
+      }
+      case LC_ID_DYLINKER:
+      {
+        if (self->name == NULL)
+        {
+          const struct dylinker_command * dl =
+              (const struct dylinker_command *) lc;
+          const gchar * raw_path;
+          guint raw_path_len;
+
+          raw_path = (const gchar *) command + dl->name.offset;
+          raw_path_len = lc->cmdsize - sizeof (struct dylinker_command);
 
           self->name = g_strndup (raw_path, raw_path_len);
         }
