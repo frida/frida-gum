@@ -767,9 +767,10 @@ gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
 {
   GumDarwinModuleImage * image;
   const struct symtab_command * symtab;
-  GumAddress slide, linkedit;
   gsize symbol_size;
-  gpointer symbols = NULL, strings = NULL;
+  GumAddress slide;
+  guint8 * symbols = NULL;
+  gchar * strings = NULL;
   gsize symbol_index;
 
   if (HAS_HEADER_ONLY (self) ||
@@ -784,20 +785,30 @@ gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
   if (symtab == NULL)
     goto beach;
 
-  slide = gum_darwin_module_get_slide (self);
-
-  if (!gum_find_linkedit (image->data, image->size, &linkedit))
-    goto beach;
-  linkedit += slide;
-
   symbol_size = (self->pointer_size == 8)
       ? sizeof (GumNList64)
       : sizeof (GumNList32);
 
-  symbols = GUM_MEM_READ (self->task, linkedit + symtab->symoff,
-      symtab->nsyms * symbol_size, NULL);
-  strings = GUM_MEM_READ (self->task, linkedit + symtab->stroff,
-      symtab->strsize, NULL);
+  slide = gum_darwin_module_get_slide (self);
+
+  if (self->task != GUM_DARWIN_PORT_NULL)
+  {
+    GumAddress linkedit;
+
+    if (!gum_find_linkedit (image->data, image->size, &linkedit))
+      goto beach;
+    linkedit += slide;
+
+    symbols = GUM_MEM_READ (self->task, linkedit + symtab->symoff,
+        symtab->nsyms * symbol_size, NULL);
+    strings = (gchar *) GUM_MEM_READ (self->task, linkedit + symtab->stroff,
+        symtab->strsize, NULL);
+  }
+  else
+  {
+    symbols = (guint8 *) image->linkedit + symtab->symoff;
+    strings = (gchar *) image->linkedit + symtab->stroff;
+  }
 
   for (symbol_index = 0; symbol_index != symtab->nsyms; symbol_index++)
   {
@@ -808,7 +819,7 @@ gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
     {
       GumNList64 * symbol;
 
-      symbol = symbols + (symbol_index * sizeof (GumNList64));
+      symbol = (GumNList64 *) (symbols + (symbol_index * sizeof (GumNList64)));
 
       details.name = strings + symbol->n_strx;
       details.address = (symbol->n_value != 0) ? symbol->n_value + slide : 0;
@@ -821,7 +832,7 @@ gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
     {
       GumNList32 * symbol;
 
-      symbol = symbols + (symbol_index * sizeof (GumNList32));
+      symbol = (GumNList32 *) (symbols + (symbol_index * sizeof (GumNList32)));
 
       details.name = strings + symbol->n_strx;
       details.address = (symbol->n_value != 0) ? symbol->n_value + slide : 0;
@@ -837,8 +848,11 @@ gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
   }
 
 beach:
-  g_free (strings);
-  g_free (symbols);
+  if (self->task != GUM_DARWIN_PORT_NULL)
+  {
+    g_free (strings);
+    g_free (symbols);
+  }
 }
 
 GumAddress
