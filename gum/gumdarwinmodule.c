@@ -1258,8 +1258,8 @@ gum_darwin_module_enumerate_sections (GumDarwinModule * self,
       {
         if (lc->cmd == GUM_LC_SEGMENT_32)
         {
-          const GumSection32 * s = (const GumSection32 *)
-              sections + (section_index * sizeof (GumSection32));
+          const GumSection32 * s =
+              (const GumSection32 *) sections + section_index;
 
           g_strlcpy (details.segment_name, s->segname,
               sizeof (details.segment_name));
@@ -1273,8 +1273,8 @@ gum_darwin_module_enumerate_sections (GumDarwinModule * self,
         }
         else
         {
-          const GumSection64 * s = (const GumSection64 *)
-              sections + (section_index * sizeof (GumSection64));
+          const GumSection64 * s =
+              (const GumSection64 *) sections + section_index;
 
           g_strlcpy (details.segment_name, s->segname,
               sizeof (details.segment_name));
