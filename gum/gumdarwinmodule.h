@@ -35,6 +35,8 @@ typedef struct _GumDarwinSegment GumDarwinSegment;
 typedef struct _GumDarwinExportDetails GumDarwinExportDetails;
 typedef struct _GumDarwinSymbolDetails GumDarwinSymbolDetails;
 
+typedef guint8 GumDarwinBindType;
+
 typedef guint GumDarwinPort;
 typedef gint GumDarwinPageProtection;
 
@@ -55,6 +57,10 @@ typedef gboolean (* GumDarwinFoundTermPointersFunc) (
 typedef gboolean (* GumDarwinFoundDependencyFunc) (const gchar * path,
     gpointer user_data);
 typedef gpointer (* GumDarwinModuleResolverFunc) (void);
+
+typedef struct _GumDyldInfoCommand GumDyldInfoCommand;
+typedef struct _GumSymtabCommand GumSymtabCommand;
+typedef struct _GumDysymtabCommand GumDysymtabCommand;
 
 struct _GumDarwinModule
 {
@@ -77,9 +83,9 @@ struct _GumDarwinModule
 
   GumDarwinModuleImage * image;
 
-  const struct dyld_info_command * info;
-  const struct symtab_command * symtab;
-  const struct dysymtab_command * dysymtab;
+  const GumDyldInfoCommand * info;
+  const GumSymtabCommand * symtab;
+  const GumDysymtabCommand * dysymtab;
 
   GumAddress preferred_address;
 
@@ -108,7 +114,7 @@ struct _GumDarwinModule
 
 enum _GumDarwinModuleFlags
 {
-  GUM_DARWIN_MODULE_FLAGS_NONE = 0,
+  GUM_DARWIN_MODULE_FLAGS_NONE        = 0,
   GUM_DARWIN_MODULE_FLAGS_HEADER_ONLY = (1 << 0),
 };
 
@@ -158,7 +164,7 @@ struct _GumDarwinBindDetails
 {
   const GumDarwinSegment * segment;
   guint64 offset;
-  guint8 type;
+  GumDarwinBindType type;
   gint library_ordinal;
   const gchar * symbol_name;
   guint8 symbol_flags;
@@ -217,6 +223,13 @@ struct _GumDarwinSymbolDetails
   guint8 type;
   guint8 section;
   guint16 description;
+};
+
+enum _GumDarwinBindType
+{
+  GUM_DARWIN_BIND_POINTER = 1,
+  GUM_DARWIN_BIND_TEXT_ABSOLUTE32,
+  GUM_DARWIN_BIND_TEXT_PCREL32,
 };
 
 GUM_API GumDarwinModule * gum_darwin_module_new_from_file (const gchar * path,

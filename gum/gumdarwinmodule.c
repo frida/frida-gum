@@ -13,12 +13,32 @@
 #include "gumkernel.h"
 
 #include <gio/gio.h>
-#include <mach-o/fat.h>
-#include <mach-o/loader.h>
 
-#define GUM_DARWIN_N_EXT 0x01
+#define GUM_FAT_CIGAM_32               0xbebafeca
+#define GUM_MH_MAGIC_32                0xfeedface
+#define GUM_MH_MAGIC_64                0xfeedfacf
+#define GUM_MH_EXECUTE                        0x2
+#define GUM_MH_PREBOUND                      0x10
 
-#define MAX_METADATA_SIZE (64 * 1024)
+#define GUM_LC_REQ_DYLD                0x80000000
+
+#define GUM_SECTION_TYPE_MASK          0x000000ff
+
+#define GUM_N_EXT                            0x01
+
+#define GUM_REBASE_OPCODE_MASK               0xf0
+#define GUM_REBASE_IMMEDIATE_MASK            0x0f
+
+#define GUM_BIND_OPCODE_MASK                 0xf0
+#define GUM_BIND_IMMEDIATE_MASK              0x0f
+
+#define GUM_BIND_TYPE_POINTER 1
+
+#define GUM_BIND_SPECIAL_DYLIB_SELF             0
+#define GUM_BIND_SPECIAL_DYLIB_MAIN_EXECUTABLE -1
+#define GUM_BIND_SPECIAL_DYLIB_FLAT_LOOKUP     -2
+
+#define MAX_METADATA_SIZE             (64 * 1024)
 #ifdef HAVE_DARWIN
 # define GUM_MEM_READ(task, addr, len, out_size) \
     (self->is_kernel ? gum_kernel_read (addr, len, out_size) \
@@ -27,7 +47,7 @@
 # define GUM_MEM_READ(task, addr, len, out_size) NULL
 #endif
 
-#define HAS_HEADER_ONLY(self) \
+#define GUM_DARWIN_MODULE_HAS_HEADER_ONLY(self) \
     ((self->flags & GUM_DARWIN_MODULE_FLAGS_HEADER_ONLY) != 0)
 
 typedef struct _GumResolveSymbolContext GumResolveSymbolContext;
@@ -43,6 +63,22 @@ typedef struct _GumDyldCacheHeader GumDyldCacheHeader;
 typedef struct _GumDyldCacheMappingInfo GumDyldCacheMappingInfo;
 typedef struct _GumDyldCacheImageInfo GumDyldCacheImageInfo;
 
+typedef struct _GumFatHeader GumFatHeader;
+typedef struct _GumFatArch32 GumFatArch32;
+typedef struct _GumMachHeader32 GumMachHeader32;
+typedef struct _GumMachHeader64 GumMachHeader64;
+typedef gint GumDarwinCpuType;
+typedef gint GumDarwinCpuSubtype;
+typedef struct _GumLoadCommand GumLoadCommand;
+typedef union _GumLcStr GumLcStr;
+typedef struct _GumSegmentCommand32 GumSegmentCommand32;
+typedef struct _GumSegmentCommand64 GumSegmentCommand64;
+typedef struct _GumDylibCommand GumDylibCommand;
+typedef struct _GumDylinkerCommand GumDylinkerCommand;
+typedef struct _GumUUIDCommand GumUUIDCommand;
+typedef struct _GumDylib GumDylib;
+typedef struct _GumSection32 GumSection32;
+typedef struct _GumSection64 GumSection64;
 typedef struct _GumNList32 GumNList32;
 typedef struct _GumNList64 GumNList64;
 
@@ -133,6 +169,269 @@ struct _GumDyldCacheImageInfo
   guint32 padding;
 };
 
+struct _GumFatHeader
+{
+  guint32 magic;
+  guint32 nfat_arch;
+};
+
+struct _GumFatArch32
+{
+  GumDarwinCpuType cputype;
+  GumDarwinCpuSubtype cpusubtype;
+  guint32 offset;
+  guint32 size;
+  guint32 align;
+};
+
+struct _GumMachHeader32
+{
+  guint32 magic;
+  GumDarwinCpuType cputype;
+  GumDarwinCpuSubtype cpusubtype;
+  guint32 filetype;
+  guint32 ncmds;
+  guint32 sizeofcmds;
+  guint32 flags;
+};
+
+struct _GumMachHeader64
+{
+  guint32 magic;
+  GumDarwinCpuType cputype;
+  GumDarwinCpuSubtype cpusubtype;
+  guint32 filetype;
+  guint32 ncmds;
+  guint32 sizeofcmds;
+  guint32 flags;
+  guint32 reserved;
+};
+
+enum _GumDarwinCpuArchType
+{
+  GUM_DARWIN_CPU_ARCH_ABI64    = 0x01000000,
+  GUM_DARWIN_CPU_ARCH_ABI64_32 = 0x02000000,
+};
+
+enum _GumDarwinCpuType
+{
+  GUM_DARWIN_CPU_X86      =  7,
+  GUM_DARWIN_CPU_X86_64   =  7 | GUM_DARWIN_CPU_ARCH_ABI64,
+  GUM_DARWIN_CPU_ARM      = 12,
+  GUM_DARWIN_CPU_ARM64    = 12 | GUM_DARWIN_CPU_ARCH_ABI64,
+  GUM_DARWIN_CPU_ARM64_32 = 12 | GUM_DARWIN_CPU_ARCH_ABI64_32,
+};
+
+enum _GumLoadCommandType
+{
+  GUM_LC_SEGMENT_32        = 0x01,
+  GUM_LC_SYMTAB            = 0x02,
+  GUM_LC_DYSYMTAB          = 0x0b,
+  GUM_LC_LOAD_DYLIB        = 0x0c,
+  GUM_LC_ID_DYLIB          = 0x0d,
+  GUM_LC_ID_DYLINKER       = 0x0f,
+  GUM_LC_LOAD_WEAK_DYLIB   = (0x18 | GUM_LC_REQ_DYLD),
+  GUM_LC_SEGMENT_64        = 0x19,
+  GUM_LC_UUID              = 0x1b,
+  GUM_LC_REEXPORT_DYLIB    = (0x1f | GUM_LC_REQ_DYLD),
+  GUM_LC_DYLD_INFO_ONLY    = (0x22 | GUM_LC_REQ_DYLD),
+  GUM_LC_LOAD_UPWARD_DYLIB = (0x23 | GUM_LC_REQ_DYLD),
+};
+
+struct _GumLoadCommand
+{
+  guint32 cmd;
+  guint32 cmdsize;
+};
+
+union _GumLcStr
+{
+  guint32 offset;
+};
+
+struct _GumSegmentCommand32
+{
+  guint32 cmd;
+  guint32 cmdsize;
+
+  gchar segname[16];
+
+  guint32 vmaddr;
+  guint32 vmsize;
+
+  guint32 fileoff;
+  guint32 filesize;
+
+  GumDarwinPageProtection maxprot;
+  GumDarwinPageProtection initprot;
+
+  guint32 nsects;
+
+  guint32 flags;
+};
+
+struct _GumSegmentCommand64
+{
+  guint32 cmd;
+  guint32 cmdsize;
+
+  gchar segname[16];
+
+  guint64 vmaddr;
+  guint64 vmsize;
+
+  guint64 fileoff;
+  guint64 filesize;
+
+  GumDarwinPageProtection maxprot;
+  GumDarwinPageProtection initprot;
+
+  guint32 nsects;
+
+  guint32 flags;
+};
+
+struct _GumDylib
+{
+  GumLcStr name;
+  guint32 timestamp;
+  guint32 current_version;
+  guint32 compatibility_version;
+};
+
+struct _GumDylibCommand
+{
+  guint32 cmd;
+  guint32 cmdsize;
+
+  GumDylib dylib;
+};
+
+struct _GumDylinkerCommand
+{
+  guint32 cmd;
+  guint32 cmdsize;
+
+  GumLcStr name;
+};
+
+struct _GumUUIDCommand
+{
+  guint32 cmd;
+  guint32 cmdsize;
+
+  guint8 uuid[16];
+};
+
+struct _GumDyldInfoCommand
+{
+  guint32 cmd;
+  guint32 cmdsize;
+
+  guint32 rebase_off;
+  guint32 rebase_size;
+
+  guint32 bind_off;
+  guint32 bind_size;
+
+  guint32 weak_bind_off;
+  guint32 weak_bind_size;
+
+  guint32 lazy_bind_off;
+  guint32 lazy_bind_size;
+
+  guint32 export_off;
+  guint32 export_size;
+};
+
+struct _GumSymtabCommand
+{
+  guint32 cmd;
+  guint32 cmdsize;
+
+  guint32 symoff;
+  guint32 nsyms;
+
+  guint32 stroff;
+  guint32 strsize;
+};
+
+struct _GumDysymtabCommand
+{
+  guint32 cmd;
+  guint32 cmdsize;
+
+  guint32 ilocalsym;
+  guint32 nlocalsym;
+
+  guint32 iextdefsym;
+  guint32 nextdefsym;
+
+  guint32 iundefsym;
+  guint32 nundefsym;
+
+  guint32 tocoff;
+  guint32 ntoc;
+
+  guint32 modtaboff;
+  guint32 nmodtab;
+
+  guint32 extrefsymoff;
+  guint32 nextrefsyms;
+
+  guint32 indirectsymoff;
+  guint32 nindirectsyms;
+
+  guint32 extreloff;
+  guint32 nextrel;
+
+  guint32 locreloff;
+  guint32 nlocrel;
+};
+
+enum _GumSectionType
+{
+  GUM_S_MOD_INIT_FUNC_POINTERS = 0x9,
+  GUM_S_MOD_TERM_FUNC_POINTERS = 0xa,
+};
+
+enum _GumSectionAttributes
+{
+  GUM_S_ATTR_SOME_INSTRUCTIONS = 0x00000400,
+  GUM_S_ATTR_PURE_INSTRUCTIONS = 0x80000000,
+};
+
+struct _GumSection32
+{
+  gchar sectname[16];
+  gchar segname[16];
+  guint32 addr;
+  guint32 size;
+  guint32 offset;
+  guint32 align;
+  guint32 reloff;
+  guint32 nreloc;
+  guint32 flags;
+  guint32 reserved1;
+  guint32 reserved2;
+};
+
+struct _GumSection64
+{
+  gchar sectname[16];
+  gchar segname[16];
+  guint64 addr;
+  guint64 size;
+  guint32 offset;
+  guint32 align;
+  guint32 reloff;
+  guint32 nreloc;
+  guint32 flags;
+  guint32 reserved1;
+  guint32 reserved2;
+  guint32 reserved3;
+};
+
 struct _GumNList32
 {
   guint32 n_strx;
@@ -149,6 +448,42 @@ struct _GumNList64
   guint8 n_sect;
   guint16 n_desc;
   guint64 n_value;
+};
+
+enum _GumRebaseOpcode
+{
+  GUM_REBASE_OPCODE_DONE                               = 0x00,
+  GUM_REBASE_OPCODE_SET_TYPE_IMM                       = 0x10,
+  GUM_REBASE_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB        = 0x20,
+  GUM_REBASE_OPCODE_ADD_ADDR_ULEB                      = 0x30,
+  GUM_REBASE_OPCODE_ADD_ADDR_IMM_SCALED                = 0x40,
+  GUM_REBASE_OPCODE_DO_REBASE_IMM_TIMES                = 0x50,
+  GUM_REBASE_OPCODE_DO_REBASE_ULEB_TIMES               = 0x60,
+  GUM_REBASE_OPCODE_DO_REBASE_ADD_ADDR_ULEB            = 0x70,
+  GUM_REBASE_OPCODE_DO_REBASE_ULEB_TIMES_SKIPPING_ULEB = 0x80,
+};
+
+enum _GumBindOpcode
+{
+  GUM_BIND_OPCODE_DONE                                 = 0x00,
+  GUM_BIND_OPCODE_SET_DYLIB_ORDINAL_IMM                = 0x10,
+  GUM_BIND_OPCODE_SET_DYLIB_ORDINAL_ULEB               = 0x20,
+  GUM_BIND_OPCODE_SET_DYLIB_SPECIAL_IMM                = 0x30,
+  GUM_BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM        = 0x40,
+  GUM_BIND_OPCODE_SET_TYPE_IMM                         = 0x50,
+  GUM_BIND_OPCODE_SET_ADDEND_SLEB                      = 0x60,
+  GUM_BIND_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB          = 0x70,
+  GUM_BIND_OPCODE_ADD_ADDR_ULEB                        = 0x80,
+  GUM_BIND_OPCODE_DO_BIND                              = 0x90,
+  GUM_BIND_OPCODE_DO_BIND_ADD_ADDR_ULEB                = 0xa0,
+  GUM_BIND_OPCODE_DO_BIND_ADD_ADDR_IMM_SCALED          = 0xb0,
+  GUM_BIND_OPCODE_DO_BIND_ULEB_TIMES_SKIPPING_ULEB     = 0xc0,
+};
+
+enum _GumExportSymbolFlags
+{
+  GUM_EXPORT_SYMBOL_FLAGS_REEXPORT                     = 0x08,
+  GUM_EXPORT_SYMBOL_FLAGS_STUB_AND_RESOLVER            = 0x10,
 };
 
 static void gum_darwin_module_initable_iface_init (gpointer g_iface,
@@ -199,7 +534,7 @@ static gboolean gum_find_linkedit (const guint8 * module, gsize module_size,
     GumAddress * linkedit);
 static gboolean gum_add_text_range_if_text_section (
     const GumDarwinSectionDetails * details, gpointer user_data);
-static gboolean gum_section_flags_indicate_text_section (uint32_t flags);
+static gboolean gum_section_flags_indicate_text_section (guint32 flags);
 
 static gboolean gum_exports_trie_find (const guint8 * exports,
     const guint8 * exports_end, const gchar * name,
@@ -371,7 +706,7 @@ gum_darwin_module_initable_init (GInitable * initable,
         !gum_darwin_module_try_load_image_from_cache (self, self->source_path,
         self->cpu_type, self->cache_file))
     {
-      if (HAS_HEADER_ONLY (self))
+      if (GUM_DARWIN_MODULE_HAS_HEADER_ONLY (self))
       {
         if (!gum_darwin_module_load_image_header_from_filesystem (self,
             self->source_path, self->cpu_type, error))
@@ -645,7 +980,7 @@ gum_store_address_if_name_matches (const GumDarwinSymbolDetails * details,
 gboolean
 gum_darwin_module_get_lacks_exports_for_reexports (GumDarwinModule * self)
 {
-  uint32_t flags;
+  guint32 flags;
 
   if (!gum_darwin_module_ensure_image_loaded (self, NULL))
     return FALSE;
@@ -655,9 +990,9 @@ gum_darwin_module_get_lacks_exports_for_reexports (GumDarwinModule * self)
    *        introduced in macOS 10.11 and iOS 9.0, but this will have to
    *        do for now.
    */
-  flags = ((struct mach_header *) self->image->data)->flags;
+  flags = ((GumMachHeader32 *) self->image->data)->flags;
 
-  return (flags & MH_PREBOUND) == 0;
+  return (flags & GUM_MH_PREBOUND) == 0;
 }
 
 void
@@ -688,10 +1023,10 @@ gum_emit_import (const GumDarwinBindDetails * details,
   d.name = details->symbol_name;
   switch (details->library_ordinal)
   {
-    case BIND_SPECIAL_DYLIB_MAIN_EXECUTABLE:
-    case BIND_SPECIAL_DYLIB_SELF:
+    case GUM_BIND_SPECIAL_DYLIB_MAIN_EXECUTABLE:
+    case GUM_BIND_SPECIAL_DYLIB_SELF:
       return TRUE;
-    case BIND_SPECIAL_DYLIB_FLAT_LOOKUP:
+    case GUM_BIND_SPECIAL_DYLIB_FLAT_LOOKUP:
     {
       d.module = NULL;
       break;
@@ -750,7 +1085,7 @@ gum_emit_export_from_symbol (const GumDarwinSymbolDetails * details,
   GumEmitExportFromSymbolContext * ctx = user_data;
   GumDarwinExportDetails d;
 
-  if ((details->type & GUM_DARWIN_N_EXT) == 0)
+  if ((details->type & GUM_N_EXT) == 0)
     return TRUE;
 
   d.name = details->name;
@@ -766,14 +1101,14 @@ gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
                                      gpointer user_data)
 {
   GumDarwinModuleImage * image;
-  const struct symtab_command * symtab;
+  const GumSymtabCommand * symtab;
   gsize symbol_size;
   GumAddress slide;
   guint8 * symbols = NULL;
   gchar * strings = NULL;
   gsize symbol_index;
 
-  if (HAS_HEADER_ONLY (self) ||
+  if (GUM_DARWIN_MODULE_HAS_HEADER_ONLY (self) ||
       !gum_darwin_module_ensure_image_loaded (self, NULL))
   {
     goto beach;
@@ -876,7 +1211,7 @@ gum_darwin_module_enumerate_sections (GumDarwinModule * self,
                                       GumDarwinFoundSectionFunc func,
                                       gpointer user_data)
 {
-  const struct mach_header * header;
+  const GumMachHeader32 * header;
   gconstpointer command;
   gsize command_index;
   GumAddress slide;
@@ -884,47 +1219,47 @@ gum_darwin_module_enumerate_sections (GumDarwinModule * self,
   if (!gum_darwin_module_ensure_image_loaded (self, NULL))
     return;
 
-  header = (struct mach_header *) self->image->data;
-  if (header->magic == MH_MAGIC)
-    command = self->image->data + sizeof (struct mach_header);
+  header = (GumMachHeader32 *) self->image->data;
+  if (header->magic == GUM_MH_MAGIC_32)
+    command = self->image->data + sizeof (GumMachHeader32);
   else
-    command = self->image->data + sizeof (struct mach_header_64);
+    command = self->image->data + sizeof (GumMachHeader64);
   slide = gum_darwin_module_get_slide (self);
   for (command_index = 0; command_index != header->ncmds; command_index++)
   {
-    const struct load_command * lc = command;
+    const GumLoadCommand * lc = command;
 
-    if (lc->cmd == LC_SEGMENT || lc->cmd == LC_SEGMENT_64)
+    if (lc->cmd == GUM_LC_SEGMENT_32 || lc->cmd == GUM_LC_SEGMENT_64)
     {
       GumDarwinSectionDetails details;
-      gconstpointer sections;
+      const guint8 * sections;
       gsize section_count, section_index;
 
-      if (lc->cmd == LC_SEGMENT)
+      if (lc->cmd == GUM_LC_SEGMENT_32)
       {
-        const struct segment_command * sc = command;
+        const GumSegmentCommand32 * sc = command;
 
         details.protection = sc->initprot;
 
-        sections = sc + 1;
+        sections = (const guint8 *) (sc + 1);
         section_count = sc->nsects;
       }
       else
       {
-        const struct segment_command_64 * sc = command;
+        const GumSegmentCommand64 * sc = command;
 
         details.protection = sc->initprot;
 
-        sections = sc + 1;
+        sections = (const guint8 *) (sc + 1);
         section_count = sc->nsects;
       }
 
       for (section_index = 0; section_index != section_count; section_index++)
       {
-        if (lc->cmd == LC_SEGMENT)
+        if (lc->cmd == GUM_LC_SEGMENT_32)
         {
-          const struct section * s = sections +
-              (section_index * sizeof (struct section));
+          const GumSection32 * s = (const GumSection32 *)
+              sections + (section_index * sizeof (GumSection32));
 
           g_strlcpy (details.segment_name, s->segname,
               sizeof (details.segment_name));
@@ -938,8 +1273,8 @@ gum_darwin_module_enumerate_sections (GumDarwinModule * self,
         }
         else
         {
-          const struct section_64 * s = sections +
-              (section_index * sizeof (struct section_64));
+          const GumSection64 * s = (const GumSection64 *)
+              sections + (section_index * sizeof (GumSection64));
 
           g_strlcpy (details.segment_name, s->segname,
               sizeof (details.segment_name));
@@ -987,7 +1322,7 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
   GumDarwinRebaseDetails details;
   guint64 max_offset;
 
-  if (HAS_HEADER_ONLY (self) ||
+  if (GUM_DARWIN_MODULE_HAS_HEADER_ONLY (self) ||
       !gum_darwin_module_ensure_image_loaded (self, NULL))
   {
     return;
@@ -1007,20 +1342,20 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
 
   while (!done && p != end)
   {
-    guint8 opcode = *p & REBASE_OPCODE_MASK;
-    guint8 immediate = *p & REBASE_IMMEDIATE_MASK;
+    guint8 opcode = *p & GUM_REBASE_OPCODE_MASK;
+    guint8 immediate = *p & GUM_REBASE_IMMEDIATE_MASK;
 
     p++;
 
     switch (opcode)
     {
-      case REBASE_OPCODE_DONE:
+      case GUM_REBASE_OPCODE_DONE:
         done = TRUE;
         break;
-      case REBASE_OPCODE_SET_TYPE_IMM:
+      case GUM_REBASE_OPCODE_SET_TYPE_IMM:
         details.type = immediate;
         break;
-      case REBASE_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB:
+      case GUM_REBASE_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB:
       {
         gint segment_index = immediate;
         details.segment =
@@ -1029,13 +1364,13 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
         max_offset = details.segment->file_size;
         break;
       }
-      case REBASE_OPCODE_ADD_ADDR_ULEB:
+      case GUM_REBASE_OPCODE_ADD_ADDR_ULEB:
         details.offset += gum_read_uleb128 (&p, end);
         break;
-      case REBASE_OPCODE_ADD_ADDR_IMM_SCALED:
+      case GUM_REBASE_OPCODE_ADD_ADDR_IMM_SCALED:
         details.offset += immediate * self->pointer_size;
         break;
-      case REBASE_OPCODE_DO_REBASE_IMM_TIMES:
+      case GUM_REBASE_OPCODE_DO_REBASE_IMM_TIMES:
       {
         guint8 i;
 
@@ -1049,7 +1384,7 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
 
         break;
       }
-      case REBASE_OPCODE_DO_REBASE_ULEB_TIMES:
+      case GUM_REBASE_OPCODE_DO_REBASE_ULEB_TIMES:
       {
         guint64 count, i;
 
@@ -1064,13 +1399,13 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
 
         break;
       }
-      case REBASE_OPCODE_DO_REBASE_ADD_ADDR_ULEB:
+      case GUM_REBASE_OPCODE_DO_REBASE_ADD_ADDR_ULEB:
         g_assert (details.offset < max_offset);
         if (!func (&details, user_data))
           return;
         details.offset += self->pointer_size + gum_read_uleb128 (&p, end);
         break;
-      case REBASE_OPCODE_DO_REBASE_ULEB_TIMES_SKIPPING_ULEB:
+      case GUM_REBASE_OPCODE_DO_REBASE_ULEB_TIMES_SKIPPING_ULEB:
       {
         gsize count, skip, i;
 
@@ -1103,7 +1438,7 @@ gum_darwin_module_enumerate_binds (GumDarwinModule * self,
   GumDarwinBindDetails details;
   guint64 max_offset;
 
-  if (HAS_HEADER_ONLY (self) ||
+  if (GUM_DARWIN_MODULE_HAS_HEADER_ONLY (self) ||
       !gum_darwin_module_ensure_image_loaded (self, NULL))
   {
     return;
@@ -1126,47 +1461,47 @@ gum_darwin_module_enumerate_binds (GumDarwinModule * self,
 
   while (!done && p != end)
   {
-    guint8 opcode = *p & BIND_OPCODE_MASK;
-    guint8 immediate = *p & BIND_IMMEDIATE_MASK;
+    guint8 opcode = *p & GUM_BIND_OPCODE_MASK;
+    guint8 immediate = *p & GUM_BIND_IMMEDIATE_MASK;
 
     p++;
 
     switch (opcode)
     {
-      case BIND_OPCODE_DONE:
+      case GUM_BIND_OPCODE_DONE:
         done = TRUE;
         break;
-      case BIND_OPCODE_SET_DYLIB_ORDINAL_IMM:
+      case GUM_BIND_OPCODE_SET_DYLIB_ORDINAL_IMM:
         details.library_ordinal = immediate;
         break;
-      case BIND_OPCODE_SET_DYLIB_ORDINAL_ULEB:
+      case GUM_BIND_OPCODE_SET_DYLIB_ORDINAL_ULEB:
         details.library_ordinal = gum_read_uleb128 (&p, end);
         break;
-      case BIND_OPCODE_SET_DYLIB_SPECIAL_IMM:
+      case GUM_BIND_OPCODE_SET_DYLIB_SPECIAL_IMM:
         if (immediate == 0)
         {
           details.library_ordinal = 0;
         }
         else
         {
-          gint8 value = BIND_OPCODE_MASK | immediate;
+          gint8 value = GUM_BIND_OPCODE_MASK | immediate;
           details.library_ordinal = value;
         }
         break;
-      case BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM:
+      case GUM_BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM:
         details.symbol_name = (gchar *) p;
         details.symbol_flags = immediate;
         while (*p != '\0')
           p++;
         p++;
         break;
-      case BIND_OPCODE_SET_TYPE_IMM:
+      case GUM_BIND_OPCODE_SET_TYPE_IMM:
         details.type = immediate;
         break;
-      case BIND_OPCODE_SET_ADDEND_SLEB:
+      case GUM_BIND_OPCODE_SET_ADDEND_SLEB:
         details.addend = gum_read_sleb128 (&p, end);
         break;
-      case BIND_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB:
+      case GUM_BIND_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB:
       {
         gint segment_index = immediate;
         details.segment =
@@ -1175,28 +1510,28 @@ gum_darwin_module_enumerate_binds (GumDarwinModule * self,
         max_offset = details.segment->file_size;
         break;
       }
-      case BIND_OPCODE_ADD_ADDR_ULEB:
+      case GUM_BIND_OPCODE_ADD_ADDR_ULEB:
         details.offset += gum_read_uleb128 (&p, end);
         break;
-      case BIND_OPCODE_DO_BIND:
+      case GUM_BIND_OPCODE_DO_BIND:
         g_assert (details.offset < max_offset);
         if (!func (&details, user_data))
           return;
         details.offset += self->pointer_size;
         break;
-      case BIND_OPCODE_DO_BIND_ADD_ADDR_ULEB:
+      case GUM_BIND_OPCODE_DO_BIND_ADD_ADDR_ULEB:
         g_assert (details.offset < max_offset);
         if (!func (&details, user_data))
           return;
         details.offset += self->pointer_size + gum_read_uleb128 (&p, end);
         break;
-      case BIND_OPCODE_DO_BIND_ADD_ADDR_IMM_SCALED:
+      case GUM_BIND_OPCODE_DO_BIND_ADD_ADDR_IMM_SCALED:
         g_assert (details.offset < max_offset);
         if (!func (&details, user_data))
           return;
         details.offset += self->pointer_size + (immediate * self->pointer_size);
         break;
-      case BIND_OPCODE_DO_BIND_ULEB_TIMES_SKIPPING_ULEB:
+      case GUM_BIND_OPCODE_DO_BIND_ULEB_TIMES_SKIPPING_ULEB:
       {
         guint64 count, skip, i;
 
@@ -1228,7 +1563,7 @@ gum_darwin_module_enumerate_lazy_binds (GumDarwinModule * self,
   GumDarwinBindDetails details;
   guint64 max_offset;
 
-  if (HAS_HEADER_ONLY (self) ||
+  if (GUM_DARWIN_MODULE_HAS_HEADER_ONLY (self) ||
       !gum_darwin_module_ensure_image_loaded (self, NULL))
   {
     return;
@@ -1240,7 +1575,7 @@ gum_darwin_module_enumerate_lazy_binds (GumDarwinModule * self,
 
   details.segment = gum_darwin_module_get_nth_segment (self, 0);
   details.offset = 0;
-  details.type = BIND_TYPE_POINTER;
+  details.type = GUM_DARWIN_BIND_POINTER;
   details.library_ordinal = 0;
   details.symbol_name = NULL;
   details.symbol_flags = 0;
@@ -1250,46 +1585,46 @@ gum_darwin_module_enumerate_lazy_binds (GumDarwinModule * self,
 
   while (p != end)
   {
-    guint8 opcode = *p & BIND_OPCODE_MASK;
-    guint8 immediate = *p & BIND_IMMEDIATE_MASK;
+    guint8 opcode = *p & GUM_BIND_OPCODE_MASK;
+    guint8 immediate = *p & GUM_BIND_IMMEDIATE_MASK;
 
     p++;
 
     switch (opcode)
     {
-      case BIND_OPCODE_DONE:
+      case GUM_BIND_OPCODE_DONE:
         break;
-      case BIND_OPCODE_SET_DYLIB_ORDINAL_IMM:
+      case GUM_BIND_OPCODE_SET_DYLIB_ORDINAL_IMM:
         details.library_ordinal = immediate;
         break;
-      case BIND_OPCODE_SET_DYLIB_ORDINAL_ULEB:
+      case GUM_BIND_OPCODE_SET_DYLIB_ORDINAL_ULEB:
         details.library_ordinal = gum_read_uleb128 (&p, end);
         break;
-      case BIND_OPCODE_SET_DYLIB_SPECIAL_IMM:
+      case GUM_BIND_OPCODE_SET_DYLIB_SPECIAL_IMM:
         if (immediate == 0)
         {
           details.library_ordinal = 0;
         }
         else
         {
-          gint8 value = BIND_OPCODE_MASK | immediate;
+          gint8 value = GUM_BIND_OPCODE_MASK | immediate;
           details.library_ordinal = value;
         }
         break;
-      case BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM:
+      case GUM_BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM:
         details.symbol_name = (gchar *) p;
         details.symbol_flags = immediate;
         while (*p != '\0')
           p++;
         p++;
         break;
-      case BIND_OPCODE_SET_TYPE_IMM:
+      case GUM_BIND_OPCODE_SET_TYPE_IMM:
         details.type = immediate;
         break;
-      case BIND_OPCODE_SET_ADDEND_SLEB:
+      case GUM_BIND_OPCODE_SET_ADDEND_SLEB:
         details.addend = gum_read_sleb128 (&p, end);
         break;
-      case BIND_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB:
+      case GUM_BIND_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB:
       {
         gint segment_index = immediate;
         details.segment =
@@ -1298,18 +1633,18 @@ gum_darwin_module_enumerate_lazy_binds (GumDarwinModule * self,
         max_offset = details.segment->file_size;
         break;
       }
-      case BIND_OPCODE_ADD_ADDR_ULEB:
+      case GUM_BIND_OPCODE_ADD_ADDR_ULEB:
         details.offset += gum_read_uleb128 (&p, end);
         break;
-      case BIND_OPCODE_DO_BIND:
+      case GUM_BIND_OPCODE_DO_BIND:
         g_assert (details.offset < max_offset);
         if (!func (&details, user_data))
           return;
         details.offset += self->pointer_size;
         break;
-      case BIND_OPCODE_DO_BIND_ADD_ADDR_ULEB:
-      case BIND_OPCODE_DO_BIND_ADD_ADDR_IMM_SCALED:
-      case BIND_OPCODE_DO_BIND_ULEB_TIMES_SKIPPING_ULEB:
+      case GUM_BIND_OPCODE_DO_BIND_ADD_ADDR_ULEB:
+      case GUM_BIND_OPCODE_DO_BIND_ADD_ADDR_IMM_SCALED:
+      case GUM_BIND_OPCODE_DO_BIND_ULEB_TIMES_SKIPPING_ULEB:
       default:
         g_assert_not_reached ();
         break;
@@ -1347,7 +1682,7 @@ static gboolean
 gum_emit_section_init_pointers (const GumDarwinSectionDetails * details,
                                 gpointer user_data)
 {
-  if ((details->flags & SECTION_TYPE) == S_MOD_INIT_FUNC_POINTERS)
+  if ((details->flags & GUM_SECTION_TYPE_MASK) == GUM_S_MOD_INIT_FUNC_POINTERS)
   {
     GumEmitInitPointersContext * ctx = user_data;
     GumDarwinInitPointersDetails d;
@@ -1363,7 +1698,7 @@ static gboolean
 gum_emit_section_term_pointers (const GumDarwinSectionDetails * details,
                                 gpointer user_data)
 {
-  if ((details->flags & SECTION_TYPE) == S_MOD_TERM_FUNC_POINTERS)
+  if ((details->flags & GUM_SECTION_TYPE_MASK) == GUM_S_MOD_TERM_FUNC_POINTERS)
   {
     GumEmitTermPointersContext * ctx = user_data;
     GumDarwinTermPointersDetails d;
@@ -1599,9 +1934,9 @@ gum_darwin_module_get_header_offset_size (GumDarwinModule * self,
                                           gsize * out_size,
                                           GError ** error)
 {
-  struct fat_header * fat_header;
-  struct mach_header * header_32 = NULL;
-  struct mach_header_64 * header_64 = NULL;
+  GumFatHeader * fat_header;
+  GumMachHeader32 * header_32 = NULL;
+  GumMachHeader64 * header_64 = NULL;
   gboolean found = FALSE;
   gpointer data_end;
 
@@ -1609,15 +1944,15 @@ gum_darwin_module_get_header_offset_size (GumDarwinModule * self,
   fat_header = data;
   switch (fat_header->magic)
   {
-    case FAT_CIGAM:
+    case GUM_FAT_CIGAM_32:
     {
-      uint32_t count, i;
+      guint32 count, i;
 
       count = GUINT32_FROM_BE (fat_header->nfat_arch);
       for (i = 0; i != count && !found; i++)
       {
-        struct fat_arch * fat_arch = ((struct fat_arch *) (fat_header + 1)) + i;
-        if ((gpointer) fat_arch + sizeof (struct fat_arch) > data_end)
+        GumFatArch32 * fat_arch = ((GumFatArch32 *) (fat_header + 1)) + i;
+        if ((gpointer) fat_arch + sizeof (GumFatArch32) > data_end)
           goto invalid_blob;
 
         guint32 offset = GUINT32_FROM_BE (fat_arch->offset);
@@ -1625,15 +1960,15 @@ gum_darwin_module_get_header_offset_size (GumDarwinModule * self,
         *out_offset = offset;
         switch (cpu_type)
         {
-          case CPU_TYPE_ARM:
-          case CPU_TYPE_X86:
-            *out_size = sizeof (struct mach_header);
+          case GUM_DARWIN_CPU_ARM:
+          case GUM_DARWIN_CPU_X86:
+            *out_size = sizeof (GumMachHeader32);
             found = self->cpu_type == GUM_CPU_ARM ||
                 self->cpu_type == GUM_CPU_IA32;
             break;
-          case CPU_TYPE_ARM64:
-          case CPU_TYPE_X86_64:
-            *out_size = sizeof (struct mach_header_64);
+          case GUM_DARWIN_CPU_ARM64:
+          case GUM_DARWIN_CPU_X86_64:
+            *out_size = sizeof (GumMachHeader64);
             found = self->cpu_type == GUM_CPU_ARM64 ||
                 self->cpu_type == GUM_CPU_AMD64;
             break;
@@ -1644,21 +1979,21 @@ gum_darwin_module_get_header_offset_size (GumDarwinModule * self,
 
       break;
     }
-    case MH_MAGIC:
-      header_32 = (struct mach_header *) data;
-      if (data + sizeof (struct mach_header) > data_end)
+    case GUM_MH_MAGIC_32:
+      header_32 = (GumMachHeader32 *) data;
+      if (data + sizeof (GumMachHeader32) > data_end)
         goto invalid_blob;
       *out_offset = 0;
-      *out_size = sizeof (struct mach_header) + header_32->sizeofcmds;
+      *out_size = sizeof (GumMachHeader32) + header_32->sizeofcmds;
       found = self->cpu_type == GUM_CPU_ARM ||
           self->cpu_type == GUM_CPU_IA32;
       break;
-    case MH_MAGIC_64:
-      header_64 = (struct mach_header_64 *) data;
-      if (data + sizeof (struct mach_header_64) > data_end)
+    case GUM_MH_MAGIC_64:
+      header_64 = (GumMachHeader64 *) data;
+      if (data + sizeof (GumMachHeader64) > data_end)
         goto invalid_blob;
       *out_offset = 0;
-      *out_size = sizeof (struct mach_header_64) + header_64->sizeofcmds;
+      *out_size = sizeof (GumMachHeader64) + header_64->sizeofcmds;
       found = self->cpu_type == GUM_CPU_ARM64 ||
           self->cpu_type == GUM_CPU_AMD64;
       break;
@@ -1687,9 +2022,9 @@ gum_darwin_module_load_image_from_blob (GumDarwinModule * self,
   GumDarwinModuleImage * image;
   gpointer blob_data;
   gsize blob_size;
-  struct fat_header * fat_header;
-  struct mach_header * header_32 = NULL;
-  struct mach_header_64 * header_64 = NULL;
+  GumFatHeader * fat_header;
+  GumMachHeader32 * header_32 = NULL;
+  GumMachHeader64 * header_64 = NULL;
   gsize size_32 = 0;
   gsize size_64 = 0;
 
@@ -1701,22 +2036,22 @@ gum_darwin_module_load_image_from_blob (GumDarwinModule * self,
   fat_header = blob_data;
   switch (fat_header->magic)
   {
-    case FAT_CIGAM:
+    case GUM_FAT_CIGAM_32:
     {
-      uint32_t count, i;
+      guint32 count, i;
 
       count = GUINT32_FROM_BE (fat_header->nfat_arch);
       for (i = 0; i != count; i++)
       {
-        struct fat_arch * fat_arch = ((struct fat_arch *) (fat_header + 1)) + i;
+        GumFatArch32 * fat_arch = ((GumFatArch32 *) (fat_header + 1)) + i;
         gpointer mach_header = blob_data + GUINT32_FROM_BE (fat_arch->offset);
-        switch (((struct mach_header *) mach_header)->magic)
+        switch (((GumMachHeader32 *) mach_header)->magic)
         {
-          case MH_MAGIC:
+          case GUM_MH_MAGIC_32:
             header_32 = mach_header;
             size_32 = GUINT32_FROM_BE (fat_arch->size);
             break;
-          case MH_MAGIC_64:
+          case GUM_MH_MAGIC_64:
             header_64 = mach_header;
             size_64 = GUINT32_FROM_BE (fat_arch->size);
             break;
@@ -1727,11 +2062,11 @@ gum_darwin_module_load_image_from_blob (GumDarwinModule * self,
 
       break;
     }
-    case MH_MAGIC:
+    case GUM_MH_MAGIC_32:
       header_32 = blob_data;
       size_32 = blob_size;
       break;
-    case MH_MAGIC_64:
+    case GUM_MH_MAGIC_64:
       header_64 = blob_data;
       size_64 = blob_size;
       break;
@@ -1814,64 +2149,63 @@ gum_darwin_module_take_image (GumDarwinModule * self,
                               GError ** error)
 {
   gboolean success = FALSE;
-  const struct mach_header * header;
+  const GumMachHeader32 * header;
   gconstpointer command;
   gsize command_index;
 
   g_assert (self->image == NULL);
   self->image = image;
 
-  header = (struct mach_header *) image->data;
-  if (header->filetype == MH_EXECUTE)
+  header = (GumMachHeader32 *) image->data;
+  if (header->filetype == GUM_MH_EXECUTE)
     self->name = g_strdup ("Executable");
-  if (header->magic == MH_MAGIC)
-    command = image->data + sizeof (struct mach_header);
+  if (header->magic == GUM_MH_MAGIC_32)
+    command = image->data + sizeof (GumMachHeader32);
   else
-    command = image->data + sizeof (struct mach_header_64);
+    command = image->data + sizeof (GumMachHeader64);
   for (command_index = 0; command_index != header->ncmds; command_index++)
   {
-    const struct load_command * lc = (struct load_command *) command;
+    const GumLoadCommand * lc = (GumLoadCommand *) command;
 
     switch (lc->cmd)
     {
-      case LC_ID_DYLIB:
+      case GUM_LC_ID_DYLIB:
       {
         if (self->name == NULL)
         {
-          const struct dylib * dl = &((struct dylib_command *) lc)->dylib;
+          const GumDylib * dl = &((GumDylibCommand *) lc)->dylib;
           const gchar * raw_path;
           guint raw_path_len;
 
           raw_path = (const gchar *) command + dl->name.offset;
-          raw_path_len = lc->cmdsize - sizeof (struct dylib_command);
+          raw_path_len = lc->cmdsize - sizeof (GumDylibCommand);
 
           self->name = g_strndup (raw_path, raw_path_len);
         }
 
         break;
       }
-      case LC_ID_DYLINKER:
+      case GUM_LC_ID_DYLINKER:
       {
         if (self->name == NULL)
         {
-          const struct dylinker_command * dl =
-              (const struct dylinker_command *) lc;
+          const GumDylinkerCommand * dl = (const GumDylinkerCommand *) lc;
           const gchar * raw_path;
           guint raw_path_len;
 
           raw_path = (const gchar *) command + dl->name.offset;
-          raw_path_len = lc->cmdsize - sizeof (struct dylinker_command);
+          raw_path_len = lc->cmdsize - sizeof (GumDylinkerCommand);
 
           self->name = g_strndup (raw_path, raw_path_len);
         }
 
         break;
       }
-      case LC_UUID:
+      case GUM_LC_UUID:
       {
         if (self->uuid == NULL)
         {
-          const struct uuid_command * uc = command;
+          const GumUUIDCommand * uc = command;
           const uint8_t * u = uc->uuid;
 
           self->uuid = g_strdup_printf ("%02X%02X%02X%02X-%02X%02X-%02X%02X-"
@@ -1882,14 +2216,14 @@ gum_darwin_module_take_image (GumDarwinModule * self,
 
         break;
       }
-      case LC_SEGMENT:
-      case LC_SEGMENT_64:
+      case GUM_LC_SEGMENT_32:
+      case GUM_LC_SEGMENT_64:
       {
         GumDarwinSegment segment;
 
-        if (lc->cmd == LC_SEGMENT)
+        if (lc->cmd == GUM_LC_SEGMENT_32)
         {
-          const struct segment_command * sc = command;
+          const GumSegmentCommand32 * sc = command;
 
           g_strlcpy (segment.name, sc->segname, sizeof (segment.name));
           segment.vm_address = sc->vmaddr;
@@ -1900,7 +2234,7 @@ gum_darwin_module_take_image (GumDarwinModule * self,
         }
         else
         {
-          const struct segment_command_64 * sc = command;
+          const GumSegmentCommand64 * sc = command;
 
           g_strlcpy (segment.name, sc->segname, sizeof (segment.name));
           segment.vm_address = sc->vmaddr;
@@ -1919,29 +2253,29 @@ gum_darwin_module_take_image (GumDarwinModule * self,
 
         break;
       }
-      case LC_LOAD_DYLIB:
-      case LC_LOAD_WEAK_DYLIB:
-      case LC_REEXPORT_DYLIB:
-      case LC_LOAD_UPWARD_DYLIB:
+      case GUM_LC_LOAD_DYLIB:
+      case GUM_LC_LOAD_WEAK_DYLIB:
+      case GUM_LC_REEXPORT_DYLIB:
+      case GUM_LC_LOAD_UPWARD_DYLIB:
       {
-        const struct dylib_command * dc = command;
+        const GumDylibCommand * dc = command;
         const gchar * name;
 
         name = command + dc->dylib.name.offset;
         g_ptr_array_add (self->dependencies, (gpointer) name);
 
-        if (lc->cmd == LC_REEXPORT_DYLIB)
+        if (lc->cmd == GUM_LC_REEXPORT_DYLIB)
           g_ptr_array_add (self->reexports, (gpointer) name);
 
         break;
       }
-      case LC_DYLD_INFO_ONLY:
+      case GUM_LC_DYLD_INFO_ONLY:
         self->info = command;
         break;
-      case LC_SYMTAB:
+      case GUM_LC_SYMTAB:
         self->symtab = command;
         break;
-      case LC_DYSYMTAB:
+      case GUM_LC_DYSYMTAB:
         self->dysymtab = command;
         break;
       default:
@@ -2060,27 +2394,27 @@ gum_find_linkedit (const guint8 * module,
                    gsize module_size,
                    GumAddress * linkedit)
 {
-  struct mach_header * header;
+  GumMachHeader32 * header;
   const guint8 * p;
   guint cmd_index;
 
-  header = (struct mach_header *) module;
-  if (header->magic == MH_MAGIC)
-    p = module + sizeof (struct mach_header);
+  header = (GumMachHeader32 *) module;
+  if (header->magic == GUM_MH_MAGIC_32)
+    p = module + sizeof (GumMachHeader32);
   else
-    p = module + sizeof (struct mach_header_64);
+    p = module + sizeof (GumMachHeader64);
   for (cmd_index = 0; cmd_index != header->ncmds; cmd_index++)
   {
-    struct load_command * lc = (struct load_command *) p;
+    GumLoadCommand * lc = (GumLoadCommand *) p;
 
-    if (lc->cmd == LC_SEGMENT || lc->cmd == LC_SEGMENT_64)
+    if (lc->cmd == GUM_LC_SEGMENT_32 || lc->cmd == GUM_LC_SEGMENT_64)
     {
-      struct segment_command * sc = (struct segment_command *) lc;
-      struct segment_command_64 * sc64 = (struct segment_command_64 *) lc;
-      if (strncmp (sc->segname, "__LINKEDIT", 10) == 0)
+      GumSegmentCommand32 * sc32 = (GumSegmentCommand32 *) lc;
+      GumSegmentCommand64 * sc64 = (GumSegmentCommand64 *) lc;
+      if (strncmp (sc32->segname, "__LINKEDIT", 10) == 0)
       {
-        if (header->magic == MH_MAGIC)
-          *linkedit = sc->vmaddr - sc->fileoff;
+        if (header->magic == GUM_MH_MAGIC_32)
+          *linkedit = sc32->vmaddr - sc32->fileoff;
         else
           *linkedit = sc64->vmaddr - sc64->fileoff;
         return TRUE;
@@ -2111,9 +2445,10 @@ gum_add_text_range_if_text_section (const GumDarwinSectionDetails * details,
 }
 
 static gboolean
-gum_section_flags_indicate_text_section (uint32_t flags)
+gum_section_flags_indicate_text_section (guint32 flags)
 {
-  return (flags & (S_ATTR_PURE_INSTRUCTIONS | S_ATTR_SOME_INSTRUCTIONS)) != 0;
+  return (flags & (GUM_S_ATTR_PURE_INSTRUCTIONS | GUM_S_ATTR_SOME_INSTRUCTIONS))
+      != 0;
 }
 
 GumDarwinModuleImage *
@@ -2358,12 +2693,12 @@ gum_darwin_export_details_init_from_node (GumDarwinExportDetails * details,
 
   details->name = name;
   details->flags = gum_read_uleb128 (&p, exports_end);
-  if ((details->flags & EXPORT_SYMBOL_FLAGS_REEXPORT) != 0)
+  if ((details->flags & GUM_EXPORT_SYMBOL_FLAGS_REEXPORT) != 0)
   {
     details->reexport_library_ordinal = gum_read_uleb128 (&p, exports_end);
     details->reexport_symbol = (*p != '\0') ? (gchar *) p : name;
   }
-  else if ((details->flags & EXPORT_SYMBOL_FLAGS_STUB_AND_RESOLVER) != 0)
+  else if ((details->flags & GUM_EXPORT_SYMBOL_FLAGS_STUB_AND_RESOLVER) != 0)
   {
     details->stub = gum_read_uleb128 (&p, exports_end);
     details->resolver = gum_read_uleb128 (&p, exports_end);

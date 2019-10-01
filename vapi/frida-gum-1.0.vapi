@@ -667,7 +667,7 @@ namespace Gum {
 	public struct DarwinBindDetails {
 		public Gum.DarwinSegment? segment;
 		public uint64 offset;
-		public uint8 type;
+		public Gum.DarwinBindType type;
 		public int library_ordinal;
 		public string symbol_name;
 		public uint8 symbol_flags;
@@ -713,6 +713,13 @@ namespace Gum {
 		public uint8 type;
 		public uint8 section;
 		public uint16 description;
+	}
+
+	[CCode (cname = "guint8", cprefix = "GUM_DARWIN_BIND_")]
+	public enum DarwinBindType {
+		POINTER = 1,
+		TEXT_ABSOLUTE32,
+		TEXT_PCREL32,
 	}
 
 	[CCode (has_type_id = false)]
