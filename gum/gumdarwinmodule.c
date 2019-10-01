@@ -1221,9 +1221,9 @@ gum_darwin_module_enumerate_sections (GumDarwinModule * self,
 
   header = (GumMachHeader32 *) self->image->data;
   if (header->magic == GUM_MH_MAGIC_32)
-    command = self->image->data + sizeof (GumMachHeader32);
+    command = (GumMachHeader32 *) self->image->data + 1;
   else
-    command = self->image->data + sizeof (GumMachHeader64);
+    command = (GumMachHeader64 *) self->image->data + 1;
   slide = gum_darwin_module_get_slide (self);
   for (command_index = 0; command_index != header->ncmds; command_index++)
   {
@@ -1292,7 +1292,7 @@ gum_darwin_module_enumerate_sections (GumDarwinModule * self,
       }
     }
 
-    command += lc->cmdsize;
+    command = (const guint8 *) command + lc->cmdsize;
   }
 }
 
@@ -1715,7 +1715,7 @@ gum_darwin_module_enumerate_dependencies (GumDarwinModule * self,
                                           GumDarwinFoundDependencyFunc func,
                                           gpointer user_data)
 {
-  gint i;
+  guint i;
 
   if (!gum_darwin_module_ensure_image_loaded (self, NULL))
     return;
@@ -1742,7 +1742,7 @@ gum_darwin_module_get_dependency_by_ordinal (GumDarwinModule * self,
   if (!gum_darwin_module_ensure_image_loaded (self, NULL))
     return NULL;
 
-  if (i < 0 || i >= self->dependencies->len)
+  if (i < 0 || i >= (gint) self->dependencies->len)
     return NULL;
 
   return g_ptr_array_index (self->dependencies, i);
@@ -1764,7 +1764,7 @@ gum_darwin_module_try_load_image_from_cache (GumDarwinModule * self,
                                              GumCpuType cpu_type,
                                              GMappedFile * cache_file)
 {
-  gpointer cache;
+  guint8 * cache;
   const GumDyldCacheHeader * header;
   const GumDyldCacheImageInfo * images, * image;
   const GumDyldCacheMappingInfo * mappings, * first_mapping, * second_mapping,
@@ -1773,12 +1773,12 @@ gum_darwin_module_try_load_image_from_cache (GumDarwinModule * self,
   GumDarwinModuleImage * module_image;
   gboolean success;
 
-  cache = g_mapped_file_get_contents (cache_file);
+  cache = (guint8 *) g_mapped_file_get_contents (cache_file);
   g_assert (cache != NULL);
 
-  header = cache;
-  images = cache + header->images_offset;
-  mappings = cache + header->mapping_offset;
+  header = (GumDyldCacheHeader *) cache;
+  images = (GumDyldCacheImageInfo *) (cache + header->images_offset);
+  mappings = (GumDyldCacheMappingInfo *) (cache + header->mapping_offset);
   first_mapping = &mappings[0];
   second_mapping = &mappings[1];
   last_mapping = &mappings[header->mapping_count - 1];
@@ -1940,8 +1940,9 @@ gum_darwin_module_get_header_offset_size (GumDarwinModule * self,
   gboolean found = FALSE;
   gpointer data_end;
 
-  data_end = data + data_size;
+  data_end = (guint8 *) data + data_size;
   fat_header = data;
+
   switch (fat_header->magic)
   {
     case GUM_FAT_CIGAM_32:
@@ -1951,12 +1952,15 @@ gum_darwin_module_get_header_offset_size (GumDarwinModule * self,
       count = GUINT32_FROM_BE (fat_header->nfat_arch);
       for (i = 0; i != count && !found; i++)
       {
+        guint32 offset, cpu_type;
+
         GumFatArch32 * fat_arch = ((GumFatArch32 *) (fat_header + 1)) + i;
-        if ((gpointer) fat_arch + sizeof (GumFatArch32) > data_end)
+        if ((gpointer) (fat_arch + 1) > data_end)
           goto invalid_blob;
 
-        guint32 offset = GUINT32_FROM_BE (fat_arch->offset);
-        guint32 cpu_type = GUINT32_FROM_BE (fat_arch->cputype);
+        offset = GUINT32_FROM_BE (fat_arch->offset);
+        cpu_type = GUINT32_FROM_BE (fat_arch->cputype);
+
         *out_offset = offset;
         switch (cpu_type)
         {
@@ -1980,22 +1984,28 @@ gum_darwin_module_get_header_offset_size (GumDarwinModule * self,
       break;
     }
     case GUM_MH_MAGIC_32:
-      header_32 = (GumMachHeader32 *) data;
-      if (data + sizeof (GumMachHeader32) > data_end)
+      header_32 = data;
+      if ((gpointer) (header_32 + 1) > data_end)
         goto invalid_blob;
+
       *out_offset = 0;
       *out_size = sizeof (GumMachHeader32) + header_32->sizeofcmds;
+
       found = self->cpu_type == GUM_CPU_ARM ||
           self->cpu_type == GUM_CPU_IA32;
+
       break;
     case GUM_MH_MAGIC_64:
-      header_64 = (GumMachHeader64 *) data;
-      if (data + sizeof (GumMachHeader64) > data_end)
+      header_64 = data;
+      if ((gpointer) (header_64 + 1) > data_end)
         goto invalid_blob;
+
       *out_offset = 0;
       *out_size = sizeof (GumMachHeader64) + header_64->sizeofcmds;
+
       found = self->cpu_type == GUM_CPU_ARM64 ||
           self->cpu_type == GUM_CPU_AMD64;
+
       break;
     default:
       goto invalid_blob;
@@ -2044,7 +2054,8 @@ gum_darwin_module_load_image_from_blob (GumDarwinModule * self,
       for (i = 0; i != count; i++)
       {
         GumFatArch32 * fat_arch = ((GumFatArch32 *) (fat_header + 1)) + i;
-        gpointer mach_header = blob_data + GUINT32_FROM_BE (fat_arch->offset);
+        gpointer mach_header = (guint8 *) blob_data +
+            GUINT32_FROM_BE (fat_arch->offset);
         switch (((GumMachHeader32 *) mach_header)->magic)
         {
           case GUM_MH_MAGIC_32:
@@ -2160,9 +2171,9 @@ gum_darwin_module_take_image (GumDarwinModule * self,
   if (header->filetype == GUM_MH_EXECUTE)
     self->name = g_strdup ("Executable");
   if (header->magic == GUM_MH_MAGIC_32)
-    command = image->data + sizeof (GumMachHeader32);
+    command = (GumMachHeader32 *) image->data + 1;
   else
-    command = image->data + sizeof (GumMachHeader64);
+    command = (GumMachHeader64 *) image->data + 1;
   for (command_index = 0; command_index != header->ncmds; command_index++)
   {
     const GumLoadCommand * lc = (GumLoadCommand *) command;
@@ -2261,7 +2272,7 @@ gum_darwin_module_take_image (GumDarwinModule * self,
         const GumDylibCommand * dc = command;
         const gchar * name;
 
-        name = command + dc->dylib.name.offset;
+        name = (const gchar *) command + dc->dylib.name.offset;
         g_ptr_array_add (self->dependencies, (gpointer) name);
 
         if (lc->cmd == GUM_LC_REEXPORT_DYLIB)
@@ -2282,7 +2293,7 @@ gum_darwin_module_take_image (GumDarwinModule * self,
         break;
     }
 
-    command += lc->cmdsize;
+    command = (const guint8 *) command + lc->cmdsize;
   }
 
   gum_darwin_module_enumerate_sections (self,
@@ -2294,19 +2305,20 @@ gum_darwin_module_take_image (GumDarwinModule * self,
   }
   else if (image->linkedit != NULL)
   {
-    self->rebases = image->linkedit + self->info->rebase_off;
+    self->rebases = (const guint8 *) image->linkedit + self->info->rebase_off;
     self->rebases_end = self->rebases + self->info->rebase_size;
     self->rebases_malloc_data = NULL;
 
-    self->binds = image->linkedit + self->info->bind_off;
+    self->binds = (const guint8 *) image->linkedit + self->info->bind_off;
     self->binds_end = self->binds + self->info->bind_size;
     self->binds_malloc_data = NULL;
 
-    self->lazy_binds = image->linkedit + self->info->lazy_bind_off;
+    self->lazy_binds =
+        (const guint8 *) image->linkedit + self->info->lazy_bind_off;
     self->lazy_binds_end = self->lazy_binds + self->info->lazy_bind_size;
     self->lazy_binds_malloc_data = NULL;
 
-    self->exports = image->linkedit + self->info->export_off;
+    self->exports = (const guint8 *) image->linkedit + self->info->export_off;
     self->exports_end = self->exports + self->info->export_size;
     self->exports_malloc_data = NULL;
   }
@@ -2378,7 +2390,7 @@ gum_darwin_module_read_and_assign (GumDarwinModule * self,
   }
   else
   {
-    gpointer data;
+    guint8 * data;
     gsize n_bytes_read;
 
     n_bytes_read = 0;
@@ -2495,7 +2507,8 @@ gum_darwin_module_image_dup (const GumDarwinModuleImage * other)
     {
       GumDarwinModuleImageSegment * s = &g_array_index (other->shared_segments,
           GumDarwinModuleImageSegment, i);
-      memcpy (image->data + s->offset, other->data + s->offset, s->size);
+      memcpy ((guint8 *) image->data + s->offset,
+          (const guint8 *) other->data + s->offset, s->size);
     }
   }
   else
@@ -2510,15 +2523,19 @@ gum_darwin_module_image_dup (const GumDarwinModuleImage * other)
     gsize size;
 
     data = g_bytes_get_data (other->bytes, &size);
-    if (other->linkedit >= data && other->linkedit < data + size)
+    if (other->linkedit >= data &&
+        other->linkedit < (gconstpointer) ((const guint8 *) data + size))
+    {
       image->linkedit = other->linkedit;
+    }
   }
 
   if (image->linkedit == NULL && other->linkedit != NULL)
   {
     g_assert (other->linkedit >= other->data &&
         other->linkedit < other->data + other->size);
-    image->linkedit = image->data + (other->linkedit - other->data);
+    image->linkedit = (guint8 *) image->data +
+        ((guint8 *) other->linkedit - (guint8 *) other->data);
   }
 
   return image;
@@ -2722,7 +2739,7 @@ gum_dyld_cache_find_image_by_name (const gchar * name,
     const GumDyldCacheImageInfo * image = &images[i];
     const gchar * current_name;
 
-    current_name = cache + image->name_offset;
+    current_name = (const gchar *) cache + image->name_offset;
     if (strcmp (current_name, name) == 0)
       return image;
   }
