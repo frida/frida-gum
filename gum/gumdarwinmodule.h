@@ -200,14 +200,19 @@ struct _GumDarwinExportDetails
 
   union
   {
-    struct {
+    struct
+    {
       guint64 offset;
     };
-    struct {
+
+    struct
+    {
       guint64 stub;
       guint64 resolver;
     };
-    struct {
+
+    struct
+    {
       gint reexport_library_ordinal;
       const gchar * reexport_symbol;
     };
