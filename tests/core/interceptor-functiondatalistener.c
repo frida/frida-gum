@@ -5,42 +5,7 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-typedef struct {
-  gboolean initialized;
-  gchar name[8];
-} TestFuncThreadState;
-
-typedef struct {
-  gchar arg[16];
-} TestFuncInvState;
-
-typedef struct {
-  gpointer function_data;
-  TestFuncThreadState thread_data;
-  TestFuncInvState invocation_data;
-} TestFunctionInvocationData;
-
-typedef struct {
-  GObject parent;
-  guint on_enter_call_count;
-  guint on_leave_call_count;
-  guint init_thread_state_count;
-  TestFunctionInvocationData last_on_enter_data;
-  TestFunctionInvocationData last_on_leave_data;
-  GSList * a_threads_seen;
-  guint a_thread_index;
-  GSList * b_threads_seen;
-  guint b_thread_index;
-} TestFunctionDataListener;
-
-typedef struct {
-  GObjectClass parent_class;
-} TestFunctionDataListenerClass;
-
-#define TEST_TYPE_FUNCTION_DATA_LISTENER \
-    (test_function_data_listener_get_type ())
-#define TEST_FUNCTION_DATA_LISTENER(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
-    TEST_TYPE_FUNCTION_DATA_LISTENER, TestFunctionDataListener))
+#include "interceptor-functiondatalistener.h"
 
 static void test_function_data_listener_iface_init (gpointer g_iface,
     gpointer iface_data);
@@ -173,7 +138,7 @@ test_function_data_listener_finalize (GObject * object)
   G_OBJECT_CLASS (test_function_data_listener_parent_class)->finalize (object);
 }
 
-static void
+void
 test_function_data_listener_reset (TestFunctionDataListener * self)
 {
   self->on_enter_call_count = 0;

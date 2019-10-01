@@ -1,28 +1,10 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-typedef void (* TestCallbackListenerFunc) (gpointer user_data,
-    GumInvocationContext * context);
-
-typedef struct {
-  GObject parent;
-
-  TestCallbackListenerFunc on_enter;
-  TestCallbackListenerFunc on_leave;
-  gpointer user_data;
-} TestCallbackListener;
-
-typedef struct {
-  GObjectClass parent_class;
-} TestCallbackListenerClass;
-
-#define TEST_TYPE_CALLBACK_LISTENER \
-    (test_callback_listener_get_type ())
-#define TEST_CALLBACK_LISTENER(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), \
-    TEST_TYPE_CALLBACK_LISTENER, TestCallbackListener))
+#include "interceptor-callbacklistener.h"
 
 static void test_callback_listener_iface_init (gpointer g_iface,
     gpointer iface_data);
@@ -74,9 +56,8 @@ test_callback_listener_init (TestCallbackListener * self)
 {
 }
 
-static TestCallbackListener *
+TestCallbackListener *
 test_callback_listener_new (void)
 {
-  return (TestCallbackListener *)
-      g_object_new (TEST_TYPE_CALLBACK_LISTENER, NULL);
+  return g_object_new (TEST_TYPE_CALLBACK_LISTENER, NULL);
 }

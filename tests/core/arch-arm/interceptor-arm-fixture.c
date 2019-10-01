@@ -6,6 +6,7 @@
 
 #include "guminterceptor.h"
 
+#include "interceptor-callbacklistener.h"
 #include "testutil.h"
 
 #include <string.h>
@@ -17,22 +18,16 @@
     TESTENTRY_WITH_FIXTURE ("Core/Interceptor/Arm", \
         interceptor, NAME, InterceptorFixture)
 
-typedef struct _InterceptorFixture      InterceptorFixture;
-typedef struct _ArmListenerContext      ArmListenerContext;
-typedef struct _ArmListenerContextClass ArmListenerContextClass;
+typedef struct _InterceptorFixture InterceptorFixture;
+typedef struct _ArmListenerContext ArmListenerContext;
 
 struct _ArmListenerContext
 {
-  GObject parent;
+  TestCallbackListener * listener;
 
-  InterceptorFixture * harness;
+  InterceptorFixture * fixture;
   gchar enter_char;
   gchar leave_char;
-};
-
-struct _ArmListenerContextClass
-{
-  GObjectClass parent_class;
 };
 
 struct _InterceptorFixture
@@ -42,15 +37,11 @@ struct _InterceptorFixture
   ArmListenerContext * listener_context[2];
 };
 
-static void arm_listener_context_iface_init (gpointer g_iface,
-    gpointer iface_data);
-
-G_DEFINE_TYPE_EXTENDED (ArmListenerContext,
-                        arm_listener_context,
-                        G_TYPE_OBJECT,
-                        0,
-                        G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
-                            arm_listener_context_iface_init))
+static void arm_listener_context_free (ArmListenerContext * ctx);
+static void arm_listener_context_on_enter (ArmListenerContext * self,
+    GumInvocationContext * context);
+static void arm_listener_context_on_leave (ArmListenerContext * self,
+    GumInvocationContext * context);
 
 static void
 interceptor_fixture_setup (InterceptorFixture * fixture,
@@ -74,8 +65,8 @@ interceptor_fixture_teardown (InterceptorFixture * fixture,
     if (ctx != NULL)
     {
       gum_interceptor_detach (fixture->interceptor,
-          GUM_INVOCATION_LISTENER (ctx));
-      g_object_unref (ctx);
+          GUM_INVOCATION_LISTENER (ctx->listener));
+      arm_listener_context_free (ctx);
     }
   }
 
@@ -93,22 +84,35 @@ interceptor_fixture_try_attach (InterceptorFixture * h,
   GumAttachReturn result;
   ArmListenerContext * ctx;
 
-  g_clear_object (&h->listener_context[listener_index]);
+  ctx = h->listener_context[listener_index];
+  if (ctx != NULL)
+  {
+    arm_listener_context_free (ctx);
+    h->listener_context[listener_index] = NULL;
+  }
 
-  ctx = g_object_new (arm_listener_context_get_type (), NULL);
-  ctx->harness = h;
+  ctx = g_slice_new0 (ArmListenerContext);
+
+  ctx->listener = test_callback_listener_new ();
+  ctx->listener->on_enter =
+      (TestCallbackListenerFunc) arm_listener_context_on_enter;
+  ctx->listener->on_leave =
+      (TestCallbackListenerFunc) arm_listener_context_on_leave;
+  ctx->listener->user_data = ctx;
+
+  ctx->fixture = h;
   ctx->enter_char = enter_char;
   ctx->leave_char = leave_char;
 
   result = gum_interceptor_attach (h->interceptor, test_func,
-      GUM_INVOCATION_LISTENER (ctx), NULL);
+      GUM_INVOCATION_LISTENER (ctx->listener), NULL);
   if (result == GUM_ATTACH_OK)
   {
     h->listener_context[listener_index] = ctx;
   }
   else
   {
-    g_object_unref (ctx);
+    arm_listener_context_free (ctx);
   }
 
   return result;
@@ -130,43 +134,26 @@ interceptor_fixture_detach (InterceptorFixture * h,
                             guint listener_index)
 {
   gum_interceptor_detach (h->interceptor,
-      GUM_INVOCATION_LISTENER (h->listener_context[listener_index]));
+      GUM_INVOCATION_LISTENER (h->listener_context[listener_index]->listener));
 }
 
 static void
-arm_listener_context_on_enter (GumInvocationListener * listener,
+arm_listener_context_free (ArmListenerContext * ctx)
+{
+  g_object_unref (ctx->listener);
+  g_slice_free (ArmListenerContext, ctx);
+}
+
+static void
+arm_listener_context_on_enter (ArmListenerContext * self,
                                GumInvocationContext * context)
 {
-  ArmListenerContext * self = (ArmListenerContext *) listener;
-
-  g_string_append_c (self->harness->result, self->enter_char);
+  g_string_append_c (self->fixture->result, self->enter_char);
 }
 
 static void
-arm_listener_context_on_leave (GumInvocationListener * listener,
+arm_listener_context_on_leave (ArmListenerContext * self,
                                GumInvocationContext * context)
 {
-  ArmListenerContext * self = (ArmListenerContext *) listener;
-
-  g_string_append_c (self->harness->result, self->leave_char);
-}
-
-static void
-arm_listener_context_class_init (ArmListenerContextClass * klass)
-{
-}
-
-static void
-arm_listener_context_iface_init (gpointer g_iface,
-                                 gpointer iface_data)
-{
-  GumInvocationListenerInterface * iface = g_iface;
-
-  iface->on_enter = arm_listener_context_on_enter;
-  iface->on_leave = arm_listener_context_on_leave;
-}
-
-static void
-arm_listener_context_init (ArmListenerContext * self)
-{
+  g_string_append_c (self->fixture->result, self->leave_char);
 }

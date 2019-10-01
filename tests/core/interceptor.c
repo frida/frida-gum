@@ -347,10 +347,9 @@ TESTCASE (detach)
 TESTCASE (listener_ref_count)
 {
   interceptor_fixture_attach (fixture, 0, target_function, 'a', 'b');
-  g_assert_cmpuint (G_OBJECT (fixture->listener_context[0])->ref_count, ==, 1);
+  g_assert_cmpuint (
+      G_OBJECT (fixture->listener_context[0]->listener)->ref_count, ==, 1);
 }
-
-#include "interceptor-functiondatalistener.c"
 
 TESTCASE (function_data)
 {
@@ -358,7 +357,7 @@ TESTCASE (function_data)
   GumInvocationListener * listener;
   gpointer a_data = "a", b_data = "b";
 
-  fd_listener = (TestFunctionDataListener *)
+  fd_listener =
       g_object_new (TEST_TYPE_FUNCTION_DATA_LISTENER, NULL);
   listener = GUM_INVOCATION_LISTENER (fd_listener);
   g_assert_cmpint (gum_interceptor_attach (fixture->interceptor,
@@ -483,7 +482,8 @@ TESTCASE (already_attached)
 {
   interceptor_fixture_attach (fixture, 0, target_function, '>', '<');
   g_assert_cmpint (gum_interceptor_attach (fixture->interceptor,
-      target_function, GUM_INVOCATION_LISTENER (fixture->listener_context[0]),
+      target_function, GUM_INVOCATION_LISTENER (
+          fixture->listener_context[0]->listener),
       NULL), ==, GUM_ATTACH_ALREADY_ATTACHED);
 }
 

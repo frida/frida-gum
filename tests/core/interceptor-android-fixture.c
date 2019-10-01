@@ -6,6 +6,7 @@
 
 #include "guminterceptor.h"
 
+#include "interceptor-callbacklistener.h"
 #include "testutil.h"
 
 #include <dlfcn.h>
@@ -23,26 +24,20 @@
     TESTENTRY_WITH_FIXTURE ("Core/Interceptor/Android", \
         test_interceptor, NAME, TestInterceptorFixture)
 
-typedef struct _TestInterceptorFixture     TestInterceptorFixture;
-typedef struct _AndroidListenerContext      AndroidListenerContext;
-typedef struct _AndroidListenerContextClass AndroidListenerContextClass;
+typedef struct _TestInterceptorFixture TestInterceptorFixture;
+typedef struct _AndroidListenerContext AndroidListenerContext;
 
 struct _AndroidListenerContext
 {
-  GObject parent;
+  TestCallbackListener * listener;
 
-  TestInterceptorFixture * harness;
+  TestInterceptorFixture * fixture;
   gchar enter_char;
   gchar leave_char;
   GumThreadId last_thread_id;
   gsize last_seen_argument;
   gpointer last_return_value;
   GumCpuContext last_on_enter_cpu_context;
-};
-
-struct _AndroidListenerContextClass
-{
-  GObjectClass parent_class;
 };
 
 struct _TestInterceptorFixture
@@ -54,18 +49,15 @@ struct _TestInterceptorFixture
 
 static void interceptor_fixture_detach (TestInterceptorFixture * h,
     guint listener_index);
-static void android_listener_context_iface_init (gpointer g_iface,
-    gpointer iface_data);
+
+static void android_listener_context_free (AndroidListenerContext * ctx);
+static void android_listener_context_on_enter (AndroidListenerContext * self,
+    GumInvocationContext * context);
+static void android_listener_context_on_leave (AndroidListenerContext * self,
+    GumInvocationContext * context);
 
 static void init_java_vm (JavaVM ** vm, JNIEnv ** env);
 static guint get_system_api_level (void);
-
-G_DEFINE_TYPE_EXTENDED (AndroidListenerContext,
-                        android_listener_context,
-                        G_TYPE_OBJECT,
-                        0,
-                        G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
-                            android_listener_context_iface_init))
 
 static JavaVM * java_vm = NULL;
 static JNIEnv * java_env = NULL;
@@ -99,8 +91,8 @@ test_interceptor_fixture_teardown (TestInterceptorFixture * fixture,
     if (ctx != NULL)
     {
       gum_interceptor_detach (fixture->interceptor,
-          GUM_INVOCATION_LISTENER (ctx));
-      g_object_unref (ctx);
+          GUM_INVOCATION_LISTENER (ctx->listener));
+      android_listener_context_free (ctx);
     }
   }
 
@@ -118,22 +110,35 @@ interceptor_fixture_try_attach (TestInterceptorFixture * h,
   GumAttachReturn result;
   AndroidListenerContext * ctx;
 
-  g_clear_object (&h->listener_context[listener_index]);
+  ctx = h->listener_context[listener_index];
+  if (ctx != NULL)
+  {
+    android_listener_context_free (ctx);
+    h->listener_context[listener_index] = NULL;
+  }
 
-  ctx = g_object_new (android_listener_context_get_type (), NULL);
-  ctx->harness = h;
+  ctx = g_slice_new0 (AndroidListenerContext);
+
+  ctx->listener = test_callback_listener_new ();
+  ctx->listener->on_enter =
+      (TestCallbackListenerFunc) android_listener_context_on_enter;
+  ctx->listener->on_leave =
+      (TestCallbackListenerFunc) android_listener_context_on_leave;
+  ctx->listener->user_data = ctx;
+
+  ctx->fixture = h;
   ctx->enter_char = enter_char;
   ctx->leave_char = leave_char;
 
   result = gum_interceptor_attach (h->interceptor, test_func,
-      GUM_INVOCATION_LISTENER (ctx), NULL);
+      GUM_INVOCATION_LISTENER (ctx->listener), NULL);
   if (result == GUM_ATTACH_OK)
   {
     h->listener_context[listener_index] = ctx;
   }
   else
   {
-    g_object_unref (ctx);
+    android_listener_context_free (ctx);
   }
 
   return result;
@@ -155,19 +160,24 @@ interceptor_fixture_detach (TestInterceptorFixture * h,
                             guint listener_index)
 {
   gum_interceptor_detach (h->interceptor,
-      GUM_INVOCATION_LISTENER (h->listener_context[listener_index]));
+      GUM_INVOCATION_LISTENER (h->listener_context[listener_index]->listener));
 }
 
 static void
-android_listener_context_on_enter (GumInvocationListener * listener,
+android_listener_context_free (AndroidListenerContext * ctx)
+{
+  g_object_unref (ctx->listener);
+  g_slice_free (AndroidListenerContext, ctx);
+}
+
+static void
+android_listener_context_on_enter (AndroidListenerContext * self,
                                    GumInvocationContext * context)
 {
-  AndroidListenerContext * self = (AndroidListenerContext *) listener;
-
   g_assert_cmpuint (gum_invocation_context_get_point_cut (context), ==,
       GUM_POINT_ENTER);
 
-  g_string_append_c (self->harness->result, self->enter_char);
+  g_string_append_c (self->fixture->result, self->enter_char);
 
   self->last_seen_argument = (gsize)
       gum_invocation_context_get_nth_argument (context, 0);
@@ -177,37 +187,15 @@ android_listener_context_on_enter (GumInvocationListener * listener,
 }
 
 static void
-android_listener_context_on_leave (GumInvocationListener * listener,
+android_listener_context_on_leave (AndroidListenerContext * self,
                                    GumInvocationContext * context)
 {
-  AndroidListenerContext * self = (AndroidListenerContext *) listener;
-
   g_assert_cmpuint (gum_invocation_context_get_point_cut (context), ==,
       GUM_POINT_LEAVE);
 
-  g_string_append_c (self->harness->result, self->leave_char);
+  g_string_append_c (self->fixture->result, self->leave_char);
 
   self->last_return_value = gum_invocation_context_get_return_value (context);
-}
-
-static void
-android_listener_context_class_init (AndroidListenerContextClass * klass)
-{
-}
-
-static void
-android_listener_context_iface_init (gpointer g_iface,
-                                     gpointer iface_data)
-{
-  GumInvocationListenerInterface * iface = g_iface;
-
-  iface->on_enter = android_listener_context_on_enter;
-  iface->on_leave = android_listener_context_on_leave;
-}
-
-static void
-android_listener_context_init (AndroidListenerContext * self)
-{
 }
 
 static void

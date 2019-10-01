@@ -6,7 +6,8 @@
 
 #include "guminterceptor.h"
 
-#include "interceptor-callbacklistener.c"
+#include "interceptor-callbacklistener.h"
+#include "interceptor-functiondatalistener.h"
 #include "lowlevel-helpers.h"
 #include "testutil.h"
 #include "valgrind.h"
@@ -78,28 +79,20 @@
 # error Unknown CPU
 #endif
 
-typedef struct _TestInterceptorFixture   TestInterceptorFixture;
-typedef struct _ListenerContext      ListenerContext;
-typedef struct _ListenerContextClass ListenerContextClass;
-
-typedef gpointer (* InterceptorTestFunc) (gpointer data);
+typedef struct _TestInterceptorFixture TestInterceptorFixture;
+typedef struct _ListenerContext        ListenerContext;
 
 struct _ListenerContext
 {
-  GObject parent;
+  TestCallbackListener * listener;
 
-  TestInterceptorFixture * harness;
+  TestInterceptorFixture * fixture;
   gchar enter_char;
   gchar leave_char;
   GumThreadId last_thread_id;
   gsize last_seen_argument;
   gpointer last_return_value;
   GumCpuContext last_on_enter_cpu_context;
-};
-
-struct _ListenerContextClass
-{
-  GObjectClass parent_class;
 };
 
 struct _TestInterceptorFixture
@@ -109,15 +102,11 @@ struct _TestInterceptorFixture
   ListenerContext * listener_context[2];
 };
 
-static void listener_context_iface_init (gpointer g_iface,
-    gpointer iface_data);
-
-G_DEFINE_TYPE_EXTENDED (ListenerContext,
-                        listener_context,
-                        G_TYPE_OBJECT,
-                        0,
-                        G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
-                            listener_context_iface_init))
+static void listener_context_free (ListenerContext * ctx);
+static void listener_context_on_enter (ListenerContext * self,
+    GumInvocationContext * context);
+static void listener_context_on_leave (ListenerContext * self,
+    GumInvocationContext * context);
 
 gpointer (* target_function) (GString * str) = NULL;
 gpointer (* target_nop_function_a) (gpointer data);
@@ -132,6 +121,7 @@ test_interceptor_fixture_setup (TestInterceptorFixture * fixture,
 {
   fixture->interceptor = gum_interceptor_obtain ();
   fixture->result = g_string_sized_new (4096);
+
   memset (&fixture->listener_context, 0, sizeof (fixture->listener_context));
 
   if (target_function == NULL)
@@ -197,8 +187,8 @@ test_interceptor_fixture_teardown (TestInterceptorFixture * fixture,
     if (ctx != NULL)
     {
       gum_interceptor_detach (fixture->interceptor,
-          GUM_INVOCATION_LISTENER (ctx));
-      g_object_unref (ctx);
+          GUM_INVOCATION_LISTENER (ctx->listener));
+      listener_context_free (ctx);
     }
   }
 
@@ -206,7 +196,7 @@ test_interceptor_fixture_teardown (TestInterceptorFixture * fixture,
   g_object_unref (fixture->interceptor);
 }
 
-GumAttachReturn
+static GumAttachReturn
 interceptor_fixture_try_attach (TestInterceptorFixture * h,
                                 guint listener_index,
                                 gpointer test_func,
@@ -216,28 +206,41 @@ interceptor_fixture_try_attach (TestInterceptorFixture * h,
   GumAttachReturn result;
   ListenerContext * ctx;
 
-  g_clear_object (&h->listener_context[listener_index]);
+  ctx = h->listener_context[listener_index];
+  if (ctx != NULL)
+  {
+    listener_context_free (ctx);
+    h->listener_context[listener_index] = NULL;
+  }
 
-  ctx = g_object_new (listener_context_get_type (), NULL);
-  ctx->harness = h;
+  ctx = g_slice_new0 (ListenerContext);
+
+  ctx->listener = test_callback_listener_new ();
+  ctx->listener->on_enter =
+      (TestCallbackListenerFunc) listener_context_on_enter;
+  ctx->listener->on_leave =
+      (TestCallbackListenerFunc) listener_context_on_leave;
+  ctx->listener->user_data = ctx;
+
+  ctx->fixture = h;
   ctx->enter_char = enter_char;
   ctx->leave_char = leave_char;
 
   result = gum_interceptor_attach (h->interceptor, test_func,
-      GUM_INVOCATION_LISTENER (ctx), NULL);
+      GUM_INVOCATION_LISTENER (ctx->listener), NULL);
   if (result == GUM_ATTACH_OK)
   {
     h->listener_context[listener_index] = ctx;
   }
   else
   {
-    g_object_unref (ctx);
+    listener_context_free (ctx);
   }
 
   return result;
 }
 
-void
+static void
 interceptor_fixture_attach (TestInterceptorFixture * h,
                             guint listener_index,
                             gpointer test_func,
@@ -248,36 +251,41 @@ interceptor_fixture_attach (TestInterceptorFixture * h,
       enter_char, leave_char), ==, GUM_ATTACH_OK);
 }
 
-void
+static void
 interceptor_fixture_detach (TestInterceptorFixture * h,
                             guint listener_index)
 {
   gum_interceptor_detach (h->interceptor,
-      GUM_INVOCATION_LISTENER (h->listener_context[listener_index]));
+      GUM_INVOCATION_LISTENER (h->listener_context[listener_index]->listener));
 }
 
-gpointer
+static gpointer
 interceptor_fixture_get_libc_malloc (void)
 {
   return gum_heap_api_list_get_nth (test_util_heap_apis (), 0)->malloc;
 }
 
-gpointer
+static gpointer
 interceptor_fixture_get_libc_free (void)
 {
   return gum_heap_api_list_get_nth (test_util_heap_apis (), 0)->free;
 }
 
 static void
-listener_context_on_enter (GumInvocationListener * listener,
+listener_context_free (ListenerContext * ctx)
+{
+  g_object_unref (ctx->listener);
+  g_slice_free (ListenerContext, ctx);
+}
+
+static void
+listener_context_on_enter (ListenerContext * self,
                            GumInvocationContext * context)
 {
-  ListenerContext * self = (ListenerContext *) listener;
-
   g_assert_cmpuint (gum_invocation_context_get_point_cut (context), ==,
       GUM_POINT_ENTER);
 
-  g_string_append_c (self->harness->result, self->enter_char);
+  g_string_append_c (self->fixture->result, self->enter_char);
 
   self->last_seen_argument = (gsize)
       gum_invocation_context_get_nth_argument (context, 0);
@@ -287,35 +295,13 @@ listener_context_on_enter (GumInvocationListener * listener,
 }
 
 static void
-listener_context_on_leave (GumInvocationListener * listener,
+listener_context_on_leave (ListenerContext * self,
                            GumInvocationContext * context)
 {
-  ListenerContext * self = (ListenerContext *) listener;
-
   g_assert_cmpuint (gum_invocation_context_get_point_cut (context), ==,
       GUM_POINT_LEAVE);
 
-  g_string_append_c (self->harness->result, self->leave_char);
+  g_string_append_c (self->fixture->result, self->leave_char);
 
   self->last_return_value = gum_invocation_context_get_return_value (context);
-}
-
-static void
-listener_context_class_init (ListenerContextClass * klass)
-{
-}
-
-static void
-listener_context_iface_init (gpointer g_iface,
-                             gpointer iface_data)
-{
-  GumInvocationListenerInterface * iface = g_iface;
-
-  iface->on_enter = listener_context_on_enter;
-  iface->on_leave = listener_context_on_leave;
-}
-
-static void
-listener_context_init (ListenerContext * self)
-{
 }
