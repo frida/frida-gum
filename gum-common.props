@@ -17,6 +17,7 @@
     <ClInclude Include="gum\gumcloak-priv.h" />
     <ClInclude Include="gum\gumcodeallocator.h" />
     <ClInclude Include="gum\gumcodesegment.h" />
+    <ClInclude Include="gum\gumdarwinmodule.h" />
     <ClInclude Include="gum\gumdefs.h" />
     <ClInclude Include="gum\gumexceptor.h" />
     <ClInclude Include="gum\gumexceptorbackend.h" />
@@ -57,6 +58,7 @@
     <ClCompile Include="gum\gumcloak.c" />
     <ClCompile Include="gum\gumcodeallocator.c" />
     <ClCompile Include="gum\gumcodesegment.c" />
+    <ClCompile Include="gum\gumdarwinmodule.c" />
     <ClCompile Include="gum\gumexceptor.c" />
     <ClCompile Include="gum\gumeventsink.c" />
     <ClCompile Include="gum\gumheapapi.c" />
