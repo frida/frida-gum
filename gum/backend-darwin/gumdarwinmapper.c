@@ -17,8 +17,6 @@
 # include <gum/arch-arm/gumthumbwriter.h>
 # include <gum/arch-arm64/gumarm64writer.h>
 #endif
-#include <mach-o/loader.h>
-#include <unistd.h>
 
 #if defined (HAVE_I386)
 # define BASE_FOOTPRINT_SIZE_32 25
@@ -1638,7 +1636,7 @@ gum_darwin_mapper_resolve_symbol (GumDarwinMapper * self,
     return FALSE;
   }
 
-  if ((details.flags & EXPORT_SYMBOL_FLAGS_REEXPORT) != 0)
+  if ((details.flags & GUM_DARWIN_EXPORT_REEXPORT) != 0)
   {
     const gchar * target_name;
     GumDarwinMapping * target;
@@ -1654,10 +1652,10 @@ gum_darwin_mapper_resolve_symbol (GumDarwinMapper * self,
         details.reexport_symbol, value);
   }
 
-  switch (details.flags & EXPORT_SYMBOL_FLAGS_KIND_MASK)
+  switch (details.flags & GUM_DARWIN_EXPORT_KIND_MASK)
   {
-    case EXPORT_SYMBOL_FLAGS_KIND_REGULAR:
-      if ((details.flags & EXPORT_SYMBOL_FLAGS_STUB_AND_RESOLVER) != 0)
+    case GUM_DARWIN_EXPORT_REGULAR:
+      if ((details.flags & GUM_DARWIN_EXPORT_STUB_AND_RESOLVER) != 0)
       {
         /* XXX: we ignore interposing */
         value->address = module->base_address + details.stub;
@@ -1667,11 +1665,11 @@ gum_darwin_mapper_resolve_symbol (GumDarwinMapper * self,
       value->address = module->base_address + details.offset;
       value->resolver = 0;
       return TRUE;
-    case EXPORT_SYMBOL_FLAGS_KIND_THREAD_LOCAL:
+    case GUM_DARWIN_EXPORT_THREAD_LOCAL:
       value->address = module->base_address + details.offset;
       value->resolver = 0;
       return TRUE;
-    case GUM_DARWIN_EXPORT_SYMBOL_FLAGS_KIND_ABSOLUTE:
+    case GUM_DARWIN_EXPORT_ABSOLUTE:
       value->address = details.offset;
       value->resolver = 0;
       return TRUE;
@@ -1788,7 +1786,7 @@ gum_darwin_mapper_bind (const GumDarwinBindDetails * details,
 
   success = gum_darwin_mapper_resolve_symbol (self, dependency->module,
       details->symbol_name, &value);
-  is_weak_import = (details->symbol_flags & BIND_SYMBOL_FLAGS_WEAK_IMPORT) != 0;
+  is_weak_import = (details->symbol_flags & GUM_DARWIN_BIND_WEAK_IMPORT) != 0;
   if (!success && !is_weak_import && self->resolver->sysroot != NULL &&
       g_str_has_suffix (details->symbol_name, "$INODE64"))
   {
