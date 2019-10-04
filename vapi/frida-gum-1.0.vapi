@@ -660,7 +660,7 @@ namespace Gum {
 	public struct DarwinRebaseDetails {
 		public Gum.DarwinSegment? segment;
 		public uint64 offset;
-		public uint8 type;
+		public DarwinRebaseType type;
 		public Gum.Address slide;
 	}
 
@@ -713,6 +713,13 @@ namespace Gum {
 		public uint8 type;
 		public uint8 section;
 		public uint16 description;
+	}
+
+	[CCode (cname = "guint8", cprefix = "GUM_DARWIN_REBASE_")]
+	public enum DarwinRebaseType {
+		POINTER = 1,
+		TEXT_ABSOLUTE32,
+		TEXT_PCREL32,
 	}
 
 	[CCode (cname = "guint8", cprefix = "GUM_DARWIN_BIND_")]

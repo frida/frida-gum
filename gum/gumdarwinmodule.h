@@ -35,6 +35,7 @@ typedef struct _GumDarwinSegment GumDarwinSegment;
 typedef struct _GumDarwinExportDetails GumDarwinExportDetails;
 typedef struct _GumDarwinSymbolDetails GumDarwinSymbolDetails;
 
+typedef guint8 GumDarwinRebaseType;
 typedef guint8 GumDarwinBindType;
 
 typedef guint GumDarwinPort;
@@ -156,7 +157,7 @@ struct _GumDarwinRebaseDetails
 {
   const GumDarwinSegment * segment;
   guint64 offset;
-  guint8 type;
+  GumDarwinRebaseType type;
   GumAddress slide;
 };
 
@@ -228,6 +229,13 @@ struct _GumDarwinSymbolDetails
   guint8 type;
   guint8 section;
   guint16 description;
+};
+
+enum _GumDarwinRebaseType
+{
+  GUM_DARWIN_REBASE_POINTER = 1,
+  GUM_DARWIN_REBASE_TEXT_ABSOLUTE32,
+  GUM_DARWIN_REBASE_TEXT_PCREL32,
 };
 
 enum _GumDarwinBindType
