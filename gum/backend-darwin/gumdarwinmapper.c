@@ -1743,14 +1743,14 @@ gum_darwin_mapper_rebase (const GumDarwinRebaseDetails * details,
 
   switch (details->type)
   {
-    case REBASE_TYPE_POINTER:
-    case REBASE_TYPE_TEXT_ABSOLUTE32:
+    case GUM_DARWIN_REBASE_POINTER:
+    case GUM_DARWIN_REBASE_TEXT_ABSOLUTE32:
       if (self->module->pointer_size == 4)
         *((guint32 *) entry) += (guint32) details->slide;
       else
         *((guint64 *) entry) += (guint64) details->slide;
       break;
-    case REBASE_TYPE_TEXT_PCREL32:
+    case GUM_DARWIN_REBASE_TEXT_PCREL32:
     default:
       goto invalid_data;
   }
@@ -1777,7 +1777,7 @@ gum_darwin_mapper_bind (const GumDarwinBindDetails * details,
   gboolean success, is_weak_import;
   gpointer entry;
 
-  if (details->type != BIND_TYPE_POINTER)
+  if (details->type != GUM_DARWIN_BIND_POINTER)
     goto invalid_data;
 
   dependency = gum_darwin_mapper_get_dependency_by_ordinal (self,
