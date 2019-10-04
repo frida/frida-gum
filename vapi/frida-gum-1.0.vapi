@@ -744,6 +744,15 @@ namespace Gum {
 		NON_WEAK_DEFINITION = 0x8,
 	}
 
+	public const int DARWIN_EXPORT_KIND_MASK;
+
+	[CCode (cprefix = "GUM_DARWIN_EXPORT_")]
+	public enum DarwinExportSymbolKind {
+		REGULAR,
+		THREAD_LOCAL,
+		ABSOLUTE
+	}
+
 	[CCode (has_type_id = false)]
 	public struct DarwinPort : uint {
 		[CCode (cname = "GUM_DARWIN_PORT_NULL")]

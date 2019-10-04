@@ -20,6 +20,7 @@ G_DECLARE_FINAL_TYPE (GumDarwinModule, gum_darwin_module, GUM_DARWIN, MODULE,
 #define GUM_TYPE_DARWIN_MODULE_FLAGS (gum_darwin_module_flags_get_type ())
 
 #define GUM_DARWIN_PORT_NULL 0
+#define GUM_DARWIN_EXPORT_KIND_MASK 3
 
 typedef guint GumDarwinModuleFlags;
 
@@ -39,6 +40,7 @@ typedef guint8 GumDarwinRebaseType;
 typedef guint8 GumDarwinBindType;
 typedef gint GumDarwinBindOrdinal;
 typedef guint8 GumDarwinBindSymbolFlags;
+typedef guint8 GumDarwinExportSymbolKind;
 
 typedef guint GumDarwinPort;
 typedef gint GumDarwinPageProtection;
@@ -259,6 +261,13 @@ enum _GumDarwinBindSymbolFlags
 {
   GUM_DARWIN_BIND_WEAK_IMPORT         = 0x1,
   GUM_DARWIN_BIND_NON_WEAK_DEFINITION = 0x8,
+};
+
+enum _GumDarwinExportSymbolKind
+{
+  GUM_DARWIN_EXPORT_REGULAR,
+  GUM_DARWIN_EXPORT_THREAD_LOCAL,
+  GUM_DARWIN_EXPORT_ABSOLUTE
 };
 
 GUM_API GumDarwinModule * gum_darwin_module_new_from_file (const gchar * path,
