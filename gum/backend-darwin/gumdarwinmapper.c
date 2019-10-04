@@ -1452,12 +1452,13 @@ gum_darwin_mapper_get_dependency_by_ordinal (GumDarwinMapper * self,
 
   switch (ordinal)
   {
-    case BIND_SPECIAL_DYLIB_SELF:
+    case GUM_DARWIN_BIND_SELF:
       result = gum_darwin_mapper_get_dependency_by_name (self,
           self->module->name, error);
       break;
-    case BIND_SPECIAL_DYLIB_MAIN_EXECUTABLE:
-    case BIND_SPECIAL_DYLIB_FLAT_LOOKUP:
+    case GUM_DARWIN_BIND_MAIN_EXECUTABLE:
+    case GUM_DARWIN_BIND_FLAT_LOOKUP:
+    case GUM_DARWIN_BIND_WEAK_LOOKUP:
       goto invalid_ordinal;
     default:
     {
