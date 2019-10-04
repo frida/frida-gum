@@ -668,7 +668,7 @@ namespace Gum {
 		public Gum.DarwinSegment? segment;
 		public uint64 offset;
 		public Gum.DarwinBindType type;
-		public int library_ordinal;
+		public Gum.DarwinBindOrdinal library_ordinal;
 		public string symbol_name;
 		public uint8 symbol_flags;
 		public int64 addend;
@@ -727,6 +727,14 @@ namespace Gum {
 		POINTER = 1,
 		TEXT_ABSOLUTE32,
 		TEXT_PCREL32,
+	}
+
+	[CCode (cname = "gint", cprefix = "GUM_DARWIN_BIND_")]
+	public enum DarwinBindOrdinal {
+		SELF = 0,
+		MAIN_EXECUTABLE = -1,
+		FLAT_LOOKUP = -2,
+		WEAK_LOOKUP = -3,
 	}
 
 	[CCode (has_type_id = false)]

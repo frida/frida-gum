@@ -37,6 +37,7 @@ typedef struct _GumDarwinSymbolDetails GumDarwinSymbolDetails;
 
 typedef guint8 GumDarwinRebaseType;
 typedef guint8 GumDarwinBindType;
+typedef gint GumDarwinBindOrdinal;
 
 typedef guint GumDarwinPort;
 typedef gint GumDarwinPageProtection;
@@ -166,7 +167,7 @@ struct _GumDarwinBindDetails
   const GumDarwinSegment * segment;
   guint64 offset;
   GumDarwinBindType type;
-  gint library_ordinal;
+  GumDarwinBindOrdinal library_ordinal;
   const gchar * symbol_name;
   guint8 symbol_flags;
   gint64 addend;
@@ -243,6 +244,14 @@ enum _GumDarwinBindType
   GUM_DARWIN_BIND_POINTER = 1,
   GUM_DARWIN_BIND_TEXT_ABSOLUTE32,
   GUM_DARWIN_BIND_TEXT_PCREL32,
+};
+
+enum _GumDarwinBindOrdinal
+{
+  GUM_DARWIN_BIND_SELF            =  0,
+  GUM_DARWIN_BIND_MAIN_EXECUTABLE = -1,
+  GUM_DARWIN_BIND_FLAT_LOOKUP     = -2,
+  GUM_DARWIN_BIND_WEAK_LOOKUP     = -3,
 };
 
 GUM_API GumDarwinModule * gum_darwin_module_new_from_file (const gchar * path,
