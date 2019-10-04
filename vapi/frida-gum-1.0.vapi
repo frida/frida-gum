@@ -715,21 +715,21 @@ namespace Gum {
 		public uint16 description;
 	}
 
-	[CCode (cname = "guint8", cprefix = "GUM_DARWIN_REBASE_")]
+	[CCode (cprefix = "GUM_DARWIN_REBASE_")]
 	public enum DarwinRebaseType {
 		POINTER = 1,
 		TEXT_ABSOLUTE32,
 		TEXT_PCREL32,
 	}
 
-	[CCode (cname = "guint8", cprefix = "GUM_DARWIN_BIND_")]
+	[CCode (cprefix = "GUM_DARWIN_BIND_")]
 	public enum DarwinBindType {
 		POINTER = 1,
 		TEXT_ABSOLUTE32,
 		TEXT_PCREL32,
 	}
 
-	[CCode (cname = "gint", cprefix = "GUM_DARWIN_BIND_")]
+	[CCode (cprefix = "GUM_DARWIN_BIND_")]
 	public enum DarwinBindOrdinal {
 		SELF = 0,
 		MAIN_EXECUTABLE = -1,
