@@ -42,21 +42,21 @@ typedef gint GumDarwinBindOrdinal;
 typedef guint GumDarwinPort;
 typedef gint GumDarwinPageProtection;
 
-typedef gboolean (* GumDarwinFoundExportFunc) (
+typedef gboolean (* GumFoundDarwinExportFunc) (
     const GumDarwinExportDetails * details, gpointer user_data);
-typedef gboolean (* GumDarwinFoundSymbolFunc) (
+typedef gboolean (* GumFoundDarwinSymbolFunc) (
     const GumDarwinSymbolDetails * details, gpointer user_data);
-typedef gboolean (* GumDarwinFoundSectionFunc) (
+typedef gboolean (* GumFoundDarwinSectionFunc) (
     const GumDarwinSectionDetails * details, gpointer user_data);
-typedef gboolean (* GumDarwinFoundRebaseFunc) (
+typedef gboolean (* GumFoundDarwinRebaseFunc) (
     const GumDarwinRebaseDetails * details, gpointer user_data);
-typedef gboolean (* GumDarwinFoundBindFunc) (
+typedef gboolean (* GumFoundDarwinBindFunc) (
     const GumDarwinBindDetails * details, gpointer user_data);
-typedef gboolean (* GumDarwinFoundInitPointersFunc) (
+typedef gboolean (* GumFoundDarwinInitPointersFunc) (
     const GumDarwinInitPointersDetails * details, gpointer user_data);
-typedef gboolean (* GumDarwinFoundTermPointersFunc) (
+typedef gboolean (* GumFoundDarwinTermPointersFunc) (
     const GumDarwinTermPointersDetails * details, gpointer user_data);
-typedef gboolean (* GumDarwinFoundDependencyFunc) (const gchar * path,
+typedef gboolean (* GumFoundDarwinDependencyFunc) (const gchar * path,
     gpointer user_data);
 typedef gpointer (* GumDarwinModuleResolverFunc) (void);
 
@@ -273,28 +273,28 @@ GUM_API gboolean gum_darwin_module_get_lacks_exports_for_reexports (
 GUM_API void gum_darwin_module_enumerate_imports (GumDarwinModule * self,
     GumFoundImportFunc func, gpointer user_data);
 GUM_API void gum_darwin_module_enumerate_exports (GumDarwinModule * self,
-    GumDarwinFoundExportFunc func, gpointer user_data);
+    GumFoundDarwinExportFunc func, gpointer user_data);
 GUM_API void gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
-    GumDarwinFoundSymbolFunc func, gpointer user_data);
+    GumFoundDarwinSymbolFunc func, gpointer user_data);
 GUM_API GumAddress gum_darwin_module_get_slide (GumDarwinModule * self);
 GUM_API const GumDarwinSegment * gum_darwin_module_get_nth_segment (
     GumDarwinModule * self, gsize index);
 GUM_API void gum_darwin_module_enumerate_sections (GumDarwinModule * self,
-    GumDarwinFoundSectionFunc func, gpointer user_data);
+    GumFoundDarwinSectionFunc func, gpointer user_data);
 GUM_API gboolean gum_darwin_module_is_address_in_text_section (
     GumDarwinModule * self, GumAddress address);
 GUM_API void gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
-    GumDarwinFoundRebaseFunc func, gpointer user_data);
+    GumFoundDarwinRebaseFunc func, gpointer user_data);
 GUM_API void gum_darwin_module_enumerate_binds (GumDarwinModule * self,
-    GumDarwinFoundBindFunc func, gpointer user_data);
+    GumFoundDarwinBindFunc func, gpointer user_data);
 GUM_API void gum_darwin_module_enumerate_lazy_binds (GumDarwinModule * self,
-    GumDarwinFoundBindFunc func, gpointer user_data);
+    GumFoundDarwinBindFunc func, gpointer user_data);
 GUM_API void gum_darwin_module_enumerate_init_pointers (GumDarwinModule * self,
-    GumDarwinFoundInitPointersFunc func, gpointer user_data);
+    GumFoundDarwinInitPointersFunc func, gpointer user_data);
 GUM_API void gum_darwin_module_enumerate_term_pointers (GumDarwinModule * self,
-    GumDarwinFoundTermPointersFunc func, gpointer user_data);
+    GumFoundDarwinTermPointersFunc func, gpointer user_data);
 GUM_API void gum_darwin_module_enumerate_dependencies (GumDarwinModule * self,
-    GumDarwinFoundDependencyFunc func, gpointer user_data);
+    GumFoundDarwinDependencyFunc func, gpointer user_data);
 GUM_API const gchar * gum_darwin_module_get_dependency_by_ordinal (
     GumDarwinModule * self, gint ordinal);
 

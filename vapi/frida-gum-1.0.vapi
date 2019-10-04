@@ -603,27 +603,27 @@ namespace Gum {
 		public bool resolve_export (string symbol, out Gum.DarwinExportDetails details);
 		public Gum.Address resolve_symbol_address (string symbol);
 		public void enumerate_imports (Gum.Module.FoundImportFunc func);
-		public void enumerate_exports (FoundExportFunc func);
-		public void enumerate_symbols (FoundSymbolFunc func);
-		public void enumerate_sections (FoundSectionFunc func);
+		public void enumerate_exports (Gum.FoundDarwinExportFunc func);
+		public void enumerate_symbols (Gum.FoundDarwinSymbolFunc func);
+		public void enumerate_sections (Gum.FoundDarwinSectionFunc func);
 		public bool is_address_in_text_section (Gum.Address address);
-		public void enumerate_rebases (FoundRebaseFunc func);
-		public void enumerate_binds (FoundBindFunc func);
-		public void enumerate_lazy_binds (FoundBindFunc func);
-		public void enumerate_init_pointers (FoundInitPointersFunc func);
-		public void enumerate_term_pointers (FoundTermPointersFunc func);
-		public void enumerate_dependencies (FoundDependenciesFunc func);
+		public void enumerate_rebases (Gum.FoundDarwinRebaseFunc func);
+		public void enumerate_binds (Gum.FoundDarwinBindFunc func);
+		public void enumerate_lazy_binds (Gum.FoundDarwinBindFunc func);
+		public void enumerate_init_pointers (Gum.FoundDarwinInitPointersFunc func);
+		public void enumerate_term_pointers (Gum.FoundDarwinTermPointersFunc func);
+		public void enumerate_dependencies (Gum.FoundDarwinDependenciesFunc func);
 		public unowned string? get_dependency_by_ordinal (int ordinal);
-
-		public delegate bool FoundExportFunc (Gum.DarwinExportDetails details);
-		public delegate bool FoundSymbolFunc (Gum.DarwinSymbolDetails details);
-		public delegate bool FoundSectionFunc (Gum.DarwinSectionDetails details);
-		public delegate bool FoundRebaseFunc (Gum.DarwinRebaseDetails details);
-		public delegate bool FoundBindFunc (Gum.DarwinBindDetails details);
-		public delegate bool FoundInitPointersFunc (Gum.DarwinInitPointersDetails details);
-		public delegate bool FoundTermPointersFunc (Gum.DarwinTermPointersDetails details);
-		public delegate bool FoundDependenciesFunc (string path);
 	}
+
+	public delegate bool FoundDarwinExportFunc (Gum.DarwinExportDetails details);
+	public delegate bool FoundDarwinSymbolFunc (Gum.DarwinSymbolDetails details);
+	public delegate bool FoundDarwinSectionFunc (Gum.DarwinSectionDetails details);
+	public delegate bool FoundDarwinRebaseFunc (Gum.DarwinRebaseDetails details);
+	public delegate bool FoundDarwinBindFunc (Gum.DarwinBindDetails details);
+	public delegate bool FoundDarwinInitPointersFunc (Gum.DarwinInitPointersDetails details);
+	public delegate bool FoundDarwinTermPointersFunc (Gum.DarwinTermPointersDetails details);
+	public delegate bool FoundDarwinDependenciesFunc (string path);
 
 	[Compact]
 	public class DarwinModuleImage {

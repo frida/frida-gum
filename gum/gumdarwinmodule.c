@@ -114,27 +114,27 @@ struct _GumEmitImportContext
 
 struct _GumEmitExportFromSymbolContext
 {
-  GumDarwinFoundExportFunc func;
+  GumFoundDarwinExportFunc func;
   gpointer user_data;
 };
 
 struct _GumEmitInitPointersContext
 {
-  GumDarwinFoundInitPointersFunc func;
+  GumFoundDarwinInitPointersFunc func;
   gpointer user_data;
   gsize pointer_size;
 };
 
 struct _GumEmitTermPointersContext
 {
-  GumDarwinFoundTermPointersFunc func;
+  GumFoundDarwinTermPointersFunc func;
   gpointer user_data;
   gsize pointer_size;
 };
 
 struct _GumExportsTrieForeachContext
 {
-  GumDarwinFoundExportFunc func;
+  GumFoundDarwinExportFunc func;
   gpointer user_data;
 
   GString * prefix;
@@ -540,7 +540,7 @@ static gboolean gum_exports_trie_find (const guint8 * exports,
     const guint8 * exports_end, const gchar * name,
     GumDarwinExportDetails * details);
 static gboolean gum_exports_trie_foreach (const guint8 * exports,
-    const guint8 * exports_end, GumDarwinFoundExportFunc func,
+    const guint8 * exports_end, GumFoundDarwinExportFunc func,
     gpointer user_data);
 static gboolean gum_exports_trie_traverse (const guint8 * p,
     GumExportsTrieForeachContext * ctx);
@@ -1055,7 +1055,7 @@ gum_emit_import (const GumDarwinBindDetails * details,
 
 void
 gum_darwin_module_enumerate_exports (GumDarwinModule * self,
-                                     GumDarwinFoundExportFunc func,
+                                     GumFoundDarwinExportFunc func,
                                      gpointer user_data)
 {
   if (!gum_darwin_module_ensure_image_loaded (self, NULL))
@@ -1097,7 +1097,7 @@ gum_emit_export_from_symbol (const GumDarwinSymbolDetails * details,
 
 void
 gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
-                                     GumDarwinFoundSymbolFunc func,
+                                     GumFoundDarwinSymbolFunc func,
                                      gpointer user_data)
 {
   GumDarwinModuleImage * image;
@@ -1208,7 +1208,7 @@ gum_darwin_module_get_nth_segment (GumDarwinModule * self,
 
 void
 gum_darwin_module_enumerate_sections (GumDarwinModule * self,
-                                      GumDarwinFoundSectionFunc func,
+                                      GumFoundDarwinSectionFunc func,
                                       gpointer user_data)
 {
   const GumMachHeader32 * header;
@@ -1314,7 +1314,7 @@ gum_darwin_module_is_address_in_text_section (GumDarwinModule * self,
 
 void
 gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
-                                     GumDarwinFoundRebaseFunc func,
+                                     GumFoundDarwinRebaseFunc func,
                                      gpointer user_data)
 {
   const guint8 * start, * end, * p;
@@ -1430,7 +1430,7 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
 
 void
 gum_darwin_module_enumerate_binds (GumDarwinModule * self,
-                                   GumDarwinFoundBindFunc func,
+                                   GumFoundDarwinBindFunc func,
                                    gpointer user_data)
 {
   const guint8 * start, * end, * p;
@@ -1556,7 +1556,7 @@ gum_darwin_module_enumerate_binds (GumDarwinModule * self,
 
 void
 gum_darwin_module_enumerate_lazy_binds (GumDarwinModule * self,
-                                        GumDarwinFoundBindFunc func,
+                                        GumFoundDarwinBindFunc func,
                                         gpointer user_data)
 {
   const guint8 * start, * end, * p;
@@ -1654,7 +1654,7 @@ gum_darwin_module_enumerate_lazy_binds (GumDarwinModule * self,
 
 void
 gum_darwin_module_enumerate_init_pointers (GumDarwinModule * self,
-                                           GumDarwinFoundInitPointersFunc func,
+                                           GumFoundDarwinInitPointersFunc func,
                                            gpointer user_data)
 {
   GumEmitInitPointersContext ctx;
@@ -1667,7 +1667,7 @@ gum_darwin_module_enumerate_init_pointers (GumDarwinModule * self,
 
 void
 gum_darwin_module_enumerate_term_pointers (GumDarwinModule * self,
-                                           GumDarwinFoundTermPointersFunc func,
+                                           GumFoundDarwinTermPointersFunc func,
                                            gpointer user_data)
 {
   GumEmitTermPointersContext ctx;
@@ -1712,7 +1712,7 @@ gum_emit_section_term_pointers (const GumDarwinSectionDetails * details,
 
 void
 gum_darwin_module_enumerate_dependencies (GumDarwinModule * self,
-                                          GumDarwinFoundDependencyFunc func,
+                                          GumFoundDarwinDependencyFunc func,
                                           gpointer user_data)
 {
   guint i;
@@ -2628,7 +2628,7 @@ gum_exports_trie_find (const guint8 * exports,
 static gboolean
 gum_exports_trie_foreach (const guint8 * exports,
                           const guint8 * exports_end,
-                          GumDarwinFoundExportFunc func,
+                          GumFoundDarwinExportFunc func,
                           gpointer user_data)
 {
   GumExportsTrieForeachContext ctx;

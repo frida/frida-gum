@@ -850,11 +850,11 @@ gum_emit_runtime (GumDarwinMapper * self)
   g_slist_foreach (self->children, (GFunc) gum_emit_child_constructor_call,
       &ctx);
   gum_darwin_module_enumerate_binds (module,
-      (GumDarwinFoundBindFunc) gum_emit_resolve_if_needed, &ctx);
+      (GumFoundDarwinBindFunc) gum_emit_resolve_if_needed, &ctx);
   gum_darwin_module_enumerate_lazy_binds (module,
-      (GumDarwinFoundBindFunc) gum_emit_resolve_if_needed, &ctx);
+      (GumFoundDarwinBindFunc) gum_emit_resolve_if_needed, &ctx);
   gum_darwin_module_enumerate_init_pointers (module,
-      (GumDarwinFoundInitPointersFunc) gum_emit_init_calls, &ctx);
+      (GumFoundDarwinInitPointersFunc) gum_emit_init_calls, &ctx);
 
   gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, self->module->pointer_size);
   gum_x86_writer_put_pop_reg (&cw, GUM_REG_XBX);
@@ -867,7 +867,7 @@ gum_emit_runtime (GumDarwinMapper * self)
   gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, self->module->pointer_size);
 
   gum_darwin_module_enumerate_term_pointers (module,
-      (GumDarwinFoundTermPointersFunc) gum_emit_term_calls, &ctx);
+      (GumFoundDarwinTermPointersFunc) gum_emit_term_calls, &ctx);
   children_reversed = g_slist_reverse (g_slist_copy (self->children));
   g_slist_foreach (children_reversed, (GFunc) gum_emit_child_destructor_call,
       &ctx);
@@ -1065,11 +1065,11 @@ gum_emit_arm_runtime (GumDarwinMapper * self)
   g_slist_foreach (self->children, (GFunc) gum_emit_arm_child_constructor_call,
       &ctx);
   gum_darwin_module_enumerate_binds (module,
-      (GumDarwinFoundBindFunc) gum_emit_arm_resolve_if_needed, &ctx);
+      (GumFoundDarwinBindFunc) gum_emit_arm_resolve_if_needed, &ctx);
   gum_darwin_module_enumerate_lazy_binds (module,
-      (GumDarwinFoundBindFunc) gum_emit_arm_resolve_if_needed, &ctx);
+      (GumFoundDarwinBindFunc) gum_emit_arm_resolve_if_needed, &ctx);
   gum_darwin_module_enumerate_init_pointers (module,
-      (GumDarwinFoundInitPointersFunc) gum_emit_arm_init_calls, &ctx);
+      (GumFoundDarwinInitPointersFunc) gum_emit_arm_init_calls, &ctx);
 
   gum_thumb_writer_put_pop_regs (&tw, 5, ARM_REG_R4, ARM_REG_R5, ARM_REG_R6,
       ARM_REG_R7, ARM_REG_PC);
@@ -1079,7 +1079,7 @@ gum_emit_arm_runtime (GumDarwinMapper * self)
       ARM_REG_R7, ARM_REG_LR);
 
   gum_darwin_module_enumerate_term_pointers (module,
-      (GumDarwinFoundTermPointersFunc) gum_emit_arm_term_calls, &ctx);
+      (GumFoundDarwinTermPointersFunc) gum_emit_arm_term_calls, &ctx);
   children_reversed = g_slist_reverse (g_slist_copy (self->children));
   g_slist_foreach (children_reversed,
       (GFunc) gum_emit_arm_child_destructor_call, &ctx);
@@ -1225,11 +1225,11 @@ gum_emit_arm64_runtime (GumDarwinMapper * self)
   g_slist_foreach (self->children,
       (GFunc) gum_emit_arm64_child_constructor_call, &ctx);
   gum_darwin_module_enumerate_binds (module,
-      (GumDarwinFoundBindFunc) gum_emit_arm64_resolve_if_needed, &ctx);
+      (GumFoundDarwinBindFunc) gum_emit_arm64_resolve_if_needed, &ctx);
   gum_darwin_module_enumerate_lazy_binds (module,
-      (GumDarwinFoundBindFunc) gum_emit_arm64_resolve_if_needed, &ctx);
+      (GumFoundDarwinBindFunc) gum_emit_arm64_resolve_if_needed, &ctx);
   gum_darwin_module_enumerate_init_pointers (module,
-      (GumDarwinFoundInitPointersFunc) gum_emit_arm64_init_calls, &ctx);
+      (GumFoundDarwinInitPointersFunc) gum_emit_arm64_init_calls, &ctx);
 
   gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X21, ARM64_REG_X22);
   gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X19, ARM64_REG_X20);
@@ -1243,7 +1243,7 @@ gum_emit_arm64_runtime (GumDarwinMapper * self)
   gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_X21, ARM64_REG_X22);
 
   gum_darwin_module_enumerate_term_pointers (module,
-      (GumDarwinFoundTermPointersFunc) gum_emit_arm64_term_calls, &ctx);
+      (GumFoundDarwinTermPointersFunc) gum_emit_arm64_term_calls, &ctx);
   children_reversed = g_slist_reverse (g_slist_copy (self->children));
   g_slist_foreach (children_reversed,
       (GFunc) gum_emit_arm64_child_destructor_call, &ctx);
