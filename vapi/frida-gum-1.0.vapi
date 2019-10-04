@@ -753,6 +753,14 @@ namespace Gum {
 		ABSOLUTE
 	}
 
+	[Flags]
+	[CCode (cprefix = "GUM_DARWIN_EXPORT_")]
+	public enum DarwinExportSymbolFlags {
+		WEAK_DEFINITION   = 0x04,
+		REEXPORT          = 0x08,
+		STUB_AND_RESOLVER = 0x10,
+	}
+
 	[CCode (has_type_id = false)]
 	public struct DarwinPort : uint {
 		[CCode (cname = "GUM_DARWIN_PORT_NULL")]

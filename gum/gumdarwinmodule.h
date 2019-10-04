@@ -41,6 +41,7 @@ typedef guint8 GumDarwinBindType;
 typedef gint GumDarwinBindOrdinal;
 typedef guint8 GumDarwinBindSymbolFlags;
 typedef guint8 GumDarwinExportSymbolKind;
+typedef guint8 GumDarwinExportSymbolFlags;
 
 typedef guint GumDarwinPort;
 typedef gint GumDarwinPageProtection;
@@ -268,6 +269,13 @@ enum _GumDarwinExportSymbolKind
   GUM_DARWIN_EXPORT_REGULAR,
   GUM_DARWIN_EXPORT_THREAD_LOCAL,
   GUM_DARWIN_EXPORT_ABSOLUTE
+};
+
+enum _GumDarwinExportSymbolFlags
+{
+  GUM_DARWIN_EXPORT_WEAK_DEFINITION   = 0x04,
+  GUM_DARWIN_EXPORT_REEXPORT          = 0x08,
+  GUM_DARWIN_EXPORT_STUB_AND_RESOLVER = 0x10,
 };
 
 GUM_API GumDarwinModule * gum_darwin_module_new_from_file (const gchar * path,
