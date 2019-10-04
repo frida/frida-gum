@@ -670,7 +670,7 @@ namespace Gum {
 		public Gum.DarwinBindType type;
 		public Gum.DarwinBindOrdinal library_ordinal;
 		public string symbol_name;
-		public uint8 symbol_flags;
+		public Gum.DarwinBindSymbolFlags symbol_flags;
 		public int64 addend;
 	}
 
@@ -731,10 +731,17 @@ namespace Gum {
 
 	[CCode (cprefix = "GUM_DARWIN_BIND_")]
 	public enum DarwinBindOrdinal {
-		SELF = 0,
+		SELF            =  0,
 		MAIN_EXECUTABLE = -1,
-		FLAT_LOOKUP = -2,
-		WEAK_LOOKUP = -3,
+		FLAT_LOOKUP     = -2,
+		WEAK_LOOKUP     = -3,
+	}
+
+	[Flags]
+	[CCode (cprefix = "GUM_DARWIN_BIND_")]
+	public enum DarwinBindSymbolFlags {
+		WEAK_IMPORT         = 0x1,
+		NON_WEAK_DEFINITION = 0x8,
 	}
 
 	[CCode (has_type_id = false)]

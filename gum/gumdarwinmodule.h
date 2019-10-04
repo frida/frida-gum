@@ -38,6 +38,7 @@ typedef struct _GumDarwinSymbolDetails GumDarwinSymbolDetails;
 typedef guint8 GumDarwinRebaseType;
 typedef guint8 GumDarwinBindType;
 typedef gint GumDarwinBindOrdinal;
+typedef guint8 GumDarwinBindSymbolFlags;
 
 typedef guint GumDarwinPort;
 typedef gint GumDarwinPageProtection;
@@ -169,7 +170,7 @@ struct _GumDarwinBindDetails
   GumDarwinBindType type;
   GumDarwinBindOrdinal library_ordinal;
   const gchar * symbol_name;
-  guint8 symbol_flags;
+  GumDarwinBindSymbolFlags symbol_flags;
   gint64 addend;
 };
 
@@ -252,6 +253,12 @@ enum _GumDarwinBindOrdinal
   GUM_DARWIN_BIND_MAIN_EXECUTABLE = -1,
   GUM_DARWIN_BIND_FLAT_LOOKUP     = -2,
   GUM_DARWIN_BIND_WEAK_LOOKUP     = -3,
+};
+
+enum _GumDarwinBindSymbolFlags
+{
+  GUM_DARWIN_BIND_WEAK_IMPORT         = 0x1,
+  GUM_DARWIN_BIND_NON_WEAK_DEFINITION = 0x8,
 };
 
 GUM_API GumDarwinModule * gum_darwin_module_new_from_file (const gchar * path,
