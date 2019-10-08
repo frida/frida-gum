@@ -1138,6 +1138,8 @@ gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
         symtab->nsyms * symbol_size, NULL);
     strings = (gchar *) GUM_MEM_READ (self->task, linkedit + symtab->stroff,
         symtab->strsize, NULL);
+    if (symbols == NULL || strings == NULL)
+      goto beach;
   }
   else
   {
