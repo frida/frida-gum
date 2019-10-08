@@ -1316,6 +1316,7 @@ gum_page_protection_from_v8 (PageAllocator::Permission permission)
     case PageAllocator::kReadExecute:
       return GUM_PAGE_RX;
     case PageAllocator::kReadWriteExecute:
+      return GUM_PAGE_RWX;
     default:
       g_assert_not_reached ();
       return GUM_PAGE_NO_ACCESS;
