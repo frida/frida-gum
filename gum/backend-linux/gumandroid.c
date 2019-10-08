@@ -666,12 +666,12 @@ gum_try_parse_linker_proc_maps_line (const gchar * line,
 
   if (sizeof (gpointer) == 4)
   {
-    new_path = "/bionic/bin/linker";
+    new_path = "/apex/com.android.runtime/bin/linker";
     old_path = "/system/bin/linker";
   }
   else
   {
-    new_path = "/bionic/bin/linker64";
+    new_path = "/apex/com.android.runtime/bin/linker64";
     old_path = "/system/bin/linker64";
   }
 
