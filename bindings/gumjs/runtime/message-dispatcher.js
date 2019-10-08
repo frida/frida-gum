@@ -12,7 +12,13 @@ function MessageDispatcher() {
 
   this.registerCallback = function registerCallback(type, callback) {
     const op = new MessageRecvOperation(callback);
-    operations[type] = op[1];
+
+    const opsForType = operations[type];
+    if (opsForType === undefined)
+      operations[type] = [op[1]];
+    else
+      opsForType.push(op[1]);
+
     dispatchMessages();
     return op[0];
   };
@@ -85,8 +91,12 @@ function MessageDispatcher() {
       messages.push(item);
       return;
     }
-    const complete = operations[handlerType];
-    delete operations[handlerType];
+
+    const opsForType = operations[handlerType];
+    const complete = opsForType.shift();
+    if (opsForType.length === 0)
+      delete operations[handlerType];
+
     complete(message, data);
   }
 
@@ -102,8 +112,11 @@ function MessageRecvOperation(callback) {
   };
 
   function complete(message, data) {
-    callback(message, data);
-    completed = true;
+    try {
+      callback(message, data);
+    } finally {
+      completed = true;
+    }
   }
 
   return [this, complete];

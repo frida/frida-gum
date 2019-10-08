@@ -17,6 +17,7 @@ TESTLIST_BEGIN (script)
   TESTENTRY (message_can_be_received_with_data)
   TESTENTRY (recv_may_specify_desired_message_type)
   TESTENTRY (recv_can_be_waited_for_from_an_application_thread)
+  TESTENTRY (recv_can_be_waited_for_from_two_application_threads)
   TESTENTRY (recv_can_be_waited_for_from_our_js_thread)
   TESTENTRY (recv_wait_in_an_application_thread_should_throw_on_unload)
   TESTENTRY (recv_wait_in_our_js_thread_should_throw_on_unload)
@@ -3336,8 +3337,8 @@ typedef struct _GumInvokeTargetContext GumInvokeTargetContext;
 struct _GumInvokeTargetContext
 {
   GumScript * script;
-  volatile gboolean started;
-  volatile gboolean finished;
+  volatile gint started;
+  volatile gint finished;
 };
 
 TESTCASE (recv_can_be_waited_for_from_an_application_thread)
@@ -3358,20 +3359,66 @@ TESTCASE (recv_can_be_waited_for_from_an_application_thread)
   EXPECT_NO_MESSAGES ();
 
   ctx.script = fixture->script;
-  ctx.started = FALSE;
-  ctx.finished = FALSE;
+  ctx.started = 0;
+  ctx.finished = 0;
   worker_thread = g_thread_new ("script-test-worker-thread",
       invoke_target_function_int_worker, &ctx);
-  while (!ctx.started)
+  while (ctx.started == 0)
     g_usleep (G_USEC_PER_SEC / 200);
 
   g_usleep (G_USEC_PER_SEC / 25);
   EXPECT_NO_MESSAGES ();
-  g_assert_false (ctx.finished);
+  g_assert_cmpint (ctx.finished, ==, 0);
 
   POST_MESSAGE ("{\"type\":\"poke\"}");
   g_thread_join (worker_thread);
-  g_assert_true (ctx.finished);
+  g_assert_cmpint (ctx.finished, ==, 1);
+  EXPECT_SEND_MESSAGE_WITH ("\"pokeBack\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"pokeReceived\"");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (recv_can_be_waited_for_from_two_application_threads)
+{
+  GThread * worker_thread1, * worker_thread2;
+  GumInvokeTargetContext ctx;
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter: function (args) {"
+      "    var op = recv('poke', function (pokeMessage) {"
+      "      send('pokeBack');"
+      "    });"
+      "    op.wait();"
+      "    send('pokeReceived');"
+      "  }"
+      "});", target_function_int);
+  EXPECT_NO_MESSAGES ();
+
+  ctx.script = fixture->script;
+  ctx.started = 0;
+  ctx.finished = 0;
+  worker_thread1 = g_thread_new ("script-test-worker-thread",
+      invoke_target_function_int_worker, &ctx);
+  g_usleep (G_USEC_PER_SEC / 25);
+  worker_thread2 = g_thread_new ("script-test-worker-thread",
+      invoke_target_function_int_worker, &ctx);
+  while (ctx.started != 2)
+    g_usleep (G_USEC_PER_SEC / 200);
+
+  g_usleep (G_USEC_PER_SEC / 25);
+  EXPECT_NO_MESSAGES ();
+  g_assert_cmpint (ctx.finished, ==, 0);
+
+  POST_MESSAGE ("{\"type\":\"poke\"}");
+  g_thread_join (worker_thread1);
+  g_assert_cmpint (ctx.finished, ==, 1);
+  EXPECT_SEND_MESSAGE_WITH ("\"pokeBack\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"pokeReceived\"");
+  EXPECT_NO_MESSAGES ();
+  POST_MESSAGE ("{\"type\":\"poke\"}");
+  g_thread_join (worker_thread2);
+  g_assert_cmpint (ctx.finished, ==, 2);
   EXPECT_SEND_MESSAGE_WITH ("\"pokeBack\"");
   EXPECT_SEND_MESSAGE_WITH ("\"pokeReceived\"");
   EXPECT_NO_MESSAGES ();
@@ -3421,20 +3468,20 @@ TESTCASE (recv_wait_in_an_application_thread_should_throw_on_unload)
   EXPECT_NO_MESSAGES ();
 
   ctx.script = fixture->script;
-  ctx.started = FALSE;
-  ctx.finished = FALSE;
+  ctx.started = 0;
+  ctx.finished = 0;
   worker_thread = g_thread_new ("script-test-worker-thread",
       invoke_target_function_int_worker, &ctx);
-  while (!ctx.started)
+  while (ctx.started == 0)
     g_usleep (G_USEC_PER_SEC / 200);
 
   g_usleep (G_USEC_PER_SEC / 25);
   EXPECT_NO_MESSAGES ();
-  g_assert_false (ctx.finished);
+  g_assert_cmpint (ctx.finished, ==, 0);
 
   UNLOAD_SCRIPT ();
   g_thread_join (worker_thread);
-  g_assert_true (ctx.finished);
+  g_assert_cmpint (ctx.finished, ==, 1);
   EXPECT_SEND_MESSAGE_WITH ("\"oops: script is unloading\"");
   EXPECT_NO_MESSAGES ();
 }
@@ -3465,9 +3512,9 @@ invoke_target_function_int_worker (gpointer data)
 {
   GumInvokeTargetContext * ctx = (GumInvokeTargetContext *) data;
 
-  ctx->started = TRUE;
+  g_atomic_int_inc (&ctx->started);
   target_function_int (42);
-  ctx->finished = TRUE;
+  g_atomic_int_inc (&ctx->finished);
 
   return NULL;
 }
