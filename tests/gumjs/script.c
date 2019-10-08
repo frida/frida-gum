@@ -3368,11 +3368,11 @@ TESTCASE (recv_can_be_waited_for_from_an_application_thread)
 
   g_usleep (G_USEC_PER_SEC / 25);
   EXPECT_NO_MESSAGES ();
-  g_assert_false (ctx.finished != 0);
+  g_assert_cmpint (ctx.finished, ==, 0);
 
   POST_MESSAGE ("{\"type\":\"poke\"}");
   g_thread_join (worker_thread);
-  g_assert_true (ctx.finished == 1);
+  g_assert_cmpint (ctx.finished, ==, 1);
   EXPECT_SEND_MESSAGE_WITH ("\"pokeBack\"");
   EXPECT_SEND_MESSAGE_WITH ("\"pokeReceived\"");
   EXPECT_NO_MESSAGES ();
@@ -3408,17 +3408,17 @@ TESTCASE (recv_can_be_waited_for_from_two_application_threads)
 
   g_usleep (G_USEC_PER_SEC / 25);
   EXPECT_NO_MESSAGES ();
-  g_assert_false (ctx.finished != 0);
+  g_assert_cmpint (ctx.finished, ==, 0);
 
   POST_MESSAGE ("{\"type\":\"poke\"}");
   g_thread_join (worker_thread1);
-  g_assert_true (ctx.finished == 1);
+  g_assert_cmpint (ctx.finished, ==, 1);
   EXPECT_SEND_MESSAGE_WITH ("\"pokeBack\"");
   EXPECT_SEND_MESSAGE_WITH ("\"pokeReceived\"");
   EXPECT_NO_MESSAGES ();
   POST_MESSAGE ("{\"type\":\"poke\"}");
   g_thread_join (worker_thread2);
-  g_assert_true (ctx.finished == 2);
+  g_assert_cmpint (ctx.finished, ==, 2);
   EXPECT_SEND_MESSAGE_WITH ("\"pokeBack\"");
   EXPECT_SEND_MESSAGE_WITH ("\"pokeReceived\"");
   EXPECT_NO_MESSAGES ();
@@ -3477,11 +3477,11 @@ TESTCASE (recv_wait_in_an_application_thread_should_throw_on_unload)
 
   g_usleep (G_USEC_PER_SEC / 25);
   EXPECT_NO_MESSAGES ();
-  g_assert_false (ctx.finished != 0);
+  g_assert_cmpint (ctx.finished, ==, 0);
 
   UNLOAD_SCRIPT ();
   g_thread_join (worker_thread);
-  g_assert_true (ctx.finished == 1);
+  g_assert_cmpint (ctx.finished, ==, 1);
   EXPECT_SEND_MESSAGE_WITH ("\"oops: script is unloading\"");
   EXPECT_NO_MESSAGES ();
 }
