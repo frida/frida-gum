@@ -12,12 +12,13 @@ function MessageDispatcher() {
 
   this.registerCallback = function registerCallback(type, callback) {
     const op = new MessageRecvOperation(callback);
+
     const opsForType = operations[type];
-    if (opsForType === undefined) {
+    if (opsForType === undefined)
       operations[type] = [op[1]];
-    } else {
+    else
       opsForType.push(op[1]);
-    }
+
     dispatchMessages();
     return op[0];
   };
@@ -93,9 +94,9 @@ function MessageDispatcher() {
 
     const opsForType = operations[handlerType];
     const complete = opsForType.shift();
-    if (opsForType.length === 0) {
+    if (opsForType.length === 0)
       delete operations[handlerType];
-    }
+
     complete(message, data);
   }
 
