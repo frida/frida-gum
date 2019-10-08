@@ -3337,8 +3337,8 @@ typedef struct _GumInvokeTargetContext GumInvokeTargetContext;
 struct _GumInvokeTargetContext
 {
   GumScript * script;
-  volatile int started;
-  volatile int finished;
+  volatile gint started;
+  volatile gint finished;
 };
 
 TESTCASE (recv_can_be_waited_for_from_an_application_thread)
@@ -3512,9 +3512,9 @@ invoke_target_function_int_worker (gpointer data)
 {
   GumInvokeTargetContext * ctx = (GumInvokeTargetContext *) data;
 
-  ctx->started++;
+  g_atomic_int_inc (&ctx->started);
   target_function_int (42);
-  ctx->finished++;
+  g_atomic_int_inc (&ctx->finished);
 
   return NULL;
 }
