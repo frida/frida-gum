@@ -41,6 +41,25 @@
 #define GUM_PTHREAD_GET_FIELD(thread, field, type) \
     (*((type *) ((guint8 *) thread + field)))
 
+#if defined (HAVE_ARM64) && !defined (__DARWIN_OPAQUE_ARM_THREAD_STATE64)
+# define __darwin_arm_thread_state64_get_pc(ts) \
+    ((ts).__pc)
+# define __darwin_arm_thread_state64_set_pc_fptr(ts, fptr) \
+    ((ts).__pc = (uintptr_t) (fptr))
+# define __darwin_arm_thread_state64_get_lr(ts) \
+    ((ts).__lr)
+# define __darwin_arm_thread_state64_set_lr_fptr(ts, fptr) \
+    ((ts).__lr = (uintptr_t) (fptr))
+# define __darwin_arm_thread_state64_get_sp(ts) \
+    ((ts).__sp)
+# define __darwin_arm_thread_state64_set_sp(ts, ptr) \
+    ((ts).__sp = (uintptr_t) (ptr))
+# define __darwin_arm_thread_state64_get_fp(ts) \
+    ((ts).__fp)
+# define __darwin_arm_thread_state64_set_fp(ts, ptr) \
+    ((ts).__fp = (uintptr_t) (ptr))
+#endif
+
 typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
 typedef struct _GumEnumerateExportsContext GumEnumerateExportsContext;
 typedef struct _GumEnumerateSymbolsContext GumEnumerateSymbolsContext;
@@ -2010,7 +2029,7 @@ gum_darwin_is_unified_thread_state_valid (const GumDarwinUnifiedThreadState * ts
 #elif defined (HAVE_ARM)
   return ts->ts_32.__pc != 0;
 #elif defined (HAVE_ARM64)
-  return ts->ts_64.__pc != 0;
+  return __darwin_arm_thread_state64_get_pc (ts->ts_64) != 0;
 #endif
 }
 
@@ -2068,13 +2087,13 @@ gum_darwin_parse_native_thread_state (const GumDarwinNativeThreadState * ts,
 #elif defined (HAVE_ARM64)
   guint n;
 
-  ctx->pc = ts->__pc;
-  ctx->sp = ts->__sp;
+  ctx->pc = __darwin_arm_thread_state64_get_pc (*ts);
+  ctx->sp = __darwin_arm_thread_state64_get_sp (*ts);
 
   for (n = 0; n != G_N_ELEMENTS (ctx->x); n++)
     ctx->x[n] = ts->__x[n];
-  ctx->fp = ts->__fp;
-  ctx->lr = ts->__lr;
+  ctx->fp = __darwin_arm_thread_state64_get_fp (*ts);
+  ctx->lr = __darwin_arm_thread_state64_get_lr (*ts);
 #endif
 }
 
@@ -2171,13 +2190,13 @@ gum_darwin_unparse_native_thread_state (const GumCpuContext * ctx,
 #elif defined (HAVE_ARM64)
   guint n;
 
-  ts->__pc = ctx->pc;
-  ts->__sp = ctx->sp;
+  __darwin_arm_thread_state64_set_pc_fptr (*ts, GSIZE_TO_POINTER (ctx->pc));
+  __darwin_arm_thread_state64_set_sp (*ts, ctx->sp);
 
   for (n = 0; n != G_N_ELEMENTS (ctx->x); n++)
     ts->__x[n] = ctx->x[n];
-  ts->__fp = ctx->fp;
-  ts->__lr = ctx->lr;
+  __darwin_arm_thread_state64_set_fp (*ts, ctx->fp);
+  __darwin_arm_thread_state64_set_lr_fptr (*ts, GSIZE_TO_POINTER (ctx->lr));
 #endif
 }
 
