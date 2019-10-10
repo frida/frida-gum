@@ -13,9 +13,7 @@
 #include <link.h>
 #include <pthread.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <sys/system_properties.h>
-#include <unistd.h>
 
 #if (defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4) || defined (HAVE_ARM)
 # define GUM_ANDROID_LEGACY_SOINFO 1
@@ -323,8 +321,9 @@ struct _GumFunctionSignature
 };
 
 static const GumModuleDetails * gum_try_init_linker_details (void);
+static gchar * gum_find_linker_path ();
 static gboolean gum_try_parse_linker_proc_maps_line (const gchar * line,
-    GumModuleDetails * module, GumMemoryRange * range);
+    GumModuleDetails * module, GumMemoryRange * range, const gchar * linker_path);
 
 static gboolean gum_store_module_handle_if_name_matches (
     const GumSoinfoDetails * details, GumGetModuleHandleContext * ctx);
@@ -573,8 +572,10 @@ static const GumModuleDetails *
 gum_try_init_linker_details (void)
 {
   const GumModuleDetails * result = NULL;
-  gchar * maps, ** lines;
+  gchar * maps, ** lines, *linker_path;
   gint num_lines, vdso_index, i;
+
+  linker_path = gum_find_linker_path ();
 
   /*
    * Using /proc/self/maps means there might be false positives, as the
@@ -606,7 +607,7 @@ gum_try_init_linker_details (void)
   for (i = vdso_index + 1; i != num_lines; i++)
   {
     if (gum_try_parse_linker_proc_maps_line (lines[i], &gum_dl_module,
-        &gum_dl_range))
+        &gum_dl_range, linker_path))
     {
       result = &gum_dl_module;
       goto beach;
@@ -616,7 +617,7 @@ gum_try_init_linker_details (void)
   for (i = vdso_index - 1; i >= 0; i--)
   {
     if (gum_try_parse_linker_proc_maps_line (lines[i], &gum_dl_module,
-        &gum_dl_range))
+        &gum_dl_range, linker_path))
     {
       result = &gum_dl_module;
       goto beach;
@@ -629,7 +630,7 @@ no_vdso:
   for (i = num_lines - 1; i >= 0; i--)
   {
     if (gum_try_parse_linker_proc_maps_line (lines[i], &gum_dl_module,
-        &gum_dl_range))
+        &gum_dl_range, linker_path))
     {
       result = &gum_dl_module;
       goto beach;
@@ -638,23 +639,65 @@ no_vdso:
 
 beach:
   g_strfreev (lines);
+  g_free (linker_path);
   g_free (maps);
 
   return result;
 }
 
+static gchar *
+gum_find_linker_path ()
+{
+  gchar *linker_expected_path, *linker_path = NULL;
+
+  if (sizeof (gpointer) == 4)
+  {
+    linker_expected_path = "/system/bin/linker";
+  }
+  else
+  {
+    linker_expected_path = "/system/bin/linker64";
+  }
+
+  // If there are no linker file, fail
+  if (!g_file_test (linker_expected_path, G_FILE_TEST_EXISTS))
+  {
+    goto result;
+  }
+
+  if (g_file_test (linker_expected_path, G_FILE_TEST_IS_SYMLINK))
+  {
+    linker_path = g_file_read_link (linker_expected_path, NULL);
+    if (linker_path == NULL)
+    {
+      // Issue reading the link, fall back to backwards compatible path
+      // linker_true_path = &linker_expected_path[0];
+      strcpy (linker_path, linker_expected_path);
+    }
+  }
+  else
+  {
+    // Expected path is a real file, use it
+    // linker_true_path = &linker_expected_path[0];
+      strcpy (linker_path, linker_expected_path);
+  }
+
+  result:
+  g_free (linker_expected_path);
+
+  return linker_path;
+}
+
 static gboolean
 gum_try_parse_linker_proc_maps_line (const gchar * line,
                                      GumModuleDetails * module,
-                                     GumMemoryRange * range)
+                                     GumMemoryRange * range,
+                                      const gchar * linker_path)
 {
   GumAddress start, end;
   gchar perms[5] = { 0, };
   gchar path[PATH_MAX];
   gint n;
-  struct stat linker_stat;
-  gchar linker_true_path[PATH_MAX];
-  const gchar * linker_path, *linker_expected_path;
   const guint8 elf_magic[] = { 0x7f, 'E', 'L', 'F' };
 
   n = sscanf (line,
@@ -668,35 +711,7 @@ gum_try_parse_linker_proc_maps_line (const gchar * line,
   if (n != 4)
     return FALSE;
 
-  if (sizeof (gpointer) == 4)
-  {
-    linker_expected_path = "/system/bin/linker";
-  }
-  else
-  {
-    linker_expected_path = "/system/bin/linker64";
-  }
-
-  // If there are no linker files, fail
-  if(lstat(linker_expected_path, &linker_stat) == -1) {
-    return FALSE;
-  }
-
-  if (S_ISLNK(linker_stat.st_mode)) {
-    if(readlink(linker_expected_path, linker_true_path, sizeof(linker_true_path)) < 0) {
-      // Issue reading the link, fall back to backwards compatible path
-      // linker_true_path = &linker_expected_path[0];
-      strcpy(linker_true_path, linker_expected_path);
-    }
-  } else {
-    // Expected path is a real file, use it
-    // linker_true_path = &linker_expected_path[0];
-      strcpy(linker_true_path, linker_expected_path);
-  }
-
-  if (strcmp (path, linker_true_path) == 0)
-    linker_path = linker_true_path;
-  else
+  if (strcmp (path, linker_path) != 0)
     return FALSE;
 
   if (perms[0] != 'r')
