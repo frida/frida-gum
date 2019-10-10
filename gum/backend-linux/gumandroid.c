@@ -13,7 +13,9 @@
 #include <link.h>
 #include <pthread.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/system_properties.h>
+#include <unistd.h>
 
 #if (defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4) || defined (HAVE_ARM)
 # define GUM_ANDROID_LEGACY_SOINFO 1
@@ -650,7 +652,9 @@ gum_try_parse_linker_proc_maps_line (const gchar * line,
   gchar perms[5] = { 0, };
   gchar path[PATH_MAX];
   gint n;
-  const gchar * new_path, * old_path, * linker_path;
+  struct stat linker_stat;
+  gchar linker_true_path[PATH_MAX];
+  const gchar * linker_path, *linker_expected_path;
   const guint8 elf_magic[] = { 0x7f, 'E', 'L', 'F' };
 
   n = sscanf (line,
@@ -666,19 +670,32 @@ gum_try_parse_linker_proc_maps_line (const gchar * line,
 
   if (sizeof (gpointer) == 4)
   {
-    new_path = "/apex/com.android.runtime/bin/linker";
-    old_path = "/system/bin/linker";
+    linker_expected_path = "/system/bin/linker";
   }
   else
   {
-    new_path = "/apex/com.android.runtime/bin/linker64";
-    old_path = "/system/bin/linker64";
+    linker_expected_path = "/system/bin/linker64";
   }
 
-  if (strcmp (path, new_path) == 0)
-    linker_path = new_path;
-  else if (strcmp (path, old_path) == 0)
-    linker_path = old_path;
+  // If there are no linker files, fail
+  if(lstat(linker_expected_path, &linker_stat) == -1) {
+    return FALSE;
+  }
+
+  if (S_ISLNK(linker_stat.st_mode)) {
+    if(readlink(linker_expected_path, linker_true_path, sizeof(linker_true_path)) < 0) {
+      // Issue reading the link, fall back to backwards compatible path
+      // linker_true_path = &linker_expected_path[0];
+      strcpy(linker_true_path, linker_expected_path);
+    }
+  } else {
+    // Expected path is a real file, use it
+    // linker_true_path = &linker_expected_path[0];
+      strcpy(linker_true_path, linker_expected_path);
+  }
+
+  if (strcmp (path, linker_true_path) == 0)
+    linker_path = linker_true_path;
   else
     return FALSE;
 
