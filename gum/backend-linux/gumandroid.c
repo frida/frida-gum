@@ -321,8 +321,10 @@ struct _GumFunctionSignature
 };
 
 static const GumModuleDetails * gum_try_init_linker_details (void);
+static gchar * gum_find_linker_path (void);
 static gboolean gum_try_parse_linker_proc_maps_line (const gchar * line,
-    GumModuleDetails * module, GumMemoryRange * range);
+    const gchar * linker_path, GumModuleDetails * module,
+    GumMemoryRange * range);
 
 static gboolean gum_store_module_handle_if_name_matches (
     const GumSoinfoDetails * details, GumGetModuleHandleContext * ctx);
@@ -573,6 +575,7 @@ gum_try_init_linker_details (void)
   const GumModuleDetails * result = NULL;
   gchar * maps, ** lines;
   gint num_lines, vdso_index, i;
+  gchar * linker_path = NULL;
 
   /*
    * Using /proc/self/maps means there might be false positives, as the
@@ -601,10 +604,12 @@ gum_try_init_linker_details (void)
   if (vdso_index == -1)
     goto no_vdso;
 
+  linker_path = gum_find_linker_path ();
+
   for (i = vdso_index + 1; i != num_lines; i++)
   {
-    if (gum_try_parse_linker_proc_maps_line (lines[i], &gum_dl_module,
-        &gum_dl_range))
+    if (gum_try_parse_linker_proc_maps_line (lines[i], linker_path,
+        &gum_dl_module, &gum_dl_range))
     {
       result = &gum_dl_module;
       goto beach;
@@ -613,8 +618,8 @@ gum_try_init_linker_details (void)
 
   for (i = vdso_index - 1; i >= 0; i--)
   {
-    if (gum_try_parse_linker_proc_maps_line (lines[i], &gum_dl_module,
-        &gum_dl_range))
+    if (gum_try_parse_linker_proc_maps_line (lines[i], linker_path,
+        &gum_dl_module, &gum_dl_range))
     {
       result = &gum_dl_module;
       goto beach;
@@ -626,8 +631,8 @@ gum_try_init_linker_details (void)
 no_vdso:
   for (i = num_lines - 1; i >= 0; i--)
   {
-    if (gum_try_parse_linker_proc_maps_line (lines[i], &gum_dl_module,
-        &gum_dl_range))
+    if (gum_try_parse_linker_proc_maps_line (lines[i], linker_path,
+        &gum_dl_module, &gum_dl_range))
     {
       result = &gum_dl_module;
       goto beach;
@@ -635,14 +640,36 @@ no_vdso:
   }
 
 beach:
+  g_free (linker_path);
+
   g_strfreev (lines);
   g_free (maps);
 
   return result;
 }
 
+static gchar *
+gum_find_linker_path (void)
+{
+  gchar * result = NULL;
+  const gchar * traditional_path;
+
+  traditional_path = (sizeof (gpointer) == 4)
+      ? "/system/bin/linker"
+      : "/system/bin/linker64";
+
+  if (g_file_test (traditional_path, G_FILE_TEST_IS_SYMLINK))
+    result = g_file_read_link (traditional_path, NULL);
+
+  if (result == NULL)
+    result = g_strdup (traditional_path);
+
+  return result;
+}
+
 static gboolean
 gum_try_parse_linker_proc_maps_line (const gchar * line,
+                                     const gchar * linker_path,
                                      GumModuleDetails * module,
                                      GumMemoryRange * range)
 {
@@ -650,7 +677,6 @@ gum_try_parse_linker_proc_maps_line (const gchar * line,
   gchar perms[5] = { 0, };
   gchar path[PATH_MAX];
   gint n;
-  const gchar * new_path, * old_path, * linker_path;
   const guint8 elf_magic[] = { 0x7f, 'E', 'L', 'F' };
 
   n = sscanf (line,
@@ -664,22 +690,7 @@ gum_try_parse_linker_proc_maps_line (const gchar * line,
   if (n != 4)
     return FALSE;
 
-  if (sizeof (gpointer) == 4)
-  {
-    new_path = "/apex/com.android.runtime/bin/linker";
-    old_path = "/system/bin/linker";
-  }
-  else
-  {
-    new_path = "/apex/com.android.runtime/bin/linker64";
-    old_path = "/system/bin/linker64";
-  }
-
-  if (strcmp (path, new_path) == 0)
-    linker_path = new_path;
-  else if (strcmp (path, old_path) == 0)
-    linker_path = old_path;
-  else
+  if (strcmp (path, linker_path) != 0)
     return FALSE;
 
   if (perms[0] != 'r')
