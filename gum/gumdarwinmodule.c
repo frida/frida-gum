@@ -39,13 +39,6 @@
 #define GUM_BIND_SPECIAL_DYLIB_FLAT_LOOKUP     -2
 
 #define MAX_METADATA_SIZE             (64 * 1024)
-#ifdef HAVE_DARWIN
-# define GUM_MEM_READ(task, addr, len, out_size) \
-    (self->is_kernel ? gum_kernel_read (addr, len, out_size) \
-      : gum_darwin_read (task, addr, len, out_size))
-#else
-# define GUM_MEM_READ(task, addr, len, out_size) NULL
-#endif
 
 #define GUM_DARWIN_MODULE_HAS_HEADER_ONLY(self) \
     ((self->flags & GUM_DARWIN_MODULE_FLAGS_HEADER_ONLY) != 0)
@@ -917,6 +910,21 @@ gum_darwin_module_new_from_memory (const gchar * name,
       NULL);
 }
 
+static guint8 *
+gum_darwin_module_read_from_task (GumDarwinModule * self,
+                                  GumAddress address,
+                                  gsize len,
+                                  gsize * n_bytes_read)
+{
+#ifdef HAVE_DARWIN
+  return self->is_kernel
+      ? gum_kernel_read (address, len, n_bytes_read)
+      : gum_darwin_read (self->task, address, len, n_bytes_read);
+#else
+  return NULL;
+#endif
+}
+
 gboolean
 gum_darwin_module_resolve_export (GumDarwinModule * self,
                                   const gchar * name,
@@ -1102,7 +1110,6 @@ gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
 {
   GumDarwinModuleImage * image;
   const GumSymtabCommand * symtab;
-  gsize symbol_size;
   GumAddress slide;
   guint8 * symbols = NULL;
   gchar * strings = NULL;
@@ -1120,24 +1127,26 @@ gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
   if (symtab == NULL)
     goto beach;
 
-  symbol_size = (self->pointer_size == 8)
-      ? sizeof (GumNList64)
-      : sizeof (GumNList32);
 
   slide = gum_darwin_module_get_slide (self);
 
   if (self->task != GUM_DARWIN_PORT_NULL)
   {
     GumAddress linkedit;
+    gsize symbol_size;
 
     if (!gum_find_linkedit (image->data, image->size, &linkedit))
       goto beach;
     linkedit += slide;
 
-    symbols = GUM_MEM_READ (self->task, linkedit + symtab->symoff,
+    symbol_size = (self->pointer_size == 8)
+        ? sizeof (GumNList64)
+        : sizeof (GumNList32);
+
+    symbols = gum_darwin_module_read_from_task (self, linkedit + symtab->symoff,
         symtab->nsyms * symbol_size, NULL);
-    strings = (gchar *) GUM_MEM_READ (self->task, linkedit + symtab->stroff,
-        symtab->strsize, NULL);
+    strings = (gchar *) gum_darwin_module_read_from_task (self,
+        linkedit + symtab->stroff, symtab->strsize, NULL);
     if (symbols == NULL || strings == NULL)
       goto beach;
   }
@@ -1322,7 +1331,6 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
   const guint8 * start, * end, * p;
   gboolean done;
   GumDarwinRebaseDetails details;
-  guint64 max_offset;
 
   if (GUM_DARWIN_MODULE_HAS_HEADER_ONLY (self) ||
       !gum_darwin_module_ensure_image_loaded (self, NULL))
@@ -1339,8 +1347,6 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
   details.offset = 0;
   details.type = 0;
   details.slide = gum_darwin_module_get_slide (self);
-
-  max_offset = details.segment->file_size;
 
   while (!done && p != end)
   {
@@ -1363,7 +1369,6 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
         details.segment =
             gum_darwin_module_get_nth_segment (self, segment_index);
         details.offset = gum_read_uleb128 (&p, end);
-        max_offset = details.segment->file_size;
         break;
       }
       case GUM_REBASE_OPCODE_ADD_ADDR_ULEB:
@@ -1378,7 +1383,6 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
 
         for (i = 0; i != immediate; i++)
         {
-          g_assert (details.offset < max_offset);
           if (!func (&details, user_data))
             return;
           details.offset += self->pointer_size;
@@ -1393,7 +1397,6 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
         count = gum_read_uleb128 (&p, end);
         for (i = 0; i != count; i++)
         {
-          g_assert (details.offset < max_offset);
           if (!func (&details, user_data))
             return;
           details.offset += self->pointer_size;
@@ -1402,7 +1405,6 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
         break;
       }
       case GUM_REBASE_OPCODE_DO_REBASE_ADD_ADDR_ULEB:
-        g_assert (details.offset < max_offset);
         if (!func (&details, user_data))
           return;
         details.offset += self->pointer_size + gum_read_uleb128 (&p, end);
@@ -1415,7 +1417,6 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
         skip = gum_read_uleb128 (&p, end);
         for (i = 0; i != count; ++i)
         {
-          g_assert (details.offset < max_offset);
           if (!func (&details, user_data))
             return;
           details.offset += self->pointer_size + skip;
@@ -1438,7 +1439,6 @@ gum_darwin_module_enumerate_binds (GumDarwinModule * self,
   const guint8 * start, * end, * p;
   gboolean done;
   GumDarwinBindDetails details;
-  guint64 max_offset;
 
   if (GUM_DARWIN_MODULE_HAS_HEADER_ONLY (self) ||
       !gum_darwin_module_ensure_image_loaded (self, NULL))
@@ -1458,8 +1458,6 @@ gum_darwin_module_enumerate_binds (GumDarwinModule * self,
   details.symbol_name = NULL;
   details.symbol_flags = 0;
   details.addend = 0;
-
-  max_offset = details.segment->file_size;
 
   while (!done && p != end)
   {
@@ -1509,26 +1507,22 @@ gum_darwin_module_enumerate_binds (GumDarwinModule * self,
         details.segment =
             gum_darwin_module_get_nth_segment (self, segment_index);
         details.offset = gum_read_uleb128 (&p, end);
-        max_offset = details.segment->file_size;
         break;
       }
       case GUM_BIND_OPCODE_ADD_ADDR_ULEB:
         details.offset += gum_read_uleb128 (&p, end);
         break;
       case GUM_BIND_OPCODE_DO_BIND:
-        g_assert (details.offset < max_offset);
         if (!func (&details, user_data))
           return;
         details.offset += self->pointer_size;
         break;
       case GUM_BIND_OPCODE_DO_BIND_ADD_ADDR_ULEB:
-        g_assert (details.offset < max_offset);
         if (!func (&details, user_data))
           return;
         details.offset += self->pointer_size + gum_read_uleb128 (&p, end);
         break;
       case GUM_BIND_OPCODE_DO_BIND_ADD_ADDR_IMM_SCALED:
-        g_assert (details.offset < max_offset);
         if (!func (&details, user_data))
           return;
         details.offset += self->pointer_size + (immediate * self->pointer_size);
@@ -1541,7 +1535,6 @@ gum_darwin_module_enumerate_binds (GumDarwinModule * self,
         skip = gum_read_uleb128 (&p, end);
         for (i = 0; i != count; ++i)
         {
-          g_assert (details.offset < max_offset);
           if (!func (&details, user_data))
             return;
           details.offset += self->pointer_size + skip;
@@ -1563,7 +1556,6 @@ gum_darwin_module_enumerate_lazy_binds (GumDarwinModule * self,
 {
   const guint8 * start, * end, * p;
   GumDarwinBindDetails details;
-  guint64 max_offset;
 
   if (GUM_DARWIN_MODULE_HAS_HEADER_ONLY (self) ||
       !gum_darwin_module_ensure_image_loaded (self, NULL))
@@ -1582,8 +1574,6 @@ gum_darwin_module_enumerate_lazy_binds (GumDarwinModule * self,
   details.symbol_name = NULL;
   details.symbol_flags = 0;
   details.addend = 0;
-
-  max_offset = details.segment->file_size;
 
   while (p != end)
   {
@@ -1632,14 +1622,12 @@ gum_darwin_module_enumerate_lazy_binds (GumDarwinModule * self,
         details.segment =
             gum_darwin_module_get_nth_segment (self, segment_index);
         details.offset = gum_read_uleb128 (&p, end);
-        max_offset = details.segment->file_size;
         break;
       }
       case GUM_BIND_OPCODE_ADD_ADDR_ULEB:
         details.offset += gum_read_uleb128 (&p, end);
         break;
       case GUM_BIND_OPCODE_DO_BIND:
-        g_assert (details.offset < max_offset);
         if (!func (&details, user_data))
           return;
         details.offset += self->pointer_size;
@@ -1769,11 +1757,10 @@ gum_darwin_module_try_load_image_from_cache (GumDarwinModule * self,
   guint8 * cache;
   const GumDyldCacheHeader * header;
   const GumDyldCacheImageInfo * images, * image;
-  const GumDyldCacheMappingInfo * mappings, * first_mapping, * second_mapping,
+  const GumDyldCacheMappingInfo * mappings, * second_mapping,
       * last_mapping, * mapping;
   guint64 image_offset, image_size;
   GumDarwinModuleImage * module_image;
-  gboolean success;
 
   cache = (guint8 *) g_mapped_file_get_contents (cache_file);
   g_assert (cache != NULL);
@@ -1781,7 +1768,6 @@ gum_darwin_module_try_load_image_from_cache (GumDarwinModule * self,
   header = (GumDyldCacheHeader *) cache;
   images = (GumDyldCacheImageInfo *) (cache + header->images_offset);
   mappings = (GumDyldCacheMappingInfo *) (cache + header->mapping_offset);
-  first_mapping = &mappings[0];
   second_mapping = &mappings[1];
   last_mapping = &mappings[header->mapping_count - 1];
 
@@ -1794,9 +1780,6 @@ gum_darwin_module_try_load_image_from_cache (GumDarwinModule * self,
       header->mapping_count);
   image_size = gum_dyld_cache_compute_image_size (image, images,
       header->images_count);
-
-  g_assert (image_offset >= first_mapping->offset);
-  g_assert (image_offset < first_mapping->offset + first_mapping->size);
 
   module_image = gum_darwin_module_image_new ();
 
@@ -1822,8 +1805,7 @@ gum_darwin_module_try_load_image_from_cache (GumDarwinModule * self,
 
   module_image->bytes = g_mapped_file_get_bytes (cache_file);
 
-  success = gum_darwin_module_take_image (self, module_image, NULL);
-  g_assert (success);
+  gum_darwin_module_take_image (self, module_image, NULL);
 
   return TRUE;
 }
@@ -2139,7 +2121,7 @@ gum_darwin_module_load_image_from_memory (GumDarwinModule * self,
   else
   {
     data_size = 0;
-    data = GUM_MEM_READ (self->task, self->base_address,
+    data = gum_darwin_module_read_from_task (self, self->base_address,
         MAX_METADATA_SIZE, &data_size);
     if (data == NULL)
       return FALSE;
@@ -2396,7 +2378,8 @@ gum_darwin_module_read_and_assign (GumDarwinModule * self,
     gsize n_bytes_read;
 
     n_bytes_read = 0;
-    data = GUM_MEM_READ (self->task, address, size, &n_bytes_read);
+    data = gum_darwin_module_read_from_task (self, address, size,
+        &n_bytes_read);
     *start = data;
     *end = (data != NULL) ? data + n_bytes_read : NULL;
     *malloc_data = data;
