@@ -321,9 +321,9 @@ struct _GumFunctionSignature
 };
 
 static const GumModuleDetails * gum_try_init_linker_details (void);
-static gchar * gum_find_linker_path ();
+static gchar * gum_find_linker_path (void);
 static gboolean gum_try_parse_linker_proc_maps_line (const gchar * line,
-    GumModuleDetails * module, GumMemoryRange * range, const gchar * linker_path);
+    const gchar * linker_path, GumModuleDetails * module, GumMemoryRange * range);
 
 static gboolean gum_store_module_handle_if_name_matches (
     const GumSoinfoDetails * details, GumGetModuleHandleContext * ctx);
@@ -572,10 +572,8 @@ static const GumModuleDetails *
 gum_try_init_linker_details (void)
 {
   const GumModuleDetails * result = NULL;
-  gchar * maps, ** lines, *linker_path;
+  gchar ** lines, * linker_path, * maps;
   gint num_lines, vdso_index, i;
-
-  linker_path = gum_find_linker_path ();
 
   /*
    * Using /proc/self/maps means there might be false positives, as the
@@ -601,13 +599,16 @@ gum_try_init_linker_details (void)
       break;
     }
   }
+
+  linker_path = gum_find_linker_path ();
+
   if (vdso_index == -1)
     goto no_vdso;
 
   for (i = vdso_index + 1; i != num_lines; i++)
   {
-    if (gum_try_parse_linker_proc_maps_line (lines[i], &gum_dl_module,
-        &gum_dl_range, linker_path))
+    if (gum_try_parse_linker_proc_maps_line (lines[i], linker_path,
+        &gum_dl_module, &gum_dl_range))
     {
       result = &gum_dl_module;
       goto beach;
@@ -616,8 +617,8 @@ gum_try_init_linker_details (void)
 
   for (i = vdso_index - 1; i >= 0; i--)
   {
-    if (gum_try_parse_linker_proc_maps_line (lines[i], &gum_dl_module,
-        &gum_dl_range, linker_path))
+    if (gum_try_parse_linker_proc_maps_line (lines[i], linker_path,
+        &gum_dl_module, &gum_dl_range))
     {
       result = &gum_dl_module;
       goto beach;
@@ -629,8 +630,8 @@ gum_try_init_linker_details (void)
 no_vdso:
   for (i = num_lines - 1; i >= 0; i--)
   {
-    if (gum_try_parse_linker_proc_maps_line (lines[i], &gum_dl_module,
-        &gum_dl_range, linker_path))
+    if (gum_try_parse_linker_proc_maps_line (lines[i], linker_path,
+        &gum_dl_module, &gum_dl_range))
     {
       result = &gum_dl_module;
       goto beach;
@@ -638,6 +639,8 @@ no_vdso:
   }
 
 beach:
+  g_free (linker_path);
+
   g_strfreev (lines);
   g_free (maps);
 
@@ -645,38 +648,29 @@ beach:
 }
 
 static gchar *
-gum_find_linker_path ()
+gum_find_linker_path (void)
 {
-  gchar *linker_expected_path, *linker_path = NULL;
+  gchar * result = NULL;
+  const gchar * traditional_path;
 
-  if (sizeof (gpointer) == 4)
-    linker_expected_path = "/system/bin/linker";
-  else
-    linker_expected_path = "/system/bin/linker64";
+  traditional_path = (sizeof (gpointer) == 4)
+      ? "/system/bin/linker"
+      : "/system/bin/linker64";
 
-  // If there are no linker file, fail
-  if (!g_file_test (linker_expected_path, G_FILE_TEST_EXISTS))
-    return NULL;
+  if (g_file_test (traditional_path, G_FILE_TEST_IS_SYMLINK))
+    result = g_file_read_link (traditional_path, NULL);
 
-  if (g_file_test (linker_expected_path, G_FILE_TEST_IS_SYMLINK))
-  {
-    linker_path = g_file_read_link (linker_expected_path, NULL);
+  if (result == NULL)
+    result = g_strdup (traditional_path);
 
-    // Issue reading the link, fall back to backwards compatible path
-    if (linker_path != NULL)
-      return linker_path;
-  }
-
-  // If file was not a symlink or symlink resolution doesn't work, fall back
-  // to expected file
-  return linker_expected_path;
+  return result;
 }
 
 static gboolean
 gum_try_parse_linker_proc_maps_line (const gchar * line,
+                                     const gchar * linker_path,
                                      GumModuleDetails * module,
-                                     GumMemoryRange * range,
-                                      const gchar * linker_path)
+                                     GumMemoryRange * range)
 {
   GumAddress start, end;
   gchar perms[5] = { 0, };
