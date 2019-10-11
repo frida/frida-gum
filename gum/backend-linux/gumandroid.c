@@ -639,7 +639,6 @@ no_vdso:
 
 beach:
   g_strfreev (lines);
-  g_free (linker_path);
   g_free (maps);
 
   return result;
@@ -651,41 +650,26 @@ gum_find_linker_path ()
   gchar *linker_expected_path, *linker_path = NULL;
 
   if (sizeof (gpointer) == 4)
-  {
     linker_expected_path = "/system/bin/linker";
-  }
   else
-  {
     linker_expected_path = "/system/bin/linker64";
-  }
 
   // If there are no linker file, fail
   if (!g_file_test (linker_expected_path, G_FILE_TEST_EXISTS))
-  {
-    goto result;
-  }
+    return NULL;
 
   if (g_file_test (linker_expected_path, G_FILE_TEST_IS_SYMLINK))
   {
     linker_path = g_file_read_link (linker_expected_path, NULL);
-    if (linker_path == NULL)
-    {
-      // Issue reading the link, fall back to backwards compatible path
-      // linker_true_path = &linker_expected_path[0];
-      strcpy (linker_path, linker_expected_path);
-    }
-  }
-  else
-  {
-    // Expected path is a real file, use it
-    // linker_true_path = &linker_expected_path[0];
-      strcpy (linker_path, linker_expected_path);
+
+    // Issue reading the link, fall back to backwards compatible path
+    if (linker_path != NULL)
+      return linker_path;
   }
 
-  result:
-  g_free (linker_expected_path);
-
-  return linker_path;
+  // If file was not a symlink or symlink resolution doesn't work, fall back
+  // to expected file
+  return linker_expected_path;
 }
 
 static gboolean
