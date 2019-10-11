@@ -323,7 +323,8 @@ struct _GumFunctionSignature
 static const GumModuleDetails * gum_try_init_linker_details (void);
 static gchar * gum_find_linker_path (void);
 static gboolean gum_try_parse_linker_proc_maps_line (const gchar * line,
-    const gchar * linker_path, GumModuleDetails * module, GumMemoryRange * range);
+    const gchar * linker_path, GumModuleDetails * module,
+    GumMemoryRange * range);
 
 static gboolean gum_store_module_handle_if_name_matches (
     const GumSoinfoDetails * details, GumGetModuleHandleContext * ctx);
@@ -600,7 +601,6 @@ gum_try_init_linker_details (void)
       break;
     }
   }
-
   if (vdso_index == -1)
     goto no_vdso;
 
