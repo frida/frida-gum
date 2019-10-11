@@ -25,8 +25,6 @@
 # include <unix.h>
 #endif
 
-#define X86OP(n) insn->detail->x86.operands[n]
-
 struct _GumExceptorBackend
 {
   GObject parent;
@@ -54,18 +52,18 @@ static int gum_exceptor_backend_replacement_sigaction (int sig,
 static void gum_exceptor_backend_on_signal (int sig, siginfo_t * siginfo,
     void * context);
 
-static GumMemoryOperation gum_exceptor_check_mem_access (gpointer address,
+static GumMemoryOperation gum_exceptor_infer_memory_operation (gpointer address, 
     GumCpuContext * cpu);
 static cs_insn * disassemble_instruction_at (gconstpointer address,
     GumCpuContext * cpu);
 
 #if defined (HAVE_I386)
 static GumMemoryOperation gum_exceptor_x86_check_mem_operation (cs_insn * insn);
+#elif defined (HAVE_ARM)
+static GumMemoryOperation gum_exceptor_arm_check_mem_operation (cs_insn * insn);
 #elif defined (HAVE_ARM64)
 static GumMemoryOperation gum_exceptor_arm64_check_mem_operation (
     cs_insn * insn);
-#elif defined (HAVE_ARM)
-static GumMemoryOperation gum_exceptor_arm_check_mem_operation (cs_insn * insn);
 #endif
 
 static void gum_exceptor_backend_abort (GumExceptorBackend * self,
@@ -353,7 +351,9 @@ gum_exceptor_backend_on_signal (int sig,
       if (siginfo->si_addr == ed.address)
         md->operation = GUM_MEMOP_EXECUTE;
       else
-        md->operation = gum_exceptor_check_mem_access (ed.address, cpu_context);
+        md->operation = 
+          gum_exceptor_infer_memory_operation (ed.address, cpu_context);
+
       md->address = siginfo->si_addr;
       break;
     default:
@@ -397,11 +397,11 @@ panic:
 }
 
 static GumMemoryOperation
-gum_exceptor_check_mem_access (gpointer address, 
-                               GumCpuContext * cpu)
+gum_exceptor_infer_memory_operation (gpointer address, 
+                                     GumCpuContext * cpu)
 {
-  cs_insn * insn;
   GumMemoryOperation op;
+  cs_insn * insn;
 
   insn = disassemble_instruction_at (address, cpu);
   if (insn == NULL)
@@ -409,10 +409,10 @@ gum_exceptor_check_mem_access (gpointer address,
 
 #if defined (HAVE_I386)
   op = gum_exceptor_x86_check_mem_operation (insn);
-#elif defined (HAVE_ARM64)
-  op = gum_exceptor_arm64_check_mem_operation (insn);
 #elif defined (HAVE_ARM)
   op = gum_exceptor_arm_check_mem_operation (insn);
+#elif defined (HAVE_ARM64)
+  op = gum_exceptor_arm64_check_mem_operation (insn);
 #else
   return GUM_MEMOP_READ;
 #endif
@@ -425,19 +425,19 @@ static cs_insn *
 disassemble_instruction_at (gconstpointer address, 
                             GumCpuContext * cpu)
 {
-  cs_err err;
-  csh capstone;
   cs_insn * insn = NULL;
+  csh capstone;
+  cs_err err;
 
-#if defined (HAVE_ARM64)
-  err = cs_open (CS_ARCH_ARM64, GUM_DEFAULT_CS_ENDIAN, &capstone);
-#elif defined (HAVE_I386)
+#if defined (HAVE_I386)
   err = cs_open (CS_ARCH_X86, GUM_CPU_MODE, &capstone);
 #elif defined (HAVE_ARM)
   if (cpu->cpsr & ARM_GRP_THUMB)
     err = cs_open (CS_ARCH_ARM, CS_MODE_THUMB, &capstone);
   else
     err = cs_open (CS_ARCH_ARM, CS_MODE_ARM, &capstone);
+#elif defined (HAVE_ARM64)
+  err = cs_open (CS_ARCH_ARM64, GUM_DEFAULT_CS_ENDIAN, &capstone);
 #else
   return NULL;
 #endif
@@ -466,9 +466,7 @@ gum_exceptor_x86_check_mem_operation (cs_insn * insn)
     case X86_INS_CLAC:
     case X86_INS_CLGI:
     case X86_INS_CLTS:
-#if CS_API_MAJOR >= 4
     case X86_INS_CLWB:
-#endif
     case X86_INS_STAC:
     case X86_INS_STGI:
     case X86_INS_CPUID:
@@ -531,54 +529,16 @@ gum_exceptor_x86_check_mem_operation (cs_insn * insn)
     case X86_INS_XCHG:
     case X86_INS_CLD:
     case X86_INS_STD:
-      switch (X86OP (0).type)
+      switch (insn->detail->x86.operands[0].type)
       {
         case X86_OP_MEM:
           return GUM_MEMOP_WRITE;
         case X86_OP_REG:
-          if (X86OP (1).type == X86_OP_MEM)
+          if (insn->detail->x86.operands[1].type == X86_OP_MEM)
             return GUM_MEMOP_READ;
         default:
           return GUM_MEMOP_READ;
       }
-    default:
-      return GUM_MEMOP_READ;
-  }
-}
-
-#elif defined (HAVE_ARM64)
-
-static GumMemoryOperation
-gum_exceptor_arm64_check_mem_operation (cs_insn * insn)
-{
-  switch (insn->id)
-  {
-    case ARM64_INS_LDUR:
-    case ARM64_INS_LDURB:
-    case ARM64_INS_LDRSW:
-    case ARM64_INS_LDRSB:
-    case ARM64_INS_LDRSH:
-    case ARM64_INS_LDR:
-    case ARM64_INS_LDURSW:
-    case ARM64_INS_LDP:
-    case ARM64_INS_LDNP:
-    case ARM64_INS_LDPSW:
-    case ARM64_INS_LDRH:
-    case ARM64_INS_LDRB:
-    case ARM64_INS_LDRAA:
-    case ARM64_INS_LDRAB:
-      return GUM_MEMOP_READ;
-    case ARM64_INS_STRB:
-    case ARM64_INS_STURB:
-    case ARM64_INS_STUR:
-    case ARM64_INS_STR:
-    case ARM64_INS_STP:
-    case ARM64_INS_STNP:
-    case ARM64_INS_STXR:
-    case ARM64_INS_STXRH:
-    case ARM64_INS_STLXRH:
-    case ARM64_INS_STXRB:
-      return GUM_MEMOP_WRITE;
     default:
       return GUM_MEMOP_READ;
   }
@@ -591,22 +551,6 @@ gum_exceptor_arm_check_mem_operation (cs_insn * insn)
 {
   switch (insn->id)
   {
-    case ARM_INS_LDREX:
-    case ARM_INS_LDREXB:
-    case ARM_INS_LDREXD:
-    case ARM_INS_LDREXH:
-    case ARM_INS_LDR:
-    case ARM_INS_LDRD:
-    case ARM_INS_LDRB:
-    case ARM_INS_LDRBT:
-    case ARM_INS_LDRH:
-    case ARM_INS_LDRHT:
-    case ARM_INS_LDRSB:
-    case ARM_INS_LDRSBT:
-    case ARM_INS_LDRSH:
-    case ARM_INS_LDRSHT:
-    case ARM_INS_LDRT:
-      return GUM_MEMOP_READ;
     case ARM_INS_STREX:
     case ARM_INS_STREXB:
     case ARM_INS_STREXD:
@@ -618,6 +562,29 @@ gum_exceptor_arm_check_mem_operation (cs_insn * insn)
     case ARM_INS_STRH:
     case ARM_INS_STRHT:
     case ARM_INS_STRT:
+      return GUM_MEMOP_WRITE;
+    default:
+      return GUM_MEMOP_READ;
+  }
+}
+
+#elif defined (HAVE_ARM64)
+
+static GumMemoryOperation
+gum_exceptor_arm64_check_mem_operation (cs_insn * insn)
+{
+  switch (insn->id)
+  {
+    case ARM64_INS_STRB:
+    case ARM64_INS_STURB:
+    case ARM64_INS_STUR:
+    case ARM64_INS_STR:
+    case ARM64_INS_STP:
+    case ARM64_INS_STNP:
+    case ARM64_INS_STXR:
+    case ARM64_INS_STXRH:
+    case ARM64_INS_STLXRH:
+    case ARM64_INS_STXRB:
       return GUM_MEMOP_WRITE;
     default:
       return GUM_MEMOP_READ;

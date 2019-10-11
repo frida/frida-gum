@@ -34,8 +34,7 @@ struct _GumMemoryAccessMonitor
   gint pages_total;
 
   GumPageProtection access_mask;
-  GumPageDetails * pages_details;
-  guint num_pages;
+  GArray * pages;
   gboolean auto_reset;
 
   GumMemoryAccessNotify notify_func;
@@ -72,8 +71,7 @@ static gboolean gum_linux_clear_flag (const GumPageDetails * details,
 static gboolean gum_memory_access_monitor_on_exception (
     GumExceptionDetails * details, gpointer user_data);
 
-G_DEFINE_TYPE (GumMemoryAccessMonitor, gum_memory_access_monitor,
-    G_TYPE_OBJECT)
+G_DEFINE_TYPE (GumMemoryAccessMonitor, gum_memory_access_monitor, G_TYPE_OBJECT)
 
 static void
 gum_memory_access_monitor_class_init (GumMemoryAccessMonitorClass * klass)
@@ -98,10 +96,8 @@ gum_memory_access_monitor_dispose (GObject * object)
   gum_memory_access_monitor_disable (self);
 
   if (self->notify_data_destroy != NULL)
-  {
-    self->notify_data_destroy (self->notify_data);
-    self->notify_data_destroy = NULL;
-  }
+    g_clear_pointer (&self->notify_data, self->notify_data_destroy);
+
   self->notify_data = NULL;
   self->notify_func = NULL;
 
@@ -185,8 +181,8 @@ gum_memory_access_monitor_enable (GumMemoryAccessMonitor * self,
   gum_exceptor_add (self->exceptor, gum_memory_access_monitor_on_exception,
       self);
 
-  self->num_pages = 0;
-  self->pages_details = NULL;
+  self->pages = g_array_new (FALSE, FALSE, sizeof (GumPageDetails));
+
   gum_memory_access_monitor_enumerate_live_ranges (self, gum_linux_set_flag,
       self);
 
@@ -236,9 +232,9 @@ gum_memory_access_monitor_disable (GumMemoryAccessMonitor * self)
   g_object_unref (self->exceptor);
   self->exceptor = NULL;
 
-  g_free (self->pages_details);
-  self->num_pages = 0;
-  self->pages_details = NULL;
+  g_array_free (self->pages, TRUE);
+
+  self->pages = NULL;
   self->enabled = FALSE;
 }
 
@@ -263,10 +259,10 @@ gum_memory_access_monitor_enumerate_live_ranges (GumMemoryAccessMonitor * self,
     while ((range = g_list_next (range)))
     {
       GumLinuxRange * lr = (GumLinuxRange *) range->data;
+
       do
       {
-        if (cur >= lr->base &&
-            cur + self->page_size - 1 < lr->base + lr->size)
+        if (cur >= lr->base && cur + self->page_size - 1 < lr->base + lr->size)
         {
           GumPageDetails details;
 
@@ -274,14 +270,16 @@ gum_memory_access_monitor_enumerate_live_ranges (GumMemoryAccessMonitor * self,
           details.range.size = self->page_size;
           details.range.prot = lr->prot;
           details.range_index = i;
+          details.completed = 0;
+
           carry_on = func (&details, user_data);
+
           cur += self->page_size;
         }
         else
         {
           break;
         }
-
       }
       while (cur < end && carry_on);
     }
@@ -304,7 +302,6 @@ gum_linux_set_flag (const GumPageDetails * details,
   const GumLinuxRange * range = &details->range;
   GumPageProtection access_mask = self->access_mask;
   GumPageProtection new_prot = GUM_PAGE_NO_ACCESS;
-  guint num_pages;
 
   switch (range->prot)
   {
@@ -349,16 +346,7 @@ gum_linux_set_flag (const GumPageDetails * details,
       g_assert_not_reached ();
   }
 
-  num_pages = self->num_pages;
-
-  self->pages_details = g_realloc (self->pages_details,
-      (num_pages + 1) * sizeof (GumPageDetails));
-
-  memcpy ((void *) &self->pages_details[num_pages],
-      (void *) details, sizeof (GumPageDetails));
-
-  self->pages_details[num_pages].completed = 0;
-  self->num_pages++;
+  g_array_append_val (self->pages, *details);
 
   gum_mprotect (GSIZE_TO_POINTER (range->base), range->size, new_prot);
 
@@ -369,13 +357,14 @@ static gboolean
 gum_linux_clear_flag (const GumPageDetails * details,
                       gpointer user_data)
 {
-  guint i;
   GumMemoryAccessMonitor * self = GUM_MEMORY_ACCESS_MONITOR (user_data);
   const GumLinuxRange * range = &details->range;
+  guint i;
 
-  for (i = 0; i != self->num_pages; i++)
+  for (i = 0; i != self->pages->len; i++)
   {
-    const GumPageDetails * page = &self->pages_details[i];
+    const GumPageDetails * page = 
+      &g_array_index (self->pages, GumPageDetails, i);
     const GumLinuxRange * r = &page->range;
 
     if (range->base >= r->base &&
@@ -404,9 +393,9 @@ gum_memory_access_monitor_on_exception (GumExceptionDetails * details,
   d.from = details->address;
   d.address = details->memory.address;
 
-  for (i = 0; i != self->num_pages; i++)
+  for (i = 0; i != self->pages->len; i++)
   {
-    GumPageDetails * page = &self->pages_details[i];
+    GumPageDetails * page = &g_array_index (self->pages, GumPageDetails, i);
     const GumLinuxRange * range = &page->range;
     const GumMemoryRange * r = &self->ranges[page->range_index];
     guint operation_mask;
@@ -414,34 +403,33 @@ gum_memory_access_monitor_on_exception (GumExceptionDetails * details,
     guint pages_remaining;
 
     if ((GPOINTER_TO_SIZE (d.address) >= range->base) &&
-        GPOINTER_TO_SIZE (d.address) < (range->base + self->page_size))
+        GPOINTER_TO_SIZE (d.address) < range->base + self->page_size)
     {
-      GumPageProtection gum_orig_prot = range->prot;
+      GumPageProtection original_prot = range->prot;
       switch (d.operation)
       {
         case GUM_MEMOP_READ:
-          if ((gum_orig_prot & GUM_PAGE_READ) == 0)
+          if ((original_prot & GUM_PAGE_READ) == 0)
             return FALSE;
           break;
         case GUM_MEMOP_WRITE:
-          if ((gum_orig_prot & GUM_PAGE_WRITE) == 0)
+          if ((original_prot & GUM_PAGE_WRITE) == 0)
             return FALSE;
           break;
         case GUM_MEMOP_EXECUTE:
-          if ((gum_orig_prot & GUM_PAGE_WRITE) == 0)
+          if ((original_prot & GUM_PAGE_WRITE) == 0)
             return FALSE;
           break;
         default:
           g_assert_not_reached ();
       }
 
-      /* Restore original flags */
       if (self->auto_reset)
         gum_mprotect (GSIZE_TO_POINTER (range->base), range->size, range->prot);
 
       operation_mask = 1 << d.operation;
       operations_reported = g_atomic_int_or (&page->completed, operation_mask);
-      if ((operations_reported != 0) && self->auto_reset)
+      if (operations_reported != 0 && self->auto_reset)
         return FALSE;
       if (!operations_reported)
         pages_remaining = g_atomic_int_add (&self->pages_remaining, -1) - 1;

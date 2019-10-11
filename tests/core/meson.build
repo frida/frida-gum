@@ -26,17 +26,17 @@ if host_os_family == 'darwin'
   ]
 endif
 
+if host_os == 'linux'
+  core_sources += [
+    'memoryaccessmonitor.c',
+  ]
+endif
+
 if host_os == 'android'
   core_sources += [
     'interceptor-android.c',
     'memoryaccessmonitor.c',
   ]
-endif
-
-if host_os == 'linux'
-core_sources += [
-  'memoryaccessmonitor.c',
-]
 endif
 
 if host_arch == 'x86' or host_arch == 'x86_64'

@@ -38,12 +38,12 @@ test_memory_access_monitor_fixture_setup (TestMAMonitorFixture * fixture,
   fixture->offset_in_second_page =
     fixture->offset_in_first_page + gum_query_page_size ();
   /* ret instruction */
-#if defined (HAVE_ARM64)
-  *((guint32 *) fixture->range.base_address) = 0xd65f03c0;
+#if defined (HAVE_I386)
+  *((guint8 *) fixture->range.base_address) = 0xc3;
 #elif defined (HAVE_ARM)
   *((guint32 *) fixture->range.base_address) = 0xe1a0f00e;
-#else
-  *((guint8 *) fixture->range.base_address) = 0xc3;
+#elif defined (HAVE_ARM64)
+  *((guint32 *) fixture->range.base_address) = 0xd65f03c0;
 #endif
   fixture->nop_function_in_first_page =
       GUM_POINTER_TO_FUNCPTR (GCallback, fixture->range.base_address);

@@ -7,28 +7,28 @@
 #ifndef __GUM_LINUX_H__
 #define __GUM_LINUX_H__
 
-#include "gumprocess.h"
 #include "gummemory.h"
+#include "gumprocess.h"
 
 #include <ucontext.h>
 
 G_BEGIN_DECLS
 
-typedef struct _GumLinuxNamedRange GumLinuxNamedRange;
 typedef struct _GumLinuxRange GumLinuxRange;
-
-struct _GumLinuxNamedRange
-{
-  const gchar * name;
-  gpointer base;
-  gsize size;
-};
+typedef struct _GumLinuxNamedRange GumLinuxNamedRange;
 
 struct _GumLinuxRange
 {
   GumAddress base;
   gsize size;
   GumPageProtection prot;
+};
+
+struct _GumLinuxNamedRange
+{
+  const gchar * name;
+  gpointer base;
+  gsize size;
 };
 
 GUM_API GumCpuType gum_linux_cpu_type_from_file (const gchar * path,

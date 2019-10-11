@@ -205,10 +205,7 @@ main (gint argc, gchar * argv[])
 #ifdef HAVE_DARWIN
   TESTLIST_REGISTER (exceptor_darwin);
 #endif
-#if defined (HAVE_I386) && defined (G_OS_WIN32)
-  TESTLIST_REGISTER (memoryaccessmonitor);
-#endif
-#if defined (HAVE_LINUX)
+#if (defined (HAVE_I386) && defined (G_OS_WIN32)) || defined (HAVE_LINUX)
   TESTLIST_REGISTER (memoryaccessmonitor);
 #endif
 
