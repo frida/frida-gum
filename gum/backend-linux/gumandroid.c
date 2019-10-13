@@ -640,8 +640,6 @@ no_vdso:
   }
 
 beach:
-  g_free (linker_path);
-
   g_strfreev (lines);
   g_free (maps);
 
