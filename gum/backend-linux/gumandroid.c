@@ -6,6 +6,7 @@
 
 #include "gumandroid.h"
 
+#include "gum-init.h"
 #include "gumlinux.h"
 
 #include <dlfcn.h>
@@ -321,6 +322,7 @@ struct _GumFunctionSignature
 };
 
 static const GumModuleDetails * gum_try_init_linker_details (void);
+static void gum_deinit_linker_details (void);
 static gchar * gum_find_linker_path (void);
 static gboolean gum_try_parse_linker_proc_maps_line (const gchar * line,
     const gchar * linker_path, GumModuleDetails * module,
@@ -375,6 +377,7 @@ static const char * gum_libcxx_string_get_data (const GumLibcxxString * self);
 
 static gboolean gum_android_is_vdso_module_name (const gchar * name);
 
+static gchar * gum_dl_path;
 static GumModuleDetails gum_dl_module;
 static GumMemoryRange gum_dl_range;
 static GumLinkerApi gum_dl_api;
@@ -640,12 +643,26 @@ no_vdso:
   }
 
 beach:
-  g_free (linker_path);
+  if (result != NULL)
+  {
+    gum_dl_path = linker_path;
+    _gum_register_destructor (gum_deinit_linker_details);
+  }
+  else
+  {
+    g_free (linker_path);
+  }
 
   g_strfreev (lines);
   g_free (maps);
 
   return result;
+}
+
+static void
+gum_deinit_linker_details (void)
+{
+  g_free (gum_dl_path);
 }
 
 static gchar *
