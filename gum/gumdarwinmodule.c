@@ -2073,14 +2073,16 @@ gum_darwin_module_load_image_from_blob (GumDarwinModule * self,
   {
     case GUM_CPU_IA32:
     case GUM_CPU_ARM:
-      g_assert (header_32 != NULL);
+      if (header_32 == NULL)
+        goto invalid_blob;
       image->data = header_32;
       image->size = size_32;
       image->linkedit = header_32;
       break;
     case GUM_CPU_AMD64:
     case GUM_CPU_ARM64:
-      g_assert (header_64 != NULL);
+      if (header_64 == NULL)
+        goto invalid_blob;
       image->data = header_64;
       image->size = size_64;
       image->linkedit = header_64;
