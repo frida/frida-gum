@@ -2171,10 +2171,6 @@ gum_darwin_unparse_native_thread_state (const GumCpuContext * ctx,
   guint n;
 
   ts->__cpsr = ctx->cpsr;
-  if (ctx->pc & 1)
-    ts->__cpsr |= GUM_PSR_THUMB;
-  else
-    ts->__cpsr &= ~GUM_PSR_THUMB;
   ts->__pc = ctx->pc & ~1;
   ts->__sp = ctx->sp;
 
