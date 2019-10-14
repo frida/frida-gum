@@ -138,7 +138,8 @@ static gboolean gum_append_match (GumAddress address, gsize size,
 
 GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_enable)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_disable)
-static void gum_duk_memory_clear_monitor (GumDukMemory * self);
+static void gum_duk_memory_clear_monitor (GumDukMemory * self,
+    duk_context * ctx);
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_memory_access_details_construct)
 GUMJS_DECLARE_GETTER (gumjs_memory_access_details_get_operation)
@@ -246,7 +247,7 @@ _gum_duk_memory_dispose (GumDukMemory * self)
   GumDukScope scope = GUM_DUK_SCOPE_INIT (self->core);
   duk_context * ctx = scope.ctx;
 
-  gum_duk_memory_clear_monitor (self);
+  gum_duk_memory_clear_monitor (self, ctx);
 
   _gum_duk_release_heapptr (ctx, self->memory_access_details);
 }
@@ -1053,7 +1054,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_enable)
     _gum_duk_throw (ctx, "expected one or more ranges");
   }
 
-  gum_duk_memory_clear_monitor (self);
+  gum_duk_memory_clear_monitor (self, ctx);
 
   _gum_duk_protect (ctx, on_access);
   self->on_access = on_access;
@@ -1068,7 +1069,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_enable)
     duk_push_error_object (ctx, DUK_ERR_ERROR, "%s", error->message);
     g_error_free (error);
 
-    gum_duk_memory_clear_monitor (self);
+    gum_duk_memory_clear_monitor (self, ctx);
 
     (void) duk_throw (ctx);
   }
@@ -1080,13 +1081,14 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_disable)
 {
   GumDukMemory * self = gumjs_memory_module_from_args (args);
 
-  gum_duk_memory_clear_monitor (self);
+  gum_duk_memory_clear_monitor (self, ctx);
 
   return 0;
 }
 
 static void
-gum_duk_memory_clear_monitor (GumDukMemory * self)
+gum_duk_memory_clear_monitor (GumDukMemory * self,
+                              duk_context * ctx)
 {
   if (self->monitor != NULL)
   {
@@ -1095,7 +1097,11 @@ gum_duk_memory_clear_monitor (GumDukMemory * self)
     self->monitor = NULL;
   }
 
-  g_clear_pointer (&self->on_access, _gum_duk_unprotect);
+  if (self->on_access != NULL)
+  {
+    _gum_duk_unprotect (ctx, self->on_access);
+    self->on_access = NULL;
+  }
 }
 
 static void
