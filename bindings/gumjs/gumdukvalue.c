@@ -1543,7 +1543,7 @@ _gum_duk_get_memory_ranges (duk_context * ctx,
   {
     duk_uarridx_t size, i;
 
-    size = duk_get_length (ctx, index);
+    size = (duk_uarridx_t) duk_get_length (ctx, index);
 
     ranges = g_array_sized_new (FALSE, FALSE, sizeof (GumMemoryRange), size);
 
