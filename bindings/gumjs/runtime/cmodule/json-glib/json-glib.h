@@ -1,6 +1,8 @@
 #ifndef __JSON_GLIB_H__
 #define __JSON_GLIB_H__
 
+#include <glib.h>
+
 typedef struct _JsonBuilder JsonBuilder;
 typedef struct _JsonNode JsonNode;
 
