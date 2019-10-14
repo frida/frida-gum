@@ -576,9 +576,10 @@ static const GumModuleDetails *
 gum_try_init_linker_details (void)
 {
   const GumModuleDetails * result = NULL;
-  gchar * maps, ** lines;
+  gchar * linker_path, * maps, ** lines;
   gint num_lines, vdso_index, i;
-  gchar * linker_path = NULL;
+
+  linker_path = gum_find_linker_path ();
 
   /*
    * Using /proc/self/maps means there might be false positives, as the
@@ -606,8 +607,6 @@ gum_try_init_linker_details (void)
   }
   if (vdso_index == -1)
     goto no_vdso;
-
-  linker_path = gum_find_linker_path ();
 
   for (i = vdso_index + 1; i != num_lines; i++)
   {
