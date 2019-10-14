@@ -208,13 +208,13 @@ gum_memory_access_monitor_enable (GumMemoryAccessMonitor * self,
 error_invalid_pages:
   {
     g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
-        "one or more pages are unallocated");
+        "One or more pages are unallocated");
     return FALSE;
   }
 error_guarded_pages:
   {
     g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
-        "one or more pages already have the guard bit set");
+        "One or more pages already have the guard bit set");
     return FALSE;
   }
 }
@@ -445,7 +445,7 @@ gum_memory_access_monitor_on_exception (GumExceptionDetails * details,
     guint pages_remaining;
 
     if ((page->address <= d.address) &&
-        ((guint8 *) page->address + self->page_size > (guint8*) d.address))
+        ((guint8 *) page->address + self->page_size > (guint8 *) d.address))
     {
       /* make sure that we don't misinterpret access violation / page guard */
       if (page->is_guarded)
@@ -503,8 +503,8 @@ gum_memory_access_monitor_on_exception (GumExceptionDetails * details,
       d.pages_completed = self->pages_total - pages_remaining;
 
       d.range_index = page->range_index;
-      d.page_index = (guint8 *) d.address - (guint8 *) r->base_address;
-      d.page_index = d.page_index / self->page_size;
+      d.page_index = ((guint8 *) d.address - (guint8 *) r->base_address) /
+          self->page_size;
       d.pages_total = self->pages_total;
 
       self->notify_func (self, &d, self->notify_data);
