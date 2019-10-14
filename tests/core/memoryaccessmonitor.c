@@ -16,7 +16,7 @@ TESTLIST_END ()
 
 TESTCASE (notify_on_read_access)
 {
-  volatile guint8 * bytes = (guint8 *) fixture->range.base_address;
+  volatile guint8 * bytes = GSIZE_TO_POINTER (fixture->range.base_address);
   guint8 val;
   volatile GumMemoryAccessDetails * d = &fixture->last_details;
 
@@ -50,7 +50,7 @@ TESTCASE (notify_on_read_access)
 
 TESTCASE (notify_on_write_access)
 {
-  volatile guint8 * bytes = (guint8 *) fixture->range.base_address;
+  volatile guint8 * bytes = GSIZE_TO_POINTER (fixture->range.base_address);
   guint8 val;
   volatile GumMemoryAccessDetails * d = &fixture->last_details;
 
@@ -87,7 +87,7 @@ TESTCASE (notify_on_execute_access)
 TESTCASE (notify_should_include_progress)
 {
   volatile GumMemoryAccessDetails * d = &fixture->last_details;
-  volatile guint8 * bytes = (guint8 *) fixture->range.base_address;
+  volatile guint8 * bytes = GSIZE_TO_POINTER (fixture->range.base_address);
 
   g_assert_cmpuint (d->page_index, ==, 0);
   g_assert_cmpuint (d->pages_completed, ==, 0);
@@ -108,7 +108,7 @@ TESTCASE (notify_should_include_progress)
 
 TESTCASE (disable)
 {
-  volatile guint8 * bytes = (guint8 *) fixture->range.base_address;
+  volatile guint8 * bytes = GSIZE_TO_POINTER (fixture->range.base_address);
   guint8 val;
 
   bytes[fixture->offset_in_first_page] = 0x13;
