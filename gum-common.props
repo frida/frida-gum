@@ -30,6 +30,7 @@
     <ClInclude Include="gum\guminvocationcontext.h" />
     <ClInclude Include="gum\guminvocationlistener.h" />
     <ClInclude Include="gum\gumkernel.h" />
+    <ClInclude Include="gum\gumleb.h" />
     <ClInclude Include="gum\gumlibc.h" />
     <ClInclude Include="gum\gummemory.h" />
     <ClInclude Include="gum\gummemory-priv.h" />
@@ -66,6 +67,7 @@
     <ClCompile Include="gum\guminvocationcontext.c" />
     <ClCompile Include="gum\guminvocationlistener.c" />
     <ClCompile Include="gum\gumkernel.c" />
+    <ClCompile Include="gum\gumleb.c" />
     <ClCompile Include="gum\gumlibc.c" />
     <ClCompile Include="gum\gummemory.c" />
     <ClCompile Include="gum\gummemorymap.c" />
