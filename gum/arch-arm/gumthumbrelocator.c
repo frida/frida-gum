@@ -406,6 +406,7 @@ gum_thumb_relocator_can_relocate (gpointer address,
   else
   {
     csh capstone;
+    const gsize max_code_size = 1024;
     cs_insn * insn;
     size_t count, i;
     gboolean eoi;
@@ -413,7 +414,10 @@ gum_thumb_relocator_can_relocate (gpointer address,
     cs_open (CS_ARCH_ARM, CS_MODE_THUMB, &capstone);
     cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
 
-    count = cs_disasm (capstone, rl.input_cur, 1024, rl.input_pc, 0, &insn);
+    gum_ensure_code_readable (rl.input_cur, max_code_size);
+
+    count = cs_disasm (capstone, rl.input_cur, max_code_size, rl.input_pc, 0,
+        &insn);
     g_assert (insn != NULL);
 
     eoi = FALSE;

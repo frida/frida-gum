@@ -84,6 +84,8 @@ GUM_API GumMatchPattern * gum_match_pattern_new_from_string (
     const gchar * match_combined_str);
 GUM_API void gum_match_pattern_free (GumMatchPattern * pattern);
 
+GUM_API void gum_ensure_code_readable (gconstpointer address, gsize size);
+
 GUM_API void gum_mprotect (gpointer address, gsize size,
     GumPageProtection page_prot);
 GUM_API gboolean gum_try_mprotect (gpointer address, gsize size,

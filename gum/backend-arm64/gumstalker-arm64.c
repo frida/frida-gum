@@ -1248,6 +1248,8 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   gum_arm64_writer_reset (cw, block->code_begin);
   gum_arm64_relocator_reset (rl, real_address, cw);
 
+  gum_ensure_code_readable (real_address, ctx->stalker->page_size);
+
   gc.instruction = NULL;
   gc.relocator = rl;
   gc.code_writer = cw;

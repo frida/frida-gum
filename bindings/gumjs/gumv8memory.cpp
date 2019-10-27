@@ -76,6 +76,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_memory_protect)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_patch_code)
 static void gum_memory_patch_context_apply (gpointer mem,
     GumMemoryPatchContext * self);
+GUMJS_DECLARE_FUNCTION (gumjs_memory_check_code_pointer)
 
 static void gum_v8_memory_read (GumMemoryValueType type,
     const GumV8Args * args, ReturnValue<Value> return_value);
@@ -153,6 +154,7 @@ static const GumV8Function gumjs_memory_functions[] =
   { "copy", gumjs_memory_copy },
   { "protect", gumjs_memory_protect },
   { "_patchCode", gumjs_memory_patch_code },
+  { "_checkCodePointer", gumjs_memory_check_code_pointer },
 
   GUMJS_EXPORT_MEMORY_READ_WRITE ("Pointer", POINTER),
   GUMJS_EXPORT_MEMORY_READ_WRITE ("S8", S8),
@@ -347,6 +349,32 @@ gum_memory_patch_context_apply (gpointer mem,
   Handle<Value> argv[] = { _gum_v8_native_pointer_new (mem, self->core) };
   auto result = self->apply->Call (context, recv, G_N_ELEMENTS (argv), argv);
   self->has_pending_exception = result.IsEmpty ();
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_memory_check_code_pointer)
+{
+  const guint8 * ptr;
+  auto exceptor = core->exceptor;
+  GumExceptorScope scope;
+
+  if (!_gum_v8_args_parse (args, "p", &ptr))
+    return;
+
+#ifdef HAVE_ARM
+  ptr = (const guint8 *) GSIZE_TO_POINTER (GPOINTER_TO_SIZE (ptr) & ~1);
+#endif
+
+  gum_ensure_code_readable (ptr, 1);
+
+  if (gum_exceptor_try (exceptor, &scope))
+  {
+    info.GetReturnValue ().Set (Integer::NewFromUnsigned (isolate, *ptr));
+  }
+
+  if (gum_exceptor_catch (exceptor, &scope))
+  {
+    _gum_v8_throw_native (&scope.exception, core);
+  }
 }
 
 static void

@@ -68,6 +68,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_memory_protect)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_patch_code)
 static void gum_memory_patch_context_apply (gpointer mem,
     GumMemoryPatchContext * self);
+GUMJS_DECLARE_FUNCTION (gumjs_memory_check_code_pointer)
 
 static int gum_duk_memory_read (GumMemoryValueType type,
     const GumDukArgs * args);
@@ -156,6 +157,7 @@ static const duk_function_list_entry gumjs_memory_functions[] =
   { "copy", gumjs_memory_copy, 3 },
   { "protect", gumjs_memory_protect, 3 },
   { "_patchCode", gumjs_memory_patch_code, 3 },
+  { "_checkCodePointer", gumjs_memory_check_code_pointer, 1 },
 
   GUMJS_EXPORT_MEMORY_READ_WRITE ("Pointer", POINTER),
   GUMJS_EXPORT_MEMORY_READ_WRITE ("S8", S8),
@@ -367,6 +369,34 @@ gum_memory_patch_context_apply (gpointer mem,
   _gum_duk_push_native_pointer (ctx, mem, scope->core);
   _gum_duk_scope_call (scope, 1);
   duk_pop (ctx);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_memory_check_code_pointer)
+{
+  const guint8 * ptr;
+  GumDukCore * core = args->core;
+  GumExceptor * exceptor = core->exceptor;
+  GumExceptorScope scope;
+
+  _gum_duk_args_parse (args, "p", &ptr);
+
+#ifdef HAVE_ARM
+  ptr = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (ptr) & ~1);
+#endif
+
+  gum_ensure_code_readable (ptr, 1);
+
+  if (gum_exceptor_try (exceptor, &scope))
+  {
+    duk_push_number (ctx, *ptr);
+  }
+
+  if (gum_exceptor_catch (exceptor, &scope))
+  {
+    _gum_duk_throw_native (ctx, &scope.exception, core);
+  }
+
+  return 1;
 }
 
 static int

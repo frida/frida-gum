@@ -404,6 +404,8 @@ gum_arm64_relocator_can_relocate (gpointer address,
 
       g_hash_table_add (checked_targets, (gpointer) current_code);
 
+      gum_ensure_code_readable (current_code, current_code_size);
+
       while (carry_on && cs_disasm_iter (capstone, &current_code,
           &current_code_size, &current_address, insn))
       {

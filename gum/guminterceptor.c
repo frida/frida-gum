@@ -1697,7 +1697,10 @@ gum_interceptor_resolve (GumInterceptor * self,
 {
   if (!gum_interceptor_has (self, address))
   {
+    const gsize max_redirect_size = 16;
     gpointer target;
+
+    gum_ensure_code_readable (address, max_redirect_size);
 
     target = _gum_interceptor_backend_resolve_redirect (self->backend,
         address);

@@ -275,9 +275,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_instruction_parse)
   address = GPOINTER_TO_SIZE (target);
 #endif
 
+  const gsize max_instruction_size = 16;
+
+  gum_ensure_code_readable (GSIZE_TO_POINTER (address), max_instruction_size);
+
   cs_insn * insn;
-  if (cs_disasm (module->capstone, (uint8_t *) GSIZE_TO_POINTER (address), 16,
-      address, 1, &insn) == 0)
+  if (cs_disasm (module->capstone, (uint8_t *) GSIZE_TO_POINTER (address),
+      max_instruction_size, address, 1, &insn) == 0)
   {
     _gum_v8_throw_ascii_literal (isolate, "invalid instruction");
     return;

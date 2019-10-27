@@ -193,6 +193,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_instruction_parse)
   GumDukInstruction * module;
   gpointer target;
   uint64_t address;
+  const gsize max_instruction_size = 16;
   cs_insn * insn;
 
   module = gumjs_module_from_args (args);
@@ -207,9 +208,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_instruction_parse)
   address = GPOINTER_TO_SIZE (target);
 #endif
 
-  if (cs_disasm (module->capstone, (uint8_t *) GSIZE_TO_POINTER (address), 16,
-      address, 1, &insn) == 0)
+  gum_ensure_code_readable (GSIZE_TO_POINTER (address), max_instruction_size);
+
+  if (cs_disasm (module->capstone, (uint8_t *) GSIZE_TO_POINTER (address),
+      max_instruction_size, address, 1, &insn) == 0)
+  {
     _gum_duk_throw (ctx, "invalid instruction");
+  }
 
   _gum_duk_push_instruction (ctx, module->capstone, insn, TRUE, target, module);
   return 1;

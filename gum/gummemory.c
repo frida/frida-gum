@@ -17,6 +17,9 @@
 # include "backend-darwin/gumdarwin.h"
 # include <mach/mach.h>
 #endif
+#ifdef HAVE_ANDROID
+# include "backend-linux/gumandroid.h"
+#endif
 #ifdef HAVE_DARWIN
 # define DARWIN                   1
 #endif
@@ -64,6 +67,11 @@ static guint gum_heap_ref_count = 0;
 static mspace gum_mspace_main = NULL;
 static mspace gum_mspace_capstone = NULL;
 static guint gum_cached_page_size;
+
+#ifdef HAVE_ANDROID
+G_LOCK_DEFINE_STATIC (gum_softened_code_pages);
+static GHashTable * gum_softened_code_pages;
+#endif
 
 G_DEFINE_BOXED_TYPE (GumMemoryRange, gum_memory_range, gum_memory_range_copy,
     gum_memory_range_free)
@@ -632,6 +640,44 @@ gum_match_token_append_with_mask (GumMatchToken * self,
     self->masks = g_array_new (FALSE, FALSE, sizeof (guint8));
 
   g_array_append_val (self->masks, mask);
+}
+
+void
+gum_ensure_code_readable (gconstpointer address,
+                          gsize size)
+{
+  /*
+   * We will make this more generic once it's needed on other OSes.
+   */
+#ifdef HAVE_ANDROID
+  gsize page_size;
+  gconstpointer start_page, end_page, cur_page;
+
+  if (gum_android_get_api_level () < 29)
+    return;
+
+  page_size = gum_query_page_size ();
+  start_page = GSIZE_TO_POINTER (
+      GPOINTER_TO_SIZE (address) & ~(page_size - 1));
+  end_page = GSIZE_TO_POINTER (
+      GPOINTER_TO_SIZE (address + size - 1) & ~(page_size - 1)) + page_size;
+
+  G_LOCK (gum_softened_code_pages);
+
+  if (gum_softened_code_pages == NULL)
+    gum_softened_code_pages = g_hash_table_new (NULL, NULL);
+
+  for (cur_page = start_page; cur_page != end_page; cur_page += page_size)
+  {
+    if (!g_hash_table_contains (gum_softened_code_pages, cur_page))
+    {
+      if (gum_try_mprotect ((gpointer) cur_page, page_size, GUM_PAGE_RWX))
+        g_hash_table_add (gum_softened_code_pages, (gpointer) cur_page);
+    }
+  }
+
+  G_UNLOCK (gum_softened_code_pages);
+#endif
 }
 
 void
