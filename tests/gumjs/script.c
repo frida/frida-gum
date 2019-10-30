@@ -329,7 +329,7 @@ static gint64 gum_classify_timestamp (gint64 timestamp);
 static guint64 gum_square (guint64 value);
 static gint gum_sum (gint count, ...);
 static gint gum_add_pointers_and_float_fixed (gpointer a, gpointer b, float c);
-static gint gum_add_pointers_and_float_variadic (gpointer a, gpointer b, ...);
+static gint gum_add_pointers_and_float_variadic (gpointer a, ...);
 
 #ifndef HAVE_ANDROID
 static gboolean on_incoming_connection (GSocketService * service,
@@ -1122,18 +1122,26 @@ TESTCASE (variadic_native_function_can_be_invoked)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "var sum = new NativeFunction(" GUM_PTR_CONST ", "
-          "'int', ['int', '...', 'int', 'int', 'int']);"
+          "'int', ['int', '...', 'int']);"
+      "send(sum(0));"
+      "send(sum(1, 1));"
       "send(sum(3, 1, 2, 3));",
       gum_sum);
+  EXPECT_SEND_MESSAGE_WITH ("0");
+  EXPECT_SEND_MESSAGE_WITH ("1");
   EXPECT_SEND_MESSAGE_WITH ("6");
   EXPECT_NO_MESSAGES ();
 
   COMPILE_AND_LOAD_SCRIPT (
       "var sum = new NativeFunction(" GUM_PTR_CONST ", "
-          "'int', ['pointer', 'pointer', '...', 'float']);"
-      "send(sum(ptr(3), ptr(4), 42.0));",
+          "'int', ['pointer', '...', 'pointer', 'float']);"
+      "send(sum(ptr(3), NULL));"
+      "send(sum(ptr(3), ptr(4), 42.0, NULL));"
+      "send(sum(ptr(3), ptr(4), 42.0, ptr(100), 200.0, NULL));",
       gum_add_pointers_and_float_variadic);
+  EXPECT_SEND_MESSAGE_WITH ("3");
   EXPECT_SEND_MESSAGE_WITH ("49");
+  EXPECT_SEND_MESSAGE_WITH ("349");
   EXPECT_NO_MESSAGES ();
 }
 
@@ -1653,17 +1661,21 @@ gum_add_pointers_and_float_fixed (gpointer a,
 
 static gint
 gum_add_pointers_and_float_variadic (gpointer a,
-                                     gpointer b,
                                      ...)
 {
+  gint total = GPOINTER_TO_SIZE (a);
   va_list args;
-  float c;
+  gpointer p;
 
-  va_start (args, b);
-  c = va_arg (args, double); /* float is promoted to double */
+  va_start (args, a);
+  while ((p = va_arg (args, gpointer)) != NULL)
+  {
+    total += GPOINTER_TO_SIZE (p);
+    total += (int) va_arg (args, double); /* float is promoted to double */
+  }
   va_end (args);
 
-  return GPOINTER_TO_SIZE (a) + GPOINTER_TO_SIZE (b) + (int) c;
+  return total;
 }
 
 TESTCASE (file_can_be_written_to)
