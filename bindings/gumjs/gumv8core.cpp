@@ -2172,7 +2172,8 @@ gumjs_native_function_init (Handle<Object> wrapper,
       if (i == 0 || is_variadic)
       {
         _gum_v8_throw_ascii_literal (isolate,
-            "only one variadic marker may be specified and can not be first argument");
+            "only one variadic marker may be specified and can "
+            "not be first argument");
         goto error;
       }
 
@@ -2203,12 +2204,25 @@ gumjs_native_function_init (Handle<Object> wrapper,
       goto error;
   }
 
-  if (ffi_prep_cif (&func->cif, abi, nargs_total, rtype,
-      func->atypes) != FFI_OK)
+  if (is_variadic)
   {
-    _gum_v8_throw_ascii_literal (isolate,
-        "failed to compile function call interface");
-    goto error;
+    if (ffi_prep_cif_var (&func->cif, abi, nargs_fixed, nargs_total, rtype,
+        func->atypes) != FFI_OK)
+    {
+      _gum_v8_throw_ascii_literal (isolate,
+          "failed to compile function call interface");
+      goto error;
+    }
+  }
+  else
+  {
+    if (ffi_prep_cif (&func->cif, abi, nargs_total, rtype,
+        func->atypes) != FFI_OK)
+    {
+      _gum_v8_throw_ascii_literal (isolate,
+          "failed to compile function call interface");
+      goto error;
+    }
   }
 
   func->is_variadic = nargs_fixed < nargs_total;
@@ -2317,9 +2331,10 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
       }
 
       cif = &tmp_cif;
-      if (ffi_prep_cif (cif, self->abi, (guint) num_args_provided, rtype,
-          atypes) != FFI_OK)
-        _gum_v8_throw_ascii_literal (isolate, "failed to compile function call interface");
+      if (ffi_prep_cif_var (cif, self->abi, num_args_fixed, num_args_provided,
+          rtype, atypes) != FFI_OK)
+        _gum_v8_throw_ascii_literal (isolate,
+            "failed to compile function call interface");
     }
 
     gsize arglist_alignment = atypes[0]->alignment;

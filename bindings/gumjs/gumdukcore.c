@@ -2725,9 +2725,18 @@ gumjs_native_function_init (duk_context * ctx,
     abi = FFI_DEFAULT_ABI;
   }
 
-  if (ffi_prep_cif (&func->cif, abi, (guint) nargs_total, rtype,
-      func->atypes) != FFI_OK)
-    goto compilation_failed;
+  if (is_variadic)
+  {
+    if (ffi_prep_cif_var (&func->cif, abi, (guint) nargs_fixed,
+        (guint) nargs_total, rtype, func->atypes) != FFI_OK)
+      goto compilation_failed;
+  }
+  else
+  {
+    if (ffi_prep_cif (&func->cif, abi, (guint) nargs_total, rtype,
+        func->atypes) != FFI_OK)
+      goto compilation_failed;
+  }
 
   func->is_variadic = nargs_fixed < nargs_total;
   func->nargs_fixed = nargs_fixed;
@@ -2875,8 +2884,8 @@ gum_duk_native_function_invoke (GumDukNativeFunction * self,
       }
 
       cif = &tmp_cif;
-      if (ffi_prep_cif (cif, self->abi, (guint) argc, rtype,
-          atypes) != FFI_OK)
+      if (ffi_prep_cif_var (cif, self->abi, (guint) nargs_fixed,
+          (guint) argc, rtype, atypes) != FFI_OK)
         _gum_duk_throw (ctx, "failed to compile function call interface");
     }
 
