@@ -2780,7 +2780,8 @@ invalid_abi:
 unexpected_marker:
   {
     gum_duk_native_function_finalize (func);
-    _gum_duk_throw (ctx, "only one variadic marker may be specified and can not be first argument");
+    _gum_duk_throw (ctx, "only one variadic marker may be specified and can "
+        "not be first argument");
   }
 compilation_failed:
   {
