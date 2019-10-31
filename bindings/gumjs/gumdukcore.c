@@ -2860,7 +2860,7 @@ gum_duk_native_function_invoke (GumDukNativeFunction * self,
 
       atypes = g_newa (ffi_type *, argc);
 
-      memcpy(atypes, cif->arg_types, nargs * sizeof (ffi_type *));
+      memcpy (atypes, cif->arg_types, nargs * sizeof (ffi_type *));
       for (i = nargs, type_idx = nargs_fixed; i != argc; i++)
       {
         ffi_type * t = cif->arg_types[type_idx];
