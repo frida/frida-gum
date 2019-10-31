@@ -2824,7 +2824,7 @@ gum_duk_native_function_invoke (GumDukNativeFunction * self,
   void ** avalue;
   guint8 * avalues;
   ffi_cif tmp_cif;
-  GumFFIValue tmp_value = {0};
+  GumFFIValue tmp_value = { 0, };
   GumDukSchedulingBehavior scheduling;
   GumDukExceptionsBehavior exceptions;
   GumDukReturnValueShape return_shape;
