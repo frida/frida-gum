@@ -2292,7 +2292,7 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
   void ** avalue;
   guint8 * avalues;
   ffi_cif tmp_cif;
-  GumFFIValue tmp_value = {0};
+  GumFFIValue tmp_value = { 0, };
 
   if (num_args_provided > 0)
   {
