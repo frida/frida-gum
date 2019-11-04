@@ -2824,7 +2824,7 @@ gum_duk_native_function_invoke (GumDukNativeFunction * self,
                                 duk_idx_t argv_index)
 {
   GumDukCore * core;
-  ffi_cif *cif;
+  ffi_cif * cif;
   ffi_type * rtype;
   ffi_type ** atypes;
   gsize nargs, nargs_fixed;
