@@ -2172,7 +2172,7 @@ gumjs_native_function_init (Handle<Object> wrapper,
       if (i == 0 || is_variadic)
       {
         _gum_v8_throw_ascii_literal (isolate,
-            "only one variadic marker may be specified and can "
+            "only one variadic marker may be specified, and can "
             "not be first argument");
         goto error;
       }
@@ -2290,7 +2290,8 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
   gsize num_args_fixed = self->nargs_fixed;
   gboolean is_variadic = self->is_variadic;
 
-  if ((is_variadic && num_args_provided < num_args_fixed) || (!is_variadic && num_args_provided != num_args_declared))
+  if ((is_variadic && num_args_provided < num_args_fixed)
+   || (!is_variadic && num_args_provided != num_args_declared))
   {
     _gum_v8_throw_ascii_literal (isolate, "bad argument count");
     return;
@@ -2310,15 +2311,17 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
 
   if (num_args_provided > 0)
   {
-    avalue = (void **) g_alloca (MAX (num_args_declared, num_args_provided) * sizeof (void *));
+    gsize avalue_cnt = MAX (num_args_declared, num_args_provided);
+    avalue = (void **) g_alloca (avalue_cnt * sizeof (void *));
 
     gsize arglist_size = self->arglist_size;
     if (is_variadic && num_args_provided > num_args_declared)
     {
       atypes = g_newa (ffi_type *, num_args_provided);
 
-      memcpy (atypes, cif->arg_types, num_args_declared * sizeof (ffi_type *));
-      for (gsize i = num_args_declared, type_idx = num_args_fixed; i != num_args_provided; i++)
+      memcpy (atypes, cif->arg_types, num_args_declared * sizeof (void *));
+      for (gsize i = num_args_declared, type_idx = num_args_fixed;
+           i != num_args_provided; i++)
       {
         ffi_type * t = cif->arg_types[type_idx];
 
@@ -2333,8 +2336,10 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
       cif = &tmp_cif;
       if (ffi_prep_cif_var (cif, self->abi, num_args_fixed, num_args_provided,
           rtype, atypes) != FFI_OK)
+      {
         _gum_v8_throw_ascii_literal (isolate,
-            "failed to compile function call interface");
+           "failed to compile function call interface");
+      }
     }
 
     gsize arglist_alignment = atypes[0]->alignment;

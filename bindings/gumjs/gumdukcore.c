@@ -2789,7 +2789,7 @@ invalid_abi:
 unexpected_marker:
   {
     gum_duk_native_function_finalize (func);
-    _gum_duk_throw (ctx, "only one variadic marker may be specified and can "
+    _gum_duk_throw (ctx, "only one variadic marker may be specified, and can "
         "not be first argument");
   }
 compilation_failed:
@@ -2825,10 +2825,10 @@ gum_duk_native_function_invoke (GumDukNativeFunction * self,
 {
   GumDukCore * core;
   ffi_cif * cif;
-  ffi_type * rtype;
-  ffi_type ** atypes;
   gsize nargs, nargs_fixed;
   gboolean is_variadic;
+  ffi_type * rtype;
+  ffi_type ** atypes;
   gsize rsize, ralign;
   GumFFIValue * rvalue;
   void ** avalue;
@@ -2870,7 +2870,7 @@ gum_duk_native_function_invoke (GumDukNativeFunction * self,
 
       atypes = g_newa (ffi_type *, argc);
 
-      memcpy (atypes, cif->arg_types, nargs * sizeof (ffi_type *));
+      memcpy (atypes, cif->arg_types, nargs * sizeof (void *));
       for (i = nargs, type_idx = nargs_fixed; i != argc; i++)
       {
         ffi_type * t = cif->arg_types[type_idx];
@@ -2886,7 +2886,9 @@ gum_duk_native_function_invoke (GumDukNativeFunction * self,
       cif = &tmp_cif;
       if (ffi_prep_cif_var (cif, self->abi, (guint) nargs_fixed,
           (guint) argc, rtype, atypes) != FFI_OK)
+      {
         _gum_duk_throw (ctx, "failed to compile function call interface");
+      }
     }
 
     arglist_alignment = atypes[0]->alignment;
