@@ -2338,7 +2338,7 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
           rtype, atypes) != FFI_OK)
       {
         _gum_v8_throw_ascii_literal (isolate,
-           "failed to compile function call interface");
+            "failed to compile function call interface");
       }
     }
 
