@@ -2321,7 +2321,7 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
 
       memcpy (atypes, cif->arg_types, num_args_declared * sizeof (void *));
       for (gsize i = num_args_declared, type_idx = num_args_fixed;
-           i != num_args_provided; i++)
+          i != num_args_provided; i++)
       {
         ffi_type * t = cif->arg_types[type_idx];
 
