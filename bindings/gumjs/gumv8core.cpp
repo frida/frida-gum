@@ -2311,7 +2311,7 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
 
   if (num_args_provided > 0)
   {
-    gsize avalue_cnt = MAX (num_args_declared, num_args_provided);
+    gsize avalue_count = MAX (num_args_declared, num_args_provided);
     avalue = (void **) g_alloca (avalue_cnt * sizeof (void *));
 
     gsize arglist_size = self->arglist_size;
