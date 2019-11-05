@@ -2173,7 +2173,7 @@ gumjs_native_function_init (Handle<Object> wrapper,
       {
         _gum_v8_throw_ascii_literal (isolate,
             "only one variadic marker may be specified, and can "
-            "not be first argument");
+            "not be the first argument");
         goto error;
       }
 
