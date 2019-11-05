@@ -2290,7 +2290,7 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
   gsize num_args_fixed = self->nargs_fixed;
   gboolean is_variadic = self->is_variadic;
 
-  if ((is_variadic && num_args_provided < num_args_fixed)
+  if ((is_variadic && num_args_provided < num_args_fixed) ||
    || (!is_variadic && num_args_provided != num_args_declared))
   {
     _gum_v8_throw_ascii_literal (isolate, "bad argument count");
