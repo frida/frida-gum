@@ -2360,7 +2360,7 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
 
       if (!gum_v8_value_to_ffi_type (core,
           (argv != nullptr) ? argv[i] : info[i], v, t))
-        _gum_v8_throw_ascii_literal (isolate, "invalid argument value");
+        return;
       avalue[i] = v;
 
       offset += t->size;
