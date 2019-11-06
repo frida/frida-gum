@@ -105,6 +105,9 @@ struct _GumDukNativeFunction
   ffi_cif cif;
   ffi_type ** atypes;
   gsize arglist_size;
+  gboolean is_variadic;
+  duk_size_t nargs_fixed;
+  ffi_abi abi;
   GSList * data;
 
   GumDukCore * core;
@@ -2680,7 +2683,7 @@ gumjs_native_function_init (duk_context * ctx,
 
     if (is_marker)
     {
-      if (is_variadic)
+      if (i == 0 || is_variadic)
         goto unexpected_marker;
 
       nargs_fixed = i;
@@ -2735,6 +2738,10 @@ gumjs_native_function_init (duk_context * ctx,
       goto compilation_failed;
   }
 
+  func->is_variadic = nargs_fixed < nargs_total;
+  func->nargs_fixed = nargs_fixed;
+  func->abi = abi;
+
   for (i = 0; i != nargs_total; i++)
   {
     ffi_type * t = func->atypes[i];
@@ -2782,7 +2789,8 @@ invalid_abi:
 unexpected_marker:
   {
     gum_duk_native_function_finalize (func);
-    _gum_duk_throw (ctx, "only one variadic marker may be specified");
+    _gum_duk_throw (ctx, "only one variadic marker may be specified, and can "
+        "not be the first argument");
   }
 compilation_failed:
   {
@@ -2816,12 +2824,17 @@ gum_duk_native_function_invoke (GumDukNativeFunction * self,
                                 duk_idx_t argv_index)
 {
   GumDukCore * core;
-  gsize nargs;
+  ffi_cif * cif;
+  gsize nargs, nargs_fixed;
+  gboolean is_variadic;
   ffi_type * rtype;
+  ffi_type ** atypes;
   gsize rsize, ralign;
   GumFFIValue * rvalue;
   void ** avalue;
   guint8 * avalues;
+  ffi_cif tmp_cif;
+  GumFFIValue tmp_value = { 0, };
   GumDukSchedulingBehavior scheduling;
   GumDukExceptionsBehavior exceptions;
   GumDukReturnValueShape return_shape;
@@ -2829,37 +2842,69 @@ gum_duk_native_function_invoke (GumDukNativeFunction * self,
   gint system_error;
 
   core = self->core;
-  nargs = self->cif.nargs;
-  rtype = self->cif.rtype;
+  cif = &self->cif;
+  nargs = cif->nargs;
+  nargs_fixed = self->nargs_fixed;
+  is_variadic = self->is_variadic;
 
-  if (argc != nargs)
+  if ((is_variadic && argc < nargs_fixed) || (!is_variadic && argc != nargs))
     _gum_duk_throw (ctx, "bad argument count");
 
+  rtype = cif->rtype;
+  atypes = cif->arg_types;
   rsize = MAX (rtype->size, sizeof (gsize));
   ralign = MAX (rtype->alignment, sizeof (gsize));
   rvalue = g_alloca (rsize + ralign - 1);
   rvalue = GUM_ALIGN_POINTER (GumFFIValue *, rvalue, ralign);
 
-  if (nargs > 0)
+  if (argc > 0)
   {
-    gsize arglist_alignment, offset, i;
+    gsize arglist_size, arglist_alignment, offset, i;
 
-    avalue = g_alloca (nargs * sizeof (void *));
+    avalue = g_alloca (MAX (nargs, argc) * sizeof (void *));
 
-    arglist_alignment = self->cif.arg_types[0]->alignment;
-    avalues = g_alloca (self->arglist_size + arglist_alignment - 1);
+    arglist_size = self->arglist_size;
+    if (is_variadic && argc > nargs)
+    {
+      gsize type_idx;
+
+      atypes = g_newa (ffi_type *, argc);
+
+      memcpy (atypes, cif->arg_types, nargs * sizeof (void *));
+      for (i = nargs, type_idx = nargs_fixed; i != argc; i++)
+      {
+        ffi_type * t = cif->arg_types[type_idx];
+
+        atypes[i] = t;
+        arglist_size = GUM_ALIGN_SIZE (arglist_size, t->alignment);
+        arglist_size += t->size;
+
+        if (++type_idx >= nargs)
+          type_idx = nargs_fixed;
+      }
+
+      cif = &tmp_cif;
+      if (ffi_prep_cif_var (cif, self->abi, (guint) nargs_fixed,
+          (guint) argc, rtype, atypes) != FFI_OK)
+      {
+        _gum_duk_throw (ctx, "failed to compile function call interface");
+      }
+    }
+
+    arglist_alignment = atypes[0]->alignment;
+    avalues = g_alloca (arglist_size + arglist_alignment - 1);
     avalues = GUM_ALIGN_POINTER (guint8 *, avalues, arglist_alignment);
 
     /* Prefill with zero to clear high bits of values smaller than a pointer. */
-    memset (avalues, 0, self->arglist_size);
+    memset (avalues, 0, arglist_size);
 
     offset = 0;
-    for (i = 0; i != nargs; i++)
+    for (i = 0; i != argc; i++)
     {
       ffi_type * t;
       GumFFIValue * v;
 
-      t = self->cif.arg_types[i];
+      t = atypes[i];
       offset = GUM_ALIGN_SIZE (offset, t->alignment);
       v = (GumFFIValue *) (avalues + offset);
 
@@ -2869,6 +2914,9 @@ gum_duk_native_function_invoke (GumDukNativeFunction * self,
 
       offset += t->size;
     }
+
+    while (i < nargs)
+      avalue[i++] = &tmp_value;
   }
   else
   {
@@ -2894,7 +2942,7 @@ gum_duk_native_function_invoke (GumDukNativeFunction * self,
         gum_interceptor_unignore_current_thread (interceptor);
       }
 
-      ffi_call (&self->cif, implementation, rvalue, avalue);
+      ffi_call (cif, implementation, rvalue, avalue);
 
       if (return_shape == GUM_DUK_RETURN_DETAILED)
         system_error = gum_thread_get_system_error ();
