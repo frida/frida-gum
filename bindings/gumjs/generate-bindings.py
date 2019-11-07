@@ -376,7 +376,7 @@ def generate_duk_parse_array_elements(item_type, parse_item):
     return """
   duk_push_heapptr (ctx, items_value);
   items_length = (duk_uarridx_t) duk_get_length (ctx, -1);
-  items = g_alloca (items_length * sizeof ({item_type}));
+  items = g_newa ({item_type}, items_length);
 
   for (items_index = 0; items_index != items_length; items_index++)
   {{
@@ -1359,7 +1359,7 @@ def generate_v8_parse_array_elements(item_type, parse_item):
   auto context = isolate->GetCurrentContext ();
 
   uint32_t items_length = items_value->Length ();
-  auto items = ({item_type} *) g_alloca (items_length * sizeof ({item_type}));
+  auto items = g_newa ({item_type}, items_length);
 
   for (uint32_t items_index = 0; items_index != items_length; items_index++)
   {{

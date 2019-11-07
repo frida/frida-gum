@@ -2866,7 +2866,7 @@ gum_duk_native_function_invoke (GumDukNativeFunction * self,
   {
     gsize arglist_size, arglist_alignment, offset, i;
 
-    avalue = g_alloca (MAX (nargs, argc) * sizeof (void *));
+    avalue = g_newa (void *, MAX (nargs, argc));
 
     arglist_size = self->arglist_size;
     if (is_variadic && argc > nargs)

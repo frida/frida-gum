@@ -403,7 +403,7 @@ gum_mips_writer_put_argument_list_setup_va (GumMipsWriter * self,
   GumArgument * arg_values;
   guint arg_index;
 
-  arg_values = g_alloca (n_args * sizeof (GumArgument));
+  arg_values = g_newa (GumArgument, n_args);
 
   for (arg_index = 0; arg_index != n_args; arg_index++)
   {

@@ -2013,7 +2013,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_call)
   Local<Value> * argv;
   if (argc > 0)
   {
-    argv = (Local<Value> *) g_alloca (argc * sizeof (Local<Value>));
+    argv = g_newa (Local<Value>, argc);
     for (uint32_t i = 0; i != argc; i++)
     {
       new (&argv[i]) Local<Value> ();
@@ -2022,7 +2022,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_call)
   }
   else
   {
-    argv = (Local<Value> *) g_alloca (1);
+    argv = g_newa (Local<Value>, 1);
   }
 
   gum_v8_native_function_invoke (func, implementation, info, argc, argv);
@@ -2082,7 +2082,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_apply)
   {
     auto context = isolate->GetCurrentContext ();
 
-    argv = (Local<Value> *) g_alloca (argc * sizeof (Local<Value>));
+    argv = g_newa (Local<Value>, argc);
     for (uint32_t i = 0; i != argc; i++)
     {
       new (&argv[i]) Local<Value> ();
@@ -2096,7 +2096,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_apply)
   }
   else
   {
-    argv = (Local<Value> *) g_alloca (1);
+    argv = g_newa (Local<Value>, 1);
   }
 
   gum_v8_native_function_invoke (func, implementation, info, argc, argv);
@@ -2327,7 +2327,7 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
   if (num_args_provided > 0)
   {
     gsize avalue_count = MAX (num_args_declared, num_args_provided);
-    avalue = (void **) g_alloca (avalue_count * sizeof (void *));
+    avalue = g_newa (void *, avalue_count);
 
     gsize arglist_size = self->arglist_size;
     if (is_variadic && num_args_provided > num_args_declared)
@@ -2396,7 +2396,7 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
   gint system_error = -1;
 
   {
-    auto unlocker = (ScriptUnlocker *) g_alloca (sizeof (ScriptUnlocker));
+    auto unlocker = g_newa (ScriptUnlocker, 1);
     auto interceptor = core->script->interceptor.interceptor;
 
     if (exceptions == GUM_V8_EXCEPTIONS_PROPAGATE ||
@@ -2734,7 +2734,7 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
     retval->v_pointer = NULL;
   }
 
-  auto argv = (Local<Value> *) g_alloca (cif->nargs * sizeof (Local<Value>));
+  auto argv = g_newa (Local<Value>, cif->nargs);
   for (guint i = 0; i != cif->nargs; i++)
   {
     new (&argv[i]) Local<Value> ();

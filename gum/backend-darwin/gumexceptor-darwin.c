@@ -516,7 +516,7 @@ catch_mach_exception_raise_state_identity (
     exception_data_t small_code;
     mach_msg_type_number_t code_index;
 
-    small_code = g_alloca (code_count * sizeof (exception_data_type_t));
+    small_code = g_newa (exception_data_type_t, code_count);
     for (code_index = 0; code_index != code_count; code_index++)
     {
       small_code[code_index] = code[code_index];

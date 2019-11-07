@@ -346,7 +346,7 @@ gum_thumb_writer_put_argument_list_setup_va (GumThumbWriter * self,
   GumArgument * arg_values;
   guint arg_index;
 
-  arg_values = g_alloca (n_args * sizeof (GumArgument));
+  arg_values = g_newa (GumArgument, n_args);
 
   for (arg_index = 0; arg_index != n_args; arg_index++)
   {
@@ -619,7 +619,7 @@ gum_thumb_writer_put_push_or_pop_regs (GumThumbWriter * self,
   if (n_regs == 0)
     return FALSE;
 
-  items = g_alloca (n_regs * sizeof (GumArmRegInfo));
+  items = g_newa (GumArmRegInfo, n_regs);
   need_wide_instruction = FALSE;
   for (reg_index = 0; reg_index != n_regs; reg_index++)
   {
@@ -682,7 +682,7 @@ gum_thumb_writer_put_push_or_pop_regs_va (GumThumbWriter * self,
 
   g_assert (n_regs != 0);
 
-  regs = g_alloca (n_regs * sizeof (GumArmRegInfo));
+  regs = g_newa (arm_reg, n_regs);
 
   for (reg_index = 0; reg_index != n_regs; reg_index++)
   {
