@@ -2081,7 +2081,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_apply)
       new (&argv[i]) Local<Value> ();
       if (!argv_array->Get (context, i).ToLocal (&argv[i]))
       {
-        for (uint32_t j = 0; j != i; j++)
+        for (uint32_t j = 0; j <= i; j++)
           argv[j].~Local<Value> ();
         return;
       }
