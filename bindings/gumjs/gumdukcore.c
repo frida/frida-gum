@@ -2523,7 +2523,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_call)
   duk_size_t argc;
   duk_idx_t argv_index;
 
-  if (args->count == 0 || duk_is_undefined (ctx, 0) || duk_is_null (ctx, 0))
+  if (args->count == 0 || duk_is_null_or_undefined (ctx, 0))
   {
     receiver = NULL;
   }
@@ -2558,7 +2558,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_apply)
   if (args->count < 2)
     _gum_duk_throw (ctx, "missing argument");
 
-  if (duk_is_undefined (ctx, 0) || duk_is_null (ctx, 0))
+  if (duk_is_null_or_undefined (ctx, 0))
   {
     receiver = NULL;
   }

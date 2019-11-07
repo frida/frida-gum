@@ -1452,7 +1452,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_bind)
   if (!_gum_v8_args_parse (args, "VF", &target, &callback))
     return;
 
-  if (target->IsUndefined () || target->IsNull ())
+  if (target->IsNullOrUndefined ())
   {
     _gum_v8_throw_ascii_literal (isolate, "expected a heap value");
     return;
@@ -1989,7 +1989,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_call)
   if (num_args >= 1)
   {
     Local<Value> receiver_value = info[0];
-    if (!receiver_value->IsUndefined () && !receiver_value->IsNull ())
+    if (!receiver_value->IsNullOrUndefined ())
     {
       if (receiver_value->IsObject ())
       {
@@ -2042,7 +2042,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_apply)
 
   Local<Object> receiver;
   Local<Value> receiver_value = info[0];
-  if (!receiver_value->IsUndefined () && !receiver_value->IsNull ())
+  if (!receiver_value->IsNullOrUndefined ())
   {
     if (receiver_value->IsObject ())
     {
