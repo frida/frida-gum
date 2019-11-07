@@ -874,6 +874,13 @@ TESTCASE (native_function_can_be_invoked)
 {
   gchar str[7];
 
+  COMPILE_AND_LOAD_SCRIPT (
+      "var f = new NativeFunction(" GUM_PTR_CONST ", 'int', []);"
+      "send(f());",
+      gum_get_answer_to_life_universe_and_everything);
+  EXPECT_SEND_MESSAGE_WITH ("42");
+  EXPECT_NO_MESSAGES ();
+
   strcpy (str, "badger");
   COMPILE_AND_LOAD_SCRIPT (
       "var toupper = new NativeFunction(" GUM_PTR_CONST ", "
@@ -995,8 +1002,18 @@ TESTCASE (native_function_should_implement_call_and_apply)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "var f = new NativeFunction(" GUM_PTR_CONST ", 'int', []);"
+      "send(f.call());"
+      "send(f.call(f));"
+      "send(f.apply(f));"
+      "send(f.apply(f, undefined));"
+      "send(f.apply(f, null));"
       "send(f.apply(f, []));",
       gum_get_answer_to_life_universe_and_everything);
+  EXPECT_SEND_MESSAGE_WITH ("42");
+  EXPECT_SEND_MESSAGE_WITH ("42");
+  EXPECT_SEND_MESSAGE_WITH ("42");
+  EXPECT_SEND_MESSAGE_WITH ("42");
+  EXPECT_SEND_MESSAGE_WITH ("42");
   EXPECT_SEND_MESSAGE_WITH ("42");
   EXPECT_NO_MESSAGES ();
 

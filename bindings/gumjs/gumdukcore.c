@@ -2539,7 +2539,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_call)
 
   gumjs_native_function_get (ctx, receiver, args->core, &func, &implementation);
 
-  argc = args->count - 1;
+  argc = MAX ((int) args->count - 1, 0);
   argv_index = 1;
 
   return gum_duk_native_function_invoke (func, ctx, implementation, argc,
@@ -2555,9 +2555,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_apply)
   duk_size_t argc, i;
   duk_idx_t argv_index;
 
-  if (args->count < 2)
-    _gum_duk_throw (ctx, "missing argument");
-
   if (duk_is_null_or_undefined (ctx, 0))
   {
     receiver = NULL;
@@ -2572,16 +2569,24 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_apply)
     return 0;
   }
 
-  if (!duk_is_array (ctx, 1))
-    _gum_duk_throw (ctx, "expected an array");
-
   gumjs_native_function_get (ctx, receiver, args->core, &func, &implementation);
 
-  argc = duk_get_length (ctx, argv_array_index);
-  argv_index = duk_get_top_index (ctx) + 1;
-  for (i = 0; i != argc; i++)
+  if (duk_is_null_or_undefined (ctx, argv_array_index))
   {
-    duk_get_prop_index (ctx, argv_array_index, (duk_uarridx_t) i);
+    argc = 0;
+    argv_index = 1;
+  }
+  else
+  {
+    if (!duk_is_array (ctx, argv_array_index))
+      _gum_duk_throw (ctx, "expected an array");
+
+    argc = duk_get_length (ctx, argv_array_index);
+    argv_index = duk_get_top_index (ctx) + 1;
+    for (i = 0; i != argc; i++)
+    {
+      duk_get_prop_index (ctx, argv_array_index, (duk_uarridx_t) i);
+    }
   }
 
   return gum_duk_native_function_invoke (func, ctx, implementation, argc,

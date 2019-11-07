@@ -2008,7 +2008,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_call)
   if (!gumjs_native_function_get (info, receiver, core, &func, &implementation))
     return;
 
-  uint32_t argc = num_args - 1;
+  uint32_t argc = MAX ((int) num_args - 1, 0);
 
   Local<Value> * argv;
   if (argc > 0)
@@ -2034,7 +2034,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_call)
 GUMJS_DEFINE_FUNCTION (gumjs_native_function_apply)
 {
   auto num_args = info.Length ();
-  if (num_args < 2)
+  if (num_args < 1)
   {
     _gum_v8_throw_ascii_literal (isolate, "missing argument");
     return;
@@ -2055,20 +2055,27 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_apply)
     }
   }
 
-  Local<Value> argv_array_value = info[1];
-  if (!argv_array_value->IsArray ())
+  Local<Array> argv_array;
+  if (num_args >= 2)
   {
-    _gum_v8_throw_ascii_literal (isolate, "expected an array");
-    return;
+    Local<Value> value = info[1];
+    if (!value->IsNullOrUndefined ())
+    {
+      if (!value->IsArray ())
+      {
+        _gum_v8_throw_ascii_literal (isolate, "expected an array");
+        return;
+      }
+      argv_array = value.As<Array> ();
+    }
   }
-  Local<Array> argv_array = argv_array_value.As<Array> ();
 
   GumV8NativeFunction * func;
   GCallback implementation;
   if (!gumjs_native_function_get (info, receiver, core, &func, &implementation))
     return;
 
-  uint32_t argc = argv_array->Length ();
+  uint32_t argc = (!argv_array.IsEmpty ()) ? argv_array->Length () : 0;
 
   Local<Value> * argv;
   if (argc > 0)
