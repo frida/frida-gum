@@ -2010,7 +2010,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_call)
 
   uint32_t argc = num_args - 1;
 
-  Local<Value> * argv = nullptr;
+  Local<Value> * argv;
   if (argc > 0)
   {
     argv = (Local<Value> *) g_alloca (argc * sizeof (Local<Value>));
@@ -2019,6 +2019,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_call)
       new (&argv[i]) Local<Value> ();
       argv[i] = info[1 + i];
     }
+  }
+  else
+  {
+    argv = (Local<Value> *) g_alloca (1);
   }
 
   gum_v8_native_function_invoke (func, implementation, info, argc, argv);
@@ -2066,7 +2070,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_apply)
 
   uint32_t argc = argv_array->Length ();
 
-  Local<Value> * argv = nullptr;
+  Local<Value> * argv;
   if (argc > 0)
   {
     auto context = isolate->GetCurrentContext ();
@@ -2082,6 +2086,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_apply)
         return;
       }
     }
+  }
+  else
+  {
+    argv = (Local<Value> *) g_alloca (1);
   }
 
   gum_v8_native_function_invoke (func, implementation, info, argc, argv);

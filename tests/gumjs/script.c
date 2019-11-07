@@ -324,6 +324,7 @@ static gboolean ignore_thread (GumInterceptor * interceptor);
 static gboolean unignore_thread (GumInterceptor * interceptor);
 
 static gint gum_clobber_system_error (gint value);
+static gint gum_get_answer_to_life_universe_and_everything (void);
 static gint gum_toupper (gchar * str, gint limit);
 static gint64 gum_classify_timestamp (gint64 timestamp);
 static guint64 gum_square (guint64 value);
@@ -993,6 +994,13 @@ unignore_thread (GumInterceptor * interceptor)
 TESTCASE (native_function_should_implement_call_and_apply)
 {
   COMPILE_AND_LOAD_SCRIPT (
+      "var f = new NativeFunction(" GUM_PTR_CONST ", 'int', []);"
+      "send(f.apply(f, []));",
+      gum_get_answer_to_life_universe_and_everything);
+  EXPECT_SEND_MESSAGE_WITH ("42");
+  EXPECT_NO_MESSAGES ();
+
+  COMPILE_AND_LOAD_SCRIPT (
       "var f = new NativeFunction(" GUM_PTR_CONST ", 'int', ['int']);"
       "send(NativeFunction.prototype.call(f, 42));"
       "send(NativeFunction.prototype.apply(f, [42]));"
@@ -1601,6 +1609,12 @@ TESTCASE (int64_provides_arithmetic_operations)
   EXPECT_SEND_MESSAGE_WITH ("3");
   EXPECT_SEND_MESSAGE_WITH ("8");
   EXPECT_SEND_MESSAGE_WITH ("-1");
+}
+
+static gint
+gum_get_answer_to_life_universe_and_everything (void)
+{
+  return 42;
 }
 
 static gint
