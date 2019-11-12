@@ -127,47 +127,53 @@ gum_query_is_rwx_supported (void)
   if (g_once_init_enter (&cached_result))
   {
     gboolean supported = FALSE;
-    mach_port_t task;
-    mach_vm_address_t page = 0;
-    mach_vm_address_t address;
-    mach_vm_size_t size = (mach_vm_size_t) 0;
-    natural_t depth = 0;
-    struct vm_region_submap_info_64 info;
-    mach_msg_type_number_t info_count;
-    kern_return_t kr;
 
-    task = mach_task_self ();
-
-    kr = mach_vm_allocate (task, &page, gum_cached_page_size,
-        VM_FLAGS_ANYWHERE);
-    g_assert (kr == KERN_SUCCESS);
-
-    gum_mprotect (GSIZE_TO_POINTER (page), gum_cached_page_size, GUM_PAGE_RWX);
-
-    address = page;
-    while (TRUE)
+    if (!gum_darwin_is_ios9_or_newer ())
     {
-      info_count = VM_REGION_SUBMAP_INFO_COUNT_64;
-      kr = mach_vm_region_recurse (task, &address, &size, &depth,
-          (vm_region_recurse_info_t) &info, &info_count);
-      if (kr != KERN_SUCCESS)
-        break;
+      mach_port_t task;
+      mach_vm_address_t page = 0;
+      kern_return_t kr;
 
-      if (info.is_submap)
+      task = mach_task_self ();
+
+      kr = mach_vm_allocate (task, &page, gum_cached_page_size,
+          VM_FLAGS_ANYWHERE);
+      g_assert (kr == KERN_SUCCESS);
+
+      if (gum_try_mprotect (GSIZE_TO_POINTER (page), gum_cached_page_size,
+          GUM_PAGE_RWX))
       {
-        depth++;
-        continue;
+        mach_vm_address_t address = page;
+        mach_vm_size_t size = (mach_vm_size_t) 0;
+        natural_t depth = 0;
+        struct vm_region_submap_info_64 info;
+        mach_msg_type_number_t info_count;
+
+        while (TRUE)
+        {
+          info_count = VM_REGION_SUBMAP_INFO_COUNT_64;
+          kr = mach_vm_region_recurse (task, &address, &size, &depth,
+              (vm_region_recurse_info_t) &info, &info_count);
+          if (kr != KERN_SUCCESS)
+            break;
+
+          if (info.is_submap)
+          {
+            depth++;
+            continue;
+          }
+          else
+          {
+            vm_prot_t requested_prot =
+                VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE;
+            supported = (info.protection & requested_prot) == requested_prot;
+            break;
+          }
+        }
       }
-      else
-      {
-        vm_prot_t requested_prot =
-            VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE;
-        supported = (info.protection & requested_prot) == requested_prot;
-        break;
-      }
+
+      mach_vm_deallocate (task, page, gum_cached_page_size);
     }
-
-    mach_vm_deallocate (task, page, gum_cached_page_size);
 
     g_once_init_leave (&cached_result, supported + 1);
   }
