@@ -237,7 +237,7 @@ branch_scenario_execute (BranchScenario * bs,
   gsize i;
   const cs_insn * insn = NULL;
   gboolean same_content;
-  gchar * diff = NULL;
+  gchar * diff;
 
   for (i = 0; i != bs->input_length; i++)
     bs->input[i] = GUINT32_TO_LE (bs->input[i]);
