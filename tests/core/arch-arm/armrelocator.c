@@ -289,7 +289,7 @@ branch_scenario_execute (BranchScenario * bs,
   if (!same_content)
   {
     g_print ("\n\nGenerated code is not equal to expected code:\n\n%s\n",
-          diff);
+        diff);
   }
 
   g_assert_true (same_content);
