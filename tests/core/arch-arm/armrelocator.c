@@ -236,6 +236,8 @@ branch_scenario_execute (BranchScenario * bs,
 {
   gsize i;
   const cs_insn * insn = NULL;
+  gboolean same_content;
+  gchar * diff;
 
   for (i = 0; i != bs->input_length; i++)
     bs->input[i] = GUINT32_TO_LE (bs->input[i]);
@@ -250,7 +252,11 @@ branch_scenario_execute (BranchScenario * bs,
 
     calculated_pc = fixture->rl.input_pc + 8 + bs->expected_pc_distance;
     *((guint32 *) (bs->expected_output + bs->pc_offset)) =
+#if G_BYTE_ORDER == G_LITTLE_ENDIAN
         GUINT32_TO_LE (calculated_pc);
+#else
+        GUINT32_TO_BE (calculated_pc);
+#endif
   }
 
   if (bs->lr_offset != -1)
@@ -260,13 +266,32 @@ branch_scenario_execute (BranchScenario * bs,
     calculated_lr = (guint32) (fixture->aw.pc +
         (bs->expected_lr_distance * sizeof (guint32)));
     *((guint32 *) (bs->expected_output + bs->lr_offset)) =
+#if G_BYTE_ORDER == G_LITTLE_ENDIAN
         GUINT32_TO_LE (calculated_lr);
+#else
+        GUINT32_TO_BE (calculated_lr);
+#endif
   }
 
   g_assert_cmpuint (gum_arm_relocator_read_one (&fixture->rl, &insn), ==, 4);
   g_assert_cmpint (insn->id, ==, bs->instruction_id);
   g_assert_true (gum_arm_relocator_write_one (&fixture->rl));
   gum_arm_writer_flush (&fixture->aw);
-  g_assert_cmpint (memcmp (fixture->output, bs->expected_output,
-      bs->expected_output_length * sizeof (guint32)), ==, 0);
+
+  same_content = memcmp (fixture->output, bs->expected_output,
+      bs->expected_output_length * sizeof (guint32)) == 0;
+
+  diff = test_util_diff_binary (
+      (guint8 *) bs->expected_output,
+      bs->expected_output_length * sizeof (guint32),
+      fixture->output,
+      bs->expected_output_length * sizeof (guint32));
+
+  if (!same_content)
+  {
+    g_print ("\n\nGenerated code is not equal to expected code:\n\n%s\n",
+        diff);
+  }
+
+  g_assert_true (same_content);
 }

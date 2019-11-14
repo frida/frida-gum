@@ -41,7 +41,12 @@ test_memory_access_monitor_fixture_setup (TestMAMonitorFixture * fixture,
 #if defined (HAVE_I386)
   *((guint8 *) GSIZE_TO_POINTER (fixture->range.base_address)) = 0xc3;
 #elif defined (HAVE_ARM)
+#if G_BYTE_ORDER == G_LITTLE_ENDIAN
+  /* MOV PC, LR */
   *((guint32 *) GSIZE_TO_POINTER (fixture->range.base_address)) = 0xe1a0f00e;
+#else
+  *((guint32 *) GSIZE_TO_POINTER (fixture->range.base_address)) = 0x0ef0a0e1;
+#endif
 #elif defined (HAVE_ARM64)
   *((guint32 *) GSIZE_TO_POINTER (fixture->range.base_address)) = 0xd65f03c0;
 #endif

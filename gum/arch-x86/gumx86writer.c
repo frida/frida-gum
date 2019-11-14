@@ -234,10 +234,17 @@ gum_x86_writer_flush (GumX86Writer * self)
         target_pc = base_pc + target_offset;
 
         if (self->target_cpu == GUM_CPU_AMD64)
+        {
           *((guint64 *) (r->address - 8)) = GUINT64_TO_LE (target_pc);
+        }
         else
+        {
+#if G_BYTE_ORDER == G_LITTLE_ENDIAN
           *((guint32 *) (r->address - 4)) = GUINT32_TO_LE (target_pc);
-
+#else
+          *((guint32 *) (r->address - 4)) = GUINT32_TO_BE (target_pc);
+#endif
+        }
         break;
       }
       default:
@@ -1669,14 +1676,22 @@ gum_x86_writer_put_lock_inc_or_dec_imm32_ptr (GumX86Writer * self,
 
   if (self->target_cpu == GUM_CPU_IA32)
   {
+#if G_BYTE_ORDER == G_LITTLE_ENDIAN
     *((guint32 *) (self->code + 3)) = GUINT32_TO_LE (GPOINTER_TO_SIZE (target));
+#else
+    *((guint32 *) (self->code + 3)) = GUINT32_TO_BE (GPOINTER_TO_SIZE (target));
+#endif
   }
   else
   {
     gint64 distance = (gssize) target - (gssize) (self->pc + 7);
     if (!GUM_IS_WITHIN_INT32_RANGE (distance))
       return FALSE;
+#if G_BYTE_ORDER == G_LITTLE_ENDIAN
     *((gint32 *) (self->code + 3)) = GINT32_TO_LE (distance);
+#else
+    *((gint32 *) (self->code + 3)) = GINT32_TO_BE (distance);
+#endif
   }
 
   gum_x86_writer_commit (self, 7);

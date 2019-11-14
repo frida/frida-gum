@@ -131,7 +131,8 @@ gum_arm_backtracer_generate (GumBacktracer * backtracer,
       {
         if (value % 4 == 0)
         {
-          const guint32 insn = *((guint32 *) GSIZE_TO_POINTER (value - 4));
+          const guint32 insn = GUINT32_FROM_LE (
+              *((guint32 *) GSIZE_TO_POINTER (value - 4)));
           if ((insn & 0xf000000) == 0xb000000)
           {
             /* BL <imm24> */
@@ -151,14 +152,14 @@ gum_arm_backtracer_generate (GumBacktracer * backtracer,
         else if ((value & 1) != 0)
         {
           const guint16 * insns_before = GSIZE_TO_POINTER (value - 1 - 2 - 2);
-          if ((insns_before[0] & 0xf800) == 0xf000 &&
-              (insns_before[1] & 0xe800) == 0xe800)
+          if ((GUINT16_FROM_LE (insns_before[0]) & 0xf800) == 0xf000 &&
+              (GUINT16_FROM_LE (insns_before[1]) & 0xe800) == 0xe800)
           {
             /* BL/BLX <imm11> */
             value--;
             valid = TRUE;
           }
-          else if ((insns_before[1] & 0xff80) == 0x4780)
+          else if ((GUINT16_FROM_LE (insns_before[1]) & 0xff80) == 0x4780)
           {
             /* BLX Rx */
             value--;
