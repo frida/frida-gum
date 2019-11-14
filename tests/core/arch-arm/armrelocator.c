@@ -236,6 +236,8 @@ branch_scenario_execute (BranchScenario * bs,
 {
   gsize i;
   const cs_insn * insn = NULL;
+  gboolean same_content;
+  gchar * diff = NULL;
 
   for (i = 0; i != bs->input_length; i++)
     bs->input[i] = GUINT32_TO_LE (bs->input[i]);
@@ -275,10 +277,10 @@ branch_scenario_execute (BranchScenario * bs,
   g_assert_cmpint (insn->id, ==, bs->instruction_id);
   g_assert_true (gum_arm_relocator_write_one (&fixture->rl));
   gum_arm_writer_flush (&fixture->aw);
-  gboolean same_content = memcmp (fixture->output, bs->expected_output,
+  same_content = memcmp (fixture->output, bs->expected_output,
       bs->expected_output_length * sizeof (guint32)) == 0;
 
-  gchar * diff = test_util_diff_binary (
+  diff = test_util_diff_binary (
       (guint8*)bs->expected_output,
       bs->expected_output_length * sizeof (guint32),
       fixture->output,

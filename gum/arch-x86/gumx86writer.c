@@ -234,13 +234,17 @@ gum_x86_writer_flush (GumX86Writer * self)
         target_pc = base_pc + target_offset;
 
         if (self->target_cpu == GUM_CPU_AMD64)
+        {
           *((guint64 *) (r->address - 8)) = GUINT64_TO_LE (target_pc);
+        }
         else
+        {
 #if G_BYTE_ORDER == G_LITTLE_ENDIAN
           *((guint32 *) (r->address - 4)) = GUINT32_TO_LE (target_pc);
 #else
           *((guint32 *) (r->address - 4)) = GUINT32_TO_BE (target_pc);
 #endif
+        }
         break;
       }
       default:
