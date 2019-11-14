@@ -281,7 +281,7 @@ branch_scenario_execute (BranchScenario * bs,
       bs->expected_output_length * sizeof (guint32)) == 0;
 
   diff = test_util_diff_binary (
-      (guint8*)bs->expected_output,
+      (guint8 *) bs->expected_output,
       bs->expected_output_length * sizeof (guint32),
       fixture->output,
       bs->expected_output_length * sizeof (guint32));
