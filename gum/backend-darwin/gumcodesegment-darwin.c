@@ -134,7 +134,6 @@ static void gum_file_write_all (gint fd, gssize offset, gconstpointer data,
     gsize size);
 static gboolean gum_file_check_sandbox_allows (const gchar * path,
     const gchar * operation);
-static gint gum_mkstemps (gchar * tmpl, gint suffix_length);
 
 static mach_port_t gum_try_get_substrated_port (void);
 static void gum_deallocate_substrated_port (void);
@@ -700,21 +699,19 @@ static gint
 gum_file_open_tmp (const gchar * tmpl,
                    gchar ** name_used)
 {
-  gint suffix_length;
   gchar * path;
   gint res;
 
-  suffix_length = strlen (tmpl) - (strrchr (tmpl, 'X') + 1 - tmpl);
 
   path = g_build_filename (g_get_tmp_dir (), tmpl, NULL);
-  res = gum_mkstemps (path, suffix_length);
+  res = g_mkstemp (path);
   if (res == -1 || !gum_file_check_sandbox_allows (path, "file-map-executable"))
   {
     if (res != -1)
       close (res);
     g_free (path);
     path = g_build_filename ("/Library/Caches", tmpl, NULL);
-    res = gum_mkstemps (path, suffix_length);
+    res = g_mkstemp (path);
   }
 
   if (res != -1)
@@ -798,21 +795,6 @@ gum_file_check_sandbox_allows (const gchar * path,
 
   return !check (getpid (), operation, GUM_SANDBOX_FILTER_PATH | no_report,
       path);
-}
-
-static gint
-gum_mkstemps (gchar * tmpl,
-              gint suffix_length)
-{
-  gint res;
-
-  do
-  {
-    res = mkstemps (tmpl, suffix_length);
-  }
-  while (res == -1 && errno == EINTR);
-
-  return res;
 }
 
 static mach_port_t
