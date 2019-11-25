@@ -5571,8 +5571,8 @@ TESTCASE (cmodule_can_be_used_with_interceptor_attach)
   int seen_invocation_state_arg = -1;
 
   COMPILE_AND_LOAD_SCRIPT (
-      "Interceptor.attach(" GUM_PTR_CONST ", new CModule('"
-      "#include <gum/guminterceptor.h>\\n"
+      "var cm = new CModule('"
+      "  #include <gum/guminterceptor.h>\\n"
       "\\n"
       "  typedef struct _ThreadState ThreadState;\\n"
       "  typedef struct _InvState InvState;\\n"
@@ -5640,8 +5640,8 @@ TESTCASE (cmodule_can_be_used_with_interceptor_attach)
       "  seenFunctionData: " GUM_PTR_CONST ","
       "  seenThreadStateCalls: " GUM_PTR_CONST ","
       "  seenInvocationStateArg: " GUM_PTR_CONST
-      "}), ptr(1911));",
-      target_function_int,
+      "});"
+      "Interceptor.attach(" GUM_PTR_CONST ", cm, ptr(1911));",
       &seen_argval,
       &seen_retval,
       &seen_return_address,
@@ -5649,7 +5649,8 @@ TESTCASE (cmodule_can_be_used_with_interceptor_attach)
       &seen_depth,
       &seen_function_data,
       &seen_thread_state_calls,
-      &seen_invocation_state_arg);
+      &seen_invocation_state_arg,
+      target_function_int);
 
   EXPECT_NO_MESSAGES ();
 
@@ -6182,8 +6183,8 @@ TESTCASE (cmodule_should_provide_access_to_cpu_registers)
 #endif
 
   COMPILE_AND_LOAD_SCRIPT (
-      "Interceptor.attach(" GUM_PTR_CONST ", new CModule('"
-      "#include <gum/guminterceptor.h>\\n"
+      "var cm = new CModule('"
+      "  #include <gum/guminterceptor.h>\\n"
       "\\n"
       "  extern int seenValue;\\n"
       ""
@@ -6193,9 +6194,10 @@ TESTCASE (cmodule_should_provide_access_to_cpu_registers)
       "    seenValue = " G_STRINGIFY (GUM_IC_GET_FIRST_ARG (ic)) ";\\n"
       "  }\\n"
       "\\n"
-      "', { seenValue: " GUM_PTR_CONST "}));",
-      target_function_int,
-      &seen_value);
+      "', { seenValue: " GUM_PTR_CONST "});"
+      "Interceptor.attach(" GUM_PTR_CONST ", cm);",
+      &seen_value,
+      target_function_int);
 
   EXPECT_NO_MESSAGES ();
 
