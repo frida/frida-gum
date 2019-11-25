@@ -22,6 +22,7 @@
 
 G_BEGIN_DECLS
 
+typedef guint GumRwxSupport;
 typedef guint GumMemoryOperation;
 typedef guint GumPageProtection;
 typedef struct _GumAddressSpec GumAddressSpec;
@@ -29,6 +30,13 @@ typedef struct _GumMemoryRange GumMemoryRange;
 typedef struct _GumMatchPattern GumMatchPattern;
 
 typedef gboolean (* GumMemoryIsNearFunc) (gpointer memory, gpointer address);
+
+enum _GumRwxSupport
+{
+  GUM_RWX_NONE,
+  GUM_RWX_ALLOCATIONS_ONLY,
+  GUM_RWX_FULL
+};
 
 enum _GumMemoryOperation
 {
@@ -67,6 +75,7 @@ GUM_API void gum_internal_heap_unref (void);
 
 GUM_API guint gum_query_page_size (void);
 GUM_API gboolean gum_query_is_rwx_supported (void);
+GUM_API GumRwxSupport gum_query_rwx_support (void);
 GUM_API gboolean gum_memory_is_readable (gconstpointer address, gsize len);
 GUM_API guint8 * gum_memory_read (gconstpointer address, gsize len,
     gsize * n_bytes_read);

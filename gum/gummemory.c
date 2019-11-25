@@ -121,66 +121,75 @@ gum_query_page_size (void)
 gboolean
 gum_query_is_rwx_supported (void)
 {
+  return gum_query_rwx_support () == GUM_RWX_FULL;
+}
+
+GumRwxSupport
+gum_query_rwx_support (void)
+{
 #ifdef HAVE_IOS
   static gsize cached_result = 0;
 
   if (g_once_init_enter (&cached_result))
   {
-    gboolean supported = FALSE;
+    GumRwxSupport rwx_support = GUM_RWX_NONE;
+    mach_port_t task;
+    mach_vm_address_t page = 0;
+    kern_return_t kr;
 
-    if (!gum_darwin_is_ios9_or_newer ())
+    task = mach_task_self ();
+
+    kr = mach_vm_allocate (task, &page, gum_cached_page_size,
+        VM_FLAGS_ANYWHERE);
+    g_assert (kr == KERN_SUCCESS);
+
+    if (gum_try_mprotect (GSIZE_TO_POINTER (page), gum_cached_page_size,
+        GUM_PAGE_RWX))
     {
-      mach_port_t task;
-      mach_vm_address_t page = 0;
-      kern_return_t kr;
+      mach_vm_address_t address = page;
+      mach_vm_size_t size = (mach_vm_size_t) 0;
+      natural_t depth = 0;
+      struct vm_region_submap_info_64 info;
+      mach_msg_type_number_t info_count;
 
-      task = mach_task_self ();
-
-      kr = mach_vm_allocate (task, &page, gum_cached_page_size,
-          VM_FLAGS_ANYWHERE);
-      g_assert (kr == KERN_SUCCESS);
-
-      if (gum_try_mprotect (GSIZE_TO_POINTER (page), gum_cached_page_size,
-          GUM_PAGE_RWX))
+      while (TRUE)
       {
-        mach_vm_address_t address = page;
-        mach_vm_size_t size = (mach_vm_size_t) 0;
-        natural_t depth = 0;
-        struct vm_region_submap_info_64 info;
-        mach_msg_type_number_t info_count;
+        info_count = VM_REGION_SUBMAP_INFO_COUNT_64;
+        kr = mach_vm_region_recurse (task, &address, &size, &depth,
+            (vm_region_recurse_info_t) &info, &info_count);
+        if (kr != KERN_SUCCESS)
+          break;
 
-        while (TRUE)
+        if (info.is_submap)
         {
-          info_count = VM_REGION_SUBMAP_INFO_COUNT_64;
-          kr = mach_vm_region_recurse (task, &address, &size, &depth,
-              (vm_region_recurse_info_t) &info, &info_count);
-          if (kr != KERN_SUCCESS)
-            break;
+          depth++;
+          continue;
+        }
+        else
+        {
+          const vm_prot_t requested_prot =
+              VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE;
 
-          if (info.is_submap)
+          if ((info.protection & requested_prot) == requested_prot)
           {
-            depth++;
-            continue;
+            rwx_support = gum_darwin_is_ios9_or_newer ()
+                ? GUM_RWX_ALLOCATIONS_ONLY
+                : GUM_RWX_FULL;
           }
-          else
-          {
-            vm_prot_t requested_prot =
-                VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE;
-            supported = (info.protection & requested_prot) == requested_prot;
-            break;
-          }
+
+          break;
         }
       }
-
-      mach_vm_deallocate (task, page, gum_cached_page_size);
     }
 
-    g_once_init_leave (&cached_result, supported + 1);
+    mach_vm_deallocate (task, page, gum_cached_page_size);
+
+    g_once_init_leave (&cached_result, rwx_support + 1);
   }
 
   return cached_result - 1;
 #else
-  return TRUE;
+  return GUM_RWX_FULL;
 #endif
 }
 
