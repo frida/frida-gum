@@ -281,7 +281,7 @@ main (gint argc, gchar * argv[])
       TESTLIST_REGISTER_WITH_DATA (script, v8_backend);
 
 # ifndef HAVE_ASAN
-    if (gum_kernel_api_is_available ())
+    if (g_test_slow () && gum_kernel_api_is_available ())
       TESTLIST_REGISTER (kscript);
 # endif
   }
