@@ -421,7 +421,7 @@ gum_stalker_init (GumStalker * self)
       GUM_ALIGN_SIZE (GUM_CODE_SLAB_MAX_SIZE / 12, self->page_size);
   self->slab_max_blocks = (self->slab_header_size -
       G_STRUCT_OFFSET (GumSlab, blocks)) / sizeof (GumExecBlock);
-  self->is_rwx_supported = gum_query_is_rwx_supported ();
+  self->is_rwx_supported = gum_query_rwx_support () != GUM_RWX_NONE;
 
   g_mutex_init (&self->mutex);
   self->contexts = NULL;
