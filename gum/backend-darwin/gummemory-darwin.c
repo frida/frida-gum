@@ -594,8 +594,24 @@ gum_allocate_page_aligned (gpointer address,
 
   result = mmap (address, size, prot, MAP_PRIVATE | MAP_ANONYMOUS,
       VM_MAKE_TAG (255), 0);
+  if (result == MAP_FAILED)
+    return NULL;
 
-  return (result != MAP_FAILED) ? result : NULL;
+#ifdef HAVE_IOS
+  {
+    gboolean need_checkra1n_quirk;
+
+    need_checkra1n_quirk = prot == (PROT_READ | PROT_WRITE | PROT_EXEC) &&
+        gum_query_rwx_support () == GUM_RWX_ALLOCATIONS_ONLY;
+    if (need_checkra1n_quirk)
+    {
+      gum_mach_vm_protect (mach_task_self (), GPOINTER_TO_SIZE (result), size,
+          FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE);
+    }
+  }
+#endif
+
+  return result;
 }
 
 gboolean
