@@ -81,6 +81,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_module_find_base_address)
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_export_by_name)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_module_map_construct)
+GUMJS_DECLARE_GETTER (gumjs_module_map_get_handle)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_has)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_find)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_find_name)
@@ -110,6 +111,13 @@ static const GumV8Function gumjs_module_static_functions[] =
   { "findExportByName", gumjs_module_find_export_by_name },
 
   { NULL, NULL }
+};
+
+static const GumV8Property gumjs_module_map_values[] =
+{
+  { "handle", gumjs_module_map_get_handle, NULL },
+
+  { NULL, NULL, NULL }
 };
 
 static const GumV8Function gumjs_module_map_functions[] =
@@ -142,6 +150,7 @@ _gum_v8_module_init (GumV8Module * self,
 
   auto map = _gum_v8_create_class ("ModuleMap", gumjs_module_map_construct,
       scope, module, isolate);
+  _gum_v8_class_add (map, gumjs_module_map_values, module, isolate);
   _gum_v8_class_add (map, gumjs_module_map_functions, module, isolate);
 }
 
@@ -585,6 +594,11 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_map_construct)
 
   auto map = gum_v8_module_map_new (wrapper, handle, module);
   wrapper->SetAlignedPointerInInternalField (0, map);
+}
+
+GUMJS_DEFINE_CLASS_GETTER (gumjs_module_map_get_handle, GumV8ModuleMap)
+{
+  info.GetReturnValue ().Set (_gum_v8_native_pointer_new (self->handle, core));
 }
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_module_map_has, GumV8ModuleMap)

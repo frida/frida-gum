@@ -3,6 +3,8 @@
 
 #include <glib.h>
 
+#define GUM_ADDRESS(a) ((GumAddress) (guintptr) (a))
+
 typedef guint64 GumAddress;
 typedef guint GumOS;
 typedef guint GumCallingConvention;
@@ -12,6 +14,7 @@ typedef guint GumArgType;
 typedef struct _GumArgument GumArgument;
 typedef guint GumBranchHint;
 typedef struct _GumCpuContext GumCpuContext;
+typedef struct _GumMemoryRange GumMemoryRange;
 
 enum _GumCallingConvention
 {
@@ -141,6 +144,12 @@ struct _GumCpuContext
   gsize k0;
   gsize k1;
 #endif
+};
+
+struct _GumMemoryRange
+{
+  GumAddress base_address;
+  gsize size;
 };
 
 #endif

@@ -46,6 +46,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_module_find_export_by_name)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_module_map_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_module_map_finalize)
+GUMJS_DECLARE_FUNCTION (gumjs_module_map_get_handle)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_has)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_find)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_find_name)
@@ -69,6 +70,13 @@ static const duk_function_list_entry gumjs_module_functions[] =
   { "findExportByName", gumjs_module_find_export_by_name, 2 },
 
   { NULL, NULL, 0 }
+};
+
+static const GumDukPropertyEntry gumjs_module_map_values[] =
+{
+  { "handle", gumjs_module_map_get_handle, NULL },
+
+  { NULL, NULL, NULL }
 };
 
 static const duk_function_list_entry gumjs_module_map_functions[] =
@@ -103,6 +111,8 @@ _gum_duk_module_init (GumDukModule * self,
 
   duk_push_c_function (ctx, gumjs_module_map_construct, 3);
   duk_push_object (ctx);
+  _gum_duk_add_properties_to_class_by_heapptr (ctx,
+      duk_require_heapptr (ctx, -1), gumjs_module_map_values);
   duk_put_function_list (ctx, -1, gumjs_module_map_functions);
   duk_push_c_function (ctx, gumjs_module_map_finalize, 1);
   duk_set_finalizer (ctx, -2);
@@ -552,6 +562,13 @@ GUMJS_DEFINE_FINALIZER (gumjs_module_map_finalize)
   g_object_unref (self);
 
   return 0;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_module_map_get_handle)
+{
+  _gum_duk_push_native_pointer (ctx, gumjs_module_map_from_args (args),
+      args->core);
+  return 1;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_module_map_has)

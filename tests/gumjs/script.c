@@ -263,6 +263,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (cmodule_can_be_used_with_stalker_transform)
     TESTENTRY (cmodule_can_be_used_with_stalker_callout)
     TESTENTRY (cmodule_can_be_used_with_stalker_call_probe)
+    TESTENTRY (cmodule_can_be_used_with_module_map)
     TESTENTRY (cmodule_should_provide_some_builtin_string_functions)
     TESTENTRY (cmodule_should_support_floating_point)
     TESTENTRY (cmodule_should_support_varargs)
@@ -5886,6 +5887,36 @@ TESTCASE (cmodule_can_be_used_with_stalker_call_probe)
   target_function_int (1337);
   EXPECT_SEND_MESSAGE_WITH ("12");
   POST_MESSAGE ("{\"type\":\"stop\"}");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (cmodule_can_be_used_with_module_map)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var modules = new ModuleMap();"
+      ""
+      "var cm = new CModule('"
+      "#include <gum/gummodulemap.h>\\n"
+      "\\n"
+      "const gchar *\\n"
+      "find (GumModuleMap * map,\\n"
+      "      gconstpointer address)\\n"
+      "{\\n"
+      "  const GumModuleDetails * m;\\n"
+      "\\n"
+      "  m = gum_module_map_find (map, GUM_ADDRESS (address));\\n"
+      "  if (m == NULL)\\n"
+      "    return NULL;\\n"
+      "\\n"
+      "  return m->name;\\n"
+      "}');"
+      ""
+      "var find = new NativeFunction(cm.find, 'pointer', "
+          "['pointer', 'pointer']);"
+      "send(find(modules, modules.values()[0].base).isNull());"
+      "send(find(modules, NULL).isNull());");
+  EXPECT_SEND_MESSAGE_WITH ("false");
+  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_NO_MESSAGES ();
 }
 
