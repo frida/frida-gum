@@ -739,7 +739,11 @@ GumV8Platform::MonotonicallyIncreasingTime ()
 double
 GumV8Platform::CurrentClockTimeMillis ()
 {
-  return (double) (g_get_real_time () / G_GINT64_CONSTANT (1000));
+  gint64 tv = g_get_real_time ();
+  double mseconds = double (tv / G_GINT64_CONSTANT (1000));
+  gint64 remaining_usec = tv - (mseconds * G_GINT64_CONSTANT (1000));
+  g_log ("V8", G_LOG_LEVEL_INFO, "tv %ld , msec %f , remain %ld , result %f", tv, mseconds, remaining_usec, mseconds + (remaining_usec / (double) G_GINT64_CONSTANT (1000)));
+  return mseconds + (remaining_usec / (double) G_GINT64_CONSTANT (1000));
 }
 
 ThreadingBackend *
