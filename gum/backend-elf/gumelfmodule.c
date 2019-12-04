@@ -451,6 +451,7 @@ gum_elf_module_enumerate_dynamic_symbols (GumElfModule * self,
       Elf32_Sym * sym = entry;
 
       details.name = dynamic_strings + sym->st_name;
+      details.size = sym->st_size;
       details.type = GELF_ST_TYPE (sym->st_info);
       details.bind = GELF_ST_BIND (sym->st_info);
       details.section_header_index = sym->st_shndx;
@@ -462,6 +463,7 @@ gum_elf_module_enumerate_dynamic_symbols (GumElfModule * self,
       Elf64_Sym * sym = entry;
 
       details.name = dynamic_strings + sym->st_name;
+      details.size = sym->st_size;
       details.type = GELF_ST_TYPE (sym->st_info);
       details.bind = GELF_ST_BIND (sym->st_info);
       details.section_header_index = sym->st_shndx;
@@ -614,6 +616,7 @@ gum_elf_module_enumerate_symbols_in_section (GumElfModule * self,
     details.address = (sym.st_value != 0)
         ? gum_elf_module_resolve_static_virtual_address (self, sym.st_value)
         : 0;
+    details.size = sym.st_size;
     details.type = GELF_ST_TYPE (sym.st_info);
     details.bind = GELF_ST_BIND (sym.st_info);
     details.section_header_index = sym.st_shndx;

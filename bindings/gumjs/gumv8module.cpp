@@ -476,6 +476,8 @@ gum_emit_symbol (const GumSymbolDetails * details,
 
   _gum_v8_object_set_ascii (symbol, "name", details->name, core);
   _gum_v8_object_set_pointer (symbol, "address", details->address, core);
+  if (details->size != -1)
+    _gum_v8_object_set_uint (symbol, "size", details->size, core);
 
   return mc->OnMatch (symbol);
 }

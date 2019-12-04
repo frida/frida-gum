@@ -76,6 +76,7 @@ struct _GumElfSymbolDetails
 {
   const gchar * name;
   GumAddress address;
+  gsize size;
   GumElfSymbolType type;
   GumElfSymbolBind bind;
   GumElfSectionHeaderIndex section_header_index;

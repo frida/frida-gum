@@ -116,6 +116,7 @@ struct _GumSymbolDetails
   const GumSymbolSection * section;
   const gchar * name;
   GumAddress address;
+  gssize size;
 };
 
 struct _GumSymbolSection

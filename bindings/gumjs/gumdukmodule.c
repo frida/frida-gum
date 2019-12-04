@@ -404,6 +404,12 @@ gum_emit_symbol (const GumSymbolDetails * details,
       scope->core);
   duk_put_prop_string (ctx, -2, "address");
 
+  if (details->size != -1)
+  {
+    duk_push_uint (ctx, details->size);
+    duk_put_prop_string (ctx, -2, "size");
+  }
+
   if (_gum_duk_scope_call_sync (scope, 1))
   {
     if (duk_is_string (ctx, -1))

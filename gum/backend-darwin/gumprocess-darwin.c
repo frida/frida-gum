@@ -1826,6 +1826,7 @@ gum_emit_symbol (const GumDarwinSymbolDetails * details,
 
   symbol.name = gum_symbol_name_from_darwin (details->name);
   symbol.address = details->address;
+  symbol.size = -1;
 
   return ctx->func (&symbol, ctx->user_data);
 }
