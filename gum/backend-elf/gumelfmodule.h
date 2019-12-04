@@ -79,6 +79,7 @@ struct _GumElfSymbolDetails
   GumElfSymbolType type;
   GumElfSymbolBind bind;
   GumElfSectionHeaderIndex section_header_index;
+  gsize size;
 };
 
 struct _GumElfDynamicEntryDetails

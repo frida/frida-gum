@@ -617,6 +617,7 @@ gum_elf_module_enumerate_symbols_in_section (GumElfModule * self,
     details.type = GELF_ST_TYPE (sym.st_info);
     details.bind = GELF_ST_BIND (sym.st_info);
     details.section_header_index = sym.st_shndx;
+    details.size = sym.st_size;
 
     carry_on = func (&details, user_data);
   }

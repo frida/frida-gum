@@ -1380,6 +1380,7 @@ gum_emit_symbol (const GumElfSymbolDetails * details,
 
   symbol.name = details->name;
   symbol.address = details->address;
+  symbol.size = details->size;
 
   return ctx->func (&symbol, ctx->user_data);
 }
