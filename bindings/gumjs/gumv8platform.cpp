@@ -733,13 +733,21 @@ GumV8Platform::IdleTasksEnabled (Isolate * isolate)
 double
 GumV8Platform::MonotonicallyIncreasingTime ()
 {
-  return (double) g_get_monotonic_time () / (double) G_USEC_PER_SEC;
+  gint64 usec = g_get_monotonic_time ();
+
+  double result = (double) (usec / G_USEC_PER_SEC);
+  result += (double) (usec % G_USEC_PER_SEC) / (double) G_USEC_PER_SEC;
+  return result;
 }
 
 double
 GumV8Platform::CurrentClockTimeMillis ()
 {
-  return (double) (g_get_real_time () / G_GINT64_CONSTANT (1000));
+  gint64 usec = g_get_real_time ();
+
+  double result = (double) (usec / 1000);
+  result += (double) (usec % 1000) / 1000.0;
+  return result;
 }
 
 ThreadingBackend *
