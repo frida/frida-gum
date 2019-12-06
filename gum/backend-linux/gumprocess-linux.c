@@ -103,7 +103,8 @@ typedef gint (* GumCloneFunc) (gpointer arg);
 
 enum _GumModifyThreadAck
 {
-  GUM_ACK_ATTACHED = 1,
+  GUM_ACK_PTRACER = 1,
+  GUM_ACK_ATTACHED,
   GUM_ACK_STOPPED,
   GUM_ACK_READ_CONTEXT,
   GUM_ACK_MODIFIED_CONTEXT,
@@ -434,6 +435,9 @@ gum_process_modify_thread (GumThreadId thread_id,
         NULL);
     g_assert (child > 0);
 
+    prctl (PR_SET_PTRACER, child);
+    gum_put_ack (fd, GUM_ACK_PTRACER);
+
     if (gum_await_ack (fd, GUM_ACK_ATTACHED))
     {
       GumThreadState state;
@@ -480,6 +484,8 @@ gum_do_modify_thread (gpointer data)
   GumRegs regs;
 
   fd = ctx->fd[1];
+
+  gum_await_ack (fd, GUM_ACK_PTRACER);
 
   res = gum_libc_ptrace (PTRACE_ATTACH, ctx->thread_id, NULL, NULL);
   if (res < 0)
