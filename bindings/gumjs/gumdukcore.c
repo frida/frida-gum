@@ -23,6 +23,7 @@ typedef struct _GumDukFlushCallback GumDukFlushCallback;
 typedef struct _GumDukNativeFunctionParams GumDukNativeFunctionParams;
 typedef guint8 GumDukSchedulingBehavior;
 typedef guint8 GumDukExceptionsBehavior;
+typedef guint8 GumDukCodeTraps;
 typedef guint8 GumDukReturnValueShape;
 typedef struct _GumDukNativeFunction GumDukNativeFunction;
 typedef struct _GumDukNativeCallback GumDukNativeCallback;
@@ -73,6 +74,7 @@ struct _GumDukNativeFunctionParams
   const gchar * abi_name;
   GumDukSchedulingBehavior scheduling;
   GumDukExceptionsBehavior exceptions;
+  GumDukCodeTraps traps;
   GumDukReturnValueShape return_shape;
 };
 
@@ -88,6 +90,12 @@ enum _GumDukExceptionsBehavior
   GUM_DUK_EXCEPTIONS_PROPAGATE
 };
 
+enum _GumDukCodeTraps
+{
+  GUM_DUK_CODE_TRAPS_DEFAULT,
+  GUM_DUK_CODE_TRAPS_ALL
+};
+
 enum _GumDukReturnValueShape
 {
   GUM_DUK_RETURN_PLAIN,
@@ -101,6 +109,7 @@ struct _GumDukNativeFunction
   GCallback implementation;
   GumDukSchedulingBehavior scheduling;
   GumDukExceptionsBehavior exceptions;
+  GumDukCodeTraps traps;
   GumDukReturnValueShape return_shape;
   ffi_cif cif;
   ffi_type ** atypes;
@@ -244,6 +253,8 @@ static GumDukSchedulingBehavior gum_duk_require_scheduling_behavior (
     duk_context * ctx, duk_idx_t index);
 static GumDukExceptionsBehavior gum_duk_require_exceptions_behavior (
     duk_context * ctx, duk_idx_t index);
+static GumDukCodeTraps gum_duk_require_code_traps (duk_context * ctx,
+    duk_idx_t index);
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_callback_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_native_callback_finalize)
@@ -2661,6 +2672,7 @@ gumjs_native_function_init (duk_context * ctx,
   func->implementation = params->implementation;
   func->scheduling = params->scheduling;
   func->exceptions = params->exceptions;
+  func->traps = params->traps;
   func->return_shape = params->return_shape;
   func->core = core;
 
@@ -2842,6 +2854,7 @@ gum_duk_native_function_invoke (GumDukNativeFunction * self,
   GumFFIValue tmp_value = { 0, };
   GumDukSchedulingBehavior scheduling;
   GumDukExceptionsBehavior exceptions;
+  GumDukCodeTraps traps;
   GumDukReturnValueShape return_shape;
   GumExceptorScope exceptor_scope;
   gint system_error;
@@ -2930,12 +2943,14 @@ gum_duk_native_function_invoke (GumDukNativeFunction * self,
 
   scheduling = self->scheduling;
   exceptions = self->exceptions;
+  traps = self->traps;
   return_shape = self->return_shape;
   system_error = -1;
 
   {
     GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
     GumInterceptor * interceptor = core->interceptor->interceptor;
+    GumStalker * stalker = NULL;
 
     if (exceptions == GUM_DUK_EXCEPTIONS_PROPAGATE ||
         gum_exceptor_try (core->exceptor, &exceptor_scope))
@@ -2947,11 +2962,24 @@ gum_duk_native_function_invoke (GumDukNativeFunction * self,
         gum_interceptor_unignore_current_thread (interceptor);
       }
 
+      if (traps == GUM_DUK_CODE_TRAPS_ALL)
+      {
+        _gum_duk_stalker_process_pending (core->stalker, scope.previous_scope);
+
+        stalker = _gum_duk_stalker_get (core->stalker);
+        gum_stalker_activate (stalker,
+            GUM_FUNCPTR_TO_POINTER (implementation));
+      }
+
       ffi_call (cif, implementation, rvalue, avalue);
+
+      g_clear_pointer (&stalker, gum_stalker_deactivate);
 
       if (return_shape == GUM_DUK_RETURN_DETAILED)
         system_error = gum_thread_get_system_error ();
     }
+
+    g_clear_pointer (&stalker, gum_stalker_deactivate);
 
     if (scheduling == GUM_DUK_SCHEDULING_COOPERATIVE)
     {
@@ -3028,6 +3056,7 @@ gum_duk_native_function_params_init (GumDukNativeFunctionParams * params,
   params->abi_name = NULL;
   params->scheduling = GUM_DUK_SCHEDULING_COOPERATIVE;
   params->exceptions = GUM_DUK_EXCEPTIONS_STEAL;
+  params->traps = GUM_DUK_CODE_TRAPS_DEFAULT;
   params->return_shape = return_shape;
 
   duk_push_heapptr (ctx, abi_or_options);
@@ -3053,7 +3082,11 @@ gum_duk_native_function_params_init (GumDukNativeFunctionParams * params,
     if (!duk_is_undefined (ctx, -1))
       params->exceptions = gum_duk_require_exceptions_behavior (ctx, -1);
 
-    duk_pop_3 (ctx);
+    duk_get_prop_string (ctx, options_index, "traps");
+    if (!duk_is_undefined (ctx, -1))
+      params->traps = gum_duk_require_code_traps (ctx, -1);
+
+    duk_pop_n (ctx, 4);
   }
   else if (!duk_is_undefined (ctx, -1))
   {
@@ -3092,6 +3125,22 @@ gum_duk_require_exceptions_behavior (duk_context * ctx,
   if (strcmp (value, "propagate") != 0)
     _gum_duk_throw (ctx, "invalid exceptions behavior value");
   return GUM_DUK_EXCEPTIONS_PROPAGATE;
+}
+
+static GumDukCodeTraps
+gum_duk_require_code_traps (duk_context * ctx,
+                            duk_idx_t index)
+{
+  const gchar * value;
+
+  value = duk_require_string (ctx, index);
+
+  if (strcmp (value, "all") == 0)
+    return GUM_DUK_CODE_TRAPS_ALL;
+
+  if (strcmp (value, "default") != 0)
+    _gum_duk_throw (ctx, "invalid code traps value");
+  return GUM_DUK_CODE_TRAPS_DEFAULT;
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)

@@ -24,6 +24,7 @@ using namespace v8;
 
 typedef guint8 GumV8SchedulingBehavior;
 typedef guint8 GumV8ExceptionsBehavior;
+typedef guint8 GumV8CodeTraps;
 typedef guint8 GumV8ReturnValueShape;
 
 struct GumV8FlushCallback
@@ -71,6 +72,7 @@ struct GumV8NativeFunctionParams
   Local<Value> abi;
   GumV8SchedulingBehavior scheduling;
   GumV8ExceptionsBehavior exceptions;
+  GumV8CodeTraps traps;
   GumV8ReturnValueShape return_shape;
 };
 
@@ -86,6 +88,12 @@ enum _GumV8ExceptionsBehavior
   GUM_V8_EXCEPTIONS_PROPAGATE
 };
 
+enum _GumV8CodeTraps
+{
+  GUM_V8_CODE_TRAPS_DEFAULT,
+  GUM_V8_CODE_TRAPS_ALL
+};
+
 enum _GumV8ReturnValueShape
 {
   GUM_V8_RETURN_PLAIN,
@@ -99,6 +107,7 @@ struct GumV8NativeFunction
   GCallback implementation;
   GumV8SchedulingBehavior scheduling;
   GumV8ExceptionsBehavior exceptions;
+  GumV8CodeTraps traps;
   GumV8ReturnValueShape return_shape;
   ffi_cif cif;
   ffi_type ** atypes;
@@ -258,6 +267,8 @@ static gboolean gum_v8_scheduling_behavior_parse (Handle<Value> value,
     GumV8SchedulingBehavior * behavior, Isolate * isolate);
 static gboolean gum_v8_exceptions_behavior_parse (Handle<Value> value,
     GumV8ExceptionsBehavior * behavior, Isolate * isolate);
+static gboolean gum_v8_code_traps_parse (Handle<Value> value,
+    GumV8CodeTraps * traps, Isolate * isolate);
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_callback_construct)
 static void gum_v8_native_callback_on_weak_notify (
@@ -712,6 +723,8 @@ _gum_v8_core_realize (GumV8Core * self)
       _gum_v8_string_new_ascii (isolate, "scheduling"));
   self->exceptions_key = new GumPersistent<String>::type (isolate,
       _gum_v8_string_new_ascii (isolate, "exceptions"));
+  self->traps_key = new GumPersistent<String>::type (isolate,
+      _gum_v8_string_new_ascii (isolate, "traps"));
   auto value_key = _gum_v8_string_new_ascii (isolate, "value");
   self->value_key = new GumPersistent<String>::type (isolate, value_key);
   auto system_error_key =
@@ -872,11 +885,13 @@ _gum_v8_core_dispose (GumV8Core * self)
   delete self->abi_key;
   delete self->scheduling_key;
   delete self->exceptions_key;
+  delete self->traps_key;
   delete self->value_key;
   delete self->system_error_key;
   self->abi_key = nullptr;
   self->scheduling_key = nullptr;
   self->exceptions_key = nullptr;
+  self->traps_key = nullptr;
   self->value_key = nullptr;
   self->system_error_key = nullptr;
 
@@ -2168,6 +2183,7 @@ gumjs_native_function_init (Handle<Object> wrapper,
   func->implementation = params->implementation;
   func->scheduling = params->scheduling;
   func->exceptions = params->exceptions;
+  func->traps = params->traps;
   func->return_shape = params->return_shape;
   func->core = core;
 
@@ -2298,6 +2314,7 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
                                Handle<Value> * argv)
 {
   auto core = (GumV8Core *) info.Data ().As<External> ()->Value ();
+  auto script_scope = core->current_scope;
   auto isolate = core->isolate;
   auto cif = &self->cif;
   gsize num_args_declared = cif->nargs;
@@ -2391,6 +2408,7 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
 
   auto scheduling = self->scheduling;
   auto exceptions = self->exceptions;
+  auto traps = self->traps;
   auto return_shape = self->return_shape;
   GumExceptorScope exceptor_scope;
   gint system_error = -1;
@@ -2398,6 +2416,7 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
   {
     auto unlocker = g_newa (ScriptUnlocker, 1);
     auto interceptor = core->script->interceptor.interceptor;
+    GumStalker * stalker = NULL;
 
     if (exceptions == GUM_V8_EXCEPTIONS_PROPAGATE ||
         gum_exceptor_try (core->exceptor, &exceptor_scope))
@@ -2409,11 +2428,26 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
         gum_interceptor_unignore_current_thread (interceptor);
       }
 
+      if (traps == GUM_V8_CODE_TRAPS_ALL)
+      {
+        auto stalker_module = &core->script->stalker;
+
+        _gum_v8_stalker_process_pending (stalker_module,
+            &script_scope->stalker_scope);
+
+        stalker = _gum_v8_stalker_get (stalker_module);
+        gum_stalker_activate (stalker, GUM_FUNCPTR_TO_POINTER (implementation));
+      }
+
       ffi_call (cif, FFI_FN (implementation), rvalue, avalue);
+
+      g_clear_pointer (&stalker, gum_stalker_deactivate);
 
       if (return_shape == GUM_V8_RETURN_DETAILED)
         system_error = gum_thread_get_system_error ();
     }
+
+    g_clear_pointer (&stalker, gum_stalker_deactivate);
 
     if (scheduling == GUM_V8_SCHEDULING_COOPERATIVE)
     {
@@ -2499,6 +2533,7 @@ gum_v8_native_function_params_init (GumV8NativeFunctionParams * params,
     return FALSE;
   params->scheduling = GUM_V8_SCHEDULING_COOPERATIVE;
   params->exceptions = GUM_V8_EXCEPTIONS_STEAL;
+  params->traps = GUM_V8_CODE_TRAPS_DEFAULT;
   params->return_shape = return_shape;
 
   if (!abi_or_options.IsEmpty ())
@@ -2530,6 +2565,14 @@ gum_v8_native_function_params_init (GumV8NativeFunctionParams * params,
       {
         if (!gum_v8_exceptions_behavior_parse (exceptions, &params->exceptions,
             isolate))
+          return FALSE;
+      }
+
+      auto traps = options->Get (
+          Local<String>::New (isolate, *core->traps_key));
+      if (!traps->IsUndefined ())
+      {
+        if (!gum_v8_code_traps_parse (traps, &params->traps, isolate))
           return FALSE;
       }
     }
@@ -2595,6 +2638,33 @@ gum_v8_exceptions_behavior_parse (Handle<Value> value,
   }
 
   _gum_v8_throw_ascii_literal (isolate, "invalid exceptions behavior value");
+  return FALSE;
+}
+
+static gboolean
+gum_v8_code_traps_parse (Handle<Value> value,
+                         GumV8CodeTraps * traps,
+                         Isolate * isolate)
+{
+  if (value->IsString ())
+  {
+    String::Utf8Value str_value (isolate, value);
+    auto str = *str_value;
+
+    if (strcmp (str, "all") == 0)
+    {
+      *traps = GUM_V8_CODE_TRAPS_ALL;
+      return TRUE;
+    }
+
+    if (strcmp (str, "default") == 0)
+    {
+      *traps = GUM_V8_CODE_TRAPS_DEFAULT;
+      return TRUE;
+    }
+  }
+
+  _gum_v8_throw_ascii_literal (isolate, "invalid code traps value");
   return FALSE;
 }
 

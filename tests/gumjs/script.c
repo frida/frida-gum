@@ -290,6 +290,8 @@ TESTLIST_BEGIN (script)
 #if defined (HAVE_I386) || defined (HAVE_ARM64)
     TESTENTRY (execution_can_be_traced)
     TESTENTRY (execution_can_be_traced_with_custom_transformer)
+    TESTENTRY (execution_can_be_traced_during_immediate_native_function_call)
+    TESTENTRY (execution_can_be_traced_during_scheduled_native_function_call)
     TESTENTRY (call_can_be_probed)
 #endif
     TESTENTRY (stalker_events_can_be_parsed)
@@ -2397,6 +2399,86 @@ TESTCASE (execution_can_be_traced_with_custom_transformer)
   EXPECT_NO_MESSAGES ();
   POST_MESSAGE ("{\"type\":\"stop\"}");
   EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (execution_can_be_traced_during_immediate_native_function_call)
+{
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var a = new NativeFunction(" GUM_PTR_CONST ", 'int', ['int'], "
+          "{ traps: 'all', exceptions: 'propagate' });"
+      "var testsRange = Process.getModuleByName('%s');"
+      "Stalker.exclude(testsRange);"
+      "var flushing = false;"
+      "Stalker.follow({"
+      "  events: {"
+      "    call: true,"
+      "  },"
+      "  onCallSummary: function (summary) {"
+      "    if (!flushing)"
+      "      return;"
+      "    var key = ptr(a).toString();"
+      "    send(key in summary);"
+      "    send(summary[key]);"
+      "  }"
+      "});"
+      "a(42);"
+      "a(42);"
+      "Stalker.unfollow();"
+      "flushing = true;"
+      "Stalker.flush();"
+      "flushing = false;",
+      target_function_nested_a,
+      GUM_TESTS_MODULE_NAME);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("2");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (execution_can_be_traced_during_scheduled_native_function_call)
+{
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var a = new NativeFunction(" GUM_PTR_CONST ", 'int', ['int'], "
+          "{ traps: 'all' });"
+      "var testsRange = Process.getModuleByName('%s');"
+      "Stalker.exclude(testsRange);"
+      "var flushing = false;"
+      "Stalker.follow({"
+      "  events: {"
+      "    call: true,"
+      "  },"
+      "  onCallSummary: function (summary) {"
+      "    if (!flushing)"
+      "      return;"
+      "    var key = ptr(a).toString();"
+      "    send(key in summary);"
+      "    send(summary[key]);"
+      "  }"
+      "});"
+      "setImmediate(function () {"
+        "a(42);"
+        "a(42);"
+        "Stalker.unfollow();"
+        "flushing = true;"
+        "Stalker.flush();"
+        "flushing = false;"
+      "});",
+      target_function_nested_a,
+      GUM_TESTS_MODULE_NAME);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("2");
   EXPECT_NO_MESSAGES ();
 }
 

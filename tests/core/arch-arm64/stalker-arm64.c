@@ -668,7 +668,7 @@ TESTCASE (exclude_bl_with_unfollow)
 
   g_assert_cmpint (func (2), ==, 12);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 21);
+  g_assert_cmpuint (fixture->sink->events->len, ==, 20);
 
   gum_free_pages (code);
 }
