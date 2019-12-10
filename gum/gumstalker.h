@@ -99,6 +99,9 @@ GUM_API void gum_stalker_follow (GumStalker * self, GumThreadId thread_id,
     GumStalkerTransformer * transformer, GumEventSink * sink);
 GUM_API void gum_stalker_unfollow (GumStalker * self, GumThreadId thread_id);
 
+GUM_API void gum_stalker_activate (GumStalker * self, gconstpointer target);
+GUM_API void gum_stalker_deactivate (GumStalker * self);
+
 GUM_API GumProbeId gum_stalker_add_call_probe (GumStalker * self,
     gpointer target_address, GumCallProbeCallback callback, gpointer data,
     GDestroyNotify notify);

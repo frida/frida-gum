@@ -91,7 +91,6 @@ struct _GumInfectContext
 
 struct _GumDisinfectContext
 {
-  GumStalker * stalker;
   GumExecCtx * exec_ctx;
   gboolean success;
 };
@@ -127,7 +126,7 @@ enum _GumExecCtxState
 
 struct _GumExecCtx
 {
-  volatile guint state;
+  volatile gint state;
   volatile gboolean invalidate_pending;
 
   GumStalker * stalker;
@@ -137,7 +136,8 @@ struct _GumExecCtx
   GumX86Relocator relocator;
 
   GumStalkerTransformer * transformer;
-  gboolean calling_transformer;
+  void (* transform_block_impl) (GumStalkerTransformer * self,
+      GumStalkerIterator * iterator, GumStalkerWriter * output);
   GQueue callout_entries;
   GumSpinlock callout_lock;
   GumEventSink * sink;
@@ -148,6 +148,7 @@ struct _GumExecCtx
 
   gboolean unfollow_called_while_still_following;
   GumExecBlock * current_block;
+  guint pending_calls;
   GumExecFrame * current_frame;
   GumExecFrame * first_frame;
   GumExecFrame * frames;
@@ -155,6 +156,7 @@ struct _GumExecCtx
   gpointer resume_at;
   gpointer return_at;
   gpointer app_stack;
+  gconstpointer activation_target;
 
   gpointer thunks;
   gpointer infect_thunk;
@@ -183,7 +185,6 @@ struct _GumExecBlock
 
   guint8 state;
   gint recycle_count;
-  gboolean has_call_to_excluded_range;
 
 #ifdef G_OS_WIN32
   DWORD previous_dr0;
@@ -203,9 +204,9 @@ enum _GumExecState
 enum _GumPrologType
 {
   GUM_PROLOG_NONE,
+  GUM_PROLOG_IC,
   GUM_PROLOG_MINIMAL,
-  GUM_PROLOG_FULL,
-  GUM_PROLOG_IC
+  GUM_PROLOG_FULL
 };
 
 enum _GumCodeContext
@@ -293,25 +294,29 @@ static void gum_stalker_finalize (GObject * object);
 
 G_GNUC_INTERNAL void _gum_stalker_do_follow_me (GumStalker * self,
     GumStalkerTransformer * transformer, GumEventSink * sink,
-    volatile gpointer * ret_addr_ptr);
+    gpointer * ret_addr_ptr);
 static void gum_stalker_infect (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 static void gum_stalker_disinfect (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
+G_GNUC_INTERNAL void _gum_stalker_do_activate (GumStalker * self,
+    gconstpointer target, gpointer * ret_addr_ptr);
 
 static void gum_stalker_free_probe_array (gpointer data);
 
 static GumExecCtx * gum_stalker_create_exec_ctx (GumStalker * self,
     GumThreadId thread_id, GumStalkerTransformer * transformer,
     GumEventSink * sink);
+static void gum_stalker_destroy_exec_ctx (GumStalker * self, GumExecCtx * ctx);
 static GumExecCtx * gum_stalker_get_exec_ctx (GumStalker * self);
 static void gum_stalker_invalidate_caches (GumStalker * self);
 
-static void gum_exec_ctx_prepare_for_unfollow (GumExecCtx * ctx);
 static void gum_exec_ctx_dispose_callouts (GumExecCtx * ctx);
 static void gum_exec_ctx_free (GumExecCtx * ctx);
-static void gum_exec_ctx_unfollow (GumExecCtx * ctx, gpointer resume_at);
+static gboolean gum_exec_ctx_maybe_unfollow (GumExecCtx * ctx,
+    gpointer resume_at);
 static gboolean gum_exec_ctx_has_executed (GumExecCtx * ctx);
+static gboolean gum_exec_ctx_contains (GumExecCtx * ctx, gconstpointer address);
 static gpointer GUM_THUNK gum_exec_ctx_replace_current_block_with (
     GumExecCtx * ctx, gpointer start_address);
 static void gum_exec_ctx_create_thunks (GumExecCtx * ctx);
@@ -613,7 +618,6 @@ gum_stalker_flush (GumStalker * self)
 void
 gum_stalker_stop (GumStalker * self)
 {
-  gboolean rescan_needed;
   GSList * cur;
 
   gum_spinlock_acquire (&self->probe_lock);
@@ -622,29 +626,24 @@ gum_stalker_stop (GumStalker * self)
   self->any_probes_attached = FALSE;
   gum_spinlock_release (&self->probe_lock);
 
+rescan:
   GUM_STALKER_LOCK (self);
 
-  do
+  for (cur = self->contexts; cur != NULL; cur = cur->next)
   {
-    rescan_needed = FALSE;
+    GumExecCtx * ctx = cur->data;
 
-    for (cur = self->contexts; cur != NULL; cur = cur->next)
+    if (g_atomic_int_get (&ctx->state) == GUM_EXEC_CTX_ACTIVE)
     {
-      GumExecCtx * ctx = (GumExecCtx *) cur->data;
-      if (ctx->state == GUM_EXEC_CTX_ACTIVE)
-      {
-        GumThreadId thread_id = ctx->thread_id;
+      GumThreadId thread_id = ctx->thread_id;
 
-        GUM_STALKER_UNLOCK (self);
-        gum_stalker_unfollow (self, thread_id);
-        GUM_STALKER_LOCK (self);
+      GUM_STALKER_UNLOCK (self);
 
-        rescan_needed = TRUE;
-        break;
-      }
+      gum_stalker_unfollow (self, thread_id);
+
+      goto rescan;
     }
   }
-  while (rescan_needed);
 
   GUM_STALKER_UNLOCK (self);
 
@@ -654,28 +653,31 @@ gum_stalker_stop (GumStalker * self)
 gboolean
 gum_stalker_garbage_collect (GumStalker * self)
 {
-  GSList * keep = NULL, * cur;
-  gboolean pending_garbage;
+  GSList * cur;
+  gboolean have_pending_garbage;
 
+rescan:
   GUM_STALKER_LOCK (self);
 
   for (cur = self->contexts; cur != NULL; cur = cur->next)
   {
-    GumExecCtx * ctx = (GumExecCtx *) cur->data;
-    if (ctx->state == GUM_EXEC_CTX_DESTROY_PENDING)
-      gum_exec_ctx_free (ctx);
-    else
-      keep = g_slist_prepend (keep, ctx);
+    GumExecCtx * ctx = cur->data;
+
+    if (g_atomic_int_get (&ctx->state) == GUM_EXEC_CTX_DESTROY_PENDING)
+    {
+      GUM_STALKER_UNLOCK (self);
+
+      gum_stalker_destroy_exec_ctx (self, ctx);
+
+      goto rescan;
+    }
   }
 
-  g_slist_free (self->contexts);
-  self->contexts = keep;
-
-  pending_garbage = keep != NULL;
+  have_pending_garbage = self->contexts != NULL;
 
   GUM_STALKER_UNLOCK (self);
 
-  return pending_garbage;
+  return have_pending_garbage;
 }
 
 #ifdef _MSC_VER
@@ -688,7 +690,7 @@ gum_stalker_follow_me (GumStalker * self,
                        GumStalkerTransformer * transformer,
                        GumEventSink * sink)
 {
-  volatile gpointer * ret_addr_ptr;
+  gpointer * ret_addr_ptr;
 
   ret_addr_ptr = RETURN_ADDRESS_POINTER_FROM_FIRST_ARGUMENT (self);
 
@@ -701,7 +703,7 @@ void
 _gum_stalker_do_follow_me (GumStalker * self,
                            GumStalkerTransformer * transformer,
                            GumEventSink * sink,
-                           volatile gpointer * ret_addr_ptr)
+                           gpointer * ret_addr_ptr)
 {
   GumExecCtx * ctx;
   gpointer code_address;
@@ -713,10 +715,9 @@ _gum_stalker_do_follow_me (GumStalker * self,
   ctx->current_block = gum_exec_ctx_obtain_block_for (ctx, *ret_addr_ptr,
       &code_address);
 
-  if (ctx->state == GUM_EXEC_CTX_UNFOLLOW_PENDING)
+  if (gum_exec_ctx_maybe_unfollow (ctx, *ret_addr_ptr))
   {
-    gum_exec_ctx_prepare_for_unfollow (ctx);
-    gum_exec_ctx_unfollow (ctx, *ret_addr_ptr);
+    gum_stalker_destroy_exec_ctx (self, ctx);
     return;
   }
 
@@ -735,31 +736,14 @@ gum_stalker_unfollow_me (GumStalker * self)
   if (ctx == NULL)
     return;
 
-  if (ctx->calling_transformer)
-  {
-    ctx->state = GUM_EXEC_CTX_UNFOLLOW_PENDING;
+  g_atomic_int_set (&ctx->state, GUM_EXEC_CTX_UNFOLLOW_PENDING);
+
+  if (!gum_exec_ctx_maybe_unfollow (ctx, NULL))
     return;
-  }
 
-  gum_exec_ctx_prepare_for_unfollow (ctx);
+  g_assert (ctx->unfollow_called_while_still_following);
 
-  if (ctx->current_block != NULL &&
-      ctx->current_block->has_call_to_excluded_range)
-  {
-    ctx->state = GUM_EXEC_CTX_UNFOLLOW_PENDING;
-  }
-  else
-  {
-    g_assert (ctx->unfollow_called_while_still_following);
-
-    gum_tls_key_set_value (self->exec_ctx, NULL);
-
-    GUM_STALKER_LOCK (self);
-    self->contexts = g_slist_remove (self->contexts, ctx);
-    GUM_STALKER_UNLOCK (self);
-
-    gum_exec_ctx_free (ctx);
-  }
+  gum_stalker_destroy_exec_ctx (self, ctx);
 }
 
 gboolean
@@ -781,9 +765,11 @@ gum_stalker_follow (GumStalker * self,
   else
   {
     GumInfectContext ctx;
+
     ctx.stalker = self;
     ctx.transformer = transformer;
     ctx.sink = sink;
+
     gum_process_modify_thread (thread_id, gum_stalker_infect, &ctx);
   }
 }
@@ -805,26 +791,27 @@ gum_stalker_unfollow (GumStalker * self,
     for (cur = self->contexts; cur != NULL; cur = cur->next)
     {
       GumExecCtx * ctx = (GumExecCtx *) cur->data;
-      if (ctx->thread_id == thread_id && ctx->state == GUM_EXEC_CTX_ACTIVE)
-      {
-        gum_exec_ctx_prepare_for_unfollow (ctx);
 
-        if (gum_exec_ctx_has_executed (ctx))
-        {
-          ctx->state = GUM_EXEC_CTX_UNFOLLOW_PENDING;
-        }
-        else
+      if (ctx->thread_id == thread_id &&
+          g_atomic_int_compare_and_exchange (&ctx->state, GUM_EXEC_CTX_ACTIVE,
+              GUM_EXEC_CTX_UNFOLLOW_PENDING))
+      {
+        GUM_STALKER_UNLOCK (self);
+
+        if (!gum_exec_ctx_has_executed (ctx))
         {
           GumDisinfectContext dc;
-          dc.stalker = self;
+
           dc.exec_ctx = ctx;
           dc.success = FALSE;
+
           gum_process_modify_thread (thread_id, gum_stalker_disinfect, &dc);
-          if (!dc.success)
-            ctx->state = GUM_EXEC_CTX_UNFOLLOW_PENDING;
+
+          if (dc.success)
+            gum_stalker_destroy_exec_ctx (self, ctx);
         }
 
-        break;
+        return;
       }
     }
 
@@ -880,8 +867,7 @@ gum_stalker_disinfect (GumThreadId thread_id,
                        GumCpuContext * cpu_context,
                        gpointer user_data)
 {
-  GumDisinfectContext * disinfect_context = (GumDisinfectContext *) user_data;
-  GumStalker * self = disinfect_context->stalker;
+  GumDisinfectContext * disinfect_context = user_data;
   GumExecCtx * ctx = disinfect_context->exec_ctx;
   gboolean infection_not_active_yet;
 
@@ -892,11 +878,60 @@ gum_stalker_disinfect (GumThreadId thread_id,
     GUM_CPU_CONTEXT_XIP (cpu_context) =
         GPOINTER_TO_SIZE (ctx->current_block->real_begin);
 
-    self->contexts = g_slist_remove (self->contexts, ctx);
-    gum_exec_ctx_free (ctx);
-
     disinfect_context->success = TRUE;
   }
+}
+
+#ifdef _MSC_VER
+
+void
+gum_stalker_activate (GumStalker * self,
+                      gconstpointer target)
+{
+  gpointer * ret_addr_ptr;
+
+  ret_addr_ptr = RETURN_ADDRESS_POINTER_FROM_FIRST_ARGUMENT (self);
+
+  _gum_stalker_do_activate (self, target, ret_addr_ptr);
+}
+
+#endif
+
+void
+_gum_stalker_do_activate (GumStalker * self,
+                          gconstpointer target,
+                          gpointer * ret_addr_ptr)
+{
+  guint8 * ret_addr = *ret_addr_ptr;
+  GumExecCtx * ctx;
+
+  ctx = gum_stalker_get_exec_ctx (self);
+  if (ctx == NULL)
+    return;
+
+  ctx->activation_target = target;
+
+  if (ctx->pending_calls > 0 && !gum_exec_ctx_contains (ctx, ret_addr))
+  {
+    gpointer code_address;
+
+    ctx->current_block =
+        gum_exec_ctx_obtain_block_for (ctx, ret_addr, &code_address);
+
+    *ret_addr_ptr = code_address;
+  }
+}
+
+void
+gum_stalker_deactivate (GumStalker * self)
+{
+  GumExecCtx * ctx;
+
+  ctx = gum_stalker_get_exec_ctx (self);
+  if (ctx == NULL)
+    return;
+
+  ctx->activation_target = NULL;
 }
 
 GumProbeId
@@ -1020,31 +1055,8 @@ gum_stalker_create_exec_ctx (GumStalker * self,
   ctx = (GumExecCtx *)
       gum_alloc_n_pages (base_size + GUM_CODE_SLAB_SIZE_IN_PAGES + 1,
           GUM_PAGE_RWX);
+
   ctx->state = GUM_EXEC_CTX_ACTIVE;
-  ctx->invalidate_pending = FALSE;
-
-  ctx->code_slab = &ctx->first_code_slab;
-  ctx->first_code_slab.data = ((guint8 *) ctx) + (base_size * self->page_size);
-  ctx->first_code_slab.offset = 0;
-  ctx->first_code_slab.size = GUM_CODE_SLAB_SIZE_IN_PAGES * self->page_size;
-  ctx->first_code_slab.next = NULL;
-  ctx->last_prolog_minimal = NULL;
-  ctx->last_epilog_minimal = NULL;
-  ctx->last_prolog_full = NULL;
-  ctx->last_epilog_full = NULL;
-  ctx->last_stack_push = NULL;
-  ctx->last_stack_pop_and_go = NULL;
-
-  ctx->frames = (GumExecFrame *) (ctx->code_slab->data + ctx->code_slab->size);
-  ctx->first_frame = (GumExecFrame *) (ctx->code_slab->data +
-      ctx->code_slab->size + self->page_size - sizeof (GumExecFrame));
-  ctx->current_frame = ctx->first_frame;
-
-  ctx->mappings = gum_metal_hash_table_new (NULL, NULL);
-
-  ctx->resume_at = NULL;
-  ctx->return_at = NULL;
-  ctx->app_stack = NULL;
 
   ctx->stalker = g_object_ref (self);
   ctx->thread_id = thread_id;
@@ -1056,12 +1068,24 @@ gum_stalker_create_exec_ctx (GumStalker * self,
     ctx->transformer = g_object_ref (transformer);
   else
     ctx->transformer = gum_stalker_transformer_make_default ();
-  ctx->calling_transformer = FALSE;
+  ctx->transform_block_impl =
+      GUM_STALKER_TRANSFORMER_GET_IFACE (ctx->transformer)->transform_block;
   g_queue_init (&ctx->callout_entries);
   gum_spinlock_init (&ctx->callout_lock);
-  ctx->sink = (GumEventSink *) g_object_ref (sink);
+  ctx->sink = g_object_ref (sink);
   ctx->sink_mask = gum_event_sink_query_mask (sink);
   ctx->sink_process_impl = GUM_EVENT_SINK_GET_IFACE (sink)->process;
+
+  ctx->code_slab = &ctx->first_code_slab;
+  ctx->first_code_slab.data = ((guint8 *) ctx) + (base_size * self->page_size);
+  ctx->first_code_slab.size = GUM_CODE_SLAB_SIZE_IN_PAGES * self->page_size;
+
+  ctx->frames = (GumExecFrame *) (ctx->code_slab->data + ctx->code_slab->size);
+  ctx->first_frame = (GumExecFrame *) (ctx->code_slab->data +
+      ctx->code_slab->size + self->page_size - sizeof (GumExecFrame));
+  ctx->current_frame = ctx->first_frame;
+
+  ctx->mappings = gum_metal_hash_table_new (NULL, NULL);
 
   gum_exec_ctx_create_thunks (ctx);
 
@@ -1072,6 +1096,34 @@ gum_stalker_create_exec_ctx (GumStalker * self,
   gum_exec_ctx_ensure_inline_helpers_reachable (ctx);
 
   return ctx;
+}
+
+static void
+gum_stalker_destroy_exec_ctx (GumStalker * self,
+                              GumExecCtx * ctx)
+{
+  GSList * entry;
+
+  GUM_STALKER_LOCK (self);
+  entry = g_slist_find (self->contexts, ctx);
+  if (entry != NULL)
+    self->contexts = g_slist_delete_link (self->contexts, entry);
+  GUM_STALKER_UNLOCK (self);
+
+  /* Racy due to garbage-collection. */
+  if (entry == NULL)
+    return;
+
+  gum_exec_ctx_dispose_callouts (ctx);
+
+  if (ctx->sink_started)
+  {
+    gum_event_sink_stop (ctx->sink);
+
+    ctx->sink_started = FALSE;
+  }
+
+  gum_exec_ctx_free (ctx);
 }
 
 static GumExecCtx *
@@ -1095,19 +1147,6 @@ gum_stalker_invalidate_caches (GumStalker * self)
   }
 
   GUM_STALKER_UNLOCK (self);
-}
-
-static void
-gum_exec_ctx_prepare_for_unfollow (GumExecCtx * ctx)
-{
-  gum_exec_ctx_dispose_callouts (ctx);
-
-  if (ctx->sink_started)
-  {
-    gum_event_sink_stop (ctx->sink);
-
-    ctx->sink_started = FALSE;
-  }
 }
 
 static void
@@ -1176,21 +1215,50 @@ gum_exec_ctx_free (GumExecCtx * ctx)
   gum_free_pages (ctx);
 }
 
-static void
-gum_exec_ctx_unfollow (GumExecCtx * ctx,
-                       gpointer resume_at)
+static gboolean
+gum_exec_ctx_maybe_unfollow (GumExecCtx * ctx,
+                             gpointer resume_at)
 {
+  if (g_atomic_int_get (&ctx->state) != GUM_EXEC_CTX_UNFOLLOW_PENDING)
+    return FALSE;
+
+  if (ctx->pending_calls > 0)
+    return FALSE;
+
+  ctx->current_block = NULL;
+
   ctx->resume_at = resume_at;
 
   gum_tls_key_set_value (ctx->stalker->exec_ctx, NULL);
-  ctx->current_block = NULL;
-  ctx->state = GUM_EXEC_CTX_DESTROY_PENDING;
+
+  g_atomic_int_set (&ctx->state, GUM_EXEC_CTX_DESTROY_PENDING);
+
+  return TRUE;
 }
 
 static gboolean
 gum_exec_ctx_has_executed (GumExecCtx * ctx)
 {
   return ctx->resume_at != NULL;
+}
+
+static gboolean
+gum_exec_ctx_contains (GumExecCtx * ctx,
+                       gconstpointer address)
+{
+  GumSlab * cur = ctx->code_slab;
+
+  do {
+    if ((const guint8 *) address >= cur->data &&
+        (const guint8 *) address < cur->data + cur->size)
+    {
+      return TRUE;
+    }
+
+    cur = cur->next;
+  } while (cur != NULL);
+
+  return FALSE;
 }
 
 static gboolean counters_enabled = FALSE;
@@ -1222,6 +1290,7 @@ GUM_DEFINE_ENTRYGATE (call_imm)
 GUM_DEFINE_ENTRYGATE (call_reg)
 GUM_DEFINE_ENTRYGATE (call_mem)
 GUM_DEFINE_ENTRYGATE (post_call_invoke)
+GUM_DEFINE_ENTRYGATE (excluded_call_imm)
 GUM_DEFINE_ENTRYGATE (ret_slow_path)
 
 GUM_DEFINE_ENTRYGATE (jmp_imm)
@@ -1255,20 +1324,26 @@ gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
     ctx->current_block = NULL;
     ctx->resume_at = start_address;
   }
-  else if (ctx->state == GUM_EXEC_CTX_UNFOLLOW_PENDING)
+  else if (start_address == gum_stalker_deactivate && ctx->pending_calls > 0)
   {
-    gum_exec_ctx_unfollow (ctx, start_address);
+    ctx->resume_at = start_address;
+  }
+  else if (gum_exec_ctx_maybe_unfollow (ctx, start_address))
+  {
+  }
+  else if (gum_exec_ctx_contains (ctx, start_address))
+  {
+    ctx->resume_at = start_address;
   }
   else
   {
     ctx->current_block = gum_exec_ctx_obtain_block_for (ctx, start_address,
         &ctx->resume_at);
-    if (ctx->state == GUM_EXEC_CTX_UNFOLLOW_PENDING)
-    {
-      gum_exec_ctx_prepare_for_unfollow (ctx);
 
-      gum_exec_ctx_unfollow (ctx, start_address);
-    }
+    if (start_address == ctx->activation_target)
+      ctx->activation_target = NULL;
+
+    gum_exec_ctx_maybe_unfollow (ctx, start_address);
   }
 
   return ctx->resume_at;
@@ -1384,6 +1459,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   }
 
   block = gum_exec_block_new (ctx);
+  block->real_begin = real_address;
   *code_address = block->code_begin;
 
   if (ctx->stalker->trust_threshold >= 0)
@@ -1417,12 +1493,12 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   iterator.instruction.end = NULL;
   iterator.requirements = GUM_REQUIRE_NOTHING;
 
-  ctx->calling_transformer = TRUE;
+  ctx->pending_calls++;
 
-  gum_stalker_transformer_transform_block (ctx->transformer, &iterator,
+  ctx->transform_block_impl (ctx->transformer, &iterator,
       (GumStalkerWriter *) cw);
 
-  ctx->calling_transformer = FALSE;
+  ctx->pending_calls--;
 
   if (gc.continuation_real_address != NULL)
   {
@@ -1442,8 +1518,6 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
     g_error ("Failed to resolve labels");
 
   block->code_end = (guint8 *) gum_x86_writer_cur (cw);
-
-  block->real_begin = (guint8 *) rl->input_start;
   block->real_end = (guint8 *) rl->input_cur;
 
   gum_exec_block_commit (block);
@@ -1496,15 +1570,6 @@ gum_stalker_iterator_next (GumStalkerIterator * self,
     {
       gc->continuation_real_address = instruction->end;
       return FALSE;
-    }
-    else if (instruction->ci->id == X86_INS_CALL)
-    {
-      gboolean call_is_to_excluded_range;
-
-      call_is_to_excluded_range =
-          (self->requirements & GUM_REQUIRE_RELOCATION) != 0;
-      if (!call_is_to_excluded_range)
-        return FALSE;
     }
     else if (gum_x86_relocator_eob (rl))
     {
@@ -2457,7 +2522,6 @@ gum_exec_block_new (GumExecCtx * ctx)
 
     block->state = GUM_EXEC_NORMAL;
     block->recycle_count = 0;
-    block->has_call_to_excluded_range = FALSE;
 
     slab->offset += block->code_begin - (slab->data + slab->offset);
 
@@ -2537,7 +2601,7 @@ gum_exec_block_backpatch_call (GumExecBlock * block,
 
   ctx = block->ctx;
 
-  if (ctx->state == GUM_EXEC_CTX_ACTIVE &&
+  if (g_atomic_int_get (&ctx->state) == GUM_EXEC_CTX_ACTIVE &&
       block->recycle_count >= ctx->stalker->trust_threshold)
   {
     GumX86Writer * cw = &ctx->code_writer;
@@ -2596,7 +2660,7 @@ gum_exec_block_backpatch_jmp (GumExecBlock * block,
 
   ctx = block->ctx;
 
-  if (ctx->state == GUM_EXEC_CTX_ACTIVE &&
+  if (g_atomic_int_get (&ctx->state) == GUM_EXEC_CTX_ACTIVE &&
       block->recycle_count >= ctx->stalker->trust_threshold)
   {
     GumX86Writer * cw = &ctx->code_writer;
@@ -2626,7 +2690,7 @@ gum_exec_block_backpatch_ret (GumExecBlock * block,
 
   ctx = block->ctx;
 
-  if (ctx->state == GUM_EXEC_CTX_ACTIVE &&
+  if (g_atomic_int_get (&ctx->state) == GUM_EXEC_CTX_ACTIVE &&
       block->recycle_count >= ctx->stalker->trust_threshold)
   {
     GumX86Writer * cw = &ctx->code_writer;
@@ -2650,7 +2714,7 @@ gum_exec_block_backpatch_inline_cache (GumExecBlock * block,
 
   ctx = block->ctx;
 
-  if (ctx->state == GUM_EXEC_CTX_ACTIVE &&
+  if (g_atomic_int_get (&ctx->state) == GUM_EXEC_CTX_ACTIVE &&
       block->recycle_count >= ctx->stalker->trust_threshold)
   {
     guint offset;
@@ -2669,6 +2733,7 @@ static GumVirtualizationRequirements
 gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
                                        GumGeneratorContext * gc)
 {
+  GumExecCtx * ctx = block->ctx;
   GumInstruction * insn = gc->instruction;
   GumX86Writer * cw = gc->code_writer;
   gboolean is_conditional;
@@ -2693,9 +2758,9 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
   else if (op->type == X86_OP_MEM)
   {
 #if GLIB_SIZEOF_VOID_P == 4 && defined (HAVE_WINDOWS)
-    if (block->ctx->stalker->wow64_transition_address != NULL &&
+    if (ctx->stalker->wow64_transition_address != NULL &&
         op->mem.disp == GPOINTER_TO_UINT (
-            block->ctx->stalker->wow64_transition_address) &&
+            ctx->stalker->wow64_transition_address) &&
         op->mem.segment == X86_REG_INVALID &&
         op->mem.base == X86_REG_INVALID &&
         op->mem.index == X86_REG_INVALID)
@@ -2738,18 +2803,19 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
   {
     gboolean target_is_excluded = FALSE;
 
-    if ((block->ctx->sink_mask & GUM_CALL) != 0)
+    if ((ctx->sink_mask & GUM_CALL) != 0)
     {
       gum_exec_block_write_call_event_code (block, &target, gc,
           GUM_CODE_INTERRUPTIBLE);
     }
 
-    if (block->ctx->stalker->any_probes_attached)
+    if (ctx->stalker->any_probes_attached)
       gum_exec_block_write_call_probe_code (block, &target, gc);
 
-    if (!target.is_indirect && target.base == X86_REG_INVALID)
+    if (!target.is_indirect && target.base == X86_REG_INVALID &&
+        ctx->activation_target == NULL)
     {
-      GArray * exclusions = block->ctx->stalker->exclusions;
+      GArray * exclusions = ctx->stalker->exclusions;
       guint i;
 
       for (i = 0; i != exclusions->len; i++)
@@ -2766,8 +2832,28 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
 
     if (target_is_excluded)
     {
-      block->has_call_to_excluded_range = TRUE;
-      return GUM_REQUIRE_RELOCATION;
+      GumBranchTarget next_instruction = { 0, };
+
+      gum_exec_block_open_prolog (block, GUM_PROLOG_IC, gc);
+      gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
+          GUM_ADDRESS (&ctx->pending_calls));
+      gum_x86_writer_put_inc_reg_ptr (cw, GUM_PTR_DWORD, GUM_REG_XAX);
+      gum_exec_block_close_prolog (block, gc);
+
+      gum_x86_relocator_write_one_no_label (gc->relocator);
+
+      gum_exec_block_open_prolog (block, GUM_PROLOG_IC, gc);
+      gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
+          GUM_ADDRESS (&ctx->pending_calls));
+      gum_x86_writer_put_dec_reg_ptr (cw, GUM_PTR_DWORD, GUM_REG_XAX);
+      gum_exec_block_close_prolog (block, gc);
+
+      next_instruction.is_indirect = FALSE;
+      next_instruction.absolute_address = insn->end;
+      gum_exec_block_write_jmp_transfer_code (block, &next_instruction,
+          GUM_ENTRYGATE (excluded_call_imm), gc);
+
+      return GUM_REQUIRE_NOTHING;
     }
 
     gum_x86_relocator_skip_one_no_label (gc->relocator);
@@ -3508,18 +3594,17 @@ gum_exec_block_write_unfollow_check_code (GumExecBlock * block,
   if (cc != GUM_CODE_INTERRUPTIBLE)
     return;
 
-  gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_EAX,
-      GUM_ADDRESS (&ctx->state));
-  gum_x86_writer_put_cmp_reg_i32 (cw, GUM_REG_EAX,
-      GUM_EXEC_CTX_UNFOLLOW_PENDING);
-  gum_x86_writer_put_jcc_near_label (cw, X86_INS_JNE, beach, GUM_LIKELY);
   gum_x86_writer_put_call_address_with_aligned_arguments (cw, GUM_CALL_CAPI,
-      GUM_ADDRESS (gum_exec_ctx_unfollow), 2,
+      GUM_ADDRESS (gum_exec_ctx_maybe_unfollow), 2,
       GUM_ARG_ADDRESS, GUM_ADDRESS (ctx),
       GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->begin));
+  gum_x86_writer_put_test_reg_reg (cw, GUM_REG_EAX, GUM_REG_EAX);
+  gum_x86_writer_put_jcc_near_label (cw, X86_INS_JE, beach, GUM_LIKELY);
+
   opened_prolog = gc->opened_prolog;
   gum_exec_block_close_prolog (block, gc);
   gc->opened_prolog = opened_prolog;
+
   gum_x86_writer_put_jmp_near_ptr (cw, GUM_ADDRESS (&ctx->resume_at));
 
   gum_x86_writer_put_label (cw, beach);
@@ -3921,6 +4006,7 @@ gum_stalker_dump_counters (void)
   GUM_PRINT_ENTRYGATE_COUNTER (call_reg);
   GUM_PRINT_ENTRYGATE_COUNTER (call_mem);
   GUM_PRINT_ENTRYGATE_COUNTER (post_call_invoke);
+  GUM_PRINT_ENTRYGATE_COUNTER (excluded_call_imm);
   GUM_PRINT_ENTRYGATE_COUNTER (ret_slow_path);
 
   g_printerr ("\n");
