@@ -26,6 +26,7 @@ struct _GumThumbRelocator
   GumAddress input_pc;
   cs_insn ** input_insns;
   GumThumbWriter * output;
+  guint output_it_scope;
 
   guint inpos;
   guint outpos;
