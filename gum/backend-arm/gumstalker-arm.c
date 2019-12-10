@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -98,6 +98,17 @@ gum_stalker_follow (GumStalker * self,
 void
 gum_stalker_unfollow (GumStalker * self,
                       GumThreadId thread_id)
+{
+}
+
+void
+gum_stalker_activate (GumStalker * self,
+                      gconstpointer target)
+{
+}
+
+void
+gum_stalker_deactivate (GumStalker * self)
 {
 }
 
