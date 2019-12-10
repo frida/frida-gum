@@ -67,6 +67,9 @@
 #ifndef PTRACE_SETREGSET
 # define PTRACE_SETREGSET 0x4205
 #endif
+#ifndef PR_SET_PTRACER
+# define PR_SET_PTRACER 0x59616d61
+#endif
 #ifndef NT_PRSTATUS
 # define NT_PRSTATUS 1
 #endif
