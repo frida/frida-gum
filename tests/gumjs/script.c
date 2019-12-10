@@ -114,6 +114,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (double_can_be_written)
     TESTENTRY (byte_array_can_be_read)
     TESTENTRY (byte_array_can_be_written)
+    TESTENTRY (byte_array_can_be_mapped)
     TESTENTRY (c_string_can_be_read)
     TESTENTRY (utf8_string_can_be_read)
     TESTENTRY (utf8_string_can_be_written)
@@ -5363,6 +5364,40 @@ TESTCASE (byte_array_can_be_written)
   g_assert_cmpint (val[0], ==, 0x04);
   g_assert_cmpint (val[1], ==, 0x05);
   g_assert_cmpint (val[2], ==, 0x03);
+}
+
+TESTCASE (byte_array_can_be_mapped)
+{
+  guint8 val[2] = { 13, 37 };
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var val = new Uint8Array(" GUM_PTR_CONST ".mapByteArray(2));"
+      "send(val.length);"
+      "send(val[0]);"
+      "send(val[1]);"
+      "val[0] = 42;"
+      "val[1] = 24;",
+      val);
+  EXPECT_SEND_MESSAGE_WITH ("2");
+  EXPECT_SEND_MESSAGE_WITH ("13");
+  EXPECT_SEND_MESSAGE_WITH ("37");
+  g_assert_cmpint (val[0], ==, 42);
+  g_assert_cmpint (val[1], ==, 24);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var val = new Uint8Array(" GUM_PTR_CONST ".mapByteArray(0));"
+      "send(val.length);"
+      "send(typeof val[0]);",
+      val);
+  EXPECT_SEND_MESSAGE_WITH ("0");
+  EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var val = new Uint8Array(NULL);"
+      "send(val.length);"
+      "send(typeof val[0]);");
+  EXPECT_SEND_MESSAGE_WITH ("0");
+  EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
 }
 
 TESTCASE (c_string_can_be_read)

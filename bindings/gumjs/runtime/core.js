@@ -139,6 +139,10 @@ Object.keys(Memory)
     }
   });
 
+pointerPrototype.mapByteArray = function (size) {
+  return Memory._mapByteArray(this, size);
+};
+
 function makePointerReadMethod(read) {
   return function (...args) {
     return read.call(Memory, this, ...args);
