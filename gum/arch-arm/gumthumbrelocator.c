@@ -119,6 +119,7 @@ gum_thumb_relocator_reset (GumThumbRelocator * relocator,
   if (relocator->output != NULL)
     gum_thumb_writer_unref (relocator->output);
   relocator->output = output;
+  relocator->output_it_scope = 0;
 
   relocator->inpos = 0;
   relocator->outpos = 0;
@@ -151,6 +152,19 @@ gum_thumb_relocator_increment_outpos (GumThumbRelocator * self)
 {
   self->outpos++;
   g_assert (self->outpos <= self->inpos);
+}
+
+inline guint8 get_it_instrument_scope(guint16 code) {
+  guint mask = code;
+
+  if (mask & 0x1)
+    return 4;
+  else if ((mask & 0x3) == 0x2)
+    return 3;
+  else if ((mask & 0x7) == 0x4)
+    return 2;
+  else
+    return 1;
 }
 
 guint
@@ -281,6 +295,12 @@ gum_thumb_relocator_write_one (GumThumbRelocator * self)
   ctx.detail = &ctx.insn->detail->arm;
   ctx.pc = insn->address + 4;
   ctx.output = self->output;
+  gboolean is_in_it_scope = FALSE;
+  
+  if(self->output_it_scope > 0) {
+    is_in_it_scope = TRUE;
+    self->output_it_scope--;
+  } 
 
   switch (insn->id)
   {
@@ -291,7 +311,7 @@ gum_thumb_relocator_write_one (GumThumbRelocator * self)
       rewritten = gum_thumb_relocator_rewrite_add (self, &ctx);
       break;
     case ARM_INS_B:
-      if (gum_arm_branch_is_unconditional (ctx.insn))
+      if (is_in_it_scope || gum_arm_branch_is_unconditional (ctx.insn))
         rewritten = gum_thumb_relocator_rewrite_b (self, CS_MODE_THUMB, &ctx);
       else
         rewritten = gum_thumb_relocator_rewrite_b_cond (self, &ctx);
@@ -308,6 +328,9 @@ gum_thumb_relocator_write_one (GumThumbRelocator * self)
     case ARM_INS_CBZ:
     case ARM_INS_CBNZ:
       rewritten = gum_thumb_relocator_rewrite_cbz (self, &ctx);
+      break;
+    case ARM_INS_IT:
+      self->output_it_scope =  get_it_instrument_scope(GUINT16_FROM_LE (*((guint16 *) insn->bytes)));
       break;
   }
 
