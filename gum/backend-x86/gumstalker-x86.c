@@ -28,6 +28,11 @@
 # include <psapi.h>
 # include <tchar.h>
 #endif
+#ifdef _MSC_VER
+# include <intrin.h>
+#else
+# include <cpuid.h>
+#endif
 
 #define GUM_CODE_ALIGNMENT                     8
 #define GUM_DATA_ALIGNMENT                     8
@@ -56,11 +61,14 @@ typedef struct _GumBranchTarget GumBranchTarget;
 
 typedef guint GumVirtualizationRequirements;
 
+typedef guint GumCpuFeatures;
+
 struct _GumStalker
 {
   GObject parent;
 
   guint page_size;
+  GumCpuFeatures cpu_features;
 
   GMutex mutex;
   GSList * contexts;
@@ -275,6 +283,11 @@ enum _GumVirtualizationRequirements
   GUM_REQUIRE_SINGLE_STEP     = 1 << 1
 };
 
+enum _GumCpuFeatures
+{
+  GUM_CPU_AVX2                = 1 << 0,
+};
+
 #define GUM_STALKER_LOCK(o) g_mutex_lock (&(o)->mutex)
 #define GUM_STALKER_UNLOCK(o) g_mutex_unlock (&(o)->mutex)
 
@@ -441,6 +454,10 @@ static gboolean gum_stalker_on_exception (GumExceptionDetails * details,
     gpointer user_data);
 #endif
 
+static GumCpuFeatures gum_query_cpu_features (void);
+static gboolean gum_get_cpuid (guint level, guint * a, guint * b, guint * c,
+    guint * d);
+
 G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
 
 gboolean
@@ -523,6 +540,7 @@ gum_stalker_init (GumStalker * self)
 #endif
 
   self->page_size = gum_query_page_size ();
+  self->cpu_features = gum_query_cpu_features ();
   g_mutex_init (&self->mutex);
   self->contexts = NULL;
   self->exec_ctx = gum_tls_key_new ();
@@ -1991,8 +2009,12 @@ gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
   gum_x86_writer_put_and_reg_u32 (cw, GUM_REG_XSP, (guint32) ~(16 - 1));
   gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XSP, 512);
   gum_x86_writer_put_bytes (cw, fxsave, sizeof (fxsave));
-  gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XSP, 0x100);
-  gum_x86_writer_put_bytes (cw, upper_ymm_saver, sizeof (upper_ymm_saver));
+
+  if ((ctx->stalker->cpu_features & GUM_CPU_AVX2) != 0)
+  {
+    gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XSP, 0x100);
+    gum_x86_writer_put_bytes (cw, upper_ymm_saver, sizeof (upper_ymm_saver));
+  }
 
   /* Jump to our caller but leave it on the stack */
   gum_x86_writer_put_jmp_reg_offset_ptr (cw,
@@ -2049,9 +2071,13 @@ gum_exec_ctx_write_epilog_helper (GumExecCtx * ctx,
           : GUM_FULL_PROLOG_RETURN_OFFSET,
       GUM_REG_XAX);
 
-  gum_x86_writer_put_bytes (cw, upper_ymm_restorer,
-      sizeof (upper_ymm_restorer));
-  gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XSP, 0x100);
+  if ((ctx->stalker->cpu_features & GUM_CPU_AVX2) != 0)
+  {
+    gum_x86_writer_put_bytes (cw, upper_ymm_restorer,
+        sizeof (upper_ymm_restorer));
+    gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XSP, 0x100);
+  }
+
   gum_x86_writer_put_bytes (cw, fxrstor, sizeof (fxrstor));
   gum_x86_writer_put_mov_reg_reg (cw, GUM_REG_XSP, GUM_REG_XBX);
 
@@ -4025,4 +4051,56 @@ gum_stalker_dump_counters (void)
   g_printerr ("\n");
 
   GUM_PRINT_ENTRYGATE_COUNTER (jmp_continuation);
+}
+
+static GumCpuFeatures
+gum_query_cpu_features (void)
+{
+  GumCpuFeatures features = 0;
+  guint a, b, c, d;
+
+  if (gum_get_cpuid (7, &a, &b, &c, &d))
+  {
+    if ((b & (1 << 5)) != 0)
+      features |= GUM_CPU_AVX2;
+  }
+
+  return features;
+}
+
+static gboolean
+gum_get_cpuid (guint level,
+               guint * a,
+               guint * b,
+               guint * c,
+               guint * d)
+{
+#ifdef _MSC_VER
+  gint info[40];
+  guint n;
+
+  __cpuid (info, 0);
+  n = info[0];
+  if (n < level)
+    return FALSE;
+
+  __cpuid (info, level);
+
+  *a = info[0];
+  *b = info[1];
+  *c = info[2];
+  *d = info[3];
+
+  return TRUE;
+#else
+  guint n;
+
+  n = __get_cpuid_max (0, NULL);
+  if (n < level)
+    return FALSE;
+
+  __cpuid_count (level, 0, *a, *b, *c, *d);
+
+  return TRUE;
+#endif
 }
