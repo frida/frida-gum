@@ -336,8 +336,8 @@ static GumExecBlock * gum_exec_block_new (GumExecCtx * ctx);
 static GumExecBlock * gum_exec_block_obtain (GumExecCtx * ctx,
     gpointer real_address, gpointer * code_address);
 static gboolean gum_exec_block_is_full (GumExecBlock * block);
-static GumAddress gum_exec_block_check_address_for_exclusion (
-    GumExecBlock * block, GumAddress address);
+static gconstpointer gum_exec_block_check_address_for_exclusion (
+    GumExecBlock * block, gconstpointer address);
 static void gum_exec_block_commit (GumExecBlock * block);
 
 static GumVirtualizationRequirements gum_exec_block_virtualize_branch_insn (
@@ -454,6 +454,24 @@ gum_stalker_exclude (GumStalker * self,
                      const GumMemoryRange * range)
 {
   g_array_append_val (self->exclusions, *range);
+}
+
+static gboolean
+gum_stalker_is_excluding (GumStalker * self,
+                          gconstpointer address)
+{
+  GArray * exclusions = self->exclusions;
+  guint i;
+
+  for (i = 0; i != exclusions->len; i++)
+  {
+    GumMemoryRange * r = &g_array_index (exclusions, GumMemoryRange, i);
+
+    if (GUM_MEMORY_RANGE_INCLUDES (r, GUM_ADDRESS (address)))
+      return TRUE;
+  }
+
+  return FALSE;
 }
 
 gint
@@ -2195,24 +2213,17 @@ gum_exec_block_is_full (GumExecBlock * block)
   return slab_end - block->code_end < GUM_EXEC_BLOCK_MIN_SIZE;
 }
 
-static GumAddress
+static gconstpointer
 gum_exec_block_check_address_for_exclusion (GumExecBlock * block,
-                                            GumAddress address)
+                                            gconstpointer address)
 {
   GumExecCtx * ctx = block->ctx;
-  GArray * exclusions = ctx->stalker->exclusions;
-  guint i;
 
   if (ctx->activation_target != NULL)
     return address;
 
-  for (i = 0; i != exclusions->len; i++)
-  {
-    GumMemoryRange * r = &g_array_index (exclusions, GumMemoryRange, i);
-
-    if (GUM_MEMORY_RANGE_INCLUDES (r, address))
-      return GUM_ADDRESS (0);
-  }
+  if (gum_stalker_is_excluding (ctx->stalker, address))
+    return NULL;
 
   return address;
 }
@@ -2497,20 +2508,8 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
     if (target.reg == ARM64_REG_INVALID &&
         ctx->activation_target == NULL)
     {
-      GArray * exclusions = ctx->stalker->exclusions;
-      guint i;
-
-      for (i = 0; i != exclusions->len; i++)
-      {
-        GumMemoryRange * r = &g_array_index (exclusions, GumMemoryRange, i);
-
-        if (GUM_MEMORY_RANGE_INCLUDES (r,
-            GUM_ADDRESS (target.absolute_address)))
-        {
-          target_is_excluded = TRUE;
-          break;
-        }
-      }
+      target_is_excluded =
+          gum_stalker_is_excluding (ctx->stalker, target.absolute_address);
     }
 
     if (target_is_excluded)

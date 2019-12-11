@@ -593,6 +593,24 @@ gum_stalker_exclude (GumStalker * self,
   g_array_append_val (self->exclusions, *range);
 }
 
+static gboolean
+gum_stalker_is_excluding (GumStalker * self,
+                          gconstpointer address)
+{
+  GArray * exclusions = self->exclusions;
+  guint i;
+
+  for (i = 0; i != exclusions->len; i++)
+  {
+    GumMemoryRange * r = &g_array_index (exclusions, GumMemoryRange, i);
+
+    if (GUM_MEMORY_RANGE_INCLUDES (r, GUM_ADDRESS (address)))
+      return TRUE;
+  }
+
+  return FALSE;
+}
+
 gint
 gum_stalker_get_trust_threshold (GumStalker * self)
 {
@@ -2841,19 +2859,8 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
     if (!target.is_indirect && target.base == X86_REG_INVALID &&
         ctx->activation_target == NULL)
     {
-      GArray * exclusions = ctx->stalker->exclusions;
-      guint i;
-
-      for (i = 0; i != exclusions->len; i++)
-      {
-        GumMemoryRange * r = &g_array_index (exclusions, GumMemoryRange, i);
-        if (GUM_MEMORY_RANGE_INCLUDES (r,
-            GUM_ADDRESS (target.absolute_address)))
-        {
-          target_is_excluded = TRUE;
-          break;
-        }
-      }
+      target_is_excluded =
+          gum_stalker_is_excluding (ctx->stalker, target.absolute_address);
     }
 
     if (target_is_excluded)
