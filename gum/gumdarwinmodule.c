@@ -2519,8 +2519,8 @@ gum_darwin_module_image_dup (const GumDarwinModuleImage * other)
 
   if (image->linkedit == NULL && other->linkedit != NULL)
   {
-    g_assert (other->linkedit >= other->data &&
-        other->linkedit < other->data + other->size);
+    g_assert (other->linkedit >= other->data && other->linkedit <
+        (gconstpointer) ((guint8 *) other->data + other->size));
     image->linkedit = (guint8 *) image->data +
         ((guint8 *) other->linkedit - (guint8 *) other->data);
   }
