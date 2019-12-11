@@ -156,6 +156,7 @@ struct _GumExecCtx
 
   gboolean unfollow_called_while_still_following;
   GumExecBlock * current_block;
+  gpointer pending_return_location;
   guint pending_calls;
   GumExecFrame * current_frame;
   GumExecFrame * first_frame;
@@ -314,6 +315,8 @@ static void gum_stalker_disinfect (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 G_GNUC_INTERNAL void _gum_stalker_do_activate (GumStalker * self,
     gconstpointer target, gpointer * ret_addr_ptr);
+G_GNUC_INTERNAL void _gum_stalker_do_deactivate (GumStalker * self,
+    gpointer * ret_addr_ptr);
 
 static void gum_stalker_free_probe_array (gpointer data);
 
@@ -931,6 +934,16 @@ gum_stalker_activate (GumStalker * self,
   _gum_stalker_do_activate (self, target, ret_addr_ptr);
 }
 
+void
+gum_stalker_deactivate (GumStalker * self)
+{
+  gpointer * ret_addr_ptr;
+
+  ret_addr_ptr = RETURN_ADDRESS_POINTER_FROM_FIRST_ARGUMENT (self);
+
+  _gum_stalker_do_deactivate (self, ret_addr_ptr);
+}
+
 #endif
 
 void
@@ -947,7 +960,7 @@ _gum_stalker_do_activate (GumStalker * self,
 
   ctx->activation_target = target;
 
-  if (ctx->pending_calls > 0 && !gum_exec_ctx_contains (ctx, ret_addr))
+  if (!gum_exec_ctx_contains (ctx, ret_addr))
   {
     gpointer code_address;
 
@@ -959,7 +972,8 @@ _gum_stalker_do_activate (GumStalker * self,
 }
 
 void
-gum_stalker_deactivate (GumStalker * self)
+_gum_stalker_do_deactivate (GumStalker * self,
+                            gpointer * ret_addr_ptr)
 {
   GumExecCtx * ctx;
 
@@ -968,6 +982,13 @@ gum_stalker_deactivate (GumStalker * self)
     return;
 
   ctx->activation_target = NULL;
+
+  if (gum_exec_ctx_contains (ctx, *ret_addr_ptr))
+  {
+    ctx->pending_calls--;
+
+    *ret_addr_ptr = ctx->pending_return_location;
+  }
 }
 
 GumProbeId
@@ -1360,7 +1381,7 @@ gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
     ctx->current_block = NULL;
     ctx->resume_at = start_address;
   }
-  else if (start_address == gum_stalker_deactivate && ctx->pending_calls > 0)
+  else if (start_address == gum_stalker_deactivate)
   {
     ctx->resume_at = start_address;
   }
@@ -2869,17 +2890,21 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
 
       gum_exec_block_open_prolog (block, GUM_PROLOG_IC, gc);
       gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
+          GUM_ADDRESS (insn->end));
+      gum_x86_writer_put_mov_near_ptr_reg (cw,
+          GUM_ADDRESS (&ctx->pending_return_location), GUM_REG_XAX);
+      gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
           GUM_ADDRESS (&ctx->pending_calls));
       gum_x86_writer_put_inc_reg_ptr (cw, GUM_PTR_DWORD, GUM_REG_XAX);
       gum_exec_block_close_prolog (block, gc);
 
       gum_x86_relocator_write_one_no_label (gc->relocator);
 
-      gum_exec_block_open_prolog (block, GUM_PROLOG_IC, gc);
+      gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
+
       gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
           GUM_ADDRESS (&ctx->pending_calls));
       gum_x86_writer_put_dec_reg_ptr (cw, GUM_PTR_DWORD, GUM_REG_XAX);
-      gum_exec_block_close_prolog (block, gc);
 
       next_instruction.is_indirect = FALSE;
       next_instruction.absolute_address = insn->end;

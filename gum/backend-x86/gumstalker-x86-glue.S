@@ -57,3 +57,31 @@ jmp __gum_stalker_do_activate
 jmp _gum_stalker_do_activate
 #endif
 #endif
+
+#ifdef __APPLE__
+.globl _gum_stalker_deactivate
+_gum_stalker_deactivate:
+#else
+.globl gum_stalker_deactivate
+gum_stalker_deactivate:
+#endif
+#ifdef i386
+movl %esp, %eax
+subl $4, %esp
+pushl %eax
+pushl (4 + 0)(%eax)
+#ifdef __APPLE__
+call __gum_stalker_do_deactivate
+#else
+call _gum_stalker_do_deactivate
+#endif
+addl $12, %esp
+ret
+#else
+mov %rsp, %rsi
+#ifdef __APPLE__
+jmp __gum_stalker_do_deactivate
+#else
+jmp _gum_stalker_do_deactivate
+#endif
+#endif

@@ -134,6 +134,7 @@ struct _GumExecCtx
 
   gboolean unfollow_called_while_still_following;
   GumExecBlock * current_block;
+  gpointer pending_return_location;
   guint pending_calls;
   GumExecFrame * current_frame;
   GumExecFrame * first_frame;
@@ -260,6 +261,8 @@ static void gum_stalker_disinfect (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 G_GNUC_INTERNAL gpointer _gum_stalker_do_activate (GumStalker * self,
     gconstpointer target, gpointer ret_addr);
+G_GNUC_INTERNAL gpointer _gum_stalker_do_deactivate (GumStalker * self,
+    gpointer ret_addr);
 
 static void gum_stalker_free_probe_array (gpointer data);
 
@@ -282,7 +285,7 @@ static gboolean gum_exec_ctx_has_executed (GumExecCtx * ctx);
 static gboolean gum_exec_ctx_contains (GumExecCtx * ctx, gconstpointer address);
 static gpointer gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
     gpointer start_address);
-static void gum_exec_ctx_begin_call (GumExecCtx * ctx);
+static void gum_exec_ctx_begin_call (GumExecCtx * ctx, gpointer ret_addr);
 static void gum_exec_ctx_end_call (GumExecCtx * ctx);
 static void gum_exec_ctx_create_thunks (GumExecCtx * ctx);
 static void gum_exec_ctx_destroy_thunks (GumExecCtx * ctx);
@@ -779,7 +782,7 @@ _gum_stalker_do_activate (GumStalker * self,
 
   ctx->activation_target = target;
 
-  if (ctx->pending_calls > 0 && !gum_exec_ctx_contains (ctx, ret_addr))
+  if (!gum_exec_ctx_contains (ctx, ret_addr))
   {
     gpointer code_address;
 
@@ -792,16 +795,26 @@ _gum_stalker_do_activate (GumStalker * self,
   return ret_addr;
 }
 
-void
-gum_stalker_deactivate (GumStalker * self)
+gpointer
+_gum_stalker_do_deactivate (GumStalker * self,
+                            gpointer ret_addr)
 {
   GumExecCtx * ctx;
 
   ctx = gum_stalker_get_exec_ctx (self);
   if (ctx == NULL)
-    return;
+    return ret_addr;
 
   ctx->activation_target = NULL;
+
+  if (gum_exec_ctx_contains (ctx, ret_addr))
+  {
+    ctx->pending_calls--;
+
+    return ctx->pending_return_location;
+  }
+
+  return ret_addr;
 }
 
 GumProbeId
@@ -1226,7 +1239,7 @@ gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
     ctx->current_block = NULL;
     ctx->resume_at = start_address;
   }
-  else if (start_address == gum_stalker_deactivate && ctx->pending_calls > 0)
+  else if (start_address == gum_stalker_deactivate)
   {
     ctx->current_block = NULL;
     ctx->resume_at = start_address;
@@ -1254,8 +1267,10 @@ gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
 }
 
 static void
-gum_exec_ctx_begin_call (GumExecCtx * ctx)
+gum_exec_ctx_begin_call (GumExecCtx * ctx,
+                         gpointer ret_addr)
 {
+  ctx->pending_return_location = ret_addr;
   ctx->pending_calls++;
 }
 
@@ -2518,8 +2533,9 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
 
       gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
       gum_arm64_writer_put_call_address_with_arguments (cw,
-          GUM_ADDRESS (gum_exec_ctx_begin_call), 1,
-          GUM_ARG_ADDRESS, GUM_ADDRESS (ctx));
+          GUM_ADDRESS (gum_exec_ctx_begin_call), 2,
+          GUM_ARG_ADDRESS, GUM_ADDRESS (ctx),
+          GUM_ARG_ADDRESS, GUM_ADDRESS (insn->end));
       gum_exec_block_close_prolog (block, gc);
 
       gum_arm64_relocator_write_one (gc->relocator);
@@ -2975,8 +2991,9 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
 
   if (target->reg != ARM64_REG_INVALID)
   {
+    GumInstruction * insn = gc->instruction;
     GumBranchTarget next_insn_as_target = { 0, };
-    next_insn_as_target.absolute_address = gc->instruction->end;
+    next_insn_as_target.absolute_address = insn->end;
     next_insn_as_target.reg = ARM64_REG_INVALID;
 
     gum_arm64_writer_put_label (cw, keep_this_blr);
@@ -2984,8 +3001,9 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
     gc->opened_prolog = second_prolog;
 
     gum_arm64_writer_put_call_address_with_arguments (cw,
-        GUM_ADDRESS (gum_exec_ctx_begin_call), 1,
-        GUM_ARG_ADDRESS, GUM_ADDRESS (ctx));
+        GUM_ADDRESS (gum_exec_ctx_begin_call), 2,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (ctx),
+        GUM_ARG_ADDRESS, GUM_ADDRESS (insn->end));
     gum_exec_block_close_prolog (block, gc);
 
     gum_arm64_writer_put_blr_reg (cw, target->reg);
