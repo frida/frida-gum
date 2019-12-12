@@ -29,7 +29,7 @@
 #include "gummetalhash.h"
 
 #include "gumlibc.h"
-#include "gummemory.h"
+#include "gummemory-priv.h"
 
 #define HASH_TABLE_MIN_SHIFT 3
 
@@ -105,26 +105,7 @@ static const gint prime_mod [] =
 };
 
 #define gum_metal_new0(struct_type, n_structs) \
-    (struct_type *) gum_metal_malloc (n_structs * sizeof (struct_type))
-
-static gpointer
-gum_metal_malloc (gsize size)
-{
-  guint page_size, n_pages;
-
-  page_size = gum_query_page_size ();
-  n_pages = size / page_size;
-  if (size % page_size != 0)
-    n_pages++;
-
-  return gum_alloc_n_pages (n_pages, GUM_PAGE_RW);
-}
-
-static void
-gum_metal_free (gpointer mem)
-{
-  gum_free_pages (mem);
-}
+    (struct_type *) gum_internal_calloc (n_structs, sizeof (struct_type))
 
 static void
 gum_metal_hash_table_set_shift (GumMetalHashTable *hash_table, gint shift)
@@ -336,10 +317,10 @@ gum_metal_hash_table_resize (GumMetalHashTable *hash_table)
     }
 
   if (hash_table->keys != hash_table->values)
-    gum_metal_free (hash_table->values);
+    gum_internal_free (hash_table->values);
 
-  gum_metal_free (hash_table->keys);
-  gum_metal_free (hash_table->hashes);
+  gum_internal_free (hash_table->keys);
+  gum_internal_free (hash_table->hashes);
 
   hash_table->keys = new_keys;
   hash_table->values = new_values;
@@ -375,7 +356,7 @@ gum_metal_hash_table_new_full (GHashFunc      hash_func,
 {
   GumMetalHashTable *hash_table;
 
-  hash_table = g_slice_new (GumMetalHashTable);
+  hash_table = gum_internal_malloc (sizeof (GumMetalHashTable));
   gum_metal_hash_table_set_shift (hash_table, HASH_TABLE_MIN_SHIFT);
   hash_table->nnodes             = 0;
   hash_table->noccupied          = 0;
@@ -572,10 +553,10 @@ gum_metal_hash_table_unref (GumMetalHashTable *hash_table)
     {
       gum_metal_hash_table_remove_all_nodes (hash_table, TRUE);
       if (hash_table->keys != hash_table->values)
-        gum_metal_free (hash_table->values);
-      gum_metal_free (hash_table->keys);
-      gum_metal_free (hash_table->hashes);
-      g_slice_free (GumMetalHashTable, hash_table);
+        gum_internal_free (hash_table->values);
+      gum_internal_free (hash_table->keys);
+      gum_internal_free (hash_table->hashes);
+      gum_internal_free (hash_table);
     }
 }
 
