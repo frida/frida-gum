@@ -25,80 +25,73 @@
 #ifndef __GUM_METAL_HASH_H__
 #define __GUM_METAL_HASH_H__
 
-#include <glib.h>
+#include <gum/gumdefs.h>
 
 G_BEGIN_DECLS
 
-typedef struct _GumMetalHashTable  GumMetalHashTable;
+typedef struct _GumMetalHashTable GumMetalHashTable;
 typedef struct _GumMetalHashTableIter GumMetalHashTableIter;
 
 struct _GumMetalHashTableIter
 {
-  gpointer      dummy1;
-  gpointer      dummy2;
-  gpointer      dummy3;
-  int           dummy4;
-  gboolean      dummy5;
-  gpointer      dummy6;
+  gpointer dummy1;
+  gpointer dummy2;
+  gpointer dummy3;
+  int dummy4;
+  gboolean dummy5;
+  gpointer dummy6;
 };
 
-GumMetalHashTable* gum_metal_hash_table_new               (GHashFunc       hash_func,
-                                            GEqualFunc      key_equal_func);
-GumMetalHashTable* gum_metal_hash_table_new_full          (GHashFunc       hash_func,
-                                            GEqualFunc      key_equal_func,
-                                            GDestroyNotify  key_destroy_func,
-                                            GDestroyNotify  value_destroy_func);
-void        gum_metal_hash_table_destroy           (GumMetalHashTable     *hash_table);
-gboolean    gum_metal_hash_table_insert            (GumMetalHashTable     *hash_table,
-                                            gpointer        key,
-                                            gpointer        value);
-gboolean    gum_metal_hash_table_replace           (GumMetalHashTable     *hash_table,
-                                            gpointer        key,
-                                            gpointer        value);
-gboolean    gum_metal_hash_table_add               (GumMetalHashTable     *hash_table,
-                                            gpointer        key);
-gboolean    gum_metal_hash_table_remove            (GumMetalHashTable     *hash_table,
-                                            gconstpointer   key);
-void        gum_metal_hash_table_remove_all        (GumMetalHashTable     *hash_table);
-gboolean    gum_metal_hash_table_steal             (GumMetalHashTable     *hash_table,
-                                            gconstpointer   key);
-void        gum_metal_hash_table_steal_all         (GumMetalHashTable     *hash_table);
-gpointer    gum_metal_hash_table_lookup            (GumMetalHashTable     *hash_table,
-                                            gconstpointer   key);
-gboolean    gum_metal_hash_table_contains          (GumMetalHashTable     *hash_table,
-                                            gconstpointer   key);
-gboolean    gum_metal_hash_table_lookup_extended   (GumMetalHashTable     *hash_table,
-                                            gconstpointer   lookup_key,
-                                            gpointer       *orig_key,
-                                            gpointer       *value);
-void        gum_metal_hash_table_foreach           (GumMetalHashTable     *hash_table,
-                                            GHFunc          func,
-                                            gpointer        user_data);
-gpointer    gum_metal_hash_table_find              (GumMetalHashTable     *hash_table,
-                                            GHRFunc         predicate,
-                                            gpointer        user_data);
-guint       gum_metal_hash_table_foreach_remove    (GumMetalHashTable     *hash_table,
-                                            GHRFunc         func,
-                                            gpointer        user_data);
-guint       gum_metal_hash_table_foreach_steal     (GumMetalHashTable     *hash_table,
-                                            GHRFunc         func,
-                                            gpointer        user_data);
-guint       gum_metal_hash_table_size              (GumMetalHashTable     *hash_table);
+GUM_API GumMetalHashTable * gum_metal_hash_table_new (GHashFunc hash_func,
+    GEqualFunc key_equal_func);
+GUM_API GumMetalHashTable * gum_metal_hash_table_new_full (GHashFunc hash_func,
+    GEqualFunc key_equal_func, GDestroyNotify key_destroy_func,
+    GDestroyNotify value_destroy_func);
+GUM_API void gum_metal_hash_table_destroy (GumMetalHashTable * hash_table);
+GUM_API gboolean gum_metal_hash_table_insert (GumMetalHashTable * hash_table,
+    gpointer key, gpointer value);
+GUM_API gboolean gum_metal_hash_table_replace (GumMetalHashTable * hash_table,
+    gpointer key, gpointer value);
+GUM_API gboolean gum_metal_hash_table_add (GumMetalHashTable * hash_table,
+    gpointer key);
+GUM_API gboolean gum_metal_hash_table_remove (GumMetalHashTable * hash_table,
+    gconstpointer key);
+GUM_API void gum_metal_hash_table_remove_all (GumMetalHashTable * hash_table);
+GUM_API gboolean gum_metal_hash_table_steal (GumMetalHashTable * hash_table,
+    gconstpointer key);
+GUM_API void gum_metal_hash_table_steal_all (GumMetalHashTable * hash_table);
+GUM_API gpointer gum_metal_hash_table_lookup (GumMetalHashTable * hash_table,
+    gconstpointer key);
+GUM_API gboolean gum_metal_hash_table_contains (GumMetalHashTable * hash_table,
+    gconstpointer key);
+GUM_API gboolean gum_metal_hash_table_lookup_extended (
+    GumMetalHashTable * hash_table, gconstpointer lookup_key,
+    gpointer * orig_key, gpointer * value);
+GUM_API void gum_metal_hash_table_foreach (GumMetalHashTable * hash_table,
+    GHFunc func, gpointer user_data);
+GUM_API gpointer gum_metal_hash_table_find (GumMetalHashTable * hash_table,
+    GHRFunc predicate, gpointer user_data);
+GUM_API guint gum_metal_hash_table_foreach_remove (
+    GumMetalHashTable * hash_table, GHRFunc func, gpointer user_data);
+GUM_API guint gum_metal_hash_table_foreach_steal (GumMetalHashTable * hash_table,
+    GHRFunc func, gpointer user_data);
+GUM_API guint gum_metal_hash_table_size (GumMetalHashTable * hash_table);
 
-void        gum_metal_hash_table_iter_init         (GumMetalHashTableIter *iter,
-                                            GumMetalHashTable     *hash_table);
-gboolean    gum_metal_hash_table_iter_next         (GumMetalHashTableIter *iter,
-                                            gpointer       *key,
-                                            gpointer       *value);
-GumMetalHashTable* gum_metal_hash_table_iter_get_hash_table (GumMetalHashTableIter *iter);
-void        gum_metal_hash_table_iter_remove       (GumMetalHashTableIter *iter);
-void        gum_metal_hash_table_iter_replace      (GumMetalHashTableIter *iter,
-                                            gpointer        value);
-void        gum_metal_hash_table_iter_steal        (GumMetalHashTableIter *iter);
+GUM_API void gum_metal_hash_table_iter_init (GumMetalHashTableIter * iter,
+    GumMetalHashTable * hash_table);
+GUM_API gboolean gum_metal_hash_table_iter_next (GumMetalHashTableIter * iter,
+    gpointer * key, gpointer * value);
+GUM_API GumMetalHashTable* gum_metal_hash_table_iter_get_hash_table (
+    GumMetalHashTableIter * iter);
+GUM_API void gum_metal_hash_table_iter_remove (GumMetalHashTableIter * iter);
+GUM_API void gum_metal_hash_table_iter_replace (GumMetalHashTableIter * iter,
+    gpointer value);
+GUM_API void gum_metal_hash_table_iter_steal (GumMetalHashTableIter * iter);
 
-GumMetalHashTable* gum_metal_hash_table_ref               (GumMetalHashTable     *hash_table);
-void        gum_metal_hash_table_unref             (GumMetalHashTable     *hash_table);
+GUM_API GumMetalHashTable * gum_metal_hash_table_ref (
+    GumMetalHashTable * hash_table);
+GUM_API void gum_metal_hash_table_unref (GumMetalHashTable * hash_table);
 
 G_END_DECLS
 
-#endif /* __GUM_METAL_HASH_H__ */
+#endif

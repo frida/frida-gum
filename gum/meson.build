@@ -20,6 +20,8 @@ gum_headers = [
   'gummemory.h',
   'gummemoryaccessmonitor.h',
   'gummemorymap.h',
+  'gummetalarray.h',
+  'gummetalhash.h',
   'gummoduleapiresolver.h',
   'gummodulemap.h',
   'gumprintf.h',

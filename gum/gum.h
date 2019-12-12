@@ -27,6 +27,8 @@
 #include <gum/gummemory.h>
 #include <gum/gummemoryaccessmonitor.h>
 #include <gum/gummemorymap.h>
+#include <gum/gummetalarray.h>
+#include <gum/gummetalhash.h>
 #include <gum/gummoduleapiresolver.h>
 #include <gum/gummodulemap.h>
 #include <gum/gumprintf.h>
