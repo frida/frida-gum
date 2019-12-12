@@ -65,7 +65,7 @@ static void gum_match_token_append_with_mask (GumMatchToken * self,
 
 static guint gum_heap_ref_count = 0;
 static mspace gum_mspace_main = NULL;
-static mspace gum_mspace_capstone = NULL;
+static mspace gum_mspace_internal = NULL;
 static guint gum_cached_page_size;
 
 #ifdef HAVE_ANDROID
@@ -89,7 +89,7 @@ gum_internal_heap_ref (void)
   _gum_cloak_init ();
 
   gum_mspace_main = create_mspace (0, TRUE);
-  gum_mspace_capstone = create_mspace (0, TRUE);
+  gum_mspace_internal = create_mspace (0, TRUE);
 }
 
 void
@@ -99,8 +99,8 @@ gum_internal_heap_unref (void)
   if (--gum_heap_ref_count > 0)
     return;
 
-  destroy_mspace (gum_mspace_capstone);
-  gum_mspace_capstone = NULL;
+  destroy_mspace (gum_mspace_internal);
+  gum_mspace_internal = NULL;
 
   destroy_mspace (gum_mspace_main);
   gum_mspace_main = NULL;
@@ -716,7 +716,7 @@ gum_peek_private_memory_usage (void)
   info = mspace_mallinfo (gum_mspace_main);
   total += (guint) info.uordblks;
 
-  info = mspace_mallinfo (gum_mspace_capstone);
+  info = mspace_mallinfo (gum_mspace_internal);
   total += (guint) info.uordblks;
 
   return total;
@@ -774,29 +774,29 @@ gum_free (gpointer mem)
 }
 
 gpointer
-gum_cs_malloc (size_t size)
+gum_internal_malloc (size_t size)
 {
-  return mspace_malloc (gum_mspace_capstone, size);
+  return mspace_malloc (gum_mspace_internal, size);
 }
 
 gpointer
-gum_cs_calloc (size_t count,
-               size_t size)
+gum_internal_calloc (size_t count,
+                     size_t size)
 {
-  return mspace_calloc (gum_mspace_capstone, count, size);
+  return mspace_calloc (gum_mspace_internal, count, size);
 }
 
 gpointer
-gum_cs_realloc (gpointer mem,
-                size_t size)
+gum_internal_realloc (gpointer mem,
+                      size_t size)
 {
-  return mspace_realloc (gum_mspace_capstone, mem, size);
+  return mspace_realloc (gum_mspace_internal, mem, size);
 }
 
 void
-gum_cs_free (gpointer mem)
+gum_internal_free (gpointer mem)
 {
-  mspace_free (gum_mspace_capstone, mem);
+  mspace_free (gum_mspace_internal, mem);
 }
 
 gpointer

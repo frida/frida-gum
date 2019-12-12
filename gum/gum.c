@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -149,10 +149,10 @@ static void
 gum_do_init (void)
 {
   cs_opt_mem gum_cs_mem_callbacks = {
-    gum_cs_malloc,
-    gum_cs_calloc,
-    gum_cs_realloc,
-    gum_cs_free,
+    gum_internal_malloc,
+    gum_internal_calloc,
+    gum_internal_realloc,
+    gum_internal_free,
     (cs_vsnprintf_t) gum_vsnprintf
   };
 
