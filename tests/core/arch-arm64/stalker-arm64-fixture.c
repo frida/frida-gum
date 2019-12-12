@@ -181,28 +181,7 @@ silence_warnings (void)
   (void) test_arm64_stalker_fixture_follow_and_invoke;
 }
 
-typedef struct _StalkerVictimContext StalkerVictimContext;
-typedef guint StalkerVictimState;
 typedef struct _UnfollowTransformContext UnfollowTransformContext;
-
-struct _StalkerVictimContext
-{
-  volatile StalkerVictimState state;
-  GumThreadId thread_id;
-  GMutex mutex;
-  GCond cond;
-};
-
-enum _StalkerVictimState
-{
-  STALKER_VICTIM_CREATED = 1,
-  STALKER_VICTIM_READY_FOR_FOLLOW,
-  STALKER_VICTIM_IS_FOLLOWED,
-  STALKER_VICTIM_READY_FOR_UNFOLLOW,
-  STALKER_VICTIM_IS_UNFOLLOWED,
-  STALKER_VICTIM_READY_FOR_SHUTDOWN,
-  STALKER_VICTIM_IS_SHUTDOWN
-};
 
 struct _UnfollowTransformContext
 {

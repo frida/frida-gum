@@ -7,6 +7,8 @@
 
 #include "stalker-x86-fixture.c"
 
+#include "../stalkerdummychannel.c"
+
 #ifndef G_OS_WIN32
 # include <lzma.h>
 #endif
@@ -79,12 +81,12 @@ TESTLIST_BEGIN (stalker)
 #endif
 TESTLIST_END ()
 
+static gpointer run_stalked_briefly (gpointer data);
 #ifndef G_OS_WIN32
 static gboolean store_range_of_test_runner (const GumModuleDetails * details,
     gpointer user_data);
 static void pretend_workload (GumMemoryRange * runner_range);
 #endif
-static gpointer stalker_victim (gpointer data);
 static void insert_extra_increment_after_xor (GumStalkerIterator * iterator,
     GumStalkerWriter * output, gpointer user_data);
 static void store_xax (GumCpuContext * cpu_context, gpointer user_data);
@@ -128,110 +130,54 @@ TESTCASE (follow_syscall)
 
 TESTCASE (follow_thread)
 {
-  StalkerVictimContext ctx;
-  GumThreadId thread_id;
+  StalkerDummyChannel channel;
   GThread * thread;
+  GumThreadId thread_id;
 
-#if defined (G_OS_WIN32) || defined (HAVE_LINUX)
-  if (!g_test_slow ())
-  {
-    g_print ("<not yet stable on this OS; skipping, run in slow mode> ");
-    return;
-  }
-#endif
+  sdc_init (&channel);
 
-  ctx.state = STALKER_VICTIM_CREATED;
-  g_mutex_init (&ctx.mutex);
-  g_cond_init (&ctx.cond);
+  thread = g_thread_new ("stalker-test-target", run_stalked_briefly, &channel);
+  thread_id = sdc_await_thread_id (&channel);
 
-  thread = g_thread_new ("stalker-test-victim", stalker_victim, &ctx);
-
-  /* 1: Wait for victim to tell us it's ready, giving its thread id */
-  g_mutex_lock (&ctx.mutex);
-  while (ctx.state != STALKER_VICTIM_READY_FOR_FOLLOW)
-    g_cond_wait (&ctx.cond, &ctx.mutex);
-  thread_id = ctx.thread_id;
-  g_mutex_unlock (&ctx.mutex);
-
-  /* 4: Follow and notify victim about it */
   fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
   gum_stalker_follow (fixture->stalker, thread_id, NULL,
       GUM_EVENT_SINK (fixture->sink));
-  g_mutex_lock (&ctx.mutex);
-  ctx.state = STALKER_VICTIM_IS_FOLLOWED;
-  g_cond_signal (&ctx.cond);
-  g_mutex_unlock (&ctx.mutex);
+  sdc_put_follow_confirmation (&channel);
 
-  /* 5: Wait for victim to tell us to unfollow */
-  g_mutex_lock (&ctx.mutex);
-  while (ctx.state != STALKER_VICTIM_READY_FOR_UNFOLLOW)
-    g_cond_wait (&ctx.cond, &ctx.mutex);
-  g_mutex_unlock (&ctx.mutex);
-
+  sdc_await_run_confirmation (&channel);
   g_assert_cmpuint (fixture->sink->events->len, >, 0);
 
-  /* 8: Unfollow and notify victim about it */
   gum_stalker_unfollow (fixture->stalker, thread_id);
-  g_mutex_lock (&ctx.mutex);
-  ctx.state = STALKER_VICTIM_IS_UNFOLLOWED;
-  g_cond_signal (&ctx.cond);
-  g_mutex_unlock (&ctx.mutex);
+  sdc_put_unfollow_confirmation (&channel);
 
-  /* 9: Wait for victim to tell us it's ready for us to reset the sink */
-  g_mutex_lock (&ctx.mutex);
-  while (ctx.state != STALKER_VICTIM_READY_FOR_SHUTDOWN)
-    g_cond_wait (&ctx.cond, &ctx.mutex);
-  g_mutex_unlock (&ctx.mutex);
-
+  sdc_await_flush_confirmation (&channel);
   gum_fake_event_sink_reset (fixture->sink);
 
-  /* 12: Tell victim to it' */
-  g_mutex_lock (&ctx.mutex);
-  ctx.state = STALKER_VICTIM_IS_SHUTDOWN;
-  g_cond_signal (&ctx.cond);
-  g_mutex_unlock (&ctx.mutex);
+  sdc_put_finish_confirmation (&channel);
 
   g_thread_join (thread);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 0);
 
-  g_mutex_clear (&ctx.mutex);
-  g_cond_clear (&ctx.cond);
+  sdc_finalize (&channel);
 }
 
 static gpointer
-stalker_victim (gpointer data)
+run_stalked_briefly (gpointer data)
 {
-  StalkerVictimContext * ctx = (StalkerVictimContext *) data;
+  StalkerDummyChannel * channel = data;
 
-  g_mutex_lock (&ctx->mutex);
+  sdc_put_thread_id (channel, gum_process_get_current_thread_id ());
 
-  /* 2: Signal readyness, giving our thread id */
-  ctx->state = STALKER_VICTIM_READY_FOR_FOLLOW;
-  ctx->thread_id = gum_process_get_current_thread_id ();
-  g_cond_signal (&ctx->cond);
+  sdc_await_follow_confirmation (channel);
 
-  /* 3: Wait for master to tell us we're being followed */
-  while (ctx->state != STALKER_VICTIM_IS_FOLLOWED)
-    g_cond_wait (&ctx->cond, &ctx->mutex);
+  sdc_put_run_confirmation (channel);
 
-  /* 6: Signal that we're ready to be unfollowed */
-  ctx->state = STALKER_VICTIM_READY_FOR_UNFOLLOW;
-  g_cond_signal (&ctx->cond);
+  sdc_await_unfollow_confirmation (channel);
 
-  /* 7: Wait for master to tell us we're no longer followed */
-  while (ctx->state != STALKER_VICTIM_IS_UNFOLLOWED)
-    g_cond_wait (&ctx->cond, &ctx->mutex);
+  sdc_put_flush_confirmation (channel);
 
-  /* 10: Signal that we're ready for a reset */
-  ctx->state = STALKER_VICTIM_READY_FOR_SHUTDOWN;
-  g_cond_signal (&ctx->cond);
-
-  /* 11: Wait for master to tell us we can call it a day */
-  while (ctx->state != STALKER_VICTIM_IS_SHUTDOWN)
-    g_cond_wait (&ctx->cond, &ctx->mutex);
-
-  g_mutex_unlock (&ctx->mutex);
+  sdc_await_finish_confirmation (channel);
 
   return NULL;
 }
