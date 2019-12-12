@@ -73,6 +73,12 @@ gum_metal_array_remove_at (GumMetalArray * self,
   self->length--;
 }
 
+void
+gum_metal_array_remove_all (GumMetalArray * self)
+{
+  self->length = 0;
+}
+
 gpointer
 gum_metal_array_append (GumMetalArray * self)
 {
