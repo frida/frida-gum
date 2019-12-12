@@ -10,6 +10,8 @@
 
 #include <capstone.h>
 #include <gum/gumdefs.h>
+#include <gum/gummetalarray.h>
+#include <gum/gummetalhash.h>
 
 #define GUM_MIPS_J_MAX_DISTANCE (1 << 28)
 
@@ -25,8 +27,8 @@ struct _GumMipsWriter
   guint32 * code;
   GumAddress pc;
 
-  GHashTable * id_to_address;
-  GArray * label_refs;
+  GumMetalHashTable * label_defs;
+  GumMetalArray label_refs;
 };
 
 GUM_API GumMipsWriter * gum_mips_writer_new (gpointer code_address);

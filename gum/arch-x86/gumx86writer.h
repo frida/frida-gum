@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -8,6 +8,8 @@
 #define __GUM_X86_WRITER_H__
 
 #include <gum/gumdefs.h>
+#include <gum/gummetalarray.h>
+#include <gum/gummetalhash.h>
 
 #include <capstone.h>
 
@@ -28,8 +30,8 @@ struct _GumX86Writer
   guint8 * code;
   GumAddress pc;
 
-  GHashTable * id_to_address;
-  GArray * label_refs;
+  GumMetalHashTable * label_defs;
+  GumMetalArray label_refs;
 };
 
 enum _GumCpuReg

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -8,8 +8,6 @@
 
 #include "gumlibc.h"
 #include "gummemory.h"
-
-#include <string.h>
 
 typedef guint GumMetaReg;
 typedef struct _GumCpuRegInfo GumCpuRegInfo;
@@ -125,10 +123,22 @@ gum_x86_writer_init (GumX86Writer * writer,
 {
   writer->ref_count = 1;
 
-  writer->id_to_address = g_hash_table_new (NULL, NULL);
-  writer->label_refs = g_array_new (FALSE, FALSE, sizeof (GumX86LabelRef));
+  writer->label_defs = NULL;
+  writer->label_refs.data = NULL;
 
   gum_x86_writer_reset (writer, code_address);
+}
+
+static gboolean
+gum_x86_writer_has_label_defs (GumX86Writer * self)
+{
+  return self->label_defs != NULL;
+}
+
+static gboolean
+gum_x86_writer_has_label_refs (GumX86Writer * self)
+{
+  return self->label_refs.data != NULL;
 }
 
 void
@@ -136,8 +146,11 @@ gum_x86_writer_clear (GumX86Writer * writer)
 {
   gum_x86_writer_flush (writer);
 
-  g_hash_table_unref (writer->id_to_address);
-  g_array_free (writer->label_refs, TRUE);
+  if (gum_x86_writer_has_label_defs (writer))
+    gum_metal_hash_table_unref (writer->label_defs);
+
+  if (gum_x86_writer_has_label_refs (writer))
+    gum_metal_array_free (&writer->label_refs);
 }
 
 void
@@ -155,8 +168,11 @@ gum_x86_writer_reset (GumX86Writer * writer,
   writer->code = (guint8 *) code_address;
   writer->pc = GUM_ADDRESS (code_address);
 
-  g_hash_table_remove_all (writer->id_to_address);
-  g_array_set_size (writer->label_refs, 0);
+  if (gum_x86_writer_has_label_defs (writer))
+    gum_metal_hash_table_remove_all (writer->label_defs);
+
+  if (gum_x86_writer_has_label_refs (writer))
+    gum_metal_array_remove_all (&writer->label_refs);
 }
 
 void
@@ -198,16 +214,23 @@ gum_x86_writer_flush (GumX86Writer * self)
 {
   guint num_refs, ref_index;
 
-  num_refs = self->label_refs->len;
+  if (!gum_x86_writer_has_label_refs (self))
+    return TRUE;
+
+  if (!gum_x86_writer_has_label_defs (self))
+    return FALSE;
+
+  num_refs = self->label_refs.length;
+
   for (ref_index = 0; ref_index != num_refs; ref_index++)
   {
     GumX86LabelRef * r;
     gpointer target_address;
     gint32 distance;
 
-    r = &g_array_index (self->label_refs, GumX86LabelRef, ref_index);
+    r = gum_metal_array_element_at (&self->label_refs, ref_index);
 
-    target_address = g_hash_table_lookup (self->id_to_address, r->id);
+    target_address = gum_metal_hash_table_lookup (self->label_defs, r->id);
     if (target_address == NULL)
       goto error;
 
@@ -251,13 +274,14 @@ gum_x86_writer_flush (GumX86Writer * self)
         g_assert_not_reached ();
     }
   }
-  g_array_set_size (self->label_refs, 0);
+
+  gum_metal_array_remove_all (&self->label_refs);
 
   return TRUE;
 
 error:
   {
-    g_array_set_size (self->label_refs, 0);
+    gum_metal_array_remove_all (&self->label_refs);
 
     return FALSE;
   }
@@ -314,10 +338,14 @@ gboolean
 gum_x86_writer_put_label (GumX86Writer * self,
                           gconstpointer id)
 {
-  if (g_hash_table_lookup (self->id_to_address, id) != NULL)
+  if (!gum_x86_writer_has_label_defs (self))
+    self->label_defs = gum_metal_hash_table_new (NULL, NULL);
+
+  if (gum_metal_hash_table_lookup (self->label_defs, id) != NULL)
     return FALSE;
 
-  g_hash_table_insert (self->id_to_address, (gpointer) id, self->code);
+  gum_metal_hash_table_insert (self->label_defs, (gpointer) id, self->code);
+
   return TRUE;
 }
 
@@ -326,13 +354,15 @@ gum_x86_writer_add_label_reference_here (GumX86Writer * self,
                                          gconstpointer id,
                                          GumX86LabelRefSize size)
 {
-  GumX86LabelRef r;
+  GumX86LabelRef * r;
 
-  r.id = id;
-  r.address = self->code;
-  r.size = size;
+  if (!gum_x86_writer_has_label_refs (self))
+    gum_metal_array_init (&self->label_refs, sizeof (GumX86LabelRef));
 
-  g_array_append_val (self->label_refs, r);
+  r = gum_metal_array_append (&self->label_refs);
+  r->id = id;
+  r->address = self->code;
+  r->size = size;
 }
 
 gboolean

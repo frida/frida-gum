@@ -12,8 +12,6 @@
 #include "gummemory.h"
 #include "gumprocess.h"
 
-#include <string.h>
-
 typedef guint GumThumbLabelRefType;
 typedef struct _GumThumbLabelRef GumThumbLabelRef;
 typedef struct _GumThumbLiteralRef GumThumbLiteralRef;
@@ -49,6 +47,8 @@ enum _GumThumbMemoryOperation
   GUM_THUMB_MEMORY_LOAD,
   GUM_THUMB_MEMORY_STORE
 };
+
+static void gum_thumb_writer_reset_refs (GumThumbWriter * self);
 
 static void gum_thumb_writer_put_argument_list_setup (GumThumbWriter * self,
     guint n_args, const GumArgument * args);
@@ -111,13 +111,29 @@ gum_thumb_writer_init (GumThumbWriter * writer,
 {
   writer->ref_count = 1;
 
-  writer->id_to_address = g_hash_table_new (NULL, NULL);
-  writer->label_refs = g_array_new (FALSE, FALSE,
-      sizeof (GumThumbLabelRef));
-  writer->literal_refs = g_array_new (FALSE, FALSE,
-      sizeof (GumThumbLiteralRef));
+  writer->label_defs = NULL;
+  writer->label_refs.data = NULL;
+  writer->literal_refs.data = NULL;
 
   gum_thumb_writer_reset (writer, code_address);
+}
+
+static gboolean
+gum_thumb_writer_has_label_defs (GumThumbWriter * self)
+{
+  return self->label_defs != NULL;
+}
+
+static gboolean
+gum_thumb_writer_has_label_refs (GumThumbWriter * self)
+{
+  return self->label_refs.data != NULL;
+}
+
+static gboolean
+gum_thumb_writer_has_literal_refs (GumThumbWriter * self)
+{
+  return self->literal_refs.data != NULL;
 }
 
 void
@@ -125,9 +141,14 @@ gum_thumb_writer_clear (GumThumbWriter * writer)
 {
   gum_thumb_writer_flush (writer);
 
-  g_hash_table_unref (writer->id_to_address);
-  g_array_free (writer->label_refs, TRUE);
-  g_array_free (writer->literal_refs, TRUE);
+  if (gum_thumb_writer_has_label_defs (writer))
+    gum_metal_hash_table_unref (writer->label_defs);
+
+  if (gum_thumb_writer_has_label_refs (writer))
+    gum_metal_array_free (&writer->label_refs);
+
+  if (gum_thumb_writer_has_literal_refs (writer))
+    gum_metal_array_free (&writer->literal_refs);
 }
 
 void
@@ -140,10 +161,22 @@ gum_thumb_writer_reset (GumThumbWriter * writer,
   writer->code = code_address;
   writer->pc = GUM_ADDRESS (code_address);
 
-  g_hash_table_remove_all (writer->id_to_address);
-  g_array_set_size (writer->label_refs, 0);
-  g_array_set_size (writer->literal_refs, 0);
-  writer->earliest_literal_insn = NULL;
+  if (gum_thumb_writer_has_label_defs (writer))
+    gum_metal_hash_table_remove_all (writer->label_defs);
+
+  gum_thumb_writer_reset_refs (writer);
+}
+
+static void
+gum_thumb_writer_reset_refs (GumThumbWriter * self)
+{
+  if (gum_thumb_writer_has_label_refs (self))
+    gum_metal_array_remove_all (&self->label_refs);
+
+  if (gum_thumb_writer_has_literal_refs (self))
+    gum_metal_array_remove_all (&self->literal_refs);
+
+  self->earliest_literal_insn = NULL;
 }
 
 void
@@ -185,8 +218,7 @@ gum_thumb_writer_flush (GumThumbWriter * self)
 
 error:
   {
-    g_array_set_size (self->label_refs, 0);
-    g_array_set_size (self->literal_refs, 0);
+    gum_thumb_writer_reset_refs (self);
 
     return FALSE;
   }
@@ -196,10 +228,14 @@ gboolean
 gum_thumb_writer_put_label (GumThumbWriter * self,
                             gconstpointer id)
 {
-  if (g_hash_table_lookup (self->id_to_address, id) != NULL)
+  if (!gum_thumb_writer_has_label_defs (self))
+    self->label_defs = gum_metal_hash_table_new (NULL, NULL);
+
+  if (gum_metal_hash_table_lookup (self->label_defs, id) != NULL)
     return FALSE;
 
-  g_hash_table_insert (self->id_to_address, (gpointer) id, self->code);
+  gum_metal_hash_table_insert (self->label_defs, (gpointer) id, self->code);
+
   return TRUE;
 }
 
@@ -208,31 +244,33 @@ gum_thumb_writer_add_label_reference_here (GumThumbWriter * self,
                                            gconstpointer id,
                                            GumThumbLabelRefType type)
 {
-  GumThumbLabelRef r;
+  GumThumbLabelRef * r;
 
-  r.id = id;
-  r.type = type;
-  r.insn = self->code;
+  if (!gum_thumb_writer_has_label_refs (self))
+    gum_metal_array_init (&self->label_refs, sizeof (GumThumbLabelRef));
 
-  g_array_append_val (self->label_refs, r);
+  r = gum_metal_array_append (&self->label_refs);
+  r->id = id;
+  r->type = type;
+  r->insn = self->code;
 }
 
 static void
 gum_thumb_writer_add_literal_reference_here (GumThumbWriter * self,
                                              guint32 val)
 {
-  GumThumbLiteralRef r;
+  GumThumbLiteralRef * r;
 
-  r.val = val;
-  r.insn = self->code;
-  r.pc = self->pc + 4;
+  if (!gum_thumb_writer_has_literal_refs (self))
+    gum_metal_array_init (&self->literal_refs, sizeof (GumThumbLiteralRef));
 
-  g_array_append_val (self->literal_refs, r);
+  r = gum_metal_array_append (&self->literal_refs);
+  r->val = val;
+  r->insn = self->code;
+  r->pc = self->pc + 4;
 
   if (self->earliest_literal_insn == NULL)
-  {
-    self->earliest_literal_insn = r.insn;
-  }
+    self->earliest_literal_insn = r->insn;
 }
 
 void
@@ -1140,7 +1178,14 @@ gum_thumb_writer_try_commit_label_refs (GumThumbWriter * self)
 {
   guint num_refs, ref_index;
 
-  num_refs = self->label_refs->len;
+  if (!gum_thumb_writer_has_label_refs (self))
+    return TRUE;
+
+  if (!gum_thumb_writer_has_label_defs (self))
+    return FALSE;
+
+  num_refs = self->label_refs.length;
+
   for (ref_index = 0; ref_index != num_refs; ref_index++)
   {
     GumThumbLabelRef * r;
@@ -1148,9 +1193,9 @@ gum_thumb_writer_try_commit_label_refs (GumThumbWriter * self)
     gssize distance;
     guint16 insn;
 
-    r = &g_array_index (self->label_refs, GumThumbLabelRef, ref_index);
+    r = gum_metal_array_element_at (&self->label_refs, ref_index);
 
-    target_insn = g_hash_table_lookup (self->id_to_address, r->id);
+    target_insn = gum_metal_hash_table_lookup (self->label_defs, r->id);
     if (target_insn == NULL)
       return FALSE;
 
@@ -1255,7 +1300,7 @@ gum_thumb_writer_try_commit_label_refs (GumThumbWriter * self)
     *r->insn = GUINT16_TO_LE (insn);
   }
 
-  g_array_set_size (self->label_refs, 0);
+  gum_metal_array_remove_all (&self->label_refs);
 
   return TRUE;
 }
@@ -1270,7 +1315,7 @@ gum_thumb_writer_maybe_commit_literals (GumThumbWriter * self)
     return;
 
   space_used = (self->code - self->earliest_literal_insn) * sizeof (guint16);
-  space_used += self->literal_refs->len * sizeof (guint32);
+  space_used += self->literal_refs.length * sizeof (guint32);
   if (space_used <= 1024)
     return;
 
@@ -1288,7 +1333,10 @@ gum_thumb_writer_commit_literals (GumThumbWriter * self)
   gboolean need_alignment_padding;
   guint32 * first_slot, * last_slot;
 
-  num_refs = self->literal_refs->len;
+  if (!gum_thumb_writer_has_literal_refs (self))
+    return;
+
+  num_refs = self->literal_refs.length;
   if (num_refs == 0)
     return;
 
@@ -1309,7 +1357,7 @@ gum_thumb_writer_commit_literals (GumThumbWriter * self)
     GumAddress slot_pc;
     gsize distance_in_bytes;
 
-    r = &g_array_index (self->literal_refs, GumThumbLiteralRef, ref_index);
+    r = gum_metal_array_element_at (&self->literal_refs, ref_index);
     insn = GUINT16_FROM_LE (r->insn[0]);
 
     for (cur_slot = first_slot; cur_slot != last_slot; cur_slot++)
@@ -1350,7 +1398,7 @@ gum_thumb_writer_commit_literals (GumThumbWriter * self)
     }
   }
 
-  g_array_set_size (self->literal_refs, 0);
+  gum_metal_array_remove_all (&self->literal_refs);
 }
 
 static gboolean

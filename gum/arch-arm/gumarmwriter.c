@@ -12,8 +12,6 @@
 #include "gummemory.h"
 #include "gumprocess.h"
 
-#include <string.h>
-
 typedef struct _GumArmLabelRef GumArmLabelRef;
 typedef struct _GumArmLiteralRef GumArmLiteralRef;
 
@@ -28,6 +26,8 @@ struct _GumArmLiteralRef
   guint32 * insn;
   guint32 val;
 };
+
+static void gum_arm_writer_reset_refs (GumArmWriter * self);
 
 static gboolean gum_arm_writer_try_commit_label_refs (GumArmWriter * self);
 static void gum_arm_writer_maybe_commit_literals (GumArmWriter * self);
@@ -70,11 +70,29 @@ gum_arm_writer_init (GumArmWriter * writer,
 {
   writer->ref_count = 1;
 
-  writer->id_to_address = g_hash_table_new (NULL, NULL);
-  writer->label_refs = g_array_new (FALSE, FALSE, sizeof (GumArmLabelRef));
-  writer->literal_refs = g_array_new (FALSE, FALSE, sizeof (GumArmLiteralRef));
+  writer->label_defs = NULL;
+  writer->label_refs.data = NULL;
+  writer->literal_refs.data = NULL;
 
   gum_arm_writer_reset (writer, code_address);
+}
+
+static gboolean
+gum_arm_writer_has_label_defs (GumArmWriter * self)
+{
+  return self->label_defs != NULL;
+}
+
+static gboolean
+gum_arm_writer_has_label_refs (GumArmWriter * self)
+{
+  return self->label_refs.data != NULL;
+}
+
+static gboolean
+gum_arm_writer_has_literal_refs (GumArmWriter * self)
+{
+  return self->literal_refs.data != NULL;
 }
 
 void
@@ -82,9 +100,14 @@ gum_arm_writer_clear (GumArmWriter * writer)
 {
   gum_arm_writer_flush (writer);
 
-  g_hash_table_unref (writer->id_to_address);
-  g_array_free (writer->label_refs, TRUE);
-  g_array_free (writer->literal_refs, TRUE);
+  if (gum_arm_writer_has_label_defs (writer))
+    gum_metal_hash_table_unref (writer->label_defs);
+
+  if (gum_arm_writer_has_label_refs (writer))
+    gum_metal_array_free (&writer->label_refs);
+
+  if (gum_arm_writer_has_literal_refs (writer))
+    gum_metal_array_free (&writer->literal_refs);
 }
 
 void
@@ -97,10 +120,22 @@ gum_arm_writer_reset (GumArmWriter * writer,
   writer->code = code_address;
   writer->pc = GUM_ADDRESS (code_address);
 
-  g_hash_table_remove_all (writer->id_to_address);
-  g_array_set_size (writer->label_refs, 0);
-  g_array_set_size (writer->literal_refs, 0);
-  writer->earliest_literal_insn = NULL;
+  if (gum_arm_writer_has_label_defs (writer))
+    gum_metal_hash_table_remove_all (writer->label_defs);
+
+  gum_arm_writer_reset_refs (writer);
+}
+
+static void
+gum_arm_writer_reset_refs (GumArmWriter * self)
+{
+  if (gum_arm_writer_has_label_refs (self))
+    gum_metal_array_remove_all (&self->label_refs);
+
+  if (gum_arm_writer_has_literal_refs (self))
+    gum_metal_array_remove_all (&self->literal_refs);
+
+  self->earliest_literal_insn = NULL;
 }
 
 void
@@ -142,8 +177,7 @@ gum_arm_writer_flush (GumArmWriter * self)
 
 error:
   {
-    g_array_set_size (self->label_refs, 0);
-    g_array_set_size (self->literal_refs, 0);
+    gum_arm_writer_reset_refs (self);
 
     return FALSE;
   }
@@ -153,10 +187,14 @@ gboolean
 gum_arm_writer_put_label (GumArmWriter * self,
                           gconstpointer id)
 {
-  if (g_hash_table_lookup (self->id_to_address, id) != NULL)
+  if (!gum_arm_writer_has_label_defs (self))
+    self->label_defs = gum_metal_hash_table_new (NULL, NULL);
+
+  if (gum_metal_hash_table_lookup (self->label_defs, id) != NULL)
     return FALSE;
 
-  g_hash_table_insert (self->id_to_address, (gpointer) id, self->code);
+  gum_metal_hash_table_insert (self->label_defs, (gpointer) id, self->code);
+
   return TRUE;
 }
 
@@ -164,29 +202,31 @@ static void
 gum_arm_writer_add_label_reference_here (GumArmWriter * self,
                                          gconstpointer id)
 {
-  GumArmLabelRef r;
+  GumArmLabelRef * r;
 
-  r.id = id;
-  r.insn = self->code;
+  if (!gum_arm_writer_has_label_refs (self))
+    gum_metal_array_init (&self->label_refs, sizeof (GumArmLabelRef));
 
-  g_array_append_val (self->label_refs, r);
+  r = gum_metal_array_append (&self->label_refs);
+  r->id = id;
+  r->insn = self->code;
 }
 
 static void
 gum_arm_writer_add_literal_reference_here (GumArmWriter * self,
                                            guint32 val)
 {
-  GumArmLiteralRef r;
+  GumArmLiteralRef * r;
 
-  r.insn = self->code;
-  r.val = val;
+  if (!gum_arm_writer_has_literal_refs (self))
+    gum_metal_array_init (&self->literal_refs, sizeof (GumArmLiteralRef));
 
-  g_array_append_val (self->literal_refs, r);
+  r = gum_metal_array_append (&self->literal_refs);
+  r->insn = self->code;
+  r->val = val;
 
   if (self->earliest_literal_insn == NULL)
-  {
-    self->earliest_literal_insn = r.insn;
-  }
+    self->earliest_literal_insn = r->insn;
 }
 
 gboolean
@@ -330,7 +370,14 @@ gum_arm_writer_try_commit_label_refs (GumArmWriter * self)
 {
   guint num_refs, ref_index;
 
-  num_refs = self->label_refs->len;
+  if (!gum_arm_writer_has_label_refs (self))
+    return TRUE;
+
+  if (!gum_arm_writer_has_label_defs (self))
+    return FALSE;
+
+  num_refs = self->label_refs.length;
+
   for (ref_index = 0; ref_index != num_refs; ref_index++)
   {
     GumArmLabelRef * r;
@@ -338,9 +385,9 @@ gum_arm_writer_try_commit_label_refs (GumArmWriter * self)
     gssize distance;
     guint32 insn;
 
-    r = &g_array_index (self->label_refs, GumArmLabelRef, ref_index);
+    r = gum_metal_array_element_at (&self->label_refs, ref_index);
 
-    target_insn = g_hash_table_lookup (self->id_to_address, r->id);
+    target_insn = gum_metal_hash_table_lookup (self->label_defs, r->id);
     if (target_insn == NULL)
       return FALSE;
 
@@ -353,7 +400,7 @@ gum_arm_writer_try_commit_label_refs (GumArmWriter * self)
     *r->insn = GUINT32_TO_LE (insn);
   }
 
-  g_array_set_size (self->label_refs, 0);
+  gum_metal_array_remove_all (&self->label_refs);
 
   return TRUE;
 }
@@ -368,7 +415,7 @@ gum_arm_writer_maybe_commit_literals (GumArmWriter * self)
     return;
 
   space_used = (self->code - self->earliest_literal_insn) * sizeof (guint32);
-  space_used += self->literal_refs->len * sizeof (guint32);
+  space_used += self->literal_refs.length * sizeof (guint32);
   if (space_used <= 4096)
     return;
 
@@ -385,7 +432,10 @@ gum_arm_writer_commit_literals (GumArmWriter * self)
   guint num_refs, ref_index;
   guint32 * first_slot, * last_slot;
 
-  num_refs = self->literal_refs->len;
+  if (!gum_arm_writer_has_literal_refs (self))
+    return;
+
+  num_refs = self->literal_refs.length;
   if (num_refs == 0)
     return;
 
@@ -399,7 +449,7 @@ gum_arm_writer_commit_literals (GumArmWriter * self)
     gint64 distance_in_words;
     guint32 insn;
 
-    r = &g_array_index (self->literal_refs, GumArmLiteralRef, ref_index);
+    r = gum_metal_array_element_at (&self->literal_refs, ref_index);
 
     for (cur_slot = first_slot; cur_slot != last_slot; cur_slot++)
     {
@@ -433,5 +483,5 @@ gum_arm_writer_commit_literals (GumArmWriter * self)
   self->code = last_slot;
   self->pc += (guint8 *) last_slot - (guint8 *) first_slot;
 
-  g_array_set_size (self->literal_refs, 0);
+  gum_metal_array_remove_all (&self->literal_refs);
 }

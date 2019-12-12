@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -9,6 +9,8 @@
 
 #include <capstone.h>
 #include <gum/gumdefs.h>
+#include <gum/gummetalarray.h>
+#include <gum/gummetalhash.h>
 
 #define GUM_ARM_B_MAX_DISTANCE 0x01fffffc
 
@@ -26,9 +28,9 @@ struct _GumArmWriter
   guint32 * code;
   GumAddress pc;
 
-  GHashTable * id_to_address;
-  GArray * label_refs;
-  GArray * literal_refs;
+  GumMetalHashTable * label_defs;
+  GumMetalArray label_refs;
+  GumMetalArray literal_refs;
   const guint32 * earliest_literal_insn;
 };
 
