@@ -735,6 +735,13 @@ gum_stalker_infect (GumThreadId thread_id,
 
   ctx->current_block = gum_exec_ctx_obtain_block_for (ctx,
       GSIZE_TO_POINTER (cpu_context->pc), &code_address);
+
+  if (gum_exec_ctx_maybe_unfollow (ctx, NULL))
+  {
+    gum_stalker_destroy_exec_ctx (self, ctx);
+    return;
+  }
+
   cpu_context->pc = GPOINTER_TO_SIZE (ctx->infect_thunk) + potential_svc_size;
 
   gum_stalker_thaw (self, ctx->thunks, self->page_size);
@@ -802,6 +809,9 @@ _gum_stalker_do_activate (GumStalker * self,
 
     ctx->current_block =
         gum_exec_ctx_obtain_block_for (ctx, ret_addr, &code_address);
+
+    if (gum_exec_ctx_maybe_unfollow (ctx, ret_addr))
+      return ret_addr;
 
     return code_address + GUM_RESTORATION_PROLOG_SIZE;
   }

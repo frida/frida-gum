@@ -889,6 +889,13 @@ gum_stalker_infect (GumThreadId thread_id,
 
   ctx->current_block = gum_exec_ctx_obtain_block_for (ctx,
       GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XIP (cpu_context)), &code_address);
+
+  if (gum_exec_ctx_maybe_unfollow (ctx, NULL))
+  {
+    gum_stalker_destroy_exec_ctx (self, ctx);
+    return;
+  }
+
   GUM_CPU_CONTEXT_XIP (cpu_context) =
       GPOINTER_TO_SIZE (ctx->infect_thunk) + max_syscall_size;
 
@@ -980,6 +987,9 @@ _gum_stalker_do_activate (GumStalker * self,
 
     ctx->current_block =
         gum_exec_ctx_obtain_block_for (ctx, ret_addr, &code_address);
+
+    if (gum_exec_ctx_maybe_unfollow (ctx, ret_addr))
+      return;
 
     *ret_addr_ptr = code_address;
   }
