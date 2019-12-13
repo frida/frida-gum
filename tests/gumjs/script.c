@@ -343,6 +343,8 @@ static void on_read_ready (GObject * source_object, GAsyncResult * res,
     gpointer user_data);
 #endif
 
+static gpointer run_stalked_through_target_function (gpointer data);
+
 static gpointer sleeping_dummy (gpointer data);
 
 static gpointer invoke_target_function_int_worker (gpointer data);
@@ -2316,21 +2318,18 @@ on_read_ready (GObject * source_object,
 
 #if defined (HAVE_I386) || defined (HAVE_ARM64)
 
+#include "stalkerdummychannel.h"
+
 TESTCASE (execution_can_be_traced)
 {
   GumThreadId test_thread_id;
 
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping, run in slow mode> ");
-    return;
-  }
-
   test_thread_id = gum_process_get_current_thread_id ();
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var libcRange = Process.getModuleByName('%s');"
-      "Stalker.exclude(libcRange);"
+      "var testsRange = Process.getModuleByName('%s');"
+      "Stalker.exclude(testsRange);"
+
       "Stalker.follow(%" G_GSIZE_FORMAT ", {"
       "  events: {"
       "    call: true,"
@@ -2344,14 +2343,17 @@ TESTCASE (execution_can_be_traced)
       "    send('onCallSummary: ' + (Object.keys(summary).length > 0));"
       "  }"
       "});"
+
       "recv('stop', function (message) {"
       "  Stalker.unfollow(%" G_GSIZE_FORMAT ");"
       "});",
-      SYSTEM_MODULE_NAME,
+
+      GUM_TESTS_MODULE_NAME,
       test_thread_id,
       test_thread_id);
   g_usleep (1);
   EXPECT_NO_MESSAGES ();
+
   POST_MESSAGE ("{\"type\":\"stop\"}");
   EXPECT_SEND_MESSAGE_WITH ("\"onCallSummary: true\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onReceive: true\"");
@@ -2361,15 +2363,12 @@ TESTCASE (execution_can_be_traced_with_custom_transformer)
 {
   GumThreadId test_thread_id;
 
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping, run in slow mode> ");
-    return;
-  }
-
   test_thread_id = gum_process_get_current_thread_id ();
 
   COMPILE_AND_LOAD_SCRIPT (
+      "var testsRange = Process.getModuleByName('%s');"
+      "Stalker.exclude(testsRange);"
+
       "var instructionsSeen = 0;"
       "Stalker.follow(%" G_GSIZE_FORMAT ", {"
       "  transform: function (iterator) {"
@@ -2386,17 +2385,22 @@ TESTCASE (execution_can_be_traced_with_custom_transformer)
       "    }"
       "  }"
       "});"
+
       "function onBeforeFirstInstruction (context) {"
       "  console.log(JSON.stringify(context, null, 2));"
       "}"
+
       "recv('stop', function (message) {"
       "  Stalker.unfollow(%" G_GSIZE_FORMAT ");"
       "  send(instructionsSeen > 0);"
       "});",
+
+      GUM_TESTS_MODULE_NAME,
       test_thread_id,
       test_thread_id);
   g_usleep (1);
   EXPECT_NO_MESSAGES ();
+
   POST_MESSAGE ("{\"type\":\"stop\"}");
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_NO_MESSAGES ();
@@ -2404,17 +2408,13 @@ TESTCASE (execution_can_be_traced_with_custom_transformer)
 
 TESTCASE (execution_can_be_traced_during_immediate_native_function_call)
 {
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping, run in slow mode> ");
-    return;
-  }
-
   COMPILE_AND_LOAD_SCRIPT (
-      "var a = new NativeFunction(" GUM_PTR_CONST ", 'int', ['int'], "
-          "{ traps: 'all', exceptions: 'propagate' });"
       "var testsRange = Process.getModuleByName('%s');"
       "Stalker.exclude(testsRange);"
+
+      "var a = new NativeFunction(" GUM_PTR_CONST ", 'int', ['int'], "
+          "{ traps: 'all', exceptions: 'propagate' });"
+
       "var flushing = false;"
       "Stalker.follow({"
       "  events: {"
@@ -2428,14 +2428,18 @@ TESTCASE (execution_can_be_traced_during_immediate_native_function_call)
       "    send(summary[key]);"
       "  }"
       "});"
+
       "a(42);"
       "a(42);"
+
       "Stalker.unfollow();"
+
       "flushing = true;"
       "Stalker.flush();"
       "flushing = false;",
-      target_function_nested_a,
-      GUM_TESTS_MODULE_NAME);
+
+      GUM_TESTS_MODULE_NAME,
+      target_function_nested_a);
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("2");
   EXPECT_NO_MESSAGES ();
@@ -2443,17 +2447,13 @@ TESTCASE (execution_can_be_traced_during_immediate_native_function_call)
 
 TESTCASE (execution_can_be_traced_during_scheduled_native_function_call)
 {
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping, run in slow mode> ");
-    return;
-  }
-
   COMPILE_AND_LOAD_SCRIPT (
-      "var a = new NativeFunction(" GUM_PTR_CONST ", 'int', ['int'], "
-          "{ traps: 'all' });"
       "var testsRange = Process.getModuleByName('%s');"
       "Stalker.exclude(testsRange);"
+
+      "var a = new NativeFunction(" GUM_PTR_CONST ", 'int', ['int'], "
+          "{ traps: 'all' });"
+
       "var flushing = false;"
       "Stalker.follow({"
       "  events: {"
@@ -2467,16 +2467,20 @@ TESTCASE (execution_can_be_traced_during_scheduled_native_function_call)
       "    send(summary[key]);"
       "  }"
       "});"
+
       "setImmediate(function () {"
         "a(42);"
         "a(42);"
+
         "Stalker.unfollow();"
+
         "flushing = true;"
         "Stalker.flush();"
         "flushing = false;"
       "});",
-      target_function_nested_a,
-      GUM_TESTS_MODULE_NAME);
+
+      GUM_TESTS_MODULE_NAME,
+      target_function_nested_a);
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("2");
   EXPECT_NO_MESSAGES ();
@@ -2484,32 +2488,58 @@ TESTCASE (execution_can_be_traced_during_scheduled_native_function_call)
 
 TESTCASE (call_can_be_probed)
 {
-  GumThreadId test_thread_id;
+  StalkerDummyChannel channel;
+  GThread * thread;
+  GumThreadId thread_id;
 
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping, run in slow mode> ");
-    return;
-  }
+  sdc_init (&channel);
 
-  test_thread_id = gum_process_get_current_thread_id ();
+  thread = g_thread_new ("stalker-test-target",
+      run_stalked_through_target_function, &channel);
+  thread_id = sdc_await_thread_id (&channel);
 
   COMPILE_AND_LOAD_SCRIPT (
+      "var targetThreadId = %" G_GSIZE_FORMAT ";"
+
       "Stalker.addCallProbe(" GUM_PTR_CONST ", function (args) {"
       "  send(args[0].toInt32());"
       "});"
-      "Stalker.follow(%" G_GSIZE_FORMAT ");"
+
+      "Stalker.follow(targetThreadId);"
+
       "recv('stop', function (message) {"
-      "  Stalker.unfollow(%" G_GSIZE_FORMAT ");"
+      "  Stalker.unfollow(targetThreadId);"
       "});"
+
       "send('ready');",
-      target_function_int,
-      test_thread_id,
-      test_thread_id);
+
+      thread_id,
+      target_function_int);
   EXPECT_SEND_MESSAGE_WITH ("\"ready\"");
-  target_function_int (1337);
+
+  EXPECT_NO_MESSAGES ();
+  sdc_put_follow_confirmation (&channel);
   EXPECT_SEND_MESSAGE_WITH ("1337");
+
   POST_MESSAGE ("{\"type\":\"stop\"}");
+
+  g_thread_join (thread);
+
+  sdc_finalize (&channel);
+}
+
+static gpointer
+run_stalked_through_target_function (gpointer data)
+{
+  StalkerDummyChannel * channel = data;
+
+  sdc_put_thread_id (channel, gum_process_get_current_thread_id ());
+
+  sdc_await_follow_confirmation (channel);
+
+  target_function_int (1337);
+
+  return NULL;
 }
 
 #endif

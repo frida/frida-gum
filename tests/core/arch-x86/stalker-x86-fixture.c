@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2010-2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -10,6 +10,7 @@
 #include "fakeeventsink.h"
 #include "gumx86writer.h"
 #include "gummemory.h"
+#include "stalkerdummychannel.h"
 #include "testutil.h"
 
 #include <stdlib.h>

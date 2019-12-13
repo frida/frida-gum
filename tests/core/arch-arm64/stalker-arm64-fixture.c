@@ -10,6 +10,7 @@
 #include "fakeeventsink.h"
 #include "gumarm64writer.h"
 #include "gummemory.h"
+#include "stalkerdummychannel.h"
 #include "testutil.h"
 
 #include <stdlib.h>

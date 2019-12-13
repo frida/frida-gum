@@ -7,8 +7,6 @@
 
 #include "stalker-arm64-fixture.c"
 
-#include "../stalkerdummychannel.c"
-
 #include <lzma.h>
 #ifdef HAVE_LINUX
 # include <sys/prctl.h>

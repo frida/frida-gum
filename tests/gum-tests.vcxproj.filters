@@ -84,6 +84,9 @@
     <ClCompile Include="core\arch-x86\codewriter-fixture.c">
       <Filter>Tests\core\arch-x86</Filter>
     </ClCompile>
+    <ClCompile Include="stalkerdummychannel.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="lowlevel-helpers.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -247,6 +250,9 @@
     </ClInclude>
     <ClInclude Include="stubs\fakeeventsink.h">
       <Filter>Source Files\stubs</Filter>
+    </ClInclude>
+    <ClInclude Include="stalkerdummychannel.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="lowlevel-helpers.h">
       <Filter>Header Files</Filter>

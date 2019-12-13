@@ -4,6 +4,7 @@ runner_sources = [
   'stubs/dummyclasses.c',
   'stubs/fakebacktracer.c',
   'stubs/fakeeventsink.c',
+  'stalkerdummychannel.c',
   'lowlevel-helpers.c',
 ]
 

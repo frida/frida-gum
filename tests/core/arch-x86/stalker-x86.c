@@ -7,8 +7,6 @@
 
 #include "stalker-x86-fixture.c"
 
-#include "../stalkerdummychannel.c"
-
 #ifndef G_OS_WIN32
 # include <lzma.h>
 #endif
