@@ -1,7 +1,7 @@
 #include "gumstalker.h"
 
-#define SDC_LOCK(t) g_mutex_lock (&self->mutex)
-#define SDC_UNLOCK(t) g_mutex_unlock (&self->mutex)
+#define SDC_LOCK() g_mutex_lock (&self->mutex)
+#define SDC_UNLOCK() g_mutex_unlock (&self->mutex)
 
 typedef struct _StalkerDummyChannel StalkerDummyChannel;
 typedef guint StalkerDummyState;
