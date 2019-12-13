@@ -567,8 +567,13 @@ rescan:
 gboolean
 gum_stalker_garbage_collect (GumStalker * self)
 {
-  GSList * cur;
   gboolean have_pending_garbage;
+  GumThreadId current_thread_id;
+  gint64 now;
+  GSList * cur;
+
+  current_thread_id = gum_process_get_current_thread_id ();
+  now = g_get_monotonic_time ();
 
 rescan:
   GUM_STALKER_LOCK (self);
@@ -580,7 +585,8 @@ rescan:
 
     destroy_pending_and_thread_likely_back_in_original_code =
         g_atomic_int_get (&ctx->state) == GUM_EXEC_CTX_DESTROY_PENDING &&
-        g_get_monotonic_time () - ctx->destroy_pending_since > 50000;
+        (ctx->thread_id == current_thread_id ||
+        now - ctx->destroy_pending_since > 20000);
 
     if (destroy_pending_and_thread_likely_back_in_original_code ||
         !gum_process_has_thread (ctx->thread_id))

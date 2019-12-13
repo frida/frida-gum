@@ -269,7 +269,7 @@ _gum_duk_stalker_flush (GumDukStalker * self)
     {
       GSource * source;
 
-      source = g_timeout_source_new (50);
+      source = g_timeout_source_new (10);
       g_source_set_callback (source,
           (GSourceFunc) gum_duk_stalker_on_flush_timer_tick, self, NULL);
       self->flush_timer = source;
