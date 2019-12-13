@@ -162,10 +162,13 @@ gum_v8_event_sink_start (GumEventSink * sink)
 {
   auto self = GUM_V8_EVENT_SINK (sink);
 
-  self->source = g_timeout_source_new (self->queue_drain_interval);
-  g_source_set_callback (self->source, (GSourceFunc) gum_v8_event_sink_drain,
-      g_object_ref (self), g_object_unref);
-  g_source_attach (self->source, self->main_context);
+  if (self->queue_drain_interval != 0)
+  {
+    self->source = g_timeout_source_new (self->queue_drain_interval);
+    g_source_set_callback (self->source, (GSourceFunc) gum_v8_event_sink_drain,
+        g_object_ref (self), g_object_unref);
+    g_source_attach (self->source, self->main_context);
+  }
 }
 
 static void
@@ -212,9 +215,12 @@ gum_v8_event_sink_stop_when_idle (GumV8EventSink * self)
 
   g_object_ref (self);
 
-  g_source_destroy (self->source);
-  g_source_unref (self->source);
-  self->source = NULL;
+  if (self->source != NULL)
+  {
+    g_source_destroy (self->source);
+    g_source_unref (self->source);
+    self->source = NULL;
+  }
 
   gum_v8_event_sink_release_core (self);
 
