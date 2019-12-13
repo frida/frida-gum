@@ -84,6 +84,9 @@ static void
 test_stalker_fixture_teardown (TestStalkerFixture * fixture,
                                gconstpointer data)
 {
+  while (gum_stalker_garbage_collect (fixture->stalker))
+    g_usleep (10000);
+
   g_object_unref (fixture->sink);
   g_clear_object (&fixture->transformer);
   g_object_unref (fixture->stalker);

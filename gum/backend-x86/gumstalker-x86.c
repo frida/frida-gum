@@ -136,6 +136,7 @@ struct _GumExecCtx
 {
   volatile gint state;
   volatile gboolean invalidate_pending;
+  gint64 destroy_pending_since;
 
   GumStalker * stalker;
   GumThreadId thread_id;
@@ -331,6 +332,7 @@ static void gum_exec_ctx_dispose_callouts (GumExecCtx * ctx);
 static void gum_exec_ctx_free (GumExecCtx * ctx);
 static gboolean gum_exec_ctx_maybe_unfollow (GumExecCtx * ctx,
     gpointer resume_at);
+static void gum_exec_ctx_unfollow (GumExecCtx * ctx, gpointer resume_at);
 static gboolean gum_exec_ctx_has_executed (GumExecCtx * ctx);
 static gboolean gum_exec_ctx_contains (GumExecCtx * ctx, gconstpointer address);
 static gpointer GUM_THUNK gum_exec_ctx_replace_current_block_with (
@@ -461,7 +463,11 @@ static GumCpuFeatures gum_query_cpu_features (void);
 static gboolean gum_get_cpuid (guint level, guint * a, guint * b, guint * c,
     guint * d);
 
+static gpointer gum_find_thread_exit_implementation (void);
+
 G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
+
+static gpointer _gum_thread_exit_impl;
 
 gboolean
 gum_stalker_is_supported (void)
@@ -476,6 +482,8 @@ gum_stalker_class_init (GumStalkerClass * klass)
 
   object_class->dispose = gum_stalker_dispose;
   object_class->finalize = gum_stalker_finalize;
+
+  _gum_thread_exit_impl = gum_find_thread_exit_implementation ();
 }
 
 static void
@@ -701,8 +709,14 @@ rescan:
   for (cur = self->contexts; cur != NULL; cur = cur->next)
   {
     GumExecCtx * ctx = cur->data;
+    gboolean destroy_pending_and_thread_likely_back_in_original_code;
 
-    if (g_atomic_int_get (&ctx->state) == GUM_EXEC_CTX_DESTROY_PENDING)
+    destroy_pending_and_thread_likely_back_in_original_code =
+        g_atomic_int_get (&ctx->state) == GUM_EXEC_CTX_DESTROY_PENDING &&
+        g_get_monotonic_time () - ctx->destroy_pending_since > 50000;
+
+    if (destroy_pending_and_thread_likely_back_in_original_code ||
+        !gum_process_has_thread (ctx->thread_id))
     {
       GUM_STALKER_UNLOCK (self);
 
@@ -1282,15 +1296,23 @@ gum_exec_ctx_maybe_unfollow (GumExecCtx * ctx,
   if (ctx->pending_calls > 0)
     return FALSE;
 
+  gum_exec_ctx_unfollow (ctx, resume_at);
+
+  return TRUE;
+}
+
+static void
+gum_exec_ctx_unfollow (GumExecCtx * ctx,
+                       gpointer resume_at)
+{
   ctx->current_block = NULL;
 
   ctx->resume_at = resume_at;
 
   gum_tls_key_set_value (ctx->stalker->exec_ctx, NULL);
 
+  ctx->destroy_pending_since = g_get_monotonic_time ();
   g_atomic_int_set (&ctx->state, GUM_EXEC_CTX_DESTROY_PENDING);
-
-  return TRUE;
 }
 
 static gboolean
@@ -1384,6 +1406,10 @@ gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
   else if (start_address == gum_stalker_deactivate)
   {
     ctx->resume_at = start_address;
+  }
+  else if (start_address == _gum_thread_exit_impl)
+  {
+    gum_exec_ctx_unfollow (ctx, start_address);
   }
   else if (gum_exec_ctx_maybe_unfollow (ctx, start_address))
   {
@@ -4134,5 +4160,16 @@ gum_get_cpuid (guint level,
   __cpuid_count (level, 0, *a, *b, *c, *d);
 
   return TRUE;
+#endif
+}
+
+static gpointer
+gum_find_thread_exit_implementation (void)
+{
+#ifdef HAVE_DARWIN
+  return GSIZE_TO_POINTER (gum_module_find_symbol_by_name (
+      "/usr/lib/system/libsystem_pthread.dylib", "_pthread_exit"));
+#else
+  return NULL;
 #endif
 }

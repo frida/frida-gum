@@ -53,6 +53,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (follow_return)
   TESTENTRY (follow_syscall)
   TESTENTRY (follow_thread)
+  TESTENTRY (unfollow_should_handle_terminated_thread)
 
   /* EXTRA */
   TESTENTRY (pthread_create)
@@ -68,6 +69,7 @@ static void store_x0 (GumCpuContext * cpu_context, gpointer user_data);
 static void unfollow_during_transform (GumStalkerIterator * iterator,
     GumStalkerWriter * output, gpointer user_data);
 static gpointer run_stalked_briefly (gpointer data);
+static gpointer run_stalked_into_termination (gpointer data);
 static gpointer increment_integer (gpointer data);
 static gboolean store_range_of_test_runner (const GumModuleDetails * details,
     gpointer user_data);
@@ -1193,6 +1195,53 @@ run_stalked_briefly (gpointer data)
   sdc_put_flush_confirmation (channel);
 
   sdc_await_finish_confirmation (channel);
+
+  return NULL;
+}
+
+TESTCASE (unfollow_should_handle_terminated_thread)
+{
+  guint i;
+
+  for (i = 0; i != 10; i++)
+  {
+    StalkerDummyChannel channel;
+    GThread * thread;
+    GumThreadId thread_id;
+
+    sdc_init (&channel);
+
+    thread = g_thread_new ("stalker-test-target", run_stalked_into_termination,
+        &channel);
+    thread_id = sdc_await_thread_id (&channel);
+
+    fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
+    gum_stalker_follow (fixture->stalker, thread_id, NULL,
+        GUM_EVENT_SINK (fixture->sink));
+    sdc_put_follow_confirmation (&channel);
+
+    g_thread_join (thread);
+
+    if (i % 2 == 0)
+      g_usleep (50000);
+
+    gum_stalker_unfollow (fixture->stalker, thread_id);
+
+    sdc_finalize (&channel);
+
+    while (gum_stalker_garbage_collect (fixture->stalker))
+      g_usleep (10000);
+  }
+}
+
+static gpointer
+run_stalked_into_termination (gpointer data)
+{
+  StalkerDummyChannel * channel = data;
+
+  sdc_put_thread_id (channel, gum_process_get_current_thread_id ());
+
+  sdc_await_follow_confirmation (channel);
 
   return NULL;
 }

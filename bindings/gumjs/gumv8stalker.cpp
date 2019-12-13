@@ -253,7 +253,7 @@ _gum_v8_stalker_flush (GumV8Stalker * self)
   {
     if (self->flush_timer == NULL)
     {
-      auto source = g_timeout_source_new (10);
+      auto source = g_timeout_source_new (50);
       g_source_set_callback (source,
           (GSourceFunc) gum_v8_stalker_on_flush_timer_tick, self, NULL);
       self->flush_timer = source;
