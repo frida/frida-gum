@@ -292,6 +292,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (execution_can_be_traced_with_custom_transformer)
     TESTENTRY (execution_can_be_traced_during_immediate_native_function_call)
     TESTENTRY (execution_can_be_traced_during_scheduled_native_function_call)
+    TESTENTRY (execution_can_be_traced_after_native_function_call_from_hook)
     TESTENTRY (call_can_be_probed)
 #endif
     TESTENTRY (stalker_events_can_be_parsed)
@@ -343,6 +344,7 @@ static void on_read_ready (GObject * source_object, GAsyncResult * res,
     gpointer user_data);
 #endif
 
+static gpointer run_stalked_through_hooked_function (gpointer data);
 static gpointer run_stalked_through_target_function (gpointer data);
 
 static gpointer sleeping_dummy (gpointer data);
@@ -2484,6 +2486,98 @@ TESTCASE (execution_can_be_traced_during_scheduled_native_function_call)
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("2");
   EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (execution_can_be_traced_after_native_function_call_from_hook)
+{
+  StalkerDummyChannel channel;
+  GThread * thread;
+  GumThreadId thread_id;
+
+  sdc_init (&channel);
+
+  thread = g_thread_new ("stalker-test-target",
+      run_stalked_through_hooked_function, &channel);
+  thread_id = sdc_await_thread_id (&channel);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var testsRange = Process.getModuleByName('%s');"
+      "Stalker.exclude(testsRange);"
+
+      "var targetThreadId = %" G_GSIZE_FORMAT ";"
+      "var targetFuncInt = " GUM_PTR_CONST ";"
+      "var targetFuncNestedA = new NativeFunction(" GUM_PTR_CONST ", 'int', "
+          "['int'], { traps: 'all' });"
+
+      "Interceptor.attach(targetFuncInt, function () {"
+      "  targetFuncNestedA(1337);"
+      "});"
+
+      "Stalker.queueDrainInterval = 0;"
+
+      "Stalker.follow(targetThreadId, {"
+      "  events: {"
+      "    call: true,"
+      "  },"
+      "  onCallSummary: function (summary) {"
+      "    [targetFuncInt, targetFuncNestedA].forEach(function (target) {"
+      "      var key = ptr(target).toString();"
+      "      send(key in summary);"
+      "      send(summary[key]);"
+      "    });"
+      "  }"
+      "});"
+
+      "recv('stop', function (message) {"
+      "  Stalker.unfollow(targetThreadId);"
+      "  Stalker.flush();"
+      "});"
+
+      "send('ready');",
+
+      GUM_TESTS_MODULE_NAME,
+      thread_id,
+      target_function_int,
+      target_function_nested_a);
+  EXPECT_SEND_MESSAGE_WITH ("\"ready\"");
+
+  EXPECT_NO_MESSAGES ();
+  sdc_put_follow_confirmation (&channel);
+
+  sdc_await_run_confirmation (&channel);
+
+  POST_MESSAGE ("{\"type\":\"stop\"}");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("1");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("2");
+  EXPECT_NO_MESSAGES ();
+
+  sdc_put_finish_confirmation (&channel);
+
+  g_thread_join (thread);
+
+  sdc_finalize (&channel);
+}
+
+static gpointer
+run_stalked_through_hooked_function (gpointer data)
+{
+  StalkerDummyChannel * channel = data;
+
+  sdc_put_thread_id (channel, gum_process_get_current_thread_id ());
+
+  sdc_await_follow_confirmation (channel);
+
+  target_function_int (42);
+
+  target_function_nested_a (1338);
+
+  sdc_put_run_confirmation (channel);
+
+  sdc_await_finish_confirmation (channel);
+
+  return NULL;
 }
 
 TESTCASE (call_can_be_probed)
