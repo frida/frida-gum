@@ -70,6 +70,23 @@ gum_process_get_current_thread_id (void)
 #endif
 
 gboolean
+gum_process_has_thread (GumThreadId thread_id)
+{
+  gboolean found = FALSE;
+  HANDLE thread;
+
+  thread = OpenThread (SYNCHRONIZE, FALSE, thread_id);
+  if (thread != NULL)
+  {
+    found = WaitForSingleObject (thread, 0) == WAIT_TIMEOUT;
+
+    CloseHandle (thread);
+  }
+
+  return found;
+}
+
+gboolean
 gum_process_modify_thread (GumThreadId thread_id,
                            GumModifyThreadFunc func,
                            gpointer user_data)

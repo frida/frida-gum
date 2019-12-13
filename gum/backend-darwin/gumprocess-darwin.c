@@ -349,6 +349,39 @@ gum_process_get_current_thread_id (void)
 }
 
 gboolean
+gum_process_has_thread (GumThreadId thread_id)
+{
+  gboolean found = FALSE;
+  mach_port_t task;
+  thread_act_array_t threads;
+  mach_msg_type_number_t count;
+  kern_return_t kr;
+  guint i;
+
+  task = mach_task_self ();
+
+  kr = task_threads (task, &threads, &count);
+  if (kr != KERN_SUCCESS)
+    goto beach;
+
+  for (i = 0; i != count; i++)
+  {
+    if (threads[i] == thread_id)
+    {
+      found = TRUE;
+      break;
+    }
+  }
+
+  for (i = 0; i != count; i++)
+    mach_port_deallocate (task, threads[i]);
+  vm_deallocate (task, (vm_address_t) threads, count * sizeof (thread_t));
+
+beach:
+  return found;
+}
+
+gboolean
 gum_process_modify_thread (GumThreadId thread_id,
                            GumModifyThreadFunc func,
                            gpointer user_data)

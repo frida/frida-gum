@@ -110,6 +110,13 @@ gum_process_get_current_thread_id (void)
 }
 
 gboolean
+gum_process_has_thread (GumThreadId thread_id)
+{
+  /* FIXME */
+  return TRUE;
+}
+
+gboolean
 gum_process_modify_thread (GumThreadId thread_id,
                            GumModifyThreadFunc func,
                            gpointer user_data)
@@ -129,7 +136,8 @@ gum_process_modify_thread (GumThreadId thread_id,
     fd = open (as_path, O_RDWR);
     g_assert (fd != -1);
 
-    res = devctl (fd, DCMD_PROC_CURTHREAD, &thread_id, sizeof (thread_id), NULL);
+    res = devctl (fd, DCMD_PROC_CURTHREAD, &thread_id, sizeof (thread_id),
+        NULL);
     g_assert (res == 0);
 
     res = devctl (fd, DCMD_PROC_GETGREG, &gregs, sizeof (gregs), NULL);

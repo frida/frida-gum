@@ -310,6 +310,16 @@ gum_process_get_current_thread_id (void)
 }
 
 gboolean
+gum_process_has_thread (GumThreadId thread_id)
+{
+  gchar path[16 + 20 + 1];
+
+  sprintf (path, "/proc/self/task/%" G_GSIZE_MODIFIER "u", thread_id);
+
+  return g_file_test (path, G_FILE_TEST_EXISTS);
+}
+
+gboolean
 gum_process_modify_thread (GumThreadId thread_id,
                            GumModifyThreadFunc func,
                            gpointer user_data)

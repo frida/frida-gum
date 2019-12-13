@@ -167,6 +167,7 @@ GUM_API void gum_process_set_code_signing_policy (GumCodeSigningPolicy policy);
 GUM_API gboolean gum_process_is_debugger_attached (void);
 GUM_API GumProcessId gum_process_get_id (void);
 GUM_API GumThreadId gum_process_get_current_thread_id (void);
+GUM_API gboolean gum_process_has_thread (GumThreadId thread_id);
 GUM_API gboolean gum_process_modify_thread (GumThreadId thread_id,
     GumModifyThreadFunc func, gpointer user_data);
 GUM_API void gum_process_enumerate_threads (GumFoundThreadFunc func,
