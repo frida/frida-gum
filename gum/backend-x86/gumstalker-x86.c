@@ -464,6 +464,10 @@ static gboolean gum_get_cpuid (guint level, guint * a, guint * b, guint * c,
     guint * d);
 
 static gpointer gum_find_thread_exit_implementation (void);
+#ifdef HAVE_DARWIN
+static gboolean gum_store_thread_exit_match (GumAddress address, gsize size,
+    gpointer user_data);
+#endif
 
 G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
 
@@ -4177,9 +4181,66 @@ static gpointer
 gum_find_thread_exit_implementation (void)
 {
 #ifdef HAVE_DARWIN
-  return GSIZE_TO_POINTER (gum_module_find_symbol_by_name (
-      "/usr/lib/system/libsystem_pthread.dylib", "_pthread_exit"));
+  GumAddress result = 0;
+  const gchar * pthread_path = "/usr/lib/system/libsystem_pthread.dylib";
+  GumMemoryRange range;
+  GumMatchPattern * pattern;
+
+  range.base_address = gum_module_find_base_address (pthread_path);
+  range.size = 128 * 1024;
+
+  pattern = gum_match_pattern_new_from_string (
+#if GLIB_SIZEOF_VOID_P == 8
+                  /*** Generated on macOS 10.15.1 ***/
+      "55 "       /* push rbp                       */
+      "48 89 e5 " /* mov rbp, rsp                   */
+      "41 57 "    /* push r15                       */
+      "41 56 "    /* push r14                       */
+      "53 "       /* push rbx                       */
+      "50 "       /* push rax                       */
+      "49 89 f6 " /* mov r14, rsi                   */
+      "49 89 ff"  /* mov r15, rdi                   */
+#else
+                  /*** Generated on macOS 10.14.6 ***/
+      "55 "       /* push ebp                       */
+      "89 e5 "    /* mov ebp, esp                   */
+      "53 "       /* push ebx                       */
+      "57 "       /* push edi                       */
+      "56 "       /* push esi                       */
+      "83 ec 0c " /* sub esp, 0xc                   */
+      "89 d6 "    /* mov esi, edx                   */
+      "89 cf"     /* mov edi, ecx                   */
+#endif
+  );
+
+  gum_memory_scan (&range, pattern, gum_store_thread_exit_match, &result);
+
+  gum_match_pattern_free (pattern);
+
+  /* Non-public symbols are all <redacted> on iOS. */
+#ifndef HAVE_IOS
+  if (result == 0)
+    result = gum_module_find_symbol_by_name (pthread_path, "_pthread_exit");
+#endif
+
+  return GSIZE_TO_POINTER (result);
 #else
   return NULL;
 #endif
 }
+
+#ifdef HAVE_DARWIN
+
+static gboolean
+gum_store_thread_exit_match (GumAddress address,
+                             gsize size,
+                             gpointer user_data)
+{
+  GumAddress * result = user_data;
+
+  *result = address;
+
+  return FALSE;
+}
+
+#endif
