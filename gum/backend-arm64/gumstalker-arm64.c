@@ -390,10 +390,6 @@ static void gum_exec_block_close_prolog (GumExecBlock * block,
     GumGeneratorContext * gc);
 
 static gpointer gum_find_thread_exit_implementation (void);
-#ifdef HAVE_DARWIN
-static gboolean gum_store_thread_exit_match (GumAddress address, gsize size,
-    gpointer user_data);
-#endif
 
 G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
 
@@ -3467,53 +3463,36 @@ static gpointer
 gum_find_thread_exit_implementation (void)
 {
 #ifdef HAVE_DARWIN
-  GumAddress result = 0;
-  const gchar * pthread_path = "/usr/lib/system/libsystem_pthread.dylib";
-  GumMemoryRange range;
-  GumMatchPattern * pattern;
+  guint32 * cursor;
 
-  range.base_address = gum_module_find_base_address (pthread_path);
-  range.size = 128 * 1024;
+  cursor = GSIZE_TO_POINTER (gum_module_find_export_by_name (
+      "/usr/lib/system/libsystem_pthread.dylib", "pthread_exit"));
 
-  pattern = gum_match_pattern_new_from_string (
-                      /*** Generated on iOS 13.2.2 ***/
-      "f6 57 bd a9 "  /* stp x22, x21, [sp, #-0x30]! */
-      "f4 4f 01 a9 "  /* stp x20, x19, [sp, #0x10]   */
-      "fd 7b 02 a9 "  /* stp x29, x30, [sp, #0x20]   */
-      "fd 83 00 91 "  /* add x29, sp, #0x20          */
-      "f3 03 01 aa "  /* mov x19, x1                 */
-      "f4 03 00 aa "  /* mov x20, x0                 */
-      "e0 03 00 32"   /* orr w0, wzr, #1             */
-  );
+  do
+  {
+    guint32 insn = *cursor;
+    gboolean is_bl_imm;
 
-  gum_memory_scan (&range, pattern, gum_store_thread_exit_match, &result);
+    is_bl_imm = (insn & ~GUM_INT26_MASK) == 0x94000000;
+    if (is_bl_imm)
+    {
+      union
+      {
+        gint32 i;
+        guint32 u;
+      } distance;
 
-  gum_match_pattern_free (pattern);
+      distance.u = insn & GUM_INT26_MASK;
+      if ((distance.u & (1 << (26 - 1))) != 0)
+        distance.u |= 0xfc000000;
 
-  /* Non-public symbols are all <redacted> on iOS. */
-#ifndef HAVE_IOS
-  if (result == 0)
-    result = gum_module_find_symbol_by_name (pthread_path, "_pthread_exit");
-#endif
+      return cursor + distance.i;
+    }
 
-  return GSIZE_TO_POINTER (result);
+    cursor++;
+  }
+  while (TRUE);
 #else
   return NULL;
 #endif
 }
-
-#ifdef HAVE_DARWIN
-
-static gboolean
-gum_store_thread_exit_match (GumAddress address,
-                             gsize size,
-                             gpointer user_data)
-{
-  GumAddress * result = user_data;
-
-  *result = address;
-
-  return FALSE;
-}
-
-#endif
