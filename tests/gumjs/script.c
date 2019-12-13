@@ -230,6 +230,7 @@ TESTLIST_BEGIN (script)
 
   TESTGROUP_BEGIN ("NativeFunction")
     TESTENTRY (native_function_can_be_invoked)
+    TESTENTRY (native_function_can_be_passed_an_array_buffer)
     TESTENTRY (native_function_can_be_intercepted_when_thread_is_ignored)
     TESTENTRY (native_function_should_implement_call_and_apply)
     TESTENTRY (system_function_can_be_invoked)
@@ -943,6 +944,38 @@ TESTCASE (native_function_can_be_invoked)
   EXPECT_SEND_MESSAGE_WITH ("\"16\"");
   EXPECT_SEND_MESSAGE_WITH ("\"36\"");
   EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (native_function_can_be_passed_an_array_buffer)
+{
+  gchar str[5 + 1];
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var toupper = new NativeFunction(" GUM_PTR_CONST ", "
+          "'int', ['pointer', 'int']);"
+      "var buf = new ArrayBuffer(2 + 1);"
+      "var bytes = new Uint8Array(buf);"
+      "bytes[0] = 'h'.charCodeAt(0);"
+      "bytes[1] = 'i'.charCodeAt(0);"
+      "send(toupper(buf, -1));"
+      "send(bytes[0]);"
+      "send(bytes[1]);",
+      gum_toupper, str);
+  EXPECT_SEND_MESSAGE_WITH ("-2");
+  EXPECT_SEND_MESSAGE_WITH ("72");
+  EXPECT_SEND_MESSAGE_WITH ("73");
+  EXPECT_NO_MESSAGES ();
+
+  strcpy (str, "snake");
+  COMPILE_AND_LOAD_SCRIPT (
+      "var toupper = new NativeFunction(" GUM_PTR_CONST ", "
+          "'int', ['pointer', 'int']);"
+      "var buf = " GUM_PTR_CONST ".mapByteArray(5 + 1);"
+      "send(toupper(buf, -1));",
+      gum_toupper, str);
+  EXPECT_SEND_MESSAGE_WITH ("-5");
+  EXPECT_NO_MESSAGES ();
+  g_assert_cmpstr (str, ==, "SNAKE");
 }
 
 TESTCASE (native_function_can_be_intercepted_when_thread_is_ignored)

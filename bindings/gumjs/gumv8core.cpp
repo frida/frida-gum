@@ -3191,6 +3191,13 @@ gum_v8_value_to_ffi_type (GumV8Core * core,
   }
   else if (type == &ffi_type_pointer)
   {
+    if (svalue->IsArrayBuffer ())
+    {
+      auto contents = svalue.As<ArrayBuffer> ()->GetContents ();
+      value->v_pointer = contents.Data ();
+      return TRUE;
+    }
+
     if (!_gum_v8_native_pointer_get (svalue, &value->v_pointer, core))
       return FALSE;
   }

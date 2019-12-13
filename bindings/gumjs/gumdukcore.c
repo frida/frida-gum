@@ -3831,6 +3831,12 @@ gum_duk_get_ffi_value (duk_context * ctx,
   }
   else if (type == &ffi_type_pointer)
   {
+    if (duk_is_buffer_data (ctx, index))
+    {
+      value->v_pointer = duk_get_buffer_data (ctx, index, NULL);
+      return TRUE;
+    }
+
     if (!_gum_duk_get_pointer (ctx, index, core, &value->v_pointer))
       return FALSE;
   }
