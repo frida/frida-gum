@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -8,6 +8,8 @@
 #define __LOWLEVEL_HELPERS_H__
 
 #include <gum/gumdefs.h>
+
+G_BEGIN_DECLS
 
 typedef struct _UnsupportedFunction UnsupportedFunction;
 
@@ -47,5 +49,7 @@ ProxyFunc proxy_func_new_two_jumps_with_target (TargetFunc target_func);
 ProxyFunc proxy_func_new_early_call_with_target (TargetFunc target_func);
 void proxy_func_free (ProxyFunc proxy_func);
 #endif
+
+G_END_DECLS
 
 #endif

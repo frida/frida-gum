@@ -5,7 +5,7 @@ runner_sources = [
   'stubs/fakebacktracer.c',
   'stubs/fakeeventsink.c',
   'stalkerdummychannel.c',
-  'lowlevel-helpers.c',
+  'lowlevelhelpers.c',
 ]
 
 test_incdirs = [

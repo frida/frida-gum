@@ -12,7 +12,7 @@
 # include "gumscriptbackend.h"
 #endif
 #ifdef HAVE_I386
-# include "lowlevel-helpers.h"
+# include "lowlevelhelpers.h"
 #endif
 #include "valgrind.h"
 

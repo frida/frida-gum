@@ -87,7 +87,7 @@
     <ClCompile Include="stalkerdummychannel.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="lowlevel-helpers.c">
+    <ClCompile Include="lowlevelhelpers.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="core\arch-x86\relocator-fixture.c">
@@ -254,7 +254,7 @@
     <ClInclude Include="stalkerdummychannel.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="lowlevel-helpers.h">
+    <ClInclude Include="lowlevelhelpers.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="stubs\dummyclasses.h">

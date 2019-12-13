@@ -8,7 +8,7 @@
 
 #include "interceptor-callbacklistener.h"
 #include "interceptor-functiondatalistener.h"
-#include "lowlevel-helpers.h"
+#include "lowlevelhelpers.h"
 #include "testutil.h"
 #include "valgrind.h"
 

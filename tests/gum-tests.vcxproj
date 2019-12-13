@@ -171,7 +171,7 @@ copy /B /Y "$(SolutionDir)build\frida-windows\$(Platform)-$(ConfigurationName)\b
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="stalkerdummychannel.h" />
-    <ClInclude Include="lowlevel-helpers.h" />
+    <ClInclude Include="lowlevelhelpers.h" />
     <ClInclude Include="prof\fakesampler.h" />
     <ClInclude Include="stubs\dummyclasses.h" />
     <ClInclude Include="stubs\fakebacktracer.h" />
@@ -332,7 +332,7 @@ copy /B /Y "$(SolutionDir)build\frida-windows\$(Platform)-$(ConfigurationName)\b
     </ClCompile>
     <ClCompile Include="heap\sanitychecker.c" />
     <ClCompile Include="stalkerdummychannel.c" />
-    <ClCompile Include="lowlevel-helpers.c" />
+    <ClCompile Include="lowlevelhelpers.c" />
     <ClCompile Include="core\interceptor.c" />
     <ClCompile Include="core\interceptor-fixture.c">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>

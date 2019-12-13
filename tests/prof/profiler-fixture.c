@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -10,7 +10,7 @@
 #ifdef G_OS_WIN32
 
 #include "fakesampler.h"
-#include "lowlevel-helpers.h"
+#include "lowlevelhelpers.h"
 #include "testutil.h"
 
 #include <stdio.h>
