@@ -23,6 +23,7 @@ struct GumV8CallbackTransformer
 {
   GObject parent;
 
+  GumThreadId thread_id;
   GumPersistent<Function>::type * callback;
 
   GumV8Stalker * module;
@@ -456,6 +457,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
   {
     auto cbt = (GumV8CallbackTransformer *)
         g_object_new (GUM_V8_TYPE_CALLBACK_TRANSFORMER, NULL);
+    cbt->thread_id = thread_id;
     cbt->callback = new GumPersistent<Function>::type (isolate,
         transformer_callback_js);
     cbt->module = module;
@@ -710,27 +712,35 @@ gum_v8_callback_transformer_transform_block (
   auto self = GUM_V8_CALLBACK_TRANSFORMER_CAST (transformer);
   auto module = self->module;
   auto core = module->core;
-  ScriptScope scope (core->script);
-  auto isolate = core->isolate;
-  auto context = isolate->GetCurrentContext ();
 
-  auto callback = Local<Function>::New (isolate, *self->callback);
+  gboolean transform_threw_an_exception;
+  {
+    ScriptScope scope (core->script);
+    auto isolate = core->isolate;
+    auto context = isolate->GetCurrentContext ();
 
-  auto iter_value = gum_v8_stalker_obtain_iterator (module);
-  auto output_value = &iter_value->parent;
-  _gum_v8_native_writer_reset (output_value, (GumV8NativeWriterImpl *) output);
-  gum_v8_stalker_iterator_reset (iter_value, iterator);
-  auto iter_object = Local<Object>::New (isolate, *output_value->object);
+    auto callback = Local<Function>::New (isolate, *self->callback);
 
-  auto recv = Undefined (isolate);
-  Handle<Value> argv[] = { iter_object };
-  auto result = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
-  if (result.IsEmpty ())
-    scope.ProcessAnyPendingException ();
+    auto iter_value = gum_v8_stalker_obtain_iterator (module);
+    auto output_value = &iter_value->parent;
+    _gum_v8_native_writer_reset (output_value, (GumV8NativeWriterImpl *) output);
+    gum_v8_stalker_iterator_reset (iter_value, iterator);
+    auto iter_object = Local<Object>::New (isolate, *output_value->object);
 
-  gum_v8_stalker_iterator_reset (iter_value, NULL);
-  _gum_v8_native_writer_reset (output_value, NULL);
-  gum_v8_stalker_release_iterator (module, iter_value);
+    auto recv = Undefined (isolate);
+    Handle<Value> argv[] = { iter_object };
+    auto result = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+    transform_threw_an_exception = result.IsEmpty ();
+    if (transform_threw_an_exception)
+      scope.ProcessAnyPendingException ();
+
+    gum_v8_stalker_iterator_reset (iter_value, NULL);
+    _gum_v8_native_writer_reset (output_value, NULL);
+    gum_v8_stalker_release_iterator (module, iter_value);
+  }
+
+  if (transform_threw_an_exception)
+    gum_stalker_unfollow (module->stalker, self->thread_id);
 }
 
 static void

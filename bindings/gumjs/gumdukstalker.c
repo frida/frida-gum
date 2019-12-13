@@ -23,6 +23,7 @@ struct _GumDukCallbackTransformer
 {
   GObject parent;
 
+  GumThreadId thread_id;
   GumDukHeapPtr callback;
 
   GumDukStalker * module;
@@ -491,6 +492,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
     GumDukCallbackTransformer * cbt;
 
     cbt = g_object_new (GUM_DUK_TYPE_CALLBACK_TRANSFORMER, NULL);
+    cbt->thread_id = thread_id;
     _gum_duk_protect (ctx, transformer_callback_js);
     cbt->callback = transformer_callback_js;
     cbt->module = module;
@@ -757,6 +759,7 @@ gum_duk_callback_transformer_transform_block (
   GumDukScope scope;
   GumDukStalkerIterator * iterator_value;
   GumDukNativeWriter * output_value;
+  gboolean transform_threw_an_exception;
 
   ctx = _gum_duk_scope_enter (&scope, module->core);
 
@@ -768,7 +771,7 @@ gum_duk_callback_transformer_transform_block (
 
   duk_push_heapptr (ctx, self->callback);
   duk_push_heapptr (ctx, output_value->object);
-  _gum_duk_scope_call (&scope, 1);
+  transform_threw_an_exception = !_gum_duk_scope_call (&scope, 1);
   duk_pop (ctx);
 
   gum_duk_stalker_iterator_reset (iterator_value, NULL);
@@ -776,6 +779,9 @@ gum_duk_callback_transformer_transform_block (
   gum_duk_stalker_release_iterator (module, iterator_value);
 
   _gum_duk_scope_leave (&scope);
+
+  if (transform_threw_an_exception)
+    gum_stalker_unfollow (module->stalker, self->thread_id);
 }
 
 static void

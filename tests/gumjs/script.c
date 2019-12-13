@@ -290,6 +290,7 @@ TESTLIST_BEGIN (script)
 #if defined (HAVE_I386) || defined (HAVE_ARM64)
     TESTENTRY (execution_can_be_traced)
     TESTENTRY (execution_can_be_traced_with_custom_transformer)
+    TESTENTRY (execution_can_be_traced_with_faulty_transformer)
     TESTENTRY (execution_can_be_traced_during_immediate_native_function_call)
     TESTENTRY (execution_can_be_traced_during_scheduled_native_function_call)
     TESTENTRY (execution_can_be_traced_after_native_function_call_from_hook)
@@ -2406,6 +2407,32 @@ TESTCASE (execution_can_be_traced_with_custom_transformer)
   POST_MESSAGE ("{\"type\":\"stop\"}");
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (execution_can_be_traced_with_faulty_transformer)
+{
+  GumThreadId test_thread_id;
+
+  test_thread_id = gum_process_get_current_thread_id ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var testsRange = Process.getModuleByName('%s');"
+      "Stalker.exclude(testsRange);"
+
+      "Stalker.follow(%" G_GSIZE_FORMAT ", {"
+      "  transform: function (iterator) {"
+      "    throw new Error('Oh no I am buggy');"
+      "  }"
+      "});",
+
+      GUM_TESTS_MODULE_NAME,
+      test_thread_id);
+  g_usleep (1);
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER, "Error: Oh no I am buggy");
+  EXPECT_NO_MESSAGES ();
+
+  g_assert (
+      !gum_stalker_is_following_me (gum_script_get_stalker (fixture->script)));
 }
 
 TESTCASE (execution_can_be_traced_during_immediate_native_function_call)
