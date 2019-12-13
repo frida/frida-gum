@@ -358,6 +358,13 @@ gum_process_has_thread (GumThreadId thread_id)
   kern_return_t kr;
   guint i;
 
+  /*
+   * We won't see the same Mach port name as the one that libpthread has,
+   * so we need to special-case it. This also doubles as an optimization.
+   */
+  if (thread_id == gum_process_get_current_thread_id ())
+    return TRUE;
+
   task = mach_task_self ();
 
   kr = task_threads (task, &threads, &count);
