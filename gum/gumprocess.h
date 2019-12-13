@@ -195,6 +195,8 @@ GUM_API void gum_module_enumerate_ranges (const gchar * module_name,
 GUM_API GumAddress gum_module_find_base_address (const gchar * module_name);
 GUM_API GumAddress gum_module_find_export_by_name (const gchar * module_name,
     const gchar * symbol_name);
+GUM_API GumAddress gum_module_find_symbol_by_name (const gchar * module_name,
+    const gchar * symbol_name);
 
 GUM_API GType gum_code_signing_policy_get_type (void) G_GNUC_CONST;
 GUM_API const gchar * gum_code_signing_policy_to_string (

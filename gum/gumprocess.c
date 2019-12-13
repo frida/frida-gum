@@ -10,6 +10,7 @@
 
 typedef struct _GumEmitThreadsContext GumEmitThreadsContext;
 typedef struct _GumEmitRangesContext GumEmitRangesContext;
+typedef struct _GumResolveSymbolContext GumResolveSymbolContext;
 
 struct _GumEmitThreadsContext
 {
@@ -23,10 +24,18 @@ struct _GumEmitRangesContext
   gpointer user_data;
 };
 
+struct _GumResolveSymbolContext
+{
+  const gchar * name;
+  GumAddress result;
+};
+
 static gboolean gum_emit_thread_if_not_cloaked (
     const GumThreadDetails * details, gpointer user_data);
 static gboolean gum_emit_range_if_not_cloaked (const GumRangeDetails * details,
     gpointer user_data);
+static gboolean gum_store_address_if_name_matches (
+    const GumSymbolDetails * details, gpointer user_data);
 
 static GumCodeSigningPolicy gum_code_signing_policy = GUM_CODE_SIGNING_OPTIONAL;
 
@@ -130,6 +139,37 @@ gum_emit_range_if_not_cloaked (const GumRangeDetails * details,
   }
 
   return ctx->func (details, ctx->user_data);
+}
+
+GumAddress
+gum_module_find_symbol_by_name (const gchar * module_name,
+                                const gchar * symbol_name)
+{
+  GumResolveSymbolContext ctx;
+
+  ctx.name = symbol_name;
+  ctx.result = 0;
+
+  gum_module_enumerate_symbols (module_name, gum_store_address_if_name_matches,
+      &ctx);
+
+  return ctx.result;
+}
+
+static gboolean
+gum_store_address_if_name_matches (const GumSymbolDetails * details,
+                                   gpointer user_data)
+{
+  GumResolveSymbolContext * ctx = user_data;
+  gboolean carry_on = TRUE;
+
+  if (strcmp (details->name, ctx->name) == 0)
+  {
+    ctx->result = details->address;
+    carry_on = FALSE;
+  }
+
+  return carry_on;
 }
 
 GType
