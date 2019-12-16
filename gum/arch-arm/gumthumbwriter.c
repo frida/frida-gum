@@ -192,6 +192,12 @@ gum_thumb_writer_cur (GumThumbWriter * self)
   return self->code;
 }
 
+GumAddress
+gum_thumb_writer_cur_pc (GumThumbWriter * self)
+{
+  return self->pc;
+}
+
 guint
 gum_thumb_writer_offset (GumThumbWriter * self)
 {
