@@ -222,6 +222,9 @@ GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_string)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_json)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_match_pattern)
 
+GUMJS_DECLARE_FUNCTION (gumjs_array_buffer_wrap)
+GUMJS_DECLARE_FUNCTION (gumjs_array_buffer_unwrap)
+
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_resource_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_native_resource_finalize)
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_kernel_resource_construct)
@@ -852,6 +855,14 @@ _gum_duk_core_init (GumDukCore * self,
   duk_put_prop_string (ctx, -2, "prototype");
   self->native_pointer = _gum_duk_require_heapptr (ctx, -1);
   duk_put_global_string (ctx, "NativePointer");
+
+  duk_get_global_string (ctx, "ArrayBuffer");
+  duk_push_c_function (ctx, gumjs_array_buffer_wrap, 2);
+  duk_put_prop_string (ctx, -2, "wrap");
+  duk_get_prop_string (ctx, -1, "prototype");
+  duk_push_c_function (ctx, gumjs_array_buffer_unwrap, 0);
+  duk_put_prop_string (ctx, -2, "unwrap");
+  duk_pop_2 (ctx);
 
   _gum_duk_create_subclass (ctx, "NativePointer", "NativeResource",
       gumjs_native_resource_construct, 2, gumjs_native_resource_finalize);
@@ -2404,6 +2415,41 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_match_pattern)
   return 1;
 }
 
+GUMJS_DEFINE_FUNCTION (gumjs_array_buffer_wrap)
+{
+  gpointer address;
+  gsize size;
+
+  _gum_duk_args_parse (args, "pZ", &address, &size);
+
+  if (address != NULL && size > 0)
+  {
+    duk_push_external_buffer (ctx);
+    duk_config_buffer (ctx, -1, address, size);
+  }
+  else
+  {
+    duk_push_fixed_buffer (ctx, 0);
+  }
+
+  duk_push_buffer_object (ctx, -1, 0, size, DUK_BUFOBJ_ARRAYBUFFER);
+
+  duk_swap (ctx, -2, -1);
+  duk_pop (ctx);
+  return 1;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_array_buffer_unwrap)
+{
+  gpointer address;
+
+  duk_push_this (ctx);
+  address = duk_require_buffer_data (ctx, -1, NULL);
+
+  _gum_duk_push_native_pointer (ctx, address, args->core);
+  return 1;
+}
+
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_resource_construct)
 {
   gpointer data;
@@ -3831,12 +3877,6 @@ gum_duk_get_ffi_value (duk_context * ctx,
   }
   else if (type == &ffi_type_pointer)
   {
-    if (duk_is_buffer_data (ctx, index))
-    {
-      value->v_pointer = duk_get_buffer_data (ctx, index, NULL);
-      return TRUE;
-    }
-
     if (!_gum_duk_get_pointer (ctx, index, core, &value->v_pointer))
       return FALSE;
   }

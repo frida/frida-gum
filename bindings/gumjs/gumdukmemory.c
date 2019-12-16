@@ -124,8 +124,6 @@ GUMJS_DEFINE_MEMORY_READ_WRITE (UTF8_STRING)
 GUMJS_DEFINE_MEMORY_READ_WRITE (UTF16_STRING)
 GUMJS_DEFINE_MEMORY_READ_WRITE (ANSI_STRING)
 
-GUMJS_DECLARE_FUNCTION (gumjs_memory_map_byte_array)
-
 GUMJS_DECLARE_FUNCTION (gumjs_memory_alloc_ansi_string)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_alloc_utf8_string)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_alloc_utf16_string)
@@ -183,8 +181,6 @@ static const duk_function_list_entry gumjs_memory_functions[] =
   GUMJS_EXPORT_MEMORY_READ_WRITE ("Utf8String", UTF8_STRING),
   GUMJS_EXPORT_MEMORY_READ_WRITE ("Utf16String", UTF16_STRING),
   GUMJS_EXPORT_MEMORY_READ_WRITE ("AnsiString", ANSI_STRING),
-
-  { "_mapByteArray", gumjs_memory_map_byte_array, 2 },
 
   { "allocAnsiString", gumjs_memory_alloc_ansi_string, 1 },
   { "allocUtf8String", gumjs_memory_alloc_utf8_string, 1 },
@@ -800,31 +796,6 @@ gum_duk_memory_write (GumMemoryValueType type,
 #endif
 
   return 0;
-}
-
-GUMJS_DEFINE_FUNCTION (gumjs_memory_map_byte_array)
-{
-  gpointer address;
-  gsize size;
-
-  _gum_duk_args_parse (args, "pZ", &address, &size);
-
-  if (address != NULL && size > 0)
-  {
-    duk_push_external_buffer (ctx);
-    duk_config_buffer (ctx, -1, address, size);
-  }
-  else
-  {
-    duk_push_fixed_buffer (ctx, 0);
-  }
-
-  duk_push_buffer_object (ctx, -1, 0, size, DUK_BUFOBJ_ARRAYBUFFER);
-
-  duk_swap (ctx, -2, -1);
-  duk_pop (ctx);
-
-  return 1;
 }
 
 #ifdef G_OS_WIN32

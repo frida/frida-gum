@@ -114,7 +114,6 @@ TESTLIST_BEGIN (script)
     TESTENTRY (double_can_be_written)
     TESTENTRY (byte_array_can_be_read)
     TESTENTRY (byte_array_can_be_written)
-    TESTENTRY (byte_array_can_be_mapped)
     TESTENTRY (c_string_can_be_read)
     TESTENTRY (utf8_string_can_be_read)
     TESTENTRY (utf8_string_can_be_written)
@@ -220,6 +219,11 @@ TESTLIST_BEGIN (script)
     TESTENTRY (native_pointer_can_be_constructed_from_64bit_value)
   TESTGROUP_END ()
 
+  TESTGROUP_BEGIN ("ArrayBuffer")
+    TESTENTRY (array_buffer_can_wrap_memory_region)
+    TESTENTRY (array_buffer_can_be_unwrapped)
+  TESTGROUP_END ()
+
   TESTGROUP_BEGIN ("UInt64")
     TESTENTRY (uint64_provides_arithmetic_operations)
   TESTGROUP_END ()
@@ -230,7 +234,6 @@ TESTLIST_BEGIN (script)
 
   TESTGROUP_BEGIN ("NativeFunction")
     TESTENTRY (native_function_can_be_invoked)
-    TESTENTRY (native_function_can_be_passed_an_array_buffer)
     TESTENTRY (native_function_can_be_intercepted_when_thread_is_ignored)
     TESTENTRY (native_function_should_implement_call_and_apply)
     TESTENTRY (system_function_can_be_invoked)
@@ -946,38 +949,6 @@ TESTCASE (native_function_can_be_invoked)
   EXPECT_NO_MESSAGES ();
 }
 
-TESTCASE (native_function_can_be_passed_an_array_buffer)
-{
-  gchar str[5 + 1];
-
-  COMPILE_AND_LOAD_SCRIPT (
-      "var toupper = new NativeFunction(" GUM_PTR_CONST ", "
-          "'int', ['pointer', 'int']);"
-      "var buf = new ArrayBuffer(2 + 1);"
-      "var bytes = new Uint8Array(buf);"
-      "bytes[0] = 'h'.charCodeAt(0);"
-      "bytes[1] = 'i'.charCodeAt(0);"
-      "send(toupper(buf, -1));"
-      "send(bytes[0]);"
-      "send(bytes[1]);",
-      gum_toupper, str);
-  EXPECT_SEND_MESSAGE_WITH ("-2");
-  EXPECT_SEND_MESSAGE_WITH ("72");
-  EXPECT_SEND_MESSAGE_WITH ("73");
-  EXPECT_NO_MESSAGES ();
-
-  strcpy (str, "snake");
-  COMPILE_AND_LOAD_SCRIPT (
-      "var toupper = new NativeFunction(" GUM_PTR_CONST ", "
-          "'int', ['pointer', 'int']);"
-      "var buf = " GUM_PTR_CONST ".mapByteArray(5 + 1);"
-      "send(toupper(buf, -1));",
-      gum_toupper, str);
-  EXPECT_SEND_MESSAGE_WITH ("-5");
-  EXPECT_NO_MESSAGES ();
-  g_assert_cmpstr (str, ==, "SNAKE");
-}
-
 TESTCASE (native_function_can_be_intercepted_when_thread_is_ignored)
 {
   GumInterceptor * interceptor;
@@ -1626,6 +1597,72 @@ TESTCASE (native_pointer_can_be_constructed_from_64bit_value)
       "send(ptr(int64(-1)).equals(ptr('0xffffffffffffffff')));");
   EXPECT_SEND_MESSAGE_WITH ("true");
 #endif
+}
+
+TESTCASE (array_buffer_can_wrap_memory_region)
+{
+  guint8 val[2] = { 13, 37 };
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var val = new Uint8Array(ArrayBuffer.wrap(" GUM_PTR_CONST ", 2));"
+      "send(val.length);"
+      "send(val[0]);"
+      "send(val[1]);"
+      "val[0] = 42;"
+      "val[1] = 24;",
+      val);
+  EXPECT_SEND_MESSAGE_WITH ("2");
+  EXPECT_SEND_MESSAGE_WITH ("13");
+  EXPECT_SEND_MESSAGE_WITH ("37");
+  g_assert_cmpint (val[0], ==, 42);
+  g_assert_cmpint (val[1], ==, 24);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var val = new Uint8Array(ArrayBuffer.wrap(" GUM_PTR_CONST ", 0));"
+      "send(val.length);"
+      "send(typeof val[0]);",
+      val);
+  EXPECT_SEND_MESSAGE_WITH ("0");
+  EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var val = new Uint8Array(ArrayBuffer.wrap(NULL, 0));"
+      "send(val.length);"
+      "send(typeof val[0]);");
+  EXPECT_SEND_MESSAGE_WITH ("0");
+  EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
+}
+
+TESTCASE (array_buffer_can_be_unwrapped)
+{
+  gchar str[5 + 1];
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var toupper = new NativeFunction(" GUM_PTR_CONST ", "
+          "'int', ['pointer', 'int']);"
+      "var buf = new ArrayBuffer(2 + 1);"
+      "var bytes = new Uint8Array(buf);"
+      "bytes[0] = 'h'.charCodeAt(0);"
+      "bytes[1] = 'i'.charCodeAt(0);"
+      "send(toupper(buf.unwrap(), -1));"
+      "send(bytes[0]);"
+      "send(bytes[1]);",
+      gum_toupper, str);
+  EXPECT_SEND_MESSAGE_WITH ("-2");
+  EXPECT_SEND_MESSAGE_WITH ("72");
+  EXPECT_SEND_MESSAGE_WITH ("73");
+  EXPECT_NO_MESSAGES ();
+
+  strcpy (str, "snake");
+  COMPILE_AND_LOAD_SCRIPT (
+      "var toupper = new NativeFunction(" GUM_PTR_CONST ", "
+          "'int', ['pointer', 'int']);"
+      "var buf = ArrayBuffer.wrap(" GUM_PTR_CONST ", 5 + 1);"
+      "send(toupper(buf.unwrap(), -1));",
+      gum_toupper, str);
+  EXPECT_SEND_MESSAGE_WITH ("-5");
+  EXPECT_NO_MESSAGES ();
+  g_assert_cmpstr (str, ==, "SNAKE");
 }
 
 TESTCASE (uint64_provides_arithmetic_operations)
@@ -5397,40 +5434,6 @@ TESTCASE (byte_array_can_be_written)
   g_assert_cmpint (val[0], ==, 0x04);
   g_assert_cmpint (val[1], ==, 0x05);
   g_assert_cmpint (val[2], ==, 0x03);
-}
-
-TESTCASE (byte_array_can_be_mapped)
-{
-  guint8 val[2] = { 13, 37 };
-
-  COMPILE_AND_LOAD_SCRIPT (
-      "var val = new Uint8Array(" GUM_PTR_CONST ".mapByteArray(2));"
-      "send(val.length);"
-      "send(val[0]);"
-      "send(val[1]);"
-      "val[0] = 42;"
-      "val[1] = 24;",
-      val);
-  EXPECT_SEND_MESSAGE_WITH ("2");
-  EXPECT_SEND_MESSAGE_WITH ("13");
-  EXPECT_SEND_MESSAGE_WITH ("37");
-  g_assert_cmpint (val[0], ==, 42);
-  g_assert_cmpint (val[1], ==, 24);
-
-  COMPILE_AND_LOAD_SCRIPT (
-      "var val = new Uint8Array(" GUM_PTR_CONST ".mapByteArray(0));"
-      "send(val.length);"
-      "send(typeof val[0]);",
-      val);
-  EXPECT_SEND_MESSAGE_WITH ("0");
-  EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
-
-  COMPILE_AND_LOAD_SCRIPT (
-      "var val = new Uint8Array(NULL);"
-      "send(val.length);"
-      "send(typeof val[0]);");
-  EXPECT_SEND_MESSAGE_WITH ("0");
-  EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
 }
 
 TESTCASE (c_string_can_be_read)

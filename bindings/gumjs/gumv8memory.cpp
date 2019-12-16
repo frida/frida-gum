@@ -129,8 +129,6 @@ GUM_DEFINE_MEMORY_READ_WRITE (UTF8_STRING)
 GUM_DEFINE_MEMORY_READ_WRITE (UTF16_STRING)
 GUM_DEFINE_MEMORY_READ_WRITE (ANSI_STRING)
 
-GUMJS_DECLARE_FUNCTION (gumjs_memory_map_byte_array)
-
 GUMJS_DECLARE_FUNCTION (gumjs_memory_alloc_ansi_string)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_alloc_utf8_string)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_alloc_utf16_string)
@@ -180,8 +178,6 @@ static const GumV8Function gumjs_memory_functions[] =
   GUMJS_EXPORT_MEMORY_READ_WRITE ("Utf8String", UTF8_STRING),
   GUMJS_EXPORT_MEMORY_READ_WRITE ("Utf16String", UTF16_STRING),
   GUMJS_EXPORT_MEMORY_READ_WRITE ("AnsiString", ANSI_STRING),
-
-  { "_mapByteArray", gumjs_memory_map_byte_array },
 
   { "allocAnsiString", gumjs_memory_alloc_ansi_string },
   { "allocUtf8String", gumjs_memory_alloc_utf8_string },
@@ -794,28 +790,6 @@ gum_v8_memory_write (GumMemoryValueType type,
 #ifdef _MSC_VER
 # pragma warning (pop)
 #endif
-
-GUMJS_DEFINE_FUNCTION (gumjs_memory_map_byte_array)
-{
-  Local<Value> result;
-
-  gpointer address;
-  gsize size;
-  if (!_gum_v8_args_parse (args, "pZ", &address, &size))
-    return;
-
-  if (address != NULL && size > 0)
-  {
-    result = ArrayBuffer::New (isolate, address, size,
-        ArrayBufferCreationMode::kExternalized);
-  }
-  else
-  {
-    result = ArrayBuffer::New (isolate, 0);
-  }
-
-  info.GetReturnValue ().Set (result);
-}
 
 #ifdef G_OS_WIN32
 

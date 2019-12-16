@@ -242,6 +242,9 @@ GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_string)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_json)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_match_pattern)
 
+GUMJS_DECLARE_FUNCTION (gumjs_array_buffer_wrap)
+GUMJS_DECLARE_FUNCTION (gumjs_array_buffer_unwrap)
+
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_function_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_native_function_invoke)
 GUMJS_DECLARE_FUNCTION (gumjs_native_function_call)
@@ -679,8 +682,23 @@ _gum_v8_core_realize (GumV8Core * self)
   auto isolate = self->isolate;
   auto context = isolate->GetCurrentContext ();
 
+  auto module = External::New (isolate, self);
+
   auto global = context->Global ();
   global->Set (_gum_v8_string_new_ascii (isolate, "global"), global);
+
+  auto array_buffer = global->Get (context,
+      _gum_v8_string_new_ascii (isolate, "ArrayBuffer")).ToLocalChecked ()
+      .As<Object> ();
+  array_buffer->Set (_gum_v8_string_new_ascii (isolate, "wrap"),
+      Function::New (context, gumjs_array_buffer_wrap, module)
+      .ToLocalChecked ());
+  auto array_buffer_proto = array_buffer->Get (context,
+      _gum_v8_string_new_ascii (isolate, "prototype")).ToLocalChecked ()
+      .As<Object> ();
+  array_buffer_proto->Set (_gum_v8_string_new_ascii (isolate, "unwrap"),
+      Function::New (context, gumjs_array_buffer_unwrap, module)
+      .ToLocalChecked ());
 
   self->native_functions = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_v8_native_function_free);
@@ -1971,6 +1989,42 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_match_pattern)
   info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate, result));
 }
 
+GUMJS_DEFINE_FUNCTION (gumjs_array_buffer_wrap)
+{
+  Local<Value> result;
+
+  gpointer address;
+  gsize size;
+  if (!_gum_v8_args_parse (args, "pZ", &address, &size))
+    return;
+
+  if (address != NULL && size > 0)
+  {
+    result = ArrayBuffer::New (isolate, address, size,
+        ArrayBufferCreationMode::kExternalized);
+  }
+  else
+  {
+    result = ArrayBuffer::New (isolate, 0);
+  }
+
+  info.GetReturnValue ().Set (result);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_array_buffer_unwrap)
+{
+  auto receiver = info.This ();
+  if (!receiver->IsArrayBuffer ())
+  {
+    _gum_v8_throw_ascii_literal (isolate, "receiver must be an ArrayBuffer");
+    return;
+  }
+
+  auto contents = receiver.As<ArrayBuffer> ()->GetContents ();
+  info.GetReturnValue ().Set (
+      _gum_v8_native_pointer_new (contents.Data (), core));
+}
+
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
 {
   if (!info.IsConstructCall ())
@@ -3191,13 +3245,6 @@ gum_v8_value_to_ffi_type (GumV8Core * core,
   }
   else if (type == &ffi_type_pointer)
   {
-    if (svalue->IsArrayBuffer ())
-    {
-      auto contents = svalue.As<ArrayBuffer> ()->GetContents ();
-      value->v_pointer = contents.Data ();
-      return TRUE;
-    }
-
     if (!_gum_v8_native_pointer_get (svalue, &value->v_pointer, core))
       return FALSE;
   }
