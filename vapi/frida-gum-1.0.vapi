@@ -140,6 +140,9 @@ namespace Gum {
 		public void follow (Gum.ThreadId thread_id, Gum.EventSink sink);
 		public void unfollow (Gum.ThreadId thread_id);
 
+		public void activate (void * target);
+		public void deactivate ();
+
 		public Gum.Stalker.ProbeId add_call_probe (void * target_address, owned Gum.Stalker.CallProbeCallback callback);
 		public void remove_call_probe (Gum.Stalker.ProbeId id);
 
