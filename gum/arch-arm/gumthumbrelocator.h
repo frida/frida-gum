@@ -14,6 +14,27 @@
 G_BEGIN_DECLS
 
 typedef struct _GumThumbRelocator GumThumbRelocator;
+typedef struct _GumThumbLocation GumThumbLocation;
+typedef struct _GumThumbITBlock GumThumbITBlock;
+
+struct _GumThumbLocation
+{
+  guint16 * code;
+  GumAddress pc;
+};
+
+struct _GumThumbITBlock
+{
+  gboolean active;
+
+  const cs_insn * insns[4];
+  guint8 offset;
+  guint8 size;
+  guint8 else_region_size;
+
+  GumThumbLocation if_branch;
+  GumThumbLocation else_branch;
+};
 
 struct _GumThumbRelocator
 {
@@ -32,6 +53,8 @@ struct _GumThumbRelocator
 
   gboolean eob;
   gboolean eoi;
+
+  GumThumbITBlock it_block;
 };
 
 GUM_API GumThumbRelocator * gum_thumb_relocator_new (gconstpointer input_code,
