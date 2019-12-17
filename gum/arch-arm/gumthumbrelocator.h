@@ -14,6 +14,28 @@
 G_BEGIN_DECLS
 
 typedef struct _GumThumbRelocator GumThumbRelocator;
+typedef struct _GumThumbITBlock GumThumbITBlock;
+typedef struct _GumThumbITBlockPatch GumThumbITBlockPatch;
+
+struct _GumThumbITBlockPatch
+{
+    guint16 * code;
+    GumAddress pc;
+};
+
+struct _GumThumbITBlock
+{
+    gboolean in_it_block;
+    const cs_insn * insns[4];           //reordered instruction, "then" part before "else" part
+    guint8 insn_count;                  //total
+    guint8 else_insn_count;             //then part 
+    guint8 curr_insn_pos;               //write position
+    GumThumbITBlockPatch if_b_code;     //patch "if" header (a bxx instrument)
+    GumThumbITBlockPatch else_b_code;   //patch "else" part (a b instrument)
+};
+
+static csh capstone;
+static int capstone_inited = 0;
 
 struct _GumThumbRelocator
 {
@@ -26,6 +48,7 @@ struct _GumThumbRelocator
   GumAddress input_pc;
   cs_insn ** input_insns;
   GumThumbWriter * output;
+  GumThumbITBlock output_it_block;
 
   guint inpos;
   guint outpos;

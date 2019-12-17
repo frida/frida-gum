@@ -47,6 +47,7 @@ GUM_API void gum_thumb_writer_reset (GumThumbWriter * writer,
 GUM_API void gum_thumb_writer_set_target_os (GumThumbWriter * self, GumOS os);
 
 GUM_API gpointer gum_thumb_writer_cur (GumThumbWriter * self);
+GumAddress gum_thumb_writer_cur_pc (GumThumbWriter * self);
 GUM_API guint gum_thumb_writer_offset (GumThumbWriter * self);
 GUM_API void gum_thumb_writer_skip (GumThumbWriter * self, guint n_bytes);
 

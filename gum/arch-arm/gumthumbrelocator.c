@@ -119,6 +119,7 @@ gum_thumb_relocator_reset (GumThumbRelocator * relocator,
   if (relocator->output != NULL)
     gum_thumb_writer_unref (relocator->output);
   relocator->output = output;
+  relocator->output_it_block.in_it_block = FALSE;
 
   relocator->inpos = 0;
   relocator->outpos = 0;
@@ -151,6 +152,19 @@ gum_thumb_relocator_increment_outpos (GumThumbRelocator * self)
 {
   self->outpos++;
   g_assert (self->outpos <= self->inpos);
+}
+
+inline guint8 get_it_instrument_scope(guint16 code) {
+  guint mask = code;
+
+  if (mask & 0x1)
+    return 4;
+  else if (mask & 0x2)
+    return 3;
+  else if (mask & 0x4)
+    return 2;
+  else
+    return 1;
 }
 
 guint
@@ -267,18 +281,139 @@ gum_thumb_relocator_skip_one (GumThumbRelocator * self)
   gum_thumb_relocator_increment_outpos (self);
 }
 
+gboolean 
+gum_thumb_relocator_rewrite_it_block_start (GumThumbRelocator * self, GumCodeGenCtx * ctx) {
+  gint32 i;
+  gint32 then_bit;
+  const cs_insn * else_insn[4];
+  GumThumbITBlock * it_block;
+  guint32 then_insn_count = 0;
+  guint16 it_code;
+  guint8 it_cond;
+
+  it_block = &self->output_it_block;
+  it_code = GUINT16_FROM_LE (*((guint16 *) ctx->insn->bytes));
+
+  it_block->insn_count = get_it_instrument_scope(it_code);
+  it_block->else_insn_count = 0;
+  it_block->curr_insn_pos = 0;
+  
+  it_cond = (it_code >> 4) & 0xf;
+  then_bit = (it_code >> 4) & 1;
+  for(i=0;i<it_block->insn_count;i++) {
+    guint8 cond_bit;
+    const cs_insn * sub_insn = gum_thumb_relocator_peek_next_write_insn (self);
+    g_assert(sub_insn != NULL);
+    gum_thumb_relocator_increment_outpos (self);
+    cond_bit = (it_code >> (4-i)) & 1;
+
+    if (cond_bit != then_bit) {
+      it_block->insns[it_block->else_insn_count] = sub_insn;
+      it_block->else_insn_count++;
+    } 
+    else 
+    {
+      else_insn[then_insn_count] = sub_insn;
+      then_insn_count++;
+    }
+  }
+
+  for(i=it_block->else_insn_count;i<it_block->insn_count;i++) 
+  {
+    it_block->insns[i] = else_insn[i-it_block->else_insn_count];
+  }
+
+  it_block->if_b_code.code = gum_thumb_writer_cur(self->output);
+  it_block->if_b_code.pc = gum_thumb_writer_cur_pc(self->output);
+
+  gum_thumb_writer_put_instruction(self->output, 0xd000 | (it_cond << 8));
+
+  it_block->else_b_code.pc = (GumAddress)NULL;
+  it_block->else_b_code.code = NULL;
+  
+  it_block->in_it_block = TRUE;
+  return TRUE;
+}
+
+void
+gum_thumb_relocator_rewrite_it_block_else(GumThumbRelocator * self, GumThumbITBlock * it_block) 
+{
+  GumAddress pc; 
+
+  it_block->else_b_code.code = gum_thumb_writer_cur(self->output);
+  it_block->else_b_code.pc = gum_thumb_writer_cur_pc(self->output);
+
+  gum_thumb_writer_put_instruction(self->output, 0xe000);
+
+  pc = gum_thumb_writer_cur_pc(self->output);
+  *it_block->if_b_code.code = *it_block->if_b_code.code | (pc - it_block->if_b_code.pc - 4) / 2;
+
+  it_block->if_b_code.code = NULL;
+  it_block->if_b_code.pc = 0;
+}
+
+void
+gum_thumb_relocator_rewrite_it_block_end(GumThumbRelocator * self, GumThumbITBlock * it_block) 
+{
+  GumAddress pc = gum_thumb_writer_cur_pc(self->output);;
+  if(it_block->if_b_code.pc != (GumAddress)NULL) 
+  {
+    *it_block->if_b_code.code = *it_block->if_b_code.code | (pc - it_block->if_b_code.pc - 4) / 2;
+  }
+
+  if(it_block->else_b_code.pc != (GumAddress)NULL)
+  {
+    *it_block->else_b_code.code = *it_block->else_b_code.code | (pc - it_block->else_b_code.pc - 4) / 2;
+  }
+}
+
+gboolean
+gum_thumb_relocator_fetch_instruction(GumThumbRelocator * self, const cs_insn ** insn)
+{
+  GumThumbITBlock * it_block = &self->output_it_block;
+  
+  if(it_block->in_it_block)
+  {
+    if(it_block->curr_insn_pos < it_block->insn_count)
+    {
+      if(it_block->curr_insn_pos == it_block->else_insn_count)
+        gum_thumb_relocator_rewrite_it_block_else(self, it_block);
+
+      *insn = it_block->insns[it_block->curr_insn_pos];
+      it_block->curr_insn_pos++;
+      return TRUE;
+    }
+    else
+    {
+      gum_thumb_relocator_rewrite_it_block_end(self, it_block);
+      it_block->in_it_block = FALSE;
+    }
+  } 
+  
+  if ((*insn = gum_thumb_relocator_peek_next_write_insn (self)) == NULL)
+    return FALSE;
+  
+  gum_thumb_relocator_increment_outpos (self);
+
+  return TRUE;
+}
+
 gboolean
 gum_thumb_relocator_write_one (GumThumbRelocator * self)
 {
   const cs_insn * insn;
   GumCodeGenCtx ctx;
   gboolean rewritten = FALSE;
+  GumThumbITBlock * it_block = &self->output_it_block;
 
-  if ((insn = gum_thumb_relocator_peek_next_write_insn (self)) == NULL)
+  gboolean succ = gum_thumb_relocator_fetch_instruction(self, &insn);
+  if(!succ)
     return FALSE;
-  gum_thumb_relocator_increment_outpos (self);
+
+  if(insn == NULL)
+    abort();
   ctx.insn = insn;
-  ctx.detail = &ctx.insn->detail->arm;
+  ctx.detail = &insn->detail->arm;
   ctx.pc = insn->address + 4;
   ctx.output = self->output;
 
@@ -291,7 +426,7 @@ gum_thumb_relocator_write_one (GumThumbRelocator * self)
       rewritten = gum_thumb_relocator_rewrite_add (self, &ctx);
       break;
     case ARM_INS_B:
-      if (gum_arm_branch_is_unconditional (ctx.insn))
+      if ( it_block->in_it_block || gum_arm_branch_is_unconditional (ctx.insn))
         rewritten = gum_thumb_relocator_rewrite_b (self, CS_MODE_THUMB, &ctx);
       else
         rewritten = gum_thumb_relocator_rewrite_b_cond (self, &ctx);
@@ -308,6 +443,9 @@ gum_thumb_relocator_write_one (GumThumbRelocator * self)
     case ARM_INS_CBZ:
     case ARM_INS_CBNZ:
       rewritten = gum_thumb_relocator_rewrite_cbz (self, &ctx);
+      break;
+    case ARM_INS_IT:
+      rewritten = gum_thumb_relocator_rewrite_it_block_start(self, &ctx);
       break;
   }
 
