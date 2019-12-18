@@ -52,6 +52,8 @@ typedef struct _GumExecBlock GumExecBlock;
 typedef gpointer (GUM_THUNK * GumExecCtxReplaceCurrentBlockFunc) (
     GumExecCtx * ctx, gpointer start_address);
 
+typedef guint8 GumExecBlockState;
+typedef guint8 GumExecBlockFlags;
 typedef guint GumPrologType;
 typedef guint GumCodeContext;
 typedef struct _GumGeneratorContext GumGeneratorContext;
@@ -193,7 +195,8 @@ struct _GumExecBlock
   guint8 * code_begin;
   guint8 * code_end;
 
-  guint8 state;
+  GumExecBlockState state;
+  GumExecBlockFlags flags;
   gint recycle_count;
 
 #ifdef G_OS_WIN32
@@ -204,11 +207,16 @@ struct _GumExecBlock
 #endif
 };
 
-enum _GumExecState
+enum _GumExecBlockState
 {
   GUM_EXEC_NORMAL,
   GUM_EXEC_SINGLE_STEPPING_ON_CALL,
   GUM_EXEC_SINGLE_STEPPING_THROUGH_CALL
+};
+
+enum _GumExecBlockFlags
+{
+  GUM_EXEC_ACTIVATION_TARGET = (1 << 0),
 };
 
 enum _GumPrologType
@@ -1360,6 +1368,22 @@ gum_exec_ctx_contains (GumExecCtx * ctx,
   return FALSE;
 }
 
+static gboolean
+gum_exec_ctx_may_now_backpatch (GumExecCtx * ctx,
+                                GumExecBlock * target_block)
+{
+  if (g_atomic_int_get (&ctx->state) != GUM_EXEC_CTX_ACTIVE)
+    return FALSE;
+
+  if ((target_block->flags & GUM_EXEC_ACTIVATION_TARGET) != 0)
+    return FALSE;
+
+  if (target_block->recycle_count < ctx->stalker->trust_threshold)
+    return FALSE;
+
+  return TRUE;
+}
+
 static gboolean counters_enabled = FALSE;
 static guint total_transitions = 0;
 
@@ -1444,7 +1468,10 @@ gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
         &ctx->resume_at);
 
     if (start_address == ctx->activation_target)
+    {
       ctx->activation_target = NULL;
+      ctx->current_block->flags |= GUM_EXEC_ACTIVATION_TARGET;
+    }
 
     gum_exec_ctx_maybe_unfollow (ctx, start_address);
   }
@@ -2632,6 +2659,7 @@ gum_exec_block_new (GumExecCtx * ctx)
     block->code_end = block->code_begin;
 
     block->state = GUM_EXEC_NORMAL;
+    block->flags = 0;
     block->recycle_count = 0;
 
     slab->offset += block->code_begin - (slab->data + slab->offset);
@@ -2712,8 +2740,7 @@ gum_exec_block_backpatch_call (GumExecBlock * block,
 
   ctx = block->ctx;
 
-  if (g_atomic_int_get (&ctx->state) == GUM_EXEC_CTX_ACTIVE &&
-      block->recycle_count >= ctx->stalker->trust_threshold)
+  if (gum_exec_ctx_may_now_backpatch (ctx, block))
   {
     GumX86Writer * cw = &ctx->code_writer;
 
@@ -2771,8 +2798,7 @@ gum_exec_block_backpatch_jmp (GumExecBlock * block,
 
   ctx = block->ctx;
 
-  if (g_atomic_int_get (&ctx->state) == GUM_EXEC_CTX_ACTIVE &&
-      block->recycle_count >= ctx->stalker->trust_threshold)
+  if (gum_exec_ctx_may_now_backpatch (ctx, block))
   {
     GumX86Writer * cw = &ctx->code_writer;
 
@@ -2801,8 +2827,7 @@ gum_exec_block_backpatch_ret (GumExecBlock * block,
 
   ctx = block->ctx;
 
-  if (g_atomic_int_get (&ctx->state) == GUM_EXEC_CTX_ACTIVE &&
-      block->recycle_count >= ctx->stalker->trust_threshold)
+  if (gum_exec_ctx_may_now_backpatch (ctx, block))
   {
     GumX86Writer * cw = &ctx->code_writer;
 
@@ -2825,8 +2850,7 @@ gum_exec_block_backpatch_inline_cache (GumExecBlock * block,
 
   ctx = block->ctx;
 
-  if (g_atomic_int_get (&ctx->state) == GUM_EXEC_CTX_ACTIVE &&
-      block->recycle_count >= ctx->stalker->trust_threshold)
+  if (gum_exec_ctx_may_now_backpatch (ctx, block))
   {
     guint offset;
 

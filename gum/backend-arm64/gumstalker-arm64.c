@@ -44,6 +44,7 @@ typedef struct _GumExecBlock GumExecBlock;
 typedef gpointer (GUM_THUNK * GumExecCtxReplaceCurrentBlockFunc) (
     GumExecCtx * ctx, gpointer start_address);
 
+typedef guint8 GumExecBlockFlags;
 typedef guint GumPrologType;
 typedef guint GumCodeContext;
 typedef struct _GumGeneratorContext GumGeneratorContext;
@@ -169,6 +170,7 @@ struct _GumExecBlock
   guint8 * code_begin;
   guint8 * code_end;
 
+  GumExecBlockFlags flags;
   gint recycle_count;
 };
 
@@ -181,6 +183,11 @@ struct _GumSlab
 
   guint num_blocks;
   GumExecBlock blocks[];
+};
+
+enum _GumExecBlockFlags
+{
+  GUM_EXEC_ACTIVATION_TARGET = (1 << 0),
 };
 
 enum _GumPrologType
@@ -1218,6 +1225,22 @@ gum_exec_ctx_contains (GumExecCtx * ctx,
   return FALSE;
 }
 
+static gboolean
+gum_exec_ctx_may_now_backpatch (GumExecCtx * ctx,
+                                GumExecBlock * target_block)
+{
+  if (g_atomic_int_get (&ctx->state) != GUM_EXEC_CTX_ACTIVE)
+    return FALSE;
+
+  if ((target_block->flags & GUM_EXEC_ACTIVATION_TARGET) != 0)
+    return FALSE;
+
+  if (target_block->recycle_count < ctx->stalker->trust_threshold)
+    return FALSE;
+
+  return TRUE;
+}
+
 static gboolean counters_enabled = FALSE;
 static guint total_transitions = 0;
 
@@ -1300,7 +1323,10 @@ gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
         &ctx->resume_at);
 
     if (start_address == ctx->activation_target)
+    {
       ctx->activation_target = NULL;
+      ctx->current_block->flags |= GUM_EXEC_ACTIVATION_TARGET;
+    }
 
     gum_exec_ctx_maybe_unfollow (ctx, start_address);
   }
@@ -2226,6 +2252,7 @@ gum_exec_block_new (GumExecCtx * ctx)
     block->code_begin = slab->data + slab->offset;
     block->code_end = block->code_begin;
 
+    block->flags = 0;
     block->recycle_count = 0;
 
     gum_stalker_thaw (stalker, block->code_begin, available);
@@ -2320,8 +2347,7 @@ gum_exec_block_backpatch_call (GumExecBlock * block,
   ctx = block->ctx;
   stalker = ctx->stalker;
 
-  if (g_atomic_int_get (&ctx->state) == GUM_EXEC_CTX_ACTIVE &&
-      block->recycle_count >= stalker->trust_threshold)
+  if (gum_exec_ctx_may_now_backpatch (ctx, block))
   {
     GumArm64Writer * cw = &ctx->code_writer;
     const gsize code_max_size = ret_code_address - code_start;
@@ -2387,8 +2413,7 @@ gum_exec_block_backpatch_jmp (GumExecBlock * block,
   cw = &ctx->code_writer;
   stalker = ctx->stalker;
 
-  if (g_atomic_int_get (&ctx->state) == GUM_EXEC_CTX_ACTIVE &&
-      block->recycle_count >= stalker->trust_threshold)
+  if (gum_exec_ctx_may_now_backpatch (ctx, block))
   {
     const gsize code_max_size = 128;
 
@@ -2426,8 +2451,7 @@ gum_exec_block_backpatch_ret (GumExecBlock * block,
   cw = &ctx->code_writer;
   stalker = ctx->stalker;
 
-  if (g_atomic_int_get (&ctx->state) == GUM_EXEC_CTX_ACTIVE &&
-      block->recycle_count >= stalker->trust_threshold)
+  if (gum_exec_ctx_may_now_backpatch (ctx, block))
   {
     const gsize code_max_size = 128;
 
@@ -2461,8 +2485,7 @@ gum_exec_block_backpatch_inline_cache (GumExecBlock * block,
   ctx = block->ctx;
   stalker = ctx->stalker;
 
-  if (g_atomic_int_get (&ctx->state) == GUM_EXEC_CTX_ACTIVE &&
-      block->recycle_count >= stalker->trust_threshold)
+  if (gum_exec_ctx_may_now_backpatch (ctx, block))
   {
     guint offset;
 
