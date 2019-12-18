@@ -459,7 +459,8 @@ gum_module_entry_from_path_and_base (const gchar * path,
 {
   GumModuleEntry * entry;
   GumElfModule * module;
-  Dwarf_Debug dbg;
+  Dwarf_Debug dbg = NULL;
+  Dwarf_Error error = NULL;
 
   gum_symbol_util_ensure_initialized ();
 
@@ -471,9 +472,9 @@ gum_module_entry_from_path_and_base (const gchar * path,
 
   if (module == NULL ||
       dwarf_elf_init_b (module->elf, DW_DLC_READ, DW_GROUPNUMBER_ANY,
-      gum_on_dwarf_error, NULL, &dbg, NULL) != DW_DLV_OK)
+      gum_on_dwarf_error, NULL, &dbg, &error) != DW_DLV_OK)
   {
-    dbg = NULL;
+    g_clear_pointer (&error, free);
   }
 
   entry = g_slice_new (GumModuleEntry);
