@@ -2465,6 +2465,7 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
   auto traps = self->traps;
   auto return_shape = self->return_shape;
   GumExceptorScope exceptor_scope;
+  GumInvocationState invocation_state;
   gint system_error = -1;
 
   {
@@ -2475,6 +2476,9 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
     if (exceptions == GUM_V8_EXCEPTIONS_PROPAGATE ||
         gum_exceptor_try (core->exceptor, &exceptor_scope))
     {
+      if (exceptions == GUM_V8_EXCEPTIONS_STEAL)
+        gum_interceptor_save (&invocation_state);
+
       if (scheduling == GUM_V8_SCHEDULING_COOPERATIVE)
       {
         new (unlocker) ScriptUnlocker (core);
@@ -2514,6 +2518,8 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
   if (exceptions == GUM_V8_EXCEPTIONS_STEAL &&
       gum_exceptor_catch (core->exceptor, &exceptor_scope))
   {
+    gum_interceptor_restore (&invocation_state);
+
     _gum_v8_throw_native (&exceptor_scope.exception, core);
     return;
   }

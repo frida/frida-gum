@@ -2903,6 +2903,7 @@ gum_duk_native_function_invoke (GumDukNativeFunction * self,
   GumDukCodeTraps traps;
   GumDukReturnValueShape return_shape;
   GumExceptorScope exceptor_scope;
+  GumInvocationState invocation_state;
   gint system_error;
 
   core = self->core;
@@ -3001,6 +3002,9 @@ gum_duk_native_function_invoke (GumDukNativeFunction * self,
     if (exceptions == GUM_DUK_EXCEPTIONS_PROPAGATE ||
         gum_exceptor_try (core->exceptor, &exceptor_scope))
     {
+      if (exceptions == GUM_DUK_EXCEPTIONS_STEAL)
+        gum_interceptor_save (&invocation_state);
+
       if (scheduling == GUM_DUK_SCHEDULING_COOPERATIVE)
       {
         _gum_duk_scope_suspend (&scope);
@@ -3038,6 +3042,8 @@ gum_duk_native_function_invoke (GumDukNativeFunction * self,
   if (exceptions == GUM_DUK_EXCEPTIONS_STEAL &&
       gum_exceptor_catch (core->exceptor, &exceptor_scope))
   {
+    gum_interceptor_restore (&invocation_state);
+
     _gum_duk_throw_native (ctx, &exceptor_scope.exception, core);
   }
 
