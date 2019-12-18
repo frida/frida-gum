@@ -2965,14 +2965,17 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
       GUM_ARG_ADDRESS, GUM_ADDRESS (ctx),
       GUM_ARG_ADDRESS, GUM_ADDRESS (ret_real_address));
 
-  gum_arm64_writer_put_ldr_reg_address (cw, ARM64_REG_X3,
-      GUM_ADDRESS (&ctx->current_block));
-  gum_arm64_writer_put_ldr_reg_reg_offset (cw, ARM64_REG_X3, ARM64_REG_X3, 0);
-  gum_arm64_writer_put_call_address_with_arguments (cw,
-      GUM_ADDRESS (gum_exec_block_backpatch_ret), 3,
-      GUM_ARG_REGISTER, ARM64_REG_X3,
-      GUM_ARG_ADDRESS, GUM_ADDRESS (ret_code_address),
-      GUM_ARG_REGISTER, ARM64_REG_X0);
+  if (ctx->stalker->trust_threshold >= 0)
+  {
+    gum_arm64_writer_put_ldr_reg_address (cw, ARM64_REG_X3,
+        GUM_ADDRESS (&ctx->current_block));
+    gum_arm64_writer_put_ldr_reg_reg_offset (cw, ARM64_REG_X3, ARM64_REG_X3, 0);
+    gum_arm64_writer_put_call_address_with_arguments (cw,
+        GUM_ADDRESS (gum_exec_block_backpatch_ret), 3,
+        GUM_ARG_REGISTER, ARM64_REG_X3,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (ret_code_address),
+        GUM_ARG_REGISTER, ARM64_REG_X0);
+  }
 
   gum_exec_ctx_write_epilog (ctx, GUM_PROLOG_MINIMAL, cw);
   gum_exec_block_write_exec_generated_code (cw, ctx);

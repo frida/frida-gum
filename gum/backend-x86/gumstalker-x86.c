@@ -3319,12 +3319,15 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XSP,
       GUM_THUNK_ARGLIST_STACK_RESERVE);
 
-  gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_XAX,
-      GUM_ADDRESS (&block->ctx->current_block));
-  gum_x86_writer_put_call_address_with_aligned_arguments (cw, GUM_CALL_CAPI,
-      GUM_ADDRESS (gum_exec_block_backpatch_ret), 2,
-      GUM_ARG_REGISTER, GUM_REG_XAX,
-      GUM_ARG_ADDRESS, GUM_ADDRESS (ret_code_address));
+  if (block->ctx->stalker->trust_threshold >= 0)
+  {
+    gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_XAX,
+        GUM_ADDRESS (&block->ctx->current_block));
+    gum_x86_writer_put_call_address_with_aligned_arguments (cw, GUM_CALL_CAPI,
+        GUM_ADDRESS (gum_exec_block_backpatch_ret), 2,
+        GUM_ARG_REGISTER, GUM_REG_XAX,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (ret_code_address));
+  }
 
   gum_exec_ctx_write_epilog (block->ctx, GUM_PROLOG_MINIMAL, cw);
   gum_x86_writer_put_jmp_near_ptr (cw, GUM_ADDRESS (&block->ctx->resume_at));
