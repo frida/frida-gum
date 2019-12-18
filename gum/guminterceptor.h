@@ -19,6 +19,7 @@ G_DECLARE_FINAL_TYPE (GumInterceptor, gum_interceptor, GUM, INTERCEPTOR,
     GObject)
 
 typedef GArray GumInvocationStack;
+typedef guint GumInvocationState;
 
 typedef enum
 {
@@ -65,6 +66,9 @@ GUM_API void gum_interceptor_unignore_other_threads (GumInterceptor * self);
 
 GUM_API gpointer gum_invocation_stack_translate (GumInvocationStack * self,
     gpointer return_address);
+
+GUM_API void gum_interceptor_save (GumInvocationState * state);
+GUM_API void gum_interceptor_restore (GumInvocationState * state);
 
 G_END_DECLS
 

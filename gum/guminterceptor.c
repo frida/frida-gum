@@ -98,7 +98,7 @@ struct _InterceptorThreadContext
 
 struct _GumInvocationStackEntry
 {
-  gpointer trampoline_ret_addr;
+  GumFunctionContext * function_ctx;
   gpointer caller_ret_addr;
   GumInvocationContext invocation_context;
   GumCpuContext cpu_context;
@@ -608,11 +608,42 @@ gum_invocation_stack_translate (GumInvocationStack * self,
     GumInvocationStackEntry * entry;
 
     entry = &g_array_index (self, GumInvocationStackEntry, i);
-    if (entry->trampoline_ret_addr == return_address)
+    if (entry->function_ctx->on_leave_trampoline == return_address)
       return entry->caller_ret_addr;
   }
 
   return return_address;
+}
+
+void
+gum_interceptor_save (GumInvocationState * state)
+{
+  *state = gum_interceptor_get_current_stack ()->len;
+}
+
+void
+gum_interceptor_restore (GumInvocationState * state)
+{
+  GumInvocationStack * stack;
+  guint old_depth, new_depth, i;
+
+  stack = gum_interceptor_get_current_stack ();
+
+  old_depth = *state;
+  new_depth = stack->len;
+  if (new_depth == old_depth)
+    return;
+
+  for (i = old_depth; i != new_depth; i++)
+  {
+    GumInvocationStackEntry * entry;
+
+    entry = &g_array_index (stack, GumInvocationStackEntry, i);
+
+    g_atomic_int_dec_and_test (&entry->function_ctx->trampoline_usage_counter);
+  }
+
+  g_array_set_size (stack, old_depth);
 }
 
 gpointer
@@ -641,7 +672,7 @@ _gum_interceptor_translate_top_return_address (gpointer return_address)
     goto fallback;
 
   entry = &g_array_index (stack, GumInvocationStackEntry, stack->len - 1);
-  if (entry->trampoline_ret_addr != return_address)
+  if (entry->function_ctx->on_leave_trampoline != return_address)
     goto fallback;
 
   return entry->caller_ret_addr;
@@ -1656,7 +1687,7 @@ gum_invocation_stack_push (GumInvocationStack * stack,
   g_array_set_size (stack, stack->len + 1);
   entry = (GumInvocationStackEntry *)
       &g_array_index (stack, GumInvocationStackEntry, stack->len - 1);
-  entry->trampoline_ret_addr = function_ctx->on_leave_trampoline;
+  entry->function_ctx = function_ctx;
   entry->caller_ret_addr = caller_ret_addr;
 
   ctx = &entry->invocation_context;
