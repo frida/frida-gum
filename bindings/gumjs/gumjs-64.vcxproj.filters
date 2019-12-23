@@ -484,6 +484,18 @@
     <None Include="runtime\cmodule\gum\gumstalker.h">
       <Filter>runtime\cmodule\gum</Filter>
     </None>
+    <None Include="runtime\cmodule\gum\gummodulemap.h">
+      <Filter>runtime\cmodule\gum</Filter>
+    </None>
+    <None Include="runtime\cmodule\gum\gummetalarray.h">
+      <Filter>runtime\cmodule\gum</Filter>
+    </None>
+    <None Include="runtime\cmodule\gum\gummetalhash.h">
+      <Filter>runtime\cmodule\gum</Filter>
+    </None>
+    <None Include="runtime\cmodule\json-glib\json-glib.h">
+      <Filter>runtime\cmodule\json-glib</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="generate-bindings.py">
