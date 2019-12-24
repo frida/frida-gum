@@ -350,8 +350,10 @@ static void on_read_ready (GObject * source_object, GAsyncResult * res,
     gpointer user_data);
 #endif
 
+#if defined (HAVE_I386) || defined (HAVE_ARM64)
 static gpointer run_stalked_through_hooked_function (gpointer data);
 static gpointer run_stalked_through_target_function (gpointer data);
+#endif
 
 static gpointer sleeping_dummy (gpointer data);
 
