@@ -18,6 +18,7 @@
 #endif
 
 #include <capstone.h>
+#include <dlfcn.h>
 #include <signal.h>
 #include <stdlib.h>
 #ifdef HAVE_QNX
@@ -78,6 +79,10 @@ G_DEFINE_TYPE (GumExceptorBackend, gum_exceptor_backend, G_TYPE_OBJECT)
 
 static GumExceptorBackend * the_backend = NULL;
 
+static sighandler_t (* gum_original_signal) (int signum, sighandler_t handler);
+static int (* gum_original_sigaction) (int signum, const struct sigaction * act,
+    struct sigaction * oldact);
+
 void
 _gum_exceptor_backend_prepare_to_fork (void)
 {
@@ -99,6 +104,9 @@ gum_exceptor_backend_class_init (GumExceptorBackendClass * klass)
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
 
   object_class->dispose = gum_exceptor_backend_dispose;
+
+  gum_original_signal = dlsym (RTLD_NEXT, "signal");
+  gum_original_sigaction = dlsym (RTLD_NEXT, "sigaction");
 }
 
 static void
@@ -177,14 +185,14 @@ gum_exceptor_backend_attach (GumExceptorBackend * self)
 
     old_handler = g_slice_new0 (struct sigaction);
     self->old_handlers[sig] = old_handler;
-    sigaction (sig, &action, old_handler);
+    gum_original_sigaction (sig, &action, old_handler);
   }
 
   gum_interceptor_begin_transaction (interceptor);
 
-  gum_interceptor_replace (interceptor, signal,
+  gum_interceptor_replace (interceptor, gum_original_signal,
       gum_exceptor_backend_replacement_signal, self);
-  gum_interceptor_replace (interceptor, sigaction,
+  gum_interceptor_replace (interceptor, gum_original_sigaction,
       gum_exceptor_backend_replacement_sigaction, self);
 
   gum_interceptor_end_transaction (interceptor);
@@ -198,8 +206,8 @@ gum_exceptor_backend_detach (GumExceptorBackend * self)
 
   gum_interceptor_begin_transaction (interceptor);
 
-  gum_interceptor_revert (interceptor, signal);
-  gum_interceptor_revert (interceptor, sigaction);
+  gum_interceptor_revert (interceptor, gum_original_signal);
+  gum_interceptor_revert (interceptor, gum_original_sigaction);
 
   gum_interceptor_end_transaction (interceptor);
 
@@ -221,7 +229,7 @@ gum_exceptor_backend_detach_handler (GumExceptorBackend * self,
     return;
 
   self->old_handlers[sig] = NULL;
-  sigaction (sig, old_handler, NULL);
+  gum_original_sigaction (sig, old_handler, NULL);
   g_slice_free (struct sigaction, old_handler);
 }
 
@@ -252,7 +260,7 @@ gum_exceptor_backend_replacement_signal (int sig,
 
   old_handler = gum_exceptor_backend_get_old_handler (self, sig);
   if (old_handler == NULL)
-    return signal (sig, handler);
+    return gum_original_signal (sig, handler);
 
   result = ((old_handler->sa_flags & SA_SIGINFO) == 0)
       ? old_handler->sa_handler
@@ -281,7 +289,7 @@ gum_exceptor_backend_replacement_sigaction (int sig,
 
   old_handler = gum_exceptor_backend_get_old_handler (self, sig);
   if (old_handler == NULL)
-    return sigaction (sig, act, oact);
+    return gum_original_sigaction (sig, act, oact);
 
   if (oact != NULL)
     *oact = *old_handler;
