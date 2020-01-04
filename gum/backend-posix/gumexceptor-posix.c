@@ -18,7 +18,6 @@
 #endif
 
 #include <capstone.h>
-#include <dlfcn.h>
 #include <signal.h>
 #include <stdlib.h>
 #ifdef HAVE_QNX
@@ -56,6 +55,11 @@ static void gum_exceptor_backend_abort (GumExceptorBackend * self,
     GumExceptionDetails * details);
 
 static gboolean gum_is_signal_handler_chainable (sig_t handler);
+
+static gpointer gum_resolve_symbol (const gchar * symbol_name,
+    const gchar ** module_candidates);
+static gpointer gum_try_resolve_symbol (const gchar * symbol_name,
+    const gchar ** module_candidates);
 
 static void gum_parse_context (gconstpointer context,
     GumCpuContext * ctx);
@@ -102,11 +106,39 @@ static void
 gum_exceptor_backend_class_init (GumExceptorBackendClass * klass)
 {
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
+  const gchar * libc;
+  gchar * libdir, * pthread;
+  const gchar * module_candidates[3];
 
   object_class->dispose = gum_exceptor_backend_dispose;
 
-  gum_original_signal = dlsym (RTLD_NEXT, "signal");
-  gum_original_sigaction = dlsym (RTLD_NEXT, "sigaction");
+  libc = gum_process_query_libc_name ();
+
+#ifdef HAVE_ANDROID
+  libdir = NULL;
+  pthread = NULL;
+
+  module_candidates[0] = libc;
+  module_candidates[1] = NULL;
+
+  gum_original_signal = gum_try_resolve_symbol ("signal", module_candidates);
+  if (gum_original_signal == NULL)
+    gum_original_signal = gum_resolve_symbol ("bsd_signal", module_candidates);
+#else
+  libdir = g_path_get_dirname (libc);
+  pthread = g_build_filename (libdir, "libpthread.so.0", NULL);
+
+  module_candidates[0] = pthread;
+  module_candidates[1] = libc;
+  module_candidates[2] = NULL;
+
+  gum_original_signal = gum_resolve_symbol ("signal", module_candidates);
+#endif
+
+  gum_original_sigaction = gum_resolve_symbol ("sigaction", module_candidates);
+
+  g_free (pthread);
+  g_free (libdir);
 }
 
 static void
@@ -412,6 +444,43 @@ static gboolean
 gum_is_signal_handler_chainable (sig_t handler)
 {
   return handler != SIG_DFL && handler != SIG_IGN && handler != SIG_ERR;
+}
+
+static gpointer
+gum_resolve_symbol (const gchar * symbol_name,
+                    const gchar ** module_candidates)
+{
+  gpointer result;
+
+  result = gum_try_resolve_symbol (symbol_name, module_candidates);
+  if (result == NULL)
+    goto panic;
+
+  return result;
+
+panic:
+  {
+    g_critical ("Unable to locate %s(); please file a bug", symbol_name);
+    g_abort ();
+  }
+}
+
+static gpointer
+gum_try_resolve_symbol (const gchar * symbol_name,
+                        const gchar ** module_candidates)
+{
+  const gchar ** cur, * module_name;
+
+  for (cur = module_candidates; (module_name = *cur) != NULL; cur++)
+  {
+    GumAddress address;
+
+    address = gum_module_find_export_by_name (module_name, symbol_name);
+    if (address != 0)
+      return GSIZE_TO_POINTER (address);
+  }
+
+  return NULL;
 }
 
 #if defined (HAVE_DARWIN)
