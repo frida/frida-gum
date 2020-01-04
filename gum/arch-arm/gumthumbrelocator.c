@@ -714,7 +714,7 @@ gum_thumb_relocator_rewrite_it_block_start (GumThumbRelocator * self,
   GumThumbITBlock * block = &self->it_block;
   guint16 it_insn;
 
-  it_insn = GUINT16_FROM_LE (*((guint16 *) ctx->insn->bytes));
+  it_insn = GUINT16_FROM_LE (*((guint16 *) (gpointer) ctx->insn->bytes));
 
   gum_thumb_relocator_parse_it_block (self, block, it_insn);
 
