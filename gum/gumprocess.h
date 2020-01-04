@@ -164,6 +164,7 @@ typedef gboolean (* GumFoundMallocRangeFunc) (
 GUM_API GumOS gum_process_get_native_os (void);
 GUM_API GumCodeSigningPolicy gum_process_get_code_signing_policy (void);
 GUM_API void gum_process_set_code_signing_policy (GumCodeSigningPolicy policy);
+GUM_API const gchar * gum_process_query_libc_name (void);
 GUM_API gboolean gum_process_is_debugger_attached (void);
 GUM_API GumProcessId gum_process_get_id (void);
 GUM_API GumThreadId gum_process_get_current_thread_id (void);

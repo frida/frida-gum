@@ -4,6 +4,7 @@
 
 #include "gumprocess-priv.h"
 
+#include "gum-init.h"
 #include "gumqnx.h"
 #include "gumqnx-priv.h"
 
@@ -70,6 +71,9 @@ struct _GumDlPhdrInternal
   Link_map * linkmap;
 };
 
+static gchar * gum_try_init_libc_name (void);
+static void gum_deinit_libc_name (void);
+
 static void gum_store_cpu_context (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 
@@ -90,6 +94,63 @@ static void gum_cpu_context_to_qnx (const GumCpuContext * ctx,
     debug_greg_t * gregs);
 
 static GumThreadState gum_thread_state_from_system_thread_state (int state);
+
+static gchar * gum_libc_name;
+
+const gchar *
+gum_process_query_libc_name (void)
+{
+  static GOnce once = G_ONCE_INIT;
+
+  g_once (&once, (GThreadFunc) gum_try_init_libc_name, NULL);
+
+  if (once.retval == NULL)
+  {
+    g_critical ("Unable to locate the libc; please file a bug");
+    g_abort ();
+  }
+
+  return once.retval;
+}
+
+static gchar *
+gum_try_init_libc_name (void)
+{
+  Dl_info info = { NULL, };
+
+  dladdr (dlsym (RTLD_DEFAULT, "exit"), &info);
+
+  if (info.dli_fname == NULL)
+    return NULL;
+
+  gum_libc_name = g_strdup (info.dli_fname);
+
+  if (g_file_test (gum_libc_name, G_FILE_TEST_IS_SYMLINK))
+  {
+    gchar * parent_dir, * target, * canonical_name;
+
+    parent_dir = g_path_get_dirname (gum_libc_name);
+    target = g_file_read_link (gum_libc_name, NULL);
+
+    canonical_name = g_canonicalize_filename (target, parent_dir);
+
+    g_free (target);
+    g_free (parent_dir);
+
+    g_free (gum_libc_name);
+    gum_libc_name = canonical_name;
+  }
+
+  _gum_register_destructor (gum_deinit_libc_name);
+
+  return gum_libc_name;
+}
+
+static void
+gum_deinit_libc_name (void)
+{
+  g_free (gum_libc_name);
+}
 
 gboolean
 gum_process_is_debugger_attached (void)

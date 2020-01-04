@@ -207,6 +207,9 @@ struct _GumTcbHead
 #endif
 };
 
+static gchar * gum_try_init_libc_name (void);
+static void gum_deinit_libc_name (void);
+
 static gint gum_do_modify_thread (gpointer data);
 static gboolean gum_await_ack (gint fd, GumModifyThreadAck expected_ack);
 static void gum_put_ack (gint fd, GumModifyThreadAck ack);
@@ -276,7 +279,79 @@ static gssize gum_libc_ptrace (gsize request, pid_t pid, gpointer address,
 #define gum_libc_syscall_3(n, a, b, c) gum_libc_syscall_4 (n, a, b, c, 0)
 static gssize gum_libc_syscall_4 (gsize n, gsize a, gsize b, gsize c, gsize d);
 
+static gchar * gum_libc_name;
+
 static gboolean gum_is_regset_supported = TRUE;
+
+const gchar *
+gum_process_query_libc_name (void)
+{
+  static GOnce once = G_ONCE_INIT;
+
+  g_once (&once, (GThreadFunc) gum_try_init_libc_name, NULL);
+
+  if (once.retval == NULL)
+  {
+    g_critical ("Unable to locate the libc; please file a bug");
+    g_abort ();
+  }
+
+  return once.retval;
+}
+
+static gchar *
+gum_try_init_libc_name (void)
+{
+  Dl_info info = { NULL, };
+
+  dladdr (dlsym (RTLD_DEFAULT, "exit"), &info);
+
+  if (info.dli_fname == NULL)
+    return NULL;
+
+#ifdef HAVE_ANDROID
+  if (g_path_is_absolute (info.dli_fname))
+  {
+    gum_libc_name = g_strdup (info.dli_fname);
+  }
+  else
+  {
+    gum_libc_name = g_build_filename (
+        "/system",
+        (sizeof (gpointer) == 4) ? "lib" : "lib64",
+        info.dli_fname,
+        NULL);
+  }
+#else
+  gum_libc_name = g_strdup (info.dli_fname);
+#endif
+
+  if (g_file_test (gum_libc_name, G_FILE_TEST_IS_SYMLINK))
+  {
+    gchar * parent_dir, * target, * canonical_name;
+
+    parent_dir = g_path_get_dirname (gum_libc_name);
+    target = g_file_read_link (gum_libc_name, NULL);
+
+    canonical_name = g_canonicalize_filename (target, parent_dir);
+
+    g_free (target);
+    g_free (parent_dir);
+
+    g_free (gum_libc_name);
+    gum_libc_name = canonical_name;
+  }
+
+  _gum_register_destructor (gum_deinit_libc_name);
+
+  return gum_libc_name;
+}
+
+static void
+gum_deinit_libc_name (void)
+{
+  g_free (gum_libc_name);
+}
 
 gboolean
 gum_process_is_debugger_attached (void)

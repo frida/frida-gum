@@ -31,6 +31,12 @@ static gboolean gum_store_address_if_export_name_matches (
     const GumExportDetails * details, gpointer user_data);
 static HMODULE get_module_handle_utf8 (const gchar * module_name);
 
+const gchar *
+gum_process_query_libc_name (void)
+{
+  return "msvcrt.dll";
+}
+
 gboolean
 gum_process_is_debugger_attached (void)
 {

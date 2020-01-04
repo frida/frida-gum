@@ -167,6 +167,7 @@ namespace Gum {
 	namespace Process {
 		public Gum.CodeSigningPolicy get_code_signing_policy ();
 		public void set_code_signing_policy (Gum.CodeSigningPolicy policy);
+		public unowned string query_libc_name ();
 		public bool is_debugger_attached ();
 		public Gum.ThreadId get_current_thread_id ();
 		public bool modify_thread (Gum.ThreadId thread_id, Gum.Process.ModifyThreadFunc func);

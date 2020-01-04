@@ -316,6 +316,12 @@ static gboolean gum_darwin_fill_file_mapping (gint pid,
 static void gum_darwin_clamp_range_size (GumMemoryRange * range,
     GumFileMapping * file);
 
+const gchar *
+gum_process_query_libc_name (void)
+{
+  return "/usr/lib/libSystem.B.dylib";
+}
+
 gboolean
 gum_process_is_debugger_attached (void)
 {
