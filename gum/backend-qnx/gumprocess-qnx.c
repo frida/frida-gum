@@ -65,9 +65,9 @@ struct _GumResolveModuleNameContext
 
 struct _GumDlPhdrInternal
 {
-    GumDlPhdrInternal * p_next;
-    gint unknown;
-    Link_map * linkmap;
+  GumDlPhdrInternal * p_next;
+  gint unknown;
+  Link_map * linkmap;
 };
 
 static void gum_store_cpu_context (GumThreadId thread_id,
