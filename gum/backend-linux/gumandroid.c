@@ -667,20 +667,21 @@ gum_deinit_linker_details (void)
 static gchar *
 gum_find_linker_path (void)
 {
-  gchar * result = NULL;
-  const gchar * traditional_path;
+  const gchar * traditional_path, * modern_path, * path;
 
   traditional_path = (sizeof (gpointer) == 4)
       ? "/system/bin/linker"
       : "/system/bin/linker64";
 
-  if (g_file_test (traditional_path, G_FILE_TEST_IS_SYMLINK))
-    result = g_file_read_link (traditional_path, NULL);
+  modern_path = (sizeof (gpointer) == 4)
+      ? "/apex/com.android.runtime/bin/linker"
+      : "/apex/com.android.runtime/bin/linker64";
 
-  if (result == NULL)
-    result = g_strdup (traditional_path);
+  path = (gum_android_get_api_level () >= 29)
+      ? modern_path
+      : traditional_path;
 
-  return result;
+  return g_strdup (path);
 }
 
 static gboolean
