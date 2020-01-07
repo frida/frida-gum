@@ -677,6 +677,15 @@ gum_find_linker_path (void)
   if (g_file_test (traditional_path, G_FILE_TEST_IS_SYMLINK))
     result = g_file_read_link (traditional_path, NULL);
 
+  // Android 10 workaround
+  if (result == NULL) {
+    traditional_path = (sizeof (gpointer) == 4)
+        ? "/apex/com.android.runtime/bin/linker"
+        : "/apex/com.android.runtime/bin/linker64";
+
+    result = g_file_read_link (traditional_path, NULL);
+  }
+
   if (result == NULL)
     result = g_strdup (traditional_path);
 
