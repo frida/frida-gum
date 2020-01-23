@@ -198,7 +198,8 @@ gum_duk_event_sink_stop (GumEventSink * sink)
 
     source = g_idle_source_new ();
     g_source_set_callback (source,
-        (GSourceFunc) gum_duk_event_sink_stop_when_idle, sink, NULL);
+        (GSourceFunc) gum_duk_event_sink_stop_when_idle, g_object_ref (self),
+        g_object_unref);
     g_source_attach (source, self->main_context);
     g_source_unref (source);
   }
