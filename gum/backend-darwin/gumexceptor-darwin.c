@@ -1129,11 +1129,17 @@ gum_exception_port_set_extract (GumExceptionPortSet * self,
                                 exception_behavior_array_t old_behaviors,
                                 exception_flavor_array_t old_flavors)
 {
-  memcpy (masks, self->masks, sizeof (self->masks));
-  *masks_count = self->count;
-  memcpy (old_handlers, self->handlers, sizeof (self->handlers));
-  memcpy (old_behaviors, self->behaviors, sizeof (self->behaviors));
-  memcpy (old_flavors, self->flavors, sizeof (self->flavors));
+  size_t max_size = *masks_count * sizeof (mach_port_t);
+
+  memcpy (masks, self->masks,
+      MIN (max_size, sizeof (self->masks)));
+  *masks_count = MIN (*masks_count, self->count);
+  memcpy (old_handlers, self->handlers,
+      MIN (max_size, sizeof (self->handlers)));
+  memcpy (old_behaviors, self->behaviors,
+      MIN (max_size, sizeof (self->behaviors)));
+  memcpy (old_flavors, self->flavors,
+      MIN (max_size, sizeof (self->flavors)));
 }
 
 static void
