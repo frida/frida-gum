@@ -360,9 +360,13 @@ if __name__ == '__main__':
     objc = os.path.abspath(os.path.join(v8_tmp_dir, "objc.js"))
     java = os.path.abspath(os.path.join(v8_tmp_dir, "java.js"))
 
-    subprocess.check_call([node_script_path("frida-compile"), "./runtime/entrypoint-v8.js", "-o", runtime, "-x"], cwd=input_dir)
-    subprocess.check_call([node_script_path("frida-compile"), "./runtime/objc.js", "-o", objc, "-x"], cwd=input_dir)
-    subprocess.check_call([node_script_path("frida-compile"), "./runtime/java.js", "-o", java, "-x"], cwd=input_dir)
+    v8_options = [
+        "-x", # No need for Babel, V8 supports modern JS.
+        "-c", # Compress for smaller code and better performance.
+    ]
+    subprocess.check_call([node_script_path("frida-compile"), "./runtime/entrypoint-v8.js", "-o", runtime] + v8_options, cwd=input_dir)
+    subprocess.check_call([node_script_path("frida-compile"), "./runtime/objc.js", "-o", objc] + v8_options, cwd=input_dir)
+    subprocess.check_call([node_script_path("frida-compile"), "./runtime/java.js", "-o", java] + v8_options, cwd=input_dir)
 
     generate_runtime_v8("runtime", output_dir, "gumv8script-runtime.h", [runtime])
     generate_runtime_v8("objc", output_dir, "gumv8script-objc.h", [objc])
@@ -374,10 +378,14 @@ if __name__ == '__main__':
     objc = os.path.abspath(os.path.join(duk_tmp_dir, "objc.js"))
     java = os.path.abspath(os.path.join(duk_tmp_dir, "java.js"))
 
-    subprocess.check_call([node_script_path("frida-compile"), "./runtime/entrypoint-duktape.js", "-o", runtime, "-c"], cwd=input_dir)
-    subprocess.check_call([node_script_path("frida-compile"), "./runtime/promise.js", "-o", promise, "-c", "-x"], cwd=input_dir)
-    subprocess.check_call([node_script_path("frida-compile"), "./runtime/objc.js", "-o", objc, "-c"], cwd=input_dir)
-    subprocess.check_call([node_script_path("frida-compile"), "./runtime/java.js", "-o", java, "-c"], cwd=input_dir)
+    duk_options = [
+        "-L", # Tell Babel to sacrifice spec compliance for reduced bloat and better performance.
+        "-c", # Compress for smaller code and better performance.
+    ]
+    subprocess.check_call([node_script_path("frida-compile"), "./runtime/entrypoint-duktape.js", "-o", runtime] + duk_options, cwd=input_dir)
+    subprocess.check_call([node_script_path("frida-compile"), "./runtime/promise.js", "-o", promise, "-x"] + duk_options, cwd=input_dir)
+    subprocess.check_call([node_script_path("frida-compile"), "./runtime/objc.js", "-o", objc] + duk_options, cwd=input_dir)
+    subprocess.check_call([node_script_path("frida-compile"), "./runtime/java.js", "-o", java] + duk_options, cwd=input_dir)
 
     generate_runtime_duk("runtime", output_dir, "gumdukscript-runtime.h", input_dir, [runtime])
     generate_runtime_duk("promise", output_dir, "gumdukscript-promise.h", input_dir, [promise])
