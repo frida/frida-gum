@@ -6738,6 +6738,7 @@ TESTCASE (source_maps_should_be_supported_for_user_scripts)
       "FDQTtBQUNBO0FBQ0E7QUFDQTtBQUNBO0FBQ0E7QUFDQTtBQUNBO0FBQ0E7QUFDQTs7QUNiQT"
       "tBQUNBO0FBQ0E7QUFDQTtBQUNBO0FBQ0E7QUFDQTtBQUNBIiwiZmlsZSI6ImdlbmVyYXRlZC"
       "5qcyIsInNvdXJjZVJvb3QiOiIifQ=="                                      "\n"
+      "// And potentially some trailing code..."                            "\n"
   );
 
   item = test_script_fixture_pop_message (fixture);

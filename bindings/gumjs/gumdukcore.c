@@ -1460,8 +1460,9 @@ GUMJS_DEFINE_GETTER (gumjs_script_get_source_map)
     return 1;
   }
 
-  regex = g_regex_new ("//[#@][ \t]sourceMappingURL=[ \t]*"
-      "data:application/json;.*?base64,([^\\s\'\"]*)[ \t]*$", 0, 0, NULL);
+  regex = g_regex_new ("//[#@][ \\t]sourceMappingURL=[ \\t]*"
+      "data:application/json;.*?base64,([^\\s'\"]*)[ \\t]*$",
+      G_REGEX_MULTILINE, 0, NULL);
   g_regex_match (regex, source, 0, &match_info);
   if (g_match_info_matches (match_info))
   {
