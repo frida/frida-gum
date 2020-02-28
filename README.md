@@ -46,8 +46,8 @@ Provides:
 
 ## Binaries
 
-Download a devkit for statically linking into your own .dll/.dylib/.so from
-the Frida [releases][] page.
+Download a devkit for statically linking into your own projects from the
+Frida [releases][] page.
 
 
 [frida-core]: https://github.com/frida/frida-core
