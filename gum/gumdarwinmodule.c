@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -471,6 +471,13 @@ enum _GumBindOpcode
   GUM_BIND_OPCODE_DO_BIND_ADD_ADDR_ULEB                = 0xa0,
   GUM_BIND_OPCODE_DO_BIND_ADD_ADDR_IMM_SCALED          = 0xb0,
   GUM_BIND_OPCODE_DO_BIND_ULEB_TIMES_SKIPPING_ULEB     = 0xc0,
+  GUM_BIND_OPCODE_THREADED                             = 0xd0,
+};
+
+enum _GumBindSubopcode
+{
+  GUM_BIND_SUBOPCODE_THREADED_SET_BIND_ORDINAL_TABLE_SIZE_ULEB = 0x00,
+  GUM_BIND_SUBOPCODE_THREADED_APPLY                            = 0x01,
 };
 
 enum _GumExportSymbolFlags
@@ -1018,6 +1025,9 @@ gum_emit_import (const GumDarwinBindDetails * details,
   GumEmitImportContext * ctx = user_data;
   GumImportDetails d;
 
+  if (details->type != GUM_DARWIN_BIND_POINTER)
+    return TRUE;
+
   d.type = GUM_IMPORT_UNKNOWN;
   d.name = details->symbol_name;
   switch (details->library_ordinal)
@@ -1416,8 +1426,7 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
         break;
       }
       default:
-        g_assert_not_reached ();
-        break;
+        return;
     }
   }
 }
@@ -1449,6 +1458,7 @@ gum_darwin_module_enumerate_binds (GumDarwinModule * self,
   details.symbol_name = NULL;
   details.symbol_flags = 0;
   details.addend = 0;
+  details.threaded_table_size = 0;
 
   while (!done && p != end)
   {
@@ -1533,9 +1543,43 @@ gum_darwin_module_enumerate_binds (GumDarwinModule * self,
 
         break;
       }
-      default:
-        g_assert_not_reached ();
+      case GUM_BIND_OPCODE_THREADED:
+      {
+        switch (immediate)
+        {
+          case GUM_BIND_SUBOPCODE_THREADED_SET_BIND_ORDINAL_TABLE_SIZE_ULEB:
+          {
+            guint64 size;
+
+            size = gum_read_uleb128 (&p, end);
+            if (size > G_MAXUINT16)
+              return;
+
+            details.type = GUM_DARWIN_BIND_THREADED_TABLE;
+            details.threaded_table_size = size;
+
+            if (!func (&details, user_data))
+              return;
+
+            break;
+          }
+          case GUM_BIND_SUBOPCODE_THREADED_APPLY:
+          {
+            details.type = GUM_DARWIN_BIND_THREADED_ITEMS;
+
+            if (!func (&details, user_data))
+              return;
+
+            break;
+          }
+          default:
+            return;
+        }
+
         break;
+      }
+      default:
+        return;
     }
   }
 }
@@ -1627,8 +1671,7 @@ gum_darwin_module_enumerate_lazy_binds (GumDarwinModule * self,
       case GUM_BIND_OPCODE_DO_BIND_ADD_ADDR_IMM_SCALED:
       case GUM_BIND_OPCODE_DO_BIND_ULEB_TIMES_SKIPPING_ULEB:
       default:
-        g_assert_not_reached ();
-        break;
+        return;
     }
   }
 }
@@ -1727,6 +1770,46 @@ gum_darwin_module_get_dependency_by_ordinal (GumDarwinModule * self,
     return NULL;
 
   return g_ptr_array_index (self->dependencies, i);
+}
+
+void
+gum_darwin_threaded_item_parse (guint64 value,
+                                GumDarwinThreadedItem * result)
+{
+  result->is_authenticated      = (value >> 63) & 1;
+  result->type                  = (value >> 62) & 1;
+  result->delta                 = (value >> 51) & GUM_INT11_MASK;
+  result->key                   = (value >> 49) & GUM_INT2_MASK;
+  result->has_address_diversity = (value >> 48) & 1;
+  result->diversity             = (value >> 32) & GUM_INT16_MASK;
+
+  if (result->type == GUM_DARWIN_THREADED_BIND)
+  {
+    result->bind.ordinal = value & GUM_INT16_MASK;
+  }
+  else if (result->type == GUM_DARWIN_THREADED_REBASE)
+  {
+    if (result->is_authenticated)
+    {
+      result->rebase.address = value & GUM_INT32_MASK;
+    }
+    else
+    {
+      guint64 top_8_bits, bottom_43_bits, sign_bits;
+      gboolean sign_bit_set;
+
+      top_8_bits = (value << 13) & G_GUINT64_CONSTANT (0xff00000000000000);
+      bottom_43_bits = value     & G_GUINT64_CONSTANT (0x000007ffffffffff);
+
+      sign_bit_set = (value >> 42) & 1;
+      if (sign_bit_set)
+        sign_bits = G_GUINT64_CONSTANT (0x00fff80000000000);
+      else
+        sign_bits = 0;
+
+      result->rebase.address = top_8_bits | sign_bits | bottom_43_bits;
+    }
+  }
 }
 
 static gboolean

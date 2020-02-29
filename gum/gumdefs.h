@@ -382,19 +382,21 @@ enum _GumRelocationScenario
 #define GUM_FUNCPTR_TO_POINTER(f) (GSIZE_TO_POINTER (f))
 #define GUM_POINTER_TO_FUNCPTR(t, p) ((t) GPOINTER_TO_SIZE (p))
 
-#define GUM_INT5_MASK  0x0000001f
-#define GUM_INT6_MASK  0x0000003f
-#define GUM_INT8_MASK  0x000000ff
-#define GUM_INT10_MASK 0x000003ff
-#define GUM_INT11_MASK 0x000007ff
-#define GUM_INT12_MASK 0x00000fff
-#define GUM_INT14_MASK 0x00003fff
-#define GUM_INT16_MASK 0x0000ffff
-#define GUM_INT18_MASK 0x0003ffff
-#define GUM_INT19_MASK 0x0007ffff
-#define GUM_INT24_MASK 0x00ffffff
-#define GUM_INT26_MASK 0x03ffffff
-#define GUM_INT28_MASK 0x0fffffff
+#define GUM_INT2_MASK  0x00000003U
+#define GUM_INT5_MASK  0x0000001fU
+#define GUM_INT6_MASK  0x0000003fU
+#define GUM_INT8_MASK  0x000000ffU
+#define GUM_INT10_MASK 0x000003ffU
+#define GUM_INT11_MASK 0x000007ffU
+#define GUM_INT12_MASK 0x00000fffU
+#define GUM_INT14_MASK 0x00003fffU
+#define GUM_INT16_MASK 0x0000ffffU
+#define GUM_INT18_MASK 0x0003ffffU
+#define GUM_INT19_MASK 0x0007ffffU
+#define GUM_INT24_MASK 0x00ffffffU
+#define GUM_INT26_MASK 0x03ffffffU
+#define GUM_INT28_MASK 0x0fffffffU
+#define GUM_INT32_MASK 0xffffffffU
 
 #define GUM_IS_WITHIN_UINT7_RANGE(i) \
     (((gint64) (i)) >= G_GINT64_CONSTANT (0) && \

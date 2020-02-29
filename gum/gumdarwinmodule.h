@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -30,6 +30,7 @@ typedef struct _GumDarwinModuleImageSegment GumDarwinModuleImageSegment;
 typedef struct _GumDarwinSectionDetails GumDarwinSectionDetails;
 typedef struct _GumDarwinRebaseDetails GumDarwinRebaseDetails;
 typedef struct _GumDarwinBindDetails GumDarwinBindDetails;
+typedef struct _GumDarwinThreadedItem GumDarwinThreadedItem;
 typedef struct _GumDarwinInitPointersDetails GumDarwinInitPointersDetails;
 typedef struct _GumDarwinTermPointersDetails GumDarwinTermPointersDetails;
 typedef struct _GumDarwinSegment GumDarwinSegment;
@@ -38,6 +39,7 @@ typedef struct _GumDarwinSymbolDetails GumDarwinSymbolDetails;
 
 typedef guint8 GumDarwinRebaseType;
 typedef guint8 GumDarwinBindType;
+typedef guint8 GumDarwinThreadedItemType;
 typedef gint GumDarwinBindOrdinal;
 typedef guint8 GumDarwinBindSymbolFlags;
 typedef guint8 GumDarwinExportSymbolKind;
@@ -175,6 +177,30 @@ struct _GumDarwinBindDetails
   const gchar * symbol_name;
   GumDarwinBindSymbolFlags symbol_flags;
   gint64 addend;
+  guint16 threaded_table_size;
+};
+
+struct _GumDarwinThreadedItem
+{
+  gboolean is_authenticated;
+  GumDarwinThreadedItemType type;
+  guint16 delta;
+  guint8 key;
+  gboolean has_address_diversity;
+  guint16 diversity;
+
+  union
+  {
+    struct
+    {
+      guint16 ordinal;
+    } bind;
+
+    struct
+    {
+      GumAddress address;
+    } rebase;
+  };
 };
 
 struct _GumDarwinInitPointersDetails
@@ -248,6 +274,14 @@ enum _GumDarwinBindType
   GUM_DARWIN_BIND_POINTER = 1,
   GUM_DARWIN_BIND_TEXT_ABSOLUTE32,
   GUM_DARWIN_BIND_TEXT_PCREL32,
+  GUM_DARWIN_BIND_THREADED_TABLE,
+  GUM_DARWIN_BIND_THREADED_ITEMS,
+};
+
+enum _GumDarwinThreadedItemType
+{
+  GUM_DARWIN_THREADED_REBASE,
+  GUM_DARWIN_THREADED_BIND
 };
 
 enum _GumDarwinBindOrdinal
@@ -321,6 +355,9 @@ GUM_API void gum_darwin_module_enumerate_dependencies (GumDarwinModule * self,
     GumFoundDarwinDependencyFunc func, gpointer user_data);
 GUM_API const gchar * gum_darwin_module_get_dependency_by_ordinal (
     GumDarwinModule * self, gint ordinal);
+
+GUM_API void gum_darwin_threaded_item_parse (guint64 value,
+    GumDarwinThreadedItem * result);
 
 GUM_API GumDarwinModuleImage * gum_darwin_module_image_new (void);
 GUM_API GumDarwinModuleImage * gum_darwin_module_image_dup (

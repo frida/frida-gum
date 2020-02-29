@@ -4,7 +4,15 @@
 
 #include <mach/mach.h>
 
-typedef void (* UnixAttackerEntrypoint) (const gchar * data_string);
+typedef struct _DarwinInjectorState DarwinInjectorState;
+
+struct _DarwinInjectorState
+{
+  GumMemoryRange * mapped_range;
+};
+
+typedef void (* AgentEntrypoint) (const gchar * data_string,
+    gint * unload_policy, gpointer injector_state);
 
 gint
 main (gint argc,
@@ -18,10 +26,15 @@ main (gint argc,
   GumDarwinModuleResolver * resolver = NULL;
   GumDarwinMapper * mapper = NULL;
   mach_vm_address_t base_address = 0;
+  gsize mapped_size;
   kern_return_t kr;
+  GumDarwinModule * module = NULL;
   GumDarwinMapperConstructor constructor;
   GumDarwinMapperDestructor destructor;
-  UnixAttackerEntrypoint entrypoint;
+  AgentEntrypoint entrypoint;
+  gint unload_policy = 0;
+  DarwinInjectorState injector_state;
+  GumMemoryRange mapped_range;
 
   gum_init ();
 
@@ -52,23 +65,36 @@ main (gint argc,
   if (error != NULL)
     goto failure;
 
-  kr = mach_vm_allocate (task, &base_address, gum_darwin_mapper_size (mapper),
-      VM_FLAGS_ANYWHERE);
+  mapped_size = gum_darwin_mapper_size (mapper);
+
+  kr = mach_vm_allocate (task, &base_address, mapped_size, VM_FLAGS_ANYWHERE);
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
 
   gum_darwin_mapper_map (mapper, base_address, &error);
   if (error != NULL)
     goto failure;
 
-  constructor = (GumDarwinMapperConstructor) gum_darwin_mapper_constructor (
-      mapper);
-  destructor = (GumDarwinMapperDestructor) gum_darwin_mapper_destructor (
-      mapper);
-  entrypoint = (UnixAttackerEntrypoint) gum_darwin_mapper_resolve (mapper,
-      "frida_agent_main");
+  g_object_get (mapper, "module", &module, NULL);
+  g_print ("Base address: 0x%llx\n", module->base_address);
+
+  constructor =
+      GSIZE_TO_POINTER (gum_darwin_mapper_constructor (mapper));
+  destructor =
+      GSIZE_TO_POINTER (gum_darwin_mapper_destructor (mapper));
+  entrypoint =
+      GSIZE_TO_POINTER (gum_darwin_mapper_resolve (mapper, "frida_agent_main"));
+
+  g_print ("Mapped! constructor=%p destructor=%p entrypoint=%p\n",
+      constructor, destructor, entrypoint);
 
   constructor ();
-  entrypoint ("");
+
+  injector_state.mapped_range = &mapped_range;
+  mapped_range.base_address = base_address;
+  mapped_range.size = mapped_size;
+
+  entrypoint ("", &unload_policy, &injector_state);
+
   destructor ();
 
   result = 0;
@@ -85,11 +111,11 @@ beach:
   {
     if (base_address != 0)
     {
-      kr = mach_vm_deallocate (task, base_address,
-          gum_darwin_mapper_size (mapper));
+      kr = mach_vm_deallocate (task, base_address, mapped_size);
       g_assert_cmpint (kr, ==, KERN_SUCCESS);
     }
 
+    g_clear_object (&module);
     g_clear_object (&mapper);
     g_clear_object (&resolver);
 
