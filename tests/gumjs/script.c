@@ -145,6 +145,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (process_platform_is_available)
     TESTENTRY (process_page_size_is_available)
     TESTENTRY (process_pointer_size_is_available)
+    TESTENTRY (process_should_support_nested_signal_handling)
 #ifndef HAVE_QNX
     TESTENTRY (process_debugger_status_is_available)
 #endif
@@ -2869,6 +2870,28 @@ TESTCASE (process_pointer_size_is_available)
 {
   COMPILE_AND_LOAD_SCRIPT ("send(Process.pointerSize);");
   EXPECT_SEND_MESSAGE_WITH (G_STRINGIFY (GLIB_SIZEOF_VOID_P));
+}
+
+TESTCASE (process_should_support_nested_signal_handling)
+{
+  gpointer page;
+
+  page = gum_alloc_n_pages (1, GUM_PAGE_NO_ACCESS);
+
+  COMPILE_AND_LOAD_SCRIPT ("Process.setExceptionHandler(function (details) {"
+          "Memory.protect(" GUM_PTR_CONST ", Process.pageSize, 'rw-');"
+          "try {"
+              "ptr(42).readU8();"
+          "} catch (e) {"
+              "send('error');"
+          "};"
+          "return true;"
+      "});", page);
+
+  *((guint8 *) page) = 1;
+  EXPECT_SEND_MESSAGE_WITH ("\"error\"");
+
+  gum_free_pages ((gpointer) page);
 }
 
 TESTCASE (process_debugger_status_is_available)
