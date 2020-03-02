@@ -145,6 +145,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (process_platform_is_available)
     TESTENTRY (process_page_size_is_available)
     TESTENTRY (process_pointer_size_is_available)
+    TESTENTRY (process_nested_signal_handling)
 #ifndef HAVE_QNX
     TESTENTRY (process_debugger_status_is_available)
 #endif
@@ -2812,6 +2813,16 @@ TESTCASE (process_pointer_size_is_available)
 {
   COMPILE_AND_LOAD_SCRIPT ("send(Process.pointerSize);");
   EXPECT_SEND_MESSAGE_WITH (G_STRINGIFY (GLIB_SIZEOF_VOID_P));
+}
+
+TESTCASE (process_nested_signal_handling)
+{
+  COMPILE_AND_LOAD_SCRIPT ("Process.setExceptionHandler(function (details) { try { ptr(\"0x41414141\").readS8(); } catch (e) { send (2); }});"
+          "var kill = Module.getExportByName(\"libc.so.6\",\"kill\");"
+          "kill = new NativeFunction(kill, 'int', ['int', 'int']);"
+          "kill(0, 11);"
+          );
+  EXPECT_SEND_MESSAGE_WITH ("2");
 }
 
 TESTCASE (process_debugger_status_is_available)
