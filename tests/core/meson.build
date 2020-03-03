@@ -69,9 +69,25 @@ gum_tests_core = static_library('gum-tests-core', core_sources,
 
 if host_os_family == 'darwin'
   symlist = 'mapper.symbols'
-  executable('mapper-test', 'mapper.c',
+
+  mapper_test_unsigned = executable('mapper-test-unsigned', 'mapper.c',
     dependencies: [gum_dep],
     link_args: ['-Wl,-exported_symbols_list,' + join_paths(meson.current_source_dir(), symlist)],
     link_depends: [symlist],
+  )
+
+  custom_target('mapper-test-signed',
+    input: [
+      mapper_test_unsigned,
+      'mapper.xcent',
+    ],
+    output: 'mapper-test',
+    command: [
+      files('../sign.sh'),
+      host_os,
+      '@INPUT@',
+      '@OUTPUT@',
+    ],
+    build_by_default: true,
   )
 endif
