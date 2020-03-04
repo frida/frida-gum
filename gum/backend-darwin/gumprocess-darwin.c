@@ -14,8 +14,9 @@
 
 #include <dlfcn.h>
 #include <errno.h>
-#include <gio/gio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <gio/gio.h>
 #include <mach-o/dyld.h>
 #include <mach-o/nlist.h>
 #include <malloc/malloc.h>
@@ -817,7 +818,7 @@ gum_module_find_export_by_name (const gchar * module_name,
     if (name == NULL)
       return 0;
 
-    if (strcmp (name, "/usr/lib/dyld") == 0)
+    if (g_str_has_prefix (name, "/usr/lib/dyld"))
     {
       GumDarwinModuleResolver * resolver;
       GumDarwinModule * dm;
@@ -1246,6 +1247,8 @@ gum_darwin_enumerate_modules (mach_port_t task,
 {
   GumDarwinAllImageInfos infos;
   gboolean inprocess;
+  const gchar * sysroot;
+  guint sysroot_size;
   gsize i;
   gpointer info_array, info_array_malloc_data = NULL;
   gpointer header_data, header_data_end, header_malloc_data = NULL;
@@ -1260,6 +1263,9 @@ gum_darwin_enumerate_modules (mach_port_t task,
     goto fallback;
 
   inprocess = task == mach_task_self ();
+
+  sysroot = inprocess ? gum_darwin_query_sysroot () : NULL;
+  sysroot_size = (sysroot != NULL) ? strlen (sysroot) : 0;
 
   if (inprocess)
   {
@@ -1421,6 +1427,8 @@ gum_darwin_enumerate_modules (mach_port_t task,
     details.name = name;
     details.range = &dylib_range;
     details.path = file_path;
+    if (sysroot != NULL && g_str_has_prefix (file_path, sysroot))
+      details.path += sysroot_size;
 
     carry_on = func (&details, user_data);
 
@@ -2020,13 +2028,23 @@ find_image_address_and_slide (const gchar * image_name,
                               gpointer * address,
                               gpointer * slide)
 {
-  guint count, i;
+  const gchar * sysroot;
+  guint sysroot_size, count, i;
+
+  sysroot = gum_darwin_query_sysroot ();
+  sysroot_size = (sysroot != NULL) ? strlen (sysroot) : 0;
 
   count = _dyld_image_count ();
 
   for (i = 0; i != count; i++)
   {
-    if (gum_module_path_equals (_dyld_get_image_name (i), image_name))
+    const gchar * candidate_name;
+
+    candidate_name = _dyld_get_image_name (i);
+    if (sysroot != NULL && g_str_has_prefix (candidate_name, sysroot))
+      candidate_name += sysroot_size;
+
+    if (gum_module_path_equals (candidate_name, image_name))
     {
       *address = (gpointer) _dyld_get_image_header (i);
       *slide = (gpointer) _dyld_get_image_vmaddr_slide (i);
