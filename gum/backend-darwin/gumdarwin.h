@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -89,6 +89,7 @@ GUM_API gboolean gum_darwin_cpu_type_from_pid (pid_t pid,
     GumCpuType * cpu_type);
 GUM_API gboolean gum_darwin_query_page_size (mach_port_t task,
     guint * page_size);
+GUM_API const gchar * gum_darwin_query_sysroot (void);
 GUM_API gboolean gum_darwin_query_all_image_infos (mach_port_t task,
     GumDarwinAllImageInfos * infos);
 GUM_API GumAddress gum_darwin_find_entrypoint (mach_port_t task);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -7,6 +7,7 @@
 
 #include "gumprocess-priv.h"
 
+#include "gum-init.h"
 #include "gumdarwin.h"
 #include "gumdarwinmodule.h"
 #include "gumleb.h"
@@ -281,6 +282,9 @@ static void gum_emit_malloc_ranges (task_t task,
     void * user_data, unsigned type, vm_range_t * ranges, unsigned count);
 static kern_return_t gum_read_malloc_memory (task_t remote_task,
     vm_address_t remote_address, vm_size_t size, void ** local_memory);
+#if defined (HAVE_IOS) && defined (HAVE_I386)
+static void gum_deinit_sysroot (void);
+#endif
 static gboolean gum_probe_range_for_entrypoint (const GumRangeDetails * details,
     gpointer user_data);
 static gboolean gum_store_range_of_potential_modules (
@@ -905,6 +909,48 @@ gum_darwin_cpu_type_from_pid (pid_t pid,
 #endif
   return TRUE;
 }
+
+#if defined (HAVE_IOS) && defined (HAVE_I386)
+
+const gchar *
+gum_darwin_query_sysroot (void)
+{
+  static gsize cached_result = 0;
+
+  if (g_once_init_enter (&cached_result))
+  {
+    gchar * result;
+    const gchar * dyld_path, * prefix_start;
+
+    dyld_path = _dyld_get_image_name (0);
+
+    prefix_start = g_strrstr (dyld_path, "/usr/lib/");
+    g_assert (prefix_start != NULL);
+
+    result = g_strndup (dyld_path, prefix_start - dyld_path);
+    _gum_register_destructor (gum_deinit_sysroot);
+
+    g_once_init_leave (&cached_result, GPOINTER_TO_SIZE (result));
+  }
+
+  return GSIZE_TO_POINTER (cached_result);
+}
+
+static void
+gum_deinit_sysroot (void)
+{
+  g_free ((gchar *) gum_darwin_query_sysroot ());
+}
+
+#else
+
+const gchar *
+gum_darwin_query_sysroot (void)
+{
+  return NULL;
+}
+
+#endif
 
 gboolean
 gum_darwin_query_all_image_infos (mach_port_t task,
