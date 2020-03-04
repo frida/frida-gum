@@ -283,7 +283,7 @@ static void gum_emit_malloc_ranges (task_t task,
     void * user_data, unsigned type, vm_range_t * ranges, unsigned count);
 static kern_return_t gum_read_malloc_memory (task_t remote_task,
     vm_address_t remote_address, vm_size_t size, void ** local_memory);
-#if defined (HAVE_IOS) && defined (HAVE_I386)
+#ifdef HAVE_I386
 static void gum_deinit_sysroot (void);
 #endif
 static gboolean gum_probe_range_for_entrypoint (const GumRangeDetails * details,
@@ -911,7 +911,7 @@ gum_darwin_cpu_type_from_pid (pid_t pid,
   return TRUE;
 }
 
-#if defined (HAVE_IOS) && defined (HAVE_I386)
+#ifdef HAVE_I386
 
 const gchar *
 gum_darwin_query_sysroot (void)
@@ -920,21 +920,21 @@ gum_darwin_query_sysroot (void)
 
   if (g_once_init_enter (&cached_result))
   {
-    gchar * result;
-    const gchar * dyld_path, * prefix_start;
+    gchar * result = NULL;
+    const gchar * program_path;
 
-    dyld_path = _dyld_get_image_name (0);
+    program_path = _dyld_get_image_name (0);
 
-    prefix_start = g_strrstr (dyld_path, "/usr/lib/");
-    g_assert (prefix_start != NULL);
+    if (g_str_has_suffix (program_path, "/usr/lib/dyld_sim"))
+    {
+      result = g_strndup (program_path, strlen (program_path) - 17);
+      _gum_register_destructor (gum_deinit_sysroot);
+    }
 
-    result = g_strndup (dyld_path, prefix_start - dyld_path);
-    _gum_register_destructor (gum_deinit_sysroot);
-
-    g_once_init_leave (&cached_result, GPOINTER_TO_SIZE (result));
+    g_once_init_leave (&cached_result, GPOINTER_TO_SIZE (result) + 1);
   }
 
-  return GSIZE_TO_POINTER (cached_result);
+  return GSIZE_TO_POINTER (cached_result - 1);
 }
 
 static void
