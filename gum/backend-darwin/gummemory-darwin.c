@@ -51,6 +51,36 @@ _gum_memory_backend_query_page_size (void)
 }
 
 gboolean
+gum_darwin_query_ptrauth_support (mach_port_t task,
+                                  GumPtrauthSupport * ptrauth_support)
+{
+#if defined (HAVE_IOS) && (defined (HAVE_ARM) || defined (HAVE_ARM64))
+  GumDarwinAllImageInfos infos;
+  GumAddress actual_ptr, stripped_ptr;
+
+  if (task == mach_task_self ())
+  {
+    *ptrauth_support = gum_query_ptrauth_support ();
+    return TRUE;
+  }
+
+  if (!gum_darwin_query_all_image_infos (task, &infos))
+    return FALSE;
+
+  actual_ptr = infos.notification_address;
+  stripped_ptr = actual_ptr & G_GUINT64_CONSTANT (0x7fffffffff);
+
+  *ptrauth_support = (stripped_ptr != actual_ptr)
+      ? GUM_PTRAUTH_SUPPORTED
+      : GUM_PTRAUTH_UNSUPPORTED;
+#else
+  *ptrauth_support = GUM_PTRAUTH_UNSUPPORTED;
+#endif
+
+  return TRUE;
+}
+
+gboolean
 gum_darwin_query_page_size (mach_port_t task,
                             guint * page_size)
 {

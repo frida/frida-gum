@@ -63,6 +63,9 @@
 /* Define to 1 if target is MIPS based. */
 #mesondefine HAVE_MIPS
 
+/* Define if your compiler supports pointer authentication. */
+#mesondefine HAVE_PTRAUTH
+
 /* Define to 1 if OS is QNX based. */
 #mesondefine HAVE_QNX
 

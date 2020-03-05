@@ -48,6 +48,18 @@ if buildtype == 'release' or buildtype == 'minsize'
   ]
 endif
 
+have_ptrauth_src = '''#ifdef __clang__
+# if __has_feature(ptrauth_calls)
+#  define HAVE_PTRAUTH 1
+# endif
+#endif
+
+#ifndef HAVE_PTRAUTH
+# error Pointer authentication not supported
+#endif
+'''
+have_ptrauth = cc.compiles(have_ptrauth_src, name: 'pointer authentication')
+
 target_conditionals_prefix = '#include <TargetConditionals.h>'
 
 is_macos_src = target_conditionals_prefix + '''
@@ -72,6 +84,10 @@ if cc.has_header('android/api-level.h')
   host_os = 'android'
 endif
 
+if host_arch == 'arm64' and have_ptrauth
+  host_abi = 'arm64e'
+endif
+
 cdata = configuration_data()
 
 cdata.set('HAVE_' + host_os_family.to_upper(), 1)
@@ -91,6 +107,10 @@ foreach d : cpu_defines
     cdata.set(d.get(1), 1)
   endif
 endforeach
+
+if have_ptrauth
+  cdata.set('HAVE_PTRAUTH', 1)
+endif
 
 headers = [
   'elf.h',

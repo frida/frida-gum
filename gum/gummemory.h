@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -22,6 +22,7 @@
 
 G_BEGIN_DECLS
 
+typedef guint GumPtrauthSupport;
 typedef guint GumRwxSupport;
 typedef guint GumMemoryOperation;
 typedef guint GumPageProtection;
@@ -30,6 +31,12 @@ typedef struct _GumMemoryRange GumMemoryRange;
 typedef struct _GumMatchPattern GumMatchPattern;
 
 typedef gboolean (* GumMemoryIsNearFunc) (gpointer memory, gpointer address);
+
+enum _GumPtrauthSupport
+{
+  GUM_PTRAUTH_UNSUPPORTED,
+  GUM_PTRAUTH_SUPPORTED
+};
 
 enum _GumRwxSupport
 {
@@ -73,6 +80,11 @@ typedef gboolean (* GumMemoryScanMatchFunc) (GumAddress address, gsize size,
 GUM_API void gum_internal_heap_ref (void);
 GUM_API void gum_internal_heap_unref (void);
 
+GUM_API gpointer gum_sign_code_pointer (gpointer value);
+GUM_API gpointer gum_strip_code_pointer (gpointer value);
+GUM_API GumAddress gum_sign_code_address (GumAddress value);
+GUM_API GumAddress gum_strip_code_address (GumAddress value);
+GUM_API GumPtrauthSupport gum_query_ptrauth_support (void);
 GUM_API guint gum_query_page_size (void);
 GUM_API gboolean gum_query_is_rwx_supported (void);
 GUM_API GumRwxSupport gum_query_rwx_support (void);

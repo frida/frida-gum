@@ -87,6 +87,8 @@ GUM_API gboolean gum_darwin_write (mach_port_t task, GumAddress address,
     const guint8 * bytes, gsize len);
 GUM_API gboolean gum_darwin_cpu_type_from_pid (pid_t pid,
     GumCpuType * cpu_type);
+GUM_API gboolean gum_darwin_query_ptrauth_support (mach_port_t task,
+    GumPtrauthSupport * ptrauth_support);
 GUM_API gboolean gum_darwin_query_page_size (mach_port_t task,
     guint * page_size);
 GUM_API const gchar * gum_darwin_query_sysroot (void);
