@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -60,7 +60,11 @@
 #elif defined (HAVE_ARM)
 # define GUM_TEST_SHLIB_ARCH "arm"
 #elif defined (HAVE_ARM64)
-# define GUM_TEST_SHLIB_ARCH "arm64"
+# ifdef HAVE_PTRAUTH
+#  define GUM_TEST_SHLIB_ARCH "arm64e"
+# else
+#  define GUM_TEST_SHLIB_ARCH "arm64"
+# endif
 #elif defined (HAVE_MIPS)
 # if G_BYTE_ORDER == G_LITTLE_ENDIAN
 #  if GLIB_SIZEOF_VOID_P == 8
