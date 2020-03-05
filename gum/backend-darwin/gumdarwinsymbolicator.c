@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2018-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -477,8 +477,12 @@ gum_cs_symbol_address (CSSymbolRef symbol)
   uint64_t address;
 
   address = CSSymbolGetRange (symbol).location;
+
   if (CSSymbolIsThumb (symbol))
     address |= 1;
+
+  if (CSSymbolIsFunction (symbol))
+    address = gum_sign_code_address (address);
 
   return address;
 }
