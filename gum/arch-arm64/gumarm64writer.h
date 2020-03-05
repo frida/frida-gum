@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -10,6 +10,7 @@
 
 #include <capstone.h>
 #include <gum/gumdefs.h>
+#include <gum/gummemory.h>
 #include <gum/gummetalarray.h>
 #include <gum/gummetalhash.h>
 
@@ -24,6 +25,10 @@ typedef guint GumArm64IndexMode;
 struct _GumArm64Writer
 {
   volatile gint ref_count;
+
+  GumOS target_os;
+  GumPtrauthSupport ptrauth_support;
+  GumAddress (* sign) (GumAddress value);
 
   guint32 * base;
   guint32 * code;
@@ -76,8 +81,8 @@ GUM_API void gum_arm64_writer_put_call_reg_with_arguments_array (
 GUM_API gboolean gum_arm64_writer_put_branch_address (GumArm64Writer * self,
     GumAddress address);
 
-GUM_API gboolean gum_arm64_writer_can_branch_directly_between (GumAddress from,
-    GumAddress to);
+GUM_API gboolean gum_arm64_writer_can_branch_directly_between (
+    GumArm64Writer * self, GumAddress from, GumAddress to);
 GUM_API gboolean gum_arm64_writer_put_b_imm (GumArm64Writer * self,
     GumAddress address);
 GUM_API void gum_arm64_writer_put_b_label (GumArm64Writer * self,
@@ -90,7 +95,11 @@ GUM_API void gum_arm64_writer_put_bl_label (GumArm64Writer * self,
     gconstpointer label_id);
 GUM_API gboolean gum_arm64_writer_put_br_reg (GumArm64Writer * self,
     arm64_reg reg);
+GUM_API gboolean gum_arm64_writer_put_br_reg_no_auth (GumArm64Writer * self,
+    arm64_reg reg);
 GUM_API gboolean gum_arm64_writer_put_blr_reg (GumArm64Writer * self,
+    arm64_reg reg);
+GUM_API gboolean gum_arm64_writer_put_blr_reg_no_auth (GumArm64Writer * self,
     arm64_reg reg);
 GUM_API void gum_arm64_writer_put_ret (GumArm64Writer * self);
 GUM_API void gum_arm64_writer_put_cbz_reg_label (GumArm64Writer * self,
@@ -153,6 +162,9 @@ GUM_API gboolean gum_arm64_writer_put_tst_reg_imm (GumArm64Writer * self,
 GUM_API gboolean gum_arm64_writer_put_cmp_reg_reg (GumArm64Writer * self,
     arm64_reg reg_a, arm64_reg reg_b);
 
+GUM_API gboolean gum_arm64_writer_put_xpaci_reg (GumArm64Writer * self,
+    arm64_reg reg);
+
 GUM_API void gum_arm64_writer_put_nop (GumArm64Writer * self);
 GUM_API void gum_arm64_writer_put_brk_imm (GumArm64Writer * self, guint16 imm);
 
@@ -160,6 +172,9 @@ GUM_API void gum_arm64_writer_put_instruction (GumArm64Writer * self,
     guint32 insn);
 GUM_API gboolean gum_arm64_writer_put_bytes (GumArm64Writer * self,
     const guint8 * data, guint n);
+
+GUM_API GumAddress gum_arm64_writer_sign (GumArm64Writer * self,
+    GumAddress value);
 
 G_END_DECLS
 

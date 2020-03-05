@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2014-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -27,8 +27,13 @@ static void
 test_arm64_writer_fixture_setup (TestArm64WriterFixture * fixture,
                                  gconstpointer data)
 {
+  GumArm64Writer * aw = &fixture->aw;
+
   fixture->output = g_malloc (16 * sizeof (guint32));
-  gum_arm64_writer_init (&fixture->aw, fixture->output);
+
+  gum_arm64_writer_init (aw, fixture->output);
+  aw->target_os = GUM_OS_LINUX;
+  aw->ptrauth_support = GUM_PTRAUTH_UNSUPPORTED;
 }
 
 static void

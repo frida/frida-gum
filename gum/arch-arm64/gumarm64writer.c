@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
  *
@@ -10,6 +10,7 @@
 
 #include "gumlibc.h"
 #include "gummemory.h"
+#include "gumprocess.h"
 
 #ifdef _MSC_VER
 # include <intrin.h>
@@ -121,10 +122,17 @@ static void gum_arm64_writer_put_argument_list_setup_va (GumArm64Writer * self,
     guint n_args, va_list args);
 static void gum_arm64_writer_put_argument_list_teardown (GumArm64Writer * self,
     guint n_args);
+static gboolean gum_arm64_writer_put_br_reg_with_extra (GumArm64Writer * self,
+    arm64_reg reg, guint32 extra);
+static gboolean gum_arm64_writer_put_blr_reg_with_extra (GumArm64Writer * self,
+    arm64_reg reg, guint32 extra);
 static void gum_arm64_writer_put_load_store_pair (GumArm64Writer * self,
     GumArm64MemOperationType operation_type,
     GumArm64MemOperandType operand_type, guint rt, guint rt2, guint rn,
     gssize rn_offset, GumArm64IndexMode mode);
+
+static GumAddress gum_arm64_writer_strip (GumArm64Writer * self,
+    GumAddress value);
 
 static gboolean gum_arm64_writer_try_commit_label_refs (GumArm64Writer * self);
 static void gum_arm64_writer_maybe_commit_literals (GumArm64Writer * self);
@@ -187,6 +195,10 @@ gum_arm64_writer_init (GumArm64Writer * writer,
                        gpointer code_address)
 {
   writer->ref_count = 1;
+
+  writer->target_os = gum_process_get_native_os ();
+  writer->ptrauth_support = gum_query_ptrauth_support ();
+  writer->sign = gum_sign_code_address;
 
   writer->label_defs = NULL;
   writer->label_refs.data = NULL;
@@ -352,7 +364,7 @@ gum_arm64_writer_put_call_address_with_arguments (GumArm64Writer * self,
   gum_arm64_writer_put_argument_list_setup_va (self, n_args, args);
   va_end (args);
 
-  if (gum_arm64_writer_can_branch_directly_between (self->pc, func))
+  if (gum_arm64_writer_can_branch_directly_between (self, self->pc, func))
   {
     gum_arm64_writer_put_bl_imm (self, func);
   }
@@ -375,7 +387,7 @@ gum_arm64_writer_put_call_address_with_arguments_array (
 {
   gum_arm64_writer_put_argument_list_setup (self, n_args, args);
 
-  if (gum_arm64_writer_can_branch_directly_between (self->pc, func))
+  if (gum_arm64_writer_can_branch_directly_between (self, self->pc, func))
   {
     gum_arm64_writer_put_bl_imm (self, func);
   }
@@ -491,7 +503,7 @@ gboolean
 gum_arm64_writer_put_branch_address (GumArm64Writer * self,
                                      GumAddress address)
 {
-  if (!gum_arm64_writer_can_branch_directly_between (self->pc, address))
+  if (!gum_arm64_writer_can_branch_directly_between (self, self->pc, address))
   {
     arm64_reg target = ARM64_REG_X16;
 
@@ -505,10 +517,12 @@ gum_arm64_writer_put_branch_address (GumArm64Writer * self,
 }
 
 gboolean
-gum_arm64_writer_can_branch_directly_between (GumAddress from,
+gum_arm64_writer_can_branch_directly_between (GumArm64Writer * self,
+                                              GumAddress from,
                                               GumAddress to)
 {
-  gint64 distance = (gint64) to - (gint64) from;
+  gint64 distance = (gint64) gum_arm64_writer_strip (self, to) -
+      (gint64) gum_arm64_writer_strip (self, from);
 
   return GUM_IS_WITHIN_INT28_RANGE (distance);
 }
@@ -517,7 +531,8 @@ gboolean
 gum_arm64_writer_put_b_imm (GumArm64Writer * self,
                             GumAddress address)
 {
-  gint64 distance = (gint64) address - (gint64) self->pc;
+  gint64 distance =
+      (gint64) gum_arm64_writer_strip (self, address) - (gint64) self->pc;
 
   if (!GUM_IS_WITHIN_INT28_RANGE (distance) || distance % 4 != 0)
     return FALSE;
@@ -549,7 +564,8 @@ gboolean
 gum_arm64_writer_put_bl_imm (GumArm64Writer * self,
                              GumAddress address)
 {
-  gint64 distance = (gint64) address - (gint64) self->pc;
+  gint64 distance =
+      (gint64) gum_arm64_writer_strip (self, address) - (gint64) self->pc;
 
   if (!GUM_IS_WITHIN_INT28_RANGE (distance) || distance % 4 != 0)
     return FALSE;
@@ -572,21 +588,21 @@ gboolean
 gum_arm64_writer_put_br_reg (GumArm64Writer * self,
                              arm64_reg reg)
 {
-  GumArm64RegInfo ri;
-
-  gum_arm64_writer_describe_reg (self, reg, &ri);
-
-  if (ri.width != 64)
-    return FALSE;
-
-  gum_arm64_writer_put_instruction (self, 0xd61f0000 | (ri.index << 5));
-
-  return TRUE;
+  return gum_arm64_writer_put_br_reg_with_extra (self, reg,
+      (self->ptrauth_support == GUM_PTRAUTH_SUPPORTED) ? 0x81f : 0);
 }
 
 gboolean
-gum_arm64_writer_put_blr_reg (GumArm64Writer * self,
-                              arm64_reg reg)
+gum_arm64_writer_put_br_reg_no_auth (GumArm64Writer * self,
+                                     arm64_reg reg)
+{
+  return gum_arm64_writer_put_br_reg_with_extra (self, reg, 0);
+}
+
+static gboolean
+gum_arm64_writer_put_br_reg_with_extra (GumArm64Writer * self,
+                                        arm64_reg reg,
+                                        guint32 extra)
 {
   GumArm64RegInfo ri;
 
@@ -595,7 +611,39 @@ gum_arm64_writer_put_blr_reg (GumArm64Writer * self,
   if (ri.width != 64)
     return FALSE;
 
-  gum_arm64_writer_put_instruction (self, 0xd63f0000 | (ri.index << 5));
+  gum_arm64_writer_put_instruction (self, 0xd61f0000 | (ri.index << 5) | extra);
+
+  return TRUE;
+}
+
+gboolean
+gum_arm64_writer_put_blr_reg (GumArm64Writer * self,
+                              arm64_reg reg)
+{
+  return gum_arm64_writer_put_blr_reg_with_extra (self, reg,
+      (self->ptrauth_support == GUM_PTRAUTH_SUPPORTED) ? 0x81f : 0);
+}
+
+gboolean
+gum_arm64_writer_put_blr_reg_no_auth (GumArm64Writer * self,
+                                      arm64_reg reg)
+{
+  return gum_arm64_writer_put_blr_reg_with_extra (self, reg, 0);
+}
+
+static gboolean
+gum_arm64_writer_put_blr_reg_with_extra (GumArm64Writer * self,
+                                         arm64_reg reg,
+                                         guint32 extra)
+{
+  GumArm64RegInfo ri;
+
+  gum_arm64_writer_describe_reg (self, reg, &ri);
+
+  if (ri.width != 64)
+    return FALSE;
+
+  gum_arm64_writer_put_instruction (self, 0xd63f0000 | (ri.index << 5) | extra);
 
   return TRUE;
 }
@@ -945,7 +993,7 @@ gum_arm64_writer_put_adrp_reg_address (GumArm64Writer * self,
   if (ri.width != 64)
     return FALSE;
 
-  distance.i = (gint64) address -
+  distance.i = (gint64) gum_arm64_writer_strip (self, address) -
       (gint64) (self->pc & ~((GumAddress) (4096 - 1)));
   if (distance.i % 4096 != 0)
     return FALSE;
@@ -1253,6 +1301,23 @@ gum_arm64_writer_put_cmp_reg_reg (GumArm64Writer * self,
   return TRUE;
 }
 
+gboolean
+gum_arm64_writer_put_xpaci_reg (GumArm64Writer * self,
+                                arm64_reg reg)
+{
+
+  GumArm64RegInfo ri;
+
+  gum_arm64_writer_describe_reg (self, reg, &ri);
+
+  if (ri.width != 64)
+    return FALSE;
+
+  gum_arm64_writer_put_instruction (self, 0xdac143e0 | ri.index);
+
+  return TRUE;
+}
+
 void
 gum_arm64_writer_put_nop (GumArm64Writer * self)
 {
@@ -1345,6 +1410,29 @@ gum_arm64_writer_put_bytes (GumArm64Writer * self,
   gum_arm64_writer_maybe_commit_literals (self);
 
   return TRUE;
+}
+
+GumAddress
+gum_arm64_writer_sign (GumArm64Writer * self,
+                       GumAddress value)
+{
+  if (self->ptrauth_support == GUM_PTRAUTH_UNSUPPORTED)
+    return value;
+
+  return self->sign (value);
+}
+
+static GumAddress
+gum_arm64_writer_strip (GumArm64Writer * self,
+                        GumAddress value)
+{
+  if (self->ptrauth_support == GUM_PTRAUTH_UNSUPPORTED)
+    return value;
+
+  if (self->target_os == GUM_OS_IOS)
+    return value & G_GUINT64_CONSTANT (0x7fffffffff);
+
+  return value;
 }
 
 static gboolean

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -88,18 +88,22 @@ TESTCASE (cbz_reg_label)
 
 TESTCASE (b_imm)
 {
+  GumArm64Writer * aw = &fixture->aw;
+
   GumAddress from = 1024;
-  g_assert_true (gum_arm64_writer_can_branch_directly_between (from,
+  g_assert_true (gum_arm64_writer_can_branch_directly_between (aw, from,
       1024 + 134217727));
-  g_assert_false (gum_arm64_writer_can_branch_directly_between (from,
+  g_assert_false (gum_arm64_writer_can_branch_directly_between (aw, from,
       1024 + 134217728));
 
   from = 1024 + 134217728;
-  g_assert_true (gum_arm64_writer_can_branch_directly_between (from, 1024));
-  g_assert_false (gum_arm64_writer_can_branch_directly_between (from, 1023));
+  g_assert_true (gum_arm64_writer_can_branch_directly_between (aw, from,
+      1024));
+  g_assert_false (gum_arm64_writer_can_branch_directly_between (aw, from,
+      1023));
 
-  fixture->aw.pc = 1024;
-  gum_arm64_writer_put_b_imm (&fixture->aw, 2048);
+  aw->pc = 1024;
+  gum_arm64_writer_put_b_imm (aw, 2048);
   assert_output_n_equals (0, 0x14000100);
 }
 
@@ -221,7 +225,7 @@ TESTCASE (ldr_in_large_block)
   code = gum_alloc_n_pages (code_size_in_pages, GUM_PAGE_RW);
   gum_memory_patch_code (code, code_size, gum_emit_ldr_in_large_block, code);
 
-  impl = code;
+  impl = gum_sign_code_pointer (code);
   g_assert_cmpint (impl (), ==, 0x1337);
 
   gum_free_pages (code);

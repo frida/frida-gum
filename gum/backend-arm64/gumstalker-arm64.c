@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  * Copyright (C) 2019 John Coates <john@johncoates.dev>
  *
@@ -2108,6 +2108,7 @@ static gboolean
 gum_exec_ctx_is_helper_reachable (GumExecCtx * ctx,
                                   gpointer * helper_ptr)
 {
+  GumArm64Writer * cw = &ctx->code_writer;
   GumAddress helper;
   GumSlab * slab;
   GumAddress start, end;
@@ -2121,10 +2122,10 @@ gum_exec_ctx_is_helper_reachable (GumExecCtx * ctx,
   start = GUM_ADDRESS (slab->data);
   end = start + slab->size;
 
-  if (!gum_arm64_writer_can_branch_directly_between (start, helper))
+  if (!gum_arm64_writer_can_branch_directly_between (cw, start, helper))
     return FALSE;
 
-  return gum_arm64_writer_can_branch_directly_between (end, helper);
+  return gum_arm64_writer_can_branch_directly_between (cw, end, helper);
 }
 
 static void
@@ -3195,7 +3196,7 @@ gum_exec_block_write_jmp_to_block_start (GumExecBlock * block,
   const GumAddress address = GUM_ADDRESS (block_start);
   const GumAddress body_address = address + GUM_RESTORATION_PROLOG_SIZE;
 
-  if (gum_arm64_writer_can_branch_directly_between (cw->pc, body_address))
+  if (gum_arm64_writer_can_branch_directly_between (cw, cw->pc, body_address))
   {
     gum_arm64_writer_put_b_imm (cw, body_address);
   }

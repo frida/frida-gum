@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2014-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -32,10 +32,14 @@ static void
 test_arm64_relocator_fixture_setup (TestArm64RelocatorFixture * fixture,
                                     gconstpointer data)
 {
+  GumArm64Writer * aw = &fixture->aw;
+
   fixture->output = (guint8 *) gum_alloc_n_pages (1, GUM_PAGE_RW);
 
-  gum_arm64_writer_init (&fixture->aw, fixture->output);
-  fixture->aw.pc = 1024;
+  gum_arm64_writer_init (aw, fixture->output);
+  aw->target_os = GUM_OS_LINUX;
+  aw->ptrauth_support = GUM_PTRAUTH_UNSUPPORTED;
+  aw->pc = 1024;
 }
 
 static void
@@ -44,7 +48,9 @@ test_arm64_relocator_fixture_teardown (TestArm64RelocatorFixture * fixture,
 {
   if (fixture->rl_initialized)
     gum_arm64_relocator_clear (&fixture->rl);
+
   gum_arm64_writer_clear (&fixture->aw);
+
   gum_free_pages (fixture->output);
 }
 
