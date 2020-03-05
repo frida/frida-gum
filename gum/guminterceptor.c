@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -1223,7 +1223,7 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
 
   stack_entry = gum_invocation_stack_peek_top (stack);
   if (stack_entry != NULL && stack_entry->calling_replacement &&
-      stack_entry->invocation_context.function ==
+      gum_strip_code_pointer (stack_entry->invocation_context.function) ==
       function_ctx->function_address)
   {
     gum_tls_key_set_value (gum_interceptor_guard_key, NULL);
@@ -1366,7 +1366,7 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
   interceptor_ctx = get_interceptor_thread_context ();
 
   stack_entry = gum_invocation_stack_peek_top (interceptor_ctx->stack);
-  *next_hop = stack_entry->caller_ret_addr;
+  *next_hop = gum_sign_code_pointer (stack_entry->caller_ret_addr);
 
   invocation_ctx = &stack_entry->invocation_context;
   invocation_ctx->cpu_context = cpu_context;
@@ -1691,8 +1691,8 @@ gum_invocation_stack_push (GumInvocationStack * stack,
   entry->caller_ret_addr = caller_ret_addr;
 
   ctx = &entry->invocation_context;
-  ctx->function =
-      GUM_POINTER_TO_FUNCPTR (GCallback, function_ctx->function_address);
+  ctx->function = GUM_POINTER_TO_FUNCPTR (GCallback,
+      gum_sign_code_pointer (function_ctx->function_address));
 
   ctx->backend = NULL;
 
@@ -1726,6 +1726,8 @@ static gpointer
 gum_interceptor_resolve (GumInterceptor * self,
                          gpointer address)
 {
+  address = gum_strip_code_pointer (address);
+
   if (!gum_interceptor_has (self, address))
   {
     const gsize max_redirect_size = 16;

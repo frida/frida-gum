@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -162,7 +162,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
   gum_arm64_writer_reset (aw, ctx->trampoline_slice->data);
 
-  ctx->on_enter_trampoline = gum_arm64_writer_cur (aw);
+  ctx->on_enter_trampoline = gum_sign_code_pointer (gum_arm64_writer_cur (aw));
 
   if (need_deflector)
   {
@@ -192,20 +192,20 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
   gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X17, GUM_ADDRESS (ctx));
   gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X16,
-      GUM_ADDRESS (self->enter_thunk->data));
+      GUM_ADDRESS (gum_sign_code_pointer (self->enter_thunk->data)));
   gum_arm64_writer_put_br_reg (aw, ARM64_REG_X16);
 
   ctx->on_leave_trampoline = gum_arm64_writer_cur (aw);
 
   gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X17, GUM_ADDRESS (ctx));
   gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X16,
-      GUM_ADDRESS (self->leave_thunk->data));
+      GUM_ADDRESS (gum_sign_code_pointer (self->leave_thunk->data)));
   gum_arm64_writer_put_br_reg (aw, ARM64_REG_X16);
 
   gum_arm64_writer_flush (aw);
   g_assert (gum_arm64_writer_offset (aw) <= ctx->trampoline_slice->size);
 
-  ctx->on_invoke_trampoline = gum_arm64_writer_cur (aw);
+  ctx->on_invoke_trampoline = gum_sign_code_pointer (gum_arm64_writer_cur (aw));
 
   gum_arm64_relocator_reset (ar, function_address, aw);
 
@@ -306,7 +306,8 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   {
     GumAddress resume_at;
 
-    resume_at = GUM_ADDRESS (function_address) + reloc_bytes;
+    resume_at = gum_sign_code_address (
+        GUM_ADDRESS (function_address) + reloc_bytes);
     gum_arm64_writer_put_ldr_reg_address (aw, data->scratch_reg, resume_at);
     gum_arm64_writer_put_br_reg (aw, data->scratch_reg);
   }
@@ -367,7 +368,7 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
         break;
       case 8:
         gum_arm64_writer_put_adrp_reg_address (aw, ARM64_REG_X16, on_enter);
-        gum_arm64_writer_put_br_reg (aw, ARM64_REG_X16);
+        gum_arm64_writer_put_br_reg_no_auth (aw, ARM64_REG_X16);
         break;
       case 16:
         gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X16, on_enter);

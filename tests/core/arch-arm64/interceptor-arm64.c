@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2019-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -69,7 +69,7 @@ gum_emit_lr_thunk (gpointer mem,
   gum_arm64_writer_init (&aw, mem);
   aw.pc = GUM_ADDRESS (ctx->code);
 
-  ctx->run = GSIZE_TO_POINTER (aw.pc);
+  ctx->run = gum_sign_code_pointer (GSIZE_TO_POINTER (aw.pc));
   gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_X19, ARM64_REG_LR);
   gum_arm64_writer_put_bl_label (&aw, thunk_start);
   ctx->expected_lr = aw.pc;
@@ -123,7 +123,7 @@ gum_emit_lr_func (gpointer mem,
   gum_arm64_writer_init (&aw, mem);
   aw.pc = GUM_ADDRESS (ctx->code);
 
-  ctx->run = GSIZE_TO_POINTER (aw.pc);
+  ctx->run = gum_sign_code_pointer (GSIZE_TO_POINTER (aw.pc));
   gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_X19, ARM64_REG_LR);
   gum_arm64_writer_put_bl_label (&aw, func_start);
   ctx->caller_lr = aw.pc;
