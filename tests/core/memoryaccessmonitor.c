@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010, 2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -75,12 +75,12 @@ TESTCASE (notify_on_execute_access)
 
   ENABLE_MONITOR ();
 
-  fixture->nop_function_in_first_page ();
+  fixture->nop_function_in_third_page ();
   g_assert_cmpuint (fixture->number_of_notifies, ==, 1);
   g_assert_cmpint (d->operation, ==, GUM_MEMOP_EXECUTE);
   g_assert_true (d->from != NULL && d->from == d->address);
 
-  fixture->nop_function_in_first_page ();
+  fixture->nop_function_in_third_page ();
   g_assert_cmpuint (fixture->number_of_notifies, ==, 1);
 }
 
@@ -98,12 +98,12 @@ TESTCASE (notify_should_include_progress)
   bytes[fixture->offset_in_second_page] = 0x37;
   g_assert_cmpuint (d->page_index, ==, 1);
   g_assert_cmpuint (d->pages_completed, ==, 1);
-  g_assert_cmpuint (d->pages_total, ==, 2);
+  g_assert_cmpuint (d->pages_total, ==, 3);
 
   bytes[fixture->offset_in_first_page] = 0x13;
   g_assert_cmpuint (d->page_index, ==, 0);
   g_assert_cmpuint (d->pages_completed, ==, 2);
-  g_assert_cmpuint (d->pages_total, ==, 2);
+  g_assert_cmpuint (d->pages_total, ==, 3);
 }
 
 TESTCASE (disable)

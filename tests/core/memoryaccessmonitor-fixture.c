@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010, 2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -22,36 +22,36 @@ typedef struct _TestMAMonitorFixture
   GumMemoryRange range;
   guint offset_in_first_page;
   guint offset_in_second_page;
-  GCallback nop_function_in_first_page;
+  GCallback nop_function_in_third_page;
 
   volatile guint number_of_notifies;
   volatile GumMemoryAccessDetails last_details;
 } TestMAMonitorFixture;
 
+static void put_return_instruction (gpointer mem, gpointer user_data);
+
 static void
 test_memory_access_monitor_fixture_setup (TestMAMonitorFixture * fixture,
                                           gconstpointer data)
 {
-  fixture->range.base_address = GUM_ADDRESS (gum_alloc_n_pages (2, GUM_PAGE_RWX));
-  fixture->range.size = 2 * gum_query_page_size ();
-  fixture->offset_in_first_page = gum_query_page_size () / 2;
-  fixture->offset_in_second_page =
-    fixture->offset_in_first_page + gum_query_page_size ();
-  /* ret instruction */
-#if defined (HAVE_I386)
-  *((guint8 *) GSIZE_TO_POINTER (fixture->range.base_address)) = 0xc3;
-#elif defined (HAVE_ARM)
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN
-  /* MOV PC, LR */
-  *((guint32 *) GSIZE_TO_POINTER (fixture->range.base_address)) = 0xe1a0f00e;
-#else
-  *((guint32 *) GSIZE_TO_POINTER (fixture->range.base_address)) = 0x0ef0a0e1;
-#endif
-#elif defined (HAVE_ARM64)
-  *((guint32 *) GSIZE_TO_POINTER (fixture->range.base_address)) = 0xd65f03c0;
-#endif
-  fixture->nop_function_in_first_page =
-      GUM_POINTER_TO_FUNCPTR (GCallback, fixture->range.base_address);
+  guint page_size, slab_size;
+  gpointer slab, nop_func;
+
+  page_size = gum_query_page_size ();
+
+  slab_size = 3 * page_size;
+  slab = gum_memory_allocate (NULL, slab_size, page_size, GUM_PAGE_RW);
+
+  fixture->range.base_address = GUM_ADDRESS (slab);
+  fixture->range.size = slab_size;
+
+  fixture->offset_in_first_page = page_size / 2;
+  fixture->offset_in_second_page = fixture->offset_in_first_page + page_size;
+
+  nop_func = (guint8 *) slab + (2 * page_size);
+  gum_memory_patch_code (nop_func, 4, put_return_instruction, NULL);
+  fixture->nop_function_in_third_page = GUM_POINTER_TO_FUNCPTR (GCallback,
+      gum_sign_code_pointer (nop_func));
 
   fixture->number_of_notifies = 0;
 
@@ -65,7 +65,26 @@ test_memory_access_monitor_fixture_teardown (TestMAMonitorFixture * fixture,
   if (fixture->monitor != NULL)
     g_object_unref (fixture->monitor);
 
-  gum_free_pages (GSIZE_TO_POINTER (fixture->range.base_address));
+  gum_memory_free (GSIZE_TO_POINTER (fixture->range.base_address),
+      fixture->range.size);
+}
+
+static void
+put_return_instruction (gpointer mem,
+                        gpointer user_data)
+{
+#if defined (HAVE_I386)
+  *((guint8 *) mem) = 0xc3;
+#elif defined (HAVE_ARM)
+#if G_BYTE_ORDER == G_LITTLE_ENDIAN
+  /* mov pc, lr */
+  *((guint32 *) mem) = 0xe1a0f00e;
+#else
+  *((guint32 *) mem) = 0x0ef0a0e1;
+#endif
+#elif defined (HAVE_ARM64)
+  *((guint32 *) mem) = 0xd65f03c0;
+#endif
 }
 
 static void
