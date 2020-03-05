@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -93,6 +93,9 @@ gum_darwin_module_resolver_initable_init (GInitable * initable,
   GumDarwinModuleResolver * self = GUM_DARWIN_MODULE_RESOLVER (initable);
   int pid;
   GumCollectModulesContext ctx;
+
+  if (!gum_darwin_query_ptrauth_support (self->task, &self->ptrauth_support))
+    goto invalid_task;
 
   if (!gum_darwin_query_page_size (self->task, &self->page_size))
     goto invalid_task;
@@ -329,6 +332,14 @@ gum_darwin_module_resolver_resolve_export (
       gum_darwin_module_is_address_in_text_section (module, result->address)
       ? GUM_EXPORT_FUNCTION
       : GUM_EXPORT_VARIABLE;
+
+  if (result->type == GUM_EXPORT_FUNCTION &&
+      self->ptrauth_support == GUM_PTRAUTH_SUPPORTED)
+  {
+    g_assert (gum_query_ptrauth_support () == GUM_PTRAUTH_SUPPORTED);
+
+    result->address = gum_sign_code_address (result->address);
+  }
 
   return TRUE;
 }
