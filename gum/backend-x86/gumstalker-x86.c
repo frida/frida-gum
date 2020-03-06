@@ -1043,6 +1043,8 @@ gum_stalker_add_call_probe (GumStalker * self,
   GumCallProbe probe;
   GArray * probes;
 
+  target_address = gum_strip_code_pointer (target_address);
+
   probe.id = g_atomic_int_add (&self->last_probe_id, 1) + 1;
   probe.callback = callback;
   probe.user_data = data;

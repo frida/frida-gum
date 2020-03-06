@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -90,9 +90,8 @@ invoke_flat_expecting_return_value (TestArm64StalkerFixture * fixture,
   StalkerTestFunc func;
   gint ret;
 
-  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc,
-      test_arm64_stalker_fixture_dup_code (fixture, flat_code,
-      sizeof (flat_code)));
+  func = (StalkerTestFunc) test_arm64_stalker_fixture_dup_code (fixture,
+      flat_code, sizeof (flat_code));
 
   fixture->sink->mask = mask;
   ret = test_arm64_stalker_fixture_follow_and_invoke (fixture, func, -1);
@@ -126,7 +125,7 @@ TESTCASE (call)
       0).type, ==, GUM_CALL);
   ev = &g_array_index (fixture->sink->events, GumEvent, 0).call;
   GUM_ASSERT_CMPADDR (ev->location, ==, fixture->last_invoke_calladdr);
-  GUM_ASSERT_CMPADDR (ev->target, ==, func);
+  GUM_ASSERT_CMPADDR (ev->target, ==, gum_strip_code_pointer (func));
 }
 
 TESTCASE (ret)
@@ -142,8 +141,7 @@ TESTCASE (ret)
 
   ev = &g_array_index (fixture->sink->events, GumEvent, 0).ret;
 
-  GUM_ASSERT_CMPADDR (ev->location, ==, ((guint8 *) GSIZE_TO_POINTER (
-      func)) + 3 * 4);
+  GUM_ASSERT_CMPADDR (ev->location, ==, gum_strip_code_pointer (func) + 3 * 4);
   GUM_ASSERT_CMPADDR (ev->target, ==, fixture->last_invoke_retaddr);
 }
 
@@ -159,7 +157,7 @@ TESTCASE (exec)
       INVOKER_IMPL_OFFSET).type, ==, GUM_EXEC);
   ev =
       &g_array_index (fixture->sink->events, GumEvent, INVOKER_IMPL_OFFSET).ret;
-  GUM_ASSERT_CMPADDR (ev->location, ==, func);
+  GUM_ASSERT_CMPADDR (ev->location, ==, gum_strip_code_pointer (func));
 }
 
 TESTCASE (call_depth)
@@ -213,7 +211,7 @@ TESTCASE (call_depth)
   gum_arm64_writer_clear (&cw);
 
   fixture->sink->mask = GUM_CALL | GUM_RET;
-  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, gum_sign_code_pointer (code));
   r = func (2);
 
   g_assert_cmpint (r, ==, 12);
@@ -272,9 +270,8 @@ TESTCASE (call_probe)
   CallProbeContext probe_ctx, secondary_probe_ctx;
   GumProbeId probe_id;
 
-  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc,
-      test_arm64_stalker_fixture_dup_code (fixture, code_template,
-          sizeof (code_template)));
+  func = (StalkerTestFunc) test_arm64_stalker_fixture_dup_code (fixture,
+      code_template, sizeof (code_template));
 
   func_a_address = fixture->code + (16 * 4);
 
@@ -532,9 +529,8 @@ TESTCASE (exclude_bl)
 
   fixture->sink->mask = GUM_EXEC;
 
-  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc,
-      test_arm64_stalker_fixture_dup_code (fixture, code_template,
-          sizeof (code_template)));
+  func = (StalkerTestFunc) test_arm64_stalker_fixture_dup_code (fixture,
+      code_template, sizeof (code_template));
 
   func_a_address = fixture->code + (16 * 4);
   memory_range.base_address = (GumAddress) func_a_address;
@@ -579,7 +575,7 @@ TESTCASE (exclude_blr)
   gum_arm64_writer_put_label (&cw, start_lbl);
   gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
   gum_arm64_writer_put_ldr_reg_address (&cw, ARM64_REG_X1,
-      GUM_ADDRESS (func_a));
+      GUM_ADDRESS (gum_sign_code_pointer (func_a)));
   gum_arm64_writer_put_blr_reg (&cw, ARM64_REG_X1);
   gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
 
@@ -599,7 +595,7 @@ TESTCASE (exclude_blr)
   memory_range.size = 4 * 2;
   gum_stalker_exclude (fixture->stalker, &memory_range);
 
-  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, gum_sign_code_pointer (code));
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 0);
 
@@ -665,7 +661,7 @@ TESTCASE (exclude_bl_with_unfollow)
   memory_range.size = 4 * 20;
   gum_stalker_exclude (fixture->stalker, &memory_range);
 
-  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, gum_sign_code_pointer (code));
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 0);
 
@@ -715,7 +711,7 @@ TESTCASE (exclude_blr_with_unfollow)
 
   gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
   gum_arm64_writer_put_ldr_reg_address (&cw, ARM64_REG_X1,
-      GUM_ADDRESS (func_a));
+      GUM_ADDRESS (gum_sign_code_pointer (func_a)));
   gum_arm64_writer_put_blr_reg (&cw, ARM64_REG_X1);
   gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
 
@@ -729,7 +725,7 @@ TESTCASE (exclude_blr_with_unfollow)
   memory_range.size = 4 * 20;
   gum_stalker_exclude (fixture->stalker, &memory_range);
 
-  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, gum_sign_code_pointer (code));
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 0);
 
@@ -783,7 +779,7 @@ TESTCASE (unconditional_branch)
   gum_arm64_writer_clear (&cw);
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
-  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, gum_sign_code_pointer (code));
 
   g_assert_cmpint (func (2), ==, 13);
 
@@ -839,7 +835,7 @@ TESTCASE (unconditional_branch_reg)
   gum_arm64_writer_clear (&cw);
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
-  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, gum_sign_code_pointer (code));
 
   g_assert_cmpint (func (2), ==, 13);
 
@@ -892,7 +888,7 @@ TESTCASE (conditional_branch)
   gum_arm64_writer_clear (&cw);
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
-  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, gum_sign_code_pointer (code));
   r = func (2);
 
   g_assert_cmpint (r, ==, 1);
@@ -945,7 +941,7 @@ TESTCASE (compare_and_branch)
   gum_arm64_writer_clear (&cw);
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
-  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, gum_sign_code_pointer (code));
   r = func (2);
 
   g_assert_cmpint (r, ==, 1);
@@ -998,7 +994,7 @@ TESTCASE (test_bit_and_branch)
   gum_arm64_writer_clear (&cw);
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
-  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, gum_sign_code_pointer (code));
   r = func (2);
 
   g_assert_cmpint (r, ==, 1);
@@ -1052,7 +1048,7 @@ TESTCASE (follow_std_call)
   gum_arm64_writer_clear (&cw);
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
-  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, gum_sign_code_pointer (code));
   r = func (2);
 
   g_assert_cmpint (r, ==, 4);
@@ -1112,7 +1108,7 @@ TESTCASE (follow_return)
   gum_arm64_writer_clear (&cw);
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
-  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, gum_sign_code_pointer (code));
   r = func (2);
 
   g_assert_cmpint (r, ==, 4);

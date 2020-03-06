@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -99,14 +99,14 @@ test_arm64_stalker_fixture_teardown (TestArm64StalkerFixture * fixture,
     gum_free_pages (fixture->code);
 }
 
-static guint8 *
+static GCallback
 test_arm64_stalker_fixture_dup_code (TestArm64StalkerFixture * fixture,
                                      const guint32 * tpl_code,
                                      guint tpl_size)
 {
   GumAddressSpec spec;
 
-  spec.near_address = gum_stalker_follow_me;
+  spec.near_address = gum_strip_code_pointer (gum_stalker_follow_me);
   spec.max_distance = G_MAXINT32 / 2;
 
   if (fixture->code != NULL)
@@ -116,7 +116,8 @@ test_arm64_stalker_fixture_dup_code (TestArm64StalkerFixture * fixture,
   memcpy (fixture->code, tpl_code, tpl_size);
   gum_memory_mark_code (fixture->code, tpl_size);
 
-  return fixture->code;
+  return GUM_POINTER_TO_FUNCPTR (GCallback,
+      gum_sign_code_pointer (fixture->code));
 }
 
 #define INVOKER_INSN_COUNT 6
@@ -134,7 +135,7 @@ test_arm64_stalker_fixture_follow_and_invoke (TestArm64StalkerFixture * fixture,
   gint ret;
   GCallback invoke_func;
 
-  spec.near_address = gum_stalker_follow_me;
+  spec.near_address = gum_strip_code_pointer (gum_stalker_follow_me);
   spec.max_distance = G_MAXINT32 / 2;
   code = gum_alloc_n_pages_near (1, GUM_PAGE_RW, &spec);
 
@@ -168,7 +169,8 @@ test_arm64_stalker_fixture_follow_and_invoke (TestArm64StalkerFixture * fixture,
   gum_memory_mark_code (cw.base, gum_arm64_writer_offset (&cw));
   gum_arm64_writer_clear (&cw);
 
-  invoke_func = GUM_POINTER_TO_FUNCPTR (GCallback, code);
+  invoke_func =
+      GUM_POINTER_TO_FUNCPTR (GCallback, gum_sign_code_pointer (code));
   invoke_func ();
 
   gum_free_pages (code);
