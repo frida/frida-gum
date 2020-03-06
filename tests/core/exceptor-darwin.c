@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -38,6 +38,7 @@ TESTCASE (task_get_exception_ports_should_hide_our_handler)
 
   self_task = mach_task_self ();
 
+  old_count = EXC_TYPES_COUNT;
   kr = task_get_exception_ports (self_task, EXC_MASK_ALL, old_masks,
       &old_count, old_handlers, old_behaviors, old_flavors);
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
@@ -55,6 +56,7 @@ TESTCASE (task_get_exception_ports_should_hide_our_handler)
 
   exceptor = gum_exceptor_obtain ();
 
+  new_count = EXC_TYPES_COUNT;
   kr = task_get_exception_ports (self_task, EXC_MASK_ALL, new_masks,
       &new_count, new_handlers, new_behaviors, new_flavors);
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
@@ -119,6 +121,7 @@ TESTCASE (task_swap_exception_ports_should_not_obstruct_us)
       MACH_MSG_TYPE_MAKE_SEND);
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
 
+  count = EXC_TYPES_COUNT;
   kr = task_swap_exception_ports (self_task, EXC_MASK_BAD_ACCESS, server_port,
       EXCEPTION_STATE_IDENTITY | MACH_EXCEPTION_CODES,
       GUM_DARWIN_THREAD_STATE_FLAVOR, masks, &count, handlers, behaviors,
