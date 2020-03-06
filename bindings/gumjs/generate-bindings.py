@@ -310,6 +310,8 @@ def generate_duk_wrapper_code(component, api):
                 lines.append("  duk_push_uint (ctx, result);")
             elif method.return_type == "gpointer":
                 lines.append("  _gum_duk_push_native_pointer (ctx, result, args->core);")
+            elif method.return_type == "GumAddress":
+                lines.append("  _gum_duk_push_native_pointer (ctx, GSIZE_TO_POINTER (result), args->core);")
             elif method.return_type == "cs_insn *":
                 if component.flavor == "x86":
                     target = "GSIZE_TO_POINTER (result->address)"
@@ -1293,6 +1295,8 @@ def generate_v8_wrapper_code(component, api):
                 lines.append("  info.GetReturnValue ().Set ((uint32_t) result);")
             elif method.return_type == "gpointer":
                 lines.append("  info.GetReturnValue ().Set (_gum_v8_native_pointer_new (result, core));")
+            elif method.return_type == "GumAddress":
+                lines.append("  info.GetReturnValue ().Set (_gum_v8_native_pointer_new (GSIZE_TO_POINTER (result), core));")
             elif method.return_type == "cs_insn *":
                 if component.flavor == "x86":
                     target = "GSIZE_TO_POINTER (result->address)"
@@ -2864,7 +2868,7 @@ class Method(object):
             self.return_type_ts = "boolean"
         elif return_type == "guint":
             self.return_type_ts = "number"
-        elif return_type == "gpointer":
+        elif return_type in ("gpointer", "GumAddress"):
             self.return_type_ts = "NativePointer"
         elif return_type == "cs_insn *":
             self.return_type_ts = "Instruction | null"
