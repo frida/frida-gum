@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -488,6 +488,8 @@ catch_mach_exception_raise_state_identity (
 #else
 # error Unsupported architecture
 #endif
+
+  ed.address = gum_strip_code_pointer (ed.address);
 
   switch (exception)
   {
