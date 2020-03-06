@@ -2198,13 +2198,13 @@ gum_darwin_parse_native_thread_state (const GumDarwinNativeThreadState * ts,
 #elif defined (HAVE_ARM64)
   guint n;
 
-  ctx->pc = __darwin_arm_thread_state64_get_pc (*ts);
+  ctx->pc = GPOINTER_TO_SIZE (__darwin_arm_thread_state64_get_pc_fptr (*ts));
   ctx->sp = __darwin_arm_thread_state64_get_sp (*ts);
 
   for (n = 0; n != G_N_ELEMENTS (ctx->x); n++)
     ctx->x[n] = ts->__x[n];
   ctx->fp = __darwin_arm_thread_state64_get_fp (*ts);
-  ctx->lr = __darwin_arm_thread_state64_get_lr (*ts);
+  ctx->lr = GPOINTER_TO_SIZE (__darwin_arm_thread_state64_get_lr_fptr (*ts));
 #endif
 }
 
