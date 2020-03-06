@@ -667,22 +667,13 @@ gum_darwin_module_constructed (GObject * object)
 
   if (self->page_size == 0)
   {
+    guint page_size = 4096;
+
 #ifdef HAVE_DARWIN
-    if (self->is_local)
-    {
-      self->page_size = gum_query_page_size ();
-    }
-    else
-    {
-      guint page_size = 4096;
-
-      gum_darwin_query_page_size (self->task, &page_size);
-
-      self->page_size = page_size;
-    }
-#else
-    self->page_size = 4096;
+    gum_darwin_query_page_size (self->task, &page_size);
 #endif
+
+    self->page_size = page_size;
   }
 }
 

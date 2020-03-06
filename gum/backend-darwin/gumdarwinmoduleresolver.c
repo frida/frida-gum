@@ -94,15 +94,8 @@ gum_darwin_module_resolver_initable_init (GInitable * initable,
   int pid;
   GumCollectModulesContext ctx;
 
-  if (self->task == mach_task_self ())
-  {
-    self->page_size = gum_query_page_size ();
-  }
-  else
-  {
-    if (!gum_darwin_query_page_size (self->task, &self->page_size))
-      goto invalid_task;
-  }
+  if (!gum_darwin_query_page_size (self->task, &self->page_size))
+    goto invalid_task;
 
   if (pid_for_task (self->task, &pid) != KERN_SUCCESS)
     goto invalid_task;
