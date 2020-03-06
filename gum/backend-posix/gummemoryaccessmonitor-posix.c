@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2019 Álvaro Felipe Melchor <alvaro.felipe91@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -260,61 +260,20 @@ gum_monitor_range (const GumLivePageDetails * details,
                    gpointer user_data)
 {
   GumMemoryAccessMonitor * self = user_data;
-  GumPageProtection access_mask = self->access_mask;
-  GumPageProtection new_prot = GUM_PAGE_NO_ACCESS;
+  GumPageProtection old_prot, new_prot;
   GumPageState page;
 
-  switch (details->prot)
-  {
-    case GUM_PAGE_READ:
-      if ((access_mask & GUM_PAGE_READ) != 0)
-        new_prot = GUM_PAGE_WRITE;
-      else
-        return TRUE;
-      break;
-    case GUM_PAGE_WRITE:
-      if ((access_mask & GUM_PAGE_WRITE) != 0)
-        new_prot = GUM_PAGE_READ;
-      else
-        return TRUE;
-      break;
-    case GUM_PAGE_EXECUTE:
-      if ((access_mask & GUM_PAGE_EXECUTE) != 0)
-        new_prot = GUM_PAGE_WRITE;
-      else
-        return TRUE;
-      break;
-    case GUM_PAGE_RW:
-      if (access_mask == GUM_PAGE_WRITE)
-        new_prot = GUM_PAGE_READ;
-      else if (access_mask == GUM_PAGE_READ || access_mask == GUM_PAGE_EXECUTE)
-        new_prot = GUM_PAGE_WRITE;
-      else if (access_mask == (GUM_PAGE_EXECUTE | GUM_PAGE_WRITE))
-        new_prot = GUM_PAGE_NO_ACCESS;
-      break;
-    case GUM_PAGE_RX:
-      if (access_mask == GUM_PAGE_READ ||
-          access_mask == GUM_PAGE_EXECUTE ||
-          access_mask == GUM_PAGE_RX)
-        new_prot = GUM_PAGE_WRITE;
-      else
-        return TRUE;
-      break;
-    case GUM_PAGE_RWX:
-      new_prot = GUM_PAGE_NO_ACCESS;
-      break;
-    default:
-      g_assert_not_reached ();
-  }
+  old_prot = details->prot;
+  new_prot = (old_prot ^ self->access_mask) & old_prot;
 
   page.base = details->base;
-  page.prot = details->prot;
+  page.prot = old_prot;
   page.range_index = details->range_index;
   page.completed = 0;
 
   g_array_append_val (self->pages, page);
 
-  gum_mprotect (page.base, self->page_size, new_prot);
+  gum_try_mprotect (page.base, self->page_size, new_prot);
 
   return TRUE;
 }
@@ -332,7 +291,7 @@ gum_demonitor_range (const GumLivePageDetails * details,
 
     if (page->base == details->base)
     {
-      gum_mprotect (page->base, self->page_size, page->prot);
+      gum_try_mprotect (page->base, self->page_size, page->prot);
       return TRUE;
     }
   }
@@ -360,41 +319,46 @@ static gboolean
 gum_emit_live_range_if_monitored (const GumRangeDetails * details,
                                   gpointer user_data)
 {
-  gboolean carry_on = TRUE;
+  gboolean carry_on;
   GumEnumerateLivePagesContext * ctx = user_data;
   GumMemoryAccessMonitor * self = ctx->monitor;
-  const GumMemoryRange * range = details->range;
-  gpointer range_start = GSIZE_TO_POINTER (range->base_address);
-  gpointer range_end = range_start + range->size;
   const guint page_size = self->page_size;
+  const GumMemoryRange * range = details->range;
+  gpointer range_start, range_end;
   guint i;
+
+  range_start = GSIZE_TO_POINTER (range->base_address);
+  range_end = range_start + range->size;
+
+  carry_on = TRUE;
 
   for (i = 0; i != self->num_ranges && carry_on; i++)
   {
     const GumMemoryRange * r = &self->ranges[i];
-    gpointer cur = GSIZE_TO_POINTER (r->base_address);
-    gpointer end = cur + r->size;
+    gpointer candidate_start, candidate_end;
+    gpointer intersect_start, intersect_end;
+    gpointer cur;
 
-    do
+    candidate_start = GSIZE_TO_POINTER (r->base_address);
+    candidate_end = candidate_start + r->size;
+
+    intersect_start = MAX (range_start, candidate_start);
+    intersect_end = MIN (range_end, candidate_end);
+    if (intersect_end <= intersect_start)
+      continue;
+
+    for (cur = intersect_start;
+        cur != intersect_end && carry_on;
+        cur += page_size)
     {
-      if (cur >= range_start && cur + page_size <= range_end)
-      {
-        GumLivePageDetails d;
+      GumLivePageDetails d;
 
-        d.base = cur;
-        d.prot = details->prot;
-        d.range_index = i;
+      d.base = cur;
+      d.prot = details->prot;
+      d.range_index = i;
 
-        carry_on = ctx->func (&d, ctx->user_data);
-
-        cur += page_size;
-      }
-      else
-      {
-        break;
-      }
+      carry_on = ctx->func (&d, ctx->user_data);
     }
-    while (cur < end && carry_on);
   }
 
   return carry_on;
@@ -442,7 +406,7 @@ gum_memory_access_monitor_on_exception (GumExceptionDetails * details,
             return FALSE;
           break;
         case GUM_MEMOP_EXECUTE:
-          if ((original_prot & GUM_PAGE_WRITE) == 0)
+          if ((original_prot & GUM_PAGE_EXECUTE) == 0)
             return FALSE;
           break;
         default:
@@ -450,7 +414,7 @@ gum_memory_access_monitor_on_exception (GumExceptionDetails * details,
       }
 
       if (self->auto_reset)
-        gum_mprotect (page->base, page_size, page->prot);
+        gum_try_mprotect (page->base, page_size, page->prot);
 
       operation_mask = 1 << d.operation;
       operations_reported = g_atomic_int_or (&page->completed, operation_mask);
