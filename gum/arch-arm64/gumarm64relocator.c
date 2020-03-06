@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -188,12 +188,22 @@ gum_arm64_relocator_read_one (GumArm64Relocator * self,
       self->eoi = gum_arm64_branch_is_unconditional (insn);
       break;
     case ARM64_INS_BR:
+    case ARM64_INS_BRAA:
+    case ARM64_INS_BRAAZ:
+    case ARM64_INS_BRAB:
+    case ARM64_INS_BRABZ:
     case ARM64_INS_RET:
+    case ARM64_INS_RETAA:
+    case ARM64_INS_RETAB:
       self->eob = TRUE;
       self->eoi = TRUE;
       break;
     case ARM64_INS_BL:
     case ARM64_INS_BLR:
+    case ARM64_INS_BLRAA:
+    case ARM64_INS_BLRAAZ:
+    case ARM64_INS_BLRAB:
+    case ARM64_INS_BLRABZ:
       self->eob = TRUE;
       self->eoi = FALSE;
       break;
@@ -663,7 +673,7 @@ gum_arm64_relocator_rewrite_b (GumArm64Relocator * self,
   const cs_arm64_op * target = &ctx->detail->operands[0];
 
   gum_arm64_writer_put_ldr_reg_address (ctx->output, ARM64_REG_X16,
-      target->imm);
+      gum_arm64_writer_sign (ctx->output, target->imm));
   gum_arm64_writer_put_br_reg (ctx->output, ARM64_REG_X16);
 
   return TRUE;
@@ -683,7 +693,7 @@ gum_arm64_relocator_rewrite_b_cond (GumArm64Relocator * self,
 
   gum_arm64_writer_put_label (ctx->output, is_true);
   gum_arm64_writer_put_ldr_reg_address (ctx->output, ARM64_REG_X16,
-      target->imm);
+      gum_arm64_writer_sign (ctx->output, target->imm));
   gum_arm64_writer_put_br_reg (ctx->output, ARM64_REG_X16);
 
   gum_arm64_writer_put_label (ctx->output, is_false);
@@ -697,7 +707,8 @@ gum_arm64_relocator_rewrite_bl (GumArm64Relocator * self,
 {
   const cs_arm64_op * target = &ctx->detail->operands[0];
 
-  gum_arm64_writer_put_ldr_reg_address (ctx->output, ARM64_REG_LR, target->imm);
+  gum_arm64_writer_put_ldr_reg_address (ctx->output, ARM64_REG_LR,
+      gum_arm64_writer_sign (ctx->output, target->imm));
   gum_arm64_writer_put_blr_reg (ctx->output, ARM64_REG_LR);
 
   return TRUE;
@@ -721,7 +732,7 @@ gum_arm64_relocator_rewrite_cbz (GumArm64Relocator * self,
 
   gum_arm64_writer_put_label (ctx->output, is_true);
   gum_arm64_writer_put_ldr_reg_address (ctx->output, ARM64_REG_X16,
-      target->imm);
+      gum_arm64_writer_sign (ctx->output, target->imm));
   gum_arm64_writer_put_br_reg (ctx->output, ARM64_REG_X16);
 
   gum_arm64_writer_put_label (ctx->output, is_false);
@@ -754,7 +765,7 @@ gum_arm64_relocator_rewrite_tbz (GumArm64Relocator * self,
 
   gum_arm64_writer_put_label (ctx->output, is_true);
   gum_arm64_writer_put_ldr_reg_address (ctx->output, ARM64_REG_X16,
-      target->imm);
+      gum_arm64_writer_sign (ctx->output, target->imm));
   gum_arm64_writer_put_br_reg (ctx->output, ARM64_REG_X16);
 
   gum_arm64_writer_put_label (ctx->output, is_false);
