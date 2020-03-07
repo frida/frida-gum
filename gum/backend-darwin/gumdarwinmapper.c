@@ -10,6 +10,7 @@
 #include "gumdarwinmodule.h"
 
 #include <fcntl.h>
+#include <string.h>
 #include <gio/gio.h>
 #ifdef HAVE_I386
 # include <gum/arch-x86/gumx86writer.h>
@@ -21,29 +22,12 @@
 # include <ptrauth.h>
 #endif
 
-#if defined (HAVE_I386)
-# define BASE_FOOTPRINT_SIZE_32 25
-# define BASE_FOOTPRINT_SIZE_64 30
-# define DEPENDENCY_FOOTPRINT_SIZE_32 14
-# define DEPENDENCY_FOOTPRINT_SIZE_64 24
-# define RESOLVER_FOOTPRINT_SIZE_32 21
-# define RESOLVER_FOOTPRINT_SIZE_64 38
-# define INIT_FOOTPRINT_SIZE_32 22
-# define INIT_FOOTPRINT_SIZE_64 35
-# define TERM_FOOTPRINT_SIZE_32 22
-# define TERM_FOOTPRINT_SIZE_64 35
-#elif defined (HAVE_ARM) || defined (HAVE_ARM64)
-# define BASE_FOOTPRINT_SIZE_32 16
-# define BASE_FOOTPRINT_SIZE_64 80
-# define DEPENDENCY_FOOTPRINT_SIZE_32 20
-# define DEPENDENCY_FOOTPRINT_SIZE_64 32
-# define RESOLVER_FOOTPRINT_SIZE_32 24
-# define RESOLVER_FOOTPRINT_SIZE_64 40
-# define INIT_FOOTPRINT_SIZE_32 24
-# define INIT_FOOTPRINT_SIZE_64 44
-# define TERM_FOOTPRINT_SIZE_32 24
-# define TERM_FOOTPRINT_SIZE_64 44
-#endif
+#define GUM_MAPPER_HEADER_BASE_SIZE 64
+#define GUM_MAPPER_CODE_BASE_SIZE   80
+#define GUM_MAPPER_DEPENDENCY_SIZE  32
+#define GUM_MAPPER_RESOLVER_SIZE    40
+#define GUM_MAPPER_INIT_SIZE       128
+#define GUM_MAPPER_TERM_SIZE        64
 
 #define GUM_CHECK_MACH_RESULT(n1, cmp, n2, op) \
   if (!(n1 cmp n2)) \
@@ -70,18 +54,21 @@ struct _GumDarwinMapper
   GumDarwinMapper * parent;
 
   gboolean mapped;
-
-  GArray * threaded_binds;
-
   GPtrArray * dependencies;
+  GPtrArray * apple_parameters;
 
   gsize vm_size;
   gpointer runtime;
   GumAddress runtime_address;
+  GumAddress empty_strv_address;
+  GumAddress apple_strv_address;
   gsize runtime_vm_size;
   gsize runtime_file_size;
+  gsize runtime_header_size;
   gsize constructor_offset;
   gsize destructor_offset;
+
+  GArray * threaded_binds;
 
   GMappedFile * cache_file;
   gboolean cache_file_load_attempted;
@@ -143,11 +130,16 @@ static GMappedFile * gum_darwin_mapper_try_load_cache_file (
     GumCpuType cpu_type);
 static gboolean gum_darwin_mapper_init_dependencies (GumDarwinMapper * self,
     GError ** error);
+static gsize gum_darwin_mapper_get_footprint_budget (GumDarwinMapper * self);
+static void gum_darwin_mapper_discard_footprint_budget (GumDarwinMapper * self);
 static void gum_darwin_mapper_init_footprint_budget (GumDarwinMapper * self);
 static GumAddress gum_darwin_mapper_make_code_address (GumDarwinMapper * self,
     GumAddress value);
 
-static void gum_emit_runtime (GumDarwinMapper * self);
+static void gum_darwin_mapper_alloc_and_emit_runtime (GumDarwinMapper * self,
+    GumAddress base_address, gsize size);
+static void gum_emit_runtime (GumDarwinMapper * self, gpointer output_buffer,
+    gsize * size);
 static gboolean gum_accumulate_bind_footprint_size (
     const GumDarwinBindDetails * details, gpointer user_data);
 static gboolean gum_accumulate_init_footprint_size (
@@ -242,6 +234,7 @@ static void
 gum_darwin_mapper_init (GumDarwinMapper * self)
 {
   self->mapped = FALSE;
+  self->apple_parameters = g_ptr_array_new_with_free_func (g_free);
 }
 
 static void
@@ -272,8 +265,6 @@ gum_darwin_mapper_initable_init (GInitable * initable,
   if (!gum_darwin_mapper_init_dependencies (self, error))
     return FALSE;
 
-  gum_darwin_mapper_init_footprint_budget (self);
-
   return TRUE;
 }
 
@@ -283,19 +274,18 @@ gum_darwin_mapper_finalize (GObject * object)
   GumDarwinMapper * self = GUM_DARWIN_MAPPER (object);
 
   g_clear_pointer (&self->mappings, g_hash_table_unref);
-  g_clear_pointer (&self->cache_file, g_mapped_file_unref);
-
   g_slist_free_full (self->children, g_object_unref);
-
-  g_free (self->runtime);
-
-  g_ptr_array_unref (self->dependencies);
+  g_clear_pointer (&self->cache_file, g_mapped_file_unref);
 
   g_clear_pointer (&self->threaded_binds, g_array_unref);
 
-  g_object_unref (self->module);
+  g_free (self->runtime);
+
+  g_ptr_array_unref (self->apple_parameters);
+  g_ptr_array_unref (self->dependencies);
 
   g_object_unref (self->resolver);
+  g_object_unref (self->module);
   g_free (self->name);
 
   G_OBJECT_CLASS (gum_darwin_mapper_parent_class)->finalize (object);
@@ -550,17 +540,63 @@ gum_darwin_mapper_init_dependencies (GumDarwinMapper * self,
   return TRUE;
 }
 
+void
+gum_darwin_mapper_add_apple_parameter (GumDarwinMapper * self,
+                                       const gchar * key,
+                                       const gchar * value)
+{
+  g_ptr_array_add (self->apple_parameters, g_strconcat (key, "=", value, NULL));
+
+  gum_darwin_mapper_discard_footprint_budget (self);
+}
+
+gsize
+gum_darwin_mapper_size (GumDarwinMapper * self)
+{
+  gsize total;
+  GSList * cur;
+
+  total = 0;
+
+  for (cur = self->children; cur != NULL; cur = cur->next)
+  {
+    GumDarwinMapper * child = cur->data;
+
+    total += gum_darwin_mapper_get_footprint_budget (child);
+  }
+
+  total += gum_darwin_mapper_get_footprint_budget (self);
+
+  return total;
+}
+
+static gsize
+gum_darwin_mapper_get_footprint_budget (GumDarwinMapper * self)
+{
+  if (self->vm_size == 0)
+    gum_darwin_mapper_init_footprint_budget (self);
+
+  return self->vm_size;
+}
+
+static void
+gum_darwin_mapper_discard_footprint_budget (GumDarwinMapper * self)
+{
+  self->vm_size = 0;
+}
+
 static void
 gum_darwin_mapper_init_footprint_budget (GumDarwinMapper * self)
 {
   GumDarwinModule * module = self->module;
+  GumDarwinModuleImage * image = self->image;
   gsize segments_size;
-  GumAccumulateFootprintContext runtime;
-  GArray * shared_segments;
   guint i;
+  GumAccumulateFootprintContext runtime;
+  gsize header_size;
+  GPtrArray * params;
 
-  shared_segments = self->image->shared_segments;
-  if (shared_segments->len == 0)
+  if (image->shared_segments->len == 0)
   {
     segments_size = 0;
     for (i = 0; i != module->segments->len; i++)
@@ -578,11 +614,23 @@ gum_darwin_mapper_init_footprint_budget (GumDarwinMapper * self)
   }
   else
   {
-    segments_size = self->image->size;
+    segments_size = image->size;
   }
 
   runtime.mapper = self;
   runtime.total = 0;
+
+  header_size = GUM_MAPPER_HEADER_BASE_SIZE;
+  params = self->apple_parameters;
+  header_size += params->len * self->module->pointer_size;
+  for (i = 0; i != params->len; i++)
+  {
+    const gchar * param = g_ptr_array_index (params, i);
+    header_size += strlen (param) + 1;
+  }
+  header_size = GUM_ALIGN_SIZE (header_size, 16);
+  runtime.total += header_size;
+
   gum_darwin_module_enumerate_binds (module,
       gum_accumulate_bind_footprint_size, &runtime);
   gum_darwin_module_enumerate_lazy_binds (module,
@@ -591,18 +639,9 @@ gum_darwin_mapper_init_footprint_budget (GumDarwinMapper * self)
       gum_accumulate_init_footprint_size, &runtime);
   gum_darwin_module_enumerate_term_pointers (module,
       gum_accumulate_term_footprint_size, &runtime);
-  if (module->pointer_size == 4)
-  {
-    runtime.total +=
-        g_slist_length (self->children) * DEPENDENCY_FOOTPRINT_SIZE_32;
-    runtime.total += BASE_FOOTPRINT_SIZE_32;
-  }
-  else
-  {
-    runtime.total +=
-        g_slist_length (self->children) * DEPENDENCY_FOOTPRINT_SIZE_64;
-    runtime.total += BASE_FOOTPRINT_SIZE_64;
-  }
+
+  runtime.total += g_slist_length (self->children) * GUM_MAPPER_DEPENDENCY_SIZE;
+  runtime.total += GUM_MAPPER_CODE_BASE_SIZE;
 
   self->runtime_vm_size = runtime.total;
   if (runtime.total % module->page_size != 0)
@@ -611,26 +650,9 @@ gum_darwin_mapper_init_footprint_budget (GumDarwinMapper * self)
         module->page_size - (runtime.total % module->page_size);
   }
   self->runtime_file_size = runtime.total;
+  self->runtime_header_size = header_size;
 
   self->vm_size = segments_size + self->runtime_vm_size;
-}
-
-gsize
-gum_darwin_mapper_size (GumDarwinMapper * self)
-{
-  gsize result;
-  GSList * cur;
-
-  result = self->vm_size;
-
-  for (cur = self->children; cur != NULL; cur = cur->next)
-  {
-    GumDarwinMapper * child = cur->data;
-
-    result += child->vm_size;
-  }
-
-  return result;
 }
 
 gboolean
@@ -639,6 +661,8 @@ gum_darwin_mapper_map (GumDarwinMapper * self,
                        GError ** error)
 {
   GumMapContext ctx;
+  gsize total_vm_size;
+  GumAddress macho_base_address;
   GSList * cur;
   GumDarwinModule * module = self->module;
   guint i;
@@ -654,22 +678,24 @@ gum_darwin_mapper_map (GumDarwinMapper * self,
   ctx.success = TRUE;
   ctx.error = error;
 
+  total_vm_size = gum_darwin_mapper_size (self);
+
   self->runtime_address = base_address;
-  base_address += self->runtime_vm_size;
+  macho_base_address = base_address + self->runtime_vm_size;
 
   for (cur = self->children; cur != NULL; cur = cur->next)
   {
     GumDarwinMapper * child = cur->data;
 
-    ctx.success = gum_darwin_mapper_map (child, base_address, error);
+    ctx.success = gum_darwin_mapper_map (child, macho_base_address, error);
     if (!ctx.success)
       goto beach;
-    base_address += child->vm_size;
+    macho_base_address += child->vm_size;
   }
 
-  g_object_set (module, "base-address", base_address, NULL);
+  g_object_set (module, "base-address", macho_base_address, NULL);
 
-  gum_emit_runtime (self);
+  gum_darwin_mapper_alloc_and_emit_runtime (self, base_address, total_vm_size);
 
   gum_darwin_module_enumerate_rebases (module, gum_darwin_mapper_rebase, &ctx);
   if (!ctx.success)
@@ -690,7 +716,8 @@ gum_darwin_mapper_map (GumDarwinMapper * self,
     GumAddress segment_address;
     guint64 file_offset;
 
-    segment_address = base_address + s->vm_address - module->preferred_address;
+    segment_address =
+        macho_base_address + s->vm_address - module->preferred_address;
     file_offset =
         (s->file_offset != 0) ? s->file_offset - self->image->source_offset : 0;
 
@@ -712,7 +739,7 @@ gum_darwin_mapper_map (GumDarwinMapper * self,
     GumDarwinModuleImageSegment * s =
         &g_array_index (shared_segments, GumDarwinModuleImageSegment, i);
 
-    mapped_address = base_address + s->offset;
+    mapped_address = macho_base_address + s->offset;
     kr = mach_vm_remap (module->task, &mapped_address, s->size, 0,
         VM_FLAGS_OVERWRITE, mach_task_self (),
         (vm_offset_t) (self->image->data + s->offset), TRUE, &cur_protection,
@@ -720,8 +747,8 @@ gum_darwin_mapper_map (GumDarwinMapper * self,
     GUM_CHECK_MACH_RESULT (kr, ==, KERN_SUCCESS,
         "mach_vm_remap(shared_segment)");
 
-    kr = mach_vm_protect (module->task, base_address + s->offset, s->size, FALSE,
-        s->protection);
+    kr = mach_vm_protect (module->task, macho_base_address + s->offset, s->size,
+        FALSE, s->protection);
     GUM_CHECK_MACH_RESULT (kr, ==, KERN_SUCCESS,
         "mach_vm_protect(shared_segment)");
   }
@@ -778,8 +805,8 @@ gum_darwin_mapper_constructor (GumDarwinMapper * self)
 {
   g_assert (self->mapped);
 
-  return gum_darwin_mapper_make_code_address (self,
-      self->runtime_address + self->constructor_offset);
+  return gum_darwin_mapper_make_code_address (self, self->runtime_address +
+      self->runtime_header_size + self->constructor_offset);
 }
 
 GumAddress
@@ -787,8 +814,8 @@ gum_darwin_mapper_destructor (GumDarwinMapper * self)
 {
   g_assert (self->mapped);
 
-  return gum_darwin_mapper_make_code_address (self,
-      self->runtime_address + self->destructor_offset);
+  return gum_darwin_mapper_make_code_address (self, self->runtime_address +
+      self->runtime_header_size + self->destructor_offset);
 }
 
 GumAddress
@@ -835,6 +862,70 @@ gum_darwin_mapper_make_code_address (GumDarwinMapper * self,
   return result;
 }
 
+static void
+gum_darwin_mapper_alloc_and_emit_runtime (GumDarwinMapper * self,
+                                          GumAddress base_address,
+                                          gsize size)
+{
+  GPtrArray * params = self->apple_parameters;
+  gsize header_size = self->runtime_header_size;
+  gsize pointer_size = self->module->pointer_size;
+  gpointer runtime;
+  guint strv_length, strv_size;
+  gint * strv_offsets;
+  GString * strv_blob;
+  guint i;
+  gsize code_size;
+
+  runtime = g_malloc0 (self->runtime_file_size);
+
+  strv_length = 1 + params->len;
+  strv_size = (strv_length + 1) * pointer_size;
+  strv_offsets = g_newa (gint, strv_length);
+  strv_blob = g_string_new ("");
+
+  strv_offsets[0] = 0;
+  g_string_append_printf (strv_blob,
+      "frida_dylib_range=0x%" G_GINT64_MODIFIER "x,0x%" G_GSIZE_MODIFIER "x",
+      base_address, size);
+
+  for (i = 0; i != params->len; i++)
+  {
+    g_string_append_c (strv_blob, '\0');
+
+    strv_offsets[1 + i] = strv_blob->len;
+    g_string_append (strv_blob, g_ptr_array_index (params, i));
+  }
+
+  for (i = 0; i != strv_length; i++)
+  {
+    gint offset = strv_offsets[i];
+    GumAddress str_address;
+    gpointer slot;
+
+    str_address = base_address + strv_size + offset;
+
+    slot = runtime + (i * pointer_size);
+    if (pointer_size == 4)
+      *((guint32 *) slot) = str_address;
+    else
+      *((guint64 *) slot) = str_address;
+  }
+
+  memcpy (runtime + strv_size, strv_blob->str, strv_blob->len);
+
+  g_string_free (strv_blob, TRUE);
+
+  self->empty_strv_address = base_address + strv_size - pointer_size;
+  self->apple_strv_address = base_address;
+
+  gum_emit_runtime (self, runtime + header_size, &code_size);
+  g_assert (header_size + code_size <= self->runtime_file_size);
+
+  g_free (self->runtime);
+  self->runtime = runtime;
+}
+
 #if defined (HAVE_I386)
 
 typedef struct _GumEmitX86Context GumEmitX86Context;
@@ -857,16 +948,16 @@ static gboolean gum_emit_term_calls (
     const GumDarwinTermPointersDetails * details, GumEmitX86Context * ctx);
 
 static void
-gum_emit_runtime (GumDarwinMapper * self)
+gum_emit_runtime (GumDarwinMapper * self,
+                  gpointer output_buffer,
+                  gsize * size)
 {
   GumDarwinModule * module = self->module;
   GumX86Writer cw;
   GumEmitX86Context ctx;
   GSList * children_reversed;
 
-  self->runtime = g_malloc (self->runtime_file_size);
-
-  gum_x86_writer_init (&cw, self->runtime);
+  gum_x86_writer_init (&cw, output_buffer);
   gum_x86_writer_set_target_cpu (&cw, self->module->cpu_type);
 
   ctx.mapper = self;
@@ -916,7 +1007,7 @@ gum_emit_runtime (GumDarwinMapper * self)
   gum_x86_writer_put_ret (&cw);
 
   gum_x86_writer_flush (&cw);
-  g_assert (gum_x86_writer_offset (&cw) <= self->runtime_file_size);
+  *size = gum_x86_writer_offset (&cw);
   gum_x86_writer_clear (&cw);
 }
 
@@ -993,8 +1084,13 @@ gum_emit_init_calls (const GumDarwinInitPointersDetails * details,
   gum_x86_writer_put_label (cw, next_label);
 
   gum_x86_writer_put_mov_reg_reg_ptr (cw, GUM_REG_XAX, GUM_REG_XBP);
-  /* TODO: pass argc, argv, envp, apple, program vars */
-  gum_x86_writer_put_call_reg (cw, GUM_REG_XAX);
+  gum_x86_writer_put_call_reg_with_aligned_arguments (cw, GUM_CALL_CAPI,
+      GUM_REG_XAX, 5,
+      /*   argc */ GUM_ARG_ADDRESS, GUM_ADDRESS (0),
+      /*   argv */ GUM_ARG_ADDRESS, GUM_ADDRESS (self->empty_strv_address),
+      /*   envp */ GUM_ARG_ADDRESS, GUM_ADDRESS (self->empty_strv_address),
+      /*  apple */ GUM_ARG_ADDRESS, GUM_ADDRESS (self->apple_strv_address),
+      /* result */ GUM_ARG_ADDRESS, GUM_ADDRESS (0));
 
   gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XBP, self->module->pointer_size);
   gum_x86_writer_put_dec_reg (cw, GUM_REG_XBX);
@@ -1044,7 +1140,8 @@ struct _GumEmitArm64Context
   GumArm64Writer * aw;
 };
 
-static void gum_emit_arm_runtime (GumDarwinMapper * self);
+static void gum_emit_arm_runtime (GumDarwinMapper * self,
+    gpointer output_buffer, gsize * size);
 static void gum_emit_arm_child_constructor_call (GumDarwinMapper * child,
     GumEmitArmContext * ctx);
 static void gum_emit_arm_child_destructor_call (GumDarwinMapper * child,
@@ -1056,7 +1153,8 @@ static gboolean gum_emit_arm_init_calls (
 static gboolean gum_emit_arm_term_calls (
     const GumDarwinTermPointersDetails * details, GumEmitArmContext * ctx);
 
-static void gum_emit_arm64_runtime (GumDarwinMapper * self);
+static void gum_emit_arm64_runtime (GumDarwinMapper * self,
+    gpointer output_buffer, gsize * size);
 static void gum_emit_arm64_child_constructor_call (GumDarwinMapper * child,
     GumEmitArm64Context * ctx);
 static void gum_emit_arm64_child_destructor_call (GumDarwinMapper * child,
@@ -1069,25 +1167,27 @@ static gboolean gum_emit_arm64_term_calls (
     const GumDarwinTermPointersDetails * details, GumEmitArm64Context * ctx);
 
 static void
-gum_emit_runtime (GumDarwinMapper * self)
+gum_emit_runtime (GumDarwinMapper * self,
+                  gpointer output_buffer,
+                  gsize * size)
 {
-  self->runtime = g_malloc (self->runtime_file_size);
-
   if (self->module->cpu_type == GUM_CPU_ARM)
-    gum_emit_arm_runtime (self);
+    gum_emit_arm_runtime (self, output_buffer, size);
   else
-    gum_emit_arm64_runtime (self);
+    gum_emit_arm64_runtime (self, output_buffer, size);
 }
 
 static void
-gum_emit_arm_runtime (GumDarwinMapper * self)
+gum_emit_arm_runtime (GumDarwinMapper * self,
+                      gpointer output_buffer,
+                      gsize * size)
 {
   GumDarwinModule * module = self->module;
   GumThumbWriter tw;
   GumEmitArmContext ctx;
   GSList * children_reversed;
 
-  gum_thumb_writer_init (&tw, self->runtime);
+  gum_thumb_writer_init (&tw, output_buffer);
 
   ctx.mapper = self;
   ctx.tw = &tw;
@@ -1130,7 +1230,7 @@ gum_emit_arm_runtime (GumDarwinMapper * self)
       ARM_REG_R7, ARM_REG_PC);
 
   gum_thumb_writer_flush (&tw);
-  g_assert (gum_thumb_writer_offset (&tw) <= self->runtime_file_size);
+  *size = gum_thumb_writer_offset (&tw);
   gum_thumb_writer_clear (&tw);
 }
 
@@ -1197,6 +1297,7 @@ static gboolean
 gum_emit_arm_init_calls (const GumDarwinInitPointersDetails * details,
                          GumEmitArmContext * ctx)
 {
+  GumDarwinMapper * self = ctx->mapper;
   GumThumbWriter * tw = ctx->tw;
   gconstpointer next_label = GSIZE_TO_POINTER (details->address);
 
@@ -1205,9 +1306,13 @@ gum_emit_arm_init_calls (const GumDarwinInitPointersDetails * details,
 
   gum_thumb_writer_put_label (tw, next_label);
 
-  gum_thumb_writer_put_ldr_reg_reg (tw, ARM_REG_R0, ARM_REG_R4);
-  /* TODO: pass argc, argv, envp, apple, program vars */
-  gum_thumb_writer_put_blx_reg (tw, ARM_REG_R0);
+  gum_thumb_writer_put_ldr_reg_reg (tw, ARM_REG_R6, ARM_REG_R4);
+  gum_thumb_writer_put_call_reg_with_arguments (tw, ARM_REG_R6, 5,
+      /*   argc */ GUM_ARG_ADDRESS, GUM_ADDRESS (0),
+      /*   argv */ GUM_ARG_ADDRESS, GUM_ADDRESS (self->empty_strv_address),
+      /*   envp */ GUM_ARG_ADDRESS, GUM_ADDRESS (self->empty_strv_address),
+      /*  apple */ GUM_ARG_ADDRESS, GUM_ADDRESS (self->apple_strv_address),
+      /* result */ GUM_ARG_ADDRESS, GUM_ADDRESS (0));
 
   gum_thumb_writer_put_add_reg_reg_imm (tw, ARM_REG_R4, ARM_REG_R4, 4);
   gum_thumb_writer_put_sub_reg_reg_imm (tw, ARM_REG_R5, ARM_REG_R5, 1);
@@ -1242,14 +1347,16 @@ gum_emit_arm_term_calls (const GumDarwinTermPointersDetails * details,
 }
 
 static void
-gum_emit_arm64_runtime (GumDarwinMapper * self)
+gum_emit_arm64_runtime (GumDarwinMapper * self,
+                        gpointer output_buffer,
+                        gsize * size)
 {
   GumDarwinModule * module = self->module;
   GumArm64Writer aw;
   GumEmitArm64Context ctx;
   GSList * children_reversed;
 
-  gum_arm64_writer_init (&aw, self->runtime);
+  gum_arm64_writer_init (&aw, output_buffer);
 
   ctx.mapper = self;
   ctx.aw = &aw;
@@ -1300,7 +1407,7 @@ gum_emit_arm64_runtime (GumDarwinMapper * self)
   gum_arm64_writer_put_ret (&aw);
 
   gum_arm64_writer_flush (&aw);
-  g_assert (gum_arm64_writer_offset (&aw) <= self->runtime_file_size);
+  *size = gum_arm64_writer_offset (&aw);
   gum_arm64_writer_clear (&aw);
 }
 
@@ -1368,17 +1475,27 @@ static gboolean
 gum_emit_arm64_init_calls (const GumDarwinInitPointersDetails * details,
                            GumEmitArm64Context * ctx)
 {
+  GumDarwinMapper * self = ctx->mapper;
   GumArm64Writer * aw = ctx->aw;
   gconstpointer next_label = GSIZE_TO_POINTER (details->address);
 
   gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X19, details->address);
   gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X20, details->count);
+  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X21,
+      self->empty_strv_address);
+  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X22,
+      self->apple_strv_address);
 
   gum_arm64_writer_put_label (aw, next_label);
 
-  gum_arm64_writer_put_ldr_reg_reg_offset (aw, ARM64_REG_X0, ARM64_REG_X19, 0);
-  /* TODO: pass argc, argv, envp, apple, program vars */
-  gum_arm64_writer_put_blr_reg_no_auth (aw, ARM64_REG_X0);
+  /* init (argc, argv, envp, apple, result) */
+  gum_arm64_writer_put_mov_reg_reg (aw, ARM64_REG_X0, ARM64_REG_XZR);
+  gum_arm64_writer_put_mov_reg_reg (aw, ARM64_REG_X1, ARM64_REG_X21);
+  gum_arm64_writer_put_mov_reg_reg (aw, ARM64_REG_X2, ARM64_REG_X21);
+  gum_arm64_writer_put_mov_reg_reg (aw, ARM64_REG_X3, ARM64_REG_X22);
+  gum_arm64_writer_put_mov_reg_reg (aw, ARM64_REG_X4, ARM64_REG_XZR);
+  gum_arm64_writer_put_ldr_reg_reg_offset (aw, ARM64_REG_X5, ARM64_REG_X19, 0);
+  gum_arm64_writer_put_blr_reg_no_auth (aw, ARM64_REG_X5);
 
   gum_arm64_writer_put_add_reg_reg_imm (aw, ARM64_REG_X19, ARM64_REG_X19, 8);
   gum_arm64_writer_put_sub_reg_reg_imm (aw, ARM64_REG_X20, ARM64_REG_X20, 1);
@@ -1434,11 +1551,7 @@ gum_accumulate_bind_footprint_size (const GumDarwinBindDetails * details,
       details->symbol_name, &value))
   {
     if (value.resolver != 0)
-    {
-      ctx->total += (self->module->pointer_size == 4)
-          ? RESOLVER_FOOTPRINT_SIZE_32
-          : RESOLVER_FOOTPRINT_SIZE_64;
-    }
+      ctx->total += GUM_MAPPER_RESOLVER_SIZE;
   }
 
   return TRUE;
@@ -1451,9 +1564,7 @@ gum_accumulate_init_footprint_size (
 {
   GumAccumulateFootprintContext * ctx = user_data;
 
-  ctx->total += (ctx->mapper->module->pointer_size == 4)
-      ? INIT_FOOTPRINT_SIZE_32
-      : INIT_FOOTPRINT_SIZE_64;
+  ctx->total += GUM_MAPPER_INIT_SIZE;
 
   return TRUE;
 }
@@ -1465,9 +1576,7 @@ gum_accumulate_term_footprint_size (
 {
   GumAccumulateFootprintContext * ctx = user_data;
 
-  ctx->total += (ctx->mapper->module->pointer_size == 4)
-      ? TERM_FOOTPRINT_SIZE_32
-      : TERM_FOOTPRINT_SIZE_64;
+  ctx->total += GUM_MAPPER_TERM_SIZE;
 
   return TRUE;
 }
@@ -1652,7 +1761,7 @@ gum_darwin_mapper_resolve_symbol (GumDarwinMapper * self,
      */
     if (self->runtime_address != 0)
     {
-      value->address = self->runtime_address;
+      value->address = self->runtime_address + self->runtime_header_size;
       if (self->module->cpu_type == GUM_CPU_ARM)
         value->address |= 1;
     }

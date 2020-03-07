@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -25,6 +25,9 @@ GUM_API GumDarwinMapper * gum_darwin_mapper_new_from_file (const gchar * path,
     GumDarwinModuleResolver * resolver, GError ** error);
 GUM_API GumDarwinMapper * gum_darwin_mapper_new_take_blob (const gchar * name,
     GBytes * blob, GumDarwinModuleResolver * resolver, GError ** error);
+
+GUM_API void gum_darwin_mapper_add_apple_parameter (GumDarwinMapper * self,
+    const gchar * key, const gchar * value);
 
 GUM_API gsize gum_darwin_mapper_size (GumDarwinMapper * self);
 GUM_API gboolean gum_darwin_mapper_map (GumDarwinMapper * self,
