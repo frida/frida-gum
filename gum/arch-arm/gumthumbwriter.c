@@ -406,6 +406,10 @@ static void
 gum_thumb_writer_put_argument_list_teardown (GumThumbWriter * self,
                                              guint n_args)
 {
+  if (n_args > 4)
+  {
+    gum_thumb_writer_put_add_reg_imm (self, ARM_REG_SP, (n_args - 4) * 4);
+  }
 }
 
 void
