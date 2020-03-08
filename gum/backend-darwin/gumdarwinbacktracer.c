@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -94,6 +94,8 @@ gum_darwin_backtracer_generate (GumBacktracer * backtracer,
 #else
 # error Unsupported architecture
 #endif
+    return_addresses->items[0] =
+        gum_strip_code_pointer (return_addresses->items[0]);
     start_index = 1;
   }
   else
@@ -110,9 +112,13 @@ gum_darwin_backtracer_generate (GumBacktracer * backtracer,
       GUM_FP_IS_ALIGNED (cur);
       i++)
   {
+    gpointer item;
     gpointer * next;
 
-    return_addresses->items[i] = *(cur + GUM_FP_LINK_OFFSET);
+    item = *(cur + GUM_FP_LINK_OFFSET);
+    if (item == NULL)
+      break;
+    return_addresses->items[i] = gum_strip_code_pointer (item);
 
     next = *cur;
     if (next <= cur)
