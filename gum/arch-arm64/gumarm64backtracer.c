@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -81,6 +81,7 @@ gum_arm64_backtracer_generate (GumBacktracer * backtracer,
   GumInvocationStack * invocation_stack;
   gsize * start_address;
   guint skips_pending, i;
+  gsize page_size;
   gsize * p;
 
   self = GUM_ARM64_BACKTRACER (backtracer);
@@ -97,26 +98,29 @@ gum_arm64_backtracer_generate (GumBacktracer * backtracer,
     skips_pending = 1;
   }
 
+  page_size = gum_query_page_size ();
+
   for (i = 0, p = start_address; p < start_address + 2048; p++)
   {
     gboolean valid = FALSE;
     gsize value;
     GumMemoryRange vr;
 
-    if ((GPOINTER_TO_SIZE (p) & (4096 - 1)) == 0)
+    if ((GPOINTER_TO_SIZE (p) & (page_size - 1)) == 0)
     {
       GumMemoryRange next_range;
       next_range.base_address = GUM_ADDRESS (p);
-      next_range.size = 4096;
+      next_range.size = page_size;
       if (!gum_memory_map_contains (self->writable, &next_range))
         break;
     }
 
-    value = *p;
+    value = gum_strip_code_address (*p);
+
     vr.base_address = value - 4;
     vr.size = 4;
 
-    if (value > 4096 + 4 &&
+    if (value > page_size + 4 &&
         (value & 0x3) == 0 &&
         gum_memory_map_contains (self->code, &vr))
     {
@@ -140,6 +144,11 @@ gum_arm64_backtracer_generate (GumBacktracer * backtracer,
         else if ((insn & 0xfffffc1f) == 0xd63f0000)
         {
           /* BLR <reg> */
+          valid = TRUE;
+        }
+        else if ((insn & 0xfffffc1f) == 0xd63f081f)
+        {
+          /* BLRAAZ <reg> */
           valid = TRUE;
         }
       }
