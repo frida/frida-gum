@@ -2817,12 +2817,17 @@ TESTCASE (process_pointer_size_is_available)
 
 TESTCASE (process_nested_signal_handling)
 {
-  COMPILE_AND_LOAD_SCRIPT ("Process.setExceptionHandler(function (details) { try { ptr(\"0x41414141\").readS8(); } catch (e) { send (2); }});"
-          "var kill = Module.getExportByName(\"libc.so.6\",\"kill\");"
-          "kill = new NativeFunction(kill, 'int', ['int', 'int']);"
-          "kill(0, 11);"
-          );
+  gpointer page;
+  gboolean exception_on_read, exception_on_write;
+
+  page = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  gum_mprotect (page, gum_query_page_size (), GUM_PAGE_NO_ACCESS);
+  COMPILE_AND_LOAD_SCRIPT ("Process.setExceptionHandler(function (details) { Memory.protect(" GUM_PTR_CONST " , 4096, 'rw-'); try { ptr(\"0x41414141\").readS8(); } catch (e) { send (2); }; return True;});",
+          page);
+
+  gum_try_read_and_write_at (page, 0, &exception_on_read, &exception_on_write);
   EXPECT_SEND_MESSAGE_WITH ("2");
+  gum_free_pages ((gpointer) page);
 }
 
 TESTCASE (process_debugger_status_is_available)
