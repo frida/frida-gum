@@ -259,6 +259,8 @@ gum_memory_patch_code (gpointer address,
   gsize page_offset, range_size;
   gboolean rwx_supported;
 
+  address = gum_strip_code_pointer (address);
+
   page_size = gum_query_page_size ();
   start_page = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (address) & ~(page_size - 1));
   end_page = GSIZE_TO_POINTER (
