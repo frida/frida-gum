@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -199,6 +199,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_instruction_parse)
   module = gumjs_module_from_args (args);
 
   _gum_duk_args_parse (args, "p", &target);
+
+  target = gum_strip_code_pointer (target);
 
 #ifdef HAVE_ARM
   address = GPOINTER_TO_SIZE (target) & ~1;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -16,6 +16,9 @@
 #include "gumsourcemap.h"
 
 #include <ffi.h>
+#ifdef HAVE_PTRAUTH
+# include <ptrauth.h>
+#endif
 
 #define GUM_DUK_NATIVE_POINTER_CACHE_SIZE 8
 
@@ -215,6 +218,8 @@ GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_xor)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_shr)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_shl)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_not)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_sign)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_strip)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_compare)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_int32)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_uint32)
@@ -404,6 +409,8 @@ static const duk_function_list_entry gumjs_native_pointer_functions[] =
   { "shr", gumjs_native_pointer_shr, 1 },
   { "shl", gumjs_native_pointer_shl, 1 },
   { "not", gumjs_native_pointer_not, 0 },
+  { "sign", gumjs_native_pointer_sign, 2 },
+  { "strip", gumjs_native_pointer_strip, 1 },
   { "compare", gumjs_native_pointer_compare, 1 },
   { "toInt32", gumjs_native_pointer_to_int32, 0 },
   { "toUInt32", gumjs_native_pointer_to_uint32, 0 },
@@ -2287,6 +2294,68 @@ GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (shl, <<)
   }
 
 GUM_DEFINE_NATIVE_POINTER_UNARY_OP_IMPL (not, ~)
+
+GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_sign)
+{
+#ifdef HAVE_PTRAUTH
+  gpointer value;
+  const gchar * key;
+  gpointer data;
+
+  value = gumjs_native_pointer_from_args (args)->value;
+
+  key = "asia";
+  data = NULL;
+  _gum_duk_args_parse (args, "|sp", &key, &data);
+
+  if (strcmp (key, "asia") == 0)
+    value = ptrauth_sign_unauthenticated (value, ptrauth_key_asia, data);
+  else if (strcmp (key, "asib") == 0)
+    value = ptrauth_sign_unauthenticated (value, ptrauth_key_asib, data);
+  else if (strcmp (key, "asda") == 0)
+    value = ptrauth_sign_unauthenticated (value, ptrauth_key_asda, data);
+  else if (strcmp (key, "asdb") == 0)
+    value = ptrauth_sign_unauthenticated (value, ptrauth_key_asdb, data);
+  else
+    _gum_duk_throw (ctx, "invalid key");
+
+  _gum_duk_push_native_pointer (ctx, value, args->core);
+#else
+  duk_push_this (ctx);
+#endif
+
+  return 1;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_strip)
+{
+#ifdef HAVE_PTRAUTH
+  gpointer value;
+  const gchar * key;
+
+  value = gumjs_native_pointer_from_args (args)->value;
+
+  key = "asia";
+  _gum_duk_args_parse (args, "|s", &key);
+
+  if (strcmp (key, "asia") == 0)
+    value = ptrauth_strip (value, ptrauth_key_asia);
+  else if (strcmp (key, "asib") == 0)
+    value = ptrauth_strip (value, ptrauth_key_asib);
+  else if (strcmp (key, "asda") == 0)
+    value = ptrauth_strip (value, ptrauth_key_asda);
+  else if (strcmp (key, "asdb") == 0)
+    value = ptrauth_strip (value, ptrauth_key_asdb);
+  else
+    _gum_duk_throw (ctx, "invalid key");
+
+  _gum_duk_push_native_pointer (ctx, value, args->core);
+#else
+  duk_push_this (ctx);
+#endif
+
+  return 1;
+}
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_compare)
 {

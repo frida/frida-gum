@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -379,6 +379,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_check_code_pointer)
   GumExceptorScope scope;
 
   _gum_duk_args_parse (args, "p", &ptr);
+
+  ptr = gum_strip_code_pointer ((gpointer) ptr);
 
 #ifdef HAVE_ARM
   ptr = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (ptr) & ~1);

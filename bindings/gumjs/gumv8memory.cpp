@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -359,6 +359,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_check_code_pointer)
 
   if (!_gum_v8_args_parse (args, "p", &ptr))
     return;
+
+  ptr = (const guint8 *) gum_strip_code_pointer ((gpointer) ptr);
 
 #ifdef HAVE_ARM
   ptr = (const guint8 *) GSIZE_TO_POINTER (GPOINTER_TO_SIZE (ptr) & ~1);

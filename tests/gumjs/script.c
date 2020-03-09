@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -272,6 +272,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (cmodule_should_provide_some_builtin_string_functions)
     TESTENTRY (cmodule_should_support_floating_point)
     TESTENTRY (cmodule_should_support_varargs)
+    TESTENTRY (cmodule_should_support_global_callbacks)
     TESTENTRY (cmodule_should_provide_access_to_cpu_registers)
   TESTGROUP_END ()
 
@@ -2525,7 +2526,7 @@ TESTCASE (execution_can_be_traced_during_immediate_native_function_call)
       "  onCallSummary: function (summary) {"
       "    if (!flushing)"
       "      return;"
-      "    var key = ptr(a).toString();"
+      "    var key = a.strip().toString();"
       "    send(key in summary);"
       "    send(summary[key]);"
       "  }"
@@ -2564,7 +2565,7 @@ TESTCASE (execution_can_be_traced_during_scheduled_native_function_call)
       "  onCallSummary: function (summary) {"
       "    if (!flushing)"
       "      return;"
-      "    var key = ptr(a).toString();"
+      "    var key = a.strip().toString();"
       "    send(key in summary);"
       "    send(summary[key]);"
       "  }"
@@ -2621,7 +2622,7 @@ TESTCASE (execution_can_be_traced_after_native_function_call_from_hook)
       "  },"
       "  onCallSummary: function (summary) {"
       "    [targetFuncInt, targetFuncNestedA].forEach(function (target) {"
-      "      var key = ptr(target).toString();"
+      "      var key = target.strip().toString();"
       "      send(key in summary);"
       "      send(summary[key]);"
       "    });"
@@ -2969,13 +2970,13 @@ TESTCASE (process_module_can_be_looked_up_from_address)
   g_module_close (m);
 
   COMPILE_AND_LOAD_SCRIPT (
-      "send(Process.findModuleByAddress(" GUM_PTR_CONST ") !== null);",
+      "send(Process.findModuleByAddress(" GUM_PTR_CONST ".strip()) !== null);",
       f);
   EXPECT_SEND_MESSAGE_WITH ("true");
 
   COMPILE_AND_LOAD_SCRIPT (
       "send(Object.keys(Process.getModuleByAddress(" GUM_PTR_CONST
-      ")).length > 0);",
+      ".strip())).length > 0);",
       f);
   EXPECT_SEND_MESSAGE_WITH ("true");
 #endif
@@ -3131,7 +3132,7 @@ TESTCASE (process_range_can_be_looked_up_from_address)
   g_module_close (m);
 
   COMPILE_AND_LOAD_SCRIPT (
-      "send(Process.findRangeByAddress(" GUM_PTR_CONST ") !== null);",
+      "send(Process.findRangeByAddress(" GUM_PTR_CONST ".strip()) !== null);",
       f);
   EXPECT_SEND_MESSAGE_WITH ("true");
 
@@ -3146,7 +3147,7 @@ TESTCASE (process_range_can_be_looked_up_from_address)
 
   COMPILE_AND_LOAD_SCRIPT (
       "send(Object.keys(Process.getRangeByAddress(" GUM_PTR_CONST
-      ")).length > 0);",
+      ".strip())).length > 0);",
       f);
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
@@ -6475,6 +6476,47 @@ TESTCASE (cmodule_should_support_varargs)
       "\"Hello World, x=42, y=24\"]");
   EXPECT_SEND_MESSAGE_WITH ("[\"Also\",\"Yo 42 (150, 151, 152) 24 (100, 101)"
       "\"]");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (cmodule_should_support_global_callbacks)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var cb = new NativeCallback(function (n) { send(n); }, 'void', ['int']);"
+      "var cbPtr = Memory.alloc(Process.pointerSize);"
+      "cbPtr.writePointer(cb);"
+      ""
+      "var m = new CModule('"
+      "\\n"
+      "extern void notify1 (int n);\\n"
+      "extern void (* notify2) (int n);\\n"
+      "extern void (* notify3) (int n);\\n"
+      "\\n"
+      "static void notify3_impl (int n);\\n"
+      "\\n"
+      "void\\n"
+      "init (void)\\n"
+      "{\\n"
+      "  notify1 (42);\\n"
+      "  notify2 (43);\\n"
+      "  notify3 = notify3_impl;\\n"
+      "  notify3 (44);\\n"
+      "}\\n"
+      "\\n"
+      "static void\\n"
+      "notify3_impl (int n)\\n"
+      "{\\n"
+      "  notify1 (n);\\n"
+      "}\\n"
+      "\\n"
+      "', {"
+      "  notify1: cb,"
+      "  notify2: cbPtr,"
+      "  notify3: Memory.alloc(Process.pointerSize)"
+      "});");
+  EXPECT_SEND_MESSAGE_WITH ("42");
+  EXPECT_SEND_MESSAGE_WITH ("43");
+  EXPECT_SEND_MESSAGE_WITH ("44");
   EXPECT_NO_MESSAGES ();
 }
 
