@@ -5,8 +5,6 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#define ENABLE_DEBUG 0
-
 #include "gumstalker.h"
 
 #include "gummetalhash.h"
@@ -1501,63 +1499,6 @@ gum_exec_ctx_destroy_thunks (GumExecCtx * ctx)
   gum_free_pages (ctx->thunks);
 }
 
-#if ENABLE_DEBUG
-
-static void
-gum_disasm (guint8 * code,
-            guint size,
-            const gchar * prefix)
-{
-  csh capstone;
-  cs_err err;
-  cs_insn * insn;
-  size_t count, i;
-
-  err = cs_open (CS_ARCH_X86, GUM_CPU_MODE, &capstone);
-  g_assert (err == CS_ERR_OK);
-
-  count = cs_disasm (capstone, code, size, GPOINTER_TO_SIZE (code), 0, &insn);
-  g_assert (insn != NULL);
-
-  for (i = 0; i != count; i++)
-  {
-    printf ("%s0x%" G_GINT64_MODIFIER "x\t%s %s\n",
-        prefix, insn[i].address, insn[i].mnemonic, insn[i].op_str);
-  }
-
-  cs_free (insn, count);
-
-  cs_close (&capstone);
-}
-
-static void
-gum_hexdump (guint8 * data, guint size, const gchar * prefix)
-{
-  guint i, line_offset;
-
-  line_offset = 0;
-  for (i = 0; i != size; i++)
-  {
-    if (line_offset == 0)
-      printf ("%s0x%" G_GINT64_MODIFIER "x\t%02x",
-          prefix, (guint64) GPOINTER_TO_SIZE (data + i), data[i]);
-    else
-      printf (" %02x", data[i]);
-
-    line_offset++;
-    if (line_offset == 16 && i != size - 1)
-    {
-      printf ("\n");
-      line_offset = 0;
-    }
-  }
-
-  if (line_offset != 0)
-    printf ("\n");
-}
-
-#endif
-
 static GumExecBlock *
 gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
                                gpointer real_address,
@@ -1610,10 +1551,6 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   gc.continuation_real_address = NULL;
   gc.opened_prolog = GUM_PROLOG_NONE;
   gc.accumulated_stack_delta = 0;
-
-#if ENABLE_DEBUG
-  printf ("\n\n***\n\nCreating block for %p:\n", real_address);
-#endif
 
   iterator.exec_context = ctx;
   iterator.exec_block = block;
@@ -1686,16 +1623,7 @@ gum_stalker_iterator_next (GumStalkerIterator * self,
       gum_x86_relocator_skip_one_no_label (rl);
     }
 
-#if ENABLE_DEBUG
-    {
-      guint8 * begin = block->code_end;
-      block->code_end = gum_x86_writer_cur (gc->code_writer);
-      gum_disasm (begin, block->code_end - begin, "\t");
-      gum_hexdump (begin, block->code_end - begin, "\t; ");
-    }
-#else
     block->code_end = gum_x86_writer_cur (gc->code_writer);
-#endif
 
     if (gum_exec_block_is_full (block))
     {
@@ -1716,11 +1644,6 @@ gum_stalker_iterator_next (GumStalkerIterator * self,
 
   instruction->begin = GSIZE_TO_POINTER (instruction->ci->address);
   instruction->end = instruction->begin + instruction->ci->size;
-
-#if ENABLE_DEBUG
-  gum_disasm (instruction->begin, instruction->end - instruction->begin, "");
-  gum_hexdump (instruction->begin, instruction->end - instruction->begin, "; ");
-#endif
 
   self->generator_context->instruction = instruction;
 
