@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2010-2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -997,6 +997,7 @@ _gum_stalker_do_activate (GumStalker * self,
   if (ctx == NULL)
     return;
 
+  ctx->unfollow_called_while_still_following = FALSE;
   ctx->activation_target = target;
 
   if (!gum_exec_ctx_contains (ctx, ret_addr))
@@ -1023,6 +1024,7 @@ _gum_stalker_do_deactivate (GumStalker * self,
   if (ctx == NULL)
     return;
 
+  ctx->unfollow_called_while_still_following = TRUE;
   ctx->activation_target = NULL;
 
   if (gum_exec_ctx_contains (ctx, *ret_addr_ptr))
@@ -1443,14 +1445,11 @@ gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
     ctx->invalidate_pending = FALSE;
   }
 
-  if (start_address == gum_stalker_unfollow_me)
+  if (start_address == gum_stalker_unfollow_me ||
+      start_address == gum_stalker_deactivate)
   {
     ctx->unfollow_called_while_still_following = TRUE;
     ctx->current_block = NULL;
-    ctx->resume_at = start_address;
-  }
-  else if (start_address == gum_stalker_deactivate)
-  {
     ctx->resume_at = start_address;
   }
   else if (start_address == _gum_thread_exit_impl)

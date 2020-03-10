@@ -820,6 +820,7 @@ _gum_stalker_do_activate (GumStalker * self,
   if (ctx == NULL)
     return ret_addr;
 
+  ctx->unfollow_called_while_still_following = FALSE;
   ctx->activation_target = gum_strip_code_pointer ((gpointer) target);
 
   if (!gum_exec_ctx_contains (ctx, ret_addr))
@@ -848,6 +849,7 @@ _gum_stalker_do_deactivate (GumStalker * self,
   if (ctx == NULL)
     return ret_addr;
 
+  ctx->unfollow_called_while_still_following = TRUE;
   ctx->activation_target = NULL;
 
   if (gum_exec_ctx_contains (ctx, ret_addr))
@@ -1302,14 +1304,10 @@ gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
     ctx->invalidate_pending = FALSE;
   }
 
-  if (start_address == gum_unfollow_me_address)
+  if (start_address == gum_unfollow_me_address ||
+      start_address == gum_deactivate_address)
   {
     ctx->unfollow_called_while_still_following = TRUE;
-    ctx->current_block = NULL;
-    ctx->resume_at = start_address;
-  }
-  else if (start_address == gum_deactivate_address)
-  {
     ctx->current_block = NULL;
     ctx->resume_at = start_address;
   }
