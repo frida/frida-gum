@@ -660,8 +660,6 @@ gum_exceptor_backend_on_signal (int sig,
 
     if (old_sigaction != NULL)
       old_sigaction (sig, siginfo, context);
-    else
-      goto panic;
   }
   else
   {
@@ -669,13 +667,8 @@ gum_exceptor_backend_on_signal (int sig,
 
     if (gum_is_signal_handler_chainable (old_handler))
       old_handler (sig);
-    else if (action->sa_handler != SIG_IGN)
-      goto panic;
   }
 
-  return;
-
-panic:
   self->old_abort_handler_present = FALSE;
   signal (SIGABRT, SIG_DFL);
 }

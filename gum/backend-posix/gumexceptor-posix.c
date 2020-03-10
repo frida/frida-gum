@@ -426,6 +426,9 @@ gum_exceptor_backend_on_signal (int sig,
       goto panic;
   }
 
+  if (sig == SIGABRT)
+    goto panic;
+
   return;
 
 panic:
