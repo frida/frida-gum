@@ -44,12 +44,12 @@
     (*((type *) ((guint8 *) thread + field)))
 
 #if defined (HAVE_ARM64) && !defined (__DARWIN_OPAQUE_ARM_THREAD_STATE64)
-# define __darwin_arm_thread_state64_get_pc(ts) \
-    ((ts).__pc)
+# define __darwin_arm_thread_state64_get_pc_fptr(ts) \
+    ((void *) (uintptr_t) ((ts).__pc))
 # define __darwin_arm_thread_state64_set_pc_fptr(ts, fptr) \
     ((ts).__pc = (uintptr_t) (fptr))
-# define __darwin_arm_thread_state64_get_lr(ts) \
-    ((ts).__lr)
+# define __darwin_arm_thread_state64_get_lr_fptr(ts) \
+    ((void *) (uintptr_t) ((ts).__lr))
 # define __darwin_arm_thread_state64_set_lr_fptr(ts, fptr) \
     ((ts).__lr = (uintptr_t) (fptr))
 # define __darwin_arm_thread_state64_get_sp(ts) \
@@ -2140,7 +2140,7 @@ gum_darwin_is_unified_thread_state_valid (const GumDarwinUnifiedThreadState * ts
 #elif defined (HAVE_ARM)
   return ts->ts_32.__pc != 0;
 #elif defined (HAVE_ARM64)
-  return __darwin_arm_thread_state64_get_pc (ts->ts_64) != 0;
+  return __darwin_arm_thread_state64_get_pc_fptr (ts->ts_64) != NULL;
 #endif
 }
 
