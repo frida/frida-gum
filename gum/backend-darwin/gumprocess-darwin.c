@@ -1715,7 +1715,7 @@ gum_darwin_fill_file_mapping (gint pid,
   gint retval, len;
 
   retval = __proc_info (PROC_INFO_CALL_PIDINFO, pid, PROC_PIDREGIONPATHINFO,
-      (uint64_t) address,  region, sizeof (struct proc_regionwithpathinfo));
+      (uint64_t) address, region, sizeof (struct proc_regionwithpathinfo));
 
   if (retval == -1)
     return FALSE;
