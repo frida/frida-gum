@@ -1720,7 +1720,7 @@ gum_darwin_fill_file_mapping (gint pid,
   if (retval == -1)
     return FALSE;
 
-  len = strnlen (region->prp_vip.vip_path, MAXPATHLEN);
+  len = strnlen (region->prp_vip.vip_path, MAXPATHLEN - 1);
   region->prp_vip.vip_path[len] = '\0';
 
   if (len == 0)
