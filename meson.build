@@ -49,7 +49,7 @@ if buildtype == 'release' or buildtype == 'minsize'
 endif
 
 have_ptrauth_src = '''#ifdef __clang__
-# if __has_feature(ptrauth_calls)
+# if __has_feature (ptrauth_calls)
 #  define HAVE_PTRAUTH 1
 # endif
 #endif
