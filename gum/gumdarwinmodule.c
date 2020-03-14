@@ -2237,8 +2237,6 @@ gum_darwin_module_take_image (GumDarwinModule * self,
   self->image = image;
 
   header = (GumMachHeader32 *) image->data;
-  if (header->filetype == GUM_MH_EXECUTE)
-    self->name = g_strdup ("Executable");
   if (header->magic == GUM_MH_MAGIC_32)
     command = (GumMachHeader32 *) image->data + 1;
   else
