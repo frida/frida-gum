@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -19,8 +19,8 @@ gum_read_sleb128 (const guint8 ** data,
   {
     gint64 chunk;
 
-    g_assert (p != end);
-    g_assert (offset <= 63);
+    if (p == end || offset > 63)
+      goto beach;
 
     value = *p;
     chunk = value & 0x7f;
@@ -32,6 +32,7 @@ gum_read_sleb128 (const guint8 ** data,
   if ((value & 0x40) != 0)
     result |= G_GINT64_CONSTANT (-1) << offset;
 
+beach:
   *data = p;
 
   return result;
@@ -49,8 +50,8 @@ gum_read_uleb128 (const guint8 ** data,
   {
     guint64 chunk;
 
-    g_assert (p != end);
-    g_assert (offset <= 63);
+    if (p == end || offset > 63)
+      goto beach;
 
     chunk = *p & 0x7f;
     result |= (chunk << offset);
@@ -58,17 +59,28 @@ gum_read_uleb128 (const guint8 ** data,
   }
   while (*p++ & 0x80);
 
+beach:
   *data = p;
 
   return result;
 }
 
 void
-gum_skip_uleb128 (const guint8 ** data)
+gum_skip_uleb128 (const guint8 ** data,
+                  const guint8 * end)
 {
   const guint8 * p = *data;
+
   while ((*p & 0x80) != 0)
+  {
+    if (p == end)
+      goto beach;
+
     p++;
+  }
+
   p++;
+
+beach:
   *data = p;
 }

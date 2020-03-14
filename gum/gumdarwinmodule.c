@@ -2673,7 +2673,7 @@ gum_exports_trie_find (const guint8 * exports,
       }
       else
       {
-        gum_skip_uleb128 (&p);
+        gum_skip_uleb128 (&p, exports_end);
       }
     }
 
