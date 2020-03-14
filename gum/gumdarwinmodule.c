@@ -102,6 +102,10 @@ struct _GumEmitImportContext
   gpointer user_data;
 
   GumDarwinModule * module;
+  GArray * threaded_binds;
+  const guint8 * source_start;
+  const guint8 * source_end;
+  GMappedFile * source_file;
   gboolean carry_on;
 };
 
@@ -1012,10 +1016,18 @@ gum_darwin_module_enumerate_imports (GumDarwinModule * self,
   ctx.user_data = user_data;
 
   ctx.module = self;
+  ctx.threaded_binds = NULL;
+  ctx.source_start = NULL;
+  ctx.source_end = NULL;
+  ctx.source_file = NULL;
   ctx.carry_on = TRUE;
+
   gum_darwin_module_enumerate_binds (self, gum_emit_import, &ctx);
   if (ctx.carry_on)
     gum_darwin_module_enumerate_lazy_binds (self, gum_emit_import, &ctx);
+
+  g_clear_pointer (&ctx.source_file, g_mapped_file_unref);
+  g_clear_pointer (&ctx.threaded_binds, g_array_unref);
 }
 
 static gboolean
@@ -1023,41 +1035,128 @@ gum_emit_import (const GumDarwinBindDetails * details,
                  gpointer user_data)
 {
   GumEmitImportContext * ctx = user_data;
-  GumImportDetails d;
+  GumDarwinModule * self = ctx->module;
+  const GumDarwinSegment * segment = details->segment;
+  GumAddress vm_base;
 
-  if (details->type != GUM_DARWIN_BIND_POINTER)
-    return TRUE;
+  vm_base = segment->vm_address + gum_darwin_module_get_slide (self);
 
-  d.type = GUM_IMPORT_UNKNOWN;
-  d.name = details->symbol_name;
-  switch (details->library_ordinal)
+  switch (details->type)
   {
-    case GUM_BIND_SPECIAL_DYLIB_MAIN_EXECUTABLE:
-    case GUM_BIND_SPECIAL_DYLIB_SELF:
-      return TRUE;
-    case GUM_BIND_SPECIAL_DYLIB_FLAT_LOOKUP:
+    case GUM_DARWIN_BIND_POINTER:
     {
-      d.module = NULL;
+      GumImportDetails d;
+
+      d.type = GUM_IMPORT_UNKNOWN;
+      d.name = details->symbol_name;
+      switch (details->library_ordinal)
+      {
+        case GUM_BIND_SPECIAL_DYLIB_MAIN_EXECUTABLE:
+        case GUM_BIND_SPECIAL_DYLIB_SELF:
+          return TRUE;
+        case GUM_BIND_SPECIAL_DYLIB_FLAT_LOOKUP:
+        {
+          d.module = NULL;
+          break;
+        }
+        default:
+          d.module = gum_darwin_module_get_dependency_by_ordinal (self,
+              details->library_ordinal);
+          break;
+      }
+      d.address = 0;
+      d.slot = vm_base + details->offset;
+
+      if (ctx->threaded_binds != NULL)
+        g_array_append_val (ctx->threaded_binds, d);
+      else
+        ctx->carry_on = ctx->func (&d, ctx->user_data);
+
+      break;
+    }
+    case GUM_DARWIN_BIND_THREADED_TABLE:
+    {
+      g_clear_pointer (&ctx->threaded_binds, g_array_unref);
+      ctx->threaded_binds = g_array_sized_new (FALSE, FALSE,
+          sizeof (GumImportDetails), details->threaded_table_size);
+
+      break;
+    }
+    case GUM_DARWIN_BIND_THREADED_ITEMS:
+    {
+      GArray * threaded_binds = ctx->threaded_binds;
+      guint64 cursor;
+      GumDarwinThreadedItem item;
+
+      if (threaded_binds == NULL)
+        return TRUE;
+
+      if (ctx->source_start == NULL)
+      {
+        gchar * source_path = NULL;
+        GMappedFile * file;
+
+#ifdef HAVE_DARWIN
+        if (self->task != GUM_DARWIN_PORT_NULL)
+        {
+          GumDarwinMappingDetails mapping;
+          if (gum_darwin_query_mapped_address (self->task, vm_base, &mapping))
+            source_path = g_strdup (mapping.path);
+        }
+#endif
+        if (source_path == NULL)
+        {
+          source_path = g_strdup (self->name);
+          if (source_path == NULL)
+            return TRUE;
+        }
+        file = g_mapped_file_new (source_path, FALSE, NULL);
+        g_free (source_path);
+        if (file == NULL)
+          return TRUE;
+
+        ctx->source_start = (const guint8 *) g_mapped_file_get_contents (file);
+        ctx->source_end = ctx->source_start + g_mapped_file_get_length (file);
+        ctx->source_file = file;
+      }
+
+      cursor = details->offset;
+
+      do
+      {
+        const guint8 * raw_slot;
+
+        raw_slot = ctx->source_start + segment->file_offset + cursor;
+        if (raw_slot < ctx->source_start ||
+            raw_slot + sizeof (guint64) > ctx->source_end)
+        {
+          return FALSE;
+        }
+
+        gum_darwin_threaded_item_parse (*((const guint64 *) raw_slot), &item);
+
+        if (item.type == GUM_DARWIN_THREADED_BIND)
+        {
+          guint ordinal = item.bind.ordinal;
+          GumImportDetails * d;
+
+          if (ordinal >= threaded_binds->len)
+            return TRUE;
+          d = &g_array_index (threaded_binds, GumImportDetails, ordinal);
+          d->slot = vm_base + cursor;
+
+          ctx->carry_on = ctx->func (d, ctx->user_data);
+        }
+
+        cursor += item.delta * sizeof (guint64);
+      }
+      while (item.delta != 0 && ctx->carry_on);
+
       break;
     }
     default:
-      d.module = gum_darwin_module_get_dependency_by_ordinal (ctx->module,
-          details->library_ordinal);
-      break;
+      g_assert_not_reached ();
   }
-  d.address = 0;
-
-  if (details->segment != NULL)
-  {
-    d.slot = details->offset + details->segment->vm_address +
-        gum_darwin_module_get_slide (ctx->module);
-  }
-  else
-  {
-    d.slot = 0;
-  }
-
-  ctx->carry_on = ctx->func (&d, ctx->user_data);
 
   return ctx->carry_on;
 }

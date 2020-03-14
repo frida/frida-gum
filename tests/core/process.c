@@ -32,6 +32,7 @@ TESTLIST_BEGIN (process)
   TESTENTRY (process_ranges_exclude_cloaked)
   TESTENTRY (module_can_be_loaded)
   TESTENTRY (module_imports)
+  TESTENTRY (module_import_slot_should_contain_correct_value)
   TESTENTRY (module_exports)
   TESTENTRY (module_symbols)
   TESTENTRY (module_ranges_can_be_enumerated)
@@ -93,6 +94,9 @@ struct _TestThreadSyncData
 };
 
 static gboolean check_thread_enumeration_testable (void);
+
+static gboolean store_import_slot_of_malloc_if_available (
+    const GumImportDetails * details, gpointer user_data);
 
 #ifndef G_OS_WIN32
 static gboolean store_export_address_if_tricky_module_export (
@@ -490,6 +494,41 @@ TESTCASE (module_imports)
 #else
   (void) import_found_cb;
 #endif
+}
+
+TESTCASE (module_import_slot_should_contain_correct_value)
+{
+  gpointer * slot;
+  gsize actual_value, expected_value;
+  gboolean unsupported_on_this_os;
+
+  slot = NULL;
+  gum_module_enumerate_imports (GUM_TESTS_MODULE_NAME,
+      store_import_slot_of_malloc_if_available, &slot);
+
+  unsupported_on_this_os = slot == NULL;
+  if (unsupported_on_this_os)
+    return;
+
+  actual_value =
+      gum_strip_code_address (GPOINTER_TO_SIZE (*slot));
+  expected_value =
+      gum_strip_code_address (gum_module_find_export_by_name (NULL, "malloc"));
+
+  g_assert_cmphex (actual_value, ==, expected_value);
+}
+
+static gboolean
+store_import_slot_of_malloc_if_available (const GumImportDetails * details,
+                                          gpointer user_data)
+{
+  gpointer ** result = user_data;
+
+  if (strcmp (details->name, "malloc") != 0)
+    return TRUE;
+
+  *result = GSIZE_TO_POINTER (details->slot);
+  return FALSE;
 }
 
 TESTCASE (module_exports)
