@@ -1215,6 +1215,9 @@ gum_darwin_module_get_nth_segment (GumDarwinModule * self,
   if (!gum_darwin_module_ensure_image_loaded (self, NULL))
     return NULL;
 
+  if (index >= self->segments->len)
+    return NULL;
+
   return &g_array_index (self->segments, GumDarwinSegment, index);
 }
 
@@ -1369,6 +1372,8 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
         gint segment_index = immediate;
         details.segment =
             gum_darwin_module_get_nth_segment (self, segment_index);
+        if (details.segment == NULL)
+          return;
         details.offset = gum_read_uleb128 (&p, end);
         break;
       }
@@ -1507,6 +1512,8 @@ gum_darwin_module_enumerate_binds (GumDarwinModule * self,
         gint segment_index = immediate;
         details.segment =
             gum_darwin_module_get_nth_segment (self, segment_index);
+        if (details.segment == NULL)
+          return;
         details.offset = gum_read_uleb128 (&p, end);
         break;
       }
@@ -1656,6 +1663,8 @@ gum_darwin_module_enumerate_lazy_binds (GumDarwinModule * self,
         gint segment_index = immediate;
         details.segment =
             gum_darwin_module_get_nth_segment (self, segment_index);
+        if (details.segment == NULL)
+          return;
         details.offset = gum_read_uleb128 (&p, end);
         break;
       }
@@ -2419,7 +2428,7 @@ gum_darwin_module_take_image (GumDarwinModule * self,
         &self->exports_malloc_data);
   }
 
-  success = self->name != NULL;
+  success = self->segments->len != 0;
 
 beach:
   if (!success)
