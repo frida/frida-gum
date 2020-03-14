@@ -1065,6 +1065,33 @@ gum_darwin_query_all_image_infos (mach_port_t task,
   return TRUE;
 }
 
+gboolean
+gum_darwin_query_mapped_address (mach_port_t task,
+                                 GumAddress address,
+                                 GumDarwinMappingDetails * details)
+{
+  int pid;
+  kern_return_t kr;
+  GumFileMapping file;
+  struct proc_regionwithpathinfo region;
+  guint64 mapping_offset;
+
+  kr = pid_for_task (task, &pid);
+  if (kr != KERN_SUCCESS)
+    return FALSE;
+
+  if (!gum_darwin_fill_file_mapping (pid, address, &file, &region))
+    return FALSE;
+
+  g_strlcpy (details->path, file.path, sizeof (details->path));
+
+  mapping_offset = address - region.prp_prinfo.pri_address;
+  details->offset = mapping_offset;
+  details->size = region.prp_prinfo.pri_size - mapping_offset;
+
+  return TRUE;
+}
+
 GumAddress
 gum_darwin_find_entrypoint (mach_port_t task)
 {
