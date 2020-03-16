@@ -81,6 +81,7 @@ struct _GumDarwinModule
   gboolean is_local;
   gboolean is_kernel;
   GumCpuType cpu_type;
+  GumPtrauthSupport ptrauth_support;
   gsize pointer_size;
   gsize page_size;
   GumAddress base_address;
@@ -313,14 +314,16 @@ enum _GumDarwinExportSymbolFlags
 };
 
 GUM_API GumDarwinModule * gum_darwin_module_new_from_file (const gchar * path,
-    GumDarwinPort task, GumCpuType cpu_type, guint page_size,
-    GMappedFile * cache_file, GumDarwinModuleFlags flags, GError ** error);
+    GumDarwinPort task, GumCpuType cpu_type, GumPtrauthSupport ptrauth_support,
+    guint page_size, GMappedFile * cache_file, GumDarwinModuleFlags flags,
+    GError ** error);
 GUM_API GumDarwinModule * gum_darwin_module_new_from_blob (GBytes * blob,
-    GumDarwinPort task, GumCpuType cpu_type, guint page_size,
-    GumDarwinModuleFlags flags, GError ** error);
+    GumDarwinPort task, GumCpuType cpu_type, GumPtrauthSupport ptrauth_support,
+    guint page_size, GumDarwinModuleFlags flags, GError ** error);
 GUM_API GumDarwinModule * gum_darwin_module_new_from_memory (const gchar * name,
-    GumDarwinPort task, GumCpuType cpu_type, guint page_size,
-    GumAddress base_address, GumDarwinModuleFlags flags, GError ** error);
+    GumDarwinPort task, GumCpuType cpu_type, GumPtrauthSupport ptrauth_support,
+    guint page_size, GumAddress base_address, GumDarwinModuleFlags flags,
+    GError ** error);
 
 GUM_API gboolean gum_darwin_module_resolve_export (GumDarwinModule * self,
     const gchar * symbol, GumDarwinExportDetails * details);
