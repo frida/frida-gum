@@ -24,7 +24,6 @@ main (gint argc,
   gint result = 1;
   const gchar * dylib_path;
   mach_port_t task;
-  GumCpuType cpu_type;
   GTimer * timer = NULL;
   GError * error = NULL;
   GumDarwinModuleResolver * resolver = NULL;
@@ -54,17 +53,6 @@ main (gint argc,
 
   dylib_path = argv[1];
   task = mach_task_self ();
-#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
-  cpu_type = GUM_CPU_IA32;
-#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
-  cpu_type = GUM_CPU_AMD64;
-#elif defined (HAVE_ARM)
-  cpu_type = GUM_CPU_ARM;
-#elif defined (HAVE_ARM64)
-  cpu_type = GUM_CPU_ARM64;
-#else
-# error Unsupported CPU type
-#endif
 
   timer = g_timer_new ();
 
