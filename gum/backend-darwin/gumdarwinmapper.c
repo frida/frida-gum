@@ -189,7 +189,7 @@ static const gchar * gum_darwin_cache_file_arch_candidates_amd64[] =
 static const gchar * gum_darwin_cache_file_arch_candidates_arm[] =
     { "armv7s", "armv7", "armv6", NULL };
 static const gchar * gum_darwin_cache_file_arch_candidates_arm64[] =
-    { "arm64", NULL };
+    { "arm64", "arm64e", NULL };
 
 static void
 gum_darwin_mapper_class_init (GumDarwinMapperClass * klass)
