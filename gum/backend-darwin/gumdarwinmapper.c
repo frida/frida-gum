@@ -375,7 +375,7 @@ gum_darwin_mapper_new_take_blob (const gchar * name,
   GumDarwinMapper * mapper;
 
   module = gum_darwin_module_new_from_blob (blob, resolver->task,
-      resolver->cpu_type, resolver->ptrauth_support, resolver->page_size,
+      resolver->cpu_type, resolver->ptrauth_support,
       GUM_DARWIN_MODULE_FLAGS_NONE, error);
   if (module == NULL)
     goto malformed_blob;
@@ -428,8 +428,8 @@ gum_darwin_mapper_new_from_file_with_parent (GumDarwinMapper * parent,
   }
 
   module = gum_darwin_module_new_from_file (path, resolver->task,
-      resolver->cpu_type, resolver->ptrauth_support, resolver->page_size,
-      cache_file, GUM_DARWIN_MODULE_FLAGS_NONE, error);
+      resolver->cpu_type, resolver->ptrauth_support, cache_file,
+      GUM_DARWIN_MODULE_FLAGS_NONE, error);
   if (module == NULL)
     goto beach;
 
@@ -590,6 +590,7 @@ gum_darwin_mapper_init_footprint_budget (GumDarwinMapper * self)
 {
   GumDarwinModule * module = self->module;
   GumDarwinModuleImage * image = self->image;
+  guint page_size = self->resolver->page_size;
   gsize segments_size;
   guint i;
   GumAccumulateFootprintContext runtime;
@@ -605,11 +606,8 @@ gum_darwin_mapper_init_footprint_budget (GumDarwinMapper * self)
           &g_array_index (module->segments, GumDarwinSegment, i);
 
       segments_size += segment->vm_size;
-      if (segment->vm_size % module->page_size != 0)
-      {
-        segments_size +=
-            module->page_size - (segment->vm_size % module->page_size);
-      }
+      if (segment->vm_size % page_size != 0)
+        segments_size += page_size - (segment->vm_size % page_size);
     }
   }
   else
@@ -644,11 +642,8 @@ gum_darwin_mapper_init_footprint_budget (GumDarwinMapper * self)
   runtime.total += GUM_MAPPER_CODE_BASE_SIZE;
 
   self->runtime_vm_size = runtime.total;
-  if (runtime.total % module->page_size != 0)
-  {
-    self->runtime_vm_size +=
-        module->page_size - (runtime.total % module->page_size);
-  }
+  if (runtime.total % page_size != 0)
+    self->runtime_vm_size += page_size - (runtime.total % page_size);
   self->runtime_file_size = runtime.total;
   self->runtime_header_size = header_size;
 

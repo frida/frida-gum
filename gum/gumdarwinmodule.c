@@ -83,7 +83,6 @@ enum
   PROP_TASK,
   PROP_CPU_TYPE,
   PROP_PTRAUTH_SUPPORT,
-  PROP_PAGE_SIZE,
   PROP_BASE_ADDRESS,
   PROP_SOURCE_PATH,
   PROP_SOURCE_BLOB,
@@ -520,14 +519,11 @@ static gboolean gum_emit_section_term_pointers (
 static gboolean gum_darwin_module_ensure_image_loaded (GumDarwinModule * self,
     GError ** error);
 static gboolean gum_darwin_module_try_load_image_from_cache (
-    GumDarwinModule * self, const gchar * name, GumCpuType cpu_type,
-    GMappedFile * cache_file);
+    GumDarwinModule * self, const gchar * name, GMappedFile * cache_file);
 static gboolean gum_darwin_module_load_image_from_filesystem (
-    GumDarwinModule * self, const gchar * path, GumCpuType cpu_type,
-    GError ** error);
+    GumDarwinModule * self, const gchar * path, GError ** error);
 static gboolean gum_darwin_module_load_image_header_from_filesystem (
-    GumDarwinModule * self, const gchar * path, GumCpuType cpu_type,
-    GError ** error);
+    GumDarwinModule * self, const gchar * path, GError ** error);
 static gboolean gum_darwin_module_load_image_from_blob (GumDarwinModule * self,
     GBytes * blob, GError ** error);
 static gboolean gum_darwin_module_load_image_from_memory (
@@ -570,6 +566,11 @@ static guint64 gum_dyld_cache_compute_image_size (
 static guint64 gum_dyld_cache_offset_from_address (GumAddress address,
     const GumDyldCacheMappingInfo * mappings, gsize mapping_count);
 
+static GumCpuType gum_cpu_type_from_darwin (GumDarwinCpuType cpu_type);
+static GumPtrauthSupport gum_ptrauth_support_from_darwin (
+    GumDarwinCpuType cpu_type, GumDarwinCpuSubtype cpu_subtype);
+static guint gum_pointer_size_from_cpu_type (GumDarwinCpuType cpu_type);
+
 G_DEFINE_TYPE_EXTENDED (GumDarwinModule,
                         gum_darwin_module,
                         G_TYPE_OBJECT,
@@ -603,12 +604,8 @@ gum_darwin_module_class_init (GumDarwinModuleClass * klass)
       G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_PTRAUTH_SUPPORT,
       g_param_spec_uint ("ptrauth-support", "PtrauthSupport",
-      "Pointer authentication support", 0, G_MAXUINT,
-      GUM_PTRAUTH_UNSUPPORTED, G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-      G_PARAM_STATIC_STRINGS));
-  g_object_class_install_property (object_class, PROP_PAGE_SIZE,
-      g_param_spec_uint ("page-size", "PageSize", "Page size", 0, G_MAXUINT,
-      0, G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
+      "Pointer authentication support", 0, G_MAXUINT, GUM_PTRAUTH_INVALID,
+      G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_BASE_ADDRESS,
       g_param_spec_uint64 ("base-address", "BaseAddress", "Base address", 0,
       G_MAXUINT64, 0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
@@ -658,47 +655,7 @@ gum_darwin_module_constructed (GObject * object)
     self->is_local = self->task == mach_task_self ();
     self->is_kernel = self->task == gum_kernel_get_task ();
   }
-
-  if (self->cpu_type == GUM_CPU_INVALID)
-  {
-    int pid;
-
-    if (self->task == GUM_DARWIN_PORT_NULL ||
-        pid_for_task (self->task, &pid) != KERN_SUCCESS ||
-        !gum_darwin_cpu_type_from_pid (pid, &self->cpu_type))
-    {
-      self->cpu_type = GUM_NATIVE_CPU;
-    }
-  }
-#else
-  if (self->cpu_type == GUM_CPU_INVALID)
-    self->cpu_type = GUM_NATIVE_CPU;
 #endif
-
-  switch (self->cpu_type)
-  {
-    case GUM_CPU_IA32:
-    case GUM_CPU_ARM:
-      self->pointer_size = 4;
-      break;
-    case GUM_CPU_AMD64:
-    case GUM_CPU_ARM64:
-      self->pointer_size = 8;
-      break;
-    default:
-      g_assert_not_reached ();
-  }
-
-  if (self->page_size == 0)
-  {
-    guint page_size = 4096;
-
-#ifdef HAVE_DARWIN
-    gum_darwin_query_page_size (self->task, &page_size);
-#endif
-
-    self->page_size = page_size;
-  }
 }
 
 static gboolean
@@ -712,12 +669,12 @@ gum_darwin_module_initable_init (GInitable * initable,
   {
     if (self->cache_file == NULL ||
         !gum_darwin_module_try_load_image_from_cache (self, self->source_path,
-        self->cpu_type, self->cache_file))
+        self->cache_file))
     {
       if (GUM_DARWIN_MODULE_HAS_HEADER_ONLY (self))
       {
         if (!gum_darwin_module_load_image_header_from_filesystem (self,
-            self->source_path, self->cpu_type, error))
+            self->source_path, error))
         {
           return FALSE;
         }
@@ -725,7 +682,7 @@ gum_darwin_module_initable_init (GInitable * initable,
       else
       {
         if (!gum_darwin_module_load_image_from_filesystem (self,
-            self->source_path, self->cpu_type, error))
+            self->source_path, error))
         {
           return FALSE;
         }
@@ -804,9 +761,6 @@ gum_darwin_module_get_property (GObject * object,
     case PROP_PTRAUTH_SUPPORT:
       g_value_set_uint (value, self->ptrauth_support);
       break;
-    case PROP_PAGE_SIZE:
-      g_value_set_uint (value, self->page_size);
-      break;
     case PROP_BASE_ADDRESS:
       g_value_set_uint64 (value, self->base_address);
       break;
@@ -850,9 +804,6 @@ gum_darwin_module_set_property (GObject * object,
     case PROP_PTRAUTH_SUPPORT:
       self->ptrauth_support = g_value_get_uint (value);
       break;
-    case PROP_PAGE_SIZE:
-      self->page_size = g_value_get_uint (value);
-      break;
     case PROP_BASE_ADDRESS:
       self->base_address = g_value_get_uint64 (value);
       break;
@@ -881,7 +832,6 @@ gum_darwin_module_new_from_file (const gchar * path,
                                  GumDarwinPort task,
                                  GumCpuType cpu_type,
                                  GumPtrauthSupport ptrauth_support,
-                                 guint page_size,
                                  GMappedFile * cache_file,
                                  GumDarwinModuleFlags flags,
                                  GError ** error)
@@ -890,7 +840,6 @@ gum_darwin_module_new_from_file (const gchar * path,
       "task", task,
       "cpu-type", cpu_type,
       "ptrauth-support", ptrauth_support,
-      "page-size", page_size,
       "source-path", path,
       "cache-file", cache_file,
       "flags", flags,
@@ -902,7 +851,6 @@ gum_darwin_module_new_from_blob (GBytes * blob,
                                  GumDarwinPort task,
                                  GumCpuType cpu_type,
                                  GumPtrauthSupport ptrauth_support,
-                                 guint page_size,
                                  GumDarwinModuleFlags flags,
                                  GError ** error)
 {
@@ -910,7 +858,6 @@ gum_darwin_module_new_from_blob (GBytes * blob,
       "task", task,
       "cpu-type", cpu_type,
       "ptrauth-support", ptrauth_support,
-      "page-size", page_size,
       "source-blob", blob,
       "flags", flags,
       NULL);
@@ -921,7 +868,6 @@ gum_darwin_module_new_from_memory (const gchar * name,
                                    GumDarwinPort task,
                                    GumCpuType cpu_type,
                                    GumPtrauthSupport ptrauth_support,
-                                   guint page_size,
                                    GumAddress base_address,
                                    GumDarwinModuleFlags flags,
                                    GError ** error)
@@ -931,7 +877,6 @@ gum_darwin_module_new_from_memory (const gchar * name,
       "task", task,
       "cpu-type", cpu_type,
       "ptrauth-support", ptrauth_support,
-      "page-size", page_size,
       "base-address", base_address,
       "flags", flags,
       NULL);
@@ -1251,7 +1196,6 @@ gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
   symtab = self->symtab;
   if (symtab == NULL)
     goto beach;
-
 
   slide = gum_darwin_module_get_slide (self);
 
@@ -1814,6 +1758,12 @@ gum_darwin_module_enumerate_init_pointers (GumDarwinModule * self,
                                            GumFoundDarwinInitPointersFunc func,
                                            gpointer user_data)
 {
+  if (GUM_DARWIN_MODULE_HAS_HEADER_ONLY (self) ||
+      !gum_darwin_module_ensure_image_loaded (self, NULL))
+  {
+    return;
+  }
+
   GumEmitInitPointersContext ctx;
   ctx.func = func;
   ctx.user_data = user_data;
@@ -1827,6 +1777,12 @@ gum_darwin_module_enumerate_term_pointers (GumDarwinModule * self,
                                            GumFoundDarwinTermPointersFunc func,
                                            gpointer user_data)
 {
+  if (GUM_DARWIN_MODULE_HAS_HEADER_ONLY (self) ||
+      !gum_darwin_module_ensure_image_loaded (self, NULL))
+  {
+    return;
+  }
+
   GumEmitTermPointersContext ctx;
   ctx.func = func;
   ctx.user_data = user_data;
@@ -1958,7 +1914,6 @@ gum_darwin_module_ensure_image_loaded (GumDarwinModule * self,
 static gboolean
 gum_darwin_module_try_load_image_from_cache (GumDarwinModule * self,
                                              const gchar * name,
-                                             GumCpuType cpu_type,
                                              GMappedFile * cache_file)
 {
   guint8 * cache;
@@ -2020,7 +1975,6 @@ gum_darwin_module_try_load_image_from_cache (GumDarwinModule * self,
 static gboolean
 gum_darwin_module_load_image_from_filesystem (GumDarwinModule * self,
                                               const gchar * path,
-                                              GumCpuType cpu_type,
                                               GError ** error)
 {
   gboolean success;
@@ -2056,7 +2010,6 @@ gum_darwin_module_load_image_from_filesystem (GumDarwinModule * self,
 static gboolean
 gum_darwin_module_load_image_header_from_filesystem (GumDarwinModule * self,
                                                      const gchar * path,
-                                                     GumCpuType cpu_type,
                                                      GError ** error)
 {
   gboolean success;
@@ -2159,7 +2112,7 @@ gum_darwin_module_get_header_offset_size (GumDarwinModule * self,
         if (found)
         {
           *out_offset = offset;
-          *out_size = (self->pointer_size == 8)
+          *out_size = (gum_pointer_size_from_cpu_type (cpu_type) == 8)
               ? sizeof (GumMachHeader64)
               : sizeof (GumMachHeader32);
         }
@@ -2389,31 +2342,36 @@ gum_darwin_module_can_load (GumDarwinModule * self,
                             GumDarwinCpuType cpu_type,
                             GumDarwinCpuSubtype cpu_subtype)
 {
-  switch (self->cpu_type)
+  GumCpuType canonical_cpu_type;
+  gboolean allow_any_cpu, allow_any_ptrauth;
+
+  canonical_cpu_type = gum_cpu_type_from_darwin (cpu_type);
+
+  allow_any_cpu = self->cpu_type == GUM_CPU_INVALID;
+  if (allow_any_cpu)
   {
-    case GUM_CPU_IA32:
-      return cpu_type == GUM_DARWIN_CPU_X86;
-    case GUM_CPU_AMD64:
-      return cpu_type == GUM_DARWIN_CPU_X86_64;
-    case GUM_CPU_ARM:
-      return cpu_type == GUM_DARWIN_CPU_ARM;
-    case GUM_CPU_ARM64:
-    {
-      GumPtrauthSupport ptrauth_support;
-
-      if (cpu_type != GUM_DARWIN_CPU_ARM64)
-        return FALSE;
-
-      ptrauth_support = (cpu_subtype == GUM_DARWIN_CPU_SUBTYPE_ARM64E)
-          ? GUM_PTRAUTH_SUPPORTED
-          : GUM_PTRAUTH_UNSUPPORTED;
-
-      return ptrauth_support == self->ptrauth_support;
-    }
-    default:
-      g_assert_not_reached ();
+    gboolean is_supported = canonical_cpu_type != GUM_CPU_INVALID;
+    if (!is_supported)
       return FALSE;
   }
+  else
+  {
+    gboolean matches_selected_cpu = canonical_cpu_type == self->cpu_type;
+    if (!matches_selected_cpu)
+      return FALSE;
+  }
+
+  allow_any_ptrauth = self->ptrauth_support == GUM_PTRAUTH_INVALID;
+  if (!allow_any_ptrauth)
+  {
+    gboolean matches_selected_ptrauth =
+        gum_ptrauth_support_from_darwin (cpu_type, cpu_subtype)
+        == self->ptrauth_support;
+    if (!matches_selected_ptrauth)
+      return FALSE;
+  }
+
+  return TRUE;
 }
 
 static gboolean
@@ -2430,6 +2388,18 @@ gum_darwin_module_take_image (GumDarwinModule * self,
   self->image = image;
 
   header = (GumMachHeader32 *) image->data;
+
+  if (self->cpu_type == GUM_CPU_INVALID)
+    self->cpu_type = gum_cpu_type_from_darwin (header->cputype);
+
+  if (self->ptrauth_support == GUM_PTRAUTH_INVALID)
+  {
+    self->ptrauth_support =
+        gum_ptrauth_support_from_darwin (header->cputype, header->cpusubtype);
+  }
+
+  self->pointer_size = gum_pointer_size_from_cpu_type (header->cputype);
+
   if (header->magic == GUM_MH_MAGIC_32)
     command = (GumMachHeader32 *) image->data + 1;
   else
@@ -3075,4 +3045,52 @@ gum_darwin_module_flags_get_type (void)
   }
 
   return (GType) gonce_value;
+}
+
+static GumCpuType
+gum_cpu_type_from_darwin (GumDarwinCpuType cpu_type)
+{
+  switch (cpu_type)
+  {
+    case GUM_DARWIN_CPU_X86:
+      return GUM_CPU_IA32;
+    case GUM_DARWIN_CPU_X86_64:
+      return GUM_CPU_AMD64;
+    case GUM_DARWIN_CPU_ARM:
+      return GUM_CPU_ARM;
+    case GUM_DARWIN_CPU_ARM64:
+      return GUM_CPU_ARM64;
+    default:
+      return GUM_CPU_INVALID;
+  }
+}
+
+static GumPtrauthSupport
+gum_ptrauth_support_from_darwin (GumDarwinCpuType cpu_type,
+                                 GumDarwinCpuSubtype cpu_subtype)
+{
+  if (cpu_type == GUM_DARWIN_CPU_ARM64)
+  {
+    return (cpu_subtype == GUM_DARWIN_CPU_SUBTYPE_ARM64E)
+        ? GUM_PTRAUTH_SUPPORTED
+        : GUM_PTRAUTH_UNSUPPORTED;
+  }
+
+  return GUM_PTRAUTH_UNSUPPORTED;
+}
+
+static guint
+gum_pointer_size_from_cpu_type (GumDarwinCpuType cpu_type)
+{
+  switch (cpu_type)
+  {
+    case GUM_DARWIN_CPU_X86:
+    case GUM_DARWIN_CPU_ARM:
+      return 4;
+    case GUM_DARWIN_CPU_X86_64:
+    case GUM_DARWIN_CPU_ARM64:
+      return 8;
+    default:
+      return 0;
+  }
 }

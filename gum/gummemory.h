@@ -34,6 +34,7 @@ typedef gboolean (* GumMemoryIsNearFunc) (gpointer memory, gpointer address);
 
 enum _GumPtrauthSupport
 {
+  GUM_PTRAUTH_INVALID,
   GUM_PTRAUTH_UNSUPPORTED,
   GUM_PTRAUTH_SUPPORTED
 };
