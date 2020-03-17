@@ -829,7 +829,6 @@ gum_darwin_module_set_property (GObject * object,
 
 GumDarwinModule *
 gum_darwin_module_new_from_file (const gchar * path,
-                                 GumDarwinPort task,
                                  GumCpuType cpu_type,
                                  GumPtrauthSupport ptrauth_support,
                                  GMappedFile * cache_file,
@@ -837,7 +836,6 @@ gum_darwin_module_new_from_file (const gchar * path,
                                  GError ** error)
 {
   return g_initable_new (GUM_TYPE_DARWIN_MODULE, NULL, error,
-      "task", task,
       "cpu-type", cpu_type,
       "ptrauth-support", ptrauth_support,
       "source-path", path,
@@ -848,14 +846,12 @@ gum_darwin_module_new_from_file (const gchar * path,
 
 GumDarwinModule *
 gum_darwin_module_new_from_blob (GBytes * blob,
-                                 GumDarwinPort task,
                                  GumCpuType cpu_type,
                                  GumPtrauthSupport ptrauth_support,
                                  GumDarwinModuleFlags flags,
                                  GError ** error)
 {
   return g_initable_new (GUM_TYPE_DARWIN_MODULE, NULL, error,
-      "task", task,
       "cpu-type", cpu_type,
       "ptrauth-support", ptrauth_support,
       "source-blob", blob,
@@ -866,8 +862,6 @@ gum_darwin_module_new_from_blob (GBytes * blob,
 GumDarwinModule *
 gum_darwin_module_new_from_memory (const gchar * name,
                                    GumDarwinPort task,
-                                   GumCpuType cpu_type,
-                                   GumPtrauthSupport ptrauth_support,
                                    GumAddress base_address,
                                    GumDarwinModuleFlags flags,
                                    GError ** error)
@@ -875,8 +869,6 @@ gum_darwin_module_new_from_memory (const gchar * name,
   return g_initable_new (GUM_TYPE_DARWIN_MODULE, NULL, error,
       "name", name,
       "task", task,
-      "cpu-type", cpu_type,
-      "ptrauth-support", ptrauth_support,
       "base-address", base_address,
       "flags", flags,
       NULL);

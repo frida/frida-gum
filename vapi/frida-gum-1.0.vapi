@@ -608,9 +608,9 @@ namespace Gum {
 			HEADER_ONLY = (1 << 0),
 		}
 
-		public DarwinModule.from_file (string path, Gum.DarwinPort task, Gum.CpuType cpu_type, Gum.PtrauthSupport ptrauth_support, GLib.MappedFile? cache_file = null, Gum.DarwinModule.Flags flags = NONE) throws GLib.Error;
-		public DarwinModule.from_blob (GLib.Bytes blob, Gum.DarwinPort task, Gum.CpuType cpu_type, Gum.PtrauthSupport ptrauth_support, Gum.DarwinModule.Flags flags = NONE) throws GLib.Error;
-		public DarwinModule.from_memory (string? name, Gum.DarwinPort task, Gum.CpuType cpu_type, Gum.PtrauthSupport ptrauth_support, Gum.Address base_address, Gum.DarwinModule.Flags flags = NONE) throws GLib.Error;
+		public DarwinModule.from_file (string path, Gum.CpuType cpu_type, Gum.PtrauthSupport ptrauth_support, GLib.MappedFile? cache_file = null, Gum.DarwinModule.Flags flags = NONE) throws GLib.Error;
+		public DarwinModule.from_blob (GLib.Bytes blob, Gum.CpuType cpu_type, Gum.PtrauthSupport ptrauth_support, Gum.DarwinModule.Flags flags = NONE) throws GLib.Error;
+		public DarwinModule.from_memory (string? name, Gum.DarwinPort task, Gum.Address base_address, Gum.DarwinModule.Flags flags = NONE) throws GLib.Error;
 
 		public bool resolve_export (string symbol, out Gum.DarwinExportDetails details);
 		public Gum.Address resolve_symbol_address (string symbol);

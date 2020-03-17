@@ -374,9 +374,8 @@ gum_darwin_mapper_new_take_blob (const gchar * name,
   GumDarwinModule * module;
   GumDarwinMapper * mapper;
 
-  module = gum_darwin_module_new_from_blob (blob, resolver->task,
-      resolver->cpu_type, resolver->ptrauth_support,
-      GUM_DARWIN_MODULE_FLAGS_NONE, error);
+  module = gum_darwin_module_new_from_blob (blob, resolver->cpu_type,
+      resolver->ptrauth_support, GUM_DARWIN_MODULE_FLAGS_NONE, error);
   if (module == NULL)
     goto malformed_blob;
 
@@ -427,9 +426,9 @@ gum_darwin_mapper_new_from_file_with_parent (GumDarwinMapper * parent,
         : NULL;
   }
 
-  module = gum_darwin_module_new_from_file (path, resolver->task,
-      resolver->cpu_type, resolver->ptrauth_support, cache_file,
-      GUM_DARWIN_MODULE_FLAGS_NONE, error);
+  module = gum_darwin_module_new_from_file (path, resolver->cpu_type,
+      resolver->ptrauth_support, cache_file, GUM_DARWIN_MODULE_FLAGS_NONE,
+      error);
   if (module == NULL)
     goto beach;
 
@@ -660,6 +659,7 @@ gum_darwin_mapper_map (GumDarwinMapper * self,
   GumAddress macho_base_address;
   GSList * cur;
   GumDarwinModule * module = self->module;
+  mach_port_t task = self->resolver->task;
   guint i;
   mach_vm_address_t mapped_address;
   vm_prot_t cur_protection, max_protection;
@@ -717,13 +717,13 @@ gum_darwin_mapper_map (GumDarwinMapper * self,
         (s->file_offset != 0) ? s->file_offset - self->image->source_offset : 0;
 
     mapped_address = segment_address;
-    kr = mach_vm_remap (module->task, &mapped_address, s->file_size, 0,
+    kr = mach_vm_remap (task, &mapped_address, s->file_size, 0,
         VM_FLAGS_OVERWRITE, mach_task_self (),
         (vm_offset_t) (self->image->data + file_offset), TRUE, &cur_protection,
         &max_protection, VM_INHERIT_COPY);
     GUM_CHECK_MACH_RESULT (kr, ==, KERN_SUCCESS, "mach_vm_remap(segment)");
 
-    kr = mach_vm_protect (module->task, segment_address, s->vm_size, FALSE,
+    kr = mach_vm_protect (task, segment_address, s->vm_size, FALSE,
         s->protection);
     GUM_CHECK_MACH_RESULT (kr, ==, KERN_SUCCESS, "mach_vm_protect(segment)");
   }
@@ -735,27 +735,26 @@ gum_darwin_mapper_map (GumDarwinMapper * self,
         &g_array_index (shared_segments, GumDarwinModuleImageSegment, i);
 
     mapped_address = macho_base_address + s->offset;
-    kr = mach_vm_remap (module->task, &mapped_address, s->size, 0,
-        VM_FLAGS_OVERWRITE, mach_task_self (),
-        (vm_offset_t) (self->image->data + s->offset), TRUE, &cur_protection,
-        &max_protection, VM_INHERIT_COPY);
+    kr = mach_vm_remap (task, &mapped_address, s->size, 0, VM_FLAGS_OVERWRITE,
+        mach_task_self (), (vm_offset_t) (self->image->data + s->offset), TRUE,
+        &cur_protection, &max_protection, VM_INHERIT_COPY);
     GUM_CHECK_MACH_RESULT (kr, ==, KERN_SUCCESS,
         "mach_vm_remap(shared_segment)");
 
-    kr = mach_vm_protect (module->task, macho_base_address + s->offset, s->size,
-        FALSE, s->protection);
+    kr = mach_vm_protect (task, macho_base_address + s->offset, s->size, FALSE,
+        s->protection);
     GUM_CHECK_MACH_RESULT (kr, ==, KERN_SUCCESS,
         "mach_vm_protect(shared_segment)");
   }
 
   if (gum_query_is_rwx_supported () || !gum_code_segment_is_supported ())
   {
-    kr = mach_vm_write (module->task, self->runtime_address,
+    kr = mach_vm_write (task, self->runtime_address,
         (vm_offset_t) self->runtime, self->runtime_file_size);
     GUM_CHECK_MACH_RESULT (kr, ==, KERN_SUCCESS, "mach_vm_write(runtime)");
 
-    kr = mach_vm_protect (module->task, self->runtime_address,
-        self->runtime_vm_size, FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
+    kr = mach_vm_protect (task, self->runtime_address, self->runtime_vm_size,
+        FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
     GUM_CHECK_MACH_RESULT (kr, ==, KERN_SUCCESS, "mach_vm_protect(runtime)");
   }
   else
@@ -772,7 +771,7 @@ gum_darwin_mapper_map (GumDarwinMapper * self,
     gum_code_segment_map (segment, 0, self->runtime_vm_size, scratch_page);
 
     mapped_address = self->runtime_address;
-    kr = mach_vm_remap (module->task, &mapped_address, self->runtime_vm_size, 0,
+    kr = mach_vm_remap (task, &mapped_address, self->runtime_vm_size, 0,
         VM_FLAGS_OVERWRITE, mach_task_self (), (mach_vm_address_t) scratch_page,
         FALSE, &cur_protection, &max_protection, VM_INHERIT_COPY);
 

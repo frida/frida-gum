@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -450,8 +450,7 @@ gum_kernel_enumerate_kexts (GumFoundKextFunc func,
     if (*kext->name == '\0')
       continue;
 
-    module = gum_darwin_module_new_from_memory (kext->name, task, GUM_CPU_ARM64,
-        gum_query_ptrauth_support (), kext->address,
+    module = gum_darwin_module_new_from_memory (kext->name, task, kext->address,
         GUM_DARWIN_MODULE_FLAGS_NONE, NULL);
 
     if (module == NULL)
@@ -670,8 +669,7 @@ gum_kernel_get_module (void)
   base = gum_kernel_find_base_address ();
 
   gum_kernel_cached_module = gum_darwin_module_new_from_memory ("Kernel", task,
-      GUM_CPU_ARM64, gum_query_ptrauth_support (), base,
-      GUM_DARWIN_MODULE_FLAGS_NONE, NULL);
+      base, GUM_DARWIN_MODULE_FLAGS_NONE, NULL);
 
   return gum_kernel_cached_module;
 }
