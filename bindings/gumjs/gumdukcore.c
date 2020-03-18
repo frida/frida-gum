@@ -2304,17 +2304,17 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_sign)
 
   value = gumjs_native_pointer_from_args (args)->value;
 
-  key = "asia";
+  key = "ia";
   data = NULL;
   _gum_duk_args_parse (args, "|sp", &key, &data);
 
-  if (strcmp (key, "asia") == 0)
+  if (strcmp (key, "ia") == 0)
     value = ptrauth_sign_unauthenticated (value, ptrauth_key_asia, data);
-  else if (strcmp (key, "asib") == 0)
+  else if (strcmp (key, "ib") == 0)
     value = ptrauth_sign_unauthenticated (value, ptrauth_key_asib, data);
-  else if (strcmp (key, "asda") == 0)
+  else if (strcmp (key, "da") == 0)
     value = ptrauth_sign_unauthenticated (value, ptrauth_key_asda, data);
-  else if (strcmp (key, "asdb") == 0)
+  else if (strcmp (key, "db") == 0)
     value = ptrauth_sign_unauthenticated (value, ptrauth_key_asdb, data);
   else
     _gum_duk_throw (ctx, "invalid key");
@@ -2335,16 +2335,16 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_strip)
 
   value = gumjs_native_pointer_from_args (args)->value;
 
-  key = "asia";
+  key = "ia";
   _gum_duk_args_parse (args, "|s", &key);
 
-  if (strcmp (key, "asia") == 0)
+  if (strcmp (key, "ia") == 0)
     value = ptrauth_strip (value, ptrauth_key_asia);
-  else if (strcmp (key, "asib") == 0)
+  else if (strcmp (key, "ib") == 0)
     value = ptrauth_strip (value, ptrauth_key_asib);
-  else if (strcmp (key, "asda") == 0)
+  else if (strcmp (key, "da") == 0)
     value = ptrauth_strip (value, ptrauth_key_asda);
-  else if (strcmp (key, "asdb") == 0)
+  else if (strcmp (key, "db") == 0)
     value = ptrauth_strip (value, ptrauth_key_asdb);
   else
     _gum_duk_throw (ctx, "invalid key");

@@ -1908,13 +1908,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_sign)
     return;
 
   bool valid = true;
-  if (key == NULL || strcmp (key, "asia") == 0)
+  if (key == NULL || strcmp (key, "ia") == 0)
     value = ptrauth_sign_unauthenticated (value, ptrauth_key_asia, data);
-  else if (strcmp (key, "asib") == 0)
+  else if (strcmp (key, "ib") == 0)
     value = ptrauth_sign_unauthenticated (value, ptrauth_key_asib, data);
-  else if (strcmp (key, "asda") == 0)
+  else if (strcmp (key, "da") == 0)
     value = ptrauth_sign_unauthenticated (value, ptrauth_key_asda, data);
-  else if (strcmp (key, "asdb") == 0)
+  else if (strcmp (key, "db") == 0)
     value = ptrauth_sign_unauthenticated (value, ptrauth_key_asdb, data);
   else
     valid = false;
@@ -1943,13 +1943,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_strip)
     return;
 
   bool valid = true;
-  if (key == NULL || strcmp (key, "asia") == 0)
+  if (key == NULL || strcmp (key, "ia") == 0)
     value = ptrauth_strip (value, ptrauth_key_asia);
-  else if (strcmp (key, "asib") == 0)
+  else if (strcmp (key, "ib") == 0)
     value = ptrauth_strip (value, ptrauth_key_asib);
-  else if (strcmp (key, "asda") == 0)
+  else if (strcmp (key, "da") == 0)
     value = ptrauth_strip (value, ptrauth_key_asda);
-  else if (strcmp (key, "asdb") == 0)
+  else if (strcmp (key, "db") == 0)
     value = ptrauth_strip (value, ptrauth_key_asdb);
   else
     valid = false;
