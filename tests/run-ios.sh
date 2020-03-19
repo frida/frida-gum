@@ -7,9 +7,9 @@ remote_prefix=/usr/local/opt/frida-tests-$arch
 
 gum_tests=$(dirname "$0")
 
-cd "$gum_tests/../../build/tmp_thin-ios-$arch/frida-gum" || exit 1
+cd "$gum_tests/../../build/tmp-ios-$arch/frida-gum" || exit 1
 
-. ../../frida_thin-meson-env-macos-x86_64.rc
+. ../../frida-meson-env-macos-x86_64.rc
 ninja || exit 1
 
 cd tests
