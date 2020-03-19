@@ -11,6 +11,40 @@ namespace Gum {
 	public void recover_from_fork_in_parent ();
 	public void recover_from_fork_in_child ();
 
+	public void * sign_code_pointer (void * value);
+	public void * strip_code_pointer (void * value);
+	public Gum.Address sign_code_address (Gum.Address value);
+	public Gum.Address strip_code_address (Gum.Address value);
+	public Gum.PtrauthSupport query_ptrauth_support ();
+
+	public uint query_page_size ();
+	public bool query_is_rwx_supported ();
+	public Gum.RwxSupport query_rwx_support ();
+
+	public void ensure_code_readable (void * address, size_t size);
+
+	public void mprotect (void * address, size_t size, Gum.PageProtection page_prot);
+	public bool try_mprotect (void * address, size_t size, Gum.PageProtection page_prot);
+
+	public void clear_cache (void * address, size_t size);
+
+	public uint peek_private_memory_usage ();
+
+	public void * malloc (size_t size);
+	public void * malloc0 (size_t size);
+	public void * calloc (size_t count, size_t size);
+	public void * realloc (void * mem, size_t size);
+	public void * memalign (size_t alignment, size_t size);
+	public void * memdup (void * mem, size_t byte_size);
+	public void free (void * mem);
+
+	public void * alloc_n_pages (uint n_pages, Gum.PageProtection page_prot);
+	public void * try_alloc_n_pages (uint n_pages, Gum.PageProtection page_prot);
+	public void * alloc_n_pages_near (uint n_pages, Gum.PageProtection page_prot, Gum.AddressSpec address_spec);
+	public void * try_alloc_n_pages_near (uint n_pages, Gum.PageProtection page_prot, Gum.AddressSpec address_spec);
+	public void query_page_allocation_range (void * mem, uint size, out Gum.MemoryRange range);
+	public void free_pages (void * mem);
+
 	[CCode (cprefix = "GUM_CODE_SIGNING_")]
 	public enum CodeSigningPolicy {
 		OPTIONAL,
@@ -38,6 +72,13 @@ namespace Gum {
 		INVALID,
 		UNSUPPORTED,
 		SUPPORTED
+	}
+
+	[CCode (cprefix = "GUM_RWX_")]
+	public enum RwxSupport {
+		NONE,
+		ALLOCATIONS_ONLY,
+		FULL
 	}
 
 	public class Interceptor : GLib.Object {
@@ -207,11 +248,27 @@ namespace Gum {
 	}
 
 	namespace Memory {
+		public bool is_readable (void * address, size_t len);
 		public uint8[] read (Address address, size_t len);
 		public bool write (Address address, uint8[] bytes);
+		public bool patch_code (void * address, size_t size, Gum.Memory.PatchApplyFunc apply);
+		public bool mark_code (void * address, size_t size);
+
 		public void scan (Gum.MemoryRange range, Gum.MatchPattern pattern, Gum.Memory.ScanMatchFunc func);
 
+		public void * allocate (void * address, size_t size, size_t alignment, Gum.PageProtection page_prot);
+		public bool free (void * address, size_t size);
+		public bool release (void * address, size_t size);
+		public bool commit (void * address, size_t size, Gum.PageProtection page_prot);
+		public bool decommit (void * address, size_t size);
+
+		public delegate void PatchApplyFunc (void * mem);
 		public delegate bool ScanMatchFunc (Address address, size_t size);
+	}
+
+	namespace InternalHeap {
+		public void ref ();
+		public void unref ();
 	}
 
 	namespace Cloak {
@@ -432,6 +489,16 @@ namespace Gum {
 		public static Gum.Address from_pointer (void * p) {
 			return (Gum.Address) (uintptr) p;
 		}
+	}
+
+	public struct AddressSpec {
+		public AddressSpec (void * near_address, size_t max_distance) {
+			this.near_address = near_address;
+			this.max_distance = max_distance;
+		}
+
+		public void * near_address;
+		public size_t max_distance;
 	}
 
 	public struct MemoryRange {
