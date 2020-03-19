@@ -1904,7 +1904,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_sign)
 
   gchar * key = NULL;
   gpointer data = NULL;
-  if (!_gum_v8_args_parse (args, "|sp", &key, &data))
+  if (!_gum_v8_args_parse (args, "|sp~", &key, &data))
     return;
 
   bool valid = true;

@@ -2306,7 +2306,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_sign)
 
   key = "ia";
   data = NULL;
-  _gum_duk_args_parse (args, "|sp", &key, &data);
+  _gum_duk_args_parse (args, "|sp~", &key, &data);
 
   if (strcmp (key, "ia") == 0)
     value = ptrauth_sign_unauthenticated (value, ptrauth_key_asia, data);
