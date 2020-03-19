@@ -215,6 +215,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (native_pointer_provides_is_null)
     TESTENTRY (native_pointer_provides_arithmetic_operations)
     TESTENTRY (native_pointer_provides_uint32_conversion_functionality)
+    TESTENTRY (native_pointer_provides_ptrauth_functionality)
     TESTENTRY (native_pointer_to_match_pattern)
     TESTENTRY (native_pointer_can_be_constructed_from_64bit_value)
   TESTGROUP_END ()
@@ -1524,6 +1525,62 @@ TESTCASE (native_pointer_provides_uint32_conversion_functionality)
 {
   COMPILE_AND_LOAD_SCRIPT ("send(ptr(1).toUInt32());");
   EXPECT_SEND_MESSAGE_WITH ("1");
+}
+
+TESTCASE (native_pointer_provides_ptrauth_functionality)
+{
+#ifdef HAVE_PTRAUTH
+  COMPILE_AND_LOAD_SCRIPT (
+      "var original = ptr(1);"
+
+      "var a = original.sign();"
+      "send(a.equals(original));"
+      "send(a.strip().equals(original));"
+
+      "send(original.sign('ia').equals(a));"
+      "send(original.sign('ib').equals(a));"
+      "send(original.sign('da').equals(a));"
+      "send(original.sign('db').equals(a));"
+
+      "var b = original.sign('ia', ptr(1337));"
+      "send(b.equals(a));"
+      "var c = original.sign('ia', 1337);"
+      "send(c.equals(b));"
+      "var d = original.sign('ia', ptr(1337).blend(42));"
+      "send(d.equals(b));"
+
+      "try {"
+          "original.sign('x');"
+      "} catch (e) {"
+          "send(e.message);"
+      "}");
+
+  EXPECT_SEND_MESSAGE_WITH ("false");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("false");
+  EXPECT_SEND_MESSAGE_WITH ("false");
+  EXPECT_SEND_MESSAGE_WITH ("false");
+
+  EXPECT_SEND_MESSAGE_WITH ("false");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("false");
+
+  EXPECT_SEND_MESSAGE_WITH ("\"invalid key\"");
+#else
+  COMPILE_AND_LOAD_SCRIPT (
+      "var original = ptr(1);"
+      "send(original.sign() === original);"
+      "send(original.strip() === original);"
+      "send(original.blend(42) === original);");
+
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+#endif
+
+  EXPECT_NO_MESSAGES ();
 }
 
 TESTCASE (native_pointer_to_match_pattern)

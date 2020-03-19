@@ -240,6 +240,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_shl)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_not)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_sign)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_strip)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_blend)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_compare)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_int32)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_uint32)
@@ -429,6 +430,7 @@ static const GumV8Function gumjs_native_pointer_functions[] =
   { "not", gumjs_native_pointer_not },
   { "sign", gumjs_native_pointer_sign },
   { "strip", gumjs_native_pointer_strip },
+  { "blend", gumjs_native_pointer_blend },
   { "compare", gumjs_native_pointer_compare },
   { "toInt32", gumjs_native_pointer_to_int32 },
   { "toUInt32", gumjs_native_pointer_to_uint32 },
@@ -1961,6 +1963,23 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_strip)
     _gum_v8_throw (isolate, "invalid key");
     return;
   }
+
+  info.GetReturnValue ().Set (_gum_v8_native_pointer_new (value, core));
+#else
+  info.GetReturnValue ().Set (info.This ());
+#endif
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_blend)
+{
+#ifdef HAVE_PTRAUTH
+  gpointer value = GUMJS_NATIVE_POINTER_VALUE (info.Holder ());
+
+  guint small_integer;
+  if (!_gum_v8_args_parse (args, "u", &small_integer))
+    return;
+
+  value = GSIZE_TO_POINTER (ptrauth_blend_discriminator (value, small_integer));
 
   info.GetReturnValue ().Set (_gum_v8_native_pointer_new (value, core));
 #else
