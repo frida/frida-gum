@@ -1099,7 +1099,7 @@ gum_emit_import (const GumDarwinBindDetails * details,
 
         if (item.type == GUM_DARWIN_THREADED_BIND)
         {
-          guint ordinal = item.bind.ordinal;
+          guint ordinal = item.bind_ordinal;
           GumImportDetails * d;
 
           if (ordinal >= threaded_binds->len)
@@ -1866,13 +1866,13 @@ gum_darwin_threaded_item_parse (guint64 value,
 
   if (result->type == GUM_DARWIN_THREADED_BIND)
   {
-    result->bind.ordinal = value & GUM_INT16_MASK;
+    result->bind_ordinal = value & GUM_INT16_MASK;
   }
   else if (result->type == GUM_DARWIN_THREADED_REBASE)
   {
     if (result->is_authenticated)
     {
-      result->rebase.address = value & GUM_INT32_MASK;
+      result->rebase_address = value & GUM_INT32_MASK;
     }
     else
     {
@@ -1888,7 +1888,7 @@ gum_darwin_threaded_item_parse (guint64 value,
       else
         sign_bits = 0;
 
-      result->rebase.address = top_8_bits | sign_bits | bottom_43_bits;
+      result->rebase_address = top_8_bits | sign_bits | bottom_43_bits;
     }
   }
 }

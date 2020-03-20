@@ -189,18 +189,9 @@ struct _GumDarwinThreadedItem
   gboolean has_address_diversity;
   guint16 diversity;
 
-  union
-  {
-    struct
-    {
-      guint16 ordinal;
-    } bind;
+  guint16 bind_ordinal;
 
-    struct
-    {
-      GumAddress address;
-    } rebase;
-  };
+  GumAddress rebase_address;
 };
 
 struct _GumDarwinInitPointersDetails

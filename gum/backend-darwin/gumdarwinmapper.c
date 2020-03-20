@@ -2075,7 +2075,7 @@ gum_darwin_mapper_bind_items (GumDarwinMapper * self,
 
     if (item.type == GUM_DARWIN_THREADED_BIND)
     {
-      guint ordinal = item.bind.ordinal;
+      guint ordinal = item.bind_ordinal;
 
       if (ordinal >= threaded_binds->len)
         goto invalid_data;
@@ -2084,7 +2084,7 @@ gum_darwin_mapper_bind_items (GumDarwinMapper * self,
     }
     else if (item.type == GUM_DARWIN_THREADED_REBASE)
     {
-      bound_value = item.rebase.address;
+      bound_value = item.rebase_address;
 
       if (item.is_authenticated)
         bound_value += preferred_base_address;
