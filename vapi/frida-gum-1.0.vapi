@@ -753,6 +753,21 @@ namespace Gum {
 		public int64 addend;
 	}
 
+	public struct DarwinThreadedItem {
+		public bool is_authenticated;
+		public Gum.DarwinThreadedItemType type;
+		public uint16 delta;
+		public uint8 key;
+		public bool has_address_diversity;
+		public uint16 diversity;
+
+		public uint16 bind_ordinal;
+
+		public Gum.Address rebase_address;
+
+		public static void parse (uint64 value, out Gum.DarwinThreadedItem result);
+	}
+
 	public struct DarwinInitPointersDetails {
 		public Gum.Address address;
 		public uint64 count;
@@ -806,6 +821,14 @@ namespace Gum {
 		POINTER = 1,
 		TEXT_ABSOLUTE32,
 		TEXT_PCREL32,
+		THREADED_TABLE,
+		THREADED_ITEMS,
+	}
+
+	[CCode (cprefix = "GUM_DARWIN_THREADED_")]
+	public enum DarwinThreadedItemType {
+		REBASE,
+		BIND
 	}
 
 	[CCode (cprefix = "GUM_DARWIN_BIND_")]
