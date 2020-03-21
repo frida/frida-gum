@@ -1222,9 +1222,11 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
   stack = interceptor_ctx->stack;
 
   stack_entry = gum_invocation_stack_peek_top (stack);
-  if (stack_entry != NULL && stack_entry->calling_replacement &&
-      gum_strip_code_pointer (stack_entry->invocation_context.function) ==
-      function_ctx->function_address)
+  if (stack_entry != NULL &&
+      stack_entry->calling_replacement &&
+      gum_strip_code_pointer (GUM_FUNCPTR_TO_POINTER (
+          stack_entry->invocation_context.function)) ==
+          function_ctx->function_address)
   {
     gum_tls_key_set_value (gum_interceptor_guard_key, NULL);
     *next_hop = function_ctx->on_invoke_trampoline;
