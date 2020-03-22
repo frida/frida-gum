@@ -245,6 +245,8 @@ TESTLIST_BEGIN (script)
     TESTENTRY (native_function_crash_results_in_exception)
     TESTENTRY (nested_native_function_crash_is_handled_gracefully)
     TESTENTRY (variadic_native_function_can_be_invoked)
+    TESTENTRY (variadic_native_function_args_smaller_than_int_should_be_promoted)
+    TESTENTRY (variadic_native_function_float_args_should_be_promoted_to_double)
     TESTENTRY (native_function_is_a_native_pointer)
   TESTGROUP_END ()
 
@@ -340,6 +342,8 @@ static gboolean ignore_thread (GumInterceptor * interceptor);
 static gboolean unignore_thread (GumInterceptor * interceptor);
 
 static gint gum_clobber_system_error (gint value);
+static gint gum_assert_variadic_uint8_values_are_sane (gpointer a, gpointer b,
+    gpointer c, gpointer d, ...);
 static gint gum_get_answer_to_life_universe_and_everything (void);
 static gint gum_toupper (gchar * str, gint limit);
 static gint64 gum_classify_timestamp (gint64 timestamp);
@@ -1177,7 +1181,46 @@ TESTCASE (variadic_native_function_can_be_invoked)
   EXPECT_SEND_MESSAGE_WITH ("1");
   EXPECT_SEND_MESSAGE_WITH ("6");
   EXPECT_NO_MESSAGES ();
+}
 
+TESTCASE (variadic_native_function_args_smaller_than_int_should_be_promoted)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var f = new NativeFunction(" GUM_PTR_CONST ", 'int', "
+          "['pointer', 'pointer', 'pointer', 'pointer', '...', "
+          "'uint8', 'pointer', 'uint8']);"
+      "var val = NULL.not();"
+      "send(f(val, val, val, val, 13, val, 37));",
+      gum_assert_variadic_uint8_values_are_sane);
+  EXPECT_SEND_MESSAGE_WITH ("42");
+}
+
+static gint
+gum_assert_variadic_uint8_values_are_sane (gpointer a,
+                                           gpointer b,
+                                           gpointer c,
+                                           gpointer d,
+                                           ...)
+{
+  va_list args;
+  gint e;
+  gpointer f;
+  gint g;
+
+  va_start (args, d);
+  e = va_arg (args, gint);
+  f = va_arg (args, gpointer);
+  g = va_arg (args, gint);
+  va_end (args);
+
+  g_assert_cmphex (e, ==, 13);
+  g_assert_cmphex (g, ==, 37);
+
+  return 42;
+}
+
+TESTCASE (variadic_native_function_float_args_should_be_promoted_to_double)
+{
   COMPILE_AND_LOAD_SCRIPT (
       "var sum = new NativeFunction(" GUM_PTR_CONST ", "
           "'int', ['pointer', '...', 'pointer', 'float']);"

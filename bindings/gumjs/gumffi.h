@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -167,6 +167,7 @@ G_GNUC_INTERNAL gboolean gum_ffi_try_get_type_by_name (const gchar * name,
     ffi_type ** type);
 G_GNUC_INTERNAL gboolean gum_ffi_try_get_abi_by_name (const gchar * name,
     ffi_abi * abi);
+G_GNUC_INTERNAL ffi_type * gum_ffi_maybe_promote_variadic (ffi_type * type);
 
 G_END_DECLS
 

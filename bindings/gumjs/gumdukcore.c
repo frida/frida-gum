@@ -2855,11 +2855,8 @@ gumjs_native_function_init (duk_context * ctx,
       if (!gum_duk_get_ffi_type (ctx, atype_value, atype, &func->data))
         goto invalid_argument_type;
 
-      if (is_variadic && *atype == &ffi_type_float)
-      {
-        /* Must be promoted to double in the variadic portion. */
-        *atype = &ffi_type_double;
-      }
+      if (is_variadic)
+        *atype = gum_ffi_maybe_promote_variadic (*atype);
     }
 
     duk_pop (ctx);

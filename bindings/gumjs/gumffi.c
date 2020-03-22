@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -105,4 +105,22 @@ gum_ffi_try_get_abi_by_name (const gchar * name,
   }
 
   return FALSE;
+}
+
+ffi_type *
+gum_ffi_maybe_promote_variadic (ffi_type * type)
+{
+  if (type->size < sizeof (int))
+  {
+    if (type == &ffi_type_sint8 || type == &ffi_type_sint16)
+      return &ffi_type_sint32;
+
+    if (type == &ffi_type_uint8 || type == &ffi_type_uint16)
+      return &ffi_type_uint32;
+  }
+
+  if (type == &ffi_type_float)
+    return &ffi_type_double;
+
+  return type;
 }
