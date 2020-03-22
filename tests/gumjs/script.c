@@ -2920,6 +2920,7 @@ TESTCASE (process_pointer_size_is_available)
 
 TESTCASE (process_should_support_nested_signal_handling)
 {
+#ifdef HAVE_LINUX
   gpointer page;
 
   page = gum_alloc_n_pages (1, GUM_PAGE_NO_ACCESS);
@@ -2938,6 +2939,9 @@ TESTCASE (process_should_support_nested_signal_handling)
   EXPECT_SEND_MESSAGE_WITH ("\"error\"");
 
   gum_free_pages ((gpointer) page);
+#else
+  g_print ("<skipping, only supported on Linux for now> ");
+#endif
 }
 
 TESTCASE (process_debugger_status_is_available)
