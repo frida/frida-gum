@@ -1026,6 +1026,8 @@ gum_darwin_query_all_image_infos (mach_port_t task,
 
     infos->notification_address = all_info->notification;
 
+    infos->libsystem_initialized = all_info->libsystem_initialized;
+
     infos->dyld_image_load_address = all_info->dyld_image_load_address;
 
     g_free (all_info_malloc_data);
@@ -1056,6 +1058,8 @@ gum_darwin_query_all_image_infos (mach_port_t task,
         all_info->info_array_count * DYLD_IMAGE_INFO_32_SIZE;
 
     infos->notification_address = all_info->notification;
+
+    infos->libsystem_initialized = all_info->libsystem_initialized;
 
     infos->dyld_image_load_address = all_info->dyld_image_load_address;
 

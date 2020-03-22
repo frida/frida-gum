@@ -78,6 +78,8 @@ struct _GumDarwinAllImageInfos
 
   GumAddress notification_address;
 
+  gboolean libsystem_initialized;
+
   GumAddress dyld_image_load_address;
 };
 
