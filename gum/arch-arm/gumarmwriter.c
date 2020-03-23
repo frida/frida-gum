@@ -710,12 +710,26 @@ gum_arm_writer_put_blr_reg (GumArmWriter * self, arm_reg reg)
   GumArmRegInfo ri;
 
   gum_arm_reg_describe (reg, &ri);
-
-  if (ri.width != 32)
-    return FALSE;
-
-  []\[]\[]\ FIX INSTRUCTION ENCODING!!!
-  gum_arm_writer_put_instruction (self, 0xd63f0000 | (ri.index << 5));
+  gum_arm_writer_put_instruction (self, 0xe12fff30 | ri.index);
 
   return TRUE;
+}
+
+
+void
+gum_arm_writer_put_str_reg_reg_offset (GumArmWriter * self,
+                                         arm_reg src_reg,
+                                         arm_reg dst_reg,
+                                         gsize dst_offset)
+{
+  GumArmRegInfo rs, rd;
+
+  gum_arm_reg_describe (src_reg, &rs);
+  gum_arm_reg_describe (dst_reg, &rd);
+
+  g_assert(dst_offset >= -4095);
+  g_assert(dst_offset <= 4095);
+
+  gum_arm_writer_put_instruction (self, 0xe5800000 |
+      (rd.index << 12) | rs.index << 16 | dst_offset);
 }
