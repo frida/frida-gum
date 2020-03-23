@@ -209,7 +209,7 @@ main (gint argc, gchar * argv[])
 
   if (gum_stalker_is_supported ())
   {
-#if defined (HAVE_I386) || defined (HAVE_ARM64)
+#if defined (HAVE_I386) || defined (HAVE_ARM64) || defined (HAVE_ARM)
     TESTLIST_REGISTER (stalker);
 #endif
 #ifdef HAVE_MACOS
