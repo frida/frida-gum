@@ -578,3 +578,144 @@ gum_arm_writer_put_pop_all_r_registers (GumArmWriter * self,
         ARM_REG_R12, ARM_REG_LR);
 }
 
+static void
+gum_arm_writer_put_argument_list_setup (GumArmWriter * self,
+                                          guint n_args,
+                                          const GumArgument * args)
+{
+  gint arg_index;
+
+  for (arg_index = (gint) n_args - 1; arg_index >= 0; arg_index--)
+  {
+      const GumArgument * arg = &args[arg_index];
+      arm_reg dst_reg = ARM_REG_R0 + arg_index;
+
+      if (arg->type == GUM_ARG_ADDRESS)
+      {
+          gum_arm_writer_put_ldr_reg_address (self, dst_reg,
+              arg->value.address);
+      }
+      else
+      {
+          arm_reg src_reg = arg->value.reg;
+          GumArmRegInfo rs;
+
+          gum_arm_reg_describe (src_reg, &rs);
+
+          if (src_reg != dst_reg)
+          {
+              gum_arm_writer_put_mov_reg_reg (self, dst_reg, arg->value.reg);
+          }
+      }
+  }
+}
+
+static void
+gum_arm_writer_put_argument_list_teardown (GumArmWriter * self,
+                                             guint n_args)
+{
+}
+
+static void
+gum_arm_writer_put_argument_list_setup_va (GumArmWriter * self,
+                                             guint n_args,
+                                             va_list args)
+{
+  GumArgument * arg_values;
+  guint arg_index;
+
+  arg_values = g_newa (GumArgument, n_args);
+
+  for (arg_index = 0; arg_index != n_args; arg_index++)
+  {
+    GumArgument * arg = &arg_values[arg_index];
+
+    arg->type = va_arg (args, GumArgType);
+    if (arg->type == GUM_ARG_ADDRESS)
+      arg->value.address = va_arg (args, GumAddress);
+    else if (arg->type == GUM_ARG_REGISTER)
+      arg->value.reg = va_arg (args, arm_reg);
+    else
+      g_assert_not_reached ();
+  }
+
+  gum_arm_writer_put_argument_list_setup (self, n_args, arg_values);
+}
+
+gboolean
+gum_arm_writer_can_branch_directly_between (GumArmWriter * self,
+                                              GumAddress from,
+                                              GumAddress to)
+{
+  gint distance = (gint) to - from;
+
+  return GUM_IS_WITHIN_INT26_RANGE (distance);
+}
+
+void
+gum_arm_writer_put_call_address_with_arguments (GumArmWriter * self,
+                                                  GumAddress func,
+                                                  guint n_args,
+                                                  ...)
+{
+  va_list args;
+
+  va_start (args, n_args);
+  gum_arm_writer_put_argument_list_setup_va (self, n_args, args);
+  va_end (args);
+
+  if (gum_arm_writer_can_branch_directly_between (self, self->pc, func))
+  {
+    gum_arm_writer_put_bl_imm (self, func);
+  }
+  else
+  {
+    arm_reg target = ARM_REG_R0 + n_args;
+    gum_arm_writer_put_ldr_reg_address (self, target, func);
+    gum_arm_writer_put_blr_reg (self, target);
+  }
+
+  gum_arm_writer_put_argument_list_teardown (self, n_args);
+}
+
+void
+gum_arm_writer_put_mov_reg_reg (GumArmWriter * self,
+                                  arm_reg dst_reg,
+                                  arm_reg src_reg)
+{
+    gum_arm_writer_put_add_reg_reg_imm(self, dst_reg, src_reg, 0);
+}
+
+gboolean
+gum_arm_writer_put_bl_imm (GumArmWriter * self,
+                          GumAddress target)
+{
+  gint32 distance_in_bytes, distance_in_words;
+
+  distance_in_bytes = target - (self->pc + 8);
+  if (!GUM_IS_WITHIN_INT26_RANGE (distance_in_bytes))
+    return FALSE;
+
+  distance_in_words = distance_in_bytes / 4;
+
+  gum_arm_writer_put_instruction (self, 0xeb000000 |
+      (distance_in_words & GUM_INT24_MASK));
+
+  return TRUE;
+}
+
+gboolean
+gum_arm_writer_put_blr_reg (GumArmWriter * self, arm_reg reg)
+{
+  GumArmRegInfo ri;
+
+  gum_arm_reg_describe (reg, &ri);
+
+  if (ri.width != 32)
+    return FALSE;
+
+  []\[]\[]\ FIX INSTRUCTION ENCODING!!!
+  gum_arm_writer_put_instruction (self, 0xd63f0000 | (ri.index << 5));
+
+  return TRUE;
+}
