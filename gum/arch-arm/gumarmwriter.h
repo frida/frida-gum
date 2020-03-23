@@ -107,6 +107,11 @@ GUM_API gboolean gum_arm_writer_put_bl_imm (GumArmWriter * self,
 GUM_API gboolean gum_arm_writer_put_blr_reg (GumArmWriter * self,
     arm_reg reg);
 
+GUM_API void gum_arm_writer_put_str_reg_reg_offset (
+    GumArmWriter * self, arm_reg src_reg, arm_reg dst_reg, gsize dst_offset);
+
+GUM_API void gum_arm_writer_put_ret (GumArmWriter * self);
+
 G_END_DECLS
 
 #endif

@@ -7,24 +7,17 @@
 
 #include "stalker-arm-fixture.c"
 
-#include <lzma.h>
-#ifdef HAVE_LINUX
-# include <sys/prctl.h>
-#endif
-
 TESTLIST_BEGIN (stalker)
-
-  /* EVENTS */
   TESTENTRY (no_events)
 TESTLIST_END ()
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
 
 static const guint32 flat_code[] = {
-  0xCB000000, /* SUB W0, W0, W0 */
-  0x91000400, /* ADD W0, W0, #1 */
-  0x91000400, /* ADD W0, W0, #1 */
-  0xd65f03c0  /* RET            */
+  0xe0400000, /* SUB R0, R0, R0 */
+  0xe2800001, /* ADD R0, R0, #1 */
+  0xe2800001, /* ADD R0, R0, #1 */
+  0xe1a0f00e  /* MOV PC, LR     */
 };
 
 static StalkerTestFunc

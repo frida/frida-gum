@@ -733,3 +733,9 @@ gum_arm_writer_put_str_reg_reg_offset (GumArmWriter * self,
   gum_arm_writer_put_instruction (self, 0xe5800000 |
       (rd.index << 12) | rs.index << 16 | dst_offset);
 }
+
+void
+gum_arm_writer_put_ret (GumArmWriter * self)
+{
+  gum_arm_writer_put_instruction (self, 0xe1a0f00e);
+}
