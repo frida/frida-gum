@@ -77,6 +77,24 @@ GUM_API void gum_arm_writer_put_instruction (GumArmWriter * self, guint32 insn);
 GUM_API gboolean gum_arm_writer_put_bytes (GumArmWriter * self,
     const guint8 * data, guint n);
 
+GUM_API void gum_arm_writer_put_push_registers (GumArmWriter * self, guint cnt,
+    ...);
+
+GUM_API void gum_arm_writer_put_pop_registers (GumArmWriter * self, guint cnt,
+    ...);
+
+GUM_API void gum_arm_writer_put_mov_cpsr_to_reg (GumArmWriter * self,
+    arm_reg reg);
+
+GUM_API void gum_arm_writer_put_mov_reg_to_cpsr (GumArmWriter * self,
+    arm_reg reg);
+
+GUM_API void gum_arm_writer_put_push_all_r_registers (GumArmWriter * self,
+    guint include_flags);
+
+GUM_API void gum_arm_writer_put_pop_all_r_registers (GumArmWriter * self,
+    guint include_flags);
+
 G_END_DECLS
 
 #endif

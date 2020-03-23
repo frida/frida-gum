@@ -485,3 +485,96 @@ gum_arm_writer_commit_literals (GumArmWriter * self)
 
   gum_metal_array_remove_all (&self->literal_refs);
 }
+
+void
+gum_arm_writer_put_push_registers (GumArmWriter * self, guint cnt, ...)
+{
+    va_list regs;
+    GumArmRegInfo ri;
+    va_start(regs, cnt);
+    arm_reg reg;
+    gushort mask = 0;
+
+    for (guint idx = 0; idx < cnt; idx++)
+    {
+        reg = va_arg(regs, arm_reg);
+        gum_arm_reg_describe (reg, &ri);
+        mask |= 1 << ri.index;
+    }
+
+    gum_arm_writer_put_instruction (self, 0xe92d0000 | mask);
+
+    va_end(regs);
+}
+
+void
+gum_arm_writer_put_pop_registers (GumArmWriter * self, guint cnt, ...)
+{
+    va_list regs;
+    GumArmRegInfo ri;
+    va_start(regs, cnt);
+    arm_reg reg;
+    gushort mask = 0;
+
+    for (guint idx = 0; idx < cnt; idx++)
+    {
+        reg = va_arg(regs, arm_reg);
+        gum_arm_reg_describe (reg, &ri);
+        mask |= 1 << ri.index;
+    }
+
+    gum_arm_writer_put_instruction (self, 0xe8bd0000 | mask);
+
+    va_end(regs);
+}
+
+void
+gum_arm_writer_put_mov_cpsr_to_reg (GumArmWriter * self, arm_reg reg)
+{
+    GumArmRegInfo ri;
+    gum_arm_reg_describe (reg, &ri);
+    gum_arm_writer_put_instruction (self, 0xe129f000 | ri.index);
+}
+
+void
+gum_arm_writer_put_mov_reg_to_cpsr (GumArmWriter * self, arm_reg reg)
+{
+    GumArmRegInfo ri;
+    gum_arm_reg_describe (reg, &ri);
+    gum_arm_writer_put_instruction (self, 0xe10f0000 | ri.index << 16);
+}
+
+void
+gum_arm_writer_put_push_all_r_registers (GumArmWriter * self,
+    guint include_flags)
+{
+    gum_arm_writer_put_push_registers(self, 14,
+        ARM_REG_R0, ARM_REG_R1, ARM_REG_R2, ARM_REG_R3,
+        ARM_REG_R4, ARM_REG_R5, ARM_REG_R6, ARM_REG_R7,
+        ARM_REG_R8, ARM_REG_R9, ARM_REG_R10, ARM_REG_R11,
+        ARM_REG_R12, ARM_REG_LR);
+
+    if (include_flags != 0)
+    {
+        gum_arm_writer_put_mov_cpsr_to_reg(self, ARM_REG_R12);
+        gum_arm_writer_put_push_registers(self, 1, ARM_REG_R12);
+    }
+}
+
+void
+gum_arm_writer_put_pop_all_r_registers (GumArmWriter * self,
+    guint include_flags)
+{
+    if (include_flags != 0)
+    {
+        gum_arm_writer_put_pop_registers(self, 1, ARM_REG_R12);
+        gum_arm_writer_put_mov_reg_to_cpsr(self, ARM_REG_R12);
+    }
+
+    gum_arm_writer_put_pop_registers(self, 14,
+        ARM_REG_R0, ARM_REG_R1, ARM_REG_R2, ARM_REG_R3,
+        ARM_REG_R4, ARM_REG_R5, ARM_REG_R6, ARM_REG_R7,
+        ARM_REG_R8, ARM_REG_R9, ARM_REG_R10, ARM_REG_R11,
+        ARM_REG_R12, ARM_REG_LR);
+}
+
