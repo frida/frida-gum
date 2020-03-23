@@ -6,7 +6,11 @@ namespace Gum.Darwin {
 	public bool write (Gum.DarwinPort task, Gum.Address address, uint8[] bytes);
 
 	public bool cpu_type_from_pid (Posix.pid_t pid, out Gum.CpuType cpu_type);
+	public bool query_ptrauth_support (Gum.DarwinPort task, out Gum.PtrauthSupport ptrauth_support);
 	public bool query_page_size (Gum.DarwinPort task, out uint page_size);
+	public unowned string query_sysroot ();
+	public bool query_all_image_infos (Gum.DarwinPort task, out Gum.Darwin.AllImageInfos infos);
+	public bool query_mapped_address (Gum.DarwinPort task, Gum.Address address, out Gum.Darwin.MappingDetails details);
 
 	public Gum.Address find_entrypoint (Gum.DarwinPort task);
 
@@ -18,6 +22,27 @@ namespace Gum.Darwin {
 	public void enumerate_imports (Gum.DarwinPort task, string module_name, Gum.Module.FoundImportFunc func);
 	public void enumerate_exports (Gum.DarwinPort task, string module_name, Gum.Module.FoundExportFunc func);
 	public void enumerate_symbols (Gum.DarwinPort task, string module_name, Gum.Module.FoundSymbolFunc func);
+
+	public struct AllImageInfos {
+		int format;
+
+		Gum.Address info_array_address;
+		size_t info_array_count;
+		size_t info_array_size;
+
+		Gum.Address notification_address;
+
+		bool libsystem_initialized;
+
+		Gum.Address dyld_image_load_address;
+	}
+
+	public struct MappingDetails {
+		unowned string path;
+
+		uint64 offset;
+		uint64 size;
+	}
 
 	public class Symbolicator : GLib.Object, GLib.Initable {
 		public Symbolicator.with_path (string path, Gum.CpuType cpu_type) throws GLib.Error;
