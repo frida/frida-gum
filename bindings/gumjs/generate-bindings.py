@@ -2179,6 +2179,12 @@ writer_enums = {
             "eq", "ne", "hs", "lo", "mi", "pl", "vs", "vc",
             "hi", "ls", "ge", "lt", "gt", "le", "al",
         ]),
+        ("arm_index_mode", "GumArmIndexMode", "GUM_INDEX_", [
+            "post-adjust", "signed-offset", "pre-adjust",
+        ]),
+        ("arm_shifter", "arm_shifter", "ARM_SFT_", [
+            "asr", "lsl", "lsr", "ror",
+        ]),
     ],
     "thumb": [],
     "arm64": [
@@ -2211,7 +2217,7 @@ writer_enums = {
             "hi", "ls", "ge", "lt", "gt", "le", "al", "nv",
         ]),
         ("arm64_index_mode", "GumArm64IndexMode", "GUM_INDEX_", [
-            "post-adjust", "signed-offset", "pre-adjust",
+            "neg", "pos",
         ]),
     ],
     "mips": [
@@ -2970,6 +2976,11 @@ class MethodArgument(object):
             self.type_format = "s"
             self.type_ts = "ArmConditionCode" if type == "arm_cc" else "Arm64ConditionCode"
             converter = "condition_code"
+        elif type == "GumArmIndexMode":
+            self.type_raw = "const gchar *"
+            self.type_format = "s"
+            self.type_ts = "ArmIndexMode"
+            converter = "index_mode"
         elif type == "GumArm64IndexMode":
             self.type_raw = "const gchar *"
             self.type_format = "s"
@@ -2980,6 +2991,11 @@ class MethodArgument(object):
             self.type_format = "s"
             self.type_ts = "RelocationScenario"
             converter = "relocator_scenario"
+        elif type == "arm_shifter":
+            self.type_raw = "const gchar *"
+            self.type_format = "s"
+            self.type_ts = "arm_shifter"
+            converter = "shifter"
         else:
             raise ValueError("Unhandled type: {0}".format(type))
 

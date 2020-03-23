@@ -19,6 +19,8 @@ struct _GumArmLabelRef
 {
   gconstpointer id;
   guint32 * insn;
+  guint32 shift;
+  guint32 mask;
 };
 
 struct _GumArmLiteralRef
@@ -32,6 +34,15 @@ static void gum_arm_writer_reset_refs (GumArmWriter * self);
 static gboolean gum_arm_writer_try_commit_label_refs (GumArmWriter * self);
 static void gum_arm_writer_maybe_commit_literals (GumArmWriter * self);
 static void gum_arm_writer_commit_literals (GumArmWriter * self);
+
+static void gum_arm_writer_put_argument_list_setup (GumArmWriter * self,
+    guint n_args, const GumArgument * args);
+
+static void gum_arm_writer_put_argument_list_teardown (GumArmWriter * self,
+    guint n_args);
+
+static gboolean gum_arm_writer_can_branch_directly_between (GumArmWriter * self,
+  GumAddress from, GumAddress to);
 
 GumArmWriter *
 gum_arm_writer_new (gpointer code_address)
@@ -200,7 +211,9 @@ gum_arm_writer_put_label (GumArmWriter * self,
 
 static void
 gum_arm_writer_add_label_reference_here (GumArmWriter * self,
-                                         gconstpointer id)
+                                         gconstpointer id,
+                                         guint32 shift,
+                                         guint32 mask)
 {
   GumArmLabelRef * r;
 
@@ -209,7 +222,16 @@ gum_arm_writer_add_label_reference_here (GumArmWriter * self,
 
   r = gum_metal_array_append (&self->label_refs);
   r->id = id;
+  r->shift = shift;
+  r->mask = mask;
   r->insn = self->code;
+}
+
+gboolean
+gum_arm_writer_put_b_imm (GumArmWriter * self,
+                          GumAddress target)
+{
+  return gum_arm_writer_put_bcc_imm (self, ARM_CC_AL, target);
 }
 
 static void
@@ -229,24 +251,6 @@ gum_arm_writer_add_literal_reference_here (GumArmWriter * self,
     self->earliest_literal_insn = r->insn;
 }
 
-gboolean
-gum_arm_writer_put_b_imm (GumArmWriter * self,
-                          GumAddress target)
-{
-  gint32 distance_in_bytes, distance_in_words;
-
-  distance_in_bytes = target - (self->pc + 8);
-  if (!GUM_IS_WITHIN_INT26_RANGE (distance_in_bytes))
-    return FALSE;
-
-  distance_in_words = distance_in_bytes / 4;
-
-  gum_arm_writer_put_instruction (self, 0xea000000 |
-      (distance_in_words & GUM_INT24_MASK));
-
-  return TRUE;
-}
-
 void
 gum_arm_writer_put_bx_reg (GumArmWriter * self,
                            arm_reg reg)
@@ -262,7 +266,7 @@ void
 gum_arm_writer_put_b_label (GumArmWriter * self,
                             gconstpointer label_id)
 {
-  gum_arm_writer_add_label_reference_here (self, label_id);
+  gum_arm_writer_add_label_reference_here (self, label_id, 0, GUM_INT24_MASK);
   gum_arm_writer_put_instruction (self, 0xea000000);
 }
 
@@ -300,23 +304,28 @@ gum_arm_writer_put_add_reg_reg_imm (GumArmWriter * self,
   gum_arm_reg_describe (dst_reg, &rd);
   gum_arm_reg_describe (src_reg, &rs);
 
-  gum_arm_writer_put_instruction (self, 0xe2800000 | rd.index << 12 |
-      rs.index << 16 | (imm_val & GUM_INT12_MASK));
+  /*
+   * If the src and dst registers are the same and the immediate value is zero,
+   * then the instruction is effectively a no-op. We can therefore omit it. We
+   * handle this here, since it removes all the duplicated checking code from
+   * our callers.
+   */
+  if (src_reg != dst_reg || (imm_val & GUM_INT8_MASK) != 0)
+  {
+    gum_arm_writer_put_instruction (self, 0xe2800000 | rd.index << 12 |
+        rs.index << 16 | (imm_val & GUM_INT12_MASK));
+  }
 }
 
 void
-gum_arm_writer_put_ldr_reg_reg_imm (GumArmWriter * self,
-                                    arm_reg dst_reg,
-                                    arm_reg src_reg,
-                                    guint32 imm_val)
+gum_arm_writer_put_ldr_reg_reg_offset (GumArmWriter * self,
+                                       arm_reg dst_reg,
+                                       arm_reg src_reg,
+                                       GumArmIndexMode mode,
+                                       gsize src_offset)
 {
-  GumArmRegInfo rd, rs;
-
-  gum_arm_reg_describe (dst_reg, &rd);
-  gum_arm_reg_describe (src_reg, &rs);
-
-  gum_arm_writer_put_instruction (self, 0xe5900000 | rd.index << 12 |
-      rs.index << 16 | (imm_val & GUM_INT12_MASK));
+  gum_arm_writer_put_ldrcc_reg_reg_offset (self, ARM_CC_AL, dst_reg, src_reg,
+    mode, src_offset);
 }
 
 void
@@ -392,11 +401,12 @@ gum_arm_writer_try_commit_label_refs (GumArmWriter * self)
       return FALSE;
 
     distance = target_insn - (r->insn + 2);
-    if (!GUM_IS_WITHIN_INT24_RANGE (distance))
+    distance <<= r->shift;
+    if ((distance & (~r->mask)) != 0)
       return FALSE;
 
     insn = GUINT32_FROM_LE (*r->insn);
-    insn |= distance & GUM_INT24_MASK;
+    insn |= distance & r->mask;
     *r->insn = GUINT32_TO_LE (insn);
   }
 
@@ -484,4 +494,525 @@ gum_arm_writer_commit_literals (GumArmWriter * self)
   self->pc += (guint8 *) last_slot - (guint8 *) first_slot;
 
   gum_metal_array_remove_all (&self->literal_refs);
+}
+
+void
+gum_arm_writer_put_push_registers (GumArmWriter * self,
+                                   guint cnt,
+                                   ...)
+{
+    va_list regs;
+    GumArmRegInfo ri;
+    arm_reg reg;
+    gushort mask = 0;
+
+    va_start (regs, cnt);
+
+    for (guint idx = 0; idx < cnt; idx++)
+    {
+        reg = va_arg (regs, arm_reg);
+        gum_arm_reg_describe (reg, &ri);
+        mask |= 1 << ri.index;
+    }
+
+    gum_arm_writer_put_instruction (self, 0xe92d0000 | mask);
+
+    va_end (regs);
+}
+
+void
+gum_arm_writer_put_pop_registers (GumArmWriter * self,
+                                  guint cnt,
+                                  ...)
+{
+    va_list regs;
+    GumArmRegInfo ri;
+    arm_reg reg;
+    gushort mask = 0;
+
+    va_start (regs, cnt);
+
+    for (guint idx = 0; idx < cnt; idx++)
+    {
+        reg = va_arg (regs, arm_reg);
+        gum_arm_reg_describe (reg, &ri);
+        mask |= 1 << ri.index;
+    }
+
+    gum_arm_write_put_ldmia_registers_by_mask (self, ARM_REG_SP, mask);
+
+    va_end (regs);
+}
+
+void
+gum_arm_write_put_ldmia_registers_by_mask (GumArmWriter * self,
+                                           arm_reg reg,
+                                           gushort mask)
+{
+    GumArmRegInfo ri;
+    gum_arm_reg_describe (reg, &ri);
+    g_assert (((1 << ri.index) & mask) == 0);
+    gum_arm_writer_put_instruction (self, 0xe8b00000 | (ri.index << 16) | mask);
+}
+
+void
+gum_arm_writer_put_mov_cpsr_to_reg (GumArmWriter * self,
+                                    arm_reg reg)
+{
+    GumArmRegInfo ri;
+    gum_arm_reg_describe (reg, &ri);
+    gum_arm_writer_put_instruction (self, 0xe10f0000 | ri.index << 12);
+}
+
+void
+gum_arm_writer_put_mov_reg_to_cpsr (GumArmWriter * self,
+                                    arm_reg reg)
+{
+    GumArmRegInfo ri;
+    gum_arm_reg_describe (reg, &ri);
+    gum_arm_writer_put_instruction (self, 0xe129f000 | ri.index);
+}
+
+void
+gum_arm_writer_put_call_address_with_arguments_array (GumArmWriter * self,
+                                                      GumAddress func,
+                                                      guint n_args,
+                                                      const GumArgument * args)
+{
+  gum_arm_writer_put_argument_list_setup (self, n_args, args);
+
+  if (gum_arm_writer_can_branch_directly_between (self, self->pc, func))
+  {
+    gum_arm_writer_put_bl_imm (self, func);
+  }
+  else
+  {
+    arm_reg target = ARM_REG_R0 + n_args;
+    gum_arm_writer_put_ldr_reg_address (self, target, func);
+    gum_arm_writer_put_blr_reg (self, target);
+  }
+
+  gum_arm_writer_put_argument_list_teardown (self, n_args);
+}
+
+static void
+gum_arm_writer_put_argument_list_setup (GumArmWriter * self,
+                                        guint n_args,
+                                        const GumArgument * args)
+{
+  gint arg_index;
+
+  for (arg_index = (gint) n_args - 1; arg_index >= 0; arg_index--)
+  {
+      const GumArgument * arg = &args[arg_index];
+      arm_reg dst_reg = ARM_REG_R0 + arg_index;
+
+      if (arg->type == GUM_ARG_ADDRESS)
+      {
+          gum_arm_writer_put_ldr_reg_address (self, dst_reg,
+              arg->value.address);
+      }
+      else
+      {
+          arm_reg src_reg = arg->value.reg;
+          GumArmRegInfo rs;
+
+          gum_arm_reg_describe (src_reg, &rs);
+
+          /*
+          * If the src and dst registers are the same the instruction is
+          * effectively a no-op. We can therefore omit it. We handle this here,
+          * since it removes all the duplicated checking code from our callers.
+          */
+          if (src_reg != dst_reg)
+          {
+              gum_arm_writer_put_mov_reg_reg (self, dst_reg, arg->value.reg);
+          }
+      }
+  }
+}
+
+static void
+gum_arm_writer_put_argument_list_teardown (GumArmWriter * self,
+                                           guint n_args)
+{
+}
+
+static gboolean
+gum_arm_writer_can_branch_directly_between (GumArmWriter * self,
+                                            GumAddress from,
+                                            GumAddress to)
+{
+  gint distance = (gint) to - from;
+
+  return GUM_IS_WITHIN_INT26_RANGE (distance);
+}
+
+void
+gum_arm_writer_put_mov_reg_reg (GumArmWriter * self,
+                                arm_reg dst_reg,
+                                arm_reg src_reg)
+{
+    gum_arm_writer_put_add_reg_reg_imm (self, dst_reg, src_reg, 0);
+}
+
+gboolean
+gum_arm_writer_put_bl_imm (GumArmWriter * self,
+                           GumAddress target)
+{
+  gint32 distance_in_bytes, distance_in_words;
+
+  distance_in_bytes = target - (self->pc + 8);
+  if (!GUM_IS_WITHIN_INT26_RANGE (distance_in_bytes))
+    return FALSE;
+
+  distance_in_words = distance_in_bytes / 4;
+
+  gum_arm_writer_put_instruction (self, 0xeb000000 |
+      (distance_in_words & GUM_INT24_MASK));
+
+  return TRUE;
+}
+
+gboolean
+gum_arm_writer_put_blr_reg (GumArmWriter * self,
+                            arm_reg reg)
+{
+  GumArmRegInfo ri;
+
+  gum_arm_reg_describe (reg, &ri);
+  gum_arm_writer_put_instruction (self, 0xe12fff30 | ri.index);
+
+  return TRUE;
+}
+
+void
+gum_arm_writer_put_str_reg_reg_offset (GumArmWriter * self,
+                                       arm_reg src_reg,
+                                       arm_reg dst_reg,
+                                       GumArmIndexMode mode,
+                                       gsize dst_offset)
+{
+
+  gum_arm_writer_put_strcc_reg_reg_offset (self, ARM_CC_AL, src_reg,
+      dst_reg, mode, dst_offset);
+}
+
+void
+gum_arm_writer_put_strcc_reg_reg_offset (GumArmWriter * self,
+                                         arm_cc cc,
+                                         arm_reg src_reg,
+                                         arm_reg dst_reg,
+                                         GumArmIndexMode mode,
+                                         gsize dst_offset)
+{
+  guint8 cond;
+  GumArmRegInfo rs, rd;
+
+  gum_arm_cond_describe (cc, &cond);
+  gum_arm_reg_describe (src_reg, &rs);
+  gum_arm_reg_describe (dst_reg, &rd);
+
+  g_assert (dst_offset <= 4095);
+
+  gum_arm_writer_put_instruction (self, 0x05000000 |
+      (cond << 28) |
+      (mode << 23) |
+      (rs.index << 12) | rd.index << 16 |
+      dst_offset);
+}
+
+void
+gum_arm_writer_put_ret (GumArmWriter * self)
+{
+  gum_arm_writer_put_instruction (self, 0xe1a0f00e);
+}
+
+void
+gum_arm_writer_put_brk_imm (GumArmWriter * self,
+                            guint16 imm)
+{
+  gum_arm_writer_put_instruction (self, 0xe7f000f0 |
+    ((imm >> 4) << 8) | (imm & 0xf));
+}
+
+void
+gum_arm_writer_put_mov_reg_reg_sft (GumArmWriter * self,
+                                    arm_reg dst_reg,
+                                    arm_reg src_reg,
+                                    arm_shifter shift,
+                                    guint16 shift_value)
+{
+  GumArmRegInfo rd, rs;
+  guint8 scode;
+
+  gum_arm_reg_describe (dst_reg, &rd);
+  gum_arm_reg_describe (src_reg, &rs);
+  gum_arm_shifter_describe (shift, &scode);
+
+  /*
+   * If the src and dst registers are the same and the shift value is zero,
+   * then the instruction is effectively a no-op. We can therefore omit it. We
+   * handle this here, since it removes all the duplicated checking code from
+   * our callers.
+   */
+  if (shift_value != 0 || dst_reg != src_reg)
+  {
+    gum_arm_writer_put_instruction (self, 0xe1a00000 | rd.index << 12 |
+        ((shift_value & 0x1f) << 7) | (scode << 5) | rs.index);
+  }
+}
+
+void
+gum_arm_writer_put_add_reg_reg_reg_sft (GumArmWriter * self,
+                                        arm_reg dst_reg,
+                                        arm_reg src_reg1,
+                                        arm_reg src_reg2,
+                                        arm_shifter shift,
+                                        guint16 shift_value)
+{
+  GumArmRegInfo rd, rs1, rs2;
+  guint8 scode;
+
+  gum_arm_reg_describe (dst_reg, &rd);
+  gum_arm_reg_describe (src_reg1, &rs1);
+  gum_arm_reg_describe (src_reg2, &rs2);
+  gum_arm_shifter_describe (shift, &scode);
+
+  gum_arm_writer_put_instruction (self, 0xe0800000 | rd.index << 12 |
+      rs1.index << 16 | ((shift_value & 0x1f) << 7) | (scode << 5) | rs2.index);
+}
+
+void
+gum_arm_writer_put_add_reg_reg_reg (GumArmWriter * self,
+                                    arm_reg dst_reg,
+                                    arm_reg src_reg1,
+                                    arm_reg src_reg2)
+{
+  GumArmRegInfo rd, rs1, rs2;
+
+  gum_arm_reg_describe (dst_reg, &rd);
+  gum_arm_reg_describe (src_reg1, &rs1);
+  gum_arm_reg_describe (src_reg2, &rs2);
+
+  gum_arm_writer_put_instruction (self, 0xe0800000 | rd.index << 12 |
+      rs1.index << 16 | rs2.index);
+}
+
+void
+gum_arm_writer_put_sub_reg_reg_reg (GumArmWriter * self,
+                                    arm_reg dst_reg,
+                                    arm_reg src_reg1,
+                                    arm_reg src_reg2)
+{
+  GumArmRegInfo rd, rs1, rs2;
+
+  gum_arm_reg_describe (dst_reg, &rd);
+  gum_arm_reg_describe (src_reg1, &rs1);
+  gum_arm_reg_describe (src_reg2, &rs2);
+
+  gum_arm_writer_put_instruction (self, 0xe0400000 | rd.index << 12 |
+      rs1.index << 16 | rs2.index);
+}
+
+void
+gum_arm_writer_put_cmp_reg_imm (GumArmWriter * self,
+                                arm_reg dst_reg,
+                                guint32 imm_val)
+{
+  GumArmRegInfo rd;
+
+  gum_arm_reg_describe (dst_reg, &rd);
+
+  gum_arm_writer_put_instruction (self, 0xe3500000 | rd.index << 16);
+}
+
+void
+gum_arm_writer_put_bcc_label (GumArmWriter * self,
+                              arm_cc cc,
+                              gconstpointer label_id)
+{
+  guint8 cond;
+
+  gum_arm_cond_describe (cc, &cond);
+  gum_arm_writer_add_label_reference_here (self, label_id, 0, GUM_INT24_MASK);
+  gum_arm_writer_put_instruction (self, 0x0a000000 | cond << 28);
+}
+
+void
+gum_arm_writer_put_strcc_reg_label (GumArmWriter * self,
+                                    arm_cc cc,
+                                    arm_reg reg,
+                                    gconstpointer label_id)
+{
+  guint8 cond;
+  GumArmRegInfo r;
+
+  gum_arm_cond_describe (cc, &cond);
+  gum_arm_reg_describe (reg, &r);
+  gum_arm_writer_add_label_reference_here (self, label_id, 2, GUM_INT12_MASK);
+
+  gum_arm_writer_put_instruction (self, 0x058f0000 | (cond << 28) |
+      (r.index << 12));
+}
+
+void
+gum_arm_writer_put_ldrcc_reg_label (GumArmWriter * self,
+                                    arm_cc cc,
+                                    arm_reg reg,
+                                    gconstpointer label_id)
+{
+  guint8 cond;
+  GumArmRegInfo r;
+
+  gum_arm_cond_describe (cc, &cond);
+  gum_arm_reg_describe (reg, &r);
+  gum_arm_writer_add_label_reference_here (self, label_id, 2, GUM_INT12_MASK);
+
+  gum_arm_writer_put_instruction (self, 0x059f0000 | (cond << 28) |
+      (r.index << 12));
+}
+
+void
+gum_arm_writer_put_rsbs_reg_reg (GumArmWriter * self,
+                                 arm_reg dst_reg,
+                                 arm_reg src_reg)
+{
+  GumArmRegInfo rd, rs;
+
+  gum_arm_reg_describe (dst_reg, &rd);
+  gum_arm_reg_describe (src_reg, &rs);
+
+  gum_arm_writer_put_instruction (self, 0xe0700000 | rd.index << 12 |
+      rd.index << 16 | rs.index);
+}
+
+gboolean
+gum_arm_writer_put_bcc_imm (GumArmWriter * self,
+                            arm_cc cc,
+                            GumAddress target)
+{
+  gint32 distance_in_bytes, distance_in_words;
+  guint8 cond;
+
+  distance_in_bytes = target - (self->pc + 8);
+  if (!GUM_IS_WITHIN_INT26_RANGE (distance_in_bytes))
+    return FALSE;
+
+  gum_arm_cond_describe (cc,  &cond);
+  distance_in_words = distance_in_bytes / 4;
+
+  gum_arm_writer_put_instruction (self, 0x0a000000 |
+      (cond << 28) |
+      (distance_in_words & GUM_INT24_MASK));
+
+  return TRUE;
+}
+
+void
+gum_arm_writer_put_sub_reg_u16 (GumArmWriter * self,
+                                arm_reg dst_reg,
+                                guint16 val)
+{
+  gum_arm_writer_put_sub_reg_reg_imm (self, dst_reg, dst_reg,
+      0xc00 | ((val >> 8) & 0xff));
+
+  gum_arm_writer_put_sub_reg_reg_imm (self, dst_reg, dst_reg, val & 0xff);
+}
+
+void
+gum_arm_writer_put_sub_reg_reg_imm (GumArmWriter * self,
+                                    arm_reg dst_reg,
+                                    arm_reg src_reg,
+                                    guint32 imm_val)
+{
+  GumArmRegInfo rd, rs;
+
+  gum_arm_reg_describe (dst_reg, &rd);
+  gum_arm_reg_describe (src_reg, &rs);
+
+  /*
+   * If the src and dst registers are the same and the immediate value is zero,
+   * then the instruction is effectively a no-op. We can therefore omit it. We
+   * handle this here, since it removes all the duplicated checking code from
+   * our callers.
+   */
+  if (src_reg != dst_reg || (imm_val & GUM_INT8_MASK) != 0)
+  {
+    gum_arm_writer_put_instruction (self, 0xe2400000 | rd.index << 12 |
+       rs.index << 16 | (imm_val & GUM_INT12_MASK));
+  }
+}
+
+void
+gum_arm_writer_put_and_reg_reg_imm (GumArmWriter * self,
+                                    arm_reg dst_reg,
+                                    arm_reg src_reg,
+                                    guint32 imm_val)
+{
+  GumArmRegInfo rd, rs;
+
+  gum_arm_reg_describe (dst_reg, &rd);
+  gum_arm_reg_describe (src_reg, &rs);
+
+  /*
+   * If the src and dst registers are the same and the shift value is zero,
+   * then the instruction is effectively a no-op. We can therefore omit it. We
+   * handle this here, since it removes all the duplicated checking code from
+   * our callers.
+   */
+  if (src_reg != dst_reg || (imm_val & GUM_INT12_MASK) != 0)
+  {
+    gum_arm_writer_put_instruction (self, 0xe2000000 | rd.index << 12 |
+        rs.index << 16 | (imm_val & GUM_INT8_MASK));
+  }
+}
+
+void
+gum_arm_writer_put_add_reg_u16 (GumArmWriter * self,
+                                arm_reg dst_reg,
+                                guint16 val)
+{
+  gum_arm_writer_put_add_reg_reg_imm (self, dst_reg, dst_reg,
+      0xc00 | ((val >> 8) & 0xff));
+
+  gum_arm_writer_put_add_reg_reg_imm (self, dst_reg, dst_reg, val & 0xff);
+}
+
+void
+gum_arm_writer_put_add_reg_u32 (GumArmWriter * self,
+                                arm_reg dst_reg,
+                                guint32 val)
+{
+  gum_arm_writer_put_add_reg_reg_imm (self, dst_reg, dst_reg,
+      0x400 | ((val >> 24) & 0xff));
+
+  gum_arm_writer_put_add_reg_reg_imm (self, dst_reg, dst_reg,
+      0x800 | ((val >> 16) & 0xff));
+
+  gum_arm_writer_put_add_reg_reg_imm (self, dst_reg, dst_reg,
+      0xc00 | ((val >> 8) & 0xff));
+
+  gum_arm_writer_put_add_reg_reg_imm (self, dst_reg, dst_reg, val & 0xff);
+}
+
+void
+gum_arm_writer_put_ldrcc_reg_reg_offset (GumArmWriter * self,
+                                         arm_cc cc,
+                                         arm_reg dst_reg,
+                                         arm_reg src_reg,
+                                         GumArmIndexMode mode,
+                                         gsize src_offset)
+{
+  guint8 cond;
+  GumArmRegInfo rd, rs;
+
+  g_assert (src_offset <= 4095);
+
+  gum_arm_cond_describe (cc, &cond);
+  gum_arm_reg_describe (dst_reg, &rd);
+  gum_arm_reg_describe (src_reg, &rs);
+
+  gum_arm_writer_put_instruction (self, 0x05100000 | (cond << 28) |
+      (mode << 23) | rd.index << 12 | rs.index << 16 | src_offset);
 }
