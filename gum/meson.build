@@ -206,6 +206,7 @@ if host_arch == 'arm'
     'backend-arm/guminterceptor-arm.c',
     'backend-arm/gumspinlock-arm.c',
     'backend-arm/gumstalker-arm.c',
+    'backend-arm/gumstalker-arm-glue.S',
   ]
 endif
 

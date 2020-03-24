@@ -601,15 +601,6 @@ _gum_stalker_do_follow_me (GumStalker * self,
   return code_address;
 }
 
-
-void
-gum_stalker_follow_me (GumStalker * self,
-                       GumStalkerTransformer * transformer,
-                       GumEventSink * sink)
-{
-  _gum_stalker_do_follow_me(self, transformer, sink, NULL);
-}
-
 void
 gum_stalker_unfollow_me (GumStalker * self)
 {
