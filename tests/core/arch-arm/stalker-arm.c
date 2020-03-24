@@ -13,6 +13,8 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (trust_unsupported)
   TESTENTRY (deactivate_unsupported)
   TESTENTRY (activate_unsupported)
+  TESTENTRY (add_call_probe_unsupported)
+  TESTENTRY (remove_call_probe_unsupported)
 TESTLIST_END ()
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
@@ -82,5 +84,34 @@ TESTCASE (activate_unsupported)
   g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
                          "Activate/deactivate unsupported");
   gum_stalker_activate(fixture->stalker, NULL);
+  g_test_assert_expected_messages();
+}
+
+static void dummyCallProbe (GumCallSite * site, gpointer user_data)
+{
+
+}
+
+static void dummyDestroyNotify (gpointer       data)
+{
+
+}
+
+TESTCASE (add_call_probe_unsupported)
+{
+  g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
+                         "Call probes unsupported");
+  GumProbeId id = gum_stalker_add_call_probe(fixture->stalker, NULL,
+                                             dummyCallProbe,
+                                             NULL, dummyDestroyNotify);
+  g_test_assert_expected_messages();
+  g_assert_cmpuint (id, ==, 0);
+}
+
+TESTCASE (remove_call_probe_unsupported)
+{
+  g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
+                         "Call probes unsupported");
+  gum_stalker_remove_call_probe(fixture->stalker, 10);
   g_test_assert_expected_messages();
 }

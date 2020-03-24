@@ -51,7 +51,7 @@ void
 gum_stalker_set_trust_threshold (GumStalker * self,
                                  gint trust_threshold)
 {
-    g_warning("Trust threshold unsupported");
+  g_warning("Trust threshold unsupported");
 }
 
 void
@@ -106,7 +106,7 @@ void
 gum_stalker_activate (GumStalker * self,
                       gconstpointer target)
 {
-    g_warning("Activate/deactivate unsupported");
+  g_warning("Activate/deactivate unsupported");
 }
 
 void
@@ -122,6 +122,7 @@ gum_stalker_add_call_probe (GumStalker * self,
                             gpointer data,
                             GDestroyNotify notify)
 {
+  g_warning("Call probes unsupported");
   return 0;
 }
 
@@ -129,6 +130,7 @@ void
 gum_stalker_remove_call_probe (GumStalker * self,
                                GumProbeId id)
 {
+  g_warning("Call probes unsupported");
 }
 
 gboolean
