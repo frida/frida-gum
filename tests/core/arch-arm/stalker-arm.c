@@ -17,6 +17,8 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (remove_call_probe_unsupported)
   TESTENTRY (follow_unsupported)
   TESTENTRY (unfollow_unsupported)
+  TESTENTRY (exec_events_unsupported)
+  TESTENTRY (compile_events_unsupported)
 TESTLIST_END ()
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
@@ -134,3 +136,32 @@ TESTCASE (unfollow_unsupported)
   gum_stalker_unfollow(fixture->stalker, 0);
   g_test_assert_expected_messages();
 }
+
+TESTCASE (exec_events_unsupported)
+{
+  g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
+                         "Exec events unsupported");
+
+  fixture->sink->mask = GUM_EXEC;
+  GumEventType mask = gum_event_sink_query_mask((GumEventSink*)fixture->sink);
+  g_assert_cmpuint (mask & GUM_EXEC, ==, GUM_EXEC);
+
+  gum_stalker_follow_me(fixture->stalker, fixture->transformer,
+    (GumEventSink*)fixture->sink);
+  g_test_assert_expected_messages();
+}
+
+TESTCASE (compile_events_unsupported)
+{
+  g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
+                         "Compile events unsupported");
+
+  fixture->sink->mask = GUM_COMPILE;
+  GumEventType mask = gum_event_sink_query_mask((GumEventSink*)fixture->sink);
+  g_assert_cmpuint (mask & GUM_COMPILE, ==, GUM_COMPILE);
+
+  gum_stalker_follow_me(fixture->stalker, fixture->transformer,
+    (GumEventSink*)fixture->sink);
+  g_test_assert_expected_messages();
+}
+

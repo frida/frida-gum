@@ -75,6 +75,16 @@ gum_stalker_follow_me (GumStalker * self,
                        GumStalkerTransformer * transformer,
                        GumEventSink * sink)
 {
+
+  GumEventType mask = gum_event_sink_query_mask(sink);
+  if (mask & GUM_EXEC)
+  {
+    g_warning("Exec events unsupported");
+  }
+  if (mask & GUM_COMPILE)
+  {
+    g_warning("Compile events unsupported");
+  }
 }
 
 void
