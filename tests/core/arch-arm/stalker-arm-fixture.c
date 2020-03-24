@@ -80,6 +80,7 @@ test_arm_stalker_fixture_setup (TestArmStalkerFixture * fixture,
   fixture->stalker = gum_stalker_new ();
   fixture->transformer = NULL;
   fixture->sink = GUM_FAKE_EVENT_SINK (gum_fake_event_sink_new ());
+  fixture->sink->mask = 0;
 
   silence_warnings ();
 }
