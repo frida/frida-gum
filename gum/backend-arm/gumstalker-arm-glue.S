@@ -7,4 +7,5 @@ gum_stalker_follow_me:
   stmdb sp!,{lr}
   add r3, lr, #0
   bl _gum_stalker_do_follow_me
-  ldmia sp!,{pc}
+  ldmia sp!,{lr}
+  add pc, r0, #0
