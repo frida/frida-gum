@@ -1204,12 +1204,11 @@ gum_assert_variadic_uint8_values_are_sane (gpointer a,
 {
   va_list args;
   gint e;
-  gpointer f;
   gint g;
 
   va_start (args, d);
   e = va_arg (args, gint);
-  f = va_arg (args, gpointer);
+  va_arg (args, gpointer);
   g = va_arg (args, gint);
   va_end (args);
 

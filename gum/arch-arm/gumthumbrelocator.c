@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,6 +7,8 @@
 #include "gumthumbrelocator.h"
 
 #include "gummemory.h"
+
+#include <string.h>
 
 #define GUM_MAX_INPUT_INSN_COUNT (100)
 
@@ -714,7 +716,8 @@ gum_thumb_relocator_rewrite_it_block_start (GumThumbRelocator * self,
   GumThumbITBlock * block = &self->it_block;
   guint16 it_insn;
 
-  it_insn = GUINT16_FROM_LE (*((guint16 *) (gpointer) ctx->insn->bytes));
+  memcpy (&it_insn, ctx->insn->bytes, sizeof (guint16));
+  it_insn = GUINT16_FROM_LE (it_insn);
 
   gum_thumb_relocator_parse_it_block (self, block, it_insn);
 
