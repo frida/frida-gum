@@ -18,6 +18,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (follow_unsupported)
   TESTENTRY (unfollow_unsupported)
   TESTENTRY (compile_events_unsupported)
+  TESTENTRY (exec_events_generated)
 TESTLIST_END ()
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
@@ -141,12 +142,27 @@ TESTCASE (compile_events_unsupported)
   g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
                          "Compile events unsupported");
 
-  fixture->sink->mask = GUM_COMPILE;
-  GumEventType mask = gum_event_sink_query_mask((GumEventSink*)fixture->sink);
-  g_assert_cmpuint (mask & GUM_COMPILE, ==, GUM_COMPILE);
-
-  gum_stalker_follow_me(fixture->stalker, fixture->transformer,
-    (GumEventSink*)fixture->sink);
+  invoke_flat(fixture, GUM_COMPILE);
   g_test_assert_expected_messages();
 }
 
+TESTCASE (exec_events_generated)
+{
+  StalkerTestFunc func;
+  GumExecEvent * ev;
+
+  func = invoke_flat (fixture, GUM_EXEC);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 4);
+  g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
+      INVOKER_IMPL_OFFSET).type, ==, GUM_EXEC);
+  ev =
+      &g_array_index (fixture->sink->events, GumEvent, INVOKER_IMPL_OFFSET).exec;
+  GUM_ASSERT_CMPADDR (ev->location, ==, gum_strip_code_pointer (func));
+}
+
+// Test we can emit events for exec
+// Test we can emit events for block
+// Test we call virtualize bl/blr
+// Test we can virtualize ret
+// Test we can unfollow (move check to virtualize funcs)
