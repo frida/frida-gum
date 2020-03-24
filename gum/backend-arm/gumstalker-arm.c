@@ -106,11 +106,13 @@ void
 gum_stalker_activate (GumStalker * self,
                       gconstpointer target)
 {
+    g_warning("Activate/deactivate unsupported");
 }
 
 void
 gum_stalker_deactivate (GumStalker * self)
 {
+  g_warning("Activate/deactivate unsupported");
 }
 
 GumProbeId

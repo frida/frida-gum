@@ -11,6 +11,8 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (no_events)
   TESTENTRY (trust_is_zero)
   TESTENTRY (trust_unsupported)
+  TESTENTRY (deactivate_unsupported)
+  TESTENTRY (activate_unsupported)
 TESTLIST_END ()
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
@@ -64,5 +66,21 @@ TESTCASE (trust_unsupported)
   g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
                          "Trust threshold unsupported");
   gum_stalker_set_trust_threshold(fixture->stalker, 10);
+  g_test_assert_expected_messages();
+}
+
+TESTCASE (deactivate_unsupported)
+{
+  g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
+                         "Activate/deactivate unsupported");
+  gum_stalker_deactivate(fixture->stalker);
+  g_test_assert_expected_messages();
+}
+
+TESTCASE (activate_unsupported)
+{
+  g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
+                         "Activate/deactivate unsupported");
+  gum_stalker_activate(fixture->stalker, NULL);
   g_test_assert_expected_messages();
 }
