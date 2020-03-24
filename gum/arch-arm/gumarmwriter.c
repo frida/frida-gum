@@ -739,3 +739,11 @@ gum_arm_writer_put_ret (GumArmWriter * self)
 {
   gum_arm_writer_put_instruction (self, 0xe1a0f00e);
 }
+
+void
+gum_arm_writer_put_brk_imm (GumArmWriter * self,
+                              guint16 imm)
+{
+  gum_arm_writer_put_instruction (self, 0xe7f000f0 |
+    ((imm >> 4) << 8) | (imm & 0xf));
+}

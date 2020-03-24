@@ -112,6 +112,9 @@ GUM_API void gum_arm_writer_put_str_reg_reg_offset (
 
 GUM_API void gum_arm_writer_put_ret (GumArmWriter * self);
 
+GUM_API void gum_arm_writer_put_brk_imm (GumArmWriter * self,
+                                         guint16 imm);
+
 G_END_DECLS
 
 #endif
