@@ -9,6 +9,8 @@
 
 TESTLIST_BEGIN (stalker)
   TESTENTRY (no_events)
+  TESTENTRY (trust_is_zero)
+  TESTENTRY (trust_unsupported)
 TESTLIST_END ()
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
@@ -49,4 +51,18 @@ TESTCASE (no_events)
 {
   invoke_flat (fixture, GUM_NOTHING);
   g_assert_cmpuint (fixture->sink->events->len, ==, 0);
+}
+
+TESTCASE (trust_is_zero)
+{
+  gint threshold = gum_stalker_get_trust_threshold(fixture->stalker);
+  g_assert_cmpuint (threshold, ==, 0);
+}
+
+TESTCASE (trust_unsupported)
+{
+  g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
+                         "Trust threshold unsupported");
+  gum_stalker_set_trust_threshold(fixture->stalker, 10);
+  g_test_assert_expected_messages();
 }

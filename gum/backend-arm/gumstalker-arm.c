@@ -44,13 +44,14 @@ gum_stalker_exclude (GumStalker * self,
 gint
 gum_stalker_get_trust_threshold (GumStalker * self)
 {
-  return -1;
+  return 0;
 }
 
 void
 gum_stalker_set_trust_threshold (GumStalker * self,
                                  gint trust_threshold)
 {
+    g_warning("Trust threshold unsupported");
 }
 
 void
