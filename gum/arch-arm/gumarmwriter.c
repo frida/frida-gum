@@ -731,7 +731,7 @@ gum_arm_writer_put_str_reg_reg_offset (GumArmWriter * self,
   g_assert(dst_offset <= 4095);
 
   gum_arm_writer_put_instruction (self, 0xe5800000 |
-      (rd.index << 12) | rs.index << 16 | dst_offset);
+      (rs.index << 12) | rd.index << 16 | dst_offset);
 }
 
 void
