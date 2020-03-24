@@ -94,12 +94,14 @@ gum_stalker_follow (GumStalker * self,
                     GumStalkerTransformer * transformer,
                     GumEventSink * sink)
 {
+  g_warning("Follow unsupported");
 }
 
 void
 gum_stalker_unfollow (GumStalker * self,
                       GumThreadId thread_id)
 {
+  g_warning("Unfollow unsupported");
 }
 
 void
