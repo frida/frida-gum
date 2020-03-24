@@ -37,6 +37,7 @@ typedef struct _TestArmStalkerFixture
   GumFakeEventSink * sink;
 
   guint8 * code;
+  guint8 * invoker;
   guint8 * last_invoke_calladdr;
   guint8 * last_invoke_retaddr;
 } TestArmStalkerFixture;
@@ -120,9 +121,12 @@ test_arm_stalker_fixture_dup_code (TestArmStalkerFixture * fixture,
   return GUM_POINTER_TO_FUNCPTR (GCallback,
       gum_sign_code_pointer (fixture->code));
 }
+/* Total number of instructions in the invoker built by test_arm_stalker_fixture_follow_and_invoke */
+#define INVOKER_INSN_COUNT 8
 
-#define INVOKER_INSN_COUNT 6
-#define INVOKER_IMPL_OFFSET 2
+/* Offset of the first instruction within the invoker which
+should be stalked in bytes */
+#define INVOKER_IMPL_OFFSET 20
 
 /* custom invoke code as we want to stalk a deterministic code sequence */
 static gint
@@ -131,16 +135,15 @@ test_arm_stalker_fixture_follow_and_invoke (TestArmStalkerFixture * fixture,
                                               gint arg)
 {
   GumAddressSpec spec;
-  guint8 * code;
   GumArmWriter cw;
   gint ret;
   GCallback invoke_func;
 
   spec.near_address = gum_strip_code_pointer (gum_stalker_follow_me);
   spec.max_distance = G_MAXINT32 / 2;
-  code = gum_alloc_n_pages_near (1, GUM_PAGE_RW, &spec);
+  fixture->invoker = gum_alloc_n_pages_near (1, GUM_PAGE_RW, &spec);
 
-  gum_arm_writer_init (&cw, code);
+  gum_arm_writer_init (&cw, fixture->invoker);
 
   gum_arm_writer_put_push_registers (&cw, 1, ARM_REG_LR);
 
@@ -170,10 +173,11 @@ test_arm_stalker_fixture_follow_and_invoke (TestArmStalkerFixture * fixture,
   gum_arm_writer_clear (&cw);
 
   invoke_func =
-      GUM_POINTER_TO_FUNCPTR (GCallback, gum_sign_code_pointer (code));
+    GUM_POINTER_TO_FUNCPTR (GCallback,
+                            gum_sign_code_pointer (fixture->invoker));
   invoke_func ();
 
-  gum_free_pages (code);
+  gum_free_pages (fixture->invoker);
 
   return ret;
 }

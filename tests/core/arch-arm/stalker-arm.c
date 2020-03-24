@@ -148,20 +148,18 @@ TESTCASE (compile_events_unsupported)
 
 TESTCASE (exec_events_generated)
 {
-  StalkerTestFunc func;
   GumExecEvent * ev;
 
-  func = invoke_flat (fixture, GUM_EXEC);
-
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 4);
+  invoke_flat (fixture, GUM_EXEC);
+  //TODO: Update this when we can follow the call
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
-      INVOKER_IMPL_OFFSET).type, ==, GUM_EXEC);
+      0).type, ==, GUM_EXEC);
   ev =
-      &g_array_index (fixture->sink->events, GumEvent, INVOKER_IMPL_OFFSET).exec;
-  GUM_ASSERT_CMPADDR (ev->location, ==, gum_strip_code_pointer (func));
+      &g_array_index (fixture->sink->events, GumEvent, 0).exec;
+  GUM_ASSERT_CMPADDR (ev->location, ==, fixture->invoker + INVOKER_IMPL_OFFSET);
 }
 
-// Test we can emit events for exec
 // Test we can emit events for block
 // Test we call virtualize bl/blr
 // Test we can virtualize ret
