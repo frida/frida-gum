@@ -53,6 +53,7 @@ typedef guint GumOS;
 typedef guint GumCallingConvention;
 typedef guint GumAbiType;
 typedef guint GumCpuType;
+typedef guint GumCpuFeatures;
 #define GUM_TYPE_CPU_TYPE (gum_cpu_type_get_type ())
 typedef guint GumArgType;
 typedef struct _GumArgument GumArgument;
@@ -127,6 +128,12 @@ enum _GumCpuType
   GUM_CPU_ARM,
   GUM_CPU_ARM64,
   GUM_CPU_MIPS
+};
+
+enum _GumCpuFeatures
+{
+  GUM_CPU_AVX2    = 1 << 0,
+  GUM_CPU_PTRAUTH = 1 << 1,
 };
 
 enum _GumArgType
@@ -437,6 +444,8 @@ enum _GumRelocationScenario
 #define GUM_IS_WITHIN_INT32_RANGE(i) \
     (((gint64) (i)) >= (gint64) G_MININT32 && \
      ((gint64) (i)) <= (gint64) G_MAXINT32)
+
+GUM_API GumCpuFeatures gum_query_cpu_features (void);
 
 GUM_API gpointer gum_cpu_context_get_nth_argument (GumCpuContext * self,
     guint n);

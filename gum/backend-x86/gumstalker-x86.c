@@ -26,11 +26,6 @@
 # include <psapi.h>
 # include <tchar.h>
 #endif
-#ifdef _MSC_VER
-# include <intrin.h>
-#else
-# include <cpuid.h>
-#endif
 
 #define GUM_CODE_ALIGNMENT                     8
 #define GUM_DATA_ALIGNMENT                     8
@@ -60,8 +55,6 @@ typedef struct _GumInstruction GumInstruction;
 typedef struct _GumBranchTarget GumBranchTarget;
 
 typedef guint GumVirtualizationRequirements;
-
-typedef guint GumCpuFeatures;
 
 struct _GumStalker
 {
@@ -289,11 +282,6 @@ enum _GumVirtualizationRequirements
 
   GUM_REQUIRE_RELOCATION      = 1 << 0,
   GUM_REQUIRE_SINGLE_STEP     = 1 << 1
-};
-
-enum _GumCpuFeatures
-{
-  GUM_CPU_AVX2                = 1 << 0,
 };
 
 #define GUM_STALKER_LOCK(o) g_mutex_lock (&(o)->mutex)
@@ -4080,58 +4068,6 @@ gum_stalker_dump_counters (void)
   g_printerr ("\n");
 
   GUM_PRINT_ENTRYGATE_COUNTER (jmp_continuation);
-}
-
-static GumCpuFeatures
-gum_query_cpu_features (void)
-{
-  GumCpuFeatures features = 0;
-  guint a, b, c, d;
-
-  if (gum_get_cpuid (7, &a, &b, &c, &d))
-  {
-    if ((b & (1 << 5)) != 0)
-      features |= GUM_CPU_AVX2;
-  }
-
-  return features;
-}
-
-static gboolean
-gum_get_cpuid (guint level,
-               guint * a,
-               guint * b,
-               guint * c,
-               guint * d)
-{
-#ifdef _MSC_VER
-  gint info[40];
-  guint n;
-
-  __cpuid (info, 0);
-  n = info[0];
-  if (n < level)
-    return FALSE;
-
-  __cpuid (info, level);
-
-  *a = info[0];
-  *b = info[1];
-  *c = info[2];
-  *d = info[3];
-
-  return TRUE;
-#else
-  guint n;
-
-  n = __get_cpuid_max (0, NULL);
-  if (n < level)
-    return FALSE;
-
-  __cpuid_count (level, 0, *a, *b, *c, *d);
-
-  return TRUE;
-#endif
 }
 
 static gpointer

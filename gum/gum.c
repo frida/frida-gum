@@ -13,6 +13,15 @@
 #include "gumprintf.h"
 #include "gumtls-priv.h"
 #include "valgrind.h"
+#ifdef HAVE_I386
+# ifdef _MSC_VER
+#  include <intrin.h>
+# else
+#  include <cpuid.h>
+# endif
+#elif defined (HAVE_ARM64) && defined (HAVE_IOS)
+# include "backend-darwin/gumdarwin.h"
+#endif
 
 #include <ffi.h>
 #include <glib-object.h>
@@ -620,6 +629,91 @@ gum_address_free (GumAddress * address)
 {
   g_slice_free (GumAddress, address);
 }
+
+#if defined (HAVE_I386)
+
+static gboolean gum_get_cpuid (guint level, guint * a, guint * b, guint * c,
+    guint * d);
+
+GumCpuFeatures
+gum_query_cpu_features (void)
+{
+  GumCpuFeatures features = 0;
+  guint a, b, c, d;
+
+  if (gum_get_cpuid (7, &a, &b, &c, &d))
+  {
+    if ((b & (1 << 5)) != 0)
+      features |= GUM_CPU_AVX2;
+  }
+
+  return features;
+}
+
+static gboolean
+gum_get_cpuid (guint level,
+               guint * a,
+               guint * b,
+               guint * c,
+               guint * d)
+{
+#ifdef _MSC_VER
+  gint info[40];
+  guint n;
+
+  __cpuid (info, 0);
+  n = info[0];
+  if (n < level)
+    return FALSE;
+
+  __cpuid (info, level);
+
+  *a = info[0];
+  *b = info[1];
+  *c = info[2];
+  *d = info[3];
+
+  return TRUE;
+#else
+  guint n;
+
+  n = __get_cpuid_max (0, NULL);
+  if (n < level)
+    return FALSE;
+
+  __cpuid_count (level, 0, *a, *b, *c, *d);
+
+  return TRUE;
+#endif
+}
+
+#elif defined (HAVE_ARM64) && defined (HAVE_IOS)
+
+GumCpuFeatures
+gum_query_cpu_features (void)
+{
+  GumCpuFeatures features = 0;
+  GumDarwinAllImageInfos infos;
+  guint cpu_subtype;
+
+  gum_darwin_query_all_image_infos (mach_task_self (), &infos);
+
+  cpu_subtype = *((guint *) (infos.dyld_image_load_address + 8));
+  if (cpu_subtype == 2)
+    features |= GUM_CPU_PTRAUTH;
+
+  return features;
+}
+
+#else
+
+GumCpuFeatures
+gum_query_cpu_features (void)
+{
+  return 0;
+}
+
+#endif
 
 GType
 gum_cpu_type_get_type (void)
