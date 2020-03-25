@@ -62,6 +62,7 @@ struct _GumStalker
   guint slab_size;
   guint slab_header_size;
   guint slab_max_blocks;
+  GumCpuFeatures cpu_features;
   gboolean is_rwx_supported;
 
   GMutex mutex;
@@ -441,6 +442,7 @@ gum_stalker_init (GumStalker * self)
       GUM_ALIGN_SIZE (GUM_CODE_SLAB_MAX_SIZE / 12, self->page_size);
   self->slab_max_blocks = (self->slab_header_size -
       G_STRUCT_OFFSET (GumSlab, blocks)) / sizeof (GumExecBlock);
+  self->cpu_features = gum_query_cpu_features ();
   self->is_rwx_supported = gum_query_rwx_support () != GUM_RWX_NONE;
 
   g_mutex_init (&self->mutex);
@@ -2045,7 +2047,7 @@ gum_exec_ctx_write_stack_pop_and_go_helper (GumExecCtx * ctx,
 {
   gconstpointer resolve_dynamically = cw->code + 1;
 
-  if (gum_query_ptrauth_support () == GUM_PTRAUTH_SUPPORTED)
+  if ((ctx->stalker->cpu_features & GUM_CPU_PTRAUTH) != 0)
     gum_arm64_writer_put_xpaci_reg (cw, ARM64_REG_X16);
 
   /*
@@ -2175,7 +2177,7 @@ gum_exec_ctx_write_push_branch_target_address (GumExecCtx * ctx,
   else
   {
     gum_exec_ctx_load_real_register_into (ctx, ARM64_REG_X15, target->reg, gc);
-    if (gum_query_ptrauth_support () == GUM_PTRAUTH_SUPPORTED)
+    if ((ctx->stalker->cpu_features & GUM_CPU_PTRAUTH) != 0)
       gum_arm64_writer_put_xpaci_reg (cw, ARM64_REG_X15);
     gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X15, ARM64_REG_X15);
   }
@@ -2893,6 +2895,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
                                        GumGeneratorContext * gc)
 {
   GumExecCtx * ctx = block->ctx;
+  GumStalker * stalker = ctx->stalker;
   GumArm64Writer * cw = gc->code_writer;
   gpointer call_code_start;
   GumPrologType opened_prolog;
@@ -2913,10 +2916,10 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   call_code_start = cw->code;
   opened_prolog = gc->opened_prolog;
 
-  can_backpatch_statically = (ctx->stalker->trust_threshold >= 0 &&
+  can_backpatch_statically = (stalker->trust_threshold >= 0 &&
       target->reg == ARM64_REG_INVALID);
 
-  if (ctx->stalker->trust_threshold >= 0 && target->reg != ARM64_REG_INVALID)
+  if (stalker->trust_threshold >= 0 && target->reg != ARM64_REG_INVALID)
   {
     arm64_reg call_target_reg, candidate_reg;
     guint ic1_real_ref, ic1_code_ref;
@@ -2968,7 +2971,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
     }
 
     gum_arm64_writer_put_mov_reg_reg (cw, call_target_reg, target->reg);
-    if (gum_query_ptrauth_support () == GUM_PTRAUTH_SUPPORTED)
+    if ((stalker->cpu_features & GUM_CPU_PTRAUTH) != 0)
       gum_arm64_writer_put_xpaci_reg (cw, call_target_reg);
 
     ic1_real_ref = gum_arm64_writer_put_ldr_reg_ref (cw, candidate_reg);
@@ -3059,7 +3062,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
       GUM_ARG_ADDRESS, GUM_ADDRESS (ctx),
       GUM_ARG_ADDRESS, GUM_ADDRESS (ret_real_address));
 
-  if (ctx->stalker->trust_threshold >= 0)
+  if (stalker->trust_threshold >= 0)
   {
     gum_arm64_writer_put_ldr_reg_address (cw, ARM64_REG_X3,
         GUM_ADDRESS (&ctx->current_block));
@@ -3084,7 +3087,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
     gum_arm64_writer_put_bl_imm (cw, GUM_ADDRESS (ctx->last_stack_push));
   }
 
-  if (ctx->stalker->trust_threshold >= 0)
+  if (stalker->trust_threshold >= 0)
   {
     gum_arm64_writer_put_ldr_reg_address (cw, ARM64_REG_X6,
         GUM_ADDRESS (&ctx->current_block));
@@ -3165,17 +3168,13 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
                                         GumExecCtxReplaceCurrentBlockFunc func,
                                         GumGeneratorContext * gc)
 {
-  GumArm64Writer * cw;
-  guint32 * code_start;
-  GumPrologType opened_prolog;
+  GumStalker * stalker = block->ctx->stalker;
+  GumArm64Writer * cw = gc->code_writer;
+  guint32 * code_start = cw->code;
+  GumPrologType opened_prolog = gc->opened_prolog;
   gpointer * ic_entries = NULL;
 
-  cw = gc->code_writer;
-  code_start = cw->code;
-  opened_prolog = gc->opened_prolog;
-
-  if (block->ctx->stalker->trust_threshold >= 0 &&
-      target->reg != ARM64_REG_INVALID)
+  if (stalker->trust_threshold >= 0 && target->reg != ARM64_REG_INVALID)
   {
     gconstpointer try_second = cw->code + 1;
     gconstpointer resolve_dynamically = cw->code + 2;
@@ -3205,7 +3204,7 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
     }
 
     gum_arm64_writer_put_mov_reg_reg (cw, jmp_target_reg, target->reg);
-    if (gum_query_ptrauth_support () == GUM_PTRAUTH_SUPPORTED)
+    if ((stalker->cpu_features & GUM_CPU_PTRAUTH) != 0)
       gum_arm64_writer_put_xpaci_reg (cw, jmp_target_reg);
 
     ic1_real_ref = gum_arm64_writer_put_ldr_reg_ref (cw, candidate_reg);
@@ -3249,15 +3248,14 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
       GUM_ARG_REGISTER, ARM64_REG_X15);
 
-  if (block->ctx->stalker->trust_threshold >= 0)
+  if (stalker->trust_threshold >= 0)
   {
     gum_arm64_writer_put_ldr_reg_address (cw, ARM64_REG_X4,
         GUM_ADDRESS (&block->ctx->current_block));
     gum_arm64_writer_put_ldr_reg_reg_offset (cw, ARM64_REG_X4, ARM64_REG_X4, 0);
   }
 
-  if (block->ctx->stalker->trust_threshold >= 0 &&
-      target->reg == ARM64_REG_INVALID)
+  if (stalker->trust_threshold >= 0 && target->reg == ARM64_REG_INVALID)
   {
     gum_arm64_writer_put_call_address_with_arguments (cw,
         GUM_ADDRESS (gum_exec_block_backpatch_jmp), 4,
