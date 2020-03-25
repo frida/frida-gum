@@ -972,6 +972,16 @@ gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
 }
 
 static void
+gum_exec_block_write_exec_generated_code (GumArmWriter * cw,
+                                          GumExecCtx * ctx)
+{
+  gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R12,
+      GUM_ADDRESS (&ctx->resume_at));
+  gum_arm_writer_put_ldr_reg_reg_imm (cw, ARM_REG_R12, ARM_REG_R12, 0);
+  gum_arm_writer_put_blr_reg (cw, ARM_REG_R12);
+}
+
+static void
 gum_exec_block_write_call_invoke_code (GumExecBlock * block,
                                        const GumBranchTarget * target,
                                        GumGeneratorContext * gc)
@@ -987,6 +997,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
     GUM_ARG_REGISTER, ARM_REG_R2);
 
   gum_exec_block_close_prolog (block, gc);
+  gum_exec_block_write_exec_generated_code(cw, block->ctx);
 }
 
 void

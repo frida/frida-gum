@@ -31,6 +31,8 @@ static const guint32 flat_code[] = {
   0xe1a0f00e  /* MOV PC, LR     */
 };
 
+#define FLAT_CODE_INSN_COUNT (sizeof(flat_code)/sizeof(guint32))
+
 static StalkerTestFunc
 invoke_flat_expecting_return_value (TestArmStalkerFixture * fixture,
                                     GumEventType mask,
@@ -153,7 +155,8 @@ TESTCASE (exec_events_generated)
 
   invoke_flat (fixture, GUM_EXEC);
   //TODO: Update this when we can follow the call
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT);
+  g_assert_cmpuint (fixture->sink->events->len, ==,
+                    INVOKER_INSN_COUNT + FLAT_CODE_INSN_COUNT);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
       0).type, ==, GUM_EXEC);
   ev =
