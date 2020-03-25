@@ -20,6 +20,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (compile_events_unsupported)
   TESTENTRY (exec_events_generated)
   TESTENTRY (call_events_generated)
+  TESTENTRY (block_events_generated)
 TESTLIST_END ()
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
@@ -34,21 +35,33 @@ static const guint32 flat_code[] = {
 #define FLAT_CODE_INSN_COUNT (sizeof(flat_code)/sizeof(guint32))
 
 static StalkerTestFunc
-invoke_flat_expecting_return_value (TestArmStalkerFixture * fixture,
-                                    GumEventType mask,
-                                    guint expected_return_value)
+invoke_expecting_return_value (TestArmStalkerFixture * fixture,
+                               GumEventType mask,
+                               const guint32* code,
+                               guint32 len,
+                               guint expected_return_value)
 {
   StalkerTestFunc func;
   gint ret;
 
   func = (StalkerTestFunc) test_arm_stalker_fixture_dup_code (fixture,
-      flat_code, sizeof (flat_code));
+      code, len);
 
   fixture->sink->mask = mask;
   ret = test_arm_stalker_fixture_follow_and_invoke (fixture, func, -1);
   g_assert_cmpint (ret, ==, expected_return_value);
 
   return func;
+}
+
+static StalkerTestFunc
+invoke_flat_expecting_return_value (TestArmStalkerFixture * fixture,
+                                    GumEventType mask,
+                                    guint expected_return_value)
+{
+  return invoke_expecting_return_value(fixture, mask, flat_code,
+                                       sizeof(flat_code),
+                                      expected_return_value);
 }
 
 static StalkerTestFunc
@@ -176,6 +189,33 @@ TESTCASE (call_events_generated)
       &g_array_index (fixture->sink->events, GumEvent, 0).call;
   GUM_ASSERT_CMPADDR (ev->target, ==, func);
   GUM_ASSERT_CMPADDR (ev->depth, ==, 0);
+}
+
+TESTCASE (block_events_generated)
+{
+  GumBlockEvent * ev;
+
+
+  const guint32 branch_code[] = {
+    0xe0400000, /* SUB R0, R0, R0 */
+    0xe2800001, /* ADD R0, R0, #1 */
+    0xea000000, /* B #8 */
+    0xe7f000f0, /* UDF #0 */
+    0xe2800001, /* ADD R0, R0, #1 */
+    0xe1a0f00e  /* MOV PC, LR     */
+  };
+
+  StalkerTestFunc func = invoke_expecting_return_value (fixture, GUM_BLOCK,
+                                                        branch_code,
+                                                        sizeof(branch_code),
+                                                        2);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 1);
+  g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
+      0).type, ==, GUM_BLOCK);
+  ev =
+      &g_array_index (fixture->sink->events, GumEvent, 0).block;
+  GUM_ASSERT_CMPADDR (ev->begin, ==, func);
 }
 
 // Test we call virtualize bl/blr

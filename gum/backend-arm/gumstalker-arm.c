@@ -972,7 +972,7 @@ gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
 }
 
 static void
-gum_exec_block_write_exec_generated_code (GumArmWriter * cw,
+gum_exec_block_write_call_generated_code (GumArmWriter * cw,
                                           GumExecCtx * ctx)
 {
   gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R12,
@@ -981,8 +981,19 @@ gum_exec_block_write_exec_generated_code (GumArmWriter * cw,
   gum_arm_writer_put_blr_reg (cw, ARM_REG_R12);
 }
 
+
 static void
-gum_exec_block_write_call_invoke_code (GumExecBlock * block,
+gum_exec_block_write_jmp_generated_code (GumArmWriter * cw,
+                                          GumExecCtx * ctx)
+{
+  gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R12,
+      GUM_ADDRESS (&ctx->resume_at));
+  gum_arm_writer_put_ldr_reg_reg_imm (cw, ARM_REG_R12, ARM_REG_R12, 0);
+  gum_arm_writer_put_bx_reg (cw, ARM_REG_R12);
+}
+
+static void
+gum_exec_block_write_call_replace_current_block_with (GumExecBlock * block,
                                        const GumBranchTarget * target,
                                        GumGeneratorContext * gc)
 {
@@ -997,7 +1008,6 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
     GUM_ARG_REGISTER, ARM_REG_R2);
 
   gum_exec_block_close_prolog (block, gc);
-  gum_exec_block_write_exec_generated_code(cw, block->ctx);
 }
 
 // TODO: Remove Me
@@ -1056,23 +1066,12 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         g_assert (op->type == ARM_OP_REG);
         target.reg = op->reg;
         break;
-      case ARM_INS_CBZ:
-      case ARM_INS_CBNZ:
-        op2 = &arm->operands[1];
-        g_assert (op->type == ARM_OP_REG);
-        g_assert (op2->type == ARM_OP_IMM);
-
-        target.absolute_address = GSIZE_TO_POINTER (op2->imm);
-        target.reg = ARM64_REG_INVALID;
-
-        break;
       default:
         g_assert_not_reached ();
     }
 
     switch (insn->id)
     {
-      // TODO: All the call instructions here.
       case ARM_INS_BL:
       case ARM_INS_BLX:
         if ((ec->sink_mask & GUM_CALL) != 0)
@@ -1099,11 +1098,18 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
     case ARM_INS_HVC:
       g_assert ("" == "not implemented");
       break;
+    case ARM_INS_B:
+    case ARM_INS_BX:
+      gum_arm_relocator_skip_one (gc->relocator);
+      gum_exec_block_write_call_replace_current_block_with (block, &target, gc);
+      gum_exec_block_write_jmp_generated_code(gc->code_writer, block->ctx);
+      break;
     case ARM_INS_BL:
     case ARM_INS_BLX:
-      //gum_arm_relocator_skip_one (gc->relocator);
-      gum_exec_block_write_call_invoke_code (block, &target, gc);
-      //break;
+      gum_arm_relocator_skip_one (gc->relocator);
+      gum_exec_block_write_call_replace_current_block_with (block, &target, gc);
+      gum_exec_block_write_call_generated_code(gc->code_writer, block->ctx);
+      break;
     default:
       gum_arm_relocator_write_one (rl);
   }
