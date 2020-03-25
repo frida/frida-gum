@@ -172,7 +172,8 @@ TESTCASE (call_events_generated)
       0).type, ==, GUM_CALL);
   ev =
       &g_array_index (fixture->sink->events, GumEvent, 0).call;
-  GUM_ASSERT_CMPADDR (ev->location, ==, fixture->invoker + INVOKER_IMPL_OFFSET);
+  GUM_ASSERT_CMPADDR (ev->target, ==, func);
+  GUM_ASSERT_CMPADDR (ev->depth, ==, 0);
 }
 
 // Test we can emit events for block
