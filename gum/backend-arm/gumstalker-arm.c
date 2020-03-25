@@ -936,6 +936,9 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
   GumGeneratorContext * gc = self->generator_context;
   GumArmRelocator * rl = gc->relocator;
   const cs_insn * insn = gc->instruction->ci;
+  cs_arm * arm = &insn->detail->arm;
+  cs_arm_op * op = &arm->operands[0];
+  cs_arm_op * op2 = NULL;
   GumVirtualizationRequirements requirements;
   GumBranchTarget target = { 0, };
 
@@ -946,20 +949,47 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
     gum_exec_block_write_exec_event_code (block, gc);
   }
 
-  if ((ec->sink_mask & GUM_BLOCK) != 0 &&
-      gum_arm_relocator_eob (rl))
+  if (gum_arm_relocator_eob (rl))
   {
     switch (insn->id)
     {
-      // TODO: All the call instructions here.
-      // TODO: Populate branch target by parsing instruction
+      case ARM_INS_B:
       case ARM_INS_BL:
+        g_assert (op->type == ARM_OP_IMM);
+        target.absolute_address = GSIZE_TO_POINTER (op->imm);
+        target.reg = ARM64_REG_INVALID;
+        break;
+      case ARM_INS_BX:
+      case ARM_INS_BLX:
+        g_assert (op->type == ARM_OP_REG);
+        target.reg = op->reg;
+        break;
+      case ARM_INS_CBZ:
+      case ARM_INS_CBNZ:
+        op2 = &arm->operands[1];
+        g_assert (op->type == ARM_OP_REG);
+        g_assert (op2->type == ARM_OP_IMM);
+
+        target.absolute_address = GSIZE_TO_POINTER (op2->imm);
+        target.reg = ARM64_REG_INVALID;
+
+        break;
+      default:
+        g_assert_not_reached ();
+    }
+
+    switch (insn->id)
+    {
+      // TODO: All the call instructions here.
+      case ARM_INS_BL:
+      case ARM_INS_BLX:
         if ((ec->sink_mask & GUM_CALL) != 0)
         {
           gum_exec_block_write_call_event_code (block, &target, gc);
         }
         break;
       case ARM_INS_B:
+      case ARM_INS_BX:
         if ((ec->sink_mask & GUM_BLOCK) != 0)
         {
           gum_exec_block_write_block_event_code (block, gc);

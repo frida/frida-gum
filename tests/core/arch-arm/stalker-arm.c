@@ -165,9 +165,9 @@ TESTCASE (call_events_generated)
 {
   GumCallEvent * ev;
 
-  invoke_flat (fixture, GUM_CALL);
+  StalkerTestFunc func = invoke_flat (fixture, GUM_CALL);
   //TODO: Update this when we can follow the call
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT);
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_CALL_INSN_COUNT);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
       0).type, ==, GUM_CALL);
   ev =

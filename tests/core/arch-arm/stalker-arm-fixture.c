@@ -124,6 +124,9 @@ test_arm_stalker_fixture_dup_code (TestArmStalkerFixture * fixture,
 /* Total number of instructions in the invoker built by test_arm_stalker_fixture_follow_and_invoke */
 #define INVOKER_INSN_COUNT 8
 
+/* Total number of call instructions in the invoker built by test_arm_stalker_fixture_follow_and_invoke */
+#define INVOKER_CALL_INSN_COUNT 2
+
 /* Offset of the first instruction within the invoker which
 should be stalked in bytes */
 #define INVOKER_IMPL_OFFSET 20
