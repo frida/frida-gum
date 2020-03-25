@@ -166,7 +166,6 @@ TESTCASE (call_events_generated)
   GumCallEvent * ev;
 
   StalkerTestFunc func = invoke_flat (fixture, GUM_CALL);
-  //TODO: Update this when we can follow the call
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_CALL_INSN_COUNT);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
       0).type, ==, GUM_CALL);
@@ -175,6 +174,8 @@ TESTCASE (call_events_generated)
   GUM_ASSERT_CMPADDR (ev->target, ==, func);
   GUM_ASSERT_CMPADDR (ev->depth, ==, 0);
 }
+
+// Add GumExecFrame when generating call and check call depth.
 
 // Test we can emit events for block
 // Test we call virtualize bl/blr
