@@ -175,9 +175,10 @@ TESTCASE (call_events_generated)
   GUM_ASSERT_CMPADDR (ev->depth, ==, 0);
 }
 
-// Add GumExecFrame when generating call and check call depth.
-
-// Test we can emit events for block
 // Test we call virtualize bl/blr
+// Test we can emit events for ret
 // Test we can virtualize ret
+// Test we can emit events for block
+// Add GumExecFrame when generating call and check call depth.
 // Test we can unfollow (move check to virtualize funcs)
+// Test conditional calls and jmps

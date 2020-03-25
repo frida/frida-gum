@@ -49,7 +49,6 @@ typedef struct _GumExecCtx GumExecCtx;
 typedef struct _GumExecFrame GumExecFrame;
 typedef struct _GumGeneratorContext GumGeneratorContext;
 typedef struct _GumInstruction GumInstruction;
-typedef guint GumVirtualizationRequirements;
 typedef struct _GumBranchTarget GumBranchTarget;
 
 struct _GumExecBlock
@@ -138,7 +137,6 @@ struct _GumStalkerIterator
   GumGeneratorContext * generator_context;
 
   GumInstruction instruction;
-  GumVirtualizationRequirements requirements;
 };
 
 enum _GumExecCtxState
@@ -146,13 +144,6 @@ enum _GumExecCtxState
   GUM_EXEC_CTX_ACTIVE,
   GUM_EXEC_CTX_UNFOLLOW_PENDING,
   GUM_EXEC_CTX_DESTROY_PENDING
-};
-
-enum _GumVirtualizationRequirements
-{
-  GUM_REQUIRE_NOTHING          = 0,
-  GUM_REQUIRE_RELOCATION       = 1 << 0,
-  GUM_REQUIRE_EXCLUSIVE_STORE  = 1 << 1,
 };
 
 struct _GumBranchTarget
@@ -403,7 +394,6 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   iterator.instruction.ci = NULL;
   iterator.instruction.begin = NULL;
   iterator.instruction.end = NULL;
-  iterator.requirements = GUM_REQUIRE_NOTHING;
 
   ctx->pending_calls++;
 
@@ -928,6 +918,77 @@ gum_stalker_iterator_next (GumStalkerIterator * self,
   return TRUE;
 }
 
+static gboolean
+gum_exec_ctx_contains (GumExecCtx * ctx,
+                       gconstpointer address)
+{
+  GumSlab * cur = ctx->code_slab;
+
+  do {
+    if ((const guint8 *) address >= cur->data &&
+        (const guint8 *) address < cur->data + cur->size)
+    {
+      return TRUE;
+    }
+
+    cur = cur->next;
+  } while (cur != NULL);
+
+  return FALSE;
+}
+
+
+static gpointer
+gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
+                                         gpointer start_address)
+{
+  if (start_address == gum_unfollow_me_address)
+  {
+    ctx->unfollow_called_while_still_following = TRUE;
+    ctx->current_block = NULL;
+    ctx->resume_at = start_address;
+  }
+  else if (start_address == NULL)
+  {
+    gum_exec_ctx_unfollow (ctx, start_address);
+  }
+  else if (gum_exec_ctx_maybe_unfollow (ctx, start_address))
+  {
+  }
+  else if (gum_exec_ctx_contains (ctx, start_address))
+  {
+    ctx->current_block = NULL;
+    ctx->resume_at = start_address;
+  }
+  else
+  {
+    ctx->current_block = gum_exec_ctx_obtain_block_for (ctx, start_address,
+        &ctx->resume_at);
+
+    gum_exec_ctx_maybe_unfollow (ctx, start_address);
+  }
+
+  return ctx->resume_at;
+}
+
+static void
+gum_exec_block_write_call_invoke_code (GumExecBlock * block,
+                                       const GumBranchTarget * target,
+                                       GumGeneratorContext * gc)
+{
+  GumArmWriter * cw = gc->code_writer;
+  gum_exec_block_open_prolog (block, gc);
+  gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
+  gum_arm_writer_put_pop_registers (cw, 1, ARM_REG_R2);
+
+  gum_arm_writer_put_call_address_with_arguments (cw,
+    GUM_ADDRESS (gum_exec_ctx_replace_current_block_with), 2,
+    GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
+    GUM_ARG_REGISTER, ARM_REG_R2);
+
+  gum_exec_block_close_prolog (block, gc);
+}
+
 void
 gum_stalker_iterator_keep (GumStalkerIterator * self)
 {
@@ -939,10 +1000,7 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
   cs_arm * arm = &insn->detail->arm;
   cs_arm_op * op = &arm->operands[0];
   cs_arm_op * op2 = NULL;
-  GumVirtualizationRequirements requirements;
   GumBranchTarget target = { 0, };
-
-  requirements = GUM_REQUIRE_NOTHING;
 
   if ((ec->sink_mask & GUM_EXEC) != 0)
   {
@@ -1003,23 +1061,18 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
 
   switch (insn->id)
   {
-    // case ARM_INS_B:
-    //   requirements = gum_exec_block_virtualize_sysenter_insn (block, gc);
-    //   break;
     case ARM_INS_SMC:
     case ARM_INS_HVC:
       g_assert ("" == "not implemented");
       break;
+    case ARM_INS_BL:
+    case ARM_INS_BLX:
+      //gum_arm_relocator_skip_one (gc->relocator);
+      gum_exec_block_write_call_invoke_code (block, &target, gc);
+      //break;
     default:
-      requirements = GUM_REQUIRE_RELOCATION;
+      gum_arm_relocator_write_one (rl);
   }
-
-  // gum_exec_block_close_prolog (block, gc);
-
-  if ((requirements & GUM_REQUIRE_RELOCATION) != 0)
-    gum_arm_relocator_write_one (rl);
-
-  self->requirements = requirements;
 }
 
 void
