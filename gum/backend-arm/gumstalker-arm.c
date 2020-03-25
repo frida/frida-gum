@@ -1000,6 +1000,11 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   gum_exec_block_write_exec_generated_code(cw, block->ctx);
 }
 
+// TODO: Remove Me
+void ERROR()
+{
+}
+
 void
 gum_stalker_iterator_keep (GumStalkerIterator * self)
 {
@@ -1018,6 +1023,24 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
     gum_exec_block_write_exec_event_code (block, gc);
   }
 
+  // TODO: Remove Me
+  switch (insn->id)
+  {
+    case ARM_INS_BL:
+    case ARM_INS_BLX:
+    case ARM_INS_LDR:
+    case ARM_INS_STR:
+    case ARM_INS_MOV:
+    case ARM_INS_LDM:
+    case ARM_INS_STMDB:
+    case ARM_INS_SUB:
+    case ARM_INS_ADD:
+    case ARM_INS_AND:
+      break;
+    default:
+      ERROR();
+  }
+
   if (gum_arm_relocator_eob (rl))
   {
     switch (insn->id)
@@ -1026,7 +1049,7 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
       case ARM_INS_BL:
         g_assert (op->type == ARM_OP_IMM);
         target.absolute_address = GSIZE_TO_POINTER (op->imm);
-        target.reg = ARM64_REG_INVALID;
+        target.reg = ARM_REG_INVALID;
         break;
       case ARM_INS_BX:
       case ARM_INS_BLX:
