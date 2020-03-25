@@ -162,7 +162,7 @@ struct _GumBranchTarget
   gpointer absolute_address;
   gssize relative_offset;
 
-  arm64_reg reg;
+  arm_reg reg;
 };
 
 gboolean
@@ -690,6 +690,23 @@ gum_exec_ctx_emit_block_event (GumExecCtx * ctx,
 }
 
 static void
+gum_exec_ctx_emit_call_event (GumExecCtx * ctx,
+                              gpointer location,
+                              gpointer target)
+{
+  GumEvent ev;
+  GumCallEvent * call = &ev.call;
+
+  ev.type = GUM_CALL;
+
+  call->location = location;
+  call->target = target;
+  call->depth = ctx->first_frame - ctx->current_frame;
+
+  ctx->sink_process_impl (ctx->sink, &ev);
+}
+
+static void
 gum_exec_ctx_write_prolog (GumExecCtx * ctx,
                            GumArmWriter * cw)
 {
@@ -716,6 +733,8 @@ gum_exec_ctx_write_prolog (GumExecCtx * ctx,
   gum_arm_writer_put_mov_cpsr_to_reg(cw, ARM_REG_R2);
   gum_arm_writer_put_push_registers(cw, 3,
     ARM_REG_R0, ARM_REG_R1, ARM_REG_R2);
+
+  gum_arm_writer_put_mov_reg_reg(cw, ARM_REG_R12, ARM_REG_SP);
 }
 
 static void
@@ -776,6 +795,80 @@ gum_exec_block_write_block_event_code (GumExecBlock * block,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
       GUM_ARG_ADDRESS, GUM_ADDRESS (gc->relocator->input_start),
       GUM_ARG_ADDRESS, GUM_ADDRESS (gc->relocator->input_cur));
+
+  gum_exec_block_close_prolog(block, gc);
+}
+
+static void
+gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
+                                      arm_reg target_register,
+                                      arm_reg source_register,
+                                      GumGeneratorContext * gc)
+{
+  GumArmWriter * cw;
+
+  cw = gc->code_writer;
+
+  if (source_register >= ARM_REG_R0 && source_register <= ARM_REG_R7)
+  {
+    gum_arm_writer_put_ldr_reg_reg_imm (cw, target_register, ARM_REG_R12,
+        G_STRUCT_OFFSET (GumCpuContext, r) +
+        ((source_register - ARM64_REG_X0) * 4));
+  }
+  else if (source_register >= ARM_REG_R8 && source_register <= ARM_REG_R12)
+  {
+    gum_arm_writer_put_ldr_reg_reg_imm (cw, target_register, ARM_REG_R12,
+        G_STRUCT_OFFSET (GumCpuContext, r8) +
+        ((source_register - ARM64_REG_X8) * 4));
+  }
+  else if (source_register == ARM_REG_LR)
+  {
+    gum_arm_writer_put_ldr_reg_reg_imm (cw, target_register, ARM_REG_R12,
+        G_STRUCT_OFFSET (GumCpuContext, lr));
+  }
+  else
+  {
+    g_assert_not_reached ();
+  }
+}
+
+static void
+gum_exec_ctx_write_push_branch_target_address (GumExecCtx * ctx,
+                                               const GumBranchTarget * target,
+                                               GumGeneratorContext * gc)
+{
+  GumArmWriter * cw = gc->code_writer;
+
+  if (target->reg == ARM_REG_INVALID)
+  {
+    gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R0,
+        GUM_ADDRESS (target->absolute_address));
+    gum_arm_writer_put_push_registers (cw, 1, ARM_REG_R0);
+  }
+  else
+  {
+    gum_exec_ctx_load_real_register_into (ctx, ARM_REG_R0, target->reg, gc);
+    gum_arm_writer_put_push_registers (cw, 1, ARM_REG_R0);
+  }
+}
+
+static void
+gum_exec_block_write_call_event_code (GumExecBlock * block,
+                                      const GumBranchTarget * target,
+                                      GumGeneratorContext * gc)
+{
+  GumArmWriter * cw = gc->code_writer;
+
+  gum_exec_block_open_prolog (block, gc);
+
+  gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
+  gum_arm_writer_put_pop_registers (cw, 1, ARM_REG_R3);
+
+  gum_arm_writer_put_call_address_with_arguments (cw,
+      GUM_ADDRESS (gum_exec_ctx_emit_call_event), 3,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->begin),
+      GUM_ARG_REGISTER, ARM_REG_R3);
 
   gum_exec_block_close_prolog(block, gc);
 }
@@ -844,6 +937,7 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
   GumArmRelocator * rl = gc->relocator;
   const cs_insn * insn = gc->instruction->ci;
   GumVirtualizationRequirements requirements;
+  GumBranchTarget target = { 0, };
 
   requirements = GUM_REQUIRE_NOTHING;
 
@@ -857,11 +951,22 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
   {
     switch (insn->id)
     {
-      // TODO: All the call instructions here
+      // TODO: All the call instructions here.
+      // TODO: Populate branch target by parsing instruction
       case ARM_INS_BL:
+        if ((ec->sink_mask & GUM_CALL) != 0)
+        {
+          gum_exec_block_write_call_event_code (block, &target, gc);
+        }
+        break;
+      case ARM_INS_B:
+        if ((ec->sink_mask & GUM_BLOCK) != 0)
+        {
+          gum_exec_block_write_block_event_code (block, gc);
+        }
         break;
       default:
-        gum_exec_block_write_block_event_code (block, gc);
+
         break;
     }
   }

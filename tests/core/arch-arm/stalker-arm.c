@@ -19,6 +19,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (unfollow_unsupported)
   TESTENTRY (compile_events_unsupported)
   TESTENTRY (exec_events_generated)
+  TESTENTRY (call_events_generated)
 TESTLIST_END ()
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
@@ -157,6 +158,20 @@ TESTCASE (exec_events_generated)
       0).type, ==, GUM_EXEC);
   ev =
       &g_array_index (fixture->sink->events, GumEvent, 0).exec;
+  GUM_ASSERT_CMPADDR (ev->location, ==, fixture->invoker + INVOKER_IMPL_OFFSET);
+}
+
+TESTCASE (call_events_generated)
+{
+  GumCallEvent * ev;
+
+  invoke_flat (fixture, GUM_CALL);
+  //TODO: Update this when we can follow the call
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT);
+  g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
+      0).type, ==, GUM_CALL);
+  ev =
+      &g_array_index (fixture->sink->events, GumEvent, 0).call;
   GUM_ASSERT_CMPADDR (ev->location, ==, fixture->invoker + INVOKER_IMPL_OFFSET);
 }
 
