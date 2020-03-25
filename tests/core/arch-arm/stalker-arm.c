@@ -216,6 +216,7 @@ TESTCASE (block_events_generated)
   ev =
       &g_array_index (fixture->sink->events, GumEvent, 0).block;
   GUM_ASSERT_CMPADDR (ev->begin, ==, func);
+  GUM_ASSERT_CMPADDR (ev->end, ==, func + (3 * 4));
 }
 
 // Test we call virtualize bl/blr
