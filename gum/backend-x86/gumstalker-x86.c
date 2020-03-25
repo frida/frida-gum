@@ -453,10 +453,6 @@ static gboolean gum_stalker_on_exception (GumExceptionDetails * details,
     gpointer user_data);
 #endif
 
-static GumCpuFeatures gum_query_cpu_features (void);
-static gboolean gum_get_cpuid (guint level, guint * a, guint * b, guint * c,
-    guint * d);
-
 static gpointer gum_find_thread_exit_implementation (void);
 #ifdef HAVE_DARWIN
 static gboolean gum_store_thread_exit_match (GumAddress address, gsize size,
