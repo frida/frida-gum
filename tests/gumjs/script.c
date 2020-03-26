@@ -314,6 +314,7 @@ TESTLIST_BEGIN (script)
 
   TESTENTRY (script_can_be_compiled_to_bytecode)
   TESTENTRY (script_can_be_reloaded)
+  TESTENTRY (script_should_not_leak_if_destroyed_before_load)
   TESTENTRY (script_memory_usage)
   TESTENTRY (source_maps_should_be_supported_for_our_runtime)
   TESTENTRY (source_maps_should_be_supported_for_user_scripts)
@@ -6916,6 +6917,23 @@ TESTCASE (script_can_be_reloaded)
   EXPECT_NO_MESSAGES ();
   gum_script_load_sync (fixture->script, NULL);
   EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
+}
+
+TESTCASE (script_should_not_leak_if_destroyed_before_load)
+{
+  GumExceptor * exceptor;
+  guint ref_count_before;
+  GumScript * script;
+
+  exceptor = gum_exceptor_obtain ();
+  ref_count_before = G_OBJECT (exceptor)->ref_count;
+
+  script = gum_script_backend_create_sync (fixture->backend, "testcase",
+      "console.log('Hello World');", NULL, NULL);
+  g_object_unref (script);
+
+  g_assert_cmpuint (G_OBJECT (exceptor)->ref_count, ==, ref_count_before);
+  g_object_unref (exceptor);
 }
 
 TESTCASE (script_memory_usage)
