@@ -196,6 +196,7 @@ TESTLIST_BEGIN (script)
   TESTGROUP_BEGIN ("Socket")
     TESTENTRY (socket_connection_can_be_established)
     TESTENTRY (socket_connection_can_be_established_with_tls)
+    TESTENTRY (socket_connection_should_not_leak_on_error)
     TESTENTRY (socket_type_can_be_inspected)
 #if !defined (HAVE_ANDROID) && !(defined (HAVE_LINUX) && \
     defined (HAVE_ARM)) && !(defined (HAVE_LINUX) && defined (HAVE_MIPS))
@@ -2304,6 +2305,49 @@ TESTCASE (socket_connection_can_be_established_with_tls)
 
     test_script_message_item_free (item);
   }
+}
+
+TESTCASE (socket_connection_should_not_leak_on_error)
+{
+  PUSH_TIMEOUT (20000);
+  COMPILE_AND_LOAD_SCRIPT (
+      "var tries = 0;"
+      "var port = 28300;"
+      "var firstErrorMessage = null;"
+      ""
+      "tryNext();"
+      ""
+      "function tryNext() {"
+      "  tries++;"
+      "  if (tries === 10000) {"
+      "    send('done');"
+      "    return;"
+      "  }"
+      ""
+      "  Socket.connect({"
+      "    family: 'ipv4',"
+      "    host: 'localhost',"
+      "    port: port,"
+      "  })"
+      "  .then(function (connection) {"
+      "    console.log('success');"
+      "    tries--;"
+      "    port++;"
+      "    tryNext();"
+      "  })"
+      "  .catch(function (error) {"
+      "    if (firstErrorMessage === null) {"
+      "      firstErrorMessage = error.message;"
+      "    } else if (error.message !== firstErrorMessage) {"
+      "      send('Expected \"' + firstErrorMessage + '\" but got \"' +"
+      "          error.message + '\"');"
+      "      return;"
+      "    }"
+      "    console.log('tries=' + tries + ' error=\"' + error.message + '\"');"
+      "    tryNext();"
+      "  });"
+      "}");
+  EXPECT_SEND_MESSAGE_WITH ("\"done\"");
 }
 
 TESTCASE (socket_type_can_be_inspected)
