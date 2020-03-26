@@ -208,24 +208,30 @@ TESTCASE (call_events_generated)
   GUM_ASSERT_CMPADDR (ev->depth, ==, 0);
 }
 
+extern const void branch_code;
+extern const void branch_code_end;
+
+asm (
+  "branch_code: \n"
+  "sub r0, r0, r0 \n"
+  "add r0, r0, #1 \n"
+  "b 1f \n"
+  "udf #0 \n"
+  "1: \n"
+  "add r0, r0, #1 \n"
+  "mov pc, lr \n"
+  "branch_code_end: \n"
+);
+
 TESTCASE (block_events_generated)
 {
   GumBlockEvent * ev;
 
-
-  const guint32 branch_code[] = {
-    0xe0400000, /* SUB R0, R0, R0 */
-    0xe2800001, /* ADD R0, R0, #1 */
-    0xea000000, /* B #8 */
-    0xe7f000f0, /* UDF #0 */
-    0xe2800001, /* ADD R0, R0, #1 */
-    0xe1a0f00e  /* MOV PC, LR     */
-  };
-
-  StalkerTestFunc func = invoke_expecting_return_value (fixture, GUM_BLOCK,
-                                                        branch_code,
-                                                        sizeof(branch_code),
-                                                        2);
+  StalkerTestFunc func =
+      invoke_expecting_return_value (fixture, GUM_BLOCK,
+                                     &branch_code,
+                                     &branch_code_end - &branch_code,
+                                     2);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 1);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
@@ -236,11 +242,9 @@ TESTCASE (block_events_generated)
   GUM_ASSERT_CMPADDR (ev->end, ==, func + (3 * 4));
 }
 
-// Move assembly code into __asm__ blocks
-
-// Compare test list to aarch64
-// Test we can emit events for ret
 // Test calling mulitple levels deep and check call depth
+// Test we can emit events for ret
+// Compare test list to aarch64
 // Check thumb/jazelle is excluded.
 // Test adding excluded ranges
 // Test we can unfollow (move check to virtualize funcs)
