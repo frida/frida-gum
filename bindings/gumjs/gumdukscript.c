@@ -313,6 +313,9 @@ gum_duk_script_dispose (GObject * object)
   }
   else
   {
+    if (self->state == GUM_SCRIPT_STATE_UNLOADED && self->ctx != NULL)
+      gum_duk_script_destroy_context (self);
+
     g_clear_pointer (&self->main_context, g_main_context_unref);
     g_clear_pointer (&self->backend, g_object_unref);
   }
