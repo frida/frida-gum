@@ -208,6 +208,9 @@ gum_v8_script_dispose (GObject * object)
   }
   else
   {
+    if (self->state == GUM_SCRIPT_STATE_UNLOADED && self->context != NULL)
+      gum_v8_script_destroy_context (self);
+
     self->isolate = NULL;
 
     g_clear_pointer (&self->main_context, g_main_context_unref);
