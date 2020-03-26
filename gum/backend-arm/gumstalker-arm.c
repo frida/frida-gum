@@ -1000,19 +1000,45 @@ gum_exec_block_write_call_replace_current_block_with (GumExecBlock * block,
   GumArmWriter * cw = gc->code_writer;
   gum_exec_block_open_prolog (block, gc);
   gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
-  gum_arm_writer_put_pop_registers (cw, 1, ARM_REG_R2);
+  gum_arm_writer_put_pop_registers (cw, 1, ARM_REG_R1);
 
   gum_arm_writer_put_call_address_with_arguments (cw,
     GUM_ADDRESS (gum_exec_ctx_replace_current_block_with), 2,
     GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
-    GUM_ARG_REGISTER, ARM_REG_R2);
+    GUM_ARG_REGISTER, ARM_REG_R1);
 
   gum_exec_block_close_prolog (block, gc);
 }
 
-// TODO: Remove Me
-void ERROR()
+static void
+gum_exec_block_stack_push_stack_frame (GumExecCtx * ctx,
+                                       gpointer target)
 {
+  if (ctx->current_frame != ctx->frames)
+  {
+    ctx->current_frame--;
+    ctx->current_frame->real_address = target;
+    ctx->current_frame->code_address = ctx->resume_at;
+  }
+}
+
+static void
+gum_exec_block_write_push_stack_frame (GumExecBlock * block,
+                                 const GumBranchTarget * target,
+                                 GumGeneratorContext * gc)
+{
+  GumArmWriter * cw = gc->code_writer;
+  gum_exec_block_open_prolog (block, gc);
+
+  gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
+  gum_arm_writer_put_pop_registers (cw, 1, ARM_REG_R1);
+
+    gum_arm_writer_put_call_address_with_arguments (cw,
+    GUM_ADDRESS (gum_exec_block_stack_push_stack_frame), 2,
+    GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
+    GUM_ARG_REGISTER, ARM_REG_R1);
+
+  gum_exec_block_close_prolog(block, gc);
 }
 
 void
@@ -1025,30 +1051,11 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
   const cs_insn * insn = gc->instruction->ci;
   cs_arm * arm = &insn->detail->arm;
   cs_arm_op * op = &arm->operands[0];
-  cs_arm_op * op2 = NULL;
   GumBranchTarget target = { 0, };
 
   if ((ec->sink_mask & GUM_EXEC) != 0)
   {
     gum_exec_block_write_exec_event_code (block, gc);
-  }
-
-  // TODO: Remove Me
-  switch (insn->id)
-  {
-    case ARM_INS_BL:
-    case ARM_INS_BLX:
-    case ARM_INS_LDR:
-    case ARM_INS_STR:
-    case ARM_INS_MOV:
-    case ARM_INS_LDM:
-    case ARM_INS_STMDB:
-    case ARM_INS_SUB:
-    case ARM_INS_ADD:
-    case ARM_INS_AND:
-      break;
-    default:
-      ERROR();
   }
 
   if (gum_arm_relocator_eob (rl))
@@ -1108,6 +1115,7 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
     case ARM_INS_BLX:
       gum_arm_relocator_skip_one (gc->relocator);
       gum_exec_block_write_call_replace_current_block_with (block, &target, gc);
+      gum_exec_block_write_push_stack_frame(block, &target, gc);
       gum_exec_block_write_call_generated_code(gc->code_writer, block->ctx);
       break;
     default:

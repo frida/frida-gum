@@ -22,6 +22,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (exec_events_generated)
   TESTENTRY (call_events_generated)
   TESTENTRY (block_events_generated)
+  TESTENTRY (nested_call_events_generated)
 TESTLIST_END ()
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
@@ -240,6 +241,49 @@ TESTCASE (block_events_generated)
       &g_array_index (fixture->sink->events, GumEvent, 0).block;
   GUM_ASSERT_CMPADDR (ev->begin, ==, func);
   GUM_ASSERT_CMPADDR (ev->end, ==, func + (3 * 4));
+}
+
+extern const void nested_call_code;
+extern const void nested_call_code_end;
+
+asm (
+  "nested_call_code: \n"
+  "sub r0, r0, r0 \n"
+  "add r0, r0, #1 \n"
+  "stmdb sp!, {lr} \n"
+  "bl 2f \n"
+  "ldmia sp!, {lr} \n"
+  "mov pc,lr \n"
+
+  "2: \n"
+  "add r0, r0, #1 \n"
+  "mov pc, lr \n"
+  "nested_call_code_end: \n"
+);
+
+TESTCASE (nested_call_events_generated)
+{
+  GumCallEvent * ev;
+
+  StalkerTestFunc func =
+      invoke_expecting_return_value (fixture, GUM_CALL,
+                                     &nested_call_code,
+                                     &nested_call_code_end - &nested_call_code,
+                                     2);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_CALL_INSN_COUNT + 1);
+  g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
+      0).type, ==, GUM_CALL);
+  ev =
+      &g_array_index (fixture->sink->events, GumEvent, 0).call;
+  GUM_ASSERT_CMPADDR (ev->target, ==, func);
+  GUM_ASSERT_CMPADDR (ev->depth, ==, 0);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 1).call;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func + (3 * 4));
+  GUM_ASSERT_CMPADDR (ev->target, ==, func + (6 * 4));
+  GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
 }
 
 // Test calling mulitple levels deep and check call depth
