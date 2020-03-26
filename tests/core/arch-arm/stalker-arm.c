@@ -72,13 +72,6 @@ invoke_flat_expecting_return_value (TestArmStalkerFixture * fixture,
                                        expected_return_value);
 }
 
-static StalkerTestFunc
-invoke_flat (TestArmStalkerFixture * fixture,
-             GumEventType mask)
-{
-  return invoke_flat_expecting_return_value (fixture, mask, 2);
-}
-
 TESTCASE (flat_code)
 {
   g_assert_cmpuint ((&flat_code_end - &flat_code), ==, 16);
@@ -91,7 +84,7 @@ TESTCASE (flat_code)
 
 TESTCASE (no_events)
 {
-  invoke_flat (fixture, GUM_NOTHING);
+  invoke_flat_expecting_return_value (fixture, GUM_NOTHING, 2);
   g_assert_cmpuint (fixture->sink->events->len, ==, 0);
 }
 
@@ -176,7 +169,7 @@ TESTCASE (compile_events_unsupported)
   g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
                          "Compile events unsupported");
 
-  invoke_flat(fixture, GUM_COMPILE);
+  invoke_flat_expecting_return_value(fixture, GUM_COMPILE, 2);
   g_test_assert_expected_messages();
 }
 
@@ -184,8 +177,7 @@ TESTCASE (exec_events_generated)
 {
   GumExecEvent * ev;
 
-  invoke_flat (fixture, GUM_EXEC);
-  //TODO: Update this when we can follow the call
+  invoke_flat_expecting_return_value (fixture, GUM_EXEC, 2);
   g_assert_cmpuint (fixture->sink->events->len, ==,
                     INVOKER_INSN_COUNT + FLAT_CODE_INSN_COUNT);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
@@ -199,7 +191,8 @@ TESTCASE (call_events_generated)
 {
   GumCallEvent * ev;
 
-  StalkerTestFunc func = invoke_flat (fixture, GUM_CALL);
+  StalkerTestFunc func = invoke_flat_expecting_return_value (fixture, GUM_CALL,
+                                                             2);
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_CALL_INSN_COUNT);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
       0).type, ==, GUM_CALL);
@@ -248,16 +241,26 @@ extern const void nested_call_code_end;
 
 asm (
   "nested_call_code: \n"
+  "stmdb sp!, {lr} \n"
   "sub r0, r0, r0 \n"
   "add r0, r0, #1 \n"
-  "stmdb sp!, {lr} \n"
   "bl 2f \n"
+  "bl 3f \n"
   "ldmia sp!, {lr} \n"
   "mov pc,lr \n"
 
   "2: \n"
+  "stmdb sp!, {lr} \n"
+  "add r0, r0, #1 \n"
+  "udf #10 \n"
+  "bl 3f \n"
+  "ldmia sp!, {lr} \n"
+  "mov pc, lr \n"
+
+  "3: \n"
   "add r0, r0, #1 \n"
   "mov pc, lr \n"
+
   "nested_call_code_end: \n"
 );
 
@@ -269,9 +272,9 @@ TESTCASE (nested_call_events_generated)
       invoke_expecting_return_value (fixture, GUM_CALL,
                                      &nested_call_code,
                                      &nested_call_code_end - &nested_call_code,
-                                     2);
+                                     4);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_CALL_INSN_COUNT + 1);
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_CALL_INSN_COUNT + 2);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
       0).type, ==, GUM_CALL);
   ev =
@@ -282,7 +285,7 @@ TESTCASE (nested_call_events_generated)
   ev =
     &g_array_index (fixture->sink->events, GumEvent, 1).call;
   GUM_ASSERT_CMPADDR (ev->location, ==, func + (3 * 4));
-  GUM_ASSERT_CMPADDR (ev->target, ==, func + (6 * 4));
+  GUM_ASSERT_CMPADDR (ev->target, ==, func + (7 * 4));
   GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
 }
 

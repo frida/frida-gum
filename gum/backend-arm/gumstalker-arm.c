@@ -361,7 +361,6 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   GumStalkerIterator iterator;
   gboolean all_labels_resolved;
 
-
   block = gum_exec_block_obtain (ctx, real_address, code_address_ptr);
   if (block != NULL)
   {
@@ -369,6 +368,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   }
 
   block = gum_exec_block_new (ctx);
+
   block->real_begin = real_address;
   *code_address_ptr = block->code_begin;
 
@@ -852,13 +852,13 @@ gum_exec_block_write_call_event_code (GumExecBlock * block,
   gum_exec_block_open_prolog (block, gc);
 
   gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
-  gum_arm_writer_put_pop_registers (cw, 1, ARM_REG_R3);
+  gum_arm_writer_put_pop_registers (cw, 1, ARM_REG_R2);
 
   gum_arm_writer_put_call_address_with_arguments (cw,
       GUM_ADDRESS (gum_exec_ctx_emit_call_event), 3,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
       GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->begin),
-      GUM_ARG_REGISTER, ARM_REG_R3);
+      GUM_ARG_REGISTER, ARM_REG_R2);
 
   gum_exec_block_close_prolog(block, gc);
 }
@@ -1011,14 +1011,14 @@ gum_exec_block_write_call_replace_current_block_with (GumExecBlock * block,
 }
 
 static void
-gum_exec_block_stack_push_stack_frame (GumExecCtx * ctx,
-                                       gpointer target)
+gum_exec_block_push_stack_frame (GumExecCtx * ctx,
+                                 gpointer target)
 {
   if (ctx->current_frame != ctx->frames)
   {
-    ctx->current_frame--;
     ctx->current_frame->real_address = target;
     ctx->current_frame->code_address = ctx->resume_at;
+    ctx->current_frame--;
   }
 }
 
@@ -1033,8 +1033,8 @@ gum_exec_block_write_push_stack_frame (GumExecBlock * block,
   gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
   gum_arm_writer_put_pop_registers (cw, 1, ARM_REG_R1);
 
-    gum_arm_writer_put_call_address_with_arguments (cw,
-    GUM_ADDRESS (gum_exec_block_stack_push_stack_frame), 2,
+  gum_arm_writer_put_call_address_with_arguments (cw,
+    GUM_ADDRESS (gum_exec_block_push_stack_frame), 2,
     GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
     GUM_ARG_REGISTER, ARM_REG_R1);
 
