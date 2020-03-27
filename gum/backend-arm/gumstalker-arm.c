@@ -1099,6 +1099,14 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
       gum_exec_block_close_prolog (block, gc);
       gum_exec_block_write_call_generated_code(gc->code_writer, block->ctx);
       break;
+    case ARM_INS_MOV:
+      op = &insn->detail->arm.operands[0];
+      if (op->type == ARM_OP_REG && op->reg == ARM_REG_PC)
+      {
+        // TODO: Handle return here. Also need `POP pc` too.
+        //break;
+      }
+      /* Fall through */
     default:
       if ((ec->sink_mask & GUM_EXEC) != 0)
       {
