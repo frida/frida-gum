@@ -95,8 +95,9 @@ GUM_API void gum_arm_writer_put_push_all_r_registers (GumArmWriter * self,
 GUM_API void gum_arm_writer_put_pop_all_r_registers (GumArmWriter * self,
     guint include_flags);
 
-GUM_API void gum_arm_writer_put_call_address_with_arguments (
-    GumArmWriter * self, GumAddress func, guint n_args, ...);
+GUM_API void gum_arm_writer_put_call_address_with_arguments_array (
+    GumArmWriter * self, GumAddress func, guint n_args,
+    const GumArgument * args);
 
 GUM_API void gum_arm_writer_put_mov_reg_reg (GumArmWriter * self,
     arm_reg dst_reg, arm_reg src_reg);

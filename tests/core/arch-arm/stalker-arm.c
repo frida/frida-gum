@@ -241,18 +241,18 @@ extern const void nested_call_code_end;
 
 asm (
   "nested_call_code: \n"
+  "udf #10 \n"
   "stmdb sp!, {lr} \n"
   "sub r0, r0, r0 \n"
   "add r0, r0, #1 \n"
   "bl 2f \n"
-  "bl 3f \n"
+  //"bl 3f \n"
   "ldmia sp!, {lr} \n"
   "mov pc,lr \n"
 
   "2: \n"
   "stmdb sp!, {lr} \n"
   "add r0, r0, #1 \n"
-  "udf #10 \n"
   "bl 3f \n"
   "ldmia sp!, {lr} \n"
   "mov pc, lr \n"
@@ -290,6 +290,8 @@ TESTCASE (nested_call_events_generated)
 }
 
 // Test calling mulitple levels deep and check call depth
+// Test relocated references to globals
+
 // Test we can emit events for ret
 // Compare test list to aarch64
 // Check thumb/jazelle is excluded.

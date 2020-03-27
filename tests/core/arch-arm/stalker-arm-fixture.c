@@ -57,9 +57,11 @@ put_debug_print_pointer (GumArmWriter * cw,
                          gpointer pointer)
 {
   gum_arm_writer_put_push_all_r_registers (cw, 1);
-  gum_arm_writer_put_call_address_with_arguments (cw,
-      GUM_ADDRESS (debug_hello), 1,
-      GUM_ARG_ADDRESS, GUM_ADDRESS (pointer));
+  GumArgument args[] = {
+    { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (pointer) }},
+  };
+  gum_arm_writer_put_call_address_with_arguments_array (cw,
+      GUM_ADDRESS (debug_hello), 1, args);
   gum_arm_writer_put_pop_all_r_registers (cw, 1);
 }
 
@@ -68,9 +70,11 @@ put_debug_print_reg (GumArmWriter * cw,
                      arm_reg reg)
 {
   gum_arm_writer_put_push_all_r_registers (cw, 1);
-  gum_arm_writer_put_call_address_with_arguments (cw,
-      GUM_ADDRESS (debug_hello), 1,
-      GUM_ARG_REGISTER, reg);
+  GumArgument args[] = {
+    { GUM_ARG_REGISTER, { .reg = reg }},
+  };
+  gum_arm_writer_put_call_address_with_arguments_array (cw,
+      GUM_ADDRESS (debug_hello), 1, args);
   gum_arm_writer_put_pop_all_r_registers (cw, 1);
 }
 
@@ -153,23 +157,26 @@ test_arm_stalker_fixture_follow_and_invoke (TestArmStalkerFixture * fixture,
 
   gum_arm_writer_put_push_registers (&cw, 1, ARM_REG_LR);
 
-  gum_arm_writer_put_call_address_with_arguments (&cw,
-      GUM_ADDRESS (gum_stalker_follow_me), 3,
-      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker),
-      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->transformer),
-      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->sink));
+  GumArgument args[] = {
+    { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (fixture->stalker) }},
+    { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (fixture->transformer) }},
+    { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (fixture->sink) }},
+  };
+
+  gum_arm_writer_put_call_address_with_arguments_array (&cw,
+      GUM_ADDRESS (gum_stalker_follow_me), 3, args);
 
   /* call function -int func(int x)- and save address before and after call */
   gum_arm_writer_put_ldr_reg_address (&cw, ARM_REG_R0, GUM_ADDRESS (arg));
   fixture->last_invoke_calladdr = gum_arm_writer_cur (&cw);
-  gum_arm_writer_put_call_address_with_arguments (&cw, GUM_ADDRESS (func), 0);
+  gum_arm_writer_put_call_address_with_arguments_array (&cw,
+                                                        GUM_ADDRESS (func), 0, NULL);
   fixture->last_invoke_retaddr = gum_arm_writer_cur (&cw);
   gum_arm_writer_put_ldr_reg_address (&cw, ARM_REG_R1, GUM_ADDRESS (&ret));
   gum_arm_writer_put_str_reg_reg_offset (&cw, ARM_REG_R0, ARM_REG_R1, 0);
 
-  gum_arm_writer_put_call_address_with_arguments (&cw,
-      GUM_ADDRESS (gum_stalker_unfollow_me), 1,
-      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker));
+  gum_arm_writer_put_call_address_with_arguments_array (&cw,
+      GUM_ADDRESS (gum_stalker_unfollow_me), 1, args);
 
   gum_arm_writer_put_pop_registers (&cw, 1, ARM_REG_LR);
   gum_arm_writer_put_ret (&cw);

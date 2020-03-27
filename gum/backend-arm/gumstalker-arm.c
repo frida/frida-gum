@@ -764,21 +764,30 @@ static void
 gum_exec_block_write_exec_event_code (GumExecBlock * block,
                                       GumGeneratorContext * gc)
 {
-  gum_arm_writer_put_call_address_with_arguments (gc->code_writer,
-      GUM_ADDRESS (gum_exec_ctx_emit_exec_event), 2,
-      GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
-      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->begin));
+  GumArgument args[] =
+  {
+    { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (block->ctx)}},
+    { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (gc->instruction->begin)}},
+  };
+
+  gum_arm_writer_put_call_address_with_arguments_array (
+      gc->code_writer,
+      GUM_ADDRESS (gum_exec_ctx_emit_exec_event), 2, args);
 }
 
 static void
 gum_exec_block_write_block_event_code (GumExecBlock * block,
                                        GumGeneratorContext * gc)
 {
-  gum_arm_writer_put_call_address_with_arguments (gc->code_writer,
-      GUM_ADDRESS (gum_exec_ctx_emit_block_event), 3,
-      GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
-      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->relocator->input_start),
-      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->relocator->input_cur));
+  GumArgument args[] =
+  {
+    { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (block->ctx)}},
+    { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (gc->relocator->input_start)}},
+    { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (gc->relocator->input_cur)}},
+  };
+
+  gum_arm_writer_put_call_address_with_arguments_array (gc->code_writer,
+      GUM_ADDRESS (gum_exec_ctx_emit_block_event), 3, args);
 }
 
 static void
@@ -839,15 +848,18 @@ gum_exec_block_write_call_event_code (GumExecBlock * block,
                                       GumGeneratorContext * gc)
 {
   GumArmWriter * cw = gc->code_writer;
+  GumArgument args[] =
+  {
+    { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (block->ctx)}},
+    { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (gc->instruction->begin)}},
+    { GUM_ARG_REGISTER, { .reg = ARM_REG_R2}},
+  };
 
   gum_exec_ctx_write_mov_branch_target_address (block->ctx, target,
                                                 ARM_REG_R2, gc);
 
-  gum_arm_writer_put_call_address_with_arguments (cw,
-      GUM_ADDRESS (gum_exec_ctx_emit_call_event), 3,
-      GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
-      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->begin),
-      GUM_ARG_REGISTER, ARM_REG_R2);
+  gum_arm_writer_put_call_address_with_arguments_array (cw,
+      GUM_ADDRESS (gum_exec_ctx_emit_call_event), 3, args);
 }
 
 static gboolean
@@ -985,13 +997,17 @@ gum_exec_block_write_call_replace_current_block_with (GumExecBlock * block,
                                        GumGeneratorContext * gc)
 {
   GumArmWriter * cw = gc->code_writer;
+  GumArgument args[] =
+  {
+    { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (block->ctx)}},
+    { GUM_ARG_REGISTER, { .reg = ARM_REG_R1}},
+  };
+
   gum_exec_ctx_write_mov_branch_target_address (block->ctx, target,
                                                 ARM_REG_R1, gc);
 
-  gum_arm_writer_put_call_address_with_arguments (cw,
-    GUM_ADDRESS (gum_exec_ctx_replace_current_block_with), 2,
-    GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
-    GUM_ARG_REGISTER, ARM_REG_R1);
+  gum_arm_writer_put_call_address_with_arguments_array (cw,
+    GUM_ADDRESS (gum_exec_ctx_replace_current_block_with), 2, args);
 }
 
 static void
@@ -1012,14 +1028,17 @@ gum_exec_block_write_push_stack_frame (GumExecBlock * block,
                                  GumGeneratorContext * gc)
 {
   GumArmWriter * cw = gc->code_writer;
+  GumArgument args[] =
+  {
+    { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (block->ctx)}},
+    { GUM_ARG_REGISTER, { .reg = ARM_REG_R1}},
+  };
 
   gum_exec_ctx_write_mov_branch_target_address (block->ctx, target,
                                                 ARM_REG_R1, gc);
 
-  gum_arm_writer_put_call_address_with_arguments (cw,
-    GUM_ADDRESS (gum_exec_block_push_stack_frame), 2,
-    GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
-    GUM_ARG_REGISTER, ARM_REG_R1);
+  gum_arm_writer_put_call_address_with_arguments_array (cw,
+    GUM_ADDRESS (gum_exec_block_push_stack_frame), 2, args);
 }
 
 void

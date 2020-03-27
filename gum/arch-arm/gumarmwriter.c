@@ -580,8 +580,8 @@ gum_arm_writer_put_pop_all_r_registers (GumArmWriter * self,
 
 static void
 gum_arm_writer_put_argument_list_setup (GumArmWriter * self,
-                                          guint n_args,
-                                          const GumArgument * args)
+                                        guint n_args,
+                                        const GumArgument * args)
 {
   gint arg_index;
 
@@ -616,32 +616,6 @@ gum_arm_writer_put_argument_list_teardown (GumArmWriter * self,
 {
 }
 
-static void
-gum_arm_writer_put_argument_list_setup_va (GumArmWriter * self,
-                                             guint n_args,
-                                             va_list args)
-{
-  GumArgument * arg_values;
-  guint arg_index;
-
-  arg_values = g_newa (GumArgument, n_args);
-
-  for (arg_index = 0; arg_index != n_args; arg_index++)
-  {
-    GumArgument * arg = &arg_values[arg_index];
-
-    arg->type = va_arg (args, GumArgType);
-    if (arg->type == GUM_ARG_ADDRESS)
-      arg->value.address = va_arg (args, GumAddress);
-    else if (arg->type == GUM_ARG_REGISTER)
-      arg->value.reg = va_arg (args, arm_reg);
-    else
-      g_assert_not_reached ();
-  }
-
-  gum_arm_writer_put_argument_list_setup (self, n_args, arg_values);
-}
-
 gboolean
 gum_arm_writer_can_branch_directly_between (GumArmWriter * self,
                                               GumAddress from,
@@ -653,16 +627,12 @@ gum_arm_writer_can_branch_directly_between (GumArmWriter * self,
 }
 
 void
-gum_arm_writer_put_call_address_with_arguments (GumArmWriter * self,
-                                                  GumAddress func,
-                                                  guint n_args,
-                                                  ...)
+gum_arm_writer_put_call_address_with_arguments_array(GumArmWriter * self,
+                                                GumAddress func,
+                                                guint n_args,
+                                                const GumArgument * args)
 {
-  va_list args;
-
-  va_start (args, n_args);
-  gum_arm_writer_put_argument_list_setup_va (self, n_args, args);
-  va_end (args);
+  gum_arm_writer_put_argument_list_setup (self, n_args, args);
 
   if (gum_arm_writer_can_branch_directly_between (self, self->pc, func))
   {
