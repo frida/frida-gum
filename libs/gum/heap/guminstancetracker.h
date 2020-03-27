@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -29,7 +29,7 @@ struct _GumInstanceVTable
   GTypeInstance * (* create_instance) (GType type);
   void (* free_instance) (GTypeInstance * instance);
 
-  G_CONST_RETURN gchar * (* type_id_to_name) (GType type);
+  const gchar * (* type_id_to_name) (GType type);
 };
 
 struct _GumInstanceDetails

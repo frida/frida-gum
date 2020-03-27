@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -220,6 +220,7 @@ gum_init_embedded (void)
   GMemVTable mem_vtable = {
     gum_malloc,
     gum_realloc,
+    gum_memalign,
     gum_free,
     gum_calloc,
     gum_malloc,
