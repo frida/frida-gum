@@ -157,6 +157,7 @@ gum_arm_relocator_read_one (GumArmRelocator * self,
   const uint8_t * code;
   size_t size;
   uint64_t address;
+  cs_arm_op * op;
 
   if (self->eoi)
     return 0;
@@ -185,6 +186,14 @@ gum_arm_relocator_read_one (GumArmRelocator * self,
     case ARM_INS_BLX:
       self->eob = TRUE;
       self->eoi = FALSE;
+      break;
+    case ARM_INS_MOV:
+      op = &insn->detail->arm.operands[0];
+      if (op->type == ARM_OP_REG && op->reg == ARM_REG_PC)
+      {
+        self->eob = TRUE;
+        self->eoi = TRUE;
+      }
       break;
     case ARM_INS_POP:
       if (cs_reg_read (self->capstone, insn, ARM_REG_PC))
