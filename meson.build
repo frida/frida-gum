@@ -1,5 +1,6 @@
 project('frida-gum', 'c', 'cpp',
   version: '1.0.0',
+  meson_version: '>=0.54.0',
   default_options: ['c_std=gnu99', 'cpp_std=c++11'],
 )
 
@@ -33,7 +34,7 @@ endif
 languages = ['c', 'cpp']
 if host_os_family == 'darwin'
   languages += ['objc', 'objcpp']
-  add_languages('objc', 'objcpp')
+  add_languages('objc', 'objcpp', native: false)
 endif
 
 cc = meson.get_compiler('c')
