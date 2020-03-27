@@ -815,22 +815,21 @@ gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
 }
 
 static void
-gum_exec_ctx_write_push_branch_target_address (GumExecCtx * ctx,
+gum_exec_ctx_write_mov_branch_target_address (GumExecCtx * ctx,
                                                const GumBranchTarget * target,
+                                               arm_reg reg,
                                                GumGeneratorContext * gc)
 {
   GumArmWriter * cw = gc->code_writer;
 
   if (target->reg == ARM_REG_INVALID)
   {
-    gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R0,
+    gum_arm_writer_put_ldr_reg_address (cw, reg,
         GUM_ADDRESS (target->absolute_address));
-    gum_arm_writer_put_push_registers (cw, 1, ARM_REG_R0);
   }
   else
   {
-    gum_exec_ctx_load_real_register_into (ctx, ARM_REG_R0, target->reg, gc);
-    gum_arm_writer_put_push_registers (cw, 1, ARM_REG_R0);
+    gum_exec_ctx_load_real_register_into (ctx, reg, target->reg, gc);
   }
 }
 
@@ -841,8 +840,8 @@ gum_exec_block_write_call_event_code (GumExecBlock * block,
 {
   GumArmWriter * cw = gc->code_writer;
 
-  gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
-  gum_arm_writer_put_pop_registers (cw, 1, ARM_REG_R2);
+  gum_exec_ctx_write_mov_branch_target_address (block->ctx, target,
+                                                ARM_REG_R2, gc);
 
   gum_arm_writer_put_call_address_with_arguments (cw,
       GUM_ADDRESS (gum_exec_ctx_emit_call_event), 3,
@@ -986,8 +985,8 @@ gum_exec_block_write_call_replace_current_block_with (GumExecBlock * block,
                                        GumGeneratorContext * gc)
 {
   GumArmWriter * cw = gc->code_writer;
-  gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
-  gum_arm_writer_put_pop_registers (cw, 1, ARM_REG_R1);
+  gum_exec_ctx_write_mov_branch_target_address (block->ctx, target,
+                                                ARM_REG_R1, gc);
 
   gum_arm_writer_put_call_address_with_arguments (cw,
     GUM_ADDRESS (gum_exec_ctx_replace_current_block_with), 2,
@@ -1014,8 +1013,8 @@ gum_exec_block_write_push_stack_frame (GumExecBlock * block,
 {
   GumArmWriter * cw = gc->code_writer;
 
-  gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
-  gum_arm_writer_put_pop_registers (cw, 1, ARM_REG_R1);
+  gum_exec_ctx_write_mov_branch_target_address (block->ctx, target,
+                                                ARM_REG_R1, gc);
 
   gum_arm_writer_put_call_address_with_arguments (cw,
     GUM_ADDRESS (gum_exec_block_push_stack_frame), 2,
