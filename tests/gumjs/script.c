@@ -2309,13 +2309,7 @@ TESTCASE (socket_connection_can_be_established_with_tls)
 
 TESTCASE (socket_connection_should_not_leak_on_error)
 {
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping, run in slow mode> ");
-    return;
-  }
-
-  PUSH_TIMEOUT (20000);
+  PUSH_TIMEOUT (5000);
   COMPILE_AND_LOAD_SCRIPT (
       "var tries = 0;"
       "var port = 28300;"
@@ -2325,7 +2319,7 @@ TESTCASE (socket_connection_should_not_leak_on_error)
       ""
       "function tryNext() {"
       "  tries++;"
-      "  if (tries === 10000) {"
+      "  if (tries === 200) {"
       "    send('done');"
       "    return;"
       "  }"
