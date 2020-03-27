@@ -241,12 +241,12 @@ extern const void nested_call_code_end;
 
 asm (
   "nested_call_code: \n"
-  "udf #10 \n"
+  //"udf #10 \n"
   "stmdb sp!, {lr} \n"
   "sub r0, r0, r0 \n"
   "add r0, r0, #1 \n"
   "bl 2f \n"
-  //"bl 3f \n"
+  "bl 3f \n"
   "ldmia sp!, {lr} \n"
   "mov pc,lr \n"
 
@@ -267,6 +267,10 @@ asm (
 TESTCASE (nested_call_events_generated)
 {
   GumCallEvent * ev;
+
+  g_assert_cmpuint(sizeof(GumArgument), ==, 16);
+  g_assert_cmpuint(offsetof(GumArgument, type), ==, 0);
+  g_assert_cmpuint(offsetof(GumArgument, value.address), ==, 8);
 
   StalkerTestFunc func =
       invoke_expecting_return_value (fixture, GUM_CALL,
