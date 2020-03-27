@@ -541,7 +541,7 @@ gum_arm_writer_put_mov_reg_to_cpsr (GumArmWriter * self, arm_reg reg)
 {
     GumArmRegInfo ri;
     gum_arm_reg_describe (reg, &ri);
-    gum_arm_writer_put_instruction (self, 0xe10f0000 | ri.index << 16);
+    gum_arm_writer_put_instruction (self, 0xe10f0000 | ri.index << 12);
 }
 
 void
