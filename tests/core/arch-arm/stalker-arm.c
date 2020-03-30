@@ -241,7 +241,7 @@ extern const void nested_call_code_end;
 
 asm (
   "nested_call_code: \n"
-  //"udf #10 \n"
+   //"udf #10 \n" //
   "stmdb sp!, {lr} \n"
   "sub r0, r0, r0 \n"
   "add r0, r0, #1 \n"
@@ -297,6 +297,12 @@ TESTCASE (nested_call_events_generated)
   GUM_ASSERT_CMPADDR (ev->location, ==, func + (9 * 4));
   GUM_ASSERT_CMPADDR (ev->target, ==, func + (12 * 4));
   GUM_ASSERT_CMPADDR (ev->depth, ==, 2);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 3).call;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func + (4 * 4));
+  GUM_ASSERT_CMPADDR (ev->target, ==, func + (12 * 4));
+  GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
 }
 
 // Test calling mulitple levels deep and check call depth

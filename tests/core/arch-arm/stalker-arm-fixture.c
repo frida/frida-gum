@@ -162,7 +162,7 @@ test_arm_stalker_fixture_follow_and_invoke (TestArmStalkerFixture * fixture,
     { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (fixture->transformer) }},
     { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (fixture->sink) }},
   };
-
+  //gum_arm_writer_put_brk_imm (&cw, 10);
   gum_arm_writer_put_call_address_with_arguments_array (&cw,
       GUM_ADDRESS (gum_stalker_follow_me), 3, args);
 
