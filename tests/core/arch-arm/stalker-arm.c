@@ -470,7 +470,7 @@ TESTCASE (excluded_range)
   guint32 ret = test_arm_stalker_fixture_follow_and_invoke (fixture, func, -1);
   g_assert_cmpuint (ret, ==, 2);
 
-  //g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 6);
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 6);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
       0).type, ==, GUM_EXEC);
 
@@ -493,9 +493,14 @@ TESTCASE (excluded_range)
   ev =
     &g_array_index (fixture->sink->events, GumEvent, 6).exec;
   GUM_ASSERT_CMPADDR (ev->location, ==, func + 16);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 7).exec;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func + 20);
 }
 
-
+// Review slides Tim sent
+// Write code to display event lists
 // Test adding excluded ranges
 // Other forms of return statements
 // Compare test list to aarch64
