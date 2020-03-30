@@ -23,6 +23,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (call_events_generated)
   TESTENTRY (block_events_generated)
   TESTENTRY (nested_call_events_generated)
+  TESTENTRY (nested_ret_events_generated)
 TESTLIST_END ()
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
@@ -300,7 +301,6 @@ extern const void nested_call_code_end;
 
 asm (
   "nested_call_code: \n"
-   //"udf #10 \n" //
   "stmdb sp!, {lr} \n"
   "sub r0, r0, r0 \n"
   "add r0, r0, #1 \n"
@@ -326,10 +326,6 @@ asm (
 TESTCASE (nested_call_events_generated)
 {
   GumCallEvent * ev;
-
-  g_assert_cmpuint(sizeof(GumArgument), ==, 16);
-  g_assert_cmpuint(offsetof(GumArgument, type), ==, 0);
-  g_assert_cmpuint(offsetof(GumArgument, value.address), ==, 8);
 
   StalkerTestFunc func =
       invoke_expecting_return_value (fixture, GUM_CALL,
@@ -364,9 +360,46 @@ TESTCASE (nested_call_events_generated)
   GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
 }
 
-// Test calling mulitple levels deep and check call depth
-// Test relocated references to globals
+TESTCASE (nested_ret_events_generated)
+{
+  GumRetEvent * ev;
 
+  StalkerTestFunc func =
+      invoke_expecting_return_value (fixture, GUM_RET,
+                                     &nested_call_code,
+                                     &nested_call_code_end - &nested_call_code,
+                                     4);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, 4);
+  g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
+      0).type, ==, GUM_RET);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 0).ret;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func + (13 * 4));
+  GUM_ASSERT_CMPADDR (ev->target, ==, func + (10 * 4));
+  GUM_ASSERT_CMPADDR (ev->depth, ==, 3);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 1).ret;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func + (11 * 4));
+  GUM_ASSERT_CMPADDR (ev->target, ==, func + (4 * 4));
+  GUM_ASSERT_CMPADDR (ev->depth, ==, 2);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 2).ret;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func + (13 * 4));
+  GUM_ASSERT_CMPADDR (ev->target, ==, func + (5 * 4));
+  GUM_ASSERT_CMPADDR (ev->depth, ==, 2);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 3).ret;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func + (6 * 4));
+  GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
+}
+
+// Test that LR is not modified
+// Test relocated references to globals
 // Test we can emit events for ret
 // Compare test list to aarch64
 // Check thumb/jazelle is excluded.
