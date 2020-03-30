@@ -442,14 +442,6 @@ asm (
   "excluded_range_code_end: \n"
 );
 
-
-// struct _GumMemoryRange
-// {
-//   GumAddress base_address;
-//   gsize size;
-// };
-
-
 TESTCASE (excluded_range)
 {
   GumExecEvent * ev;
