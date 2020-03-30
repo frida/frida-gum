@@ -733,3 +733,23 @@ gum_arm_writer_put_sub_reg_reg_reg (GumArmWriter * self,
   gum_arm_writer_put_instruction (self, 0xe0400000 | rd.index << 12 |
       rs1.index << 16 | rs2.index);
 }
+
+void
+gum_arm_writer_put_cmp_reg_imm (GumArmWriter * self,
+                                    arm_reg dst_reg,
+                                    guint32 imm_val)
+{
+  GumArmRegInfo rd;
+
+  gum_arm_reg_describe (dst_reg, &rd);
+
+  gum_arm_writer_put_instruction (self, 0xe3500000 | rd.index << 16);
+}
+
+void
+gum_arm_writer_put_beq_label (GumArmWriter * self,
+                            gconstpointer label_id)
+{
+  gum_arm_writer_add_label_reference_here (self, label_id);
+  gum_arm_writer_put_instruction (self, 0x0a000000);
+}

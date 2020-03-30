@@ -448,9 +448,9 @@ TESTCASE (globals)
                                  0xecececec);
 }
 
-// Test relocated references to globals
+// Test adding excluded ranges
+// Other forms of return statements
 // Compare test list to aarch64
 // Check thumb/jazelle is excluded.
-// Test adding excluded ranges
 // Test we can unfollow (move check to virtualize funcs)
 // Test conditional calls and jmps

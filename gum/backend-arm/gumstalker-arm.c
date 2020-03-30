@@ -1094,6 +1094,90 @@ gum_exec_block_write_pop_stack_frame (GumExecBlock * block,
     GUM_ADDRESS (gum_exec_block_pop_stack_frame), 2, args);
 }
 
+static void
+gum_exec_ctx_begin_call (GumExecCtx * ctx)
+{
+  ctx->pending_calls++;
+}
+
+static void
+gum_exec_ctx_end_call (GumExecCtx * ctx)
+{
+  ctx->pending_calls--;
+}
+
+static gboolean
+gum_stalker_is_excluding (GumExecCtx * ctx,
+                          gconstpointer address)
+{
+  GArray * exclusions = ctx->stalker->exclusions;
+  guint i;
+
+  for (i = 0; i != exclusions->len; i++)
+  {
+    GumMemoryRange * r = &g_array_index (exclusions, GumMemoryRange, i);
+
+    if (GUM_MEMORY_RANGE_INCLUDES (r, GUM_ADDRESS (address)))
+      return TRUE;
+  }
+
+  return FALSE;
+}
+
+void
+gum_exec_block_write_handle_excluded (GumExecBlock * block,
+                                      const GumBranchTarget * target,
+                                      GumGeneratorContext * gc)
+{
+  GumInstruction * insn = gc->instruction;
+  GumArmWriter * cw = gc->code_writer;
+  gconstpointer not_excluded = cw->code + 1;
+
+  GumArgument args[] =
+  {
+    { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (block->ctx)}},
+    { GUM_ARG_REGISTER, { .reg = ARM_REG_R1}},
+  };
+
+  gum_exec_ctx_write_mov_branch_target_address (block->ctx,
+                                            target,
+                                            ARM_REG_R1,
+                                            gc);
+
+  gum_arm_writer_put_call_address_with_arguments_array (cw,
+    GUM_ADDRESS (gum_stalker_is_excluding), 2, args);
+
+  gum_arm_writer_put_cmp_reg_imm(cw, ARM_REG_R0, 0);
+  gum_arm_writer_put_beq_label(cw, not_excluded);
+
+  gum_arm_writer_put_call_address_with_arguments_array (cw,
+      GUM_ADDRESS (gum_exec_ctx_begin_call), 2, args);
+  gum_exec_block_close_prolog (block, gc);
+
+  gum_arm_relocator_write_one (gc->relocator);
+
+  gum_exec_block_open_prolog (block, gc);
+  gum_arm_writer_put_call_address_with_arguments_array (cw,
+      GUM_ADDRESS (gum_exec_ctx_end_call), 1, args);
+  gum_exec_block_close_prolog (block, gc);
+
+
+  GumArgument jmp_args[] =
+  {
+    { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (block->ctx)}},
+    { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (insn->end)}},
+  };
+
+  gum_arm_writer_put_call_address_with_arguments_array (cw,
+    GUM_ADDRESS (gum_exec_ctx_replace_current_block_with), 2, jmp_args);
+
+
+  gum_exec_block_write_jmp_generated_code(gc->code_writer, block->ctx);
+  gum_arm_writer_put_brk_imm(cw, 15);
+
+  gum_arm_writer_put_label (cw, not_excluded);
+}
+
 void
 gum_stalker_iterator_keep (GumStalkerIterator * self)
 {
@@ -1176,6 +1260,7 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         gum_exec_block_write_call_event_code (block, &target, gc);
       }
 
+      gum_exec_block_write_handle_excluded (block, &target, gc);
       gum_exec_block_write_call_replace_current_block_with (block, &target, gc);
       gum_exec_block_write_push_stack_frame(block, ret_real_address, gc);
       gum_exec_block_close_prolog (block, gc);
