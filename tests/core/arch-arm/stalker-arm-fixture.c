@@ -125,8 +125,10 @@ test_arm_stalker_fixture_dup_code (TestArmStalkerFixture * fixture,
   return GUM_POINTER_TO_FUNCPTR (GCallback,
       gum_sign_code_pointer (fixture->code));
 }
-/* Total number of instructions in the invoker built by test_arm_stalker_fixture_follow_and_invoke */
-#define INVOKER_INSN_COUNT 8
+/* Total number of instructions in the invoker built by test_arm_stalker_fixture_follow_and_invoke. This is counted from
+the first instruction after the call to gum_stalker_follow_me up to
+and including the call to gum_stalker_unfollow_me*/
+#define INVOKER_INSN_COUNT 6
 
 /* Total number of call instructions in the invoker built by test_arm_stalker_fixture_follow_and_invoke */
 #define INVOKER_CALL_INSN_COUNT 2

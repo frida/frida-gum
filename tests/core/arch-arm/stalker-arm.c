@@ -33,6 +33,7 @@ extern const void flat_code_end;
 
 asm (
   "flat_code: \n"
+  //"udf #10 \n"
   "sub r0, r0, r0 \n"
   "add r0, r0, #1 \n"
   "add r0, r0, #1 \n"
@@ -173,11 +174,27 @@ TESTCASE (compile_events_unsupported)
   g_test_assert_expected_messages();
 }
 
+// gef➤  x/20i $pc
+// => 0x626004:	udf	#10
+//    0x626008:	ldr	r2, [pc, #40]	; 0x626038
+//    0x62600c:	ldr	r1, [pc, #40]	; 0x62603c
+//    0x626010:	ldr	r0, [pc, #40]	; 0x626040
+//    0x626014:	bl	0x65f6c <gum_stalker_follow_me>
+//    0x626018:	ldr	r0, [pc, #36]	; 0x626044
+//    0x62601c:	bl	0x624000
+//    0x626020:	ldr	r1, [pc, #32]	; 0x626048
+//    0x626024:	str	r0, [r1]
+//    0x626028:	ldr	r0, [pc, #16]	; 0x626040
+//    0x62602c:	bl	0x65504 <gum_stalker_unfollow_me>
+//    0x626030:	ldmfd	sp!, {lr}
+//    0x626034:	mov	pc, lr
+
+
 TESTCASE (exec_events_generated)
 {
   GumExecEvent * ev;
 
-  invoke_flat_expecting_return_value (fixture, GUM_EXEC, 2);
+  StalkerTestFunc func = invoke_flat_expecting_return_value (fixture, GUM_EXEC, 2);
   g_assert_cmpuint (fixture->sink->events->len, ==,
                     INVOKER_INSN_COUNT + FLAT_CODE_INSN_COUNT);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
@@ -185,6 +202,48 @@ TESTCASE (exec_events_generated)
   ev =
       &g_array_index (fixture->sink->events, GumEvent, 0).exec;
   GUM_ASSERT_CMPADDR (ev->location, ==, fixture->invoker + INVOKER_IMPL_OFFSET);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 1).exec;
+  GUM_ASSERT_CMPADDR (ev->location, ==,
+    fixture->invoker + INVOKER_IMPL_OFFSET + 4);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 2).exec;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 3).exec;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func + 4);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 4).exec;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func + 8);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 5).exec;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func + 12);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 6).exec;
+  GUM_ASSERT_CMPADDR (ev->location, ==,
+    fixture->invoker + INVOKER_IMPL_OFFSET + 8);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 7).exec;
+  GUM_ASSERT_CMPADDR (ev->location, ==,
+    fixture->invoker + INVOKER_IMPL_OFFSET + 12);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 8).exec;
+  GUM_ASSERT_CMPADDR (ev->location, ==,
+    fixture->invoker + INVOKER_IMPL_OFFSET + 16);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 9).exec;
+  GUM_ASSERT_CMPADDR (ev->location, ==,
+    fixture->invoker + INVOKER_IMPL_OFFSET + 20);
+
 }
 
 TESTCASE (call_events_generated)

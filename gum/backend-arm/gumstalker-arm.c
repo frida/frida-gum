@@ -741,7 +741,7 @@ gum_exec_ctx_write_prolog (GumExecCtx * ctx,
   gum_arm_writer_put_push_registers(cw, 3,
     ARM_REG_R0, ARM_REG_R1, ARM_REG_R2);
 
-  gum_arm_writer_put_mov_reg_reg(cw, ARM_REG_R12, ARM_REG_SP);
+  gum_arm_writer_put_mov_reg_reg(cw, ARM_REG_R11, ARM_REG_SP);
 }
 
 static void
@@ -819,19 +819,19 @@ gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
 
   if (source_register >= ARM_REG_R0 && source_register <= ARM_REG_R7)
   {
-    gum_arm_writer_put_ldr_reg_reg_imm (cw, target_register, ARM_REG_R12,
+    gum_arm_writer_put_ldr_reg_reg_imm (cw, target_register, ARM_REG_R11,
         G_STRUCT_OFFSET (GumCpuContext, r) +
         ((source_register - ARM64_REG_X0) * 4));
   }
   else if (source_register >= ARM_REG_R8 && source_register <= ARM_REG_R12)
   {
-    gum_arm_writer_put_ldr_reg_reg_imm (cw, target_register, ARM_REG_R12,
+    gum_arm_writer_put_ldr_reg_reg_imm (cw, target_register, ARM_REG_R11,
         G_STRUCT_OFFSET (GumCpuContext, r8) +
         ((source_register - ARM64_REG_X8) * 4));
   }
   else if (source_register == ARM_REG_LR)
   {
-    gum_arm_writer_put_ldr_reg_reg_imm (cw, target_register, ARM_REG_R12,
+    gum_arm_writer_put_ldr_reg_reg_imm (cw, target_register, ARM_REG_R11,
         G_STRUCT_OFFSET (GumCpuContext, lr));
   }
   else
@@ -1068,14 +1068,9 @@ gum_exec_block_push_stack_frame (GumExecCtx * ctx,
 
 static void
 gum_exec_block_pop_stack_frame (GumExecCtx * ctx,
-                                 gpointer target)
+                                 gpointer ret_real_address)
 {
-  if (ctx->current_frame->real_address == target)
-  {
-    ctx->current_frame->real_address = NULL;
-    ctx->current_frame->code_address = NULL;
-    ctx->current_frame++;
-  }
+  ctx->current_frame++;
 }
 
 static void
@@ -1196,16 +1191,6 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
       gum_arm_relocator_skip_one (gc->relocator);
       gum_exec_block_open_prolog (block, gc);
 
-      if ((ec->sink_mask & GUM_EXEC) != 0)
-      {
-        gum_exec_block_write_exec_event_code (block, gc);
-      }
-
-      if ((ec->sink_mask & GUM_CALL) != 0)
-      {
-        gum_exec_block_write_call_event_code (block, &target, gc);
-      }
-
       ret_real_address = gc->instruction->end;
       ret_code_address = cw->code;
       gum_arm_writer_put_b_label (cw, after_landing_pad);
@@ -1219,6 +1204,16 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
       gum_exec_block_write_jmp_generated_code(gc->code_writer, block->ctx);
 
       gum_arm_writer_put_label (cw, after_landing_pad);
+
+      if ((ec->sink_mask & GUM_EXEC) != 0)
+      {
+        gum_exec_block_write_exec_event_code (block, gc);
+      }
+
+      if ((ec->sink_mask & GUM_CALL) != 0)
+      {
+        gum_exec_block_write_call_event_code (block, &target, gc);
+      }
 
       gum_exec_block_write_call_replace_current_block_with (block, &target, gc);
       gum_exec_block_write_push_stack_frame(block, ret_real_address,
