@@ -423,7 +423,6 @@ TESTCASE (unmodified_lr)
                                  0xecececec);
 }
 
-// Test that LR is not modified
 // Test relocated references to globals
 // Compare test list to aarch64
 // Check thumb/jazelle is excluded.
