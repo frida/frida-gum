@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2009-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2010-2013 Karl Trygve Kalleberg <karltk@boblycat.org>
+ * Copyright (C) 2020      Duy Phan Thanh <phanthanhduypr@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -85,9 +86,11 @@ struct _GumStalker
 
 #ifdef G_OS_WIN32
   GumExceptor * exceptor;
+# if GLIB_SIZEOF_VOID_P == 4
   gpointer user32_start, user32_end;
   gpointer ki_user_callback_dispatcher_impl;
-  gpointer wow64_transition_address;
+  GArray * wow_transition_impls;
+# endif
 #endif
 };
 
@@ -418,7 +421,7 @@ static GumVirtualizationRequirements gum_exec_block_virtualize_sysenter_insn (
 #if GLIB_SIZEOF_VOID_P == 4 && defined (HAVE_WINDOWS)
 static GumVirtualizationRequirements
     gum_exec_block_virtualize_wow64_transition (GumExecBlock * block,
-    GumGeneratorContext * gc);
+    GumGeneratorContext * gc, gpointer impl);
 #endif
 
 static void gum_exec_block_write_call_invoke_code (GumExecBlock * block,
@@ -467,6 +470,10 @@ static gboolean gum_stalker_on_exception (GumExceptionDetails * details,
 static void gum_enable_hardware_breakpoint (GumNativeRegisterValue * dr7_reg,
     guint index);
 # if GLIB_SIZEOF_VOID_P == 4
+static void gum_collect_export (GArray * impls, const TCHAR * module_name,
+    const gchar * export_name);
+static void gum_collect_export_by_handle (GArray * impls,
+    HMODULE module_handle, const gchar * export_name);
 static gpointer gum_find_system_call_above_us (GumStalker * stalker,
     gpointer * start_esp);
 # endif
@@ -522,6 +529,7 @@ gum_stalker_init (GumStalker * self)
     BOOL success;
     gboolean found_user32_code;
     guint8 * p;
+    GArray * impls;
 
     ntmod = GetModuleHandle (_T ("ntdll.dll"));
     usermod = GetModuleHandle (_T ("user32.dll"));
@@ -559,8 +567,13 @@ gum_stalker_init (GumStalker * self)
         GetProcAddress (ntmod, "KiUserCallbackDispatcher"));
     g_assert (self->ki_user_callback_dispatcher_impl != NULL);
 
-    self->wow64_transition_address = GUM_FUNCPTR_TO_POINTER (
-        GetProcAddress (ntmod, "Wow64Transition"));
+    impls = g_array_sized_new (FALSE, FALSE, sizeof (gpointer), 5);
+    self->wow_transition_impls = impls;
+    gum_collect_export_by_handle (impls, ntmod, "Wow64Transition");
+    gum_collect_export_by_handle (impls, usermod, "Wow64Transition");
+    gum_collect_export (impls, _T ("kernel32.dll"), "Wow64Transition");
+    gum_collect_export (impls, _T ("kernelbase.dll"), "Wow64Transition");
+    gum_collect_export (impls, _T ("win32u.dll"), "Wow64Transition");
   }
 # endif
 #endif
@@ -593,6 +606,10 @@ static void
 gum_stalker_finalize (GObject * object)
 {
   GumStalker * self = GUM_STALKER (object);
+
+#if defined (G_OS_WIN32) && GLIB_SIZEOF_VOID_P == 4
+  g_array_unref (self->wow_transition_impls);
+#endif
 
   g_hash_table_unref (self->probe_array_by_address);
   g_hash_table_unref (self->probe_target_by_id);
@@ -2900,14 +2917,20 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
   else if (op->type == X86_OP_MEM)
   {
 #if GLIB_SIZEOF_VOID_P == 4 && defined (HAVE_WINDOWS)
-    if (ctx->stalker->wow64_transition_address != NULL &&
-        op->mem.disp == GPOINTER_TO_UINT (
-            ctx->stalker->wow64_transition_address) &&
-        op->mem.segment == X86_REG_INVALID &&
+    if (op->mem.segment == X86_REG_INVALID &&
         op->mem.base == X86_REG_INVALID &&
         op->mem.index == X86_REG_INVALID)
     {
-      return gum_exec_block_virtualize_wow64_transition (block, gc);
+      GArray * impls = ctx->stalker->wow_transition_impls;
+      guint i;
+
+      for (i = 0; i != impls->len; i++)
+      {
+        gpointer impl = g_array_index (impls, gpointer, i);
+
+        if (GSIZE_TO_POINTER (op->mem.disp) == impl)
+          return gum_exec_block_virtualize_wow64_transition (block, gc, impl);
+      }
     }
 #endif
 
@@ -3157,7 +3180,8 @@ gum_exec_block_virtualize_sysenter_insn (GumExecBlock * block,
 
 static GumVirtualizationRequirements
 gum_exec_block_virtualize_wow64_transition (GumExecBlock * block,
-                                            GumGeneratorContext * gc)
+                                            GumGeneratorContext * gc,
+                                            gpointer impl)
 {
   GumX86Writer * cw = gc->code_writer;
   guint8 code[] = {
@@ -3184,8 +3208,7 @@ gum_exec_block_virtualize_wow64_transition (GumExecBlock * block,
 
   *((gpointer *) (code + store_ret_addr_offset)) = saved_ret_addr;
   *((gpointer *) (code + load_continuation_addr_offset)) = continuation;
-  *((gpointer *) (code + wow64_transition_addr_offset)) =
-      block->ctx->stalker->wow64_transition_address;
+  *((gpointer *) (code + wow64_transition_addr_offset)) = impl;
 
   gum_x86_writer_put_bytes (cw, code, sizeof (code));
 
@@ -4128,6 +4151,34 @@ gum_enable_hardware_breakpoint (GumNativeRegisterValue * dr7_reg,
 }
 
 # if GLIB_SIZEOF_VOID_P == 4
+
+static void
+gum_collect_export (GArray * impls,
+                    const TCHAR * module_name,
+                    const gchar * export_name)
+{
+  HMODULE module_handle;
+
+  module_handle = GetModuleHandle (module_name);
+  if (module_handle == NULL)
+    return;
+
+  gum_collect_export_by_handle (impls, module_handle, export_name);
+}
+
+static void
+gum_collect_export_by_handle (GArray * impls,
+                              HMODULE module_handle,
+                              const gchar * export_name)
+{
+  gsize impl;
+
+  impl = GPOINTER_TO_SIZE (GetProcAddress (module_handle, export_name));
+  if (impl == 0)
+    return;
+
+  g_array_append_val (impls, impl);
+}
 
 static gpointer
 gum_find_system_call_above_us (GumStalker * stalker,
