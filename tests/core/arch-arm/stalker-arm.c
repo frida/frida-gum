@@ -278,7 +278,7 @@ TESTCASE (nested_call_events_generated)
                                      &nested_call_code_end - &nested_call_code,
                                      4);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_CALL_INSN_COUNT + 2);
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_CALL_INSN_COUNT + 3);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
       0).type, ==, GUM_CALL);
   ev =
@@ -291,6 +291,12 @@ TESTCASE (nested_call_events_generated)
   GUM_ASSERT_CMPADDR (ev->location, ==, func + (3 * 4));
   GUM_ASSERT_CMPADDR (ev->target, ==, func + (7 * 4));
   GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 2).call;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func + (9 * 4));
+  GUM_ASSERT_CMPADDR (ev->target, ==, func + (12 * 4));
+  GUM_ASSERT_CMPADDR (ev->depth, ==, 2);
 }
 
 // Test calling mulitple levels deep and check call depth
