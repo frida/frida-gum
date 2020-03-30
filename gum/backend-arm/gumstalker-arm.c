@@ -227,12 +227,6 @@ gum_stalker_new (void)
   return g_object_new (GUM_TYPE_STALKER, NULL);
 }
 
-void
-gum_stalker_exclude (GumStalker * self,
-                     const GumMemoryRange * range)
-{
-}
-
 gint
 gum_stalker_get_trust_threshold (GumStalker * self)
 {
@@ -1106,6 +1100,13 @@ gum_exec_ctx_end_call (GumExecCtx * ctx)
   ctx->pending_calls--;
 }
 
+void
+gum_stalker_exclude (GumStalker * self,
+                     const GumMemoryRange * range)
+{
+  g_array_append_val (self->exclusions, *range);
+}
+
 static gboolean
 gum_stalker_is_excluding (GumExecCtx * ctx,
                           gconstpointer address)
@@ -1159,8 +1160,6 @@ gum_exec_block_write_handle_excluded (GumExecBlock * block,
   gum_exec_block_open_prolog (block, gc);
   gum_arm_writer_put_call_address_with_arguments_array (cw,
       GUM_ADDRESS (gum_exec_ctx_end_call), 1, args);
-  gum_exec_block_close_prolog (block, gc);
-
 
   GumArgument jmp_args[] =
   {
@@ -1170,7 +1169,7 @@ gum_exec_block_write_handle_excluded (GumExecBlock * block,
 
   gum_arm_writer_put_call_address_with_arguments_array (cw,
     GUM_ADDRESS (gum_exec_ctx_replace_current_block_with), 2, jmp_args);
-
+  gum_exec_block_close_prolog (block, gc);
 
   gum_exec_block_write_jmp_generated_code(gc->code_writer, block->ctx);
   gum_arm_writer_put_brk_imm(cw, 15);
@@ -1246,7 +1245,6 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
       break;
     case ARM_INS_BL:
     case ARM_INS_BLX:
-      gum_arm_relocator_skip_one (gc->relocator);
       gum_exec_block_open_prolog (block, gc);
       ret_real_address = gc->instruction->end;
 
@@ -1267,6 +1265,7 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
       gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_LR,
         GUM_ADDRESS (ret_real_address));
       gum_exec_block_write_jmp_generated_code(gc->code_writer, block->ctx);
+      gum_arm_relocator_skip_one (gc->relocator);
       break;
     case ARM_INS_MOV:
       op = &insn->detail->arm.operands[0];

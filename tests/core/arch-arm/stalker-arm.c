@@ -25,7 +25,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (nested_call_events_generated)
   TESTENTRY (nested_ret_events_generated)
   TESTENTRY (unmodified_lr)
-  TESTENTRY (globals)
+  TESTENTRY (excluded_range)
 TESTLIST_END ()
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
@@ -423,30 +423,78 @@ TESTCASE (unmodified_lr)
                                  0xecececec);
 }
 
-extern const void globals_code;
-extern const void globals_code_end;
+extern const void excluded_range_code;
+extern const void excluded_range_code_end;
 
 asm (
-  "globals_code: \n"
-  ".global globals_code \n"
-  "ldr r0, =data \n"
-  "ldr r0, [r0] \n"
+  "excluded_range_code: \n"
+  "stmdb sp!, {lr} \n"
+  "sub r0, r0, r0 \n"
+  "add r0, r0, #1 \n"
+  "bl 2f \n"
+  "ldmia sp!, {lr} \n"
   "mov pc,lr \n"
 
-  "data: \n"
-  ".word 0xecececec \n"
+  "2: \n"
+  "add r0, r0, #1 \n"
+  "mov pc, lr \n"
 
-  "globals_code_end = .\n"
+  "excluded_range_code_end: \n"
 );
 
-TESTCASE (globals)
+
+// struct _GumMemoryRange
+// {
+//   GumAddress base_address;
+//   gsize size;
+// };
+
+
+TESTCASE (excluded_range)
 {
-  /* We need to add 4 here, since the compiler emits an absolute address to resolve =data at the end of the block*/
-  invoke_expecting_return_value (fixture, 0,
-                                 &globals_code,
-                                 &globals_code_end - &globals_code + 4,
-                                 0xecececec);
+  GumExecEvent * ev;
+
+  StalkerTestFunc func = (StalkerTestFunc)
+    test_arm_stalker_fixture_dup_code (fixture, &excluded_range_code,
+      &excluded_range_code_end - &excluded_range_code);
+
+  GumMemoryRange r = {
+    .base_address = GUM_ADDRESS(func) + 24,
+    .size = 8
+  };
+
+  gum_stalker_exclude (fixture->stalker, &r);
+
+
+  fixture->sink->mask = GUM_EXEC;
+  guint32 ret = test_arm_stalker_fixture_follow_and_invoke (fixture, func, -1);
+  g_assert_cmpuint (ret, ==, 2);
+
+  //g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 6);
+  g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
+      0).type, ==, GUM_EXEC);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 2).exec;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 3).exec;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func + 4);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 4).exec;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func + 8);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 5).exec;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func + 12);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 6).exec;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func + 16);
 }
+
 
 // Test adding excluded ranges
 // Other forms of return statements
