@@ -79,7 +79,11 @@ struct _GumStalker
   GumExceptor * exceptor;
   gpointer user32_start, user32_end;
   gpointer ki_user_callback_dispatcher_impl;
-  gpointer wow64_transition_address;
+  gpointer ntdll_wow64_transition_address;
+  gpointer kernel32_wow64_transition_address;
+  gpointer kernelbase_wow64_transition_address;
+  gpointer user32_wow64_transition_address;
+  gpointer win32u_wow64_transition_address;
 #endif
 };
 
@@ -405,7 +409,7 @@ static GumVirtualizationRequirements gum_exec_block_virtualize_sysenter_insn (
 #if GLIB_SIZEOF_VOID_P == 4 && defined (HAVE_WINDOWS)
 static GumVirtualizationRequirements
     gum_exec_block_virtualize_wow64_transition (GumExecBlock * block,
-    GumGeneratorContext * gc);
+    GumGeneratorContext * gc, gpointer wow64_transition_addr);
 #endif
 
 static void gum_exec_block_write_call_invoke_code (GumExecBlock * block,
@@ -497,17 +501,21 @@ gum_stalker_init (GumStalker * self)
   gum_exceptor_add (self->exceptor, gum_stalker_on_exception, self);
 
   {
-    HMODULE ntmod, usermod;
+    HMODULE ntmod, user32mod, kernel32mod, kernelbasemod, win32umod;
     MODULEINFO mi;
     BOOL success;
     gboolean found_user32_code = FALSE;
     guint8 * p;
 
     ntmod = GetModuleHandle (_T ("ntdll.dll"));
-    usermod = GetModuleHandle (_T ("user32.dll"));
-    g_assert (ntmod != NULL && usermod != NULL);
+    user32mod = GetModuleHandle (_T ("user32.dll"));
+    kernel32mod = GetModuleHandle (_T ("kernel32.dll"));
+    kernelbasemod = GetModuleHandle (_T ("kernelbase.dll"));
+    win32umod = GetModuleHandle (_T ("win32u.dll"));
 
-    success = GetModuleInformation (GetCurrentProcess (), usermod,
+    g_assert (ntmod != NULL && user32mod != NULL && kernel32mod != NULL && kernelbasemod != NULL);
+
+    success = GetModuleInformation (GetCurrentProcess (), user32mod,
         &mi, sizeof (mi));
     g_assert (success);
     self->user32_start = mi.lpBaseOfDll;
@@ -539,8 +547,16 @@ gum_stalker_init (GumStalker * self)
         GetProcAddress (ntmod, "KiUserCallbackDispatcher"));
     g_assert (self->ki_user_callback_dispatcher_impl != NULL);
 
-    self->wow64_transition_address = GUM_FUNCPTR_TO_POINTER (
+    self->ntdll_wow64_transition_address = GUM_FUNCPTR_TO_POINTER (
         GetProcAddress (ntmod, "Wow64Transition"));
+    self->kernel32_wow64_transition_address = GUM_FUNCPTR_TO_POINTER (
+        GetProcAddress (kernel32mod, "Wow64Transition"));
+    self->kernelbase_wow64_transition_address = GUM_FUNCPTR_TO_POINTER (
+        GetProcAddress (kernelbasemod, "Wow64Transition"));
+    self->user32_wow64_transition_address = GUM_FUNCPTR_TO_POINTER (
+        GetProcAddress (user32mod, "Wow64Transition"));
+    self->win32u_wow64_transition_address = GUM_FUNCPTR_TO_POINTER (
+        GetProcAddress (win32umod, "Wow64Transition"));
   }
 #endif
 
@@ -2801,14 +2817,45 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
   else if (op->type == X86_OP_MEM)
   {
 #if GLIB_SIZEOF_VOID_P == 4 && defined (HAVE_WINDOWS)
-    if (ctx->stalker->wow64_transition_address != NULL &&
-        op->mem.disp == GPOINTER_TO_UINT (
-            ctx->stalker->wow64_transition_address) &&
-        op->mem.segment == X86_REG_INVALID &&
+    if (op->mem.segment == X86_REG_INVALID &&
         op->mem.base == X86_REG_INVALID &&
         op->mem.index == X86_REG_INVALID)
     {
-      return gum_exec_block_virtualize_wow64_transition (block, gc);
+      if (ctx->stalker->ntdll_wow64_transition_address != NULL &&
+          op->mem.disp == GPOINTER_TO_SIZE (
+              ctx->stalker->ntdll_wow64_transition_address)) 
+      {
+        return gum_exec_block_virtualize_wow64_transition (block, gc,
+            ctx->stalker->ntdll_wow64_transition_address);
+      }
+      else if (ctx->stalker->kernel32_wow64_transition_address != NULL &&
+          op->mem.disp == GPOINTER_TO_SIZE (
+              ctx->stalker->kernel32_wow64_transition_address))
+      {
+        return gum_exec_block_virtualize_wow64_transition (block, gc,
+            ctx->stalker->kernel32_wow64_transition_address);
+      }
+      else if (ctx->stalker->kernelbase_wow64_transition_address != NULL &&
+          op->mem.disp == GPOINTER_TO_SIZE (
+              ctx->stalker->kernelbase_wow64_transition_address))
+      {
+        return gum_exec_block_virtualize_wow64_transition (block, gc,
+            ctx->stalker->kernelbase_wow64_transition_address);
+      }
+      else if (ctx->stalker->user32_wow64_transition_address != NULL &&
+          op->mem.disp == GPOINTER_TO_SIZE (
+              ctx->stalker->user32_wow64_transition_address))
+      {
+        return gum_exec_block_virtualize_wow64_transition (block, gc,
+            ctx->stalker->user32_wow64_transition_address);
+      }
+      else if (ctx->stalker->win32u_wow64_transition_address != NULL &&
+          op->mem.disp == GPOINTER_TO_SIZE (
+              ctx->stalker->win32u_wow64_transition_address))
+      {
+        return gum_exec_block_virtualize_wow64_transition (block, gc,
+            ctx->stalker->win32u_wow64_transition_address);
+      }
     }
 #endif
 
@@ -3058,7 +3105,8 @@ gum_exec_block_virtualize_sysenter_insn (GumExecBlock * block,
 
 static GumVirtualizationRequirements
 gum_exec_block_virtualize_wow64_transition (GumExecBlock * block,
-                                            GumGeneratorContext * gc)
+                                            GumGeneratorContext * gc,
+                                            gpointer wow64_transition_addr)
 {
   GumX86Writer * cw = gc->code_writer;
   guint8 code[] = {
@@ -3085,8 +3133,7 @@ gum_exec_block_virtualize_wow64_transition (GumExecBlock * block,
 
   *((gpointer *) (code + store_ret_addr_offset)) = saved_ret_addr;
   *((gpointer *) (code + load_continuation_addr_offset)) = continuation;
-  *((gpointer *) (code + wow64_transition_addr_offset)) =
-      block->ctx->stalker->wow64_transition_address;
+  *((gpointer *) (code + wow64_transition_addr_offset)) = wow64_transition_addr;
 
   gum_x86_writer_put_bytes (cw, code, sizeof (code));
 
