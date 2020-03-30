@@ -25,6 +25,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (nested_call_events_generated)
   TESTENTRY (nested_ret_events_generated)
   TESTENTRY (unmodified_lr)
+  TESTENTRY (globals)
 TESTLIST_END ()
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
@@ -405,7 +406,6 @@ extern const void unmodified_lr_code_end;
 asm (
   "unmodified_lr_code: \n"
   "stmdb sp!, {lr} \n"
-  "sub r0, r0, r0 \n"
   "bl 1f \n"
   ".word 0xecececec \n"
   "1: \n"
@@ -420,6 +420,31 @@ TESTCASE (unmodified_lr)
   invoke_expecting_return_value (fixture, 0,
                                  &unmodified_lr_code,
                                  &unmodified_lr_code_end - &unmodified_lr_code,
+                                 0xecececec);
+}
+
+extern const void globals_code;
+extern const void globals_code_end;
+
+asm (
+  "globals_code: \n"
+  ".global globals_code \n"
+  "ldr r0, =data \n"
+  "ldr r0, [r0] \n"
+  "mov pc,lr \n"
+
+  "data: \n"
+  ".word 0xecececec \n"
+
+  "globals_code_end = .\n"
+);
+
+TESTCASE (globals)
+{
+  /* We need to add 4 here, since the compiler emits an absolute address to resolve =data at the end of the block*/
+  invoke_expecting_return_value (fixture, 0,
+                                 &globals_code,
+                                 &globals_code_end - &globals_code + 4,
                                  0xecececec);
 }
 
