@@ -24,6 +24,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (block_events_generated)
   TESTENTRY (nested_call_events_generated)
   TESTENTRY (nested_ret_events_generated)
+  TESTENTRY (unmodified_lr)
 TESTLIST_END ()
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
@@ -49,17 +50,17 @@ invoke_expecting_return_value (TestArmStalkerFixture * fixture,
                                GumEventType mask,
                                const guint32* code,
                                guint32 len,
-                               guint expected_return_value)
+                               guint32 expected_return_value)
 {
   StalkerTestFunc func;
-  gint ret;
+  guint32 ret;
 
   func = (StalkerTestFunc) test_arm_stalker_fixture_dup_code (fixture,
       code, len);
 
   fixture->sink->mask = mask;
   ret = test_arm_stalker_fixture_follow_and_invoke (fixture, func, -1);
-  g_assert_cmpint (ret, ==, expected_return_value);
+  g_assert_cmpuint (ret, ==, expected_return_value);
 
   return func;
 }
@@ -398,9 +399,32 @@ TESTCASE (nested_ret_events_generated)
   GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
 }
 
+extern const void unmodified_lr_code;
+extern const void unmodified_lr_code_end;
+
+asm (
+  "unmodified_lr_code: \n"
+  "stmdb sp!, {lr} \n"
+  "sub r0, r0, r0 \n"
+  "bl 1f \n"
+  ".word 0xecececec \n"
+  "1: \n"
+  "ldr r0, [lr] \n"
+  "ldmia sp!, {lr} \n"
+  "mov pc,lr \n"
+  "unmodified_lr_code_end: \n"
+);
+
+TESTCASE (unmodified_lr)
+{
+  invoke_expecting_return_value (fixture, 0,
+                                 &unmodified_lr_code,
+                                 &unmodified_lr_code_end - &unmodified_lr_code,
+                                 0xecececec);
+}
+
 // Test that LR is not modified
 // Test relocated references to globals
-// Test we can emit events for ret
 // Compare test list to aarch64
 // Check thumb/jazelle is excluded.
 // Test adding excluded ranges
