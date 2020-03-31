@@ -1295,10 +1295,7 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         target.reg = op->reg;
         break;
       case ARM_INS_MOV:
-        if (op->type == ARM_OP_REG && op->reg == ARM_REG_PC)
-        {
-          target.reg = op2->reg;
-        }
+        target.reg = op2->reg;
         break;
       case ARM_INS_POP:
         break;
@@ -1321,16 +1318,7 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         gum_exec_block_virtualize_call_insn(block, &target, gc);
         break;
       case ARM_INS_MOV:
-        op = &insn->detail->arm.operands[0];
-        if (op->type == ARM_OP_REG && op->reg == ARM_REG_PC)
-        {
-          // TODO: Handle return here. Also need `POP pc` too.
-          gum_exec_block_virtualize_ret_insn(block, &target, gc);
-        }
-        else
-        {
-          gum_exec_block_dont_virtualize_insn(block, &target, gc);
-        }
+        gum_exec_block_virtualize_ret_insn(block, &target, gc);
         break;
       case ARM_INS_POP:
         break;
