@@ -1177,20 +1177,94 @@ gum_exec_block_write_handle_excluded (GumExecBlock * block,
   gum_arm_writer_put_label (cw, not_excluded);
 }
 
+static void gum_exec_block_virtualize_branch_insn (
+    GumExecBlock * block, const GumBranchTarget * target,
+    GumGeneratorContext * gc)
+{
+    GumExecCtx * ec = block->ctx;
+    gum_arm_relocator_skip_one (gc->relocator);
+    gum_exec_block_open_prolog (block, gc);
+
+    if ((ec->sink_mask & GUM_EXEC) != 0)
+    {
+      gum_exec_block_write_exec_event_code (block, gc);
+    }
+
+    if ((ec->sink_mask & GUM_BLOCK) != 0)
+    {
+      gum_exec_block_write_block_event_code (block, gc);
+    }
+
+    gum_exec_block_write_call_replace_current_block_with (block, target, gc);
+    gum_exec_block_close_prolog (block, gc);
+    gum_exec_block_write_jmp_generated_code(gc->code_writer, block->ctx);
+}
+
+static void gum_exec_block_virtualize_call_insn (
+    GumExecBlock * block, const GumBranchTarget * target,
+    GumGeneratorContext * gc)
+{
+  GumExecCtx * ec = block->ctx;
+  gpointer ret_real_address;
+
+  gum_exec_block_open_prolog (block, gc);
+  ret_real_address = gc->instruction->end;
+
+  if ((ec->sink_mask & GUM_EXEC) != 0)
+  {
+    gum_exec_block_write_exec_event_code (block, gc);
+  }
+
+  if ((ec->sink_mask & GUM_CALL) != 0)
+  {
+    gum_exec_block_write_call_event_code (block, target, gc);
+  }
+
+  gum_exec_block_write_handle_excluded (block, target, gc);
+  gum_exec_block_write_call_replace_current_block_with (block, target, gc);
+  gum_exec_block_write_push_stack_frame(block, ret_real_address, gc);
+  gum_exec_block_close_prolog (block, gc);
+  gum_arm_writer_put_ldr_reg_address (gc->code_writer, ARM_REG_LR,
+    GUM_ADDRESS (ret_real_address));
+  gum_exec_block_write_jmp_generated_code(gc->code_writer, block->ctx);
+}
+
+static void gum_exec_block_virtualize_ret_insn (
+    GumExecBlock * block, const GumBranchTarget * target,
+    GumGeneratorContext * gc)
+{
+  GumExecCtx * ec = block->ctx;
+  gum_arm_relocator_skip_one (gc->relocator);
+  gum_exec_block_open_prolog (block, gc);
+
+  if ((ec->sink_mask & GUM_EXEC) != 0)
+  {
+    gum_exec_block_write_exec_event_code (block, gc);
+  }
+
+  if ((ec->sink_mask & GUM_RET) != 0)
+  {
+    gum_exec_block_write_ret_event_code (block, target, gc);
+  }
+
+  gum_exec_block_write_call_replace_current_block_with (block, target, gc);
+  gum_exec_block_write_pop_stack_frame(block, target, gc);
+  gum_exec_block_close_prolog (block, gc);
+  gum_exec_block_write_jmp_generated_code(gc->code_writer, block->ctx);
+}
+
 void
 gum_stalker_iterator_keep (GumStalkerIterator * self)
 {
   GumExecCtx * ec = self->exec_context;
   GumExecBlock * block = self->exec_block;
   GumGeneratorContext * gc = self->generator_context;
-  GumArmWriter * cw = gc->code_writer;
   GumArmRelocator * rl = gc->relocator;
   const cs_insn * insn = gc->instruction->ci;
   cs_arm * arm = &insn->detail->arm;
   cs_arm_op * op = &arm->operands[0];
   cs_arm_op * op2 = &arm->operands[1];
   GumBranchTarget target = { 0, };
-  gpointer ret_real_address;
 
   if (gum_arm_relocator_eob (rl))
   {
@@ -1226,69 +1300,18 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
       break;
     case ARM_INS_B:
     case ARM_INS_BX:
-      gum_arm_relocator_skip_one (gc->relocator);
-      gum_exec_block_open_prolog (block, gc);
-
-      if ((ec->sink_mask & GUM_EXEC) != 0)
-      {
-        gum_exec_block_write_exec_event_code (block, gc);
-      }
-
-      if ((ec->sink_mask & GUM_BLOCK) != 0)
-      {
-        gum_exec_block_write_block_event_code (block, gc);
-      }
-
-      gum_exec_block_write_call_replace_current_block_with (block, &target, gc);
-      gum_exec_block_close_prolog (block, gc);
-      gum_exec_block_write_jmp_generated_code(gc->code_writer, block->ctx);
+      gum_exec_block_virtualize_branch_insn(block, &target, gc);
       break;
     case ARM_INS_BL:
     case ARM_INS_BLX:
-      gum_exec_block_open_prolog (block, gc);
-      ret_real_address = gc->instruction->end;
-
-      if ((ec->sink_mask & GUM_EXEC) != 0)
-      {
-        gum_exec_block_write_exec_event_code (block, gc);
-      }
-
-      if ((ec->sink_mask & GUM_CALL) != 0)
-      {
-        gum_exec_block_write_call_event_code (block, &target, gc);
-      }
-
-      gum_exec_block_write_handle_excluded (block, &target, gc);
-      gum_exec_block_write_call_replace_current_block_with (block, &target, gc);
-      gum_exec_block_write_push_stack_frame(block, ret_real_address, gc);
-      gum_exec_block_close_prolog (block, gc);
-      gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_LR,
-        GUM_ADDRESS (ret_real_address));
-      gum_exec_block_write_jmp_generated_code(gc->code_writer, block->ctx);
-      gum_arm_relocator_skip_one (gc->relocator);
+      gum_exec_block_virtualize_call_insn(block, &target, gc);
       break;
     case ARM_INS_MOV:
       op = &insn->detail->arm.operands[0];
       if (op->type == ARM_OP_REG && op->reg == ARM_REG_PC)
       {
         // TODO: Handle return here. Also need `POP pc` too.
-        gum_arm_relocator_skip_one (gc->relocator);
-        gum_exec_block_open_prolog (block, gc);
-
-        if ((ec->sink_mask & GUM_EXEC) != 0)
-        {
-          gum_exec_block_write_exec_event_code (block, gc);
-        }
-
-        if ((ec->sink_mask & GUM_RET) != 0)
-        {
-          gum_exec_block_write_ret_event_code (block, &target, gc);
-        }
-
-        gum_exec_block_write_call_replace_current_block_with (block, &target, gc);
-        gum_exec_block_write_pop_stack_frame(block, &target, gc);
-        gum_exec_block_close_prolog (block, gc);
-        gum_exec_block_write_jmp_generated_code(gc->code_writer, block->ctx);
+        gum_exec_block_virtualize_ret_insn(block, &target, gc);
         break;
       }
       /* Fall through */
