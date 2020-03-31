@@ -55,8 +55,6 @@ static void show_events(GumFakeEventSink* sink)
   GumExecEvent* exec;
   guint len = sink->events->len;
 
-  g_print("\n");
-
   for (guint idx = 0; idx < len; idx++) {
     e = &g_array_index (sink->events, GumEvent, 0);
     switch(e->type)
@@ -64,27 +62,29 @@ static void show_events(GumFakeEventSink* sink)
       case GUM_CALL:
         call =
           &g_array_index (sink->events, GumEvent, idx).call;
-        g_print("%3d: { type: %s, location: %p, target: %p, depth: %u }\n",
-          idx, "GUM_CALL", call->location, call->target, call->depth);
+        g_print("%3d: { type: %s, location: 0x%08x, "
+                "target: 0x%08x, depth: %u }\n",
+                 idx, "GUM_CALL", (guint)call->location, (guint)call->target, call->depth);
         break;
       case GUM_RET:
         ret =
           &g_array_index (sink->events, GumEvent, idx).ret;
-        g_print("%3d: { type: %s, location: %p, target: %p, depth: %u }\n",
-          idx, "GUM_RET", ret->location, ret->target, ret->depth);
+        g_print("%3d: { type: %s, location: 0x%08x, "
+                "target: 0x%08x, depth: %u }\n",
+                idx, "GUM_RET", (guint)ret->location, (guint)ret->target, ret->depth);
         break;
 
       case GUM_EXEC:
         exec =
           &g_array_index (sink->events, GumEvent, idx).exec;
-        g_print("%3d: { type: %s, location: %p }\n", idx,
-          "GUM_EXEC", exec->location);
+        g_print("%3d: { type: %s, location: 0x%08x }\n", idx,
+                "GUM_EXEC", (guint)exec->location);
         break;
       case GUM_BLOCK:
         block =
           &g_array_index (sink->events, GumEvent, idx).block;
-        g_print("%3d: { type: %s, begin: %p, end: %p }\n", idx,
-          "GUM_BLOCK",    block->begin, block->end);
+        g_print("%3d: { type: %s, begin: 0x%08x, end: 0x%08x }\n", idx,
+                "GUM_BLOCK",    (guint)block->begin, (guint)block->end);
         break;
     }
   }
@@ -198,6 +198,9 @@ test_arm_stalker_fixture_follow_and_invoke (TestArmStalkerFixture * fixture,
   spec.near_address = gum_strip_code_pointer (gum_stalker_follow_me);
   spec.max_distance = G_MAXINT32 / 2;
   fixture->invoker = gum_alloc_n_pages_near (1, GUM_PAGE_RW, &spec);
+
+  g_print("\n");
+  g_print("func: 0x%08x\n", (guint)func);
 
   gum_arm_writer_init (&cw, fixture->invoker);
 
