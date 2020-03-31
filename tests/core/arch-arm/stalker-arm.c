@@ -491,10 +491,9 @@ TESTCASE (excluded_range)
   GUM_ASSERT_CMPADDR (ev->location, ==, func + 20);
 }
 
-// Review slides Tim sent
 // Write code to display event lists
-// Test adding excluded ranges
-// Other forms of return statements
+// PCLint for FRIDA rules
+// Ojfc fther forms of return statements
 // Compare test list to aarch64
 // Check thumb/jazelle is excluded.
 // Test we can unfollow (move check to virtualize funcs)

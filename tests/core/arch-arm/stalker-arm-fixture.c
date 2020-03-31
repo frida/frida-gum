@@ -46,6 +46,50 @@ typedef gint (* StalkerTestFunc) (gint arg);
 
 static void silence_warnings (void);
 
+static void show_events(GumFakeEventSink* sink)
+{
+  GumEvent* e;
+  GumCallEvent* call;
+  GumRetEvent* ret;
+  GumBlockEvent* block;
+  GumExecEvent* exec;
+  guint len = sink->events->len;
+
+  g_print("\n");
+
+  for (guint idx = 0; idx < len; idx++) {
+    e = &g_array_index (sink->events, GumEvent, 0);
+    switch(e->type)
+    {
+      case GUM_CALL:
+        call =
+          &g_array_index (sink->events, GumEvent, idx).call;
+        g_print("%3d: { type: %s, location: %p, target: %p, depth: %u }\n",
+          idx, "GUM_CALL", call->location, call->target, call->depth);
+        break;
+      case GUM_RET:
+        ret =
+          &g_array_index (sink->events, GumEvent, idx).ret;
+        g_print("%3d: { type: %s, location: %p, target: %p, depth: %u }\n",
+          idx, "GUM_RET", ret->location, ret->target, ret->depth);
+        break;
+
+      case GUM_EXEC:
+        exec =
+          &g_array_index (sink->events, GumEvent, idx).exec;
+        g_print("%3d: { type: %s, location: %p }\n", idx,
+          "GUM_EXEC", exec->location);
+        break;
+      case GUM_BLOCK:
+        block =
+          &g_array_index (sink->events, GumEvent, idx).block;
+        g_print("%3d: { type: %s, begin: %p, end: %p }\n", idx,
+          "GUM_BLOCK",    block->begin, block->end);
+        break;
+    }
+  }
+}
+
 static void
 debug_hello (gpointer pointer)
 {
@@ -191,6 +235,8 @@ test_arm_stalker_fixture_follow_and_invoke (TestArmStalkerFixture * fixture,
     GUM_POINTER_TO_FUNCPTR (GCallback,
                             gum_sign_code_pointer (fixture->invoker));
   invoke_func ();
+
+  show_events(fixture->sink);
 
   gum_free_pages (fixture->invoker);
 
