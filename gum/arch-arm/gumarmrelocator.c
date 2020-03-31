@@ -196,7 +196,6 @@ gum_arm_relocator_read_one (GumArmRelocator * self,
       }
       break;
     case ARM_INS_POP:
-      g_print("POP\n");
       for (uint8_t idx = 0; idx < insn->detail->arm.op_count; idx++)
       {
         op = &insn->detail->arm.operands[idx];

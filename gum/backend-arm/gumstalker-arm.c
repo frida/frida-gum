@@ -147,11 +147,9 @@ enum _GumExecCtxState
 
 struct _GumBranchTarget
 {
-  gpointer origin_ip;
-
   gpointer absolute_address;
   gssize relative_offset;
-
+  gboolean is_relative;
   arm_reg reg;
 };
 
@@ -710,8 +708,7 @@ static void
 gum_exec_ctx_write_prolog (GumExecCtx * ctx,
                            GumArmWriter * cw)
 {
-  // We pushed the LR in the glue
-  gint immediate_for_sp = 4;
+  gint immediate_for_sp = 0;
 
   gum_arm_writer_put_push_registers(cw, 9,
     ARM_REG_R0, ARM_REG_R1, ARM_REG_R2, ARM_REG_R3,
@@ -726,11 +723,11 @@ gum_exec_ctx_write_prolog (GumExecCtx * ctx,
 
   immediate_for_sp += 5 * 4;
 
-  gum_arm_writer_put_add_reg_reg_imm(cw, ARM_REG_R0, ARM_REG_SP,
+  gum_arm_writer_put_add_reg_reg_imm(cw, ARM_REG_R2, ARM_REG_SP,
                                      immediate_for_sp);
   gum_arm_writer_put_sub_reg_reg_reg(cw, ARM_REG_R1, ARM_REG_R1,
                                      ARM_REG_R1);
-  gum_arm_writer_put_mov_cpsr_to_reg(cw, ARM_REG_R2);
+  gum_arm_writer_put_mov_cpsr_to_reg(cw, ARM_REG_R0);
   gum_arm_writer_put_push_registers(cw, 3,
     ARM_REG_R0, ARM_REG_R1, ARM_REG_R2);
 
@@ -741,10 +738,10 @@ static void
 gum_exec_ctx_write_epilog (GumExecCtx * ctx,
                            GumArmWriter * cw)
 {
-  gum_arm_writer_put_pop_registers(cw, 1, ARM_REG_R2);
-  gum_arm_writer_put_mov_reg_to_cpsr(cw, ARM_REG_R2);
-
   gum_arm_writer_put_add_reg_reg_imm(cw, ARM_REG_SP, ARM_REG_SP, 8);
+
+  gum_arm_writer_put_pop_registers(cw, 1, ARM_REG_R0);
+  gum_arm_writer_put_mov_reg_to_cpsr(cw, ARM_REG_R0);
 
   gum_arm_writer_put_pop_registers(cw, 5,
     ARM_REG_R8, ARM_REG_R9, ARM_REG_R10, ARM_REG_R11,
@@ -827,6 +824,11 @@ gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
     gum_arm_writer_put_ldr_reg_reg_imm (cw, target_register, ARM_REG_R11,
         G_STRUCT_OFFSET (GumCpuContext, lr));
   }
+  else if (source_register == ARM_REG_SP)
+  {
+    gum_arm_writer_put_ldr_reg_reg_imm (cw, target_register, ARM_REG_R11,
+        G_STRUCT_OFFSET (GumCpuContext, sp));
+  }
   else
   {
     g_assert_not_reached ();
@@ -849,6 +851,10 @@ gum_exec_ctx_write_mov_branch_target_address (GumExecCtx * ctx,
   else
   {
     gum_exec_ctx_load_real_register_into (ctx, reg, target->reg, gc);
+    if (target->is_relative)
+    {
+      gum_arm_writer_put_ldr_reg_reg_imm(cw, reg, reg, target->relative_offset);
+    }
   }
 }
 
@@ -1279,6 +1285,9 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
   cs_arm_op * op2 = &arm->operands[1];
   GumBranchTarget target = { 0, };
 
+
+  g_printf("%p: %s\t%s\n", gc->instruction->begin, insn->mnemonic,
+    insn->op_str);
   if (gum_arm_relocator_eob (gc->relocator))
   {
     switch (insn->id)
@@ -1288,16 +1297,35 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         g_assert (op->type == ARM_OP_IMM);
         target.absolute_address = GSIZE_TO_POINTER (op->imm);
         target.reg = ARM_REG_INVALID;
+        target.is_relative = FALSE;
+        target.relative_offset = 0;
         break;
       case ARM_INS_BX:
       case ARM_INS_BLX:
         g_assert (op->type == ARM_OP_REG);
+        target.absolute_address = 0;
         target.reg = op->reg;
+        target.is_relative = FALSE;
+        target.relative_offset = 0;
         break;
       case ARM_INS_MOV:
+        target.absolute_address = 0;
         target.reg = op2->reg;
+        target.is_relative = FALSE;
+        target.relative_offset = 0;
         break;
       case ARM_INS_POP:
+        target.absolute_address = 0;
+        target.reg = ARM_REG_SP;
+        target.is_relative = TRUE;
+        for (uint8_t idx = 0; idx < insn->detail->arm.op_count; idx++)
+        {
+          op = &insn->detail->arm.operands[idx];
+          if(op->reg == ARM_REG_PC)
+          {
+            target.relative_offset = idx * 4;
+          }
+        }
         break;
       default:
         g_assert_not_reached ();
@@ -1321,6 +1349,7 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         gum_exec_block_virtualize_ret_insn(block, &target, gc);
         break;
       case ARM_INS_POP:
+        gum_exec_block_virtualize_ret_insn(block, &target, gc);
         break;
       default:
         g_assert_not_reached ();
@@ -1330,8 +1359,6 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
   else
   {
     gum_exec_block_dont_virtualize_insn(block, &target, gc);
-    g_printf("%p: %s\t%s\n", gc->instruction->begin, insn->mnemonic,
-      insn->op_str);
   }
 }
 
