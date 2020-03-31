@@ -196,14 +196,16 @@ gum_arm_relocator_read_one (GumArmRelocator * self,
       }
       break;
     case ARM_INS_POP:
-      if (cs_reg_read (self->capstone, insn, ARM_REG_PC))
+      g_print("POP\n");
+      for (uint8_t idx = 0; idx < insn->detail->arm.op_count; idx++)
       {
-        self->eob = TRUE;
-        self->eoi = TRUE;
-      }
-      else
-      {
-        self->eob = FALSE;
+        op = &insn->detail->arm.operands[idx];
+        if(op->reg == ARM_REG_PC)
+        {
+          self->eob = TRUE;
+          self->eoi = TRUE;
+          break;
+        }
       }
       break;
     default:

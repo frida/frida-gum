@@ -1253,20 +1253,33 @@ static void gum_exec_block_virtualize_ret_insn (
   gum_exec_block_write_jmp_generated_code(gc->code_writer, block->ctx);
 }
 
+static void gum_exec_block_dont_virtualize_insn (
+    GumExecBlock * block, const GumBranchTarget * target,
+    GumGeneratorContext * gc)
+{
+  GumExecCtx * ec = block->ctx;
+
+  if ((ec->sink_mask & GUM_EXEC) != 0)
+  {
+    gum_exec_block_open_prolog (block, gc);
+    gum_exec_block_write_exec_event_code (block, gc);
+    gum_exec_block_close_prolog (block, gc);
+  }
+  gum_arm_relocator_write_one (gc->relocator);
+}
+
 void
 gum_stalker_iterator_keep (GumStalkerIterator * self)
 {
-  GumExecCtx * ec = self->exec_context;
   GumExecBlock * block = self->exec_block;
   GumGeneratorContext * gc = self->generator_context;
-  GumArmRelocator * rl = gc->relocator;
   const cs_insn * insn = gc->instruction->ci;
   cs_arm * arm = &insn->detail->arm;
   cs_arm_op * op = &arm->operands[0];
   cs_arm_op * op2 = &arm->operands[1];
   GumBranchTarget target = { 0, };
 
-  if (gum_arm_relocator_eob (rl))
+  if (gum_arm_relocator_eob (gc->relocator))
   {
     switch (insn->id)
     {
@@ -1287,42 +1300,50 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
           target.reg = op2->reg;
         }
         break;
+      case ARM_INS_POP:
+        break;
       default:
         g_assert_not_reached ();
     }
-  }
 
-  switch (insn->id)
-  {
-    case ARM_INS_SMC:
-    case ARM_INS_HVC:
-      g_assert ("" == "not implemented");
-      break;
-    case ARM_INS_B:
-    case ARM_INS_BX:
-      gum_exec_block_virtualize_branch_insn(block, &target, gc);
-      break;
-    case ARM_INS_BL:
-    case ARM_INS_BLX:
-      gum_exec_block_virtualize_call_insn(block, &target, gc);
-      break;
-    case ARM_INS_MOV:
-      op = &insn->detail->arm.operands[0];
-      if (op->type == ARM_OP_REG && op->reg == ARM_REG_PC)
-      {
-        // TODO: Handle return here. Also need `POP pc` too.
-        gum_exec_block_virtualize_ret_insn(block, &target, gc);
+    switch (insn->id)
+    {
+      case ARM_INS_SMC:
+      case ARM_INS_HVC:
+        g_assert ("" == "not implemented");
         break;
-      }
-      /* Fall through */
-    default:
-      if ((ec->sink_mask & GUM_EXEC) != 0)
-      {
-        gum_exec_block_open_prolog (block, gc);
-        gum_exec_block_write_exec_event_code (block, gc);
-        gum_exec_block_close_prolog (block, gc);
-      }
-      gum_arm_relocator_write_one (rl);
+      case ARM_INS_B:
+      case ARM_INS_BX:
+        gum_exec_block_virtualize_branch_insn(block, &target, gc);
+        break;
+      case ARM_INS_BL:
+      case ARM_INS_BLX:
+        gum_exec_block_virtualize_call_insn(block, &target, gc);
+        break;
+      case ARM_INS_MOV:
+        op = &insn->detail->arm.operands[0];
+        if (op->type == ARM_OP_REG && op->reg == ARM_REG_PC)
+        {
+          // TODO: Handle return here. Also need `POP pc` too.
+          gum_exec_block_virtualize_ret_insn(block, &target, gc);
+        }
+        else
+        {
+          gum_exec_block_dont_virtualize_insn(block, &target, gc);
+        }
+        break;
+      case ARM_INS_POP:
+        break;
+      default:
+        g_assert_not_reached ();
+        break;
+    }
+  }
+  else
+  {
+    gum_exec_block_dont_virtualize_insn(block, &target, gc);
+    g_printf("%p: %s\t%s\n", gc->instruction->begin, insn->mnemonic,
+      insn->op_str);
   }
 }
 
