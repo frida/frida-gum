@@ -80,8 +80,8 @@ GUM_API gboolean gum_arm_writer_put_bytes (GumArmWriter * self,
 GUM_API void gum_arm_writer_put_push_registers (GumArmWriter * self, guint cnt,
     ...);
 
-GUM_API void gum_arm_write_put_pop_registers_by_mask(GumArmWriter * self,
-    gushort mask);
+GUM_API void gum_arm_write_put_ldmia_registers_by_mask(GumArmWriter * self,
+    arm_reg reg, gushort mask);
 
 GUM_API void gum_arm_writer_put_pop_registers (GumArmWriter * self, guint cnt,
     ...);

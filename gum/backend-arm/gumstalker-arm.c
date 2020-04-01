@@ -807,18 +807,17 @@ gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
   GumArmWriter * cw;
 
   cw = gc->code_writer;
-
   if (source_register >= ARM_REG_R0 && source_register <= ARM_REG_R7)
   {
     gum_arm_writer_put_ldr_reg_reg_imm (cw, target_register, ARM_REG_R11,
         G_STRUCT_OFFSET (GumCpuContext, r) +
-        ((source_register - ARM64_REG_X0) * 4));
+        ((source_register - ARM_REG_R0) * 4));
   }
   else if (source_register >= ARM_REG_R8 && source_register <= ARM_REG_R12)
   {
     gum_arm_writer_put_ldr_reg_reg_imm (cw, target_register, ARM_REG_R11,
         G_STRUCT_OFFSET (GumCpuContext, r8) +
-        ((source_register - ARM64_REG_X8) * 4));
+        ((source_register - ARM_REG_R8) * 4));
   }
   else if (source_register == ARM_REG_LR)
   {
@@ -1262,10 +1261,11 @@ static void gum_exec_block_virtualize_ret_insn (
   {
     if (mask != 0)
     {
-      gum_arm_write_put_pop_registers_by_mask(gc->code_writer, mask);
+      gum_arm_write_put_ldmia_registers_by_mask(gc->code_writer, target->reg,
+          mask);
     }
-    gum_arm_writer_put_add_reg_reg_imm(gc->code_writer, ARM_REG_SP,
-        ARM_REG_SP, 4);
+    gum_arm_writer_put_add_reg_reg_imm(gc->code_writer, target->reg,
+        target->reg, 4);
   }
 
   gum_exec_block_write_jmp_generated_code(gc->code_writer, block->ctx);
@@ -1348,6 +1348,7 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
       case ARM_INS_LDM:
         target.absolute_address = 0;
         target.reg = op->reg;
+        g_print("REG: %d %d\n", op->reg, ARM_REG_R3);
         target.is_relative = TRUE;
         for (uint8_t idx = 1; idx < insn->detail->arm.op_count; idx++)
         {

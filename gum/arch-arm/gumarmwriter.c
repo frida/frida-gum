@@ -507,9 +507,14 @@ gum_arm_writer_put_push_registers (GumArmWriter * self, guint cnt, ...)
     va_end(regs);
 }
 
-void gum_arm_write_put_pop_registers_by_mask(GumArmWriter * self, gushort mask)
+void gum_arm_write_put_ldmia_registers_by_mask(GumArmWriter * self, arm_reg reg,
+    gushort mask)
 {
-    gum_arm_writer_put_instruction (self, 0xe8bd0000 | mask);
+    GumArmRegInfo ri;
+    gum_arm_reg_describe (reg, &ri);
+    g_assert(((1 << ri.index) & mask) == 0);
+    g_print("REG: %d, %d\n", reg, ri.index);
+    gum_arm_writer_put_instruction (self, 0xe8b00000 | (ri.index << 16) | mask);
 }
 
 void
@@ -528,7 +533,7 @@ gum_arm_writer_put_pop_registers (GumArmWriter * self, guint cnt, ...)
         mask |= 1 << ri.index;
     }
 
-    gum_arm_write_put_pop_registers_by_mask(self, mask);
+    gum_arm_write_put_ldmia_registers_by_mask(self, ARM_REG_SP, mask);
 
     va_end(regs);
 }
