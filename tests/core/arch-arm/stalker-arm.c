@@ -30,6 +30,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (pop_just_pc_ret_events_generated)
   TESTENTRY (ldm_pc_ret_events_generated)
   TESTENTRY (branch_cc_block_events_generated)
+  TESTENTRY (branch_link_cc_block_events_generated)
 TESTLIST_END ()
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
@@ -633,26 +634,6 @@ TESTCASE (ldm_pc_ret_events_generated)
   GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
 }
 
-// /// ARM condition code
-// typedef enum arm_cc {
-// 	ARM_CC_INVALID = 0,
-// 	ARM_CC_EQ,            ///< Equal                      Equal
-// 	ARM_CC_NE,            ///< Not equal                  Not equal, or unordered
-// 	ARM_CC_HS,            ///< Carry set                  >, ==, or unordered
-// 	ARM_CC_LO,            ///< Carry clear                Less than
-// 	ARM_CC_MI,            ///< Minus, negative            Less than
-// 	ARM_CC_PL,            ///< Plus, positive or zero     >, ==, or unordered
-// 	ARM_CC_VS,            ///< Overflow                   Unordered
-// 	ARM_CC_VC,            ///< No overflow                Not unordered
-// 	ARM_CC_HI,            ///< Unsigned higher            Greater than, or unordered
-// 	ARM_CC_LS,            ///< Unsigned lower or same     Less than or equal
-// 	ARM_CC_GE,            ///< Greater than or equal      Greater than or equal
-// 	ARM_CC_LT,            ///< Less than                  Less than, or unordered
-// 	ARM_CC_GT,            ///< Greater than               Greater than
-// 	ARM_CC_LE,            ///< Less than or equal         <, ==, or unordered
-// 	ARM_CC_AL             ///< Always (unconditional)     Always (unconditional)
-// } arm_cc;
-
 extern const void b_cc_code;
 extern const void b_cc_code_end;
 
@@ -720,8 +701,71 @@ TESTCASE (branch_cc_block_events_generated)
   GUM_ASSERT_CMPADDR (ev->end, ==, func + 52);
 }
 
+extern const void bl_cc_code;
+extern const void bl_cc_code_end;
+
+asm (
+  "bl_cc_code: \n"
+  //"udf #10 \n"
+
+  "push {lr} \n"
+
+  "sub r0, r0, r0 \n"
+  "sub r1, r1, r1 \n"
+
+  "cmp r1, #0 \n"
+  "bleq 1f \n"
+
+  "cmp r1, #1 \n"
+  "bleq 2f \n"
+
+  "cmp r1, #0 \n"
+  "blge 3f \n"
+
+  "cmp r1, #0 \n"
+  "bllt 4f \n"
+
+  "pop {pc} \n"
+
+  "1: \n"
+  "add r0, r0, #1 \n"
+  "mov pc, lr \n"
+
+  "2: \n"
+  "add r0, r0, #2 \n"
+  "mov pc, lr \n"
+
+  "3: \n"
+  "add r0, r0, #4 \n"
+  "mov pc, lr \n"
+
+  "4: \n"
+  "add r0, r0, #8 \n"
+  "mov pc, lr \n"
+  "bl_cc_code_end: \n"
+);
+
+TESTCASE (branch_link_cc_block_events_generated)
+{
+  GumCallEvent * ev;
+
+  StalkerTestFunc func =
+      invoke_expecting_return_value (fixture, GUM_CALL,
+                                     &bl_cc_code,
+                                     &bl_cc_code_end - &bl_cc_code,
+                                     5);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, 4);
+  g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
+      0).type, ==, GUM_CALL);
+
+  ev =
+      &g_array_index (fixture->sink->events, GumEvent, 0).call;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func);
+
+}
+
 // Conditional branches
-  // B/BX (cc)
   // BL/BLX (cc)
   // LDMcc/POPcc
   // CBZ/CBNZ - conditional branches

@@ -132,8 +132,9 @@ GUM_API void gum_arm_writer_put_sub_reg_reg_reg (GumArmWriter * self,
 GUM_API void gum_arm_writer_put_cmp_reg_imm (GumArmWriter * self,
     arm_reg dst_reg, guint32 imm_val);
 
-GUM_API void gum_arm_writer_put_beq_label (GumArmWriter * self,
-    gconstpointer label_id);
+GUM_API void
+gum_arm_writer_put_bcc_label (GumArmWriter * self,
+    arm_cc cc, gconstpointer label_id);
 
 G_END_DECLS
 

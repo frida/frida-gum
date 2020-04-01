@@ -777,9 +777,13 @@ gum_arm_writer_put_cmp_reg_imm (GumArmWriter * self,
 }
 
 void
-gum_arm_writer_put_beq_label (GumArmWriter * self,
-                            gconstpointer label_id)
+gum_arm_writer_put_bcc_label (GumArmWriter * self,
+  arm_cc cc,
+  gconstpointer label_id)
 {
+  guint8 cond;
+
+  gum_arm_cond_describe(cc, &cond);
   gum_arm_writer_add_label_reference_here (self, label_id);
-  gum_arm_writer_put_instruction (self, 0x0a000000);
+  gum_arm_writer_put_instruction (self, 0x0a000000 | cond << 28);
 }

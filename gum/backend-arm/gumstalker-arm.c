@@ -1156,7 +1156,7 @@ gum_exec_block_write_handle_excluded (GumExecBlock * block,
     GUM_ADDRESS (gum_stalker_is_excluding), 2, args);
 
   gum_arm_writer_put_cmp_reg_imm(cw, ARM_REG_R0, 0);
-  gum_arm_writer_put_beq_label(cw, not_excluded);
+  gum_arm_writer_put_bcc_label(cw, ARM_CC_EQ, not_excluded);
 
   gum_arm_writer_put_call_address_with_arguments_array (cw,
       GUM_ADDRESS (gum_exec_ctx_begin_call), 2, args);
@@ -1245,6 +1245,8 @@ static void gum_exec_block_virtualize_call_insn (
     gum_exec_block_write_call_event_code (block, target, gc);
   }
 
+
+
   gum_exec_block_write_handle_excluded (block, target, gc);
   gum_exec_block_write_call_replace_current_block_with (block, target, gc);
   gum_exec_block_write_push_stack_frame(block, ret_real_address, gc);
@@ -1252,6 +1254,22 @@ static void gum_exec_block_virtualize_call_insn (
   gum_arm_writer_put_ldr_reg_address (gc->code_writer, ARM_REG_LR,
     GUM_ADDRESS (ret_real_address));
   gum_exec_block_write_jmp_generated_code(gc->code_writer, cc, block->ctx);
+
+  if (cc != ARM_CC_AL)
+  {
+    GumArgument args[] =
+    {
+      { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (block->ctx)}},
+      { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (gc->instruction->end)}},
+    };
+    gum_exec_block_open_prolog (block, gc);
+    gum_arm_writer_put_call_address_with_arguments_array (gc->code_writer,
+        GUM_ADDRESS (gum_exec_ctx_replace_current_block_with), 2, args);
+
+    gum_exec_block_close_prolog (block, gc);
+    gum_exec_block_write_jmp_generated_code(gc->code_writer, ARM_CC_AL,
+      block->ctx);
+  }
 }
 
 static void gum_exec_block_virtualize_ret_insn (
@@ -1403,7 +1421,7 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         break;
       case ARM_INS_BL:
       case ARM_INS_BLX:
-        gum_exec_block_virtualize_call_insn(block, &target, ARM_CC_AL, gc);
+        gum_exec_block_virtualize_call_insn(block, &target, arm->cc, gc);
         break;
       case ARM_INS_MOV:
         gum_exec_block_virtualize_ret_insn(block, &target, ARM_CC_AL, FALSE,
