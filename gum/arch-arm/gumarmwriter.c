@@ -259,14 +259,24 @@ gum_arm_writer_put_b_imm (GumArmWriter * self,
 }
 
 void
+gum_arm_writer_put_bxcc_reg (GumArmWriter * self,
+                             arm_cc cc,
+                             arm_reg reg)
+{
+  GumArmRegInfo ri;
+  guint8 cond;
+
+  gum_arm_reg_describe (reg, &ri);
+  gum_arm_cond_describe(cc,  &cond);
+
+  gum_arm_writer_put_instruction (self, 0xe12fff10 | (cond << 28) | ri.index);
+}
+
+void
 gum_arm_writer_put_bx_reg (GumArmWriter * self,
                            arm_reg reg)
 {
-  GumArmRegInfo ri;
-
-  gum_arm_reg_describe (reg, &ri);
-
-  gum_arm_writer_put_instruction (self, 0xe12fff10 | ri.index);
+  gum_arm_writer_put_bxcc_reg(self, ARM_CC_AL, reg);
 }
 
 void

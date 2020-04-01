@@ -1014,12 +1014,13 @@ gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
 
 static void
 gum_exec_block_write_jmp_generated_code (GumArmWriter * cw,
-                                          GumExecCtx * ctx)
+                                         arm_cc cc,
+                                         GumExecCtx * ctx)
 {
   gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R12,
       GUM_ADDRESS (&ctx->resume_at));
   gum_arm_writer_put_ldr_reg_reg_imm (cw, ARM_REG_R12, ARM_REG_R12, 0);
-  gum_arm_writer_put_bx_reg (cw, ARM_REG_R12);
+  gum_arm_writer_put_bxcc_reg (cw, cc, ARM_REG_R12);
 }
 
 static void
@@ -1177,7 +1178,9 @@ gum_exec_block_write_handle_excluded (GumExecBlock * block,
     GUM_ADDRESS (gum_exec_ctx_replace_current_block_with), 2, jmp_args);
   gum_exec_block_close_prolog (block, gc);
 
-  gum_exec_block_write_jmp_generated_code(gc->code_writer, block->ctx);
+  gum_exec_block_write_jmp_generated_code(gc->code_writer, ARM_CC_AL,
+      block->ctx);
+
   gum_arm_writer_put_brk_imm(cw, 15);
 
   gum_arm_writer_put_label (cw, not_excluded);
@@ -1185,7 +1188,7 @@ gum_exec_block_write_handle_excluded (GumExecBlock * block,
 
 static void gum_exec_block_virtualize_branch_insn (
     GumExecBlock * block, const GumBranchTarget * target,
-    GumGeneratorContext * gc)
+    arm_cc cc, GumGeneratorContext * gc)
 {
     GumExecCtx * ec = block->ctx;
     gum_arm_relocator_skip_one (gc->relocator);
@@ -1203,12 +1206,12 @@ static void gum_exec_block_virtualize_branch_insn (
 
     gum_exec_block_write_call_replace_current_block_with (block, target, gc);
     gum_exec_block_close_prolog (block, gc);
-    gum_exec_block_write_jmp_generated_code(gc->code_writer, block->ctx);
+    gum_exec_block_write_jmp_generated_code(gc->code_writer, cc, block->ctx);
 }
 
 static void gum_exec_block_virtualize_call_insn (
     GumExecBlock * block, const GumBranchTarget * target,
-    GumGeneratorContext * gc)
+    arm_cc cc, GumGeneratorContext * gc)
 {
   GumExecCtx * ec = block->ctx;
   gpointer ret_real_address;
@@ -1232,7 +1235,7 @@ static void gum_exec_block_virtualize_call_insn (
   gum_exec_block_close_prolog (block, gc);
   gum_arm_writer_put_ldr_reg_address (gc->code_writer, ARM_REG_LR,
     GUM_ADDRESS (ret_real_address));
-  gum_exec_block_write_jmp_generated_code(gc->code_writer, block->ctx);
+  gum_exec_block_write_jmp_generated_code(gc->code_writer, cc, block->ctx);
 }
 
 static void gum_exec_block_virtualize_ret_insn (
@@ -1268,7 +1271,8 @@ static void gum_exec_block_virtualize_ret_insn (
         target->reg, 4);
   }
 
-  gum_exec_block_write_jmp_generated_code(gc->code_writer, block->ctx);
+  gum_exec_block_write_jmp_generated_code(gc->code_writer, ARM_CC_AL,
+      block->ctx);
 }
 
 static void gum_exec_block_dont_virtualize_insn (
@@ -1379,11 +1383,11 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         {
           g_print("CC: %d\n", arm->cc);
         }
-        gum_exec_block_virtualize_branch_insn(block, &target, gc);
+        gum_exec_block_virtualize_branch_insn(block, &target, ARM_CC_AL, gc);
         break;
       case ARM_INS_BL:
       case ARM_INS_BLX:
-        gum_exec_block_virtualize_call_insn(block, &target, gc);
+        gum_exec_block_virtualize_call_insn(block, &target, ARM_CC_AL, gc);
         break;
       case ARM_INS_MOV:
         gum_exec_block_virtualize_ret_insn(block, &target, FALSE, 0, gc);
