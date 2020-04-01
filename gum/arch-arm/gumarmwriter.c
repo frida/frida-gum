@@ -269,7 +269,7 @@ gum_arm_writer_put_bxcc_reg (GumArmWriter * self,
   gum_arm_reg_describe (reg, &ri);
   gum_arm_cond_describe(cc,  &cond);
 
-  gum_arm_writer_put_instruction (self, 0xe12fff10 | (cond << 28) | ri.index);
+  gum_arm_writer_put_instruction (self, 0x012fff10 | (cond << 28) | ri.index);
 }
 
 void
@@ -563,7 +563,7 @@ gum_arm_writer_put_mov_cpsr_to_reg (GumArmWriter * self, arm_reg reg)
 {
     GumArmRegInfo ri;
     gum_arm_reg_describe (reg, &ri);
-    gum_arm_writer_put_instruction (self, 0xe129f000 | ri.index);
+    gum_arm_writer_put_instruction (self, 0xe10f0000 | ri.index << 12);
 }
 
 void
@@ -571,7 +571,7 @@ gum_arm_writer_put_mov_reg_to_cpsr (GumArmWriter * self, arm_reg reg)
 {
     GumArmRegInfo ri;
     gum_arm_reg_describe (reg, &ri);
-    gum_arm_writer_put_instruction (self, 0xe10f0000 | ri.index << 12);
+    gum_arm_writer_put_instruction (self, 0xe129f000 | ri.index);
 }
 
 void

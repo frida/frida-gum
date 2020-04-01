@@ -633,6 +633,26 @@ TESTCASE (ldm_pc_ret_events_generated)
   GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
 }
 
+// /// ARM condition code
+// typedef enum arm_cc {
+// 	ARM_CC_INVALID = 0,
+// 	ARM_CC_EQ,            ///< Equal                      Equal
+// 	ARM_CC_NE,            ///< Not equal                  Not equal, or unordered
+// 	ARM_CC_HS,            ///< Carry set                  >, ==, or unordered
+// 	ARM_CC_LO,            ///< Carry clear                Less than
+// 	ARM_CC_MI,            ///< Minus, negative            Less than
+// 	ARM_CC_PL,            ///< Plus, positive or zero     >, ==, or unordered
+// 	ARM_CC_VS,            ///< Overflow                   Unordered
+// 	ARM_CC_VC,            ///< No overflow                Not unordered
+// 	ARM_CC_HI,            ///< Unsigned higher            Greater than, or unordered
+// 	ARM_CC_LS,            ///< Unsigned lower or same     Less than or equal
+// 	ARM_CC_GE,            ///< Greater than or equal      Greater than or equal
+// 	ARM_CC_LT,            ///< Less than                  Less than, or unordered
+// 	ARM_CC_GT,            ///< Greater than               Greater than
+// 	ARM_CC_LE,            ///< Less than or equal         <, ==, or unordered
+// 	ARM_CC_AL             ///< Always (unconditional)     Always (unconditional)
+// } arm_cc;
+
 extern const void b_cc_code;
 extern const void b_cc_code_end;
 
@@ -643,12 +663,12 @@ asm (
 
   "cmp r1, #0 \n"
   "beq 1f \n"
-  "and r0, r0, #1 \n"
+  "add r0, r0, #1 \n"
   "1: \n"
 
   "cmp r1, #1 \n"
   "beq 2f \n"
-  "and r0, r0, #2 \n"
+  "add r0, r0, #2 \n"
   "2: \n"
 
   "mov pc, lr \n"
@@ -657,42 +677,41 @@ asm (
 
 TESTCASE (branch_cc_block_events_generated)
 {
-  GumRetEvent * ev;
+  GumBlockEvent * ev;
 
   StalkerTestFunc func =
-      invoke_expecting_return_value (fixture, GUM_RET,
+      invoke_expecting_return_value (fixture, GUM_BLOCK,
                                      &b_cc_code,
                                      &b_cc_code_end - &b_cc_code,
                                      2);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 3);
+  g_assert_cmpuint (fixture->sink->events->len, ==, 2);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
-      0).type, ==, GUM_RET);
+      0).type, ==, GUM_BLOCK);
 
   ev =
-      &g_array_index (fixture->sink->events, GumEvent, 0).ret;
-  GUM_ASSERT_CMPADDR (ev->location, ==, func + 32);
-  GUM_ASSERT_CMPADDR (ev->target, ==, func + 16);
-  GUM_ASSERT_CMPADDR (ev->depth, ==, 2);
+      &g_array_index (fixture->sink->events, GumEvent, 0).block;
+  GUM_ASSERT_CMPADDR (ev->begin, ==, func);
+  GUM_ASSERT_CMPADDR (ev->end, ==, func + 16);
 
   ev =
-      &g_array_index (fixture->sink->events, GumEvent, 1).ret;
-  GUM_ASSERT_CMPADDR (ev->location, ==, func + 16);
-  GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
+      &g_array_index (fixture->sink->events, GumEvent, 1).block;
+  GUM_ASSERT_CMPADDR (ev->begin, ==, func + 20);
+  GUM_ASSERT_CMPADDR (ev->end, ==, func + 28);
 }
 
 // Conditional branches
   // B/BX (cc)
-  // CBZ/CBNZ - conditional branches
   // BL/BLX (cc)
+  // LDMcc/POPcc
+  // CBZ/CBNZ - conditional branches
+  // Conditonal branch to excluded range
 
 // Other forms of branch instructions
   // LDRLS - switches
   // MOV PC - call but with LR moved immediately before
   // TBB/TBH - switches
   // LDR - Who does this?
-
-
 
 // Detect calls by tracking modifications to LR?
 // Compare test list to aarch64

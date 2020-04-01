@@ -1191,6 +1191,7 @@ static void gum_exec_block_virtualize_branch_insn (
     arm_cc cc, GumGeneratorContext * gc)
 {
     GumExecCtx * ec = block->ctx;
+
     gum_arm_relocator_skip_one (gc->relocator);
     gum_exec_block_open_prolog (block, gc);
 
@@ -1207,6 +1208,22 @@ static void gum_exec_block_virtualize_branch_insn (
     gum_exec_block_write_call_replace_current_block_with (block, target, gc);
     gum_exec_block_close_prolog (block, gc);
     gum_exec_block_write_jmp_generated_code(gc->code_writer, cc, block->ctx);
+
+    if (cc != ARM_CC_AL)
+    {
+      GumArgument args[] =
+      {
+        { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (block->ctx)}},
+        { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (gc->instruction->end)}},
+      };
+      gum_exec_block_open_prolog (block, gc);
+      gum_arm_writer_put_call_address_with_arguments_array (gc->code_writer,
+          GUM_ADDRESS (gum_exec_ctx_replace_current_block_with), 2, args);
+
+      gum_exec_block_close_prolog (block, gc);
+      gum_exec_block_write_jmp_generated_code(gc->code_writer, ARM_CC_AL,
+        block->ctx);
+    }
 }
 
 static void gum_exec_block_virtualize_call_insn (
@@ -1214,10 +1231,9 @@ static void gum_exec_block_virtualize_call_insn (
     arm_cc cc, GumGeneratorContext * gc)
 {
   GumExecCtx * ec = block->ctx;
-  gpointer ret_real_address;
+  gpointer ret_real_address = gc->instruction->end;
 
   gum_exec_block_open_prolog (block, gc);
-  ret_real_address = gc->instruction->end;
 
   if ((ec->sink_mask & GUM_EXEC) != 0)
   {
@@ -1240,7 +1256,8 @@ static void gum_exec_block_virtualize_call_insn (
 
 static void gum_exec_block_virtualize_ret_insn (
     GumExecBlock * block, const GumBranchTarget * target,
-    gboolean pop, gushort mask, GumGeneratorContext * gc)
+    arm_cc cc, gboolean pop, gushort mask,
+    GumGeneratorContext * gc)
 {
   GumExecCtx * ec = block->ctx;
   gum_arm_relocator_skip_one (gc->relocator);
@@ -1271,8 +1288,7 @@ static void gum_exec_block_virtualize_ret_insn (
         target->reg, 4);
   }
 
-  gum_exec_block_write_jmp_generated_code(gc->code_writer, ARM_CC_AL,
-      block->ctx);
+  gum_exec_block_write_jmp_generated_code(gc->code_writer, cc, block->ctx);
 }
 
 static void gum_exec_block_dont_virtualize_insn (
@@ -1383,18 +1399,20 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         {
           g_print("CC: %d\n", arm->cc);
         }
-        gum_exec_block_virtualize_branch_insn(block, &target, ARM_CC_AL, gc);
+        gum_exec_block_virtualize_branch_insn(block, &target, arm->cc, gc);
         break;
       case ARM_INS_BL:
       case ARM_INS_BLX:
         gum_exec_block_virtualize_call_insn(block, &target, ARM_CC_AL, gc);
         break;
       case ARM_INS_MOV:
-        gum_exec_block_virtualize_ret_insn(block, &target, FALSE, 0, gc);
+        gum_exec_block_virtualize_ret_insn(block, &target, ARM_CC_AL, FALSE,
+            0, gc);
         break;
       case ARM_INS_POP:
       case ARM_INS_LDM:
-        gum_exec_block_virtualize_ret_insn(block, &target, TRUE, mask, gc);
+        gum_exec_block_virtualize_ret_insn(block, &target, ARM_CC_AL, TRUE,
+            mask, gc);
         break;
       default:
         g_assert_not_reached ();
