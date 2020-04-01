@@ -1299,8 +1299,8 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
   GumArmRegInfo ri;
   gushort mask = 0;
 
-  g_print("%p: %s\t%s - %d\n", gc->instruction->begin, insn->mnemonic,
-    insn->op_str, insn->id);
+  g_print("%p: %s\t%s = 0x%08x, id: %d\n", gc->instruction->begin, insn->mnemonic,
+    insn->op_str, *(guint*)gc->instruction->begin, insn->id);
   if (gum_arm_relocator_eob (gc->relocator))
   {
     switch (insn->id)
@@ -1375,6 +1375,10 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         break;
       case ARM_INS_B:
       case ARM_INS_BX:
+        if (arm->cc)
+        {
+          g_print("CC: %d\n", arm->cc);
+        }
         gum_exec_block_virtualize_branch_insn(block, &target, gc);
         break;
       case ARM_INS_BL:

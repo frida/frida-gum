@@ -230,21 +230,32 @@ gum_arm_writer_add_literal_reference_here (GumArmWriter * self,
 }
 
 gboolean
-gum_arm_writer_put_b_imm (GumArmWriter * self,
-                          GumAddress target)
+gum_arm_writer_put_bcc_imm (GumArmWriter * self,
+                            arm_cc cc,
+                            GumAddress target)
 {
   gint32 distance_in_bytes, distance_in_words;
+  guint8 cond;
 
   distance_in_bytes = target - (self->pc + 8);
   if (!GUM_IS_WITHIN_INT26_RANGE (distance_in_bytes))
     return FALSE;
 
+  gum_arm_cond_describe(cc,  &cond);
   distance_in_words = distance_in_bytes / 4;
 
-  gum_arm_writer_put_instruction (self, 0xea000000 |
+  gum_arm_writer_put_instruction (self, 0x0a000000 |
+      (cond << 28) |
       (distance_in_words & GUM_INT24_MASK));
 
   return TRUE;
+}
+
+gboolean
+gum_arm_writer_put_b_imm (GumArmWriter * self,
+                          GumAddress target)
+{
+  return gum_arm_writer_put_bcc_imm(self, ARM_CC_AL, target);
 }
 
 void

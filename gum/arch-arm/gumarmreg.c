@@ -36,3 +36,62 @@ gum_arm_reg_describe (arm_reg reg,
   }
   ri->index = ri->meta - GUM_ARM_MREG_R0;
 }
+
+
+void
+gum_arm_cond_describe(arm_cc cc, guint8 * code)
+{
+  switch(cc)
+  {
+    	case ARM_CC_EQ:
+        *code = 0;
+        break;
+      case ARM_CC_NE:
+        *code = 1;
+        break;
+      case ARM_CC_HS:
+        *code = 2;
+        break;
+      case ARM_CC_LO:
+        *code = 3;
+        break;
+      case ARM_CC_MI:
+        *code = 4;
+        break;
+      case ARM_CC_PL:
+        *code = 5;
+        break;
+      case ARM_CC_VS:
+        *code = 6;
+        break;
+      case ARM_CC_VC:
+        *code = 7;
+        break;
+      case ARM_CC_HI:
+        *code = 8;
+        break;
+      case ARM_CC_LS:
+        *code = 9;
+        break;
+      case ARM_CC_GE:
+        *code = 10;
+        break;
+      case ARM_CC_LT:
+        *code = 11;
+        break;
+      case ARM_CC_GT:
+        *code = 12;
+        break;
+      case ARM_CC_LE:
+        *code = 13;
+        break;
+      case ARM_CC_AL:
+        *code = 14;
+        break;
+      default:
+        g_assert_not_reached ();
+        break;
+
+  }
+}
+

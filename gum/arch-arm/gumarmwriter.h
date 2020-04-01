@@ -54,6 +54,9 @@ GUM_API gboolean gum_arm_writer_flush (GumArmWriter * self);
 GUM_API gboolean gum_arm_writer_put_label (GumArmWriter * self,
     gconstpointer id);
 
+GUM_API gboolean gum_arm_writer_put_bcc_imm (GumArmWriter * self,
+    arm_cc cc, GumAddress target);
+
 GUM_API gboolean gum_arm_writer_put_b_imm (GumArmWriter * self,
     GumAddress target);
 GUM_API void gum_arm_writer_put_bx_reg (GumArmWriter * self, arm_reg reg);

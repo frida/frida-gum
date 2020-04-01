@@ -29,6 +29,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (pop_pc_ret_events_generated)
   TESTENTRY (pop_just_pc_ret_events_generated)
   TESTENTRY (ldm_pc_ret_events_generated)
+  TESTENTRY (branch_cc_block_events_generated)
 TESTLIST_END ()
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
@@ -632,16 +633,66 @@ TESTCASE (ldm_pc_ret_events_generated)
   GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
 }
 
+extern const void b_cc_code;
+extern const void b_cc_code_end;
+
+asm (
+  "b_cc_code: \n"
+  "sub r0, r0, r0 \n"
+  "sub r1, r1, r1 \n"
+
+  "cmp r1, #0 \n"
+  "beq 1f \n"
+  "and r0, r0, #1 \n"
+  "1: \n"
+
+  "cmp r1, #1 \n"
+  "beq 2f \n"
+  "and r0, r0, #2 \n"
+  "2: \n"
+
+  "mov pc, lr \n"
+  "b_cc_code_end: \n"
+);
+
+TESTCASE (branch_cc_block_events_generated)
+{
+  GumRetEvent * ev;
+
+  StalkerTestFunc func =
+      invoke_expecting_return_value (fixture, GUM_RET,
+                                     &b_cc_code,
+                                     &b_cc_code_end - &b_cc_code,
+                                     2);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, 3);
+  g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
+      0).type, ==, GUM_RET);
+
+  ev =
+      &g_array_index (fixture->sink->events, GumEvent, 0).ret;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func + 32);
+  GUM_ASSERT_CMPADDR (ev->target, ==, func + 16);
+  GUM_ASSERT_CMPADDR (ev->depth, ==, 2);
+
+  ev =
+      &g_array_index (fixture->sink->events, GumEvent, 1).ret;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func + 16);
+  GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
+}
+
+// Conditional branches
+  // B/BX (cc)
+  // CBZ/CBNZ - conditional branches
+  // BL/BLX (cc)
+
 // Other forms of branch instructions
   // LDRLS - switches
   // MOV PC - call but with LR moved immediately before
   // TBB/TBH - switches
   // LDR - Who does this?
 
-// Conditional branches
-  // CBZ/CBNZ - conditional branches
-  // B/BX (cc)
-  // BL/BLX (cc)
+
 
 // Detect calls by tracking modifications to LR?
 // Compare test list to aarch64
