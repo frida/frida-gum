@@ -507,6 +507,11 @@ gum_arm_writer_put_push_registers (GumArmWriter * self, guint cnt, ...)
     va_end(regs);
 }
 
+void gum_arm_write_put_pop_registers_by_mask(GumArmWriter * self, gushort mask)
+{
+    gum_arm_writer_put_instruction (self, 0xe8bd0000 | mask);
+}
+
 void
 gum_arm_writer_put_pop_registers (GumArmWriter * self, guint cnt, ...)
 {
@@ -523,7 +528,7 @@ gum_arm_writer_put_pop_registers (GumArmWriter * self, guint cnt, ...)
         mask |= 1 << ri.index;
     }
 
-    gum_arm_writer_put_instruction (self, 0xe8bd0000 | mask);
+    gum_arm_write_put_pop_registers_by_mask(self, mask);
 
     va_end(regs);
 }

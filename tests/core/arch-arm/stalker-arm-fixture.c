@@ -202,8 +202,11 @@ test_arm_stalker_fixture_follow_and_invoke (TestArmStalkerFixture * fixture,
   g_print("\n");
   g_print("func: 0x%08x\n", (guint)func);
 
-  gum_arm_writer_init (&cw, fixture->invoker);
+  gint orig_ret = func(arg);
+  g_print("orig_ret: 0x%08x\n", (guint)orig_ret);
 
+  gum_arm_writer_init (&cw, fixture->invoker);
+  //gum_arm_writer_put_brk_imm(&cw, 10);
   gum_arm_writer_put_push_registers (&cw, 1, ARM_REG_LR);
 
   GumArgument args[] = {
@@ -238,6 +241,8 @@ test_arm_stalker_fixture_follow_and_invoke (TestArmStalkerFixture * fixture,
     GUM_POINTER_TO_FUNCPTR (GCallback,
                             gum_sign_code_pointer (fixture->invoker));
   invoke_func ();
+
+  g_assert_cmpuint(orig_ret, ==, ret);
 
   show_events(fixture->sink);
 

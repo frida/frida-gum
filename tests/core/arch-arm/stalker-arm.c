@@ -26,6 +26,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (nested_ret_events_generated)
   TESTENTRY (unmodified_lr)
   TESTENTRY (excluded_range)
+  TESTENTRY (pop_pc_ret_events_generated)
 TESTLIST_END ()
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
@@ -491,10 +492,55 @@ TESTCASE (excluded_range)
   GUM_ASSERT_CMPADDR (ev->location, ==, func + 20);
 }
 
-// Write code to display event lists
-// PCLint for FRIDA rules
-// Ojfc fther forms of return statements
+
+extern const void pop_pc_code;
+extern const void pop_pc_code_end;
+
+asm (
+  "pop_pc_code: \n"
+  "stmdb sp!, {r4-r8, lr} \n"
+  "sub r0, r0, r0 \n"
+  "add r0, r0, #1 \n"
+  "bl 2f \n"
+  "ldmia sp!, {r4-r8, pc} \n"
+
+  "2: \n"
+  "stmdb sp!, {r1-r3, lr} \n"
+  "add r0, r0, #1 \n"
+  "ldmia sp!, {r1-r3, pc} \n"
+
+  "pop_pc_code_end: \n"
+);
+
+TESTCASE (pop_pc_ret_events_generated)
+{
+  GumRetEvent * ev;
+
+  StalkerTestFunc func =
+      invoke_expecting_return_value (fixture, GUM_RET,
+                                     &pop_pc_code,
+                                     &pop_pc_code_end - &pop_pc_code,
+                                     2);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, 2);
+  g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
+      0).type, ==, GUM_RET);
+
+  ev =
+      &g_array_index (fixture->sink->events, GumEvent, 0).ret;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func + 28);
+  GUM_ASSERT_CMPADDR (ev->target, ==, func + 16);
+  GUM_ASSERT_CMPADDR (ev->depth, ==, 2);
+
+  ev =
+      &g_array_index (fixture->sink->events, GumEvent, 1).ret;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func + 16);
+  GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
+}
+
+// Other forms of return statements
 // Compare test list to aarch64
 // Check thumb/jazelle is excluded.
 // Test we can unfollow (move check to virtualize funcs)
 // Test conditional calls and jmps
+// Style rules

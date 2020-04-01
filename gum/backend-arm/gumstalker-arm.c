@@ -7,6 +7,7 @@
 #include "gumstalker.h"
 
 #include "gumarmreader.h"
+#include "gumarmreg.h"
 #include "gumarmrelocator.h"
 #include "gumarmwriter.h"
 #include "gummemory.h"
@@ -1237,7 +1238,7 @@ static void gum_exec_block_virtualize_call_insn (
 
 static void gum_exec_block_virtualize_ret_insn (
     GumExecBlock * block, const GumBranchTarget * target,
-    GumGeneratorContext * gc)
+    gushort mask, GumGeneratorContext * gc)
 {
   GumExecCtx * ec = block->ctx;
   gum_arm_relocator_skip_one (gc->relocator);
@@ -1256,6 +1257,14 @@ static void gum_exec_block_virtualize_ret_insn (
   gum_exec_block_write_call_replace_current_block_with (block, target, gc);
   gum_exec_block_write_pop_stack_frame(block, target, gc);
   gum_exec_block_close_prolog (block, gc);
+
+  if (mask != 0)
+  {
+    gum_arm_write_put_pop_registers_by_mask(gc->code_writer, mask);
+    gum_arm_writer_put_add_reg_reg_imm(gc->code_writer, ARM_REG_SP,
+        ARM_REG_SP, 4);
+  }
+
   gum_exec_block_write_jmp_generated_code(gc->code_writer, block->ctx);
 }
 
@@ -1284,9 +1293,10 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
   cs_arm_op * op = &arm->operands[0];
   cs_arm_op * op2 = &arm->operands[1];
   GumBranchTarget target = { 0, };
+  GumArmRegInfo ri;
+  gushort mask = 0;
 
-
-  g_printf("%p: %s\t%s\n", gc->instruction->begin, insn->mnemonic,
+  g_print("%p: %s\t%s\n", gc->instruction->begin, insn->mnemonic,
     insn->op_str);
   if (gum_arm_relocator_eob (gc->relocator))
   {
@@ -1325,6 +1335,11 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
           {
             target.relative_offset = idx * 4;
           }
+          else
+          {
+            gum_arm_reg_describe (op->reg, &ri);
+            mask |= 1 << ri.index;
+          }
         }
         break;
       default:
@@ -1346,10 +1361,10 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         gum_exec_block_virtualize_call_insn(block, &target, gc);
         break;
       case ARM_INS_MOV:
-        gum_exec_block_virtualize_ret_insn(block, &target, gc);
+        gum_exec_block_virtualize_ret_insn(block, &target, 0, gc);
         break;
       case ARM_INS_POP:
-        gum_exec_block_virtualize_ret_insn(block, &target, gc);
+        gum_exec_block_virtualize_ret_insn(block, &target, mask, gc);
         break;
       default:
         g_assert_not_reached ();
