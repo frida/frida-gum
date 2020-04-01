@@ -671,6 +671,16 @@ asm (
   "add r0, r0, #2 \n"
   "2: \n"
 
+  "cmp r1, #0 \n"
+  "bge 3f \n"
+  "add r0, r0, #4 \n"
+  "3: \n"
+
+  "cmp r1, #0 \n"
+  "blt 4f \n"
+  "add r0, r0, #8 \n"
+  "4: \n"
+
   "mov pc, lr \n"
   "b_cc_code_end: \n"
 );
@@ -683,9 +693,9 @@ TESTCASE (branch_cc_block_events_generated)
       invoke_expecting_return_value (fixture, GUM_BLOCK,
                                      &b_cc_code,
                                      &b_cc_code_end - &b_cc_code,
-                                     2);
+                                     10);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 2);
+  g_assert_cmpuint (fixture->sink->events->len, ==, 4);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
       0).type, ==, GUM_BLOCK);
 
@@ -698,6 +708,16 @@ TESTCASE (branch_cc_block_events_generated)
       &g_array_index (fixture->sink->events, GumEvent, 1).block;
   GUM_ASSERT_CMPADDR (ev->begin, ==, func + 20);
   GUM_ASSERT_CMPADDR (ev->end, ==, func + 28);
+
+  ev =
+      &g_array_index (fixture->sink->events, GumEvent, 2).block;
+  GUM_ASSERT_CMPADDR (ev->begin, ==, func + 28);
+  GUM_ASSERT_CMPADDR (ev->end, ==, func + 40);
+
+  ev =
+      &g_array_index (fixture->sink->events, GumEvent, 3).block;
+  GUM_ASSERT_CMPADDR (ev->begin, ==, func + 44);
+  GUM_ASSERT_CMPADDR (ev->end, ==, func + 52);
 }
 
 // Conditional branches
