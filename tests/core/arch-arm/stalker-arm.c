@@ -27,6 +27,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (unmodified_lr)
   TESTENTRY (excluded_range)
   TESTENTRY (pop_pc_ret_events_generated)
+  TESTENTRY (pop_just_pc_ret_events_generated)
 TESTLIST_END ()
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
@@ -520,6 +521,51 @@ TESTCASE (pop_pc_ret_events_generated)
       invoke_expecting_return_value (fixture, GUM_RET,
                                      &pop_pc_code,
                                      &pop_pc_code_end - &pop_pc_code,
+                                     2);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, 2);
+  g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
+      0).type, ==, GUM_RET);
+
+  ev =
+      &g_array_index (fixture->sink->events, GumEvent, 0).ret;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func + 28);
+  GUM_ASSERT_CMPADDR (ev->target, ==, func + 16);
+  GUM_ASSERT_CMPADDR (ev->depth, ==, 2);
+
+  ev =
+      &g_array_index (fixture->sink->events, GumEvent, 1).ret;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func + 16);
+  GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
+}
+
+extern const void pop_just_pc_code;
+extern const void pop_just_pc_code_end;
+
+asm (
+  "pop_just_pc_code: \n"
+  "stmdb sp!, {r4-r8, lr} \n"
+  "sub r0, r0, r0 \n"
+  "add r0, r0, #1 \n"
+  "bl 2f \n"
+  "ldmia sp!, {r4-r8, pc} \n"
+
+  "2: \n"
+  "stmdb sp!, {lr} \n"
+  "add r0, r0, #1 \n"
+  "ldmia sp!, {pc} \n"
+
+  "pop_just_pc_code_end: \n"
+);
+
+TESTCASE (pop_just_pc_ret_events_generated)
+{
+  GumRetEvent * ev;
+
+  StalkerTestFunc func =
+      invoke_expecting_return_value (fixture, GUM_RET,
+                                     &pop_just_pc_code,
+                                     &pop_just_pc_code_end - &pop_just_pc_code,
                                      2);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 2);

@@ -1238,7 +1238,7 @@ static void gum_exec_block_virtualize_call_insn (
 
 static void gum_exec_block_virtualize_ret_insn (
     GumExecBlock * block, const GumBranchTarget * target,
-    gushort mask, GumGeneratorContext * gc)
+    gboolean pop, gushort mask, GumGeneratorContext * gc)
 {
   GumExecCtx * ec = block->ctx;
   gum_arm_relocator_skip_one (gc->relocator);
@@ -1258,9 +1258,12 @@ static void gum_exec_block_virtualize_ret_insn (
   gum_exec_block_write_pop_stack_frame(block, target, gc);
   gum_exec_block_close_prolog (block, gc);
 
-  if (mask != 0)
+  if (pop)
   {
-    gum_arm_write_put_pop_registers_by_mask(gc->code_writer, mask);
+    if (mask != 0)
+    {
+      gum_arm_write_put_pop_registers_by_mask(gc->code_writer, mask);
+    }
     gum_arm_writer_put_add_reg_reg_imm(gc->code_writer, ARM_REG_SP,
         ARM_REG_SP, 4);
   }
@@ -1296,8 +1299,8 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
   GumArmRegInfo ri;
   gushort mask = 0;
 
-  g_print("%p: %s\t%s\n", gc->instruction->begin, insn->mnemonic,
-    insn->op_str);
+  g_print("%p: %s\t%s - %d\n", gc->instruction->begin, insn->mnemonic,
+    insn->op_str, insn->id);
   if (gum_arm_relocator_eob (gc->relocator))
   {
     switch (insn->id)
@@ -1330,10 +1333,28 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         target.is_relative = TRUE;
         for (uint8_t idx = 0; idx < insn->detail->arm.op_count; idx++)
         {
-          op = &insn->detail->arm.operands[idx];
+          op = &arm->operands[idx];
           if(op->reg == ARM_REG_PC)
           {
             target.relative_offset = idx * 4;
+          }
+          else
+          {
+            gum_arm_reg_describe (op->reg, &ri);
+            mask |= 1 << ri.index;
+          }
+        }
+        break;
+      case ARM_INS_LDM:
+        target.absolute_address = 0;
+        target.reg = op->reg;
+        target.is_relative = TRUE;
+        for (uint8_t idx = 1; idx < insn->detail->arm.op_count; idx++)
+        {
+          op = &arm->operands[idx];
+          if(op->reg == ARM_REG_PC)
+          {
+            target.relative_offset = (idx - 1) * 4;
           }
           else
           {
@@ -1361,10 +1382,12 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         gum_exec_block_virtualize_call_insn(block, &target, gc);
         break;
       case ARM_INS_MOV:
-        gum_exec_block_virtualize_ret_insn(block, &target, 0, gc);
+        gum_exec_block_virtualize_ret_insn(block, &target, FALSE, 0, gc);
         break;
       case ARM_INS_POP:
-        gum_exec_block_virtualize_ret_insn(block, &target, mask, gc);
+      case ARM_INS_LDM:
+        gum_exec_block_virtualize_ret_insn(block, &target, TRUE, mask, gc);
+        g_print("MASK: %04x\n", mask);
         break;
       default:
         g_assert_not_reached ();
