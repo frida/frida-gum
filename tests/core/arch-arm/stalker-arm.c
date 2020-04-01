@@ -706,8 +706,6 @@ extern const void bl_cc_code_end;
 
 asm (
   "bl_cc_code: \n"
-  //"udf #10 \n"
-
   "push {lr} \n"
 
   "sub r0, r0, r0 \n"
@@ -755,13 +753,21 @@ TESTCASE (branch_link_cc_block_events_generated)
                                      &bl_cc_code_end - &bl_cc_code,
                                      5);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 4);
+  g_assert_cmpuint (fixture->sink->events->len, ==,
+      INVOKER_CALL_INSN_COUNT + 2);
+
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
       0).type, ==, GUM_CALL);
 
   ev =
-      &g_array_index (fixture->sink->events, GumEvent, 0).call;
-  GUM_ASSERT_CMPADDR (ev->location, ==, func);
+      &g_array_index (fixture->sink->events, GumEvent, 1).call;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func + 16);
+  GUM_ASSERT_CMPADDR (ev->target, ==, func + 48);
+
+  ev =
+      &g_array_index (fixture->sink->events, GumEvent, 2).call;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func + 32);
+  GUM_ASSERT_CMPADDR (ev->target, ==, func + 64);
 
 }
 
