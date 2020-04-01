@@ -1348,7 +1348,6 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
       case ARM_INS_LDM:
         target.absolute_address = 0;
         target.reg = op->reg;
-        g_print("REG: %d %d\n", op->reg, ARM_REG_R3);
         target.is_relative = TRUE;
         for (uint8_t idx = 1; idx < insn->detail->arm.op_count; idx++)
         {
@@ -1388,7 +1387,6 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
       case ARM_INS_POP:
       case ARM_INS_LDM:
         gum_exec_block_virtualize_ret_insn(block, &target, TRUE, mask, gc);
-        g_print("MASK: %04x\n", mask);
         break;
       default:
         g_assert_not_reached ();

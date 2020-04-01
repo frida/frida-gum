@@ -632,9 +632,20 @@ TESTCASE (ldm_pc_ret_events_generated)
   GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
 }
 
-// Other forms of return statements
+// Other forms of branch instructions
+  // LDRLS - switches
+  // MOV PC - call but with LR moved immediately before
+  // TBB/TBH - switches
+  // LDR - Who does this?
+
+// Conditional branches
+  // CBZ/CBNZ - conditional branches
+  // B/BX (cc)
+  // BL/BLX (cc)
+
+// Detect calls by tracking modifications to LR?
 // Compare test list to aarch64
 // Check thumb/jazelle is excluded.
 // Test we can unfollow (move check to virtualize funcs)
-// Test conditional calls and jmps
+// Performance test
 // Style rules

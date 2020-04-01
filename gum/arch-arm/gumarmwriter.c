@@ -513,7 +513,6 @@ void gum_arm_write_put_ldmia_registers_by_mask(GumArmWriter * self, arm_reg reg,
     GumArmRegInfo ri;
     gum_arm_reg_describe (reg, &ri);
     g_assert(((1 << ri.index) & mask) == 0);
-    g_print("REG: %d, %d\n", reg, ri.index);
     gum_arm_writer_put_instruction (self, 0xe8b00000 | (ri.index << 16) | mask);
 }
 
