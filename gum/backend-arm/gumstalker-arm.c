@@ -831,8 +831,8 @@ gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
   }
   else if (source_register == ARM_REG_PC)
   {
-    gum_arm_writer_put_ldr_reg_reg_imm (cw, target_register, ARM_REG_R11,
-        G_STRUCT_OFFSET (GumCpuContext, pc));
+    gum_arm_writer_put_ldr_reg_address(cw, target_register,
+        GUM_ADDRESS(gc->instruction->begin + 8));
   }
   else
   {

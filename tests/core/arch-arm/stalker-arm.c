@@ -1081,7 +1081,6 @@ extern const void ldr_pc_code_end;
 
 asm (
   "ldr_pc_code: \n"
-  "udf 10 \n"
   "sub r0, r0, r0 \n"
   "add r0, r0, #1 \n"
   "ldr pc, f3 \n"
@@ -1114,6 +1113,7 @@ TESTCASE (ldr_pc)
   ev =
     &g_array_index (fixture->sink->events, GumEvent, 0).block;
   GUM_ASSERT_CMPADDR (ev->begin, ==, func);
+  GUM_ASSERT_CMPADDR (ev->end, ==, func + 12);
 }
 
 GUM_NOINLINE static void
