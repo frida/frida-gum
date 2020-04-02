@@ -35,6 +35,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (branch_link_cc_block_events_generated)
   TESTENTRY (cc_excluded_range)
   TESTENTRY (excluded_thumb)
+  TESTENTRY (excluded_thumb_branch)
 TESTLIST_END ()
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
@@ -970,7 +971,7 @@ asm (
   "add r0, r0, #1 \n"
   "blx 2b \n"
   "pop {pc} \n"
-
+  ".arm \n"
   "excluded_thumb_code_end: \n"
 );
 
@@ -983,6 +984,68 @@ TESTCASE (excluded_thumb)
                                      &excluded_thumb_code,
                                      &excluded_thumb_code_end - &excluded_thumb_code,
                                      4);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_CALL_INSN_COUNT + 2);
+  g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
+      0).type, ==, GUM_CALL);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 1).call;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func + 12);
+  GUM_ASSERT_CMPADDR (ev->target, ==, func + 41);
+  GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 2).call;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func + 16);
+  GUM_ASSERT_CMPADDR (ev->target, ==, func + 24);
+  GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
+}
+
+extern const void excluded_thumb_branch_code;
+extern const void excluded_thumb_branch_code_end;
+
+asm (
+  "excluded_thumb_branch_code: \n"
+  //"udf #10 \n"
+  "sub r0, r0, r0 \n"
+  "add r0, r0, #1 \n"
+
+  "adr r1, f1 \n"
+  "adr r2, f2 \n"
+  "add r2, r2, #1 \n"
+
+  "bx r2 \n"
+  "f1: \n"
+  "b 2f \n"
+  "1: \n"
+
+  "mov pc, lr \n"
+
+  "2: \n"
+  "add r0, r0, #1 \n"
+  "b 1b \n"
+
+  ".thumb_func \n"
+  "f2: \n"
+  "add r0, r0, #1 \n"
+  "bx r1 \n"
+
+  ".arm \n"
+
+  ""
+  "excluded_thumb_branch_code_end: \n"
+);
+
+TESTCASE (excluded_thumb_branch)
+{
+  GumCallEvent * ev;
+
+  StalkerTestFunc func =
+      invoke_expecting_return_value (fixture, GUM_CALL,
+                                     &excluded_thumb_branch_code,
+                                     &excluded_thumb_branch_code_end - &excluded_thumb_branch_code,
+                                     3);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_CALL_INSN_COUNT + 2);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
