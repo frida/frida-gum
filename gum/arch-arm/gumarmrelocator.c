@@ -432,10 +432,16 @@ gum_arm_relocator_rewrite_add (GumArmRelocator * self,
   const cs_arm_op * left = &ctx->detail->operands[1];
   const cs_arm_op * right = &ctx->detail->operands[2];
 
-  if (left->reg != ARM_REG_PC || right->type != ARM_OP_REG)
+  if (left->reg != ARM_REG_PC)
     return FALSE;
 
-  if (right->reg == dst->reg)
+  if (right->type != ARM_OP_REG)
+  {
+    gum_arm_writer_put_ldr_reg_address (ctx->output, dst->reg, ctx->pc);
+    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
+        right->imm);
+  }
+  else if (right->reg == dst->reg)
   {
     gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
         ctx->pc & 0xff);

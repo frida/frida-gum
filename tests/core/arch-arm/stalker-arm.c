@@ -1007,7 +1007,6 @@ extern const void excluded_thumb_branch_code_end;
 
 asm (
   "excluded_thumb_branch_code: \n"
-  //"udf #10 \n"
   "sub r0, r0, r0 \n"
   "add r0, r0, #1 \n"
 
@@ -1047,21 +1046,14 @@ TESTCASE (excluded_thumb_branch)
                                      &excluded_thumb_branch_code_end - &excluded_thumb_branch_code,
                                      3);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_CALL_INSN_COUNT + 2);
+  g_assert_cmpuint (fixture->sink->events->len, ==, 1);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
       0).type, ==, GUM_CALL);
 
   ev =
-    &g_array_index (fixture->sink->events, GumEvent, 1).call;
-  GUM_ASSERT_CMPADDR (ev->location, ==, func + 12);
-  GUM_ASSERT_CMPADDR (ev->target, ==, func + 41);
-  GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
-
-  ev =
-    &g_array_index (fixture->sink->events, GumEvent, 2).call;
-  GUM_ASSERT_CMPADDR (ev->location, ==, func + 16);
-  GUM_ASSERT_CMPADDR (ev->target, ==, func + 24);
-  GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
+    &g_array_index (fixture->sink->events, GumEvent, 0).call;
+  GUM_ASSERT_CMPADDR (ev->target, ==, func);
+  GUM_ASSERT_CMPADDR (ev->depth, ==, 0);
 }
 // Check thumb is excluded.
 // Performance test

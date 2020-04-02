@@ -1115,13 +1115,24 @@ gum_stalker_exclude (GumStalker * self,
 }
 
 static gboolean
+gum_stalker_is_thumb (gconstpointer address)
+{
+  if ((GUM_ADDRESS(address) & 0x1) != 0)
+  {
+    return TRUE;
+  }
+
+  return FALSE;
+}
+
+static gboolean
 gum_stalker_is_excluding (GumExecCtx * ctx,
                           gconstpointer address)
 {
   GArray * exclusions = ctx->stalker->exclusions;
   guint i;
 
-  if ((GUM_ADDRESS(address) & 0x1) != 0)
+  if (gum_stalker_is_thumb(address))
   {
     return TRUE;
   }
@@ -1195,40 +1206,60 @@ static void gum_exec_block_virtualize_branch_insn (
     GumExecBlock * block, const GumBranchTarget * target,
     arm_cc cc, GumGeneratorContext * gc)
 {
-    GumExecCtx * ec = block->ctx;
+  GumExecCtx * ec = block->ctx;
+  GumArmWriter * cw = gc->code_writer;
 
-    gum_arm_relocator_skip_one (gc->relocator);
+  gum_exec_block_open_prolog (block, gc);
+  gconstpointer not_thumb = cw->code + 1;
+
+  GumArgument args[] =
+  {
+    { GUM_ARG_REGISTER, { .reg = ARM_REG_R0}},
+  };
+
+  gum_exec_ctx_write_mov_branch_target_address (block->ctx,
+                                            target,
+                                            ARM_REG_R0,
+                                            gc);
+
+  gum_arm_writer_put_call_address_with_arguments_array (cw,
+    GUM_ADDRESS (gum_stalker_is_thumb), 1, args);
+
+  gum_arm_writer_put_cmp_reg_imm(cw, ARM_REG_R0, 0);
+  gum_arm_writer_put_bcc_label(cw, ARM_CC_EQ, not_thumb);
+  gum_exec_block_close_prolog (block, gc);
+  gum_arm_relocator_write_one (gc->relocator);
+  gum_arm_writer_put_label (cw, not_thumb);
+
+  if ((ec->sink_mask & GUM_EXEC) != 0)
+  {
+    gum_exec_block_write_exec_event_code (block, gc);
+  }
+
+  if ((ec->sink_mask & GUM_BLOCK) != 0)
+  {
+    gum_exec_block_write_block_event_code (block, gc);
+  }
+
+  gum_exec_block_write_call_replace_current_block_with (block, target, gc);
+  gum_exec_block_close_prolog (block, gc);
+  gum_exec_block_write_jmp_generated_code(gc->code_writer, cc, block->ctx);
+
+  if (cc != ARM_CC_AL)
+  {
+    GumArgument args[] =
+    {
+      { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (block->ctx)}},
+      { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (gc->instruction->end)}},
+    };
     gum_exec_block_open_prolog (block, gc);
+    gum_arm_writer_put_call_address_with_arguments_array (gc->code_writer,
+        GUM_ADDRESS (gum_exec_ctx_replace_current_block_with), 2, args);
 
-    if ((ec->sink_mask & GUM_EXEC) != 0)
-    {
-      gum_exec_block_write_exec_event_code (block, gc);
-    }
-
-    if ((ec->sink_mask & GUM_BLOCK) != 0)
-    {
-      gum_exec_block_write_block_event_code (block, gc);
-    }
-
-    gum_exec_block_write_call_replace_current_block_with (block, target, gc);
     gum_exec_block_close_prolog (block, gc);
-    gum_exec_block_write_jmp_generated_code(gc->code_writer, cc, block->ctx);
-
-    if (cc != ARM_CC_AL)
-    {
-      GumArgument args[] =
-      {
-        { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (block->ctx)}},
-        { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (gc->instruction->end)}},
-      };
-      gum_exec_block_open_prolog (block, gc);
-      gum_arm_writer_put_call_address_with_arguments_array (gc->code_writer,
-          GUM_ADDRESS (gum_exec_ctx_replace_current_block_with), 2, args);
-
-      gum_exec_block_close_prolog (block, gc);
-      gum_exec_block_write_jmp_generated_code(gc->code_writer, ARM_CC_AL,
-        block->ctx);
-    }
+    gum_exec_block_write_jmp_generated_code(gc->code_writer, ARM_CC_AL,
+      block->ctx);
+  }
 }
 
 static void gum_exec_block_virtualize_call_insn (
