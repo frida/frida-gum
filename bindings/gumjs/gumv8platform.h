@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -59,11 +59,6 @@ public:
   void CallOnWorkerThread (std::unique_ptr<v8::Task> task) override;
   void CallDelayedOnWorkerThread (std::unique_ptr<v8::Task> task,
       double delay_in_seconds) override;
-  void CallOnForegroundThread (v8::Isolate * isolate, v8::Task * task) override;
-  void CallDelayedOnForegroundThread (v8::Isolate * isolate, v8::Task * task,
-      double delay_in_seconds) override;
-  void CallIdleOnForegroundThread (v8::Isolate * isolate,
-      v8::IdleTask * task) override;
   bool IdleTasksEnabled (v8::Isolate * isolate) override;
   double MonotonicallyIncreasingTime () override;
   double CurrentClockTimeMillis () override;

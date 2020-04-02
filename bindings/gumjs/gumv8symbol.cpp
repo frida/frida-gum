@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -201,6 +201,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_get_function_by_name)
 
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_named)
 {
+  auto context = isolate->GetCurrentContext ();
+
   gchar * name;
   if (!_gum_v8_args_parse (args, "s", &name))
     return;
@@ -217,7 +219,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_named)
   for (guint i = 0; i != functions->len; i++)
   {
     auto address = g_array_index (functions, gpointer, i);
-    result->Set (i, _gum_v8_native_pointer_new (address, core));
+    result->Set (context, i, _gum_v8_native_pointer_new (address, core))
+        .Check ();
   }
 
   info.GetReturnValue ().Set (result);
@@ -229,6 +232,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_named)
 
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_matching)
 {
+  auto context = isolate->GetCurrentContext ();
+
   gchar * str;
   if (!_gum_v8_args_parse (args, "s", &str))
     return;
@@ -245,7 +250,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_matching)
   for (guint i = 0; i != functions->len; i++)
   {
     auto address = g_array_index (functions, gpointer, i);
-    result->Set (i, _gum_v8_native_pointer_new (address, core));
+    result->Set (context, i, _gum_v8_native_pointer_new (address, core))
+        .Check ();
   }
 
   info.GetReturnValue ().Set (result);
@@ -304,7 +310,8 @@ GUMJS_DEFINE_CLASS_GETTER (gumjs_symbol_get_name, GumSymbol)
   if (self->resolved)
   {
     info.GetReturnValue ().Set (
-        String::NewFromUtf8 (isolate, self->details.symbol_name));
+        String::NewFromUtf8 (isolate, self->details.symbol_name)
+        .ToLocalChecked ());
   }
   else
   {
@@ -317,7 +324,8 @@ GUMJS_DEFINE_CLASS_GETTER (gumjs_symbol_get_module_name, GumSymbol)
   if (self->resolved)
   {
     info.GetReturnValue ().Set (
-        String::NewFromUtf8 (isolate, self->details.module_name));
+        String::NewFromUtf8 (isolate, self->details.module_name)
+        .ToLocalChecked ());
   }
   else
   {
@@ -330,7 +338,8 @@ GUMJS_DEFINE_CLASS_GETTER (gumjs_symbol_get_file_name, GumSymbol)
   if (self->resolved)
   {
     info.GetReturnValue ().Set (
-        String::NewFromUtf8 (isolate, self->details.file_name));
+        String::NewFromUtf8 (isolate, self->details.file_name)
+        .ToLocalChecked ());
   }
   else
   {
@@ -370,7 +379,8 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_symbol_to_string, GumSymbol)
     g_string_append_printf (s, "x%" G_GINT64_MODIFIER "x", d->address);
   }
 
-  info.GetReturnValue ().Set (String::NewFromUtf8 (isolate, s->str));
+  info.GetReturnValue ().Set (String::NewFromUtf8 (isolate, s->str)
+      .ToLocalChecked ());
 
   g_string_free (s, TRUE);
 }

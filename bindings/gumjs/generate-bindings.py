@@ -1710,7 +1710,15 @@ static gboolean
 
   if (!options.IsEmpty ())
   {{
-    auto pc_value = options->Get (_gum_v8_string_new_ascii (isolate, "pc"));
+    auto context = isolate->GetCurrentContext ();
+
+    Local<Value> pc_value;
+    if (!options->Get (context, _gum_v8_string_new_ascii (isolate, "pc"))
+        .ToLocal (&pc_value))
+    {{
+      return FALSE;
+    }}
+
     if (!pc_value->IsUndefined ())
     {{
       gpointer raw_value;

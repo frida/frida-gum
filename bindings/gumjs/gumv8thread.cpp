@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -86,6 +86,8 @@ _gum_v8_thread_finalize (GumV8Thread * self)
 
 GUMJS_DEFINE_FUNCTION (gumjs_thread_backtrace)
 {
+  auto context = isolate->GetCurrentContext ();
+
   GumCpuContext * cpu_context = NULL;
   Local<Value> selector;
   if (!_gum_v8_args_parse (args, "|C?V", &cpu_context, &selector))
@@ -133,7 +135,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_backtrace)
 
   auto result = Array::New (isolate, ret_addrs.len);
   for (guint i = 0; i != ret_addrs.len; i++)
-    result->Set (i, _gum_v8_native_pointer_new (ret_addrs.items[i], core));
+  {
+    result->Set (context, i,
+        _gum_v8_native_pointer_new (ret_addrs.items[i], core)).Check ();
+  }
   info.GetReturnValue ().Set (result);
 }
 

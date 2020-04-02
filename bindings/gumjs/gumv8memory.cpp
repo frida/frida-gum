@@ -493,7 +493,7 @@ gum_v8_memory_read (GumMemoryValueType type,
           memcpy (&dummy_to_trap_bad_pointer_early, data, sizeof (guint8));
 
           gchar * str = g_utf8_make_valid (data, length);
-          result = String::NewFromUtf8 (isolate, str, String::kNormalString);
+          result = String::NewFromUtf8 (isolate, str).ToLocalChecked ();
           g_free (str);
         }
         else
@@ -526,8 +526,8 @@ gum_v8_memory_read (GumMemoryValueType type,
             break;
           }
 
-          result = String::NewFromUtf8 (isolate, data, String::kNormalString,
-              length);
+          result = String::NewFromUtf8 (isolate, data, NewStringType::kNormal,
+              length).ToLocalChecked ();
         }
         else
         {
@@ -562,7 +562,7 @@ gum_v8_memory_read (GumMemoryValueType type,
         if (size != 0)
         {
           result = String::NewFromUtf8 (isolate, str_utf8,
-              String::kNormalString, size);
+              NewStringType::kNormal, size).ToLocalChecked ();
         }
         else
         {
@@ -970,7 +970,9 @@ gum_memory_scan_context_run (GumMemoryScanContext * self)
 
     auto on_error = Local<Function>::New (isolate, *self->on_error);
     auto recv = Undefined (isolate);
-    Handle<Value> argv[] = { String::NewFromUtf8 (isolate, message) };
+    Handle<Value> argv[] = {
+      String::NewFromUtf8 (isolate, message).ToLocalChecked ()
+    };
     auto result = on_error->Call (context, recv, G_N_ELEMENTS (argv), argv);
     _gum_v8_ignore_result (result);
 

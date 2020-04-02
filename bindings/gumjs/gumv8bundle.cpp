@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -31,7 +31,8 @@ gum_v8_bundle_new (Isolate * isolate,
     ScriptOrigin origin (resource_name);
     g_free (resource_name_str);
 
-    auto source_string = String::NewFromUtf8 (isolate, module->source_code);
+    auto source_string = String::NewFromUtf8 (isolate, module->source_code)
+        .ToLocalChecked ();
     ScriptCompiler::Source source_value (source_string, origin);
 
     auto script = ScriptCompiler::CompileUnboundScript (isolate, &source_value)

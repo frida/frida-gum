@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -324,7 +324,7 @@ gum_v8_listen_operation_perform (GumV8ListenOperation * self)
     else
     {
       error_value = Exception::Error (
-          String::NewFromUtf8 (isolate, error->message));
+          String::NewFromUtf8 (isolate, error->message).ToLocalChecked ());
       g_error_free (error);
       listener_value = null_value;
     }
@@ -455,7 +455,7 @@ gum_v8_connect_operation_finish (GSocketClient * client,
     else
     {
       error_value = Exception::Error (
-          String::NewFromUtf8 (isolate, error->message));
+          String::NewFromUtf8 (isolate, error->message).ToLocalChecked ());
       g_error_free (error);
       connection_value = null_value;
     }
@@ -534,9 +534,14 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_get_type)
   }
 
   if (res != NULL)
-    info.GetReturnValue ().Set (String::NewFromUtf8 (isolate, res));
+  {
+    info.GetReturnValue ().Set (String::NewFromUtf8 (isolate, res)
+        .ToLocalChecked ());
+  }
   else
+  {
     info.GetReturnValue ().SetNull ();
+  }
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_socket_get_local_address)
@@ -672,7 +677,7 @@ gum_v8_accept_operation_finish (GSocketListener * listener,
     else
     {
       error_value = Exception::Error (
-          String::NewFromUtf8 (isolate, error->message));
+          String::NewFromUtf8 (isolate, error->message).ToLocalChecked ());
       g_error_free (error);
       connection_value = null_value;
     }
@@ -754,7 +759,7 @@ gum_v8_set_no_delay_operation_perform (GumV8SetNoDelayOperation * self)
     else
     {
       error_value = Exception::Error (
-          String::NewFromUtf8 (isolate, error->message));
+          String::NewFromUtf8 (isolate, error->message).ToLocalChecked ());
       g_error_free (error);
     }
 

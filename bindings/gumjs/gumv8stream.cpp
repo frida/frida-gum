@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -320,7 +320,7 @@ gum_v8_close_io_stream_operation_finish (GIOStream * stream,
     else
     {
       error_value = Exception::Error (
-          String::NewFromUtf8 (isolate, error->message));
+          String::NewFromUtf8 (isolate, error->message).ToLocalChecked ());
       g_error_free (error);
     }
 
@@ -389,7 +389,7 @@ gum_v8_close_input_operation_finish (GInputStream * stream,
     else
     {
       error_value = Exception::Error (
-          String::NewFromUtf8 (isolate, error->message));
+          String::NewFromUtf8 (isolate, error->message).ToLocalChecked ());
       g_error_free (error);
     }
 
@@ -493,7 +493,8 @@ gum_v8_read_operation_finish (GInputStream * stream,
     {
       error_value = Exception::Error (
           String::NewFromUtf8 (isolate,
-              (error != NULL) ? error->message : "Short read"));
+              (error != NULL) ? error->message : "Short read")
+          .ToLocalChecked ());
       data_value = ArrayBuffer::New (isolate, self->buffer, bytes_read,
           ArrayBufferCreationMode::kInternalized);
       self->buffer = NULL; /* steal it */
@@ -508,7 +509,7 @@ gum_v8_read_operation_finish (GInputStream * stream,
     else
     {
       error_value = Exception::Error (
-          String::NewFromUtf8 (isolate, error->message));
+          String::NewFromUtf8 (isolate, error->message).ToLocalChecked ());
       data_value = null_value;
     }
 
@@ -579,7 +580,7 @@ gum_v8_close_output_operation_finish (GOutputStream * stream,
     else
     {
       error_value = Exception::Error (
-          String::NewFromUtf8 (isolate, error->message));
+          String::NewFromUtf8 (isolate, error->message).ToLocalChecked ());
       g_error_free (error);
     }
 
@@ -702,7 +703,8 @@ gum_v8_write_operation_finish (GOutputStream * stream,
     {
       error_value = Exception::Error (
           String::NewFromUtf8 (isolate,
-              (error != NULL) ? error->message : "Short write"));
+              (error != NULL) ? error->message : "Short write")
+          .ToLocalChecked ());
     }
     else if (error == NULL)
     {
@@ -711,7 +713,7 @@ gum_v8_write_operation_finish (GOutputStream * stream,
     else
     {
       error_value = Exception::Error (
-          String::NewFromUtf8 (isolate, error->message));
+          String::NewFromUtf8 (isolate, error->message).ToLocalChecked ());
     }
 
     g_clear_error (&error);

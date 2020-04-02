@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -110,16 +110,16 @@ _gum_v8_process_init (GumV8Process * self,
   process->Set (_gum_v8_string_new_ascii (isolate, "id"),
       Number::New (isolate, gum_process_get_id ()), ReadOnly);
   process->Set (_gum_v8_string_new_ascii (isolate, "arch"),
-      String::NewFromUtf8 (isolate, GUM_SCRIPT_ARCH), ReadOnly);
+      String::NewFromUtf8Literal (isolate, GUM_SCRIPT_ARCH), ReadOnly);
   process->Set (_gum_v8_string_new_ascii (isolate, "platform"),
-      String::NewFromUtf8 (isolate, GUM_SCRIPT_PLATFORM), ReadOnly);
+      String::NewFromUtf8Literal (isolate, GUM_SCRIPT_PLATFORM), ReadOnly);
   process->Set (_gum_v8_string_new_ascii (isolate, "pageSize"),
       Number::New (isolate, gum_query_page_size ()), ReadOnly);
   process->Set (_gum_v8_string_new_ascii (isolate, "pointerSize"),
       Number::New (isolate, GLIB_SIZEOF_VOID_P), ReadOnly);
   process->Set (_gum_v8_string_new_ascii (isolate, "codeSigningPolicy"),
       String::NewFromUtf8 (isolate, gum_code_signing_policy_to_string (
-      gum_process_get_code_signing_policy ())), ReadOnly);
+      gum_process_get_code_signing_policy ())).ToLocalChecked (), ReadOnly);
   _gum_v8_module_add (External::New (isolate, self), process,
       gumjs_process_functions, isolate);
 }

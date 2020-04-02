@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -503,7 +503,7 @@ gum_v8_kernel_read (GumMemoryValueType type,
       case GUM_MEMORY_VALUE_C_STRING:
       {
         gchar * str = g_utf8_make_valid ((gchar *) data, length);
-        result = String::NewFromUtf8 (isolate, str, String::kNormalString);
+        result = String::NewFromUtf8 (isolate, str).ToLocalChecked ();
         g_free (str);
 
         break;
@@ -520,7 +520,7 @@ gum_v8_kernel_read (GumMemoryValueType type,
         }
 
         result = String::NewFromUtf8 (isolate, (gchar *) data,
-            String::kNormalString, length);
+            NewStringType::kNormal, length).ToLocalChecked ();
 
         break;
       }
@@ -539,7 +539,7 @@ gum_v8_kernel_read (GumMemoryValueType type,
         if (size != 0)
         {
           result = String::NewFromUtf8 (isolate, str_utf8,
-              String::kNormalString, size);
+              NewStringType::kNormal, size).ToLocalChecked ();
         }
         else
         {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -93,6 +93,7 @@ _gum_v8_args_parse (const GumV8Args * args,
   auto info = args->info;
   auto core = args->core;
   auto isolate = info->GetIsolate ();
+  auto context = isolate->GetCurrentContext ();
   GumV8ArgsParseScope scope;
   va_list ap;
   int arg_index, arg_count = info->Length ();
@@ -440,8 +441,12 @@ _gum_v8_args_parse (const GumV8Args * args,
             Local<Function> func_js;
             gpointer func_c;
 
-            auto value = callbacks->Get (
-                _gum_v8_string_new_ascii (isolate, name));
+            Local<Value> value;
+            if (!callbacks->Get (context,
+                _gum_v8_string_new_ascii (isolate, name)).ToLocal (&value))
+            {
+              return FALSE;
+            }
             if (value->IsFunction ())
             {
               func_js = value.As<Function> ();
@@ -1191,18 +1196,19 @@ _gum_v8_native_pointer_get (Handle<Value> value,
   }
   else
   {
+    auto context = isolate->GetCurrentContext ();
+
     /* Cannot use isObject() here as that returns false for proxies */
     MaybeLocal<Object> maybe_obj;
     {
       TryCatch trycatch (isolate);
-      maybe_obj = value->ToObject (isolate);
+      maybe_obj = value->ToObject (context);
       trycatch.Reset ();
     }
 
     Local<Object> obj;
     if (maybe_obj.ToLocal (&obj))
     {
-      auto context = isolate->GetCurrentContext ();
       auto handle_key (Local<String>::New (isolate, *core->handle_key));
       if (obj->Has (context, handle_key).FromJust ())
       {
@@ -1319,8 +1325,8 @@ void
 _gum_v8_throw_literal (Isolate * isolate,
                        const gchar * message)
 {
-  isolate->ThrowException (Exception::Error (String::NewFromUtf8 (isolate,
-      message)));
+  isolate->ThrowException (Exception::Error (
+      String::NewFromUtf8 (isolate, message).ToLocalChecked ()));
 }
 
 void
@@ -1365,7 +1371,8 @@ _gum_v8_parse_exception_details (GumExceptionDetails * details,
                                  GumV8Core * core)
 {
   auto message = gum_exception_details_to_string (details);
-  auto ex = Exception::Error (String::NewFromUtf8 (core->isolate, message))
+  auto ex = Exception::Error (
+      String::NewFromUtf8 (core->isolate, message).ToLocalChecked ())
       .As<Object> ();
   g_free (message);
 
@@ -1615,7 +1622,7 @@ _gum_v8_object_set_utf8 (Handle<Object> object,
 {
   return _gum_v8_object_set (object,
       key,
-      String::NewFromUtf8 (core->isolate, value),
+      String::NewFromUtf8 (core->isolate, value).ToLocalChecked (),
       core);
 }
 

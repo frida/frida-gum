@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -550,6 +550,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_remove_call_probe)
 
 GUMJS_DEFINE_FUNCTION (gumjs_stalker_parse)
 {
+  auto context = isolate->GetCurrentContext ();
+
   Local<Value> events_value;
   gboolean annotate, stringify;
   if (!_gum_v8_args_parse (args, "Vtt", &events_value, &annotate, &stringify))
@@ -592,18 +594,20 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_parse)
         if (annotate)
         {
           row = Array::New (isolate, 4);
-          row->Set (column_index++, _gum_v8_string_new_ascii (isolate, "call"));
+          row->Set (context, column_index++,
+              _gum_v8_string_new_ascii (isolate, "call")).Check ();
         }
         else
         {
           row = Array::New (isolate, 3);
         }
 
-        row->Set (column_index++,
-            gum_make_pointer (call->location, stringify, core));
-        row->Set (column_index++,
-            gum_make_pointer (call->target, stringify, core));
-        row->Set (column_index++, Integer::New (isolate, call->depth));
+        row->Set (context, column_index++,
+            gum_make_pointer (call->location, stringify, core)).Check ();
+        row->Set (context, column_index++,
+            gum_make_pointer (call->target, stringify, core)).Check ();
+        row->Set (context, column_index++, Integer::New (isolate, call->depth))
+            .Check ();
 
         break;
       }
@@ -614,18 +618,20 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_parse)
         if (annotate)
         {
           row = Array::New (isolate, 4);
-          row->Set (column_index++, _gum_v8_string_new_ascii (isolate, "ret"));
+          row->Set (context, column_index++,
+              _gum_v8_string_new_ascii (isolate, "ret")).Check ();
         }
         else
         {
           row = Array::New (isolate, 3);
         }
 
-        row->Set (column_index++,
-            gum_make_pointer (ret->location, stringify, core));
-        row->Set (column_index++,
-            gum_make_pointer (ret->target, stringify, core));
-        row->Set (column_index++, Integer::New (isolate, ret->depth));
+        row->Set (context, column_index++,
+            gum_make_pointer (ret->location, stringify, core)).Check ();
+        row->Set (context, column_index++,
+            gum_make_pointer (ret->target, stringify, core)).Check ();
+        row->Set (context, column_index++, Integer::New (isolate, ret->depth))
+            .Check ();
 
         break;
       }
@@ -636,15 +642,16 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_parse)
         if (annotate)
         {
           row = Array::New (isolate, 2);
-          row->Set (column_index++, _gum_v8_string_new_ascii (isolate, "exec"));
+          row->Set (context, column_index++,
+              _gum_v8_string_new_ascii (isolate, "exec")).Check ();
         }
         else
         {
           row = Array::New (isolate, 1);
         }
 
-        row->Set (column_index++,
-            gum_make_pointer (exec->location, stringify, core));
+        row->Set (context, column_index++,
+            gum_make_pointer (exec->location, stringify, core)).Check ();
 
         break;
       }
@@ -655,18 +662,18 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_parse)
         if (annotate)
         {
           row = Array::New (isolate, 3);
-          row->Set (column_index++,
-              _gum_v8_string_new_ascii (isolate, "block"));
+          row->Set (context, column_index++,
+              _gum_v8_string_new_ascii (isolate, "block")).Check ();
         }
         else
         {
           row = Array::New (isolate, 2);
         }
 
-        row->Set (column_index++,
-            gum_make_pointer (block->begin, stringify, core));
-        row->Set (column_index++,
-            gum_make_pointer (block->end, stringify, core));
+        row->Set (context, column_index++,
+            gum_make_pointer (block->begin, stringify, core)).Check ();
+        row->Set (context, column_index++,
+            gum_make_pointer (block->end, stringify, core)).Check ();
 
         break;
       }
@@ -677,18 +684,18 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_parse)
         if (annotate)
         {
           row = Array::New (isolate, 3);
-          row->Set (column_index++,
-              _gum_v8_string_new_ascii (isolate, "compile"));
+          row->Set (context, column_index++,
+              _gum_v8_string_new_ascii (isolate, "compile")).Check ();
         }
         else
         {
           row = Array::New (isolate, 2);
         }
 
-        row->Set (column_index++,
-            gum_make_pointer (compile->begin, stringify, core));
-        row->Set (column_index++,
-            gum_make_pointer (compile->end, stringify, core));
+        row->Set (context, column_index++,
+            gum_make_pointer (compile->begin, stringify, core)).Check ();
+        row->Set (context, column_index++,
+            gum_make_pointer (compile->end, stringify, core)).Check ();
 
         break;
       }
@@ -697,7 +704,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_parse)
         return;
     }
 
-    rows->Set ((uint32_t) row_index, row);
+    rows->Set (context, (uint32_t) row_index, row).Check ();
   }
 
   info.GetReturnValue ().Set (rows);

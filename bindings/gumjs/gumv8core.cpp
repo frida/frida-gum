@@ -694,20 +694,22 @@ _gum_v8_core_realize (GumV8Core * self)
   auto module = External::New (isolate, self);
 
   auto global = context->Global ();
-  global->Set (_gum_v8_string_new_ascii (isolate, "global"), global);
+  global->Set (context, _gum_v8_string_new_ascii (isolate, "global"), global)
+      .Check ();
 
   auto array_buffer = global->Get (context,
       _gum_v8_string_new_ascii (isolate, "ArrayBuffer")).ToLocalChecked ()
       .As<Object> ();
-  array_buffer->Set (_gum_v8_string_new_ascii (isolate, "wrap"),
+  array_buffer->Set (context, _gum_v8_string_new_ascii (isolate, "wrap"),
       Function::New (context, gumjs_array_buffer_wrap, module)
-      .ToLocalChecked ());
+      .ToLocalChecked ()).Check ();
   auto array_buffer_proto = array_buffer->Get (context,
       _gum_v8_string_new_ascii (isolate, "prototype")).ToLocalChecked ()
       .As<Object> ();
-  array_buffer_proto->Set (_gum_v8_string_new_ascii (isolate, "unwrap"),
+  array_buffer_proto->Set (context,
+      _gum_v8_string_new_ascii (isolate, "unwrap"),
       Function::New (context, gumjs_array_buffer_unwrap, module)
-      .ToLocalChecked ());
+      .ToLocalChecked ()).Check ();
 
   self->native_functions = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_v8_native_function_free);
@@ -760,8 +762,8 @@ _gum_v8_core_realize (GumV8Core * self)
       system_error_key);
 
   auto native_return_value = Object::New (isolate);
-  native_return_value->Set (context, value_key, zero).FromJust ();
-  native_return_value->Set (context, system_error_key, zero).FromJust ();
+  native_return_value->Set (context, value_key, zero).Check ();
+  native_return_value->Set (context, system_error_key, zero).Check ();
   self->native_return_value = new GumPersistent<Object>::type (isolate,
       native_return_value);
 
@@ -2324,6 +2326,7 @@ gumjs_native_function_init (Handle<Object> wrapper,
                             GumV8Core * core)
 {
   auto isolate = core->isolate;
+  auto context = isolate->GetCurrentContext ();
   GumV8NativeFunction * func;
   ffi_type * rtype;
   uint32_t nargs_fixed, nargs_total, i;
@@ -2346,7 +2349,9 @@ gumjs_native_function_init (Handle<Object> wrapper,
   func->atypes = g_new (ffi_type *, nargs_total);
   for (i = 0; i != nargs_total; i++)
   {
-    auto type = params->argument_types->Get (i);
+    Local<Value> type;
+    if (!params->argument_types->Get (context, i).ToLocal (&type))
+      goto error;
 
     String::Utf8Value type_utf8 (isolate, type);
     if (strcmp (*type_utf8, "...") == 0)
@@ -2631,10 +2636,10 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
     auto return_value = template_return_value->Clone ();
     return_value->Set (context,
         Local<String>::New (isolate, *core->value_key),
-        result).FromJust ();
+        result).Check ();
     return_value->Set (context,
         Local<String>::New (isolate, *core->system_error_key),
-        Integer::New (isolate, system_error)).FromJust ();
+        Integer::New (isolate, system_error)).Check ();
     info.GetReturnValue ().Set (return_value);
   }
   else
@@ -2700,33 +2705,39 @@ gum_v8_native_function_params_init (GumV8NativeFunctionParams * params,
     {
       Local<Object> options = abi_or_options.As<Object> ();
 
-      auto abi = options->Get (Local<String>::New (isolate, *core->abi_key));
-      if (!abi->IsUndefined ())
-        params->abi = abi;
+      auto context = isolate->GetCurrentContext ();
+      Local<Value> v;
 
-      auto scheduling = options->Get (
-          Local<String>::New (isolate, *core->scheduling_key));
-      if (!scheduling->IsUndefined ())
+      if (!options->Get (context, Local<String>::New (isolate, *core->abi_key))
+          .ToLocal (&v))
+        return FALSE;
+      if (!v->IsUndefined ())
+        params->abi = v;
+
+      if (!options->Get (context, Local<String>::New (isolate,
+          *core->scheduling_key)).ToLocal (&v))
+        return FALSE;
+      if (!v->IsUndefined ())
       {
-        if (!gum_v8_scheduling_behavior_parse (scheduling, &params->scheduling,
-            isolate))
+        if (!gum_v8_scheduling_behavior_parse (v, &params->scheduling, isolate))
           return FALSE;
       }
 
-      auto exceptions = options->Get (
-          Local<String>::New (isolate, *core->exceptions_key));
-      if (!exceptions->IsUndefined ())
+      if (!options->Get (context, Local<String>::New (isolate,
+          *core->exceptions_key)).ToLocal (&v))
+        return FALSE;
+      if (!v->IsUndefined ())
       {
-        if (!gum_v8_exceptions_behavior_parse (exceptions, &params->exceptions,
-            isolate))
+        if (!gum_v8_exceptions_behavior_parse (v, &params->exceptions, isolate))
           return FALSE;
       }
 
-      auto traps = options->Get (
-          Local<String>::New (isolate, *core->traps_key));
-      if (!traps->IsUndefined ())
+      if (!options->Get (context, Local<String>::New (isolate,
+          *core->traps_key)).ToLocal (&v))
+        return FALSE;
+      if (!v->IsUndefined ())
       {
-        if (!gum_v8_code_traps_parse (traps, &params->traps, isolate))
+        if (!gum_v8_code_traps_parse (v, &params->traps, isolate))
           return FALSE;
       }
     }
@@ -2824,6 +2835,7 @@ gum_v8_code_traps_parse (Handle<Value> value,
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
 {
+  auto context = isolate->GetCurrentContext ();
   Local<Function> func_value;
   Local<Value> rtype_value;
   Local<Array> atypes_array;
@@ -2856,11 +2868,12 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
   callback->atypes = g_new (ffi_type *, nargs);
   for (i = 0; i != nargs; i++)
   {
-    if (!gum_v8_ffi_type_get (core, atypes_array->Get (i),
-        &callback->atypes[i], &callback->data))
-    {
+    Local<Value> v;
+    if (!atypes_array->Get (context, i).ToLocal (&v))
       goto error;
-    }
+
+    if (!gum_v8_ffi_type_get (core, v, &callback->atypes[i], &callback->data))
+      goto error;
   }
 
   abi = FFI_DEFAULT_ABI;
@@ -3070,7 +3083,7 @@ gumjs_source_map_new (const gchar * json,
   auto ctor = Local<FunctionTemplate>::New (isolate, *core->source_map);
 
   Local<Value> args[] = {
-    String::NewFromUtf8 (isolate, json)
+    String::NewFromUtf8 (isolate, json).ToLocalChecked ()
   };
 
   return ctor->GetFunction (context).ToLocalChecked ()
@@ -3124,13 +3137,23 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_source_map_resolve, GumV8SourceMap)
   if (gum_source_map_resolve (self->handle, &line, &column, &source, &name))
   {
     auto result = Array::New (isolate, 4);
-    result->Set (0, String::NewFromUtf8 (isolate, source));
-    result->Set (1, Integer::NewFromUnsigned (isolate, line));
-    result->Set (2, Integer::NewFromUnsigned (isolate, column));
+
+    auto context = isolate->GetCurrentContext ();
+    result->Set (context, 0,
+        String::NewFromUtf8 (isolate, source).ToLocalChecked ()).Check ();
+    result->Set (context, 1, Integer::NewFromUnsigned (isolate, line)).Check ();
+    result->Set (context, 2, Integer::NewFromUnsigned (isolate, column))
+        .Check ();
     if (name != NULL)
-      result->Set (3, String::NewFromUtf8 (isolate, name));
+    {
+      result->Set (context, 3,
+          String::NewFromUtf8 (isolate, name).ToLocalChecked ()).Check ();
+    }
     else
-      result->Set (3, Null (isolate));
+    {
+      result->Set (context, 3, Null (isolate)).Check ();
+    }
+
     info.GetReturnValue ().Set (result);
   }
   else
@@ -3249,7 +3272,7 @@ gum_v8_message_sink_post (GumV8MessageSink * self,
   auto callback (Local<Function>::New (isolate, *self->callback));
   auto recv = Undefined (isolate);
   Handle<Value> argv[] = {
-    String::NewFromUtf8 (isolate, message),
+    String::NewFromUtf8 (isolate, message).ToLocalChecked (),
     data_value
   };
   auto result = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
@@ -3531,6 +3554,7 @@ gum_v8_value_from_ffi_type (GumV8Core * core,
   }
   else if (type->type == FFI_TYPE_STRUCT)
   {
+    auto context = isolate->GetCurrentContext ();
     auto field_types = type->elements;
 
     gsize length = 0;
@@ -3551,7 +3575,7 @@ gum_v8_value_from_ffi_type (GumV8Core * core,
       if (gum_v8_value_from_ffi_type (core, &field_svalue, field_value,
           field_type))
       {
-        field_svalues->Set (i, field_svalue);
+        field_svalues->Set (context, i, field_svalue).Check ();
       }
       else
       {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -36,19 +36,11 @@
     "--use-strict " \
     "--expose-gc " \
     "--es-staging " \
-    "--harmony-class-fields " \
-    "--harmony-private-methods " \
-    "--harmony-regexp-sequence " \
-    "--experimental-wasm-mv " \
+    "--harmony-top-level-await " \
+    "--wasm-staging " \
     "--experimental-wasm-eh " \
-    "--experimental-wasm-threads " \
     "--experimental-wasm-simd " \
-    "--experimental-wasm-anyref " \
-    "--experimental-wasm-bigint " \
-    "--experimental-wasm-bulk-memory " \
-    "--experimental-wasm-return-call " \
-    "--experimental-wasm-type-reflection " \
-    "--experimental-wasm-compilation-hints"
+    "--experimental-wasm-return-call"
 
 using namespace v8;
 using namespace v8_inspector;

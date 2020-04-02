@@ -1,7 +1,12 @@
 project('frida-gum', 'c', 'cpp',
   version: '1.0.0',
   meson_version: '>=0.54.0',
-  default_options: ['c_std=gnu99', 'cpp_std=c++11'],
+  default_options: [
+    'c_std=gnu99',
+    'cpp_std=c++11',
+    'cpp_eh=none',
+    'cpp_rtti=false',
+  ],
 )
 
 gum_version = meson.project_version()
@@ -266,12 +271,12 @@ if have_gumjs
     cdata.set('HAVE_DUKTAPE', 1)
   endif
 
-  v8_dep = dependency('v8-7.0', version: '>=7.6.48', required: get_option('v8'))
+  v8_dep = dependency('v8-8.0', version: '>=8.3.125', required: get_option('v8'))
   have_v8 = v8_dep.found()
   if have_v8
     cdata.set('HAVE_V8', 1)
     gumjs_extra_deps += [v8_dep]
-    gumjs_extra_requires += ['v8-7.0']
+    gumjs_extra_requires += ['v8-8.0']
   endif
 
   if not (have_duktape or have_v8)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -355,11 +355,12 @@ gum_v8_script_create_context (GumV8Script * self,
     _gum_v8_stalker_realize (&self->stalker);
 
     auto resource_name_str = g_strconcat ("/", self->name, ".js", NULL);
-    auto resource_name = String::NewFromUtf8 (isolate, resource_name_str);
+    auto resource_name = String::NewFromUtf8 (isolate, resource_name_str)
+        .ToLocalChecked ();
     ScriptOrigin origin (resource_name);
     g_free (resource_name_str);
 
-    auto source = String::NewFromUtf8 (isolate, self->source);
+    auto source = String::NewFromUtf8 (isolate, self->source).ToLocalChecked ();
 
     TryCatch trycatch (isolate);
     auto maybe_code = Script::Compile (context, source, &origin);
