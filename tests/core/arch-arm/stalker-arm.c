@@ -7,6 +7,8 @@
 
 #include "stalker-arm-fixture.c"
 
+#include <lzma.h>
+
 TESTLIST_BEGIN (stalker)
   TESTENTRY (flat_code)
   TESTENTRY (no_events)
@@ -36,6 +38,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (cc_excluded_range)
   TESTENTRY (excluded_thumb)
   TESTENTRY (excluded_thumb_branch)
+  TESTENTRY (performance)
 TESTLIST_END ()
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
@@ -1055,13 +1058,119 @@ TESTCASE (excluded_thumb_branch)
   GUM_ASSERT_CMPADDR (ev->target, ==, func);
   GUM_ASSERT_CMPADDR (ev->depth, ==, 0);
 }
-// Check thumb is excluded.
-// Performance test
+
+static gboolean
+store_range_of_test_runner (const GumModuleDetails * details,
+                            gpointer user_data)
+{
+  GumMemoryRange * runner_range = user_data;
+
+  if (strstr (details->name, "gum-tests") != NULL)
+  {
+    *runner_range = *details->range;
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+GUM_NOINLINE static void
+pretend_workload (GumMemoryRange * runner_range)
+{
+  lzma_stream stream = LZMA_STREAM_INIT;
+  const uint32_t preset = 9 | LZMA_PRESET_EXTREME;
+  lzma_ret ret;
+  guint8 * outbuf;
+  gsize outbuf_size;
+  const gsize outbuf_size_increment = 1024 * 1024;
+
+  ret = lzma_easy_encoder (&stream, preset, LZMA_CHECK_CRC64);
+  g_assert_cmpint (ret, ==, LZMA_OK);
+
+  outbuf_size = outbuf_size_increment;
+  outbuf = malloc (outbuf_size);
+
+  stream.next_in = GSIZE_TO_POINTER (runner_range->base_address);
+  stream.avail_in = MIN (runner_range->size, 65536);
+  stream.next_out = outbuf;
+  stream.avail_out = outbuf_size;
+
+  while (TRUE)
+  {
+    ret = lzma_code (&stream, LZMA_FINISH);
+
+    if (stream.avail_out == 0)
+    {
+      gsize compressed_size;
+
+      compressed_size = outbuf_size;
+
+      outbuf_size += outbuf_size_increment;
+      outbuf = realloc (outbuf, outbuf_size);
+
+      stream.next_out = outbuf + compressed_size;
+      stream.avail_out = outbuf_size - compressed_size;
+    }
+
+    if (ret != LZMA_OK)
+    {
+      g_assert_cmpint (ret, ==, LZMA_STREAM_END);
+      break;
+    }
+  }
+
+  lzma_end (&stream);
+
+  free (outbuf);
+}
+
+TESTCASE (performance)
+{
+  GumMemoryRange runner_range;
+  GTimer * timer;
+  gdouble duration_direct, duration_stalked;
+
+  runner_range.base_address = 0;
+  runner_range.size = 0;
+  gum_process_enumerate_modules (store_range_of_test_runner, &runner_range);
+  g_assert_true (runner_range.base_address != 0 && runner_range.size != 0);
+
+  timer = g_timer_new ();
+  pretend_workload (&runner_range);
+
+  g_timer_reset (timer);
+  pretend_workload (&runner_range);
+  duration_direct = g_timer_elapsed (timer, NULL);
+
+  g_print ("<duration_direct=%f>\n", duration_direct);
+
+  fixture->sink->mask = GUM_NOTHING;
+
+  gum_stalker_follow_me (fixture->stalker, fixture->transformer,
+      GUM_EVENT_SINK (fixture->sink));
+
+  /* the real deal */
+  g_timer_reset (timer);
+  pretend_workload (&runner_range);
+  duration_stalked = g_timer_elapsed (timer, NULL);
+
+  gum_stalker_unfollow_me (fixture->stalker);
+
+  g_timer_destroy (timer);
+
+  g_print ("<duration_stalked=%f>\n", duration_stalked);
+  g_print ("<ratio=%f>\n", duration_stalked / duration_direct);
+}
+
+
 // Other forms of branch instructions
+  // LDR PC - Used in PLT as a trampoline (branch).
   // LDRLS - switches
   // MOV PC - call but with LR moved immediately before
   // TBB/TBH - switches
-  // LDR - Who does this?
+
+
+// Performance test
 
 // Detect calls by tracking modifications to LR?
 // Compare test list to aarch64
