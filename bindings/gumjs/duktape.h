@@ -1,12 +1,12 @@
 /*
- *  Duktape public API for Duktape 2.3.99.
+ *  Duktape public API for Duktape 2.99.99.
  *
  *  See the API reference for documentation on call semantics.  The exposed,
  *  supported API is between the "BEGIN PUBLIC API" and "END PUBLIC API"
  *  comments.  Other parts of the header are Duktape internal and related to
  *  e.g. platform/compiler/feature detection.
  *
- *  Git commit 603471691b03ab858a9d0a532ba54ed5f3122f1b (v2.3.0-87-g60347169).
+ *  Git commit 5c5bd74c1e1376e8b37165319b1a9e37601d3318 (v2.5.0-98-g5c5bd74c).
  *  Git branch master.
  *
  *  See Duktape AUTHORS.rst and LICENSE.txt for copyright and
@@ -21,7 +21,7 @@
  *  
  *  (http://opensource.org/licenses/MIT)
  *  
- *  Copyright (c) 2013-2018 by Duktape authors (see AUTHORS.rst)
+ *  Copyright (c) 2013-2020 by Duktape authors (see AUTHORS.rst)
  *  
  *  Permission is hereby granted, free of charge, to any person obtaining a copy
  *  of this software and associated documentation files (the "Software"), to deal
@@ -104,6 +104,15 @@
  *  * Ozhan Duz (https://github.com/webfolderio)
  *  * Akos Kiss (https://github.com/akosthekiss)
  *  * TheBrokenRail (https://github.com/TheBrokenRail)
+ *  * Jesse Doyle (https://github.com/jessedoyle)
+ *  * Gero Kuehn (https://github.com/dc6jgk)
+ *  * James Swift (https://github.com/phraemer)
+ *  * Luis de Bethencourt (https://github.com/luisbg)
+ *  * Ian Whyman (https://github.com/v00d00)
+ *  * Rick Sayre (https://github.com/whorfin)
+ *  * Craig Leres (https://github.com/leres)
+ *  * Maurici Abad (https://github.com/mauriciabad)
+ *  * Nancy Li (https://github.com/NancyLi1013)
  *  
  *  Other contributions
  *  ===================
@@ -145,6 +154,7 @@
  *  * Wilhelm Wanecek (https://github.com/wanecek)
  *  * Andrew Janke (https://github.com/apjanke)
  *  * Unamer (https://github.com/unamer)
+ *  * Karl Dahlke (eklhad@gmail.com)
  *  
  *  If you are accidentally missing from this list, send me an e-mail
  *  (``sami.vaarala@iki.fi``) and I'll fix the omission.
@@ -169,15 +179,15 @@
  * development snapshots have 99 for patch level (e.g. 0.10.99 would be a
  * development version after 0.10.0 but before the next official release).
  */
-#define DUK_VERSION                       20399L
+#define DUK_VERSION                       29999L
 
 /* Git commit, describe, and branch for Duktape build.  Useful for
  * non-official snapshot builds so that application code can easily log
  * which Duktape snapshot was used.  Not available in the ECMAScript
  * environment.
  */
-#define DUK_GIT_COMMIT                    "603471691b03ab858a9d0a532ba54ed5f3122f1b"
-#define DUK_GIT_DESCRIBE                  "v2.3.0-87-g60347169"
+#define DUK_GIT_COMMIT                    "5c5bd74c1e1376e8b37165319b1a9e37601d3318"
+#define DUK_GIT_DESCRIBE                  "v2.5.0-98-g5c5bd74c"
 #define DUK_GIT_BRANCH                    "master"
 
 /* External duk_config.h provides platform/compiler/OS dependent
@@ -398,30 +408,35 @@ struct duk_time_components {
 #define DUK_DEFPROP_C                     DUK_DEFPROP_CONFIGURABLE
 #define DUK_DEFPROP_WE                    (DUK_DEFPROP_WRITABLE | DUK_DEFPROP_ENUMERABLE)
 #define DUK_DEFPROP_WC                    (DUK_DEFPROP_WRITABLE | DUK_DEFPROP_CONFIGURABLE)
+#define DUK_DEFPROP_EC                    (DUK_DEFPROP_ENUMERABLE | DUK_DEFPROP_CONFIGURABLE)
 #define DUK_DEFPROP_WEC                   (DUK_DEFPROP_WRITABLE | DUK_DEFPROP_ENUMERABLE | DUK_DEFPROP_CONFIGURABLE)
 #define DUK_DEFPROP_HAVE_W                DUK_DEFPROP_HAVE_WRITABLE
 #define DUK_DEFPROP_HAVE_E                DUK_DEFPROP_HAVE_ENUMERABLE
 #define DUK_DEFPROP_HAVE_C                DUK_DEFPROP_HAVE_CONFIGURABLE
 #define DUK_DEFPROP_HAVE_WE               (DUK_DEFPROP_HAVE_WRITABLE | DUK_DEFPROP_HAVE_ENUMERABLE)
 #define DUK_DEFPROP_HAVE_WC               (DUK_DEFPROP_HAVE_WRITABLE | DUK_DEFPROP_HAVE_CONFIGURABLE)
+#define DUK_DEFPROP_HAVE_EC               (DUK_DEFPROP_HAVE_ENUMERABLE | DUK_DEFPROP_HAVE_CONFIGURABLE)
 #define DUK_DEFPROP_HAVE_WEC              (DUK_DEFPROP_HAVE_WRITABLE | DUK_DEFPROP_HAVE_ENUMERABLE | DUK_DEFPROP_HAVE_CONFIGURABLE)
 #define DUK_DEFPROP_SET_W                 DUK_DEFPROP_SET_WRITABLE
 #define DUK_DEFPROP_SET_E                 DUK_DEFPROP_SET_ENUMERABLE
 #define DUK_DEFPROP_SET_C                 DUK_DEFPROP_SET_CONFIGURABLE
 #define DUK_DEFPROP_SET_WE                (DUK_DEFPROP_SET_WRITABLE | DUK_DEFPROP_SET_ENUMERABLE)
 #define DUK_DEFPROP_SET_WC                (DUK_DEFPROP_SET_WRITABLE | DUK_DEFPROP_SET_CONFIGURABLE)
+#define DUK_DEFPROP_SET_EC                (DUK_DEFPROP_SET_ENUMERABLE | DUK_DEFPROP_SET_CONFIGURABLE)
 #define DUK_DEFPROP_SET_WEC               (DUK_DEFPROP_SET_WRITABLE | DUK_DEFPROP_SET_ENUMERABLE | DUK_DEFPROP_SET_CONFIGURABLE)
 #define DUK_DEFPROP_CLEAR_W               DUK_DEFPROP_CLEAR_WRITABLE
 #define DUK_DEFPROP_CLEAR_E               DUK_DEFPROP_CLEAR_ENUMERABLE
 #define DUK_DEFPROP_CLEAR_C               DUK_DEFPROP_CLEAR_CONFIGURABLE
 #define DUK_DEFPROP_CLEAR_WE              (DUK_DEFPROP_CLEAR_WRITABLE | DUK_DEFPROP_CLEAR_ENUMERABLE)
 #define DUK_DEFPROP_CLEAR_WC              (DUK_DEFPROP_CLEAR_WRITABLE | DUK_DEFPROP_CLEAR_CONFIGURABLE)
+#define DUK_DEFPROP_CLEAR_EC              (DUK_DEFPROP_CLEAR_ENUMERABLE | DUK_DEFPROP_CLEAR_CONFIGURABLE)
 #define DUK_DEFPROP_CLEAR_WEC             (DUK_DEFPROP_CLEAR_WRITABLE | DUK_DEFPROP_CLEAR_ENUMERABLE | DUK_DEFPROP_CLEAR_CONFIGURABLE)
 #define DUK_DEFPROP_ATTR_W                (DUK_DEFPROP_HAVE_WEC | DUK_DEFPROP_W)
 #define DUK_DEFPROP_ATTR_E                (DUK_DEFPROP_HAVE_WEC | DUK_DEFPROP_E)
 #define DUK_DEFPROP_ATTR_C                (DUK_DEFPROP_HAVE_WEC | DUK_DEFPROP_C)
 #define DUK_DEFPROP_ATTR_WE               (DUK_DEFPROP_HAVE_WEC | DUK_DEFPROP_WE)
 #define DUK_DEFPROP_ATTR_WC               (DUK_DEFPROP_HAVE_WEC | DUK_DEFPROP_WC)
+#define DUK_DEFPROP_ATTR_EC               (DUK_DEFPROP_HAVE_WEC | DUK_DEFPROP_EC)
 #define DUK_DEFPROP_ATTR_WEC              (DUK_DEFPROP_HAVE_WEC | DUK_DEFPROP_WEC)
 
 /* Flags for duk_push_thread_raw() */
@@ -462,18 +477,24 @@ struct duk_time_components {
  *  Macros to create Symbols as C statically constructed strings.
  *
  *  Call e.g. as DUK_HIDDEN_SYMBOL("myProperty") <=> ("\xFF" "myProperty").
+ *
  *  Local symbols have a unique suffix, caller should take care to avoid
  *  conflicting with the Duktape internal representation by e.g. prepending
  *  a '!' character: DUK_LOCAL_SYMBOL("myLocal", "!123").
  *
  *  Note that these can only be used for string constants, not dynamically
  *  created strings.
+ *
+ *  You shouldn't normally use DUK_INTERNAL_SYMBOL() at all.  It is reserved
+ *  for Duktape internal symbols only.  There are no versioning guarantees
+ *  for internal symbols.
  */
 
 #define DUK_HIDDEN_SYMBOL(x)     ("\xFF" x)
 #define DUK_GLOBAL_SYMBOL(x)     ("\x80" x)
 #define DUK_LOCAL_SYMBOL(x,uniq) ("\x81" x "\xff" uniq)
 #define DUK_WELLKNOWN_SYMBOL(x)  ("\x81" x "\xff")
+#define DUK_INTERNAL_SYMBOL(x)   ("\x82" x)
 
 /*
  *  If no variadic macros, __FILE__ and __LINE__ are passed through globals
@@ -660,6 +681,7 @@ DUK_EXTERNAL_DECL void duk_swap_top(duk_context *ctx, duk_idx_t idx);
 DUK_EXTERNAL_DECL void duk_dup(duk_context *ctx, duk_idx_t from_idx);
 DUK_EXTERNAL_DECL void duk_dup_top(duk_context *ctx);
 DUK_EXTERNAL_DECL void duk_insert(duk_context *ctx, duk_idx_t to_idx);
+DUK_EXTERNAL_DECL void duk_pull(duk_context *ctx, duk_idx_t from_idx);
 DUK_EXTERNAL_DECL void duk_replace(duk_context *ctx, duk_idx_t to_idx);
 DUK_EXTERNAL_DECL void duk_copy(duk_context *ctx, duk_idx_t from_idx, duk_idx_t to_idx);
 DUK_EXTERNAL_DECL void duk_remove(duk_context *ctx, duk_idx_t idx);
@@ -954,6 +976,8 @@ DUK_EXTERNAL_DECL duk_context *duk_require_context(duk_context *ctx, duk_idx_t i
 DUK_EXTERNAL_DECL void duk_require_function(duk_context *ctx, duk_idx_t idx);
 #define duk_require_callable(ctx,idx) \
 	duk_require_function((ctx), (idx))
+DUK_EXTERNAL_DECL void duk_require_constructor_call(duk_context *ctx);
+DUK_EXTERNAL_DECL void duk_require_constructable(duk_context *ctx, duk_idx_t idx);
 DUK_EXTERNAL_DECL void *duk_require_heapptr(duk_context *ctx, duk_idx_t idx);
 
 /* Symbols are object coercible and covered by DUK_TYPE_MASK_STRING. */
@@ -1029,6 +1053,8 @@ DUK_EXTERNAL_DECL const char *duk_hex_encode(duk_context *ctx, duk_idx_t idx);
 DUK_EXTERNAL_DECL void duk_hex_decode(duk_context *ctx, duk_idx_t idx);
 DUK_EXTERNAL_DECL const char *duk_json_encode(duk_context *ctx, duk_idx_t idx);
 DUK_EXTERNAL_DECL void duk_json_decode(duk_context *ctx, duk_idx_t idx);
+DUK_EXTERNAL_DECL void duk_cbor_encode(duk_context *ctx, duk_idx_t idx, duk_uint_t encode_flags);
+DUK_EXTERNAL_DECL void duk_cbor_decode(duk_context *ctx, duk_idx_t idx, duk_uint_t decode_flags);
 
 DUK_EXTERNAL_DECL const char *duk_buffer_to_string(duk_context *ctx, duk_idx_t idx);
 
