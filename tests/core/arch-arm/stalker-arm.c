@@ -34,6 +34,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (branch_cc_block_events_generated)
   TESTENTRY (branch_link_cc_block_events_generated)
   TESTENTRY (cc_excluded_range)
+  TESTENTRY (excluded_thumb)
 TESTLIST_END ()
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
@@ -942,9 +943,65 @@ TESTCASE (cc_excluded_range)
   GUM_ASSERT_CMPADDR (ev->target, ==, func + 36);
 }
 
-// Conditional branches
-  // Conditonal branch to excluded range
 
+extern const void excluded_thumb_code;
+extern const void excluded_thumb_code_end;
+
+asm (
+  "excluded_thumb_code: \n"
+  "push {lr} \n"
+  "sub r0, r0, r0 \n"
+  "add r0, r0, #1 \n"
+  "blx 3f \n"
+  "bl 1f \n"
+  "pop {pc} \n"
+
+  "1: \n"
+  "add r0, r0, #1 \n"
+  "mov pc, lr \n"
+
+  "2: \n"
+  "add r0, r0, #1 \n"
+  "mov pc, lr \n"
+
+  ".thumb_func \n"
+  "3: \n"
+  "push {lr} \n"
+  "add r0, r0, #1 \n"
+  "blx 2b \n"
+  "pop {pc} \n"
+
+  "excluded_thumb_code_end: \n"
+);
+
+TESTCASE (excluded_thumb)
+{
+  GumCallEvent * ev;
+
+  StalkerTestFunc func =
+      invoke_expecting_return_value (fixture, GUM_CALL,
+                                     &excluded_thumb_code,
+                                     &excluded_thumb_code_end - &excluded_thumb_code,
+                                     4);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_CALL_INSN_COUNT + 2);
+  g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
+      0).type, ==, GUM_CALL);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 1).call;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func + 12);
+  GUM_ASSERT_CMPADDR (ev->target, ==, func + 41);
+  GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 2).call;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func + 16);
+  GUM_ASSERT_CMPADDR (ev->target, ==, func + 24);
+  GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
+}
+// Check thumb is excluded.
+// Performance test
 // Other forms of branch instructions
   // LDRLS - switches
   // MOV PC - call but with LR moved immediately before
@@ -953,7 +1010,5 @@ TESTCASE (cc_excluded_range)
 
 // Detect calls by tracking modifications to LR?
 // Compare test list to aarch64
-// Check thumb/jazelle is excluded.
 // Test we can unfollow (move check to virtualize funcs)
-// Performance test
 // Style rules

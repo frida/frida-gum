@@ -1121,6 +1121,11 @@ gum_stalker_is_excluding (GumExecCtx * ctx,
   GArray * exclusions = ctx->stalker->exclusions;
   guint i;
 
+  if ((GUM_ADDRESS(address) & 0x1) != 0)
+  {
+    return TRUE;
+  }
+
   for (i = 0; i != exclusions->len; i++)
   {
     GumMemoryRange * r = &g_array_index (exclusions, GumMemoryRange, i);
@@ -1364,11 +1369,20 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         break;
       case ARM_INS_BX:
       case ARM_INS_BLX:
-        g_assert (op->type == ARM_OP_REG);
-        target.absolute_address = 0;
-        target.reg = op->reg;
-        target.is_relative = FALSE;
-        target.relative_offset = 0;
+        if (op->type == ARM_OP_REG)
+        {
+          target.absolute_address = 0;
+          target.reg = op->reg;
+          target.is_relative = FALSE;
+          target.relative_offset = 0;
+        }
+        else
+        {
+          target.absolute_address = GSIZE_TO_POINTER (op->imm) + 1;
+          target.reg = ARM_REG_INVALID;
+          target.is_relative = FALSE;
+          target.relative_offset = 0;
+        }
         break;
       case ARM_INS_MOV:
         target.absolute_address = 0;
@@ -1424,10 +1438,6 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         break;
       case ARM_INS_B:
       case ARM_INS_BX:
-        if (arm->cc)
-        {
-          g_print("CC: %d\n", arm->cc);
-        }
         gum_exec_block_virtualize_branch_insn(block, &target, arm->cc, gc);
         break;
       case ARM_INS_BL:
