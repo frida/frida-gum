@@ -38,7 +38,8 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (cc_excluded_range)
   TESTENTRY (excluded_thumb)
   TESTENTRY (excluded_thumb_branch)
-  TESTENTRY (performance)
+  TESTENTRY (ldr_pc)
+  //TESTENTRY (performance)
 TESTLIST_END ()
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
@@ -1074,6 +1075,47 @@ store_range_of_test_runner (const GumModuleDetails * details,
   return TRUE;
 }
 
+
+extern const void ldr_pc_code;
+extern const void ldr_pc_code_end;
+
+asm (
+  "ldr_pc_code: \n"
+  "udf 10 \n"
+  "sub r0, r0, r0 \n"
+  "add r0, r0, #1 \n"
+  "ldr pc, f3 \n"
+  "udf #16 \n"
+  ".word 0xecececec \n"
+  "f3: \n"
+  ".word f4 \n"
+
+  "f4: \n"
+  "add r0, r0, #1 \n"
+  "mov pc, lr \n"
+
+  "ldr_pc_code_end: \n"
+);
+
+TESTCASE (ldr_pc)
+{
+  GumBlockEvent * ev;
+
+  StalkerTestFunc func =
+      invoke_expecting_return_value (fixture, GUM_BLOCK,
+                                     &ldr_pc_code,
+                                     &ldr_pc_code_end - &ldr_pc_code,
+                                     2);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, 1);
+  g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
+      0).type, ==, GUM_BLOCK);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 0).block;
+  GUM_ASSERT_CMPADDR (ev->begin, ==, func);
+}
+
 GUM_NOINLINE static void
 pretend_workload (GumMemoryRange * runner_range)
 {
@@ -1171,6 +1213,7 @@ TESTCASE (performance)
 
 
 // Performance test
+// Add code to show call stack with blocks (GUM_CALL, GUM_BLOCK, GUM_RET)
 
 // Detect calls by tracking modifications to LR?
 // Compare test list to aarch64

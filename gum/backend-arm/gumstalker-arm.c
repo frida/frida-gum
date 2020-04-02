@@ -829,6 +829,11 @@ gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
     gum_arm_writer_put_ldr_reg_reg_imm (cw, target_register, ARM_REG_R11,
         G_STRUCT_OFFSET (GumCpuContext, sp));
   }
+  else if (source_register == ARM_REG_PC)
+  {
+    gum_arm_writer_put_ldr_reg_reg_imm (cw, target_register, ARM_REG_R11,
+        G_STRUCT_OFFSET (GumCpuContext, pc));
+  }
   else
   {
     g_assert_not_reached ();
@@ -1457,6 +1462,13 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
           }
         }
         break;
+      case ARM_INS_LDR:
+        g_assert (op2->type == ARM_OP_MEM);
+        target.absolute_address = 0;
+        target.reg = op2->mem.base;
+        target.is_relative = TRUE;
+        target.relative_offset = op2->mem.disp;
+        break;
       default:
         g_assert_not_reached ();
     }
@@ -1483,6 +1495,10 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
       case ARM_INS_LDM:
         gum_exec_block_virtualize_ret_insn(block, &target, ARM_CC_AL, TRUE,
             mask, gc);
+        break;
+      case ARM_INS_LDR:
+        g_print("LDRRRRR");
+        gum_exec_block_virtualize_branch_insn(block, &target, arm->cc, gc);
         break;
       default:
         g_assert_not_reached ();
