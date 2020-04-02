@@ -31,6 +31,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (ldm_pc_ret_events_generated)
   TESTENTRY (branch_cc_block_events_generated)
   TESTENTRY (branch_link_cc_block_events_generated)
+  TESTENTRY (cc_excluded_range)
 TESTLIST_END ()
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
@@ -771,10 +772,73 @@ TESTCASE (branch_link_cc_block_events_generated)
 
 }
 
+extern const void cc_excluded_range_code;
+extern const void cc_excluded_range_code_end;
+
+asm (
+  "cc_excluded_range_code: \n"
+  "stmdb sp!, {lr} \n"
+  "sub r0, r0, r0 \n"
+  "sub r1, r1, r1 \n"
+
+  "cmp r1, #0 \n"
+  "bleq 1f \n"
+
+  "cmp r1, #0 \n"
+  "blne 2f \n"
+
+  "ldmia sp!, {lr} \n"
+  "mov pc,lr \n"
+
+  "1: \n"
+  "push {lr} \n"
+  "add r0, r0, #1 \n"
+  "bl 3f \n"
+  "pop {pc} \n"
+
+  "2: \n"
+  "push {lr} \n"
+  "add r0, r0, #2 \n"
+  "bl 3f \n"
+  "pop {pc} \n"
+
+  "3: \n"
+  "mov pc, lr \n"
+
+  "cc_excluded_range_code_end: \n"
+);
+
+TESTCASE (cc_excluded_range)
+{
+  GumCallEvent * ev;
+
+  StalkerTestFunc func = (StalkerTestFunc)
+    test_arm_stalker_fixture_dup_code (fixture, &cc_excluded_range_code,
+      &cc_excluded_range_code_end - &cc_excluded_range_code);
+
+  GumMemoryRange r = {
+    .base_address = GUM_ADDRESS(func) + 36,
+    .size = 36
+  };
+
+  gum_stalker_exclude (fixture->stalker, &r);
+
+
+  fixture->sink->mask = GUM_CALL;
+  guint32 ret = test_arm_stalker_fixture_follow_and_invoke (fixture, func, -1);
+  g_assert_cmpuint (ret, ==, 1);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_CALL_INSN_COUNT + 1);
+  g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
+      0).type, ==, GUM_CALL);
+
+  ev =
+      &g_array_index (fixture->sink->events, GumEvent, 1).call;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func + 16);
+  GUM_ASSERT_CMPADDR (ev->target, ==, func + 36);
+}
+
 // Conditional branches
-  // BL/BLX (cc)
-  // LDMcc/POPcc
-  // CBZ/CBNZ - conditional branches
   // Conditonal branch to excluded range
 
 // Other forms of branch instructions
