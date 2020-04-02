@@ -26,6 +26,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (nested_ret_events_generated)
   TESTENTRY (unmodified_lr)
   TESTENTRY (excluded_range)
+  TESTENTRY (excluded_range_call_events)
   TESTENTRY (pop_pc_ret_events_generated)
   TESTENTRY (pop_just_pc_ret_events_generated)
   TESTENTRY (ldm_pc_ret_events_generated)
@@ -495,6 +496,72 @@ TESTCASE (excluded_range)
   ev =
     &g_array_index (fixture->sink->events, GumEvent, 7).exec;
   GUM_ASSERT_CMPADDR (ev->location, ==, func + 20);
+}
+
+extern const void excluded_range_call_event_code;
+extern const void excluded_range_call_event_code_end;
+
+asm (
+  "excluded_range_call_event_code: \n"
+  "push {lr} \n"
+  "sub r0, r0, r0 \n"
+  "add r0, r0, #1 \n"
+  "bl 3f \n"
+  "bl 1f \n"
+  "pop {pc} \n"
+
+  "1: \n"
+  "add r0, r0, #1 \n"
+  "mov pc, lr \n"
+
+  "2: \n"
+  "add r0, r0, #1 \n"
+  "mov pc, lr \n"
+
+  "3: \n"
+  "push {lr} \n"
+  "add r0, r0, #1 \n"
+  "bl 2b \n"
+  "pop {pc} \n"
+
+  "excluded_range_call_event_code_end: \n"
+);
+
+TESTCASE (excluded_range_call_events)
+{
+  GumCallEvent * ev;
+
+  StalkerTestFunc func = (StalkerTestFunc)
+    test_arm_stalker_fixture_dup_code (fixture, &excluded_range_call_event_code,
+      &excluded_range_call_event_code_end - &excluded_range_call_event_code);
+
+  GumMemoryRange r = {
+    .base_address = GUM_ADDRESS(func) + 40,
+    .size = 16
+  };
+
+  gum_stalker_exclude (fixture->stalker, &r);
+
+
+  fixture->sink->mask = GUM_CALL;
+  guint32 ret = test_arm_stalker_fixture_follow_and_invoke (fixture, func, -1);
+  g_assert_cmpuint (ret, ==, 4);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_CALL_INSN_COUNT + 2);
+  g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
+      0).type, ==, GUM_CALL);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 1).call;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func + 12);
+  GUM_ASSERT_CMPADDR (ev->target, ==, func + 40);
+  GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 2).call;
+  GUM_ASSERT_CMPADDR (ev->location, ==, func + 16);
+  GUM_ASSERT_CMPADDR (ev->target, ==, func + 24);
+  GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
 }
 
 
