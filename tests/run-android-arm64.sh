@@ -1,6 +1,7 @@
 #!/bin/sh
 
 arch=arm64
+apex_libdir=/apex/com.android.runtime/lib64
 
 remote_prefix=/data/local/tmp/frida-tests-$arch
 
@@ -11,4 +12,4 @@ ninja || exit 1
 cd tests
 adb shell "mkdir $remote_prefix"
 adb push gum-tests data $remote_prefix || exit 1
-adb shell "$remote_prefix/gum-tests $@"
+adb shell "LD_LIBRARY_PATH='$apex_libdir' $remote_prefix/gum-tests $@"
