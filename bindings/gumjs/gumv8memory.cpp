@@ -592,7 +592,7 @@ gum_v8_memory_read (GumMemoryValueType type,
           auto size = g_utf8_offset_to_pointer (str_utf8,
               g_utf8_strlen (str_utf8, -1)) - str_utf8;
           result = String::NewFromUtf8 (isolate, str_utf8,
-              String::kNormalString, size);
+              NewStringType::kNormal, size).ToLocalChecked ();
           g_free (str_utf8);
         }
         else
