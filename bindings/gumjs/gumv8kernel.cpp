@@ -551,6 +551,8 @@ gum_v8_kernel_read (GumMemoryValueType type,
         break;
       }
     }
+
+    g_free (data);
   }
   else
   {
