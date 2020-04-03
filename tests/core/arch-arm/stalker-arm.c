@@ -1170,7 +1170,8 @@ TESTCASE (performance)
 {
   GumMemoryRange runner_range;
   GTimer * timer;
-  gdouble duration_direct, duration_stalked;
+  gdouble normal_cold, normal_hot;
+  gdouble stalker_cold, stalker_hot;
 
   runner_range.base_address = 0;
   runner_range.size = 0;
@@ -1182,32 +1183,39 @@ TESTCASE (performance)
 
   g_timer_reset (timer);
   pretend_workload (&runner_range);
-  duration_direct = g_timer_elapsed (timer, NULL);
+  normal_cold = g_timer_elapsed (timer, NULL);
 
-  g_print ("<duration_direct=%f>\n", duration_direct);
+  g_timer_reset (timer);
+  pretend_workload (&runner_range);
+  normal_hot = g_timer_elapsed (timer, NULL);
 
   fixture->sink->mask = GUM_NOTHING;
 
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
       GUM_EVENT_SINK (fixture->sink));
 
-  //asm ("udf 10");
-
-  /* the real deal */
   g_timer_reset (timer);
   pretend_workload (&runner_range);
-  duration_stalked = g_timer_elapsed (timer, NULL);
+  stalker_cold = g_timer_elapsed (timer, NULL);
 
-  // TODO: Run again now the blocks have been compiled and compare
+  g_timer_reset (timer);
+  pretend_workload (&runner_range);
+  stalker_hot = g_timer_elapsed (timer, NULL);
 
   gum_stalker_unfollow_me (fixture->stalker);
 
   g_timer_destroy (timer);
 
-  g_print ("<duration_stalked=%f>\n", duration_stalked);
-  g_print ("<ratio=%f>\n", duration_stalked / duration_direct);
+  g_print ("<normal_cold=%f>\n", normal_cold);
+  g_print ("<normal_hot=%f>\n", normal_hot);
+  g_print ("<stalker_cold=%f>\n", stalker_cold);
+  g_print ("<stalker_hot=%f>\n", stalker_hot);
+  g_print ("<ratio_cold=%f>\n", stalker_cold / normal_hot);
+  g_print ("<ratio_hot=%f>\n", stalker_hot / normal_hot);
 }
 
+// Tidy the jump generated code to not use hard-coded instructions
+// Add code to check we run to the end of the performance test.
 
 // Other forms of branch instructions
   // LDR PC - Used in PLT as a trampoline (branch).
@@ -1216,7 +1224,6 @@ TESTCASE (performance)
   // TBB/TBH - switches
 
 
-// Performance test
 // Add code to show call stack with blocks (GUM_CALL, GUM_BLOCK, GUM_RET)
 
 // Detect calls by tracking modifications to LR?
