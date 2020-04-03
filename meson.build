@@ -229,14 +229,14 @@ else
 endif
 
 if host_os_family == 'windows'
-  tls_provider_dep = dependency('glib-schannel-static', required: false)
+  tls_provider_dep = dependency('gioschannel', required: false)
   if tls_provider_dep.found()
-    cdata.set('HAVE_GLIB_SCHANNEL_STATIC', 1)
+    cdata.set('HAVE_GIOSCHANNEL', 1)
   endif
 else
-  tls_provider_dep = dependency('glib-openssl-static', required: false)
+  tls_provider_dep = dependency('gioopenssl', required: false)
   if tls_provider_dep.found()
-    cdata.set('HAVE_GLIB_OPENSSL_STATIC', 1)
+    cdata.set('HAVE_GIOOPENSSL', 1)
   endif
 endif
 

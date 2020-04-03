@@ -19,11 +19,11 @@
 #include <capstone.h>
 #include <glib.h>
 #include <gio/gio.h>
-#ifdef HAVE_GLIB_SCHANNEL_STATIC
-# include <glib-schannel-static.h>
+#ifdef HAVE_GIOSCHANNEL
+# include <gioschannel.h>
 #endif
-#ifdef HAVE_GLIB_OPENSSL_STATIC
-# include <glib-openssl-static.h>
+#ifdef HAVE_GIOOPENSSL
+# include <gioopenssl.h>
 #endif
 #include <gum/gum.h>
 #include <string.h>
@@ -112,10 +112,10 @@ main (gint argc, gchar * argv[])
   g_setenv ("G_DEBUG", "fatal-warnings:fatal-criticals", TRUE);
   glib_init ();
   gio_init ();
-#ifdef HAVE_GLIB_SCHANNEL_STATIC
+#ifdef HAVE_GIOSCHANNEL
   g_io_module_schannel_register ();
 #endif
-#ifdef HAVE_GLIB_OPENSSL_STATIC
+#ifdef HAVE_GIOOPENSSL
   g_io_module_openssl_register ();
 #endif
   g_test_init (&argc, &argv, NULL);
