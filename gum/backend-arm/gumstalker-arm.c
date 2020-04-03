@@ -353,6 +353,8 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   GumStalkerIterator iterator;
   gboolean all_labels_resolved;
 
+  g_print("\n");
+
   block = gum_exec_block_obtain (ctx, real_address, code_address_ptr);
   if (block != NULL)
   {
