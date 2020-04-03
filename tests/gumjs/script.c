@@ -6965,19 +6965,19 @@ TESTCASE (script_can_be_reloaded)
 
 TESTCASE (script_should_not_leak_if_destroyed_before_load)
 {
-  GumExceptor * exceptor;
+  GumExceptor * held_instance;
   guint ref_count_before;
   GumScript * script;
 
-  exceptor = gum_exceptor_obtain ();
-  ref_count_before = G_OBJECT (exceptor)->ref_count;
+  held_instance = gum_exceptor_obtain ();
+  ref_count_before = G_OBJECT (held_instance)->ref_count;
 
   script = gum_script_backend_create_sync (fixture->backend, "testcase",
       "console.log('Hello World');", NULL, NULL);
   g_object_unref (script);
 
-  g_assert_cmpuint (G_OBJECT (exceptor)->ref_count, ==, ref_count_before);
-  g_object_unref (exceptor);
+  g_assert_cmpuint (G_OBJECT (held_instance)->ref_count, ==, ref_count_before);
+  g_object_unref (held_instance);
 }
 
 TESTCASE (script_memory_usage)
