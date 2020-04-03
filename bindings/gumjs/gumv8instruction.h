@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -32,13 +32,10 @@ struct GumV8InstructionValue
 };
 
 G_GNUC_INTERNAL void _gum_v8_instruction_init (GumV8Instruction * self,
-    GumV8Core * core, v8::Handle<v8::ObjectTemplate> scope);
-G_GNUC_INTERNAL void _gum_v8_instruction_realize (
-    GumV8Instruction * self);
-G_GNUC_INTERNAL void _gum_v8_instruction_dispose (
-    GumV8Instruction * self);
-G_GNUC_INTERNAL void _gum_v8_instruction_finalize (
-    GumV8Instruction * self);
+    GumV8Core * core, v8::Local<v8::ObjectTemplate> scope);
+G_GNUC_INTERNAL void _gum_v8_instruction_realize (GumV8Instruction * self);
+G_GNUC_INTERNAL void _gum_v8_instruction_dispose (GumV8Instruction * self);
+G_GNUC_INTERNAL void _gum_v8_instruction_finalize (GumV8Instruction * self);
 
 G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_instruction_new (
     csh capstone, const cs_insn * insn, gboolean is_owned, gconstpointer target,

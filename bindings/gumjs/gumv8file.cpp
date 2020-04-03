@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2013-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -27,7 +27,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_file_write)
 GUMJS_DECLARE_FUNCTION (gumjs_file_flush)
 GUMJS_DECLARE_FUNCTION (gumjs_file_close)
 
-static GumFile * gum_file_new (Handle<Object> wrapper, FILE * handle,
+static GumFile * gum_file_new (Local<Object> wrapper, FILE * handle,
     GumV8File * module);
 static void gum_file_free (GumFile * file);
 static gboolean gum_file_check_open (GumFile * self, Isolate * isolate);
@@ -46,7 +46,7 @@ static const GumV8Function gumjs_file_functions[] =
 void
 _gum_v8_file_init (GumV8File * self,
                    GumV8Core * core,
-                   Handle<ObjectTemplate> scope)
+                   Local<ObjectTemplate> scope)
 {
   auto isolate = core->isolate;
 
@@ -139,7 +139,7 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_file_close, GumFile)
 }
 
 static GumFile *
-gum_file_new (Handle<Object> wrapper,
+gum_file_new (Local<Object> wrapper,
               FILE * handle,
               GumV8File * module)
 {

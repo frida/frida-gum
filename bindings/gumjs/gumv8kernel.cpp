@@ -172,7 +172,7 @@ static const GumV8Function gumjs_kernel_functions[] =
 void
 _gum_v8_kernel_init (GumV8Kernel * self,
                      GumV8Core * core,
-                     Handle<ObjectTemplate> scope)
+                     Local<ObjectTemplate> scope)
 {
   auto isolate = core->isolate;
 
@@ -817,7 +817,7 @@ gum_kernel_scan_context_emit_match (GumAddress address,
 
   auto on_match = Local<Function>::New (isolate, *self->on_match);
   auto recv = Undefined (isolate);
-  Handle<Value> argv[] = {
+  Local<Value> argv[] = {
     _gum_v8_uint64_new (address, self->core),
     Integer::NewFromUnsigned (isolate, size)
   };

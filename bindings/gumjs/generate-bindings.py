@@ -1435,7 +1435,7 @@ struct {wrapper_struct_name}
   {module_struct_name} * module;
 }};
 
-G_GNUC_INTERNAL gboolean _gum_v8_{flavor}_writer_get (v8::Handle<v8::Value> value,
+G_GNUC_INTERNAL gboolean _gum_v8_{flavor}_writer_get (v8::Local<v8::Value> value,
     {impl_struct_name} ** writer, {module_struct_name} * module);
 
 G_GNUC_INTERNAL {wrapper_struct_name} * _{wrapper_function_prefix}_new_persistent ({module_struct_name} * module);
@@ -1489,7 +1489,7 @@ static gboolean {wrapper_function_prefix}_check ({wrapper_struct_name} * self,
 
 gboolean
 _gum_v8_{flavor}_writer_get (
-    v8::Handle<v8::Value> value,
+    v8::Local<v8::Value> value,
     {impl_struct_name} ** writer,
     {module_struct_name} * module)
 {{
@@ -1524,7 +1524,7 @@ _{wrapper_function_prefix}_new_persistent (GumV8CodeWriter * module)
       *module->{flavor}_writer);
 
   auto writer_value = External::New (isolate, writer);
-  Handle<Value> argv[] = {{ writer_value }};
+  Local<Value> argv[] = {{ writer_value }};
 
   auto object = writer_class->GetFunction (context).ToLocalChecked ()
       ->NewInstance (context, G_N_ELEMENTS (argv), argv).ToLocalChecked ();
@@ -1827,7 +1827,7 @@ static gboolean {gumjs_function_prefix}_parse_constructor_args (const GumV8Args 
 
 gboolean
 _gum_v8_{flavor}_relocator_get (
-    v8::Handle<v8::Value> value,
+    v8::Local<v8::Value> value,
     {impl_struct_name} ** relocator,
     {module_struct_name} * module)
 {{
@@ -1862,7 +1862,7 @@ _{wrapper_function_prefix}_new_persistent (GumV8CodeRelocator * module)
       *module->{flavor}_relocator);
 
   auto relocator_value = External::New (isolate, relocator);
-  Handle<Value> argv[] = {{ relocator_value }};
+  Local<Value> argv[] = {{ relocator_value }};
 
   auto object = relocator_class->GetFunction (context).ToLocalChecked ()
       ->NewInstance (context, G_N_ELEMENTS (argv), argv).ToLocalChecked ();

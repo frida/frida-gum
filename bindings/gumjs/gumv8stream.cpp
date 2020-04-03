@@ -149,7 +149,7 @@ static const GumV8Function gumjs_output_stream_functions[] =
 void
 _gum_v8_stream_init (GumV8Stream * self,
                      GumV8Core * core,
-                     Handle<ObjectTemplate> scope)
+                     Local<ObjectTemplate> scope)
 {
   auto isolate = core->isolate;
 
@@ -227,7 +227,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_io_stream_construct)
 
   {
     auto ctor (Local<FunctionTemplate>::New (isolate, *module->input_stream));
-    Handle<Value> argv[] = {
+    Local<Value> argv[] = {
       External::New (isolate, g_object_ref (
           g_io_stream_get_input_stream (stream)))
     };
@@ -238,7 +238,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_io_stream_construct)
 
   {
     auto ctor (Local<FunctionTemplate>::New (isolate, *module->output_stream));
-    Handle<Value> argv[] = {
+    Local<Value> argv[] = {
       External::New (isolate, g_object_ref (
           g_io_stream_get_output_stream (stream)))
     };
@@ -324,7 +324,7 @@ gum_v8_close_io_stream_operation_finish (GIOStream * stream,
       g_error_free (error);
     }
 
-    Handle<Value> argv[] = { error_value, success_value };
+    Local<Value> argv[] = { error_value, success_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
     auto recv = Undefined (isolate);
     auto res = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
@@ -393,7 +393,7 @@ gum_v8_close_input_operation_finish (GInputStream * stream,
       g_error_free (error);
     }
 
-    Handle<Value> argv[] = { error_value, success_value };
+    Local<Value> argv[] = { error_value, success_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
     auto recv = Undefined (isolate);
     auto res = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
@@ -515,7 +515,7 @@ gum_v8_read_operation_finish (GInputStream * stream,
 
     g_clear_error (&error);
 
-    Handle<Value> argv[] = { error_value, data_value };
+    Local<Value> argv[] = { error_value, data_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
     auto recv = Undefined (isolate);
     auto res = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
@@ -584,7 +584,7 @@ gum_v8_close_output_operation_finish (GOutputStream * stream,
       g_error_free (error);
     }
 
-    Handle<Value> argv[] = { error_value, success_value };
+    Local<Value> argv[] = { error_value, success_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
     auto recv = Undefined (isolate);
     auto res = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
@@ -718,7 +718,7 @@ gum_v8_write_operation_finish (GOutputStream * stream,
 
     g_clear_error (&error);
 
-    Handle<Value> argv[] = { error_value, size_value };
+    Local<Value> argv[] = { error_value, size_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
     auto recv = Undefined (isolate);
     auto res = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
@@ -751,7 +751,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_input_stream_construct)
   auto context = isolate->GetCurrentContext ();
   auto base_ctor (Local<FunctionTemplate>::New (isolate,
       *module->input_stream));
-  Handle<Value> argv[] = { External::New (isolate, stream) };
+  Local<Value> argv[] = { External::New (isolate, stream) };
   base_ctor->GetFunction (context).ToLocalChecked ()
       ->Call (context, wrapper, G_N_ELEMENTS (argv), argv).ToLocalChecked ();
 }
@@ -779,7 +779,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_output_stream_construct)
   auto context = isolate->GetCurrentContext ();
   auto base_ctor (Local<FunctionTemplate>::New (isolate,
       *module->output_stream));
-  Handle<Value> argv[] = { External::New (isolate, stream) };
+  Local<Value> argv[] = { External::New (isolate, stream) };
   base_ctor->GetFunction (context).ToLocalChecked ()
       ->Call (context, wrapper, G_N_ELEMENTS (argv), argv).ToLocalChecked ();
 }

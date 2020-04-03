@@ -73,7 +73,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
 GUMJS_DECLARE_FUNCTION (gumjs_process_set_exception_handler)
 
 static GumV8ExceptionHandler * gum_v8_exception_handler_new (
-    Handle<Function> callback, GumV8Core * core);
+    Local<Function> callback, GumV8Core * core);
 static void gum_v8_exception_handler_free (
     GumV8ExceptionHandler * handler);
 static gboolean gum_v8_exception_handler_on_exception (
@@ -99,7 +99,7 @@ void
 _gum_v8_process_init (GumV8Process * self,
                       GumV8Module * module,
                       GumV8Core * core,
-                      Handle<ObjectTemplate> scope)
+                      Local<ObjectTemplate> scope)
 {
   auto isolate = core->isolate;
 
@@ -362,7 +362,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_set_exception_handler)
 }
 
 static GumV8ExceptionHandler *
-gum_v8_exception_handler_new (Handle<Function> callback,
+gum_v8_exception_handler_new (Local<Function> callback,
                               GumV8Core * core)
 {
   auto handler = g_slice_new (GumV8ExceptionHandler);
@@ -402,7 +402,7 @@ gum_v8_exception_handler_on_exception (GumExceptionDetails * details,
   _gum_v8_parse_exception_details (details, ex, context, core);
 
   gboolean handled = FALSE;
-  Handle<Value> argv[] = { ex };
+  Local<Value> argv[] = { ex };
   Local<Value> result;
   if (callback->Call (isolate->GetCurrentContext (), Undefined (isolate),
       G_N_ELEMENTS (argv), argv).ToLocal (&result))

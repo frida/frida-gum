@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -17,7 +17,7 @@ using namespace v8;
 void
 _gum_v8_code_writer_init (GumV8CodeWriter * self,
                           GumV8Core * core,
-                          Handle<ObjectTemplate> scope)
+                          Local<ObjectTemplate> scope)
 {
   auto isolate = core->isolate;
 

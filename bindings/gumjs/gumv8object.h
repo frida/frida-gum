@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -63,13 +63,13 @@ G_GNUC_INTERNAL void gum_v8_object_manager_init (GumV8ObjectManager * self);
 G_GNUC_INTERNAL void gum_v8_object_manager_flush (GumV8ObjectManager * self);
 G_GNUC_INTERNAL void gum_v8_object_manager_free (GumV8ObjectManager * self);
 G_GNUC_INTERNAL gpointer _gum_v8_object_manager_add (GumV8ObjectManager * self,
-    v8::Handle<v8::Object> wrapper, gpointer handle, gpointer module,
+    v8::Local<v8::Object> wrapper, gpointer handle, gpointer module,
     GumV8Core * core);
 G_GNUC_INTERNAL gpointer _gum_v8_object_manager_lookup (
     GumV8ObjectManager * self, gpointer handle);
 
 G_GNUC_INTERNAL gpointer _gum_v8_object_operation_new (gsize size,
-    gpointer opaque_object, v8::Handle<v8::Value> callback, GCallback perform,
+    gpointer opaque_object, v8::Local<v8::Value> callback, GCallback perform,
     GDestroyNotify dispose, GumV8Core * core);
 G_GNUC_INTERNAL void _gum_v8_object_operation_schedule (gpointer opaque_self);
 G_GNUC_INTERNAL void _gum_v8_object_operation_schedule_when_idle (
@@ -77,7 +77,7 @@ G_GNUC_INTERNAL void _gum_v8_object_operation_schedule_when_idle (
 
 G_GNUC_INTERNAL gpointer _gum_v8_module_operation_new (gsize size,
     gpointer module, GumV8ObjectManager * manager,
-    v8::Handle<v8::Value> callback, GCallback perform, GDestroyNotify dispose,
+    v8::Local<v8::Value> callback, GCallback perform, GDestroyNotify dispose,
     GumV8Core * core);
 
 template<typename T>
@@ -90,7 +90,7 @@ gum_v8_object_get (const v8::FunctionCallbackInfo<v8::Value> & info)
 template<typename O, typename M>
 GumV8Object<O, M> *
 gum_v8_object_manager_add (GumV8ObjectManager * self,
-                           v8::Handle<v8::Object> wrapper,
+                           v8::Local<v8::Object> wrapper,
                            O * handle,
                            M * module)
 {
@@ -109,7 +109,7 @@ gum_v8_object_manager_lookup (GumV8ObjectManager * self,
 template<typename T, typename O, typename M>
 T *
 gum_v8_object_operation_new (GumV8Object<O, M> * object,
-                             v8::Handle<v8::Value> callback,
+                             v8::Local<v8::Value> callback,
                              void (* perform) (T * operation),
                              void (* dispose) (T * operation) = nullptr)
 {
@@ -149,7 +149,7 @@ gum_v8_object_operation_finish (GumV8ObjectOperation<O, M> * self)
 template<typename T, typename M>
 T *
 gum_v8_module_operation_new (M * module,
-                             v8::Handle<v8::Value> callback,
+                             v8::Local<v8::Value> callback,
                              void (* perform) (T * operation),
                              void (* dispose) (T * operation) = nullptr)
 {

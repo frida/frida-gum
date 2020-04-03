@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -91,7 +91,7 @@ ScriptScope::PerformPendingIO ()
   {
     io_performed = false;
 
-    isolate->RunMicrotasks ();
+    isolate->PerformMicrotaskCheckpoint ();
 
     if (!g_queue_is_empty (tick_callbacks))
     {
@@ -130,7 +130,7 @@ ScriptScope::PerformPendingIO ()
 }
 
 void
-ScriptScope::AddTickCallback (Handle<Function> callback)
+ScriptScope::AddTickCallback (Local<Function> callback)
 {
   g_queue_push_tail (tick_callbacks, new GumPersistent<Function>::type (
       parent->isolate, callback));

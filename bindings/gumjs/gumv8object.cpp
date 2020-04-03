@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -70,7 +70,7 @@ gum_v8_object_manager_free (GumV8ObjectManager * self)
 
 gpointer
 _gum_v8_object_manager_add (GumV8ObjectManager * self,
-                            Handle<Object> wrapper,
+                            Local<Object> wrapper,
                             gpointer handle,
                             gpointer module,
                             GumV8Core * core)
@@ -131,7 +131,7 @@ gum_v8_object_free (GumV8AnyObject * self)
 gpointer
 _gum_v8_object_operation_new (gsize size,
                               gpointer opaque_object,
-                              Handle<Value> callback,
+                              Local<Value> callback,
                               GCallback perform,
                               GDestroyNotify dispose,
                               GumV8Core * core)
@@ -212,7 +212,7 @@ _gum_v8_object_operation_schedule_when_idle (gpointer opaque_self,
       auto dependency = (GumV8AnyObject *) g_ptr_array_index (dependencies, i);
       if (dependency->num_active_operations > 0)
       {
-        auto op = gum_v8_object_operation_new (dependency, Handle<Value> (),
+        auto op = gum_v8_object_operation_new (dependency, Local<Value> (),
             gum_v8_try_schedule_if_idle_operation_perform);
         op->blocked_operation = self;
         self->pending_dependencies =
@@ -259,7 +259,7 @@ gpointer
 _gum_v8_module_operation_new (gsize size,
                               gpointer module,
                               GumV8ObjectManager * manager,
-                              Handle<Value> callback,
+                              Local<Value> callback,
                               GCallback perform,
                               GDestroyNotify dispose,
                               GumV8Core * core)

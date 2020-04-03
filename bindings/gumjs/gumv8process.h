@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -22,7 +22,7 @@ struct GumV8Process
 
 G_GNUC_INTERNAL void _gum_v8_process_init (GumV8Process * self,
     GumV8Module * module, GumV8Core * core,
-    v8::Handle<v8::ObjectTemplate> scope);
+    v8::Local<v8::ObjectTemplate> scope);
 G_GNUC_INTERNAL void _gum_v8_process_realize (GumV8Process * self);
 G_GNUC_INTERNAL void _gum_v8_process_flush (GumV8Process * self);
 G_GNUC_INTERNAL void _gum_v8_process_dispose (GumV8Process * self);

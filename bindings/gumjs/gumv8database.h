@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -23,7 +23,7 @@ struct GumV8Database
 };
 
 G_GNUC_INTERNAL void _gum_v8_database_init (GumV8Database * self,
-    GumV8Core * core, v8::Handle<v8::ObjectTemplate> scope);
+    GumV8Core * core, v8::Local<v8::ObjectTemplate> scope);
 G_GNUC_INTERNAL void _gum_v8_database_realize (GumV8Database * self);
 G_GNUC_INTERNAL void _gum_v8_database_dispose (GumV8Database * self);
 G_GNUC_INTERNAL void _gum_v8_database_finalize (GumV8Database * self);

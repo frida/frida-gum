@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2019-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -32,8 +32,8 @@ static gboolean gum_add_csymbol (const GumCSymbolDetails * details,
     GumAddCSymbolsContext * ctx);
 GUMJS_DECLARE_FUNCTION (gumjs_cmodule_dispose)
 
-static GumCModuleEntry * gum_cmodule_entry_new (Handle<Object> wrapper,
-    Handle<Object> symbols, GumCModule * handle, GumV8CModule * module);
+static GumCModuleEntry * gum_cmodule_entry_new (Local<Object> wrapper,
+    Local<Object> symbols, GumCModule * handle, GumV8CModule * module);
 static void gum_cmodule_entry_free (GumCModuleEntry * self);
 static void gum_cmodule_entry_on_weak_notify (
     const WeakCallbackInfo<GumCModuleEntry> & info);
@@ -48,7 +48,7 @@ static const GumV8Function gumjs_cmodule_functions[] =
 void
 _gum_v8_cmodule_init (GumV8CModule * self,
                       GumV8Core * core,
-                      Handle<ObjectTemplate> scope)
+                      Local<ObjectTemplate> scope)
 {
   auto isolate = core->isolate;
 
@@ -204,8 +204,8 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_cmodule_dispose, GumCModuleEntry)
 }
 
 static GumCModuleEntry *
-gum_cmodule_entry_new (Handle<Object> wrapper,
-                       Handle<Object> symbols,
+gum_cmodule_entry_new (Local<Object> wrapper,
+                       Local<Object> symbols,
                        GumCModule * handle,
                        GumV8CModule * module)
 {

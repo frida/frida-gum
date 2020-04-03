@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -275,7 +275,7 @@ static const GumV8Function gumjs_invocation_return_value_functions[] =
 void
 _gum_v8_interceptor_init (GumV8Interceptor * self,
                           GumV8Core * core,
-                          Handle<ObjectTemplate> scope)
+                          Local<ObjectTemplate> scope)
 {
   auto isolate = core->isolate;
 
@@ -794,7 +794,7 @@ gum_v8_js_invocation_listener_on_enter (GumInvocationListener * listener,
     gum_v8_invocation_args_reset (args, ic);
     auto args_object = Local<Object>::New (isolate, *args->object);
 
-    Handle<Value> argv[] = { args_object };
+    Local<Value> argv[] = { args_object };
     auto result = on_enter->Call (context, recv, G_N_ELEMENTS (argv), argv);
     if (result.IsEmpty ())
       scope.ProcessAnyPendingException ();
@@ -850,7 +850,7 @@ gum_v8_js_invocation_listener_on_leave (GumInvocationListener * listener,
     retval_object->SetInternalField (0, External::New (isolate,
         gum_invocation_context_get_return_value (ic)));
 
-    Handle<Value> argv[] = { retval_object };
+    Local<Value> argv[] = { retval_object };
     auto result = on_leave->Call (context, recv, G_N_ELEMENTS (argv), argv);
     if (result.IsEmpty ())
       scope.ProcessAnyPendingException ();

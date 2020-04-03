@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -19,7 +19,7 @@ _gum_v8_code_relocator_init (GumV8CodeRelocator * self,
                              GumV8CodeWriter * writer,
                              GumV8Instruction * instruction,
                              GumV8Core * core,
-                             Handle<ObjectTemplate> scope)
+                             Local<ObjectTemplate> scope)
 {
   auto isolate = core->isolate;
 

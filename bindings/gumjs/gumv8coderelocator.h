@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -21,7 +21,7 @@ struct GumV8CodeRelocator
 
 G_GNUC_INTERNAL void _gum_v8_code_relocator_init (GumV8CodeRelocator * self,
     GumV8CodeWriter * writer, GumV8Instruction * instruction, GumV8Core * core,
-    v8::Handle<v8::ObjectTemplate> scope);
+    v8::Local<v8::ObjectTemplate> scope);
 G_GNUC_INTERNAL void _gum_v8_code_relocator_realize (GumV8CodeRelocator * self);
 G_GNUC_INTERNAL void _gum_v8_code_relocator_dispose (GumV8CodeRelocator * self);
 G_GNUC_INTERNAL void _gum_v8_code_relocator_finalize (

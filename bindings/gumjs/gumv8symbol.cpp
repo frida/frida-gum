@@ -72,7 +72,7 @@ static const GumV8Function gumjs_symbol_functions[] =
 void
 _gum_v8_symbol_init (GumV8Symbol * self,
                      GumV8Core * core,
-                     Handle<ObjectTemplate> scope)
+                     Local<ObjectTemplate> scope)
 {
   auto isolate = core->isolate;
 

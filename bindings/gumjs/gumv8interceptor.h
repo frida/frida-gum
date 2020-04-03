@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -59,7 +59,7 @@ struct GumV8InvocationContext
 };
 
 G_GNUC_INTERNAL void _gum_v8_interceptor_init (GumV8Interceptor * self,
-    GumV8Core * core, v8::Handle<v8::ObjectTemplate> scope);
+    GumV8Core * core, v8::Local<v8::ObjectTemplate> scope);
 G_GNUC_INTERNAL void _gum_v8_interceptor_realize (GumV8Interceptor * self);
 G_GNUC_INTERNAL void _gum_v8_interceptor_flush (GumV8Interceptor * self);
 G_GNUC_INTERNAL void _gum_v8_interceptor_dispose (GumV8Interceptor * self);

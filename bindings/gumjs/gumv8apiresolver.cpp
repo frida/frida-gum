@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -30,7 +30,7 @@ static const GumV8Function gumjs_api_resolver_functions[] =
 void
 _gum_v8_api_resolver_init (GumV8ApiResolver * self,
                            GumV8Core * core,
-                           Handle<ObjectTemplate> scope)
+                           Local<ObjectTemplate> scope)
 {
   auto isolate = core->isolate;
 

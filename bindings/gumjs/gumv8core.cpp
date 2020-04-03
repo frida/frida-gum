@@ -187,8 +187,8 @@ GUMJS_DECLARE_FUNCTION (gumjs_script_set_global_access_handler)
 
 GUMJS_DECLARE_FUNCTION (gumjs_weak_ref_bind)
 GUMJS_DECLARE_FUNCTION (gumjs_weak_ref_unbind)
-static GumV8WeakRef * gum_v8_weak_ref_new (guint id, Handle<Value> target,
-    Handle<Function> callback, GumV8Core * core);
+static GumV8WeakRef * gum_v8_weak_ref_new (guint id, Local<Value> target,
+    Local<Function> callback, GumV8Core * core);
 static void gum_v8_weak_ref_clear (GumV8WeakRef * ref);
 static void gum_v8_weak_ref_free (GumV8WeakRef * ref);
 static void gum_v8_weak_ref_on_weak_notify (
@@ -256,14 +256,14 @@ GUMJS_DECLARE_FUNCTION (gumjs_native_function_invoke)
 GUMJS_DECLARE_FUNCTION (gumjs_native_function_call)
 GUMJS_DECLARE_FUNCTION (gumjs_native_function_apply)
 static gboolean gumjs_native_function_get (
-    const FunctionCallbackInfo<Value> & info, Handle<Object> receiver,
+    const FunctionCallbackInfo<Value> & info, Local<Object> receiver,
     GumV8Core * core, GumV8NativeFunction ** func, GCallback * implementation);
-static GumV8NativeFunction * gumjs_native_function_init (Handle<Object> wrapper,
+static GumV8NativeFunction * gumjs_native_function_init (Local<Object> wrapper,
     const GumV8NativeFunctionParams * params, GumV8Core * core);
 static void gum_v8_native_function_free (GumV8NativeFunction * self);
 static void gum_v8_native_function_invoke (GumV8NativeFunction * self,
     GCallback implementation, const FunctionCallbackInfo<Value> & info,
-    uint32_t argc, Handle<Value> * argv);
+    uint32_t argc, Local<Value> * argv);
 static void gum_v8_native_function_on_weak_notify (
     const WeakCallbackInfo<GumV8NativeFunction> & info);
 
@@ -272,11 +272,11 @@ GUMJS_DECLARE_CONSTRUCTOR (gumjs_system_function_construct)
 static gboolean gum_v8_native_function_params_init (
     GumV8NativeFunctionParams * params, GumV8ReturnValueShape return_shape,
     const GumV8Args * args);
-static gboolean gum_v8_scheduling_behavior_parse (Handle<Value> value,
+static gboolean gum_v8_scheduling_behavior_parse (Local<Value> value,
     GumV8SchedulingBehavior * behavior, Isolate * isolate);
-static gboolean gum_v8_exceptions_behavior_parse (Handle<Value> value,
+static gboolean gum_v8_exceptions_behavior_parse (Local<Value> value,
     GumV8ExceptionsBehavior * behavior, Isolate * isolate);
-static gboolean gum_v8_code_traps_parse (Handle<Value> value,
+static gboolean gum_v8_code_traps_parse (Local<Value> value,
     GumV8CodeTraps * traps, Isolate * isolate);
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_callback_construct)
@@ -294,32 +294,32 @@ static MaybeLocal<Object> gumjs_source_map_new (const gchar * json,
     GumV8Core * core);
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_source_map_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_source_map_resolve)
-static GumV8SourceMap * gum_v8_source_map_new (Handle<Object> wrapper,
+static GumV8SourceMap * gum_v8_source_map_new (Local<Object> wrapper,
     GumSourceMap * handle, GumV8Core * core);
 static void gum_v8_source_map_free (GumV8SourceMap * self);
 static void gum_v8_source_map_on_weak_notify (
     const WeakCallbackInfo<GumV8SourceMap> & info);
 
 static GumV8ExceptionSink * gum_v8_exception_sink_new (
-    Handle<Function> callback, Isolate * isolate);
+    Local<Function> callback, Isolate * isolate);
 static void gum_v8_exception_sink_free (GumV8ExceptionSink * sink);
 static void gum_v8_exception_sink_handle_exception (GumV8ExceptionSink * self,
-    Handle<Value> exception);
+    Local<Value> exception);
 
-static GumV8MessageSink * gum_v8_message_sink_new (Handle<Function> callback,
+static GumV8MessageSink * gum_v8_message_sink_new (Local<Function> callback,
     Isolate * isolate);
 static void gum_v8_message_sink_free (GumV8MessageSink * sink);
 static void gum_v8_message_sink_post (GumV8MessageSink * self,
     const gchar * message, GBytes * data);
 
-static gboolean gum_v8_ffi_type_get (GumV8Core * core, Handle<Value> name,
+static gboolean gum_v8_ffi_type_get (GumV8Core * core, Local<Value> name,
     ffi_type ** type, GSList ** data);
-static gboolean gum_v8_ffi_abi_get (GumV8Core * core, Handle<Value> name,
+static gboolean gum_v8_ffi_abi_get (GumV8Core * core, Local<Value> name,
     ffi_abi * abi);
 static gboolean gum_v8_value_to_ffi_type (GumV8Core * core,
-    const Handle<Value> svalue, GumFFIValue * value, const ffi_type * type);
+    const Local<Value> svalue, GumFFIValue * value, const ffi_type * type);
 static gboolean gum_v8_value_from_ffi_type (GumV8Core * core,
-    Handle<Value> * svalue, const GumFFIValue * value, const ffi_type * type);
+    Local<Value> * svalue, const GumFFIValue * value, const ffi_type * type);
 
 static const GumV8Function gumjs_global_functions[] =
 {
@@ -463,7 +463,7 @@ _gum_v8_core_init (GumV8Core * self,
                    GumV8MessageEmitter message_emitter,
                    GumScriptScheduler * scheduler,
                    Isolate * isolate,
-                   Handle<ObjectTemplate> scope)
+                   Local<ObjectTemplate> scope)
 {
   self->script = script;
   self->backend = script->backend;
@@ -981,7 +981,7 @@ _gum_v8_core_unpin (GumV8Core * self)
 
 void
 _gum_v8_core_on_unhandled_exception (GumV8Core * self,
-                                     Handle<Value> exception)
+                                     Local<Value> exception)
 {
   if (self->unhandled_exception_sink == NULL)
     return;
@@ -1274,7 +1274,7 @@ gumjs_global_get (Local<Name> property,
 
   auto get (Local<Function>::New (isolate, *self->on_global_get));
   auto recv (Local<Object>::New (isolate, *self->global_receiver));
-  Handle<Value> argv[] = { property };
+  Local<Value> argv[] = { property };
   Local<Value> result;
   if (get->Call (context, recv, G_N_ELEMENTS (argv), argv).ToLocal (&result) &&
       !result->IsUndefined ())
@@ -1297,7 +1297,7 @@ gumjs_global_query (Local<Name> property,
 
   auto get (Local<Function>::New (isolate, *self->on_global_get));
   auto recv (Local<Object>::New (isolate, *self->global_receiver));
-  Handle<Value> argv[] = { property };
+  Local<Value> argv[] = { property };
   Local<Value> result;
   if (get->Call (context, recv, G_N_ELEMENTS (argv), argv).ToLocal (&result) &&
       !result->IsUndefined ())
@@ -1522,8 +1522,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_unbind)
 
 static GumV8WeakRef *
 gum_v8_weak_ref_new (guint id,
-                     Handle<Value> target,
-                     Handle<Function> callback,
+                     Local<Value> target,
+                     Local<Function> callback,
                      GumV8Core * core)
 {
   auto ref = g_slice_new (GumV8WeakRef);
@@ -2275,7 +2275,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_apply)
 
 static gboolean
 gumjs_native_function_get (const FunctionCallbackInfo<Value> & info,
-                           Handle<Object> receiver,
+                           Local<Object> receiver,
                            GumV8Core * core,
                            GumV8NativeFunction ** func,
                            GCallback * implementation)
@@ -2321,7 +2321,7 @@ gumjs_native_function_get (const FunctionCallbackInfo<Value> & info,
 }
 
 static GumV8NativeFunction *
-gumjs_native_function_init (Handle<Object> wrapper,
+gumjs_native_function_init (Local<Object> wrapper,
                             const GumV8NativeFunctionParams * params,
                             GumV8Core * core)
 {
@@ -2464,7 +2464,7 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
                                GCallback implementation,
                                const FunctionCallbackInfo<Value> & info,
                                uint32_t argc,
-                               Handle<Value> * argv)
+                               Local<Value> * argv)
 {
   auto core = (GumV8Core *) info.Data ().As<External> ()->Value ();
   auto script_scope = core->current_scope;
@@ -2753,7 +2753,7 @@ gum_v8_native_function_params_init (GumV8NativeFunctionParams * params,
 }
 
 static gboolean
-gum_v8_scheduling_behavior_parse (Handle<Value> value,
+gum_v8_scheduling_behavior_parse (Local<Value> value,
                                   GumV8SchedulingBehavior * behavior,
                                   Isolate * isolate)
 {
@@ -2780,7 +2780,7 @@ gum_v8_scheduling_behavior_parse (Handle<Value> value,
 }
 
 static gboolean
-gum_v8_exceptions_behavior_parse (Handle<Value> value,
+gum_v8_exceptions_behavior_parse (Local<Value> value,
                                   GumV8ExceptionsBehavior * behavior,
                                   Isolate * isolate)
 {
@@ -2807,7 +2807,7 @@ gum_v8_exceptions_behavior_parse (Handle<Value> value,
 }
 
 static gboolean
-gum_v8_code_traps_parse (Handle<Value> value,
+gum_v8_code_traps_parse (Local<Value> value,
                          GumV8CodeTraps * traps,
                          Isolate * isolate)
 {
@@ -3163,7 +3163,7 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_source_map_resolve, GumV8SourceMap)
 }
 
 static GumV8SourceMap *
-gum_v8_source_map_new (Handle<Object> wrapper,
+gum_v8_source_map_new (Local<Object> wrapper,
                        GumSourceMap * handle,
                        GumV8Core * core)
 {
@@ -3199,7 +3199,7 @@ gum_v8_source_map_on_weak_notify (const WeakCallbackInfo<GumV8SourceMap> & info)
 }
 
 static GumV8ExceptionSink *
-gum_v8_exception_sink_new (Handle<Function> callback,
+gum_v8_exception_sink_new (Local<Function> callback,
                            Isolate * isolate)
 {
   auto sink = g_slice_new (GumV8ExceptionSink);
@@ -3218,20 +3218,20 @@ gum_v8_exception_sink_free (GumV8ExceptionSink * sink)
 
 static void
 gum_v8_exception_sink_handle_exception (GumV8ExceptionSink * self,
-                                        Handle<Value> exception)
+                                        Local<Value> exception)
 {
   auto isolate = self->isolate;
   auto context = isolate->GetCurrentContext ();
 
   auto callback (Local<Function>::New (isolate, *self->callback));
   auto recv = Undefined (isolate);
-  Handle<Value> argv[] = { exception };
+  Local<Value> argv[] = { exception };
   auto result = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
   _gum_v8_ignore_result (result);
 }
 
 static GumV8MessageSink *
-gum_v8_message_sink_new (Handle<Function> callback,
+gum_v8_message_sink_new (Local<Function> callback,
                          Isolate * isolate)
 {
   auto sink = g_slice_new (GumV8MessageSink);
@@ -3271,7 +3271,7 @@ gum_v8_message_sink_post (GumV8MessageSink * self,
 
   auto callback (Local<Function>::New (isolate, *self->callback));
   auto recv = Undefined (isolate);
-  Handle<Value> argv[] = {
+  Local<Value> argv[] = {
     String::NewFromUtf8 (isolate, message).ToLocalChecked (),
     data_value
   };
@@ -3281,7 +3281,7 @@ gum_v8_message_sink_post (GumV8MessageSink * self,
 
 static gboolean
 gum_v8_ffi_type_get (GumV8Core * core,
-                     Handle<Value> name,
+                     Local<Value> name,
                      ffi_type ** type,
                      GSList ** data)
 {
@@ -3334,7 +3334,7 @@ gum_v8_ffi_type_get (GumV8Core * core,
 
 static gboolean
 gum_v8_ffi_abi_get (GumV8Core * core,
-                    Handle<Value> name,
+                    Local<Value> name,
                     ffi_abi * abi)
 {
   auto isolate = core->isolate;
@@ -3355,7 +3355,7 @@ gum_v8_ffi_abi_get (GumV8Core * core,
 
 static gboolean
 gum_v8_value_to_ffi_type (GumV8Core * core,
-                          const Handle<Value> svalue,
+                          const Local<Value> svalue,
                           GumFFIValue * value,
                           const ffi_type * type)
 {
@@ -3498,7 +3498,7 @@ error_unsupported_type:
 
 static gboolean
 gum_v8_value_from_ffi_type (GumV8Core * core,
-                            Handle<Value> * svalue,
+                            Local<Value> * svalue,
                             const GumFFIValue * value,
                             const ffi_type * type)
 {

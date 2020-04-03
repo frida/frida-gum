@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2012-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -23,8 +23,8 @@ struct GumV8EventSinkOptions
   GumEventType event_mask;
   guint queue_capacity;
   guint queue_drain_interval;
-  v8::Handle<v8::Function> on_receive;
-  v8::Handle<v8::Function> on_call_summary;
+  v8::Local<v8::Function> on_receive;
+  v8::Local<v8::Function> on_call_summary;
 };
 
 G_GNUC_INTERNAL GumEventSink * gum_v8_event_sink_new (

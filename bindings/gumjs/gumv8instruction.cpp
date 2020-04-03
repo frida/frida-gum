@@ -98,7 +98,7 @@ static const GumV8Function gumjs_instruction_functions[] =
 void
 _gum_v8_instruction_init (GumV8Instruction * self,
                           GumV8Core * core,
-                          Handle<ObjectTemplate> scope)
+                          Local<ObjectTemplate> scope)
 {
   auto isolate = core->isolate;
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -20,7 +20,7 @@ struct GumV8Symbol
 };
 
 G_GNUC_INTERNAL void _gum_v8_symbol_init (GumV8Symbol * self,
-    GumV8Core * core, v8::Handle<v8::ObjectTemplate> scope);
+    GumV8Core * core, v8::Local<v8::ObjectTemplate> scope);
 G_GNUC_INTERNAL void _gum_v8_symbol_realize (GumV8Symbol * self);
 G_GNUC_INTERNAL void _gum_v8_symbol_dispose (GumV8Symbol * self);
 G_GNUC_INTERNAL void _gum_v8_symbol_finalize (GumV8Symbol * self);

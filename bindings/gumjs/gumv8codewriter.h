@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -17,7 +17,7 @@ struct GumV8CodeWriter
 };
 
 G_GNUC_INTERNAL void _gum_v8_code_writer_init (GumV8CodeWriter * self,
-    GumV8Core * core, v8::Handle<v8::ObjectTemplate> scope);
+    GumV8Core * core, v8::Local<v8::ObjectTemplate> scope);
 G_GNUC_INTERNAL void _gum_v8_code_writer_realize (GumV8CodeWriter * self);
 G_GNUC_INTERNAL void _gum_v8_code_writer_dispose (GumV8CodeWriter * self);
 G_GNUC_INTERNAL void _gum_v8_code_writer_finalize (GumV8CodeWriter * self);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -25,7 +25,7 @@ typedef GumV8Object<GInputStream, GumV8Stream> GumV8InputStream;
 typedef GumV8Object<GOutputStream, GumV8Stream> GumV8OutputStream;
 
 G_GNUC_INTERNAL void _gum_v8_stream_init (GumV8Stream * self, GumV8Core * core,
-    v8::Handle<v8::ObjectTemplate> scope);
+    v8::Local<v8::ObjectTemplate> scope);
 G_GNUC_INTERNAL void _gum_v8_stream_realize (GumV8Stream * self);
 G_GNUC_INTERNAL void _gum_v8_stream_flush (GumV8Stream * self);
 G_GNUC_INTERNAL void _gum_v8_stream_dispose (GumV8Stream * self);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -140,7 +140,7 @@ struct GumV8ByteArray
 G_GNUC_INTERNAL void _gum_v8_core_init (GumV8Core * self,
     GumV8Script * script, const gchar * runtime_source_map,
     GumV8MessageEmitter message_emitter, GumScriptScheduler * scheduler,
-    v8::Isolate * isolate, v8::Handle<v8::ObjectTemplate> scope);
+    v8::Isolate * isolate, v8::Local<v8::ObjectTemplate> scope);
 G_GNUC_INTERNAL void _gum_v8_core_realize (GumV8Core * self);
 G_GNUC_INTERNAL gboolean _gum_v8_core_flush (GumV8Core * self,
     GumV8FlushNotify flush_notify);
@@ -153,7 +153,7 @@ G_GNUC_INTERNAL void _gum_v8_core_pin (GumV8Core * self);
 G_GNUC_INTERNAL void _gum_v8_core_unpin (GumV8Core * self);
 
 G_GNUC_INTERNAL void _gum_v8_core_on_unhandled_exception (
-    GumV8Core * self, v8::Handle<v8::Value> exception);
+    GumV8Core * self, v8::Local<v8::Value> exception);
 
 G_GNUC_INTERNAL void _gum_v8_core_post (GumV8Core * self, const gchar * message,
     GBytes * data);

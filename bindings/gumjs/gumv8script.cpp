@@ -371,8 +371,8 @@ gum_v8_script_create_context (GumV8Script * self,
     }
     else
     {
-      Handle<Message> message = trycatch.Message ();
-      Handle<Value> exception = trycatch.Exception ();
+      Local<Message> message = trycatch.Message ();
+      Local<Value> exception = trycatch.Exception ();
       String::Utf8Value exception_str (isolate, exception);
       g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED, "Script(line %d): %s",
           message->GetLineNumber (context).FromMaybe (-1), *exception_str);

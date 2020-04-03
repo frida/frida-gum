@@ -26,7 +26,7 @@ static const GumV8Function gumjs_thread_functions[] =
 void
 _gum_v8_thread_init (GumV8Thread * self,
                      GumV8Core * core,
-                     Handle<ObjectTemplate> scope)
+                     Local<ObjectTemplate> scope)
 {
   auto isolate = core->isolate;
 

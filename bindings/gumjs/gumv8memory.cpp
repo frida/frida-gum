@@ -200,7 +200,7 @@ static const GumV8Function gumjs_memory_access_monitor_functions[] =
 void
 _gum_v8_memory_init (GumV8Memory * self,
                      GumV8Core * core,
-                     Handle<ObjectTemplate> scope)
+                     Local<ObjectTemplate> scope)
 {
   auto isolate = core->isolate;
 
@@ -346,7 +346,7 @@ gum_memory_patch_context_apply (gpointer mem,
   auto context = isolate->GetCurrentContext ();
 
   auto recv = Undefined (isolate);
-  Handle<Value> argv[] = { _gum_v8_native_pointer_new (mem, self->core) };
+  Local<Value> argv[] = { _gum_v8_native_pointer_new (mem, self->core) };
   auto result = self->apply->Call (context, recv, G_N_ELEMENTS (argv), argv);
   self->has_pending_exception = result.IsEmpty ();
 }
@@ -970,7 +970,7 @@ gum_memory_scan_context_run (GumMemoryScanContext * self)
 
     auto on_error = Local<Function>::New (isolate, *self->on_error);
     auto recv = Undefined (isolate);
-    Handle<Value> argv[] = {
+    Local<Value> argv[] = {
       String::NewFromUtf8 (isolate, message).ToLocalChecked ()
     };
     auto result = on_error->Call (context, recv, G_N_ELEMENTS (argv), argv);
@@ -1002,7 +1002,7 @@ gum_memory_scan_context_emit_match (GumAddress address,
   gboolean proceed = TRUE;
   auto on_match = Local<Function>::New (isolate, *self->on_match);
   auto recv = Undefined (isolate);
-  Handle<Value> argv[] = {
+  Local<Value> argv[] = {
     _gum_v8_native_pointer_new (GSIZE_TO_POINTER (address), self->core),
     Integer::NewFromUnsigned (isolate, size)
   };
@@ -1167,7 +1167,7 @@ gum_v8_memory_on_access (GumMemoryAccessMonitor * monitor,
   _gum_v8_object_set_uint (d, "pagesTotal", details->pages_total, core);
 
   auto on_access (Local<Function>::New (isolate, *self->on_access));
-  Handle<Value> argv[] = { d };
+  Local<Value> argv[] = { d };
   auto result = on_access->Call (isolate->GetCurrentContext (),
       Undefined (isolate), G_N_ELEMENTS (argv), argv);
   (void) result;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -47,7 +47,7 @@ public:
   void ProcessAnyPendingException ();
   void PerformPendingIO ();
 
-  void AddTickCallback (v8::Handle<v8::Function> callback);
+  void AddTickCallback (v8::Local<v8::Function> callback);
   void AddScheduledSource (GSource * source);
 
   GumV8Script * parent;

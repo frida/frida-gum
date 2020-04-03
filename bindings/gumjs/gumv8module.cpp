@@ -89,7 +89,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_module_map_find_path)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_update)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_copy_values)
 
-static GumV8ModuleMap * gum_v8_module_map_new (Handle<Object> wrapper,
+static GumV8ModuleMap * gum_v8_module_map_new (Local<Object> wrapper,
     GumModuleMap * handle, GumV8Module * module);
 static void gum_v8_module_map_free (GumV8ModuleMap * self);
 static void gum_v8_module_map_on_weak_notify (
@@ -135,7 +135,7 @@ static const GumV8Function gumjs_module_map_functions[] =
 void
 _gum_v8_module_init (GumV8Module * self,
                      GumV8Core * core,
-                     Handle<ObjectTemplate> scope)
+                     Local<ObjectTemplate> scope)
 {
   auto isolate = core->isolate;
 
@@ -691,7 +691,7 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_module_map_copy_values, GumV8ModuleMap)
 }
 
 static GumV8ModuleMap *
-gum_v8_module_map_new (Handle<Object> wrapper,
+gum_v8_module_map_new (Local<Object> wrapper,
                        GumModuleMap * handle,
                        GumV8Module * module)
 {
@@ -746,7 +746,7 @@ gum_v8_module_filter_matches (const GumModuleDetails * details,
 
   auto callback (Local<Function>::New (isolate, *self->callback));
   auto recv = Undefined (isolate);
-  Handle<Value> argv[] = { module };
+  Local<Value> argv[] = { module };
   Local<Value> result;
   if (callback->Call (context, recv, G_N_ELEMENTS (argv), argv)
       .ToLocal (&result))

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2019-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -29,7 +29,7 @@ public:
   {
     gboolean proceed = TRUE;
 
-    v8::Handle<v8::Value> argv[] = { item };
+    v8::Local<v8::Value> argv[] = { item };
     v8::Local<v8::Value> result;
     if (on_match->Call (context, recv, G_N_ELEMENTS (argv),
         argv).ToLocal (&result))

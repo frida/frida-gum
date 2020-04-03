@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -41,7 +41,7 @@ struct GumV8Stalker
 
 G_GNUC_INTERNAL void _gum_v8_stalker_init (GumV8Stalker * self,
     GumV8CodeWriter * writer, GumV8Instruction * instruction,
-    GumV8Core * core, v8::Handle<v8::ObjectTemplate> scope);
+    GumV8Core * core, v8::Local<v8::ObjectTemplate> scope);
 G_GNUC_INTERNAL void _gum_v8_stalker_realize (GumV8Stalker * self);
 G_GNUC_INTERNAL void _gum_v8_stalker_flush (GumV8Stalker * self);
 G_GNUC_INTERNAL void _gum_v8_stalker_dispose (GumV8Stalker * self);

@@ -175,7 +175,7 @@ _gum_v8_stalker_init (GumV8Stalker * self,
                       GumV8CodeWriter * writer,
                       GumV8Instruction * instruction,
                       GumV8Core * core,
-                      Handle<ObjectTemplate> scope)
+                      Local<ObjectTemplate> scope)
 {
   auto isolate = core->isolate;
 
@@ -735,7 +735,7 @@ gum_v8_callback_transformer_transform_block (
     auto iter_object = Local<Object>::New (isolate, *output_value->object);
 
     auto recv = Undefined (isolate);
-    Handle<Value> argv[] = { iter_object };
+    Local<Value> argv[] = { iter_object };
     auto result = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
     transform_threw_an_exception = result.IsEmpty ();
     if (transform_threw_an_exception)
@@ -812,7 +812,7 @@ gum_v8_call_probe_on_fire (GumCallSite * site,
 
   auto callback (Local<Function>::New (isolate, *self->callback));
   auto recv = Undefined (isolate);
-  Handle<Value> argv[] = { args };
+  Local<Value> argv[] = { args };
   auto result = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
   if (result.IsEmpty ())
     scope.ProcessAnyPendingException ();
@@ -984,7 +984,7 @@ gum_v8_callout_on_invoke (GumCpuContext * cpu_context,
 
   auto callback (Local<Function>::New (isolate, *self->callback));
   auto recv = Undefined (isolate);
-  Handle<Value> argv[] = { cpu_context_value };
+  Local<Value> argv[] = { cpu_context_value };
   auto result = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
   if (result.IsEmpty ())
     scope.ProcessAnyPendingException ();

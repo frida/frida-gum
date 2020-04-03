@@ -95,8 +95,8 @@ static const GumV8Function gumjs_statement_functions[] =
 
 void
 _gum_v8_database_init (GumV8Database * self,
-                     GumV8Core * core,
-                     Handle<ObjectTemplate> scope)
+                       GumV8Core * core,
+                       Local<ObjectTemplate> scope)
 {
   auto isolate = core->isolate;
 
