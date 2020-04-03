@@ -590,8 +590,7 @@ gum_parse_column (Isolate * isolate,
     {
       auto size = sqlite3_column_bytes (statement, index);
       auto data = g_memdup (sqlite3_column_blob (statement, index), size);
-      return ArrayBuffer::New (isolate, data, size,
-          ArrayBufferCreationMode::kInternalized);
+      return _gum_v8_array_buffer_new_take (isolate, data, size);
     }
     case SQLITE_NULL:
       return Null (isolate);

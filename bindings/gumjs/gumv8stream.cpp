@@ -495,16 +495,14 @@ gum_v8_read_operation_finish (GInputStream * stream,
           String::NewFromUtf8 (isolate,
               (error != NULL) ? error->message : "Short read")
           .ToLocalChecked ());
-      data_value = ArrayBuffer::New (isolate, self->buffer, bytes_read,
-          ArrayBufferCreationMode::kInternalized);
-      self->buffer = NULL; /* steal it */
+      data_value = _gum_v8_array_buffer_new_take (isolate,
+          g_steal_pointer (&self->buffer), bytes_read);
     }
     else if (error == NULL)
     {
       error_value = null_value;
-      data_value = ArrayBuffer::New (isolate, self->buffer, bytes_read,
-          ArrayBufferCreationMode::kInternalized);
-      self->buffer = NULL; /* steal it */
+      data_value = _gum_v8_array_buffer_new_take (isolate,
+          g_steal_pointer (&self->buffer), bytes_read);
     }
     else
     {

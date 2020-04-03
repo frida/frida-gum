@@ -563,9 +563,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_parse)
     return;
   }
 
-  auto events_contents = events_value.As<ArrayBuffer> ()->GetContents ();
-  const GumEvent * events = (const GumEvent *) events_contents.Data ();
-  size_t size = events_contents.ByteLength ();
+  auto events_store = events_value.As<ArrayBuffer> ()->GetBackingStore ();
+  const GumEvent * events = (const GumEvent *) events_store->Data ();
+  size_t size = events_store->ByteLength ();
   if (size % sizeof (GumEvent) != 0)
   {
     _gum_v8_throw_ascii_literal (isolate, "invalid buffer shape");

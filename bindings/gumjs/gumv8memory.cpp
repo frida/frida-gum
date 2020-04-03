@@ -391,6 +391,7 @@ gum_v8_memory_read (GumMemoryValueType type,
   gssize length = -1;
   GumExceptorScope scope;
   Local<Value> result;
+  std::shared_ptr<BackingStore> store;
 
   switch (type)
   {
@@ -465,11 +466,9 @@ gum_v8_memory_read (GumMemoryValueType type,
 
         if (length > 0)
         {
-          guint8 dummy_to_trap_bad_pointer_early;
-          memcpy (&dummy_to_trap_bad_pointer_early, data, sizeof (guint8));
-
-          result = ArrayBuffer::New (isolate, g_memdup (data, length), length,
-              ArrayBufferCreationMode::kInternalized);
+          result = ArrayBuffer::New (isolate, length);
+          store = result.As<ArrayBuffer> ()->GetBackingStore ();
+          memcpy (store->Data (), data, length);
         }
         else
         {

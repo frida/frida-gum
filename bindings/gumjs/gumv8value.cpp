@@ -75,6 +75,9 @@ struct GumCpuContextWrapper
   GumCpuContext * cpu_context;
 };
 
+static void gum_delete_heap_allocation (void * data, size_t length,
+    void * deleter_data);
+
 static void gum_v8_native_resource_on_weak_notify (
     const WeakCallbackInfo<GumV8NativeResource> & info);
 static void gum_v8_kernel_resource_on_weak_notify (
@@ -597,6 +600,23 @@ _gum_v8_string_new_ascii (Isolate * isolate,
 {
   return String::NewFromOneByte (isolate, (const uint8_t *) str,
       NewStringType::kNormal).ToLocalChecked ();
+}
+
+Local<ArrayBuffer>
+_gum_v8_array_buffer_new_take (Isolate * isolate,
+                               gpointer data,
+                               gsize size)
+{
+  return ArrayBuffer::New (isolate, ArrayBuffer::NewBackingStore (data, size,
+      gum_delete_heap_allocation, data));
+}
+
+static void
+gum_delete_heap_allocation (void * data,
+                            size_t length,
+                            void * deleter_data)
+{
+  g_free (deleter_data);
 }
 
 GBytes *

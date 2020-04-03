@@ -311,6 +311,8 @@ static GumV8MessageSink * gum_v8_message_sink_new (Local<Function> callback,
 static void gum_v8_message_sink_free (GumV8MessageSink * sink);
 static void gum_v8_message_sink_post (GumV8MessageSink * self,
     const gchar * message, GBytes * data);
+static void gum_delete_bytes_reference (void * data, size_t length,
+    void * deleter_data);
 
 static gboolean gum_v8_ffi_type_get (GumV8Core * core, Local<Value> name,
     ffi_type ** type, GSList ** data);
@@ -2099,8 +2101,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_array_buffer_wrap)
 
   if (address != NULL && size > 0)
   {
-    result = ArrayBuffer::New (isolate, address, size,
-        ArrayBufferCreationMode::kExternalized);
+    result = ArrayBuffer::New (isolate, ArrayBuffer::NewBackingStore (address,
+        size, BackingStore::EmptyDeleter, nullptr));
   }
   else
   {
@@ -2119,9 +2121,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_array_buffer_unwrap)
     return;
   }
 
-  auto contents = receiver.As<ArrayBuffer> ()->GetContents ();
+  auto store = receiver.As<ArrayBuffer> ()->GetBackingStore ();
   info.GetReturnValue ().Set (
-      _gum_v8_native_pointer_new (contents.Data (), core));
+      _gum_v8_native_pointer_new (store->Data (), core));
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
@@ -3259,10 +3261,13 @@ gum_v8_message_sink_post (GumV8MessageSink * self,
   Local<Value> data_value;
   if (data != NULL)
   {
-    gsize data_size;
-    gpointer data_buffer = g_bytes_unref_to_data (data, &data_size);
-    data_value = ArrayBuffer::New (isolate, data_buffer, data_size,
-        ArrayBufferCreationMode::kInternalized);
+    gpointer base;
+    gsize size;
+
+    base = (gpointer) g_bytes_get_data (data, &size);
+
+    data_value = ArrayBuffer::New (isolate, ArrayBuffer::NewBackingStore (
+        base, size, gum_delete_bytes_reference, data));
   }
   else
   {
@@ -3277,6 +3282,14 @@ gum_v8_message_sink_post (GumV8MessageSink * self,
   };
   auto result = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
   _gum_v8_ignore_result (result);
+}
+
+static void
+gum_delete_bytes_reference (void * data,
+                            size_t length,
+                            void * deleter_data)
+{
+  g_bytes_unref ((GBytes *) deleter_data);
 }
 
 static gboolean

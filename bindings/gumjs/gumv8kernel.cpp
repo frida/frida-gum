@@ -497,8 +497,8 @@ gum_v8_kernel_read (GumMemoryValueType type,
         result = Number::New (isolate, *((gdouble *) data));
         break;
       case GUM_MEMORY_VALUE_BYTE_ARRAY:
-        result = ArrayBuffer::New (isolate, data, n_bytes_read,
-            ArrayBufferCreationMode::kInternalized);
+        result = _gum_v8_array_buffer_new_take (isolate,
+            g_steal_pointer (&data), n_bytes_read);
         break;
       case GUM_MEMORY_VALUE_C_STRING:
       {

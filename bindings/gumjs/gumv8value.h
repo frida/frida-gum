@@ -34,6 +34,9 @@ G_GNUC_INTERNAL gboolean _gum_v8_args_parse (const GumV8Args * args,
 G_GNUC_INTERNAL v8::Local<v8::String> _gum_v8_string_new_ascii (
     v8::Isolate * isolate, const gchar * str);
 
+G_GNUC_INTERNAL v8::Local<v8::ArrayBuffer> _gum_v8_array_buffer_new_take (
+    v8::Isolate * isolate, gpointer data, gsize size);
+
 G_GNUC_INTERNAL GBytes * _gum_v8_bytes_get (v8::Local<v8::Value> value,
     GumV8Core * core);
 G_GNUC_INTERNAL GBytes * _gum_v8_bytes_parse (v8::Local<v8::Value> value,
