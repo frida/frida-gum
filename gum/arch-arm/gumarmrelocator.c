@@ -443,11 +443,19 @@ gum_arm_relocator_rewrite_add (GumArmRelocator * self,
   if (left->reg != ARM_REG_PC)
     return FALSE;
 
-  if (right->type != ARM_OP_REG)
+  if (right->type == ARM_OP_IMM)
   {
+    //g_print("%s\t%s\n",ctx->insn->mnemonic, ctx->insn->op_str);
     gum_arm_writer_put_ldr_reg_address (ctx->output, dst->reg, ctx->pc);
+
     gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
-        right->imm);
+        right->imm & 0xff);
+    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
+        0xc00 | ((right->imm >> 8) & 0xff));
+    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
+        0x800 | ((right->imm >> 16) & 0xff));
+    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
+        0x400 | ((right->imm >> 24) & 0xff));
   }
   else if (right->reg == dst->reg)
   {
