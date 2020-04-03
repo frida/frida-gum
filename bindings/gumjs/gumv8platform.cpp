@@ -157,6 +157,8 @@ public:
   void * Allocate (size_t length) override;
   void * AllocateUninitialized (size_t length) override;
   void Free (void * data, size_t length) override;
+  void * Reallocate (void * data, size_t old_length, size_t new_length)
+      override;
 };
 
 class GumV8ThreadingBackend : public ThreadingBackend
@@ -1151,6 +1153,14 @@ GumV8ArrayBufferAllocator::Free (void * data,
                                  size_t length)
 {
   g_free (data);
+}
+
+void *
+GumV8ArrayBufferAllocator::Reallocate (void * data,
+                                       size_t old_length,
+                                       size_t new_length)
+{
+  return gum_realloc (data, new_length);
 }
 
 MutexImpl *
