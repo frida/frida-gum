@@ -1024,10 +1024,18 @@ gum_exec_block_write_jmp_generated_code (GumArmWriter * cw,
                                          arm_cc cc,
                                          GumExecCtx * ctx)
 {
+  gum_arm_writer_put_push_registers(cw, 1, ARM_REG_R12);
   gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R12,
       GUM_ADDRESS (&ctx->resume_at));
   gum_arm_writer_put_ldr_reg_reg_imm (cw, ARM_REG_R12, ARM_REG_R12, 0);
-  gum_arm_writer_put_bxcc_reg (cw, cc, ARM_REG_R12);
+  //gum_arm_writer_put_str_reg_reg_offset(cw, ARM_REG_R12, ARM_REG_SP, -8);
+  gum_arm_writer_put_instruction(cw, 0xe50dc008);
+  gum_arm_writer_put_pop_registers(cw, 1, ARM_REG_R12);
+  //gum_arm_writer_put_ldrcc_reg_reg_imm(cw, cc, ARM_REG_PC, ARM_REG_SP, -8);
+  guint8 cond;
+  gum_arm_cond_describe(cc, &cond);
+  gum_arm_writer_put_instruction(cw, 0x051df00c | (cond << 28));
+
 }
 
 static void

@@ -39,7 +39,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (excluded_thumb)
   TESTENTRY (excluded_thumb_branch)
   TESTENTRY (ldr_pc)
-  //TESTENTRY (performance)
+  TESTENTRY (performance)
 TESTLIST_END ()
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
@@ -1191,10 +1191,14 @@ TESTCASE (performance)
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
       GUM_EVENT_SINK (fixture->sink));
 
+  //asm ("udf 10");
+
   /* the real deal */
   g_timer_reset (timer);
   pretend_workload (&runner_range);
   duration_stalked = g_timer_elapsed (timer, NULL);
+
+  // TODO: Run again now the blocks have been compiled and compare
 
   gum_stalker_unfollow_me (fixture->stalker);
 
