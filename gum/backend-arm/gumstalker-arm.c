@@ -732,7 +732,7 @@ gum_exec_ctx_write_prolog (GumExecCtx * ctx,
   gum_arm_writer_put_push_registers(cw, 3,
     ARM_REG_R0, ARM_REG_R1, ARM_REG_R2);
 
-  gum_arm_writer_put_mov_reg_reg(cw, ARM_REG_R11, ARM_REG_SP);
+  gum_arm_writer_put_mov_reg_reg(cw, ARM_REG_R10, ARM_REG_SP);
 }
 
 static void
@@ -809,24 +809,24 @@ gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
   cw = gc->code_writer;
   if (source_register >= ARM_REG_R0 && source_register <= ARM_REG_R7)
   {
-    gum_arm_writer_put_ldr_reg_reg_imm (cw, target_register, ARM_REG_R11,
+    gum_arm_writer_put_ldr_reg_reg_imm (cw, target_register, ARM_REG_R10,
         G_STRUCT_OFFSET (GumCpuContext, r) +
         ((source_register - ARM_REG_R0) * 4));
   }
   else if (source_register >= ARM_REG_R8 && source_register <= ARM_REG_R12)
   {
-    gum_arm_writer_put_ldr_reg_reg_imm (cw, target_register, ARM_REG_R11,
+    gum_arm_writer_put_ldr_reg_reg_imm (cw, target_register, ARM_REG_R10,
         G_STRUCT_OFFSET (GumCpuContext, r8) +
         ((source_register - ARM_REG_R8) * 4));
   }
   else if (source_register == ARM_REG_LR)
   {
-    gum_arm_writer_put_ldr_reg_reg_imm (cw, target_register, ARM_REG_R11,
+    gum_arm_writer_put_ldr_reg_reg_imm (cw, target_register, ARM_REG_R10,
         G_STRUCT_OFFSET (GumCpuContext, lr));
   }
   else if (source_register == ARM_REG_SP)
   {
-    gum_arm_writer_put_ldr_reg_reg_imm (cw, target_register, ARM_REG_R11,
+    gum_arm_writer_put_ldr_reg_reg_imm (cw, target_register, ARM_REG_R10,
         G_STRUCT_OFFSET (GumCpuContext, sp));
   }
   else if (source_register == ARM_REG_PC)
@@ -1497,7 +1497,6 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
             mask, gc);
         break;
       case ARM_INS_LDR:
-        g_print("LDRRRRR");
         gum_exec_block_virtualize_branch_insn(block, &target, arm->cc, gc);
         break;
       default:
