@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -30,7 +30,7 @@ TESTCASE (can_attach_to_close_with_two_unrelated_interceptors)
   interceptor_fixture_attach (fixture, 0, close_impl, '>', '<');
 
   gum_interceptor_attach (other_interceptor, close_impl,
-      GUM_INVOCATION_LISTENER (fixture->listener_context[0]), NULL);
+      GUM_INVOCATION_LISTENER (fixture->listener_context[0]->listener), NULL);
 
   close_impl (fd);
 
