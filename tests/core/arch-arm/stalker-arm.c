@@ -40,6 +40,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (excluded_thumb_branch)
   TESTENTRY (ldr_pc)
   TESTENTRY (performance)
+  TESTENTRY (can_follow_workload)
 TESTLIST_END ()
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
@@ -1212,6 +1213,40 @@ TESTCASE (performance)
   g_print ("<stalker_hot=%f>\n", stalker_hot);
   g_print ("<ratio_cold=%f>\n", stalker_cold / normal_hot);
   g_print ("<ratio_hot=%f>\n", stalker_hot / normal_hot);
+}
+
+extern const void call_workload_code;
+extern void call_workload(GumMemoryRange * runner_range);
+
+asm (
+  "call_workload_code: \n"
+  "call_workload: \n"
+
+  "push {lr} \n"
+  "bl pretend_workload \n"
+  "pop {pc} \n"
+);
+
+TESTCASE (can_follow_workload)
+{
+  GumMemoryRange runner_range;
+  runner_range.base_address = 0;
+  runner_range.size = 0;
+  gum_process_enumerate_modules (store_range_of_test_runner, &runner_range);
+  g_assert_true (runner_range.base_address != 0 && runner_range.size != 0);
+
+  fixture->sink->mask = (GUM_EXEC | GUM_CALL | GUM_RET);
+
+  gum_stalker_follow_me (fixture->stalker, fixture->transformer,
+      GUM_EVENT_SINK (fixture->sink));
+
+  call_workload(&runner_range);
+
+  gum_stalker_unfollow_me (fixture->stalker);
+  show_events(fixture->sink);
+  g_print("call_workload_code: %p\n", &call_workload_code);
+  g_print("MASK: 0x%08x\n", fixture->sink->mask);
+  g_print("EVENTS: %d\n", fixture->sink->events->len);
 }
 
 // Tidy the jump generated code to not use hard-coded instructions

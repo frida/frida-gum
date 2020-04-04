@@ -56,7 +56,7 @@ static void show_events(GumFakeEventSink* sink)
   guint len = sink->events->len;
 
   for (guint idx = 0; idx < len; idx++) {
-    e = &g_array_index (sink->events, GumEvent, 0);
+    e = &g_array_index (sink->events, GumEvent, idx);
     switch(e->type)
     {
       case GUM_CALL:
