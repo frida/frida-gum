@@ -203,6 +203,14 @@ gum_arm_relocator_read_one (GumArmRelocator * self,
         self->eoi = TRUE;
       }
       break;
+    case ARM_INS_SUB:
+      op = &insn->detail->arm.operands[0];
+      if (op->type == ARM_OP_REG && op->reg == ARM_REG_PC)
+      {
+        self->eob = TRUE;
+        self->eoi = TRUE;
+      }
+      break;
     case ARM_INS_POP:
     case ARM_INS_LDM:
       for (uint8_t idx = 0; idx < insn->detail->arm.op_count; idx++)

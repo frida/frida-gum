@@ -51,7 +51,6 @@ extern const void flat_code_end;
 
 asm (
   "flat_code: \n"
-  //"udf #10 \n"
   "sub r0, r0, r0 \n"
   "add r0, r0, #1 \n"
   "add r0, r0, #1 \n"
@@ -193,7 +192,6 @@ TESTCASE (compile_events_unsupported)
 }
 
 // gef➤  x/20i $pc
-// => 0x626004:	udf	#10
 //    0x626008:	ldr	r2, [pc, #40]	; 0x626038
 //    0x62600c:	ldr	r1, [pc, #40]	; 0x62603c
 //    0x626010:	ldr	r0, [pc, #40]	; 0x626040

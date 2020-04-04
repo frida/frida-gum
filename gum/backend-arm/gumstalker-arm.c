@@ -152,6 +152,7 @@ struct _GumBranchTarget
   gssize offset;
   gboolean is_indirect;
   arm_reg reg;
+  GumArmIndexMode mode;
 };
 
 gboolean
@@ -865,8 +866,19 @@ gum_exec_ctx_write_mov_branch_target_address (GumExecCtx * ctx,
     gum_exec_ctx_load_real_register_into (ctx, reg, target->reg, gc);
     if (target->is_indirect)
     {
-      gum_arm_writer_put_ldr_reg_reg_offset(cw, reg, reg, GUM_INDEX_POS,
+      gum_arm_writer_put_ldr_reg_reg_offset(cw, reg, reg, target->mode,
           target->offset);
+    }
+    else if(target->offset != 0)
+    {
+      if (target->mode == GUM_INDEX_POS)
+      {
+        gum_arm_writer_put_add_reg_reg_imm (cw, reg, reg, target->offset);
+      }
+      else
+      {
+        gum_arm_writer_put_sub_reg_reg_imm (cw, reg, reg, target->offset);
+      }
     }
   }
 }
@@ -1403,6 +1415,7 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
   cs_arm * arm = &insn->detail->arm;
   cs_arm_op * op = &arm->operands[0];
   cs_arm_op * op2 = &arm->operands[1];
+  cs_arm_op * op3;
   GumBranchTarget target = { 0, };
   GumArmRegInfo ri;
   gushort mask = 0;
@@ -1422,6 +1435,7 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         target.reg = ARM_REG_INVALID;
         target.is_indirect = FALSE;
         target.offset = 0;
+        target.mode = GUM_INDEX_POS;
         break;
       case ARM_INS_BX:
       case ARM_INS_BLX:
@@ -1431,6 +1445,7 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
           target.reg = op->reg;
           target.is_indirect = FALSE;
           target.offset = 0;
+          target.mode = GUM_INDEX_POS;
         }
         else
         {
@@ -1438,6 +1453,7 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
           target.reg = ARM_REG_INVALID;
           target.is_indirect = FALSE;
           target.offset = 0;
+          target.mode = GUM_INDEX_POS;
         }
         break;
       case ARM_INS_MOV:
@@ -1445,11 +1461,13 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         target.reg = op2->reg;
         target.is_indirect = FALSE;
         target.offset = 0;
+        target.mode = GUM_INDEX_POS;
         break;
       case ARM_INS_POP:
         target.absolute_address = 0;
         target.reg = ARM_REG_SP;
         target.is_indirect = TRUE;
+        target.mode = GUM_INDEX_POS;
         for (uint8_t idx = 0; idx < insn->detail->arm.op_count; idx++)
         {
           op = &arm->operands[idx];
@@ -1468,6 +1486,7 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         target.absolute_address = 0;
         target.reg = op->reg;
         target.is_indirect = TRUE;
+        target.mode = GUM_INDEX_POS;
         for (uint8_t idx = 1; idx < insn->detail->arm.op_count; idx++)
         {
           op = &arm->operands[idx];
@@ -1488,6 +1507,17 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         target.reg = op2->mem.base;
         target.is_indirect = TRUE;
         target.offset = op2->mem.disp;
+        target.mode = GUM_INDEX_POS;
+        break;
+      case ARM_INS_SUB:
+        g_assert (op2->type == ARM_OP_REG);
+        op3 = &arm->operands[2];
+        g_assert (op2->type == ARM_OP_IMM);
+        target.absolute_address = 0;
+        target.reg = op2->reg;
+        target.is_indirect = FALSE;
+        target.offset = op3->imm;
+        target.mode = GUM_INDEX_NEG;
         break;
       default:
         g_assert_not_reached ();
@@ -1499,8 +1529,11 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
       case ARM_INS_HVC:
         g_assert ("" == "not implemented");
         break;
+      case ARM_INS_SUB:
+        gum_arm_writer_put_brk_imm(gc->code_writer, 0x18);
       case ARM_INS_B:
       case ARM_INS_BX:
+      case ARM_INS_LDR:
         gum_exec_block_virtualize_branch_insn(block, &target, arm->cc, gc);
         break;
       case ARM_INS_BL:
@@ -1515,9 +1548,6 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
       case ARM_INS_LDM:
         gum_exec_block_virtualize_ret_insn(block, &target, ARM_CC_AL, TRUE,
             mask, gc);
-        break;
-      case ARM_INS_LDR:
-        gum_exec_block_virtualize_branch_insn(block, &target, arm->cc, gc);
         break;
       default:
         g_assert_not_reached ();
