@@ -149,8 +149,8 @@ enum _GumExecCtxState
 struct _GumBranchTarget
 {
   gpointer absolute_address;
-  gssize relative_offset;
-  gboolean is_relative;
+  gssize offset;
+  gboolean is_indirect;
   arm_reg reg;
 };
 
@@ -863,10 +863,10 @@ gum_exec_ctx_write_mov_branch_target_address (GumExecCtx * ctx,
   else
   {
     gum_exec_ctx_load_real_register_into (ctx, reg, target->reg, gc);
-    if (target->is_relative)
+    if (target->is_indirect)
     {
       gum_arm_writer_put_ldr_reg_reg_offset(cw, reg, reg, GUM_INDEX_POS,
-          target->relative_offset);
+          target->offset);
     }
   }
 }
@@ -1420,8 +1420,8 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         g_assert (op->type == ARM_OP_IMM);
         target.absolute_address = GSIZE_TO_POINTER (op->imm);
         target.reg = ARM_REG_INVALID;
-        target.is_relative = FALSE;
-        target.relative_offset = 0;
+        target.is_indirect = FALSE;
+        target.offset = 0;
         break;
       case ARM_INS_BX:
       case ARM_INS_BLX:
@@ -1429,33 +1429,33 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         {
           target.absolute_address = 0;
           target.reg = op->reg;
-          target.is_relative = FALSE;
-          target.relative_offset = 0;
+          target.is_indirect = FALSE;
+          target.offset = 0;
         }
         else
         {
           target.absolute_address = GSIZE_TO_POINTER (op->imm) + 1;
           target.reg = ARM_REG_INVALID;
-          target.is_relative = FALSE;
-          target.relative_offset = 0;
+          target.is_indirect = FALSE;
+          target.offset = 0;
         }
         break;
       case ARM_INS_MOV:
         target.absolute_address = 0;
         target.reg = op2->reg;
-        target.is_relative = FALSE;
-        target.relative_offset = 0;
+        target.is_indirect = FALSE;
+        target.offset = 0;
         break;
       case ARM_INS_POP:
         target.absolute_address = 0;
         target.reg = ARM_REG_SP;
-        target.is_relative = TRUE;
+        target.is_indirect = TRUE;
         for (uint8_t idx = 0; idx < insn->detail->arm.op_count; idx++)
         {
           op = &arm->operands[idx];
           if(op->reg == ARM_REG_PC)
           {
-            target.relative_offset = idx * 4;
+            target.offset = idx * 4;
           }
           else
           {
@@ -1467,13 +1467,13 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
       case ARM_INS_LDM:
         target.absolute_address = 0;
         target.reg = op->reg;
-        target.is_relative = TRUE;
+        target.is_indirect = TRUE;
         for (uint8_t idx = 1; idx < insn->detail->arm.op_count; idx++)
         {
           op = &arm->operands[idx];
           if(op->reg == ARM_REG_PC)
           {
-            target.relative_offset = (idx - 1) * 4;
+            target.offset = (idx - 1) * 4;
           }
           else
           {
@@ -1486,8 +1486,8 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         g_assert (op2->type == ARM_OP_MEM);
         target.absolute_address = 0;
         target.reg = op2->mem.base;
-        target.is_relative = TRUE;
-        target.relative_offset = op2->mem.disp;
+        target.is_indirect = TRUE;
+        target.offset = op2->mem.disp;
         break;
       default:
         g_assert_not_reached ();
