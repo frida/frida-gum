@@ -17,6 +17,13 @@
 G_BEGIN_DECLS
 
 typedef struct _GumArmWriter GumArmWriter;
+typedef guint GumArmIndexMode;
+
+enum _GumArmIndexMode
+{
+  GUM_INDEX_NEG = 0,
+  GUM_INDEX_POS = 1,
+};
 
 struct _GumArmWriter
 {
@@ -123,7 +130,8 @@ GUM_API gboolean gum_arm_writer_put_blr_reg (GumArmWriter * self,
     arm_reg reg);
 
 GUM_API void gum_arm_writer_put_str_reg_reg_offset (
-    GumArmWriter * self, arm_reg src_reg, arm_reg dst_reg, gsize dst_offset);
+    GumArmWriter * self, arm_reg src_reg, arm_reg dst_reg,
+    GumArmIndexMode mode, gsize dst_offset);
 
 GUM_API void gum_arm_writer_put_ret (GumArmWriter * self);
 

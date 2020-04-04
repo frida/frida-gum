@@ -733,6 +733,7 @@ void
 gum_arm_writer_put_str_reg_reg_offset (GumArmWriter * self,
                                          arm_reg src_reg,
                                          arm_reg dst_reg,
+                                         GumArmIndexMode mode,
                                          gsize dst_offset)
 {
   GumArmRegInfo rs, rd;
@@ -740,11 +741,12 @@ gum_arm_writer_put_str_reg_reg_offset (GumArmWriter * self,
   gum_arm_reg_describe (src_reg, &rs);
   gum_arm_reg_describe (dst_reg, &rd);
 
-  g_assert(dst_offset >= -4095);
   g_assert(dst_offset <= 4095);
 
-  gum_arm_writer_put_instruction (self, 0xe5800000 |
-      (rs.index << 12) | rd.index << 16 | dst_offset);
+  gum_arm_writer_put_instruction (self, 0xe5000000 |
+      (mode << 23) |
+      (rs.index << 12) | rd.index << 16 |
+      dst_offset);
 }
 
 void

@@ -838,6 +838,7 @@ gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
   }
   else
   {
+    g_error("UNKNOWN REG: %d\n", source_register);
     g_assert_not_reached ();
   }
 }
@@ -1028,13 +1029,15 @@ gum_exec_block_write_jmp_generated_code (GumArmWriter * cw,
   gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R12,
       GUM_ADDRESS (&ctx->resume_at));
   gum_arm_writer_put_ldr_reg_reg_imm (cw, ARM_REG_R12, ARM_REG_R12, 0);
-  //gum_arm_writer_put_str_reg_reg_offset(cw, ARM_REG_R12, ARM_REG_SP, -8);
-  gum_arm_writer_put_instruction(cw, 0xe50dc008);
+  //gum_arm_writer_put_brk_imm(cw, 0x18);
+  gum_arm_writer_put_str_reg_reg_offset(cw, ARM_REG_R12, ARM_REG_SP,
+    GUM_INDEX_NEG, 8);
+  //gum_arm_writer_put_instruction(cw, 0xe50dc008);
   gum_arm_writer_put_pop_registers(cw, 1, ARM_REG_R12);
-  //gum_arm_writer_put_ldrcc_reg_reg_imm(cw, cc, ARM_REG_PC, ARM_REG_SP, -8);
   guint8 cond;
   gum_arm_cond_describe(cc, &cond);
   gum_arm_writer_put_instruction(cw, 0x051df00c | (cond << 28));
+  //gum_arm_writer_put_ldrcc_reg_reg_imm(cw, cc, ARM_REG_PC, ARM_REG_SP, -12);
 
 }
 
@@ -1399,8 +1402,10 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
   GumArmRegInfo ri;
   gushort mask = 0;
 
-  g_print("%p: %s\t%s = 0x%08x, id: %d\n", gc->instruction->begin, insn->mnemonic,
+  g_print("%p: %s\t%s = 0x%08x, id: %d\n",
+    gc->instruction->begin, insn->mnemonic,
     insn->op_str, *(guint*)gc->instruction->begin, insn->id);
+
   if (gum_arm_relocator_eob (gc->relocator))
   {
     switch (insn->id)
