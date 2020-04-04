@@ -82,11 +82,12 @@ GUM_API gboolean gum_arm_writer_put_ldr_reg_u32 (GumArmWriter * self,
 GUM_API void gum_arm_writer_put_add_reg_reg_imm (GumArmWriter * self,
     arm_reg dst_reg, arm_reg src_reg, guint32 imm_val);
 
-GUM_API void gum_arm_writer_put_ldrcc_reg_reg_imm (GumArmWriter * self,
-    arm_cc cc, arm_reg dst_reg, arm_reg src_reg, guint32 imm_val);
+GUM_API void gum_arm_writer_put_ldrcc_reg_reg_offset (GumArmWriter * self,
+    arm_cc cc, arm_reg dst_reg, arm_reg src_reg, GumArmIndexMode mode,
+    gsize src_offset);
 
-GUM_API void gum_arm_writer_put_ldr_reg_reg_imm (GumArmWriter * self,
-    arm_reg dst_reg, arm_reg src_reg, guint32 imm_val);
+GUM_API void gum_arm_writer_put_ldr_reg_reg_offset (GumArmWriter * self,
+    arm_reg dst_reg, arm_reg src_reg, GumArmIndexMode mode, gsize src_offset);
 
 GUM_API void gum_arm_writer_put_nop (GumArmWriter * self);
 GUM_API void gum_arm_writer_put_breakpoint (GumArmWriter * self);
@@ -128,6 +129,10 @@ GUM_API gboolean gum_arm_writer_put_bl_imm (GumArmWriter * self,
 
 GUM_API gboolean gum_arm_writer_put_blr_reg (GumArmWriter * self,
     arm_reg reg);
+
+GUM_API void gum_arm_writer_put_strcc_reg_reg_offset (
+    GumArmWriter * self, arm_cc cc, arm_reg src_reg,
+    arm_reg dst_reg, GumArmIndexMode mode, gsize dst_offset);
 
 GUM_API void gum_arm_writer_put_str_reg_reg_offset (
     GumArmWriter * self, arm_reg src_reg, arm_reg dst_reg,

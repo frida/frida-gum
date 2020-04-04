@@ -326,31 +326,35 @@ gum_arm_writer_put_add_reg_reg_imm (GumArmWriter * self,
 }
 
 void
-gum_arm_writer_put_ldrcc_reg_reg_imm (GumArmWriter * self,
+gum_arm_writer_put_ldrcc_reg_reg_offset (GumArmWriter * self,
                                     arm_cc cc,
                                     arm_reg dst_reg,
                                     arm_reg src_reg,
-                                    guint32 imm_val)
+                                    GumArmIndexMode mode,
+                                    gsize src_offset)
 {
   guint8 cond;
   GumArmRegInfo rd, rs;
+
+  g_assert(src_offset <= 4095);
 
   gum_arm_cond_describe(cc, &cond);
   gum_arm_reg_describe (dst_reg, &rd);
   gum_arm_reg_describe (src_reg, &rs);
 
-  gum_arm_writer_put_instruction (self, 0xe5900000 | cond << 28 |
-      rd.index << 12 | rs.index << 16 | (imm_val & GUM_INT12_MASK));
+  gum_arm_writer_put_instruction (self, 0x05100000 | (cond << 28) |
+      (mode << 23) | rd.index << 12 | rs.index << 16 | src_offset);
 }
 
 void
-gum_arm_writer_put_ldr_reg_reg_imm (GumArmWriter * self,
+gum_arm_writer_put_ldr_reg_reg_offset (GumArmWriter * self,
                                     arm_reg dst_reg,
                                     arm_reg src_reg,
-                                    guint32 imm_val)
+                                    GumArmIndexMode mode,
+                                    gsize src_offset)
 {
-  gum_arm_writer_put_ldrcc_reg_reg_imm(self, ARM_CC_AL, dst_reg, src_reg,
-    imm_val);
+  gum_arm_writer_put_ldrcc_reg_reg_offset(self, ARM_CC_AL, dst_reg, src_reg,
+    mode, src_offset);
 }
 
 void
@@ -728,6 +732,29 @@ gum_arm_writer_put_blr_reg (GumArmWriter * self, arm_reg reg)
   return TRUE;
 }
 
+void
+gum_arm_writer_put_strcc_reg_reg_offset (GumArmWriter * self,
+                                         arm_cc cc,
+                                         arm_reg src_reg,
+                                         arm_reg dst_reg,
+                                         GumArmIndexMode mode,
+                                         gsize dst_offset)
+{
+  guint8 cond;
+  GumArmRegInfo rs, rd;
+
+  gum_arm_cond_describe(cc, &cond);
+  gum_arm_reg_describe (src_reg, &rs);
+  gum_arm_reg_describe (dst_reg, &rd);
+
+  g_assert(dst_offset <= 4095);
+
+  gum_arm_writer_put_instruction (self, 0x05000000 |
+      (cond << 28) |
+      (mode << 23) |
+      (rs.index << 12) | rd.index << 16 |
+      dst_offset);
+}
 
 void
 gum_arm_writer_put_str_reg_reg_offset (GumArmWriter * self,
@@ -736,17 +763,9 @@ gum_arm_writer_put_str_reg_reg_offset (GumArmWriter * self,
                                          GumArmIndexMode mode,
                                          gsize dst_offset)
 {
-  GumArmRegInfo rs, rd;
 
-  gum_arm_reg_describe (src_reg, &rs);
-  gum_arm_reg_describe (dst_reg, &rd);
-
-  g_assert(dst_offset <= 4095);
-
-  gum_arm_writer_put_instruction (self, 0xe5000000 |
-      (mode << 23) |
-      (rs.index << 12) | rd.index << 16 |
-      dst_offset);
+  gum_arm_writer_put_strcc_reg_reg_offset(self, ARM_CC_AL, src_reg,
+      dst_reg, mode, dst_offset);
 }
 
 void

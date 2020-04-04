@@ -811,24 +811,28 @@ gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
   cw = gc->code_writer;
   if (source_register >= ARM_REG_R0 && source_register <= ARM_REG_R7)
   {
-    gum_arm_writer_put_ldr_reg_reg_imm (cw, target_register, ARM_REG_R10,
+    gum_arm_writer_put_ldr_reg_reg_offset (cw, target_register, ARM_REG_R10,
+        GUM_INDEX_POS,
         G_STRUCT_OFFSET (GumCpuContext, r) +
         ((source_register - ARM_REG_R0) * 4));
   }
   else if (source_register >= ARM_REG_R8 && source_register <= ARM_REG_R12)
   {
-    gum_arm_writer_put_ldr_reg_reg_imm (cw, target_register, ARM_REG_R10,
+    gum_arm_writer_put_ldr_reg_reg_offset (cw, target_register, ARM_REG_R10,
+        GUM_INDEX_POS,
         G_STRUCT_OFFSET (GumCpuContext, r8) +
         ((source_register - ARM_REG_R8) * 4));
   }
   else if (source_register == ARM_REG_LR)
   {
-    gum_arm_writer_put_ldr_reg_reg_imm (cw, target_register, ARM_REG_R10,
+    gum_arm_writer_put_ldr_reg_reg_offset (cw, target_register, ARM_REG_R10,
+        GUM_INDEX_POS,
         G_STRUCT_OFFSET (GumCpuContext, lr));
   }
   else if (source_register == ARM_REG_SP)
   {
-    gum_arm_writer_put_ldr_reg_reg_imm (cw, target_register, ARM_REG_R10,
+    gum_arm_writer_put_ldr_reg_reg_offset (cw, target_register, ARM_REG_R10,
+        GUM_INDEX_POS,
         G_STRUCT_OFFSET (GumCpuContext, sp));
   }
   else if (source_register == ARM_REG_PC)
@@ -861,7 +865,8 @@ gum_exec_ctx_write_mov_branch_target_address (GumExecCtx * ctx,
     gum_exec_ctx_load_real_register_into (ctx, reg, target->reg, gc);
     if (target->is_relative)
     {
-      gum_arm_writer_put_ldr_reg_reg_imm(cw, reg, reg, target->relative_offset);
+      gum_arm_writer_put_ldr_reg_reg_offset(cw, reg, reg, GUM_INDEX_POS,
+          target->relative_offset);
     }
   }
 }
@@ -1025,20 +1030,20 @@ gum_exec_block_write_jmp_generated_code (GumArmWriter * cw,
                                          arm_cc cc,
                                          GumExecCtx * ctx)
 {
+  guint8 cond;
+  gum_arm_cond_describe(cc, &cond);
+
   gum_arm_writer_put_push_registers(cw, 1, ARM_REG_R12);
   gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R12,
       GUM_ADDRESS (&ctx->resume_at));
-  gum_arm_writer_put_ldr_reg_reg_imm (cw, ARM_REG_R12, ARM_REG_R12, 0);
-  //gum_arm_writer_put_brk_imm(cw, 0x18);
-  gum_arm_writer_put_str_reg_reg_offset(cw, ARM_REG_R12, ARM_REG_SP,
-    GUM_INDEX_NEG, 8);
-  //gum_arm_writer_put_instruction(cw, 0xe50dc008);
+  gum_arm_writer_put_ldrcc_reg_reg_offset (cw, cc, ARM_REG_R12, ARM_REG_R12,
+      GUM_INDEX_POS, 0);
+  gum_arm_writer_put_strcc_reg_reg_offset(cw, cc, ARM_REG_R12, ARM_REG_SP,
+      GUM_INDEX_NEG, 8);
   gum_arm_writer_put_pop_registers(cw, 1, ARM_REG_R12);
-  guint8 cond;
-  gum_arm_cond_describe(cc, &cond);
-  gum_arm_writer_put_instruction(cw, 0x051df00c | (cond << 28));
-  //gum_arm_writer_put_ldrcc_reg_reg_imm(cw, cc, ARM_REG_PC, ARM_REG_SP, -12);
 
+  gum_arm_writer_put_ldrcc_reg_reg_offset(cw, cc, ARM_REG_PC, ARM_REG_SP,
+      GUM_INDEX_NEG, 12);
 }
 
 static void
