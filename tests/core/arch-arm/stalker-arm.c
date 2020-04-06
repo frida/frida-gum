@@ -40,6 +40,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (excluded_thumb_branch)
   TESTENTRY (ldr_pc)
   TESTENTRY (sub_pc)
+  TESTENTRY (add_pc)
   TESTENTRY (performance)
   TESTENTRY (can_follow_workload)
 TESTLIST_END ()
@@ -1142,6 +1143,50 @@ TESTCASE (sub_pc)
       invoke_expecting_return_value (fixture, GUM_BLOCK,
                                      &sub_pc_code,
                                      &sub_pc_code_end - &sub_pc_code,
+                                     2);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, 2);
+  g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
+      0).type, ==, GUM_BLOCK);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 0).block;
+  GUM_ASSERT_CMPADDR (ev->begin, ==, func);
+  GUM_ASSERT_CMPADDR (ev->end, ==, func + 8);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 1).block;
+  GUM_ASSERT_CMPADDR (ev->begin, ==, func + 16);
+  GUM_ASSERT_CMPADDR (ev->end, ==, func + 24);
+}
+
+extern const void add_pc_code;
+extern const void add_pc_code_end;
+
+asm (
+  "add_pc_code: \n"
+  "sub r0, r0, r0 \n"
+  "add pc, pc, #4 \n"
+
+  "1: \n"
+  "add r0, r0, #1 \n"
+  "mov pc, lr \n"
+
+  "2: \n"
+  "add r0, r0, #1 \n"
+  "b 1b \n \n"
+
+  "add_pc_code_end: \n"
+);
+
+TESTCASE (add_pc)
+{
+  GumBlockEvent * ev;
+
+  StalkerTestFunc func =
+      invoke_expecting_return_value (fixture, GUM_BLOCK,
+                                     &add_pc_code,
+                                     &add_pc_code_end - &add_pc_code,
                                      2);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 2);

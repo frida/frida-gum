@@ -1537,6 +1537,16 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         target.offset = op3->imm;
         target.mode = GUM_INDEX_NEG;
         break;
+      case ARM_INS_ADD:
+        g_assert (op2->type == ARM_OP_REG);
+        op3 = &arm->operands[2];
+        g_assert (op2->type == ARM_OP_IMM);
+        target.absolute_address = 0;
+        target.reg = op2->reg;
+        target.is_indirect = FALSE;
+        target.offset = op3->imm;
+        target.mode = GUM_INDEX_POS;
+        break;
       default:
         g_assert_not_reached ();
     }
@@ -1548,7 +1558,7 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         g_assert ("" == "not implemented");
         break;
       case ARM_INS_SUB:
-        //gum_arm_writer_put_brk_imm(gc->code_writer, 0x18);
+      case ARM_INS_ADD:
       case ARM_INS_B:
       case ARM_INS_BX:
       case ARM_INS_LDR:

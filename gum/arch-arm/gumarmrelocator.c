@@ -204,6 +204,7 @@ gum_arm_relocator_read_one (GumArmRelocator * self,
       }
       break;
     case ARM_INS_SUB:
+    case ARM_INS_ADD:
       op = &insn->detail->arm.operands[0];
       if (op->type == ARM_OP_REG && op->reg == ARM_REG_PC)
       {
