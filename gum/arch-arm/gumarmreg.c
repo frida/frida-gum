@@ -41,7 +41,7 @@ gum_arm_reg_describe (arm_reg reg,
 void
 gum_arm_cond_describe(arm_cc cc, guint8 * code)
 {
-  switch(cc)
+  switch (cc)
   {
     	case ARM_CC_EQ:
         *code = 0;
@@ -91,7 +91,31 @@ gum_arm_cond_describe(arm_cc cc, guint8 * code)
       default:
         g_assert_not_reached ();
         break;
-
   }
 }
 
+void
+gum_arm_shifter_describe(arm_shifter shifter, guint8 * scode)
+{
+  switch (shifter)
+  {
+    case ARM_SFT_ASR:
+      *scode = 2;
+      break;
+    case ARM_SFT_LSL:
+      *scode = 0;
+      break;
+    case ARM_SFT_LSR:
+      *scode = 1;
+      break;
+    case ARM_SFT_ROR:
+      *scode = 3;
+      break;
+    case ARM_SFT_INVALID:
+      *scode = 0;
+      break;
+    default:
+      g_assert_not_reached ();
+      break;
+  }
+}

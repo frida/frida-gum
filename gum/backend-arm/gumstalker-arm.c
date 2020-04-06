@@ -152,7 +152,10 @@ struct _GumBranchTarget
   gssize offset;
   gboolean is_indirect;
   arm_reg reg;
+  arm_reg reg2;
   GumArmIndexMode mode;
+  arm_shifter shifter;
+  guint32 shift_value;
 };
 
 gboolean
@@ -867,8 +870,22 @@ gum_exec_ctx_write_mov_branch_target_address (GumExecCtx * ctx,
       gum_arm_writer_put_ldr_reg_reg_offset(cw, reg, reg, target->mode,
           target->offset);
     }
-    else if(target->offset != 0)
+    else if (target->reg2 != ARM_REG_INVALID)
     {
+      //gum_arm_writer_put_brk_imm(cw, 0x88);
+      // TODO. NEED TO LOAD REG FROM THE CONTEXT USING
+      // gum_exec_ctx_load_real_register_into.
+
+      // TODO. Handle or error if target is already R12
+      gum_exec_ctx_load_real_register_into(ctx, ARM_REG_R12, target->reg2, gc);
+
+      gum_arm_writer_put_add_reg_reg_reg_sft(cw, reg, reg, ARM_REG_R12,
+          target->shifter, target->shift_value);
+    }
+    else if (target->offset != 0)
+    {
+      g_assert(target->shifter == ARM_SFT_INVALID);
+      g_assert(target->shift_value == 0);
       if (target->mode == GUM_INDEX_POS)
       {
         gum_arm_writer_put_add_reg_reg_imm (cw, reg, reg, target->offset);
@@ -1346,10 +1363,10 @@ static void gum_exec_block_virtualize_branch_insn (
 
   gum_exec_ctx_write_mov_branch_target_address (block->ctx,
                                           target,
-                                          ARM_REG_R12,
+                                          ARM_REG_R0,
                                           gc);
 
-  gum_arm_writer_put_strcc_reg_label (gc->code_writer, ARM_CC_AL, ARM_REG_R12,
+  gum_arm_writer_put_strcc_reg_label (gc->code_writer, ARM_CC_AL, ARM_REG_R0,
       kuh_label);
   gum_exec_block_close_prolog (block, gc);
   gum_arm_writer_put_ldrcc_reg_label (gc->code_writer, ARM_CC_AL, ARM_REG_R12,
@@ -1521,9 +1538,12 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         g_assert (op->type == ARM_OP_IMM);
         target.absolute_address = GSIZE_TO_POINTER (op->imm);
         target.reg = ARM_REG_INVALID;
+        target.reg2 = ARM_REG_INVALID;
         target.is_indirect = FALSE;
         target.offset = 0;
         target.mode = GUM_INDEX_POS;
+        target.shifter = ARM_SFT_INVALID;
+        target.shift_value = 0;
         break;
       case ARM_INS_BX:
       case ARM_INS_BLX:
@@ -1531,31 +1551,43 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         {
           target.absolute_address = 0;
           target.reg = op->reg;
+          target.reg2 = ARM_REG_INVALID;
           target.is_indirect = FALSE;
           target.offset = 0;
           target.mode = GUM_INDEX_POS;
+          target.shifter = ARM_SFT_INVALID;
+          target.shift_value = 0;
         }
         else
         {
           target.absolute_address = GSIZE_TO_POINTER (op->imm) + 1;
           target.reg = ARM_REG_INVALID;
+          target.reg2 = ARM_REG_INVALID;
           target.is_indirect = FALSE;
           target.offset = 0;
           target.mode = GUM_INDEX_POS;
+          target.shifter = ARM_SFT_INVALID;
+          target.shift_value = 0;
         }
         break;
       case ARM_INS_MOV:
         target.absolute_address = 0;
         target.reg = op2->reg;
+        target.reg2 = ARM_REG_INVALID;
         target.is_indirect = FALSE;
         target.offset = 0;
         target.mode = GUM_INDEX_POS;
+        target.shifter = ARM_SFT_INVALID;
+        target.shift_value = 0;
         break;
       case ARM_INS_POP:
         target.absolute_address = 0;
         target.reg = ARM_REG_SP;
+        target.reg2 = ARM_REG_INVALID;
         target.is_indirect = TRUE;
         target.mode = GUM_INDEX_POS;
+        target.shifter = ARM_SFT_INVALID;
+        target.shift_value = 0;
         for (uint8_t idx = 0; idx < insn->detail->arm.op_count; idx++)
         {
           op = &arm->operands[idx];
@@ -1573,8 +1605,11 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
       case ARM_INS_LDM:
         target.absolute_address = 0;
         target.reg = op->reg;
+        target.reg2 = ARM_REG_INVALID;
         target.is_indirect = TRUE;
         target.mode = GUM_INDEX_POS;
+        target.shifter = ARM_SFT_INVALID;
+        target.shift_value = 0;
         for (uint8_t idx = 1; idx < insn->detail->arm.op_count; idx++)
         {
           op = &arm->operands[idx];
@@ -1593,29 +1628,57 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         g_assert (op2->type == ARM_OP_MEM);
         target.absolute_address = 0;
         target.reg = op2->mem.base;
+        target.reg2 = ARM_REG_INVALID;
         target.is_indirect = TRUE;
         target.offset = op2->mem.disp;
         target.mode = GUM_INDEX_POS;
+        target.shifter = ARM_SFT_INVALID;
+        target.shift_value = 0;
         break;
       case ARM_INS_SUB:
         g_assert (op2->type == ARM_OP_REG);
-        op3 = &arm->operands[2];
-        g_assert (op2->type == ARM_OP_IMM);
         target.absolute_address = 0;
         target.reg = op2->reg;
         target.is_indirect = FALSE;
-        target.offset = op3->imm;
         target.mode = GUM_INDEX_NEG;
+
+        op3 = &arm->operands[2];
+        target.shifter = op3->shift.type;
+        target.shift_value = op3->shift.value;
+
+        if (op3->type == ARM_OP_REG)
+        {
+          target.reg2 = op3->reg;
+          target.offset = 0;
+        }
+        else
+        {
+          target.reg2 = ARM_REG_INVALID;
+          target.offset = op3->imm;
+        }
+
         break;
       case ARM_INS_ADD:
         g_assert (op2->type == ARM_OP_REG);
-        op3 = &arm->operands[2];
-        g_assert (op2->type == ARM_OP_IMM);
         target.absolute_address = 0;
         target.reg = op2->reg;
         target.is_indirect = FALSE;
-        target.offset = op3->imm;
         target.mode = GUM_INDEX_POS;
+
+        op3 = &arm->operands[2];
+        target.shifter = op3->shift.type;
+        target.shift_value = op3->shift.value;
+
+        if (op3->type == ARM_OP_REG)
+        {
+          target.reg2 = op3->reg;
+          target.offset = 0;
+        }
+        else
+        {
+          target.reg2 = ARM_REG_INVALID;
+          target.offset = op3->imm;
+        }
         break;
       default:
         g_assert_not_reached ();
