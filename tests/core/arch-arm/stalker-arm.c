@@ -39,6 +39,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (excluded_thumb)
   TESTENTRY (excluded_thumb_branch)
   TESTENTRY (ldr_pc)
+  TESTENTRY (sub_pc)
   TESTENTRY (performance)
   TESTENTRY (can_follow_workload)
 TESTLIST_END ()
@@ -1074,7 +1075,6 @@ store_range_of_test_runner (const GumModuleDetails * details,
   return TRUE;
 }
 
-
 extern const void ldr_pc_code;
 extern const void ldr_pc_code_end;
 
@@ -1113,6 +1113,50 @@ TESTCASE (ldr_pc)
     &g_array_index (fixture->sink->events, GumEvent, 0).block;
   GUM_ASSERT_CMPADDR (ev->begin, ==, func);
   GUM_ASSERT_CMPADDR (ev->end, ==, func + 12);
+}
+
+extern const void sub_pc_code;
+extern const void sub_pc_code_end;
+
+asm (
+  "sub_pc_code: \n"
+  "sub r0, r0, r0 \n"
+  "b 2f \n"
+
+  "1: \n"
+  "add r0, r0, #1 \n"
+  "mov pc, lr \n"
+
+  "2: \n"
+  "add r0, r0, #1 \n"
+  "sub pc, pc, #20 \n"
+
+  "sub_pc_code_end: \n"
+);
+
+TESTCASE (sub_pc)
+{
+  GumBlockEvent * ev;
+
+  StalkerTestFunc func =
+      invoke_expecting_return_value (fixture, GUM_BLOCK,
+                                     &sub_pc_code,
+                                     &sub_pc_code_end - &sub_pc_code,
+                                     2);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, 2);
+  g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
+      0).type, ==, GUM_BLOCK);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 0).block;
+  GUM_ASSERT_CMPADDR (ev->begin, ==, func);
+  GUM_ASSERT_CMPADDR (ev->end, ==, func + 8);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent, 1).block;
+  GUM_ASSERT_CMPADDR (ev->begin, ==, func + 16);
+  GUM_ASSERT_CMPADDR (ev->end, ==, func + 24);
 }
 
 GUM_NOINLINE static void
@@ -1167,6 +1211,7 @@ pretend_workload (GumMemoryRange * runner_range)
 
 TESTCASE (performance)
 {
+
   GumMemoryRange runner_range;
   GTimer * timer;
   gdouble normal_cold, normal_hot;
@@ -1187,6 +1232,13 @@ TESTCASE (performance)
   g_timer_reset (timer);
   pretend_workload (&runner_range);
   normal_hot = g_timer_elapsed (timer, NULL);
+
+  GumMemoryRange r = {
+    .base_address = GUM_ADDRESS(0xff539490),
+    .size = 4
+  };
+
+  gum_stalker_exclude (fixture->stalker, &r);
 
   fixture->sink->mask = GUM_NOTHING;
 
@@ -1232,6 +1284,8 @@ TESTCASE (can_follow_workload)
   runner_range.size = 0;
   gum_process_enumerate_modules (store_range_of_test_runner, &runner_range);
   g_assert_true (runner_range.base_address != 0 && runner_range.size != 0);
+
+  pretend_workload (&runner_range);
 
   fixture->sink->mask = (GUM_EXEC | GUM_CALL | GUM_RET);
 

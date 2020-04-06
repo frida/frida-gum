@@ -1548,7 +1548,7 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         g_assert ("" == "not implemented");
         break;
       case ARM_INS_SUB:
-        gum_arm_writer_put_brk_imm(gc->code_writer, 0x18);
+        //gum_arm_writer_put_brk_imm(gc->code_writer, 0x18);
       case ARM_INS_B:
       case ARM_INS_BX:
       case ARM_INS_LDR:
