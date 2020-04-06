@@ -1040,6 +1040,7 @@ gum_exec_block_write_jmp_generated_code (GumArmWriter * cw,
                                          arm_cc cc,
                                          GumExecCtx * ctx)
 {
+  // gconstpointer dest_label = cw->code + 1;
   guint8 cond;
   gum_arm_cond_describe(cc, &cond);
 
@@ -1050,10 +1051,19 @@ gum_exec_block_write_jmp_generated_code (GumArmWriter * cw,
       GUM_INDEX_POS, 0);
   gum_arm_writer_put_strcc_reg_reg_offset(cw, cc, ARM_REG_R12, ARM_REG_SP,
       GUM_INDEX_NEG, 8);
+
+  // gum_arm_writer_put_strcc_reg_label (cw, cc, ARM_REG_R12,
+  //     dest_label);
   gum_arm_writer_put_pop_registers(cw, 1, ARM_REG_R12);
 
   gum_arm_writer_put_ldrcc_reg_reg_offset(cw, cc, ARM_REG_PC, ARM_REG_SP,
       GUM_INDEX_NEG, 12);
+
+  // gum_arm_writer_put_ldrcc_reg_label (cw, cc, ARM_REG_PC,
+  //     dest_label);
+
+  // gum_arm_writer_put_label(cw, dest_label);
+  // gum_arm_writer_put_instruction(cw, 0xcafedead);
 }
 
 static void
@@ -1335,16 +1345,16 @@ static void gum_exec_block_virtualize_branch_insn (
   gum_arm_writer_put_cmp_reg_imm(cw, ARM_REG_R0, 0);
   gum_arm_writer_put_bcc_label(cw, ARM_CC_EQ, not_kuh);
 
-
-  //gum_arm_writer_put_brk_imm(gc->code_writer, 0x55);
   gum_exec_ctx_write_mov_branch_target_address (block->ctx,
                                           target,
                                           ARM_REG_R12,
                                           gc);
 
-  gum_arm_writer_put_str_reg_label (gc->code_writer, ARM_REG_R12, kuh_label);
+  gum_arm_writer_put_strcc_reg_label (gc->code_writer, ARM_CC_AL, ARM_REG_R12,
+      kuh_label);
   gum_exec_block_close_prolog (block, gc);
-  gum_arm_writer_put_ldr_reg_label (gc->code_writer, ARM_REG_R12, kuh_label);
+  gum_arm_writer_put_ldrcc_reg_label (gc->code_writer, ARM_CC_AL, ARM_REG_R12,
+      kuh_label);
   gum_arm_writer_put_blr_reg(gc->code_writer, ARM_REG_R12);
 
 
@@ -1372,8 +1382,6 @@ static void gum_exec_block_virtualize_branch_insn (
   gum_exec_block_close_prolog (block, gc);
   gum_exec_block_write_jmp_generated_code(gc->code_writer, ARM_CC_AL,
       block->ctx);
-
-
 }
 
 static void gum_exec_block_virtualize_call_insn (

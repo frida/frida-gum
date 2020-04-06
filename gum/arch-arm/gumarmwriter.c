@@ -833,27 +833,31 @@ gum_arm_writer_put_bcc_label (GumArmWriter * self,
 }
 
 void
-gum_arm_writer_put_str_reg_label (GumArmWriter * self,
-  arm_reg reg,
-  gconstpointer label_id)
+gum_arm_writer_put_strcc_reg_label (GumArmWriter * self,
+  arm_cc cc, arm_reg reg, gconstpointer label_id)
 {
+  guint8 cond;
   GumArmRegInfo r;
 
+  gum_arm_cond_describe(cc, &cond);
   gum_arm_reg_describe (reg, &r);
   gum_arm_writer_add_label_reference_here (self, label_id, 2, GUM_INT12_MASK);
 
-  gum_arm_writer_put_instruction(self, 0xe58f0000 | (r.index << 12));
+  gum_arm_writer_put_instruction(self, 0x058f0000 | (cond << 28) |
+      (r.index << 12));
 }
 
 void
-gum_arm_writer_put_ldr_reg_label (GumArmWriter * self,
-  arm_reg reg,
-  gconstpointer label_id)
+gum_arm_writer_put_ldrcc_reg_label (GumArmWriter * self,
+  arm_cc cc, arm_reg reg, gconstpointer label_id)
 {
+  guint8 cond;
   GumArmRegInfo r;
 
+  gum_arm_cond_describe(cc, &cond);
   gum_arm_reg_describe (reg, &r);
   gum_arm_writer_add_label_reference_here (self, label_id, 2, GUM_INT12_MASK);
 
-  gum_arm_writer_put_instruction(self, 0xe59f0000 | (r.index << 12));
+  gum_arm_writer_put_instruction(self, 0x059f0000 | (cond << 28) |
+      (r.index << 12));
 }
