@@ -872,11 +872,12 @@ gum_exec_ctx_write_mov_branch_target_address (GumExecCtx * ctx,
     }
     else if (target->reg2 != ARM_REG_INVALID)
     {
-      //gum_arm_writer_put_brk_imm(cw, 0x88);
-      // TODO. NEED TO LOAD REG FROM THE CONTEXT USING
-      // gum_exec_ctx_load_real_register_into.
+      if (reg == ARM_REG_R12)
+      {
+        g_error("Cannot support ADD/SUB reg, reg, reg when target is"
+            "ARM_REG_R12");
+      }
 
-      // TODO. Handle or error if target is already R12
       gum_exec_ctx_load_real_register_into(ctx, ARM_REG_R12, target->reg2, gc);
 
       gum_arm_writer_put_add_reg_reg_reg_sft(cw, reg, reg, ARM_REG_R12,
