@@ -321,8 +321,11 @@ gum_arm_writer_put_sub_reg_reg_imm (GumArmWriter * self,
   gum_arm_reg_describe (dst_reg, &rd);
   gum_arm_reg_describe (src_reg, &rs);
 
-  gum_arm_writer_put_instruction (self, 0xe2400000 | rd.index << 12 |
-      rs.index << 16 | (imm_val & GUM_INT12_MASK));
+  if (src_reg != dst_reg || (imm_val & GUM_INT12_MASK) != 0)
+  {
+    gum_arm_writer_put_instruction (self, 0xe2400000 | rd.index << 12 |
+       rs.index << 16 | (imm_val & GUM_INT12_MASK));
+  }
 }
 
 void
@@ -336,8 +339,11 @@ gum_arm_writer_put_add_reg_reg_imm (GumArmWriter * self,
   gum_arm_reg_describe (dst_reg, &rd);
   gum_arm_reg_describe (src_reg, &rs);
 
-  gum_arm_writer_put_instruction (self, 0xe2800000 | rd.index << 12 |
-      rs.index << 16 | (imm_val & GUM_INT12_MASK));
+  if (src_reg != dst_reg || (imm_val & GUM_INT12_MASK) != 0)
+  {
+    gum_arm_writer_put_instruction (self, 0xe2800000 | rd.index << 12 |
+        rs.index << 16 | (imm_val & GUM_INT12_MASK));
+  }
 }
 
 void
