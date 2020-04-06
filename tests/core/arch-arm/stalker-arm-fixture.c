@@ -91,38 +91,6 @@ static void show_events(GumFakeEventSink* sink)
 }
 
 static void
-debug_hello (gpointer pointer)
-{
-  g_print ("* pointer: %p *\n", pointer);
-}
-
-static void
-put_debug_print_pointer (GumArmWriter * cw,
-                         gpointer pointer)
-{
-  gum_arm_writer_put_push_all_r_registers (cw, 1);
-  GumArgument args[] = {
-    { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (pointer) }},
-  };
-  gum_arm_writer_put_call_address_with_arguments_array (cw,
-      GUM_ADDRESS (debug_hello), 1, args);
-  gum_arm_writer_put_pop_all_r_registers (cw, 1);
-}
-
-static void
-put_debug_print_reg (GumArmWriter * cw,
-                     arm_reg reg)
-{
-  gum_arm_writer_put_push_all_r_registers (cw, 1);
-  GumArgument args[] = {
-    { GUM_ARG_REGISTER, { .reg = reg }},
-  };
-  gum_arm_writer_put_call_address_with_arguments_array (cw,
-      GUM_ADDRESS (debug_hello), 1, args);
-  gum_arm_writer_put_pop_all_r_registers (cw, 1);
-}
-
-static void
 test_arm_stalker_fixture_setup (TestArmStalkerFixture * fixture,
                                   gconstpointer data)
 {
@@ -255,8 +223,6 @@ test_arm_stalker_fixture_follow_and_invoke (TestArmStalkerFixture * fixture,
 static void
 silence_warnings (void)
 {
-  (void) put_debug_print_pointer;
-  (void) put_debug_print_reg;
   (void) test_arm_stalker_fixture_dup_code;
   (void) test_arm_stalker_fixture_follow_and_invoke;
 }
