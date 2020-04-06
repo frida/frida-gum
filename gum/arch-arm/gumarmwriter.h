@@ -153,6 +153,12 @@ GUM_API void
 gum_arm_writer_put_bcc_label (GumArmWriter * self,
     arm_cc cc, gconstpointer label_id);
 
+GUM_API void gum_arm_writer_put_str_reg_label (GumArmWriter * self,
+    arm_reg reg, gconstpointer label_id);
+
+GUM_API void gum_arm_writer_put_ldr_reg_label (GumArmWriter * self,
+    arm_reg reg, gconstpointer label_id);
+
 G_END_DECLS
 
 #endif

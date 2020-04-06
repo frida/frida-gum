@@ -354,8 +354,6 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   GumStalkerIterator iterator;
   gboolean all_labels_resolved;
 
-  g_print("\n");
-
   block = gum_exec_block_obtain (ctx, real_address, code_address_ptr);
   if (block != NULL)
   {
@@ -1161,6 +1159,21 @@ gum_stalker_is_thumb (gconstpointer address)
 }
 
 static gboolean
+gum_stalker_is_kuser_helper (gconstpointer address)
+{
+  switch(GUM_ADDRESS(address))
+  {
+    case 0xffff0fa0: /* __kernel_memory_barrier */
+    case 0xffff0fc0: /* __kernel_cmpxchg */
+    case 0xffff0fe0: /* __kernel_get_tls */
+    case 0xffff0f60: /* __kernel_cmpxchg64 */
+      return TRUE;
+    default:
+      return FALSE;
+  }
+}
+
+static gboolean
 gum_stalker_is_excluding (GumExecCtx * ctx,
                           gconstpointer address)
 {
@@ -1245,6 +1258,8 @@ static void gum_exec_block_virtualize_branch_insn (
   GumArmWriter * cw = gc->code_writer;
   gconstpointer taken = cw->code + 1;
   gconstpointer not_thumb = cw->code + 2;
+  gconstpointer not_kuh = cw->code + 3;
+  gconstpointer kuh_label = cw->code + 4;
 
   GumArgument replace_args[] =
   {
@@ -1252,7 +1267,7 @@ static void gum_exec_block_virtualize_branch_insn (
     { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (gc->instruction->end)}},
   };
 
-  GumArgument thumb_args[] =
+  GumArgument target_args[] =
   {
     { GUM_ARG_REGISTER, { .reg = ARM_REG_R0}},
   };
@@ -1301,7 +1316,7 @@ static void gum_exec_block_virtualize_branch_insn (
                                             gc);
 
   gum_arm_writer_put_call_address_with_arguments_array (cw,
-    GUM_ADDRESS (gum_stalker_is_thumb), 1, thumb_args);
+    GUM_ADDRESS (gum_stalker_is_thumb), 1, target_args);
 
   gum_arm_writer_put_cmp_reg_imm(cw, ARM_REG_R0, 0);
   gum_arm_writer_put_bcc_label(cw, ARM_CC_EQ, not_thumb);
@@ -1309,10 +1324,56 @@ static void gum_exec_block_virtualize_branch_insn (
   gum_arm_relocator_write_one (gc->relocator);
   gum_arm_writer_put_label (cw, not_thumb);
 
+  gum_exec_ctx_write_mov_branch_target_address (block->ctx,
+                                            target,
+                                            ARM_REG_R0,
+                                            gc);
+
+  gum_arm_writer_put_call_address_with_arguments_array (cw,
+    GUM_ADDRESS (gum_stalker_is_kuser_helper), 1, target_args);
+
+  gum_arm_writer_put_cmp_reg_imm(cw, ARM_REG_R0, 0);
+  gum_arm_writer_put_bcc_label(cw, ARM_CC_EQ, not_kuh);
+
+
+  //gum_arm_writer_put_brk_imm(gc->code_writer, 0x55);
+  gum_exec_ctx_write_mov_branch_target_address (block->ctx,
+                                          target,
+                                          ARM_REG_R12,
+                                          gc);
+
+  gum_arm_writer_put_str_reg_label (gc->code_writer, ARM_REG_R12, kuh_label);
+  gum_exec_block_close_prolog (block, gc);
+  gum_arm_writer_put_ldr_reg_label (gc->code_writer, ARM_REG_R12, kuh_label);
+  gum_arm_writer_put_blr_reg(gc->code_writer, ARM_REG_R12);
+
+
+  gum_exec_block_open_prolog (block, gc);
+
+  GumArgument ret_args[] =
+  {
+    { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (block->ctx)}},
+    { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (gc->instruction->end)}},
+  };
+
+  gum_arm_writer_put_call_address_with_arguments_array (cw,
+    GUM_ADDRESS (gum_exec_ctx_replace_current_block_with), 2, ret_args);
+  gum_exec_block_close_prolog (block, gc);
+
+  gum_exec_block_write_jmp_generated_code(gc->code_writer, ARM_CC_AL,
+      block->ctx);
+
+  gum_arm_writer_put_label(gc->code_writer, kuh_label);
+  gum_arm_writer_put_instruction(gc->code_writer, 0xdeadface);
+
+  gum_arm_writer_put_label (cw, not_kuh);
+
   gum_exec_block_write_call_replace_current_block_with (block, target, gc);
   gum_exec_block_close_prolog (block, gc);
   gum_exec_block_write_jmp_generated_code(gc->code_writer, ARM_CC_AL,
       block->ctx);
+
+
 }
 
 static void gum_exec_block_virtualize_call_insn (
@@ -1444,6 +1505,8 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
 
   if (gum_arm_relocator_eob (gc->relocator))
   {
+    g_print("\n");
+
     switch (insn->id)
     {
       case ARM_INS_B:

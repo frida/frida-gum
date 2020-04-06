@@ -1280,7 +1280,7 @@ TESTCASE (can_follow_workload)
 
   call_workload (&runner_range);
 
-  fixture->sink->mask = (GUM_CALL | GUM_RET); // GUM_EXEC |
+  fixture->sink->mask = (GUM_EXEC | GUM_CALL | GUM_RET); //
 
   GumMemoryRange r = {
     .base_address = GUM_ADDRESS(0xff539490),

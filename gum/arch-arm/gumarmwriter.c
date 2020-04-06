@@ -19,6 +19,8 @@ struct _GumArmLabelRef
 {
   gconstpointer id;
   guint32 * insn;
+  guint32 shift;
+  guint32 mask;
 };
 
 struct _GumArmLiteralRef
@@ -200,7 +202,9 @@ gum_arm_writer_put_label (GumArmWriter * self,
 
 static void
 gum_arm_writer_add_label_reference_here (GumArmWriter * self,
-                                         gconstpointer id)
+                                         gconstpointer id,
+                                         guint32 shift,
+                                         guint32 mask)
 {
   GumArmLabelRef * r;
 
@@ -209,6 +213,8 @@ gum_arm_writer_add_label_reference_here (GumArmWriter * self,
 
   r = gum_metal_array_append (&self->label_refs);
   r->id = id;
+  r->shift = shift;
+  r->mask = mask;
   r->insn = self->code;
 }
 
@@ -283,7 +289,7 @@ void
 gum_arm_writer_put_b_label (GumArmWriter * self,
                             gconstpointer label_id)
 {
-  gum_arm_writer_add_label_reference_here (self, label_id);
+  gum_arm_writer_add_label_reference_here (self, label_id, 0, GUM_INT24_MASK);
   gum_arm_writer_put_instruction (self, 0xea000000);
 }
 
@@ -451,7 +457,8 @@ gum_arm_writer_try_commit_label_refs (GumArmWriter * self)
       return FALSE;
 
     distance = target_insn - (r->insn + 2);
-    if (!GUM_IS_WITHIN_INT24_RANGE (distance))
+    distance <<= r->shift;
+    if ((distance & (~r->mask)) != 0)
       return FALSE;
 
     insn = GUINT32_FROM_LE (*r->insn);
@@ -821,6 +828,32 @@ gum_arm_writer_put_bcc_label (GumArmWriter * self,
   guint8 cond;
 
   gum_arm_cond_describe(cc, &cond);
-  gum_arm_writer_add_label_reference_here (self, label_id);
+  gum_arm_writer_add_label_reference_here (self, label_id, 0, GUM_INT24_MASK);
   gum_arm_writer_put_instruction (self, 0x0a000000 | cond << 28);
+}
+
+void
+gum_arm_writer_put_str_reg_label (GumArmWriter * self,
+  arm_reg reg,
+  gconstpointer label_id)
+{
+  GumArmRegInfo r;
+
+  gum_arm_reg_describe (reg, &r);
+  gum_arm_writer_add_label_reference_here (self, label_id, 2, GUM_INT12_MASK);
+
+  gum_arm_writer_put_instruction(self, 0xe58f0000 | (r.index << 12));
+}
+
+void
+gum_arm_writer_put_ldr_reg_label (GumArmWriter * self,
+  arm_reg reg,
+  gconstpointer label_id)
+{
+  GumArmRegInfo r;
+
+  gum_arm_reg_describe (reg, &r);
+  gum_arm_writer_add_label_reference_here (self, label_id, 2, GUM_INT12_MASK);
+
+  gum_arm_writer_put_instruction(self, 0xe59f0000 | (r.index << 12));
 }
