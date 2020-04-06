@@ -1040,7 +1040,7 @@ gum_exec_block_write_jmp_generated_code (GumArmWriter * cw,
                                          arm_cc cc,
                                          GumExecCtx * ctx)
 {
-  // gconstpointer dest_label = cw->code + 1;
+  gconstpointer dest_label;
   guint8 cond;
   gum_arm_cond_describe(cc, &cond);
 
@@ -1049,21 +1049,20 @@ gum_exec_block_write_jmp_generated_code (GumArmWriter * cw,
       GUM_ADDRESS (&ctx->resume_at));
   gum_arm_writer_put_ldrcc_reg_reg_offset (cw, cc, ARM_REG_R12, ARM_REG_R12,
       GUM_INDEX_POS, 0);
-  gum_arm_writer_put_strcc_reg_reg_offset(cw, cc, ARM_REG_R12, ARM_REG_SP,
-      GUM_INDEX_NEG, 8);
 
-  // gum_arm_writer_put_strcc_reg_label (cw, cc, ARM_REG_R12,
-  //     dest_label);
+  dest_label = cw->code + 1;
+
+  gum_arm_writer_put_strcc_reg_label (cw, cc, ARM_REG_R12,
+      dest_label);
   gum_arm_writer_put_pop_registers(cw, 1, ARM_REG_R12);
 
-  gum_arm_writer_put_ldrcc_reg_reg_offset(cw, cc, ARM_REG_PC, ARM_REG_SP,
-      GUM_INDEX_NEG, 12);
+  gum_arm_writer_put_ldrcc_reg_label (cw, cc, ARM_REG_PC,
+      dest_label);
 
-  // gum_arm_writer_put_ldrcc_reg_label (cw, cc, ARM_REG_PC,
-  //     dest_label);
+  gum_arm_writer_put_brk_imm(cw, 0x17);
 
-  // gum_arm_writer_put_label(cw, dest_label);
-  // gum_arm_writer_put_instruction(cw, 0xcafedead);
+  gum_arm_writer_put_label(cw, dest_label);
+  gum_arm_writer_put_instruction(cw, 0xcafedead);
 }
 
 static void

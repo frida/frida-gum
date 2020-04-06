@@ -462,7 +462,7 @@ gum_arm_writer_try_commit_label_refs (GumArmWriter * self)
       return FALSE;
 
     insn = GUINT32_FROM_LE (*r->insn);
-    insn |= distance & GUM_INT24_MASK;
+    insn |= distance & r->mask;
     *r->insn = GUINT32_TO_LE (insn);
   }
 
