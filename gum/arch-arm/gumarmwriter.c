@@ -770,6 +770,22 @@ gum_arm_writer_put_brk_imm (GumArmWriter * self,
 }
 
 void
+gum_arm_writer_put_add_reg_reg_reg (GumArmWriter * self,
+                                    arm_reg dst_reg,
+                                    arm_reg src_reg1,
+                                    arm_reg src_reg2)
+{
+  GumArmRegInfo rd, rs1, rs2;
+
+  gum_arm_reg_describe (dst_reg, &rd);
+  gum_arm_reg_describe (src_reg1, &rs1);
+  gum_arm_reg_describe (src_reg2, &rs2);
+
+  gum_arm_writer_put_instruction (self, 0xe0800000 | rd.index << 12 |
+      rs1.index << 16 | rs2.index);
+}
+
+void
 gum_arm_writer_put_sub_reg_reg_reg (GumArmWriter * self,
                                     arm_reg dst_reg,
                                     arm_reg src_reg1,

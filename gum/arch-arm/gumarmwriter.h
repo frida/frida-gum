@@ -140,6 +140,9 @@ GUM_API void gum_arm_writer_put_ret (GumArmWriter * self);
 GUM_API void gum_arm_writer_put_brk_imm (GumArmWriter * self,
                                          guint16 imm);
 
+GUM_API void gum_arm_writer_put_add_reg_reg_reg (GumArmWriter * self,
+    arm_reg dst_reg, arm_reg src_reg1, arm_reg src_reg2);
+
 GUM_API void gum_arm_writer_put_sub_reg_reg_reg (GumArmWriter * self,
     arm_reg dst_reg, arm_reg src_reg1, arm_reg src_reg2);
 

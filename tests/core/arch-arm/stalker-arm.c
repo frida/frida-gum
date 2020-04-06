@@ -41,8 +41,8 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (ldr_pc)
   TESTENTRY (sub_pc)
   TESTENTRY (add_pc)
-  TESTENTRY (performance)
   TESTENTRY (can_follow_workload)
+  TESTENTRY (performance)
 TESTLIST_END ()
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
@@ -1214,6 +1214,8 @@ pretend_workload (GumMemoryRange * runner_range)
   gsize outbuf_size;
   const gsize outbuf_size_increment = 1024 * 1024;
 
+  //asm("udf #0x18");
+
   ret = lzma_easy_encoder (&stream, preset, LZMA_CHECK_CRC64);
   g_assert_cmpint (ret, ==, LZMA_OK);
 
@@ -1252,6 +1254,51 @@ pretend_workload (GumMemoryRange * runner_range)
   lzma_end (&stream);
 
   free (outbuf);
+}
+
+extern const void call_workload_code;
+extern void call_workload(GumMemoryRange * runner_range);
+
+asm (
+  "call_workload_code: \n"
+  "call_workload: \n"
+
+  //"udf #0x18 \n"
+
+  "push {lr} \n"
+  "bl pretend_workload \n"
+  "pop {pc} \n"
+);
+
+TESTCASE (can_follow_workload)
+{
+  GumMemoryRange runner_range;
+  runner_range.base_address = 0;
+  runner_range.size = 0;
+  gum_process_enumerate_modules (store_range_of_test_runner, &runner_range);
+  g_assert_true (runner_range.base_address != 0 && runner_range.size != 0);
+
+  call_workload (&runner_range);
+
+  fixture->sink->mask = (GUM_CALL | GUM_RET); // GUM_EXEC |
+
+  GumMemoryRange r = {
+    .base_address = GUM_ADDRESS(0xff539490),
+    .size = 4
+  };
+
+  gum_stalker_exclude (fixture->stalker, &r);
+
+  gum_stalker_follow_me (fixture->stalker, fixture->transformer,
+      GUM_EVENT_SINK (fixture->sink));
+
+  call_workload(&runner_range);
+
+  gum_stalker_unfollow_me (fixture->stalker);
+  show_events(fixture->sink);
+  g_print("call_workload_code: %p\n", &call_workload_code);
+  g_print("MASK: 0x%08x\n", fixture->sink->mask);
+  g_print("EVENTS: %d\n", fixture->sink->events->len);
 }
 
 TESTCASE (performance)
@@ -1308,42 +1355,6 @@ TESTCASE (performance)
   g_print ("<stalker_hot=%f>\n", stalker_hot);
   g_print ("<ratio_cold=%f>\n", stalker_cold / normal_hot);
   g_print ("<ratio_hot=%f>\n", stalker_hot / normal_hot);
-}
-
-extern const void call_workload_code;
-extern void call_workload(GumMemoryRange * runner_range);
-
-asm (
-  "call_workload_code: \n"
-  "call_workload: \n"
-
-  "push {lr} \n"
-  "bl pretend_workload \n"
-  "pop {pc} \n"
-);
-
-TESTCASE (can_follow_workload)
-{
-  GumMemoryRange runner_range;
-  runner_range.base_address = 0;
-  runner_range.size = 0;
-  gum_process_enumerate_modules (store_range_of_test_runner, &runner_range);
-  g_assert_true (runner_range.base_address != 0 && runner_range.size != 0);
-
-  pretend_workload (&runner_range);
-
-  fixture->sink->mask = (GUM_EXEC | GUM_CALL | GUM_RET);
-
-  gum_stalker_follow_me (fixture->stalker, fixture->transformer,
-      GUM_EVENT_SINK (fixture->sink));
-
-  call_workload(&runner_range);
-
-  gum_stalker_unfollow_me (fixture->stalker);
-  show_events(fixture->sink);
-  g_print("call_workload_code: %p\n", &call_workload_code);
-  g_print("MASK: 0x%08x\n", fixture->sink->mask);
-  g_print("EVENTS: %d\n", fixture->sink->events->len);
 }
 
 // Tidy the jump generated code to not use hard-coded instructions

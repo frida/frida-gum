@@ -428,16 +428,65 @@ gum_arm_relocator_rewrite_ldr (GumArmRelocator * self,
 
   disp = src->mem.disp;
 
-  gum_arm_writer_put_ldr_reg_address (ctx->output, dst->reg, ctx->pc);
-  if (disp > 0xff)
+  if (src->mem.index == ARM_REG_INVALID)
   {
+    gum_arm_writer_put_ldr_reg_address (ctx->output, dst->reg, ctx->pc);
+    if (disp > 0xff)
+    {
+      gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
+          0xc00 | ((disp >> 8) & 0xff));
+    }
     gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
-        0xc00 | ((disp >> 8) & 0xff));
+        disp & 0xff);
+
+
+    gum_arm_writer_put_ldr_reg_reg_offset (ctx->output, dst->reg, dst->reg,
+        GUM_INDEX_POS, 0);
   }
-  gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
-      disp & 0xff);
-  gum_arm_writer_put_ldr_reg_reg_offset (ctx->output, dst->reg, dst->reg,
-      GUM_INDEX_POS, 0);
+  else
+  {
+    if (src->mem.lshift != 0)
+    {
+      g_error("ldr with lshift not supported");
+    }
+
+    arm_reg tmp_reg = src->mem.index;
+    if (tmp_reg == dst->reg)
+    {
+      tmp_reg = (dst->reg == ARM_REG_R0) ? ARM_REG_R1 : ARM_REG_R0;
+    }
+
+    gum_arm_writer_put_push_registers(ctx->output, 1, tmp_reg);
+
+    gum_arm_writer_put_mov_reg_reg(ctx->output, tmp_reg, src->mem.index);
+
+    gum_arm_writer_put_ldr_reg_address (ctx->output, dst->reg, ctx->pc);
+
+    if (disp > 0xff)
+    {
+      gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
+          0xc00 | ((disp >> 8) & 0xff));
+    }
+    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
+        disp & 0xff);
+
+
+    if (src->mem.scale == 1)
+    {
+      gum_arm_writer_put_add_reg_reg_reg(ctx->output, dst->reg, dst->reg,
+          tmp_reg);
+    }
+    else
+    {
+      gum_arm_writer_put_sub_reg_reg_reg(ctx->output, dst->reg, dst->reg,
+          tmp_reg);
+    }
+
+    gum_arm_writer_put_pop_registers(ctx->output, 1, tmp_reg);
+
+    gum_arm_writer_put_ldr_reg_reg_offset (ctx->output, dst->reg, dst->reg,
+        GUM_INDEX_POS, 0);
+  }
 
   return TRUE;
 }
