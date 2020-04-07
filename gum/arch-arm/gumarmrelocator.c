@@ -426,19 +426,29 @@ gum_arm_relocator_rewrite_ldr (GumArmRelocator * self,
   if (src->type != ARM_OP_MEM || src->mem.base != ARM_REG_PC)
     return FALSE;
 
+
+
   disp = src->mem.disp;
 
   if (src->mem.index == ARM_REG_INVALID)
   {
     gum_arm_writer_put_ldr_reg_address (ctx->output, dst->reg, ctx->pc);
-    if (disp > 0xff)
+
+
+    if (disp < 0)
+    {
+      gum_arm_writer_put_sub_reg_reg_imm (ctx->output, dst->reg, dst->reg,
+          0xc00 | (((-disp) >> 8) & 0xff));
+      gum_arm_writer_put_sub_reg_reg_imm (ctx->output, dst->reg, dst->reg,
+         (-disp) & 0xff);
+    }
+    else
     {
       gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
           0xc00 | ((disp >> 8) & 0xff));
+      gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
+          disp & 0xff);
     }
-    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
-        disp & 0xff);
-
 
     gum_arm_writer_put_ldr_reg_reg_offset (ctx->output, dst->reg, dst->reg,
         GUM_INDEX_POS, 0);
@@ -462,11 +472,8 @@ gum_arm_relocator_rewrite_ldr (GumArmRelocator * self,
 
     gum_arm_writer_put_ldr_reg_address (ctx->output, dst->reg, ctx->pc);
 
-    if (disp > 0xff)
-    {
-      gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
-          0xc00 | ((disp >> 8) & 0xff));
-    }
+    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
+        0xc00 | ((disp >> 8) & 0xff));
     gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
         disp & 0xff);
 
