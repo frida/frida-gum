@@ -23,6 +23,11 @@ struct _GumCodeGenCtx
 
 static gboolean gum_arm_branch_is_unconditional (const cs_insn * insn);
 
+static gboolean gum_arm_relocator_reg_dest_is_pc (const cs_insn * insn);
+
+static gboolean gum_arm_relocator_reg_list_contains_pc (const cs_insn * insn,
+    guint8 start_idx);
+
 static gboolean gum_arm_relocator_rewrite_ldr (GumArmRelocator * self,
     GumCodeGenCtx * ctx);
 static gboolean gum_arm_relocator_rewrite_add (GumArmRelocator * self,
@@ -157,7 +162,6 @@ gum_arm_relocator_read_one (GumArmRelocator * self,
   const uint8_t * code;
   size_t size;
   uint64_t address;
-  cs_arm_op * op;
 
   if (self->eoi)
     return 0;
@@ -188,42 +192,19 @@ gum_arm_relocator_read_one (GumArmRelocator * self,
       self->eoi = FALSE;
       break;
     case ARM_INS_MOV:
-      op = &insn->detail->arm.operands[0];
-      if (op->type == ARM_OP_REG && op->reg == ARM_REG_PC)
-      {
-        self->eob = TRUE;
-        self->eoi = TRUE;
-      }
-      break;
     case ARM_INS_LDR:
-      op = &insn->detail->arm.operands[0];
-      if (op->type == ARM_OP_REG && op->reg == ARM_REG_PC)
-      {
-        self->eob = TRUE;
-        self->eoi = TRUE;
-      }
-      break;
     case ARM_INS_SUB:
     case ARM_INS_ADD:
-      op = &insn->detail->arm.operands[0];
-      if (op->type == ARM_OP_REG && op->reg == ARM_REG_PC)
-      {
-        self->eob = TRUE;
-        self->eoi = TRUE;
-      }
+      self->eob = gum_arm_relocator_reg_dest_is_pc (insn);
+      self->eoi = gum_arm_relocator_reg_dest_is_pc (insn);
       break;
     case ARM_INS_POP:
+      self->eob = gum_arm_relocator_reg_list_contains_pc (insn, 0);
+      self->eoi = gum_arm_relocator_reg_list_contains_pc (insn, 0);
+      break;
     case ARM_INS_LDM:
-      for (uint8_t idx = 0; idx < insn->detail->arm.op_count; idx++)
-      {
-        op = &insn->detail->arm.operands[idx];
-        if(op->reg == ARM_REG_PC)
-        {
-          self->eob = TRUE;
-          self->eoi = TRUE;
-          break;
-        }
-      }
+      self->eob = gum_arm_relocator_reg_list_contains_pc (insn, 1);
+      self->eoi = gum_arm_relocator_reg_list_contains_pc (insn, 1);
       break;
     default:
       self->eob = FALSE;
@@ -413,6 +394,37 @@ gum_arm_branch_is_unconditional (const cs_insn * insn)
     default:
       return FALSE;
   }
+}
+
+static gboolean
+gum_arm_relocator_reg_dest_is_pc (const cs_insn * insn)
+{
+  cs_arm_op * op = &insn->detail->arm.operands[0];
+  g_assert (op->type == ARM_OP_REG);
+
+  if (op->reg == ARM_REG_PC)
+  {
+    return TRUE;
+  }
+
+  return FALSE;
+}
+
+static gboolean
+gum_arm_relocator_reg_list_contains_pc (const cs_insn * insn, guint8 start_idx)
+{
+  cs_arm_op * op;
+
+  for (uint8_t idx = start_idx; idx < insn->detail->arm.op_count; idx++)
+  {
+    op = &insn->detail->arm.operands[idx];
+    g_assert (op->type != ARM_OP_REG);
+    if (op->reg == ARM_REG_PC)
+    {
+      return TRUE;
+    }
+  }
+  return FALSE;
 }
 
 static gboolean
