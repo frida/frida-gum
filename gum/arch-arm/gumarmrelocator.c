@@ -433,19 +433,16 @@ gum_arm_relocator_rewrite_ldr (GumArmRelocator * self,
 {
   const cs_arm_op * dst = &ctx->detail->operands[0];
   const cs_arm_op * src = &ctx->detail->operands[1];
-  gint disp;
 
   if (src->type != ARM_OP_MEM || src->mem.base != ARM_REG_PC)
     return FALSE;
 
-
-
-  disp = src->mem.disp;
-
+  /* Handle 'ldr Rt, [ Rn, #x ]' or  'ldr Rt, [ Rn, #-x ]'*/
   if (src->mem.index == ARM_REG_INVALID)
   {
-    gum_arm_writer_put_ldr_reg_address (ctx->output, dst->reg, ctx->pc);
+    gint disp = src->mem.disp;
 
+    gum_arm_writer_put_ldr_reg_address (ctx->output, dst->reg, ctx->pc);
 
     if (disp < 0)
     {
@@ -464,48 +461,54 @@ gum_arm_relocator_rewrite_ldr (GumArmRelocator * self,
 
     gum_arm_writer_put_ldr_reg_reg_offset (ctx->output, dst->reg, dst->reg,
         GUM_INDEX_POS, 0);
+
+    return TRUE;
+  }
+
+  /* 'ldr Rt, [Rn, Rm, sft]' no supported */
+  if (src->mem.lshift != 0)
+  {
+    g_error("ldr with shift not supported");
+  }
+
+  /*
+  * Handle 'ldr Rt, [Rn, Rm]' or 'ldr Rt, [Rn, -Rm]'. Note that we know that Rn
+  * must be PC since we otherwise would not need to relocate it (we test this
+  * above). Given that this support is in aid of stalker and stalker replaces
+  * all branch instructions, (those that modify PC) we also know that Rt must
+  * not be PC. However, we cannot be sure that Rt and Rm are not the same
+  * register. Since our target register is not PC, we can update it multiple
+  * times without side-effects as we carry out the calculation.
+  *
+  * We start by loading +-Rm into Rt. If the instruction is to use positive Rm
+  * and Rm == Rt, then the mov instruction is eventually omitted as a no-op. We
+  * then add each byte of the PC to Rt (again any zero bytes are omitted as
+  * being no-op). Finally, once the address of the expression [Rn, +-Rm] in Rt,
+  * we dereference the address and load back into Rt. By performing the
+  * operations in this order, we can avoid the need for an aditional scratch
+  * register.
+  */
+
+  if (src->mem.scale == 1)
+  {
+    gum_arm_writer_put_mov_reg_reg(ctx->output, dst->reg, src->mem.index);
   }
   else
   {
-    if (src->mem.lshift != 0)
-    {
-      g_error("ldr with lshift not supported");
-    }
-
-    arm_reg tmp_reg = src->mem.index;
-    if (tmp_reg == dst->reg)
-    {
-      tmp_reg = (dst->reg == ARM_REG_R0) ? ARM_REG_R1 : ARM_REG_R0;
-    }
-
-    gum_arm_writer_put_push_registers(ctx->output, 1, tmp_reg);
-
-    gum_arm_writer_put_mov_reg_reg(ctx->output, tmp_reg, src->mem.index);
-
-    gum_arm_writer_put_ldr_reg_address (ctx->output, dst->reg, ctx->pc);
-
-    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
-        0xc00 | ((disp >> 8) & 0xff));
-    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
-        disp & 0xff);
-
-
-    if (src->mem.scale == 1)
-    {
-      gum_arm_writer_put_add_reg_reg_reg(ctx->output, dst->reg, dst->reg,
-          tmp_reg);
-    }
-    else
-    {
-      gum_arm_writer_put_sub_reg_reg_reg(ctx->output, dst->reg, dst->reg,
-          tmp_reg);
-    }
-
-    gum_arm_writer_put_pop_registers(ctx->output, 1, tmp_reg);
-
-    gum_arm_writer_put_ldr_reg_reg_offset (ctx->output, dst->reg, dst->reg,
-        GUM_INDEX_POS, 0);
+    gum_arm_writer_put_rsbs_reg_reg(ctx->output, dst->reg, src->mem.index);
   }
+
+  gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
+      ctx->pc & 0xff);
+  gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
+      0xc00 | ((ctx->pc >> 8) & 0xff));
+  gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
+      0x800 | ((ctx->pc >> 16) & 0xff));
+  gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
+      0x400 | ((ctx->pc >> 24) & 0xff));
+
+  gum_arm_writer_put_ldr_reg_reg_offset (ctx->output, dst->reg, dst->reg,
+      GUM_INDEX_POS, 0);
 
   return TRUE;
 }
@@ -523,7 +526,6 @@ gum_arm_relocator_rewrite_add (GumArmRelocator * self,
 
   if (right->type == ARM_OP_IMM)
   {
-    //g_print("%s\t%s\n",ctx->insn->mnemonic, ctx->insn->op_str);
     gum_arm_writer_put_ldr_reg_address (ctx->output, dst->reg, ctx->pc);
 
     gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,

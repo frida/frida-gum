@@ -165,6 +165,9 @@ GUM_API void gum_arm_writer_put_strcc_reg_label (GumArmWriter * self,
 GUM_API void gum_arm_writer_put_ldrcc_reg_label (GumArmWriter * self,
     arm_cc cc, arm_reg reg, gconstpointer label_id);
 
+GUM_API void gum_arm_writer_put_rsbs_reg_reg (GumArmWriter * self,
+    arm_reg dst_reg, arm_reg src_reg);
+
 G_END_DECLS
 
 #endif

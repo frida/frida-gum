@@ -895,3 +895,17 @@ gum_arm_writer_put_ldrcc_reg_label (GumArmWriter * self,
   gum_arm_writer_put_instruction(self, 0x059f0000 | (cond << 28) |
       (r.index << 12));
 }
+
+void
+gum_arm_writer_put_rsbs_reg_reg (GumArmWriter * self,
+                                 arm_reg dst_reg,
+                                 arm_reg src_reg)
+{
+  GumArmRegInfo rd, rs;
+
+  gum_arm_reg_describe (dst_reg, &rd);
+  gum_arm_reg_describe (src_reg, &rs);
+
+  gum_arm_writer_put_instruction (self, 0xe0700000 | rd.index << 12 |
+      rd.index << 16 | rs.index);
+}
