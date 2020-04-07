@@ -1393,17 +1393,27 @@ gum_exec_block_write_handle_kuser_helper (GumExecBlock * block,
     { GUM_ARG_REGISTER, { .reg = ARM_REG_R0}},
   };
 
+  if (target->reg == ARM_REG_INVALID)
+  {
+    if (gum_stalker_is_kuser_helper(target->absolute_address) == FALSE)
+    {
+      return;
+    }
+  }
 
-  gum_exec_ctx_write_mov_branch_target_address (block->ctx,
-                                            target,
-                                            ARM_REG_R0,
-                                            gc);
+  if (target->reg != ARM_REG_INVALID)
+  {
+    gum_exec_ctx_write_mov_branch_target_address (block->ctx,
+                                              target,
+                                              ARM_REG_R0,
+                                              gc);
 
-  gum_arm_writer_put_call_address_with_arguments_array (cw,
-    GUM_ADDRESS (gum_stalker_is_kuser_helper), 1, args);
+    gum_arm_writer_put_call_address_with_arguments_array (cw,
+      GUM_ADDRESS (gum_stalker_is_kuser_helper), 1, args);
 
-  gum_arm_writer_put_cmp_reg_imm(cw, ARM_REG_R0, 0);
-  gum_arm_writer_put_bcc_label(cw, ARM_CC_EQ, not_kuh);
+    gum_arm_writer_put_cmp_reg_imm(cw, ARM_REG_R0, 0);
+    gum_arm_writer_put_bcc_label(cw, ARM_CC_EQ, not_kuh);
+  }
 
   gum_exec_ctx_write_mov_branch_target_address (block->ctx,
                                           target,
@@ -1436,7 +1446,10 @@ gum_exec_block_write_handle_kuser_helper (GumExecBlock * block,
   gum_arm_writer_put_label(gc->code_writer, kuh_label);
   gum_arm_writer_put_instruction(gc->code_writer, 0xdeadface);
 
-  gum_arm_writer_put_label (cw, not_kuh);
+  if (target->reg != ARM_REG_INVALID)
+  {
+    gum_arm_writer_put_label (cw, not_kuh);
+  }
 }
 
 static void gum_exec_block_virtualize_branch_insn (
