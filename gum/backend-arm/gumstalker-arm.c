@@ -158,6 +158,9 @@ struct _GumBranchTarget
   guint32 shift_value;
 };
 
+guint32 g_count = 0;
+guint32 g_events = 0;
+
 gboolean
 gum_stalker_is_supported (void)
 {
@@ -551,8 +554,6 @@ gum_stalker_destroy_exec_ctx (GumStalker * self,
   gum_exec_ctx_free (ctx);
 }
 
-guint32 g_count = 0;
-
 gpointer
 _gum_stalker_do_follow_me (GumStalker * self,
                            GumStalkerTransformer * transformer,
@@ -560,6 +561,7 @@ _gum_stalker_do_follow_me (GumStalker * self,
                            gpointer ret_addr)
 {
   g_count = 0;
+  g_events = 0;
   GumEventType mask = gum_event_sink_query_mask(sink);
   if (mask & GUM_COMPILE)
   {
@@ -658,6 +660,8 @@ gum_exec_ctx_emit_exec_event (GumExecCtx * ctx,
   exec->location = location;
 
   ctx->sink_process_impl (ctx->sink, &ev);
+  g_print("%3d: { type: %s, location: 0x%08x }\n", ++g_events,
+        "GUM_EXEC", (guint)exec->location);
 }
 
 static void
@@ -674,6 +678,8 @@ gum_exec_ctx_emit_block_event (GumExecCtx * ctx,
   block->end = end;
 
   ctx->sink_process_impl (ctx->sink, &ev);
+  g_print("%3d: { type: %s, begin: 0x%08x, end: 0x%08x }\n", ++g_events,
+        "GUM_BLOCK",    (guint)block->begin, (guint)block->end);
 }
 
 static void
@@ -691,6 +697,9 @@ gum_exec_ctx_emit_call_event (GumExecCtx * ctx,
   call->depth = ctx->first_frame - ctx->current_frame;
 
   ctx->sink_process_impl (ctx->sink, &ev);
+  g_print("%3d: { type: %s, location: 0x%08x, "
+        "target: 0x%08x, depth: %u }\n",
+          ++g_events, "GUM_CALL", (guint)call->location, (guint)call->target, call->depth);
 }
 
 static void
@@ -708,6 +717,10 @@ gum_exec_ctx_emit_ret_event (GumExecCtx * ctx,
   ret->depth = ctx->first_frame - ctx->current_frame;
 
   ctx->sink_process_impl (ctx->sink, &ev);
+
+  g_print("%3d: { type: %s, location: 0x%08x, "
+        "target: 0x%08x, depth: %u }\n",
+        ++g_events, "GUM_RET", (guint)ret->location, (guint)ret->target, ret->depth);
 }
 
 static void
@@ -1118,7 +1131,15 @@ static void
 gum_exec_block_pop_stack_frame (GumExecCtx * ctx,
                                  gpointer ret_real_address)
 {
-  ctx->current_frame++;
+  GumExecFrame * next_frame;
+  if (ctx->current_frame != ctx->first_frame)
+  {
+    next_frame = ctx->current_frame + 1;
+    if (next_frame->real_address == ret_real_address)
+    {
+      ctx->current_frame = next_frame;
+    }
+  }
 }
 
 static void
@@ -1321,35 +1342,19 @@ gum_exec_block_write_handle_not_taken (GumExecBlock * block,
   }
 }
 
-static void gum_exec_block_virtualize_branch_insn (
-    GumExecBlock * block, const GumBranchTarget * target,
-    arm_cc cc, GumGeneratorContext * gc)
+void
+gum_exec_block_write_handle_thumb (GumExecBlock * block,
+                                      const GumBranchTarget * target,
+                                      arm_cc cc,
+                                      GumGeneratorContext * gc)
 {
-  GumExecCtx * ec = block->ctx;
   GumArmWriter * cw = gc->code_writer;
+  gconstpointer not_thumb = cw->code + 1;
 
-  gconstpointer not_thumb = cw->code + 2;
-  gconstpointer not_kuh = cw->code + 3;
-  gconstpointer kuh_label = cw->code + 4;
-
-  GumArgument target_args[] =
+  GumArgument args[] =
   {
     { GUM_ARG_REGISTER, { .reg = ARM_REG_R0}},
   };
-
-  gum_exec_block_write_handle_not_taken (block, target, cc, gc);
-
-  gum_exec_block_open_prolog (block, gc);
-
-  if ((ec->sink_mask & GUM_EXEC) != 0)
-  {
-    gum_exec_block_write_exec_event_code (block, gc);
-  }
-
-  if ((ec->sink_mask & GUM_BLOCK) != 0)
-  {
-    gum_exec_block_write_block_event_code (block, gc);
-  }
 
   gum_exec_ctx_write_mov_branch_target_address (block->ctx,
                                             target,
@@ -1357,13 +1362,30 @@ static void gum_exec_block_virtualize_branch_insn (
                                             gc);
 
   gum_arm_writer_put_call_address_with_arguments_array (cw,
-    GUM_ADDRESS (gum_stalker_is_thumb), 1, target_args);
+    GUM_ADDRESS (gum_stalker_is_thumb), 1, args);
 
   gum_arm_writer_put_cmp_reg_imm(cw, ARM_REG_R0, 0);
   gum_arm_writer_put_bcc_label(cw, ARM_CC_EQ, not_thumb);
   gum_exec_block_close_prolog (block, gc);
   gum_arm_relocator_write_one (gc->relocator);
   gum_arm_writer_put_label (cw, not_thumb);
+}
+
+void
+gum_exec_block_write_handle_kuser_helper (GumExecBlock * block,
+                                      const GumBranchTarget * target,
+                                      arm_cc cc,
+                                      GumGeneratorContext * gc)
+{
+  GumArmWriter * cw = gc->code_writer;
+  gconstpointer not_kuh = cw->code + 1;
+  gconstpointer kuh_label = cw->code + 2;
+
+  GumArgument args[] =
+  {
+    { GUM_ARG_REGISTER, { .reg = ARM_REG_R0}},
+  };
+
 
   gum_exec_ctx_write_mov_branch_target_address (block->ctx,
                                             target,
@@ -1371,7 +1393,7 @@ static void gum_exec_block_virtualize_branch_insn (
                                             gc);
 
   gum_arm_writer_put_call_address_with_arguments_array (cw,
-    GUM_ADDRESS (gum_stalker_is_kuser_helper), 1, target_args);
+    GUM_ADDRESS (gum_stalker_is_kuser_helper), 1, args);
 
   gum_arm_writer_put_cmp_reg_imm(cw, ARM_REG_R0, 0);
   gum_arm_writer_put_bcc_label(cw, ARM_CC_EQ, not_kuh);
@@ -1408,6 +1430,30 @@ static void gum_exec_block_virtualize_branch_insn (
   gum_arm_writer_put_instruction(gc->code_writer, 0xdeadface);
 
   gum_arm_writer_put_label (cw, not_kuh);
+}
+
+static void gum_exec_block_virtualize_branch_insn (
+    GumExecBlock * block, const GumBranchTarget * target,
+    arm_cc cc, GumGeneratorContext * gc)
+{
+  GumExecCtx * ec = block->ctx;
+
+  gum_exec_block_write_handle_not_taken (block, target, cc, gc);
+
+  gum_exec_block_open_prolog (block, gc);
+
+  if ((ec->sink_mask & GUM_EXEC) != 0)
+  {
+    gum_exec_block_write_exec_event_code (block, gc);
+  }
+
+  if ((ec->sink_mask & GUM_BLOCK) != 0)
+  {
+    gum_exec_block_write_block_event_code (block, gc);
+  }
+
+  gum_exec_block_write_handle_thumb (block, target, cc, gc);
+  gum_exec_block_write_handle_kuser_helper (block, target, cc, gc);
 
   gum_exec_block_write_call_replace_current_block_with (block, target, gc);
   gum_exec_block_close_prolog (block, gc);
