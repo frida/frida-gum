@@ -1278,8 +1278,6 @@ TESTCASE (can_follow_workload)
   gum_process_enumerate_modules (store_range_of_test_runner, &runner_range);
   g_assert_true (runner_range.base_address != 0 && runner_range.size != 0);
 
-  g_print("runner_range.size: %d\n", runner_range.size);
-
   runner_range.size = 16;
 
   call_workload (&runner_range);
@@ -1299,10 +1297,7 @@ TESTCASE (can_follow_workload)
   call_workload(&runner_range);
 
   gum_stalker_unfollow_me (fixture->stalker);
-  show_events(fixture->sink);
-  g_print("call_workload_code: %p\n", &call_workload_code);
-  g_print("MASK: 0x%08x\n", fixture->sink->mask);
-  g_print("EVENTS: %d\n", fixture->sink->events->len);
+  g_print ("\nEVENTS: %d\n", fixture->sink->events->len);
 }
 
 TESTCASE (performance)
@@ -1354,7 +1349,7 @@ TESTCASE (performance)
   gum_stalker_unfollow_me (fixture->stalker);
 
   g_timer_destroy (timer);
-
+  g_print ("\n");
   g_print ("<normal_cold=%f>\n", normal_cold);
   g_print ("<normal_hot=%f>\n", normal_hot);
   g_print ("<stalker_cold=%f>\n", stalker_cold);

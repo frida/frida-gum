@@ -46,50 +46,6 @@ typedef gint (* StalkerTestFunc) (gint arg);
 
 static void silence_warnings (void);
 
-static void show_events(GumFakeEventSink* sink)
-{
-  GumEvent* e;
-  GumCallEvent* call;
-  GumRetEvent* ret;
-  GumBlockEvent* block;
-  GumExecEvent* exec;
-  guint len = sink->events->len;
-
-  for (guint idx = 0; idx < len; idx++) {
-    e = &g_array_index (sink->events, GumEvent, idx);
-    switch(e->type)
-    {
-      case GUM_CALL:
-        call =
-          &g_array_index (sink->events, GumEvent, idx).call;
-        g_print("%3d: { type: %s, location: 0x%08x, "
-                "target: 0x%08x, depth: %u }\n",
-                 idx, "GUM_CALL", (guint)call->location, (guint)call->target, call->depth);
-        break;
-      case GUM_RET:
-        ret =
-          &g_array_index (sink->events, GumEvent, idx).ret;
-        g_print("%3d: { type: %s, location: 0x%08x, "
-                "target: 0x%08x, depth: %u }\n",
-                idx, "GUM_RET", (guint)ret->location, (guint)ret->target, ret->depth);
-        break;
-
-      case GUM_EXEC:
-        exec =
-          &g_array_index (sink->events, GumEvent, idx).exec;
-        g_print("%3d: { type: %s, location: 0x%08x }\n", idx,
-                "GUM_EXEC", (guint)exec->location);
-        break;
-      case GUM_BLOCK:
-        block =
-          &g_array_index (sink->events, GumEvent, idx).block;
-        g_print("%3d: { type: %s, begin: 0x%08x, end: 0x%08x }\n", idx,
-                "GUM_BLOCK",    (guint)block->begin, (guint)block->end);
-        break;
-    }
-  }
-}
-
 static void
 test_arm_stalker_fixture_setup (TestArmStalkerFixture * fixture,
                                   gconstpointer data)
@@ -167,11 +123,7 @@ test_arm_stalker_fixture_follow_and_invoke (TestArmStalkerFixture * fixture,
   spec.max_distance = G_MAXINT32 / 2;
   fixture->invoker = gum_alloc_n_pages_near (1, GUM_PAGE_RW, &spec);
 
-  g_print("\n");
-  g_print("func: 0x%08x\n", (guint)func);
-
   gint orig_ret = func(arg);
-  g_print("orig_ret: 0x%08x\n", (guint)orig_ret);
 
   gum_arm_writer_init (&cw, fixture->invoker);
   //gum_arm_writer_put_brk_imm(&cw, 10);
@@ -212,8 +164,6 @@ test_arm_stalker_fixture_follow_and_invoke (TestArmStalkerFixture * fixture,
   invoke_func ();
 
   g_assert_cmpuint(orig_ret, ==, ret);
-
-  show_events(fixture->sink);
 
   gum_free_pages (fixture->invoker);
 

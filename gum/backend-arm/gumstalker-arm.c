@@ -1274,16 +1274,27 @@ gum_exec_block_write_handle_excluded (GumExecBlock * block,
     { GUM_ARG_REGISTER, { .reg = ARM_REG_R1}},
   };
 
-  gum_exec_ctx_write_mov_branch_target_address (block->ctx,
-                                            target,
-                                            ARM_REG_R1,
-                                            gc);
+  if (target->reg == ARM_REG_INVALID)
+  {
+    if (gum_stalker_is_excluding(block->ctx, target->absolute_address) == FALSE)
+    {
+      return;
+    }
+  }
 
-  gum_arm_writer_put_call_address_with_arguments_array (cw,
-    GUM_ADDRESS (gum_stalker_is_excluding), 2, args);
+  if (target->reg != ARM_REG_INVALID)
+  {
+    gum_exec_ctx_write_mov_branch_target_address (block->ctx,
+                                              target,
+                                              ARM_REG_R1,
+                                              gc);
 
-  gum_arm_writer_put_cmp_reg_imm(cw, ARM_REG_R0, 0);
-  gum_arm_writer_put_bcc_label(cw, ARM_CC_EQ, not_excluded);
+    gum_arm_writer_put_call_address_with_arguments_array (cw,
+      GUM_ADDRESS (gum_stalker_is_excluding), 2, args);
+
+    gum_arm_writer_put_cmp_reg_imm(cw, ARM_REG_R0, 0);
+    gum_arm_writer_put_bcc_label(cw, ARM_CC_EQ, not_excluded);
+  }
 
   if (call)
   {
@@ -1318,7 +1329,10 @@ gum_exec_block_write_handle_excluded (GumExecBlock * block,
 
   gum_arm_writer_put_brk_imm(cw, 15);
 
-  gum_arm_writer_put_label (cw, not_excluded);
+  if (target->reg != ARM_REG_INVALID)
+  {
+    gum_arm_writer_put_label (cw, not_excluded);
+  }
 }
 
 void
