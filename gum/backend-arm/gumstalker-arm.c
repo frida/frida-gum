@@ -551,6 +551,7 @@ gum_stalker_destroy_exec_ctx (GumStalker * self,
   gum_exec_ctx_free (ctx);
 }
 
+guint32 g_count = 0;
 
 gpointer
 _gum_stalker_do_follow_me (GumStalker * self,
@@ -558,7 +559,7 @@ _gum_stalker_do_follow_me (GumStalker * self,
                            GumEventSink * sink,
                            gpointer ret_addr)
 {
-
+  g_count = 0;
   GumEventType mask = gum_event_sink_query_mask(sink);
   if (mask & GUM_COMPILE)
   {
@@ -1277,26 +1278,20 @@ gum_exec_block_write_handle_excluded (GumExecBlock * block,
   gum_arm_writer_put_label (cw, not_excluded);
 }
 
-static void gum_exec_block_virtualize_branch_insn (
-    GumExecBlock * block, const GumBranchTarget * target,
-    arm_cc cc, GumGeneratorContext * gc)
+void
+gum_exec_block_write_handle_not_taken (GumExecBlock * block,
+                                      const GumBranchTarget * target,
+                                      arm_cc cc,
+                                      GumGeneratorContext * gc)
 {
   GumExecCtx * ec = block->ctx;
   GumArmWriter * cw = gc->code_writer;
   gconstpointer taken = cw->code + 1;
-  gconstpointer not_thumb = cw->code + 2;
-  gconstpointer not_kuh = cw->code + 3;
-  gconstpointer kuh_label = cw->code + 4;
 
   GumArgument replace_args[] =
   {
     { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (block->ctx)}},
     { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (gc->instruction->end)}},
-  };
-
-  GumArgument target_args[] =
-  {
-    { GUM_ARG_REGISTER, { .reg = ARM_REG_R0}},
   };
 
   if (cc != ARM_CC_AL)
@@ -1324,6 +1319,25 @@ static void gum_exec_block_virtualize_branch_insn (
 
     gum_arm_writer_put_label (cw, taken);
   }
+}
+
+static void gum_exec_block_virtualize_branch_insn (
+    GumExecBlock * block, const GumBranchTarget * target,
+    arm_cc cc, GumGeneratorContext * gc)
+{
+  GumExecCtx * ec = block->ctx;
+  GumArmWriter * cw = gc->code_writer;
+
+  gconstpointer not_thumb = cw->code + 2;
+  gconstpointer not_kuh = cw->code + 3;
+  gconstpointer kuh_label = cw->code + 4;
+
+  GumArgument target_args[] =
+  {
+    { GUM_ARG_REGISTER, { .reg = ARM_REG_R0}},
+  };
+
+  gum_exec_block_write_handle_not_taken (block, target, cc, gc);
 
   gum_exec_block_open_prolog (block, gc);
 
@@ -1407,34 +1421,8 @@ static void gum_exec_block_virtualize_call_insn (
 {
   GumExecCtx * ec = block->ctx;
   gpointer ret_real_address = gc->instruction->end;
-  gpointer taken;
 
-  if (cc != ARM_CC_AL)
-  {
-    taken = gc->code_writer->code + 1;
-    gum_arm_writer_put_bcc_label(gc->code_writer, cc, taken);
-
-    gum_exec_block_open_prolog (block, gc);
-
-    if ((ec->sink_mask & GUM_EXEC) != 0)
-    {
-      gum_exec_block_write_exec_event_code (block, gc);
-    }
-
-    GumArgument args[] =
-    {
-      { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (block->ctx)}},
-      { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (gc->instruction->end)}},
-    };
-    gum_arm_writer_put_call_address_with_arguments_array (gc->code_writer,
-        GUM_ADDRESS (gum_exec_ctx_replace_current_block_with), 2, args);
-
-    gum_exec_block_close_prolog (block, gc);
-    gum_exec_block_write_jmp_generated_code(gc->code_writer, ARM_CC_AL,
-      block->ctx);
-
-    gum_arm_writer_put_label (gc->code_writer, taken);
-  }
+  gum_exec_block_write_handle_not_taken (block, target, cc, gc);
 
   gum_exec_block_open_prolog (block, gc);
 
@@ -1464,7 +1452,9 @@ static void gum_exec_block_virtualize_ret_insn (
     GumGeneratorContext * gc)
 {
   GumExecCtx * ec = block->ctx;
-  gum_arm_relocator_skip_one (gc->relocator);
+
+  gum_exec_block_write_handle_not_taken (block, target, cc, gc);
+
   gum_exec_block_open_prolog (block, gc);
 
   if ((ec->sink_mask & GUM_EXEC) != 0)
@@ -1524,8 +1514,8 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
   GumArmRegInfo ri;
   gushort mask = 0;
 
-  g_print("%p: %s\t%s = 0x%08x, id: %d\n",
-    gc->instruction->begin, insn->mnemonic,
+  g_print("%08d - %p: %s\t%s = 0x%08x, id: %d\n",
+    ++g_count, gc->instruction->begin, insn->mnemonic,
     insn->op_str, *(guint*)gc->instruction->begin, insn->id);
 
   if (gum_arm_relocator_eob (gc->relocator))
@@ -1703,12 +1693,12 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         gum_exec_block_virtualize_call_insn(block, &target, arm->cc, gc);
         break;
       case ARM_INS_MOV:
-        gum_exec_block_virtualize_ret_insn(block, &target, ARM_CC_AL, FALSE,
+        gum_exec_block_virtualize_ret_insn(block, &target, arm->cc, FALSE,
             0, gc);
         break;
       case ARM_INS_POP:
       case ARM_INS_LDM:
-        gum_exec_block_virtualize_ret_insn(block, &target, ARM_CC_AL, TRUE,
+        gum_exec_block_virtualize_ret_insn(block, &target, arm->cc, TRUE,
             mask, gc);
         break;
       default:
