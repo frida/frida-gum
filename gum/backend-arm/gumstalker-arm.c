@@ -1351,18 +1351,13 @@ gum_exec_block_write_handle_thumb (GumExecBlock * block,
   GumArmWriter * cw = gc->code_writer;
   gconstpointer not_thumb = cw->code + 1;
 
-  GumArgument args[] =
-  {
-    { GUM_ARG_REGISTER, { .reg = ARM_REG_R0}},
-  };
-
   gum_exec_ctx_write_mov_branch_target_address (block->ctx,
                                             target,
                                             ARM_REG_R0,
                                             gc);
 
-  gum_arm_writer_put_call_address_with_arguments_array (cw,
-    GUM_ADDRESS (gum_stalker_is_thumb), 1, args);
+  gum_arm_writer_put_and_reg_reg_imm(gc->code_writer, ARM_REG_R0, ARM_REG_R0,
+      1);
 
   gum_arm_writer_put_cmp_reg_imm(cw, ARM_REG_R0, 0);
   gum_arm_writer_put_bcc_label(cw, ARM_CC_EQ, not_thumb);
