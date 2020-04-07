@@ -1248,6 +1248,7 @@ gum_stalker_is_excluding (GumExecCtx * ctx,
 void
 gum_exec_block_write_handle_excluded (GumExecBlock * block,
                                       const GumBranchTarget * target,
+                                      gboolean call,
                                       GumGeneratorContext * gc)
 {
   GumInstruction * insn = gc->instruction;
@@ -1271,15 +1272,23 @@ gum_exec_block_write_handle_excluded (GumExecBlock * block,
   gum_arm_writer_put_cmp_reg_imm(cw, ARM_REG_R0, 0);
   gum_arm_writer_put_bcc_label(cw, ARM_CC_EQ, not_excluded);
 
-  gum_arm_writer_put_call_address_with_arguments_array (cw,
-      GUM_ADDRESS (gum_exec_ctx_begin_call), 2, args);
+  if (call)
+  {
+    gum_arm_writer_put_call_address_with_arguments_array (cw,
+        GUM_ADDRESS (gum_exec_ctx_begin_call), 2, args);
+  }
+
   gum_exec_block_close_prolog (block, gc);
 
   gum_arm_relocator_write_one (gc->relocator);
 
   gum_exec_block_open_prolog (block, gc);
-  gum_arm_writer_put_call_address_with_arguments_array (cw,
-      GUM_ADDRESS (gum_exec_ctx_end_call), 1, args);
+
+  if (call)
+  {
+    gum_arm_writer_put_call_address_with_arguments_array (cw,
+        GUM_ADDRESS (gum_exec_ctx_end_call), 1, args);
+  }
 
   GumArgument jmp_args[] =
   {
@@ -1340,30 +1349,6 @@ gum_exec_block_write_handle_not_taken (GumExecBlock * block,
 
     gum_arm_writer_put_label (cw, taken);
   }
-}
-
-void
-gum_exec_block_write_handle_thumb (GumExecBlock * block,
-                                      const GumBranchTarget * target,
-                                      arm_cc cc,
-                                      GumGeneratorContext * gc)
-{
-  GumArmWriter * cw = gc->code_writer;
-  gconstpointer not_thumb = cw->code + 1;
-
-  gum_exec_ctx_write_mov_branch_target_address (block->ctx,
-                                            target,
-                                            ARM_REG_R0,
-                                            gc);
-
-  gum_arm_writer_put_and_reg_reg_imm(gc->code_writer, ARM_REG_R0, ARM_REG_R0,
-      1);
-
-  gum_arm_writer_put_cmp_reg_imm(cw, ARM_REG_R0, 0);
-  gum_arm_writer_put_bcc_label(cw, ARM_CC_EQ, not_thumb);
-  gum_exec_block_close_prolog (block, gc);
-  gum_arm_relocator_write_one (gc->relocator);
-  gum_arm_writer_put_label (cw, not_thumb);
 }
 
 void
@@ -1447,7 +1432,7 @@ static void gum_exec_block_virtualize_branch_insn (
     gum_exec_block_write_block_event_code (block, gc);
   }
 
-  gum_exec_block_write_handle_thumb (block, target, cc, gc);
+  gum_exec_block_write_handle_excluded (block, target, FALSE, gc);
   gum_exec_block_write_handle_kuser_helper (block, target, cc, gc);
 
   gum_exec_block_write_call_replace_current_block_with (block, target, gc);
@@ -1478,7 +1463,7 @@ static void gum_exec_block_virtualize_call_insn (
     gum_exec_block_write_call_event_code (block, target, gc);
   }
 
-  gum_exec_block_write_handle_excluded (block, target, gc);
+  gum_exec_block_write_handle_excluded (block, target, TRUE, gc);
   gum_exec_block_write_call_replace_current_block_with (block, target, gc);
   gum_exec_block_write_push_stack_frame(block, ret_real_address, gc);
   gum_exec_block_close_prolog (block, gc);
