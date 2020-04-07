@@ -1278,7 +1278,7 @@ TESTCASE (can_follow_workload)
   runner_range.base_address = 0;
   runner_range.size = 0;
   gum_process_enumerate_modules (store_range_of_test_runner, &runner_range);
-  g_assert_true (runner_range.base_address != 0 && runner_range.size != 0);
+  g_assert_true (runner_range.base_address != 0 && runner_range.size >= 16);
 
   runner_range.size = 16;
 
@@ -1318,7 +1318,7 @@ TESTCASE (performance)
   runner_range.base_address = 0;
   runner_range.size = 0;
   gum_process_enumerate_modules (store_range_of_test_runner, &runner_range);
-  g_assert_true (runner_range.base_address != 0 && runner_range.size != 0);
+  g_assert_true (runner_range.base_address != 0 && runner_range.size >= 1024);
 
   runner_range.size = 1024;
 
