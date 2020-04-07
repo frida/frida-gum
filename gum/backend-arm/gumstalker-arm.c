@@ -770,10 +770,9 @@ static void
 gum_exec_ctx_write_epilog (GumExecCtx * ctx,
                            GumArmWriter * cw)
 {
-  gum_arm_writer_put_pop_registers(cw, 1, ARM_REG_R0);
+  gum_arm_writer_put_pop_registers(cw, 3,
+    ARM_REG_R0, ARM_REG_R1, ARM_REG_R2);
   gum_arm_writer_put_mov_reg_to_cpsr(cw, ARM_REG_R0);
-
-  gum_arm_writer_put_add_reg_reg_imm(cw, ARM_REG_SP, ARM_REG_SP, 8);
 
   gum_arm_writer_put_pop_registers(cw, 5,
     ARM_REG_R8, ARM_REG_R9, ARM_REG_R10, ARM_REG_R11,
