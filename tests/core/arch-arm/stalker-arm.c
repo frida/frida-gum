@@ -1280,7 +1280,7 @@ TESTCASE (can_follow_workload)
 
   g_print("runner_range.size: %d\n", runner_range.size);
 
-  runner_range.size = 1024;
+  runner_range.size = 16;
 
   call_workload (&runner_range);
 

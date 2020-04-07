@@ -158,6 +158,7 @@ struct _GumBranchTarget
   guint32 shift_value;
 };
 
+gboolean g_debug = FALSE;
 guint32 g_count = 0;
 guint32 g_events = 0;
 
@@ -660,8 +661,11 @@ gum_exec_ctx_emit_exec_event (GumExecCtx * ctx,
   exec->location = location;
 
   ctx->sink_process_impl (ctx->sink, &ev);
-  g_print("%3d: { type: %s, location: 0x%08x }\n", ++g_events,
-        "GUM_EXEC", (guint)exec->location);
+  if (g_debug)
+  {
+    g_print("%3d: { type: %s, location: 0x%08x }\n", ++g_events,
+          "GUM_EXEC", (guint)exec->location);
+  }
 }
 
 static void
@@ -678,8 +682,11 @@ gum_exec_ctx_emit_block_event (GumExecCtx * ctx,
   block->end = end;
 
   ctx->sink_process_impl (ctx->sink, &ev);
-  g_print("%3d: { type: %s, begin: 0x%08x, end: 0x%08x }\n", ++g_events,
+  if (g_debug)
+  {
+    g_print("%3d: { type: %s, begin: 0x%08x, end: 0x%08x }\n", ++g_events,
         "GUM_BLOCK",    (guint)block->begin, (guint)block->end);
+  }
 }
 
 static void
@@ -697,9 +704,12 @@ gum_exec_ctx_emit_call_event (GumExecCtx * ctx,
   call->depth = ctx->first_frame - ctx->current_frame;
 
   ctx->sink_process_impl (ctx->sink, &ev);
-  g_print("%3d: { type: %s, location: 0x%08x, "
+  if (g_debug)
+  {
+    g_print("%3d: { type: %s, location: 0x%08x, "
         "target: 0x%08x, depth: %u }\n",
           ++g_events, "GUM_CALL", (guint)call->location, (guint)call->target, call->depth);
+  }
 }
 
 static void
@@ -718,9 +728,12 @@ gum_exec_ctx_emit_ret_event (GumExecCtx * ctx,
 
   ctx->sink_process_impl (ctx->sink, &ev);
 
-  g_print("%3d: { type: %s, location: 0x%08x, "
+  if (g_debug)
+  {
+    g_print("%3d: { type: %s, location: 0x%08x, "
         "target: 0x%08x, depth: %u }\n",
         ++g_events, "GUM_RET", (guint)ret->location, (guint)ret->target, ret->depth);
+  }
 }
 
 static void
@@ -1541,13 +1554,19 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
   GumArmRegInfo ri;
   gushort mask = 0;
 
-  g_print("%08d - %p: %s\t%s = 0x%08x, id: %d\n",
-    ++g_count, gc->instruction->begin, insn->mnemonic,
-    insn->op_str, *(guint*)gc->instruction->begin, insn->id);
+  if (g_debug)
+  {
+    g_print("%08d - %p: %s\t%s = 0x%08x, id: %d\n",
+        ++g_count, gc->instruction->begin, insn->mnemonic,
+        insn->op_str, *(guint*)gc->instruction->begin, insn->id);
+  }
 
   if (gum_arm_relocator_eob (gc->relocator))
   {
-    g_print("\n");
+    if (g_debug)
+    {
+      g_print("\n");
+    }
 
     switch (insn->id)
     {
