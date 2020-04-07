@@ -1278,9 +1278,13 @@ TESTCASE (can_follow_workload)
   gum_process_enumerate_modules (store_range_of_test_runner, &runner_range);
   g_assert_true (runner_range.base_address != 0 && runner_range.size != 0);
 
+  g_print("runner_range.size: %d\n", runner_range.size);
+
+  runner_range.size = 1024;
+
   call_workload (&runner_range);
 
-  fixture->sink->mask = (GUM_EXEC | GUM_CALL | GUM_RET); //
+  fixture->sink->mask = ( GUM_CALL | GUM_RET);
 
   GumMemoryRange r = {
     .base_address = GUM_ADDRESS(0xff539490),
@@ -1313,6 +1317,8 @@ TESTCASE (performance)
   runner_range.size = 0;
   gum_process_enumerate_modules (store_range_of_test_runner, &runner_range);
   g_assert_true (runner_range.base_address != 0 && runner_range.size != 0);
+
+  runner_range.size = 1024;
 
   timer = g_timer_new ();
   pretend_workload (&runner_range);
