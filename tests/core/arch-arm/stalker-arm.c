@@ -1273,6 +1273,8 @@ asm (
 TESTCASE (can_follow_workload)
 {
   GumMemoryRange runner_range;
+  GumRetEvent * ev;
+
   runner_range.base_address = 0;
   runner_range.size = 0;
   gum_process_enumerate_modules (store_range_of_test_runner, &runner_range);
@@ -1282,7 +1284,7 @@ TESTCASE (can_follow_workload)
 
   call_workload (&runner_range);
 
-  fixture->sink->mask = ( GUM_CALL | GUM_RET);
+  fixture->sink->mask = ( GUM_RET );
 
   GumMemoryRange r = {
     .base_address = GUM_ADDRESS(0xff539490),
@@ -1298,6 +1300,11 @@ TESTCASE (can_follow_workload)
 
   gum_stalker_unfollow_me (fixture->stalker);
   g_print ("\nEVENTS: %d\n", fixture->sink->events->len);
+
+  ev =
+    &g_array_index (fixture->sink->events, GumEvent,
+        (fixture->sink->events->len - 1)).ret;
+  GUM_ASSERT_CMPADDR (ev->location, ==, &call_workload_code + 8);
 }
 
 TESTCASE (performance)
