@@ -1456,6 +1456,7 @@ static void gum_exec_block_virtualize_branch_insn (
   gum_exec_block_write_handle_kuser_helper (block, target, cc, gc);
 
   gum_exec_block_write_call_replace_current_block_with (block, target, gc);
+  gum_exec_block_write_pop_stack_frame(block, target, gc);
   gum_exec_block_close_prolog (block, gc);
   gum_exec_block_write_jmp_generated_code(gc->code_writer, ARM_CC_AL,
       block->ctx);
