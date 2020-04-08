@@ -68,6 +68,9 @@ struct _BranchScenario
 static void branch_scenario_execute (BranchScenario * bs,
     TestArmRelocatorFixture * fixture);
 
+static void
+show_disassembly(guint32 * input, gsize length);
+
 TESTCASE (pc_relative_ldr_should_be_rewritten)
 {
   BranchScenario bs = {
@@ -291,7 +294,37 @@ branch_scenario_execute (BranchScenario * bs,
   {
     g_print ("\n\nGenerated code is not equal to expected code:\n\n%s\n",
         diff);
+
+    g_print ("\n\nExpected:\n\n");
+    show_disassembly (bs->expected_output, bs->expected_output_length);
+
+    g_print ("\n\nWrong:\n\n");
+    show_disassembly ((guint32 *)fixture->output, bs->expected_output_length);
   }
 
   g_assert_true (same_content);
+}
+
+static void
+show_disassembly(guint32 * input, gsize length)
+{
+  csh capstone;
+  cs_err err;
+  cs_insn * insn = NULL;
+  gsize idx;
+
+  err = cs_open (CS_ARCH_ARM, CS_MODE_ARM, &capstone);
+  g_assert (err == CS_ERR_OK);
+  err = cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
+  g_assert (err == CS_ERR_OK);
+
+  for (idx = 0; idx < length; idx++)
+  {
+    cs_disasm (capstone, (guint8 *)&input[idx], 4,
+        GPOINTER_TO_SIZE (&input[idx]), 1, &insn);
+
+    g_print ("%s %s\n", insn->mnemonic, insn->op_str);
+  }
+
+  cs_close (&capstone);
 }
