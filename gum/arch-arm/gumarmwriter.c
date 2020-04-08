@@ -366,6 +366,8 @@ void
 gum_arm_writer_put_add_reg_u16 (GumArmWriter * self,
                                 arm_reg dst_reg,
                                 guint16 val)
+
+
 {
   gum_arm_writer_put_add_reg_reg_imm (self, dst_reg, dst_reg,
       0xc00 | ((val >> 8) & 0xff));
