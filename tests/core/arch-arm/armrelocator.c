@@ -114,11 +114,9 @@ TESTCASE (pc_relative_add_should_be_rewritten)
     ARM_INS_ADD,
     { 0xe08f3003 }, 1,          /* add r3, pc, r3   */
     {
-      0xe2833008,               /* add r3, r3, 0xXX */
       0xe2833c08,               /* add r3, r3, <0xXX >>> 0xc*2> */
-      0xe2833800,               /* add r3, r3, <0xXX >>> 0xc*2> */
-      0xe2833400,               /* add r3, r3, <0xXX >>> 0xc*2> */
-    }, 4,
+      0xe2833008,               /* add r3, r3, 0xXX */
+    }, 2,
     -1, -1,
     -1, -1
   };
@@ -294,6 +292,9 @@ branch_scenario_execute (BranchScenario * bs,
   {
     g_print ("\n\nGenerated code is not equal to expected code:\n\n%s\n",
         diff);
+
+    g_print ("\n\nInput:\n\n");
+    g_print ("%s %s\n", insn->mnemonic, insn->op_str);
 
     g_print ("\n\nExpected:\n\n");
     show_disassembly (bs->expected_output, bs->expected_output_length);
