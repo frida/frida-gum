@@ -446,17 +446,12 @@ gum_arm_relocator_rewrite_ldr (GumArmRelocator * self,
 
     if (disp < 0)
     {
-      gum_arm_writer_put_sub_reg_reg_imm (ctx->output, dst->reg, dst->reg,
-          0xc00 | (((-disp) >> 8) & 0xff));
-      gum_arm_writer_put_sub_reg_reg_imm (ctx->output, dst->reg, dst->reg,
-         (-disp) & 0xff);
+      gum_arm_writer_put_sub_reg_u16 (ctx->output, dst->reg, (-disp));
+
     }
     else
     {
-      gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
-          0xc00 | ((disp >> 8) & 0xff));
-      gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
-          disp & 0xff);
+      gum_arm_writer_put_add_reg_u16 (ctx->output, dst->reg, disp);
     }
 
     gum_arm_writer_put_ldr_reg_reg_offset (ctx->output, dst->reg, dst->reg,
@@ -498,15 +493,7 @@ gum_arm_relocator_rewrite_ldr (GumArmRelocator * self,
     gum_arm_writer_put_rsbs_reg_reg(ctx->output, dst->reg, src->mem.index);
   }
 
-  gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
-      ctx->pc & 0xff);
-  gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
-      0xc00 | ((ctx->pc >> 8) & 0xff));
-  gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
-      0x800 | ((ctx->pc >> 16) & 0xff));
-  gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
-      0x400 | ((ctx->pc >> 24) & 0xff));
-
+  gum_arm_writer_put_add_reg_u32 (ctx->output, dst->reg, ctx->pc);
   gum_arm_writer_put_ldr_reg_reg_offset (ctx->output, dst->reg, dst->reg,
       GUM_INDEX_POS, 0);
 
@@ -524,35 +511,24 @@ gum_arm_relocator_rewrite_add (GumArmRelocator * self,
   if (left->reg != ARM_REG_PC)
     return FALSE;
 
+  /* Handle 'add Rd, Rn , #x' */
   if (right->type == ARM_OP_IMM)
   {
     gum_arm_writer_put_ldr_reg_address (ctx->output, dst->reg, ctx->pc);
+    gum_arm_writer_put_add_reg_u32 (ctx->output, dst->reg, right->imm);
+    return TRUE;
+  }
 
-    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
-        right->imm & 0xff);
-    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
-        0xc00 | ((right->imm >> 8) & 0xff));
-    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
-        0x800 | ((right->imm >> 16) & 0xff));
-    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
-        0x400 | ((right->imm >> 24) & 0xff));
-  }
-  else if (right->reg == dst->reg)
+  /* Handle 'add Rd, Rn, Rm' where Rd == Rm */
+  if (right->reg == dst->reg)
   {
-    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
-        ctx->pc & 0xff);
-    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
-        0xc00 | ((ctx->pc >> 8) & 0xff));
-    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
-        0x800 | ((ctx->pc >> 16) & 0xff));
-    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
-        0x400 | ((ctx->pc >> 24) & 0xff));
+    gum_arm_writer_put_add_reg_u32 (ctx->output, dst->reg, ctx->pc);
+    return TRUE;
   }
-  else
-  {
-    gum_arm_writer_put_ldr_reg_address (ctx->output, dst->reg, ctx->pc);
-    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, right->reg, 0);
-  }
+
+  /* Handle 'add Rd, Rn, Rm' where Rd != Rm */
+  gum_arm_writer_put_ldr_reg_address (ctx->output, dst->reg, ctx->pc);
+  gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, right->reg, 0);
 
   return TRUE;
 }

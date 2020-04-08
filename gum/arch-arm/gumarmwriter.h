@@ -79,11 +79,20 @@ GUM_API gboolean gum_arm_writer_put_ldr_reg_address (GumArmWriter * self,
 GUM_API gboolean gum_arm_writer_put_ldr_reg_u32 (GumArmWriter * self,
     arm_reg reg, guint32 val);
 
+GUM_API void gum_arm_writer_put_sub_reg_u16 (GumArmWriter * self,
+    arm_reg dst_reg, guint16 val);
+
 GUM_API void gum_arm_writer_put_sub_reg_reg_imm (GumArmWriter * self,
     arm_reg dst_reg, arm_reg src_reg, guint32 imm_val);
 
 GUM_API void gum_arm_writer_put_and_reg_reg_imm (GumArmWriter * self,
     arm_reg dst_reg, arm_reg src_reg, guint32 imm_val);
+
+GUM_API void gum_arm_writer_put_add_reg_u16 (GumArmWriter * self,
+    arm_reg dst_reg, guint16 val);
+
+GUM_API void gum_arm_writer_put_add_reg_u32 (GumArmWriter * self,
+    arm_reg dst_reg, guint32 val);
 
 GUM_API void gum_arm_writer_put_add_reg_reg_imm (GumArmWriter * self,
     arm_reg dst_reg, arm_reg src_reg, guint32 imm_val);
