@@ -1270,6 +1270,24 @@ asm (
   "pop {pc} \n"
 );
 
+static gboolean
+test_log_fatal_func (const gchar *log_domain,
+                      GLogLevelFlags log_level,
+                      const gchar *message,
+                      gpointer user_data)
+{
+  return FALSE;
+}
+
+static GLogWriterOutput
+test_log_writer_func (GLogLevelFlags log_level,
+                      const GLogField *fields,
+                      gsize n_fields,
+                      gpointer user_data)
+{
+  return G_LOG_WRITER_HANDLED;
+}
+
 TESTCASE (can_follow_workload)
 {
   GumMemoryRange runner_range;
@@ -1284,6 +1302,9 @@ TESTCASE (can_follow_workload)
 
   call_workload (&runner_range);
 
+  g_test_log_set_fatal_handler (test_log_fatal_func, NULL);
+  g_log_set_writer_func (test_log_writer_func, NULL, NULL);
+
   fixture->sink->mask = ( GUM_RET );
 
   GumMemoryRange r = {
@@ -1292,6 +1313,7 @@ TESTCASE (can_follow_workload)
   };
 
   gum_stalker_exclude (fixture->stalker, &r);
+
 
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
       GUM_EVENT_SINK (fixture->sink));
@@ -1333,6 +1355,9 @@ TESTCASE (performance)
   pretend_workload (&runner_range);
   normal_hot = g_timer_elapsed (timer, NULL);
 
+  g_test_log_set_fatal_handler (test_log_fatal_func, NULL);
+  g_log_set_writer_func (test_log_writer_func, NULL, NULL);
+
   GumMemoryRange r = {
     .base_address = GUM_ADDRESS(0xff539490),
     .size = 4
@@ -1341,6 +1366,9 @@ TESTCASE (performance)
   gum_stalker_exclude (fixture->stalker, &r);
 
   fixture->sink->mask = GUM_NOTHING;
+
+  g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
+                        "add with shift not supported");
 
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
       GUM_EVENT_SINK (fixture->sink));

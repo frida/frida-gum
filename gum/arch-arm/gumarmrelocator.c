@@ -461,9 +461,11 @@ gum_arm_relocator_rewrite_ldr (GumArmRelocator * self,
   }
 
   /* 'ldr Rt, [Rn, Rm, sft]' no supported */
-  if (src->mem.lshift != 0)
+  if (src->shift.value != 0)
   {
-    g_error("ldr with shift not supported");
+    g_warning("ldr with shift not supported");
+    gum_arm_writer_put_breakpoint (ctx->output);
+    return TRUE;
   }
 
   /*
@@ -543,6 +545,7 @@ gum_arm_relocator_rewrite_add (GumArmRelocator * self,
    */
   if (right->shift.value != 0)
   {
+    g_warning ("add with shift not supported");
     gum_arm_writer_put_breakpoint (ctx->output);
     return TRUE;
   }
