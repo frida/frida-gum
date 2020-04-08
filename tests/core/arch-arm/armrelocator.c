@@ -11,6 +11,7 @@ TESTLIST_BEGIN (armrelocator)
   TESTENTRY (pc_relative_ldr_should_be_rewritten)
   TESTENTRY (pc_relative_ldr_with_large_displacement_should_be_rewritten)
   TESTENTRY (pc_relative_add_should_be_rewritten)
+  TESTENTRY (pc_relative_add_imm_should_be_rewritten)
   TESTENTRY (b_imm_a1_positive_should_be_rewritten)
   TESTENTRY (b_imm_a1_negative_should_be_rewritten)
   TESTENTRY (bl_imm_a1_positive_should_be_rewritten)
@@ -118,6 +119,24 @@ TESTCASE (pc_relative_add_should_be_rewritten)
       0xe2833008,               /* add r3, r3, 0xXX */
     }, 2,
     -1, -1,
+    -1, -1
+  };
+  branch_scenario_execute (&bs, fixture);
+}
+
+
+TESTCASE (pc_relative_add_imm_should_be_rewritten)
+{
+  BranchScenario bs = {
+    ARM_INS_ADD,
+    { 0xe28f3008 }, 1,          /* add r3, pc, #8   */
+    {
+      0xe59f3000,               /* ldr r3, [pc] */
+      0xe2833008,               /* add r3, r3, 0xXX */
+      0xffffffff                /* <calculated PC    */
+                                /*  goes here>       */
+    }, 2,
+    2, 0,
     -1, -1
   };
   branch_scenario_execute (&bs, fixture);
