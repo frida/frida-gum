@@ -321,10 +321,10 @@ gum_arm_writer_put_sub_reg_u16 (GumArmWriter * self,
                                 arm_reg dst_reg,
                                 guint16 val)
 {
-  gum_arm_writer_put_sub_reg_reg_imm (self, dst_reg, dst_reg, val & 0xff);
-
   gum_arm_writer_put_sub_reg_reg_imm (self, dst_reg, dst_reg,
       0xc00 | ((val >> 8) & 0xff));
+
+  gum_arm_writer_put_sub_reg_reg_imm (self, dst_reg, dst_reg, val & 0xff);
 }
 
 void
@@ -367,10 +367,10 @@ gum_arm_writer_put_add_reg_u16 (GumArmWriter * self,
                                 arm_reg dst_reg,
                                 guint16 val)
 {
-  gum_arm_writer_put_add_reg_reg_imm (self, dst_reg, dst_reg, val & 0xff);
-
   gum_arm_writer_put_add_reg_reg_imm (self, dst_reg, dst_reg,
       0xc00 | ((val >> 8) & 0xff));
+
+  gum_arm_writer_put_add_reg_reg_imm (self, dst_reg, dst_reg, val & 0xff);
 }
 
 void
@@ -378,14 +378,16 @@ gum_arm_writer_put_add_reg_u32 (GumArmWriter * self,
                                 arm_reg dst_reg,
                                 guint32 val)
 {
-  gum_arm_writer_put_add_reg_reg_imm (self, dst_reg, dst_reg, val & 0xff);
+  gum_arm_writer_put_add_reg_reg_imm (self, dst_reg, dst_reg,
+      0x400 | ((val >> 24) & 0xff));
+
+  gum_arm_writer_put_add_reg_reg_imm (self, dst_reg, dst_reg,
+      0x800 | ((val >> 16) & 0xff));
 
   gum_arm_writer_put_add_reg_reg_imm (self, dst_reg, dst_reg,
       0xc00 | ((val >> 8) & 0xff));
-  gum_arm_writer_put_add_reg_reg_imm (self, dst_reg, dst_reg,
-      0x800 | ((val >> 16) & 0xff));
-  gum_arm_writer_put_add_reg_reg_imm (self, dst_reg, dst_reg,
-      0x400 | ((val >> 24) & 0xff));
+
+  gum_arm_writer_put_add_reg_reg_imm (self, dst_reg, dst_reg, val & 0xff);
 }
 
 void
