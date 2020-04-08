@@ -437,6 +437,21 @@ gum_arm_relocator_rewrite_ldr (GumArmRelocator * self,
   if (src->type != ARM_OP_MEM || src->mem.base != ARM_REG_PC)
     return FALSE;
 
+    /* 'ldr Rt, [Rn, Rm, sft]' no supported */
+  if (src->shift.value != 0)
+  {
+    g_warning("ldr with shift not supported");
+    gum_arm_writer_put_breakpoint (ctx->output);
+    return TRUE;
+  }
+
+  if (ctx->detail->writeback == 1)
+  {
+    g_warning ("ldr with pre/post-index not supported");
+    gum_arm_writer_put_breakpoint (ctx->output);
+    return TRUE;
+  }
+
   /* Handle 'ldr Rt, [ Rn, #x ]' or  'ldr Rt, [ Rn, #-x ]'*/
   if (src->mem.index == ARM_REG_INVALID)
   {
@@ -457,14 +472,6 @@ gum_arm_relocator_rewrite_ldr (GumArmRelocator * self,
     gum_arm_writer_put_ldr_reg_reg_offset (ctx->output, dst->reg, dst->reg,
         GUM_INDEX_POS, 0);
 
-    return TRUE;
-  }
-
-  /* 'ldr Rt, [Rn, Rm, sft]' no supported */
-  if (src->shift.value != 0)
-  {
-    g_warning("ldr with shift not supported");
-    gum_arm_writer_put_breakpoint (ctx->output);
     return TRUE;
   }
 

@@ -14,6 +14,8 @@ TESTLIST_BEGIN (armrelocator)
   TESTENTRY (pc_relative_ldr_reg_should_be_rewritten)
   TESTENTRY (pc_relative_ldr_reg_negative_should_be_rewritten)
   TESTENTRY (pc_relative_ldr_reg_shift_should_fail)
+  TESTENTRY (pc_relative_ldr_reg_preindex_should_fail)
+  TESTENTRY (pc_relative_ldr_reg_postindex_should_fail)
   TESTENTRY (pc_relative_add_should_be_rewritten)
   TESTENTRY (pc_relative_add_lsl_should_write_breakpoint)
   TESTENTRY (pc_relative_add_imm_should_be_rewritten)
@@ -180,6 +182,47 @@ TESTCASE (pc_relative_ldr_reg_shift_should_fail)
   g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
                         "ldr with shift not supported");
   branch_scenario_execute (&bs, fixture);
+
+  g_test_assert_expected_messages();
+}
+
+
+TESTCASE (pc_relative_ldr_reg_preindex_should_fail)
+{
+  BranchScenario bs = {
+    ARM_INS_LDR,
+    { 0xe7bf3003 }, 1,          /* ldr r3, [pc, r3]! */
+    {
+      0xe7f001f0,               /* udf #10 */
+    }, 1,
+    -1, -1,
+    -1, -1
+  };
+
+  g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
+                        "ldr with pre/post-index not supported");
+  branch_scenario_execute (&bs, fixture);
+
+  g_test_assert_expected_messages();
+}
+
+TESTCASE (pc_relative_ldr_reg_postindex_should_fail)
+{
+  BranchScenario bs = {
+    ARM_INS_LDR,
+    { 0xe69f3003 }, 1,          /* ldr r3, [pc], r3 */
+    {
+      0xe7f001f0,               /* udf #10 */
+    }, 1,
+    -1, -1,
+    -1, -1
+  };
+
+  g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
+                        "ldr with pre/post-index not supported");
+  branch_scenario_execute (&bs, fixture);
+
+  g_test_assert_expected_messages();
 }
 
 TESTCASE (pc_relative_add_should_be_rewritten)
@@ -211,6 +254,8 @@ TESTCASE (pc_relative_add_lsl_should_write_breakpoint)
   g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
                         "add with shift not supported");
   branch_scenario_execute (&bs, fixture);
+
+  g_test_assert_expected_messages();
 }
 
 
