@@ -158,7 +158,7 @@ struct _GumBranchTarget
   guint32 shift_value;
 };
 
-gboolean g_debug = FALSE;
+gboolean g_debug = TRUE;
 guint32 g_count = 0;
 guint32 g_events = 0;
 

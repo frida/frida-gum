@@ -519,6 +519,35 @@ gum_arm_relocator_rewrite_add (GumArmRelocator * self,
     return TRUE;
   }
 
+  /* 'add Rd, [Rn, Rm, sft]' not supported. Generally speaking, stalker should
+   * not output any add instructions where Rd == PC. The only exception is when
+   * handling branches to excluded ranges where the destination cannot be
+   * determined until runtime. In this case, the original instruction is emitted
+   * so that it can be used to vector to the target if the target is determined
+   * to be in an excluded range. These types of branch are quite uncommon, and
+   * for one to target an excluded range hugely unlikely.
+   *
+   * Consider the following branch for example 'add pc, pc, r1, lsl #2' This
+   * type of branch is complex to handle since we cannot use pc to store any
+   * intermediate results (as doing so would result in an immediate branch
+   * before the final result is calculated). We would therefore need to use a
+   * scratch register, but we would need to restore this to its original value
+   * (since the instruction only modifies Rd) prior to loading pc with the final
+   * result. In short, whilst possible, this would be all kinds of ugly.
+   *
+   * Whilst we do encounter such branches on occasion, we need to handle this
+   * scenario and generate some output. Equally, we know that the code generated
+   * will never be executed unless the target ends up being an excluded range
+   * (which is very unlikely). We will therefore emit a breakpoint instruction
+   * so if someone does have the misfortune of encountering such an unlikely
+   * scenario they at least have a chance to debug it.
+   */
+  if (right->shift.value != 0)
+  {
+    gum_arm_writer_put_breakpoint (ctx->output);
+    return TRUE;
+  }
+
   /* Handle 'add Rd, Rn, Rm' where Rd == Rm */
   if (right->reg == dst->reg)
   {
