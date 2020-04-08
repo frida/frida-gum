@@ -12,6 +12,7 @@ TESTLIST_BEGIN (armrelocator)
   TESTENTRY (pc_relative_ldr_negative_should_be_rewritten)
   TESTENTRY (pc_relative_ldr_with_large_displacement_should_be_rewritten)
   TESTENTRY (pc_relative_ldr_reg_should_be_rewritten)
+  TESTENTRY (pc_relative_ldr_reg_negative_should_be_rewritten)
   TESTENTRY (pc_relative_add_should_be_rewritten)
   TESTENTRY (pc_relative_add_lsl_should_write_breakpoint)
   TESTENTRY (pc_relative_add_imm_should_be_rewritten)
@@ -136,6 +137,23 @@ TESTCASE (pc_relative_ldr_reg_should_be_rewritten)
     ARM_INS_LDR,
     { 0xe79f3003 }, 1,          /* ldr r3, [pc, r3] */
     {
+      0xe2833c08,               /* add r3, r3, <0x08 >>> 0xc*2> */
+      0xe2833008,               /* add r3, r3, #8 */
+      0xe5933000,               /* ldr r3, [r3]      */
+    }, 3,
+    -1, 0,
+    -1, -1
+  };
+  branch_scenario_execute (&bs, fixture);
+}
+
+TESTCASE (pc_relative_ldr_reg_negative_should_be_rewritten)
+{
+  BranchScenario bs = {
+    ARM_INS_LDR,
+    { 0xe71f3003 }, 1,          /* ldr r3, [pc, -r3] */
+    {
+      0xe0733003,               /* rsbs r3, r3 */
       0xe2833c08,               /* add r3, r3, <0x08 >>> 0xc*2> */
       0xe2833008,               /* add r3, r3, #8 */
       0xe5933000,               /* ldr r3, [r3]      */

@@ -483,14 +483,13 @@ gum_arm_relocator_rewrite_ldr (GumArmRelocator * self,
   * operations in this order, we can avoid the need for an aditional scratch
   * register.
   */
-
-  if (src->mem.scale == 1)
+  if (src->subtracted)
   {
-    gum_arm_writer_put_mov_reg_reg(ctx->output, dst->reg, src->mem.index);
+    gum_arm_writer_put_rsbs_reg_reg(ctx->output, dst->reg, src->mem.index);
   }
   else
   {
-    gum_arm_writer_put_rsbs_reg_reg(ctx->output, dst->reg, src->mem.index);
+    gum_arm_writer_put_mov_reg_reg(ctx->output, dst->reg, src->mem.index);
   }
 
   gum_arm_writer_put_add_reg_u32 (ctx->output, dst->reg, ctx->pc);
