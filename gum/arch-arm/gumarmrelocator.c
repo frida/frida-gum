@@ -521,6 +521,24 @@ gum_arm_relocator_rewrite_add (GumArmRelocator * self,
   if (left->reg != ARM_REG_PC)
     return FALSE;
 
+  /*
+   * If our destination register is PC, then we cannot use it to store any
+   * intermediate results. Given the load store architecture of ARM, we cannot
+   * perform any operations on data in memory directly and therefore we will
+   * need to use another register as scratch space. We will push and pop this
+   * register onto the stack.
+   *
+   * However, we will need to restore the value of our scratch register prior to
+   * loading the correct new value into PC. The LDMDB instruction is unsuitable
+   * for this since we need to push the scratch register first and then the new
+   * PC, but this instruction loads the registers in the opposite order.
+   *
+   * To avoid clumsy asymmetric use of the stack, we instead use labels within
+   * our code stream to read and write our values there. This of course will
+   * only work on systems which support RWX pages, but if a system has the
+   * legacy of using AARCH32 instead of AARCH64 then it likely will not have
+   * these newer protections.
+   */
   if (dst->reg == ARM_REG_PC)
   {
     if (gum_query_rwx_support () == GUM_RWX_NONE)
@@ -528,16 +546,39 @@ gum_arm_relocator_rewrite_add (GumArmRelocator * self,
       g_error ("RWX Unsupportd");
     }
 
-    target = right->reg;
+    if (right->type == ARM_OP_IMM)
+    {
+      /* If Rm is an immediate, we choose an arbitrary register */
+      target = ARM_REG_R0;
+    }
+    else
+    {
+      /*
+      * When choosing a scratch register, we favour Rm since it is often this
+      * value we wish to use to start our calculation and this avoids a register
+      * move.
+      */
+      target = right->reg;
+    }
     gum_arm_writer_put_push_registers (ctx->output, 1, target);
   }
   else
   {
+    /*
+     * If our target register is not PC, then we can carry out our calculations
+     * using Rd to store the intermediate result as we go.
+     */
     target = dst->reg;
   }
 
+  /*
+   * If we have no shift to apply, then we start our calculation with the value
+   * of PC since we can store this as a literal in the code stream and reduce
+   * the number of instructions we need to generate.
+   */
   if (right->shift.value == 0)
   {
+    /* Handle 'add Rd, Rn , #x' */
     if (right->type == ARM_OP_IMM)
     {
       gum_arm_writer_put_ldr_reg_address (ctx->output, target, ctx->pc);
@@ -545,38 +586,60 @@ gum_arm_relocator_rewrite_add (GumArmRelocator * self,
     }
     else if (right->reg == dst->reg)
     {
+      /*
+       * Handle 'add Rd, Rn, Rd'. This is a special case since we cannot load PC
+       * from a literal into Rd since in doing so, we lose the value of Rm which
+       * we want to add on. This calculation can be simplified to just adding
+       * the PC to Rd.
+       */
       gum_arm_writer_put_add_reg_u32 (ctx->output, target, ctx->pc);
     }
     else
     {
+      /* Handle 'add Rd, Rn, Rm' */
       gum_arm_writer_put_ldr_reg_address (ctx->output, target, ctx->pc);
-      gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, right->reg, 0);
+      gum_arm_writer_put_add_reg_reg_imm (ctx->output, target, right->reg, 0);
     }
   }
   else
   {
-    /* Handle 'add Rd, Rn , #x' */
+    /*
+     * If we have a shift operation to apply, then we must start by calculating
+     * this value and adding on PC, as we would otherwise need a second scratch
+     * register to calculate this. Note that in this case, we don't have to
+     * worry if Rd == Rm since although we may be using Rd to hold the
+     * intermediate result, we perform all necessary calculations on Rm before
+     * we update Rd.
+     */
+
+    /* Handle 'add Rd, Rn, #x, lsl #n' */
     if (right->type == ARM_OP_IMM)
     {
       gum_arm_writer_put_ldr_reg_u32 (ctx->output, target, right->imm);
     }
     else
     {
-      /* Handle 'add Rd, Rn, Rm' */
+      /* Handle 'add Rd, Rn, Rm, lsl #n' */
       gum_arm_writer_put_mov_reg_reg (ctx->output, target, right->reg);
     }
 
-    if (right->shift.value != 0)
-    {
-      gum_arm_writer_put_mov_reg_reg_sft (ctx->output, target, target,
-          right->shift.type, right->shift.value);
-    }
+    gum_arm_writer_put_mov_reg_reg_sft (ctx->output, target, target,
+        right->shift.type, right->shift.value);
 
+    /*
+     * Now the shifted second operand has been calculated, we can simply add the
+     * PC value.
+    */
     gum_arm_writer_put_add_reg_u32 (ctx->output, target, ctx->pc);
   }
 
   if (dst->reg == ARM_REG_PC)
   {
+    /*
+     * If we made use of a scratch register, store the result into the code
+     * stream at the given label, then pop to restore the scratch register.
+     * Finally, we can load the calculated value back into the output register.
+     */
     load_label = ctx->output + 1;
 
     gum_arm_writer_put_strcc_reg_label (ctx->output, ARM_CC_AL, target,
@@ -587,6 +650,12 @@ gum_arm_relocator_rewrite_add (GumArmRelocator * self,
     gum_arm_writer_put_ldrcc_reg_label (ctx->output, ARM_CC_AL, ARM_REG_PC,
         load_label);
 
+    /*
+     * Since we only use a scratch register if our target register is PC, then
+     * we know that the preceeding load should have caused a branch and we
+     * therefore shouldn't reach the following. We therefore insert a break
+     * instruction just in case to alert the user in the event of an error.
+     */
     gum_arm_writer_put_brk_imm (ctx->output, 0x18);
     gum_arm_writer_put_label (ctx->output, load_label);
     gum_arm_writer_put_instruction (ctx->output, 0xdeadface);
