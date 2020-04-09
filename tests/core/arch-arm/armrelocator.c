@@ -17,7 +17,7 @@ TESTLIST_BEGIN (armrelocator)
   TESTENTRY (pc_relative_ldr_reg_preindex_should_fail)
   TESTENTRY (pc_relative_ldr_reg_postindex_should_fail)
   TESTENTRY (pc_relative_add_should_be_rewritten)
-  TESTENTRY (pc_relative_add_lsl_should_write_breakpoint)
+  TESTENTRY (pc_relative_add_lsl_should_be_rewritten)
   TESTENTRY (pc_relative_add_imm_should_be_rewritten)
   TESTENTRY (b_imm_a1_positive_should_be_rewritten)
   TESTENTRY (b_imm_a1_negative_should_be_rewritten)
@@ -240,22 +240,26 @@ TESTCASE (pc_relative_add_should_be_rewritten)
   branch_scenario_execute (&bs, fixture);
 }
 
-TESTCASE (pc_relative_add_lsl_should_write_breakpoint)
+TESTCASE (pc_relative_add_lsl_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_ADD,
     { 0xe08ff101 }, 1,          /* add pc, pc, r1 lsl #2  */
     {
-      0xe7f001f0,               /* udf #10 */
-    }, 1,
+      0xe92d0002,               /* stmdb sp!, {r1} */
+      0xe1a01101,               /* mov r1, r1, lsl #2 */
+      0xe2811c08,               /* add r1, r1, <0xXX >>> 0xc*2> */
+      0xe2811008,               /* add r1, r1, 0xXX */
+      0xe58f1008,               /* str r1, [pc, #8] */
+      0xe8bd0002,               /* ldm sp!, {r1} */
+      0xe59ff000,               /* ldr pc, [pc] */
+      0xe7f001f8,               /* udf #0x18 */
+      0xdeadface,
+    }, 9,
     -1, -1,
     -1, -1
   };
-  g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
-                        "add with shift not supported");
   branch_scenario_execute (&bs, fixture);
-
-  g_test_assert_expected_messages();
 }
 
 

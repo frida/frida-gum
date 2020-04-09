@@ -1314,7 +1314,6 @@ TESTCASE (can_follow_workload)
 
   gum_stalker_exclude (fixture->stalker, &r);
 
-
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
       GUM_EVENT_SINK (fixture->sink));
 
