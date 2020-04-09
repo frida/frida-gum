@@ -158,7 +158,7 @@ struct _GumBranchTarget
   guint32 shift_value;
 };
 
-gboolean g_debug = TRUE;
+gboolean g_debug = FALSE;
 guint32 g_count = 0;
 guint32 g_events = 0;
 
@@ -1411,7 +1411,6 @@ gum_exec_block_write_handle_kuser_helper (GumExecBlock * block,
     gum_arm_writer_put_bcc_label(cw, ARM_CC_EQ, not_kuh);
   }
 
-  //gum_arm_writer_put_breakpoint (gc->code_writer);
   gum_exec_ctx_write_mov_branch_target_address (block->ctx,
                                           target,
                                           ARM_REG_R0,

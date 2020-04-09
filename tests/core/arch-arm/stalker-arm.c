@@ -1307,13 +1307,6 @@ TESTCASE (can_follow_workload)
 
   fixture->sink->mask = ( GUM_RET );
 
-  GumMemoryRange r = {
-    .base_address = GUM_ADDRESS(0xff539490),
-    .size = 4
-  };
-
-  gum_stalker_exclude (fixture->stalker, &r);
-
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
       GUM_EVENT_SINK (fixture->sink));
 
@@ -1356,13 +1349,6 @@ TESTCASE (performance)
 
   g_test_log_set_fatal_handler (test_log_fatal_func, NULL);
   g_log_set_writer_func (test_log_writer_func, NULL, NULL);
-
-  GumMemoryRange r = {
-    .base_address = GUM_ADDRESS(0xff539490),
-    .size = 4
-  };
-
-  gum_stalker_exclude (fixture->stalker, &r);
 
   fixture->sink->mask = GUM_NOTHING;
 

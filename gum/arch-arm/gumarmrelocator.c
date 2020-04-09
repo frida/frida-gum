@@ -36,6 +36,8 @@ static gboolean gum_arm_relocator_rewrite_b (GumArmRelocator * self,
     cs_mode target_mode, GumCodeGenCtx * ctx);
 static gboolean gum_arm_relocator_rewrite_bl (GumArmRelocator * self,
     cs_mode target_mode, GumCodeGenCtx * ctx);
+static gboolean gum_arm_relocator_rewrite_mov (GumArmRelocator * self,
+    GumCodeGenCtx * ctx);
 
 GumArmRelocator *
 gum_arm_relocator_new (gconstpointer input_code,
@@ -284,6 +286,9 @@ gum_arm_relocator_write_one (GumArmRelocator * self)
       break;
     case ARM_INS_BLX:
       rewritten = gum_arm_relocator_rewrite_bl (self, CS_MODE_THUMB, &ctx);
+      break;
+    case ARM_INS_MOV:
+      rewritten = gum_arm_relocator_rewrite_mov (self, &ctx);
       break;
     default:
       rewritten = FALSE;
@@ -693,5 +698,22 @@ gum_arm_relocator_rewrite_bl (GumArmRelocator * self,
       ctx->output->pc + (2 * 4));
   gum_arm_writer_put_ldr_reg_address (ctx->output, ARM_REG_PC,
       (target_mode == CS_MODE_THUMB) ? target->imm | 1 : target->imm);
+  return TRUE;
+}
+
+static gboolean
+gum_arm_relocator_rewrite_mov (GumArmRelocator * self,
+                              GumCodeGenCtx * ctx)
+{
+  const cs_arm_op * dst = &ctx->detail->operands[0];
+  const cs_arm_op * src = &ctx->detail->operands[1];
+
+  if (src->type != ARM_OP_REG)
+    return FALSE;
+
+  if (src->reg != ARM_REG_PC)
+    return FALSE;
+
+  gum_arm_writer_put_ldr_reg_address (ctx->output, dst->reg, ctx->pc);
   return TRUE;
 }
