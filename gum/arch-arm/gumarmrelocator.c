@@ -536,24 +536,44 @@ gum_arm_relocator_rewrite_add (GumArmRelocator * self,
     target = dst->reg;
   }
 
-  /* Handle 'add Rd, Rn , #x' */
-  if (right->type == ARM_OP_IMM)
+  if (right->shift.value == 0)
   {
-    gum_arm_writer_put_ldr_reg_u32 (ctx->output, target, right->imm);
+    if (right->type == ARM_OP_IMM)
+    {
+      gum_arm_writer_put_ldr_reg_address (ctx->output, target, ctx->pc);
+      gum_arm_writer_put_add_reg_u32 (ctx->output, target, right->imm);
+    }
+    else if (right->reg == dst->reg)
+    {
+      gum_arm_writer_put_add_reg_u32 (ctx->output, target, ctx->pc);
+    }
+    else
+    {
+      gum_arm_writer_put_ldr_reg_address (ctx->output, target, ctx->pc);
+      gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, right->reg, 0);
+    }
   }
   else
   {
-    /* Handle 'add Rd, Rn, Rm' */
-    gum_arm_writer_put_mov_reg_reg (ctx->output, target, right->reg);
-  }
+    /* Handle 'add Rd, Rn , #x' */
+    if (right->type == ARM_OP_IMM)
+    {
+      gum_arm_writer_put_ldr_reg_u32 (ctx->output, target, right->imm);
+    }
+    else
+    {
+      /* Handle 'add Rd, Rn, Rm' */
+      gum_arm_writer_put_mov_reg_reg (ctx->output, target, right->reg);
+    }
 
-  if (right->shift.value != 0)
-  {
-    gum_arm_writer_put_mov_reg_reg_sft (ctx->output, target, target,
-        right->shift.type, right->shift.value);
-  }
+    if (right->shift.value != 0)
+    {
+      gum_arm_writer_put_mov_reg_reg_sft (ctx->output, target, target,
+          right->shift.type, right->shift.value);
+    }
 
-  gum_arm_writer_put_add_reg_u32 (ctx->output, target, ctx->pc);
+    gum_arm_writer_put_add_reg_u32 (ctx->output, target, ctx->pc);
+  }
 
   if (dst->reg == ARM_REG_PC)
   {
