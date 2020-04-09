@@ -85,6 +85,9 @@ gum_cmodule_new (const gchar * source,
   tcc_define_symbol (state, "HAVE_ARM", NULL);
 #elif defined (HAVE_ARM64)
   tcc_define_symbol (state, "HAVE_ARM64", NULL);
+# ifdef HAVE_PTRAUTH
+  tcc_define_symbol (state, "HAVE_PTRAUTH", NULL);
+# endif
 #elif defined (HAVE_MIPS)
   tcc_define_symbol (state, "HAVE_MIPS", NULL);
 #endif
