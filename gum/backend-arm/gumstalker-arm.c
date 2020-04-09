@@ -158,7 +158,7 @@ struct _GumBranchTarget
   guint32 shift_value;
 };
 
-gboolean g_debug = FALSE;
+gboolean g_debug = TRUE;
 guint32 g_count = 0;
 guint32 g_events = 0;
 
@@ -1411,6 +1411,7 @@ gum_exec_block_write_handle_kuser_helper (GumExecBlock * block,
     gum_arm_writer_put_bcc_label(cw, ARM_CC_EQ, not_kuh);
   }
 
+  //gum_arm_writer_put_breakpoint (gc->code_writer);
   gum_exec_ctx_write_mov_branch_target_address (block->ctx,
                                           target,
                                           ARM_REG_R0,
@@ -1421,12 +1422,30 @@ gum_exec_block_write_handle_kuser_helper (GumExecBlock * block,
   gum_exec_block_close_prolog (block, gc);
   gum_arm_writer_put_ldrcc_reg_label (gc->code_writer, ARM_CC_AL, ARM_REG_R12,
       kuh_label);
-  gum_arm_writer_put_blr_reg(gc->code_writer, ARM_REG_R12);
 
+  gum_arm_writer_put_push_registers (gc->code_writer, 1, ARM_REG_LR);
+  gum_arm_writer_put_blr_reg(gc->code_writer, ARM_REG_R12);
+  gum_arm_writer_put_pop_registers (gc->code_writer, 1, ARM_REG_LR);
 
   gum_exec_block_open_prolog (block, gc);
 
-  gum_exec_block_write_handle_continue (block, target, gc);
+  GumBranchTarget ret_target = {
+    .absolute_address = 0,
+    .offset = 0,
+    .is_indirect = FALSE,
+    .reg = ARM_REG_LR,
+    .reg2 = ARM_REG_INVALID,
+    .mode = GUM_INDEX_POS,
+    .shifter = ARM_SFT_INVALID,
+    .shift_value = 0
+  };
+  gum_exec_block_write_call_replace_current_block_with (block, &ret_target, gc);
+   gum_exec_block_close_prolog (block, gc);
+
+  gum_exec_block_write_jmp_generated_code(gc->code_writer, ARM_CC_AL,
+      block->ctx);
+
+  gum_arm_writer_put_brk_imm(gc->code_writer, 15);
 
   gum_arm_writer_put_label(gc->code_writer, kuh_label);
   gum_arm_writer_put_instruction(gc->code_writer, 0xdeadface);
