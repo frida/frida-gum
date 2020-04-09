@@ -440,14 +440,14 @@ gum_arm_relocator_rewrite_ldr (GumArmRelocator * self,
     /* 'ldr Rt, [Rn, Rm, sft]' no supported */
   if (src->shift.value != 0)
   {
-    g_warning("ldr with shift not supported");
+    g_error ("ldr with shift not supported");
     gum_arm_writer_put_breakpoint (ctx->output);
     return TRUE;
   }
 
   if (ctx->detail->writeback == 1)
   {
-    g_warning ("ldr with pre/post-index not supported");
+    g_error ("ldr with pre/post-index not supported");
     gum_arm_writer_put_breakpoint (ctx->output);
     return TRUE;
   }
@@ -515,58 +515,62 @@ gum_arm_relocator_rewrite_add (GumArmRelocator * self,
   const cs_arm_op * dst = &ctx->detail->operands[0];
   const cs_arm_op * left = &ctx->detail->operands[1];
   const cs_arm_op * right = &ctx->detail->operands[2];
+  gconstpointer load_label;
+  arm_reg target;
 
   if (left->reg != ARM_REG_PC)
     return FALSE;
 
+  if (dst->reg == ARM_REG_PC)
+  {
+    if (gum_query_rwx_support () == GUM_RWX_NONE)
+    {
+      g_error ("RWX Unsupportd");
+    }
+
+    target = right->reg;
+    gum_arm_writer_put_push_registers (ctx->output, 1, target);
+  }
+  else
+  {
+    target = dst->reg;
+  }
+
   /* Handle 'add Rd, Rn , #x' */
   if (right->type == ARM_OP_IMM)
   {
-    gum_arm_writer_put_ldr_reg_address (ctx->output, dst->reg, ctx->pc);
-    gum_arm_writer_put_add_reg_u32 (ctx->output, dst->reg, right->imm);
-    return TRUE;
+    gum_arm_writer_put_ldr_reg_u32 (ctx->output, target, right->imm);
+  }
+  else
+  {
+    /* Handle 'add Rd, Rn, Rm' */
+    gum_arm_writer_put_mov_reg_reg (ctx->output, target, right->reg);
   }
 
-  /* 'add Rd, [Rn, Rm, sft]' not supported. Generally speaking, stalker should
-   * not output any add instructions where Rd == PC. The only exception is when
-   * handling branches to excluded ranges where the destination cannot be
-   * determined until runtime. In this case, the original instruction is emitted
-   * so that it can be used to vector to the target if the target is determined
-   * to be in an excluded range. These types of branch are quite uncommon, and
-   * for one to target an excluded range hugely unlikely.
-   *
-   * Consider the following branch for example 'add pc, pc, r1, lsl #2' This
-   * type of branch is complex to handle since we cannot use pc to store any
-   * intermediate results (as doing so would result in an immediate branch
-   * before the final result is calculated). We would therefore need to use a
-   * scratch register, but we would need to restore this to its original value
-   * (since the instruction only modifies Rd) prior to loading pc with the final
-   * result. In short, whilst possible, this would be all kinds of ugly.
-   *
-   * Whilst we do encounter such branches on occasion, we need to handle this
-   * scenario and generate some output. Equally, we know that the code generated
-   * will never be executed unless the target ends up being an excluded range
-   * (which is very unlikely). We will therefore emit a breakpoint instruction
-   * so if someone does have the misfortune of encountering such an unlikely
-   * scenario they at least have a chance to debug it.
-   */
   if (right->shift.value != 0)
   {
     g_warning ("add with shift not supported");
     gum_arm_writer_put_breakpoint (ctx->output);
-    return TRUE;
   }
 
-  /* Handle 'add Rd, Rn, Rm' where Rd == Rm */
-  if (right->reg == dst->reg)
+  gum_arm_writer_put_add_reg_u32 (ctx->output, target, ctx->pc);
+
+  if (dst->reg == ARM_REG_PC)
   {
-    gum_arm_writer_put_add_reg_u32 (ctx->output, dst->reg, ctx->pc);
-    return TRUE;
-  }
+    load_label = ctx->output + 1;
 
-  /* Handle 'add Rd, Rn, Rm' where Rd != Rm */
-  gum_arm_writer_put_ldr_reg_address (ctx->output, dst->reg, ctx->pc);
-  gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, right->reg, 0);
+    gum_arm_writer_put_strcc_reg_label (ctx->output, ARM_CC_AL, target,
+        load_label);
+
+    gum_arm_writer_put_pop_registers (ctx->output, 1, target);
+
+    gum_arm_writer_put_ldrcc_reg_label (ctx->output, ARM_CC_AL, ARM_REG_PC,
+        load_label);
+
+    gum_arm_writer_put_brk_imm (ctx->output, 0x18);
+    gum_arm_writer_put_label (ctx->output, load_label);
+    gum_arm_writer_put_instruction (ctx->output, 0xdeadface);
+  }
 
   return TRUE;
 }
