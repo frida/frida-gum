@@ -12,8 +12,8 @@ TESTLIST_BEGIN (armrelocator)
   TESTENTRY (pc_relative_ldr_negative_should_be_rewritten)
   TESTENTRY (pc_relative_ldr_with_large_displacement_should_be_rewritten)
   TESTENTRY (pc_relative_ldr_reg_should_be_rewritten)
-  TESTENTRY (pc_relative_ldr_reg_negative_should_be_rewritten)
-  TESTENTRY (pc_relative_ldr_reg_shift_should_fail)
+  TESTENTRY (pc_relative_ldr_reg_negative_should_fail)
+  TESTENTRY (pc_relative_ldr_reg_shift_should_be_rewritten)
   TESTENTRY (pc_relative_ldr_reg_preindex_should_fail)
   TESTENTRY (pc_relative_ldr_reg_postindex_should_fail)
   TESTENTRY (pc_relative_add_should_be_rewritten)
@@ -150,40 +150,42 @@ TESTCASE (pc_relative_ldr_reg_should_be_rewritten)
   branch_scenario_execute (&bs, fixture);
 }
 
-TESTCASE (pc_relative_ldr_reg_negative_should_be_rewritten)
+TESTCASE (pc_relative_ldr_reg_negative_should_fail)
 {
   BranchScenario bs = {
     ARM_INS_LDR,
     { 0xe71f3003 }, 1,          /* ldr r3, [pc, -r3] */
     {
-      0xe0733003,               /* rsbs r3, r3 */
-      0xe2833c08,               /* add r3, r3, <0x08 >>> 0xc*2> */
-      0xe2833008,               /* add r3, r3, #8 */
-      0xe5933000,               /* ldr r3, [r3]      */
-    }, 3,
+      0xe7f001f0,               /* udf #10 */
+    }, 1,
     -1, 0,
     -1, -1
   };
+
+  g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
+                        "relocation of ldr with subtracted register offset "
+                        "not supported");
   branch_scenario_execute (&bs, fixture);
+
+  g_test_assert_expected_messages();
 }
 
-TESTCASE (pc_relative_ldr_reg_shift_should_fail)
+TESTCASE (pc_relative_ldr_reg_shift_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_LDR,
     { 0xe79f3103 }, 1,          /* ldr r3, [pc, r3, lsl #2] */
     {
-      0xe7f001f0,               /* udf #10 */
-    }, 1,
+      0xe1a03103,               /* lsl r3, r3, #2 */
+      0xe2833c08,               /* add r3, r3, <0x08 >>> 0xc*2> */
+      0xe2833008,               /* add r3, r3, #8 */
+      0xe5933000,               /* ldr r3, [r3]      */
+    }, 10,
     -1, -1,
     -1, -1
   };
 
-  g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
-                        "relocation of ldr with shift not supported");
   branch_scenario_execute (&bs, fixture);
-
-  g_test_assert_expected_messages();
 }
 
 

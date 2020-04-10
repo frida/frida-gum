@@ -848,8 +848,11 @@ gum_arm_writer_put_mov_reg_reg_sft (GumArmWriter * self,
   gum_arm_reg_describe (src_reg, &rs);
   gum_arm_shifter_describe (shift, &scode);
 
-  gum_arm_writer_put_instruction (self, 0xe1a00000 | rd.index << 12 |
-      ((shift_value & 0x1f) << 7) | (scode << 5) | rs.index);
+  if (shift_value != 0 || dst_reg != src_reg)
+  {
+    gum_arm_writer_put_instruction (self, 0xe1a00000 | rd.index << 12 |
+        ((shift_value & 0x1f) << 7) | (scode << 5) | rs.index);
+  }
 }
 
 void

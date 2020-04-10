@@ -512,56 +512,42 @@ gum_arm_relocator_rewrite_ldr (GumArmRelocator * self,
     target = dst->reg;
   }
 
-  /*
-   * If we have no shift to apply, then we start our calculation with the value
-   * of PC since we can store this as a literal in the code stream and reduce
-   * the number of instructions we need to generate.
-   */
-  if (src->shift.value == 0)
+  /* Handle 'ldr Rt, [Rn, #x]' or 'ldr Rt, [Rn, #-x]' */
+  if (src->mem.index == ARM_REG_INVALID)
   {
-     /* Handle 'ldr Rt, [ Rn, #x ]' or  'ldr Rt, [ Rn, #-x ]'*/
-    if (src->mem.index == ARM_REG_INVALID)
+    gint disp = src->mem.disp;
+
+    gum_arm_writer_put_ldr_reg_address (ctx->output, target, ctx->pc);
+
+    if (disp < 0)
     {
-      gint disp = src->mem.disp;
-
-      gum_arm_writer_put_ldr_reg_address (ctx->output, target, ctx->pc);
-
-      if (disp < 0)
-      {
-        gum_arm_writer_put_sub_reg_u16 (ctx->output, target, (-disp));
-
-      }
-      else
-      {
-        gum_arm_writer_put_add_reg_u16 (ctx->output, target, disp);
-      }
+      gum_arm_writer_put_sub_reg_u16 (ctx->output, target, (-disp));
     }
     else
     {
-      if (src->subtracted)
-      {
-        gum_arm_writer_put_rsbs_reg_reg(ctx->output, dst->reg, src->mem.index);
-      }
-      else
-      {
-        gum_arm_writer_put_mov_reg_reg(ctx->output, dst->reg, src->mem.index);
-      }
-
-      gum_arm_writer_put_add_reg_u32 (ctx->output, dst->reg, ctx->pc);
+      gum_arm_writer_put_add_reg_u16 (ctx->output, target, disp);
     }
-
-    gum_arm_writer_put_ldr_reg_reg_offset (ctx->output, dst->reg, dst->reg,
-        GUM_INDEX_POS, 0);
   }
   else
   {
-    g_warning ("relocation of ldr with shift not supported");
-    gum_arm_writer_put_breakpoint (ctx->output);
+    /* Reject 'ldr Rt, [Rn, -Rm, #x]' */
+    if (src->subtracted)
+    {
+      g_warning ("relocation of ldr with subtracted register offset "
+          "not supported");
+      gum_arm_writer_put_breakpoint (ctx->output);
+    }
+
+    /* Handle 'ldr Rt, [Rn, Rm, lsl #x]' */
+    gum_arm_writer_put_mov_reg_reg_sft (ctx->output, target, src->mem.index, \
+        src->shift.type, src->shift.value);
+
+    gum_arm_writer_put_add_reg_u32 (ctx->output, target, ctx->pc);
+
   }
 
-
-
-
+  gum_arm_writer_put_ldr_reg_reg_offset (ctx->output, target, target,
+      GUM_INDEX_POS, 0);
 
   if (dst->reg == ARM_REG_PC)
   {
