@@ -16,6 +16,7 @@ TESTLIST_BEGIN (armrelocator)
   TESTENTRY (pc_relative_ldr_reg_shift_should_be_rewritten)
   TESTENTRY (pc_relative_ldr_reg_preindex_should_fail)
   TESTENTRY (pc_relative_ldr_reg_postindex_should_fail)
+  TESTENTRY (pc_relative_ldr_into_pc_should_be_rewritten)
   TESTENTRY (pc_relative_add_should_be_rewritten)
   TESTENTRY (pc_relative_add_lsl_should_be_rewritten)
   TESTENTRY (pc_relative_add_imm_should_be_rewritten)
@@ -225,6 +226,31 @@ TESTCASE (pc_relative_ldr_reg_postindex_should_fail)
   branch_scenario_execute (&bs, fixture);
 
   g_test_assert_expected_messages();
+}
+
+TESTCASE (pc_relative_ldr_into_pc_should_be_rewritten)
+{
+  BranchScenario bs = {
+    ARM_INS_LDR,
+    { 0xe59ff004 }, 1,          /* ldr pc, [pc, #4] */
+    {
+      0xe92d0001,               /* stmdb sp!, {pc} */
+      0xe59f0018,               /* ldr r0, [pc, #0x18] */
+      0xe2800004,               /* add r0, r0, #4 */
+      0xe5900000,               /* ldr r0, [r0]      */
+      0xe58f0008,               /* str r0, [pc, #8]  */
+      0xe8bd0001,               /* ldm sp!, {r0}     */
+      0xe59ff000,               /* ldr pc, [pc]     */
+      0xe7f001f8,               /* udf #0x18 */
+      0xdeadface,
+      0xffffffff                /* <calculated PC    */
+                                /*  goes here>       */
+    }, 10,
+    9, 0,
+    -1, -1
+  };
+
+  branch_scenario_execute (&bs, fixture);
 }
 
 TESTCASE (pc_relative_add_should_be_rewritten)

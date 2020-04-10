@@ -487,7 +487,7 @@ gum_arm_relocator_rewrite_ldr (GumArmRelocator * self,
       g_error ("RWX Unsupportd");
     }
 
-    if (src->type == ARM_OP_IMM)
+    if (src->mem.index == ARM_REG_INVALID)
     {
       /* If Rm is an immediate, we choose an arbitrary register */
       target = ARM_REG_R0;
@@ -499,7 +499,7 @@ gum_arm_relocator_rewrite_ldr (GumArmRelocator * self,
       * value we wish to use to start our calculation and this avoids a register
       * move.
       */
-      target = src->mem.base;
+      target = src->mem.index;
     }
     gum_arm_writer_put_push_registers (ctx->output, 1, target);
   }
