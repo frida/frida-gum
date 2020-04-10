@@ -180,7 +180,7 @@ TESTCASE (pc_relative_ldr_reg_shift_should_fail)
   };
 
   g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
-                        "ldr with shift not supported");
+                        "relocation of ldr with shift not supported");
   branch_scenario_execute (&bs, fixture);
 
   g_test_assert_expected_messages();
@@ -200,7 +200,7 @@ TESTCASE (pc_relative_ldr_reg_preindex_should_fail)
   };
 
   g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
-                        "ldr with pre/post-index not supported");
+                        "relocation of ldr with pre/post-index not supported");
   branch_scenario_execute (&bs, fixture);
 
   g_test_assert_expected_messages();
@@ -219,7 +219,7 @@ TESTCASE (pc_relative_ldr_reg_postindex_should_fail)
   };
 
   g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
-                        "ldr with pre/post-index not supported");
+                        "relocation of ldr with pre/post-index not supported");
   branch_scenario_execute (&bs, fixture);
 
   g_test_assert_expected_messages();

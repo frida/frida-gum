@@ -438,77 +438,158 @@ gum_arm_relocator_rewrite_ldr (GumArmRelocator * self,
 {
   const cs_arm_op * dst = &ctx->detail->operands[0];
   const cs_arm_op * src = &ctx->detail->operands[1];
+  gconstpointer load_label;
+  arm_reg target;
 
   if (src->type != ARM_OP_MEM || src->mem.base != ARM_REG_PC)
     return FALSE;
 
-    /* 'ldr Rt, [Rn, Rm, sft]' no supported */
-  if (src->shift.value != 0)
-  {
-    g_warning ("ldr with shift not supported");
-    gum_arm_writer_put_breakpoint (ctx->output);
-    return TRUE;
-  }
-
+  /*
+   * If the instruction has writeback, then this means it has pre or post
+   * incrementing. Given that these are typically only found as return
+   * instructions, and stalker will be replacing return instructions with calls
+   * back into the engine, we should not need to relocate them. Note that unlike
+   * for call instructions, we don't need to worry about excluded ranges as
+   * these are checked on entry rather than exit from the range. In the very
+   * unlikely event we do encounter such an instruction, we will instead emit a
+   * breakpoint and a warning message to the user to given them a chance to
+   * debug it.
+   */
   if (ctx->detail->writeback == 1)
   {
-    g_warning ("ldr with pre/post-index not supported");
+    g_warning ("relocation of ldr with pre/post-index not supported");
     gum_arm_writer_put_breakpoint (ctx->output);
-    return TRUE;
-  }
-
-  /* Handle 'ldr Rt, [ Rn, #x ]' or  'ldr Rt, [ Rn, #-x ]'*/
-  if (src->mem.index == ARM_REG_INVALID)
-  {
-    gint disp = src->mem.disp;
-
-    gum_arm_writer_put_ldr_reg_address (ctx->output, dst->reg, ctx->pc);
-
-    if (disp < 0)
-    {
-      gum_arm_writer_put_sub_reg_u16 (ctx->output, dst->reg, (-disp));
-
-    }
-    else
-    {
-      gum_arm_writer_put_add_reg_u16 (ctx->output, dst->reg, disp);
-    }
-
-    gum_arm_writer_put_ldr_reg_reg_offset (ctx->output, dst->reg, dst->reg,
-        GUM_INDEX_POS, 0);
-
     return TRUE;
   }
 
   /*
-  * Handle 'ldr Rt, [Rn, Rm]' or 'ldr Rt, [Rn, -Rm]'. Note that we know that Rn
-  * must be PC since we otherwise would not need to relocate it (we test this
-  * above). Given that this support is in aid of stalker and stalker replaces
-  * all branch instructions, (those that modify PC) we also know that Rt must
-  * not be PC. However, we cannot be sure that Rt and Rm are not the same
-  * register. Since our target register is not PC, we can update it multiple
-  * times without side-effects as we carry out the calculation.
-  *
-  * We start by loading +-Rm into Rt. If the instruction is to use positive Rm
-  * and Rm == Rt, then the mov instruction is eventually omitted as a no-op. We
-  * then add each byte of the PC to Rt (again any zero bytes are omitted as
-  * being no-op). Finally, once the address of the expression [Rn, +-Rm] in Rt,
-  * we dereference the address and load back into Rt. By performing the
-  * operations in this order, we can avoid the need for an aditional scratch
-  * register.
-  */
-  if (src->subtracted)
+   * If our destination register is PC, then we cannot use it to store any
+   * intermediate results. Given the load store architecture of ARM, we cannot
+   * perform any operations on data in memory directly and therefore we will
+   * need to use another register as scratch space. We will push and pop this
+   * register onto the stack.
+   *
+   * However, we will need to restore the value of our scratch register prior to
+   * loading the correct new value into PC. The LDMDB instruction is unsuitable
+   * for this since we need to push the scratch register first and then the new
+   * PC, but this instruction loads the registers in the opposite order.
+   *
+   * To avoid clumsy asymmetric use of the stack, we instead use labels within
+   * our code stream to read and write our values there. This of course will
+   * only work on systems which support RWX pages, but if a system has the
+   * legacy of using AARCH32 instead of AARCH64 then it likely will not have
+   * these newer protections.
+   */
+  if (dst->reg == ARM_REG_PC)
   {
-    gum_arm_writer_put_rsbs_reg_reg(ctx->output, dst->reg, src->mem.index);
+    if (gum_query_rwx_support () == GUM_RWX_NONE)
+    {
+      g_error ("RWX Unsupportd");
+    }
+
+    if (src->type == ARM_OP_IMM)
+    {
+      /* If Rm is an immediate, we choose an arbitrary register */
+      target = ARM_REG_R0;
+    }
+    else
+    {
+      /*
+      * When choosing a scratch register, we favour Rm since it is often this
+      * value we wish to use to start our calculation and this avoids a register
+      * move.
+      */
+      target = src->mem.base;
+    }
+    gum_arm_writer_put_push_registers (ctx->output, 1, target);
   }
   else
   {
-    gum_arm_writer_put_mov_reg_reg(ctx->output, dst->reg, src->mem.index);
+    /*
+     * If our target register is not PC, then we can carry out our calculations
+     * using Rd to store the intermediate result as we go.
+     */
+    target = dst->reg;
   }
 
-  gum_arm_writer_put_add_reg_u32 (ctx->output, dst->reg, ctx->pc);
-  gum_arm_writer_put_ldr_reg_reg_offset (ctx->output, dst->reg, dst->reg,
-      GUM_INDEX_POS, 0);
+  /*
+   * If we have no shift to apply, then we start our calculation with the value
+   * of PC since we can store this as a literal in the code stream and reduce
+   * the number of instructions we need to generate.
+   */
+  if (src->shift.value == 0)
+  {
+     /* Handle 'ldr Rt, [ Rn, #x ]' or  'ldr Rt, [ Rn, #-x ]'*/
+    if (src->mem.index == ARM_REG_INVALID)
+    {
+      gint disp = src->mem.disp;
+
+      gum_arm_writer_put_ldr_reg_address (ctx->output, target, ctx->pc);
+
+      if (disp < 0)
+      {
+        gum_arm_writer_put_sub_reg_u16 (ctx->output, target, (-disp));
+
+      }
+      else
+      {
+        gum_arm_writer_put_add_reg_u16 (ctx->output, target, disp);
+      }
+    }
+    else
+    {
+      if (src->subtracted)
+      {
+        gum_arm_writer_put_rsbs_reg_reg(ctx->output, dst->reg, src->mem.index);
+      }
+      else
+      {
+        gum_arm_writer_put_mov_reg_reg(ctx->output, dst->reg, src->mem.index);
+      }
+
+      gum_arm_writer_put_add_reg_u32 (ctx->output, dst->reg, ctx->pc);
+    }
+
+    gum_arm_writer_put_ldr_reg_reg_offset (ctx->output, dst->reg, dst->reg,
+        GUM_INDEX_POS, 0);
+  }
+  else
+  {
+    g_warning ("relocation of ldr with shift not supported");
+    gum_arm_writer_put_breakpoint (ctx->output);
+  }
+
+
+
+
+
+  if (dst->reg == ARM_REG_PC)
+  {
+    /*
+     * If we made use of a scratch register, store the result into the code
+     * stream at the given label, then pop to restore the scratch register.
+     * Finally, we can load the calculated value back into the output register.
+     */
+    load_label = ctx->output + 1;
+
+    gum_arm_writer_put_strcc_reg_label (ctx->output, ARM_CC_AL, target,
+        load_label);
+
+    gum_arm_writer_put_pop_registers (ctx->output, 1, target);
+
+    gum_arm_writer_put_ldrcc_reg_label (ctx->output, ARM_CC_AL, ARM_REG_PC,
+        load_label);
+
+    /*
+     * Since we only use a scratch register if our target register is PC, then
+     * we know that the preceeding load should have caused a branch and we
+     * therefore shouldn't reach the following. We therefore insert a break
+     * instruction just in case to alert the user in the event of an error.
+     */
+    gum_arm_writer_put_brk_imm (ctx->output, 0x18);
+    gum_arm_writer_put_label (ctx->output, load_label);
+    gum_arm_writer_put_instruction (ctx->output, 0xdeadface);
+  }
 
   return TRUE;
 }
