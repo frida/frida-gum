@@ -27,6 +27,7 @@ TESTLIST_BEGIN (armrelocator)
   TESTENTRY (bl_imm_a1_negative_should_be_rewritten)
   TESTENTRY (blx_imm_a2_positive_should_be_rewritten)
   TESTENTRY (blx_imm_a2_negative_should_be_rewritten)
+  TESTENTRY (pc_relative_mov_should_be_rewritten)
 TESTLIST_END ()
 
 TESTCASE (one_to_one)
@@ -438,6 +439,22 @@ TESTCASE (blx_imm_a2_negative_should_be_rewritten)
     }, 4,
     3, -3,
     2, 2
+  };
+  branch_scenario_execute (&bs, fixture);
+}
+
+TESTCASE (pc_relative_mov_should_be_rewritten)
+{
+  BranchScenario bs = {
+    ARM_INS_MOV,
+    { 0xe1a0e00f }, 1,          /* mov pc, lr        */
+    {
+      0xe51fe004,               /* ldr lr, [pc, #-4]  */
+      0xffffffff                /* <calculated PC    */
+                                /*  goes here>       */
+    }, 2,
+    1, 0,
+    -1, -1
   };
   branch_scenario_execute (&bs, fixture);
 }
