@@ -39,7 +39,7 @@ gum_arm_reg_describe (arm_reg reg,
 
 
 void
-gum_arm_cond_describe(arm_cc cc, guint8 * code)
+gum_arm_cond_describe (arm_cc cc, guint8 * code)
 {
   switch (cc)
   {
@@ -95,7 +95,7 @@ gum_arm_cond_describe(arm_cc cc, guint8 * code)
 }
 
 void
-gum_arm_shifter_describe(arm_shifter shifter, guint8 * scode)
+gum_arm_shifter_describe (arm_shifter shifter, guint8 * scode)
 {
   switch (shifter)
   {

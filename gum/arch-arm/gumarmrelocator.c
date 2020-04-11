@@ -770,7 +770,7 @@ gum_arm_relocator_rewrite_bl (GumArmRelocator * self,
 
 static gboolean
 gum_arm_relocator_rewrite_mov (GumArmRelocator * self,
-                              GumCodeGenCtx * ctx)
+                               GumCodeGenCtx * ctx)
 {
   const cs_arm_op * dst = &ctx->detail->operands[0];
   const cs_arm_op * src = &ctx->detail->operands[1];
