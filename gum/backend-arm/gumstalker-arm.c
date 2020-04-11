@@ -1252,9 +1252,9 @@ gum_exec_ctx_write_epilog (GumExecCtx * ctx,
 
 static void
 gum_exec_ctx_write_mov_branch_target_address (GumExecCtx * ctx,
-                                               const GumBranchTarget * target,
-                                               arm_reg reg,
-                                               GumGeneratorContext * gc)
+                                              const GumBranchTarget * target,
+                                              arm_reg reg,
+                                              GumGeneratorContext * gc)
 {
   GumArmWriter * cw = gc->code_writer;
 
@@ -1415,9 +1415,10 @@ gum_exec_block_commit (GumExecBlock * block)
 }
 
 static void
-gum_exec_block_virtualize_branch_insn (
-    GumExecBlock * block, const GumBranchTarget * target,
-    arm_cc cc, GumGeneratorContext * gc)
+gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
+                                       const GumBranchTarget * target,
+                                       arm_cc cc,
+                                       GumGeneratorContext * gc)
 {
   GumExecCtx * ec = block->ctx;
 
@@ -1446,9 +1447,10 @@ gum_exec_block_virtualize_branch_insn (
 }
 
 static void
-gum_exec_block_virtualize_call_insn (
-    GumExecBlock * block, const GumBranchTarget * target,
-    arm_cc cc, GumGeneratorContext * gc)
+gum_exec_block_virtualize_call_insn (GumExecBlock * block,
+                                     const GumBranchTarget * target,
+                                     arm_cc cc,
+                                     GumGeneratorContext * gc)
 {
   GumExecCtx * ec = block->ctx;
   gpointer ret_real_address = gc->instruction->end;
@@ -1478,10 +1480,12 @@ gum_exec_block_virtualize_call_insn (
 }
 
 static void
-gum_exec_block_virtualize_ret_insn (
-    GumExecBlock * block, const GumBranchTarget * target,
-    arm_cc cc, gboolean pop, gushort mask,
-    GumGeneratorContext * gc)
+gum_exec_block_virtualize_ret_insn (GumExecBlock * block,
+                                    const GumBranchTarget * target,
+                                    arm_cc cc,
+                                    gboolean pop,
+                                    gushort mask,
+                                    GumGeneratorContext * gc)
 {
   GumExecCtx * ec = block->ctx;
 
@@ -1519,9 +1523,9 @@ gum_exec_block_virtualize_ret_insn (
 
 static void
 gum_exec_block_write_handle_kuser_helper (GumExecBlock * block,
-                                      const GumBranchTarget * target,
-                                      arm_cc cc,
-                                      GumGeneratorContext * gc)
+                                          const GumBranchTarget * target,
+                                          arm_cc cc,
+                                          GumGeneratorContext * gc)
 {
   GumArmWriter * cw = gc->code_writer;
   gconstpointer not_kuh = cw->code + 1;
@@ -1600,8 +1604,8 @@ gum_exec_block_write_handle_kuser_helper (GumExecBlock * block,
 
 static void
 gum_exec_block_write_call_replace_current_block_with (GumExecBlock * block,
-                                       const GumBranchTarget * target,
-                                       GumGeneratorContext * gc)
+                                                      const GumBranchTarget * target,
+                                                      GumGeneratorContext * gc)
 {
   GumArmWriter * cw = gc->code_writer;
   GumArgument args[] =
@@ -1618,9 +1622,9 @@ gum_exec_block_write_call_replace_current_block_with (GumExecBlock * block,
 }
 
 static void
-gum_exec_block_dont_virtualize_insn (
-    GumExecBlock * block, const GumBranchTarget * target,
-    GumGeneratorContext * gc)
+gum_exec_block_dont_virtualize_insn (GumExecBlock * block,
+                                     const GumBranchTarget * target,
+                                     GumGeneratorContext * gc)
 {
   GumExecCtx * ec = block->ctx;
 
@@ -1878,8 +1882,8 @@ gum_exec_block_push_stack_frame (GumExecCtx * ctx,
 
 static void
 gum_exec_block_write_pop_stack_frame (GumExecBlock * block,
-                                 const GumBranchTarget * target,
-                                 GumGeneratorContext * gc)
+                                      const GumBranchTarget * target,
+                                      GumGeneratorContext * gc)
 {
   GumArmWriter * cw = gc->code_writer;
   GumArgument args[] =
@@ -1897,7 +1901,7 @@ gum_exec_block_write_pop_stack_frame (GumExecBlock * block,
 
 static void
 gum_exec_block_pop_stack_frame (GumExecCtx * ctx,
-                                 gpointer ret_real_address)
+                                gpointer ret_real_address)
 {
   GumExecFrame * next_frame;
   if (ctx->current_frame != ctx->first_frame)
