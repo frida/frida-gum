@@ -264,7 +264,7 @@ static void gum_exec_block_write_handle_continue (GumExecBlock * block,
     const GumBranchTarget * target, GumGeneratorContext * gc);
 
 static void gum_exec_block_write_exec_generated_code (GumArmWriter * cw,
-    arm_cc cc, GumExecCtx * ctx);
+    GumExecCtx * ctx);
 
 static void gum_exec_block_write_call_event_code (GumExecBlock * block,
     const GumBranchTarget * target, GumGeneratorContext * gc);
@@ -1620,8 +1620,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
   gum_exec_block_write_call_replace_current_block_with (block, target, gc);
   gum_exec_block_write_pop_stack_frame (block, target, gc);
   gum_exec_block_close_prolog (block, gc);
-  gum_exec_block_write_exec_generated_code (gc->code_writer, ARM_CC_AL,
-      block->ctx);
+  gum_exec_block_write_exec_generated_code (gc->code_writer, block->ctx);
 }
 
 static void
@@ -1653,8 +1652,7 @@ gum_exec_block_virtualize_call_insn (GumExecBlock * block,
   gum_exec_block_close_prolog (block, gc);
   gum_arm_writer_put_ldr_reg_address (gc->code_writer, ARM_REG_LR,
     GUM_ADDRESS (ret_real_address));
-  gum_exec_block_write_exec_generated_code (gc->code_writer, ARM_CC_AL,
-    block->ctx);
+  gum_exec_block_write_exec_generated_code (gc->code_writer, block->ctx);
 }
 
 static void
@@ -1705,7 +1703,7 @@ gum_exec_block_virtualize_ret_insn (GumExecBlock * block,
         target->reg, 4);
   }
 
-  gum_exec_block_write_exec_generated_code (gc->code_writer, cc, block->ctx);
+  gum_exec_block_write_exec_generated_code (gc->code_writer, block->ctx);
 }
 
 static void
@@ -1830,8 +1828,7 @@ gum_exec_block_write_handle_kuser_helper (GumExecBlock * block,
   gum_exec_block_write_call_replace_current_block_with (block, &ret_target, gc);
    gum_exec_block_close_prolog (block, gc);
 
-  gum_exec_block_write_exec_generated_code (gc->code_writer, ARM_CC_AL,
-      block->ctx);
+  gum_exec_block_write_exec_generated_code (gc->code_writer, block->ctx);
 
   gum_arm_writer_put_brk_imm (gc->code_writer, 15);
 
@@ -2027,16 +2024,14 @@ gum_exec_block_write_handle_continue (GumExecBlock * block,
     GUM_ADDRESS (gum_exec_ctx_replace_current_block_with), 2, args);
   gum_exec_block_close_prolog (block, gc);
 
-  gum_exec_block_write_exec_generated_code (gc->code_writer, ARM_CC_AL,
-      block->ctx);
+  gum_exec_block_write_exec_generated_code (gc->code_writer, block->ctx);
 
   gum_arm_writer_put_brk_imm (gc->code_writer, 15);
 }
 
 static void
 gum_exec_block_write_exec_generated_code (GumArmWriter * cw,
-                                         arm_cc cc,
-                                         GumExecCtx * ctx)
+                                          GumExecCtx * ctx)
 {
   gconstpointer dest_label;
 
@@ -2074,16 +2069,16 @@ gum_exec_block_write_exec_generated_code (GumArmWriter * cw,
   gum_arm_writer_put_push_registers (cw, 1, ARM_REG_R12);
   gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R12,
       GUM_ADDRESS (&ctx->resume_at));
-  gum_arm_writer_put_ldrcc_reg_reg_offset (cw, cc, ARM_REG_R12, ARM_REG_R12,
-      GUM_INDEX_POS, 0);
+  gum_arm_writer_put_ldrcc_reg_reg_offset (cw, ARM_CC_AL, ARM_REG_R12,
+      ARM_REG_R12, GUM_INDEX_POS, 0);
 
   dest_label = cw->code + 1;
 
-  gum_arm_writer_put_strcc_reg_label (cw, cc, ARM_REG_R12,
+  gum_arm_writer_put_strcc_reg_label (cw, ARM_CC_AL, ARM_REG_R12,
       dest_label);
   gum_arm_writer_put_pop_registers (cw, 1, ARM_REG_R12);
 
-  gum_arm_writer_put_ldrcc_reg_label (cw, cc, ARM_REG_PC,
+  gum_arm_writer_put_ldrcc_reg_label (cw, ARM_CC_AL, ARM_REG_PC,
       dest_label);
 
   gum_arm_writer_put_brk_imm (cw, 0x17);
