@@ -304,6 +304,12 @@ gum_arm_writer_put_add_reg_reg_imm (GumArmWriter * self,
   gum_arm_reg_describe (dst_reg, &rd);
   gum_arm_reg_describe (src_reg, &rs);
 
+  /*
+   * If the src and dst registers are the same and the immediate value is zero,
+   * then the instruction is effectively a no-op. We can therefore omit it. We
+   * handle this here, since it removes all the duplicated checking code from
+   * our callers.
+   */
   if (src_reg != dst_reg || (imm_val & GUM_INT8_MASK) != 0)
   {
     gum_arm_writer_put_instruction (self, 0xe2800000 | rd.index << 12 |
@@ -613,6 +619,11 @@ gum_arm_writer_put_argument_list_setup (GumArmWriter * self,
 
           gum_arm_reg_describe (src_reg, &rs);
 
+          /*
+          * If the src and dst registers are the same the instruction is
+          * effectively a no-op. We can therefore omit it. We handle this here,
+          * since it removes all the duplicated checking code from our callers.
+          */
           if (src_reg != dst_reg)
           {
               gum_arm_writer_put_mov_reg_reg (self, dst_reg, arg->value.reg);
@@ -739,6 +750,12 @@ gum_arm_writer_put_mov_reg_reg_sft (GumArmWriter * self,
   gum_arm_reg_describe (src_reg, &rs);
   gum_arm_shifter_describe (shift, &scode);
 
+  /*
+   * If the src and dst registers are the same and the shift value is zero,
+   * then the instruction is effectively a no-op. We can therefore omit it. We
+   * handle this here, since it removes all the duplicated checking code from
+   * our callers.
+   */
   if (shift_value != 0 || dst_reg != src_reg)
   {
     gum_arm_writer_put_instruction (self, 0xe1a00000 | rd.index << 12 |
@@ -914,6 +931,12 @@ gum_arm_writer_put_sub_reg_reg_imm (GumArmWriter * self,
   gum_arm_reg_describe (dst_reg, &rd);
   gum_arm_reg_describe (src_reg, &rs);
 
+  /*
+   * If the src and dst registers are the same and the immediate value is zero,
+   * then the instruction is effectively a no-op. We can therefore omit it. We
+   * handle this here, since it removes all the duplicated checking code from
+   * our callers.
+   */
   if (src_reg != dst_reg || (imm_val & GUM_INT8_MASK) != 0)
   {
     gum_arm_writer_put_instruction (self, 0xe2400000 | rd.index << 12 |
@@ -931,6 +954,13 @@ gum_arm_writer_put_and_reg_reg_imm (GumArmWriter * self,
 
   gum_arm_reg_describe (dst_reg, &rd);
   gum_arm_reg_describe (src_reg, &rs);
+
+  /*
+   * If the src and dst registers are the same and the shift value is zero,
+   * then the instruction is effectively a no-op. We can therefore omit it. We
+   * handle this here, since it removes all the duplicated checking code from
+   * our callers.
+   */
   if (src_reg != dst_reg || (imm_val & GUM_INT12_MASK) != 0)
   {
     gum_arm_writer_put_instruction (self, 0xe2000000 | rd.index << 12 |
