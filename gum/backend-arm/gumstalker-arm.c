@@ -44,36 +44,13 @@ struct _GumStalker
 };
 
 G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
-typedef struct _GumExecBlock GumExecBlock;
 typedef struct _GumSlab GumSlab;
-typedef struct _GumExecCtx GumExecCtx;
 typedef struct _GumExecFrame GumExecFrame;
+typedef struct _GumExecCtx GumExecCtx;
+typedef struct _GumExecBlock GumExecBlock;
 typedef struct _GumGeneratorContext GumGeneratorContext;
 typedef struct _GumInstruction GumInstruction;
 typedef struct _GumBranchTarget GumBranchTarget;
-
-struct _GumExecBlock
-{
-  GumExecCtx * ctx;
-  GumSlab * slab;
-
-  guint8 * real_begin;
-  guint8 * real_end;
-
-  guint8 * code_begin;
-  guint8 * code_end;
-};
-
-struct _GumSlab
-{
-  guint8 * data;
-  guint offset;
-  guint size;
-  GumSlab * next;
-
-  guint num_blocks;
-  GumExecBlock blocks[];
-};
 
 struct _GumExecFrame
 {
@@ -110,6 +87,29 @@ struct _GumExecCtx
 
   GumSlab * code_slab;
   GumMetalHashTable * mappings;
+};
+
+struct _GumExecBlock
+{
+  GumExecCtx * ctx;
+  GumSlab * slab;
+
+  guint8 * real_begin;
+  guint8 * real_end;
+
+  guint8 * code_begin;
+  guint8 * code_end;
+};
+
+struct _GumSlab
+{
+  guint8 * data;
+  guint offset;
+  guint size;
+  GumSlab * next;
+
+  guint num_blocks;
+  GumExecBlock blocks[];
 };
 
 struct _GumGeneratorContext
