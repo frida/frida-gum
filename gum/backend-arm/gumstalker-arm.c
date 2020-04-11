@@ -993,6 +993,11 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
    * gum_exec_ctx_write_mov_branch_target_address in order to wrte instructions
    * into the instrumented block to recover the target address from these
    * different forms of instruction.
+   *
+   * Lastly, we should note that many of these instructions can be conditionally
+   * executed depending on the status of processor flags. For example, BLEQ will
+   * only take affect if the previous instruction which set the flags indicated
+   * the result of the operationg was equal.
    */
   GumBranchTarget target =
   {
@@ -1006,6 +1011,20 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
     .shift_value = 0
   };
   GumArmRegInfo ri;
+
+  /*
+   * The mask field is set when the POP or LDMIA instructions are encountered.
+   * This is used to encode the other registers which are included in the
+   * operation. Note, however, that the register PC is omitted from this mask.
+   *
+   *  This is processed by gum_exec_block_virtualize_ret_insn so that after the
+   *  epilogue has been executed and the application registers are restored. A
+   *  replacement POP or LDMIA instruction can be generated to restore the
+   *  values of the other registers from the stack. Note that we don't restore
+   *  the value of PC from the stack and instead simply increment the stack
+   *  pointer since we instead want to pass control back into stalker to
+   *  instrument the next block.
+   */
   gushort mask = 0;
 
   if (g_debug)
@@ -1037,6 +1056,13 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         }
         else
         {
+          /*
+           * In the case of the BX and BLX instructions, the instruction mode
+           * always changes from ARM to thumb or vice-versa and hence the low
+           * bit of the target address should be set. Note that since we only
+           * support stalking of ARM code for now, we don't need to cater for
+           * the reverse.
+           */
           target.absolute_address = GSIZE_TO_POINTER (op->imm) + 1;
         }
         break;
@@ -1266,6 +1292,28 @@ gum_exec_ctx_write_prolog (GumExecCtx * ctx,
 {
   gint immediate_for_sp = 0;
 
+  /*
+   * For our context, we want to build up the following structure so that
+   * stalker can read the register state of the application.
+   *
+   * struct _GumArmCpuContext
+   * {
+   *   guint32 cpsr;
+   *   guint32 pc;
+   *   guint32 sp;
+   *
+   *   guint32 r8;
+   *   guint32 r9;
+   *   guint32 r10;
+   *   guint32 r11;
+   *   guint32 r12;
+   *
+   *   guint32 r[8];
+   *   guint32 lr;
+   * };
+   */
+
+  /* Store R0 through R7 and LR */
   gum_arm_writer_put_push_registers (cw, 9,
     ARM_REG_R0, ARM_REG_R1, ARM_REG_R2, ARM_REG_R3,
     ARM_REG_R4, ARM_REG_R5, ARM_REG_R6, ARM_REG_R7,
@@ -1273,20 +1321,61 @@ gum_exec_ctx_write_prolog (GumExecCtx * ctx,
 
   immediate_for_sp += 9 * 4;
 
+  /* Push R8 through R12 */
   gum_arm_writer_put_push_registers (cw, 5,
     ARM_REG_R8, ARM_REG_R9, ARM_REG_R10, ARM_REG_R11,
     ARM_REG_R12);
 
   immediate_for_sp += 5 * 4;
 
+  /*
+   * Calculate the original value that SP would have held prior to this function
+   * by adding on the amount of registers pushed so far and store it in R2.
+   */
   gum_arm_writer_put_add_reg_reg_imm (cw, ARM_REG_R2, ARM_REG_SP,
                                      immediate_for_sp);
+
+  /*
+   * Zero the register R1. This will be used to store the value of PC. If a
+   * function inside stalker wants to retrieve the value of PC according to the
+   * guest then it must interrogate the iterator being used to process the
+   * original instruction stream. Since the guest will be executing instrumented
+   * code, the value of PC if we pushed it here would not be the value of PC
+   * within the original block anyway.
+   *
+   * The data within this context block is read by the instrumented instructions
+   * emitted by the function gum_exec_ctx_load_real_register_into and this takes
+   * this edge case into account.
+   */
   gum_arm_writer_put_sub_reg_reg_reg (cw, ARM_REG_R1, ARM_REG_R1,
                                      ARM_REG_R1);
+
+  /* Read the flags register cpsr into R0 */
   gum_arm_writer_put_mov_cpsr_to_reg (cw, ARM_REG_R0);
+
+  /*
+   * Push the values of R0, R1 and R2 containing the cpsr, zeroed PC and
+   * adjusted stackpointer respectively.
+   */
   gum_arm_writer_put_push_registers (cw, 3,
     ARM_REG_R0, ARM_REG_R1, ARM_REG_R2);
 
+  /*
+   * Now that the context structure has been pushed onto the stack, we store the
+   * address of this structure on the stack into register R10. This register can
+   * be chosen fairly arbitrarily but it should be a callee saved register so
+   * that any C code called from our instrumented code is obliged by the calling
+   * convention to preserve its value accross the function call. In particul
+   * register R12 is a caller saved register and as such any C function can
+   * modify its value and not restore it. Similary registers R0 through R3
+   * contain the arguments to the function and the return result and are
+   * accordingly not preserved.
+   *
+   * We have elected not to use R11 since this can be used a a frame pointer by
+   * some compilers and as such can confuse some debuggers. The function
+   * gum_exec_ctx_load_real_register_into makes use of this register R10 in
+   * order to access this context structure.
+   */
   gum_arm_writer_put_mov_reg_reg (cw, ARM_REG_R10, ARM_REG_SP);
 }
 
@@ -1326,17 +1415,38 @@ gum_exec_ctx_write_mov_branch_target_address (GumExecCtx * ctx,
     gum_exec_ctx_load_real_register_into (ctx, reg, target->reg, gc);
     if (target->is_indirect)
     {
+      /*
+       * If the target is indirect, then we need to dereference it.
+       * e.g. LDR pc, [r3, #4]
+       */
       gum_arm_writer_put_ldr_reg_reg_offset (cw, reg, reg, target->mode,
           target->offset);
     }
     else if (target->reg2 != ARM_REG_INVALID)
     {
+
+      /* This block handles instructions such as 'ADD pc, r1, r2 lsl #4' */
+
+      /*
+       * Here we are going to use R12 as additional scratch space for our
+       * calculation since it is the only register which is not callee saved.
+       * Thus since we are already using 'reg' as our output register, we cannot
+       * have the two collide. This should not be an issue since the callers of
+       * this funtion are all instrumented code generated by the stalker and the
+       * value of the branch target address is usually used as an argument to
+       * another function and hence is generally loaded into one of the
+       * registers used to hold arguments defined by the ABI (R0-R3).
+       */
       if (reg == ARM_REG_R12)
       {
         g_error ("Cannot support ADD/SUB reg, reg, reg when target is"
             "ARM_REG_R12");
       }
 
+      /*
+       * Load the second register value from the context into R12 before adding
+       * to the original and applying any necessary shift.
+       */
       gum_exec_ctx_load_real_register_into (ctx, ARM_REG_R12, target->reg2, gc);
 
       gum_arm_writer_put_add_reg_reg_reg_sft (cw, reg, reg, ARM_REG_R12,
@@ -1344,8 +1454,12 @@ gum_exec_ctx_write_mov_branch_target_address (GumExecCtx * ctx,
     }
     else if (target->offset != 0)
     {
-      g_assert (target->shifter == ARM_SFT_INVALID);
-      g_assert (target->shift_value == 0);
+      /* This block handles instructions of the form 'ADD/SUB pc, r1, #32' */
+      if (target->shifter != ARM_SFT_INVALID || target->shift_value != 0)
+      {
+        g_error ("Shifter not supported for immediate offset");
+      }
+
       if (target->mode == GUM_INDEX_POS)
       {
         gum_arm_writer_put_add_reg_reg_imm (cw, reg, reg, target->offset);
@@ -1367,6 +1481,14 @@ gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
   GumArmWriter * cw;
 
   cw = gc->code_writer;
+  /*
+   * For the most part, we simply need to identify the offset of the
+   * source_register within the GumCpuContext structure and load the value
+   * accordingly. However, in the case of the PC, we instead load the address of
+   * the current instruction in the iterator. Note that we add the fixed offset
+   * of 8 since the value of PC is alway interpreted in ARM32 as being 8 bytes
+   * past the start of the instruction.
+   */
   if (source_register >= ARM_REG_R0 && source_register <= ARM_REG_R7)
   {
     gum_arm_writer_put_ldr_reg_reg_offset (cw, target_register, ARM_REG_R10,
@@ -1400,7 +1522,6 @@ gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
   }
   else
   {
-    g_error ("UNKNOWN REG: %d\n", source_register);
     g_assert_not_reached ();
   }
 }
@@ -1564,6 +1685,15 @@ gum_exec_block_virtualize_ret_insn (GumExecBlock * block,
   gum_exec_block_write_pop_stack_frame (block, target, gc);
   gum_exec_block_close_prolog (block, gc);
 
+  /*
+   * If the instruction we are virtualizing is a POP (or indeed LDMIA)
+   * instruction, then as well as determining the location at which control flow
+   * should continue, we must ensure we load any other registers in the register
+   * list of the instruction from the stack. Lastly, we must increment that
+   * stack pointer to remove the value of PC which would have been restored,
+   * since we will instead control PC to continue execution of instrumented
+   * code.
+   */
   if (pop)
   {
     if (mask != 0)
@@ -1593,6 +1723,37 @@ gum_exec_block_write_handle_kuser_helper (GumExecBlock * block,
     { GUM_ARG_REGISTER, { .reg = ARM_REG_R0}},
   };
 
+  /*
+   * The kuser_helper is a mechanism implemented by the Linux kernel to expose a
+   * page of code into the user address space so that it can be used by glibc in
+   * order to carry out a number of heavily architecture specific operations
+   * without having to perform architecture detection of its own (see
+   * https://www.kernel.org/doc/Documentation/arm/kernel_user_helpers.txt).
+   *
+   * When running in qemu-user (which is useful for running target code on the
+   * bench, or simply testing when you don't have access to a target), since
+   * qemu-user is emulating the ARM instructions on an alterative architecture
+   * (likely x86_64) then the code page exposed by the host kernel will be of
+   * the native architecture accordingly. Rather than attempting to emulate this
+   * very machine sepecific code, qemu instead detects when the application
+   * attempts to execute one of these handlers (see the function do_kernel_trap
+   * in https://github.com/qemu/qemu/blob/master/linux-user/arm/cpu_loop.c) and
+   * performs the necessary emulation on behalf of the application. Thus it is
+   * not possible to read the page at this address and retrieve ARM code to be
+   * instrumented.
+   *
+   * Rather than attempt to detect the target on which we are running, as it is
+   * vanishingly unlikely that a user will care to stalk this platform specific
+   * code we simply execute is outside of the stalker engine, similar to the way
+   * in which an excluded range is handled.
+   */
+
+  /*
+   * If the branch target is deterministic (e.g. not based on register
+   * contents). We can perform the check during instrumentation rather than at
+   * runtime and omit this code if we can determine we will not enter a
+   * kuser_helper.
+   */
   if (target->reg == ARM_REG_INVALID)
   {
     if (gum_stalker_is_kuser_helper (target->absolute_address) == FALSE)
@@ -1626,6 +1787,29 @@ gum_exec_block_write_handle_kuser_helper (GumExecBlock * block,
   gum_arm_writer_put_ldrcc_reg_label (gc->code_writer, ARM_CC_AL, ARM_REG_R12,
       kuh_label);
 
+  /*
+   * Unlike an excluded range, where the function is executed by a call
+   * instruction. It is quite common for kuser_helpers to instead be executed by
+   * the following instruction sequence.
+   *
+   * mvn r0,#0xf000
+   * sub pc,r0,#0x1f
+   *
+   * This is effectively a tail call within a thunk function. But as we can see
+   * * when we vector to the kuser_helper we actually find a branch instruction
+   * and not a call and hence were we to simply emit it, then we would not be
+   * able to return to the stalker engine after it has completed in order to
+   * continue stalking. We must therefore emit a call instead.
+   *
+   * Note, however that per the documentation at kernel.org, the helpers are in
+   * fact functions and so we can simply call and they will return control back
+   * to the address contained in LR. One last thing to note here, is that we
+   * store and restore the application LR value either side of our call so that
+   * we can preserve it. This does have the effect of changing the normal
+   * application stack pointer during the duration of the call, but the
+   * documentation states that all of the input and output make use of registers
+   * rather than the stack.
+   */
   gum_arm_writer_put_push_registers (gc->code_writer, 1, ARM_REG_LR);
   gum_arm_writer_put_blr_reg (gc->code_writer, ARM_REG_R12);
   gum_arm_writer_put_pop_registers (gc->code_writer, 1, ARM_REG_LR);
@@ -1654,6 +1838,11 @@ gum_exec_block_write_handle_kuser_helper (GumExecBlock * block,
   gum_arm_writer_put_label (gc->code_writer, kuh_label);
   gum_arm_writer_put_instruction (gc->code_writer, 0xdeadface);
 
+  /*
+   * This label is only required if we weren't able to determine at
+   * instrumentation time whether the target was a kuser_helper. If we could
+   * then we either emit the handler if it is, or do nothing if not.
+   */
   if (target->reg != ARM_REG_INVALID)
   {
     gum_arm_writer_put_label (cw, not_kuh);
@@ -1710,6 +1899,12 @@ gum_exec_block_write_handle_excluded (GumExecBlock * block,
     { GUM_ARG_REGISTER, { .reg = ARM_REG_R1}},
   };
 
+  /*
+   * If the branch target is deterministic (e.g. not based on register
+   * contents). We can perform the check during instrumentation rather than at
+   * runtime and omit this code if we can determine we will not enter an
+   * excluded range.
+   */
   if (target->reg == ARM_REG_INVALID)
   {
     if (gum_stalker_is_excluding (block->ctx, target->absolute_address) ==
@@ -1741,6 +1936,7 @@ gum_exec_block_write_handle_excluded (GumExecBlock * block,
 
   gum_exec_block_close_prolog (block, gc);
 
+  /* Emit the original call instruction (relocated) */
   gum_arm_relocator_write_one (gc->relocator);
 
   gum_exec_block_open_prolog (block, gc);
@@ -1753,6 +1949,11 @@ gum_exec_block_write_handle_excluded (GumExecBlock * block,
 
   gum_exec_block_write_handle_continue (block, target, gc);
 
+  /*
+   * This label is only required if we weren't able to determine at
+   * instrumentation time whether the target was an excluded range. If we could
+   * then we either emit the handler if it is, or do nothing if not.
+   */
   if (target->reg != ARM_REG_INVALID)
   {
     gum_arm_writer_put_label (cw, not_excluded);
@@ -1769,10 +1970,22 @@ gum_exec_block_write_handle_not_taken (GumExecBlock * block,
   GumArmWriter * cw = gc->code_writer;
   gconstpointer taken = cw->code + 1;
 
+  /*
+   * Many arm instructions can be conditionally executed based upon the state of
+   * register flags. If our instruction is not always executed (ARM_CC_AL), we
+   * emit a branch with the same condition code as the original instruction to
+   * by pass the continuation handler.
+   */
   if (cc != ARM_CC_AL)
   {
     gum_arm_writer_put_bcc_label (gc->code_writer, cc, taken);
 
+    /*
+     * If the branch is not taken on account that the instruction is
+     * conditionally executed, then emit any necessary events and continue
+     * execution by instrumenting and vectoring to the block immediately after
+     * the conditional instruction.
+     */
     gum_exec_block_open_prolog (block, gc);
 
     if ((ec->sink_mask & GUM_EXEC) != 0)
@@ -1803,6 +2016,13 @@ gum_exec_block_write_handle_continue (GumExecBlock * block,
     { GUM_ARG_ADDRESS, { .address = GUM_ADDRESS (gc->instruction->end)}},
   };
 
+  /*
+   * Use the address of the end of the current instruction as the address of the
+   * next block to execute. This is the case after handling a call instruction
+   * to an excluded range whereby upon return you want to continue with the next
+   * instruction, or when a conditional instruction is not executed resulting in
+   * a branch not being taken. Instrument the block and then vector to it.
+   */
   gum_arm_writer_put_call_address_with_arguments_array (gc->code_writer,
     GUM_ADDRESS (gum_exec_ctx_replace_current_block_with), 2, args);
   gum_exec_block_close_prolog (block, gc);
@@ -1820,6 +2040,37 @@ gum_exec_block_write_exec_generated_code (GumArmWriter * cw,
 {
   gconstpointer dest_label;
 
+  /*
+   * This function writes code to vector to the address of the last instrumented
+   * block. Given that this code is emitted before the block is actually
+   * instrumented, the value of ctx->resume_at will change between this code
+   * being emitted and it being executed. It must therefore use &ctx->resume_at
+   * and re-read the value from memory at runtime.
+   *
+   * This however means that we must use a scratch register to calculate the
+   * final address. Given that this is also used to transition between blocks
+   * within a function, we cannot rely upon the fact the R12 is a callee saved
+   * register and clobber the value since it may be being used within the
+   * function scope. We therefore push and pop this register to and from the
+   * stack.
+   *
+   * However, we  need to restore the scratch register value from the stack
+   * before we perform the branch. Thus we need to store the calculated value
+   * somewhere where it can be referenced again first. When the LDMIA
+   * instruction operates on a number of registers including PC, the value of PC
+   * is expected to be popped from the stack last, hence we cannot push the
+   * scratch register, then the calculated address and use an LDMIA to restore
+   * the register and branch as the registers will be in the wrong order.
+   *
+   * We could consider using space above the stack pointer (and any red-zone),
+   * or some other asymmetric stack usage, but in order to keep things simple,
+   * we store our calculated address in the code stream using the label support
+   * of the gumarmwriter. This means that the code page needs to be RWX. This
+   * isn't expected to be a problem since it is expected that most systems which
+   * prevent the use of RWX memory as a security feature will have already
+   * adopted AARCH64 architecture in order to benefit from other security
+   * features and hence this should not affect ARM32.
+   */
   gum_arm_writer_put_push_registers (cw, 1, ARM_REG_R12);
   gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R12,
       GUM_ADDRESS (&ctx->resume_at));
@@ -1962,6 +2213,15 @@ gum_exec_block_pop_stack_frame (GumExecCtx * ctx,
                                 gpointer ret_real_address)
 {
   GumExecFrame * next_frame;
+  /*
+   * Since with ARM32, there is no clear CALL and RET instructions, it is
+   * difficult to determine the difference between instructions being used to
+   * perform a CALL, a BRANCH or a RETURN. We therefore check to see if the
+   * target address is the return address from a previous call instruction to
+   * determine whether to pop the frame from the stack. Note, however, that this
+   * approach may not work in the event that the user be allowed to make
+   * call-outs to modify the control flow.
+   */
   if (ctx->current_frame != ctx->first_frame)
   {
     next_frame = ctx->current_frame + 1;
