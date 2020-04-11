@@ -788,6 +788,50 @@ gum_thumb_writer_put_ldr_reg_reg_offset (GumThumbWriter * self,
       GUM_THUMB_MEMORY_LOAD, dst_reg, src_reg, src_offset);
 }
 
+gboolean
+gum_thumb_writer_put_vldr_reg_reg_offset (GumThumbWriter * self,
+                                         arm_reg dst_reg,
+                                         arm_reg src_reg,
+                                         gsize src_offset)
+{
+  GumArmRegInfo src_reg_info;
+  GumArmRegInfo dst_reg_info;
+
+  // cccc cccc cycc ssss dddd cccx oooo oooo
+  // c: opt code fixed
+  // y: dest reg index, bit 1 
+  // s: source reg index
+  // d: dest reg index, bit 2-5
+  // x: 0 f32 load  1 f64 load
+
+  uint32_t code = 0xed900a00;
+  gboolean is_float = TRUE;
+
+  gum_arm_reg_describe (src_reg, &src_reg_info);
+  gum_arm_reg_describe (dst_reg, &dst_reg_info);
+
+  code |= (src_offset >> 2) & 0xff;
+  code |= (src_reg_info.index << 16);
+
+  if (dst_reg_info.meta >= GUM_ARM_MREG_D0 && dst_reg_info.meta <= GUM_ARM_MREG_D31)
+    is_float = FALSE;
+
+  if (is_float)
+  {
+    code |= (dst_reg_info.index >> 1) << 12;
+    code |= (dst_reg_info.index & 1) << 22;
+  }
+  else 
+  {
+    code |= (dst_reg_info.index) << 12;
+    code |= 1 << 8;
+  }
+  
+  gum_thumb_writer_put_instruction_wide(self, code >> 16, code & 0xffff);
+
+  return TRUE;
+}
+
 void
 gum_thumb_writer_put_str_reg_reg (GumThumbWriter * self,
                                   arm_reg src_reg,
