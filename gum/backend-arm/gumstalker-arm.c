@@ -377,7 +377,7 @@ gum_stalker_is_excluding (GumExecCtx * ctx,
   GArray * exclusions = ctx->stalker->exclusions;
   guint i;
 
-  if (gum_stalker_is_thumb(address))
+  if (gum_stalker_is_thumb (address))
   {
     return TRUE;
   }
@@ -396,7 +396,7 @@ gum_stalker_is_excluding (GumExecCtx * ctx,
 static gboolean
 gum_stalker_is_thumb (gconstpointer address)
 {
-  if ((GUM_ADDRESS(address) & 0x1) != 0)
+  if ((GUM_ADDRESS (address) & 0x1) != 0)
   {
     return TRUE;
   }
@@ -414,7 +414,7 @@ void
 gum_stalker_set_trust_threshold (GumStalker * self,
                                  gint trust_threshold)
 {
-  g_warning("Trust threshold unsupported");
+  g_warning ("Trust threshold unsupported");
 }
 
 void
@@ -441,10 +441,10 @@ _gum_stalker_do_follow_me (GumStalker * self,
 {
   g_count = 0;
   g_events = 0;
-  GumEventType mask = gum_event_sink_query_mask(sink);
+  GumEventType mask = gum_event_sink_query_mask (sink);
   if (mask & GUM_COMPILE)
   {
-    g_warning("Compile events unsupported");
+    g_warning ("Compile events unsupported");
   }
 
   GumExecCtx * ctx;
@@ -486,27 +486,27 @@ gum_stalker_follow (GumStalker * self,
                     GumStalkerTransformer * transformer,
                     GumEventSink * sink)
 {
-  g_warning("Follow unsupported");
+  g_warning ("Follow unsupported");
 }
 
 void
 gum_stalker_unfollow (GumStalker * self,
                       GumThreadId thread_id)
 {
-  g_warning("Unfollow unsupported");
+  g_warning ("Unfollow unsupported");
 }
 
 void
 gum_stalker_activate (GumStalker * self,
                       gconstpointer target)
 {
-  g_warning("Activate/deactivate unsupported");
+  g_warning ("Activate/deactivate unsupported");
 }
 
 void
 gum_stalker_deactivate (GumStalker * self)
 {
-  g_warning("Activate/deactivate unsupported");
+  g_warning ("Activate/deactivate unsupported");
 }
 
 GumProbeId
@@ -516,7 +516,7 @@ gum_stalker_add_call_probe (GumStalker * self,
                             gpointer data,
                             GDestroyNotify notify)
 {
-  g_warning("Call probes unsupported");
+  g_warning ("Call probes unsupported");
   return 0;
 }
 
@@ -524,7 +524,7 @@ void
 gum_stalker_remove_call_probe (GumStalker * self,
                                GumProbeId id)
 {
-  g_warning("Call probes unsupported");
+  g_warning ("Call probes unsupported");
 }
 
 static GumExecCtx *
@@ -820,7 +820,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
 
     // continue_target.absolute_address = gc.continuation_real_address;
     // continue_target.reg = ARM64_REG_INVALID;
-    g_error("Need to implement this!!!");
+    g_error ("Need to implement this!!!");
   }
 
   gum_arm_writer_put_brk_imm (cw, 14);
@@ -905,7 +905,7 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
 
   if (g_debug)
   {
-    g_print("%08d - %p: %s\t%s = 0x%08x, id: %d\n",
+    g_print ("%08d - %p: %s\t%s = 0x%08x, id: %d\n",
         ++g_count, gc->instruction->begin, insn->mnemonic,
         insn->op_str, *(guint*)gc->instruction->begin, insn->id);
   }
@@ -914,7 +914,7 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
   {
     if (g_debug)
     {
-      g_print("\n");
+      g_print ("\n");
     }
 
     switch (insn->id)
@@ -977,7 +977,7 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         for (uint8_t idx = 0; idx < insn->detail->arm.op_count; idx++)
         {
           op = &arm->operands[idx];
-          if(op->reg == ARM_REG_PC)
+          if (op->reg == ARM_REG_PC)
           {
             target.offset = idx * 4;
           }
@@ -999,7 +999,7 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         for (uint8_t idx = 1; idx < insn->detail->arm.op_count; idx++)
         {
           op = &arm->operands[idx];
-          if(op->reg == ARM_REG_PC)
+          if (op->reg == ARM_REG_PC)
           {
             target.offset = (idx - 1) * 4;
           }
@@ -1081,19 +1081,19 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
       case ARM_INS_B:
       case ARM_INS_BX:
       case ARM_INS_LDR:
-        gum_exec_block_virtualize_branch_insn(block, &target, arm->cc, gc);
+        gum_exec_block_virtualize_branch_insn (block, &target, arm->cc, gc);
         break;
       case ARM_INS_BL:
       case ARM_INS_BLX:
-        gum_exec_block_virtualize_call_insn(block, &target, arm->cc, gc);
+        gum_exec_block_virtualize_call_insn (block, &target, arm->cc, gc);
         break;
       case ARM_INS_MOV:
-        gum_exec_block_virtualize_ret_insn(block, &target, arm->cc, FALSE,
+        gum_exec_block_virtualize_ret_insn (block, &target, arm->cc, FALSE,
             0, gc);
         break;
       case ARM_INS_POP:
       case ARM_INS_LDM:
-        gum_exec_block_virtualize_ret_insn(block, &target, arm->cc, TRUE,
+        gum_exec_block_virtualize_ret_insn (block, &target, arm->cc, TRUE,
             mask, gc);
         break;
       default:
@@ -1103,7 +1103,7 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
   }
   else
   {
-    gum_exec_block_dont_virtualize_insn(block, &target, gc);
+    gum_exec_block_dont_virtualize_insn (block, &target, gc);
   }
 }
 
@@ -1124,7 +1124,7 @@ gum_exec_ctx_emit_call_event (GumExecCtx * ctx,
   ctx->sink_process_impl (ctx->sink, &ev);
   if (g_debug)
   {
-    g_print("%3d: { type: %s, location: 0x%08x, "
+    g_print ("%3d: { type: %s, location: 0x%08x, "
         "target: 0x%08x, depth: %u }\n",
           ++g_events, "GUM_CALL", (guint)call->location, (guint)call->target, call->depth);
   }
@@ -1148,7 +1148,7 @@ gum_exec_ctx_emit_ret_event (GumExecCtx * ctx,
 
   if (g_debug)
   {
-    g_print("%3d: { type: %s, location: 0x%08x, "
+    g_print ("%3d: { type: %s, location: 0x%08x, "
         "target: 0x%08x, depth: %u }\n",
         ++g_events, "GUM_RET", (guint)ret->location, (guint)ret->target, ret->depth);
   }
@@ -1168,7 +1168,7 @@ gum_exec_ctx_emit_exec_event (GumExecCtx * ctx,
   ctx->sink_process_impl (ctx->sink, &ev);
   if (g_debug)
   {
-    g_print("%3d: { type: %s, location: 0x%08x }\n", ++g_events,
+    g_print ("%3d: { type: %s, location: 0x%08x }\n", ++g_events,
           "GUM_EXEC", (guint)exec->location);
   }
 }
@@ -1189,7 +1189,7 @@ gum_exec_ctx_emit_block_event (GumExecCtx * ctx,
   ctx->sink_process_impl (ctx->sink, &ev);
   if (g_debug)
   {
-    g_print("%3d: { type: %s, begin: 0x%08x, end: 0x%08x }\n", ++g_events,
+    g_print ("%3d: { type: %s, begin: 0x%08x, end: 0x%08x }\n", ++g_events,
         "GUM_BLOCK",    (guint)block->begin, (guint)block->end);
   }
 }
@@ -1208,43 +1208,43 @@ gum_exec_ctx_write_prolog (GumExecCtx * ctx,
 {
   gint immediate_for_sp = 0;
 
-  gum_arm_writer_put_push_registers(cw, 9,
+  gum_arm_writer_put_push_registers (cw, 9,
     ARM_REG_R0, ARM_REG_R1, ARM_REG_R2, ARM_REG_R3,
     ARM_REG_R4, ARM_REG_R5, ARM_REG_R6, ARM_REG_R7,
     ARM_REG_LR);
 
   immediate_for_sp += 9 * 4;
 
-  gum_arm_writer_put_push_registers(cw, 5,
+  gum_arm_writer_put_push_registers (cw, 5,
     ARM_REG_R8, ARM_REG_R9, ARM_REG_R10, ARM_REG_R11,
     ARM_REG_R12);
 
   immediate_for_sp += 5 * 4;
 
-  gum_arm_writer_put_add_reg_reg_imm(cw, ARM_REG_R2, ARM_REG_SP,
+  gum_arm_writer_put_add_reg_reg_imm (cw, ARM_REG_R2, ARM_REG_SP,
                                      immediate_for_sp);
-  gum_arm_writer_put_sub_reg_reg_reg(cw, ARM_REG_R1, ARM_REG_R1,
+  gum_arm_writer_put_sub_reg_reg_reg (cw, ARM_REG_R1, ARM_REG_R1,
                                      ARM_REG_R1);
-  gum_arm_writer_put_mov_cpsr_to_reg(cw, ARM_REG_R0);
-  gum_arm_writer_put_push_registers(cw, 3,
+  gum_arm_writer_put_mov_cpsr_to_reg (cw, ARM_REG_R0);
+  gum_arm_writer_put_push_registers (cw, 3,
     ARM_REG_R0, ARM_REG_R1, ARM_REG_R2);
 
-  gum_arm_writer_put_mov_reg_reg(cw, ARM_REG_R10, ARM_REG_SP);
+  gum_arm_writer_put_mov_reg_reg (cw, ARM_REG_R10, ARM_REG_SP);
 }
 
 static void
 gum_exec_ctx_write_epilog (GumExecCtx * ctx,
                            GumArmWriter * cw)
 {
-  gum_arm_writer_put_pop_registers(cw, 3,
+  gum_arm_writer_put_pop_registers (cw, 3,
     ARM_REG_R0, ARM_REG_R1, ARM_REG_R2);
-  gum_arm_writer_put_mov_reg_to_cpsr(cw, ARM_REG_R0);
+  gum_arm_writer_put_mov_reg_to_cpsr (cw, ARM_REG_R0);
 
-  gum_arm_writer_put_pop_registers(cw, 5,
+  gum_arm_writer_put_pop_registers (cw, 5,
     ARM_REG_R8, ARM_REG_R9, ARM_REG_R10, ARM_REG_R11,
     ARM_REG_R12);
 
-  gum_arm_writer_put_pop_registers(cw, 9,
+  gum_arm_writer_put_pop_registers (cw, 9,
     ARM_REG_R0, ARM_REG_R1, ARM_REG_R2, ARM_REG_R3,
     ARM_REG_R4, ARM_REG_R5, ARM_REG_R6, ARM_REG_R7,
     ARM_REG_LR);
@@ -1268,26 +1268,26 @@ gum_exec_ctx_write_mov_branch_target_address (GumExecCtx * ctx,
     gum_exec_ctx_load_real_register_into (ctx, reg, target->reg, gc);
     if (target->is_indirect)
     {
-      gum_arm_writer_put_ldr_reg_reg_offset(cw, reg, reg, target->mode,
+      gum_arm_writer_put_ldr_reg_reg_offset (cw, reg, reg, target->mode,
           target->offset);
     }
     else if (target->reg2 != ARM_REG_INVALID)
     {
       if (reg == ARM_REG_R12)
       {
-        g_error("Cannot support ADD/SUB reg, reg, reg when target is"
+        g_error ("Cannot support ADD/SUB reg, reg, reg when target is"
             "ARM_REG_R12");
       }
 
-      gum_exec_ctx_load_real_register_into(ctx, ARM_REG_R12, target->reg2, gc);
+      gum_exec_ctx_load_real_register_into (ctx, ARM_REG_R12, target->reg2, gc);
 
-      gum_arm_writer_put_add_reg_reg_reg_sft(cw, reg, reg, ARM_REG_R12,
+      gum_arm_writer_put_add_reg_reg_reg_sft (cw, reg, reg, ARM_REG_R12,
           target->shifter, target->shift_value);
     }
     else if (target->offset != 0)
     {
-      g_assert(target->shifter == ARM_SFT_INVALID);
-      g_assert(target->shift_value == 0);
+      g_assert (target->shifter == ARM_SFT_INVALID);
+      g_assert (target->shift_value == 0);
       if (target->mode == GUM_INDEX_POS)
       {
         gum_arm_writer_put_add_reg_reg_imm (cw, reg, reg, target->offset);
@@ -1337,12 +1337,12 @@ gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
   }
   else if (source_register == ARM_REG_PC)
   {
-    gum_arm_writer_put_ldr_reg_address(cw, target_register,
-        GUM_ADDRESS(gc->instruction->begin + 8));
+    gum_arm_writer_put_ldr_reg_address (cw, target_register,
+        GUM_ADDRESS (gc->instruction->begin + 8));
   }
   else
   {
-    g_error("UNKNOWN REG: %d\n", source_register);
+    g_error ("UNKNOWN REG: %d\n", source_register);
     g_assert_not_reached ();
   }
 }
@@ -1439,9 +1439,9 @@ gum_exec_block_virtualize_branch_insn (
   gum_exec_block_write_handle_kuser_helper (block, target, cc, gc);
 
   gum_exec_block_write_call_replace_current_block_with (block, target, gc);
-  gum_exec_block_write_pop_stack_frame(block, target, gc);
+  gum_exec_block_write_pop_stack_frame (block, target, gc);
   gum_exec_block_close_prolog (block, gc);
-  gum_exec_block_write_exec_generated_code(gc->code_writer, ARM_CC_AL,
+  gum_exec_block_write_exec_generated_code (gc->code_writer, ARM_CC_AL,
       block->ctx);
 }
 
@@ -1469,11 +1469,11 @@ gum_exec_block_virtualize_call_insn (
 
   gum_exec_block_write_handle_excluded (block, target, TRUE, gc);
   gum_exec_block_write_call_replace_current_block_with (block, target, gc);
-  gum_exec_block_write_push_stack_frame(block, ret_real_address, gc);
+  gum_exec_block_write_push_stack_frame (block, ret_real_address, gc);
   gum_exec_block_close_prolog (block, gc);
   gum_arm_writer_put_ldr_reg_address (gc->code_writer, ARM_REG_LR,
     GUM_ADDRESS (ret_real_address));
-  gum_exec_block_write_exec_generated_code(gc->code_writer, ARM_CC_AL,
+  gum_exec_block_write_exec_generated_code (gc->code_writer, ARM_CC_AL,
     block->ctx);
 }
 
@@ -1500,21 +1500,21 @@ gum_exec_block_virtualize_ret_insn (
   }
 
   gum_exec_block_write_call_replace_current_block_with (block, target, gc);
-  gum_exec_block_write_pop_stack_frame(block, target, gc);
+  gum_exec_block_write_pop_stack_frame (block, target, gc);
   gum_exec_block_close_prolog (block, gc);
 
   if (pop)
   {
     if (mask != 0)
     {
-      gum_arm_write_put_ldmia_registers_by_mask(gc->code_writer, target->reg,
+      gum_arm_write_put_ldmia_registers_by_mask (gc->code_writer, target->reg,
           mask);
     }
-    gum_arm_writer_put_add_reg_reg_imm(gc->code_writer, target->reg,
+    gum_arm_writer_put_add_reg_reg_imm (gc->code_writer, target->reg,
         target->reg, 4);
   }
 
-  gum_exec_block_write_exec_generated_code(gc->code_writer, cc, block->ctx);
+  gum_exec_block_write_exec_generated_code (gc->code_writer, cc, block->ctx);
 }
 
 static void
@@ -1534,7 +1534,7 @@ gum_exec_block_write_handle_kuser_helper (GumExecBlock * block,
 
   if (target->reg == ARM_REG_INVALID)
   {
-    if (gum_stalker_is_kuser_helper(target->absolute_address) == FALSE)
+    if (gum_stalker_is_kuser_helper (target->absolute_address) == FALSE)
     {
       return;
     }
@@ -1550,8 +1550,8 @@ gum_exec_block_write_handle_kuser_helper (GumExecBlock * block,
     gum_arm_writer_put_call_address_with_arguments_array (cw,
       GUM_ADDRESS (gum_stalker_is_kuser_helper), 1, args);
 
-    gum_arm_writer_put_cmp_reg_imm(cw, ARM_REG_R0, 0);
-    gum_arm_writer_put_bcc_label(cw, ARM_CC_EQ, not_kuh);
+    gum_arm_writer_put_cmp_reg_imm (cw, ARM_REG_R0, 0);
+    gum_arm_writer_put_bcc_label (cw, ARM_CC_EQ, not_kuh);
   }
 
   gum_exec_ctx_write_mov_branch_target_address (block->ctx,
@@ -1566,7 +1566,7 @@ gum_exec_block_write_handle_kuser_helper (GumExecBlock * block,
       kuh_label);
 
   gum_arm_writer_put_push_registers (gc->code_writer, 1, ARM_REG_LR);
-  gum_arm_writer_put_blr_reg(gc->code_writer, ARM_REG_R12);
+  gum_arm_writer_put_blr_reg (gc->code_writer, ARM_REG_R12);
   gum_arm_writer_put_pop_registers (gc->code_writer, 1, ARM_REG_LR);
 
   gum_exec_block_open_prolog (block, gc);
@@ -1584,13 +1584,13 @@ gum_exec_block_write_handle_kuser_helper (GumExecBlock * block,
   gum_exec_block_write_call_replace_current_block_with (block, &ret_target, gc);
    gum_exec_block_close_prolog (block, gc);
 
-  gum_exec_block_write_exec_generated_code(gc->code_writer, ARM_CC_AL,
+  gum_exec_block_write_exec_generated_code (gc->code_writer, ARM_CC_AL,
       block->ctx);
 
-  gum_arm_writer_put_brk_imm(gc->code_writer, 15);
+  gum_arm_writer_put_brk_imm (gc->code_writer, 15);
 
-  gum_arm_writer_put_label(gc->code_writer, kuh_label);
-  gum_arm_writer_put_instruction(gc->code_writer, 0xdeadface);
+  gum_arm_writer_put_label (gc->code_writer, kuh_label);
+  gum_arm_writer_put_instruction (gc->code_writer, 0xdeadface);
 
   if (target->reg != ARM_REG_INVALID)
   {
@@ -1650,7 +1650,8 @@ gum_exec_block_write_handle_excluded (GumExecBlock * block,
 
   if (target->reg == ARM_REG_INVALID)
   {
-    if (gum_stalker_is_excluding(block->ctx, target->absolute_address) == FALSE)
+    if (gum_stalker_is_excluding (block->ctx, target->absolute_address) ==
+        FALSE)
     {
       return;
     }
@@ -1666,8 +1667,8 @@ gum_exec_block_write_handle_excluded (GumExecBlock * block,
     gum_arm_writer_put_call_address_with_arguments_array (cw,
       GUM_ADDRESS (gum_stalker_is_excluding), 2, args);
 
-    gum_arm_writer_put_cmp_reg_imm(cw, ARM_REG_R0, 0);
-    gum_arm_writer_put_bcc_label(cw, ARM_CC_EQ, not_excluded);
+    gum_arm_writer_put_cmp_reg_imm (cw, ARM_REG_R0, 0);
+    gum_arm_writer_put_bcc_label (cw, ARM_CC_EQ, not_excluded);
   }
 
   if (call)
@@ -1708,7 +1709,7 @@ gum_exec_block_write_handle_not_taken (GumExecBlock * block,
 
   if (cc != ARM_CC_AL)
   {
-    gum_arm_writer_put_bcc_label(gc->code_writer, cc, taken);
+    gum_arm_writer_put_bcc_label (gc->code_writer, cc, taken);
 
     gum_exec_block_open_prolog (block, gc);
 
@@ -1744,10 +1745,10 @@ gum_exec_block_write_handle_continue (GumExecBlock * block,
     GUM_ADDRESS (gum_exec_ctx_replace_current_block_with), 2, args);
   gum_exec_block_close_prolog (block, gc);
 
-  gum_exec_block_write_exec_generated_code(gc->code_writer, ARM_CC_AL,
+  gum_exec_block_write_exec_generated_code (gc->code_writer, ARM_CC_AL,
       block->ctx);
 
-  gum_arm_writer_put_brk_imm(gc->code_writer, 15);
+  gum_arm_writer_put_brk_imm (gc->code_writer, 15);
 }
 
 static void
@@ -1756,10 +1757,8 @@ gum_exec_block_write_exec_generated_code (GumArmWriter * cw,
                                          GumExecCtx * ctx)
 {
   gconstpointer dest_label;
-  guint8 cond;
-  gum_arm_cond_describe(cc, &cond);
 
-  gum_arm_writer_put_push_registers(cw, 1, ARM_REG_R12);
+  gum_arm_writer_put_push_registers (cw, 1, ARM_REG_R12);
   gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R12,
       GUM_ADDRESS (&ctx->resume_at));
   gum_arm_writer_put_ldrcc_reg_reg_offset (cw, cc, ARM_REG_R12, ARM_REG_R12,
@@ -1769,15 +1768,15 @@ gum_exec_block_write_exec_generated_code (GumArmWriter * cw,
 
   gum_arm_writer_put_strcc_reg_label (cw, cc, ARM_REG_R12,
       dest_label);
-  gum_arm_writer_put_pop_registers(cw, 1, ARM_REG_R12);
+  gum_arm_writer_put_pop_registers (cw, 1, ARM_REG_R12);
 
   gum_arm_writer_put_ldrcc_reg_label (cw, cc, ARM_REG_PC,
       dest_label);
 
-  gum_arm_writer_put_brk_imm(cw, 0x17);
+  gum_arm_writer_put_brk_imm (cw, 0x17);
 
-  gum_arm_writer_put_label(cw, dest_label);
-  gum_arm_writer_put_instruction(cw, 0xcafedead);
+  gum_arm_writer_put_label (cw, dest_label);
+  gum_arm_writer_put_instruction (cw, 0xcafedead);
 }
 
 static void
@@ -1914,7 +1913,7 @@ gum_exec_block_pop_stack_frame (GumExecCtx * ctx,
 static gboolean
 gum_stalker_is_kuser_helper (gconstpointer address)
 {
-  switch(GUM_ADDRESS(address))
+  switch (GUM_ADDRESS (address))
   {
     case 0xffff0fa0: /* __kernel_memory_barrier */
     case 0xffff0fc0: /* __kernel_cmpxchg */
