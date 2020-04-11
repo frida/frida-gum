@@ -34,7 +34,6 @@ struct _GumStalker
   guint slab_size;
   guint slab_header_size;
   guint slab_max_blocks;
-  gboolean is_rwx_supported;
 
   GMutex mutex;
   GSList * contexts;
@@ -333,7 +332,36 @@ gum_stalker_init (GumStalker * self)
       GUM_ALIGN_SIZE (GUM_CODE_SLAB_MAX_SIZE / 12, self->page_size);
   self->slab_max_blocks = (self->slab_header_size -
       G_STRUCT_OFFSET (GumSlab, blocks)) / sizeof (GumExecBlock);
-  self->is_rwx_supported = gum_query_rwx_support () != GUM_RWX_NONE;
+
+  /*
+   * Due to the load store architecture of ARM32. In order to perform any sort
+   * of calculation, data must be loaded into a register. In many cases,
+   * however, we need to maintain the contents of registers in order to avoid
+   * affecting the operation of the stalked application. Therefore we need to
+   * use a scratch register and store and restore it's value on the stack.
+   *
+   * However, if for example, we need to branch to a calculated address we will
+   * need to restore the scratch register value from the stack before we perform
+   * the branch. Thus we need to store the calculated value somewhere where it
+   * can be referenced again first. When the LDMIA instruction operates on a
+   * number of registers including PC, the value of PC is expected to be popped
+   * from the stack last, hence we cannot push the scratch register, then the
+   * calculated address and use an LDMIA to restore the register and branch as
+   * the registers will be in the wrong order.
+   *
+   * We could consider using space above the stack pointer (and any red-zone),
+   * or some other asymmetric stack usage, but in order to keep things simple,
+   * we store our calculated address in the code stream using the label support
+   * of the gumarmwriter. This means that the code page needs to be RWX. This
+   * isn't expected to be a problem since it is expected that most systems which
+   * prevent the use of RWX memory as a security feature will have already
+   * adopted AARCH64 architecture in order to benefit from other security
+   * features and hence this should not affect ARM32.
+   */
+  if (gum_query_rwx_support () == GUM_RWX_NONE)
+  {
+    g_error ("Target must support RWX pages");
+  }
 
   g_mutex_init (&self->mutex);
   self->contexts = NULL;
@@ -374,6 +402,16 @@ gum_stalker_is_excluding (GumExecCtx * ctx,
   GArray * exclusions = ctx->stalker->exclusions;
   guint i;
 
+  /*
+   * We haven't implemented stalker on ARM32 to handle thumb instructions yet.
+   * Frankly, the normal instruction set is complex enough with a whole host of
+   * instructions which can affect control flow and many with different options
+   * to control how they operate.
+   *
+   * For now, we will treat any transition to thumb code to be one to an
+   * excluded range and treat it accordingly. Stalking should contrinue from the
+   * point that control returns back to normal ARM32 code.
+   */
   if (gum_stalker_is_thumb (address))
   {
     return TRUE;
@@ -393,6 +431,7 @@ gum_stalker_is_excluding (GumExecCtx * ctx,
 static gboolean
 gum_stalker_is_thumb (gconstpointer address)
 {
+  /* When branching to thumb code, the low bit of the address is set. */
   if ((GUM_ADDRESS (address) & 0x1) != 0)
   {
     return TRUE;
@@ -439,6 +478,12 @@ _gum_stalker_do_follow_me (GumStalker * self,
   g_count = 0;
   g_events = 0;
   GumEventType mask = gum_event_sink_query_mask (sink);
+
+  /*
+   * For the moment we don't implement compile events. Since we only ever
+   * instrument a block immediately before execution, these blocks will generate
+   * CALL or BLOCK events in any case when executed.
+   */
   if (mask & GUM_COMPILE)
   {
     g_warning ("Compile events unsupported");
@@ -483,6 +528,10 @@ gum_stalker_follow (GumStalker * self,
                     GumStalkerTransformer * transformer,
                     GumEventSink * sink)
 {
+  /*
+   * At present, we only support the stalking of the current thread. Stalking of
+   * other threads is deferred until a subsequent release.
+   */
   g_warning ("Follow unsupported");
 }
 
@@ -497,6 +546,11 @@ void
 gum_stalker_activate (GumStalker * self,
                       gconstpointer target)
 {
+  /*
+   * At present, we also do not support activate/deactivate functionality. Thus
+   * it will not be possible to use stalker on ARM32 to insepct the execution of
+   * NativeFunctions invoked through the runtime.
+   */
   g_warning ("Activate/deactivate unsupported");
 }
 
@@ -513,6 +567,15 @@ gum_stalker_add_call_probe (GumStalker * self,
                             gpointer data,
                             GDestroyNotify notify)
 {
+  /*
+   * At present call probes are not supported for ARM32. One complexity for
+   * adding these is that there is no clear CALL or RET instruction on ARM32 and
+   * in many cases whether an instruction represents a CALL, BRANCH or RET is
+   * not very clear, it is only by tying the target address to the stored return
+   * address in a GumExecFrame that we identify the call frames. An alternative
+   * method may be necessary if call probes are supported if the user is to be
+   * permitted to modify the PC, or otherwise affect control flow.
+   */
   g_warning ("Call probes unsupported");
   return 0;
 }
@@ -600,8 +663,7 @@ gum_stalker_thaw (GumStalker * self,
                   gpointer code,
                   gsize size)
 {
-  if (!self->is_rwx_supported)
-    gum_mprotect (code, size, GUM_PAGE_RW);
+
 }
 
 static void
@@ -609,9 +671,6 @@ gum_stalker_freeze (GumStalker * self,
                     gpointer code,
                     gsize size)
 {
-  if (!self->is_rwx_supported)
-    gum_memory_mark_code (code, size);
-
   gum_clear_cache (code, size);
 }
 
@@ -651,7 +710,7 @@ gum_exec_ctx_add_slab (GumExecCtx * ctx)
   GumStalker * stalker = ctx->stalker;
 
   slab = gum_memory_allocate (NULL, stalker->slab_size, stalker->page_size,
-      stalker->is_rwx_supported ? GUM_PAGE_RWX : GUM_PAGE_RW);
+      GUM_PAGE_RWX);
 
   slab->data = (guint8 *) slab + stalker->slab_header_size;
   slab->offset = 0;
@@ -813,11 +872,13 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
 
   if (gc.continuation_real_address != NULL)
   {
-    // GumBranchTarget continue_target = { 0, };
-
-    // continue_target.absolute_address = gc.continuation_real_address;
-    // continue_target.reg = ARM64_REG_INVALID;
-    g_error ("Need to implement this!!!");
+    /*
+     * This is required to support the situation where the amount of code
+     * emitted to instrument a block exceeds the minimum we check for before we
+     * start instrumenting a block and it needs to be split. This is only likely
+     * to be of concern for very long linear execution blocks.
+     */
+    g_error ("continuation_real_address unsupported");
   }
 
   gum_arm_writer_put_brk_imm (cw, 14);
@@ -896,6 +957,43 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
   cs_arm_op * op = &arm->operands[0];
   cs_arm_op * op2 = &arm->operands[1];
   cs_arm_op * op3;
+
+  /*
+   * The complex nature of the ARM32 instruction set means that determining the
+   * * target address for an instruction which affects control flow is also
+   * complex.
+   *
+   * Instructions such as 'BL label' will make use of the absolute_address
+   * field. 'BL reg' and 'BLX' reg will make use of the reg field. 'LDR pc,
+   * [reg]' however makes use of the reg field and sets is_indirect to TRUE.
+   * This means that the reg field doesn't contain the target itself, by the
+   * address in memory where the target is stored. 'LDR pc, [reg, #x]'
+   * additionally sets the offset field which needs to be added to the register
+   * before it is dereferenced.
+   *
+   * The POP and LDM instructions both read multiple values from a base register
+   * and store them into a listed set of registers. In the case of the POP
+   * instruction, this base register is always SP (the stack pointer). Again the
+   * is_indirect field is set and the value of the offset field is determine by
+   * how many registers are included in the register list before PC.
+   *
+   * Finally, ADD and SUB instructions can be used to modify control flow. ADD
+   * instructions have two main forms. Firstly 'ADD pc, reg, #x', in this case
+   * the reg and offset fields are both set accordingly Secondly, if the form
+   * 'ADD pc, reg, reg2' is used, then the values of reg and reg2 are set
+   * accordingly. This form has the additional complexity of allowing a suffix
+   * which can describe a shift operation (one of 4 types) and a value
+   * indicating how many places to shift to be applied to reg2 before it is
+   * added. This information is encoded in the shifter and shift_value fields
+   * accordingly. Lastly the SUB instruction is identical to ADD except the mode
+   * field is set to GUM_INDEX_NEG to indicate that reg2 should be subtracted
+   * rather than added.
+   *
+   * This complex target field is processed by
+   * gum_exec_ctx_write_mov_branch_target_address in order to wrte instructions
+   * into the instrumented block to recover the target address from these
+   * different forms of instruction.
+   */
   GumBranchTarget target =
   {
     .absolute_address = 0,
