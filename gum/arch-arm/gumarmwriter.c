@@ -209,13 +209,6 @@ gum_arm_writer_put_label (GumArmWriter * self,
   return TRUE;
 }
 
-gboolean
-gum_arm_writer_put_b_imm (GumArmWriter * self,
-                          GumAddress target)
-{
-  return gum_arm_writer_put_bcc_imm (self, ARM_CC_AL, target);
-}
-
 static void
 gum_arm_writer_add_label_reference_here (GumArmWriter * self,
                                          gconstpointer id,
@@ -232,6 +225,13 @@ gum_arm_writer_add_label_reference_here (GumArmWriter * self,
   r->shift = shift;
   r->mask = mask;
   r->insn = self->code;
+}
+
+gboolean
+gum_arm_writer_put_b_imm (GumArmWriter * self,
+                          GumAddress target)
+{
+  return gum_arm_writer_put_bcc_imm (self, ARM_CC_AL, target);
 }
 
 static void
@@ -313,10 +313,10 @@ gum_arm_writer_put_add_reg_reg_imm (GumArmWriter * self,
 
 void
 gum_arm_writer_put_ldr_reg_reg_offset (GumArmWriter * self,
-                                    arm_reg dst_reg,
-                                    arm_reg src_reg,
-                                    GumArmIndexMode mode,
-                                    gsize src_offset)
+                                       arm_reg dst_reg,
+                                       arm_reg src_reg,
+                                       GumArmIndexMode mode,
+                                       gsize src_offset)
 {
   gum_arm_writer_put_ldrcc_reg_reg_offset (self, ARM_CC_AL, dst_reg, src_reg,
     mode, src_offset);
@@ -491,7 +491,9 @@ gum_arm_writer_commit_literals (GumArmWriter * self)
 }
 
 void
-gum_arm_writer_put_push_registers (GumArmWriter * self, guint cnt, ...)
+gum_arm_writer_put_push_registers (GumArmWriter * self,
+                                   guint cnt,
+                                   ...)
 {
     va_list regs;
     GumArmRegInfo ri;
@@ -513,7 +515,9 @@ gum_arm_writer_put_push_registers (GumArmWriter * self, guint cnt, ...)
 }
 
 void
-gum_arm_writer_put_pop_registers (GumArmWriter * self, guint cnt, ...)
+gum_arm_writer_put_pop_registers (GumArmWriter * self,
+                                  guint cnt,
+                                  ...)
 {
     va_list regs;
     GumArmRegInfo ri;
@@ -535,8 +539,9 @@ gum_arm_writer_put_pop_registers (GumArmWriter * self, guint cnt, ...)
 }
 
 void
-gum_arm_write_put_ldmia_registers_by_mask (GumArmWriter * self, arm_reg reg,
-    gushort mask)
+gum_arm_write_put_ldmia_registers_by_mask (GumArmWriter * self,
+                                           arm_reg reg,
+                                           gushort mask)
 {
     GumArmRegInfo ri;
     gum_arm_reg_describe (reg, &ri);
@@ -545,7 +550,8 @@ gum_arm_write_put_ldmia_registers_by_mask (GumArmWriter * self, arm_reg reg,
 }
 
 void
-gum_arm_writer_put_mov_cpsr_to_reg (GumArmWriter * self, arm_reg reg)
+gum_arm_writer_put_mov_cpsr_to_reg (GumArmWriter * self,
+                                    arm_reg reg)
 {
     GumArmRegInfo ri;
     gum_arm_reg_describe (reg, &ri);
@@ -553,7 +559,8 @@ gum_arm_writer_put_mov_cpsr_to_reg (GumArmWriter * self, arm_reg reg)
 }
 
 void
-gum_arm_writer_put_mov_reg_to_cpsr (GumArmWriter * self, arm_reg reg)
+gum_arm_writer_put_mov_reg_to_cpsr (GumArmWriter * self,
+                                    arm_reg reg)
 {
     GumArmRegInfo ri;
     gum_arm_reg_describe (reg, &ri);
@@ -562,9 +569,9 @@ gum_arm_writer_put_mov_reg_to_cpsr (GumArmWriter * self, arm_reg reg)
 
 void
 gum_arm_writer_put_call_address_with_arguments_array (GumArmWriter * self,
-                                                GumAddress func,
-                                                guint n_args,
-                                                const GumArgument * args)
+                                                      GumAddress func,
+                                                      guint n_args,
+                                                      const GumArgument * args)
 {
   gum_arm_writer_put_argument_list_setup (self, n_args, args);
 
@@ -657,7 +664,8 @@ gum_arm_writer_put_bl_imm (GumArmWriter * self,
 }
 
 gboolean
-gum_arm_writer_put_blr_reg (GumArmWriter * self, arm_reg reg)
+gum_arm_writer_put_blr_reg (GumArmWriter * self,
+                            arm_reg reg)
 {
   GumArmRegInfo ri;
 
@@ -669,10 +677,10 @@ gum_arm_writer_put_blr_reg (GumArmWriter * self, arm_reg reg)
 
 void
 gum_arm_writer_put_str_reg_reg_offset (GumArmWriter * self,
-                                         arm_reg src_reg,
-                                         arm_reg dst_reg,
-                                         GumArmIndexMode mode,
-                                         gsize dst_offset)
+                                       arm_reg src_reg,
+                                       arm_reg dst_reg,
+                                       GumArmIndexMode mode,
+                                       gsize dst_offset)
 {
 
   gum_arm_writer_put_strcc_reg_reg_offset (self, ARM_CC_AL, src_reg,
@@ -792,8 +800,8 @@ gum_arm_writer_put_sub_reg_reg_reg (GumArmWriter * self,
 
 void
 gum_arm_writer_put_cmp_reg_imm (GumArmWriter * self,
-                                    arm_reg dst_reg,
-                                    guint32 imm_val)
+                                arm_reg dst_reg,
+                                guint32 imm_val)
 {
   GumArmRegInfo rd;
 
@@ -804,8 +812,8 @@ gum_arm_writer_put_cmp_reg_imm (GumArmWriter * self,
 
 void
 gum_arm_writer_put_bcc_label (GumArmWriter * self,
-  arm_cc cc,
-  gconstpointer label_id)
+                              arm_cc cc,
+                              gconstpointer label_id)
 {
   guint8 cond;
 
@@ -816,7 +824,9 @@ gum_arm_writer_put_bcc_label (GumArmWriter * self,
 
 void
 gum_arm_writer_put_strcc_reg_label (GumArmWriter * self,
-  arm_cc cc, arm_reg reg, gconstpointer label_id)
+                                    arm_cc cc,
+                                    arm_reg reg,
+                                    gconstpointer label_id)
 {
   guint8 cond;
   GumArmRegInfo r;
@@ -831,7 +841,9 @@ gum_arm_writer_put_strcc_reg_label (GumArmWriter * self,
 
 void
 gum_arm_writer_put_ldrcc_reg_label (GumArmWriter * self,
-  arm_cc cc, arm_reg reg, gconstpointer label_id)
+                                    arm_cc cc,
+                                    arm_reg reg,
+                                    gconstpointer label_id)
 {
   guint8 cond;
   GumArmRegInfo r;
@@ -958,11 +970,11 @@ gum_arm_writer_put_add_reg_u32 (GumArmWriter * self,
 
 void
 gum_arm_writer_put_ldrcc_reg_reg_offset (GumArmWriter * self,
-                                    arm_cc cc,
-                                    arm_reg dst_reg,
-                                    arm_reg src_reg,
-                                    GumArmIndexMode mode,
-                                    gsize src_offset)
+                                         arm_cc cc,
+                                         arm_reg dst_reg,
+                                         arm_reg src_reg,
+                                         GumArmIndexMode mode,
+                                         gsize src_offset)
 {
   guint8 cond;
   GumArmRegInfo rd, rs;
