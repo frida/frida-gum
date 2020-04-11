@@ -191,7 +191,6 @@ TESTCASE (pc_relative_ldr_reg_shift_should_be_rewritten)
   branch_scenario_execute (&bs, fixture);
 }
 
-
 TESTCASE (pc_relative_ldr_reg_preindex_should_fail)
 {
   BranchScenario bs = {
@@ -315,8 +314,6 @@ TESTCASE (pc_relative_add_lsl_should_be_rewritten)
   };
   branch_scenario_execute (&bs, fixture);
 }
-
-
 
 TESTCASE (pc_relative_add_imm_should_be_rewritten)
 {

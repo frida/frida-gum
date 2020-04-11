@@ -37,7 +37,6 @@ gum_arm_reg_describe (arm_reg reg,
   ri->index = ri->meta - GUM_ARM_MREG_R0;
 }
 
-
 void
 gum_arm_cond_describe (arm_cc cc, guint8 * code)
 {

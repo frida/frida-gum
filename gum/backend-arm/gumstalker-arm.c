@@ -127,7 +127,6 @@ struct _GumInstruction
   guint8 * end;
 };
 
-
 struct _GumStalkerIterator
 {
   GumExecCtx * exec_context;
@@ -155,7 +154,6 @@ struct _GumBranchTarget
   arm_shifter shifter;
   guint32 shift_value;
 };
-
 
 static void gum_stalker_class_init (GumStalkerClass * klass);
 
@@ -306,7 +304,6 @@ static gboolean g_debug = FALSE;
 static guint32 g_count = 0;
 static guint32 g_events = 0;
 static gpointer gum_unfollow_me_address;
-
 
 gboolean
 gum_stalker_is_supported (void)
@@ -1309,7 +1306,6 @@ gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
     g_assert_not_reached ();
   }
 }
-
 
 static GumExecBlock *
 gum_exec_block_new (GumExecCtx * ctx)

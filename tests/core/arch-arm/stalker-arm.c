@@ -45,7 +45,6 @@ TESTLIST_END ()
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
 
-
 extern const void flat_code;
 extern const void flat_code_end;
 
@@ -190,21 +189,6 @@ TESTCASE (compile_events_unsupported)
   invoke_flat_expecting_return_value(fixture, GUM_COMPILE, 2);
   g_test_assert_expected_messages();
 }
-
-// gef➤  x/20i $pc
-//    0x626008:	ldr	r2, [pc, #40]	; 0x626038
-//    0x62600c:	ldr	r1, [pc, #40]	; 0x62603c
-//    0x626010:	ldr	r0, [pc, #40]	; 0x626040
-//    0x626014:	bl	0x65f6c <gum_stalker_follow_me>
-//    0x626018:	ldr	r0, [pc, #36]	; 0x626044
-//    0x62601c:	bl	0x624000
-//    0x626020:	ldr	r1, [pc, #32]	; 0x626048
-//    0x626024:	str	r0, [r1]
-//    0x626028:	ldr	r0, [pc, #16]	; 0x626040
-//    0x62602c:	bl	0x65504 <gum_stalker_unfollow_me>
-//    0x626030:	ldmfd	sp!, {lr}
-//    0x626034:	mov	pc, lr
-
 
 TESTCASE (exec_events_generated)
 {
@@ -470,7 +454,6 @@ TESTCASE (excluded_range)
 
   gum_stalker_exclude (fixture->stalker, &r);
 
-
   fixture->sink->mask = GUM_EXEC;
   guint32 ret = test_arm_stalker_fixture_follow_and_invoke (fixture, func, -1);
   g_assert_cmpuint (ret, ==, 2);
@@ -548,7 +531,6 @@ TESTCASE (excluded_range_call_events)
 
   gum_stalker_exclude (fixture->stalker, &r);
 
-
   fixture->sink->mask = GUM_CALL;
   guint32 ret = test_arm_stalker_fixture_follow_and_invoke (fixture, func, -1);
   g_assert_cmpuint (ret, ==, 4);
@@ -585,7 +567,6 @@ TESTCASE (excluded_range_ret_events)
 
   gum_stalker_exclude (fixture->stalker, &r);
 
-
   fixture->sink->mask = GUM_RET;
   guint32 ret = test_arm_stalker_fixture_follow_and_invoke (fixture, func, -1);
   g_assert_cmpuint (ret, ==, 4);
@@ -605,7 +586,6 @@ TESTCASE (excluded_range_ret_events)
   GUM_ASSERT_CMPADDR (ev->location, ==, func + 20);
   GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
 }
-
 
 extern const void pop_pc_code;
 extern const void pop_pc_code_end;
@@ -696,7 +676,6 @@ TESTCASE (pop_just_pc_ret_events_generated)
   GUM_ASSERT_CMPADDR (ev->location, ==, func + 16);
   GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
 }
-
 
 extern const void ldm_pc_code;
 extern const void ldm_pc_code_end;
@@ -932,7 +911,6 @@ TESTCASE (cc_excluded_range)
 
   gum_stalker_exclude (fixture->stalker, &r);
 
-
   fixture->sink->mask = GUM_CALL;
   guint32 ret = test_arm_stalker_fixture_follow_and_invoke (fixture, func, -1);
   g_assert_cmpuint (ret, ==, 1);
@@ -946,7 +924,6 @@ TESTCASE (cc_excluded_range)
   GUM_ASSERT_CMPADDR (ev->location, ==, func + 16);
   GUM_ASSERT_CMPADDR (ev->target, ==, func + 36);
 }
-
 
 extern const void excluded_thumb_code;
 extern const void excluded_thumb_code_end;
@@ -1375,20 +1352,3 @@ TESTCASE (performance)
   g_print ("<ratio_cold=%f>\n", stalker_cold / normal_hot);
   g_print ("<ratio_hot=%f>\n", stalker_hot / normal_hot);
 }
-
-// Tidy the jump generated code to not use hard-coded instructions
-// Add code to check we run to the end of the performance test.
-
-// Other forms of branch instructions
-  // LDR PC - Used in PLT as a trampoline (branch).
-  // LDRLS - switches
-  // MOV PC - call but with LR moved immediately before
-  // TBB/TBH - switches
-
-
-// Add code to show call stack with blocks (GUM_CALL, GUM_BLOCK, GUM_RET)
-
-// Detect calls by tracking modifications to LR?
-// Compare test list to aarch64
-// Test we can unfollow (move check to virtualize funcs)
-// Style rules
