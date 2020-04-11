@@ -67,6 +67,9 @@ GUM_API gboolean gum_arm_writer_flush (GumArmWriter * self);
 GUM_API gboolean gum_arm_writer_put_label (GumArmWriter * self,
     gconstpointer id);
 
+GUM_API gboolean gum_arm_writer_put_b_imm (GumArmWriter * self,
+    GumAddress target);
+
 GUM_API void gum_arm_writer_put_bx_reg (GumArmWriter * self, arm_reg reg);
 
 GUM_API void gum_arm_writer_put_b_label (GumArmWriter * self,
@@ -77,6 +80,12 @@ GUM_API gboolean gum_arm_writer_put_ldr_reg_address (GumArmWriter * self,
 
 GUM_API gboolean gum_arm_writer_put_ldr_reg_u32 (GumArmWriter * self,
     arm_reg reg, guint32 val);
+
+GUM_API void gum_arm_writer_put_add_reg_reg_imm (GumArmWriter * self,
+    arm_reg dst_reg, arm_reg src_reg, guint32 imm_val);
+
+GUM_API void gum_arm_writer_put_ldr_reg_reg_offset (GumArmWriter * self,
+    arm_reg dst_reg, arm_reg src_reg, GumArmIndexMode mode, gsize src_offset);
 
 GUM_API void gum_arm_writer_put_nop (GumArmWriter * self);
 
@@ -159,9 +168,6 @@ GUM_API void gum_arm_writer_put_rsbs_reg_reg (GumArmWriter * self,
 GUM_API gboolean gum_arm_writer_put_bcc_imm (GumArmWriter * self,
     arm_cc cc, GumAddress target);
 
-GUM_API gboolean gum_arm_writer_put_b_imm (GumArmWriter * self,
-    GumAddress target);
-
 GUM_API void gum_arm_writer_put_sub_reg_u16 (GumArmWriter * self,
     arm_reg dst_reg, guint16 val);
 
@@ -177,15 +183,9 @@ GUM_API void gum_arm_writer_put_add_reg_u16 (GumArmWriter * self,
 GUM_API void gum_arm_writer_put_add_reg_u32 (GumArmWriter * self,
     arm_reg dst_reg, guint32 val);
 
-GUM_API void gum_arm_writer_put_add_reg_reg_imm (GumArmWriter * self,
-    arm_reg dst_reg, arm_reg src_reg, guint32 imm_val);
-
 GUM_API void gum_arm_writer_put_ldrcc_reg_reg_offset (GumArmWriter * self,
     arm_cc cc, arm_reg dst_reg, arm_reg src_reg, GumArmIndexMode mode,
     gsize src_offset);
-
-GUM_API void gum_arm_writer_put_ldr_reg_reg_offset (GumArmWriter * self,
-    arm_reg dst_reg, arm_reg src_reg, GumArmIndexMode mode, gsize src_offset);
 
 G_END_DECLS
 
