@@ -80,7 +80,7 @@ static void branch_scenario_execute (BranchScenario * bs,
     TestArmRelocatorFixture * fixture);
 
 static void
-show_disassembly(guint32 * input, gsize length);
+show_disassembly (guint32 * input, gsize length);
 
 TESTCASE (pc_relative_ldr_should_be_rewritten)
 {
@@ -170,7 +170,7 @@ TESTCASE (pc_relative_ldr_reg_negative_should_fail)
                         "not supported");
   branch_scenario_execute (&bs, fixture);
 
-  g_test_assert_expected_messages();
+  g_test_assert_expected_messages ();
 }
 
 TESTCASE (pc_relative_ldr_reg_shift_should_be_rewritten)
@@ -208,7 +208,7 @@ TESTCASE (pc_relative_ldr_reg_preindex_should_fail)
                         "relocation of ldr with pre/post-index not supported");
   branch_scenario_execute (&bs, fixture);
 
-  g_test_assert_expected_messages();
+  g_test_assert_expected_messages ();
 }
 
 TESTCASE (pc_relative_ldr_reg_postindex_should_fail)
@@ -227,7 +227,7 @@ TESTCASE (pc_relative_ldr_reg_postindex_should_fail)
                         "relocation of ldr with pre/post-index not supported");
   branch_scenario_execute (&bs, fixture);
 
-  g_test_assert_expected_messages();
+  g_test_assert_expected_messages ();
 }
 
 TESTCASE (pc_relative_ldr_into_pc_should_be_rewritten)
@@ -535,7 +535,7 @@ branch_scenario_execute (BranchScenario * bs,
 }
 
 static void
-show_disassembly(guint32 * input, gsize length)
+show_disassembly (guint32 * input, gsize length)
 {
   csh capstone;
   cs_err err;

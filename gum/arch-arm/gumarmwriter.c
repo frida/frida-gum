@@ -235,54 +235,15 @@ gum_arm_writer_add_literal_reference_here (GumArmWriter * self,
     self->earliest_literal_insn = r->insn;
 }
 
-gboolean
-gum_arm_writer_put_bcc_imm (GumArmWriter * self,
-                            arm_cc cc,
-                            GumAddress target)
-{
-  gint32 distance_in_bytes, distance_in_words;
-  guint8 cond;
-
-  distance_in_bytes = target - (self->pc + 8);
-  if (!GUM_IS_WITHIN_INT26_RANGE (distance_in_bytes))
-    return FALSE;
-
-  gum_arm_cond_describe(cc,  &cond);
-  distance_in_words = distance_in_bytes / 4;
-
-  gum_arm_writer_put_instruction (self, 0x0a000000 |
-      (cond << 28) |
-      (distance_in_words & GUM_INT24_MASK));
-
-  return TRUE;
-}
-
-gboolean
-gum_arm_writer_put_b_imm (GumArmWriter * self,
-                          GumAddress target)
-{
-  return gum_arm_writer_put_bcc_imm(self, ARM_CC_AL, target);
-}
-
-void
-gum_arm_writer_put_bxcc_reg (GumArmWriter * self,
-                             arm_cc cc,
-                             arm_reg reg)
-{
-  GumArmRegInfo ri;
-  guint8 cond;
-
-  gum_arm_reg_describe (reg, &ri);
-  gum_arm_cond_describe(cc,  &cond);
-
-  gum_arm_writer_put_instruction (self, 0x012fff10 | (cond << 28) | ri.index);
-}
-
 void
 gum_arm_writer_put_bx_reg (GumArmWriter * self,
                            arm_reg reg)
 {
-  gum_arm_writer_put_bxcc_reg(self, ARM_CC_AL, reg);
+  GumArmRegInfo ri;
+
+  gum_arm_reg_describe (reg, &ri);
+
+  gum_arm_writer_put_instruction (self, 0xe12fff10 | ri.index);
 }
 
 void
@@ -314,132 +275,6 @@ gum_arm_writer_put_ldr_reg_u32 (GumArmWriter * self,
   gum_arm_writer_put_instruction (self, 0xe51f0000 | (ri.index << 12));
 
   return TRUE;
-}
-
-void
-gum_arm_writer_put_sub_reg_u16 (GumArmWriter * self,
-                                arm_reg dst_reg,
-                                guint16 val)
-{
-  gum_arm_writer_put_sub_reg_reg_imm (self, dst_reg, dst_reg,
-      0xc00 | ((val >> 8) & 0xff));
-
-  gum_arm_writer_put_sub_reg_reg_imm (self, dst_reg, dst_reg, val & 0xff);
-}
-
-void
-gum_arm_writer_put_sub_reg_reg_imm (GumArmWriter * self,
-                                    arm_reg dst_reg,
-                                    arm_reg src_reg,
-                                    guint32 imm_val)
-{
-  GumArmRegInfo rd, rs;
-
-  gum_arm_reg_describe (dst_reg, &rd);
-  gum_arm_reg_describe (src_reg, &rs);
-
-  if (src_reg != dst_reg || (imm_val & GUM_INT8_MASK) != 0)
-  {
-    gum_arm_writer_put_instruction (self, 0xe2400000 | rd.index << 12 |
-       rs.index << 16 | (imm_val & GUM_INT12_MASK));
-  }
-}
-
-void
-gum_arm_writer_put_and_reg_reg_imm (GumArmWriter * self,
-                                    arm_reg dst_reg,
-                                    arm_reg src_reg,
-                                    guint32 imm_val)
-{
-  GumArmRegInfo rd, rs;
-
-  gum_arm_reg_describe (dst_reg, &rd);
-  gum_arm_reg_describe (src_reg, &rs);
-  if (src_reg != dst_reg || (imm_val & GUM_INT12_MASK) != 0)
-  {
-    gum_arm_writer_put_instruction (self, 0xe2000000 | rd.index << 12 |
-        rs.index << 16 | (imm_val & GUM_INT8_MASK));
-  }
-}
-
-void
-gum_arm_writer_put_add_reg_u16 (GumArmWriter * self,
-                                arm_reg dst_reg,
-                                guint16 val)
-
-
-{
-  gum_arm_writer_put_add_reg_reg_imm (self, dst_reg, dst_reg,
-      0xc00 | ((val >> 8) & 0xff));
-
-  gum_arm_writer_put_add_reg_reg_imm (self, dst_reg, dst_reg, val & 0xff);
-}
-
-void
-gum_arm_writer_put_add_reg_u32 (GumArmWriter * self,
-                                arm_reg dst_reg,
-                                guint32 val)
-{
-  gum_arm_writer_put_add_reg_reg_imm (self, dst_reg, dst_reg,
-      0x400 | ((val >> 24) & 0xff));
-
-  gum_arm_writer_put_add_reg_reg_imm (self, dst_reg, dst_reg,
-      0x800 | ((val >> 16) & 0xff));
-
-  gum_arm_writer_put_add_reg_reg_imm (self, dst_reg, dst_reg,
-      0xc00 | ((val >> 8) & 0xff));
-
-  gum_arm_writer_put_add_reg_reg_imm (self, dst_reg, dst_reg, val & 0xff);
-}
-
-void
-gum_arm_writer_put_add_reg_reg_imm (GumArmWriter * self,
-                                    arm_reg dst_reg,
-                                    arm_reg src_reg,
-                                    guint32 imm_val)
-{
-  GumArmRegInfo rd, rs;
-
-  gum_arm_reg_describe (dst_reg, &rd);
-  gum_arm_reg_describe (src_reg, &rs);
-
-  if (src_reg != dst_reg || (imm_val & GUM_INT8_MASK) != 0)
-  {
-    gum_arm_writer_put_instruction (self, 0xe2800000 | rd.index << 12 |
-        rs.index << 16 | (imm_val & GUM_INT12_MASK));
-  }
-}
-
-void
-gum_arm_writer_put_ldrcc_reg_reg_offset (GumArmWriter * self,
-                                    arm_cc cc,
-                                    arm_reg dst_reg,
-                                    arm_reg src_reg,
-                                    GumArmIndexMode mode,
-                                    gsize src_offset)
-{
-  guint8 cond;
-  GumArmRegInfo rd, rs;
-
-  g_assert(src_offset <= 4095);
-
-  gum_arm_cond_describe(cc, &cond);
-  gum_arm_reg_describe (dst_reg, &rd);
-  gum_arm_reg_describe (src_reg, &rs);
-
-  gum_arm_writer_put_instruction (self, 0x05100000 | (cond << 28) |
-      (mode << 23) | rd.index << 12 | rs.index << 16 | src_offset);
-}
-
-void
-gum_arm_writer_put_ldr_reg_reg_offset (GumArmWriter * self,
-                                    arm_reg dst_reg,
-                                    arm_reg src_reg,
-                                    GumArmIndexMode mode,
-                                    gsize src_offset)
-{
-  gum_arm_writer_put_ldrcc_reg_reg_offset(self, ARM_CC_AL, dst_reg, src_reg,
-    mode, src_offset);
 }
 
 void
@@ -973,4 +808,159 @@ gum_arm_writer_put_rsbs_reg_reg (GumArmWriter * self,
 
   gum_arm_writer_put_instruction (self, 0xe0700000 | rd.index << 12 |
       rd.index << 16 | rs.index);
+}
+
+gboolean
+gum_arm_writer_put_bcc_imm (GumArmWriter * self,
+                            arm_cc cc,
+                            GumAddress target)
+{
+  gint32 distance_in_bytes, distance_in_words;
+  guint8 cond;
+
+  distance_in_bytes = target - (self->pc + 8);
+  if (!GUM_IS_WITHIN_INT26_RANGE (distance_in_bytes))
+    return FALSE;
+
+  gum_arm_cond_describe(cc,  &cond);
+  distance_in_words = distance_in_bytes / 4;
+
+  gum_arm_writer_put_instruction (self, 0x0a000000 |
+      (cond << 28) |
+      (distance_in_words & GUM_INT24_MASK));
+
+  return TRUE;
+}
+
+gboolean
+gum_arm_writer_put_b_imm (GumArmWriter * self,
+                          GumAddress target)
+{
+  return gum_arm_writer_put_bcc_imm(self, ARM_CC_AL, target);
+}
+
+void
+gum_arm_writer_put_sub_reg_u16 (GumArmWriter * self,
+                                arm_reg dst_reg,
+                                guint16 val)
+{
+  gum_arm_writer_put_sub_reg_reg_imm (self, dst_reg, dst_reg,
+      0xc00 | ((val >> 8) & 0xff));
+
+  gum_arm_writer_put_sub_reg_reg_imm (self, dst_reg, dst_reg, val & 0xff);
+}
+
+void
+gum_arm_writer_put_sub_reg_reg_imm (GumArmWriter * self,
+                                    arm_reg dst_reg,
+                                    arm_reg src_reg,
+                                    guint32 imm_val)
+{
+  GumArmRegInfo rd, rs;
+
+  gum_arm_reg_describe (dst_reg, &rd);
+  gum_arm_reg_describe (src_reg, &rs);
+
+  if (src_reg != dst_reg || (imm_val & GUM_INT8_MASK) != 0)
+  {
+    gum_arm_writer_put_instruction (self, 0xe2400000 | rd.index << 12 |
+       rs.index << 16 | (imm_val & GUM_INT12_MASK));
+  }
+}
+
+void
+gum_arm_writer_put_and_reg_reg_imm (GumArmWriter * self,
+                                    arm_reg dst_reg,
+                                    arm_reg src_reg,
+                                    guint32 imm_val)
+{
+  GumArmRegInfo rd, rs;
+
+  gum_arm_reg_describe (dst_reg, &rd);
+  gum_arm_reg_describe (src_reg, &rs);
+  if (src_reg != dst_reg || (imm_val & GUM_INT12_MASK) != 0)
+  {
+    gum_arm_writer_put_instruction (self, 0xe2000000 | rd.index << 12 |
+        rs.index << 16 | (imm_val & GUM_INT8_MASK));
+  }
+}
+
+void
+gum_arm_writer_put_add_reg_u16 (GumArmWriter * self,
+                                arm_reg dst_reg,
+                                guint16 val)
+
+
+{
+  gum_arm_writer_put_add_reg_reg_imm (self, dst_reg, dst_reg,
+      0xc00 | ((val >> 8) & 0xff));
+
+  gum_arm_writer_put_add_reg_reg_imm (self, dst_reg, dst_reg, val & 0xff);
+}
+
+void
+gum_arm_writer_put_add_reg_u32 (GumArmWriter * self,
+                                arm_reg dst_reg,
+                                guint32 val)
+{
+  gum_arm_writer_put_add_reg_reg_imm (self, dst_reg, dst_reg,
+      0x400 | ((val >> 24) & 0xff));
+
+  gum_arm_writer_put_add_reg_reg_imm (self, dst_reg, dst_reg,
+      0x800 | ((val >> 16) & 0xff));
+
+  gum_arm_writer_put_add_reg_reg_imm (self, dst_reg, dst_reg,
+      0xc00 | ((val >> 8) & 0xff));
+
+  gum_arm_writer_put_add_reg_reg_imm (self, dst_reg, dst_reg, val & 0xff);
+}
+
+void
+gum_arm_writer_put_add_reg_reg_imm (GumArmWriter * self,
+                                    arm_reg dst_reg,
+                                    arm_reg src_reg,
+                                    guint32 imm_val)
+{
+  GumArmRegInfo rd, rs;
+
+  gum_arm_reg_describe (dst_reg, &rd);
+  gum_arm_reg_describe (src_reg, &rs);
+
+  if (src_reg != dst_reg || (imm_val & GUM_INT8_MASK) != 0)
+  {
+    gum_arm_writer_put_instruction (self, 0xe2800000 | rd.index << 12 |
+        rs.index << 16 | (imm_val & GUM_INT12_MASK));
+  }
+}
+
+void
+gum_arm_writer_put_ldrcc_reg_reg_offset (GumArmWriter * self,
+                                    arm_cc cc,
+                                    arm_reg dst_reg,
+                                    arm_reg src_reg,
+                                    GumArmIndexMode mode,
+                                    gsize src_offset)
+{
+  guint8 cond;
+  GumArmRegInfo rd, rs;
+
+  g_assert(src_offset <= 4095);
+
+  gum_arm_cond_describe(cc, &cond);
+  gum_arm_reg_describe (dst_reg, &rd);
+  gum_arm_reg_describe (src_reg, &rs);
+
+  gum_arm_writer_put_instruction (self, 0x05100000 | (cond << 28) |
+      (mode << 23) | rd.index << 12 | rs.index << 16 | src_offset);
+}
+
+void
+gum_arm_writer_put_ldr_reg_reg_offset (GumArmWriter * self,
+                                    arm_reg dst_reg,
+                                    arm_reg src_reg,
+                                    GumArmIndexMode mode,
+                                    gsize src_offset)
+{
+  gum_arm_writer_put_ldrcc_reg_reg_offset(self, ARM_CC_AL, dst_reg, src_reg,
+    mode, src_offset);
 }
