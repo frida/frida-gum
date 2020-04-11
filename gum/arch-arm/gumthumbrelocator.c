@@ -829,7 +829,7 @@ gum_commit_it_branch (GumThumbLocation * location,
   gint16 distance;
 
   distance = target - location->pc - 4;
-  g_assert (distance > 0 && distance < 256);
+  g_assert (distance >= 0 && distance < 256);
 
   *location->code = (*location->code & 0xff00) | distance / 2;
 }
