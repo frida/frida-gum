@@ -48,7 +48,7 @@ static void silence_warnings (void);
 
 static void
 test_arm_stalker_fixture_setup (TestArmStalkerFixture * fixture,
-                                  gconstpointer data)
+                                gconstpointer data)
 {
   fixture->stalker = gum_stalker_new ();
   fixture->transformer = NULL;
@@ -60,7 +60,7 @@ test_arm_stalker_fixture_setup (TestArmStalkerFixture * fixture,
 
 static void
 test_arm_stalker_fixture_teardown (TestArmStalkerFixture * fixture,
-                                     gconstpointer data)
+                                   gconstpointer data)
 {
   while (gum_stalker_garbage_collect (fixture->stalker))
     g_usleep (10000);
@@ -75,8 +75,8 @@ test_arm_stalker_fixture_teardown (TestArmStalkerFixture * fixture,
 
 static GCallback
 test_arm_stalker_fixture_dup_code (TestArmStalkerFixture * fixture,
-                                     const guint32 * tpl_code,
-                                     guint tpl_size)
+                                   const guint32 * tpl_code,
+                                   guint tpl_size)
 {
   GumAddressSpec spec;
 
@@ -111,8 +111,8 @@ should be stalked in bytes */
 /* custom invoke code as we want to stalk a deterministic code sequence */
 static gint
 test_arm_stalker_fixture_follow_and_invoke (TestArmStalkerFixture * fixture,
-                                              StalkerTestFunc func,
-                                              gint arg)
+                                            StalkerTestFunc func,
+                                            gint arg)
 {
   GumAddressSpec spec;
   GumArmWriter cw;
