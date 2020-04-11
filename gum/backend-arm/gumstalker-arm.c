@@ -899,7 +899,17 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
   cs_arm_op * op = &arm->operands[0];
   cs_arm_op * op2 = &arm->operands[1];
   cs_arm_op * op3;
-  GumBranchTarget target = { 0, };
+  GumBranchTarget target =
+  {
+    .absolute_address = 0,
+    .offset = 0,
+    .is_indirect = FALSE,
+    .reg = ARM_REG_INVALID,
+    .reg2 = ARM_REG_INVALID,
+    .mode = GUM_INDEX_POS,
+    .shifter = ARM_SFT_INVALID,
+    .shift_value = 0
+  };
   GumArmRegInfo ri;
   gushort mask = 0;
 
@@ -923,57 +933,24 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
       case ARM_INS_BL:
         g_assert (op->type == ARM_OP_IMM);
         target.absolute_address = GSIZE_TO_POINTER (op->imm);
-        target.reg = ARM_REG_INVALID;
-        target.reg2 = ARM_REG_INVALID;
-        target.is_indirect = FALSE;
-        target.offset = 0;
-        target.mode = GUM_INDEX_POS;
-        target.shifter = ARM_SFT_INVALID;
-        target.shift_value = 0;
         break;
       case ARM_INS_BX:
       case ARM_INS_BLX:
         if (op->type == ARM_OP_REG)
         {
-          target.absolute_address = 0;
           target.reg = op->reg;
-          target.reg2 = ARM_REG_INVALID;
-          target.is_indirect = FALSE;
-          target.offset = 0;
-          target.mode = GUM_INDEX_POS;
-          target.shifter = ARM_SFT_INVALID;
-          target.shift_value = 0;
         }
         else
         {
           target.absolute_address = GSIZE_TO_POINTER (op->imm) + 1;
-          target.reg = ARM_REG_INVALID;
-          target.reg2 = ARM_REG_INVALID;
-          target.is_indirect = FALSE;
-          target.offset = 0;
-          target.mode = GUM_INDEX_POS;
-          target.shifter = ARM_SFT_INVALID;
-          target.shift_value = 0;
         }
         break;
       case ARM_INS_MOV:
-        target.absolute_address = 0;
         target.reg = op2->reg;
-        target.reg2 = ARM_REG_INVALID;
-        target.is_indirect = FALSE;
-        target.offset = 0;
-        target.mode = GUM_INDEX_POS;
-        target.shifter = ARM_SFT_INVALID;
-        target.shift_value = 0;
         break;
       case ARM_INS_POP:
-        target.absolute_address = 0;
         target.reg = ARM_REG_SP;
-        target.reg2 = ARM_REG_INVALID;
         target.is_indirect = TRUE;
-        target.mode = GUM_INDEX_POS;
-        target.shifter = ARM_SFT_INVALID;
-        target.shift_value = 0;
         for (uint8_t idx = 0; idx < insn->detail->arm.op_count; idx++)
         {
           op = &arm->operands[idx];
@@ -989,13 +966,8 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         }
         break;
       case ARM_INS_LDM:
-        target.absolute_address = 0;
         target.reg = op->reg;
-        target.reg2 = ARM_REG_INVALID;
         target.is_indirect = TRUE;
-        target.mode = GUM_INDEX_POS;
-        target.shifter = ARM_SFT_INVALID;
-        target.shift_value = 0;
         for (uint8_t idx = 1; idx < insn->detail->arm.op_count; idx++)
         {
           op = &arm->operands[idx];
@@ -1012,20 +984,13 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         break;
       case ARM_INS_LDR:
         g_assert (op2->type == ARM_OP_MEM);
-        target.absolute_address = 0;
         target.reg = op2->mem.base;
-        target.reg2 = ARM_REG_INVALID;
         target.is_indirect = TRUE;
         target.offset = op2->mem.disp;
-        target.mode = GUM_INDEX_POS;
-        target.shifter = ARM_SFT_INVALID;
-        target.shift_value = 0;
         break;
       case ARM_INS_SUB:
         g_assert (op2->type == ARM_OP_REG);
-        target.absolute_address = 0;
         target.reg = op2->reg;
-        target.is_indirect = FALSE;
         target.mode = GUM_INDEX_NEG;
 
         op3 = &arm->operands[2];
@@ -1046,9 +1011,7 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
         break;
       case ARM_INS_ADD:
         g_assert (op2->type == ARM_OP_REG);
-        target.absolute_address = 0;
         target.reg = op2->reg;
-        target.is_indirect = FALSE;
         target.mode = GUM_INDEX_POS;
 
         op3 = &arm->operands[2];
@@ -1575,7 +1538,8 @@ gum_exec_block_write_handle_kuser_helper (GumExecBlock * block,
 
   gum_exec_block_open_prolog (block, gc);
 
-  GumBranchTarget ret_target = {
+  GumBranchTarget ret_target =
+  {
     .absolute_address = 0,
     .offset = 0,
     .is_indirect = FALSE,
