@@ -1288,7 +1288,6 @@ TESTCASE (can_follow_workload)
   call_workload(&runner_range);
 
   gum_stalker_unfollow_me (fixture->stalker);
-  g_print ("\nEVENTS: %d\n", fixture->sink->events->len);
 
   ev =
     &g_array_index (fixture->sink->events, GumEvent,
