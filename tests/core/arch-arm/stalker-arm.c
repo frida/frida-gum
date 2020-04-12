@@ -153,53 +153,28 @@ TESTCASE (exec_events_generated)
   g_assert_cmpuint (fixture->sink->events->len, ==,
      INVOKER_INSN_COUNT + (CODESIZE(flat_code) / 4));
 
-  g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
-      0).type, ==, GUM_EXEC);
-  ev =
-      &g_array_index (fixture->sink->events, GumEvent, 0).exec;
-  GUM_ASSERT_CMPADDR (ev->location, ==, fixture->invoker + INVOKER_IMPL_OFFSET);
+  GUM_ASSERT_EVENT_ADDR(exec, 0, location,
+    fixture->invoker + INVOKER_IMPL_OFFSET);
 
-  ev =
-    &g_array_index (fixture->sink->events, GumEvent, 1).exec;
-  GUM_ASSERT_CMPADDR (ev->location, ==,
+  GUM_ASSERT_EVENT_ADDR(exec, 1, location,
     fixture->invoker + INVOKER_IMPL_OFFSET + 4);
 
-  ev =
-    &g_array_index (fixture->sink->events, GumEvent, 2).exec;
-  GUM_ASSERT_CMPADDR (ev->location, ==, func);
+  GUM_ASSERT_EVENT_ADDR(exec, 2, location, func);
+  GUM_ASSERT_EVENT_ADDR(exec, 3, location, func + 4);
+  GUM_ASSERT_EVENT_ADDR(exec, 4, location, func + 8);
+  GUM_ASSERT_EVENT_ADDR(exec, 5, location, func + 12);
 
-  ev =
-    &g_array_index (fixture->sink->events, GumEvent, 3).exec;
-  GUM_ASSERT_CMPADDR (ev->location, ==, func + 4);
-
-  ev =
-    &g_array_index (fixture->sink->events, GumEvent, 4).exec;
-  GUM_ASSERT_CMPADDR (ev->location, ==, func + 8);
-
-  ev =
-    &g_array_index (fixture->sink->events, GumEvent, 5).exec;
-  GUM_ASSERT_CMPADDR (ev->location, ==, func + 12);
-
-  ev =
-    &g_array_index (fixture->sink->events, GumEvent, 6).exec;
-  GUM_ASSERT_CMPADDR (ev->location, ==,
+  GUM_ASSERT_EVENT_ADDR(exec, 6, location,
     fixture->invoker + INVOKER_IMPL_OFFSET + 8);
 
-  ev =
-    &g_array_index (fixture->sink->events, GumEvent, 7).exec;
-  GUM_ASSERT_CMPADDR (ev->location, ==,
+  GUM_ASSERT_EVENT_ADDR(exec, 7, location,
     fixture->invoker + INVOKER_IMPL_OFFSET + 12);
 
-  ev =
-    &g_array_index (fixture->sink->events, GumEvent, 8).exec;
-  GUM_ASSERT_CMPADDR (ev->location, ==,
+  GUM_ASSERT_EVENT_ADDR(exec, 8, location,
     fixture->invoker + INVOKER_IMPL_OFFSET + 16);
 
-  ev =
-    &g_array_index (fixture->sink->events, GumEvent, 9).exec;
-  GUM_ASSERT_CMPADDR (ev->location, ==,
+  GUM_ASSERT_EVENT_ADDR(exec, 9, location,
     fixture->invoker + INVOKER_IMPL_OFFSET + 20);
-
 }
 
 TESTCASE (call_events_generated)
