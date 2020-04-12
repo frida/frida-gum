@@ -90,11 +90,11 @@ TESTCASE (vldrpc_t1_should_be_rewritten)
 {
   const guint16 input[] = {
     GUINT16_TO_LE (0xeddf), 
-    GUINT16_TO_LE (0x0a00), /*vldr  s1, [pc, #0] */
+    GUINT16_TO_LE (0x0a00), /* vldr  s1, [pc, #0] */
   };
   const guint16 expected_output_instructions[] = {
     GUINT16_TO_LE (0xb401), /* push {r0}          */
-    GUINT16_TO_LE (0x4802), /* ldr  r0, [pc, #8] */
+    GUINT16_TO_LE (0x4802), /* ldr  r0, [pc, #8]  */
     GUINT16_TO_LE (0xedd0), /* ...                */
     GUINT16_TO_LE (0x0a00), /* vldr s1, [r0]      */
     GUINT16_TO_LE (0xbc01), /* pop  {r0}          */
@@ -167,7 +167,6 @@ TESTCASE (vldrpc_t2_should_be_rewritten)
   g_assert_cmpint (memcmp (fixture->output, expected_output,
       sizeof (expected_output)), ==, 0);
 }
-
 
 TESTCASE (ldrpc_t1_should_be_rewritten)
 {

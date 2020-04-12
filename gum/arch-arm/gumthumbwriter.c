@@ -804,7 +804,7 @@ gum_thumb_writer_put_vldr_reg_reg_offset (GumThumbWriter * self,
   // d: dest reg index, bit 2-5
   // x: 0 f32 load  1 f64 load
 
-  uint32_t code = 0xed900a00;
+  guint32 code = 0xed900a00;
   gboolean is_float = TRUE;
 
   gum_arm_reg_describe (src_reg, &src_reg_info);
@@ -827,7 +827,7 @@ gum_thumb_writer_put_vldr_reg_reg_offset (GumThumbWriter * self,
     code |= 1 << 8;
   }
   
-  gum_thumb_writer_put_instruction_wide(self, code >> 16, code & 0xffff);
+  gum_thumb_writer_put_instruction_wide (self, code >> 16, code & 0xffff);
 
   return TRUE;
 }
