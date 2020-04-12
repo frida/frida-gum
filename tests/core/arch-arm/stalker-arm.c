@@ -107,7 +107,8 @@ TESTCASE (trust_is_zero)
 TESTCASE (trust_unsupported)
 {
   g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
-                         "Trust threshold unsupported");
+      "Trust threshold unsupported");
+
   gum_stalker_set_trust_threshold(fixture->stalker, 10);
   g_test_assert_expected_messages();
 }
@@ -115,7 +116,8 @@ TESTCASE (trust_unsupported)
 TESTCASE (deactivate_unsupported)
 {
   g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
-                         "Activate/deactivate unsupported");
+      "Activate/deactivate unsupported");
+
   gum_stalker_deactivate(fixture->stalker);
   g_test_assert_expected_messages();
 }
@@ -123,7 +125,8 @@ TESTCASE (deactivate_unsupported)
 TESTCASE (activate_unsupported)
 {
   g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
-                         "Activate/deactivate unsupported");
+      "Activate/deactivate unsupported");
+
   gum_stalker_activate(fixture->stalker, NULL);
   g_test_assert_expected_messages();
 }
@@ -141,10 +144,11 @@ static void dummyDestroyNotify (gpointer       data)
 TESTCASE (add_call_probe_unsupported)
 {
   g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
-                         "Call probes unsupported");
+      "Call probes unsupported");
+
   GumProbeId id = gum_stalker_add_call_probe(fixture->stalker, NULL,
-                                             dummyCallProbe,
-                                             NULL, dummyDestroyNotify);
+      dummyCallProbe, NULL, dummyDestroyNotify);
+
   g_test_assert_expected_messages();
   g_assert_cmpuint (id, ==, 0);
 }
@@ -152,7 +156,8 @@ TESTCASE (add_call_probe_unsupported)
 TESTCASE (remove_call_probe_unsupported)
 {
   g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
-                         "Call probes unsupported");
+      "Call probes unsupported");
+
   gum_stalker_remove_call_probe(fixture->stalker, 10);
   g_test_assert_expected_messages();
 }
@@ -160,16 +165,19 @@ TESTCASE (remove_call_probe_unsupported)
 TESTCASE (follow_unsupported)
 {
   g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
-                         "Follow unsupported");
+      "Follow unsupported");
+
   gum_stalker_follow(fixture->stalker, 0, fixture->transformer,
-                     (GumEventSink*)fixture->sink);
+      (GumEventSink*)fixture->sink);
+
   g_test_assert_expected_messages();
 }
 
 TESTCASE (unfollow_unsupported)
 {
   g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
-                         "Unfollow unsupported");
+      "Unfollow unsupported");
+
   gum_stalker_unfollow(fixture->stalker, 0);
   g_test_assert_expected_messages();
 }
@@ -177,7 +185,7 @@ TESTCASE (unfollow_unsupported)
 TESTCASE (compile_events_unsupported)
 {
   g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
-                         "Compile events unsupported");
+      "Compile events unsupported");
 
   invoke_flat_expecting_return_value(fixture, GUM_COMPILE, 2);
   g_test_assert_expected_messages();
@@ -189,8 +197,7 @@ TESTCASE (exec_events_generated)
 
   StalkerTestFunc func = invoke_flat_expecting_return_value (fixture, GUM_EXEC, 2);
   g_assert_cmpuint (fixture->sink->events->len, ==,
-                    INVOKER_INSN_COUNT +
-                    (CODESIZE(flat_code) / 4));
+     INVOKER_INSN_COUNT + (CODESIZE(flat_code) / 4));
 
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
       0).type, ==, GUM_EXEC);
@@ -246,7 +253,8 @@ TESTCASE (call_events_generated)
   GumCallEvent * ev;
 
   StalkerTestFunc func = invoke_flat_expecting_return_value (fixture, GUM_CALL,
-                                                             2);
+      2);
+
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_CALL_INSN_COUNT);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
       0).type, ==, GUM_CALL);
@@ -256,11 +264,7 @@ TESTCASE (call_events_generated)
   GUM_ASSERT_CMPADDR (ev->depth, ==, 0);
 }
 
-extern const void branch_code;
-extern const void branch_code_end;
-
-asm (
-  "branch_code: \n"
+TESTCODE(branch_code,
   "sub r0, r0, r0 \n"
   "add r0, r0, #1 \n"
   "b 1f \n"
@@ -268,18 +272,14 @@ asm (
   "1: \n"
   "add r0, r0, #1 \n"
   "mov pc, lr \n"
-  "branch_code_end: \n"
-);
+  );
 
 TESTCASE (block_events_generated)
 {
   GumBlockEvent * ev;
 
-  StalkerTestFunc func =
-      invoke_expecting_return_value (fixture, GUM_BLOCK,
-                                     &branch_code,
-                                     &branch_code_end - &branch_code,
-                                     2);
+  StalkerTestFunc func = invoke_expecting_return_value (fixture, GUM_BLOCK,
+      CODESTART(branch_code), CODESIZE(branch_code), 2);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 1);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
@@ -290,11 +290,7 @@ TESTCASE (block_events_generated)
   GUM_ASSERT_CMPADDR (ev->end, ==, func + (3 * 4));
 }
 
-extern const void nested_call_code;
-extern const void nested_call_code_end;
-
-asm (
-  "nested_call_code: \n"
+TESTCODE(nested_call,
   "stmdb sp!, {lr} \n"
   "sub r0, r0, r0 \n"
   "add r0, r0, #1 \n"
@@ -313,19 +309,14 @@ asm (
   "3: \n"
   "add r0, r0, #1 \n"
   "mov pc, lr \n"
-
-  "nested_call_code_end: \n"
-);
+  );
 
 TESTCASE (nested_call_events_generated)
 {
   GumCallEvent * ev;
 
-  StalkerTestFunc func =
-      invoke_expecting_return_value (fixture, GUM_CALL,
-                                     &nested_call_code,
-                                     &nested_call_code_end - &nested_call_code,
-                                     4);
+  StalkerTestFunc func = invoke_expecting_return_value (fixture, GUM_CALL,
+      CODESTART(nested_call), CODESIZE(nested_call), 4);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_CALL_INSN_COUNT + 3);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
@@ -358,11 +349,8 @@ TESTCASE (nested_ret_events_generated)
 {
   GumRetEvent * ev;
 
-  StalkerTestFunc func =
-      invoke_expecting_return_value (fixture, GUM_RET,
-                                     &nested_call_code,
-                                     &nested_call_code_end - &nested_call_code,
-                                     4);
+  StalkerTestFunc func = invoke_expecting_return_value (fixture, GUM_RET,
+      CODESTART(nested_call), CODESIZE(nested_call), 4);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 4);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
@@ -392,11 +380,7 @@ TESTCASE (nested_ret_events_generated)
   GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
 }
 
-extern const void unmodified_lr_code;
-extern const void unmodified_lr_code_end;
-
-asm (
-  "unmodified_lr_code: \n"
+TESTCODE(unmodified_lr,
   "stmdb sp!, {lr} \n"
   "bl 1f \n"
   ".word 0xecececec \n"
@@ -404,22 +388,15 @@ asm (
   "ldr r0, [lr] \n"
   "ldmia sp!, {lr} \n"
   "mov pc,lr \n"
-  "unmodified_lr_code_end: \n"
 );
 
 TESTCASE (unmodified_lr)
 {
-  invoke_expecting_return_value (fixture, 0,
-                                 &unmodified_lr_code,
-                                 &unmodified_lr_code_end - &unmodified_lr_code,
-                                 0xecececec);
+  invoke_expecting_return_value (fixture, 0, CODESTART(unmodified_lr),
+      CODESIZE(unmodified_lr), 0xecececec);
 }
 
-extern const void excluded_range_code;
-extern const void excluded_range_code_end;
-
-asm (
-  "excluded_range_code: \n"
+TESTCODE(excluded_range,
   "stmdb sp!, {lr} \n"
   "sub r0, r0, r0 \n"
   "add r0, r0, #1 \n"
@@ -430,8 +407,6 @@ asm (
   "2: \n"
   "add r0, r0, #1 \n"
   "mov pc, lr \n"
-
-  "excluded_range_code_end: \n"
 );
 
 TESTCASE (excluded_range)
@@ -439,8 +414,8 @@ TESTCASE (excluded_range)
   GumExecEvent * ev;
 
   StalkerTestFunc func = (StalkerTestFunc)
-    test_arm_stalker_fixture_dup_code (fixture, &excluded_range_code,
-      &excluded_range_code_end - &excluded_range_code);
+      test_arm_stalker_fixture_dup_code (fixture, CODESTART(excluded_range),
+      CODESIZE(excluded_range));
 
   GumMemoryRange r = {
     .base_address = GUM_ADDRESS(func) + 24,
@@ -482,11 +457,7 @@ TESTCASE (excluded_range)
   GUM_ASSERT_CMPADDR (ev->location, ==, func + 20);
 }
 
-extern const void excluded_range_call_event_code;
-extern const void excluded_range_call_event_code_end;
-
-asm (
-  "excluded_range_call_event_code: \n"
+TESTCODE(excluded_range_call,
   "push {lr} \n"
   "sub r0, r0, r0 \n"
   "add r0, r0, #1 \n"
@@ -507,8 +478,6 @@ asm (
   "add r0, r0, #1 \n"
   "bl 2b \n"
   "pop {pc} \n"
-
-  "excluded_range_call_event_code_end: \n"
 );
 
 TESTCASE (excluded_range_call_events)
@@ -516,8 +485,9 @@ TESTCASE (excluded_range_call_events)
   GumCallEvent * ev;
 
   StalkerTestFunc func = (StalkerTestFunc)
-    test_arm_stalker_fixture_dup_code (fixture, &excluded_range_call_event_code,
-      &excluded_range_call_event_code_end - &excluded_range_call_event_code);
+      test_arm_stalker_fixture_dup_code (fixture,
+      CODESTART(excluded_range_call),
+      CODESIZE(excluded_range_call));
 
   GumMemoryRange r = {
     .base_address = GUM_ADDRESS(func) + 40,
@@ -552,8 +522,9 @@ TESTCASE (excluded_range_ret_events)
   GumRetEvent * ev;
 
   StalkerTestFunc func = (StalkerTestFunc)
-    test_arm_stalker_fixture_dup_code (fixture, &excluded_range_call_event_code,
-      &excluded_range_call_event_code_end - &excluded_range_call_event_code);
+      test_arm_stalker_fixture_dup_code (fixture,
+      CODESTART(excluded_range_call),
+      CODESIZE(excluded_range_call));
 
   GumMemoryRange r = {
     .base_address = GUM_ADDRESS(func) + 40,
@@ -582,11 +553,7 @@ TESTCASE (excluded_range_ret_events)
   GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
 }
 
-extern const void pop_pc_code;
-extern const void pop_pc_code_end;
-
-asm (
-  "pop_pc_code: \n"
+TESTCODE(pop_pc,
   "stmdb sp!, {r4-r8, lr} \n"
   "sub r0, r0, r0 \n"
   "add r0, r0, #1 \n"
@@ -597,8 +564,6 @@ asm (
   "stmdb sp!, {r1-r3, lr} \n"
   "add r0, r0, #1 \n"
   "ldmia sp!, {r1-r3, pc} \n"
-
-  "pop_pc_code_end: \n"
 );
 
 TESTCASE (pop_pc_ret_events_generated)
@@ -606,10 +571,7 @@ TESTCASE (pop_pc_ret_events_generated)
   GumRetEvent * ev;
 
   StalkerTestFunc func =
-      invoke_expecting_return_value (fixture, GUM_RET,
-                                     &pop_pc_code,
-                                     &pop_pc_code_end - &pop_pc_code,
-                                     2);
+      invoke_expecting_return_value (fixture, GUM_RET, CODESTART(pop_pc),CODESIZE(pop_pc), 2);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 2);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
@@ -627,11 +589,7 @@ TESTCASE (pop_pc_ret_events_generated)
   GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
 }
 
-extern const void pop_just_pc_code;
-extern const void pop_just_pc_code_end;
-
-asm (
-  "pop_just_pc_code: \n"
+TESTCODE(pop_just_pc,
   "stmdb sp!, {r4-r8, lr} \n"
   "sub r0, r0, r0 \n"
   "add r0, r0, #1 \n"
@@ -642,8 +600,6 @@ asm (
   "stmdb sp!, {lr} \n"
   "add r0, r0, #1 \n"
   "ldmia sp!, {pc} \n"
-
-  "pop_just_pc_code_end: \n"
 );
 
 TESTCASE (pop_just_pc_ret_events_generated)
@@ -651,10 +607,8 @@ TESTCASE (pop_just_pc_ret_events_generated)
   GumRetEvent * ev;
 
   StalkerTestFunc func =
-      invoke_expecting_return_value (fixture, GUM_RET,
-                                     &pop_just_pc_code,
-                                     &pop_just_pc_code_end - &pop_just_pc_code,
-                                     2);
+      invoke_expecting_return_value (fixture, GUM_RET, CODESTART(pop_just_pc),
+      CODESIZE(pop_just_pc), 2);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 2);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
@@ -672,11 +626,7 @@ TESTCASE (pop_just_pc_ret_events_generated)
   GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
 }
 
-extern const void ldm_pc_code;
-extern const void ldm_pc_code_end;
-
-asm (
-  "ldm_pc_code: \n"
+TESTCODE(ldm_pc,
   "stmdb sp!, {r4-r8, lr} \n"
   "sub r0, r0, r0 \n"
   "add r0, r0, #1 \n"
@@ -688,8 +638,6 @@ asm (
   "stmdb r3!, {r4-r8, lr} \n"
   "add r0, r0, #1 \n"
   "ldmia r3!, {r4-r8, pc} \n"
-
-  "ldm_pc_code_end: \n"
 );
 
 TESTCASE (ldm_pc_ret_events_generated)
@@ -697,10 +645,8 @@ TESTCASE (ldm_pc_ret_events_generated)
   GumRetEvent * ev;
 
   StalkerTestFunc func =
-      invoke_expecting_return_value (fixture, GUM_RET,
-                                     &ldm_pc_code,
-                                     &ldm_pc_code_end - &ldm_pc_code,
-                                     2);
+      invoke_expecting_return_value (fixture, GUM_RET, CODESTART(ldm_pc),
+        CODESIZE(ldm_pc), 2);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 2);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
@@ -718,11 +664,8 @@ TESTCASE (ldm_pc_ret_events_generated)
   GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
 }
 
-extern const void b_cc_code;
-extern const void b_cc_code_end;
 
-asm (
-  "b_cc_code: \n"
+TESTCODE(b_cc,
   "sub r0, r0, r0 \n"
   "sub r1, r1, r1 \n"
 
@@ -747,7 +690,6 @@ asm (
   "4: \n"
 
   "mov pc, lr \n"
-  "b_cc_code_end: \n"
 );
 
 TESTCASE (branch_cc_block_events_generated)
@@ -755,10 +697,8 @@ TESTCASE (branch_cc_block_events_generated)
   GumBlockEvent * ev;
 
   StalkerTestFunc func =
-      invoke_expecting_return_value (fixture, GUM_BLOCK,
-                                     &b_cc_code,
-                                     &b_cc_code_end - &b_cc_code,
-                                     10);
+      invoke_expecting_return_value (fixture, GUM_BLOCK, CODESTART(b_cc),
+      CODESIZE(b_cc), 10);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 4);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
@@ -785,11 +725,7 @@ TESTCASE (branch_cc_block_events_generated)
   GUM_ASSERT_CMPADDR (ev->end, ==, func + 52);
 }
 
-extern const void bl_cc_code;
-extern const void bl_cc_code_end;
-
-asm (
-  "bl_cc_code: \n"
+TESTCODE(bl_cc,
   "push {lr} \n"
 
   "sub r0, r0, r0 \n"
@@ -824,7 +760,6 @@ asm (
   "4: \n"
   "add r0, r0, #8 \n"
   "mov pc, lr \n"
-  "bl_cc_code_end: \n"
 );
 
 TESTCASE (branch_link_cc_block_events_generated)
@@ -832,10 +767,8 @@ TESTCASE (branch_link_cc_block_events_generated)
   GumCallEvent * ev;
 
   StalkerTestFunc func =
-      invoke_expecting_return_value (fixture, GUM_CALL,
-                                     &bl_cc_code,
-                                     &bl_cc_code_end - &bl_cc_code,
-                                     5);
+      invoke_expecting_return_value (fixture, GUM_CALL, CODESTART(bl_cc),
+      CODESIZE(bl_cc), 5);
 
   g_assert_cmpuint (fixture->sink->events->len, ==,
       INVOKER_CALL_INSN_COUNT + 2);
@@ -855,11 +788,7 @@ TESTCASE (branch_link_cc_block_events_generated)
 
 }
 
-extern const void cc_excluded_range_code;
-extern const void cc_excluded_range_code_end;
-
-asm (
-  "cc_excluded_range_code: \n"
+TESTCODE(cc_excluded_range,
   "stmdb sp!, {lr} \n"
   "sub r0, r0, r0 \n"
   "sub r1, r1, r1 \n"
@@ -887,8 +816,6 @@ asm (
 
   "3: \n"
   "mov pc, lr \n"
-
-  "cc_excluded_range_code_end: \n"
 );
 
 TESTCASE (cc_excluded_range)
@@ -896,8 +823,8 @@ TESTCASE (cc_excluded_range)
   GumCallEvent * ev;
 
   StalkerTestFunc func = (StalkerTestFunc)
-    test_arm_stalker_fixture_dup_code (fixture, &cc_excluded_range_code,
-      &cc_excluded_range_code_end - &cc_excluded_range_code);
+      test_arm_stalker_fixture_dup_code (fixture, CODESTART(cc_excluded_range),
+      CODESIZE(cc_excluded_range));
 
   GumMemoryRange r = {
     .base_address = GUM_ADDRESS(func) + 36,
@@ -920,11 +847,7 @@ TESTCASE (cc_excluded_range)
   GUM_ASSERT_CMPADDR (ev->target, ==, func + 36);
 }
 
-extern const void excluded_thumb_code;
-extern const void excluded_thumb_code_end;
-
-asm (
-  "excluded_thumb_code: \n"
+TESTCODE(excluded_thumb,
   "push {lr} \n"
   "sub r0, r0, r0 \n"
   "add r0, r0, #1 \n"
@@ -947,7 +870,6 @@ asm (
   "blx 2b \n"
   "pop {pc} \n"
   ".arm \n"
-  "excluded_thumb_code_end: \n"
 );
 
 TESTCASE (excluded_thumb)
@@ -956,9 +878,7 @@ TESTCASE (excluded_thumb)
 
   StalkerTestFunc func =
       invoke_expecting_return_value (fixture, GUM_CALL,
-                                     &excluded_thumb_code,
-                                     &excluded_thumb_code_end - &excluded_thumb_code,
-                                     4);
+      CODESTART(excluded_thumb), CODESIZE(excluded_thumb), 4);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_CALL_INSN_COUNT + 2);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
@@ -977,11 +897,7 @@ TESTCASE (excluded_thumb)
   GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
 }
 
-extern const void excluded_thumb_branch_code;
-extern const void excluded_thumb_branch_code_end;
-
-asm (
-  "excluded_thumb_branch_code: \n"
+TESTCODE(excluded_thumb_branch,
   "sub r0, r0, r0 \n"
   "add r0, r0, #1 \n"
 
@@ -1006,9 +922,6 @@ asm (
   "bx r1 \n"
 
   ".arm \n"
-
-  ""
-  "excluded_thumb_branch_code_end: \n"
 );
 
 TESTCASE (excluded_thumb_branch)
@@ -1017,9 +930,7 @@ TESTCASE (excluded_thumb_branch)
 
   StalkerTestFunc func =
       invoke_expecting_return_value (fixture, GUM_CALL,
-                                     &excluded_thumb_branch_code,
-                                     &excluded_thumb_branch_code_end - &excluded_thumb_branch_code,
-                                     3);
+      CODESTART(excluded_thumb_branch), CODESIZE(excluded_thumb_branch), 3);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 1);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
@@ -1046,11 +957,7 @@ store_range_of_test_runner (const GumModuleDetails * details,
   return TRUE;
 }
 
-extern const void ldr_pc_code;
-extern const void ldr_pc_code_end;
-
-asm (
-  "ldr_pc_code: \n"
+TESTCODE(ldr_pc,
   "sub r0, r0, r0 \n"
   "add r0, r0, #1 \n"
   "ldr pc, f3 \n"
@@ -1062,8 +969,6 @@ asm (
   "f4: \n"
   "add r0, r0, #1 \n"
   "mov pc, lr \n"
-
-  "ldr_pc_code_end: \n"
 );
 
 TESTCASE (ldr_pc)
@@ -1071,10 +976,8 @@ TESTCASE (ldr_pc)
   GumBlockEvent * ev;
 
   StalkerTestFunc func =
-      invoke_expecting_return_value (fixture, GUM_BLOCK,
-                                     &ldr_pc_code,
-                                     &ldr_pc_code_end - &ldr_pc_code,
-                                     2);
+      invoke_expecting_return_value (fixture, GUM_BLOCK, CODESTART(ldr_pc),
+      CODESIZE(ldr_pc), 2);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 1);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
@@ -1086,11 +989,7 @@ TESTCASE (ldr_pc)
   GUM_ASSERT_CMPADDR (ev->end, ==, func + 12);
 }
 
-extern const void sub_pc_code;
-extern const void sub_pc_code_end;
-
-asm (
-  "sub_pc_code: \n"
+TESTCODE(sub_pc,
   "sub r0, r0, r0 \n"
   "b 2f \n"
 
@@ -1101,8 +1000,6 @@ asm (
   "2: \n"
   "add r0, r0, #1 \n"
   "sub pc, pc, #20 \n"
-
-  "sub_pc_code_end: \n"
 );
 
 TESTCASE (sub_pc)
@@ -1110,10 +1007,8 @@ TESTCASE (sub_pc)
   GumBlockEvent * ev;
 
   StalkerTestFunc func =
-      invoke_expecting_return_value (fixture, GUM_BLOCK,
-                                     &sub_pc_code,
-                                     &sub_pc_code_end - &sub_pc_code,
-                                     2);
+      invoke_expecting_return_value (fixture, GUM_BLOCK, CODESTART(sub_pc),
+      CODESIZE(sub_pc), 2);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 2);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
@@ -1130,11 +1025,7 @@ TESTCASE (sub_pc)
   GUM_ASSERT_CMPADDR (ev->end, ==, func + 24);
 }
 
-extern const void add_pc_code;
-extern const void add_pc_code_end;
-
-asm (
-  "add_pc_code: \n"
+TESTCODE(add_pc,
   "sub r0, r0, r0 \n"
   "add pc, pc, #4 \n"
 
@@ -1145,8 +1036,6 @@ asm (
   "2: \n"
   "add r0, r0, #1 \n"
   "b 1b \n \n"
-
-  "add_pc_code_end: \n"
 );
 
 TESTCASE (add_pc)
@@ -1154,10 +1043,8 @@ TESTCASE (add_pc)
   GumBlockEvent * ev;
 
   StalkerTestFunc func =
-      invoke_expecting_return_value (fixture, GUM_BLOCK,
-                                     &add_pc_code,
-                                     &add_pc_code_end - &add_pc_code,
-                                     2);
+      invoke_expecting_return_value (fixture, GUM_BLOCK, CODESTART(add_pc),
+      CODESIZE(add_pc), 2);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 2);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
@@ -1183,8 +1070,6 @@ pretend_workload (GumMemoryRange * runner_range)
   guint8 * outbuf;
   gsize outbuf_size;
   const gsize outbuf_size_increment = 1024 * 1024;
-
-  //asm("udf #0x18");
 
   ret = lzma_easy_encoder (&stream, preset, LZMA_CHECK_CRC64);
   g_assert_cmpint (ret, ==, LZMA_OK);
@@ -1226,12 +1111,10 @@ pretend_workload (GumMemoryRange * runner_range)
   free (outbuf);
 }
 
-extern const void call_workload_code;
-extern void call_workload(GumMemoryRange * runner_range);
+extern void test_arm_stalker_call_workload (GumMemoryRange * runner_range);
 
-asm (
-  "call_workload_code: \n"
-  "call_workload: \n"
+TESTCODE(call_workload,
+  "test_arm_stalker_call_workload: \n"
 
   "push {lr} \n"
   "bl pretend_workload \n"
@@ -1268,7 +1151,7 @@ TESTCASE (can_follow_workload)
 
   runner_range.size = 16;
 
-  call_workload (&runner_range);
+  test_arm_stalker_call_workload (&runner_range);
 
   g_test_log_set_fatal_handler (test_log_fatal_func, NULL);
   g_log_set_writer_func (test_log_writer_func, NULL, NULL);
@@ -1278,14 +1161,14 @@ TESTCASE (can_follow_workload)
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
       GUM_EVENT_SINK (fixture->sink));
 
-  call_workload(&runner_range);
+  test_arm_stalker_call_workload (&runner_range);
 
   gum_stalker_unfollow_me (fixture->stalker);
 
   ev =
     &g_array_index (fixture->sink->events, GumEvent,
         (fixture->sink->events->len - 1)).ret;
-  GUM_ASSERT_CMPADDR (ev->location, ==, &call_workload_code + 8);
+  GUM_ASSERT_CMPADDR (ev->location, ==, CODESTART(call_workload) + 8);
 }
 
 TESTCASE (performance)
