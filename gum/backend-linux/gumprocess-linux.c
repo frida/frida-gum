@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -2465,8 +2465,6 @@ gum_libc_clone (GumCloneFunc child_func,
 
     asm volatile (
         "push {r7}\n\t"
-        ".cfi_adjust_cfa_offset 4\n\t"
-        ".cfi_rel_offset r7, 0\n\t"
         "mov r7, r6\n\t"
         "swi 0x0\n\t"
         "cmp r0, #0\n\t"
@@ -2481,8 +2479,6 @@ gum_libc_clone (GumCloneFunc child_func,
         /* parent: */
         "1:\n\t"
         "pop {r7}\n\t"
-        ".cfi_adjust_cfa_offset -4\n\t"
-        ".cfi_restore r7\n\t"
         : "+r" (r0)
         : "r" (r1),
           "r" (r2),
@@ -2617,13 +2613,9 @@ gum_libc_syscall_4 (gsize n,
 
     asm volatile (
         "push {r7}\n\t"
-        ".cfi_adjust_cfa_offset 4\n\t"
-        ".cfi_rel_offset r7, 0\n\t"
         "mov r7, r6\n\t"
         "swi 0x0\n\t"
         "pop {r7}\n\t"
-        ".cfi_adjust_cfa_offset -4\n\t"
-        ".cfi_restore r7\n\t"
         : "+r" (r0)
         : "r" (r1),
           "r" (r2),
