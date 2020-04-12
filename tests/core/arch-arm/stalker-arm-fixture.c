@@ -30,6 +30,13 @@
 #define NTH_EXEC_EVENT_LOCATION(N) \
     (gum_fake_event_sink_get_nth_event_as_exec (fixture->sink, N)->location)
 
+#define CODESTART(NAME)                                     \
+       (&test_arm_stalker_ ## NAME ## _begin)               \
+
+#define CODESIZE(NAME)                                      \
+      ((&test_arm_stalker_ ## NAME ## _end) -               \
+       (&test_arm_stalker_ ## NAME ## _begin))              \
+
 #define TESTCODE(NAME, CODE) \
     extern const void test_arm_stalker_ ## NAME ## _begin;  \
     extern const void test_arm_stalker_ ## NAME ## _end;    \

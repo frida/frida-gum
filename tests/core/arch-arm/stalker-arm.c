@@ -77,18 +77,15 @@ invoke_flat_expecting_return_value (TestArmStalkerFixture * fixture,
                                     GumEventType mask,
                                     guint expected_return_value)
 {
-  return invoke_expecting_return_value(fixture, mask, &
-      test_arm_stalker_flat_code_begin,
-      (&test_arm_stalker_flat_code_end - &test_arm_stalker_flat_code_begin),
-      expected_return_value);
+  return invoke_expecting_return_value(fixture, mask,
+      CODESTART(flat_code), CODESIZE(flat_code), expected_return_value);
 }
 
 TESTCASE (flat_code)
 {
-  g_assert_cmpuint (
-    (&test_arm_stalker_flat_code_end - &test_arm_stalker_flat_code_begin), ==, 16);
+  g_assert_cmpuint (CODESIZE(flat_code), ==, 16);
 
-  guint* code = (guint*)&test_arm_stalker_flat_code_begin;
+  guint* code = (guint*)CODESTART(flat_code);
   g_assert_cmpuint(code[0], ==, 0xe0400000);
   g_assert_cmpuint(code[1], ==, 0xe2800001);
   g_assert_cmpuint(code[2], ==, 0xe2800001);
@@ -193,8 +190,7 @@ TESTCASE (exec_events_generated)
   StalkerTestFunc func = invoke_flat_expecting_return_value (fixture, GUM_EXEC, 2);
   g_assert_cmpuint (fixture->sink->events->len, ==,
                     INVOKER_INSN_COUNT +
-                    ((&test_arm_stalker_flat_code_end -
-                    &test_arm_stalker_flat_code_begin) / 4));
+                    (CODESIZE(flat_code) / 4));
 
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
       0).type, ==, GUM_EXEC);
