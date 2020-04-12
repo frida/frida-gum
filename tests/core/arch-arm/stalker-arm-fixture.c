@@ -30,6 +30,16 @@
 #define NTH_EXEC_EVENT_LOCATION(N) \
     (gum_fake_event_sink_get_nth_event_as_exec (fixture->sink, N)->location)
 
+#define TESTCODE(NAME, CODE) \
+    extern const void test_arm_stalker_ ## NAME ## _begin;  \
+    extern const void test_arm_stalker_ ## NAME ## _end;    \
+    asm (                                                   \
+      "test_arm_stalker_" #NAME "_begin: \n"                \
+      CODE                                                  \
+      "test_arm_stalker_" #NAME "_end : \n"                 \
+    );
+
+
 typedef struct _TestArmStalkerFixture
 {
   GumStalker * stalker;

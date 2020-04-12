@@ -45,19 +45,12 @@ TESTLIST_END ()
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
 
-extern const void flat_code;
-extern const void flat_code_end;
-
-asm (
-  "flat_code: \n"
+TESTCODE(flat_code,
   "sub r0, r0, r0 \n"
   "add r0, r0, #1 \n"
   "add r0, r0, #1 \n"
   "mov pc, lr \n"
-  "flat_code_end: \n"
 );
-
-#define FLAT_CODE_INSN_COUNT ((&flat_code_end - &flat_code)/sizeof(guint32))
 
 static StalkerTestFunc
 invoke_expecting_return_value (TestArmStalkerFixture * fixture,
@@ -84,15 +77,18 @@ invoke_flat_expecting_return_value (TestArmStalkerFixture * fixture,
                                     GumEventType mask,
                                     guint expected_return_value)
 {
-  return invoke_expecting_return_value(fixture, mask, &flat_code,
-                                       &flat_code_end - &flat_code,
-                                       expected_return_value);
+  return invoke_expecting_return_value(fixture, mask, &
+      test_arm_stalker_flat_code_begin,
+      (&test_arm_stalker_flat_code_end - &test_arm_stalker_flat_code_begin),
+      expected_return_value);
 }
 
 TESTCASE (flat_code)
 {
-  g_assert_cmpuint ((&flat_code_end - &flat_code), ==, 16);
-  guint* code = (guint*)&flat_code;
+  g_assert_cmpuint (
+    (&test_arm_stalker_flat_code_end - &test_arm_stalker_flat_code_begin), ==, 16);
+
+  guint* code = (guint*)&test_arm_stalker_flat_code_begin;
   g_assert_cmpuint(code[0], ==, 0xe0400000);
   g_assert_cmpuint(code[1], ==, 0xe2800001);
   g_assert_cmpuint(code[2], ==, 0xe2800001);
@@ -196,7 +192,10 @@ TESTCASE (exec_events_generated)
 
   StalkerTestFunc func = invoke_flat_expecting_return_value (fixture, GUM_EXEC, 2);
   g_assert_cmpuint (fixture->sink->events->len, ==,
-                    INVOKER_INSN_COUNT + FLAT_CODE_INSN_COUNT);
+                    INVOKER_INSN_COUNT +
+                    ((&test_arm_stalker_flat_code_end -
+                    &test_arm_stalker_flat_code_begin) / 4));
+
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
       0).type, ==, GUM_EXEC);
   ev =
@@ -1237,8 +1236,6 @@ extern void call_workload(GumMemoryRange * runner_range);
 asm (
   "call_workload_code: \n"
   "call_workload: \n"
-
-  //"udf #0x18 \n"
 
   "push {lr} \n"
   "bl pretend_workload \n"
