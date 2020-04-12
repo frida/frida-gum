@@ -46,19 +46,18 @@
       "test_arm_stalker_" #NAME "_end : \n"                 \
     );
 
-  // GumExecEvent * ev;
-
-  // g_assert_cmpuint (fixture->sink->events->len, ==,
-  //    INVOKER_INSN_COUNT + (CODESIZE(flat_code) / 4));
-
-  // g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
-  //     0).type, ==, GUM_EXEC);
-  // ev =
-  //     &g_array_index (fixture->sink->events, GumEvent, 0).exec;
-  // GUM_ASSERT_CMPADDR (ev->location, ==, fixture->invoker + INVOKER_IMPL_OFFSET);
-
 #define GUM_EVENT_TYPE_exec GumExecEvent
 #define GUM_EVENT_TYPE_NAME_exec GUM_EXEC
+
+#define GUM_EVENT_TYPE_call GumCallEvent
+#define GUM_EVENT_TYPE_NAME_call GUM_CALL
+
+#define GUM_EVENT_TYPE_block GumBlockEvent
+#define GUM_EVENT_TYPE_NAME_block GUM_BLOCK
+
+#define GUM_EVENT_TYPE_ret GumRetEvent
+#define GUM_EVENT_TYPE_NAME_ret GUM_RET
+
 
 #define GUM_ASSERT_EVENT_ADDR(TYPE, INDEX, FIELD, VALUE)                \
   {                                                                     \

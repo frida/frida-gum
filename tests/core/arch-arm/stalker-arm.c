@@ -147,8 +147,6 @@ TESTCASE (compile_events_unsupported)
 
 TESTCASE (exec_events_generated)
 {
-  GumExecEvent * ev;
-
   StalkerTestFunc func = invoke_flat_expecting_return_value (fixture, GUM_EXEC, 2);
   g_assert_cmpuint (fixture->sink->events->len, ==,
      INVOKER_INSN_COUNT + (CODESIZE(flat_code) / 4));
@@ -179,18 +177,13 @@ TESTCASE (exec_events_generated)
 
 TESTCASE (call_events_generated)
 {
-  GumCallEvent * ev;
-
   StalkerTestFunc func = invoke_flat_expecting_return_value (fixture, GUM_CALL,
       2);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_CALL_INSN_COUNT);
-  g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
-      0).type, ==, GUM_CALL);
-  ev =
-      &g_array_index (fixture->sink->events, GumEvent, 0).call;
-  GUM_ASSERT_CMPADDR (ev->target, ==, func);
-  GUM_ASSERT_CMPADDR (ev->depth, ==, 0);
+
+  GUM_ASSERT_EVENT_ADDR(call, 0, target, func);
+  GUM_ASSERT_EVENT_ADDR(call, 0, depth, 0);
 }
 
 TESTCODE(branch_code,
@@ -205,18 +198,13 @@ TESTCODE(branch_code,
 
 TESTCASE (block_events_generated)
 {
-  GumBlockEvent * ev;
-
   StalkerTestFunc func = invoke_expecting_return_value (fixture, GUM_BLOCK,
       CODESTART(branch_code), CODESIZE(branch_code), 2);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 1);
-  g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
-      0).type, ==, GUM_BLOCK);
-  ev =
-      &g_array_index (fixture->sink->events, GumEvent, 0).block;
-  GUM_ASSERT_CMPADDR (ev->begin, ==, func);
-  GUM_ASSERT_CMPADDR (ev->end, ==, func + (3 * 4));
+
+  GUM_ASSERT_EVENT_ADDR(block, 0, begin, func);
+  GUM_ASSERT_EVENT_ADDR(block, 0, end, func + (3 * 4));
 }
 
 TESTCODE(nested_call,
@@ -242,71 +230,49 @@ TESTCODE(nested_call,
 
 TESTCASE (nested_call_events_generated)
 {
-  GumCallEvent * ev;
-
   StalkerTestFunc func = invoke_expecting_return_value (fixture, GUM_CALL,
       CODESTART(nested_call), CODESIZE(nested_call), 4);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_CALL_INSN_COUNT + 3);
-  g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
-      0).type, ==, GUM_CALL);
-  ev =
-      &g_array_index (fixture->sink->events, GumEvent, 0).call;
-  GUM_ASSERT_CMPADDR (ev->target, ==, func);
-  GUM_ASSERT_CMPADDR (ev->depth, ==, 0);
+  g_assert_cmpuint (fixture->sink->events->len, ==,
+      INVOKER_CALL_INSN_COUNT + 3);
 
-  ev =
-    &g_array_index (fixture->sink->events, GumEvent, 1).call;
-  GUM_ASSERT_CMPADDR (ev->location, ==, func + (3 * 4));
-  GUM_ASSERT_CMPADDR (ev->target, ==, func + (7 * 4));
-  GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
+  GUM_ASSERT_EVENT_ADDR(call, 0, target, func);
+  GUM_ASSERT_EVENT_ADDR(call, 0, depth, 0);
 
-  ev =
-    &g_array_index (fixture->sink->events, GumEvent, 2).call;
-  GUM_ASSERT_CMPADDR (ev->location, ==, func + (9 * 4));
-  GUM_ASSERT_CMPADDR (ev->target, ==, func + (12 * 4));
-  GUM_ASSERT_CMPADDR (ev->depth, ==, 2);
+  GUM_ASSERT_EVENT_ADDR(call, 1, location, func + (3 * 4));
+  GUM_ASSERT_EVENT_ADDR(call, 1, target, func + (7 * 4));
+  GUM_ASSERT_EVENT_ADDR(call, 1, depth, 1);
 
-  ev =
-    &g_array_index (fixture->sink->events, GumEvent, 3).call;
-  GUM_ASSERT_CMPADDR (ev->location, ==, func + (4 * 4));
-  GUM_ASSERT_CMPADDR (ev->target, ==, func + (12 * 4));
-  GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
+  GUM_ASSERT_EVENT_ADDR(call, 2, location, func + (9 * 4));
+  GUM_ASSERT_EVENT_ADDR(call, 2, target, func + (12 * 4));
+  GUM_ASSERT_EVENT_ADDR(call, 2, depth, 2);
+
+  GUM_ASSERT_EVENT_ADDR(call, 3, location, func + (4 * 4));
+  GUM_ASSERT_EVENT_ADDR(call, 3, target, func + (12 * 4));
+  GUM_ASSERT_EVENT_ADDR(call, 3, depth, 1);
 }
 
 TESTCASE (nested_ret_events_generated)
 {
-  GumRetEvent * ev;
-
   StalkerTestFunc func = invoke_expecting_return_value (fixture, GUM_RET,
       CODESTART(nested_call), CODESIZE(nested_call), 4);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 4);
-  g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
-      0).type, ==, GUM_RET);
 
-  ev =
-    &g_array_index (fixture->sink->events, GumEvent, 0).ret;
-  GUM_ASSERT_CMPADDR (ev->location, ==, func + (13 * 4));
-  GUM_ASSERT_CMPADDR (ev->target, ==, func + (10 * 4));
-  GUM_ASSERT_CMPADDR (ev->depth, ==, 3);
+  GUM_ASSERT_EVENT_ADDR(ret, 0, location, func + (13 * 4));
+  GUM_ASSERT_EVENT_ADDR(ret, 0, target, func + (10 * 4));
+  GUM_ASSERT_EVENT_ADDR(ret, 0, depth, 3);
 
-  ev =
-    &g_array_index (fixture->sink->events, GumEvent, 1).ret;
-  GUM_ASSERT_CMPADDR (ev->location, ==, func + (11 * 4));
-  GUM_ASSERT_CMPADDR (ev->target, ==, func + (4 * 4));
-  GUM_ASSERT_CMPADDR (ev->depth, ==, 2);
+  GUM_ASSERT_EVENT_ADDR(ret, 1, location, func + (11 * 4));
+  GUM_ASSERT_EVENT_ADDR(ret, 1, target, func + (4 * 4));
+  GUM_ASSERT_EVENT_ADDR(ret, 1, depth, 2);
 
-  ev =
-    &g_array_index (fixture->sink->events, GumEvent, 2).ret;
-  GUM_ASSERT_CMPADDR (ev->location, ==, func + (13 * 4));
-  GUM_ASSERT_CMPADDR (ev->target, ==, func + (5 * 4));
-  GUM_ASSERT_CMPADDR (ev->depth, ==, 2);
+  GUM_ASSERT_EVENT_ADDR(ret, 2, location, func + (13 * 4));
+  GUM_ASSERT_EVENT_ADDR(ret, 2, target, func + (5 * 4));
+  GUM_ASSERT_EVENT_ADDR(ret, 2, depth, 2);
 
-  ev =
-    &g_array_index (fixture->sink->events, GumEvent, 3).ret;
-  GUM_ASSERT_CMPADDR (ev->location, ==, func + (6 * 4));
-  GUM_ASSERT_CMPADDR (ev->depth, ==, 1);
+  GUM_ASSERT_EVENT_ADDR(ret, 3, location, func + (6 * 4));
+  GUM_ASSERT_EVENT_ADDR(ret, 3, depth, 1);
 }
 
 TESTCODE(unmodified_lr,
