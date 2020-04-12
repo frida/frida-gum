@@ -45,51 +45,15 @@ TESTLIST_END ()
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;
 
-TESTCODE(flat_code,
-  "sub r0, r0, r0 \n"
-  "add r0, r0, #1 \n"
-  "add r0, r0, #1 \n"
-  "mov pc, lr \n"
-);
-
-static StalkerTestFunc
-invoke_expecting_return_value (TestArmStalkerFixture * fixture,
-                               GumEventType mask,
-                               const guint32* code,
-                               guint32 len,
-                               guint32 expected_return_value)
-{
-  StalkerTestFunc func;
-  guint32 ret;
-
-  func = (StalkerTestFunc) test_arm_stalker_fixture_dup_code (fixture,
-      code, len);
-
-  fixture->sink->mask = mask;
-  ret = test_arm_stalker_fixture_follow_and_invoke (fixture, func, -1);
-  g_assert_cmpuint (ret, ==, expected_return_value);
-
-  return func;
-}
-
-static StalkerTestFunc
-invoke_flat_expecting_return_value (TestArmStalkerFixture * fixture,
-                                    GumEventType mask,
-                                    guint expected_return_value)
-{
-  return invoke_expecting_return_value(fixture, mask,
-      CODESTART(flat_code), CODESIZE(flat_code), expected_return_value);
-}
-
 TESTCASE (flat_code)
 {
   g_assert_cmpuint (CODESIZE(flat_code), ==, 16);
 
   guint* code = (guint*)CODESTART(flat_code);
-  g_assert_cmpuint(code[0], ==, 0xe0400000);
-  g_assert_cmpuint(code[1], ==, 0xe2800001);
-  g_assert_cmpuint(code[2], ==, 0xe2800001);
-  g_assert_cmpuint(code[3], ==, 0xe1a0f00e);
+  g_assert_cmpuint (code[0], ==, 0xe0400000);
+  g_assert_cmpuint (code[1], ==, 0xe2800001);
+  g_assert_cmpuint (code[2], ==, 0xe2800001);
+  g_assert_cmpuint (code[3], ==, 0xe1a0f00e);
 }
 
 TESTCASE (no_events)
@@ -100,7 +64,7 @@ TESTCASE (no_events)
 
 TESTCASE (trust_is_zero)
 {
-  gint threshold = gum_stalker_get_trust_threshold(fixture->stalker);
+  gint threshold = gum_stalker_get_trust_threshold (fixture->stalker);
   g_assert_cmpuint (threshold, ==, 0);
 }
 
@@ -109,8 +73,8 @@ TESTCASE (trust_unsupported)
   g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
       "Trust threshold unsupported");
 
-  gum_stalker_set_trust_threshold(fixture->stalker, 10);
-  g_test_assert_expected_messages();
+  gum_stalker_set_trust_threshold (fixture->stalker, 10);
+  g_test_assert_expected_messages ();
 }
 
 TESTCASE (deactivate_unsupported)
@@ -118,8 +82,8 @@ TESTCASE (deactivate_unsupported)
   g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
       "Activate/deactivate unsupported");
 
-  gum_stalker_deactivate(fixture->stalker);
-  g_test_assert_expected_messages();
+  gum_stalker_deactivate (fixture->stalker);
+  g_test_assert_expected_messages ();
 }
 
 TESTCASE (activate_unsupported)
@@ -127,18 +91,8 @@ TESTCASE (activate_unsupported)
   g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
       "Activate/deactivate unsupported");
 
-  gum_stalker_activate(fixture->stalker, NULL);
-  g_test_assert_expected_messages();
-}
-
-static void dummyCallProbe (GumCallSite * site, gpointer user_data)
-{
-
-}
-
-static void dummyDestroyNotify (gpointer       data)
-{
-
+  gum_stalker_activate (fixture->stalker, NULL);
+  g_test_assert_expected_messages ();
 }
 
 TESTCASE (add_call_probe_unsupported)
@@ -146,10 +100,10 @@ TESTCASE (add_call_probe_unsupported)
   g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
       "Call probes unsupported");
 
-  GumProbeId id = gum_stalker_add_call_probe(fixture->stalker, NULL,
+  GumProbeId id = gum_stalker_add_call_probe (fixture->stalker, NULL,
       dummyCallProbe, NULL, dummyDestroyNotify);
 
-  g_test_assert_expected_messages();
+  g_test_assert_expected_messages ();
   g_assert_cmpuint (id, ==, 0);
 }
 
@@ -158,8 +112,8 @@ TESTCASE (remove_call_probe_unsupported)
   g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
       "Call probes unsupported");
 
-  gum_stalker_remove_call_probe(fixture->stalker, 10);
-  g_test_assert_expected_messages();
+  gum_stalker_remove_call_probe (fixture->stalker, 10);
+  g_test_assert_expected_messages ();
 }
 
 TESTCASE (follow_unsupported)
@@ -167,10 +121,10 @@ TESTCASE (follow_unsupported)
   g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
       "Follow unsupported");
 
-  gum_stalker_follow(fixture->stalker, 0, fixture->transformer,
+  gum_stalker_follow (fixture->stalker, 0, fixture->transformer,
       (GumEventSink*)fixture->sink);
 
-  g_test_assert_expected_messages();
+  g_test_assert_expected_messages ();
 }
 
 TESTCASE (unfollow_unsupported)
@@ -178,8 +132,8 @@ TESTCASE (unfollow_unsupported)
   g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
       "Unfollow unsupported");
 
-  gum_stalker_unfollow(fixture->stalker, 0);
-  g_test_assert_expected_messages();
+  gum_stalker_unfollow (fixture->stalker, 0);
+  g_test_assert_expected_messages ();
 }
 
 TESTCASE (compile_events_unsupported)
@@ -187,8 +141,8 @@ TESTCASE (compile_events_unsupported)
   g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
       "Compile events unsupported");
 
-  invoke_flat_expecting_return_value(fixture, GUM_COMPILE, 2);
-  g_test_assert_expected_messages();
+  invoke_flat_expecting_return_value (fixture, GUM_COMPILE, 2);
+  g_test_assert_expected_messages ();
 }
 
 TESTCASE (exec_events_generated)

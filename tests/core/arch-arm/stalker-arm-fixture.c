@@ -46,6 +46,42 @@
       "test_arm_stalker_" #NAME "_end : \n"                 \
     );
 
+TESTCODE(flat_code,
+  "sub r0, r0, r0 \n"
+  "add r0, r0, #1 \n"
+  "add r0, r0, #1 \n"
+  "mov pc, lr \n"
+);
+
+/*
+ * Total number of instructions in the invoker built by
+ * test_arm_stalker_fixture_follow_and_invoke. This is counted from the first
+ * instruction after the call to gum_stalker_follow_me up to and including the
+ * call to gum_stalker_unfollow_me
+ */
+#define INVOKER_INSN_COUNT 6
+
+/*
+ * Total number of call instructions in the invoker built by
+ * test_arm_stalker_fixture_follow_and_invoke
+ */
+#define INVOKER_CALL_INSN_COUNT 2
+
+/*
+ * Total number of blocks in the invoker built by
+ * test_arm_stalker_fixture_follow_and_invoke
+ */
+#define INVOKER_BLOCK_COUNT 0
+
+/*
+ * Offset of the first instruction within the invoker which should be stalked in
+ * bytes
+ */
+#define INVOKER_IMPL_OFFSET 20
+
+typedef struct _UnfollowTransformContext UnfollowTransformContext;
+
+typedef gint (* StalkerTestFunc) (gint arg);
 
 typedef struct _TestArmStalkerFixture
 {
@@ -59,9 +95,47 @@ typedef struct _TestArmStalkerFixture
   guint8 * last_invoke_retaddr;
 } TestArmStalkerFixture;
 
-typedef gint (* StalkerTestFunc) (gint arg);
+struct _UnfollowTransformContext
+{
+  GumStalker * stalker;
+  guint num_blocks_transformed;
+  guint target_block;
+  gint max_instructions;
+};
 
-static void silence_warnings (void);
+static void
+test_arm_stalker_fixture_setup (TestArmStalkerFixture * fixture,
+    gconstpointer data);
+
+static void
+test_arm_stalker_fixture_teardown (TestArmStalkerFixture * fixture,
+    gconstpointer data);
+
+static void
+silence_warnings (void);
+
+static StalkerTestFunc
+invoke_flat_expecting_return_value (TestArmStalkerFixture * fixture,
+    GumEventType mask, guint expected_return_value);
+
+static StalkerTestFunc
+invoke_expecting_return_value (TestArmStalkerFixture * fixture,
+    GumEventType mask, const guint32* code, guint32 len,
+    guint32 expected_return_value);
+
+static gint
+test_arm_stalker_fixture_follow_and_invoke (TestArmStalkerFixture * fixture,
+    StalkerTestFunc func, gint arg);
+
+static GCallback
+test_arm_stalker_fixture_dup_code (TestArmStalkerFixture * fixture,
+    const guint32 * tpl_code, guint tpl_size);
+
+static void
+dummyCallProbe (GumCallSite * site, gpointer user_data);
+
+static void
+dummyDestroyNotify (gpointer data);
 
 static void
 test_arm_stalker_fixture_setup (TestArmStalkerFixture * fixture,
@@ -90,40 +164,42 @@ test_arm_stalker_fixture_teardown (TestArmStalkerFixture * fixture,
     gum_free_pages (fixture->code);
 }
 
-static GCallback
-test_arm_stalker_fixture_dup_code (TestArmStalkerFixture * fixture,
-                                   const guint32 * tpl_code,
-                                   guint tpl_size)
+static void
+silence_warnings (void)
 {
-  GumAddressSpec spec;
-
-  spec.near_address = gum_strip_code_pointer (gum_stalker_follow_me);
-  spec.max_distance = G_MAXINT32 / 2;
-
-  if (fixture->code != NULL)
-    gum_free_pages (fixture->code);
-  fixture->code = gum_alloc_n_pages_near (
-      (tpl_size / gum_query_page_size ()) + 1, GUM_PAGE_RW, &spec);
-  memcpy (fixture->code, tpl_code, tpl_size);
-  gum_memory_mark_code (fixture->code, tpl_size);
-
-  return GUM_POINTER_TO_FUNCPTR (GCallback,
-      gum_sign_code_pointer (fixture->code));
+  (void) test_arm_stalker_fixture_dup_code;
+  (void) test_arm_stalker_fixture_follow_and_invoke;
 }
-/* Total number of instructions in the invoker built by test_arm_stalker_fixture_follow_and_invoke. This is counted from
-the first instruction after the call to gum_stalker_follow_me up to
-and including the call to gum_stalker_unfollow_me*/
-#define INVOKER_INSN_COUNT 6
 
-/* Total number of call instructions in the invoker built by test_arm_stalker_fixture_follow_and_invoke */
-#define INVOKER_CALL_INSN_COUNT 2
+static StalkerTestFunc
+invoke_flat_expecting_return_value (TestArmStalkerFixture * fixture,
+                                    GumEventType mask,
+                                    guint expected_return_value)
+{
+  return invoke_expecting_return_value (fixture, mask,
+      CODESTART(flat_code), CODESIZE(flat_code), expected_return_value);
+}
 
-/* Total number of blocks in the invoker built by test_arm_stalker_fixture_follow_and_invoke */
-#define INVOKER_BLOCK_COUNT 0
+static StalkerTestFunc
+invoke_expecting_return_value (TestArmStalkerFixture * fixture,
+                               GumEventType mask,
+                               const guint32* code,
+                               guint32 len,
+                               guint32 expected_return_value)
+{
+  StalkerTestFunc func;
+  guint32 ret;
 
-/* Offset of the first instruction within the invoker which
-should be stalked in bytes */
-#define INVOKER_IMPL_OFFSET 20
+  func = (StalkerTestFunc) test_arm_stalker_fixture_dup_code (fixture,
+      code, len);
+
+  fixture->sink->mask = mask;
+  ret = test_arm_stalker_fixture_follow_and_invoke (fixture, func, -1);
+  g_assert_cmpuint (ret, ==, expected_return_value);
+
+  return func;
+}
+
 
 /* custom invoke code as we want to stalk a deterministic code sequence */
 static gint
@@ -140,10 +216,9 @@ test_arm_stalker_fixture_follow_and_invoke (TestArmStalkerFixture * fixture,
   spec.max_distance = G_MAXINT32 / 2;
   fixture->invoker = gum_alloc_n_pages_near (1, GUM_PAGE_RW, &spec);
 
-  gint orig_ret = func(arg);
+  gint orig_ret = func (arg);
 
   gum_arm_writer_init (&cw, fixture->invoker);
-  //gum_arm_writer_put_brk_imm(&cw, 10);
   gum_arm_writer_put_push_registers (&cw, 1, ARM_REG_LR);
 
   GumArgument args[] = {
@@ -155,7 +230,7 @@ test_arm_stalker_fixture_follow_and_invoke (TestArmStalkerFixture * fixture,
   gum_arm_writer_put_call_address_with_arguments_array (&cw,
       GUM_ADDRESS (gum_stalker_follow_me), 3, args);
 
-  /* call function -int func(int x)- and save address before and after call */
+  /* call function -int func (int x)- and save address before and after call */
   gum_arm_writer_put_ldr_reg_address (&cw, ARM_REG_R0, GUM_ADDRESS (arg));
   fixture->last_invoke_calladdr = gum_arm_writer_cur (&cw);
   gum_arm_writer_put_call_address_with_arguments_array (&cw,
@@ -180,26 +255,38 @@ test_arm_stalker_fixture_follow_and_invoke (TestArmStalkerFixture * fixture,
                             gum_sign_code_pointer (fixture->invoker));
   invoke_func ();
 
-  g_assert_cmpuint(orig_ret, ==, ret);
+  g_assert_cmpuint (orig_ret, ==, ret);
 
   gum_free_pages (fixture->invoker);
 
   return ret;
 }
 
-static void
-silence_warnings (void)
+static GCallback
+test_arm_stalker_fixture_dup_code (TestArmStalkerFixture * fixture,
+                                   const guint32 * tpl_code,
+                                   guint tpl_size)
 {
-  (void) test_arm_stalker_fixture_dup_code;
-  (void) test_arm_stalker_fixture_follow_and_invoke;
+  GumAddressSpec spec;
+
+  spec.near_address = gum_strip_code_pointer (gum_stalker_follow_me);
+  spec.max_distance = G_MAXINT32 / 2;
+
+  if (fixture->code != NULL)
+    gum_free_pages (fixture->code);
+  fixture->code = gum_alloc_n_pages_near (
+      (tpl_size / gum_query_page_size ()) + 1, GUM_PAGE_RW, &spec);
+  memcpy (fixture->code, tpl_code, tpl_size);
+  gum_memory_mark_code (fixture->code, tpl_size);
+
+  return GUM_POINTER_TO_FUNCPTR (GCallback,
+      gum_sign_code_pointer (fixture->code));
 }
 
-typedef struct _UnfollowTransformContext UnfollowTransformContext;
-
-struct _UnfollowTransformContext
+static void dummyCallProbe (GumCallSite * site, gpointer user_data)
 {
-  GumStalker * stalker;
-  guint num_blocks_transformed;
-  guint target_block;
-  gint max_instructions;
-};
+}
+
+static void dummyDestroyNotify (gpointer data)
+{
+}
