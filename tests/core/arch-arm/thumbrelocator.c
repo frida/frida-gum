@@ -12,6 +12,8 @@ TESTLIST_BEGIN (thumbrelocator)
 
   TESTENTRY (ldrpc_t1_should_be_rewritten)
   TESTENTRY (ldrpc_t2_should_be_rewritten)
+  TESTENTRY (vldrpc_t1_should_be_rewritten)
+  TESTENTRY (vldrpc_t2_should_be_rewritten)
   TESTENTRY (addh_should_be_rewritten_if_pc_relative)
   TESTENTRY (bl_sequence_should_be_rewritten)
   TESTENTRY (b_imm_t2_positive_should_be_rewritten)
@@ -150,6 +152,82 @@ TESTCASE (ldrpc_t2_should_be_rewritten)
   g_assert_cmpint (insn->id, ==, ARM_INS_LDR);
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
+  g_assert_cmpint (memcmp (fixture->output, expected_output,
+      sizeof (expected_output)), ==, 0);
+}
+
+TESTCASE (vldrpc_t1_should_be_rewritten)
+{
+  const guint16 input[] = {
+    GUINT16_TO_LE (0xeddf),
+    GUINT16_TO_LE (0x0a00), /* vldr  s1, [pc, #0] */
+  };
+  const guint16 expected_output_instructions[] = {
+    GUINT16_TO_LE (0xb401), /* push {r0}          */
+    GUINT16_TO_LE (0x4802), /* ldr  r0, [pc, #8]  */
+    GUINT16_TO_LE (0xedd0), /* ...                */
+    GUINT16_TO_LE (0x0a00), /* vldr s1, [r0]      */
+    GUINT16_TO_LE (0xbc01), /* pop  {r0}          */
+    GUINT16_TO_LE (0x46c0), /* nop                */
+    GUINT16_TO_LE (0xffff), /* <calculated PC     */
+    GUINT16_TO_LE (0xffff), /*  goes here>        */
+  };
+  gchar expected_output[8 * sizeof (guint16)];
+
+  guint32 calculated_pc;
+  const cs_insn * insn = NULL;
+
+  SETUP_RELOCATOR_WITH (input);
+
+  memcpy (expected_output, expected_output_instructions,
+      sizeof (expected_output_instructions));
+
+  calculated_pc = (fixture->rl.input_pc + 4) & ~(4 - 1);
+  *((guint32 *) (expected_output + 12)) = calculated_pc;
+
+  g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 4);
+  g_assert_cmpint (insn->id, ==, ARM_INS_VLDR);
+  g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
+  gum_thumb_writer_flush (&fixture->tw);
+  
+  g_assert_cmpint (memcmp (fixture->output, expected_output,
+      sizeof (expected_output)), ==, 0);
+}
+
+TESTCASE (vldrpc_t2_should_be_rewritten)
+{
+  const guint16 input[] = {
+    GUINT16_TO_LE (0xed9f),
+    GUINT16_TO_LE (0x1b00), /* vldr  d1, [pc, #0] */
+  };
+  const guint16 expected_output_instructions[] = {
+    GUINT16_TO_LE (0xb401), /* push {r0}          */
+    GUINT16_TO_LE (0x4802), /* ldr  r0, [pc, #8]  */
+    GUINT16_TO_LE (0xed90), /* ...                */
+    GUINT16_TO_LE (0x1b00), /* vldr d1, [r0]      */
+    GUINT16_TO_LE (0xbc01), /* pop  {r0}          */
+    GUINT16_TO_LE (0x46c0), /* nop                */
+    GUINT16_TO_LE (0xffff), /* <calculated PC     */
+    GUINT16_TO_LE (0xffff), /*  goes here>        */
+  };
+  gchar expected_output[8 * sizeof (guint16)];
+
+  guint32 calculated_pc;
+  const cs_insn * insn = NULL;
+
+  SETUP_RELOCATOR_WITH (input);
+
+  memcpy (expected_output, expected_output_instructions,
+      sizeof (expected_output_instructions));
+  
+  calculated_pc = (fixture->rl.input_pc + 4) & ~(4 - 1);
+  *((guint32 *) (expected_output + 12)) = calculated_pc;
+
+  g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 4);
+  g_assert_cmpint (insn->id, ==, ARM_INS_VLDR);
+  g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
+  gum_thumb_writer_flush (&fixture->tw);
+
   g_assert_cmpint (memcmp (fixture->output, expected_output,
       sizeof (expected_output)), ==, 0);
 }
