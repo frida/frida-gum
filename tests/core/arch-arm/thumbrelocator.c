@@ -197,7 +197,7 @@ TESTCASE (vldrpc_t1_should_be_rewritten)
 TESTCASE (vldrpc_t2_should_be_rewritten)
 {
   const guint16 input[] = {
-    GUINT16_TO_LE (0xed9f), 
+    GUINT16_TO_LE (0xed9f),
     GUINT16_TO_LE (0x1b00), /* vldr  d1, [pc, #0] */
   };
   const guint16 expected_output_instructions[] = {
