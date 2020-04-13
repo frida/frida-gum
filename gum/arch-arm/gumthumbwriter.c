@@ -799,38 +799,27 @@ gum_thumb_writer_put_vldr_reg_reg_offset (GumThumbWriter * self,
   guint32 insn = 0xed900a00;
   gboolean is_float;
 
-  /*
-   * vldr instruction format
-   * cccc cccc cycc ssss dddd cccx oooo oooo
-   * c: opt code fixed
-   * y: dest reg index, bit 1 
-   * s: source reg index
-   * d: dest reg index, bit 2-5
-   * x: 0 f32 load  1 f64 load
-   * o: offset
-   */
-
   gum_arm_reg_describe (src_reg, &src_reg_info);
   gum_arm_reg_describe (dst_reg, &dst_reg_info);
 
-  code |= (src_offset >> 2) & 0xff;
-  code |= src_reg_info.index << 16;
+  insn |= (src_offset >> 2) & 0xff;
+  insn |= src_reg_info.index << 16;
 
   is_float = (dst_reg_info.meta >= GUM_ARM_MREG_S0 &&
       dst_reg_info.meta <= GUM_ARM_MREG_S31);
 
   if (is_float)
   {
-    code |= (dst_reg_info.index >> 1) << 12;
-    code |= (dst_reg_info.index & 1) << 22;
+    insn |= (dst_reg_info.index >> 1) << 12;
+    insn |= (dst_reg_info.index & 1) << 22;
   }
   else 
   {
-    code |= (dst_reg_info.index) << 12;
-    code |= 1 << 8;
+    insn |= (dst_reg_info.index) << 12;
+    insn |= 1 << 8;
   }
   
-  gum_thumb_writer_put_instruction_wide (self, code >> 16, code & 0xffff);
+  gum_thumb_writer_put_instruction_wide (self, insn >> 16, insn & 0xffff);
 
   return TRUE;
 }
