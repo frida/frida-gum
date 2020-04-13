@@ -590,7 +590,7 @@ gum_thumb_relocator_rewrite_ldr (GumThumbRelocator * self,
 
 static gboolean
 gum_thumb_relocator_rewrite_vldr (GumThumbRelocator * self,
-                                 GumCodeGenCtx * ctx)
+                                  GumCodeGenCtx * ctx)
 {
   const cs_arm_op * dst = &ctx->detail->operands[0];
   const cs_arm_op * src = &ctx->detail->operands[1];
@@ -602,10 +602,10 @@ gum_thumb_relocator_rewrite_vldr (GumThumbRelocator * self,
   absolute_pc = ctx->pc & ~((GumAddress) (4 - 1));
   absolute_pc += src->mem.disp;
 
-  gum_thumb_writer_put_push_regs(ctx->output, 1, ARM_REG_R0);
+  gum_thumb_writer_put_push_regs (ctx->output, 1, ARM_REG_R0);
 
   gum_thumb_writer_put_ldr_reg_address (ctx->output, ARM_REG_R0, absolute_pc);
-  gum_thumb_writer_put_vldr_reg_reg_offset (ctx->output, dst->reg, ARM_REG_R0, 
+  gum_thumb_writer_put_vldr_reg_reg_offset (ctx->output, dst->reg, ARM_REG_R0,
       0);
 
   gum_thumb_writer_put_pop_regs(ctx->output, 1, ARM_REG_R0);

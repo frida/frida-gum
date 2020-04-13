@@ -790,15 +790,14 @@ gum_thumb_writer_put_ldr_reg_reg_offset (GumThumbWriter * self,
 
 gboolean
 gum_thumb_writer_put_vldr_reg_reg_offset (GumThumbWriter * self,
-                                         arm_reg dst_reg,
-                                         arm_reg src_reg,
-                                         gsize src_offset)
+                                          arm_reg dst_reg,
+                                          arm_reg src_reg,
+                                          gsize src_offset)
 {
   GumArmRegInfo src_reg_info;
   GumArmRegInfo dst_reg_info;
-
-  guint32 code = 0xed900a00;
-  gboolean is_float = TRUE;
+  guint32 insn = 0xed900a00;
+  gboolean is_float;
 
   /*
    * vldr instruction format
@@ -815,11 +814,10 @@ gum_thumb_writer_put_vldr_reg_reg_offset (GumThumbWriter * self,
   gum_arm_reg_describe (dst_reg, &dst_reg_info);
 
   code |= (src_offset >> 2) & 0xff;
-  code |= (src_reg_info.index << 16);
+  code |= src_reg_info.index << 16;
 
-  if (dst_reg_info.meta >= GUM_ARM_MREG_D0 
-      && dst_reg_info.meta <= GUM_ARM_MREG_D31)
-    is_float = FALSE;
+  is_float = (dst_reg_info.meta >= GUM_ARM_MREG_S0 &&
+      dst_reg_info.meta <= GUM_ARM_MREG_S31);
 
   if (is_float)
   {
