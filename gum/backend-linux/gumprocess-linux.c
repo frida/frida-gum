@@ -404,6 +404,7 @@ gum_process_modify_thread (GumThreadId thread_id,
   if (thread_id == gum_process_get_current_thread_id ())
   {
 #ifndef HAVE_ANDROID
+#ifndef HAVE_MUSLLIBC
     ucontext_t uc;
     volatile gboolean modified = FALSE;
 
@@ -421,6 +422,7 @@ gum_process_modify_thread (GumThreadId thread_id,
     }
 
     success = TRUE;
+#endif
 #endif
   }
   else
