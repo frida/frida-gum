@@ -1656,7 +1656,6 @@ gum_linux_cpu_type_from_pid (pid_t pid,
   guint8 * auxv;
   gsize auxv_size, i;
   GumCpuType cpu32, cpu64;
-  guint64 * auxv_type;
 
   auxv_path = g_strdup_printf ("/proc/%d/auxv", pid);
 
@@ -1678,7 +1677,7 @@ gum_linux_cpu_type_from_pid (pid_t pid,
 
   /*
    * The auxilliary structure format is architecture specific. Most notably,
-   * type and value are both natively sized. We therefore detect a whether a
+   * type and value are both natively sized. We therefore detect whether a
    * process is 64-bit by examining each entry and confirming that the low bits
    * of the type field are zero. Note that this is itself endian specific.
    *
@@ -1701,14 +1700,13 @@ gum_linux_cpu_type_from_pid (pid_t pid,
    * } Elf64_auxv_t;
   */
 
-
   if (auxv[0] != AT_NULL)
   {
     result = cpu64;
 
-    for (i = 0; i < auxv_size; i += 16)
+    for (i = 0; i + sizeof(guint64) < auxv_size; i += 16)
     {
-      auxv_type = (guint64 *) (auxv + i);
+      guint64 * auxv_type = (guint64 *) (auxv + i);
       if (((*auxv_type) & 0xffffffff) != 0)
       {
         result = cpu32;
