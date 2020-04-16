@@ -409,7 +409,7 @@ gum_process_modify_thread (GumThreadId thread_id,
      * be readily identified. However, the other major runtimes do, so we use their
      * absence to determine that musl is in use and hence omit the block.
      */
-#if !defined (HAVE_ANDROID) && (defined (__GLIC__) || defined (__UCLIBC__))
+#if !defined (HAVE_ANDROID) && (defined (__GLIBC__) || defined (__UCLIBC__))
     ucontext_t uc;
     volatile gboolean modified = FALSE;
 
