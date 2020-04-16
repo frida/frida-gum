@@ -1675,14 +1675,39 @@ gum_linux_cpu_type_from_pid (pid_t pid,
 # error Unsupported architecture
 #endif
 
+  /*
+   * The auxilliary structure format is architecture specific. Most notably,
+   * type and value are both natively sized. We therefore detect whether a
+   * process is 64-bit by examining each entry and confirming that the low bits
+   * of the type field are zero. Note that this is itself endian specific.
+   *
+   * typedef struct
+   * {
+   *   uint32_t a_type;
+   *   union
+   *   {
+   *     uint32_t a_val;
+   *   } a_un;
+   * } Elf32_auxv_t;
+   *
+   * typedef struct
+   * {
+   *   uint64_t a_type;
+   *   union
+   *   {
+   *     uint64_t a_val;
+   *   } a_un;
+   * } Elf64_auxv_t;
+  */
+
   if (auxv[0] != AT_NULL)
   {
     result = cpu64;
 
-    for (i = 0; i < auxv_size; i += 16)
+    for (i = 0; i + sizeof (guint64) <= auxv_size; i += 16)
     {
-      if (auxv[4] != 0 || auxv[5] != 0 ||
-          auxv[6] != 0 || auxv[7] != 0)
+      guint64 * auxv_type = (guint64 *) (auxv + i);
+      if (((*auxv_type) & 0xffffffff) != 0)
       {
         result = cpu32;
         break;
