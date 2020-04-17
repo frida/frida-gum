@@ -923,7 +923,7 @@ gum_handle_interpreter (const GumModuleDetails * details,
   if (!g_file_get_contents ("/proc/self/cmdline", &contents, &length, NULL))
     return TRUE;
 
-  for (i = 0; i < length - 1; i++)
+  for (i = 0; i != length - 1; i++)
   {
     if (contents[i] == '\0')
     {
