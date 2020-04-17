@@ -960,7 +960,8 @@ gum_emit_executable_module_by_name (const GumModuleDetails * details,
   mod_basename = g_path_get_basename (details->path);
   exe_basename = g_path_get_basename (ctx->executable_path);
 
-  match = strcmp (mod_basename, exe_basename);
+  is_match = strcmp (mod_basename, exe_basename) == 0;
+
   g_free (mod_basename);
   g_free (exe_basename);
 
