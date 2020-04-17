@@ -227,6 +227,10 @@ static GumAddress gum_resolve_base_address_from_phdr (
     struct dl_phdr_info * info);
 static gboolean gum_emit_executable_module (const GumModuleDetails * details,
     gpointer user_data);
+static gboolean gum_handle_interpreter (const GumModuleDetails * details,
+    gpointer user_data);
+static gboolean gum_emit_executable_module_by_name (
+    const GumModuleDetails * details, gpointer user_data);
 #endif
 
 static void gum_linux_named_range_free (GumLinuxNamedRange * range);
@@ -861,7 +865,106 @@ gum_emit_executable_module (const GumModuleDetails * details,
 {
   GumEmitExecutableModuleContext * ctx = user_data;
 
+  if (!gum_handle_interpreter (details, user_data))
+    return FALSE;
+
   if (strcmp (details->path, ctx->executable_path) != 0)
+    return TRUE;
+
+  ctx->carry_on = ctx->func (details, ctx->user_data);
+
+  return FALSE;
+}
+
+/*
+ * Loading an executable by passing it as an argument to a loader is often used
+ * to run 32-bit binaries on 64-bit kernels, e.g.
+ *
+ * /usr/arm-linux-gnueabi/lib/ld-2.27.so ./myexe
+ *
+ * We detect this scenario by the absence of a '.interp' section in the binary
+ * refrenced by /proc/self/exe. If this is the case, then we use
+ * /proc/self/cmdline to determine the process command line and extract argv[1]
+ * to determine the name of the main executable which the loader was used to
+ * load.
+ *
+ * We then search the list of modules from /proc/self/maps to find a match for
+ * the name using the basename from both argv[1] and the entry in the map. We
+ * then emit the module described by this name as the main application
+ * executable.
+ */
+static gboolean
+gum_handle_interpreter (const GumModuleDetails * details,
+                        gpointer user_data)
+{
+  GumEmitExecutableModuleContext * ctx = user_data;
+  GumElfModule * module;
+  gboolean has_interp;
+  gchar * contents;
+  gsize length;
+  gsize i;
+  gboolean result = TRUE;
+
+  if (strcmp (details->path, ctx->executable_path) != 0)
+    return TRUE;
+
+  module = gum_elf_module_new_from_memory (ctx->executable_path,
+      details->range->base_address);
+
+  if (module == NULL)
+    return TRUE;
+
+  has_interp = gum_elf_module_has_interp (module);
+  g_object_unref (module);
+
+  if (has_interp)
+    return TRUE;
+
+  if (!g_file_get_contents ("/proc/self/cmdline", &contents, &length, NULL))
+    return TRUE;
+
+  for (i = 0; i < length - 1; i++)
+  {
+    if (contents[i] == '\0')
+    {
+      GumEmitExecutableModuleContext emc;
+      emc.executable_path = &contents[i+1];
+      emc.func = ctx->func;
+      emc.user_data = ctx->user_data;
+      emc.carry_on = TRUE;
+
+      gum_linux_enumerate_modules_using_proc_maps (
+          gum_emit_executable_module_by_name, &emc);
+
+      ctx->carry_on = emc.carry_on;
+
+      result = FALSE;
+      break;
+    }
+  }
+
+  g_free (contents);
+
+  return result;
+}
+
+static gboolean
+gum_emit_executable_module_by_name (const GumModuleDetails * details,
+                                    gpointer user_data)
+{
+  GumEmitExecutableModuleContext * ctx = user_data;
+  gchar * mod_basename;
+  gchar * exe_basename;
+  int match;
+
+  mod_basename = g_path_get_basename (details->path);
+  exe_basename = g_path_get_basename (ctx->executable_path);
+
+  match = strcmp (mod_basename, exe_basename);
+  g_free (mod_basename);
+  g_free (exe_basename);
+
+  if (match != 0)
     return TRUE;
 
   ctx->carry_on = ctx->func (details, ctx->user_data);

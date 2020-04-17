@@ -125,6 +125,7 @@ GUM_API gboolean gum_elf_module_find_section_header_by_index (
 GUM_API gboolean gum_elf_module_find_section_header_by_type (
     GumElfModule * self, GumElfSectionHeaderType type, Elf_Scn ** scn,
     GElf_Shdr * shdr);
+GUM_API gboolean gum_elf_module_has_interp (GumElfModule * self);
 
 G_END_DECLS
 
