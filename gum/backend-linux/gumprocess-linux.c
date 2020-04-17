@@ -865,7 +865,7 @@ gum_emit_executable_module (const GumModuleDetails * details,
 {
   GumEmitExecutableModuleContext * ctx = user_data;
 
-  if (!gum_handle_interpreter (details, user_data))
+  if (!gum_maybe_emit_interpreter (details, user_data))
     return FALSE;
 
   if (strcmp (details->path, ctx->executable_path) != 0)
