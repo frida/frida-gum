@@ -928,9 +928,7 @@ gum_elf_module_has_interp (GumElfModule * self)
     gelf_getphdr (self->elf, header_index, &phdr);
 
     if (phdr.p_type == PT_INTERP)
-    {
       return TRUE;
-    }
   }
 
   return FALSE;
