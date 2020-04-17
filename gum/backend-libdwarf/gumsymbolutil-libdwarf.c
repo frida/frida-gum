@@ -93,6 +93,8 @@ struct _GumDieDetails
   Dwarf_Debug dbg;
 };
 
+static gboolean gum_find_nearest_symbol_by_address (const gpointer address,
+    GumNearestSymbolDetails * nearest);
 static GumModuleEntry * gum_module_entry_from_address (gpointer address,
     GumNearestSymbolDetails * nearest);
 static GumModuleEntry * gum_module_entry_from_path_and_base (const gchar * path,
@@ -101,10 +103,13 @@ static Dwarf_Addr gum_module_entry_virtual_address_to_file (
     GumModuleEntry * self, gpointer address);
 
 static GHashTable * gum_get_function_addresses (void);
+static GHashTable * gum_get_address_symbols (void);
 static gboolean gum_collect_module_functions (const GumModuleDetails * details,
     gpointer user_data);
 static gboolean gum_collect_symbol_if_function (
     const GumElfSymbolDetails * details, gpointer user_data);
+static gboolean gum_collect_symbol (const GumElfSymbolDetails * details,
+    gpointer user_data);
 
 static void gum_symbol_util_ensure_initialized (void);
 static void gum_symbol_util_deinitialize (void);
@@ -146,6 +151,7 @@ static gint gum_compare_pointers (gconstpointer a, gconstpointer b);
 G_LOCK_DEFINE_STATIC (gum_symbol_util);
 static GHashTable * gum_module_entries = NULL;
 static GHashTable * gum_function_addresses = NULL;
+static GHashTable * gum_address_symbols = NULL;
 static GTimer * gum_cache_timer = NULL;
 
 gboolean
@@ -220,6 +226,12 @@ no_debug_info:
 
     g_strlcpy (details->module_name, entry->module->name,
         sizeof (details->module_name));
+
+    if (nearest.name == NULL)
+    {
+      gum_find_nearest_symbol_by_address (address, &nearest);
+    }
+
     if (nearest.name != NULL)
     {
       offset = GPOINTER_TO_SIZE (address) - GPOINTER_TO_SIZE (nearest.address);
@@ -295,6 +307,11 @@ no_debug_info:
   {
     gsize offset;
 
+    if (nearest.name == NULL)
+    {
+      gum_find_nearest_symbol_by_address (address, &nearest);
+    }
+
     if (nearest.name != NULL)
     {
       offset = GPOINTER_TO_SIZE (address) - GPOINTER_TO_SIZE (nearest.address);
@@ -342,6 +359,56 @@ gum_find_function (const gchar * name)
   G_UNLOCK (gum_symbol_util);
 
   return address;
+}
+
+static gboolean
+gum_find_nearest_symbol_by_address (const gpointer address,
+                                    GumNearestSymbolDetails * nearest)
+{
+  GHashTable * table;
+  gchar * name;
+  GList * keys;
+  GList * current;
+  gpointer current_address;
+  gpointer closest_address = NULL;
+
+  table = gum_get_address_symbols ();
+  name = g_hash_table_lookup (table, address);
+
+  if (name != NULL)
+  {
+    nearest->name = name;
+    nearest->address = address;
+    return TRUE;
+  }
+
+  keys = g_hash_table_get_keys (table);
+  for (current = keys; current != NULL; current = current->next)
+  {
+    current_address = current->data;
+    if (closest_address == NULL)
+    {
+      closest_address = current_address;
+      continue;
+    }
+
+    if (address < current_address)
+      continue;
+
+    if ((address - current_address) >= (address - closest_address))
+      continue;
+
+    closest_address = current_address;
+  }
+
+  if (closest_address != NULL)
+  {
+    nearest->address = closest_address;
+    nearest->name = g_hash_table_lookup (table, closest_address);
+    return TRUE;
+  }
+
+  return FALSE;
 }
 
 GArray *
@@ -534,6 +601,32 @@ gum_get_function_addresses (void)
   return gum_function_addresses;
 }
 
+static GHashTable *
+gum_get_address_symbols (void)
+{
+  gboolean need_update;
+
+  gum_symbol_util_ensure_initialized ();
+
+  if (gum_cache_timer == NULL)
+  {
+    gum_cache_timer = g_timer_new ();
+
+    need_update = TRUE;
+  }
+  else
+  {
+    need_update = g_timer_elapsed (gum_cache_timer, NULL) >= GUM_MAX_CACHE_AGE;
+  }
+
+  if (need_update)
+  {
+    gum_process_enumerate_modules (gum_collect_module_functions, NULL);
+  }
+
+  return gum_address_symbols;
+}
+
 static gboolean
 gum_collect_module_functions (const GumModuleDetails * details,
                               gpointer user_data)
@@ -550,6 +643,9 @@ gum_collect_module_functions (const GumModuleDetails * details,
 
   gum_elf_module_enumerate_symbols (entry->module,
       gum_collect_symbol_if_function, NULL);
+
+  gum_elf_module_enumerate_symbols (entry->module,
+      gum_collect_symbol, NULL);
 
   entry->collected = TRUE;
 
@@ -599,6 +695,30 @@ gum_collect_symbol_if_function (const GumElfSymbolDetails * details,
   return TRUE;
 }
 
+static gboolean
+gum_collect_symbol (const GumElfSymbolDetails * details,
+                    gpointer user_data)
+{
+  const gchar * name;
+  gpointer address;
+  gchar * symbol_name;
+
+  if (details->section_header_index == SHN_UNDEF)
+    return TRUE;
+
+  if (details->type != STT_FUNC)
+    return TRUE;
+
+  name = details->name;
+  address = GSIZE_TO_POINTER (details->address);
+
+  symbol_name = g_hash_table_lookup (gum_address_symbols, address);
+  if (symbol_name == NULL)
+     g_hash_table_insert (gum_address_symbols, address, g_strdup (name));
+
+  return TRUE;
+}
+
 static void
 gum_function_addresses_free (GArray * addresses)
 {
@@ -615,6 +735,8 @@ gum_symbol_util_ensure_initialized (void)
       (GDestroyNotify) gum_module_entry_free);
   gum_function_addresses = g_hash_table_new_full (g_str_hash, g_str_equal,
       g_free, (GDestroyNotify) gum_function_addresses_free);
+  gum_address_symbols = g_hash_table_new_full (g_direct_hash, g_direct_equal,
+      NULL, g_free);
 
   _gum_register_destructor (gum_symbol_util_deinitialize);
 }
@@ -626,6 +748,9 @@ gum_symbol_util_deinitialize (void)
 
   g_hash_table_unref (gum_function_addresses);
   gum_function_addresses = NULL;
+
+  g_hash_table_unref (gum_address_symbols);
+  gum_address_symbols = NULL;
 
   g_hash_table_unref (gum_module_entries);
   gum_module_entries = NULL;
