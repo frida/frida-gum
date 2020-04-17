@@ -227,7 +227,7 @@ static GumAddress gum_resolve_base_address_from_phdr (
     struct dl_phdr_info * info);
 static gboolean gum_emit_executable_module (const GumModuleDetails * details,
     gpointer user_data);
-static gboolean gum_handle_interpreter (const GumModuleDetails * details,
+static gboolean gum_maybe_emit_interpreter (const GumModuleDetails * details,
     gpointer user_data);
 static gboolean gum_emit_executable_module_by_name (
     const GumModuleDetails * details, gpointer user_data);
@@ -894,16 +894,16 @@ gum_emit_executable_module (const GumModuleDetails * details,
  * executable.
  */
 static gboolean
-gum_handle_interpreter (const GumModuleDetails * details,
-                        gpointer user_data)
+gum_maybe_emit_interpreter (const GumModuleDetails * details,
+                            gpointer user_data)
 {
   GumEmitExecutableModuleContext * ctx = user_data;
+  gboolean handled = TRUE;
   GumElfModule * module;
   gboolean has_interp;
   gchar * contents;
   gsize length;
   gsize i;
-  gboolean result = TRUE;
 
   if (strcmp (details->path, ctx->executable_path) != 0)
     return TRUE;
@@ -938,14 +938,14 @@ gum_handle_interpreter (const GumModuleDetails * details,
 
       ctx->carry_on = emc.carry_on;
 
-      result = FALSE;
+      handled = FALSE;
       break;
     }
   }
 
   g_free (contents);
 
-  return result;
+  return handled;
 }
 
 static gboolean
@@ -965,7 +965,7 @@ gum_emit_executable_module_by_name (const GumModuleDetails * details,
   g_free (mod_basename);
   g_free (exe_basename);
 
-  if (match != 0)
+  if (is_match != TRUE)
     return TRUE;
 
   ctx->carry_on = ctx->func (details, ctx->user_data);
