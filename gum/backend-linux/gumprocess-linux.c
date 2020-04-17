@@ -928,7 +928,7 @@ gum_handle_interpreter (const GumModuleDetails * details,
     if (contents[i] == '\0')
     {
       GumEmitExecutableModuleContext emc;
-      emc.executable_path = &contents[i+1];
+      emc.executable_path = &contents[i + 1];
       emc.func = ctx->func;
       emc.user_data = ctx->user_data;
       emc.carry_on = TRUE;
