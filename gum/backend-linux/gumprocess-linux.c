@@ -910,7 +910,6 @@ gum_handle_interpreter (const GumModuleDetails * details,
 
   module = gum_elf_module_new_from_memory (ctx->executable_path,
       details->range->base_address);
-
   if (module == NULL)
     return TRUE;
 
