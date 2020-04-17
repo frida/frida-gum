@@ -955,7 +955,7 @@ gum_emit_executable_module_by_name (const GumModuleDetails * details,
   GumEmitExecutableModuleContext * ctx = user_data;
   gchar * mod_basename;
   gchar * exe_basename;
-  int match;
+  gboolean is_match;
 
   mod_basename = g_path_get_basename (details->path);
   exe_basename = g_path_get_basename (ctx->executable_path);
