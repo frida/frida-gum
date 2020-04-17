@@ -403,7 +403,14 @@ gum_process_modify_thread (GumThreadId thread_id,
 
   if (thread_id == gum_process_get_current_thread_id ())
   {
-#ifndef HAVE_ANDROID
+    /*
+     * getcontext/setcontext is not supported on the musl C-runtime (or
+     * Android). musl, however doesn't provide any pre-processor definitions
+     * which allow it to be readily identified. However, the other major
+     * runtimes do, so we use their absence to determine that musl is in use and
+     * hence omit the block.
+     */
+#if !defined (HAVE_ANDROID) && (defined (__GLIBC__) || defined (__UCLIBC__))
     ucontext_t uc;
     volatile gboolean modified = FALSE;
 
