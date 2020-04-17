@@ -883,7 +883,7 @@ gum_emit_executable_module (const GumModuleDetails * details,
  * /usr/arm-linux-gnueabi/lib/ld-2.27.so ./myexe
  *
  * We detect this scenario by the absence of a '.interp' section in the binary
- * refrenced by /proc/self/exe. If this is the case, then we use
+ * referenced by /proc/self/exe. If this is the case, then we use
  * /proc/self/cmdline to determine the process command line and extract argv[1]
  * to determine the name of the main executable which the loader was used to
  * load.
