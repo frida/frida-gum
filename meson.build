@@ -121,7 +121,6 @@ headers = [
   'elf.h',
   'link.h',
   'stdint.h',
-  'asm/prctl.h',
   'asm/ptrace.h',
   'sys/elf.h',
   'sys/user.h',
@@ -131,6 +130,9 @@ foreach h : headers
     cdata.set('HAVE_' + h.underscorify().to_upper(), 1)
   endif
 endforeach
+if cc.compiles('#include <asm/prctl.h>', name: 'asm/prctl.h is available')
+  cdata.set('HAVE_ASM_PRCTL_H', 1)
+endif
 
 types = [
   'long double',
