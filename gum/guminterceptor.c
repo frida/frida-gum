@@ -1031,7 +1031,8 @@ gum_function_context_finalize (GumFunctionContext * function_ctx)
 {
   g_assert (function_ctx->trampoline_slice == NULL);
 
-  g_ptr_array_unref (g_atomic_pointer_get (&function_ctx->listener_entries));
+  g_ptr_array_unref (
+      (GPtrArray *) g_atomic_pointer_get (&function_ctx->listener_entries));
 
   g_slice_free (GumFunctionContext, function_ctx);
 }
@@ -1087,7 +1088,8 @@ gum_function_context_add_listener (GumFunctionContext * function_ctx,
   entry->listener_instance = listener;
   entry->function_data = function_data;
 
-  old_entries = g_atomic_pointer_get (&function_ctx->listener_entries);
+  old_entries =
+      (GPtrArray *) g_atomic_pointer_get (&function_ctx->listener_entries);
   new_entries = g_ptr_array_new_full (old_entries->len + 1,
       (GDestroyNotify) listener_entry_free);
   for (i = 0; i != old_entries->len; i++)
@@ -1130,7 +1132,8 @@ gum_function_context_remove_listener (GumFunctionContext * function_ctx,
   *slot = NULL;
 
   has_on_leave_listener = FALSE;
-  listener_entries = g_atomic_pointer_get (&function_ctx->listener_entries);
+  listener_entries =
+      (GPtrArray *) g_atomic_pointer_get (&function_ctx->listener_entries);
   for (i = 0; i != listener_entries->len; i++)
   {
     ListenerEntry * entry = g_ptr_array_index (listener_entries, i);
@@ -1157,7 +1160,8 @@ gum_function_context_find_listener (GumFunctionContext * function_ctx,
   GPtrArray * listener_entries;
   guint i;
 
-  listener_entries = g_atomic_pointer_get (&function_ctx->listener_entries);
+  listener_entries =
+      (GPtrArray *) g_atomic_pointer_get (&function_ctx->listener_entries);
   for (i = 0; i != listener_entries->len; i++)
   {
     ListenerEntry ** slot = (ListenerEntry **)
@@ -1176,7 +1180,8 @@ gum_function_context_find_taken_listener_slot (
   GPtrArray * listener_entries;
   guint i;
 
-  listener_entries = g_atomic_pointer_get (&function_ctx->listener_entries);
+  listener_entries =
+      (GPtrArray *) g_atomic_pointer_get (&function_ctx->listener_entries);
   for (i = 0; i != listener_entries->len; i++)
   {
     ListenerEntry ** slot = (ListenerEntry **)
@@ -1276,7 +1281,8 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
     invocation_ctx->cpu_context = cpu_context;
     invocation_ctx->backend = &interceptor_ctx->listener_backend;
 
-    listener_entries = g_atomic_pointer_get (&function_ctx->listener_entries);
+    listener_entries =
+        (GPtrArray *) g_atomic_pointer_get (&function_ctx->listener_entries);
     for (i = 0; i != listener_entries->len; i++)
     {
       ListenerEntry * listener_entry;
@@ -1385,7 +1391,8 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
 
   gum_function_context_fixup_cpu_context (function_ctx, cpu_context);
 
-  listener_entries = g_atomic_pointer_get (&function_ctx->listener_entries);
+  listener_entries =
+      (GPtrArray *) g_atomic_pointer_get (&function_ctx->listener_entries);
   for (i = 0; i != listener_entries->len; i++)
   {
     ListenerEntry * listener_entry;
