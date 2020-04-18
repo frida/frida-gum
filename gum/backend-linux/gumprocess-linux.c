@@ -894,7 +894,7 @@ gum_emit_executable_module (const GumModuleDetails * details,
  * executable.
  *
  * Returns TRUE if the use of an interpreter is detected and handled, FALSE
- * otherwise
+ * otherwise.
  */
 static gboolean
 gum_maybe_emit_interpreter (const GumModuleDetails * details,
