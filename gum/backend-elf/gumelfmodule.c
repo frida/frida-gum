@@ -914,3 +914,22 @@ gum_store_dynamic_string_table (const GumElfDynamicEntryDetails * details,
       gum_elf_module_resolve_dynamic_virtual_address (self, details->value));
   return FALSE;
 }
+
+gboolean
+gum_elf_module_has_interp (GumElfModule * self)
+{
+  GElf_Half header_count, header_index;
+
+  header_count = self->ehdr->e_phnum;
+  for (header_index = 0; header_index != header_count; header_index++)
+  {
+    GElf_Phdr phdr;
+
+    gelf_getphdr (self->elf, header_index, &phdr);
+
+    if (phdr.p_type == PT_INTERP)
+      return TRUE;
+  }
+
+  return FALSE;
+}
