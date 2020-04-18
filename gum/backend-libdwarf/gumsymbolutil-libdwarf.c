@@ -623,7 +623,7 @@ gum_collect_module_functions (const GumModuleDetails * details,
       gum_collect_symbol_if_function, GINT_TO_POINTER (FALSE));
 
   gum_elf_module_enumerate_symbols (entry->module,
-      gum_collect_symbol_if_function, (gpointer) TRUE);
+      gum_collect_symbol_if_function, GINT_TO_POINTER (TRUE));
 
   entry->collected = TRUE;
 
