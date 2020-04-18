@@ -93,7 +93,7 @@ struct _GumDieDetails
   Dwarf_Debug dbg;
 };
 
-static gboolean gum_find_nearest_symbol_by_address (const gpointer address,
+static gboolean gum_find_nearest_symbol_by_address (gpointer address,
     GumNearestSymbolDetails * nearest);
 static GumModuleEntry * gum_module_entry_from_address (gpointer address,
     GumNearestSymbolDetails * nearest);
@@ -357,19 +357,17 @@ gum_find_function (const gchar * name)
 }
 
 static gboolean
-gum_find_nearest_symbol_by_address (const gpointer address,
+gum_find_nearest_symbol_by_address (gpointer address,
                                     GumNearestSymbolDetails * nearest)
 {
   GHashTable * table;
   gchar * name;
-  GList * keys;
-  GList * current;
-  gpointer current_address;
-  gpointer closest_address = NULL;
+  GList * keys, * cur;
+  gpointer current_address, closest_address;
 
   table = gum_get_address_symbols ();
-  name = g_hash_table_lookup (table, address);
 
+  name = g_hash_table_lookup (table, address);
   if (name != NULL)
   {
     nearest->name = name;
@@ -377,10 +375,11 @@ gum_find_nearest_symbol_by_address (const gpointer address,
     return TRUE;
   }
 
+  closest_address = NULL;
   keys = g_hash_table_get_keys (table);
-  for (current = keys; current != NULL; current = current->next)
+  for (cur = keys; cur != NULL; cur = cur->next)
   {
-    current_address = current->data;
+    current_address = cur->data;
     if (closest_address == NULL)
     {
       closest_address = current_address;
@@ -395,7 +394,6 @@ gum_find_nearest_symbol_by_address (const gpointer address,
 
     closest_address = current_address;
   }
-
   g_list_free (keys);
 
   if (closest_address != NULL)
@@ -711,11 +709,11 @@ gum_symbol_util_deinitialize (void)
 {
   g_clear_pointer (&gum_cache_timer, g_timer_destroy);
 
-  g_hash_table_unref (gum_function_addresses);
-  gum_function_addresses = NULL;
-
   g_hash_table_unref (gum_address_symbols);
   gum_address_symbols = NULL;
+
+  g_hash_table_unref (gum_function_addresses);
+  gum_function_addresses = NULL;
 
   g_hash_table_unref (gum_module_entries);
   gum_module_entries = NULL;
