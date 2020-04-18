@@ -389,7 +389,7 @@ gum_find_nearest_symbol_by_address (gpointer address,
     if (address < current_address)
       continue;
 
-    if ((address - current_address) >= (address - closest_address))
+    if (address - current_address >= address - closest_address)
       continue;
 
     closest_address = current_address;
