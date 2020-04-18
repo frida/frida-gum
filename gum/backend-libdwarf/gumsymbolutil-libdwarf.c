@@ -104,12 +104,11 @@ static Dwarf_Addr gum_module_entry_virtual_address_to_file (
 
 static GHashTable * gum_get_function_addresses (void);
 static GHashTable * gum_get_address_symbols (void);
+static void gum_maybe_refresh_symbol_caches (void);
 static gboolean gum_collect_module_functions (const GumModuleDetails * details,
     gpointer user_data);
 static gboolean gum_collect_symbol_if_function (
     const GumElfSymbolDetails * details, gpointer user_data);
-static gboolean gum_collect_symbol (const GumElfSymbolDetails * details,
-    gpointer user_data);
 
 static void gum_symbol_util_ensure_initialized (void);
 static void gum_symbol_util_deinitialize (void);
@@ -228,9 +227,7 @@ no_debug_info:
         sizeof (details->module_name));
 
     if (nearest.name == NULL)
-    {
       gum_find_nearest_symbol_by_address (address, &nearest);
-    }
 
     if (nearest.name != NULL)
     {
@@ -308,9 +305,7 @@ no_debug_info:
     gsize offset;
 
     if (nearest.name == NULL)
-    {
       gum_find_nearest_symbol_by_address (address, &nearest);
-    }
 
     if (nearest.name != NULL)
     {
@@ -400,6 +395,8 @@ gum_find_nearest_symbol_by_address (const gpointer address,
 
     closest_address = current_address;
   }
+
+  g_list_free (keys);
 
   if (closest_address != NULL)
   {
@@ -578,31 +575,19 @@ gum_module_entry_free (GumModuleEntry * entry)
 static GHashTable *
 gum_get_function_addresses (void)
 {
-  gboolean need_update;
-
-  gum_symbol_util_ensure_initialized ();
-
-  if (gum_cache_timer == NULL)
-  {
-    gum_cache_timer = g_timer_new ();
-
-    need_update = TRUE;
-  }
-  else
-  {
-    need_update = g_timer_elapsed (gum_cache_timer, NULL) >= GUM_MAX_CACHE_AGE;
-  }
-
-  if (need_update)
-  {
-    gum_process_enumerate_modules (gum_collect_module_functions, NULL);
-  }
-
+  gum_maybe_refresh_symbol_caches ();
   return gum_function_addresses;
 }
 
 static GHashTable *
 gum_get_address_symbols (void)
+{
+  gum_maybe_refresh_symbol_caches ();
+  return gum_address_symbols;
+}
+
+static void
+gum_maybe_refresh_symbol_caches (void)
 {
   gboolean need_update;
 
@@ -623,8 +608,6 @@ gum_get_address_symbols (void)
   {
     gum_process_enumerate_modules (gum_collect_module_functions, NULL);
   }
-
-  return gum_address_symbols;
 }
 
 static gboolean
@@ -639,13 +622,10 @@ gum_collect_module_functions (const GumModuleDetails * details,
     return TRUE;
 
   gum_elf_module_enumerate_dynamic_symbols (entry->module,
-      gum_collect_symbol_if_function, NULL);
+      gum_collect_symbol_if_function, (gpointer) FALSE);
 
   gum_elf_module_enumerate_symbols (entry->module,
-      gum_collect_symbol_if_function, NULL);
-
-  gum_elf_module_enumerate_symbols (entry->module,
-      gum_collect_symbol, NULL);
+      gum_collect_symbol_if_function, (gpointer) TRUE);
 
   entry->collected = TRUE;
 
@@ -656,10 +636,12 @@ static gboolean
 gum_collect_symbol_if_function (const GumElfSymbolDetails * details,
                                 gpointer user_data)
 {
+  gboolean include_symbols = (gboolean) user_data;
   const gchar * name;
   gpointer address;
   GArray * addresses;
   gboolean already_collected;
+  gchar * symbol_name;
 
   if (details->section_header_index == SHN_UNDEF || details->type != STT_FUNC)
     return TRUE;
@@ -692,29 +674,12 @@ gum_collect_symbol_if_function (const GumElfSymbolDetails * details,
   if (!already_collected)
     g_array_append_val (addresses, address);
 
-  return TRUE;
-}
-
-static gboolean
-gum_collect_symbol (const GumElfSymbolDetails * details,
-                    gpointer user_data)
-{
-  const gchar * name;
-  gpointer address;
-  gchar * symbol_name;
-
-  if (details->section_header_index == SHN_UNDEF)
-    return TRUE;
-
-  if (details->type != STT_FUNC)
-    return TRUE;
-
-  name = details->name;
-  address = GSIZE_TO_POINTER (details->address);
-
-  symbol_name = g_hash_table_lookup (gum_address_symbols, address);
-  if (symbol_name == NULL)
-     g_hash_table_insert (gum_address_symbols, address, g_strdup (name));
+  if (include_symbols)
+  {
+    symbol_name = g_hash_table_lookup (gum_address_symbols, address);
+    if (symbol_name == NULL)
+      g_hash_table_insert (gum_address_symbols, address, g_strdup (name));
+  }
 
   return TRUE;
 }
