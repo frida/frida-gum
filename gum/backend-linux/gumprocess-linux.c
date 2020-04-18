@@ -904,8 +904,7 @@ gum_maybe_emit_interpreter (const GumModuleDetails * details,
   GumElfModule * module;
   gboolean has_interp;
   gchar * contents;
-  gsize length;
-  gsize i;
+  gsize length, i;
 
   if (strcmp (details->path, ctx->executable_path) != 0)
     return FALSE;
