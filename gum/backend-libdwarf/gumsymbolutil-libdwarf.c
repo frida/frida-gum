@@ -620,7 +620,7 @@ gum_collect_module_functions (const GumModuleDetails * details,
     return TRUE;
 
   gum_elf_module_enumerate_dynamic_symbols (entry->module,
-      gum_collect_symbol_if_function, (gpointer) FALSE);
+      gum_collect_symbol_if_function, GINT_TO_POINTER (FALSE));
 
   gum_elf_module_enumerate_symbols (entry->module,
       gum_collect_symbol_if_function, (gpointer) TRUE);
