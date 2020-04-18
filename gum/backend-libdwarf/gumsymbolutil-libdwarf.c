@@ -634,7 +634,7 @@ static gboolean
 gum_collect_symbol_if_function (const GumElfSymbolDetails * details,
                                 gpointer user_data)
 {
-  gboolean include_symbols = (gboolean) user_data;
+  gboolean include_symbols = GPOINTER_TO_INT (user_data);
   const gchar * name;
   gpointer address;
   GArray * addresses;
