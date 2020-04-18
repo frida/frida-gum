@@ -228,7 +228,7 @@ static GumAddress gum_resolve_base_address_from_phdr (
 static gboolean gum_emit_executable_module (const GumModuleDetails * details,
     gpointer user_data);
 static gboolean gum_maybe_emit_interpreter (const GumModuleDetails * details,
-    gpointer user_data);
+    GumEmitExecutableModuleContext * ctx);
 static gboolean gum_emit_executable_module_by_name (
     const GumModuleDetails * details, gpointer user_data);
 #endif
@@ -865,7 +865,7 @@ gum_emit_executable_module (const GumModuleDetails * details,
 {
   GumEmitExecutableModuleContext * ctx = user_data;
 
-  if (!gum_maybe_emit_interpreter (details, user_data))
+  if (gum_maybe_emit_interpreter (details, ctx))
     return FALSE;
 
   if (strcmp (details->path, ctx->executable_path) != 0)
@@ -892,12 +892,14 @@ gum_emit_executable_module (const GumModuleDetails * details,
  * the name using the basename from both argv[1] and the entry in the map. We
  * then emit the module described by this name as the main application
  * executable.
+ *
+ * Returns TRUE if the use of an interpreter is detected and handled, FALSE
+ * otherwise
  */
 static gboolean
 gum_maybe_emit_interpreter (const GumModuleDetails * details,
-                            gpointer user_data)
+                            GumEmitExecutableModuleContext * ctx)
 {
-  GumEmitExecutableModuleContext * ctx = user_data;
   gboolean handled = TRUE;
   GumElfModule * module;
   gboolean has_interp;
@@ -906,21 +908,19 @@ gum_maybe_emit_interpreter (const GumModuleDetails * details,
   gsize i;
 
   if (strcmp (details->path, ctx->executable_path) != 0)
-    return TRUE;
+    return FALSE;
 
   module = gum_elf_module_new_from_memory (ctx->executable_path,
       details->range->base_address);
   if (module == NULL)
-    return TRUE;
-
+    return FALSE;
   has_interp = gum_elf_module_has_interp (module);
   g_object_unref (module);
-
   if (has_interp)
-    return TRUE;
+    return FALSE;
 
   if (!g_file_get_contents ("/proc/self/cmdline", &contents, &length, NULL))
-    return TRUE;
+    return FALSE;
 
   for (i = 0; i != length - 1; i++)
   {
@@ -938,7 +938,7 @@ gum_maybe_emit_interpreter (const GumModuleDetails * details,
 
       ctx->carry_on = emc.carry_on;
 
-      handled = FALSE;
+      handled = TRUE;
       break;
     }
   }
@@ -953,8 +953,7 @@ gum_emit_executable_module_by_name (const GumModuleDetails * details,
                                     gpointer user_data)
 {
   GumEmitExecutableModuleContext * ctx = user_data;
-  gchar * mod_basename;
-  gchar * exe_basename;
+  gchar * mod_basename, * exe_basename;
   gboolean is_match;
 
   mod_basename = g_path_get_basename (details->path);
@@ -965,7 +964,7 @@ gum_emit_executable_module_by_name (const GumModuleDetails * details,
   g_free (mod_basename);
   g_free (exe_basename);
 
-  if (is_match != TRUE)
+  if (!is_match)
     return TRUE;
 
   ctx->carry_on = ctx->func (details, ctx->user_data);
