@@ -1816,7 +1816,7 @@ gum_linux_cpu_type_from_pid (pid_t pid,
     for (i = 0; i + sizeof (guint64) <= auxv_size; i += 16)
     {
       guint64 * auxv_type = (guint64 *) (auxv + i);
-      if (((*auxv_type) & 0xffffffff) != 0)
+      if ((*auxv_type & 0xffffffff00000000) != 0)
       {
         result = cpu32;
         break;
