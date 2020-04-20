@@ -120,7 +120,7 @@ _gum_v8_args_parse (const GumV8Args * args,
     if (arg_index < arg_count)
         arg = (*info)[arg_index];
 
-    if (arg_index >= arg_count || arg->IsUndefined())
+    if (arg_index >= arg_count || arg->IsUndefined ())
     {
       if (is_required)
       {
