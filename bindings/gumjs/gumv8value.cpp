@@ -115,7 +115,12 @@ _gum_v8_args_parse (const GumV8Args * args,
       continue;
     }
 
-    if (arg_index >= arg_count)
+    Local<Value> arg;
+
+    if (arg_index < arg_count)
+        arg = (*info)[arg_index];
+
+    if (arg_index >= arg_count || arg->IsUndefined ())
     {
       if (is_required)
       {
@@ -127,8 +132,6 @@ _gum_v8_args_parse (const GumV8Args * args,
         break;
       }
     }
-
-    Local<Value> arg = (*info)[arg_index];
 
     switch (*t)
     {

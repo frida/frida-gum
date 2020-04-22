@@ -647,24 +647,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_detach_all)
 
 GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
 {
-  gpointer target, replacement_function;
-  Local<Value> replacement_data_value;
-  if (!_gum_v8_args_parse (args, "ppV", &target, &replacement_function,
-      &replacement_data_value))
+  gpointer target, replacement_function, replacement_data = NULL;
+  if (!_gum_v8_args_parse (args, "pp|p", &target, &replacement_function,
+      &replacement_data))
     return;
   auto replacement_function_value = info[1];
-
-  gpointer replacement_data;
-  if (!replacement_data_value->IsUndefined ())
-  {
-    if (!_gum_v8_native_pointer_get (replacement_data_value, &replacement_data,
-        core))
-      return;
-  }
-  else
-  {
-    replacement_data = NULL;
-  }
 
   auto entry = g_slice_new (GumV8ReplaceEntry);
   entry->interceptor = module->interceptor;
