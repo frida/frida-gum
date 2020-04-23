@@ -198,10 +198,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (socket_connection_can_be_established_with_tls)
     TESTENTRY (socket_connection_should_not_leak_on_error)
     TESTENTRY (socket_type_can_be_inspected)
-#if !defined (HAVE_ANDROID) && !(defined (HAVE_LINUX) && \
-    defined (HAVE_ARM)) && !(defined (HAVE_LINUX) && defined (HAVE_MIPS))
     TESTENTRY (socket_endpoints_can_be_inspected)
-#endif
   TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("Stream")
@@ -2416,8 +2413,6 @@ TESTCASE (socket_type_can_be_inspected)
 #endif
 }
 
-#ifndef HAVE_ANDROID
-
 TESTCASE (socket_endpoints_can_be_inspected)
 {
   GSocketFamily family[] = { G_SOCKET_FAMILY_IPV4, G_SOCKET_FAMILY_IPV6 };
@@ -2429,27 +2424,30 @@ TESTCASE (socket_endpoints_can_be_inspected)
 
   for (i = 0; i != G_N_ELEMENTS (family); i++)
   {
-    GSocket * socket;
+    GSocket * sock;
     GSocketService * service;
-    guint16 client_port, server_port;
-    GSocketAddress * client_address, * server_address;
     GInetAddress * loopback;
+    GSocketAddress * listen_address, * server_address, * client_address;
+    guint16 server_port, client_port;
 
-    socket = g_socket_new (family[i], G_SOCKET_TYPE_STREAM,
-        G_SOCKET_PROTOCOL_TCP, NULL);
-    if (socket == NULL)
+    sock = g_socket_new (family[i], G_SOCKET_TYPE_STREAM, G_SOCKET_PROTOCOL_TCP,
+        NULL);
+    if (sock == NULL)
       continue;
-    fd = g_socket_get_fd (socket);
+    fd = g_socket_get_fd (sock);
 
     service = g_socket_service_new ();
     g_signal_connect (service, "incoming", G_CALLBACK (on_incoming_connection),
         NULL);
-    server_port = g_socket_listener_add_any_inet_port (
-        G_SOCKET_LISTENER (service), NULL, NULL);
-    g_socket_service_start (service);
     loopback = g_inet_address_new_loopback (family[i]);
-    server_address = g_inet_socket_address_new (loopback, server_port);
-    g_object_unref (loopback);
+    listen_address = g_inet_socket_address_new (loopback, 0);
+    if (!g_socket_listener_add_address (G_SOCKET_LISTENER (service),
+        listen_address, G_SOCKET_TYPE_STREAM, G_SOCKET_PROTOCOL_TCP, NULL,
+        &server_address, NULL))
+      goto skip_unsupported_family;
+    server_port = g_inet_socket_address_get_port (G_INET_SOCKET_ADDRESS (
+        server_address));
+    g_socket_service_start (service);
 
     COMPILE_AND_LOAD_SCRIPT ("send(Socket.peerAddress(%d));", fd);
     EXPECT_SEND_MESSAGE_WITH ("null");
@@ -2457,11 +2455,11 @@ TESTCASE (socket_endpoints_can_be_inspected)
     while (g_main_context_pending (context))
       g_main_context_iteration (context, FALSE);
 
-    g_assert_true (g_socket_connect (socket, server_address, NULL, NULL));
+    g_assert_true (g_socket_connect (sock, server_address, NULL, NULL));
 
-    g_object_get (socket, "local-address", &client_address, NULL);
-    client_port =
-        g_inet_socket_address_get_port (G_INET_SOCKET_ADDRESS (client_address));
+    g_object_get (sock, "local-address", &client_address, NULL);
+    client_port = g_inet_socket_address_get_port (G_INET_SOCKET_ADDRESS (
+        client_address));
 
     while (g_main_context_pending (context))
       g_main_context_iteration (context, FALSE);
@@ -2476,16 +2474,20 @@ TESTCASE (socket_endpoints_can_be_inspected)
         "send([typeof addr.ip, addr.port]);", fd);
     EXPECT_SEND_MESSAGE_WITH ("[\"string\",%u]", server_port);
 
-    g_socket_close (socket, NULL);
+    g_socket_close (sock, NULL);
     g_socket_service_stop (service);
     while (g_main_context_pending (context))
       g_main_context_iteration (context, FALSE);
 
-    g_object_unref (socket);
-
     g_object_unref (client_address);
     g_object_unref (server_address);
+
+skip_unsupported_family:
+    g_object_unref (listen_address);
+    g_object_unref (loopback);
     g_object_unref (service);
+
+    g_object_unref (sock);
   }
 
 #ifdef HAVE_DARWIN
@@ -2544,8 +2546,6 @@ on_read_ready (GObject * source_object,
       NULL, NULL);
   g_object_unref (connection);
 }
-
-#endif /* !HAVE_ANDROID */
 
 #if defined (HAVE_I386) || defined (HAVE_ARM64)
 
