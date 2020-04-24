@@ -279,6 +279,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (cmodule_should_support_varargs)
     TESTENTRY (cmodule_should_support_global_callbacks)
     TESTENTRY (cmodule_should_provide_access_to_cpu_registers)
+    TESTENTRY (cmodule_should_provide_access_to_system_error)
   TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("Instruction")
@@ -6881,6 +6882,30 @@ TESTCASE (cmodule_should_provide_access_to_cpu_registers)
 
   target_function_int (42);
   g_assert_cmpint (seen_value, ==, 42);
+}
+
+TESTCASE (cmodule_should_provide_access_to_system_error)
+{
+  void (* bump_impl) (void);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var m = new CModule('"
+      "#include <gum/gumprocess.h>\\n"
+      ""
+      "void\\n"
+      "bump (void)\\n"
+      "{\\n"
+      "  gum_thread_set_system_error (gum_thread_get_system_error () + 1);\\n"
+      "}"
+      "');"
+      "send(m.bump);");
+
+  bump_impl = EXPECT_SEND_MESSAGE_WITH_POINTER ();
+  g_assert_nonnull (bump_impl);
+
+  gum_thread_set_system_error (1);
+  bump_impl ();
+  g_assert_cmpint (gum_thread_get_system_error (), ==, 2);
 }
 
 TESTCASE (script_can_be_compiled_to_bytecode)
