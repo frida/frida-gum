@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -755,11 +755,14 @@ gum_duk_callback_transformer_transform_block (
   GumDukCallbackTransformer * self =
       GUM_DUK_CALLBACK_TRANSFORMER_CAST (transformer);
   GumDukStalker * module = self->module;
+  gint saved_system_error;
   duk_context * ctx;
   GumDukScope scope;
   GumDukStalkerIterator * iterator_value;
   GumDukNativeWriter * output_value;
   gboolean transform_threw_an_exception;
+
+  saved_system_error = gum_thread_get_system_error ();
 
   ctx = _gum_duk_scope_enter (&scope, module->core);
 
@@ -782,6 +785,8 @@ gum_duk_callback_transformer_transform_block (
 
   if (transform_threw_an_exception)
     gum_stalker_unfollow (module->stalker, self->thread_id);
+
+  gum_thread_set_system_error (saved_system_error);
 }
 
 static void
@@ -848,9 +853,12 @@ gum_duk_call_probe_on_fire (GumCallSite * site,
                             GumDukCallProbe * self)
 {
   GumDukStalker * module = self->module;
+  gint saved_system_error;
   duk_context * ctx;
   GumDukScope scope;
   GumDukProbeArgs * args;
+
+  saved_system_error = gum_thread_get_system_error ();
 
   ctx = _gum_duk_scope_enter (&scope, module->core);
 
@@ -866,6 +874,8 @@ gum_duk_call_probe_on_fire (GumCallSite * site,
   gum_duk_stalker_release_probe_args (module, args);
 
   _gum_duk_scope_leave (&scope);
+
+  gum_thread_set_system_error (saved_system_error);
 }
 
 static GumDukStalkerIterator *
@@ -1035,9 +1045,12 @@ gum_duk_callout_on_invoke (GumCpuContext * cpu_context,
                            GumDukCallout * self)
 {
   GumDukStalker * module = self->module;
+  gint saved_system_error;
   duk_context * ctx;
   GumDukScope scope;
   GumDukCpuContext * cpu_context_value;
+
+  saved_system_error = gum_thread_get_system_error ();
 
   ctx = _gum_duk_scope_enter (&scope, module->core);
 
@@ -1055,6 +1068,8 @@ gum_duk_callout_on_invoke (GumCpuContext * cpu_context,
   gum_duk_stalker_release_cpu_context (module, cpu_context_value);
 
   _gum_duk_scope_leave (&scope);
+
+  gum_thread_set_system_error (saved_system_error);
 }
 
 static GumDukProbeArgs *
