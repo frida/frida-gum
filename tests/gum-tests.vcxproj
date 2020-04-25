@@ -387,6 +387,10 @@ copy /B /Y "$(SolutionDir)build\frida-windows\$(Platform)-$(ConfigurationName)\b
       <LinkLibraryDependencies>false</LinkLibraryDependencies>
       <UseLibraryDependencyInputs>false</UseLibraryDependencyInputs>
     </ProjectReference>
+    <ProjectReference Include="..\bindings\gumjs\gumjs-inspector.vcxproj">
+      <Project>{0b28ec3c-cc22-4067-9f08-6a3fac4fb454}</Project>
+      <Private>false</Private>
+    </ProjectReference>
     <ProjectReference Include="..\bindings\gumpp\gumpp.vcxproj">
       <Project>{bb098fcf-d570-43ff-bb10-985189b2e1ab}</Project>
       <Private>false</Private>
