@@ -352,13 +352,11 @@ static gint gum_sum (gint count, ...);
 static gint gum_add_pointers_and_float_fixed (gpointer a, gpointer b, float c);
 static gint gum_add_pointers_and_float_variadic (gpointer a, ...);
 
-#ifndef HAVE_ANDROID
 static gboolean on_incoming_connection (GSocketService * service,
     GSocketConnection * connection, GObject * source_object,
     gpointer user_data);
 static void on_read_ready (GObject * source_object, GAsyncResult * res,
     gpointer user_data);
-#endif
 
 #if defined (HAVE_I386) || defined (HAVE_ARM64)
 static gpointer run_stalked_through_hooked_function (gpointer data);
