@@ -365,6 +365,10 @@ gum_mach_vm_protect (vm_map_t target_task,
     0
   };
 
+  /* FIXME: Should avoid clobbering R7, which is reserved. */
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Winline-asm"
+
   asm volatile (
       "push {r0, r1, r2, r3, r4, r5, r6, r7, r12}\n\t"
       "ldmdb %1!, {r0, r1, r2, r3, r4, r5, r6, r7}\n\t"
@@ -376,6 +380,8 @@ gum_mach_vm_protect (vm_map_t target_task,
       : "r" (args + G_N_ELEMENTS (args))
       : "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r12"
   );
+
+#pragma clang diagnostic pop
 
   return result;
 #elif defined (HAVE_ARM64)
