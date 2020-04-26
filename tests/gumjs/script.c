@@ -21,6 +21,7 @@ TESTLIST_BEGIN (script)
   TESTENTRY (recv_can_be_waited_for_from_our_js_thread)
   TESTENTRY (recv_wait_in_an_application_thread_should_throw_on_unload)
   TESTENTRY (recv_wait_in_our_js_thread_should_throw_on_unload)
+  TESTENTRY (recv_wait_should_not_leak)
   TESTENTRY (rpc_can_be_performed)
   TESTENTRY (message_can_be_logged)
   TESTENTRY (thread_can_be_forced_to_sleep)
@@ -328,7 +329,16 @@ TESTLIST_BEGIN (script)
   TESTENTRY (java_api_is_embedded)
 TESTLIST_END ()
 
+typedef struct _GumInvokeTargetContext GumInvokeTargetContext;
 typedef struct _TestTrigger TestTrigger;
+
+struct _GumInvokeTargetContext
+{
+  GumScript * script;
+  guint repeat_duration;
+  volatile gint started;
+  volatile gint finished;
+};
 
 struct _TestTrigger
 {
@@ -3861,15 +3871,6 @@ TESTCASE (recv_may_specify_desired_message_type)
   EXPECT_SEND_MESSAGE_WITH ("\"pong\"");
 }
 
-typedef struct _GumInvokeTargetContext GumInvokeTargetContext;
-
-struct _GumInvokeTargetContext
-{
-  GumScript * script;
-  volatile gint started;
-  volatile gint finished;
-};
-
 TESTCASE (recv_can_be_waited_for_from_an_application_thread)
 {
   GThread * worker_thread;
@@ -3888,6 +3889,7 @@ TESTCASE (recv_can_be_waited_for_from_an_application_thread)
   EXPECT_NO_MESSAGES ();
 
   ctx.script = fixture->script;
+  ctx.repeat_duration = 0;
   ctx.started = 0;
   ctx.finished = 0;
   worker_thread = g_thread_new ("script-test-worker-thread",
@@ -3925,6 +3927,7 @@ TESTCASE (recv_can_be_waited_for_from_two_application_threads)
   EXPECT_NO_MESSAGES ();
 
   ctx.script = fixture->script;
+  ctx.repeat_duration = 0;
   ctx.started = 0;
   ctx.finished = 0;
   worker_thread1 = g_thread_new ("script-test-worker-thread",
@@ -3997,6 +4000,7 @@ TESTCASE (recv_wait_in_an_application_thread_should_throw_on_unload)
   EXPECT_NO_MESSAGES ();
 
   ctx.script = fixture->script;
+  ctx.repeat_duration = 0;
   ctx.started = 0;
   ctx.finished = 0;
   worker_thread = g_thread_new ("script-test-worker-thread",
@@ -4036,13 +4040,91 @@ TESTCASE (recv_wait_in_our_js_thread_should_throw_on_unload)
   EXPECT_NO_MESSAGES ();
 }
 
+TESTCASE (recv_wait_should_not_leak)
+{
+  GThread * worker_thread;
+  guint initial_heap_size;
+  GumInvokeTargetContext ctx;
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter: function (args) {"
+      "    var op = recv('input', onInput);"
+      "    send('request-input');"
+      "    op.wait();"
+      "  }"
+      "});"
+      "function onInput() {"
+      "}", target_function_int);
+  EXPECT_NO_MESSAGES ();
+
+  initial_heap_size = gum_peek_private_memory_usage ();
+
+  ctx.script = fixture->script;
+  ctx.repeat_duration = 3000;
+  ctx.started = 0;
+  ctx.finished = 0;
+  worker_thread = g_thread_new ("script-test-worker-thread",
+      invoke_target_function_int_worker, &ctx);
+
+  do
+  {
+    TestScriptMessageItem * item;
+
+    item = test_script_fixture_try_pop_message (fixture, 10);
+    if (item != NULL)
+    {
+      const guint size = 1024 * 1024;
+      gpointer data;
+      GBytes * bytes;
+
+      data = g_malloc (size);
+      memset (data, g_random_int_range (0, G_MAXUINT8), size);
+      bytes = g_bytes_new_take (data, size);
+
+      gum_script_post (fixture->script, "{\"type\":\"input\"}", bytes);
+
+      g_bytes_unref (bytes);
+
+      test_script_message_item_free (item);
+    }
+
+    g_assert_cmpuint (gum_peek_private_memory_usage () / initial_heap_size,
+        <, 1000);
+  }
+  while (!ctx.finished);
+
+  g_thread_join (worker_thread);
+}
+
 static gpointer
 invoke_target_function_int_worker (gpointer data)
 {
   GumInvokeTargetContext * ctx = (GumInvokeTargetContext *) data;
 
   g_atomic_int_inc (&ctx->started);
-  target_function_int (42);
+
+  if (ctx->repeat_duration == 0)
+  {
+    target_function_int (42);
+  }
+  else
+  {
+    gdouble repeat_duration_in_seconds;
+    GTimer * timer;
+
+    repeat_duration_in_seconds = (gdouble) ctx->repeat_duration / 1000.0;
+    timer = g_timer_new ();
+
+    do
+    {
+      target_function_int (42);
+    }
+    while (g_timer_elapsed (timer, NULL) < repeat_duration_in_seconds);
+
+    g_timer_destroy (timer);
+  }
+
   g_atomic_int_inc (&ctx->finished);
 
   return NULL;
