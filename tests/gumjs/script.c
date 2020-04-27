@@ -4075,16 +4075,16 @@ TESTCASE (recv_wait_should_not_leak)
     if (item != NULL)
     {
       const guint size = 1024 * 1024;
-      gpointer data;
-      GBytes * bytes;
+      gpointer dummy_data;
+      GBytes * dummy_bytes;
 
-      data = g_malloc (size);
-      memset (data, g_random_int_range (0, G_MAXUINT8), size);
-      bytes = g_bytes_new_take (data, size);
+      dummy_data = g_malloc (size);
+      memset (dummy_data, g_random_int_range (0, G_MAXUINT8), size);
+      dummy_bytes = g_bytes_new_take (dummy_data, size);
 
-      gum_script_post (fixture->script, "{\"type\":\"input\"}", bytes);
+      gum_script_post (fixture->script, "{\"type\":\"input\"}", dummy_bytes);
 
-      g_bytes_unref (bytes);
+      g_bytes_unref (dummy_bytes);
 
       test_script_message_item_free (item);
     }
