@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2010-2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -2003,12 +2003,6 @@ invoke_indirect_call_seg (TestStalkerFixture * fixture,
 
 TESTCASE (win32_indirect_call_seg)
 {
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping, run in slow mode> ");
-    return;
-  }
-
   invoke_indirect_call_seg (fixture, GUM_EXEC);
 
   g_assert_cmpuint (fixture->sink->events->len,
@@ -2019,12 +2013,6 @@ TESTCASE (win32_indirect_call_seg)
 
 TESTCASE (win32_messagebeep_api)
 {
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping, run in slow mode> ");
-    return;
-  }
-
   fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
 
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
@@ -2036,12 +2024,6 @@ TESTCASE (win32_messagebeep_api)
 TESTCASE (win32_follow_user_to_kernel_to_callback)
 {
   TestWindow * window;
-
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping, run in slow mode> ");
-    return;
-  }
 
   window = create_test_window (fixture->stalker);
 
@@ -2057,12 +2039,6 @@ TESTCASE (win32_follow_user_to_kernel_to_callback)
 TESTCASE (win32_follow_callback_to_kernel_to_user)
 {
   TestWindow * window;
-
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping, run in slow mode> ");
-    return;
-  }
 
   window = create_test_window (fixture->stalker);
 
