@@ -56,6 +56,14 @@ typedef struct _GumBranchTarget GumBranchTarget;
 
 typedef guint GumVirtualizationRequirements;
 
+#ifdef G_OS_WIN32
+# if GLIB_SIZEOF_VOID_P == 8
+typedef DWORD64 GumNativeRegisterValue;
+# else
+typedef DWORD GumNativeRegisterValue;
+# endif
+#endif
+
 struct _GumStalker
 {
   GObject parent;
@@ -133,6 +141,11 @@ struct _GumExecCtx
 
   GumStalker * stalker;
   GumThreadId thread_id;
+#ifdef G_OS_WIN32
+  GumNativeRegisterValue previous_pc;
+  GumNativeRegisterValue previous_dr0;
+  GumNativeRegisterValue previous_dr7;
+#endif
 
   GumX86Writer code_writer;
   GumX86Relocator relocator;
@@ -191,10 +204,10 @@ struct _GumExecBlock
   gint recycle_count;
 
 #ifdef G_OS_WIN32
-  DWORD previous_dr0;
-  DWORD previous_dr1;
-  DWORD previous_dr2;
-  DWORD previous_dr7;
+  GumNativeRegisterValue previous_dr0;
+  GumNativeRegisterValue previous_dr1;
+  GumNativeRegisterValue previous_dr2;
+  GumNativeRegisterValue previous_dr7;
 #endif
 };
 
@@ -451,6 +464,12 @@ static x86_insn gum_negate_jcc (x86_insn instruction_id);
 #ifdef G_OS_WIN32
 static gboolean gum_stalker_on_exception (GumExceptionDetails * details,
     gpointer user_data);
+static void gum_enable_hardware_breakpoint (GumNativeRegisterValue * dr7_reg,
+    guint index);
+# if GLIB_SIZEOF_VOID_P == 4
+static gpointer gum_find_system_call_above_us (GumStalker * stalker,
+    gpointer * start_esp);
+# endif
 #endif
 
 static gpointer gum_find_thread_exit_implementation (void);
@@ -492,10 +511,11 @@ gum_stalker_init (GumStalker * self)
   self->probe_array_by_address =
       g_hash_table_new_full (NULL, NULL, NULL, gum_stalker_free_probe_array);
 
-#if defined (G_OS_WIN32) && GLIB_SIZEOF_VOID_P == 4
+#ifdef G_OS_WIN32
   self->exceptor = gum_exceptor_obtain ();
   gum_exceptor_add (self->exceptor, gum_stalker_on_exception, self);
 
+# if GLIB_SIZEOF_VOID_P == 4
   {
     HMODULE ntmod, usermod;
     MODULEINFO mi;
@@ -542,6 +562,7 @@ gum_stalker_init (GumStalker * self)
     self->wow64_transition_address = GUM_FUNCPTR_TO_POINTER (
         GetProcAddress (ntmod, "Wow64Transition"));
   }
+# endif
 #endif
 
   self->page_size = gum_query_page_size ();
@@ -554,7 +575,7 @@ gum_stalker_init (GumStalker * self)
 static void
 gum_stalker_dispose (GObject * object)
 {
-#if defined (G_OS_WIN32) && GLIB_SIZEOF_VOID_P == 4
+#ifdef G_OS_WIN32
   GumStalker * self = GUM_STALKER (object);
 
   if (self->exceptor != NULL)
@@ -880,6 +901,7 @@ gum_stalker_infect (GumThreadId thread_id,
   GumInfectContext * infect_context = (GumInfectContext *) user_data;
   GumStalker * self = infect_context->stalker;
   GumExecCtx * ctx;
+  guint8 * pc;
   const guint max_syscall_size = 2;
   gpointer code_address;
   GumX86Writer cw;
@@ -887,8 +909,57 @@ gum_stalker_infect (GumThreadId thread_id,
   ctx = gum_stalker_create_exec_ctx (self, thread_id,
       infect_context->transformer, infect_context->sink);
 
-  ctx->current_block = gum_exec_ctx_obtain_block_for (ctx,
-      GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XIP (cpu_context)), &code_address);
+  pc = GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XIP (cpu_context));
+
+#ifdef G_OS_WIN32
+  {
+    gboolean probably_in_syscall;
+
+    probably_in_syscall =
+# if GLIB_SIZEOF_VOID_P == 8
+        pc[0] == 0xc3 && pc[-2] == 0x0f && pc[-1] == 0x05;
+# else
+        (pc[0] == 0xc2 || pc[0] == 0xc3) &&
+            pc[-2] == 0xff && (pc[-1] & 0xf8) == 0xd0;
+# endif
+    if (probably_in_syscall)
+    {
+      gboolean breakpoint_deployed = FALSE;
+      HANDLE thread;
+
+      thread = OpenThread (THREAD_GET_CONTEXT | THREAD_SET_CONTEXT, FALSE,
+          thread_id);
+      if (thread != NULL)
+      {
+        __declspec (align (64)) CONTEXT tc = { 0, };
+
+        tc.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+        if (GetThreadContext (thread, &tc))
+        {
+          ctx->previous_pc = GPOINTER_TO_SIZE (pc);
+          ctx->previous_dr0 = tc.Dr0;
+          ctx->previous_dr7 = tc.Dr7;
+
+          tc.Dr0 = GPOINTER_TO_SIZE (pc);
+          gum_enable_hardware_breakpoint (&tc.Dr7, 0);
+
+          breakpoint_deployed = SetThreadContext (thread, &tc);
+        }
+
+        CloseHandle (thread);
+      }
+
+      if (breakpoint_deployed)
+        gum_event_sink_start (infect_context->sink);
+      else
+        gum_stalker_destroy_exec_ctx (self, ctx);
+
+      return;
+    }
+  }
+#endif
+
+  ctx->current_block = gum_exec_ctx_obtain_block_for (ctx, pc, &code_address);
 
   if (gum_exec_ctx_maybe_unfollow (ctx, NULL))
   {
@@ -931,6 +1002,33 @@ gum_stalker_disinfect (GumThreadId thread_id,
   GumExecCtx * ctx = disinfect_context->exec_ctx;
   gboolean infection_not_active_yet;
 
+#ifdef G_OS_WIN32
+  infection_not_active_yet =
+      GUM_CPU_CONTEXT_XIP (cpu_context) == ctx->previous_pc &&
+      ctx->current_block == NULL;
+  if (infection_not_active_yet)
+  {
+    HANDLE thread;
+
+    thread = OpenThread (THREAD_GET_CONTEXT | THREAD_SET_CONTEXT, FALSE,
+        thread_id);
+    if (thread != NULL)
+    {
+      __declspec (align (64)) CONTEXT tc = { 0, };
+
+      tc.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+      if (GetThreadContext (thread, &tc))
+      {
+        tc.Dr0 = ctx->previous_dr0;
+        tc.Dr7 = ctx->previous_dr7;
+
+        disinfect_context->success = SetThreadContext (thread, &tc);
+      }
+
+      CloseHandle (thread);
+    }
+  }
+#else
   infection_not_active_yet =
       GUM_CPU_CONTEXT_XIP (cpu_context) == GPOINTER_TO_SIZE (ctx->infect_thunk);
   if (infection_not_active_yet)
@@ -940,6 +1038,7 @@ gum_stalker_disinfect (GumThreadId thread_id,
 
     disinfect_context->success = TRUE;
   }
+#endif
 }
 
 #ifdef _MSC_VER
@@ -3886,20 +3985,153 @@ gum_negate_jcc (x86_insn instruction_id)
   }
 }
 
-#if defined (G_OS_WIN32) && GLIB_SIZEOF_VOID_P == 4
+#ifdef G_OS_WIN32
+
+static gboolean
+gum_stalker_on_exception (GumExceptionDetails * details,
+                          gpointer user_data)
+{
+  GumStalker * self = GUM_STALKER (user_data);
+  GumCpuContext * cpu_context = &details->context;
+  CONTEXT * tc = details->native_context;
+  GumExecCtx * pending_ctx;
+  GSList * cur;
+
+  if (details->type != GUM_EXCEPTION_SINGLE_STEP)
+    return FALSE;
+
+  pending_ctx = NULL;
+  GUM_STALKER_LOCK (self);
+
+  for (cur = self->contexts; cur != NULL; cur = cur->next)
+  {
+    GumExecCtx * c = cur->data;
+
+    if (c->current_block == NULL && c->thread_id == details->thread_id)
+    {
+      pending_ctx = c;
+      break;
+    }
+  }
+
+  GUM_STALKER_UNLOCK (self);
+
+  if (pending_ctx != NULL)
+  {
+    gpointer code_address;
+
+    tc->Dr0 = pending_ctx->previous_dr0;
+    tc->Dr7 = pending_ctx->previous_dr7;
+
+    gum_tls_key_set_value (self->exec_ctx, pending_ctx);
+
+    pending_ctx->current_block = gum_exec_ctx_obtain_block_for (pending_ctx,
+        GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XIP (cpu_context)), &code_address);
+
+    if (gum_exec_ctx_maybe_unfollow (pending_ctx, NULL))
+    {
+      gum_stalker_destroy_exec_ctx (self, pending_ctx);
+
+      return TRUE;
+    }
+
+    GUM_CPU_CONTEXT_XIP (cpu_context) = GPOINTER_TO_SIZE (code_address);
+
+    return TRUE;
+  }
+
+# if GLIB_SIZEOF_VOID_P == 8
+  return FALSE;
+# else
+  {
+    GumExecCtx * ctx;
+    GumExecBlock * block;
+
+    ctx = gum_stalker_get_exec_ctx (self);
+    if (ctx == NULL)
+      return FALSE;
+
+    block = ctx->current_block;
+
+    /*printf ("gum_stalker_handle_exception state=%u %p %08x\n",
+        block->state, context->Eip, exception_record->ExceptionCode);*/
+
+    switch (block->state)
+    {
+      case GUM_EXEC_NORMAL:
+      case GUM_EXEC_SINGLE_STEPPING_ON_CALL:
+      {
+        DWORD instruction_after_call_here;
+        DWORD instruction_after_call_above_us;
+
+        block->previous_dr0 = tc->Dr0;
+        block->previous_dr1 = tc->Dr1;
+        block->previous_dr2 = tc->Dr2;
+        block->previous_dr7 = tc->Dr7;
+
+        instruction_after_call_here = cpu_context->eip +
+            gum_x86_reader_insn_length ((guint8 *) cpu_context->eip);
+        tc->Dr0 = instruction_after_call_here;
+        gum_enable_hardware_breakpoint (&tc->Dr7, 0);
+
+        tc->Dr1 = (DWORD) self->ki_user_callback_dispatcher_impl;
+        gum_enable_hardware_breakpoint (&tc->Dr7, 1);
+
+        instruction_after_call_above_us =
+            (DWORD) gum_find_system_call_above_us (self,
+                (gpointer *) cpu_context->esp);
+        if (instruction_after_call_above_us != 0)
+        {
+          tc->Dr2 = instruction_after_call_above_us;
+          gum_enable_hardware_breakpoint (&tc->Dr7, 2);
+        }
+
+        block->state = GUM_EXEC_SINGLE_STEPPING_THROUGH_CALL;
+
+        break;
+      }
+
+      case GUM_EXEC_SINGLE_STEPPING_THROUGH_CALL:
+      {
+        tc->Dr0 = block->previous_dr0;
+        tc->Dr1 = block->previous_dr1;
+        tc->Dr2 = block->previous_dr2;
+        tc->Dr7 = block->previous_dr7;
+
+        gum_exec_ctx_replace_current_block_with (ctx,
+            GSIZE_TO_POINTER (cpu_context->eip));
+        cpu_context->eip = (DWORD) ctx->resume_at;
+
+        block->state = GUM_EXEC_NORMAL;
+
+        break;
+      }
+
+      default:
+        g_assert_not_reached ();
+    }
+
+    return TRUE;
+  }
+#endif
+}
 
 static void
-enable_hardware_breakpoint (DWORD * dr7_reg, guint index)
+gum_enable_hardware_breakpoint (GumNativeRegisterValue * dr7_reg,
+                                guint index)
 {
   /* set both RWn and LENn to 00 */
   *dr7_reg &= ~(0xf << (16 + (2 * index)));
 
   /* set LE bit */
-  *dr7_reg |= 1 << (2 * index);
+  *dr7_reg |= (gsize) (1 << (2 * index));
 }
 
+# if GLIB_SIZEOF_VOID_P == 4
+
 static gpointer
-find_system_call_above_us (GumStalker * stalker, gpointer * start_esp)
+gum_find_system_call_above_us (GumStalker * stalker,
+                               gpointer * start_esp)
 {
   gpointer * top_esp, * cur_esp;
   guint8 call_fs_c0_code[] = { 0x64, 0xff, 0x15, 0xc0, 0x00, 0x00, 0x00 };
@@ -3941,86 +4173,7 @@ find_system_call_above_us (GumStalker * stalker, gpointer * start_esp)
   return NULL;
 }
 
-static gboolean
-gum_stalker_on_exception (GumExceptionDetails * details,
-                          gpointer user_data)
-{
-  GumStalker * self;
-  GumExecCtx * ctx;
-  GumExecBlock * block;
-  GumCpuContext * cpu_context = &details->context;
-  CONTEXT * context = details->native_context;
-
-  self = GUM_STALKER (user_data);
-
-  if (details->type != GUM_EXCEPTION_SINGLE_STEP)
-    return FALSE;
-
-  ctx = gum_stalker_get_exec_ctx (self);
-  if (ctx == NULL)
-    return FALSE;
-
-  block = ctx->current_block;
-
-  /*printf ("gum_stalker_handle_exception state=%u %p %08x\n",
-      block->state, context->Eip, exception_record->ExceptionCode);*/
-
-  switch (block->state)
-  {
-    case GUM_EXEC_NORMAL:
-    case GUM_EXEC_SINGLE_STEPPING_ON_CALL:
-    {
-      DWORD instruction_after_call_here;
-      DWORD instruction_after_call_above_us;
-
-      block->previous_dr0 = context->Dr0;
-      block->previous_dr1 = context->Dr1;
-      block->previous_dr2 = context->Dr2;
-      block->previous_dr7 = context->Dr7;
-
-      instruction_after_call_here = cpu_context->eip +
-          gum_x86_reader_insn_length ((guint8 *) cpu_context->eip);
-      context->Dr0 = instruction_after_call_here;
-      enable_hardware_breakpoint (&context->Dr7, 0);
-
-      context->Dr1 = (DWORD) self->ki_user_callback_dispatcher_impl;
-      enable_hardware_breakpoint (&context->Dr7, 1);
-
-      instruction_after_call_above_us = (DWORD)
-          find_system_call_above_us (self, (gpointer *) cpu_context->esp);
-      if (instruction_after_call_above_us != 0)
-      {
-        context->Dr2 = instruction_after_call_above_us;
-        enable_hardware_breakpoint (&context->Dr7, 2);
-      }
-
-      block->state = GUM_EXEC_SINGLE_STEPPING_THROUGH_CALL;
-
-      break;
-    }
-
-    case GUM_EXEC_SINGLE_STEPPING_THROUGH_CALL:
-    {
-      context->Dr0 = block->previous_dr0;
-      context->Dr1 = block->previous_dr1;
-      context->Dr2 = block->previous_dr2;
-      context->Dr7 = block->previous_dr7;
-
-      gum_exec_ctx_replace_current_block_with (ctx,
-          GSIZE_TO_POINTER (cpu_context->eip));
-      cpu_context->eip = (DWORD) ctx->resume_at;
-
-      block->state = GUM_EXEC_NORMAL;
-
-      break;
-    }
-
-    default:
-      g_assert_not_reached ();
-  }
-
-  return TRUE;
-}
+# endif
 
 #endif
 
