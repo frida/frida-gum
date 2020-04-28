@@ -520,7 +520,7 @@ gum_stalker_init (GumStalker * self)
     HMODULE ntmod, usermod;
     MODULEINFO mi;
     BOOL success;
-    gboolean found_user32_code = FALSE;
+    gboolean found_user32_code;
     guint8 * p;
 
     ntmod = GetModuleHandle (_T ("ntdll.dll"));
@@ -533,7 +533,8 @@ gum_stalker_init (GumStalker * self)
     self->user32_start = mi.lpBaseOfDll;
     self->user32_end = (guint8 *) mi.lpBaseOfDll + mi.SizeOfImage;
 
-    for (p = (guint8 *) self->user32_start; p < (guint8 *) self->user32_end;)
+    found_user32_code = FALSE;
+    for (p = self->user32_start; p < (guint8 *) self->user32_end;)
     {
       MEMORY_BASIC_INFORMATION mbi;
 
@@ -552,7 +553,6 @@ gum_stalker_init (GumStalker * self)
 
       p = (guint8 *) mbi.BaseAddress + mbi.RegionSize;
     }
-
     g_assert (found_user32_code);
 
     self->ki_user_callback_dispatcher_impl = GUM_FUNCPTR_TO_POINTER (
