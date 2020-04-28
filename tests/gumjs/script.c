@@ -2567,6 +2567,7 @@ TESTCASE (execution_can_be_traced)
   test_thread_id = gum_process_get_current_thread_id ();
 
   COMPILE_AND_LOAD_SCRIPT (
+      "Stalker.queueDrainInterval = 0;"
       "var testsRange = Process.getModuleByName('%s');"
       "Stalker.exclude(testsRange);"
 
@@ -2586,12 +2587,12 @@ TESTCASE (execution_can_be_traced)
 
       "recv('stop', function (message) {"
       "  Stalker.unfollow(%" G_GSIZE_FORMAT ");"
+      "  Stalker.flush();"
       "});",
 
       GUM_TESTS_MODULE_NAME,
       test_thread_id,
       test_thread_id);
-  g_usleep (1);
   EXPECT_NO_MESSAGES ();
 
   POST_MESSAGE ("{\"type\":\"stop\"}");
@@ -2675,20 +2676,18 @@ TESTCASE (execution_can_be_traced_with_faulty_transformer)
 TESTCASE (execution_can_be_traced_during_immediate_native_function_call)
 {
   COMPILE_AND_LOAD_SCRIPT (
+      "Stalker.queueDrainInterval = 0;"
       "var testsRange = Process.getModuleByName('%s');"
       "Stalker.exclude(testsRange);"
 
       "var a = new NativeFunction(" GUM_PTR_CONST ", 'int', ['int'], "
           "{ traps: 'all', exceptions: 'propagate' });"
 
-      "var flushing = false;"
       "Stalker.follow({"
       "  events: {"
       "    call: true,"
       "  },"
       "  onCallSummary: function (summary) {"
-      "    if (!flushing)"
-      "      return;"
       "    var key = a.strip().toString();"
       "    send(key in summary);"
       "    send(summary[key]);"
@@ -2699,10 +2698,7 @@ TESTCASE (execution_can_be_traced_during_immediate_native_function_call)
       "a(42);"
 
       "Stalker.unfollow();"
-
-      "flushing = true;"
-      "Stalker.flush();"
-      "flushing = false;",
+      "Stalker.flush();",
 
       GUM_TESTS_MODULE_NAME,
       target_function_nested_a);
@@ -2714,20 +2710,18 @@ TESTCASE (execution_can_be_traced_during_immediate_native_function_call)
 TESTCASE (execution_can_be_traced_during_scheduled_native_function_call)
 {
   COMPILE_AND_LOAD_SCRIPT (
+      "Stalker.queueDrainInterval = 0;"
       "var testsRange = Process.getModuleByName('%s');"
       "Stalker.exclude(testsRange);"
 
       "var a = new NativeFunction(" GUM_PTR_CONST ", 'int', ['int'], "
           "{ traps: 'all' });"
 
-      "var flushing = false;"
       "Stalker.follow({"
       "  events: {"
       "    call: true,"
       "  },"
       "  onCallSummary: function (summary) {"
-      "    if (!flushing)"
-      "      return;"
       "    var key = a.strip().toString();"
       "    send(key in summary);"
       "    send(summary[key]);"
@@ -2739,10 +2733,7 @@ TESTCASE (execution_can_be_traced_during_scheduled_native_function_call)
         "a(42);"
 
         "Stalker.unfollow();"
-
-        "flushing = true;"
         "Stalker.flush();"
-        "flushing = false;"
       "});",
 
       GUM_TESTS_MODULE_NAME,
@@ -2765,6 +2756,7 @@ TESTCASE (execution_can_be_traced_after_native_function_call_from_hook)
   thread_id = sdc_await_thread_id (&channel);
 
   COMPILE_AND_LOAD_SCRIPT (
+      "Stalker.queueDrainInterval = 0;"
       "var testsRange = Process.getModuleByName('%s');"
       "Stalker.exclude(testsRange);"
 
@@ -2776,8 +2768,6 @@ TESTCASE (execution_can_be_traced_after_native_function_call_from_hook)
       "Interceptor.attach(targetFuncInt, function () {"
       "  targetFuncNestedA(1337);"
       "});"
-
-      "Stalker.queueDrainInterval = 0;"
 
       "Stalker.follow(targetThreadId, {"
       "  events: {"
