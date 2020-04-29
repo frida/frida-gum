@@ -178,6 +178,7 @@ struct _GumExecCtx
   gconstpointer activation_target;
 
   gpointer infect_thunk;
+  gpointer infect_body;
 
   GumSlab * code_slab;
   GumSlab first_code_slab;
@@ -925,6 +926,36 @@ gum_stalker_infect (GumThreadId thread_id,
 
   pc = GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XIP (cpu_context));
 
+  ctx->current_block = gum_exec_ctx_obtain_block_for (ctx, pc, &code_address);
+
+  if (gum_exec_ctx_maybe_unfollow (ctx, NULL))
+  {
+    gum_stalker_destroy_exec_ctx (self, ctx);
+    return;
+  }
+
+  gum_x86_writer_init (&cw, ctx->infect_thunk);
+
+  /*
+   * In case the thread is in a Linux system call we should allow it to be
+   * restarted by bringing along the syscall instruction.
+   */
+  gum_x86_writer_put_bytes (&cw, pc - max_syscall_size, max_syscall_size);
+  ctx->infect_body = (guint8 *) ctx->infect_thunk + max_syscall_size;
+
+  gum_exec_ctx_write_prolog (ctx, GUM_PROLOG_MINIMAL, &cw);
+  gum_x86_writer_put_call_address_with_aligned_arguments (&cw, GUM_CALL_CAPI,
+      GUM_ADDRESS (gum_tls_key_set_value), 2,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (self->exec_ctx),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (ctx));
+  gum_exec_ctx_write_epilog (ctx, GUM_PROLOG_MINIMAL, &cw);
+
+  gum_x86_writer_put_jmp_address (&cw, GUM_ADDRESS (code_address));
+
+  gum_x86_writer_clear (&cw);
+
+  gum_event_sink_start (infect_context->sink);
+
 #ifdef G_OS_WIN32
   {
     gboolean probably_in_syscall;
@@ -964,9 +995,7 @@ gum_stalker_infect (GumThreadId thread_id,
         CloseHandle (thread);
       }
 
-      if (breakpoint_deployed)
-        gum_event_sink_start (infect_context->sink);
-      else
+      if (!breakpoint_deployed)
         gum_stalker_destroy_exec_ctx (self, ctx);
 
       return;
@@ -974,38 +1003,7 @@ gum_stalker_infect (GumThreadId thread_id,
   }
 #endif
 
-  ctx->current_block = gum_exec_ctx_obtain_block_for (ctx, pc, &code_address);
-
-  if (gum_exec_ctx_maybe_unfollow (ctx, NULL))
-  {
-    gum_stalker_destroy_exec_ctx (self, ctx);
-    return;
-  }
-
-  GUM_CPU_CONTEXT_XIP (cpu_context) =
-      GPOINTER_TO_SIZE (ctx->infect_thunk) + max_syscall_size;
-
-  gum_x86_writer_init (&cw, ctx->infect_thunk);
-
-  /*
-   * In case the thread is in a Linux system call we should allow it to be
-   * restarted by bringing along the syscall instruction.
-   */
-  gum_x86_writer_put_bytes (&cw,
-      ctx->current_block->real_begin - max_syscall_size, max_syscall_size);
-
-  gum_exec_ctx_write_prolog (ctx, GUM_PROLOG_MINIMAL, &cw);
-  gum_x86_writer_put_call_address_with_aligned_arguments (&cw, GUM_CALL_CAPI,
-      GUM_ADDRESS (gum_tls_key_set_value), 2,
-      GUM_ARG_ADDRESS, GUM_ADDRESS (self->exec_ctx),
-      GUM_ARG_ADDRESS, GUM_ADDRESS (ctx));
-  gum_exec_ctx_write_epilog (ctx, GUM_PROLOG_MINIMAL, &cw);
-
-  gum_x86_writer_put_jmp_address (&cw, GUM_ADDRESS (code_address));
-
-  gum_x86_writer_clear (&cw);
-
-  gum_event_sink_start (infect_context->sink);
+  GUM_CPU_CONTEXT_XIP (cpu_context) = GPOINTER_TO_SIZE (ctx->infect_body);
 }
 
 static void
@@ -1019,8 +1017,7 @@ gum_stalker_disinfect (GumThreadId thread_id,
 
 #ifdef G_OS_WIN32
   infection_not_active_yet =
-      GUM_CPU_CONTEXT_XIP (cpu_context) == ctx->previous_pc &&
-      ctx->current_block == NULL;
+      GUM_CPU_CONTEXT_XIP (cpu_context) == ctx->previous_pc;
   if (infection_not_active_yet)
   {
     HANDLE thread;
@@ -1037,6 +1034,8 @@ gum_stalker_disinfect (GumThreadId thread_id,
         tc.Dr0 = ctx->previous_dr0;
         tc.Dr7 = ctx->previous_dr7;
 
+        ctx->previous_pc = 0;
+
         disinfect_context->success = SetThreadContext (thread, &tc);
       }
 
@@ -1045,7 +1044,7 @@ gum_stalker_disinfect (GumThreadId thread_id,
   }
 #else
   infection_not_active_yet =
-      GUM_CPU_CONTEXT_XIP (cpu_context) == GPOINTER_TO_SIZE (ctx->infect_thunk);
+      GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XIP (cpu_context)) == ctx->infect_body;
   if (infection_not_active_yet)
   {
     GUM_CPU_CONTEXT_XIP (cpu_context) =
@@ -4008,7 +4007,8 @@ gum_stalker_on_exception (GumExceptionDetails * details,
   {
     GumExecCtx * c = cur->data;
 
-    if (c->current_block == NULL && c->thread_id == details->thread_id)
+    if (c->thread_id == details->thread_id &&
+        GUM_CPU_CONTEXT_XIP (cpu_context) == c->previous_pc)
     {
       pending_ctx = c;
       break;
@@ -4019,24 +4019,13 @@ gum_stalker_on_exception (GumExceptionDetails * details,
 
   if (pending_ctx != NULL)
   {
-    gpointer code_address;
-
     tc->Dr0 = pending_ctx->previous_dr0;
     tc->Dr7 = pending_ctx->previous_dr7;
 
-    gum_tls_key_set_value (self->exec_ctx, pending_ctx);
+    pending_ctx->previous_pc = 0;
 
-    pending_ctx->current_block = gum_exec_ctx_obtain_block_for (pending_ctx,
-        GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XIP (cpu_context)), &code_address);
-
-    if (gum_exec_ctx_maybe_unfollow (pending_ctx, NULL))
-    {
-      gum_stalker_destroy_exec_ctx (self, pending_ctx);
-
-      return TRUE;
-    }
-
-    GUM_CPU_CONTEXT_XIP (cpu_context) = GPOINTER_TO_SIZE (code_address);
+    GUM_CPU_CONTEXT_XIP (cpu_context) =
+        GPOINTER_TO_SIZE (pending_ctx->infect_body);
 
     return TRUE;
   }
@@ -4123,11 +4112,11 @@ static void
 gum_enable_hardware_breakpoint (GumNativeRegisterValue * dr7_reg,
                                 guint index)
 {
-  /* set both RWn and LENn to 00 */
-  *dr7_reg &= ~(0xf << (16 + (2 * index)));
+  /* Set both RWn and LENn to 00. */
+  *dr7_reg &= ~((GumNativeRegisterValue) 0xf << (16 + (2 * index)));
 
-  /* set LE bit */
-  *dr7_reg |= (gsize) (1 << (2 * index));
+  /* Set LE bit. */
+  *dr7_reg |= (GumNativeRegisterValue) (1 << (2 * index));
 }
 
 # if GLIB_SIZEOF_VOID_P == 4
