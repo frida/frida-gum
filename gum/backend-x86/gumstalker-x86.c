@@ -177,7 +177,6 @@ struct _GumExecCtx
   gpointer app_stack;
   gconstpointer activation_target;
 
-  gpointer thunks;
   gpointer infect_thunk;
 
   GumSlab * code_slab;
@@ -347,8 +346,6 @@ static gboolean gum_exec_ctx_has_executed (GumExecCtx * ctx);
 static gboolean gum_exec_ctx_contains (GumExecCtx * ctx, gconstpointer address);
 static gpointer GUM_THUNK gum_exec_ctx_replace_current_block_with (
     GumExecCtx * ctx, gpointer start_address);
-static void gum_exec_ctx_create_thunks (GumExecCtx * ctx);
-static void gum_exec_ctx_destroy_thunks (GumExecCtx * ctx);
 
 static GumExecBlock * gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
     gpointer real_address, gpointer * code_address);
@@ -1247,11 +1244,13 @@ gum_stalker_create_exec_ctx (GumStalker * self,
                              GumEventSink * sink)
 {
   guint base_size;
+  const guint thunk_size = 1;
   GumExecCtx * ctx;
 
   base_size = sizeof (GumExecCtx) / self->page_size;
   if (sizeof (GumExecCtx) % self->page_size != 0)
     base_size++;
+  base_size += thunk_size;
 
   ctx = (GumExecCtx *)
       gum_alloc_n_pages (base_size + GUM_CODE_SLAB_SIZE_IN_PAGES + 1,
@@ -1277,8 +1276,11 @@ gum_stalker_create_exec_ctx (GumStalker * self,
   ctx->sink_mask = gum_event_sink_query_mask (sink);
   ctx->sink_process_impl = GUM_EVENT_SINK_GET_IFACE (sink)->process;
 
+  ctx->infect_thunk = (guint8 *) ctx +
+      (base_size - thunk_size) * self->page_size;
+
   ctx->code_slab = &ctx->first_code_slab;
-  ctx->first_code_slab.data = ((guint8 *) ctx) + (base_size * self->page_size);
+  ctx->first_code_slab.data = (guint8 *) ctx + (base_size * self->page_size);
   ctx->first_code_slab.size = GUM_CODE_SLAB_SIZE_IN_PAGES * self->page_size;
 
   ctx->frames = (GumExecFrame *) (ctx->code_slab->data + ctx->code_slab->size);
@@ -1287,8 +1289,6 @@ gum_stalker_create_exec_ctx (GumStalker * self,
   ctx->current_frame = ctx->first_frame;
 
   ctx->mappings = gum_metal_hash_table_new (NULL, NULL);
-
-  gum_exec_ctx_create_thunks (ctx);
 
   GUM_STALKER_LOCK (self);
   self->contexts = g_slist_prepend (self->contexts, ctx);
@@ -1401,8 +1401,6 @@ gum_exec_ctx_free (GumExecCtx * ctx)
     gum_free_pages (slab);
     slab = next;
   }
-
-  gum_exec_ctx_destroy_thunks (ctx);
 
   g_object_unref (ctx->sink);
   gum_exec_ctx_finalize_callouts (ctx);
@@ -1576,27 +1574,6 @@ gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
   }
 
   return ctx->resume_at;
-}
-
-static void
-gum_exec_ctx_create_thunks (GumExecCtx * ctx)
-{
-  GumX86Writer cw;
-
-  g_assert (ctx->thunks == NULL);
-
-  ctx->thunks = gum_alloc_n_pages (1, GUM_PAGE_RWX);
-  gum_x86_writer_init (&cw, ctx->thunks);
-
-  ctx->infect_thunk = gum_x86_writer_cur (&cw);
-
-  gum_x86_writer_clear (&cw);
-}
-
-static void
-gum_exec_ctx_destroy_thunks (GumExecCtx * ctx)
-{
-  gum_free_pages (ctx->thunks);
 }
 
 static GumExecBlock *
