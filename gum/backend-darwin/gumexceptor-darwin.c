@@ -421,7 +421,7 @@ catch_mach_exception_raise_state (mach_port_t exception_port,
                                   const thread_state_t old_state,
                                   mach_msg_type_number_t old_state_count,
                                   thread_state_t new_state,
-                                  mach_msg_type_number_t *new_state_count)
+                                  mach_msg_type_number_t * new_state_count)
 {
   g_assert_not_reached ();
 
