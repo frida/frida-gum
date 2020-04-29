@@ -48,6 +48,8 @@ static void darwin_listener_context_on_enter (DarwinListenerContext * self,
 static void darwin_listener_context_on_leave (DarwinListenerContext * self,
     GumInvocationContext * context);
 
+static gpointer sqlite_module = NULL;
+
 static void
 test_interceptor_fixture_setup (TestInterceptorFixture * fixture,
                                 gconstpointer data)
@@ -55,6 +57,13 @@ test_interceptor_fixture_setup (TestInterceptorFixture * fixture,
   fixture->interceptor = gum_interceptor_obtain ();
   fixture->result = g_string_sized_new (4096);
   memset (&fixture->listener_context, 0, sizeof (fixture->listener_context));
+
+  if (sqlite_module == NULL)
+  {
+    sqlite_module = dlopen ("/usr/lib/libsqlite3.0.dylib",
+        RTLD_LAZY | RTLD_GLOBAL);
+    g_assert_nonnull (sqlite_module);
+  }
 }
 
 static void
