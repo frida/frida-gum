@@ -955,6 +955,7 @@ gum_stalker_infect (GumThreadId thread_id,
           ctx->previous_dr7 = tc.Dr7;
 
           tc.Dr0 = GPOINTER_TO_SIZE (pc);
+          tc.Dr7 = 0x00000700;
           gum_enable_hardware_breakpoint (&tc.Dr7, 0);
 
           breakpoint_deployed = SetThreadContext (thread, &tc);
@@ -4068,6 +4069,8 @@ gum_stalker_on_exception (GumExceptionDetails * details,
         block->previous_dr1 = tc->Dr1;
         block->previous_dr2 = tc->Dr2;
         block->previous_dr7 = tc->Dr7;
+
+        tc->Dr7 = 0x00000700;
 
         instruction_after_call_here = cpu_context->eip +
             gum_x86_reader_insn_length ((guint8 *) cpu_context->eip);
