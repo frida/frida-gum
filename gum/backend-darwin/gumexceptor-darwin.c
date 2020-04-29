@@ -480,9 +480,9 @@ catch_mach_exception_raise_state_identity (
 
   gum_darwin_parse_unified_thread_state (
       (const GumDarwinUnifiedThreadState *) old_state, cpu_context);
-  ed.native_context = old_state;
   memcpy (new_state, old_state,
       MIN (old_state_count, *new_state_count) * sizeof (int));
+  ed.native_context = new_state;
 
 #if defined (HAVE_I386)
   ed.address = GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XIP (cpu_context));
