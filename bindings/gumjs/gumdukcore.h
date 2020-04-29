@@ -16,7 +16,7 @@
 
 #define GUM_DUK_SCOPE_INIT(C) { C, NULL, 0, (C)->current_scope->ctx, NULL }
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 # define GUMJS_SYSTEM_ERROR_FIELD "lastError"
 #else
 # define GUMJS_SYSTEM_ERROR_FIELD "errno"

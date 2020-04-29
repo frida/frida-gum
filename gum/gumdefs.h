@@ -9,7 +9,7 @@
 
 #include <glib-object.h>
 
-#if !defined (GUM_STATIC) && defined (G_OS_WIN32)
+#if !defined (GUM_STATIC) && defined (HAVE_WINDOWS)
 #  ifdef GUM_EXPORTS
 #    define GUM_API __declspec(dllexport)
 #  else
@@ -34,7 +34,7 @@
 #elif defined (__mips__)
 # define GUM_NATIVE_CPU GUM_CPU_MIPS
 #endif
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 # define GUM_NATIVE_ABI            GUM_ABI_WINDOWS
 # define GUM_NATIVE_ABI_IS_WINDOWS 1
 # define GUM_NATIVE_ABI_IS_UNIX    0
@@ -348,7 +348,7 @@ enum _GumRelocationScenario
 #define GUM_CPU_MODE CS_MODE_32
 #define GUM_THUNK GUM_FASTCALL
 #endif
-#if !defined (G_OS_WIN32) && GLIB_SIZEOF_VOID_P == 8
+#if !defined (HAVE_WINDOWS) && GLIB_SIZEOF_VOID_P == 8
 # define GUM_THUNK_REG_ARG0 GUM_REG_XDI
 # define GUM_THUNK_REG_ARG1 GUM_REG_XSI
 #else

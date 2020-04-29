@@ -18,7 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <gio/gio.h>
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 #ifndef WIN32_LEAN_AND_MEAN
 # define WIN32_LEAN_AND_MEAN
 #endif
@@ -105,7 +105,7 @@
 
 #define GUM_PTR_CONST "ptr(\"0x%" G_GSIZE_MODIFIER "x\")"
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 # define GUM_CLOSE_SOCKET(s) closesocket (s)
 #else
 # define GUM_CLOSE_SOCKET(s) close (s)

@@ -8,7 +8,7 @@
 
 #include "gumdukmacros.h"
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 # include <gio/gwin32inputstream.h>
 # include <gio/gwin32outputstream.h>
 
@@ -808,7 +808,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_input_stream_construct)
 
   gum_duk_native_stream_ctor_args_parse (args, &handle, &auto_close);
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   stream = g_win32_input_stream_new (handle, auto_close);
 #else
   stream = g_unix_input_stream_new (handle, auto_close);
@@ -838,7 +838,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_output_stream_construct)
 
   gum_duk_native_stream_ctor_args_parse (args, &handle, &auto_close);
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   stream = g_win32_output_stream_new (handle, auto_close);
 #else
   stream = g_unix_output_stream_new (handle, auto_close);
@@ -860,7 +860,7 @@ gum_duk_native_stream_ctor_args_parse (const GumDukArgs * args,
 {
   GumDukHeapPtr options = NULL;
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   _gum_duk_args_parse (args, "p|O", handle, &options);
 #else
   _gum_duk_args_parse (args, "i|O", handle, &options);

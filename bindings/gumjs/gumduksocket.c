@@ -16,7 +16,7 @@
 #ifdef _MSC_VER
 # pragma warning (pop)
 #endif
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 # define GUM_SOCKOPT_OPTVAL(v) (gchar *) (v)
   typedef int gum_socklen_t;
 #else
@@ -507,7 +507,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_get_type)
           (struct sockaddr *) &invalid_sockaddr,
           sizeof (invalid_sockaddr));
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
       family = (WSAGetLastError () == WSAEADDRNOTAVAIL) ? AF_INET : AF_INET6;
 #else
       family = (errno == EADDRNOTAVAIL) ? AF_INET : AF_INET6;
@@ -530,7 +530,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_get_type)
           case  SOCK_DGRAM: result = "udp6"; break;
         }
         break;
-#ifndef G_OS_WIN32
+#ifndef HAVE_WINDOWS
       case AF_UNIX:
         switch (type)
         {
@@ -881,7 +881,7 @@ gumjs_socket_address_to_value (duk_context * ctx,
     case AF_INET:
     {
       struct sockaddr_in * inet_addr = (struct sockaddr_in *) addr;
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
       gunichar2 ip_utf16[15 + 1 + 5 + 1];
       gchar ip[15 + 1 + 5 + 1];
       DWORD len = G_N_ELEMENTS (ip_utf16);
@@ -912,7 +912,7 @@ gumjs_socket_address_to_value (duk_context * ctx,
     case AF_INET6:
     {
       struct sockaddr_in6 * inet_addr = (struct sockaddr_in6 *) addr;
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
       gunichar2 ip_utf16[45 + 1 + 5 + 1];
       gchar ip[45 + 1 + 5 + 1];
       DWORD len = G_N_ELEMENTS (ip_utf16);

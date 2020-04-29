@@ -227,7 +227,7 @@ gum_init_embedded (void)
     gum_realloc
   };
 #endif
-#if defined (G_OS_WIN32) && DEBUG_HEAP_LEAKS
+#if defined (HAVE_WINDOWS) && DEBUG_HEAP_LEAKS
   int tmp_flag;
 #endif
 
@@ -235,7 +235,7 @@ gum_init_embedded (void)
     return;
   gum_initialized = TRUE;
 
-#if defined (G_OS_WIN32) && DEBUG_HEAP_LEAKS
+#if defined (HAVE_WINDOWS) && DEBUG_HEAP_LEAKS
   /*_CrtSetBreakAlloc (1337);*/
 
   _CrtSetReportMode (_CRT_ERROR, _CRTDBG_MODE_FILE);

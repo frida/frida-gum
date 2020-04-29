@@ -15,13 +15,13 @@
 #include "gumx86relocator.h"
 #include "gumspinlock.h"
 #include "gumtls.h"
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 # include "gumexceptor.h"
 #endif
 
 #include <stdlib.h>
 #include <string.h>
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 # define VC_EXTRALEAN
 # include <windows.h>
 # include <psapi.h>
@@ -57,7 +57,7 @@ typedef struct _GumBranchTarget GumBranchTarget;
 
 typedef guint GumVirtualizationRequirements;
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 # if GLIB_SIZEOF_VOID_P == 8
 typedef DWORD64 GumNativeRegisterValue;
 # else
@@ -84,7 +84,7 @@ struct _GumStalker
   GHashTable * probe_target_by_id;
   GHashTable * probe_array_by_address;
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   GumExceptor * exceptor;
 # if GLIB_SIZEOF_VOID_P == 4
   gpointer user32_start, user32_end;
@@ -144,7 +144,7 @@ struct _GumExecCtx
 
   GumStalker * stalker;
   GumThreadId thread_id;
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   GumNativeRegisterValue previous_pc;
   GumNativeRegisterValue previous_dr0;
   GumNativeRegisterValue previous_dr7;
@@ -206,7 +206,7 @@ struct _GumExecBlock
   GumExecBlockFlags flags;
   gint recycle_count;
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   GumNativeRegisterValue previous_dr0;
   GumNativeRegisterValue previous_dr1;
   GumNativeRegisterValue previous_dr2;
@@ -462,7 +462,7 @@ static GumCpuReg gum_cpu_meta_reg_from_real_reg (GumCpuReg reg);
 static GumCpuReg gum_cpu_reg_from_capstone (x86_reg reg);
 static x86_insn gum_negate_jcc (x86_insn instruction_id);
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 static gboolean gum_stalker_on_exception (GumExceptionDetails * details,
     gpointer user_data);
 static void gum_enable_hardware_breakpoint (GumNativeRegisterValue * dr7_reg,
@@ -522,7 +522,7 @@ gum_stalker_init (GumStalker * self)
   self->contexts = NULL;
   self->exec_ctx = gum_tls_key_new ();
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   self->exceptor = gum_exceptor_obtain ();
   gum_exceptor_add (self->exceptor, gum_stalker_on_exception, self);
 
@@ -586,7 +586,7 @@ gum_stalker_init (GumStalker * self)
 static void
 gum_stalker_dispose (GObject * object)
 {
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   GumStalker * self = GUM_STALKER (object);
 
   if (self->exceptor != NULL)
@@ -605,7 +605,7 @@ gum_stalker_finalize (GObject * object)
 {
   GumStalker * self = GUM_STALKER (object);
 
-#if defined (G_OS_WIN32) && GLIB_SIZEOF_VOID_P == 4
+#if defined (HAVE_WINDOWS) && GLIB_SIZEOF_VOID_P == 4
   g_array_unref (self->wow_transition_impls);
 #endif
 
@@ -956,7 +956,7 @@ gum_stalker_infect (GumThreadId thread_id,
 
   gum_event_sink_start (infect_context->sink);
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   {
     gboolean probably_in_syscall;
 
@@ -1015,7 +1015,7 @@ gum_stalker_disinfect (GumThreadId thread_id,
   GumExecCtx * ctx = disinfect_context->exec_ctx;
   gboolean infection_not_active_yet;
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   infection_not_active_yet =
       GUM_CPU_CONTEXT_XIP (cpu_context) == ctx->previous_pc;
   if (infection_not_active_yet)
@@ -2911,7 +2911,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
     }
 #endif
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
     /* Can't follow WoW64 */
     if (op->mem.segment == X86_REG_FS && op->mem.disp == 0xc0)
       return GUM_REQUIRE_SINGLE_STEP;
@@ -3985,7 +3985,7 @@ gum_negate_jcc (x86_insn instruction_id)
   }
 }
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 
 static gboolean
 gum_stalker_on_exception (GumExceptionDetails * details,

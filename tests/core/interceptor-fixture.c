@@ -15,7 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 # include "targetfunctions.c"
 #else
 # include <dlfcn.h>
@@ -35,7 +35,7 @@
 # define G_MODULE_SUFFIX "dylib"
 #endif
 
-#if defined (G_OS_WIN32)
+#if defined (HAVE_WINDOWS)
 # define GUM_TEST_SHLIB_OS "windows"
 #elif defined (HAVE_MACOS)
 # define GUM_TEST_SHLIB_OS "macos"
@@ -130,7 +130,7 @@ test_interceptor_fixture_setup (TestInterceptorFixture * fixture,
 
   if (target_function == NULL)
   {
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
     target_function = gum_test_target_function;
     special_function = gum_test_target_function;
     target_nop_function_a = gum_test_target_nop_function_a;

@@ -6,7 +6,7 @@
 
 #include "cobjecttracker-fixture.c"
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 
 TESTLIST_BEGIN (cobjecttracker)
   TESTENTRY (total_count_increase)
@@ -95,7 +95,7 @@ TESTCASE (object_list)
       g_assert_cmpstr (cobject->type_name, ==, "MyObject");
 
     {
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
       GumReturnAddressDetails rad;
 
       g_assert_true (gum_return_address_details_from_address (
@@ -111,4 +111,4 @@ TESTCASE (object_list)
   gum_cobject_list_free (cobjects);
 }
 
-#endif /* G_OS_WIN32 */
+#endif /* HAVE_WINDOWS */

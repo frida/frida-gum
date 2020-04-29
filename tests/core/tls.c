@@ -6,7 +6,7 @@
 
 #include "testutil.h"
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 # ifndef WIN32_LEAN_AND_MEAN
 #  define WIN32_LEAN_AND_MEAN
 # endif
@@ -31,7 +31,7 @@ TESTCASE (get_should_work_like_the_system_implementation)
 
   key = gum_tls_key_new ();
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   TlsSetValue (key, GSIZE_TO_POINTER (0x11223344));
 #else
   pthread_setspecific (key, GSIZE_TO_POINTER (0x11223344));
@@ -49,7 +49,7 @@ TESTCASE (set_should_work_like_the_system_implementation)
   key = gum_tls_key_new ();
 
   gum_tls_key_set_value (key, GSIZE_TO_POINTER (0x11223344));
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   g_assert_cmphex (GPOINTER_TO_SIZE (TlsGetValue (key)), ==, 0x11223344);
 #else
   g_assert_cmphex (GPOINTER_TO_SIZE (pthread_getspecific (key)),

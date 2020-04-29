@@ -13,7 +13,7 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 # include <io.h>
 #endif
 #ifdef G_OS_UNIX

@@ -7,7 +7,7 @@
 
 #include "gumprofiler.h"
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 
 #include "fakesampler.h"
 #include "lowlevelhelpers.h"
@@ -336,7 +336,7 @@ deep_recursive_caller (gint count)
     deep_recursive_function (count);
 }
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 
 static void
 spin_for_one_tenth_second (void)
@@ -485,4 +485,4 @@ instrument_simple_functions (TestProfileReportFixture * fixture)
   INSTRUMENT_FUNCTION (simple_3);
 }
 
-#endif /* G_OS_WIN32 */
+#endif /* HAVE_WINDOWS */

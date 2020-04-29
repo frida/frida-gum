@@ -10,7 +10,7 @@
 
 #include "valgrind.h"
 
-#ifndef G_OS_WIN32
+#ifndef HAVE_WINDOWS
 #include <dlfcn.h>
 #else
 #include <windows.h>
@@ -41,7 +41,7 @@ TESTLIST_BEGIN (process)
 #ifndef HAVE_ASAN
   TESTENTRY (module_export_matches_system_lookup)
 #endif
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   TESTENTRY (get_set_system_error)
   TESTENTRY (get_current_thread_id)
 #endif
@@ -52,7 +52,7 @@ TESTLIST_BEGIN (process)
   TESTENTRY (darwin_module_exports)
   TESTENTRY (darwin_module_exports_should_support_dyld)
 #endif
-#if defined (G_OS_WIN32) || defined (HAVE_DARWIN)
+#if defined (HAVE_WINDOWS) || defined (HAVE_DARWIN)
   TESTENTRY (process_malloc_ranges)
 #endif
 #if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
@@ -98,7 +98,7 @@ static gboolean check_thread_enumeration_testable (void);
 static gboolean store_import_slot_of_malloc_if_available (
     const GumImportDetails * details, gpointer user_data);
 
-#ifndef G_OS_WIN32
+#ifndef HAVE_WINDOWS
 static gboolean store_export_address_if_tricky_module_export (
     const GumExportDetails * details, gpointer user_data);
 #endif
@@ -131,7 +131,7 @@ static gboolean range_check_cb (const GumRangeDetails * details,
     gpointer user_data);
 static gboolean store_first_range (const GumRangeDetails * details,
     gpointer user_data);
-#if defined (G_OS_WIN32) || defined (HAVE_DARWIN)
+#if defined (HAVE_WINDOWS) || defined (HAVE_DARWIN)
 static gboolean malloc_range_found_cb (
     const GumMallocRangeDetails * details, gpointer user_data);
 static gboolean malloc_range_check_cb (
@@ -398,7 +398,7 @@ TESTCASE (process_ranges_exclude_cloaked)
   g_assert_false (ctx.found);
 }
 
-#if defined (G_OS_WIN32) || defined (HAVE_DARWIN)
+#if defined (HAVE_WINDOWS) || defined (HAVE_DARWIN)
 
 #define TEST_STACK_BUFFER_SIZE 50
 
@@ -595,7 +595,7 @@ TESTCASE (module_export_can_be_found)
 
 TESTCASE (module_export_matches_system_lookup)
 {
-#ifndef G_OS_WIN32
+#ifndef HAVE_WINDOWS
   void * lib, * system_address;
   GumAddress enumerate_address, find_by_name_address;
 
@@ -618,7 +618,7 @@ TESTCASE (module_export_matches_system_lookup)
 #endif
 }
 
-#ifndef G_OS_WIN32
+#ifndef HAVE_WINDOWS
 static gboolean
 store_export_address_if_tricky_module_export (const GumExportDetails * details,
                                               gpointer user_data)
@@ -634,7 +634,7 @@ store_export_address_if_tricky_module_export (const GumExportDetails * details,
 }
 #endif
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 TESTCASE (get_current_thread_id)
 {
   g_assert_cmphex (gum_process_get_current_thread_id (), ==,
@@ -975,7 +975,7 @@ store_first_range (const GumRangeDetails * details,
   return FALSE;
 }
 
-#if defined (G_OS_WIN32) || defined (HAVE_DARWIN)
+#if defined (HAVE_WINDOWS) || defined (HAVE_DARWIN)
 
 static gboolean
 malloc_range_found_cb (const GumMallocRangeDetails * details,

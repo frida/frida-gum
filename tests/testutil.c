@@ -12,10 +12,10 @@
 # include "backend-linux/gumandroid.h"
 #endif
 
-#if defined (G_OS_WIN32) && defined (_DEBUG)
+#if defined (HAVE_WINDOWS) && defined (_DEBUG)
 # include <crtdbg.h>
 #endif
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 # include <excpt.h>
 # define VC_EXTRALEAN
 # include <windows.h>
@@ -56,7 +56,7 @@ TESTLIST_BEGIN (testutil)
   TESTENTRY (xml_multiline_diff_same_size)
 TESTLIST_END ()
 
-#ifndef G_OS_WIN32
+#ifndef HAVE_WINDOWS
 static gchar * find_data_dir_from_executable_path (const gchar * path);
 #endif
 
@@ -340,7 +340,7 @@ test_util_get_data_dir (void)
   g_free (path);
 
   return result;
-#elif defined (G_OS_WIN32)
+#elif defined (HAVE_WINDOWS)
   g_assert_not_reached (); /* FIXME: once this is needed on Windows */
   return NULL;
 #elif defined (HAVE_QNX)
@@ -373,7 +373,7 @@ test_util_get_data_dir (void)
 #endif
 }
 
-#ifndef G_OS_WIN32
+#ifndef HAVE_WINDOWS
 
 static gchar *
 find_data_dir_from_executable_path (const gchar * path)
@@ -398,7 +398,7 @@ find_data_dir_from_executable_path (const gchar * path)
 const gchar *
 test_util_get_system_module_name (void)
 {
-#if defined (G_OS_WIN32)
+#if defined (HAVE_WINDOWS)
   return "kernel32.dll";
 #elif defined (HAVE_DARWIN)
   return "libSystem.B.dylib";
@@ -483,7 +483,7 @@ test_util_heap_apis (void)
     api.free = free;
 #endif
 
-#if defined (G_OS_WIN32) && defined (_DEBUG)
+#if defined (HAVE_WINDOWS) && defined (_DEBUG)
     api._malloc_dbg = _malloc_dbg;
     api._calloc_dbg = _calloc_dbg;
     api._realloc_dbg = _realloc_dbg;
@@ -498,7 +498,7 @@ test_util_heap_apis (void)
   return _test_util_heap_apis;
 }
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 
 gboolean
 gum_is_debugger_present (void)

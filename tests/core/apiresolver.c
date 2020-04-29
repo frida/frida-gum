@@ -20,7 +20,7 @@ TESTCASE (module_exports_can_be_resolved)
 {
   TestForEachContext ctx;
   GError * error = NULL;
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   const gchar * query = "exports:*!_open*";
 #else
   const gchar * query = "exports:*!open*";

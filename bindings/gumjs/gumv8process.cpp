@@ -30,7 +30,7 @@
 # define GUM_SCRIPT_PLATFORM "linux"
 #elif defined (HAVE_DARWIN)
 # define GUM_SCRIPT_PLATFORM "darwin"
-#elif defined (G_OS_WIN32)
+#elif defined (HAVE_WINDOWS)
 # define GUM_SCRIPT_PLATFORM "windows"
 #elif defined (HAVE_QNX)
 # define GUM_SCRIPT_PLATFORM "qnx"
@@ -199,7 +199,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_find_module_by_name)
   fc.name_is_canonical = g_path_is_absolute (fc.name);
   fc.parent = module;
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   gchar * folded_name = g_utf8_casefold (fc.name, -1);
   g_free (fc.name);
   fc.name = folded_name;
@@ -225,7 +225,7 @@ gum_store_module_if_name_matches (const GumModuleDetails * details,
   const gchar * key = fc->name_is_canonical ? details->path : details->name;
   gchar * allocated_key = NULL;
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   allocated_key = g_utf8_casefold (key, -1);
   key = allocated_key;
 #endif
@@ -302,7 +302,7 @@ gum_emit_range (const GumRangeDetails * details,
   return mc->OnMatch (range);
 }
 
-#if defined (G_OS_WIN32) || defined (HAVE_DARWIN)
+#if defined (HAVE_WINDOWS) || defined (HAVE_DARWIN)
 
 static gboolean gum_emit_malloc_range (const GumMallocRangeDetails * details,
     GumV8MatchContext<GumV8Process> * mc);

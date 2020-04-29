@@ -101,7 +101,7 @@ gum_cmodule_new (const gchar * source,
   tcc_define_symbol (state, "GLIB_SIZEOF_VOID_P",
       G_STRINGIFY (GLIB_SIZEOF_VOID_P));
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   tcc_define_symbol (state, "extern", "__attribute__ ((dllimport))");
 #endif
 

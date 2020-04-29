@@ -28,7 +28,7 @@
 #include <gum/gum.h>
 #include <string.h>
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 # include <windows.h>
 # include <conio.h>
 # include <crtdbg.h>
@@ -60,7 +60,7 @@ main (gint argc, gchar * argv[])
   guint num_tests;
   gdouble t;
 
-#if defined (G_OS_WIN32) && DEBUG_HEAP_LEAKS
+#if defined (HAVE_WINDOWS) && DEBUG_HEAP_LEAKS
   {
     int tmp_flag;
 
@@ -79,7 +79,7 @@ main (gint argc, gchar * argv[])
   }
 #endif
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   {
     WORD version_requested = MAKEWORD (2, 2);
     WSADATA wsa_data;
@@ -228,14 +228,14 @@ main (gint argc, gchar * argv[])
 
   /* Heap */
   TESTLIST_REGISTER (allocation_tracker);
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   TESTLIST_REGISTER (allocator_probe);
   TESTLIST_REGISTER (allocator_probe_cxx);
   TESTLIST_REGISTER (cobjecttracker);
   TESTLIST_REGISTER (instancetracker);
 #endif
   TESTLIST_REGISTER (pagepool);
-#ifndef G_OS_WIN32
+#ifndef HAVE_WINDOWS
   if (gum_is_debugger_present ())
   {
     g_print (
@@ -248,11 +248,11 @@ main (gint argc, gchar * argv[])
   else
 #endif
   {
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
     TESTLIST_REGISTER (boundschecker);
 #endif
   }
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   TESTLIST_REGISTER (sanitychecker);
 #endif
 
@@ -260,7 +260,7 @@ main (gint argc, gchar * argv[])
 #if !defined (HAVE_IOS) && !(defined (HAVE_ANDROID) && defined (HAVE_ARM64))
   TESTLIST_REGISTER (sampler);
 #endif
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   TESTLIST_REGISTER (profiler);
 #endif
 
@@ -288,7 +288,7 @@ main (gint argc, gchar * argv[])
   }
 #endif
 
-#if defined (HAVE_GUMPP) && defined (G_OS_WIN32)
+#if defined (HAVE_GUMPP) && defined (HAVE_WINDOWS)
   /* Gum++ */
   TESTLIST_REGISTER (gumpp_backtracer);
 #endif
@@ -329,12 +329,12 @@ main (gint argc, gchar * argv[])
   glib_deinit ();
   gum_internal_heap_unref ();
 
-# ifdef G_OS_WIN32
+# ifdef HAVE_WINDOWS
   WSACleanup ();
 # endif
 #endif
 
-#if defined (G_OS_WIN32) && !DEBUG_HEAP_LEAKS
+#if defined (HAVE_WINDOWS) && !DEBUG_HEAP_LEAKS
   if (IsDebuggerPresent ())
   {
     printf ("\nPress a key to exit.\n");

@@ -27,7 +27,7 @@ TESTLIST_BEGIN (allocation_tracker)
   TESTENTRY (memory_usage_without_backtracer_should_be_sensible)
   TESTENTRY (memory_usage_with_backtracer_should_be_sensible)
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   TESTENTRY (backtracer_gtype_interop)
 
   TESTENTRY (avoid_heap_priv)
@@ -446,7 +446,7 @@ TESTCASE (memory_usage_with_backtracer_should_be_sensible)
   g_object_unref (t);
 }
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 
 TESTCASE (backtracer_gtype_interop)
 {
@@ -548,4 +548,4 @@ TESTCASE (hashtable_life)
   g_object_unref (heap_access_counter);
 }
 
-#endif /* G_OS_WIN32 */
+#endif /* HAVE_WINDOWS */

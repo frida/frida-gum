@@ -45,7 +45,7 @@ G_DEFINE_BOXED_TYPE (GumModuleDetails, gum_module_details,
 GumOS
 gum_process_get_native_os (void)
 {
-#if defined (G_OS_WIN32)
+#if defined (HAVE_WINDOWS)
   return GUM_OS_WINDOWS;
 #elif defined (HAVE_MACOS)
   return GUM_OS_MACOS;

@@ -39,7 +39,7 @@ gum_collect_heap_api_if_crt_module (const GumModuleDetails * details,
   GumHeapApiList * list = (GumHeapApiList *) user_data;
   gboolean is_libc_module;
 
-#if defined (G_OS_WIN32)
+#if defined (HAVE_WINDOWS)
   is_libc_module = g_ascii_strncasecmp (name, "msvcr", 5) == 0;
 #elif defined (HAVE_DARWIN)
   is_libc_module = g_ascii_strncasecmp (name, "libSystem.B", 11) == 0;
@@ -59,7 +59,7 @@ gum_collect_heap_api_if_crt_module (const GumModuleDetails * details,
     GUM_API_INIT_FIELD (realloc);
     GUM_API_INIT_FIELD (free);
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
     if (g_str_has_suffix (name, "d.dll"))
     {
       GUM_API_INIT_FIELD (_malloc_dbg);

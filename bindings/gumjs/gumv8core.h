@@ -21,7 +21,7 @@
 #define GUMJS_CPU_CONTEXT_VALUE(o) \
     ((GumCpuContext *) (o)->GetInternalField (0).As<External> ()->Value ())
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 # define GUMJS_SYSTEM_ERROR_FIELD "lastError"
 #else
 # define GUMJS_SYSTEM_ERROR_FIELD "errno"

@@ -17,7 +17,7 @@ G_BEGIN_DECLS
 #define GUM_TYPE_EXCEPTOR (gum_exceptor_get_type ())
 G_DECLARE_FINAL_TYPE (GumExceptor, gum_exceptor, GUM, EXCEPTOR, GObject)
 
-#if defined (G_OS_WIN32) || defined (__APPLE__)
+#if defined (HAVE_WINDOWS) || defined (__APPLE__)
 # define GUM_NATIVE_SETJMP(env) setjmp (env)
 # define GUM_NATIVE_LONGJMP longjmp
   typedef jmp_buf GumExceptorNativeJmpBuf;

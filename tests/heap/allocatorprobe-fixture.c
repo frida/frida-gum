@@ -6,7 +6,7 @@
 
 #include "gumallocatorprobe.h"
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 
 #include "dummyclasses.h"
 #include "testutil.h"
@@ -59,11 +59,11 @@ test_allocator_probe_fixture_teardown (TestAllocatorProbeFixture * fixture,
 
 G_BEGIN_DECLS
 
-#if defined (G_OS_WIN32) && defined (_DEBUG)
+#if defined (HAVE_WINDOWS) && defined (_DEBUG)
 static void do_nonstandard_heap_calls (TestAllocatorProbeFixture * fixture,
     gint block_type, gint factor);
 #endif
 
 G_END_DECLS
 
-#endif /* G_OS_WIN32 */
+#endif /* HAVE_WINDOWS */

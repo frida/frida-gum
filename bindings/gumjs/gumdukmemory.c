@@ -9,7 +9,7 @@
 #include "gumdukmacros.h"
 
 #include <string.h>
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 # ifndef WIN32_LEAN_AND_MEAN
 #  define WIN32_LEAN_AND_MEAN
 # endif
@@ -78,7 +78,7 @@ static int gum_duk_memory_write (GumMemoryValueType type,
 static void gum_duk_memory_on_access (GumMemoryAccessMonitor * monitor,
     const GumMemoryAccessDetails * details, GumDukMemory * self);
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 static gchar * gum_ansi_string_to_utf8 (const gchar * str_ansi, gint length);
 static gchar * gum_ansi_string_from_utf8 (const gchar * str_utf8);
 #endif
@@ -588,7 +588,7 @@ gum_duk_memory_read (GumMemoryValueType type,
       }
       case GUM_MEMORY_VALUE_ANSI_STRING:
       {
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
         gchar * str_ansi;
 
         str_ansi = address;
@@ -650,7 +650,7 @@ gum_duk_memory_write (GumMemoryValueType type,
   const gchar * str = NULL;
   gsize str_length = 0;
   gunichar2 * str_utf16 = NULL;
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   gchar * str_ansi = NULL;
 #endif
   GumExceptorScope scope;
@@ -693,7 +693,7 @@ gum_duk_memory_write (GumMemoryValueType type,
       str_length = g_utf8_strlen (str, -1);
       if (type == GUM_MEMORY_VALUE_UTF16_STRING)
         str_utf16 = g_utf8_to_utf16 (str, -1, NULL, NULL, NULL);
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
       else if (type == GUM_MEMORY_VALUE_ANSI_STRING)
         str_ansi = gum_ansi_string_from_utf8 (str);
 #endif
@@ -773,7 +773,7 @@ gum_duk_memory_write (GumMemoryValueType type,
       }
       case GUM_MEMORY_VALUE_ANSI_STRING:
       {
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
         strcpy (address, str_ansi);
 #else
         _gum_duk_throw (ctx, "ANSI API is only applicable on Windows");
@@ -793,14 +793,14 @@ gum_duk_memory_write (GumMemoryValueType type,
 
   g_bytes_unref (bytes);
   g_free (str_utf16);
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   g_free (str_ansi);
 #endif
 
   return 0;
 }
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 
 static gchar *
 gum_ansi_string_to_utf8 (const gchar * str_ansi,
@@ -855,7 +855,7 @@ gum_ansi_string_from_utf8 (const gchar * str_utf8)
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_ansi_string)
 {
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   const gchar * str;
   gchar * str_ansi;
 

@@ -6,7 +6,7 @@
 
 #include "sanitychecker-fixture.c"
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 
 TESTLIST_BEGIN (sanitychecker)
   TESTENTRY (no_leaks)
@@ -88,7 +88,7 @@ TESTCASE (array_access_out_of_bounds_causes_exception)
   guint8 * bytes;
   gboolean exception_on_read = FALSE, exception_on_write = FALSE;
 
-#ifndef G_OS_WIN32
+#ifndef HAVE_WINDOWS
   if (gum_is_debugger_present ())
   {
     g_print ("<skipping, test must be run without debugger attached> ");
@@ -129,4 +129,4 @@ TESTCASE (checker_itself_does_not_leak)
   gum_sanity_checker_destroy (checker);
 }
 
-#endif /* G_OS_WIN32 */
+#endif /* HAVE_WINDOWS */

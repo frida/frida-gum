@@ -9,7 +9,7 @@
 #include "gumx86writer.h"
 #include "gummemory.h"
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 #define VC_EXTRALEAN
 #include <windows.h>
 #else

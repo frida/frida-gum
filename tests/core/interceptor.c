@@ -33,7 +33,7 @@ TESTLIST_BEGIN (interceptor)
   TESTENTRY (attach_to_heap_api)
 #endif
   TESTENTRY (attach_to_own_api)
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   TESTENTRY (attach_detach_torture)
 #endif
   TESTENTRY (thread_id)
@@ -69,7 +69,7 @@ TESTLIST_END ()
 static gpointer thread_doing_nothing (gpointer data);
 static gpointer thread_calling_pthread_setspecific (gpointer data);
 #endif
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 static gpointer hit_target_function_repeatedly (gpointer data);
 #endif
 static gpointer replacement_malloc (gsize size);
@@ -182,7 +182,7 @@ TESTCASE (attach_to_own_api)
   g_object_unref (listener);
 }
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 
 TESTCASE (attach_detach_torture)
 {
@@ -745,7 +745,7 @@ thread_calling_pthread_setspecific (gpointer data)
 
 #endif
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 
 static gpointer
 hit_target_function_repeatedly (gpointer data)

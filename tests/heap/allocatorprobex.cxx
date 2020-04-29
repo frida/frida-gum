@@ -6,7 +6,7 @@
 
 #include "allocatorprobe-fixture.c"
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 
 G_BEGIN_DECLS
 
@@ -95,4 +95,4 @@ concurrency_torture_helper (gpointer data)
 
 G_END_DECLS
 
-#endif /* G_OS_WIN32 */
+#endif /* HAVE_WINDOWS */

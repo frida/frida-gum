@@ -15,7 +15,7 @@
 
 #include <stdlib.h>
 #include <string.h>
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 #define VC_EXTRALEAN
 #include <windows.h>
 #include <tchar.h>
@@ -28,7 +28,7 @@
     TESTENTRY_WITH_FIXTURE ("Core/Stalker", test_stalker, NAME, \
         TestStalkerFixture)
 
-#if defined (G_OS_WIN32) && GLIB_SIZEOF_VOID_P == 4
+#if defined (HAVE_WINDOWS) && GLIB_SIZEOF_VOID_P == 4
 # define STALKER_TESTFUNC __fastcall
 #else
 # define STALKER_TESTFUNC
@@ -64,7 +64,7 @@ test_stalker_fixture_setup (TestStalkerFixture * fixture,
   fixture->transformer = NULL;
   fixture->sink = GUM_FAKE_EVENT_SINK (gum_fake_event_sink_new ());
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   if (IsDebuggerPresent ())
   {
     static gboolean shown_once = FALSE;

@@ -70,7 +70,7 @@ TESTCASE (full_cycle_with_interceptor)
   interceptor = gum_interceptor_obtain ();
   collector = backtrace_collector_new_with_backtracer (fixture->backtracer);
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   open_impl = _open;
   close_impl = _close;
 #else
@@ -168,7 +168,7 @@ TESTCASE (full_cycle_with_allocation_tracker)
   g_assert_nonnull (first_address);
 
   {
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
     GumReturnAddressDetails rad;
 
     g_assert_true (gum_return_address_details_from_address (first_address,

@@ -6,7 +6,7 @@
 
 #include "gumsanitychecker.h"
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 
 #include "dummyclasses.h"
 #include "testutil.h"
@@ -225,4 +225,4 @@ test_sanity_checker_fixture_do_output (const gchar * text,
   g_string_append (fixture->output, text);
 }
 
-#endif /* G_OS_WIN32 */
+#endif /* HAVE_WINDOWS */

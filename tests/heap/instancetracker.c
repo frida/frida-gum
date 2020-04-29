@@ -6,7 +6,7 @@
 
 #include "instancetracker-fixture.c"
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 
 #include <string.h>
 
@@ -270,4 +270,4 @@ walk_instance (GumInstanceDetails * id, gpointer user_data)
   ctx->call_count++;
 }
 
-#endif /* G_OS_WIN32 */
+#endif /* HAVE_WINDOWS */

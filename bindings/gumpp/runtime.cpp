@@ -1,7 +1,7 @@
 #include "runtime.hpp"
 
 #include <gum/gum.h>
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 #include <windows.h>
 #endif
 
@@ -21,7 +21,7 @@ namespace Gum
   }
 #endif
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 
 #ifndef GUMPP_STATIC
   extern "C" BOOL WINAPI DllMain (HINSTANCE inst_dll, DWORD reason, LPVOID reserved)

@@ -1212,7 +1212,7 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
 
   interceptor = function_ctx->interceptor;
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   system_error = gum_thread_get_system_error ();
 #endif
 
@@ -1238,7 +1238,7 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
     goto bypass;
   }
 
-#ifndef G_OS_WIN32
+#ifndef HAVE_WINDOWS
   system_error = gum_thread_get_system_error ();
 #endif
 
@@ -1361,13 +1361,13 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
   GPtrArray * listener_entries;
   guint i;
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   system_error = gum_thread_get_system_error ();
 #endif
 
   gum_tls_key_set_value (gum_interceptor_guard_key, function_ctx->interceptor);
 
-#ifndef G_OS_WIN32
+#ifndef HAVE_WINDOWS
   system_error = gum_thread_get_system_error ();
 #endif
 

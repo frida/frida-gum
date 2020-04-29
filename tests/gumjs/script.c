@@ -122,7 +122,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (utf16_string_can_be_read)
     TESTENTRY (utf16_string_can_be_written)
     TESTENTRY (utf16_string_can_be_allocated)
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
     TESTENTRY (ansi_string_can_be_read_in_code_page_936)
     TESTENTRY (ansi_string_can_be_read_in_code_page_1252)
     TESTENTRY (ansi_string_can_be_written_in_code_page_936)
@@ -934,7 +934,7 @@ TESTCASE (native_function_can_be_invoked)
   EXPECT_SEND_MESSAGE_WITH ("49");
   EXPECT_NO_MESSAGES ();
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   COMPILE_AND_LOAD_SCRIPT (
       "var impl = Module.getExportByName(\"user32.dll\", \"GetKeyState\");"
       "var f = new NativeFunction(impl, 'int16', ['int']);"
@@ -1088,7 +1088,7 @@ TESTCASE (native_function_should_implement_call_and_apply)
 
 TESTCASE (system_function_can_be_invoked)
 {
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   COMPILE_AND_LOAD_SCRIPT (
       "var f = new SystemFunction(" GUM_PTR_CONST ", 'int', ['int']);"
 
@@ -1124,7 +1124,7 @@ TESTCASE (system_function_can_be_invoked)
 static gint
 gum_clobber_system_error (gint value)
 {
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   SetLastError (value);
 #else
   errno = value;
@@ -2403,7 +2403,7 @@ TESTCASE (socket_type_can_be_inspected)
   COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(-1));");
   EXPECT_SEND_MESSAGE_WITH ("null");
 
-#ifndef G_OS_WIN32
+#ifndef HAVE_WINDOWS
   fd = socket (AF_UNIX, SOCK_STREAM, 0);
   COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
   EXPECT_SEND_MESSAGE_WITH ("\"unix:stream\"");
@@ -2950,7 +2950,7 @@ TESTCASE (process_platform_is_available)
   EXPECT_SEND_MESSAGE_WITH ("\"linux\"");
 #elif defined (HAVE_DARWIN)
   EXPECT_SEND_MESSAGE_WITH ("\"darwin\"");
-#elif defined (G_OS_WIN32)
+#elif defined (HAVE_WINDOWS)
   EXPECT_SEND_MESSAGE_WITH ("\"windows\"");
 #endif
 }
@@ -3630,7 +3630,7 @@ TESTCASE (module_export_can_be_found_by_name)
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   HMODULE mod;
   gpointer actual_address;
   char actual_address_str[32];
@@ -3680,7 +3680,7 @@ TESTCASE (module_can_be_forcibly_initialized)
   EXPECT_NO_MESSAGES ();
 }
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 # define API_RESOLVER_TEST_QUERY "exports:*!_open*"
 #else
 # define API_RESOLVER_TEST_QUERY "exports:*!open*"
@@ -4419,7 +4419,7 @@ TESTCASE (register_can_be_written)
 
 TESTCASE (system_error_can_be_read_from_interceptor_listener)
 {
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
       "  onEnter: function (retval) {"
@@ -4457,7 +4457,7 @@ TESTCASE (system_error_can_be_read_from_replacement_function)
   /* Replacement should be used regardless: */
   gum_interceptor_ignore_current_thread (interceptor);
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.replace(" GUM_PTR_CONST ","
       "    new NativeCallback(function (arg) {"
@@ -4492,7 +4492,7 @@ TESTCASE (system_error_can_be_read_from_replacement_function)
 
 TESTCASE (system_error_can_be_replaced_from_interceptor_listener)
 {
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
       "  onEnter: function (retval) {"
@@ -4519,7 +4519,7 @@ TESTCASE (system_error_can_be_replaced_from_interceptor_listener)
 
 TESTCASE (system_error_can_be_replaced_from_replacement_function)
 {
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.replace(" GUM_PTR_CONST ","
       "    new NativeCallback(function (arg) {"
@@ -5830,7 +5830,7 @@ TESTCASE (utf16_string_can_be_allocated)
   EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
 }
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 
 TESTCASE (ansi_string_can_be_read_in_code_page_936)
 {
@@ -6048,7 +6048,7 @@ TESTCASE (invalid_read_results_in_exception)
       "U64",
       "Utf8String",
       "Utf16String",
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
       "AnsiString"
 #endif
   };
@@ -6924,7 +6924,7 @@ TESTCASE (cmodule_should_provide_access_to_cpu_registers)
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
 # define GUM_IC_GET_FIRST_ARG(ic) *((int *) ((ic)->cpu_context->esp + 4))
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
-# ifdef G_OS_WIN32
+# ifdef HAVE_WINDOWS
 # define GUM_IC_GET_FIRST_ARG(ic) (ic)->cpu_context->rcx
 # else
 # define GUM_IC_GET_FIRST_ARG(ic) (ic)->cpu_context->rdi

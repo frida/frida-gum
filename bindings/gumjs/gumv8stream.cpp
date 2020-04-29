@@ -11,7 +11,7 @@
 
 using namespace v8;
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 # include <gio/gwin32inputstream.h>
 # include <gio/gwin32outputstream.h>
 
@@ -740,7 +740,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_input_stream_construct)
   if (!gum_v8_native_stream_ctor_args_parse (args, &handle, &auto_close, core))
     return;
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   auto stream = g_win32_input_stream_new (handle, auto_close);
 #else
   auto stream = g_unix_input_stream_new (handle, auto_close);
@@ -768,7 +768,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_output_stream_construct)
   if (!gum_v8_native_stream_ctor_args_parse (args, &handle, &auto_close, core))
     return;
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
   auto stream = g_win32_output_stream_new (handle, auto_close);
 #else
   auto stream = g_unix_output_stream_new (handle, auto_close);

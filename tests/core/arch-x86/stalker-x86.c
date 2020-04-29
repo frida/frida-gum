@@ -7,7 +7,7 @@
 
 #include "stalker-x86-fixture.c"
 
-#ifndef G_OS_WIN32
+#ifndef HAVE_WINDOWS
 # include <lzma.h>
 #endif
 
@@ -66,11 +66,11 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (follow_syscall)
   TESTENTRY (follow_thread)
   TESTENTRY (unfollow_should_handle_terminated_thread)
-#ifndef G_OS_WIN32
+#ifndef HAVE_WINDOWS
   TESTENTRY (performance)
 #endif
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 # if GLIB_SIZEOF_VOID_P == 4
   TESTENTRY (win32_indirect_call_seg)
 # endif
@@ -82,7 +82,7 @@ TESTLIST_END ()
 
 static gpointer run_stalked_briefly (gpointer data);
 static gpointer run_stalked_into_termination (gpointer data);
-#ifndef G_OS_WIN32
+#ifndef HAVE_WINDOWS
 static gboolean store_range_of_test_runner (const GumModuleDetails * details,
     gpointer user_data);
 static void pretend_workload (GumMemoryRange * runner_range);
@@ -229,7 +229,7 @@ run_stalked_into_termination (gpointer data)
   return NULL;
 }
 
-#ifndef G_OS_WIN32
+#ifndef HAVE_WINDOWS
 
 TESTCASE (performance)
 {
@@ -1932,7 +1932,7 @@ TESTCASE (big_block)
   test_stalker_fixture_follow_and_invoke (fixture, func, -1);
 }
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 
 typedef struct _TestWindow TestWindow;
 

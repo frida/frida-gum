@@ -7,7 +7,7 @@
 
 #include "profiler-fixture.c"
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 
 TESTLIST_BEGIN (profiler)
 #ifdef HAVE_I386
@@ -365,4 +365,4 @@ TESTCASE (worst_case_info_on_recursion)
       &example_worst_case_recursive), ==, "2");
 }
 
-#endif /* G_OS_WIN32 */
+#endif /* HAVE_WINDOWS */

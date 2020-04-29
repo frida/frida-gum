@@ -6,7 +6,7 @@
 
 #include "allocatorprobe-fixture.c"
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_WINDOWS
 
 TESTLIST_BEGIN (allocator_probe)
   TESTENTRY (basics)
@@ -219,4 +219,4 @@ do_nonstandard_heap_calls (TestAllocatorProbeFixture * fixture,
 
 #endif /* _DEBUG */
 
-#endif /* G_OS_WIN32 */
+#endif /* HAVE_WINDOWS */
