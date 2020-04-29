@@ -515,6 +515,12 @@ gum_stalker_init (GumStalker * self)
   self->probe_array_by_address =
       g_hash_table_new_full (NULL, NULL, NULL, gum_stalker_free_probe_array);
 
+  self->page_size = gum_query_page_size ();
+  self->cpu_features = gum_query_cpu_features ();
+  g_mutex_init (&self->mutex);
+  self->contexts = NULL;
+  self->exec_ctx = gum_tls_key_new ();
+
 #ifdef G_OS_WIN32
   self->exceptor = gum_exceptor_obtain ();
   gum_exceptor_add (self->exceptor, gum_stalker_on_exception, self);
@@ -574,12 +580,6 @@ gum_stalker_init (GumStalker * self)
   }
 # endif
 #endif
-
-  self->page_size = gum_query_page_size ();
-  self->cpu_features = gum_query_cpu_features ();
-  g_mutex_init (&self->mutex);
-  self->contexts = NULL;
-  self->exec_ctx = gum_tls_key_new ();
 }
 
 static void
