@@ -884,20 +884,20 @@ gum_x86_writer_put_call_address (GumX86Writer * self,
   }
   else
   {
-    gconstpointer perform_call = self->code + 1;
-    gconstpointer call_target_storage = self->code + 2;
+    gconstpointer call_target_storage = self->code + 1;
+    gconstpointer carry_on = self->code + 2;
 
     if (self->target_cpu != GUM_CPU_AMD64)
       return FALSE;
 
-    gum_x86_writer_put_jmp_short_label (self, perform_call);
+    gum_x86_writer_put_call_indirect_label (self, call_target_storage);
+    gum_x86_writer_put_jmp_short_label (self, carry_on);
 
     gum_x86_writer_put_label (self, call_target_storage);
     *((guint64 *) (self->code)) = GUINT64_TO_LE (address);
     gum_x86_writer_commit (self, 8);
 
-    gum_x86_writer_put_label (self, perform_call);
-    gum_x86_writer_put_call_indirect_label (self, call_target_storage);
+    gum_x86_writer_put_label (self, carry_on);
   }
 
   return TRUE;
