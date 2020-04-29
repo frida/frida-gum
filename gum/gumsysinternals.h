@@ -9,7 +9,7 @@
 
 #include <glib.h>
 
-#ifdef HAVE_WINDOWS
+#ifdef G_OS_WIN32
 
 # if GLIB_SIZEOF_VOID_P == 4
 #  define GUM_TEB_OFFSET_SELF 0x0018
