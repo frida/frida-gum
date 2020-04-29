@@ -4036,6 +4036,12 @@ TESTCASE (recv_wait_should_not_leak)
   guint initial_heap_size;
   GumInvokeTargetContext ctx;
 
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
       "  onEnter: function (args) {"
