@@ -687,6 +687,13 @@ gum_thumb_relocator_rewrite_add (GumThumbRelocator * self,
   const cs_arm_op * src = &ctx->detail->operands[1];
   arm_reg temp_reg;
 
+  if (dst->reg == ARM_REG_PC)
+  {
+    /* FIXME: ADD targeting PC not yet supported. */
+    g_assert_not_reached ();
+    return FALSE;
+  }
+
   if (ctx->detail->op_count != 2)
     return FALSE;
   else if (src->type != ARM_OP_REG || src->reg != ARM_REG_PC)
