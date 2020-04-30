@@ -149,6 +149,7 @@ struct _GumExecCtx
 
   gpointer thunks;
   gpointer infect_thunk;
+  GumAddress infect_body;
 
   GumSlab * code_slab;
   gpointer last_prolog_minimal;
@@ -297,8 +298,6 @@ static gpointer gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
     gpointer start_address);
 static void gum_exec_ctx_begin_call (GumExecCtx * ctx, gpointer ret_addr);
 static void gum_exec_ctx_end_call (GumExecCtx * ctx);
-static void gum_exec_ctx_create_thunks (GumExecCtx * ctx);
-static void gum_exec_ctx_destroy_thunks (GumExecCtx * ctx);
 
 static GumExecBlock * gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
     gpointer real_address, gpointer * code_address);
@@ -740,30 +739,26 @@ gum_stalker_infect (GumThreadId thread_id,
                     GumCpuContext * cpu_context,
                     gpointer user_data)
 {
-  GumInfectContext * infect_context;
-  GumStalker * self;
+  GumInfectContext * infect_context = user_data;
+  GumStalker * self = infect_context->stalker;
   GumExecCtx * ctx;
-  const guint potential_svc_size = 4;
+  guint8 * pc;
   gpointer code_address;
   GumArm64Writer cw;
+  const guint potential_svc_size = 4;
 
-  infect_context = user_data;
-  self = infect_context->stalker;
   ctx = gum_stalker_create_exec_ctx (self, thread_id,
       infect_context->transformer, infect_context->sink);
 
-  ctx->current_block = gum_exec_ctx_obtain_block_for (ctx,
-      GSIZE_TO_POINTER (gum_strip_code_address (cpu_context->pc)),
-      &code_address);
+  pc = GSIZE_TO_POINTER (gum_strip_code_address (cpu_context->pc));
+
+  ctx->current_block = gum_exec_ctx_obtain_block_for (ctx, pc, &code_address);
 
   if (gum_exec_ctx_maybe_unfollow (ctx, NULL))
   {
     gum_stalker_destroy_exec_ctx (self, ctx);
     return;
   }
-
-  cpu_context->pc = gum_sign_code_address (
-      GPOINTER_TO_SIZE (ctx->infect_thunk) + potential_svc_size);
 
   gum_stalker_thaw (self, ctx->thunks, self->page_size);
   gum_arm64_writer_init (&cw, ctx->infect_thunk);
@@ -772,9 +767,10 @@ gum_stalker_infect (GumThreadId thread_id,
    * In case the thread is in a Linux system call we should allow it to be
    * restarted by bringing along the SVC instruction.
    */
-  gum_arm64_writer_put_bytes (&cw,
-      ctx->current_block->real_begin - potential_svc_size, potential_svc_size);
+  gum_arm64_writer_put_bytes (&cw, pc - potential_svc_size, potential_svc_size);
 
+  ctx->infect_body =
+      gum_sign_code_address (GUM_ADDRESS (gum_arm64_writer_cur (&cw)));
   gum_exec_ctx_write_prolog (ctx, GUM_PROLOG_MINIMAL, &cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
       GUM_ADDRESS (gum_tls_key_set_value), 2,
@@ -782,14 +778,16 @@ gum_stalker_infect (GumThreadId thread_id,
       GUM_ARG_ADDRESS, ctx);
   gum_exec_ctx_write_epilog (ctx, GUM_PROLOG_MINIMAL, &cw);
 
-  gum_arm64_writer_put_branch_address (&cw, GUM_ADDRESS (
-      code_address + GUM_RESTORATION_PROLOG_SIZE));
+  gum_arm64_writer_put_b_imm (&cw, GUM_ADDRESS (code_address) +
+      GUM_RESTORATION_PROLOG_SIZE);
 
   gum_arm64_writer_flush (&cw);
   gum_stalker_freeze (self, cw.base, gum_arm64_writer_offset (&cw));
   gum_arm64_writer_clear (&cw);
 
   gum_event_sink_start (infect_context->sink);
+
+  cpu_context->pc = ctx->infect_body;
 }
 
 static void
@@ -801,11 +799,11 @@ gum_stalker_disinfect (GumThreadId thread_id,
   GumExecCtx * ctx = disinfect_context->exec_ctx;
   gboolean infection_not_active_yet;
 
-  infection_not_active_yet =
-      cpu_context->pc == GPOINTER_TO_SIZE (ctx->infect_thunk);
+  infection_not_active_yet = cpu_context->pc == ctx->infect_body;
   if (infection_not_active_yet)
   {
-    cpu_context->pc = GPOINTER_TO_SIZE (ctx->current_block->real_begin);
+    cpu_context->pc = gum_sign_code_address (
+        GPOINTER_TO_SIZE (ctx->current_block->real_begin));
 
     disinfect_context->success = TRUE;
   }
@@ -1009,8 +1007,6 @@ gum_stalker_create_exec_ctx (GumStalker * self,
 
   ctx->mappings = gum_metal_hash_table_new (NULL, NULL);
 
-  gum_exec_ctx_create_thunks (ctx);
-
   GUM_STALKER_LOCK (self);
   self->contexts = g_slist_prepend (self->contexts, ctx);
   GUM_STALKER_UNLOCK (self);
@@ -1134,6 +1130,7 @@ static void
 gum_exec_ctx_free (GumExecCtx * ctx)
 {
   GumStalker * stalker = ctx->stalker;
+  const guint page_size = stalker->page_size;
   GumSlab * slab;
 
   gum_metal_hash_table_unref (ctx->mappings);
@@ -1142,13 +1139,23 @@ gum_exec_ctx_free (GumExecCtx * ctx)
   while (slab != NULL)
   {
     GumSlab * next = slab->next;
-    gum_memory_free (slab, stalker->slab_size);
+    guint8 * mem;
+    guint size;
+
+    mem = (guint8 *) slab;
+    size = stalker->slab_size;
+    if (mem == (guint8 *) ctx->thunks + page_size)
+    {
+      mem -= page_size;
+      size += page_size;
+    }
+
+    gum_memory_free (mem, size);
+
     slab = next;
   }
 
-  gum_exec_ctx_destroy_thunks (ctx);
-
-  gum_memory_free (ctx->frames, stalker->page_size);
+  gum_memory_free (ctx->frames, page_size);
 
   g_object_unref (ctx->sink);
   gum_exec_ctx_finalize_callouts (ctx);
@@ -1167,10 +1174,22 @@ gum_exec_ctx_add_slab (GumExecCtx * ctx)
 {
   GumSlab * slab;
   GumStalker * stalker = ctx->stalker;
+  guint base_size;
+  guint8 * mem;
 
-  slab = gum_memory_allocate (NULL, stalker->slab_size, stalker->page_size,
+  base_size = (ctx->thunks == NULL) ? stalker->page_size : 0;
+
+  mem = gum_memory_allocate (NULL, base_size + stalker->slab_size,
+      stalker->page_size,
       stalker->is_rwx_supported ? GUM_PAGE_RWX : GUM_PAGE_RW);
 
+  if (base_size != 0)
+  {
+    ctx->thunks = mem;
+    ctx->infect_thunk = ctx->thunks;
+  }
+
+  slab = (GumSlab *) (mem + base_size);
   slab->data = (guint8 *) slab + stalker->slab_header_size;
   slab->offset = 0;
   slab->size = stalker->slab_size - stalker->slab_header_size;
@@ -1354,25 +1373,6 @@ static void
 gum_exec_ctx_end_call (GumExecCtx * ctx)
 {
   ctx->pending_calls--;
-}
-
-static void
-gum_exec_ctx_create_thunks (GumExecCtx * ctx)
-{
-  gsize page_size;
-
-  page_size = ctx->stalker->page_size;
-
-  ctx->thunks = gum_memory_allocate (NULL, page_size, page_size,
-      ctx->stalker->is_rwx_supported ? GUM_PAGE_RWX : GUM_PAGE_RW);
-
-  ctx->infect_thunk = ctx->thunks;
-}
-
-static void
-gum_exec_ctx_destroy_thunks (GumExecCtx * ctx)
-{
-  gum_memory_free (ctx->thunks, ctx->stalker->page_size);
 }
 
 static GumExecBlock *
