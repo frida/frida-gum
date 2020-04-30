@@ -624,10 +624,10 @@ gum_collect_module_functions (const GumModuleDetails * details,
     return TRUE;
 
   gum_elf_module_enumerate_dynamic_symbols (entry->module,
-      gum_collect_symbol_if_function, GINT_TO_POINTER (FALSE));
+      gum_collect_symbol_if_function, NULL);
 
   gum_elf_module_enumerate_symbols (entry->module,
-      gum_collect_symbol_if_function, GINT_TO_POINTER (TRUE));
+      gum_collect_symbol_if_function, NULL);
 
   entry->collected = TRUE;
 
@@ -638,11 +638,11 @@ static gboolean
 gum_collect_symbol_if_function (const GumElfSymbolDetails * details,
                                 gpointer user_data)
 {
-  gboolean include_symbols = GPOINTER_TO_INT (user_data);
   const gchar * name;
   gpointer address;
   GArray * addresses;
   gboolean already_collected;
+  gchar * symbol_name;
 
   if (details->section_header_index == SHN_UNDEF || details->type != STT_FUNC)
     return TRUE;
@@ -675,12 +675,9 @@ gum_collect_symbol_if_function (const GumElfSymbolDetails * details,
   if (!already_collected)
     g_array_append_val (addresses, address);
 
-  if (include_symbols)
-  {
-    gchar * symbol_name = g_hash_table_lookup (gum_address_symbols, address);
-    if (symbol_name == NULL)
-      g_hash_table_insert (gum_address_symbols, address, g_strdup (name));
-  }
+  symbol_name = g_hash_table_lookup (gum_address_symbols, address);
+  if (symbol_name == NULL)
+    g_hash_table_insert (gum_address_symbols, address, g_strdup (name));
 
   return TRUE;
 }
