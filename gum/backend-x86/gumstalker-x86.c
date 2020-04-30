@@ -941,8 +941,8 @@ gum_stalker_infect (GumThreadId thread_id,
    * restarted by bringing along the syscall instruction.
    */
   gum_x86_writer_put_bytes (&cw, pc - max_syscall_size, max_syscall_size);
-  ctx->infect_body = (guint8 *) ctx->infect_thunk + max_syscall_size;
 
+  ctx->infect_body = gum_x86_writer_cur (&cw);
   gum_exec_ctx_write_prolog (ctx, GUM_PROLOG_MINIMAL, &cw);
   gum_x86_writer_put_call_address_with_aligned_arguments (&cw, GUM_CALL_CAPI,
       GUM_ADDRESS (gum_tls_key_set_value), 2,
