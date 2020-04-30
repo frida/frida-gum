@@ -825,6 +825,18 @@ gum_thumb_writer_put_vldr_reg_reg_offset (GumThumbWriter * self,
 }
 
 void
+gum_thumb_writer_put_ldmia_registers_by_mask (GumThumbWriter * self,
+                                              arm_reg reg,
+                                              guint16 mask)
+{
+  GumArmRegInfo ri;
+
+  gum_arm_reg_describe (reg, &ri);
+
+  gum_thumb_writer_put_instruction_wide (self, 0xe8b0 | ri.index, mask);
+}
+
+void
 gum_thumb_writer_put_str_reg_reg (GumThumbWriter * self,
                                   arm_reg src_reg,
                                   arm_reg dst_reg)
@@ -934,6 +946,30 @@ gum_thumb_writer_put_mov_reg_u8 (GumThumbWriter * self,
 
   gum_thumb_writer_put_instruction (self, 0x2000 | (dst.index << 8) |
       imm_value);
+}
+
+void
+gum_thumb_writer_put_mov_cpsr_to_reg (GumThumbWriter * self,
+                                      arm_reg reg)
+{
+  GumArmRegInfo ri;
+
+  gum_arm_reg_describe (reg, &ri);
+
+  gum_thumb_writer_put_instruction (self, 0xf3ef);
+  gum_thumb_writer_put_instruction (self, 0x8000 | ri.index << 8);
+}
+
+void
+gum_thumb_writer_put_mov_reg_to_cpsr (GumThumbWriter * self,
+                                      arm_reg reg)
+{
+  GumArmRegInfo ri;
+
+  gum_arm_reg_describe (reg, &ri);
+
+  gum_thumb_writer_put_instruction (self, 0xf380 | ri.index);
+  gum_thumb_writer_put_instruction (self, 0x8900);
 }
 
 gboolean
@@ -1101,6 +1137,34 @@ gum_thumb_writer_put_sub_reg_reg_imm (GumThumbWriter * self,
 {
   return gum_thumb_writer_put_add_reg_reg_imm (self, dst_reg, left_reg,
       -right_value);
+}
+
+gboolean
+gum_thumb_writer_put_and_reg_reg_imm (GumThumbWriter * self,
+                                      arm_reg dst_reg,
+                                      arm_reg left_reg,
+                                      gssize right_value)
+{
+  GumArmRegInfo dst, left;
+  guint16 imm8, insn_high, insn_low;
+
+  gum_arm_reg_describe (dst_reg, &dst);
+  gum_arm_reg_describe (left_reg, &left);
+
+  /*
+   * Thumb does allow up to a 12bit immediate, but the encoded form for this is
+   * complex and we don't yet need it for our use-cases.
+   */
+  if (!GUM_IS_WITHIN_UINT8_RANGE (right_value))
+    return FALSE;
+
+  imm8 = right_value & 0xff;
+  insn_high = 0xf000 | left.index;
+  insn_low = (dst.index << 8) | imm8;
+
+  gum_thumb_writer_put_instruction_wide (self, insn_high, insn_low);
+
+  return TRUE;
 }
 
 gboolean

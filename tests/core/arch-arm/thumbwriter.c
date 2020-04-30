@@ -42,6 +42,7 @@ TESTLIST_BEGIN (thumbwriter)
   TESTENTRY (sub_reg_imm)
   TESTENTRY (sub_reg_reg_reg)
   TESTENTRY (sub_reg_reg_imm)
+  TESTENTRY (and_reg_reg_imm)
 
   TESTENTRY (mrs_reg_reg)
   TESTENTRY (msr_reg_reg)
@@ -632,6 +633,40 @@ TESTCASE (sub_reg_reg_imm)
   gum_thumb_writer_put_sub_reg_reg_imm (&fixture->tw, ARM_REG_R1, ARM_REG_R7,
       5);
   assert_output_equals (0x1f79);
+}
+
+TESTCASE (and_reg_reg_imm)
+{
+  g_assert_false (gum_thumb_writer_put_and_reg_reg_imm (&fixture->tw,
+      ARM_REG_R0, ARM_REG_R0, -1));
+
+  g_assert_false (gum_thumb_writer_put_and_reg_reg_imm (&fixture->tw,
+      ARM_REG_R0, ARM_REG_R0, 256));
+
+  gum_thumb_writer_put_and_reg_reg_imm (&fixture->tw, ARM_REG_R0, ARM_REG_R0,
+      0);
+  assert_output_n_equals (0, 0xf000);
+  assert_output_n_equals (1, 0x0000);
+
+  gum_thumb_writer_put_and_reg_reg_imm (&fixture->tw, ARM_REG_R0, ARM_REG_R0,
+      255);
+  assert_output_n_equals (2, 0xf000);
+  assert_output_n_equals (3, 0x00ff);
+
+  gum_thumb_writer_put_and_reg_reg_imm (&fixture->tw, ARM_REG_R0, ARM_REG_R7,
+      0);
+  assert_output_n_equals (4, 0xf007);
+  assert_output_n_equals (5, 0x0000);
+
+  gum_thumb_writer_put_and_reg_reg_imm (&fixture->tw, ARM_REG_R7, ARM_REG_R0,
+      0);
+  assert_output_n_equals (6, 0xf000);
+  assert_output_n_equals (7, 0x0700);
+
+  gum_thumb_writer_put_and_reg_reg_imm (&fixture->tw, ARM_REG_R5, ARM_REG_R3,
+      53);
+  assert_output_n_equals (8, 0xf003);
+  assert_output_n_equals (9, 0x0535);
 }
 
 TESTCASE (mrs_reg_reg)

@@ -408,6 +408,9 @@ enum _GumRelocationScenario
 #define GUM_IS_WITHIN_UINT7_RANGE(i) \
     (((gint64) (i)) >= G_GINT64_CONSTANT (0) && \
      ((gint64) (i)) <= G_GINT64_CONSTANT (127))
+#define GUM_IS_WITHIN_UINT8_RANGE(i) \
+    (((gint64) (i)) >= G_GINT64_CONSTANT (0) && \
+     ((gint64) (i)) <= G_GINT64_CONSTANT (255))
 #define GUM_IS_WITHIN_INT8_RANGE(i) \
     (((gint64) (i)) >= G_GINT64_CONSTANT (-128) && \
      ((gint64) (i)) <= G_GINT64_CONSTANT (127))
