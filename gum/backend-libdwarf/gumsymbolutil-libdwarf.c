@@ -380,17 +380,21 @@ gum_find_nearest_symbol_by_address (gpointer address,
   for (cur = keys; cur != NULL; cur = cur->next)
   {
     current_address = cur->data;
+
+    if (address < current_address)
+      continue;
+
     if (nearest_address == NULL)
     {
       nearest_address = current_address;
       continue;
     }
 
-    if (address < current_address)
+    if ((gpointer) (address - current_address) >=
+        (gpointer) (address - nearest_address))
+    {
       continue;
-
-    if (address - current_address >= address - nearest_address)
-      continue;
+    }
 
     nearest_address = current_address;
   }
