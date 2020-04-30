@@ -47,6 +47,7 @@ endif
 if host_arch == 'arm'
   core_sources += [
     'arch-arm/interceptor-arm.c',
+    'arch-arm/stalker-arm.c',
   ]
 endif
 
