@@ -300,10 +300,12 @@ TESTLIST_BEGIN (script)
   TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("Stalker")
-#if defined (HAVE_I386) || defined (HAVE_ARM64)
+#if defined (HAVE_I386) || defined (HAVE_ARM) || defined (HAVE_ARM64)
     TESTENTRY (execution_can_be_traced)
     TESTENTRY (execution_can_be_traced_with_custom_transformer)
     TESTENTRY (execution_can_be_traced_with_faulty_transformer)
+#endif
+#if defined (HAVE_I386) || defined (HAVE_ARM64)
     TESTENTRY (execution_can_be_traced_during_immediate_native_function_call)
     TESTENTRY (execution_can_be_traced_during_scheduled_native_function_call)
     TESTENTRY (execution_can_be_traced_after_native_function_call_from_hook)
@@ -368,7 +370,7 @@ static gboolean on_incoming_connection (GSocketService * service,
 static void on_read_ready (GObject * source_object, GAsyncResult * res,
     gpointer user_data);
 
-#if defined (HAVE_I386) || defined (HAVE_ARM64)
+#if defined (HAVE_I386) || defined (HAVE_ARM) || defined (HAVE_ARM64)
 static gpointer run_stalked_through_hooked_function (gpointer data);
 static gpointer run_stalked_through_target_function (gpointer data);
 #endif
@@ -2556,7 +2558,7 @@ on_read_ready (GObject * source_object,
   g_object_unref (connection);
 }
 
-#if defined (HAVE_I386) || defined (HAVE_ARM64)
+#if defined (HAVE_I386) || defined (HAVE_ARM) || defined (HAVE_ARM64)
 
 #include "stalkerdummychannel.h"
 
