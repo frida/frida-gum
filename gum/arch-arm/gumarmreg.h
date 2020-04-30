@@ -113,7 +113,9 @@ struct _GumArmRegInfo
   guint index;
 };
 
-void gum_arm_reg_describe (arm_reg reg, GumArmRegInfo * ri);
+GUM_API void gum_arm_reg_describe (arm_reg reg, GumArmRegInfo * ri);
+GUM_API void gum_arm_cond_describe (arm_cc cc, guint8 * code);
+GUM_API void gum_arm_shifter_describe (arm_shifter shifter, guint8 * scode);
 
 G_END_DECLS
 
