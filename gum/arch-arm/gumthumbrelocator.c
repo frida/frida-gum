@@ -27,6 +27,9 @@ static gboolean gum_thumb_relocator_try_fetch_next_output_instruction (
     GumThumbRelocator * self, const cs_insn ** insn);
 
 static gboolean gum_arm_branch_is_unconditional (const cs_insn * insn);
+static gboolean gum_reg_dest_is_pc (const cs_insn * insn);
+static gboolean gum_reg_list_contains_pc (const cs_insn * insn,
+    guint8 start_index);
 
 static gboolean gum_thumb_relocator_rewrite_ldr (GumThumbRelocator * self,
     GumCodeGenCtx * ctx);
@@ -210,21 +213,24 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
       self->eob = TRUE;
       self->eoi = gum_arm_branch_is_unconditional (insn);
       break;
+    case ARM_INS_CBZ:
+    case ARM_INS_CBNZ:
     case ARM_INS_BL:
     case ARM_INS_BLX:
       self->eob = TRUE;
       self->eoi = FALSE;
       break;
+    case ARM_INS_LDR:
+      self->eob = gum_reg_dest_is_pc (insn);
+      self->eoi = gum_reg_dest_is_pc (insn);
+      break;
     case ARM_INS_POP:
-      if (cs_reg_read (self->capstone, insn, ARM_REG_PC))
-      {
-        self->eob = TRUE;
-        self->eoi = TRUE;
-      }
-      else
-      {
-        self->eob = FALSE;
-      }
+      self->eob = gum_reg_list_contains_pc (insn, 0);
+      self->eoi = gum_reg_list_contains_pc (insn, 0);
+      break;
+    case ARM_INS_LDM:
+      self->eob = gum_reg_list_contains_pc (insn, 1);
+      self->eoi = gum_reg_list_contains_pc (insn, 1);
       break;
     case ARM_INS_IT:
     {
@@ -566,6 +572,35 @@ gum_arm_branch_is_unconditional (const cs_insn * insn)
     default:
       return FALSE;
   }
+}
+
+static gboolean
+gum_reg_dest_is_pc (const cs_insn * insn)
+{
+  cs_arm_op * op = &insn->detail->arm.operands[0];
+
+  g_assert (op->type == ARM_OP_REG);
+
+  return op->reg == ARM_REG_PC;
+}
+
+static gboolean
+gum_reg_list_contains_pc (const cs_insn * insn,
+                          guint8 start_index)
+{
+  guint8 i;
+
+  for (i = start_index; i < insn->detail->arm.op_count; i++)
+  {
+    cs_arm_op * op = &insn->detail->arm.operands[i];
+
+    g_assert (op->type == ARM_OP_REG);
+
+    if (op->reg == ARM_REG_PC)
+      return TRUE;
+  }
+
+  return FALSE;
 }
 
 static gboolean
