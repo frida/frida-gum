@@ -813,12 +813,12 @@ gum_thumb_writer_put_vldr_reg_reg_offset (GumThumbWriter * self,
     insn |= (dst_reg_info.index >> 1) << 12;
     insn |= (dst_reg_info.index & 1) << 22;
   }
-  else 
+  else
   {
     insn |= (dst_reg_info.index) << 12;
     insn |= 1 << 8;
   }
-  
+
   gum_thumb_writer_put_instruction_wide (self, insn >> 16, insn & 0xffff);
 
   return TRUE;
