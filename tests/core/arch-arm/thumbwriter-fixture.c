@@ -27,7 +27,7 @@ static void
 test_thumb_writer_fixture_setup (TestThumbWriterFixture * fixture,
                                  gconstpointer data)
 {
-  fixture->output = g_malloc (16 * 2);
+  fixture->output = gum_alloc_n_pages (1, GUM_PAGE_RW);
   gum_thumb_writer_init (&fixture->tw, fixture->output);
 }
 
@@ -36,7 +36,7 @@ test_thumb_writer_fixture_teardown (TestThumbWriterFixture * fixture,
                                     gconstpointer data)
 {
   gum_thumb_writer_clear (&fixture->tw);
-  g_free (fixture->output);
+  gum_free_pages (fixture->output);
 }
 
 #define assert_output_n_equals(n, v) \

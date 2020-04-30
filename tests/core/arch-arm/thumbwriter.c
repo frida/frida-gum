@@ -12,6 +12,10 @@ TESTLIST_BEGIN (thumbwriter)
   TESTENTRY (bne_label)
   TESTENTRY (b_cond_label_wide)
   TESTENTRY (cbz_reg_label)
+  TESTENTRY (cbz_reg_label_too_short)
+  TESTENTRY (cbz_reg_label_minimum)
+  TESTENTRY (cbz_reg_label_maximum)
+  TESTENTRY (cbz_reg_label_too_long)
   TESTENTRY (cbnz_reg_label)
 
   TESTENTRY (b_label_wide)
@@ -135,6 +139,60 @@ TESTCASE (cbz_reg_label)
   assert_output_n_equals (4, 0x46c0); /* nop */
   /* beach: */
   assert_output_n_equals (5, 0xbd00); /* pop {pc} */
+}
+
+TESTCASE (cbz_reg_label_too_short)
+{
+  const gchar * beach_lbl = "beach";
+
+  gum_thumb_writer_put_cbz_reg_label (&fixture->tw, ARM_REG_R7, beach_lbl);
+  gum_thumb_writer_put_label (&fixture->tw, beach_lbl);
+  gum_thumb_writer_put_nop (&fixture->tw);
+
+  g_assert_false (gum_thumb_writer_flush (&fixture->tw));
+}
+
+TESTCASE (cbz_reg_label_minimum)
+{
+  const gchar * beach_lbl = "beach";
+
+  gum_thumb_writer_put_cbz_reg_label (&fixture->tw, ARM_REG_R7, beach_lbl);
+  gum_thumb_writer_put_nop (&fixture->tw);
+  gum_thumb_writer_put_label (&fixture->tw, beach_lbl);
+  gum_thumb_writer_put_nop (&fixture->tw);
+
+  g_assert_true (gum_thumb_writer_flush (&fixture->tw));
+  assert_output_n_equals (0, 0xb107); /* cbz r7, beach */
+}
+
+TESTCASE (cbz_reg_label_maximum)
+{
+  const gchar * beach_lbl = "beach";
+  guint i;
+
+  gum_thumb_writer_put_cbz_reg_label (&fixture->tw, ARM_REG_R7, beach_lbl);
+  for (i = 0; i != 64; i++)
+    gum_thumb_writer_put_nop (&fixture->tw);
+  gum_thumb_writer_put_label (&fixture->tw, beach_lbl);
+  gum_thumb_writer_put_nop (&fixture->tw);
+
+  g_assert_true (gum_thumb_writer_flush (&fixture->tw));
+  assert_output_n_equals (0, 0xb3ff); /* cbz r7, beach */
+}
+
+TESTCASE (cbz_reg_label_too_long)
+{
+  const gchar * beach_lbl = "beach";
+  guint i;
+
+  gum_thumb_writer_put_cbz_reg_label (&fixture->tw, ARM_REG_R7, beach_lbl);
+  for (i = 0; i != 64; i++)
+    gum_thumb_writer_put_nop (&fixture->tw);
+  gum_thumb_writer_put_nop (&fixture->tw);
+  gum_thumb_writer_put_label (&fixture->tw, beach_lbl);
+  gum_thumb_writer_put_nop (&fixture->tw);
+
+  g_assert_false (gum_thumb_writer_flush (&fixture->tw));
 }
 
 TESTCASE (cbnz_reg_label)

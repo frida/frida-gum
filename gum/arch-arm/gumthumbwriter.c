@@ -1323,7 +1323,7 @@ gum_thumb_writer_try_commit_label_refs (GumThumbWriter * self)
       {
         guint16 i, imm5;
 
-        if (!GUM_IS_WITHIN_UINT7_RANGE (distance))
+        if (!GUM_IS_WITHIN_UINT7_RANGE (distance * sizeof (guint16)))
           return FALSE;
 
         i = (distance >> 5) & 1;
