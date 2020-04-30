@@ -610,6 +610,7 @@ gum_thumb_relocator_rewrite_ldr (GumThumbRelocator * self,
   const cs_arm_op * dst = &ctx->detail->operands[0];
   const cs_arm_op * src = &ctx->detail->operands[1];
   GumAddress absolute_pc;
+  arm_reg target;
 
   if (src->type != ARM_OP_MEM || src->mem.base != ARM_REG_PC)
     return FALSE;
@@ -617,8 +618,38 @@ gum_thumb_relocator_rewrite_ldr (GumThumbRelocator * self,
   absolute_pc = ctx->pc & ~((GumAddress) (4 - 1));
   absolute_pc += src->mem.disp;
 
-  gum_thumb_writer_put_ldr_reg_address (ctx->output, dst->reg, absolute_pc);
-  gum_thumb_writer_put_ldr_reg_reg (ctx->output, dst->reg, dst->reg);
+  if (src->mem.index != ARM_REG_INVALID)
+  {
+    /* FIXME: LDR with index register not yet supported. */
+    g_assert_not_reached ();
+    return FALSE;
+  }
+
+  if (dst->reg == ARM_REG_PC)
+  {
+    target = ARM_REG_R0;
+
+    /* Make space on the stack to store the calculated PC ready to be popped. */
+    gum_thumb_writer_put_sub_reg_reg_imm (ctx->output, ARM_REG_SP, ARM_REG_SP,
+        4);
+
+    gum_thumb_writer_put_push_regs (ctx->output, 1, target);
+  }
+  else
+  {
+    target = dst->reg;
+  }
+
+  gum_thumb_writer_put_ldr_reg_address (ctx->output, target, absolute_pc);
+  gum_thumb_writer_put_ldr_reg_reg (ctx->output, target, target);
+
+  if (dst->reg == ARM_REG_PC)
+  {
+    gum_thumb_writer_put_str_reg_reg_offset (ctx->output, target, ARM_REG_SP,
+        4);
+
+    gum_thumb_writer_put_pop_regs (ctx->output, 2, target, ARM_REG_PC);
+  }
 
   return TRUE;
 }
