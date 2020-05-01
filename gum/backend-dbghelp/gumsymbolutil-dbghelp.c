@@ -148,6 +148,27 @@ gum_find_functions_matching (const gchar * str)
   return matches;
 }
 
+void
+gum_load_module(const gchar * str)
+{
+	GArray * matches;
+	GumDbghelpImpl * dbghelp;
+	gchar * match_formatted_str;
+	HANDLE cur_process_handle;
+	guint64 any_module_base;
+
+	dbghelp = gum_dbghelp_impl_try_obtain();
+	if (dbghelp == NULL)
+		return matches;
+
+	cur_process_handle = GetCurrentProcess();
+	any_module_base = 0;
+
+	dbghelp->Lock();
+	dbghelp->SymLoadModuleEx(cur_process_handle, 0, str, 0, 0, 0, 0, 0);
+	dbghelp->Unlock();
+}
+
 static BOOL CALLBACK
 enum_functions_callback (SYMBOL_INFO * sym_info,
                          gulong symbol_size,

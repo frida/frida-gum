@@ -15,6 +15,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_symbol_from_name)
 GUMJS_DECLARE_FUNCTION (gumjs_symbol_get_function_by_name)
 GUMJS_DECLARE_FUNCTION (gumjs_symbol_find_functions_named)
 GUMJS_DECLARE_FUNCTION (gumjs_symbol_find_functions_matching)
+GUMJS_DECLARE_FUNCTION (gumjs_load_module)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_symbol_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_symbol_to_string)
@@ -29,6 +30,7 @@ static const duk_function_list_entry gumjs_symbol_module_functions[] =
   { "getFunctionByName", gumjs_symbol_get_function_by_name, 1 },
   { "findFunctionsNamed", gumjs_symbol_find_functions_named, 1 },
   { "findFunctionsMatching", gumjs_symbol_find_functions_matching, 1 },
+  { "loadModule", gumjs_load_module, 1 },
 
   { NULL, NULL, 0 }
 };
@@ -180,6 +182,21 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_matching)
   gumjs_pointer_array_push (ctx, functions, args->core);
   g_array_free (functions, TRUE);
   return 1;
+}
+
+GUMJS_DEFINE_FUNCTION(gumjs_load_module)
+{
+	GumDukScope scope = GUM_DUK_SCOPE_INIT(args->core);
+	const gchar * str;
+	GArray * functions;
+
+	_gum_duk_args_parse(args, "s", &str);
+
+	_gum_duk_scope_suspend(&scope);
+	gum_load_module(str);
+	_gum_duk_scope_resume(&scope);
+
+	return 1;
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_symbol_construct)
