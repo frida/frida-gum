@@ -148,25 +148,31 @@ gum_find_functions_matching (const gchar * str)
   return matches;
 }
 
-void
+DWORD
 gum_load_module(const gchar * str)
 {
 	GArray * matches;
 	GumDbghelpImpl * dbghelp;
-	gchar * match_formatted_str;
 	HANDLE cur_process_handle;
 	guint64 any_module_base;
 
 	dbghelp = gum_dbghelp_impl_try_obtain();
 	if (dbghelp == NULL)
-		return matches;
+		return;
 
 	cur_process_handle = GetCurrentProcess();
 	any_module_base = 0;
 
 	dbghelp->Lock();
-	dbghelp->SymLoadModuleEx(cur_process_handle, 0, str, 0, 0, 0, 0, 0);
+
+	if (!dbghelp->SymLoadModuleEx(cur_process_handle, 0, str, 0, 0, 0, 0, 0))
+	{
+		DWORD error = GetLastError();
+		return error;
+	}
 	dbghelp->Unlock();
+
+	return 0;
 }
 
 static BOOL CALLBACK
