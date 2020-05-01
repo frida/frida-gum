@@ -41,6 +41,7 @@ struct _GumDbghelpImpl
       PVOID UserContext);
   BOOL (WINAPI * SymFromAddr) (HANDLE hProcess, DWORD64 Address,
       PDWORD64 Displacement, PSYMBOL_INFO Symbol);
+  DWORD (WINAPI * SymSetOptions) (DWORD SymOptions);
   PVOID (WINAPI * SymFunctionTableAccess64) (HANDLE hProcess,
       DWORD64 AddrBase);
   BOOL (WINAPI * SymGetLineFromAddr64) (HANDLE hProcess, DWORD64 qwAddr,
