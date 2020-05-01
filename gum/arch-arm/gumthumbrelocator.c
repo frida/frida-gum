@@ -629,11 +629,11 @@ gum_thumb_relocator_rewrite_ldr (GumThumbRelocator * self,
   {
     target = ARM_REG_R0;
 
-    /* Make space on the stack to store the calculated PC ready to be popped. */
-    gum_thumb_writer_put_sub_reg_reg_imm (ctx->output, ARM_REG_SP, ARM_REG_SP,
-        4);
-
-    gum_thumb_writer_put_push_regs (ctx->output, 1, target);
+    /*
+     * Push the current PC onto the stack to make space. This will be
+     * overwritten with the correct address before it is popped.
+     */
+    gum_thumb_writer_put_push_regs (ctx->output, 2, target, ARM_REG_PC);
   }
   else
   {
