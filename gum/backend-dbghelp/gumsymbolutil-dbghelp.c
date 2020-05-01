@@ -168,6 +168,7 @@ gum_load_module(const gchar * str)
 	if (!dbghelp->SymLoadModuleEx(cur_process_handle, 0, str, 0, 0, 0, 0, 0))
 	{
 		DWORD error = GetLastError();
+		dbghelp->Unlock();
 		return error;
 	}
 	dbghelp->Unlock();
