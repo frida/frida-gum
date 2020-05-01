@@ -148,13 +148,13 @@ gum_find_functions_matching (const gchar * str)
   return matches;
 }
 
-DWORD
+guint64
 gum_load_module(const gchar * str)
 {
-	GArray * matches;
 	GumDbghelpImpl * dbghelp;
 	HANDLE cur_process_handle;
 	guint64 modBase;
+	guint64 ret;
 
 	dbghelp = gum_dbghelp_impl_try_obtain();
 	if (dbghelp == NULL)
@@ -164,15 +164,10 @@ gum_load_module(const gchar * str)
 	modBase = GetModuleHandleA(str);
 
 	dbghelp->Lock();
-	if (!dbghelp->SymLoadModuleEx(cur_process_handle, 0, str, 0, modBase, 0, 0, 0))
-	{
-		DWORD error = GetLastError();
-		dbghelp->Unlock();
-		return error;
-	}
+	ret = dbghelp->SymLoadModuleEx(cur_process_handle, 0, str, 0, modBase, 0, 0, 0);
 	dbghelp->Unlock();
 
-	return 0;
+	return ret;
 }
 
 static BOOL CALLBACK

@@ -188,14 +188,15 @@ GUMJS_DEFINE_FUNCTION(gumjs_load_module)
 {
 	GumDukScope scope = GUM_DUK_SCOPE_INIT(args->core);
 	const gchar * str;
-	GArray * functions;
+	guint64 ret;
 
 	_gum_duk_args_parse(args, "s", &str);
 
 	_gum_duk_scope_suspend(&scope);
-	gum_load_module(str);
+	ret = gum_load_module(str);
 	_gum_duk_scope_resume(&scope);
 
+	_gum_duk_push_uint64(ctx, ret, args->core);
 	return 1;
 }
 
