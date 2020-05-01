@@ -632,7 +632,7 @@ gum_thumb_relocator_rewrite_ldr (GumThumbRelocator * self,
     /*
      * Push the current PC onto the stack to make space. This will be
      * overwritten with the correct address before it is popped.
-    */
+     */
     gum_thumb_writer_put_push_regs (ctx->output, 2, target, ARM_REG_PC);
   }
   else
