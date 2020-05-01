@@ -62,11 +62,11 @@ do_init (gpointer data)
   INIT_IMPL_FUNC (SymGetModuleBase64);
   INIT_IMPL_FUNC (SymGetTypeInfo);
   INIT_IMPL_FUNC (SymLoadModuleEx);
-
+  INIT_IMPL_FUNC (SymGetModuleInfo);
+  
   impl->Lock = gum_dbghelp_impl_lock;
   impl->Unlock = gum_dbghelp_impl_unlock;
   impl->SymInitialize(GetCurrentProcess(), NULL, TRUE);
-  impl->SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
 
   _gum_register_destructor (do_deinit);
 
