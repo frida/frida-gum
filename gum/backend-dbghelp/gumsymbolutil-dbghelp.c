@@ -154,18 +154,17 @@ gum_load_module(const gchar * str)
 	GArray * matches;
 	GumDbghelpImpl * dbghelp;
 	HANDLE cur_process_handle;
-	guint64 any_module_base;
+	guint64 modBase;
 
 	dbghelp = gum_dbghelp_impl_try_obtain();
 	if (dbghelp == NULL)
 		return;
 
 	cur_process_handle = GetCurrentProcess();
-	any_module_base = 0;
+	modBase = GetModuleHandleA(str);
 
 	dbghelp->Lock();
-
-	if (!dbghelp->SymLoadModuleEx(cur_process_handle, 0, str, 0, 0, 0, 0, 0))
+	if (!dbghelp->SymLoadModuleEx(cur_process_handle, 0, str, 0, modBase, 0, 0, 0))
 	{
 		DWORD error = GetLastError();
 		dbghelp->Unlock();
