@@ -370,7 +370,7 @@ gum_arm64_writer_put_call_address_with_arguments (GumArm64Writer * self,
   }
   else
   {
-    arm64_reg target = ARM64_REG_X0 + n_args;
+    const arm64_reg target = ARM64_REG_X0 + n_args;
     gum_arm64_writer_put_ldr_reg_address (self, target, func);
     gum_arm64_writer_put_blr_reg (self, target);
   }
@@ -393,7 +393,7 @@ gum_arm64_writer_put_call_address_with_arguments_array (
   }
   else
   {
-    arm64_reg target = ARM64_REG_X0 + n_args;
+    const arm64_reg target = ARM64_REG_X0 + n_args;
     gum_arm64_writer_put_ldr_reg_address (self, target, func);
     gum_arm64_writer_put_blr_reg (self, target);
   }
@@ -505,7 +505,7 @@ gum_arm64_writer_put_branch_address (GumArm64Writer * self,
 {
   if (!gum_arm64_writer_can_branch_directly_between (self, self->pc, address))
   {
-    arm64_reg target = ARM64_REG_X16;
+    const arm64_reg target = ARM64_REG_X16;
 
     if (!gum_arm64_writer_put_ldr_reg_address (self, target, address))
       return FALSE;
