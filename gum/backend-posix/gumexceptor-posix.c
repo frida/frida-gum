@@ -585,7 +585,7 @@ gum_disassemble_instruction_at (gconstpointer address,
 #if defined (HAVE_I386)
   err = cs_open (CS_ARCH_X86, GUM_CPU_MODE, &capstone);
 #elif defined (HAVE_ARM)
-  if (context->cpsr & ARM_GRP_THUMB)
+  if ((context->cpsr & 0x20) != 0)
     err = cs_open (CS_ARCH_ARM, CS_MODE_THUMB, &capstone);
   else
     err = cs_open (CS_ARCH_ARM, CS_MODE_ARM, &capstone);
