@@ -3564,7 +3564,8 @@ gum_exec_block_write_thumb_exec_generated_code (GumThumbWriter * cw,
 
   thumb = cw->code + 1;
   gum_thumb_writer_put_cbnz_reg_label (cw, ARM_REG_R0, thumb);
-  gum_thumb_writer_put_pop_regs (cw, 1, ARM_REG_R12);
+  gum_thumb_writer_put_pop_regs (cw, 1, ARM_REG_R0);
+  gum_thumb_writer_put_mov_reg_reg (cw, ARM_REG_R12, ARM_REG_R0);
   gum_thumb_writer_put_pop_regs (cw, 1, ARM_REG_R0);
   gum_thumb_writer_put_bx_reg (cw, ARM_REG_R12);
 
