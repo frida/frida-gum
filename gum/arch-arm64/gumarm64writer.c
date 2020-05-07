@@ -499,7 +499,7 @@ gum_arm64_writer_put_argument_list_teardown (GumArm64Writer * self,
 {
 }
 
-gboolean
+void
 gum_arm64_writer_put_branch_address (GumArm64Writer * self,
                                      GumAddress address)
 {
@@ -507,13 +507,13 @@ gum_arm64_writer_put_branch_address (GumArm64Writer * self,
   {
     const arm64_reg target = ARM64_REG_X16;
 
-    if (!gum_arm64_writer_put_ldr_reg_address (self, target, address))
-      return FALSE;
+    gum_arm64_writer_put_ldr_reg_address (self, target, address);
+    gum_arm64_writer_put_br_reg (self, target);
 
-    return gum_arm64_writer_put_br_reg (self, target);
+    return;
   }
 
-  return gum_arm64_writer_put_b_imm (self, address);
+  gum_arm64_writer_put_b_imm (self, address);
 }
 
 gboolean
