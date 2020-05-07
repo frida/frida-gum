@@ -1056,7 +1056,7 @@ gum_arm_condify (arm_cc cc)
 static guint32
 gum_arm_shiftify (arm_shifter shifter)
 {
-  guint32 code;
+  guint32 code = 0;
 
   switch (shifter)
   {
