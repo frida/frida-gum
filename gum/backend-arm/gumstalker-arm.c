@@ -2271,7 +2271,7 @@ gum_exec_ctx_write_arm_mov_branch_target (GumExecCtx * ctx,
       if (target->offset >= 0)
         gum_arm_writer_put_add_reg_reg_imm (cw, reg, reg, target->offset);
       else
-        gum_arm_writer_put_sub_reg_reg_imm (cw, reg, reg, target->offset);
+        gum_arm_writer_put_sub_reg_reg_imm (cw, reg, reg, -target->offset);
     }
   }
 }
@@ -3472,7 +3472,7 @@ static void gum_exec_block_write_arm_handle_write_back (GumExecBlock * block,
   if (write_back->offset >= 0)
     gum_arm_writer_put_add_reg_u32 (cw, write_back->target, write_back->offset);
   else
-    gum_arm_writer_put_sub_reg_u32 (cw, write_back->target, write_back->offset);
+    gum_arm_writer_put_sub_reg_u32 (cw, write_back->target, -write_back->offset);
 }
 
 static void

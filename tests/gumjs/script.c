@@ -2569,7 +2569,6 @@ TESTCASE (execution_can_be_traced)
   test_thread_id = gum_process_get_current_thread_id ();
 
   COMPILE_AND_LOAD_SCRIPT (
-      "Stalker.queueDrainInterval = 0;"
       "var testsRange = Process.getModuleByName('%s');"
       "Stalker.exclude(testsRange);"
 
