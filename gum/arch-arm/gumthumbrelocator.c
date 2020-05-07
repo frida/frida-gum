@@ -574,11 +574,7 @@ gum_arm_branch_is_unconditional (const cs_insn * insn)
 static gboolean
 gum_reg_dest_is_pc (const cs_insn * insn)
 {
-  cs_arm_op * op = &insn->detail->arm.operands[0];
-
-  g_assert (op->type == ARM_OP_REG);
-
-  return op->reg == ARM_REG_PC;
+  return insn->detail->arm.operands[0].reg == ARM_REG_PC;
 }
 
 static gboolean
