@@ -22,8 +22,13 @@ struct _GumCodeGenCtx
 };
 
 static gboolean gum_arm_branch_is_unconditional (const cs_insn * insn);
+static gboolean gum_reg_dest_is_pc (const cs_insn * insn);
+static gboolean gum_reg_list_contains_pc (const cs_insn * insn,
+    guint8 start_index);
 
 static gboolean gum_arm_relocator_rewrite_ldr (GumArmRelocator * self,
+    GumCodeGenCtx * ctx);
+static gboolean gum_arm_relocator_rewrite_mov (GumArmRelocator * self,
     GumCodeGenCtx * ctx);
 static gboolean gum_arm_relocator_rewrite_add (GumArmRelocator * self,
     GumCodeGenCtx * ctx);
@@ -186,16 +191,17 @@ gum_arm_relocator_read_one (GumArmRelocator * self,
       self->eob = TRUE;
       self->eoi = FALSE;
       break;
+    case ARM_INS_LDR:
+    case ARM_INS_MOV:
+    case ARM_INS_ADD:
+    case ARM_INS_SUB:
+      self->eob = self->eoi = gum_reg_dest_is_pc (insn);
+      break;
     case ARM_INS_POP:
-      if (cs_reg_read (self->capstone, insn, ARM_REG_PC))
-      {
-        self->eob = TRUE;
-        self->eoi = TRUE;
-      }
-      else
-      {
-        self->eob = FALSE;
-      }
+      self->eob = self->eoi = gum_reg_list_contains_pc (insn, 0);
+      break;
+    case ARM_INS_LDM:
+      self->eob = self->eoi = gum_reg_list_contains_pc (insn, 1);
       break;
     default:
       self->eob = FALSE;
@@ -260,6 +266,9 @@ gum_arm_relocator_write_one (GumArmRelocator * self)
   {
     case ARM_INS_LDR:
       rewritten = gum_arm_relocator_rewrite_ldr (self, &ctx);
+      break;
+    case ARM_INS_MOV:
+      rewritten = gum_arm_relocator_rewrite_mov (self, &ctx);
       break;
     case ARM_INS_ADD:
       rewritten = gum_arm_relocator_rewrite_add (self, &ctx);
@@ -388,28 +397,112 @@ gum_arm_branch_is_unconditional (const cs_insn * insn)
 }
 
 static gboolean
+gum_reg_dest_is_pc (const cs_insn * insn)
+{
+  return insn->detail->arm.operands[0].reg == ARM_REG_PC;
+}
+
+static gboolean
+gum_reg_list_contains_pc (const cs_insn * insn,
+                          guint8 start_index)
+{
+  guint8 i;
+
+  for (i = start_index; i < insn->detail->arm.op_count; i++)
+  {
+    if (insn->detail->arm.operands[i].reg == ARM_REG_PC)
+      return TRUE;
+  }
+
+  return FALSE;
+}
+
+static gboolean
 gum_arm_relocator_rewrite_ldr (GumArmRelocator * self,
                                GumCodeGenCtx * ctx)
 {
   const cs_arm_op * dst = &ctx->detail->operands[0];
   const cs_arm_op * src = &ctx->detail->operands[1];
-  gint disp;
+  arm_reg target;
 
   if (src->type != ARM_OP_MEM || src->mem.base != ARM_REG_PC)
     return FALSE;
 
-  disp = src->mem.disp;
+  if (ctx->detail->writeback)
+  {
+    /* FIXME: LDR with writeback not yet supported. */
+    g_assert_not_reached ();
+    return FALSE;
+  }
+
+  if (dst->reg == ARM_REG_PC)
+  {
+    /*
+     * When choosing a scratch register, we favor Rm since it is often this
+     * value we wish to use to start our calculation and this avoids a register
+     * move.
+     *
+     * If however Rm is an immediate, we choose an arbitrary register.
+     */
+    target = (src->mem.index != ARM_REG_INVALID) ? src->mem.index : ARM_REG_R0;
+
+    gum_arm_writer_put_push_registers (ctx->output, 2, target, ARM_REG_PC);
+  }
+  else
+  {
+    target = dst->reg;
+  }
+
+  /* Handle 'LDR Rt, [Rn, #x]' or 'LDR Rt, [Rn, #-x]' */
+  if (src->mem.index == ARM_REG_INVALID)
+  {
+    gint disp = src->mem.disp;
+
+    gum_arm_writer_put_ldr_reg_address (ctx->output, target, ctx->pc);
+
+    if (disp >= 0)
+      gum_arm_writer_put_add_reg_u16 (ctx->output, target, disp);
+    else
+      gum_arm_writer_put_sub_reg_u16 (ctx->output, target, -disp);
+  }
+  else
+  {
+    if (src->subtracted)
+    {
+      /* FIXME: 'LDR Rt, [Rn, -Rm, #x]' not yet supported. */
+      gum_arm_writer_put_breakpoint (ctx->output);
+      return TRUE;
+    }
+
+    /* Handle 'LDR Rt, [Rn, Rm, lsl #x]' */
+    gum_arm_writer_put_mov_reg_reg_shift (ctx->output, target, src->mem.index,
+        src->shift.type, src->shift.value);
+
+    gum_arm_writer_put_add_reg_u32 (ctx->output, target, ctx->pc);
+  }
+
+  gum_arm_writer_put_ldr_reg_reg_offset (ctx->output, target, target, 0);
+
+  if (dst->reg == ARM_REG_PC)
+  {
+    gum_arm_writer_put_str_reg_reg_offset (ctx->output, target, ARM_REG_SP, 4);
+    gum_arm_writer_put_pop_registers (ctx->output, 2, target, ARM_REG_PC);
+  }
+
+  return TRUE;
+}
+
+static gboolean
+gum_arm_relocator_rewrite_mov (GumArmRelocator * self,
+                               GumCodeGenCtx * ctx)
+{
+  const cs_arm_op * dst = &ctx->detail->operands[0];
+  const cs_arm_op * src = &ctx->detail->operands[1];
+
+  if (src->type != ARM_OP_REG || src->reg != ARM_REG_PC)
+    return FALSE;
 
   gum_arm_writer_put_ldr_reg_address (ctx->output, dst->reg, ctx->pc);
-  if (disp > 0xff)
-  {
-    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
-        0xc00 | ((disp >> 8) & 0xff));
-  }
-  gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
-      disp & 0xff);
-  gum_arm_writer_put_ldr_reg_reg_imm (ctx->output, dst->reg, dst->reg, 0);
-
   return TRUE;
 }
 
@@ -417,28 +510,99 @@ static gboolean
 gum_arm_relocator_rewrite_add (GumArmRelocator * self,
                                GumCodeGenCtx * ctx)
 {
-  const cs_arm_op * dst = &ctx->detail->operands[0];
-  const cs_arm_op * left = &ctx->detail->operands[1];
-  const cs_arm_op * right = &ctx->detail->operands[2];
+  const cs_arm_op * operands = ctx->detail->operands;
+  const cs_arm_op * dst = &operands[0];
+  const cs_arm_op * left = &operands[1];
+  const cs_arm_op * right = &operands[2];
+  arm_reg target;
 
-  if (left->reg != ARM_REG_PC || right->type != ARM_OP_REG)
+  if (left->reg != ARM_REG_PC)
     return FALSE;
 
-  if (right->reg == dst->reg)
+  if (dst->reg == ARM_REG_PC)
   {
-    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
-        ctx->pc & 0xff);
-    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
-        0xc00 | ((ctx->pc >> 8) & 0xff));
-    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
-        0x800 | ((ctx->pc >> 16) & 0xff));
-    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
-        0x400 | ((ctx->pc >> 24) & 0xff));
+    /*
+     * When choosing a scratch register, we favor Rm since it is often this
+     * value we wish to use to start our calculation and this avoids a register
+     * move.
+     *
+     * If however Rm is an immediate, we choose an arbitrary register.
+     */
+    target = (right->type == ARM_OP_REG) ? right->reg : ARM_REG_R0;
+
+    gum_arm_writer_put_push_registers (ctx->output, 2, target, ARM_REG_PC);
   }
   else
   {
-    gum_arm_writer_put_ldr_reg_address (ctx->output, dst->reg, ctx->pc);
-    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, right->reg, 0);
+    target = dst->reg;
+  }
+
+  if (right->shift.value == 0)
+  {
+    /*
+     * We have no shift to apply, so we start our calculation with the value of
+     * PC since we can store this as a literal in the code stream and reduce the
+     * number of instructions we need to generate.
+     */
+    if (right->type == ARM_OP_IMM)
+    {
+      /* Handle 'ADD Rd, Rn, #x' */
+      gum_arm_writer_put_ldr_reg_address (ctx->output, target, ctx->pc);
+      gum_arm_writer_put_add_reg_u32 (ctx->output, target, right->imm);
+    }
+    else if (right->reg == dst->reg)
+    {
+      /*
+       * Handle 'ADD Rd, Rn, Rd'. This is a special case since we cannot load PC
+       * from a literal into Rd since in doing so, we lose the value of Rm which
+       * we want to add on. This calculation can be simplified to just adding
+       * the PC to Rd.
+       */
+      gum_arm_writer_put_add_reg_u32 (ctx->output, target, ctx->pc);
+    }
+    else
+    {
+      /* Handle 'ADD Rd, Rn, Rm' */
+      gum_arm_writer_put_ldr_reg_address (ctx->output, target, ctx->pc);
+      gum_arm_writer_put_add_reg_reg_imm (ctx->output, target, right->reg, 0);
+    }
+  }
+  else
+  {
+    /*
+     * As we have a shift operation to apply, we must start by calculating this
+     * value and adding on PC, as we would otherwise need a second scratch
+     * register to calculate this. Note that in this case, we don't have to
+     * worry if Rd == Rm since although we may be using Rd to hold the
+     * intermediate result, we perform all necessary calculations on Rm before
+     * we update Rd.
+     */
+
+    if (right->type == ARM_OP_IMM)
+    {
+      /* Handle 'ADD Rd, Rn, #x, lsl #n' */
+      gum_arm_writer_put_ldr_reg_u32 (ctx->output, target, right->imm);
+    }
+    else
+    {
+      /* Handle 'ADD Rd, Rn, Rm, lsl #n' */
+      gum_arm_writer_put_mov_reg_reg (ctx->output, target, right->reg);
+    }
+
+    gum_arm_writer_put_mov_reg_reg_shift (ctx->output, target, target,
+        right->shift.type, right->shift.value);
+
+    /*
+     * Now the shifted second operand has been calculated, we can simply add the
+     * PC value.
+     */
+    gum_arm_writer_put_add_reg_u32 (ctx->output, target, ctx->pc);
+  }
+
+  if (dst->reg == ARM_REG_PC)
+  {
+    gum_arm_writer_put_str_reg_reg_offset (ctx->output, target, ARM_REG_SP, 4);
+    gum_arm_writer_put_pop_registers (ctx->output, 2, target, ARM_REG_PC);
   }
 
   return TRUE;
