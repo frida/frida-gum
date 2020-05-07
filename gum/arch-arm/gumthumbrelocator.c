@@ -221,16 +221,13 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
       self->eoi = FALSE;
       break;
     case ARM_INS_LDR:
-      self->eob = gum_reg_dest_is_pc (insn);
-      self->eoi = gum_reg_dest_is_pc (insn);
+      self->eob = self->eoi = gum_reg_dest_is_pc (insn);
       break;
     case ARM_INS_POP:
-      self->eob = gum_reg_list_contains_pc (insn, 0);
-      self->eoi = gum_reg_list_contains_pc (insn, 0);
+      self->eob = self->eoi = gum_reg_list_contains_pc (insn, 0);
       break;
     case ARM_INS_LDM:
-      self->eob = gum_reg_list_contains_pc (insn, 1);
-      self->eoi = gum_reg_list_contains_pc (insn, 1);
+      self->eob = self->eoi = gum_reg_list_contains_pc (insn, 1);
       break;
     case ARM_INS_IT:
     {
