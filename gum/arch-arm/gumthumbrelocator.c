@@ -589,11 +589,7 @@ gum_reg_list_contains_pc (const cs_insn * insn,
 
   for (i = start_index; i < insn->detail->arm.op_count; i++)
   {
-    cs_arm_op * op = &insn->detail->arm.operands[i];
-
-    g_assert (op->type == ARM_OP_REG);
-
-    if (op->reg == ARM_REG_PC)
+    if (insn->detail->arm.operands[i].reg == ARM_REG_PC)
       return TRUE;
   }
 
