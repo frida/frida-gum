@@ -69,11 +69,6 @@ if host_os == 'ios'
   extra_link_args += ['-Wl,-framework,Foundation']
 endif
 
-if host_os == 'ios' and host_arch == 'arm'
-  # Stalker tests cover some non-PIE scenarios.
-  extra_link_args += ['-Wl,-no_pie']
-endif
-
 runner = executable(runner_name, runner_sources + [test_data_stamp],
   link_with: [
     gum_tests_core,

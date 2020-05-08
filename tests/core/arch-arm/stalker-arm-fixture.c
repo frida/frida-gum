@@ -34,35 +34,9 @@
 #define NTH_EXEC_EVENT_LOCATION(N) \
     (gum_fake_event_sink_get_nth_event_as_exec (fixture->sink, N)->location)
 
-#define CODE_START(NAME)                                                  \
-    (&test_arm_stalker_ ## NAME ## _begin)
-#define CODE_SIZE(NAME)                                                   \
-    ((&test_arm_stalker_ ## NAME ## _end) -                               \
-     (&test_arm_stalker_ ## NAME ## _begin))
-
-#ifdef __APPLE__
-# define SYMBOL_NAME_OF(NAME)                                             \
-    G_STRINGIFY (G_PASTE (_, NAME))
-# define DEFINE_SYMBOL(NAME)                                              \
-    ".globl " SYMBOL_NAME_OF (NAME) "\n\t"                                \
-    SYMBOL_NAME_OF (NAME) ":\n\t"
-#else
-# define SYMBOL_NAME_OF(NAME)                                             \
-    G_STRINGIFY (NAME)
-# define DEFINE_SYMBOL(NAME)                                              \
-    ".globl " SYMBOL_NAME_OF (NAME) "\n\t"                                \
-    G_STRINGIFY (NAME) ":\n\t"
-#endif
-
-#define TESTCODE(NAME, CODE) \
-    extern const void test_arm_stalker_ ## NAME ## _begin;                \
-    extern const void test_arm_stalker_ ## NAME ## _end;                  \
-    asm (                                                                 \
-      ".align 2\n\t"                                                      \
-      DEFINE_SYMBOL (G_PASTE (G_PASTE (test_arm_stalker_, NAME), _begin)) \
-      CODE                                                                \
-      DEFINE_SYMBOL (G_PASTE (G_PASTE (test_arm_stalker_, NAME), _end))   \
-    );
+#define TESTCODE(NAME, ...) static const guint8 NAME[] = { __VA_ARGS__ }
+#define CODE_START(NAME) ((gconstpointer) NAME)
+#define CODE_SIZE(NAME) sizeof (NAME)
 
 #define GUM_EVENT_TYPE_exec GumExecEvent
 #define GUM_EVENT_TYPE_NAME_exec GUM_EXEC
@@ -157,20 +131,18 @@ static void test_arm_stalker_fixture_stalked (TestArmStalkerFixture * fixture,
     GumAddress addr);
 
 TESTCODE (arm_flat_code,
-  ".arm\n\t"
-  "sub r0, r0, r0\n\t"
-  "add r0, r0, #1\n\t"
-  "add r0, r0, #1\n\t"
-  "mov pc, lr\n\t"
+  0x00, 0x00, 0x40, 0xe0, /* sub r0, r0, r0  */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1   */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1   */
+  0x0e, 0xf0, 0xa0, 0xe1  /* mov pc, lr      */
 );
 
 TESTCODE (thumb_flat_code,
-  ".thumb\n\t"
-  "push {lr}\n\t"
-  "sub r0, r0, r0\n\t"
-  "add r0, r0, #1\n\t"
-  "add r0, r0, #1\n\t"
-  "pop {pc}\n\t"
+  0x00, 0xb5,             /* push {lr}       */
+  0x00, 0x1a,             /* subs r0, r0, r0 */
+  0x01, 0x30,             /* adds r0, 1      */
+  0x01, 0x30,             /* adds r0, 1      */
+  0x00, 0xbd              /* pop {pc}        */
 );
 
 static void

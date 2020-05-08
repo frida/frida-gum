@@ -12,8 +12,6 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (add_call_probe_unsupported)
   TESTENTRY (remove_call_probe_unsupported)
 
-  TESTENTRY (arm_flat_code)
-  TESTENTRY (thumb_flat_code)
   TESTENTRY (arm_no_events)
   TESTENTRY (thumb_no_events)
   TESTENTRY (arm_exec_events_generated)
@@ -80,7 +78,6 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (heap_api)
 TESTLIST_END ()
 
-void test_arm_stalker_call_workload (GumMemoryRange * runner_range);
 static gboolean store_range_of_test_runner (const GumModuleDetails * details,
     gpointer user_data);
 static void pretend_workload (GumMemoryRange * runner_range);
@@ -135,33 +132,6 @@ TESTCASE (remove_call_probe_unsupported)
       "Call probes unsupported");
   gum_stalker_remove_call_probe (fixture->stalker, 10);
   g_test_assert_expected_messages ();
-}
-
-TESTCASE (arm_flat_code)
-{
-  guint32 * code;
-
-  g_assert_cmpuint (CODE_SIZE (arm_flat_code), ==, 16);
-
-  code = (guint32 *) CODE_START (arm_flat_code);
-  g_assert_cmpuint (code[0], ==, 0xe0400000);
-  g_assert_cmpuint (code[1], ==, 0xe2800001);
-  g_assert_cmpuint (code[2], ==, 0xe2800001);
-  g_assert_cmpuint (code[3], ==, 0xe1a0f00e);
-}
-
-TESTCASE (thumb_flat_code)
-{
-  guint16 * code;
-
-  g_assert_cmpuint (CODE_SIZE (thumb_flat_code), ==, 10);
-
-  code = (guint16 *) CODE_START (thumb_flat_code);
-  g_assert_cmpuint (code[0], ==, 0xb500);
-  g_assert_cmpuint (code[1], ==, 0x1a00);
-  g_assert_cmpuint (code[2], ==, 0x3001);
-  g_assert_cmpuint (code[3], ==, 0x3001);
-  g_assert_cmpuint (code[4], ==, 0xbd00);
 }
 
 TESTCASE (arm_no_events)
@@ -262,14 +232,15 @@ TESTCASE (thumb_call_events_generated)
 }
 
 TESTCODE (arm_block_events,
-  ".arm\n\t"
-  "sub r0, r0, r0\n\t"
-  "add r0, r0, #1\n\t"
-  "b 1f\n\t"
-  "udf #0\n\t"
-  "1:\n\t"
-  "add r0, r0, #1\n\t"
-  "mov pc, lr\n\t"
+  0x00, 0x00, 0x40, 0xe0, /* sub r0, r0, r0 */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1  */
+  0x00, 0x00, 0x00, 0xea, /* b beach        */
+
+  0xf0, 0x00, 0xf0, 0xe7, /* udf 0          */
+
+  /* beach:                                 */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1  */
+  0x0e, 0xf0, 0xa0, 0xe1  /* mov pc, lr     */
 );
 
 TESTCASE (arm_block_events_generated)
@@ -286,15 +257,16 @@ TESTCASE (arm_block_events_generated)
 }
 
 TESTCODE (thumb_block_events,
-  ".thumb\n\t"
-  "push {lr}\n\t"
-  "sub r0, r0, r0\n\t"
-  "add r0, r0, #1\n\t"
-  "b 1f\n\t"
-  "udf #0\n\t"
-  "1:\n\t"
-  "add r0, r0, #1\n\t"
-  "pop {pc}\n\t"
+  0x00, 0xb5, /* push {lr}       */
+  0x00, 0x1a, /* subs r0, r0, r0 */
+  0x01, 0x30, /* adds r0, 1      */
+  0x00, 0xe0, /* b beach         */
+
+  0x00, 0xde, /* udf 0           */
+
+  /* beach:                      */
+  0x01, 0x30, /* adds r0, 1      */
+  0x00, 0xbd  /* pop {pc}        */
 );
 
 TESTCASE (thumb_block_events_generated)
@@ -311,25 +283,24 @@ TESTCASE (thumb_block_events_generated)
 }
 
 TESTCODE (arm_nested_call,
-  ".arm\n\t"
-  "stmdb sp!, {lr}\n\t"
-  "sub r0, r0, r0\n\t"
-  "add r0, r0, #1\n\t"
-  "bl 2f\n\t"
-  "bl 3f\n\t"
-  "ldmia sp!, {lr}\n\t"
-  "mov pc, lr\n\t"
+  0x00, 0x40, 0x2d, 0xe9, /* stmdb sp!, {lr} */
+  0x00, 0x00, 0x40, 0xe0, /* sub r0, r0, r0  */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1   */
+  0x02, 0x00, 0x00, 0xeb, /* bl func_a       */
+  0x06, 0x00, 0x00, 0xeb, /* bl func_b       */
+  0x00, 0x40, 0xbd, 0xe8, /* ldm sp!, {lr}   */
+  0x0e, 0xf0, 0xa0, 0xe1, /* mov pc, lr      */
 
-  "2:\n\t"
-  "stmdb sp!, {lr}\n\t"
-  "add r0, r0, #1\n\t"
-  "bl 3f\n\t"
-  "ldmia sp!, {lr}\n\t"
-  "mov pc, lr\n\t"
+  /* func_a:                                 */
+  0x00, 0x40, 0x2d, 0xe9, /* stmdb sp!, {lr} */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1   */
+  0x01, 0x00, 0x00, 0xeb, /* bl func_b       */
+  0x00, 0x40, 0xbd, 0xe8, /* ldm sp!, {lr}   */
+  0x0e, 0xf0, 0xa0, 0xe1, /* mov pc, lr      */
 
-  "3:\n\t"
-  "add r0, r0, #1\n\t"
-  "mov pc, lr\n\t"
+  /* func_b:                                 */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1   */
+  0x0e, 0xf0, 0xa0, 0xe1  /* mov pc, lr      */
 );
 
 TESTCASE (arm_nested_call_events_generated)
@@ -359,24 +330,23 @@ TESTCASE (arm_nested_call_events_generated)
 }
 
 TESTCODE (thumb_nested_call,
-  ".thumb\n\t"
-  "push {lr}\n\t"
-  "sub r0, r0, r0\n\t"
-  "add r0, r0, #1\n\t"
-  "bl 2f\n\t"
-  "bl 3f\n\t"
-  "pop {pc}\n\t"
+  0x00, 0xb5,             /* push {lr}       */
+  0x00, 0x1a,             /* subs r0, r0, r0 */
+  0x01, 0x30,             /* adds r0, 1      */
+  0x00, 0xf0, 0x03, 0xf8, /* bl func_a       */
+  0x00, 0xf0, 0x06, 0xf8, /* bl func_b       */
+  0x00, 0xbd,             /* pop {pc}        */
 
-  "2:\n\t"
-  "push {lr}\n\t"
-  "add r0, r0, #1\n\t"
-  "bl 3f\n\t"
-  "pop {pc}\n\t"
+  /* func_a:                                 */
+  0x00, 0xb5,             /* push {lr}       */
+  0x01, 0x30,             /* adds r0, 1      */
+  0x00, 0xf0, 0x01, 0xf8, /* bl func_b       */
+  0x00, 0xbd,             /* pop {pc}        */
 
-  "3:\n\t"
-  "push {lr}\n\t"
-  "add r0, r0, #1\n\t"
-  "pop {pc}\n\t"
+  /* func_b:                                 */
+  0x00, 0xb5,             /* push {lr}       */
+  0x01, 0x30,             /* adds r0, 1      */
+  0x00, 0xbd              /* pop {pc}        */
 );
 
 TESTCASE (thumb_nested_call_events_generated)
@@ -456,14 +426,15 @@ TESTCASE (thumb_nested_ret_events_generated)
 }
 
 TESTCODE (arm_unmodified_lr,
-  ".arm\n\t"
-  "stmdb sp!, {lr}\n\t"
-  "bl 1f\n\t"
-  ".word 0xecececec\n\t"
-  "1:\n\t"
-  "ldr r0, [lr]\n\t"
-  "ldmia sp!, {lr}\n\t"
-  "mov pc, lr\n\t"
+  0x00, 0x40, 0x2d, 0xe9, /* stmdb sp!, {lr} */
+  0x00, 0x00, 0x00, 0xeb, /* bl part_two     */
+
+  0xec, 0xec, 0xec, 0xec,
+
+  /* part_two:                               */
+  0x00, 0x00, 0x9e, 0xe5, /* ldr r0, [lr]    */
+  0x00, 0x40, 0xbd, 0xe8, /* ldm sp!, {lr}   */
+  0x0e, 0xf0, 0xa0, 0xe1, /* mov pc, lr      */
 );
 
 TESTCASE (arm_unmodified_lr)
@@ -473,17 +444,18 @@ TESTCASE (arm_unmodified_lr)
 }
 
 TESTCODE (thumb_unmodified_lr,
-  ".thumb\n\t"
-  "push {lr}\n\t"
-  "bl 1f\n\t"
-  ".word 0xecececec\n\t"
-  "1:\n\t"
-  "sub r1, r1, r1\n\t"
-  "add r1, r1, #1\n\t"
-  "mov r0, lr\n\t"
-  "bic r0, r0, r1\n\t"
-  "ldr r0, [r0]\n\t"
-  "pop {pc}\n\t"
+  0x00, 0xb5,             /* push {lr}       */
+  0x00, 0xf0, 0x02, 0xf8, /* bl part_two     */
+
+  0xec, 0xec, 0xec, 0xec,
+
+  /* part_two:                               */
+  0x49, 0x1a,             /* subs r1, r1, r1 */
+  0x01, 0x31,             /* adds r1, 1      */
+  0x70, 0x46,             /* mov r0, lr      */
+  0x88, 0x43,             /* bics r0, r1     */
+  0x00, 0x68,             /* ldr r0, [r0]    */
+  0x00, 0xbd              /* pop {pc}        */
 );
 
 TESTCASE (thumb_unmodified_lr)
@@ -494,17 +466,16 @@ TESTCASE (thumb_unmodified_lr)
 }
 
 TESTCODE (arm_excluded_range,
-  ".arm\n\t"
-  "stmdb sp!, {lr}\n\t"
-  "sub r0, r0, r0\n\t"
-  "add r0, r0, #1\n\t"
-  "bl 2f\n\t"
-  "ldmia sp!, {lr}\n\t"
-  "mov pc, lr\n\t"
+  0x00, 0x40, 0x2d, 0xe9, /* stmdb sp!, {lr}  */
+  0x00, 0x00, 0x40, 0xe0, /* sub r0, r0, r0   */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1    */
+  0x01, 0x00, 0x00, 0xeb, /* bl excluded_func */
+  0x00, 0x40, 0xbd, 0xe8, /* ldm sp!, {lr}    */
+  0x0e, 0xf0, 0xa0, 0xe1, /* mov pc, lr       */
 
-  "2:\n\t"
-  "add r0, r0, #1\n\t"
-  "mov pc, lr\n\t"
+  /* excluded_func:                           */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1    */
+  0x0e, 0xf0, 0xa0, 0xe1  /* mov pc, lr       */
 );
 
 TESTCASE (arm_excluded_range)
@@ -542,17 +513,16 @@ TESTCASE (arm_excluded_range)
 }
 
 TESTCODE (thumb_excluded_range,
-  ".thumb\n\t"
-  "push {lr}\n\t"
-  "sub r0, r0, r0\n\t"
-  "add r0, r0, #1\n\t"
-  "bl 2f\n\t"
-  "pop {pc}\n\t"
+  0x00, 0xb5,             /* push {lr}        */
+  0x00, 0x1a,             /* subs r0, r0, r0  */
+  0x01, 0x30,             /* adds r0, 1       */
+  0x00, 0xf0, 0x01, 0xf8, /* bl excluded_func */
+  0x00, 0xbd,             /* pop {pc}         */
 
-  "2:\n\t"
-  "push {lr}\n\t"
-  "add r0, r0, #1\n\t"
-  "pop {pc}\n\t"
+  /* excluded_func:                           */
+  0x00, 0xb5,             /* push {lr}        */
+  0x01, 0x30,             /* adds r0, 1       */
+  0x00, 0xbd              /* pop {pc}         */
 );
 
 TESTCASE (thumb_excluded_range)
@@ -589,27 +559,26 @@ TESTCASE (thumb_excluded_range)
 }
 
 TESTCODE (arm_excluded_range_call,
-  ".arm\n\t"
-  "push {lr}\n\t"
-  "sub r0, r0, r0\n\t"
-  "add r0, r0, #1\n\t"
-  "bl 3f\n\t"
-  "bl 1f\n\t"
-  "pop {pc}\n\t"
+  0x04, 0xe0, 0x2d, 0xe5, /* push {lr}         */
+  0x00, 0x00, 0x40, 0xe0, /* sub r0, r0, r0    */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1     */
+  0x05, 0x00, 0x00, 0xeb, /* bl func_c         */
+  0x00, 0x00, 0x00, 0xeb, /* bl func_a         */
+  0x04, 0xf0, 0x9d, 0xe4, /* pop {pc}          */
 
-  "1:\n\t"
-  "add r0, r0, #1\n\t"
-  "mov pc, lr\n\t"
+  /* func_a:                                   */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1     */
+  0x0e, 0xf0, 0xa0, 0xe1, /* mov pc, lr        */
 
-  "2:\n\t"
-  "add r0, r0, #1\n\t"
-  "mov pc, lr\n\t"
+  /* func_b:                                   */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1     */
+  0x0e, 0xf0, 0xa0, 0xe1, /* mov pc, lr        */
 
-  "3:\n\t"
-  "push {lr}\n\t"
-  "add r0, r0, #1\n\t"
-  "bl 2b\n\t"
-  "pop {pc}\n\t"
+  /* func_c:                                   */
+  0x04, 0xe0, 0x2d, 0xe5, /* push {lr}         */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1     */
+  0xfa, 0xff, 0xff, 0xeb, /* bl func_b         */
+  0x04, 0xf0, 0x9d, 0xe4  /* pop {pc}          */
 );
 
 TESTCASE (arm_excluded_range_call_events)
@@ -650,29 +619,28 @@ TESTCASE (arm_excluded_range_call_events)
 }
 
 TESTCODE (thumb_excluded_range_call,
-  ".thumb\n\t"
-  "push {lr}\n\t"
-  "sub r0, r0, r0\n\t"
-  "add r0, r0, #1\n\t"
-  "bl 3f\n\t"
-  "bl 1f\n\t"
-  "pop {pc}\n\t"
+  0x00, 0xb5,             /* push {lr}       */
+  0x00, 0x1a,             /* subs r0, r0, r0 */
+  0x01, 0x30,             /* adds r0, 1      */
+  0x00, 0xf0, 0x09, 0xf8, /* bl func_c       */
+  0x00, 0xf0, 0x01, 0xf8, /* bl func_a       */
+  0x00, 0xbd,             /* pop {pc}        */
 
-  "1:\n\t"
-  "push {lr}\n\t"
-  "add r0, r0, #1\n\t"
-  "pop {pc}\n\t"
+  /* func_a:                                 */
+  0x00, 0xb5,             /* push {lr}       */
+  0x01, 0x30,             /* adds r0, 1      */
+  0x00, 0xbd,             /* pop {pc}        */
 
-  "2:\n\t"
-  "push {lr}\n\t"
-  "add r0, r0, #1\n\t"
-  "pop {pc}\n\t"
+  /* func_b:                                 */
+  0x00, 0xb5,             /* push {lr}       */
+  0x01, 0x30,             /* adds r0, 1      */
+  0x00, 0xbd,             /* pop {pc}        */
 
-  "3:\n\t"
-  "push {lr}\n\t"
-  "add r0, r0, #1\n\t"
-  "bl 2b\n\t"
-  "pop {pc}\n\t"
+  /* func_c:                                 */
+  0x00, 0xb5,             /* push {lr}       */
+  0x01, 0x30,             /* adds r0, 1      */
+  0xff, 0xf7, 0xf9, 0xff, /* bl func_b       */
+  0x00, 0xbd              /* pop {pc}        */
 );
 
 TESTCASE (thumb_excluded_range_call_events)
@@ -711,7 +679,6 @@ TESTCASE (thumb_excluded_range_call_events)
     GUM_ASSERT_EVENT_ADDR (call, 2, depth, 1);
   }
 }
-
 
 TESTCASE (arm_excluded_range_ret_events)
 {
@@ -784,17 +751,16 @@ TESTCASE (thumb_excluded_range_ret_events)
 }
 
 TESTCODE (arm_pop_pc,
-  ".arm\n\t"
-  "stmdb sp!, {r4-r8, lr}\n\t"
-  "sub r0, r0, r0\n\t"
-  "add r0, r0, #1\n\t"
-  "bl 2f\n\t"
-  "ldmia sp!, {r4-r8, pc}\n\t"
+  0xf0, 0x41, 0x2d, 0xe9, /* push {r4-r8, lr} */
+  0x00, 0x00, 0x40, 0xe0, /* sub r0, r0, r0   */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1    */
+  0x00, 0x00, 0x00, 0xeb, /* bl inner         */
+  0xf0, 0x81, 0xbd, 0xe8, /* pop {r4-r8, pc}  */
 
-  "2:\n\t"
-  "stmdb sp!, {r1-r3, lr}\n\t"
-  "add r0, r0, #1\n\t"
-  "ldmia sp!, {r1-r3, pc}\n\t"
+  /* inner:                                   */
+  0x0e, 0x40, 0x2d, 0xe9, /* push {r1-r3, lr} */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1    */
+  0x0e, 0x80, 0xbd, 0xe8  /* pop {r1-r3, pc}  */
 );
 
 TESTCASE (arm_pop_pc_ret_events_generated)
@@ -818,17 +784,16 @@ TESTCASE (arm_pop_pc_ret_events_generated)
 }
 
 TESTCODE (thumb_pop_pc,
-  ".thumb\n\t"
-  "push {r4-r7, lr}\n\t"
-  "sub r0, r0, r0\n\t"
-  "add r0, r0, #1\n\t"
-  "bl 2f\n\t"
-  "pop {r4-r7, pc}\n\t"
+  0xf0, 0xb5,             /* push {r4-r7, lr} */
+  0x00, 0x1a,             /* subs r0, r0, r0  */
+  0x01, 0x30,             /* adds r0, 1       */
+  0x00, 0xf0, 0x01, 0xf8, /* bl inner         */
+  0xf0, 0xbd,             /* pop {r4-r7, pc}  */
 
-  "2:\n\t"
-  "push {r1-r3, lr}\n\t"
-  "add r0, r0, #1\n\t"
-  "pop {r1-r3, pc}\n\t"
+  /* inner:                                   */
+  0x0e, 0xb5,             /* push {r1-r3, lr} */
+  0x01, 0x30,             /* adds r0, 1       */
+  0x0e, 0xbd              /* pop {r1-r3, pc}  */
 );
 
 TESTCASE (thumb_pop_pc_ret_events_generated)
@@ -852,17 +817,16 @@ TESTCASE (thumb_pop_pc_ret_events_generated)
 }
 
 TESTCODE (arm_pop_just_pc,
-  ".arm\n\t"
-  "stmdb sp!, {r4-r8, lr}\n\t"
-  "sub r0, r0, r0\n\t"
-  "add r0, r0, #1\n\t"
-  "bl 2f\n\t"
-  "ldmia sp!, {r4-r8, pc}\n\t"
+  0xf0, 0x41, 0x2d, 0xe9, /* push {r4-r8, lr} */
+  0x00, 0x00, 0x40, 0xe0, /* sub r0, r0, r0   */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1    */
+  0x00, 0x00, 0x00, 0xeb, /* bl inner         */
+  0xf0, 0x81, 0xbd, 0xe8, /* pop {r4-r8, pc}  */
 
-  "2:\n\t"
-  "stmdb sp!, {lr}\n\t"
-  "add r0, r0, #1\n\t"
-  "ldmia sp!, {pc}\n\t"
+  /* inner:                                   */
+  0x00, 0x40, 0x2d, 0xe9, /* stmdb sp!, {lr}  */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1    */
+  0x00, 0x80, 0xbd, 0xe8  /* ldm sp!, {pc}    */
 );
 
 TESTCASE (arm_pop_just_pc_ret_events_generated)
@@ -886,17 +850,16 @@ TESTCASE (arm_pop_just_pc_ret_events_generated)
 }
 
 TESTCODE (thumb_pop_just_pc,
-  ".thumb\n\t"
-  "push {r4-r7, lr}\n\t"
-  "sub r0, r0, r0\n\t"
-  "add r0, r0, #1\n\t"
-  "bl 2f\n\t"
-  "pop {r4-r7, pc}\n\t"
+  0xf0, 0xb5,             /* push {r4-r7, lr} */
+  0x00, 0x1a,             /* subs r0, r0, r0  */
+  0x01, 0x30,             /* adds r0, 1       */
+  0x00, 0xf0, 0x01, 0xf8, /* bl inner         */
+  0xf0, 0xbd,             /* pop {r4-r7, pc}  */
 
-  "2:\n\t"
-  "push {lr}\n\t"
-  "add r0, r0, #1\n\t"
-  "pop {pc}\n\t"
+  /* inner:                                   */
+  0x00, 0xb5,             /* push {lr}        */
+  0x01, 0x30,             /* adds r0, 1       */
+  0x00, 0xbd              /* pop {pc}         */
 );
 
 TESTCASE (thumb_pop_just_pc_ret_events_generated)
@@ -920,18 +883,17 @@ TESTCASE (thumb_pop_just_pc_ret_events_generated)
 }
 
 TESTCODE (arm_ldm_pc,
-  ".arm\n\t"
-  "stmdb sp!, {r4-r8, lr}\n\t"
-  "sub r0, r0, r0\n\t"
-  "add r0, r0, #1\n\t"
-  "bl 2f\n\t"
-  "ldmia sp!, {r4-r8, pc}\n\t"
+  0xf0, 0x41, 0x2d, 0xe9, /* push {r4-r8, lr}       */
+  0x00, 0x00, 0x40, 0xe0, /* sub r0, r0, r0         */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1          */
+  0x00, 0x00, 0x00, 0xeb, /* bl inner               */
+  0xf0, 0x81, 0xbd, 0xe8, /* pop {r4-r8, pc}        */
 
-  "2:\n\t"
-  "add r3, sp, #0\n\t"
-  "stmdb r3!, {r4-r8, lr}\n\t"
-  "add r0, r0, #1\n\t"
-  "ldmia r3!, {r4-r8, pc}\n\t"
+  /* inner:                                         */
+  0x00, 0x30, 0x8d, 0xe2, /* add r3, sp, 0          */
+  0xf0, 0x41, 0x23, 0xe9, /* stmdb r3!, {r4-r8, lr} */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1          */
+  0xf0, 0x81, 0xb3, 0xe8  /* ldm r3!, {r4-r8, pc}   */
 );
 
 TESTCASE (arm_ldm_pc_ret_events_generated)
@@ -955,18 +917,17 @@ TESTCASE (arm_ldm_pc_ret_events_generated)
 }
 
 TESTCODE (thumb_ldm_pc,
-  ".thumb\n\t"
-  "push {r4-r7, lr}\n\t"
-  "sub r0, r0, r0\n\t"
-  "add r0, r0, #1\n\t"
-  "bl 2f\n\t"
-  "pop {r4-r7, pc}\n\t"
+  0xf0, 0xb5,             /* push {r4-r7, lr}        */
+  0x00, 0x1a,             /* subs r0, r0, r0         */
+  0x01, 0x30,             /* adds r0, 1              */
+  0x00, 0xf0, 0x01, 0xf8, /* bl inner                */
+  0xf0, 0xbd,             /* pop {r4-r7, pc}         */
 
-  "2:\n\t"
-  "add r3, sp, #0\n\t"
-  ".word 0x4006e923  /* stmdb r3!, {r0-r2, lr} */\n\t"
-  "add r0, r0, #1\n\t"
-  ".word 0x8006e8b3 /* ldmia r3!, {r0-r2, pc} */\n\t"
+  /* inner:                                          */
+  0x00, 0xab,             /* add r3, sp, 0           */
+  0x23, 0xe9, 0x06, 0x40, /* stmdb r3!, {r1, r2, lr} */
+  0x01, 0x30,             /* adds r0, 1              */
+  0xb3, 0xe8, 0x06, 0x80  /* ldm.w r3!, {r1, r2, pc} */
 );
 
 TESTCASE (thumb_ldm_pc_ret_events_generated)
@@ -990,31 +951,30 @@ TESTCASE (thumb_ldm_pc_ret_events_generated)
 }
 
 TESTCODE (arm_b_cc,
-  ".arm\n\t"
-  "sub r0, r0, r0\n\t"
-  "sub r1, r1, r1\n\t"
+  0x00, 0x00, 0x40, 0xe0, /* sub r0, r0, r0 */
+  0x01, 0x10, 0x41, 0xe0, /* sub r1, r1, r1 */
 
-  "cmp r1, #0\n\t"
-  "beq 1f\n\t"
-  "add r0, r0, #1\n\t"
-  "1:\n\t"
+  0x00, 0x00, 0x51, 0xe3, /* cmp r1, 0      */
+  0x00, 0x00, 0x00, 0x0a, /* beq after_a    */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1  */
+  /* after_a:                               */
 
-  "cmp r1, #1\n\t"
-  "beq 2f\n\t"
-  "add r0, r0, #2\n\t"
-  "2:\n\t"
+  0x01, 0x00, 0x51, 0xe3, /* cmp r1, 1      */
+  0x00, 0x00, 0x00, 0x0a, /* beq after_b    */
+  0x02, 0x00, 0x80, 0xe2, /* add r0, r0, 2  */
+  /* after_b:                               */
 
-  "cmp r1, #0\n\t"
-  "bge 3f\n\t"
-  "add r0, r0, #4\n\t"
-  "3:\n\t"
+  0x00, 0x00, 0x51, 0xe3, /* cmp r1, 0      */
+  0x00, 0x00, 0x00, 0xaa, /* bge after_c    */
+  0x04, 0x00, 0x80, 0xe2, /* add r0, r0, 4  */
+  /* after_c:                               */
 
-  "cmp r1, #0\n\t"
-  "blt 4f\n\t"
-  "add r0, r0, #8\n\t"
-  "4:\n\t"
+  0x00, 0x00, 0x51, 0xe3, /* cmp r1, 0      */
+  0x00, 0x00, 0x00, 0xba, /* blt after_d    */
+  0x08, 0x00, 0x80, 0xe2, /* add r0, r0, 8  */
+  /* after_d:                               */
 
-  "mov pc, lr\n\t"
+  0x0e, 0xf0, 0xa0, 0xe1  /* mov pc, lr     */
 );
 
 TESTCASE (arm_branch_cc_block_events_generated)
@@ -1040,32 +1000,31 @@ TESTCASE (arm_branch_cc_block_events_generated)
 }
 
 TESTCODE (thumb_b_cc,
-  ".thumb\n\t"
-  "push {lr}\n\t"
-  "sub r0, r0, r0\n\t"
-  "sub r1, r1, r1\n\t"
+  0x00, 0xb5, /* push {lr}       */
+  0x00, 0x1a, /* subs r0, r0, r0 */
+  0x49, 0x1a, /* subs r1, r1, r1 */
 
-  "cmp r1, #0\n\t"
-  "beq 1f\n\t"
-  "add r0, r0, #1\n\t"
-  "1:\n\t"
+  0x00, 0x29, /* cmp r1, 0       */
+  0x00, 0xd0, /* beq after_a     */
+  0x01, 0x30, /* adds r0, 1      */
+  /* after_a:                    */
 
-  "cmp r1, #1\n\t"
-  "beq 2f\n\t"
-  "add r0, r0, #2\n\t"
-  "2:\n\t"
+  0x01, 0x29, /* cmp r1, 1       */
+  0x00, 0xd0, /* beq after_b     */
+  0x02, 0x30, /* adds r0, 2      */
+  /* after_b:                    */
 
-  "cmp r1, #0\n\t"
-  "bge 3f\n\t"
-  "add r0, r0, #4\n\t"
-  "3:\n\t"
+  0x00, 0x29, /* cmp r1, 0       */
+  0x00, 0xda, /* bge after_c     */
+  0x04, 0x30, /* adds r0, 4      */
+  /* after_c:                    */
 
-  "cmp r1, #0\n\t"
-  "blt 4f\n\t"
-  "add r0, r0, #8\n\t"
-  "4:\n\t"
+  0x00, 0x29, /* cmp r1, 0       */
+  0x00, 0xdb, /* blt after_d     */
+  0x08, 0x30, /* adds r0, 8      */
+  /* after_d:                    */
 
-  "pop {pc}\n\t"
+  0x00, 0xbd  /* pop {pc}        */
 );
 
 TESTCASE (thumb_branch_cc_block_events_generated)
@@ -1091,30 +1050,29 @@ TESTCASE (thumb_branch_cc_block_events_generated)
 }
 
 TESTCODE (thumb_cbz_cbnz,
-  ".thumb\n\t"
-  "push {lr}\n\t"
-  "sub r0, r0, r0\n\t"
-  "sub r1, r1, r1\n\t"
-  "sub r2, r2, r2\n\t"
-  "add r2, r2, #1\n\t"
+  0x00, 0xb5, /* push {lr}        */
+  0x00, 0x1a, /* subs r0, r0, r0  */
+  0x49, 0x1a, /* subs r1, r1, r1  */
+  0x92, 0x1a, /* subs r2, r2, r2  */
+  0x01, 0x32, /* adds r2, 1       */
 
-  ".short 0xb101 /* cbz r1, 1f */\n\t"
-  "add r0, r0, #1\n\t"
-  "1:\n\t"
+  0x01, 0xb1, /* cbz r1, after_a  */
+  0x01, 0x30, /* adds r0, 1       */
+  /* after_a:                     */
 
-  ".short 0xb901 /* cbnz r1, 2f */\n\t"
-  "add r0, r0, #2\n\t"
-  "2:\n\t"
+  0x01, 0xb9, /* cbnz r1, after_b */
+  0x02, 0x30, /* adds r0, 2       */
+  /* after_b:                     */
 
-  ".short 0xb102 /* cbz r2, 3f */\n\t"
-  "add r0, r0, #4\n\t"
-  "3:\n\t"
+  0x02, 0xb1, /* cbz r2, after_c  */
+  0x04, 0x30, /* adds r0, 4       */
+  /* after_c:                     */
 
-  ".short 0xb902 /* cbnz r2, 4f */\n\t"
-  "add r0, r0, #8\n\t"
-  "4:\n\t"
+  0x02, 0xb9, /* cbnz r2, after_d */
+  0x08, 0x30, /* adds r0, 8       */
+  /* after_d:                     */
 
-  "pop {pc}\n\t"
+  0x00, 0xbd  /* pop {pc}         */
 );
 
 TESTCASE (thumb_cbz_cbnz_block_events_generated)
@@ -1140,40 +1098,39 @@ TESTCASE (thumb_cbz_cbnz_block_events_generated)
 }
 
 TESTCODE (arm_bl_cc,
-  ".arm\n\t"
-  "push {lr}\n\t"
-  "sub r0, r0, r0\n\t"
-  "sub r1, r1, r1\n\t"
+  0x04, 0xe0, 0x2d, 0xe5, /* push {lr}         */
+  0x00, 0x00, 0x40, 0xe0, /* sub r0, r0, r0    */
+  0x01, 0x10, 0x41, 0xe0, /* sub r1, r1, r1    */
 
-  "cmp r1, #0\n\t"
-  "bleq 1f\n\t"
+  0x00, 0x00, 0x51, 0xe3, /* cmp r1, 0         */
+  0x06, 0x00, 0x00, 0x0b, /* bleq func_a       */
 
-  "cmp r1, #1\n\t"
-  "bleq 2f\n\t"
+  0x01, 0x00, 0x51, 0xe3, /* cmp r1, 1         */
+  0x06, 0x00, 0x00, 0x0b, /* bleq func_b       */
 
-  "cmp r1, #0\n\t"
-  "blge 3f\n\t"
+  0x00, 0x00, 0x51, 0xe3, /* cmp r1, 0         */
+  0x06, 0x00, 0x00, 0xab, /* blge func_c       */
 
-  "cmp r1, #0\n\t"
-  "bllt 4f\n\t"
+  0x00, 0x00, 0x51, 0xe3, /* cmp r1, 0         */
+  0x06, 0x00, 0x00, 0xbb, /* bllt func_d       */
 
-  "pop {pc}\n\t"
+  0x04, 0xf0, 0x9d, 0xe4, /* pop {pc}          */
 
-  "1:\n\t"
-  "add r0, r0, #1\n\t"
-  "mov pc, lr\n\t"
+  /* func_a:                                   */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1     */
+  0x0e, 0xf0, 0xa0, 0xe1, /* mov pc, lr        */
 
-  "2:\n\t"
-  "add r0, r0, #2\n\t"
-  "mov pc, lr\n\t"
+  /* func_b:                                   */
+  0x02, 0x00, 0x80, 0xe2, /* add r0, r0, 2     */
+  0x0e, 0xf0, 0xa0, 0xe1, /* mov pc, lr        */
 
-  "3:\n\t"
-  "add r0, r0, #4\n\t"
-  "mov pc, lr\n\t"
+  /* func_c:                                   */
+  0x04, 0x00, 0x80, 0xe2, /* add r0, r0, 4     */
+  0x0e, 0xf0, 0xa0, 0xe1, /* mov pc, lr        */
 
-  "4:\n\t"
-  "add r0, r0, #8\n\t"
-  "mov pc, lr\n\t"
+  /* func_d:                                   */
+  0x08, 0x00, 0x80, 0xe2, /* add r0, r0, 8     */
+  0x0e, 0xf0, 0xa0, 0xe1  /* mov pc, lr        */
 );
 
 TESTCASE (arm_branch_link_cc_block_events_generated)
@@ -1194,34 +1151,33 @@ TESTCASE (arm_branch_link_cc_block_events_generated)
 }
 
 TESTCODE (arm_cc_excluded_range,
-  ".arm\n\t"
-  "stmdb sp!, {lr}\n\t"
-  "sub r0, r0, r0\n\t"
-  "sub r1, r1, r1\n\t"
+  0x00, 0x40, 0x2d, 0xe9, /* stmdb sp!, {lr}   */
+  0x00, 0x00, 0x40, 0xe0, /* sub r0, r0, r0    */
+  0x01, 0x10, 0x41, 0xe0, /* sub r1, r1, r1    */
 
-  "cmp r1, #0\n\t"
-  "bleq 1f\n\t"
+  0x00, 0x00, 0x51, 0xe3, /* cmp r1, 0         */
+  0x03, 0x00, 0x00, 0x0b, /* bleq func_a       */
 
-  "cmp r1, #0\n\t"
-  "blne 2f\n\t"
+  0x00, 0x00, 0x51, 0xe3, /* cmp r1, 0         */
+  0x05, 0x00, 0x00, 0x1b, /* blne func_b       */
 
-  "ldmia sp!, {lr}\n\t"
-  "mov pc, lr\n\t"
+  0x00, 0x40, 0xbd, 0xe8, /* ldm sp!, {lr}     */
+  0x0e, 0xf0, 0xa0, 0xe1, /* mov pc, lr        */
 
-  "1:\n\t"
-  "push {lr}\n\t"
-  "add r0, r0, #1\n\t"
-  "bl 3f\n\t"
-  "pop {pc}\n\t"
+  /* func_a:                                   */
+  0x04, 0xe0, 0x2d, 0xe5, /* push {lr}         */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1     */
+  0x04, 0x00, 0x00, 0xeb, /* bl func_c         */
+  0x04, 0xf0, 0x9d, 0xe4, /* pop {pc}          */
 
-  "2:\n\t"
-  "push {lr}\n\t"
-  "add r0, r0, #2\n\t"
-  "bl 3f\n\t"
-  "pop {pc}\n\t"
+  /* func_b:                                   */
+  0x04, 0xe0, 0x2d, 0xe5, /* push {lr}         */
+  0x02, 0x00, 0x80, 0xe2, /* add r0, r0, 2     */
+  0x00, 0x00, 0x00, 0xeb, /* bl func_c         */
+  0x04, 0xf0, 0x9d, 0xe4, /* pop {pc}          */
 
-  "3:\n\t"
-  "mov pc, lr\n\t"
+  /* func_c:                                   */
+  0x0e, 0xf0, 0xa0, 0xe1  /* mov pc, lr        */
 );
 
 TESTCASE (arm_cc_excluded_range)
@@ -1255,30 +1211,26 @@ TESTCASE (arm_cc_excluded_range)
   }
 }
 
-/*
- * This and other test scenarios below force us to disable PIE when building our
- * test runner, which for now seems like an acceptable trade-off to keep things
- * simple.
- */
-
 TESTCODE (arm_ldr_pc,
-  ".arm\n\t"
-  "sub r0, r0, r0\n\t"
-  "add r0, r0, #1\n\t"
-  "ldr pc, Lf3\n\t"
-  "udf #16\n\t"
-  ".word 0xecececec\n\t"
-  "Lf3:\n\t"
-  ".word Lf4\n\t"
+  0x00, 0x00, 0x40, 0xe0, /* sub r0, r0, r0     */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1      */
+  0x04, 0xf0, 0x9f, 0xe5, /* ldr pc, inner_addr */
+  0xf0, 0x01, 0xf0, 0xe7, /* udf 0x10           */
 
-  "Lf4:\n\t"
-  "add r0, r0, #1\n\t"
-  "mov pc, lr\n\t"
+  0xec, 0xec, 0xec, 0xec,
+  /* inner_addr:                                */
+  0xaa, 0xbb, 0xcc, 0xdd,
+
+  /* inner:                                     */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1      */
+  0x0e, 0xf0, 0xa0, 0xe1  /* mov pc, lr         */
 );
 
 TESTCASE (arm_ldr_pc)
 {
   GumAddress func;
+
+  /* TODO: fill inner_addr */
 
   func = invoke_arm_expecting_return_value (fixture, GUM_BLOCK,
       CODE_START (arm_ldr_pc), CODE_SIZE (arm_ldr_pc), 2);
@@ -1290,28 +1242,30 @@ TESTCASE (arm_ldr_pc)
 }
 
 TESTCODE (arm_ldr_pc_pre_index_imm,
-  ".arm\n\t"
-  "sub r0, r0, r0\n\t"
-  "add r0, r0, #1\n\t"
-  "adr r1, Larm_ldr_pc_pre_index_imm_data\n\t"
-  "ldr pc, [r1, #8]!\n\t"
-  "udf #16\n\t"
+  0x00, 0x00, 0x40, 0xe0, /* sub r0, r0, r0   */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1    */
+  0x04, 0x10, 0x8f, 0xe2, /* adr r1, imm_data */
+  0x08, 0xf0, 0xb1, 0xe5, /* ldr pc, [r1, 8]! */
+  0xf0, 0x01, 0xf0, 0xe7, /* udf 0x10         */
 
-  "Larm_ldr_pc_pre_index_imm_data:\n\t"
-  ".word 0xecececec\n\t"
-  ".word 0xf0f0f0f0\n\t"
-  ".word Larm_ldr_pc_pre_index_imm_func\n\t"
-  ".word 0xbabababa\n\t"
+  /* imm_data:                                */
+  0xec, 0xec, 0xec, 0xec,
+  0xf0, 0xf0, 0xf0, 0xf0,
+  /* inner_addr:                              */
+  0xaa, 0xbb, 0xcc, 0xdd,
+  0xba, 0xba, 0xba, 0xba,
 
-  "Larm_ldr_pc_pre_index_imm_func:\n\t"
-  "ldr r1, [r1, #4]\n\t"
-  "add r0, r0, r1\n\t"
-  "mov pc, lr\n\t"
+  /* inner:                                   */
+  0x04, 0x10, 0x91, 0xe5, /* ldr r1, [r1, 4]  */
+  0x01, 0x00, 0x80, 0xe0, /* add r0, r0, r1   */
+  0x0e, 0xf0, 0xa0, 0xe1  /* mov pc, lr       */
 );
 
 TESTCASE (arm_ldr_pc_pre_index_imm)
 {
   GumAddress func;
+
+  /* TODO: fill inner_addr */
 
   func = invoke_arm_expecting_return_value (fixture, GUM_BLOCK,
       CODE_START (arm_ldr_pc_pre_index_imm),
@@ -1325,27 +1279,28 @@ TESTCASE (arm_ldr_pc_pre_index_imm)
 }
 
 TESTCODE (arm_ldr_pc_post_index_imm,
-  ".arm\n\t"
-  "sub r0, r0, r0\n\t"
-  "add r0, r0, #1\n\t"
-  "adr r1, Larm_ldr_pc_post_index_imm_data\n\t"
-  "ldr pc, [r1], #8\n\t"
-  "udf #16\n\t"
+  0x00, 0x00, 0x40, 0xe0, /* sub r0, r0, r0     */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1      */
+  0x04, 0x10, 0x8f, 0xe2, /* adr r1, inner_addr */
+  0x08, 0xf0, 0x91, 0xe4, /* ldr pc, [r1], 8    */
+  0xf0, 0x01, 0xf0, 0xe7, /* udf 0x10           */
 
-  "Larm_ldr_pc_post_index_imm_data:\n\t"
-  ".word Larm_ldr_pc_post_index_imm_func\n\t"
-  ".word 0xf0f0f0f0\n\t"
-  ".word 0xbabababa\n\t"
+  /* inner_addr:                                */
+  0xaa, 0xbb, 0xcc, 0xdd,
+  0xf0, 0xf0, 0xf0, 0xf0,
+  0xba, 0xba, 0xba, 0xba,
 
-  "Larm_ldr_pc_post_index_imm_func:\n\t"
-  "ldr r1, [r1, #0]\n\t"
-  "add r0, r0, r1\n\t"
-  "mov pc, lr\n\t"
+  /* inner:                                     */
+  0x00, 0x10, 0x91, 0xe5, /* ldr r1, [r1]       */
+  0x01, 0x00, 0x80, 0xe0, /* add r0, r0, r1     */
+  0x0e, 0xf0, 0xa0, 0xe1  /* mov pc, lr         */
 );
 
 TESTCASE (arm_ldr_pc_post_index_imm)
 {
   GumAddress func;
+
+  /* TODO: fill inner_addr */
 
   func = invoke_arm_expecting_return_value (fixture, GUM_BLOCK,
       CODE_START (arm_ldr_pc_post_index_imm),
@@ -1359,28 +1314,30 @@ TESTCASE (arm_ldr_pc_post_index_imm)
 }
 
 TESTCODE (arm_ldr_pc_pre_index_imm_negative,
-  ".arm\n\t"
-  "sub r0, r0, r0\n\t"
-  "add r0, r0, #1\n\t"
-  "adr r1, Larm_ldr_pc_pre_index_imm_negative_data\n\t"
-  "ldr pc, [r1, #-8]!\n\t"
-  "udf #16\n\t"
+  0x00, 0x00, 0x40, 0xe0, /* sub r0, r0, r0        */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1         */
+  0x0c, 0x10, 0x8f, 0xe2, /* adr r1, negative_data */
+  0x08, 0xf0, 0x31, 0xe5, /* ldr pc, [r1, -8]!     */
+  0xf0, 0x01, 0xf0, 0xe7, /* udf 0x10              */
 
-  ".word Larm_ldr_pc_pre_index_imm_negative_func\n\t"
-  ".word 0xecececec\n\t"
-  "Larm_ldr_pc_pre_index_imm_negative_data:\n\t"
-  ".word 0xf0f0f0f0\n\t"
-  ".word 0xbabababa\n\t"
+  /* inner_addr:                                   */
+  0xaa, 0xbb, 0xcc, 0xdd,
+  0xec, 0xec, 0xec, 0xec,
+  /* negative_data:                                */
+  0xf0, 0xf0, 0xf0, 0xf0,
+  0xba, 0xba, 0xba, 0xba,
 
-  "Larm_ldr_pc_pre_index_imm_negative_func:\n\t"
-  "ldr r1, [r1, #12]\n\t"
-  "add r0, r0, r1\n\t"
-  "mov pc, lr\n\t"
+  /* inner:                                        */
+  0x0c, 0x10, 0x91, 0xe5, /* ldr r1, [r1, 12]      */
+  0x01, 0x00, 0x80, 0xe0, /* add r0, r0, r1        */
+  0x0e, 0xf0, 0xa0, 0xe1  /* mov pc, lr            */
 );
 
 TESTCASE (arm_ldr_pc_pre_index_imm_negative)
 {
   GumAddress func;
+
+  /* TODO: fill inner_addr */
 
   func = invoke_arm_expecting_return_value (fixture, GUM_BLOCK,
       CODE_START (arm_ldr_pc_pre_index_imm_negative),
@@ -1394,27 +1351,27 @@ TESTCASE (arm_ldr_pc_pre_index_imm_negative)
 }
 
 TESTCODE (arm_ldr_pc_post_index_imm_negative,
-  ".arm\n\t"
-  "sub r0, r0, r0\n\t"
-  "add r0, r0, #1\n\t"
-  "adr r1, Larm_ldr_pc_post_index_imm_negative_data\n\t"
-  "ldr pc, [r1], #-8\n\t"
-  "udf #16\n\t"
+  0x00, 0x00, 0x40, 0xe0, /* sub r0, r0, r0     */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1      */
+  0x0c, 0x10, 0x8f, 0xe2, /* adr r1, inner_addr */
+  0x08, 0xf0, 0x11, 0xe4, /* ldr pc, [r1], -8   */
+  0xf0, 0x01, 0xf0, 0xe7, /* udf 0x10           */
 
-  ".word 0xbabababa\n\t"
-  ".word 0xf0f0f0f0\n\t"
-  "Larm_ldr_pc_post_index_imm_negative_data:\n\t"
-  ".word Larm_ldr_pc_post_index_imm_negative_func\n\t"
+  0xba, 0xba, 0xba, 0xba,
+  0xf0, 0xf0, 0xf0, 0xf0,
+  /* inner_addr:                                */
+  0xaa, 0xbb, 0xcc, 0xdd,
 
-  "Larm_ldr_pc_post_index_imm_negative_func:\n\t"
-  "ldr r1, [r1, #0]\n\t"
-  "add r0, r0, r1\n\t"
-  "mov pc, lr\n\t"
+  0x00, 0x10, 0x91, 0xe5, /* ldr r1, [r1]       */
+  0x01, 0x00, 0x80, 0xe0, /* add r0, r0, r1     */
+  0x0e, 0xf0, 0xa0, 0xe1  /* mov pc, lr         */
 );
 
 TESTCASE (arm_ldr_pc_post_index_imm_negative)
 {
   GumAddress func;
+
+  /* TODO: fill inner_addr */
 
   func = invoke_arm_expecting_return_value (fixture, GUM_BLOCK,
       CODE_START (arm_ldr_pc_post_index_imm_negative),
@@ -1428,17 +1385,15 @@ TESTCASE (arm_ldr_pc_post_index_imm_negative)
 }
 
 TESTCODE (arm_sub_pc,
-  ".arm\n\t"
-  "sub r0, r0, r0\n\t"
-  "b 2f\n\t"
+  0x00, 0x00, 0x40, 0xe0, /* sub r0, r0, r0 */
+  0x01, 0x00, 0x00, 0xea, /* b part_two     */
 
-  "1:\n\t"
-  "add r0, r0, #1\n\t"
-  "mov pc, lr\n\t"
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1  */
+  0x0e, 0xf0, 0xa0, 0xe1, /* mov pc, lr     */
 
-  "2:\n\t"
-  "add r0, r0, #1\n\t"
-  "sub pc, pc, #20\n\t"
+  /* part_two:                              */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1  */
+  0x14, 0xf0, 0x4f, 0xe2  /* sub pc, pc, 20 */
 );
 
 TESTCASE (arm_sub_pc)
@@ -1458,17 +1413,15 @@ TESTCASE (arm_sub_pc)
 }
 
 TESTCODE (arm_add_pc,
-  ".arm\n\t"
-  "sub r0, r0, r0\n\t"
-  "add pc, pc, #4\n\t"
+  0x00, 0x00, 0x40, 0xe0, /* sub r0, r0, r0 */
+  0x04, 0xf0, 0x8f, 0xe2, /* add pc, pc, 4  */
 
-  "1:\n\t"
-  "add r0, r0, #1\n\t"
-  "mov pc, lr\n\t"
+  /* beach:                                 */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1  */
+  0x0e, 0xf0, 0xa0, 0xe1, /* mov pc, lr     */
 
-  "2:\n\t"
-  "add r0, r0, #1\n\t"
-  "b 1b\n\t"
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1  */
+  0xfb, 0xff, 0xff, 0xea  /* b beach        */
 );
 
 TESTCASE (arm_add_pc)
@@ -1488,29 +1441,26 @@ TESTCASE (arm_add_pc)
 }
 
 TESTCODE (call_thumb,
-  ".arm\n\t"
-  "push {lr}\n\t"
-  "sub r0, r0, r0\n\t"
-  "add r0, r0, #1\n\t"
-  "blx 3f\n\t"
-  "bl 1f\n\t"
-  "pop {pc}\n\t"
+  0x04, 0xe0, 0x2d, 0xe5, /* push {lr}      */
+  0x00, 0x00, 0x40, 0xe0, /* sub r0, r0, r0 */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1  */
+  0x05, 0x00, 0x00, 0xfa, /* blx func_c     */
+  0x00, 0x00, 0x00, 0xeb, /* bl func_a      */
+  0x04, 0xf0, 0x9d, 0xe4, /* pop {pc}       */
 
-  "1:\n\t"
-  "add r0, r0, #1\n\t"
-  "mov pc, lr\n\t"
+  /* func_a:                                */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1  */
+  0x0e, 0xf0, 0xa0, 0xe1, /* mov pc, lr     */
 
-  "2:\n\t"
-  "add r0, r0, #1\n\t"
-  "mov pc, lr\n\t"
+  /* func_b:                                */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1  */
+  0x0e, 0xf0, 0xa0, 0xe1, /* mov pc, lr     */
 
-  ".thumb_func\n\t"
-  "3:\n\t"
-  "push {lr}\n\t"
-  "add r0, r0, #1\n\t"
-  "blx 2b\n\t"
-  "pop {pc}\n\t"
-  ".arm\n\t"
+  /* func_c:                                */
+  0x00, 0xb5,             /* push {lr}      */
+  0x01, 0x30,             /* adds r0, 1     */
+  0xff, 0xf7, 0xf8, 0xef, /* blx func_b     */
+  0x00, 0xbd,             /* pop {pc}       */
 );
 
 TESTCASE (call_thumb)
@@ -1537,31 +1487,26 @@ TESTCASE (call_thumb)
 }
 
 TESTCODE (branch_thumb,
-  ".arm\n\t"
-  "sub r0, r0, r0\n\t"
-  "add r0, r0, #1\n\t"
+  0x00, 0x00, 0x40, 0xe0, /* sub r0, r0, r0 */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1  */
+  0x08, 0x10, 0x8f, 0xe2, /* adr r1, func_a */
+  0x14, 0x20, 0x8f, 0xe2, /* adr r2, func_c */
+  0x01, 0x20, 0x82, 0xe2, /* add r2, r2, 1  */
+  0x12, 0xff, 0x2f, 0xe1, /* bx r2          */
 
-  "adr r1, Lf1\n\t"
-  "adr r2, Lf2\n\t"
-  "add r2, r2, #1\n\t"
+  /* func_a:                                */
+  0x00, 0x00, 0x00, 0xea, /* b func_b       */
 
-  "bx r2\n\t"
-  "Lf1:\n\t"
-  "b 2f\n\t"
-  "1:\n\t"
+  /* beach:                                 */
+  0x0e, 0xf0, 0xa0, 0xe1, /* mov pc, lr     */
 
-  "mov pc, lr\n\t"
+  /* func_b:                                */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1  */
+  0xfc, 0xff, 0xff, 0xea, /* b beach        */
 
-  "2:\n\t"
-  "add r0, r0, #1\n\t"
-  "b 1b\n\t"
-
-  ".thumb_func\n\t"
-  "Lf2:\n\t"
-  "add r0, r0, #1\n\t"
-  "bx r1\n\t"
-
-  ".arm\n\t"
+  /* func_c:                                */
+  0x01, 0x30,             /* adds r0, 1     */
+  0x08, 0x47              /* bx r1          */
 );
 
 TESTCASE (branch_thumb)
@@ -1587,14 +1532,12 @@ TESTCASE (branch_thumb)
 }
 
 TESTCODE (call_workload,
-  ".arm\n\t"
-  ".align 2\n\t"
-  DEFINE_SYMBOL (test_arm_stalker_call_workload)
-
-  "push {lr}\n\t"
-  "bl " SYMBOL_NAME_OF (pretend_workload) "\n\t"
-  "pop {pc}\n\t"
+  0x04, 0xe0, 0x2d, 0xe5, /* push {lr} */
+  0xfe, 0xff, 0xff, 0xeb, /* bl xxx    */
+  0x04, 0xf0, 0x9d, 0xe4  /* pop {pc}  */
 );
+
+/* TODO: fix this ^ */
 
 TESTCASE (can_follow_workload)
 {
@@ -1604,7 +1547,7 @@ TESTCASE (can_follow_workload)
   runner_range.size = 0;
   gum_process_enumerate_modules (store_range_of_test_runner, &runner_range);
 
-  test_arm_stalker_call_workload (&runner_range);
+  //test_arm_stalker_call_workload (&runner_range);
 
   g_test_log_set_fatal_handler (test_log_fatal_func, NULL);
   g_log_set_writer_func (test_log_writer_func, NULL, NULL);
@@ -1613,7 +1556,7 @@ TESTCASE (can_follow_workload)
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
       GUM_EVENT_SINK (fixture->sink));
 
-  test_arm_stalker_call_workload (&runner_range);
+  //test_arm_stalker_call_workload (&runner_range);
 
   gum_stalker_unfollow_me (fixture->stalker);
 
