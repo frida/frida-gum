@@ -1330,7 +1330,7 @@ gum_stalker_destroy_exec_ctx (GumStalker * self,
 static GumExecCtx *
 gum_stalker_get_exec_ctx (GumStalker * self)
 {
-  return (GumExecCtx *) gum_tls_key_get_value (self->exec_ctx);
+  return gum_tls_key_get_value (self->exec_ctx);
 }
 
 static void
