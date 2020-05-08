@@ -99,7 +99,7 @@ TESTCASE (heap_api)
 {
   gpointer p;
 
-  fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
+  fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
 
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
       GUM_EVENT_SINK (fixture->sink));
@@ -114,7 +114,7 @@ TESTCASE (heap_api)
 
 TESTCASE (follow_syscall)
 {
-  fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
+  fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
 
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
       GUM_EVENT_SINK (fixture->sink));
@@ -137,7 +137,7 @@ TESTCASE (follow_thread)
   thread = g_thread_new ("stalker-test-target", run_stalked_briefly, &channel);
   thread_id = sdc_await_thread_id (&channel);
 
-  fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
+  fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
   gum_stalker_follow (fixture->stalker, thread_id, NULL,
       GUM_EVENT_SINK (fixture->sink));
   sdc_put_follow_confirmation (&channel);
@@ -196,7 +196,7 @@ TESTCASE (unfollow_should_handle_terminated_thread)
         &channel);
     thread_id = sdc_await_thread_id (&channel);
 
-    fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
+    fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
     gum_stalker_follow (fixture->stalker, thread_id, NULL,
         GUM_EVENT_SINK (fixture->sink));
     sdc_put_follow_confirmation (&channel);
@@ -2011,7 +2011,7 @@ TESTCASE (win32_indirect_call_seg)
 
 TESTCASE (win32_messagebeep_api)
 {
-  fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
+  fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
 
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
       GUM_EVENT_SINK (fixture->sink));

@@ -20,7 +20,7 @@ TESTCASE (foundation)
     return;
   }
 
-  fixture->sink->mask = (GumEventType) GUM_CALL;
+  fixture->sink->mask = GUM_CALL;
 
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
       GUM_EVENT_SINK (fixture->sink));
