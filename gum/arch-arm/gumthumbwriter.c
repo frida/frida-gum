@@ -825,9 +825,9 @@ gum_thumb_writer_put_vldr_reg_reg_offset (GumThumbWriter * self,
 }
 
 void
-gum_thumb_writer_put_ldmia_registers_by_mask (GumThumbWriter * self,
-                                              arm_reg reg,
-                                              guint16 mask)
+gum_thumb_writer_put_ldmia_reg_mask (GumThumbWriter * self,
+                                     arm_reg reg,
+                                     guint16 mask)
 {
   GumArmRegInfo ri;
 
