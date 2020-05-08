@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -107,11 +107,7 @@ TESTCASE (ldrpc_t1_should_be_rewritten)
   memcpy (expected_output, expected_output_instructions,
       sizeof (expected_output_instructions));
   calculated_pc = (fixture->rl.input_pc + 4 + 12) & ~(4 - 1);
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN
-  *((guint32 *) (expected_output + 4)) = GUINT32_TO_LE (calculated_pc);
-#else
-  *((guint32 *) (expected_output + 4)) = GUINT32_TO_BE (calculated_pc);
-#endif
+  *((guint32 *) (expected_output + 4)) = calculated_pc;
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
   g_assert_cmpint (insn->id, ==, ARM_INS_LDR);
@@ -142,11 +138,7 @@ TESTCASE (ldrpc_t2_should_be_rewritten)
   memcpy (expected_output, expected_output_instructions,
       sizeof (expected_output_instructions));
   calculated_pc = (fixture->rl.input_pc + 4 + 1896) & ~(4 - 1);
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN
-  *((guint32 *) (expected_output + 4)) = GUINT32_TO_LE (calculated_pc);
-#else
-  *((guint32 *) (expected_output + 4)) = GUINT32_TO_BE (calculated_pc);
-#endif
+  *((guint32 *) (expected_output + 4)) = calculated_pc;
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 4);
   g_assert_cmpint (insn->id, ==, ARM_INS_LDR);
@@ -255,11 +247,7 @@ TESTCASE (addh_should_be_rewritten_if_pc_relative)
   memcpy (expected_output, expected_output_instructions,
       sizeof (expected_output_instructions));
   calculated_pc = fixture->rl.input_pc + 4;
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN
-  *((guint32 *) (expected_output + 8)) = GUINT32_TO_LE (calculated_pc);
-#else
-  *((guint32 *) (expected_output + 8)) = GUINT32_TO_BE (calculated_pc);
-#endif
+  *((guint32 *) (expected_output + 8)) = calculated_pc;
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
   g_assert_cmpint (insn->id, ==, ARM_INS_ADD);
@@ -304,13 +292,8 @@ TESTCASE (bl_sequence_should_be_rewritten)
 
   memcpy (expected_output, expected_output_instructions,
       sizeof (expected_output_instructions));
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN
-  *((guint32 *) (expected_output + 24)) = GUINT32_TO_LE (0x1543c | 1);
-  *((guint32 *) (expected_output + 28)) = GUINT32_TO_LE (0xf5ec);
-#else
-  *((guint32 *) (expected_output + 24)) = GUINT32_TO_BE (0x1543c | 1);
-  *((guint32 *) (expected_output + 28)) = GUINT32_TO_BE (0xf5ec);
-#endif
+  *((guint32 *) (expected_output + 24)) = 0x1543c | 1;
+  *((guint32 *) (expected_output + 28)) = 0xf5ec;
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
   g_assert_cmpint (insn->id, ==, ARM_INS_PUSH);
@@ -517,17 +500,8 @@ branch_scenario_execute (BranchScenario * bs,
   SETUP_RELOCATOR_WITH (bs->input);
 
   calculated_pc = fixture->rl.input_pc + 4 + bs->expected_pc_distance;
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN
-  bs->expected_output[bs->pc_offset + 0] =
-      GUINT16_TO_LE ((calculated_pc >> 0) & 0xffff);
-  bs->expected_output[bs->pc_offset + 1] =
-      GUINT16_TO_LE ((calculated_pc >> 16) & 0xffff);
-#else
-  bs->expected_output[bs->pc_offset + 0] =
-      GUINT16_TO_BE ((calculated_pc >> 16) & 0xffff);
-  bs->expected_output[bs->pc_offset + 1] =
-      GUINT16_TO_BE ((calculated_pc >> 0) & 0xffff);
-#endif
+  memcpy (bs->expected_output + bs->pc_offset, &calculated_pc,
+      sizeof (calculated_pc));
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn),
       ==, bs->instruction_length);
@@ -568,11 +542,7 @@ TESTCASE (cbz_should_be_rewritten)
   memcpy (expected_output, expected_output_instructions,
       sizeof (expected_output_instructions));
   calculated_target = (fixture->rl.input_pc + 4 + ((0xe8 >> 3) << 1)) | 1;
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN
-  *((guint32 *) (expected_output + 16)) = GUINT32_TO_LE (calculated_target);
-#else
-  *((guint32 *) (expected_output + 16)) = GUINT32_TO_BE (calculated_target);
-#endif
+  *((guint32 *) (expected_output + 16)) = calculated_target;
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
   g_assert_cmpint (insn->id, ==, ARM_INS_CBZ);
@@ -614,11 +584,7 @@ TESTCASE (cbnz_should_be_rewritten)
   memcpy (expected_output, expected_output_instructions,
       sizeof (expected_output_instructions));
   calculated_target = (fixture->rl.input_pc + 4 + ((0x12 >> 3) << 1)) | 1;
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN
-  *((guint32 *) (expected_output + 16)) = GUINT32_TO_LE (calculated_target);
-#else
-  *((guint32 *) (expected_output + 16)) = GUINT32_TO_BE (calculated_target);
-#endif
+  *((guint32 *) (expected_output + 16)) = calculated_target;
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
   g_assert_cmpint (insn->id, ==, ARM_INS_CBNZ);
@@ -661,11 +627,7 @@ TESTCASE (b_cond_should_be_rewritten)
       sizeof (expected_output_instructions));
   calculated_target = (fixture->rl.input_pc + 4 + (0x1b << 1)) | 1;
 
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN
-  *((guint32 *) (expected_output + 16)) = GUINT32_TO_LE (calculated_target);
-#else
-  *((guint32 *) (expected_output + 16)) = GUINT32_TO_BE (calculated_target);
-#endif
+  *((guint32 *) (expected_output + 16)) = calculated_target;
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
   g_assert_cmpint (insn->id, ==, ARM_INS_B);

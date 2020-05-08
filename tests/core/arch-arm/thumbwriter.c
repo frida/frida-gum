@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -311,17 +311,8 @@ TESTCASE (ldr_u32)
   assert_output_n_equals (0, 0x4801);
   assert_output_n_equals (1, 0x4902);
   assert_output_n_equals (2, 0x4a00);
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN
-  g_assert_cmphex (GUINT32_FROM_LE (((guint32 *) fixture->output)[2]),
-      ==, 0x1337);
-  g_assert_cmphex (GUINT32_FROM_LE (((guint32 *) fixture->output)[3]),
-      ==, 0x1227);
-#else
-  g_assert_cmphex (GUINT32_FROM_BE (((guint32 *) fixture->output)[2]),
-      ==, 0x1337);
-  g_assert_cmphex (GUINT32_FROM_BE (((guint32 *) fixture->output)[3]),
-      ==, 0x1227);
-#endif
+  g_assert_cmphex (((guint32 *) fixture->output)[2], ==, 0x1337);
+  g_assert_cmphex (((guint32 *) fixture->output)[3], ==, 0x1227);
 }
 
 #ifdef HAVE_ARM

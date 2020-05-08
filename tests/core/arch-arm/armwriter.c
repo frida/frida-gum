@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -29,13 +29,8 @@ TESTCASE (ldr_u32)
   assert_output_n_equals (0, 0xe59f0004);
   assert_output_n_equals (1, 0xe59f1004);
   assert_output_n_equals (2, 0xe51f2004);
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN
-  g_assert_cmphex (GUINT32_FROM_LE (fixture->output[3 + 0]), ==, 0x1337);
-  g_assert_cmphex (GUINT32_FROM_LE (fixture->output[3 + 1]), ==, 0x1227);
-#else
-  g_assert_cmphex (GUINT32_FROM_BE (fixture->output[3 + 0]), ==, 0x1337);
-  g_assert_cmphex (GUINT32_FROM_BE (fixture->output[3 + 1]), ==, 0x1227);
-#endif
+  g_assert_cmphex (fixture->output[3 + 0], ==, 0x1337);
+  g_assert_cmphex (fixture->output[3 + 1], ==, 0x1227);
 }
 
 TESTCASE (ldr_pc_u32)
@@ -43,11 +38,7 @@ TESTCASE (ldr_pc_u32)
   gum_arm_writer_put_ldr_reg_u32 (&fixture->aw, ARM_REG_PC, 0xdeadbeef);
   gum_arm_writer_flush (&fixture->aw);
   assert_output_n_equals (0, 0xe51ff004);
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN
-  g_assert_cmphex (GUINT32_FROM_LE (fixture->output[1 + 0]), ==, 0xdeadbeef);
-#else
-  g_assert_cmphex (GUINT32_FROM_BE (fixture->output[1 + 0]), ==, 0xdeadbeef);
-#endif
+  g_assert_cmphex (fixture->output[1 + 0], ==, 0xdeadbeef);
 }
 
 #ifdef HAVE_ARM

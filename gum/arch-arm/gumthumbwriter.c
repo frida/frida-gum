@@ -1466,21 +1466,13 @@ gum_thumb_writer_commit_literals (GumThumbWriter * self)
 
     for (cur_slot = first_slot; cur_slot != last_slot; cur_slot++)
     {
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN
-      if (GUINT32_FROM_LE (*cur_slot) == r->val)
-#else
-      if (GUINT32_FROM_BE (*cur_slot) == r->val)
-#endif
+      if (*cur_slot == r->val)
         break;
     }
 
     if (cur_slot == last_slot)
     {
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN
-      *cur_slot = GUINT32_TO_LE (r->val);
-#else
-      *cur_slot = GUINT32_TO_BE (r->val);
-#endif
+      *cur_slot = r->val;
       self->code += 2;
       self->pc += 4;
       last_slot++;

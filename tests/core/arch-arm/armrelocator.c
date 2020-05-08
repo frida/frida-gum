@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -402,12 +402,7 @@ branch_scenario_execute (BranchScenario * bs,
     guint32 calculated_pc;
 
     calculated_pc = fixture->rl.input_pc + 8 + bs->expected_pc_distance;
-    *((guint32 *) (bs->expected_output + bs->pc_offset)) =
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN
-        GUINT32_TO_LE (calculated_pc);
-#else
-        GUINT32_TO_BE (calculated_pc);
-#endif
+    *((guint32 *) (bs->expected_output + bs->pc_offset)) = calculated_pc;
   }
 
   if (bs->lr_offset != -1)
@@ -416,12 +411,7 @@ branch_scenario_execute (BranchScenario * bs,
 
     calculated_lr = (guint32) (fixture->aw.pc +
         (bs->expected_lr_distance * sizeof (guint32)));
-    *((guint32 *) (bs->expected_output + bs->lr_offset)) =
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN
-        GUINT32_TO_LE (calculated_lr);
-#else
-        GUINT32_TO_BE (calculated_lr);
-#endif
+    *((guint32 *) (bs->expected_output + bs->lr_offset)) = calculated_lr;
   }
 
   g_assert_cmpuint (gum_arm_relocator_read_one (&fixture->rl, &insn), ==, 4);
