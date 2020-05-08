@@ -774,8 +774,8 @@ gum_stalker_infect (GumThreadId thread_id,
   gum_exec_ctx_write_prolog (ctx, GUM_PROLOG_MINIMAL, &cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
       GUM_ADDRESS (gum_tls_key_set_value), 2,
-      GUM_ARG_ADDRESS, self->exec_ctx,
-      GUM_ARG_ADDRESS, ctx);
+      GUM_ARG_ADDRESS, GUM_ADDRESS (self->exec_ctx),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (ctx));
   gum_exec_ctx_write_epilog (ctx, GUM_PROLOG_MINIMAL, &cw);
 
   gum_arm64_writer_put_b_imm (&cw, GUM_ADDRESS (code_address) +
