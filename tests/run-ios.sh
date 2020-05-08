@@ -1,6 +1,6 @@
 #!/bin/sh
 
-arch=arm64e
+arch=arm
 
 remote_host=iphone
 remote_prefix=/usr/local/opt/frida-tests-$arch
@@ -9,7 +9,7 @@ gum_tests=$(dirname "$0")
 
 cd "$gum_tests/../../build/tmp-ios-$arch/frida-gum" || exit 1
 
-. ../../frida-meson-env-macos-x86_64.rc
+. ../../frida-meson-env-ios-arm.rc
 ninja || exit 1
 
 cd tests
@@ -17,31 +17,31 @@ cd tests
 ssh "$remote_host" "mkdir -p '$remote_prefix'"
 rsync -rLz gum-tests data "$remote_host:$remote_prefix/" || exit 1
 
-ssh "$remote_host" "rm -f /var/mobile/Library/Logs/CrashReporter/gum-tests-*"
+#ssh "$remote_host" "rm -f /var/mobile/Library/Logs/CrashReporter/gum-tests-*"
 
-log_path=$(mktemp "$TMPDIR/gum-tests.XXXXXX")
-ssh "$remote_host" "$remote_prefix/gum-tests" "$@" | tee "$log_path"
+#log_path=$(mktemp "$TMPDIR/gum-tests.XXXXXX")
+ssh "$remote_host" "$remote_prefix/gum-tests" "$@" #| tee "$log_path"
 
-if [ ${PIPESTATUS[0]} -ne 0 ]; then
-  while ! ssh "$remote_host" "ls /var/mobile/Library/Logs/CrashReporter/gum-tests-*" 2>/dev/null; do
-    sleep 1
-  done
+#if [ ${PIPESTATUS[0]} -ne 0 ]; then
+#  while ! ssh "$remote_host" "ls /var/mobile/Library/Logs/CrashReporter/gum-tests-*" 2>/dev/null; do
+#    sleep 1
+#  done
+#
+#  remote_report_path=$(ssh "$remote_host" "echo /var/mobile/Library/Logs/CrashReporter/gum-tests-*")
+#  local_report_path=$(mktemp "$TMPDIR/gum-tests.XXXXXX")
+#  scp "$remote_host:$remote_report_path" "$local_report_path"
+#
+#  program_base=$(egrep "^(0x.+)\sgum-tests" "$local_report_path" | awk '{ print $1; }')
+#
+#  cat "$local_report_path"
+#
+#  echo "Crash:"
+#  egrep "^\d+\s+gum-tests" "$local_report_path" \
+#    | awk '{ print $3; }' \
+#    | xargs atos -o gum-tests -l $program_base
+#
+#  rm "$local_report_path"
+#  ssh "$remote_host" "rm $remote_report_path"
+#fi
 
-  remote_report_path=$(ssh "$remote_host" "echo /var/mobile/Library/Logs/CrashReporter/gum-tests-*")
-  local_report_path=$(mktemp "$TMPDIR/gum-tests.XXXXXX")
-  scp "$remote_host:$remote_report_path" "$local_report_path"
-
-  program_base=$(egrep "^(0x.+)\sgum-tests" "$local_report_path" | awk '{ print $1; }')
-
-  cat "$local_report_path"
-
-  echo "Crash:"
-  egrep "^\d+\s+gum-tests" "$local_report_path" \
-    | awk '{ print $3; }' \
-    | xargs atos -o gum-tests -l $program_base
-
-  rm "$local_report_path"
-  ssh "$remote_host" "rm $remote_report_path"
-fi
-
-rm "$log_path"
+#rm "$log_path"
