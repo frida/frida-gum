@@ -34,35 +34,9 @@
 #define NTH_EXEC_EVENT_LOCATION(N) \
     (gum_fake_event_sink_get_nth_event_as_exec (fixture->sink, N)->location)
 
-#define CODE_START(NAME)                                                  \
-    (&test_arm_stalker_ ## NAME ## _begin)
-#define CODE_SIZE(NAME)                                                   \
-    ((&test_arm_stalker_ ## NAME ## _end) -                               \
-     (&test_arm_stalker_ ## NAME ## _begin))
-
-#ifdef __APPLE__
-# define SYMBOL_NAME_OF(NAME)                                             \
-    G_STRINGIFY (G_PASTE (_, NAME))
-# define DEFINE_SYMBOL(NAME)                                              \
-    ".globl " SYMBOL_NAME_OF (NAME) "\n\t"                                \
-    SYMBOL_NAME_OF (NAME) ":\n\t"
-#else
-# define SYMBOL_NAME_OF(NAME)                                             \
-    G_STRINGIFY (NAME)
-# define DEFINE_SYMBOL(NAME)                                              \
-    ".globl " SYMBOL_NAME_OF (NAME) "\n\t"                                \
-    G_STRINGIFY (NAME) ":\n\t"
-#endif
-
-#define TESTCODE(NAME, CODE) \
-    extern const void test_arm_stalker_ ## NAME ## _begin;                \
-    extern const void test_arm_stalker_ ## NAME ## _end;                  \
-    asm (                                                                 \
-      ".align 2\n\t"                                                      \
-      DEFINE_SYMBOL (G_PASTE (G_PASTE (test_arm_stalker_, NAME), _begin)) \
-      CODE                                                                \
-      DEFINE_SYMBOL (G_PASTE (G_PASTE (test_arm_stalker_, NAME), _end))   \
-    );
+#define TESTCODE(NAME, ...) static const guint8 NAME[] = { __VA_ARGS__ }
+#define CODE_START(NAME) ((gconstpointer) NAME)
+#define CODE_SIZE(NAME) sizeof (NAME)
 
 #define GUM_EVENT_TYPE_exec GumExecEvent
 #define GUM_EVENT_TYPE_NAME_exec GUM_EXEC
@@ -149,28 +123,26 @@ static GumAddress invoke_arm_expecting_return_value (
 static GumAddress invoke_thumb_expecting_return_value (
     TestArmStalkerFixture * fixture, GumEventType mask, const guint32 * code,
     guint32 len, guint32 expected_return_value);
-static gint test_arm_stalker_fixture_follow_and_invoke (
+static guint32 test_arm_stalker_fixture_follow_and_invoke (
     TestArmStalkerFixture * fixture, GumAddress addr);
-static void test_arm_stalker_fixture_unstalked (TestArmStalkerFixture * fixture,
-    GumAddress addr);
-static void test_arm_stalker_fixture_stalked (TestArmStalkerFixture * fixture,
-    GumAddress addr);
+static void test_arm_stalker_fixture_invoke_unstalked (
+    TestArmStalkerFixture * fixture, GumAddress addr);
+static void test_arm_stalker_fixture_invoke_stalked (
+    TestArmStalkerFixture * fixture, GumAddress addr);
 
 TESTCODE (arm_flat_code,
-  ".arm\n\t"
-  "sub r0, r0, r0\n\t"
-  "add r0, r0, #1\n\t"
-  "add r0, r0, #1\n\t"
-  "mov pc, lr\n\t"
+  0x00, 0x00, 0x40, 0xe0, /* sub r0, r0, r0  */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1   */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1   */
+  0x0e, 0xf0, 0xa0, 0xe1  /* mov pc, lr      */
 );
 
 TESTCODE (thumb_flat_code,
-  ".thumb\n\t"
-  "push {lr}\n\t"
-  "sub r0, r0, r0\n\t"
-  "add r0, r0, #1\n\t"
-  "add r0, r0, #1\n\t"
-  "pop {pc}\n\t"
+  0x00, 0xb5,             /* push {lr}       */
+  0x00, 0x1a,             /* subs r0, r0, r0 */
+  0x01, 0x30,             /* adds r0, 1      */
+  0x01, 0x30,             /* adds r0, 1      */
+  0x00, 0xbd              /* pop {pc}        */
 );
 
 static void
@@ -249,7 +221,7 @@ stalk_arm_flat_expecting_return_value (TestArmStalkerFixture * fixture,
       CODE_START (arm_flat_code), CODE_SIZE (arm_flat_code));
 
   fixture->sink->mask = mask;
-  test_arm_stalker_fixture_stalked (fixture, addr);
+  test_arm_stalker_fixture_invoke_stalked (fixture, addr);
 
   g_assert_cmpuint (expected_return_value, ==, fixture->stalked_ret);
 
@@ -294,12 +266,12 @@ invoke_thumb_expecting_return_value (TestArmStalkerFixture * fixture,
   return addr;
 }
 
-static gint
+static guint32
 test_arm_stalker_fixture_follow_and_invoke (TestArmStalkerFixture * fixture,
                                             GumAddress addr)
 {
-  test_arm_stalker_fixture_unstalked (fixture, addr);
-  test_arm_stalker_fixture_stalked (fixture, addr);
+  test_arm_stalker_fixture_invoke_unstalked (fixture, addr);
+  test_arm_stalker_fixture_invoke_stalked (fixture, addr);
 
   g_assert_cmpuint (fixture->unstalked_ret, ==, fixture->stalked_ret);
 
@@ -307,8 +279,8 @@ test_arm_stalker_fixture_follow_and_invoke (TestArmStalkerFixture * fixture,
 }
 
 static void
-test_arm_stalker_fixture_unstalked (TestArmStalkerFixture * fixture,
-                                    GumAddress addr)
+test_arm_stalker_fixture_invoke_unstalked (TestArmStalkerFixture * fixture,
+                                           GumAddress addr)
 {
   GumArmWriter cw;
   GCallback unstalked_func;
@@ -341,8 +313,8 @@ test_arm_stalker_fixture_unstalked (TestArmStalkerFixture * fixture,
 }
 
 static void
-test_arm_stalker_fixture_stalked (TestArmStalkerFixture * fixture,
-                                  GumAddress addr)
+test_arm_stalker_fixture_invoke_stalked (TestArmStalkerFixture * fixture,
+                                         GumAddress addr)
 {
   GumAddressSpec spec;
   GumArmWriter cw;
