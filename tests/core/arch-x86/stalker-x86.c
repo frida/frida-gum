@@ -95,8 +95,6 @@ static void unfollow_during_transform (GumStalkerIterator * iterator,
 static void invoke_follow_return_code (TestStalkerFixture * fixture);
 static void invoke_unfollow_deep_code (TestStalkerFixture * fixture);
 
-gint gum_stalker_dummy_global_to_trick_optimizer = 0;
-
 TESTCASE (heap_api)
 {
   gpointer p;

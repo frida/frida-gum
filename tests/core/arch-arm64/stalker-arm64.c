@@ -73,8 +73,6 @@ static gboolean store_range_of_test_runner (const GumModuleDetails * details,
     gpointer user_data);
 static void pretend_workload (GumMemoryRange * runner_range);
 
-gint gum_stalker_dummy_global_to_trick_optimizer = 0;
-
 static const guint32 flat_code[] = {
   0xCB000000, /* SUB W0, W0, W0 */
   0x91000400, /* ADD W0, W0, #1 */
