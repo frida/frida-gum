@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -74,6 +74,8 @@ GUM_API void gum_arm_writer_put_b_label (GumArmWriter * self,
 GUM_API void gum_arm_writer_put_b_cond_label (GumArmWriter * self,
     arm_cc cc, gconstpointer label_id);
 GUM_API gboolean gum_arm_writer_put_bl_imm (GumArmWriter * self,
+    GumAddress target);
+GUM_API gboolean gum_arm_writer_put_blx_imm (GumArmWriter * self,
     GumAddress target);
 GUM_API void gum_arm_writer_put_bl_label (GumArmWriter * self,
     gconstpointer label_id);

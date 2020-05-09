@@ -431,6 +431,25 @@ gum_arm_writer_put_bl_imm (GumArmWriter * self,
   return TRUE;
 }
 
+gboolean
+gum_arm_writer_put_blx_imm (GumArmWriter * self,
+                            GumAddress target)
+{
+  gint64 distance;
+  guint32 halfword_bit;
+
+  distance = (gint64) target - (gint64) (self->pc + 8);
+  if (!GUM_IS_WITHIN_INT26_RANGE (distance))
+    return FALSE;
+
+  halfword_bit = (distance >> 1) & 1;
+
+  gum_arm_writer_put_instruction (self, 0xfa000000 | (halfword_bit << 24) |
+      ((distance >> 2) & GUM_INT24_MASK));
+
+  return TRUE;
+}
+
 void
 gum_arm_writer_put_bl_label (GumArmWriter * self,
                              gconstpointer label_id)
