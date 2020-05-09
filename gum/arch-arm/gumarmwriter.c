@@ -387,17 +387,14 @@ gum_arm_writer_put_b_cond_imm (GumArmWriter * self,
                                arm_cc cc,
                                GumAddress target)
 {
-  gint64 distance_in_bytes;
-  guint32 distance_in_words;
+  gint64 distance;
 
-  distance_in_bytes = (gint64) target - (gint64) (self->pc + 8);
-  if (!GUM_IS_WITHIN_INT26_RANGE (distance_in_bytes))
+  distance = (gint64) target - (gint64) (self->pc + 8);
+  if (!GUM_IS_WITHIN_INT26_RANGE (distance))
     return FALSE;
 
-  distance_in_words = distance_in_bytes / 4;
-
   gum_arm_writer_put_instruction (self, 0x0a000000 | gum_arm_condify (cc) |
-      (distance_in_words & GUM_INT24_MASK));
+      ((distance >> 2) & GUM_INT24_MASK));
 
   return TRUE;
 }
@@ -422,17 +419,14 @@ gboolean
 gum_arm_writer_put_bl_imm (GumArmWriter * self,
                            GumAddress target)
 {
-  gint64 distance_in_bytes;
-  guint32 distance_in_words;
+  gint64 distance;
 
-  distance_in_bytes = (gint64) target - (gint64) (self->pc + 8);
-  if (!GUM_IS_WITHIN_INT26_RANGE (distance_in_bytes))
+  distance = (gint64) target - (gint64) (self->pc + 8);
+  if (!GUM_IS_WITHIN_INT26_RANGE (distance))
     return FALSE;
 
-  distance_in_words = distance_in_bytes / 4;
-
   gum_arm_writer_put_instruction (self, 0xeb000000 |
-      (distance_in_words & GUM_INT24_MASK));
+      ((distance >> 2) & GUM_INT24_MASK));
 
   return TRUE;
 }
