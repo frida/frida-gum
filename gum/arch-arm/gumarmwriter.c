@@ -334,7 +334,7 @@ gum_arm_writer_put_argument_list_setup_va (GumArmWriter * self,
     if (arg->type == GUM_ARG_ADDRESS)
       arg->value.address = va_arg (args, GumAddress);
     else if (arg->type == GUM_ARG_REGISTER)
-      arg->value.reg = va_arg (args, arm64_reg);
+      arg->value.reg = va_arg (args, arm_reg);
     else
       g_assert_not_reached ();
   }
