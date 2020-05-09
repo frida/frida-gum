@@ -35,6 +35,8 @@ static void gum_arm_writer_put_argument_list_setup_va (GumArmWriter * self,
     guint n_args, va_list args);
 static void gum_arm_writer_put_argument_list_teardown (GumArmWriter * self,
     guint n_args);
+static void gum_arm_writer_put_call_address_body (GumArmWriter * self,
+    GumAddress address, guint n_args);
 
 static gboolean gum_arm_writer_try_commit_label_refs (GumArmWriter * self);
 static void gum_arm_writer_maybe_commit_literals (GumArmWriter * self);
@@ -251,16 +253,7 @@ gum_arm_writer_put_call_address_with_arguments (GumArmWriter * self,
   gum_arm_writer_put_argument_list_setup_va (self, n_args, args);
   va_end (args);
 
-  if (gum_arm_writer_can_branch_directly_between (self, self->pc, func))
-  {
-    gum_arm_writer_put_bl_imm (self, func);
-  }
-  else
-  {
-    const arm_reg target = ARM_REG_R0 + n_args;
-    gum_arm_writer_put_ldr_reg_address (self, target, func);
-    gum_arm_writer_put_blx_reg (self, target);
-  }
+  gum_arm_writer_put_call_address_body (self, func, n_args);
 
   gum_arm_writer_put_argument_list_teardown (self, n_args);
 }
@@ -273,16 +266,7 @@ gum_arm_writer_put_call_address_with_arguments_array (GumArmWriter * self,
 {
   gum_arm_writer_put_argument_list_setup (self, n_args, args);
 
-  if (gum_arm_writer_can_branch_directly_between (self, self->pc, func))
-  {
-    gum_arm_writer_put_bl_imm (self, func);
-  }
-  else
-  {
-    const arm_reg target = ARM_REG_R0 + n_args;
-    gum_arm_writer_put_ldr_reg_address (self, target, func);
-    gum_arm_writer_put_blx_reg (self, target);
-  }
+  gum_arm_writer_put_call_address_body (self, func, n_args);
 
   gum_arm_writer_put_argument_list_teardown (self, n_args);
 }
@@ -348,21 +332,45 @@ gum_arm_writer_put_argument_list_teardown (GumArmWriter * self,
 {
 }
 
+static void
+gum_arm_writer_put_call_address_body (GumArmWriter * self,
+                                      GumAddress address,
+                                      guint n_args)
+{
+  GumAddress aligned_address;
+
+  aligned_address = address & ~GUM_ADDRESS (1);
+
+  if (gum_arm_writer_can_branch_directly_between (self, self->pc,
+      aligned_address))
+  {
+    if (aligned_address == address)
+      gum_arm_writer_put_bl_imm (self, aligned_address);
+    else
+      gum_arm_writer_put_blx_imm (self, aligned_address);
+  }
+  else
+  {
+    const arm_reg target = ARM_REG_R0 + n_args;
+    gum_arm_writer_put_ldr_reg_address (self, target, address);
+    gum_arm_writer_put_blx_reg (self, target);
+  }
+}
+
 void
 gum_arm_writer_put_branch_address (GumArmWriter * self,
                                    GumAddress address)
 {
-  if (!gum_arm_writer_can_branch_directly_between (self, self->pc, address))
+  if (gum_arm_writer_can_branch_directly_between (self, self->pc, address))
+  {
+    gum_arm_writer_put_b_imm (self, address);
+  }
+  else
   {
     const arm_reg target = ARM_REG_R9;
-
     gum_arm_writer_put_ldr_reg_address (self, target, address);
     gum_arm_writer_put_bx_reg (self, target);
-
-    return;
   }
-
-  gum_arm_writer_put_b_imm (self, address);
 }
 
 gboolean
