@@ -280,9 +280,7 @@ gum_arm_writer_put_argument_list_setup (GumArmWriter * self,
 
   /*
    * This function does not support the pushing of stack based arguments. If we
-   * add this later, we should note that the stack must be 8 byte aligned. We
-   * should take care not to misalign the stack when pushing an odd number of
-   * stack based arguments.
+   * add this later, we should note that the stack must be 8 byte aligned.
    */
   g_assert (n_args <= 4);
 
