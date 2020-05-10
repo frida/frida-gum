@@ -64,6 +64,8 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (performance)
 
   TESTENTRY (custom_transformer)
+  TESTENTRY (arm_callout)
+  TESTENTRY (thumb_callout)
   TESTENTRY (unfollow_should_be_allowed_before_first_transform)
   TESTENTRY (unfollow_should_be_allowed_mid_first_transform)
   TESTENTRY (unfollow_should_be_allowed_after_first_transform)
@@ -87,6 +89,16 @@ static GLogWriterOutput test_log_writer_func (GLogLevelFlags log_level,
     const GLogField * fields, gsize n_fields, gpointer user_data);
 static void duplicate_adds (GumStalkerIterator * iterator,
     GumStalkerWriter * output, gpointer user_data);
+static void arm_callout_transformer (GumStalkerIterator * iterator,
+    GumStalkerWriter * output, gpointer user_data);
+static void arm_validate_context_callout (GumCpuContext * cpu_context,
+    gpointer user_data);
+static gboolean arm_is_mov_pc_lr (const guint8 * bytes, gsize size);
+static void thumb_callout_transformer (GumStalkerIterator * iterator,
+    GumStalkerWriter * output, gpointer user_data);
+static void thumb_validate_context_callout (GumCpuContext * cpu_context,
+    gpointer user_data);
+static gboolean thumb_is_pop_pc (const guint8 * bytes, gsize size);
 static void unfollow_during_transform (GumStalkerIterator * iterator,
     GumStalkerWriter * output, gpointer user_data);
 static gpointer run_stalked_briefly (gpointer data);
@@ -1671,6 +1683,111 @@ duplicate_adds (GumStalkerIterator * iterator,
       gum_arm_writer_put_bytes (&output->arm, insn->bytes, insn->size);
   }
 }
+
+TESTCASE (arm_callout)
+{
+  gconstpointer magic = (gconstpointer) 0xbaadface;
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      arm_callout_transformer, (gpointer) magic, NULL);
+
+  stalk_arm_flat_expecting_return_value (fixture, GUM_NOTHING, 2);
+}
+
+static void
+arm_callout_transformer (GumStalkerIterator * iterator,
+                         GumStalkerWriter * output,
+                         gpointer user_data)
+{
+  gconstpointer magic = (gconstpointer) user_data;
+  const cs_insn * insn;
+
+  while (gum_stalker_iterator_next (iterator, &insn))
+  {
+
+    if (arm_is_mov_pc_lr (insn->bytes, insn->size))
+    {
+      gum_stalker_iterator_put_callout (iterator, arm_validate_context_callout,
+          (gpointer) magic, NULL);
+    }
+    gum_stalker_iterator_keep (iterator);
+  }
+}
+
+static void arm_validate_context_callout (GumCpuContext * cpu_context,
+                                          gpointer user_data)
+{
+  gconstpointer magic = (gconstpointer) user_data;
+  guint8 * bytes = (guint8 *) cpu_context->pc;
+  g_assert (magic == (gconstpointer) 0xbaadface);
+  g_assert_cmpuint (cpu_context->r[0], ==, 2);
+  g_assert_true (arm_is_mov_pc_lr (bytes, 4));
+}
+
+static gboolean arm_is_mov_pc_lr (const guint8 * bytes, gsize size)
+{
+  guint8 mov_pc_lr[] = {0x0e, 0xf0, 0xa0, 0xe1};
+
+  if (sizeof (mov_pc_lr) != size)
+    return FALSE;
+
+  if (memcmp (bytes, mov_pc_lr, size) != 0)
+    return FALSE;
+
+  return TRUE;
+}
+
+TESTCASE (thumb_callout)
+{
+  gconstpointer magic = (gconstpointer) 0xfacef00d;
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      thumb_callout_transformer, (gpointer) magic, NULL);
+
+  stalk_arm_flat_expecting_return_value (fixture, GUM_NOTHING, 2);
+}
+
+static void
+thumb_callout_transformer (GumStalkerIterator * iterator,
+                           GumStalkerWriter * output,
+                           gpointer user_data)
+{
+  gconstpointer magic = (gconstpointer) user_data;
+  const cs_insn * insn;
+
+  while (gum_stalker_iterator_next (iterator, &insn))
+  {
+
+    if (thumb_is_pop_pc (insn->bytes, insn->size))
+    {
+      gum_stalker_iterator_put_callout (iterator,
+          thumb_validate_context_callout, (gpointer) magic, NULL);
+    }
+    gum_stalker_iterator_keep (iterator);
+  }
+}
+
+static void thumb_validate_context_callout (GumCpuContext * cpu_context,
+                                            gpointer user_data)
+{
+  gconstpointer magic = (gconstpointer) user_data;
+  guint8 * bytes = (guint8 *) cpu_context->pc;
+  g_assert (magic == (gconstpointer) 0xfacef00d);
+  g_assert_cmpuint (cpu_context->r[0], ==, 2);
+  g_assert_true (thumb_is_pop_pc (bytes, 2));
+}
+
+static gboolean thumb_is_pop_pc (const guint8 * bytes, gsize size)
+{
+  guint8 pop_pc[] = {0x00, 0xbd};
+
+  if (sizeof (pop_pc) != size)
+    return FALSE;
+
+  if (memcmp (bytes, pop_pc, size) != 0)
+    return FALSE;
+
+  return TRUE;
+}
+
 
 TESTCASE (unfollow_should_be_allowed_before_first_transform)
 {
