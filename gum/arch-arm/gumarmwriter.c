@@ -284,7 +284,7 @@ gum_arm_writer_put_argument_list_setup (GumArmWriter * self,
    * should take care not to misalign the stack when pushing an odd number of
    * stack based arguments.
    */
-  g_assert (n_args < 4);
+  g_assert (n_args <= 4);
 
   for (arg_index = (gint) n_args - 1; arg_index >= 0; arg_index--)
   {
