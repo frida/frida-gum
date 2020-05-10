@@ -878,7 +878,7 @@ gum_arm_writer_put_ands_reg_reg_imm (GumArmWriter * self,
   gum_arm_reg_describe (dst_reg, &rd);
   gum_arm_reg_describe (src_reg, &rs);
 
-  is_noop = dst_reg == src_reg && (imm_val & GUM_INT8_MASK) != 0;
+  is_noop = dst_reg == src_reg && (imm_val & GUM_INT8_MASK) == 0;
   if (is_noop)
     return;
 
