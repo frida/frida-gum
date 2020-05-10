@@ -354,7 +354,7 @@ gum_arm_writer_put_call_address_body (GumArmWriter * self,
 
   aligned_address = address & ~GUM_ADDRESS (1);
 
-#ifdef TRUE // CHECK STACK ALIGN
+#if 0 // CHECK STACK ALIGN
   gconstpointer lbl = self->code + 1;
   gum_arm_writer_put_instruction (self, 0xe31d0007); // tst sp, #7
   gum_arm_writer_put_b_cond_label (self, ARM_CC_EQ, lbl);

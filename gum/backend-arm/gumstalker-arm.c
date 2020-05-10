@@ -364,9 +364,9 @@ G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
  * not designed to be safe against re-entry on the same thread!!! This will
  * result in confusing failures.
  */
-static gboolean g_debug = TRUE;
-static gboolean g_verbose = TRUE;
-static gboolean g_debug_events = TRUE;
+static gboolean g_debug = FALSE;
+static gboolean g_verbose = FALSE;
+static gboolean g_debug_events = FALSE;
 
 static guint32 g_count = 0;
 static guint32 g_events = 0;
@@ -2109,7 +2109,8 @@ gum_exec_ctx_write_thumb_prolog (GumExecCtx * ctx,
 
   gum_thumb_writer_put_mov_reg_reg (cw, ARM_REG_R10, ARM_REG_SP);
   gum_thumb_writer_put_and_reg_reg_imm (cw, ARM_REG_R0, ARM_REG_SP, 7);
-  gum_thumb_writer_put_sub_reg_reg_reg (cw, ARM_REG_SP, ARM_REG_SP, ARM_REG_R0);
+  gum_thumb_writer_put_sub_reg_reg_imm (cw, ARM_REG_SP, ARM_REG_SP, 8);
+  gum_thumb_writer_put_add_reg_reg_reg (cw, ARM_REG_SP, ARM_REG_SP, ARM_REG_R0);
 }
 
 static void
