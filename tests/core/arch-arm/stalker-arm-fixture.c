@@ -38,6 +38,22 @@
 #define CODE_START(NAME) ((gconstpointer) NAME)
 #define CODE_SIZE(NAME) sizeof (NAME)
 
+#define DUP_TESTCODE(NAME) \
+    test_arm_stalker_fixture_dup_code (fixture, \
+        CODE_START (NAME), CODE_SIZE (NAME))
+#define FOLLOW_AND_INVOKE(FUNC) \
+    test_arm_stalker_fixture_follow_and_invoke (fixture, FUNC)
+#define INVOKE_ARM_FLAT_EXPECTING(EVENTS, RETVAL) \
+    invoke_arm_flat_expecting_return_value (fixture, EVENTS, RETVAL)
+#define INVOKE_THUMB_FLAT_EXPECTING(EVENTS, RETVAL) \
+    invoke_thumb_flat_expecting_return_value (fixture, EVENTS, RETVAL)
+#define INVOKE_ARM_EXPECTING(EVENTS, NAME, RETVAL) \
+    invoke_arm_expecting_return_value (fixture, EVENTS, CODE_START (NAME), \
+        CODE_SIZE (NAME), RETVAL)
+#define INVOKE_THUMB_EXPECTING(EVENTS, NAME, RETVAL) \
+    invoke_thumb_expecting_return_value (fixture, EVENTS, CODE_START (NAME), \
+        CODE_SIZE (NAME), RETVAL)
+
 #define GUM_EVENT_TYPE_exec GumExecEvent
 #define GUM_EVENT_TYPE_NAME_exec GUM_EXEC
 

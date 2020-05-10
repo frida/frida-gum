@@ -139,14 +139,14 @@ TESTCASE (remove_call_probe_unsupported)
 
 TESTCASE (arm_no_events)
 {
-  invoke_arm_flat_expecting_return_value (fixture, GUM_NOTHING, 2);
+  INVOKE_ARM_FLAT_EXPECTING (GUM_NOTHING, 2);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 0);
 }
 
 TESTCASE (thumb_no_events)
 {
-  invoke_thumb_flat_expecting_return_value (fixture, GUM_NOTHING, 2);
+  INVOKE_THUMB_FLAT_EXPECTING (GUM_NOTHING, 2);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 0);
 }
@@ -155,7 +155,7 @@ TESTCASE (arm_exec_events_generated)
 {
   GumAddress func;
 
-  func = invoke_arm_flat_expecting_return_value (fixture, GUM_EXEC, 2);
+  func = INVOKE_ARM_FLAT_EXPECTING (GUM_EXEC, 2);
 
   g_assert_cmpuint (fixture->sink->events->len, ==,
       INVOKER_INSN_COUNT + (CODE_SIZE (arm_flat_code) / 4));
@@ -184,7 +184,7 @@ TESTCASE (thumb_exec_events_generated)
 {
   GumAddress func;
 
-  func = invoke_thumb_flat_expecting_return_value (fixture, GUM_EXEC, 2);
+  func = INVOKE_THUMB_FLAT_EXPECTING (GUM_EXEC, 2);
 
   g_assert_cmpuint (fixture->sink->events->len, ==,
       INVOKER_INSN_COUNT + (CODE_SIZE (thumb_flat_code) / 2));
@@ -214,7 +214,7 @@ TESTCASE (arm_call_events_generated)
 {
   GumAddress func;
 
-  func = invoke_arm_flat_expecting_return_value (fixture, GUM_CALL, 2);
+  func = INVOKE_ARM_FLAT_EXPECTING (GUM_CALL, 2);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_CALL_INSN_COUNT);
 
@@ -226,7 +226,7 @@ TESTCASE (thumb_call_events_generated)
 {
   GumAddress func;
 
-  func = invoke_thumb_flat_expecting_return_value (fixture, GUM_CALL, 2);
+  func = INVOKE_THUMB_FLAT_EXPECTING (GUM_CALL, 2);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_CALL_INSN_COUNT);
 
@@ -250,8 +250,7 @@ TESTCASE (arm_block_events_generated)
 {
   GumAddress func;
 
-  func = invoke_arm_expecting_return_value (fixture, GUM_BLOCK,
-      CODE_START (arm_block_events), CODE_SIZE (arm_block_events), 2);
+  func = INVOKE_ARM_EXPECTING (GUM_BLOCK, arm_block_events, 2);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 1);
 
@@ -276,8 +275,7 @@ TESTCASE (thumb_block_events_generated)
 {
   GumAddress func;
 
-  func = invoke_thumb_expecting_return_value (fixture, GUM_BLOCK,
-      CODE_START (thumb_block_events), CODE_SIZE (thumb_block_events), 2);
+  func = INVOKE_THUMB_EXPECTING (GUM_BLOCK, thumb_block_events, 2);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 1);
 
@@ -310,8 +308,7 @@ TESTCASE (arm_nested_call_events_generated)
 {
   GumAddress func;
 
-  func = invoke_arm_expecting_return_value (fixture, GUM_CALL,
-      CODE_START (arm_nested_call), CODE_SIZE (arm_nested_call), 4);
+  func = INVOKE_ARM_EXPECTING (GUM_CALL, arm_nested_call, 4);
 
   g_assert_cmpuint (fixture->sink->events->len, ==,
       INVOKER_CALL_INSN_COUNT + 3);
@@ -356,8 +353,7 @@ TESTCASE (thumb_nested_call_events_generated)
 {
   GumAddress func;
 
-  func = invoke_thumb_expecting_return_value (fixture, GUM_CALL,
-      CODE_START (thumb_nested_call), CODE_SIZE (thumb_nested_call), 4);
+  func = INVOKE_THUMB_EXPECTING (GUM_CALL, thumb_nested_call, 4);
 
   g_assert_cmpuint (fixture->sink->events->len, ==,
       INVOKER_CALL_INSN_COUNT + 3);
@@ -382,8 +378,7 @@ TESTCASE (arm_nested_ret_events_generated)
 {
   GumAddress func;
 
-  func = invoke_arm_expecting_return_value (fixture, GUM_RET,
-      CODE_START (arm_nested_call), CODE_SIZE (arm_nested_call), 4);
+  func = INVOKE_ARM_EXPECTING (GUM_RET, arm_nested_call, 4);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 4);
 
@@ -407,8 +402,7 @@ TESTCASE (thumb_nested_ret_events_generated)
 {
   GumAddress func;
 
-  func = invoke_thumb_expecting_return_value (fixture, GUM_RET,
-      CODE_START (thumb_nested_call), CODE_SIZE (thumb_nested_call), 4);
+  func = INVOKE_THUMB_EXPECTING (GUM_RET, thumb_nested_call, 4);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 4);
 
@@ -442,8 +436,7 @@ TESTCODE (arm_unmodified_lr,
 
 TESTCASE (arm_unmodified_lr)
 {
-  invoke_arm_expecting_return_value (fixture, 0, CODE_START (arm_unmodified_lr),
-      CODE_SIZE (arm_unmodified_lr), 0xecececec);
+  INVOKE_ARM_EXPECTING (0, arm_unmodified_lr, 0xecececec);
 }
 
 TESTCODE (thumb_unmodified_lr,
@@ -463,9 +456,7 @@ TESTCODE (thumb_unmodified_lr,
 
 TESTCASE (thumb_unmodified_lr)
 {
-  invoke_thumb_expecting_return_value (fixture, 0,
-      CODE_START (thumb_unmodified_lr), CODE_SIZE (thumb_unmodified_lr),
-      0xecececec);
+  INVOKE_THUMB_EXPECTING (0, thumb_unmodified_lr, 0xecececec);
 }
 
 TESTCODE (arm_excluded_range,
@@ -485,8 +476,7 @@ TESTCASE (arm_excluded_range)
 {
   GumAddress func;
 
-  func = test_arm_stalker_fixture_dup_code (fixture,
-      CODE_START (arm_excluded_range), CODE_SIZE (arm_excluded_range));
+  func = DUP_TESTCODE (arm_excluded_range);
 
   {
     GumMemoryRange r = {
@@ -498,11 +488,8 @@ TESTCASE (arm_excluded_range)
   }
 
   {
-    guint32 ret;
-
     fixture->sink->mask = GUM_EXEC;
-    ret = test_arm_stalker_fixture_follow_and_invoke (fixture, func);
-    g_assert_cmpuint (ret, ==, 2);
+    g_assert_cmpuint (FOLLOW_AND_INVOKE (func), ==, 2);
 
     g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 6);
 
@@ -532,8 +519,7 @@ TESTCASE (thumb_excluded_range)
 {
   GumAddress func;
 
-  func = test_arm_stalker_fixture_dup_code (fixture,
-      CODE_START (thumb_excluded_range), CODE_SIZE (thumb_excluded_range));
+  func = DUP_TESTCODE (thumb_excluded_range);
 
   {
     GumMemoryRange r = {
@@ -545,11 +531,8 @@ TESTCASE (thumb_excluded_range)
   }
 
   {
-    guint32 ret;
-
     fixture->sink->mask = GUM_EXEC;
-    ret = test_arm_stalker_fixture_follow_and_invoke (fixture, func + 1);
-    g_assert_cmpuint (ret, ==, 2);
+    g_assert_cmpuint (FOLLOW_AND_INVOKE (func + 1), ==, 2);
 
     g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 5);
 
@@ -588,9 +571,7 @@ TESTCASE (arm_excluded_range_call_events)
 {
   GumAddress func;
 
-  func = test_arm_stalker_fixture_dup_code (fixture,
-      CODE_START (arm_excluded_range_call),
-      CODE_SIZE (arm_excluded_range_call));
+  func = DUP_TESTCODE (arm_excluded_range_call);
 
   {
     GumMemoryRange r = {
@@ -602,11 +583,8 @@ TESTCASE (arm_excluded_range_call_events)
   }
 
   {
-    guint32 ret;
-
     fixture->sink->mask = GUM_CALL;
-    ret = test_arm_stalker_fixture_follow_and_invoke (fixture, func);
-    g_assert_cmpuint (ret, ==, 4);
+    g_assert_cmpuint (FOLLOW_AND_INVOKE (func), ==, 4);
 
     g_assert_cmpuint (fixture->sink->events->len, ==,
         INVOKER_CALL_INSN_COUNT + 2);
@@ -650,9 +628,7 @@ TESTCASE (thumb_excluded_range_call_events)
 {
   GumAddress func;
 
-  func = test_arm_stalker_fixture_dup_code (fixture,
-      CODE_START (thumb_excluded_range_call),
-      CODE_SIZE (thumb_excluded_range_call));
+  func = DUP_TESTCODE (thumb_excluded_range_call);
 
   {
     GumMemoryRange r = {
@@ -664,11 +640,8 @@ TESTCASE (thumb_excluded_range_call_events)
   }
 
   {
-    guint32 ret;
-
     fixture->sink->mask = GUM_CALL;
-    ret = test_arm_stalker_fixture_follow_and_invoke (fixture, func + 1);
-    g_assert_cmpuint (ret, ==, 4);
+    g_assert_cmpuint (FOLLOW_AND_INVOKE (func + 1), ==, 4);
 
     g_assert_cmpuint (fixture->sink->events->len, ==,
         INVOKER_CALL_INSN_COUNT + 2);
@@ -687,9 +660,7 @@ TESTCASE (arm_excluded_range_ret_events)
 {
   GumAddress func;
 
-  func = test_arm_stalker_fixture_dup_code (fixture,
-      CODE_START (arm_excluded_range_call),
-      CODE_SIZE (arm_excluded_range_call));
+  func = DUP_TESTCODE (arm_excluded_range_call);
 
   {
     GumMemoryRange r = {
@@ -701,11 +672,8 @@ TESTCASE (arm_excluded_range_ret_events)
   }
 
   {
-    guint32 ret;
-
     fixture->sink->mask = GUM_RET;
-    ret = test_arm_stalker_fixture_follow_and_invoke (fixture, func);
-    g_assert_cmpuint (ret, ==, 4);
+    g_assert_cmpuint (FOLLOW_AND_INVOKE (func), ==, 4);
 
     g_assert_cmpuint (fixture->sink->events->len, ==, 2);
 
@@ -722,9 +690,7 @@ TESTCASE (thumb_excluded_range_ret_events)
 {
   GumAddress func;
 
-  func = test_arm_stalker_fixture_dup_code (fixture,
-      CODE_START (thumb_excluded_range_call),
-      CODE_SIZE (thumb_excluded_range_call));
+  func = DUP_TESTCODE (thumb_excluded_range_call);
 
   {
     GumMemoryRange r = {
@@ -736,11 +702,8 @@ TESTCASE (thumb_excluded_range_ret_events)
   }
 
   {
-    guint32 ret;
-
     fixture->sink->mask = GUM_RET;
-    ret = test_arm_stalker_fixture_follow_and_invoke (fixture, func + 1);
-    g_assert_cmpuint (ret, ==, 4);
+    g_assert_cmpuint (FOLLOW_AND_INVOKE (func + 1), ==, 4);
 
     g_assert_cmpuint (fixture->sink->events->len, ==, 2);
 
@@ -770,8 +733,7 @@ TESTCASE (arm_pop_pc_ret_events_generated)
 {
   GumAddress func;
 
-  func = invoke_arm_expecting_return_value (fixture, GUM_RET,
-      CODE_START (arm_pop_pc), CODE_SIZE (arm_pop_pc), 2);
+  func = INVOKE_ARM_EXPECTING (GUM_RET, arm_pop_pc, 2);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 2);
 
@@ -803,8 +765,7 @@ TESTCASE (thumb_pop_pc_ret_events_generated)
 {
   GumAddress func;
 
-  func = invoke_thumb_expecting_return_value (fixture, GUM_RET,
-      CODE_START (thumb_pop_pc), CODE_SIZE (thumb_pop_pc), 2);
+  func = INVOKE_THUMB_EXPECTING (GUM_RET, thumb_pop_pc, 2);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 2);
 
@@ -836,8 +797,7 @@ TESTCASE (arm_pop_just_pc_ret_events_generated)
 {
   GumAddress func;
 
-  func = invoke_arm_expecting_return_value (fixture, GUM_RET,
-      CODE_START (arm_pop_just_pc), CODE_SIZE (arm_pop_just_pc), 2);
+  func = INVOKE_ARM_EXPECTING (GUM_RET, arm_pop_just_pc, 2);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 2);
 
@@ -869,8 +829,7 @@ TESTCASE (thumb_pop_just_pc_ret_events_generated)
 {
   GumAddress func;
 
-  func = invoke_thumb_expecting_return_value (fixture, GUM_RET,
-      CODE_START (thumb_pop_just_pc), CODE_SIZE (thumb_pop_just_pc), 2);
+  func = INVOKE_THUMB_EXPECTING (GUM_RET, thumb_pop_just_pc, 2);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 2);
 
@@ -903,8 +862,7 @@ TESTCASE (arm_ldm_pc_ret_events_generated)
 {
   GumAddress func;
 
-  func = invoke_arm_expecting_return_value (fixture, GUM_RET,
-      CODE_START (arm_ldm_pc), CODE_SIZE (arm_ldm_pc), 2);
+  func = INVOKE_ARM_EXPECTING (GUM_RET, arm_ldm_pc, 2);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 2);
 
@@ -937,8 +895,7 @@ TESTCASE (thumb_ldm_pc_ret_events_generated)
 {
   GumAddress func;
 
-  func = invoke_thumb_expecting_return_value (fixture, GUM_RET,
-      CODE_START (thumb_ldm_pc), CODE_SIZE (thumb_ldm_pc), 2);
+  func = INVOKE_THUMB_EXPECTING (GUM_RET, thumb_ldm_pc, 2);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 2);
 
@@ -984,8 +941,7 @@ TESTCASE (arm_branch_cc_block_events_generated)
 {
   GumAddress func;
 
-  func = invoke_arm_expecting_return_value (fixture, GUM_BLOCK,
-      CODE_START (arm_b_cc), CODE_SIZE (arm_b_cc), 10);
+  func = INVOKE_ARM_EXPECTING (GUM_BLOCK, arm_b_cc, 10);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 4);
 
@@ -1034,8 +990,7 @@ TESTCASE (thumb_branch_cc_block_events_generated)
 {
   GumAddress func;
 
-  func = invoke_thumb_expecting_return_value (fixture, GUM_BLOCK,
-      CODE_START (thumb_b_cc), CODE_SIZE (thumb_b_cc), 10);
+  func = INVOKE_THUMB_EXPECTING (GUM_BLOCK, thumb_b_cc, 10);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 4);
 
@@ -1082,8 +1037,7 @@ TESTCASE (thumb_cbz_cbnz_block_events_generated)
 {
   GumAddress func;
 
-  func = invoke_thumb_expecting_return_value (fixture, GUM_BLOCK,
-      CODE_START (thumb_cbz_cbnz), CODE_SIZE (thumb_cbz_cbnz), 6);
+  func = INVOKE_THUMB_EXPECTING (GUM_BLOCK, thumb_cbz_cbnz, 6);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 4);
 
@@ -1140,8 +1094,7 @@ TESTCASE (arm_branch_link_cc_block_events_generated)
 {
   GumAddress func;
 
-  func = invoke_arm_expecting_return_value (fixture, GUM_CALL,
-      CODE_START (arm_bl_cc), CODE_SIZE (arm_bl_cc), 5);
+  func = INVOKE_ARM_EXPECTING (GUM_CALL, arm_bl_cc, 5);
 
   g_assert_cmpuint (fixture->sink->events->len, ==,
       INVOKER_CALL_INSN_COUNT + 2);
@@ -1187,8 +1140,7 @@ TESTCASE (arm_cc_excluded_range)
 {
   GumAddress func;
 
-  func = test_arm_stalker_fixture_dup_code (fixture,
-      CODE_START (arm_cc_excluded_range), CODE_SIZE (arm_cc_excluded_range));
+  func = DUP_TESTCODE (arm_cc_excluded_range);
 
   {
     GumMemoryRange r = {
@@ -1200,11 +1152,8 @@ TESTCASE (arm_cc_excluded_range)
   }
 
   {
-    guint32 ret;
-
     fixture->sink->mask = GUM_CALL;
-    ret = test_arm_stalker_fixture_follow_and_invoke (fixture, func);
-    g_assert_cmpuint (ret, ==, 1);
+    g_assert_cmpuint (FOLLOW_AND_INVOKE (func), ==, 1);
 
     g_assert_cmpuint (fixture->sink->events->len, ==,
         INVOKER_CALL_INSN_COUNT + 1);
@@ -1233,13 +1182,11 @@ TESTCASE (arm_ldr_pc)
 {
   GumAddress func;
 
-  func = test_arm_stalker_fixture_dup_code (fixture, CODE_START (arm_ldr_pc),
-      CODE_SIZE (arm_ldr_pc));
+  func = DUP_TESTCODE (arm_ldr_pc);
   patch_code_pointer (func, 5 * 4, func + (6 * 4));
 
   fixture->sink->mask = GUM_BLOCK;
-  g_assert_cmpuint (
-      test_arm_stalker_fixture_follow_and_invoke (fixture, func), ==, 2);
+  g_assert_cmpuint (FOLLOW_AND_INVOKE (func), ==, 2);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 1);
 
@@ -1271,14 +1218,11 @@ TESTCASE (arm_ldr_pc_pre_index_imm)
 {
   GumAddress func;
 
-  func = test_arm_stalker_fixture_dup_code (fixture,
-      CODE_START (arm_ldr_pc_pre_index_imm),
-      CODE_SIZE (arm_ldr_pc_pre_index_imm));
+  func = DUP_TESTCODE (arm_ldr_pc_pre_index_imm);
   patch_code_pointer (func, 7 * 4, func + (9 * 4));
 
   fixture->sink->mask = GUM_BLOCK;
-  g_assert_cmpuint (test_arm_stalker_fixture_follow_and_invoke (fixture, func),
-      ==, 0xbabababb);
+  g_assert_cmpuint (FOLLOW_AND_INVOKE (func), ==, 0xbabababb);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 1);
 
@@ -1308,14 +1252,11 @@ TESTCASE (arm_ldr_pc_post_index_imm)
 {
   GumAddress func;
 
-  func = test_arm_stalker_fixture_dup_code (fixture,
-      CODE_START (arm_ldr_pc_post_index_imm),
-      CODE_SIZE (arm_ldr_pc_post_index_imm));
+  func = DUP_TESTCODE (arm_ldr_pc_post_index_imm);
   patch_code_pointer (func, 5 * 4, func + (8 * 4));
 
   fixture->sink->mask = GUM_BLOCK;
-  g_assert_cmpuint (test_arm_stalker_fixture_follow_and_invoke (fixture, func),
-      ==, 0xbabababb);
+  g_assert_cmpuint (FOLLOW_AND_INVOKE (func), ==, 0xbabababb);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 1);
 
@@ -1347,14 +1288,11 @@ TESTCASE (arm_ldr_pc_pre_index_imm_negative)
 {
   GumAddress func;
 
-  func = test_arm_stalker_fixture_dup_code (fixture,
-      CODE_START (arm_ldr_pc_pre_index_imm_negative),
-      CODE_SIZE (arm_ldr_pc_pre_index_imm_negative));
+  func = DUP_TESTCODE (arm_ldr_pc_pre_index_imm_negative);
   patch_code_pointer (func, 5 * 4, func + (9 * 4));
 
   fixture->sink->mask = GUM_BLOCK;
-  g_assert_cmpuint (test_arm_stalker_fixture_follow_and_invoke (fixture, func),
-      ==, 0xbabababb);
+  g_assert_cmpuint (FOLLOW_AND_INVOKE (func), ==, 0xbabababb);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 1);
 
@@ -1384,14 +1322,11 @@ TESTCASE (arm_ldr_pc_post_index_imm_negative)
 {
   GumAddress func;
 
-  func = test_arm_stalker_fixture_dup_code (fixture,
-      CODE_START (arm_ldr_pc_post_index_imm_negative),
-      CODE_SIZE (arm_ldr_pc_post_index_imm_negative));
+  func = DUP_TESTCODE (arm_ldr_pc_post_index_imm_negative);
   patch_code_pointer (func, 7 * 4, func + (8 * 4));
 
   fixture->sink->mask = GUM_BLOCK;
-  g_assert_cmpuint (test_arm_stalker_fixture_follow_and_invoke (fixture, func),
-      ==, 0xbabababb);
+  g_assert_cmpuint (FOLLOW_AND_INVOKE (func), ==, 0xbabababb);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 1);
 
@@ -1415,8 +1350,7 @@ TESTCASE (arm_sub_pc)
 {
   GumAddress func;
 
-  func = invoke_arm_expecting_return_value (fixture, GUM_BLOCK,
-      CODE_START (arm_sub_pc), CODE_SIZE (arm_sub_pc), 2);
+  func = INVOKE_ARM_EXPECTING (GUM_BLOCK, arm_sub_pc, 2);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 2);
 
@@ -1443,8 +1377,7 @@ TESTCASE (arm_add_pc)
 {
   GumAddress func;
 
-  func = invoke_arm_expecting_return_value (fixture, GUM_BLOCK,
-      CODE_START (arm_add_pc), CODE_SIZE (arm_add_pc), 2);
+  func = INVOKE_ARM_EXPECTING (GUM_BLOCK, arm_add_pc, 2);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 2);
 
@@ -1482,8 +1415,7 @@ TESTCASE (call_thumb)
 {
   GumAddress func;
 
-  func = invoke_arm_expecting_return_value (fixture, GUM_CALL,
-      CODE_START (call_thumb), CODE_SIZE (call_thumb), 4);
+  func = INVOKE_ARM_EXPECTING (GUM_CALL, call_thumb, 4);
 
   g_assert_cmpuint (fixture->sink->events->len, ==,
       INVOKER_CALL_INSN_COUNT + 3);
@@ -1528,8 +1460,7 @@ TESTCASE (branch_thumb)
 {
   GumAddress func;
 
-  func = invoke_arm_expecting_return_value (fixture, GUM_BLOCK,
-      CODE_START (branch_thumb), CODE_SIZE (branch_thumb), 3);
+  func = INVOKE_ARM_EXPECTING (GUM_BLOCK, branch_thumb, 3);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 4);
 
@@ -1559,8 +1490,7 @@ TESTCASE (can_follow_workload)
   void (* call_workload_impl) (GumMemoryRange * runner_range);
   GumMemoryRange runner_range;
 
-  func = test_arm_stalker_fixture_dup_code (fixture,
-      CODE_START (call_workload), CODE_SIZE (call_workload));
+  func = DUP_TESTCODE (call_workload);
   patch_code_pointer (func, 4 * 4, GUM_ADDRESS (pretend_workload));
   call_workload_impl = GSIZE_TO_POINTER (func);
 
