@@ -2117,13 +2117,9 @@ gum_exec_ctx_write_thumb_prolog (GumExecCtx * ctx,
   gum_thumb_writer_put_mov_reg_reg (cw, ARM_REG_R10, ARM_REG_SP);
 
   /*
-   * We must now ensure that the stack is 8 byte aligned, since this is expected
-   * by the ABI. Since the context was on the top of the stack and we retain
-   * this address in R10, we don't need to save the original stack pointer for
-   * re-alignment in the epilogue since we can simply restore SP from R10.
-   *
-   * Note, that unlike the ARM prolog which simply rounds down the stack
-   * pointer, the thumb instruction set often requires wide, or thumb v2
+   * Like in the ARM prolog we must now ensure that the stack is 8 byte aligned.
+   * Note that unlike the ARM prolog, which simply rounds down the stack
+   * pointer, the Thumb instruction set often requires wide, or Thumb v2
    * instructions to work with registers other than R0-R7. We therefore retard
    * the stack by 8, before rounding back up. This works as we know the stack
    * must be 4 byte aligned since ARM architecture does not support unaligned
