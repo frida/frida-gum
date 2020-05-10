@@ -348,7 +348,6 @@ gum_thumb_writer_put_argument_list_setup (GumThumbWriter * self,
    * arguments, we will break this constraint.
    */
   g_assert (n_args < 4 || (n_args % 2) == 0);
-
   for (arg_index = (gint) n_args - 1; arg_index >= 0; arg_index--)
   {
     const GumArgument * arg = &args[arg_index];
