@@ -242,7 +242,7 @@ gum_arm_writer_add_literal_reference_here (GumArmWriter * self,
 }
 
 void
-gum_arm_writer_put_call_address_with_arguments (GumArmWriter * self,
+_gum_arm_writer_put_call_address_with_arguments (GumArmWriter * self,
                                                 GumAddress func,
                                                 guint n_args,
                                                 ...)
@@ -257,6 +257,16 @@ gum_arm_writer_put_call_address_with_arguments (GumArmWriter * self,
 
   gum_arm_writer_put_argument_list_teardown (self, n_args);
 }
+
+__asm__ (
+  "gum_arm_writer_put_call_address_with_arguments:\n"
+  ".global gum_arm_writer_put_call_address_with_arguments\n"
+  "tst sp, #7\n"
+  "beq ok\n"
+  "udf 0x88\n"
+  "ok: \n"
+  "b _gum_arm_writer_put_call_address_with_arguments\n"
+);
 
 void
 gum_arm_writer_put_call_address_with_arguments_array (GumArmWriter * self,
@@ -277,6 +287,9 @@ gum_arm_writer_put_argument_list_setup (GumArmWriter * self,
                                         const GumArgument * args)
 {
   gint arg_index;
+
+  if (n_args > 3)
+    g_error ("Stack passed arguments unsupported");
 
   for (arg_index = (gint) n_args - 1; arg_index >= 0; arg_index--)
   {
@@ -340,6 +353,14 @@ gum_arm_writer_put_call_address_body (GumArmWriter * self,
   GumAddress aligned_address;
 
   aligned_address = address & ~GUM_ADDRESS (1);
+
+#ifdef TRUE // CHECK STACK ALIGN
+  gconstpointer lbl = self->code + 1;
+  gum_arm_writer_put_instruction (self, 0xe31d0007); // tst sp, #7
+  gum_arm_writer_put_b_cond_label (self, ARM_CC_EQ, lbl);
+  gum_arm_writer_put_brk_imm (self, 0x22);
+  gum_arm_writer_put_label (self, lbl);
+#endif
 
   if (gum_arm_writer_can_branch_directly_between (self, self->pc,
       aligned_address))
@@ -872,7 +893,7 @@ gum_arm_writer_put_ands_reg_reg_imm (GumArmWriter * self,
   gum_arm_reg_describe (dst_reg, &rd);
   gum_arm_reg_describe (src_reg, &rs);
 
-  is_noop = dst_reg == src_reg && (imm_val & GUM_INT8_MASK) != 0;
+  is_noop = dst_reg == src_reg && (imm_val & GUM_INT8_MASK) == 0;
   if (is_noop)
     return;
 

@@ -291,6 +291,16 @@ gum_thumb_writer_put_call_address_with_arguments (GumThumbWriter * self,
   gum_thumb_writer_put_argument_list_teardown (self, n_args);
 }
 
+__asm__ (
+  "gum_thumb_writer_put_call_address_with_arguments:\n"
+  ".global gum_thumb_writer_put_call_address_with_arguments\n"
+  "tst sp, #7\n"
+  "beq ok\n"
+  "udf 0x99\n"
+  "ok: \n"
+  "b gum_thumb_writer_put_call_address_with_arguments\n"
+);
+
 void
 gum_thumb_writer_put_call_address_with_arguments_array (
     GumThumbWriter * self,
@@ -342,6 +352,18 @@ gum_thumb_writer_put_argument_list_setup (GumThumbWriter * self,
                                           const GumArgument * args)
 {
   gint arg_index;
+
+  if (n_args > 3)
+    g_error ("Stack passed arguments unsupported");
+
+#ifdef TRUE // CHECK STACK ALIGN
+  gconstpointer lbl = self->code + 1;
+  gum_thumb_writer_put_instruction_wide (self, 0xf01d, 0x0f07); // tst sp, #7
+  gum_thumb_writer_put_b_cond_label (self, ARM_CC_EQ, lbl);
+  gum_thumb_writer_put_breakpoint (self);
+  gum_thumb_writer_put_label (self, lbl);
+#endif
+
 
   for (arg_index = (gint) n_args - 1; arg_index >= 0; arg_index--)
   {

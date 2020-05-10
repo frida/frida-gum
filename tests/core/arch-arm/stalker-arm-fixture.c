@@ -326,7 +326,9 @@ test_arm_stalker_fixture_stalked (TestArmStalkerFixture * fixture,
 
   gum_arm_writer_init (&cw, fixture->stalked_invoker);
 
-  gum_arm_writer_put_push_registers (&cw, 1, ARM_REG_LR);
+  //gum_arm_writer_put_brk_imm (&cw, 0x33);
+
+  gum_arm_writer_put_push_registers (&cw, 2, ARM_REG_R0, ARM_REG_LR);
 
   gum_arm_writer_put_call_address_with_arguments (&cw,
       GUM_ADDRESS (gum_stalker_follow_me), 3,
@@ -345,7 +347,7 @@ test_arm_stalker_fixture_stalked (TestArmStalkerFixture * fixture,
       GUM_ADDRESS (gum_stalker_unfollow_me), 1,
       GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker));
 
-  gum_arm_writer_put_pop_registers (&cw, 1, ARM_REG_LR);
+  gum_arm_writer_put_pop_registers (&cw, 2, ARM_REG_R0, ARM_REG_LR);
   gum_arm_writer_put_ret (&cw);
 
   gum_arm_writer_flush (&cw);

@@ -364,9 +364,9 @@ G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
  * not designed to be safe against re-entry on the same thread!!! This will
  * result in confusing failures.
  */
-static gboolean g_debug = FALSE;
-static gboolean g_verbose = FALSE;
-static gboolean g_debug_events = FALSE;
+static gboolean g_debug = TRUE;
+static gboolean g_verbose = TRUE;
+static gboolean g_debug_events = TRUE;
 
 static guint32 g_count = 0;
 static guint32 g_events = 0;
@@ -2075,6 +2075,8 @@ gum_exec_ctx_write_arm_prolog (GumExecCtx * ctx,
    * this context structure.
    */
   gum_arm_writer_put_mov_reg_reg (cw, ARM_REG_R10, ARM_REG_SP);
+  gum_arm_writer_put_ands_reg_reg_imm (cw, ARM_REG_R0, ARM_REG_SP, 7);
+  gum_arm_writer_put_sub_reg_reg_reg (cw, ARM_REG_SP, ARM_REG_SP, ARM_REG_R0);
 }
 
 static void
@@ -2106,12 +2108,16 @@ gum_exec_ctx_write_thumb_prolog (GumExecCtx * ctx,
       ARM_REG_R0, ARM_REG_R1, ARM_REG_R2);
 
   gum_thumb_writer_put_mov_reg_reg (cw, ARM_REG_R10, ARM_REG_SP);
+  gum_thumb_writer_put_and_reg_reg_imm (cw, ARM_REG_R0, ARM_REG_SP, 7);
+  gum_thumb_writer_put_sub_reg_reg_reg (cw, ARM_REG_SP, ARM_REG_SP, ARM_REG_R0);
 }
 
 static void
 gum_exec_ctx_write_arm_epilog (GumExecCtx * ctx,
                                GumArmWriter * cw)
 {
+  gum_arm_writer_put_mov_reg_reg (cw, ARM_REG_SP, ARM_REG_R10);
+
   gum_arm_writer_put_pop_registers (cw, 3,
       ARM_REG_R0, ARM_REG_R1, ARM_REG_R2);
 
@@ -2131,6 +2137,8 @@ static void
 gum_exec_ctx_write_thumb_epilog (GumExecCtx * ctx,
                                  GumThumbWriter * cw)
 {
+  gum_thumb_writer_put_mov_reg_reg (cw, ARM_REG_SP, ARM_REG_R10);
+
   gum_thumb_writer_put_pop_regs (cw, 3,
       ARM_REG_R0, ARM_REG_R1, ARM_REG_R2);
 
