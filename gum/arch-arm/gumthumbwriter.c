@@ -274,7 +274,7 @@ gum_thumb_writer_add_literal_reference_here (GumThumbWriter * self,
 }
 
 void
-gum_thumb_writer_put_call_address_with_arguments (GumThumbWriter * self,
+_gum_thumb_writer_put_call_address_with_arguments (GumThumbWriter * self,
                                                   GumAddress func,
                                                   guint n_args,
                                                   ...)
@@ -298,7 +298,7 @@ __asm__ (
   "beq ok\n"
   "udf 0x99\n"
   "ok: \n"
-  "b gum_thumb_writer_put_call_address_with_arguments\n"
+  "b _gum_thumb_writer_put_call_address_with_arguments\n"
 );
 
 void

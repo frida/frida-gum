@@ -326,8 +326,6 @@ test_arm_stalker_fixture_stalked (TestArmStalkerFixture * fixture,
 
   gum_arm_writer_init (&cw, fixture->stalked_invoker);
 
-  //gum_arm_writer_put_brk_imm (&cw, 0x33);
-
   gum_arm_writer_put_push_registers (&cw, 2, ARM_REG_R0, ARM_REG_LR);
 
   gum_arm_writer_put_call_address_with_arguments (&cw,
