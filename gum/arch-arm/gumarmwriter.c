@@ -278,6 +278,12 @@ gum_arm_writer_put_argument_list_setup (GumArmWriter * self,
 {
   gint arg_index;
 
+  /*
+   * This function does not support the pushing of stack based arguments. If we
+   * add this later, we should note that the stack must be 8 byte aligned.
+   */
+  g_assert (n_args <= 4);
+
   for (arg_index = (gint) n_args - 1; arg_index >= 0; arg_index--)
   {
     const GumArgument * arg = &args[arg_index];
