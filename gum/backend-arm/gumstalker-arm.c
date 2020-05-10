@@ -2169,13 +2169,6 @@ static void
 gum_exec_ctx_write_thumb_epilog (GumExecCtx * ctx,
                                  GumThumbWriter * cw)
 {
-  /*
-   * We know that the context structure was at the top of the stack at the end
-   * of the prolog, before the stack was aligned. Rather than working out how
-   * much alignment was needed, we can simply restore R10 back into SP to
-   * retrieve our stack pointer pre-alignment before we continue restoring the
-   * rest of the context.
-   */
   gum_thumb_writer_put_mov_reg_reg (cw, ARM_REG_SP, ARM_REG_R10);
 
   gum_thumb_writer_put_pop_regs (cw, 3,
