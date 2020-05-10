@@ -343,10 +343,6 @@ gum_thumb_writer_put_argument_list_setup (GumThumbWriter * self,
 {
   gint arg_index;
 
-  /*
-   * The stack must be 8 byte aligned, if we have an odd number of stack
-   * arguments, we will break this constraint.
-   */
   g_assert (n_args < 4 || (n_args % 2) == 0);
   for (arg_index = (gint) n_args - 1; arg_index >= 0; arg_index--)
   {
