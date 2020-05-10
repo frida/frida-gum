@@ -2075,6 +2075,13 @@ gum_exec_ctx_write_arm_prolog (GumExecCtx * ctx,
    * this context structure.
    */
   gum_arm_writer_put_mov_reg_reg (cw, ARM_REG_R10, ARM_REG_SP);
+
+  /*
+   * We must now ensure that the stack is 8 byte aligned, since this is expected
+   * by the ABI. Since the context was on the top of the stack and we retain
+   * this address in R10, we don't need to save the original stack pointer for
+   * re-alignment in the epilogue since we can simply restore SP from R10.
+   */
   gum_arm_writer_put_ands_reg_reg_imm (cw, ARM_REG_R0, ARM_REG_SP, 7);
   gum_arm_writer_put_sub_reg_reg_reg (cw, ARM_REG_SP, ARM_REG_SP, ARM_REG_R0);
 }
@@ -2108,6 +2115,23 @@ gum_exec_ctx_write_thumb_prolog (GumExecCtx * ctx,
       ARM_REG_R0, ARM_REG_R1, ARM_REG_R2);
 
   gum_thumb_writer_put_mov_reg_reg (cw, ARM_REG_R10, ARM_REG_SP);
+
+  /*
+   * We must now ensure that the stack is 8 byte aligned, since this is expected
+   * by the ABI. Since the context was on the top of the stack and we retain
+   * this address in R10, we don't need to save the original stack pointer for
+   * re-alignment in the epilogue since we can simply restore SP from R10.
+   *
+   * Note, that unlike the ARM prolog which simply rounds down the stack
+   * pointer, the thumb instruction set often requires wide, or thumb v2
+   * instructions to work with registers other than R0-R7. We therefore retard
+   * the stack by 8, before rounding back up. This works as we know the stack
+   * must be 4 byte aligned since ARM architecture does not support unaligned
+   * data access. e.g. if the stack was already aligned, we simply retard the
+   * pointer by 8 (although wasting a few bytes of stack space, this still
+   * retains alignment), if it was misaligned, we retard the pointer by 8 before
+   * advancing back 4 bytes.
+   */
   gum_thumb_writer_put_and_reg_reg_imm (cw, ARM_REG_R0, ARM_REG_SP, 7);
   gum_thumb_writer_put_sub_reg_reg_imm (cw, ARM_REG_SP, ARM_REG_SP, 8);
   gum_thumb_writer_put_add_reg_reg_reg (cw, ARM_REG_SP, ARM_REG_SP, ARM_REG_R0);
@@ -2117,6 +2141,13 @@ static void
 gum_exec_ctx_write_arm_epilog (GumExecCtx * ctx,
                                GumArmWriter * cw)
 {
+  /*
+   * We know that the context structure was at the top of the stack at the end
+   * of the prolog, before the stack was aligned. Rather than working out how
+   * much alignment was needed, we can simply restore R10 back into SP to
+   * retrieve our stack pointer pre-alignment before we continue restoring the
+   * rest of the context.
+   */
   gum_arm_writer_put_mov_reg_reg (cw, ARM_REG_SP, ARM_REG_R10);
 
   gum_arm_writer_put_pop_registers (cw, 3,
@@ -2138,6 +2169,13 @@ static void
 gum_exec_ctx_write_thumb_epilog (GumExecCtx * ctx,
                                  GumThumbWriter * cw)
 {
+  /*
+   * We know that the context structure was at the top of the stack at the end
+   * of the prolog, before the stack was aligned. Rather than working out how
+   * much alignment was needed, we can simply restore R10 back into SP to
+   * retrieve our stack pointer pre-alignment before we continue restoring the
+   * rest of the context.
+   */
   gum_thumb_writer_put_mov_reg_reg (cw, ARM_REG_SP, ARM_REG_R10);
 
   gum_thumb_writer_put_pop_regs (cw, 3,

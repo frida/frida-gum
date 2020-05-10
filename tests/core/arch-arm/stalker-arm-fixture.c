@@ -326,6 +326,13 @@ test_arm_stalker_fixture_stalked (TestArmStalkerFixture * fixture,
 
   gum_arm_writer_init (&cw, fixture->stalked_invoker);
 
+  /*
+   * The ABI dictates that the stack here is 8 byte aligned. We need to store
+   * LR, so that we can return to our caller, but we additionally push R0 as we
+   * need to push an even number of registers to maintain alignment. We
+   * otherwise would not need to store R0 since it is a caller rather than
+   * callee saved register.
+   */
   gum_arm_writer_put_push_registers (&cw, 2, ARM_REG_R0, ARM_REG_LR);
 
   gum_arm_writer_put_call_address_with_arguments (&cw,

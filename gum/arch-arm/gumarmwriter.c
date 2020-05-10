@@ -242,7 +242,7 @@ gum_arm_writer_add_literal_reference_here (GumArmWriter * self,
 }
 
 void
-_gum_arm_writer_put_call_address_with_arguments (GumArmWriter * self,
+gum_arm_writer_put_call_address_with_arguments (GumArmWriter * self,
                                                 GumAddress func,
                                                 guint n_args,
                                                 ...)
@@ -257,16 +257,6 @@ _gum_arm_writer_put_call_address_with_arguments (GumArmWriter * self,
 
   gum_arm_writer_put_argument_list_teardown (self, n_args);
 }
-
-__asm__ (
-  "gum_arm_writer_put_call_address_with_arguments:\n"
-  ".global gum_arm_writer_put_call_address_with_arguments\n"
-  "tst sp, #7\n"
-  "beq ok\n"
-  "udf 0x88\n"
-  "ok: \n"
-  "b _gum_arm_writer_put_call_address_with_arguments\n"
-);
 
 void
 gum_arm_writer_put_call_address_with_arguments_array (GumArmWriter * self,
@@ -288,8 +278,13 @@ gum_arm_writer_put_argument_list_setup (GumArmWriter * self,
 {
   gint arg_index;
 
-  if (n_args > 3)
-    g_error ("Stack passed arguments unsupported");
+  /*
+   * This function does not support the pushing of stack based arguments. If we
+   * add this later, we should note that the stack must be 8 byte aligned. We
+   * should take care not to misalign the stack when pushing an odd number of
+   * stack based arguments.
+   */
+  g_assert (n_args < 4);
 
   for (arg_index = (gint) n_args - 1; arg_index >= 0; arg_index--)
   {
@@ -353,14 +348,6 @@ gum_arm_writer_put_call_address_body (GumArmWriter * self,
   GumAddress aligned_address;
 
   aligned_address = address & ~GUM_ADDRESS (1);
-
-#if 0 // CHECK STACK ALIGN
-  gconstpointer lbl = self->code + 1;
-  gum_arm_writer_put_instruction (self, 0xe31d0007); // tst sp, #7
-  gum_arm_writer_put_b_cond_label (self, ARM_CC_EQ, lbl);
-  gum_arm_writer_put_brk_imm (self, 0x22);
-  gum_arm_writer_put_label (self, lbl);
-#endif
 
   if (gum_arm_writer_can_branch_directly_between (self, self->pc,
       aligned_address))
