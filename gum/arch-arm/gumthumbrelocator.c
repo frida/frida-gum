@@ -214,43 +214,46 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
   if (!cs_disasm_iter (self->capstone, &code, &size, &address, insn))
     return 0;
 
-  switch (insn->id)
+  if (!self->it_block.active)
   {
-    case ARM_INS_B:
-    case ARM_INS_BX:
-      self->eob = TRUE;
-      self->eoi = gum_arm_branch_is_unconditional (insn);
-      break;
-    case ARM_INS_CBZ:
-    case ARM_INS_CBNZ:
-    case ARM_INS_BL:
-    case ARM_INS_BLX:
-      self->eob = TRUE;
-      self->eoi = FALSE;
-      break;
-    case ARM_INS_LDR:
-      self->eob = self->eoi = gum_reg_dest_is_pc (insn);
-      break;
-    case ARM_INS_POP:
-      self->eob = self->eoi = gum_reg_list_contains_pc (insn, 0);
-      break;
-    case ARM_INS_LDM:
-      self->eob = self->eoi = gum_reg_list_contains_pc (insn, 1);
-      break;
-    case ARM_INS_IT:
+    switch (insn->id)
     {
-      it_block_size = gum_parse_it_instruction_block_size (
-          GUINT16_FROM_LE (*((guint16 *) self->input_cur)));
-      self->eob = FALSE;
-      break;
+      case ARM_INS_B:
+      case ARM_INS_BX:
+        self->eob = TRUE;
+        self->eoi = gum_arm_branch_is_unconditional (insn);
+        break;
+      case ARM_INS_CBZ:
+      case ARM_INS_CBNZ:
+      case ARM_INS_BL:
+      case ARM_INS_BLX:
+        self->eob = TRUE;
+        self->eoi = FALSE;
+        break;
+      case ARM_INS_LDR:
+        self->eob = self->eoi = gum_reg_dest_is_pc (insn);
+        break;
+      case ARM_INS_POP:
+        self->eob = self->eoi = gum_reg_list_contains_pc (insn, 0);
+        break;
+      case ARM_INS_LDM:
+        self->eob = self->eoi = gum_reg_list_contains_pc (insn, 1);
+        break;
+      case ARM_INS_IT:
+      {
+        it_block_size = gum_parse_it_instruction_block_size (
+            GUINT16_FROM_LE (*((guint16 *) self->input_cur)));
+        self->eob = TRUE;
+        break;
+      }
+      case ARM_INS_TBB:
+      case ARM_INS_TBH:
+        self->eob = self->eoi = TRUE;
+        break;
+      default:
+        self->eob = FALSE;
+        break;
     }
-    case ARM_INS_TBB:
-    case ARM_INS_TBH:
-      self->eob = self->eoi = TRUE;
-      break;
-    default:
-      self->eob = FALSE;
-      break;
   }
 
   gum_thumb_relocator_increment_inpos (self);
@@ -261,8 +264,15 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
   self->input_cur += insn->size;
   self->input_pc += insn->size;
 
-  while (it_block_size--)
-    gum_thumb_relocator_read_one (self, NULL);
+  if (it_block_size > 0)
+  {
+    self->it_block.active = TRUE;
+
+    while (it_block_size--)
+      gum_thumb_relocator_read_one (self, NULL);
+
+    self->it_block.active = FALSE;
+  }
 
   return self->input_cur - input_start;
 }
