@@ -33,6 +33,15 @@ TESTLIST_BEGIN (thumbrelocator)
   TESTENTRY (eob_and_eoi_on_ret)
 TESTLIST_END ()
 
+static void
+check_output (const guint16 * input,
+              gsize input_length,
+              const guint8 * output,
+              const guint16 * expected_output,
+              gsize expected_length);
+
+static void show_disassembly (const guint16 * input, gsize length);
+
 TESTCASE (one_to_one)
 {
   const guint16 input[] = {
@@ -113,8 +122,8 @@ TESTCASE (ldrpc_t1_should_be_rewritten)
   g_assert_cmpint (insn->id, ==, ARM_INS_LDR);
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
-  g_assert_cmpint (memcmp (fixture->output, expected_output,
-      sizeof (expected_output)), ==, 0);
+  check_output (input, sizeof(input), fixture->output, (guint16 *)expected_output,
+      sizeof(expected_output));
 }
 
 TESTCASE (ldrpc_t2_should_be_rewritten)
@@ -144,8 +153,8 @@ TESTCASE (ldrpc_t2_should_be_rewritten)
   g_assert_cmpint (insn->id, ==, ARM_INS_LDR);
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
-  g_assert_cmpint (memcmp (fixture->output, expected_output,
-      sizeof (expected_output)), ==, 0);
+  check_output (input, sizeof(input), fixture->output, (guint16 *)
+      expected_output, sizeof(expected_output));
 }
 
 TESTCASE (vldrpc_t1_should_be_rewritten)
@@ -181,9 +190,9 @@ TESTCASE (vldrpc_t1_should_be_rewritten)
   g_assert_cmpint (insn->id, ==, ARM_INS_VLDR);
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
-  
-  g_assert_cmpint (memcmp (fixture->output, expected_output,
-      sizeof (expected_output)), ==, 0);
+
+  check_output (input, sizeof(input), fixture->output,
+      (guint16 *)expected_output, sizeof(expected_output));
 }
 
 TESTCASE (vldrpc_t2_should_be_rewritten)
@@ -211,7 +220,7 @@ TESTCASE (vldrpc_t2_should_be_rewritten)
 
   memcpy (expected_output, expected_output_instructions,
       sizeof (expected_output_instructions));
-  
+
   calculated_pc = (fixture->rl.input_pc + 4) & ~(4 - 1);
   *((guint32 *) (expected_output + 12)) = calculated_pc;
 
@@ -220,8 +229,8 @@ TESTCASE (vldrpc_t2_should_be_rewritten)
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
 
-  g_assert_cmpint (memcmp (fixture->output, expected_output,
-      sizeof (expected_output)), ==, 0);
+  check_output (input, sizeof(input), fixture->output,
+      (guint16 *)expected_output, sizeof(expected_output));
 }
 
 TESTCASE (addh_should_be_rewritten_if_pc_relative)
@@ -253,8 +262,8 @@ TESTCASE (addh_should_be_rewritten_if_pc_relative)
   g_assert_cmpint (insn->id, ==, ARM_INS_ADD);
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
-  g_assert_cmpint (memcmp (fixture->output, expected_output,
-      sizeof (expected_output)), ==, 0);
+  check_output (input, sizeof(input), fixture->output,
+      (guint16 *)expected_output, sizeof(expected_output));
 }
 
 TESTCASE (bl_sequence_should_be_rewritten)
@@ -303,8 +312,8 @@ TESTCASE (bl_sequence_should_be_rewritten)
   g_assert_cmpint (insn->id, ==, ARM_INS_BLX);
   gum_thumb_relocator_write_all (&fixture->rl);
   gum_thumb_writer_flush (&fixture->tw);
-  g_assert_cmpint (memcmp (fixture->output, expected_output,
-      sizeof (expected_output)), ==, 0);
+  check_output (input, sizeof(input), fixture->output,
+      (guint16 *)expected_output, sizeof(expected_output));
 }
 
 typedef struct _BranchScenario BranchScenario;
@@ -508,8 +517,8 @@ branch_scenario_execute (BranchScenario * bs,
   g_assert_cmpint (insn->id, ==, bs->instruction_id);
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
-  g_assert_cmpint (memcmp (fixture->output, bs->expected_output,
-      bs->expected_output_length * sizeof (guint16)), ==, 0);
+  check_output (bs->input, bs->input_length, fixture->output,
+      bs->expected_output, bs->expected_output_length * sizeof (guint16));
 }
 
 TESTCASE (cbz_should_be_rewritten)
@@ -550,8 +559,8 @@ TESTCASE (cbz_should_be_rewritten)
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
-  g_assert_cmpint (memcmp (fixture->output, expected_output,
-      sizeof (expected_output)), ==, 0);
+  check_output (input, sizeof(input), fixture->output,
+      (guint16 *)expected_output, sizeof(expected_output));
 }
 
 TESTCASE (cbnz_should_be_rewritten)
@@ -592,8 +601,8 @@ TESTCASE (cbnz_should_be_rewritten)
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
-  g_assert_cmpint (memcmp (fixture->output, expected_output,
-      sizeof (expected_output)), ==, 0);
+  check_output (input, sizeof(input), fixture->output,
+      (guint16 *)expected_output, sizeof(expected_output));
 }
 
 TESTCASE (b_cond_should_be_rewritten)
@@ -635,8 +644,8 @@ TESTCASE (b_cond_should_be_rewritten)
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
-  g_assert_cmpint (memcmp (fixture->output, expected_output,
-      sizeof (expected_output)), ==, 0);
+  check_output (input, sizeof(input), fixture->output,
+      (guint16 *)expected_output, sizeof(expected_output));
 }
 
 TESTCASE (it_block_with_pc_relative_load_should_be_rewritten)
@@ -674,8 +683,8 @@ TESTCASE (it_block_with_pc_relative_load_should_be_rewritten)
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   g_assert_false (gum_thumb_relocator_write_one (&fixture->rl));
 
-  g_assert_cmpint (memcmp (fixture->output, expected_output,
-      sizeof (expected_output)), ==, 0);
+  check_output (input, sizeof(input), fixture->output, expected_output,
+      sizeof(expected_output));
 }
 
 TESTCASE (it_block_with_b_should_be_rewritten)
@@ -716,8 +725,8 @@ TESTCASE (it_block_with_b_should_be_rewritten)
 
   gum_thumb_relocator_write_all (&fixture->rl);
 
-  g_assert_cmpint (memcmp (fixture->output, expected_output,
-      sizeof (expected_output)), ==, 0);
+  check_output (input, sizeof(input), fixture->output, expected_output,
+      sizeof(expected_output));
 }
 
 TESTCASE (it_block_should_be_rewritten_as_a_whole)
@@ -756,8 +765,8 @@ TESTCASE (it_block_should_be_rewritten_as_a_whole)
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   g_assert_false (gum_thumb_relocator_write_one (&fixture->rl));
 
-  g_assert_cmpint (memcmp (fixture->output, expected_output,
-      sizeof (expected_output)), ==, 0);
+  check_output (input, sizeof(input), fixture->output, expected_output,
+      sizeof(expected_output));
 }
 
 TESTCASE (eob_and_eoi_on_ret)
@@ -772,4 +781,70 @@ TESTCASE (eob_and_eoi_on_ret)
   g_assert_true (gum_thumb_relocator_eob (&fixture->rl));
   g_assert_true (gum_thumb_relocator_eoi (&fixture->rl));
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, NULL), ==, 0);
+}
+
+static void
+check_output (const guint16 * input,
+              gsize input_length,
+              const guint8 * output,
+              const guint16 * expected_output,
+              gsize expected_length)
+{
+  gboolean same_content;
+  gchar * diff;
+
+  same_content = memcmp (output, expected_output,
+    expected_length) == 0;
+
+  diff = test_util_diff_binary (
+      (guint8 *) expected_output,
+      expected_length,
+      output,
+      expected_length);
+
+
+  if (!same_content)
+  {
+    g_print ("\n\nGenerated code is not equal to expected code:\n\n%s\n", diff);
+
+    g_print ("\n\nInput:\n\n");
+    show_disassembly (input, input_length);
+
+    g_print ("\n\nExpected:\n\n");
+    show_disassembly (expected_output, expected_length);
+
+    g_print ("\n\nWrong:\n\n");
+    show_disassembly ((guint16 *)output, expected_length);
+  }
+
+  g_assert_true (same_content);
+}
+
+
+static void
+show_disassembly (const guint16 * input,
+                  gsize length)
+{
+  csh capstone;
+  cs_insn * insn;
+  const uint8_t * code;
+  size_t size;
+  uint64_t address;
+
+  cs_open (CS_ARCH_ARM, CS_MODE_THUMB, &capstone);
+  cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
+  insn = cs_malloc (capstone);
+
+  code = (const uint8_t *) input;
+  size = length;
+  address = GPOINTER_TO_SIZE (input);
+
+  while (cs_disasm_iter (capstone, &code, &size, &address, insn))
+  {
+    g_print ("0x%" G_GINT64_MODIFIER "x\t0x%04x,               /* %s %s */\n",
+        insn->address, *(guint16 *) insn->bytes, insn->mnemonic, insn->op_str);
+  }
+
+  cs_free (insn, 1);
+  cs_close (&capstone);
 }

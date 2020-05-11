@@ -104,6 +104,7 @@ struct _GumExecCtx
   GumEventSink * sink;
   gboolean sink_started;
   GumEventType sink_mask;
+  gpointer last_exec_location;
   void (* sink_process_impl) (GumEventSink * self, const GumEvent * ev);
 
   gboolean unfollow_called_while_still_following;
@@ -258,6 +259,11 @@ static gboolean gum_stalker_iterator_thumb_next (GumStalkerIterator * self,
     const cs_insn ** insn);
 static void gum_stalker_iterator_arm_keep (GumStalkerIterator * self);
 static void gum_stalker_iterator_thumb_keep (GumStalkerIterator * self);
+static void gum_stalker_iterator_handle_thumb_branch_insn (
+    GumStalkerIterator * self, const cs_insn * insn);
+static void gum_stalker_iterator_handle_thumb_it_insn (
+    GumStalkerIterator * self);
+
 
 static void gum_stalker_get_target_address (const cs_insn * insn,
     gboolean thumb, GumBranchTarget * target, guint16 * mask);
@@ -324,9 +330,9 @@ static void gum_exec_block_write_thumb_handle_not_taken (GumExecBlock * block,
     const GumBranchTarget * target, arm_cc cc, arm_reg cc_reg,
     GumGeneratorContext * gc);
 static void gum_exec_block_write_arm_handle_continue (GumExecBlock * block,
-    const GumBranchTarget * target, GumGeneratorContext * gc);
+    GumGeneratorContext * gc);
 static void gum_exec_block_write_thumb_handle_continue (GumExecBlock * block,
-    const GumBranchTarget * target, GumGeneratorContext * gc);
+    GumGeneratorContext * gc);
 static void gum_exec_block_write_arm_handle_writeback (GumExecBlock * block,
     const GumWriteback * writeback, GumGeneratorContext * gc);
 static void gum_exec_block_write_arm_exec_generated_code (GumArmWriter * cw,
@@ -1401,7 +1407,7 @@ gum_stalker_iterator_arm_next (GumStalkerIterator * self,
     return FALSE;
 
   instruction->begin = GSIZE_TO_POINTER (instruction->ci->address);
-  instruction->end = instruction->begin + instruction->ci->size;
+  instruction->end = (guint8 *) rl->input_cur;
 
   self->generator_context->instruction = instruction;
 
@@ -1453,7 +1459,7 @@ gum_stalker_iterator_thumb_next (GumStalkerIterator * self,
     return FALSE;
 
   instruction->begin = GSIZE_TO_POINTER (instruction->ci->address);
-  instruction->end = instruction->begin + instruction->ci->size;
+  instruction->end = (guint8 *) rl->input_cur;
 
   self->generator_context->instruction = instruction;
 
@@ -1591,58 +1597,155 @@ gum_stalker_iterator_thumb_keep (GumStalkerIterator * self)
             *(guint32 *) gc->instruction->begin, insn->id);
       }
     }
+
+    if (gum_thumb_relocator_eob (gc->thumb_relocator))
+      g_print ("\n");
   }
 
   if (gum_thumb_relocator_eob (gc->thumb_relocator))
+    gum_stalker_iterator_handle_thumb_branch_insn (self, insn);
+  else
+    gum_exec_block_dont_virtualize_thumb_insn (block, gc);
+}
+
+static void
+gum_stalker_iterator_handle_thumb_branch_insn (GumStalkerIterator * self,
+                                               const cs_insn * insn)
+{
+  GumExecBlock * block = self->exec_block;
+  GumGeneratorContext * gc = self->generator_context;
+
+  GumBranchTarget target;
+  guint16 mask;
+  cs_arm * arm = &insn->detail->arm;
+
+  switch (insn->id)
   {
-    GumBranchTarget target;
-    guint16 mask;
-    cs_arm * arm = &insn->detail->arm;
+    case ARM_INS_B:
+    case ARM_INS_BX:
+    case ARM_INS_LDR:
+      gum_stalker_get_target_address (insn, TRUE, &target, &mask);
+      gum_exec_block_virtualize_thumb_branch_insn (block, &target, arm->cc,
+          ARM_REG_INVALID, gc);
+      break;
+    case ARM_INS_CBZ:
+      g_assert (arm->operands[0].type == ARM_OP_REG);
+      gum_stalker_get_target_address (insn, TRUE, &target, &mask);
+      gum_exec_block_virtualize_thumb_branch_insn (block, &target, ARM_CC_EQ,
+          arm->operands[0].reg, gc);
+      break;
+    case ARM_INS_CBNZ:
+      g_assert (arm->operands[0].type == ARM_OP_REG);
+      gum_stalker_get_target_address (insn, TRUE, &target, &mask);
+      gum_exec_block_virtualize_thumb_branch_insn (block, &target, ARM_CC_NE,
+          arm->operands[0].reg, gc);
+      break;
+    case ARM_INS_BL:
+    case ARM_INS_BLX:
+      gum_stalker_get_target_address (insn, TRUE, &target, &mask);
+      gum_exec_block_virtualize_thumb_call_insn (block, &target, gc);
+      break;
+    case ARM_INS_POP:
+    case ARM_INS_LDM:
+      gum_stalker_get_target_address (insn, TRUE, &target, &mask);
+      gum_exec_block_virtualize_thumb_ret_insn (block, &target, mask, gc);
+      break;
+    case ARM_INS_SMC:
+    case ARM_INS_HVC:
+      g_error ("Unsupported");
+      break;
+    case ARM_INS_IT:
+      gum_stalker_iterator_handle_thumb_it_insn (self);
+      break;
+    default:
+      g_assert_not_reached ();
+      break;
+  }
+}
 
+static void
+gum_stalker_iterator_handle_thumb_it_insn (GumStalkerIterator * self)
+{
+  GumExecBlock * block = self->exec_block;
+  GumGeneratorContext * gc = self->generator_context;
+  GumThumbRelocator * rl = gc->thumb_relocator;
+  const cs_insn * insn;
+
+  /*
+   * This function needs only to handle IT blocks which terminate with a branch
+   * instruction. Those which contain no branches will not set the EOB condition
+   * when read by the relocator and will be handled without the need for
+   * virtualization. The block will simply be processed as usual by the
+   * relocator.
+   */
+
+  /*
+   * We emit a single EXEC event for a IT block. Execution of a final branch
+   * instruction contained within it can result in additional events being
+   * generated. We cannot emit one event for each instruction that is contained
+   * within the IT block since they are re-ordered by the relocator. This is
+   * necessary since the original IT block must be replaced with branches and
+   * labels as individual instructions may need to be replaced by multiple
+   * instructions as a result of relocation.
+   */
+  if ((block->ctx->sink_mask & GUM_EXEC) != 0)
+  {
+    gum_exec_block_thumb_open_prolog (block, gc);
+    gum_exec_block_write_thumb_exec_event_code (block, gc);
+    gum_exec_block_thumb_close_prolog (block, gc);
+  }
+
+  /* Iterate through each instruction within the IT block */
+  for (insn = gum_thumb_relocator_peek_next_write_insn (rl);
+      insn != NULL;
+      insn = gum_thumb_relocator_peek_next_write_insn (rl))
+  {
     if (g_debug)
-      g_print ("\n");
-
-    gum_stalker_get_target_address (insn, TRUE, &target, &mask);
-
-    switch (insn->id)
     {
-      case ARM_INS_B:
-      case ARM_INS_BX:
-      case ARM_INS_LDR:
-        gum_exec_block_virtualize_thumb_branch_insn (block, &target, arm->cc,
-            ARM_REG_INVALID, gc);
-        break;
-      case ARM_INS_CBZ:
-        g_assert (arm->operands[0].type == ARM_OP_REG);
-        gum_exec_block_virtualize_thumb_branch_insn (block, &target, ARM_CC_EQ,
-            arm->operands[0].reg, gc);
-        break;
-      case ARM_INS_CBNZ:
-        g_assert (arm->operands[0].type == ARM_OP_REG);
-        gum_exec_block_virtualize_thumb_branch_insn (block, &target, ARM_CC_NE,
-            arm->operands[0].reg, gc);
-        break;
-      case ARM_INS_BL:
-      case ARM_INS_BLX:
-        gum_exec_block_virtualize_thumb_call_insn (block, &target, gc);
-        break;
-      case ARM_INS_POP:
-      case ARM_INS_LDM:
-        gum_exec_block_virtualize_thumb_ret_insn (block, &target, mask, gc);
-        break;
-      case ARM_INS_SMC:
-      case ARM_INS_HVC:
-        g_error ("not implemented");
-        break;
-      default:
-        g_assert_not_reached ();
-        break;
+      g_print ("\t[IT -] %p => %p: %s\t%s, id: %d\n",
+          gc->instruction->begin, gc->thumb_writer->code,
+          insn->mnemonic, insn->op_str, insn->id);
+    }
+
+    if (gum_thumb_relocator_is_eob (insn))
+    {
+      /*
+       * Remove unnecessary conditional execution of the instruction since it is
+       * wrapped within a series of branches by the relocator to handle the
+       * if/then/else conditional execution.
+       */
+      insn->detail->arm.cc = ARM_CC_AL;
+      gum_stalker_iterator_handle_thumb_branch_insn (self, insn);
+
+      /*
+       * Put a breakpoint to trap and detect any errant continued execution (the
+       * branch should handle any possible continuation). Skip the original
+       * branch instruction.
+       */
+      gum_thumb_writer_put_breakpoint (gc->thumb_writer);
+      gum_thumb_relocator_skip_one (gc->thumb_relocator);
+    }
+    else
+    {
+      /*
+       * If the instruction in the IT block is not a branch, then just emit the
+       * relocated instruction as normal.
+       */
+      gum_thumb_relocator_write_one (gc->thumb_relocator);
     }
   }
-  else
-  {
-    gum_exec_block_dont_virtualize_thumb_insn (block, gc);
-  }
+
+  /*
+   * Should we reach the end of the IT block (e.g. we did not take the branch) *
+   * we write code here to continue with the next instruction after the IT block
+   * just as we do following a branch or call instruction. (We do this for
+   * branches too as we cannot detect tail-calls and we can't be sure the callee
+   * won't return). This results in the continuation code being written twice,
+   * which is not strictly necessary. However, attempting to optimize this is
+   * likely to be quite tricky.
+   */
+  gum_exec_block_thumb_open_prolog (block, gc);
+  gum_exec_block_write_thumb_handle_continue (block, gc);
 }
 
 static void
@@ -2035,6 +2138,18 @@ gum_exec_ctx_emit_exec_event (GumExecCtx * ctx,
   GumEvent ev;
   GumExecEvent * exec = &ev.exec;
 
+  /*
+   * Suppress generation  of multiple EXEC events for IT blocks. An exec event
+   * is already generated for the IT block, but a subsequent one may be
+   * generated by the handling of a virtualized branch instruction if it is
+   * taken. We simply ignore the reqest if the location is the same as the
+   * previously emitted event.
+   */
+  if (ctx->last_exec_location == location)
+    return;
+
+  ctx->last_exec_location = location;
+
   ev.type = GUM_EXEC;
 
   exec->location = location;
@@ -2275,13 +2390,18 @@ gum_exec_ctx_write_thumb_prolog (GumExecCtx * ctx,
       ARM_REG_R11, ARM_REG_R12);
   immediate_for_sp += 5 * 4;
 
-  gum_thumb_writer_put_add_reg_reg_imm (cw, ARM_REG_R2, ARM_REG_SP,
-      immediate_for_sp);
+  /*
+   * Note that we stash the CPSR (flags) here first since the thumb instruction
+   * set doesn't support short form instructions for SUB. Hence, the calculation
+   * for the adjusted SP below is actually a SUBS and will clobber the flags.
+   */
+  gum_thumb_writer_put_mov_cpsr_to_reg (cw, ARM_REG_R0);
 
   gum_thumb_writer_put_sub_reg_reg_reg (cw, ARM_REG_R1, ARM_REG_R1,
-      ARM_REG_R1);
+    ARM_REG_R1);
 
-  gum_thumb_writer_put_mov_cpsr_to_reg (cw, ARM_REG_R0);
+  gum_thumb_writer_put_add_reg_reg_imm (cw, ARM_REG_R2, ARM_REG_SP,
+      immediate_for_sp);
 
   gum_thumb_writer_put_push_regs (cw, 3,
       ARM_REG_R0, ARM_REG_R1, ARM_REG_R2);
@@ -3135,7 +3255,7 @@ gum_exec_block_dont_virtualize_arm_insn (GumExecBlock * block,
     gum_exec_block_arm_close_prolog (block, gc);
   }
 
-  gum_arm_relocator_write_one (gc->arm_relocator);
+  gum_arm_relocator_write_all (gc->arm_relocator);
 }
 
 static void
@@ -3151,7 +3271,7 @@ gum_exec_block_dont_virtualize_thumb_insn (GumExecBlock * block,
     gum_exec_block_thumb_close_prolog (block, gc);
   }
 
-  gum_thumb_relocator_write_one (gc->thumb_relocator);
+  gum_thumb_relocator_write_all (gc->thumb_relocator);
 }
 
 static void
@@ -3215,7 +3335,7 @@ gum_exec_block_write_arm_handle_excluded (GumExecBlock * block,
         GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx));
   }
 
-  gum_exec_block_write_arm_handle_continue (block, target, gc);
+  gum_exec_block_write_arm_handle_continue (block, gc);
 
   if (target->reg != ARM_REG_INVALID)
     gum_arm_writer_put_label (cw, not_excluded);
@@ -3263,7 +3383,7 @@ gum_exec_block_write_thumb_handle_excluded (GumExecBlock * block,
 
   gum_exec_block_thumb_close_prolog (block, gc);
 
-  gum_thumb_relocator_write_one (gc->thumb_relocator);
+  gum_thumb_relocator_write_peek (gc->thumb_relocator);
 
   gum_exec_block_thumb_open_prolog (block, gc);
 
@@ -3274,7 +3394,7 @@ gum_exec_block_write_thumb_handle_excluded (GumExecBlock * block,
         GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx));
   }
 
-  gum_exec_block_write_thumb_handle_continue (block, target, gc);
+  gum_exec_block_write_thumb_handle_continue (block, gc);
 
   if (target->reg != ARM_REG_INVALID)
     gum_thumb_writer_put_label (cw, not_excluded);
@@ -3316,7 +3436,7 @@ gum_exec_block_write_arm_handle_not_taken (GumExecBlock * block,
   if ((ec->sink_mask & GUM_BLOCK) != 0)
     gum_exec_block_write_arm_block_event_code (block, gc);
 
-  gum_exec_block_write_arm_handle_continue (block, target, gc);
+  gum_exec_block_write_arm_handle_continue (block, gc);
 
   gum_arm_writer_put_label (cw, taken);
 }
@@ -3353,8 +3473,6 @@ gum_exec_block_write_thumb_handle_not_taken (GumExecBlock * block,
 
   if (cc != ARM_CC_AL)
   {
-    gum_thumb_writer_put_b_cond_label_wide (cw, cc, taken);
-
     gum_exec_block_thumb_open_prolog (block, gc);
 
     if ((ec->sink_mask & GUM_EXEC) != 0)
@@ -3363,7 +3481,7 @@ gum_exec_block_write_thumb_handle_not_taken (GumExecBlock * block,
     if ((ec->sink_mask & GUM_BLOCK) != 0)
       gum_exec_block_write_thumb_block_event_code (block, gc);
 
-    gum_exec_block_write_thumb_handle_continue (block, target, gc);
+    gum_exec_block_write_thumb_handle_continue (block, gc);
 
     gum_thumb_writer_put_label (cw, taken);
   }
@@ -3371,7 +3489,6 @@ gum_exec_block_write_thumb_handle_not_taken (GumExecBlock * block,
 
 static void
 gum_exec_block_write_arm_handle_continue (GumExecBlock * block,
-                                          const GumBranchTarget * target,
                                           GumGeneratorContext * gc)
 {
   /*
@@ -3394,7 +3511,6 @@ gum_exec_block_write_arm_handle_continue (GumExecBlock * block,
 
 static void
 gum_exec_block_write_thumb_handle_continue (GumExecBlock * block,
-                                            const GumBranchTarget * target,
                                             GumGeneratorContext * gc)
 {
   gum_thumb_writer_put_call_address_with_arguments (gc->thumb_writer,
@@ -3505,7 +3621,11 @@ gum_exec_block_write_thumb_exec_generated_code (GumThumbWriter * cw,
   gum_thumb_writer_put_pop_regs (cw, 1, ARM_REG_R0);
   gum_thumb_writer_put_pop_regs (cw, 1, ARM_REG_R0);
 
-  gum_thumb_writer_put_push_regs (cw, 2, ARM_REG_R0, ARM_REG_PC);
+  /*
+   * We cant push PC in thumb encoding without thumb 2, we clobber the value so
+   * so it doesn't matter what we push. It ends up popped back into PC
+  */
+  gum_thumb_writer_put_push_regs (cw, 2, ARM_REG_R0, ARM_REG_R1);
   gum_thumb_writer_put_ldr_reg_address (cw, ARM_REG_R0,
       GUM_ADDRESS (&ctx->resume_at));
   gum_thumb_writer_put_ldr_reg_reg_offset (cw, ARM_REG_R0, ARM_REG_R0, 0);

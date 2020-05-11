@@ -73,12 +73,15 @@ GUM_API void gum_thumb_relocator_reset (GumThumbRelocator * relocator,
 GUM_API guint gum_thumb_relocator_read_one (GumThumbRelocator * self,
     const cs_insn ** instruction);
 
+gboolean gum_thumb_relocator_is_eob (const cs_insn * instruction);
+
 GUM_API cs_insn * gum_thumb_relocator_peek_next_write_insn (
     GumThumbRelocator * self);
 GUM_API gpointer gum_thumb_relocator_peek_next_write_source (
     GumThumbRelocator * self);
 GUM_API void gum_thumb_relocator_skip_one (GumThumbRelocator * self);
 GUM_API gboolean gum_thumb_relocator_write_one (GumThumbRelocator * self);
+gboolean gum_thumb_relocator_write_peek (GumThumbRelocator * self);
 GUM_API void gum_thumb_relocator_write_all (GumThumbRelocator * self);
 
 GUM_API gboolean gum_thumb_relocator_eob (GumThumbRelocator * self);

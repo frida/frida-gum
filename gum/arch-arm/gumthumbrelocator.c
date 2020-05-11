@@ -23,8 +23,10 @@ struct _GumCodeGenCtx
   GumThumbWriter * output;
 };
 
-static gboolean gum_thumb_relocator_try_fetch_next_output_instruction (
-    GumThumbRelocator * self, const cs_insn ** insn);
+static void gum_stalker_relocator_write_it_branches (GumThumbRelocator * self);
+static void gum_stalker_relocator_advance (GumThumbRelocator * self);
+static void gum_thumb_relocator_write_instruction (GumThumbRelocator * self,
+  const cs_insn * insn);
 
 static gboolean gum_arm_branch_is_unconditional (const cs_insn * insn);
 static gboolean gum_reg_dest_is_pc (const cs_insn * insn);
@@ -255,9 +257,41 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
   return self->input_cur - input_start;
 }
 
+gboolean
+gum_thumb_relocator_is_eob (const cs_insn * instruction)
+{
+  switch (instruction->id)
+  {
+    case ARM_INS_B:
+    case ARM_INS_BX:
+    case ARM_INS_CBZ:
+    case ARM_INS_CBNZ:
+    case ARM_INS_BL:
+    case ARM_INS_BLX:
+      return TRUE;
+    case ARM_INS_LDR:
+      return  gum_reg_dest_is_pc (instruction);
+    case ARM_INS_POP:
+      return gum_reg_list_contains_pc (instruction, 0);
+    case ARM_INS_LDM:
+      return  gum_reg_list_contains_pc (instruction, 1);
+    default:
+      return FALSE;
+      break;
+  }
+}
+
 cs_insn *
 gum_thumb_relocator_peek_next_write_insn (GumThumbRelocator * self)
 {
+  GumThumbITBlock * block = &self->it_block;
+
+  if (block->active)
+  {
+    if (block->offset != block->size)
+      return (cs_insn *) block->insns[block->offset];
+  }
+
   if (self->outpos == self->inpos)
     return NULL;
 
@@ -279,20 +313,86 @@ gum_thumb_relocator_peek_next_write_source (GumThumbRelocator * self)
 void
 gum_thumb_relocator_skip_one (GumThumbRelocator * self)
 {
-  gum_thumb_relocator_peek_next_write_insn (self);
-  gum_thumb_relocator_increment_outpos (self);
+  gum_stalker_relocator_advance (self);
+  gum_stalker_relocator_write_it_branches (self);
+
 }
 
 gboolean
 gum_thumb_relocator_write_one (GumThumbRelocator * self)
 {
   const cs_insn * insn;
-  GumCodeGenCtx ctx;
-  gboolean rewritten = FALSE;
 
-  if (!gum_thumb_relocator_try_fetch_next_output_instruction (self, &insn))
+  insn = gum_thumb_relocator_peek_next_write_insn (self);
+  if (insn == NULL)
     return FALSE;
 
+  gum_stalker_relocator_advance (self);
+  gum_thumb_relocator_write_instruction (self, insn);
+
+  /*
+   * Note that we write any necessary branches for IT blocks immediately after
+   * we write the preceeding instruction
+   */
+  gum_stalker_relocator_write_it_branches (self);
+
+  return TRUE;
+}
+
+static void
+gum_stalker_relocator_write_it_branches (GumThumbRelocator * self)
+{
+  GumThumbITBlock * block = &self->it_block;
+  if (!block->active)
+    return;
+
+  if (block->offset == block->size)
+  {
+    gum_thumb_relocator_rewrite_it_block_end (self, block);
+    block->active = FALSE;
+  }
+  else if (block->offset == block->else_region_size)
+  {
+    gum_thumb_relocator_rewrite_it_block_else (self, block);
+  }
+}
+
+static void
+gum_stalker_relocator_advance (GumThumbRelocator * self)
+{
+  GumThumbITBlock * block = &self->it_block;
+  if (block->active)
+    block->offset++;
+  else
+    gum_thumb_relocator_increment_outpos (self);
+}
+
+gboolean
+gum_thumb_relocator_write_peek (GumThumbRelocator * self)
+{
+  /*
+   * We need to support the writing of peeked instructions without advancing *
+   * the cursor to support stalker. This allows us to emit the original
+   * relocated instruction, and at an arbitrary point later call
+   * gum_thumb_relocator_skip_one to cause the subsequent IT block branches to
+   * be written. This allows for the original instruction to be surrounded by
+   * other generated instructions for the purposes of instrumentation.
+   */
+  const cs_insn * insn;
+  insn = gum_thumb_relocator_peek_next_write_insn (self);
+  if (insn == NULL)
+    return FALSE;
+
+  gum_thumb_relocator_write_instruction (self, insn);
+  return TRUE;
+}
+
+static void
+gum_thumb_relocator_write_instruction (GumThumbRelocator * self,
+                                       const cs_insn * insn)
+{
+  GumCodeGenCtx ctx;
+  gboolean rewritten = FALSE;
   ctx.insn = insn;
   ctx.detail = &insn->detail->arm;
   ctx.pc = insn->address + 4;
@@ -335,39 +435,6 @@ gum_thumb_relocator_write_one (GumThumbRelocator * self)
 
   if (!rewritten)
     gum_thumb_writer_put_bytes (ctx.output, insn->bytes, insn->size);
-
-  return TRUE;
-}
-
-static gboolean
-gum_thumb_relocator_try_fetch_next_output_instruction (GumThumbRelocator * self,
-                                                       const cs_insn ** insn)
-{
-  GumThumbITBlock * block = &self->it_block;
-
-  if (block->active)
-  {
-    if (block->offset != block->size)
-    {
-      if (block->offset == block->else_region_size)
-        gum_thumb_relocator_rewrite_it_block_else (self, block);
-
-      *insn = block->insns[block->offset++];
-      return TRUE;
-    }
-    else
-    {
-      gum_thumb_relocator_rewrite_it_block_end (self, block);
-      block->active = FALSE;
-    }
-  }
-
-  if ((*insn = gum_thumb_relocator_peek_next_write_insn (self)) == NULL)
-    return FALSE;
-
-  gum_thumb_relocator_increment_outpos (self);
-
-  return TRUE;
 }
 
 void

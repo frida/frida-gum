@@ -829,11 +829,45 @@ gum_thumb_writer_put_ldmia_reg_mask (GumThumbWriter * self,
                                      arm_reg reg,
                                      guint16 mask)
 {
+  gint i;
   GumArmRegInfo ri;
+  arm_reg valid_short_regs[] = { ARM_REG_R0, ARM_REG_R1, ARM_REG_R2,
+      ARM_REG_R3, ARM_REG_R4, ARM_REG_R5, ARM_REG_R6, ARM_REG_R7, ARM_REG_PC };
+
+  guint16 valid_short_reg_mask = 0;
+  gboolean includes_pc = FALSE;
+
+  /*
+   * If possible we should attempt to write out the short for of the
+   * instruction. Otherwise, if we only support the long form, then we can cause
+   * stalker to generate code which is dependent on the long form (when the
+   * original instruction was the short form). This can introduce an undesirable
+   * dependency on Thumb-2 support.
+   */
+  for (i = 0; i < sizeof (valid_short_regs) / sizeof(arm_reg); i++)
+  {
+    gum_arm_reg_describe (valid_short_regs[i], &ri);
+    valid_short_reg_mask |= (1 << ri.index);
+  }
+
+  /*
+   * ri.index is still set to the index of ARM_REG_PC since it is the last
+   * element in the array above.
+   */
+  if (mask & (1 << ri.index))
+    includes_pc = TRUE;
 
   gum_arm_reg_describe (reg, &ri);
 
-  gum_thumb_writer_put_instruction_wide (self, 0xe8b0 | ri.index, mask);
+  if (reg == ARM_REG_SP && (mask & (~valid_short_reg_mask)) == 0)
+  {
+    gum_thumb_writer_put_instruction (self, 0xbc00 | (includes_pc << 8) |
+        (mask & GUM_INT8_MASK));
+  }
+  else
+  {
+    gum_thumb_writer_put_instruction_wide (self, 0xe8b0 | ri.index, mask);
+  }
 }
 
 void

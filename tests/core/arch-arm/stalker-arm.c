@@ -57,6 +57,13 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (arm_ldr_pc_post_index_imm_negative)
   TESTENTRY (arm_sub_pc)
   TESTENTRY (arm_add_pc)
+  TESTENTRY (thumb_it_eq)
+  TESTENTRY (thumb_it_eq_branch)
+  TESTENTRY (thumb_itt_eq_branch)
+  TESTENTRY (thumb_ite_eq_branch)
+  TESTENTRY (thumb_it_eq_branch_link)
+  TESTENTRY (thumb_it_eq_branch_link_excluded)
+  TESTENTRY (thumb_it_eq_pop)
 
   TESTENTRY (call_thumb)
   TESTENTRY (branch_thumb)
@@ -1419,6 +1426,219 @@ TESTCASE (arm_add_pc)
 
   GUM_ASSERT_EVENT_ADDR (block, 1, begin, func + 16);
   GUM_ASSERT_EVENT_ADDR (block, 1, end, func + 24);
+}
+
+TESTCODE (thumb_it_eq,
+  0x00, 0xb5,             /* push {lr}       */
+  0x00, 0x1a,             /* subs r0, r0, r0 */
+  0x00, 0x28,             /* cmp r0, #0      */
+  0x08, 0xbf,             /* it eq           */
+  0x01, 0x30,             /* adds r0, #1     */
+
+  /* part_two:                               */
+  0x00, 0x28,             /* cmp r0, #0      */
+  0x08, 0xbf,             /* it eq           */
+  0x02, 0x30,             /* adds r0, #2     */
+  0x00, 0xbd,             /* pop {pc}        */
+);
+
+TESTCASE (thumb_it_eq)
+{
+  INVOKE_THUMB_EXPECTING (GUM_NOTHING, thumb_it_eq, 1);
+  g_assert_cmpuint (fixture->sink->events->len, ==, 0);
+}
+
+TESTCODE (thumb_it_eq_branch,
+  0x00, 0xb5,             /* push {lr}       */
+  0x00, 0x1a,             /* subs r0, r0, r0 */
+  0x00, 0x28,             /* cmp r0, #0      */
+  0x08, 0xbf,             /* it eq           */
+  0x00, 0xe0,             /* b part_two      */
+  0x00, 0xde,             /* udf 0           */
+
+  /* part_two:                               */
+  0x01, 0x28,             /* cmp r0, #1      */
+  0x08, 0xbf,             /* it eq           */
+  0x00, 0xe0,             /* b part_three    */
+  0x00, 0xbd,             /* pop {pc}        */
+
+  /* part_three:                             */
+  0x00, 0xde              /* udf 0           */
+);
+
+TESTCASE (thumb_it_eq_branch)
+{
+  GumAddress func;
+
+  func = INVOKE_THUMB_EXPECTING (GUM_BLOCK, thumb_it_eq_branch, 0);
+  g_assert_cmpuint (fixture->sink->events->len, ==, 1);
+
+  GUM_ASSERT_EVENT_ADDR (block, 0, begin, func);
+  GUM_ASSERT_EVENT_ADDR (block, 0, end, func + 10);
+}
+
+TESTCODE (thumb_itt_eq_branch,
+  0x00, 0xb5,             /* push {lr}       */
+  0x00, 0x1a,             /* subs r0, r0, r0 */
+  0x49, 0x1a,             /* subs r1, r1, r1 */
+  0x00, 0x29,             /* cmp r1, #0      */
+  0x04, 0xbf,             /* itt eq          */
+  0x01, 0x30,             /* add r0, #1      */
+  0x00, 0xe0,             /* b part_two      */
+  0x00, 0xde,             /* udf 0           */
+
+  /* part_two:                               */
+  0x01, 0x29,             /* cmp r1, #1      */
+  0x04, 0xbf,             /* itt eq          */
+  0x02, 0x30,             /* add r0, #2      */
+  0x00, 0xe0,             /* b part_three    */
+  0x00, 0xbd,             /* pop {pc}        */
+
+  /* part_three:                             */
+  0x00, 0xde              /* udf 0           */
+);
+
+TESTCASE (thumb_itt_eq_branch)
+{
+  GumAddress func;
+
+  func = INVOKE_THUMB_EXPECTING (GUM_BLOCK, thumb_itt_eq_branch, 1);
+  g_assert_cmpuint (fixture->sink->events->len, ==, 1);
+
+  GUM_ASSERT_EVENT_ADDR (block, 0, begin, func);
+  GUM_ASSERT_EVENT_ADDR (block, 0, end, func + 14);
+}
+
+TESTCODE (thumb_ite_eq_branch,
+  0x00, 0xb5,             /* push {lr}       */
+  0x00, 0x1a,             /* subs r0, r0, r0 */
+  0x49, 0x1a,             /* subs r1, r1, r1 */
+  0x01, 0x29,             /* cmp r1, #1      */
+  0x0c, 0xbf,             /* ite eq          */
+  0x01, 0x30,             /* add r0, #1      */
+  0x00, 0xe0,             /* b part_two      */
+  0x00, 0xde,             /* udf 0           */
+
+  /* part_two:                               */
+  0x00, 0x29,             /* cmp r1, #0      */
+  0x0c, 0xbf,             /* ite eq          */
+  0x02, 0x30,             /* add r0, #2      */
+  0x00, 0xe0,             /* b part_three    */
+  0x00, 0xbd,             /* pop {pc}        */
+
+  /* part_three:                             */
+  0x00, 0xde              /* udf 0           */
+);
+
+TESTCASE (thumb_ite_eq_branch)
+{
+  GumAddress func;
+
+  func = INVOKE_THUMB_EXPECTING (GUM_BLOCK, thumb_ite_eq_branch, 2);
+  g_assert_cmpuint (fixture->sink->events->len, ==, 1);
+
+  GUM_ASSERT_EVENT_ADDR (block, 0, begin, func);
+  GUM_ASSERT_EVENT_ADDR (block, 0, end, func + 14);
+}
+
+TESTCODE (thumb_it_eq_branch_link,
+  0x00, 0xb5,               /* push {lr}       */
+  0x00, 0x1a,               /* subs r0, r0, r0 */
+  0x49, 0x1a,               /* subs r1, r1, r1 */
+  0x01, 0x31,               /* adds r1, #1     */
+  0x00, 0x28,               /* cmp r0, #0      */
+  0x08, 0xbf,               /* it eq           */
+  0x00, 0xf0, 0x06, 0xf8,   /* bl part_three   */
+
+  /* part_two:                                 */
+  0x01, 0x31,               /* adds r1, #1     */
+  0x00, 0x28,               /* cmp r0, #0      */
+  0x08, 0xbf,               /* it eq           */
+  0x00, 0xf0, 0x01, 0xf8,   /* bl part_three   */
+  0x00, 0xbd,               /* pop {pc}        */
+
+  /* part_three:                               */
+  0x00, 0xb5,               /* push {lr}       */
+  0x08, 0x44,               /* add r0, r1      */
+  0x00, 0xbd,               /* pop {pc}        */
+);
+
+TESTCASE (thumb_it_eq_branch_link)
+{
+  GumAddress func;
+
+  func = INVOKE_THUMB_EXPECTING (GUM_CALL, thumb_it_eq_branch_link, 1);
+  g_assert_cmpuint (fixture->sink->events->len, ==,
+      INVOKER_CALL_INSN_COUNT + 1);
+
+  GUM_ASSERT_EVENT_ADDR (call, 1, location, func + 10);
+  GUM_ASSERT_EVENT_ADDR (call, 1, target, func + 29);
+}
+
+TESTCASE (thumb_it_eq_branch_link_excluded)
+{
+  GumAddress func;
+
+  func = DUP_TESTCODE (thumb_it_eq_branch_link);
+
+  {
+    GumMemoryRange r = {
+      .base_address = GUM_ADDRESS (func) + 28,
+      .size = 6
+    };
+
+    gum_stalker_exclude (fixture->stalker, &r);
+  }
+
+  {
+    fixture->sink->mask = GUM_EXEC;
+    g_assert_cmpuint (FOLLOW_AND_INVOKE (func + 1), ==, 1);
+    g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 10);
+
+    GUM_ASSERT_EVENT_ADDR (exec, 2, location, func);
+    GUM_ASSERT_EVENT_ADDR (exec, 3, location, func + 2);
+    GUM_ASSERT_EVENT_ADDR (exec, 4, location, func + 4);
+    GUM_ASSERT_EVENT_ADDR (exec, 5, location, func + 6);
+    GUM_ASSERT_EVENT_ADDR (exec, 6, location, func + 8);
+    GUM_ASSERT_EVENT_ADDR (exec, 7, location, func + 10);
+    GUM_ASSERT_EVENT_ADDR (exec, 8, location, func + 16);
+    GUM_ASSERT_EVENT_ADDR (exec, 9, location, func + 18);
+    GUM_ASSERT_EVENT_ADDR (exec, 10, location, func + 20);
+    GUM_ASSERT_EVENT_ADDR (exec, 11, location, func + 26);
+  }
+}
+
+TESTCODE (thumb_it_eq_pop,
+  0x00, 0xb5,               /* push {lr}       */
+  0x00, 0x1a,               /* subs r0, r0, r0 */
+  0x01, 0x30,               /* adds r0, #1     */
+  0x00, 0xf0, 0x03, 0xf8,   /* bl part_two     */
+  0x00, 0xf0, 0x01, 0xf8,   /* bl part_two     */
+  0x00, 0xbd,               /* pop {pc}        */
+
+  /* part_two:                                 */
+  0x04, 0xb5,               /* push {r2, lr}   */
+  0x02, 0x28,               /* cmp r0, #2      */
+  0x08, 0xbf,               /* it eq           */
+  0x04, 0xbd,               /* pop {r2, pc}    */
+  0x01, 0x30,               /* adds r0, #1     */
+  0x04, 0xbd,               /* pop {r2, pc}    */
+);
+
+TESTCASE (thumb_it_eq_pop)
+{
+  GumAddress func;
+
+  func = INVOKE_THUMB_EXPECTING (GUM_RET, thumb_it_eq_pop, 2);
+  g_assert_cmpuint (fixture->sink->events->len, ==, 3);
+
+  GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + 26);
+  GUM_ASSERT_EVENT_ADDR (ret, 0, target, func + 11);
+
+  GUM_ASSERT_EVENT_ADDR (ret, 1, location, func + 20);
+  GUM_ASSERT_EVENT_ADDR (ret, 1, target, func + 15);
+
+  GUM_ASSERT_EVENT_ADDR (ret, 2, location, func + 14);
 }
 
 TESTCODE (call_thumb,
