@@ -264,6 +264,7 @@ TESTLIST_BEGIN (script)
   TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("CModule")
+#ifdef HAVE_TINYCC
     TESTENTRY (cmodule_can_be_defined)
     TESTENTRY (cmodule_symbols_can_be_provided)
     TESTENTRY (cmodule_should_report_parsing_errors)
@@ -281,6 +282,9 @@ TESTLIST_BEGIN (script)
     TESTENTRY (cmodule_should_support_global_callbacks)
     TESTENTRY (cmodule_should_provide_access_to_cpu_registers)
     TESTENTRY (cmodule_should_provide_access_to_system_error)
+#else
+    TESTENTRY (cmodule_constructor_should_throw_not_available)
+#endif
   TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("Instruction")
@@ -6173,6 +6177,8 @@ TESTCASE (invalid_read_write_execute_results_in_exception)
   EXPECT_NO_MESSAGES ();
 }
 
+#ifdef HAVE_TINYCC
+
 TESTCASE (cmodule_can_be_defined)
 {
   int (* add_impl) (int a, int b);
@@ -6983,6 +6989,17 @@ TESTCASE (cmodule_should_provide_access_to_system_error)
   bump_impl ();
   g_assert_cmpint (gum_thread_get_system_error (), ==, 2);
 }
+
+#else /* !HAVE_TINYCC */
+
+TESTCASE (cmodule_constructor_should_throw_not_available)
+{
+  COMPILE_AND_LOAD_SCRIPT ("new CModule('');");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "Error: TinyCC is not available for the current architecture");
+}
+
+#endif
 
 TESTCASE (script_can_be_compiled_to_bytecode)
 {

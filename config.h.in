@@ -72,6 +72,9 @@
 /* Define to 1 if you have the <stdint.h> header file. */
 #mesondefine HAVE_STDINT_H
 
+/* Define to 1 if TinyCC is available. */
+#mesondefine HAVE_TINYCC
+
 /* Define to 1 if you have the <asm/prctl.h> header file. */
 #mesondefine HAVE_ASM_PRCTL_H
 

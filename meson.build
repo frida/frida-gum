@@ -284,9 +284,15 @@ if have_gumjs
   if not (have_duktape or have_v8)
     error('Cannot build JavaScript bindings without any runtimes enabled')
   endif
+
+  have_tinycc = host_arch != 'mips'
+  if have_tinycc
+    cdata.set('HAVE_TINYCC', 1)
+  endif
 else
   have_duktape = false
   have_v8 = false
+  have_tinycc = false
 endif
 
 configure_file(input: 'config.h.in',
