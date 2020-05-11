@@ -1212,7 +1212,7 @@ gum_thumb_writer_put_msr_reg_reg (GumThumbWriter * self,
 void
 gum_thumb_writer_put_nop (GumThumbWriter * self)
 {
-  gum_thumb_writer_put_instruction (self, 0x46c0);
+  gum_thumb_writer_put_instruction (self, 0xbf00);
 }
 
 void
