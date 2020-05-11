@@ -73,9 +73,9 @@ TESTCASE (beq_label)
   gum_thumb_writer_flush (&fixture->tw);
 
   /* again: */
-  assert_output_n_equals (0, 0x46c0); /* nop */
-  assert_output_n_equals (1, 0x46c0); /* nop */
-  assert_output_n_equals (2, 0x46c0); /* nop */
+  assert_output_n_equals (0, 0xbf00); /* nop */
+  assert_output_n_equals (1, 0xbf00); /* nop */
+  assert_output_n_equals (2, 0xbf00); /* nop */
   assert_output_n_equals (3, 0xd0fb); /* beq again */
 }
 
@@ -92,9 +92,9 @@ TESTCASE (bne_label)
   gum_thumb_writer_flush (&fixture->tw);
 
   /* again: */
-  assert_output_n_equals (0, 0x46c0); /* nop */
-  assert_output_n_equals (1, 0x46c0); /* nop */
-  assert_output_n_equals (2, 0x46c0); /* nop */
+  assert_output_n_equals (0, 0xbf00); /* nop */
+  assert_output_n_equals (1, 0xbf00); /* nop */
+  assert_output_n_equals (2, 0xbf00); /* nop */
   assert_output_n_equals (3, 0xd1fb); /* bne again */
 }
 
@@ -111,9 +111,9 @@ TESTCASE (b_cond_label_wide)
   gum_thumb_writer_flush (&fixture->tw);
 
   /* again: */
-  assert_output_n_equals (0, 0x46c0); /* nop */
-  assert_output_n_equals (1, 0x46c0); /* nop */
-  assert_output_n_equals (2, 0x46c0); /* nop */
+  assert_output_n_equals (0, 0xbf00); /* nop */
+  assert_output_n_equals (1, 0xbf00); /* nop */
+  assert_output_n_equals (2, 0xbf00); /* nop */
   assert_output_n_equals (3, 0xf47f); /* bne.w again */
   assert_output_n_equals (4, 0xaffb);
 }
@@ -135,9 +135,9 @@ TESTCASE (cbz_reg_label)
 
   assert_output_n_equals (0, 0xb11f); /* cbz r7, beach */
   assert_output_n_equals (1, 0x4788); /* blx r1 */
-  assert_output_n_equals (2, 0x46c0); /* nop */
-  assert_output_n_equals (3, 0x46c0); /* nop */
-  assert_output_n_equals (4, 0x46c0); /* nop */
+  assert_output_n_equals (2, 0xbf00); /* nop */
+  assert_output_n_equals (3, 0xbf00); /* nop */
+  assert_output_n_equals (4, 0xbf00); /* nop */
   /* beach: */
   assert_output_n_equals (5, 0xbd00); /* pop {pc} */
 }
@@ -209,9 +209,9 @@ TESTCASE (cbnz_reg_label)
   gum_thumb_writer_flush (&fixture->tw);
 
   assert_output_n_equals (0, 0xb910); /* cbnz r0, beach */
-  assert_output_n_equals (1, 0x46c0); /* nop */
-  assert_output_n_equals (2, 0x46c0); /* nop */
-  assert_output_n_equals (3, 0x46c0); /* nop */
+  assert_output_n_equals (1, 0xbf00); /* nop */
+  assert_output_n_equals (2, 0xbf00); /* nop */
+  assert_output_n_equals (3, 0xbf00); /* nop */
   /* beach: */
 }
 
@@ -228,7 +228,7 @@ TESTCASE (b_label_wide)
   assert_output_n_equals (0, 0xf000); /* b.w next */
   assert_output_n_equals (1, 0xb800);
   /* next: */
-  assert_output_n_equals (2, 0x46c0); /* nop */
+  assert_output_n_equals (2, 0xbf00); /* nop */
 }
 
 TESTCASE (bx_reg)
@@ -689,5 +689,5 @@ TESTCASE (msr_reg_reg)
 TESTCASE (nop)
 {
   gum_thumb_writer_put_nop (&fixture->tw);
-  assert_output_equals (0x46c0);
+  assert_output_equals (0xbf00);
 }
