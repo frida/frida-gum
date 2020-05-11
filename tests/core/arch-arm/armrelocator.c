@@ -433,7 +433,8 @@ branch_scenario_execute (BranchScenario * bs,
     g_print ("\n\nGenerated code is not equal to expected code:\n\n%s\n", diff);
 
     g_print ("\n\nInput:\n\n");
-    g_print ("0x%llx: %s %s\n", insn->address, insn->mnemonic, insn->op_str);
+    g_print ("0x%" G_GINT64_MODIFIER "x: %s %s\n",
+        insn->address, insn->mnemonic, insn->op_str);
 
     g_print ("\n\nExpected:\n\n");
     show_disassembly (bs->expected_output, bs->expected_output_length);
