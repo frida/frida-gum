@@ -10,6 +10,7 @@ typedef guint GumOS;
 typedef guint GumCallingConvention;
 typedef guint GumAbiType;
 typedef guint GumCpuType;
+typedef guint GumInstructionEncoding;
 typedef guint GumArgType;
 typedef struct _GumArgument GumArgument;
 typedef guint GumBranchHint;
@@ -20,6 +21,12 @@ enum _GumCallingConvention
 {
   GUM_CALL_CAPI,
   GUM_CALL_SYSAPI
+};
+
+enum _GumInstructionEncoding
+{
+  GUM_INSTRUCTION_DEFAULT,
+  GUM_INSTRUCTION_SPECIAL
 };
 
 enum _GumArgType

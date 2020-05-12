@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -13,7 +13,8 @@
 
 G_BEGIN_DECLS
 
-typedef struct _GumDukStalkerIterator GumDukStalkerIterator;
+typedef struct _GumDukStalkerDefaultIterator GumDukStalkerDefaultIterator;
+typedef struct _GumDukStalkerSpecialIterator GumDukStalkerSpecialIterator;
 typedef struct _GumDukProbeArgs GumDukProbeArgs;
 
 struct _GumDukStalker
@@ -28,11 +29,15 @@ struct _GumDukStalker
 
   GSource * flush_timer;
 
-  GumDukHeapPtr iterator;
+  GumDukHeapPtr default_iterator;
+  GumDukHeapPtr special_iterator;
   GumDukHeapPtr probe_args;
 
-  GumDukStalkerIterator * cached_iterator;
-  gboolean cached_iterator_in_use;
+  GumDukStalkerDefaultIterator * cached_default_iterator;
+  gboolean cached_default_iterator_in_use;
+
+  GumDukStalkerSpecialIterator * cached_special_iterator;
+  gboolean cached_special_iterator_in_use;
 
   GumDukInstructionValue * cached_instruction;
   gboolean cached_instruction_in_use;

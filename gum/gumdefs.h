@@ -54,6 +54,7 @@ typedef guint GumCallingConvention;
 typedef guint GumAbiType;
 typedef guint GumCpuType;
 typedef guint GumCpuFeatures;
+typedef guint GumInstructionEncoding;
 #define GUM_TYPE_CPU_TYPE (gum_cpu_type_get_type ())
 typedef guint GumArgType;
 typedef struct _GumArgument GumArgument;
@@ -134,6 +135,12 @@ enum _GumCpuFeatures
 {
   GUM_CPU_AVX2    = 1 << 0,
   GUM_CPU_PTRAUTH = 1 << 1,
+};
+
+enum _GumInstructionEncoding
+{
+  GUM_INSTRUCTION_DEFAULT,
+  GUM_INSTRUCTION_SPECIAL
 };
 
 enum _GumArgType

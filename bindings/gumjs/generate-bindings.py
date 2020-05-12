@@ -95,44 +95,55 @@ def generate_umbrella(runtime, name, section, flavor_combos):
                 "",
             ])
             current_arch = arch
+
         lines.append("# include \"gum{0}code{1}{2}-{3}.inc\"".format(runtime, name, section, flavor))
-        if section == "-methods" and flavor != "arm":
-            native_function_prefix = "gum_{0}_native_{1}".format(runtime, name)
-            wrapper_function_prefix = "gum_{0}_{1}_{2}".format(runtime, flavor, name)
-            impl_function_prefix = "gum_{0}_{1}".format(flavor, name)
 
-            params = {
-                "name_uppercase": name.upper(),
-                "native_class_name": to_camel_case("{0}_{1}".format(flavor, name), start_high=True),
-                "native_field_name": "{0}_{1}".format(flavor, name),
-                "native_struct_name": to_camel_case(native_function_prefix, start_high=True),
-                "native_function_prefix": native_function_prefix,
-                "wrapper_macro_prefix": "GUM_{0}_NATIVE_{1}".format(runtime.upper(), name.upper()),
-                "wrapper_struct_name": to_camel_case(wrapper_function_prefix, start_high=True),
-                "wrapper_function_prefix": wrapper_function_prefix,
-                "impl_struct_name": to_camel_case(impl_function_prefix, start_high=True),
-                "persistent_suffix": "_persistent" if runtime == "v8" else ""
-            }
+        if section == "-methods":
+            if flavor == "thumb":
+                lines.extend(generate_alias_definitions("special", runtime, name, flavor))
+            else:
+                lines.extend(generate_alias_definitions("default", runtime, name, flavor))
+                if flavor != "arm":
+                    lines.extend(generate_alias_definitions("special", runtime, name, flavor))
 
-            lines.extend("""
-#define {wrapper_macro_prefix}_CLASS_NAME "{native_class_name}"
-#define {wrapper_macro_prefix}_FIELD {native_field_name}
-
-typedef {wrapper_struct_name} {native_struct_name};
-typedef {impl_struct_name} {native_struct_name}Impl;
-
-#define _{native_function_prefix}_new{persistent_suffix} _{wrapper_function_prefix}_new{persistent_suffix}
-#define _{native_function_prefix}_release{persistent_suffix} _{wrapper_function_prefix}_release{persistent_suffix}
-#define _{native_function_prefix}_init _{wrapper_function_prefix}_init
-#define _{native_function_prefix}_finalize _{wrapper_function_prefix}_finalize
-#define _{native_function_prefix}_reset _{wrapper_function_prefix}_reset
-""".format(**params).split("\n"))
     lines.append("#endif")
 
     filename = "gum{0}code{1}{2}.inc".format(runtime, name, section)
     code = "\n".join(lines)
 
     return (filename, code)
+
+def generate_alias_definitions(alias, runtime, name, flavor):
+    alias_function_prefix = "gum_{0}_{1}_{2}".format(runtime, alias, name)
+    wrapper_function_prefix = "gum_{0}_{1}_{2}".format(runtime, flavor, name)
+    impl_function_prefix = "gum_{0}_{1}".format(flavor, name)
+
+    params = {
+        "name_uppercase": name.upper(),
+        "alias_class_name": to_camel_case("{0}_{1}".format(flavor, name), start_high=True),
+        "alias_field_name": "{0}_{1}".format(flavor, name),
+        "alias_struct_name": to_camel_case(alias_function_prefix, start_high=True),
+        "alias_function_prefix": alias_function_prefix,
+        "wrapper_macro_prefix": "GUM_{0}_{1}_{2}".format(runtime.upper(), alias.upper(), name.upper()),
+        "wrapper_struct_name": to_camel_case(wrapper_function_prefix, start_high=True),
+        "wrapper_function_prefix": wrapper_function_prefix,
+        "impl_struct_name": to_camel_case(impl_function_prefix, start_high=True),
+        "persistent_suffix": "_persistent" if runtime == "v8" else ""
+    }
+
+    return """
+#define {wrapper_macro_prefix}_CLASS_NAME "{alias_class_name}"
+#define {wrapper_macro_prefix}_FIELD {alias_field_name}
+
+typedef {wrapper_struct_name} {alias_struct_name};
+typedef {impl_struct_name} {alias_struct_name}Impl;
+
+#define _{alias_function_prefix}_new{persistent_suffix} _{wrapper_function_prefix}_new{persistent_suffix}
+#define _{alias_function_prefix}_release{persistent_suffix} _{wrapper_function_prefix}_release{persistent_suffix}
+#define _{alias_function_prefix}_init _{wrapper_function_prefix}_init
+#define _{alias_function_prefix}_finalize _{wrapper_function_prefix}_finalize
+#define _{alias_function_prefix}_reset _{wrapper_function_prefix}_reset
+""".format(**params).split("\n")
 
 class Bindings(object):
     def __init__(self, code, tsds, docs):

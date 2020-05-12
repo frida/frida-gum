@@ -62,10 +62,10 @@ TESTLIST_BEGIN (stalker)
 TESTLIST_END ()
 
 static void insert_extra_add_after_sub (GumStalkerIterator * iterator,
-    GumStalkerWriter * output, gpointer user_data);
+    GumStalkerOutput * output, gpointer user_data);
 static void store_x0 (GumCpuContext * cpu_context, gpointer user_data);
 static void unfollow_during_transform (GumStalkerIterator * iterator,
-    GumStalkerWriter * output, gpointer user_data);
+    GumStalkerOutput * output, gpointer user_data);
 static gpointer run_stalked_briefly (gpointer data);
 static gpointer run_stalked_into_termination (gpointer data);
 static gpointer increment_integer (gpointer data);
@@ -336,7 +336,7 @@ TESTCASE (custom_transformer)
 
 static void
 insert_extra_add_after_sub (GumStalkerIterator * iterator,
-                            GumStalkerWriter * output,
+                            GumStalkerOutput * output,
                             gpointer user_data)
 {
   guint64 * last_x0 = user_data;
@@ -358,7 +358,7 @@ insert_extra_add_after_sub (GumStalkerIterator * iterator,
     {
       in_leaf_func = TRUE;
 
-      gum_arm64_writer_put_add_reg_reg_imm (&output->arm64, ARM64_REG_W0,
+      gum_arm64_writer_put_add_reg_reg_imm (output->writer.arm64, ARM64_REG_W0,
           ARM64_REG_W0, 1);
     }
   }
@@ -465,7 +465,7 @@ TESTCASE (unfollow_should_be_allowed_after_second_transform)
 
 static void
 unfollow_during_transform (GumStalkerIterator * iterator,
-                           GumStalkerWriter * output,
+                           GumStalkerOutput * output,
                            gpointer user_data)
 {
   UnfollowTransformContext * ctx = user_data;
