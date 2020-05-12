@@ -484,6 +484,9 @@
     <None Include="runtime\cmodule\gum\gummodulemap.h">
       <Filter>runtime\cmodule\gum</Filter>
     </None>
+    <None Include="runtime\cmodule\gum\gummemory.h">
+      <Filter>runtime\cmodule\gum</Filter>
+    </None>
     <None Include="runtime\cmodule\gum\guminterceptor.h">
       <Filter>runtime\cmodule\gum</Filter>
     </None>

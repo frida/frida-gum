@@ -174,6 +174,7 @@
     <None Include="runtime\cmodule\gum\gumdefs.h" />
     <None Include="runtime\cmodule\gum\gumprocess.h" />
     <None Include="runtime\cmodule\gum\gummodulemap.h" />
+    <None Include="runtime\cmodule\gum\gummemory.h" />
     <None Include="runtime\cmodule\gum\guminterceptor.h" />
     <None Include="runtime\cmodule\gum\gumstalker.h" />
     <None Include="runtime\cmodule\gum\gummetalarray.h" />
@@ -205,7 +206,7 @@ generate-runtime.py $(PlatformShortName) $(ProjectDir) ..\..\gum $(SolutionDir)c
 REM. &gt; $(IntDir)gumjs\runtime.stamp
 </Command>
       <LinkObjects>false</LinkObjects>
-      <AdditionalInputs>runtime\entrypoint-v8.js;runtime\entrypoint-duktape.js;runtime\core.js;runtime\message-dispatcher.js;runtime\error-handler-v8.js;runtime\error-handler-duktape.js;runtime\console.js;runtime\hexdump.js;runtime\promise.js;runtime\objc.js;runtime\java.js;runtime\cmodule\inttypes.h;runtime\cmodule\stdint.h;runtime\cmodule\stdio.h;runtime\cmodule\stdlib.h;runtime\cmodule\string.h;runtime\cmodule\glib.h;runtime\cmodule\gum\gumdefs.h;runtime\cmodule\gum\gumprocess.h;runtime\cmodule\gum\gummodulemap.h;runtime\cmodule\gum\guminterceptor.h;runtime\cmodule\gum\gumstalker.h;runtime\cmodule\gum\gummetalarray.h;runtime\cmodule\gum\gummetalhash.h;runtime\cmodule\json-glib\json-glib.h;%(AdditionalInputs)</AdditionalInputs>
+      <AdditionalInputs>runtime\entrypoint-v8.js;runtime\entrypoint-duktape.js;runtime\core.js;runtime\message-dispatcher.js;runtime\error-handler-v8.js;runtime\error-handler-duktape.js;runtime\console.js;runtime\hexdump.js;runtime\promise.js;runtime\objc.js;runtime\java.js;runtime\cmodule\inttypes.h;runtime\cmodule\stdint.h;runtime\cmodule\stdio.h;runtime\cmodule\stdlib.h;runtime\cmodule\string.h;runtime\cmodule\glib.h;runtime\cmodule\gum\gumdefs.h;runtime\cmodule\gum\gumprocess.h;runtime\cmodule\gum\gummodulemap.h;runtime\cmodule\gum\gummemory.h;runtime\cmodule\gum\guminterceptor.h;runtime\cmodule\gum\gumstalker.h;runtime\cmodule\gum\gummetalarray.h;runtime\cmodule\gum\gummetalhash.h;runtime\cmodule\json-glib\json-glib.h;%(AdditionalInputs)</AdditionalInputs>
     </CustomBuild>
   </ItemGroup>
 
