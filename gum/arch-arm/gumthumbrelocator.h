@@ -82,6 +82,7 @@ GUM_API gpointer gum_thumb_relocator_peek_next_write_source (
     GumThumbRelocator * self);
 GUM_API void gum_thumb_relocator_skip_one (GumThumbRelocator * self);
 GUM_API gboolean gum_thumb_relocator_write_one (GumThumbRelocator * self);
+GUM_API gboolean gum_thumb_relocator_copy_one (GumThumbRelocator * self);
 GUM_API void gum_thumb_relocator_write_all (GumThumbRelocator * self);
 
 GUM_API gboolean gum_thumb_relocator_eob (GumThumbRelocator * self);
