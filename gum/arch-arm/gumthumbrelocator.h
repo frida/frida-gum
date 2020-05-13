@@ -73,6 +73,9 @@ GUM_API void gum_thumb_relocator_reset (GumThumbRelocator * relocator,
 GUM_API guint gum_thumb_relocator_read_one (GumThumbRelocator * self,
     const cs_insn ** instruction);
 
+GUM_API gboolean gum_thumb_relocator_is_eob_instruction (
+    const cs_insn * instruction);
+
 GUM_API cs_insn * gum_thumb_relocator_peek_next_write_insn (
     GumThumbRelocator * self);
 GUM_API gpointer gum_thumb_relocator_peek_next_write_source (

@@ -255,6 +255,29 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
   return self->input_cur - input_start;
 }
 
+gboolean
+gum_thumb_relocator_is_eob_instruction (const cs_insn * instruction)
+{
+  switch (instruction->id)
+  {
+    case ARM_INS_B:
+    case ARM_INS_BX:
+    case ARM_INS_CBZ:
+    case ARM_INS_CBNZ:
+    case ARM_INS_BL:
+    case ARM_INS_BLX:
+      return TRUE;
+    case ARM_INS_LDR:
+      return gum_reg_dest_is_pc (instruction);
+    case ARM_INS_POP:
+      return gum_reg_list_contains_pc (instruction, 0);
+    case ARM_INS_LDM:
+      return gum_reg_list_contains_pc (instruction, 1);
+    default:
+      return FALSE;
+  }
+}
+
 cs_insn *
 gum_thumb_relocator_peek_next_write_insn (GumThumbRelocator * self)
 {
