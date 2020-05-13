@@ -830,10 +830,21 @@ gum_thumb_writer_put_ldmia_reg_mask (GumThumbWriter * self,
                                      guint16 mask)
 {
   GumArmRegInfo ri;
+  const guint16 valid_short_reg_mask = 0x80ff;
 
   gum_arm_reg_describe (reg, &ri);
 
-  gum_thumb_writer_put_instruction_wide (self, 0xe8b0 | ri.index, mask);
+  if (reg == ARM_REG_SP && (mask & ~valid_short_reg_mask) == 0)
+  {
+    const gboolean includes_pc = (mask & 0x8000) != 0;
+
+    gum_thumb_writer_put_instruction (self, 0xbc00 | (includes_pc << 8) |
+        (mask & GUM_INT8_MASK));
+  }
+  else
+  {
+    gum_thumb_writer_put_instruction_wide (self, 0xe8b0 | ri.index, mask);
+  }
 }
 
 void
