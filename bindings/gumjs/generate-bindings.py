@@ -13,7 +13,7 @@ def generate_and_write_bindings(source_dir, output_dir):
                                 'set_target_cpu', 'set_target_abi', 'set_target_os',
                                 'cur', 'offset', 'flush', 'get_cpu_register_for_nth_argument'] }),
         ("relocator", { 'ignore': ['new', 'ref', 'unref', 'init', 'clear', 'reset',
-                                   'read_one', 'eob', 'eoi', 'can_relocate'] }),
+                                   'read_one', 'is_eob_instruction', 'eob', 'eoi', 'can_relocate'] }),
     ]
 
     flavor_combos = [
