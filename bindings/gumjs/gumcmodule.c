@@ -7,6 +7,9 @@
 #include "gumcmodule.h"
 
 #include <gio/gio.h>
+
+#ifdef HAVE_TINYCC
+
 #include <gum/gum-init.h>
 #include <gum/gum.h>
 #include <json-glib/json-glib.h>
@@ -355,3 +358,66 @@ gum_define_symbol_str (TCCState * state,
 
   g_free (raw_value);
 }
+
+#else /* !HAVE_TINYCC */
+
+GumCModule *
+gum_cmodule_new (const gchar * source,
+                 GError ** error)
+{
+  g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
+      "TinyCC is not available for the current architecture");
+  return NULL;
+}
+
+void
+gum_cmodule_free (GumCModule * cmodule)
+{
+}
+
+const GumMemoryRange *
+gum_cmodule_get_range (GumCModule * self)
+{
+  g_assert_not_reached ();
+  return NULL;
+}
+
+void
+gum_cmodule_add_symbol (GumCModule * self,
+                        const gchar * name,
+                        gconstpointer value)
+{
+  g_assert_not_reached ();
+}
+
+gboolean
+gum_cmodule_link (GumCModule * self,
+                  GError ** error)
+{
+  g_assert_not_reached ();
+  return FALSE;
+}
+
+void
+gum_cmodule_enumerate_symbols (GumCModule * self,
+                               GumFoundCSymbolFunc func,
+                               gpointer user_data)
+{
+  g_assert_not_reached ();
+}
+
+gpointer
+gum_cmodule_find_symbol_by_name (GumCModule * self,
+                                 const gchar * name)
+{
+  g_assert_not_reached ();
+  return NULL;
+}
+
+void
+gum_cmodule_drop_metadata (GumCModule * self)
+{
+  g_assert_not_reached ();
+}
+
+#endif /* !HAVE_TINYCC */

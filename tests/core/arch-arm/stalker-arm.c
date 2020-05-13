@@ -96,18 +96,18 @@ static gboolean test_log_fatal_func (const gchar * log_domain,
 static GLogWriterOutput test_log_writer_func (GLogLevelFlags log_level,
     const GLogField * fields, gsize n_fields, gpointer user_data);
 static void duplicate_adds (GumStalkerIterator * iterator,
-    GumStalkerWriter * output, gpointer user_data);
+    GumStalkerOutput * output, gpointer user_data);
 static void transform_arm_return_value (GumStalkerIterator * iterator,
-    GumStalkerWriter * output, gpointer user_data);
+    GumStalkerOutput * output, gpointer user_data);
 static void on_arm_ret (GumCpuContext * cpu_context, gpointer user_data);
 static gboolean is_arm_mov_pc_lr (const guint8 * bytes, gsize size);
 static void transform_thumb_return_value (GumStalkerIterator * iterator,
-    GumStalkerWriter * output, gpointer user_data);
+    GumStalkerOutput * output, gpointer user_data);
 static void on_thumb_ret (GumCpuContext * cpu_context,
     gpointer user_data);
 static gboolean is_thumb_pop_pc (const guint8 * bytes, gsize size);
 static void unfollow_during_transform (GumStalkerIterator * iterator,
-    GumStalkerWriter * output, gpointer user_data);
+    GumStalkerOutput * output, gpointer user_data);
 static gpointer run_stalked_briefly (gpointer data);
 static gpointer run_stalked_into_termination (gpointer data);
 static gpointer increment_integer (gpointer data);
@@ -1911,7 +1911,7 @@ TESTCASE (custom_transformer)
 
 static void
 duplicate_adds (GumStalkerIterator * iterator,
-                GumStalkerWriter * output,
+                GumStalkerOutput * output,
                 gpointer user_data)
 {
   const cs_insn * insn;
@@ -1921,7 +1921,7 @@ duplicate_adds (GumStalkerIterator * iterator,
     gum_stalker_iterator_keep (iterator);
 
     if (insn->id == ARM_INS_ADD)
-      gum_arm_writer_put_bytes (&output->arm, insn->bytes, insn->size);
+      gum_arm_writer_put_bytes (output->writer.arm, insn->bytes, insn->size);
   }
 }
 
@@ -1937,7 +1937,7 @@ TESTCASE (arm_callout)
 
 static void
 transform_arm_return_value (GumStalkerIterator * iterator,
-                            GumStalkerWriter * output,
+                            GumStalkerOutput * output,
                             gpointer user_data)
 {
   gpointer magic = user_data;
@@ -1992,7 +1992,7 @@ TESTCASE (thumb_callout)
 
 static void
 transform_thumb_return_value (GumStalkerIterator * iterator,
-                              GumStalkerWriter * output,
+                              GumStalkerOutput * output,
                               gpointer user_data)
 {
   gpointer magic = user_data;
@@ -2127,7 +2127,7 @@ TESTCASE (unfollow_should_be_allowed_after_second_transform)
 
 static void
 unfollow_during_transform (GumStalkerIterator * iterator,
-                           GumStalkerWriter * output,
+                           GumStalkerOutput * output,
                            gpointer user_data)
 {
   UnfollowTransformContext * ctx = user_data;

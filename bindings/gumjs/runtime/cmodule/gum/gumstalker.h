@@ -4,27 +4,45 @@
 #include "gumdefs.h"
 #if defined (HAVE_I386)
 # include "arch-x86/gumx86writer.h"
-typedef GumX86Writer GumStalkerWriter;
 #elif defined (HAVE_ARM)
 # include "arch-arm/gumthumbwriter.h"
-typedef GumThumbWriter GumStalkerWriter;
 #elif defined (HAVE_ARM64)
 # include "arch-arm64/gumarm64writer.h"
-typedef GumArm64Writer GumStalkerWriter;
 #elif defined (HAVE_MIPS)
 # include "arch-mips/gummipswriter.h"
-typedef GumMipsWriter GumStalkerWriter;
 #endif
 
 #include <capstone.h>
 
 typedef struct _GumStalkerIterator GumStalkerIterator;
+typedef struct _GumStalkerOutput GumStalkerOutput;
+typedef union _GumStalkerWriter GumStalkerWriter;
 typedef void (* GumStalkerTransformerCallback) (GumStalkerIterator * iterator,
-    GumStalkerWriter * output, gpointer user_data);
+    GumStalkerOutput * output, gpointer user_data);
 typedef void (* GumStalkerCallout) (GumCpuContext * cpu_context,
     gpointer user_data);
 
 typedef struct _GumCallSite GumCallSite;
+
+union _GumStalkerWriter
+{
+#if defined (HAVE_I386)
+  GumX86Writer * x86;
+#elif defined (HAVE_ARM)
+  GumArmWriter * arm;
+  GumThumbWriter * thumb;
+#elif defined (HAVE_ARM64)
+  GumArm64Writer * arm64;
+#elif defined (HAVE_MIPS)
+  GumMipsWriter * mips;
+#endif
+};
+
+struct _GumStalkerOutput
+{
+  GumStalkerWriter writer;
+  GumInstructionEncoding encoding;
+};
 
 struct _GumCallSite
 {
