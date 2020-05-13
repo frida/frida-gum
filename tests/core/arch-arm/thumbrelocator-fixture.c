@@ -27,6 +27,8 @@ typedef struct _TestThumbRelocatorFixture
   GumThumbRelocator rl;
 } TestThumbRelocatorFixture;
 
+static void show_disassembly (const guint16 * input, gsize length);
+
 static void
 test_thumb_relocator_fixture_setup (TestThumbRelocatorFixture * fixture,
                                     gconstpointer data)
@@ -44,6 +46,66 @@ test_thumb_relocator_fixture_teardown (TestThumbRelocatorFixture * fixture,
   gum_thumb_relocator_clear (&fixture->rl);
   gum_thumb_writer_clear (&fixture->tw);
   gum_free_pages (fixture->output);
+}
+
+static void
+check_output (const guint16 * input,
+              gsize input_length,
+              const guint8 * output,
+              const guint16 * expected_output,
+              gsize expected_length)
+{
+  gboolean same_content;
+  gchar * diff;
+
+  same_content = memcmp (output, expected_output, expected_length) == 0;
+
+  diff = test_util_diff_binary ((guint8 *) expected_output, expected_length,
+      output, expected_length);
+
+  if (!same_content)
+  {
+    g_print ("\n\nGenerated code is not equal to expected code:\n\n%s\n", diff);
+
+    g_print ("\n\nInput:\n\n");
+    show_disassembly (input, input_length);
+
+    g_print ("\n\nExpected:\n\n");
+    show_disassembly (expected_output, expected_length);
+
+    g_print ("\n\nWrong:\n\n");
+    show_disassembly ((guint16 *) output, expected_length);
+  }
+
+  g_assert_true (same_content);
+}
+
+static void
+show_disassembly (const guint16 * input,
+                  gsize length)
+{
+  csh capstone;
+  cs_insn * insn;
+  const uint8_t * code;
+  size_t size;
+  uint64_t address;
+
+  cs_open (CS_ARCH_ARM, CS_MODE_THUMB, &capstone);
+  cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
+  insn = cs_malloc (capstone);
+
+  code = (const uint8_t *) input;
+  size = length;
+  address = GPOINTER_TO_SIZE (input);
+
+  while (cs_disasm_iter (capstone, &code, &size, &address, insn))
+  {
+    g_print ("0x%" G_GINT64_MODIFIER "x\t0x%04x,               /* %s %s */\n",
+        insn->address, *(guint16 *) insn->bytes, insn->mnemonic, insn->op_str);
+  }
+
+  cs_free (insn, 1);
+  cs_close (&capstone);
 }
 
 static const guint8 cleared_outbuf[TEST_OUTBUF_SIZE] = { 0, };
