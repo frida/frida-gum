@@ -14,16 +14,10 @@
 G_BEGIN_DECLS
 
 typedef struct _GumThumbRelocator GumThumbRelocator;
-typedef struct _GumThumbLocation GumThumbLocation;
-typedef struct _GumThumbITBlock GumThumbITBlock;
+typedef struct _GumITBlock GumITBlock;
+typedef guint GumITBranchType;
 
-struct _GumThumbLocation
-{
-  guint16 * code;
-  GumAddress pc;
-};
-
-struct _GumThumbITBlock
+struct _GumITBlock
 {
   gboolean active;
 
@@ -32,8 +26,8 @@ struct _GumThumbITBlock
   guint8 size;
   guint8 else_region_size;
 
-  GumThumbLocation if_branch;
-  GumThumbLocation else_branch;
+  gpointer then_label;
+  gpointer end_label;
 };
 
 struct _GumThumbRelocator
@@ -54,7 +48,15 @@ struct _GumThumbRelocator
   gboolean eob;
   gboolean eoi;
 
-  GumThumbITBlock it_block;
+  GumITBlock it_block;
+  GumITBranchType it_branch_type;
+};
+
+enum _GumITBranchType
+{
+  GUM_IT_BRANCH_INVALID,
+  GUM_IT_BRANCH_SHORT,
+  GUM_IT_BRANCH_LONG
 };
 
 GUM_API GumThumbRelocator * gum_thumb_relocator_new (gconstpointer input_code,
@@ -69,6 +71,8 @@ GUM_API void gum_thumb_relocator_clear (GumThumbRelocator * relocator);
 
 GUM_API void gum_thumb_relocator_reset (GumThumbRelocator * relocator,
     gconstpointer input_code, GumThumbWriter * output);
+void gum_thumb_relocator_set_it_branch_type (GumThumbRelocator * self,
+    GumITBranchType type);
 
 GUM_API guint gum_thumb_relocator_read_one (GumThumbRelocator * self,
     const cs_insn ** instruction);

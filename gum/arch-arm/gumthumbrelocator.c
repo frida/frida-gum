@@ -50,17 +50,15 @@ static gboolean gum_thumb_relocator_rewrite_cbz (GumThumbRelocator * self,
 static gboolean gum_thumb_relocator_rewrite_it_block_start (
     GumThumbRelocator * self, GumCodeGenCtx * ctx);
 static void gum_thumb_relocator_rewrite_it_block_else (GumThumbRelocator * self,
-    GumThumbITBlock * block);
+    GumITBlock * block);
 static void gum_thumb_relocator_rewrite_it_block_end (GumThumbRelocator * self,
-    GumThumbITBlock * block);
+    GumITBlock * block);
 static void gum_thumb_relocator_parse_it_block (GumThumbRelocator * self,
-    GumThumbITBlock * block, guint16 it_insn);
+    GumITBlock * block, guint16 it_insn);
 
-static void gum_commit_it_branch (GumThumbLocation * location,
-    GumAddress target);
+static void gum_commit_it_branch (GumThumbWriter * writer, gpointer * id);
 
 static guint8 gum_parse_it_instruction_block_size (guint16 insn);
-static guint8 gum_parse_it_instruction_condition (guint16 insn);
 
 GumThumbRelocator *
 gum_thumb_relocator_new (gconstpointer input_code,
@@ -108,6 +106,7 @@ gum_thumb_relocator_init (GumThumbRelocator * relocator,
   relocator->output = NULL;
 
   gum_thumb_relocator_reset (relocator, input_code, output);
+  relocator->it_branch_type = GUM_IT_BRANCH_SHORT;
 }
 
 void
@@ -153,6 +152,13 @@ gum_thumb_relocator_reset (GumThumbRelocator * relocator,
   relocator->eoi = FALSE;
 
   relocator->it_block.active = FALSE;
+}
+
+void
+gum_thumb_relocator_set_it_branch_type (GumThumbRelocator * self,
+                                        GumITBranchType type)
+{
+  self->it_branch_type = type;
 }
 
 static guint
@@ -283,7 +289,7 @@ gum_thumb_relocator_is_eob_instruction (const cs_insn * instruction)
 cs_insn *
 gum_thumb_relocator_peek_next_write_insn (GumThumbRelocator * self)
 {
-  GumThumbITBlock * block = &self->it_block;
+  GumITBlock * block = &self->it_block;
 
   if (block->active)
   {
@@ -349,7 +355,7 @@ gum_thumb_relocator_copy_one (GumThumbRelocator * self)
 static void
 gum_stalker_relocator_advance (GumThumbRelocator * self)
 {
-  GumThumbITBlock * block = &self->it_block;
+  GumITBlock * block = &self->it_block;
 
   if (block->active)
     block->offset++;
@@ -411,7 +417,7 @@ gum_thumb_relocator_write_instruction (GumThumbRelocator * self,
 static void
 gum_stalker_relocator_write_it_branches (GumThumbRelocator * self)
 {
-  GumThumbITBlock * block = &self->it_block;
+  GumITBlock * block = &self->it_block;
 
   if (!block->active)
     return;
@@ -604,15 +610,6 @@ gum_thumb_relocator_relocate (gpointer from,
   gum_thumb_writer_clear (&cw);
 
   return reloc_bytes;
-}
-
-static void
-gum_thumb_location_init (GumThumbLocation * location,
-                         guint16 * code,
-                         GumAddress pc)
-{
-  location->code = code;
-  location->pc = pc;
 }
 
 static gboolean
@@ -862,54 +859,70 @@ static gboolean
 gum_thumb_relocator_rewrite_it_block_start (GumThumbRelocator * self,
                                             GumCodeGenCtx * ctx)
 {
-  GumThumbITBlock * block = &self->it_block;
+  GumITBlock * block = &self->it_block;
+  const cs_insn * insn = ctx->insn;
+  arm_cc cc = insn->detail->arm.cc;
   guint16 it_insn;
+
+  block->active = TRUE;
 
   memcpy (&it_insn, ctx->insn->bytes, sizeof (guint16));
   it_insn = GUINT16_FROM_LE (it_insn);
 
   gum_thumb_relocator_parse_it_block (self, block, it_insn);
 
-  gum_thumb_location_init (&block->if_branch,
-      gum_thumb_writer_cur (self->output), self->output->pc);
-  gum_thumb_location_init (&block->else_branch, NULL, 0);
+  block->then_label = self->output->code + 1;
+  block->end_label = NULL;
 
-  gum_thumb_writer_put_instruction (self->output, 0xd000 |
-      (gum_parse_it_instruction_condition (it_insn) << 8));
+  switch (self->it_branch_type)
+  {
+    case GUM_IT_BRANCH_SHORT:
+      gum_thumb_writer_put_b_cond_label (self->output, cc, block->then_label);
+      break;
+    case GUM_IT_BRANCH_LONG:
+      gum_thumb_writer_put_b_cond_label_wide (self->output, cc,
+          block->then_label);
+      break;
+    default:
+      g_assert_not_reached ();
+  }
 
-  block->active = TRUE;
   return TRUE;
 }
 
 static void
 gum_thumb_relocator_rewrite_it_block_else (GumThumbRelocator * self,
-                                           GumThumbITBlock * block)
+                                           GumITBlock * block)
 {
-  gum_thumb_location_init (&block->else_branch,
-      gum_thumb_writer_cur (self->output), self->output->pc);
+  block->end_label = self->output->code + 1;
 
-  gum_thumb_writer_put_instruction (self->output, 0xe000);
+  switch (self->it_branch_type)
+  {
+    case GUM_IT_BRANCH_SHORT:
+      gum_thumb_writer_put_b_label (self->output, block->end_label);
+      break;
+    case GUM_IT_BRANCH_LONG:
+      gum_thumb_writer_put_b_label_wide (self->output, block->end_label);
+      break;
+    default:
+      g_assert_not_reached ();
+  }
 
-  gum_commit_it_branch (&block->if_branch, self->output->pc);
-  gum_thumb_location_init (&block->if_branch, NULL, 0);
+  gum_commit_it_branch (self->output, &block->then_label);
 }
 
 static void
 gum_thumb_relocator_rewrite_it_block_end (GumThumbRelocator * self,
-                                          GumThumbITBlock * block)
+                                          GumITBlock * block)
 {
-  GumAddress pc = self->output->pc;
+  gum_commit_it_branch (self->output, &block->then_label);
 
-  if (block->if_branch.pc != 0)
-    gum_commit_it_branch (&block->if_branch, pc);
-
-  if (block->else_branch.pc != 0)
-    gum_commit_it_branch (&block->else_branch, pc);
+  gum_commit_it_branch (self->output, &block->end_label);
 }
 
 static void
 gum_thumb_relocator_parse_it_block (GumThumbRelocator * self,
-                                    GumThumbITBlock * block,
+                                    GumITBlock * block,
                                     guint16 it_insn)
 {
   guint8 then_bit, then_insn_count, i;
@@ -943,15 +956,15 @@ gum_thumb_relocator_parse_it_block (GumThumbRelocator * self,
 }
 
 static void
-gum_commit_it_branch (GumThumbLocation * location,
-                      GumAddress target)
+gum_commit_it_branch (GumThumbWriter * writer,
+                      gpointer * id)
 {
-  gint16 distance;
+  if (*id == NULL)
+    return;
 
-  distance = target - location->pc - 4;
-  g_assert (distance >= 0 && distance < 256);
-
-  *location->code = (*location->code & 0xff00) | distance / 2;
+  gum_thumb_writer_put_label (writer, *id);
+  gum_thumb_writer_commit_label (writer, *id);
+  *id = NULL;
 }
 
 static guint8
@@ -969,8 +982,3 @@ gum_parse_it_instruction_block_size (guint16 insn)
   return 1;
 }
 
-static guint8
-gum_parse_it_instruction_condition (guint16 insn)
-{
-  return (insn >> 4) & 0xf;
-}
