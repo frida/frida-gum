@@ -122,9 +122,9 @@ GUM_API void gum_thumb_writer_put_mov_reg_reg (GumThumbWriter * self,
     arm_reg dst_reg, arm_reg src_reg);
 GUM_API void gum_thumb_writer_put_mov_reg_u8 (GumThumbWriter * self,
     arm_reg dst_reg, guint8 imm_value);
-GUM_API void gum_thumb_writer_put_mov_cpsr_to_reg (GumThumbWriter * self,
+GUM_API void gum_thumb_writer_put_mov_reg_cpsr (GumThumbWriter * self,
     arm_reg reg);
-GUM_API void gum_thumb_writer_put_mov_reg_to_cpsr (GumThumbWriter * self,
+GUM_API void gum_thumb_writer_put_mov_cpsr_reg (GumThumbWriter * self,
     arm_reg reg);
 GUM_API gboolean gum_thumb_writer_put_add_reg_imm (GumThumbWriter * self,
     arm_reg dst_reg, gssize imm_value);

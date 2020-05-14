@@ -960,8 +960,8 @@ gum_thumb_writer_put_mov_reg_u8 (GumThumbWriter * self,
 }
 
 void
-gum_thumb_writer_put_mov_cpsr_to_reg (GumThumbWriter * self,
-                                      arm_reg reg)
+gum_thumb_writer_put_mov_reg_cpsr (GumThumbWriter * self,
+                                   arm_reg reg)
 {
   GumArmRegInfo ri;
 
@@ -972,8 +972,8 @@ gum_thumb_writer_put_mov_cpsr_to_reg (GumThumbWriter * self,
 }
 
 void
-gum_thumb_writer_put_mov_reg_to_cpsr (GumThumbWriter * self,
-                                      arm_reg reg)
+gum_thumb_writer_put_mov_cpsr_reg (GumThumbWriter * self,
+                                   arm_reg reg)
 {
   GumArmRegInfo ri;
 
