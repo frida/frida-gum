@@ -3548,8 +3548,6 @@ static void
 gum_exec_block_write_arm_exec_generated_code (GumArmWriter * cw,
                                               GumExecCtx * ctx)
 {
-  gconstpointer not_thumb;
-
   /*
    * This function writes code to vector to the address of the last instrumented
    * block. Given that this code is emitted before the block is actually
@@ -3564,25 +3562,6 @@ gum_exec_block_write_arm_exec_generated_code (GumArmWriter * cw,
    * function scope. We therefore push and pop this register to and from the
    * stack.
    */
-  gum_arm_writer_put_push_registers (cw, 1, ARM_REG_R12);
-  gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R12,
-      GUM_ADDRESS (&ctx->resume_at));
-  gum_arm_writer_put_ldr_reg_reg_offset (cw, ARM_REG_R12, ARM_REG_R12, 0);
-
-  gum_arm_writer_put_push_registers (cw, 2, ARM_REG_R0, ARM_REG_R1);
-  gum_arm_writer_put_mov_reg_cpsr (cw, ARM_REG_R1);
-  gum_arm_writer_put_ands_reg_reg_imm (cw, ARM_REG_R0, ARM_REG_R12, 1);
-
-  not_thumb = cw->code + 1;
-  gum_arm_writer_put_b_cond_label (cw, ARM_CC_EQ, not_thumb);
-  gum_arm_writer_put_mov_cpsr_reg (cw, ARM_REG_R1);
-  gum_arm_writer_put_pop_registers (cw, 2, ARM_REG_R0, ARM_REG_R1);
-  gum_arm_writer_put_add_reg_reg_imm (cw, ARM_REG_SP, ARM_REG_SP, 4);
-  gum_arm_writer_put_bx_reg (cw, ARM_REG_R12);
-
-  gum_arm_writer_put_label (cw, not_thumb);
-  gum_arm_writer_put_mov_cpsr_reg (cw, ARM_REG_R1);
-  gum_arm_writer_put_pop_registers (cw, 3, ARM_REG_R0, ARM_REG_R1, ARM_REG_R12);
 
   /*
    * Here we push the values of R0 which we will use as scratch space and PC we
@@ -3603,27 +3582,6 @@ static void
 gum_exec_block_write_thumb_exec_generated_code (GumThumbWriter * cw,
                                                 GumExecCtx * ctx)
 {
-  gconstpointer thumb;
-
-  gum_thumb_writer_put_push_regs (cw, 1, ARM_REG_R0);
-  gum_thumb_writer_put_ldr_reg_address (cw, ARM_REG_R0,
-      GUM_ADDRESS (&ctx->resume_at));
-  gum_thumb_writer_put_ldr_reg_reg_offset (cw, ARM_REG_R0, ARM_REG_R0, 0);
-  gum_thumb_writer_put_push_regs (cw, 1, ARM_REG_R0);
-
-  gum_thumb_writer_put_and_reg_reg_imm (cw, ARM_REG_R0, ARM_REG_R0, 1);
-
-  thumb = cw->code + 1;
-  gum_thumb_writer_put_cbnz_reg_label (cw, ARM_REG_R0, thumb);
-  gum_thumb_writer_put_pop_regs (cw, 1, ARM_REG_R0);
-  gum_thumb_writer_put_mov_reg_reg (cw, ARM_REG_R12, ARM_REG_R0);
-  gum_thumb_writer_put_pop_regs (cw, 1, ARM_REG_R0);
-  gum_thumb_writer_put_bx_reg (cw, ARM_REG_R12);
-
-  gum_thumb_writer_put_label (cw, thumb);
-  gum_thumb_writer_put_pop_regs (cw, 1, ARM_REG_R0);
-  gum_thumb_writer_put_pop_regs (cw, 1, ARM_REG_R0);
-
   /*
    * We can't push PC in Thumb encoding without Thumb 2, and we clobber the
    * value so it doesn't matter what we push. It ends up popped back into PC.
