@@ -832,7 +832,7 @@ gboolean
 gum_thumb_writer_put_vldr_reg_reg_offset (GumThumbWriter * self,
                                           arm_reg dst_reg,
                                           arm_reg src_reg,
-                                          gsize src_offset)
+                                          gssize src_offset)
 {
   GumArmRegInfo src_reg_info;
   GumArmRegInfo dst_reg_info;

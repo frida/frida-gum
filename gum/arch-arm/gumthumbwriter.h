@@ -113,7 +113,7 @@ GUM_API void gum_thumb_writer_put_ldr_reg_reg (GumThumbWriter * self,
 GUM_API gboolean gum_thumb_writer_put_ldr_reg_reg_offset (GumThumbWriter * self,
     arm_reg dst_reg, arm_reg src_reg, gsize src_offset);
 GUM_API gboolean gum_thumb_writer_put_vldr_reg_reg_offset (
-    GumThumbWriter * self, arm_reg dst_reg, arm_reg src_reg, gsize src_offset);
+    GumThumbWriter * self, arm_reg dst_reg, arm_reg src_reg, gssize src_offset);
 GUM_API void gum_thumb_writer_put_ldmia_reg_mask (GumThumbWriter * self,
     arm_reg reg, guint16 mask);
 GUM_API void gum_thumb_writer_put_str_reg_reg (GumThumbWriter * self,
