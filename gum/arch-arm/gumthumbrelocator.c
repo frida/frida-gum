@@ -717,7 +717,7 @@ gum_thumb_relocator_rewrite_vldr (GumThumbRelocator * self,
   gum_thumb_writer_put_vldr_reg_reg_offset (ctx->output, dst->reg, ARM_REG_R0,
       0);
 
-  gum_thumb_writer_put_pop_regs(ctx->output, 1, ARM_REG_R0);
+  gum_thumb_writer_put_pop_regs (ctx->output, 1, ARM_REG_R0);
 
   return TRUE;
 }
