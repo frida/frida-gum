@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -90,7 +90,7 @@ show_disassembly (const guint16 * input,
   size_t size;
   uint64_t address;
 
-  cs_open (CS_ARCH_ARM, CS_MODE_THUMB, &capstone);
+  cs_open (CS_ARCH_ARM, CS_MODE_THUMB | CS_MODE_V8, &capstone);
   cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
   insn = cs_malloc (capstone);
 

@@ -101,7 +101,7 @@ gum_thumb_relocator_init (GumThumbRelocator * relocator,
 {
   relocator->ref_count = 1;
 
-  cs_open (CS_ARCH_ARM, CS_MODE_THUMB, &relocator->capstone);
+  cs_open (CS_ARCH_ARM, CS_MODE_THUMB | CS_MODE_V8, &relocator->capstone);
   cs_option (relocator->capstone, CS_OPT_DETAIL, CS_OPT_ON);
   relocator->input_insns = g_new0 (cs_insn *, GUM_MAX_INPUT_INSN_COUNT);
 

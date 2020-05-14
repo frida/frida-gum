@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -76,7 +76,7 @@ gum_arm_relocator_init (GumArmRelocator * relocator,
 {
   relocator->ref_count = 1;
 
-  cs_open (CS_ARCH_ARM, CS_MODE_ARM, &relocator->capstone);
+  cs_open (CS_ARCH_ARM, CS_MODE_ARM | CS_MODE_V8, &relocator->capstone);
   cs_option (relocator->capstone, CS_OPT_DETAIL, CS_OPT_ON);
   relocator->input_insns = g_new0 (cs_insn *, GUM_MAX_INPUT_INSN_COUNT);
 

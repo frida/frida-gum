@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -80,7 +80,8 @@ typedef GumX64CpuContext GumCpuContext;
 # endif
 #elif defined (__arm__) && !defined (__aarch64__)
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_ARM
-# define GUM_DEFAULT_CS_MODE ((cs_mode) (CS_MODE_ARM | GUM_DEFAULT_CS_ENDIAN))
+# define GUM_DEFAULT_CS_MODE \
+    ((cs_mode) (CS_MODE_ARM | CS_MODE_V8 | GUM_DEFAULT_CS_ENDIAN))
 typedef GumArmCpuContext GumCpuContext;
 #elif defined (__aarch64__)
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_ARM64

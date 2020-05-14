@@ -120,7 +120,7 @@ disassemble_instruction_at (gconstpointer address)
   cs_err err;
   cs_insn * insn = NULL;
 
-  err = cs_open (CS_ARCH_ARM, CS_MODE_ARM, &capstone);
+  err = cs_open (CS_ARCH_ARM, CS_MODE_ARM | CS_MODE_V8, &capstone);
   g_assert (err == CS_ERR_OK);
   err = cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
   g_assert (err == CS_ERR_OK);
