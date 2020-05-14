@@ -69,6 +69,8 @@ static gboolean gum_thumb_writer_put_transfer_reg_reg_offset (
     arm_reg right_reg, gsize right_offset);
 
 static gboolean gum_thumb_writer_try_commit_label_refs (GumThumbWriter * self);
+static gboolean gum_thumb_writer_do_commit_label (GumThumbLabelRef * r,
+    const guint16 * target_insn);
 static void gum_thumb_writer_maybe_commit_literals (GumThumbWriter * self);
 static void gum_thumb_writer_commit_literals (GumThumbWriter * self);
 
@@ -237,6 +239,44 @@ gum_thumb_writer_put_label (GumThumbWriter * self,
   gum_metal_hash_table_insert (self->label_defs, (gpointer) id, self->code);
 
   return TRUE;
+}
+
+gboolean
+gum_thumb_writer_commit_label (GumThumbWriter * self,
+                               gconstpointer id)
+{
+  guint num_refs, ref_index;
+
+  if (!gum_thumb_writer_has_label_refs (self))
+    return FALSE;
+
+  if (!gum_thumb_writer_has_label_defs (self))
+    return FALSE;
+
+  num_refs = self->label_refs.length;
+
+  for (ref_index = 0; ref_index != num_refs; ref_index++)
+  {
+    GumThumbLabelRef * r;
+    const guint16 * target_insn;
+
+    r = gum_metal_array_element_at (&self->label_refs, ref_index);
+    if (r->id != id)
+      continue;
+
+    target_insn = gum_metal_hash_table_lookup (self->label_defs, r->id);
+    if (target_insn == NULL)
+      return FALSE;
+
+    if (!gum_thumb_writer_do_commit_label (r, target_insn))
+      return FALSE;
+
+    gum_metal_array_remove_at (&self->label_refs, ref_index);
+
+    return TRUE;
+  }
+
+  return FALSE;
 }
 
 static void
@@ -1305,8 +1345,6 @@ gum_thumb_writer_try_commit_label_refs (GumThumbWriter * self)
   {
     GumThumbLabelRef * r;
     const guint16 * target_insn;
-    gssize distance;
-    guint16 insn;
 
     r = gum_metal_array_element_at (&self->label_refs, ref_index);
 
@@ -1314,108 +1352,121 @@ gum_thumb_writer_try_commit_label_refs (GumThumbWriter * self)
     if (target_insn == NULL)
       return FALSE;
 
-    distance = target_insn - (r->insn + 2);
-
-    insn = GUINT16_FROM_LE (*r->insn);
-    switch (r->type)
-    {
-      case GUM_THUMB_B_T1:
-        if (!GUM_IS_WITHIN_INT8_RANGE (distance))
-          return FALSE;
-        insn |= distance & GUM_INT8_MASK;
-        break;
-      case GUM_THUMB_B_T2:
-        if (!GUM_IS_WITHIN_INT11_RANGE (distance))
-          return FALSE;
-        insn |= distance & GUM_INT11_MASK;
-        break;
-      case GUM_THUMB_B_T3:
-      {
-        union
-        {
-          gint32 i;
-          guint32 u;
-        } distance_word;
-        guint32 s, j2, j1, imm6, imm11;
-        guint16 insn_low;
-
-        if (!GUM_IS_WITHIN_INT20_RANGE (distance))
-          return FALSE;
-
-        insn_low = GUINT16_FROM_LE (r->insn[1]);
-
-        distance_word.i = distance;
-
-        s =  (distance_word.u >> 23) & 1;
-        j2 = (distance_word.u >> 18) & 1;
-        j1 = (distance_word.u >> 17) & 1;
-        imm6 = (distance_word.u >> 11) & GUM_INT6_MASK;
-        imm11 = distance_word.u        & GUM_INT11_MASK;
-
-        insn     |=  (s << 10) | imm6;
-        insn_low |= (j1 << 13) | (j2 << 11) | imm11;
-
-        r->insn[1] = GUINT16_TO_LE (insn_low);
-
-        break;
-      }
-      case GUM_THUMB_B_T4:
-      case GUM_THUMB_BL_T1:
-      {
-        union
-        {
-          gint32 i;
-          guint32 u;
-        } distance_word;
-        guint16 s, i1, i2, j1, j2, imm10, imm11;
-        guint16 insn_low;
-
-        if (!GUM_IS_WITHIN_INT24_RANGE (distance))
-          return FALSE;
-
-        insn_low = GUINT16_FROM_LE (r->insn[1]);
-
-        distance_word.i = distance;
-
-        s =  (distance_word.u >> 23) & 1;
-        i1 = (distance_word.u >> 22) & 1;
-        i2 = (distance_word.u >> 21) & 1;
-        j1 = (i1 ^ 1) ^ s;
-        j2 = (i2 ^ 1) ^ s;
-
-        imm10 = (distance_word.u >> 11) & GUM_INT10_MASK;
-        imm11 =  distance_word.u        & GUM_INT11_MASK;
-
-        insn     |=  (s << 10) | imm10;
-        insn_low |= (j1 << 13) | (j2 << 11) | imm11;
-
-        r->insn[1] = GUINT16_TO_LE (insn_low);
-
-        break;
-      }
-      case GUM_THUMB_CBZ_T1:
-      case GUM_THUMB_CBNZ_T1:
-      {
-        guint16 i, imm5;
-
-        if (!GUM_IS_WITHIN_UINT7_RANGE (distance * sizeof (guint16)))
-          return FALSE;
-
-        i = (distance >> 5) & 1;
-        imm5 = distance & GUM_INT5_MASK;
-
-        insn |= (i << 9) | (imm5 << 3);
-
-        break;
-      }
-      default:
-        g_assert_not_reached ();
-    }
-
-    *r->insn = GUINT16_TO_LE (insn);
+    if (!gum_thumb_writer_do_commit_label (r, target_insn))
+      return FALSE;
   }
 
   gum_metal_array_remove_all (&self->label_refs);
+
+  return TRUE;
+}
+
+static gboolean
+gum_thumb_writer_do_commit_label (GumThumbLabelRef * r,
+                                  const guint16 * target_insn)
+{
+  gssize distance;
+  guint16 insn;
+
+  distance = target_insn - (r->insn + 2);
+
+  insn = GUINT16_FROM_LE (*r->insn);
+  switch (r->type)
+  {
+    case GUM_THUMB_B_T1:
+      if (!GUM_IS_WITHIN_INT8_RANGE (distance))
+        return FALSE;
+      insn |= distance & GUM_INT8_MASK;
+      break;
+    case GUM_THUMB_B_T2:
+      if (!GUM_IS_WITHIN_INT11_RANGE (distance))
+        return FALSE;
+      insn |= distance & GUM_INT11_MASK;
+      break;
+    case GUM_THUMB_B_T3:
+    {
+      union
+      {
+        gint32 i;
+        guint32 u;
+      } distance_word;
+      guint32 s, j2, j1, imm6, imm11;
+      guint16 insn_low;
+
+      if (!GUM_IS_WITHIN_INT20_RANGE (distance))
+        return FALSE;
+
+      insn_low = GUINT16_FROM_LE (r->insn[1]);
+
+      distance_word.i = distance;
+
+      s =  (distance_word.u >> 23) & 1;
+      j2 = (distance_word.u >> 18) & 1;
+      j1 = (distance_word.u >> 17) & 1;
+      imm6 = (distance_word.u >> 11) & GUM_INT6_MASK;
+      imm11 = distance_word.u        & GUM_INT11_MASK;
+
+      insn     |=  (s << 10) | imm6;
+      insn_low |= (j1 << 13) | (j2 << 11) | imm11;
+
+      r->insn[1] = GUINT16_TO_LE (insn_low);
+
+      break;
+    }
+    case GUM_THUMB_B_T4:
+    case GUM_THUMB_BL_T1:
+    {
+      union
+      {
+        gint32 i;
+        guint32 u;
+      } distance_word;
+      guint16 s, i1, i2, j1, j2, imm10, imm11;
+      guint16 insn_low;
+
+      if (!GUM_IS_WITHIN_INT24_RANGE (distance))
+        return FALSE;
+
+      insn_low = GUINT16_FROM_LE (r->insn[1]);
+
+      distance_word.i = distance;
+
+      s =  (distance_word.u >> 23) & 1;
+      i1 = (distance_word.u >> 22) & 1;
+      i2 = (distance_word.u >> 21) & 1;
+      j1 = (i1 ^ 1) ^ s;
+      j2 = (i2 ^ 1) ^ s;
+
+      imm10 = (distance_word.u >> 11) & GUM_INT10_MASK;
+      imm11 =  distance_word.u        & GUM_INT11_MASK;
+
+      insn     |=  (s << 10) | imm10;
+      insn_low |= (j1 << 13) | (j2 << 11) | imm11;
+
+      r->insn[1] = GUINT16_TO_LE (insn_low);
+
+      break;
+    }
+    case GUM_THUMB_CBZ_T1:
+    case GUM_THUMB_CBNZ_T1:
+    {
+      guint16 i, imm5;
+
+      if (!GUM_IS_WITHIN_UINT7_RANGE (distance * sizeof (guint16)))
+        return FALSE;
+
+      i = (distance >> 5) & 1;
+      imm5 = distance & GUM_INT5_MASK;
+
+      insn |= (i << 9) | (imm5 << 3);
+
+      break;
+    }
+    default:
+      g_assert_not_reached ();
+  }
+
+  *r->insn = GUINT16_TO_LE (insn);
 
   return TRUE;
 }

@@ -54,6 +54,8 @@ GUM_API gboolean gum_thumb_writer_flush (GumThumbWriter * self);
 
 GUM_API gboolean gum_thumb_writer_put_label (GumThumbWriter * self,
     gconstpointer id);
+GUM_API gboolean gum_thumb_writer_commit_label (GumThumbWriter * self,
+    gconstpointer id);
 
 GUM_API void gum_thumb_writer_put_call_address_with_arguments (
     GumThumbWriter * self, GumAddress func, guint n_args, ...);
