@@ -892,6 +892,8 @@ gum_stalker_create_exec_ctx (GumStalker * self,
 
   gum_thumb_writer_init (&ctx->thumb_writer, NULL);
   gum_thumb_relocator_init (&ctx->thumb_relocator, NULL, &ctx->thumb_writer);
+  gum_thumb_relocator_set_it_branch_type (&ctx->thumb_relocator,
+      GUM_IT_BRANCH_LONG);
 
   if (transformer != NULL)
     ctx->transformer = g_object_ref (transformer);

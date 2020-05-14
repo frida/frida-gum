@@ -65,6 +65,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (thumb_it_eq_branch_link)
   TESTENTRY (thumb_it_eq_branch_link_excluded)
   TESTENTRY (thumb_it_eq_pop)
+  TESTENTRY (thumb_itttt_eq_blx_reg)
 
   TESTENTRY (call_thumb)
   TESTENTRY (branch_thumb)
@@ -1647,6 +1648,40 @@ TESTCASE (thumb_it_eq_pop)
   GUM_ASSERT_EVENT_ADDR (ret, 1, target, func + 15);
 
   GUM_ASSERT_EVENT_ADDR (ret, 2, location, func + 14);
+}
+
+TESTCODE (thumb_itttt_eq_blx_reg,
+  0x00, 0xb5, /* push {lr}       */
+  0x00, 0x1a, /* subs r0, r0, r0 */
+  0x49, 0x1a, /* subs r1, r1, r1 */
+  0x79, 0x44, /* add r1, pc      */
+  0x1b, 0x31, /* adds r1, #27    */
+  0x00, 0x28, /* cmp r0, #0      */
+  0x01, 0xbf, /* itttt eq        */
+  0x01, 0x30, /* adds r0, #1     */
+  0x01, 0x30, /* adds r0, #1     */
+  0x01, 0x30, /* adds r0, #1     */
+  0x88, 0x47, /* blx r1          */
+
+  /* part_two:                   */
+  0x00, 0x28, /* cmp r0, #0      */
+  0x01, 0xbf, /* itttt eq        */
+  0x02, 0x30, /* adds r0, #2     */
+  0x02, 0x30, /* adds r0, #2     */
+  0x02, 0x30, /* adds r0, #2     */
+  0x88, 0x47, /* blx r1          */
+  0x00, 0xbd, /* pop {pc}        */
+
+  /* part_three:                 */
+  0x00, 0xb5, /* push {lr}       */
+  0x01, 0x30, /* adds r0, #1     */
+  0x00, 0xbd, /* pop {pc}        */
+);
+
+TESTCASE (thumb_itttt_eq_blx_reg)
+{
+  INVOKE_THUMB_EXPECTING (GUM_EXEC | GUM_CALL, thumb_itttt_eq_blx_reg, 4);
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 16);
 }
 
 TESTCODE (call_thumb,
