@@ -864,8 +864,6 @@ gum_thumb_relocator_rewrite_it_block_start (GumThumbRelocator * self,
   arm_cc cc = insn->detail->arm.cc;
   guint16 it_insn;
 
-  block->active = TRUE;
-
   memcpy (&it_insn, ctx->insn->bytes, sizeof (guint16));
   it_insn = GUINT16_FROM_LE (it_insn);
 
@@ -886,6 +884,8 @@ gum_thumb_relocator_rewrite_it_block_start (GumThumbRelocator * self,
     default:
       g_assert_not_reached ();
   }
+
+  block->active = TRUE;
 
   return TRUE;
 }
