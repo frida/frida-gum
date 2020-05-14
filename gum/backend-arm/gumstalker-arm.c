@@ -1502,14 +1502,16 @@ gum_stalker_iterator_arm_keep (GumStalkerIterator * self)
 
       if (gum_symbol_details_from_address (gc->instruction->begin, &details))
       {
-        g_print ("[A] %08d [%s!%s] - %p => %p: %s\t%s = 0x%08x, id: %d\n",
+        fprintf (stderr,
+            "[A] %08d [%s!%s] - %p => %p: %s\t%s = 0x%08x, id: %d\n",
             ++g_count, details.module_name, details.symbol_name,
             gc->instruction->begin, gc->arm_writer->code, insn->mnemonic,
             insn->op_str, *(guint32 *) gc->instruction->begin, insn->id);
       }
       else
       {
-        g_print ("[A] %08d [%p] - %p => %p: %s\t%s = 0x%08x, id: %d\n",
+        fprintf (stderr,
+            "[A] %08d [%p] - %p => %p: %s\t%s = 0x%08x, id: %d\n",
             ++g_count, gc->instruction->begin, gc->instruction->begin,
             gc->arm_writer->code, insn->mnemonic, insn->op_str,
             *(guint32 *) gc->instruction->begin, insn->id);
@@ -1525,7 +1527,7 @@ gum_stalker_iterator_arm_keep (GumStalkerIterator * self)
     GumWriteback writeback = { .target = ARM_REG_INVALID };
 
     if (g_debug)
-      g_print ("\n");
+      fprintf (stderr, "\n");
 
     mask = 0;
 
@@ -1590,7 +1592,8 @@ gum_stalker_iterator_thumb_keep (GumStalkerIterator * self)
 
       if (gum_symbol_details_from_address (gc->instruction->begin, &details))
       {
-        g_print ("[T] %08d [%s!%s] - %p => %p: %s\t%s = 0x%08x, id: %d\n",
+        fprintf (stderr,
+            "[T] %08d [%s!%s] - %p => %p: %s\t%s = 0x%08x, id: %d\n",
             ++g_count, details.module_name, details.symbol_name,
             gc->instruction->begin, gc->thumb_writer->code, insn->mnemonic,
             insn->op_str, *(guint32 *) gc->instruction->begin,
@@ -1598,7 +1601,8 @@ gum_stalker_iterator_thumb_keep (GumStalkerIterator * self)
       }
       else
       {
-        g_print ("[T] %08d [%p] - %p => %p: %s\t%s = 0x%08x, id: %d\n",
+        fprintf (stderr,
+            "[T] %08d [%p] - %p => %p: %s\t%s = 0x%08x, id: %d\n",
             ++g_count, gc->instruction->begin, gc->instruction->begin,
             gc->thumb_writer->code, insn->mnemonic, insn->op_str,
             *(guint32 *) gc->instruction->begin, insn->id);
@@ -1606,7 +1610,7 @@ gum_stalker_iterator_thumb_keep (GumStalkerIterator * self)
     }
 
     if (gum_thumb_relocator_eob (gc->thumb_relocator))
-      g_print ("\n");
+      fprintf (stderr, "\n");
   }
 
   if (gum_thumb_relocator_eob (gc->thumb_relocator))
@@ -1707,7 +1711,7 @@ gum_stalker_iterator_handle_thumb_it_insn (GumStalkerIterator * self)
   {
     if (g_debug)
     {
-      g_print ("\t[IT -] %p => %p: %s\t%s, id: %d\n",
+      fprintf (stderr, "\t[IT -] %p => %p: %s\t%s, id: %d\n",
           gc->instruction->begin, gc->thumb_writer->code,
           insn->mnemonic, insn->op_str, insn->id);
     }
@@ -2080,16 +2084,16 @@ gum_exec_ctx_emit_call_event (GumExecCtx * ctx,
     if (gum_symbol_details_from_address (call->location, &location_details) &&
         gum_symbol_details_from_address (call->target, &target_details))
     {
-      g_print ("%3d: { type: %s, location: %s!%s, "
-          "target: %s!%s, depth: %u }\n",
+      fprintf (stderr,
+          "%3d: { type: %s, location: %s!%s, target: %s!%s, depth: %u }\n",
           g_events++, "GUM_CALL", location_details.module_name,
           location_details.symbol_name, target_details.module_name,
           target_details.symbol_name, call->depth);
     }
     else
     {
-      g_print ("%3d: { type: %s, location: 0x%08x, "
-          "target: 0x%08x, depth: %u }\n",
+      fprintf (stderr,
+          "%3d: { type: %s, location: 0x%08x, target: 0x%08x, depth: %u }\n",
           g_events++, "GUM_CALL", (guint) call->location, (guint) call->target,
           call->depth);
     }
@@ -2120,16 +2124,16 @@ gum_exec_ctx_emit_ret_event (GumExecCtx * ctx,
     if (gum_symbol_details_from_address (ret->location, &location_details) &&
         gum_symbol_details_from_address (ret->target, &target_details))
     {
-      g_print ("%3d: { type: %s, location: %s!%s, "
-          "target: %s!%s, depth: %u }\n",
+      fprintf (stderr,
+          "%3d: { type: %s, location: %s!%s, target: %s!%s, depth: %u }\n",
           g_events++, "GUM_RET", location_details.module_name,
           location_details.symbol_name, target_details.module_name,
           target_details.symbol_name, ret->depth);
     }
     else
     {
-      g_print ("%3d: { type: %s, location: 0x%08x, "
-          "target: 0x%08x, depth: %u }\n",
+      fprintf (stderr,
+          "%3d: { type: %s, location: 0x%08x, target: 0x%08x, depth: %u }\n",
           g_events++, "GUM_RET", (guint) ret->location, (guint) ret->target,
           ret->depth);
     }
@@ -2167,13 +2171,13 @@ gum_exec_ctx_emit_exec_event (GumExecCtx * ctx,
 
     if (gum_symbol_details_from_address (exec->location, &location_details))
     {
-      g_print ("%3d: { type: %s, location: %s!%s }\n",
+      fprintf (stderr, "%3d: { type: %s, location: %s!%s }\n",
           g_events++, "GUM_EXEC", location_details.module_name,
           location_details.symbol_name);
     }
     else
     {
-      g_print ("%3d: { type: %s, location: 0x%08x }\n",
+      fprintf (stderr, "%3d: { type: %s, location: 0x%08x }\n",
           g_events++, "GUM_EXEC", (guint) exec->location);
     }
   }
@@ -2202,14 +2206,14 @@ gum_exec_ctx_emit_block_event (GumExecCtx * ctx,
     if (gum_symbol_details_from_address (block->begin, &begin_details) &&
         gum_symbol_details_from_address (block->end, &end_details))
     {
-      g_print ("%3d: { type: %s, begin: %s!%s, end: %s!%s }\n",
+      fprintf (stderr, "%3d: { type: %s, begin: %s!%s, end: %s!%s }\n",
           g_events++, "GUM_BLOCK", begin_details.module_name,
           begin_details.symbol_name, end_details.module_name,
           end_details.symbol_name);
     }
     else
     {
-      g_print ("%3d: { type: %s, begin: 0x%08x, end: 0x%08x }\n",
+      fprintf (stderr, "%3d: { type: %s, begin: 0x%08x, end: 0x%08x }\n",
           g_events++, "GUM_BLOCK", (guint) block->begin, (guint) block->end);
     }
   }
