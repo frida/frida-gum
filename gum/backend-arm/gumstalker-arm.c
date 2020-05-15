@@ -41,7 +41,13 @@ typedef struct _GumExecBlock GumExecBlock;
 typedef struct _GumGeneratorContext GumGeneratorContext;
 typedef struct _GumCalloutEntry GumCalloutEntry;
 typedef struct _GumInstruction GumInstruction;
+typedef guint GumBranchTargetType;
 typedef struct _GumBranchTarget GumBranchTarget;
+typedef struct _GumBranchDirectAddress GumBranchDirectAddress;
+typedef struct _GumBranchDirectRegOffset GumBranchDirectRegOffset;
+typedef struct _GumBranchDirectRegShift GumBranchDirectRegShift;
+typedef struct _GumBranchIndirectRegOffset GumBranchIndirectRegOffset;
+typedef struct _GumBranchIndirectPcrelTable GumBranchIndirectPcrelTable;
 typedef struct _GumWriteback GumWriteback;
 
 typedef gboolean (* GumCheckExcludedFunc) (GumExecCtx * ctx,
@@ -196,15 +202,59 @@ enum _GumExecCtxState
   GUM_EXEC_CTX_DESTROY_PENDING
 };
 
-struct _GumBranchTarget
+enum _GumBranchTargetType
 {
-  gpointer absolute_address;
-  gssize offset;
-  gboolean is_indirect;
+  GUM_TARGET_DIRECT_ADDRESS,
+  GUM_TARGET_DIRECT_REG_OFFSET,
+  GUM_TARGET_DIRECT_REG_SHIFT,
+  GUM_TARGET_INDIRECT_REG_OFFSET,
+  GUM_TARGET_INDIRECT_PCREL_TABLE
+};
+
+struct _GumBranchDirectAddress
+{
+  gpointer address;
+};
+
+struct _GumBranchDirectRegOffset
+{
   arm_reg reg;
-  arm_reg reg2;
+  gssize offset;
+};
+
+struct _GumBranchDirectRegShift
+{
+  arm_reg base;
+  arm_reg index;
   arm_shifter shifter;
   guint32 shift_value;
+};
+
+struct _GumBranchIndirectRegOffset
+{
+  arm_reg reg;
+  gssize offset;
+};
+
+struct _GumBranchIndirectPcrelTable
+{
+  arm_reg base;
+  arm_reg index;
+  guint element_size;
+};
+
+struct _GumBranchTarget
+{
+  GumBranchTargetType type;
+
+  union
+  {
+    GumBranchDirectAddress direct_address;
+    GumBranchDirectRegOffset direct_reg_offset;
+    GumBranchDirectRegShift direct_reg_shift;
+    GumBranchIndirectRegOffset indirect_reg_offset;
+    GumBranchIndirectPcrelTable indirect_pcrel_table;
+  } value;
 };
 
 struct _GumWriteback
@@ -1634,6 +1684,8 @@ gum_stalker_iterator_handle_thumb_branch_insn (GumStalkerIterator * self,
     case ARM_INS_B:
     case ARM_INS_BX:
     case ARM_INS_LDR:
+    case ARM_INS_TBB:
+    case ARM_INS_TBH:
       gum_stalker_get_target_address (insn, TRUE, &target, &mask);
       gum_exec_block_virtualize_thumb_branch_insn (block, &target, arm->cc,
           ARM_REG_INVALID, gc);
@@ -1798,7 +1850,7 @@ gum_stalker_get_target_address (const cs_insn * insn,
    * offset is negative, to indicate that reg2 should be subtracted rather than
    * added.
    *
-   * This complex target field is processed by write_mov_branch_target_address()
+   * This complex target field is processed by write_$mode_mov_branch_target()
    * in order to write instructions into the instrumented block to recover the
    * target address from these different forms of instruction.
    *
@@ -1807,13 +1859,6 @@ gum_stalker_get_target_address (const cs_insn * insn,
    * only take affect if the previous instruction which set the flags indicated
    * the result of the operation was equal.
    */
-  target->absolute_address = 0,
-  target->offset = 0,
-  target->is_indirect = FALSE,
-  target->reg = ARM_REG_INVALID,
-  target->reg2 = ARM_REG_INVALID,
-  target->shifter = ARM_SFT_INVALID,
-  target->shift_value = 0;
 
   /*
    * The mask is used when POP or LDMIA instructions are encountered. This is
@@ -1834,7 +1879,11 @@ gum_stalker_get_target_address (const cs_insn * insn,
     case ARM_INS_B:
     case ARM_INS_BL:
     {
+      GumBranchDirectAddress * value = &target->value.direct_address;
+
       g_assert (op1->type == ARM_OP_IMM);
+
+      target->type = GUM_TARGET_DIRECT_ADDRESS;
 
       /*
        * If the case of the B and BL instructions, the instruction mode never
@@ -1842,9 +1891,9 @@ gum_stalker_get_target_address (const cs_insn * insn,
        * target address should be retained.
        */
       if (thumb)
-        target->absolute_address = GSIZE_TO_POINTER (op1->imm + 1);
+        value->address = GSIZE_TO_POINTER (op1->imm + 1);
       else
-        target->absolute_address = GSIZE_TO_POINTER (op1->imm);
+        value->address = GSIZE_TO_POINTER (op1->imm);
 
       break;
     }
@@ -1853,19 +1902,28 @@ gum_stalker_get_target_address (const cs_insn * insn,
     {
       if (op1->type == ARM_OP_REG)
       {
-        target->reg = op1->reg;
+        GumBranchDirectRegOffset * value = &target->value.direct_reg_offset;
+
+        target->type = GUM_TARGET_DIRECT_REG_OFFSET;
+
+        value->reg = op1->reg;
+        value->offset = 0;
       }
       else
       {
+        GumBranchDirectAddress * value = &target->value.direct_address;
+
+        target->type = GUM_TARGET_DIRECT_ADDRESS;
+
         /*
-          * In the case of the BX and BLX instructions, the instruction mode
-          * always changes from ARM to Thumb or vice-versa and hence the low
-          * bit of the target address should be inverted.
-          */
+         * In the case of the BX and BLX instructions, the instruction mode
+         * always changes from ARM to Thumb or vice-versa and hence the low
+         * bit of the target address should be inverted.
+         */
         if (thumb)
-          target->absolute_address = GSIZE_TO_POINTER (op1->imm);
+          value->address = GSIZE_TO_POINTER (op1->imm);
         else
-          target->absolute_address = GSIZE_TO_POINTER (op1->imm) + 1;
+          value->address = GSIZE_TO_POINTER (op1->imm) + 1;
       }
 
       break;
@@ -1873,6 +1931,7 @@ gum_stalker_get_target_address (const cs_insn * insn,
     case ARM_INS_CBZ:
     case ARM_INS_CBNZ:
     {
+      GumBranchDirectAddress * value = &target->value.direct_address;
       cs_arm_op * op2 = &arm->operands[1];
 
       /*
@@ -1882,16 +1941,21 @@ gum_stalker_get_target_address (const cs_insn * insn,
        */
       g_assert (thumb);
 
-      target->absolute_address = GSIZE_TO_POINTER (op2->imm + 1);
+      target->type = GUM_TARGET_DIRECT_ADDRESS;
+
+      value->address = GSIZE_TO_POINTER (op2->imm + 1);
 
       break;
     }
     case ARM_INS_POP:
     {
+      GumBranchIndirectRegOffset * value = &target->value.indirect_reg_offset;
       guint8 i;
 
-      target->reg = ARM_REG_SP;
-      target->is_indirect = TRUE;
+      target->type = GUM_TARGET_INDIRECT_REG_OFFSET;
+
+      value->reg = ARM_REG_SP;
+      value->offset = 0;
 
       for (i = 0; i != insn->detail->arm.op_count; i++)
       {
@@ -1899,7 +1963,7 @@ gum_stalker_get_target_address (const cs_insn * insn,
 
         if (op->reg == ARM_REG_PC)
         {
-          target->offset = i * 4;
+          value->offset = i * 4;
         }
         else
         {
@@ -1913,10 +1977,13 @@ gum_stalker_get_target_address (const cs_insn * insn,
     }
     case ARM_INS_LDM:
     {
+      GumBranchIndirectRegOffset * value = &target->value.indirect_reg_offset;
       guint8 i;
 
-      target->reg = op1->reg;
-      target->is_indirect = TRUE;
+      target->type = GUM_TARGET_INDIRECT_REG_OFFSET;
+
+      value->reg = op1->reg;
+      value->offset = 0;
 
       for (i = 1; i != insn->detail->arm.op_count; i++)
       {
@@ -1924,7 +1991,7 @@ gum_stalker_get_target_address (const cs_insn * insn,
 
         if (op->reg == ARM_REG_PC)
         {
-          target->offset = (i - 1) * 4;
+          value->offset = (i - 1) * 4;
         }
         else
         {
@@ -1938,72 +2005,77 @@ gum_stalker_get_target_address (const cs_insn * insn,
     }
     case ARM_INS_LDR:
     {
+      GumBranchIndirectRegOffset * value = &target->value.indirect_reg_offset;
       cs_arm_op * op2 = &arm->operands[1];
 
       g_assert (op2->type == ARM_OP_MEM);
       g_assert (op2->mem.index == ARM_REG_INVALID);
 
-      target->reg = op2->mem.base;
-      target->is_indirect = TRUE;
-      target->offset = op2->mem.disp;
+      target->type = GUM_TARGET_INDIRECT_REG_OFFSET;
+
+      value->reg = op2->mem.base;
+      value->offset = op2->mem.disp;
 
       break;
     }
     case ARM_INS_MOV:
     {
+      GumBranchDirectRegOffset * value = &target->value.direct_reg_offset;
+
       cs_arm_op * op2 = &arm->operands[1];
 
-      target->reg = op2->reg;
+      target->type = GUM_TARGET_DIRECT_REG_OFFSET;
+
+      value->reg = op2->reg;
+      value->offset = 0;
 
       break;
     }
     case ARM_INS_ADD:
+    case ARM_INS_SUB:
     {
-      cs_arm_op * op2 = &arm->operands[1];
-      cs_arm_op * op3 = &arm->operands[2];
+      cs_arm_op * base = &arm->operands[1];
+      cs_arm_op * index = &arm->operands[2];
 
-      g_assert (op2->type == ARM_OP_REG);
+      g_assert (base->type == ARM_OP_REG);
 
-      target->reg = op2->reg;
-
-      target->shifter = op3->shift.type;
-      target->shift_value = op3->shift.value;
-
-      if (op3->type == ARM_OP_REG)
+      if (index->type == ARM_OP_REG)
       {
-        target->reg2 = op3->reg;
-        target->offset = 0;
+        GumBranchDirectRegShift * value = &target->value.direct_reg_shift;
+
+        target->type = GUM_TARGET_DIRECT_REG_SHIFT;
+
+        value->base = base->reg;
+        value->index = index->reg;
+        value->shifter = index->shift.type;
+        value->shift_value = index->shift.value;
       }
       else
       {
-        target->reg2 = ARM_REG_INVALID;
-        target->offset = op3->imm;
+        GumBranchDirectRegOffset * value = &target->value.direct_reg_offset;
+
+        target->type = GUM_TARGET_DIRECT_REG_OFFSET;
+
+        value->reg = base->reg;
+        value->offset = (insn->id == ARM_INS_SUB) ? -index->imm : index->imm;
       }
 
       break;
     }
-    case ARM_INS_SUB:
+    case ARM_INS_TBB:
+    case ARM_INS_TBH:
     {
-      cs_arm_op * op2 = &arm->operands[1];
-      cs_arm_op * op3 = &arm->operands[2];
+      arm_op_mem * op = &arm->operands[0].mem;
+      GumBranchIndirectPcrelTable * value = &target->value.indirect_pcrel_table;
 
-      g_assert (op2->type == ARM_OP_REG);
+      target->type = GUM_TARGET_INDIRECT_PCREL_TABLE;
 
-      target->reg = op2->reg;
+      value->base = op->base;
+      value->index = op->index;
 
-      target->shifter = op3->shift.type;
-      target->shift_value = op3->shift.value;
-
-      if (op3->type == ARM_OP_REG)
-      {
-        target->reg2 = op3->reg;
-        target->offset = 0;
-      }
-      else
-      {
-        target->reg2 = ARM_REG_INVALID;
-        target->offset = -op3->imm;
-      }
+      value->element_size = (insn->id == ARM_INS_TBB)
+          ? sizeof (guint8)
+          : sizeof (guint16);
 
       break;
     }
@@ -2491,26 +2563,35 @@ gum_exec_ctx_write_arm_mov_branch_target (GumExecCtx * ctx,
 {
   GumArmWriter * cw = gc->arm_writer;
 
-  if (target->reg == ARM_REG_INVALID)
+  switch (target->type)
   {
-    gum_arm_writer_put_ldr_reg_address (cw, reg,
-        GUM_ADDRESS (target->absolute_address));
-  }
-  else
-  {
-    gum_exec_ctx_arm_load_real_register_into (ctx, reg, target->reg, gc);
+    case GUM_TARGET_DIRECT_ADDRESS: /* E.g. 'B #1234' */
+    {
+      const GumBranchDirectAddress * value = &target->value.direct_address;
 
-    if (target->is_indirect)
-    {
-      /*
-       * If the target is indirect, then we need to dereference it.
-       * E.g. LDR pc, [r3, #4]
-       */
-      gum_arm_writer_put_ldr_reg_reg_offset (cw, reg, reg, target->offset);
+      gum_arm_writer_put_ldr_reg_address (cw, reg,
+          GUM_ADDRESS (value->address));
+
+      break;
     }
-    else if (target->reg2 != ARM_REG_INVALID)
+    case GUM_TARGET_DIRECT_REG_OFFSET: /* E.g. 'ADD/SUB pc, r1, #32' */
     {
-      /* This block handles instructions such as 'ADD pc, r1, r2 lsl #4' */
+      const GumBranchDirectRegOffset * value = &target->value.direct_reg_offset;
+
+      gum_exec_ctx_arm_load_real_register_into (ctx, reg, value->reg, gc);
+
+      if (value->offset >= 0)
+        gum_arm_writer_put_add_reg_reg_imm (cw, reg, reg, value->offset);
+      else
+        gum_arm_writer_put_sub_reg_reg_imm (cw, reg, reg, -value->offset);
+
+      break;
+    }
+    case GUM_TARGET_DIRECT_REG_SHIFT: /* E.g. 'ADD pc, r1, r2 lsl #4' */
+    {
+      const GumBranchDirectRegShift * value = &target->value.direct_reg_shift;
+
+      gum_exec_ctx_arm_load_real_register_into (ctx, reg, value->base, gc);
 
       /*
        * Here we are going to use R12 as additional scratch space for our
@@ -2532,26 +2613,31 @@ gum_exec_ctx_write_arm_mov_branch_target (GumExecCtx * ctx,
        * Load the second register value from the context into R12 before adding
        * to the original and applying any necessary shift.
        */
-      gum_exec_ctx_arm_load_real_register_into (ctx, ARM_REG_R12, target->reg2,
+      gum_exec_ctx_arm_load_real_register_into (ctx, ARM_REG_R12, value->index,
           gc);
 
       gum_arm_writer_put_add_reg_reg_reg_shift (cw, reg, reg, ARM_REG_R12,
-          target->shifter, target->shift_value);
+          value->shifter, value->shift_value);
+
+      break;
     }
-    else if (target->offset != 0)
+    case GUM_TARGET_INDIRECT_REG_OFFSET: /* E.g. 'LDR pc, [r3, #4]' */
     {
-      /* This block handles instructions of the form 'ADD/SUB pc, r1, #32' */
+      const GumBranchIndirectRegOffset * value =
+          &target->value.indirect_reg_offset;
 
-      if (target->shifter != ARM_SFT_INVALID || target->shift_value != 0)
-      {
-        g_error ("Shifter not supported for immediate offset");
-      }
+      gum_exec_ctx_arm_load_real_register_into (ctx, reg, value->reg, gc);
 
-      if (target->offset >= 0)
-        gum_arm_writer_put_add_reg_reg_imm (cw, reg, reg, target->offset);
-      else
-        gum_arm_writer_put_sub_reg_reg_imm (cw, reg, reg, -target->offset);
+      /*
+       * If the target is indirect, then we need to dereference it.
+       * E.g. LDR pc, [r3, #4]
+       */
+      gum_arm_writer_put_ldr_reg_reg_offset (cw, reg, reg, value->offset);
+
+      break;
     }
+    default:
+      g_assert_not_reached ();
   }
 }
 
@@ -2563,39 +2649,93 @@ gum_exec_ctx_write_thumb_mov_branch_target (GumExecCtx * ctx,
 {
   GumThumbWriter * cw = gc->thumb_writer;
 
-  if (target->reg == ARM_REG_INVALID)
+  switch (target->type)
   {
-    gum_thumb_writer_put_ldr_reg_address (cw, reg,
-        GUM_ADDRESS (target->absolute_address));
-  }
-  else
-  {
-    if (target->offset < 0)
-      g_error ("Negative offset not supported");
-
-    gum_exec_ctx_thumb_load_real_register_into (ctx, reg, target->reg, gc);
-
-    if (target->is_indirect)
+    case GUM_TARGET_DIRECT_ADDRESS:
     {
+      const GumBranchDirectAddress * value = &target->value.direct_address;
+
+      gum_thumb_writer_put_ldr_reg_address (cw, reg,
+          GUM_ADDRESS (value->address));
+
+      break;
+    }
+    case GUM_TARGET_DIRECT_REG_OFFSET:
+    {
+      const GumBranchDirectRegOffset * value = &target->value.direct_reg_offset;
+
+      g_assert (value->offset >= 0);
+
+      gum_exec_ctx_thumb_load_real_register_into (ctx, reg, value->reg, gc);
+
+      gum_thumb_writer_put_add_reg_reg_imm (cw, reg, reg, value->offset);
+
+      break;
+    }
+    case GUM_TARGET_DIRECT_REG_SHIFT:
+    {
+      g_assert_not_reached ();
+      break;
+    }
+    case GUM_TARGET_INDIRECT_REG_OFFSET:
+    {
+      const GumBranchIndirectRegOffset * value =
+          &target->value.indirect_reg_offset;
+
+      g_assert (value->offset >= 0);
+
+      gum_exec_ctx_thumb_load_real_register_into (ctx, reg, value->reg, gc);
+
       /*
        * If the target is indirect, then we need to dereference it.
        * E.g. LDR pc, [r3, #4]
        */
-      gum_thumb_writer_put_ldr_reg_reg_offset (cw, reg, reg, target->offset);
+      gum_thumb_writer_put_ldr_reg_reg_offset (cw, reg, reg, value->offset);
+
+      break;
     }
-    else if (target->reg2 != ARM_REG_INVALID)
+    case GUM_TARGET_INDIRECT_PCREL_TABLE:
     {
+      const GumBranchIndirectPcrelTable * value =
+          &target->value.indirect_pcrel_table;
+      arm_reg offset_reg;
+
+      gum_exec_ctx_thumb_load_real_register_into (ctx, reg, value->base, gc);
+
+      offset_reg = (reg != ARM_REG_R0) ? ARM_REG_R0 : ARM_REG_R1;
+      gum_thumb_writer_put_push_regs (cw, 1, offset_reg);
+
+      gum_exec_ctx_thumb_load_real_register_into (ctx, offset_reg, value->index,
+          gc);
+      if (value->element_size == 2)
+      {
+        /* Transform index to offset. */
+        gum_thumb_writer_put_lsls_reg_reg_imm (cw, offset_reg, offset_reg, 1);
+      }
+
+      /* Add base address. */
+      gum_thumb_writer_put_add_reg_reg (cw, offset_reg, reg);
+
+      /* Read the uint8 or uint16 at the given index. */
+      if (value->element_size == 1)
+        gum_thumb_writer_put_ldrb_reg_reg (cw, offset_reg, offset_reg);
+      else
+        gum_thumb_writer_put_ldrh_reg_reg (cw, offset_reg, offset_reg);
+      /* Transform index to offset. */
+      gum_thumb_writer_put_lsls_reg_reg_imm (cw, offset_reg, offset_reg, 1);
+
+      /* Add Thumb bit. */
+      gum_thumb_writer_put_add_reg_imm (cw, offset_reg, 1);
+
+      /* Now we have an offset we can add to the base. */
+      gum_thumb_writer_put_add_reg_reg_reg (cw, reg, reg, offset_reg);
+
+      gum_thumb_writer_put_pop_regs (cw, 1, offset_reg);
+
+      break;
+    }
+    default:
       g_assert_not_reached ();
-    }
-    else if (target->offset != 0)
-    {
-      /* This block handles instructions of the form 'ADD pc, r1, #32' */
-
-      if (target->shifter != ARM_SFT_INVALID || target->shift_value != 0)
-        g_error ("Shifter not supported for immediate offset");
-
-      gum_thumb_writer_put_add_reg_reg_imm (cw, reg, reg, target->offset);
-    }
   }
 }
 
@@ -2933,11 +3073,14 @@ gum_exec_block_virtualize_arm_ret_insn (GumExecBlock * block,
    */
   if (pop)
   {
-    if (mask != 0)
-      gum_arm_writer_put_ldmia_reg_mask (gc->arm_writer, target->reg, mask);
+    const GumBranchIndirectRegOffset * tv = &target->value.indirect_reg_offset;
 
-    gum_arm_writer_put_add_reg_reg_imm (gc->arm_writer, target->reg,
-        target->reg, 4);
+    g_assert (target->type == GUM_TARGET_INDIRECT_REG_OFFSET);
+
+    if (mask != 0)
+      gum_arm_writer_put_ldmia_reg_mask (gc->arm_writer, tv->reg, mask);
+
+    gum_arm_writer_put_add_reg_reg_imm (gc->arm_writer, tv->reg, tv->reg, 4);
   }
 
   gum_exec_block_write_arm_exec_generated_code (gc->arm_writer, block->ctx);
@@ -2950,6 +3093,9 @@ gum_exec_block_virtualize_thumb_ret_insn (GumExecBlock * block,
                                           GumGeneratorContext * gc)
 {
   GumExecCtx * ec = block->ctx;
+  const GumBranchIndirectRegOffset * tv = &target->value.indirect_reg_offset;
+
+  g_assert (target->type == GUM_TARGET_INDIRECT_REG_OFFSET);
 
   gum_exec_block_thumb_open_prolog (block, gc);
 
@@ -2966,10 +3112,9 @@ gum_exec_block_virtualize_thumb_ret_insn (GumExecBlock * block,
   gum_exec_block_thumb_close_prolog (block, gc);
 
   if (mask != 0)
-    gum_thumb_writer_put_ldmia_reg_mask (gc->thumb_writer, target->reg, mask);
+    gum_thumb_writer_put_ldmia_reg_mask (gc->thumb_writer, tv->reg, mask);
 
-  gum_thumb_writer_put_add_reg_reg_imm (gc->thumb_writer, target->reg,
-      target->reg, 4);
+  gum_thumb_writer_put_add_reg_reg_imm (gc->thumb_writer, tv->reg, tv->reg, 4);
 
   gum_exec_block_write_thumb_exec_generated_code (gc->thumb_writer, block->ctx);
 }
@@ -3059,13 +3204,13 @@ gum_exec_block_write_arm_handle_kuser_helper (GumExecBlock * block,
    * runtime and omit this code if we can determine we will not enter a
    * kuser_helper.
    */
-  if (target->reg == ARM_REG_INVALID)
+  if (target->type == GUM_TARGET_DIRECT_ADDRESS)
   {
-    if (!gum_stalker_is_kuser_helper (target->absolute_address))
+    if (!gum_stalker_is_kuser_helper (target->value.direct_address.address))
       return;
   }
 
-  if (target->reg != ARM_REG_INVALID)
+  if (target->type != GUM_TARGET_DIRECT_ADDRESS)
   {
     gum_exec_ctx_write_arm_mov_branch_target (block->ctx, target, ARM_REG_R0,
         gc);
@@ -3116,13 +3261,9 @@ gum_exec_block_write_arm_handle_kuser_helper (GumExecBlock * block,
 
   gum_exec_block_arm_open_prolog (block, gc);
 
-  ret_target.absolute_address = 0;
-  ret_target.offset = 0;
-  ret_target.is_indirect = FALSE;
-  ret_target.reg = ARM_REG_LR;
-  ret_target.reg2 = ARM_REG_INVALID;
-  ret_target.shifter = ARM_SFT_INVALID;
-  ret_target.shift_value = 0;
+  ret_target.type = GUM_TARGET_DIRECT_REG_OFFSET;
+  ret_target.value.direct_reg_offset.reg = ARM_REG_LR;
+  ret_target.value.direct_reg_offset.offset = 0;
 
   /*
    * We pop the stack frame here since the actual kuser_helper will have been
@@ -3151,7 +3292,7 @@ gum_exec_block_write_arm_handle_kuser_helper (GumExecBlock * block,
    * instrumentation time whether the target was a kuser_helper. If we could
    * then we either emit the handler if it is, or do nothing if not.
    */
-  if (target->reg != ARM_REG_INVALID)
+  if (target->type != GUM_TARGET_DIRECT_ADDRESS)
     gum_arm_writer_put_label (cw, not_kuh);
 #endif
 }
@@ -3168,13 +3309,13 @@ gum_exec_block_write_thumb_handle_kuser_helper (GumExecBlock * block,
   gconstpointer not_kuh = cw->code + 2;
   GumBranchTarget ret_target;
 
-  if (target->reg == ARM_REG_INVALID)
+  if (target->type == GUM_TARGET_DIRECT_ADDRESS)
   {
-    if (!gum_stalker_is_kuser_helper (target->absolute_address))
+    if (!gum_stalker_is_kuser_helper (target->value.direct_address.address))
       return;
   }
 
-  if (target->reg != ARM_REG_INVALID)
+  if (target->type != GUM_TARGET_DIRECT_ADDRESS)
   {
     gum_exec_ctx_write_thumb_mov_branch_target (block->ctx,
         target, ARM_REG_R0, gc);
@@ -3204,13 +3345,9 @@ gum_exec_block_write_thumb_handle_kuser_helper (GumExecBlock * block,
 
   gum_exec_block_thumb_open_prolog (block, gc);
 
-  ret_target.absolute_address = 0;
-  ret_target.offset = 0;
-  ret_target.is_indirect = FALSE;
-  ret_target.reg = ARM_REG_LR;
-  ret_target.reg2 = ARM_REG_INVALID;
-  ret_target.shifter = ARM_SFT_INVALID;
-  ret_target.shift_value = 0;
+  ret_target.type = GUM_TARGET_DIRECT_REG_OFFSET;
+  ret_target.value.direct_reg_offset.reg = ARM_REG_LR;
+  ret_target.value.direct_reg_offset.offset = 0;
 
   gum_exec_block_write_thumb_pop_stack_frame (block, &ret_target, gc);
   gum_exec_block_write_thumb_call_replace_block (block, &ret_target,
@@ -3221,7 +3358,7 @@ gum_exec_block_write_thumb_handle_kuser_helper (GumExecBlock * block,
 
   gum_thumb_writer_put_breakpoint (cw);
 
-  if (target->reg != ARM_REG_INVALID)
+  if (target->type != GUM_TARGET_DIRECT_ADDRESS)
     gum_thumb_writer_put_label (cw, not_kuh);
 #endif
 }
@@ -3304,13 +3441,13 @@ gum_exec_block_write_arm_handle_excluded (GumExecBlock * block,
    * runtime and omit this code if we can determine we will not enter an
    * excluded range.
    */
-  if (target->reg == ARM_REG_INVALID)
+  if (target->type == GUM_TARGET_DIRECT_ADDRESS)
   {
-    if (!check (block->ctx, target->absolute_address))
+    if (!check (block->ctx, target->value.direct_address.address))
       return;
   }
 
-  if (target->reg != ARM_REG_INVALID)
+  if (target->type != GUM_TARGET_DIRECT_ADDRESS)
   {
     gum_exec_ctx_write_arm_mov_branch_target (block->ctx, target, ARM_REG_R1,
         gc);
@@ -3346,7 +3483,7 @@ gum_exec_block_write_arm_handle_excluded (GumExecBlock * block,
 
   gum_exec_block_write_arm_handle_continue (block, gc);
 
-  if (target->reg != ARM_REG_INVALID)
+  if (target->type != GUM_TARGET_DIRECT_ADDRESS)
     gum_arm_writer_put_label (cw, not_excluded);
 }
 
@@ -3365,13 +3502,13 @@ gum_exec_block_write_thumb_handle_excluded (GumExecBlock * block,
   else
     check = gum_stalker_is_branch_excluding;
 
-  if (target->reg == ARM_REG_INVALID)
+  if (target->type == GUM_TARGET_DIRECT_ADDRESS)
   {
-    if (!check (block->ctx, target->absolute_address))
+    if (!check (block->ctx, target->value.direct_address.address))
       return;
   }
 
-  if (target->reg != ARM_REG_INVALID)
+  if (target->type != GUM_TARGET_DIRECT_ADDRESS)
   {
     gum_exec_ctx_write_thumb_mov_branch_target (block->ctx, target, ARM_REG_R1,
         gc);
@@ -3405,7 +3542,7 @@ gum_exec_block_write_thumb_handle_excluded (GumExecBlock * block,
 
   gum_exec_block_write_thumb_handle_continue (block, gc);
 
-  if (target->reg != ARM_REG_INVALID)
+  if (target->type != GUM_TARGET_DIRECT_ADDRESS)
     gum_thumb_writer_put_label (cw, not_excluded);
 }
 

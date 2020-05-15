@@ -66,6 +66,8 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (thumb_it_eq_branch_link_excluded)
   TESTENTRY (thumb_it_eq_pop)
   TESTENTRY (thumb_itttt_eq_blx_reg)
+  TESTENTRY (thumb_tbb)
+  TESTENTRY (thumb_tbh)
 
   TESTENTRY (call_thumb)
   TESTENTRY (branch_thumb)
@@ -1682,6 +1684,73 @@ TESTCASE (thumb_itttt_eq_blx_reg)
 {
   INVOKE_THUMB_EXPECTING (GUM_EXEC | GUM_CALL, thumb_itttt_eq_blx_reg, 4);
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 16);
+}
+
+TESTCODE (thumb_tbb,
+  0x00, 0xb5,             /* push {lr}            */
+  0x00, 0x20,             /* movs r0, 0           */
+
+  0x01, 0x21,             /* movs r1, 1           */
+  0xdf, 0xe8, 0x01, 0xf0, /* tbb [pc, r1]         */
+
+  /* table1:                                      */
+  0x02,                   /* (one - table1) / 2   */
+  0x03,                   /* (two - table1) / 2   */
+  0x04,                   /* (three - table1) / 2 */
+  0xff,                   /* <alignment padding>  */
+
+  /* one:                                         */
+  0x40, 0x1c,             /* adds r0, r0, 1       */
+  /* two:                                         */
+  0x80, 0x1c,             /* adds r0, r0, 2       */
+  /* three:                                       */
+  0xc0, 0x1c,             /* adds r0, r0, 3       */
+
+  0x00, 0xbd,             /* pop {pc}             */
+);
+
+TESTCASE (thumb_tbb)
+{
+  GumAddress func;
+
+  func = INVOKE_THUMB_EXPECTING (GUM_RET, thumb_tbb, 5);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, 1);
+
+  GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + 20);
+}
+
+TESTCODE (thumb_tbh,
+  0x00, 0xb5,             /* push {lr}            */
+  0x00, 0x20,             /* movs r0, 0           */
+
+  0x5f, 0xf0, 0x02, 0x0c, /* movs.w ip, 2         */
+  0xdf, 0xe8, 0x1c, 0xf0, /* tbh [pc, ip, lsl 1]  */
+
+  /* table1:                                      */
+  0x03, 0x00,             /* (one - table1) / 2   */
+  0x04, 0x00,             /* (two - table1) / 2   */
+  0x05, 0x00,             /* (three - table1) / 2 */
+
+  /* one:                                         */
+  0x40, 0x1c,             /* adds r0, r0, 1       */
+  /* two:                                         */
+  0x80, 0x1c,             /* adds r0, r0, 2       */
+  /* three:                                       */
+  0xc0, 0x1c,             /* adds r0, r0, 3       */
+
+  0x00, 0xbd,             /* pop {pc}             */
+);
+
+TESTCASE (thumb_tbh)
+{
+  GumAddress func;
+
+  func = INVOKE_THUMB_EXPECTING (GUM_RET, thumb_tbh, 3);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, 1);
+
+  GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + 24);
 }
 
 TESTCODE (call_thumb,
