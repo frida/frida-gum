@@ -244,6 +244,10 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
       self->eob = FALSE;
       break;
     }
+    case ARM_INS_TBB:
+    case ARM_INS_TBH:
+      self->eob = self->eoi = TRUE;
+      break;
     default:
       self->eob = FALSE;
       break;
@@ -274,6 +278,8 @@ gum_thumb_relocator_is_eob_instruction (const cs_insn * instruction)
     case ARM_INS_CBNZ:
     case ARM_INS_BL:
     case ARM_INS_BLX:
+    case ARM_INS_TBB:
+    case ARM_INS_TBH:
       return TRUE;
     case ARM_INS_LDR:
       return gum_reg_dest_is_pc (instruction);
