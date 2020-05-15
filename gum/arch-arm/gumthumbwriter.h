@@ -112,6 +112,10 @@ GUM_API void gum_thumb_writer_put_ldr_reg_reg (GumThumbWriter * self,
     arm_reg dst_reg, arm_reg src_reg);
 GUM_API gboolean gum_thumb_writer_put_ldr_reg_reg_offset (GumThumbWriter * self,
     arm_reg dst_reg, arm_reg src_reg, gsize src_offset);
+GUM_API void gum_thumb_writer_put_ldrb_reg_reg (GumThumbWriter * self,
+    arm_reg dst_reg, arm_reg src_reg);
+void gum_thumb_writer_put_ldrh_reg_reg (GumThumbWriter * self, arm_reg dst_reg,
+    arm_reg src_reg);
 GUM_API gboolean gum_thumb_writer_put_vldr_reg_reg_offset (
     GumThumbWriter * self, arm_reg dst_reg, arm_reg src_reg, gssize src_offset);
 GUM_API void gum_thumb_writer_put_ldmia_reg_mask (GumThumbWriter * self,
@@ -146,6 +150,10 @@ GUM_API gboolean gum_thumb_writer_put_sub_reg_reg_imm (GumThumbWriter * self,
     arm_reg dst_reg, arm_reg left_reg, gssize right_value);
 GUM_API gboolean gum_thumb_writer_put_and_reg_reg_imm (GumThumbWriter * self,
     arm_reg dst_reg, arm_reg left_reg, gssize right_value);
+GUM_API gboolean gum_thumb_writer_put_lsls_reg_reg_imm (GumThumbWriter * self,
+    arm_reg dst_reg, arm_reg left_reg, guint8 right_value);
+GUM_API gboolean gum_thumb_writer_put_lsrs_reg_reg_imm (GumThumbWriter * self,
+    arm_reg dst_reg, arm_reg left_reg, guint8 right_value);
 GUM_API gboolean gum_thumb_writer_put_mrs_reg_reg (GumThumbWriter * self,
     arm_reg dst_reg, arm_sysreg src_reg);
 GUM_API gboolean gum_thumb_writer_put_msr_reg_reg (GumThumbWriter * self,

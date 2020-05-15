@@ -31,6 +31,8 @@ TESTLIST_BEGIN (thumbwriter)
 #endif
   TESTENTRY (ldr_reg_reg_offset)
   TESTENTRY (ldr_reg_reg)
+  TESTENTRY (ldrb_reg_reg)
+  TESTENTRY (ldrh_reg_reg)
   TESTENTRY (vldr_reg_reg_offset)
   TESTENTRY (str_reg_reg_offset)
   TESTENTRY (str_reg_reg)
@@ -44,6 +46,8 @@ TESTLIST_BEGIN (thumbwriter)
   TESTENTRY (sub_reg_reg_reg)
   TESTENTRY (sub_reg_reg_imm)
   TESTENTRY (and_reg_reg_imm)
+  TESTENTRY (lsls_reg_reg_imm)
+  TESTENTRY (lsrs_reg_reg_imm)
 
   TESTENTRY (mrs_reg_reg)
   TESTENTRY (msr_reg_reg)
@@ -407,6 +411,18 @@ TESTCASE (ldr_reg_reg)
   assert_output_n_equals (2, 0xc000);
 }
 
+TESTCASE (ldrb_reg_reg)
+{
+  gum_thumb_writer_put_ldrb_reg_reg (&fixture->tw, ARM_REG_R1, ARM_REG_R3);
+  assert_output_n_equals (0, 0x7819);
+}
+
+TESTCASE (ldrh_reg_reg)
+{
+  gum_thumb_writer_put_ldrh_reg_reg (&fixture->tw, ARM_REG_R1, ARM_REG_R3);
+  assert_output_n_equals (0, 0x8819);
+}
+
 TESTCASE (vldr_reg_reg_offset)
 {
   gum_thumb_writer_put_vldr_reg_reg_offset (&fixture->tw, ARM_REG_S1,
@@ -682,6 +698,20 @@ TESTCASE (and_reg_reg_imm)
       53);
   assert_output_n_equals (8, 0xf003);
   assert_output_n_equals (9, 0x0535);
+}
+
+TESTCASE (lsls_reg_reg_imm)
+{
+  gum_thumb_writer_put_lsls_reg_reg_imm (&fixture->tw, ARM_REG_R1, ARM_REG_R3,
+      7);
+  assert_output_n_equals (0, 0x01d9);
+}
+
+TESTCASE (lsrs_reg_reg_imm)
+{
+  gum_thumb_writer_put_lsrs_reg_reg_imm (&fixture->tw, ARM_REG_R3, ARM_REG_R7,
+      9);
+  assert_output_n_equals (0, 0x0a7b);
 }
 
 TESTCASE (mrs_reg_reg)

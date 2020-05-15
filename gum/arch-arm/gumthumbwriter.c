@@ -828,6 +828,34 @@ gum_thumb_writer_put_ldr_reg_reg_offset (GumThumbWriter * self,
       GUM_THUMB_MEMORY_LOAD, dst_reg, src_reg, src_offset);
 }
 
+void
+gum_thumb_writer_put_ldrb_reg_reg (GumThumbWriter * self,
+                                   arm_reg dst_reg,
+                                   arm_reg src_reg)
+{
+  GumArmRegInfo dst, src;
+
+  gum_arm_reg_describe (dst_reg, &dst);
+  gum_arm_reg_describe (src_reg, &src);
+
+  gum_thumb_writer_put_instruction (self, 0x7800 | (src.index << 3) |
+      dst.index);
+}
+
+void
+gum_thumb_writer_put_ldrh_reg_reg (GumThumbWriter * self,
+                                   arm_reg dst_reg,
+                                   arm_reg src_reg)
+{
+  GumArmRegInfo dst, src;
+
+  gum_arm_reg_describe (dst_reg, &dst);
+  gum_arm_reg_describe (src_reg, &src);
+
+  gum_thumb_writer_put_instruction (self, 0x8800 | (src.index << 3) |
+      dst.index);
+}
+
 gboolean
 gum_thumb_writer_put_vldr_reg_reg_offset (GumThumbWriter * self,
                                           arm_reg dst_reg,
@@ -1219,6 +1247,46 @@ gum_thumb_writer_put_and_reg_reg_imm (GumThumbWriter * self,
   insn_low = (dst.index << 8) | imm8;
 
   gum_thumb_writer_put_instruction_wide (self, insn_high, insn_low);
+
+  return TRUE;
+}
+
+gboolean
+gum_thumb_writer_put_lsls_reg_reg_imm (GumThumbWriter * self,
+                                       arm_reg dst_reg,
+                                       arm_reg left_reg,
+                                       guint8 right_value)
+{
+  GumArmRegInfo dst, left;
+
+  if (right_value == 0 || right_value > 31)
+    return FALSE;
+
+  gum_arm_reg_describe (dst_reg, &dst);
+  gum_arm_reg_describe (left_reg, &left);
+
+  gum_thumb_writer_put_instruction (self, 0x0000 | (right_value << 6) |
+      (left.index << 3) | dst.index);
+
+  return TRUE;
+}
+
+gboolean
+gum_thumb_writer_put_lsrs_reg_reg_imm (GumThumbWriter * self,
+                                       arm_reg dst_reg,
+                                       arm_reg left_reg,
+                                       guint8 right_value)
+{
+  GumArmRegInfo dst, left;
+
+  if (right_value == 0 || right_value > 31)
+    return FALSE;
+
+  gum_arm_reg_describe (dst_reg, &dst);
+  gum_arm_reg_describe (left_reg, &left);
+
+  gum_thumb_writer_put_instruction (self, 0x0800 | (right_value << 6) |
+      (left.index << 3) | dst.index);
 
   return TRUE;
 }
