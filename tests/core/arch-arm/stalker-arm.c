@@ -2359,7 +2359,7 @@ TESTCASE (unfollow_should_handle_terminated_thread)
         &channel);
     thread_id = sdc_await_thread_id (&channel);
 
-    fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
+    fixture->sink->mask = GUM_CALL | GUM_RET;
     gum_stalker_follow (fixture->stalker, thread_id, NULL,
         GUM_EVENT_SINK (fixture->sink));
     sdc_put_follow_confirmation (&channel);
