@@ -807,7 +807,7 @@ gum_stalker_infect (GumThreadId thread_id,
   gum_arm_writer_put_call_address_with_arguments (&cw,
       GUM_ADDRESS (gum_tls_key_set_value), 2,
       GUM_ARG_ADDRESS, GUM_ADDRESS (self->exec_ctx),
-      GUM_ARG_ADDRESS, ctx);
+      GUM_ARG_ADDRESS, GUM_ADDRESS (ctx));
   gum_exec_ctx_write_arm_epilog (ctx, &cw);
 
   gum_exec_block_write_arm_exec_generated_code (&cw, ctx);
