@@ -516,6 +516,13 @@ gum_arm_relocator_rewrite_add (GumArmRelocator * self,
   const cs_arm_op * right = &operands[2];
   arm_reg target;
 
+  if (right->reg == ARM_REG_PC)
+  {
+    const cs_arm_op * l = left;
+    left = right;
+    right = l;
+  }
+
   if (left->reg != ARM_REG_PC)
     return FALSE;
 
