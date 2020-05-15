@@ -398,6 +398,7 @@ enum _GumRelocationScenario
 #define GUM_POINTER_TO_FUNCPTR(t, p) ((t) GPOINTER_TO_SIZE (p))
 
 #define GUM_INT2_MASK  0x00000003U
+#define GUM_INT4_MASK  0x0000000fU
 #define GUM_INT5_MASK  0x0000001fU
 #define GUM_INT6_MASK  0x0000003fU
 #define GUM_INT8_MASK  0x000000ffU
