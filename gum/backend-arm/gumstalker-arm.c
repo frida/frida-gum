@@ -6,7 +6,6 @@
 
 #include "gumstalker.h"
 
-#include "gumarmreader.h"
 #include "gumarmreg.h"
 #include "gumarmrelocator.h"
 #include "gumarmwriter.h"
