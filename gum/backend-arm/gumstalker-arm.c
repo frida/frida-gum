@@ -12,7 +12,6 @@
 #include "gummemory.h"
 #include "gummetalhash.h"
 #include "gumspinlock.h"
-#include "gumsymbolutil.h"
 #include "gumthumbrelocator.h"
 #include "gumthumbwriter.h"
 #include "gumtls.h"
@@ -432,25 +431,6 @@ static gboolean gum_stalker_is_kuser_helper (gconstpointer address);
 
 G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
 
-/*
- * These flags control whether pretty debug output is printed to the console
- * showing which instructions are being instrumented, or which events are being
- * emitted respectively. However, this makes use of g_print() which in turn
- * makes use of string functions within the C-runtime library. If you are
- * stalking code within the C-runtime library, you may be part way through one
- * of these routines and the debugging support will attempt to re-enter that
- * routine to print out the debugging information. Since this will be on the
- * same thread that is being stalked, whilst the C-runtime is thread safe, it is
- * not designed to be safe against re-entry on the same thread!!! This will
- * result in confusing failures.
- */
-static gboolean g_debug = FALSE;
-static gboolean g_verbose = FALSE;
-static gboolean g_debug_events = FALSE;
-
-static guint32 g_count = 0;
-static guint32 g_events = 0;
-
 gboolean
 gum_stalker_is_supported (void)
 {
@@ -660,9 +640,6 @@ _gum_stalker_do_follow_me (GumStalker * self,
 {
   GumExecCtx * ctx;
   gpointer code_address;
-
-  g_count = 0;
-  g_events = 0;
 
   ctx = gum_stalker_create_exec_ctx (self, gum_process_get_current_thread_id (),
       transformer, sink);
@@ -1543,40 +1520,12 @@ gum_stalker_iterator_arm_keep (GumStalkerIterator * self)
   GumGeneratorContext * gc = self->generator_context;
   const cs_insn * insn = gc->instruction->ci;
 
-  if (g_debug)
-  {
-    if (g_verbose || gum_arm_relocator_eob (gc->arm_relocator))
-    {
-      GumDebugSymbolDetails details = { 0, };
-
-      if (gum_symbol_details_from_address (gc->instruction->begin, &details))
-      {
-        fprintf (stderr,
-            "[A] %08d [%s!%s] - %p => %p: %s\t%s = 0x%08x, id: %d\n",
-            ++g_count, details.module_name, details.symbol_name,
-            gc->instruction->begin, gc->arm_writer->code, insn->mnemonic,
-            insn->op_str, *(guint32 *) gc->instruction->begin, insn->id);
-      }
-      else
-      {
-        fprintf (stderr,
-            "[A] %08d [%p] - %p => %p: %s\t%s = 0x%08x, id: %d\n",
-            ++g_count, gc->instruction->begin, gc->instruction->begin,
-            gc->arm_writer->code, insn->mnemonic, insn->op_str,
-            *(guint32 *) gc->instruction->begin, insn->id);
-      }
-    }
-  }
-
   if (gum_arm_relocator_eob (gc->arm_relocator))
   {
     GumBranchTarget target;
     guint16 mask;
     cs_arm * arm = &insn->detail->arm;
     GumWriteback writeback = { .target = ARM_REG_INVALID };
-
-    if (g_debug)
-      fprintf (stderr, "\n");
 
     mask = 0;
 
@@ -1632,35 +1581,6 @@ gum_stalker_iterator_thumb_keep (GumStalkerIterator * self)
   GumExecBlock * block = self->exec_block;
   GumGeneratorContext * gc = self->generator_context;
   const cs_insn * insn = gc->instruction->ci;
-
-  if (g_debug)
-  {
-    if (g_verbose || gum_thumb_relocator_eob (gc->thumb_relocator))
-    {
-      GumDebugSymbolDetails details = { 0, };
-
-      if (gum_symbol_details_from_address (gc->instruction->begin, &details))
-      {
-        fprintf (stderr,
-            "[T] %08d [%s!%s] - %p => %p: %s\t%s = 0x%08x, id: %d\n",
-            ++g_count, details.module_name, details.symbol_name,
-            gc->instruction->begin, gc->thumb_writer->code, insn->mnemonic,
-            insn->op_str, *(guint32 *) gc->instruction->begin,
-            insn->id);
-      }
-      else
-      {
-        fprintf (stderr,
-            "[T] %08d [%p] - %p => %p: %s\t%s = 0x%08x, id: %d\n",
-            ++g_count, gc->instruction->begin, gc->instruction->begin,
-            gc->thumb_writer->code, insn->mnemonic, insn->op_str,
-            *(guint32 *) gc->instruction->begin, insn->id);
-      }
-    }
-
-    if (gum_thumb_relocator_eob (gc->thumb_relocator))
-      fprintf (stderr, "\n");
-  }
 
   if (gum_thumb_relocator_eob (gc->thumb_relocator))
     gum_stalker_iterator_handle_thumb_branch_insn (self, insn);
@@ -1760,13 +1680,6 @@ gum_stalker_iterator_handle_thumb_it_insn (GumStalkerIterator * self)
       insn != NULL;
       insn = gum_thumb_relocator_peek_next_write_insn (rl))
   {
-    if (g_debug)
-    {
-      fprintf (stderr, "\t[IT -] %p => %p: %s\t%s, id: %d\n",
-          gc->instruction->begin, gc->thumb_writer->code,
-          insn->mnemonic, insn->op_str, insn->id);
-    }
-
     if (gum_thumb_relocator_is_eob_instruction (insn))
     {
       /*
@@ -2146,29 +2059,6 @@ gum_exec_ctx_emit_call_event (GumExecCtx * ctx,
   call->depth = ctx->first_frame - ctx->current_frame;
 
   ctx->sink_process_impl (ctx->sink, &ev);
-
-  if (g_debug_events)
-  {
-    GumDebugSymbolDetails location_details = { 0, };
-    GumDebugSymbolDetails target_details = { 0, };
-
-    if (gum_symbol_details_from_address (call->location, &location_details) &&
-        gum_symbol_details_from_address (call->target, &target_details))
-    {
-      fprintf (stderr,
-          "%3d: { type: %s, location: %s!%s, target: %s!%s, depth: %u }\n",
-          g_events++, "GUM_CALL", location_details.module_name,
-          location_details.symbol_name, target_details.module_name,
-          target_details.symbol_name, call->depth);
-    }
-    else
-    {
-      fprintf (stderr,
-          "%3d: { type: %s, location: 0x%08x, target: 0x%08x, depth: %u }\n",
-          g_events++, "GUM_CALL", (guint) call->location, (guint) call->target,
-          call->depth);
-    }
-  }
 }
 
 static void
@@ -2186,29 +2076,6 @@ gum_exec_ctx_emit_ret_event (GumExecCtx * ctx,
   ret->depth = ctx->first_frame - ctx->current_frame;
 
   ctx->sink_process_impl (ctx->sink, &ev);
-
-  if (g_debug_events)
-  {
-    GumDebugSymbolDetails location_details = { 0, };
-    GumDebugSymbolDetails target_details = { 0, };
-
-    if (gum_symbol_details_from_address (ret->location, &location_details) &&
-        gum_symbol_details_from_address (ret->target, &target_details))
-    {
-      fprintf (stderr,
-          "%3d: { type: %s, location: %s!%s, target: %s!%s, depth: %u }\n",
-          g_events++, "GUM_RET", location_details.module_name,
-          location_details.symbol_name, target_details.module_name,
-          target_details.symbol_name, ret->depth);
-    }
-    else
-    {
-      fprintf (stderr,
-          "%3d: { type: %s, location: 0x%08x, target: 0x%08x, depth: %u }\n",
-          g_events++, "GUM_RET", (guint) ret->location, (guint) ret->target,
-          ret->depth);
-    }
-  }
 }
 
 static void
@@ -2235,23 +2102,6 @@ gum_exec_ctx_emit_exec_event (GumExecCtx * ctx,
   exec->location = location;
 
   ctx->sink_process_impl (ctx->sink, &ev);
-
-  if (g_debug_events)
-  {
-    GumDebugSymbolDetails location_details = { 0, };
-
-    if (gum_symbol_details_from_address (exec->location, &location_details))
-    {
-      fprintf (stderr, "%3d: { type: %s, location: %s!%s }\n",
-          g_events++, "GUM_EXEC", location_details.module_name,
-          location_details.symbol_name);
-    }
-    else
-    {
-      fprintf (stderr, "%3d: { type: %s, location: 0x%08x }\n",
-          g_events++, "GUM_EXEC", (guint) exec->location);
-    }
-  }
 }
 
 static void
@@ -2268,26 +2118,6 @@ gum_exec_ctx_emit_block_event (GumExecCtx * ctx,
   block->end = end;
 
   ctx->sink_process_impl (ctx->sink, &ev);
-
-  if (g_debug_events)
-  {
-    GumDebugSymbolDetails begin_details = { 0, };
-    GumDebugSymbolDetails end_details = { 0, };
-
-    if (gum_symbol_details_from_address (block->begin, &begin_details) &&
-        gum_symbol_details_from_address (block->end, &end_details))
-    {
-      fprintf (stderr, "%3d: { type: %s, begin: %s!%s, end: %s!%s }\n",
-          g_events++, "GUM_BLOCK", begin_details.module_name,
-          begin_details.symbol_name, end_details.module_name,
-          end_details.symbol_name);
-    }
-    else
-    {
-      fprintf (stderr, "%3d: { type: %s, begin: 0x%08x, end: 0x%08x }\n",
-          g_events++, "GUM_BLOCK", (guint) block->begin, (guint) block->end);
-    }
-  }
 }
 
 void
