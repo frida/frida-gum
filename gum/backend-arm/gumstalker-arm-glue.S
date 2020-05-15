@@ -26,7 +26,7 @@ gum_stalker_follow_me:
   bl _gum_stalker_do_follow_me
 #endif
   ldmia sp!, {r3, lr}
-  add pc, r0, #0
+  bx r0
 
 #ifdef __APPLE__
   .globl _gum_stalker_activate
@@ -44,7 +44,7 @@ gum_stalker_activate:
   bl _gum_stalker_do_activate
 #endif
   ldmia sp!, {r2, lr}
-  add pc, r0, #0
+  bx r0
 
 #ifdef __APPLE__
   .globl _gum_stalker_deactivate
@@ -62,4 +62,4 @@ gum_stalker_deactivate:
   bl _gum_stalker_do_deactivate
 #endif
   ldmia sp!, {r1, lr}
-  add pc, r0, #0
+  bx r0
