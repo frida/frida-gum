@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,16 +7,18 @@
 #include "apiresolver-fixture.c"
 
 TESTLIST_BEGIN (api_resolver)
-  TESTENTRY (module_exports_can_be_resolved)
+  TESTENTRY (module_exports_can_be_resolved_case_sensitively)
+  TESTENTRY (module_exports_can_be_resolved_case_insensitively)
   TESTENTRY (module_imports_can_be_resolved)
-  TESTENTRY (objc_methods_can_be_resolved)
+  TESTENTRY (objc_methods_can_be_resolved_case_sensitively)
+  TESTENTRY (objc_methods_can_be_resolved_case_insensitively)
 
 #ifdef HAVE_ANDROID
   TESTENTRY (linker_exports_can_be_resolved_on_android)
 #endif
 TESTLIST_END ()
 
-TESTCASE (module_exports_can_be_resolved)
+TESTCASE (module_exports_can_be_resolved_case_sensitively)
 {
   TestForEachContext ctx;
   GError * error = NULL;
@@ -42,6 +44,27 @@ TESTCASE (module_exports_can_be_resolved)
       &ctx, &error);
   g_assert_null (error);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
+}
+
+TESTCASE (module_exports_can_be_resolved_case_insensitively)
+{
+  TestForEachContext ctx;
+  GError * error = NULL;
+#ifdef HAVE_WINDOWS
+  const gchar * query = "exports:*!_OpEn*/i";
+#else
+  const gchar * query = "exports:*!OpEn*/i";
+#endif
+
+  fixture->resolver = gum_api_resolver_make ("module");
+  g_assert_nonnull (fixture->resolver);
+
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = TRUE;
+  gum_api_resolver_enumerate_matches (fixture->resolver, query, match_found_cb,
+      &ctx, &error);
+  g_assert_null (error);
+  g_assert_cmpuint (ctx.number_of_calls, >, 1);
 }
 
 TESTCASE (module_imports_can_be_resolved)
@@ -75,7 +98,7 @@ check_module_import (const GumApiDetails * details,
   return TRUE;
 }
 
-TESTCASE (objc_methods_can_be_resolved)
+TESTCASE (objc_methods_can_be_resolved_case_sensitively)
 {
   TestForEachContext ctx;
   GError * error = NULL;
@@ -100,6 +123,26 @@ TESTCASE (objc_methods_can_be_resolved)
       match_found_cb, &ctx, &error);
   g_assert_null (error);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
+}
+
+TESTCASE (objc_methods_can_be_resolved_case_insensitively)
+{
+  TestForEachContext ctx;
+  GError * error = NULL;
+
+  fixture->resolver = gum_api_resolver_make ("objc");
+  if (fixture->resolver == NULL)
+  {
+    g_print ("<skipping, not available> ");
+    return;
+  }
+
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = TRUE;
+  gum_api_resolver_enumerate_matches (fixture->resolver, "+[*Arr* aRR*]/i",
+      match_found_cb, &ctx, &error);
+  g_assert_null (error);
+  g_assert_cmpuint (ctx.number_of_calls, >, 1);
 }
 
 static gboolean

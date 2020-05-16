@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2016-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C)      2020 Grant Douglas <grant@reconditorium.uk>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -90,7 +91,8 @@ gum_module_api_resolver_iface_init (gpointer g_iface,
 static void
 gum_module_api_resolver_init (GumModuleApiResolver * self)
 {
-  self->query_pattern = g_regex_new ("(imports|exports):(.+)!(.+)", 0, 0, NULL);
+  self->query_pattern =
+      g_regex_new ("(imports|exports):(.+)!([^\\n\\r\\/]+)(\\/i)?", 0, 0, NULL);
 
   self->module_by_name = gum_module_api_resolver_create_snapshot ();
 }
@@ -122,6 +124,7 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
 {
   GumModuleApiResolver * self = GUM_MODULE_API_RESOLVER (resolver);
   GMatchInfo * query_info;
+  gboolean ignore_case;
   gchar * collection, * module_query, * function_query;
   gboolean no_wildcards_in_function_query;
   GPatternSpec * module_spec, * function_spec;
@@ -134,11 +137,27 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
   if (!g_match_info_matches (query_info))
     goto invalid_query;
 
+  ignore_case = g_match_info_get_match_count (query_info) >= 5;
+
   collection = g_match_info_fetch (query_info, 1);
   module_query = g_match_info_fetch (query_info, 2);
   function_query = g_match_info_fetch (query_info, 3);
 
+  if (ignore_case)
+  {
+    gchar * str;
+
+    str = g_utf8_strdown (module_query, -1);
+    g_free (module_query);
+    module_query = str;
+
+    str = g_utf8_strdown (function_query, -1);
+    g_free (function_query);
+    function_query = str;
+  }
+
   no_wildcards_in_function_query =
+      !ignore_case &&
       strchr (function_query, '*') == NULL &&
       strchr (function_query, '?') == NULL;
 
@@ -152,12 +171,26 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
   while (carry_on &&
       g_hash_table_iter_next (&module_iter, NULL, (gpointer *) &module))
   {
+    const gchar * module_name = module->name;
+    const gchar * module_path = module->path;
+    gchar * module_name_copy = NULL;
+    gchar * module_path_copy = NULL;
+
     if (g_hash_table_contains (seen_modules, module))
       continue;
     g_hash_table_add (seen_modules, module);
 
-    if (g_pattern_match_string (module_spec, module->name) ||
-        g_pattern_match_string (module_spec, module->path))
+    if (ignore_case)
+    {
+      module_name_copy = g_utf8_strdown (module_name, -1);
+      module_name = module_name_copy;
+
+      module_path_copy = g_utf8_strdown (module_path, -1);
+      module_path = module_path_copy;
+    }
+
+    if (g_pattern_match_string (module_spec, module_name) ||
+        g_pattern_match_string (module_spec, module_path))
     {
       GHashTable * functions;
       GHashTableIter function_iter;
@@ -178,6 +211,8 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
           g_free ((gpointer) details.name);
         }
 
+        g_assert (module_name_copy == NULL && module_path_copy == NULL);
+
         continue;
       }
 
@@ -189,7 +224,16 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
       while (carry_on &&
           g_hash_table_iter_next (&function_iter, NULL, (gpointer *) &function))
       {
-        if (g_pattern_match_string (function_spec, function->name))
+        const gchar * function_name = function->name;
+        gchar * function_name_copy = NULL;
+
+        if (ignore_case)
+        {
+          function_name_copy = g_utf8_strdown (function_name, -1);
+          function_name = function_name_copy;
+        }
+
+        if (g_pattern_match_string (function_spec, function_name))
         {
           GumApiDetails details;
 
@@ -204,8 +248,13 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
 
           g_free ((gpointer) details.name);
         }
+
+        g_free (function_name_copy);
       }
     }
+
+    g_free (module_path_copy);
+    g_free (module_name_copy);
   }
 
   g_hash_table_unref (seen_modules);
