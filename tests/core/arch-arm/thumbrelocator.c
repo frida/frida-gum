@@ -30,6 +30,7 @@ TESTLIST_BEGIN (thumbrelocator)
   TESTENTRY (it_block_with_pc_relative_load_should_be_rewritten)
   TESTENTRY (it_block_with_b_should_be_rewritten)
   TESTENTRY (it_block_should_be_rewritten_as_a_whole)
+  TESTENTRY (it_block_with_eoi_insn_should_be_rewritten)
   TESTENTRY (eob_and_eoi_on_ret)
 TESTLIST_END ()
 
@@ -748,6 +749,56 @@ TESTCASE (it_block_should_be_rewritten_as_a_whole)
   insn = NULL;
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 8);
   g_assert_cmpint (insn->id, ==, ARM_INS_IT);
+  assert_outbuf_still_zeroed_from_offset (0);
+
+  g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_false (gum_thumb_relocator_write_one (&fixture->rl));
+
+  check_output (input, sizeof (input), fixture->output, expected_output,
+      sizeof (expected_output));
+}
+
+TESTCASE (it_block_with_eoi_insn_should_be_rewritten)
+{
+  const guint16 input[] = {
+    GUINT16_TO_LE (0x2800),                         /* cmp r0, #0     */
+    GUINT16_TO_LE (0xbf18),                         /* it ne          */
+    GUINT16_TO_LE (0xe8bd), GUINT16_TO_LE (0x8010), /* pop.w {r4, pc} */
+    GUINT16_TO_LE (0x3001),                         /* adds r0, #1    */
+  };
+  const guint16 expected_output[] = {
+    GUINT16_TO_LE (0x2800),                         /* cmp r0, #0     */
+    GUINT16_TO_LE (0xd100),                         /* bne.n if_true  */
+    GUINT16_TO_LE (0xe001),                         /* b.n if_false   */
+    /* if_true:                                                       */
+    GUINT16_TO_LE (0xe8bd), GUINT16_TO_LE (0x8010), /* pop.w {r4, pc} */
+    /* if_false:                                                      */
+    GUINT16_TO_LE (0x3001),                         /* adds r0, #1    */
+  };
+  const cs_insn * insn;
+
+  SETUP_RELOCATOR_WITH (input);
+
+  insn = NULL;
+  g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
+  g_assert_cmpint (insn->id, ==, ARM_INS_CMP);
+  assert_outbuf_still_zeroed_from_offset (0);
+
+  g_assert_false (fixture->rl.eob);
+
+  insn = NULL;
+  g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 8);
+  g_assert_cmpint (insn->id, ==, ARM_INS_IT);
+  assert_outbuf_still_zeroed_from_offset (0);
+
+  g_assert_true (fixture->rl.eob);
+
+  insn = NULL;
+  g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 10);
+  g_assert_cmpint (insn->id, ==, ARM_INS_ADD);
   assert_outbuf_still_zeroed_from_offset (0);
 
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
