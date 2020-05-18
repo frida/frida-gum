@@ -3824,7 +3824,7 @@ gum_generator_context_advance_exclusive_load_offset (GumGeneratorContext * gc)
   gc->exclusive_load_offset++;
 
   if (gc->exclusive_load_offset == 4)
-      gc->exclusive_load_offset = GUM_INSTRUCTION_OFFSET_NONE;
+    gc->exclusive_load_offset = GUM_INSTRUCTION_OFFSET_NONE;
 }
 
 static gboolean
