@@ -24,6 +24,8 @@
 #define GUM_CODE_SLAB_MAX_SIZE  (4 * 1024 * 1024)
 #define GUM_EXEC_BLOCK_MIN_SIZE 1024
 
+#define GUM_INSTRUCTION_OFFSET_NONE (-1)
+
 #define GUM_STALKER_LOCK(o) g_mutex_lock (&(o)->mutex)
 #define GUM_STALKER_UNLOCK(o) g_mutex_unlock (&(o)->mutex)
 
@@ -164,6 +166,7 @@ struct _GumGeneratorContext
   GumThumbWriter * thumb_writer;
 
   gpointer continuation_real_address;
+  gint exclusive_load_offset;
 };
 
 struct _GumInstruction
@@ -1262,6 +1265,7 @@ gum_exec_ctx_obtain_arm_block_for (GumExecCtx * ctx,
   gc.arm_relocator = rl;
   gc.arm_writer = cw;
   gc.continuation_real_address = NULL;
+  gc.exclusive_load_offset = GUM_INSTRUCTION_OFFSET_NONE;
 
   iterator.exec_context = ctx;
   iterator.exec_block = block;
@@ -1343,6 +1347,7 @@ gum_exec_ctx_obtain_thumb_block_for (GumExecCtx * ctx,
   gc.thumb_relocator = rl;
   gc.thumb_writer = cw;
   gc.continuation_real_address = NULL;
+  gc.exclusive_load_offset = GUM_INSTRUCTION_OFFSET_NONE;
 
   iterator.exec_context = ctx;
   iterator.exec_block = block;
@@ -1427,9 +1432,33 @@ gum_stalker_iterator_arm_next (GumStalkerIterator * self,
       return FALSE;
     }
 
-    if (gum_arm_relocator_eob (rl))
+    if (gum_arm_relocator_eob (rl) &&
+        gc->exclusive_load_offset == GUM_INSTRUCTION_OFFSET_NONE)
     {
       return FALSE;
+    }
+
+    switch (instruction->ci->id)
+    {
+      case ARM_INS_STREX:
+      case ARM_INS_STREXB:
+      case ARM_INS_STREXD:
+      case ARM_INS_STREXH:
+      case ARM_INS_STLEX:
+      case ARM_INS_STLEXB:
+      case ARM_INS_STLEXD:
+      case ARM_INS_STLEXH:
+        gc->exclusive_load_offset = GUM_INSTRUCTION_OFFSET_NONE;
+        break;
+      default:
+        break;
+    }
+
+    if (gc->exclusive_load_offset != GUM_INSTRUCTION_OFFSET_NONE)
+    {
+      gc->exclusive_load_offset++;
+      if (gc->exclusive_load_offset == 4)
+        gc->exclusive_load_offset = GUM_INSTRUCTION_OFFSET_NONE;
     }
   }
 
@@ -1479,9 +1508,33 @@ gum_stalker_iterator_thumb_next (GumStalkerIterator * self,
       return FALSE;
     }
 
-    if (gum_thumb_relocator_eob (rl))
+    if (gum_thumb_relocator_eob (rl) &&
+        gc->exclusive_load_offset == GUM_INSTRUCTION_OFFSET_NONE)
     {
       return FALSE;
+    }
+
+    switch (instruction->ci->id)
+    {
+      case ARM_INS_STREX:
+      case ARM_INS_STREXB:
+      case ARM_INS_STREXD:
+      case ARM_INS_STREXH:
+      case ARM_INS_STLEX:
+      case ARM_INS_STLEXB:
+      case ARM_INS_STLEXD:
+      case ARM_INS_STLEXH:
+        gc->exclusive_load_offset = GUM_INSTRUCTION_OFFSET_NONE;
+        break;
+      default:
+        break;
+    }
+
+    if (gc->exclusive_load_offset != GUM_INSTRUCTION_OFFSET_NONE)
+    {
+      gc->exclusive_load_offset++;
+      if (gc->exclusive_load_offset == 4)
+        gc->exclusive_load_offset = GUM_INSTRUCTION_OFFSET_NONE;
     }
   }
 
@@ -1506,6 +1559,23 @@ void
 gum_stalker_iterator_keep (GumStalkerIterator * self)
 {
   GumGeneratorContext * gc = self->generator_context;
+  const cs_insn * insn = gc->instruction->ci;
+
+  switch (insn->id)
+  {
+    case ARM_INS_LDAEX:
+    case ARM_INS_LDAEXB:
+    case ARM_INS_LDAEXD:
+    case ARM_INS_LDAEXH:
+    case ARM_INS_LDREX:
+    case ARM_INS_LDREXB:
+    case ARM_INS_LDREXD:
+    case ARM_INS_LDREXH:
+      gc->exclusive_load_offset = 0;
+      break;
+    default:
+      break;
+  }
 
   if (gc->is_thumb)
     gum_stalker_iterator_thumb_keep (self);
@@ -3624,6 +3694,10 @@ static void
 gum_exec_block_write_arm_exec_event_code (GumExecBlock * block,
                                           GumGeneratorContext * gc)
 {
+  /* Suppress events during exclusive load/store operations */
+  if (gc->exclusive_load_offset != GUM_INSTRUCTION_OFFSET_NONE)
+    return;
+
   gum_arm_writer_put_call_address_with_arguments (gc->arm_writer,
       GUM_ADDRESS (gum_exec_ctx_emit_exec_event), 2,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
@@ -3634,6 +3708,10 @@ static void
 gum_exec_block_write_thumb_exec_event_code (GumExecBlock * block,
                                             GumGeneratorContext * gc)
 {
+  /* Suppress events during exclusive load/store operations */
+  if (gc->exclusive_load_offset != GUM_INSTRUCTION_OFFSET_NONE)
+    return;
+
   gum_thumb_writer_put_call_address_with_arguments (gc->thumb_writer,
       GUM_ADDRESS (gum_exec_ctx_emit_exec_event), 2,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
@@ -3644,6 +3722,10 @@ static void
 gum_exec_block_write_arm_block_event_code (GumExecBlock * block,
                                            GumGeneratorContext * gc)
 {
+  /* Suppress events during exclusive load/store operations */
+  if (gc->exclusive_load_offset != GUM_INSTRUCTION_OFFSET_NONE)
+    return;
+
   gum_arm_writer_put_call_address_with_arguments (gc->arm_writer,
       GUM_ADDRESS (gum_exec_ctx_emit_block_event), 3,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
@@ -3655,6 +3737,10 @@ static void
 gum_exec_block_write_thumb_block_event_code (GumExecBlock * block,
                                              GumGeneratorContext * gc)
 {
+  /* Suppress events during exclusive load/store operations */
+  if (gc->exclusive_load_offset != GUM_INSTRUCTION_OFFSET_NONE)
+    return;
+
   gum_thumb_writer_put_call_address_with_arguments (gc->thumb_writer,
       GUM_ADDRESS (gum_exec_ctx_emit_block_event), 3,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
