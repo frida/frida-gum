@@ -429,17 +429,16 @@ static void gum_exec_block_arm_close_prolog (GumExecBlock * block,
 static void gum_exec_block_thumb_close_prolog (GumExecBlock * block,
     GumGeneratorContext * gc);
 
+static gboolean gum_generator_context_is_timing_sensitive (
+    GumGeneratorContext * gc);
+static void gum_generator_context_advance_exclusive_load_offset (
+    GumGeneratorContext * gc);
+
 static gboolean gum_stalker_is_thumb (gconstpointer address);
 static gboolean gum_stalker_is_kuser_helper (gconstpointer address);
 
-static void gum_generator_context_advance_exclusive_load_offset (
-    GumGeneratorContext * gc);
-static gboolean gum_generator_context_is_timing_sensitive (
-    GumGeneratorContext * gc);
-
 static gboolean gum_is_exclusive_load_insn (const cs_insn * insn);
 static gboolean gum_is_exclusive_store_insn (const cs_insn * insn);
-
 
 G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
 
@@ -1532,9 +1531,8 @@ void
 gum_stalker_iterator_keep (GumStalkerIterator * self)
 {
   GumGeneratorContext * gc = self->generator_context;
-  const cs_insn * insn = gc->instruction->ci;
 
-  if (gum_is_exclusive_load_insn (insn))
+  if (gum_is_exclusive_load_insn (gc->instruction->ci))
       gc->exclusive_load_offset = 0;
 
   if (gc->is_thumb)
@@ -3812,6 +3810,24 @@ gum_exec_block_thumb_close_prolog (GumExecBlock * block,
 }
 
 static gboolean
+gum_generator_context_is_timing_sensitive (GumGeneratorContext * gc)
+{
+  return gc->exclusive_load_offset != GUM_INSTRUCTION_OFFSET_NONE;
+}
+
+static void
+gum_generator_context_advance_exclusive_load_offset (GumGeneratorContext * gc)
+{
+  if (gc->exclusive_load_offset == GUM_INSTRUCTION_OFFSET_NONE)
+    return;
+
+  gc->exclusive_load_offset++;
+
+  if (gc->exclusive_load_offset == 4)
+      gc->exclusive_load_offset = GUM_INSTRUCTION_OFFSET_NONE;
+}
+
+static gboolean
 gum_stalker_is_thumb (gconstpointer address)
 {
   return (GPOINTER_TO_SIZE (address) & 0x1) != 0;
@@ -3834,24 +3850,6 @@ gum_stalker_is_kuser_helper (gconstpointer address)
 #else
   return FALSE;
 #endif
-}
-
-static void
-gum_generator_context_advance_exclusive_load_offset (GumGeneratorContext * gc)
-{
-  if (gc->exclusive_load_offset == GUM_INSTRUCTION_OFFSET_NONE)
-    return;
-
-  gc->exclusive_load_offset++;
-
-  if (gc->exclusive_load_offset == 4)
-      gc->exclusive_load_offset = GUM_INSTRUCTION_OFFSET_NONE;
-}
-
-static gboolean
-gum_generator_context_is_timing_sensitive (GumGeneratorContext * gc)
-{
-  return (gc->exclusive_load_offset != GUM_INSTRUCTION_OFFSET_NONE);
 }
 
 static gboolean
