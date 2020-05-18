@@ -142,6 +142,7 @@ struct _GumExecBlock
   guint8 * real_snapshot;
   guint8 * code_begin;
   guint8 * code_end;
+
   gint recycle_count;
 };
 
