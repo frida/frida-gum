@@ -3076,48 +3076,50 @@ static void
 gum_exec_block_virtualize_thumb_svc_insn (GumExecBlock * block,
                                           GumGeneratorContext * gc)
 {
-  GumThumbWriter * cw = gc->thumb_writer;
-  gconstpointer goto_not_cloned_child = cw->code + 1;
-  gconstpointer cloned_child = cw->code + 2;
-  gconstpointer not_cloned_child = cw->code + 3;
-
   gum_exec_block_dont_virtualize_thumb_insn (block, gc);
 
 #ifdef HAVE_LINUX
-  /* Save the SVC number */
-  gum_thumb_writer_put_push_regs (cw, 1, ARM_REG_R7);
+  {
+    GumThumbWriter * cw = gc->thumb_writer;
+    gconstpointer goto_not_cloned_child = cw->code + 1;
+    gconstpointer cloned_child = cw->code + 2;
+    gconstpointer not_cloned_child = cw->code + 3;
 
-  /* Check the SVC number */
-  gum_thumb_writer_put_sub_reg_imm (cw, ARM_REG_R7, __NR_clone);
-  gum_thumb_writer_put_cbnz_reg_label (cw, ARM_REG_R7, goto_not_cloned_child);
+    /* Save the SVC number */
+    gum_thumb_writer_put_push_regs (cw, 1, ARM_REG_R7);
 
-  /* Check the returned TID */
-  gum_thumb_writer_put_cbnz_reg_label (cw, ARM_REG_R0, goto_not_cloned_child);
-  gum_thumb_writer_put_b_label (cw, cloned_child);
+    /* Check the SVC number */
+    gum_thumb_writer_put_sub_reg_imm (cw, ARM_REG_R7, __NR_clone);
+    gum_thumb_writer_put_cbnz_reg_label (cw, ARM_REG_R7, goto_not_cloned_child);
 
-  gum_thumb_writer_put_label (cw, goto_not_cloned_child);
-  gum_thumb_writer_put_b_label (cw, not_cloned_child);
+    /* Check the returned TID */
+    gum_thumb_writer_put_cbnz_reg_label (cw, ARM_REG_R0, goto_not_cloned_child);
+    gum_thumb_writer_put_b_label (cw, cloned_child);
 
-  gum_thumb_writer_put_label (cw, cloned_child);
-  /* Restore the SVC number */
-  gum_thumb_writer_put_pop_regs (cw, 1, ARM_REG_R7);
+    gum_thumb_writer_put_label (cw, goto_not_cloned_child);
+    gum_thumb_writer_put_b_label (cw, not_cloned_child);
 
-  /* Vector to the original next instruction */
+    gum_thumb_writer_put_label (cw, cloned_child);
+    /* Restore the SVC number */
+    gum_thumb_writer_put_pop_regs (cw, 1, ARM_REG_R7);
 
-  /*
-   * We can't push PC in Thumb encoding without Thumb 2, and we clobber the
-   * value so it doesn't matter what we push. It ends up popped back into PC.
-   */
-  gum_thumb_writer_put_push_regs (cw, 2, ARM_REG_R0, ARM_REG_R1);
-  gum_thumb_writer_put_ldr_reg_address (cw, ARM_REG_R0,
-      GUM_ADDRESS (gc->instruction->end));
-  gum_thumb_writer_put_str_reg_reg_offset (cw, ARM_REG_R0, ARM_REG_SP, 4);
-  gum_thumb_writer_put_pop_regs (cw, 2, ARM_REG_R0, ARM_REG_PC);
+    /* Vector to the original next instruction */
 
-  gum_thumb_writer_put_label (cw, not_cloned_child);
+    /*
+     * We can't push PC in Thumb encoding without Thumb 2, and we clobber the
+     * value so it doesn't matter what we push. It ends up popped back into PC.
+     */
+    gum_thumb_writer_put_push_regs (cw, 2, ARM_REG_R0, ARM_REG_R1);
+    gum_thumb_writer_put_ldr_reg_address (cw, ARM_REG_R0,
+        GUM_ADDRESS (gc->instruction->end));
+    gum_thumb_writer_put_str_reg_reg_offset (cw, ARM_REG_R0, ARM_REG_SP, 4);
+    gum_thumb_writer_put_pop_regs (cw, 2, ARM_REG_R0, ARM_REG_PC);
 
-  /* Restore the SVC number */
-  gum_thumb_writer_put_pop_regs (cw, 1, ARM_REG_R7);
+    gum_thumb_writer_put_label (cw, not_cloned_child);
+
+    /* Restore the SVC number */
+    gum_thumb_writer_put_pop_regs (cw, 1, ARM_REG_R7);
+  }
 #endif
 }
 
