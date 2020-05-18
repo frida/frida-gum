@@ -521,15 +521,15 @@ TESTCASE (cbz_should_be_rewritten)
   };
   const guint16 expected_output_instructions[] = {
     GUINT16_TO_LE (0xb100),     /* cbz r0, #imm     */
-  /* if_false: jump to next instruction */
+    /* if_false: jump to next instruction           */
     GUINT16_TO_LE (0xe004),     /* b pc + 8         */
-  /* if_true: */
+    /* if_true:                                     */
     GUINT16_TO_LE (0xb401),     /* push {r0}        */
     GUINT16_TO_LE (0xb401),     /* push {r0}        */
     GUINT16_TO_LE (0x4801),     /* ldr r0, [pc, #4] */
     GUINT16_TO_LE (0x9001),     /* str r0, [sp, #4] */
     GUINT16_TO_LE (0xbd01),     /* pop {r0, pc}     */
-  /* next instruction */
+    /* next instruction                             */
     GUINT16_TO_LE (0xbd01),     /* pop {r0, pc}     */
     GUINT16_TO_LE (0xffff),
     GUINT16_TO_LE (0xffff)
@@ -558,21 +558,21 @@ TESTCASE (cbz_should_be_rewritten)
 TESTCASE (cbnz_should_be_rewritten)
 {
   const guint16 input[] = {
-    GUINT16_TO_LE (0xb912),     /* cbnz r2, #imm    */
-    GUINT16_TO_LE (0xbd01)      /* pop {r0, pc}     */
+    GUINT16_TO_LE (0xb912),     /* cbnz r2, #imm      */
+    GUINT16_TO_LE (0xbd01)      /* pop {r0, pc}       */
   };
   const guint16 expected_output_instructions[] = {
-    GUINT16_TO_LE (0xb902),     /* cbnz r2, #imm    */
-  /* if_false: jump to next instruction */
-    GUINT16_TO_LE (0xe004),     /* b pc + 8         */
-  /* if_true: */
-    GUINT16_TO_LE (0xb401),     /* push {r0}        */
-    GUINT16_TO_LE (0xb401),     /* push {r0}        */
-    GUINT16_TO_LE (0x4801),     /* ldr r0, [pc, #4] */
-    GUINT16_TO_LE (0x9001),     /* str r0, [sp, #4] */
-    GUINT16_TO_LE (0xbd01),     /* pop {r0, pc}     */
-  /* next instruction */
-    GUINT16_TO_LE (0xbd01),     /* pop {r0, pc}     */
+    GUINT16_TO_LE (0xb902),     /* cbnz r2, #imm      */
+    /* if_false:                                      */
+    GUINT16_TO_LE (0xe004),     /* b next_instruction */
+    /* if_true:                                       */
+    GUINT16_TO_LE (0xb401),     /* push {r0}          */
+    GUINT16_TO_LE (0xb401),     /* push {r0}          */
+    GUINT16_TO_LE (0x4801),     /* ldr r0, [pc, #4]   */
+    GUINT16_TO_LE (0x9001),     /* str r0, [sp, #4]   */
+    GUINT16_TO_LE (0xbd01),     /* pop {r0, pc}       */
+    /* next_instruction:                              */
+    GUINT16_TO_LE (0xbd01),     /* pop {r0, pc}       */
     GUINT16_TO_LE (0xffff),
     GUINT16_TO_LE (0xffff)
   };
@@ -600,21 +600,21 @@ TESTCASE (cbnz_should_be_rewritten)
 TESTCASE (b_cond_should_be_rewritten)
 {
   const guint16 input[] = {
-    GUINT16_TO_LE (0xd01b),     /* beq #imm         */
-    GUINT16_TO_LE (0xbd01)      /* pop {r0, pc}     */
+    GUINT16_TO_LE (0xd01b),     /* beq #imm           */
+    GUINT16_TO_LE (0xbd01)      /* pop {r0, pc}       */
   };
   const guint16 expected_output_instructions[] = {
-    GUINT16_TO_LE (0xd000),     /* beq #imm         */
-  /* if_false: jump to next instruction */
-    GUINT16_TO_LE (0xe004),     /* b pc + 8         */
-  /* if_true: */
-    GUINT16_TO_LE (0xb401),     /* push {r0}        */
-    GUINT16_TO_LE (0xb401),     /* push {r0}        */
-    GUINT16_TO_LE (0x4801),     /* ldr r0, [pc, #4] */
-    GUINT16_TO_LE (0x9001),     /* str r0, [sp, #4] */
-    GUINT16_TO_LE (0xbd01),     /* pop {r0, pc}     */
-  /* next instruction */
-    GUINT16_TO_LE (0xbd01),     /* pop {r0, pc}     */
+    GUINT16_TO_LE (0xd000),     /* beq #imm           */
+    /* if_false:                                      */
+    GUINT16_TO_LE (0xe004),     /* b next_instruction */
+    /* if_true:                                       */
+    GUINT16_TO_LE (0xb401),     /* push {r0}          */
+    GUINT16_TO_LE (0xb401),     /* push {r0}          */
+    GUINT16_TO_LE (0x4801),     /* ldr r0, [pc, #4]   */
+    GUINT16_TO_LE (0x9001),     /* str r0, [sp, #4]   */
+    GUINT16_TO_LE (0xbd01),     /* pop {r0, pc}       */
+    /* next_instruction:                              */
+    GUINT16_TO_LE (0xbd01),     /* pop {r0, pc}       */
     GUINT16_TO_LE (0xffff),
     GUINT16_TO_LE (0xffff)
   };
@@ -643,21 +643,23 @@ TESTCASE (b_cond_should_be_rewritten)
 TESTCASE (it_block_with_pc_relative_load_should_be_rewritten)
 {
  const guint16 input[] = {
-   GUINT16_TO_LE (0x2800),      /* cmp r0, #0             */
-   GUINT16_TO_LE (0xbf06),      /* itte eq                */
-   GUINT16_TO_LE (0x4801),      /* ldreq r0, [pc, #4]     */
-   GUINT16_TO_LE (0x3001),      /* addeq r0, #1           */
-   GUINT16_TO_LE (0x3001),      /* addne r0, #1           */
+   GUINT16_TO_LE (0x2800),      /* cmp r0, #0         */
+   GUINT16_TO_LE (0xbf06),      /* itte eq            */
+   GUINT16_TO_LE (0x4801),      /* ldreq r0, [pc, #4] */
+   GUINT16_TO_LE (0x3001),      /* addeq r0, #1       */
+   GUINT16_TO_LE (0x3001),      /* addne r0, #1       */
  };
  const guint16 expected_output[] = {
-   GUINT16_TO_LE (0x2800),      /* cmp r0, #0             */
-   GUINT16_TO_LE (0xd001),      /* beq.n .L1              */
-   GUINT16_TO_LE (0x3001),      /* adds r0, #1            */
-   GUINT16_TO_LE (0xe002),      /* b.n .L2                */
-   GUINT16_TO_LE (0x4800),      /* .L1: ldr r0, [pc, #0]  */
-   GUINT16_TO_LE (0x6800),      /* ldr r0, [r0, #0]       */
-   GUINT16_TO_LE (0x3001),      /* adds r0, #1            */
-                                /* .L2:                   */
+   GUINT16_TO_LE (0x2800),      /* cmp r0, #0         */
+   GUINT16_TO_LE (0xd001),      /* beq if_true        */
+   /* if_false:                                       */
+   GUINT16_TO_LE (0x3001),      /* adds r0, #1        */
+   GUINT16_TO_LE (0xe002),      /* b next_instruction */
+   /* if_true:                                        */
+   GUINT16_TO_LE (0x4800),      /* ldr r0, [pc, #0]   */
+   GUINT16_TO_LE (0x6800),      /* ldr r0, [r0, #0]   */
+   GUINT16_TO_LE (0x3001),      /* adds r0, #1        */
+   /* next_instruction:                               */
   };
   const cs_insn * insn;
 
@@ -682,28 +684,28 @@ TESTCASE (it_block_with_pc_relative_load_should_be_rewritten)
 TESTCASE (it_block_with_b_should_be_rewritten)
 {
   const guint16 input[] = {
-    GUINT16_TO_LE (0xb580),     /* push {r7, lr}       */
-    GUINT16_TO_LE (0x2801),     /* cmp r0, #1          */
-    GUINT16_TO_LE (0xbf0a),     /* itet eq             */
-    GUINT16_TO_LE (0xf101),     /* ...                 */
-    GUINT16_TO_LE (0x37ff),     /* addeq.w r7, r1, #-1 */
-    GUINT16_TO_LE (0x1c4f),     /* addne r7, r1, #1    */
-    GUINT16_TO_LE (0xf7ff),     /* ...                 */
-    GUINT16_TO_LE (0xef08),     /* blxeq xxxx          */
+    GUINT16_TO_LE (0xb580),                         /* push {r7, lr}       */
+    GUINT16_TO_LE (0x2801),                         /* cmp r0, #1          */
+    GUINT16_TO_LE (0xbf0a),                         /* itet eq             */
+    GUINT16_TO_LE (0xf101), GUINT16_TO_LE (0x37ff), /* addeq.w r7, r1, #-1 */
+    GUINT16_TO_LE (0x1c4f),                         /* addne r7, r1, #1    */
+    GUINT16_TO_LE (0xf7ff), GUINT16_TO_LE (0xef08), /* blxeq.w xxxx        */
   };
   const guint16 expected_output[] = {
-    GUINT16_TO_LE (0xb580),     /* push {r7, lr}       */
-    GUINT16_TO_LE (0x2801),     /* cmp r0, #1          */
-    GUINT16_TO_LE (0xd001),     /* beq.n .L1           */
-    GUINT16_TO_LE (0x1c4f),     /* adds r7, r1, #1     */
-    GUINT16_TO_LE (0xe006),     /* b.n  .L2            */
-    GUINT16_TO_LE (0xf101),     /* .L1 ...             */
-    GUINT16_TO_LE (0x37ff),     /* add.w r7, r1, #-1   */
-    GUINT16_TO_LE (0xb401),     /* push { r0 }         */
-    GUINT16_TO_LE (0x4800),     /* ldr r0, [pc, #0]    */
-    GUINT16_TO_LE (0x4686),     /* mov lr, r0          */
-    GUINT16_TO_LE (0xbc01),     /* pop {r0}            */
-    GUINT16_TO_LE (0x47f0),     /* blx lr              */
+    GUINT16_TO_LE (0xb580),                         /* push {r7, lr}       */
+    GUINT16_TO_LE (0x2801),                         /* cmp r0, #1          */
+    GUINT16_TO_LE (0xd001),                         /* beq if_true         */
+    /* if_false:                                                           */
+    GUINT16_TO_LE (0x1c4f),                         /* adds r7, r1, #1     */
+    GUINT16_TO_LE (0xe006),                         /* b next_instruction  */
+    /* if_true:                                                            */
+    GUINT16_TO_LE (0xf101), GUINT16_TO_LE (0x37ff), /* add.w r7, r1, #-1   */
+    GUINT16_TO_LE (0xb401),                         /* push {r0}           */
+    GUINT16_TO_LE (0x4800),                         /* ldr r0, [pc, #0]    */
+    GUINT16_TO_LE (0x4686),                         /* mov lr, r0          */
+    GUINT16_TO_LE (0xbc01),                         /* pop {r0}            */
+    GUINT16_TO_LE (0x47f0),                         /* blx lr              */
+    /* next_instruction:                                                   */
   };
   const cs_insn * insn;
 
@@ -724,18 +726,20 @@ TESTCASE (it_block_with_b_should_be_rewritten)
 TESTCASE (it_block_should_be_rewritten_as_a_whole)
 {
   const guint16 input[] = {
-    GUINT16_TO_LE (0x2800), /* cmp r0, #0            */
-    GUINT16_TO_LE (0xbf1c), /* itt ne                */
-    GUINT16_TO_LE (0x6800), /* ldrne r0, [r0]        */
-    GUINT16_TO_LE (0x2800)  /* cmpne r0, #0          */
+    GUINT16_TO_LE (0x2800), /* cmp r0, #0         */
+    GUINT16_TO_LE (0xbf1c), /* itt ne             */
+    GUINT16_TO_LE (0x6800), /* ldrne r0, [r0]     */
+    GUINT16_TO_LE (0x2800)  /* cmpne r0, #0       */
   };
   const guint16 expected_output[] = {
-    GUINT16_TO_LE (0x2800), /* cmp r0, #0            */
-    GUINT16_TO_LE (0xd100), /* bne.n .L1             */
-    GUINT16_TO_LE (0xe001), /* b.n .L2               */
-    GUINT16_TO_LE (0x6800), /* .L1: ldr r0, [r0, #0] */
-    GUINT16_TO_LE (0x2800), /* cmp r0, #0            */
-                            /* .L2:                  */
+    GUINT16_TO_LE (0x2800), /* cmp r0, #0         */
+    GUINT16_TO_LE (0xd100), /* bne if_true        */
+    /* if_false:                                  */
+    GUINT16_TO_LE (0xe001), /* b next_instruction */
+    /* if_true:                                   */
+    GUINT16_TO_LE (0x6800), /* ldr r0, [r0, #0]   */
+    GUINT16_TO_LE (0x2800), /* cmp r0, #0         */
+    /* next_instruction:                          */
   };
   const cs_insn * insn;
 
@@ -764,19 +768,20 @@ TESTCASE (it_block_should_be_rewritten_as_a_whole)
 TESTCASE (it_block_with_eoi_insn_should_be_rewritten)
 {
   const guint16 input[] = {
-    GUINT16_TO_LE (0x2800),                         /* cmp r0, #0     */
-    GUINT16_TO_LE (0xbf18),                         /* it ne          */
-    GUINT16_TO_LE (0xe8bd), GUINT16_TO_LE (0x8010), /* pop.w {r4, pc} */
-    GUINT16_TO_LE (0x3001),                         /* adds r0, #1    */
+    GUINT16_TO_LE (0x2800),                         /* cmp r0, #0         */
+    GUINT16_TO_LE (0xbf18),                         /* it ne              */
+    GUINT16_TO_LE (0xe8bd), GUINT16_TO_LE (0x8010), /* pop.w {r4, pc}     */
+    GUINT16_TO_LE (0x3001),                         /* adds r0, #1        */
   };
   const guint16 expected_output[] = {
-    GUINT16_TO_LE (0x2800),                         /* cmp r0, #0     */
-    GUINT16_TO_LE (0xd100),                         /* bne.n if_true  */
-    GUINT16_TO_LE (0xe001),                         /* b.n if_false   */
-    /* if_true:                                                       */
-    GUINT16_TO_LE (0xe8bd), GUINT16_TO_LE (0x8010), /* pop.w {r4, pc} */
-    /* if_false:                                                      */
-    GUINT16_TO_LE (0x3001),                         /* adds r0, #1    */
+    GUINT16_TO_LE (0x2800),                         /* cmp r0, #0         */
+    GUINT16_TO_LE (0xd100),                         /* bne if_true        */
+    /* if_false:                                                          */
+    GUINT16_TO_LE (0xe001),                         /* b next_instruction */
+    /* if_true:                                                           */
+    GUINT16_TO_LE (0xe8bd), GUINT16_TO_LE (0x8010), /* pop.w {r4, pc}     */
+    /* next_instruction:                                                  */
+    GUINT16_TO_LE (0x3001),                         /* adds r0, #1        */
   };
   const cs_insn * insn;
 
