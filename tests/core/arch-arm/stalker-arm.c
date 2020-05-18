@@ -68,6 +68,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (thumb_itttt_eq_blx_reg)
   TESTENTRY (thumb_tbb)
   TESTENTRY (thumb_tbh)
+  TESTENTRY (thumb_strex_no_exec_events)
 
   TESTENTRY (call_thumb)
   TESTENTRY (branch_thumb)
@@ -1751,6 +1752,44 @@ TESTCASE (thumb_tbh)
   g_assert_cmpuint (fixture->sink->events->len, ==, 1);
 
   GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + 24);
+}
+
+TESTCODE (thumb_strex_no_exec_events,
+  0x00, 0xb5,             /* push {lr}          */
+  0x00, 0x20,             /* movs r0, 0         */
+
+  0x02, 0xb4,             /* push {r1}          */
+
+  0x5d, 0xe8, 0x00, 0x1f, /* ldrex r1, [sp]     */
+  0x01, 0x31,             /* adds r1, #1        */
+  0x01, 0x31,             /* adds r1, #1        */
+  0x01, 0x31,             /* adds r1, #1        */
+  0x01, 0x31,             /* adds r1, #1        */
+
+  0x5d, 0xe8, 0x00, 0x1f, /* ldrex r1, [sp]     */
+  0x01, 0x31,             /* adds r1, #1        */
+  0x4d, 0xe8, 0x00, 0x12, /* strex r2, r1, [sp] */
+  0x01, 0x31,             /* adds r1, #1        */
+
+  0x02, 0xbc,             /* pop {r1}           */
+  0x00, 0xbd,             /* pop {pc}           */
+);
+
+TESTCASE (thumb_strex_no_exec_events)
+{
+  GumAddress func;
+
+  func = INVOKE_THUMB_EXPECTING (GUM_EXEC, thumb_strex_no_exec_events, 0);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 7);
+
+  GUM_ASSERT_EVENT_ADDR (exec, 2, location, func);
+  GUM_ASSERT_EVENT_ADDR (exec, 3, location, func + 2);
+  GUM_ASSERT_EVENT_ADDR (exec, 4, location, func + 4);
+  GUM_ASSERT_EVENT_ADDR (exec, 5, location, func + 16);
+  GUM_ASSERT_EVENT_ADDR (exec, 6, location, func + 28);
+  GUM_ASSERT_EVENT_ADDR (exec, 7, location, func + 30);
+  GUM_ASSERT_EVENT_ADDR (exec, 8, location, func + 32);
 }
 
 TESTCODE (call_thumb,
