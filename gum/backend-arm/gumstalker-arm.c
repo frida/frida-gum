@@ -3023,7 +3023,7 @@ gum_exec_block_virtualize_thumb_svc_insn (GumExecBlock * block,
   gum_thumb_writer_put_b_label (cw, not_cloned_child);
 
   gum_thumb_writer_put_label (cw, cloned_child);
-  /* Restore the svc number */
+  /* Restore the SVC number */
   gum_thumb_writer_put_pop_regs (cw, 1, ARM_REG_R7);
 
   /* Vector to the original next instruction */
