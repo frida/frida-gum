@@ -3018,6 +3018,7 @@ gum_exec_block_virtualize_thumb_svc_insn (GumExecBlock * block,
   /* Check the returned TID */
   gum_thumb_writer_put_cbnz_reg_label (cw, ARM_REG_R0, goto_not_cloned_child);
   gum_thumb_writer_put_b_label (cw, cloned_child);
+
   gum_thumb_writer_put_label (cw, goto_not_cloned_child);
   gum_thumb_writer_put_b_label (cw, not_cloned_child);
   gum_thumb_writer_put_label (cw, cloned_child);
