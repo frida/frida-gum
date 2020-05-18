@@ -68,6 +68,7 @@ struct _GumStalker
   GumTlsKey exec_ctx;
 
   GArray * exclusions;
+  gint trust_threshold;
 };
 
 struct _GumInfectContext
@@ -138,9 +139,11 @@ struct _GumExecBlock
 
   guint8 * real_begin;
   guint8 * real_end;
-
+  guint8 * real_snapshot;
   guint8 * code_begin;
   guint8 * code_end;
+
+  gint recycle_count;
 };
 
 struct _GumSlab
@@ -334,6 +337,8 @@ static void gum_exec_ctx_thumb_load_real_register_into (GumExecCtx * ctx,
 static GumExecBlock * gum_exec_block_new (GumExecCtx * ctx);
 static GumExecBlock * gum_exec_block_obtain (GumExecCtx * ctx,
     gpointer real_address, gpointer * code_address_ptr);
+static GumExecBlock * gum_exec_block_obtain_trusted (GumExecCtx * ctx,
+    gpointer real_address, gpointer * code_address_ptr);
 static gboolean gum_exec_block_is_full (GumExecBlock * block);
 static void gum_exec_block_commit_and_emit (GumExecBlock * block);
 
@@ -462,6 +467,7 @@ static void
 gum_stalker_init (GumStalker * self)
 {
   self->exclusions = g_array_new (FALSE, FALSE, sizeof (GumMemoryRange));
+  self->trust_threshold = 1;
 
   self->page_size = gum_query_page_size ();
   self->slab_size =
@@ -538,13 +544,14 @@ gum_stalker_is_branch_excluding (GumExecCtx * ctx,
 gint
 gum_stalker_get_trust_threshold (GumStalker * self)
 {
-  return 0;
+  return self->trust_threshold;
 }
 
 void
 gum_stalker_set_trust_threshold (GumStalker * self,
                                  gint trust_threshold)
 {
+  self->trust_threshold = trust_threshold;
 }
 
 void
@@ -1252,7 +1259,7 @@ gum_exec_ctx_obtain_arm_block_for (GumExecCtx * ctx,
   GumStalkerOutput output;
   gboolean all_labels_resolved;
 
-  block = gum_exec_block_obtain (ctx, real_address, code_address_ptr);
+  block = gum_exec_block_obtain_trusted (ctx, real_address, code_address_ptr);
   if (block != NULL)
     return block;
 
@@ -1260,7 +1267,8 @@ gum_exec_ctx_obtain_arm_block_for (GumExecCtx * ctx,
   block->real_begin = real_address;
   *code_address_ptr = block->code_begin;
 
-  gum_metal_hash_table_insert (ctx->mappings, real_address, block);
+  if (ctx->stalker->trust_threshold >= 0)
+    gum_metal_hash_table_insert (ctx->mappings, real_address, block);
 
   cw = &ctx->arm_writer;
   rl = &ctx->arm_relocator;
@@ -1333,7 +1341,7 @@ gum_exec_ctx_obtain_thumb_block_for (GumExecCtx * ctx,
   GumStalkerOutput output;
   gboolean all_labels_resolved;
 
-  block = gum_exec_block_obtain (ctx, real_address, code_address_ptr);
+  block = gum_exec_block_obtain_trusted (ctx, real_address, code_address_ptr);
   if (block != NULL)
     return block;
 
@@ -1342,7 +1350,8 @@ gum_exec_ctx_obtain_thumb_block_for (GumExecCtx * ctx,
   block->real_begin = aligned_address;
   *code_address_ptr = block->code_begin + 1;
 
-  gum_metal_hash_table_insert (ctx->mappings, real_address, block);
+  if (ctx->stalker->trust_threshold >= 0)
+    gum_metal_hash_table_insert (ctx->mappings, real_address, block);
 
   cw = &ctx->thumb_writer;
   rl = &ctx->thumb_relocator;
@@ -2715,10 +2724,19 @@ gum_exec_block_new (GumExecCtx * ctx)
         GUM_ALIGN_POINTER (guint8 *, slab->data + slab->offset, 4);
     block->code_end = block->code_begin;
 
+    block->recycle_count = 0;
+
     gum_stalker_thaw (stalker, block->code_begin, available);
     slab->num_blocks++;
 
     return block;
+  }
+
+  if (stalker->trust_threshold < 0 && slab != NULL)
+  {
+    slab->offset = 0;
+
+    return gum_exec_block_new (ctx);
   }
 
   gum_exec_ctx_add_slab (ctx);
@@ -2748,6 +2766,34 @@ gum_exec_block_obtain (GumExecCtx * ctx,
   return block;
 }
 
+static GumExecBlock *
+gum_exec_block_obtain_trusted (GumExecCtx * ctx,
+                               gpointer real_address,
+                               gpointer * code_address_ptr)
+{
+  GumExecBlock * block;
+
+  if (ctx->stalker->trust_threshold < 0)
+    return NULL;
+
+  block = gum_exec_block_obtain (ctx, real_address, code_address_ptr);
+  if (block == NULL)
+    return NULL;
+
+  if (block->recycle_count >= ctx->stalker->trust_threshold ||
+      memcmp (real_address, block->real_snapshot,
+          block->real_end - block->real_begin) == 0)
+  {
+    block->recycle_count++;
+    return block;
+  }
+  else
+  {
+    gum_metal_hash_table_remove (ctx->mappings, real_address);
+    return NULL;
+  }
+}
+
 static gboolean
 gum_exec_block_is_full (GumExecBlock * block)
 {
@@ -2766,6 +2812,8 @@ gum_exec_block_commit_and_emit (GumExecBlock * block)
   block->slab->offset += code_size;
 
   real_size = block->real_end - block->real_begin;
+  block->real_snapshot = block->code_end;
+  memcpy (block->real_snapshot, block->real_begin, real_size);
   block->slab->offset += real_size;
 
   gum_stalker_freeze (ctx->stalker, block->code_begin, code_size);

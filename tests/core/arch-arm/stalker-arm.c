@@ -8,7 +8,7 @@
 #include "stalker-arm-fixture.c"
 
 TESTLIST_BEGIN (stalker)
-  TESTENTRY (trust_should_be_zero_by_default)
+  TESTENTRY (trust_should_be_one_by_default)
   TESTENTRY (add_call_probe_unsupported)
   TESTENTRY (remove_call_probe_unsupported)
 
@@ -70,6 +70,10 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (thumb_tbh)
   TESTENTRY (thumb_strex_no_exec_events)
 
+  TESTENTRY (self_modifying_code_should_be_detected_with_threshold_minus_one)
+  TESTENTRY (self_modifying_code_should_not_be_detected_with_threshold_zero)
+  TESTENTRY (self_modifying_code_should_be_detected_with_threshold_one)
+
   TESTENTRY (call_thumb)
   TESTENTRY (branch_thumb)
   TESTENTRY (can_follow_workload)
@@ -120,9 +124,9 @@ static void patch_code_pointer (GumAddress code, guint offset,
     GumAddress value);
 static void patch_code_pointer_slot (gpointer mem, gpointer user_data);
 
-TESTCASE (trust_should_be_zero_by_default)
+TESTCASE (trust_should_be_one_by_default)
 {
-  g_assert_cmpuint (gum_stalker_get_trust_threshold (fixture->stalker), ==, 0);
+  g_assert_cmpuint (gum_stalker_get_trust_threshold (fixture->stalker), ==, 1);
 }
 
 TESTCASE (deactivate_unsupported)
@@ -1790,6 +1794,105 @@ TESTCASE (thumb_strex_no_exec_events)
   GUM_ASSERT_EVENT_ADDR (exec, 6, location, func + 28);
   GUM_ASSERT_EVENT_ADDR (exec, 7, location, func + 30);
   GUM_ASSERT_EVENT_ADDR (exec, 8, location, func + 32);
+}
+
+TESTCODE (self_modifying_code_should_be_detected,
+  0x00, 0x00, 0x40, 0xe0, /* sub r0, r0, r0 */
+  0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1  */
+  0x0e, 0xf0, 0xa0, 0xe1, /* mov pc, lr     */
+);
+
+TESTCASE (self_modifying_code_should_be_detected_with_threshold_minus_one)
+{
+  GumAddress func;
+  guint (* callback) (void);
+  guint value;
+
+  func = DUP_TESTCODE (self_modifying_code_should_be_detected);
+  callback = GUM_POINTER_TO_FUNCPTR (guint (*) (void), func);
+
+  fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
+
+  gum_stalker_set_trust_threshold (fixture->stalker, -1);
+  gum_stalker_follow_me (fixture->stalker, fixture->transformer,
+      GUM_EVENT_SINK (fixture->sink));
+
+  value = callback ();
+  g_assert_cmpuint (value, ==, 1);
+
+  patch_code_pointer (func, 4, 0xe2800002);
+  value = callback ();
+  g_assert_cmpuint (value, ==, 2);
+  callback ();
+  callback ();
+
+  patch_code_pointer (func, 4, 0xe2800003);
+  value = callback ();
+  g_assert_cmpuint (value, ==, 3);
+
+  gum_stalker_unfollow_me (fixture->stalker);
+
+  g_assert_cmpuint (fixture->sink->events->len, >, 0);
+}
+
+TESTCASE (self_modifying_code_should_not_be_detected_with_threshold_zero)
+{
+  GumAddress func;
+  guint (* callback) (void);
+  guint value;
+
+  func = DUP_TESTCODE (self_modifying_code_should_be_detected);
+  callback = GUM_POINTER_TO_FUNCPTR (guint (*) (void), func);
+
+  fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
+
+  gum_stalker_set_trust_threshold (fixture->stalker, 0);
+  gum_stalker_follow_me (fixture->stalker, fixture->transformer,
+      GUM_EVENT_SINK (fixture->sink));
+
+  value = callback ();
+  g_assert_cmpuint (value, ==, 1);
+
+  patch_code_pointer (func, 4, 0xe2800002);
+  value = callback ();
+  g_assert_cmpuint (value, ==, 1);
+
+  gum_stalker_unfollow_me (fixture->stalker);
+
+  g_assert_cmpuint (fixture->sink->events->len, >, 0);
+}
+
+TESTCASE (self_modifying_code_should_be_detected_with_threshold_one)
+{
+  GumAddress func;
+  guint (* callback) (void);
+  guint value;
+
+  func = DUP_TESTCODE (self_modifying_code_should_be_detected);
+  callback = GUM_POINTER_TO_FUNCPTR (guint (*) (void), func);
+
+  fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
+
+  gum_stalker_set_trust_threshold (fixture->stalker, 1);
+  gum_stalker_follow_me (fixture->stalker, fixture->transformer,
+      GUM_EVENT_SINK (fixture->sink));
+
+  value = callback ();
+  g_assert_cmpuint (value, ==, 1);
+
+  patch_code_pointer (func, 4, 0xe2800002);
+  value = callback ();
+  g_assert_cmpuint (value, ==, 2);
+  callback ();
+  callback ();
+
+  patch_code_pointer (func, 4, 0xe2800003);
+  value = callback ();
+  g_assert_cmpuint (value, ==, 2);
+
+  gum_stalker_unfollow_me (fixture->stalker);
+
+  g_assert_cmpuint (fixture->sink->events->len, >, 0);
 }
 
 TESTCODE (call_thumb,
