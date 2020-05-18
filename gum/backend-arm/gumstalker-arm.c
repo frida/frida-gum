@@ -3008,7 +3008,7 @@ gum_exec_block_virtualize_thumb_svc_insn (GumExecBlock * block,
   gum_exec_block_dont_virtualize_thumb_insn (block, gc);
 
 #ifdef HAVE_LINUX
-  /* Save the svc number */
+  /* Save the SVC number */
   gum_thumb_writer_put_push_regs (cw, 1, ARM_REG_R7);
 
   /* Check the SVC number */
