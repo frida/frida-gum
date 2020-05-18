@@ -1755,24 +1755,24 @@ TESTCASE (thumb_tbh)
 }
 
 TESTCODE (thumb_strex_no_exec_events,
-  0x00, 0xb5,             /* push {lr}            */
-  0x00, 0x20,             /* movs r0, 0           */
+  0x00, 0xb5,             /* push {lr}          */
+  0x00, 0x20,             /* movs r0, 0         */
 
-  0x02, 0xb4,             /* push {r1}            */
+  0x02, 0xb4,             /* push {r1}          */
 
-  0x5d, 0xe8, 0x00, 0x1f, /* ldrex r1, [sp]       */
-  0x01, 0x31,             /* adds r1, #1          */
-  0x01, 0x31,             /* adds r1, #1          */
-  0x01, 0x31,             /* adds r1, #1          */
-  0x01, 0x31,             /* adds r1, #1          */
+  0x5d, 0xe8, 0x00, 0x1f, /* ldrex r1, [sp]     */
+  0x01, 0x31,             /* adds r1, #1        */
+  0x01, 0x31,             /* adds r1, #1        */
+  0x01, 0x31,             /* adds r1, #1        */
+  0x01, 0x31,             /* adds r1, #1        */
 
-  0x5d, 0xe8, 0x00, 0x1f, /* ldrex r1, [sp]       */
-  0x01, 0x31,             /* adds r1, #1          */
-  0x4d, 0xe8, 0x00, 0x12, /* strex r2, r1, [sp]   */
-  0x01, 0x31,             /* adds r1, #1          */
+  0x5d, 0xe8, 0x00, 0x1f, /* ldrex r1, [sp]     */
+  0x01, 0x31,             /* adds r1, #1        */
+  0x4d, 0xe8, 0x00, 0x12, /* strex r2, r1, [sp] */
+  0x01, 0x31,             /* adds r1, #1        */
 
-  0x02, 0xbc,             /* pop {r1}             */
-  0x00, 0xbd,             /* pop {pc}             */
+  0x02, 0xbc,             /* pop {r1}           */
+  0x00, 0xbd,             /* pop {pc}           */
 );
 
 TESTCASE (thumb_strex_no_exec_events)

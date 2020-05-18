@@ -308,6 +308,9 @@ static gboolean gum_stalker_iterator_arm_next (GumStalkerIterator * self,
     const cs_insn ** insn);
 static gboolean gum_stalker_iterator_thumb_next (GumStalkerIterator * self,
     const cs_insn ** insn);
+static gboolean gum_is_exclusive_store_insn (const cs_insn * insn);
+static void gum_increment_exclusive_load_offset (GumGeneratorContext * gc);
+static gboolean gum_is_exclusive_load_insn (const cs_insn * insn);
 static void gum_stalker_iterator_arm_keep (GumStalkerIterator * self);
 static void gum_stalker_iterator_thumb_keep (GumStalkerIterator * self);
 static void gum_stalker_iterator_handle_thumb_branch_insn (
@@ -405,6 +408,8 @@ static void gum_exec_block_write_thumb_exec_event_code (GumExecBlock * block,
 static void gum_exec_block_write_arm_block_event_code (GumExecBlock * block,
     GumGeneratorContext * gc);
 static void gum_exec_block_write_thumb_block_event_code (GumExecBlock * block,
+    GumGeneratorContext * gc);
+static gboolean gum_generator_context_is_timing_sensitive (
     GumGeneratorContext * gc);
 
 static void gum_exec_block_write_arm_push_stack_frame (GumExecBlock * block,
@@ -1438,28 +1443,10 @@ gum_stalker_iterator_arm_next (GumStalkerIterator * self,
       return FALSE;
     }
 
-    switch (instruction->ci->id)
-    {
-      case ARM_INS_STREX:
-      case ARM_INS_STREXB:
-      case ARM_INS_STREXD:
-      case ARM_INS_STREXH:
-      case ARM_INS_STLEX:
-      case ARM_INS_STLEXB:
-      case ARM_INS_STLEXD:
-      case ARM_INS_STLEXH:
-        gc->exclusive_load_offset = GUM_INSTRUCTION_OFFSET_NONE;
-        break;
-      default:
-        break;
-    }
+    if (gum_is_exclusive_store_insn (instruction->ci))
+      gc->exclusive_load_offset = GUM_INSTRUCTION_OFFSET_NONE;
 
-    if (gc->exclusive_load_offset != GUM_INSTRUCTION_OFFSET_NONE)
-    {
-      gc->exclusive_load_offset++;
-      if (gc->exclusive_load_offset == 4)
-        gc->exclusive_load_offset = GUM_INSTRUCTION_OFFSET_NONE;
-    }
+    gum_increment_exclusive_load_offset (gc);
   }
 
   instruction = &self->instruction;
@@ -1514,28 +1501,10 @@ gum_stalker_iterator_thumb_next (GumStalkerIterator * self,
       return FALSE;
     }
 
-    switch (instruction->ci->id)
-    {
-      case ARM_INS_STREX:
-      case ARM_INS_STREXB:
-      case ARM_INS_STREXD:
-      case ARM_INS_STREXH:
-      case ARM_INS_STLEX:
-      case ARM_INS_STLEXB:
-      case ARM_INS_STLEXD:
-      case ARM_INS_STLEXH:
-        gc->exclusive_load_offset = GUM_INSTRUCTION_OFFSET_NONE;
-        break;
-      default:
-        break;
-    }
+    if (gum_is_exclusive_store_insn (instruction->ci))
+      gc->exclusive_load_offset = GUM_INSTRUCTION_OFFSET_NONE;
 
-    if (gc->exclusive_load_offset != GUM_INSTRUCTION_OFFSET_NONE)
-    {
-      gc->exclusive_load_offset++;
-      if (gc->exclusive_load_offset == 4)
-        gc->exclusive_load_offset = GUM_INSTRUCTION_OFFSET_NONE;
-    }
+    gum_increment_exclusive_load_offset (gc);
   }
 
   instruction = &self->instruction;
@@ -1555,11 +1524,56 @@ gum_stalker_iterator_thumb_next (GumStalkerIterator * self,
   return TRUE;
 }
 
+static gboolean
+gum_is_exclusive_store_insn (const cs_insn * insn)
+{
+
+  switch (insn->id)
+  {
+    case ARM_INS_STREX:
+    case ARM_INS_STREXB:
+    case ARM_INS_STREXD:
+    case ARM_INS_STREXH:
+    case ARM_INS_STLEX:
+    case ARM_INS_STLEXB:
+    case ARM_INS_STLEXD:
+    case ARM_INS_STLEXH:
+      return TRUE;
+    default:
+      return FALSE;
+  }
+}
+
+static void
+gum_increment_exclusive_load_offset (GumGeneratorContext * gc)
+{
+  if (gc->exclusive_load_offset == GUM_INSTRUCTION_OFFSET_NONE)
+    return;
+
+  gc->exclusive_load_offset++;
+
+  if (gc->exclusive_load_offset == 4)
+      gc->exclusive_load_offset = GUM_INSTRUCTION_OFFSET_NONE;
+}
+
 void
 gum_stalker_iterator_keep (GumStalkerIterator * self)
 {
   GumGeneratorContext * gc = self->generator_context;
   const cs_insn * insn = gc->instruction->ci;
+
+  if (gum_is_exclusive_load_insn (insn))
+      gc->exclusive_load_offset = 0;
+
+  if (gc->is_thumb)
+    gum_stalker_iterator_thumb_keep (self);
+  else
+    gum_stalker_iterator_arm_keep (self);
+}
+
+static gboolean
+gum_is_exclusive_load_insn (const cs_insn * insn)
+{
 
   switch (insn->id)
   {
@@ -1571,16 +1585,10 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
     case ARM_INS_LDREXB:
     case ARM_INS_LDREXD:
     case ARM_INS_LDREXH:
-      gc->exclusive_load_offset = 0;
-      break;
+      return TRUE;
     default:
-      break;
+      return FALSE;
   }
-
-  if (gc->is_thumb)
-    gum_stalker_iterator_thumb_keep (self);
-  else
-    gum_stalker_iterator_arm_keep (self);
 }
 
 static void
@@ -3694,8 +3702,7 @@ static void
 gum_exec_block_write_arm_exec_event_code (GumExecBlock * block,
                                           GumGeneratorContext * gc)
 {
-  /* Suppress events during exclusive load/store operations */
-  if (gc->exclusive_load_offset != GUM_INSTRUCTION_OFFSET_NONE)
+  if (gum_generator_context_is_timing_sensitive (gc))
     return;
 
   gum_arm_writer_put_call_address_with_arguments (gc->arm_writer,
@@ -3708,8 +3715,7 @@ static void
 gum_exec_block_write_thumb_exec_event_code (GumExecBlock * block,
                                             GumGeneratorContext * gc)
 {
-  /* Suppress events during exclusive load/store operations */
-  if (gc->exclusive_load_offset != GUM_INSTRUCTION_OFFSET_NONE)
+  if (gum_generator_context_is_timing_sensitive (gc))
     return;
 
   gum_thumb_writer_put_call_address_with_arguments (gc->thumb_writer,
@@ -3722,8 +3728,7 @@ static void
 gum_exec_block_write_arm_block_event_code (GumExecBlock * block,
                                            GumGeneratorContext * gc)
 {
-  /* Suppress events during exclusive load/store operations */
-  if (gc->exclusive_load_offset != GUM_INSTRUCTION_OFFSET_NONE)
+  if (gum_generator_context_is_timing_sensitive (gc))
     return;
 
   gum_arm_writer_put_call_address_with_arguments (gc->arm_writer,
@@ -3737,8 +3742,7 @@ static void
 gum_exec_block_write_thumb_block_event_code (GumExecBlock * block,
                                              GumGeneratorContext * gc)
 {
-  /* Suppress events during exclusive load/store operations */
-  if (gc->exclusive_load_offset != GUM_INSTRUCTION_OFFSET_NONE)
+  if (gum_generator_context_is_timing_sensitive (gc))
     return;
 
   gum_thumb_writer_put_call_address_with_arguments (gc->thumb_writer,
@@ -3746,6 +3750,12 @@ gum_exec_block_write_thumb_block_event_code (GumExecBlock * block,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
       GUM_ARG_ADDRESS, GUM_ADDRESS (gc->thumb_relocator->input_start),
       GUM_ARG_ADDRESS, GUM_ADDRESS (gc->thumb_relocator->input_cur));
+}
+
+static gboolean
+gum_generator_context_is_timing_sensitive (GumGeneratorContext * gc)
+{
+  return (gc->exclusive_load_offset != GUM_INSTRUCTION_OFFSET_NONE);
 }
 
 static void
