@@ -2449,6 +2449,8 @@ def generate_class_type_definitions(name, arch, flavor, api):
                 description = """Like `putCallWithArguments()`, but also
      * ensures that the argument list is aligned on a 16 byte boundary"""
                 arg_names[-1] = "args"
+            elif method.name == "put_branch_address":
+                description = "Puts code needed for branching/jumping to the given address"
             elif method.name in ("put_push_regs", "put_pop_regs"):
                 if method.name.startswith("put_push_"):
                     mnemonic = "PUSH"
@@ -2464,6 +2466,8 @@ def generate_class_type_definitions(name, arch, flavor, api):
                 description = """Puts code needed for popping all X registers off the stack"""
             elif method.name == "put_pop_all_q_registers":
                 description = """Puts code needed for popping all Q registers off the stack"""
+            elif method.name == "put_prologue_trampoline":
+                description = "Puts a minimal sized trampoline for vectoring to the given address"
             elif method.name == "put_ldr_reg_ref":
                 description = """Puts an LDR instruction with a dangling data reference,
      * returning an opaque ref value that should be passed to `putLdrRegValue()`
@@ -2487,6 +2491,10 @@ def generate_class_type_definitions(name, arch, flavor, api):
                 description = "Puts an int8"
             elif method.name == "put_bytes":
                 description = "Puts raw data"
+            elif method.name.endswith("no_auth"):
+                opcode = method.name.split("_")[1].upper()
+                description = """Puts {0} instruction expecting a raw pointer without
+     * any authentication bits""".format(make_indefinite(opcode))
             else:
                 types = set(["reg", "imm", "offset", "indirect", "short", "near", "ptr", "base", "index", "scale", "address", "label", "u8", "i32", "u32", "u64"])
                 opcode = " ".join(filter(lambda token: token not in types, method.name.split("_")[1:])).upper()
@@ -2508,14 +2516,27 @@ def generate_class_type_definitions(name, arch, flavor, api):
      * locations inside the relocated range, and is an optimization for use-cases
      * where all branches are rewritten (e.g. Frida's Stalker)"""
         elif method.name.startswith("write_one"):
-            description = "write the next buffered instruction"
+            description = "Writes the next buffered instruction"
             if method.name.endswith("_no_label"):
                 description += """, but without a
      * label for internal use. This breaks relocation of branches to locations
      * inside the relocated range, and is an optimization for use-cases where all
      * branches are rewritten (e.g. Frida's Stalker)"""
+        elif method.name == "copy_one":
+            description = """Copies out the next buffered instruction without advancing the
+     * output cursor, allowing the same instruction to be written out
+     * multiple times"""
         elif method.name.startswith("write_all"):
             description = "Writes all buffered instructions"
+        elif method.name == "can_branch_directly_between":
+            description = """Determines whether a direct branch is possible between the two
+     * given memory locations"""
+        elif method.name == "commit_label":
+            description = """Commits the first pending reference to the given label, returning
+     * `true` on success. Returns `false` if the given label hasn't been
+     * defined yet, or there are no more pending references to it"""
+        elif method.name == "sign":
+            description = "Signs the given pointer value"
 
         p = {}
         p.update(params)
@@ -2693,6 +2714,9 @@ def generate_class_api_reference(name, arch, flavor, api):
                 description = """like above, but also
     ensures that the argument list is aligned on a 16 byte boundary"""
                 arg_names[-1] = "args"
+            elif method.name == "put_branch_address":
+                description = """put code needed for branching/jumping to the
+    given address"""
             elif method.name in ("put_push_regs", "put_pop_regs"):
                 if method.name.startswith("put_push_"):
                     mnemonic = "PUSH"
@@ -2710,6 +2734,9 @@ def generate_class_api_reference(name, arch, flavor, api):
                 description = """put code needed for popping all X registers off the stack"""
             elif method.name == "put_pop_all_q_registers":
                 description = """put code needed for popping all Q registers off the stack"""
+            elif method.name == "put_prologue_trampoline":
+                description = """put a minimal sized trampoline for
+    vectoring to the given address"""
             elif method.name == "put_ldr_reg_ref":
                 description = """put an LDR instruction with a dangling data reference,
     returning an opaque ref value that should be passed to `putLdrRegValue()`
@@ -2733,6 +2760,10 @@ def generate_class_api_reference(name, arch, flavor, api):
                 description = "put an int8"
             elif method.name == "put_bytes":
                 description = "put raw data from the provided ArrayBuffer"
+            elif method.name.endswith("no_auth"):
+                opcode = method.name.split("_")[1].upper()
+                description = """put {0} instruction expecting a raw pointer
+    without any authentication bits""".format(make_indefinite(opcode))
             else:
                 types = set(["reg", "imm", "offset", "indirect", "short", "near", "ptr", "base", "index", "scale", "address", "label", "u8", "i32", "u32", "u64"])
                 opcode = " ".join(filter(lambda token: token not in types, method.name.split("_")[1:])).upper()
@@ -2760,8 +2791,21 @@ def generate_class_api_reference(name, arch, flavor, api):
     label for internal use. This breaks relocation of branches to locations
     inside the relocated range, and is an optimization for use-cases where all
     branches are rewritten (e.g. Frida's Stalker)."""
+        elif method.name == "copy_one":
+            description = """copy out the next buffered instruction without advancing the
+    output cursor, allowing the same instruction to be written out multiple
+    times"""
         elif method.name.startswith("write_all"):
             description = "write all buffered instructions"
+        elif method.name == "can_branch_directly_between":
+            description = """determine whether a direct branch is
+    possible between the two given memory locations"""
+        elif method.name == "commit_label":
+            description = """commit the first pending reference to the given label,
+    returning `true` on success. Returns `false` if the given label hasn't been
+    defined yet, or there are no more pending references to it."""
+        elif method.name == "sign":
+            description = "sign the given pointer value"
 
         p = {}
         p.update(params)
@@ -2997,7 +3041,7 @@ class MethodArgument(object):
         elif type == "arm_shifter":
             self.type_raw = "const gchar *"
             self.type_format = "s"
-            self.type_ts = "arm_shifter"
+            self.type_ts = "ArmShifter"
             converter = "shifter"
         elif type == "GumArm64IndexMode":
             self.type_raw = "const gchar *"
