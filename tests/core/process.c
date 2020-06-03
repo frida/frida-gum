@@ -619,6 +619,7 @@ TESTCASE (module_export_matches_system_lookup)
 }
 
 #ifndef HAVE_WINDOWS
+
 static gboolean
 store_export_address_if_tricky_module_export (const GumExportDetails * details,
                                               gpointer user_data)
@@ -632,9 +633,11 @@ store_export_address_if_tricky_module_export (const GumExportDetails * details,
 
   return TRUE;
 }
+
 #endif
 
 #ifdef HAVE_WINDOWS
+
 TESTCASE (get_current_thread_id)
 {
   g_assert_cmphex (gum_process_get_current_thread_id (), ==,
@@ -648,6 +651,7 @@ TESTCASE (get_set_system_error)
   SetLastError (0x89ABCDEF);
   g_assert_cmpint (gum_thread_get_system_error (), ==, (gint) 0x89ABCDEF);
 }
+
 #endif
 
 #ifdef HAVE_DARWIN
