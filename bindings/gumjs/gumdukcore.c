@@ -23,12 +23,12 @@
 #define GUM_DUK_NATIVE_POINTER_CACHE_SIZE 8
 
 typedef struct _GumDukFlushCallback GumDukFlushCallback;
-typedef struct _GumDukNativeFunctionParams GumDukNativeFunctionParams;
+typedef struct _GumDukFFIFunctionParams GumDukFFIFunctionParams;
 typedef guint8 GumDukSchedulingBehavior;
 typedef guint8 GumDukExceptionsBehavior;
 typedef guint8 GumDukCodeTraps;
 typedef guint8 GumDukReturnValueShape;
-typedef struct _GumDukNativeFunction GumDukNativeFunction;
+typedef struct _GumDukFFIFunction GumDukFFIFunction;
 typedef struct _GumDukNativeCallback GumDukNativeCallback;
 
 struct _GumDukFlushCallback
@@ -67,8 +67,9 @@ struct _GumDukMessageSink
   GumDukCore * core;
 };
 
-struct _GumDukNativeFunctionParams
+struct _GumDukFFIFunctionParams
 {
+  duk_c_function invoke;
   GumDukHeapPtr prototype;
 
   GCallback implementation;
@@ -105,7 +106,7 @@ enum _GumDukReturnValueShape
   GUM_DUK_RETURN_DETAILED
 };
 
-struct _GumDukNativeFunction
+struct _GumDukFFIFunction
 {
   GumDukNativePointer parent;
 
@@ -241,23 +242,33 @@ GUMJS_DECLARE_FINALIZER (gumjs_native_function_finalize)
 GUMJS_DECLARE_FUNCTION (gumjs_native_function_invoke)
 GUMJS_DECLARE_FUNCTION (gumjs_native_function_call)
 GUMJS_DECLARE_FUNCTION (gumjs_native_function_apply)
-static void gumjs_native_function_get (duk_context * ctx,
-    GumDukHeapPtr receiver, GumDukCore * core, GumDukNativeFunction ** func,
-    GCallback * implementation);
-static int gumjs_native_function_init (duk_context * ctx,
-    const GumDukNativeFunctionParams * params, GumDukCore * core);
-static void gum_duk_native_function_finalize (
-    GumDukNativeFunction * func);
-static int gum_duk_native_function_invoke (GumDukNativeFunction * self,
-    duk_context * ctx, GCallback implementation, duk_size_t argc,
-    duk_idx_t argv_index);
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_system_function_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_system_function_finalize)
+GUMJS_DECLARE_FUNCTION (gumjs_system_function_invoke)
+GUMJS_DECLARE_FUNCTION (gumjs_system_function_call)
+GUMJS_DECLARE_FUNCTION (gumjs_system_function_apply)
 
-static void gum_duk_native_function_params_init (
-    GumDukNativeFunctionParams * params, GumDukHeapPtr prototype,
+static int gumjs_ffi_function_init (duk_context * ctx,
+    const GumDukFFIFunctionParams * params, GumDukCore * core);
+static void gum_duk_ffi_function_finalize (GumDukFFIFunction * func);
+static int gum_duk_ffi_function_invoke (GumDukFFIFunction * self,
+    duk_context * ctx, GCallback implementation, duk_size_t argc,
+    duk_idx_t argv_index);
+static int gumjs_ffi_function_invoke (duk_context * ctx,
+    const GumDukArgs * args);
+static int gumjs_ffi_function_call (duk_context * ctx, GumDukHeapPtr type,
+    const GumDukArgs * args);
+static int gumjs_ffi_function_apply (duk_context * ctx, GumDukHeapPtr type,
+    const GumDukArgs * args);
+static void gumjs_ffi_function_get (duk_context * ctx, GumDukHeapPtr type,
+    GumDukHeapPtr receiver, GumDukCore * core, GumDukFFIFunction ** func,
+    GCallback * implementation);
+
+static void gum_duk_ffi_function_params_init (GumDukFFIFunctionParams * params,
+    duk_c_function invoke, GumDukHeapPtr prototype,
     GumDukReturnValueShape return_shape, const GumDukArgs * args);
+
 static GumDukSchedulingBehavior gum_duk_require_scheduling_behavior (
     duk_context * ctx, duk_idx_t index);
 static GumDukExceptionsBehavior gum_duk_require_exceptions_behavior (
@@ -427,6 +438,14 @@ static const duk_function_list_entry gumjs_native_function_functions[] =
 {
   { "call", gumjs_native_function_call, DUK_VARARGS },
   { "apply", gumjs_native_function_apply, 2 },
+
+  { NULL, NULL, 0 }
+};
+
+static const duk_function_list_entry gumjs_system_function_functions[] =
+{
+  { "call", gumjs_system_function_call, DUK_VARARGS },
+  { "apply", gumjs_system_function_apply, 2 },
 
   { NULL, NULL, 0 }
 };
@@ -899,6 +918,7 @@ _gum_duk_core_init (GumDukCore * self,
   duk_get_global_string (ctx, "SystemFunction");
   self->system_function = _gum_duk_require_heapptr (ctx, -1);
   duk_get_prop_string (ctx, -1, "prototype");
+  duk_put_function_list (ctx, -1, gumjs_system_function_functions);
   self->system_function_prototype = _gum_duk_require_heapptr (ctx, -1);
   duk_pop_2 (ctx);
 
@@ -2624,187 +2644,100 @@ GUMJS_DEFINE_FINALIZER (gumjs_kernel_resource_finalize)
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
 {
   GumDukCore * core = args->core;
-  GumDukNativeFunctionParams params;
+  GumDukFFIFunctionParams params;
 
   if (!duk_is_constructor_call (ctx))
     _gum_duk_throw (ctx, "use `new NativeFunction()` to create a new instance");
 
-  gum_duk_native_function_params_init (&params, core->native_function_prototype,
-      GUM_DUK_RETURN_PLAIN, args);
+  gum_duk_ffi_function_params_init (&params, gumjs_native_function_invoke,
+      core->native_function_prototype, GUM_DUK_RETURN_PLAIN, args);
 
-  return gumjs_native_function_init (ctx, &params, core);
+  return gumjs_ffi_function_init (ctx, &params, core);
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_native_function_finalize)
 {
-  GumDukNativeFunction * self;
+  GumDukFFIFunction * self;
 
   self = _gum_duk_steal_data (ctx, 0);
   if (self == NULL)
     return 0;
 
-  gum_duk_native_function_finalize (self);
+  gum_duk_ffi_function_finalize (self);
 
   return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
 {
-  GumDukNativeFunction * self;
-  duk_size_t argc;
-  duk_idx_t argv_index;
-
-  duk_push_this (ctx);
-  self = _gum_duk_require_data (ctx, -1);
-
-  argc = args->count;
-  argv_index = 0;
-
-  return gum_duk_native_function_invoke (self, ctx, self->implementation, argc,
-      argv_index);
+  return gumjs_ffi_function_invoke (ctx, args);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_function_call)
 {
-  GumDukHeapPtr receiver;
-  GumDukNativeFunction * func;
-  GCallback implementation;
-  duk_size_t argc;
-  duk_idx_t argv_index;
-
-  if (args->count == 0 || duk_is_null_or_undefined (ctx, 0))
-  {
-    receiver = NULL;
-  }
-  else if (duk_is_object (ctx, 0))
-  {
-    receiver = duk_require_heapptr (ctx, 0);
-  }
-  else
-  {
-    _gum_duk_throw (ctx, "invalid receiver");
-    return 0;
-  }
-
-  gumjs_native_function_get (ctx, receiver, args->core, &func, &implementation);
-
-  argc = MAX ((int) args->count - 1, 0);
-  argv_index = 1;
-
-  return gum_duk_native_function_invoke (func, ctx, implementation, argc,
-      argv_index);
+  return gumjs_ffi_function_call (ctx, args->core->native_function, args);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_function_apply)
 {
-  GumDukHeapPtr receiver;
-  const duk_idx_t argv_array_index = 1;
-  GumDukNativeFunction * func;
-  GCallback implementation;
-  duk_size_t argc, i;
-  duk_idx_t argv_index;
-
-  if (duk_is_null_or_undefined (ctx, 0))
-  {
-    receiver = NULL;
-  }
-  else if (duk_is_object (ctx, 0))
-  {
-    receiver = duk_require_heapptr (ctx, 0);
-  }
-  else
-  {
-    _gum_duk_throw (ctx, "invalid receiver");
-    return 0;
-  }
-
-  gumjs_native_function_get (ctx, receiver, args->core, &func, &implementation);
-
-  if (duk_is_null_or_undefined (ctx, argv_array_index))
-  {
-    argc = 0;
-    argv_index = 1;
-  }
-  else
-  {
-    if (!duk_is_array (ctx, argv_array_index))
-      _gum_duk_throw (ctx, "expected an array");
-
-    argc = duk_get_length (ctx, argv_array_index);
-    argv_index = duk_get_top_index (ctx) + 1;
-    for (i = 0; i != argc; i++)
-    {
-      duk_get_prop_index (ctx, argv_array_index, (duk_uarridx_t) i);
-    }
-  }
-
-  return gum_duk_native_function_invoke (func, ctx, implementation, argc,
-      argv_index);
+  return gumjs_ffi_function_apply (ctx, args->core->native_function, args);
 }
 
-static void
-gumjs_native_function_get (duk_context * ctx,
-                           GumDukHeapPtr receiver,
-                           GumDukCore * core,
-                           GumDukNativeFunction ** func,
-                           GCallback * implementation)
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_system_function_construct)
 {
-  GumDukNativeFunction * f;
+  GumDukCore * core = args->core;
+  GumDukFFIFunctionParams params;
 
-  duk_push_heapptr (ctx, core->native_function);
-  duk_push_this (ctx);
+  if (!duk_is_constructor_call (ctx))
+    _gum_duk_throw (ctx, "use `new SystemFunction()` to create a new instance");
 
-  if (duk_instanceof (ctx, -1, -2))
-  {
-    f = _gum_duk_require_data (ctx, -1);
+  gum_duk_ffi_function_params_init (&params, gumjs_system_function_invoke,
+      core->system_function_prototype, GUM_DUK_RETURN_DETAILED, args);
 
-    *func = f;
+  return gumjs_ffi_function_init (ctx, &params, core);
+}
 
-    if (receiver != NULL)
-    {
-      duk_push_heapptr (ctx, receiver);
-      *implementation = GUM_POINTER_TO_FUNCPTR (GCallback,
-          _gum_duk_require_pointer (ctx, -1, core));
+GUMJS_DEFINE_FINALIZER (gumjs_system_function_finalize)
+{
+  GumDukFFIFunction * self;
 
-      duk_pop_3 (ctx);
-    }
-    else
-    {
-      *implementation = f->implementation;
+  self = _gum_duk_steal_data (ctx, 0);
+  if (self == NULL)
+    return 0;
 
-      duk_pop_2 (ctx);
-    }
-  }
-  else
-  {
-    if (receiver == NULL)
-      _gum_duk_throw (ctx, "expected a NativeFunction");
-    duk_push_heapptr (ctx, receiver);
-    if (!duk_instanceof (ctx, -1, -3))
-      _gum_duk_throw (ctx, "expected a NativeFunction");
+  gum_duk_ffi_function_finalize (self);
 
-    f = _gum_duk_require_data (ctx, -1);
+  return 0;
+}
 
-    *func = f;
-    *implementation = f->implementation;
+GUMJS_DEFINE_FUNCTION (gumjs_system_function_invoke)
+{
+  return gumjs_ffi_function_invoke (ctx, args);
+}
 
-    duk_pop_3 (ctx);
-  }
+GUMJS_DEFINE_FUNCTION (gumjs_system_function_call)
+{
+  return gumjs_ffi_function_call (ctx, args->core->system_function, args);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_system_function_apply)
+{
+  return gumjs_ffi_function_apply (ctx, args->core->system_function, args);
 }
 
 static int
-gumjs_native_function_init (duk_context * ctx,
-                            const GumDukNativeFunctionParams * params,
-                            GumDukCore * core)
+gumjs_ffi_function_init (duk_context * ctx,
+                         const GumDukFFIFunctionParams * params,
+                         GumDukCore * core)
 {
-  GumDukNativeFunction * func;
+  GumDukFFIFunction * func;
   GumDukNativePointer * ptr;
   ffi_type * rtype;
   duk_size_t nargs_fixed, nargs_total, length, i;
   gboolean is_variadic;
   ffi_abi abi;
 
-  func = g_slice_new0 (GumDukNativeFunction);
+  func = g_slice_new0 (GumDukFFIFunction);
   ptr = &func->parent;
   ptr->value = GUM_FUNCPTR_TO_POINTER (params->implementation);
   func->implementation = params->implementation;
@@ -2902,7 +2835,7 @@ gumjs_native_function_init (duk_context * ctx,
     func->arglist_size += t->size;
   }
 
-  duk_push_c_function (ctx, gumjs_native_function_invoke, DUK_VARARGS);
+  duk_push_c_function (ctx, params->invoke, DUK_VARARGS);
 
   _gum_duk_put_data (ctx, -1, func);
 
@@ -2913,7 +2846,7 @@ gumjs_native_function_init (duk_context * ctx,
   duk_swap (ctx, -2, -1);
   duk_pop (ctx);
 
-  /* `bound_func instanceof NativeFunction` should be true */
+  /* `bound_func instanceof {Native,System}Function` should be true */
   duk_push_heapptr (ctx, params->prototype);
   duk_set_prototype (ctx, -2);
 
@@ -2925,28 +2858,28 @@ gumjs_native_function_init (duk_context * ctx,
 
 invalid_return_type:
   {
-    gum_duk_native_function_finalize (func);
+    gum_duk_ffi_function_finalize (func);
     _gum_duk_throw (ctx, "invalid return type");
   }
 invalid_argument_type:
   {
-    gum_duk_native_function_finalize (func);
+    gum_duk_ffi_function_finalize (func);
     _gum_duk_throw (ctx, "invalid argument type");
   }
 invalid_abi:
   {
-    gum_duk_native_function_finalize (func);
+    gum_duk_ffi_function_finalize (func);
     _gum_duk_throw (ctx, "invalid abi");
   }
 unexpected_marker:
   {
-    gum_duk_native_function_finalize (func);
+    gum_duk_ffi_function_finalize (func);
     _gum_duk_throw (ctx, "only one variadic marker may be specified, and can "
         "not be the first argument");
   }
 compilation_failed:
   {
-    gum_duk_native_function_finalize (func);
+    gum_duk_ffi_function_finalize (func);
     _gum_duk_throw (ctx, "failed to compile function call interface");
   }
 
@@ -2955,7 +2888,7 @@ compilation_failed:
 }
 
 static void
-gum_duk_native_function_finalize (GumDukNativeFunction * func)
+gum_duk_ffi_function_finalize (GumDukFFIFunction * func)
 {
   while (func->data != NULL)
   {
@@ -2965,15 +2898,15 @@ gum_duk_native_function_finalize (GumDukNativeFunction * func)
   }
   g_free (func->atypes);
 
-  g_slice_free (GumDukNativeFunction, func);
+  g_slice_free (GumDukFFIFunction, func);
 }
 
 static int
-gum_duk_native_function_invoke (GumDukNativeFunction * self,
-                                duk_context * ctx,
-                                GCallback implementation,
-                                duk_size_t argc,
-                                duk_idx_t argv_index)
+gum_duk_ffi_function_invoke (GumDukFFIFunction * self,
+                             duk_context * ctx,
+                             GCallback implementation,
+                             duk_size_t argc,
+                             duk_idx_t argv_index)
 {
   GumDukCore * core;
   ffi_cif * cif;
@@ -3153,42 +3086,168 @@ gum_duk_native_function_invoke (GumDukNativeFunction * self,
   return 1;
 }
 
-GUMJS_DEFINE_CONSTRUCTOR (gumjs_system_function_construct)
+static int
+gumjs_ffi_function_invoke (duk_context * ctx,
+                           const GumDukArgs * args)
 {
-  GumDukCore * core = args->core;
-  GumDukNativeFunctionParams params;
+  GumDukFFIFunction * self;
+  duk_size_t argc;
+  duk_idx_t argv_index;
 
-  if (!duk_is_constructor_call (ctx))
-    _gum_duk_throw (ctx, "use `new SystemFunction()` to create a new instance");
+  duk_push_this (ctx);
+  self = _gum_duk_require_data (ctx, -1);
 
-  gum_duk_native_function_params_init (&params, core->system_function_prototype,
-      GUM_DUK_RETURN_DETAILED, args);
+  argc = args->count;
+  argv_index = 0;
 
-  return gumjs_native_function_init (ctx, &params, core);
+  return gum_duk_ffi_function_invoke (self, ctx, self->implementation, argc,
+      argv_index);
 }
 
-GUMJS_DEFINE_FINALIZER (gumjs_system_function_finalize)
+static int
+gumjs_ffi_function_call (duk_context * ctx,
+                         GumDukHeapPtr type,
+                         const GumDukArgs * args)
 {
-  GumDukNativeFunction * self;
+  GumDukHeapPtr receiver;
+  GumDukFFIFunction * func;
+  GCallback impl;
+  duk_size_t argc;
+  duk_idx_t argv_index;
 
-  self = _gum_duk_steal_data (ctx, 0);
-  if (self == NULL)
+  if (args->count == 0 || duk_is_null_or_undefined (ctx, 0))
+  {
+    receiver = NULL;
+  }
+  else if (duk_is_object (ctx, 0))
+  {
+    receiver = duk_require_heapptr (ctx, 0);
+  }
+  else
+  {
+    _gum_duk_throw (ctx, "invalid receiver");
     return 0;
+  }
 
-  gum_duk_native_function_finalize (self);
+  gumjs_ffi_function_get (ctx, type, receiver, args->core, &func, &impl);
 
-  return 0;
+  argc = MAX ((int) args->count - 1, 0);
+  argv_index = 1;
+
+  return gum_duk_ffi_function_invoke (func, ctx, impl, argc, argv_index);
+}
+
+static int
+gumjs_ffi_function_apply (duk_context * ctx,
+                          GumDukHeapPtr type,
+                          const GumDukArgs * args)
+{
+  GumDukHeapPtr receiver;
+  const duk_idx_t argv_array_index = 1;
+  GumDukFFIFunction * func;
+  GCallback impl;
+  duk_size_t argc, i;
+  duk_idx_t argv_index;
+
+  if (duk_is_null_or_undefined (ctx, 0))
+  {
+    receiver = NULL;
+  }
+  else if (duk_is_object (ctx, 0))
+  {
+    receiver = duk_require_heapptr (ctx, 0);
+  }
+  else
+  {
+    _gum_duk_throw (ctx, "invalid receiver");
+    return 0;
+  }
+
+  gumjs_ffi_function_get (ctx, type, receiver, args->core, &func, &impl);
+
+  if (duk_is_null_or_undefined (ctx, argv_array_index))
+  {
+    argc = 0;
+    argv_index = 1;
+  }
+  else
+  {
+    if (!duk_is_array (ctx, argv_array_index))
+      _gum_duk_throw (ctx, "expected an array");
+
+    argc = duk_get_length (ctx, argv_array_index);
+    argv_index = duk_get_top_index (ctx) + 1;
+    for (i = 0; i != argc; i++)
+    {
+      duk_get_prop_index (ctx, argv_array_index, (duk_uarridx_t) i);
+    }
+  }
+
+  return gum_duk_ffi_function_invoke (func, ctx, impl, argc, argv_index);
 }
 
 static void
-gum_duk_native_function_params_init (GumDukNativeFunctionParams * params,
-                                     GumDukHeapPtr prototype,
-                                     GumDukReturnValueShape return_shape,
-                                     const GumDukArgs * args)
+gumjs_ffi_function_get (duk_context * ctx,
+                        GumDukHeapPtr type,
+                        GumDukHeapPtr receiver,
+                        GumDukCore * core,
+                        GumDukFFIFunction ** func,
+                        GCallback * implementation)
+{
+  GumDukFFIFunction * f;
+
+  duk_push_heapptr (ctx, type);
+  duk_push_this (ctx);
+
+  if (duk_instanceof (ctx, -1, -2))
+  {
+    f = _gum_duk_require_data (ctx, -1);
+
+    *func = f;
+
+    if (receiver != NULL)
+    {
+      duk_push_heapptr (ctx, receiver);
+      *implementation = GUM_POINTER_TO_FUNCPTR (GCallback,
+          _gum_duk_require_pointer (ctx, -1, core));
+
+      duk_pop_3 (ctx);
+    }
+    else
+    {
+      *implementation = f->implementation;
+
+      duk_pop_2 (ctx);
+    }
+  }
+  else
+  {
+    if (receiver == NULL)
+      _gum_duk_throw (ctx, "bad argument");
+    duk_push_heapptr (ctx, receiver);
+    if (!duk_instanceof (ctx, -1, -3))
+      _gum_duk_throw (ctx, "bad argument");
+
+    f = _gum_duk_require_data (ctx, -1);
+
+    *func = f;
+    *implementation = f->implementation;
+
+    duk_pop_3 (ctx);
+  }
+}
+
+static void
+gum_duk_ffi_function_params_init (GumDukFFIFunctionParams * params,
+                                  duk_c_function invoke,
+                                  GumDukHeapPtr prototype,
+                                  GumDukReturnValueShape return_shape,
+                                  const GumDukArgs * args)
 {
   duk_context * ctx = args->ctx;
   GumDukHeapPtr abi_or_options;
 
+  params->invoke = invoke;
   params->prototype = prototype;
 
   abi_or_options = NULL;

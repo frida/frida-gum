@@ -240,13 +240,18 @@ TESTLIST_BEGIN (script)
     TESTENTRY (native_function_can_be_invoked)
     TESTENTRY (native_function_can_be_intercepted_when_thread_is_ignored)
     TESTENTRY (native_function_should_implement_call_and_apply)
-    TESTENTRY (system_function_can_be_invoked)
     TESTENTRY (native_function_crash_results_in_exception)
     TESTENTRY (nested_native_function_crash_is_handled_gracefully)
     TESTENTRY (variadic_native_function_can_be_invoked)
     TESTENTRY (variadic_native_function_args_smaller_than_int_should_be_promoted)
     TESTENTRY (variadic_native_function_float_args_should_be_promoted_to_double)
     TESTENTRY (native_function_is_a_native_pointer)
+  TESTGROUP_END ()
+
+  TESTGROUP_BEGIN ("SystemFunction")
+    TESTENTRY (system_function_can_be_invoked)
+    TESTENTRY (system_function_should_implement_call_and_apply)
+    TESTENTRY (system_function_is_a_native_pointer)
   TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("NativeCallback")
@@ -357,9 +362,9 @@ struct _TestTrigger
 static gboolean ignore_thread (GumInterceptor * interceptor);
 static gboolean unignore_thread (GumInterceptor * interceptor);
 
-static gint gum_clobber_system_error (gint value);
 static gint gum_assert_variadic_uint8_values_are_sane (gpointer a, gpointer b,
     gpointer c, gpointer d, ...);
+static gint gum_clobber_system_error (gint value);
 static gint gum_get_answer_to_life_universe_and_everything (void);
 static gint gum_toupper (gchar * str, gint limit);
 static gint64 gum_classify_timestamp (gint64 timestamp);
@@ -1092,53 +1097,6 @@ TESTCASE (native_function_should_implement_call_and_apply)
   EXPECT_NO_MESSAGES ();
 }
 
-TESTCASE (system_function_can_be_invoked)
-{
-#ifdef HAVE_WINDOWS
-  COMPILE_AND_LOAD_SCRIPT (
-      "var f = new SystemFunction(" GUM_PTR_CONST ", 'int', ['int']);"
-
-      "var result = f(13);"
-      "send(result.value);"
-      "send(result.lastError);"
-
-      "result = f(37);"
-      "send(result.value);"
-      "send(result.lastError);", gum_clobber_system_error);
-#else
-  COMPILE_AND_LOAD_SCRIPT (
-      "var f = new SystemFunction(" GUM_PTR_CONST ", 'int', ['int']);"
-
-      "var result = f(13);"
-      "send(result.value);"
-      "send(result.errno);"
-
-      "result = f(37);"
-      "send(result.value);"
-      "send(result.errno);", gum_clobber_system_error);
-#endif
-
-  EXPECT_SEND_MESSAGE_WITH ("26");
-  EXPECT_SEND_MESSAGE_WITH ("13");
-
-  EXPECT_SEND_MESSAGE_WITH ("74");
-  EXPECT_SEND_MESSAGE_WITH ("37");
-
-  EXPECT_NO_MESSAGES ();
-}
-
-static gint
-gum_clobber_system_error (gint value)
-{
-#ifdef HAVE_WINDOWS
-  SetLastError (value);
-#else
-  errno = value;
-#endif
-
-  return value * 2;
-}
-
 TESTCASE (native_function_crash_results_in_exception)
 {
   if (!check_exception_handling_testable ())
@@ -1257,6 +1215,120 @@ TESTCASE (native_function_is_a_native_pointer)
       gum_toupper, gum_toupper);
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+TESTCASE (system_function_can_be_invoked)
+{
+#ifdef HAVE_WINDOWS
+  COMPILE_AND_LOAD_SCRIPT (
+      "var f = new SystemFunction(" GUM_PTR_CONST ", 'int', ['int']);"
+
+      "var result = f(13);"
+      "send(result.value);"
+      "send(result.lastError);"
+
+      "result = f(37);"
+      "send(result.value);"
+      "send(result.lastError);", gum_clobber_system_error);
+#else
+  COMPILE_AND_LOAD_SCRIPT (
+      "var f = new SystemFunction(" GUM_PTR_CONST ", 'int', ['int']);"
+
+      "var result = f(13);"
+      "send(result.value);"
+      "send(result.errno);"
+
+      "result = f(37);"
+      "send(result.value);"
+      "send(result.errno);", gum_clobber_system_error);
+#endif
+
+  EXPECT_SEND_MESSAGE_WITH ("26");
+  EXPECT_SEND_MESSAGE_WITH ("13");
+
+  EXPECT_SEND_MESSAGE_WITH ("74");
+  EXPECT_SEND_MESSAGE_WITH ("37");
+
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (system_function_should_implement_call_and_apply)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var f = new SystemFunction(" GUM_PTR_CONST ", 'int', []);"
+      "send(f.call().value);"
+      "send(f.call(f).value);"
+      "send(f.apply(f).value);"
+      "send(f.apply(f, undefined).value);"
+      "send(f.apply(f, null).value);"
+      "send(f.apply(f, []).value);",
+      gum_get_answer_to_life_universe_and_everything);
+  EXPECT_SEND_MESSAGE_WITH ("42");
+  EXPECT_SEND_MESSAGE_WITH ("42");
+  EXPECT_SEND_MESSAGE_WITH ("42");
+  EXPECT_SEND_MESSAGE_WITH ("42");
+  EXPECT_SEND_MESSAGE_WITH ("42");
+  EXPECT_SEND_MESSAGE_WITH ("42");
+  EXPECT_NO_MESSAGES ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var f = new SystemFunction(" GUM_PTR_CONST ", 'int', ['int']);"
+      "send(SystemFunction.prototype.call(f, 42).value);"
+      "send(SystemFunction.prototype.apply(f, [42]).value);"
+      "send(f.call(undefined, 42).value);"
+      "send(f.apply(undefined, [42]).value);"
+      "send(f.call(null, 42).value);"
+      "send(f.apply(null, [42]).value);"
+      "send(f.call(f, 42).value);"
+      "send(f.apply(f, [42]).value);"
+      "send(f.call(ptr(" GUM_PTR_CONST "), 42).value);"
+      "send(f.apply(ptr(" GUM_PTR_CONST "), [42]).value);",
+      target_function_int, target_function_nested_a, target_function_nested_a);
+  EXPECT_SEND_MESSAGE_WITH ("1890");
+  EXPECT_SEND_MESSAGE_WITH ("1890");
+  EXPECT_SEND_MESSAGE_WITH ("1890");
+  EXPECT_SEND_MESSAGE_WITH ("1890");
+  EXPECT_SEND_MESSAGE_WITH ("1890");
+  EXPECT_SEND_MESSAGE_WITH ("1890");
+  EXPECT_SEND_MESSAGE_WITH ("1890");
+  EXPECT_SEND_MESSAGE_WITH ("1890");
+  EXPECT_SEND_MESSAGE_WITH ("16855020");
+  EXPECT_SEND_MESSAGE_WITH ("16855020");
+  EXPECT_NO_MESSAGES ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var f = new SystemFunction(" GUM_PTR_CONST ", 'pointer', "
+      "    ['pointer', 'int']);"
+      "send(f.call(null, ptr(4), 3).value);"
+      "send(f.apply(null, [ptr(4), 3]).value);",
+      target_function_base_plus_offset);
+  EXPECT_SEND_MESSAGE_WITH ("\"0x7\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"0x7\"");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (system_function_is_a_native_pointer)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var toupper = new SystemFunction(" GUM_PTR_CONST ", "
+          "'int', ['pointer', 'int']);"
+      "send(toupper instanceof NativePointer);"
+      "send(toupper.toString() === " GUM_PTR_CONST ".toString());",
+      gum_toupper, gum_toupper);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+static gint
+gum_clobber_system_error (gint value)
+{
+#ifdef HAVE_WINDOWS
+  SetLastError (value);
+#else
+  errno = value;
+#endif
+
+  return value * 2;
 }
 
 TESTCASE (native_callback_can_be_invoked)
