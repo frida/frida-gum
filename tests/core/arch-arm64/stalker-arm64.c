@@ -62,18 +62,16 @@ TESTLIST_BEGIN (stalker)
 TESTLIST_END ()
 
 static void insert_extra_add_after_sub (GumStalkerIterator * iterator,
-    GumStalkerWriter * output, gpointer user_data);
+    GumStalkerOutput * output, gpointer user_data);
 static void store_x0 (GumCpuContext * cpu_context, gpointer user_data);
 static void unfollow_during_transform (GumStalkerIterator * iterator,
-    GumStalkerWriter * output, gpointer user_data);
+    GumStalkerOutput * output, gpointer user_data);
 static gpointer run_stalked_briefly (gpointer data);
 static gpointer run_stalked_into_termination (gpointer data);
 static gpointer increment_integer (gpointer data);
 static gboolean store_range_of_test_runner (const GumModuleDetails * details,
     gpointer user_data);
 static void pretend_workload (GumMemoryRange * runner_range);
-
-gint gum_stalker_dummy_global_to_trick_optimizer = 0;
 
 static const guint32 flat_code[] = {
   0xCB000000, /* SUB W0, W0, W0 */
@@ -338,7 +336,7 @@ TESTCASE (custom_transformer)
 
 static void
 insert_extra_add_after_sub (GumStalkerIterator * iterator,
-                            GumStalkerWriter * output,
+                            GumStalkerOutput * output,
                             gpointer user_data)
 {
   guint64 * last_x0 = user_data;
@@ -360,7 +358,7 @@ insert_extra_add_after_sub (GumStalkerIterator * iterator,
     {
       in_leaf_func = TRUE;
 
-      gum_arm64_writer_put_add_reg_reg_imm (&output->arm64, ARM64_REG_W0,
+      gum_arm64_writer_put_add_reg_reg_imm (output->writer.arm64, ARM64_REG_W0,
           ARM64_REG_W0, 1);
     }
   }
@@ -467,7 +465,7 @@ TESTCASE (unfollow_should_be_allowed_after_second_transform)
 
 static void
 unfollow_during_transform (GumStalkerIterator * iterator,
-                           GumStalkerWriter * output,
+                           GumStalkerOutput * output,
                            gpointer user_data)
 {
   UnfollowTransformContext * ctx = user_data;
@@ -1118,7 +1116,7 @@ TESTCASE (follow_return)
 
 TESTCASE (follow_syscall)
 {
-  fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
+  fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
 
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
       GUM_EVENT_SINK (fixture->sink));
@@ -1146,7 +1144,7 @@ TESTCASE (follow_thread)
   thread = g_thread_new ("stalker-test-target", run_stalked_briefly, &channel);
   thread_id = sdc_await_thread_id (&channel);
 
-  fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
+  fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
   gum_stalker_follow (fixture->stalker, thread_id, NULL,
       GUM_EVENT_SINK (fixture->sink));
   sdc_put_follow_confirmation (&channel);
@@ -1209,7 +1207,7 @@ TESTCASE (unfollow_should_handle_terminated_thread)
         &channel);
     thread_id = sdc_await_thread_id (&channel);
 
-    fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
+    fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
     gum_stalker_follow (fixture->stalker, thread_id, NULL,
         GUM_EVENT_SINK (fixture->sink));
     sdc_put_follow_confirmation (&channel);
@@ -1246,7 +1244,7 @@ TESTCASE (pthread_create)
   pthread_t thread;
   int number = 0;
 
-  fixture->sink->mask = (GumEventType) GUM_COMPILE;
+  fixture->sink->mask = GUM_COMPILE;
 
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
       GUM_EVENT_SINK (fixture->sink));
@@ -1274,7 +1272,7 @@ TESTCASE (heap_api)
 {
   gpointer p;
 
-  fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
+  fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
 
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
       GUM_EVENT_SINK (fixture->sink));

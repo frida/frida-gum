@@ -240,13 +240,18 @@ TESTLIST_BEGIN (script)
     TESTENTRY (native_function_can_be_invoked)
     TESTENTRY (native_function_can_be_intercepted_when_thread_is_ignored)
     TESTENTRY (native_function_should_implement_call_and_apply)
-    TESTENTRY (system_function_can_be_invoked)
     TESTENTRY (native_function_crash_results_in_exception)
     TESTENTRY (nested_native_function_crash_is_handled_gracefully)
     TESTENTRY (variadic_native_function_can_be_invoked)
     TESTENTRY (variadic_native_function_args_smaller_than_int_should_be_promoted)
     TESTENTRY (variadic_native_function_float_args_should_be_promoted_to_double)
     TESTENTRY (native_function_is_a_native_pointer)
+  TESTGROUP_END ()
+
+  TESTGROUP_BEGIN ("SystemFunction")
+    TESTENTRY (system_function_can_be_invoked)
+    TESTENTRY (system_function_should_implement_call_and_apply)
+    TESTENTRY (system_function_is_a_native_pointer)
   TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("NativeCallback")
@@ -264,6 +269,7 @@ TESTLIST_BEGIN (script)
   TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("CModule")
+#ifdef HAVE_TINYCC
     TESTENTRY (cmodule_can_be_defined)
     TESTENTRY (cmodule_symbols_can_be_provided)
     TESTENTRY (cmodule_should_report_parsing_errors)
@@ -281,6 +287,9 @@ TESTLIST_BEGIN (script)
     TESTENTRY (cmodule_should_support_global_callbacks)
     TESTENTRY (cmodule_should_provide_access_to_cpu_registers)
     TESTENTRY (cmodule_should_provide_access_to_system_error)
+#else
+    TESTENTRY (cmodule_constructor_should_throw_not_available)
+#endif
   TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("Instruction")
@@ -300,13 +309,15 @@ TESTLIST_BEGIN (script)
   TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("Stalker")
-#if defined (HAVE_I386) || defined (HAVE_ARM64)
+#if defined (HAVE_I386) || defined (HAVE_ARM) || defined (HAVE_ARM64)
     TESTENTRY (execution_can_be_traced)
     TESTENTRY (execution_can_be_traced_with_custom_transformer)
     TESTENTRY (execution_can_be_traced_with_faulty_transformer)
     TESTENTRY (execution_can_be_traced_during_immediate_native_function_call)
     TESTENTRY (execution_can_be_traced_during_scheduled_native_function_call)
     TESTENTRY (execution_can_be_traced_after_native_function_call_from_hook)
+#endif
+#if defined (HAVE_I386) || defined (HAVE_ARM64)
     TESTENTRY (call_can_be_probed)
 #endif
     TESTENTRY (stalker_events_can_be_parsed)
@@ -351,9 +362,9 @@ struct _TestTrigger
 static gboolean ignore_thread (GumInterceptor * interceptor);
 static gboolean unignore_thread (GumInterceptor * interceptor);
 
-static gint gum_clobber_system_error (gint value);
 static gint gum_assert_variadic_uint8_values_are_sane (gpointer a, gpointer b,
     gpointer c, gpointer d, ...);
+static gint gum_clobber_system_error (gint value);
 static gint gum_get_answer_to_life_universe_and_everything (void);
 static gint gum_toupper (gchar * str, gint limit);
 static gint64 gum_classify_timestamp (gint64 timestamp);
@@ -368,7 +379,7 @@ static gboolean on_incoming_connection (GSocketService * service,
 static void on_read_ready (GObject * source_object, GAsyncResult * res,
     gpointer user_data);
 
-#if defined (HAVE_I386) || defined (HAVE_ARM64)
+#if defined (HAVE_I386) || defined (HAVE_ARM) || defined (HAVE_ARM64)
 static gpointer run_stalked_through_hooked_function (gpointer data);
 static gpointer run_stalked_through_target_function (gpointer data);
 #endif
@@ -1086,53 +1097,6 @@ TESTCASE (native_function_should_implement_call_and_apply)
   EXPECT_NO_MESSAGES ();
 }
 
-TESTCASE (system_function_can_be_invoked)
-{
-#ifdef HAVE_WINDOWS
-  COMPILE_AND_LOAD_SCRIPT (
-      "var f = new SystemFunction(" GUM_PTR_CONST ", 'int', ['int']);"
-
-      "var result = f(13);"
-      "send(result.value);"
-      "send(result.lastError);"
-
-      "result = f(37);"
-      "send(result.value);"
-      "send(result.lastError);", gum_clobber_system_error);
-#else
-  COMPILE_AND_LOAD_SCRIPT (
-      "var f = new SystemFunction(" GUM_PTR_CONST ", 'int', ['int']);"
-
-      "var result = f(13);"
-      "send(result.value);"
-      "send(result.errno);"
-
-      "result = f(37);"
-      "send(result.value);"
-      "send(result.errno);", gum_clobber_system_error);
-#endif
-
-  EXPECT_SEND_MESSAGE_WITH ("26");
-  EXPECT_SEND_MESSAGE_WITH ("13");
-
-  EXPECT_SEND_MESSAGE_WITH ("74");
-  EXPECT_SEND_MESSAGE_WITH ("37");
-
-  EXPECT_NO_MESSAGES ();
-}
-
-static gint
-gum_clobber_system_error (gint value)
-{
-#ifdef HAVE_WINDOWS
-  SetLastError (value);
-#else
-  errno = value;
-#endif
-
-  return value * 2;
-}
-
 TESTCASE (native_function_crash_results_in_exception)
 {
   if (!check_exception_handling_testable ())
@@ -1251,6 +1215,120 @@ TESTCASE (native_function_is_a_native_pointer)
       gum_toupper, gum_toupper);
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+TESTCASE (system_function_can_be_invoked)
+{
+#ifdef HAVE_WINDOWS
+  COMPILE_AND_LOAD_SCRIPT (
+      "var f = new SystemFunction(" GUM_PTR_CONST ", 'int', ['int']);"
+
+      "var result = f(13);"
+      "send(result.value);"
+      "send(result.lastError);"
+
+      "result = f(37);"
+      "send(result.value);"
+      "send(result.lastError);", gum_clobber_system_error);
+#else
+  COMPILE_AND_LOAD_SCRIPT (
+      "var f = new SystemFunction(" GUM_PTR_CONST ", 'int', ['int']);"
+
+      "var result = f(13);"
+      "send(result.value);"
+      "send(result.errno);"
+
+      "result = f(37);"
+      "send(result.value);"
+      "send(result.errno);", gum_clobber_system_error);
+#endif
+
+  EXPECT_SEND_MESSAGE_WITH ("26");
+  EXPECT_SEND_MESSAGE_WITH ("13");
+
+  EXPECT_SEND_MESSAGE_WITH ("74");
+  EXPECT_SEND_MESSAGE_WITH ("37");
+
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (system_function_should_implement_call_and_apply)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var f = new SystemFunction(" GUM_PTR_CONST ", 'int', []);"
+      "send(f.call().value);"
+      "send(f.call(f).value);"
+      "send(f.apply(f).value);"
+      "send(f.apply(f, undefined).value);"
+      "send(f.apply(f, null).value);"
+      "send(f.apply(f, []).value);",
+      gum_get_answer_to_life_universe_and_everything);
+  EXPECT_SEND_MESSAGE_WITH ("42");
+  EXPECT_SEND_MESSAGE_WITH ("42");
+  EXPECT_SEND_MESSAGE_WITH ("42");
+  EXPECT_SEND_MESSAGE_WITH ("42");
+  EXPECT_SEND_MESSAGE_WITH ("42");
+  EXPECT_SEND_MESSAGE_WITH ("42");
+  EXPECT_NO_MESSAGES ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var f = new SystemFunction(" GUM_PTR_CONST ", 'int', ['int']);"
+      "send(SystemFunction.prototype.call(f, 42).value);"
+      "send(SystemFunction.prototype.apply(f, [42]).value);"
+      "send(f.call(undefined, 42).value);"
+      "send(f.apply(undefined, [42]).value);"
+      "send(f.call(null, 42).value);"
+      "send(f.apply(null, [42]).value);"
+      "send(f.call(f, 42).value);"
+      "send(f.apply(f, [42]).value);"
+      "send(f.call(ptr(" GUM_PTR_CONST "), 42).value);"
+      "send(f.apply(ptr(" GUM_PTR_CONST "), [42]).value);",
+      target_function_int, target_function_nested_a, target_function_nested_a);
+  EXPECT_SEND_MESSAGE_WITH ("1890");
+  EXPECT_SEND_MESSAGE_WITH ("1890");
+  EXPECT_SEND_MESSAGE_WITH ("1890");
+  EXPECT_SEND_MESSAGE_WITH ("1890");
+  EXPECT_SEND_MESSAGE_WITH ("1890");
+  EXPECT_SEND_MESSAGE_WITH ("1890");
+  EXPECT_SEND_MESSAGE_WITH ("1890");
+  EXPECT_SEND_MESSAGE_WITH ("1890");
+  EXPECT_SEND_MESSAGE_WITH ("16855020");
+  EXPECT_SEND_MESSAGE_WITH ("16855020");
+  EXPECT_NO_MESSAGES ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var f = new SystemFunction(" GUM_PTR_CONST ", 'pointer', "
+      "    ['pointer', 'int']);"
+      "send(f.call(null, ptr(4), 3).value);"
+      "send(f.apply(null, [ptr(4), 3]).value);",
+      target_function_base_plus_offset);
+  EXPECT_SEND_MESSAGE_WITH ("\"0x7\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"0x7\"");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (system_function_is_a_native_pointer)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var toupper = new SystemFunction(" GUM_PTR_CONST ", "
+          "'int', ['pointer', 'int']);"
+      "send(toupper instanceof NativePointer);"
+      "send(toupper.toString() === " GUM_PTR_CONST ".toString());",
+      gum_toupper, gum_toupper);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+static gint
+gum_clobber_system_error (gint value)
+{
+#ifdef HAVE_WINDOWS
+  SetLastError (value);
+#else
+  errno = value;
+#endif
+
+  return value * 2;
 }
 
 TESTCASE (native_callback_can_be_invoked)
@@ -2556,7 +2634,7 @@ on_read_ready (GObject * source_object,
   g_object_unref (connection);
 }
 
-#if defined (HAVE_I386) || defined (HAVE_ARM64)
+#if defined (HAVE_I386) || defined (HAVE_ARM) || defined (HAVE_ARM64)
 
 #include "stalkerdummychannel.h"
 
@@ -6173,6 +6251,8 @@ TESTCASE (invalid_read_write_execute_results_in_exception)
   EXPECT_NO_MESSAGES ();
 }
 
+#ifdef HAVE_TINYCC
+
 TESTCASE (cmodule_can_be_defined)
 {
   int (* add_impl) (int a, int b);
@@ -6431,7 +6511,7 @@ TESTCASE (cmodule_can_be_used_with_stalker_transform)
       "\\n"
       "void\\n"
       "transform (GumStalkerIterator * iterator,\\n"
-      "           GumStalkerWriter * output,\\n"
+      "           GumStalkerOutput * output,\\n"
       "           gpointer user_data)\\n"
       "{\\n"
       "  printf (\"\\\\ntransform()\\\\n\");\\n"
@@ -6442,14 +6522,24 @@ TESTCASE (cmodule_can_be_used_with_stalker_transform)
       "#if defined (HAVE_I386)\\n"
       "    if (insn->id == X86_INS_RET)\\n"
       "    {\\n"
-      "      gum_x86_writer_put_nop (output);\\n"
+      "      gum_x86_writer_put_nop (output->writer.x86);\\n"
+      "      gum_stalker_iterator_put_callout (iterator, on_ret, NULL,\\n"
+      "          NULL);\\n"
+      "    }\\n"
+      "#elif defined (HAVE_ARM)\\n"
+      "    if (insn->id == ARM_INS_POP)\\n"
+      "    {\\n"
+      "      if (output->encoding == GUM_INSTRUCTION_DEFAULT)\\n"
+      "        gum_arm_writer_put_nop (output->writer.arm);\\n"
+      "      else\\n"
+      "        gum_thumb_writer_put_nop (output->writer.thumb);\\n"
       "      gum_stalker_iterator_put_callout (iterator, on_ret, NULL,\\n"
       "          NULL);\\n"
       "    }\\n"
       "#elif defined (HAVE_ARM64)\\n"
       "    if (insn->id == ARM64_INS_RET)\\n"
       "    {\\n"
-      "      gum_arm64_writer_put_nop (output);\\n"
+      "      gum_arm64_writer_put_nop (output->writer.arm64);\\n"
       "      gum_stalker_iterator_put_callout (iterator, on_ret, NULL,\\n"
       "          NULL);\\n"
       "    }\\n"
@@ -6983,6 +7073,17 @@ TESTCASE (cmodule_should_provide_access_to_system_error)
   bump_impl ();
   g_assert_cmpint (gum_thread_get_system_error (), ==, 2);
 }
+
+#else /* !HAVE_TINYCC */
+
+TESTCASE (cmodule_constructor_should_throw_not_available)
+{
+  COMPILE_AND_LOAD_SCRIPT ("new CModule('');");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "Error: TinyCC is not available for the current architecture");
+}
+
+#endif
 
 TESTCASE (script_can_be_compiled_to_bytecode)
 {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -30,6 +30,7 @@ TESTLIST_BEGIN (thumbrelocator)
   TESTENTRY (it_block_with_pc_relative_load_should_be_rewritten)
   TESTENTRY (it_block_with_b_should_be_rewritten)
   TESTENTRY (it_block_should_be_rewritten_as_a_whole)
+  TESTENTRY (it_block_with_eoi_insn_should_be_rewritten)
   TESTENTRY (eob_and_eoi_on_ret)
 TESTLIST_END ()
 
@@ -107,18 +108,14 @@ TESTCASE (ldrpc_t1_should_be_rewritten)
   memcpy (expected_output, expected_output_instructions,
       sizeof (expected_output_instructions));
   calculated_pc = (fixture->rl.input_pc + 4 + 12) & ~(4 - 1);
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN
-  *((guint32 *) (expected_output + 4)) = GUINT32_TO_LE (calculated_pc);
-#else
-  *((guint32 *) (expected_output + 4)) = GUINT32_TO_BE (calculated_pc);
-#endif
+  *((guint32 *) (expected_output + 4)) = calculated_pc;
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
   g_assert_cmpint (insn->id, ==, ARM_INS_LDR);
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
-  g_assert_cmpint (memcmp (fixture->output, expected_output,
-      sizeof (expected_output)), ==, 0);
+  check_output (input, sizeof (input), fixture->output,
+      (guint16 *) expected_output, sizeof (expected_output));
 }
 
 TESTCASE (ldrpc_t2_should_be_rewritten)
@@ -142,18 +139,14 @@ TESTCASE (ldrpc_t2_should_be_rewritten)
   memcpy (expected_output, expected_output_instructions,
       sizeof (expected_output_instructions));
   calculated_pc = (fixture->rl.input_pc + 4 + 1896) & ~(4 - 1);
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN
-  *((guint32 *) (expected_output + 4)) = GUINT32_TO_LE (calculated_pc);
-#else
-  *((guint32 *) (expected_output + 4)) = GUINT32_TO_BE (calculated_pc);
-#endif
+  *((guint32 *) (expected_output + 4)) = calculated_pc;
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 4);
   g_assert_cmpint (insn->id, ==, ARM_INS_LDR);
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
-  g_assert_cmpint (memcmp (fixture->output, expected_output,
-      sizeof (expected_output)), ==, 0);
+  check_output (input, sizeof (input), fixture->output,
+      (guint16 *) expected_output, sizeof (expected_output));
 }
 
 TESTCASE (vldrpc_t1_should_be_rewritten)
@@ -168,7 +161,7 @@ TESTCASE (vldrpc_t1_should_be_rewritten)
     GUINT16_TO_LE (0xedd0), /* ...                */
     GUINT16_TO_LE (0x0a00), /* vldr s1, [r0]      */
     GUINT16_TO_LE (0xbc01), /* pop  {r0}          */
-    GUINT16_TO_LE (0x46c0), /* nop                */
+    GUINT16_TO_LE (0xbf00), /* nop                */
     GUINT16_TO_LE (0xffff), /* <calculated PC     */
     GUINT16_TO_LE (0xffff), /*  goes here>        */
   };
@@ -189,9 +182,9 @@ TESTCASE (vldrpc_t1_should_be_rewritten)
   g_assert_cmpint (insn->id, ==, ARM_INS_VLDR);
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
-  
-  g_assert_cmpint (memcmp (fixture->output, expected_output,
-      sizeof (expected_output)), ==, 0);
+
+  check_output (input, sizeof (input), fixture->output,
+      (guint16 *) expected_output, sizeof (expected_output));
 }
 
 TESTCASE (vldrpc_t2_should_be_rewritten)
@@ -206,7 +199,7 @@ TESTCASE (vldrpc_t2_should_be_rewritten)
     GUINT16_TO_LE (0xed90), /* ...                */
     GUINT16_TO_LE (0x1b00), /* vldr d1, [r0]      */
     GUINT16_TO_LE (0xbc01), /* pop  {r0}          */
-    GUINT16_TO_LE (0x46c0), /* nop                */
+    GUINT16_TO_LE (0xbf00), /* nop                */
     GUINT16_TO_LE (0xffff), /* <calculated PC     */
     GUINT16_TO_LE (0xffff), /*  goes here>        */
   };
@@ -219,7 +212,7 @@ TESTCASE (vldrpc_t2_should_be_rewritten)
 
   memcpy (expected_output, expected_output_instructions,
       sizeof (expected_output_instructions));
-  
+
   calculated_pc = (fixture->rl.input_pc + 4) & ~(4 - 1);
   *((guint32 *) (expected_output + 12)) = calculated_pc;
 
@@ -228,8 +221,8 @@ TESTCASE (vldrpc_t2_should_be_rewritten)
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
 
-  g_assert_cmpint (memcmp (fixture->output, expected_output,
-      sizeof (expected_output)), ==, 0);
+  check_output (input, sizeof (input), fixture->output,
+      (guint16 *) expected_output, sizeof (expected_output));
 }
 
 TESTCASE (addh_should_be_rewritten_if_pc_relative)
@@ -255,18 +248,14 @@ TESTCASE (addh_should_be_rewritten_if_pc_relative)
   memcpy (expected_output, expected_output_instructions,
       sizeof (expected_output_instructions));
   calculated_pc = fixture->rl.input_pc + 4;
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN
-  *((guint32 *) (expected_output + 8)) = GUINT32_TO_LE (calculated_pc);
-#else
-  *((guint32 *) (expected_output + 8)) = GUINT32_TO_BE (calculated_pc);
-#endif
+  *((guint32 *) (expected_output + 8)) = calculated_pc;
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
   g_assert_cmpint (insn->id, ==, ARM_INS_ADD);
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
-  g_assert_cmpint (memcmp (fixture->output, expected_output,
-      sizeof (expected_output)), ==, 0);
+  check_output (input, sizeof (input), fixture->output,
+      (guint16 *) expected_output, sizeof (expected_output));
 }
 
 TESTCASE (bl_sequence_should_be_rewritten)
@@ -288,7 +277,7 @@ TESTCASE (bl_sequence_should_be_rewritten)
     GUINT16_TO_LE (0x4686),                  /* mov lr, r0        */
     GUINT16_TO_LE (0xbc01),                  /* pop {r0}          */
     GUINT16_TO_LE (0x47f0),                  /* blx lr            */
-    GUINT16_TO_LE (0x46c0),                  /* <padding nop>     */
+    GUINT16_TO_LE (0xbf00),                  /* <padding nop>     */
     GUINT16_TO_LE (0xffff),                  /* <calculated PC1   */
     GUINT16_TO_LE (0xffff),                  /*  goes here>       */
     GUINT16_TO_LE (0xffff),                  /* <calculated PC2   */
@@ -304,13 +293,8 @@ TESTCASE (bl_sequence_should_be_rewritten)
 
   memcpy (expected_output, expected_output_instructions,
       sizeof (expected_output_instructions));
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN
-  *((guint32 *) (expected_output + 24)) = GUINT32_TO_LE (0x1543c | 1);
-  *((guint32 *) (expected_output + 28)) = GUINT32_TO_LE (0xf5ec);
-#else
-  *((guint32 *) (expected_output + 24)) = GUINT32_TO_BE (0x1543c | 1);
-  *((guint32 *) (expected_output + 28)) = GUINT32_TO_BE (0xf5ec);
-#endif
+  *((guint32 *) (expected_output + 24)) = 0x1543c | 1;
+  *((guint32 *) (expected_output + 28)) = 0xf5ec;
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
   g_assert_cmpint (insn->id, ==, ARM_INS_PUSH);
@@ -320,8 +304,8 @@ TESTCASE (bl_sequence_should_be_rewritten)
   g_assert_cmpint (insn->id, ==, ARM_INS_BLX);
   gum_thumb_relocator_write_all (&fixture->rl);
   gum_thumb_writer_flush (&fixture->tw);
-  g_assert_cmpint (memcmp (fixture->output, expected_output,
-      sizeof (expected_output)), ==, 0);
+  check_output (input, sizeof (input), fixture->output,
+      (guint16 *) expected_output, sizeof (expected_output));
 }
 
 typedef struct _BranchScenario BranchScenario;
@@ -352,7 +336,7 @@ TESTCASE (b_imm_t2_positive_should_be_rewritten)
       0x4801,                   /* ldr r0, [pc, #4] */
       0x9001,                   /* str r0, [sp, #4] */
       0xbd01,                   /* pop {r0, pc}     */
-      0x46c0,                   /* <padding nop>    */
+      0xbf00,                   /* <padding nop>    */
       0xffff,                   /* <calculated PC   */
       0xffff                    /*  goes here>      */
     }, 8,
@@ -372,7 +356,7 @@ TESTCASE (b_imm_t2_negative_should_be_rewritten)
       0x4801,                   /* ldr r0, [pc, #4] */
       0x9001,                   /* str r0, [sp, #4] */
       0xbd01,                   /* pop {r0, pc}     */
-      0x46c0,                   /* <padding nop>    */
+      0xbf00,                   /* <padding nop>    */
       0xffff,                   /* <calculated PC   */
       0xffff                    /*  goes here>      */
     }, 8,
@@ -392,7 +376,7 @@ TESTCASE (b_imm_t4_positive_should_be_rewritten)
       0x4801,                   /* ldr r0, [pc, #4] */
       0x9001,                   /* str r0, [sp, #4] */
       0xbd01,                   /* pop {r0, pc}     */
-      0x46c0,                   /* <padding nop>    */
+      0xbf00,                   /* <padding nop>    */
       0xffff,                   /* <calculated PC   */
       0xffff                    /*  goes here>      */
     }, 8,
@@ -412,7 +396,7 @@ TESTCASE (b_imm_t4_negative_should_be_rewritten)
       0x4801,                   /* ldr r0, [pc, #4] */
       0x9001,                   /* str r0, [sp, #4] */
       0xbd01,                   /* pop {r0, pc}     */
-      0x46c0,                   /* <padding nop>    */
+      0xbf00,                   /* <padding nop>    */
       0xffff,                   /* <calculated PC   */
       0xffff                    /*  goes here>      */
     }, 8,
@@ -432,7 +416,7 @@ TESTCASE (bl_imm_t1_positive_should_be_rewritten)
       0x4686,                   /* mov lr, r0       */
       0xbc01,                   /* pop {r0}         */
       0x47f0,                   /* blx lr           */
-      0x46c0,                   /* <padding nop>    */
+      0xbf00,                   /* <padding nop>    */
       0xffff,                   /* <calculated PC   */
       0xffff                    /*  goes here>      */
     }, 8,
@@ -452,7 +436,7 @@ TESTCASE (bl_imm_t1_negative_should_be_rewritten)
       0x4686,                   /* mov lr, r0       */
       0xbc01,                   /* pop {r0}         */
       0x47f0,                   /* blx lr           */
-      0x46c0,                   /* <padding nop>    */
+      0xbf00,                   /* <padding nop>    */
       0xffff,                   /* <calculated PC   */
       0xffff                    /*  goes here>      */
     }, 8,
@@ -472,7 +456,7 @@ TESTCASE (blx_imm_t2_positive_should_be_rewritten)
       0x4686,                   /* mov lr, r0       */
       0xbc01,                   /* pop {r0}         */
       0x47f0,                   /* blx lr           */
-      0x46c0,                   /* <padding nop>    */
+      0xbf00,                   /* <padding nop>    */
       0xffff,                   /* <calculated PC   */
       0xffff                    /*  goes here>      */
     }, 8,
@@ -492,7 +476,7 @@ TESTCASE (blx_imm_t2_negative_should_be_rewritten)
       0x4686,                   /* mov lr, r0       */
       0xbc01,                   /* pop {r0}         */
       0x47f0,                   /* blx lr           */
-      0x46c0,                   /* <padding nop>    */
+      0xbf00,                   /* <padding nop>    */
       0xffff,                   /* <calculated PC   */
       0xffff                    /*  goes here>      */
     }, 8,
@@ -517,25 +501,16 @@ branch_scenario_execute (BranchScenario * bs,
   SETUP_RELOCATOR_WITH (bs->input);
 
   calculated_pc = fixture->rl.input_pc + 4 + bs->expected_pc_distance;
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN
-  bs->expected_output[bs->pc_offset + 0] =
-      GUINT16_TO_LE ((calculated_pc >> 0) & 0xffff);
-  bs->expected_output[bs->pc_offset + 1] =
-      GUINT16_TO_LE ((calculated_pc >> 16) & 0xffff);
-#else
-  bs->expected_output[bs->pc_offset + 0] =
-      GUINT16_TO_BE ((calculated_pc >> 16) & 0xffff);
-  bs->expected_output[bs->pc_offset + 1] =
-      GUINT16_TO_BE ((calculated_pc >> 0) & 0xffff);
-#endif
+  memcpy (bs->expected_output + bs->pc_offset, &calculated_pc,
+      sizeof (calculated_pc));
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn),
       ==, bs->instruction_length);
   g_assert_cmpint (insn->id, ==, bs->instruction_id);
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
-  g_assert_cmpint (memcmp (fixture->output, bs->expected_output,
-      bs->expected_output_length * sizeof (guint16)), ==, 0);
+  check_output (bs->input, bs->input_length, fixture->output,
+      bs->expected_output, bs->expected_output_length * sizeof (guint16));
 }
 
 TESTCASE (cbz_should_be_rewritten)
@@ -546,15 +521,15 @@ TESTCASE (cbz_should_be_rewritten)
   };
   const guint16 expected_output_instructions[] = {
     GUINT16_TO_LE (0xb100),     /* cbz r0, #imm     */
-  /* if_false: jump to next instruction */
+    /* if_false: jump to next instruction           */
     GUINT16_TO_LE (0xe004),     /* b pc + 8         */
-  /* if_true: */
+    /* if_true:                                     */
     GUINT16_TO_LE (0xb401),     /* push {r0}        */
     GUINT16_TO_LE (0xb401),     /* push {r0}        */
     GUINT16_TO_LE (0x4801),     /* ldr r0, [pc, #4] */
     GUINT16_TO_LE (0x9001),     /* str r0, [sp, #4] */
     GUINT16_TO_LE (0xbd01),     /* pop {r0, pc}     */
-  /* next instruction */
+    /* next instruction                             */
     GUINT16_TO_LE (0xbd01),     /* pop {r0, pc}     */
     GUINT16_TO_LE (0xffff),
     GUINT16_TO_LE (0xffff)
@@ -568,11 +543,7 @@ TESTCASE (cbz_should_be_rewritten)
   memcpy (expected_output, expected_output_instructions,
       sizeof (expected_output_instructions));
   calculated_target = (fixture->rl.input_pc + 4 + ((0xe8 >> 3) << 1)) | 1;
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN
-  *((guint32 *) (expected_output + 16)) = GUINT32_TO_LE (calculated_target);
-#else
-  *((guint32 *) (expected_output + 16)) = GUINT32_TO_BE (calculated_target);
-#endif
+  *((guint32 *) (expected_output + 16)) = calculated_target;
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
   g_assert_cmpint (insn->id, ==, ARM_INS_CBZ);
@@ -580,28 +551,28 @@ TESTCASE (cbz_should_be_rewritten)
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
-  g_assert_cmpint (memcmp (fixture->output, expected_output,
-      sizeof (expected_output)), ==, 0);
+  check_output (input, sizeof (input), fixture->output,
+      (guint16 *) expected_output, sizeof (expected_output));
 }
 
 TESTCASE (cbnz_should_be_rewritten)
 {
   const guint16 input[] = {
-    GUINT16_TO_LE (0xb912),     /* cbnz r2, #imm    */
-    GUINT16_TO_LE (0xbd01)      /* pop {r0, pc}     */
+    GUINT16_TO_LE (0xb912),     /* cbnz r2, #imm      */
+    GUINT16_TO_LE (0xbd01)      /* pop {r0, pc}       */
   };
   const guint16 expected_output_instructions[] = {
-    GUINT16_TO_LE (0xb902),     /* cbnz r2, #imm    */
-  /* if_false: jump to next instruction */
-    GUINT16_TO_LE (0xe004),     /* b pc + 8         */
-  /* if_true: */
-    GUINT16_TO_LE (0xb401),     /* push {r0}        */
-    GUINT16_TO_LE (0xb401),     /* push {r0}        */
-    GUINT16_TO_LE (0x4801),     /* ldr r0, [pc, #4] */
-    GUINT16_TO_LE (0x9001),     /* str r0, [sp, #4] */
-    GUINT16_TO_LE (0xbd01),     /* pop {r0, pc}     */
-  /* next instruction */
-    GUINT16_TO_LE (0xbd01),     /* pop {r0, pc}     */
+    GUINT16_TO_LE (0xb902),     /* cbnz r2, #imm      */
+    /* if_false:                                      */
+    GUINT16_TO_LE (0xe004),     /* b next_instruction */
+    /* if_true:                                       */
+    GUINT16_TO_LE (0xb401),     /* push {r0}          */
+    GUINT16_TO_LE (0xb401),     /* push {r0}          */
+    GUINT16_TO_LE (0x4801),     /* ldr r0, [pc, #4]   */
+    GUINT16_TO_LE (0x9001),     /* str r0, [sp, #4]   */
+    GUINT16_TO_LE (0xbd01),     /* pop {r0, pc}       */
+    /* next_instruction:                              */
+    GUINT16_TO_LE (0xbd01),     /* pop {r0, pc}       */
     GUINT16_TO_LE (0xffff),
     GUINT16_TO_LE (0xffff)
   };
@@ -614,11 +585,7 @@ TESTCASE (cbnz_should_be_rewritten)
   memcpy (expected_output, expected_output_instructions,
       sizeof (expected_output_instructions));
   calculated_target = (fixture->rl.input_pc + 4 + ((0x12 >> 3) << 1)) | 1;
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN
-  *((guint32 *) (expected_output + 16)) = GUINT32_TO_LE (calculated_target);
-#else
-  *((guint32 *) (expected_output + 16)) = GUINT32_TO_BE (calculated_target);
-#endif
+  *((guint32 *) (expected_output + 16)) = calculated_target;
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
   g_assert_cmpint (insn->id, ==, ARM_INS_CBNZ);
@@ -626,28 +593,28 @@ TESTCASE (cbnz_should_be_rewritten)
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
-  g_assert_cmpint (memcmp (fixture->output, expected_output,
-      sizeof (expected_output)), ==, 0);
+  check_output (input, sizeof (input), fixture->output,
+      (guint16 *) expected_output, sizeof (expected_output));
 }
 
 TESTCASE (b_cond_should_be_rewritten)
 {
   const guint16 input[] = {
-    GUINT16_TO_LE (0xd01b),     /* beq #imm         */
-    GUINT16_TO_LE (0xbd01)      /* pop {r0, pc}     */
+    GUINT16_TO_LE (0xd01b),     /* beq #imm           */
+    GUINT16_TO_LE (0xbd01)      /* pop {r0, pc}       */
   };
   const guint16 expected_output_instructions[] = {
-    GUINT16_TO_LE (0xd000),     /* beq #imm         */
-  /* if_false: jump to next instruction */
-    GUINT16_TO_LE (0xe004),     /* b pc + 8         */
-  /* if_true: */
-    GUINT16_TO_LE (0xb401),     /* push {r0}        */
-    GUINT16_TO_LE (0xb401),     /* push {r0}        */
-    GUINT16_TO_LE (0x4801),     /* ldr r0, [pc, #4] */
-    GUINT16_TO_LE (0x9001),     /* str r0, [sp, #4] */
-    GUINT16_TO_LE (0xbd01),     /* pop {r0, pc}     */
-  /* next instruction */
-    GUINT16_TO_LE (0xbd01),     /* pop {r0, pc}     */
+    GUINT16_TO_LE (0xd000),     /* beq #imm           */
+    /* if_false:                                      */
+    GUINT16_TO_LE (0xe004),     /* b next_instruction */
+    /* if_true:                                       */
+    GUINT16_TO_LE (0xb401),     /* push {r0}          */
+    GUINT16_TO_LE (0xb401),     /* push {r0}          */
+    GUINT16_TO_LE (0x4801),     /* ldr r0, [pc, #4]   */
+    GUINT16_TO_LE (0x9001),     /* str r0, [sp, #4]   */
+    GUINT16_TO_LE (0xbd01),     /* pop {r0, pc}       */
+    /* next_instruction:                              */
+    GUINT16_TO_LE (0xbd01),     /* pop {r0, pc}       */
     GUINT16_TO_LE (0xffff),
     GUINT16_TO_LE (0xffff)
   };
@@ -661,11 +628,7 @@ TESTCASE (b_cond_should_be_rewritten)
       sizeof (expected_output_instructions));
   calculated_target = (fixture->rl.input_pc + 4 + (0x1b << 1)) | 1;
 
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN
-  *((guint32 *) (expected_output + 16)) = GUINT32_TO_LE (calculated_target);
-#else
-  *((guint32 *) (expected_output + 16)) = GUINT32_TO_BE (calculated_target);
-#endif
+  *((guint32 *) (expected_output + 16)) = calculated_target;
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
   g_assert_cmpint (insn->id, ==, ARM_INS_B);
@@ -673,28 +636,30 @@ TESTCASE (b_cond_should_be_rewritten)
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
-  g_assert_cmpint (memcmp (fixture->output, expected_output,
-      sizeof (expected_output)), ==, 0);
+  check_output (input, sizeof (input), fixture->output,
+      (guint16 *) expected_output, sizeof (expected_output));
 }
 
 TESTCASE (it_block_with_pc_relative_load_should_be_rewritten)
 {
  const guint16 input[] = {
-   GUINT16_TO_LE (0x2800),      /* cmp r0, #0             */
-   GUINT16_TO_LE (0xbf06),      /* itte eq                */
-   GUINT16_TO_LE (0x4801),      /* ldreq r0, [pc, #4]     */
-   GUINT16_TO_LE (0x3001),      /* addeq r0, #1           */
-   GUINT16_TO_LE (0x3001),      /* addne r0, #1           */
+   GUINT16_TO_LE (0x2800),      /* cmp r0, #0         */
+   GUINT16_TO_LE (0xbf06),      /* itte eq            */
+   GUINT16_TO_LE (0x4801),      /* ldreq r0, [pc, #4] */
+   GUINT16_TO_LE (0x3001),      /* addeq r0, #1       */
+   GUINT16_TO_LE (0x3001),      /* addne r0, #1       */
  };
  const guint16 expected_output[] = {
-   GUINT16_TO_LE (0x2800),      /* cmp r0, #0             */
-   GUINT16_TO_LE (0xd001),      /* beq.n .L1              */
-   GUINT16_TO_LE (0x3001),      /* adds r0, #1            */
-   GUINT16_TO_LE (0xe002),      /* b.n .L2                */
-   GUINT16_TO_LE (0x4800),      /* .L1: ldr r0, [pc, #0]  */
-   GUINT16_TO_LE (0x6800),      /* ldr r0, [r0, #0]       */
-   GUINT16_TO_LE (0x3001),      /* adds r0, #1            */
-                                /* .L2:                   */
+   GUINT16_TO_LE (0x2800),      /* cmp r0, #0         */
+   GUINT16_TO_LE (0xd001),      /* beq if_true        */
+   /* if_false:                                       */
+   GUINT16_TO_LE (0x3001),      /* adds r0, #1        */
+   GUINT16_TO_LE (0xe002),      /* b next_instruction */
+   /* if_true:                                        */
+   GUINT16_TO_LE (0x4800),      /* ldr r0, [pc, #0]   */
+   GUINT16_TO_LE (0x6800),      /* ldr r0, [r0, #0]   */
+   GUINT16_TO_LE (0x3001),      /* adds r0, #1        */
+   /* next_instruction:                               */
   };
   const cs_insn * insn;
 
@@ -712,35 +677,35 @@ TESTCASE (it_block_with_pc_relative_load_should_be_rewritten)
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   g_assert_false (gum_thumb_relocator_write_one (&fixture->rl));
 
-  g_assert_cmpint (memcmp (fixture->output, expected_output,
-      sizeof (expected_output)), ==, 0);
+  check_output (input, sizeof (input), fixture->output, expected_output,
+      sizeof (expected_output));
 }
 
 TESTCASE (it_block_with_b_should_be_rewritten)
 {
   const guint16 input[] = {
-    GUINT16_TO_LE (0xb580),     /* push {r7, lr}       */
-    GUINT16_TO_LE (0x2801),     /* cmp r0, #1          */
-    GUINT16_TO_LE (0xbf0a),     /* itet eq             */
-    GUINT16_TO_LE (0xf101),     /* ...                 */
-    GUINT16_TO_LE (0x37ff),     /* addeq.w r7, r1, #-1 */
-    GUINT16_TO_LE (0x1c4f),     /* addne r7, r1, #1    */
-    GUINT16_TO_LE (0xf7ff),     /* ...                 */
-    GUINT16_TO_LE (0xef08),     /* blxeq xxxx          */
+    GUINT16_TO_LE (0xb580),                         /* push {r7, lr}       */
+    GUINT16_TO_LE (0x2801),                         /* cmp r0, #1          */
+    GUINT16_TO_LE (0xbf0a),                         /* itet eq             */
+    GUINT16_TO_LE (0xf101), GUINT16_TO_LE (0x37ff), /* addeq.w r7, r1, #-1 */
+    GUINT16_TO_LE (0x1c4f),                         /* addne r7, r1, #1    */
+    GUINT16_TO_LE (0xf7ff), GUINT16_TO_LE (0xef08), /* blxeq.w xxxx        */
   };
   const guint16 expected_output[] = {
-    GUINT16_TO_LE (0xb580),     /* push {r7, lr}       */
-    GUINT16_TO_LE (0x2801),     /* cmp r0, #1          */
-    GUINT16_TO_LE (0xd001),     /* beq.n .L1           */
-    GUINT16_TO_LE (0x1c4f),     /* adds r7, r1, #1     */
-    GUINT16_TO_LE (0xe006),     /* b.n  .L2            */
-    GUINT16_TO_LE (0xf101),     /* .L1 ...             */
-    GUINT16_TO_LE (0x37ff),     /* add.w r7, r1, #-1   */
-    GUINT16_TO_LE (0xb401),     /* push { r0 }         */
-    GUINT16_TO_LE (0x4800),     /* ldr r0, [pc, #0]    */
-    GUINT16_TO_LE (0x4686),     /* mov lr, r0          */
-    GUINT16_TO_LE (0xbc01),     /* pop {r0}            */
-    GUINT16_TO_LE (0x47f0),     /* blx lr              */
+    GUINT16_TO_LE (0xb580),                         /* push {r7, lr}       */
+    GUINT16_TO_LE (0x2801),                         /* cmp r0, #1          */
+    GUINT16_TO_LE (0xd001),                         /* beq if_true         */
+    /* if_false:                                                           */
+    GUINT16_TO_LE (0x1c4f),                         /* adds r7, r1, #1     */
+    GUINT16_TO_LE (0xe006),                         /* b next_instruction  */
+    /* if_true:                                                            */
+    GUINT16_TO_LE (0xf101), GUINT16_TO_LE (0x37ff), /* add.w r7, r1, #-1   */
+    GUINT16_TO_LE (0xb401),                         /* push {r0}           */
+    GUINT16_TO_LE (0x4800),                         /* ldr r0, [pc, #0]    */
+    GUINT16_TO_LE (0x4686),                         /* mov lr, r0          */
+    GUINT16_TO_LE (0xbc01),                         /* pop {r0}            */
+    GUINT16_TO_LE (0x47f0),                         /* blx lr              */
+    /* next_instruction:                                                   */
   };
   const cs_insn * insn;
 
@@ -754,25 +719,27 @@ TESTCASE (it_block_with_b_should_be_rewritten)
 
   gum_thumb_relocator_write_all (&fixture->rl);
 
-  g_assert_cmpint (memcmp (fixture->output, expected_output,
-      sizeof (expected_output)), ==, 0);
+  check_output (input, sizeof (input), fixture->output, expected_output,
+      sizeof (expected_output));
 }
 
 TESTCASE (it_block_should_be_rewritten_as_a_whole)
 {
   const guint16 input[] = {
-    GUINT16_TO_LE (0x2800), /* cmp r0, #0            */
-    GUINT16_TO_LE (0xbf1c), /* itt ne                */
-    GUINT16_TO_LE (0x6800), /* ldrne r0, [r0]        */
-    GUINT16_TO_LE (0x2800)  /* cmpne r0, #0          */
+    GUINT16_TO_LE (0x2800), /* cmp r0, #0         */
+    GUINT16_TO_LE (0xbf1c), /* itt ne             */
+    GUINT16_TO_LE (0x6800), /* ldrne r0, [r0]     */
+    GUINT16_TO_LE (0x2800)  /* cmpne r0, #0       */
   };
   const guint16 expected_output[] = {
-    GUINT16_TO_LE (0x2800), /* cmp r0, #0            */
-    GUINT16_TO_LE (0xd100), /* bne.n .L1             */
-    GUINT16_TO_LE (0xe001), /* b.n .L2               */
-    GUINT16_TO_LE (0x6800), /* .L1: ldr r0, [r0, #0] */
-    GUINT16_TO_LE (0x2800), /* cmp r0, #0            */
-                            /* .L2:                  */
+    GUINT16_TO_LE (0x2800), /* cmp r0, #0         */
+    GUINT16_TO_LE (0xd100), /* bne if_true        */
+    /* if_false:                                  */
+    GUINT16_TO_LE (0xe001), /* b next_instruction */
+    /* if_true:                                   */
+    GUINT16_TO_LE (0x6800), /* ldr r0, [r0, #0]   */
+    GUINT16_TO_LE (0x2800), /* cmp r0, #0         */
+    /* next_instruction:                          */
   };
   const cs_insn * insn;
 
@@ -794,8 +761,59 @@ TESTCASE (it_block_should_be_rewritten_as_a_whole)
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   g_assert_false (gum_thumb_relocator_write_one (&fixture->rl));
 
-  g_assert_cmpint (memcmp (fixture->output, expected_output,
-      sizeof (expected_output)), ==, 0);
+  check_output (input, sizeof (input), fixture->output, expected_output,
+      sizeof (expected_output));
+}
+
+TESTCASE (it_block_with_eoi_insn_should_be_rewritten)
+{
+  const guint16 input[] = {
+    GUINT16_TO_LE (0x2800),                         /* cmp r0, #0         */
+    GUINT16_TO_LE (0xbf18),                         /* it ne              */
+    GUINT16_TO_LE (0xe8bd), GUINT16_TO_LE (0x8010), /* pop.w {r4, pc}     */
+    GUINT16_TO_LE (0x3001),                         /* adds r0, #1        */
+  };
+  const guint16 expected_output[] = {
+    GUINT16_TO_LE (0x2800),                         /* cmp r0, #0         */
+    GUINT16_TO_LE (0xd100),                         /* bne if_true        */
+    /* if_false:                                                          */
+    GUINT16_TO_LE (0xe001),                         /* b next_instruction */
+    /* if_true:                                                           */
+    GUINT16_TO_LE (0xe8bd), GUINT16_TO_LE (0x8010), /* pop.w {r4, pc}     */
+    /* next_instruction:                                                  */
+    GUINT16_TO_LE (0x3001),                         /* adds r0, #1        */
+  };
+  const cs_insn * insn;
+
+  SETUP_RELOCATOR_WITH (input);
+
+  insn = NULL;
+  g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
+  g_assert_cmpint (insn->id, ==, ARM_INS_CMP);
+  assert_outbuf_still_zeroed_from_offset (0);
+
+  g_assert_false (fixture->rl.eob);
+
+  insn = NULL;
+  g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 8);
+  g_assert_cmpint (insn->id, ==, ARM_INS_IT);
+  assert_outbuf_still_zeroed_from_offset (0);
+
+  g_assert_true (fixture->rl.eob);
+
+  insn = NULL;
+  g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 10);
+  g_assert_cmpint (insn->id, ==, ARM_INS_ADD);
+  assert_outbuf_still_zeroed_from_offset (0);
+
+  g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_false (gum_thumb_relocator_write_one (&fixture->rl));
+
+  check_output (input, sizeof (input), fixture->output, expected_output,
+      sizeof (expected_output));
 }
 
 TESTCASE (eob_and_eoi_on_ret)

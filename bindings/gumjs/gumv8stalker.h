@@ -11,7 +11,8 @@
 #include "gumv8core.h"
 #include "gumv8instruction.h"
 
-struct GumV8StalkerIterator;
+struct GumV8StalkerDefaultIterator;
+struct GumV8StalkerSpecialIterator;
 
 struct GumV8Stalker
 {
@@ -25,15 +26,21 @@ struct GumV8Stalker
 
   GSource * flush_timer;
 
-  GHashTable * iterators;
+  GHashTable * default_iterators;
+  GHashTable * special_iterators;
 
-  GumPersistent<v8::FunctionTemplate>::type * iterator;
+  GumPersistent<v8::FunctionTemplate>::type * default_iterator;
+  GumPersistent<v8::FunctionTemplate>::type * special_iterator;
   GumPersistent<v8::ObjectTemplate>::type * probe_args;
 
-  GumPersistent<v8::Object>::type * iterator_value;
+  GumPersistent<v8::Object>::type * default_iterator_value;
+  GumPersistent<v8::Object>::type * special_iterator_value;
 
-  GumV8StalkerIterator * cached_iterator;
-  gboolean cached_iterator_in_use;
+  GumV8StalkerDefaultIterator * cached_default_iterator;
+  gboolean cached_default_iterator_in_use;
+
+  GumV8StalkerSpecialIterator * cached_special_iterator;
+  gboolean cached_special_iterator_in_use;
 
   GumV8InstructionValue * cached_instruction;
   gboolean cached_instruction_in_use;

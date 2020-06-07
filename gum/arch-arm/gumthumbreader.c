@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -40,7 +40,7 @@ disassemble_instruction_at (gconstpointer address)
   cs_err err;
   cs_insn * insn = NULL;
 
-  err = cs_open (CS_ARCH_ARM, CS_MODE_THUMB, &capstone);
+  err = cs_open (CS_ARCH_ARM, CS_MODE_THUMB | CS_MODE_V8, &capstone);
   g_assert (err == CS_ERR_OK);
   err = cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
   g_assert (err == CS_ERR_OK);

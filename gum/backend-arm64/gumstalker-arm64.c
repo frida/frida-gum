@@ -126,7 +126,7 @@ struct _GumExecCtx
 
   GumStalkerTransformer * transformer;
   void (* transform_block_impl) (GumStalkerTransformer * self,
-      GumStalkerIterator * iterator, GumStalkerWriter * output);
+      GumStalkerIterator * iterator, GumStalkerOutput * output);
   GQueue callout_entries;
   GumSpinlock callout_lock;
   GumEventSink * sink;
@@ -774,8 +774,8 @@ gum_stalker_infect (GumThreadId thread_id,
   gum_exec_ctx_write_prolog (ctx, GUM_PROLOG_MINIMAL, &cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
       GUM_ADDRESS (gum_tls_key_set_value), 2,
-      GUM_ARG_ADDRESS, self->exec_ctx,
-      GUM_ARG_ADDRESS, ctx);
+      GUM_ARG_ADDRESS, GUM_ADDRESS (self->exec_ctx),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (ctx));
   gum_exec_ctx_write_epilog (ctx, GUM_PROLOG_MINIMAL, &cw);
 
   gum_arm64_writer_put_b_imm (&cw, GUM_ADDRESS (code_address) +
@@ -1049,7 +1049,7 @@ gum_stalker_destroy_exec_ctx (GumStalker * self,
 static GumExecCtx *
 gum_stalker_get_exec_ctx (GumStalker * self)
 {
-  return (GumExecCtx *) gum_tls_key_get_value (self->exec_ctx);
+  return gum_tls_key_get_value (self->exec_ctx);
 }
 
 static void
@@ -1385,6 +1385,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   GumArm64Relocator * rl;
   GumGeneratorContext gc;
   GumStalkerIterator iterator;
+  GumStalkerOutput output;
   gboolean all_labels_resolved;
 
   if (ctx->stalker->trust_threshold >= 0)
@@ -1437,13 +1438,15 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   iterator.instruction.end = NULL;
   iterator.requirements = GUM_REQUIRE_NOTHING;
 
+  output.writer.arm64 = cw;
+  output.encoding = GUM_INSTRUCTION_DEFAULT;
+
   gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X16, ARM64_REG_X17,
       ARM64_REG_SP, 16 + GUM_RED_ZONE_SIZE, GUM_INDEX_POST_ADJUST);
 
   ctx->pending_calls++;
 
-  ctx->transform_block_impl (ctx->transformer, &iterator,
-      (GumStalkerWriter *) cw);
+  ctx->transform_block_impl (ctx->transformer, &iterator, &output);
 
   ctx->pending_calls--;
 

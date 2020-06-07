@@ -19,6 +19,12 @@ gumjs_sources = [
   'gumcmodule.c',
 ]
 
+gumjs_objects = []
+if have_tinycc
+  gumjs_objects += tinycc.extract_all_objects()
+  gumjs_extra_deps += [tinycc_dep]
+endif
+
 if have_duktape
   gumjs_sources += [
     'gumdukscriptbackend.c',
@@ -155,6 +161,7 @@ gumjs_runtime_sources = [
   'runtime/cmodule/gum/gumdefs.h',
   'runtime/cmodule/gum/gumprocess.h',
   'runtime/cmodule/gum/gummodulemap.h',
+  'runtime/cmodule/gum/gummemory.h',
   'runtime/cmodule/gum/guminterceptor.h',
   'runtime/cmodule/gum/gumstalker.h',
   'runtime/cmodule/gum/gummetalarray.h',
@@ -203,8 +210,8 @@ gumjs = library('frida-gumjs-' + api_version, gumjs_sources,
   c_args: frida_component_cflags,
   override_options: ['cpp_std=c++11'],
   include_directories: [bindings_inc],
-  dependencies: [gum_dep, gio_dep, json_glib_dep, ffi_dep, tinycc_dep, sqlite_dep, libsoup_dep] + gumjs_extra_deps,
-  objects: tinycc.extract_all_objects(),
+  dependencies: [gum_dep, gio_dep, json_glib_dep, ffi_dep, sqlite_dep, libsoup_dep] + gumjs_extra_deps,
+  objects: gumjs_objects,
   install: true,
 )
 

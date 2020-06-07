@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -24,14 +24,14 @@ static void gum_default_stalker_transformer_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_default_stalker_transformer_transform_block (
     GumStalkerTransformer * transformer, GumStalkerIterator * iterator,
-    GumStalkerWriter * output);
+    GumStalkerOutput * output);
 
 static void gum_callback_stalker_transformer_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_callback_stalker_transformer_finalize (GObject * object);
 static void gum_callback_stalker_transformer_transform_block (
     GumStalkerTransformer * transformer, GumStalkerIterator * iterator,
-    GumStalkerWriter * output);
+    GumStalkerOutput * output);
 
 G_DEFINE_INTERFACE (GumStalkerTransformer, gum_stalker_transformer,
     G_TYPE_OBJECT)
@@ -80,7 +80,7 @@ gum_stalker_transformer_make_from_callback (
 void
 gum_stalker_transformer_transform_block (GumStalkerTransformer * self,
                                          GumStalkerIterator * iterator,
-                                         GumStalkerWriter * output)
+                                         GumStalkerOutput * output)
 {
   GumStalkerTransformerInterface * iface =
       GUM_STALKER_TRANSFORMER_GET_IFACE (self);
@@ -115,7 +115,7 @@ static void
 gum_default_stalker_transformer_transform_block (
     GumStalkerTransformer * transformer,
     GumStalkerIterator * iterator,
-    GumStalkerWriter * output)
+    GumStalkerOutput * output)
 {
   while (gum_stalker_iterator_next (iterator, NULL))
   {
@@ -164,7 +164,7 @@ static void
 gum_callback_stalker_transformer_transform_block (
     GumStalkerTransformer * transformer,
     GumStalkerIterator * iterator,
-    GumStalkerWriter * output)
+    GumStalkerOutput * output)
 {
   GumCallbackStalkerTransformer * self =
       (GumCallbackStalkerTransformer *) transformer;

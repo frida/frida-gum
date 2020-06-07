@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -31,6 +31,9 @@ TESTLIST_BEGIN (thumbwriter)
 #endif
   TESTENTRY (ldr_reg_reg_offset)
   TESTENTRY (ldr_reg_reg)
+  TESTENTRY (ldrb_reg_reg)
+  TESTENTRY (ldrh_reg_reg)
+  TESTENTRY (vldr_reg_reg_offset)
   TESTENTRY (str_reg_reg_offset)
   TESTENTRY (str_reg_reg)
   TESTENTRY (mov_reg_reg)
@@ -43,6 +46,8 @@ TESTLIST_BEGIN (thumbwriter)
   TESTENTRY (sub_reg_reg_reg)
   TESTENTRY (sub_reg_reg_imm)
   TESTENTRY (and_reg_reg_imm)
+  TESTENTRY (lsls_reg_reg_imm)
+  TESTENTRY (lsrs_reg_reg_imm)
 
   TESTENTRY (mrs_reg_reg)
   TESTENTRY (msr_reg_reg)
@@ -73,9 +78,9 @@ TESTCASE (beq_label)
   gum_thumb_writer_flush (&fixture->tw);
 
   /* again: */
-  assert_output_n_equals (0, 0x46c0); /* nop */
-  assert_output_n_equals (1, 0x46c0); /* nop */
-  assert_output_n_equals (2, 0x46c0); /* nop */
+  assert_output_n_equals (0, 0xbf00); /* nop */
+  assert_output_n_equals (1, 0xbf00); /* nop */
+  assert_output_n_equals (2, 0xbf00); /* nop */
   assert_output_n_equals (3, 0xd0fb); /* beq again */
 }
 
@@ -92,9 +97,9 @@ TESTCASE (bne_label)
   gum_thumb_writer_flush (&fixture->tw);
 
   /* again: */
-  assert_output_n_equals (0, 0x46c0); /* nop */
-  assert_output_n_equals (1, 0x46c0); /* nop */
-  assert_output_n_equals (2, 0x46c0); /* nop */
+  assert_output_n_equals (0, 0xbf00); /* nop */
+  assert_output_n_equals (1, 0xbf00); /* nop */
+  assert_output_n_equals (2, 0xbf00); /* nop */
   assert_output_n_equals (3, 0xd1fb); /* bne again */
 }
 
@@ -111,9 +116,9 @@ TESTCASE (b_cond_label_wide)
   gum_thumb_writer_flush (&fixture->tw);
 
   /* again: */
-  assert_output_n_equals (0, 0x46c0); /* nop */
-  assert_output_n_equals (1, 0x46c0); /* nop */
-  assert_output_n_equals (2, 0x46c0); /* nop */
+  assert_output_n_equals (0, 0xbf00); /* nop */
+  assert_output_n_equals (1, 0xbf00); /* nop */
+  assert_output_n_equals (2, 0xbf00); /* nop */
   assert_output_n_equals (3, 0xf47f); /* bne.w again */
   assert_output_n_equals (4, 0xaffb);
 }
@@ -135,9 +140,9 @@ TESTCASE (cbz_reg_label)
 
   assert_output_n_equals (0, 0xb11f); /* cbz r7, beach */
   assert_output_n_equals (1, 0x4788); /* blx r1 */
-  assert_output_n_equals (2, 0x46c0); /* nop */
-  assert_output_n_equals (3, 0x46c0); /* nop */
-  assert_output_n_equals (4, 0x46c0); /* nop */
+  assert_output_n_equals (2, 0xbf00); /* nop */
+  assert_output_n_equals (3, 0xbf00); /* nop */
+  assert_output_n_equals (4, 0xbf00); /* nop */
   /* beach: */
   assert_output_n_equals (5, 0xbd00); /* pop {pc} */
 }
@@ -209,9 +214,9 @@ TESTCASE (cbnz_reg_label)
   gum_thumb_writer_flush (&fixture->tw);
 
   assert_output_n_equals (0, 0xb910); /* cbnz r0, beach */
-  assert_output_n_equals (1, 0x46c0); /* nop */
-  assert_output_n_equals (2, 0x46c0); /* nop */
-  assert_output_n_equals (3, 0x46c0); /* nop */
+  assert_output_n_equals (1, 0xbf00); /* nop */
+  assert_output_n_equals (2, 0xbf00); /* nop */
+  assert_output_n_equals (3, 0xbf00); /* nop */
   /* beach: */
 }
 
@@ -228,7 +233,7 @@ TESTCASE (b_label_wide)
   assert_output_n_equals (0, 0xf000); /* b.w next */
   assert_output_n_equals (1, 0xb800);
   /* next: */
-  assert_output_n_equals (2, 0x46c0); /* nop */
+  assert_output_n_equals (2, 0xbf00); /* nop */
 }
 
 TESTCASE (bx_reg)
@@ -311,17 +316,8 @@ TESTCASE (ldr_u32)
   assert_output_n_equals (0, 0x4801);
   assert_output_n_equals (1, 0x4902);
   assert_output_n_equals (2, 0x4a00);
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN
-  g_assert_cmphex (GUINT32_FROM_LE (((guint32 *) fixture->output)[2]),
-      ==, 0x1337);
-  g_assert_cmphex (GUINT32_FROM_LE (((guint32 *) fixture->output)[3]),
-      ==, 0x1227);
-#else
-  g_assert_cmphex (GUINT32_FROM_BE (((guint32 *) fixture->output)[2]),
-      ==, 0x1337);
-  g_assert_cmphex (GUINT32_FROM_BE (((guint32 *) fixture->output)[3]),
-      ==, 0x1227);
-#endif
+  g_assert_cmphex (((guint32 *) fixture->output)[2], ==, 0x1337);
+  g_assert_cmphex (((guint32 *) fixture->output)[3], ==, 0x1227);
 }
 
 #ifdef HAVE_ARM
@@ -413,6 +409,41 @@ TESTCASE (ldr_reg_reg)
   gum_thumb_writer_put_ldr_reg_reg (&fixture->tw, ARM_REG_R12, ARM_REG_R12);
   assert_output_n_equals (1, 0xf8dc);
   assert_output_n_equals (2, 0xc000);
+}
+
+TESTCASE (ldrb_reg_reg)
+{
+  gum_thumb_writer_put_ldrb_reg_reg (&fixture->tw, ARM_REG_R1, ARM_REG_R3);
+  assert_output_n_equals (0, 0x7819);
+}
+
+TESTCASE (ldrh_reg_reg)
+{
+  gum_thumb_writer_put_ldrh_reg_reg (&fixture->tw, ARM_REG_R1, ARM_REG_R3);
+  assert_output_n_equals (0, 0x8819);
+}
+
+TESTCASE (vldr_reg_reg_offset)
+{
+  gum_thumb_writer_put_vldr_reg_reg_offset (&fixture->tw, ARM_REG_S1,
+      ARM_REG_R2, 4);
+  assert_output_n_equals (0, 0xedd2);
+  assert_output_n_equals (1, 0x0a01);
+
+  gum_thumb_writer_put_vldr_reg_reg_offset (&fixture->tw, ARM_REG_D2,
+      ARM_REG_R3, 8);
+  assert_output_n_equals (2, 0xed93);
+  assert_output_n_equals (3, 0x2b02);
+
+  gum_thumb_writer_put_vldr_reg_reg_offset (&fixture->tw, ARM_REG_D3,
+      ARM_REG_R4, -4);
+  assert_output_n_equals (4, 0xed14);
+  assert_output_n_equals (5, 0x3b01);
+
+  gum_thumb_writer_put_vldr_reg_reg_offset (&fixture->tw, ARM_REG_D17,
+      ARM_REG_R5, -8);
+  assert_output_n_equals (6, 0xed55);
+  assert_output_n_equals (7, 0x1b02);
 }
 
 TESTCASE (str_reg_reg_offset)
@@ -669,6 +700,20 @@ TESTCASE (and_reg_reg_imm)
   assert_output_n_equals (9, 0x0535);
 }
 
+TESTCASE (lsls_reg_reg_imm)
+{
+  gum_thumb_writer_put_lsls_reg_reg_imm (&fixture->tw, ARM_REG_R1, ARM_REG_R3,
+      7);
+  assert_output_n_equals (0, 0x01d9);
+}
+
+TESTCASE (lsrs_reg_reg_imm)
+{
+  gum_thumb_writer_put_lsrs_reg_reg_imm (&fixture->tw, ARM_REG_R3, ARM_REG_R7,
+      9);
+  assert_output_n_equals (0, 0x0a7b);
+}
+
 TESTCASE (mrs_reg_reg)
 {
   gum_thumb_writer_put_mrs_reg_reg (&fixture->tw, ARM_REG_R1,
@@ -698,5 +743,5 @@ TESTCASE (msr_reg_reg)
 TESTCASE (nop)
 {
   gum_thumb_writer_put_nop (&fixture->tw);
-  assert_output_equals (0x46c0);
+  assert_output_equals (0xbf00);
 }

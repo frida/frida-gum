@@ -30,6 +30,7 @@ TESTLIST_BEGIN (process)
   TESTENTRY (process_modules)
   TESTENTRY (process_ranges)
   TESTENTRY (process_ranges_exclude_cloaked)
+  TESTENTRY (thread_ranges_can_be_enumerated)
   TESTENTRY (module_can_be_loaded)
   TESTENTRY (module_imports)
   TESTENTRY (module_import_slot_should_contain_correct_value)
@@ -94,6 +95,9 @@ struct _TestThreadSyncData
 };
 
 static gboolean check_thread_enumeration_testable (void);
+
+static gpointer probe_thread (gpointer data);
+static void inspect_thread_ranges (void);
 
 static gboolean store_import_slot_of_malloc_if_available (
     const GumImportDetails * details, gpointer user_data);
@@ -398,6 +402,47 @@ TESTCASE (process_ranges_exclude_cloaked)
   g_assert_false (ctx.found);
 }
 
+TESTCASE (thread_ranges_can_be_enumerated)
+{
+  inspect_thread_ranges ();
+  g_thread_join (g_thread_new ("prober-thread", probe_thread, NULL));
+}
+
+static gpointer
+probe_thread (gpointer data)
+{
+  inspect_thread_ranges ();
+  return NULL;
+}
+
+static void
+inspect_thread_ranges (void)
+{
+  GumMemoryRange ranges[2];
+  guint n;
+
+  n = gum_thread_try_get_ranges (ranges, G_N_ELEMENTS (ranges));
+
+  if (g_test_verbose ())
+  {
+    guint i;
+
+    g_print ("\n*** n=%u\n", n);
+
+    for (i = 0; i != n; i++)
+    {
+      const GumMemoryRange * r = &ranges[i];
+
+      g_print ("\tranges[%u] = 0x%" G_GINT64_MODIFIER "x->0x%"
+          G_GINT64_MODIFIER "x (%" G_GSIZE_MODIFIER "u bytes)\n",
+          i,
+          r->base_address,
+          r->base_address + r->size,
+          r->size);
+    }
+  }
+}
+
 #if defined (HAVE_WINDOWS) || defined (HAVE_DARWIN)
 
 #define TEST_STACK_BUFFER_SIZE 50
@@ -619,6 +664,7 @@ TESTCASE (module_export_matches_system_lookup)
 }
 
 #ifndef HAVE_WINDOWS
+
 static gboolean
 store_export_address_if_tricky_module_export (const GumExportDetails * details,
                                               gpointer user_data)
@@ -632,9 +678,11 @@ store_export_address_if_tricky_module_export (const GumExportDetails * details,
 
   return TRUE;
 }
+
 #endif
 
 #ifdef HAVE_WINDOWS
+
 TESTCASE (get_current_thread_id)
 {
   g_assert_cmphex (gum_process_get_current_thread_id (), ==,
@@ -648,6 +696,7 @@ TESTCASE (get_set_system_error)
   SetLastError (0x89ABCDEF);
   g_assert_cmpint (gum_thread_get_system_error (), ==, (gint) 0x89ABCDEF);
 }
+
 #endif
 
 #ifdef HAVE_DARWIN

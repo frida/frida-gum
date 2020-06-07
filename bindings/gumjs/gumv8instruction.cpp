@@ -272,7 +272,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_instruction_parse)
 #ifdef HAVE_ARM
   address = GPOINTER_TO_SIZE (target) & ~1;
   cs_option (module->capstone, CS_OPT_MODE,
-      (GPOINTER_TO_SIZE (target) & 1) == 1 ? CS_MODE_THUMB : CS_MODE_ARM);
+      (((GPOINTER_TO_SIZE (target) & 1) == 1) ? CS_MODE_THUMB : CS_MODE_ARM) |
+      CS_MODE_V8 | GUM_DEFAULT_CS_ENDIAN);
 #else
   address = GPOINTER_TO_SIZE (target);
 #endif

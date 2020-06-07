@@ -41,9 +41,10 @@ G_DECLARE_FINAL_TYPE (GumCallbackStalkerTransformer,
     GObject)
 
 typedef struct _GumStalkerIterator GumStalkerIterator;
+typedef struct _GumStalkerOutput GumStalkerOutput;
 typedef union _GumStalkerWriter GumStalkerWriter;
 typedef void (* GumStalkerTransformerCallback) (GumStalkerIterator * iterator,
-    GumStalkerWriter * output, gpointer user_data);
+    GumStalkerOutput * output, gpointer user_data);
 typedef void (* GumStalkerCallout) (GumCpuContext * cpu_context,
     gpointer user_data);
 
@@ -56,16 +57,23 @@ struct _GumStalkerTransformerInterface
   GTypeInterface parent;
 
   void (* transform_block) (GumStalkerTransformer * self,
-      GumStalkerIterator * iterator, GumStalkerWriter * output);
+      GumStalkerIterator * iterator, GumStalkerOutput * output);
 };
 
 union _GumStalkerWriter
 {
-  GumX86Writer x86;
-  GumArmWriter arm;
-  GumThumbWriter thumb;
-  GumArm64Writer arm64;
-  GumMipsWriter mips;
+  gpointer instance;
+  GumX86Writer * x86;
+  GumArmWriter * arm;
+  GumThumbWriter * thumb;
+  GumArm64Writer * arm64;
+  GumMipsWriter * mips;
+};
+
+struct _GumStalkerOutput
+{
+  GumStalkerWriter writer;
+  GumInstructionEncoding encoding;
 };
 
 struct _GumCallSite
@@ -120,7 +128,7 @@ GUM_API GumStalkerTransformer * gum_stalker_transformer_make_from_callback (
 
 GUM_API void gum_stalker_transformer_transform_block (
     GumStalkerTransformer * self, GumStalkerIterator * iterator,
-    GumStalkerWriter * output);
+    GumStalkerOutput * output);
 
 GUM_API gboolean gum_stalker_iterator_next (GumStalkerIterator * self,
     const cs_insn ** insn);

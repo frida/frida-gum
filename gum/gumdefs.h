@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -54,6 +54,7 @@ typedef guint GumCallingConvention;
 typedef guint GumAbiType;
 typedef guint GumCpuType;
 typedef guint GumCpuFeatures;
+typedef guint GumInstructionEncoding;
 #define GUM_TYPE_CPU_TYPE (gum_cpu_type_get_type ())
 typedef guint GumArgType;
 typedef struct _GumArgument GumArgument;
@@ -79,7 +80,8 @@ typedef GumX64CpuContext GumCpuContext;
 # endif
 #elif defined (__arm__) && !defined (__aarch64__)
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_ARM
-# define GUM_DEFAULT_CS_MODE ((cs_mode) (CS_MODE_ARM | GUM_DEFAULT_CS_ENDIAN))
+# define GUM_DEFAULT_CS_MODE \
+    ((cs_mode) (CS_MODE_ARM | CS_MODE_V8 | GUM_DEFAULT_CS_ENDIAN))
 typedef GumArmCpuContext GumCpuContext;
 #elif defined (__aarch64__)
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_ARM64
@@ -134,6 +136,12 @@ enum _GumCpuFeatures
 {
   GUM_CPU_AVX2    = 1 << 0,
   GUM_CPU_PTRAUTH = 1 << 1,
+};
+
+enum _GumInstructionEncoding
+{
+  GUM_INSTRUCTION_DEFAULT,
+  GUM_INSTRUCTION_SPECIAL
 };
 
 enum _GumArgType
@@ -390,6 +398,7 @@ enum _GumRelocationScenario
 #define GUM_POINTER_TO_FUNCPTR(t, p) ((t) GPOINTER_TO_SIZE (p))
 
 #define GUM_INT2_MASK  0x00000003U
+#define GUM_INT4_MASK  0x0000000fU
 #define GUM_INT5_MASK  0x0000001fU
 #define GUM_INT6_MASK  0x0000003fU
 #define GUM_INT8_MASK  0x000000ffU

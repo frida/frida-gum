@@ -13,7 +13,7 @@ def generate_and_write_bindings(source_dir, output_dir):
                                 'set_target_cpu', 'set_target_abi', 'set_target_os',
                                 'cur', 'offset', 'flush', 'get_cpu_register_for_nth_argument'] }),
         ("relocator", { 'ignore': ['new', 'ref', 'unref', 'init', 'clear', 'reset',
-                                   'read_one', 'eob', 'eoi', 'can_relocate'] }),
+                                   'read_one', 'is_eob_instruction', 'eob', 'eoi', 'can_relocate'] }),
     ]
 
     flavor_combos = [
@@ -95,44 +95,55 @@ def generate_umbrella(runtime, name, section, flavor_combos):
                 "",
             ])
             current_arch = arch
+
         lines.append("# include \"gum{0}code{1}{2}-{3}.inc\"".format(runtime, name, section, flavor))
-        if section == "-methods" and flavor != "arm":
-            native_function_prefix = "gum_{0}_native_{1}".format(runtime, name)
-            wrapper_function_prefix = "gum_{0}_{1}_{2}".format(runtime, flavor, name)
-            impl_function_prefix = "gum_{0}_{1}".format(flavor, name)
 
-            params = {
-                "name_uppercase": name.upper(),
-                "native_class_name": to_camel_case("{0}_{1}".format(flavor, name), start_high=True),
-                "native_field_name": "{0}_{1}".format(flavor, name),
-                "native_struct_name": to_camel_case(native_function_prefix, start_high=True),
-                "native_function_prefix": native_function_prefix,
-                "wrapper_macro_prefix": "GUM_{0}_NATIVE_{1}".format(runtime.upper(), name.upper()),
-                "wrapper_struct_name": to_camel_case(wrapper_function_prefix, start_high=True),
-                "wrapper_function_prefix": wrapper_function_prefix,
-                "impl_struct_name": to_camel_case(impl_function_prefix, start_high=True),
-                "persistent_suffix": "_persistent" if runtime == "v8" else ""
-            }
+        if section == "-methods":
+            if flavor == "thumb":
+                lines.extend(generate_alias_definitions("special", runtime, name, flavor))
+            else:
+                lines.extend(generate_alias_definitions("default", runtime, name, flavor))
+                if flavor != "arm":
+                    lines.extend(generate_alias_definitions("special", runtime, name, flavor))
 
-            lines.extend("""
-#define {wrapper_macro_prefix}_CLASS_NAME "{native_class_name}"
-#define {wrapper_macro_prefix}_FIELD {native_field_name}
-
-typedef {wrapper_struct_name} {native_struct_name};
-typedef {impl_struct_name} {native_struct_name}Impl;
-
-#define _{native_function_prefix}_new{persistent_suffix} _{wrapper_function_prefix}_new{persistent_suffix}
-#define _{native_function_prefix}_release{persistent_suffix} _{wrapper_function_prefix}_release{persistent_suffix}
-#define _{native_function_prefix}_init _{wrapper_function_prefix}_init
-#define _{native_function_prefix}_finalize _{wrapper_function_prefix}_finalize
-#define _{native_function_prefix}_reset _{wrapper_function_prefix}_reset
-""".format(**params).split("\n"))
     lines.append("#endif")
 
     filename = "gum{0}code{1}{2}.inc".format(runtime, name, section)
     code = "\n".join(lines)
 
     return (filename, code)
+
+def generate_alias_definitions(alias, runtime, name, flavor):
+    alias_function_prefix = "gum_{0}_{1}_{2}".format(runtime, alias, name)
+    wrapper_function_prefix = "gum_{0}_{1}_{2}".format(runtime, flavor, name)
+    impl_function_prefix = "gum_{0}_{1}".format(flavor, name)
+
+    params = {
+        "name_uppercase": name.upper(),
+        "alias_class_name": to_camel_case("{0}_{1}".format(flavor, name), start_high=True),
+        "alias_field_name": "{0}_{1}".format(flavor, name),
+        "alias_struct_name": to_camel_case(alias_function_prefix, start_high=True),
+        "alias_function_prefix": alias_function_prefix,
+        "wrapper_macro_prefix": "GUM_{0}_{1}_{2}".format(runtime.upper(), alias.upper(), name.upper()),
+        "wrapper_struct_name": to_camel_case(wrapper_function_prefix, start_high=True),
+        "wrapper_function_prefix": wrapper_function_prefix,
+        "impl_struct_name": to_camel_case(impl_function_prefix, start_high=True),
+        "persistent_suffix": "_persistent" if runtime == "v8" else ""
+    }
+
+    return """
+#define {wrapper_macro_prefix}_CLASS_NAME "{alias_class_name}"
+#define {wrapper_macro_prefix}_FIELD {alias_field_name}
+
+typedef {wrapper_struct_name} {alias_struct_name};
+typedef {impl_struct_name} {alias_struct_name}Impl;
+
+#define _{alias_function_prefix}_new{persistent_suffix} _{wrapper_function_prefix}_new{persistent_suffix}
+#define _{alias_function_prefix}_release{persistent_suffix} _{wrapper_function_prefix}_release{persistent_suffix}
+#define _{alias_function_prefix}_init _{wrapper_function_prefix}_init
+#define _{alias_function_prefix}_finalize _{wrapper_function_prefix}_finalize
+#define _{alias_function_prefix}_reset _{wrapper_function_prefix}_reset
+""".format(**params).split("\n")
 
 class Bindings(object):
     def __init__(self, code, tsds, docs):
@@ -2188,6 +2199,10 @@ writer_enums = {
             "eq", "ne", "hs", "lo", "mi", "pl", "vs", "vc",
             "hi", "ls", "ge", "lt", "gt", "le", "al",
         ]),
+        ("arm_shifter", "arm_shifter", "ARM_SFT_", [
+            "asr", "lsl", "lsr", "ror", "rrx", "asr-reg", "lsl-reg", "lsr-reg",
+            "ror-reg", "rrx-reg",
+        ]),
     ],
     "thumb": [],
     "arm64": [
@@ -2434,6 +2449,8 @@ def generate_class_type_definitions(name, arch, flavor, api):
                 description = """Like `putCallWithArguments()`, but also
      * ensures that the argument list is aligned on a 16 byte boundary"""
                 arg_names[-1] = "args"
+            elif method.name == "put_branch_address":
+                description = "Puts code needed for branching/jumping to the given address"
             elif method.name in ("put_push_regs", "put_pop_regs"):
                 if method.name.startswith("put_push_"):
                     mnemonic = "PUSH"
@@ -2449,6 +2466,8 @@ def generate_class_type_definitions(name, arch, flavor, api):
                 description = """Puts code needed for popping all X registers off the stack"""
             elif method.name == "put_pop_all_q_registers":
                 description = """Puts code needed for popping all Q registers off the stack"""
+            elif method.name == "put_prologue_trampoline":
+                description = "Puts a minimal sized trampoline for vectoring to the given address"
             elif method.name == "put_ldr_reg_ref":
                 description = """Puts an LDR instruction with a dangling data reference,
      * returning an opaque ref value that should be passed to `putLdrRegValue()`
@@ -2472,6 +2491,10 @@ def generate_class_type_definitions(name, arch, flavor, api):
                 description = "Puts an int8"
             elif method.name == "put_bytes":
                 description = "Puts raw data"
+            elif method.name.endswith("no_auth"):
+                opcode = method.name.split("_")[1].upper()
+                description = """Puts {0} instruction expecting a raw pointer without
+     * any authentication bits""".format(make_indefinite(opcode))
             else:
                 types = set(["reg", "imm", "offset", "indirect", "short", "near", "ptr", "base", "index", "scale", "address", "label", "u8", "i32", "u32", "u64"])
                 opcode = " ".join(filter(lambda token: token not in types, method.name.split("_")[1:])).upper()
@@ -2493,14 +2516,27 @@ def generate_class_type_definitions(name, arch, flavor, api):
      * locations inside the relocated range, and is an optimization for use-cases
      * where all branches are rewritten (e.g. Frida's Stalker)"""
         elif method.name.startswith("write_one"):
-            description = "write the next buffered instruction"
+            description = "Writes the next buffered instruction"
             if method.name.endswith("_no_label"):
                 description += """, but without a
      * label for internal use. This breaks relocation of branches to locations
      * inside the relocated range, and is an optimization for use-cases where all
      * branches are rewritten (e.g. Frida's Stalker)"""
+        elif method.name == "copy_one":
+            description = """Copies out the next buffered instruction without advancing the
+     * output cursor, allowing the same instruction to be written out
+     * multiple times"""
         elif method.name.startswith("write_all"):
             description = "Writes all buffered instructions"
+        elif method.name == "can_branch_directly_between":
+            description = """Determines whether a direct branch is possible between the two
+     * given memory locations"""
+        elif method.name == "commit_label":
+            description = """Commits the first pending reference to the given label, returning
+     * `true` on success. Returns `false` if the given label hasn't been
+     * defined yet, or there are no more pending references to it"""
+        elif method.name == "sign":
+            description = "Signs the given pointer value"
 
         p = {}
         p.update(params)
@@ -2678,6 +2714,9 @@ def generate_class_api_reference(name, arch, flavor, api):
                 description = """like above, but also
     ensures that the argument list is aligned on a 16 byte boundary"""
                 arg_names[-1] = "args"
+            elif method.name == "put_branch_address":
+                description = """put code needed for branching/jumping to the
+    given address"""
             elif method.name in ("put_push_regs", "put_pop_regs"):
                 if method.name.startswith("put_push_"):
                     mnemonic = "PUSH"
@@ -2695,6 +2734,9 @@ def generate_class_api_reference(name, arch, flavor, api):
                 description = """put code needed for popping all X registers off the stack"""
             elif method.name == "put_pop_all_q_registers":
                 description = """put code needed for popping all Q registers off the stack"""
+            elif method.name == "put_prologue_trampoline":
+                description = """put a minimal sized trampoline for
+    vectoring to the given address"""
             elif method.name == "put_ldr_reg_ref":
                 description = """put an LDR instruction with a dangling data reference,
     returning an opaque ref value that should be passed to `putLdrRegValue()`
@@ -2718,6 +2760,10 @@ def generate_class_api_reference(name, arch, flavor, api):
                 description = "put an int8"
             elif method.name == "put_bytes":
                 description = "put raw data from the provided ArrayBuffer"
+            elif method.name.endswith("no_auth"):
+                opcode = method.name.split("_")[1].upper()
+                description = """put {0} instruction expecting a raw pointer
+    without any authentication bits""".format(make_indefinite(opcode))
             else:
                 types = set(["reg", "imm", "offset", "indirect", "short", "near", "ptr", "base", "index", "scale", "address", "label", "u8", "i32", "u32", "u64"])
                 opcode = " ".join(filter(lambda token: token not in types, method.name.split("_")[1:])).upper()
@@ -2745,8 +2791,21 @@ def generate_class_api_reference(name, arch, flavor, api):
     label for internal use. This breaks relocation of branches to locations
     inside the relocated range, and is an optimization for use-cases where all
     branches are rewritten (e.g. Frida's Stalker)."""
+        elif method.name == "copy_one":
+            description = """copy out the next buffered instruction without advancing the
+    output cursor, allowing the same instruction to be written out multiple
+    times"""
         elif method.name.startswith("write_all"):
             description = "write all buffered instructions"
+        elif method.name == "can_branch_directly_between":
+            description = """determine whether a direct branch is
+    possible between the two given memory locations"""
+        elif method.name == "commit_label":
+            description = """commit the first pending reference to the given label,
+    returning `true` on success. Returns `false` if the given label hasn't been
+    defined yet, or there are no more pending references to it."""
+        elif method.name == "sign":
+            description = "sign the given pointer value"
 
         p = {}
         p.update(params)
@@ -2979,6 +3038,11 @@ class MethodArgument(object):
             self.type_format = "s"
             self.type_ts = "ArmConditionCode" if type == "arm_cc" else "Arm64ConditionCode"
             converter = "condition_code"
+        elif type == "arm_shifter":
+            self.type_raw = "const gchar *"
+            self.type_format = "s"
+            self.type_ts = "ArmShifter"
+            converter = "shifter"
         elif type == "GumArm64IndexMode":
             self.type_raw = "const gchar *"
             self.type_format = "s"
