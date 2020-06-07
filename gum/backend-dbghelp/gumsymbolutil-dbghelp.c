@@ -158,7 +158,7 @@ gum_load_module(const gchar * str)
 
 	dbghelp = gum_dbghelp_impl_try_obtain();
 	if (dbghelp == NULL)
-		return;
+		return 0;
 
 	cur_process_handle = GetCurrentProcess();
 	modBase = GetModuleHandleA(str);
