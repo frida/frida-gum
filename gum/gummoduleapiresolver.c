@@ -143,6 +143,8 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
   module_query = g_match_info_fetch (query_info, 2);
   function_query = g_match_info_fetch (query_info, 3);
 
+  g_match_info_free (query_info);
+
   if (ignore_case)
   {
     gchar * str;
