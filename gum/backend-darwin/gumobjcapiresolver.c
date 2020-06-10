@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2016-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C)      2020 Grant Douglas <grant@reconditorium.uk>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -60,12 +61,12 @@ static void gum_objc_api_resolver_enumerate_matches (GumApiResolver * resolver,
 static gboolean gum_objc_api_resolver_enumerate_matches_for_class (
     GumObjcApiResolver * self, GumObjcClassMetadata * klass, gchar method_type,
     GPatternSpec * method_spec, GHashTable * visited_classes,
-    GumFoundApiFunc func, gpointer user_data);
+    gboolean ignore_case, GumFoundApiFunc func, gpointer user_data);
 
 static gchar gum_method_type_from_match_info (GMatchInfo * match_info,
     gint match_num);
 static GPatternSpec * gum_pattern_spec_from_match_info (GMatchInfo * match_info,
-    gint match_num);
+    gint match_num, gboolean ignore_case);
 
 static GHashTable * gum_objc_api_resolver_create_snapshot (
     GumObjcApiResolver * resolver);
@@ -105,10 +106,11 @@ gum_objc_api_resolver_init (GumObjcApiResolver * self)
 {
   gpointer objc;
 
-  self->query_pattern = g_regex_new ("([+*-])\\[(\\S+)\\s+(\\S+)\\]", 0, 0,
-      NULL);
+  self->query_pattern = g_regex_new ("([+*-])\\[(\\S+)\\s+(\\S+)\\](\\/i)?", 0,
+      0, NULL);
 
-  objc = dlopen ("/usr/lib/libobjc.A.dylib", RTLD_LAZY | RTLD_GLOBAL | RTLD_NOLOAD);
+  objc = dlopen ("/usr/lib/libobjc.A.dylib",
+      RTLD_LAZY | RTLD_GLOBAL | RTLD_NOLOAD);
   if (objc == NULL)
     goto beach;
 
@@ -170,6 +172,7 @@ gum_objc_api_resolver_enumerate_matches (GumApiResolver * resolver,
 {
   GumObjcApiResolver * self = GUM_OBJC_API_RESOLVER (resolver);
   GMatchInfo * query_info;
+  gboolean ignore_case;
   gchar method_type;
   GPatternSpec * class_spec, * method_spec;
   GHashTableIter iter;
@@ -181,9 +184,11 @@ gum_objc_api_resolver_enumerate_matches (GumApiResolver * resolver,
   if (!g_match_info_matches (query_info))
     goto invalid_query;
 
+  ignore_case = g_match_info_get_match_count (query_info) >= 5;
+
   method_type = gum_method_type_from_match_info (query_info, 1);
-  class_spec = gum_pattern_spec_from_match_info (query_info, 2);
-  method_spec = gum_pattern_spec_from_match_info (query_info, 3);
+  class_spec = gum_pattern_spec_from_match_info (query_info, 2, ignore_case);
+  method_spec = gum_pattern_spec_from_match_info (query_info, 3, ignore_case);
 
   g_match_info_free (query_info);
 
@@ -192,11 +197,23 @@ gum_objc_api_resolver_enumerate_matches (GumApiResolver * resolver,
   visited_classes = g_hash_table_new (NULL, NULL);
   while (carry_on && g_hash_table_iter_next (&iter, NULL, (gpointer *) &klass))
   {
-    if (g_pattern_match_string (class_spec, klass->name))
+    const gchar * class_name = klass->name;
+    gchar * class_name_copy = NULL;
+
+    if (ignore_case)
+    {
+      class_name_copy = g_utf8_strdown (class_name, -1);
+      class_name = class_name_copy;
+    }
+
+    if (g_pattern_match_string (class_spec, class_name))
     {
       carry_on = gum_objc_api_resolver_enumerate_matches_for_class (self, klass,
-          method_type, method_spec, visited_classes, func, user_data);
+          method_type, method_spec, visited_classes, ignore_case, func,
+          user_data);
     }
+
+    g_free (class_name_copy);
   }
   g_hash_table_unref (visited_classes);
 
@@ -219,6 +236,7 @@ gum_objc_api_resolver_enumerate_matches_for_class (GumObjcApiResolver * self,
                                                    gchar method_type,
                                                    GPatternSpec * method_spec,
                                                    GHashTable * visited_classes,
+                                                   gboolean ignore_case,
                                                    GumFoundApiFunc func,
                                                    gpointer user_data)
 {
@@ -246,25 +264,39 @@ gum_objc_api_resolver_enumerate_matches_for_class (GumObjcApiResolver * self,
     for (method_index = 0; method_index != method_count; method_index++)
     {
       Method method_handle = method_handles[method_index];
-      const gchar * method_name;
+      const gchar * method_name, * canonical_method_name;
+      gchar * method_name_copy = NULL;
 
       method_name = self->sel_getName (self->method_getName (method_handle));
+      canonical_method_name = method_name;
+
+      if (ignore_case)
+      {
+        method_name_copy = g_utf8_strdown (method_name, -1);
+        method_name = method_name_copy;
+      }
+
       if (g_pattern_match_string (method_spec, method_name))
       {
         GumApiDetails details;
 
-        details.name =
-            g_strconcat (prefix, klass->name, " ", method_name, suffix, NULL);
-        details.address =
-            GUM_ADDRESS (self->method_getImplementation (method_handle));
+        details.name = g_strconcat (prefix, klass->name, " ",
+            canonical_method_name, suffix, NULL);
+        details.address = GUM_ADDRESS (
+            self->method_getImplementation (method_handle));
 
         carry_on = func (&details, user_data);
 
         g_free ((gpointer) details.name);
 
         if (!carry_on)
+        {
+          g_free (method_name_copy);
           return FALSE;
+        }
       }
+
+      g_free (method_name_copy);
     }
   }
 
@@ -277,7 +309,8 @@ gum_objc_api_resolver_enumerate_matches_for_class (GumObjcApiResolver * self,
     g_assert (subclass != NULL);
 
     carry_on = gum_objc_api_resolver_enumerate_matches_for_class (self,
-        subclass, method_type, method_spec, visited_classes, func, user_data);
+        subclass, method_type, method_spec, visited_classes, ignore_case, func,
+        user_data);
     if (!carry_on)
       return FALSE;
   }
@@ -300,13 +333,22 @@ gum_method_type_from_match_info (GMatchInfo * match_info,
 
 static GPatternSpec *
 gum_pattern_spec_from_match_info (GMatchInfo * match_info,
-                                  gint match_num)
+                                  gint match_num,
+                                  gboolean ignore_case)
 {
-  gchar * pattern;
   GPatternSpec * spec;
+  gchar * pattern;
 
   pattern = g_match_info_fetch (match_info, match_num);
+  if (ignore_case)
+  {
+    gchar * str = g_utf8_strdown (pattern, -1);
+    g_free (pattern);
+    pattern = str;
+  }
+
   spec = g_pattern_spec_new (pattern);
+
   g_free (pattern);
 
   return spec;
