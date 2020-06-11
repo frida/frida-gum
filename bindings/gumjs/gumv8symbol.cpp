@@ -269,21 +269,14 @@ GUMJS_DEFINE_FUNCTION(gumjs_symbol_load)
     if (!_gum_v8_args_parse(args, "s", &path))
         return;
 
-    guint64 address;
+    gboolean result;
     {
         ScriptUnlocker unlocker(core);
 
-        address = gum_load_symbols (path);
+        result = gum_load_symbols (path);
     }
 
-    if (address != NULL)
-    {
-        info.GetReturnValue ().Set (_gum_v8_int64_new(address, core));
-    }
-    else
-    {
-        _gum_v8_throw (isolate, "unable to load symbols for module '%s'", path);
-    }
+    info.GetReturnValue ().Set (result);
 
     g_free(path);
 }

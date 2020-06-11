@@ -188,7 +188,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_load)
 {
   GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
 	const gchar * path;
-	guint64 ret;
+	gboolean ret;
 
 	_gum_duk_args_parse(args, "s", &path);
 
