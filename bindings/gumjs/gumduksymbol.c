@@ -184,7 +184,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_matching)
   return 1;
 }
 
-GUMJS_DEFINE_FUNCTION(gumjs_load_module)
+GUMJS_DEFINE_FUNCTION (gumjs_symbol_load)
 {
 	GumDukScope scope = GUM_DUK_SCOPE_INIT(args->core);
 	const gchar * path;
