@@ -100,6 +100,10 @@ gchar * g_strdup_vprintf (const gchar * format, va_list args);
 gboolean g_str_has_prefix (const gchar * str, const gchar * prefix);
 gboolean g_str_has_suffix (const gchar * str, const gchar * suffix);
 
+gchar * g_utf8_strup (const gchar * str, gssize len);
+gchar * g_utf8_strdown (const gchar * str, gssize len);
+gchar * g_utf8_casefold (const gchar * str, gssize len);
+
 #define g_new(struct_type, n_structs) \
     g_malloc (n_structs * sizeof (struct_type))
 #define g_new0(struct_type, n_structs) \
