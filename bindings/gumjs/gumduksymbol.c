@@ -30,7 +30,7 @@ static const duk_function_list_entry gumjs_symbol_module_functions[] =
   { "getFunctionByName", gumjs_symbol_get_function_by_name, 1 },
   { "findFunctionsNamed", gumjs_symbol_find_functions_named, 1 },
   { "findFunctionsMatching", gumjs_symbol_find_functions_matching, 1 },
-  { "loadModule", gumjs_load_module, 1 },
+  { "load", gumjs_symbol_load, 1 },
 
   { NULL, NULL, 0 }
 };
