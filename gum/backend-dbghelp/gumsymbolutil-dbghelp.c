@@ -148,7 +148,7 @@ gum_find_functions_matching (const gchar * str)
   return matches;
 }
 
-guint64
+gboolean
 gum_load_symbols (const gchar * path)
 {
 	GumDbghelpImpl * dbghelp;
