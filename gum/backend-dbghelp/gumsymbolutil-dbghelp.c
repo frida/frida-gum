@@ -149,7 +149,7 @@ gum_find_functions_matching (const gchar * str)
 }
 
 guint64
-gum_load_module(const gchar * str)
+gum_load_symbols (const gchar * path)
 {
 	GumDbghelpImpl * dbghelp;
 	HANDLE cur_process_handle;
