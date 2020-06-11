@@ -196,6 +196,14 @@ void g_string_append_vprintf (GString * string, const gchar * format,
     va_list args);
 void g_string_append_printf (GString * string, const gchar * format, ...);
 
+typedef struct _GPatternSpec GPatternSpec;
+
+GPatternSpec * g_pattern_spec_new (const gchar * pattern);
+void g_pattern_spec_free (GPatternSpec * pspec);
+gboolean g_pattern_match (GPatternSpec * pspec, guint string_length,
+    const gchar * string, const gchar * string_reversed);
+gboolean g_pattern_match_string (GPatternSpec * pspec, const gchar * string);
+
 typedef struct _GArray GArray;
 
 struct _GArray
