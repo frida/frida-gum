@@ -161,10 +161,10 @@ gum_load_symbols (const gchar * path)
 		return 0;
 
 	cur_process_handle = GetCurrentProcess();
-	modBase = GetModuleHandleA(str);
+	modBase = GetModuleHandleA(path);
 
 	dbghelp->Lock();
-	ret = dbghelp->SymLoadModuleEx(cur_process_handle, 0, str, 0, modBase, 0, 0, 0);
+	ret = dbghelp->SymLoadModuleEx(cur_process_handle, 0, path, 0, modBase, 0, 0, 0);
 	dbghelp->Unlock();
 
 	return ret;
