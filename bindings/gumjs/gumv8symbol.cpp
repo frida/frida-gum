@@ -27,6 +27,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_symbol_from_name)
 GUMJS_DECLARE_FUNCTION (gumjs_symbol_get_function_by_name)
 GUMJS_DECLARE_FUNCTION (gumjs_symbol_find_functions_named)
 GUMJS_DECLARE_FUNCTION (gumjs_symbol_find_functions_matching)
+GUMJS_DECLARE_FUNCTION (gumjs_symbol_load)
 
 static Local<Object> gum_symbol_new (GumV8Symbol * module,
     GumSymbol ** symbol);
@@ -47,6 +48,7 @@ static const GumV8Function gumjs_symbol_module_functions[] =
   { "getFunctionByName", gumjs_symbol_get_function_by_name },
   { "findFunctionsNamed", gumjs_symbol_find_functions_named },
   { "findFunctionsMatching", gumjs_symbol_find_functions_matching },
+  { "load", gumjs_symbol_load },
 
   { NULL, NULL }
 };
@@ -259,6 +261,31 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_matching)
   g_array_free (functions, TRUE);
 
   g_free (str);
+}
+
+GUMJS_DEFINE_FUNCTION(gumjs_symbol_load)
+{
+    gchar* path;
+    if (!_gum_v8_args_parse(args, "s", &path))
+        return;
+
+    guint64 address;
+    {
+        ScriptUnlocker unlocker(core);
+
+        address = gum_load_symbols (path);
+    }
+
+    if (address != NULL)
+    {
+        info.GetReturnValue ().Set (_gum_v8_int64_new(address, core));
+    }
+    else
+    {
+        _gum_v8_throw (isolate, "unable to load symbols for module '%s'", path);
+    }
+
+    g_free(path);
 }
 
 static Local<Object>
