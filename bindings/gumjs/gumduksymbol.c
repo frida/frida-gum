@@ -186,7 +186,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_matching)
 
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_load)
 {
-	GumDukScope scope = GUM_DUK_SCOPE_INIT(args->core);
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
 	const gchar * path;
 	guint64 ret;
 
