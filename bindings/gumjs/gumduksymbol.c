@@ -15,7 +15,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_symbol_from_name)
 GUMJS_DECLARE_FUNCTION (gumjs_symbol_get_function_by_name)
 GUMJS_DECLARE_FUNCTION (gumjs_symbol_find_functions_named)
 GUMJS_DECLARE_FUNCTION (gumjs_symbol_find_functions_matching)
-GUMJS_DECLARE_FUNCTION (gumjs_load_module)
+GUMJS_DECLARE_FUNCTION (gumjs_symbol_load)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_symbol_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_symbol_to_string)
@@ -190,10 +190,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_load)
 	const gchar * path;
 	guint64 ret;
 
-	_gum_duk_args_parse(args, "s", &str);
+	_gum_duk_args_parse(args, "s", &path);
 
 	_gum_duk_scope_suspend(&scope);
-	ret = gum_load_module(str);
+	ret = gum_load_symbols(path);
 	_gum_duk_scope_resume(&scope);
 
 	_gum_duk_push_uint64(ctx, ret, args->core);
