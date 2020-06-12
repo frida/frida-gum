@@ -265,20 +265,20 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_matching)
 
 GUMJS_DEFINE_FUNCTION(gumjs_symbol_load)
 {
-    gchar* path;
-    if (!_gum_v8_args_parse(args, "s", &path))
-        return;
+  gchar* path;
+  if (!_gum_v8_args_parse(args, "s", &path))
+    return;
 
-    gboolean result;
-    {
-        ScriptUnlocker unlocker(core);
+  gboolean result;
+  {
+    ScriptUnlocker unlocker(core);
 
-        result = gum_load_symbols (path);
-    }
+    result = gum_load_symbols (path);
+  }
 
-    info.GetReturnValue ().Set (result);
+  info.GetReturnValue ().Set (result);
 
-    g_free(path);
+  g_free(path);
 }
 
 static Local<Object>

@@ -134,14 +134,10 @@ gum_find_functions_matching (const gchar * str)
     return matches;
 
 
-  if (strstr(str, "!") == NULL)
-  {
+  if (strstr (str, "!") == NULL)
     match_formatted_str = g_strdup_printf ("*!%s", str);
-  }
   else
-  {
     match_formatted_str = g_strdup_printf ("%s", str);
-  }
 
   cur_process_handle = GetCurrentProcess ();
   any_module_base = 0;

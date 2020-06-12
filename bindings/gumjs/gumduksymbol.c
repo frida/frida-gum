@@ -187,17 +187,17 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_matching)
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_load)
 {
   GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
-	const gchar * path;
-	gboolean ret;
+  const gchar * path;
+  gboolean success;
 
-	_gum_duk_args_parse(args, "s", &path);
+  _gum_duk_args_parse(args, "s", &path);
 
-	_gum_duk_scope_suspend(&scope);
-	ret = gum_load_symbols(path);
-	_gum_duk_scope_resume(&scope);
+  _gum_duk_scope_suspend(&scope);
+  success = gum_load_symbols(path);
+  _gum_duk_scope_resume(&scope);
 
-	_gum_duk_push_uint64(ctx, ret, args->core);
-	return 1;
+  duk_push_boolean(ctx, success);
+  return 1;
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_symbol_construct)
