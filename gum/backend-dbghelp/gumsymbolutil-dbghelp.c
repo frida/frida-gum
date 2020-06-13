@@ -158,6 +158,7 @@ gum_load_symbols (const gchar * path)
   GumDbghelpImpl * dbghelp;
   DWORD64 base;
   WCHAR * path_utf16;
+  gboolean success;
 
   dbghelp = gum_dbghelp_impl_try_obtain ();
   if (dbghelp == NULL)
@@ -169,11 +170,16 @@ gum_load_symbols (const gchar * path)
   dbghelp->Lock ();
   base = dbghelp->SymLoadModuleExW (GetCurrentProcess (), NULL, path_utf16, NULL, base,
     0, NULL, 0);
+  if (base != 0 || GetLastError() == ERROR_SUCCESS)
+  {
+    success = TRUE;
+  }
+
   dbghelp->Unlock ();
 
   g_free (path_utf16);
 
-  return base != 0;
+  return success;
 }
 
 static BOOL CALLBACK
