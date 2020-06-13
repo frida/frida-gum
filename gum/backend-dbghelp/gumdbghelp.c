@@ -112,7 +112,7 @@ load_dbghelp (void)
   filename = wcsrchr (path, L'\\');
   g_assert (filename != NULL);
   filename++;
-  wcscat (filename, L"dbghelp.dll");
+  wcscpy (filename, L"dbghelp.dll");
 
   return LoadLibraryW (path);
 }
