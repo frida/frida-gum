@@ -52,7 +52,7 @@ struct _GumDbghelpImpl
   DWORD64(WINAPI * SymLoadModuleEx) (HANDLE hProcess, HANDLE hFile, 
       PCSTR ImageName, PCSTR ModuleName, DWORD64 BaseOfDll, DWORD DllSize, 
       PMODLOAD_DATA Data, DWORD Flags);
-  BOOL(WINAPI * SymGetModuleInfo) (HANDLE hProcess, DWORD dwAddr, 
+  BOOL (WINAPI * SymGetModuleInfo) (HANDLE hProcess, DWORD dwAddr,
       PIMAGEHLP_MODULE ModuleInfo);
 
   void (* Lock) (void);
