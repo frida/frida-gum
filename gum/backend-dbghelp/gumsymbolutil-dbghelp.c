@@ -155,9 +155,9 @@ gum_find_functions_matching (const gchar * str)
 gboolean
 gum_load_symbols (const gchar * path_utf8)
 {
-  GumDbghelpImpl* dbghelp;
+  GumDbghelpImpl * dbghelp;
   DWORD64 base;
-  WCHAR* path;
+  WCHAR * path;
 
   dbghelp = gum_dbghelp_impl_try_obtain ();
   if (dbghelp == NULL)
@@ -166,10 +166,10 @@ gum_load_symbols (const gchar * path_utf8)
   path = (WCHAR*)g_utf8_to_utf16 (path_utf8, -1, NULL, NULL, NULL);
   base = GetModuleHandleW (path);
 
-  dbghelp->Lock();
+  dbghelp->Lock ();
   base = dbghelp->SymLoadModuleExW (GetCurrentProcess(), NULL, path, NULL, base,
     0, NULL, 0);
-  dbghelp->Unlock();
+  dbghelp->Unlock ();
 
   return base != 0;
 }
