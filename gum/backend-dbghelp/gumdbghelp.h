@@ -47,14 +47,14 @@ struct _GumDbghelpImpl
       DWORD64 AddrBase);
   BOOL (WINAPI * SymGetLineFromAddr64) (HANDLE hProcess, DWORD64 qwAddr,
       PDWORD pdwDisplacement, PIMAGEHLP_LINE64 Line64);
-  DWORD64 (WINAPI * SymGetModuleBase64) (HANDLE hProcess, DWORD64 qwAddr);
-  BOOL (WINAPI * SymGetTypeInfo) (HANDLE hProcess, DWORD64 ModBase,
-      ULONG TypeId, IMAGEHLP_SYMBOL_TYPE_INFO GetType, PVOID pInfo);
   DWORD64 (WINAPI * SymLoadModuleExW) (HANDLE hProcess, HANDLE hFile,
       PCWSTR ImageName, PCWSTR ModuleName, DWORD64 BaseOfDll, DWORD DllSize,
       PMODLOAD_DATA Data, DWORD Flags);
+  DWORD64 (WINAPI * SymGetModuleBase64) (HANDLE hProcess, DWORD64 qwAddr);
   BOOL (WINAPI * SymGetModuleInfo) (HANDLE hProcess, DWORD dwAddr,
       PIMAGEHLP_MODULE ModuleInfo);
+  BOOL (WINAPI * SymGetTypeInfo) (HANDLE hProcess, DWORD64 ModBase,
+      ULONG TypeId, IMAGEHLP_SYMBOL_TYPE_INFO GetType, PVOID pInfo);
 
   void (* Lock) (void);
   void (* Unlock) (void);

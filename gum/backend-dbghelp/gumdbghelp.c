@@ -60,10 +60,10 @@ do_init (gpointer data)
   INIT_IMPL_FUNC (SymFromAddr);
   INIT_IMPL_FUNC (SymFunctionTableAccess64);
   INIT_IMPL_FUNC (SymGetLineFromAddr64);
-  INIT_IMPL_FUNC (SymGetModuleBase64);
-  INIT_IMPL_FUNC (SymGetTypeInfo);
   INIT_IMPL_FUNC (SymLoadModuleExW);
+  INIT_IMPL_FUNC (SymGetModuleBase64);
   INIT_IMPL_FUNC (SymGetModuleInfo);
+  INIT_IMPL_FUNC (SymGetTypeInfo);
 
   impl->Lock = gum_dbghelp_impl_lock;
   impl->Unlock = gum_dbghelp_impl_unlock;
