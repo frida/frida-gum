@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C)      2020 Matt Oh <oh.jeongwook@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -196,8 +197,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_load)
   success = gum_load_symbols (path);
   _gum_duk_scope_resume (&scope);
 
-  duk_push_boolean (ctx, success);
-  return 1;
+  if (!success)
+    _gum_duk_throw (ctx, "unable to load symbols");
+
+  return 0;
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_symbol_construct)

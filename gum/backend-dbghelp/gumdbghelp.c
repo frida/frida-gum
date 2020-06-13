@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C)      2020 Matt Oh <oh.jeongwook@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -52,18 +53,18 @@ do_init (gpointer data)
   impl->priv->module = mod;
 
   INIT_IMPL_FUNC (StackWalk64);
+  INIT_IMPL_FUNC (SymSetOptions);
   INIT_IMPL_FUNC (SymInitialize);
   INIT_IMPL_FUNC (SymCleanup);
   INIT_IMPL_FUNC (SymEnumSymbols);
   INIT_IMPL_FUNC (SymFromAddr);
-  INIT_IMPL_FUNC (SymSetOptions);
   INIT_IMPL_FUNC (SymFunctionTableAccess64);
   INIT_IMPL_FUNC (SymGetLineFromAddr64);
   INIT_IMPL_FUNC (SymGetModuleBase64);
   INIT_IMPL_FUNC (SymGetTypeInfo);
   INIT_IMPL_FUNC (SymLoadModuleExW);
   INIT_IMPL_FUNC (SymGetModuleInfo);
-  
+
   impl->Lock = gum_dbghelp_impl_lock;
   impl->Unlock = gum_dbghelp_impl_unlock;
 
@@ -111,7 +112,7 @@ load_dbghelp (void)
   filename = wcsrchr (path, L'\\');
   g_assert (filename != NULL);
   filename++;
-  wsprintf (filename, L"dbghelp.dll");
+  wcscat (filename, L"dbghelp.dll");
 
   return LoadLibraryW (path);
 }

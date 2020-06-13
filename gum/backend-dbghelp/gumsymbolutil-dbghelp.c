@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C)      2020 Matt Oh <oh.jeongwook@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -133,8 +134,7 @@ gum_find_functions_matching (const gchar * str)
   if (dbghelp == NULL)
     return matches;
 
-
-  if (strstr (str, "!") == NULL)
+  if (strchr (str, '!') == NULL)
     match_formatted_str = g_strconcat ("*!", str, NULL);
   else
     match_formatted_str = g_strdup (str);
@@ -155,28 +155,28 @@ gum_find_functions_matching (const gchar * str)
 gboolean
 gum_load_symbols (const gchar * path)
 {
+  gboolean success = FALSE;
   GumDbghelpImpl * dbghelp;
-  DWORD64 base;
   WCHAR * path_utf16;
-  gboolean success;
+  DWORD64 base;
 
   dbghelp = gum_dbghelp_impl_try_obtain ();
   if (dbghelp == NULL)
     return FALSE;
 
   path_utf16 = (WCHAR *) g_utf8_to_utf16 (path, -1, NULL, NULL, NULL);
-  base = GetModuleHandleW (path_utf16);
+
+  base = GPOINTER_TO_SIZE (GetModuleHandleW (path_utf16));
+  if (base == 0)
+    goto beach;
 
   dbghelp->Lock ();
-  base = dbghelp->SymLoadModuleExW (GetCurrentProcess (), NULL, path_utf16, NULL, base,
-    0, NULL, 0);
-  if (base != 0 || GetLastError () == ERROR_SUCCESS)
-  {
-    success = TRUE;
-  }
-
+  base = dbghelp->SymLoadModuleExW (GetCurrentProcess (), NULL, path_utf16,
+      NULL, base, 0, NULL, 0);
+  success = base != 0 || GetLastError () == ERROR_SUCCESS;
   dbghelp->Unlock ();
 
+beach:
   g_free (path_utf16);
 
   return success;

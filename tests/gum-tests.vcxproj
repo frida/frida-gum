@@ -97,8 +97,8 @@
       <AdditionalDependencies>capstone-32.lib;gum-32.lib;gumjs-32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\dbghelp-32.dll" "$(TargetDir)dbghelp-32.dll"
-copy /B /Y "$(ProjectDir)..\ext\dbghelp\dbghelp-64.dll" "$(TargetDir)dbghelp-64.dll"
+      <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\dbghelp-32.dll" "$(TargetDir)dbghelp.dll"
+copy /B /Y "$(ProjectDir)..\ext\symsrv\symsrv-32.dll" "$(TargetDir)symsrv.dll"
 copy /B /Y "$(SolutionDir)build\frida-windows\$(Platform)-$(ConfigurationName)\bin\gumpp.dll" "$(TargetDir)gumpp.dll"
 </Command>
     </PostBuildEvent>
@@ -118,8 +118,8 @@ copy /B /Y "$(SolutionDir)build\frida-windows\$(Platform)-$(ConfigurationName)\b
       <AdditionalDependencies>capstone-64.lib;gum-64.lib;gumjs-64.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\dbghelp-32.dll" "$(TargetDir)dbghelp-32.dll"
-copy /B /Y "$(ProjectDir)..\ext\dbghelp\dbghelp-64.dll" "$(TargetDir)dbghelp-64.dll"
+      <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\dbghelp-64.dll" "$(TargetDir)dbghelp.dll"
+copy /B /Y "$(ProjectDir)..\ext\symsrv\symsrv-64.dll" "$(TargetDir)symsrv.dll"
 copy /B /Y "$(SolutionDir)build\frida-windows\$(Platform)-$(ConfigurationName)\bin\gumpp.dll" "$(TargetDir)gumpp.dll"
 </Command>
     </PostBuildEvent>
@@ -139,8 +139,8 @@ copy /B /Y "$(SolutionDir)build\frida-windows\$(Platform)-$(ConfigurationName)\b
       <AdditionalDependencies>capstone-32.lib;gum-32.lib;gumjs-32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\dbghelp-32.dll" "$(TargetDir)dbghelp-32.dll"
-copy /B /Y "$(ProjectDir)..\ext\dbghelp\dbghelp-64.dll" "$(TargetDir)dbghelp-64.dll"
+      <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\dbghelp-32.dll" "$(TargetDir)dbghelp.dll"
+copy /B /Y "$(ProjectDir)..\ext\symsrv\symsrv-32.dll" "$(TargetDir)symsrv.dll"
 copy /B /Y "$(SolutionDir)build\frida-windows\$(Platform)-$(ConfigurationName)\bin\gumpp.dll" "$(TargetDir)gumpp.dll"
 </Command>
     </PostBuildEvent>
@@ -160,8 +160,8 @@ copy /B /Y "$(SolutionDir)build\frida-windows\$(Platform)-$(ConfigurationName)\b
       <AdditionalDependencies>capstone-64.lib;gum-64.lib;gumjs-64.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\dbghelp-32.dll" "$(TargetDir)dbghelp-32.dll"
-copy /B /Y "$(ProjectDir)..\ext\dbghelp\dbghelp-64.dll" "$(TargetDir)dbghelp-64.dll"
+      <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\dbghelp-64.dll" "$(TargetDir)dbghelp.dll"
+copy /B /Y "$(ProjectDir)..\ext\symsrv\symsrv-64.dll" "$(TargetDir)symsrv.dll"
 copy /B /Y "$(SolutionDir)build\frida-windows\$(Platform)-$(ConfigurationName)\bin\gumpp.dll" "$(TargetDir)gumpp.dll"
 </Command>
     </PostBuildEvent>

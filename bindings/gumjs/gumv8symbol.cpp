@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C)      2020 Matt Oh <oh.jeongwook@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -269,14 +270,15 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_load)
   if (!_gum_v8_args_parse (args, "s", &path))
     return;
 
-  bool result;
+  gboolean success;
   {
     ScriptUnlocker unlocker (core);
 
-    result = gum_load_symbols (path);
+    success = gum_load_symbols (path);
   }
 
-  info.GetReturnValue ().Set (result);
+  if (!success)
+    _gum_v8_throw (isolate, "unable to load symbols");
 
   g_free (path);
 }
