@@ -155,23 +155,23 @@ gum_find_functions_matching (const gchar * str)
 gboolean
 gum_load_symbols (const gchar * path)
 {
-	GumDbghelpImpl * dbghelp;
-	HANDLE cur_process_handle;
-	guint64 modBase;
-	guint64 ret;
+  GumDbghelpImpl * dbghelp;
+  HANDLE cur_process_handle;
+  guint64 modBase;
+  guint64 ret;
 
-	dbghelp = gum_dbghelp_impl_try_obtain();
-	if (dbghelp == NULL)
-		return 0;
+  dbghelp = gum_dbghelp_impl_try_obtain ();
+  if (dbghelp == NULL)
+    return 0;
 
-	cur_process_handle = GetCurrentProcess();
-	modBase = GetModuleHandleA(path);
+  cur_process_handle = GetCurrentProcess ();
+  modBase = GetModuleHandleA (path);
 
-	dbghelp->Lock();
-	ret = dbghelp->SymLoadModuleEx(cur_process_handle, 0, path, 0, modBase, 0, 0, 0);
-	dbghelp->Unlock();
+  dbghelp->Lock ();
+  ret = dbghelp->SymLoadModuleEx (cur_process_handle, 0, path, 0, modBase, 0, 0, 0);
+  dbghelp->Unlock ();
 
-	return ret;
+  return ret;
 }
 
 static BOOL CALLBACK
