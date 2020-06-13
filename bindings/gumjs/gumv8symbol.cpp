@@ -271,7 +271,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_load)
 
   bool result;
   {
-    ScriptUnlocker unlocker(core);
+    ScriptUnlocker unlocker (core);
 
     result = gum_load_symbols (path);
   }
