@@ -135,7 +135,7 @@ gum_find_functions_matching (const gchar * str)
 
 
   if (strstr (str, "!") == NULL)
-    match_formatted_str = g_strdup_printf ("*!%s", str);
+    match_formatted_str = g_strconcat ("*!", str, NULL);
   else
     match_formatted_str = g_strdup (str);
 
