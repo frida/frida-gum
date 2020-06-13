@@ -196,7 +196,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_load)
   success = gum_load_symbols(path);
   _gum_duk_scope_resume (&scope);
 
-  duk_push_boolean(ctx, success);
+  duk_push_boolean (ctx, success);
   return 1;
 }
 
