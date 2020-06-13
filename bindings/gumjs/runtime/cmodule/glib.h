@@ -100,6 +100,10 @@ gchar * g_strdup_vprintf (const gchar * format, va_list args);
 gboolean g_str_has_prefix (const gchar * str, const gchar * prefix);
 gboolean g_str_has_suffix (const gchar * str, const gchar * suffix);
 
+gchar * g_utf8_strup (const gchar * str, gssize len);
+gchar * g_utf8_strdown (const gchar * str, gssize len);
+gchar * g_utf8_casefold (const gchar * str, gssize len);
+
 #define g_new(struct_type, n_structs) \
     g_malloc (n_structs * sizeof (struct_type))
 #define g_new0(struct_type, n_structs) \
@@ -195,6 +199,14 @@ void g_string_printf (GString * string, const gchar * format, ...);
 void g_string_append_vprintf (GString * string, const gchar * format,
     va_list args);
 void g_string_append_printf (GString * string, const gchar * format, ...);
+
+typedef struct _GPatternSpec GPatternSpec;
+
+GPatternSpec * g_pattern_spec_new (const gchar * pattern);
+void g_pattern_spec_free (GPatternSpec * pspec);
+gboolean g_pattern_match (GPatternSpec * pspec, guint string_length,
+    const gchar * string, const gchar * string_reversed);
+gboolean g_pattern_match_string (GPatternSpec * pspec, const gchar * string);
 
 typedef struct _GArray GArray;
 
