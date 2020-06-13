@@ -7,7 +7,7 @@
   "devDependencies": {
     "frida-compile": "^9.2.0",
     "frida-java-bridge": "3.7.0",
-    "frida-objc-bridge": "4.1.7",
+    "frida-objc-bridge": "4.2.0",
     "promiscuous": "0.7.2"
   },
   "repository": {
