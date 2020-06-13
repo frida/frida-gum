@@ -278,7 +278,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_load)
 
   info.GetReturnValue ().Set (result);
 
-  g_free(path);
+  g_free (path);
 }
 
 static Local<Object>
