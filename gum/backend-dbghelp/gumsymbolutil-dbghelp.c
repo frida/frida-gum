@@ -153,25 +153,25 @@ gum_find_functions_matching (const gchar * str)
 }
 
 gboolean
-gum_load_symbols (const gchar * path)
+gum_load_symbols (const gchar * path_utf8)
 {
-  GumDbghelpImpl * dbghelp;
-  HANDLE cur_process_handle;
-  guint64 modBase;
-  guint64 ret;
+  GumDbghelpImpl* dbghelp;
+  DWORD64 base;
+  WCHAR* path;
 
   dbghelp = gum_dbghelp_impl_try_obtain ();
   if (dbghelp == NULL)
-    return 0;
+    return FALSE;
 
-  cur_process_handle = GetCurrentProcess ();
-  modBase = GetModuleHandleA (path);
+  path = (WCHAR*)g_utf8_to_utf16 (path_utf8, -1, NULL, NULL, NULL);
+  base = GetModuleHandleW (path);
 
-  dbghelp->Lock ();
-  ret = dbghelp->SymLoadModuleEx (cur_process_handle, 0, path, 0, modBase, 0, 0, 0);
-  dbghelp->Unlock ();
+  dbghelp->Lock();
+  base = dbghelp->SymLoadModuleExW (GetCurrentProcess(), NULL, path, NULL, base,
+    0, NULL, 0);
+  dbghelp->Unlock();
 
-  return ret;
+  return base != 0;
 }
 
 static BOOL CALLBACK

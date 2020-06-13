@@ -30,7 +30,7 @@ GUM_API gchar * gum_symbol_name_from_address (gpointer address);
 GUM_API gpointer gum_find_function (const gchar * name);
 GUM_API GArray * gum_find_functions_named (const gchar * name);
 GUM_API GArray * gum_find_functions_matching (const gchar * str);
-GUM_API gboolean gum_load_symbols (const gchar * path);
+GUM_API gboolean gum_load_symbols (const gchar * path_utf8);
 
 G_END_DECLS
 
