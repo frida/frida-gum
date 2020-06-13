@@ -481,6 +481,12 @@ gum_find_functions_matching (const gchar * str)
   return matches;
 }
 
+gboolean
+gum_load_symbols (const gchar * path)
+{
+  return FALSE;
+}
+
 static GumModuleEntry *
 gum_module_entry_from_address (gpointer address,
                                GumNearestSymbolDetails * nearest)

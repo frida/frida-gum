@@ -177,6 +177,12 @@ gum_find_functions_matching (const gchar * str)
   return gum_pointer_array_new_take_addresses (addresses, len);
 }
 
+gboolean
+gum_load_symbols (const gchar * path)
+{
+  return FALSE;
+}
+
 static GArray *
 gum_pointer_array_new_empty (void)
 {
