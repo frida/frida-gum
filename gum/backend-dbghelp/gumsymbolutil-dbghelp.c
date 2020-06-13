@@ -170,7 +170,7 @@ gum_load_symbols (const gchar * path)
   dbghelp->Lock ();
   base = dbghelp->SymLoadModuleExW (GetCurrentProcess (), NULL, path_utf16, NULL, base,
     0, NULL, 0);
-  if (base != 0 || GetLastError() == ERROR_SUCCESS)
+  if (base != 0 || GetLastError () == ERROR_SUCCESS)
   {
     success = TRUE;
   }
