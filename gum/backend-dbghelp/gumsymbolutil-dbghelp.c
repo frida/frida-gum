@@ -153,23 +153,25 @@ gum_find_functions_matching (const gchar * str)
 }
 
 gboolean
-gum_load_symbols (const gchar * path_utf8)
+gum_load_symbols (const gchar * path)
 {
   GumDbghelpImpl * dbghelp;
   DWORD64 base;
-  WCHAR * path;
+  WCHAR * path_utf16;
 
   dbghelp = gum_dbghelp_impl_try_obtain ();
   if (dbghelp == NULL)
     return FALSE;
 
-  path = (WCHAR*)g_utf8_to_utf16 (path_utf8, -1, NULL, NULL, NULL);
+  path_utf16 = (WCHAR*)g_utf8_to_utf16 (path_utf8, -1, NULL, NULL, NULL);
   base = GetModuleHandleW (path);
 
   dbghelp->Lock ();
-  base = dbghelp->SymLoadModuleExW (GetCurrentProcess(), NULL, path, NULL, base,
+  base = dbghelp->SymLoadModuleExW (GetCurrentProcess (), NULL, path_utf16, NULL, base,
     0, NULL, 0);
   dbghelp->Unlock ();
+
+  g_free (path_utf16);
 
   return base != 0;
 }
