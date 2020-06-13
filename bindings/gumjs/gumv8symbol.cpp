@@ -263,7 +263,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_matching)
   g_free (str);
 }
 
-GUMJS_DEFINE_FUNCTION(gumjs_symbol_load)
+GUMJS_DEFINE_FUNCTION (gumjs_symbol_load)
 {
   gchar * path;
   if (!_gum_v8_args_parse(args, "s", &path))
