@@ -137,7 +137,7 @@ gum_find_functions_matching (const gchar * str)
   if (strstr (str, "!") == NULL)
     match_formatted_str = g_strdup_printf ("*!%s", str);
   else
-    match_formatted_str = g_strdup_printf ("%s", str);
+    match_formatted_str = g_strdup (str);
 
   cur_process_handle = GetCurrentProcess ();
   any_module_base = 0;
