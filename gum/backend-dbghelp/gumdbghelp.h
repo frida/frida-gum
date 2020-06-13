@@ -54,6 +54,7 @@ struct _GumDbghelpImpl
       PMODLOAD_DATA Data, DWORD Flags);
   BOOL(WINAPI * SymGetModuleInfo) (HANDLE hProcess, DWORD dwAddr, 
       PIMAGEHLP_MODULE ModuleInfo);
+
   void (* Lock) (void);
   void (* Unlock) (void);
 
