@@ -163,7 +163,7 @@ gum_load_symbols (const gchar * path)
   if (dbghelp == NULL)
     return FALSE;
 
-  path_utf16 = (WCHAR*)g_utf8_to_utf16 (path, -1, NULL, NULL, NULL);
+  path_utf16 = (WCHAR *) g_utf8_to_utf16 (path, -1, NULL, NULL, NULL);
   base = GetModuleHandleW (path_utf16);
 
   dbghelp->Lock ();
