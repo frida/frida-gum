@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020 Matt Oh <oh.jeongwook@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -33,6 +34,7 @@ struct _GumDbghelpImpl
       PFUNCTION_TABLE_ACCESS_ROUTINE64 FunctionTableAccessRoutine,
       PGET_MODULE_BASE_ROUTINE64 GetModuleBaseRoutine,
       PTRANSLATE_ADDRESS_ROUTINE64 TranslateAddress);
+  DWORD (WINAPI * SymSetOptions) (DWORD SymOptions);
   BOOL (WINAPI * SymInitialize) (HANDLE hProcess, PCSTR UserSearchPath,
       BOOL fInvadeProcess);
   BOOL (WINAPI * SymCleanup) (HANDLE hProcess);
@@ -45,7 +47,12 @@ struct _GumDbghelpImpl
       DWORD64 AddrBase);
   BOOL (WINAPI * SymGetLineFromAddr64) (HANDLE hProcess, DWORD64 qwAddr,
       PDWORD pdwDisplacement, PIMAGEHLP_LINE64 Line64);
+  DWORD64 (WINAPI * SymLoadModuleExW) (HANDLE hProcess, HANDLE hFile,
+      PCWSTR ImageName, PCWSTR ModuleName, DWORD64 BaseOfDll, DWORD DllSize,
+      PMODLOAD_DATA Data, DWORD Flags);
   DWORD64 (WINAPI * SymGetModuleBase64) (HANDLE hProcess, DWORD64 qwAddr);
+  BOOL (WINAPI * SymGetModuleInfo) (HANDLE hProcess, DWORD dwAddr,
+      PIMAGEHLP_MODULE ModuleInfo);
   BOOL (WINAPI * SymGetTypeInfo) (HANDLE hProcess, DWORD64 ModBase,
       ULONG TypeId, IMAGEHLP_SYMBOL_TYPE_INFO GetType, PVOID pInfo);
 

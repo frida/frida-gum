@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2017-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020 Matt Oh <oh.jeongwook@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -479,6 +480,12 @@ gum_find_functions_matching (const gchar * str)
   g_hash_table_unref (seen);
 
   return matches;
+}
+
+gboolean
+gum_load_symbols (const gchar * path)
+{
+  return FALSE;
 }
 
 static GumModuleEntry *

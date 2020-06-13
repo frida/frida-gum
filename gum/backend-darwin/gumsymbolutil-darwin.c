@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020 Matt Oh <oh.jeongwook@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -175,6 +176,12 @@ gum_find_functions_matching (const gchar * str)
   g_object_unref (symbolicator);
 
   return gum_pointer_array_new_take_addresses (addresses, len);
+}
+
+gboolean
+gum_load_symbols (const gchar * path)
+{
+  return FALSE;
 }
 
 static GArray *

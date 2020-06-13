@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
+ * Copyright (C) 2020 Matt Oh <oh.jeongwook@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -30,6 +31,7 @@ GUM_API gchar * gum_symbol_name_from_address (gpointer address);
 GUM_API gpointer gum_find_function (const gchar * name);
 GUM_API GArray * gum_find_functions_named (const gchar * name);
 GUM_API GArray * gum_find_functions_matching (const gchar * str);
+GUM_API gboolean gum_load_symbols (const gchar * path);
 
 G_END_DECLS
 
