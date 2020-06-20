@@ -337,7 +337,7 @@ enum _GumRelocationScenario
 
 #define GUM_MAX_PATH                 260
 #define GUM_MAX_TYPE_NAME             16
-#define GUM_MAX_SYMBOL_NAME         2000
+#define GUM_MAX_SYMBOL_NAME         2048
 
 #define GUM_MAX_THREADS              768
 #define GUM_MAX_CALL_DEPTH            32

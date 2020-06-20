@@ -319,11 +319,12 @@ gum_darwin_symbolicator_details_from_address (GumDarwinSymbolicator * self,
   owner = CSSymbolGetSymbolOwner (symbol);
 
   details->address = address;
-  strcpy (details->module_name, CSSymbolOwnerGetName (owner));
+  g_strlcpy (details->module_name, CSSymbolOwnerGetName (owner),
+      sizeof (details->module_name));
   name = CSSymbolGetName (symbol);
   if (name != NULL)
   {
-    strcpy (details->symbol_name, name);
+    g_strlcpy (details->symbol_name, name, sizeof (details->symbol_name));
   }
   else
   {
@@ -336,7 +337,8 @@ gum_darwin_symbolicator_details_from_address (GumDarwinSymbolicator * self,
       GPOINTER_TO_SIZE (address), kCSNow);
   if (!CSIsNull (info))
   {
-    strcpy (details->file_name, CSSourceInfoGetFilename (info));
+    g_strlcpy (details->file_name, CSSourceInfoGetFilename (info),
+        sizeof (details->file_name));
     details->line_number = CSSourceInfoGetLineNumber (info);
   }
   else
