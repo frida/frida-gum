@@ -1665,6 +1665,7 @@ gum_stalker_iterator_handle_thumb_branch_insn (GumStalkerIterator * self,
       gum_stalker_get_target_address (insn, TRUE, &target, &mask);
       gum_exec_block_virtualize_thumb_call_insn (block, &target, gc);
       break;
+    case ARM_INS_MOV:
     case ARM_INS_POP:
     case ARM_INS_LDM:
       gum_stalker_get_target_address (insn, TRUE, &target, &mask);
