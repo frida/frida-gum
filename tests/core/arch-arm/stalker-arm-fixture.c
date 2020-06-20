@@ -34,7 +34,8 @@
 #define NTH_EXEC_EVENT_LOCATION(N) \
     (gum_fake_event_sink_get_nth_event_as_exec (fixture->sink, N)->location)
 
-#define TESTCODE(NAME, ...) static const guint8 NAME[] = { __VA_ARGS__ }
+#define TESTCODE(NAME, ...) static const __attribute__((__aligned__((4)))) \
+    guint8 NAME[] = { __VA_ARGS__ }
 #define CODE_START(NAME) ((gconstpointer) NAME)
 #define CODE_SIZE(NAME) sizeof (NAME)
 

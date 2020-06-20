@@ -230,6 +230,7 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
         self->eob = TRUE;
         self->eoi = FALSE;
         break;
+      case ARM_INS_MOV:
       case ARM_INS_LDR:
         self->eob = self->eoi = gum_reg_dest_is_pc (insn);
         break;
