@@ -3006,8 +3006,6 @@ gum_exec_block_virtualize_thumb_ret_insn (GumExecBlock * block,
   GumExecCtx * ec = block->ctx;
   const GumBranchIndirectRegOffset * tv = &target->value.indirect_reg_offset;
 
-  g_assert (target->type == GUM_TARGET_INDIRECT_REG_OFFSET);
-
   gum_exec_block_thumb_open_prolog (block, gc);
 
   if ((ec->sink_mask & GUM_EXEC) != 0)
