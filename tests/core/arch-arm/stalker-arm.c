@@ -1111,7 +1111,6 @@ TESTCODE (thumb2_mov_pc_reg,
   0x01, 0x4e, /* ldr r6, [pc, #4] */
   0xb7, 0x46, /* mov pc, r6       */
 
-
   0x0a, 0xde, /* udf 0x10         */
   0x0a, 0xde, /* udf 0x10         */
   /* inner_addr:                  */
