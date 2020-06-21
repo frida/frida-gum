@@ -38,6 +38,8 @@ typedef struct _GumExecFrame GumExecFrame;
 typedef struct _GumExecCtx GumExecCtx;
 typedef struct _GumExecBlock GumExecBlock;
 
+typedef guint8 GumExecBlockFlags;
+typedef guint GumPrologState;
 typedef struct _GumGeneratorContext GumGeneratorContext;
 typedef struct _GumCalloutEntry GumCalloutEntry;
 typedef struct _GumInstruction GumInstruction;
@@ -143,6 +145,7 @@ struct _GumExecBlock
   guint8 * code_begin;
   guint8 * code_end;
 
+  GumExecBlockFlags flags;
   gint recycle_count;
 };
 
@@ -155,6 +158,17 @@ struct _GumSlab
 
   guint num_blocks;
   GumExecBlock blocks[];
+};
+
+enum _GumExecBlockFlags
+{
+  GUM_EXEC_ACTIVATION_TARGET = (1 << 0),
+};
+
+enum _GumPrologState
+{
+  GUM_PROLOG_CLOSED,
+  GUM_PROLOG_OPEN
 };
 
 struct _GumGeneratorContext
@@ -1176,6 +1190,22 @@ gum_exec_ctx_contains (GumExecCtx * ctx,
   return FALSE;
 }
 
+static gboolean
+gum_exec_ctx_may_now_backpatch (GumExecCtx * ctx,
+                                GumExecBlock * target_block)
+{
+  if (g_atomic_int_get (&ctx->state) != GUM_EXEC_CTX_ACTIVE)
+    return FALSE;
+
+  if ((target_block->flags & GUM_EXEC_ACTIVATION_TARGET) != 0)
+    return FALSE;
+
+  if (target_block->recycle_count < ctx->stalker->trust_threshold)
+    return FALSE;
+
+  return TRUE;
+}
+
 static gpointer
 gum_exec_ctx_replace_block (GumExecCtx * ctx,
                             gpointer start_address)
@@ -1207,6 +1237,7 @@ gum_exec_ctx_replace_block (GumExecCtx * ctx,
     if (start_address == ctx->activation_target)
     {
       ctx->activation_target = NULL;
+      ctx->current_block->flags |= GUM_EXEC_ACTIVATION_TARGET;
     }
 
     gum_exec_ctx_maybe_unfollow (ctx, start_address);
@@ -2747,6 +2778,74 @@ gum_exec_ctx_thumb_load_real_register_into (GumExecCtx * ctx,
   }
 }
 
+static void
+gum_exec_ctx_backpatch_arm_branch_to_current (GumExecCtx * ctx,
+                                              gpointer backpatch_start,
+                                              GumPrologState prolog_state)
+{
+  GumExecBlock * block = ctx->current_block;
+  gboolean just_unfollowed;
+
+  just_unfollowed = block == NULL;
+  if (just_unfollowed)
+    return;
+
+  if (gum_exec_ctx_may_now_backpatch (ctx, block))
+  {
+    const gsize code_max_size = 64;
+    GumStalker * stalker = ctx->stalker;
+    GumArmWriter * cw = &ctx->arm_writer;
+
+    gum_stalker_thaw (stalker, backpatch_start, code_max_size);
+    gum_arm_writer_reset (cw, backpatch_start);
+
+    if (prolog_state == GUM_PROLOG_OPEN)
+    {
+      gum_exec_ctx_write_arm_epilog (ctx, cw);
+    }
+
+    gum_arm_writer_put_branch_address (cw, GUM_ADDRESS (block->code_begin));
+
+    gum_arm_writer_flush (cw);
+    g_assert (gum_arm_writer_offset (cw) <= code_max_size);
+    gum_stalker_freeze (stalker, backpatch_start, code_max_size);
+  }
+}
+
+static void
+gum_exec_ctx_backpatch_thumb_branch_to_current (GumExecCtx * ctx,
+                                                gpointer backpatch_start,
+                                                GumPrologState prolog_state)
+{
+  GumExecBlock * block = ctx->current_block;
+  gboolean just_unfollowed;
+
+  just_unfollowed = block == NULL;
+  if (just_unfollowed)
+    return;
+
+  if (gum_exec_ctx_may_now_backpatch (ctx, block))
+  {
+    const gsize code_max_size = 64;
+    GumStalker * stalker = ctx->stalker;
+    GumThumbWriter * cw = &ctx->thumb_writer;
+
+    gum_stalker_thaw (stalker, backpatch_start, code_max_size);
+    gum_thumb_writer_reset (cw, backpatch_start);
+
+    if (prolog_state == GUM_PROLOG_OPEN)
+    {
+      gum_exec_ctx_write_thumb_epilog (ctx, cw);
+    }
+
+    gum_thumb_writer_put_branch_address (cw, GUM_ADDRESS (block->code_begin));
+
+    gum_thumb_writer_flush (cw);
+    g_assert (gum_thumb_writer_offset (cw) <= code_max_size);
+    gum_stalker_freeze (stalker, backpatch_start, code_max_size);
+  }
+}
+
 static GumExecBlock *
 gum_exec_block_new (GumExecCtx * ctx)
 {
@@ -2772,6 +2871,7 @@ gum_exec_block_new (GumExecCtx * ctx)
     block->code_begin = slab->data + slab->offset;
     block->code_end = block->code_begin;
 
+    block->flags = 0;
     block->recycle_count = 0;
 
     gum_stalker_thaw (stalker, block->code_begin, available);
@@ -2886,21 +2986,51 @@ gum_exec_block_virtualize_arm_branch_insn (GumExecBlock * block,
                                            GumGeneratorContext * gc)
 {
   GumExecCtx * ec = block->ctx;
+  GumArmWriter * cw = gc->arm_writer;
+  gboolean should_emit_events;
+  GumPrologState backpatch_prolog_state;
+  guint32 * backpatch_code_start;
 
   gum_exec_block_write_arm_handle_not_taken (block, target, cc, gc);
 
-  gum_exec_block_arm_open_prolog (block, gc);
+  should_emit_events = !gum_generator_context_is_timing_sensitive (gc) &&
+      (ec->sink_mask & (GUM_EXEC | GUM_BLOCK)) != 0;
+  if (should_emit_events)
+  {
+    gum_exec_block_arm_open_prolog (block, gc);
+    backpatch_prolog_state = GUM_PROLOG_OPEN;
 
-  if ((ec->sink_mask & GUM_EXEC) != 0)
-    gum_exec_block_write_arm_exec_event_code (block, gc);
+    if ((ec->sink_mask & GUM_EXEC) != 0)
+      gum_exec_block_write_arm_exec_event_code (block, gc);
 
-  if ((ec->sink_mask & GUM_BLOCK) != 0)
-    gum_exec_block_write_arm_block_event_code (block, gc);
+    if ((ec->sink_mask & GUM_BLOCK) != 0)
+      gum_exec_block_write_arm_block_event_code (block, gc);
+  }
+  else
+  {
+    backpatch_prolog_state = GUM_PROLOG_CLOSED;
+  }
+
+  backpatch_code_start = cw->code;
+
+  if (backpatch_prolog_state == GUM_PROLOG_CLOSED)
+    gum_exec_block_arm_open_prolog (block, gc);
 
   gum_exec_block_write_arm_handle_excluded (block, target, FALSE, gc);
   gum_exec_block_write_arm_handle_kuser_helper (block, target, gc);
   gum_exec_block_write_arm_call_replace_block (block, target, gc);
   gum_exec_block_write_arm_pop_stack_frame (block, target, gc);
+
+  if (ec->stalker->trust_threshold >= 0 &&
+      target->type == GUM_TARGET_DIRECT_ADDRESS &&
+      !gum_is_thumb (target->value.direct_address.address))
+  {
+    gum_arm_writer_put_call_address_with_arguments (cw,
+        GUM_ADDRESS (gum_exec_ctx_backpatch_arm_branch_to_current), 3,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (ec),
+        GUM_ARG_ADDRESS, GUM_ADDRESS (backpatch_code_start),
+        GUM_ARG_ADDRESS, GUM_ADDRESS (backpatch_prolog_state));
+  }
 
   gum_exec_block_arm_close_prolog (block, gc);
 
@@ -2916,25 +3046,56 @@ gum_exec_block_virtualize_thumb_branch_insn (GumExecBlock * block,
                                              GumGeneratorContext * gc)
 {
   GumExecCtx * ec = block->ctx;
+  GumThumbWriter * cw = gc->thumb_writer;
+  gboolean should_emit_events;
+  GumPrologState backpatch_prolog_state;
+  guint16 * backpatch_code_start;
 
   gum_exec_block_write_thumb_handle_not_taken (block, target, cc, cc_reg, gc);
 
-  gum_exec_block_thumb_open_prolog (block, gc);
+  should_emit_events = !gum_generator_context_is_timing_sensitive (gc) &&
+      (ec->sink_mask & (GUM_EXEC | GUM_BLOCK)) != 0;
+  if (should_emit_events)
+  {
+    gum_exec_block_thumb_open_prolog (block, gc);
+    backpatch_prolog_state = GUM_PROLOG_OPEN;
 
-  if ((ec->sink_mask & GUM_EXEC) != 0)
-    gum_exec_block_write_thumb_exec_event_code (block, gc);
+    if ((ec->sink_mask & GUM_EXEC) != 0)
+      gum_exec_block_write_thumb_exec_event_code (block, gc);
 
-  if ((ec->sink_mask & GUM_BLOCK) != 0)
-    gum_exec_block_write_thumb_block_event_code (block, gc);
+    if ((ec->sink_mask & GUM_BLOCK) != 0)
+      gum_exec_block_write_thumb_block_event_code (block, gc);
+  }
+  else
+  {
+    backpatch_prolog_state = GUM_PROLOG_CLOSED;
+  }
+
+  backpatch_code_start = cw->code;
+
+  if (backpatch_prolog_state == GUM_PROLOG_CLOSED)
+    gum_exec_block_thumb_open_prolog (block, gc);
 
   gum_exec_block_write_thumb_handle_excluded (block, target, FALSE, gc);
   gum_exec_block_write_thumb_handle_kuser_helper (block, target, gc);
+
   gum_exec_block_write_thumb_call_replace_block (block, target, gc);
   gum_exec_block_write_thumb_pop_stack_frame (block, target, gc);
 
+  if (ec->stalker->trust_threshold >= 0 &&
+      target->type == GUM_TARGET_DIRECT_ADDRESS &&
+      gum_is_thumb (target->value.direct_address.address))
+  {
+    gum_thumb_writer_put_call_address_with_arguments (cw,
+        GUM_ADDRESS (gum_exec_ctx_backpatch_thumb_branch_to_current), 3,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (ec),
+        GUM_ARG_ADDRESS, GUM_ADDRESS (backpatch_code_start),
+        GUM_ARG_ADDRESS, GUM_ADDRESS (backpatch_prolog_state));
+  }
+
   gum_exec_block_thumb_close_prolog (block, gc);
 
-  gum_exec_block_write_thumb_exec_generated_code (gc->thumb_writer, block->ctx);
+  gum_exec_block_write_thumb_exec_generated_code (cw, block->ctx);
 }
 
 static void
@@ -3562,6 +3723,9 @@ gum_exec_block_write_arm_handle_not_taken (GumExecBlock * block,
   GumExecCtx * ec = block->ctx;
   GumArmWriter * cw = gc->arm_writer;
   gconstpointer taken = cw->code + 1;
+  gboolean should_emit_events;
+  GumPrologState backpatch_prolog_state;
+  guint32 * backpatch_code_start;
 
   /*
    * Many ARM instructions can be conditionally executed based upon the state of
@@ -3581,15 +3745,55 @@ gum_exec_block_write_arm_handle_not_taken (GumExecBlock * block,
    * instrumenting and vectoring to the block immediately after the conditional
    * instruction.
    */
-  gum_exec_block_arm_open_prolog (block, gc);
 
-  if ((ec->sink_mask & GUM_EXEC) != 0)
-    gum_exec_block_write_arm_exec_event_code (block, gc);
+  should_emit_events = !gum_generator_context_is_timing_sensitive (gc) &&
+      (ec->sink_mask & (GUM_EXEC | GUM_BLOCK)) != 0;
+  if (should_emit_events)
+  {
+    gum_exec_block_arm_open_prolog (block, gc);
+    backpatch_prolog_state = GUM_PROLOG_OPEN;
 
-  if ((ec->sink_mask & GUM_BLOCK) != 0)
-    gum_exec_block_write_arm_block_event_code (block, gc);
+    if ((ec->sink_mask & GUM_EXEC) != 0)
+      gum_exec_block_write_arm_exec_event_code (block, gc);
 
-  gum_exec_block_write_arm_handle_continue (block, gc);
+    if ((ec->sink_mask & GUM_BLOCK) != 0)
+      gum_exec_block_write_arm_block_event_code (block, gc);
+  }
+  else
+  {
+    backpatch_prolog_state = GUM_PROLOG_CLOSED;
+  }
+
+  backpatch_code_start = cw->code;
+
+  if (backpatch_prolog_state == GUM_PROLOG_CLOSED)
+    gum_exec_block_arm_open_prolog (block, gc);
+
+  gum_arm_writer_put_call_address_with_arguments (cw,
+      GUM_ADDRESS (gum_exec_ctx_replace_block), 2,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (ec),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->end));
+
+  if (ec->stalker->trust_threshold >= 0 &&
+      target->type == GUM_TARGET_DIRECT_ADDRESS &&
+      !gum_is_thumb (target->value.direct_address.address))
+  {
+    const guint padding_size = 4;
+    guint i;
+
+    for (i = 0; i != padding_size; i++)
+      gum_arm_writer_put_nop (cw);
+
+    gum_arm_writer_put_call_address_with_arguments (cw,
+        GUM_ADDRESS (gum_exec_ctx_backpatch_arm_branch_to_current), 3,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (ec),
+        GUM_ARG_ADDRESS, GUM_ADDRESS (backpatch_code_start),
+        GUM_ARG_ADDRESS, GUM_ADDRESS (backpatch_prolog_state));
+  }
+
+  gum_exec_block_arm_close_prolog (block, gc);
+
+  gum_exec_block_write_arm_exec_generated_code (cw, ec);
 
   gum_arm_writer_put_label (cw, taken);
 }
@@ -3626,15 +3830,58 @@ gum_exec_block_write_thumb_handle_not_taken (GumExecBlock * block,
 
   if (cc != ARM_CC_AL)
   {
-    gum_exec_block_thumb_open_prolog (block, gc);
+    gboolean should_emit_events;
+    GumPrologState backpatch_prolog_state;
+    guint16 * backpatch_code_start;
 
-    if ((ec->sink_mask & GUM_EXEC) != 0)
-      gum_exec_block_write_thumb_exec_event_code (block, gc);
+    should_emit_events = !gum_generator_context_is_timing_sensitive (gc) &&
+        (ec->sink_mask & (GUM_EXEC | GUM_BLOCK)) != 0;
+    if (should_emit_events)
+    {
+      gum_exec_block_thumb_open_prolog (block, gc);
+      backpatch_prolog_state = GUM_PROLOG_OPEN;
 
-    if ((ec->sink_mask & GUM_BLOCK) != 0)
-      gum_exec_block_write_thumb_block_event_code (block, gc);
+      if ((ec->sink_mask & GUM_EXEC) != 0)
+        gum_exec_block_write_thumb_exec_event_code (block, gc);
 
-    gum_exec_block_write_thumb_handle_continue (block, gc);
+      if ((ec->sink_mask & GUM_BLOCK) != 0)
+        gum_exec_block_write_thumb_block_event_code (block, gc);
+    }
+    else
+    {
+      backpatch_prolog_state = GUM_PROLOG_CLOSED;
+    }
+
+    backpatch_code_start = cw->code;
+
+    if (backpatch_prolog_state == GUM_PROLOG_CLOSED)
+      gum_exec_block_thumb_open_prolog (block, gc);
+
+    gum_thumb_writer_put_call_address_with_arguments (cw,
+        GUM_ADDRESS (gum_exec_ctx_replace_block), 2,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (ec),
+        GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->end + 1));
+
+    if (ec->stalker->trust_threshold >= 0 &&
+        target->type == GUM_TARGET_DIRECT_ADDRESS &&
+        gum_is_thumb (target->value.direct_address.address))
+    {
+      const guint padding_size = 5;
+      guint i;
+
+      for (i = 0; i != padding_size; i++)
+        gum_thumb_writer_put_nop (cw);
+
+      gum_thumb_writer_put_call_address_with_arguments (cw,
+          GUM_ADDRESS (gum_exec_ctx_backpatch_thumb_branch_to_current), 3,
+          GUM_ARG_ADDRESS, GUM_ADDRESS (ec),
+          GUM_ARG_ADDRESS, GUM_ADDRESS (backpatch_code_start),
+          GUM_ARG_ADDRESS, GUM_ADDRESS (backpatch_prolog_state));
+    }
+
+    gum_exec_block_thumb_close_prolog (block, gc);
+
+    gum_exec_block_write_thumb_exec_generated_code (cw, ec);
 
     gum_thumb_writer_put_label (cw, taken);
   }
