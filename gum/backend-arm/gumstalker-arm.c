@@ -2324,6 +2324,16 @@ gum_exec_ctx_write_arm_prolog (GumExecCtx * ctx,
    */
   gum_arm_writer_put_ands_reg_reg_imm (cw, ARM_REG_R0, ARM_REG_SP, 7);
   gum_arm_writer_put_sub_reg_reg_reg (cw, ARM_REG_SP, ARM_REG_SP, ARM_REG_R0);
+
+#ifdef __ARM_VFPV3__
+  /* vpush {q8-q15} */
+  gum_arm_writer_put_instruction (cw, 0xed6d0b20);
+#endif
+
+#ifdef __ARM_VFPV2__
+  /* vpush {q0-q3} */
+  gum_arm_writer_put_instruction (cw, 0xed2d0b10);
+#endif
 }
 
 static void
@@ -2376,12 +2386,32 @@ gum_exec_ctx_write_thumb_prolog (GumExecCtx * ctx,
   gum_thumb_writer_put_and_reg_reg_imm (cw, ARM_REG_R0, ARM_REG_SP, 7);
   gum_thumb_writer_put_sub_reg_reg_imm (cw, ARM_REG_SP, ARM_REG_SP, 8);
   gum_thumb_writer_put_add_reg_reg_reg (cw, ARM_REG_SP, ARM_REG_SP, ARM_REG_R0);
+
+#ifdef __ARM_VFPV3__
+  /* vpush {q8-q15} */
+  gum_thumb_writer_put_instruction_wide (cw, 0xed6d, 0x0b20);
+#endif
+
+#ifdef __ARM_VFPV2__
+  /* vpush {q0-q3} */
+  gum_thumb_writer_put_instruction_wide (cw, 0xed2d, 0x0b10);
+#endif
 }
 
 static void
 gum_exec_ctx_write_arm_epilog (GumExecCtx * ctx,
                                GumArmWriter * cw)
 {
+#ifdef __ARM_VFPV2__
+  /* vpop {q0-q3} */
+  gum_arm_writer_put_instruction (cw, 0xecbd0b10);
+#endif
+
+#ifdef __ARM_VFPV3__
+  /* vpop {q8-q15} */
+  gum_arm_writer_put_instruction (cw, 0xecfd0b20);
+#endif
+
   /*
    * We know that the context structure was at the top of the stack at the end
    * of the prolog, before the stack was aligned. Rather than working out how
@@ -2410,6 +2440,16 @@ static void
 gum_exec_ctx_write_thumb_epilog (GumExecCtx * ctx,
                                  GumThumbWriter * cw)
 {
+#ifdef __ARM_VFPV2__
+  /* vpop {q0-q3} */
+  gum_thumb_writer_put_instruction_wide (cw, 0xecbd, 0x0b10);
+#endif
+
+#ifdef __ARM_VFPV3__
+  /* vpop {q8-q15} */
+  gum_thumb_writer_put_instruction_wide (cw, 0xecfd, 0x0b20);
+#endif
+
   gum_thumb_writer_put_mov_reg_reg (cw, ARM_REG_SP, ARM_REG_R10);
 
   gum_thumb_writer_put_pop_regs (cw, 3,
