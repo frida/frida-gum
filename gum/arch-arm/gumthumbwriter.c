@@ -452,6 +452,16 @@ gum_thumb_writer_put_argument_list_teardown (GumThumbWriter * self,
   }
 }
 
+gboolean
+gum_thumb_writer_can_branch_directly_between (GumThumbWriter * self,
+                                              GumAddress from,
+                                              GumAddress to)
+{
+  gint64 distance = (gint64) to - (gint64) from;
+
+  return GUM_IS_WITHIN_INT24_RANGE (distance);
+}
+
 void
 gum_thumb_writer_put_b_imm (GumThumbWriter * self,
                             GumAddress target)

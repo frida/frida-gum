@@ -67,6 +67,8 @@ GUM_API void gum_thumb_writer_put_call_reg_with_arguments (
 GUM_API void gum_thumb_writer_put_call_reg_with_arguments_array (
     GumThumbWriter * self, arm_reg reg, guint n_args, const GumArgument * args);
 
+GUM_API gboolean gum_thumb_writer_can_branch_directly_between (
+    GumThumbWriter * self, GumAddress from, GumAddress to);
 GUM_API void gum_thumb_writer_put_b_imm (GumThumbWriter * self,
     GumAddress target);
 GUM_API void gum_thumb_writer_put_b_label (GumThumbWriter * self,
