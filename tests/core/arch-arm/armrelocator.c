@@ -211,7 +211,7 @@ TESTCASE (pc_relative_mov_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_MOV,
-    { 0xe1a0e00f }, 1,          /* mov pc, lr        */
+    { 0xe1a0e00f }, 1,          /* mov lr, pc        */
     {
       0xe51fe004,               /* ldr lr, [pc, #-4] */
       0xffffffff                /* <calculated PC    */
