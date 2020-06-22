@@ -373,9 +373,10 @@ gum_arm_writer_put_branch_address (GumArmWriter * self,
   }
   else
   {
-    const arm_reg target = ARM_REG_R9;
-    gum_arm_writer_put_ldr_reg_address (self, target, address);
-    gum_arm_writer_put_bx_reg (self, target);
+    gum_arm_writer_put_push_registers (self, 2, ARM_REG_R0, ARM_REG_PC);
+    gum_arm_writer_put_ldr_reg_address (self, ARM_REG_R0, address);
+    gum_arm_writer_put_str_reg_reg_offset (self, ARM_REG_R0, ARM_REG_SP, 4);
+    gum_arm_writer_put_pop_registers (self, 2, ARM_REG_R0, ARM_REG_PC);
   }
 }
 
