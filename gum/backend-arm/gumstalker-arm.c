@@ -441,9 +441,9 @@ static gboolean gum_generator_context_is_timing_sensitive (
 static void gum_generator_context_advance_exclusive_load_offset (
     GumGeneratorContext * gc);
 
+static gpointer gum_strip_thumb_bit (gpointer address);
 static gboolean gum_is_thumb (gconstpointer address);
 static gboolean gum_is_kuser_helper (gconstpointer address);
-
 static gboolean gum_is_exclusive_load_insn (const cs_insn * insn);
 static gboolean gum_is_exclusive_store_insn (const cs_insn * insn);
 
@@ -1346,7 +1346,7 @@ gum_exec_ctx_obtain_thumb_block_for (GumExecCtx * ctx,
     return block;
 
   block = gum_exec_block_new (ctx);
-  aligned_address = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (real_address) & ~0x1);
+  aligned_address = gum_strip_thumb_bit (real_address);
   block->real_begin = aligned_address;
   *code_address_ptr = block->code_begin + 1;
 
@@ -2797,7 +2797,7 @@ gum_exec_block_obtain (GumExecCtx * ctx,
   {
     gpointer aligned_address;
 
-    aligned_address = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (real_address) & ~0x1);
+    aligned_address = gum_strip_thumb_bit (real_address);
     if (aligned_address == real_address)
       *code_address_ptr = block->code_begin;
     else
@@ -3968,6 +3968,12 @@ gum_generator_context_advance_exclusive_load_offset (GumGeneratorContext * gc)
 
   if (gc->exclusive_load_offset == 4)
     gc->exclusive_load_offset = GUM_INSTRUCTION_OFFSET_NONE;
+}
+
+static gpointer
+gum_strip_thumb_bit (gpointer address)
+{
+  return GSIZE_TO_POINTER (GPOINTER_TO_SIZE (address) & ~0x1);
 }
 
 static gboolean
