@@ -2823,7 +2823,7 @@ gum_exec_block_obtain_trusted (GumExecCtx * ctx,
     return NULL;
 
   if (block->recycle_count >= ctx->stalker->trust_threshold ||
-      memcmp (real_address, block->real_snapshot,
+      memcmp (gum_strip_thumb_bit (real_address), block->real_snapshot,
           block->real_end - block->real_begin) == 0)
   {
     block->recycle_count++;
