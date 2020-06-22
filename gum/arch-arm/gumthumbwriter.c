@@ -452,6 +452,23 @@ gum_thumb_writer_put_argument_list_teardown (GumThumbWriter * self,
   }
 }
 
+void
+gum_thumb_writer_put_branch_address (GumThumbWriter * self,
+                                     GumAddress address)
+{
+  if (gum_thumb_writer_can_branch_directly_between (self, self->pc, address))
+  {
+    gum_thumb_writer_put_b_imm (self, address);
+  }
+  else
+  {
+    gum_thumb_writer_put_push_regs (self, 2, ARM_REG_R0, ARM_REG_R1);
+    gum_thumb_writer_put_ldr_reg_address (self, ARM_REG_R0, address | 1);
+    gum_thumb_writer_put_str_reg_reg_offset (self, ARM_REG_R0, ARM_REG_SP, 4);
+    gum_thumb_writer_put_pop_regs (self, 2, ARM_REG_R0, ARM_REG_PC);
+  }
+}
+
 gboolean
 gum_thumb_writer_can_branch_directly_between (GumThumbWriter * self,
                                               GumAddress from,
