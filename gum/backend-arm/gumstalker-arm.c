@@ -1304,13 +1304,16 @@ gum_exec_ctx_obtain_arm_block_for (GumExecCtx * ctx,
 
   if (gc.continuation_real_address != NULL)
   {
-    /*
-     * This is required to support the situation where the amount of code
-     * emitted to instrument a block exceeds the minimum we check for before we
-     * start instrumenting a block and it needs to be split. This is only likely
-     * to be of concern for very long linear execution blocks.
-     */
-    g_error ("continuation_real_address unsupported");
+    gum_exec_block_arm_open_prolog (block, &gc);
+
+    gum_arm_writer_put_call_address_with_arguments (cw,
+        GUM_ADDRESS (gum_exec_ctx_replace_block), 2,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (ctx),
+        GUM_ARG_ADDRESS, GUM_ADDRESS (gc.continuation_real_address));
+
+    gum_exec_block_arm_close_prolog (block, &gc);
+
+    gum_exec_block_write_arm_exec_generated_code (cw, ctx);
   }
 
   gum_arm_writer_put_breakpoint (cw);
@@ -1387,13 +1390,16 @@ gum_exec_ctx_obtain_thumb_block_for (GumExecCtx * ctx,
 
   if (gc.continuation_real_address != NULL)
   {
-    /*
-     * This is required to support the situation where the amount of code
-     * emitted to instrument a block exceeds the minimum we check for before we
-     * start instrumenting a block and it needs to be split. This is only likely
-     * to be of concern for very long linear execution blocks.
-     */
-    g_error ("continuation_real_address unsupported");
+    gum_exec_block_thumb_open_prolog (block, &gc);
+
+    gum_thumb_writer_put_call_address_with_arguments (cw,
+        GUM_ADDRESS (gum_exec_ctx_replace_block), 2,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (ctx),
+        GUM_ARG_ADDRESS, GUM_ADDRESS (gc.continuation_real_address) + 1);
+
+    gum_exec_block_thumb_close_prolog (block, &gc);
+
+    gum_exec_block_write_thumb_exec_generated_code (cw, ctx);
   }
 
   gum_thumb_writer_put_breakpoint (cw);
