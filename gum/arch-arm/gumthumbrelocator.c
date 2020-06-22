@@ -37,6 +37,8 @@ static gboolean gum_thumb_relocator_rewrite_ldr (GumThumbRelocator * self,
     GumCodeGenCtx * ctx);
 static gboolean gum_thumb_relocator_rewrite_vldr (GumThumbRelocator * self,
     GumCodeGenCtx * ctx);
+static gboolean gum_thumb_relocator_rewrite_adr (GumThumbRelocator * self,
+    GumCodeGenCtx * ctx);
 static gboolean gum_thumb_relocator_rewrite_add (GumThumbRelocator * self,
     GumCodeGenCtx * ctx);
 static gboolean gum_thumb_relocator_rewrite_b (GumThumbRelocator * self,
@@ -400,6 +402,9 @@ gum_thumb_relocator_write_instruction (GumThumbRelocator * self,
     case ARM_INS_VLDR:
       rewritten = gum_thumb_relocator_rewrite_vldr (self, &ctx);
       break;
+    case ARM_INS_ADR:
+      rewritten = gum_thumb_relocator_rewrite_adr (self, &ctx);
+      break;
     case ARM_INS_ADD:
       rewritten = gum_thumb_relocator_rewrite_add (self, &ctx);
       break;
@@ -740,6 +745,25 @@ gum_thumb_relocator_rewrite_vldr (GumThumbRelocator * self,
 }
 
 static gboolean
+gum_thumb_relocator_rewrite_adr (GumThumbRelocator * self,
+                                 GumCodeGenCtx * ctx)
+{
+  const cs_arm_op * dst = &ctx->detail->operands[0];
+  const cs_arm_op * offset = &ctx->detail->operands[1];
+  arm_reg temp_reg;
+
+  temp_reg = (dst->reg != ARM_REG_R0) ? ARM_REG_R0 : ARM_REG_R1;
+
+  gum_thumb_writer_put_push_regs (ctx->output, 1, temp_reg);
+  gum_thumb_writer_put_ldr_reg_address (ctx->output, dst->reg, ctx->pc);
+  gum_thumb_writer_put_ldr_reg_address (ctx->output, temp_reg, offset->imm);
+  gum_thumb_writer_put_add_reg_reg (ctx->output, dst->reg, temp_reg);
+  gum_thumb_writer_put_pop_regs (ctx->output, 1, temp_reg);
+
+  return TRUE;
+}
+
+static gboolean
 gum_thumb_relocator_rewrite_add (GumThumbRelocator * self,
                                  GumCodeGenCtx * ctx)
 {
@@ -759,10 +783,7 @@ gum_thumb_relocator_rewrite_add (GumThumbRelocator * self,
   else if (src->type != ARM_OP_REG || src->reg != ARM_REG_PC)
     return FALSE;
 
-  if (dst->reg != ARM_REG_R0)
-    temp_reg = ARM_REG_R0;
-  else
-    temp_reg = ARM_REG_R1;
+  temp_reg = (dst->reg != ARM_REG_R0) ? ARM_REG_R0 : ARM_REG_R1;
 
   gum_thumb_writer_put_push_regs (ctx->output, 1, temp_reg);
   gum_thumb_writer_put_ldr_reg_address (ctx->output, temp_reg, ctx->pc);

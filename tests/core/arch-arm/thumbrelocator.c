@@ -14,6 +14,7 @@ TESTLIST_BEGIN (thumbrelocator)
   TESTENTRY (ldrpc_t2_should_be_rewritten)
   TESTENTRY (vldrpc_t1_should_be_rewritten)
   TESTENTRY (vldrpc_t2_should_be_rewritten)
+  TESTENTRY (adr_should_be_rewritten)
   TESTENTRY (addh_should_be_rewritten_if_pc_relative)
   TESTENTRY (bl_sequence_should_be_rewritten)
   TESTENTRY (b_imm_t2_positive_should_be_rewritten)
@@ -221,6 +222,43 @@ TESTCASE (vldrpc_t2_should_be_rewritten)
   g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
 
+  check_output (input, sizeof (input), fixture->output,
+      (guint16 *) expected_output, sizeof (expected_output));
+}
+
+TESTCASE (adr_should_be_rewritten)
+{
+  const guint16 input[] = {
+    GUINT16_TO_LE (0xa107),   /* adr r1, #0x1c    */
+  };
+  const guint16 expected_output_instructions[] = {
+    GUINT16_TO_LE (0xb401),   /* push {r0}        */
+    GUINT16_TO_LE (0x4902),   /* ldr r1, [pc, #8] */
+    GUINT16_TO_LE (0x4802),   /* ldr r0, [pc, #8] */
+    GUINT16_TO_LE (0x4401),   /* add r1, r0       */
+    GUINT16_TO_LE (0xbc01),   /* pop {r0}         */
+    GUINT16_TO_LE (0xbf00),   /* nop              */
+    GUINT16_TO_LE (0xffff),   /* <calculated PC   */
+    GUINT16_TO_LE (0xffff),   /*  goes here>      */
+    GUINT16_TO_LE (0x001c),   /* <immediate       */
+    GUINT16_TO_LE (0x0000),   /*  goes here>      */
+  };
+  gchar expected_output[10 * sizeof (guint16)];
+
+  guint32 calculated_pc;
+  const cs_insn * insn = NULL;
+
+  SETUP_RELOCATOR_WITH (input);
+
+  memcpy (expected_output, expected_output_instructions,
+      sizeof (expected_output_instructions));
+  calculated_pc = fixture->rl.input_pc + 4;
+  *((guint32 *) (expected_output + 12)) = calculated_pc;
+
+  g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
+  g_assert_cmpint (insn->id, ==, ARM_INS_ADR);
+  g_assert_true (gum_thumb_relocator_write_one (&fixture->rl));
+  gum_thumb_writer_flush (&fixture->tw);
   check_output (input, sizeof (input), fixture->output,
       (guint16 *) expected_output, sizeof (expected_output));
 }
