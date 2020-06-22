@@ -441,8 +441,8 @@ static gboolean gum_generator_context_is_timing_sensitive (
 static void gum_generator_context_advance_exclusive_load_offset (
     GumGeneratorContext * gc);
 
-static gboolean gum_stalker_is_thumb (gconstpointer address);
-static gboolean gum_stalker_is_kuser_helper (gconstpointer address);
+static gboolean gum_is_thumb (gconstpointer address);
+static gboolean gum_is_kuser_helper (gconstpointer address);
 
 static gboolean gum_is_exclusive_load_insn (const cs_insn * insn);
 static gboolean gum_is_exclusive_store_insn (const cs_insn * insn);
@@ -520,7 +520,7 @@ gum_stalker_is_call_excluding (GumExecCtx * ctx,
   if (ctx->activation_target != NULL)
     return FALSE;
 
-  if (gum_stalker_is_kuser_helper (address))
+  if (gum_is_kuser_helper (address))
     return TRUE;
 
   for (i = 0; i != exclusions->len; i++)
@@ -1234,7 +1234,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
                                gpointer real_address,
                                gpointer * code_address_ptr)
 {
-  if (gum_stalker_is_thumb (real_address))
+  if (gum_is_thumb (real_address))
   {
     return gum_exec_ctx_obtain_thumb_block_for (ctx, real_address,
         code_address_ptr);
@@ -3206,7 +3206,7 @@ gum_exec_block_write_arm_handle_kuser_helper (GumExecBlock * block,
    */
   if (target->type == GUM_TARGET_DIRECT_ADDRESS)
   {
-    if (!gum_stalker_is_kuser_helper (target->value.direct_address.address))
+    if (!gum_is_kuser_helper (target->value.direct_address.address))
       return;
   }
 
@@ -3215,7 +3215,7 @@ gum_exec_block_write_arm_handle_kuser_helper (GumExecBlock * block,
     gum_exec_ctx_write_arm_mov_branch_target (block->ctx, target, ARM_REG_R0,
         gc);
     gum_arm_writer_put_call_address_with_arguments (cw,
-        GUM_ADDRESS (gum_stalker_is_kuser_helper), 1,
+        GUM_ADDRESS (gum_is_kuser_helper), 1,
         GUM_ARG_REGISTER, ARM_REG_R0);
     gum_arm_writer_put_cmp_reg_imm (cw, ARM_REG_R0, 0);
     gum_arm_writer_put_b_cond_label (cw, ARM_CC_EQ, not_kuh);
@@ -3311,7 +3311,7 @@ gum_exec_block_write_thumb_handle_kuser_helper (GumExecBlock * block,
 
   if (target->type == GUM_TARGET_DIRECT_ADDRESS)
   {
-    if (!gum_stalker_is_kuser_helper (target->value.direct_address.address))
+    if (!gum_is_kuser_helper (target->value.direct_address.address))
       return;
   }
 
@@ -3320,7 +3320,7 @@ gum_exec_block_write_thumb_handle_kuser_helper (GumExecBlock * block,
     gum_exec_ctx_write_thumb_mov_branch_target (block->ctx,
         target, ARM_REG_R0, gc);
     gum_thumb_writer_put_call_address_with_arguments (cw,
-        GUM_ADDRESS (gum_stalker_is_kuser_helper), 1,
+        GUM_ADDRESS (gum_is_kuser_helper), 1,
         GUM_ARG_REGISTER, ARM_REG_R0);
     gum_thumb_writer_put_cbnz_reg_label (cw, ARM_REG_R0, kuh);
     gum_thumb_writer_put_b_label (cw, not_kuh);
@@ -3971,13 +3971,13 @@ gum_generator_context_advance_exclusive_load_offset (GumGeneratorContext * gc)
 }
 
 static gboolean
-gum_stalker_is_thumb (gconstpointer address)
+gum_is_thumb (gconstpointer address)
 {
   return (GPOINTER_TO_SIZE (address) & 0x1) != 0;
 }
 
 static gboolean
-gum_stalker_is_kuser_helper (gconstpointer address)
+gum_is_kuser_helper (gconstpointer address)
 {
 #ifdef HAVE_LINUX
   switch (GPOINTER_TO_SIZE (address))
