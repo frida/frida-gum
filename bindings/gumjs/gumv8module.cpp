@@ -680,7 +680,7 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_module_map_copy_values, GumV8ModuleMap)
   {
     auto details = &g_array_index (values, GumModuleDetails, i);
     auto m = Object::New (isolate);
-    _gum_v8_object_set_ascii (m, "name", details->name, core);
+    _gum_v8_object_set_utf8 (m, "name", details->name, core);
     _gum_v8_object_set_pointer (m, "base", details->range->base_address, core);
     _gum_v8_object_set_uint (m, "size", details->range->size, core);
     _gum_v8_object_set_utf8 (m, "path", details->path, core);
