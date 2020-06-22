@@ -2761,8 +2761,9 @@ gum_exec_block_new (GumExecCtx * ctx)
      * Instrumented ARM code needs to be 4 byte aligned. We will make all code
      * blocks (both ARM and Thumb) 4 byte aligned for simplicity.
      */
-    block->code_begin =
-        GUM_ALIGN_POINTER (guint8 *, slab->data + slab->offset, 4);
+    slab->offset = GUM_ALIGN_SIZE (slab->offset, 4);
+
+    block->code_begin = slab->data + slab->offset;
     block->code_end = block->code_begin;
 
     block->recycle_count = 0;
