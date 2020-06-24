@@ -134,6 +134,27 @@ private:
   GHashTable * pending;
 };
 
+class GumV8MicrotaskQueue : public MicrotaskQueue
+{
+public:
+  GumV8MicrotaskQueue (Isolate * isolate);
+  ~GumV8MicrotaskQueue () override;
+
+  void EnqueueMicrotask (Isolate * isolate, Local<Function> microtask) override;
+  void EnqueueMicrotask (Isolate * isolate, MicrotaskCallback callback,
+      void * data) override;
+  void AddMicrotasksCompletedCallback (
+      MicrotasksCompletedCallbackWithData callback, void * data) override;
+  void RemoveMicrotasksCompletedCallback (
+      MicrotasksCompletedCallbackWithData callback, void * data) override;
+  void PerformCheckpoint (Isolate * isolate) override;
+  bool IsRunningMicrotasks () const override;
+  int GetMicrotasksScopeDepth () const override;
+
+private:
+  Isolate * isolate;
+};
+
 class GumV8PageAllocator : public PageAllocator
 {
 public:
@@ -321,6 +342,8 @@ GumV8Platform::GumV8Platform ()
   shared_isolate->SetFatalErrorHandler (OnFatalError);
   shared_isolate->SetMicrotasksPolicy (MicrotasksPolicy::kExplicit);
 
+  microtask_queue.reset (new GumV8MicrotaskQueue (shared_isolate));
+
   InitRuntime ();
 }
 
@@ -339,7 +362,15 @@ GumV8Platform::InitRuntime ()
   Locker locker (shared_isolate);
   Isolate::Scope isolate_scope (shared_isolate);
   HandleScope handle_scope (shared_isolate);
-  Local<Context> context (Context::New (shared_isolate));
+
+  ExtensionConfiguration * extensions = nullptr;
+  MaybeLocal<ObjectTemplate> global_template;
+  MaybeLocal<Value> global_object;
+  DeserializeInternalFieldsCallback internal_fields_deserializer;
+
+  Local<Context> context (Context::New (shared_isolate, extensions,
+      global_template, global_object, internal_fields_deserializer,
+      microtask_queue.get ()));
   Context::Scope context_scope (context);
 
   runtime_bundle = gum_v8_bundle_new (shared_isolate, gumjs_runtime_modules);
@@ -1021,6 +1052,66 @@ GumV8ForegroundTaskRunner::Run (IdleTask * task)
   const double deadline_in_seconds =
       platform->MonotonicallyIncreasingTime () + (1.0 / 60.0);
   task->Run (deadline_in_seconds);
+}
+
+GumV8MicrotaskQueue::GumV8MicrotaskQueue (Isolate * isolate)
+  : isolate (isolate)
+{
+}
+
+GumV8MicrotaskQueue::~GumV8MicrotaskQueue ()
+{
+}
+
+void
+GumV8MicrotaskQueue::EnqueueMicrotask (Isolate * isolate,
+                                       Local<Function> microtask)
+{
+  g_printerr ("EnqueueMicrotask() A\n");
+}
+
+void
+GumV8MicrotaskQueue::EnqueueMicrotask (Isolate * isolate,
+                                       MicrotaskCallback callback,
+                                       void * data)
+{
+  g_printerr ("EnqueueMicrotask() B\n");
+}
+
+void
+GumV8MicrotaskQueue::AddMicrotasksCompletedCallback (
+    MicrotasksCompletedCallbackWithData callback,
+    void * data)
+{
+  g_printerr ("AddMicrotasksCompletedCallback()\n");
+}
+
+void
+GumV8MicrotaskQueue::RemoveMicrotasksCompletedCallback (
+    MicrotasksCompletedCallbackWithData callback,
+    void * data)
+{
+  g_printerr ("RemoveMicrotasksCompletedCallback()\n");
+}
+
+void
+GumV8MicrotaskQueue::PerformCheckpoint (Isolate * isolate)
+{
+  g_printerr ("PerformCheckpoint()\n");
+}
+
+bool
+GumV8MicrotaskQueue::IsRunningMicrotasks () const
+{
+  g_printerr ("IsRunningMicrotasks()\n");
+  return false;
+}
+
+int
+GumV8MicrotaskQueue::GetMicrotasksScopeDepth () const
+{
+  g_printerr ("GetMicrotasksScopeDepth()\n");
+  return 0;
 }
 
 size_t
