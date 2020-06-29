@@ -103,7 +103,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
 
   if (error == NULL && !symbols.IsEmpty ())
   {
-
     gboolean valid = TRUE;
 
     Local<Array> names;
