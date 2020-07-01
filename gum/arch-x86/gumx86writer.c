@@ -1571,7 +1571,7 @@ gum_x86_writer_put_inc_or_dec_reg_ptr (GumX86Writer * self,
   if (self->target_cpu == GUM_CPU_AMD64)
   {
     if (target == GUM_PTR_QWORD)
-      gum_x86_writer_put_u8 (self, 0x48 | ri.index_is_extended ? 0x01 : 0x00);
+      gum_x86_writer_put_u8 (self, 0x48 | (ri.index_is_extended ? 0x01 : 0x00));
     else if (ri.index_is_extended)
       gum_x86_writer_put_u8 (self, 0x41);
   }
