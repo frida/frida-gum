@@ -110,6 +110,8 @@ GUM_API gboolean gum_darwin_query_all_image_infos (mach_port_t task,
     GumDarwinAllImageInfos * infos);
 GUM_API gboolean gum_darwin_query_mapped_address (mach_port_t task,
     GumAddress address, GumDarwinMappingDetails * details);
+GUM_API gboolean gum_darwin_query_shared_cache_range (mach_port_t task,
+    GumMemoryRange * range);
 GUM_API GumAddress gum_darwin_find_entrypoint (mach_port_t task);
 GUM_API void gum_darwin_enumerate_threads (mach_port_t task,
     GumFoundThreadFunc func, gpointer user_data);

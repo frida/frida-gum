@@ -1152,6 +1152,66 @@ gum_darwin_query_mapped_address (mach_port_t task,
   return TRUE;
 }
 
+gboolean
+gum_darwin_query_shared_cache_range (mach_port_t task,
+                                     GumMemoryRange * range)
+{
+  GumDarwinAllImageInfos infos;
+  GumAddress start, end;
+  mach_vm_address_t address;
+  mach_vm_size_t size;
+  natural_t depth;
+  struct vm_region_submap_info_64 info;
+  mach_msg_type_number_t info_count;
+  kern_return_t kr;
+
+  if (!gum_darwin_query_all_image_infos (task, &infos))
+    return FALSE;
+
+  start = infos.shared_cache_base_address;
+
+  address = start;
+  depth = 0;
+  info_count = VM_REGION_SUBMAP_INFO_COUNT_64;
+
+  kr = mach_vm_region_recurse (task, &address, &size, &depth,
+      (vm_region_recurse_info_t) &info, &info_count);
+  if (kr != KERN_SUCCESS)
+    return FALSE;
+
+  start = address;
+  end = address + size;
+
+  do
+  {
+    gboolean is_contiguous, is_dsc_tag;
+
+    address += size;
+    depth = 0;
+    info_count = VM_REGION_SUBMAP_INFO_COUNT_64;
+    kr = mach_vm_region_recurse (task, &address, &size, &depth,
+        (vm_region_recurse_info_t) &info, &info_count);
+    if (kr != KERN_SUCCESS)
+      break;
+
+    is_contiguous = address == end;
+    if (!is_contiguous)
+      break;
+
+    is_dsc_tag = info.user_tag == 0x20 || info.user_tag == 0x23;
+    if (!is_dsc_tag)
+      break;
+
+    end = address + size;
+  }
+  while (TRUE);
+
+  range->base_address = start;
+  range->size = end - start;
+
+  return TRUE;
+}
+
 GumAddress
 gum_darwin_find_entrypoint (mach_port_t task)
 {
