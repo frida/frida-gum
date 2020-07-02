@@ -81,6 +81,8 @@ struct _GumDarwinAllImageInfos
   gboolean libsystem_initialized;
 
   GumAddress dyld_image_load_address;
+
+  GumAddress shared_cache_base_address;
 };
 
 struct _GumDarwinMappingDetails

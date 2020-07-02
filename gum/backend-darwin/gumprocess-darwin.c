@@ -16,6 +16,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <gio/gio.h>
 #include <mach-o/dyld.h>
 #include <mach-o/nlist.h>
@@ -170,6 +171,30 @@ struct _DyldAllImageInfos32
   guint8 process_detached_from_shared_region;
   guint8 libsystem_initialized;
   guint32 dyld_image_load_address;
+  guint32 jit_info;
+  guint32 dyld_version;
+  guint32 error_message;
+  guint32 termination_flags;
+  guint32 core_symbolication_shm_page;
+  guint32 system_order_flag;
+  guint32 uuid_array_count;
+  guint32 uuid_array;
+  guint32 dyld_all_image_infos_address;
+  guint32 initial_image_count;
+  guint32 error_kind;
+  guint32 error_client_of_dylib_path;
+  guint32 error_target_dylib_path;
+  guint32 error_symbol;
+  guint32 shared_cache_slide;
+  guint8 shared_cache_uuid[16];
+  guint32 shared_cache_base_address;
+  volatile guint64 info_array_change_timestamp;
+  guint32 dyld_path;
+  guint32 notify_mach_ports[8];
+  guint32 reserved[5];
+  guint32 compact_dyld_image_info_addr;
+  guint32 compact_dyld_image_info_size;
+  guint32 platform;
 };
 
 struct _DyldAllImageInfos64
@@ -182,6 +207,30 @@ struct _DyldAllImageInfos64
   guint8 libsystem_initialized;
   guint32 padding;
   guint64 dyld_image_load_address;
+  guint64 jit_info;
+  guint64 dyld_version;
+  guint64 error_message;
+  guint64 termination_flags;
+  guint64 core_symbolication_shm_page;
+  guint64 system_order_flag;
+  guint64 uuid_array_count;
+  guint64 uuid_array;
+  guint64 dyld_all_image_infos_address;
+  guint64 initial_image_count;
+  guint64 error_kind;
+  guint64 error_client_of_dylib_path;
+  guint64 error_target_dylib_path;
+  guint64 error_symbol;
+  guint64 shared_cache_slide;
+  guint8 shared_cache_uuid[16];
+  guint64 shared_cache_base_address;
+  volatile guint64 info_array_change_timestamp;
+  guint64 dyld_path;
+  guint32 notify_mach_ports[8];
+  guint64 reserved[9];
+  guint64 compact_dyld_image_info_addr;
+  guint64 compact_dyld_image_info_size;
+  guint32 platform;
 };
 
 struct _DyldImageInfo32
@@ -961,6 +1010,8 @@ gum_darwin_query_all_image_infos (mach_port_t task,
   kern_return_t kr;
   gboolean inprocess;
 
+  bzero (infos, sizeof (GumDarwinAllImageInfos));
+
 #if defined (HAVE_ARM) || defined (HAVE_ARM64)
   DyldInfo info_raw;
   count = DYLD_INFO_COUNT;
@@ -1029,6 +1080,9 @@ gum_darwin_query_all_image_infos (mach_port_t task,
 
     infos->dyld_image_load_address = all_info->dyld_image_load_address;
 
+    if (all_info->version >= 15)
+      infos->shared_cache_base_address = all_info->shared_cache_base_address;
+
     g_free (all_info_malloc_data);
   }
   else
@@ -1061,6 +1115,9 @@ gum_darwin_query_all_image_infos (mach_port_t task,
     infos->libsystem_initialized = all_info->libsystem_initialized;
 
     infos->dyld_image_load_address = all_info->dyld_image_load_address;
+
+    if (all_info->version >= 15)
+      infos->shared_cache_base_address = all_info->shared_cache_base_address;
 
     g_free (all_info_malloc_data);
   }
