@@ -1642,7 +1642,7 @@ gum_darwin_enumerate_ranges (mach_port_t task,
   int pid;
   kern_return_t kr;
   mach_vm_address_t address = MACH_VM_MIN_ADDRESS;
-  mach_vm_size_t size = (mach_vm_size_t) 0;
+  mach_vm_size_t size = 0;
   natural_t depth = 0;
 
   kr = pid_for_task (task, &pid);
