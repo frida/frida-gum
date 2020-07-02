@@ -1173,8 +1173,9 @@ gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
   GumDarwinModuleImage * image;
   const GumSymtabCommand * symtab;
   GumAddress slide;
-  guint8 * symbols = NULL;
-  gchar * strings = NULL;
+  const guint8 * symbols, * strings;
+  gpointer symbols_malloc_data = NULL;
+  gpointer strings_malloc_data = NULL;
   gsize symbol_index;
 
   if (GUM_DARWIN_MODULE_HAS_HEADER_ONLY (self) ||
@@ -1191,7 +1192,12 @@ gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
 
   slide = gum_darwin_module_get_slide (self);
 
-  if (self->task != GUM_DARWIN_PORT_NULL)
+  if (image->linkedit != NULL)
+  {
+    symbols = (guint8 *) image->linkedit + symtab->symoff;
+    strings = (guint8 *) image->linkedit + symtab->stroff;
+  }
+  else
   {
     GumAddress linkedit;
     gsize symbol_size;
@@ -1204,17 +1210,12 @@ gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
         ? sizeof (GumNList64)
         : sizeof (GumNList32);
 
-    symbols = gum_darwin_module_read_from_task (self, linkedit + symtab->symoff,
-        symtab->nsyms * symbol_size, NULL);
-    strings = (gchar *) gum_darwin_module_read_from_task (self,
-        linkedit + symtab->stroff, symtab->strsize, NULL);
+    gum_darwin_module_read_and_assign (self, linkedit + symtab->symoff,
+        symtab->nsyms * symbol_size, &symbols, NULL, &symbols_malloc_data);
+    gum_darwin_module_read_and_assign (self, linkedit + symtab->stroff,
+        symtab->strsize, &strings, NULL, &strings_malloc_data);
     if (symbols == NULL || strings == NULL)
       goto beach;
-  }
-  else
-  {
-    symbols = (guint8 *) image->linkedit + symtab->symoff;
-    strings = (gchar *) image->linkedit + symtab->stroff;
   }
 
   for (symbol_index = 0; symbol_index != symtab->nsyms; symbol_index++)
@@ -1224,11 +1225,11 @@ gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
 
     if (self->pointer_size == 8)
     {
-      GumNList64 * symbol;
+      const GumNList64 * symbol;
 
       symbol = (GumNList64 *) (symbols + (symbol_index * sizeof (GumNList64)));
 
-      details.name = strings + symbol->n_strx;
+      details.name = (const gchar *) (strings + symbol->n_strx);
       details.address = (symbol->n_value != 0) ? symbol->n_value + slide : 0;
 
       details.type = symbol->n_type;
@@ -1237,11 +1238,11 @@ gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
     }
     else
     {
-      GumNList32 * symbol;
+      const GumNList32 * symbol;
 
       symbol = (GumNList32 *) (symbols + (symbol_index * sizeof (GumNList32)));
 
-      details.name = strings + symbol->n_strx;
+      details.name = (const gchar *) (strings + symbol->n_strx);
       details.address = (symbol->n_value != 0) ? symbol->n_value + slide : 0;
 
       details.type = symbol->n_type;
@@ -1255,11 +1256,8 @@ gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
   }
 
 beach:
-  if (self->task != GUM_DARWIN_PORT_NULL)
-  {
-    g_free (strings);
-    g_free (symbols);
-  }
+  g_free (strings_malloc_data);
+  g_free (symbols_malloc_data);
 }
 
 GumAddress
@@ -2297,36 +2295,33 @@ static gboolean
 gum_darwin_module_load_image_from_memory (GumDarwinModule * self,
                                           GError ** error)
 {
-  gpointer data, malloc_data;
-  gsize data_size;
+  guint8 * start, * end;
+  gpointer malloc_data;
   GumDarwinModuleImage * image;
 
   g_assert (self->base_address != 0);
 
-  if (self->is_local)
-  {
-    data = GSIZE_TO_POINTER (self->base_address);
-    data_size = GUM_MAX_MACHO_METADATA_SIZE;
-    malloc_data = NULL;
-  }
-  else
-  {
-    data_size = 0;
-    data = gum_darwin_module_read_from_task (self, self->base_address,
-        GUM_MAX_MACHO_METADATA_SIZE, &data_size);
-    if (data == NULL)
-      return FALSE;
-    malloc_data = data;
-  }
+  gum_darwin_module_read_and_assign (self, self->base_address,
+      GUM_MAX_MACHO_METADATA_SIZE, (const guint8 **) &start,
+      (const guint8 **) &end, &malloc_data);
+  if (start == NULL)
+    goto invalid_task;
 
   image = gum_darwin_module_image_new ();
 
-  image->data = data;
-  image->size = data_size;
+  image->data = start;
+  image->size = end - start;
 
   image->malloc_data = malloc_data;
 
   return gum_darwin_module_take_image (self, image, error);
+
+invalid_task:
+  {
+    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+        "Process is dead");
+    return FALSE;
+  }
 }
 
 static gboolean
@@ -2604,23 +2599,56 @@ gum_darwin_module_read_and_assign (GumDarwinModule * self,
                                    const guint8 ** end,
                                    gpointer * malloc_data)
 {
+  guint8 * data;
+
+  if (size == 0)
+    goto empty_read;
+
   if (self->is_local)
   {
     *start = GSIZE_TO_POINTER (address);
-    *end = GSIZE_TO_POINTER (address + size);
+    if (end != NULL)
+      *end = GSIZE_TO_POINTER (address + size);
+
     *malloc_data = NULL;
   }
   else
   {
-    guint8 * data;
     gsize n_bytes_read;
 
     n_bytes_read = 0;
     data = gum_darwin_module_read_from_task (self, address, size,
         &n_bytes_read);
+
     *start = data;
-    *end = (data != NULL) ? data + n_bytes_read : NULL;
+    if (end != NULL)
+      *end = (data != NULL) ? data + n_bytes_read : NULL;
+    else if (n_bytes_read != size)
+      goto short_read;
+
     *malloc_data = data;
+  }
+
+  return;
+
+empty_read:
+  {
+    *start = NULL;
+    if (end != NULL)
+      *end = NULL;
+
+    *malloc_data = NULL;
+
+    return;
+  }
+short_read:
+  {
+    g_free (data);
+    *start = NULL;
+
+    *malloc_data = NULL;
+
+    return;
   }
 }
 
