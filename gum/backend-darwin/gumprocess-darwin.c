@@ -948,34 +948,6 @@ gum_darwin_check_xnu_version (guint major,
 }
 
 gboolean
-gum_darwin_is_ios9_or_newer (void)
-{
-#ifdef HAVE_IOS
-  static gint cached_result = -1;
-
-  if (cached_result == -1)
-  {
-    char buf[256] = { 0, };
-    size_t size;
-    int res;
-    gboolean ios9_or_newer;
-
-    size = sizeof (buf);
-    res = sysctlbyname ("kern.osrelease", buf, &size, NULL, 0);
-    g_assert (res == 0);
-
-    ios9_or_newer = atoi (buf) >= 15;
-
-    cached_result = ios9_or_newer;
-  }
-
-  return cached_result - 1;
-#else
-  return FALSE;
-#endif
-}
-
-gboolean
 gum_darwin_cpu_type_from_pid (pid_t pid,
                               GumCpuType * cpu_type)
 {

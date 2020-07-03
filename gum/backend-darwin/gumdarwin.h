@@ -95,7 +95,6 @@ struct _GumDarwinMappingDetails
 
 GUM_API gboolean gum_darwin_check_xnu_version (guint major, guint minor,
     guint micro);
-GUM_API gboolean gum_darwin_is_ios9_or_newer (void);
 
 GUM_API guint8 * gum_darwin_read (mach_port_t task, GumAddress address,
     gsize len, gsize * n_bytes_read);
