@@ -1279,6 +1279,34 @@ gum_thumb_writer_put_and_reg_reg_imm (GumThumbWriter * self,
 }
 
 gboolean
+gum_thumb_writer_put_or_reg_reg_imm (GumThumbWriter * self,
+                                     arm_reg dst_reg,
+                                     arm_reg left_reg,
+                                     gssize right_value)
+{
+  GumArmRegInfo dst, left;
+  guint16 imm8, insn_high, insn_low;
+
+  gum_arm_reg_describe (dst_reg, &dst);
+  gum_arm_reg_describe (left_reg, &left);
+
+  /*
+   * Thumb does allow up to a 12bit immediate, but the encoded form for this is
+   * complex and we don't yet need it for our use-cases.
+   */
+  if (!GUM_IS_WITHIN_UINT8_RANGE (right_value))
+    return FALSE;
+
+  imm8 = right_value & 0xff;
+  insn_high = 0xf040 | left.index;
+  insn_low = (dst.index << 8) | imm8;
+
+  gum_thumb_writer_put_instruction_wide (self, insn_high, insn_low);
+
+  return TRUE;
+}
+
+gboolean
 gum_thumb_writer_put_lsls_reg_reg_imm (GumThumbWriter * self,
                                        arm_reg dst_reg,
                                        arm_reg left_reg,
