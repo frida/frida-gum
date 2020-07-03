@@ -28,10 +28,6 @@ struct _GumAllocNearContext
   mach_port_t task;
 };
 
-static guint8 * gum_darwin_read_modern (mach_port_t task, GumAddress address,
-    gsize len, gsize * n_bytes_read);
-static guint8 * gum_darwin_read_legacy (mach_port_t task, GumAddress address,
-    gsize len, gsize * n_bytes_read);
 static gboolean gum_try_alloc_in_range_if_near_enough (
     const GumMemoryRange * range, gpointer user_data);
 static gpointer gum_allocate_page_aligned (gpointer address, gsize size,
@@ -273,60 +269,6 @@ gum_darwin_read (mach_port_t task,
                  gsize len,
                  gsize * n_bytes_read)
 {
-  return gum_darwin_check_xnu_version (2782, 20, 48)
-      ? gum_darwin_read_modern (task, address, len, n_bytes_read)
-      : gum_darwin_read_legacy (task, address, len, n_bytes_read);
-}
-
-static guint8 *
-gum_darwin_read_modern (mach_port_t task,
-                        GumAddress address,
-                        gsize len,
-                        gsize * n_bytes_read)
-{
-  guint8 * result;
-  kern_return_t kr;
-
-  result = g_malloc (len);
-
-#ifdef HAVE_IOS
-  mach_vm_size_t n;
-
-  /* mach_vm_read() corrupts memory on iOS */
-  kr = mach_vm_read_overwrite (task, address, len, (vm_address_t) result, &n);
-  if (kr != KERN_SUCCESS)
-    goto invalid_address;
-#else
-  vm_offset_t buf;
-  mach_msg_type_number_t n;
-
-  /* mach_vm_read_overwrite() leaks memory on macOS */
-  kr = mach_vm_read (task, address, len, &buf, &n);
-  if (kr != KERN_SUCCESS)
-    goto invalid_address;
-  memcpy (result, GSIZE_TO_POINTER (buf), n);
-  mach_vm_deallocate (mach_task_self (), buf, n);
-#endif
-
-  if (n_bytes_read != NULL)
-    *n_bytes_read = n;
-
-  return result;
-
-invalid_address:
-  {
-    g_free (result);
-
-    return NULL;
-  }
-}
-
-static guint8 *
-gum_darwin_read_legacy (mach_port_t task,
-                        GumAddress address,
-                        gsize len,
-                        gsize * n_bytes_read)
-{
   guint page_size;
   guint8 * result;
   gsize offset;
@@ -346,38 +288,33 @@ gum_darwin_read_legacy (mach_port_t task,
     GumAddress chunk_address, page_address;
     gsize chunk_size, page_offset;
 
-    /*
-     * Read one page at a time to avoid crashing the kernel (CVE-2015-1141).
-     *
-     * Fixed in XNU 2782.20.48, shipped with macOS 10.10.3:
-     * https://support.apple.com/en-us/HT204659
-     */
     chunk_address = address + offset;
     page_address = chunk_address & ~(GumAddress) (page_size - 1);
     page_offset = chunk_address - page_address;
     chunk_size = MIN (len - offset, page_size - page_offset);
 
 #ifdef HAVE_IOS
-    mach_vm_size_t n;
+    mach_vm_size_t n_bytes_read;
 
-    /* mach_vm_read corrupts() memory on iOS */
+    /* mach_vm_read corrupts memory on iOS */
     kr = mach_vm_read_overwrite (task, chunk_address, chunk_size,
-        (vm_address_t) (result + offset), &n);
+        (vm_address_t) (result + offset), &n_bytes_read);
     if (kr != KERN_SUCCESS)
       break;
-    g_assert (n == chunk_size);
+    g_assert (n_bytes_read == chunk_size);
 #else
-    vm_offset_t buf;
-    mach_msg_type_number_t n;
+    vm_offset_t result_data;
+    mach_msg_type_number_t result_size;
 
-    /* mach_vm_read_overwrite() leaks memory on macOS */
-    kr = mach_vm_read (task, page_address, page_size, &buf, &n);
+    /* mach_vm_read_overwrite leaks memory on macOS */
+    kr = mach_vm_read (task, page_address, page_size,
+        &result_data, &result_size);
     if (kr != KERN_SUCCESS)
       break;
-    g_assert (n == page_size);
-    memcpy (result + offset, (gpointer) (buf + page_offset),
+    g_assert (result_size == page_size);
+    memcpy (result + offset, (gpointer) (result_data + page_offset),
         chunk_size);
-    mach_vm_deallocate (self, buf, n);
+    mach_vm_deallocate (self, result_data, result_size);
 #endif
 
     offset += chunk_size;
