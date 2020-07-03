@@ -324,6 +324,12 @@ gum_incdirs = [
   include_directories('libs/gum/prof'),
 ]
 
+if host_os_family == 'darwin'
+  gum_incdirs += [
+    include_directories('gum/backend-darwin'),
+  ]
+endif
+
 if host_os_family == 'linux' or host_os_family == 'qnx'
   gum_incdirs += [
     include_directories('gum/backend-elf'),
