@@ -43,7 +43,7 @@ GUM_API gboolean gum_darwin_module_resolver_find_export_by_mangled_name (
     const gchar * symbol, GumExportDetails * details);
 GUM_API gboolean gum_darwin_module_resolver_resolve_export (
     GumDarwinModuleResolver * self, GumDarwinModule * module,
-    const GumDarwinExportDetails * export, GumExportDetails * result);
+    const GumDarwinExportDetails * exp, GumExportDetails * result);
 
 G_END_DECLS
 
