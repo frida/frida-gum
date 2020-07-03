@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -455,7 +455,7 @@ gum_emit_range (const GumRangeDetails * details,
   gboolean proceed = TRUE;
 
   duk_push_heapptr (ctx, mc->on_match);
-  _gum_duk_push_range (ctx, details, scope->core);
+  _gum_duk_push_range_details (ctx, details, scope->core);
 
   if (_gum_duk_scope_call_sync (scope, 1))
   {

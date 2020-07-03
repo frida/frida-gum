@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -1496,20 +1496,13 @@ _gum_duk_push_exception_details (duk_context * ctx,
 }
 
 void
-_gum_duk_push_range (duk_context * ctx,
-                     const GumRangeDetails * details,
-                     GumDukCore * core)
+_gum_duk_push_range_details (duk_context * ctx,
+                             const GumRangeDetails * details,
+                             GumDukCore * core)
 {
   const GumFileMapping * f = details->file;
 
-  duk_push_object (ctx);
-
-  _gum_duk_push_native_pointer (ctx,
-      GSIZE_TO_POINTER (details->range->base_address), core);
-  duk_put_prop_string (ctx, -2, "base");
-
-  duk_push_uint (ctx, details->range->size);
-  duk_put_prop_string (ctx, -2, "size");
+  _gum_duk_push_memory_range (ctx, details->range, core);
 
   _gum_duk_push_page_protection (ctx, details->prot);
   duk_put_prop_string (ctx, -2, "protection");
@@ -1529,6 +1522,21 @@ _gum_duk_push_range (duk_context * ctx,
 
     duk_put_prop_string (ctx, -2, "file");
   }
+}
+
+void
+_gum_duk_push_memory_range (duk_context * ctx,
+                            const GumMemoryRange * range,
+                            GumDukCore * core)
+{
+  duk_push_object (ctx);
+
+  _gum_duk_push_native_pointer (ctx, GSIZE_TO_POINTER (range->base_address),
+      core);
+  duk_put_prop_string (ctx, -2, "base");
+
+  duk_push_uint (ctx, range->size);
+  duk_put_prop_string (ctx, -2, "size");
 }
 
 GArray *

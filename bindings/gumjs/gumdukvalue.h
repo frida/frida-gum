@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -118,9 +118,11 @@ G_GNUC_INTERNAL void _gum_duk_push_exception_details (duk_context * ctx,
     GumExceptionDetails * details, GumDukCore * core,
     GumDukCpuContext ** cpu_context);
 
-G_GNUC_INTERNAL void _gum_duk_push_range (duk_context * ctx,
+G_GNUC_INTERNAL void _gum_duk_push_range_details (duk_context * ctx,
     const GumRangeDetails * details, GumDukCore * core);
 
+G_GNUC_INTERNAL void _gum_duk_push_memory_range (duk_context * ctx,
+    const GumMemoryRange * range, GumDukCore * core);
 G_GNUC_INTERNAL GArray * _gum_duk_get_memory_ranges (duk_context * ctx,
     duk_idx_t index, GumDukCore * core);
 G_GNUC_INTERNAL gboolean _gum_duk_get_memory_range (duk_context * ctx,

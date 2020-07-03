@@ -359,7 +359,7 @@ gum_push_range_if_containing_address (const GumRangeDetails * details,
     duk_context * ctx = scope.ctx;
 
     duk_pop (ctx);
-    _gum_duk_push_range (ctx, details, fc->core);
+    _gum_duk_push_range_details (ctx, details, fc->core);
 
     proceed = FALSE;
   }
@@ -397,7 +397,7 @@ gum_emit_range (const GumRangeDetails * details,
   gboolean proceed = TRUE;
 
   duk_push_heapptr (ctx, mc->on_match);
-  _gum_duk_push_range (ctx, details, scope->core);
+  _gum_duk_push_range_details (ctx, details, scope->core);
 
   if (_gum_duk_scope_call_sync (scope, 1))
   {
