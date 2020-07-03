@@ -1179,6 +1179,8 @@ gum_darwin_query_shared_cache_range (mach_port_t task,
     return FALSE;
 
   start = infos.shared_cache_base_address;
+  if (start == 0)
+    return FALSE;
 
   address = start;
   depth = 0;
