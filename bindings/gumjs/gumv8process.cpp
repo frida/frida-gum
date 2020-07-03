@@ -9,6 +9,9 @@
 #include "gumv8macros.h"
 #include "gumv8matchcontext.h"
 #include "gumv8scope.h"
+#ifdef HAVE_DARWIN
+# include <gumdarwin.h>
+#endif
 
 #include <string.h>
 
@@ -69,6 +72,7 @@ static gboolean gum_emit_module (const GumModuleDetails * details,
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
     GumV8MatchContext<GumV8Process> * mc);
+GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_system_ranges)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
 GUMJS_DECLARE_FUNCTION (gumjs_process_set_exception_handler)
 
@@ -89,6 +93,7 @@ static const GumV8Function gumjs_process_functions[] =
   { "findModuleByName", gumjs_process_find_module_by_name },
   { "_enumerateModules", gumjs_process_enumerate_modules },
   { "_enumerateRanges", gumjs_process_enumerate_ranges },
+  { "enumerateSystemRanges", gumjs_process_enumerate_system_ranges },
   { "_enumerateMallocRanges", gumjs_process_enumerate_malloc_ranges },
   { "setExceptionHandler", gumjs_process_set_exception_handler },
 
@@ -300,6 +305,27 @@ gum_emit_range (const GumRangeDetails * details,
   }
 
   return mc->OnMatch (range);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_system_ranges)
+{
+  auto ranges = Object::New (isolate);
+
+#ifdef HAVE_DARWIN
+  {
+    GumMemoryRange dsc;
+
+    if (gum_darwin_query_shared_cache_range (mach_task_self (), &dsc))
+    {
+      auto range = Object::New (isolate);
+      _gum_v8_object_set_pointer (range, "base", dsc.base_address, core);
+      _gum_v8_object_set_uint (range, "size", dsc.size, core);
+      _gum_v8_object_set (ranges, "dyldSharedCache", range, core);
+    }
+  }
+#endif
+
+  info.GetReturnValue ().Set (ranges);
 }
 
 #if defined (HAVE_WINDOWS) || defined (HAVE_DARWIN)

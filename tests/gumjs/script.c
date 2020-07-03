@@ -165,6 +165,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (process_ranges_can_be_enumerated_legacy_style)
     TESTENTRY (process_ranges_can_be_enumerated_with_neighbors_coalesced)
     TESTENTRY (process_range_can_be_looked_up_from_address)
+    TESTENTRY (process_system_ranges_can_be_enumerated)
 #ifdef HAVE_DARWIN
     TESTENTRY (process_malloc_ranges_can_be_enumerated)
     TESTENTRY (process_malloc_ranges_can_be_enumerated_legacy_style)
@@ -3452,6 +3453,14 @@ TESTCASE (process_malloc_ranges_can_be_enumerated_legacy_style)
 }
 
 #endif
+
+TESTCASE (process_system_ranges_can_be_enumerated)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var ranges = Process.enumerateSystemRanges();"
+      "console.log(JSON.stringify(ranges, null, 2));");
+  EXPECT_NO_MESSAGES ();
+}
 
 TESTCASE (module_imports_can_be_enumerated)
 {

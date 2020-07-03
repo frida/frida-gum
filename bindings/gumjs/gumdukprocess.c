@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,6 +7,9 @@
 #include "gumdukprocess.h"
 
 #include "gumdukmacros.h"
+#ifdef HAVE_DARWIN
+# include <gumdarwin.h>
+#endif
 
 #if defined (HAVE_I386)
 # if GLIB_SIZEOF_VOID_P == 4
@@ -83,6 +86,7 @@ static gboolean gum_push_range_if_containing_address (
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
     GumDukMatchContext * mc);
+GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_system_ranges)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
 GUMJS_DECLARE_FUNCTION (gumjs_process_set_exception_handler)
 
@@ -102,6 +106,7 @@ static const duk_function_list_entry gumjs_process_functions[] =
   { "_enumerateModules", gumjs_process_enumerate_modules, 1 },
   { "findRangeByAddress", gumjs_process_find_range_by_address, 1 },
   { "_enumerateRanges", gumjs_process_enumerate_ranges, 2 },
+  { "enumerateSystemRanges", gumjs_process_enumerate_system_ranges, 0 },
   { "_enumerateMallocRanges", gumjs_process_enumerate_malloc_ranges, 1 },
   { "setExceptionHandler", gumjs_process_set_exception_handler, 1 },
 
@@ -411,6 +416,25 @@ gum_emit_range (const GumRangeDetails * details,
   duk_pop (ctx);
 
   return proceed;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_system_ranges)
+{
+  duk_push_object (ctx);
+
+#ifdef HAVE_DARWIN
+  {
+    GumMemoryRange dsc;
+
+    if (gum_darwin_query_shared_cache_range (mach_task_self (), &dsc))
+    {
+      _gum_duk_push_memory_range (ctx, &dsc, args->core);
+      duk_put_prop_string (ctx, -2, "dyldSharedCache");
+    }
+  }
+#endif
+
+  return 1;
 }
 
 #if defined (HAVE_WINDOWS) || defined (HAVE_DARWIN)
