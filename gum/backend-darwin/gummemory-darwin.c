@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -110,7 +110,7 @@ gum_darwin_query_page_size (mach_port_t task,
       break;
     case GUM_CPU_ARM:
     {
-      if (gum_darwin_is_ios9_or_newer ())
+      if (gum_darwin_check_xnu_version (3216, 0, 0))
       {
         char buf[256];
         size_t size;

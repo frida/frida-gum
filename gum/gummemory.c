@@ -227,7 +227,7 @@ gum_query_rwx_support (void)
 
           if ((info.protection & requested_prot) == requested_prot)
           {
-            rwx_support = gum_darwin_is_ios9_or_newer ()
+            rwx_support = gum_darwin_check_xnu_version (3216, 0, 0)
                 ? GUM_RWX_ALLOCATIONS_ONLY
                 : GUM_RWX_FULL;
           }
