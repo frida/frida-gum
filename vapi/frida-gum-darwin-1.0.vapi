@@ -1,5 +1,6 @@
 [CCode (cheader_filename = "gum/gumdarwin.h")]
 namespace Gum.Darwin {
+	public bool check_xnu_version (uint major, uint minor, uint micro);
 	public bool is_ios9_or_newer ();
 
 	public uint8[]? read (Gum.DarwinPort task, Gum.Address address, size_t len);

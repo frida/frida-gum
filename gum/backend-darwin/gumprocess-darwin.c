@@ -910,6 +910,44 @@ gum_module_find_export_by_name (const gchar * module_name,
 }
 
 gboolean
+gum_darwin_check_xnu_version (guint major,
+                              guint minor,
+                              guint micro)
+{
+  static gboolean initialized = FALSE;
+  static guint xnu_major, xnu_minor, xnu_micro;
+
+  if (!initialized)
+  {
+    char buf[256] = { 0, };
+    size_t size;
+    int res;
+    const char * version_str;
+
+    size = sizeof (buf);
+    res = sysctlbyname ("kern.version", buf, &size, NULL, 0);
+    g_assert (res == 0);
+
+    version_str = strstr (buf, ":xnu-");
+    if (version_str != NULL)
+    {
+      version_str += 5;
+      sscanf (version_str, "%u.%u.%u", &xnu_major, &xnu_minor, &xnu_micro);
+    }
+
+    initialized = TRUE;
+  }
+
+  if (xnu_major > major)
+    return TRUE;
+
+  if (xnu_major == major && xnu_minor > minor)
+    return TRUE;
+
+  return xnu_major == major && xnu_minor == minor && xnu_micro >= micro;
+}
+
+gboolean
 gum_darwin_is_ios9_or_newer (void)
 {
 #ifdef HAVE_IOS
