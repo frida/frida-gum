@@ -1642,7 +1642,7 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
       break;
     case ARM64_INS_SMC:
     case ARM64_INS_HVC:
-      g_assert ("" == "not implemented");
+      g_assert_not_reached ();
       break;
     default:
       requirements = GUM_REQUIRE_RELOCATION;
@@ -2783,7 +2783,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
       break;
     }
     default:
-      g_assert ("" == "not implemented");
+      g_assert_not_reached ();
   }
 
   return GUM_REQUIRE_NOTHING;
