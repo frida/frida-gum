@@ -913,11 +913,11 @@ gboolean
 gum_darwin_is_ios9_or_newer (void)
 {
 #ifdef HAVE_IOS
-  static gsize cached_result = 0;
+  static gint cached_result = -1;
 
-  if (g_once_init_enter (&cached_result))
+  if (cached_result == -1)
   {
-    char buf[256];
+    char buf[256] = { 0, };
     size_t size;
     int res;
     gboolean ios9_or_newer;
@@ -928,7 +928,7 @@ gum_darwin_is_ios9_or_newer (void)
 
     ios9_or_newer = atoi (buf) >= 15;
 
-    g_once_init_leave (&cached_result, ios9_or_newer + 1);
+    cached_result = ios9_or_newer;
   }
 
   return cached_result - 1;
