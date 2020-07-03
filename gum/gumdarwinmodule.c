@@ -52,10 +52,6 @@ typedef struct _GumEmitTermPointersContext GumEmitTermPointersContext;
 
 typedef struct _GumExportsTrieForeachContext GumExportsTrieForeachContext;
 
-typedef struct _GumDyldCacheHeader GumDyldCacheHeader;
-typedef struct _GumDyldCacheMappingInfo GumDyldCacheMappingInfo;
-typedef struct _GumDyldCacheImageInfo GumDyldCacheImageInfo;
-
 typedef struct _GumFatHeader GumFatHeader;
 typedef struct _GumFatArch32 GumFatArch32;
 typedef struct _GumMachHeader32 GumMachHeader32;
@@ -86,7 +82,6 @@ enum
   PROP_BASE_ADDRESS,
   PROP_SOURCE_PATH,
   PROP_SOURCE_BLOB,
-  PROP_CACHE_FILE,
   PROP_FLAGS,
 };
 
@@ -137,33 +132,6 @@ struct _GumExportsTrieForeachContext
   GString * prefix;
   const guint8 * exports;
   const guint8 * exports_end;
-};
-
-struct _GumDyldCacheHeader
-{
-  gchar magic[16];
-  guint32 mapping_offset;
-  guint32 mapping_count;
-  guint32 images_offset;
-  guint32 images_count;
-};
-
-struct _GumDyldCacheMappingInfo
-{
-  GumAddress address;
-  guint64 size;
-  guint64 offset;
-  guint32 max_protection;
-  guint32 initial_protection;
-};
-
-struct _GumDyldCacheImageInfo
-{
-  GumAddress address;
-  guint64 mtime;
-  guint64 inode;
-  guint32 name_offset;
-  guint32 padding;
 };
 
 struct _GumFatHeader
@@ -518,8 +486,6 @@ static gboolean gum_emit_section_term_pointers (
     const GumDarwinSectionDetails * details, gpointer user_data);
 static gboolean gum_darwin_module_ensure_image_loaded (GumDarwinModule * self,
     GError ** error);
-static gboolean gum_darwin_module_try_load_image_from_cache (
-    GumDarwinModule * self, const gchar * name, GMappedFile * cache_file);
 static gboolean gum_darwin_module_load_image_from_filesystem (
     GumDarwinModule * self, const gchar * path, GError ** error);
 static gboolean gum_darwin_module_load_image_header_from_filesystem (
@@ -556,15 +522,6 @@ static gboolean gum_exports_trie_traverse (const guint8 * p,
 static void gum_darwin_export_details_init_from_node (
     GumDarwinExportDetails * details, const gchar * name, const guint8 * node,
     const guint8 * exports_end);
-
-static const GumDyldCacheImageInfo * gum_dyld_cache_find_image_by_name (
-    const gchar * name, const GumDyldCacheImageInfo * images, gsize image_count,
-    gconstpointer cache);
-static guint64 gum_dyld_cache_compute_image_size (
-    const GumDyldCacheImageInfo * image, const GumDyldCacheImageInfo * images,
-    gsize image_count);
-static guint64 gum_dyld_cache_offset_from_address (GumAddress address,
-    const GumDyldCacheMappingInfo * mappings, gsize mapping_count);
 
 static GumCpuType gum_cpu_type_from_darwin (GumDarwinCpuType cpu_type);
 static GumPtrauthSupport gum_ptrauth_support_from_darwin (
@@ -616,10 +573,6 @@ gum_darwin_module_class_init (GumDarwinModuleClass * klass)
       g_param_spec_boxed ("source-blob", "SourceBlob", "Source blob",
       G_TYPE_BYTES,
       G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
-  g_object_class_install_property (object_class, PROP_CACHE_FILE,
-      g_param_spec_boxed ("cache-file", "CacheFile", "Cache file used by dyld",
-      G_TYPE_MAPPED_FILE,
-      G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_FLAGS,
       g_param_spec_flags ("flags", "Flags", "Optional flags",
       GUM_TYPE_DARWIN_MODULE_FLAGS, GUM_DARWIN_MODULE_FLAGS_NONE,
@@ -667,25 +620,20 @@ gum_darwin_module_initable_init (GInitable * initable,
 
   if (self->source_path != NULL)
   {
-    if (self->cache_file == NULL ||
-        !gum_darwin_module_try_load_image_from_cache (self, self->source_path,
-        self->cache_file))
+    if (GUM_DARWIN_MODULE_HAS_HEADER_ONLY (self))
     {
-      if (GUM_DARWIN_MODULE_HAS_HEADER_ONLY (self))
+      if (!gum_darwin_module_load_image_header_from_filesystem (self,
+          self->source_path, error))
       {
-        if (!gum_darwin_module_load_image_header_from_filesystem (self,
-            self->source_path, error))
-        {
-          return FALSE;
-        }
+        return FALSE;
       }
-      else
+    }
+    else
+    {
+      if (!gum_darwin_module_load_image_from_filesystem (self,
+          self->source_path, error))
       {
-        if (!gum_darwin_module_load_image_from_filesystem (self,
-            self->source_path, error))
-        {
-          return FALSE;
-        }
+        return FALSE;
       }
     }
   }
@@ -725,8 +673,6 @@ gum_darwin_module_finalize (GObject * object)
 
   g_free (self->source_path);
   g_bytes_unref (self->source_blob);
-  if (self->cache_file != NULL)
-    g_mapped_file_unref (self->cache_file);
 
   g_free (self->name);
   g_free (self->uuid);
@@ -770,9 +716,6 @@ gum_darwin_module_get_property (GObject * object,
     case PROP_SOURCE_BLOB:
       g_value_set_boxed (value, self->source_blob);
       break;
-    case PROP_CACHE_FILE:
-      g_value_set_boxed (value, self->cache_file);
-      break;
     case PROP_FLAGS:
       g_value_set_flags (value, self->flags);
       break;
@@ -815,10 +758,6 @@ gum_darwin_module_set_property (GObject * object,
       g_clear_pointer (&self->source_blob, g_bytes_unref);
       self->source_blob = g_value_dup_boxed (value);
       break;
-    case PROP_CACHE_FILE:
-      g_clear_pointer (&self->cache_file, g_mapped_file_unref);
-      self->cache_file = g_value_dup_boxed (value);
-      break;
     case PROP_FLAGS:
       self->flags = g_value_get_flags (value);
       break;
@@ -831,7 +770,6 @@ GumDarwinModule *
 gum_darwin_module_new_from_file (const gchar * path,
                                  GumCpuType cpu_type,
                                  GumPtrauthSupport ptrauth_support,
-                                 GMappedFile * cache_file,
                                  GumDarwinModuleFlags flags,
                                  GError ** error)
 {
@@ -839,7 +777,6 @@ gum_darwin_module_new_from_file (const gchar * path,
       "cpu-type", cpu_type,
       "ptrauth-support", ptrauth_support,
       "source-path", path,
-      "cache-file", cache_file,
       "flags", flags,
       NULL);
 }
@@ -1902,67 +1839,6 @@ gum_darwin_module_ensure_image_loaded (GumDarwinModule * self,
 }
 
 static gboolean
-gum_darwin_module_try_load_image_from_cache (GumDarwinModule * self,
-                                             const gchar * name,
-                                             GMappedFile * cache_file)
-{
-  guint8 * cache;
-  const GumDyldCacheHeader * header;
-  const GumDyldCacheImageInfo * images, * image;
-  const GumDyldCacheMappingInfo * mappings, * second_mapping,
-      * last_mapping, * mapping;
-  guint64 image_offset, image_size;
-  GumDarwinModuleImage * module_image;
-
-  cache = (guint8 *) g_mapped_file_get_contents (cache_file);
-  g_assert (cache != NULL);
-
-  header = (GumDyldCacheHeader *) cache;
-  images = (GumDyldCacheImageInfo *) (cache + header->images_offset);
-  mappings = (GumDyldCacheMappingInfo *) (cache + header->mapping_offset);
-  second_mapping = &mappings[1];
-  last_mapping = &mappings[header->mapping_count - 1];
-
-  image = gum_dyld_cache_find_image_by_name (name, images,
-      header->images_count, cache);
-  if (image == NULL)
-    return FALSE;
-
-  image_offset = gum_dyld_cache_offset_from_address (image->address, mappings,
-      header->mapping_count);
-  image_size = gum_dyld_cache_compute_image_size (image, images,
-      header->images_count);
-
-  module_image = gum_darwin_module_image_new ();
-
-  module_image->source_offset = image_offset;
-  module_image->source_size = image_size;
-  module_image->shared_offset = second_mapping->offset - image_offset;
-  module_image->shared_size = (last_mapping->offset + last_mapping->size) -
-      second_mapping->offset;
-  for (mapping = second_mapping; mapping != last_mapping + 1; mapping++)
-  {
-    GumDarwinModuleImageSegment segment;
-    segment.offset = module_image->shared_offset + (mapping->offset -
-        second_mapping->offset);
-    segment.size = mapping->size;
-    segment.protection = mapping->initial_protection;
-    g_array_append_val (module_image->shared_segments, segment);
-  }
-
-  module_image->data = cache + image_offset;
-  module_image->size = module_image->shared_offset +
-      module_image->shared_size;
-  module_image->linkedit = cache;
-
-  module_image->bytes = g_mapped_file_get_bytes (cache_file);
-
-  gum_darwin_module_take_image (self, module_image, NULL);
-
-  return TRUE;
-}
-
-static gboolean
 gum_darwin_module_load_image_from_filesystem (GumDarwinModule * self,
                                               const gchar * path,
                                               GError ** error)
@@ -3004,72 +2880,6 @@ gum_darwin_export_details_init_from_node (GumDarwinExportDetails * details,
   {
     details->offset = gum_read_uleb128 (&p, exports_end);
   }
-}
-
-static const GumDyldCacheImageInfo *
-gum_dyld_cache_find_image_by_name (const gchar * name,
-                                   const GumDyldCacheImageInfo * images,
-                                   gsize image_count,
-                                   gconstpointer cache)
-{
-  gsize i;
-
-  for (i = 0; i != image_count; i++)
-  {
-    const GumDyldCacheImageInfo * image = &images[i];
-    const gchar * current_name;
-
-    current_name = (const gchar *) cache + image->name_offset;
-    if (strcmp (current_name, name) == 0)
-      return image;
-  }
-
-  return NULL;
-}
-
-static guint64
-gum_dyld_cache_compute_image_size (const GumDyldCacheImageInfo * image,
-                                   const GumDyldCacheImageInfo * images,
-                                   gsize image_count)
-{
-  const GumDyldCacheImageInfo * next_image;
-  gsize i;
-
-  next_image = NULL;
-  for (i = 0; i != image_count; i++)
-  {
-    const GumDyldCacheImageInfo * candidate = &images[i];
-
-    if (candidate->address > image->address && (next_image == NULL ||
-        candidate->address < next_image->address))
-    {
-      next_image = candidate;
-    }
-  }
-  g_assert (next_image != NULL);
-
-  return next_image->address - image->address;
-}
-
-static guint64
-gum_dyld_cache_offset_from_address (GumAddress address,
-                                    const GumDyldCacheMappingInfo * mappings,
-                                    gsize mapping_count)
-{
-  gsize i;
-
-  for (i = 0; i != mapping_count; i++)
-  {
-    const GumDyldCacheMappingInfo * mapping = &mappings[i];
-
-    if (address >= mapping->address &&
-        address < mapping->address + mapping->size)
-    {
-      return address - mapping->address + mapping->offset;
-    }
-  }
-
-  return 0;
 }
 
 GType

@@ -86,7 +86,6 @@ struct _GumDarwinModule
   GumAddress base_address;
   gchar * source_path;
   GBytes * source_blob;
-  GMappedFile * cache_file;
   GumDarwinModuleFlags flags;
 
   GumDarwinModuleImage * image;
@@ -305,7 +304,7 @@ enum _GumDarwinExportSymbolFlags
 
 GUM_API GumDarwinModule * gum_darwin_module_new_from_file (const gchar * path,
     GumCpuType cpu_type, GumPtrauthSupport ptrauth_support,
-    GMappedFile * cache_file, GumDarwinModuleFlags flags, GError ** error);
+    GumDarwinModuleFlags flags, GError ** error);
 GUM_API GumDarwinModule * gum_darwin_module_new_from_blob (GBytes * blob,
     GumCpuType cpu_type, GumPtrauthSupport ptrauth_support,
     GumDarwinModuleFlags flags, GError ** error);

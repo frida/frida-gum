@@ -9,7 +9,6 @@
 #include "gumdarwin.h"
 #include "gumdarwinmodule.h"
 
-#include <fcntl.h>
 #include <string.h>
 #include <gio/gio.h>
 #ifdef HAVE_I386
@@ -70,8 +69,6 @@ struct _GumDarwinMapper
 
   GArray * threaded_binds;
 
-  GMappedFile * cache_file;
-  gboolean cache_file_load_attempted;
   GSList * children;
   GHashTable * mappings;
 };
@@ -82,7 +79,6 @@ enum
   PROP_NAME,
   PROP_MODULE,
   PROP_RESOLVER,
-  PROP_CACHE_FILE,
   PROP_PARENT
 };
 
@@ -126,8 +122,6 @@ static void gum_darwin_mapper_set_property (GObject * object, guint property_id,
 static GumDarwinMapper * gum_darwin_mapper_new_from_file_with_parent (
     GumDarwinMapper * parent, const gchar * path,
     GumDarwinModuleResolver * resolver, GError ** error);
-static GMappedFile * gum_darwin_mapper_try_load_cache_file (
-    GumCpuType cpu_type);
 static gboolean gum_darwin_mapper_init_dependencies (GumDarwinMapper * self,
     GError ** error);
 static gsize gum_darwin_mapper_get_footprint_budget (GumDarwinMapper * self);
@@ -182,15 +176,6 @@ G_DEFINE_TYPE_EXTENDED (GumDarwinMapper,
                         G_IMPLEMENT_INTERFACE (G_TYPE_INITABLE,
                             gum_darwin_mapper_initable_iface_init))
 
-static const gchar * gum_darwin_cache_file_arch_candidates_ia32[] =
-    { "i386", NULL };
-static const gchar * gum_darwin_cache_file_arch_candidates_amd64[] =
-    { "x86_64", NULL };
-static const gchar * gum_darwin_cache_file_arch_candidates_arm[] =
-    { "armv7s", "armv7", "armv6", NULL };
-static const gchar * gum_darwin_cache_file_arch_candidates_arm64[] =
-    { "arm64", "arm64e", NULL };
-
 static void
 gum_darwin_mapper_class_init (GumDarwinMapperClass * klass)
 {
@@ -212,9 +197,6 @@ gum_darwin_mapper_class_init (GumDarwinMapperClass * klass)
       g_param_spec_object ("resolver", "Resolver", "Module resolver",
       GUM_DARWIN_TYPE_MODULE_RESOLVER, G_PARAM_READWRITE |
       G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
-  g_object_class_install_property (object_class, PROP_CACHE_FILE,
-      g_param_spec_boxed ("cache-file", "CacheFile", "Shared cache file",
-      G_TYPE_MAPPED_FILE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_PARENT,
       g_param_spec_object ("parent", "Parent", "Parent mapper",
       GUM_DARWIN_TYPE_MAPPER, G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
@@ -275,7 +257,6 @@ gum_darwin_mapper_finalize (GObject * object)
 
   g_clear_pointer (&self->mappings, g_hash_table_unref);
   g_slist_free_full (self->children, g_object_unref);
-  g_clear_pointer (&self->cache_file, g_mapped_file_unref);
 
   g_clear_pointer (&self->threaded_binds, g_array_unref);
 
@@ -310,9 +291,6 @@ gum_darwin_mapper_get_property (GObject * object,
     case PROP_RESOLVER:
       g_value_set_object (value, self->resolver);
       break;
-    case PROP_CACHE_FILE:
-      g_value_set_boxed (value, self->cache_file);
-      break;
     case PROP_PARENT:
       g_value_set_object (value, self->parent);
       break;
@@ -343,10 +321,6 @@ gum_darwin_mapper_set_property (GObject * object,
     case PROP_RESOLVER:
       g_clear_object (&self->resolver);
       self->resolver = g_value_dup_object (value);
-      break;
-    case PROP_CACHE_FILE:
-      g_clear_pointer (&self->cache_file, g_mapped_file_unref);
-      self->cache_file = g_value_dup_boxed (value);
       break;
     case PROP_PARENT:
       self->parent = g_value_get_object (value);
@@ -405,29 +379,10 @@ gum_darwin_mapper_new_from_file_with_parent (GumDarwinMapper * parent,
                                              GError ** error)
 {
   GumDarwinMapper * mapper = NULL;
-  GMappedFile * cache_file;
   GumDarwinModule * module;
 
-  if (parent == NULL)
-  {
-    cache_file = gum_darwin_mapper_try_load_cache_file (resolver->cpu_type);
-  }
-  else
-  {
-    if (parent->cache_file == NULL && !parent->cache_file_load_attempted)
-    {
-      parent->cache_file =
-          gum_darwin_mapper_try_load_cache_file (resolver->cpu_type);
-      parent->cache_file_load_attempted = TRUE;
-    }
-
-    cache_file = (parent->cache_file != NULL)
-        ? g_mapped_file_ref (parent->cache_file)
-        : NULL;
-  }
-
   module = gum_darwin_module_new_from_file (path, resolver->cpu_type,
-      resolver->ptrauth_support, cache_file, GUM_DARWIN_MODULE_FLAGS_NONE,
+      resolver->ptrauth_support, GUM_DARWIN_MODULE_FLAGS_NONE,
       error);
   if (module == NULL)
     goto beach;
@@ -436,75 +391,15 @@ gum_darwin_mapper_new_from_file_with_parent (GumDarwinMapper * parent,
       "name", path,
       "module", module,
       "resolver", resolver,
-      "cache-file", cache_file,
       "parent", parent,
       NULL);
   if (mapper == NULL)
     goto beach;
 
-  if (parent == NULL)
-  {
-    mapper->cache_file_load_attempted = TRUE;
-  }
-
 beach:
   g_clear_object (&module);
-  g_clear_pointer (&cache_file, g_mapped_file_unref);
 
   return mapper;
-}
-
-static GMappedFile *
-gum_darwin_mapper_try_load_cache_file (GumCpuType cpu_type)
-{
-  GMappedFile * file;
-  const gchar ** candidates;
-  const gchar ** candidate;
-  gint fd, result;
-
-  candidates = NULL;
-  switch (cpu_type)
-  {
-    case GUM_CPU_IA32:
-      candidates = gum_darwin_cache_file_arch_candidates_ia32;
-      break;
-    case GUM_CPU_AMD64:
-      candidates = gum_darwin_cache_file_arch_candidates_amd64;
-      break;
-    case GUM_CPU_ARM:
-      candidates = gum_darwin_cache_file_arch_candidates_arm;
-      break;
-    case GUM_CPU_ARM64:
-      candidates = gum_darwin_cache_file_arch_candidates_arm64;
-      break;
-    default:
-      g_assert_not_reached ();
-  }
-
-  fd = -1;
-  for (candidate = candidates; *candidate != NULL && fd == -1; candidate++)
-  {
-    gchar * path;
-
-    path = g_strconcat (
-        "/System/Library/Caches/com.apple.dyld/dyld_shared_cache_",
-        *candidate,
-        NULL);
-    fd = open (path, 0);
-    g_free (path);
-  }
-  if (fd == -1)
-    return NULL;
-
-  result = fcntl (fd, F_NOCACHE, TRUE);
-  g_assert (result == 0);
-
-  file = g_mapped_file_new_from_fd (fd, TRUE, NULL);
-  g_assert (file != NULL);
-
-  close (fd);
-
-  return file;
 }
 
 static gboolean
