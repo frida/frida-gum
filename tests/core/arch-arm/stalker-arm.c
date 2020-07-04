@@ -44,7 +44,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (thumb_cbz_cbnz_block_events_generated)
 
   TESTENTRY (thumb2_mov_pc_reg_exec_events_generated)
-  TESTENTRY (thumb2_mov_pc_reg_no_interworking)
+  TESTENTRY (thumb2_mov_pc_reg_without_thumb_bit_set)
 
   /*
    * The following tests have no Thumb equivalent as Thumb does not support
@@ -1142,7 +1142,7 @@ TESTCASE (thumb2_mov_pc_reg_exec_events_generated)
   GUM_ASSERT_EVENT_ADDR (exec, 7, location, func + 18);
 }
 
-TESTCASE (thumb2_mov_pc_reg_no_interworking)
+TESTCASE (thumb2_mov_pc_reg_without_thumb_bit_set)
 {
   GumAddress func;
 
