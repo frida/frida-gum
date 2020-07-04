@@ -1901,7 +1901,7 @@ gum_stalker_get_target_address (const cs_insn * insn,
 
         value->reg = op1->reg;
         value->offset = 0;
-        value->thumb_interworking = true;
+        value->thumb_interworking = TRUE;
       }
       else
       {
@@ -2022,7 +2022,7 @@ gum_stalker_get_target_address (const cs_insn * insn,
 
       value->reg = op2->reg;
       value->offset = 0;
-      value->thumb_interworking = false;
+      value->thumb_interworking = FALSE;
 
       break;
     }
@@ -2053,7 +2053,7 @@ gum_stalker_get_target_address (const cs_insn * insn,
 
         value->reg = base->reg;
         value->offset = (insn->id == ARM_INS_SUB) ? -index->imm : index->imm;
-        value->thumb_interworking = false;
+        value->thumb_interworking = FALSE;
       }
 
       break;
@@ -3439,6 +3439,7 @@ gum_exec_block_write_arm_handle_kuser_helper (GumExecBlock * block,
   ret_target.type = GUM_TARGET_DIRECT_REG_OFFSET;
   ret_target.value.direct_reg_offset.reg = ARM_REG_LR;
   ret_target.value.direct_reg_offset.offset = 0;
+  ret_target.value.direct_reg_offset.thumb_interworking = TRUE;
 
   /*
    * We pop the stack frame here since the actual kuser_helper will have been
