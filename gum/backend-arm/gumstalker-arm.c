@@ -44,6 +44,7 @@ typedef struct _GumGeneratorContext GumGeneratorContext;
 typedef struct _GumCalloutEntry GumCalloutEntry;
 typedef struct _GumInstruction GumInstruction;
 typedef guint GumBranchTargetType;
+typedef guint GumArmMode;
 typedef struct _GumBranchTarget GumBranchTarget;
 typedef struct _GumBranchDirectAddress GumBranchDirectAddress;
 typedef struct _GumBranchDirectRegOffset GumBranchDirectRegOffset;
@@ -229,6 +230,12 @@ enum _GumBranchTargetType
   GUM_TARGET_INDIRECT_PCREL_TABLE
 };
 
+enum _GumArmMode
+{
+  GUM_ARM_MODE_AUTO,
+  GUM_ARM_MODE_CURRENT
+};
+
 struct _GumBranchDirectAddress
 {
   gpointer address;
@@ -238,6 +245,7 @@ struct _GumBranchDirectRegOffset
 {
   arm_reg reg;
   gssize offset;
+  GumArmMode mode;
 };
 
 struct _GumBranchDirectRegShift
@@ -1900,6 +1908,7 @@ gum_stalker_get_target_address (const cs_insn * insn,
 
         value->reg = op1->reg;
         value->offset = 0;
+        value->mode = GUM_ARM_MODE_AUTO;
       }
       else
       {
@@ -2020,6 +2029,7 @@ gum_stalker_get_target_address (const cs_insn * insn,
 
       value->reg = op2->reg;
       value->offset = 0;
+      value->mode = GUM_ARM_MODE_CURRENT;
 
       break;
     }
@@ -2050,6 +2060,7 @@ gum_stalker_get_target_address (const cs_insn * insn,
 
         value->reg = base->reg;
         value->offset = (insn->id == ARM_INS_SUB) ? -index->imm : index->imm;
+        value->mode = GUM_ARM_MODE_CURRENT;
       }
 
       break;
@@ -2618,6 +2629,9 @@ gum_exec_ctx_write_thumb_mov_branch_target (GumExecCtx * ctx,
       gum_exec_ctx_thumb_load_real_register_into (ctx, reg, value->reg, gc);
 
       gum_thumb_writer_put_add_reg_reg_imm (cw, reg, reg, value->offset);
+
+      if (value->mode == GUM_ARM_MODE_CURRENT)
+        gum_thumb_writer_put_or_reg_reg_imm (cw, reg, reg, 0x1);
 
       break;
     }
@@ -3432,6 +3446,7 @@ gum_exec_block_write_arm_handle_kuser_helper (GumExecBlock * block,
   ret_target.type = GUM_TARGET_DIRECT_REG_OFFSET;
   ret_target.value.direct_reg_offset.reg = ARM_REG_LR;
   ret_target.value.direct_reg_offset.offset = 0;
+  ret_target.value.direct_reg_offset.mode = GUM_ARM_MODE_AUTO;
 
   /*
    * We pop the stack frame here since the actual kuser_helper will have been
@@ -3516,6 +3531,7 @@ gum_exec_block_write_thumb_handle_kuser_helper (GumExecBlock * block,
   ret_target.type = GUM_TARGET_DIRECT_REG_OFFSET;
   ret_target.value.direct_reg_offset.reg = ARM_REG_LR;
   ret_target.value.direct_reg_offset.offset = 0;
+  ret_target.value.direct_reg_offset.mode = GUM_ARM_MODE_AUTO;
 
   gum_exec_block_write_thumb_pop_stack_frame (block, &ret_target, gc);
   gum_exec_block_write_thumb_call_replace_block (block, &ret_target,
