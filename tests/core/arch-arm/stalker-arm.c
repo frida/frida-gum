@@ -45,6 +45,7 @@ TESTLIST_BEGIN (stalker)
 
   TESTENTRY (thumb2_mov_pc_reg_exec_events_generated)
   TESTENTRY (thumb2_mov_pc_reg_without_thumb_bit_set)
+  TESTENTRY (thumb2_mov_pc_reg_no_clobber_reg)
 
   /*
    * The following tests have no Thumb equivalent as Thumb does not support
@@ -1160,6 +1161,43 @@ TESTCASE (thumb2_mov_pc_reg_without_thumb_bit_set)
   GUM_ASSERT_EVENT_ADDR (exec, 5, location, func + 6);
   GUM_ASSERT_EVENT_ADDR (exec, 6, location, func + 16);
   GUM_ASSERT_EVENT_ADDR (exec, 7, location, func + 18);
+}
+
+TESTCODE (thumb2_mov_pc_reg_no_clobber_reg,
+  0x00, 0xb5, /* push {lr}        */
+  0x00, 0x1a, /* subs r0, r0, r0  */
+  0x01, 0x4e, /* ldr r6, [pc, #4] */
+  0x35, 0x46, /* mov r5, r6       */
+  0xb7, 0x46, /* mov pc, r6       */
+
+  0x0a, 0xde, /* udf 0x10         */
+  /* inner_addr:                  */
+  0xaa, 0xbb, 0xcc, 0xdd,
+
+  /* inner:                       */
+  0xa8, 0x1b, /* subs r0, r5, r6  */
+  0x00, 0xbd  /* pop {pc}         */
+);
+
+TESTCASE (thumb2_mov_pc_reg_no_clobber_reg)
+{
+  GumAddress func;
+
+  func = DUP_TESTCODE (thumb2_mov_pc_reg_no_clobber_reg);
+  patch_code_pointer (func, 6 * 2, func + (8 * 2) + 0);
+
+  fixture->sink->mask = GUM_EXEC;
+  g_assert_cmpuint (FOLLOW_AND_INVOKE (func + 1), ==, 0);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 7);
+
+  GUM_ASSERT_EVENT_ADDR (exec, 2, location, func);
+  GUM_ASSERT_EVENT_ADDR (exec, 3, location, func + 2);
+  GUM_ASSERT_EVENT_ADDR (exec, 4, location, func + 4);
+  GUM_ASSERT_EVENT_ADDR (exec, 5, location, func + 6);
+  GUM_ASSERT_EVENT_ADDR (exec, 6, location, func + 8);
+  GUM_ASSERT_EVENT_ADDR (exec, 7, location, func + 16);
+  GUM_ASSERT_EVENT_ADDR (exec, 8, location, func + 18);
 }
 
 TESTCODE (arm_bl_cc,
