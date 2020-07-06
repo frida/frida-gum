@@ -378,7 +378,8 @@ static void gum_exec_block_virtualize_arm_ret_insn (GumExecBlock * block,
     const GumBranchTarget * target, arm_cc cc, gboolean pop, guint16 mask,
     GumGeneratorContext * gc);
 static void gum_exec_block_virtualize_thumb_ret_insn (GumExecBlock * block,
-    const GumBranchTarget * target, gboolean pop, guint16 mask, GumGeneratorContext * gc);
+    const GumBranchTarget * target, gboolean pop, guint16 mask,
+    GumGeneratorContext * gc);
 static void gum_exec_block_virtualize_arm_svc_insn (GumExecBlock * block,
     GumGeneratorContext * gc);
 static void gum_exec_block_virtualize_thumb_svc_insn (GumExecBlock * block,
@@ -3245,15 +3246,6 @@ gum_exec_block_virtualize_thumb_ret_insn (GumExecBlock * block,
 
   gum_exec_block_thumb_close_prolog (block, gc);
 
-  /*
-   * If the instruction we are virtualizing is a POP (or indeed LDMIA)
-   * instruction, then as well as determining the location at which control flow
-   * should continue, we must ensure we load any other registers in the register
-   * list of the instruction from the stack. Lastly, we must increment that
-   * stack pointer to remove the value of PC which would have been restored,
-   * since we will instead control PC to continue execution of instrumented
-   * code.
-   */
   if (pop)
   {
     const GumBranchIndirectRegOffset * tv = &target->value.indirect_reg_offset;
