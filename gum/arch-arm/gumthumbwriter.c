@@ -67,6 +67,7 @@ static gboolean gum_thumb_writer_put_push_or_pop_regs_va (GumThumbWriter * self,
 static gboolean gum_thumb_writer_put_transfer_reg_reg_offset (
     GumThumbWriter * self, GumThumbMemoryOperation operation, arm_reg left_reg,
     arm_reg right_reg, gsize right_offset);
+static void gum_thumb_writer_put_it_al (GumThumbWriter * self);
 
 static gboolean gum_thumb_writer_try_commit_label_refs (GumThumbWriter * self);
 static gboolean gum_thumb_writer_do_commit_label (GumThumbLabelRef * r,
@@ -1093,6 +1094,9 @@ gum_thumb_writer_put_add_reg_imm (GumThumbWriter * self,
 
   gum_arm_reg_describe (dst_reg, &dst);
 
+  if (dst_reg != ARM_REG_SP && (dst_reg < ARM_REG_R0 || dst_reg > ARM_REG_R7))
+    return FALSE;
+
   sign_mask = 0x0000;
   if (dst.meta == GUM_ARM_MREG_SP)
   {
@@ -1110,6 +1114,7 @@ gum_thumb_writer_put_add_reg_imm (GumThumbWriter * self,
       sign_mask = 0x0800;
 
     insn = 0x3000 | sign_mask | (dst.index << 8) | ABS (imm_value);
+    gum_thumb_writer_put_it_al (self);
   }
 
   gum_thumb_writer_put_instruction (self, insn);
@@ -1173,6 +1178,15 @@ gum_thumb_writer_put_add_reg_reg_imm (GumThumbWriter * self,
     return gum_thumb_writer_put_add_reg_imm (self, dst_reg, right_value);
   }
 
+  if (dst_reg < ARM_REG_R0 || dst_reg > ARM_REG_R7)
+    return FALSE;
+
+  if (left_reg != ARM_REG_SP && left_reg != ARM_REG_PC &&
+      (left_reg < ARM_REG_R0 || left_reg > ARM_REG_R7))
+  {
+    return FALSE;
+  }
+
   if (left.meta == GUM_ARM_MREG_SP || left.meta == GUM_ARM_MREG_PC)
   {
     guint16 base_mask;
@@ -1199,11 +1213,18 @@ gum_thumb_writer_put_add_reg_reg_imm (GumThumbWriter * self,
 
     insn = 0x1c00 | sign_mask | (ABS (right_value) << 6) | (left.index << 3) |
         dst.index;
+    gum_thumb_writer_put_it_al (self);
   }
 
   gum_thumb_writer_put_instruction (self, insn);
 
   return TRUE;
+}
+
+static void
+gum_thumb_writer_put_it_al (GumThumbWriter * self)
+{
+  gum_thumb_writer_put_instruction (self, 0xbfe8);
 }
 
 gboolean
