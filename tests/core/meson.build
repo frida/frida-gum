@@ -61,6 +61,11 @@ if host_arch == 'arm64'
       'arch-arm64/stalker-arm64-darwin.m',
     ]
   endif
+  if host_os == 'macos'
+    core_sources += [
+      'arch-arm64/stalker-arm64-macos.m',
+    ]
+  endif
 endif
 
 gum_tests_core = static_library('gum-tests-core', core_sources,

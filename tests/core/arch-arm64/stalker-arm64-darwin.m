@@ -1,12 +1,12 @@
 /*
- * Copyright (C) 2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "stalker-arm64-fixture.c"
 
-#import <UIKit/UIKit.h>
+#import <Foundation/Foundation.h>
 
 TESTLIST_BEGIN (stalker_darwin)
   TESTENTRY (foundation)
