@@ -67,7 +67,6 @@ static gboolean gum_thumb_writer_put_push_or_pop_regs_va (GumThumbWriter * self,
 static gboolean gum_thumb_writer_put_transfer_reg_reg_offset (
     GumThumbWriter * self, GumThumbMemoryOperation operation, arm_reg left_reg,
     arm_reg right_reg, gsize right_offset);
-
 static void gum_thumb_writer_put_it_al (GumThumbWriter * self);
 
 static gboolean gum_thumb_writer_try_commit_label_refs (GumThumbWriter * self);
@@ -1184,7 +1183,9 @@ gum_thumb_writer_put_add_reg_reg_imm (GumThumbWriter * self,
 
   if (left_reg != ARM_REG_SP && left_reg != ARM_REG_PC &&
       (left_reg < ARM_REG_R0 || left_reg > ARM_REG_R7))
+  {
     return FALSE;
+  }
 
   if (left.meta == GUM_ARM_MREG_SP || left.meta == GUM_ARM_MREG_PC)
   {
