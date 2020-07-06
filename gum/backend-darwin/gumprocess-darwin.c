@@ -928,10 +928,10 @@ gum_darwin_check_xnu_version (guint major,
     res = sysctlbyname ("kern.version", buf, &size, NULL, 0);
     g_assert (res == 0);
 
-    version_str = strstr (buf, ":xnu-");
+    version_str = strstr (buf, "xnu-");
     if (version_str != NULL)
     {
-      version_str += 5;
+      version_str += 4;
       sscanf (version_str, "%u.%u.%u", &xnu_major, &xnu_minor, &xnu_micro);
     }
 
