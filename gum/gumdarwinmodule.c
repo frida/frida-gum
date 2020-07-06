@@ -25,6 +25,8 @@
 #define GUM_SECTION_TYPE_MASK          0x000000ff
 
 #define GUM_N_EXT                            0x01
+#define GUM_N_TYPE                           0x0e
+#define GUM_N_SECT                            0xe
 
 #define GUM_REBASE_OPCODE_MASK               0xf0
 #define GUM_REBASE_IMMEDIATE_MASK            0x0f
@@ -1093,6 +1095,9 @@ gum_emit_export_from_symbol (const GumDarwinSymbolDetails * details,
   GumDarwinExportDetails d;
 
   if ((details->type & GUM_N_EXT) == 0)
+    return TRUE;
+
+  if ((details->type & GUM_N_TYPE) != GUM_N_SECT)
     return TRUE;
 
   d.name = details->name;
