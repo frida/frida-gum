@@ -16,7 +16,7 @@
 #endif
 #include <string.h>
 
-#ifdef HAVE_IOS
+#if defined (HAVE_DARWIN) && !defined (HAVE_I386)
 # include "backend-darwin/gumdarwin.h"
 # include <mach/mach.h>
 #endif
@@ -182,7 +182,7 @@ gum_query_is_rwx_supported (void)
 GumRwxSupport
 gum_query_rwx_support (void)
 {
-#ifdef HAVE_IOS
+#if defined (HAVE_DARWIN) && !defined (HAVE_I386)
   static gsize cached_result = 0;
 
   if (g_once_init_enter (&cached_result))
