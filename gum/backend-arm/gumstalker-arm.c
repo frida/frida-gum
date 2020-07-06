@@ -378,7 +378,8 @@ static void gum_exec_block_virtualize_arm_ret_insn (GumExecBlock * block,
     const GumBranchTarget * target, arm_cc cc, gboolean pop, guint16 mask,
     GumGeneratorContext * gc);
 static void gum_exec_block_virtualize_thumb_ret_insn (GumExecBlock * block,
-    const GumBranchTarget * target, guint16 mask, GumGeneratorContext * gc);
+    const GumBranchTarget * target, gboolean pop, guint16 mask,
+    GumGeneratorContext * gc);
 static void gum_exec_block_virtualize_arm_svc_insn (GumExecBlock * block,
     GumGeneratorContext * gc);
 static void gum_exec_block_virtualize_thumb_svc_insn (GumExecBlock * block,
@@ -1711,10 +1712,13 @@ gum_stalker_iterator_handle_thumb_branch_insn (GumStalkerIterator * self,
       gum_exec_block_virtualize_thumb_call_insn (block, &target, gc);
       break;
     case ARM_INS_MOV:
+      gum_stalker_get_target_address (insn, TRUE, &target, &mask);
+      gum_exec_block_virtualize_thumb_ret_insn (block, &target, FALSE, 0, gc);
+      break;
     case ARM_INS_POP:
     case ARM_INS_LDM:
       gum_stalker_get_target_address (insn, TRUE, &target, &mask);
-      gum_exec_block_virtualize_thumb_ret_insn (block, &target, mask, gc);
+      gum_exec_block_virtualize_thumb_ret_insn (block, &target, TRUE, mask, gc);
       break;
     case ARM_INS_SMC:
     case ARM_INS_HVC:
@@ -3222,11 +3226,11 @@ gum_exec_block_virtualize_arm_ret_insn (GumExecBlock * block,
 static void
 gum_exec_block_virtualize_thumb_ret_insn (GumExecBlock * block,
                                           const GumBranchTarget * target,
+                                          gboolean pop,
                                           guint16 mask,
                                           GumGeneratorContext * gc)
 {
   GumExecCtx * ec = block->ctx;
-  const GumBranchIndirectRegOffset * tv = &target->value.indirect_reg_offset;
 
   gum_exec_block_thumb_open_prolog (block, gc);
 
@@ -3242,10 +3246,18 @@ gum_exec_block_virtualize_thumb_ret_insn (GumExecBlock * block,
 
   gum_exec_block_thumb_close_prolog (block, gc);
 
-  if (mask != 0)
-    gum_thumb_writer_put_ldmia_reg_mask (gc->thumb_writer, tv->reg, mask);
+  if (pop)
+  {
+    const GumBranchIndirectRegOffset * tv = &target->value.indirect_reg_offset;
 
-  gum_thumb_writer_put_add_reg_reg_imm (gc->thumb_writer, tv->reg, tv->reg, 4);
+    g_assert (target->type == GUM_TARGET_INDIRECT_REG_OFFSET);
+
+    if (mask != 0)
+      gum_thumb_writer_put_ldmia_reg_mask (gc->thumb_writer, tv->reg, mask);
+
+    gum_thumb_writer_put_add_reg_reg_imm (gc->thumb_writer, tv->reg, tv->reg,
+        4);
+  }
 
   gum_exec_block_write_thumb_exec_generated_code (gc->thumb_writer, block->ctx);
 }
