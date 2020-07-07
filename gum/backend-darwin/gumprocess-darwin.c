@@ -915,7 +915,9 @@ gum_darwin_check_xnu_version (guint major,
                               guint micro)
 {
   static gboolean initialized = FALSE;
-  static guint xnu_major, xnu_minor, xnu_micro;
+  static guint xnu_major = G_MAXUINT;
+  static guint xnu_minor = G_MAXUINT;
+  static guint xnu_micro = G_MAXUINT;
 
   if (!initialized)
   {
