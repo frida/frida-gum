@@ -52,6 +52,8 @@ TESTLIST_BEGIN (process)
   TESTENTRY (darwin_enumerate_ranges)
   TESTENTRY (darwin_module_exports)
   TESTENTRY (darwin_module_exports_should_support_dyld)
+  TESTENTRY (darwin_libsystem_exports_should_contain_chkstk)
+  TESTENTRY (darwin_module_resolver_should_resolve_chkstk)
 #endif
 #if defined (HAVE_WINDOWS) || defined (HAVE_DARWIN)
   TESTENTRY (process_malloc_ranges)
@@ -94,6 +96,19 @@ struct _TestThreadSyncData
   volatile gboolean * volatile done;
 };
 
+#ifdef HAVE_DARWIN
+
+typedef struct _ExportSearch ExportSearch;
+
+struct _ExportSearch
+{
+  GumExportType type;
+  const gchar * name;
+  GumAddress result;
+};
+
+#endif
+
 static gboolean check_thread_enumeration_testable (void);
 
 static gpointer probe_thread (gpointer data);
@@ -110,7 +125,7 @@ static gboolean store_export_address_if_tricky_module_export (
 #ifdef HAVE_DARWIN
 static gboolean assign_true_if_core_foundation (
     const GumModuleDetails * details, gpointer user_data);
-static gboolean store_export_address_if_mach_msg (
+static gboolean process_potential_export_search_result (
     const GumExportDetails * details, gpointer user_data);
 #endif
 
@@ -772,6 +787,7 @@ TESTCASE (darwin_module_exports)
 {
   mach_port_t task;
   TestForEachContext ctx;
+  ExportSearch search;
   GumAddress actual_mach_msg_address = 0;
   GumAddress expected_mach_msg_address;
   void * module;
@@ -790,8 +806,12 @@ TESTCASE (darwin_module_exports)
       export_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 
+  search.type = GUM_EXPORT_FUNCTION;
+  search.name = "mach_msg";
+  search.result = 0;
   gum_darwin_enumerate_exports (task, SYSTEM_MODULE_NAME,
-      store_export_address_if_mach_msg, &actual_mach_msg_address);
+      process_potential_export_search_result, &search);
+  actual_mach_msg_address = search.result;
   g_assert_true (actual_mach_msg_address != 0);
 
   module = dlopen (SYSTEM_MODULE_NAME, 0);
@@ -815,6 +835,45 @@ TESTCASE (darwin_module_exports_should_support_dyld)
   g_assert_cmpuint (ctx.number_of_calls, >, 1);
 }
 
+TESTCASE (darwin_libsystem_exports_should_contain_chkstk)
+{
+  mach_port_t task;
+  ExportSearch search;
+
+  task = gum_test_get_target_task ();
+
+  search.type = GUM_EXPORT_FUNCTION;
+  search.name = "___chkstk_darwin";
+  search.result = 0;
+
+  gum_darwin_enumerate_exports (task, "/usr/lib/libSystem.B.dylib",
+      process_potential_export_search_result, &search);
+
+  g_assert_true (search.result != 0);
+}
+
+TESTCASE (darwin_module_resolver_should_resolve_chkstk)
+{
+  mach_port_t task;
+  GumDarwinModuleResolver * resolver;
+  GumDarwinModule * libsystem;
+  GumExportDetails chkstk;
+
+  task = gum_test_get_target_task ();
+
+  resolver = gum_darwin_module_resolver_new (task, NULL);
+  g_assert_nonnull (resolver);
+
+  libsystem = gum_darwin_module_resolver_find_module (resolver,
+      "/usr/lib/libSystem.B.dylib");
+  g_assert_nonnull (libsystem);
+
+  g_assert_true (gum_darwin_module_resolver_find_export_by_mangled_name (
+      resolver, libsystem, "____chkstk_darwin", &chkstk));
+
+  g_object_unref (resolver);
+}
+
 static gboolean
 assign_true_if_core_foundation (const GumModuleDetails * details,
                                 gpointer user_data)
@@ -831,13 +890,15 @@ assign_true_if_core_foundation (const GumModuleDetails * details,
 }
 
 static gboolean
-store_export_address_if_mach_msg (const GumExportDetails * details,
-                                  gpointer user_data)
+process_potential_export_search_result (const GumExportDetails * details,
+                                        gpointer user_data)
 {
-  if (details->type == GUM_EXPORT_FUNCTION
-      && strcmp (details->name, "mach_msg") == 0)
+  ExportSearch * search = user_data;
+
+  if (details->type == search->type &&
+      strcmp (details->name, search->name) == 0)
   {
-    *((GumAddress *) user_data) = details->address;
+    search->result = details->address;
     return FALSE;
   }
 
