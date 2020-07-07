@@ -68,6 +68,7 @@ typedef struct _GumDylibCommand GumDylibCommand;
 typedef struct _GumDylinkerCommand GumDylinkerCommand;
 typedef struct _GumUUIDCommand GumUUIDCommand;
 typedef struct _GumDylib GumDylib;
+typedef struct _GumLinkeditDataCommand GumLinkeditDataCommand;
 typedef struct _GumSection32 GumSection32;
 typedef struct _GumSection64 GumSection64;
 typedef struct _GumNList32 GumNList32;
@@ -208,6 +209,7 @@ enum _GumLoadCommandType
   GUM_LC_REEXPORT_DYLIB    = (0x1f | GUM_LC_REQ_DYLD),
   GUM_LC_DYLD_INFO_ONLY    = (0x22 | GUM_LC_REQ_DYLD),
   GUM_LC_LOAD_UPWARD_DYLIB = (0x23 | GUM_LC_REQ_DYLD),
+  GUM_LC_DYLD_EXPORTS_TRIE = (0x33 | GUM_LC_REQ_DYLD),
 };
 
 struct _GumLoadCommand
@@ -359,6 +361,15 @@ struct _GumDysymtabCommand
 
   guint32 locreloff;
   guint32 nlocrel;
+};
+
+struct _GumLinkeditDataCommand
+{
+  guint32 cmd;
+  guint32 cmdsize;
+
+  guint32 dataoff;
+  guint32 datasize;
 };
 
 enum _GumSectionType
@@ -2251,6 +2262,7 @@ gum_darwin_module_take_image (GumDarwinModule * self,
   const GumMachHeader32 * header;
   gconstpointer command;
   gsize command_index;
+  const GumLinkeditDataCommand * exports_trie = NULL;
 
   g_assert (self->image == NULL);
   self->image = image;
@@ -2381,6 +2393,9 @@ gum_darwin_module_take_image (GumDarwinModule * self,
       case GUM_LC_DYLD_INFO_ONLY:
         self->info = command;
         break;
+      case GUM_LC_DYLD_EXPORTS_TRIE:
+        exports_trie = command;
+        break;
       case GUM_LC_SYMTAB:
         self->symtab = command;
         break;
@@ -2399,7 +2414,30 @@ gum_darwin_module_take_image (GumDarwinModule * self,
 
   if (self->info == NULL)
   {
-    /* This is the case with dyld */
+    if (exports_trie != NULL)
+    {
+      if (image->linkedit != NULL)
+      {
+        self->exports = (const guint8 *) image->linkedit + exports_trie->dataoff;
+        self->exports_end = self->exports + exports_trie->datasize;
+        self->exports_malloc_data = NULL;
+      }
+      else
+      {
+        GumAddress linkedit;
+
+        if (!gum_find_linkedit (image->data, image->size, &linkedit))
+          goto beach;
+        linkedit += gum_darwin_module_get_slide (self);
+
+        gum_darwin_module_read_and_assign (self,
+            linkedit + exports_trie->dataoff,
+            exports_trie->datasize,
+            &self->exports,
+            &self->exports_end,
+            &self->exports_malloc_data);
+      }
+    }
   }
   else if (image->linkedit != NULL)
   {
