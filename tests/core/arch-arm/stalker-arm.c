@@ -1108,7 +1108,7 @@ TESTCASE (thumb_cbz_cbnz_block_events_generated)
 }
 
 TESTCODE (thumb2_mov_pc_reg,
-  0x00, 0xb5, /* push {lr}        */
+  0x40, 0xb5, /* push {r6, lr}    */
   0x00, 0x1a, /* subs r0, r0, r0  */
   0x01, 0x4e, /* ldr r6, [pc, #4] */
   0xb7, 0x46, /* mov pc, r6       */
@@ -1120,7 +1120,7 @@ TESTCODE (thumb2_mov_pc_reg,
 
   /* inner:                       */
   0x01, 0x30, /* adds r0, #1      */
-  0x00, 0xbd  /* pop {pc}         */
+  0x40, 0xbd  /* pop {r6, pc}     */
 );
 
 TESTCASE (thumb2_mov_pc_reg_exec_events_generated)
@@ -1164,19 +1164,19 @@ TESTCASE (thumb2_mov_pc_reg_without_thumb_bit_set)
 }
 
 TESTCODE (thumb2_mov_pc_reg_no_clobber_reg,
-  0x00, 0xb5, /* push {lr}        */
-  0x00, 0x1a, /* subs r0, r0, r0  */
-  0x01, 0x4e, /* ldr r6, [pc, #4] */
-  0x35, 0x46, /* mov r5, r6       */
-  0xb7, 0x46, /* mov pc, r6       */
+  0x60, 0xb5, /* push {r5, r6, lr} */
+  0x00, 0x1a, /* subs r0, r0, r0   */
+  0x01, 0x4e, /* ldr r6, [pc, #4]  */
+  0x35, 0x46, /* mov r5, r6        */
+  0xb7, 0x46, /* mov pc, r6        */
 
-  0x0a, 0xde, /* udf 0x10         */
-  /* inner_addr:                  */
+  0x0a, 0xde, /* udf 0x10          */
+  /* inner_addr:                   */
   0xaa, 0xbb, 0xcc, 0xdd,
 
-  /* inner:                       */
-  0xa8, 0x1b, /* subs r0, r5, r6  */
-  0x00, 0xbd  /* pop {pc}         */
+  /* inner:                        */
+  0xa8, 0x1b, /* subs r0, r5, r6   */
+  0x60, 0xbd  /* pop {r5,r6, pc}   */
 );
 
 TESTCASE (thumb2_mov_pc_reg_no_clobber_reg)
