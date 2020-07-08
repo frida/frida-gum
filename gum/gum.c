@@ -19,7 +19,7 @@
 # else
 #  include <cpuid.h>
 # endif
-#elif defined (HAVE_ARM64) && defined (HAVE_IOS)
+#elif defined (HAVE_ARM64) && defined (HAVE_DARWIN)
 # include "backend-darwin/gumdarwin.h"
 #endif
 
@@ -688,7 +688,7 @@ gum_get_cpuid (guint level,
 #endif
 }
 
-#elif defined (HAVE_ARM64) && defined (HAVE_IOS)
+#elif defined (HAVE_ARM64) && defined (HAVE_DARWIN)
 
 GumCpuFeatures
 gum_query_cpu_features (void)
