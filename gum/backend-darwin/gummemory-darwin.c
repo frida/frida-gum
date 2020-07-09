@@ -633,7 +633,7 @@ gum_allocate_page_aligned (gpointer address,
   if (result == MAP_FAILED)
     return NULL;
 
-#ifdef HAVE_IOS
+#if defined (HAVE_IOS) && !defined (HAVE_I386)
   {
     gboolean need_checkra1n_quirk;
 
