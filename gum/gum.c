@@ -700,7 +700,7 @@ gum_query_cpu_features (void)
   gum_darwin_query_all_image_infos (mach_task_self (), &infos);
 
   cpu_subtype = *((guint *) (infos.dyld_image_load_address + 8));
-  if (cpu_subtype == 2)
+  if ((cpu_subtype & 0x00ffffff) == 2)
     features |= GUM_CPU_PTRAUTH;
 
   return features;
