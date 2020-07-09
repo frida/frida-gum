@@ -323,7 +323,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   g_assert (gum_arm64_writer_offset (aw) <= ctx->trampoline_slice->size);
 
   ctx->overwritten_prologue_len = reloc_bytes;
-  memcpy (ctx->overwritten_prologue, function_address, reloc_bytes);
+  gum_memcpy (ctx->overwritten_prologue, function_address, reloc_bytes);
 
   return TRUE;
 }
@@ -395,7 +395,7 @@ _gum_interceptor_backend_deactivate_trampoline (GumInterceptorBackend * self,
                                                 GumFunctionContext * ctx,
                                                 gpointer prologue)
 {
-  memcpy (prologue, ctx->overwritten_prologue, ctx->overwritten_prologue_len);
+  gum_memcpy (prologue, ctx->overwritten_prologue, ctx->overwritten_prologue_len);
 }
 
 gpointer

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -7,6 +7,7 @@
 
 #include "guminterceptor-priv.h"
 
+#include "gumlibc.h"
 #include "gummemory.h"
 #include "gumsysinternals.h"
 #include "gumx86reader.h"
@@ -151,7 +152,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   g_assert (gum_x86_writer_offset (cw) <= ctx->trampoline_slice->size);
 
   ctx->overwritten_prologue_len = reloc_bytes;
-  memcpy (ctx->overwritten_prologue, ctx->function_address, reloc_bytes);
+  gum_memcpy (ctx->overwritten_prologue, ctx->function_address, reloc_bytes);
 
   return TRUE;
 }
@@ -189,7 +190,8 @@ _gum_interceptor_backend_deactivate_trampoline (GumInterceptorBackend * self,
                                                 GumFunctionContext * ctx,
                                                 gpointer prologue)
 {
-  memcpy (prologue, ctx->overwritten_prologue, ctx->overwritten_prologue_len);
+  gum_memcpy (prologue, ctx->overwritten_prologue,
+      ctx->overwritten_prologue_len);
 }
 
 gpointer

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -447,7 +447,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   g_assert (gum_thumb_writer_offset (tw) <= ctx->trampoline_slice->size);
 
   ctx->overwritten_prologue_len = reloc_bytes;
-  memcpy (ctx->overwritten_prologue, function_address, reloc_bytes);
+  gum_memcpy (ctx->overwritten_prologue, function_address, reloc_bytes);
 
   return TRUE;
 }
@@ -536,7 +536,8 @@ _gum_interceptor_backend_deactivate_trampoline (GumInterceptorBackend * self,
                                                 GumFunctionContext * ctx,
                                                 gpointer prologue)
 {
-  memcpy (prologue, ctx->overwritten_prologue, ctx->overwritten_prologue_len);
+  gum_memcpy (prologue, ctx->overwritten_prologue,
+      ctx->overwritten_prologue_len);
 }
 
 gpointer
