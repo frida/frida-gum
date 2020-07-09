@@ -367,7 +367,7 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
 # endif
 
   /* Dummy return address (we won't return) */
-  context->lr = 1337;
+  context->lr = gum_sign_code_address (1337);
 #elif defined (HAVE_MIPS)
   context->pc = GPOINTER_TO_SIZE (
       GUM_FUNCPTR_TO_POINTER (gum_exceptor_scope_perform_longjmp));
