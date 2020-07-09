@@ -366,7 +366,7 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
   context->lr = 1337;
 #elif defined (HAVE_ARM64)
   {
-    guint64 pc, sp, lr;
+    gsize pc, sp, lr;
 
     pc = GPOINTER_TO_SIZE (
         GUM_FUNCPTR_TO_POINTER (gum_exceptor_scope_perform_longjmp));
