@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -351,7 +351,7 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
   /* Dummy return address (we won't return) */
   GUM_CPU_CONTEXT_XSP (context) -= sizeof (gpointer);
   *((gsize *) GUM_CPU_CONTEXT_XSP (context)) = 1337;
-#elif defined (HAVE_ARM) || defined (HAVE_ARM64)
+#elif defined (HAVE_ARM)
   context->pc = GPOINTER_TO_SIZE (
       GUM_FUNCPTR_TO_POINTER (gum_exceptor_scope_perform_longjmp));
 
@@ -360,14 +360,54 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
   /* Avoid the red zone (when applicable) */
   context->sp -= GUM_RED_ZONE_SIZE;
 
-# if GLIB_SIZEOF_VOID_P == 4
   context->r[0] = GPOINTER_TO_SIZE (scope);
-# else
-  context->x[0] = GPOINTER_TO_SIZE (scope);
-# endif
 
   /* Dummy return address (we won't return) */
-  context->lr = gum_sign_code_address (1337);
+  context->lr = 1337;
+#elif defined (HAVE_ARM64)
+  {
+    guint64 pc, sp, lr;
+
+    pc = GPOINTER_TO_SIZE (
+        GUM_FUNCPTR_TO_POINTER (gum_exceptor_scope_perform_longjmp));
+    sp = context->sp;
+
+# ifdef HAVE_PTRAUTH
+    pc = GPOINTER_TO_SIZE (ptrauth_strip (GSIZE_TO_POINTER (pc),
+        ptrauth_key_process_independent_code));
+    sp = GPOINTER_TO_SIZE (ptrauth_strip (GSIZE_TO_POINTER (sp),
+        ptrauth_key_process_independent_data));
+# endif
+
+    /* Align to 16 byte boundary */
+    sp &= ~(gsize) (16 - 1);
+    /* Avoid the red zone (when applicable) */
+    sp -= GUM_RED_ZONE_SIZE;
+
+    /* Dummy return address (we won't return) */
+    lr = 1337;
+
+# ifdef HAVE_PTRAUTH
+    pc = GPOINTER_TO_SIZE (
+        ptrauth_sign_unauthenticated (GSIZE_TO_POINTER (pc),
+        ptrauth_key_process_independent_code,
+        ptrauth_string_discriminator ("pc")));
+    sp = GPOINTER_TO_SIZE (
+        ptrauth_sign_unauthenticated (GSIZE_TO_POINTER (sp),
+        ptrauth_key_process_independent_data,
+        ptrauth_string_discriminator ("sp")));
+    lr = GPOINTER_TO_SIZE (
+        ptrauth_sign_unauthenticated (GSIZE_TO_POINTER (lr),
+        ptrauth_key_process_independent_code,
+        ptrauth_string_discriminator ("lr")));
+# endif
+
+    context->pc = pc;
+    context->sp = sp;
+    context->lr = lr;
+
+    context->x[0] = GPOINTER_TO_SIZE (scope);
+  }
 #elif defined (HAVE_MIPS)
   context->pc = GPOINTER_TO_SIZE (
       GUM_FUNCPTR_TO_POINTER (gum_exceptor_scope_perform_longjmp));

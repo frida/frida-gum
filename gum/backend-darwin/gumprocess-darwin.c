@@ -2359,13 +2359,22 @@ gum_darwin_parse_native_thread_state (const GumDarwinNativeThreadState * ts,
 #elif defined (HAVE_ARM64)
   guint n;
 
+# ifdef HAVE_PTRAUTH
+  ctx->pc = GPOINTER_TO_SIZE (ts->__opaque_pc);
+  ctx->sp = GPOINTER_TO_SIZE (ts->__opaque_sp);
+
+  ctx->fp = GPOINTER_TO_SIZE (ts->__opaque_fp);
+  ctx->lr = GPOINTER_TO_SIZE (ts->__opaque_lr);
+# else
   ctx->pc = GPOINTER_TO_SIZE (__darwin_arm_thread_state64_get_pc_fptr (*ts));
   ctx->sp = __darwin_arm_thread_state64_get_sp (*ts);
 
-  for (n = 0; n != G_N_ELEMENTS (ctx->x); n++)
-    ctx->x[n] = ts->__x[n];
   ctx->fp = __darwin_arm_thread_state64_get_fp (*ts);
   ctx->lr = GPOINTER_TO_SIZE (__darwin_arm_thread_state64_get_lr_fptr (*ts));
+# endif
+
+  for (n = 0; n != G_N_ELEMENTS (ctx->x); n++)
+    ctx->x[n] = ts->__x[n];
 #endif
 }
 
@@ -2458,13 +2467,22 @@ gum_darwin_unparse_native_thread_state (const GumCpuContext * ctx,
 #elif defined (HAVE_ARM64)
   guint n;
 
+# ifdef HAVE_PTRAUTH
+  ts->__opaque_pc = GSIZE_TO_POINTER (ctx->pc);
+  ts->__opaque_sp = GSIZE_TO_POINTER (ctx->sp);
+
+  ts->__opaque_fp = GSIZE_TO_POINTER (ctx->fp);
+  ts->__opaque_lr = GSIZE_TO_POINTER (ctx->lr);
+# else
   __darwin_arm_thread_state64_set_pc_fptr (*ts, GSIZE_TO_POINTER (ctx->pc));
   __darwin_arm_thread_state64_set_sp (*ts, ctx->sp);
 
-  for (n = 0; n != G_N_ELEMENTS (ctx->x); n++)
-    ts->__x[n] = ctx->x[n];
   __darwin_arm_thread_state64_set_fp (*ts, ctx->fp);
   __darwin_arm_thread_state64_set_lr_fptr (*ts, GSIZE_TO_POINTER (ctx->lr));
+# endif
+
+  for (n = 0; n != G_N_ELEMENTS (ctx->x); n++)
+    ts->__x[n] = ctx->x[n];
 #endif
 }
 

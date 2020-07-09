@@ -769,8 +769,12 @@ gum_stalker_infect (GumThreadId thread_id,
    */
   gum_arm64_writer_put_bytes (&cw, pc - potential_svc_size, potential_svc_size);
 
-  ctx->infect_body =
-      gum_sign_code_address (GUM_ADDRESS (gum_arm64_writer_cur (&cw)));
+  ctx->infect_body = GUM_ADDRESS (gum_arm64_writer_cur (&cw));
+#ifdef HAVE_PTRAUTH
+  ctx->infect_body = GPOINTER_TO_SIZE (ptrauth_sign_unauthenticated (
+      GSIZE_TO_POINTER (ctx->infect_body), ptrauth_key_process_independent_code,
+      ptrauth_string_discriminator ("pc")));
+#endif
   gum_exec_ctx_write_prolog (ctx, GUM_PROLOG_MINIMAL, &cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
       GUM_ADDRESS (gum_tls_key_set_value), 2,
