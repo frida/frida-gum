@@ -54,7 +54,7 @@ gboolean
 gum_darwin_query_ptrauth_support (mach_port_t task,
                                   GumPtrauthSupport * ptrauth_support)
 {
-#if defined (HAVE_IOS) && (defined (HAVE_ARM) || defined (HAVE_ARM64))
+#ifdef HAVE_ARM64
   GumDarwinAllImageInfos infos;
   GumAddress actual_ptr, stripped_ptr;
 
