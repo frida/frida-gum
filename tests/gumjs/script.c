@@ -6249,7 +6249,7 @@ TESTCASE (invalid_read_write_execute_results_in_exception)
   EXPECT_NO_MESSAGES ();
 
   COMPILE_AND_LOAD_SCRIPT ("var data = Memory.alloc(Process.pageSize);"
-      "var f = new NativeFunction(data, 'void', []);"
+      "var f = new NativeFunction(data.sign(), 'void', []);"
       "try {"
       "  f();"
       "} catch (e) {"
