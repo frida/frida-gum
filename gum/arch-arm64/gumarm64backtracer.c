@@ -24,6 +24,8 @@ static void gum_arm64_backtracer_generate (GumBacktracer * backtracer,
     const GumCpuContext * cpu_context,
     GumReturnAddressArray * return_addresses);
 
+static gsize gum_strip_item (gsize address);
+
 G_DEFINE_TYPE_EXTENDED (GumArm64Backtracer,
                         gum_arm64_backtracer,
                         G_TYPE_OBJECT,
@@ -115,7 +117,7 @@ gum_arm64_backtracer_generate (GumBacktracer * backtracer,
         break;
     }
 
-    value = gum_strip_code_address (*p);
+    value = gum_strip_item (*p);
 
     vr.base_address = value - 4;
     vr.size = 4;
@@ -170,4 +172,19 @@ gum_arm64_backtracer_generate (GumBacktracer * backtracer,
   }
 
   return_addresses->len = i;
+}
+
+static gsize
+gum_strip_item (gsize address)
+{
+#ifdef HAVE_DARWIN
+  /*
+   * Even if the current program isn't using pointer authentication, it may be
+   * running on a system where the shared cache is arm64e, which will result in
+   * some stack frames using pointer authentication.
+   */
+  return address & G_GUINT64_CONSTANT (0x7fffffffff);
+#else
+  return address;
+#endif
 }

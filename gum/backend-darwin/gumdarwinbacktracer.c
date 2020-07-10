@@ -28,6 +28,8 @@ static void gum_darwin_backtracer_generate (GumBacktracer * backtracer,
     const GumCpuContext * cpu_context,
     GumReturnAddressArray * return_addresses);
 
+static gpointer gum_strip_item (gpointer address);
+
 G_DEFINE_TYPE_EXTENDED (GumDarwinBacktracer,
                         gum_darwin_backtracer,
                         G_TYPE_OBJECT,
@@ -94,8 +96,7 @@ gum_darwin_backtracer_generate (GumBacktracer * backtracer,
 #else
 # error Unsupported architecture
 #endif
-    return_addresses->items[0] =
-        gum_strip_code_pointer (return_addresses->items[0]);
+    return_addresses->items[0] = gum_strip_item (return_addresses->items[0]);
     start_index = 1;
   }
   else
@@ -118,7 +119,7 @@ gum_darwin_backtracer_generate (GumBacktracer * backtracer,
     item = *(cur + GUM_FP_LINK_OFFSET);
     if (item == NULL)
       break;
-    return_addresses->items[i] = gum_strip_code_pointer (item);
+    return_addresses->items[i] = gum_strip_item (item);
 
     next = *cur;
     if (next <= cur)
@@ -133,4 +134,20 @@ gum_darwin_backtracer_generate (GumBacktracer * backtracer,
     return_addresses->items[i] = gum_invocation_stack_translate (
         invocation_stack, return_addresses->items[i]);
   }
+}
+
+static gpointer
+gum_strip_item (gpointer address)
+{
+#ifdef HAVE_ARM64
+  /*
+   * Even if the current program isn't using pointer authentication, it may be
+   * running on a system where the shared cache is arm64e, which will result in
+   * some stack frames using pointer authentication.
+   */
+  return GSIZE_TO_POINTER (
+      GPOINTER_TO_SIZE (address) & G_GUINT64_CONSTANT (0x7fffffffff));
+#else
+  return address;
+#endif
 }
