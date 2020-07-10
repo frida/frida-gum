@@ -695,12 +695,12 @@ gum_query_cpu_features (void)
 {
   GumCpuFeatures features = 0;
   GumDarwinAllImageInfos infos;
-  guint cpu_subtype;
+  guint subtype;
 
   gum_darwin_query_all_image_infos (mach_task_self (), &infos);
 
-  cpu_subtype = *((guint *) (infos.dyld_image_load_address + 8));
-  if ((cpu_subtype & 0x00ffffff) == 2)
+  subtype = *((guint *) (infos.dyld_image_load_address + 8));
+  if ((subtype & GUM_DARWIN_CPU_SUBTYPE_MASK) == GUM_DARWIN_CPU_SUBTYPE_ARM64E)
     features |= GUM_CPU_PTRAUTH;
 
   return features;
