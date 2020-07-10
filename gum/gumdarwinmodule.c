@@ -58,8 +58,6 @@ typedef struct _GumFatHeader GumFatHeader;
 typedef struct _GumFatArch32 GumFatArch32;
 typedef struct _GumMachHeader32 GumMachHeader32;
 typedef struct _GumMachHeader64 GumMachHeader64;
-typedef gint GumDarwinCpuType;
-typedef gint GumDarwinCpuSubtype;
 typedef struct _GumLoadCommand GumLoadCommand;
 typedef union _GumLcStr GumLcStr;
 typedef struct _GumSegmentCommand32 GumSegmentCommand32;
@@ -173,26 +171,6 @@ struct _GumMachHeader64
   guint32 sizeofcmds;
   guint32 flags;
   guint32 reserved;
-};
-
-enum _GumDarwinCpuArchType
-{
-  GUM_DARWIN_CPU_ARCH_ABI64    = 0x01000000,
-  GUM_DARWIN_CPU_ARCH_ABI64_32 = 0x02000000,
-};
-
-enum _GumDarwinCpuType
-{
-  GUM_DARWIN_CPU_X86      =  7,
-  GUM_DARWIN_CPU_X86_64   =  7 | GUM_DARWIN_CPU_ARCH_ABI64,
-  GUM_DARWIN_CPU_ARM      = 12,
-  GUM_DARWIN_CPU_ARM64    = 12 | GUM_DARWIN_CPU_ARCH_ABI64,
-  GUM_DARWIN_CPU_ARM64_32 = 12 | GUM_DARWIN_CPU_ARCH_ABI64_32,
-};
-
-enum _GumDarwinCpuSubtype
-{
-  GUM_DARWIN_CPU_SUBTYPE_ARM64E = 2,
 };
 
 enum _GumLoadCommandType

@@ -23,6 +23,8 @@ G_DECLARE_FINAL_TYPE (GumDarwinModule, gum_darwin_module, GUM_DARWIN, MODULE,
 #define GUM_DARWIN_EXPORT_KIND_MASK 3
 
 typedef guint GumDarwinModuleFlags;
+typedef gint GumDarwinCpuType;
+typedef gint GumDarwinCpuSubtype;
 
 typedef struct _GumDarwinModuleImage GumDarwinModuleImage;
 
@@ -123,6 +125,28 @@ enum _GumDarwinModuleFlags
 {
   GUM_DARWIN_MODULE_FLAGS_NONE        = 0,
   GUM_DARWIN_MODULE_FLAGS_HEADER_ONLY = (1 << 0),
+};
+
+enum _GumDarwinCpuArchType
+{
+  GUM_DARWIN_CPU_ARCH_ABI64    = 0x01000000,
+  GUM_DARWIN_CPU_ARCH_ABI64_32 = 0x02000000,
+};
+
+enum _GumDarwinCpuType
+{
+  GUM_DARWIN_CPU_X86      =  7,
+  GUM_DARWIN_CPU_X86_64   =  7 | GUM_DARWIN_CPU_ARCH_ABI64,
+  GUM_DARWIN_CPU_ARM      = 12,
+  GUM_DARWIN_CPU_ARM64    = 12 | GUM_DARWIN_CPU_ARCH_ABI64,
+  GUM_DARWIN_CPU_ARM64_32 = 12 | GUM_DARWIN_CPU_ARCH_ABI64_32,
+};
+
+enum _GumDarwinCpuSubtype
+{
+  GUM_DARWIN_CPU_SUBTYPE_ARM64E = 2,
+
+  GUM_DARWIN_CPU_SUBTYPE_MASK = 0x00ffffff,
 };
 
 struct _GumDarwinModuleImage
