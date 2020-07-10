@@ -2951,7 +2951,8 @@ gum_ptrauth_support_from_darwin (GumDarwinCpuType cpu_type,
 {
   if (cpu_type == GUM_DARWIN_CPU_ARM64)
   {
-    return (cpu_subtype == GUM_DARWIN_CPU_SUBTYPE_ARM64E)
+    return ((cpu_subtype & GUM_DARWIN_CPU_SUBTYPE_MASK) ==
+            GUM_DARWIN_CPU_SUBTYPE_ARM64E)
         ? GUM_PTRAUTH_SUPPORTED
         : GUM_PTRAUTH_UNSUPPORTED;
   }
