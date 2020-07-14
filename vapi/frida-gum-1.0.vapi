@@ -689,6 +689,7 @@ namespace Gum {
 		public void enumerate_binds (Gum.FoundDarwinBindFunc func);
 		public void enumerate_lazy_binds (Gum.FoundDarwinBindFunc func);
 		public void enumerate_init_pointers (Gum.FoundDarwinInitPointersFunc func);
+		public void enumerate_init_offsets (Gum.FoundDarwinInitOffsetsFunc func);
 		public void enumerate_term_pointers (Gum.FoundDarwinTermPointersFunc func);
 		public void enumerate_dependencies (Gum.FoundDarwinDependenciesFunc func);
 		public unowned string? get_dependency_by_ordinal (int ordinal);
@@ -700,6 +701,7 @@ namespace Gum {
 	public delegate bool FoundDarwinRebaseFunc (Gum.DarwinRebaseDetails details);
 	public delegate bool FoundDarwinBindFunc (Gum.DarwinBindDetails details);
 	public delegate bool FoundDarwinInitPointersFunc (Gum.DarwinInitPointersDetails details);
+	public delegate bool FoundDarwinInitOffsetsFunc (Gum.DarwinInitOffsetsDetails details);
 	public delegate bool FoundDarwinTermPointersFunc (Gum.DarwinTermPointersDetails details);
 	public delegate bool FoundDarwinDependenciesFunc (string path);
 
@@ -768,6 +770,11 @@ namespace Gum {
 	}
 
 	public struct DarwinInitPointersDetails {
+		public Gum.Address address;
+		public uint64 count;
+	}
+
+	public struct DarwinInitOffsetsDetails {
 		public Gum.Address address;
 		public uint64 count;
 	}

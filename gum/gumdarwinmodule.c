@@ -50,6 +50,7 @@ typedef struct _GumResolveSymbolContext GumResolveSymbolContext;
 typedef struct _GumEmitImportContext GumEmitImportContext;
 typedef struct _GumEmitExportFromSymbolContext GumEmitExportFromSymbolContext;
 typedef struct _GumEmitInitPointersContext GumEmitInitPointersContext;
+typedef struct _GumEmitInitOffsetsContext GumEmitInitOffsetsContext;
 typedef struct _GumEmitTermPointersContext GumEmitTermPointersContext;
 
 typedef struct _GumExportsTrieForeachContext GumExportsTrieForeachContext;
@@ -118,6 +119,12 @@ struct _GumEmitInitPointersContext
   gsize pointer_size;
 };
 
+struct _GumEmitInitOffsetsContext
+{
+  GumFoundDarwinInitOffsetsFunc func;
+  gpointer user_data;
+};
+
 struct _GumEmitTermPointersContext
 {
   GumFoundDarwinTermPointersFunc func;
@@ -175,19 +182,20 @@ struct _GumMachHeader64
 
 enum _GumLoadCommandType
 {
-  GUM_LC_SEGMENT_32        = 0x01,
-  GUM_LC_SYMTAB            = 0x02,
-  GUM_LC_DYSYMTAB          = 0x0b,
-  GUM_LC_LOAD_DYLIB        = 0x0c,
-  GUM_LC_ID_DYLIB          = 0x0d,
-  GUM_LC_ID_DYLINKER       = 0x0f,
-  GUM_LC_LOAD_WEAK_DYLIB   = (0x18 | GUM_LC_REQ_DYLD),
-  GUM_LC_SEGMENT_64        = 0x19,
-  GUM_LC_UUID              = 0x1b,
-  GUM_LC_REEXPORT_DYLIB    = (0x1f | GUM_LC_REQ_DYLD),
-  GUM_LC_DYLD_INFO_ONLY    = (0x22 | GUM_LC_REQ_DYLD),
-  GUM_LC_LOAD_UPWARD_DYLIB = (0x23 | GUM_LC_REQ_DYLD),
-  GUM_LC_DYLD_EXPORTS_TRIE = (0x33 | GUM_LC_REQ_DYLD),
+  GUM_LC_SEGMENT_32          = 0x01,
+  GUM_LC_SYMTAB              = 0x02,
+  GUM_LC_DYSYMTAB            = 0x0b,
+  GUM_LC_LOAD_DYLIB          = 0x0c,
+  GUM_LC_ID_DYLIB            = 0x0d,
+  GUM_LC_ID_DYLINKER         = 0x0f,
+  GUM_LC_LOAD_WEAK_DYLIB     = (0x18 | GUM_LC_REQ_DYLD),
+  GUM_LC_SEGMENT_64          = 0x19,
+  GUM_LC_UUID                = 0x1b,
+  GUM_LC_REEXPORT_DYLIB      = (0x1f | GUM_LC_REQ_DYLD),
+  GUM_LC_DYLD_INFO_ONLY      = (0x22 | GUM_LC_REQ_DYLD),
+  GUM_LC_LOAD_UPWARD_DYLIB   = (0x23 | GUM_LC_REQ_DYLD),
+  GUM_LC_DYLD_EXPORTS_TRIE   = (0x33 | GUM_LC_REQ_DYLD),
+  GUM_LC_DYLD_CHAINED_FIXUPS = (0x34 | GUM_LC_REQ_DYLD),
 };
 
 struct _GumLoadCommand
@@ -352,8 +360,9 @@ struct _GumLinkeditDataCommand
 
 enum _GumSectionType
 {
-  GUM_S_MOD_INIT_FUNC_POINTERS = 0x9,
-  GUM_S_MOD_TERM_FUNC_POINTERS = 0xa,
+  GUM_S_MOD_INIT_FUNC_POINTERS = 0x09,
+  GUM_S_MOD_TERM_FUNC_POINTERS = 0x0a,
+  GUM_S_INIT_FUNC_OFFSETS      = 0x16,
 };
 
 enum _GumSectionAttributes
@@ -472,6 +481,8 @@ static gboolean gum_emit_import (const GumDarwinBindDetails * details,
 static gboolean gum_emit_export_from_symbol (
     const GumDarwinSymbolDetails * details, gpointer user_data);
 static gboolean gum_emit_section_init_pointers (
+    const GumDarwinSectionDetails * details, gpointer user_data);
+static gboolean gum_emit_section_init_offsets (
     const GumDarwinSectionDetails * details, gpointer user_data);
 static gboolean gum_emit_section_term_pointers (
     const GumDarwinSectionDetails * details, gpointer user_data);
@@ -1317,6 +1328,54 @@ gum_darwin_module_is_address_in_text_section (GumDarwinModule * self,
 }
 
 void
+gum_darwin_module_enumerate_chained_fixups (
+    GumDarwinModule * self,
+    GumFoundDarwinChainedFixupsFunc func,
+    gpointer user_data)
+{
+  GumDarwinModuleImage * image;
+  const GumMachHeader32 * header;
+  gconstpointer command;
+  gsize command_index;
+
+  if (!gum_darwin_module_ensure_image_loaded (self, NULL))
+    return;
+
+  image = self->image;
+
+  header = image->data;
+  if (header->magic == GUM_MH_MAGIC_32)
+    command = (GumMachHeader32 *) image->data + 1;
+  else
+    command = (GumMachHeader64 *) image->data + 1;
+  for (command_index = 0; command_index != header->ncmds; command_index++)
+  {
+    const GumLoadCommand * lc = command;
+
+    if (lc->cmd == GUM_LC_DYLD_CHAINED_FIXUPS)
+    {
+      const GumLinkeditDataCommand * fixups = command;
+      GumAddress linkedit;
+      GumDarwinChainedFixupsDetails details;
+
+      if (!gum_find_linkedit (image->data, image->size, &linkedit))
+        return;
+
+      linkedit += gum_darwin_module_get_slide (self);
+
+      details.vm_address = linkedit + fixups->dataoff;
+      details.file_offset = fixups->dataoff;
+      details.size = fixups->datasize;
+
+      if (!func (&details, user_data))
+        return;
+    }
+
+    command = (const guint8 *) command + lc->cmdsize;
+  }
+}
+
+void
 gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
                                      GumFoundDarwinRebaseFunc func,
                                      gpointer user_data)
@@ -1679,13 +1738,14 @@ gum_darwin_module_enumerate_init_pointers (GumDarwinModule * self,
                                            GumFoundDarwinInitPointersFunc func,
                                            gpointer user_data)
 {
+  GumEmitInitPointersContext ctx;
+
   if (GUM_DARWIN_MODULE_HAS_HEADER_ONLY (self) ||
       !gum_darwin_module_ensure_image_loaded (self, NULL))
   {
     return;
   }
 
-  GumEmitInitPointersContext ctx;
   ctx.func = func;
   ctx.user_data = user_data;
   ctx.pointer_size = self->pointer_size;
@@ -1694,17 +1754,37 @@ gum_darwin_module_enumerate_init_pointers (GumDarwinModule * self,
 }
 
 void
-gum_darwin_module_enumerate_term_pointers (GumDarwinModule * self,
-                                           GumFoundDarwinTermPointersFunc func,
-                                           gpointer user_data)
+gum_darwin_module_enumerate_init_offsets (GumDarwinModule * self,
+                                          GumFoundDarwinInitOffsetsFunc func,
+                                          gpointer user_data)
 {
+  GumEmitInitOffsetsContext ctx;
+
   if (GUM_DARWIN_MODULE_HAS_HEADER_ONLY (self) ||
       !gum_darwin_module_ensure_image_loaded (self, NULL))
   {
     return;
   }
 
+  ctx.func = func;
+  ctx.user_data = user_data;
+  gum_darwin_module_enumerate_sections (self, gum_emit_section_init_offsets,
+      &ctx);
+}
+
+void
+gum_darwin_module_enumerate_term_pointers (GumDarwinModule * self,
+                                           GumFoundDarwinTermPointersFunc func,
+                                           gpointer user_data)
+{
   GumEmitTermPointersContext ctx;
+
+  if (GUM_DARWIN_MODULE_HAS_HEADER_ONLY (self) ||
+      !gum_darwin_module_ensure_image_loaded (self, NULL))
+  {
+    return;
+  }
+
   ctx.func = func;
   ctx.user_data = user_data;
   ctx.pointer_size = self->pointer_size;
@@ -1720,8 +1800,28 @@ gum_emit_section_init_pointers (const GumDarwinSectionDetails * details,
   {
     GumEmitInitPointersContext * ctx = user_data;
     GumDarwinInitPointersDetails d;
+
     d.address = details->vm_address;
     d.count = details->size / ctx->pointer_size;
+
+    return ctx->func (&d, ctx->user_data);
+  }
+
+  return TRUE;
+}
+
+static gboolean
+gum_emit_section_init_offsets (const GumDarwinSectionDetails * details,
+                               gpointer user_data)
+{
+  if ((details->flags & GUM_SECTION_TYPE_MASK) == GUM_S_INIT_FUNC_OFFSETS)
+  {
+    GumEmitInitOffsetsContext * ctx = user_data;
+    GumDarwinInitOffsetsDetails d;
+
+    d.address = details->vm_address;
+    d.count = details->size / sizeof (guint32);
+
     return ctx->func (&d, ctx->user_data);
   }
 
@@ -1736,8 +1836,10 @@ gum_emit_section_term_pointers (const GumDarwinSectionDetails * details,
   {
     GumEmitTermPointersContext * ctx = user_data;
     GumDarwinTermPointersDetails d;
+
     d.address = details->vm_address;
     d.count = details->size / ctx->pointer_size;
+
     return ctx->func (&d, ctx->user_data);
   }
 
@@ -2396,7 +2498,8 @@ gum_darwin_module_take_image (GumDarwinModule * self,
     {
       if (image->linkedit != NULL)
       {
-        self->exports = (const guint8 *) image->linkedit + exports_trie->dataoff;
+        self->exports =
+            (const guint8 *) image->linkedit + exports_trie->dataoff;
         self->exports_end = self->exports + exports_trie->datasize;
         self->exports_malloc_data = NULL;
       }

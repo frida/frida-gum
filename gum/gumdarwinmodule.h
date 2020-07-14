@@ -30,10 +30,12 @@ typedef struct _GumDarwinModuleImage GumDarwinModuleImage;
 
 typedef struct _GumDarwinModuleImageSegment GumDarwinModuleImageSegment;
 typedef struct _GumDarwinSectionDetails GumDarwinSectionDetails;
+typedef struct _GumDarwinChainedFixupsDetails GumDarwinChainedFixupsDetails;
 typedef struct _GumDarwinRebaseDetails GumDarwinRebaseDetails;
 typedef struct _GumDarwinBindDetails GumDarwinBindDetails;
 typedef struct _GumDarwinThreadedItem GumDarwinThreadedItem;
 typedef struct _GumDarwinInitPointersDetails GumDarwinInitPointersDetails;
+typedef struct _GumDarwinInitOffsetsDetails GumDarwinInitOffsetsDetails;
 typedef struct _GumDarwinTermPointersDetails GumDarwinTermPointersDetails;
 typedef struct _GumDarwinSegment GumDarwinSegment;
 typedef struct _GumDarwinExportDetails GumDarwinExportDetails;
@@ -56,17 +58,20 @@ typedef gboolean (* GumFoundDarwinSymbolFunc) (
     const GumDarwinSymbolDetails * details, gpointer user_data);
 typedef gboolean (* GumFoundDarwinSectionFunc) (
     const GumDarwinSectionDetails * details, gpointer user_data);
+typedef gboolean (* GumFoundDarwinChainedFixupsFunc) (
+    const GumDarwinChainedFixupsDetails * details, gpointer user_data);
 typedef gboolean (* GumFoundDarwinRebaseFunc) (
     const GumDarwinRebaseDetails * details, gpointer user_data);
 typedef gboolean (* GumFoundDarwinBindFunc) (
     const GumDarwinBindDetails * details, gpointer user_data);
 typedef gboolean (* GumFoundDarwinInitPointersFunc) (
     const GumDarwinInitPointersDetails * details, gpointer user_data);
+typedef gboolean (* GumFoundDarwinInitOffsetsFunc) (
+    const GumDarwinInitOffsetsDetails * details, gpointer user_data);
 typedef gboolean (* GumFoundDarwinTermPointersFunc) (
     const GumDarwinTermPointersDetails * details, gpointer user_data);
 typedef gboolean (* GumFoundDarwinDependencyFunc) (const gchar * path,
     gpointer user_data);
-typedef gpointer (* GumDarwinModuleResolverFunc) (void);
 
 typedef struct _GumDyldInfoCommand GumDyldInfoCommand;
 typedef struct _GumSymtabCommand GumSymtabCommand;
@@ -183,6 +188,13 @@ struct _GumDarwinSectionDetails
   guint32 flags;
 };
 
+struct _GumDarwinChainedFixupsDetails
+{
+  GumAddress vm_address;
+  guint64 file_offset;
+  guint32 size;
+};
+
 struct _GumDarwinRebaseDetails
 {
   const GumDarwinSegment * segment;
@@ -218,6 +230,12 @@ struct _GumDarwinThreadedItem
 };
 
 struct _GumDarwinInitPointersDetails
+{
+  GumAddress address;
+  guint64 count;
+};
+
+struct _GumDarwinInitOffsetsDetails
 {
   GumAddress address;
   guint64 count;
@@ -355,6 +373,8 @@ GUM_API void gum_darwin_module_enumerate_sections (GumDarwinModule * self,
     GumFoundDarwinSectionFunc func, gpointer user_data);
 GUM_API gboolean gum_darwin_module_is_address_in_text_section (
     GumDarwinModule * self, GumAddress address);
+GUM_API void gum_darwin_module_enumerate_chained_fixups (GumDarwinModule * self,
+    GumFoundDarwinChainedFixupsFunc func, gpointer user_data);
 GUM_API void gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
     GumFoundDarwinRebaseFunc func, gpointer user_data);
 GUM_API void gum_darwin_module_enumerate_binds (GumDarwinModule * self,
@@ -363,6 +383,8 @@ GUM_API void gum_darwin_module_enumerate_lazy_binds (GumDarwinModule * self,
     GumFoundDarwinBindFunc func, gpointer user_data);
 GUM_API void gum_darwin_module_enumerate_init_pointers (GumDarwinModule * self,
     GumFoundDarwinInitPointersFunc func, gpointer user_data);
+GUM_API void gum_darwin_module_enumerate_init_offsets (GumDarwinModule * self,
+    GumFoundDarwinInitOffsetsFunc func, gpointer user_data);
 GUM_API void gum_darwin_module_enumerate_term_pointers (GumDarwinModule * self,
     GumFoundDarwinTermPointersFunc func, gpointer user_data);
 GUM_API void gum_darwin_module_enumerate_dependencies (GumDarwinModule * self,

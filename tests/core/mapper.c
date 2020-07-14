@@ -122,14 +122,14 @@ main (gint argc,
   if (entrypoint != NULL)
     entrypoint ("", &unload_policy, &injector_state);
 
-  g_printerr ("Running. Hit ENTER to stop.\n");
+  g_print ("Running. Hit ENTER to stop.\n");
 
   line = NULL;
   line_capacity = 0;
   getline (&line, &line_capacity, stdin);
   free (line);
 
-  g_printerr ("Stopping\n");
+  g_print ("Stopping\n");
 
   g_timer_start (timer);
   destructor ();
