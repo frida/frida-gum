@@ -336,8 +336,6 @@ gum_darwin_module_resolver_resolve_export (
   if (result->type == GUM_EXPORT_FUNCTION &&
       self->ptrauth_support == GUM_PTRAUTH_SUPPORTED)
   {
-    g_assert (gum_query_ptrauth_support () == GUM_PTRAUTH_SUPPORTED);
-
     result->address = gum_sign_code_address (result->address);
   }
 
