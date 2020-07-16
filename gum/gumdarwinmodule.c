@@ -2615,35 +2615,6 @@ gum_darwin_module_read_and_assign (GumDarwinModule * self,
   else
   {
     gsize n_bytes_read;
-#ifdef HAVE_DARWIN
-    static gboolean initialized = FALSE;
-    static GumAddress shared_cache_start = 0;
-    static GumAddress shared_cache_end = 0;
-
-    if (!initialized)
-    {
-      GumMemoryRange range;
-
-      if (gum_darwin_query_shared_cache_range (mach_task_self (), &range))
-      {
-        shared_cache_start = range.base_address;
-        shared_cache_end = range.base_address + range.size;
-      }
-
-      initialized = TRUE;
-    }
-
-    if (address >= shared_cache_start && address + size <= shared_cache_end)
-    {
-      *start = GSIZE_TO_POINTER (address);
-      if (end != NULL)
-        *end = GSIZE_TO_POINTER (address + size);
-
-      *malloc_data = NULL;
-
-      return;
-    }
-#endif
 
     n_bytes_read = 0;
     data = gum_darwin_module_read_from_task (self, address, size,
