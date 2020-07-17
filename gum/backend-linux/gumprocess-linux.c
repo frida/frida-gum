@@ -1844,7 +1844,7 @@ gum_linux_cpu_type_from_auxv (gconstpointer auxv,
 
     for (i = 0; i + sizeof (guint64) <= auxv_size; i += 16)
     {
-      guint64 * auxv_type = auxv + i;
+      const guint64 * auxv_type = auxv + i;
 
       if ((*auxv_type & G_GUINT64_CONSTANT (0xffffffff00000000)) != 0)
       {
