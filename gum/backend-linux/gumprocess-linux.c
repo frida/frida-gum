@@ -1761,13 +1761,12 @@ gum_linux_cpu_type_from_pid (pid_t pid,
                              GError ** error)
 {
   GumCpuType result = -1;
-  gchar * auxv_path;
-  guint8 * auxv;
+  gchar * auxv_path, * auxv;
   gsize auxv_size;
 
   auxv_path = g_strdup_printf ("/proc/%d/auxv", pid);
 
-  if (!g_file_get_contents (auxv_path, (gchar **) &auxv, &auxv_size, error))
+  if (!g_file_get_contents (auxv_path, &auxv, &auxv_size, error))
     goto beach;
 
   result = gum_linux_cpu_type_from_auxv (auxv, auxv_size);
