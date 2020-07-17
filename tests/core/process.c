@@ -304,7 +304,7 @@ TESTCASE (linux_process_modules)
 
 TESTCASE (linux_get_cpu_from_auxv_null_32bit)
 {
-  guint32 v[] = { AT_NULL, 0 };
+  const guint32 v[] = { AT_NULL, 0 };
   GumCpuType cpu32;
 
 #if defined (HAVE_I386)
@@ -322,7 +322,7 @@ TESTCASE (linux_get_cpu_from_auxv_null_32bit)
 
 TESTCASE (linux_get_cpu_from_auxv_null_64bit)
 {
-  guint64 v[] = { AT_NULL, 0 };
+  const guint64 v[] = { AT_NULL, 0 };
   GumCpuType cpu64;
 
 #if defined (HAVE_I386)
@@ -340,7 +340,7 @@ TESTCASE (linux_get_cpu_from_auxv_null_64bit)
 
 TESTCASE (linux_get_cpu_from_auxv_representative_32bit)
 {
-  guint32 v[] = {
+  const guint32 v[] = {
     AT_EXECFN, 0xbaad0001,
     AT_HWCAP, 0xdeadface,
     AT_PAGESZ, 0x1000,
@@ -377,7 +377,7 @@ TESTCASE (linux_get_cpu_from_auxv_representative_32bit)
 
 TESTCASE (linux_get_cpu_from_auxv_representative_64bit)
 {
-  guint64 v[] = {
+  const guint64 v[] = {
     AT_EXECFN, 0xcafecafebaad0001,
     AT_HWCAP, 0xdeadface,
     AT_PAGESZ, 0x1000,
