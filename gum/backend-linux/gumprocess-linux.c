@@ -1761,15 +1761,30 @@ gum_linux_cpu_type_from_pid (pid_t pid,
                              GError ** error)
 {
   GumCpuType result = -1;
-  gchar * auxv_path;
-  guint8 * auxv;
-  gsize auxv_size, i;
-  GumCpuType cpu32, cpu64;
+  gchar * auxv_path, * auxv;
+  gsize auxv_size;
 
   auxv_path = g_strdup_printf ("/proc/%d/auxv", pid);
 
-  if (!g_file_get_contents (auxv_path, (gchar **) &auxv, &auxv_size, error))
+  if (!g_file_get_contents (auxv_path, &auxv, &auxv_size, error))
     goto beach;
+
+  result = gum_linux_cpu_type_from_auxv (auxv, auxv_size);
+
+beach:
+  g_free (auxv);
+  g_free (auxv_path);
+
+  return result;
+}
+
+GumCpuType
+gum_linux_cpu_type_from_auxv (gconstpointer auxv,
+                              gsize auxv_size)
+{
+  GumCpuType result = -1;
+  GumCpuType cpu32, cpu64;
+  gsize i;
 
 #if defined (HAVE_I386)
   cpu32 = GUM_CPU_IA32;
@@ -1807,30 +1822,37 @@ gum_linux_cpu_type_from_pid (pid_t pid,
    *     uint64_t a_val;
    *   } a_un;
    * } Elf64_auxv_t;
-  */
+   *
+   * If the auxiliary vector is 32-bits and contains only an AT_NULL entry (note
+   * that the documentation states that "The last entry contains two zeros"),
+   * this will mean it has no non-zero type codes and could be mistaken for a
+   * 64-bit format auxiliary vector. We therefore handle this special case.
+   *
+   * If the vector is less than 16 bytes it is not large enough to contain two
+   * 64-bit zero values. If it is larger, then if it is a 32-bit format vector,
+   * then it must contain at least one non-zero type code and hence the test
+   * below should work.
+   */
 
-  if (auxv[0] != AT_NULL)
+  if (auxv_size < 2 * sizeof (guint64))
+  {
+    result = cpu32;
+  }
+  else
   {
     result = cpu64;
 
     for (i = 0; i + sizeof (guint64) <= auxv_size; i += 16)
     {
-      guint64 * auxv_type = (guint64 *) (auxv + i);
-      if ((*auxv_type & 0xffffffff00000000) != 0)
+      const guint64 * auxv_type = auxv + i;
+
+      if ((*auxv_type & G_GUINT64_CONSTANT (0xffffffff00000000)) != 0)
       {
         result = cpu32;
         break;
       }
     }
   }
-  else
-  {
-    result = (auxv_size == 8) ? cpu32 : cpu64;
-  }
-
-beach:
-  g_free (auxv);
-  g_free (auxv_path);
 
   return result;
 }

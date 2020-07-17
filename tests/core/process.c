@@ -19,6 +19,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+#include <sys/auxv.h>
+#include "backend-linux/gumlinux.h"
+#endif
+
 #define TESTCASE(NAME) \
     void test_process_ ## NAME (void)
 #define TESTENTRY(NAME) \
@@ -60,6 +65,10 @@ TESTLIST_BEGIN (process)
 #endif
 #if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
   TESTENTRY (linux_process_modules)
+  TESTENTRY (linux_get_cpu_from_auxv_null_32bit)
+  TESTENTRY (linux_get_cpu_from_auxv_null_64bit)
+  TESTENTRY (linux_get_cpu_from_auxv_representative_32bit)
+  TESTENTRY (linux_get_cpu_from_auxv_representative_64bit)
 #endif
 TESTLIST_END ()
 
@@ -291,6 +300,116 @@ TESTCASE (linux_process_modules)
   gum_process_enumerate_modules (verify_module_bounds, &bounds);
 
   dlclose (lib);
+}
+
+TESTCASE (linux_get_cpu_from_auxv_null_32bit)
+{
+  const guint32 v[] = { AT_NULL, 0 };
+  GumCpuType cpu32;
+
+#if defined (HAVE_I386)
+  cpu32 = GUM_CPU_IA32;
+#elif defined (HAVE_ARM) || defined (HAVE_ARM64)
+  cpu32 = GUM_CPU_ARM;
+#elif defined (HAVE_MIPS)
+  cpu32 = GUM_CPU_MIPS;
+#else
+# error Unsupported architecture
+#endif
+
+  g_assert_cmpuint (gum_linux_cpu_type_from_auxv (v, sizeof (v)), ==, cpu32);
+}
+
+TESTCASE (linux_get_cpu_from_auxv_null_64bit)
+{
+  const guint64 v[] = { AT_NULL, 0 };
+  GumCpuType cpu64;
+
+#if defined (HAVE_I386)
+  cpu64 = GUM_CPU_AMD64;
+#elif defined (HAVE_ARM) || defined (HAVE_ARM64)
+  cpu64 = GUM_CPU_ARM64;
+#elif defined (HAVE_MIPS)
+  cpu64 = GUM_CPU_MIPS;
+#else
+# error Unsupported architecture
+#endif
+
+  g_assert_cmpuint (gum_linux_cpu_type_from_auxv (v, sizeof (v)), ==, cpu64);
+}
+
+TESTCASE (linux_get_cpu_from_auxv_representative_32bit)
+{
+  const guint32 v[] = {
+    AT_EXECFN, 0xbaad0001,
+    AT_HWCAP, 0xdeadface,
+    AT_PAGESZ, 0x1000,
+    AT_CLKTCK, 0x64,
+    AT_PHDR, 0xbaad0002,
+    AT_PHENT, 0x38,
+    AT_PHNUM, 0xd,
+    AT_BASE, 0xbaad0003,
+    AT_FLAGS, 0x0,
+    AT_ENTRY, 0xbaad0004,
+    AT_UID, 0x3e8,
+    AT_EUID, 0x3e8,
+    AT_GID, 0x3e8,
+    AT_EGID, 0x3e8,
+    AT_SECURE, 0x0,
+    AT_RANDOM, 0xbaad0005,
+    AT_PLATFORM, 0xbaad0006,
+    AT_NULL, 0
+  };
+  GumCpuType cpu32;
+
+#if defined (HAVE_I386)
+  cpu32 = GUM_CPU_IA32;
+#elif defined (HAVE_ARM) || defined (HAVE_ARM64)
+  cpu32 = GUM_CPU_ARM;
+#elif defined (HAVE_MIPS)
+  cpu32 = GUM_CPU_MIPS;
+#else
+# error Unsupported architecture
+#endif
+
+  g_assert_cmpuint (gum_linux_cpu_type_from_auxv (v, sizeof (v)), ==, cpu32);
+}
+
+TESTCASE (linux_get_cpu_from_auxv_representative_64bit)
+{
+  const guint64 v[] = {
+    AT_EXECFN, 0xcafecafebaad0001,
+    AT_HWCAP, 0xdeadface,
+    AT_PAGESZ, 0x1000,
+    AT_CLKTCK, 0x64,
+    AT_PHDR, 0xcafecafebaad0002,
+    AT_PHENT, 0x38,
+    AT_PHNUM, 0xd,
+    AT_BASE, 0xcafecafebaad0003,
+    AT_FLAGS, 0x0,
+    AT_ENTRY, 0xcafecafebaad0004,
+    AT_UID, 0x3e8,
+    AT_EUID, 0x3e8,
+    AT_GID, 0x3e8,
+    AT_EGID, 0x3e8,
+    AT_SECURE, 0x0,
+    AT_RANDOM, 0xcafecafebaad0005,
+    AT_PLATFORM, 0xcafecafebaad0006,
+    AT_NULL, 0
+  };
+  GumCpuType cpu64;
+
+#if defined (HAVE_I386)
+  cpu64 = GUM_CPU_AMD64;
+#elif defined (HAVE_ARM) || defined (HAVE_ARM64)
+  cpu64 = GUM_CPU_ARM64;
+#elif defined (HAVE_MIPS)
+  cpu64 = GUM_CPU_MIPS;
+#else
+# error Unsupported architecture
+#endif
+
+  g_assert_cmpuint (gum_linux_cpu_type_from_auxv (v, sizeof (v)), ==, cpu64);
 }
 
 static gboolean
