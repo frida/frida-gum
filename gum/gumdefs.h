@@ -67,7 +67,7 @@ typedef struct _GumMipsCpuContext GumMipsCpuContext;
 /*
  * The only non-legacy big-endian configuration on 32-bit ARM systems is BE8.
  * In this configuration, whilst the data is in big-endian, the code stream is
- * still in little-endian. Since capstone is disassembling the code stream, it
+ * still in little-endian. Since Capstone is disassembling the code stream, it
  * should work in little-endian even on BE8 systems.
  */
 #if G_BYTE_ORDER == G_LITTLE_ENDIAN || defined (__arm__)
