@@ -1780,12 +1780,13 @@ beach:
 }
 
 GumCpuType
-gum_linux_cpu_type_from_auxv (const guint8 * auxv,
+gum_linux_cpu_type_from_auxv (gconstpointer auxv,
                               gsize auxv_size)
 {
   GumCpuType result = -1;
   GumCpuType cpu32, cpu64;
   gsize i;
+
 #if defined (HAVE_I386)
   cpu32 = GUM_CPU_IA32;
   cpu64 = GUM_CPU_AMD64;
@@ -1822,9 +1823,7 @@ gum_linux_cpu_type_from_auxv (const guint8 * auxv,
    *     uint64_t a_val;
    *   } a_un;
    * } Elf64_auxv_t;
-  */
-
-  /*
+   *
    * If the auxiliary vector is 32-bits and contains only an AT_NULL entry (note
    * that the documentation states that "The last entry contains two zeros"),
    * this will mean it has no non-zero type codes and could be mistaken for a
@@ -1835,6 +1834,7 @@ gum_linux_cpu_type_from_auxv (const guint8 * auxv,
    * then it must contain at least one non-zero type code and hence the test
    * below should work.
    */
+
   if (auxv_size < 2 * sizeof (guint64))
   {
     result = cpu32;
@@ -1845,8 +1845,9 @@ gum_linux_cpu_type_from_auxv (const guint8 * auxv,
 
     for (i = 0; i + sizeof (guint64) <= auxv_size; i += 16)
     {
-      guint64 * auxv_type = (guint64 *) (auxv + i);
-      if ((*auxv_type & 0xffffffff00000000) != 0)
+      guint64 * auxv_type = auxv + i;
+
+      if ((*auxv_type & G_GUINT64_CONSTANT (0xffffffff00000000)) != 0)
       {
         result = cpu32;
         break;
