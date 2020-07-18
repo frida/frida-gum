@@ -81,6 +81,9 @@
 /* Define to 1 if you have the <asm/ptrace.h> header file. */
 #mesondefine HAVE_ASM_PTRACE_H
 
+/* Define to 1 if you have the <sys/auxv.h> header file. */
+#mesondefine HAVE_SYS_AUXV_H
+
 /* Define to 1 if you have the <sys/elf.h> header file. */
 #mesondefine HAVE_SYS_ELF_H
 

@@ -18,10 +18,12 @@
 
 #include <stdlib.h>
 #include <string.h>
+#if defined (HAVE_LINUX) && defined (HAVE_SYS_AUXV_H)
+# include <sys/auxv.h>
+#endif
 
-#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
-#include <sys/auxv.h>
-#include "backend-linux/gumlinux.h"
+#if defined (HAVE_LINUX)
+# include "backend-linux/gumlinux.h"
 #endif
 
 #define TESTCASE(NAME) \
@@ -65,6 +67,8 @@ TESTLIST_BEGIN (process)
 #endif
 #if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
   TESTENTRY (linux_process_modules)
+#endif
+#if defined (HAVE_LINUX) && defined (HAVE_SYS_AUXV_H)
   TESTENTRY (linux_get_cpu_from_auxv_null_32bit)
   TESTENTRY (linux_get_cpu_from_auxv_null_64bit)
   TESTENTRY (linux_get_cpu_from_auxv_representative_32bit)
@@ -302,6 +306,54 @@ TESTCASE (linux_process_modules)
   dlclose (lib);
 }
 
+static gboolean
+find_module_bounds (const GumRangeDetails * details,
+                    gpointer user_data)
+{
+  ModuleBounds * bounds = user_data;
+  const GumMemoryRange * range = details->range;
+  const GumFileMapping * file = details->file;
+  gchar * name;
+  gboolean is_match;
+
+  if (file == NULL)
+    return TRUE;
+
+  name = g_path_get_basename (file->path);
+  is_match = strcmp (name, bounds->name) == 0;
+  g_free (name);
+
+  if (!is_match)
+    return TRUE;
+
+  if (bounds->start == 0)
+    bounds->start = range->base_address;
+
+  bounds->end = range->base_address + range->size;
+
+  return TRUE;
+}
+
+static gboolean
+verify_module_bounds (const GumModuleDetails * details,
+                      gpointer user_data)
+{
+  ModuleBounds * bounds = user_data;
+  const GumMemoryRange * range = details->range;
+
+  if (strcmp (details->name, bounds->name) != 0)
+    return TRUE;
+
+  g_assert_cmphex (range->base_address, ==, bounds->start);
+  g_assert_cmphex (range->base_address + range->size, ==, bounds->end);
+
+  return TRUE;
+}
+
+#endif
+
+#if defined (HAVE_LINUX) && defined (HAVE_SYS_AUXV_H)
+
 TESTCASE (linux_get_cpu_from_auxv_null_32bit)
 {
   const guint32 v[] = { AT_NULL, 0 };
@@ -410,50 +462,6 @@ TESTCASE (linux_get_cpu_from_auxv_representative_64bit)
 #endif
 
   g_assert_cmpuint (gum_linux_cpu_type_from_auxv (v, sizeof (v)), ==, cpu64);
-}
-
-static gboolean
-find_module_bounds (const GumRangeDetails * details,
-                    gpointer user_data)
-{
-  ModuleBounds * bounds = user_data;
-  const GumMemoryRange * range = details->range;
-  const GumFileMapping * file = details->file;
-  gchar * name;
-  gboolean is_match;
-
-  if (file == NULL)
-    return TRUE;
-
-  name = g_path_get_basename (file->path);
-  is_match = strcmp (name, bounds->name) == 0;
-  g_free (name);
-
-  if (!is_match)
-    return TRUE;
-
-  if (bounds->start == 0)
-    bounds->start = range->base_address;
-
-  bounds->end = range->base_address + range->size;
-
-  return TRUE;
-}
-
-static gboolean
-verify_module_bounds (const GumModuleDetails * details,
-                      gpointer user_data)
-{
-  ModuleBounds * bounds = user_data;
-  const GumMemoryRange * range = details->range;
-
-  if (strcmp (details->name, bounds->name) != 0)
-    return TRUE;
-
-  g_assert_cmphex (range->base_address, ==, bounds->start);
-  g_assert_cmphex (range->base_address + range->size, ==, bounds->end);
-
-  return TRUE;
 }
 
 #endif

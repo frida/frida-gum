@@ -122,8 +122,9 @@ headers = [
   'elf.h',
   'link.h',
   'stdint.h',
-  'asm/ptrace.h',
+  'sys/auxv.h',
   'sys/elf.h',
+  'asm/ptrace.h',
   'sys/user.h',
 ]
 foreach h : headers
