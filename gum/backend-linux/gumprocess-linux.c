@@ -1696,7 +1696,9 @@ gum_linux_cpu_type_from_file (const gchar * path,
   GFile * file;
   GFileInputStream * base_stream;
   GDataInputStream * stream = NULL;
-  GError * read_error;
+  GError * read_error = NULL;
+  guchar ei_data;
+  GDataStreamByteOrder byte_order;
   guint16 e_machine;
 
   file = g_file_new_for_path (path);
@@ -1705,15 +1707,39 @@ gum_linux_cpu_type_from_file (const gchar * path,
   if (base_stream == NULL)
     goto beach;
 
-  if (!g_seekable_seek (G_SEEKABLE (base_stream), 0x12, G_SEEK_SET, NULL,
+  if (!g_seekable_seek (G_SEEKABLE (base_stream), EI_DATA, G_SEEK_SET, NULL,
       error))
     goto beach;
 
   stream = g_data_input_stream_new (G_INPUT_STREAM (base_stream));
-  g_data_input_stream_set_byte_order (stream,
-      G_DATA_STREAM_BYTE_ORDER_LITTLE_ENDIAN);
 
-  read_error = NULL;
+  ei_data = g_data_input_stream_read_byte (stream, NULL, &read_error);
+  if (read_error != NULL)
+  {
+    g_propagate_error (error, read_error);
+    goto beach;
+  }
+
+  switch (ei_data)
+  {
+    case ELFDATA2LSB:
+      byte_order = G_DATA_STREAM_BYTE_ORDER_LITTLE_ENDIAN;
+      break;
+    case ELFDATA2MSB:
+      byte_order = G_DATA_STREAM_BYTE_ORDER_BIG_ENDIAN;
+      break;
+    default:
+      g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
+          "Unsupported ELF EI_DATA");
+      goto beach;
+  }
+
+  if (!g_seekable_seek (G_SEEKABLE (base_stream), 0x12, G_SEEK_SET, NULL,
+      error))
+    goto beach;
+
+  g_data_input_stream_set_byte_order (stream, byte_order);
+
   e_machine = g_data_input_stream_read_uint16 (stream, NULL, &read_error);
   if (read_error != NULL)
   {
