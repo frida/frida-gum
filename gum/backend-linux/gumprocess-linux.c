@@ -1740,7 +1740,6 @@ gum_linux_cpu_type_from_file (const gchar * path,
 
   g_data_input_stream_set_byte_order (stream, byte_order);
 
-  read_error = NULL;
   e_machine = g_data_input_stream_read_uint16 (stream, NULL, &read_error);
   if (read_error != NULL)
   {
