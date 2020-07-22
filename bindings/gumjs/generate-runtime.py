@@ -154,11 +154,13 @@ cpp_comment_pattern = re.compile(r"\s+?\/\/.+")
 
 def generate_runtime_cmodule(output_dir, output, arch, input_dir, gum_dir, capstone_dir):
     writer_arch = "x86" if arch.startswith("x86") or arch == "x64" else arch
-    writer_name = "thumb" if writer_arch == "arm" else writer_arch
     capstone_arch = writer_arch
 
     def gum_header_matches_writer(name):
-        return name == "gum" + writer_name + "writer.h"
+        if writer_arch == "arm":
+            return name in ("gumarmwriter.h", "gumthumbwriter.h")
+        else:
+            return name == "gum" + writer_arch + "writer.h"
 
     def optimize_gum_header(source):
         return source.replace("GUM_API ", "")

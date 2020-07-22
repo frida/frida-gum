@@ -5,6 +5,7 @@
 #if defined (HAVE_I386)
 # include "arch-x86/gumx86writer.h"
 #elif defined (HAVE_ARM)
+# include "arch-arm/gumarmwriter.h"
 # include "arch-arm/gumthumbwriter.h"
 #elif defined (HAVE_ARM64)
 # include "arch-arm64/gumarm64writer.h"
