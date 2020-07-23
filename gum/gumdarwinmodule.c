@@ -841,7 +841,7 @@ gum_darwin_module_resolve_export (GumDarwinModule * self,
     return gum_exports_trie_find (self->exports, self->exports_end, name,
         details);
   }
-  else
+  else if (self->filetype == GUM_DARWIN_MODULE_FILETYPE_DYLINKER)
   {
     GumAddress address;
 
@@ -855,6 +855,8 @@ gum_darwin_module_resolve_export (GumDarwinModule * self,
 
     return TRUE;
   }
+
+  return FALSE;
 }
 
 GumAddress
@@ -1075,7 +1077,7 @@ gum_darwin_module_enumerate_exports (GumDarwinModule * self,
     gum_exports_trie_foreach (self->exports, self->exports_end, func,
         user_data);
   }
-  else
+  else if (self->filetype == GUM_DARWIN_MODULE_FILETYPE_DYLINKER)
   {
     GumEmitExportFromSymbolContext ctx;
 
