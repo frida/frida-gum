@@ -4256,25 +4256,34 @@ gum_find_thread_exit_implementation (void)
 
   pattern = gum_match_pattern_new_from_string (
 #if GLIB_SIZEOF_VOID_P == 8
-                  /*** Generated on macOS 10.15.1 ***/
-      "55 "       /* push rbp                       */
-      "48 89 e5 " /* mov rbp, rsp                   */
-      "41 57 "    /* push r15                       */
-      "41 56 "    /* push r14                       */
-      "53 "       /* push rbx                       */
-      "50 "       /* push rax                       */
-      "49 89 f6 " /* mov r14, rsi                   */
-      "49 89 ff"  /* mov r15, rdi                   */
+     /*
+      * Verified on macOS:
+      * - 10.14.6
+      * - 10.15.6
+      * - 11.0 Beta 3
+      */
+      "55 "            /* push rbp                       */
+      "48 89 e5 "      /* mov rbp, rsp                   */
+      "41 57 "         /* push r15                       */
+      "41 56 "         /* push r14                       */
+      "53 "            /* push rbx                       */
+      "50 "            /* push rax                       */
+      "49 89 f6 "      /* mov r14, rsi                   */
+      "49 89 ff"       /* mov r15, rdi                   */
+      "bf 01 00 00 00" /* mov edi, 0x1                   */
 #else
-                  /*** Generated on macOS 10.14.6 ***/
-      "55 "       /* push ebp                       */
-      "89 e5 "    /* mov ebp, esp                   */
-      "53 "       /* push ebx                       */
-      "57 "       /* push edi                       */
-      "56 "       /* push esi                       */
-      "83 ec 0c " /* sub esp, 0xc                   */
-      "89 d6 "    /* mov esi, edx                   */
-      "89 cf"     /* mov edi, ecx                   */
+      /*
+       * Verified on macOS:
+       * - 10.14.6
+       */
+      "55 "            /* push ebp                       */
+      "89 e5 "         /* mov ebp, esp                   */
+      "53 "            /* push ebx                       */
+      "57 "            /* push edi                       */
+      "56 "            /* push esi                       */
+      "83 ec 0c "      /* sub esp, 0xc                   */
+      "89 d6 "         /* mov esi, edx                   */
+      "89 cf"          /* mov edi, ecx                   */
 #endif
   );
 
