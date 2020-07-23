@@ -2349,6 +2349,8 @@ gum_darwin_module_take_image (GumDarwinModule * self,
 
   header = (GumMachHeader32 *) image->data;
 
+  self->filetype = header->filetype;
+
   if (self->cpu_type == GUM_CPU_INVALID)
     self->cpu_type = gum_cpu_type_from_darwin (header->cputype);
 

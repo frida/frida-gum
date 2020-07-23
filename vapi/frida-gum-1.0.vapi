@@ -637,6 +637,7 @@ namespace Gum {
 	}
 
 	public class DarwinModule : GLib.Object, GLib.Initable {
+		public Filetype filetype;
 		public string? name;
 		public string? uuid;
 
@@ -666,6 +667,21 @@ namespace Gum {
 
 		public Gum.Address slide {
 			get;
+		}
+
+		public enum Filetype {
+			OBJECT = 1,
+			EXECUTE,
+			FVMLIB,
+			CORE,
+			PRELOAD,
+			DYLIB,
+			DYLINKER,
+			BUNDLE,
+			DYLIB_STUB,
+			DSYM,
+			KEXT_BUNDLE,
+			FILESET,
 		}
 
 		[Flags]

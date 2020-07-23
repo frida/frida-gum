@@ -22,6 +22,7 @@ G_DECLARE_FINAL_TYPE (GumDarwinModule, gum_darwin_module, GUM_DARWIN, MODULE,
 #define GUM_DARWIN_PORT_NULL 0
 #define GUM_DARWIN_EXPORT_KIND_MASK 3
 
+typedef guint GumDarwinModuleFiletype;
 typedef guint GumDarwinModuleFlags;
 typedef gint GumDarwinCpuType;
 typedef gint GumDarwinCpuSubtype;
@@ -81,6 +82,7 @@ struct _GumDarwinModule
 {
   GObject parent;
 
+  GumDarwinModuleFiletype filetype;
   gchar * name;
   gchar * uuid;
 
@@ -124,6 +126,22 @@ struct _GumDarwinModule
 
   GPtrArray * dependencies;
   GPtrArray * reexports;
+};
+
+enum _GumDarwinModuleFiletype
+{
+  GUM_DARWIN_MODULE_FILETYPE_OBJECT = 1,
+  GUM_DARWIN_MODULE_FILETYPE_EXECUTE,
+  GUM_DARWIN_MODULE_FILETYPE_FVMLIB,
+  GUM_DARWIN_MODULE_FILETYPE_CORE,
+  GUM_DARWIN_MODULE_FILETYPE_PRELOAD,
+  GUM_DARWIN_MODULE_FILETYPE_DYLIB,
+  GUM_DARWIN_MODULE_FILETYPE_DYLINKER,
+  GUM_DARWIN_MODULE_FILETYPE_BUNDLE,
+  GUM_DARWIN_MODULE_FILETYPE_DYLIB_STUB,
+  GUM_DARWIN_MODULE_FILETYPE_DSYM,
+  GUM_DARWIN_MODULE_FILETYPE_KEXT_BUNDLE,
+  GUM_DARWIN_MODULE_FILETYPE_FILESET,
 };
 
 enum _GumDarwinModuleFlags
