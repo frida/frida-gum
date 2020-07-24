@@ -679,11 +679,7 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_module_map_copy_values, GumV8ModuleMap)
   for (guint i = 0; i != values->len; i++)
   {
     auto details = &g_array_index (values, GumModuleDetails, i);
-    auto m = Object::New (isolate);
-    _gum_v8_object_set_utf8 (m, "name", details->name, core);
-    _gum_v8_object_set_pointer (m, "base", details->range->base_address, core);
-    _gum_v8_object_set_uint (m, "size", details->range->size, core);
-    _gum_v8_object_set_utf8 (m, "path", details->path, core);
+    auto m = _gum_v8_module_value_new (details, module);
     result->Set (context, i, m).Check ();
   }
 

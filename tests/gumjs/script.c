@@ -190,6 +190,10 @@ TESTLIST_BEGIN (script)
     TESTENTRY (module_can_be_forcibly_initialized)
   TESTGROUP_END ()
 
+  TESTGROUP_BEGIN ("ModuleMap")
+    TESTENTRY (module_map_values_should_have_module_prototype)
+  TESTGROUP_END ()
+
   TESTGROUP_BEGIN ("ApiResolver")
     TESTENTRY (api_resolver_can_be_used_to_find_functions)
     TESTENTRY (api_resolver_can_be_used_to_find_functions_legacy_style)
@@ -3765,6 +3769,14 @@ TESTCASE (module_can_be_forcibly_initialized)
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
       "Error: unable to find module 'DefinitelyNotAValidModuleName'");
   EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (module_map_values_should_have_module_prototype)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var map = new ModuleMap();"
+      "send(map.values()[0] instanceof Module);");
+  EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
 #ifdef HAVE_WINDOWS
