@@ -1742,49 +1742,10 @@ gum_darwin_mapper_get_dependency_by_name (GumDarwinMapper * self,
 
   if (mapping == NULL)
   {
-    GumDarwinModule * module = NULL;
-    gchar * candidate;
-
-    if (resolver->sysroot != NULL)
-    {
-      candidate = g_strconcat (resolver->sysroot, "/", name, NULL);
-      module = gum_darwin_module_resolver_find_module (resolver, candidate);
-      g_free (candidate);
-
-      if (module == NULL && strcmp (name, "/usr/lib/libSystem.B.dylib") == 0)
-      {
-        candidate = g_strconcat (resolver->sysroot, "/usr/lib/libSystem.dylib",
-            NULL);
-        module = gum_darwin_module_resolver_find_module (resolver, candidate);
-        g_free (candidate);
-      }
-
-      if (module == NULL && g_str_has_prefix (name, "/usr/lib/system/"))
-      {
-        candidate = g_strconcat (resolver->sysroot,
-            "/usr/lib/system/introspection/", name + 16, NULL);
-        module = gum_darwin_module_resolver_find_module (resolver, candidate);
-        g_free (candidate);
-      }
-    }
-
-    if (module == NULL)
-    {
-      module = gum_darwin_module_resolver_find_module (resolver, name);
-    }
-
-    if (module == NULL && g_str_has_prefix (name, "/usr/lib/system/"))
-    {
-      candidate = g_strconcat ("/usr/lib/system/introspection/", name + 16,
-          NULL);
-      module = gum_darwin_module_resolver_find_module (resolver, candidate);
-      g_free (candidate);
-    }
-
+    GumDarwinModule * module =
+        gum_darwin_module_resolver_find_module (resolver, name);
     if (module != NULL)
-    {
       mapping = gum_darwin_mapper_add_existing_mapping (self, module);
-    }
   }
 
   if (mapping == NULL)

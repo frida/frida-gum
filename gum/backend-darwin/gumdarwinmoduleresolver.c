@@ -187,7 +187,23 @@ GumDarwinModule *
 gum_darwin_module_resolver_find_module (GumDarwinModuleResolver * self,
                                         const gchar * module_name)
 {
-  return g_hash_table_lookup (self->modules, module_name);
+  GumDarwinModule * module;
+
+  module = g_hash_table_lookup (self->modules, module_name);
+  if (module != NULL)
+    return module;
+
+  if (g_str_has_prefix (module_name, "/usr/lib/system/"))
+  {
+    gchar * alias =
+        g_strconcat ("/usr/lib/system/introspection/", module_name + 16, NULL);
+
+    module = g_hash_table_lookup (self->modules, alias);
+
+    g_free (alias);
+  }
+
+  return module;
 }
 
 gboolean

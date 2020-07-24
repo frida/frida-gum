@@ -2189,11 +2189,18 @@ find_image_address_and_slide (const gchar * image_name,
                               gpointer * address,
                               gpointer * slide)
 {
+  gboolean found = FALSE;
   const gchar * sysroot;
-  guint sysroot_size, count, i;
+  guint sysroot_size;
+  gchar * image_alias;
+  guint count, i;
 
   sysroot = gum_darwin_query_sysroot ();
   sysroot_size = (sysroot != NULL) ? strlen (sysroot) : 0;
+
+  image_alias = g_str_has_prefix (image_name, "/usr/lib/system/")
+      ? g_strconcat ("/usr/lib/system/introspection/", image_name + 16, NULL)
+      : NULL;
 
   count = _dyld_image_count ();
 
@@ -2205,15 +2212,20 @@ find_image_address_and_slide (const gchar * image_name,
     if (sysroot != NULL && g_str_has_prefix (candidate_name, sysroot))
       candidate_name += sysroot_size;
 
-    if (gum_module_path_equals (candidate_name, image_name))
+    if (gum_module_path_equals (candidate_name, image_name) ||
+        ((image_alias != NULL) &&
+         gum_module_path_equals (candidate_name, image_alias)))
     {
       *address = (gpointer) _dyld_get_image_header (i);
       *slide = (gpointer) _dyld_get_image_vmaddr_slide (i);
-      return TRUE;
+      found = TRUE;
+      break;
     }
   }
 
-  return FALSE;
+  g_free (image_alias);
+
+  return found;
 }
 
 static gchar *
