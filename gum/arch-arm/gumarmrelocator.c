@@ -628,10 +628,12 @@ gum_arm_relocator_rewrite_sub (GumArmRelocator * self,
   const cs_arm_op * dst = &operands[0];
   const cs_arm_op * left = &operands[1];
   const cs_arm_op * right = &operands[2];
+  gboolean pc_is_involved;
   arm_reg target;
 
-  if ((left->type != ARM_OP_REG || left->reg != ARM_REG_PC) &&
-      (right->type != ARM_OP_REG || right->reg != ARM_REG_PC))
+  pc_is_involved = (left->type == ARM_OP_REG && left->reg == ARM_REG_PC) ||
+      (right->type == ARM_OP_REG && right->reg == ARM_REG_PC);
+  if (!pc_is_involved)
     return FALSE;
 
   if (dst->reg == ARM_REG_PC)
@@ -644,7 +646,8 @@ gum_arm_relocator_rewrite_sub (GumArmRelocator * self,
      * If however Rm is an immediate, we choose an arbitrary register.
      */
     target = (right->type == ARM_OP_REG && right->reg != ARM_REG_PC)
-        ? right->reg : ARM_REG_R0;
+        ? right->reg
+        : ARM_REG_R0;
 
     gum_arm_writer_put_push_registers (ctx->output, 2, target, ARM_REG_PC);
   }
@@ -662,33 +665,26 @@ gum_arm_relocator_rewrite_sub (GumArmRelocator * self,
      */
     if (right->type == ARM_OP_IMM)
     {
-      /* Handle 'SUB Rd, PC, #x' */
+      /* Handle 'SUB Rd, PC, #x'. */
       gum_arm_writer_put_ldr_reg_address (ctx->output, target, ctx->pc);
       gum_arm_writer_put_sub_reg_u32 (ctx->output, target, right->imm);
     }
-    else if ((dst->reg == left->reg) && (left->reg == right->reg))
+    else if (dst->reg == left->reg && left->reg == right->reg)
     {
-      /*
-       * Handle SUB, PC, PC, PC
-       */
+      /* Handle 'SUB, PC, PC, PC'. */
       gum_arm_writer_put_sub_reg_reg_reg (ctx->output, target, target, target);
     }
     else if (left->reg == dst->reg)
     {
-
       if (left->reg == ARM_REG_PC)
       {
-        /*
-         * Handle 'SUB PC, PC, Rm'.
-         */
+        /* Handle 'SUB PC, PC, Rm'. */
         gum_arm_writer_put_rsb_reg_reg_imm (ctx->output, target, target, 0);
         gum_arm_writer_put_add_reg_u32 (ctx->output, target, ctx->pc);
       }
       else
       {
-        /*
-         * Handle 'SUB Rd, Rd, PC'
-         */
+        /* Handle 'SUB Rd, Rd, PC'. */
         gum_arm_writer_put_sub_reg_u32 (ctx->output, target, ctx->pc);
       }
     }
@@ -696,30 +692,26 @@ gum_arm_relocator_rewrite_sub (GumArmRelocator * self,
     {
       if (right->reg == ARM_REG_PC)
       {
-        /*
-         * Handle 'SUB PC, Rn, PC'
-         */
+        /* Handle 'SUB PC, Rn, PC'. */
         gum_arm_writer_put_mov_reg_reg (ctx->output, target, left->reg);
         gum_arm_writer_put_sub_reg_u32 (ctx->output, target, ctx->pc);
       }
       else
       {
-        /*
-         * Handle 'SUB Rd, PC, Rd'
-         */
+        /* Handle 'SUB Rd, PC, Rd'. */
         gum_arm_writer_put_rsb_reg_reg_imm (ctx->output, target, target, 0);
         gum_arm_writer_put_add_reg_u32 (ctx->output, target, ctx->pc);
       }
     }
     else if (left->reg == ARM_REG_PC)
     {
-      /* Handle 'SUB Rd, PC, Rm' */
+      /* Handle 'SUB Rd, PC, Rm'. */
       gum_arm_writer_put_ldr_reg_address (ctx->output, target, ctx->pc);
       gum_arm_writer_put_sub_reg_reg_imm (ctx->output, target, right->reg, 0);
     }
     else if (right->reg == ARM_REG_PC)
     {
-      /* Handle 'SUB Rd, Rn, PC' */
+      /* Handle 'SUB Rd, Rn, PC'. */
       gum_arm_writer_put_ldr_reg_address (ctx->output, target, ctx->pc);
       gum_arm_writer_put_rsb_reg_reg_imm (ctx->output, target, target, 0);
       gum_arm_writer_put_add_reg_reg_imm (ctx->output, target, left->reg, 0);
@@ -737,7 +729,7 @@ gum_arm_relocator_rewrite_sub (GumArmRelocator * self,
      */
     if (right->type == ARM_OP_IMM)
     {
-      /* Handle 'SUB Rd, PC, #x, lsl #n' */
+      /* Handle 'SUB Rd, PC, #x, lsl #n'. */
       gum_arm_writer_put_ldr_reg_u32 (ctx->output, target, right->imm);
     }
     else
@@ -746,10 +738,9 @@ gum_arm_relocator_rewrite_sub (GumArmRelocator * self,
       * Whilst technically possible, it seems quite unlikely that anyone would
       * want to perform any shifting operations on the PC itself.
       */
-      if (right->reg == ARM_REG_PC)
-        g_assert_not_reached ();
+      g_assert (right->reg != ARM_REG_PC);
 
-      /* Handle 'SUB Rd, PC, Rm, lsl #n' */
+      /* Handle 'SUB Rd, PC, Rm, lsl #n'. */
       gum_arm_writer_put_mov_reg_reg (ctx->output, target, right->reg);
     }
 

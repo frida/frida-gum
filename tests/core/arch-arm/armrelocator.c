@@ -306,7 +306,7 @@ TESTCASE (pc_relative_sub_with_pc_on_lhs_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_SUB,
-    { 0xe04f3003 }, 1,          /* sub r3, pc, r3   */
+    { 0xe04f3003 }, 1,          /* sub r3, pc, r3               */
     {
       0xe2633000,               /* rsb r3, r3, #0               */
       0xe2833c08,               /* add r3, r3, <0xXX >>> 0xc*2> */
@@ -356,10 +356,10 @@ TESTCASE (pc_relative_sub_pc_pc_should_be_rewritten)
     ARM_INS_SUB,
     { 0xe04ff00f }, 1,          /* sub pc, pc, pc   */
     {
-      0xe92d8001,               /* push {r0, pc}     */
-      0xe0400000,               /* sub r0, r0, r0    */
-      0xe58d0004,               /* str r0, [sp, #4]  */
-      0xe8bd8001,               /* pop {r0, pc}      */
+      0xe92d8001,               /* push {r0, pc}    */
+      0xe0400000,               /* sub r0, r0, r0   */
+      0xe58d0004,               /* str r0, [sp, #4] */
+      0xe8bd8001,               /* pop {r0, pc}     */
     }, 4,
     -1, 0,
     -1, -1
@@ -367,12 +367,11 @@ TESTCASE (pc_relative_sub_pc_pc_should_be_rewritten)
   branch_scenario_execute (&bs, fixture);
 }
 
-
 TESTCASE (pc_relative_sub_with_pc_on_lhs_and_dest_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_SUB,
-    { 0xe04ff003 }, 1,          /* sub pc, pc, r3   */
+    { 0xe04ff003 }, 1,          /* sub pc, pc, r3               */
     {
       0xe92d8008,               /* push {r3, pc}                */
       0xe2633000,               /* rsb r3, r3, #0               */
@@ -412,13 +411,13 @@ TESTCASE (pc_relative_sub_pc_pc_imm_should_be_rewritten)
     ARM_INS_SUB,
     { 0xe24ff00c }, 1,          /* sub pc, pc, #12  */
     {
-      0xe92d8001,               /* push {r0, pc}     */
-      0xe59f0008,               /* ldr r0, [pc, #8]  */
-      0xe240000c,               /* sub r0, r0, #0xc  */
-      0xe58d0004,               /* str r0, [sp, #4]  */
-      0xe8bd8001,               /* pop {r0, pc}      */
-      0xffffffff                /* <calculated PC    */
-                                /*  goes here>       */
+      0xe92d8001,               /* push {r0, pc}    */
+      0xe59f0008,               /* ldr r0, [pc, #8] */
+      0xe240000c,               /* sub r0, r0, #0xc */
+      0xe58d0004,               /* str r0, [sp, #4] */
+      0xe8bd8001,               /* pop {r0, pc}     */
+      0xffffffff                /* <calculated PC   */
+                                /*  goes here>      */
     }, 6,
     5, 0,
     -1, -1
@@ -430,12 +429,12 @@ TESTCASE (pc_relative_sub_rd_pc_rm_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_SUB,
-    { 0xe04f300c }, 1,          /* sub r3, pc, ip   */
+    { 0xe04f300c }, 1,          /* sub r3, pc, ip */
     {
-      0xe59f3000,               /* ldr r3, [pc]      */
-      0xe24c3000,               /* sub r3, ip, #0    */
-      0xffffffff                /* <calculated PC    */
-                                /*  goes here>       */
+      0xe59f3000,               /* ldr r3, [pc]   */
+      0xe24c3000,               /* sub r3, ip, #0 */
+      0xffffffff                /* <calculated PC */
+                                /*  goes here>    */
     }, 3,
     2, 0,
     -1, -1
@@ -447,13 +446,13 @@ TESTCASE (pc_relative_sub_rd_rn_pc_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_SUB,
-    { 0xe04c300f }, 1,          /* sub r3, ip, pc               */
+    { 0xe04c300f }, 1,          /* sub r3, ip, pc   */
     {
-      0xe59f3004,               /* ldr r3, [pc, #4]  */
-      0xe2633000,               /* rsb r3, r3, #0    */
-      0xe28c3000,               /* add r3, ip, #0    */
-      0xffffffff                /* <calculated PC    */
-                                /*  goes here>       */
+      0xe59f3004,               /* ldr r3, [pc, #4] */
+      0xe2633000,               /* rsb r3, r3, #0   */
+      0xe28c3000,               /* add r3, ip, #0   */
+      0xffffffff                /* <calculated PC   */
+                                /*  goes here>      */
     }, 4,
     3, 0,
     -1, -1
@@ -465,16 +464,16 @@ TESTCASE (pc_relative_sub_pc_shift_imm_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_SUB,
-    { 0xe24ff27f }, 1,          /* sub pc, pc, #127, #4  */
+    { 0xe24ff27f }, 1,          /* sub pc, pc, #127, #4 */
     {
-      0xe92d8001,               /* push {r0, pc}         */
-      0xe59f000c,               /* ldr r0, [pc, #0xc]    */
-      0xe24004f0,               /* sub r0, r0, #240, #8  */
-      0xe2400007,               /* sub r0, r0, #7        */
-      0xe58d0004,               /* str r0, [sp, #4]      */
-      0xe8bd8001,               /* pop {r0, pc}          */
-      0xffffffff                /* <calculated PC        */
-                                /*  goes here>           */
+      0xe92d8001,               /* push {r0, pc}        */
+      0xe59f000c,               /* ldr r0, [pc, #0xc]   */
+      0xe24004f0,               /* sub r0, r0, #240, #8 */
+      0xe2400007,               /* sub r0, r0, #7       */
+      0xe58d0004,               /* str r0, [sp, #4]     */
+      0xe8bd8001,               /* pop {r0, pc}         */
+      0xffffffff                /* <calculated PC       */
+                                /*  goes here>          */
     }, 7,
     6, 0,
     -1, -1
@@ -486,13 +485,13 @@ TESTCASE (pc_relative_sub_shift_imm_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_SUB,
-    { 0xe24f327f }, 1,          /* sub r3, pc, #127, #4  */
+    { 0xe24f327f }, 1,          /* sub r3, pc, #127, #4 */
     {
-      0xe59f3004,               /* ldr r3, [pc, #4]      */
-      0xe24334f0,               /* sub r3, r3, #240, #8  */
-      0xe2433007,               /* sub r3, r3, #7        */
-      0xffffffff                /* <calculated PC        */
-                                /*  goes here>           */
+      0xe59f3004,               /* ldr r3, [pc, #4]     */
+      0xe24334f0,               /* sub r3, r3, #240, #8 */
+      0xe2433007,               /* sub r3, r3, #7       */
+      0xffffffff                /* <calculated PC       */
+                                /*  goes here>          */
     }, 4,
     3, 0,
     -1, -1
@@ -504,15 +503,15 @@ TESTCASE (pc_relative_sub_pc_shift_reg_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_SUB,
-    { 0xe04ff101 }, 1,          /* sub pc, pc, r1, lsl #2  */
+    { 0xe04ff101 }, 1,          /* sub pc, pc, r1, lsl #2       */
     {
-      0xe92d8002,               /* push {r1, pc}                 */
-      0xe1a01101,               /* lsl r1, r1, #2                */
-      0xe2611000,               /* rsb r1, r1, #0                */
-      0xe2811c08,               /* add r1, r1, <0xXX >>> 0xc*2>  */
-      0xe2811008,               /* add r1, r1, 0xXX              */
-      0xe58d1004,               /* str r1, [sp, #4]              */
-      0xe8bd8002,               /* pop {r1, pc}                  */
+      0xe92d8002,               /* push {r1, pc}                */
+      0xe1a01101,               /* lsl r1, r1, #2               */
+      0xe2611000,               /* rsb r1, r1, #0               */
+      0xe2811c08,               /* add r1, r1, <0xXX >>> 0xc*2> */
+      0xe2811008,               /* add r1, r1, 0xXX             */
+      0xe58d1004,               /* str r1, [sp, #4]             */
+      0xe8bd8002,               /* pop {r1, pc}                 */
     }, 7,
     -1, -1,
     -1, -1
@@ -524,20 +523,19 @@ TESTCASE (pc_relative_sub_shift_reg_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_SUB,
-    { 0xe04f3101 }, 1,          /* sub r3, pc, r1, lsl #2  */
+    { 0xe04f3101 }, 1,          /* sub r3, pc, r1, lsl #2       */
     {
-      0xe2813000,               /* add r3, r1, #0                */
-      0xe1a03103,               /* lsl r3, r3, #2                */
-      0xe2633000,               /* rsb r3, r3, #0                */
-      0xe2833c08,               /* add r3, r3, <0xXX >>> 0xc*2>  */
-      0xe2833008,               /* add r3, r3, 0xXX              */
+      0xe2813000,               /* add r3, r1, #0               */
+      0xe1a03103,               /* lsl r3, r3, #2               */
+      0xe2633000,               /* rsb r3, r3, #0               */
+      0xe2833c08,               /* add r3, r3, <0xXX >>> 0xc*2> */
+      0xe2833008,               /* add r3, r3, 0xXX             */
     }, 5,
     -1, -1,
     -1, -1
   };
   branch_scenario_execute (&bs, fixture);
 }
-
 
 TESTCASE (b_imm_a1_positive_should_be_rewritten)
 {
