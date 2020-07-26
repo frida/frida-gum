@@ -868,6 +868,21 @@ gum_arm_writer_put_sub_reg_reg_reg (GumArmWriter * self,
 }
 
 void
+gum_arm_writer_put_rsb_reg_reg_imm (GumArmWriter * self,
+                                    arm_reg dst_reg,
+                                    arm_reg src_reg,
+                                    guint32 imm_val)
+{
+  GumArmRegInfo rd, rs;
+
+  gum_arm_reg_describe (dst_reg, &rd);
+  gum_arm_reg_describe (src_reg, &rs);
+
+  gum_arm_writer_put_instruction (self, 0xe2600000 | (rd.index << 12) |
+      (rs.index << 16) | (imm_val & GUM_INT12_MASK));
+}
+
+void
 gum_arm_writer_put_ands_reg_reg_imm (GumArmWriter * self,
                                      arm_reg dst_reg,
                                      arm_reg src_reg,

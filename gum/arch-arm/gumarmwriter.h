@@ -131,6 +131,8 @@ GUM_API void gum_arm_writer_put_sub_reg_reg_imm (GumArmWriter * self,
     arm_reg dst_reg, arm_reg src_reg, guint32 imm_val);
 GUM_API void gum_arm_writer_put_sub_reg_reg_reg (GumArmWriter * self,
     arm_reg dst_reg, arm_reg src_reg1, arm_reg src_reg2);
+GUM_API void gum_arm_writer_put_rsb_reg_reg_imm (GumArmWriter * self,
+    arm_reg dst_reg, arm_reg src_reg, guint32 imm_val);
 GUM_API void gum_arm_writer_put_ands_reg_reg_imm (GumArmWriter * self,
     arm_reg dst_reg, arm_reg src_reg, guint32 imm_val);
 GUM_API void gum_arm_writer_put_cmp_reg_imm (GumArmWriter * self,
