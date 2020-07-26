@@ -32,6 +32,8 @@ static gboolean gum_arm_relocator_rewrite_mov (GumArmRelocator * self,
     GumCodeGenCtx * ctx);
 static gboolean gum_arm_relocator_rewrite_add (GumArmRelocator * self,
     GumCodeGenCtx * ctx);
+static gboolean gum_arm_relocator_rewrite_sub (GumArmRelocator * self,
+    GumCodeGenCtx * ctx);
 static gboolean gum_arm_relocator_rewrite_b (GumArmRelocator * self,
     cs_mode target_mode, GumCodeGenCtx * ctx);
 static gboolean gum_arm_relocator_rewrite_bl (GumArmRelocator * self,
@@ -272,6 +274,9 @@ gum_arm_relocator_write_one (GumArmRelocator * self)
       break;
     case ARM_INS_ADD:
       rewritten = gum_arm_relocator_rewrite_add (self, &ctx);
+      break;
+    case ARM_INS_SUB:
+      rewritten = gum_arm_relocator_rewrite_sub (self, &ctx);
       break;
     case ARM_INS_B:
       rewritten = gum_arm_relocator_rewrite_b (self, CS_MODE_ARM, &ctx);
@@ -603,6 +608,150 @@ gum_arm_relocator_rewrite_add (GumArmRelocator * self,
      * Now the shifted second operand has been calculated, we can simply add the
      * PC value.
      */
+    gum_arm_writer_put_add_reg_u32 (ctx->output, target, ctx->pc);
+  }
+
+  if (dst->reg == ARM_REG_PC)
+  {
+    gum_arm_writer_put_str_reg_reg_offset (ctx->output, target, ARM_REG_SP, 4);
+    gum_arm_writer_put_pop_registers (ctx->output, 2, target, ARM_REG_PC);
+  }
+
+  return TRUE;
+}
+
+static gboolean
+gum_arm_relocator_rewrite_sub (GumArmRelocator * self,
+                               GumCodeGenCtx * ctx)
+{
+  const cs_arm_op * operands = ctx->detail->operands;
+  const cs_arm_op * dst = &operands[0];
+  const cs_arm_op * left = &operands[1];
+  const cs_arm_op * right = &operands[2];
+  gboolean pc_is_involved;
+  arm_reg target;
+
+  pc_is_involved = (left->type == ARM_OP_REG && left->reg == ARM_REG_PC) ||
+      (right->type == ARM_OP_REG && right->reg == ARM_REG_PC);
+  if (!pc_is_involved)
+    return FALSE;
+
+  if (dst->reg == ARM_REG_PC)
+  {
+    /*
+     * When choosing a scratch register, we favor Rm since it is often this
+     * value we wish to use to start our calculation and this avoids a register
+     * move.
+     *
+     * If however Rm is an immediate, we choose an arbitrary register.
+     */
+    target = (right->type == ARM_OP_REG && right->reg != ARM_REG_PC)
+        ? right->reg
+        : ARM_REG_R0;
+
+    gum_arm_writer_put_push_registers (ctx->output, 2, target, ARM_REG_PC);
+  }
+  else
+  {
+    target = dst->reg;
+  }
+
+  if (right->shift.value == 0)
+  {
+    /*
+     * We have no shift to apply, so we start our calculation with the value of
+     * PC since we can store this as a literal in the code stream and reduce the
+     * number of instructions we need to generate.
+     */
+    if (right->type == ARM_OP_IMM)
+    {
+      /* Handle 'SUB Rd, PC, #x'. */
+      gum_arm_writer_put_ldr_reg_address (ctx->output, target, ctx->pc);
+      gum_arm_writer_put_sub_reg_u32 (ctx->output, target, right->imm);
+    }
+    else if (dst->reg == left->reg && left->reg == right->reg)
+    {
+      /* Handle 'SUB, PC, PC, PC'. */
+      gum_arm_writer_put_sub_reg_reg_reg (ctx->output, target, target, target);
+    }
+    else if (left->reg == dst->reg)
+    {
+      if (left->reg == ARM_REG_PC)
+      {
+        /* Handle 'SUB PC, PC, Rm'. */
+        gum_arm_writer_put_rsb_reg_reg_imm (ctx->output, target, target, 0);
+        gum_arm_writer_put_add_reg_u32 (ctx->output, target, ctx->pc);
+      }
+      else
+      {
+        /* Handle 'SUB Rd, Rd, PC'. */
+        gum_arm_writer_put_sub_reg_u32 (ctx->output, target, ctx->pc);
+      }
+    }
+    else if (right->reg == dst->reg)
+    {
+      if (right->reg == ARM_REG_PC)
+      {
+        /* Handle 'SUB PC, Rn, PC'. */
+        gum_arm_writer_put_mov_reg_reg (ctx->output, target, left->reg);
+        gum_arm_writer_put_sub_reg_u32 (ctx->output, target, ctx->pc);
+      }
+      else
+      {
+        /* Handle 'SUB Rd, PC, Rd'. */
+        gum_arm_writer_put_rsb_reg_reg_imm (ctx->output, target, target, 0);
+        gum_arm_writer_put_add_reg_u32 (ctx->output, target, ctx->pc);
+      }
+    }
+    else if (left->reg == ARM_REG_PC)
+    {
+      /* Handle 'SUB Rd, PC, Rm'. */
+      gum_arm_writer_put_ldr_reg_address (ctx->output, target, ctx->pc);
+      gum_arm_writer_put_sub_reg_reg_imm (ctx->output, target, right->reg, 0);
+    }
+    else if (right->reg == ARM_REG_PC)
+    {
+      /* Handle 'SUB Rd, Rn, PC'. */
+      gum_arm_writer_put_ldr_reg_address (ctx->output, target, ctx->pc);
+      gum_arm_writer_put_rsb_reg_reg_imm (ctx->output, target, target, 0);
+      gum_arm_writer_put_add_reg_reg_imm (ctx->output, target, left->reg, 0);
+    }
+  }
+  else
+  {
+    /*
+     * As we have a shift operation to apply, we must start by calculating this
+     * value and subtracting from PC, as we would otherwise need a second
+     * scratch register to calculate this. Note that in this case, we don't have
+     * to worry if Rd == Rm since although we may be using Rd to hold the
+     * intermediate result, we perform all necessary calculations on Rm before
+     * we update Rd.
+     */
+    if (right->type == ARM_OP_IMM)
+    {
+      /* Handle 'SUB Rd, PC, #x, lsl #n'. */
+      gum_arm_writer_put_ldr_reg_u32 (ctx->output, target, right->imm);
+    }
+    else
+    {
+      /*
+      * Whilst technically possible, it seems quite unlikely that anyone would
+      * want to perform any shifting operations on the PC itself.
+      */
+      g_assert (right->reg != ARM_REG_PC);
+
+      /* Handle 'SUB Rd, PC, Rm, lsl #n'. */
+      gum_arm_writer_put_mov_reg_reg (ctx->output, target, right->reg);
+    }
+
+    gum_arm_writer_put_mov_reg_reg_shift (ctx->output, target, target,
+        right->shift.type, right->shift.value);
+
+    /*
+     * Now the shifted second operand has been calculated, we can negate it and
+     * add the PC value.
+     */
+    gum_arm_writer_put_rsb_reg_reg_imm (ctx->output, target, target, 0);
     gum_arm_writer_put_add_reg_u32 (ctx->output, target, ctx->pc);
   }
 
