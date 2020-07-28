@@ -701,6 +701,7 @@ namespace Gum {
 		public void enumerate_symbols (Gum.FoundDarwinSymbolFunc func);
 		public void enumerate_sections (Gum.FoundDarwinSectionFunc func);
 		public bool is_address_in_text_section (Gum.Address address);
+		public void enumerate_chained_fixups (Gum.FoundDarwinChainedFixupsFunc func);
 		public void enumerate_rebases (Gum.FoundDarwinRebaseFunc func);
 		public void enumerate_binds (Gum.FoundDarwinBindFunc func);
 		public void enumerate_lazy_binds (Gum.FoundDarwinBindFunc func);
@@ -714,6 +715,7 @@ namespace Gum {
 	public delegate bool FoundDarwinExportFunc (Gum.DarwinExportDetails details);
 	public delegate bool FoundDarwinSymbolFunc (Gum.DarwinSymbolDetails details);
 	public delegate bool FoundDarwinSectionFunc (Gum.DarwinSectionDetails details);
+	public delegate bool FoundDarwinChainedFixupsFunc (Gum.DarwinChainedFixupsDetails details);
 	public delegate bool FoundDarwinRebaseFunc (Gum.DarwinRebaseDetails details);
 	public delegate bool FoundDarwinBindFunc (Gum.DarwinBindDetails details);
 	public delegate bool FoundDarwinInitPointersFunc (Gum.DarwinInitPointersDetails details);
@@ -751,6 +753,12 @@ namespace Gum {
 		public Gum.DarwinPageProtection protection;
 		public uint32 file_offset;
 		public uint32 flags;
+	}
+
+	public struct DarwinChainedFixupsDetails {
+		public Gum.Address vm_address;
+		uint64 file_offset;
+		uint32 size;
 	}
 
 	public struct DarwinRebaseDetails {
