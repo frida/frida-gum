@@ -21,6 +21,10 @@ TESTLIST_BEGIN (symbolutil)
   TESTENTRY (find_functions_matching)
 TESTLIST_END ()
 
+#ifdef HAVE_LINUX
+static guint gum_dummy_variable;
+#endif
+
 static void GUM_CDECL gum_dummy_function_0 (void);
 static void GUM_STDCALL gum_dummy_function_1 (void);
 
@@ -37,6 +41,15 @@ TESTCASE (symbol_details_from_address)
 #ifndef HAVE_IOS
   assert_basename_equals (__FILE__, details.file_name);
   g_assert_cmpuint (details.line_number, >, 0);
+#endif
+#ifdef HAVE_LINUX
+  g_assert_true (gum_symbol_details_from_address (&gum_dummy_variable,
+      &details));
+  g_assert_cmphex (GPOINTER_TO_SIZE (details.address), ==,
+      GPOINTER_TO_SIZE (&gum_dummy_variable));
+  g_assert_true (g_str_has_prefix (details.module_name, "gum-tests"));
+  g_assert_cmpuint (details.symbol_name[0], ==, '0');
+  g_assert_cmpuint (details.symbol_name[1], ==, 'x');
 #endif
 }
 
