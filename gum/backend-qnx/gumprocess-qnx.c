@@ -118,10 +118,14 @@ gum_try_init_libc_name (void)
 {
   Dl_info info = { NULL, };
 
-  dladdr (dlsym (RTLD_DEFAULT, "exit"), &info);
+  dladdr (dlsym (RTLD_DEFAULT, "__libc_start_main"), &info);
 
   if (info.dli_fname == NULL)
-    return NULL;
+  {
+    dladdr (dlsym (RTLD_DEFAULT, "exit"), &info);
+    if (info.dli_fname == NULL)
+      return NULL;
+  }
 
   gum_libc_name = g_strdup (info.dli_fname);
 
