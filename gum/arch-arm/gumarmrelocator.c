@@ -611,7 +611,6 @@ gum_arm_relocator_rewrite_add (GumArmRelocator * self,
       gum_arm_writer_put_mov_reg_reg_shift (ctx->output, target, target,
           ARM_SFT_ROR, operands[3].imm);
     }
-    
 
     /*
      * Now the shifted second operand has been calculated, we can simply add the
