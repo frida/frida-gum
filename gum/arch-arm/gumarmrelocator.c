@@ -576,7 +576,8 @@ gum_arm_relocator_rewrite_add (GumArmRelocator * self,
     {
       /* Handle 'ADD Rd, Rn, Rm' */
       gum_arm_writer_put_ldr_reg_address (ctx->output, target, ctx->pc);
-      gum_arm_writer_put_add_reg_reg_imm (ctx->output, target, right->reg, 0);
+      gum_arm_writer_put_add_reg_reg_reg (ctx->output, target, target,
+          right->reg);
     }
   }
   else
