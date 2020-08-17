@@ -5,7 +5,6 @@
  */
 
 #include "armwriter-fixture.c"
-#include "gumarmreg.h"
 
 TESTLIST_BEGIN (armwriter)
   TESTENTRY (ldr_u32)
