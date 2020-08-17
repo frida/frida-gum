@@ -617,23 +617,15 @@ gum_arm_writer_put_ldr_cond_reg_reg_offset (GumArmWriter * self,
   return TRUE;
 }
 
-gboolean
+void
 gum_arm_writer_put_ldmia_reg_mask (GumArmWriter * self,
                                    arm_reg reg,
                                    guint16 mask)
 {
   GumArmRegInfo ri;
-  gboolean any_overlap;
 
   gum_arm_reg_describe (reg, &ri);
-
-  any_overlap = ((1 << ri.index) & mask) != 0;
-  if (any_overlap)
-    return FALSE;
-
   gum_arm_writer_put_instruction (self, 0xe8b00000 | (ri.index << 16) | mask);
-
-  return TRUE;
 }
 
 gboolean
