@@ -549,7 +549,7 @@ gum_arm_relocator_rewrite_add (GumArmRelocator * self,
     target = dst->reg;
   }
 
-  if (right->shift.value == 0)
+  if (right->shift.value == 0 && ctx->detail->op_count < 4)
   {
     /*
      * We have no shift to apply, so we start our calculation with the value of
@@ -602,8 +602,16 @@ gum_arm_relocator_rewrite_add (GumArmRelocator * self,
       gum_arm_writer_put_mov_reg_reg (ctx->output, target, right->reg);
     }
 
-    gum_arm_writer_put_mov_reg_reg_shift (ctx->output, target, target,
-        right->shift.type, right->shift.value);
+    if (ctx->detail->op_count < 4)
+    {
+      gum_arm_writer_put_mov_reg_reg_shift (ctx->output, target, target,
+          right->shift.type, right->shift.value);
+    }
+    else
+    {
+      gum_arm_writer_put_mov_reg_reg_shift (ctx->output, target, target,
+          ARM_SFT_ROR, operands[3].imm);
+    }
 
     /*
      * Now the shifted second operand has been calculated, we can simply add the

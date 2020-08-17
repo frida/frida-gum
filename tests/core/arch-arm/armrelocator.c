@@ -20,6 +20,7 @@ TESTLIST_BEGIN (armrelocator)
   TESTENTRY (pc_relative_add_with_pc_on_rhs_should_be_rewritten)
   TESTENTRY (pc_relative_add_lsl_should_be_rewritten)
   TESTENTRY (pc_relative_add_imm_should_be_rewritten)
+  TESTENTRY (pc_relative_add_imm_ror_should_be_rewritten)
   TESTENTRY (pc_relative_add_with_two_registers_should_be_rewritten)
   TESTENTRY (pc_relative_sub_with_pc_on_lhs_should_be_rewritten)
   TESTENTRY (pc_relative_sub_with_pc_on_rhs_should_be_rewritten)
@@ -298,6 +299,24 @@ TESTCASE (pc_relative_add_imm_should_be_rewritten)
                                 /*  goes here>      */
     }, 3,
     2, 0,
+    -1, -1
+  };
+  branch_scenario_execute (&bs, fixture);
+}
+
+TESTCASE (pc_relative_add_imm_ror_should_be_rewritten)
+{
+  BranchScenario bs = {
+    ARM_INS_ADD,
+    { 0xe28fc604 }, 1,          /* add ip, pc, #4, #12          */
+    {
+      0xe59fc008,               /* ldr ip, [pc, #8]             */
+      0xe1a0c66c,               /* ror ip, ip, #0xc             */
+      0xe28ccc08,               /* add ip, ip, <0xXX >>> 0xc*2> */
+      0xe28cc008,               /* add ip, ip, 0xXX             */
+      0x00000004,               /* #4                           */
+    }, 5,
+    -1, 0,
     -1, -1
   };
   branch_scenario_execute (&bs, fixture);
