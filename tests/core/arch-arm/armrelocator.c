@@ -307,12 +307,12 @@ TESTCASE (pc_relative_add_with_two_registers_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_ADD,
-    { 0xe08f9004 }, 1,          /* add sb, pc, r4   */
+    { 0xe08f9004 }, 1,          /* add sb, pc, r4 */
     {
-      0xe59f9000,               /* ldr sb, [pc]     */
-      0xe0899004,               /* add sb, sb, r4   */
-      0xffffffff                /* <calculated PC   */
-                                /*  goes here>      */
+      0xe59f9000,               /* ldr sb, [pc]   */
+      0xe0899004,               /* add sb, sb, r4 */
+      0xffffffff                /* <calculated PC */
+                                /*  goes here>    */
     }, 3,
     2, 0,
     -1, -1
