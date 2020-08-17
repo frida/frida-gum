@@ -307,7 +307,7 @@ TESTCASE (pc_relative_add_imm_ror_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_ADD,
-    { 0xe28fc604 }, 1,          /* add ip, pc, #4, #12   */
+    { 0xe28fc604 }, 1,          /* add ip, pc, #4, #12          */
     {
       0xe59fc008,               /* ldr ip, [pc, #8]             */
       0xe1a0c66c,               /* ror ip, ip, #0xc             */
