@@ -28,6 +28,8 @@ struct _GumV8EventSink
   GumEventType event_mask;
   GumPersistent<Function>::type * on_receive;
   GumPersistent<Function>::type * on_call_summary;
+  GumPersistent<Function>::type * on_coverage;
+  GumStalkerCoverage coverage;
   GSource * source;
 };
 
@@ -43,6 +45,8 @@ static void gum_v8_event_sink_flush (GumEventSink * sink);
 static void gum_v8_event_sink_stop (GumEventSink * sink);
 static gboolean gum_v8_event_sink_stop_when_idle (GumV8EventSink * self);
 static gboolean gum_v8_event_sink_drain (GumV8EventSink * self);
+static void gum_v8_event_sink_emit_coverage_data (void * sink,
+    gconstpointer data, size_t len);
 
 G_DEFINE_TYPE_EXTENDED (GumV8EventSink,
                         gum_v8_event_sink,
@@ -96,6 +100,9 @@ gum_v8_event_sink_release_core (GumV8EventSink * self)
 
     delete self->on_call_summary;
     self->on_call_summary = nullptr;
+
+    delete self->on_coverage;
+    self->on_coverage = nullptr;
   }
 
   g_object_unref (script);
@@ -117,6 +124,8 @@ gum_v8_event_sink_finalize (GObject * obj)
   g_assert (self->source == NULL);
 
   g_array_free (self->queue, TRUE);
+
+  gum_stalker_coverage_finalize (&self->coverage);
 
   G_OBJECT_CLASS (gum_v8_event_sink_parent_class)->finalize (obj);
 }
@@ -147,6 +156,20 @@ gum_v8_event_sink_new (const GumV8EventSinkOptions * options)
     sink->on_call_summary =
         new GumPersistent<Function>::type (isolate, options->on_call_summary);
   }
+  if (!options->on_coverage.IsEmpty ())
+  {
+    sink->on_coverage =
+        new GumPersistent<Function>::type (isolate, options->on_coverage);
+
+    if ((options->event_mask & GUM_COMPILE) == 0)
+    {
+      g_warning ("Coverage requested, but compile events not enabled");
+    }
+
+  }
+
+  gum_stalker_coverage_init (&sink->coverage);
+  sink->coverage.emit = gum_v8_event_sink_emit_coverage_data;
 
   return GUM_EVENT_SINK (sink);
 }
@@ -307,6 +330,12 @@ gum_v8_event_sink_drain (GumV8EventSink * self)
         scope.ProcessAnyPendingException ();
     }
 
+    if (self->on_coverage != nullptr)
+    {
+      gum_stalker_coverage_emit_events (&self->coverage, self,
+        (GumEvent *)buffer, len);
+    }
+
     if (self->on_receive != nullptr)
     {
       auto on_receive = Local<Function>::New (isolate, *self->on_receive);
@@ -323,4 +352,30 @@ gum_v8_event_sink_drain (GumV8EventSink * self)
   }
 
   return TRUE;
+}
+
+static void
+gum_v8_event_sink_emit_coverage_data (void * sink,
+                                      gconstpointer data,
+                                      size_t len)
+{
+  GumV8EventSink * self = (GumV8EventSink *) sink;
+  auto core = self->core;
+  ScriptScope scope (core->script);
+  auto isolate = core->isolate;
+  auto context = isolate->GetCurrentContext ();
+  auto recv = Undefined (isolate);
+  gpointer buffer;
+
+  buffer = g_memdup (data, len);
+  auto on_coverage = Local<Function>::New (isolate, *self->on_coverage);
+  Local<Value> argv[] = {
+    _gum_v8_array_buffer_new_take (isolate, g_steal_pointer (&buffer),
+        len),
+  };
+  auto result = on_coverage->Call (context, recv, G_N_ELEMENTS (argv),
+      argv);
+  if (result.IsEmpty ())
+    scope.ProcessAnyPendingException ();
+  g_free (buffer);
 }

@@ -326,6 +326,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (call_can_be_probed)
 #endif
     TESTENTRY (stalker_events_can_be_parsed)
+    TESTENTRY (stalker_can_generate_coverage)
   TESTGROUP_END ()
 
   TESTENTRY (script_can_be_compiled_to_bytecode)
@@ -347,6 +348,7 @@ TESTLIST_END ()
 
 typedef struct _GumInvokeTargetContext GumInvokeTargetContext;
 typedef struct _TestTrigger TestTrigger;
+typedef struct _EmitModuleCtx EmitModuleCtx;
 
 struct _GumInvokeTargetContext
 {
@@ -362,6 +364,12 @@ struct _TestTrigger
   volatile gboolean fired;
   GMutex mutex;
   GCond cond;
+};
+
+struct _EmitModuleCtx
+{
+  TestScriptFixture * fixture;
+  guint32 module_count;
 };
 
 static gboolean ignore_thread (GumInterceptor * interceptor);
@@ -399,6 +407,11 @@ static int compare_measurements (gconstpointer element_a,
     gconstpointer element_b);
 
 static gboolean check_exception_handling_testable (void);
+
+static gboolean test_stalker_count_modules (const GumModuleDetails * details,
+    gpointer user_data);
+static gboolean test_stalker_expect_modules (const GumModuleDetails * details,
+    gpointer user_data);
 
 static void on_script_message (GumScript * script, const gchar * message,
     GBytes * data, gpointer user_data);
@@ -2996,6 +3009,96 @@ TESTCASE (stalker_events_can_be_parsed)
   COMPILE_AND_LOAD_SCRIPT ("send(Stalker.parse(new ArrayBuffer(%" G_GSIZE_FORMAT
       ")));", sizeof (GumEvent));
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER, "Error: invalid event type");
+}
+
+TESTCASE (stalker_can_generate_coverage)
+{
+  GumThreadId test_thread_id;
+  guint32 module_count = 0;
+
+  test_thread_id = gum_process_get_current_thread_id ();
+  EmitModuleCtx ctx = {
+    .fixture = fixture,
+    .module_count = 0
+  };
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Stalker.queueDrainInterval = 0;"
+      "new ModuleMap(function (m) {"
+      "  if (m.name == '%s') {"
+      "    return true;"
+      "  } else {"
+      "    Stalker.exclude(m);"
+      "    return false;"
+      "  }"
+      "});"
+      "Stalker.follow(%" G_GSIZE_FORMAT ", {"
+      "  events: {"
+      "    call: false,"
+      "    compile: true,"
+      "    ret: false,"
+      "    exec: false"
+      "  },"
+      "  onReceive: function (events) {"
+      "  },"
+      "  onCoverage: function (data) {"
+      "    var arr = new Uint8Array(data);"
+      "    send('onCoverage: ' + String.fromCharCode.apply(null, arr));"
+      "  }"
+      "});"
+
+      "recv('stop', function (message) {"
+      "  Stalker.unfollow(%" G_GSIZE_FORMAT ");"
+      "  Stalker.flush();"
+      "});",
+
+      GUM_TESTS_MODULE_NAME,
+      test_thread_id,
+      test_thread_id);
+  EXPECT_NO_MESSAGES ();
+
+  POST_MESSAGE ("{\"type\":\"stop\"}");
+  EXPECT_SEND_MESSAGE_WITH ("\"onCoverage: DRCOV VERSION: 2\\n\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"onCoverage: DRCOV FLAVOR: frida\\n\"");
+
+  gum_process_enumerate_modules (test_stalker_count_modules, 
+      &module_count);
+
+  EXPECT_SEND_MESSAGE_WITH ("\"onCoverage: Module Table: version 2, "
+      "count %d\\n\"", module_count);
+
+  EXPECT_SEND_MESSAGE_WITH ("\"onCoverage: Columns: id, base, end, entry, "
+      "checksum, timestamp, path\\n\"");
+
+  gum_process_enumerate_modules (test_stalker_expect_modules, &ctx);
+
+  EXPECT_SEND_MESSAGE_WITH ("\"onCoverage: BB Table: %d bbs\\n\"", -1);
+}
+
+static gboolean
+test_stalker_count_modules (const GumModuleDetails * details,
+                             gpointer user_data)
+{
+  guint32 * module_count = (guint32 *) user_data;
+  *module_count = *module_count + 1;
+  return TRUE;
+}
+
+static gboolean
+test_stalker_expect_modules (const GumModuleDetails * details,
+                             gpointer user_data)
+{
+  EmitModuleCtx * ctx = (EmitModuleCtx *) user_data;
+  TestScriptFixture * fixture = ctx->fixture;
+  char module_entry[128 + PATH_MAX] = {0};
+  snprintf (module_entry, sizeof (module_entry) - 1, 
+    "%3d, %#016lx, %#016lx, %#016x, %#08x, %#08x, %s\\n",
+    ctx->module_count, GPOINTER_TO_SIZE (details->range->base_address),
+    details->range->base_address + details->range->size,
+    0, 0, 0, details->path);
+  ctx->module_count++;
+  EXPECT_SEND_MESSAGE_WITH ("\"onCoverage: %s\"", module_entry);
+  return TRUE;
 }
 
 TESTCASE (frida_version_is_available)

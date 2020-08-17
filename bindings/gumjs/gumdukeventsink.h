@@ -30,6 +30,7 @@ struct _GumDukEventSinkOptions
 
   GumDukHeapPtr on_receive;
   GumDukHeapPtr on_call_summary;
+  GumDukHeapPtr on_coverage;
 };
 
 G_GNUC_INTERNAL GumEventSink * gum_duk_event_sink_new (duk_context * ctx,

@@ -52,6 +52,9 @@ typedef guint GumProbeId;
 typedef struct _GumCallSite GumCallSite;
 typedef void (* GumCallProbeCallback) (GumCallSite * site, gpointer user_data);
 
+typedef struct _GumStalkerCoverage GumStalkerCoverage;
+typedef struct _GumStalkerCoverageEntry GumStalkerCoverageEntry;
+
 struct _GumStalkerTransformerInterface
 {
   GTypeInterface parent;
@@ -81,6 +84,15 @@ struct _GumCallSite
   gpointer block_address;
   gpointer stack_data;
   GumCpuContext * cpu_context;
+};
+
+typedef void (GumCoverageEmitter) (void * sink,
+    gconstpointer data, size_t len);
+
+struct _GumStalkerCoverage
+{
+  GArray * modules;
+  GumCoverageEmitter * emit;
 };
 
 GUM_API gboolean gum_stalker_is_supported (void);
@@ -138,6 +150,11 @@ GUM_API void gum_stalker_iterator_put_callout (GumStalkerIterator * self,
 
 GUM_API void gum_stalker_set_counters_enabled (gboolean enabled);
 GUM_API void gum_stalker_dump_counters (void);
+
+void gum_stalker_coverage_init (GumStalkerCoverage * coverage);
+void gum_stalker_coverage_finalize (GumStalkerCoverage * coverage);
+void gum_stalker_coverage_emit_events (GumStalkerCoverage * self,
+    void * sink, GumEvent * events, guint num_events);
 
 G_END_DECLS
 

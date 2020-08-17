@@ -11,6 +11,8 @@
 #include <gum/gumspinlock.h>
 #include <string.h>
 
+typedef struct _GumDukCoverageEntry GumDukCoverageEntry;
+
 static void gum_duk_event_sink_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_duk_event_sink_dispose (GObject * obj);
@@ -23,6 +25,8 @@ static void gum_duk_event_sink_flush (GumEventSink * sink);
 static void gum_duk_event_sink_stop (GumEventSink * sink);
 static gboolean gum_duk_event_sink_stop_when_idle (GumDukEventSink * self);
 static gboolean gum_duk_event_sink_drain (GumDukEventSink * self);
+static void gum_duk_event_sink_emit_coverage_data (void * ctx,
+    gconstpointer data, duk_size_t len);
 
 struct _GumDukEventSink
 {
@@ -38,6 +42,8 @@ struct _GumDukEventSink
   GumEventType event_mask;
   GumDukHeapPtr on_receive;
   GumDukHeapPtr on_call_summary;
+  GumDukHeapPtr on_coverage;
+  GumStalkerCoverage coverage;
   GSource * source;
 };
 
@@ -93,6 +99,7 @@ gum_duk_event_sink_release_core (GumDukEventSink * self)
 
     _gum_duk_unprotect (ctx, g_steal_pointer (&self->on_receive));
     _gum_duk_unprotect (ctx, g_steal_pointer (&self->on_call_summary));
+    _gum_duk_unprotect (ctx, g_steal_pointer (&self->on_coverage));
 
     _gum_duk_scope_leave (&scope);
   }
@@ -117,8 +124,12 @@ gum_duk_event_sink_finalize (GObject * obj)
 
   g_array_free (self->queue, TRUE);
 
+  gum_stalker_coverage_finalize (&self->coverage);
+
   G_OBJECT_CLASS (gum_duk_event_sink_parent_class)->finalize (obj);
 }
+
+
 
 GumEventSink *
 gum_duk_event_sink_new (duk_context * ctx,
@@ -141,6 +152,16 @@ gum_duk_event_sink_new (duk_context * ctx,
   _gum_duk_protect (ctx, sink->on_receive);
   sink->on_call_summary = options->on_call_summary;
   _gum_duk_protect (ctx, sink->on_call_summary);
+  sink->on_coverage = options->on_coverage;
+  _gum_duk_protect (ctx, sink->on_coverage);
+  if (options->on_coverage != NULL &&
+      (options->event_mask & GUM_COMPILE) == 0)
+  {
+    g_warning ("Coverage requested, but compile events not enabled");
+  }
+
+  gum_stalker_coverage_init (&sink->coverage);
+  sink->coverage.emit = gum_duk_event_sink_emit_coverage_data;
 
   return GUM_EVENT_SINK (sink);
 }
@@ -297,6 +318,12 @@ gum_duk_event_sink_drain (GumDukEventSink * self)
     duk_pop (ctx);
   }
 
+  if (self->on_coverage != NULL)
+  {
+    gum_stalker_coverage_emit_events (&self->coverage, self,
+        (GumEvent *)buffer_data, len);
+  }
+
   if (self->on_receive != NULL)
   {
     duk_push_heapptr (ctx, self->on_receive);
@@ -314,4 +341,26 @@ gum_duk_event_sink_drain (GumDukEventSink * self)
   _gum_duk_scope_leave (&scope);
 
   return TRUE;
+}
+
+static void
+gum_duk_event_sink_emit_coverage_data (void * sink,
+                                       gconstpointer data,
+                                       size_t len)
+{
+  GumDukEventSink * self = (GumDukEventSink *) sink;
+  GumDukCore * core = self->core;
+  duk_context * ctx;
+  GumDukScope scope;
+  gpointer buffer_data;
+
+
+  ctx = _gum_duk_scope_enter (&scope, core);
+  buffer_data = duk_push_fixed_buffer (ctx, len);
+  memcpy (buffer_data, data, len);
+  duk_push_heapptr (ctx, self->on_coverage);
+  duk_push_buffer_object (ctx, -2, 0, len, DUK_BUFOBJ_ARRAYBUFFER);
+  _gum_duk_scope_call (&scope, 1);
+  duk_pop_2 (ctx);
+  _gum_duk_scope_leave (&scope);
 }

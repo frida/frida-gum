@@ -435,6 +435,7 @@ Object.defineProperties(Stalker, {
         events = {},
         onReceive = null,
         onCallSummary = null,
+        onCoverage = null,
         data = NULL,
       } = options;
 
@@ -453,7 +454,7 @@ Object.defineProperties(Stalker, {
         return enabled ? (result | value) : result;
       }, 0);
 
-      Stalker._follow(threadId, transform, eventMask, onReceive, onCallSummary, data);
+      Stalker._follow(threadId, transform, eventMask, onReceive, onCallSummary, onCoverage, data);
     }
   },
   parse: {

@@ -25,6 +25,7 @@ struct GumV8EventSinkOptions
   guint queue_drain_interval;
   v8::Local<v8::Function> on_receive;
   v8::Local<v8::Function> on_call_summary;
+  v8::Local<v8::Function> on_coverage;
 };
 
 G_GNUC_INTERNAL GumEventSink * gum_v8_event_sink_new (

@@ -551,10 +551,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
 
   gpointer user_data;
 
-  if (!_gum_v8_args_parse (args, "ZF*?uF?F?p", &thread_id,
+  if (!_gum_v8_args_parse (args, "ZF*?uF?F?F?p", &thread_id,
       &transformer_callback_js, &transformer_callback_c,
       &so.event_mask, &so.on_receive, &so.on_call_summary,
-      &user_data))
+      &so.on_coverage, &user_data))
     return;
 
   GumStalkerTransformer * transformer = NULL;
