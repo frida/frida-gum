@@ -121,5 +121,5 @@ TESTCASE (ldmia_with_rn_in_reglist)
   gum_arm_writer_put_ldmia_reg_mask (&fixture->aw, ARM_REG_SP, mask);
   gum_arm_writer_flush (&fixture->aw);
   /* pop {r4, r5, r6, r7, r8, sb, sl, fp, ip, sp, pc} */
-  assert_output_n_equals (0, 0xe8bdbff0); 
+  assert_output_n_equals (0, 0xe8bdbff0);
 }
