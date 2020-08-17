@@ -6,6 +6,7 @@
 
 #include "gumarmwriter.h"
 
+#include "gumarmreg.h"
 #include "testutil.h"
 
 #include <string.h>
