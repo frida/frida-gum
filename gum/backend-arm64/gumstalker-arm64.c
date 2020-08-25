@@ -636,7 +636,7 @@ _gum_stalker_do_follow_me (GumStalker * self,
     return ret_addr;
   }
 
-  gum_event_sink_start (sink);
+  gum_event_sink_start (ctx->sink);
   ctx->sink_started = TRUE;
 
   return code_address + GUM_RESTORATION_PROLOG_SIZE;
@@ -999,9 +999,14 @@ gum_stalker_create_exec_ctx (GumStalker * self,
       GUM_STALKER_TRANSFORMER_GET_IFACE (ctx->transformer)->transform_block;
   g_queue_init (&ctx->callout_entries);
   gum_spinlock_init (&ctx->callout_lock);
-  ctx->sink = g_object_ref (sink);
-  ctx->sink_mask = gum_event_sink_query_mask (sink);
-  ctx->sink_process_impl = GUM_EVENT_SINK_GET_IFACE (sink)->process;
+
+  if (sink != NULL)
+    ctx->sink = g_object_ref (sink);
+  else
+    ctx->sink = gum_event_sink_make_default ();
+
+  ctx->sink_mask = gum_event_sink_query_mask (ctx->sink);
+  ctx->sink_process_impl = GUM_EVENT_SINK_GET_IFACE (ctx->sink)->process;
 
   ctx->frames =
       gum_memory_allocate (NULL, self->page_size, self->page_size, GUM_PAGE_RW);

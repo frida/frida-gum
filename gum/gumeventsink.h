@@ -16,6 +16,10 @@ G_BEGIN_DECLS
 #define GUM_TYPE_EVENT_SINK (gum_event_sink_get_type ())
 G_DECLARE_INTERFACE (GumEventSink, gum_event_sink, GUM, EVENT_SINK, GObject)
 
+#define GUM_TYPE_DEFAULT_EVENT_SINK (gum_default_event_sink_get_type ())
+G_DECLARE_FINAL_TYPE (GumDefaultEventSink, gum_default_event_sink, GUM,
+    DEFAULT_EVENT_SINK, GObject)
+
 struct _GumEventSinkInterface
 {
   GTypeInterface parent;
@@ -32,6 +36,8 @@ GUM_API void gum_event_sink_start (GumEventSink * self);
 GUM_API void gum_event_sink_process (GumEventSink * self, const GumEvent * ev);
 GUM_API void gum_event_sink_flush (GumEventSink * self);
 GUM_API void gum_event_sink_stop (GumEventSink * self);
+
+GUM_API GumEventSink * gum_event_sink_make_default (void);
 
 G_END_DECLS
 

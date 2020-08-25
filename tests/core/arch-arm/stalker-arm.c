@@ -92,6 +92,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (unfollow_should_be_allowed_before_second_transform)
   TESTENTRY (unfollow_should_be_allowed_mid_second_transform)
   TESTENTRY (unfollow_should_be_allowed_after_second_transform)
+  TESTENTRY (follow_me_should_support_nullable_event_sink)
 
   TESTENTRY (follow_syscall)
   TESTENTRY (follow_thread)
@@ -2503,6 +2504,16 @@ unfollow_during_transform (GumStalkerIterator * iterator,
   }
 
   ctx->num_blocks_transformed++;
+}
+
+TESTCASE (follow_me_should_support_nullable_event_sink)
+{
+  gpointer p;
+
+  gum_stalker_follow_me (fixture->stalker, NULL, NULL);
+  p = malloc (1);
+  free (p);
+  gum_stalker_unfollow_me (fixture->stalker);
 }
 
 TESTCASE (follow_syscall)
