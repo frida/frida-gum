@@ -364,6 +364,7 @@ if __name__ == '__main__':
 
     v8_options = [
         "-x", # No need for Babel, V8 supports modern JS.
+        "-c", # Compress for smaller code and better performance.
     ]
     subprocess.check_call([node_script_path("frida-compile"), "./runtime/entrypoint-v8.js", "-o", runtime] + v8_options, cwd=input_dir)
     subprocess.check_call([node_script_path("frida-compile"), "./runtime/objc.js", "-o", objc] + v8_options, cwd=input_dir)
