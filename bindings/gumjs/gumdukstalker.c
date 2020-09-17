@@ -200,7 +200,7 @@ static const duk_function_list_entry gumjs_stalker_functions[] =
   { "flush", gumjs_stalker_flush, 0 },
   { "garbageCollect", gumjs_stalker_garbage_collect, 0 },
   { "_exclude", gumjs_stalker_exclude, 2 },
-  { "_follow", gumjs_stalker_follow, 6 },
+  { "_follow", gumjs_stalker_follow, 7 },
   { "unfollow", gumjs_stalker_unfollow, 1 },
   { "addCallProbe", gumjs_stalker_add_call_probe, 3 },
   { "removeCallProbe", gumjs_stalker_remove_call_probe, 1 },
@@ -536,9 +536,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
   so.queue_capacity = module->queue_capacity;
   so.queue_drain_interval = module->queue_drain_interval;
 
-  _gum_duk_args_parse (args, "ZF*?uF?F?p", &thread_id, &transformer_callback_js,
-      &transformer_callback_c, &so.event_mask, &so.on_receive,
-      &so.on_call_summary, &user_data);
+  _gum_duk_args_parse (args, "ZF*?uF?F?pp", &thread_id,
+      &transformer_callback_js, &transformer_callback_c, &so.event_mask,
+      &so.on_receive, &so.on_call_summary, &so.on_event, &user_data);
+
+  so.user_data = user_data;
 
   if (transformer_callback_js != NULL)
   {

@@ -435,11 +435,15 @@ Object.defineProperties(Stalker, {
         events = {},
         onReceive = null,
         onCallSummary = null,
+        onEvent = NULL,
         data = NULL,
       } = options;
 
       if (events === null || typeof events !== 'object')
         throw new Error('events must be an object');
+
+      if (!data.isNull() && (onReceive !== null || onCallSummary !== null))
+        throw new Error('onEvent precludes passing onReceive/onCallSummary');
 
       const eventMask = Object.keys(events).reduce((result, name) => {
         const value = stalkerEventType[name];
@@ -453,7 +457,7 @@ Object.defineProperties(Stalker, {
         return enabled ? (result | value) : result;
       }, 0);
 
-      Stalker._follow(threadId, transform, eventMask, onReceive, onCallSummary, data);
+      Stalker._follow(threadId, transform, eventMask, onReceive, onCallSummary, onEvent, data);
     }
   },
   parse: {

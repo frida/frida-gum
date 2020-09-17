@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -11,20 +11,7 @@
 #include <gum/gumspinlock.h>
 #include <string.h>
 
-static void gum_duk_event_sink_iface_init (gpointer g_iface,
-    gpointer iface_data);
-static void gum_duk_event_sink_dispose (GObject * obj);
-static void gum_duk_event_sink_finalize (GObject * obj);
-static GumEventType gum_duk_event_sink_query_mask (GumEventSink * sink);
-static void gum_duk_event_sink_start (GumEventSink * sink);
-static void gum_duk_event_sink_process (GumEventSink * sink,
-    const GumEvent * ev);
-static void gum_duk_event_sink_flush (GumEventSink * sink);
-static void gum_duk_event_sink_stop (GumEventSink * sink);
-static gboolean gum_duk_event_sink_stop_when_idle (GumDukEventSink * self);
-static gboolean gum_duk_event_sink_drain (GumDukEventSink * self);
-
-struct _GumDukEventSink
+struct _GumDukJSEventSink
 {
   GObject parent;
 
@@ -41,43 +28,122 @@ struct _GumDukEventSink
   GSource * source;
 };
 
-G_DEFINE_TYPE_EXTENDED (GumDukEventSink,
-                        gum_duk_event_sink,
+struct _GumDukNativeEventSink
+{
+  GObject parent;
+
+  GumEventType event_mask;
+  GumDukOnEvent on_event;
+  gpointer user_data;
+};
+
+static void gum_duk_js_event_sink_iface_init (gpointer g_iface,
+    gpointer iface_data);
+static void gum_duk_js_event_sink_dispose (GObject * obj);
+static void gum_duk_js_event_sink_finalize (GObject * obj);
+static GumEventType gum_duk_js_event_sink_query_mask (GumEventSink * sink);
+static void gum_duk_js_event_sink_start (GumEventSink * sink);
+static void gum_duk_js_event_sink_process (GumEventSink * sink,
+    const GumEvent * ev);
+static void gum_duk_js_event_sink_flush (GumEventSink * sink);
+static void gum_duk_js_event_sink_stop (GumEventSink * sink);
+static gboolean gum_duk_js_event_sink_stop_when_idle (GumDukJSEventSink * self);
+static gboolean gum_duk_js_event_sink_drain (GumDukJSEventSink * self);
+
+static void gum_duk_native_event_sink_iface_init (gpointer g_iface,
+    gpointer iface_data);
+static GumEventType gum_duk_native_event_sink_query_mask (GumEventSink * sink);
+static void gum_duk_native_event_sink_start (GumEventSink * sink);
+static void gum_duk_native_event_sink_process (GumEventSink * sink,
+    const GumEvent * ev);
+static void gum_duk_native_event_sink_flush (GumEventSink * sink);
+static void gum_duk_native_event_sink_stop (GumEventSink * sink);
+
+G_DEFINE_TYPE_EXTENDED (GumDukJSEventSink,
+                        gum_duk_js_event_sink,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_EVENT_SINK,
-                            gum_duk_event_sink_iface_init))
+                            gum_duk_js_event_sink_iface_init))
+
+G_DEFINE_TYPE_EXTENDED (GumDukNativeEventSink,
+                        gum_duk_native_event_sink,
+                        G_TYPE_OBJECT,
+                        0,
+                        G_IMPLEMENT_INTERFACE (GUM_TYPE_EVENT_SINK,
+                            gum_duk_native_event_sink_iface_init))
+
+GumEventSink *
+gum_duk_event_sink_new (duk_context * ctx,
+                        const GumDukEventSinkOptions * options)
+{
+  if (options->on_event != NULL)
+  {
+    GumDukNativeEventSink * sink;
+
+    sink = g_object_new (GUM_DUK_TYPE_NATIVE_EVENT_SINK, NULL);
+
+    sink->event_mask = options->event_mask;
+    sink->on_event = options->on_event;
+    sink->user_data = options->user_data;
+
+    return GUM_EVENT_SINK (sink);
+  }
+  else
+  {
+    GumDukJSEventSink * sink;
+
+    sink = g_object_new (GUM_DUK_TYPE_JS_EVENT_SINK, NULL);
+
+    sink->queue = g_array_sized_new (FALSE, FALSE, sizeof (GumEvent),
+        options->queue_capacity);
+    sink->queue_capacity = options->queue_capacity;
+    sink->queue_drain_interval = options->queue_drain_interval;
+
+    g_object_ref (options->core->script);
+    sink->core = options->core;
+    sink->main_context = options->main_context;
+    sink->event_mask = options->event_mask;
+
+    sink->on_receive = options->on_receive;
+    _gum_duk_protect (ctx, sink->on_receive);
+    sink->on_call_summary = options->on_call_summary;
+    _gum_duk_protect (ctx, sink->on_call_summary);
+
+    return GUM_EVENT_SINK (sink);
+  }
+}
 
 static void
-gum_duk_event_sink_class_init (GumDukEventSinkClass * klass)
+gum_duk_js_event_sink_class_init (GumDukJSEventSinkClass * klass)
 {
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
 
-  object_class->dispose = gum_duk_event_sink_dispose;
-  object_class->finalize = gum_duk_event_sink_finalize;
+  object_class->dispose = gum_duk_js_event_sink_dispose;
+  object_class->finalize = gum_duk_js_event_sink_finalize;
 }
 
 static void
-gum_duk_event_sink_iface_init (gpointer g_iface,
-                               gpointer iface_data)
+gum_duk_js_event_sink_iface_init (gpointer g_iface,
+                                  gpointer iface_data)
 {
   GumEventSinkInterface * iface = g_iface;
 
-  iface->query_mask = gum_duk_event_sink_query_mask;
-  iface->start = gum_duk_event_sink_start;
-  iface->process = gum_duk_event_sink_process;
-  iface->flush = gum_duk_event_sink_flush;
-  iface->stop = gum_duk_event_sink_stop;
+  iface->query_mask = gum_duk_js_event_sink_query_mask;
+  iface->start = gum_duk_js_event_sink_start;
+  iface->process = gum_duk_js_event_sink_process;
+  iface->flush = gum_duk_js_event_sink_flush;
+  iface->stop = gum_duk_js_event_sink_stop;
 }
 
 static void
-gum_duk_event_sink_init (GumDukEventSink * self)
+gum_duk_js_event_sink_init (GumDukJSEventSink * self)
 {
   gum_spinlock_init (&self->lock);
 }
 
 static void
-gum_duk_event_sink_release_core (GumDukEventSink * self)
+gum_duk_js_event_sink_release_core (GumDukJSEventSink * self)
 {
   GumDukCore * core;
 
@@ -101,75 +167,51 @@ gum_duk_event_sink_release_core (GumDukEventSink * self)
 }
 
 static void
-gum_duk_event_sink_dispose (GObject * obj)
+gum_duk_js_event_sink_dispose (GObject * obj)
 {
-  gum_duk_event_sink_release_core (GUM_DUK_EVENT_SINK (obj));
+  gum_duk_js_event_sink_release_core (GUM_DUK_JS_EVENT_SINK (obj));
 
-  G_OBJECT_CLASS (gum_duk_event_sink_parent_class)->dispose (obj);
+  G_OBJECT_CLASS (gum_duk_js_event_sink_parent_class)->dispose (obj);
 }
 
 static void
-gum_duk_event_sink_finalize (GObject * obj)
+gum_duk_js_event_sink_finalize (GObject * obj)
 {
-  GumDukEventSink * self = GUM_DUK_EVENT_SINK (obj);
+  GumDukJSEventSink * self = GUM_DUK_JS_EVENT_SINK (obj);
 
   g_assert (self->source == NULL);
 
   g_array_free (self->queue, TRUE);
 
-  G_OBJECT_CLASS (gum_duk_event_sink_parent_class)->finalize (obj);
-}
-
-GumEventSink *
-gum_duk_event_sink_new (duk_context * ctx,
-                        const GumDukEventSinkOptions * options)
-{
-  GumDukEventSink * sink;
-
-  sink = g_object_new (GUM_DUK_TYPE_EVENT_SINK, NULL);
-  sink->queue = g_array_sized_new (FALSE, FALSE, sizeof (GumEvent),
-      options->queue_capacity);
-  sink->queue_capacity = options->queue_capacity;
-  sink->queue_drain_interval = options->queue_drain_interval;
-
-  g_object_ref (options->core->script);
-  sink->core = options->core;
-  sink->main_context = options->main_context;
-  sink->event_mask = options->event_mask;
-
-  sink->on_receive = options->on_receive;
-  _gum_duk_protect (ctx, sink->on_receive);
-  sink->on_call_summary = options->on_call_summary;
-  _gum_duk_protect (ctx, sink->on_call_summary);
-
-  return GUM_EVENT_SINK (sink);
+  G_OBJECT_CLASS (gum_duk_js_event_sink_parent_class)->finalize (obj);
 }
 
 static GumEventType
-gum_duk_event_sink_query_mask (GumEventSink * sink)
+gum_duk_js_event_sink_query_mask (GumEventSink * sink)
 {
-  return GUM_DUK_EVENT_SINK (sink)->event_mask;
+  return GUM_DUK_JS_EVENT_SINK (sink)->event_mask;
 }
 
 static void
-gum_duk_event_sink_start (GumEventSink * sink)
+gum_duk_js_event_sink_start (GumEventSink * sink)
 {
-  GumDukEventSink * self = GUM_DUK_EVENT_SINK (sink);
+  GumDukJSEventSink * self = GUM_DUK_JS_EVENT_SINK (sink);
 
   if (self->queue_drain_interval != 0)
   {
     self->source = g_timeout_source_new (self->queue_drain_interval);
-    g_source_set_callback (self->source, (GSourceFunc) gum_duk_event_sink_drain,
-        g_object_ref (self), g_object_unref);
+    g_source_set_callback (self->source,
+        (GSourceFunc) gum_duk_js_event_sink_drain, g_object_ref (self),
+        g_object_unref);
     g_source_attach (self->source, self->main_context);
   }
 }
 
 static void
-gum_duk_event_sink_process (GumEventSink * sink,
-                           const GumEvent * ev)
+gum_duk_js_event_sink_process (GumEventSink * sink,
+                               const GumEvent * ev)
 {
-  GumDukEventSink * self = GUM_DUK_EVENT_SINK_CAST (sink);
+  GumDukJSEventSink * self = GUM_DUK_JS_EVENT_SINK_CAST (sink);
 
   gum_spinlock_acquire (&self->lock);
   if (self->queue->len != self->queue_capacity)
@@ -178,19 +220,19 @@ gum_duk_event_sink_process (GumEventSink * sink,
 }
 
 static void
-gum_duk_event_sink_flush (GumEventSink * sink)
+gum_duk_js_event_sink_flush (GumEventSink * sink)
 {
-  gum_duk_event_sink_drain (GUM_DUK_EVENT_SINK (sink));
+  gum_duk_js_event_sink_drain (GUM_DUK_JS_EVENT_SINK (sink));
 }
 
 static void
-gum_duk_event_sink_stop (GumEventSink * sink)
+gum_duk_js_event_sink_stop (GumEventSink * sink)
 {
-  GumDukEventSink * self = GUM_DUK_EVENT_SINK (sink);
+  GumDukJSEventSink * self = GUM_DUK_JS_EVENT_SINK (sink);
 
   if (g_main_context_is_owner (self->main_context))
   {
-    gum_duk_event_sink_stop_when_idle (self);
+    gum_duk_js_event_sink_stop_when_idle (self);
   }
   else
   {
@@ -198,7 +240,7 @@ gum_duk_event_sink_stop (GumEventSink * sink)
 
     source = g_idle_source_new ();
     g_source_set_callback (source,
-        (GSourceFunc) gum_duk_event_sink_stop_when_idle, g_object_ref (self),
+        (GSourceFunc) gum_duk_js_event_sink_stop_when_idle, g_object_ref (self),
         g_object_unref);
     g_source_attach (source, self->main_context);
     g_source_unref (source);
@@ -206,9 +248,9 @@ gum_duk_event_sink_stop (GumEventSink * sink)
 }
 
 static gboolean
-gum_duk_event_sink_stop_when_idle (GumDukEventSink * self)
+gum_duk_js_event_sink_stop_when_idle (GumDukJSEventSink * self)
 {
-  gum_duk_event_sink_drain (self);
+  gum_duk_js_event_sink_drain (self);
 
   g_object_ref (self);
 
@@ -219,7 +261,7 @@ gum_duk_event_sink_stop_when_idle (GumDukEventSink * self)
     self->source = NULL;
   }
 
-  gum_duk_event_sink_release_core (self);
+  gum_duk_js_event_sink_release_core (self);
 
   g_object_unref (self);
 
@@ -227,7 +269,7 @@ gum_duk_event_sink_stop_when_idle (GumDukEventSink * self)
 }
 
 static gboolean
-gum_duk_event_sink_drain (GumDukEventSink * self)
+gum_duk_js_event_sink_drain (GumDukJSEventSink * self)
 {
   GumDukCore * core = self->core;
   gpointer buffer_data;
@@ -314,4 +356,57 @@ gum_duk_event_sink_drain (GumDukEventSink * self)
   _gum_duk_scope_leave (&scope);
 
   return TRUE;
+}
+
+static void
+gum_duk_native_event_sink_class_init (GumDukNativeEventSinkClass * klass)
+{
+}
+
+static void
+gum_duk_native_event_sink_iface_init (gpointer g_iface,
+                                      gpointer iface_data)
+{
+  GumEventSinkInterface * iface = g_iface;
+
+  iface->query_mask = gum_duk_native_event_sink_query_mask;
+  iface->start = gum_duk_native_event_sink_start;
+  iface->process = gum_duk_native_event_sink_process;
+  iface->flush = gum_duk_native_event_sink_flush;
+  iface->stop = gum_duk_native_event_sink_stop;
+}
+
+static void
+gum_duk_native_event_sink_init (GumDukNativeEventSink * self)
+{
+}
+
+static GumEventType
+gum_duk_native_event_sink_query_mask (GumEventSink * sink)
+{
+  return GUM_DUK_NATIVE_EVENT_SINK (sink)->event_mask;
+}
+
+static void
+gum_duk_native_event_sink_start (GumEventSink * sink)
+{
+}
+
+static void
+gum_duk_native_event_sink_process (GumEventSink * sink,
+                                   const GumEvent * ev)
+{
+  GumDukNativeEventSink * self = GUM_DUK_NATIVE_EVENT_SINK_CAST (sink);
+
+  self->on_event (ev, self->user_data);
+}
+
+static void
+gum_duk_native_event_sink_flush (GumEventSink * sink)
+{
+}
+
+static void
+gum_duk_native_event_sink_stop (GumEventSink * sink)
+{
 }

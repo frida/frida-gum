@@ -282,6 +282,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (cmodule_should_provide_lifecycle_hooks)
     TESTENTRY (cmodule_can_be_used_with_interceptor_attach)
     TESTENTRY (cmodule_can_be_used_with_interceptor_replace)
+    TESTENTRY (cmodule_can_be_used_with_stalker_events)
     TESTENTRY (cmodule_can_be_used_with_stalker_transform)
     TESTENTRY (cmodule_can_be_used_with_stalker_callout)
     TESTENTRY (cmodule_can_be_used_with_stalker_call_probe)
@@ -6504,6 +6505,83 @@ TESTCASE (cmodule_can_be_used_with_interceptor_replace)
 
   gum_script_unload_sync (fixture->script, NULL);
   g_assert_cmpint (target_function_int (7), ==, 315);
+}
+
+TESTCASE (cmodule_can_be_used_with_stalker_events)
+{
+  GumThreadId test_thread_id;
+  guint num_events = 0;
+  gsize seen_user_data = 0;
+
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
+  test_thread_id = gum_process_get_current_thread_id ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var m = new CModule('"
+      "#include <stdio.h>\\n"
+      "#include <gum/gumstalker.h>\\n"
+      "\\n"
+      "extern guint numEvents;\\n"
+      "extern gpointer seenUserData;\\n"
+      "\\n"
+      "void\\n"
+      "process (const GumEvent * event,\\n"
+      "         gpointer user_data)\\n"
+      "{\\n"
+      "  switch (event->type)\\n"
+      "  {\\n"
+      "    case GUM_CALL:\\n"
+      "      printf (\"[*] CALL\\\\n\");\\n"
+      "      break;\\n"
+      "    case GUM_RET:\\n"
+      "      printf (\"[*] RET\\\\n\");\\n"
+      "      break;\\n"
+      "    case GUM_EXEC:\\n"
+      "      printf (\"[*] EXEC\\\\n\");\\n"
+      "      break;\\n"
+      "    case GUM_BLOCK:\\n"
+      "      printf (\"[*] BLOCK\\\\n\");\\n"
+      "      break;\\n"
+      "    case GUM_COMPILE:\\n"
+      "      printf (\"[*] COMPILE\\\\n\");\\n"
+      "      break;\\n"
+      "    default:\\n"
+      "      printf (\"[*] UNKNOWN\\\\n\");\\n"
+      "      break;\\n"
+      "  }\\n"
+      "\\n"
+      "  numEvents++;\\n"
+      "  seenUserData = user_data;\\n"
+      "}\\n"
+      "', {"
+      "  numEvents: " GUM_PTR_CONST ","
+      "  seenUserData: " GUM_PTR_CONST
+      "});"
+      "Stalker.follow(%" G_GSIZE_FORMAT ", {"
+      "  events: { compile: true, call: true, ret: true },"
+      "  onEvent: m.process,"
+      "  data: ptr(42)"
+      "});"
+      "recv('stop', function (message) {"
+      "  Stalker.unfollow(%" G_GSIZE_FORMAT ");"
+      "  send('done');"
+      "});",
+      &num_events,
+      &seen_user_data,
+      test_thread_id,
+      test_thread_id);
+  g_usleep (1);
+  EXPECT_NO_MESSAGES ();
+  POST_MESSAGE ("{\"type\":\"stop\"}");
+  EXPECT_SEND_MESSAGE_WITH ("\"done\"");
+  EXPECT_NO_MESSAGES ();
+  g_assert_true (num_events > 0);
+  g_assert_cmphex (seen_user_data, ==, 42);
 }
 
 TESTCASE (cmodule_can_be_used_with_stalker_transform)
