@@ -6,7 +6,7 @@
   "main": "runtime/index.js",
   "devDependencies": {
     "frida-compile": "^9.5.0",
-    "frida-java-bridge": "3.9.1",
+    "frida-java-bridge": "3.9.2",
     "frida-objc-bridge": "5.0.1",
     "promiscuous": "0.7.2"
   },
