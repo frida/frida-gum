@@ -6581,7 +6581,6 @@ TESTCASE (cmodule_can_be_used_with_stalker_transform)
       "  numTransforms: " GUM_PTR_CONST ","
       "  seenUserData: " GUM_PTR_CONST
       "});"
-      "var instructionsSeen = 0;"
       "Stalker.follow(%" G_GSIZE_FORMAT ", {"
       "  transform: m.transform,"
       "  data: ptr(3)"
