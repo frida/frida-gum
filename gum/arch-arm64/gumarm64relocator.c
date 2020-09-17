@@ -462,11 +462,17 @@ gum_arm64_relocator_can_relocate (gpointer address,
             break;
           }
           case ARM64_INS_RET:
+          case ARM64_INS_RETAA:
+          case ARM64_INS_RETAB:
           {
             carry_on = FALSE;
             break;
           }
           case ARM64_INS_BR:
+          case ARM64_INS_BRAA:
+          case ARM64_INS_BRAAZ:
+          case ARM64_INS_BRAB:
+          case ARM64_INS_BRABZ:
           {
             carry_on = FALSE;
             break;
