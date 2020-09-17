@@ -133,7 +133,6 @@ struct _GumExecCtx
   gboolean sink_started;
   GumEventType sink_mask;
   void (* sink_process_impl) (GumEventSink * self, const GumEvent * ev);
-  GumEvent tmp_event;
 
   gboolean unfollow_called_while_still_following;
   GumExecBlock * current_block;
@@ -1482,11 +1481,13 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
 
   if ((ctx->sink_mask & GUM_COMPILE) != 0)
   {
-    ctx->tmp_event.type = GUM_COMPILE;
-    ctx->tmp_event.compile.begin = block->real_begin;
-    ctx->tmp_event.compile.end = block->real_end;
+    GumEvent ev;
 
-    gum_event_sink_process (ctx->sink, &ctx->tmp_event);
+    ev.type = GUM_COMPILE;
+    ev.compile.begin = block->real_begin;
+    ev.compile.end = block->real_end;
+
+    gum_event_sink_process (ctx->sink, &ev);
   }
 
   return block;
