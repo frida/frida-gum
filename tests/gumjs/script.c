@@ -329,6 +329,12 @@ TESTLIST_BEGIN (script)
     TESTENTRY (stalker_events_can_be_parsed)
   TESTGROUP_END ()
 
+  TESTGROUP_BEGIN ("Dynamic")
+    TESTENTRY (dynamic_script_can_be_compiled)
+    TESTENTRY (dynamic_script_should_be_isolated)
+    TESTENTRY (dynamic_script_should_be_strict)
+  TESTGROUP_END ()
+
   TESTENTRY (script_can_be_compiled_to_bytecode)
   TESTENTRY (script_can_be_reloaded)
   TESTENTRY (script_should_not_leak_if_destroyed_before_load)
@@ -7475,6 +7481,36 @@ TESTCASE (source_maps_should_be_supported_for_user_scripts)
   g_assert_nonnull (strstr (item->message, "\"lineNumber\":12"));
   g_assert_nonnull (strstr (item->message, "\"columnNumber\":1"));
   test_script_message_item_free (item);
+}
+
+TESTCASE (dynamic_script_can_be_compiled)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var m = Script.load({"
+      "  name: 'hello.js',"
+      "  source: 'module.exports = 42;'"
+      "});"
+      "send(m);"
+  );
+  EXPECT_SEND_MESSAGE_WITH ("42");
+}
+
+TESTCASE (dynamic_script_should_be_isolated)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Script.load({ name: 'x.js', source: 'var x = 12;' });"
+      "send(typeof x);"
+  );
+  EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
+}
+
+TESTCASE (dynamic_script_should_be_strict)
+{
+  COMPILE_AND_LOAD_SCRIPT ("Script.load({ name: 'x.js', source: 'x = 12;' });");
+  if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+    EXPECT_ERROR_MESSAGE_WITH (1, "ReferenceError: identifier 'x' undefined");
+  else
+    EXPECT_ERROR_MESSAGE_WITH (1, "ReferenceError: x is not defined");
 }
 
 TESTCASE (types_handle_invalid_construction)

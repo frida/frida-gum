@@ -180,6 +180,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_frida_java_load)
 
 GUMJS_DECLARE_GETTER (gumjs_script_get_file_name)
 GUMJS_DECLARE_GETTER (gumjs_script_get_source_map)
+GUMJS_DECLARE_FUNCTION (gumjs_script_load)
 GUMJS_DECLARE_FUNCTION (gumjs_script_next_tick)
 GUMJS_DECLARE_FUNCTION (gumjs_script_pin)
 GUMJS_DECLARE_FUNCTION (gumjs_script_unpin)
@@ -365,6 +366,7 @@ static const GumV8Property gumjs_script_values[] =
 
 static const GumV8Function gumjs_script_functions[] =
 {
+  { "_load", gumjs_script_load },
   { "_nextTick", gumjs_script_next_tick },
   { "pin", gumjs_script_pin },
   { "unpin", gumjs_script_unpin },
@@ -1440,6 +1442,41 @@ GUMJS_DEFINE_GETTER (gumjs_script_get_source_map)
   {
     info.GetReturnValue ().SetNull ();
   }
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_script_load)
+{
+  auto context = isolate->GetCurrentContext ();
+
+  gchar * name, * source;
+  if (!_gum_v8_args_parse (args, "ss", &name, &source))
+    return;
+
+  auto name_value = String::NewFromUtf8 (isolate, name).ToLocalChecked ();
+  Local<Integer> resource_line_offset = Integer::New (isolate, -1);
+  ScriptOrigin origin (name_value, resource_line_offset);
+
+  gchar * wrapped_source = g_strconcat ("'use strict';\n", source, NULL);
+  ScriptCompiler::Source source_value (
+      String::NewFromUtf8 (isolate, wrapped_source).ToLocalChecked (), origin);
+  g_free (wrapped_source);
+
+  g_free (source);
+  g_free (name);
+
+  Local<Function> func;
+  Local<String> args[] = {
+    String::NewFromUtf8Literal (isolate, "module"),
+    String::NewFromUtf8Literal (isolate, "exports")
+  };
+  Local<Object> ctx_extensions[] = {};
+  auto maybe_func = ScriptCompiler::CompileFunctionInContext (context,
+      &source_value, G_N_ELEMENTS (args), args, G_N_ELEMENTS (ctx_extensions),
+      ctx_extensions);
+  if (!maybe_func.ToLocal (&func))
+    return;
+
+  info.GetReturnValue ().Set (func);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_script_next_tick)

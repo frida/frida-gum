@@ -164,6 +164,14 @@ function numberWrapperEquals(rhs) {
   return this.compare(rhs) === 0;
 }
 
+Script.load = function ({ name, source }) {
+  const f = Script._load(name, source);
+  const exports = {};
+  const module = { exports };
+  f(module, exports);
+  return module.exports;
+};
+
 const _nextTick = Script._nextTick;
 Script.nextTick = function (callback, ...args) {
   _nextTick(callback.bind(global, ...args));

@@ -162,6 +162,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_frida_java_load)
 
 GUMJS_DECLARE_GETTER (gumjs_script_get_file_name)
 GUMJS_DECLARE_GETTER (gumjs_script_get_source_map)
+GUMJS_DECLARE_FUNCTION (gumjs_script_load)
 GUMJS_DECLARE_FUNCTION (gumjs_script_next_tick)
 GUMJS_DECLARE_FUNCTION (gumjs_script_pin)
 GUMJS_DECLARE_FUNCTION (gumjs_script_unpin)
@@ -356,6 +357,7 @@ static const GumDukPropertyEntry gumjs_script_values[] =
 
 static const duk_function_list_entry gumjs_script_functions[] =
 {
+  { "_load", gumjs_script_load, 2 },
   { "_nextTick", gumjs_script_next_tick, 1 },
   { "pin", gumjs_script_pin, 0 },
   { "unpin", gumjs_script_unpin, 0 },
@@ -1528,6 +1530,29 @@ GUMJS_DEFINE_GETTER (gumjs_script_get_source_map)
   g_regex_unref (regex);
 
   g_free (source);
+
+  return 1;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_script_load)
+{
+  const gchar * name, * source;
+  gchar * wrapped_source;
+  gboolean valid;
+
+  _gum_duk_args_parse (args, "ss", &name, &source);
+
+  wrapped_source =
+      g_strconcat ("function f(module, exports) {\n", source, "\n}", NULL);
+
+  duk_push_string (ctx, name);
+  valid = duk_pcompile_string_filename (ctx,
+      DUK_COMPILE_FUNCTION | DUK_COMPILE_STRICT, wrapped_source) == 0;
+
+  g_free (wrapped_source);
+
+  if (!valid)
+    duk_throw (ctx);
 
   return 1;
 }
