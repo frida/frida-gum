@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -11,7 +11,7 @@ static void gum_fake_event_sink_iface_init (gpointer g_iface,
 static void gum_fake_event_sink_finalize (GObject * obj);
 static GumEventType gum_fake_event_sink_query_mask (GumEventSink * sink);
 static void gum_fake_event_sink_process (GumEventSink * sink,
-    const GumEvent * ev);
+    const GumEvent * event, GumCpuContext * cpu_context);
 
 G_DEFINE_TYPE_EXTENDED (GumFakeEventSink,
                         gum_fake_event_sink,
@@ -72,7 +72,8 @@ gum_fake_event_sink_reset (GumFakeEventSink * self)
 }
 
 const GumCallEvent *
-gum_fake_event_sink_get_nth_event_as_call (GumFakeEventSink * self, guint n)
+gum_fake_event_sink_get_nth_event_as_call (GumFakeEventSink * self,
+                                           guint n)
 {
   const GumEvent * ev;
 
@@ -82,7 +83,8 @@ gum_fake_event_sink_get_nth_event_as_call (GumFakeEventSink * self, guint n)
 }
 
 const GumRetEvent *
-gum_fake_event_sink_get_nth_event_as_ret (GumFakeEventSink * self, guint n)
+gum_fake_event_sink_get_nth_event_as_ret (GumFakeEventSink * self,
+                                          guint n)
 {
   const GumEvent * ev;
 
@@ -92,7 +94,8 @@ gum_fake_event_sink_get_nth_event_as_ret (GumFakeEventSink * self, guint n)
 }
 
 const GumExecEvent *
-gum_fake_event_sink_get_nth_event_as_exec (GumFakeEventSink * self, guint n)
+gum_fake_event_sink_get_nth_event_as_exec (GumFakeEventSink * self,
+                                           guint n)
 {
   const GumEvent * ev;
 
@@ -142,9 +145,10 @@ gum_fake_event_sink_query_mask (GumEventSink * sink)
 
 static void
 gum_fake_event_sink_process (GumEventSink * sink,
-                             const GumEvent * ev)
+                             const GumEvent * event,
+                             GumCpuContext * cpu_context)
 {
   GumFakeEventSink * self = GUM_FAKE_EVENT_SINK (sink);
 
-  g_array_append_val (self->events, *ev);
+  g_array_append_val (self->events, *event);
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -15,7 +15,7 @@ static void gum_default_event_sink_iface_init (gpointer g_iface,
     gpointer iface_data);
 static GumEventType gum_default_event_sink_query_mask (GumEventSink * sink);
 static void gum_default_event_sink_process (GumEventSink * sink,
-    const GumEvent * ev);
+    const GumEvent * event, GumCpuContext * cpu_context);
 
 G_DEFINE_INTERFACE (GumEventSink, gum_event_sink, G_TYPE_OBJECT)
 
@@ -52,13 +52,14 @@ gum_event_sink_start (GumEventSink * self)
 
 void
 gum_event_sink_process (GumEventSink * self,
-                        const GumEvent * ev)
+                        const GumEvent * event,
+                        GumCpuContext * cpu_context)
 {
   GumEventSinkInterface * iface = GUM_EVENT_SINK_GET_IFACE (self);
 
   g_assert (iface->process != NULL);
 
-  iface->process (self, ev);
+  iface->process (self, event, cpu_context);
 }
 
 void
@@ -82,7 +83,7 @@ gum_event_sink_stop (GumEventSink * self)
 GumEventSink *
 gum_event_sink_make_default (void)
 {
-  return GUM_EVENT_SINK (g_object_new (GUM_TYPE_DEFAULT_EVENT_SINK, NULL));
+  return g_object_new (GUM_TYPE_DEFAULT_EVENT_SINK, NULL);
 }
 
 static void
@@ -113,7 +114,8 @@ gum_default_event_sink_query_mask (GumEventSink * sink)
 
 static void
 gum_default_event_sink_process (GumEventSink * sink,
-                                const GumEvent * ev)
+                                const GumEvent * event,
+                                GumCpuContext * cpu_context)
 {
 }
 

@@ -115,7 +115,8 @@ struct _GumExecCtx
   gboolean sink_started;
   GumEventType sink_mask;
   gpointer last_exec_location;
-  void (* sink_process_impl) (GumEventSink * self, const GumEvent * ev);
+  void (* sink_process_impl) (GumEventSink * self, const GumEvent * event,
+      GumCpuContext * cpu_context);
 
   gboolean unfollow_called_while_still_following;
   GumExecBlock * current_block;
@@ -909,6 +910,7 @@ _gum_stalker_do_deactivate (GumStalker * self,
 
   return ret_addr;
 }
+
 GumProbeId
 gum_stalker_add_call_probe (GumStalker * self,
                             gpointer target_address,
@@ -2147,7 +2149,8 @@ gum_stalker_arm_get_writeback (const cs_insn * insn,
 static void
 gum_exec_ctx_emit_call_event (GumExecCtx * ctx,
                               gpointer location,
-                              gpointer target)
+                              gpointer target,
+                              GumCpuContext * cpu_context)
 {
   GumEvent ev;
   GumCallEvent * call = &ev.call;
@@ -2158,13 +2161,16 @@ gum_exec_ctx_emit_call_event (GumExecCtx * ctx,
   call->target = target;
   call->depth = ctx->first_frame - ctx->current_frame;
 
-  ctx->sink_process_impl (ctx->sink, &ev);
+  cpu_context->pc = GPOINTER_TO_SIZE (location);
+
+  ctx->sink_process_impl (ctx->sink, &ev, cpu_context);
 }
 
 static void
 gum_exec_ctx_emit_ret_event (GumExecCtx * ctx,
                              gpointer location,
-                             gpointer target)
+                             gpointer target,
+                             GumCpuContext * cpu_context)
 {
   GumEvent ev;
   GumRetEvent * ret = &ev.ret;
@@ -2175,12 +2181,15 @@ gum_exec_ctx_emit_ret_event (GumExecCtx * ctx,
   ret->target = target;
   ret->depth = ctx->first_frame - ctx->current_frame;
 
-  ctx->sink_process_impl (ctx->sink, &ev);
+  cpu_context->pc = GPOINTER_TO_SIZE (location);
+
+  ctx->sink_process_impl (ctx->sink, &ev, cpu_context);
 }
 
 static void
 gum_exec_ctx_emit_exec_event (GumExecCtx * ctx,
-                              gpointer location)
+                              gpointer location,
+                              GumCpuContext * cpu_context)
 {
   GumEvent ev;
   GumExecEvent * exec = &ev.exec;
@@ -2201,23 +2210,32 @@ gum_exec_ctx_emit_exec_event (GumExecCtx * ctx,
 
   exec->location = location;
 
-  ctx->sink_process_impl (ctx->sink, &ev);
+  cpu_context->pc = GPOINTER_TO_SIZE (location);
+
+  ctx->sink_process_impl (ctx->sink, &ev, cpu_context);
 }
 
 static void
 gum_exec_ctx_emit_block_event (GumExecCtx * ctx,
                                gpointer begin,
-                               gpointer end)
+                               gsize shape,
+                               GumCpuContext * cpu_context)
 {
   GumEvent ev;
+  gsize block_size, trailer_size;
   GumBlockEvent * block = &ev.block;
 
   ev.type = GUM_BLOCK;
 
-  block->begin = begin;
-  block->end = end;
+  block_size = shape >> 5;
+  trailer_size = shape & 0x1f;
 
-  ctx->sink_process_impl (ctx->sink, &ev);
+  block->begin = begin;
+  block->end = begin + block_size;
+
+  cpu_context->pc = GPOINTER_TO_SIZE (block->end - trailer_size);
+
+  ctx->sink_process_impl (ctx->sink, &ev, cpu_context);
 }
 
 void
@@ -2997,7 +3015,7 @@ gum_exec_block_commit_and_emit (GumExecBlock * block)
     ev.compile.begin = block->real_begin;
     ev.compile.end = block->real_end;
 
-    gum_event_sink_process (ctx->sink, &ev);
+    ctx->sink_process_impl (ctx->sink, &ev, NULL);
   }
 }
 
@@ -4031,10 +4049,11 @@ gum_exec_block_write_arm_call_event_code (GumExecBlock * block,
 {
   gum_exec_ctx_write_arm_mov_branch_target (block->ctx, target, ARM_REG_R2, gc);
   gum_arm_writer_put_call_address_with_arguments (gc->arm_writer,
-      GUM_ADDRESS (gum_exec_ctx_emit_call_event), 3,
+      GUM_ADDRESS (gum_exec_ctx_emit_call_event), 4,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
       GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->begin),
-      GUM_ARG_REGISTER, ARM_REG_R2);
+      GUM_ARG_REGISTER, ARM_REG_R2,
+      GUM_ARG_REGISTER, ARM_REG_R10);
 }
 
 static void
@@ -4045,10 +4064,11 @@ gum_exec_block_write_thumb_call_event_code (GumExecBlock * block,
   gum_exec_ctx_write_thumb_mov_branch_target (block->ctx, target, ARM_REG_R2,
       gc);
   gum_thumb_writer_put_call_address_with_arguments (gc->thumb_writer,
-      GUM_ADDRESS (gum_exec_ctx_emit_call_event), 3,
+      GUM_ADDRESS (gum_exec_ctx_emit_call_event), 4,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
       GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->begin),
-      GUM_ARG_REGISTER, ARM_REG_R2);
+      GUM_ARG_REGISTER, ARM_REG_R2,
+      GUM_ARG_REGISTER, ARM_REG_R10);
 }
 
 static void
@@ -4058,10 +4078,11 @@ gum_exec_block_write_arm_ret_event_code (GumExecBlock * block,
 {
   gum_exec_ctx_write_arm_mov_branch_target (block->ctx, target, ARM_REG_R2, gc);
   gum_arm_writer_put_call_address_with_arguments (gc->arm_writer,
-      GUM_ADDRESS (gum_exec_ctx_emit_ret_event), 3,
+      GUM_ADDRESS (gum_exec_ctx_emit_ret_event), 4,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
       GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->begin),
-      GUM_ARG_REGISTER, ARM_REG_R2);
+      GUM_ARG_REGISTER, ARM_REG_R2,
+      GUM_ARG_REGISTER, ARM_REG_R10);
 }
 
 static void
@@ -4072,10 +4093,11 @@ gum_exec_block_write_thumb_ret_event_code (GumExecBlock * block,
   gum_exec_ctx_write_thumb_mov_branch_target (block->ctx, target, ARM_REG_R2,
       gc);
   gum_thumb_writer_put_call_address_with_arguments (gc->thumb_writer,
-      GUM_ADDRESS (gum_exec_ctx_emit_ret_event), 3,
+      GUM_ADDRESS (gum_exec_ctx_emit_ret_event), 4,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
       GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->begin),
-      GUM_ARG_REGISTER, ARM_REG_R2);
+      GUM_ARG_REGISTER, ARM_REG_R2,
+      GUM_ARG_REGISTER, ARM_REG_R10);
 }
 
 static void
@@ -4086,9 +4108,10 @@ gum_exec_block_write_arm_exec_event_code (GumExecBlock * block,
     return;
 
   gum_arm_writer_put_call_address_with_arguments (gc->arm_writer,
-      GUM_ADDRESS (gum_exec_ctx_emit_exec_event), 2,
+      GUM_ADDRESS (gum_exec_ctx_emit_exec_event), 3,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
-      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->begin));
+      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->begin),
+      GUM_ARG_REGISTER, ARM_REG_R10);
 }
 
 static void
@@ -4099,37 +4122,64 @@ gum_exec_block_write_thumb_exec_event_code (GumExecBlock * block,
     return;
 
   gum_thumb_writer_put_call_address_with_arguments (gc->thumb_writer,
-      GUM_ADDRESS (gum_exec_ctx_emit_exec_event), 2,
+      GUM_ADDRESS (gum_exec_ctx_emit_exec_event), 3,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
-      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->begin));
+      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->begin),
+      GUM_ARG_REGISTER, ARM_REG_R10);
 }
 
 static void
 gum_exec_block_write_arm_block_event_code (GumExecBlock * block,
                                            GumGeneratorContext * gc)
 {
+  const guint8 * start, * end;
+  gsize block_size, trailer_size, shape;
+
   if (gum_generator_context_is_timing_sensitive (gc))
     return;
 
+  start = gc->arm_relocator->input_start;
+  end = gc->arm_relocator->input_cur;
+
+  block_size = end - start;
+  trailer_size = end - gc->instruction->begin;
+
+  /* FIXME: Add support for more than 4 arguments in ArmWriter. */
+  shape = (block_size << 5) | trailer_size;
+
   gum_arm_writer_put_call_address_with_arguments (gc->arm_writer,
-      GUM_ADDRESS (gum_exec_ctx_emit_block_event), 3,
+      GUM_ADDRESS (gum_exec_ctx_emit_block_event), 4,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
-      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->arm_relocator->input_start),
-      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->arm_relocator->input_cur));
+      GUM_ARG_ADDRESS, GUM_ADDRESS (start),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (shape),
+      GUM_ARG_REGISTER, ARM_REG_R10);
 }
 
 static void
 gum_exec_block_write_thumb_block_event_code (GumExecBlock * block,
                                              GumGeneratorContext * gc)
 {
+  const guint8 * start, * end;
+  gsize block_size, trailer_size, shape;
+
   if (gum_generator_context_is_timing_sensitive (gc))
     return;
 
+  start = gc->thumb_relocator->input_start;
+  end = gc->thumb_relocator->input_cur;
+
+  block_size = end - start;
+  trailer_size = end - gc->instruction->begin;
+
+  /* FIXME: Add proper support for more than 4 arguments in ThumbWriter. */
+  shape = (block_size << 5) | trailer_size;
+
   gum_thumb_writer_put_call_address_with_arguments (gc->thumb_writer,
-      GUM_ADDRESS (gum_exec_ctx_emit_block_event), 3,
+      GUM_ADDRESS (gum_exec_ctx_emit_block_event), 4,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
-      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->thumb_relocator->input_start),
-      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->thumb_relocator->input_cur));
+      GUM_ARG_ADDRESS, GUM_ADDRESS (start),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (shape),
+      GUM_ARG_REGISTER, ARM_REG_R10);
 }
 
 static void

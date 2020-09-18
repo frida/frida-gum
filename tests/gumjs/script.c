@@ -6531,6 +6531,7 @@ TESTCASE (cmodule_can_be_used_with_stalker_events)
       "\\n"
       "void\\n"
       "process (const GumEvent * event,\\n"
+      "         GumCpuContext * cpu_context,\\n"
       "         gpointer user_data)\\n"
       "{\\n"
       "  switch (event->type)\\n"

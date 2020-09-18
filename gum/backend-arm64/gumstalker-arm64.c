@@ -132,7 +132,8 @@ struct _GumExecCtx
   GumEventSink * sink;
   gboolean sink_started;
   GumEventType sink_mask;
-  void (* sink_process_impl) (GumEventSink * self, const GumEvent * ev);
+  void (* sink_process_impl) (GumEventSink * self, const GumEvent * event,
+      GumCpuContext * cpu_context);
 
   gboolean unfollow_called_while_still_following;
   GumExecBlock * current_block;
@@ -1487,7 +1488,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
     ev.compile.begin = block->real_begin;
     ev.compile.end = block->real_end;
 
-    gum_event_sink_process (ctx->sink, &ev);
+    ctx->sink_process_impl (ctx->sink, &ev, NULL);
   }
 
   return block;
@@ -1669,7 +1670,8 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
 static void
 gum_exec_ctx_emit_call_event (GumExecCtx * ctx,
                               gpointer location,
-                              gpointer target)
+                              gpointer target,
+                              GumCpuContext * cpu_context)
 {
   GumEvent ev;
   GumCallEvent * call = &ev.call;
@@ -1680,13 +1682,16 @@ gum_exec_ctx_emit_call_event (GumExecCtx * ctx,
   call->target = target;
   call->depth = ctx->first_frame - ctx->current_frame;
 
-  ctx->sink_process_impl (ctx->sink, &ev);
+  cpu_context->pc = GPOINTER_TO_SIZE (location);
+
+  ctx->sink_process_impl (ctx->sink, &ev, cpu_context);
 }
 
 static void
 gum_exec_ctx_emit_ret_event (GumExecCtx * ctx,
                              gpointer location,
-                             gpointer target)
+                             gpointer target,
+                             GumCpuContext * cpu_context)
 {
   GumEvent ev;
   GumRetEvent * ret = &ev.ret;
@@ -1697,12 +1702,15 @@ gum_exec_ctx_emit_ret_event (GumExecCtx * ctx,
   ret->target = target;
   ret->depth = ctx->first_frame - ctx->current_frame;
 
-  ctx->sink_process_impl (ctx->sink, &ev);
+  cpu_context->pc = GPOINTER_TO_SIZE (location);
+
+  ctx->sink_process_impl (ctx->sink, &ev, cpu_context);
 }
 
 static void
 gum_exec_ctx_emit_exec_event (GumExecCtx * ctx,
-                              gpointer location)
+                              gpointer location,
+                              GumCpuContext * cpu_context)
 {
   GumEvent ev;
   GumExecEvent * exec = &ev.exec;
@@ -1711,13 +1719,17 @@ gum_exec_ctx_emit_exec_event (GumExecCtx * ctx,
 
   exec->location = location;
 
-  ctx->sink_process_impl (ctx->sink, &ev);
+  cpu_context->pc = GPOINTER_TO_SIZE (location);
+
+  ctx->sink_process_impl (ctx->sink, &ev, cpu_context);
 }
 
 static void
 gum_exec_ctx_emit_block_event (GumExecCtx * ctx,
+                               gpointer location,
                                gpointer begin,
-                               gpointer end)
+                               gpointer end,
+                               GumCpuContext * cpu_context)
 {
   GumEvent ev;
   GumBlockEvent * block = &ev.block;
@@ -1727,7 +1739,9 @@ gum_exec_ctx_emit_block_event (GumExecCtx * ctx,
   block->begin = begin;
   block->end = end;
 
-  ctx->sink_process_impl (ctx->sink, &ev);
+  cpu_context->pc = GPOINTER_TO_SIZE (location);
+
+  ctx->sink_process_impl (ctx->sink, &ev, cpu_context);
 }
 
 void
@@ -3361,16 +3375,17 @@ gum_exec_block_write_call_event_code (GumExecBlock * block,
 {
   GumArm64Writer * cw = gc->code_writer;
 
-  gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
+  gum_exec_block_open_prolog (block, GUM_PROLOG_FULL, gc);
 
   gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
   gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X14, ARM64_REG_X15);
 
   gum_arm64_writer_put_call_address_with_arguments (cw,
-      GUM_ADDRESS (gum_exec_ctx_emit_call_event), 3,
+      GUM_ADDRESS (gum_exec_ctx_emit_call_event), 4,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
       GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->begin),
-      GUM_ARG_REGISTER, ARM64_REG_X14);
+      GUM_ARG_REGISTER, ARM64_REG_X14,
+      GUM_ARG_REGISTER, ARM64_REG_X20);
 
   gum_exec_block_write_unfollow_check_code (block, gc, cc);
 }
@@ -3380,16 +3395,17 @@ gum_exec_block_write_ret_event_code (GumExecBlock * block,
                                      GumGeneratorContext * gc,
                                      GumCodeContext cc)
 {
-  gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
+  gum_exec_block_open_prolog (block, GUM_PROLOG_FULL, gc);
 
   gum_exec_ctx_load_real_register_into (block->ctx, ARM64_REG_X14, ARM64_REG_LR,
       gc);
 
   gum_arm64_writer_put_call_address_with_arguments (gc->code_writer,
-      GUM_ADDRESS (gum_exec_ctx_emit_ret_event), 3,
+      GUM_ADDRESS (gum_exec_ctx_emit_ret_event), 4,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
       GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->begin),
-      GUM_ARG_REGISTER, ARM64_REG_X14);
+      GUM_ARG_REGISTER, ARM64_REG_X14,
+      GUM_ARG_REGISTER, ARM64_REG_X20);
 
   gum_exec_block_write_unfollow_check_code (block, gc, cc);
 }
@@ -3399,12 +3415,13 @@ gum_exec_block_write_exec_event_code (GumExecBlock * block,
                                       GumGeneratorContext * gc,
                                       GumCodeContext cc)
 {
-  gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
+  gum_exec_block_open_prolog (block, GUM_PROLOG_FULL, gc);
 
   gum_arm64_writer_put_call_address_with_arguments (gc->code_writer,
-      GUM_ADDRESS (gum_exec_ctx_emit_exec_event), 2,
+      GUM_ADDRESS (gum_exec_ctx_emit_exec_event), 3,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
-      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->begin));
+      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->begin),
+      GUM_ARG_REGISTER, ARM64_REG_X20);
 
   gum_exec_block_write_unfollow_check_code (block, gc, cc);
 }
@@ -3414,13 +3431,15 @@ gum_exec_block_write_block_event_code (GumExecBlock * block,
                                        GumGeneratorContext * gc,
                                        GumCodeContext cc)
 {
-  gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
+  gum_exec_block_open_prolog (block, GUM_PROLOG_FULL, gc);
 
   gum_arm64_writer_put_call_address_with_arguments (gc->code_writer,
-      GUM_ADDRESS (gum_exec_ctx_emit_block_event), 3,
+      GUM_ADDRESS (gum_exec_ctx_emit_block_event), 5,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->begin),
       GUM_ARG_ADDRESS, GUM_ADDRESS (gc->relocator->input_start),
-      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->relocator->input_cur));
+      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->relocator->input_cur),
+      GUM_ARG_REGISTER, ARM64_REG_X20);
 
   gum_exec_block_write_unfollow_check_code (block, gc, cc);
 }

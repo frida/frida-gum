@@ -21,7 +21,8 @@ G_DECLARE_FINAL_TYPE (GumV8JSEventSink, gum_v8_js_event_sink, GUM_V8,
 G_DECLARE_FINAL_TYPE (GumV8NativeEventSink, gum_v8_native_event_sink, GUM_V8,
     NATIVE_EVENT_SINK, GObject)
 
-typedef void (* GumV8OnEvent) (const GumEvent * event, gpointer user_data);
+typedef void (* GumV8OnEvent) (const GumEvent * event,
+    GumCpuContext * cpu_context, gpointer user_data);
 
 struct GumV8EventSinkOptions
 {

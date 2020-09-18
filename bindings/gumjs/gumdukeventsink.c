@@ -44,7 +44,7 @@ static void gum_duk_js_event_sink_finalize (GObject * obj);
 static GumEventType gum_duk_js_event_sink_query_mask (GumEventSink * sink);
 static void gum_duk_js_event_sink_start (GumEventSink * sink);
 static void gum_duk_js_event_sink_process (GumEventSink * sink,
-    const GumEvent * event);
+    const GumEvent * event, GumCpuContext * cpu_context);
 static void gum_duk_js_event_sink_flush (GumEventSink * sink);
 static void gum_duk_js_event_sink_stop (GumEventSink * sink);
 static gboolean gum_duk_js_event_sink_stop_when_idle (GumDukJSEventSink * self);
@@ -54,7 +54,7 @@ static void gum_duk_native_event_sink_iface_init (gpointer g_iface,
     gpointer iface_data);
 static GumEventType gum_duk_native_event_sink_query_mask (GumEventSink * sink);
 static void gum_duk_native_event_sink_process (GumEventSink * sink,
-    const GumEvent * event);
+    const GumEvent * event, GumCpuContext * cpu_context);
 
 G_DEFINE_TYPE_EXTENDED (GumDukJSEventSink,
                         gum_duk_js_event_sink,
@@ -206,7 +206,8 @@ gum_duk_js_event_sink_start (GumEventSink * sink)
 
 static void
 gum_duk_js_event_sink_process (GumEventSink * sink,
-                               const GumEvent * event)
+                               const GumEvent * event,
+                               GumCpuContext * cpu_context)
 {
   GumDukJSEventSink * self = GUM_DUK_JS_EVENT_SINK_CAST (sink);
 
@@ -383,9 +384,10 @@ gum_duk_native_event_sink_query_mask (GumEventSink * sink)
 
 static void
 gum_duk_native_event_sink_process (GumEventSink * sink,
-                                   const GumEvent * event)
+                                   const GumEvent * event,
+                                   GumCpuContext * cpu_context)
 {
   GumDukNativeEventSink * self = GUM_DUK_NATIVE_EVENT_SINK_CAST (sink);
 
-  self->on_event (event, self->user_data);
+  self->on_event (event, cpu_context, self->user_data);
 }

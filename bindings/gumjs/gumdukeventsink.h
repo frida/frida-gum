@@ -25,7 +25,8 @@ G_DECLARE_FINAL_TYPE (GumDukNativeEventSink, gum_duk_native_event_sink, GUM_DUK,
 
 typedef struct _GumDukEventSinkOptions GumDukEventSinkOptions;
 
-typedef void (* GumDukOnEvent) (const GumEvent * event, gpointer user_data);
+typedef void (* GumDukOnEvent) (const GumEvent * event,
+    GumCpuContext * cpu_context, gpointer user_data);
 
 struct _GumDukEventSinkOptions
 {
