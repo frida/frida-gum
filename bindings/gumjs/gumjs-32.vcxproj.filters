@@ -499,6 +499,9 @@
     <None Include="runtime\cmodule\gum\gummetalhash.h">
       <Filter>runtime\cmodule\gum</Filter>
     </None>
+    <None Include="runtime\cmodule\gum\gumspinlock.h">
+      <Filter>runtime\cmodule\gum</Filter>
+    </None>
     <None Include="runtime\cmodule\json-glib\json-glib.h">
       <Filter>runtime\cmodule\json-glib</Filter>
     </None>

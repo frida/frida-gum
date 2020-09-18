@@ -166,6 +166,7 @@ gumjs_runtime_sources = [
   'runtime/cmodule/gum/gumstalker.h',
   'runtime/cmodule/gum/gummetalarray.h',
   'runtime/cmodule/gum/gummetalhash.h',
+  'runtime/cmodule/gum/gumspinlock.h',
   'runtime/cmodule/json-glib/json-glib.h',
 ]
 gumjs_runtime_outputs = [
