@@ -9,7 +9,7 @@
 
 #include <glib.h>
 
-#define GUM_SPINLOCK_INIT { { 0, } }
+#define GUM_SPINLOCK_INIT { NULL }
 
 G_BEGIN_DECLS
 
@@ -17,7 +17,7 @@ typedef struct _GumSpinlock GumSpinlock;
 
 struct _GumSpinlock
 {
-  gpointer data[8];
+  gpointer data;
 };
 
 void gum_spinlock_init (GumSpinlock * spinlock);
