@@ -350,9 +350,8 @@ gum_duk_script_backend_push_program (GumDukScriptBackend * self,
 
   filename = g_strconcat ("/", name, ".js", NULL);
 
-  duk_push_string (ctx, source);
   duk_push_string (ctx, filename);
-  valid = duk_pcompile (ctx, DUK_COMPILE_STRICT) == 0;
+  valid = duk_pcompile_string_filename (ctx, DUK_COMPILE_STRICT, source) == 0;
 
   g_free (filename);
 
