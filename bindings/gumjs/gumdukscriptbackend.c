@@ -196,7 +196,6 @@ static void * gum_duk_alloc (void * udata, duk_size_t size);
 static void * gum_duk_realloc (void * udata, void * ptr, duk_size_t size);
 static void gum_duk_free (void * udata, void * ptr);
 
-
 G_DEFINE_TYPE_EXTENDED (GumDukScriptBackend,
                         gum_duk_script_backend,
                         G_TYPE_OBJECT,
