@@ -269,6 +269,11 @@ if have_gumjs
     gumjs_extra_libraries += ['-lm']
   endif
 
+  have_quickjs = not get_option('quickjs').disabled()
+  if have_quickjs
+    cdata.set('HAVE_QUICKJS', 1)
+  endif
+
   have_duktape = not get_option('duktape').disabled()
   if have_duktape
     cdata.set('HAVE_DUKTAPE', 1)
@@ -282,7 +287,7 @@ if have_gumjs
     gumjs_extra_requires += ['v8-8.0']
   endif
 
-  if not (have_duktape or have_v8)
+  if not (have_quickjs or have_duktape or have_v8)
     error('Cannot build JavaScript bindings without any runtimes enabled')
   endif
 
@@ -291,6 +296,7 @@ if have_gumjs
     cdata.set('HAVE_TINYCC', 1)
   endif
 else
+  have_quickjs = false
   have_duktape = false
   have_v8 = false
   have_tinycc = false

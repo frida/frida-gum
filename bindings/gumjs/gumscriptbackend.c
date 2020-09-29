@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,6 +7,7 @@
 #include "gumscriptbackend.h"
 
 #include "gumdukscriptbackend.h"
+#include "gumquickscriptbackend.h"
 #include "gumv8scriptbackend.h"
 #include "sqlite3.h"
 
@@ -52,10 +53,51 @@ gum_script_backend_obtain (void)
 
   backend = gum_script_backend_obtain_v8 ();
   if (backend == NULL)
+    backend = gum_script_backend_obtain_quick ();
+  if (backend == NULL)
     backend = gum_script_backend_obtain_duk ();
 
   return backend;
 }
+
+#ifdef HAVE_QUICKJS
+
+static void gum_script_backend_deinit_quick (void);
+
+GumScriptBackend *
+gum_script_backend_obtain_quick (void)
+{
+  static volatile gsize gonce_value;
+
+  if (g_once_init_enter (&gonce_value))
+  {
+    GumScriptBackend * backend;
+
+    backend = g_object_new (GUM_QUICK_TYPE_SCRIPT_BACKEND, NULL);
+
+    _gum_register_early_destructor (gum_script_backend_deinit_quick);
+
+    g_once_init_leave (&gonce_value, GPOINTER_TO_SIZE (backend) + 1);
+  }
+
+  return GSIZE_TO_POINTER (gonce_value - 1);
+}
+
+static void
+gum_script_backend_deinit_quick (void)
+{
+  g_object_unref (gum_script_backend_obtain_quick ());
+}
+
+#else
+
+GumScriptBackend *
+gum_script_backend_obtain_quick (void)
+{
+  return NULL;
+}
+
+#endif
 
 #ifdef HAVE_DUKTAPE
 

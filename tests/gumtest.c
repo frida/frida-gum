@@ -269,7 +269,11 @@ main (gint argc, gchar * argv[])
 #if defined (HAVE_GUMJS)
   /* GumJS */
   {
-    GumScriptBackend * duk_backend, * v8_backend;
+    GumScriptBackend * quick_backend, * duk_backend, * v8_backend;
+
+    quick_backend = gum_script_backend_obtain_quick ();
+    if (quick_backend != NULL)
+      TESTLIST_REGISTER_WITH_DATA (script, quick_backend);
 
     duk_backend = gum_script_backend_obtain_duk ();
     if (duk_backend != NULL)

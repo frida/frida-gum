@@ -20,9 +20,20 @@ gumjs_sources = [
 ]
 
 gumjs_objects = []
+if have_quickjs
+  gumjs_objects += quickjs.extract_all_objects()
+  gumjs_extra_deps += [quickjs_dep]
+endif
 if have_tinycc
   gumjs_objects += tinycc.extract_all_objects()
   gumjs_extra_deps += [tinycc_dep]
+endif
+
+if have_quickjs
+  gumjs_sources += [
+    'gumquickscriptbackend.c',
+    'gumquickscript.c',
+  ]
 endif
 
 if have_duktape
@@ -218,7 +229,7 @@ gumjs = library('frida-gumjs-' + api_version, gumjs_sources,
 
 gumjs_dep = declare_dependency(link_with: gumjs,
   include_directories: [bindings_inc, include_directories('.')],
-  dependencies: [gum_dep, gio_dep, json_glib_dep],
+  dependencies: [gum_dep, gio_dep, json_glib_dep] + gumjs_extra_deps,
 )
 
 pkg = import('pkgconfig')
@@ -232,6 +243,7 @@ pkg.generate(filebase: 'frida-gumjs-' + api_version,
   libraries: [gumjs],
   libraries_private: gumjs_extra_libraries,
   variables: [
+    'gumjs_quickjs=' + have_quickjs.to_string('enabled', 'disabled'),
     'gumjs_duktape=' + have_duktape.to_string('enabled', 'disabled'),
     'gumjs_v8=' + have_v8.to_string('enabled', 'disabled'),
   ],
