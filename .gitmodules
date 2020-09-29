@@ -1,3 +1,3 @@
 [submodule "bindings/gumjs/tinycc"]
 	path = ext/tinycc
-	url = git://github.com/frida/tinycc.git
+	url = https://github.com/frida/tinycc.git
