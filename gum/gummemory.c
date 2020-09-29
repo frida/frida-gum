@@ -793,6 +793,12 @@ gum_malloc0 (gsize size)
   return mspace_calloc (gum_mspace_main, 1, size);
 }
 
+gsize
+gum_malloc_usable_size (gconstpointer mem)
+{
+  return mspace_usable_size (mem);
+}
+
 gpointer
 gum_calloc (gsize count,
             gsize size)

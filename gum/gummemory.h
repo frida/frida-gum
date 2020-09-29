@@ -124,6 +124,7 @@ GUM_API guint gum_peek_private_memory_usage (void);
 
 GUM_API gpointer gum_malloc (gsize size);
 GUM_API gpointer gum_malloc0 (gsize size);
+GUM_API gsize gum_malloc_usable_size (gconstpointer mem);
 GUM_API gpointer gum_calloc (gsize count, gsize size);
 GUM_API gpointer gum_realloc (gpointer mem, gsize size);
 GUM_API gpointer gum_memalign (gsize alignment, gsize size);
