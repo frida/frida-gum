@@ -6,21 +6,14 @@
 
 #include "gumquickcore.h"
 
-#include "gumquickinterceptor.h"
-#include "gumquickmacros.h"
-#include "gumquickscript-java.h"
-#include "gumquickscript-objc.h"
-#include "gumquickscript-promise.h"
-#include "gumquickstalker.h"
 #include "gumffi.h"
+#include "gumquickmacros.h"
 #include "gumsourcemap.h"
 
 #include <ffi.h>
 #ifdef HAVE_PTRAUTH
 # include <ptrauth.h>
 #endif
-
-#define GUM_QUICK_NATIVE_POINTER_CACHE_SIZE 8
 
 typedef struct _GumQuickFlushCallback GumQuickFlushCallback;
 typedef struct _GumQuickFFIFunctionParams GumQuickFFIFunctionParams;
@@ -69,7 +62,7 @@ struct _GumQuickMessageSink
 
 struct _GumQuickFFIFunctionParams
 {
-  quick_c_function invoke;
+  JSCFunction * invoke;
   GumQuickHeapPtr prototype;
 
   GCallback implementation;
@@ -119,7 +112,7 @@ struct _GumQuickFFIFunction
   ffi_type ** atypes;
   gsize arglist_size;
   gboolean is_variadic;
-  quick_size_t nargs_fixed;
+  int nargs_fixed;
   ffi_abi abi;
   GSList * data;
 
@@ -251,8 +244,8 @@ static int gumjs_ffi_function_init (JSContext * ctx,
     const GumQuickFFIFunctionParams * params, GumQuickCore * core);
 static void gum_quick_ffi_function_finalize (GumQuickFFIFunction * func);
 static int gum_quick_ffi_function_invoke (GumQuickFFIFunction * self,
-    JSContext * ctx, GCallback implementation, quick_size_t argc,
-    quick_idx_t argv_index);
+    JSContext * ctx, GCallback implementation, int argc,
+    int argv_index);
 static int gumjs_ffi_function_invoke (JSContext * ctx,
     const GumQuickArgs * args);
 static int gumjs_ffi_function_call (JSContext * ctx, GumQuickHeapPtr type,
@@ -264,15 +257,15 @@ static void gumjs_ffi_function_get (JSContext * ctx, GumQuickHeapPtr type,
     GCallback * implementation);
 
 static void gum_quick_ffi_function_params_init (GumQuickFFIFunctionParams * params,
-    quick_c_function invoke, GumQuickHeapPtr prototype,
+    JSCFunction * invoke, GumQuickHeapPtr prototype,
     GumQuickReturnValueShape return_shape, const GumQuickArgs * args);
 
 static GumQuickSchedulingBehavior gum_quick_require_scheduling_behavior (
-    JSContext * ctx, quick_idx_t index);
+    JSContext * ctx, int index);
 static GumQuickExceptionsBehavior gum_quick_require_exceptions_behavior (
-    JSContext * ctx, quick_idx_t index);
+    JSContext * ctx, int index);
 static GumQuickCodeTraps gum_quick_require_code_traps (JSContext * ctx,
-    quick_idx_t index);
+    int index);
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_callback_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_native_callback_finalize)
@@ -281,11 +274,12 @@ static void gum_quick_native_callback_finalize (
 static void gum_quick_native_callback_invoke (ffi_cif * cif,
     void * return_value, void ** args, void * user_data);
 
-static GumQuickCpuContext * gumjs_cpu_context_from_args (const GumQuickArgs * args);
+static GumQuickCpuContext * gumjs_cpu_context_from_this (JSValueConst this_val,
+    GumQuickCore * core);
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_cpu_context_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_cpu_context_finalize)
-static void gumjs_cpu_context_set_register (GumQuickCpuContext * self,
-    JSContext * ctx, const GumQuickArgs * args, gpointer * reg);
+static JSValue gumjs_cpu_context_set_register (GumQuickCpuContext * self,
+    JSContext * ctx, JSValueConst value, gpointer * reg);
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_source_map_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_source_map_finalize)
@@ -309,7 +303,7 @@ static GumQuickExceptionSink * gum_quick_exception_sink_new (GumQuickHeapPtr cal
     GumQuickCore * core);
 static void gum_quick_exception_sink_free (GumQuickExceptionSink * sink);
 static void gum_quick_exception_sink_handle_exception (
-    GumQuickExceptionSink * self);
+    GumQuickExceptionSink * self, JSValueConst exception);
 
 static GumQuickMessageSink * gum_quick_message_sink_new (GumQuickHeapPtr callback,
     GumQuickCore * core);
@@ -321,7 +315,7 @@ static gboolean gum_quick_get_ffi_type (JSContext * ctx, GumQuickHeapPtr value,
     ffi_type ** type, GSList ** data);
 static gboolean gum_quick_get_ffi_abi (JSContext * ctx, const gchar * name,
     ffi_abi * abi);
-static gboolean gum_quick_get_ffi_value (JSContext * ctx, quick_idx_t index,
+static gboolean gum_quick_get_ffi_value (JSContext * ctx, int index,
     const ffi_type * type, GumQuickCore * core, GumFFIValue * value);
 static void gum_quick_push_ffi_value (JSContext * ctx,
     const GumFFIValue * value, const ffi_type * type, GumQuickCore * core);
@@ -337,133 +331,112 @@ static const JSCFunctionListEntry gumjs_frida_entries[] =
   JS_CFUNC_DEF ("_loadJava", 0, gumjs_frida_java_load),
 };
 
-static const GumQuickPropertyEntry gumjs_script_values[] =
+static const JSCFunctionListEntry gumjs_script_entries[] =
 {
-  { "fileName", gumjs_script_get_file_name, NULL },
-  { "sourceMap", gumjs_script_get_source_map, NULL },
-
-  { NULL, NULL, NULL }
+  JS_CGETSET_DEF ("fileName", gumjs_script_get_file_name, NULL),
+  JS_CGETSET_DEF ("sourceMap", gumjs_script_get_source_map, NULL),
+  JS_CFUNC_DEF ("_nextTick", 1, gumjs_script_next_tick),
+  JS_CFUNC_DEF ("pin", 0, gumjs_script_pin),
+  JS_CFUNC_DEF ("unpin", 0, gumjs_script_unpin),
+  JS_CFUNC_DEF ("setGlobalAccessHandler", 1, gumjs_script_set_global_access_handler),
 };
 
-static const quick_function_list_entry gumjs_script_functions[] =
+static const JSCFunctionListEntry gumjs_weak_ref_module_entries[] =
 {
-  { "_nextTick", gumjs_script_next_tick, 1 },
-  { "pin", gumjs_script_pin, 0 },
-  { "unpin", gumjs_script_unpin, 0 },
-  { "setGlobalAccessHandler", gumjs_script_set_global_access_handler, 1 },
-
-  { NULL, NULL, 0 }
+  JS_CFUNC_DEF ("bind", 2, gumjs_weak_ref_bind),
+  JS_CFUNC_DEF ("unbind", 1, gumjs_weak_ref_unbind),
 };
 
-static const quick_function_list_entry gumjs_weak_ref_module_functions[] =
+static const JSCFunctionListEntry gumjs_int64_entries[] =
 {
-  { "bind", gumjs_weak_ref_bind, 2 },
-  { "unbind", gumjs_weak_ref_unbind, 1 },
-
-  { NULL, NULL, 0 }
+  JS_CFUNC_DEF ("add", 1, gumjs_int64_add),
+  JS_CFUNC_DEF ("sub", 1, gumjs_int64_sub),
+  JS_CFUNC_DEF ("and", 1, gumjs_int64_and),
+  JS_CFUNC_DEF ("or", 1, gumjs_int64_or),
+  JS_CFUNC_DEF ("xor", 1, gumjs_int64_xor),
+  JS_CFUNC_DEF ("shr", 1, gumjs_int64_shr),
+  JS_CFUNC_DEF ("shl", 1, gumjs_int64_shl),
+  JS_CFUNC_DEF ("not", 1, gumjs_int64_not),
+  JS_CFUNC_DEF ("compare", 1, gumjs_int64_compare),
+  JS_CFUNC_DEF ("toNumber", 0, gumjs_int64_to_number),
+  JS_CFUNC_DEF ("toString", 1, gumjs_int64_to_string),
+  JS_CFUNC_DEF ("toJSON", 0, gumjs_int64_to_json),
+  JS_CFUNC_DEF ("valueOf", 0, gumjs_int64_value_of),
 };
 
-static const quick_function_list_entry gumjs_int64_functions[] =
+static const JSCFunctionListEntry gumjs_uint64_entries[] =
 {
-  { "add", gumjs_int64_add, 1 },
-  { "sub", gumjs_int64_sub, 1 },
-  { "and", gumjs_int64_and, 1 },
-  { "or", gumjs_int64_or, 1 },
-  { "xor", gumjs_int64_xor, 1 },
-  { "shr", gumjs_int64_shr, 1 },
-  { "shl", gumjs_int64_shl, 1 },
-  { "not", gumjs_int64_not, 1 },
-  { "compare", gumjs_int64_compare, 1 },
-  { "toNumber", gumjs_int64_to_number, 0 },
-  { "toString", gumjs_int64_to_string, 1 },
-  { "toJSON", gumjs_int64_to_json, 0 },
-  { "valueOf", gumjs_int64_value_of, 0 },
-
-  { NULL, NULL, 0 }
+  JS_CFUNC_DEF ("add", 1, gumjs_uint64_add),
+  JS_CFUNC_DEF ("sub", 1, gumjs_uint64_sub),
+  JS_CFUNC_DEF ("and", 1, gumjs_uint64_and),
+  JS_CFUNC_DEF ("or", 1, gumjs_uint64_or),
+  JS_CFUNC_DEF ("xor", 1, gumjs_uint64_xor),
+  JS_CFUNC_DEF ("shr", 1, gumjs_uint64_shr),
+  JS_CFUNC_DEF ("shl", 1, gumjs_uint64_shl),
+  JS_CFUNC_DEF ("not", 1, gumjs_uint64_not),
+  JS_CFUNC_DEF ("compare", 1, gumjs_uint64_compare),
+  JS_CFUNC_DEF ("toNumber", 0, gumjs_uint64_to_number),
+  JS_CFUNC_DEF ("toString", 1, gumjs_uint64_to_string),
+  JS_CFUNC_DEF ("toJSON", 0, gumjs_uint64_to_json),
+  JS_CFUNC_DEF ("valueOf", 0, gumjs_uint64_value_of),
 };
 
-static const quick_function_list_entry gumjs_uint64_functions[] =
+static const JSCFunctionListEntry gumjs_native_pointer_entries[] =
 {
-  { "add", gumjs_uint64_add, 1 },
-  { "sub", gumjs_uint64_sub, 1 },
-  { "and", gumjs_uint64_and, 1 },
-  { "or", gumjs_uint64_or, 1 },
-  { "xor", gumjs_uint64_xor, 1 },
-  { "shr", gumjs_uint64_shr, 1 },
-  { "shl", gumjs_uint64_shl, 1 },
-  { "not", gumjs_uint64_not, 1 },
-  { "compare", gumjs_uint64_compare, 1 },
-  { "toNumber", gumjs_uint64_to_number, 0 },
-  { "toString", gumjs_uint64_to_string, 1 },
-  { "toJSON", gumjs_uint64_to_json, 0 },
-  { "valueOf", gumjs_uint64_value_of, 0 },
-
-  { NULL, NULL, 0 }
+  JS_CFUNC_DEF ("isNull", 0, gumjs_native_pointer_is_null),
+  JS_CFUNC_DEF ("add", 1, gumjs_native_pointer_add),
+  JS_CFUNC_DEF ("sub", 1, gumjs_native_pointer_sub),
+  JS_CFUNC_DEF ("and", 1, gumjs_native_pointer_and),
+  JS_CFUNC_DEF ("or", 1, gumjs_native_pointer_or),
+  JS_CFUNC_DEF ("xor", 1, gumjs_native_pointer_xor),
+  JS_CFUNC_DEF ("shr", 1, gumjs_native_pointer_shr),
+  JS_CFUNC_DEF ("shl", 1, gumjs_native_pointer_shl),
+  JS_CFUNC_DEF ("not", 0, gumjs_native_pointer_not),
+  JS_CFUNC_DEF ("sign", 2, gumjs_native_pointer_sign),
+  JS_CFUNC_DEF ("strip", 1, gumjs_native_pointer_strip),
+  JS_CFUNC_DEF ("blend", 1, gumjs_native_pointer_blend),
+  JS_CFUNC_DEF ("compare", 1, gumjs_native_pointer_compare),
+  JS_CFUNC_DEF ("toInt32", 0, gumjs_native_pointer_to_int32),
+  JS_CFUNC_DEF ("toUInt32", 0, gumjs_native_pointer_to_uint32),
+  JS_CFUNC_DEF ("toString", 1, gumjs_native_pointer_to_string),
+  JS_CFUNC_DEF ("toJSON", 0, gumjs_native_pointer_to_json),
+  JS_CFUNC_DEF ("toMatchPattern", 0, gumjs_native_pointer_to_match_pattern),
 };
 
-static const quick_function_list_entry gumjs_native_pointer_functions[] =
+static const JSCFunctionListEntry gumjs_native_function_entries[] =
 {
-  { "isNull", gumjs_native_pointer_is_null, 0 },
-  { "add", gumjs_native_pointer_add, 1 },
-  { "sub", gumjs_native_pointer_sub, 1 },
-  { "and", gumjs_native_pointer_and, 1 },
-  { "or", gumjs_native_pointer_or, 1 },
-  { "xor", gumjs_native_pointer_xor, 1 },
-  { "shr", gumjs_native_pointer_shr, 1 },
-  { "shl", gumjs_native_pointer_shl, 1 },
-  { "not", gumjs_native_pointer_not, 0 },
-  { "sign", gumjs_native_pointer_sign, 2 },
-  { "strip", gumjs_native_pointer_strip, 1 },
-  { "blend", gumjs_native_pointer_blend, 1 },
-  { "compare", gumjs_native_pointer_compare, 1 },
-  { "toInt32", gumjs_native_pointer_to_int32, 0 },
-  { "toUInt32", gumjs_native_pointer_to_uint32, 0 },
-  { "toString", gumjs_native_pointer_to_string, 1 },
-  { "toJSON", gumjs_native_pointer_to_json, 0 },
-  { "toMatchPattern", gumjs_native_pointer_to_match_pattern, 0 },
-
-  { NULL, NULL, 0 }
+  JS_CFUNC_DEF ("call", 0, gumjs_native_function_call),
+  JS_CFUNC_DEF ("apply", 2, gumjs_native_function_apply),
 };
 
-static const quick_function_list_entry gumjs_native_function_functions[] =
+static const JSCFunctionListEntry gumjs_system_function_entries[] =
 {
-  { "call", gumjs_native_function_call, QUICK_VARARGS },
-  { "apply", gumjs_native_function_apply, 2 },
-
-  { NULL, NULL, 0 }
-};
-
-static const quick_function_list_entry gumjs_system_function_functions[] =
-{
-  { "call", gumjs_system_function_call, QUICK_VARARGS },
-  { "apply", gumjs_system_function_apply, 2 },
-
-  { NULL, NULL, 0 }
+  JS_CFUNC_DEF ("call", 0, gumjs_system_function_call),
+  JS_CFUNC_DEF ("apply", 2, gumjs_system_function_apply),
 };
 
 #define GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED(A, R) \
   GUMJS_DEFINE_GETTER (gumjs_cpu_context_get_##A) \
   { \
-    GumQuickCpuContext * self = gumjs_cpu_context_from_args (args); \
+    GumQuickCpuContext * self = gumjs_cpu_context_from_this (this_val, core); \
     \
-    _gum_quick_push_native_pointer (ctx, GSIZE_TO_POINTER (self->handle->R), \
-        args->core); \
-    return 1; \
+    return _gum_quick_native_pointer_new (GSIZE_TO_POINTER (self->handle->R), \
+        core); \
   } \
   \
   GUMJS_DEFINE_SETTER (gumjs_cpu_context_set_##A) \
   { \
-    GumQuickCpuContext * self = gumjs_cpu_context_from_args (args); \
+    GumQuickCpuContext * self = gumjs_cpu_context_from_this (this_val, core); \
     \
-    gumjs_cpu_context_set_register (self, ctx, args, \
+    return gumjs_cpu_context_set_register (self, ctx, value, \
         (gpointer *) &self->handle->R); \
-    return 0; \
   }
 #define GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR(R) \
   GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (R, R)
 
 #define GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR_ALIASED(A, R) \
-  { G_STRINGIFY (A), gumjs_cpu_context_get_##R, gumjs_cpu_context_set_##R }
+  JS_CGETSET_DEF (G_STRINGIFY (A), gumjs_cpu_context_get_##R, \
+      gumjs_cpu_context_set_##R)
 #define GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR(R) \
   GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR_ALIASED (R, R)
 
@@ -599,7 +572,7 @@ GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (k0)
 GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (k1)
 #endif
 
-static const GumQuickPropertyEntry gumjs_cpu_context_values[] =
+static const JSCFunctionListEntry gumjs_cpu_context_entries[] =
 {
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
   GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR_ALIASED (pc, eip),
@@ -738,15 +711,11 @@ static const GumQuickPropertyEntry gumjs_cpu_context_values[] =
   GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (k0),
   GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (k1),
 #endif
-
-  { NULL, NULL, NULL }
 };
 
-static const quick_function_list_entry gumjs_source_map_functions[] =
+static const JSCFunctionListEntry gumjs_source_map_entries[] =
 {
-  { "_resolve", gumjs_source_map_resolve, QUICK_VARARGS },
-
-  { NULL, NULL, 0 }
+  JS_CFUNC_DEF ("_resolve", 0, gumjs_source_map_resolve),
 };
 
 void
@@ -812,7 +781,7 @@ _gum_quick_core_init (GumQuickCore * self,
   quick_push_string (ctx, "QJS");
   quick_put_prop_string (ctx, -2, "runtime");
   _gum_quick_add_properties_to_class_by_heapptr (ctx,
-      quick_require_heapptr (ctx, -1), gumjs_script_values);
+      quick_require_heapptr (ctx, -1), gumjs_script_entries);
   quick_put_function_list (ctx, -1, gumjs_script_functions);
   quick_put_global_string (ctx, "Script");
 
@@ -918,27 +887,6 @@ _gum_quick_core_init (GumQuickCore * self,
   quick_put_global_string (ctx, "CpuContext");
   _gum_quick_add_properties_to_class (ctx, "CpuContext",
       gumjs_cpu_context_values);
-
-  for (i = 0; i != GUM_QUICK_NATIVE_POINTER_CACHE_SIZE; i++)
-  {
-    GumQuickNativePointerImpl * ptr;
-
-    quick_push_heapptr (ctx, self->native_pointer);
-    quick_push_pointer (ctx, NULL);
-    quick_new (ctx, 1);
-
-    ptr = _gum_quick_require_data (ctx, -1);
-    ptr->object = quick_require_heapptr (ctx, -1);
-    ptr->id = g_strdup_printf ("np%u", i + 1);
-    ptr->next = self->cached_native_pointers;
-    self->cached_native_pointers = ptr;
-
-    quick_push_global_stash (ctx);
-    quick_dup (ctx, -2);
-    quick_put_prop_string (ctx, -2, ptr->id);
-
-    quick_pop_2 (ctx);
-  }
 
   quick_push_c_function (ctx, gumjs_source_map_construct, 1);
   quick_push_object (ctx);
@@ -1162,7 +1110,7 @@ _gum_quick_scope_enter (GumQuickScope * self,
     else
     {
       gchar name[32];
-      quick_idx_t thread_index;
+      int thread_index;
 
       sprintf (name, "thread_%p", self);
 
@@ -1239,49 +1187,34 @@ _gum_quick_scope_resume (GumQuickScope * self)
 
 gboolean
 _gum_quick_scope_call (GumQuickScope * self,
-                     quick_idx_t nargs)
+                       JSValueConst func_obj,
+                       JSValueConst this_obj,
+                       int argc,
+                       JSValueConst * argv)
 {
+  gboolean success;
   GumQuickCore * core = self->core;
-  gboolean success;
+  JSContext * ctx = self->ctx;
+  JSValue result;
 
-  success = quick_pcall (self->ctx, nargs) == 0;
-  if (!success)
+  result = JS_Call (ctx, func_obj, this_obj, argc, argv);
+
+  success = !JS_IsException (result);
+  if (success)
   {
-    if (core->unhandled_exception_sink != NULL)
-      gum_quick_exception_sink_handle_exception (core->unhandled_exception_sink);
+    JS_FreeValue (result);
   }
-
-  return success;
-}
-
-gboolean
-_gum_quick_scope_call_method (GumQuickScope * self,
-                            quick_idx_t nargs)
-{
-  GumQuickCore * core = self->core;
-  gboolean success;
-
-  success = quick_pcall_method (self->ctx, nargs) == 0;
-  if (!success)
+  else
   {
+    JSValue exception = JS_GetException (ctx);
+
     if (core->unhandled_exception_sink != NULL)
-      gum_quick_exception_sink_handle_exception (core->unhandled_exception_sink);
-  }
+    {
+      gum_quick_exception_sink_handle_exception (
+          core->unhandled_exception_sink, exception);
+    }
 
-  return success;
-}
-
-gboolean
-_gum_quick_scope_call_sync (GumQuickScope * self,
-                          quick_idx_t nargs)
-{
-  gboolean success;
-
-  success = quick_pcall (self->ctx, nargs) == 0;
-  if (!success)
-  {
-    g_assert (self->exception == NULL);
-    self->exception = _gum_quick_require_heapptr (self->ctx, -1);
+    JS_FreeValue (exception);
   }
 
   return success;
@@ -2698,7 +2631,7 @@ gumjs_ffi_function_init (JSContext * ctx,
   GumQuickFFIFunction * func;
   GumQuickNativePointer * ptr;
   ffi_type * rtype;
-  quick_size_t nargs_fixed, nargs_total, length, i;
+  int nargs_fixed, nargs_total, length, i;
   gboolean is_variadic;
   ffi_abi abi;
 
@@ -2870,8 +2803,8 @@ static int
 gum_quick_ffi_function_invoke (GumQuickFFIFunction * self,
                              JSContext * ctx,
                              GCallback implementation,
-                             quick_size_t argc,
-                             quick_idx_t argv_index)
+                             int argc,
+                             int argv_index)
 {
   GumQuickCore * core;
   ffi_cif * cif;
@@ -3056,8 +2989,8 @@ gumjs_ffi_function_invoke (JSContext * ctx,
                            const GumQuickArgs * args)
 {
   GumQuickFFIFunction * self;
-  quick_size_t argc;
-  quick_idx_t argv_index;
+  int argc;
+  int argv_index;
 
   quick_push_this (ctx);
   self = _gum_quick_require_data (ctx, -1);
@@ -3077,8 +3010,8 @@ gumjs_ffi_function_call (JSContext * ctx,
   GumQuickHeapPtr receiver;
   GumQuickFFIFunction * func;
   GCallback impl;
-  quick_size_t argc;
-  quick_idx_t argv_index;
+  int argc;
+  int argv_index;
 
   if (args->count == 0 || quick_is_null_or_undefined (ctx, 0))
   {
@@ -3108,11 +3041,11 @@ gumjs_ffi_function_apply (JSContext * ctx,
                           const GumQuickArgs * args)
 {
   GumQuickHeapPtr receiver;
-  const quick_idx_t argv_array_index = 1;
+  const int argv_array_index = 1;
   GumQuickFFIFunction * func;
   GCallback impl;
-  quick_size_t argc, i;
-  quick_idx_t argv_index;
+  int argc, i;
+  int argv_index;
 
   if (quick_is_null_or_undefined (ctx, 0))
   {
@@ -3204,10 +3137,10 @@ gumjs_ffi_function_get (JSContext * ctx,
 
 static void
 gum_quick_ffi_function_params_init (GumQuickFFIFunctionParams * params,
-                                  quick_c_function invoke,
-                                  GumQuickHeapPtr prototype,
-                                  GumQuickReturnValueShape return_shape,
-                                  const GumQuickArgs * args)
+                                    JSCFunction * invoke,
+                                    GumQuickHeapPtr prototype,
+                                    GumQuickReturnValueShape return_shape,
+                                    const GumQuickArgs * args)
 {
   JSContext * ctx = args->ctx;
   GumQuickHeapPtr abi_or_options;
@@ -3231,7 +3164,7 @@ gum_quick_ffi_function_params_init (GumQuickFFIFunctionParams * params,
   }
   else if (quick_is_object (ctx, -1) && !quick_is_null (ctx, -1))
   {
-    quick_idx_t options_index;
+    int options_index;
 
     options_index = quick_require_top_index (ctx);
 
@@ -3262,7 +3195,7 @@ gum_quick_ffi_function_params_init (GumQuickFFIFunctionParams * params,
 
 static GumQuickSchedulingBehavior
 gum_quick_require_scheduling_behavior (JSContext * ctx,
-                                     quick_idx_t index)
+                                     int index)
 {
   const gchar * value;
 
@@ -3278,7 +3211,7 @@ gum_quick_require_scheduling_behavior (JSContext * ctx,
 
 static GumQuickExceptionsBehavior
 gum_quick_require_exceptions_behavior (JSContext * ctx,
-                                     quick_idx_t index)
+                                     int index)
 {
   const gchar * value;
 
@@ -3294,7 +3227,7 @@ gum_quick_require_exceptions_behavior (JSContext * ctx,
 
 static GumQuickCodeTraps
 gum_quick_require_code_traps (JSContext * ctx,
-                            quick_idx_t index)
+                            int index)
 {
   const gchar * value;
 
@@ -3316,7 +3249,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
   GumQuickNativeCallback * callback;
   GumQuickNativePointer * ptr;
   ffi_type * rtype;
-  quick_size_t nargs, i;
+  int nargs, i;
   ffi_abi abi;
 
   if (!quick_is_constructor_call (ctx))
@@ -3522,18 +3455,10 @@ gum_quick_native_callback_invoke (ffi_cif * cif,
 }
 
 static GumQuickCpuContext *
-gumjs_cpu_context_from_args (const GumQuickArgs * args)
+gumjs_cpu_context_from_this (JSValueConst this_val,
+                             GumQuickCore * core)
 {
-  JSContext * ctx = args->ctx;
-  GumQuickCpuContext * self;
-
-  quick_push_this (ctx);
-  self = _gum_quick_require_data (ctx, -1);
-  if (self->handle == NULL)
-    _gum_quick_throw (ctx, "invalid operation");
-  quick_pop (ctx);
-
-  return self;
+  return JS_GetOpaque (this_val, core->cpu_context_class_id);
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_cpu_context_construct)
@@ -3554,16 +3479,18 @@ GUMJS_DEFINE_FINALIZER (gumjs_cpu_context_finalize)
   return 0;
 }
 
-static void
+static JSValue
 gumjs_cpu_context_set_register (GumQuickCpuContext * self,
                                 JSContext * ctx,
-                                const GumQuickArgs * args,
+                                JSValueConst value,
                                 gpointer * reg)
 {
   if (self->access == GUM_CPU_CONTEXT_READONLY)
-    _gum_quick_throw (ctx, "invalid operation");
+    return _gum_quick_throw (ctx, "invalid operation");
 
-  _gum_quick_args_parse (args, "p~", reg);
+  return _gum_quick_native_pointer_parse (value, reg, self->core)
+      ? JS_UNDEFINED
+      : JS_EXCEPTION;
 }
 
 static GumSourceMap *
@@ -3829,7 +3756,8 @@ gum_quick_exception_sink_free (GumQuickExceptionSink * sink)
 }
 
 static void
-gum_quick_exception_sink_handle_exception (GumQuickExceptionSink * self)
+gum_quick_exception_sink_handle_exception (GumQuickExceptionSink * self,
+                                           JSValueConst exception)
 {
   GumQuickCore * core = self->core;
   JSContext * ctx = core->current_scope->ctx;
@@ -3918,7 +3846,7 @@ gum_quick_get_ffi_type (JSContext * ctx,
                       GSList ** data)
 {
   gboolean success = FALSE;
-  quick_size_t i;
+  int i;
 
   quick_push_heapptr (ctx, value);
 
@@ -3930,7 +3858,7 @@ gum_quick_get_ffi_type (JSContext * ctx,
   }
   else if (quick_is_array (ctx, -1))
   {
-    quick_size_t length;
+    int length;
     ffi_type ** fields, * struct_type;
 
     length = quick_get_length (ctx, -1);
@@ -3981,7 +3909,7 @@ gum_quick_get_ffi_abi (JSContext * ctx,
 
 static gboolean
 gum_quick_get_ffi_value (JSContext * ctx,
-                       quick_idx_t index,
+                       int index,
                        const ffi_type * type,
                        GumQuickCore * core,
                        GumFFIValue * value)
@@ -4065,7 +3993,7 @@ gum_quick_get_ffi_value (JSContext * ctx,
   else if (type->type == FFI_TYPE_STRUCT)
   {
     ffi_type ** const field_types = type->elements, ** t;
-    quick_size_t length, expected_length, i;
+    int length, expected_length, i;
     guint8 * field_values;
     gsize offset;
 

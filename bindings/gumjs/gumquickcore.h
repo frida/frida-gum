@@ -111,7 +111,6 @@ struct _GumQuickScope
   guint previous_mutex_depth;
   JSContext * ctx;
   GumQuickHeapPtr exception;
-  quick_thread_state thread_state;
 
   GQueue tick_callbacks;
   GQueue scheduled_sources;
@@ -199,11 +198,8 @@ G_GNUC_INTERNAL JSContext * _gum_quick_scope_enter (GumQuickScope * self,
 G_GNUC_INTERNAL void _gum_quick_scope_suspend (GumQuickScope * self);
 G_GNUC_INTERNAL void _gum_quick_scope_resume (GumQuickScope * self);
 G_GNUC_INTERNAL gboolean _gum_quick_scope_call (GumQuickScope * self,
-    quick_idx_t nargs);
-G_GNUC_INTERNAL gboolean _gum_quick_scope_call_method (GumQuickScope * self,
-    quick_idx_t nargs);
-G_GNUC_INTERNAL gboolean _gum_quick_scope_call_sync (GumQuickScope * self,
-    quick_idx_t nargs);
+    JSValueConst func_obj, JSValueConst this_obj, int argc,
+    JSValueConst * argv);
 G_GNUC_INTERNAL void _gum_quick_scope_flush (GumQuickScope * self);
 G_GNUC_INTERNAL void _gum_quick_scope_perform_pending_io (GumQuickScope * self);
 G_GNUC_INTERNAL void _gum_quick_scope_leave (GumQuickScope * self);

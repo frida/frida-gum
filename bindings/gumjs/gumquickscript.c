@@ -11,11 +11,15 @@
 #include "gumquickcmodule.h"
 #include "gumquickcoderelocator.h"
 #include "gumquickcodewriter.h"
+#endif
 #include "gumquickcore.h"
+#if 0
 #include "gumquickdatabase.h"
 #include "gumquickfile.h"
 #include "gumquickinstruction.h"
+#endif
 #include "gumquickinterceptor.h"
+#if 0
 #include "gumquickkernel.h"
 #include "gumquickmemory.h"
 #include "gumquickmodule.h"
@@ -25,7 +29,9 @@
 #include "gumquickscriptbackend.h"
 #if 0
 #include "gumquicksocket.h"
+#endif
 #include "gumquickstalker.h"
+#if 0
 #include "gumquickstream.h"
 #include "gumquicksymbol.h"
 #include "gumquickthread.h"
@@ -54,8 +60,8 @@ struct _GumQuickScript
   JSRuntime * rt;
   JSContext * ctx;
   JSValue code;
-#if 0
   GumQuickCore core;
+#if 0
   GumQuickKernel kernel;
   GumQuickMemory memory;
   GumQuickModule module;
@@ -65,15 +71,19 @@ struct _GumQuickScript
   GumQuickStream stream;
   GumQuickSocket socket;
   GumQuickDatabase database;
+#endif
   GumQuickInterceptor interceptor;
+#if 0
   GumQuickApiResolver api_resolver;
   GumQuickSymbol symbol;
   GumQuickCModule cmodule;
+#endif
   GumQuickInstruction instruction;
   GumQuickCodeWriter code_writer;
+#if 0
   GumQuickCodeRelocator code_relocator;
-  GumQuickStalker stalker;
 #endif
+  GumQuickStalker stalker;
 
   GumScriptMessageHandler message_handler;
   gpointer message_handler_data;
@@ -341,14 +351,19 @@ gboolean
 gum_quick_script_create_context (GumQuickScript * self,
                                  GError ** error)
 {
+  GumQuickCore * core = &self->core;
   JSRuntime * rt;
   JSContext * ctx;
   JSValue value;
+  GumQuickScope scope = { core, NULL, };
 
   g_assert (self->ctx == NULL);
 
   rt = gum_quick_script_backend_make_runtime (self->backend);
+  JS_SetRuntimeOpaque (rt, core);
+
   ctx = JS_NewContext (rt);
+  JS_SetContextOpaque (ctx, core);
 
   if (self->bytecode != NULL)
   {
@@ -367,16 +382,16 @@ gum_quick_script_create_context (GumQuickScript * self,
   self->ctx = ctx;
   self->code = value;
 
-#if 0
   _gum_quick_core_init (core, self,
       gum_quick_script_backend_get_scope_mutex (self->backend),
-      gumjs_frida_source_map, &self->interceptor, &self->stalker,
+      "" /*gumjs_frida_source_map*/, &self->interceptor, &self->stalker,
       gum_quick_script_emit,
       gum_quick_script_backend_get_scheduler (self->backend), self->ctx);
 
   scope.ctx = self->ctx;
   core->current_scope = &scope;
 
+#if 0
   _gum_quick_kernel_init (&self->kernel, core);
   _gum_quick_memory_init (&self->memory, core);
   _gum_quick_module_init (&self->module, core);
@@ -386,7 +401,9 @@ gum_quick_script_create_context (GumQuickScript * self,
   _gum_quick_stream_init (&self->stream, core);
   _gum_quick_socket_init (&self->socket, core);
   _gum_quick_database_init (&self->database, core);
+#endif
   _gum_quick_interceptor_init (&self->interceptor, core);
+#if 0
   _gum_quick_api_resolver_init (&self->api_resolver, core);
   _gum_quick_symbol_init (&self->symbol, core);
   _gum_quick_cmodule_init (&self->cmodule, core);
@@ -394,13 +411,11 @@ gum_quick_script_create_context (GumQuickScript * self,
   _gum_quick_code_writer_init (&self->code_writer, core);
   _gum_quick_code_relocator_init (&self->code_relocator, &self->code_writer,
       &self->instruction, core);
+#endif
   _gum_quick_stalker_init (&self->stalker, &self->code_writer,
       &self->instruction, core);
 
   core->current_scope = NULL;
-#else
-  (void) gum_quick_script_emit;
-#endif
 
   return TRUE;
 
@@ -416,26 +431,26 @@ malformed_program:
 static void
 gum_quick_script_destroy_context (GumQuickScript * self)
 {
-#if 0
   GumQuickCore * core = &self->core;
-#endif
 
   g_assert (self->ctx != NULL);
 
-#if 0
   {
     GumQuickScope scope;
 
     _gum_quick_scope_enter (&scope, core);
 
     _gum_quick_stalker_dispose (&self->stalker);
+#if 0
     _gum_quick_code_relocator_dispose (&self->code_relocator);
     _gum_quick_code_writer_dispose (&self->code_writer);
     _gum_quick_instruction_dispose (&self->instruction);
     _gum_quick_cmodule_dispose (&self->cmodule);
     _gum_quick_symbol_dispose (&self->symbol);
     _gum_quick_api_resolver_dispose (&self->api_resolver);
+#endif
     _gum_quick_interceptor_dispose (&self->interceptor);
+#if 0
     _gum_quick_database_dispose (&self->database);
     _gum_quick_socket_dispose (&self->socket);
     _gum_quick_stream_dispose (&self->stream);
@@ -445,19 +460,17 @@ gum_quick_script_destroy_context (GumQuickScript * self)
     _gum_quick_module_dispose (&self->module);
     _gum_quick_memory_dispose (&self->memory);
     _gum_quick_kernel_dispose (&self->kernel);
+#endif
     _gum_quick_core_dispose (core);
 
     _gum_quick_scope_leave (&scope);
   }
-#endif
 
   {
-#if 0
     GumQuickScope scope = { core, NULL, };
 
     scope.ctx = self->ctx;
     core->current_scope = &scope;
-#endif
 
     JS_FreeValue (self->ctx, self->code);
 
@@ -467,20 +480,20 @@ gum_quick_script_destroy_context (GumQuickScript * self)
     JS_FreeRuntime (self->rt);
     self->rt = NULL;
 
-#if 0
     core->current_scope = NULL;
-#endif
   }
 
-#if 0
   _gum_quick_stalker_finalize (&self->stalker);
+#if 0
   _gum_quick_code_relocator_finalize (&self->code_relocator);
   _gum_quick_code_writer_finalize (&self->code_writer);
   _gum_quick_instruction_finalize (&self->instruction);
   _gum_quick_cmodule_finalize (&self->cmodule);
   _gum_quick_symbol_finalize (&self->symbol);
   _gum_quick_api_resolver_finalize (&self->api_resolver);
+#endif
   _gum_quick_interceptor_finalize (&self->interceptor);
+#if 0
   _gum_quick_database_finalize (&self->database);
   _gum_quick_socket_finalize (&self->socket);
   _gum_quick_stream_finalize (&self->stream);
@@ -490,8 +503,8 @@ gum_quick_script_destroy_context (GumQuickScript * self)
   _gum_quick_module_finalize (&self->module);
   _gum_quick_memory_finalize (&self->memory);
   _gum_quick_kernel_finalize (&self->kernel);
-  _gum_quick_core_finalize (core);
 #endif
+  _gum_quick_core_finalize (core);
 }
 
 static void
@@ -560,9 +573,7 @@ gum_quick_script_perform_load_task (GumQuickScript * self,
 {
   if (self->state == GUM_SCRIPT_STATE_UNLOADED)
   {
-#if 0
     GumQuickScope scope;
-#endif
     JSContext * ctx;
     JSValue result;
 
@@ -571,21 +582,17 @@ gum_quick_script_perform_load_task (GumQuickScript * self,
       gum_quick_script_create_context (self, NULL);
     }
 
-#if 0
     ctx = _gum_quick_scope_enter (&scope, &self->core);
 
+#if 0
     gum_quick_bundle_load (gumjs_runtime_modules, ctx);
-#else
-    ctx = self->ctx;
 #endif
 
     result = JS_EvalFunction (ctx, self->code);
 
     JS_FreeValue (ctx, result);
 
-#if 0
     _gum_quick_scope_leave (&scope);
-#endif
 
     self->state = GUM_SCRIPT_STATE_LOADED;
   }
@@ -669,7 +676,6 @@ gum_quick_script_complete_unload_task (GumQuickScript * self,
 static void
 gum_quick_script_try_unload (GumQuickScript * self)
 {
-#if 0
   GumQuickScope scope;
   gboolean success;
 
@@ -679,15 +685,14 @@ gum_quick_script_try_unload (GumQuickScript * self)
 
   _gum_quick_stalker_flush (&self->stalker);
   _gum_quick_interceptor_flush (&self->interceptor);
+#if 0
   _gum_quick_socket_flush (&self->socket);
   _gum_quick_stream_flush (&self->stream);
   _gum_quick_process_flush (&self->process);
+#endif
   success = _gum_quick_core_flush (&self->core, gum_quick_script_try_unload);
 
   _gum_quick_scope_leave (&scope);
-#else
-  gboolean success = TRUE;
-#endif
 
   if (success)
   {
@@ -764,14 +769,12 @@ gum_quick_script_post (GumScript * script,
 static void
 gum_quick_script_do_post (GumPostData * d)
 {
-#if 0
   GBytes * data;
 
   data = d->data;
   d->data = NULL;
 
   _gum_quick_core_post (&d->script->core, d->message, data);
-#endif
 }
 
 static void
@@ -786,13 +789,9 @@ gum_quick_post_data_free (GumPostData * d)
 static GumStalker *
 gum_quick_script_get_stalker (GumScript * script)
 {
-#if 0
   GumQuickScript * self = GUM_QUICK_SCRIPT (script);
 
   return _gum_quick_stalker_get (&self->stalker);
-#else
-  return NULL;
-#endif
 }
 
 static void

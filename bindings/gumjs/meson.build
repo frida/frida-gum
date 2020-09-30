@@ -33,6 +33,10 @@ if have_quickjs
   gumjs_sources += [
     'gumquickscriptbackend.c',
     'gumquickscript.c',
+    'gumquickvalue.c',
+    'gumquickcore.c',
+    'gumquickinterceptor.c',
+    'gumquickstalker.c',
   ]
 endif
 

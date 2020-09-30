@@ -20,121 +20,111 @@
 #define GUMJS_DECLARE_GETTER(N) \
   static JSValue N (JSContext * ctx, JSValueConst this_val);
 #define GUMJS_DECLARE_SETTER(N) \
-  static JSValue N (JSContext * ctx, JSValueConst this_val, JSValueConst proto);
+  static JSValue N (JSContext * ctx, JSValueConst this_val, JSValueConst value);
 
 #define GUMJS_DEFINE_CONSTRUCTOR(N) \
-  static int N##_impl (JSContext * ctx, const GumQuickArgs * args); \
+  static JSValue N##_impl (JSContext * ctx, const GumQuickArgs * args, \
+      int flags); \
   \
-  static int \
-  N (JSContext * ctx) \
+  static JSValue \
+  N (JSContext * ctx, \
+     JSValueConst func_obj, \
+     JSValueConst this_val, \
+     int argc, \
+     JSValueConst * argv, \
+     int flags) \
   { \
     GumQuickArgs args; \
     \
-    args.count = quick_get_top (ctx); \
+    args.argc = argc; \
+    args.argv = argv; \
     \
     args.ctx = ctx; \
+    args.core = JS_GetContextOpaque (ctx); \
     \
-    quick_get_global_string (ctx, QUICK_HIDDEN_SYMBOL ("core")); \
-    args.core = quick_get_pointer (ctx, -1); \
-    quick_pop (ctx); \
-    \
-    return N##_impl (ctx, &args); \
+    return N##_impl (ctx, &args, flags); \
   } \
   \
-  static int \
+  static JSValue \
   N##_impl (JSContext * ctx, \
-            const GumQuickArgs * args)
+            const GumQuickArgs * args, \
+            int flags)
 #define GUMJS_DEFINE_FINALIZER(N) \
-  static int N##_impl (JSContext * ctx, const GumQuickArgs * args); \
+  static void N##_impl (JSRuntime * rt, JSValue val, GumQuickCore * core); \
   \
-  static int \
-  N (JSContext * ctx) \
+  static void \
+  N (JSRuntime * rt, \
+     JSValue val) \
   { \
-    GumQuickArgs args; \
+    GumQuickCore * core = JS_GetRuntimeOpaque (rt); \
     \
-    args.count = quick_get_top (ctx); \
-    \
-    args.ctx = ctx; \
-    \
-    quick_get_global_string (ctx, QUICK_HIDDEN_SYMBOL ("core")); \
-    args.core = quick_get_pointer (ctx, -1); \
-    quick_pop (ctx); \
-    \
-    return N##_impl (ctx, &args); \
+    N##_impl (rt, val, core); \
   } \
   \
-  static int \
-  N##_impl (JSContext * ctx, \
-            const GumQuickArgs * args)
+  static void \
+  N##_impl (JSRuntime * rt, \
+            JSValue val, \
+            GumQuickCore * core)
 #define GUMJS_DEFINE_FUNCTION(N) \
-  static int N##_impl (JSContext * ctx, const GumQuickArgs * args); \
+  static JSValue N##_impl (JSContext * ctx, JSValueConst this_val, \
+      const GumQuickArgs * args); \
   \
-  static int \
-  N (JSContext * ctx) \
+  static JSValue \
+  N (JSContext * ctx, \
+     JSValueConst this_val, \
+     int argc, \
+     JSValueConst * argv) \
   { \
     GumQuickArgs args; \
     \
-    args.count = quick_get_top (ctx); \
+    args.argc = argc; \
+    args.argv = argv; \
     \
     args.ctx = ctx; \
+    args.core = JS_GetContextOpaque (ctx); \
     \
-    quick_get_global_string (ctx, QUICK_HIDDEN_SYMBOL ("core")); \
-    args.core = quick_get_pointer (ctx, -1); \
-    quick_pop (ctx); \
-    \
-    return N##_impl (ctx, &args); \
+    return N##_impl (ctx, this_val, &args); \
   } \
   \
-  static int \
+  static JSValue \
   N##_impl (JSContext * ctx, \
+            JSValueConst this_val, \
             const GumQuickArgs * args)
 #define GUMJS_DEFINE_GETTER(N) \
-  static int N##_impl (JSContext * ctx, const GumQuickArgs * args); \
+  static JSValue N##_impl (JSContext * ctx, JSValueConst this_val, \
+      GumQuickCore * core); \
   \
-  static int \
-  N (JSContext * ctx) \
+  static JSValue \
+  N (JSContext * ctx, \
+     JSValueConst this_val) \
   { \
-    GumQuickArgs args; \
+    GumQuickCore * core = JS_GetContextOpaque (ctx); \
     \
-    args.count = quick_get_top (ctx); \
-    \
-    args.ctx = ctx; \
-    \
-    quick_get_global_string (ctx, QUICK_HIDDEN_SYMBOL ("core")); \
-    args.core = quick_get_pointer (ctx, -1); \
-    quick_pop (ctx); \
-    \
-    return N##_impl (ctx, &args); \
+    return N##_impl (ctx, this_val, core); \
   } \
   \
-  static int \
+  static JSValue \
   N##_impl (JSContext * ctx, \
-            const GumQuickArgs * args)
+            JSValueConst this_val, \
+            GumQuickCore * core)
 #define GUMJS_DEFINE_SETTER(N) \
-  static int N##_impl (JSContext * ctx, const GumQuickArgs * args); \
+  static JSValue N##_impl (JSContext * ctx, JSValueConst this_val, \
+      JSValueConst value, GumQuickCore * core); \
   \
-  static int \
-  N (JSContext * ctx) \
+  static JSValue \
+  N (JSContext * ctx, \
+     JSValueConst this_val, \
+     JSValueConst value) \
   { \
-    GumQuickArgs args; \
+    GumQuickCore * core = JS_GetContextOpaque (ctx); \
     \
-    args.count = quick_get_top (ctx); \
-    \
-    args.ctx = ctx; \
-    \
-    quick_get_global_string (ctx, QUICK_HIDDEN_SYMBOL ("core")); \
-    args.core = quick_get_pointer (ctx, -1); \
-    quick_pop (ctx); \
-    \
-    return N##_impl (ctx, &args); \
+    return N##_impl (ctx, this_val, value, core); \
   } \
   \
-  static int \
+  static JSValue \
   N##_impl (JSContext * ctx, \
-            const GumQuickArgs * args)
-
-#define GUMJS_ADD_GLOBAL_FUNCTION(N, F, NARGS) \
-  quick_push_c_function (ctx, F, NARGS); \
-  quick_put_global_string (ctx, N)
+            JSValueConst this_val, \
+            JSValueConst value, \
+            GumQuickCore * core)
 
 #endif
