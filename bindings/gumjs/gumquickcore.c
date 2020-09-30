@@ -326,22 +326,15 @@ static gboolean gum_quick_get_ffi_value (JSContext * ctx, quick_idx_t index,
 static void gum_quick_push_ffi_value (JSContext * ctx,
     const GumFFIValue * value, const ffi_type * type, GumQuickCore * core);
 
-static const GumQuickPropertyEntry gumjs_frida_values[] =
+static const JSCFunctionListEntry gumjs_frida_entries[] =
 {
-  { "heapSize", gumjs_frida_get_heap_size, NULL },
-  { "sourceMap", gumjs_frida_get_source_map, NULL },
-  { "_objcSourceMap", gumjs_frida_objc_get_source_map, NULL },
-  { "_javaSourceMap", gumjs_frida_java_get_source_map, NULL },
-
-  { NULL, NULL, NULL }
-};
-
-static const quick_function_list_entry gumjs_frida_functions[] =
-{
-  { "_loadObjC", gumjs_frida_objc_load, 0 },
-  { "_loadJava", gumjs_frida_java_load, 0 },
-
-  { NULL, NULL, 0 }
+  JS_PROP_STRING_DEF ("version", FRIDA_VERSION, JS_PROP_C_W_E),
+  JS_CGETSET_DEF ("heapSize", gumjs_frida_get_heap_size, NULL),
+  JS_CGETSET_DEF ("sourceMap", gumjs_frida_get_source_map, NULL),
+  JS_CGETSET_DEF ("_objcSourceMap", gumjs_frida_objc_get_source_map, NULL),
+  JS_CGETSET_DEF ("_javaSourceMap", gumjs_frida_java_get_source_map, NULL),
+  JS_CFUNC_DEF ("_loadObjC", 0, gumjs_frida_objc_load),
+  JS_CFUNC_DEF ("_loadJava", 0, gumjs_frida_java_load),
 };
 
 static const GumQuickPropertyEntry gumjs_script_values[] =
@@ -758,16 +751,19 @@ static const quick_function_list_entry gumjs_source_map_functions[] =
 
 void
 _gum_quick_core_init (GumQuickCore * self,
-                    GumQuickScript * script,
-                    GRecMutex * mutex,
-                    const gchar * runtime_source_map,
-                    GumQuickInterceptor * interceptor,
-                    GumQuickStalker * stalker,
-                    GumQuickMessageEmitter message_emitter,
-                    GumScriptScheduler * scheduler,
-                    JSContext * ctx)
+                      GumQuickScript * script,
+                      GRecMutex * mutex,
+                      const gchar * runtime_source_map,
+                      GumQuickInterceptor * interceptor,
+                      GumQuickStalker * stalker,
+                      GumQuickMessageEmitter message_emitter,
+                      GumScriptScheduler * scheduler,
+                      JSContext * ctx)
 {
+  JSValue global_obj, obj;
   guint i;
+
+  global_obj = JS_GetGlobalObject (ctx);
 
   g_object_get (script, "backend", &self->backend, NULL);
   g_object_unref (self->backend);
@@ -803,17 +799,14 @@ _gum_quick_core_init (GumQuickCore * self,
 
   _gum_quick_store_module_data (ctx, "core", self);
 
-  /* set `global` to the global object */
-  quick_push_global_object (ctx);
-  quick_put_global_string (ctx, "global");
+  JS_DefinePropertyValueStr (ctx, global_obj, "global", global_obj,
+      JS_PROP_ENUMERABLE);
 
-  quick_push_object (ctx);
-  quick_push_string (ctx, FRIDA_VERSION);
-  quick_put_prop_string (ctx, -2, "version");
-  _gum_quick_add_properties_to_class_by_heapptr (ctx,
-      quick_require_heapptr (ctx, -1), gumjs_frida_values);
-  quick_put_function_list (ctx, -1, gumjs_frida_functions);
-  quick_put_global_string (ctx, "Frida");
+  obj = JS_NewObject (ctx);
+  JS_SetPropertyFunctionList (ctx, obj, gumjs_frida_entries,
+      G_N_ELEMENTS (gumjs_frida_entries));
+  JS_DefinePropertyValueStr (ctx, global_obj, "Frida", obj, JS_PROP_C_W_E);
+  JS_FreeValue (obj);
 
   quick_push_object (ctx);
   quick_push_string (ctx, "QJS");
@@ -955,6 +948,8 @@ _gum_quick_core_init (GumQuickCore * self,
   quick_put_prop_string (ctx, -2, "prototype");
   self->source_map = _gum_quick_require_heapptr (ctx, -1);
   quick_put_global_string (ctx, "SourceMap");
+
+  JS_FreeValue (global_obj);
 }
 
 gboolean
