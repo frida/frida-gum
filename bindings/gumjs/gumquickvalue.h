@@ -25,6 +25,11 @@ struct _GumQuickArgs
 G_GNUC_INTERNAL void _gum_quick_args_parse (const GumQuickArgs * args,
     const gchar * format, ...);
 
+G_GNUC_INTERNAL void _gum_quick_store_module_data (JSContext * ctx,
+    const gchar * module_id, gpointer data);
+G_GNUC_INTERNAL gpointer _gum_quick_load_module_data (JSContext * ctx,
+    const gchar * module_id);
+
 G_GNUC_INTERNAL JSValue _gum_quick_native_pointer_new (gpointer address,
     GumQuickCore * core);
 G_GNUC_INTERNAL gboolean _gum_quick_native_pointer_get (JSValueConst value,

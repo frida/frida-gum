@@ -554,6 +554,20 @@ error:
 #endif
 }
 
+void
+_gum_quick_store_module_data (JSContext * ctx,
+                              const gchar * module_id,
+                              gpointer data)
+{
+}
+
+gpointer
+_gum_quick_load_module_data (JSContext * ctx,
+                             const gchar * module_id)
+{
+  return NULL;
+}
+
 JSValue
 _gum_quick_native_pointer_new (gpointer address,
                                GumQuickCore * core)

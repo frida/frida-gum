@@ -256,9 +256,10 @@ static void gumjs_ffi_function_get (JSContext * ctx, GumQuickHeapPtr type,
     GumQuickHeapPtr receiver, GumQuickCore * core, GumQuickFFIFunction ** func,
     GCallback * implementation);
 
-static void gum_quick_ffi_function_params_init (GumQuickFFIFunctionParams * params,
-    JSCFunction * invoke, GumQuickHeapPtr prototype,
-    GumQuickReturnValueShape return_shape, const GumQuickArgs * args);
+static void gum_quick_ffi_function_params_init (
+    GumQuickFFIFunctionParams * params, JSCFunction * invoke,
+    GumQuickHeapPtr prototype, GumQuickReturnValueShape return_shape,
+    const GumQuickArgs * args);
 
 static GumQuickSchedulingBehavior gum_quick_require_scheduling_behavior (
     JSContext * ctx, int index);
@@ -285,8 +286,8 @@ GUMJS_DECLARE_CONSTRUCTOR (gumjs_source_map_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_source_map_finalize)
 GUMJS_DECLARE_FUNCTION (gumjs_source_map_resolve)
 
-static GumQuickWeakRef * gum_quick_weak_ref_new (guint id, GumQuickHeapPtr callback,
-    GumQuickCore * core);
+static GumQuickWeakRef * gum_quick_weak_ref_new (guint id,
+    GumQuickHeapPtr callback, GumQuickCore * core);
 static void gum_quick_weak_ref_clear (GumQuickWeakRef * ref);
 
 static gint gum_quick_core_schedule_callback (GumQuickCore * self,
@@ -295,18 +296,20 @@ static GumQuickScheduledCallback * gum_quick_core_try_steal_scheduled_callback (
     GumQuickCore * self, gint id);
 
 static GumQuickScheduledCallback * gum_scheduled_callback_new (guint id,
-    GumQuickHeapPtr func, gboolean repeat, GSource * source, GumQuickCore * core);
-static void gum_scheduled_callback_free (GumQuickScheduledCallback * callback);
-static gboolean gum_scheduled_callback_invoke (GumQuickScheduledCallback * self);
-
-static GumQuickExceptionSink * gum_quick_exception_sink_new (GumQuickHeapPtr callback,
+    GumQuickHeapPtr func, gboolean repeat, GSource * source,
     GumQuickCore * core);
+static void gum_scheduled_callback_free (GumQuickScheduledCallback * callback);
+static gboolean gum_scheduled_callback_invoke (
+    GumQuickScheduledCallback * self);
+
+static GumQuickExceptionSink * gum_quick_exception_sink_new (
+    GumQuickHeapPtr callback, GumQuickCore * core);
 static void gum_quick_exception_sink_free (GumQuickExceptionSink * sink);
 static void gum_quick_exception_sink_handle_exception (
     GumQuickExceptionSink * self, JSValueConst exception);
 
-static GumQuickMessageSink * gum_quick_message_sink_new (GumQuickHeapPtr callback,
-    GumQuickCore * core);
+static GumQuickMessageSink * gum_quick_message_sink_new (
+    GumQuickHeapPtr callback, GumQuickCore * core);
 static void gum_quick_message_sink_free (GumQuickMessageSink * sink);
 static void gum_quick_message_sink_post (GumQuickMessageSink * self,
     const gchar * message, GBytes * data, GumQuickScope * scope);
@@ -333,15 +336,17 @@ static const JSCFunctionListEntry gumjs_frida_entries[] =
 
 static const JSCFunctionListEntry gumjs_script_entries[] =
 {
+  JS_PROP_STRING_DEF ("runtime", "QJS", JS_PROP_C_W_E),
   JS_CGETSET_DEF ("fileName", gumjs_script_get_file_name, NULL),
   JS_CGETSET_DEF ("sourceMap", gumjs_script_get_source_map, NULL),
   JS_CFUNC_DEF ("_nextTick", 1, gumjs_script_next_tick),
   JS_CFUNC_DEF ("pin", 0, gumjs_script_pin),
   JS_CFUNC_DEF ("unpin", 0, gumjs_script_unpin),
-  JS_CFUNC_DEF ("setGlobalAccessHandler", 1, gumjs_script_set_global_access_handler),
+  JS_CFUNC_DEF ("setGlobalAccessHandler", 1,
+      gumjs_script_set_global_access_handler),
 };
 
-static const JSCFunctionListEntry gumjs_weak_ref_module_entries[] =
+static const JSCFunctionListEntry gumjs_weak_ref_entries[] =
 {
   JS_CFUNC_DEF ("bind", 2, gumjs_weak_ref_bind),
   JS_CFUNC_DEF ("unbind", 1, gumjs_weak_ref_unbind),
@@ -772,22 +777,22 @@ _gum_quick_core_init (GumQuickCore * self,
       JS_PROP_ENUMERABLE);
 
   obj = JS_NewObject (ctx);
+  JS_DefinePropertyValueStr (ctx, global_obj, "Frida", obj, JS_PROP_C_W_E);
   JS_SetPropertyFunctionList (ctx, obj, gumjs_frida_entries,
       G_N_ELEMENTS (gumjs_frida_entries));
-  JS_DefinePropertyValueStr (ctx, global_obj, "Frida", obj, JS_PROP_C_W_E);
-  JS_FreeValue (obj);
+  JS_FreeValue (ctx, obj);
 
-  quick_push_object (ctx);
-  quick_push_string (ctx, "QJS");
-  quick_put_prop_string (ctx, -2, "runtime");
-  _gum_quick_add_properties_to_class_by_heapptr (ctx,
-      quick_require_heapptr (ctx, -1), gumjs_script_entries);
-  quick_put_function_list (ctx, -1, gumjs_script_functions);
-  quick_put_global_string (ctx, "Script");
+  obj = JS_NewObject (ctx);
+  JS_DefinePropertyValueStr (ctx, global_obj, "Script", obj, JS_PROP_C_W_E);
+  JS_SetPropertyFunctionList (ctx, obj, gumjs_script_entries,
+      G_N_ELEMENTS (gumjs_script_entries));
+  JS_FreeValue (ctx, obj);
 
-  quick_push_object (ctx);
-  quick_put_function_list (ctx, -1, gumjs_weak_ref_module_functions);
-  quick_put_global_string (ctx, "WeakRef");
+  obj = JS_NewObject (ctx);
+  JS_DefinePropertyValueStr (ctx, global_obj, "WeakRef", obj, JS_PROP_C_W_E);
+  JS_SetPropertyFunctionList (ctx, obj, gumjs_weak_ref_entries,
+      G_N_ELEMENTS (gumjs_weak_ref_entries));
+  JS_FreeValue (ctx, obj);
 
   quick_push_c_function (ctx, gumjs_weak_ref_construct, 2);
   quick_push_object (ctx);
@@ -897,7 +902,7 @@ _gum_quick_core_init (GumQuickCore * self,
   self->source_map = _gum_quick_require_heapptr (ctx, -1);
   quick_put_global_string (ctx, "SourceMap");
 
-  JS_FreeValue (global_obj);
+  JS_FreeValue (ctx, global_obj);
 }
 
 gboolean
@@ -1202,7 +1207,7 @@ _gum_quick_scope_call (GumQuickScope * self,
   success = !JS_IsException (result);
   if (success)
   {
-    JS_FreeValue (result);
+    JS_FreeValue (ctx, result);
   }
   else
   {
@@ -1214,7 +1219,7 @@ _gum_quick_scope_call (GumQuickScope * self,
           core->unhandled_exception_sink, exception);
     }
 
-    JS_FreeValue (exception);
+    JS_FreeValue (ctx, exception);
   }
 
   return success;
