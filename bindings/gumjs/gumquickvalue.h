@@ -30,6 +30,12 @@ G_GNUC_INTERNAL void _gum_quick_store_module_data (JSContext * ctx,
 G_GNUC_INTERNAL gpointer _gum_quick_load_module_data (JSContext * ctx,
     const gchar * module_id);
 
+G_GNUC_INTERNAL JSValue _gum_quick_int64_new (gint64 value,
+    GumQuickCore * core);
+
+G_GNUC_INTERNAL JSValue _gum_quick_uint64_new (guint64 value,
+    GumQuickCore * core);
+
 G_GNUC_INTERNAL JSValue _gum_quick_native_pointer_new (gpointer address,
     GumQuickCore * core);
 G_GNUC_INTERNAL gboolean _gum_quick_native_pointer_get (JSValueConst value,

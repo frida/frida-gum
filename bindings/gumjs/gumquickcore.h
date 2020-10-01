@@ -36,7 +36,6 @@ typedef struct _GumQuickMessageSink GumQuickMessageSink;
 typedef struct _GumQuickInt64 GumQuickInt64;
 typedef struct _GumQuickUInt64 GumQuickUInt64;
 typedef struct _GumQuickNativePointer GumQuickNativePointer;
-typedef struct _GumQuickNativePointerImpl GumQuickNativePointerImpl;
 typedef struct _GumQuickCpuContext GumQuickCpuContext;
 typedef guint GumQuickCpuContextAccess;
 typedef struct _GumQuickNativeResource GumQuickNativeResource;
@@ -127,15 +126,6 @@ struct _GumQuickUInt64
 struct _GumQuickNativePointer
 {
   gpointer value;
-};
-
-struct _GumQuickNativePointerImpl
-{
-  GumQuickNativePointer parent;
-
-  GumQuickHeapPtr object;
-  gchar * id;
-  GumQuickNativePointerImpl * next;
 };
 
 struct _GumQuickCpuContext

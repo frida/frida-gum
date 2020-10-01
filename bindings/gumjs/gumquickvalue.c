@@ -32,10 +32,54 @@ _gum_quick_load_module_data (JSContext * ctx,
 }
 
 JSValue
+_gum_quick_int64_new (gint64 value,
+                      GumQuickCore * core)
+{
+  JSValue obj;
+  GumQuickInt64 * self;
+
+  obj = JS_NewObjectClass (core->ctx, core->int64_class);
+
+  self = g_slice_new (GumQuickInt64);
+  self->value = value;
+
+  JS_SetOpaque (obj, self);
+
+  return obj;
+}
+
+JSValue
+_gum_quick_uint64_new (guint64 value,
+                       GumQuickCore * core)
+{
+  JSValue obj;
+  GumQuickUInt64 * self;
+
+  obj = JS_NewObjectClass (core->ctx, core->uint64_class);
+
+  self = g_slice_new (GumQuickUInt64);
+  self->value = value;
+
+  JS_SetOpaque (obj, self);
+
+  return obj;
+}
+
+JSValue
 _gum_quick_native_pointer_new (gpointer address,
                                GumQuickCore * core)
 {
-  return JS_UNDEFINED; /* TODO */
+  JSValue obj;
+  GumQuickNativePointer * self;
+
+  obj = JS_NewObjectClass (core->ctx, core->native_pointer_class);
+
+  self = g_slice_new (GumQuickNativePointer);
+  self->value = address;
+
+  JS_SetOpaque (obj, self);
+
+  return obj;
 }
 
 gboolean
