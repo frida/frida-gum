@@ -92,7 +92,9 @@ struct _GumQuickCore
   JSClassID native_resource_class;
   JSClassID kernel_resource_class;
   JSClassID native_function_class;
+  JSValue native_function_ctor;
   JSClassID system_function_class;
+  JSValue system_function_ctor;
   JSClassID native_callback_class;
   JSClassID cpu_context_class;
   JSClassID source_map_class;
