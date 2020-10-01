@@ -220,27 +220,25 @@ gum_quick_script_backend_compile_program (GumQuickScriptBackend * self,
   if (JS_IsException (value))
   {
     JSValue exception_val, line_val;
-    const char * message_str, * line_str;
+    const char * message;
+    uint32_t line;
 
     exception_val = JS_GetException (ctx);
 
-    message_str = JS_ToCString (ctx, exception_val);
+    message = JS_ToCString (ctx, exception_val);
 
     line_val = JS_GetPropertyStr (ctx, exception_val, "lineNumber");
-    line_str = JS_ToCString (ctx, line_val);
+    JS_ToUint32 (ctx, &line, line_val);
 
     g_set_error (error,
         G_IO_ERROR,
         G_IO_ERROR_FAILED,
         "Script(line %u): %s",
-        atoi (line_str),
-        message_str);
+        line,
+        message);
 
-    JS_FreeCString (ctx, line_str);
     JS_FreeValue (ctx, line_val);
-
-    JS_FreeCString (ctx, message_str);
-
+    JS_FreeCString (ctx, message);
     JS_FreeValue (ctx, exception_val);
   }
 

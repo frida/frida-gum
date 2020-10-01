@@ -164,7 +164,6 @@ static int gum_quick_core_on_global_get (JSContext * ctx, const char * name,
 GUMJS_DECLARE_FUNCTION (gumjs_weak_ref_bind)
 GUMJS_DECLARE_FUNCTION (gumjs_weak_ref_unbind)
 
-GUMJS_DECLARE_CONSTRUCTOR (gumjs_weak_ref_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_weak_ref_finalize)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_int64_construct)
@@ -346,10 +345,16 @@ static const JSCFunctionListEntry gumjs_script_entries[] =
       gumjs_script_set_global_access_handler),
 };
 
-static const JSCFunctionListEntry gumjs_weak_ref_entries[] =
+static const JSCFunctionListEntry gumjs_weak_ref_module_entries[] =
 {
   JS_CFUNC_DEF ("bind", 2, gumjs_weak_ref_bind),
   JS_CFUNC_DEF ("unbind", 1, gumjs_weak_ref_unbind),
+};
+
+static const JSClassDef gumjs_weak_ref_class =
+{
+  "WeakRef",
+  gumjs_weak_ref_finalize
 };
 
 static const JSCFunctionListEntry gumjs_int64_entries[] =
@@ -734,8 +739,11 @@ _gum_quick_core_init (GumQuickCore * self,
                       GumScriptScheduler * scheduler,
                       JSContext * ctx)
 {
+  JSRuntime * rt;
   JSValue global_obj, obj;
   guint i;
+
+  rt = JS_GetRuntime (ctx);
 
   global_obj = JS_GetGlobalObject (ctx);
 
@@ -767,6 +775,7 @@ _gum_quick_core_init (GumQuickCore * self,
 
   self->weak_refs = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_quick_weak_ref_clear);
+  self->next_weak_ref_id = 1;
 
   self->scheduled_callbacks = g_hash_table_new (NULL, NULL);
   self->next_callback_id = 1;
@@ -790,17 +799,12 @@ _gum_quick_core_init (GumQuickCore * self,
 
   obj = JS_NewObject (ctx);
   JS_DefinePropertyValueStr (ctx, global_obj, "WeakRef", obj, JS_PROP_C_W_E);
-  JS_SetPropertyFunctionList (ctx, obj, gumjs_weak_ref_entries,
-      G_N_ELEMENTS (gumjs_weak_ref_entries));
+  JS_SetPropertyFunctionList (ctx, obj, gumjs_weak_ref_module_entries,
+      G_N_ELEMENTS (gumjs_weak_ref_module_entries));
   JS_FreeValue (ctx, obj);
 
-  quick_push_c_function (ctx, gumjs_weak_ref_construct, 2);
-  quick_push_object (ctx);
-  quick_push_c_function (ctx, gumjs_weak_ref_finalize, 1);
-  quick_set_finalizer (ctx, -2);
-  quick_put_prop_string (ctx, -2, "prototype");
-  self->weak_ref = _gum_quick_require_heapptr (ctx, -1);
-  quick_pop (ctx);
+  JS_NewClassID (&self->weak_ref_class_id);
+  JS_NewClass (rt, self->weak_ref_class_id, &gumjs_weak_ref_class);
 
   GUMJS_ADD_GLOBAL_FUNCTION ("_setTimeout", gumjs_set_timeout, 2);
   GUMJS_ADD_GLOBAL_FUNCTION ("_setInterval", gumjs_set_interval, 2);
@@ -1354,14 +1358,14 @@ GUMJS_DEFINE_FUNCTION (gumjs_frida_objc_load)
 {
   gum_quick_bundle_load (gumjs_objc_modules, ctx);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_frida_java_load)
 {
   gum_quick_bundle_load (gumjs_java_modules, ctx);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_GETTER (gumjs_script_get_file_name)
@@ -1444,21 +1448,21 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_next_tick)
   _gum_quick_protect (ctx, callback);
   g_queue_push_tail (&args->core->current_scope->tick_callbacks, callback);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_script_pin)
 {
   _gum_quick_core_pin (args->core);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_script_unpin)
 {
   _gum_quick_core_unpin (args->core);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_script_set_global_access_handler)
@@ -1505,7 +1509,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_set_global_access_handler)
     quick_set_global_access_functions (ctx, &funcs);
   }
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 static int
@@ -1567,6 +1571,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_bind)
   guint id;
   gchar prop_name[1 + 2 + 8 + 1];
   GumQuickWeakRef * ref;
+  JSValue obj;
 
   _gum_quick_args_parse (args, "VF", &target, &callback);
 
@@ -1575,23 +1580,18 @@ GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_bind)
   if (!target_is_valid)
     _gum_quick_throw (ctx, "expected a heap value");
 
-  id = ++core->last_weak_ref_id;
+  id = core->next_weak_ref_id++;
 
   ref = gum_quick_weak_ref_new (id, callback, core);
   g_hash_table_insert (core->weak_refs, GUINT_TO_POINTER (id), ref);
 
-  quick_push_heapptr (ctx, core->weak_ref);
-  quick_new (ctx, 0);
-
-  _gum_quick_put_data (ctx, -1, ref);
+  obj = JS_NewObjectClass (ctx, core->weak_ref_class_id);
+  JS_SetOpaque (obj, ref);
 
   sprintf (prop_name, "\xffwr%x", id);
   quick_put_prop_string (ctx, -2, prop_name);
 
-  quick_pop (ctx);
-
-  quick_push_int (ctx, id);
-  return 1;
+  return JS_NewInt32 (ctx, id);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_unbind)
@@ -1607,18 +1607,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_unbind)
   return 1;
 }
 
-GUMJS_DEFINE_CONSTRUCTOR (gumjs_weak_ref_construct)
-{
-  return 0;
-}
-
 GUMJS_DEFINE_FINALIZER (gumjs_weak_ref_finalize)
 {
   GumQuickWeakRef * self;
 
   self = _gum_quick_steal_data (ctx, 0);
   if (self == NULL)
-    return 0;
+    return JS_UNDEFINED;
 
   if (self->core != NULL)
   {
@@ -1627,7 +1622,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_weak_ref_finalize)
 
   g_slice_free (GumQuickWeakRef, self);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_set_timeout)
@@ -1676,7 +1671,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_gc)
 {
   quick_gc (ctx, 0);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_send)
@@ -1701,7 +1696,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_send)
 
   g_bytes_unref (data);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_set_unhandled_exception_callback)
@@ -1722,7 +1717,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_unhandled_exception_callback)
   if (old_sink != NULL)
     gum_quick_exception_sink_free (old_sink);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_set_incoming_message_callback)
@@ -1743,7 +1738,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_incoming_message_callback)
   if (old_sink != NULL)
     gum_quick_message_sink_free (old_sink);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
@@ -1788,7 +1783,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
   if (!event_source_available)
     _gum_quick_throw (ctx, "script is unloading");
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 static gint64
@@ -1824,7 +1819,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_int64_construct)
   _gum_quick_put_data (ctx, -1, self);
   quick_pop (ctx);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_int64_finalize)
@@ -1833,11 +1828,11 @@ GUMJS_DEFINE_FINALIZER (gumjs_int64_finalize)
 
   self = _gum_quick_steal_data (ctx, 0);
   if (self == NULL)
-    return 0;
+    return JS_UNDEFINED;
 
   g_slice_free (GumQuickInt64, self);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 #define GUM_DEFINE_INT64_OP_IMPL(name, op) \
@@ -1972,7 +1967,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_uint64_construct)
   _gum_quick_put_data (ctx, -1, self);
   quick_pop (ctx);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_uint64_finalize)
@@ -1981,11 +1976,11 @@ GUMJS_DEFINE_FINALIZER (gumjs_uint64_finalize)
 
   self = _gum_quick_steal_data (ctx, 0);
   if (self == NULL)
-    return 0;
+    return JS_UNDEFINED;
 
   g_slice_free (GumQuickUInt64, self);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 #define GUM_DEFINE_UINT64_OP_IMPL(name, op) \
@@ -2118,7 +2113,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
   _gum_quick_put_data (ctx, -1, self);
   quick_pop (ctx);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_native_pointer_finalize)
@@ -2131,7 +2126,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_pointer_finalize)
   if (quick_equals (ctx, 0, -1))
   {
     quick_pop (ctx);
-    return 0;
+    return JS_UNDEFINED;
   }
   quick_pop (ctx);
 
@@ -2140,7 +2135,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_pointer_finalize)
   {
     self = _gum_quick_get_data (ctx, 0);
     if (self == NULL)
-      return 0;
+      return JS_UNDEFINED;
 
     if (self->id != NULL)
     {
@@ -2152,19 +2147,19 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_pointer_finalize)
       quick_put_prop_string (ctx, -2, self->id);
       quick_pop (ctx);
 
-      return 0;
+      return JS_UNDEFINED;
     }
   }
 
   self = _gum_quick_steal_data (ctx, 0);
   if (self == NULL)
-    return 0;
+    return JS_UNDEFINED;
 
   g_free (self->id);
 
   g_slice_free (GumQuickNativePointerImpl, self);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_is_null)
@@ -2485,7 +2480,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_resource_construct)
   _gum_quick_put_data (ctx, -1, resource);
   quick_pop (ctx);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_native_resource_finalize)
@@ -2494,14 +2489,14 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_resource_finalize)
 
   self = _gum_quick_steal_data (ctx, 0);
   if (self == NULL)
-    return 0;
+    return JS_UNDEFINED;
 
   if (self->notify != NULL)
     self->notify (self->parent.value);
 
   g_slice_free (GumQuickNativeResource, self);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_kernel_resource_construct)
@@ -2525,7 +2520,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_kernel_resource_construct)
   _gum_quick_put_data (ctx, -1, resource);
   quick_pop (ctx);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_kernel_resource_finalize)
@@ -2534,14 +2529,14 @@ GUMJS_DEFINE_FINALIZER (gumjs_kernel_resource_finalize)
 
   self = _gum_quick_steal_data (ctx, 0);
   if (self == NULL)
-    return 0;
+    return JS_UNDEFINED;
 
   if (self->notify != NULL)
     self->notify (self->parent.value);
 
   g_slice_free (GumQuickKernelResource, self);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
@@ -2564,11 +2559,11 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_function_finalize)
 
   self = _gum_quick_steal_data (ctx, 0);
   if (self == NULL)
-    return 0;
+    return JS_UNDEFINED;
 
   gum_quick_ffi_function_finalize (self);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
@@ -2606,11 +2601,11 @@ GUMJS_DEFINE_FINALIZER (gumjs_system_function_finalize)
 
   self = _gum_quick_steal_data (ctx, 0);
   if (self == NULL)
-    return 0;
+    return JS_UNDEFINED;
 
   gum_quick_ffi_function_finalize (self);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_system_function_invoke)
@@ -2787,7 +2782,7 @@ compilation_failed:
   }
 
   g_assert_not_reached ();
-  return 0;
+  return JS_UNDEFINED;
 }
 
 static void
@@ -3029,7 +3024,7 @@ gumjs_ffi_function_call (JSContext * ctx,
   else
   {
     _gum_quick_throw (ctx, "invalid receiver");
-    return 0;
+    return JS_UNDEFINED;
   }
 
   gumjs_ffi_function_get (ctx, type, receiver, args->core, &func, &impl);
@@ -3063,7 +3058,7 @@ gumjs_ffi_function_apply (JSContext * ctx,
   else
   {
     _gum_quick_throw (ctx, "invalid receiver");
-    return 0;
+    return JS_UNDEFINED;
   }
 
   gumjs_ffi_function_get (ctx, type, receiver, args->core, &func, &impl);
@@ -3326,7 +3321,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
 
   quick_pop (ctx);
 
-  return 0;
+  return JS_UNDEFINED;
 
 invalid_return_type:
   {
@@ -3360,7 +3355,7 @@ prepare_failed:
   }
 
   g_assert_not_reached ();
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_native_callback_finalize)
@@ -3370,12 +3365,12 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_callback_finalize)
 
   self = _gum_quick_steal_data (ctx, 0);
   if (self == NULL)
-    return 0;
+    return JS_UNDEFINED;
 
   heap_destruct = quick_require_boolean (ctx, 1);
   gum_quick_native_callback_finalize (self, heap_destruct);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 static void
@@ -3468,7 +3463,7 @@ gumjs_cpu_context_from_this (JSValueConst this_val,
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_cpu_context_construct)
 {
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_cpu_context_finalize)
@@ -3477,11 +3472,11 @@ GUMJS_DEFINE_FINALIZER (gumjs_cpu_context_finalize)
 
   self = _gum_quick_steal_data (ctx, 0);
   if (self == NULL)
-    return 0;
+    return JS_UNDEFINED;
 
   g_slice_free (GumQuickCpuContext, self);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 static JSValue
@@ -3529,7 +3524,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_source_map_construct)
   _gum_quick_put_data (ctx, -1, self);
   quick_pop (ctx);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_source_map_finalize)
@@ -3538,11 +3533,11 @@ GUMJS_DEFINE_FINALIZER (gumjs_source_map_finalize)
 
   self = _gum_quick_steal_data (ctx, 0);
   if (self == NULL)
-    return 0;
+    return JS_UNDEFINED;
 
   g_object_unref (self);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_source_map_resolve)
@@ -3802,7 +3797,7 @@ GUMJS_DEFINE_FINALIZER (gum_quick_message_data_finalize)
   data = quick_require_buffer_data (ctx, 0, NULL);
   g_free (data);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 static void

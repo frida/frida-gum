@@ -81,12 +81,12 @@ struct _GumQuickCore
   GumQuickHeapPtr global_receiver;
 
   GHashTable * weak_refs;
-  guint last_weak_ref_id;
+  guint next_weak_ref_id;
 
   GHashTable * scheduled_callbacks;
   guint next_callback_id;
 
-  GumQuickHeapPtr weak_ref;
+  JSClassID weak_ref_class_id;
   GumQuickHeapPtr int64;
   GumQuickHeapPtr uint64;
   GumQuickHeapPtr native_pointer;
