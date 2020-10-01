@@ -22,7 +22,7 @@ struct _GumQuickArgs
   GumQuickCore * core;
 };
 
-G_GNUC_INTERNAL void _gum_quick_args_parse (const GumQuickArgs * args,
+G_GNUC_INTERNAL gboolean _gum_quick_args_parse (const GumQuickArgs * args,
     const gchar * format, ...);
 
 G_GNUC_INTERNAL void _gum_quick_store_module_data (JSContext * ctx,
@@ -36,6 +36,11 @@ G_GNUC_INTERNAL gboolean _gum_quick_native_pointer_get (JSValueConst value,
     gpointer * ptr, GumQuickCore * core);
 G_GNUC_INTERNAL gboolean _gum_quick_native_pointer_parse (JSValueConst value,
     gpointer * ptr, GumQuickCore * core);
+
+G_GNUC_INTERNAL JSValue _gum_quick_throw (JSContext * ctx, const gchar * format,
+    ...);
+G_GNUC_INTERNAL JSValue _gum_quick_throw_literal (JSContext * ctx,
+    const gchar * message);
 
 G_END_DECLS
 

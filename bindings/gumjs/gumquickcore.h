@@ -12,7 +12,7 @@
 
 #include <gum/gumexceptor.h>
 
-#define GUM_QUICK_SCOPE_INIT(C) { C, NULL, 0, (C)->current_scope->ctx, NULL }
+#define GUM_QUICK_SCOPE_INIT(C) { C, NULL, }
 
 #ifdef HAVE_WINDOWS
 # define GUMJS_SYSTEM_ERROR_FIELD "lastError"
@@ -58,13 +58,12 @@ struct _GumQuickCore
   GumQuickMessageEmitter message_emitter;
   GumScriptScheduler * scheduler;
   GumExceptor * exceptor;
-  JSContext * heap_ctx;
+  JSContext * ctx;
   GumQuickScope * current_scope;
 
   GRecMutex * mutex;
   volatile guint usage_count;
   volatile guint mutex_depth;
-  volatile gboolean heap_thread_in_use;
   volatile GumQuickFlushNotify flush_notify;
 
   GMainLoop * event_loop;
@@ -76,32 +75,29 @@ struct _GumQuickCore
   GumQuickExceptionSink * unhandled_exception_sink;
   GumQuickMessageSink * incoming_message_sink;
 
-  GumQuickHeapPtr on_global_enumerate;
-  GumQuickHeapPtr on_global_get;
-  GumQuickHeapPtr global_receiver;
-
   GHashTable * weak_refs;
   guint next_weak_ref_id;
 
   GHashTable * scheduled_callbacks;
   guint next_callback_id;
 
-  JSClassID weak_ref_class_id;
-  GumQuickHeapPtr int64;
-  GumQuickHeapPtr uint64;
-  GumQuickHeapPtr native_pointer;
-  GumQuickHeapPtr native_pointer_prototype;
-  GumQuickHeapPtr native_resource;
-  GumQuickHeapPtr native_function;
-  GumQuickHeapPtr native_function_prototype;
-  GumQuickHeapPtr kernel_pointer;
-  GumQuickHeapPtr kernel_resource;
-  GumQuickHeapPtr system_function;
-  GumQuickHeapPtr system_function_prototype;
-  GumQuickHeapPtr cpu_context;
-  GumQuickHeapPtr source_map;
-
-  GumQuickNativePointerImpl * cached_native_pointers;
+  JSClassID weak_ref_class;
+  JSClassID int64_class;
+  JSValue int64_ctor;
+  JSClassID uint64_class;
+  JSValue uint64_ctor;
+  JSValue uint64_proto;
+  JSClassID native_pointer_class;
+  JSValue native_pointer_ctor;
+  JSValue native_pointer_proto;
+  JSClassID native_resource_class;
+  JSClassID kernel_resource_class;
+  JSClassID native_function_class;
+  JSClassID system_function_class;
+  JSClassID native_callback_class;
+  JSClassID cpu_context_class;
+  JSClassID source_map_class;
+  JSValue source_map_ctor;
 };
 
 struct _GumQuickScope
@@ -109,8 +105,6 @@ struct _GumQuickScope
   GumQuickCore * core;
   GumQuickScope * previous_scope;
   guint previous_mutex_depth;
-  JSContext * ctx;
-  GumQuickHeapPtr exception;
 
   GQueue tick_callbacks;
   GQueue scheduled_sources;
@@ -193,14 +187,13 @@ G_GNUC_INTERNAL void _gum_quick_core_post (GumQuickCore * self,
 G_GNUC_INTERNAL void _gum_quick_core_push_job (GumQuickCore * self,
     GumScriptJobFunc job_func, gpointer data, GDestroyNotify data_destroy);
 
-G_GNUC_INTERNAL JSContext * _gum_quick_scope_enter (GumQuickScope * self,
+G_GNUC_INTERNAL void _gum_quick_scope_enter (GumQuickScope * self,
     GumQuickCore * core);
 G_GNUC_INTERNAL void _gum_quick_scope_suspend (GumQuickScope * self);
 G_GNUC_INTERNAL void _gum_quick_scope_resume (GumQuickScope * self);
 G_GNUC_INTERNAL gboolean _gum_quick_scope_call (GumQuickScope * self,
     JSValueConst func_obj, JSValueConst this_obj, int argc,
     JSValueConst * argv);
-G_GNUC_INTERNAL void _gum_quick_scope_flush (GumQuickScope * self);
 G_GNUC_INTERNAL void _gum_quick_scope_perform_pending_io (GumQuickScope * self);
 G_GNUC_INTERNAL void _gum_quick_scope_leave (GumQuickScope * self);
 

@@ -388,7 +388,6 @@ gum_quick_script_create_context (GumQuickScript * self,
       gum_quick_script_emit,
       gum_quick_script_backend_get_scheduler (self->backend), self->ctx);
 
-  scope.ctx = self->ctx;
   core->current_scope = &scope;
 
 #if 0
@@ -469,7 +468,6 @@ gum_quick_script_destroy_context (GumQuickScript * self)
   {
     GumQuickScope scope = { core, NULL, };
 
-    scope.ctx = self->ctx;
     core->current_scope = &scope;
 
     JS_FreeValue (self->ctx, self->code);
@@ -582,7 +580,9 @@ gum_quick_script_perform_load_task (GumQuickScript * self,
       gum_quick_script_create_context (self, NULL);
     }
 
-    ctx = _gum_quick_scope_enter (&scope, &self->core);
+    ctx = self->ctx;
+
+    _gum_quick_scope_enter (&scope, &self->core);
 
 #if 0
     gum_quick_bundle_load (gumjs_runtime_modules, ctx);
