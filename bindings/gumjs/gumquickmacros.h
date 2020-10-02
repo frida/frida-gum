@@ -21,6 +21,9 @@
   static JSValue N (JSContext * ctx, JSValueConst this_val);
 #define GUMJS_DECLARE_SETTER(N) \
   static JSValue N (JSContext * ctx, JSValueConst this_val, JSValueConst value);
+#define GUMJS_DECLARE_CALL_HANDLER(N) \
+  static JSValue N (JSContext * ctx, JSValueConst func_obj, \
+      JSValueConst this_val, int argc, JSValueConst * argv, int flags);
 
 #define GUMJS_DEFINE_CONSTRUCTOR(N) \
   static JSValue N##_impl (JSContext * ctx, JSValueConst this_val, \
@@ -124,5 +127,34 @@
             JSValueConst this_val, \
             JSValueConst value, \
             GumQuickCore * core)
+#define GUMJS_DEFINE_CALL_HANDLER(N) \
+  static JSValue N##_impl (JSContext * ctx, JSValueConst func_obj, \
+      JSValueConst this_val, const GumQuickArgs * args, int flags); \
+  \
+  static JSValue \
+  N (JSContext * ctx, \
+     JSValueConst func_obj, \
+     JSValueConst this_val, \
+     int argc, \
+     JSValueConst * argv, \
+     int flags) \
+  { \
+    GumQuickArgs args; \
+    \
+    args.argc = argc; \
+    args.argv = argv; \
+    \
+    args.ctx = ctx; \
+    args.core = JS_GetContextOpaque (ctx); \
+    \
+    return N##_impl (ctx, func_obj, this_val, &args, flags); \
+  } \
+  \
+  static JSValue \
+  N##_impl (JSContext * ctx, \
+            JSValueConst func_obj, \
+            JSValueConst this_val, \
+            const GumQuickArgs * args, \
+            int flags)
 
 #endif
