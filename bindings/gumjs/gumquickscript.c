@@ -354,7 +354,7 @@ gum_quick_script_create_context (GumQuickScript * self,
   GumQuickCore * core = &self->core;
   JSRuntime * rt;
   JSContext * ctx;
-  JSValue value;
+  JSValue val;
   GumQuickScope scope = { core, NULL, };
 
   g_assert (self->ctx == NULL);
@@ -367,20 +367,20 @@ gum_quick_script_create_context (GumQuickScript * self,
 
   if (self->bytecode != NULL)
   {
-    value = gum_quick_script_backend_read_program (self->backend, ctx,
+    val = gum_quick_script_backend_read_program (self->backend, ctx,
         self->bytecode, error);
   }
   else
   {
-    value = gum_quick_script_backend_compile_program (self->backend, ctx,
+    val = gum_quick_script_backend_compile_program (self->backend, ctx,
         self->name, self->source, error);
   }
-  if (JS_IsException (value))
+  if (JS_IsException (val))
     goto malformed_program;
 
   self->rt = rt;
   self->ctx = ctx;
-  self->code = value;
+  self->code = val;
 
   _gum_quick_core_init (core, self,
       gum_quick_script_backend_get_scope_mutex (self->backend),

@@ -39,14 +39,19 @@ G_GNUC_INTERNAL JSValue _gum_quick_uint64_new (guint64 value,
 G_GNUC_INTERNAL JSValue _gum_quick_native_pointer_new (gpointer address,
     GumQuickCore * core);
 G_GNUC_INTERNAL gboolean _gum_quick_native_pointer_get (JSValueConst value,
-    gpointer * ptr, GumQuickCore * core);
+    GumQuickCore * core, gpointer * ptr);
 G_GNUC_INTERNAL gboolean _gum_quick_native_pointer_parse (JSValueConst value,
-    gpointer * ptr, GumQuickCore * core);
+    GumQuickCore * core, gpointer * ptr);
+
+G_GNUC_INTERNAL gboolean _gum_quick_array_get_length (JSContext * ctx,
+    JSValueConst array, uint32_t * length);
 
 G_GNUC_INTERNAL JSValue _gum_quick_throw (JSContext * ctx, const gchar * format,
     ...);
 G_GNUC_INTERNAL JSValue _gum_quick_throw_literal (JSContext * ctx,
     const gchar * message);
+G_GNUC_INTERNAL JSValue _gum_quick_throw_native (JSContext * ctx,
+    GumExceptionDetails * details, GumQuickCore * core);
 
 G_END_DECLS
 

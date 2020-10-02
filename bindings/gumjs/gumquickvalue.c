@@ -84,18 +84,37 @@ _gum_quick_native_pointer_new (gpointer address,
 
 gboolean
 _gum_quick_native_pointer_get (JSValueConst value,
-                               gpointer * ptr,
-                               GumQuickCore * core)
+                               GumQuickCore * core,
+                               gpointer * ptr)
 {
   return FALSE; /* TODO */
 }
 
 gboolean
 _gum_quick_native_pointer_parse (JSValueConst value,
-                                 gpointer * ptr,
-                                 GumQuickCore * core)
+                                 GumQuickCore * core,
+                                 gpointer * ptr)
 {
   return FALSE; /* TODO */
+}
+
+gboolean
+_gum_quick_array_get_length (JSContext * ctx,
+                             JSValueConst array,
+                             uint32_t * length)
+{
+  JSValue val;
+  int res;
+
+  val = JS_GetPropertyStr (ctx, array, "length");
+  if (JS_IsException (val))
+    return FALSE;
+
+  res = JS_ToUint32 (ctx, length, val);
+
+  JS_FreeValue (ctx, val);
+
+  return res == 0;
 }
 
 JSValue
@@ -126,4 +145,12 @@ _gum_quick_throw_literal (JSContext * ctx,
   JS_SetPropertyStr (ctx, error, "message", JS_NewString (ctx, message));
 
   return JS_Throw (ctx, error);
+}
+
+JSValue
+_gum_quick_throw_native (JSContext * ctx,
+                         GumExceptionDetails * details,
+                         GumQuickCore * core)
+{
+  return _gum_quick_throw_literal (ctx, "a native exception occurred");
 }

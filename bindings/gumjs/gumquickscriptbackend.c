@@ -207,17 +207,17 @@ gum_quick_script_backend_compile_program (GumQuickScriptBackend * self,
                                           const gchar * source,
                                           GError ** error)
 {
-  JSValue value;
+  JSValue val;
   gchar * filename;
 
   filename = g_strconcat ("/", name, ".js", NULL);
 
-  value = JS_Eval (ctx, source, strlen (source), filename,
+  val = JS_Eval (ctx, source, strlen (source), filename,
       JS_EVAL_TYPE_GLOBAL | JS_EVAL_FLAG_STRICT | JS_EVAL_FLAG_COMPILE_ONLY);
 
   g_free (filename);
 
-  if (JS_IsException (value))
+  if (JS_IsException (val))
   {
     JSValue exception_val, line_val;
     const char * message;
@@ -242,7 +242,7 @@ gum_quick_script_backend_compile_program (GumQuickScriptBackend * self,
     JS_FreeValue (ctx, exception_val);
   }
 
-  return value;
+  return val;
 }
 
 JSValue
@@ -251,15 +251,15 @@ gum_quick_script_backend_read_program (GumQuickScriptBackend * self,
                                        GBytes * bytecode,
                                        GError ** error)
 {
-  JSValue value;
+  JSValue val;
   gconstpointer code;
   gsize size;
 
   code = g_bytes_get_data (bytecode, &size);
 
-  value = JS_ReadObject (ctx, code, size, JS_READ_OBJ_BYTECODE);
+  val = JS_ReadObject (ctx, code, size, JS_READ_OBJ_BYTECODE);
 
-  if (JS_IsException (value))
+  if (JS_IsException (val))
   {
     JSValue exception_val;
     const char * message_str;
@@ -273,7 +273,7 @@ gum_quick_script_backend_read_program (GumQuickScriptBackend * self,
     JS_FreeValue (ctx, exception_val);
   }
 
-  return value;
+  return val;
 }
 
 GRecMutex *
@@ -566,14 +566,14 @@ gum_compile_script_task_run (GumScriptTask * task,
 {
   JSRuntime * rt;
   JSContext * ctx;
-  JSValue value;
+  JSValue val;
   GError * error = NULL;
 
   rt = gum_quick_script_backend_make_runtime (self);
   ctx = JS_NewContext (rt);
 
-  value = gum_quick_script_backend_compile_program (self, ctx, d->name,
-      d->source, &error);
+  val = gum_quick_script_backend_compile_program (self, ctx, d->name, d->source,
+      &error);
 
   if (error == NULL)
   {
@@ -581,7 +581,7 @@ gum_compile_script_task_run (GumScriptTask * task,
     size_t size;
     GBytes * bytes;
 
-    code = JS_WriteObject (ctx, &size, value, JS_WRITE_OBJ_BYTECODE);
+    code = JS_WriteObject (ctx, &size, val, JS_WRITE_OBJ_BYTECODE);
 
     bytes = g_bytes_new_with_free_func (code, size, gum_free, code);
 
