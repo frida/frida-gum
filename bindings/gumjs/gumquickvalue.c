@@ -48,6 +48,52 @@ _gum_quick_int64_new (gint64 value,
   return obj;
 }
 
+gboolean
+_gum_quick_int_get (JSContext * ctx,
+                    JSValue val,
+                    gint * i)
+{
+  int32_t v;
+
+  if (!JS_IsNumber (val))
+    goto expected_number;
+
+  if (JS_ToInt32 (ctx, &v, val) != 0)
+    return FALSE;
+
+  *i = v;
+  return TRUE;
+
+expected_number:
+  {
+    _gum_quick_throw_literal (ctx, "expected a number");
+    return FALSE;
+  }
+}
+
+gboolean
+_gum_quick_uint_get (JSContext * ctx,
+                     JSValue val,
+                     guint * u)
+{
+  uint32_t v;
+
+  if (!JS_IsNumber (val))
+    goto expected_number;
+
+  if (JS_ToUint32 (ctx, &v, val) != 0)
+    return FALSE;
+
+  *u = v;
+  return TRUE;
+
+expected_number:
+  {
+    _gum_quick_throw_literal (ctx, "expected a number");
+    return FALSE;
+  }
+}
+
 JSValue
 _gum_quick_uint64_new (guint64 value,
                        GumQuickCore * core)
@@ -63,6 +109,87 @@ _gum_quick_uint64_new (guint64 value,
   JS_SetOpaque (obj, self);
 
   return obj;
+}
+
+gboolean
+_gum_quick_int64_get (JSContext * ctx,
+                      JSValue val,
+                      GumQuickCore * core,
+                      gint64 * i)
+{
+  if (JS_IsNumber (val))
+  {
+    int32_t v;
+
+    if (JS_ToInt32 (ctx, &v, val) != 0)
+      return FALSE;
+
+    *i = v;
+  }
+  else
+  {
+    GumQuickInt64 * self;
+
+    self = JS_GetOpaque2 (ctx, val, core->int64_class);
+    if (self == NULL)
+      return FALSE;
+
+    *i = self->value;
+  }
+
+  return TRUE;
+}
+
+gboolean
+_gum_quick_uint64_get (JSContext * ctx,
+                       JSValue val,
+                       GumQuickCore * core,
+                       guint64 * u)
+{
+  if (JS_IsNumber (val))
+  {
+    uint32_t v;
+
+    if (JS_ToUint32 (ctx, &v, val) != 0)
+      return FALSE;
+
+    *u = v;
+  }
+  else
+  {
+    GumQuickUInt64 * self;
+
+    self = JS_GetOpaque2 (ctx, val, core->uint64_class);
+    if (self == NULL)
+      return FALSE;
+
+    *u = self->value;
+  }
+
+  return TRUE;
+}
+
+gboolean
+_gum_quick_float64_get (JSContext * ctx,
+                        JSValue val,
+                        gdouble * d)
+{
+  double v;
+
+  if (!JS_IsNumber (val))
+    goto expected_number;
+
+  if (JS_ToFloat64 (ctx, &v, val) != 0)
+    return FALSE;
+
+  *d = v;
+  return TRUE;
+
+expected_number:
+  {
+    _gum_quick_throw_literal (ctx, "expected a number");
+    return FALSE;
+  }
 }
 
 JSValue
@@ -101,20 +228,25 @@ _gum_quick_native_pointer_parse (JSValueConst value,
 gboolean
 _gum_quick_array_get_length (JSContext * ctx,
                              JSValueConst array,
-                             uint32_t * length)
+                             guint * length)
 {
   JSValue val;
   int res;
+  uint32_t v;
 
   val = JS_GetPropertyStr (ctx, array, "length");
   if (JS_IsException (val))
     return FALSE;
 
-  res = JS_ToUint32 (ctx, length, val);
+  res = JS_ToUint32 (ctx, &v, val);
 
   JS_FreeValue (ctx, val);
 
-  return res == 0;
+  if (res != 0)
+    return FALSE;
+
+  *length = v;
+  return TRUE;
 }
 
 JSValue

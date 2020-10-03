@@ -30,11 +30,24 @@ G_GNUC_INTERNAL void _gum_quick_store_module_data (JSContext * ctx,
 G_GNUC_INTERNAL gpointer _gum_quick_load_module_data (JSContext * ctx,
     const gchar * module_id);
 
+G_GNUC_INTERNAL gboolean _gum_quick_int_get (JSContext * ctx, JSValue val,
+    gint * i);
+
+G_GNUC_INTERNAL gboolean _gum_quick_uint_get (JSContext * ctx, JSValue val,
+    guint * u);
+
 G_GNUC_INTERNAL JSValue _gum_quick_int64_new (gint64 value,
     GumQuickCore * core);
+G_GNUC_INTERNAL gboolean _gum_quick_int64_get (JSContext * ctx, JSValue val,
+    GumQuickCore * core, gint64 * i);
 
 G_GNUC_INTERNAL JSValue _gum_quick_uint64_new (guint64 value,
     GumQuickCore * core);
+G_GNUC_INTERNAL gboolean _gum_quick_uint64_get (JSContext * ctx, JSValue val,
+    GumQuickCore * core, guint64 * u);
+
+G_GNUC_INTERNAL gboolean _gum_quick_float64_get (JSContext * ctx, JSValue val,
+    gdouble * d);
 
 G_GNUC_INTERNAL JSValue _gum_quick_native_pointer_new (gpointer address,
     GumQuickCore * core);
@@ -44,7 +57,7 @@ G_GNUC_INTERNAL gboolean _gum_quick_native_pointer_parse (JSValueConst value,
     GumQuickCore * core, gpointer * ptr);
 
 G_GNUC_INTERNAL gboolean _gum_quick_array_get_length (JSContext * ctx,
-    JSValueConst array, uint32_t * length);
+    JSValueConst array, guint * length);
 
 G_GNUC_INTERNAL JSValue _gum_quick_throw (JSContext * ctx, const gchar * format,
     ...);

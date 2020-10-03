@@ -183,7 +183,10 @@ G_GNUC_INTERNAL void _gum_quick_scope_enter (GumQuickScope * self,
     GumQuickCore * core);
 G_GNUC_INTERNAL void _gum_quick_scope_suspend (GumQuickScope * self);
 G_GNUC_INTERNAL void _gum_quick_scope_resume (GumQuickScope * self);
-G_GNUC_INTERNAL gboolean _gum_quick_scope_call (GumQuickScope * self,
+G_GNUC_INTERNAL JSValue _gum_quick_scope_call (GumQuickScope * self,
+    JSValueConst func_obj, JSValueConst this_obj, int argc,
+    JSValueConst * argv);
+G_GNUC_INTERNAL gboolean _gum_quick_scope_call_void (GumQuickScope * self,
     JSValueConst func_obj, JSValueConst this_obj, int argc,
     JSValueConst * argv);
 G_GNUC_INTERNAL void _gum_quick_scope_perform_pending_io (GumQuickScope * self);
