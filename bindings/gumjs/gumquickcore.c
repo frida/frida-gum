@@ -513,8 +513,8 @@ static const JSClassDef gumjs_cpu_context_def =
     if (!gumjs_cpu_context_from_this (this_val, core, &self)) \
       return JS_EXCEPTION; \
     \
-    return _gum_quick_native_pointer_new (GSIZE_TO_POINTER (self->handle->R), \
-        core); \
+    return _gum_quick_native_pointer_new (ctx, \
+        GSIZE_TO_POINTER (self->handle->R), core); \
   } \
   \
   GUMJS_DEFINE_SETTER (gumjs_cpu_context_set_##A) \
@@ -1801,7 +1801,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_int64_finalize)
     \
     result = lhs op rhs; \
     \
-    return _gum_quick_int64_new (result, core); \
+    return _gum_quick_int64_new (ctx, result, core); \
   }
 
 GUM_DEFINE_INT64_OP_IMPL (add, +)
@@ -1823,7 +1823,7 @@ GUM_DEFINE_INT64_OP_IMPL (shl, <<)
     \
     result = op value; \
     \
-    return _gum_quick_int64_new (result, core); \
+    return _gum_quick_int64_new (ctx, result, core); \
   }
 
 GUM_DEFINE_INT64_UNARY_OP_IMPL (not, ~)
@@ -1964,7 +1964,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_uint64_finalize)
     \
     result = lhs op rhs; \
     \
-    return _gum_quick_uint64_new (result, core); \
+    return _gum_quick_uint64_new (ctx, result, core); \
   }
 
 GUM_DEFINE_UINT64_OP_IMPL (add, +)
@@ -1986,7 +1986,7 @@ GUM_DEFINE_UINT64_OP_IMPL (shl, <<)
     \
     result = op value; \
     \
-    return _gum_quick_uint64_new (result, core); \
+    return _gum_quick_uint64_new (ctx, result, core); \
   }
 
 GUM_DEFINE_UINT64_UNARY_OP_IMPL (not, ~)
@@ -2135,7 +2135,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_is_null)
     \
     result = GSIZE_TO_POINTER (lhs op rhs); \
     \
-    return _gum_quick_native_pointer_new (result, core); \
+    return _gum_quick_native_pointer_new (ctx, result, core); \
   }
 
 GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (add, +)
@@ -2158,7 +2158,7 @@ GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (shl, <<)
     \
     result = GSIZE_TO_POINTER (op GPOINTER_TO_SIZE (self->value)); \
     \
-    return _gum_quick_native_pointer_new (result, core); \
+    return _gum_quick_native_pointer_new (ctx, result, core); \
   }
 
 GUM_DEFINE_NATIVE_POINTER_UNARY_OP_IMPL (not, ~)
@@ -2407,7 +2407,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_array_buffer_unwrap)
   if (address == NULL)
     return JS_EXCEPTION;
 
-  return _gum_quick_native_pointer_new (address, args->core);
+  return _gum_quick_native_pointer_new (ctx, address, args->core);
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_native_resource_finalize)
@@ -3042,7 +3042,7 @@ gumjs_ffi_function_get (JSContext * ctx,
     if (!JS_IsNull (receiver))
     {
       gpointer impl;
-      if (!_gum_quick_native_pointer_get (receiver, core, &impl))
+      if (!_gum_quick_native_pointer_get (ctx, receiver, core, &impl))
         return FALSE;
       *implementation = GUM_POINTER_TO_FUNCPTR (GCallback, impl);
     }
@@ -3491,7 +3491,7 @@ gumjs_cpu_context_set_register (GumQuickCpuContext * self,
   if (self->access == GUM_CPU_CONTEXT_READONLY)
     return _gum_quick_throw_literal (ctx, "invalid operation");
 
-  return _gum_quick_native_pointer_parse (val, self->core, reg)
+  return _gum_quick_native_pointer_parse (ctx, val, self->core, reg)
       ? JS_UNDEFINED
       : JS_EXCEPTION;
 }
@@ -3944,7 +3944,7 @@ gum_quick_value_to_ffi (JSContext * ctx,
   }
   else if (type == &ffi_type_pointer)
   {
-    if (!_gum_quick_native_pointer_get (sval, core, &val->v_pointer))
+    if (!_gum_quick_native_pointer_get (ctx, sval, core, &val->v_pointer))
       return FALSE;
   }
   else if (type == &ffi_type_sint8)
@@ -4030,18 +4030,22 @@ gum_quick_value_to_ffi (JSContext * ctx,
     for (i = 0; i != length; i++)
     {
       const ffi_type * field_type = field_types[i];
-      GumFFIValue * field_value;
-      gboolean valid;
+      GumFFIValue * field_val;
+      JSValue field_sval;
 
       offset = GUM_ALIGN_SIZE (offset, field_type->alignment);
 
-      field_value = (GumFFIValue *) (field_values + offset);
-      quick_get_prop_index (ctx, index, (quick_uarridx_t) i);
-      valid = gum_quick_get_ffi_value (ctx, -1, field_type, core, field_value);
-      quick_pop (ctx);
+      field_val = (GumFFIValue *) (field_values + offset);
 
-      if (!valid)
+      field_sval = JS_GetPropertyUint32 (ctx, sval, i);
+      if (JS_IsException (field_sval))
         return FALSE;
+
+      if (!gum_quick_value_to_ffi (ctx, field_sval, field_type, core,
+          field_val))
+      {
+        return FALSE;
+      }
 
       offset += field_type->size;
     }
@@ -4062,51 +4066,51 @@ gum_quick_value_from_ffi (JSContext * ctx,
 {
   if (type == &ffi_type_void)
   {
-    quick_push_undefined (ctx);
+    return JS_UNDEFINED;
   }
   else if (type == &ffi_type_pointer)
   {
-    _gum_quick_push_native_pointer (ctx, value->v_pointer, core);
+    return _gum_quick_native_pointer_new (ctx, val->v_pointer, core);
   }
   else if (type == &ffi_type_sint8)
   {
-    quick_push_int (ctx, value->v_sint8);
+    return JS_NewInt32 (ctx, val->v_sint8);
   }
   else if (type == &ffi_type_uint8)
   {
-    quick_push_uint (ctx, value->v_uint8);
+    return JS_NewUint32 (ctx, val->v_uint8);
   }
   else if (type == &ffi_type_sint16)
   {
-    quick_push_int (ctx, value->v_sint16);
+    return JS_NewInt32 (ctx, val->v_sint16);
   }
   else if (type == &ffi_type_uint16)
   {
-    quick_push_uint (ctx, value->v_uint16);
+    return JS_NewUint32 (ctx, val->v_uint16);
   }
   else if (type == &ffi_type_sint32)
   {
-    quick_push_int (ctx, value->v_sint32);
+    return JS_NewInt32 (ctx, val->v_sint32);
   }
   else if (type == &ffi_type_uint32)
   {
-    quick_push_uint (ctx, value->v_uint32);
+    return JS_NewUint32 (ctx, val->v_uint32);
   }
   else if (type == &ffi_type_sint64)
   {
-    _gum_quick_push_int64 (ctx, value->v_sint64, core);
+    return _gum_quick_int64_new (ctx, val->v_sint64, core);
   }
   else if (type == &ffi_type_uint64)
   {
-    _gum_quick_push_uint64 (ctx, value->v_uint64, core);
+    return _gum_quick_uint64_new (ctx, val->v_uint64, core);
   }
   else if (type == &ffi_type_float)
   {
-    quick_push_number (ctx, value->v_float);
+    return JS_NewFloat64 (ctx, val->v_float);
   }
   else if (type == &ffi_type_double)
   {
-    quick_push_number (ctx, value->v_double);
+    return JS_NewFloat64 (ctx, val->v_double);
   }
   else if (type->type == FFI_TYPE_STRUCT)
   {
@@ -4114,29 +4118,35 @@ gum_quick_value_from_ffi (JSContext * ctx,
     guint length, i;
     const guint8 * field_values;
     gsize offset;
+    JSValue field_svalues;
 
     length = 0;
     for (t = field_types; *t != NULL; t++)
       length++;
 
-    field_values = (const guint8 *) value;
+    field_values = (const guint8 *) val;
     offset = 0;
 
-    quick_push_array (ctx);
+    field_svalues = JS_NewArray (ctx);
 
     for (i = 0; i != length; i++)
     {
       const ffi_type * field_type = field_types[i];
-      const GumFFIValue * field_value;
+      const GumFFIValue * field_val;
+      JSValue field_sval;
 
       offset = GUM_ALIGN_SIZE (offset, field_type->alignment);
-      field_value = (const GumFFIValue *) (field_values + offset);
+      field_val = (const GumFFIValue *) (field_values + offset);
 
-      gum_quick_push_ffi_value (ctx, field_value, field_type, core);
-      quick_put_prop_index (ctx, -2, i);
+      field_sval = gum_quick_value_from_ffi (ctx, field_val, field_type, core);
+
+      JS_DefinePropertyValueUint32 (ctx, field_svalues, i, field_sval,
+          JS_PROP_C_W_E);
 
       offset += field_type->size;
     }
+
+    return field_svalues;
   }
   else
   {

@@ -31,26 +31,9 @@ _gum_quick_load_module_data (JSContext * ctx,
   return NULL;
 }
 
-JSValue
-_gum_quick_int64_new (gint64 value,
-                      GumQuickCore * core)
-{
-  JSValue obj;
-  GumQuickInt64 * self;
-
-  obj = JS_NewObjectClass (core->ctx, core->int64_class);
-
-  self = g_slice_new (GumQuickInt64);
-  self->value = value;
-
-  JS_SetOpaque (obj, self);
-
-  return obj;
-}
-
 gboolean
 _gum_quick_int_get (JSContext * ctx,
-                    JSValue val,
+                    JSValueConst val,
                     gint * i)
 {
   int32_t v;
@@ -73,7 +56,7 @@ expected_number:
 
 gboolean
 _gum_quick_uint_get (JSContext * ctx,
-                     JSValue val,
+                     JSValueConst val,
                      guint * u)
 {
   uint32_t v;
@@ -95,16 +78,17 @@ expected_number:
 }
 
 JSValue
-_gum_quick_uint64_new (guint64 value,
-                       GumQuickCore * core)
+_gum_quick_int64_new (JSContext * ctx,
+                      gint64 i,
+                      GumQuickCore * core)
 {
   JSValue obj;
-  GumQuickUInt64 * self;
+  GumQuickInt64 * self;
 
-  obj = JS_NewObjectClass (core->ctx, core->uint64_class);
+  obj = JS_NewObjectClass (ctx, core->int64_class);
 
-  self = g_slice_new (GumQuickUInt64);
-  self->value = value;
+  self = g_slice_new (GumQuickInt64);
+  self->value = i;
 
   JS_SetOpaque (obj, self);
 
@@ -113,7 +97,7 @@ _gum_quick_uint64_new (guint64 value,
 
 gboolean
 _gum_quick_int64_get (JSContext * ctx,
-                      JSValue val,
+                      JSValueConst val,
                       GumQuickCore * core,
                       gint64 * i)
 {
@@ -140,9 +124,27 @@ _gum_quick_int64_get (JSContext * ctx,
   return TRUE;
 }
 
+JSValue
+_gum_quick_uint64_new (JSContext * ctx,
+                       guint64 u,
+                       GumQuickCore * core)
+{
+  JSValue obj;
+  GumQuickUInt64 * self;
+
+  obj = JS_NewObjectClass (ctx, core->uint64_class);
+
+  self = g_slice_new (GumQuickUInt64);
+  self->value = u;
+
+  JS_SetOpaque (obj, self);
+
+  return obj;
+}
+
 gboolean
 _gum_quick_uint64_get (JSContext * ctx,
-                       JSValue val,
+                       JSValueConst val,
                        GumQuickCore * core,
                        guint64 * u)
 {
@@ -171,7 +173,7 @@ _gum_quick_uint64_get (JSContext * ctx,
 
 gboolean
 _gum_quick_float64_get (JSContext * ctx,
-                        JSValue val,
+                        JSValueConst val,
                         gdouble * d)
 {
   double v;
@@ -193,16 +195,17 @@ expected_number:
 }
 
 JSValue
-_gum_quick_native_pointer_new (gpointer address,
+_gum_quick_native_pointer_new (JSContext * ctx,
+                               gpointer ptr,
                                GumQuickCore * core)
 {
   JSValue obj;
   GumQuickNativePointer * self;
 
-  obj = JS_NewObjectClass (core->ctx, core->native_pointer_class);
+  obj = JS_NewObjectClass (ctx, core->native_pointer_class);
 
   self = g_slice_new (GumQuickNativePointer);
-  self->value = address;
+  self->value = ptr;
 
   JS_SetOpaque (obj, self);
 
@@ -210,7 +213,8 @@ _gum_quick_native_pointer_new (gpointer address,
 }
 
 gboolean
-_gum_quick_native_pointer_get (JSValueConst value,
+_gum_quick_native_pointer_get (JSContext * ctx,
+                               JSValueConst val,
                                GumQuickCore * core,
                                gpointer * ptr)
 {
@@ -218,7 +222,8 @@ _gum_quick_native_pointer_get (JSValueConst value,
 }
 
 gboolean
-_gum_quick_native_pointer_parse (JSValueConst value,
+_gum_quick_native_pointer_parse (JSContext * ctx,
+                                 JSValueConst val,
                                  GumQuickCore * core,
                                  gpointer * ptr)
 {
