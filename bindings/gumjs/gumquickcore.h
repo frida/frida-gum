@@ -26,7 +26,6 @@ typedef struct _GumQuickCore GumQuickCore;
 typedef struct _GumQuickInterceptor GumQuickInterceptor;
 typedef struct _GumQuickStalker GumQuickStalker;
 typedef struct _GumQuickScope GumQuickScope;
-typedef gpointer GumQuickHeapPtr;
 typedef struct _GumQuickWeakRef GumQuickWeakRef;
 
 typedef struct _GumQuickScheduledCallback GumQuickScheduledCallback;
@@ -132,7 +131,7 @@ struct _GumQuickNativePointer
 
 struct _GumQuickCpuContext
 {
-  GumQuickHeapPtr object;
+  JSValue object;
   GumCpuContext * handle;
   GumQuickCpuContextAccess access;
   GumCpuContext storage;

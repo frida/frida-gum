@@ -1307,7 +1307,7 @@ _gum_quick_scope_perform_pending_io (GumQuickScope * self)
 {
 #if 0
   JSContext * ctx = self->core->ctx;
-  GumQuickHeapPtr tick_callback;
+  JSValue tick_callback;
 #endif
   GSource * source;
 
@@ -1483,7 +1483,7 @@ GUMJS_DEFINE_GETTER (gumjs_script_get_source_map)
 
 GUMJS_DEFINE_FUNCTION (gumjs_script_next_tick)
 {
-  GumQuickHeapPtr callback;
+  JSValue callback;
 
   if (!_gum_quick_args_parse (args, "F", &callback))
     return JS_EXCEPTION;
