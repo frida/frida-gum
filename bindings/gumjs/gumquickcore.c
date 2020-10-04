@@ -9,6 +9,7 @@
 #include "gumffi.h"
 #include "gumquickinterceptor.h"
 #include "gumquickmacros.h"
+#include "gumquickscript-priv.h"
 #include "gumquickstalker.h"
 #include "gumsourcemap.h"
 
@@ -3775,21 +3776,7 @@ gum_quick_exception_sink_handle_exception (GumQuickExceptionSink * self,
 
   result = JS_Call (ctx, self->callback, JS_UNDEFINED, 1, &exception);
   if (JS_IsException (result))
-  {
-    JSValue exception_val, stack_val;
-    const char * stack;
-
-    exception_val = JS_GetException (ctx);
-
-    stack_val = JS_GetPropertyStr (ctx, exception_val, "stack");
-    stack = JS_ToCString (ctx, stack_val);
-
-    g_error ("Error handler crashed: %s", stack);
-
-    JS_FreeCString (ctx, stack);
-    JS_FreeValue (ctx, stack_val);
-    JS_FreeValue (ctx, exception_val);
-  }
+    _gum_quick_panic (ctx, "Error handler crashed");
 
   JS_FreeValue (ctx, result);
 }

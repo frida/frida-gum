@@ -33,6 +33,7 @@ if have_quickjs
   gumjs_sources += [
     'gumquickscriptbackend.c',
     'gumquickscript.c',
+    'gumquickbundle.c',
     'gumquickvalue.c',
     'gumquickcore.c',
     'gumquickinterceptor.c',
@@ -120,6 +121,9 @@ foreach o : gumjs_generated_origins
 endforeach
 gumjs_generated_outputs = []
 runtimes = []
+#if have_quickjs
+#  runtimes += 'quick'
+#endif
 if have_duktape
   runtimes += 'duk'
 endif
@@ -185,6 +189,9 @@ gumjs_runtime_sources = [
   'runtime/cmodule/json-glib/json-glib.h',
 ]
 gumjs_runtime_outputs = [
+  'gumquickscript-runtime.h',
+  'gumquickscript-objc.h',
+  'gumquickscript-java.h',
   'gumdukscript-runtime.h',
   'gumdukscript-promise.h',
   'gumdukscript-objc.h',

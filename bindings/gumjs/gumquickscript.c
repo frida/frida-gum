@@ -24,8 +24,9 @@
 #include "gumquickmemory.h"
 #include "gumquickmodule.h"
 #include "gumquickprocess.h"
-#include "gumquickscript-runtime.h"
 #endif
+#include "gumquickscript-priv.h"
+#include "gumquickscript-runtime.h"
 #include "gumquickscriptbackend.h"
 #if 0
 #include "gumquicksocket.h"
@@ -384,7 +385,7 @@ gum_quick_script_create_context (GumQuickScript * self,
 
   _gum_quick_core_init (core, self,
       gum_quick_script_backend_get_scope_mutex (self->backend),
-      "" /*gumjs_frida_source_map*/, &self->interceptor, &self->stalker,
+      gumjs_frida_source_map, &self->interceptor, &self->stalker,
       gum_quick_script_emit,
       gum_quick_script_backend_get_scheduler (self->backend), self->ctx);
 
@@ -573,7 +574,7 @@ gum_quick_script_perform_load_task (GumQuickScript * self,
   {
     GumQuickScope scope;
     JSContext * ctx;
-    JSValue result;
+    JSValue global;
 
     if (self->ctx == NULL)
     {
@@ -584,13 +585,13 @@ gum_quick_script_perform_load_task (GumQuickScript * self,
 
     _gum_quick_scope_enter (&scope, &self->core);
 
-#if 0
     gum_quick_bundle_load (gumjs_runtime_modules, ctx);
-#endif
 
-    result = JS_EvalFunction (ctx, self->code);
+    global = JS_GetGlobalObject (ctx);
 
-    JS_FreeValue (ctx, result);
+    _gum_quick_scope_call_void (&scope, self->code, global, 0, NULL);
+
+    JS_FreeValue (ctx, global);
 
     _gum_quick_scope_leave (&scope);
 
@@ -839,4 +840,31 @@ gum_quick_emit_data_free (GumEmitData * d)
   g_object_unref (d->script);
 
   g_slice_free (GumEmitData, d);
+}
+
+void
+_gum_quick_panic (JSContext * ctx,
+                  const gchar * prefix)
+{
+  JSValue exception_val, stack_val;
+  const char * message, * stack;
+
+  exception_val = JS_GetException (ctx);
+
+  message = JS_ToCString (ctx, exception_val);
+
+  stack_val = JS_GetPropertyStr (ctx, exception_val, "stack");
+  stack = JS_ToCString (ctx, stack_val);
+
+  if (stack[0] != '\0')
+    g_critical ("%s: %s [stack: %s]", prefix, message, stack);
+  else
+    g_critical ("%s: %s", prefix, message);
+
+  JS_FreeCString (ctx, stack);
+  JS_FreeCString (ctx, message);
+  JS_FreeValue (ctx, stack_val);
+  JS_FreeValue (ctx, exception_val);
+
+  abort ();
 }
