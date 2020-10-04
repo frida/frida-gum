@@ -6,17 +6,17 @@ global._setUnhandledExceptionCallback(function (error) {
 
   if (error instanceof Error) {
     const stack = error.stack;
-    if (stack) {
+    if (stack !== undefined) {
       message.stack = stack;
     }
 
     const fileName = error.fileName;
-    if (fileName) {
+    if (fileName !== undefined) {
       message.fileName = fileName;
     }
 
     const lineNumber = error.lineNumber;
-    if (lineNumber) {
+    if (lineNumber !== undefined) {
       message.lineNumber = lineNumber;
       message.columnNumber = 1;
     }
@@ -27,7 +27,7 @@ global._setUnhandledExceptionCallback(function (error) {
 
 Duktape.errCreate = function (error) {
   let stack = error.stack;
-  if (!stack)
+  if (stack === undefined)
     return error;
 
   const frameTypes = [];
@@ -89,13 +89,13 @@ const sourceMapCache = {};
 
 function mapSourcePosition(position) {
   let item = sourceMapCache[position.source];
-  if (!item) {
+  if (item === undefined) {
     item = sourceMapCache[position.source] = {
       map: findSourceMap(position.source)
     };
   }
 
-  if (item.map) {
+  if (item.map !== null) {
     const originalPosition = item.map.resolve(position);
 
     // Only return the original position if a matching line was found. If no
