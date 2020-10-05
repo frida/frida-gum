@@ -40,10 +40,14 @@ G_GNUC_INTERNAL JSValue _gum_quick_int64_new (JSContext * ctx, gint64 i,
     GumQuickCore * core);
 G_GNUC_INTERNAL gboolean _gum_quick_int64_get (JSContext * ctx,
     JSValueConst val, GumQuickCore * core, gint64 * i);
+G_GNUC_INTERNAL gboolean _gum_quick_int64_parse (JSContext * ctx,
+    JSValueConst val, GumQuickCore * core, gint64 * i);
 
 G_GNUC_INTERNAL JSValue _gum_quick_uint64_new (JSContext * ctx, guint64 u,
     GumQuickCore * core);
 G_GNUC_INTERNAL gboolean _gum_quick_uint64_get (JSContext * ctx,
+    JSValueConst val, GumQuickCore * core, guint64 * u);
+G_GNUC_INTERNAL gboolean _gum_quick_uint64_parse (JSContext * ctx,
     JSValueConst val, GumQuickCore * core, guint64 * u);
 
 G_GNUC_INTERNAL gboolean _gum_quick_float64_get (JSContext * ctx,
