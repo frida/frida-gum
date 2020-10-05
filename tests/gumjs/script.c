@@ -3844,9 +3844,11 @@ TESTCASE (strict_mode_should_be_enforced)
       "}"
       "run();");
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
-      GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend)
-      ? "ReferenceError: identifier 'oops' undefined"
-      : "ReferenceError: oops is not defined");
+      GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend)
+      ? "ReferenceError: 'oops' is not defined"
+      : GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend)
+          ? "ReferenceError: identifier 'oops' undefined"
+          : "ReferenceError: oops is not defined");
 }
 
 TESTCASE (array_buffer_can_be_created)

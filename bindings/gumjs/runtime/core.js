@@ -8,10 +8,10 @@ let messageDispatcher;
 function initialize() {
   messageDispatcher = new MessageDispatcher();
 
-  const proxyClass = global.Proxy;
+  const proxyClass = engine.Proxy;
   if ('create' in proxyClass) {
     const createProxy = proxyClass.create;
-    global.Proxy = function (target, handler) {
+    engine.Proxy = function (target, handler) {
       return createProxy.call(proxyClass, handler, Object.getPrototypeOf(target));
     };
   }
@@ -128,6 +128,7 @@ Object.defineProperties(engine, {
   },
 });
 
+/*
 const pointerPrototype = NativePointer.prototype;
 
 Object.keys(Memory)
@@ -151,6 +152,7 @@ function makePointerWriteMethod(write) {
     return this;
   };
 }
+*/
 
 [
   Int64,
@@ -166,7 +168,7 @@ function numberWrapperEquals(rhs) {
 
 const _nextTick = Script._nextTick;
 Script.nextTick = function (callback, ...args) {
-  _nextTick(callback.bind(global, ...args));
+  _nextTick(callback.bind(engine, ...args));
 };
 
 if (Script.runtime === 'DUK') {
@@ -179,6 +181,7 @@ if (Script.runtime === 'DUK') {
   };
 }
 
+/*
 makeEnumerateApi(Kernel, 'enumerateModules', 0);
 makeEnumerateRanges(Kernel);
 makeEnumerateApi(Kernel, 'enumerateModuleRanges', 2);
@@ -679,6 +682,7 @@ Object.defineProperties(Socket, {
     },
   },
 });
+*/
 
 SourceMap.prototype.resolve = function (generatedPosition) {
   const generatedColumn = generatedPosition.column;
@@ -693,6 +697,7 @@ SourceMap.prototype.resolve = function (generatedPosition) {
   return {source, line, column, name};
 };
 
+/*
 const sqliteOpenFlags = {
   readonly: 1,
   readwrite: 2,
@@ -829,5 +834,6 @@ function enumerateRanges(impl, self, specifier, callbacks) {
     impl.call(self, protection, callbacks);
   }
 }
+*/
 
 initialize();

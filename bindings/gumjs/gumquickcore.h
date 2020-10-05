@@ -81,19 +81,12 @@ struct _GumQuickCore
 
   JSClassID weak_ref_class;
   JSClassID int64_class;
-  JSValue int64_ctor;
   JSClassID uint64_class;
-  JSValue uint64_ctor;
-  JSValue uint64_proto;
   JSClassID native_pointer_class;
-  JSValue native_pointer_ctor;
-  JSValue native_pointer_proto;
   JSClassID native_resource_class;
   JSClassID kernel_resource_class;
   JSClassID native_function_class;
-  JSValue native_function_ctor;
   JSClassID system_function_class;
-  JSValue system_function_ctor;
   JSClassID native_callback_class;
   JSClassID cpu_context_class;
   JSClassID source_map_class;
@@ -188,6 +181,7 @@ G_GNUC_INTERNAL JSValue _gum_quick_scope_call (GumQuickScope * self,
 G_GNUC_INTERNAL gboolean _gum_quick_scope_call_void (GumQuickScope * self,
     JSValueConst func_obj, JSValueConst this_obj, int argc,
     JSValueConst * argv);
+G_GNUC_INTERNAL void _gum_quick_scope_catch_and_emit (GumQuickScope * self);
 G_GNUC_INTERNAL void _gum_quick_scope_perform_pending_io (GumQuickScope * self);
 G_GNUC_INTERNAL void _gum_quick_scope_leave (GumQuickScope * self);
 

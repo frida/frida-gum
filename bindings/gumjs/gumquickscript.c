@@ -472,6 +472,7 @@ gum_quick_script_destroy_context (GumQuickScript * self)
     core->current_scope = &scope;
 
     JS_FreeValue (self->ctx, self->code);
+    self->code = JS_NULL;
 
     JS_FreeContext (self->ctx);
     self->ctx = NULL;
@@ -574,7 +575,7 @@ gum_quick_script_perform_load_task (GumQuickScript * self,
   {
     GumQuickScope scope;
     JSContext * ctx;
-    JSValue global;
+    JSValue result;
 
     if (self->ctx == NULL)
     {
@@ -587,11 +588,13 @@ gum_quick_script_perform_load_task (GumQuickScript * self,
 
     gum_quick_bundle_load (gumjs_runtime_modules, ctx);
 
-    global = JS_GetGlobalObject (ctx);
+    result = JS_EvalFunction (ctx, self->code);
+    self->code = JS_NULL;
 
-    _gum_quick_scope_call_void (&scope, self->code, global, 0, NULL);
+    if (JS_IsException (result))
+      _gum_quick_scope_catch_and_emit (&scope);
 
-    JS_FreeValue (ctx, global);
+    JS_FreeValue (ctx, result);
 
     _gum_quick_scope_leave (&scope);
 

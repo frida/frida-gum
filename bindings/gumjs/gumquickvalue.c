@@ -119,13 +119,12 @@ _gum_quick_args_parse (const GumQuickArgs * args,
 
         break;
       }
-#if 0
       case 'z':
       {
         gssize value;
 
         if (!_gum_quick_ssize_get (ctx, arg, core, &value))
-          goto expected_int;
+          goto error;
 
         *va_arg (ap, gssize *) = value;
 
@@ -136,13 +135,12 @@ _gum_quick_args_parse (const GumQuickArgs * args,
         gsize value;
 
         if (!_gum_quick_size_get (ctx, arg, core, &value))
-          goto expected_int;
+          goto error;
 
         *va_arg (ap, gsize *) = value;
 
         break;
       }
-#endif
       case 'n':
       {
         gdouble d;
@@ -154,19 +152,17 @@ _gum_quick_args_parse (const GumQuickArgs * args,
 
         break;
       }
-#if 0
       case 't':
       {
         gboolean b;
 
-        if (!_gum_quick_bool_get (ctx, arg, &b))
+        if (!_gum_quick_boolean_get (ctx, arg, &b))
           goto error;
 
         *va_arg (ap, gboolean *) = b;
 
         break;
       }
-#endif
       case 'p':
       {
         gpointer ptr;
@@ -202,10 +198,10 @@ _gum_quick_args_parse (const GumQuickArgs * args,
 
         if (is_nullable && JS_IsNull (arg))
           str = NULL;
-        else if ((str = quick_get_string (ctx, arg)) == NULL)
-          goto expected_string;
+        else if (!_gum_quick_string_get (ctx, arg, &str))
+          goto error;
 
-        *va_arg (ap, const gchar **) = str;
+        *va_arg (ap, const char **) = str;
 
         break;
       }
@@ -213,9 +209,8 @@ _gum_quick_args_parse (const GumQuickArgs * args,
       {
         GArray * ranges;
 
-        ranges = _gum_quick_get_memory_ranges (ctx, arg, core);
-        if (ranges == NULL)
-          goto expected_array_ranges;
+        if (!_gum_quick_memory_ranges_get (ctx, arg, core, &ranges))
+          goto error;
 
         *va_arg (ap, GArray **) = ranges;
 
@@ -225,8 +220,8 @@ _gum_quick_args_parse (const GumQuickArgs * args,
       {
         GumPageProtection prot;
 
-        if (!_gum_quick_parse_protection (ctx, arg, &prot))
-          goto expected_protection;
+        if (!_gum_quick_page_protection_get (ctx, arg, &prot))
+          goto error;
 
         *va_arg (ap, GumPageProtection *) = prot;
 
@@ -234,71 +229,73 @@ _gum_quick_args_parse (const GumQuickArgs * args,
       }
       case 'V':
       {
-        GumDukHeapPtr value;
         gboolean is_nullable;
 
         is_nullable = t[1] == '?';
         if (is_nullable)
           t++;
 
-        if (is_nullable && quick_is_null (ctx, arg))
+        if (JS_IsNull (arg))
         {
-          value = NULL;
+          if (!is_nullable)
+            goto expected_object_or_string;
         }
-        else
+        else if (!JS_IsObject (arg) && !JS_IsString (arg))
         {
-          value = quick_get_heapptr (ctx, arg);
-          if (value == NULL)
-            goto expected_heap_pointer;
+          goto expected_object_or_string;
         }
 
-        *va_arg (ap, GumDukHeapPtr *) = value;
+        *va_arg (ap, JSValue *) = arg;
 
         break;
       }
       case 'O':
       {
-        GumDukHeapPtr object;
         gboolean is_nullable;
 
         is_nullable = t[1] == '?';
         if (is_nullable)
           t++;
 
-        if (is_nullable && quick_is_null (ctx, arg))
-          object = NULL;
-        else if (quick_is_object (ctx, arg))
-          object = quick_require_heapptr (ctx, arg);
-        else
+        if (JS_IsNull (arg))
+        {
+          if (!is_nullable)
+            goto expected_object;
+        }
+        else if (!JS_IsObject (arg))
+        {
           goto expected_object;
+        }
 
-        *va_arg (ap, GumDukHeapPtr *) = object;
+        *va_arg (ap, JSValue *) = arg;
 
         break;
       }
       case 'A':
       {
-        GumDukHeapPtr array;
         gboolean is_nullable;
 
         is_nullable = t[1] == '?';
         if (is_nullable)
           t++;
 
-        if (quick_is_array (ctx, arg))
-          array = quick_require_heapptr (ctx, arg);
-        else if (is_nullable && quick_is_null (ctx, arg))
-          array = NULL;
-        else
+        if (JS_IsNull (arg))
+        {
+          if (!is_nullable)
+            goto expected_array;
+        }
+        else if (!JS_IsArray (ctx, arg))
+        {
           goto expected_array;
+        }
 
-        *va_arg (ap, GumDukHeapPtr *) = array;
+        *va_arg (ap, JSValue *) = arg;
 
         break;
       }
       case 'F':
       {
-        GumDukHeapPtr func_js;
+        JSValue func_js;
         gpointer func_c;
         gboolean accepts_pointer, is_expecting_object;
 
@@ -314,7 +311,7 @@ _gum_quick_args_parse (const GumQuickArgs * args,
         {
           const gchar * next, * end, * t_end;
 
-          if (!quick_is_object (ctx, arg))
+          if (!JS_IsObject (arg))
             goto expected_callback_object;
 
           do
@@ -322,6 +319,7 @@ _gum_quick_args_parse (const GumQuickArgs * args,
             gchar name[64];
             gsize length;
             gboolean is_optional;
+            JSValue val;
 
             next = strchr (t, ',');
             end = strchr (t, '}');
@@ -335,30 +333,37 @@ _gum_quick_args_parse (const GumQuickArgs * args,
             else
               name[length] = '\0';
 
-            quick_get_prop_string (ctx, arg, name);
-            if (quick_is_function (ctx, -1))
+            val = JS_GetPropertyStr (ctx, arg, name);
+            if (JS_IsFunction (ctx, val))
             {
-              func_js = quick_require_heapptr (ctx, -1);
+              func_js = val;
               func_c = NULL;
             }
-            else if (is_optional && quick_is_undefined (ctx, -1))
+            else if (is_optional && JS_IsUndefined (val))
             {
-              func_js = NULL;
+              func_js = JS_NULL;
               func_c = NULL;
             }
             else if (accepts_pointer)
             {
-              func_js = NULL;
-              func_c = _gum_quick_require_native_pointer (ctx, -1, core)->value;
+              gboolean valid;
+
+              func_js = JS_NULL;
+              valid = _gum_quick_native_pointer_get (ctx, val, core, &func_c);
+
+              JS_FreeValue (ctx, val);
+
+              if (!valid)
+                goto expected_callback_value;
             }
             else
             {
-              quick_pop (ctx);
+              JS_FreeValue (ctx, val);
+
               goto expected_callback_value;
             }
-            quick_pop (ctx);
 
-            *va_arg (ap, GumDukHeapPtr *) = func_js;
+            *va_arg (ap, JSValue *) = func_js;
             if (accepts_pointer)
               *va_arg (ap, gpointer *) = func_c;
 
@@ -376,28 +381,28 @@ _gum_quick_args_parse (const GumQuickArgs * args,
           if (is_nullable)
             t++;
 
-          if (quick_is_function (ctx, arg))
+          if (JS_IsFunction (ctx, arg))
           {
-            func_js = quick_require_heapptr (ctx, arg);
+            func_js = arg;
             func_c = NULL;
           }
-          else if (is_nullable && quick_is_null (ctx, arg))
+          else if (is_nullable && JS_IsNull (arg))
           {
-            func_js = NULL;
+            func_js = arg;
             func_c = NULL;
           }
           else if (accepts_pointer)
           {
-            func_js = NULL;
-            func_c = _gum_quick_require_native_pointer (ctx, arg,
-                core)->value;
+            func_js = JS_NULL;
+            if (!_gum_quick_native_pointer_get (ctx, arg, core, &func_c))
+              goto expected_function;
           }
           else
           {
             goto expected_function;
           }
 
-          *va_arg (ap, GumDukHeapPtr *) = func_js;
+          *va_arg (ap, JSValue *) = func_js;
           if (accepts_pointer)
             *va_arg (ap, gpointer *) = func_c;
         }
@@ -416,7 +421,7 @@ _gum_quick_args_parse (const GumQuickArgs * args,
         if (is_nullable)
           t++;
 
-        if (is_nullable && quick_is_null (ctx, arg))
+        if (is_nullable && JS_IsNull (arg))
         {
           bytes = NULL;
         }
@@ -425,12 +430,12 @@ _gum_quick_args_parse (const GumQuickArgs * args,
           gboolean success;
 
           if (is_fuzzy)
-            success = _gum_quick_parse_bytes (ctx, arg, &bytes);
+            success = _gum_quick_bytes_parse (ctx, arg, &bytes);
           else
-            success = _gum_quick_get_bytes (ctx, arg, &bytes);
+            success = _gum_quick_bytes_get (ctx, arg, &bytes);
 
           if (!success)
-            goto expected_bytes;
+            goto error;
         }
 
         *va_arg (ap, GBytes **) = bytes;
@@ -449,11 +454,10 @@ _gum_quick_args_parse (const GumQuickArgs * args,
         if (is_nullable)
           t++;
 
-        if (is_nullable && quick_is_null (ctx, arg))
+        if (is_nullable && JS_IsNull (arg))
           cpu_context = NULL;
-        else if ((cpu_context = _gum_quick_get_cpu_context (ctx, arg,
-            core)) == NULL)
-          goto expected_cpu_context;
+        else if (!_gum_quick_cpu_context_get (ctx, arg, core, &cpu_context))
+          goto error;
 
         *va_arg (ap, GumCpuContext **) = cpu_context;
 
@@ -477,34 +481,9 @@ missing_argument:
     error_message = "missing argument";
     goto error;
   }
-expected_number:
+expected_object_or_string:
   {
-    error_message = "expected a number";
-    goto error;
-  }
-expected_boolean:
-  {
-    error_message = "expected a boolean";
-    goto error;
-  }
-expected_pointer:
-  {
-    error_message = "expected a pointer";
-    goto error;
-  }
-expected_string:
-  {
-    error_message = "expected a string";
-    goto error;
-  }
-expected_protection:
-  {
-    error_message = "expected a string specifying memory protection";
-    goto error;
-  }
-expected_heap_pointer:
-  {
-    error_message = "expected a heap-allocated object";
+    error_message = "expected an object or string";
     goto error;
   }
 expected_object:
@@ -530,21 +509,6 @@ expected_callback_value:
 expected_function:
   {
     error_message = "expected a function";
-    goto error;
-  }
-expected_bytes:
-  {
-    error_message = "expected a buffer-like object";
-    goto error;
-  }
-expected_cpu_context:
-  {
-    error_message = "expected a CpuContext object";
-    goto error;
-  }
-expected_array_ranges:
-  {
-    error_message = "expected a range object or array of ranges objects";
     goto error;
   }
 error:
@@ -573,6 +537,60 @@ _gum_quick_load_module_data (JSContext * ctx,
                              const gchar * module_id)
 {
   return NULL;
+}
+
+gboolean
+_gum_quick_string_get (JSContext * ctx,
+                       JSValueConst val,
+                       const char ** str)
+{
+  if (!JS_IsString (val))
+    goto expected_string;
+
+  *str = JS_ToCString (ctx, val);
+  return *str != NULL;
+
+expected_string:
+  {
+    _gum_quick_throw_literal (ctx, "expected a string");
+    return FALSE;
+  }
+}
+
+gboolean
+_gum_quick_bytes_get (JSContext * ctx,
+                      JSValueConst val,
+                      GBytes ** bytes)
+{
+  _gum_quick_throw (ctx, "%s: TODO", G_STRFUNC);
+  return FALSE; /* TODO */
+}
+
+gboolean
+_gum_quick_bytes_parse (JSContext * ctx,
+                        JSValueConst val,
+                        GBytes ** bytes)
+{
+  _gum_quick_throw (ctx, "%s: TODO", G_STRFUNC);
+  return FALSE; /* TODO */
+}
+
+gboolean
+_gum_quick_boolean_get (JSContext * ctx,
+                        JSValueConst val,
+                        gboolean * b)
+{
+  if (!JS_IsBool (val))
+    goto expected_boolean;
+
+  *b = JS_VALUE_GET_BOOL (val);
+  return TRUE;
+
+expected_boolean:
+  {
+    _gum_quick_throw_literal (ctx, "expected a boolean");
+    return FALSE;
+  }
 }
 
 gboolean
@@ -786,6 +804,26 @@ _gum_quick_uint64_parse (JSContext * ctx,
 }
 
 gboolean
+_gum_quick_size_get (JSContext * ctx,
+                     JSValueConst val,
+                     GumQuickCore * core,
+                     gsize * size)
+{
+  _gum_quick_throw (ctx, "%s: TODO", G_STRFUNC);
+  return FALSE; /* TODO */
+}
+
+gboolean
+_gum_quick_ssize_get (JSContext * ctx,
+                      JSValueConst val,
+                      GumQuickCore * core,
+                      gssize * size)
+{
+  _gum_quick_throw (ctx, "%s: TODO", G_STRFUNC);
+  return FALSE; /* TODO */
+}
+
+gboolean
 _gum_quick_float64_get (JSContext * ctx,
                         JSValueConst val,
                         gdouble * d)
@@ -832,7 +870,20 @@ _gum_quick_native_pointer_get (JSContext * ctx,
                                GumQuickCore * core,
                                gpointer * ptr)
 {
-  return FALSE; /* TODO */
+  GumQuickNativePointer * p;
+
+  p = JS_GetOpaque (val, core->native_pointer_class);
+  if (p == NULL)
+    goto expected_pointer;
+
+  *ptr = p->value;
+  return TRUE;
+
+expected_pointer:
+  {
+    _gum_quick_throw_literal (ctx, "expected a pointer");
+    return FALSE;
+  }
 }
 
 gboolean
@@ -841,6 +892,99 @@ _gum_quick_native_pointer_parse (JSContext * ctx,
                                  GumQuickCore * core,
                                  gpointer * ptr)
 {
+  GumQuickNativePointer * p;
+  GumQuickUInt64 * u64;
+  GumQuickInt64 * i64;
+
+  if ((p = JS_GetOpaque (val, core->native_pointer_class)) != NULL)
+  {
+    *ptr = p->value;
+  }
+  else if (JS_IsString (val))
+  {
+    const gchar * ptr_as_string, * end;
+    gboolean valid;
+
+    ptr_as_string = JS_ToCString (ctx, val);
+
+    if (g_str_has_prefix (ptr_as_string, "0x"))
+    {
+      *ptr = GSIZE_TO_POINTER (
+          g_ascii_strtoull (ptr_as_string + 2, (gchar **) &end, 16));
+      valid = end != ptr_as_string + 2;
+    }
+    else
+    {
+      *ptr = GSIZE_TO_POINTER (
+          g_ascii_strtoull (ptr_as_string, (gchar **) &end, 10));
+      valid = end != ptr_as_string;
+    }
+
+    JS_FreeCString (ctx, ptr_as_string);
+
+    if (!valid)
+      goto expected_pointer;
+  }
+  else if (JS_IsNumber (val))
+  {
+    union
+    {
+      gpointer p;
+      int64_t i;
+    } v;
+
+    JS_ToInt64 (ctx, &v.i, val);
+
+    *ptr = v.p;
+  }
+  else if ((u64 = JS_GetOpaque (val, core->uint64_class)) != NULL)
+  {
+    *ptr = GSIZE_TO_POINTER (u64->value);
+  }
+  else if ((i64 = JS_GetOpaque (val, core->int64_class)) != NULL)
+  {
+    *ptr = GSIZE_TO_POINTER (i64->value);
+  }
+  else
+  {
+    goto expected_pointer;
+  }
+
+  return TRUE;
+
+expected_pointer:
+  {
+    _gum_quick_throw_literal (ctx, "expected a pointer");
+    return FALSE;
+  }
+}
+
+gboolean
+_gum_quick_cpu_context_get (JSContext * ctx,
+                            JSValueConst val,
+                            GumQuickCore * core,
+                            GumCpuContext ** cpu_context)
+{
+  _gum_quick_throw (ctx, "%s: TODO", G_STRFUNC);
+  return FALSE; /* TODO */
+}
+
+gboolean
+_gum_quick_memory_ranges_get (JSContext * ctx,
+                              JSValueConst val,
+                              GumQuickCore * core,
+                              GArray ** ranges)
+{
+  _gum_quick_throw (ctx, "%s: TODO", G_STRFUNC);
+  return FALSE; /* TODO */
+}
+
+gboolean
+_gum_quick_page_protection_get (JSContext * ctx,
+                                JSValueConst val,
+                                GumPageProtection * prot)
+{
+  _gum_quick_throw (ctx, "%s: TODO", G_STRFUNC);
   return FALSE; /* TODO */
 }
 

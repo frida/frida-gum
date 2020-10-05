@@ -13,9 +13,6 @@ gum_quick_bundle_load (const GumQuickRuntimeModule * modules,
                        JSContext * ctx)
 {
   const GumQuickRuntimeModule * cur;
-  JSValue global;
-
-  global = JS_GetGlobalObject (ctx);
 
   for (cur = modules; cur->bytecode != NULL; cur++)
   {
@@ -31,8 +28,5 @@ gum_quick_bundle_load (const GumQuickRuntimeModule * modules,
       _gum_quick_panic (ctx, "Runtime bundle could not be loaded");
 
     JS_FreeValue (ctx, result);
-    JS_FreeValue (ctx, code);
   }
-
-  JS_FreeValue (ctx, global);
 }
