@@ -275,6 +275,7 @@ static void gum_quick_native_callback_invoke (ffi_cif * cif,
 
 static gboolean gumjs_cpu_context_from_this (JSValueConst this_val,
     GumQuickCore * core, GumQuickCpuContext ** cpu_context);
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_cpu_context_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_cpu_context_finalize)
 static JSValue gumjs_cpu_context_set_register (GumQuickCpuContext * self,
     JSContext * ctx, JSValueConst val, gpointer * reg);
@@ -994,6 +995,9 @@ _gum_quick_core_init (GumQuickCore * self,
   proto = JS_NewObject (ctx);
   JS_SetPropertyFunctionList (ctx, proto, gumjs_cpu_context_entries,
       G_N_ELEMENTS (gumjs_cpu_context_entries));
+  ctor = JS_NewCFunction2 (ctx, gumjs_cpu_context_construct,
+      gumjs_cpu_context_def.class_name, 0, JS_CFUNC_constructor, 0);
+  JS_SetConstructor (ctx, ctor, proto);
   JS_SetClassProto (ctx, self->cpu_context_class, proto);
   JS_DefinePropertyValueStr (ctx, global, gumjs_cpu_context_def.class_name,
       ctor, JS_PROP_C_W_E);
@@ -3455,6 +3459,12 @@ gumjs_cpu_context_from_this (JSValueConst this_val,
 {
   *cpu_context = JS_GetOpaque2 (core->ctx, this_val, core->cpu_context_class);
   return *cpu_context != NULL;
+}
+
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_cpu_context_construct)
+{
+  _gum_quick_throw_literal (ctx, "not user-instantiable");
+  return JS_EXCEPTION;
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_cpu_context_finalize)
