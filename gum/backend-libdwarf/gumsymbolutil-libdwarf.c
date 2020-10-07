@@ -379,11 +379,10 @@ gum_find_nearest_symbol_by_address (gpointer address,
   g_hash_table_iter_init (&iter, table);
   while (g_hash_table_iter_next (&iter, NULL, (gpointer *) &current_symbol))
   {
-    if (current_symbol->address < GPOINTER_TO_SIZE (address))
+    if (current_symbol->address > GUM_ADDRESS (address))
       continue;
 
-    if (current_symbol->address + current_symbol->size >= 
-        GPOINTER_TO_SIZE (address))
+    if (current_symbol->address + current_symbol->size <= GUM_ADDRESS (address))
     {
       continue;
     }
