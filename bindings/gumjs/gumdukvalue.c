@@ -24,7 +24,8 @@ _gum_duk_args_parse (const GumDukArgs * args,
   duk_idx_t arg_index;
   const gchar * t;
   gboolean is_required;
-  GSList * byte_arrays = NULL;
+  GSList * pending_arrays = NULL;
+  GSList * pending_bytes = NULL;
   const gchar * error_message = NULL;
 
   va_start (ap, format);
@@ -208,6 +209,8 @@ _gum_duk_args_parse (const GumDukArgs * args,
           goto expected_array_ranges;
 
         *va_arg (ap, GArray **) = ranges;
+
+        pending_arrays = g_slist_prepend (pending_arrays, ranges);
 
         break;
       }
@@ -426,7 +429,7 @@ _gum_duk_args_parse (const GumDukArgs * args,
         *va_arg (ap, GBytes **) = bytes;
 
         if (bytes != NULL)
-          byte_arrays = g_slist_prepend (byte_arrays, bytes);
+          pending_bytes = g_slist_prepend (pending_bytes, bytes);
 
         break;
       }
@@ -458,7 +461,8 @@ _gum_duk_args_parse (const GumDukArgs * args,
 
   va_end (ap);
 
-  g_slist_free (byte_arrays);
+  g_slist_free (pending_bytes);
+  g_slist_free (pending_arrays);
 
   return;
 
@@ -551,8 +555,11 @@ error:
   {
     va_end (ap);
 
-    g_slist_foreach (byte_arrays, (GFunc) g_bytes_unref, NULL);
-    g_slist_free (byte_arrays);
+    g_slist_foreach (pending_bytes, (GFunc) g_bytes_unref, NULL);
+    g_slist_free (pending_bytes);
+
+    g_slist_foreach (pending_arrays, (GFunc) g_array_unref, NULL);
+    g_slist_free (pending_arrays);
 
     g_assert (error_message != NULL);
     _gum_duk_throw (ctx, error_message);
