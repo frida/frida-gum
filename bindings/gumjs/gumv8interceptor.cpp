@@ -566,6 +566,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
 
   listener->on_enter = on_enter;
   listener->on_leave = on_leave;
+  listener->resource =
+      new GumPersistent<Object>::type (isolate, callback_val.As<Object> ());
   listener->module = module;
 
   gpointer listener_function_data;
