@@ -1199,10 +1199,6 @@ _gum_quick_scope_enter (GumQuickScope * self,
     core->current_scope = self;
   }
 
-#if 0
-  self->exception = NULL;
-#endif
-
   g_queue_init (&self->tick_callbacks);
   g_queue_init (&self->scheduled_sources);
 
@@ -1307,22 +1303,17 @@ _gum_quick_scope_catch_and_emit (GumQuickScope * self)
 void
 _gum_quick_scope_perform_pending_io (GumQuickScope * self)
 {
-#if 0
   JSContext * ctx = self->core->ctx;
-  JSValue tick_callback;
-#endif
+  JSValue * tick_callback;
   GSource * source;
 
-#if 0
   while ((tick_callback = g_queue_pop_head (&self->tick_callbacks)) != NULL)
   {
-    quick_push_heapptr (ctx, tick_callback);
-    _gum_quick_scope_call (self, 0);
-    quick_pop (ctx);
+    _gum_quick_scope_call_void (self, *tick_callback, JS_UNDEFINED, 0, NULL);
 
-    _gum_quick_unprotect (ctx, tick_callback);
+    JS_FreeValue (ctx, *tick_callback);
+    g_slice_free (JSValue, tick_callback);
   }
-#endif
 
   while ((source = g_queue_pop_head (&self->scheduled_sources)) != NULL)
   {
@@ -1478,10 +1469,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_next_tick)
   if (!_gum_quick_args_parse (args, "F", &callback))
     return JS_EXCEPTION;
 
-#if 0
-  _gum_quick_protect (ctx, callback);
-  g_queue_push_tail (&args->core->current_scope->tick_callbacks, callback);
-#endif
+  JS_DupValue (ctx, callback);
+  g_queue_push_tail (&args->core->current_scope->tick_callbacks,
+      g_slice_dup (JSValue, &callback));
 
   return JS_UNDEFINED;
 }
