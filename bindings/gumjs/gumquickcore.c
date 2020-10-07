@@ -258,7 +258,7 @@ static gboolean gumjs_ffi_function_get (JSContext * ctx, JSValueConst func_obj,
 
 static gboolean gum_quick_ffi_function_params_init (
     GumQuickFFIFunctionParams * params, GumQuickReturnValueShape return_shape,
-    const GumQuickArgs * args);
+    GumQuickArgs * args);
 static void gum_quick_ffi_function_params_destroy (
     GumQuickFFIFunctionParams * params);
 
@@ -292,7 +292,7 @@ static GumQuickWeakRef * gum_quick_weak_ref_new (guint id, JSValue callback,
 static void gum_quick_weak_ref_clear (GumQuickWeakRef * ref);
 
 static JSValue gum_quick_core_schedule_callback (GumQuickCore * self,
-    const GumQuickArgs * args, gboolean repeat);
+    GumQuickArgs * args, gboolean repeat);
 static GumQuickScheduledCallback * gum_quick_core_try_steal_scheduled_callback (
     GumQuickCore * self, gint id);
 
@@ -1586,7 +1586,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_clear_timer)
   gint id;
   GumQuickScheduledCallback * callback;
 
-  if (!JS_IsNumber (args->argv[0]))
+  if (!JS_IsNumber (args->elements[0]))
     goto invalid_handle;
 
   if (!_gum_quick_args_parse (args, "i", &id))
@@ -1634,9 +1634,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_send)
   gum_interceptor_begin_transaction (interceptor);
 
   self->message_emitter (self->script, message, data);
-
-  g_bytes_unref (data);
-  JS_FreeCString (ctx, message);
 
   return JS_UNDEFINED;
 }
@@ -2984,7 +2981,7 @@ gumjs_ffi_function_invoke (JSContext * ctx,
     return JS_EXCEPTION;
 
   return gum_quick_ffi_function_invoke (self, ctx, self->implementation,
-      args->argc, args->argv);
+      args->count, args->elements);
 }
 
 static JSValue
@@ -2993,8 +2990,8 @@ gumjs_ffi_function_call (JSContext * ctx,
                          JSClassID class_id,
                          const GumQuickArgs * args)
 {
-  const int argc = args->argc;
-  JSValueConst * argv = args->argv;
+  const int argc = args->count;
+  JSValueConst * argv = args->elements;
   GumQuickFFIFunction * self;
   JSValue receiver;
   GumQuickFFIFunction * func;
@@ -3033,7 +3030,7 @@ gumjs_ffi_function_apply (JSContext * ctx,
                           JSClassID class_id,
                           const GumQuickArgs * args)
 {
-  JSValueConst * argv = args->argv;
+  JSValueConst * argv = args->elements;
   GumQuickFFIFunction * self;
   JSValue receiver;
   GumQuickFFIFunction * func;
@@ -3147,7 +3144,7 @@ gumjs_ffi_function_get (JSContext * ctx,
 static gboolean
 gum_quick_ffi_function_params_init (GumQuickFFIFunctionParams * params,
                                     GumQuickReturnValueShape return_shape,
-                                    const GumQuickArgs * args)
+                                    GumQuickArgs * args)
 {
   JSContext * ctx = args->ctx;
   JSValueConst abi_or_options;
@@ -3619,7 +3616,7 @@ gumjs_source_map_new (const gchar * json,
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_source_map_construct)
 {
   JSValue obj = JS_NULL;
-  const gchar * json = NULL;
+  const gchar * json;
   JSValue proto;
   GumSourceMap * self;
 
@@ -3657,7 +3654,6 @@ invalid_source_map:
 propagate_exception:
   {
     JS_FreeValue (ctx, obj);
-    JS_FreeCString (ctx, json);
 
     return JS_EXCEPTION;
   }
@@ -3683,7 +3679,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_source_map_resolve)
   if (!gumjs_source_map_from_this (this_val, args->core, &self))
     return JS_EXCEPTION;
 
-  if (args->argc == 1)
+  if (args->count == 1)
   {
     if (!_gum_quick_args_parse (args, "u", &line))
       return JS_EXCEPTION;
@@ -3744,7 +3740,7 @@ gum_quick_weak_ref_clear (GumQuickWeakRef * ref)
 
 static JSValue
 gum_quick_core_schedule_callback (GumQuickCore * self,
-                                  const GumQuickArgs * args,
+                                  GumQuickArgs * args,
                                   gboolean repeat)
 {
   JSValue func;

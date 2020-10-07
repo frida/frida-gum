@@ -18,28 +18,84 @@ struct _GumQuickJSValue
   GumQuickCore * core;
 };
 
+static void gum_quick_args_free_value_later (GumQuickArgs * self, JSValue val);
+static void gum_quick_args_free_cstring_later (GumQuickArgs * self,
+    const char * str);
+static void gum_quick_args_free_bytes_later (GumQuickArgs * self,
+    GBytes * bytes);
+
 static GumQuickJSValue * gum_quick_js_value_new (JSContext * ctx, JSValue val,
     GumQuickCore * core);
 static void gum_quick_js_value_free (GumQuickJSValue * v);
 
+void
+_gum_quick_args_init (GumQuickArgs * args,
+                      JSContext * ctx,
+                      int count,
+                      JSValueConst * elements)
+{
+  args->ctx = ctx;
+  args->count = count;
+  args->elements = elements;
+
+  args->core = JS_GetContextOpaque (ctx);
+
+  args->values = NULL;
+  args->cstrings = NULL;
+  args->bytes = NULL;
+}
+
+void
+_gum_quick_args_destroy (GumQuickArgs * args)
+{
+  JSContext * ctx = args->ctx;
+  GSList * cur, * next;
+  GArray * values;
+
+  g_slist_free_full (g_steal_pointer (&args->bytes),
+      (GDestroyNotify) g_bytes_unref);
+
+  for (cur = g_steal_pointer (&args->cstrings); cur != NULL; cur = next)
+  {
+    char * str = cur->data;
+    next = cur->next;
+
+    JS_FreeCString (ctx, str);
+
+    g_slist_free_1 (cur);
+  }
+
+  values = g_steal_pointer (&args->values);
+  if (values != NULL)
+  {
+    guint i;
+
+    for (i = 0; i != values->len; i++)
+    {
+      JSValue val = g_array_index (values, JSValue, i);
+      JS_FreeValue (ctx, val);
+    }
+
+    g_array_free (values, TRUE);
+  }
+}
+
 gboolean
-_gum_quick_args_parse (const GumQuickArgs * args,
+_gum_quick_args_parse (GumQuickArgs * self,
                        const gchar * format,
                        ...)
 {
-  JSContext * ctx = args->ctx;
-  GumQuickCore * core = args->core;
+  JSContext * ctx = self->ctx;
+  GumQuickCore * core = self->core;
   va_list ap;
-  int arg_index, arg_count;
+  int arg_index;
   const gchar * t;
   gboolean is_required;
-  GSList * byte_arrays = NULL;
   const gchar * error_message = NULL;
 
   va_start (ap, format);
 
   arg_index = 0;
-  arg_count = args->argc;
   is_required = TRUE;
   for (t = format; *t != '\0'; t++)
   {
@@ -51,7 +107,7 @@ _gum_quick_args_parse (const GumQuickArgs * args,
       continue;
     }
 
-    arg = (arg_index < arg_count) ? args->argv[arg_index] : JS_UNDEFINED;
+    arg = (arg_index < self->count) ? self->elements[arg_index] : JS_UNDEFINED;
 
     if (JS_IsUndefined (arg))
     {
@@ -68,7 +124,7 @@ _gum_quick_args_parse (const GumQuickArgs * args,
         gint i;
 
         if (!_gum_quick_int_get (ctx, arg, &i))
-          goto error;
+          goto propagate_exception;
 
         *va_arg (ap, gint *) = i;
 
@@ -79,7 +135,7 @@ _gum_quick_args_parse (const GumQuickArgs * args,
         guint u;
 
         if (!_gum_quick_uint_get (ctx, arg, &u))
-          goto error;
+          goto propagate_exception;
 
         *va_arg (ap, guint *) = (guint) u;
 
@@ -97,12 +153,12 @@ _gum_quick_args_parse (const GumQuickArgs * args,
         if (is_fuzzy)
         {
           if (!_gum_quick_int64_parse (ctx, arg, core, &i))
-            goto error;
+            goto propagate_exception;
         }
         else
         {
           if (!_gum_quick_int64_get (ctx, arg, core, &i))
-            goto error;
+            goto propagate_exception;
         }
 
         *va_arg (ap, gint64 *) = i;
@@ -121,12 +177,12 @@ _gum_quick_args_parse (const GumQuickArgs * args,
         if (is_fuzzy)
         {
           if (!_gum_quick_uint64_parse (ctx, arg, core, &u))
-            goto error;
+            goto propagate_exception;
         }
         else
         {
           if (!_gum_quick_uint64_get (ctx, arg, core, &u))
-            goto error;
+            goto propagate_exception;
         }
 
         *va_arg (ap, guint64 *) = u;
@@ -138,7 +194,7 @@ _gum_quick_args_parse (const GumQuickArgs * args,
         gssize value;
 
         if (!_gum_quick_ssize_get (ctx, arg, core, &value))
-          goto error;
+          goto propagate_exception;
 
         *va_arg (ap, gssize *) = value;
 
@@ -149,7 +205,7 @@ _gum_quick_args_parse (const GumQuickArgs * args,
         gsize value;
 
         if (!_gum_quick_size_get (ctx, arg, core, &value))
-          goto error;
+          goto propagate_exception;
 
         *va_arg (ap, gsize *) = value;
 
@@ -160,7 +216,7 @@ _gum_quick_args_parse (const GumQuickArgs * args,
         gdouble d;
 
         if (!_gum_quick_float64_get (ctx, arg, &d))
-          goto error;
+          goto propagate_exception;
 
         *va_arg (ap, gdouble *) = d;
 
@@ -171,7 +227,7 @@ _gum_quick_args_parse (const GumQuickArgs * args,
         gboolean b;
 
         if (!_gum_quick_boolean_get (ctx, arg, &b))
-          goto error;
+          goto propagate_exception;
 
         *va_arg (ap, gboolean *) = b;
 
@@ -189,12 +245,12 @@ _gum_quick_args_parse (const GumQuickArgs * args,
         if (is_fuzzy)
         {
           if (!_gum_quick_native_pointer_parse (ctx, arg, core, &ptr))
-            goto error;
+            goto propagate_exception;
         }
         else
         {
           if (!_gum_quick_native_pointer_get (ctx, arg, core, &ptr))
-            goto error;
+            goto propagate_exception;
         }
 
         *va_arg (ap, gpointer *) = ptr;
@@ -213,7 +269,9 @@ _gum_quick_args_parse (const GumQuickArgs * args,
         if (is_nullable && JS_IsNull (arg))
           str = NULL;
         else if (!_gum_quick_string_get (ctx, arg, &str))
-          goto error;
+          goto propagate_exception;
+
+        gum_quick_args_free_cstring_later (self, str);
 
         *va_arg (ap, const char **) = str;
 
@@ -224,9 +282,11 @@ _gum_quick_args_parse (const GumQuickArgs * args,
         GArray * ranges;
 
         if (!_gum_quick_memory_ranges_get (ctx, arg, core, &ranges))
-          goto error;
+          goto propagate_exception;
 
         *va_arg (ap, GArray **) = ranges;
+
+        /* FIXME: free it */
 
         break;
       }
@@ -235,7 +295,7 @@ _gum_quick_args_parse (const GumQuickArgs * args,
         GumPageProtection prot;
 
         if (!_gum_quick_page_protection_get (ctx, arg, &prot))
-          goto error;
+          goto propagate_exception;
 
         *va_arg (ap, GumPageProtection *) = prot;
 
@@ -348,6 +408,8 @@ _gum_quick_args_parse (const GumQuickArgs * args,
               name[length] = '\0';
 
             val = JS_GetPropertyStr (ctx, arg, name);
+            gum_quick_args_free_value_later (self, val);
+
             if (JS_IsFunction (ctx, val))
             {
               func_js = val;
@@ -360,20 +422,12 @@ _gum_quick_args_parse (const GumQuickArgs * args,
             }
             else if (accepts_pointer)
             {
-              gboolean valid;
-
               func_js = JS_NULL;
-              valid = _gum_quick_native_pointer_get (ctx, val, core, &func_c);
-
-              JS_FreeValue (ctx, val);
-
-              if (!valid)
+              if (!_gum_quick_native_pointer_get (ctx, val, core, &func_c))
                 goto expected_callback_value;
             }
             else
             {
-              JS_FreeValue (ctx, val);
-
               goto expected_callback_value;
             }
 
@@ -449,13 +503,12 @@ _gum_quick_args_parse (const GumQuickArgs * args,
             success = _gum_quick_bytes_get (ctx, arg, core, &bytes);
 
           if (!success)
-            goto error;
+            goto propagate_exception;
         }
 
-        *va_arg (ap, GBytes **) = bytes;
+        gum_quick_args_free_bytes_later (self, bytes);
 
-        if (bytes != NULL)
-          byte_arrays = g_slist_prepend (byte_arrays, bytes);
+        *va_arg (ap, GBytes **) = bytes;
 
         break;
       }
@@ -471,7 +524,7 @@ _gum_quick_args_parse (const GumQuickArgs * args,
         if (is_nullable && JS_IsNull (arg))
           cpu_context = NULL;
         else if (!_gum_quick_cpu_context_get (ctx, arg, core, &cpu_context))
-          goto error;
+          goto propagate_exception;
 
         *va_arg (ap, GumCpuContext **) = cpu_context;
 
@@ -486,57 +539,85 @@ _gum_quick_args_parse (const GumQuickArgs * args,
 
   va_end (ap);
 
-  g_slist_free (byte_arrays);
-
   return TRUE;
 
 missing_argument:
   {
     error_message = "missing argument";
-    goto error;
+    goto propagate_exception;
   }
 expected_object_or_string:
   {
     error_message = "expected an object or string";
-    goto error;
+    goto propagate_exception;
   }
 expected_object:
   {
     error_message = "expected an object";
-    goto error;
+    goto propagate_exception;
   }
 expected_array:
   {
     error_message = "expected an array";
-    goto error;
+    goto propagate_exception;
   }
 expected_callback_object:
   {
     error_message = "expected an object containing callbacks";
-    goto error;
+    goto propagate_exception;
   }
 expected_callback_value:
   {
     error_message = "expected a callback value";
-    goto error;
+    goto propagate_exception;
   }
 expected_function:
   {
     error_message = "expected a function";
-    goto error;
+    goto propagate_exception;
   }
-error:
+propagate_exception:
   {
     va_end (ap);
-
-    g_slist_foreach (byte_arrays, (GFunc) g_bytes_unref, NULL);
-    g_slist_free (byte_arrays);
 
     if (error_message != NULL)
       _gum_quick_throw_literal (ctx, error_message);
 
     return FALSE;
   }
+}
+
+static void
+gum_quick_args_free_value_later (GumQuickArgs * self,
+                                 JSValue val)
+{
+  if (!JS_VALUE_HAS_REF_COUNT (val))
+    return;
+
+  if (self->values == NULL)
+    self->values = g_array_sized_new (FALSE, FALSE, sizeof (JSValue), 4);
+
+  g_array_append_val (self->values, val);
+}
+
+static void
+gum_quick_args_free_cstring_later (GumQuickArgs * self,
+                                   const char * str)
+{
+  if (str == NULL)
+    return;
+
+  self->cstrings = g_slist_prepend (self->cstrings, (gpointer) str);
+}
+
+static void
+gum_quick_args_free_bytes_later (GumQuickArgs * self,
+                                 GBytes * bytes)
+{
+  if (bytes == NULL)
+    return;
+
+  self->bytes = g_slist_prepend (self->bytes, bytes);
 }
 
 void

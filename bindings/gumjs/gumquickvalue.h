@@ -15,14 +15,21 @@ typedef struct _GumQuickArgs GumQuickArgs;
 
 struct _GumQuickArgs
 {
-  int argc;
-  JSValueConst * argv;
-
   JSContext * ctx;
+  int count;
+  JSValueConst * elements;
+
   GumQuickCore * core;
+
+  GArray * values;
+  GSList * cstrings;
+  GSList * bytes;
 };
 
-G_GNUC_INTERNAL gboolean _gum_quick_args_parse (const GumQuickArgs * args,
+G_GNUC_INTERNAL void _gum_quick_args_init (GumQuickArgs * args,
+    JSContext * ctx, int count, JSValueConst * elements);
+G_GNUC_INTERNAL void _gum_quick_args_destroy (GumQuickArgs * args);
+G_GNUC_INTERNAL gboolean _gum_quick_args_parse (GumQuickArgs * self,
     const gchar * format, ...);
 
 G_GNUC_INTERNAL void _gum_quick_store_module_data (JSContext * ctx,
