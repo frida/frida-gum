@@ -10,23 +10,11 @@
 
 #define GUM_MAX_JS_BYTE_ARRAY_LENGTH (100 * 1024 * 1024)
 
-typedef struct _GumQuickJSValue GumQuickJSValue;
-
-struct _GumQuickJSValue
-{
-  JSValue val;
-  GumQuickCore * core;
-};
-
 static void gum_quick_args_free_value_later (GumQuickArgs * self, JSValue v);
 static void gum_quick_args_free_cstring_later (GumQuickArgs * self,
     const char * s);
 static void gum_quick_args_free_array_later (GumQuickArgs * self, GArray * a);
 static void gum_quick_args_free_bytes_later (GumQuickArgs * self, GBytes * b);
-
-static GumQuickJSValue * gum_quick_js_value_new (JSContext * ctx, JSValue val,
-    GumQuickCore * core);
-static void gum_quick_js_value_free (GumQuickJSValue * v);
 
 void
 _gum_quick_args_init (GumQuickArgs * args,
@@ -680,9 +668,7 @@ _gum_quick_bytes_get (JSContext * ctx,
   data = JS_GetArrayBuffer (ctx, &size, val);
   if (data != NULL)
   {
-    *bytes = g_bytes_new_with_free_func (data, size,
-        (GDestroyNotify) gum_quick_js_value_free,
-        gum_quick_js_value_new (ctx, val, core));
+    *bytes = g_bytes_new (data, size);
   }
   else if (JS_IsArray (ctx, val))
   {
@@ -1238,36 +1224,4 @@ _gum_quick_throw_native (JSContext * ctx,
                          GumQuickCore * core)
 {
   return _gum_quick_throw_literal (ctx, "a native exception occurred");
-}
-
-static GumQuickJSValue *
-gum_quick_js_value_new (JSContext * ctx,
-                        JSValue val,
-                        GumQuickCore * core)
-{
-  GumQuickJSValue * v;
-
-  v = g_slice_new (GumQuickJSValue);
-  v->val = JS_DupValue (ctx, val);
-  v->core = core;
-
-  _gum_quick_core_pin (core);
-
-  return v;
-}
-
-static void
-gum_quick_js_value_free (GumQuickJSValue * v)
-{
-  GumQuickCore * core = v->core;
-  GumQuickScope scope;
-
-  _gum_quick_scope_enter (&scope, core);
-
-  JS_FreeValue (core->ctx, v->val);
-  g_slice_free (GumQuickJSValue, v);
-
-  _gum_quick_core_unpin (core);
-
-  _gum_quick_scope_leave (&scope);
 }
