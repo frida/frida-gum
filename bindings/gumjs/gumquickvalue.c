@@ -18,11 +18,11 @@ struct _GumQuickJSValue
   GumQuickCore * core;
 };
 
-static void gum_quick_args_free_value_later (GumQuickArgs * self, JSValue val);
+static void gum_quick_args_free_value_later (GumQuickArgs * self, JSValue v);
 static void gum_quick_args_free_cstring_later (GumQuickArgs * self,
-    const char * str);
-static void gum_quick_args_free_bytes_later (GumQuickArgs * self,
-    GBytes * bytes);
+    const char * s);
+static void gum_quick_args_free_array_later (GumQuickArgs * self, GArray * a);
+static void gum_quick_args_free_bytes_later (GumQuickArgs * self, GBytes * b);
 
 static GumQuickJSValue * gum_quick_js_value_new (JSContext * ctx, JSValue val,
     GumQuickCore * core);
@@ -42,6 +42,7 @@ _gum_quick_args_init (GumQuickArgs * args,
 
   args->values = NULL;
   args->cstrings = NULL;
+  args->arrays = NULL;
   args->bytes = NULL;
 }
 
@@ -54,6 +55,9 @@ _gum_quick_args_destroy (GumQuickArgs * args)
 
   g_slist_free_full (g_steal_pointer (&args->bytes),
       (GDestroyNotify) g_bytes_unref);
+
+  g_slist_free_full (g_steal_pointer (&args->arrays),
+      (GDestroyNotify) g_array_unref);
 
   for (cur = g_steal_pointer (&args->cstrings); cur != NULL; cur = next)
   {
@@ -284,9 +288,9 @@ _gum_quick_args_parse (GumQuickArgs * self,
         if (!_gum_quick_memory_ranges_get (ctx, arg, core, &ranges))
           goto propagate_exception;
 
-        *va_arg (ap, GArray **) = ranges;
+        gum_quick_args_free_array_later (self, ranges);
 
-        /* FIXME: free it */
+        *va_arg (ap, GArray **) = ranges;
 
         break;
       }
@@ -589,35 +593,45 @@ propagate_exception:
 
 static void
 gum_quick_args_free_value_later (GumQuickArgs * self,
-                                 JSValue val)
+                                 JSValue v)
 {
-  if (!JS_VALUE_HAS_REF_COUNT (val))
+  if (!JS_VALUE_HAS_REF_COUNT (v))
     return;
 
   if (self->values == NULL)
     self->values = g_array_sized_new (FALSE, FALSE, sizeof (JSValue), 4);
 
-  g_array_append_val (self->values, val);
+  g_array_append_val (self->values, v);
 }
 
 static void
 gum_quick_args_free_cstring_later (GumQuickArgs * self,
-                                   const char * str)
+                                   const char * s)
 {
-  if (str == NULL)
+  if (s == NULL)
     return;
 
-  self->cstrings = g_slist_prepend (self->cstrings, (gpointer) str);
+  self->cstrings = g_slist_prepend (self->cstrings, (gpointer) s);
+}
+
+static void
+gum_quick_args_free_array_later (GumQuickArgs * self,
+                                 GArray * a)
+{
+  if (a == NULL)
+    return;
+
+  self->arrays = g_slist_prepend (self->arrays, a);
 }
 
 static void
 gum_quick_args_free_bytes_later (GumQuickArgs * self,
-                                 GBytes * bytes)
+                                 GBytes * b)
 {
-  if (bytes == NULL)
+  if (b == NULL)
     return;
 
-  self->bytes = g_slist_prepend (self->bytes, bytes);
+  self->bytes = g_slist_prepend (self->bytes, b);
 }
 
 void

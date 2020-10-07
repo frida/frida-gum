@@ -23,6 +23,7 @@ struct _GumQuickArgs
 
   GArray * values;
   GSList * cstrings;
+  GSList * arrays;
   GSList * bytes;
 };
 
