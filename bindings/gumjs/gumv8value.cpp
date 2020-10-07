@@ -19,7 +19,7 @@ struct GumV8ArgsParseScope
     : committed (FALSE),
       strings (NULL),
       arrays (NULL),
-      byte_arrays (NULL)
+      bytes (NULL)
   {
   }
 
@@ -29,12 +29,12 @@ struct GumV8ArgsParseScope
     {
       g_slist_foreach (strings, (GFunc) g_free, NULL);
       g_slist_foreach (arrays, (GFunc) g_array_unref, NULL);
-      g_slist_foreach (byte_arrays, (GFunc) g_bytes_unref, NULL);
+      g_slist_foreach (bytes, (GFunc) g_bytes_unref, NULL);
     }
 
     g_slist_free (strings);
     g_slist_free (arrays);
-    g_slist_free (byte_arrays);
+    g_slist_free (bytes);
   }
 
   void
@@ -52,21 +52,21 @@ struct GumV8ArgsParseScope
   }
 
   void
-  add (GArray * array)
+  add (GArray * a)
   {
-    arrays = g_slist_prepend (arrays, array);
+    arrays = g_slist_prepend (arrays, a);
   }
 
   void
-  add (GBytes * bytes)
+  add (GBytes * b)
   {
-    byte_arrays = g_slist_prepend (byte_arrays, bytes);
+    bytes = g_slist_prepend (bytes, b);
   }
 
   gboolean committed;
   GSList * strings;
   GSList * arrays;
-  GSList * byte_arrays;
+  GSList * bytes;
 };
 
 struct GumCpuContextWrapper
