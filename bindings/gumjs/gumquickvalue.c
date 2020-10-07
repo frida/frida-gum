@@ -1046,6 +1046,21 @@ _gum_quick_native_pointer_get (JSContext * ctx,
                                GumQuickCore * core,
                                gpointer * ptr)
 {
+  if (!_gum_quick_native_pointer_try_get (ctx, val, core, ptr))
+  {
+    _gum_quick_throw_literal (ctx, "expected a pointer");
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+gboolean
+_gum_quick_native_pointer_try_get (JSContext * ctx,
+                                   JSValueConst val,
+                                   GumQuickCore * core,
+                                   gpointer * ptr)
+{
   GumQuickNativePointer * p;
 
   p = JS_GetOpaque (val, core->native_pointer_class);

@@ -83,6 +83,7 @@ struct _GumQuickCore
   JSClassID int64_class;
   JSClassID uint64_class;
   JSClassID native_pointer_class;
+  JSValue native_pointer_proto;
   JSClassID native_resource_class;
   JSClassID kernel_resource_class;
   JSClassID native_function_class;
@@ -153,10 +154,10 @@ struct _GumQuickKernelResource
 };
 
 G_GNUC_INTERNAL void _gum_quick_core_init (GumQuickCore * self,
-    GumQuickScript * script, GRecMutex * mutex,
+    GumQuickScript * script, JSContext * ctx, JSValue ns, GRecMutex * mutex,
     const gchar * runtime_source_map, GumQuickInterceptor * interceptor,
     GumQuickStalker * stalker, GumQuickMessageEmitter message_emitter,
-    GumScriptScheduler * scheduler, JSContext * ctx);
+    GumScriptScheduler * scheduler);
 G_GNUC_INTERNAL gboolean _gum_quick_core_flush (GumQuickCore * self,
     GumQuickFlushNotify flush_notify);
 G_GNUC_INTERNAL void _gum_quick_core_dispose (GumQuickCore * self);

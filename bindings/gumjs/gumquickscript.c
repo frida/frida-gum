@@ -355,7 +355,7 @@ gum_quick_script_create_context (GumQuickScript * self,
   GumQuickCore * core = &self->core;
   JSRuntime * rt;
   JSContext * ctx;
-  JSValue val;
+  JSValue val, global_obj;
   GumQuickScope scope = { core, NULL, };
 
   g_assert (self->ctx == NULL);
@@ -383,11 +383,16 @@ gum_quick_script_create_context (GumQuickScript * self,
   self->ctx = ctx;
   self->code = val;
 
-  _gum_quick_core_init (core, self,
+  global_obj = JS_GetGlobalObject (ctx);
+
+  JS_DefinePropertyValueStr (ctx, global_obj, "global",
+      JS_DupValue (ctx, global_obj), JS_PROP_C_W_E);
+
+  _gum_quick_core_init (core, self, ctx, global_obj,
       gum_quick_script_backend_get_scope_mutex (self->backend),
       gumjs_frida_source_map, &self->interceptor, &self->stalker,
       gum_quick_script_emit,
-      gum_quick_script_backend_get_scheduler (self->backend), self->ctx);
+      gum_quick_script_backend_get_scheduler (self->backend));
 
   core->current_scope = &scope;
 
@@ -402,7 +407,7 @@ gum_quick_script_create_context (GumQuickScript * self,
   _gum_quick_socket_init (&self->socket, core);
   _gum_quick_database_init (&self->database, core);
 #endif
-  _gum_quick_interceptor_init (&self->interceptor, core);
+  _gum_quick_interceptor_init (&self->interceptor, global_obj, core);
 #if 0
   _gum_quick_api_resolver_init (&self->api_resolver, core);
   _gum_quick_symbol_init (&self->symbol, core);
@@ -414,6 +419,8 @@ gum_quick_script_create_context (GumQuickScript * self,
 #endif
   _gum_quick_stalker_init (&self->stalker, &self->code_writer,
       &self->instruction, core);
+
+  JS_FreeValue (ctx, global_obj);
 
   core->current_scope = NULL;
 
