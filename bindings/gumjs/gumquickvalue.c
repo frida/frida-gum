@@ -8,6 +8,20 @@
 
 #include <stdarg.h>
 
+#define GUM_MAX_JS_BYTE_ARRAY_LENGTH (100 * 1024 * 1024)
+
+typedef struct _GumQuickJSValue GumQuickJSValue;
+
+struct _GumQuickJSValue
+{
+  JSValue val;
+  GumQuickCore * core;
+};
+
+static GumQuickJSValue * gum_quick_js_value_new (JSContext * ctx, JSValue val,
+    GumQuickCore * core);
+static void gum_quick_js_value_free (GumQuickJSValue * v);
+
 gboolean
 _gum_quick_args_parse (const GumQuickArgs * args,
                        const gchar * format,
@@ -430,9 +444,9 @@ _gum_quick_args_parse (const GumQuickArgs * args,
           gboolean success;
 
           if (is_fuzzy)
-            success = _gum_quick_bytes_parse (ctx, arg, &bytes);
+            success = _gum_quick_bytes_parse (ctx, arg, core, &bytes);
           else
-            success = _gum_quick_bytes_get (ctx, arg, &bytes);
+            success = _gum_quick_bytes_get (ctx, arg, core, &bytes);
 
           if (!success)
             goto error;
@@ -560,19 +574,100 @@ expected_string:
 gboolean
 _gum_quick_bytes_get (JSContext * ctx,
                       JSValueConst val,
+                      GumQuickCore * core,
                       GBytes ** bytes)
 {
-  _gum_quick_throw (ctx, "%s: TODO", G_STRFUNC);
-  return FALSE; /* TODO */
+  uint8_t * data;
+  size_t size;
+  JSValue element = JS_NULL;
+  guint8 * tmp_array = NULL;
+
+  data = JS_GetArrayBuffer (ctx, &size, val);
+  if (data != NULL)
+  {
+    *bytes = g_bytes_new_with_free_func (data, size,
+        (GDestroyNotify) gum_quick_js_value_free,
+        gum_quick_js_value_new (ctx, val, core));
+  }
+  else if (JS_IsArray (ctx, val))
+  {
+    guint n, i;
+
+    JS_FreeValue (ctx, JS_GetException (ctx));
+
+    if (!_gum_quick_array_get_length (ctx, val, &n))
+      return FALSE;
+
+    if (n >= GUM_MAX_JS_BYTE_ARRAY_LENGTH)
+      goto array_too_large;
+
+    tmp_array = g_malloc (n);
+
+    for (i = 0; i != n; i++)
+    {
+      uint32_t u;
+
+      element = JS_GetPropertyUint32 (ctx, val, i);
+      if (JS_IsException (element))
+        goto propagate_exception;
+
+      if (JS_ToUint32 (ctx, &u, element) != 0)
+        goto propagate_exception;
+
+      tmp_array[i] = u;
+
+      JS_FreeValue (ctx, element);
+      element = JS_NULL;
+    }
+
+    *bytes = g_bytes_new_take (tmp_array, n);
+  }
+  else
+  {
+    goto expected_bytes;
+  }
+
+  return TRUE;
+
+expected_bytes:
+  {
+    _gum_quick_throw_literal (ctx, "expected a buffer-like object");
+    goto propagate_exception;
+  }
+array_too_large:
+  {
+    _gum_quick_throw_literal (ctx, "array too large, use ArrayBuffer instead");
+    goto propagate_exception;
+  }
+propagate_exception:
+  {
+    JS_FreeValue (ctx, element);
+    g_free (tmp_array);
+
+    return FALSE;
+  }
 }
 
 gboolean
 _gum_quick_bytes_parse (JSContext * ctx,
                         JSValueConst val,
+                        GumQuickCore * core,
                         GBytes ** bytes)
 {
-  _gum_quick_throw (ctx, "%s: TODO", G_STRFUNC);
-  return FALSE; /* TODO */
+  if (JS_IsString (val))
+  {
+    const char * str;
+
+    str = JS_ToCString (ctx, val);
+
+    *bytes = g_bytes_new (str, strlen (str));
+
+    JS_FreeCString (ctx, str);
+
+    return TRUE;
+  }
+
+  return _gum_quick_bytes_get (ctx, val, core, bytes);
 }
 
 gboolean
@@ -1048,4 +1143,36 @@ _gum_quick_throw_native (JSContext * ctx,
                          GumQuickCore * core)
 {
   return _gum_quick_throw_literal (ctx, "a native exception occurred");
+}
+
+static GumQuickJSValue *
+gum_quick_js_value_new (JSContext * ctx,
+                        JSValue val,
+                        GumQuickCore * core)
+{
+  GumQuickJSValue * v;
+
+  v = g_slice_new (GumQuickJSValue);
+  v->val = JS_DupValue (ctx, val);
+  v->core = core;
+
+  _gum_quick_core_pin (core);
+
+  return v;
+}
+
+static void
+gum_quick_js_value_free (GumQuickJSValue * v)
+{
+  GumQuickCore * core = v->core;
+  GumQuickScope scope;
+
+  _gum_quick_scope_enter (&scope, core);
+
+  JS_FreeValue (core->ctx, v->val);
+  g_slice_free (GumQuickJSValue, v);
+
+  _gum_quick_core_unpin (core);
+
+  _gum_quick_scope_leave (&scope);
 }

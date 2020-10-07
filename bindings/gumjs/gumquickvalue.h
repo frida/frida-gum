@@ -34,9 +34,9 @@ G_GNUC_INTERNAL gboolean _gum_quick_string_get (JSContext * ctx,
     JSValueConst val, const char ** str);
 
 G_GNUC_INTERNAL gboolean _gum_quick_bytes_get (JSContext * ctx,
-    JSValueConst val, GBytes ** bytes);
+    JSValueConst val, GumQuickCore * core, GBytes ** bytes);
 G_GNUC_INTERNAL gboolean _gum_quick_bytes_parse (JSContext * ctx,
-    JSValueConst val, GBytes ** bytes);
+    JSValueConst val, GumQuickCore * core, GBytes ** bytes);
 
 G_GNUC_INTERNAL gboolean _gum_quick_boolean_get (JSContext * ctx,
     JSValueConst val, gboolean * b);
