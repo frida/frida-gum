@@ -81,11 +81,15 @@ G_GNUC_INTERNAL JSValue _gum_quick_native_pointer_new (JSContext * ctx,
     gpointer ptr, GumQuickCore * core);
 G_GNUC_INTERNAL gboolean _gum_quick_native_pointer_get (JSContext * ctx,
     JSValueConst val, GumQuickCore * core, gpointer * ptr);
+G_GNUC_INTERNAL gboolean _gum_quick_native_pointer_try_get (JSContext * ctx,
+    JSValueConst val, GumQuickCore * core, gpointer * ptr);
 G_GNUC_INTERNAL gboolean _gum_quick_native_pointer_parse (JSContext * ctx,
     JSValueConst val, GumQuickCore * core, gpointer * ptr);
 
 G_GNUC_INTERNAL gboolean _gum_quick_cpu_context_get (JSContext * ctx,
     JSValueConst val, GumQuickCore * core, GumCpuContext ** cpu_context);
+G_GNUC_INTERNAL void _gum_quick_cpu_context_make_read_only (
+    GumQuickCpuContext * self);
 
 G_GNUC_INTERNAL gboolean _gum_quick_memory_ranges_get (JSContext * ctx,
     JSValueConst val, GumQuickCore * core, GArray ** ranges);

@@ -60,6 +60,13 @@ G_GNUC_INTERNAL void _gum_quick_interceptor_dispose (
 G_GNUC_INTERNAL void _gum_quick_interceptor_finalize (
     GumQuickInterceptor * self);
 
+G_GNUC_INTERNAL GumQuickInvocationContext *
+_gum_quick_interceptor_obtain_invocation_context (GumQuickInterceptor * self);
+G_GNUC_INTERNAL void _gum_quick_interceptor_release_invocation_context (
+    GumQuickInterceptor * self, GumQuickInvocationContext * jic);
+G_GNUC_INTERNAL void _gum_quick_invocation_context_reset (
+    GumQuickInvocationContext * self, GumInvocationContext * handle);
+
 G_END_DECLS
 
 #endif

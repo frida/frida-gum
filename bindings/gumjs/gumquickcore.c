@@ -1502,7 +1502,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_bind)
   JSValue target, callback;
   gboolean target_is_valid;
   guint id;
-  gchar prop_name[4 + 8 + 2 + 1];
+  gchar prop_name[2 + 8 + 1];
   GumQuickWeakRef * ref;
   JSValue obj;
 
@@ -1523,7 +1523,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_bind)
   JS_DefinePropertyValueStr (ctx, obj, "cb", JS_DupValue (ctx, callback),
       JS_PROP_C_W_E);
 
-  sprintf (prop_name, "__wr%x__", id);
+  sprintf (prop_name, "$w%x", id);
   JS_DefinePropertyValueStr (ctx, target, prop_name, obj, 0);
 
   return JS_NewInt32 (ctx, id);
@@ -3395,7 +3395,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
     goto prepare_failed;
 
   JS_SetOpaque (obj, self);
-  JS_DefinePropertyValueStr (ctx, obj, "__func__", JS_DupValue (ctx, func), 0);
+  JS_DefinePropertyValueStr (ctx, obj, "$f", JS_DupValue (ctx, func), 0);
 
   return obj;
 
@@ -3547,8 +3547,7 @@ gumjs_cpu_context_from_this (JSValueConst this_val,
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_cpu_context_construct)
 {
-  _gum_quick_throw_literal (ctx, "not user-instantiable");
-  return JS_EXCEPTION;
+  return _gum_quick_throw_literal (ctx, "not user-instantiable");
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_cpu_context_finalize)

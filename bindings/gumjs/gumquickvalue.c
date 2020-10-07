@@ -1067,6 +1067,8 @@ _gum_quick_native_pointer_try_get (JSContext * ctx,
   if (p == NULL)
     goto expected_pointer;
 
+  /* TODO: support NativePointerValue */
+
   *ptr = p->value;
   return TRUE;
 
@@ -1158,6 +1160,12 @@ _gum_quick_cpu_context_get (JSContext * ctx,
 {
   _gum_quick_throw (ctx, "%s: TODO", G_STRFUNC);
   return FALSE; /* TODO */
+}
+
+void
+_gum_quick_cpu_context_make_read_only (GumQuickCpuContext * self)
+{
+  /* TODO */
 }
 
 gboolean
