@@ -382,8 +382,7 @@ gum_find_nearest_symbol_by_address (gpointer address,
     if (current_symbol->address > GUM_ADDRESS (address))
       continue;
 
-    if (current_symbol->address + current_symbol->size <= 
-        GUM_ADDRESS (address))
+    if (current_symbol->address + current_symbol->size <= GUM_ADDRESS (address))
     {
       continue;
     }
