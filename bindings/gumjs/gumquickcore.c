@@ -3527,9 +3527,8 @@ gum_quick_native_callback_invoke (ffi_cif * cif,
 
   if (!JS_IsException (result) && cif->rtype != &ffi_type_void)
   {
-    gum_quick_value_to_ffi (ctx, result, cif->rtype, core, retval);
-
-    /* TODO: propagate any pending exception */
+    if (!gum_quick_value_to_ffi (ctx, result, cif->rtype, core, retval))
+      _gum_quick_scope_catch_and_emit (&scope);
   }
 
   JS_FreeValue (ctx, result);
