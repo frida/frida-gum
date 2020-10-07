@@ -26,12 +26,12 @@
       JSValueConst this_val, int argc, JSValueConst * argv, int flags);
 
 #define GUMJS_DEFINE_CONSTRUCTOR(N) \
-  static JSValue N##_impl (JSContext * ctx, JSValueConst this_val, \
+  static JSValue N##_impl (JSContext * ctx, JSValueConst new_target, \
       const GumQuickArgs * args); \
   \
   static JSValue \
   N (JSContext * ctx, \
-     JSValueConst this_val, \
+     JSValueConst new_target, \
      int argc, \
      JSValueConst * argv) \
   { \
@@ -43,12 +43,12 @@
     args.ctx = ctx; \
     args.core = JS_GetContextOpaque (ctx); \
     \
-    return N##_impl (ctx, this_val, &args); \
+    return N##_impl (ctx, new_target, &args); \
   } \
   \
   static JSValue \
   N##_impl (JSContext * ctx, \
-            JSValueConst this_val, \
+            JSValueConst new_target, \
             const GumQuickArgs * args)
 #define GUMJS_DEFINE_FINALIZER(N) \
   static void N##_impl (JSRuntime * rt, JSValue val, GumQuickCore * core); \

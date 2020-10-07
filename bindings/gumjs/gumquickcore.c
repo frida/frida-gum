@@ -20,6 +20,8 @@
 # include <ptrauth.h>
 #endif
 
+#define GUM_QUICK_FFI_FUNCTION_PARAMS_EMPTY { NULL, }
+
 typedef struct _GumQuickFlushCallback GumQuickFlushCallback;
 typedef struct _GumQuickFFIFunctionParams GumQuickFFIFunctionParams;
 typedef guint8 GumQuickSchedulingBehavior;
@@ -239,7 +241,7 @@ GUMJS_DECLARE_CALL_HANDLER (gumjs_system_function_invoke)
 GUMJS_DECLARE_FUNCTION (gumjs_system_function_call)
 GUMJS_DECLARE_FUNCTION (gumjs_system_function_apply)
 
-static JSValue gumjs_ffi_function_init (JSContext * ctx, JSValueConst this_val,
+static GumQuickFFIFunction * gumjs_ffi_function_new (JSContext * ctx,
     const GumQuickFFIFunctionParams * params, GumQuickCore * core);
 static void gum_quick_ffi_function_finalize (GumQuickFFIFunction * func);
 static JSValue gum_quick_ffi_function_invoke (GumQuickFFIFunction * self,
@@ -1745,24 +1747,40 @@ gumjs_int64_from_this (JSValueConst this_val,
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_int64_construct)
 {
+  JSValue obj;
   gint64 value;
+  JSValue proto;
   GumQuickInt64 * self;
 
-  if (JS_IsNull (this_val))
-  {
-    return _gum_quick_throw_literal (ctx, "use `new Int64()` to create a new "
-        "instance, or use the shorthand: `int64()`");
-  }
+  if (JS_IsUndefined (new_target))
+    goto missing_target;
 
   if (!_gum_quick_args_parse (args, "q~", &value))
-    return JS_EXCEPTION;
+    goto propagate_exception;
+
+  proto = JS_GetPropertyStr (ctx, new_target, "prototype");
+  obj = JS_NewObjectProtoClass (ctx, proto, args->core->int64_class);
+  JS_FreeValue (ctx, proto);
+  if (JS_IsException (obj))
+    goto propagate_exception;
 
   self = g_slice_new (GumQuickInt64);
   self->value = value;
 
-  JS_SetOpaque (this_val, self);
+  JS_SetOpaque (obj, self);
 
-  return JS_UNDEFINED;
+  return obj;
+
+missing_target:
+  {
+    _gum_quick_throw_literal (ctx, "use `new Int64()` to create a new "
+        "instance, or use the shorthand: `int64()`");
+    goto propagate_exception;
+  }
+propagate_exception:
+  {
+    return JS_EXCEPTION;
+  }
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_int64_finalize)
@@ -1908,24 +1926,40 @@ gumjs_uint64_from_this (JSValueConst this_val,
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_uint64_construct)
 {
+  JSValue obj;
   guint64 value;
+  JSValue proto;
   GumQuickUInt64 * self;
 
-  if (JS_IsNull (this_val))
-  {
-    return _gum_quick_throw_literal (ctx, "use `new UInt64()` to create a new "
-        "instance, or use the shorthand: `uint64()`");
-  }
+  if (JS_IsUndefined (new_target))
+    goto missing_target;
 
   if (!_gum_quick_args_parse (args, "Q~", &value))
-    return JS_EXCEPTION;
+    goto propagate_exception;
+
+  proto = JS_GetPropertyStr (ctx, new_target, "prototype");
+  obj = JS_NewObjectProtoClass (ctx, proto, args->core->uint64_class);
+  JS_FreeValue (ctx, proto);
+  if (JS_IsException (obj))
+    goto propagate_exception;
 
   self = g_slice_new (GumQuickUInt64);
   self->value = value;
 
-  JS_SetOpaque (this_val, self);
+  JS_SetOpaque (obj, self);
 
-  return JS_UNDEFINED;
+  return obj;
+
+missing_target:
+  {
+    _gum_quick_throw_literal (ctx, "use `new UInt64()` to create a new "
+        "instance, or use the shorthand: `uint64()`");
+    goto propagate_exception;
+  }
+propagate_exception:
+  {
+    return JS_EXCEPTION;
+  }
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_uint64_finalize)
@@ -2063,24 +2097,40 @@ gumjs_native_pointer_from_this (JSValueConst this_val,
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
 {
+  JSValue obj;
   gpointer ptr;
+  JSValue proto;
   GumQuickNativePointer * self;
 
-  if (JS_IsNull (this_val))
-  {
-    return _gum_quick_throw_literal (ctx, "use `new NativePointer()` to create "
-        "a new instance, or use one of the two shorthands: `ptr()` and `NULL`");
-  }
+  if (JS_IsUndefined (new_target))
+    goto missing_target;
 
   if (!_gum_quick_args_parse (args, "p~", &ptr))
-    return JS_EXCEPTION;
+    goto propagate_exception;
+
+  proto = JS_GetPropertyStr (ctx, new_target, "prototype");
+  obj = JS_NewObjectProtoClass (ctx, proto, args->core->native_pointer_class);
+  JS_FreeValue (ctx, proto);
+  if (JS_IsException (obj))
+    goto propagate_exception;
 
   self = g_slice_new0 (GumQuickNativePointer);
   self->value = ptr;
 
-  JS_SetOpaque (this_val, self);
+  JS_SetOpaque (obj, self);
 
-  return JS_UNDEFINED;
+  return obj;
+
+missing_target:
+  {
+    _gum_quick_throw_literal (ctx, "use `new NativePointer()` to create "
+        "a new instance, or use one of the two shorthands: `ptr()` and `NULL`");
+    goto propagate_exception;
+  }
+propagate_exception:
+  {
+    return JS_EXCEPTION;
+  }
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_native_pointer_finalize)
@@ -2429,27 +2479,47 @@ GUMJS_DEFINE_FINALIZER (gumjs_kernel_resource_finalize)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
 {
-  JSValue result;
+  JSValue obj = JS_NULL;
   GumQuickCore * core = args->core;
-  GumQuickFFIFunctionParams params;
+  GumQuickFFIFunctionParams p = GUM_QUICK_FFI_FUNCTION_PARAMS_EMPTY;
+  JSValue proto;
+  GumQuickFFIFunction * self;
 
-  if (JS_IsNull (this_val))
+  if (JS_IsUndefined (new_target))
+    goto missing_target;
+
+  if (!gum_quick_ffi_function_params_init (&p, GUM_QUICK_RETURN_PLAIN, args))
+    goto propagate_exception;
+
+  proto = JS_GetPropertyStr (ctx, new_target, "prototype");
+  obj = JS_NewObjectProtoClass (ctx, proto, core->native_function_class);
+  JS_FreeValue (ctx, proto);
+  if (JS_IsException (obj))
+    goto propagate_exception;
+
+  self = gumjs_ffi_function_new (ctx, &p, core);
+  if (self == NULL)
+    goto propagate_exception;
+
+  JS_SetOpaque (obj, self);
+
+  gum_quick_ffi_function_params_destroy (&p);
+
+  return obj;
+
+missing_target:
   {
-    return _gum_quick_throw_literal (ctx,
+    _gum_quick_throw_literal (ctx,
         "use `new NativeFunction()` to create a new instance");
+    goto propagate_exception;
   }
-
-  if (!gum_quick_ffi_function_params_init (&params, GUM_QUICK_RETURN_PLAIN,
-      args))
+propagate_exception:
   {
+    JS_FreeValue (ctx, obj);
+    gum_quick_ffi_function_params_destroy (&p);
+
     return JS_EXCEPTION;
   }
-
-  result = gumjs_ffi_function_init (ctx, this_val, &params, core);
-
-  gum_quick_ffi_function_params_destroy (&params);
-
-  return result;
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_native_function_finalize)
@@ -2483,27 +2553,47 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_apply)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_system_function_construct)
 {
-  JSValue result;
+  JSValue obj = JS_NULL;
   GumQuickCore * core = args->core;
-  GumQuickFFIFunctionParams params;
+  GumQuickFFIFunctionParams p = GUM_QUICK_FFI_FUNCTION_PARAMS_EMPTY;
+  JSValue proto;
+  GumQuickFFIFunction * self;
 
-  if (JS_IsNull (this_val))
+  if (JS_IsUndefined (new_target))
+    goto missing_target;
+
+  if (!gum_quick_ffi_function_params_init (&p, GUM_QUICK_RETURN_DETAILED, args))
+    goto propagate_exception;
+
+  proto = JS_GetPropertyStr (ctx, new_target, "prototype");
+  obj = JS_NewObjectProtoClass (ctx, proto, core->system_function_class);
+  JS_FreeValue (ctx, proto);
+  if (JS_IsException (obj))
+    goto propagate_exception;
+
+  self = gumjs_ffi_function_new (ctx, &p, core);
+  if (self == NULL)
+    goto propagate_exception;
+
+  JS_SetOpaque (obj, self);
+
+  gum_quick_ffi_function_params_destroy (&p);
+
+  return obj;
+
+missing_target:
   {
-    return _gum_quick_throw_literal (ctx,
+    _gum_quick_throw_literal (ctx,
         "use `new SystemFunction()` to create a new instance");
+    goto propagate_exception;
   }
-
-  if (!gum_quick_ffi_function_params_init (&params, GUM_QUICK_RETURN_DETAILED,
-      args))
+propagate_exception:
   {
+    JS_FreeValue (ctx, obj);
+    gum_quick_ffi_function_params_destroy (&p);
+
     return JS_EXCEPTION;
   }
-
-  result = gumjs_ffi_function_init (ctx, this_val, &params, core);
-
-  gum_quick_ffi_function_params_destroy (&params);
-
-  return result;
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_system_function_finalize)
@@ -2535,11 +2625,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_system_function_apply)
       args->core->system_function_class, args);
 }
 
-static JSValue
-gumjs_ffi_function_init (JSContext * ctx,
-                         JSValueConst this_val,
-                         const GumQuickFFIFunctionParams * params,
-                         GumQuickCore * core)
+static GumQuickFFIFunction *
+gumjs_ffi_function_new (JSContext * ctx,
+                        const GumQuickFFIFunctionParams * params,
+                        GumQuickCore * core)
 {
   GumQuickFFIFunction * func;
   GumQuickNativePointer * ptr;
@@ -2652,9 +2741,7 @@ gumjs_ffi_function_init (JSContext * ctx,
     func->arglist_size += t->size;
   }
 
-  JS_SetOpaque (this_val, func);
-
-  return JS_UNDEFINED;
+  return func;
 
 invalid_return_type:
 invalid_argument_array:
@@ -2663,20 +2750,24 @@ invalid_abi:
   {
     JS_FreeValue (ctx, val);
     gum_quick_ffi_function_finalize (func);
-    return JS_EXCEPTION;
+
+    return NULL;
   }
 unexpected_marker:
   {
     JS_FreeValue (ctx, val);
     gum_quick_ffi_function_finalize (func);
-    return _gum_quick_throw_literal (ctx, "only one variadic marker may be "
-        "specified, and can not be the first argument");
+
+    _gum_quick_throw_literal (ctx, "only one variadic marker may be specified, "
+        "and can not be the first argument");
+    return NULL;
   }
 compilation_failed:
   {
     gum_quick_ffi_function_finalize (func);
-    return _gum_quick_throw_literal (ctx, "failed to compile function call "
-        "interface");
+
+    _gum_quick_throw_literal (ctx, "failed to compile function call interface");
+    return NULL;
   }
 }
 
@@ -3240,40 +3331,42 @@ invalid_value:
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
 {
-  JSValue func, rtype_value, atypes_array;
+  JSValue obj = JS_NULL;
+  JSValue func, rtype_value, atypes_array, proto;
   gchar * abi_str = NULL;
   GumQuickCore * core = args->core;
-  GumQuickNativeCallback * callback;
+  GumQuickNativeCallback * self = NULL;
   GumQuickNativePointer * ptr;
   ffi_type * rtype;
   guint nargs, i;
-  JSValue val = JS_UNDEFINED;
+  JSValue val = JS_NULL;
   ffi_abi abi;
 
-  if (JS_IsNull (this_val))
-  {
-    return _gum_quick_throw_literal (ctx,
-        "use `new NativeCallback()` to create a new instance");
-  }
+  if (JS_IsUndefined (new_target))
+    goto missing_target;
 
   if (!_gum_quick_args_parse (args, "FVA|s", &func, &rtype_value, &atypes_array,
       &abi_str))
-  {
-    return JS_EXCEPTION;
-  }
+    goto propagate_exception;
 
-  callback = g_slice_new0 (GumQuickNativeCallback);
-  ptr = &callback->parent;
-  callback->func = func;
-  callback->core = core;
+  proto = JS_GetPropertyStr (ctx, new_target, "prototype");
+  obj = JS_NewObjectProtoClass (ctx, proto, core->native_callback_class);
+  JS_FreeValue (ctx, proto);
+  if (JS_IsException (obj))
+    goto propagate_exception;
 
-  if (!gum_quick_ffi_type_get (ctx, rtype_value, &rtype, &callback->data))
-    goto invalid_return_type;
+  self = g_slice_new0 (GumQuickNativeCallback);
+  ptr = &self->parent;
+  self->func = func;
+  self->core = core;
+
+  if (!gum_quick_ffi_type_get (ctx, rtype_value, &rtype, &self->data))
+    goto propagate_exception;
 
   if (!_gum_quick_array_get_length (ctx, atypes_array, &nargs))
-    goto invalid_argument_array;
+    goto propagate_exception;
 
-  callback->atypes = g_new (ffi_type *, nargs);
+  self->atypes = g_new (ffi_type *, nargs);
 
   for (i = 0; i != nargs; i++)
   {
@@ -3281,68 +3374,73 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
 
     val = JS_GetPropertyUint32 (ctx, atypes_array, i);
     if (JS_IsException (val))
-      goto invalid_argument_array;
+      goto propagate_exception;
 
-    atype = &callback->atypes[i];
+    atype = &self->atypes[i];
 
-    if (!gum_quick_ffi_type_get (ctx, val, atype, &callback->data))
-      goto invalid_argument_type;
+    if (!gum_quick_ffi_type_get (ctx, val, atype, &self->data))
+      goto propagate_exception;
 
     JS_FreeValue (ctx, val);
-    val = JS_UNDEFINED;
+    val = JS_NULL;
   }
 
   if (abi_str != NULL)
   {
     if (!gum_quick_ffi_abi_get (ctx, abi_str, &abi))
-      goto invalid_abi;
+      goto propagate_exception;
   }
   else
   {
     abi = FFI_DEFAULT_ABI;
   }
 
-  callback->closure = ffi_closure_alloc (sizeof (ffi_closure), &ptr->value);
-  if (callback->closure == NULL)
+  self->closure = ffi_closure_alloc (sizeof (ffi_closure), &ptr->value);
+  if (self->closure == NULL)
     goto alloc_failed;
 
-  if (ffi_prep_cif (&callback->cif, abi, (guint) nargs, rtype,
-      callback->atypes) != FFI_OK)
+  if (ffi_prep_cif (&self->cif, abi, (guint) nargs, rtype,
+      self->atypes) != FFI_OK)
     goto compilation_failed;
 
-  if (ffi_prep_closure_loc (callback->closure, &callback->cif,
-      gum_quick_native_callback_invoke, callback, ptr->value) != FFI_OK)
+  if (ffi_prep_closure_loc (self->closure, &self->cif,
+      gum_quick_native_callback_invoke, self, ptr->value) != FFI_OK)
     goto prepare_failed;
 
-  JS_SetOpaque (this_val, callback);
-  JS_DefinePropertyValueStr (ctx, this_val, "__func__", JS_DupValue (ctx, func),
-      0);
+  JS_SetOpaque (obj, self);
+  JS_DefinePropertyValueStr (ctx, obj, "__func__", JS_DupValue (ctx, func), 0);
 
-  return JS_UNDEFINED;
+  return obj;
 
-invalid_return_type:
-invalid_argument_array:
-invalid_argument_type:
-invalid_abi:
+missing_target:
   {
-    JS_FreeValue (ctx, val);
-    gum_quick_native_callback_finalize (callback);
-    return JS_EXCEPTION;
+    _gum_quick_throw_literal (ctx,
+        "use `new NativeCallback()` to create a new instance");
+    goto propagate_exception;
   }
 alloc_failed:
   {
-    gum_quick_native_callback_finalize (callback);
-    return _gum_quick_throw_literal (ctx, "failed to allocate closure");
+    _gum_quick_throw_literal (ctx, "failed to allocate closure");
+    goto propagate_exception;
   }
 compilation_failed:
   {
-    gum_quick_native_callback_finalize (callback);
-    return _gum_quick_throw_literal (ctx, "failed to compile function call interface");
+    _gum_quick_throw_literal (ctx, "failed to compile function call interface");
+    goto propagate_exception;
   }
 prepare_failed:
   {
-    gum_quick_native_callback_finalize (callback);
-    return _gum_quick_throw_literal (ctx, "failed to prepare closure");
+    _gum_quick_throw_literal (ctx, "failed to prepare closure");
+    goto propagate_exception;
+  }
+propagate_exception:
+  {
+    JS_FreeValue (ctx, val);
+    if (self != NULL)
+      gum_quick_native_callback_finalize (self);
+    JS_FreeValue (ctx, obj);
+
+    return JS_EXCEPTION;
   }
 }
 
@@ -3520,34 +3618,49 @@ gumjs_source_map_new (const gchar * json,
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_source_map_construct)
 {
-  JSValue result;
-  const gchar * json;
+  JSValue obj = JS_NULL;
+  const gchar * json = NULL;
+  JSValue proto;
   GumSourceMap * self;
 
-  if (JS_IsNull (this_val))
-  {
-    return _gum_quick_throw_literal (ctx, "use `new SourceMap()` to create a "
-        "new instance");
-  }
+  if (JS_IsUndefined (new_target))
+    goto missing_target;
 
   if (!_gum_quick_args_parse (args, "s", &json))
     return JS_EXCEPTION;
 
+  proto = JS_GetPropertyStr (ctx, new_target, "prototype");
+  obj = JS_NewObjectProtoClass (ctx, proto, args->core->source_map_class);
+  JS_FreeValue (ctx, proto);
+  if (JS_IsException (obj))
+    goto propagate_exception;
+
   self = gum_source_map_new (json);
-  if (self != NULL)
+  if (self == NULL)
+    goto invalid_source_map;
+
+  JS_SetOpaque (obj, self);
+
+  return obj;
+
+missing_target:
   {
-    JS_SetOpaque (this_val, self);
-
-    result = JS_UNDEFINED;
+    _gum_quick_throw_literal (ctx,
+        "use `new SourceMap()` to create a new instance");
+    goto propagate_exception;
   }
-  else
+invalid_source_map:
   {
-    result = _gum_quick_throw_literal (ctx, "invalid source map");
+    _gum_quick_throw_literal (ctx, "invalid source map");
+    goto propagate_exception;
   }
+propagate_exception:
+  {
+    JS_FreeValue (ctx, obj);
+    JS_FreeCString (ctx, json);
 
-  JS_FreeCString (ctx, json);
-
-  return result;
+    return JS_EXCEPTION;
+  }
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_source_map_finalize)
