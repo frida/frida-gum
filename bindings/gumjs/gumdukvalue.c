@@ -555,11 +555,8 @@ error:
   {
     va_end (ap);
 
-    g_slist_foreach (pending_bytes, (GFunc) g_bytes_unref, NULL);
-    g_slist_free (pending_bytes);
-
-    g_slist_foreach (pending_arrays, (GFunc) g_array_unref, NULL);
-    g_slist_free (pending_arrays);
+    g_slist_free_full (pending_bytes, (GDestroyNotify) g_bytes_unref);
+    g_slist_free_full (pending_arrays, (GDestroyNotify) g_array_unref);
 
     g_assert (error_message != NULL);
     _gum_duk_throw (ctx, error_message);
