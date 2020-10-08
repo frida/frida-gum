@@ -851,6 +851,7 @@ _gum_quick_core_init (GumQuickCore * self,
   self->message_emitter = message_emitter;
   self->scheduler = scheduler;
   self->exceptor = gum_exceptor_obtain ();
+  self->rt = rt;
   self->ctx = ctx;
   self->module_data =
       g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
@@ -1213,6 +1214,8 @@ _gum_quick_scope_enter (GumQuickScope * self,
   {
     g_assert (core->current_scope == NULL);
     core->current_scope = self;
+
+    JS_Enter (core->rt);
   }
 
   g_queue_init (&self->tick_callbacks);
@@ -1230,6 +1233,8 @@ _gum_quick_scope_suspend (GumQuickScope * self)
   guint i;
 
   gum_interceptor_end_transaction (core->interceptor->interceptor);
+
+  JS_Suspend (core->rt, &self->thread_state);
 
   g_assert (core->current_scope != NULL);
   self->previous_scope = g_steal_pointer (&core->current_scope);
@@ -1255,6 +1260,8 @@ _gum_quick_scope_resume (GumQuickScope * self)
 
   core->mutex_depth = self->previous_mutex_depth;
   self->previous_mutex_depth = 0;
+
+  JS_Resume (core->rt, &self->thread_state);
 
   gum_interceptor_begin_transaction (core->interceptor->interceptor);
 }
@@ -1353,6 +1360,8 @@ _gum_quick_scope_leave (GumQuickScope * self)
 
   if (core->mutex_depth == 1)
   {
+    JS_Leave (core->rt);
+
     core->current_scope = NULL;
   }
 
@@ -1612,7 +1621,7 @@ invalid_handle:
 
 GUMJS_DEFINE_FUNCTION (gumjs_gc)
 {
-  JS_RunGC (JS_GetRuntime (ctx));
+  JS_RunGC (core->rt);
 
   return JS_UNDEFINED;
 }

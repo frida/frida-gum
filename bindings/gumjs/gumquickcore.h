@@ -56,6 +56,7 @@ struct _GumQuickCore
   GumQuickMessageEmitter message_emitter;
   GumScriptScheduler * scheduler;
   GumExceptor * exceptor;
+  JSRuntime * rt;
   JSContext * ctx;
   GHashTable * module_data;
   GumQuickScope * current_scope;
@@ -100,6 +101,7 @@ struct _GumQuickScope
   GumQuickCore * core;
   GumQuickScope * previous_scope;
   guint previous_mutex_depth;
+  JSRuntimeThreadState thread_state;
 
   GQueue tick_callbacks;
   GQueue scheduled_sources;

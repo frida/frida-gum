@@ -363,11 +363,9 @@ _gum_quick_interceptor_init (GumQuickInterceptor * self,
                              JSValue ns,
                              GumQuickCore * core)
 {
+  JSRuntime * rt = core->rt;
   JSContext * ctx = core->ctx;
-  JSRuntime * rt;
   JSValue obj, proto, ctor;
-
-  rt = JS_GetRuntime (ctx);
 
   self->core = core;
 
