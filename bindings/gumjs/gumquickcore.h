@@ -57,6 +57,7 @@ struct _GumQuickCore
   GumScriptScheduler * scheduler;
   GumExceptor * exceptor;
   JSContext * ctx;
+  GHashTable * module_data;
   GumQuickScope * current_scope;
 
   GRecMutex * mutex;
@@ -125,7 +126,7 @@ struct _GumQuickNativePointer
 
 struct _GumQuickCpuContext
 {
-  JSValue object;
+  JSValue wrapper;
   GumCpuContext * handle;
   GumQuickCpuContextAccess access;
   GumCpuContext storage;
@@ -171,6 +172,11 @@ G_GNUC_INTERNAL void _gum_quick_core_post (GumQuickCore * self,
 
 G_GNUC_INTERNAL void _gum_quick_core_push_job (GumQuickCore * self,
     GumScriptJobFunc job_func, gpointer data, GDestroyNotify data_destroy);
+
+G_GNUC_INTERNAL void _gum_quick_core_store_module_data (GumQuickCore * self,
+    const gchar * key, gpointer value);
+G_GNUC_INTERNAL gpointer _gum_quick_core_load_module_data (GumQuickCore * self,
+    const gchar * key);
 
 G_GNUC_INTERNAL void _gum_quick_scope_enter (GumQuickScope * self,
     GumQuickCore * core);

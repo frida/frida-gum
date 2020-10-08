@@ -44,7 +44,7 @@ struct _GumQuickInterceptor
 
 struct _GumQuickInvocationContext
 {
-  JSValue object;
+  JSValue wrapper;
   GumInvocationContext * handle;
   GumQuickCpuContext * cpu_context;
   gboolean dirty;

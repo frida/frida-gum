@@ -7,6 +7,7 @@
 #include "gumquickvalue.h"
 
 #include <stdarg.h>
+#include <string.h>
 
 #define GUM_MAX_JS_BYTE_ARRAY_LENGTH (100 * 1024 * 1024)
 
@@ -20,13 +21,14 @@ void
 _gum_quick_args_init (GumQuickArgs * args,
                       JSContext * ctx,
                       int count,
-                      JSValueConst * elements)
+                      JSValueConst * elements,
+                      GumQuickCore * core)
 {
   args->ctx = ctx;
   args->count = count;
   args->elements = elements;
 
-  args->core = JS_GetContextOpaque (ctx);
+  args->core = core;
 
   args->values = NULL;
   args->cstrings = NULL;
@@ -622,20 +624,6 @@ gum_quick_args_free_bytes_later (GumQuickArgs * self,
   self->bytes = g_slist_prepend (self->bytes, b);
 }
 
-void
-_gum_quick_store_module_data (JSContext * ctx,
-                              const gchar * module_id,
-                              gpointer data)
-{
-}
-
-gpointer
-_gum_quick_load_module_data (JSContext * ctx,
-                             const gchar * module_id)
-{
-  return NULL;
-}
-
 gboolean
 _gum_quick_string_get (JSContext * ctx,
                        JSValueConst val,
@@ -820,17 +808,17 @@ _gum_quick_int64_new (JSContext * ctx,
                       gint64 i,
                       GumQuickCore * core)
 {
-  JSValue obj;
-  GumQuickInt64 * self;
+  JSValue wrapper;
+  GumQuickInt64 * i64;
 
-  obj = JS_NewObjectClass (ctx, core->int64_class);
+  wrapper = JS_NewObjectClass (ctx, core->int64_class);
 
-  self = g_slice_new (GumQuickInt64);
-  self->value = i;
+  i64 = g_slice_new (GumQuickInt64);
+  i64->value = i;
 
-  JS_SetOpaque (obj, self);
+  JS_SetOpaque (wrapper, i64);
 
-  return obj;
+  return wrapper;
 }
 
 gboolean
@@ -850,13 +838,13 @@ _gum_quick_int64_get (JSContext * ctx,
   }
   else
   {
-    GumQuickInt64 * self;
+    GumQuickInt64 * i64;
 
-    self = JS_GetOpaque2 (ctx, val, core->int64_class);
-    if (self == NULL)
+    i64 = JS_GetOpaque2 (ctx, val, core->int64_class);
+    if (i64 == NULL)
       return FALSE;
 
-    *i = self->value;
+    *i = i64->value;
   }
 
   return TRUE;
@@ -902,17 +890,17 @@ _gum_quick_uint64_new (JSContext * ctx,
                        guint64 u,
                        GumQuickCore * core)
 {
-  JSValue obj;
-  GumQuickUInt64 * self;
+  JSValue wrapper;
+  GumQuickUInt64 * u64;
 
-  obj = JS_NewObjectClass (ctx, core->uint64_class);
+  wrapper = JS_NewObjectClass (ctx, core->uint64_class);
 
-  self = g_slice_new (GumQuickUInt64);
-  self->value = u;
+  u64 = g_slice_new (GumQuickUInt64);
+  u64->value = u;
 
-  JS_SetOpaque (obj, self);
+  JS_SetOpaque (wrapper, u64);
 
-  return obj;
+  return wrapper;
 }
 
 gboolean
@@ -932,13 +920,13 @@ _gum_quick_uint64_get (JSContext * ctx,
   }
   else
   {
-    GumQuickUInt64 * self;
+    GumQuickUInt64 * u64;
 
-    self = JS_GetOpaque2 (ctx, val, core->uint64_class);
-    if (self == NULL)
+    u64 = JS_GetOpaque2 (ctx, val, core->uint64_class);
+    if (u64 == NULL)
       return FALSE;
 
-    *u = self->value;
+    *u = u64->value;
   }
 
   return TRUE;
@@ -958,15 +946,11 @@ _gum_quick_uint64_parse (JSContext * ctx,
     value_as_string = JS_ToCString (ctx, val);
 
     if (g_str_has_prefix (value_as_string, "0x"))
-    {
       *u = g_ascii_strtoull (value_as_string + 2, (gchar **) &end, 16);
-      valid = end != value_as_string + 2;
-    }
     else
-    {
       *u = g_ascii_strtoull (value_as_string, (gchar **) &end, 10);
-      valid = end != value_as_string;
-    }
+
+    valid = end == value_as_string + strlen (value_as_string);
 
     JS_FreeCString (ctx, value_as_string);
 
@@ -1027,17 +1011,17 @@ _gum_quick_native_pointer_new (JSContext * ctx,
                                gpointer ptr,
                                GumQuickCore * core)
 {
-  JSValue obj;
-  GumQuickNativePointer * self;
+  JSValue wrapper;
+  GumQuickNativePointer * np;
 
-  obj = JS_NewObjectClass (ctx, core->native_pointer_class);
+  wrapper = JS_NewObjectClass (ctx, core->native_pointer_class);
 
-  self = g_slice_new (GumQuickNativePointer);
-  self->value = ptr;
+  np = g_slice_new (GumQuickNativePointer);
+  np->value = ptr;
 
-  JS_SetOpaque (obj, self);
+  JS_SetOpaque (wrapper, np);
 
-  return obj;
+  return wrapper;
 }
 
 gboolean
@@ -1104,14 +1088,14 @@ _gum_quick_native_pointer_parse (JSContext * ctx,
     {
       *ptr = GSIZE_TO_POINTER (
           g_ascii_strtoull (ptr_as_string + 2, (gchar **) &end, 16));
-      valid = end != ptr_as_string + 2;
     }
     else
     {
       *ptr = GSIZE_TO_POINTER (
           g_ascii_strtoull (ptr_as_string, (gchar **) &end, 10));
-      valid = end != ptr_as_string;
     }
+
+    valid = end == ptr_as_string + strlen (ptr_as_string);
 
     JS_FreeCString (ctx, ptr_as_string);
 
@@ -1152,20 +1136,76 @@ expected_pointer:
   }
 }
 
+JSValue
+_gum_quick_cpu_context_new (JSContext * ctx,
+                            GumCpuContext * handle,
+                            GumQuickCpuContextAccess access,
+                            GumQuickCore * core,
+                            GumQuickCpuContext ** cpu_context)
+{
+  GumQuickCpuContext * cc;
+  JSValue wrapper;
+
+  wrapper = JS_NewObjectClass (ctx, core->cpu_context_class);
+
+  cc = g_slice_new (GumQuickCpuContext);
+  cc->wrapper = wrapper;
+  cc->core = core;
+
+  JS_SetOpaque (wrapper, cc);
+
+  _gum_quick_cpu_context_reset (cc, handle, access);
+
+  if (cpu_context != NULL)
+    *cpu_context = cc;
+
+  return wrapper;
+}
+
+void
+_gum_quick_cpu_context_reset (GumQuickCpuContext * self,
+                              GumCpuContext * handle,
+                              GumQuickCpuContextAccess access)
+{
+  if (handle != NULL)
+  {
+    if (access == GUM_CPU_CONTEXT_READWRITE)
+    {
+      self->handle = handle;
+    }
+    else
+    {
+      memcpy (&self->storage, handle, sizeof (GumCpuContext));
+      self->handle = &self->storage;
+    }
+  }
+  else
+  {
+    self->handle = NULL;
+  }
+
+  self->access = access;
+}
+
+void
+_gum_quick_cpu_context_make_read_only (GumQuickCpuContext * self)
+{
+  if (self->access == GUM_CPU_CONTEXT_READWRITE)
+  {
+    memcpy (&self->storage, self->handle, sizeof (GumCpuContext));
+    self->handle = &self->storage;
+    self->access = GUM_CPU_CONTEXT_READONLY;
+  }
+}
+
 gboolean
 _gum_quick_cpu_context_get (JSContext * ctx,
                             JSValueConst val,
                             GumQuickCore * core,
                             GumCpuContext ** cpu_context)
 {
-  _gum_quick_throw (ctx, "%s: TODO", G_STRFUNC);
-  return FALSE; /* TODO */
-}
-
-void
-_gum_quick_cpu_context_make_read_only (GumQuickCpuContext * self)
-{
-  /* TODO */
+  *cpu_context = JS_GetOpaque2 (ctx, val, core->cpu_context_class);
+  return *cpu_context != NULL;
 }
 
 gboolean

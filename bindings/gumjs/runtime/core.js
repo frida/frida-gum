@@ -381,24 +381,26 @@ if (Process.findRangeByAddress === undefined) {
     }
   });
 }
+*/
 
 Object.defineProperties(Interceptor, {
   attach: {
     enumerable: true,
     value: function (target, callbacks, data) {
-      Memory._checkCodePointer(target);
+      //Memory._checkCodePointer(target);
       return Interceptor._attach(target, callbacks, data);
     }
   },
   replace: {
     enumerable: true,
     value: function (target, replacement, data) {
-      Memory._checkCodePointer(target);
+      //Memory._checkCodePointer(target);
       Interceptor._replace(target, replacement, data);
     }
   },
 });
 
+/*
 const stalkerEventType = {
   call: 1,
   ret: 2,
