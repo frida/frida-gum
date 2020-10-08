@@ -1349,8 +1349,6 @@ _gum_quick_scope_leave (GumQuickScope * self)
   GumQuickCore * core = self->core;
   GumQuickFlushNotify pending_flush_notify = NULL;
 
-  g_assert (core->current_scope == self);
-
   _gum_quick_scope_perform_pending_io (self);
 
   if (core->mutex_depth == 1)

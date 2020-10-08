@@ -8,15 +8,46 @@
 
 #include "gumquickmacros.h"
 
-#define GUM_QUICK_INVOCATION_LISTENER_CAST(obj) \
-    ((GumQuickInvocationListener *) (obj))
-#define GUM_QUICK_TYPE_JS_CALL_LISTENER (gum_quick_js_call_listener_get_type ())
+#define GUM_QUICK_TYPE_INVOCATION_LISTENER \
+    (gum_quick_invocation_listener_get_type ())
+#define GUM_QUICK_TYPE_JS_CALL_LISTENER \
+    (gum_quick_js_call_listener_get_type ())
 #define GUM_QUICK_TYPE_JS_PROBE_LISTENER \
     (gum_quick_js_probe_listener_get_type ())
-#define GUM_QUICK_TYPE_C_CALL_LISTENER (gum_quick_c_call_listener_get_type ())
-#define GUM_QUICK_TYPE_C_PROBE_LISTENER (gum_quick_c_probe_listener_get_type ())
+#define GUM_QUICK_TYPE_C_CALL_LISTENER \
+    (gum_quick_c_call_listener_get_type ())
+#define GUM_QUICK_TYPE_C_PROBE_LISTENER \
+    (gum_quick_c_probe_listener_get_type ())
+
+#define GUM_QUICK_INVOCATION_LISTENER(obj) \
+    G_TYPE_CHECK_INSTANCE_CAST (obj, GUM_QUICK_TYPE_INVOCATION_LISTENER, \
+        GumQuickInvocationListener)
+#define GUM_QUICK_JS_CALL_LISTENER(obj) \
+    G_TYPE_CHECK_INSTANCE_CAST (obj, GUM_QUICK_TYPE_JS_CALL_LISTENER, \
+        GumQuickJSCallListener)
+#define GUM_QUICK_JS_PROBE_LISTENER(obj) \
+    G_TYPE_CHECK_INSTANCE_CAST (obj, GUM_QUICK_TYPE_JS_PROBE_LISTENER, \
+        GumQuickJSProbeListener)
+#define GUM_QUICK_C_CALL_LISTENER(obj) \
+    G_TYPE_CHECK_INSTANCE_CAST (obj, GUM_QUICK_TYPE_C_CALL_LISTENER, \
+        GumQuickCCallListener)
+#define GUM_QUICK_C_PROBE_LISTENER(obj) \
+    G_TYPE_CHECK_INSTANCE_CAST (obj, GUM_QUICK_TYPE_C_PROBE_LISTENER, \
+        GumQuickCProbeListener)
+
+#define GUM_QUICK_INVOCATION_LISTENER_CAST(obj) \
+    ((GumQuickInvocationListener *) (obj))
+#define GUM_QUICK_JS_CALL_LISTENER_CAST(obj) \
+    ((GumQuickJSCallListener *) (obj))
+#define GUM_QUICK_JS_PROBE_LISTENER_CAST(obj) \
+    ((GumQuickJSProbeListener *) (obj))
+#define GUM_QUICK_C_CALL_LISTENER_CAST(obj) \
+    ((GumQuickCCallListener *) (obj))
+#define GUM_QUICK_C_PROBE_LISTENER_CAST(obj) \
+    ((GumQuickCProbeListener *) (obj))
 
 typedef struct _GumQuickInvocationListener GumQuickInvocationListener;
+typedef struct _GumQuickInvocationListenerClass GumQuickInvocationListenerClass;
 typedef struct _GumQuickJSCallListener GumQuickJSCallListener;
 typedef struct _GumQuickJSCallListenerClass GumQuickJSCallListenerClass;
 typedef struct _GumQuickJSProbeListener GumQuickJSProbeListener;
@@ -33,58 +64,63 @@ struct _GumQuickInvocationListener
   GObject object;
 
   JSValue wrapper;
-  union
-  {
-    JSValue on_enter_js;
-    void (* on_enter_c) (GumInvocationContext * ic);
-  };
-  union
-  {
-    JSValue on_leave_js;
-    void (* on_leave_c) (GumInvocationContext * ic);
-  };
 
   GumQuickInterceptor * parent;
+};
+
+struct _GumQuickInvocationListenerClass
+{
+  GObjectClass object_class;
 };
 
 struct _GumQuickJSCallListener
 {
   GumQuickInvocationListener listener;
+
+  JSValue on_enter;
+  JSValue on_leave;
 };
 
 struct _GumQuickJSCallListenerClass
 {
-  GObjectClass parent_class;
+  GumQuickInvocationListenerClass listener_class;
 };
 
 struct _GumQuickJSProbeListener
 {
   GumQuickInvocationListener listener;
+
+  JSValue on_hit;
 };
 
 struct _GumQuickJSProbeListenerClass
 {
-  GObjectClass parent_class;
+  GumQuickInvocationListenerClass listener_class;
 };
 
 struct _GumQuickCCallListener
 {
   GumQuickInvocationListener listener;
+
+  void (* on_enter) (GumInvocationContext * ic);
+  void (* on_leave) (GumInvocationContext * ic);
 };
 
 struct _GumQuickCCallListenerClass
 {
-  GObjectClass parent_class;
+  GumQuickInvocationListenerClass listener_class;
 };
 
 struct _GumQuickCProbeListener
 {
   GumQuickInvocationListener listener;
+
+  void (* on_hit) (GumInvocationContext * ic);
 };
 
 struct _GumQuickCProbeListenerClass
 {
-  GObjectClass parent_class;
+  GumQuickInvocationListenerClass listener_class;
 };
 
 struct _GumQuickInvocationState
@@ -113,7 +149,7 @@ struct _GumQuickReplaceEntry
   GumInterceptor * interceptor;
   gpointer target;
   JSValue replacement;
-  GumQuickCore * core;
+  JSContext * ctx;
 };
 
 static gboolean gum_quick_interceptor_on_flush_timer_tick (
@@ -127,18 +163,32 @@ static void gum_quick_interceptor_detach (GumQuickInterceptor * self,
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_detach_all)
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_replace)
 static void gum_quick_replace_entry_free (GumQuickReplaceEntry * entry);
+static void gum_quick_replace_entry_revert_and_free (
+    GumQuickReplaceEntry * entry);
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_revert)
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_flush)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_invocation_listener_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_invocation_listener_detach)
+static void gum_quick_invocation_listener_dispose (GObject * object);
+static void gum_quick_invocation_listener_release_wrapper (
+    GumQuickInvocationListener * self, JSContext * ctx);
+G_DEFINE_TYPE_EXTENDED (GumQuickInvocationListener,
+                        gum_quick_invocation_listener,
+                        G_TYPE_OBJECT,
+                        G_TYPE_FLAG_ABSTRACT,
+                        {})
 
 static void gum_quick_js_call_listener_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_quick_js_call_listener_dispose (GObject * object);
+static void gum_quick_js_call_listener_on_enter (
+    GumInvocationListener * listener, GumInvocationContext * ic);
+static void gum_quick_js_call_listener_on_leave (
+    GumInvocationListener * listener, GumInvocationContext * ic);
 G_DEFINE_TYPE_EXTENDED (GumQuickJSCallListener,
                         gum_quick_js_call_listener,
-                        G_TYPE_OBJECT,
+                        GUM_QUICK_TYPE_INVOCATION_LISTENER,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
                             gum_quick_js_call_listener_iface_init))
@@ -146,9 +196,11 @@ G_DEFINE_TYPE_EXTENDED (GumQuickJSCallListener,
 static void gum_quick_js_probe_listener_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_quick_js_probe_listener_dispose (GObject * object);
+static void gum_quick_js_probe_listener_on_enter (
+    GumInvocationListener * listener, GumInvocationContext * ic);
 G_DEFINE_TYPE_EXTENDED (GumQuickJSProbeListener,
                         gum_quick_js_probe_listener,
-                        G_TYPE_OBJECT,
+                        GUM_QUICK_TYPE_INVOCATION_LISTENER,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
                             gum_quick_js_probe_listener_iface_init))
@@ -156,9 +208,13 @@ G_DEFINE_TYPE_EXTENDED (GumQuickJSProbeListener,
 static void gum_quick_c_call_listener_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_quick_c_call_listener_dispose (GObject * object);
+static void gum_quick_c_call_listener_on_enter (
+    GumInvocationListener * listener, GumInvocationContext * ic);
+static void gum_quick_c_call_listener_on_leave (
+    GumInvocationListener * listener, GumInvocationContext * ic);
 G_DEFINE_TYPE_EXTENDED (GumQuickCCallListener,
                         gum_quick_c_call_listener,
-                        G_TYPE_OBJECT,
+                        GUM_QUICK_TYPE_INVOCATION_LISTENER,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
                             gum_quick_c_call_listener_iface_init))
@@ -166,16 +222,19 @@ G_DEFINE_TYPE_EXTENDED (GumQuickCCallListener,
 static void gum_quick_c_probe_listener_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_quick_c_probe_listener_dispose (GObject * object);
+static void gum_quick_c_probe_listener_on_enter (
+    GumInvocationListener * listener, GumInvocationContext * ic);
 G_DEFINE_TYPE_EXTENDED (GumQuickCProbeListener,
                         gum_quick_c_probe_listener,
-                        G_TYPE_OBJECT,
+                        GUM_QUICK_TYPE_INVOCATION_LISTENER,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
                             gum_quick_c_probe_listener_iface_init))
 
 static GumQuickInvocationContext * gum_quick_invocation_context_new (
     GumQuickInterceptor * parent);
-static void gum_quick_invocation_context_release (GumQuickInvocationContext * self);
+static void gum_quick_invocation_context_release (
+    GumQuickInvocationContext * self);
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_invocation_context_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_invocation_context_finalize)
 GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_return_address)
@@ -317,7 +376,7 @@ _gum_quick_interceptor_init (GumQuickInterceptor * self,
   self->invocation_listeners = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_quick_invocation_listener_destroy);
   self->replacement_by_address = g_hash_table_new_full (NULL, NULL, NULL,
-      (GDestroyNotify) gum_quick_replace_entry_free);
+      (GDestroyNotify) gum_quick_replace_entry_revert_and_free);
   self->flush_timer = NULL;
 
   _gum_quick_core_store_module_data (core, "interceptor", self);
@@ -364,8 +423,7 @@ _gum_quick_interceptor_init (GumQuickInterceptor * self,
       ctor, JS_PROP_C_W_E);
 
   JS_NewClassID (&self->invocation_retval_class);
-  JS_NewClass (rt, self->invocation_retval_class,
-      &gumjs_invocation_retval_def);
+  JS_NewClass (rt, self->invocation_retval_class, &gumjs_invocation_retval_def);
   proto = JS_NewObjectProto (ctx, core->native_pointer_proto);
   JS_SetPropertyFunctionList (ctx, proto, gumjs_invocation_retval_entries,
       G_N_ELEMENTS (gumjs_invocation_retval_entries));
@@ -373,8 +431,8 @@ _gum_quick_interceptor_init (GumQuickInterceptor * self,
       gumjs_invocation_retval_def.class_name, 0, JS_CFUNC_constructor, 0);
   JS_SetConstructor (ctx, ctor, proto);
   JS_SetClassProto (ctx, self->invocation_retval_class, proto);
-  JS_DefinePropertyValueStr (ctx, ns,
-      gumjs_invocation_retval_def.class_name, ctor, JS_PROP_C_W_E);
+  JS_DefinePropertyValueStr (ctx, ns, gumjs_invocation_retval_def.class_name,
+      ctor, JS_PROP_C_W_E);
 
   self->cached_invocation_context = gum_quick_invocation_context_new (self);
   self->cached_invocation_context_in_use = FALSE;
@@ -382,8 +440,7 @@ _gum_quick_interceptor_init (GumQuickInterceptor * self,
   self->cached_invocation_args = gum_quick_invocation_args_new (self);
   self->cached_invocation_args_in_use = FALSE;
 
-  self->cached_invocation_retval = gum_quick_invocation_retval_new (
-      self);
+  self->cached_invocation_retval = gum_quick_invocation_retval_new (self);
   self->cached_invocation_retval_in_use = FALSE;
 }
 
@@ -483,19 +540,27 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
 
   if (JS_IsFunction (ctx, cb_val))
   {
+    GumQuickJSProbeListener * l;
+
     if (!_gum_quick_native_pointer_get (ctx, target_val, core, &target))
       goto propagate_exception;
 
-    listener = g_object_new (GUM_QUICK_TYPE_JS_PROBE_LISTENER, NULL);
-    listener->on_enter_js = JS_DupValue (ctx, cb_val);
+    l = g_object_new (GUM_QUICK_TYPE_JS_PROBE_LISTENER, NULL);
+    l->on_hit = JS_DupValue (ctx, cb_val);
+
+    listener = GUM_QUICK_INVOCATION_LISTENER (l);
   }
   else if (_gum_quick_native_pointer_try_get (ctx, cb_val, core, &cb_ptr))
   {
+    GumQuickCProbeListener * l;
+
     if (!_gum_quick_native_pointer_get (ctx, target_val, core, &target))
       goto propagate_exception;
 
-    listener = g_object_new (GUM_QUICK_TYPE_C_PROBE_LISTENER, NULL);
-    listener->on_enter_c = cb_ptr;
+    l = g_object_new (GUM_QUICK_TYPE_C_PROBE_LISTENER, NULL);
+    l->on_hit = cb_ptr;
+
+    listener = GUM_QUICK_INVOCATION_LISTENER (l);
   }
   else
   {
@@ -509,15 +574,23 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
 
     if (!JS_IsNull (on_enter_js) || !JS_IsNull (on_leave_js))
     {
-      listener = g_object_new (GUM_QUICK_TYPE_JS_CALL_LISTENER, NULL);
-      listener->on_enter_js = JS_DupValue (ctx, on_enter_js);
-      listener->on_leave_js = JS_DupValue (ctx, on_leave_js);
+      GumQuickJSCallListener * l;
+
+      l = g_object_new (GUM_QUICK_TYPE_JS_CALL_LISTENER, NULL);
+      l->on_enter = JS_DupValue (ctx, on_enter_js);
+      l->on_leave = JS_DupValue (ctx, on_leave_js);
+
+      listener = GUM_QUICK_INVOCATION_LISTENER (l);
     }
     else
     {
-      listener = g_object_new (GUM_QUICK_TYPE_C_CALL_LISTENER, NULL);
-      listener->on_enter_c = on_enter_c;
-      listener->on_leave_c = on_leave_c;
+      GumQuickCCallListener * l;
+
+      l = g_object_new (GUM_QUICK_TYPE_C_CALL_LISTENER, NULL);
+      l->on_enter = on_enter_c;
+      l->on_leave = on_leave_c;
+
+      listener = GUM_QUICK_INVOCATION_LISTENER (l);
     }
   }
 
@@ -547,7 +620,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
 
   g_hash_table_add (self->invocation_listeners, listener);
 
-  return listener->wrapper;
+  return JS_DupValue (ctx, listener->wrapper);
 
 unable_to_attach:
   {
@@ -621,7 +694,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
   entry->interceptor = self->interceptor;
   entry->target = target;
   entry->replacement = JS_DupValue (ctx, replacement_value);
-  entry->core = core;
+  entry->ctx = ctx;
 
   replace_ret = gum_interceptor_replace (self->interceptor, target,
       replacement_function, replacement_data);
@@ -651,11 +724,7 @@ unable_to_replace:
   }
 propagate_exception:
   {
-    if (entry != NULL)
-    {
-      JS_FreeValue (ctx, entry->replacement);
-      g_slice_free (GumQuickReplaceEntry, entry);
-    }
+    gum_quick_replace_entry_free (entry);
 
     return JS_EXCEPTION;
   }
@@ -664,11 +733,20 @@ propagate_exception:
 static void
 gum_quick_replace_entry_free (GumQuickReplaceEntry * entry)
 {
-  gum_interceptor_revert (entry->interceptor, entry->target);
+  if (entry == NULL)
+    return;
 
-  JS_FreeValue (entry->core->ctx, entry->replacement);
+  JS_FreeValue (entry->ctx, entry->replacement);
 
   g_slice_free (GumQuickReplaceEntry, entry);
+}
+
+static void
+gum_quick_replace_entry_revert_and_free (GumQuickReplaceEntry * entry)
+{
+  gum_interceptor_revert (entry->interceptor, entry->target);
+
+  gum_quick_replace_entry_free (entry);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_interceptor_revert)
@@ -688,9 +766,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_revert)
 
 GUMJS_DEFINE_FUNCTION (gumjs_interceptor_flush)
 {
-  GumQuickInterceptor * self;
-
-  self = gumjs_get_parent_module (core);
+  GumQuickInterceptor * self = gumjs_get_parent_module (core);
 
   gum_interceptor_end_transaction (self->interceptor);
   gum_interceptor_begin_transaction (self->interceptor);
@@ -712,48 +788,120 @@ GUMJS_DEFINE_FUNCTION (gumjs_invocation_listener_detach)
 
   listener = JS_GetOpaque (this_val, parent->invocation_listener_class);
   if (listener != NULL)
-  {
-    JS_SetOpaque (this_val, NULL);
-
     gum_quick_interceptor_detach (parent, listener);
-  }
 
   return JS_UNDEFINED;
 }
 
 static void
-gum_quick_invocation_listener_dispose (GumQuickInvocationListener * self)
+gum_quick_invocation_listener_class_init (
+    GumQuickInvocationListenerClass * klass)
 {
-  GumQuickCore * core = self->parent->core;
-  GumQuickScope scope;
+  GObjectClass * object_class = G_OBJECT_CLASS (klass);
 
-  _gum_quick_scope_enter (&scope, core);
-
-  JS_FreeValue (core->ctx, self->wrapper);
-  self->wrapper = JS_NULL;
-
-  _gum_quick_scope_leave (&scope);
+  object_class->dispose = gum_quick_invocation_listener_dispose;
 }
 
 static void
-gum_quick_js_invocation_listener_on_enter (GumInvocationListener * listener,
-                                           GumInvocationContext * ic)
+gum_quick_invocation_listener_init (GumQuickInvocationListener * self)
 {
-  GumQuickInvocationListener * self;
+  self->wrapper = JS_NULL;
+}
+
+static void
+gum_quick_invocation_listener_dispose (GObject * object)
+{
+  GumQuickInvocationListener * self = GUM_QUICK_INVOCATION_LISTENER (object);
+
+  g_assert (JS_IsNull (self->wrapper));
+
+  G_OBJECT_CLASS (gum_quick_invocation_listener_parent_class)->dispose (object);
+}
+
+static void
+gum_quick_invocation_listener_release_wrapper (
+    GumQuickInvocationListener * self,
+    JSContext * ctx)
+{
+  if (!JS_IsNull (self->wrapper))
+  {
+    JS_SetOpaque (self->wrapper, NULL);
+    JS_FreeValue (ctx, self->wrapper);
+    self->wrapper = JS_NULL;
+  }
+}
+
+static void
+gum_quick_js_call_listener_class_init (GumQuickJSCallListenerClass * klass)
+{
+  GObjectClass * object_class = G_OBJECT_CLASS (klass);
+
+  object_class->dispose = gum_quick_js_call_listener_dispose;
+}
+
+static void
+gum_quick_js_call_listener_iface_init (gpointer g_iface,
+                                       gpointer iface_data)
+{
+  GumInvocationListenerInterface * iface = g_iface;
+
+  iface->on_enter = gum_quick_js_call_listener_on_enter;
+  iface->on_leave = gum_quick_js_call_listener_on_leave;
+}
+
+static void
+gum_quick_js_call_listener_init (GumQuickJSCallListener * self)
+{
+}
+
+static void
+gum_quick_js_call_listener_dispose (GObject * object)
+{
+  GumQuickJSCallListener * self;
+  GumQuickInvocationListener * base_listener;
+  GumQuickCore * core;
+  JSContext * ctx;
+  GumQuickScope scope;
+
+  self = GUM_QUICK_JS_CALL_LISTENER (object);
+  base_listener = GUM_QUICK_INVOCATION_LISTENER (object);
+  core = base_listener->parent->core;
+  ctx = core->ctx;
+
+  _gum_quick_scope_enter (&scope, core);
+
+  JS_FreeValue (ctx, self->on_enter);
+  self->on_enter = JS_NULL;
+
+  JS_FreeValue (ctx, self->on_leave);
+  self->on_leave = JS_NULL;
+
+  gum_quick_invocation_listener_release_wrapper (base_listener, ctx);
+
+  _gum_quick_scope_leave (&scope);
+
+  G_OBJECT_CLASS (gum_quick_js_call_listener_parent_class)->dispose (object);
+}
+
+static void
+gum_quick_js_call_listener_on_enter (GumInvocationListener * listener,
+                                     GumInvocationContext * ic)
+{
+  GumQuickJSCallListener * self;
+  GumQuickInterceptor * parent;
   GumQuickInvocationState * state;
 
-  self = GUM_QUICK_INVOCATION_LISTENER_CAST (listener);
+  self = GUM_QUICK_JS_CALL_LISTENER_CAST (listener);
+  parent = GUM_QUICK_INVOCATION_LISTENER_CAST (listener)->parent;
   state = GUM_IC_GET_INVOCATION_DATA (ic, GumQuickInvocationState);
 
-  if (!JS_IsNull (self->on_enter_js))
+  if (!JS_IsNull (self->on_enter))
   {
-    GumQuickInterceptor * parent = self->parent;
-    GumQuickCore * core = parent->core;
     GumQuickScope scope;
     GumQuickInvocationContext * jic;
     GumQuickInvocationArgs * args;
 
-    _gum_quick_scope_enter (&scope, core);
+    _gum_quick_scope_enter (&scope, parent->core);
 
     jic = _gum_quick_interceptor_obtain_invocation_context (parent);
     _gum_quick_invocation_context_reset (jic, ic);
@@ -761,14 +909,14 @@ gum_quick_js_invocation_listener_on_enter (GumInvocationListener * listener,
     args = gum_quick_interceptor_obtain_invocation_args (parent);
     gum_quick_invocation_args_reset (args, ic);
 
-    _gum_quick_scope_call_void (&scope, self->on_enter_js, jic->wrapper, 1,
+    _gum_quick_scope_call_void (&scope, self->on_enter, jic->wrapper, 1,
         &args->wrapper);
 
     gum_quick_invocation_args_reset (args, NULL);
     gum_quick_interceptor_release_invocation_args (parent, args);
 
     _gum_quick_invocation_context_reset (jic, NULL);
-    if (!JS_IsNull (self->on_leave_js) || jic->dirty)
+    if (!JS_IsNull (self->on_leave) || jic->dirty)
     {
       state->jic = jic;
     }
@@ -787,26 +935,26 @@ gum_quick_js_invocation_listener_on_enter (GumInvocationListener * listener,
 }
 
 static void
-gum_quick_js_invocation_listener_on_leave (GumInvocationListener * listener,
-                                           GumInvocationContext * ic)
+gum_quick_js_call_listener_on_leave (GumInvocationListener * listener,
+                                     GumInvocationContext * ic)
 {
-  GumQuickInvocationListener * self;
+  GumQuickJSCallListener * self;
+  GumQuickInterceptor * parent;
   GumQuickInvocationState * state;
 
-  self = GUM_QUICK_INVOCATION_LISTENER_CAST (listener);
+  self = GUM_QUICK_JS_CALL_LISTENER_CAST (listener);
+  parent = GUM_QUICK_INVOCATION_LISTENER_CAST (listener)->parent;
   state = GUM_IC_GET_INVOCATION_DATA (ic, GumQuickInvocationState);
 
-  if (!JS_IsNull (self->on_leave_js))
+  if (!JS_IsNull (self->on_leave))
   {
-    GumQuickInterceptor * parent = self->parent;
-    GumQuickCore * core = parent->core;
     GumQuickScope scope;
     GumQuickInvocationContext * jic;
     GumQuickInvocationRetval * retval;
 
-    _gum_quick_scope_enter (&scope, core);
+    _gum_quick_scope_enter (&scope, parent->core);
 
-    jic = !JS_IsNull (self->on_enter_js) ? state->jic : NULL;
+    jic = !JS_IsNull (self->on_enter) ? state->jic : NULL;
     if (jic == NULL)
     {
       jic = _gum_quick_interceptor_obtain_invocation_context (parent);
@@ -816,7 +964,7 @@ gum_quick_js_invocation_listener_on_leave (GumInvocationListener * listener,
     retval = gum_quick_interceptor_obtain_invocation_retval (parent);
     gum_quick_invocation_retval_reset (retval, ic);
 
-    _gum_quick_scope_call_void (&scope, self->on_leave_js, jic->wrapper, 1,
+    _gum_quick_scope_call_void (&scope, self->on_leave, jic->wrapper, 1,
         &retval->wrapper);
 
     gum_quick_invocation_retval_reset (retval, NULL);
@@ -829,7 +977,6 @@ gum_quick_js_invocation_listener_on_leave (GumInvocationListener * listener,
   }
   else if (state->jic != NULL)
   {
-    GumQuickInterceptor * parent = self->parent;
     GumQuickScope scope;
 
     _gum_quick_scope_enter (&scope, parent->core);
@@ -838,62 +985,6 @@ gum_quick_js_invocation_listener_on_leave (GumInvocationListener * listener,
 
     _gum_quick_scope_leave (&scope);
   }
-}
-
-static void
-gum_quick_c_invocation_listener_on_enter (GumInvocationListener * listener,
-                                          GumInvocationContext * ic)
-{
-  GumQuickInvocationListener * self =
-      GUM_QUICK_INVOCATION_LISTENER_CAST (listener);
-
-  if (self->on_enter_c != NULL)
-    self->on_enter_c (ic);
-}
-
-static void
-gum_quick_c_invocation_listener_on_leave (GumInvocationListener * listener,
-                                          GumInvocationContext * ic)
-{
-  GumQuickInvocationListener * self =
-      GUM_QUICK_INVOCATION_LISTENER_CAST (listener);
-
-  if (self->on_leave_c != NULL)
-    self->on_leave_c (ic);
-}
-
-static void
-gum_quick_js_call_listener_class_init (GumQuickJSCallListenerClass * klass)
-{
-  GObjectClass * object_class = G_OBJECT_CLASS (klass);
-
-  object_class->dispose = gum_quick_js_call_listener_dispose;
-}
-
-static void
-gum_quick_js_call_listener_iface_init (gpointer g_iface,
-                                       gpointer iface_data)
-{
-  GumInvocationListenerInterface * iface = g_iface;
-
-  iface->on_enter = gum_quick_js_invocation_listener_on_enter;
-  iface->on_leave = gum_quick_js_invocation_listener_on_leave;
-}
-
-static void
-gum_quick_js_call_listener_init (GumQuickJSCallListener * self)
-{
-}
-
-static void
-gum_quick_js_call_listener_dispose (GObject * object)
-{
-  GumQuickInvocationListener * self =
-      GUM_QUICK_INVOCATION_LISTENER_CAST (object);
-
-  gum_quick_invocation_listener_dispose (self);
-
-  G_OBJECT_CLASS (gum_quick_js_call_listener_parent_class)->dispose (object);
 }
 
 static void
@@ -910,7 +1001,7 @@ gum_quick_js_probe_listener_iface_init (gpointer g_iface,
 {
   GumInvocationListenerInterface * iface = g_iface;
 
-  iface->on_enter = gum_quick_js_invocation_listener_on_enter;
+  iface->on_enter = gum_quick_js_probe_listener_on_enter;
   iface->on_leave = NULL;
 }
 
@@ -922,12 +1013,60 @@ gum_quick_js_probe_listener_init (GumQuickJSProbeListener * self)
 static void
 gum_quick_js_probe_listener_dispose (GObject * object)
 {
-  GumQuickInvocationListener * self =
-      GUM_QUICK_INVOCATION_LISTENER_CAST (object);
+  GumQuickJSProbeListener * self;
+  GumQuickInvocationListener * base_listener;
+  GumQuickCore * core;
+  JSContext * ctx;
+  GumQuickScope scope;
 
-  gum_quick_invocation_listener_dispose (self);
+  self = GUM_QUICK_JS_PROBE_LISTENER (object);
+  base_listener = GUM_QUICK_INVOCATION_LISTENER (object);
+  core = base_listener->parent->core;
+  ctx = core->ctx;
+
+  _gum_quick_scope_enter (&scope, core);
+
+  JS_FreeValue (ctx, self->on_hit);
+  self->on_hit = JS_NULL;
+
+  gum_quick_invocation_listener_release_wrapper (base_listener, ctx);
+
+  _gum_quick_scope_leave (&scope);
 
   G_OBJECT_CLASS (gum_quick_js_probe_listener_parent_class)->dispose (object);
+}
+
+static void
+gum_quick_js_probe_listener_on_enter (GumInvocationListener * listener,
+                                      GumInvocationContext * ic)
+{
+  GumQuickJSProbeListener * self;
+  GumQuickInterceptor * parent;
+  GumQuickScope scope;
+  GumQuickInvocationContext * jic;
+  GumQuickInvocationArgs * args;
+
+  self = GUM_QUICK_JS_PROBE_LISTENER_CAST (listener);
+  parent = GUM_QUICK_INVOCATION_LISTENER_CAST (listener)->parent;
+
+  _gum_quick_scope_enter (&scope, parent->core);
+
+  jic = _gum_quick_interceptor_obtain_invocation_context (parent);
+  _gum_quick_invocation_context_reset (jic, ic);
+
+  args = gum_quick_interceptor_obtain_invocation_args (parent);
+  gum_quick_invocation_args_reset (args, ic);
+
+  _gum_quick_scope_call_void (&scope, self->on_hit, jic->wrapper, 1,
+      &args->wrapper);
+
+  gum_quick_invocation_args_reset (args, NULL);
+  gum_quick_interceptor_release_invocation_args (parent, args);
+
+  _gum_quick_invocation_context_reset (jic, NULL);
+  _gum_quick_interceptor_release_invocation_context (parent, jic);
+
+  _gum_quick_scope_leave (&scope);
 }
 
 static void
@@ -944,8 +1083,8 @@ gum_quick_c_call_listener_iface_init (gpointer g_iface,
 {
   GumInvocationListenerInterface * iface = g_iface;
 
-  iface->on_enter = gum_quick_c_invocation_listener_on_enter;
-  iface->on_leave = gum_quick_c_invocation_listener_on_leave;
+  iface->on_enter = gum_quick_c_call_listener_on_enter;
+  iface->on_leave = gum_quick_c_call_listener_on_leave;
 }
 
 static void
@@ -956,12 +1095,42 @@ gum_quick_c_call_listener_init (GumQuickCCallListener * self)
 static void
 gum_quick_c_call_listener_dispose (GObject * object)
 {
-  GumQuickInvocationListener * self =
-      GUM_QUICK_INVOCATION_LISTENER_CAST (object);
+  GumQuickCCallListener * self;
+  GumQuickInvocationListener * base_listener;
+  GumQuickCore * core;
+  GumQuickScope scope;
 
-  gum_quick_invocation_listener_dispose (self);
+  self = GUM_QUICK_C_CALL_LISTENER (object);
+  base_listener = GUM_QUICK_INVOCATION_LISTENER (object);
+  core = base_listener->parent->core;
+
+  _gum_quick_scope_enter (&scope, core);
+
+  gum_quick_invocation_listener_release_wrapper (base_listener, core->ctx);
+
+  _gum_quick_scope_leave (&scope);
 
   G_OBJECT_CLASS (gum_quick_c_call_listener_parent_class)->dispose (object);
+}
+
+static void
+gum_quick_c_call_listener_on_enter (GumInvocationListener * listener,
+                                    GumInvocationContext * ic)
+{
+  GumQuickCCallListener * self = GUM_QUICK_C_CALL_LISTENER_CAST (listener);
+
+  if (self->on_enter != NULL)
+    self->on_enter (ic);
+}
+
+static void
+gum_quick_c_call_listener_on_leave (GumInvocationListener * listener,
+                                    GumInvocationContext * ic)
+{
+  GumQuickCCallListener * self = GUM_QUICK_C_CALL_LISTENER_CAST (listener);
+
+  if (self->on_leave != NULL)
+    self->on_leave (ic);
 }
 
 static void
@@ -978,7 +1147,7 @@ gum_quick_c_probe_listener_iface_init (gpointer g_iface,
 {
   GumInvocationListenerInterface * iface = g_iface;
 
-  iface->on_enter = gum_quick_c_invocation_listener_on_enter;
+  iface->on_enter = gum_quick_c_probe_listener_on_enter;
   iface->on_leave = NULL;
 }
 
@@ -990,12 +1159,31 @@ gum_quick_c_probe_listener_init (GumQuickCProbeListener * self)
 static void
 gum_quick_c_probe_listener_dispose (GObject * object)
 {
-  GumQuickInvocationListener * self =
-      GUM_QUICK_INVOCATION_LISTENER_CAST (object);
+  GumQuickCProbeListener * self;
+  GumQuickInvocationListener * base_listener;
+  GumQuickCore * core;
+  GumQuickScope scope;
 
-  gum_quick_invocation_listener_dispose (self);
+  self = GUM_QUICK_C_PROBE_LISTENER (object);
+  base_listener = GUM_QUICK_INVOCATION_LISTENER (object);
+  core = base_listener->parent->core;
+
+  _gum_quick_scope_enter (&scope, core);
+
+  gum_quick_invocation_listener_release_wrapper (base_listener, core->ctx);
+
+  _gum_quick_scope_leave (&scope);
 
   G_OBJECT_CLASS (gum_quick_c_probe_listener_parent_class)->dispose (object);
+}
+
+static void
+gum_quick_c_probe_listener_on_enter (GumInvocationListener * listener,
+                                     GumInvocationContext * ic)
+{
+  GumQuickCProbeListener * self = GUM_QUICK_C_PROBE_LISTENER_CAST (listener);
+
+  self->on_hit (ic);
 }
 
 static GumQuickInvocationContext *
@@ -1023,7 +1211,6 @@ static void
 gum_quick_invocation_context_release (GumQuickInvocationContext * self)
 {
   JS_FreeValue (self->interceptor->core->ctx, self->wrapper);
-  self->wrapper = JS_NULL;
 }
 
 void
@@ -1035,10 +1222,8 @@ _gum_quick_invocation_context_reset (GumQuickInvocationContext * self,
   if (self->cpu_context != NULL)
   {
     _gum_quick_cpu_context_make_read_only (self->cpu_context);
+    JS_FreeValue (self->interceptor->core->ctx, self->cpu_context->wrapper);
     self->cpu_context = NULL;
-
-    JS_SetPropertyStr (self->interceptor->core->ctx, self->wrapper, "$cc",
-        JS_NULL);
   }
 }
 
