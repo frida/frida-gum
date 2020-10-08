@@ -3473,10 +3473,8 @@ gum_quick_native_callback_invoke (ffi_cif * cif,
   ffi_type * rtype = cif->rtype;
   GumFFIValue * retval = return_value;
   guint i;
-#if 0
   GumInvocationContext * ic;
   GumQuickInvocationContext * jic = NULL;
-#endif
   JSValue this_obj;
   int argc;
   JSValue * argv;
@@ -3494,16 +3492,15 @@ gum_quick_native_callback_invoke (ffi_cif * cif,
     retval->v_pointer = NULL;
   }
 
-#if 0
   ic = gum_interceptor_get_current_invocation ();
   if (ic != NULL)
   {
     jic = _gum_quick_interceptor_obtain_invocation_context (core->interceptor);
     _gum_quick_invocation_context_reset (jic, ic);
-    quick_push_heapptr (ctx, jic->object);
+
+    this_obj = jic->wrapper;
   }
   else
-#endif
   {
     this_obj = JS_UNDEFINED;
   }
@@ -3519,13 +3516,11 @@ gum_quick_native_callback_invoke (ffi_cif * cif,
   for (i = 0; i != argc; i++)
     JS_FreeValue (ctx, argv[i]);
 
-#if 0
   if (jic != NULL)
   {
     _gum_quick_invocation_context_reset (jic, NULL);
     _gum_quick_interceptor_release_invocation_context (core->interceptor, jic);
   }
-#endif
 
   if (!JS_IsException (result) && cif->rtype != &ffi_type_void)
   {
