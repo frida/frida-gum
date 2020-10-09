@@ -21,7 +21,9 @@
 #include "gumquickinterceptor.h"
 #if 0
 #include "gumquickkernel.h"
+#endif
 #include "gumquickmemory.h"
+#if 0
 #include "gumquickmodule.h"
 #include "gumquickprocess.h"
 #endif
@@ -65,7 +67,9 @@ struct _GumQuickScript
   GumQuickCore core;
 #if 0
   GumQuickKernel kernel;
+#endif
   GumQuickMemory memory;
+#if 0
   GumQuickModule module;
   GumQuickProcess process;
   GumQuickThread thread;
@@ -399,7 +403,9 @@ gum_quick_script_create_context (GumQuickScript * self,
 
 #if 0
   _gum_quick_kernel_init (&self->kernel, core);
-  _gum_quick_memory_init (&self->memory, core);
+#endif
+  _gum_quick_memory_init (&self->memory, global_obj, core);
+#if 0
   _gum_quick_module_init (&self->module, core);
   _gum_quick_process_init (&self->process, &self->module, core);
   _gum_quick_thread_init (&self->thread, core);
@@ -466,7 +472,9 @@ gum_quick_script_destroy_context (GumQuickScript * self)
     _gum_quick_thread_dispose (&self->thread);
     _gum_quick_process_dispose (&self->process);
     _gum_quick_module_dispose (&self->module);
+#endif
     _gum_quick_memory_dispose (&self->memory);
+#if 0
     _gum_quick_kernel_dispose (&self->kernel);
 #endif
     _gum_quick_core_dispose (core);
@@ -509,7 +517,9 @@ gum_quick_script_destroy_context (GumQuickScript * self)
   _gum_quick_thread_finalize (&self->thread);
   _gum_quick_process_finalize (&self->process);
   _gum_quick_module_finalize (&self->module);
+#endif
   _gum_quick_memory_finalize (&self->memory);
+#if 0
   _gum_quick_kernel_finalize (&self->kernel);
 #endif
   _gum_quick_core_finalize (core);

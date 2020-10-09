@@ -128,7 +128,6 @@ Object.defineProperties(engine, {
   },
 });
 
-/*
 const pointerPrototype = NativePointer.prototype;
 
 Object.keys(Memory)
@@ -152,7 +151,6 @@ function makePointerWriteMethod(write) {
     return this;
   };
 }
-*/
 
 [
   Int64,
@@ -185,6 +183,7 @@ if (Script.runtime === 'DUK') {
 makeEnumerateApi(Kernel, 'enumerateModules', 0);
 makeEnumerateRanges(Kernel);
 makeEnumerateApi(Kernel, 'enumerateModuleRanges', 2);
+*/
 
 Object.defineProperties(Memory, {
   dup: {
@@ -204,6 +203,7 @@ Object.defineProperties(Memory, {
   },
 });
 
+/*
 makeEnumerateApi(Module, 'enumerateImports', 1);
 makeEnumerateApi(Module, 'enumerateExports', 1);
 makeEnumerateApi(Module, 'enumerateSymbols', 1);
@@ -387,14 +387,14 @@ Object.defineProperties(Interceptor, {
   attach: {
     enumerable: true,
     value: function (target, callbacks, data) {
-      //Memory._checkCodePointer(target);
+      Memory._checkCodePointer(target);
       return Interceptor._attach(target, callbacks, data);
     }
   },
   replace: {
     enumerable: true,
     value: function (target, replacement, data) {
-      //Memory._checkCodePointer(target);
+      Memory._checkCodePointer(target);
       Interceptor._replace(target, replacement, data);
     }
   },
