@@ -42,7 +42,8 @@
 
 typedef guint GumScriptState;
 typedef struct _GumUnloadNotifyCallback GumUnloadNotifyCallback;
-typedef void (* GumUnloadNotifyFunc) (GumQuickScript * self, gpointer user_data);
+typedef void (* GumUnloadNotifyFunc) (GumQuickScript * self,
+    gpointer user_data);
 typedef struct _GumEmitData GumEmitData;
 typedef struct _GumPostData GumPostData;
 
