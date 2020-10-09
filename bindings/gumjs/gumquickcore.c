@@ -1326,28 +1326,50 @@ _gum_quick_scope_catch_and_emit (GumQuickScope * self)
 void
 _gum_quick_scope_perform_pending_io (GumQuickScope * self)
 {
-  JSContext * ctx = self->core->ctx;
-  JSValue * tick_callback;
-  GSource * source;
+  GumQuickCore * core = self->core;
+  JSContext * ctx = core->ctx;
+  gboolean io_performed;
 
-  while ((tick_callback = g_queue_pop_head (&self->tick_callbacks)) != NULL)
+  do
   {
-    _gum_quick_scope_call_void (self, *tick_callback, JS_UNDEFINED, 0, NULL);
+    JSContext * pctx;
+    JSValue * tick_callback;
+    GSource * source;
 
-    JS_FreeValue (ctx, *tick_callback);
-    g_slice_free (JSValue, tick_callback);
-  }
+    io_performed = FALSE;
 
-  while ((source = g_queue_pop_head (&self->scheduled_sources)) != NULL)
-  {
-    if (!g_source_is_destroyed (source))
+    do
     {
-      g_source_attach (source,
-          gum_script_scheduler_get_js_context (self->core->scheduler));
+      int res = JS_ExecutePendingJob (core->rt, &pctx);
+      if (res == -1)
+        _gum_quick_scope_catch_and_emit (self);
+    }
+    while (pctx != NULL);
+
+    while ((tick_callback = g_queue_pop_head (&self->tick_callbacks)) != NULL)
+    {
+      _gum_quick_scope_call_void (self, *tick_callback, JS_UNDEFINED, 0, NULL);
+
+      JS_FreeValue (ctx, *tick_callback);
+      g_slice_free (JSValue, tick_callback);
+
+      io_performed = TRUE;
     }
 
-    g_source_unref (source);
+    while ((source = g_queue_pop_head (&self->scheduled_sources)) != NULL)
+    {
+      if (!g_source_is_destroyed (source))
+      {
+        g_source_attach (source,
+            gum_script_scheduler_get_js_context (core->scheduler));
+      }
+
+      g_source_unref (source);
+
+      io_performed = TRUE;
+    }
   }
+  while (io_performed);
 }
 
 void
