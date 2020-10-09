@@ -13,58 +13,58 @@
 #include <gum/gum-heap.h>
 #include <gum/gum-prof.h>
 
-#define TESTLIST_BEGIN(NAME)                                              \
-  void test_ ##NAME## _add_tests (gpointer fixture_data)                  \
-  {                                                                       \
-    const gchar * group = "/";
-#define TESTLIST_END()                                                    \
-  }
+#define TESTLIST_BEGIN(NAME)                                                \
+    void test_ ##NAME## _add_tests (gpointer fixture_data)                  \
+    {                                                                       \
+      const gchar * group = "/";
+#define TESTLIST_END()                                                      \
+    }
 
-#define TESTENTRY_SIMPLE(NAME, PREFIX, FUNC)                              \
-  G_STMT_START                                                            \
-  {                                                                       \
-    gchar * path;                                                         \
-    extern void PREFIX## _ ##FUNC (void);                                 \
-                                                                          \
-    path = g_strconcat ("/" NAME, group, #FUNC, NULL);                    \
-                                                                          \
-    g_test_add_func (path, PREFIX## _ ##FUNC);                            \
-                                                                          \
-    g_free (path);                                                        \
-  }                                                                       \
-  G_STMT_END;
-#define TESTENTRY_WITH_FIXTURE(NAME, PREFIX, FUNC, STRUCT)                \
-  G_STMT_START                                                            \
-  {                                                                       \
-    gchar * path;                                                         \
-    extern void PREFIX## _ ##FUNC (STRUCT * fixture, gconstpointer data); \
-                                                                          \
-    path = g_strconcat ("/" NAME, group, #FUNC, NULL);                    \
-                                                                          \
-    g_test_add (path,                                                     \
-        STRUCT,                                                           \
-        fixture_data,                                                     \
-        PREFIX## _fixture_setup,                                          \
-        PREFIX## _ ##FUNC,                                                \
-        PREFIX## _fixture_teardown);                                      \
-                                                                          \
-    g_free (path);                                                        \
-  }                                                                       \
-  G_STMT_END;
+#define TESTENTRY_SIMPLE(NAME, PREFIX, FUNC)                                \
+    G_STMT_START                                                            \
+    {                                                                       \
+      gchar * path;                                                         \
+      extern void PREFIX## _ ##FUNC (void);                                 \
+                                                                            \
+      path = g_strconcat ("/" NAME, group, #FUNC, NULL);                    \
+                                                                            \
+      g_test_add_func (path, PREFIX## _ ##FUNC);                            \
+                                                                            \
+      g_free (path);                                                        \
+    }                                                                       \
+    G_STMT_END;
+#define TESTENTRY_WITH_FIXTURE(NAME, PREFIX, FUNC, STRUCT)                  \
+    G_STMT_START                                                            \
+    {                                                                       \
+      gchar * path;                                                         \
+      extern void PREFIX## _ ##FUNC (STRUCT * fixture, gconstpointer data); \
+                                                                            \
+      path = g_strconcat ("/" NAME, group, #FUNC, NULL);                    \
+                                                                            \
+      g_test_add (path,                                                     \
+          STRUCT,                                                           \
+          fixture_data,                                                     \
+          PREFIX## _fixture_setup,                                          \
+          PREFIX## _ ##FUNC,                                                \
+          PREFIX## _fixture_teardown);                                      \
+                                                                            \
+      g_free (path);                                                        \
+    }                                                                       \
+    G_STMT_END;
 
-#define TESTGROUP_BEGIN(NAME)                                             \
+#define TESTGROUP_BEGIN(NAME)                                               \
     group = "/" NAME "/";
-#define TESTGROUP_END()                                                   \
+#define TESTGROUP_END()                                                     \
     group = "/";
 
 #define TESTLIST_REGISTER(NAME) TESTLIST_REGISTER_WITH_DATA (NAME, NULL)
-#define TESTLIST_REGISTER_WITH_DATA(NAME, FIXTURE_DATA)                   \
-  G_STMT_START                                                            \
-  {                                                                       \
-    extern void test_ ##NAME## _add_tests (gpointer fixture_data);        \
-    test_ ##NAME## _add_tests (FIXTURE_DATA);                             \
-  }                                                                       \
-  G_STMT_END
+#define TESTLIST_REGISTER_WITH_DATA(NAME, FIXTURE_DATA)                     \
+    G_STMT_START                                                            \
+    {                                                                       \
+      extern void test_ ##NAME## _add_tests (gpointer fixture_data);        \
+      test_ ##NAME## _add_tests (FIXTURE_DATA);                             \
+    }                                                                       \
+    G_STMT_END
 
 #define GUM_ASSERT_CMPADDR(n1, cmp, n2) \
     g_assert_cmphex (GPOINTER_TO_SIZE (n1), cmp, GPOINTER_TO_SIZE (n2))

@@ -23,7 +23,7 @@
 /*
  * History
  *
- * 2014-05-01 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com> for frida-gum:
+ * 2014-05-01 Ole André Vadla Ravnås <oleavr@nowsecure.com> for frida-gum:
  *
  *   - Use frida-gum's memory allocator
  *   - Drop locale support

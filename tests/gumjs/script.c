@@ -248,7 +248,8 @@ TESTLIST_BEGIN (script)
     TESTENTRY (native_function_crash_results_in_exception)
     TESTENTRY (nested_native_function_crash_is_handled_gracefully)
     TESTENTRY (variadic_native_function_can_be_invoked)
-    TESTENTRY (variadic_native_function_args_smaller_than_int_should_be_promoted)
+    TESTENTRY (
+        variadic_native_function_args_smaller_than_int_should_be_promoted)
     TESTENTRY (variadic_native_function_float_args_should_be_promoted_to_double)
     TESTENTRY (native_function_is_a_native_pointer)
   TESTGROUP_END ()
@@ -1431,14 +1432,14 @@ TESTCASE (native_callback_memory_should_be_eagerly_reclaimed)
 #ifdef G_OS_UNIX
 
 #define GUM_TEMP_FAILURE_RETRY(expression) \
-  ({ \
-    gssize __result; \
-    \
-    do __result = (gssize) (expression); \
-    while (__result == -EINTR); \
-    \
-    __result; \
-  })
+    ({ \
+      gssize __result; \
+      \
+      do __result = (gssize) (expression); \
+      while (__result == -EINTR); \
+      \
+      __result; \
+    })
 
 TESTCASE (unix_fd_can_be_read_from)
 {

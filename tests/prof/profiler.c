@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -172,9 +172,11 @@ REPORT_TESTCASE (xml_loop)
   assert_same_xml (fixture,
       "<ProfileReport>"
         "<Thread>"
-          "<Node name=\"example_cyclic_a\" total_calls=\"2\" total_duration=\"4\">"
+          "<Node name=\"example_cyclic_a\" total_calls=\"2\" "
+              "total_duration=\"4\">"
             "<WorstCase duration=\"4\"></WorstCase>"
-            "<Node name=\"example_cyclic_b\" total_calls=\"1\" total_duration=\"3\">"
+            "<Node name=\"example_cyclic_b\" total_calls=\"1\" "
+                "total_duration=\"3\">"
               "<WorstCase duration=\"3\"></WorstCase>"
             "</Node>"
           "</Node>"
@@ -192,15 +194,19 @@ REPORT_TESTCASE (xml_loop_implicit)
   assert_same_xml (fixture,
       "<ProfileReport>"
         "<Thread>"
-          "<Node name=\"example_cyclic_b\" total_calls=\"2\" total_duration=\"6\">"
+          "<Node name=\"example_cyclic_b\" total_calls=\"2\" "
+              "total_duration=\"6\">"
             "<WorstCase duration=\"3\"></WorstCase>"
-            "<Node name=\"example_cyclic_a\" total_calls=\"3\" total_duration=\"5\">"
+            "<Node name=\"example_cyclic_a\" total_calls=\"3\" "
+                "total_duration=\"5\">"
               "<WorstCase duration=\"4\"></WorstCase>"
             "</Node>"
           "</Node>"
-          "<Node name=\"example_cyclic_a\" total_calls=\"3\" total_duration=\"5\">"
+          "<Node name=\"example_cyclic_a\" total_calls=\"3\" "
+              "total_duration=\"5\">"
             "<WorstCase duration=\"4\"></WorstCase>"
-            "<Node name=\"example_cyclic_b\" total_calls=\"2\" total_duration=\"6\">"
+            "<Node name=\"example_cyclic_b\" total_calls=\"2\" "
+                "total_duration=\"6\">"
               "<WorstCase duration=\"3\"></WorstCase>"
             "</Node>"
           "</Node>"
@@ -250,7 +256,8 @@ REPORT_TESTCASE (xml_worst_case_info)
   assert_same_xml (fixture,
       "<ProfileReport>"
         "<Thread>"
-          "<Node name=\"example_worst_case_info\" total_calls=\"3\" total_duration=\"6\">"
+          "<Node name=\"example_worst_case_info\" total_calls=\"3\" "
+              "total_duration=\"6\">"
             "<WorstCase duration=\"3\">mid</WorstCase>"
           "</Node>"
         "</Thread>"

@@ -10,129 +10,129 @@
 #include "gumdukvalue.h"
 
 #define GUMJS_DECLARE_CONSTRUCTOR(N) \
-  static int N (duk_context * ctx);
+    static int N (duk_context * ctx);
 #define GUMJS_DECLARE_FINALIZER(N) \
-  static int N (duk_context * ctx);
+    static int N (duk_context * ctx);
 #define GUMJS_DECLARE_FUNCTION(N) \
-  static int N (duk_context * ctx);
+    static int N (duk_context * ctx);
 #define GUMJS_DECLARE_GETTER(N) \
-  static int N (duk_context * ctx);
+    static int N (duk_context * ctx);
 #define GUMJS_DECLARE_SETTER(N) \
-  static int N (duk_context * ctx);
+    static int N (duk_context * ctx);
 
 #define GUMJS_DEFINE_CONSTRUCTOR(N) \
-  static int N##_impl (duk_context * ctx, const GumDukArgs * args); \
-  \
-  static int \
-  N (duk_context * ctx) \
-  { \
-    GumDukArgs args; \
+    static int N##_impl (duk_context * ctx, const GumDukArgs * args); \
     \
-    args.count = duk_get_top (ctx); \
+    static int \
+    N (duk_context * ctx) \
+    { \
+      GumDukArgs args; \
+      \
+      args.count = duk_get_top (ctx); \
+      \
+      args.ctx = ctx; \
+      \
+      duk_get_global_string (ctx, DUK_HIDDEN_SYMBOL ("core")); \
+      args.core = duk_get_pointer (ctx, -1); \
+      duk_pop (ctx); \
+      \
+      return N##_impl (ctx, &args); \
+    } \
     \
-    args.ctx = ctx; \
-    \
-    duk_get_global_string (ctx, DUK_HIDDEN_SYMBOL ("core")); \
-    args.core = duk_get_pointer (ctx, -1); \
-    duk_pop (ctx); \
-    \
-    return N##_impl (ctx, &args); \
-  } \
-  \
-  static int \
-  N##_impl (duk_context * ctx, \
-            const GumDukArgs * args)
+    static int \
+    N##_impl (duk_context * ctx, \
+              const GumDukArgs * args)
 #define GUMJS_DEFINE_FINALIZER(N) \
-  static int N##_impl (duk_context * ctx, const GumDukArgs * args); \
-  \
-  static int \
-  N (duk_context * ctx) \
-  { \
-    GumDukArgs args; \
+    static int N##_impl (duk_context * ctx, const GumDukArgs * args); \
     \
-    args.count = duk_get_top (ctx); \
+    static int \
+    N (duk_context * ctx) \
+    { \
+      GumDukArgs args; \
+      \
+      args.count = duk_get_top (ctx); \
+      \
+      args.ctx = ctx; \
+      \
+      duk_get_global_string (ctx, DUK_HIDDEN_SYMBOL ("core")); \
+      args.core = duk_get_pointer (ctx, -1); \
+      duk_pop (ctx); \
+      \
+      return N##_impl (ctx, &args); \
+    } \
     \
-    args.ctx = ctx; \
-    \
-    duk_get_global_string (ctx, DUK_HIDDEN_SYMBOL ("core")); \
-    args.core = duk_get_pointer (ctx, -1); \
-    duk_pop (ctx); \
-    \
-    return N##_impl (ctx, &args); \
-  } \
-  \
-  static int \
-  N##_impl (duk_context * ctx, \
-            const GumDukArgs * args)
+    static int \
+    N##_impl (duk_context * ctx, \
+              const GumDukArgs * args)
 #define GUMJS_DEFINE_FUNCTION(N) \
-  static int N##_impl (duk_context * ctx, const GumDukArgs * args); \
-  \
-  static int \
-  N (duk_context * ctx) \
-  { \
-    GumDukArgs args; \
+    static int N##_impl (duk_context * ctx, const GumDukArgs * args); \
     \
-    args.count = duk_get_top (ctx); \
+    static int \
+    N (duk_context * ctx) \
+    { \
+      GumDukArgs args; \
+      \
+      args.count = duk_get_top (ctx); \
+      \
+      args.ctx = ctx; \
+      \
+      duk_get_global_string (ctx, DUK_HIDDEN_SYMBOL ("core")); \
+      args.core = duk_get_pointer (ctx, -1); \
+      duk_pop (ctx); \
+      \
+      return N##_impl (ctx, &args); \
+    } \
     \
-    args.ctx = ctx; \
-    \
-    duk_get_global_string (ctx, DUK_HIDDEN_SYMBOL ("core")); \
-    args.core = duk_get_pointer (ctx, -1); \
-    duk_pop (ctx); \
-    \
-    return N##_impl (ctx, &args); \
-  } \
-  \
-  static int \
-  N##_impl (duk_context * ctx, \
-            const GumDukArgs * args)
+    static int \
+    N##_impl (duk_context * ctx, \
+              const GumDukArgs * args)
 #define GUMJS_DEFINE_GETTER(N) \
-  static int N##_impl (duk_context * ctx, const GumDukArgs * args); \
-  \
-  static int \
-  N (duk_context * ctx) \
-  { \
-    GumDukArgs args; \
+    static int N##_impl (duk_context * ctx, const GumDukArgs * args); \
     \
-    args.count = duk_get_top (ctx); \
+    static int \
+    N (duk_context * ctx) \
+    { \
+      GumDukArgs args; \
+      \
+      args.count = duk_get_top (ctx); \
+      \
+      args.ctx = ctx; \
+      \
+      duk_get_global_string (ctx, DUK_HIDDEN_SYMBOL ("core")); \
+      args.core = duk_get_pointer (ctx, -1); \
+      duk_pop (ctx); \
+      \
+      return N##_impl (ctx, &args); \
+    } \
     \
-    args.ctx = ctx; \
-    \
-    duk_get_global_string (ctx, DUK_HIDDEN_SYMBOL ("core")); \
-    args.core = duk_get_pointer (ctx, -1); \
-    duk_pop (ctx); \
-    \
-    return N##_impl (ctx, &args); \
-  } \
-  \
-  static int \
-  N##_impl (duk_context * ctx, \
-            const GumDukArgs * args)
+    static int \
+    N##_impl (duk_context * ctx, \
+              const GumDukArgs * args)
 #define GUMJS_DEFINE_SETTER(N) \
-  static int N##_impl (duk_context * ctx, const GumDukArgs * args); \
-  \
-  static int \
-  N (duk_context * ctx) \
-  { \
-    GumDukArgs args; \
+    static int N##_impl (duk_context * ctx, const GumDukArgs * args); \
     \
-    args.count = duk_get_top (ctx); \
+    static int \
+    N (duk_context * ctx) \
+    { \
+      GumDukArgs args; \
+      \
+      args.count = duk_get_top (ctx); \
+      \
+      args.ctx = ctx; \
+      \
+      duk_get_global_string (ctx, DUK_HIDDEN_SYMBOL ("core")); \
+      args.core = duk_get_pointer (ctx, -1); \
+      duk_pop (ctx); \
+      \
+      return N##_impl (ctx, &args); \
+    } \
     \
-    args.ctx = ctx; \
-    \
-    duk_get_global_string (ctx, DUK_HIDDEN_SYMBOL ("core")); \
-    args.core = duk_get_pointer (ctx, -1); \
-    duk_pop (ctx); \
-    \
-    return N##_impl (ctx, &args); \
-  } \
-  \
-  static int \
-  N##_impl (duk_context * ctx, \
-            const GumDukArgs * args)
+    static int \
+    N##_impl (duk_context * ctx, \
+              const GumDukArgs * args)
 
 #define GUMJS_ADD_GLOBAL_FUNCTION(N, F, NARGS) \
-  duk_push_c_function (ctx, F, NARGS); \
-  duk_put_global_string (ctx, N)
+    duk_push_c_function (ctx, F, NARGS); \
+    duk_put_global_string (ctx, N)
 
 #endif

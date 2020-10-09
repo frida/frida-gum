@@ -79,19 +79,20 @@ TESTCASE (binary_diff)
 {
   const guint8 expected_bytes[] = { 0x48, 0x8b, 0x40, 0x07 };
   const guint8 bad_bytes[] = { 0x4c, 0x8b, 0x40, 0x07 };
-  const gchar * expected_diff = "In hex:\n"
-                                "-------\n"
-                                "\n"
-                                "48 8b 40 07  <-- Expected\n"
-                                " #\n"
-                                "4c 8b 40 07  <-- Wrong\n"
-                                "\n"
-                                "In binary:\n"
-                                "----------\n"
-                                "\n"
-                                "0100 1000  1000 1011  0100 0000  0000 0111  <-- Expected\n"
-                                "      #\n"
-                                "0100 1100  1000 1011  0100 0000  0000 0111  <-- Wrong\n";
+  const gchar * expected_diff =
+      "In hex:\n"
+      "-------\n"
+      "\n"
+      "48 8b 40 07  <-- Expected\n"
+      " #\n"
+      "4c 8b 40 07  <-- Wrong\n"
+      "\n"
+      "In binary:\n"
+      "----------\n"
+      "\n"
+      "0100 1000  1000 1011  0100 0000  0000 0111  <-- Expected\n"
+      "      #\n"
+      "0100 1100  1000 1011  0100 0000  0000 0111  <-- Wrong\n";
   gchar * diff;
 
   diff = test_util_diff_binary (expected_bytes, sizeof (expected_bytes),

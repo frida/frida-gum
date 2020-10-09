@@ -11,9 +11,9 @@
 G_BEGIN_DECLS
 
 #define TESTCASE(NAME) \
-  void test_gumpp_backtracer_ ## NAME (void)
+    void test_gumpp_backtracer_ ## NAME (void)
 #define TESTENTRY(NAME) \
-  TESTENTRY_SIMPLE ("Gum++/Backtracer", test_gumpp_backtracer, NAME)
+    TESTENTRY_SIMPLE ("Gum++/Backtracer", test_gumpp_backtracer, NAME)
 
 TESTLIST_BEGIN (gumpp_backtracer)
   TESTENTRY (can_get_stack_trace_from_invocation_context)

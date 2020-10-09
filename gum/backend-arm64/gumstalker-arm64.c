@@ -1285,22 +1285,22 @@ static gboolean counters_enabled = FALSE;
 static guint total_transitions = 0;
 
 #define GUM_ENTRYGATE(name) \
-  gum_exec_ctx_replace_current_block_from_##name
+    gum_exec_ctx_replace_current_block_from_##name
 #define GUM_DEFINE_ENTRYGATE(name) \
-  static guint total_##name##s = 0; \
-  \
-  static gpointer GUM_THUNK \
-  GUM_ENTRYGATE (name) ( \
-      GumExecCtx * ctx, \
-      gpointer start_address) \
-  { \
-    if (counters_enabled) \
-      total_##name##s++; \
+    static guint total_##name##s = 0; \
     \
-    return gum_exec_ctx_replace_current_block_with (ctx, start_address); \
-  }
+    static gpointer GUM_THUNK \
+    GUM_ENTRYGATE (name) ( \
+        GumExecCtx * ctx, \
+        gpointer start_address) \
+    { \
+      if (counters_enabled) \
+        total_##name##s++; \
+      \
+      return gum_exec_ctx_replace_current_block_with (ctx, start_address); \
+    }
 #define GUM_PRINT_ENTRYGATE_COUNTER(name) \
-  g_printerr ("\t" G_STRINGIFY (name) "s: %u\n", total_##name##s)
+    g_printerr ("\t" G_STRINGIFY (name) "s: %u\n", total_##name##s)
 
 GUM_DEFINE_ENTRYGATE (call_imm)
 GUM_DEFINE_ENTRYGATE (call_reg)

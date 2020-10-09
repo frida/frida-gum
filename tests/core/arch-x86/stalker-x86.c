@@ -1743,15 +1743,15 @@ TESTCASE (indirect_jump_with_immediate)
 TESTCASE (indirect_jump_with_immediate_and_scaled_register)
 {
   guint8 code[] = {
-      0x90, 0xbe, 0x00, 0x00, 0x00, 0x00,       /* mov xsi, addr                    */
+      0x90, 0xbe, 0x00, 0x00, 0x00, 0x00, /* mov xsi, addr           */
                   0x90, 0x90, 0x90, 0x90,
-      0x90, 0xb8, 0x03, 0x00, 0x00, 0x00,       /* mov xax, 3                       */
+      0x90, 0xb8, 0x03, 0x00, 0x00, 0x00, /* mov xax, 3              */
                   0x90, 0x90, 0x90, 0x90,
-      0xff, 0x64, 0x86, 0xf9,                   /* jmp [xsi + xax * 4 - 7]          */
-      0xcc,                                     /* int3                             */
+      0xff, 0x64, 0x86, 0xf9,             /* jmp [xsi + xax * 4 - 7] */
+      0xcc,                               /* int3                    */
 
-      0xb8, 0x39, 0x05, 0x00, 0x00,             /* mov eax, 1337                    */
-      0xc3,                                     /* ret                              */
+      0xb8, 0x39, 0x05, 0x00, 0x00,       /* mov eax, 1337           */
+      0xc3,                               /* ret                     */
   };
   JumpTemplate jump_template = { 0, };
 
@@ -1945,7 +1945,8 @@ TESTCASE (big_block)
 
 typedef struct _TestWindow TestWindow;
 
-typedef void (* TestWindowMessageHandler) (TestWindow * window, gpointer user_data);
+typedef void (* TestWindowMessageHandler) (TestWindow * window,
+    gpointer user_data);
 
 struct _TestWindow
 {
@@ -1975,22 +1976,25 @@ invoke_indirect_call_seg (TestStalkerFixture * fixture,
                           GumEventType mask)
 {
   const guint8 code_template[] = {
-      0x64, 0xff, 0x35, 0x00, 0x07, 0x00, 0x00, /* push dword [dword fs:0x700] */
-                                                /* mov dword [dword fs:0x700], <addr> */
-      0x64, 0xc7, 0x05, 0x00, 0x07, 0x00, 0x00, 0xaa, 0xbb, 0xcc, 0xdd,
+      0x64, 0xff, 0x35,                   /* push dword [dword fs:0x700] */
+          0x00, 0x07, 0x00, 0x00,
+      0x64, 0xc7, 0x05,                   /* mov dword [dword fs:0x700], */
+          0x00, 0x07, 0x00, 0x00,         /*     <addr>                  */
+          0xaa, 0xbb, 0xcc, 0xdd,
 
-      0x64, 0xff, 0x15, 0x00, 0x07, 0x00, 0x00, /* call fs:700h                */
+      0x64, 0xff, 0x15,                   /* call fs:700h                */
+          0x00, 0x07, 0x00, 0x00,
 
-      0x50,                                     /* push eax                    */
-      0x8b, 0x44, 0x24, 0x04,                   /* mov eax, [esp+0x4]          */
-      0x64, 0xa3, 0x00, 0x07, 0x00, 0x00,       /* mov [fs:0x700],eax          */
-      0x58,                                     /* pop eax                     */
-      0x81, 0xc4, 0x04, 0x00, 0x00, 0x00,       /* add esp, 0x4                */
+      0x50,                               /* push eax                    */
+      0x8b, 0x44, 0x24, 0x04,             /* mov eax, [esp+0x4]          */
+      0x64, 0xa3, 0x00, 0x07, 0x00, 0x00, /* mov [fs:0x700],eax          */
+      0x58,                               /* pop eax                     */
+      0x81, 0xc4, 0x04, 0x00, 0x00, 0x00, /* add esp, 0x4                */
 
-      0xc3,                                     /* ret                         */
+      0xc3,                               /* ret                         */
 
-      0xb8, 0xbe, 0xba, 0xfe, 0xca,             /* mov eax, 0xcafebabe         */
-      0xc3,                                     /* ret                         */
+      0xb8, 0xbe, 0xba, 0xfe, 0xca,       /* mov eax, 0xcafebabe         */
+      0xc3,                               /* ret                         */
   };
   guint8 * code;
   StalkerTestFunc func;

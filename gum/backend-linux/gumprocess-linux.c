@@ -75,14 +75,14 @@
 #endif
 
 #define GUM_TEMP_FAILURE_RETRY(expression) \
-  ({ \
-    gssize __result; \
-    \
-    do __result = (gssize) (expression); \
-    while (__result == -EINTR); \
-    \
-    __result; \
-  })
+    ({ \
+      gssize __result; \
+      \
+      do __result = (gssize) (expression); \
+      while (__result == -EINTR); \
+      \
+      __result; \
+    })
 
 typedef struct _GumModifyThreadContext GumModifyThreadContext;
 typedef guint8 GumModifyThreadAck;

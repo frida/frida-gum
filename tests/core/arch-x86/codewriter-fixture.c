@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2009-2010 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -89,4 +89,5 @@ static void gum_test_native_function (const gchar * arg1, const gchar * arg2,
     const gchar * arg3, const gchar * arg4);
 #endif
 
-#define assert_output_equals(e) test_code_writer_fixture_assert_output_equals (fixture, e, sizeof (e))
+#define assert_output_equals(e) \
+    test_code_writer_fixture_assert_output_equals (fixture, e, sizeof (e))

@@ -206,9 +206,10 @@ gum_allocation_tracker_new_with_backtracer (GumBacktracer * backtracer)
 }
 
 void
-gum_allocation_tracker_set_filter_function (GumAllocationTracker * self,
-                                            GumAllocationTrackerFilterFunction filter,
-                                            gpointer user_data)
+gum_allocation_tracker_set_filter_function (
+    GumAllocationTracker * self,
+    GumAllocationTrackerFilterFunction filter,
+    gpointer user_data)
 {
   g_assert (g_atomic_int_get (&self->enabled) == FALSE);
 

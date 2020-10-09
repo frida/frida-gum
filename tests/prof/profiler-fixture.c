@@ -181,7 +181,8 @@ assert_same_xml (TestProfileReportFixture * fixture,
     g_string_append (message, diff);
     g_free (diff);
 
-    g_assertion_message (G_LOG_DOMAIN, __FILE__, __LINE__, G_STRFUNC, message->str);
+    g_assertion_message (G_LOG_DOMAIN, __FILE__, __LINE__, G_STRFUNC,
+        message->str);
 
     g_string_free (message, TRUE);
   }

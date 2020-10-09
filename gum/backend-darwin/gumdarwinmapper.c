@@ -32,11 +32,11 @@
 #define GUM_MAPPER_TERM_SIZE                64
 
 #define GUM_CHECK_MACH_RESULT(n1, cmp, n2, op) \
-  if (!(n1 cmp n2)) \
-  { \
-    failed_operation = op; \
-    goto mach_failure; \
-  }
+    if (!(n1 cmp n2)) \
+    { \
+      failed_operation = op; \
+      goto mach_failure; \
+    }
 
 typedef struct _GumDarwinMapping GumDarwinMapping;
 typedef struct _GumDarwinSymbolValue GumDarwinSymbolValue;

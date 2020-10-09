@@ -84,26 +84,26 @@ static gchar * gum_ansi_string_from_utf8 (const gchar * str_utf8);
 #endif
 
 #define GUMJS_DEFINE_MEMORY_READ(T) \
-  GUMJS_DEFINE_FUNCTION (gumjs_memory_read_##T) \
-  { \
-    return gum_duk_memory_read (GUM_MEMORY_VALUE_##T, args); \
-  }
+    GUMJS_DEFINE_FUNCTION (gumjs_memory_read_##T) \
+    { \
+      return gum_duk_memory_read (GUM_MEMORY_VALUE_##T, args); \
+    }
 #define GUMJS_DEFINE_MEMORY_WRITE(T) \
-  GUMJS_DEFINE_FUNCTION (gumjs_memory_write_##T) \
-  { \
-    return gum_duk_memory_write (GUM_MEMORY_VALUE_##T, args); \
-  }
+    GUMJS_DEFINE_FUNCTION (gumjs_memory_write_##T) \
+    { \
+      return gum_duk_memory_write (GUM_MEMORY_VALUE_##T, args); \
+    }
 #define GUMJS_DEFINE_MEMORY_READ_WRITE(T) \
-  GUMJS_DEFINE_MEMORY_READ (T); \
-  GUMJS_DEFINE_MEMORY_WRITE (T)
+    GUMJS_DEFINE_MEMORY_READ (T); \
+    GUMJS_DEFINE_MEMORY_WRITE (T)
 
 #define GUMJS_EXPORT_MEMORY_READ(N, T) \
-  { "read" N, gumjs_memory_read_##T, 2 }
+    { "read" N, gumjs_memory_read_##T, 2 }
 #define GUMJS_EXPORT_MEMORY_WRITE(N, T) \
-  { "write" N, gumjs_memory_write_##T, 2 }
+    { "write" N, gumjs_memory_write_##T, 2 }
 #define GUMJS_EXPORT_MEMORY_READ_WRITE(N, T) \
-  GUMJS_EXPORT_MEMORY_READ (N, T), \
-  GUMJS_EXPORT_MEMORY_WRITE (N, T)
+    GUMJS_EXPORT_MEMORY_READ (N, T), \
+    GUMJS_EXPORT_MEMORY_WRITE (N, T)
 
 GUMJS_DEFINE_MEMORY_READ_WRITE (POINTER)
 GUMJS_DEFINE_MEMORY_READ_WRITE (S8)

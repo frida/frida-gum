@@ -76,26 +76,26 @@ static int gum_duk_kernel_write (GumMemoryValueType type,
     const GumDukArgs * args);
 
 #define GUMJS_DEFINE_MEMORY_READ(T) \
-  GUMJS_DEFINE_FUNCTION (gumjs_kernel_read_##T) \
-  { \
-    return gum_duk_kernel_read (GUM_MEMORY_VALUE_##T, args); \
-  }
+    GUMJS_DEFINE_FUNCTION (gumjs_kernel_read_##T) \
+    { \
+      return gum_duk_kernel_read (GUM_MEMORY_VALUE_##T, args); \
+    }
 #define GUMJS_DEFINE_MEMORY_WRITE(T) \
-  GUMJS_DEFINE_FUNCTION (gumjs_kernel_write_##T) \
-  { \
-    return gum_duk_kernel_write (GUM_MEMORY_VALUE_##T, args); \
-  }
+    GUMJS_DEFINE_FUNCTION (gumjs_kernel_write_##T) \
+    { \
+      return gum_duk_kernel_write (GUM_MEMORY_VALUE_##T, args); \
+    }
 #define GUMJS_DEFINE_MEMORY_READ_WRITE(T) \
-  GUMJS_DEFINE_MEMORY_READ (T); \
-  GUMJS_DEFINE_MEMORY_WRITE (T)
+    GUMJS_DEFINE_MEMORY_READ (T); \
+    GUMJS_DEFINE_MEMORY_WRITE (T)
 
 #define GUMJS_EXPORT_MEMORY_READ(N, T) \
-  { "read" N, gumjs_kernel_read_##T, 2 }
+    { "read" N, gumjs_kernel_read_##T, 2 }
 #define GUMJS_EXPORT_MEMORY_WRITE(N, T) \
-  { "write" N, gumjs_kernel_write_##T, 2 }
+    { "write" N, gumjs_kernel_write_##T, 2 }
 #define GUMJS_EXPORT_MEMORY_READ_WRITE(N, T) \
-  GUMJS_EXPORT_MEMORY_READ (N, T), \
-  GUMJS_EXPORT_MEMORY_WRITE (N, T)
+    GUMJS_EXPORT_MEMORY_READ (N, T), \
+    GUMJS_EXPORT_MEMORY_WRITE (N, T)
 
 GUMJS_DEFINE_MEMORY_READ_WRITE (S8)
 GUMJS_DEFINE_MEMORY_READ_WRITE (U8)
@@ -778,8 +778,8 @@ gum_duk_kernel_write (GumMemoryValueType type,
 
   if (!success)
   {
-    _gum_duk_throw (ctx, "access violation writing to 0x%" G_GINT64_MODIFIER "x",
-        address);
+    _gum_duk_throw (ctx, "access violation writing to 0x%" G_GINT64_MODIFIER
+        "x", address);
   }
 
   return 0;

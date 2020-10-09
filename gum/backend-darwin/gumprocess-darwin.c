@@ -2304,7 +2304,8 @@ gum_darwin_parse_unified_thread_state (const GumDarwinUnifiedThreadState * ts,
 }
 
 static gboolean
-gum_darwin_is_unified_thread_state_valid (const GumDarwinUnifiedThreadState * ts)
+gum_darwin_is_unified_thread_state_valid (
+    const GumDarwinUnifiedThreadState * ts)
 {
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
   return ts->uts.ts32.__eip != 0;

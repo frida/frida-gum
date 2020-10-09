@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -46,15 +46,15 @@ test_allocator_probe_fixture_teardown (TestAllocatorProbeFixture * fixture,
   g_object_unref (fixture->ap);
 }
 
-#define ATTACH_PROBE()                  \
-  gum_allocator_probe_attach_to_apis (fixture->ap, test_util_heap_apis ())
-#define DETACH_PROBE()                  \
-  gum_allocator_probe_detach (fixture->ap)
-#define READ_PROBE_COUNTERS()           \
-    g_object_get (fixture->ap,            \
-        "malloc-count", &malloc_count,    \
-        "realloc-count", &realloc_count,  \
-        "free-count", &free_count,        \
+#define ATTACH_PROBE() \
+    gum_allocator_probe_attach_to_apis (fixture->ap, test_util_heap_apis ())
+#define DETACH_PROBE() \
+    gum_allocator_probe_detach (fixture->ap)
+#define READ_PROBE_COUNTERS()            \
+    g_object_get (fixture->ap,           \
+        "malloc-count", &malloc_count,   \
+        "realloc-count", &realloc_count, \
+        "free-count", &free_count,       \
         NULL);
 
 G_BEGIN_DECLS

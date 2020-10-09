@@ -451,30 +451,30 @@ static const duk_function_list_entry gumjs_system_function_functions[] =
 };
 
 #define GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED(A, R) \
-  GUMJS_DEFINE_GETTER (gumjs_cpu_context_get_##A) \
-  { \
-    GumDukCpuContext * self = gumjs_cpu_context_from_args (args); \
+    GUMJS_DEFINE_GETTER (gumjs_cpu_context_get_##A) \
+    { \
+      GumDukCpuContext * self = gumjs_cpu_context_from_args (args); \
+      \
+      _gum_duk_push_native_pointer (ctx, GSIZE_TO_POINTER (self->handle->R), \
+          args->core); \
+      return 1; \
+    } \
     \
-    _gum_duk_push_native_pointer (ctx, GSIZE_TO_POINTER (self->handle->R), \
-        args->core); \
-    return 1; \
-  } \
-  \
-  GUMJS_DEFINE_SETTER (gumjs_cpu_context_set_##A) \
-  { \
-    GumDukCpuContext * self = gumjs_cpu_context_from_args (args); \
-    \
-    gumjs_cpu_context_set_register (self, ctx, args, \
-        (gpointer *) &self->handle->R); \
-    return 0; \
-  }
+    GUMJS_DEFINE_SETTER (gumjs_cpu_context_set_##A) \
+    { \
+      GumDukCpuContext * self = gumjs_cpu_context_from_args (args); \
+      \
+      gumjs_cpu_context_set_register (self, ctx, args, \
+          (gpointer *) &self->handle->R); \
+      return 0; \
+    }
 #define GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR(R) \
-  GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (R, R)
+    GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (R, R)
 
 #define GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR_ALIASED(A, R) \
-  { G_STRINGIFY (A), gumjs_cpu_context_get_##R, gumjs_cpu_context_set_##R }
+    { G_STRINGIFY (A), gumjs_cpu_context_get_##R, gumjs_cpu_context_set_##R }
 #define GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR(R) \
-  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR_ALIASED (R, R)
+    GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR_ALIASED (R, R)
 
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
 GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (eax)
@@ -1938,19 +1938,19 @@ GUMJS_DEFINE_FINALIZER (gumjs_int64_finalize)
 }
 
 #define GUM_DEFINE_INT64_OP_IMPL(name, op) \
-  GUMJS_DEFINE_FUNCTION (gumjs_int64_##name) \
-  { \
-    gint64 lhs, rhs, result; \
-    \
-    lhs = gumjs_int64_from_args (args); \
-    \
-    _gum_duk_args_parse (args, "q~", &rhs); \
-    \
-    result = lhs op rhs; \
-    \
-    _gum_duk_push_int64 (ctx, result, args->core); \
-    return 1; \
-  }
+    GUMJS_DEFINE_FUNCTION (gumjs_int64_##name) \
+    { \
+      gint64 lhs, rhs, result; \
+      \
+      lhs = gumjs_int64_from_args (args); \
+      \
+      _gum_duk_args_parse (args, "q~", &rhs); \
+      \
+      result = lhs op rhs; \
+      \
+      _gum_duk_push_int64 (ctx, result, args->core); \
+      return 1; \
+    }
 
 GUM_DEFINE_INT64_OP_IMPL (add, +)
 GUM_DEFINE_INT64_OP_IMPL (sub, -)
@@ -1961,17 +1961,17 @@ GUM_DEFINE_INT64_OP_IMPL (shr, >>)
 GUM_DEFINE_INT64_OP_IMPL (shl, <<)
 
 #define GUM_DEFINE_INT64_UNARY_OP_IMPL(name, op) \
-  GUMJS_DEFINE_FUNCTION (gumjs_int64_##name) \
-  { \
-    gint64 value, result; \
-    \
-    value = gumjs_int64_from_args (args); \
-    \
-    result = op value; \
-    \
-    _gum_duk_push_int64 (ctx, result, args->core); \
-    return 1; \
-  }
+    GUMJS_DEFINE_FUNCTION (gumjs_int64_##name) \
+    { \
+      gint64 value, result; \
+      \
+      value = gumjs_int64_from_args (args); \
+      \
+      result = op value; \
+      \
+      _gum_duk_push_int64 (ctx, result, args->core); \
+      return 1; \
+    }
 
 GUM_DEFINE_INT64_UNARY_OP_IMPL (not, ~)
 
@@ -2086,19 +2086,19 @@ GUMJS_DEFINE_FINALIZER (gumjs_uint64_finalize)
 }
 
 #define GUM_DEFINE_UINT64_OP_IMPL(name, op) \
-  GUMJS_DEFINE_FUNCTION (gumjs_uint64_##name) \
-  { \
-    guint64 lhs, rhs, result; \
-    \
-    lhs = gumjs_uint64_from_args (args); \
-    \
-    _gum_duk_args_parse (args, "Q~", &rhs); \
-    \
-    result = lhs op rhs; \
-    \
-    _gum_duk_push_uint64 (ctx, result, args->core); \
-    return 1; \
-  }
+    GUMJS_DEFINE_FUNCTION (gumjs_uint64_##name) \
+    { \
+      guint64 lhs, rhs, result; \
+      \
+      lhs = gumjs_uint64_from_args (args); \
+      \
+      _gum_duk_args_parse (args, "Q~", &rhs); \
+      \
+      result = lhs op rhs; \
+      \
+      _gum_duk_push_uint64 (ctx, result, args->core); \
+      return 1; \
+    }
 
 GUM_DEFINE_UINT64_OP_IMPL (add, +)
 GUM_DEFINE_UINT64_OP_IMPL (sub, -)
@@ -2109,17 +2109,17 @@ GUM_DEFINE_UINT64_OP_IMPL (shr, >>)
 GUM_DEFINE_UINT64_OP_IMPL (shl, <<)
 
 #define GUM_DEFINE_UINT64_UNARY_OP_IMPL(name, op) \
-  GUMJS_DEFINE_FUNCTION (gumjs_uint64_##name) \
-  { \
-    guint64 value, result; \
-    \
-    value = gumjs_uint64_from_args (args); \
-    \
-    result = op value; \
-    \
-    _gum_duk_push_uint64 (ctx, result, args->core); \
-    return 1; \
-  }
+    GUMJS_DEFINE_FUNCTION (gumjs_uint64_##name) \
+    { \
+      guint64 value, result; \
+      \
+      value = gumjs_uint64_from_args (args); \
+      \
+      result = op value; \
+      \
+      _gum_duk_push_uint64 (ctx, result, args->core); \
+      return 1; \
+    }
 
 GUM_DEFINE_UINT64_UNARY_OP_IMPL (not, ~)
 
@@ -2273,25 +2273,25 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_is_null)
 }
 
 #define GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL(name, op) \
-  GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_##name) \
-  { \
-    GumDukNativePointer * self; \
-    gpointer rhs_ptr; \
-    gsize lhs, rhs; \
-    gpointer result; \
-    \
-    self = gumjs_native_pointer_from_args (args); \
-    \
-    _gum_duk_args_parse (args, "p~", &rhs_ptr); \
-    \
-    lhs = GPOINTER_TO_SIZE (self->value); \
-    rhs = GPOINTER_TO_SIZE (rhs_ptr); \
-    \
-    result = GSIZE_TO_POINTER (lhs op rhs); \
-    \
-    _gum_duk_push_native_pointer (ctx, result, args->core); \
-    return 1; \
-  }
+    GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_##name) \
+    { \
+      GumDukNativePointer * self; \
+      gpointer rhs_ptr; \
+      gsize lhs, rhs; \
+      gpointer result; \
+      \
+      self = gumjs_native_pointer_from_args (args); \
+      \
+      _gum_duk_args_parse (args, "p~", &rhs_ptr); \
+      \
+      lhs = GPOINTER_TO_SIZE (self->value); \
+      rhs = GPOINTER_TO_SIZE (rhs_ptr); \
+      \
+      result = GSIZE_TO_POINTER (lhs op rhs); \
+      \
+      _gum_duk_push_native_pointer (ctx, result, args->core); \
+      return 1; \
+    }
 
 GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (add, +)
 GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (sub, -)
@@ -2302,18 +2302,18 @@ GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (shr, >>)
 GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (shl, <<)
 
 #define GUM_DEFINE_NATIVE_POINTER_UNARY_OP_IMPL(name, op) \
-  GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_##name) \
-  { \
-    GumDukNativePointer * self; \
-    gpointer result; \
-    \
-    self = gumjs_native_pointer_from_args (args); \
-    \
-    result = GSIZE_TO_POINTER (op GPOINTER_TO_SIZE (self->value)); \
-    \
-    _gum_duk_push_native_pointer (ctx, result, args->core); \
-    return 1; \
-  }
+    GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_##name) \
+    { \
+      GumDukNativePointer * self; \
+      gpointer result; \
+      \
+      self = gumjs_native_pointer_from_args (args); \
+      \
+      result = GSIZE_TO_POINTER (op GPOINTER_TO_SIZE (self->value)); \
+      \
+      _gum_duk_push_native_pointer (ctx, result, args->core); \
+      return 1; \
+    }
 
 GUM_DEFINE_NATIVE_POINTER_UNARY_OP_IMPL (not, ~)
 

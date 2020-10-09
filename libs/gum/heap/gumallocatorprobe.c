@@ -325,8 +325,9 @@ gum_allocator_probe_get_property (GObject * object,
 }
 
 static gboolean
-gum_allocator_probe_add_suppression_addresses_if_glib (const GumModuleDetails * details,
-                                                       gpointer user_data)
+gum_allocator_probe_add_suppression_addresses_if_glib (
+    const GumModuleDetails * details,
+    gpointer user_data)
 {
   static const gchar * glib_function_name[] = {
     "g_quark_from_string",

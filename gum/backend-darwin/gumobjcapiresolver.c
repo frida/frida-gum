@@ -115,9 +115,9 @@ gum_objc_api_resolver_init (GumObjcApiResolver * self)
     goto beach;
 
 #define GUM_TRY_ASSIGN_OBJC_FUNC(N) \
-  self->N = dlsym (objc, G_STRINGIFY (N)); \
-  if (self->N == NULL) \
-    goto beach
+    self->N = dlsym (objc, G_STRINGIFY (N)); \
+    if (self->N == NULL) \
+      goto beach
 
   GUM_TRY_ASSIGN_OBJC_FUNC (objc_getClassList);
   GUM_TRY_ASSIGN_OBJC_FUNC (class_getSuperclass);

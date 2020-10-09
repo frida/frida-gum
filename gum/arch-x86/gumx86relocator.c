@@ -26,16 +26,17 @@ struct _GumCodeGenCtx
   GumX86Writer * code_writer;
 };
 
-static gboolean gum_x86_relocator_write_one_instruction (GumX86Relocator * self);
+static gboolean gum_x86_relocator_write_one_instruction (
+    GumX86Relocator * self);
 static void gum_x86_relocator_put_label_for (GumX86Relocator * self,
     cs_insn * insn);
 
 static gboolean gum_x86_relocator_rewrite_unconditional_branch (
     GumX86Relocator * self, GumCodeGenCtx * ctx);
-static gboolean gum_x86_relocator_rewrite_conditional_branch (GumX86Relocator * self,
-    GumCodeGenCtx * ctx);
-static gboolean gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
-    GumCodeGenCtx * ctx);
+static gboolean gum_x86_relocator_rewrite_conditional_branch (
+    GumX86Relocator * self, GumCodeGenCtx * ctx);
+static gboolean gum_x86_relocator_rewrite_if_rip_relative (
+    GumX86Relocator * self, GumCodeGenCtx * ctx);
 
 static gboolean gum_x86_call_is_to_next_instruction (cs_insn * insn);
 static gboolean gum_x86_call_try_parse_get_pc_thunk (cs_insn * insn,

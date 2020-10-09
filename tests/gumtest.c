@@ -222,7 +222,9 @@ main (gint argc, gchar * argv[])
   }
 
   TESTLIST_REGISTER (api_resolver);
-#if !defined (HAVE_QNX) && !(defined (HAVE_ANDROID) && defined (HAVE_ARM64)) && !(defined (HAVE_MIPS))
+#if !defined (HAVE_QNX) && \
+    !(defined (HAVE_ANDROID) && defined (HAVE_ARM64)) && \
+    !(defined (HAVE_MIPS))
   TESTLIST_REGISTER (backtracer);
 #endif
 

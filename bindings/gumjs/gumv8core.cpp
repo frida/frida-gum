@@ -573,17 +573,17 @@ _gum_v8_core_init (GumV8Core * self,
       new GumPersistent<FunctionTemplate>::type (isolate, cpu_context);
 
 #define GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED(A, R) \
-  cpu_context_object->SetAccessor ( \
-      _gum_v8_string_new_ascii (isolate, G_STRINGIFY (A)), \
-      gumjs_cpu_context_get_register, \
-      gumjs_cpu_context_set_register, \
-      Integer::NewFromUnsigned (isolate, \
-          G_STRUCT_OFFSET (GumCpuContext, R) / GLIB_SIZEOF_VOID_P), \
-      DEFAULT, \
-      DontDelete, \
-      cpu_context_signature)
+    cpu_context_object->SetAccessor ( \
+        _gum_v8_string_new_ascii (isolate, G_STRINGIFY (A)), \
+        gumjs_cpu_context_get_register, \
+        gumjs_cpu_context_set_register, \
+        Integer::NewFromUnsigned (isolate, \
+            G_STRUCT_OFFSET (GumCpuContext, R) / GLIB_SIZEOF_VOID_P), \
+        DEFAULT, \
+        DontDelete, \
+        cpu_context_signature)
 #define GUM_DEFINE_CPU_CONTEXT_ACCESSOR(R) \
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (R, R)
+    GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (R, R)
 
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
   GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (pc, eip);
@@ -1648,18 +1648,18 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_int64_construct)
 }
 
 #define GUM_DEFINE_INT64_OP_IMPL(name, op) \
-  GUMJS_DEFINE_FUNCTION (gumjs_int64_##name) \
-  { \
-    gint64 lhs = _gum_v8_int64_get_value (info.Holder ()); \
-    \
-    gint64 rhs; \
-    if (!_gum_v8_args_parse (args, "q~", &rhs)) \
-      return; \
-    \
-    gint64 result = lhs op rhs; \
-    \
-    info.GetReturnValue ().Set (_gum_v8_int64_new (result, core)); \
-  }
+    GUMJS_DEFINE_FUNCTION (gumjs_int64_##name) \
+    { \
+      gint64 lhs = _gum_v8_int64_get_value (info.Holder ()); \
+      \
+      gint64 rhs; \
+      if (!_gum_v8_args_parse (args, "q~", &rhs)) \
+        return; \
+      \
+      gint64 result = lhs op rhs; \
+      \
+      info.GetReturnValue ().Set (_gum_v8_int64_new (result, core)); \
+    }
 
 GUM_DEFINE_INT64_OP_IMPL (add, +)
 GUM_DEFINE_INT64_OP_IMPL (sub, -)
@@ -1670,14 +1670,14 @@ GUM_DEFINE_INT64_OP_IMPL (shr, >>)
 GUM_DEFINE_INT64_OP_IMPL (shl, <<)
 
 #define GUM_DEFINE_INT64_UNARY_OP_IMPL(name, op) \
-  GUMJS_DEFINE_FUNCTION (gumjs_int64_##name) \
-  { \
-    gint64 value = _gum_v8_int64_get_value (info.Holder ()); \
-    \
-    gint64 result = op value; \
-    \
-    info.GetReturnValue ().Set (_gum_v8_int64_new (result, core)); \
-  }
+    GUMJS_DEFINE_FUNCTION (gumjs_int64_##name) \
+    { \
+      gint64 value = _gum_v8_int64_get_value (info.Holder ()); \
+      \
+      gint64 result = op value; \
+      \
+      info.GetReturnValue ().Set (_gum_v8_int64_new (result, core)); \
+    }
 
 GUM_DEFINE_INT64_UNARY_OP_IMPL (not, ~)
 
@@ -1755,18 +1755,18 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_uint64_construct)
 }
 
 #define GUM_DEFINE_UINT64_OP_IMPL(name, op) \
-  GUMJS_DEFINE_FUNCTION (gumjs_uint64_##name) \
-  { \
-    guint64 lhs = _gum_v8_uint64_get_value (info.Holder ()); \
-    \
-    guint64 rhs; \
-    if (!_gum_v8_args_parse (args, "Q~", &rhs)) \
-      return; \
-    \
-    guint64 result = lhs op rhs; \
-    \
-    info.GetReturnValue ().Set (_gum_v8_uint64_new (result, core)); \
-  }
+    GUMJS_DEFINE_FUNCTION (gumjs_uint64_##name) \
+    { \
+      guint64 lhs = _gum_v8_uint64_get_value (info.Holder ()); \
+      \
+      guint64 rhs; \
+      if (!_gum_v8_args_parse (args, "Q~", &rhs)) \
+        return; \
+      \
+      guint64 result = lhs op rhs; \
+      \
+      info.GetReturnValue ().Set (_gum_v8_uint64_new (result, core)); \
+    }
 
 GUM_DEFINE_UINT64_OP_IMPL (add, +)
 GUM_DEFINE_UINT64_OP_IMPL (sub, -)
@@ -1777,14 +1777,14 @@ GUM_DEFINE_UINT64_OP_IMPL (shr, >>)
 GUM_DEFINE_UINT64_OP_IMPL (shl, <<)
 
 #define GUM_DEFINE_UINT64_UNARY_OP_IMPL(name, op) \
-  GUMJS_DEFINE_FUNCTION (gumjs_uint64_##name) \
-  { \
-    guint64 value = _gum_v8_uint64_get_value (info.Holder ()); \
-    \
-    guint64 result = op value; \
-    \
-    info.GetReturnValue ().Set (_gum_v8_uint64_new (result, core)); \
-  }
+    GUMJS_DEFINE_FUNCTION (gumjs_uint64_##name) \
+    { \
+      guint64 value = _gum_v8_uint64_get_value (info.Holder ()); \
+      \
+      guint64 result = op value; \
+      \
+      info.GetReturnValue ().Set (_gum_v8_uint64_new (result, core)); \
+    }
 
 GUM_DEFINE_UINT64_UNARY_OP_IMPL (not, ~)
 
@@ -1867,21 +1867,21 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_is_null)
 }
 
 #define GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL(name, op) \
-  GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_##name) \
-  { \
-    gpointer lhs_ptr = GUMJS_NATIVE_POINTER_VALUE (info.Holder ()); \
-    \
-    gpointer rhs_ptr; \
-    if (!_gum_v8_args_parse (args, "p~", &rhs_ptr)) \
-      return; \
-    \
-    gsize lhs = GPOINTER_TO_SIZE (lhs_ptr); \
-    gsize rhs = GPOINTER_TO_SIZE (rhs_ptr); \
-    \
-    gpointer result = GSIZE_TO_POINTER (lhs op rhs); \
-    \
-    info.GetReturnValue ().Set (_gum_v8_native_pointer_new (result, core)); \
-  }
+    GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_##name) \
+    { \
+      gpointer lhs_ptr = GUMJS_NATIVE_POINTER_VALUE (info.Holder ()); \
+      \
+      gpointer rhs_ptr; \
+      if (!_gum_v8_args_parse (args, "p~", &rhs_ptr)) \
+        return; \
+      \
+      gsize lhs = GPOINTER_TO_SIZE (lhs_ptr); \
+      gsize rhs = GPOINTER_TO_SIZE (rhs_ptr); \
+      \
+      gpointer result = GSIZE_TO_POINTER (lhs op rhs); \
+      \
+      info.GetReturnValue ().Set (_gum_v8_native_pointer_new (result, core)); \
+    }
 
 GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (add, +)
 GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (sub, -)
@@ -1892,14 +1892,15 @@ GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (shr, >>)
 GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (shl, <<)
 
 #define GUM_DEFINE_NATIVE_POINTER_UNARY_OP_IMPL(name, op) \
-  GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_##name) \
-  { \
-    gsize v = GPOINTER_TO_SIZE (GUMJS_NATIVE_POINTER_VALUE (info.Holder ())); \
-    \
-    gpointer result = GSIZE_TO_POINTER (op v); \
-    \
-    info.GetReturnValue ().Set (_gum_v8_native_pointer_new (result, core)); \
-  }
+    GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_##name) \
+    { \
+      gsize v = \
+          GPOINTER_TO_SIZE (GUMJS_NATIVE_POINTER_VALUE (info.Holder ())); \
+      \
+      gpointer result = GSIZE_TO_POINTER (op v); \
+      \
+      info.GetReturnValue ().Set (_gum_v8_native_pointer_new (result, core)); \
+    }
 
 GUM_DEFINE_NATIVE_POINTER_UNARY_OP_IMPL (not, ~)
 

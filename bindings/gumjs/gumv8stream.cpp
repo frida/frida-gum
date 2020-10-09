@@ -602,7 +602,8 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_output_stream_write_all, GumV8OutputStream)
   gumjs_output_stream_write_with_strategy (self, args, GUM_V8_WRITE_ALL);
 }
 
-GUMJS_DEFINE_CLASS_METHOD (gumjs_output_stream_write_memory_region, GumV8OutputStream)
+GUMJS_DEFINE_CLASS_METHOD (gumjs_output_stream_write_memory_region,
+    GumV8OutputStream)
 {
   gconstpointer address;
   gsize length;

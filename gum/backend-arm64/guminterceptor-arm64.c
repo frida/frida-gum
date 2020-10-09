@@ -395,7 +395,8 @@ _gum_interceptor_backend_deactivate_trampoline (GumInterceptorBackend * self,
                                                 GumFunctionContext * ctx,
                                                 gpointer prologue)
 {
-  gum_memcpy (prologue, ctx->overwritten_prologue, ctx->overwritten_prologue_len);
+  gum_memcpy (prologue, ctx->overwritten_prologue,
+      ctx->overwritten_prologue_len);
 }
 
 gpointer
