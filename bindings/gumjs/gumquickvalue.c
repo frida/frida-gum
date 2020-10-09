@@ -969,8 +969,41 @@ _gum_quick_size_get (JSContext * ctx,
                      GumQuickCore * core,
                      gsize * size)
 {
-  _gum_quick_throw (ctx, "%s: TODO", G_STRFUNC);
-  return FALSE; /* TODO */
+  GumQuickUInt64 * u64;
+  GumQuickInt64 * i64;
+
+  if (JS_IsNumber (val))
+  {
+    int64_t v;
+
+    if (JS_ToInt64 (ctx, &v, val) != 0 || v < 0)
+      goto expected_uint;
+
+    *size = v;
+  }
+  else if ((u64 = JS_GetOpaque (val, core->uint64_class)) != NULL)
+  {
+    *size = u64->value;
+  }
+  else if ((i64 = JS_GetOpaque (val, core->int64_class)) != NULL)
+  {
+    if (i64->value < 0)
+      goto expected_uint;
+
+    *size = i64->value;
+  }
+  else
+  {
+    goto expected_uint;
+  }
+
+  return TRUE;
+
+expected_uint:
+  {
+    _gum_quick_throw_literal (ctx, "expected an unsigned integer");
+    return FALSE;
+  }
 }
 
 gboolean
@@ -979,8 +1012,38 @@ _gum_quick_ssize_get (JSContext * ctx,
                       GumQuickCore * core,
                       gssize * size)
 {
-  _gum_quick_throw (ctx, "%s: TODO", G_STRFUNC);
-  return FALSE; /* TODO */
+  GumQuickInt64 * i64;
+  GumQuickUInt64 * u64;
+
+  if (JS_IsNumber (val))
+  {
+    int64_t v;
+
+    if (JS_ToInt64 (ctx, &v, val) != 0)
+      goto expected_int;
+
+    *size = v;
+  }
+  else if ((i64 = JS_GetOpaque (val, core->int64_class)) != NULL)
+  {
+    *size = i64->value;
+  }
+  else if ((u64 = JS_GetOpaque (val, core->uint64_class)) != NULL)
+  {
+    *size = u64->value;
+  }
+  else
+  {
+    goto expected_int;
+  }
+
+  return TRUE;
+
+expected_int:
+  {
+    _gum_quick_throw_literal (ctx, "expected an integer");
+    return FALSE;
+  }
 }
 
 gboolean
