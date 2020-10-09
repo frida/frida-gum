@@ -1049,18 +1049,12 @@ _gum_quick_native_pointer_try_get (JSContext * ctx,
 
   p = JS_GetOpaque (val, core->native_pointer_class);
   if (p == NULL)
-    goto expected_pointer;
+    return FALSE;
 
   /* TODO: support NativePointerValue */
 
   *ptr = p->value;
   return TRUE;
-
-expected_pointer:
-  {
-    _gum_quick_throw_literal (ctx, "expected a pointer");
-    return FALSE;
-  }
 }
 
 gboolean
