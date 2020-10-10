@@ -226,6 +226,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (native_pointer_provides_ptrauth_functionality)
     TESTENTRY (native_pointer_to_match_pattern)
     TESTENTRY (native_pointer_can_be_constructed_from_64bit_value)
+    TESTENTRY (native_pointer_should_be_serializable_to_json)
   TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("ArrayBuffer")
@@ -1796,6 +1797,12 @@ TESTCASE (native_pointer_can_be_constructed_from_64bit_value)
       "send(ptr(int64(-1)).equals(ptr('0xffffffffffffffff')));");
   EXPECT_SEND_MESSAGE_WITH ("true");
 #endif
+}
+
+TESTCASE (native_pointer_should_be_serializable_to_json)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send(ptr(1).toJSON());");
+  EXPECT_SEND_MESSAGE_WITH ("\"0x1\"");
 }
 
 TESTCASE (array_buffer_can_wrap_memory_region)
