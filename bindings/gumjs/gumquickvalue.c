@@ -1194,6 +1194,28 @@ expected_pointer:
 }
 
 JSValue
+_gum_quick_native_resource_new (JSContext * ctx,
+                                gpointer data,
+                                GDestroyNotify notify,
+                                GumQuickCore * core)
+{
+  JSValue wrapper;
+  GumQuickNativeResource * res;
+  GumQuickNativePointer * ptr;
+
+  wrapper = JS_NewObjectClass (ctx, core->native_resource_class);
+
+  res = g_slice_new (GumQuickNativeResource);
+  ptr = &res->native_pointer;
+  ptr->value = data;
+  res->notify = notify;
+
+  JS_SetOpaque (wrapper, res);
+
+  return wrapper;
+}
+
+JSValue
 _gum_quick_cpu_context_new (JSContext * ctx,
                             GumCpuContext * handle,
                             GumQuickCpuContextAccess access,
@@ -1308,6 +1330,14 @@ _gum_quick_array_get_length (JSContext * ctx,
   return TRUE;
 }
 
+void
+_gum_quick_array_buffer_free (JSRuntime * rt,
+                              void * opaque,
+                              void * ptr)
+{
+  g_free (opaque);
+}
+
 JSValue
 _gum_quick_throw (JSContext * ctx,
                   const gchar * format,
@@ -1344,4 +1374,19 @@ _gum_quick_throw_native (JSContext * ctx,
                          GumQuickCore * core)
 {
   return _gum_quick_throw_literal (ctx, "a native exception occurred");
+}
+
+const gchar *
+_gum_quick_memory_operation_to_string (GumMemoryOperation operation)
+{
+  switch (operation)
+  {
+    case GUM_MEMOP_INVALID: return "invalid";
+    case GUM_MEMOP_READ: return "read";
+    case GUM_MEMOP_WRITE: return "write";
+    case GUM_MEMOP_EXECUTE: return "execute";
+    default: break;
+  }
+
+  return NULL;
 }

@@ -81,6 +81,9 @@ G_GNUC_INTERNAL gboolean _gum_quick_native_pointer_try_get (JSContext * ctx,
 G_GNUC_INTERNAL gboolean _gum_quick_native_pointer_parse (JSContext * ctx,
     JSValueConst val, GumQuickCore * core, gpointer * ptr);
 
+G_GNUC_INTERNAL JSValue _gum_quick_native_resource_new (JSContext * ctx,
+    gpointer data, GDestroyNotify notify, GumQuickCore * core);
+
 G_GNUC_INTERNAL JSValue _gum_quick_cpu_context_new (JSContext * ctx,
     GumCpuContext * handle, GumQuickCpuContextAccess access,
     GumQuickCore * core, GumQuickCpuContext ** cpu_context);
@@ -100,12 +103,18 @@ G_GNUC_INTERNAL gboolean _gum_quick_page_protection_get (JSContext * ctx,
 G_GNUC_INTERNAL gboolean _gum_quick_array_get_length (JSContext * ctx,
     JSValueConst array, guint * length);
 
+G_GNUC_INTERNAL void _gum_quick_array_buffer_free (JSRuntime * rt,
+    void * opaque, void * ptr);
+
 G_GNUC_INTERNAL JSValue _gum_quick_throw (JSContext * ctx, const gchar * format,
     ...);
 G_GNUC_INTERNAL JSValue _gum_quick_throw_literal (JSContext * ctx,
     const gchar * message);
 G_GNUC_INTERNAL JSValue _gum_quick_throw_native (JSContext * ctx,
     GumExceptionDetails * details, GumQuickCore * core);
+
+G_GNUC_INTERNAL const gchar * _gum_quick_memory_operation_to_string (
+    GumMemoryOperation operation);
 
 G_END_DECLS
 

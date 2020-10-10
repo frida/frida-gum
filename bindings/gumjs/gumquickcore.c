@@ -277,7 +277,6 @@ static void gum_quick_native_callback_invoke (ffi_cif * cif,
 
 static gboolean gumjs_cpu_context_from_this (JSValueConst this_val,
     GumQuickCore * core, GumQuickCpuContext ** cpu_context);
-GUMJS_DECLARE_CONSTRUCTOR (gumjs_cpu_context_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_cpu_context_finalize)
 static JSValue gumjs_cpu_context_set_register (GumQuickCpuContext * self,
     JSContext * ctx, JSValueConst val, gpointer * reg);
@@ -313,8 +312,6 @@ static GumQuickMessageSink * gum_quick_message_sink_new (JSValueConst callback,
 static void gum_quick_message_sink_free (GumQuickMessageSink * sink);
 static void gum_quick_message_sink_post (GumQuickMessageSink * self,
     const gchar * message, GBytes * data, GumQuickScope * scope);
-static void gum_release_message_data (JSRuntime * rt, void * opaque,
-    void * ptr);
 
 static gboolean gum_quick_ffi_type_get (JSContext * ctx, JSValueConst val,
     ffi_type ** type, GSList ** data);
@@ -510,35 +507,35 @@ static const JSClassDef gumjs_cpu_context_def =
 };
 
 #define GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED(A, R) \
-  GUMJS_DEFINE_GETTER (gumjs_cpu_context_get_##A) \
-  { \
-    GumQuickCpuContext * self; \
+    GUMJS_DEFINE_GETTER (gumjs_cpu_context_get_##A) \
+    { \
+      GumQuickCpuContext * self; \
+      \
+      if (!gumjs_cpu_context_from_this (this_val, core, &self)) \
+        return JS_EXCEPTION; \
+      \
+      return _gum_quick_native_pointer_new (ctx, \
+          GSIZE_TO_POINTER (self->handle->R), core); \
+    } \
     \
-    if (!gumjs_cpu_context_from_this (this_val, core, &self)) \
-      return JS_EXCEPTION; \
-    \
-    return _gum_quick_native_pointer_new (ctx, \
-        GSIZE_TO_POINTER (self->handle->R), core); \
-  } \
-  \
-  GUMJS_DEFINE_SETTER (gumjs_cpu_context_set_##A) \
-  { \
-    GumQuickCpuContext * self; \
-    \
-    if (!gumjs_cpu_context_from_this (this_val, core, &self)) \
-      return JS_EXCEPTION; \
-    \
-    return gumjs_cpu_context_set_register (self, ctx, val, \
-        (gpointer *) &self->handle->R); \
-  }
+    GUMJS_DEFINE_SETTER (gumjs_cpu_context_set_##A) \
+    { \
+      GumQuickCpuContext * self; \
+      \
+      if (!gumjs_cpu_context_from_this (this_val, core, &self)) \
+        return JS_EXCEPTION; \
+      \
+      return gumjs_cpu_context_set_register (self, ctx, val, \
+          (gpointer *) &self->handle->R); \
+    }
 #define GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR(R) \
-  GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (R, R)
+    GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (R, R)
 
 #define GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR_ALIASED(A, R) \
-  JS_CGETSET_DEF (G_STRINGIFY (A), gumjs_cpu_context_get_##R, \
-      gumjs_cpu_context_set_##R)
+    JS_CGETSET_DEF (G_STRINGIFY (A), gumjs_cpu_context_get_##R, \
+        gumjs_cpu_context_set_##R)
 #define GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR(R) \
-  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR_ALIASED (R, R)
+    GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR_ALIASED (R, R)
 
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
 GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (eax)
@@ -880,19 +877,19 @@ _gum_quick_core_init (GumQuickCore * self,
       G_N_ELEMENTS (gumjs_root_entries));
 
   obj = JS_NewObject (ctx);
-  JS_DefinePropertyValueStr (ctx, ns, "Frida", obj, JS_PROP_C_W_E);
   JS_SetPropertyFunctionList (ctx, obj, gumjs_frida_entries,
       G_N_ELEMENTS (gumjs_frida_entries));
+  JS_DefinePropertyValueStr (ctx, ns, "Frida", obj, JS_PROP_C_W_E);
 
   obj = JS_NewObject (ctx);
-  JS_DefinePropertyValueStr (ctx, ns, "Script", obj, JS_PROP_C_W_E);
   JS_SetPropertyFunctionList (ctx, obj, gumjs_script_entries,
       G_N_ELEMENTS (gumjs_script_entries));
+  JS_DefinePropertyValueStr (ctx, ns, "Script", obj, JS_PROP_C_W_E);
 
   obj = JS_NewObject (ctx);
-  JS_DefinePropertyValueStr (ctx, ns, "WeakRef", obj, JS_PROP_C_W_E);
   JS_SetPropertyFunctionList (ctx, obj, gumjs_weak_ref_module_entries,
       G_N_ELEMENTS (gumjs_weak_ref_module_entries));
+  JS_DefinePropertyValueStr (ctx, ns, "WeakRef", obj, JS_PROP_C_W_E);
 
   JS_NewClassID (&self->weak_ref_class);
   JS_NewClass (rt, self->weak_ref_class, &gumjs_weak_ref_def);
@@ -995,12 +992,7 @@ _gum_quick_core_init (GumQuickCore * self,
   proto = JS_NewObject (ctx);
   JS_SetPropertyFunctionList (ctx, proto, gumjs_cpu_context_entries,
       G_N_ELEMENTS (gumjs_cpu_context_entries));
-  ctor = JS_NewCFunction2 (ctx, gumjs_cpu_context_construct,
-      gumjs_cpu_context_def.class_name, 0, JS_CFUNC_constructor, 0);
-  JS_SetConstructor (ctx, ctor, proto);
   JS_SetClassProto (ctx, self->cpu_context_class, proto);
-  JS_DefinePropertyValueStr (ctx, ns, gumjs_cpu_context_def.class_name, ctor,
-      JS_PROP_C_W_E);
 
   JS_NewClassID (&self->source_map_class);
   JS_NewClass (rt, self->source_map_class, &gumjs_source_map_def);
@@ -1826,20 +1818,20 @@ GUMJS_DEFINE_FINALIZER (gumjs_int64_finalize)
 }
 
 #define GUM_DEFINE_INT64_OP_IMPL(name, op) \
-  GUMJS_DEFINE_FUNCTION (gumjs_int64_##name) \
-  { \
-    gint64 lhs, rhs, result; \
-    \
-    if (!gumjs_int64_from_this (this_val, core, &lhs)) \
-      return JS_EXCEPTION; \
-    \
-    if (!_gum_quick_args_parse (args, "q~", &rhs)) \
-      return JS_EXCEPTION; \
-    \
-    result = lhs op rhs; \
-    \
-    return _gum_quick_int64_new (ctx, result, core); \
-  }
+    GUMJS_DEFINE_FUNCTION (gumjs_int64_##name) \
+    { \
+      gint64 lhs, rhs, result; \
+      \
+      if (!gumjs_int64_from_this (this_val, core, &lhs)) \
+        return JS_EXCEPTION; \
+      \
+      if (!_gum_quick_args_parse (args, "q~", &rhs)) \
+        return JS_EXCEPTION; \
+      \
+      result = lhs op rhs; \
+      \
+      return _gum_quick_int64_new (ctx, result, core); \
+    }
 
 GUM_DEFINE_INT64_OP_IMPL (add, +)
 GUM_DEFINE_INT64_OP_IMPL (sub, -)
@@ -1850,17 +1842,17 @@ GUM_DEFINE_INT64_OP_IMPL (shr, >>)
 GUM_DEFINE_INT64_OP_IMPL (shl, <<)
 
 #define GUM_DEFINE_INT64_UNARY_OP_IMPL(name, op) \
-  GUMJS_DEFINE_FUNCTION (gumjs_int64_##name) \
-  { \
-    gint64 value, result; \
-    \
-    if (!gumjs_int64_from_this (this_val, core, &value)) \
-      return JS_EXCEPTION; \
-    \
-    result = op value; \
-    \
-    return _gum_quick_int64_new (ctx, result, core); \
-  }
+    GUMJS_DEFINE_FUNCTION (gumjs_int64_##name) \
+    { \
+      gint64 value, result; \
+      \
+      if (!gumjs_int64_from_this (this_val, core, &value)) \
+        return JS_EXCEPTION; \
+      \
+      result = op value; \
+      \
+      return _gum_quick_int64_new (ctx, result, core); \
+    }
 
 GUM_DEFINE_INT64_UNARY_OP_IMPL (not, ~)
 
@@ -2003,20 +1995,20 @@ GUMJS_DEFINE_FINALIZER (gumjs_uint64_finalize)
 }
 
 #define GUM_DEFINE_UINT64_OP_IMPL(name, op) \
-  GUMJS_DEFINE_FUNCTION (gumjs_uint64_##name) \
-  { \
-    guint64 lhs, rhs, result; \
-    \
-    if (!gumjs_uint64_from_this (this_val, core, &lhs)) \
-      return JS_EXCEPTION; \
-    \
-    if (!_gum_quick_args_parse (args, "Q~", &rhs)) \
-      return JS_EXCEPTION; \
-    \
-    result = lhs op rhs; \
-    \
-    return _gum_quick_uint64_new (ctx, result, core); \
-  }
+    GUMJS_DEFINE_FUNCTION (gumjs_uint64_##name) \
+    { \
+      guint64 lhs, rhs, result; \
+      \
+      if (!gumjs_uint64_from_this (this_val, core, &lhs)) \
+        return JS_EXCEPTION; \
+      \
+      if (!_gum_quick_args_parse (args, "Q~", &rhs)) \
+        return JS_EXCEPTION; \
+      \
+      result = lhs op rhs; \
+      \
+      return _gum_quick_uint64_new (ctx, result, core); \
+    }
 
 GUM_DEFINE_UINT64_OP_IMPL (add, +)
 GUM_DEFINE_UINT64_OP_IMPL (sub, -)
@@ -2027,17 +2019,17 @@ GUM_DEFINE_UINT64_OP_IMPL (shr, >>)
 GUM_DEFINE_UINT64_OP_IMPL (shl, <<)
 
 #define GUM_DEFINE_UINT64_UNARY_OP_IMPL(name, op) \
-  GUMJS_DEFINE_FUNCTION (gumjs_uint64_##name) \
-  { \
-    guint64 value, result; \
-    \
-    if (!gumjs_uint64_from_this (this_val, core, &value)) \
-      return JS_EXCEPTION; \
-    \
-    result = op value; \
-    \
-    return _gum_quick_uint64_new (ctx, result, core); \
-  }
+    GUMJS_DEFINE_FUNCTION (gumjs_uint64_##name) \
+    { \
+      guint64 value, result; \
+      \
+      if (!gumjs_uint64_from_this (this_val, core, &value)) \
+        return JS_EXCEPTION; \
+      \
+      result = op value; \
+      \
+      return _gum_quick_uint64_new (ctx, result, core); \
+    }
 
 GUM_DEFINE_UINT64_UNARY_OP_IMPL (not, ~)
 
@@ -2182,26 +2174,26 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_is_null)
 }
 
 #define GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL(name, op) \
-  GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_##name) \
-  { \
-    GumQuickNativePointer * self; \
-    gpointer rhs_ptr; \
-    gsize lhs, rhs; \
-    gpointer result; \
-    \
-    if (!gumjs_native_pointer_from_this (this_val, core, &self)) \
-      return JS_EXCEPTION; \
-    \
-    if (!_gum_quick_args_parse (args, "p~", &rhs_ptr)) \
-      return JS_EXCEPTION; \
-    \
-    lhs = GPOINTER_TO_SIZE (self->value); \
-    rhs = GPOINTER_TO_SIZE (rhs_ptr); \
-    \
-    result = GSIZE_TO_POINTER (lhs op rhs); \
-    \
-    return _gum_quick_native_pointer_new (ctx, result, core); \
-  }
+    GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_##name) \
+    { \
+      GumQuickNativePointer * self; \
+      gpointer rhs_ptr; \
+      gsize lhs, rhs; \
+      gpointer result; \
+      \
+      if (!gumjs_native_pointer_from_this (this_val, core, &self)) \
+        return JS_EXCEPTION; \
+      \
+      if (!_gum_quick_args_parse (args, "p~", &rhs_ptr)) \
+        return JS_EXCEPTION; \
+      \
+      lhs = GPOINTER_TO_SIZE (self->value); \
+      rhs = GPOINTER_TO_SIZE (rhs_ptr); \
+      \
+      result = GSIZE_TO_POINTER (lhs op rhs); \
+      \
+      return _gum_quick_native_pointer_new (ctx, result, core); \
+    }
 
 GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (add, +)
 GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (sub, -)
@@ -2212,18 +2204,18 @@ GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (shr, >>)
 GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (shl, <<)
 
 #define GUM_DEFINE_NATIVE_POINTER_UNARY_OP_IMPL(name, op) \
-  GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_##name) \
-  { \
-    GumQuickNativePointer * self; \
-    gpointer result; \
-    \
-    if (!gumjs_native_pointer_from_this (this_val, core, &self)) \
-      return JS_EXCEPTION; \
-    \
-    result = GSIZE_TO_POINTER (op GPOINTER_TO_SIZE (self->value)); \
-    \
-    return _gum_quick_native_pointer_new (ctx, result, core); \
-  }
+    GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_##name) \
+    { \
+      GumQuickNativePointer * self; \
+      gpointer result; \
+      \
+      if (!gumjs_native_pointer_from_this (this_val, core, &self)) \
+        return JS_EXCEPTION; \
+      \
+      result = GSIZE_TO_POINTER (op GPOINTER_TO_SIZE (self->value)); \
+      \
+      return _gum_quick_native_pointer_new (ctx, result, core); \
+    }
 
 GUM_DEFINE_NATIVE_POINTER_UNARY_OP_IMPL (not, ~)
 
@@ -2480,7 +2472,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_resource_finalize)
     return;
 
   if (r->notify != NULL)
-    r->notify (r->parent.value);
+    r->notify (r->native_pointer.value);
 
   g_slice_free (GumQuickNativeResource, r);
 }
@@ -2494,7 +2486,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_kernel_resource_finalize)
     return;
 
   if (r->notify != NULL)
-    r->notify (r->parent.value);
+    r->notify (r->u64.value);
 
   g_slice_free (GumQuickKernelResource, r);
 }
@@ -3573,11 +3565,6 @@ gumjs_cpu_context_from_this (JSValueConst this_val,
   return *cpu_context != NULL;
 }
 
-GUMJS_DEFINE_CONSTRUCTOR (gumjs_cpu_context_construct)
-{
-  return _gum_quick_throw_literal (ctx, "not user-instantiable");
-}
-
 GUMJS_DEFINE_FINALIZER (gumjs_cpu_context_finalize)
 {
   GumQuickCpuContext * c;
@@ -3746,9 +3733,9 @@ static void
 gum_quick_weak_ref_clear (GumQuickWeakRef * ref)
 {
   GumQuickCore * core = ref->core;
-  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (core);
 
-  _gum_quick_scope_call_void (&scope, ref->callback, JS_UNDEFINED, 0, NULL);
+  _gum_quick_scope_call_void (core->current_scope, ref->callback, JS_UNDEFINED,
+      0, NULL);
 
   ref->callback = JS_NULL;
   ref->core = NULL;
@@ -3941,7 +3928,7 @@ gum_quick_message_sink_post (GumQuickMessageSink * self,
     data_buffer = g_bytes_unref_to_data (data, &data_size);
 
     argv[1] = JS_NewArrayBuffer (ctx, data_buffer, data_size,
-        gum_release_message_data, data_buffer, FALSE);
+        _gum_quick_array_buffer_free, data_buffer, FALSE);
   }
   else
   {
@@ -3953,14 +3940,6 @@ gum_quick_message_sink_post (GumQuickMessageSink * self,
 
   JS_FreeValue (ctx, argv[1]);
   JS_FreeValue (ctx, argv[0]);
-}
-
-static void
-gum_release_message_data (JSRuntime * rt,
-                          void * opaque,
-                          void * ptr)
-{
-  g_free (opaque);
 }
 
 static gboolean

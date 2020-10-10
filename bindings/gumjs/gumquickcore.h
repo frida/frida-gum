@@ -144,14 +144,14 @@ enum _GumQuickCpuContextAccess
 
 struct _GumQuickNativeResource
 {
-  GumQuickNativePointer parent;
+  GumQuickNativePointer native_pointer;
 
   GDestroyNotify notify;
 };
 
 struct _GumQuickKernelResource
 {
-  GumQuickUInt64 parent;
+  GumQuickUInt64 u64;
 
   GumQuickKernelNotify notify;
 };

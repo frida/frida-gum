@@ -12,6 +12,7 @@ namespace Gum {
 		public delegate void LockedFunc ();
 
 		public static unowned ScriptBackend obtain ();
+		public static unowned ScriptBackend? obtain_quick ();
 		public static unowned ScriptBackend? obtain_duk ();
 		public static unowned ScriptBackend? obtain_v8 ();
 
