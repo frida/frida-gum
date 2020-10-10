@@ -829,9 +829,9 @@ _gum_quick_int64_get (JSContext * ctx,
 {
   if (JS_IsNumber (val))
   {
-    int32_t v;
+    int64_t v;
 
-    if (JS_ToInt32 (ctx, &v, val) != 0)
+    if (JS_ToInt64 (ctx, &v, val) != 0)
       return FALSE;
 
     *i = v;
@@ -911,10 +911,13 @@ _gum_quick_uint64_get (JSContext * ctx,
 {
   if (JS_IsNumber (val))
   {
-    uint32_t v;
+    int64_t v;
 
-    if (JS_ToUint32 (ctx, &v, val) != 0)
+    if (JS_ToInt64 (ctx, &v, val) != 0)
       return FALSE;
+
+    if (v < 0)
+      goto expected_uint;
 
     *u = v;
   }
@@ -930,6 +933,12 @@ _gum_quick_uint64_get (JSContext * ctx,
   }
 
   return TRUE;
+
+expected_uint:
+  {
+    _gum_quick_throw_literal (ctx, "expected an unsigned integer");
+    return FALSE;
+  }
 }
 
 gboolean
