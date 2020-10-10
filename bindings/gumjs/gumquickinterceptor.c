@@ -279,8 +279,8 @@ static const JSCFunctionListEntry gumjs_interceptor_entries[] =
 {
   JS_CFUNC_DEF ("_attach", 3, gumjs_interceptor_attach),
   JS_CFUNC_DEF ("detachAll", 0, gumjs_interceptor_detach_all),
-  JS_CFUNC_DEF ("_replace", 3, gumjs_interceptor_replace),
-  JS_CFUNC_DEF ("revert", 1, gumjs_interceptor_revert),
+  JS_CFUNC_DEF ("_replace", 0, gumjs_interceptor_replace),
+  JS_CFUNC_DEF ("revert", 0, gumjs_interceptor_revert),
   JS_CFUNC_DEF ("flush", 0, gumjs_interceptor_flush),
 };
 
@@ -346,7 +346,7 @@ static const JSClassDef gumjs_invocation_retval_def =
 
 static const JSCFunctionListEntry gumjs_invocation_retval_entries[] =
 {
-  JS_CFUNC_DEF ("replace", 1, gumjs_invocation_retval_replace),
+  JS_CFUNC_DEF ("replace", 0, gumjs_invocation_retval_replace),
 };
 
 void

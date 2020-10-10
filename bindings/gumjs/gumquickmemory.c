@@ -106,9 +106,9 @@ static gchar * gum_ansi_string_from_utf8 (const gchar * str_utf8);
     GUMJS_DEFINE_MEMORY_WRITE (T)
 
 #define GUMJS_EXPORT_MEMORY_READ(N, T) \
-    JS_CFUNC_DEF ("read" N, 2, gumjs_memory_read_##T)
+    JS_CFUNC_DEF ("read" N, 0, gumjs_memory_read_##T)
 #define GUMJS_EXPORT_MEMORY_WRITE(N, T) \
-    JS_CFUNC_DEF ("write" N, 2, gumjs_memory_write_##T)
+    JS_CFUNC_DEF ("write" N, 0, gumjs_memory_write_##T)
 #define GUMJS_EXPORT_MEMORY_READ_WRITE(N, T) \
     GUMJS_EXPORT_MEMORY_READ (N, T), \
     GUMJS_EXPORT_MEMORY_WRITE (N, T)
@@ -160,11 +160,11 @@ GUMJS_DECLARE_GETTER (gumjs_memory_access_details_get_pages_total)
 
 static const JSCFunctionListEntry gumjs_memory_entries[] =
 {
-  JS_CFUNC_DEF ("alloc", 1, gumjs_memory_alloc),
-  JS_CFUNC_DEF ("copy", 3, gumjs_memory_copy),
-  JS_CFUNC_DEF ("protect", 3, gumjs_memory_protect),
-  JS_CFUNC_DEF ("_patchCode", 3, gumjs_memory_patch_code),
-  JS_CFUNC_DEF ("_checkCodePointer", 1, gumjs_memory_check_code_pointer),
+  JS_CFUNC_DEF ("alloc", 0, gumjs_memory_alloc),
+  JS_CFUNC_DEF ("copy", 0, gumjs_memory_copy),
+  JS_CFUNC_DEF ("protect", 0, gumjs_memory_protect),
+  JS_CFUNC_DEF ("_patchCode", 0, gumjs_memory_patch_code),
+  JS_CFUNC_DEF ("_checkCodePointer", 0, gumjs_memory_check_code_pointer),
 
   GUMJS_EXPORT_MEMORY_READ_WRITE ("Pointer", POINTER),
   GUMJS_EXPORT_MEMORY_READ_WRITE ("S8", S8),
@@ -189,17 +189,17 @@ static const JSCFunctionListEntry gumjs_memory_entries[] =
   GUMJS_EXPORT_MEMORY_READ_WRITE ("Utf16String", UTF16_STRING),
   GUMJS_EXPORT_MEMORY_READ_WRITE ("AnsiString", ANSI_STRING),
 
-  JS_CFUNC_DEF ("allocAnsiString", 1, gumjs_memory_alloc_ansi_string),
-  JS_CFUNC_DEF ("allocUtf8String", 1, gumjs_memory_alloc_utf8_string),
-  JS_CFUNC_DEF ("allocUtf16String", 1, gumjs_memory_alloc_utf16_string),
+  JS_CFUNC_DEF ("allocAnsiString", 0, gumjs_memory_alloc_ansi_string),
+  JS_CFUNC_DEF ("allocUtf8String", 0, gumjs_memory_alloc_utf8_string),
+  JS_CFUNC_DEF ("allocUtf16String", 0, gumjs_memory_alloc_utf16_string),
 
-  JS_CFUNC_DEF ("scan", 4, gumjs_memory_scan),
-  JS_CFUNC_DEF ("scanSync", 3, gumjs_memory_scan_sync),
+  JS_CFUNC_DEF ("scan", 0, gumjs_memory_scan),
+  JS_CFUNC_DEF ("scanSync", 0, gumjs_memory_scan_sync),
 };
 
 static const JSCFunctionListEntry gumjs_memory_access_monitor_entries[] =
 {
-  JS_CFUNC_DEF ("enable", 2, gumjs_memory_access_monitor_enable),
+  JS_CFUNC_DEF ("enable", 0, gumjs_memory_access_monitor_enable),
   JS_CFUNC_DEF ("disable", 0, gumjs_memory_access_monitor_disable),
 };
 
