@@ -396,12 +396,10 @@ _gum_quick_interceptor_init (GumQuickInterceptor * self,
   proto = JS_NewObject (ctx);
   JS_SetClassProto (ctx, self->invocation_args_class, proto);
 
-  JS_NewClassID (&self->invocation_retval_class);
-  JS_NewClass (rt, self->invocation_retval_class, &gumjs_invocation_retval_def);
-  proto = JS_NewObjectProto (ctx, core->native_pointer_proto);
+  _gum_quick_core_create_native_pointer_subclass (core,
+      &gumjs_invocation_retval_def, &self->invocation_retval_class, &proto);
   JS_SetPropertyFunctionList (ctx, proto, gumjs_invocation_retval_entries,
       G_N_ELEMENTS (gumjs_invocation_retval_entries));
-  JS_SetClassProto (ctx, self->invocation_retval_class, proto);
 
   self->cached_invocation_context = gum_quick_invocation_context_new (self);
   self->cached_invocation_context_in_use = FALSE;

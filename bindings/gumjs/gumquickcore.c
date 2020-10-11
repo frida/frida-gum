@@ -934,6 +934,7 @@ _gum_quick_core_init (GumQuickCore * self,
   JS_SetClassProto (ctx, self->native_pointer_class, proto);
   JS_DefinePropertyValueStr (ctx, ns, gumjs_native_pointer_def.class_name, ctor,
       JS_PROP_C_W_E);
+  self->native_pointer_class_ids = g_hash_table_new (NULL, NULL);
 
   global_obj = JS_GetGlobalObject (ctx);
   obj = JS_GetPropertyStr (ctx, global_obj, "ArrayBuffer");
@@ -946,47 +947,39 @@ _gum_quick_core_init (GumQuickCore * self,
   JS_FreeValue (ctx, obj);
   JS_FreeValue (ctx, global_obj);
 
-  JS_NewClassID (&self->native_resource_class);
-  JS_NewClass (rt, self->native_resource_class, &gumjs_native_resource_def);
-  proto = JS_NewObjectProto (ctx, self->native_pointer_proto);
-  JS_SetClassProto (ctx, self->native_resource_class, proto);
+  _gum_quick_core_create_native_pointer_subclass (self,
+      &gumjs_native_resource_def, &self->native_resource_class, &proto);
 
   JS_NewClassID (&self->kernel_resource_class);
   JS_NewClass (rt, self->kernel_resource_class, &gumjs_kernel_resource_def);
   proto = JS_NewObjectProto (ctx, uint64_proto);
   JS_SetClassProto (ctx, self->kernel_resource_class, proto);
 
-  JS_NewClassID (&self->native_function_class);
-  JS_NewClass (rt, self->native_function_class, &gumjs_native_function_def);
-  proto = JS_NewObjectProto (ctx, self->native_pointer_proto);
+  _gum_quick_core_create_native_pointer_subclass (self,
+      &gumjs_native_function_def, &self->native_function_class, &proto);
   JS_SetPropertyFunctionList (ctx, proto, gumjs_native_function_entries,
       G_N_ELEMENTS (gumjs_native_function_entries));
   ctor = JS_NewCFunction2 (ctx, gumjs_native_function_construct,
       gumjs_native_function_def.class_name, 3, JS_CFUNC_constructor, 0);
   JS_SetConstructor (ctx, ctor, proto);
-  JS_SetClassProto (ctx, self->native_function_class, proto);
   JS_DefinePropertyValueStr (ctx, ns, gumjs_native_function_def.class_name,
       ctor, JS_PROP_C_W_E);
 
-  JS_NewClassID (&self->system_function_class);
-  JS_NewClass (rt, self->system_function_class, &gumjs_system_function_def);
-  proto = JS_NewObjectProto (ctx, self->native_pointer_proto);
+  _gum_quick_core_create_native_pointer_subclass (self,
+      &gumjs_system_function_def, &self->system_function_class, &proto);
   JS_SetPropertyFunctionList (ctx, proto, gumjs_system_function_entries,
       G_N_ELEMENTS (gumjs_system_function_entries));
   ctor = JS_NewCFunction2 (ctx, gumjs_system_function_construct,
       gumjs_system_function_def.class_name, 3, JS_CFUNC_constructor, 0);
   JS_SetConstructor (ctx, ctor, proto);
-  JS_SetClassProto (ctx, self->system_function_class, proto);
   JS_DefinePropertyValueStr (ctx, ns, gumjs_system_function_def.class_name,
       ctor, JS_PROP_C_W_E);
 
-  JS_NewClassID (&self->native_callback_class);
-  JS_NewClass (rt, self->native_callback_class, &gumjs_native_callback_def);
-  proto = JS_NewObjectProto (ctx, self->native_pointer_proto);
+  _gum_quick_core_create_native_pointer_subclass (self,
+      &gumjs_native_callback_def, &self->native_callback_class, &proto);
   ctor = JS_NewCFunction2 (ctx, gumjs_native_callback_construct,
       gumjs_native_callback_def.class_name, 3, JS_CFUNC_constructor, 0);
   JS_SetConstructor (ctx, ctor, proto);
-  JS_SetClassProto (ctx, self->native_callback_class, proto);
   JS_DefinePropertyValueStr (ctx, ns, gumjs_native_callback_def.class_name,
       ctor, JS_PROP_C_W_E);
 
@@ -1103,6 +1096,9 @@ _gum_quick_core_dispose (GumQuickCore * self)
 void
 _gum_quick_core_finalize (GumQuickCore * self)
 {
+  g_hash_table_unref (self->native_pointer_class_ids);
+  self->native_pointer_class_ids = NULL;
+
   g_hash_table_unref (self->scheduled_callbacks);
   self->scheduled_callbacks = NULL;
 
@@ -1190,6 +1186,39 @@ _gum_quick_core_load_module_data (GumQuickCore * self,
                                   const gchar * key)
 {
   return g_hash_table_lookup (self->module_data, key);
+}
+
+gboolean
+_gum_quick_core_is_native_pointer (GumQuickCore * self,
+                                   JSClassID class_id)
+{
+  if (class_id == self->native_pointer_class)
+    return TRUE;
+
+  return g_hash_table_contains (self->native_pointer_class_ids,
+      GSIZE_TO_POINTER (class_id));
+}
+
+void
+_gum_quick_core_create_native_pointer_subclass (GumQuickCore * self,
+                                                const JSClassDef * class_def,
+                                                JSClassID * class_id,
+                                                JSValue * prototype)
+{
+  JSContext * ctx = self->ctx;
+  JSClassID id;
+  JSValue proto;
+
+  JS_NewClassID (&id);
+  g_hash_table_add (self->native_pointer_class_ids, GSIZE_TO_POINTER (id));
+
+  JS_NewClass (self->rt, id, class_def);
+
+  proto = JS_NewObjectProto (ctx, self->native_pointer_proto);
+  JS_SetClassProto (ctx, id, proto);
+
+  *class_id = id;
+  *prototype = proto;
 }
 
 void
@@ -2108,15 +2137,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_uint64_value_of)
   return JS_NewInt64 (ctx, value);
 }
 
-static gboolean
-gumjs_native_pointer_from_this (JSValueConst this_val,
-                                GumQuickCore * core,
-                                GumQuickNativePointer ** ptr)
-{
-  *ptr = JS_GetOpaque2 (core->ctx, this_val, core->native_pointer_class);
-  return *ptr != NULL;
-}
-
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
 {
   JSValue wrapper;
@@ -2168,29 +2188,28 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_pointer_finalize)
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_is_null)
 {
-  GumQuickNativePointer * self;
+  gpointer ptr;
 
-  if (!gumjs_native_pointer_from_this (this_val, core, &self))
+  if (!_gum_quick_native_pointer_get (ctx, this_val, core, &ptr))
     return JS_EXCEPTION;
 
-  return JS_NewBool (ctx, self->value == NULL);
+  return JS_NewBool (ctx, ptr == NULL);
 }
 
 #define GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL(name, op) \
     GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_##name) \
     { \
-      GumQuickNativePointer * self; \
-      gpointer rhs_ptr; \
+      gpointer lhs_ptr, rhs_ptr; \
       gsize lhs, rhs; \
       gpointer result; \
       \
-      if (!gumjs_native_pointer_from_this (this_val, core, &self)) \
+      if (!_gum_quick_native_pointer_get (ctx, this_val, core, &lhs_ptr)) \
         return JS_EXCEPTION; \
       \
       if (!_gum_quick_args_parse (args, "p~", &rhs_ptr)) \
         return JS_EXCEPTION; \
       \
-      lhs = GPOINTER_TO_SIZE (self->value); \
+      lhs = GPOINTER_TO_SIZE (lhs_ptr); \
       rhs = GPOINTER_TO_SIZE (rhs_ptr); \
       \
       result = GSIZE_TO_POINTER (lhs op rhs); \
@@ -2209,13 +2228,12 @@ GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (shl, <<)
 #define GUM_DEFINE_NATIVE_POINTER_UNARY_OP_IMPL(name, op) \
     GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_##name) \
     { \
-      GumQuickNativePointer * self; \
-      gpointer result; \
+      gpointer result, ptr; \
       \
-      if (!gumjs_native_pointer_from_this (this_val, core, &self)) \
+      if (!_gum_quick_native_pointer_get (ctx, this_val, core, &ptr)) \
         return JS_EXCEPTION; \
       \
-      result = GSIZE_TO_POINTER (op GPOINTER_TO_SIZE (self->value)); \
+      result = GSIZE_TO_POINTER (op GPOINTER_TO_SIZE (ptr)); \
       \
       return _gum_quick_native_pointer_new (ctx, result, core); \
     }
@@ -2225,15 +2243,12 @@ GUM_DEFINE_NATIVE_POINTER_UNARY_OP_IMPL (not, ~)
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_sign)
 {
 #ifdef HAVE_PTRAUTH
-  GumQuickNativePointer * self;
-  gpointer value;
+  gpointer ptr;
   const gchar * key;
   gpointer data;
 
-  if (!gumjs_native_pointer_from_this (this_val, core, &self))
+  if (!_gum_quick_native_pointer_get (ctx, this_val, core, &ptr))
     return JS_EXCEPTION;
-
-  value = self->value;
 
   key = "ia";
   data = NULL;
@@ -2241,17 +2256,17 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_sign)
     return JS_EXCEPTION;
 
   if (strcmp (key, "ia") == 0)
-    value = ptrauth_sign_unauthenticated (value, ptrauth_key_asia, data);
+    ptr = ptrauth_sign_unauthenticated (ptr, ptrauth_key_asia, data);
   else if (strcmp (key, "ib") == 0)
-    value = ptrauth_sign_unauthenticated (value, ptrauth_key_asib, data);
+    ptr = ptrauth_sign_unauthenticated (ptr, ptrauth_key_asib, data);
   else if (strcmp (key, "da") == 0)
-    value = ptrauth_sign_unauthenticated (value, ptrauth_key_asda, data);
+    ptr = ptrauth_sign_unauthenticated (ptr, ptrauth_key_asda, data);
   else if (strcmp (key, "db") == 0)
-    value = ptrauth_sign_unauthenticated (value, ptrauth_key_asdb, data);
+    ptr = ptrauth_sign_unauthenticated (ptr, ptrauth_key_asdb, data);
   else
     return _gum_quick_throw_literal (ctx, "invalid key");
 
-  return _gum_quick_native_pointer_new (value, core);
+  return _gum_quick_native_pointer_new (ptr, core);
 #else
   return JS_DupValue (ctx, this_val);
 #endif
@@ -2260,31 +2275,28 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_sign)
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_strip)
 {
 #ifdef HAVE_PTRAUTH
-  GumQuickNativePointer * self;
-  gpointer value;
+  gpointer ptr;
   const gchar * key;
 
-  if (!gumjs_native_pointer_from_this (this_val, core, &self))
+  if (!_gum_quick_native_pointer_get (ctx, this_val, core, &ptr))
     return JS_EXCEPTION;
-
-  value = self->value;
 
   key = "ia";
   if (!_gum_quick_args_parse (args, "|s", &key))
     return JS_EXCEPTION;
 
   if (strcmp (key, "ia") == 0)
-    value = ptrauth_strip (value, ptrauth_key_asia);
+    ptr = ptrauth_strip (ptr, ptrauth_key_asia);
   else if (strcmp (key, "ib") == 0)
-    value = ptrauth_strip (value, ptrauth_key_asib);
+    ptr = ptrauth_strip (ptr, ptrauth_key_asib);
   else if (strcmp (key, "da") == 0)
-    value = ptrauth_strip (value, ptrauth_key_asda);
+    ptr = ptrauth_strip (ptr, ptrauth_key_asda);
   else if (strcmp (key, "db") == 0)
-    value = ptrauth_strip (value, ptrauth_key_asdb);
+    ptr = ptrauth_strip (ptr, ptrauth_key_asdb);
   else
     return _gum_quick_throw_literal (ctx, "invalid key");
 
-  return _gum_quick_native_pointer_new (value, core);
+  return _gum_quick_native_pointer_new (ptr, core);
 #else
   return JS_DupValue (ctx, this_val);
 #endif
@@ -2293,21 +2305,18 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_strip)
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_blend)
 {
 #ifdef HAVE_PTRAUTH
-  GumQuickNativePointer * self;
-  gpointer value;
+  gpointer ptr;
   guint small_integer;
 
-  if (!gumjs_native_pointer_from_this (this_val, core, &self))
+  if (!_gum_quick_native_pointer_get (ctx, this_val, core, &ptr))
     return JS_EXCEPTION;
-
-  value = self->value;
 
   if (!_gum_quick_args_parse (args, "u", &small_integer))
     return JS_EXCEPTION;
 
-  value = GSIZE_TO_POINTER (ptrauth_blend_discriminator (value, small_integer));
+  ptr = GSIZE_TO_POINTER (ptrauth_blend_discriminator (ptr, small_integer));
 
-  return _gum_quick_native_pointer_new (value, core);
+  return _gum_quick_native_pointer_new (ptr, core);
 #else
   return JS_DupValue (ctx, this_val);
 #endif
@@ -2315,18 +2324,17 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_blend)
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_compare)
 {
-  GumQuickNativePointer * self;
-  gpointer rhs_ptr;
+  gpointer lhs_ptr, rhs_ptr;
   gsize lhs, rhs;
   gint result;
 
-  if (!gumjs_native_pointer_from_this (this_val, core, &self))
+  if (!_gum_quick_native_pointer_get (ctx, this_val, core, &lhs_ptr))
     return JS_EXCEPTION;
 
   if (!_gum_quick_args_parse (args, "p~", &rhs_ptr))
     return JS_EXCEPTION;
 
-  lhs = GPOINTER_TO_SIZE (self->value);
+  lhs = GPOINTER_TO_SIZE (lhs_ptr);
   rhs = GPOINTER_TO_SIZE (rhs_ptr);
 
   result = (lhs == rhs) ? 0 : ((lhs < rhs) ? -1 : 1);
@@ -2336,39 +2344,39 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_compare)
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_int32)
 {
-  GumQuickNativePointer * self;
+  gpointer ptr;
   gint32 result;
 
-  if (!gumjs_native_pointer_from_this (this_val, core, &self))
+  if (!_gum_quick_native_pointer_get (ctx, this_val, core, &ptr))
     return JS_EXCEPTION;
 
-  result = (gint32) GPOINTER_TO_SIZE (self->value);
+  result = (gint32) GPOINTER_TO_SIZE (ptr);
 
   return JS_NewInt32 (ctx, result);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_uint32)
 {
-  GumQuickNativePointer * self;
+  gpointer ptr;
   guint32 result;
 
-  if (!gumjs_native_pointer_from_this (this_val, core, &self))
+  if (!_gum_quick_native_pointer_get (ctx, this_val, core, &ptr))
     return JS_EXCEPTION;
 
-  result = (guint32) GPOINTER_TO_SIZE (self->value);
+  result = (guint32) GPOINTER_TO_SIZE (ptr);
 
   return JS_NewUint32 (ctx, result);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_string)
 {
-  GumQuickNativePointer * self;
+  gpointer ptr;
   gint radix = 0;
   gboolean radix_specified;
-  gsize ptr;
+  gsize ptr_bits;
   gchar str[32];
 
-  if (!gumjs_native_pointer_from_this (this_val, core, &self))
+  if (!_gum_quick_native_pointer_get (ctx, this_val, core, &ptr))
     return JS_EXCEPTION;
 
   if (!_gum_quick_args_parse (args, "|u", &radix))
@@ -2380,18 +2388,18 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_string)
   else if (radix != 10 && radix != 16)
     return _gum_quick_throw_literal (ctx, "unsupported radix");
 
-  ptr = GPOINTER_TO_SIZE (self->value);
+  ptr_bits = GPOINTER_TO_SIZE (ptr);
 
   if (radix == 10)
   {
-    sprintf (str, "%" G_GSIZE_MODIFIER "u", ptr);
+    sprintf (str, "%" G_GSIZE_MODIFIER "u", ptr_bits);
   }
   else
   {
     if (radix_specified)
-      sprintf (str, "%" G_GSIZE_MODIFIER "x", ptr);
+      sprintf (str, "%" G_GSIZE_MODIFIER "x", ptr_bits);
     else
-      sprintf (str, "0x%" G_GSIZE_MODIFIER "x", ptr);
+      sprintf (str, "0x%" G_GSIZE_MODIFIER "x", ptr_bits);
   }
 
   return JS_NewString (ctx, str);
@@ -2399,21 +2407,21 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_string)
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_json)
 {
-  GumQuickNativePointer * self;
+  gpointer ptr;
   gchar str[32];
 
-  if (!gumjs_native_pointer_from_this (this_val, core, &self))
+  if (!_gum_quick_native_pointer_get (ctx, this_val, core, &ptr))
     return JS_EXCEPTION;
 
-  sprintf (str, "0x%" G_GSIZE_MODIFIER "x", GPOINTER_TO_SIZE (self->value));
+  sprintf (str, "0x%" G_GSIZE_MODIFIER "x", GPOINTER_TO_SIZE (ptr));
 
   return JS_NewString (ctx, str);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_match_pattern)
 {
-  GumQuickNativePointer * self;
-  gsize ptr;
+  gpointer ptr;
+  gsize ptr_bits;
   gchar str[24];
   gint src, dst;
   const gint num_bits = GLIB_SIZEOF_VOID_P * 8;
@@ -2422,10 +2430,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_match_pattern)
       'a', 'b', 'c', 'd', 'e', 'f'
   };
 
-  if (!gumjs_native_pointer_from_this (this_val, core, &self))
+  if (!_gum_quick_native_pointer_get (ctx, this_val, core, &ptr))
     return JS_EXCEPTION;
 
-  ptr = GPOINTER_TO_SIZE (self->value);
+  ptr_bits = GPOINTER_TO_SIZE (ptr);
 
 #if G_BYTE_ORDER == G_LITTLE_ENDIAN
   for (src = 0, dst = 0; src != num_bits; src += 8)
@@ -2435,8 +2443,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_match_pattern)
   {
     if (dst != 0)
       str[dst++] = ' ';
-    str[dst++] = nibble_to_char[(ptr >> (src + 4)) & 0xf];
-    str[dst++] = nibble_to_char[(ptr >> (src + 0)) & 0xf];
+    str[dst++] = nibble_to_char[(ptr_bits >> (src + 4)) & 0xf];
+    str[dst++] = nibble_to_char[(ptr_bits >> (src + 0)) & 0xf];
   }
   str[dst] = '\0';
 

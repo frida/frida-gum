@@ -1117,16 +1117,20 @@ _gum_quick_native_pointer_try_get (JSContext * ctx,
                                    GumQuickCore * core,
                                    gpointer * ptr)
 {
-  GumQuickNativePointer * p;
+  void * opaque;
+  JSClassID class_id;
 
-  p = JS_GetOpaque (val, core->native_pointer_class);
-  if (p == NULL)
-    return FALSE;
+  opaque = JS_GetAnyOpaque (val, &class_id);
+  if (opaque != NULL && _gum_quick_core_is_native_pointer (core, class_id))
+  {
+    GumQuickNativePointer * p = opaque;
+    *ptr = p->value;
+    return TRUE;
+  }
 
   /* TODO: support NativePointerValue */
 
-  *ptr = p->value;
-  return TRUE;
+  return FALSE;
 }
 
 gboolean

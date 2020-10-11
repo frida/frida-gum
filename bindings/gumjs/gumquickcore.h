@@ -86,6 +86,7 @@ struct _GumQuickCore
   JSClassID uint64_class;
   JSClassID native_pointer_class;
   JSValue native_pointer_proto;
+  GHashTable * native_pointer_class_ids;
   JSClassID native_resource_class;
   JSClassID kernel_resource_class;
   JSClassID native_function_class;
@@ -179,6 +180,12 @@ G_GNUC_INTERNAL void _gum_quick_core_store_module_data (GumQuickCore * self,
     const gchar * key, gpointer value);
 G_GNUC_INTERNAL gpointer _gum_quick_core_load_module_data (GumQuickCore * self,
     const gchar * key);
+
+G_GNUC_INTERNAL gboolean _gum_quick_core_is_native_pointer (GumQuickCore * self,
+    JSClassID class_id);
+G_GNUC_INTERNAL void _gum_quick_core_create_native_pointer_subclass (
+    GumQuickCore * self, const JSClassDef * class_def, JSClassID * class_id,
+    JSValue * prototype);
 
 G_GNUC_INTERNAL void _gum_quick_scope_enter (GumQuickScope * self,
     GumQuickCore * core);
