@@ -170,4 +170,31 @@
               int flags, \
               GumQuickCore * core)
 
+#define GUMJS_EXPORT_CFUNC(name, length, func1) \
+    { \
+      name, \
+      JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE | JS_PROP_ENUMERABLE, \
+      JS_DEF_CFUNC, \
+      0, \
+      .u = { \
+        .func = { length, JS_CFUNC_generic, { .generic = func1 } } \
+      } \
+    }
+#define GUMJS_EXPORT_CGETSET(name, fgetter, fsetter) \
+    { \
+      name, \
+      JS_PROP_CONFIGURABLE | JS_PROP_ENUMERABLE, \
+      JS_DEF_CGETSET, \
+      0, \
+      .u = { \
+        .getset = { \
+          .get = { .getter = fgetter }, \
+          .set = { .setter = fsetter } \
+        } \
+      } \
+    }
+
+#define GUMJS_EXPOSE_CFUNC JS_CFUNC_DEF
+#define GUMJS_EXPOSE_CGETSET JS_CGETSET_DEF
+
 #endif

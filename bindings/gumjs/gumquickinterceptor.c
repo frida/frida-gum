@@ -277,11 +277,11 @@ static void gum_quick_interceptor_release_invocation_retval (
 
 static const JSCFunctionListEntry gumjs_interceptor_entries[] =
 {
-  JS_CFUNC_DEF ("_attach", 3, gumjs_interceptor_attach),
-  JS_CFUNC_DEF ("detachAll", 0, gumjs_interceptor_detach_all),
-  JS_CFUNC_DEF ("_replace", 0, gumjs_interceptor_replace),
-  JS_CFUNC_DEF ("revert", 0, gumjs_interceptor_revert),
-  JS_CFUNC_DEF ("flush", 0, gumjs_interceptor_flush),
+  GUMJS_EXPOSE_CFUNC ("_attach", 3, gumjs_interceptor_attach),
+  GUMJS_EXPORT_CFUNC ("detachAll", 0, gumjs_interceptor_detach_all),
+  GUMJS_EXPOSE_CFUNC ("_replace", 0, gumjs_interceptor_replace),
+  GUMJS_EXPORT_CFUNC ("revert", 0, gumjs_interceptor_revert),
+  GUMJS_EXPORT_CFUNC ("flush", 0, gumjs_interceptor_flush),
 };
 
 static const JSClassDef gumjs_invocation_listener_def =
@@ -291,7 +291,7 @@ static const JSClassDef gumjs_invocation_listener_def =
 
 static const JSCFunctionListEntry gumjs_invocation_listener_entries[] =
 {
-  JS_CFUNC_DEF ("detach", 0, gumjs_invocation_listener_detach),
+  GUMJS_EXPORT_CFUNC ("detach", 0, gumjs_invocation_listener_detach),
 };
 
 static const JSClassExoticMethods gumjs_invocation_context_exotic_methods =
@@ -308,19 +308,19 @@ static const JSClassDef gumjs_invocation_context_def =
 
 static const JSCFunctionListEntry gumjs_invocation_context_entries[] =
 {
-  JS_CGETSET_DEF ("returnAddress",
+  GUMJS_EXPORT_CGETSET ("returnAddress",
       gumjs_invocation_context_get_return_address,
       NULL),
-  JS_CGETSET_DEF ("context",
+  GUMJS_EXPORT_CGETSET ("context",
       gumjs_invocation_context_get_cpu_context,
       NULL),
-  JS_CGETSET_DEF (GUMJS_SYSTEM_ERROR_FIELD,
+  GUMJS_EXPORT_CGETSET (GUMJS_SYSTEM_ERROR_FIELD,
       gumjs_invocation_context_get_system_error,
       gumjs_invocation_context_set_system_error),
-  JS_CGETSET_DEF ("threadId",
+  GUMJS_EXPORT_CGETSET ("threadId",
       gumjs_invocation_context_get_thread_id,
       NULL),
-  JS_CGETSET_DEF ("depth",
+  GUMJS_EXPORT_CGETSET ("depth",
       gumjs_invocation_context_get_depth,
       NULL),
 };
@@ -346,7 +346,7 @@ static const JSClassDef gumjs_invocation_retval_def =
 
 static const JSCFunctionListEntry gumjs_invocation_retval_entries[] =
 {
-  JS_CFUNC_DEF ("replace", 0, gumjs_invocation_retval_replace),
+  GUMJS_EXPORT_CFUNC ("replace", 0, gumjs_invocation_retval_replace),
 };
 
 void
