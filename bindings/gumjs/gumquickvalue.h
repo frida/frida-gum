@@ -52,6 +52,8 @@ G_GNUC_INTERNAL gboolean _gum_quick_uint_get (JSContext * ctx, JSValueConst val,
 
 G_GNUC_INTERNAL JSValue _gum_quick_int64_new (JSContext * ctx, gint64 i,
     GumQuickCore * core);
+G_GNUC_INTERNAL gboolean _gum_quick_int64_unwrap (JSContext * ctx,
+    JSValueConst val, GumQuickCore * core, GumQuickInt64 ** instance);
 G_GNUC_INTERNAL gboolean _gum_quick_int64_get (JSContext * ctx,
     JSValueConst val, GumQuickCore * core, gint64 * i);
 G_GNUC_INTERNAL gboolean _gum_quick_int64_parse (JSContext * ctx,
@@ -59,6 +61,8 @@ G_GNUC_INTERNAL gboolean _gum_quick_int64_parse (JSContext * ctx,
 
 G_GNUC_INTERNAL JSValue _gum_quick_uint64_new (JSContext * ctx, guint64 u,
     GumQuickCore * core);
+G_GNUC_INTERNAL gboolean _gum_quick_uint64_unwrap (JSContext * ctx,
+    JSValueConst val, GumQuickCore * core, GumQuickUInt64 ** instance);
 G_GNUC_INTERNAL gboolean _gum_quick_uint64_get (JSContext * ctx,
     JSValueConst val, GumQuickCore * core, guint64 * u);
 G_GNUC_INTERNAL gboolean _gum_quick_uint64_parse (JSContext * ctx,
@@ -74,6 +78,8 @@ G_GNUC_INTERNAL gboolean _gum_quick_float64_get (JSContext * ctx,
 
 G_GNUC_INTERNAL JSValue _gum_quick_native_pointer_new (JSContext * ctx,
     gpointer ptr, GumQuickCore * core);
+G_GNUC_INTERNAL gboolean _gum_quick_native_pointer_unwrap (JSContext * ctx,
+    JSValueConst val, GumQuickCore * core, GumQuickNativePointer ** instance);
 G_GNUC_INTERNAL gboolean _gum_quick_native_pointer_get (JSContext * ctx,
     JSValueConst val, GumQuickCore * core, gpointer * ptr);
 G_GNUC_INTERNAL gboolean _gum_quick_native_pointer_try_get (JSContext * ctx,
@@ -91,6 +97,8 @@ G_GNUC_INTERNAL void _gum_quick_cpu_context_reset (GumQuickCpuContext * self,
     GumCpuContext * handle, GumQuickCpuContextAccess access);
 G_GNUC_INTERNAL void _gum_quick_cpu_context_make_read_only (
     GumQuickCpuContext * self);
+G_GNUC_INTERNAL gboolean _gum_quick_cpu_context_unwrap (JSContext * ctx,
+    JSValueConst val, GumQuickCore * core, GumQuickCpuContext ** cpu_context);
 G_GNUC_INTERNAL gboolean _gum_quick_cpu_context_get (JSContext * ctx,
     JSValueConst val, GumQuickCore * core, GumCpuContext ** cpu_context);
 

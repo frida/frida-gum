@@ -275,8 +275,6 @@ static void gum_quick_native_callback_finalize (GumQuickNativeCallback * func);
 static void gum_quick_native_callback_invoke (ffi_cif * cif,
     void * return_value, void ** args, void * user_data);
 
-static gboolean gumjs_cpu_context_from_this (JSValueConst this_val,
-    GumQuickCore * core, GumQuickCpuContext ** cpu_context);
 GUMJS_DECLARE_FINALIZER (gumjs_cpu_context_finalize)
 static JSValue gumjs_cpu_context_set_register (GumQuickCpuContext * self,
     JSContext * ctx, JSValueConst val, gpointer * reg);
@@ -514,7 +512,7 @@ static const JSClassDef gumjs_cpu_context_def =
     { \
       GumQuickCpuContext * self; \
       \
-      if (!gumjs_cpu_context_from_this (this_val, core, &self)) \
+      if (!_gum_quick_cpu_context_unwrap (ctx, this_val, core, &self)) \
         return JS_EXCEPTION; \
       \
       return _gum_quick_native_pointer_new (ctx, \
@@ -525,7 +523,7 @@ static const JSClassDef gumjs_cpu_context_def =
     { \
       GumQuickCpuContext * self; \
       \
-      if (!gumjs_cpu_context_from_this (this_val, core, &self)) \
+      if (!_gum_quick_cpu_context_unwrap (ctx, this_val, core, &self)) \
         return JS_EXCEPTION; \
       \
       return gumjs_cpu_context_set_register (self, ctx, val, \
@@ -1795,21 +1793,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
   return JS_UNDEFINED;
 }
 
-static gboolean
-gumjs_int64_from_this (JSValueConst this_val,
-                       GumQuickCore * core,
-                       gint64 * value)
-{
-  GumQuickInt64 * self;
-
-  self = JS_GetOpaque2 (core->ctx, this_val, core->int64_class);
-  if (self == NULL)
-    return FALSE;
-
-  *value = self->value;
-  return TRUE;
-}
-
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_int64_construct)
 {
   JSValue wrapper;
@@ -1862,10 +1845,12 @@ GUMJS_DEFINE_FINALIZER (gumjs_int64_finalize)
 #define GUM_DEFINE_INT64_OP_IMPL(name, op) \
     GUMJS_DEFINE_FUNCTION (gumjs_int64_##name) \
     { \
+      GumQuickInt64 * self; \
       gint64 lhs, rhs, result; \
       \
-      if (!gumjs_int64_from_this (this_val, core, &lhs)) \
+      if (!_gum_quick_int64_unwrap (ctx, this_val, core, &self)) \
         return JS_EXCEPTION; \
+      lhs = self->value; \
       \
       if (!_gum_quick_args_parse (args, "q~", &rhs)) \
         return JS_EXCEPTION; \
@@ -1886,12 +1871,13 @@ GUM_DEFINE_INT64_OP_IMPL (shl, <<)
 #define GUM_DEFINE_INT64_UNARY_OP_IMPL(name, op) \
     GUMJS_DEFINE_FUNCTION (gumjs_int64_##name) \
     { \
-      gint64 value, result; \
+      GumQuickInt64 * self; \
+      gint64 result; \
       \
-      if (!gumjs_int64_from_this (this_val, core, &value)) \
+      if (!_gum_quick_int64_unwrap (ctx, this_val, core, &self)) \
         return JS_EXCEPTION; \
       \
-      result = op value; \
+      result = op self->value; \
       \
       return _gum_quick_int64_new (ctx, result, core); \
     }
@@ -1900,11 +1886,13 @@ GUM_DEFINE_INT64_UNARY_OP_IMPL (not, ~)
 
 GUMJS_DEFINE_FUNCTION (gumjs_int64_compare)
 {
+  GumQuickInt64 * self;
   gint64 lhs, rhs;
   gint result;
 
-  if (!gumjs_int64_from_this (this_val, core, &lhs))
+  if (!_gum_quick_int64_unwrap (ctx, this_val, core, &self))
     return JS_EXCEPTION;
+  lhs = self->value;
 
   if (!_gum_quick_args_parse (args, "q~", &rhs))
     return JS_EXCEPTION;
@@ -1916,22 +1904,24 @@ GUMJS_DEFINE_FUNCTION (gumjs_int64_compare)
 
 GUMJS_DEFINE_FUNCTION (gumjs_int64_to_number)
 {
-  gint64 value;
+  GumQuickInt64 * self;
 
-  if (!gumjs_int64_from_this (this_val, core, &value))
+  if (!_gum_quick_int64_unwrap (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
-  return JS_NewInt64 (ctx, value);
+  return JS_NewInt64 (ctx, self->value);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_int64_to_string)
 {
+  GumQuickInt64 * self;
   gint64 value;
   gint radix;
   gchar str[32];
 
-  if (!gumjs_int64_from_this (this_val, core, &value))
+  if (!_gum_quick_int64_unwrap (ctx, this_val, core, &self))
     return JS_EXCEPTION;
+  value = self->value;
 
   radix = 10;
   if (!_gum_quick_args_parse (args, "|u", &radix))
@@ -1951,40 +1941,25 @@ GUMJS_DEFINE_FUNCTION (gumjs_int64_to_string)
 
 GUMJS_DEFINE_FUNCTION (gumjs_int64_to_json)
 {
-  gint64 value;
+  GumQuickInt64 * self;
   gchar str[32];
 
-  if (!gumjs_int64_from_this (this_val, core, &value))
+  if (!_gum_quick_int64_unwrap (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
-  sprintf (str, "%" G_GINT64_FORMAT, value);
+  sprintf (str, "%" G_GINT64_FORMAT, self->value);
 
   return JS_NewString (ctx, str);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_int64_value_of)
 {
-  gint64 value;
+  GumQuickInt64 * self;
 
-  if (!gumjs_int64_from_this (this_val, core, &value))
+  if (!_gum_quick_int64_unwrap (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
-  return JS_NewInt64 (ctx, value);
-}
-
-static gboolean
-gumjs_uint64_from_this (JSValueConst this_val,
-                        GumQuickCore * core,
-                        guint64 * value)
-{
-  GumQuickUInt64 * self;
-
-  self = JS_GetOpaque2 (core->ctx, this_val, core->uint64_class);
-  if (self == NULL)
-    return FALSE;
-
-  *value = self->value;
-  return TRUE;
+  return JS_NewInt64 (ctx, self->value);
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_uint64_construct)
@@ -2039,10 +2014,12 @@ GUMJS_DEFINE_FINALIZER (gumjs_uint64_finalize)
 #define GUM_DEFINE_UINT64_OP_IMPL(name, op) \
     GUMJS_DEFINE_FUNCTION (gumjs_uint64_##name) \
     { \
+      GumQuickUInt64 * self; \
       guint64 lhs, rhs, result; \
       \
-      if (!gumjs_uint64_from_this (this_val, core, &lhs)) \
+      if (!_gum_quick_uint64_unwrap (ctx, this_val, core, &self)) \
         return JS_EXCEPTION; \
+      lhs = self->value; \
       \
       if (!_gum_quick_args_parse (args, "Q~", &rhs)) \
         return JS_EXCEPTION; \
@@ -2063,12 +2040,13 @@ GUM_DEFINE_UINT64_OP_IMPL (shl, <<)
 #define GUM_DEFINE_UINT64_UNARY_OP_IMPL(name, op) \
     GUMJS_DEFINE_FUNCTION (gumjs_uint64_##name) \
     { \
-      guint64 value, result; \
+      GumQuickUInt64 * self; \
+      guint64 result; \
       \
-      if (!gumjs_uint64_from_this (this_val, core, &value)) \
+      if (!_gum_quick_uint64_unwrap (ctx, this_val, core, &self)) \
         return JS_EXCEPTION; \
       \
-      result = op value; \
+      result = op self->value; \
       \
       return _gum_quick_uint64_new (ctx, result, core); \
     }
@@ -2077,11 +2055,13 @@ GUM_DEFINE_UINT64_UNARY_OP_IMPL (not, ~)
 
 GUMJS_DEFINE_FUNCTION (gumjs_uint64_compare)
 {
+  GumQuickUInt64 * self;
   guint64 lhs, rhs;
   gint result;
 
-  if (!gumjs_uint64_from_this (this_val, core, &lhs))
+  if (!_gum_quick_uint64_unwrap (ctx, this_val, core, &self))
     return JS_EXCEPTION;
+  lhs = self->value;
 
   if (!_gum_quick_args_parse (args, "Q~", &rhs))
     return JS_EXCEPTION;
@@ -2093,22 +2073,24 @@ GUMJS_DEFINE_FUNCTION (gumjs_uint64_compare)
 
 GUMJS_DEFINE_FUNCTION (gumjs_uint64_to_number)
 {
-  guint64 value;
+  GumQuickUInt64 * self;
 
-  if (!gumjs_uint64_from_this (this_val, core, &value))
+  if (!_gum_quick_uint64_unwrap (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
-  return JS_NewInt64 (ctx, value);
+  return JS_NewInt64 (ctx, self->value);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_uint64_to_string)
 {
+  GumQuickUInt64 * self;
   guint64 value;
   gint radix;
   gchar str[32];
 
-  if (!gumjs_uint64_from_this (this_val, core, &value))
+  if (!_gum_quick_uint64_unwrap (ctx, this_val, core, &self))
     return JS_EXCEPTION;
+  value = self->value;
 
   radix = 10;
   if (!_gum_quick_args_parse (args, "|u", &radix))
@@ -2126,25 +2108,25 @@ GUMJS_DEFINE_FUNCTION (gumjs_uint64_to_string)
 
 GUMJS_DEFINE_FUNCTION (gumjs_uint64_to_json)
 {
-  guint64 value;
+  GumQuickUInt64 * self;
   gchar str[32];
 
-  if (!gumjs_uint64_from_this (this_val, core, &value))
+  if (!_gum_quick_uint64_unwrap (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
-  sprintf (str, "%" G_GUINT64_FORMAT, value);
+  sprintf (str, "%" G_GUINT64_FORMAT, self->value);
 
   return JS_NewString (ctx, str);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_uint64_value_of)
 {
-  guint64 value;
+  GumQuickUInt64 * self;
 
-  if (!gumjs_uint64_from_this (this_val, core, &value))
+  if (!_gum_quick_uint64_unwrap (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
-  return JS_NewInt64 (ctx, value);
+  return JS_NewInt64 (ctx, self->value);
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
@@ -2198,31 +2180,33 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_pointer_finalize)
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_is_null)
 {
-  gpointer ptr;
+  GumQuickNativePointer * self;
 
-  if (!_gum_quick_native_pointer_get (ctx, this_val, core, &ptr))
+  if (!_gum_quick_native_pointer_unwrap (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
-  return JS_NewBool (ctx, ptr == NULL);
+  return JS_NewBool (ctx, self->value == NULL);
 }
 
 #define GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL(name, op) \
     GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_##name) \
     { \
+      GumQuickNativePointer * self; \
       gpointer lhs_ptr, rhs_ptr; \
-      gsize lhs, rhs; \
+      gsize lhs_bits, rhs_bits; \
       gpointer result; \
       \
-      if (!_gum_quick_native_pointer_get (ctx, this_val, core, &lhs_ptr)) \
+      if (!_gum_quick_native_pointer_unwrap (ctx, this_val, core, &self)) \
         return JS_EXCEPTION; \
+      lhs_ptr = self->value; \
       \
       if (!_gum_quick_args_parse (args, "p~", &rhs_ptr)) \
         return JS_EXCEPTION; \
       \
-      lhs = GPOINTER_TO_SIZE (lhs_ptr); \
-      rhs = GPOINTER_TO_SIZE (rhs_ptr); \
+      lhs_bits = GPOINTER_TO_SIZE (lhs_ptr); \
+      rhs_bits = GPOINTER_TO_SIZE (rhs_ptr); \
       \
-      result = GSIZE_TO_POINTER (lhs op rhs); \
+      result = GSIZE_TO_POINTER (lhs_bits op rhs_bits); \
       \
       return _gum_quick_native_pointer_new (ctx, result, core); \
     }
@@ -2238,12 +2222,13 @@ GUM_DEFINE_NATIVE_POINTER_BINARY_OP_IMPL (shl, <<)
 #define GUM_DEFINE_NATIVE_POINTER_UNARY_OP_IMPL(name, op) \
     GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_##name) \
     { \
-      gpointer result, ptr; \
+      GumQuickNativePointer * self; \
+      gpointer result; \
       \
-      if (!_gum_quick_native_pointer_get (ctx, this_val, core, &ptr)) \
+      if (!_gum_quick_native_pointer_unwrap (ctx, this_val, core, &self)) \
         return JS_EXCEPTION; \
       \
-      result = GSIZE_TO_POINTER (op GPOINTER_TO_SIZE (ptr)); \
+      result = GSIZE_TO_POINTER (op GPOINTER_TO_SIZE (self->value)); \
       \
       return _gum_quick_native_pointer_new (ctx, result, core); \
     }
@@ -2253,12 +2238,14 @@ GUM_DEFINE_NATIVE_POINTER_UNARY_OP_IMPL (not, ~)
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_sign)
 {
 #ifdef HAVE_PTRAUTH
-  gpointer ptr;
+  GumQuickNativePointer * self;
+  gpointer value;
   const gchar * key;
   gpointer data;
 
-  if (!_gum_quick_native_pointer_get (ctx, this_val, core, &ptr))
+  if (!_gum_quick_native_pointer_unwrap (ctx, this_val, core, &self))
     return JS_EXCEPTION;
+  value = self->value;
 
   key = "ia";
   data = NULL;
@@ -2266,17 +2253,17 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_sign)
     return JS_EXCEPTION;
 
   if (strcmp (key, "ia") == 0)
-    ptr = ptrauth_sign_unauthenticated (ptr, ptrauth_key_asia, data);
+    value = ptrauth_sign_unauthenticated (value, ptrauth_key_asia, data);
   else if (strcmp (key, "ib") == 0)
-    ptr = ptrauth_sign_unauthenticated (ptr, ptrauth_key_asib, data);
+    value = ptrauth_sign_unauthenticated (value, ptrauth_key_asib, data);
   else if (strcmp (key, "da") == 0)
-    ptr = ptrauth_sign_unauthenticated (ptr, ptrauth_key_asda, data);
+    value = ptrauth_sign_unauthenticated (value, ptrauth_key_asda, data);
   else if (strcmp (key, "db") == 0)
-    ptr = ptrauth_sign_unauthenticated (ptr, ptrauth_key_asdb, data);
+    value = ptrauth_sign_unauthenticated (value, ptrauth_key_asdb, data);
   else
     return _gum_quick_throw_literal (ctx, "invalid key");
 
-  return _gum_quick_native_pointer_new (ptr, core);
+  return _gum_quick_native_pointer_new (ctx, value, core);
 #else
   return JS_DupValue (ctx, this_val);
 #endif
@@ -2285,28 +2272,30 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_sign)
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_strip)
 {
 #ifdef HAVE_PTRAUTH
-  gpointer ptr;
+  GumQuickNativePointer * self;
+  gpointer value;
   const gchar * key;
 
-  if (!_gum_quick_native_pointer_get (ctx, this_val, core, &ptr))
+  if (!_gum_quick_native_pointer_unwrap (ctx, this_val, core, &self))
     return JS_EXCEPTION;
+  value = self->value;
 
   key = "ia";
   if (!_gum_quick_args_parse (args, "|s", &key))
     return JS_EXCEPTION;
 
   if (strcmp (key, "ia") == 0)
-    ptr = ptrauth_strip (ptr, ptrauth_key_asia);
+    value = ptrauth_strip (value, ptrauth_key_asia);
   else if (strcmp (key, "ib") == 0)
-    ptr = ptrauth_strip (ptr, ptrauth_key_asib);
+    value = ptrauth_strip (value, ptrauth_key_asib);
   else if (strcmp (key, "da") == 0)
-    ptr = ptrauth_strip (ptr, ptrauth_key_asda);
+    value = ptrauth_strip (value, ptrauth_key_asda);
   else if (strcmp (key, "db") == 0)
-    ptr = ptrauth_strip (ptr, ptrauth_key_asdb);
+    value = ptrauth_strip (value, ptrauth_key_asdb);
   else
     return _gum_quick_throw_literal (ctx, "invalid key");
 
-  return _gum_quick_native_pointer_new (ptr, core);
+  return _gum_quick_native_pointer_new (ctx, value, core);
 #else
   return JS_DupValue (ctx, this_val);
 #endif
@@ -2315,18 +2304,19 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_strip)
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_blend)
 {
 #ifdef HAVE_PTRAUTH
-  gpointer ptr;
+  GumQuickNativePointer * self;
+  gpointer value;
   guint small_integer;
 
-  if (!_gum_quick_native_pointer_get (ctx, this_val, core, &ptr))
+  if (!_gum_quick_native_pointer_unwrap (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
   if (!_gum_quick_args_parse (args, "u", &small_integer))
     return JS_EXCEPTION;
 
-  ptr = GSIZE_TO_POINTER (ptrauth_blend_discriminator (ptr, small_integer));
+  value = GSIZE_TO_POINTER (ptrauth_blend_discriminator (value, small_integer));
 
-  return _gum_quick_native_pointer_new (ptr, core);
+  return _gum_quick_native_pointer_new (ctx, value, core);
 #else
   return JS_DupValue (ctx, this_val);
 #endif
@@ -2334,59 +2324,61 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_blend)
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_compare)
 {
+  GumQuickNativePointer * self;
   gpointer lhs_ptr, rhs_ptr;
-  gsize lhs, rhs;
+  gsize lhs_bits, rhs_bits;
   gint result;
 
-  if (!_gum_quick_native_pointer_get (ctx, this_val, core, &lhs_ptr))
+  if (!_gum_quick_native_pointer_unwrap (ctx, this_val, core, &self))
     return JS_EXCEPTION;
+  lhs_ptr = self->value;
 
   if (!_gum_quick_args_parse (args, "p~", &rhs_ptr))
     return JS_EXCEPTION;
 
-  lhs = GPOINTER_TO_SIZE (lhs_ptr);
-  rhs = GPOINTER_TO_SIZE (rhs_ptr);
+  lhs_bits = GPOINTER_TO_SIZE (lhs_ptr);
+  rhs_bits = GPOINTER_TO_SIZE (rhs_ptr);
 
-  result = (lhs == rhs) ? 0 : ((lhs < rhs) ? -1 : 1);
+  result = (lhs_bits == rhs_bits) ? 0 : ((lhs_bits < rhs_bits) ? -1 : 1);
 
   return JS_NewInt32 (ctx, result);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_int32)
 {
-  gpointer ptr;
+  GumQuickNativePointer * self;
   gint32 result;
 
-  if (!_gum_quick_native_pointer_get (ctx, this_val, core, &ptr))
+  if (!_gum_quick_native_pointer_unwrap (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
-  result = (gint32) GPOINTER_TO_SIZE (ptr);
+  result = (gint32) GPOINTER_TO_SIZE (self->value);
 
   return JS_NewInt32 (ctx, result);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_uint32)
 {
-  gpointer ptr;
+  GumQuickNativePointer * self;
   guint32 result;
 
-  if (!_gum_quick_native_pointer_get (ctx, this_val, core, &ptr))
+  if (!_gum_quick_native_pointer_unwrap (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
-  result = (guint32) GPOINTER_TO_SIZE (ptr);
+  result = (guint32) GPOINTER_TO_SIZE (self->value);
 
   return JS_NewUint32 (ctx, result);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_string)
 {
-  gpointer ptr;
+  GumQuickNativePointer * self;
   gint radix = 0;
   gboolean radix_specified;
   gsize ptr_bits;
   gchar str[32];
 
-  if (!_gum_quick_native_pointer_get (ctx, this_val, core, &ptr))
+  if (!_gum_quick_native_pointer_unwrap (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
   if (!_gum_quick_args_parse (args, "|u", &radix))
@@ -2398,7 +2390,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_string)
   else if (radix != 10 && radix != 16)
     return _gum_quick_throw_literal (ctx, "unsupported radix");
 
-  ptr_bits = GPOINTER_TO_SIZE (ptr);
+  ptr_bits = GPOINTER_TO_SIZE (self->value);
 
   if (radix == 10)
   {
@@ -2417,20 +2409,20 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_string)
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_json)
 {
-  gpointer ptr;
+  GumQuickNativePointer * self;
   gchar str[32];
 
-  if (!_gum_quick_native_pointer_get (ctx, this_val, core, &ptr))
+  if (!_gum_quick_native_pointer_unwrap (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
-  sprintf (str, "0x%" G_GSIZE_MODIFIER "x", GPOINTER_TO_SIZE (ptr));
+  sprintf (str, "0x%" G_GSIZE_MODIFIER "x", GPOINTER_TO_SIZE (self->value));
 
   return JS_NewString (ctx, str);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_match_pattern)
 {
-  gpointer ptr;
+  GumQuickNativePointer * self;
   gsize ptr_bits;
   gchar str[24];
   gint src, dst;
@@ -2440,10 +2432,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_match_pattern)
       'a', 'b', 'c', 'd', 'e', 'f'
   };
 
-  if (!_gum_quick_native_pointer_get (ctx, this_val, core, &ptr))
+  if (!_gum_quick_native_pointer_unwrap (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
-  ptr_bits = GPOINTER_TO_SIZE (ptr);
+  ptr_bits = GPOINTER_TO_SIZE (self->value);
 
 #if G_BYTE_ORDER == G_LITTLE_ENDIAN
   for (src = 0, dst = 0; src != num_bits; src += 8)
@@ -3578,15 +3570,6 @@ gum_quick_native_callback_invoke (ffi_cif * cif,
   _gum_quick_scope_leave (&scope);
 }
 
-static gboolean
-gumjs_cpu_context_from_this (JSValueConst this_val,
-                             GumQuickCore * core,
-                             GumQuickCpuContext ** cpu_context)
-{
-  *cpu_context = JS_GetOpaque2 (core->ctx, this_val, core->cpu_context_class);
-  return *cpu_context != NULL;
-}
-
 GUMJS_DEFINE_FINALIZER (gumjs_cpu_context_finalize)
 {
   GumQuickCpuContext * c;
@@ -3613,11 +3596,12 @@ gumjs_cpu_context_set_register (GumQuickCpuContext * self,
 }
 
 static gboolean
-gumjs_source_map_from_this (JSValueConst this_val,
-                            GumQuickCore * core,
-                            GumSourceMap ** source_map)
+gum_quick_source_map_get (JSContext * ctx,
+                          JSValueConst val,
+                          GumQuickCore * core,
+                          GumSourceMap ** source_map)
 {
-  *source_map = JS_GetOpaque2 (core->ctx, this_val, core->source_map_class);
+  *source_map = JS_GetOpaque2 (ctx, val, core->source_map_class);
   return *source_map != NULL;
 }
 
@@ -3701,7 +3685,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_source_map_resolve)
   guint line, column;
   const gchar * source, * name;
 
-  if (!gumjs_source_map_from_this (this_val, core, &self))
+  if (!gum_quick_source_map_get (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
   if (args->count == 1)
