@@ -7208,7 +7208,8 @@ TESTCASE (script_can_be_compiled_to_bytecode)
   error = NULL;
   code = gum_script_backend_compile_sync (fixture->backend, "testcase",
       "send(1337);\noops;", NULL, &error);
-  if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+  if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend) ||
+      GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
   {
     g_assert_nonnull (code);
     g_assert_null (error);
@@ -7235,7 +7236,8 @@ TESTCASE (script_can_be_compiled_to_bytecode)
 
   script = gum_script_backend_create_from_bytes_sync (fixture->backend, code,
       NULL, &error);
-  if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+  if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend) ||
+      GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
   {
     TestScriptMessageItem * item;
 
@@ -7308,9 +7310,10 @@ TESTCASE (script_memory_usage)
   GTimer * timer;
   guint before, after;
 
-  if (!GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+  if (!GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend) &&
+      !GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
   {
-    g_print ("<skipping, measurement only valid for the Duktape runtime> ");
+    g_print ("<skipped due to runtime> ");
     return;
   }
 
