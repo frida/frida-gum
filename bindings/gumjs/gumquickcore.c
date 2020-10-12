@@ -1209,13 +1209,15 @@ _gum_quick_core_create_native_pointer_subclass (GumQuickCore * self,
   JSClassID id;
   JSValue proto;
 
+  id = 0;
   JS_NewClassID (&id);
-  g_hash_table_add (self->native_pointer_class_ids, GSIZE_TO_POINTER (id));
 
   JS_NewClass (self->rt, id, class_def);
 
   proto = JS_NewObjectProto (ctx, self->native_pointer_proto);
   JS_SetClassProto (ctx, id, proto);
+
+  g_hash_table_add (self->native_pointer_class_ids, GSIZE_TO_POINTER (id));
 
   *class_id = id;
   *prototype = proto;
