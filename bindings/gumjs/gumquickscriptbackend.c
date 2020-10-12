@@ -108,11 +108,13 @@ static void gum_quick_script_backend_with_lock_held (GumScriptBackend * backend,
     GumScriptBackendLockedFunc func, gpointer user_data);
 static gboolean gum_quick_script_backend_is_locked (GumScriptBackend * backend);
 
+#ifndef HAVE_ASAN
 static void * gum_quick_malloc (JSMallocState * state, size_t size);
 static void gum_quick_free (JSMallocState * state, void * ptr);
 static void * gum_quick_realloc (JSMallocState * state, void * ptr,
     size_t size);
 static size_t gum_quick_malloc_usable_size (const void * ptr);
+#endif
 
 G_DEFINE_TYPE_EXTENDED (GumQuickScriptBackend,
                         gum_quick_script_backend,
@@ -190,6 +192,7 @@ gum_quick_script_backend_finalize (GObject * object)
 JSRuntime *
 gum_quick_script_backend_make_runtime (GumQuickScriptBackend * self)
 {
+#ifndef HAVE_ASAN
   const JSMallocFunctions mf = {
     gum_quick_malloc,
     gum_quick_free,
@@ -198,6 +201,9 @@ gum_quick_script_backend_make_runtime (GumQuickScriptBackend * self)
   };
 
   return JS_NewRuntime2 (&mf, self);
+#else
+  return JS_NewRuntime ();
+#endif
 }
 
 JSValue
@@ -580,10 +586,17 @@ gum_compile_script_task_run (GumScriptTask * task,
     uint8_t * code;
     size_t size;
     GBytes * bytes;
+    GDestroyNotify free_impl;
+
+#ifndef HAVE_ASAN
+    free_impl = gum_free;
+#else
+    free_impl = free;
+#endif
 
     code = JS_WriteObject (ctx, &size, val, JS_WRITE_OBJ_BYTECODE);
 
-    bytes = g_bytes_new_with_free_func (code, size, gum_free, code);
+    bytes = g_bytes_new_with_free_func (code, size, free_impl, code);
 
     gum_script_task_return_pointer (task, bytes,
         (GDestroyNotify) g_bytes_unref);
@@ -647,6 +660,8 @@ gum_quick_script_backend_is_locked (GumScriptBackend * backend)
   return FALSE;
 }
 
+#ifndef HAVE_ASAN
+
 static void *
 gum_quick_malloc (JSMallocState * state,
                   size_t size)
@@ -674,3 +689,5 @@ gum_quick_malloc_usable_size (const void * ptr)
 {
   return gum_malloc_usable_size (ptr);
 }
+
+#endif
