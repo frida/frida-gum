@@ -234,6 +234,8 @@ static GumQuickInvocationContext * gum_quick_invocation_context_new (
     GumQuickInterceptor * parent);
 static void gum_quick_invocation_context_release (
     GumQuickInvocationContext * self);
+static gboolean gum_quick_invocation_context_is_dirty (
+    GumQuickInvocationContext * self);
 GUMJS_DECLARE_FINALIZER (gumjs_invocation_context_finalize)
 GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_return_address)
 GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_cpu_context)
@@ -241,9 +243,6 @@ GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_system_error)
 GUMJS_DECLARE_SETTER (gumjs_invocation_context_set_system_error)
 GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_thread_id)
 GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_depth)
-static int gumjs_invocation_context_set_property (JSContext * ctx,
-    JSValueConst obj, JSAtom atom, JSValueConst value, JSValueConst receiver,
-    int flags);
 
 static GumQuickInvocationArgs * gum_quick_invocation_args_new (
     GumQuickInterceptor * parent);
@@ -294,16 +293,10 @@ static const JSCFunctionListEntry gumjs_invocation_listener_entries[] =
   GUMJS_EXPORT_CFUNC ("detach", 0, gumjs_invocation_listener_detach),
 };
 
-static const JSClassExoticMethods gumjs_invocation_context_exotic_methods =
-{
-  .set_property = gumjs_invocation_context_set_property,
-};
-
 static const JSClassDef gumjs_invocation_context_def =
 {
   .class_name = "InvocationContext",
   .finalizer = gumjs_invocation_context_finalize,
-  .exotic = (JSClassExoticMethods *) &gumjs_invocation_context_exotic_methods,
 };
 
 static const JSCFunctionListEntry gumjs_invocation_context_entries[] =
@@ -862,6 +855,7 @@ gum_quick_js_call_listener_on_enter (GumInvocationListener * listener,
     GumQuickScope scope;
     GumQuickInvocationContext * jic;
     GumQuickInvocationArgs * args;
+    gboolean jic_is_dirty;
 
     _gum_quick_scope_enter (&scope, parent->core);
 
@@ -878,7 +872,14 @@ gum_quick_js_call_listener_on_enter (GumInvocationListener * listener,
     gum_quick_interceptor_release_invocation_args (parent, args);
 
     _gum_quick_invocation_context_reset (jic, NULL);
-    if (!JS_IsNull (self->on_leave) || jic->dirty)
+    jic_is_dirty = gum_quick_invocation_context_is_dirty (jic);
+    if (jic_is_dirty && jic == parent->cached_invocation_context)
+    {
+      parent->cached_invocation_context =
+          gum_quick_invocation_context_new (parent);
+      parent->cached_invocation_context_in_use = FALSE;
+    }
+    if (!JS_IsNull (self->on_leave) || jic_is_dirty)
     {
       state->jic = jic;
     }
@@ -1161,7 +1162,7 @@ gum_quick_invocation_context_new (GumQuickInterceptor * parent)
   jic->wrapper = wrapper;
   jic->handle = NULL;
   jic->cpu_context = NULL;
-  jic->dirty = FALSE;
+  jic->initial_property_count = JS_GetOwnPropertyCountUnchecked (wrapper);
   jic->interceptor = parent;
 
   JS_SetOpaque (wrapper, jic);
@@ -1198,6 +1199,13 @@ gum_quick_invocation_context_get (JSContext * ctx,
   *ic = JS_GetOpaque2 (ctx, val,
       gumjs_get_parent_module (core)->invocation_context_class);
   return *ic != NULL;
+}
+
+static gboolean
+gum_quick_invocation_context_is_dirty (GumQuickInvocationContext * self)
+{
+  return JS_GetOwnPropertyCountUnchecked (self->wrapper) !=
+      self->initial_property_count;
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_invocation_context_finalize)
@@ -1284,38 +1292,6 @@ GUMJS_DEFINE_GETTER (gumjs_invocation_context_get_depth)
     return JS_EXCEPTION;
 
   return JS_NewUint32 (ctx, gum_invocation_context_get_depth (self->handle));
-}
-
-static int
-gumjs_invocation_context_set_property (JSContext * ctx,
-                                       JSValueConst obj,
-                                       JSAtom atom,
-                                       JSValueConst value,
-                                       JSValueConst receiver,
-                                       int flags)
-{
-  GumQuickCore * core;
-  GumQuickInvocationContext * self;
-  GumQuickInterceptor * parent;
-
-  core = JS_GetContextOpaque (ctx);
-
-  if (!gum_quick_invocation_context_get (ctx, receiver, core, &self))
-    return -1;
-
-  parent = self->interceptor;
-
-  if (JS_VALUE_GET_OBJ (receiver) ==
-      JS_VALUE_GET_OBJ (parent->cached_invocation_context->wrapper))
-  {
-    parent->cached_invocation_context =
-        gum_quick_invocation_context_new (parent);
-    parent->cached_invocation_context_in_use = FALSE;
-  }
-
-  self->dirty = TRUE;
-
-  return JS_SetPropertyInternal (ctx, receiver, atom, value, flags);
 }
 
 static GumQuickInvocationArgs *

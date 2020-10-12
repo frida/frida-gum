@@ -47,7 +47,7 @@ struct _GumQuickInvocationContext
   JSValue wrapper;
   GumInvocationContext * handle;
   GumQuickCpuContext * cpu_context;
-  gboolean dirty;
+  int initial_property_count;
 
   GumQuickInterceptor * interceptor;
 };
