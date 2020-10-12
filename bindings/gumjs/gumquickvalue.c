@@ -664,7 +664,7 @@ _gum_quick_bytes_get (JSContext * ctx,
 
     JS_FreeValue (ctx, JS_GetException (ctx));
 
-    if (!_gum_quick_array_get_length (ctx, val, &n))
+    if (!_gum_quick_array_get_length (ctx, val, core, &n))
       return FALSE;
 
     if (n >= GUM_MAX_JS_BYTE_ARRAY_LENGTH)
@@ -1117,20 +1117,39 @@ _gum_quick_native_pointer_try_get (JSContext * ctx,
                                    GumQuickCore * core,
                                    gpointer * ptr)
 {
-  void * opaque;
+  gboolean success = FALSE;
+  GumQuickNativePointer * p;
   JSClassID class_id;
 
-  opaque = JS_GetAnyOpaque (val, &class_id);
-  if (opaque != NULL && _gum_quick_core_is_native_pointer (core, class_id))
+  p = JS_GetAnyOpaque (val, &class_id);
+  if (p != NULL && _gum_quick_core_is_native_pointer (core, class_id))
   {
-    GumQuickNativePointer * p = opaque;
     *ptr = p->value;
-    return TRUE;
+    success = TRUE;
+  }
+  else if (JS_IsObject (val))
+  {
+    JSValue handle;
+
+    handle = JS_GetProperty (ctx, val, core->handle_atom);
+    if (!JS_IsException (val))
+    {
+      p = JS_GetAnyOpaque (handle, &class_id);
+      if (p != NULL && _gum_quick_core_is_native_pointer (core, class_id))
+      {
+        *ptr = p->value;
+        success = TRUE;
+      }
+
+      JS_FreeValue (ctx, handle);
+    }
+    else
+    {
+      JS_FreeValue (ctx, JS_GetException (ctx));
+    }
   }
 
-  /* TODO: support NativePointerValue */
-
-  return FALSE;
+  return success;
 }
 
 gboolean
@@ -1139,15 +1158,13 @@ _gum_quick_native_pointer_parse (JSContext * ctx,
                                  GumQuickCore * core,
                                  gpointer * ptr)
 {
-  GumQuickNativePointer * p;
   GumQuickUInt64 * u64;
   GumQuickInt64 * i64;
 
-  if ((p = JS_GetOpaque (val, core->native_pointer_class)) != NULL)
-  {
-    *ptr = p->value;
-  }
-  else if (JS_IsString (val))
+  if (_gum_quick_native_pointer_try_get (ctx, val, core, ptr))
+    return TRUE;
+
+  if (JS_IsString (val))
   {
     const gchar * ptr_as_string, * end;
     gboolean valid;
@@ -1322,13 +1339,14 @@ _gum_quick_page_protection_get (JSContext * ctx,
 gboolean
 _gum_quick_array_get_length (JSContext * ctx,
                              JSValueConst array,
+                             GumQuickCore * core,
                              guint * length)
 {
   JSValue val;
   int res;
   uint32_t v;
 
-  val = JS_GetPropertyStr (ctx, array, "length");
+  val = JS_GetProperty (ctx, array, core->length_atom);
   if (JS_IsException (val))
     return FALSE;
 

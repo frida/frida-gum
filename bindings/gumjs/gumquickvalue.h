@@ -101,7 +101,7 @@ G_GNUC_INTERNAL gboolean _gum_quick_page_protection_get (JSContext * ctx,
     JSValueConst val, GumPageProtection * prot);
 
 G_GNUC_INTERNAL gboolean _gum_quick_array_get_length (JSContext * ctx,
-    JSValueConst array, guint * length);
+    JSValueConst array, GumQuickCore * core, guint * length);
 
 G_GNUC_INTERNAL void _gum_quick_array_buffer_free (JSRuntime * rt,
     void * opaque, void * ptr);

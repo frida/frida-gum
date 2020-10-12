@@ -95,6 +95,9 @@ struct _GumQuickCore
   JSClassID cpu_context_class;
   JSClassID source_map_class;
   JSValue source_map_ctor;
+
+  JSAtom handle_atom;
+  JSAtom length_atom;
 };
 
 struct _GumQuickScope

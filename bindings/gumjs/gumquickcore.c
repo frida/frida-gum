@@ -314,7 +314,7 @@ static void gum_quick_message_sink_post (GumQuickMessageSink * self,
     const gchar * message, GBytes * data, GumQuickScope * scope);
 
 static gboolean gum_quick_ffi_type_get (JSContext * ctx, JSValueConst val,
-    ffi_type ** type, GSList ** data);
+    GumQuickCore * core, ffi_type ** type, GSList ** data);
 static gboolean gum_quick_ffi_abi_get (JSContext * ctx, const gchar * name,
     ffi_abi * abi);
 static gboolean gum_quick_value_to_ffi (JSContext * ctx, JSValueConst sval,
@@ -1002,6 +1002,9 @@ _gum_quick_core_init (GumQuickCore * self,
   JS_SetClassProto (ctx, self->source_map_class, proto);
   JS_DefinePropertyValueStr (ctx, ns, gumjs_source_map_def.class_name, ctor,
       JS_PROP_C_W_E);
+
+  self->handle_atom = JS_NewAtom (ctx, "handle");
+  self->length_atom = JS_NewAtom (ctx, "length");
 }
 
 gboolean
@@ -1081,6 +1084,11 @@ void
 _gum_quick_core_dispose (GumQuickCore * self)
 {
   JSContext * ctx = self->ctx;
+
+  JS_FreeAtom (ctx, self->length_atom);
+  JS_FreeAtom (ctx, self->handle_atom);
+  self->length_atom = JS_ATOM_NULL;
+  self->handle_atom = JS_ATOM_NULL;
 
   g_clear_pointer (&self->unhandled_exception_sink,
       gum_quick_exception_sink_free);
@@ -2672,10 +2680,11 @@ gumjs_ffi_function_new (JSContext * ctx,
   func->traps = params->traps;
   func->return_shape = params->return_shape;
 
-  if (!gum_quick_ffi_type_get (ctx, params->return_type, &rtype, &func->data))
+  if (!gum_quick_ffi_type_get (ctx, params->return_type, core, &rtype,
+      &func->data))
     goto invalid_return_type;
 
-  if (!_gum_quick_array_get_length (ctx, params->argument_types, &length))
+  if (!_gum_quick_array_get_length (ctx, params->argument_types, core, &length))
     goto invalid_argument_array;
 
   nargs_fixed = nargs_total = length;
@@ -2716,7 +2725,7 @@ gumjs_ffi_function_new (JSContext * ctx,
 
       atype = &func->atypes[is_variadic ? i - 1 : i];
 
-      if (!gum_quick_ffi_type_get (ctx, val, atype, &func->data))
+      if (!gum_quick_ffi_type_get (ctx, val, core, atype, &func->data))
         goto invalid_argument_type;
 
       if (is_variadic)
@@ -3100,7 +3109,7 @@ gumjs_ffi_function_apply (JSContext * ctx,
     JSValueConst elements = argv[1];
     JSValue result;
 
-    if (!_gum_quick_array_get_length (ctx, elements, &n))
+    if (!_gum_quick_array_get_length (ctx, elements, core, &n))
       return JS_EXCEPTION;
 
     values = g_newa (JSValue, n);
@@ -3386,10 +3395,10 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
   cb->func = func;
   cb->core = core;
 
-  if (!gum_quick_ffi_type_get (ctx, rtype_value, &rtype, &cb->data))
+  if (!gum_quick_ffi_type_get (ctx, rtype_value, core, &rtype, &cb->data))
     goto propagate_exception;
 
-  if (!_gum_quick_array_get_length (ctx, atypes_array, &nargs))
+  if (!_gum_quick_array_get_length (ctx, atypes_array, core, &nargs))
     goto propagate_exception;
 
   cb->atypes = g_new (ffi_type *, nargs);
@@ -3404,7 +3413,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
 
     atype = &cb->atypes[i];
 
-    if (!gum_quick_ffi_type_get (ctx, val, atype, &cb->data))
+    if (!gum_quick_ffi_type_get (ctx, val, core, atype, &cb->data))
       goto propagate_exception;
 
     JS_FreeValue (ctx, val);
@@ -3958,6 +3967,7 @@ gum_quick_message_sink_post (GumQuickMessageSink * self,
 static gboolean
 gum_quick_ffi_type_get (JSContext * ctx,
                         JSValueConst val,
+                        GumQuickCore * core,
                         ffi_type ** type,
                         GSList ** data)
 {
@@ -3975,7 +3985,7 @@ gum_quick_ffi_type_get (JSContext * ctx,
     guint length, i;
     ffi_type ** fields, * struct_type;
 
-    if (!_gum_quick_array_get_length (ctx, val, &length))
+    if (!_gum_quick_array_get_length (ctx, val, core, &length))
       return FALSE;
 
     fields = g_new (ffi_type *, length + 1);
@@ -3985,7 +3995,7 @@ gum_quick_ffi_type_get (JSContext * ctx,
     {
       field_value = JS_GetPropertyUint32 (ctx, val, i);
 
-      if (!gum_quick_ffi_type_get (ctx, field_value, &fields[i], data))
+      if (!gum_quick_ffi_type_get (ctx, field_value, core, &fields[i], data))
         goto invalid_field_value;
 
       JS_FreeValue (ctx, field_value);
@@ -4116,7 +4126,7 @@ gum_quick_value_to_ffi (JSContext * ctx,
     guint8 * field_values;
     gsize offset;
 
-    if (!_gum_quick_array_get_length (ctx, sval, &length))
+    if (!_gum_quick_array_get_length (ctx, sval, core, &length))
       return FALSE;
 
     expected_length = 0;
