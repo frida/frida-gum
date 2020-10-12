@@ -17,6 +17,8 @@ static void gum_quick_args_free_cstring_later (GumQuickArgs * self,
 static void gum_quick_args_free_array_later (GumQuickArgs * self, GArray * a);
 static void gum_quick_args_free_bytes_later (GumQuickArgs * self, GBytes * b);
 
+static const gchar * gum_exception_type_to_string (GumExceptionType type);
+
 void
 _gum_quick_args_init (GumQuickArgs * args,
                       JSContext * ctx,
@@ -1172,7 +1174,7 @@ _gum_quick_native_pointer_try_get (JSContext * ctx,
   {
     JSValue handle;
 
-    handle = JS_GetProperty (ctx, val, core->handle_atom);
+    handle = JS_GetProperty (ctx, val, GUM_QUICK_CORE_ATOM (core, handle));
     if (!JS_IsException (val))
     {
       p = JS_GetAnyOpaque (handle, &class_id);
@@ -1373,6 +1375,57 @@ _gum_quick_cpu_context_get (JSContext * ctx,
   return TRUE;
 }
 
+JSValue
+_gum_quick_exception_details_new (JSContext * ctx,
+                                  GumExceptionDetails * details,
+                                  GumQuickCore * core,
+                                  GumQuickCpuContext ** cpu_context)
+{
+  const GumExceptionMemoryDetails * md = &details->memory;
+  JSValue d;
+  gchar * message;
+
+  d = JS_NewError (ctx);
+
+  message = gum_exception_details_to_string (details);
+  JS_SetProperty (ctx, d, GUM_QUICK_CORE_ATOM (core, message),
+      JS_NewString (ctx, message));
+  g_free (message);
+
+  JS_DefinePropertyValue (ctx, d, GUM_QUICK_CORE_ATOM (core, type),
+      JS_NewString (ctx, gum_exception_type_to_string (details->type)),
+      JS_PROP_C_W_E);
+  JS_DefinePropertyValue (ctx, d, GUM_QUICK_CORE_ATOM (core, address),
+      _gum_quick_native_pointer_new (ctx, details->address, core),
+      JS_PROP_C_W_E);
+
+  if (md->operation != GUM_MEMOP_INVALID)
+  {
+    JSValue op = JS_NewError (ctx);
+
+    JS_DefinePropertyValue (ctx, op, GUM_QUICK_CORE_ATOM (core, operation),
+        JS_NewString (ctx,
+            _gum_quick_memory_operation_to_string (md->operation)),
+        JS_PROP_C_W_E);
+    JS_DefinePropertyValue (ctx, op, GUM_QUICK_CORE_ATOM (core, address),
+        _gum_quick_native_pointer_new (ctx, md->address, core),
+        JS_PROP_C_W_E);
+
+    JS_DefinePropertyValue (ctx, d, GUM_QUICK_CORE_ATOM (core, memory), op,
+        JS_PROP_C_W_E);
+  }
+
+  JS_DefinePropertyValue (ctx, d, GUM_QUICK_CORE_ATOM (core, context),
+      _gum_quick_cpu_context_new (ctx, &details->context,
+          GUM_CPU_CONTEXT_READWRITE, core, cpu_context),
+      JS_PROP_C_W_E);
+  JS_DefinePropertyValue (ctx, d, GUM_QUICK_CORE_ATOM (core, nativeContext),
+      _gum_quick_native_pointer_new (ctx, details->native_context, core),
+      JS_PROP_C_W_E);
+
+  return d;
+}
+
 gboolean
 _gum_quick_memory_ranges_get (JSContext * ctx,
                               JSValueConst val,
@@ -1402,7 +1455,7 @@ _gum_quick_array_get_length (JSContext * ctx,
   int res;
   uint32_t v;
 
-  val = JS_GetProperty (ctx, array, core->length_atom);
+  val = JS_GetProperty (ctx, array, GUM_QUICK_CORE_ATOM (core, length));
   if (JS_IsException (val))
     return FALSE;
 
@@ -1447,10 +1500,14 @@ JSValue
 _gum_quick_throw_literal (JSContext * ctx,
                           const gchar * message)
 {
+  GumQuickCore * core;
   JSValue error;
 
+  core = JS_GetContextOpaque (ctx);
+
   error = JS_NewError (ctx);
-  JS_SetPropertyStr (ctx, error, "message", JS_NewString (ctx, message));
+  JS_SetProperty (ctx, error, GUM_QUICK_CORE_ATOM (core, message),
+      JS_NewString (ctx, message));
 
   return JS_Throw (ctx, error);
 }
@@ -1460,7 +1517,33 @@ _gum_quick_throw_native (JSContext * ctx,
                          GumExceptionDetails * details,
                          GumQuickCore * core)
 {
-  return _gum_quick_throw_literal (ctx, "a native exception occurred");
+  JSValue d;
+  GumQuickCpuContext * cc;
+
+  d = _gum_quick_exception_details_new (ctx, details, core, &cc);
+  _gum_quick_cpu_context_make_read_only (cc);
+
+  return JS_Throw (ctx, d);
+}
+
+static const gchar *
+gum_exception_type_to_string (GumExceptionType type)
+{
+  switch (type)
+  {
+    case GUM_EXCEPTION_ABORT: return "abort";
+    case GUM_EXCEPTION_ACCESS_VIOLATION: return "access-violation";
+    case GUM_EXCEPTION_GUARD_PAGE: return "guard-page";
+    case GUM_EXCEPTION_ILLEGAL_INSTRUCTION: return "illegal-instruction";
+    case GUM_EXCEPTION_STACK_OVERFLOW: return "stack-overflow";
+    case GUM_EXCEPTION_ARITHMETIC: return "arithmetic";
+    case GUM_EXCEPTION_BREAKPOINT: return "breakpoint";
+    case GUM_EXCEPTION_SINGLE_STEP: return "single-step";
+    case GUM_EXCEPTION_SYSTEM: return "system";
+    default: break;
+  }
+
+  return NULL;
 }
 
 const gchar *

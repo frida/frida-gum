@@ -102,6 +102,10 @@ G_GNUC_INTERNAL gboolean _gum_quick_cpu_context_unwrap (JSContext * ctx,
 G_GNUC_INTERNAL gboolean _gum_quick_cpu_context_get (JSContext * ctx,
     JSValueConst val, GumQuickCore * core, GumCpuContext ** cpu_context);
 
+G_GNUC_INTERNAL JSValue _gum_quick_exception_details_new (JSContext * ctx,
+    GumExceptionDetails * details, GumQuickCore * core,
+    GumQuickCpuContext ** cpu_context);
+
 G_GNUC_INTERNAL gboolean _gum_quick_memory_ranges_get (JSContext * ctx,
     JSValueConst val, GumQuickCore * core, GArray ** ranges);
 

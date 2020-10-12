@@ -12,7 +12,10 @@
 
 #include <gum/gumexceptor.h>
 
-#define GUM_QUICK_SCOPE_INIT(C) { C, NULL, }
+#define GUM_QUICK_CORE_ATOM(core, name) \
+    core->G_PASTE (atom_for_, name)
+
+#define GUM_QUICK_SCOPE_INIT(core) { core, NULL, }
 
 #ifdef HAVE_WINDOWS
 # define GUMJS_SYSTEM_ERROR_FIELD "lastError"
@@ -96,8 +99,20 @@ struct _GumQuickCore
   JSClassID source_map_class;
   JSValue source_map_ctor;
 
-  JSAtom handle_atom;
-  JSAtom length_atom;
+#define GUM_DECLARE_ATOM(name) \
+    JSAtom G_PASTE (atom_for_, name)
+
+  GUM_DECLARE_ATOM (address);
+  GUM_DECLARE_ATOM (context);
+  GUM_DECLARE_ATOM (handle);
+  GUM_DECLARE_ATOM (length);
+  GUM_DECLARE_ATOM (memory);
+  GUM_DECLARE_ATOM (message);
+  GUM_DECLARE_ATOM (nativeContext);
+  GUM_DECLARE_ATOM (operation);
+  GUM_DECLARE_ATOM (type);
+
+#undef GUM_DECLARE_ATOM
 };
 
 struct _GumQuickScope

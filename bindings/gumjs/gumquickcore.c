@@ -1004,8 +1004,20 @@ _gum_quick_core_init (GumQuickCore * self,
   JS_DefinePropertyValueStr (ctx, ns, gumjs_source_map_def.class_name, ctor,
       JS_PROP_C_W_E);
 
-  self->handle_atom = JS_NewAtom (ctx, "handle");
-  self->length_atom = JS_NewAtom (ctx, "length");
+#define GUM_SETUP_ATOM(name) \
+    GUM_QUICK_CORE_ATOM (self, name) = JS_NewAtom (ctx, G_STRINGIFY (name))
+
+  GUM_SETUP_ATOM (address);
+  GUM_SETUP_ATOM (context);
+  GUM_SETUP_ATOM (handle);
+  GUM_SETUP_ATOM (length);
+  GUM_SETUP_ATOM (memory);
+  GUM_SETUP_ATOM (message);
+  GUM_SETUP_ATOM (nativeContext);
+  GUM_SETUP_ATOM (operation);
+  GUM_SETUP_ATOM (type);
+
+#undef GUM_SETUP_ATOM
 }
 
 gboolean
@@ -1086,10 +1098,20 @@ _gum_quick_core_dispose (GumQuickCore * self)
 {
   JSContext * ctx = self->ctx;
 
-  JS_FreeAtom (ctx, self->length_atom);
-  JS_FreeAtom (ctx, self->handle_atom);
-  self->length_atom = JS_ATOM_NULL;
-  self->handle_atom = JS_ATOM_NULL;
+#define GUM_TEARDOWN_ATOM(name) \
+    JS_FreeAtom (ctx, GUM_QUICK_CORE_ATOM (self, name)); \
+    GUM_QUICK_CORE_ATOM (self, name) = JS_ATOM_NULL
+
+  GUM_TEARDOWN_ATOM (address);
+  GUM_TEARDOWN_ATOM (context);
+  GUM_TEARDOWN_ATOM (handle);
+  GUM_TEARDOWN_ATOM (length);
+  GUM_TEARDOWN_ATOM (memory);
+  GUM_TEARDOWN_ATOM (nativeContext);
+  GUM_TEARDOWN_ATOM (operation);
+  GUM_TEARDOWN_ATOM (type);
+
+#undef GUM_TEARDOWN_ATOM
 
   g_clear_pointer (&self->unhandled_exception_sink,
       gum_quick_exception_sink_free);
