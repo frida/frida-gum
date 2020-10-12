@@ -5125,7 +5125,7 @@ measure_target_function_int_overhead (void)
   g_assert (n % 2 == 0);
   t_median = (measurement[n / 2] + measurement[(n / 2) - 1]) / 2.0;
 
-  g_print ("<min: %.1f µs, max: %.1f µs, median: %.1f µs> ",
+  g_print ("<min: %.1f us, max: %.1f us, median: %.1f us> ",
       t_min * (gdouble) G_USEC_PER_SEC,
       t_max * (gdouble) G_USEC_PER_SEC,
       t_median * (gdouble) G_USEC_PER_SEC);
