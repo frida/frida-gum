@@ -276,6 +276,7 @@ static void gum_quick_native_callback_invoke (ffi_cif * cif,
     void * return_value, void ** args, void * user_data);
 
 GUMJS_DECLARE_FINALIZER (gumjs_cpu_context_finalize)
+GUMJS_DECLARE_FUNCTION (gumjs_cpu_context_to_json)
 static JSValue gumjs_cpu_context_set_register (GumQuickCpuContext * self,
     JSContext * ctx, JSValueConst val, gpointer * reg);
 
@@ -809,6 +810,8 @@ static const JSCFunctionListEntry gumjs_cpu_context_entries[] =
   GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (k0),
   GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (k1),
 #endif
+
+  GUMJS_EXPORT_CFUNC ("toJSON", 0, gumjs_cpu_context_to_json),
 };
 
 static const JSClassDef gumjs_source_map_def =
@@ -3579,6 +3582,37 @@ GUMJS_DEFINE_FINALIZER (gumjs_cpu_context_finalize)
     return;
 
   g_slice_free (GumQuickCpuContext, c);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_cpu_context_to_json)
+{
+  JSValue result;
+  guint i;
+
+  result = JS_NewObject (ctx);
+
+  for (i = 0; i != G_N_ELEMENTS (gumjs_cpu_context_entries); i++)
+  {
+    const JSCFunctionListEntry * e = &gumjs_cpu_context_entries[i];
+    JSValue val;
+
+    if (e->def_type != JS_DEF_CGETSET)
+      continue;
+
+    val = JS_GetPropertyStr (ctx, this_val, e->name);
+    if (JS_IsException (val))
+      goto propagate_exception;
+    JS_SetPropertyStr (ctx, result, e->name, val);
+  }
+
+  return result;
+
+propagate_exception:
+  {
+    JS_FreeValue (ctx, result);
+
+    return JS_EXCEPTION;
+  }
 }
 
 static JSValue
