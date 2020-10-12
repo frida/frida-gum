@@ -37,6 +37,7 @@ if have_quickjs
     'gumquickvalue.c',
     'gumquickcore.c',
     'gumquickmemory.c',
+    'gumquickthread.c',
     'gumquickinterceptor.c',
     'gumquickstalker.c',
   ]
