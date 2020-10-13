@@ -7593,6 +7593,12 @@ TESTCASE (weak_callback_is_triggered_on_unbind)
 
 TESTCASE (globals_can_be_dynamically_generated)
 {
+  if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
+  {
+    g_print ("<not yet available on QuickJS> ");
+    return;
+  }
+
   COMPILE_AND_LOAD_SCRIPT (
       "Script.setGlobalAccessHandler({"
       "  get: function (property) {"
@@ -7666,6 +7672,12 @@ TESTCASE (debugger_can_be_enabled)
   GumScript * badger, * snake;
   GumInspectorServer * server;
   GError * error;
+
+  if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
+  {
+    g_print ("<not available on QuickJS> ");
+    return;
+  }
 
   if (!g_test_slow ())
   {
