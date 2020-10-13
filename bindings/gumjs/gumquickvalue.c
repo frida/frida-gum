@@ -1513,6 +1513,22 @@ _gum_quick_throw_literal (JSContext * ctx,
 }
 
 JSValue
+_gum_quick_throw_error (JSContext * ctx,
+                        GError ** error)
+{
+  JSValue result;
+  GError * e;
+
+  e = g_steal_pointer (error);
+
+  result = _gum_quick_throw_literal (ctx, e->message);
+
+  g_error_free (e);
+
+  return result;
+}
+
+JSValue
 _gum_quick_throw_native (JSContext * ctx,
                          GumExceptionDetails * details,
                          GumQuickCore * core)

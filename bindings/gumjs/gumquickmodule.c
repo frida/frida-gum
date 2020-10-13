@@ -184,65 +184,61 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_construct)
 GUMJS_DEFINE_FUNCTION (gumjs_module_load)
 {
   const gchar * name;
-  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (args->core);
+  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (core);
   GError * error;
 
-  _gum_quick_args_parse (args, "s", &name);
+  if (!_gum_quick_args_parse (args, "s", &name))
+    return JS_EXCEPTION;
 
   _gum_quick_scope_suspend (&scope);
+
   error = NULL;
   gum_module_load (name, &error);
+
   _gum_quick_scope_resume (&scope);
 
   if (error != NULL)
-  {
-    quick_push_error_object (ctx, QUICK_ERR_ERROR, "%s", error->message);
-    g_error_free (error);
-    (void) quick_throw (ctx);
-  }
+    return _gum_quick_throw_error (ctx, &error);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_module_ensure_initialized)
 {
   const gchar * name;
-  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (args->core);
+  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (core);
   gboolean success;
 
-  _gum_quick_args_parse (args, "s", &name);
+  if (!_gum_quick_args_parse (args, "s", &name))
+    return JS_EXCEPTION;
 
   _gum_quick_scope_suspend (&scope);
+
   success = gum_module_ensure_initialized (name);
+
   _gum_quick_scope_resume (&scope);
 
   if (!success)
-  {
-    _gum_quick_throw (ctx, "unable to find module '%s'", name);
-  }
+    return _gum_quick_throw (ctx, "unable to find module '%s'", name);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_imports)
 {
   GumQuickMatchContext mc;
   const gchar * name;
-  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (args->core);
+  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (core);
 
-  _gum_quick_args_parse (args, "sF{onMatch,onComplete}", &name, &mc.on_match,
-      &mc.on_complete);
+  if (!_gum_quick_args_parse (args, "sF{onMatch,onComplete}", &name,
+      &mc.on_match, &mc.on_complete))
+    return JS_EXCEPTION;
   mc.scope = &scope;
 
   gum_module_enumerate_imports (name, (GumFoundImportFunc) gum_emit_import,
       &mc);
-  _gum_quick_scope_flush (&scope);
 
-  quick_push_heapptr (ctx, mc.on_complete);
-  quick_call (ctx, 0);
-  quick_pop (ctx);
-
-  return 0;
+  return JS_Call (ctx, mc.on_complete, JS_UNDEFINED, 0, NULL);
 }
 
 static gboolean
@@ -305,7 +301,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_exports)
 {
   GumQuickMatchContext mc;
   const gchar * name;
-  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (args->core);
+  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (core);
 
   _gum_quick_args_parse (args, "sF{onMatch,onComplete}", &name, &mc.on_match,
       &mc.on_complete);
@@ -363,7 +359,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_symbols)
 {
   GumQuickMatchContext mc;
   const gchar * name;
-  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (args->core);
+  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (core);
 
   _gum_quick_args_parse (args, "sF{onMatch,onComplete}", &name, &mc.on_match,
       &mc.on_complete);
@@ -444,7 +440,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_ranges)
   GumQuickMatchContext mc;
   gchar * name;
   GumPageProtection prot;
-  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (args->core);
+  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (core);
 
   _gum_quick_args_parse (args, "smF{onMatch,onComplete}", &name, &prot,
       &mc.on_match, &mc.on_complete);
@@ -497,7 +493,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_find_base_address)
 
   if (address != 0)
     _gum_quick_push_native_pointer (ctx, GSIZE_TO_POINTER (address),
-        args->core);
+        core);
   else
     quick_push_null (ctx);
   return 1;
@@ -506,7 +502,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_find_base_address)
 GUMJS_DEFINE_FUNCTION (gumjs_module_find_export_by_name)
 {
   const gchar * module_name, * symbol_name;
-  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (args->core);
+  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (core);
   GumAddress address;
 
   _gum_quick_args_parse (args, "s?s", &module_name, &symbol_name);
@@ -517,7 +513,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_find_export_by_name)
 
   if (address != 0)
     _gum_quick_push_native_pointer (ctx, GSIZE_TO_POINTER (address),
-        args->core);
+        core);
   else
     quick_push_null (ctx);
   return 1;
@@ -618,7 +614,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_module_map_finalize)
 GUMJS_DEFINE_GETTER (gumjs_module_map_get_handle)
 {
   return _gum_quick_native_pointer_new (ctx, gum_quick_module_map_get (ctx),
-      args->core);
+      core);
   return 1;
 }
 

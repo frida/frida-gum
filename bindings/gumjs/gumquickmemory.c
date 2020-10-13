@@ -1135,8 +1135,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_enable)
 
   if (!gum_memory_access_monitor_enable (self->monitor, &error))
   {
-    _gum_quick_throw_literal (ctx, error->message);
-    g_error_free (error);
+    _gum_quick_throw_error (ctx, &error);
 
     gum_quick_memory_clear_monitor (self, ctx);
 
