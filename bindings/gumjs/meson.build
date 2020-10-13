@@ -162,12 +162,14 @@ foreach r : runtimes
 endforeach
 
 gumjs_runtime_sources = [
-  'runtime/entrypoint-v8.js',
+  'runtime/entrypoint-quickjs.js',
   'runtime/entrypoint-duktape.js',
+  'runtime/entrypoint-v8.js',
   'runtime/core.js',
   'runtime/message-dispatcher.js',
-  'runtime/error-handler-v8.js',
+  'runtime/error-handler-quickjs.js',
   'runtime/error-handler-duktape.js',
+  'runtime/error-handler-v8.js',
   'runtime/console.js',
   'runtime/hexdump.js',
   'runtime/promise.js',

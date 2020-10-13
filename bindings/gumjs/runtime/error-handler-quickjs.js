@@ -24,3 +24,8 @@ global._setUnhandledExceptionCallback(error => {
 
   _send(JSON.stringify(message), null);
 });
+
+Error.prepareStackTrace = (error, stack) => {
+  console.log('yay, TODO: ' + stack);
+  return stack;
+};
