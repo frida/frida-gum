@@ -7441,10 +7441,26 @@ TESTCASE (source_maps_should_be_supported_for_user_scripts)
   );
 
   item = test_script_fixture_pop_message (fixture);
-  if (!GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+  if (!GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend) &&
+      !GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+  {
     g_assert_null (strstr (item->message, "testcase.js"));
+  }
   g_assert_nonnull (strstr (item->message, "\"type\":\"send\""));
-  if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+  if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
+  {
+    g_assert_nonnull (strstr (item->message,
+        "\"payload\":\"Error: not yet implemented\\n"
+        "    at add (math.js:5)\\n"
+        "    at <anonymous> (index.js:6)\\n"
+        "    at call (native)\\n"
+        "    at s (node_modules/frida/node_modules/browserify/node_modules/"
+            "browser-pack/_prelude.js:1)\\n"
+        "    at e (node_modules/frida/node_modules/browserify/node_modules/"
+            "browser-pack/_prelude.js:1)\\n"
+        "    at <eval> (/testcase.js:25)"));
+  }
+  else if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
   {
     g_assert_nonnull (strstr (item->message,
         "\"payload\":\"Error: not yet implemented\\n"
@@ -7474,7 +7490,12 @@ TESTCASE (source_maps_should_be_supported_for_user_scripts)
   g_assert_null (strstr (item->message, "testcase.js"));
   g_assert_nonnull (strstr (item->message, "\"type\":\"error\""));
   g_assert_nonnull (strstr (item->message, "\"description\":\"Error: Oops!\""));
-  if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+  if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
+  {
+    g_assert_nonnull (strstr (item->message, "\"stack\":\"Error: Oops!\\n"
+        "    at <anonymous> (index.js:12)\\n"));
+  }
+  else if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
   {
     g_assert_nonnull (strstr (item->message, "\"stack\":\"Error: Oops!\\n"
         "    at index.js:12\\n"));
