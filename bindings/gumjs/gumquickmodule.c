@@ -46,7 +46,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_module_find_export_by_name)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_module_map_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_module_map_finalize)
-GUMJS_DECLARE_FUNCTION (gumjs_module_map_get_handle)
+GUMJS_DECLARE_GETTER (gumjs_module_map_get_handle)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_has)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_find)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_find_name)
@@ -94,8 +94,10 @@ static const JSCFunctionListEntry gumjs_module_map_entries[] =
 
 void
 _gum_quick_module_init (GumQuickModule * self,
-                      GumQuickCore * core)
+                        JSValue ns,
+                        GumQuickCore * core)
 {
+  JSRuntime * rt = core->rt;
   JSContext * ctx = core->ctx;
   JSValue proto, ctor;
 
@@ -153,7 +155,8 @@ _gum_quick_module_new (JSContext * ctx,
       JS_PROP_C_W_E);
   JS_DefinePropertyValue (ctx, m,
       GUM_QUICK_CORE_ATOM (core, base),
-      _gum_quick_native_pointer_new (ctx, details->range->base_address, core),
+      _gum_quick_native_pointer_new (ctx,
+          GSIZE_TO_POINTER (details->range->base_address), core),
       JS_PROP_C_W_E);
   JS_DefinePropertyValue (ctx, m,
       GUM_QUICK_CORE_ATOM (core, size),
@@ -168,14 +171,14 @@ _gum_quick_module_new (JSContext * ctx,
 }
 
 static GumQuickModule *
-gumjs_module_from_args (const GumQuickArgs * args)
+gumjs_get_parent_module (GumQuickCore * core)
 {
-  return _gum_quick_load_module_data (args->ctx, "module");
+  return _gum_quick_core_load_module_data (core, "module");
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_construct)
 {
-  return 0;
+  return _gum_quick_throw_literal (ctx, "not user-instantiable");
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_module_load)
@@ -535,20 +538,39 @@ gumjs_module_map_from_args (const GumQuickArgs * args)
   return self;
 }
 
+static gboolean
+gum_quick_module_map_get (JSContext * ctx,
+                          JSValueConst val,
+                          GumQuickModule * parent,
+                          GumModuleMap ** module_map)
+{
+  *module_map = JS_GetOpaque2 (ctx, val, parent->module_map_class);
+  return *module_map != NULL;
+}
+
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_map_construct)
 {
+  JSValue obj = JS_NULL;
   JSValue filter_callback;
-  GumModuleMap * module_map;
+  JSValue proto;
+  GumModuleMap * map;
 
-  if (!quick_is_constructor_call (ctx))
-    _gum_quick_throw (ctx, "use constructor syntax to create a new instance");
+  if (JS_IsUndefined (new_target))
+    goto missing_target;
 
-  filter_callback = NULL;
-  _gum_quick_args_parse (args, "|F", &filter_callback);
+  filter_callback = JS_NULL;
+  if (!_gum_quick_args_parse (args, "|F", &filter_callback))
+    goto propagate_exception;
 
-  if (filter_callback == NULL)
+  proto = JS_GetPropertyStr (ctx, new_target, "prototype");
+  obj = JS_NewObjectProtoClass (ctx, proto, parent->module_map_class);
+  JS_FreeValue (ctx, proto);
+  if (JS_IsException (obj))
+    goto propagate_exception;
+
+  if (JS_IsNull (filter_callback))
   {
-    module_map = gum_module_map_new ();
+    map = gum_module_map_new ();
   }
   else
   {
@@ -556,19 +578,28 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_map_construct)
 
     filter = g_slice_new (GumQuickModuleFilter);
     _gum_quick_protect (ctx, filter_callback);
-    filter->callback = filter_callback;
+    filter->callback = JS_DupValue (ctx, filter_callback);
     filter->module = gumjs_module_from_args (args);
 
-    module_map = gum_module_map_new_filtered (
+    map = gum_module_map_new_filtered (
         (GumModuleMapFilterFunc) gum_quick_module_filter_matches,
         filter, (GDestroyNotify) gum_quick_module_filter_free);
   }
 
-  quick_push_this (ctx);
-  _gum_quick_put_data (ctx, -1, module_map);
-  quick_pop (ctx);
+  JS_SetOpaque (obj, map);
 
-  return 0;
+  return obj;
+
+missing_target:
+  {
+    _gum_quick_throw_literal (ctx,
+        "use `new ModuleMap()` to create a new instance");
+    goto propagate_exception;
+  }
+propagate_exception:
+  {
+    return JS_EXCEPTION;
+  }
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_module_map_finalize)
@@ -584,9 +615,9 @@ GUMJS_DEFINE_FINALIZER (gumjs_module_map_finalize)
   return 0;
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_module_map_get_handle)
+GUMJS_DEFINE_GETTER (gumjs_module_map_get_handle)
 {
-  _gum_quick_push_native_pointer (ctx, gumjs_module_map_from_args (args),
+  return _gum_quick_native_pointer_new (ctx, gum_quick_module_map_get (ctx),
       args->core);
   return 1;
 }

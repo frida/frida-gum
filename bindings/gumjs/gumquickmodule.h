@@ -17,8 +17,8 @@ struct _GumQuickModule
 {
   GumQuickCore * core;
 
-  JSValue module_class;
-  JSValue module_map_class;
+  JSClassID module_class;
+  JSClassID module_map_class;
 };
 
 G_GNUC_INTERNAL void _gum_quick_module_init (GumQuickModule * self,

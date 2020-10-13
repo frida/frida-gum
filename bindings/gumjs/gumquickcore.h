@@ -104,14 +104,17 @@ struct _GumQuickCore
 
   GUM_DECLARE_ATOM (GUMJS_SYSTEM_ERROR_FIELD);
   GUM_DECLARE_ATOM (address);
+  GUM_DECLARE_ATOM (base);
   GUM_DECLARE_ATOM (callback);
   GUM_DECLARE_ATOM (context);
   GUM_DECLARE_ATOM (handle);
   GUM_DECLARE_ATOM (length);
   GUM_DECLARE_ATOM (memory);
   GUM_DECLARE_ATOM (message);
+  GUM_DECLARE_ATOM (name);
   GUM_DECLARE_ATOM (nativeContext);
   GUM_DECLARE_ATOM (operation);
+  GUM_DECLARE_ATOM (path);
   GUM_DECLARE_ATOM (size);
   GUM_DECLARE_ATOM (type);
   GUM_DECLARE_ATOM (value);
