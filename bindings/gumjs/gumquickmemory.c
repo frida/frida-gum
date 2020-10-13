@@ -1094,13 +1094,15 @@ gum_append_match (GumAddress address,
                   GumMemoryScanSyncContext * sc)
 {
   JSContext * ctx = sc->ctx;
+  GumQuickCore * core = sc->core;
   JSValue m;
 
   m = JS_NewObject (ctx);
-  JS_DefinePropertyValueStr (ctx, m, "address",
-      _gum_quick_native_pointer_new (ctx, GSIZE_TO_POINTER (address), sc->core),
+  JS_DefinePropertyValue (ctx, m, GUM_QUICK_CORE_ATOM (core, address),
+      _gum_quick_native_pointer_new (ctx, GSIZE_TO_POINTER (address), core),
       JS_PROP_C_W_E);
-  JS_DefinePropertyValueStr (ctx, m, "size", JS_NewUint32 (ctx, size),
+  JS_DefinePropertyValue (ctx, m, GUM_QUICK_CORE_ATOM (core, size),
+      JS_NewUint32 (ctx, size),
       JS_PROP_C_W_E);
 
   JS_DefinePropertyValueUint32 (ctx, sc->matches, sc->index, m, JS_PROP_C_W_E);

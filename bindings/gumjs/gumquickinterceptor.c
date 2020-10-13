@@ -307,7 +307,7 @@ static const JSCFunctionListEntry gumjs_invocation_context_entries[] =
   GUMJS_EXPORT_CGETSET ("context",
       gumjs_invocation_context_get_cpu_context,
       NULL),
-  GUMJS_EXPORT_CGETSET (GUMJS_SYSTEM_ERROR_FIELD,
+  GUMJS_EXPORT_CGETSET (G_STRINGIFY (GUMJS_SYSTEM_ERROR_FIELD),
       gumjs_invocation_context_get_system_error,
       gumjs_invocation_context_set_system_error),
   GUMJS_EXPORT_CGETSET ("threadId",
@@ -575,8 +575,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
 
   listener->wrapper = JS_NewObjectClass (ctx, self->invocation_listener_class);
   JS_SetOpaque (listener->wrapper, listener);
-  JS_DefinePropertyValueStr (ctx, listener->wrapper, "$c",
-      JS_DupValue (ctx, cb_val), 0);
+  JS_DefinePropertyValue (ctx, listener->wrapper,
+      GUM_QUICK_CORE_ATOM (core, callback),
+      JS_DupValue (ctx, cb_val),
+      0);
 
   g_hash_table_add (self->invocation_listeners, listener);
 

@@ -18,9 +18,9 @@
 #define GUM_QUICK_SCOPE_INIT(core) { core, NULL, }
 
 #ifdef HAVE_WINDOWS
-# define GUMJS_SYSTEM_ERROR_FIELD "lastError"
+# define GUMJS_SYSTEM_ERROR_FIELD lastError
 #else
-# define GUMJS_SYSTEM_ERROR_FIELD "errno"
+# define GUMJS_SYSTEM_ERROR_FIELD errno
 #endif
 
 G_BEGIN_DECLS
@@ -102,7 +102,9 @@ struct _GumQuickCore
 #define GUM_DECLARE_ATOM(name) \
     JSAtom G_PASTE (atom_for_, name)
 
+  GUM_DECLARE_ATOM (GUMJS_SYSTEM_ERROR_FIELD);
   GUM_DECLARE_ATOM (address);
+  GUM_DECLARE_ATOM (callback);
   GUM_DECLARE_ATOM (context);
   GUM_DECLARE_ATOM (handle);
   GUM_DECLARE_ATOM (length);
@@ -110,7 +112,9 @@ struct _GumQuickCore
   GUM_DECLARE_ATOM (message);
   GUM_DECLARE_ATOM (nativeContext);
   GUM_DECLARE_ATOM (operation);
+  GUM_DECLARE_ATOM (size);
   GUM_DECLARE_ATOM (type);
+  GUM_DECLARE_ATOM (value);
 
 #undef GUM_DECLARE_ATOM
 };

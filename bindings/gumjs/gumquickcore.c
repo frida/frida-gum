@@ -904,7 +904,7 @@ _gum_quick_core_init (GumQuickCore * self,
   JS_SetPropertyFunctionList (ctx, proto, gumjs_int64_entries,
       G_N_ELEMENTS (gumjs_int64_entries));
   ctor = JS_NewCFunction2 (ctx, gumjs_int64_construct,
-      gumjs_int64_def.class_name, 1, JS_CFUNC_constructor, 0);
+      gumjs_int64_def.class_name, 0, JS_CFUNC_constructor, 0);
   JS_SetConstructor (ctx, ctor, proto);
   JS_SetClassProto (ctx, self->int64_class, proto);
   JS_DefinePropertyValueStr (ctx, ns, gumjs_int64_def.class_name, ctor,
@@ -917,7 +917,7 @@ _gum_quick_core_init (GumQuickCore * self,
   JS_SetPropertyFunctionList (ctx, proto, gumjs_uint64_entries,
       G_N_ELEMENTS (gumjs_uint64_entries));
   ctor = JS_NewCFunction2 (ctx, gumjs_uint64_construct,
-      gumjs_uint64_def.class_name, 1, JS_CFUNC_constructor, 0);
+      gumjs_uint64_def.class_name, 0, JS_CFUNC_constructor, 0);
   JS_SetConstructor (ctx, ctor, proto);
   JS_SetClassProto (ctx, self->uint64_class, proto);
   JS_DefinePropertyValueStr (ctx, ns, gumjs_uint64_def.class_name, ctor,
@@ -930,7 +930,7 @@ _gum_quick_core_init (GumQuickCore * self,
   JS_SetPropertyFunctionList (ctx, proto, gumjs_native_pointer_entries,
       G_N_ELEMENTS (gumjs_native_pointer_entries));
   ctor = JS_NewCFunction2 (ctx, gumjs_native_pointer_construct,
-      gumjs_native_pointer_def.class_name, 1, JS_CFUNC_constructor, 0);
+      gumjs_native_pointer_def.class_name, 0, JS_CFUNC_constructor, 0);
   JS_SetConstructor (ctx, ctor, proto);
   JS_SetClassProto (ctx, self->native_pointer_class, proto);
   JS_DefinePropertyValueStr (ctx, ns, gumjs_native_pointer_def.class_name, ctor,
@@ -961,7 +961,7 @@ _gum_quick_core_init (GumQuickCore * self,
   JS_SetPropertyFunctionList (ctx, proto, gumjs_native_function_entries,
       G_N_ELEMENTS (gumjs_native_function_entries));
   ctor = JS_NewCFunction2 (ctx, gumjs_native_function_construct,
-      gumjs_native_function_def.class_name, 3, JS_CFUNC_constructor, 0);
+      gumjs_native_function_def.class_name, 0, JS_CFUNC_constructor, 0);
   JS_SetConstructor (ctx, ctor, proto);
   JS_DefinePropertyValueStr (ctx, ns, gumjs_native_function_def.class_name,
       ctor, JS_PROP_C_W_E);
@@ -971,7 +971,7 @@ _gum_quick_core_init (GumQuickCore * self,
   JS_SetPropertyFunctionList (ctx, proto, gumjs_system_function_entries,
       G_N_ELEMENTS (gumjs_system_function_entries));
   ctor = JS_NewCFunction2 (ctx, gumjs_system_function_construct,
-      gumjs_system_function_def.class_name, 3, JS_CFUNC_constructor, 0);
+      gumjs_system_function_def.class_name, 0, JS_CFUNC_constructor, 0);
   JS_SetConstructor (ctx, ctor, proto);
   JS_DefinePropertyValueStr (ctx, ns, gumjs_system_function_def.class_name,
       ctor, JS_PROP_C_W_E);
@@ -979,7 +979,7 @@ _gum_quick_core_init (GumQuickCore * self,
   _gum_quick_core_create_native_pointer_subclass (self,
       &gumjs_native_callback_def, &self->native_callback_class, &proto);
   ctor = JS_NewCFunction2 (ctx, gumjs_native_callback_construct,
-      gumjs_native_callback_def.class_name, 3, JS_CFUNC_constructor, 0);
+      gumjs_native_callback_def.class_name, 0, JS_CFUNC_constructor, 0);
   JS_SetConstructor (ctx, ctor, proto);
   JS_DefinePropertyValueStr (ctx, ns, gumjs_native_callback_def.class_name,
       ctor, JS_PROP_C_W_E);
@@ -997,7 +997,7 @@ _gum_quick_core_init (GumQuickCore * self,
   JS_SetPropertyFunctionList (ctx, proto, gumjs_source_map_entries,
       G_N_ELEMENTS (gumjs_source_map_entries));
   ctor = JS_NewCFunction2 (ctx, gumjs_source_map_construct,
-      gumjs_source_map_def.class_name, 1, JS_CFUNC_constructor, 0);
+      gumjs_source_map_def.class_name, 0, JS_CFUNC_constructor, 0);
   self->source_map_ctor = JS_DupValue (ctx, ctor);
   JS_SetConstructor (ctx, ctor, proto);
   JS_SetClassProto (ctx, self->source_map_class, proto);
@@ -1007,7 +1007,9 @@ _gum_quick_core_init (GumQuickCore * self,
 #define GUM_SETUP_ATOM(name) \
     GUM_QUICK_CORE_ATOM (self, name) = JS_NewAtom (ctx, G_STRINGIFY (name))
 
+  GUM_SETUP_ATOM (GUMJS_SYSTEM_ERROR_FIELD);
   GUM_SETUP_ATOM (address);
+  GUM_SETUP_ATOM (callback);
   GUM_SETUP_ATOM (context);
   GUM_SETUP_ATOM (handle);
   GUM_SETUP_ATOM (length);
@@ -1015,7 +1017,9 @@ _gum_quick_core_init (GumQuickCore * self,
   GUM_SETUP_ATOM (message);
   GUM_SETUP_ATOM (nativeContext);
   GUM_SETUP_ATOM (operation);
+  GUM_SETUP_ATOM (size);
   GUM_SETUP_ATOM (type);
+  GUM_SETUP_ATOM (value);
 
 #undef GUM_SETUP_ATOM
 }
@@ -1102,14 +1106,18 @@ _gum_quick_core_dispose (GumQuickCore * self)
     JS_FreeAtom (ctx, GUM_QUICK_CORE_ATOM (self, name)); \
     GUM_QUICK_CORE_ATOM (self, name) = JS_ATOM_NULL
 
+  GUM_TEARDOWN_ATOM (GUMJS_SYSTEM_ERROR_FIELD);
   GUM_TEARDOWN_ATOM (address);
+  GUM_TEARDOWN_ATOM (callback);
   GUM_TEARDOWN_ATOM (context);
   GUM_TEARDOWN_ATOM (handle);
   GUM_TEARDOWN_ATOM (length);
   GUM_TEARDOWN_ATOM (memory);
   GUM_TEARDOWN_ATOM (nativeContext);
   GUM_TEARDOWN_ATOM (operation);
+  GUM_TEARDOWN_ATOM (size);
   GUM_TEARDOWN_ATOM (type);
+  GUM_TEARDOWN_ATOM (value);
 
 #undef GUM_TEARDOWN_ATOM
 
@@ -1621,7 +1629,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_bind)
 
   obj = JS_NewObjectClass (ctx, core->weak_ref_class);
   JS_SetOpaque (obj, ref);
-  JS_DefinePropertyValueStr (ctx, obj, "cb", JS_DupValue (ctx, callback),
+  JS_DefinePropertyValue (ctx, obj, GUM_QUICK_CORE_ATOM (core, callback),
+      JS_DupValue (ctx, callback),
       JS_PROP_C_W_E);
 
   sprintf (prop_name, "$w%x", id);
@@ -3010,9 +3019,14 @@ gum_quick_ffi_function_invoke (GumQuickFFIFunction * self,
   if (return_shape == GUM_QUICK_RETURN_DETAILED)
   {
     JSValue d = JS_NewObject (ctx);
-    JS_DefinePropertyValueStr (ctx, d, "value", result, JS_PROP_C_W_E);
-    JS_DefinePropertyValueStr (ctx, d, GUMJS_SYSTEM_ERROR_FIELD,
-        JS_NewInt32 (ctx, system_error), JS_PROP_C_W_E);
+    JS_DefinePropertyValue (ctx, d,
+        GUM_QUICK_CORE_ATOM (core, value),
+        result,
+        JS_PROP_C_W_E);
+    JS_DefinePropertyValue (ctx, d,
+        GUM_QUICK_CORE_ATOM (core, GUMJS_SYSTEM_ERROR_FIELD),
+        JS_NewInt32 (ctx, system_error),
+        JS_PROP_C_W_E);
     return d;
   }
   else
