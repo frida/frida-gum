@@ -107,15 +107,23 @@ struct _GumQuickCore
   GUM_DECLARE_ATOM (base);
   GUM_DECLARE_ATOM (callback);
   GUM_DECLARE_ATOM (context);
+  GUM_DECLARE_ATOM (file);
   GUM_DECLARE_ATOM (handle);
+  GUM_DECLARE_ATOM (id);
+  GUM_DECLARE_ATOM (isGlobal);
   GUM_DECLARE_ATOM (length);
   GUM_DECLARE_ATOM (memory);
   GUM_DECLARE_ATOM (message);
+  GUM_DECLARE_ATOM (module);
   GUM_DECLARE_ATOM (name);
   GUM_DECLARE_ATOM (nativeContext);
+  GUM_DECLARE_ATOM (offset);
   GUM_DECLARE_ATOM (operation);
   GUM_DECLARE_ATOM (path);
+  GUM_DECLARE_ATOM (protection);
+  GUM_DECLARE_ATOM (section);
   GUM_DECLARE_ATOM (size);
+  GUM_DECLARE_ATOM (slot);
   GUM_DECLARE_ATOM (type);
   GUM_DECLARE_ATOM (value);
 

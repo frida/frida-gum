@@ -12,6 +12,7 @@
 G_BEGIN_DECLS
 
 typedef struct _GumQuickArgs GumQuickArgs;
+typedef guint GumQuickMatchResult;
 
 struct _GumQuickArgs
 {
@@ -25,6 +26,13 @@ struct _GumQuickArgs
   GSList * cstrings;
   GSList * arrays;
   GSList * bytes;
+};
+
+enum _GumQuickMatchResult
+{
+  GUM_QUICK_MATCH_CONTINUE,
+  GUM_QUICK_MATCH_STOP,
+  GUM_QUICK_MATCH_ERROR
 };
 
 G_GNUC_INTERNAL void _gum_quick_args_init (GumQuickArgs * args,
@@ -106,9 +114,16 @@ G_GNUC_INTERNAL JSValue _gum_quick_exception_details_new (JSContext * ctx,
     GumExceptionDetails * details, GumQuickCore * core,
     GumQuickCpuContext ** cpu_context);
 
+G_GNUC_INTERNAL JSValue _gum_quick_range_details_new (JSContext * ctx,
+    const GumRangeDetails * details, GumQuickCore * core);
+
+G_GNUC_INTERNAL JSValue _gum_quick_memory_range_new (JSContext * ctx,
+    const GumMemoryRange * range, GumQuickCore * core);
 G_GNUC_INTERNAL gboolean _gum_quick_memory_ranges_get (JSContext * ctx,
     JSValueConst val, GumQuickCore * core, GArray ** ranges);
 
+G_GNUC_INTERNAL JSValue _gum_quick_page_protection_new (JSContext * ctx,
+    GumPageProtection prot);
 G_GNUC_INTERNAL gboolean _gum_quick_page_protection_get (JSContext * ctx,
     JSValueConst val, GumPageProtection * prot);
 
@@ -117,6 +132,11 @@ G_GNUC_INTERNAL gboolean _gum_quick_array_get_length (JSContext * ctx,
 
 G_GNUC_INTERNAL void _gum_quick_array_buffer_free (JSRuntime * rt,
     void * opaque, void * ptr);
+
+G_GNUC_INTERNAL gboolean _gum_quick_process_match_result (JSContext * ctx,
+    JSValue * val, GumQuickMatchResult * result);
+G_GNUC_INTERNAL JSValue _gum_quick_maybe_call_on_complete (JSContext * ctx,
+    GumQuickMatchResult match_result, JSValue on_complete);
 
 G_GNUC_INTERNAL JSValue _gum_quick_throw (JSContext * ctx, const gchar * format,
     ...);

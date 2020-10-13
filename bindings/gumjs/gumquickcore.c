@@ -1012,15 +1012,23 @@ _gum_quick_core_init (GumQuickCore * self,
   GUM_SETUP_ATOM (base);
   GUM_SETUP_ATOM (callback);
   GUM_SETUP_ATOM (context);
+  GUM_SETUP_ATOM (file);
   GUM_SETUP_ATOM (handle);
+  GUM_SETUP_ATOM (id);
+  GUM_SETUP_ATOM (isGlobal);
   GUM_SETUP_ATOM (length);
   GUM_SETUP_ATOM (memory);
   GUM_SETUP_ATOM (message);
+  GUM_SETUP_ATOM (module);
   GUM_SETUP_ATOM (name);
   GUM_SETUP_ATOM (nativeContext);
+  GUM_SETUP_ATOM (offset);
   GUM_SETUP_ATOM (operation);
   GUM_SETUP_ATOM (path);
+  GUM_SETUP_ATOM (protection);
+  GUM_SETUP_ATOM (section);
   GUM_SETUP_ATOM (size);
+  GUM_SETUP_ATOM (slot);
   GUM_SETUP_ATOM (type);
   GUM_SETUP_ATOM (value);
 
@@ -1114,14 +1122,22 @@ _gum_quick_core_dispose (GumQuickCore * self)
   GUM_TEARDOWN_ATOM (base);
   GUM_TEARDOWN_ATOM (callback);
   GUM_TEARDOWN_ATOM (context);
+  GUM_TEARDOWN_ATOM (file);
   GUM_TEARDOWN_ATOM (handle);
+  GUM_TEARDOWN_ATOM (id);
+  GUM_TEARDOWN_ATOM (isGlobal);
   GUM_TEARDOWN_ATOM (length);
   GUM_TEARDOWN_ATOM (memory);
+  GUM_TEARDOWN_ATOM (module);
   GUM_TEARDOWN_ATOM (name);
   GUM_TEARDOWN_ATOM (nativeContext);
+  GUM_TEARDOWN_ATOM (offset);
   GUM_TEARDOWN_ATOM (operation);
   GUM_TEARDOWN_ATOM (path);
+  GUM_TEARDOWN_ATOM (protection);
+  GUM_TEARDOWN_ATOM (section);
   GUM_TEARDOWN_ATOM (size);
+  GUM_TEARDOWN_ATOM (slot);
   GUM_TEARDOWN_ATOM (type);
   GUM_TEARDOWN_ATOM (value);
 

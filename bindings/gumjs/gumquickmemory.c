@@ -57,6 +57,7 @@ struct _GumMemoryScanContext
   JSValue on_match;
   JSValue on_error;
   JSValue on_complete;
+  GumQuickMatchResult result;
 
   GumQuickCore * core;
 };
@@ -927,6 +928,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
   sc.range.base_address = GUM_ADDRESS (address);
   sc.range.size = size;
   sc.pattern = gum_match_pattern_new_from_string (match_str);
+  sc.result = GUM_QUICK_MATCH_CONTINUE;
   sc.core = core;
 
   if (sc.pattern == NULL)
@@ -999,8 +1001,11 @@ gum_memory_scan_context_run (GumMemoryScanContext * self)
     }
   }
 
-  _gum_quick_scope_call_void (&script_scope, self->on_complete, JS_UNDEFINED,
-      0, NULL);
+  if (self->result != GUM_QUICK_MATCH_ERROR)
+  {
+    _gum_quick_scope_call_void (&script_scope, self->on_complete, JS_UNDEFINED,
+        0, NULL);
+  }
 
   _gum_quick_scope_leave (&script_scope);
 }
@@ -1028,14 +1033,7 @@ gum_memory_scan_context_emit_match (GumAddress address,
 
   JS_FreeValue (ctx, argv[0]);
 
-  proceed = TRUE;
-
-  if (JS_IsString (result))
-  {
-    const gchar * str = JS_ToCString (ctx, result);
-    proceed = strcmp (str, "stop") != 0;
-    JS_FreeCString (ctx, str);
-  }
+  proceed = _gum_quick_process_match_result (ctx, &result, &self->result);
 
   _gum_quick_scope_leave (&scope);
 

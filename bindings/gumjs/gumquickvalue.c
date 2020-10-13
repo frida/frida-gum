@@ -1426,6 +1426,67 @@ _gum_quick_exception_details_new (JSContext * ctx,
   return d;
 }
 
+JSValue
+_gum_quick_range_details_new (JSContext * ctx,
+                              const GumRangeDetails * details,
+                              GumQuickCore * core)
+{
+  const GumFileMapping * f = details->file;
+  JSValue d;
+
+  d = _gum_quick_memory_range_new (ctx, details->range, core);
+
+  JS_DefinePropertyValue (ctx, d,
+      GUM_QUICK_CORE_ATOM (core, protection),
+      _gum_quick_page_protection_new (ctx, details->prot),
+      JS_PROP_C_W_E);
+
+  if (f != NULL)
+  {
+    JSValue file = JS_NewObject (ctx);
+
+    JS_DefinePropertyValue (ctx, file,
+        GUM_QUICK_CORE_ATOM (core, path),
+        JS_NewString (ctx, f->path),
+        JS_PROP_C_W_E);
+    JS_DefinePropertyValue (ctx, file,
+        GUM_QUICK_CORE_ATOM (core, offset),
+        JS_NewInt64 (ctx, f->offset),
+        JS_PROP_C_W_E);
+    JS_DefinePropertyValue (ctx, file,
+        GUM_QUICK_CORE_ATOM (core, size),
+        JS_NewInt64 (ctx, f->size),
+        JS_PROP_C_W_E);
+
+    JS_DefinePropertyValue (ctx, d,
+        GUM_QUICK_CORE_ATOM (core, file),
+        file,
+        JS_PROP_C_W_E);
+  }
+
+  return d;
+}
+
+JSValue
+_gum_quick_memory_range_new (JSContext * ctx,
+                             const GumMemoryRange * range,
+                             GumQuickCore * core)
+{
+  JSValue r = JS_NewObject (ctx);
+
+  JS_DefinePropertyValue (ctx, r,
+      GUM_QUICK_CORE_ATOM (core, base),
+      _gum_quick_native_pointer_new (ctx,
+          GSIZE_TO_POINTER (range->base_address), core),
+      JS_PROP_C_W_E);
+  JS_DefinePropertyValue (ctx, r,
+      GUM_QUICK_CORE_ATOM (core, size),
+      JS_NewInt64 (ctx, range->size),
+      JS_PROP_C_W_E);
+
+  return r;
+}
+
 gboolean
 _gum_quick_memory_ranges_get (JSContext * ctx,
                               JSValueConst val,
@@ -1436,13 +1497,70 @@ _gum_quick_memory_ranges_get (JSContext * ctx,
   return FALSE; /* TODO */
 }
 
+JSValue
+_gum_quick_page_protection_new (JSContext * ctx,
+                                GumPageProtection prot)
+{
+  gchar str[4] = "---";
+
+  if ((prot & GUM_PAGE_READ) != 0)
+    str[0] = 'r';
+  if ((prot & GUM_PAGE_WRITE) != 0)
+    str[1] = 'w';
+  if ((prot & GUM_PAGE_EXECUTE) != 0)
+    str[2] = 'x';
+
+  return JS_NewString (ctx, str);
+}
+
 gboolean
 _gum_quick_page_protection_get (JSContext * ctx,
                                 JSValueConst val,
                                 GumPageProtection * prot)
 {
-  _gum_quick_throw (ctx, "%s: TODO", G_STRFUNC);
-  return FALSE; /* TODO */
+  GumPageProtection p;
+  const char * str = NULL;
+  const char * ch;
+
+  if (!JS_IsString (val))
+    goto expected_protection;
+
+  str = JS_ToCString (ctx, val);
+
+  p = GUM_PAGE_NO_ACCESS;
+  for (ch = str; *ch != '\0'; ch++)
+  {
+    switch (*ch)
+    {
+      case 'r':
+        p |= GUM_PAGE_READ;
+        break;
+      case 'w':
+        p |= GUM_PAGE_WRITE;
+        break;
+      case 'x':
+        p |= GUM_PAGE_EXECUTE;
+        break;
+      case '-':
+        break;
+      default:
+        goto expected_protection;
+    }
+  }
+
+  JS_FreeCString (ctx, str);
+
+  *prot = p;
+  return TRUE;
+
+expected_protection:
+  {
+    JS_FreeCString (ctx, str);
+
+    _gum_quick_throw_literal (ctx,
+        "expected a string specifying memory protection");
+    return FALSE;
+  }
 }
 
 gboolean
@@ -1476,6 +1594,53 @@ _gum_quick_array_buffer_free (JSRuntime * rt,
                               void * ptr)
 {
   g_free (opaque);
+}
+
+gboolean
+_gum_quick_process_match_result (JSContext * ctx,
+                                 JSValue * val,
+                                 GumQuickMatchResult * result)
+{
+  GumQuickMatchResult r = GUM_QUICK_MATCH_CONTINUE;
+  JSValue v = *val;
+
+  if (JS_IsString (v))
+  {
+    const gchar * str = JS_ToCString (ctx, v);
+    if (strcmp (str, "stop") == 0)
+      r = GUM_QUICK_MATCH_STOP;
+    JS_FreeCString (ctx, str);
+  }
+  else if (JS_IsException (v))
+  {
+    r = GUM_QUICK_MATCH_ERROR;
+  }
+
+  JS_FreeValue (ctx, v);
+
+  *val = JS_NULL;
+  *result = r;
+
+  return r == GUM_QUICK_MATCH_CONTINUE;
+}
+
+JSValue
+_gum_quick_maybe_call_on_complete (JSContext * ctx,
+                                   GumQuickMatchResult match_result,
+                                   JSValue on_complete)
+{
+  JSValue val;
+
+  if (match_result == GUM_QUICK_MATCH_ERROR)
+    return JS_EXCEPTION;
+
+  val = JS_Call (ctx, on_complete, JS_UNDEFINED, 0, NULL);
+  if (JS_IsException (val))
+    return JS_EXCEPTION;
+
+  JS_FreeValue (ctx, val);
+
+  return JS_UNDEFINED;
 }
 
 JSValue
