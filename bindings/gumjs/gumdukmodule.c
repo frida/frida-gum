@@ -46,7 +46,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_module_find_export_by_name)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_module_map_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_module_map_finalize)
-GUMJS_DECLARE_FUNCTION (gumjs_module_map_get_handle)
+GUMJS_DECLARE_GETTER (gumjs_module_map_get_handle)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_has)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_find)
 GUMJS_DECLARE_FUNCTION (gumjs_module_map_find_name)
@@ -570,7 +570,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_module_map_finalize)
   return 0;
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_module_map_get_handle)
+GUMJS_DEFINE_GETTER (gumjs_module_map_get_handle)
 {
   _gum_duk_push_native_pointer (ctx, gumjs_module_map_from_args (args),
       args->core);
