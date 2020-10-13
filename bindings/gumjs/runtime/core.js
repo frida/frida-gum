@@ -203,7 +203,6 @@ Object.defineProperties(Memory, {
   },
 });
 
-/*
 makeEnumerateApi(Module, 'enumerateImports', 1);
 makeEnumerateApi(Module, 'enumerateExports', 1);
 makeEnumerateApi(Module, 'enumerateSymbols', 1);
@@ -381,7 +380,6 @@ if (Process.findRangeByAddress === undefined) {
     }
   });
 }
-*/
 
 Object.defineProperties(Interceptor, {
   attach: {
@@ -735,6 +733,7 @@ Object.defineProperties(SqliteDatabase, {
     }
   }
 });
+*/
 
 function makeEnumerateApi(mod, name, arity) {
   const impl = mod['_' + name];
@@ -836,6 +835,5 @@ function enumerateRanges(impl, self, specifier, callbacks) {
     impl.call(self, protection, callbacks);
   }
 }
-*/
 
 initialize();

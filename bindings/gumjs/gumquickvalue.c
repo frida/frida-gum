@@ -18,6 +18,9 @@ static void gum_quick_args_free_array_later (GumQuickArgs * self, GArray * a);
 static void gum_quick_args_free_bytes_later (GumQuickArgs * self, GBytes * b);
 
 static const gchar * gum_exception_type_to_string (GumExceptionType type);
+static const gchar * gum_thread_state_to_string (GumThreadState state);
+static const gchar * gum_memory_operation_to_string (
+    GumMemoryOperation operation);
 
 void
 _gum_quick_args_init (GumQuickArgs * args,
@@ -1404,8 +1407,7 @@ _gum_quick_exception_details_new (JSContext * ctx,
     JSValue op = JS_NewError (ctx);
 
     JS_DefinePropertyValue (ctx, op, GUM_QUICK_CORE_ATOM (core, operation),
-        JS_NewString (ctx,
-            _gum_quick_memory_operation_to_string (md->operation)),
+        _gum_quick_memory_operation_new (ctx, md->operation),
         JS_PROP_C_W_E);
     JS_DefinePropertyValue (ctx, op, GUM_QUICK_CORE_ATOM (core, address),
         _gum_quick_native_pointer_new (ctx, md->address, core),
@@ -1424,6 +1426,13 @@ _gum_quick_exception_details_new (JSContext * ctx,
       JS_PROP_C_W_E);
 
   return d;
+}
+
+JSValue
+_gum_quick_thread_state_new (JSContext * ctx,
+                             GumThreadState state)
+{
+  return JS_NewString (ctx, gum_thread_state_to_string (state));
 }
 
 JSValue
@@ -1561,6 +1570,13 @@ expected_protection:
         "expected a string specifying memory protection");
     return FALSE;
   }
+}
+
+JSValue
+_gum_quick_memory_operation_new (JSContext * ctx,
+                                 GumMemoryOperation operation)
+{
+  return JS_NewString (ctx, gum_memory_operation_to_string (operation));
 }
 
 gboolean
@@ -1727,8 +1743,24 @@ gum_exception_type_to_string (GumExceptionType type)
   return NULL;
 }
 
-const gchar *
-_gum_quick_memory_operation_to_string (GumMemoryOperation operation)
+static const gchar *
+gum_thread_state_to_string (GumThreadState state)
+{
+  switch (state)
+  {
+    case GUM_THREAD_RUNNING: return "running";
+    case GUM_THREAD_STOPPED: return "stopped";
+    case GUM_THREAD_WAITING: return "waiting";
+    case GUM_THREAD_UNINTERRUPTIBLE: return "uninterruptible";
+    case GUM_THREAD_HALTED: return "halted";
+    default: break;
+  }
+
+  return NULL;
+}
+
+static const gchar *
+gum_memory_operation_to_string (GumMemoryOperation operation)
 {
   switch (operation)
   {

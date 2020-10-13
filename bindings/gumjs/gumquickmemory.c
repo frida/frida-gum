@@ -1218,8 +1218,7 @@ GUMJS_DEFINE_GETTER (gumjs_memory_access_details_get_operation)
   if (!gum_quick_memory_access_details_get (ctx, this_val, core, &details))
     return JS_EXCEPTION;
 
-  return JS_NewString (ctx,
-      _gum_quick_memory_operation_to_string (details->operation));
+  return _gum_quick_memory_operation_new (ctx, details->operation);
 }
 
 GUMJS_DEFINE_GETTER (gumjs_memory_access_details_get_from)

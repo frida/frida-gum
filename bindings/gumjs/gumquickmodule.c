@@ -151,6 +151,7 @@ _gum_quick_module_new (JSContext * ctx,
   JSValue m;
 
   m = JS_NewObjectClass (ctx, module->module_class);
+
   JS_DefinePropertyValue (ctx, m,
       GUM_QUICK_CORE_ATOM (core, name),
       JS_NewString (ctx, details->name),
@@ -234,9 +235,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_imports)
   if (!_gum_quick_args_parse (args, "sF{onMatch,onComplete}", &name,
       &mc.on_match, &mc.on_complete))
     return JS_EXCEPTION;
+  mc.result = GUM_QUICK_MATCH_CONTINUE;
   mc.ctx = ctx;
   mc.core = core;
-  mc.result = GUM_QUICK_MATCH_CONTINUE;
 
   gum_module_enumerate_imports (name, (GumFoundImportFunc) gum_emit_import,
       &mc);
@@ -305,9 +306,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_exports)
   if (!_gum_quick_args_parse (args, "sF{onMatch,onComplete}", &name,
       &mc.on_match, &mc.on_complete))
     return JS_EXCEPTION;
+  mc.result = GUM_QUICK_MATCH_CONTINUE;
   mc.ctx = ctx;
   mc.core = core;
-  mc.result = GUM_QUICK_MATCH_CONTINUE;
 
   gum_module_enumerate_exports (name, (GumFoundExportFunc) gum_emit_export,
       &mc);
@@ -355,9 +356,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_symbols)
   if (!_gum_quick_args_parse (args, "sF{onMatch,onComplete}", &name,
       &mc.on_match, &mc.on_complete))
     return JS_EXCEPTION;
+  mc.result = GUM_QUICK_MATCH_CONTINUE;
   mc.ctx = ctx;
   mc.core = core;
-  mc.result = GUM_QUICK_MATCH_CONTINUE;
 
   gum_module_enumerate_symbols (name, (GumFoundSymbolFunc) gum_emit_symbol,
       &mc);
@@ -435,9 +436,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_ranges)
   if (!_gum_quick_args_parse (args, "smF{onMatch,onComplete}", &name, &prot,
       &mc.on_match, &mc.on_complete))
     return JS_EXCEPTION;
+  mc.result = GUM_QUICK_MATCH_CONTINUE;
   mc.ctx = ctx;
   mc.core = core;
-  mc.result = GUM_QUICK_MATCH_CONTINUE;
 
   gum_module_enumerate_ranges (name, prot, (GumFoundRangeFunc) gum_emit_range,
       &mc);
@@ -526,7 +527,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_map_construct)
   if (!_gum_quick_args_parse (args, "|F", &filter_callback))
     goto propagate_exception;
 
-  proto = JS_GetPropertyStr (ctx, new_target, "prototype");
+  proto = JS_GetProperty (ctx, new_target,
+      GUM_QUICK_CORE_ATOM (core, prototype));
   obj = JS_NewObjectProtoClass (ctx, proto, parent->module_map_class);
   JS_FreeValue (ctx, proto);
   if (JS_IsException (obj))

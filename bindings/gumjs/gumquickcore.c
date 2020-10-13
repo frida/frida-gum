@@ -1008,10 +1008,12 @@ _gum_quick_core_init (GumQuickCore * self,
     GUM_QUICK_CORE_ATOM (self, name) = JS_NewAtom (ctx, G_STRINGIFY (name))
 
   GUM_SETUP_ATOM (GUMJS_SYSTEM_ERROR_FIELD);
+  GUM_SETUP_ATOM (abi);
   GUM_SETUP_ATOM (address);
   GUM_SETUP_ATOM (base);
   GUM_SETUP_ATOM (callback);
   GUM_SETUP_ATOM (context);
+  GUM_SETUP_ATOM (exceptions);
   GUM_SETUP_ATOM (file);
   GUM_SETUP_ATOM (handle);
   GUM_SETUP_ATOM (id);
@@ -1026,9 +1028,13 @@ _gum_quick_core_init (GumQuickCore * self,
   GUM_SETUP_ATOM (operation);
   GUM_SETUP_ATOM (path);
   GUM_SETUP_ATOM (protection);
+  GUM_SETUP_ATOM (prototype);
+  GUM_SETUP_ATOM (scheduling);
   GUM_SETUP_ATOM (section);
   GUM_SETUP_ATOM (size);
   GUM_SETUP_ATOM (slot);
+  GUM_SETUP_ATOM (state);
+  GUM_SETUP_ATOM (traps);
   GUM_SETUP_ATOM (type);
   GUM_SETUP_ATOM (value);
 
@@ -1118,10 +1124,12 @@ _gum_quick_core_dispose (GumQuickCore * self)
     GUM_QUICK_CORE_ATOM (self, name) = JS_ATOM_NULL
 
   GUM_TEARDOWN_ATOM (GUMJS_SYSTEM_ERROR_FIELD);
+  GUM_TEARDOWN_ATOM (abi);
   GUM_TEARDOWN_ATOM (address);
   GUM_TEARDOWN_ATOM (base);
   GUM_TEARDOWN_ATOM (callback);
   GUM_TEARDOWN_ATOM (context);
+  GUM_TEARDOWN_ATOM (exceptions);
   GUM_TEARDOWN_ATOM (file);
   GUM_TEARDOWN_ATOM (handle);
   GUM_TEARDOWN_ATOM (id);
@@ -1135,9 +1143,13 @@ _gum_quick_core_dispose (GumQuickCore * self)
   GUM_TEARDOWN_ATOM (operation);
   GUM_TEARDOWN_ATOM (path);
   GUM_TEARDOWN_ATOM (protection);
+  GUM_TEARDOWN_ATOM (prototype);
+  GUM_TEARDOWN_ATOM (scheduling);
   GUM_TEARDOWN_ATOM (section);
   GUM_TEARDOWN_ATOM (size);
   GUM_TEARDOWN_ATOM (slot);
+  GUM_TEARDOWN_ATOM (state);
+  GUM_TEARDOWN_ATOM (traps);
   GUM_TEARDOWN_ATOM (type);
   GUM_TEARDOWN_ATOM (value);
 
@@ -1862,7 +1874,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_int64_construct)
   if (!_gum_quick_args_parse (args, "q~", &value))
     goto propagate_exception;
 
-  proto = JS_GetPropertyStr (ctx, new_target, "prototype");
+  proto = JS_GetProperty (ctx, new_target,
+      GUM_QUICK_CORE_ATOM (core, prototype));
   wrapper = JS_NewObjectProtoClass (ctx, proto, core->int64_class);
   JS_FreeValue (ctx, proto);
   if (JS_IsException (wrapper))
@@ -2031,7 +2044,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_uint64_construct)
   if (!_gum_quick_args_parse (args, "Q~", &value))
     goto propagate_exception;
 
-  proto = JS_GetPropertyStr (ctx, new_target, "prototype");
+  proto = JS_GetProperty (ctx, new_target,
+      GUM_QUICK_CORE_ATOM (core, prototype));
   wrapper = JS_NewObjectProtoClass (ctx, proto, core->uint64_class);
   JS_FreeValue (ctx, proto);
   if (JS_IsException (wrapper))
@@ -2198,7 +2212,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
   if (!_gum_quick_args_parse (args, "p~", &ptr))
     goto propagate_exception;
 
-  proto = JS_GetPropertyStr (ctx, new_target, "prototype");
+  proto = JS_GetProperty (ctx, new_target,
+      GUM_QUICK_CORE_ATOM (core, prototype));
   wrapper = JS_NewObjectProtoClass (ctx, proto, core->native_pointer_class);
   JS_FreeValue (ctx, proto);
   if (JS_IsException (wrapper))
@@ -2573,7 +2588,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
   if (!gum_quick_ffi_function_params_init (&p, GUM_QUICK_RETURN_PLAIN, args))
     goto propagate_exception;
 
-  proto = JS_GetPropertyStr (ctx, new_target, "prototype");
+  proto = JS_GetProperty (ctx, new_target,
+      GUM_QUICK_CORE_ATOM (core, prototype));
   wrapper = JS_NewObjectProtoClass (ctx, proto, core->native_function_class);
   JS_FreeValue (ctx, proto);
   if (JS_IsException (wrapper))
@@ -2646,7 +2662,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_system_function_construct)
   if (!gum_quick_ffi_function_params_init (&p, GUM_QUICK_RETURN_DETAILED, args))
     goto propagate_exception;
 
-  proto = JS_GetPropertyStr (ctx, new_target, "prototype");
+  proto = JS_GetProperty (ctx, new_target,
+      GUM_QUICK_CORE_ATOM (core, prototype));
   obj = JS_NewObjectProtoClass (ctx, proto, core->system_function_class);
   JS_FreeValue (ctx, proto);
   if (JS_IsException (obj))
@@ -3265,8 +3282,9 @@ gum_quick_ffi_function_params_init (GumQuickFFIFunctionParams * params,
   else if (JS_IsObject (abi_or_options))
   {
     JSValueConst options = abi_or_options;
+    GumQuickCore * core = args->core;
 
-    val = JS_GetPropertyStr (ctx, options, "abi");
+    val = JS_GetProperty (ctx, options, GUM_QUICK_CORE_ATOM (core, abi));
     if (!JS_IsUndefined (val))
     {
       params->abi_name = JS_ToCString (ctx, val);
@@ -3275,7 +3293,7 @@ gum_quick_ffi_function_params_init (GumQuickFFIFunctionParams * params,
       JS_FreeValue (ctx, val);
     }
 
-    val = JS_GetPropertyStr (ctx, options, "scheduling");
+    val = JS_GetProperty (ctx, options, GUM_QUICK_CORE_ATOM (core, scheduling));
     if (!JS_IsUndefined (val))
     {
       if (!gum_quick_scheduling_behavior_get (ctx, val, &params->scheduling))
@@ -3283,7 +3301,7 @@ gum_quick_ffi_function_params_init (GumQuickFFIFunctionParams * params,
       JS_FreeValue (ctx, val);
     }
 
-    val = JS_GetPropertyStr (ctx, options, "exceptions");
+    val = JS_GetProperty (ctx, options, GUM_QUICK_CORE_ATOM (core, exceptions));
     if (!JS_IsUndefined (val))
     {
       if (!gum_quick_exceptions_behavior_get (ctx, val, &params->exceptions))
@@ -3291,7 +3309,7 @@ gum_quick_ffi_function_params_init (GumQuickFFIFunctionParams * params,
       JS_FreeValue (ctx, val);
     }
 
-    val = JS_GetPropertyStr (ctx, options, "traps");
+    val = JS_GetProperty (ctx, options, GUM_QUICK_CORE_ATOM (core, traps));
     if (!JS_IsUndefined (val))
     {
       if (!gum_quick_code_traps_get (ctx, val, &params->traps))
@@ -3437,7 +3455,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
       &abi_str))
     goto propagate_exception;
 
-  proto = JS_GetPropertyStr (ctx, new_target, "prototype");
+  proto = JS_GetProperty (ctx, new_target,
+      GUM_QUICK_CORE_ATOM (core, prototype));
   wrapper = JS_NewObjectProtoClass (ctx, proto, core->native_callback_class);
   JS_FreeValue (ctx, proto);
   if (JS_IsException (wrapper))
@@ -3727,7 +3746,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_source_map_construct)
   if (!_gum_quick_args_parse (args, "s", &json))
     goto propagate_exception;
 
-  proto = JS_GetPropertyStr (ctx, new_target, "prototype");
+  proto = JS_GetProperty (ctx, new_target,
+      GUM_QUICK_CORE_ATOM (core, prototype));
   obj = JS_NewObjectProtoClass (ctx, proto, core->source_map_class);
   JS_FreeValue (ctx, proto);
   if (JS_IsException (obj))

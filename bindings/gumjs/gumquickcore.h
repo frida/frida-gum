@@ -103,10 +103,12 @@ struct _GumQuickCore
     JSAtom G_PASTE (atom_for_, name)
 
   GUM_DECLARE_ATOM (GUMJS_SYSTEM_ERROR_FIELD);
+  GUM_DECLARE_ATOM (abi);
   GUM_DECLARE_ATOM (address);
   GUM_DECLARE_ATOM (base);
   GUM_DECLARE_ATOM (callback);
   GUM_DECLARE_ATOM (context);
+  GUM_DECLARE_ATOM (exceptions);
   GUM_DECLARE_ATOM (file);
   GUM_DECLARE_ATOM (handle);
   GUM_DECLARE_ATOM (id);
@@ -121,9 +123,13 @@ struct _GumQuickCore
   GUM_DECLARE_ATOM (operation);
   GUM_DECLARE_ATOM (path);
   GUM_DECLARE_ATOM (protection);
+  GUM_DECLARE_ATOM (prototype);
+  GUM_DECLARE_ATOM (scheduling);
   GUM_DECLARE_ATOM (section);
   GUM_DECLARE_ATOM (size);
   GUM_DECLARE_ATOM (slot);
+  GUM_DECLARE_ATOM (state);
+  GUM_DECLARE_ATOM (traps);
   GUM_DECLARE_ATOM (type);
   GUM_DECLARE_ATOM (value);
 

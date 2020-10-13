@@ -114,6 +114,9 @@ G_GNUC_INTERNAL JSValue _gum_quick_exception_details_new (JSContext * ctx,
     GumExceptionDetails * details, GumQuickCore * core,
     GumQuickCpuContext ** cpu_context);
 
+G_GNUC_INTERNAL JSValue _gum_quick_thread_state_new (JSContext * ctx,
+    GumThreadState state);
+
 G_GNUC_INTERNAL JSValue _gum_quick_range_details_new (JSContext * ctx,
     const GumRangeDetails * details, GumQuickCore * core);
 
@@ -126,6 +129,9 @@ G_GNUC_INTERNAL JSValue _gum_quick_page_protection_new (JSContext * ctx,
     GumPageProtection prot);
 G_GNUC_INTERNAL gboolean _gum_quick_page_protection_get (JSContext * ctx,
     JSValueConst val, GumPageProtection * prot);
+
+G_GNUC_INTERNAL JSValue _gum_quick_memory_operation_new (JSContext * ctx,
+    GumMemoryOperation operation);
 
 G_GNUC_INTERNAL gboolean _gum_quick_array_get_length (JSContext * ctx,
     JSValueConst array, GumQuickCore * core, guint * length);
@@ -146,9 +152,6 @@ G_GNUC_INTERNAL JSValue _gum_quick_throw_error (JSContext * ctx,
     GError ** error);
 G_GNUC_INTERNAL JSValue _gum_quick_throw_native (JSContext * ctx,
     GumExceptionDetails * details, GumQuickCore * core);
-
-G_GNUC_INTERNAL const gchar * _gum_quick_memory_operation_to_string (
-    GumMemoryOperation operation);
 
 G_END_DECLS
 
