@@ -543,12 +543,17 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_map_construct)
     GumQuickModuleFilter * filter;
 
     filter = g_slice_new (GumQuickModuleFilter);
-    filter->callback = JS_DupValue (ctx, filter_callback);
+    filter->callback = filter_callback;
     filter->parent = parent;
 
     map = gum_module_map_new_filtered (
         (GumModuleMapFilterFunc) gum_quick_module_filter_matches,
         filter, (GDestroyNotify) gum_quick_module_filter_free);
+
+    JS_DefinePropertyValue (ctx, obj,
+        GUM_QUICK_CORE_ATOM (core, callback),
+        JS_DupValue (ctx, filter_callback),
+        0);
   }
 
   JS_SetOpaque (obj, map);
@@ -704,10 +709,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_map_copy_values)
 static void
 gum_quick_module_filter_free (GumQuickModuleFilter * filter)
 {
-  GumQuickModule * parent = filter->parent;
-
-  JS_FreeValue (parent->core->ctx, filter->callback);
-
   g_slice_free (GumQuickModuleFilter, filter);
 }
 
