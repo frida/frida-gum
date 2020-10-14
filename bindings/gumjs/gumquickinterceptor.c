@@ -265,6 +265,9 @@ static void gum_quick_invocation_retval_reset (
 GUMJS_DECLARE_FINALIZER (gumjs_invocation_retval_finalize)
 GUMJS_DECLARE_FUNCTION (gumjs_invocation_retval_replace)
 
+static void gum_quick_interceptor_check_invocation_context (
+    GumQuickInterceptor * self, GumQuickInvocationContext * jic,
+    gboolean * jic_is_dirty);
 static GumQuickInvocationArgs * gum_quick_interceptor_obtain_invocation_args (
     GumQuickInterceptor * self);
 static void gum_quick_interceptor_release_invocation_args (
@@ -874,13 +877,7 @@ gum_quick_js_call_listener_on_enter (GumInvocationListener * listener,
     gum_quick_interceptor_release_invocation_args (parent, args);
 
     _gum_quick_invocation_context_reset (jic, NULL);
-    jic_is_dirty = gum_quick_invocation_context_is_dirty (jic);
-    if (jic_is_dirty && jic == parent->cached_invocation_context)
-    {
-      parent->cached_invocation_context =
-          gum_quick_invocation_context_new (parent);
-      parent->cached_invocation_context_in_use = FALSE;
-    }
+    gum_quick_interceptor_check_invocation_context (parent, jic, &jic_is_dirty);
     if (!JS_IsNull (self->on_leave) || jic_is_dirty)
     {
       state->jic = jic;
@@ -936,6 +933,7 @@ gum_quick_js_call_listener_on_leave (GumInvocationListener * listener,
     gum_quick_interceptor_release_invocation_retval (parent, retval);
 
     _gum_quick_invocation_context_reset (jic, NULL);
+    gum_quick_interceptor_check_invocation_context (parent, jic, NULL);
     _gum_quick_interceptor_release_invocation_context (parent, jic);
 
     _gum_quick_scope_leave (&scope);
@@ -1591,6 +1589,25 @@ _gum_quick_interceptor_release_invocation_context (
     self->cached_invocation_context_in_use = FALSE;
   else
     gum_quick_invocation_context_release (jic);
+}
+
+static void
+gum_quick_interceptor_check_invocation_context (GumQuickInterceptor * self,
+                                                GumQuickInvocationContext * jic,
+                                                gboolean * jic_is_dirty)
+{
+  gboolean is_dirty;
+
+  is_dirty = gum_quick_invocation_context_is_dirty (jic);
+
+  if (is_dirty && jic == self->cached_invocation_context)
+  {
+    self->cached_invocation_context = gum_quick_invocation_context_new (self);
+    self->cached_invocation_context_in_use = FALSE;
+  }
+
+  if (jic_is_dirty != NULL)
+    *jic_is_dirty = is_dirty;
 }
 
 static GumQuickInvocationArgs *
