@@ -15,7 +15,9 @@
 #include "gumquickcore.h"
 #if 0
 #include "gumquickdatabase.h"
+#endif
 #include "gumquickfile.h"
+#if 0
 #include "gumquickinstruction.h"
 #endif
 #include "gumquickinterceptor.h"
@@ -72,8 +74,8 @@ struct _GumQuickScript
   GumQuickModule module;
   GumQuickProcess process;
   GumQuickThread thread;
-#if 0
   GumQuickFile file;
+#if 0
   GumQuickStream stream;
   GumQuickSocket socket;
   GumQuickDatabase database;
@@ -408,8 +410,8 @@ gum_quick_script_create_context (GumQuickScript * self,
   _gum_quick_module_init (&self->module, global_obj, core);
   _gum_quick_process_init (&self->process, global_obj, &self->module, core);
   _gum_quick_thread_init (&self->thread, global_obj, core);
+  _gum_quick_file_init (&self->file, global_obj, core);
 #if 0
-  _gum_quick_file_init (&self->file, core);
   _gum_quick_stream_init (&self->stream, core);
   _gum_quick_socket_init (&self->socket, core);
   _gum_quick_database_init (&self->database, core);
@@ -468,8 +470,8 @@ gum_quick_script_destroy_context (GumQuickScript * self)
     _gum_quick_database_dispose (&self->database);
     _gum_quick_socket_dispose (&self->socket);
     _gum_quick_stream_dispose (&self->stream);
-    _gum_quick_file_dispose (&self->file);
 #endif
+    _gum_quick_file_dispose (&self->file);
     _gum_quick_thread_dispose (&self->thread);
     _gum_quick_process_dispose (&self->process);
     _gum_quick_module_dispose (&self->module);
@@ -513,8 +515,8 @@ gum_quick_script_destroy_context (GumQuickScript * self)
   _gum_quick_database_finalize (&self->database);
   _gum_quick_socket_finalize (&self->socket);
   _gum_quick_stream_finalize (&self->stream);
-  _gum_quick_file_finalize (&self->file);
 #endif
+  _gum_quick_file_finalize (&self->file);
   _gum_quick_thread_finalize (&self->thread);
   _gum_quick_process_finalize (&self->process);
   _gum_quick_module_finalize (&self->module);

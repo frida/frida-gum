@@ -574,13 +574,13 @@ propagate_exception:
 
 GUMJS_DEFINE_FINALIZER (gumjs_module_map_finalize)
 {
-  GumModuleMap * self;
+  GumModuleMap * m;
 
-  self = JS_GetOpaque (val, gumjs_get_parent_module (core)->module_map_class);
-  if (self == NULL)
+  m = JS_GetOpaque (val, gumjs_get_parent_module (core)->module_map_class);
+  if (m == NULL)
     return;
 
-  g_object_unref (self);
+  g_object_unref (m);
 }
 
 GUMJS_DEFINE_GETTER (gumjs_module_map_get_handle)
