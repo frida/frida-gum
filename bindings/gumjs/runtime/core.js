@@ -130,7 +130,7 @@ Object.defineProperties(engine, {
 
 const pointerPrototype = NativePointer.prototype;
 
-Object.keys(Memory)
+Object.getOwnPropertyNames(Memory)
   .forEach(methodName => {
     if (methodName.indexOf('read') === 0) {
       pointerPrototype[methodName] = makePointerReadMethod(Memory[methodName]);

@@ -36,9 +36,9 @@ static const JSClassDef gumjs_file_def =
 
 static const JSCFunctionListEntry gumjs_file_entries[] =
 {
-  GUMJS_EXPORT_CFUNC ("write", 0, gumjs_file_write),
-  GUMJS_EXPORT_CFUNC ("flush", 0, gumjs_file_flush),
-  GUMJS_EXPORT_CFUNC ("close", 0, gumjs_file_close),
+  JS_CFUNC_DEF ("write", 0, gumjs_file_write),
+  JS_CFUNC_DEF ("flush", 0, gumjs_file_flush),
+  JS_CFUNC_DEF ("close", 0, gumjs_file_close),
 };
 
 void

@@ -49,43 +49,24 @@ static const JSClassDef gumjs_symbol_def =
 
 static const JSCFunctionListEntry gumjs_symbol_module_entries[] =
 {
-  GUMJS_EXPORT_CFUNC ("fromAddress",
-      0, gumjs_symbol_from_address),
-  GUMJS_EXPORT_CFUNC ("fromName",
-      0, gumjs_symbol_from_name),
-  GUMJS_EXPORT_CFUNC ("getFunctionByName",
-      0, gumjs_symbol_get_function_by_name),
-  GUMJS_EXPORT_CFUNC ("findFunctionsNamed",
-      0, gumjs_symbol_find_functions_named),
-  GUMJS_EXPORT_CFUNC ("findFunctionsMatching",
-      0, gumjs_symbol_find_functions_matching),
-  GUMJS_EXPORT_CFUNC ("load",
-      0, gumjs_symbol_load),
+  JS_CFUNC_DEF ("fromAddress", 0, gumjs_symbol_from_address),
+  JS_CFUNC_DEF ("fromName", 0, gumjs_symbol_from_name),
+  JS_CFUNC_DEF ("getFunctionByName", 0, gumjs_symbol_get_function_by_name),
+  JS_CFUNC_DEF ("findFunctionsNamed", 0, gumjs_symbol_find_functions_named),
+  JS_CFUNC_DEF ("findFunctionsMatching", 0,
+      gumjs_symbol_find_functions_matching),
+  JS_CFUNC_DEF ("load", 0, gumjs_symbol_load),
 };
 
 static const JSCFunctionListEntry gumjs_symbol_entries[] =
 {
-  GUMJS_EXPORT_CGETSET ("address",
-      gumjs_symbol_get_address,
-      NULL),
-  GUMJS_EXPORT_CGETSET ("name",
-      gumjs_symbol_get_name,
-      NULL),
-  GUMJS_EXPORT_CGETSET ("moduleName",
-      gumjs_symbol_get_module_name,
-      NULL),
-  GUMJS_EXPORT_CGETSET ("fileName",
-      gumjs_symbol_get_file_name,
-      NULL),
-  GUMJS_EXPORT_CGETSET ("lineNumber",
-      gumjs_symbol_get_line_number,
-      NULL),
-  GUMJS_EXPORT_CFUNC ("toString",
-      0,
-      gumjs_symbol_to_string),
-  GUMJS_EXPORT_CFUNC ("toJSON",
-      0,
-      gumjs_symbol_to_json),
+  JS_CGETSET_DEF ("address", gumjs_symbol_get_address, NULL),
+  JS_CGETSET_DEF ("name", gumjs_symbol_get_name, NULL),
+  JS_CGETSET_DEF ("moduleName", gumjs_symbol_get_module_name, NULL),
+  JS_CGETSET_DEF ("fileName", gumjs_symbol_get_file_name, NULL),
+  JS_CGETSET_DEF ("lineNumber", gumjs_symbol_get_line_number, NULL),
+  JS_CFUNC_DEF ("toString", 0, gumjs_symbol_to_string),
+  JS_CFUNC_DEF ("toJSON", 0, gumjs_symbol_to_json),
 };
 
 void

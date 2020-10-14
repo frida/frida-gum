@@ -107,9 +107,9 @@ static gchar * gum_ansi_string_from_utf8 (const gchar * str_utf8);
     GUMJS_DEFINE_MEMORY_WRITE (T)
 
 #define GUMJS_EXPORT_MEMORY_READ(N, T) \
-    GUMJS_EXPORT_CFUNC ("read" N, 0, gumjs_memory_read_##T)
+    JS_CFUNC_DEF ("read" N, 0, gumjs_memory_read_##T)
 #define GUMJS_EXPORT_MEMORY_WRITE(N, T) \
-    GUMJS_EXPORT_CFUNC ("write" N, 0, gumjs_memory_write_##T)
+    JS_CFUNC_DEF ("write" N, 0, gumjs_memory_write_##T)
 #define GUMJS_EXPORT_MEMORY_READ_WRITE(N, T) \
     GUMJS_EXPORT_MEMORY_READ (N, T), \
     GUMJS_EXPORT_MEMORY_WRITE (N, T)
@@ -161,11 +161,11 @@ GUMJS_DECLARE_GETTER (gumjs_memory_access_details_get_pages_total)
 
 static const JSCFunctionListEntry gumjs_memory_entries[] =
 {
-  GUMJS_EXPORT_CFUNC ("alloc", 0, gumjs_memory_alloc),
-  GUMJS_EXPORT_CFUNC ("copy", 0, gumjs_memory_copy),
-  GUMJS_EXPORT_CFUNC ("protect", 0, gumjs_memory_protect),
-  GUMJS_EXPOSE_CFUNC ("_patchCode", 0, gumjs_memory_patch_code),
-  GUMJS_EXPOSE_CFUNC ("_checkCodePointer", 0, gumjs_memory_check_code_pointer),
+  JS_CFUNC_DEF ("alloc", 0, gumjs_memory_alloc),
+  JS_CFUNC_DEF ("copy", 0, gumjs_memory_copy),
+  JS_CFUNC_DEF ("protect", 0, gumjs_memory_protect),
+  JS_CFUNC_DEF ("_patchCode", 0, gumjs_memory_patch_code),
+  JS_CFUNC_DEF ("_checkCodePointer", 0, gumjs_memory_check_code_pointer),
 
   GUMJS_EXPORT_MEMORY_READ_WRITE ("Pointer", POINTER),
   GUMJS_EXPORT_MEMORY_READ_WRITE ("S8", S8),
@@ -190,18 +190,18 @@ static const JSCFunctionListEntry gumjs_memory_entries[] =
   GUMJS_EXPORT_MEMORY_READ_WRITE ("Utf16String", UTF16_STRING),
   GUMJS_EXPORT_MEMORY_READ_WRITE ("AnsiString", ANSI_STRING),
 
-  GUMJS_EXPORT_CFUNC ("allocAnsiString", 0, gumjs_memory_alloc_ansi_string),
-  GUMJS_EXPORT_CFUNC ("allocUtf8String", 0, gumjs_memory_alloc_utf8_string),
-  GUMJS_EXPORT_CFUNC ("allocUtf16String", 0, gumjs_memory_alloc_utf16_string),
+  JS_CFUNC_DEF ("allocAnsiString", 0, gumjs_memory_alloc_ansi_string),
+  JS_CFUNC_DEF ("allocUtf8String", 0, gumjs_memory_alloc_utf8_string),
+  JS_CFUNC_DEF ("allocUtf16String", 0, gumjs_memory_alloc_utf16_string),
 
-  GUMJS_EXPORT_CFUNC ("scan", 0, gumjs_memory_scan),
-  GUMJS_EXPORT_CFUNC ("scanSync", 0, gumjs_memory_scan_sync),
+  JS_CFUNC_DEF ("scan", 0, gumjs_memory_scan),
+  JS_CFUNC_DEF ("scanSync", 0, gumjs_memory_scan_sync),
 };
 
 static const JSCFunctionListEntry gumjs_memory_access_monitor_entries[] =
 {
-  GUMJS_EXPORT_CFUNC ("enable", 0, gumjs_memory_access_monitor_enable),
-  GUMJS_EXPORT_CFUNC ("disable", 0, gumjs_memory_access_monitor_disable),
+  JS_CFUNC_DEF ("enable", 0, gumjs_memory_access_monitor_enable),
+  JS_CFUNC_DEF ("disable", 0, gumjs_memory_access_monitor_disable),
 };
 
 static const JSClassDef gumjs_memory_access_details_def =
@@ -211,26 +211,16 @@ static const JSClassDef gumjs_memory_access_details_def =
 
 static const JSCFunctionListEntry gumjs_memory_access_details_entries[] =
 {
-  GUMJS_EXPORT_CGETSET ("operation",
-      gumjs_memory_access_details_get_operation,
+  JS_CGETSET_DEF ("operation", gumjs_memory_access_details_get_operation, NULL),
+  JS_CGETSET_DEF ("from", gumjs_memory_access_details_get_from, NULL),
+  JS_CGETSET_DEF ("address", gumjs_memory_access_details_get_address, NULL),
+  JS_CGETSET_DEF ("rangeIndex", gumjs_memory_access_details_get_range_index,
       NULL),
-  GUMJS_EXPORT_CGETSET ("from",
-      gumjs_memory_access_details_get_from,
+  JS_CGETSET_DEF ("pageIndex", gumjs_memory_access_details_get_page_index,
       NULL),
-  GUMJS_EXPORT_CGETSET ("address",
-      gumjs_memory_access_details_get_address,
-      NULL),
-  GUMJS_EXPORT_CGETSET ("rangeIndex",
-      gumjs_memory_access_details_get_range_index,
-      NULL),
-  GUMJS_EXPORT_CGETSET ("pageIndex",
-      gumjs_memory_access_details_get_page_index,
-      NULL),
-  GUMJS_EXPORT_CGETSET ("pagesCompleted",
-      gumjs_memory_access_details_get_pages_completed,
-      NULL),
-  GUMJS_EXPORT_CGETSET ("pagesTotal",
-      gumjs_memory_access_details_get_pages_total,
+  JS_CGETSET_DEF ("pagesCompleted",
+      gumjs_memory_access_details_get_pages_completed, NULL),
+  JS_CGETSET_DEF ("pagesTotal", gumjs_memory_access_details_get_pages_total,
       NULL),
 };
 

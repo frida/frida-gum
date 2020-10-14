@@ -34,8 +34,7 @@ static const JSClassDef gumjs_api_resolver_def =
 
 static const JSCFunctionListEntry gumjs_api_resolver_entries[] =
 {
-  GUMJS_EXPOSE_CFUNC ("_enumerateMatches",
-      0, gumjs_api_resolver_enumerate_matches),
+  JS_CFUNC_DEF ("_enumerateMatches", 0, gumjs_api_resolver_enumerate_matches),
 };
 
 void

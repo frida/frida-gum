@@ -323,48 +323,46 @@ static JSValue gum_quick_value_from_ffi (JSContext * ctx,
 
 static const JSCFunctionListEntry gumjs_root_entries[] =
 {
-  GUMJS_EXPOSE_CFUNC ("_setTimeout", 0, gumjs_set_timeout),
-  GUMJS_EXPOSE_CFUNC ("_setInterval", 0, gumjs_set_interval),
-  GUMJS_EXPORT_CFUNC ("clearTimeout", 1, gumjs_clear_timer),
-  GUMJS_EXPORT_CFUNC ("clearInterval", 1, gumjs_clear_timer),
-  GUMJS_EXPORT_CFUNC ("gc", 0, gumjs_gc),
-  GUMJS_EXPOSE_CFUNC ("_send", 0, gumjs_send),
-  GUMJS_EXPOSE_CFUNC ("_setUnhandledExceptionCallback", 0,
+  JS_CFUNC_DEF ("_setTimeout", 0, gumjs_set_timeout),
+  JS_CFUNC_DEF ("_setInterval", 0, gumjs_set_interval),
+  JS_CFUNC_DEF ("clearTimeout", 1, gumjs_clear_timer),
+  JS_CFUNC_DEF ("clearInterval", 1, gumjs_clear_timer),
+  JS_CFUNC_DEF ("gc", 0, gumjs_gc),
+  JS_CFUNC_DEF ("_send", 0, gumjs_send),
+  JS_CFUNC_DEF ("_setUnhandledExceptionCallback", 0,
       gumjs_set_unhandled_exception_callback),
-  GUMJS_EXPOSE_CFUNC ("_setIncomingMessageCallback", 0,
+  JS_CFUNC_DEF ("_setIncomingMessageCallback", 0,
       gumjs_set_incoming_message_callback),
-  GUMJS_EXPOSE_CFUNC ("_waitForEvent", 0, gumjs_wait_for_event),
+  JS_CFUNC_DEF ("_waitForEvent", 0, gumjs_wait_for_event),
 };
 
 static const JSCFunctionListEntry gumjs_frida_entries[] =
 {
   JS_PROP_STRING_DEF ("version", FRIDA_VERSION, JS_PROP_C_W_E),
-  GUMJS_EXPORT_CGETSET ("heapSize", gumjs_frida_get_heap_size, NULL),
-  GUMJS_EXPORT_CGETSET ("sourceMap", gumjs_frida_get_source_map, NULL),
-  GUMJS_EXPOSE_CGETSET ("_objcSourceMap", gumjs_frida_objc_get_source_map,
-      NULL),
-  GUMJS_EXPOSE_CGETSET ("_javaSourceMap", gumjs_frida_java_get_source_map,
-      NULL),
-  GUMJS_EXPOSE_CFUNC ("_loadObjC", 0, gumjs_frida_objc_load),
-  GUMJS_EXPOSE_CFUNC ("_loadJava", 0, gumjs_frida_java_load),
+  JS_CGETSET_DEF ("heapSize", gumjs_frida_get_heap_size, NULL),
+  JS_CGETSET_DEF ("sourceMap", gumjs_frida_get_source_map, NULL),
+  JS_CGETSET_DEF ("_objcSourceMap", gumjs_frida_objc_get_source_map, NULL),
+  JS_CGETSET_DEF ("_javaSourceMap", gumjs_frida_java_get_source_map, NULL),
+  JS_CFUNC_DEF ("_loadObjC", 0, gumjs_frida_objc_load),
+  JS_CFUNC_DEF ("_loadJava", 0, gumjs_frida_java_load),
 };
 
 static const JSCFunctionListEntry gumjs_script_entries[] =
 {
   JS_PROP_STRING_DEF ("runtime", "QJS", JS_PROP_C_W_E),
-  GUMJS_EXPORT_CGETSET ("fileName", gumjs_script_get_file_name, NULL),
-  GUMJS_EXPORT_CGETSET ("sourceMap", gumjs_script_get_source_map, NULL),
-  GUMJS_EXPOSE_CFUNC ("_nextTick", 0, gumjs_script_next_tick),
-  GUMJS_EXPORT_CFUNC ("pin", 0, gumjs_script_pin),
-  GUMJS_EXPORT_CFUNC ("unpin", 0, gumjs_script_unpin),
-  GUMJS_EXPORT_CFUNC ("setGlobalAccessHandler", 0,
+  JS_CGETSET_DEF ("fileName", gumjs_script_get_file_name, NULL),
+  JS_CGETSET_DEF ("sourceMap", gumjs_script_get_source_map, NULL),
+  JS_CFUNC_DEF ("_nextTick", 0, gumjs_script_next_tick),
+  JS_CFUNC_DEF ("pin", 0, gumjs_script_pin),
+  JS_CFUNC_DEF ("unpin", 0, gumjs_script_unpin),
+  JS_CFUNC_DEF ("setGlobalAccessHandler", 0,
       gumjs_script_set_global_access_handler),
 };
 
 static const JSCFunctionListEntry gumjs_weak_ref_module_entries[] =
 {
-  GUMJS_EXPORT_CFUNC ("bind", 0, gumjs_weak_ref_bind),
-  GUMJS_EXPORT_CFUNC ("unbind", 0, gumjs_weak_ref_unbind),
+  JS_CFUNC_DEF ("bind", 0, gumjs_weak_ref_bind),
+  JS_CFUNC_DEF ("unbind", 0, gumjs_weak_ref_unbind),
 };
 
 static const JSClassDef gumjs_weak_ref_def =
@@ -381,19 +379,19 @@ static const JSClassDef gumjs_int64_def =
 
 static const JSCFunctionListEntry gumjs_int64_entries[] =
 {
-  GUMJS_EXPORT_CFUNC ("add", 0, gumjs_int64_add),
-  GUMJS_EXPORT_CFUNC ("sub", 0, gumjs_int64_sub),
-  GUMJS_EXPORT_CFUNC ("and", 0, gumjs_int64_and),
-  GUMJS_EXPORT_CFUNC ("or", 0, gumjs_int64_or),
-  GUMJS_EXPORT_CFUNC ("xor", 0, gumjs_int64_xor),
-  GUMJS_EXPORT_CFUNC ("shr", 0, gumjs_int64_shr),
-  GUMJS_EXPORT_CFUNC ("shl", 0, gumjs_int64_shl),
-  GUMJS_EXPORT_CFUNC ("not", 0, gumjs_int64_not),
-  GUMJS_EXPORT_CFUNC ("compare", 0, gumjs_int64_compare),
-  GUMJS_EXPORT_CFUNC ("toNumber", 0, gumjs_int64_to_number),
-  GUMJS_EXPORT_CFUNC ("toString", 0, gumjs_int64_to_string),
-  GUMJS_EXPORT_CFUNC ("toJSON", 0, gumjs_int64_to_json),
-  GUMJS_EXPORT_CFUNC ("valueOf", 0, gumjs_int64_value_of),
+  JS_CFUNC_DEF ("add", 0, gumjs_int64_add),
+  JS_CFUNC_DEF ("sub", 0, gumjs_int64_sub),
+  JS_CFUNC_DEF ("and", 0, gumjs_int64_and),
+  JS_CFUNC_DEF ("or", 0, gumjs_int64_or),
+  JS_CFUNC_DEF ("xor", 0, gumjs_int64_xor),
+  JS_CFUNC_DEF ("shr", 0, gumjs_int64_shr),
+  JS_CFUNC_DEF ("shl", 0, gumjs_int64_shl),
+  JS_CFUNC_DEF ("not", 0, gumjs_int64_not),
+  JS_CFUNC_DEF ("compare", 0, gumjs_int64_compare),
+  JS_CFUNC_DEF ("toNumber", 0, gumjs_int64_to_number),
+  JS_CFUNC_DEF ("toString", 0, gumjs_int64_to_string),
+  JS_CFUNC_DEF ("toJSON", 0, gumjs_int64_to_json),
+  JS_CFUNC_DEF ("valueOf", 0, gumjs_int64_value_of),
 };
 
 static const JSClassDef gumjs_uint64_def =
@@ -404,19 +402,19 @@ static const JSClassDef gumjs_uint64_def =
 
 static const JSCFunctionListEntry gumjs_uint64_entries[] =
 {
-  GUMJS_EXPORT_CFUNC ("add", 0, gumjs_uint64_add),
-  GUMJS_EXPORT_CFUNC ("sub", 0, gumjs_uint64_sub),
-  GUMJS_EXPORT_CFUNC ("and", 0, gumjs_uint64_and),
-  GUMJS_EXPORT_CFUNC ("or", 0, gumjs_uint64_or),
-  GUMJS_EXPORT_CFUNC ("xor", 0, gumjs_uint64_xor),
-  GUMJS_EXPORT_CFUNC ("shr", 0, gumjs_uint64_shr),
-  GUMJS_EXPORT_CFUNC ("shl", 0, gumjs_uint64_shl),
-  GUMJS_EXPORT_CFUNC ("not", 0, gumjs_uint64_not),
-  GUMJS_EXPORT_CFUNC ("compare", 0, gumjs_uint64_compare),
-  GUMJS_EXPORT_CFUNC ("toNumber", 0, gumjs_uint64_to_number),
-  GUMJS_EXPORT_CFUNC ("toString", 0, gumjs_uint64_to_string),
-  GUMJS_EXPORT_CFUNC ("toJSON", 0, gumjs_uint64_to_json),
-  GUMJS_EXPORT_CFUNC ("valueOf", 0, gumjs_uint64_value_of),
+  JS_CFUNC_DEF ("add", 0, gumjs_uint64_add),
+  JS_CFUNC_DEF ("sub", 0, gumjs_uint64_sub),
+  JS_CFUNC_DEF ("and", 0, gumjs_uint64_and),
+  JS_CFUNC_DEF ("or", 0, gumjs_uint64_or),
+  JS_CFUNC_DEF ("xor", 0, gumjs_uint64_xor),
+  JS_CFUNC_DEF ("shr", 0, gumjs_uint64_shr),
+  JS_CFUNC_DEF ("shl", 0, gumjs_uint64_shl),
+  JS_CFUNC_DEF ("not", 0, gumjs_uint64_not),
+  JS_CFUNC_DEF ("compare", 0, gumjs_uint64_compare),
+  JS_CFUNC_DEF ("toNumber", 0, gumjs_uint64_to_number),
+  JS_CFUNC_DEF ("toString", 0, gumjs_uint64_to_string),
+  JS_CFUNC_DEF ("toJSON", 0, gumjs_uint64_to_json),
+  JS_CFUNC_DEF ("valueOf", 0, gumjs_uint64_value_of),
 };
 
 static const JSClassDef gumjs_native_pointer_def =
@@ -427,35 +425,35 @@ static const JSClassDef gumjs_native_pointer_def =
 
 static const JSCFunctionListEntry gumjs_native_pointer_entries[] =
 {
-  GUMJS_EXPORT_CFUNC ("isNull", 0, gumjs_native_pointer_is_null),
-  GUMJS_EXPORT_CFUNC ("add", 0, gumjs_native_pointer_add),
-  GUMJS_EXPORT_CFUNC ("sub", 0, gumjs_native_pointer_sub),
-  GUMJS_EXPORT_CFUNC ("and", 0, gumjs_native_pointer_and),
-  GUMJS_EXPORT_CFUNC ("or", 0, gumjs_native_pointer_or),
-  GUMJS_EXPORT_CFUNC ("xor", 0, gumjs_native_pointer_xor),
-  GUMJS_EXPORT_CFUNC ("shr", 0, gumjs_native_pointer_shr),
-  GUMJS_EXPORT_CFUNC ("shl", 0, gumjs_native_pointer_shl),
-  GUMJS_EXPORT_CFUNC ("not", 0, gumjs_native_pointer_not),
-  GUMJS_EXPORT_CFUNC ("sign", 0, gumjs_native_pointer_sign),
-  GUMJS_EXPORT_CFUNC ("strip", 0, gumjs_native_pointer_strip),
-  GUMJS_EXPORT_CFUNC ("blend", 0, gumjs_native_pointer_blend),
-  GUMJS_EXPORT_CFUNC ("compare", 0, gumjs_native_pointer_compare),
-  GUMJS_EXPORT_CFUNC ("toInt32", 0, gumjs_native_pointer_to_int32),
-  GUMJS_EXPORT_CFUNC ("toUInt32", 0, gumjs_native_pointer_to_uint32),
-  GUMJS_EXPORT_CFUNC ("toString", 0, gumjs_native_pointer_to_string),
-  GUMJS_EXPORT_CFUNC ("toJSON", 0, gumjs_native_pointer_to_json),
-  GUMJS_EXPORT_CFUNC ("toMatchPattern", 0,
+  JS_CFUNC_DEF ("isNull", 0, gumjs_native_pointer_is_null),
+  JS_CFUNC_DEF ("add", 0, gumjs_native_pointer_add),
+  JS_CFUNC_DEF ("sub", 0, gumjs_native_pointer_sub),
+  JS_CFUNC_DEF ("and", 0, gumjs_native_pointer_and),
+  JS_CFUNC_DEF ("or", 0, gumjs_native_pointer_or),
+  JS_CFUNC_DEF ("xor", 0, gumjs_native_pointer_xor),
+  JS_CFUNC_DEF ("shr", 0, gumjs_native_pointer_shr),
+  JS_CFUNC_DEF ("shl", 0, gumjs_native_pointer_shl),
+  JS_CFUNC_DEF ("not", 0, gumjs_native_pointer_not),
+  JS_CFUNC_DEF ("sign", 0, gumjs_native_pointer_sign),
+  JS_CFUNC_DEF ("strip", 0, gumjs_native_pointer_strip),
+  JS_CFUNC_DEF ("blend", 0, gumjs_native_pointer_blend),
+  JS_CFUNC_DEF ("compare", 0, gumjs_native_pointer_compare),
+  JS_CFUNC_DEF ("toInt32", 0, gumjs_native_pointer_to_int32),
+  JS_CFUNC_DEF ("toUInt32", 0, gumjs_native_pointer_to_uint32),
+  JS_CFUNC_DEF ("toString", 0, gumjs_native_pointer_to_string),
+  JS_CFUNC_DEF ("toJSON", 0, gumjs_native_pointer_to_json),
+  JS_CFUNC_DEF ("toMatchPattern", 0,
       gumjs_native_pointer_to_match_pattern),
 };
 
 static const JSCFunctionListEntry gumjs_array_buffer_class_entries[] =
 {
-  GUMJS_EXPORT_CFUNC ("wrap", 0, gumjs_array_buffer_wrap),
+  JS_CFUNC_DEF ("wrap", 0, gumjs_array_buffer_wrap),
 };
 
 static const JSCFunctionListEntry gumjs_array_buffer_instance_entries[] =
 {
-  GUMJS_EXPORT_CFUNC ("unwrap", 0, gumjs_array_buffer_unwrap),
+  JS_CFUNC_DEF ("unwrap", 0, gumjs_array_buffer_unwrap),
 };
 
 static const JSClassDef gumjs_native_resource_def =
@@ -479,8 +477,8 @@ static const JSClassDef gumjs_native_function_def =
 
 static const JSCFunctionListEntry gumjs_native_function_entries[] =
 {
-  GUMJS_EXPORT_CFUNC ("call", 0, gumjs_native_function_call),
-  GUMJS_EXPORT_CFUNC ("apply", 2, gumjs_native_function_apply),
+  JS_CFUNC_DEF ("call", 0, gumjs_native_function_call),
+  JS_CFUNC_DEF ("apply", 2, gumjs_native_function_apply),
 };
 
 static const JSClassDef gumjs_system_function_def =
@@ -492,8 +490,8 @@ static const JSClassDef gumjs_system_function_def =
 
 static const JSCFunctionListEntry gumjs_system_function_entries[] =
 {
-  GUMJS_EXPORT_CFUNC ("call", 0, gumjs_system_function_call),
-  GUMJS_EXPORT_CFUNC ("apply", 2, gumjs_system_function_apply),
+  JS_CFUNC_DEF ("call", 0, gumjs_system_function_call),
+  JS_CFUNC_DEF ("apply", 2, gumjs_system_function_apply),
 };
 
 static const JSClassDef gumjs_native_callback_def =
@@ -534,7 +532,7 @@ static const JSClassDef gumjs_cpu_context_def =
     GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (R, R)
 
 #define GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR_ALIASED(A, R) \
-    GUMJS_EXPORT_CGETSET (G_STRINGIFY (A), gumjs_cpu_context_get_##R, \
+    JS_CGETSET_DEF (G_STRINGIFY (A), gumjs_cpu_context_get_##R, \
         gumjs_cpu_context_set_##R)
 #define GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR(R) \
     GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR_ALIASED (R, R)
@@ -811,7 +809,7 @@ static const JSCFunctionListEntry gumjs_cpu_context_entries[] =
   GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (k1),
 #endif
 
-  GUMJS_EXPORT_CFUNC ("toJSON", 0, gumjs_cpu_context_to_json),
+  JS_CFUNC_DEF ("toJSON", 0, gumjs_cpu_context_to_json),
 };
 
 static const JSClassDef gumjs_source_map_def =
@@ -822,7 +820,7 @@ static const JSClassDef gumjs_source_map_def =
 
 static const JSCFunctionListEntry gumjs_source_map_entries[] =
 {
-  GUMJS_EXPOSE_CFUNC ("_resolve", 0, gumjs_source_map_resolve),
+  JS_CFUNC_DEF ("_resolve", 0, gumjs_source_map_resolve),
 };
 
 void

@@ -31,7 +31,7 @@ static const JSClassDef gumjs_cmodule_def =
 
 static const JSCFunctionListEntry gumjs_cmodule_entries[] =
 {
-  GUMJS_EXPORT_CFUNC ("dispose", 0, gumjs_cmodule_dispose),
+  JS_CFUNC_DEF ("dispose", 0, gumjs_cmodule_dispose),
 };
 
 void

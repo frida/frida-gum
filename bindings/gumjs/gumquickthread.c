@@ -19,8 +19,8 @@ GUMJS_DECLARE_FUNCTION (gumjs_thread_sleep)
 
 static const JSCFunctionListEntry gumjs_thread_entries[] =
 {
-  GUMJS_EXPORT_CFUNC ("backtrace", 0, gumjs_thread_backtrace),
-  GUMJS_EXPORT_CFUNC ("sleep", 0, gumjs_thread_sleep),
+  JS_CFUNC_DEF ("backtrace", 0, gumjs_thread_backtrace),
+  JS_CFUNC_DEF ("sleep", 0, gumjs_thread_sleep),
 };
 
 static const JSCFunctionListEntry gumjs_backtracer_entries[] =
