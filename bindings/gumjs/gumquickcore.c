@@ -1037,6 +1037,13 @@ _gum_quick_core_init (GumQuickCore * self,
   GUM_SETUP_ATOM (type);
   GUM_SETUP_ATOM (value);
 
+#if defined (HAVE_I386)
+  GUM_SETUP_ATOM (disp);
+  GUM_SETUP_ATOM (index);
+  GUM_SETUP_ATOM (scale);
+  GUM_SETUP_ATOM (segment);
+#endif
+
 #undef GUM_SETUP_ATOM
 
   self->atom_for_resource = JS_NewAtom (ctx, "$r");
@@ -1153,6 +1160,13 @@ _gum_quick_core_dispose (GumQuickCore * self)
   GUM_TEARDOWN_ATOM (traps);
   GUM_TEARDOWN_ATOM (type);
   GUM_TEARDOWN_ATOM (value);
+
+#if defined (HAVE_I386)
+  GUM_TEARDOWN_ATOM (disp);
+  GUM_TEARDOWN_ATOM (index);
+  GUM_TEARDOWN_ATOM (scale);
+  GUM_TEARDOWN_ATOM (segment);
+#endif
 
 #undef GUM_TEARDOWN_ATOM
 

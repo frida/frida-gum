@@ -30,8 +30,6 @@ struct _GumQuickInstructionValue
   JSValue wrapper;
   const cs_insn * insn;
   gconstpointer target;
-
-  GumQuickInstruction * parent;
 };
 
 G_GNUC_INTERNAL void _gum_quick_instruction_init (GumQuickInstruction * self,
@@ -44,8 +42,6 @@ G_GNUC_INTERNAL void _gum_quick_instruction_finalize (
 G_GNUC_INTERNAL JSValue _gum_quick_instruction_new (JSContext * ctx,
     csh capstone, const cs_insn * insn, gboolean is_owned, gconstpointer target,
     GumQuickInstruction * parent, GumQuickInstructionValue ** instruction);
-G_GNUC_INTERNAL void _gum_quick_instruction_release (
-    GumQuickInstructionValue * instruction);
 G_GNUC_INTERNAL gboolean _gum_quick_instruction_get (JSContext * ctx,
     JSValue val, GumQuickInstruction * parent,
     GumQuickInstructionValue ** instruction);

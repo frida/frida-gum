@@ -134,6 +134,13 @@ struct _GumQuickCore
   GUM_DECLARE_ATOM (type);
   GUM_DECLARE_ATOM (value);
 
+#if defined (HAVE_I386)
+  GUM_DECLARE_ATOM (disp);
+  GUM_DECLARE_ATOM (index);
+  GUM_DECLARE_ATOM (scale);
+  GUM_DECLARE_ATOM (segment);
+#endif
+
 #undef GUM_DECLARE_ATOM
 };
 

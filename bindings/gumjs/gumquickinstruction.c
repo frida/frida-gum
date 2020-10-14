@@ -24,36 +24,36 @@ GUMJS_DECLARE_GETTER (gumjs_instruction_get_groups)
 GUMJS_DECLARE_FUNCTION (gumjs_instruction_to_string)
 GUMJS_DECLARE_FUNCTION (gumjs_instruction_to_json)
 
-static void gum_push_operands (JSContext * ctx, const cs_insn * insn,
-    GumQuickInstruction * module);
+static JSValue gum_parse_operands (JSContext * ctx, const cs_insn * insn,
+    csh cs, GumQuickCore * core);
 
 #if defined (HAVE_I386)
-static void gum_x86_push_memory_operand_value (JSContext * ctx,
-    const x86_op_mem * mem, GumQuickInstruction * module);
+static JSValue gum_x86_parse_memory_operand_value (JSContext * ctx,
+    const x86_op_mem * mem, csh cs, GumQuickCore * core);
 #elif defined (HAVE_ARM)
 static void gum_arm_push_memory_operand_value (JSContext * ctx,
-    const arm_op_mem * mem, GumQuickInstruction * module);
+    const arm_op_mem * mem, GumQuickInstruction * parent);
 static void gum_arm_push_shift_details (JSContext * ctx, const cs_arm_op * op,
-    GumQuickInstruction * module);
+    GumQuickInstruction * parent);
 static const gchar * gum_arm_shifter_to_string (arm_shifter type);
 #elif defined (HAVE_ARM64)
 static void gum_arm64_push_memory_operand_value (JSContext * ctx,
-    const arm64_op_mem * mem, GumQuickInstruction * module);
+    const arm64_op_mem * mem, GumQuickInstruction * parent);
 static void gum_arm64_push_shift_details (JSContext * ctx,
-    const cs_arm64_op * op, GumQuickInstruction * module);
+    const cs_arm64_op * op, GumQuickInstruction * parent);
 static const gchar * gum_arm64_shifter_to_string (arm64_shifter type);
 static const gchar * gum_arm64_extender_to_string (arm64_extender ext);
 static const gchar * gum_arm64_vas_to_string (arm64_vas vas);
 #elif defined (HAVE_MIPS)
 static void gum_mips_push_memory_operand_value (JSContext * ctx,
-    const mips_op_mem * mem, GumQuickInstruction * module);
+    const mips_op_mem * mem, GumQuickInstruction * parent);
 #endif
 
-static void gum_push_regs (JSContext * ctx, const uint16_t * regs,
-    uint8_t count, GumQuickInstruction * module);
+static JSValue gum_parse_regs (JSContext * ctx, const uint16_t * regs,
+    uint8_t count, csh cs);
 
-static void gum_push_groups (JSContext * ctx, const uint8_t * groups,
-    uint8_t count, GumQuickInstruction * module);
+static JSValue gum_parse_groups (JSContext * ctx, const uint8_t * groups,
+    uint8_t count, csh cs);
 
 static const JSClassDef gumjs_instruction_def =
 {
@@ -157,18 +157,13 @@ _gum_quick_instruction_new (JSContext * ctx,
       memcpy (v->insn->detail, insn->detail, sizeof (cs_detail));
   }
   v->target = target;
-  v->parent = parent;
+
+  JS_SetOpaque (wrapper, v);
 
   if (instruction != NULL)
     *instruction = v;
 
   return wrapper;
-}
-
-void
-_gum_quick_instruction_release (GumQuickInstructionValue * instruction)
-{
-  JS_FreeValue (instruction->parent->core->ctx, instruction->wrapper);
 }
 
 gboolean
@@ -229,16 +224,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_instruction_parse)
       self, NULL);
 }
 
-static gboolean
-gum_quick_instruction_get (JSContext * ctx,
-                           JSValue val,
-                           GumQuickCore * core,
-                           GumQuickInstructionValue ** instruction)
-{
-  return _gum_quick_instruction_get (ctx, val, gumjs_get_parent_module (core),
-      instruction);
-}
-
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_instruction_construct)
 {
   return _gum_quick_throw_literal (ctx, "not user-instantiable");
@@ -260,9 +245,12 @@ GUMJS_DEFINE_FINALIZER (gumjs_instruction_finalize)
 
 GUMJS_DEFINE_GETTER (gumjs_instruction_get_address)
 {
+  GumQuickInstruction * parent;
   GumQuickInstructionValue * self;
 
-  if (!gum_quick_instruction_get (ctx, this_val, core, &self))
+  parent = gumjs_get_parent_module (core);
+
+  if (!_gum_quick_instruction_get (ctx, this_val, parent, &self))
     return JS_EXCEPTION;
 
   return _gum_quick_native_pointer_new (ctx,
@@ -271,9 +259,12 @@ GUMJS_DEFINE_GETTER (gumjs_instruction_get_address)
 
 GUMJS_DEFINE_GETTER (gumjs_instruction_get_next)
 {
+  GumQuickInstruction * parent;
   GumQuickInstructionValue * self;
 
-  if (!gum_quick_instruction_get (ctx, this_val, core, &self))
+  parent = gumjs_get_parent_module (core);
+
+  if (!_gum_quick_instruction_get (ctx, this_val, parent, &self))
     return JS_EXCEPTION;
 
   return _gum_quick_native_pointer_new (ctx,
@@ -283,9 +274,12 @@ GUMJS_DEFINE_GETTER (gumjs_instruction_get_next)
 
 GUMJS_DEFINE_GETTER (gumjs_instruction_get_size)
 {
+  GumQuickInstruction * parent;
   GumQuickInstructionValue * self;
 
-  if (!gum_quick_instruction_get (ctx, this_val, core, &self))
+  parent = gumjs_get_parent_module (core);
+
+  if (!_gum_quick_instruction_get (ctx, this_val, parent, &self))
     return JS_EXCEPTION;
 
   return JS_NewInt32 (ctx, self->insn->size);
@@ -293,9 +287,12 @@ GUMJS_DEFINE_GETTER (gumjs_instruction_get_size)
 
 GUMJS_DEFINE_GETTER (gumjs_instruction_get_mnemonic)
 {
+  GumQuickInstruction * parent;
   GumQuickInstructionValue * self;
 
-  if (!gum_quick_instruction_get (ctx, this_val, core, &self))
+  parent = gumjs_get_parent_module (core);
+
+  if (!_gum_quick_instruction_get (ctx, this_val, parent, &self))
     return JS_EXCEPTION;
 
   return JS_NewString (ctx, self->insn->mnemonic);
@@ -303,9 +300,12 @@ GUMJS_DEFINE_GETTER (gumjs_instruction_get_mnemonic)
 
 GUMJS_DEFINE_GETTER (gumjs_instruction_get_op_str)
 {
+  GumQuickInstruction * parent;
   GumQuickInstructionValue * self;
 
-  if (!gum_quick_instruction_get (ctx, this_val, core, &self))
+  parent = gumjs_get_parent_module (core);
+
+  if (!_gum_quick_instruction_get (ctx, this_val, parent, &self))
     return JS_EXCEPTION;
 
   return JS_NewString (ctx, self->insn->op_str);
@@ -313,188 +313,242 @@ GUMJS_DEFINE_GETTER (gumjs_instruction_get_op_str)
 
 GUMJS_DEFINE_GETTER (gumjs_instruction_get_operands)
 {
-  GumQuickInstructionValue * self = gumjs_instruction_from_args (args);
+  GumQuickInstruction * parent;
+  GumQuickInstructionValue * self;
 
-  gum_push_operands (ctx, self->insn, self->module);
-  return 1;
+  parent = gumjs_get_parent_module (core);
+
+  if (!_gum_quick_instruction_get (ctx, this_val, parent, &self))
+    return JS_EXCEPTION;
+
+  return gum_parse_operands (ctx, self->insn, parent->capstone, parent->core);
 }
 
 GUMJS_DEFINE_GETTER (gumjs_instruction_get_regs_read)
 {
+  GumQuickInstruction * parent;
   GumQuickInstructionValue * self;
-  const cs_detail * detail;
+  const cs_detail * d;
 
-  self = gumjs_instruction_from_args (args);
+  parent = gumjs_get_parent_module (core);
 
-  detail = self->insn->detail;
+  if (!_gum_quick_instruction_get (ctx, this_val, parent, &self))
+    return JS_EXCEPTION;
 
-  gum_push_regs (ctx, detail->regs_read, detail->regs_read_count, self->module);
-  return 1;
+  d = self->insn->detail;
+
+  return gum_parse_regs (ctx, d->regs_read, d->regs_read_count,
+      parent->capstone);
 }
 
 GUMJS_DEFINE_GETTER (gumjs_instruction_get_regs_written)
 {
+  GumQuickInstruction * parent;
   GumQuickInstructionValue * self;
-  const cs_detail * detail;
+  const cs_detail * d;
 
-  self = gumjs_instruction_from_args (args);
+  parent = gumjs_get_parent_module (core);
 
-  detail = self->insn->detail;
+  if (!_gum_quick_instruction_get (ctx, this_val, parent, &self))
+    return JS_EXCEPTION;
 
-  gum_push_regs (ctx, detail->regs_write, detail->regs_write_count,
-      self->module);
-  return 1;
+  d = self->insn->detail;
+
+  return gum_parse_regs (ctx, d->regs_write, d->regs_write_count,
+      parent->capstone);
 }
 
 GUMJS_DEFINE_GETTER (gumjs_instruction_get_groups)
 {
+  GumQuickInstruction * parent;
   GumQuickInstructionValue * self;
-  const cs_detail * detail;
+  const cs_detail * d;
 
-  self = gumjs_instruction_from_args (args);
+  parent = gumjs_get_parent_module (core);
 
-  detail = self->insn->detail;
+  if (!_gum_quick_instruction_get (ctx, this_val, parent, &self))
+    return JS_EXCEPTION;
 
-  gum_push_groups (ctx, detail->groups, detail->groups_count, self->module);
-  return 1;
+  d = self->insn->detail;
+
+  return gum_parse_groups (ctx, d->groups, d->groups_count, parent->capstone);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_instruction_to_string)
 {
+  JSValue result;
+  GumQuickInstruction * parent;
   GumQuickInstructionValue * self;
   const cs_insn * insn;
 
-  self = gumjs_instruction_from_args (args);
+  parent = gumjs_get_parent_module (core);
+
+  if (!_gum_quick_instruction_get (ctx, this_val, parent, &self))
+    return JS_EXCEPTION;
+
   insn = self->insn;
 
   if (insn->op_str[0] == '\0')
   {
-    quick_push_string (ctx, insn->mnemonic);
+    result = JS_NewString (ctx, insn->mnemonic);
   }
   else
   {
     gchar * str;
 
     str = g_strconcat (insn->mnemonic, " ", insn->op_str, NULL);
-    quick_push_string (ctx, str);
+    result = JS_NewString (ctx, str);
     g_free (str);
   }
-  return 1;
+
+  return result;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_instruction_to_json)
 {
-  const GumQuickPropertyEntry * entry;
+  JSValue result;
+  guint i;
 
-  quick_push_object (ctx);
+  result = JS_NewObject (ctx);
 
-  quick_push_this (ctx);
-
-  for (entry = gumjs_instruction_values; entry->name != NULL; entry++)
+  for (i = 0; i != G_N_ELEMENTS (gumjs_instruction_entries); i++)
   {
-    quick_get_prop_string (ctx, -1, entry->name);
-    quick_put_prop_string (ctx, -3, entry->name);
+    const JSCFunctionListEntry * e = &gumjs_instruction_entries[i];
+    JSValue val;
+
+    if (e->def_type != JS_DEF_CGETSET)
+      continue;
+
+    val = JS_GetPropertyStr (ctx, this_val, e->name);
+    if (JS_IsException (val))
+      goto propagate_exception;
+    JS_SetPropertyStr (ctx, result, e->name, val);
   }
 
-  quick_pop (ctx);
+  return result;
 
-  return 1;
+propagate_exception:
+  {
+    JS_FreeValue (ctx, result);
+
+    return JS_EXCEPTION;
+  }
 }
 
 #if defined (HAVE_I386)
 
-static void
-gum_push_operands (JSContext * ctx,
-                   const cs_insn * insn,
-                   GumQuickInstruction * module)
+static JSValue
+gum_parse_operands (JSContext * ctx,
+                    const cs_insn * insn,
+                    csh cs,
+                    GumQuickCore * core)
 {
-  GumQuickCore * core = module->core;
-  csh capstone = module->capstone;
+  JSValue result;
   const cs_x86 * x86 = &insn->detail->x86;
   uint8_t op_count, op_index;
 
-  quick_push_array (ctx);
+  result = JS_NewArray (ctx);
 
   op_count = x86->op_count;
   for (op_index = 0; op_index != op_count; op_index++)
   {
     const cs_x86_op * op = &x86->operands[op_index];
-
-    quick_push_object (ctx);
+    const gchar * type;
+    JSValue val, o;
 
     switch (op->type)
     {
       case X86_OP_REG:
-        quick_push_string (ctx, cs_reg_name (capstone, op->reg));
-        quick_push_string (ctx, "reg");
+        type = "reg";
+        val = JS_NewString (ctx, cs_reg_name (cs, op->reg));
         break;
       case X86_OP_IMM:
+        type = "imm";
         if (op->size <= 4)
-          quick_push_int (ctx, op->imm);
+          val = JS_NewInt32 (ctx, op->imm);
         else
-          _gum_quick_push_int64 (ctx, op->imm, core);
-        quick_push_string (ctx, "imm");
+          val = _gum_quick_int64_new (ctx, op->imm, core);
         break;
       case X86_OP_MEM:
-        gum_x86_push_memory_operand_value (ctx, &op->mem, module);
-        quick_push_string (ctx, "mem");
+        type = "mem";
+        val = gum_x86_parse_memory_operand_value (ctx, &op->mem, cs, core);
         break;
       default:
         g_assert_not_reached ();
     }
 
-    quick_put_prop_string (ctx, -3, "type");
-    quick_put_prop_string (ctx, -2, "value");
+    o = JS_NewObject (ctx);
 
-    quick_push_uint (ctx, op->size);
-    quick_put_prop_string (ctx, -2, "size");
+    JS_DefinePropertyValue (ctx, o,
+        GUM_QUICK_CORE_ATOM (core, type),
+        JS_NewString (ctx, type),
+        JS_PROP_C_W_E);
+    JS_DefinePropertyValue (ctx, o,
+        GUM_QUICK_CORE_ATOM (core, value),
+        val,
+        JS_PROP_C_W_E);
+    JS_DefinePropertyValue (ctx, o,
+        GUM_QUICK_CORE_ATOM (core, size),
+        JS_NewInt32 (ctx, op->size),
+        JS_PROP_C_W_E);
 
-    quick_put_prop_index (ctx, -2, op_index);
+    JS_DefinePropertyValueUint32 (ctx, result, op_index, o, JS_PROP_C_W_E);
   }
+
+  return result;
 }
 
-static void
-gum_x86_push_memory_operand_value (JSContext * ctx,
-                                   const x86_op_mem * mem,
-                                   GumQuickInstruction * module)
+static JSValue
+gum_x86_parse_memory_operand_value (JSContext * ctx,
+                                    const x86_op_mem * mem,
+                                    csh cs,
+                                    GumQuickCore * core)
 {
-  csh capstone = module->capstone;
+  JSValue v;
 
-  quick_push_object (ctx);
+  v = JS_NewObject (ctx);
 
   if (mem->segment != X86_REG_INVALID)
   {
-    quick_push_string (ctx, cs_reg_name (capstone, mem->segment));
-    quick_put_prop_string (ctx, -2, "segment");
+    JS_DefinePropertyValue (ctx, v,
+        GUM_QUICK_CORE_ATOM (core, segment),
+        JS_NewString (ctx, cs_reg_name (cs, mem->segment)),
+        JS_PROP_C_W_E);
   }
-
   if (mem->base != X86_REG_INVALID)
   {
-    quick_push_string (ctx, cs_reg_name (capstone, mem->base));
-    quick_put_prop_string (ctx, -2, "base");
+    JS_DefinePropertyValue (ctx, v,
+        GUM_QUICK_CORE_ATOM (core, base),
+        JS_NewString (ctx, cs_reg_name (cs, mem->base)),
+        JS_PROP_C_W_E);
   }
-
   if (mem->index != X86_REG_INVALID)
   {
-    quick_push_string (ctx, cs_reg_name (capstone, mem->index));
-    quick_put_prop_string (ctx, -2, "index");
+    JS_DefinePropertyValue (ctx, v,
+        GUM_QUICK_CORE_ATOM (core, index),
+        JS_NewString (ctx, cs_reg_name (cs, mem->index)),
+        JS_PROP_C_W_E);
   }
+  JS_DefinePropertyValue (ctx, v,
+      GUM_QUICK_CORE_ATOM (core, scale),
+      JS_NewInt32 (ctx, mem->scale),
+      JS_PROP_C_W_E);
+  JS_DefinePropertyValue (ctx, v,
+      GUM_QUICK_CORE_ATOM (core, disp),
+      JS_NewInt64 (ctx, mem->disp),
+      JS_PROP_C_W_E);
 
-  quick_push_int (ctx, mem->scale);
-  quick_put_prop_string (ctx, -2, "scale");
-
-  quick_push_int (ctx, mem->disp);
-  quick_put_prop_string (ctx, -2, "disp");
+  return v;
 }
 
 #elif defined (HAVE_ARM)
 
-static void
-gum_push_operands (JSContext * ctx,
-                   const cs_insn * insn,
-                   GumQuickInstruction * module)
+static JSValue
+gum_parse_operands (JSContext * ctx,
+                    const cs_insn * insn,
+                    GumQuickInstruction * parent)
 {
-  csh capstone = module->capstone;
+  csh cs = parent->capstone;
   const cs_arm * arm = &insn->detail->arm;
   uint8_t op_count, op_index;
 
@@ -510,7 +564,7 @@ gum_push_operands (JSContext * ctx,
     switch (op->type)
     {
       case ARM_OP_REG:
-        quick_push_string (ctx, cs_reg_name (capstone, op->reg));
+        quick_push_string (ctx, cs_reg_name (cs, op->reg));
         quick_push_string (ctx, "reg");
         break;
       case ARM_OP_IMM:
@@ -518,7 +572,7 @@ gum_push_operands (JSContext * ctx,
         quick_push_string (ctx, "imm");
         break;
       case ARM_OP_MEM:
-        gum_arm_push_memory_operand_value (ctx, &op->mem, module);
+        gum_arm_push_memory_operand_value (ctx, &op->mem, parent);
         quick_push_string (ctx, "mem");
         break;
       case ARM_OP_FP:
@@ -538,7 +592,7 @@ gum_push_operands (JSContext * ctx,
         quick_push_string (ctx, "setend");
         break;
       case ARM_OP_SYSREG:
-        quick_push_string (ctx, cs_reg_name (capstone, op->reg));
+        quick_push_string (ctx, cs_reg_name (cs, op->reg));
         quick_push_string (ctx, "sysreg");
         break;
       default:
@@ -549,7 +603,7 @@ gum_push_operands (JSContext * ctx,
 
     if (op->shift.type != ARM_SFT_INVALID)
     {
-      gum_arm_push_shift_details (ctx, op, module);
+      gum_arm_push_shift_details (ctx, op, parent);
       quick_put_prop_string (ctx, -2, "shift");
     }
 
@@ -566,24 +620,24 @@ gum_push_operands (JSContext * ctx,
   }
 }
 
-static void
-gum_arm_push_memory_operand_value (JSContext * ctx,
-                                   const arm_op_mem * mem,
-                                   GumQuickInstruction * module)
+static JSValue
+gum_arm_parse_memory_operand_value (JSContext * ctx,
+                                    const arm_op_mem * mem,
+                                    GumQuickInstruction * parent)
 {
-  csh capstone = module->capstone;
+  csh cs = parent->capstone;
 
   quick_push_object (ctx);
 
   if (mem->base != ARM_REG_INVALID)
   {
-    quick_push_string (ctx, cs_reg_name (capstone, mem->base));
+    quick_push_string (ctx, cs_reg_name (cs, mem->base));
     quick_put_prop_string (ctx, -2, "base");
   }
 
   if (mem->index != ARM_REG_INVALID)
   {
-    quick_push_string (ctx, cs_reg_name (capstone, mem->index));
+    quick_push_string (ctx, cs_reg_name (cs, mem->index));
     quick_put_prop_string (ctx, -2, "index");
   }
 
@@ -594,10 +648,10 @@ gum_arm_push_memory_operand_value (JSContext * ctx,
   quick_put_prop_string (ctx, -2, "disp");
 }
 
-static void
-gum_arm_push_shift_details (JSContext * ctx,
-                            const cs_arm_op * op,
-                            GumQuickInstruction * module)
+static JSValue
+gum_arm_parse_shift_details (JSContext * ctx,
+                             const cs_arm_op * op,
+                             GumQuickInstruction * parent)
 {
   quick_push_object (ctx);
 
@@ -632,13 +686,13 @@ gum_arm_shifter_to_string (arm_shifter type)
 
 #elif defined (HAVE_ARM64)
 
-static void
-gum_push_operands (JSContext * ctx,
-                   const cs_insn * insn,
-                   GumQuickInstruction * module)
+static JSValue
+gum_parse_operands (JSContext * ctx,
+                    const cs_insn * insn,
+                    GumQuickInstruction * parent)
 {
-  GumQuickCore * core = module->core;
-  csh capstone = module->capstone;
+  GumQuickCore * core = parent->core;
+  csh cs = parent->capstone;
   const cs_arm64 * arm64 = &insn->detail->arm64;
   uint8_t op_count, op_index;
 
@@ -654,7 +708,7 @@ gum_push_operands (JSContext * ctx,
     switch (op->type)
     {
       case ARM64_OP_REG:
-        quick_push_string (ctx, cs_reg_name (capstone, op->reg));
+        quick_push_string (ctx, cs_reg_name (cs, op->reg));
         quick_push_string (ctx, "reg");
         break;
       case ARM64_OP_IMM:
@@ -662,7 +716,7 @@ gum_push_operands (JSContext * ctx,
         quick_push_string (ctx, "imm");
         break;
       case ARM64_OP_MEM:
-        gum_arm64_push_memory_operand_value (ctx, &op->mem, module);
+        gum_arm64_push_memory_operand_value (ctx, &op->mem, parent);
         quick_push_string (ctx, "mem");
         break;
       case ARM64_OP_FP:
@@ -674,11 +728,11 @@ gum_push_operands (JSContext * ctx,
         quick_push_string (ctx, "cimm");
         break;
       case ARM64_OP_REG_MRS:
-        quick_push_string (ctx, cs_reg_name (capstone, op->reg));
+        quick_push_string (ctx, cs_reg_name (cs, op->reg));
         quick_push_string (ctx, "reg-mrs");
         break;
       case ARM64_OP_REG_MSR:
-        quick_push_string (ctx, cs_reg_name (capstone, op->reg));
+        quick_push_string (ctx, cs_reg_name (cs, op->reg));
         quick_push_string (ctx, "reg-msr");
         break;
       case ARM64_OP_PSTATE:
@@ -705,7 +759,7 @@ gum_push_operands (JSContext * ctx,
 
     if (op->shift.type != ARM64_SFT_INVALID)
     {
-      gum_arm64_push_shift_details (ctx, op, module);
+      gum_arm64_push_shift_details (ctx, op, parent);
       quick_put_prop_string (ctx, -2, "shift");
     }
 
@@ -731,24 +785,24 @@ gum_push_operands (JSContext * ctx,
   }
 }
 
-static void
-gum_arm64_push_memory_operand_value (JSContext * ctx,
-                                     const arm64_op_mem * mem,
-                                     GumQuickInstruction * module)
+static JSValue
+gum_arm64_parse_memory_operand_value (JSContext * ctx,
+                                      const arm64_op_mem * mem,
+                                      GumQuickInstruction * parent)
 {
-  csh capstone = module->capstone;
+  csh cs = parent->capstone;
 
   quick_push_object (ctx);
 
   if (mem->base != ARM64_REG_INVALID)
   {
-    quick_push_string (ctx, cs_reg_name (capstone, mem->base));
+    quick_push_string (ctx, cs_reg_name (cs, mem->base));
     quick_put_prop_string (ctx, -2, "base");
   }
 
   if (mem->index != ARM64_REG_INVALID)
   {
-    quick_push_string (ctx, cs_reg_name (capstone, mem->index));
+    quick_push_string (ctx, cs_reg_name (cs, mem->index));
     quick_put_prop_string (ctx, -2, "index");
   }
 
@@ -756,10 +810,10 @@ gum_arm64_push_memory_operand_value (JSContext * ctx,
   quick_put_prop_string (ctx, -2, "disp");
 }
 
-static void
-gum_arm64_push_shift_details (JSContext * ctx,
-                              const cs_arm64_op * op,
-                              GumQuickInstruction * module)
+static JSValue
+gum_arm64_parse_shift_details (JSContext * ctx,
+                               const cs_arm64_op * op,
+                               GumQuickInstruction * parent)
 {
   quick_push_object (ctx);
 
@@ -830,12 +884,12 @@ gum_arm64_vas_to_string (arm64_vas vas)
 
 #elif defined (HAVE_MIPS)
 
-static void
-gum_push_operands (JSContext * ctx,
-                   const cs_insn * insn,
-                   GumQuickInstruction * module)
+static JSValue
+gum_parse_operands (JSContext * ctx,
+                    const cs_insn * insn,
+                    GumQuickInstruction * parent)
 {
-  csh capstone = module->capstone;
+  csh cs = parent->capstone;
   const cs_mips * mips = &insn->detail->mips;
   uint8_t op_count, op_index;
 
@@ -851,7 +905,7 @@ gum_push_operands (JSContext * ctx,
     switch (op->type)
     {
       case MIPS_OP_REG:
-        quick_push_string (ctx, cs_reg_name (capstone, op->reg));
+        quick_push_string (ctx, cs_reg_name (cs, op->reg));
         quick_push_string (ctx, "reg");
         break;
       case MIPS_OP_IMM:
@@ -859,7 +913,7 @@ gum_push_operands (JSContext * ctx,
         quick_push_string (ctx, "imm");
         break;
       case MIPS_OP_MEM:
-        gum_mips_push_memory_operand_value (ctx, &op->mem, module);
+        gum_mips_push_memory_operand_value (ctx, &op->mem, parent);
         quick_push_string (ctx, "mem");
         break;
       default:
@@ -872,18 +926,18 @@ gum_push_operands (JSContext * ctx,
   }
 }
 
-static void
-gum_mips_push_memory_operand_value (JSContext * ctx,
-                                    const mips_op_mem * mem,
-                                    GumQuickInstruction * module)
+static JSValue
+gum_mips_parse_memory_operand_value (JSContext * ctx,
+                                     const mips_op_mem * mem,
+                                     GumQuickInstruction * parent)
 {
-  csh capstone = module->capstone;
+  csh cs = parent->capstone;
 
   quick_push_object (ctx);
 
   if (mem->base != MIPS_REG_INVALID)
   {
-    quick_push_string (ctx, cs_reg_name (capstone, mem->base));
+    quick_push_string (ctx, cs_reg_name (cs, mem->base));
     quick_put_prop_string (ctx, -2, "base");
   }
 
@@ -893,38 +947,44 @@ gum_mips_push_memory_operand_value (JSContext * ctx,
 
 #endif
 
-static void
-gum_push_regs (JSContext * ctx,
-               const uint16_t * regs,
-               uint8_t count,
-               GumQuickInstruction * module)
+static JSValue
+gum_parse_regs (JSContext * ctx,
+                const uint16_t * regs,
+                uint8_t count,
+                csh cs)
 {
-  csh capstone = module->capstone;
-  uint8_t reg_index;
+  JSValue r;
+  uint8_t i;
 
-  quick_push_array (ctx);
+  r = JS_NewObject (ctx);
 
-  for (reg_index = 0; reg_index != count; reg_index++)
+  for (i = 0; i != count; i++)
   {
-    quick_push_string (ctx, cs_reg_name (capstone, regs[reg_index]));
-    quick_put_prop_index (ctx, -2, reg_index);
+    JS_DefinePropertyValueUint32 (ctx, r, i,
+        JS_NewString (ctx, cs_reg_name (cs, regs[i])),
+        JS_PROP_C_W_E);
   }
+
+  return r;
 }
 
-static void
-gum_push_groups (JSContext * ctx,
-                 const uint8_t * groups,
-                 uint8_t count,
-                 GumQuickInstruction * module)
+static JSValue
+gum_parse_groups (JSContext * ctx,
+                  const uint8_t * groups,
+                  uint8_t count,
+                  csh cs)
 {
-  csh capstone = module->capstone;
-  uint8_t group_index;
+  JSValue g;
+  uint8_t i;
 
-  quick_push_array (ctx);
+  g = JS_NewObject (ctx);
 
-  for (group_index = 0; group_index != count; group_index++)
+  for (i = 0; i != count; i++)
   {
-    quick_push_string (ctx, cs_group_name (capstone, groups[group_index]));
-    quick_put_prop_index (ctx, -2, group_index);
+    JS_DefinePropertyValueUint32 (ctx, g, i,
+        JS_NewString (ctx, cs_group_name (cs, groups[i])),
+        JS_PROP_C_W_E);
   }
+
+  return g;
 }

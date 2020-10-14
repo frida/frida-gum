@@ -475,6 +475,7 @@ Object.defineProperties(Stalker, {
     }
   }
 });
+*/
 
 Object.defineProperty(Instruction, 'parse', {
   enumerable: true,
@@ -483,7 +484,6 @@ Object.defineProperty(Instruction, 'parse', {
     return Instruction._parse(target);
   }
 });
-*/
 
 makeEnumerateApi(ApiResolver.prototype, 'enumerateMatches', 1);
 
