@@ -36,12 +36,9 @@
 #include "gumquickstalker.h"
 #if 0
 #include "gumquickstream.h"
+#endif
 #include "gumquicksymbol.h"
-#endif
 #include "gumquickthread.h"
-#if 0
-#include "gumquickvalue.h"
-#endif
 #include "gumscripttask.h"
 
 typedef guint GumScriptState;
@@ -82,8 +79,8 @@ struct _GumQuickScript
 #endif
   GumQuickInterceptor interceptor;
   GumQuickApiResolver api_resolver;
-#if 0
   GumQuickSymbol symbol;
+#if 0
   GumQuickCModule cmodule;
 #endif
   GumQuickInstruction instruction;
@@ -418,8 +415,8 @@ gum_quick_script_create_context (GumQuickScript * self,
 #endif
   _gum_quick_interceptor_init (&self->interceptor, global_obj, core);
   _gum_quick_api_resolver_init (&self->api_resolver, global_obj, core);
+  _gum_quick_symbol_init (&self->symbol, global_obj, core);
 #if 0
-  _gum_quick_symbol_init (&self->symbol, core);
   _gum_quick_cmodule_init (&self->cmodule, core);
   _gum_quick_instruction_init (&self->instruction, core);
   _gum_quick_code_writer_init (&self->code_writer, core);
@@ -462,8 +459,8 @@ gum_quick_script_destroy_context (GumQuickScript * self)
     _gum_quick_code_writer_dispose (&self->code_writer);
     _gum_quick_instruction_dispose (&self->instruction);
     _gum_quick_cmodule_dispose (&self->cmodule);
-    _gum_quick_symbol_dispose (&self->symbol);
 #endif
+    _gum_quick_symbol_dispose (&self->symbol);
     _gum_quick_api_resolver_dispose (&self->api_resolver);
     _gum_quick_interceptor_dispose (&self->interceptor);
 #if 0
@@ -507,8 +504,8 @@ gum_quick_script_destroy_context (GumQuickScript * self)
   _gum_quick_code_writer_finalize (&self->code_writer);
   _gum_quick_instruction_finalize (&self->instruction);
   _gum_quick_cmodule_finalize (&self->cmodule);
-  _gum_quick_symbol_finalize (&self->symbol);
 #endif
+  _gum_quick_symbol_finalize (&self->symbol);
   _gum_quick_api_resolver_finalize (&self->api_resolver);
   _gum_quick_interceptor_finalize (&self->interceptor);
 #if 0

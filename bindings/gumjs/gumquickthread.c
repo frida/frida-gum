@@ -106,6 +106,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_backtrace)
   gum_backtracer_generate (backtracer, cpu_context, &ret_addrs);
 
   result = JS_NewArray (ctx);
+
   for (i = 0; i != ret_addrs.len; i++)
   {
     JS_DefinePropertyValueUint32 (ctx, result, i,

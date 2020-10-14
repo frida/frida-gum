@@ -145,12 +145,12 @@ _gum_quick_module_finalize (GumQuickModule * self)
 JSValue
 _gum_quick_module_new (JSContext * ctx,
                        const GumModuleDetails * details,
-                       GumQuickModule * module)
+                       GumQuickModule * parent)
 {
-  GumQuickCore * core = module->core;
+  GumQuickCore * core = parent->core;
   JSValue m;
 
-  m = JS_NewObjectClass (ctx, module->module_class);
+  m = JS_NewObjectClass (ctx, parent->module_class);
 
   JS_DefinePropertyValue (ctx, m,
       GUM_QUICK_CORE_ATOM (core, name),

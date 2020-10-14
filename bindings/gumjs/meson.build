@@ -45,6 +45,7 @@ if have_quickjs
     'gumquickinterceptor.c',
     'gumquickstalker.c',
     'gumquickapiresolver.c',
+    'gumquicksymbol.c',
   ]
 endif
 

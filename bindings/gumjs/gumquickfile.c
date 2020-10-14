@@ -83,10 +83,10 @@ gumjs_get_parent_module (GumQuickCore * core)
 }
 
 static gboolean
-gum_quick_file_get (JSContext * ctx,
-                    JSValueConst val,
-                    GumQuickCore * core,
-                    GumFile ** file)
+gum_file_get (JSContext * ctx,
+              JSValueConst val,
+              GumQuickCore * core,
+              GumFile ** file)
 {
   GumFile * f;
 
@@ -172,7 +172,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_write)
   gconstpointer data;
   gsize size;
 
-  if (!gum_quick_file_get (ctx, this_val, core, &self))
+  if (!gum_file_get (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
   if (!_gum_quick_args_parse (args, "B~", &bytes))
@@ -190,7 +190,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_flush)
 {
   GumFile * self;
 
-  if (!gum_quick_file_get (ctx, this_val, core, &self))
+  if (!gum_file_get (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
   fflush (self->handle);
@@ -202,7 +202,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_close)
 {
   GumFile * self;
 
-  if (!gum_quick_file_get (ctx, this_val, core, &self))
+  if (!gum_file_get (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
   gum_file_close (self);

@@ -27,7 +27,7 @@ G_GNUC_INTERNAL void _gum_quick_module_dispose (GumQuickModule * self);
 G_GNUC_INTERNAL void _gum_quick_module_finalize (GumQuickModule * self);
 
 G_GNUC_INTERNAL JSValue _gum_quick_module_new (JSContext * ctx,
-    const GumModuleDetails * details, GumQuickModule * module);
+    const GumModuleDetails * details, GumQuickModule * parent);
 
 G_END_DECLS
 
