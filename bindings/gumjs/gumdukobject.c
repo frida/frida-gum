@@ -35,7 +35,7 @@ _gum_duk_object_manager_init (GumDukObjectManager * self,
 {
   self->module = module;
   self->core = core;
-  self->object_by_handle = g_hash_table_new_full (NULL, NULL, NULL, NULL);
+  self->object_by_handle = g_hash_table_new (NULL, NULL);
   self->cancellable = g_cancellable_new ();
 }
 
