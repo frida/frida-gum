@@ -35,6 +35,7 @@ if have_quickjs
     'gumquickscript.c',
     'gumquickbundle.c',
     'gumquickvalue.c',
+    'gumquickobject.c',
     'gumquickcore.c',
     'gumquickmemory.c',
     'gumquickprocess.c',
@@ -42,6 +43,7 @@ if have_quickjs
     'gumquickmodule.c',
     'gumquickinterceptor.c',
     'gumquickstalker.c',
+    'gumquickapiresolver.c',
   ]
 endif
 

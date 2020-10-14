@@ -483,9 +483,11 @@ Object.defineProperty(Instruction, 'parse', {
     return Instruction._parse(target);
   }
 });
+*/
 
 makeEnumerateApi(ApiResolver.prototype, 'enumerateMatches', 1);
 
+/*
 const _closeIOStream = IOStream.prototype._close;
 IOStream.prototype.close = function () {
   const stream = this;

@@ -551,7 +551,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_map_construct)
         filter, (GDestroyNotify) gum_quick_module_filter_free);
 
     JS_DefinePropertyValue (ctx, obj,
-        GUM_QUICK_CORE_ATOM (core, callback),
+        GUM_QUICK_CORE_ATOM (core, resource),
         JS_DupValue (ctx, filter_callback),
         0);
   }

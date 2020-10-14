@@ -579,7 +579,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
   listener->wrapper = JS_NewObjectClass (ctx, self->invocation_listener_class);
   JS_SetOpaque (listener->wrapper, listener);
   JS_DefinePropertyValue (ctx, listener->wrapper,
-      GUM_QUICK_CORE_ATOM (core, callback),
+      GUM_QUICK_CORE_ATOM (core, resource),
       JS_DupValue (ctx, cb_val),
       0);
 

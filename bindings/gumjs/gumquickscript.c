@@ -6,8 +6,8 @@
 
 #include "gumquickscript.h"
 
-#if 0
 #include "gumquickapiresolver.h"
+#if 0
 #include "gumquickcmodule.h"
 #include "gumquickcoderelocator.h"
 #include "gumquickcodewriter.h"
@@ -79,8 +79,8 @@ struct _GumQuickScript
   GumQuickDatabase database;
 #endif
   GumQuickInterceptor interceptor;
-#if 0
   GumQuickApiResolver api_resolver;
+#if 0
   GumQuickSymbol symbol;
   GumQuickCModule cmodule;
 #endif
@@ -415,8 +415,8 @@ gum_quick_script_create_context (GumQuickScript * self,
   _gum_quick_database_init (&self->database, core);
 #endif
   _gum_quick_interceptor_init (&self->interceptor, global_obj, core);
+  _gum_quick_api_resolver_init (&self->api_resolver, global_obj, core);
 #if 0
-  _gum_quick_api_resolver_init (&self->api_resolver, core);
   _gum_quick_symbol_init (&self->symbol, core);
   _gum_quick_cmodule_init (&self->cmodule, core);
   _gum_quick_instruction_init (&self->instruction, core);
@@ -461,8 +461,8 @@ gum_quick_script_destroy_context (GumQuickScript * self)
     _gum_quick_instruction_dispose (&self->instruction);
     _gum_quick_cmodule_dispose (&self->cmodule);
     _gum_quick_symbol_dispose (&self->symbol);
-    _gum_quick_api_resolver_dispose (&self->api_resolver);
 #endif
+    _gum_quick_api_resolver_dispose (&self->api_resolver);
     _gum_quick_interceptor_dispose (&self->interceptor);
 #if 0
     _gum_quick_database_dispose (&self->database);
@@ -506,8 +506,8 @@ gum_quick_script_destroy_context (GumQuickScript * self)
   _gum_quick_instruction_finalize (&self->instruction);
   _gum_quick_cmodule_finalize (&self->cmodule);
   _gum_quick_symbol_finalize (&self->symbol);
-  _gum_quick_api_resolver_finalize (&self->api_resolver);
 #endif
+  _gum_quick_api_resolver_finalize (&self->api_resolver);
   _gum_quick_interceptor_finalize (&self->interceptor);
 #if 0
   _gum_quick_database_finalize (&self->database);

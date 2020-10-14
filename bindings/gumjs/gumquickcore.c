@@ -1004,6 +1004,8 @@ _gum_quick_core_init (GumQuickCore * self,
   JS_DefinePropertyValueStr (ctx, ns, gumjs_source_map_def.class_name, ctor,
       JS_PROP_C_W_E);
 
+  self->managed_class_ids = g_hash_table_new (NULL, NULL);
+
 #define GUM_SETUP_ATOM(name) \
     GUM_QUICK_CORE_ATOM (self, name) = JS_NewAtom (ctx, G_STRINGIFY (name))
 
@@ -1011,7 +1013,6 @@ _gum_quick_core_init (GumQuickCore * self,
   GUM_SETUP_ATOM (abi);
   GUM_SETUP_ATOM (address);
   GUM_SETUP_ATOM (base);
-  GUM_SETUP_ATOM (callback);
   GUM_SETUP_ATOM (context);
   GUM_SETUP_ATOM (exceptions);
   GUM_SETUP_ATOM (file);
@@ -1039,6 +1040,8 @@ _gum_quick_core_init (GumQuickCore * self,
   GUM_SETUP_ATOM (value);
 
 #undef GUM_SETUP_ATOM
+
+  self->atom_for_resource = JS_NewAtom (ctx, "$r");
 }
 
 gboolean
@@ -1127,7 +1130,6 @@ _gum_quick_core_dispose (GumQuickCore * self)
   GUM_TEARDOWN_ATOM (abi);
   GUM_TEARDOWN_ATOM (address);
   GUM_TEARDOWN_ATOM (base);
-  GUM_TEARDOWN_ATOM (callback);
   GUM_TEARDOWN_ATOM (context);
   GUM_TEARDOWN_ATOM (exceptions);
   GUM_TEARDOWN_ATOM (file);
@@ -1144,6 +1146,7 @@ _gum_quick_core_dispose (GumQuickCore * self)
   GUM_TEARDOWN_ATOM (path);
   GUM_TEARDOWN_ATOM (protection);
   GUM_TEARDOWN_ATOM (prototype);
+  GUM_TEARDOWN_ATOM (resource);
   GUM_TEARDOWN_ATOM (scheduling);
   GUM_TEARDOWN_ATOM (section);
   GUM_TEARDOWN_ATOM (size);
@@ -1169,6 +1172,9 @@ _gum_quick_core_dispose (GumQuickCore * self)
 void
 _gum_quick_core_finalize (GumQuickCore * self)
 {
+  g_hash_table_unref (self->managed_class_ids);
+  self->managed_class_ids = NULL;
+
   g_hash_table_unref (self->native_pointer_class_ids);
   self->native_pointer_class_ids = NULL;
 
@@ -1663,7 +1669,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_bind)
 
   obj = JS_NewObjectClass (ctx, core->weak_ref_class);
   JS_SetOpaque (obj, ref);
-  JS_DefinePropertyValue (ctx, obj, GUM_QUICK_CORE_ATOM (core, callback),
+  JS_DefinePropertyValue (ctx, obj, GUM_QUICK_CORE_ATOM (core, resource),
       JS_DupValue (ctx, callback),
       JS_PROP_C_W_E);
 

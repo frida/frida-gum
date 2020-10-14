@@ -98,6 +98,7 @@ struct _GumQuickCore
   JSClassID cpu_context_class;
   JSClassID source_map_class;
   JSValue source_map_ctor;
+  GHashTable * managed_class_ids;
 
 #define GUM_DECLARE_ATOM(name) \
     JSAtom G_PASTE (atom_for_, name)
@@ -106,7 +107,6 @@ struct _GumQuickCore
   GUM_DECLARE_ATOM (abi);
   GUM_DECLARE_ATOM (address);
   GUM_DECLARE_ATOM (base);
-  GUM_DECLARE_ATOM (callback);
   GUM_DECLARE_ATOM (context);
   GUM_DECLARE_ATOM (exceptions);
   GUM_DECLARE_ATOM (file);
@@ -124,6 +124,7 @@ struct _GumQuickCore
   GUM_DECLARE_ATOM (path);
   GUM_DECLARE_ATOM (protection);
   GUM_DECLARE_ATOM (prototype);
+  GUM_DECLARE_ATOM (resource);
   GUM_DECLARE_ATOM (scheduling);
   GUM_DECLARE_ATOM (section);
   GUM_DECLARE_ATOM (size);
