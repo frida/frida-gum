@@ -47,7 +47,7 @@ _gum_quick_file_init (GumQuickFile * self,
                       GumQuickCore * core)
 {
   JSContext * ctx = core->ctx;
-  JSValue proto, ctor;
+  JSValue ctor, proto;
 
   self->core = core;
 
@@ -55,11 +55,11 @@ _gum_quick_file_init (GumQuickFile * self,
 
   JS_NewClassID (&self->file_class);
   JS_NewClass (core->rt, self->file_class, &gumjs_file_def);
+  ctor = JS_NewCFunction2 (ctx, gumjs_file_construct,
+      gumjs_file_def.class_name, 0, JS_CFUNC_constructor, 0);
   proto = JS_NewObject (ctx);
   JS_SetPropertyFunctionList (ctx, proto, gumjs_file_entries,
       G_N_ELEMENTS (gumjs_file_entries));
-  ctor = JS_NewCFunction2 (ctx, gumjs_file_construct,
-      gumjs_file_def.class_name, 0, JS_CFUNC_constructor, 0);
   JS_SetConstructor (ctx, ctor, proto);
   JS_SetClassProto (ctx, self->file_class, proto);
   JS_DefinePropertyValueStr (ctx, ns, gumjs_file_def.class_name, ctor,

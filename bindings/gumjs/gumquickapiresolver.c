@@ -43,7 +43,7 @@ _gum_quick_api_resolver_init (GumQuickApiResolver * self,
                               GumQuickCore * core)
 {
   JSContext * ctx = core->ctx;
-  JSValue proto, ctor;
+  JSValue ctor, proto;
 
   self->core = core;
 
@@ -51,11 +51,11 @@ _gum_quick_api_resolver_init (GumQuickApiResolver * self,
 
   JS_NewClassID (&self->api_resolver_class);
   JS_NewClass (core->rt, self->api_resolver_class, &gumjs_api_resolver_def);
+  ctor = JS_NewCFunction2 (ctx, gumjs_api_resolver_construct,
+      gumjs_api_resolver_def.class_name, 0, JS_CFUNC_constructor, 0);
   proto = JS_NewObject (ctx);
   JS_SetPropertyFunctionList (ctx, proto, gumjs_api_resolver_entries,
       G_N_ELEMENTS (gumjs_api_resolver_entries));
-  ctor = JS_NewCFunction2 (ctx, gumjs_api_resolver_construct,
-      gumjs_api_resolver_def.class_name, 0, JS_CFUNC_constructor, 0);
   JS_SetConstructor (ctx, ctor, proto);
   JS_SetClassProto (ctx, self->api_resolver_class, proto);
   JS_DefinePropertyValueStr (ctx, ns, gumjs_api_resolver_def.class_name, ctor,

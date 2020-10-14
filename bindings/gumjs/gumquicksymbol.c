@@ -75,7 +75,7 @@ _gum_quick_symbol_init (GumQuickSymbol * self,
                         GumQuickCore * core)
 {
   JSContext * ctx = core->ctx;
-  JSValue proto, ctor;
+  JSValue ctor, proto;
 
   self->core = core;
 
@@ -83,13 +83,13 @@ _gum_quick_symbol_init (GumQuickSymbol * self,
 
   JS_NewClassID (&self->symbol_class);
   JS_NewClass (core->rt, self->symbol_class, &gumjs_symbol_def);
-  proto = JS_NewObject (ctx);
-  JS_SetPropertyFunctionList (ctx, proto, gumjs_symbol_entries,
-      G_N_ELEMENTS (gumjs_symbol_entries));
   ctor = JS_NewCFunction2 (ctx, gumjs_symbol_construct,
       gumjs_symbol_def.class_name, 0, JS_CFUNC_constructor, 0);
   JS_SetPropertyFunctionList (ctx, ctor, gumjs_symbol_module_entries,
       G_N_ELEMENTS (gumjs_symbol_module_entries));
+  proto = JS_NewObject (ctx);
+  JS_SetPropertyFunctionList (ctx, proto, gumjs_symbol_entries,
+      G_N_ELEMENTS (gumjs_symbol_entries));
   JS_SetConstructor (ctx, ctor, proto);
   JS_SetClassProto (ctx, self->symbol_class, proto);
   JS_DefinePropertyValueStr (ctx, ns, gumjs_symbol_def.class_name, ctor,
@@ -265,7 +265,8 @@ gum_symbol_get (JSContext * ctx,
                 GumQuickCore * core,
                 GumSymbol ** symbol)
 {
-  *symbol = JS_GetOpaque (val, gumjs_get_parent_module (core)->symbol_class);
+  *symbol = JS_GetOpaque2 (ctx, val,
+      gumjs_get_parent_module (core)->symbol_class);
   return *symbol != NULL;
 }
 

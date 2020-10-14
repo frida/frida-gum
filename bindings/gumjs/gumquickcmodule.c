@@ -40,7 +40,7 @@ _gum_quick_cmodule_init (GumQuickCModule * self,
                          GumQuickCore * core)
 {
   JSContext * ctx = core->ctx;
-  JSValue proto, ctor;
+  JSValue ctor, proto;
 
   self->core = core;
 
@@ -51,11 +51,11 @@ _gum_quick_cmodule_init (GumQuickCModule * self,
 
   JS_NewClassID (&self->cmodule_class);
   JS_NewClass (core->rt, self->cmodule_class, &gumjs_cmodule_def);
+  ctor = JS_NewCFunction2 (ctx, gumjs_cmodule_construct,
+      gumjs_cmodule_def.class_name, 0, JS_CFUNC_constructor, 0);
   proto = JS_NewObject (ctx);
   JS_SetPropertyFunctionList (ctx, proto, gumjs_cmodule_entries,
       G_N_ELEMENTS (gumjs_cmodule_entries));
-  ctor = JS_NewCFunction2 (ctx, gumjs_cmodule_construct,
-      gumjs_cmodule_def.class_name, 0, JS_CFUNC_constructor, 0);
   JS_SetConstructor (ctx, ctor, proto);
   JS_SetClassProto (ctx, self->cmodule_class, proto);
   JS_DefinePropertyValueStr (ctx, ns, gumjs_cmodule_def.class_name, ctor,

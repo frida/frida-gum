@@ -1191,14 +1191,12 @@ gum_quick_memory_access_details_get (JSContext * ctx,
   *details = JS_GetOpaque (val,
       gumjs_get_parent_module (core)->memory_access_details_class);
   if (*details == NULL)
-    goto invalid_operation;
-  return TRUE;
-
-invalid_operation:
   {
     _gum_quick_throw_literal (ctx, "invalid operation");
     return FALSE;
   }
+
+  return TRUE;
 }
 
 GUMJS_DEFINE_GETTER (gumjs_memory_access_details_get_operation)

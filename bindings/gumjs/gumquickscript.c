@@ -17,9 +17,7 @@
 #include "gumquickdatabase.h"
 #endif
 #include "gumquickfile.h"
-#if 0
 #include "gumquickinstruction.h"
-#endif
 #include "gumquickinterceptor.h"
 #if 0
 #include "gumquickkernel.h"
@@ -415,8 +413,8 @@ gum_quick_script_create_context (GumQuickScript * self,
   _gum_quick_api_resolver_init (&self->api_resolver, global_obj, core);
   _gum_quick_symbol_init (&self->symbol, global_obj, core);
   _gum_quick_cmodule_init (&self->cmodule, global_obj, core);
+  _gum_quick_instruction_init (&self->instruction, global_obj, core);
 #if 0
-  _gum_quick_instruction_init (&self->instruction, core);
   _gum_quick_code_writer_init (&self->code_writer, core);
   _gum_quick_code_relocator_init (&self->code_relocator, &self->code_writer,
       &self->instruction, core);
@@ -455,8 +453,8 @@ gum_quick_script_destroy_context (GumQuickScript * self)
 #if 0
     _gum_quick_code_relocator_dispose (&self->code_relocator);
     _gum_quick_code_writer_dispose (&self->code_writer);
-    _gum_quick_instruction_dispose (&self->instruction);
 #endif
+    _gum_quick_instruction_dispose (&self->instruction);
     _gum_quick_cmodule_dispose (&self->cmodule);
     _gum_quick_symbol_dispose (&self->symbol);
     _gum_quick_api_resolver_dispose (&self->api_resolver);
@@ -500,8 +498,8 @@ gum_quick_script_destroy_context (GumQuickScript * self)
 #if 0
   _gum_quick_code_relocator_finalize (&self->code_relocator);
   _gum_quick_code_writer_finalize (&self->code_writer);
-  _gum_quick_instruction_finalize (&self->instruction);
 #endif
+  _gum_quick_instruction_finalize (&self->instruction);
   _gum_quick_cmodule_finalize (&self->cmodule);
   _gum_quick_symbol_finalize (&self->symbol);
   _gum_quick_api_resolver_finalize (&self->api_resolver);

@@ -836,7 +836,7 @@ _gum_quick_core_init (GumQuickCore * self,
                       GumScriptScheduler * scheduler)
 {
   JSRuntime * rt;
-  JSValue obj, proto, ctor, uint64_proto, global_obj;
+  JSValue obj, ctor, proto, uint64_proto, global_obj;
 
   rt = JS_GetRuntime (ctx);
 
@@ -898,11 +898,11 @@ _gum_quick_core_init (GumQuickCore * self,
 
   JS_NewClassID (&self->int64_class);
   JS_NewClass (rt, self->int64_class, &gumjs_int64_def);
+  ctor = JS_NewCFunction2 (ctx, gumjs_int64_construct,
+      gumjs_int64_def.class_name, 0, JS_CFUNC_constructor, 0);
   proto = JS_NewObject (ctx);
   JS_SetPropertyFunctionList (ctx, proto, gumjs_int64_entries,
       G_N_ELEMENTS (gumjs_int64_entries));
-  ctor = JS_NewCFunction2 (ctx, gumjs_int64_construct,
-      gumjs_int64_def.class_name, 0, JS_CFUNC_constructor, 0);
   JS_SetConstructor (ctx, ctor, proto);
   JS_SetClassProto (ctx, self->int64_class, proto);
   JS_DefinePropertyValueStr (ctx, ns, gumjs_int64_def.class_name, ctor,
@@ -910,12 +910,12 @@ _gum_quick_core_init (GumQuickCore * self,
 
   JS_NewClassID (&self->uint64_class);
   JS_NewClass (rt, self->uint64_class, &gumjs_uint64_def);
+  ctor = JS_NewCFunction2 (ctx, gumjs_uint64_construct,
+      gumjs_uint64_def.class_name, 0, JS_CFUNC_constructor, 0);
   proto = JS_NewObject (ctx);
   uint64_proto = proto;
   JS_SetPropertyFunctionList (ctx, proto, gumjs_uint64_entries,
       G_N_ELEMENTS (gumjs_uint64_entries));
-  ctor = JS_NewCFunction2 (ctx, gumjs_uint64_construct,
-      gumjs_uint64_def.class_name, 0, JS_CFUNC_constructor, 0);
   JS_SetConstructor (ctx, ctor, proto);
   JS_SetClassProto (ctx, self->uint64_class, proto);
   JS_DefinePropertyValueStr (ctx, ns, gumjs_uint64_def.class_name, ctor,
@@ -923,12 +923,12 @@ _gum_quick_core_init (GumQuickCore * self,
 
   JS_NewClassID (&self->native_pointer_class);
   JS_NewClass (rt, self->native_pointer_class, &gumjs_native_pointer_def);
+  ctor = JS_NewCFunction2 (ctx, gumjs_native_pointer_construct,
+      gumjs_native_pointer_def.class_name, 0, JS_CFUNC_constructor, 0);
   proto = JS_NewObject (ctx);
   self->native_pointer_proto = JS_DupValue (ctx, proto);
   JS_SetPropertyFunctionList (ctx, proto, gumjs_native_pointer_entries,
       G_N_ELEMENTS (gumjs_native_pointer_entries));
-  ctor = JS_NewCFunction2 (ctx, gumjs_native_pointer_construct,
-      gumjs_native_pointer_def.class_name, 0, JS_CFUNC_constructor, 0);
   JS_SetConstructor (ctx, ctor, proto);
   JS_SetClassProto (ctx, self->native_pointer_class, proto);
   JS_DefinePropertyValueStr (ctx, ns, gumjs_native_pointer_def.class_name, ctor,
@@ -956,20 +956,20 @@ _gum_quick_core_init (GumQuickCore * self,
 
   _gum_quick_core_create_native_pointer_subclass (self,
       &gumjs_native_function_def, &self->native_function_class, &proto);
-  JS_SetPropertyFunctionList (ctx, proto, gumjs_native_function_entries,
-      G_N_ELEMENTS (gumjs_native_function_entries));
   ctor = JS_NewCFunction2 (ctx, gumjs_native_function_construct,
       gumjs_native_function_def.class_name, 0, JS_CFUNC_constructor, 0);
+  JS_SetPropertyFunctionList (ctx, proto, gumjs_native_function_entries,
+      G_N_ELEMENTS (gumjs_native_function_entries));
   JS_SetConstructor (ctx, ctor, proto);
   JS_DefinePropertyValueStr (ctx, ns, gumjs_native_function_def.class_name,
       ctor, JS_PROP_C_W_E);
 
   _gum_quick_core_create_native_pointer_subclass (self,
       &gumjs_system_function_def, &self->system_function_class, &proto);
-  JS_SetPropertyFunctionList (ctx, proto, gumjs_system_function_entries,
-      G_N_ELEMENTS (gumjs_system_function_entries));
   ctor = JS_NewCFunction2 (ctx, gumjs_system_function_construct,
       gumjs_system_function_def.class_name, 0, JS_CFUNC_constructor, 0);
+  JS_SetPropertyFunctionList (ctx, proto, gumjs_system_function_entries,
+      G_N_ELEMENTS (gumjs_system_function_entries));
   JS_SetConstructor (ctx, ctor, proto);
   JS_DefinePropertyValueStr (ctx, ns, gumjs_system_function_def.class_name,
       ctor, JS_PROP_C_W_E);
@@ -991,12 +991,12 @@ _gum_quick_core_init (GumQuickCore * self,
 
   JS_NewClassID (&self->source_map_class);
   JS_NewClass (rt, self->source_map_class, &gumjs_source_map_def);
-  proto = JS_NewObject (ctx);
-  JS_SetPropertyFunctionList (ctx, proto, gumjs_source_map_entries,
-      G_N_ELEMENTS (gumjs_source_map_entries));
   ctor = JS_NewCFunction2 (ctx, gumjs_source_map_construct,
       gumjs_source_map_def.class_name, 0, JS_CFUNC_constructor, 0);
   self->source_map_ctor = JS_DupValue (ctx, ctor);
+  proto = JS_NewObject (ctx);
+  JS_SetPropertyFunctionList (ctx, proto, gumjs_source_map_entries,
+      G_N_ELEMENTS (gumjs_source_map_entries));
   JS_SetConstructor (ctx, ctor, proto);
   JS_SetClassProto (ctx, self->source_map_class, proto);
   JS_DefinePropertyValueStr (ctx, ns, gumjs_source_map_def.class_name, ctor,

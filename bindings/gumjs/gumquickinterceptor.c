@@ -1325,24 +1325,21 @@ gum_quick_invocation_args_get (JSContext * ctx,
                                GumQuickCore * core,
                                GumQuickInvocationArgs ** args)
 {
-  GumQuickInvocationArgs * self;
+  GumQuickInvocationArgs * a;
 
-  self = JS_GetOpaque2 (ctx, val,
+  a = JS_GetOpaque2 (ctx, val,
       gumjs_get_parent_module (core)->invocation_args_class);
-  if (self == NULL)
+  if (a == NULL)
     return FALSE;
 
-  if (self->ic == NULL)
-    goto invalid_operation;
-
-  *args = self;
-  return TRUE;
-
-invalid_operation:
+  if (a->ic == NULL)
   {
     _gum_quick_throw_literal (ctx, "invalid operation");
     return FALSE;
   }
+
+  *args = a;
+  return TRUE;
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_invocation_args_finalize)
@@ -1505,24 +1502,21 @@ gum_quick_invocation_retval_get (JSContext * ctx,
                                  GumQuickCore * core,
                                  GumQuickInvocationRetval ** retval)
 {
-  GumQuickInvocationRetval * self;
+  GumQuickInvocationRetval * r;
 
-  self = JS_GetOpaque2 (ctx, val,
+  r = JS_GetOpaque2 (ctx, val,
       gumjs_get_parent_module (core)->invocation_retval_class);
-  if (self == NULL)
+  if (r == NULL)
     return FALSE;
 
-  if (self->ic == NULL)
-    goto invalid_operation;
-
-  *retval = self;
-  return TRUE;
-
-invalid_operation:
+  if (r->ic == NULL)
   {
     _gum_quick_throw_literal (ctx, "invalid operation");
     return FALSE;
   }
+
+  *retval = r;
+  return TRUE;
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_invocation_retval_finalize)

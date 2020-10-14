@@ -7,12 +7,11 @@
 #ifndef __GUM_QUICK_STALKER_H__
 #define __GUM_QUICK_STALKER_H__
 
-#include "gumquickcore.h"
+#include "gumquickinstruction.h"
 
 G_BEGIN_DECLS
 
 typedef struct _GumQuickCodeWriter GumQuickCodeWriter;
-typedef struct _GumQuickInstruction GumQuickInstruction;
 
 struct _GumQuickStalker
 {
@@ -26,11 +25,6 @@ struct _GumQuickStalker
 };
 
 struct _GumQuickCodeWriter
-{
-  gint placeholder;
-};
-
-struct _GumQuickInstruction
 {
   gint placeholder;
 };
