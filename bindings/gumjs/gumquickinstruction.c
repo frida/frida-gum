@@ -45,8 +45,8 @@ static const gchar * gum_arm64_shifter_to_string (arm64_shifter type);
 static const gchar * gum_arm64_extender_to_string (arm64_extender ext);
 static const gchar * gum_arm64_vas_to_string (arm64_vas vas);
 #elif defined (HAVE_MIPS)
-static void gum_mips_push_memory_operand_value (JSContext * ctx,
-    const mips_op_mem * mem, GumQuickInstruction * parent);
+static JSValue gum_mips_parse_memory_operand_value (JSContext * ctx,
+    const mips_op_mem * mem, csh cs, GumQuickCore * core);
 #endif
 
 static JSValue gum_parse_regs (JSContext * ctx, const uint16_t * regs,
@@ -936,62 +936,78 @@ gum_arm64_vas_to_string (arm64_vas vas)
 static JSValue
 gum_parse_operands (JSContext * ctx,
                     const cs_insn * insn,
-                    GumQuickInstruction * parent)
+                    csh cs,
+                    GumQuickCore * core)
 {
-  csh cs = parent->capstone;
+  JSValue result;
   const cs_mips * mips = &insn->detail->mips;
-  uint8_t op_count, op_index;
+  uint8_t i;
 
-  quick_push_array (ctx);
+  result = JS_NewArray (ctx);
 
-  op_count = mips->op_count;
-  for (op_index = 0; op_index != op_count; op_index++)
+  for (i = 0; i != mips->op_count; i++)
   {
-    const cs_mips_op * op = &mips->operands[op_index];
+    const cs_mips_op * op = &mips->operands[i];
+    JSValue op_obj;
+    const gchar * type;
+    JSValue val;
 
-    quick_push_object (ctx);
+    op_obj = JS_NewObject (ctx);
 
     switch (op->type)
     {
       case MIPS_OP_REG:
-        quick_push_string (ctx, cs_reg_name (cs, op->reg));
-        quick_push_string (ctx, "reg");
+        type = "reg";
+        val = JS_NewString (ctx, cs_reg_name (cs, op->reg));
         break;
       case MIPS_OP_IMM:
-        quick_push_int (ctx, op->imm);
-        quick_push_string (ctx, "imm");
+        type = "imm";
+        val = JS_NewInt64 (ctx, op->imm);
         break;
       case MIPS_OP_MEM:
-        gum_mips_push_memory_operand_value (ctx, &op->mem, parent);
-        quick_push_string (ctx, "mem");
+        type = "mem";
+        val = gum_mips_parse_memory_operand_value (ctx, &op->mem, cs, core);
         break;
       default:
         g_assert_not_reached ();
     }
-    quick_put_prop_string (ctx, -3, "type");
-    quick_put_prop_string (ctx, -2, "value");
 
-    quick_put_prop_index (ctx, -2, op_index);
+    JS_DefinePropertyValue (ctx, op_obj,
+        GUM_QUICK_CORE_ATOM (core, type),
+        JS_NewString (ctx, type),
+        JS_PROP_C_W_E);
+    JS_DefinePropertyValue (ctx, op_obj,
+        GUM_QUICK_CORE_ATOM (core, value),
+        val,
+        JS_PROP_C_W_E);
+
+    JS_DefinePropertyValueUint32 (ctx, result, i, op_obj, JS_PROP_C_W_E);
   }
+
+  return result;
 }
 
 static JSValue
 gum_mips_parse_memory_operand_value (JSContext * ctx,
                                      const mips_op_mem * mem,
-                                     GumQuickInstruction * parent)
+                                     csh cs,
+                                     GumQuickCore * core)
 {
-  csh cs = parent->capstone;
-
-  quick_push_object (ctx);
+  JSValue val = JS_NewObject (ctx);
 
   if (mem->base != MIPS_REG_INVALID)
   {
-    quick_push_string (ctx, cs_reg_name (cs, mem->base));
-    quick_put_prop_string (ctx, -2, "base");
+    JS_DefinePropertyValue (ctx, val,
+        GUM_QUICK_CORE_ATOM (core, base),
+        JS_NewString (ctx, cs_reg_name (cs, mem->base)),
+        JS_PROP_C_W_E);
   }
+  JS_DefinePropertyValue (ctx, val,
+      GUM_QUICK_CORE_ATOM (core, disp),
+      JS_NewInt64 (ctx, mem->disp),
+      JS_PROP_C_W_E);
 
-  quick_push_int (ctx, mem->disp);
-  quick_put_prop_string (ctx, -2, "disp");
+  return val;
 }
 
 #endif

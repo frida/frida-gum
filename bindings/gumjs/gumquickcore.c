@@ -1055,6 +1055,8 @@ _gum_quick_core_init (GumQuickCore * self,
   GUM_SETUP_ATOM (shift);
   GUM_SETUP_ATOM (vas);
   GUM_SETUP_ATOM (vectorIndex);
+#elif defined (HAVE_MIPS)
+  GUM_SETUP_ATOM (disp);
 #endif
 
 #undef GUM_SETUP_ATOM
@@ -1194,6 +1196,8 @@ _gum_quick_core_dispose (GumQuickCore * self)
   GUM_TEARDOWN_ATOM (shift);
   GUM_TEARDOWN_ATOM (vas);
   GUM_TEARDOWN_ATOM (vectorIndex);
+#elif defined (HAVE_MIPS)
+  GUM_TEARDOWN_ATOM (disp);
 #endif
 
 #undef GUM_TEARDOWN_ATOM
