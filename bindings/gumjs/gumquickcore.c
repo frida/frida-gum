@@ -1025,6 +1025,7 @@ _gum_quick_core_init (GumQuickCore * self,
   GUM_SETUP_ATOM (offset);
   GUM_SETUP_ATOM (operation);
   GUM_SETUP_ATOM (path);
+  GUM_SETUP_ATOM (pc);
   GUM_SETUP_ATOM (protection);
   GUM_SETUP_ATOM (prototype);
   GUM_SETUP_ATOM (scheduling);
@@ -1164,6 +1165,7 @@ _gum_quick_core_dispose (GumQuickCore * self)
   GUM_TEARDOWN_ATOM (offset);
   GUM_TEARDOWN_ATOM (operation);
   GUM_TEARDOWN_ATOM (path);
+  GUM_TEARDOWN_ATOM (pc);
   GUM_TEARDOWN_ATOM (protection);
   GUM_TEARDOWN_ATOM (prototype);
   GUM_TEARDOWN_ATOM (resource);

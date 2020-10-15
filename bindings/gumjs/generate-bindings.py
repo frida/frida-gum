@@ -66,7 +66,7 @@ def generate_and_write_bindings(source_dir, output_dir):
 
 def generate_umbrellas(name, flavor_combos):
     umbrellas = {}
-    for runtime in ["duk", "v8"]:
+    for runtime in ["quick", "duk", "v8"]:
         for section in ["", "-fields", "-methods", "-init", "-dispose"]:
             filename, code = generate_umbrella(runtime, name, section, flavor_combos)
             umbrellas[filename] = code
@@ -155,6 +155,7 @@ def generate_bindings(name, arch, flavor, api_header, options):
     api = parse_api(name, arch, flavor, api_header, options)
 
     code = {}
+    code.update(generate_quick_bindings(name, arch, flavor, api))
     code.update(generate_duk_bindings(name, arch, flavor, api))
     code.update(generate_v8_bindings(name, arch, flavor, api))
 
@@ -163,6 +164,1023 @@ def generate_bindings(name, arch, flavor, api_header, options):
     docs = generate_docs(name, arch, flavor, api)
 
     return Bindings(code, tsds, docs)
+
+def generate_quick_bindings(name, arch, flavor, api):
+    component = Component(name, arch, flavor, "quick")
+    return {
+        "gumquickcode{0}-{1}.inc".format(name, flavor): generate_quick_wrapper_code(component, api),
+        "gumquickcode{0}-fields-{1}.inc".format(name, flavor): generate_quick_fields(component),
+        "gumquickcode{0}-methods-{1}.inc".format(name, flavor): generate_quick_methods(component),
+        "gumquickcode{0}-init-{1}.inc".format(name, flavor): generate_quick_init_code(component),
+        "gumquickcode{0}-dispose-{1}.inc".format(name, flavor): generate_quick_dispose_code(component),
+    }
+
+def generate_quick_wrapper_code(component, api):
+    lines = [
+        "/* Auto-generated, do not edit. */",
+    ]
+
+    conversion_decls, conversion_code = generate_conversion_methods(component, generate_quick_enum_parser)
+    if len(conversion_decls) > 0:
+        lines.append("")
+        lines.extend(conversion_decls)
+
+    lines.append("")
+
+    lines.extend(generate_quick_base_methods(component))
+
+    for method in api.instance_methods:
+        args = method.args
+
+        is_put_array = method.is_put_array
+        if method.is_put_call:
+            array_item_type = "GumArgument"
+            array_item_parse_logic = generate_quick_parse_call_arg_array_element(component)
+        elif method.is_put_regs:
+            array_item_type = api.native_register_type
+            array_item_parse_logic = generate_quick_parse_register_array_element(component)
+
+        lines.extend([
+            "GUMJS_DEFINE_FUNCTION ({0}_{1})".format(component.gumjs_function_prefix, method.name),
+            "{",
+            "  {0} * parent;".format(component.module_struct_name),
+            "  {0} * self;".format(component.wrapper_struct_name),
+        ])
+
+        for arg in args:
+            type_raw = arg.type_raw
+            if type_raw == "$array":
+                type_raw = "JSValue"
+            lines.append("  {0} {1};".format(type_raw, arg.name_raw))
+            converter = arg.type_converter
+            if converter is not None:
+                if converter == "bytes":
+                    lines.extend([
+                        "  const guint8 * {0};".format(arg.name),
+                        "  gsize {0}_size;".format(arg.name)
+                    ])
+                elif converter == "label":
+                    lines.append("  gconstpointer {0};".format(arg.name))
+                else:
+                    lines.append("  {0} {1};".format(arg.type, arg.name))
+        if is_put_array:
+            lines.extend([
+                "  quick_uarridx_t items_length, items_index;",
+                "  {0} * items;".format(array_item_type),
+            ])
+
+        if method.return_type == "void":
+            return_capture = ""
+        else:
+            lines.append("  {0} result;".format(method.return_type))
+            return_capture = "result = "
+
+        lines.extend([
+            "",
+            "  parent = gumjs_get_parent_module (core);"
+            "",
+            "  if (!_{0}_get (ctx, this_val, parent, &self))".format(component.wrapper_function_prefix),
+            "    return JS_EXCEPTION;",
+        ])
+
+        if len(args) > 0:
+            arglist_signature = "".join([arg.type_format for arg in args])
+            arglist_pointers = ", ".join(["&" + arg.name_raw for arg in args])
+
+            lines.extend([
+                "",
+                "  if (!_gum_quick_args_parse (args, \"{0}\", {1}))".format(arglist_signature, arglist_pointers),
+                "    return JS_EXCEPTION;",
+            ])
+
+        args_needing_conversion = [arg for arg in args if arg.type_converter is not None]
+        if len(args_needing_conversion) > 0:
+            lines.append("")
+            for arg in args_needing_conversion:
+                converter = arg.type_converter
+                if converter == "label":
+                    lines.append("  {value} = {wrapper_function_prefix}_resolve_label (self, {value_raw});".format(
+                        value=arg.name,
+                        value_raw=arg.name_raw,
+                        wrapper_function_prefix=component.wrapper_function_prefix))
+                elif converter == "address":
+                    lines.append("  {value} = GUM_ADDRESS ({value_raw});".format(
+                        value=arg.name,
+                        value_raw=arg.name_raw))
+                elif converter == "bytes":
+                    lines.append("  {value} = g_bytes_get_data ({value_raw}, &{value}_size);".format(
+                        value=arg.name,
+                        value_raw=arg.name_raw))
+                else:
+                    lines.append("  {value} = gum_parse_{arch}_{type} (ctx, {value_raw});".format(
+                        value=arg.name,
+                        value_raw=arg.name_raw,
+                        arch=component.arch,
+                        type=arg.type_converter))
+
+        if is_put_array:
+            lines.extend(generate_quick_parse_array_elements(array_item_type, array_item_parse_logic).split("\n"))
+
+        impl_function_name = "{0}_{1}".format(component.impl_function_prefix, method.name)
+
+        arglist = ["self->impl"]
+        if method.needs_calling_convention_arg:
+            arglist.append("GUM_CALL_CAPI")
+        for arg in args:
+            if arg.type_converter == "bytes":
+                arglist.extend([arg.name, arg.name + "_size"])
+            else:
+                arglist.append(arg.name)
+        if is_put_array:
+            impl_function_name += "_array"
+            arglist.insert(len(arglist) - 1, "items_length")
+
+        lines.extend([
+            "",
+            "  {0}{1} ({2});".format(return_capture, impl_function_name, ", ".join(arglist))
+        ])
+
+        args_needing_cleanup = [arg for arg in args if arg.type_converter == "bytes"]
+        if len(args_needing_cleanup) > 0:
+            lines.append("")
+            for arg in args_needing_cleanup:
+                lines.append("  g_bytes_unref ({0});".format(arg.name_raw))
+
+        if method.return_type == "gboolean" and method.name.startswith("put_"):
+            if len(args_needing_cleanup) > 0:
+                lines.append("")
+            lines.extend([
+                "  if (!result)",
+                "    _gum_quick_throw_literal (ctx, \"invalid argument\");",
+                "",
+                "  return JS_UNDEFINED;",
+            ])
+        elif method.return_type == "void":
+            lines.append("")
+            lines.append("  return JS_UNDEFINED;")
+        else:
+            lines.append("")
+            if method.return_type == "gboolean":
+                lines.append("  return JS_NewBool (ctx, result);")
+            elif method.return_type == "guint":
+                lines.append("  return JS_NewInt64 (ctx, result);")
+            elif method.return_type == "gpointer":
+                lines.append("  return _gum_quick_native_pointer_new (ctx, result, core);")
+            elif method.return_type == "GumAddress":
+                lines.append("  return _gum_quick_native_pointer_new (ctx, GSIZE_TO_POINTER (result), core);")
+            elif method.return_type == "cs_insn *":
+                if component.flavor == "x86":
+                    target = "GSIZE_TO_POINTER (result->address)"
+                else:
+                    target = "self->impl->input_start + (result->address - (self->impl->input_pc - self->impl->inpos))"
+                    if component.flavor == "thumb":
+                        target = "GSIZE_TO_POINTER (GPOINTER_TO_SIZE ({0}) | 1)".format(target)
+                lines.extend([
+                    "  if (result != NULL)",
+                    "  {",
+                    "    return _gum_quick_instruction_new (ctx, self->impl->capstone, result, FALSE, {0}, self->module->instruction);".format(target),
+                    "  }",
+                    "  else",
+                    "  {",
+                    "    return JS_NULL;"
+                    "  }",
+                ])
+            else:
+                raise ValueError("Unsupported return type: {0}".format(method.return_type))
+
+        lines.extend([
+            "}",
+            ""
+        ])
+
+    lines.extend([
+        "static const quick_function_list_entry {0}_functions[] =".format(component.gumjs_function_prefix),
+        "{",
+    ])
+    if component.name == "writer":
+        lines.extend([
+            "  {{ \"reset\", {0}_reset, 1 }},".format(component.gumjs_function_prefix),
+            "  {{ \"dispose\", {0}_dispose, 0 }},".format(component.gumjs_function_prefix),
+            "  {{ \"flush\", {0}_flush, 0 }},".format(component.gumjs_function_prefix),
+        ])
+    elif component.name == "relocator":
+        lines.extend([
+            "  {{ \"reset\", {0}_reset, 2 }},".format(component.gumjs_function_prefix),
+            "  {{ \"dispose\", {0}_dispose, 0 }},".format(component.gumjs_function_prefix),
+            "  {{ \"readOne\", {0}_read_one, 0 }},".format(component.gumjs_function_prefix),
+        ])
+
+    for method in api.instance_methods:
+        lines.append("  {{ \"{0}\", {1}_{2}, {3} }},".format(
+            method.name_js,
+            component.gumjs_function_prefix,
+            method.name,
+            len(method.args)
+        ))
+
+    lines.extend([
+        "",
+        "  { NULL, NULL, 0 }",
+        "};",
+        ""
+    ])
+
+    lines.extend(conversion_code)
+
+    return "\n".join(lines)
+
+def generate_quick_parse_array_elements(item_type, parse_item):
+    return """
+  quick_push_heapptr (ctx, items_value);
+  items_length = (quick_uarridx_t) quick_get_length (ctx, -1);
+  items = g_newa ({item_type}, items_length);
+
+  for (items_index = 0; items_index != items_length; items_index++)
+  {{
+    {item_type} * item = &items[items_index];
+
+    quick_get_prop_index (ctx, -1, items_index);
+{parse_item}
+
+    quick_pop (ctx);
+  }}
+
+  quick_pop (ctx);""".format(item_type=item_type, parse_item=parse_item)
+
+def generate_quick_parse_call_arg_array_element(component):
+    return """
+    if (quick_is_string (ctx, -1))
+    {{
+      item->type = GUM_ARG_REGISTER;
+      item->value.reg = gum_parse_{arch}_register (ctx, quick_require_string (ctx, -1));
+    }}
+    else
+    {{
+      gpointer ptr;
+      item->type = GUM_ARG_ADDRESS;
+      if (!_gum_quick_parse_pointer (ctx, -1, args->core, &ptr))
+        _gum_quick_throw (ctx, "expected a pointer or number");
+      item->value.address = GUM_ADDRESS (ptr);
+    }}""".format(arch=component.arch)
+
+def generate_quick_parse_register_array_element(component):
+    return """
+    *item = gum_parse_{arch}_register (ctx, quick_require_string (ctx, -1));""".format(arch=component.arch)
+
+def generate_quick_fields(component):
+    return "  JSClassID {0}_{1}_class;".format(component.flavor, component.name)
+
+def generate_quick_methods(component):
+    params = dict(component.__dict__)
+
+    extra_fields = ""
+    if component.name == "writer":
+        extra_fields = "\n  GHashTable * labels;"
+    if component.name == "relocator":
+        extra_fields = "\n  GumQuickInstructionValue * input;"
+
+    params["extra_fields"] = extra_fields
+
+    template = """\
+#include <gum/arch-{arch}/gum{flavor}{name}.h>
+
+typedef struct _{wrapper_struct_name} {wrapper_struct_name};
+
+struct _{wrapper_struct_name}
+{{
+  JSValue wrapper;
+  {impl_struct_name} * impl;{extra_fields}
+  {module_struct_name} * parent;
+}};
+
+G_GNUC_INTERNAL JSValue _gum_quick_{flavor}_{name}_new (JSContext * ctx, {impl_struct_name} * impl, {module_struct_name} * parent, {wrapper_struct_name} ** {flavor}_{name});
+G_GNUC_INTERNAL gboolean _gum_quick_{flavor}_{name}_get (JSContext * ctx, JSValue val, {module_struct_name} * parent, {wrapper_struct_name} ** writer);
+
+G_GNUC_INTERNAL void _gum_quick_{flavor}_{name}_init ({wrapper_struct_name} * self, {module_struct_name} * parent);
+G_GNUC_INTERNAL void _gum_quick_{flavor}_{name}_finalize ({wrapper_struct_name} * self);
+G_GNUC_INTERNAL void _gum_quick_{flavor}_{name}_reset ({wrapper_struct_name} * self, {impl_struct_name} * impl);
+"""
+    return template.format(**params)
+
+def generate_quick_init_code(component):
+    return """\
+  quick_push_c_function (ctx, {gumjs_function_prefix}_construct, 2);
+  quick_push_object (ctx);
+  _gum_quick_add_properties_to_class_by_heapptr (ctx,
+      quick_require_heapptr (ctx, -1), {gumjs_function_prefix}_values);
+  quick_put_function_list (ctx, -1, {gumjs_function_prefix}_functions);
+  quick_push_c_function (ctx, {gumjs_function_prefix}_finalize, 1);
+  quick_set_finalizer (ctx, -2);
+  quick_put_prop_string (ctx, -2, "prototype");
+  self->{gumjs_field_name} = _gum_quick_require_heapptr (ctx, -1);
+  quick_put_global_string (ctx, "{gumjs_class_name}");
+""".format(**component.__dict__)
+
+def generate_quick_dispose_code(component):
+    return """\
+  _gum_quick_release_heapptr (scope.ctx, self->{gumjs_field_name});
+""".format(**component.__dict__)
+
+def generate_quick_base_methods(component):
+    if component.name == "writer":
+        return generate_quick_writer_base_methods(component)
+    elif component.name == "relocator":
+        return generate_quick_relocator_base_methods(component)
+
+def generate_quick_writer_base_methods(component):
+    template = """\
+static {wrapper_struct_name} * {wrapper_function_prefix}_alloc ({module_struct_name} * module);
+static void {wrapper_function_prefix}_dispose ({wrapper_struct_name} * self);
+static gboolean {gumjs_function_prefix}_parse_constructor_args (GumQuickArgs * args,
+    gpointer * code_address, GumAddress * pc, gboolean * pc_specified);
+
+JSValue
+_gum_quick_{flavor}_writer_new (
+    JSContext * ctx,
+    {impl_struct_name} * impl,
+    {module_struct_name} * parent,
+    {wrapper_struct_name} ** writer)
+{{
+  JSValue wrapper;
+  {wrapper_struct_name} * w;
+
+  wrapper = JS_NewObjectClass (ctx, parent->{flavor}_writer_class);
+
+  w = {wrapper_function_prefix}_alloc (parent);
+  w->impl = (impl != NULL) ? {impl_function_prefix}_ref (impl) : NULL;
+
+  JS_SetOpaque (wrapper, w);
+
+  if (writer != NULL)
+    *writer = w;
+
+  return wrapper;
+}}
+
+gboolean
+_gum_quick_{flavor}_writer_get (
+
+    JSContext * ctx,
+    JSValue val,
+    {module_struct_name} * parent,
+    {wrapper_struct_name} ** writer)
+{{
+  {wrapper_struct_name} * w;
+
+  w = JS_GetOpaque2 (ctx, val, parent->{flavor}_writer_class);
+  if (w == NULL)
+    return FALSE;
+
+  if (w->impl == NULL)
+    return _gum_quick_throw_literal (ctx, "invalid operation");
+
+  *writer = w;
+  return TRUE;
+}}
+
+void
+_{wrapper_function_prefix}_init (
+    {wrapper_struct_name} * self,
+    {module_struct_name} * parent)
+{{
+  self->wrapper = JS_NULL;
+  self->impl = NULL;
+  self->parent = parent;
+  self->labels = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
+}}
+
+void
+_{wrapper_function_prefix}_finalize ({wrapper_struct_name} * self)
+{{
+  _gum_quick_{flavor}_writer_reset (self, NULL);
+  g_hash_table_unref (self->labels);
+}}
+
+void
+_{wrapper_function_prefix}_reset (
+    {wrapper_struct_name} * self,
+    {impl_struct_name} * impl)
+{{
+  if (impl != NULL)
+    {impl_function_prefix}_ref (impl);
+  if (self->impl != NULL)
+    {impl_function_prefix}_unref (self->impl);
+  self->impl = impl;
+
+  g_hash_table_remove_all (self->labels);
+}}
+
+static {wrapper_struct_name} *
+{wrapper_function_prefix}_alloc ({module_struct_name} * module)
+{{
+  {wrapper_struct_name} * writer;
+
+  writer = g_slice_new ({wrapper_struct_name});
+  _{wrapper_function_prefix}_init (writer, module);
+
+  return writer;
+}}
+
+static void
+{wrapper_function_prefix}_dispose ({wrapper_struct_name} * self)
+{{
+  _{wrapper_function_prefix}_reset (self, NULL);
+}}
+
+static void
+{wrapper_function_prefix}_free ({wrapper_struct_name} * self)
+{{
+  _{wrapper_function_prefix}_finalize (self);
+
+  g_slice_free ({wrapper_struct_name}, self);
+}}
+
+{label_resolver}
+
+GUMJS_DEFINE_CONSTRUCTOR ({gumjs_function_prefix}_construct)
+{{
+  {module_struct_name} * parent;
+  JSValue obj;
+  gpointer code_address;
+  GumAddress pc;
+  gboolean pc_specified;
+  JSValue proto;
+  {wrapper_struct_name} * writer;
+
+  parent = gumjs_get_parent_module (core);
+
+  if (JS_IsUndefined (new_target))
+    goto missing_target;
+
+  if (!{gumjs_function_prefix}_parse_constructor_args (args, &code_address, &pc,
+      &pc_specified))
+    goto propagate_exception;
+
+  proto = JS_GetProperty (ctx, new_target,
+      GUM_QUICK_CORE_ATOM (core, prototype));
+  obj = JS_NewObjectProtoClass (ctx, proto, parent->{flavor}_writer_class);
+  JS_FreeValue (ctx, proto);
+  if (JS_IsException (obj))
+    goto propagate_exception;
+
+  writer = {wrapper_function_prefix}_alloc (parent);
+
+  writer->wrapper = obj;
+
+  writer->impl = {impl_function_prefix}_new (code_address);
+  if (pc_specified)
+    writer->impl->pc = pc;
+
+  JS_SetOpaque (obj, writer);
+
+  return obj;
+
+missing_target:
+  {{
+    _gum_quick_throw_literal (ctx,
+        "use constructor syntax to create a new instance");
+    goto propagate_exception;
+  }}
+propagate_exception:
+  {{
+    return JS_EXCEPTION;
+  }}
+}}
+
+GUMJS_DEFINE_FUNCTION ({gumjs_function_prefix}_reset)
+{{
+  {module_struct_name} * parent;
+  {wrapper_struct_name} * self;
+  gpointer code_address;
+  GumAddress pc;
+  gboolean pc_specified;
+
+  parent = gumjs_get_parent_module (core);
+
+  if (!_{wrapper_function_prefix}_get (ctx, this_val, parent, &self))
+    return JS_EXCEPTION;
+
+  if (!{gumjs_function_prefix}_parse_constructor_args (args, &code_address, &pc,
+      &pc_specified))
+    return JS_EXCEPTION;
+
+  {impl_function_prefix}_reset (self->impl, code_address);
+  if (pc_specified)
+    self->impl->pc = pc;
+
+  g_hash_table_remove_all (self->labels);
+
+  return JS_UNDEFINED;
+}}
+
+static gboolean
+{gumjs_function_prefix}_parse_constructor_args (
+    GumQuickArgs * args,
+    gpointer * code_address,
+    GumAddress * pc,
+    gboolean * pc_specified)
+{{
+  JSContext * ctx = args->ctx;
+  JSValue options;
+
+  options = JS_NULL;
+  if (!_gum_quick_args_parse (args, "p|O", code_address, &options))
+    return FALSE;
+
+  *pc = 0;
+  *pc_specified = FALSE;
+
+  if (!JS_IsNull (options))
+  {{
+    GumQuickCore * core = args->core;
+    JSValue val;
+
+    val = JS_GetProperty (ctx, options, GUM_QUICK_CORE_ATOM (core, pc));
+    if (JS_IsException (val))
+      return FALSE;
+
+    if (!JS_IsUndefined (val))
+    {{
+      gpointer p;
+      if (!_gum_quick_native_pointer_get (ctx, val, core, &p))
+        return FALSE;
+      *pc = GUM_ADDRESS (p);
+      *pc_specified = TRUE;
+    }}
+
+    JS_FreeValue (ctx, val);
+  }}
+
+  return TRUE;
+}}
+
+GUMJS_DEFINE_FUNCTION ({gumjs_function_prefix}_dispose)
+{{
+  {module_struct_name} * parent;
+  {wrapper_struct_name} * self;
+
+  parent = gumjs_get_parent_module (core);
+
+  if (!_{wrapper_function_prefix}_get (ctx, this_val, parent, &self))
+    return JS_EXCEPTION;
+
+  {wrapper_function_prefix}_dispose (self);
+
+  return JS_UNDEFINED;
+}}
+
+GUMJS_DEFINE_FINALIZER ({gumjs_function_prefix}_finalize)
+{{
+  {wrapper_struct_name} * w;
+
+  w = JS_GetOpaque (val, gumjs_get_parent_module (core)->{flavor}_writer_class);
+  if (w == NULL)
+    return;
+
+  {wrapper_function_prefix}_free (w);
+}}
+
+GUMJS_DEFINE_FUNCTION ({gumjs_function_prefix}_flush)
+{{
+  {module_struct_name} * parent;
+  {wrapper_struct_name} * self;
+  gboolean success;
+
+  parent = gumjs_get_parent_module (core);
+
+  if (!_{wrapper_function_prefix}_get (ctx, this_val, parent, &self))
+    return JS_EXCEPTION;
+
+  success = {impl_function_prefix}_flush (self->impl);
+  if (!success)
+    return _gum_quick_throw_literal (ctx, "unable to resolve references");
+
+  return JS_UNDEFINED;
+}}
+
+GUMJS_DEFINE_GETTER ({gumjs_function_prefix}_get_base)
+{{
+  {module_struct_name} * parent;
+  {wrapper_struct_name} * self;
+
+  parent = gumjs_get_parent_module (core);
+
+  if (!_{wrapper_function_prefix}_get (ctx, this_val, parent, &self))
+    return JS_EXCEPTION;
+
+  return _gum_quick_native_pointer_new (ctx, self->impl->base, core);
+}}
+
+GUMJS_DEFINE_GETTER ({gumjs_function_prefix}_get_code)
+{{
+  {module_struct_name} * parent;
+  {wrapper_struct_name} * self;
+
+  parent = gumjs_get_parent_module (core);
+
+  if (!_{wrapper_function_prefix}_get (ctx, this_val, parent, &self))
+    return JS_EXCEPTION;
+
+  return _gum_quick_native_pointer_new (ctx, self->impl->code, core);
+}}
+
+GUMJS_DEFINE_GETTER ({gumjs_function_prefix}_get_pc)
+{{
+  {module_struct_name} * parent;
+  {wrapper_struct_name} * self;
+
+  parent = gumjs_get_parent_module (core);
+
+  if (!_{wrapper_function_prefix}_get (ctx, this_val, parent, &self))
+    return JS_EXCEPTION;
+
+  return _gum_quick_native_pointer_new (ctx, GSIZE_TO_POINTER (self->impl->pc),
+      core);
+}}
+
+GUMJS_DEFINE_GETTER ({gumjs_function_prefix}_get_offset)
+{{
+  {module_struct_name} * parent;
+  {wrapper_struct_name} * self;
+
+  parent = gumjs_get_parent_module (core);
+
+  if (!_{wrapper_function_prefix}_get (ctx, this_val, parent, &self))
+    return JS_EXCEPTION;
+
+  return JS_NewInt32 (ctx, {impl_function_prefix}_offset (self->impl));
+}}
+
+static const JSCFunctionListEntry {gumjs_function_prefix}_entries[] =
+{{
+  JS_CGETSET_DEF ("base", {gumjs_function_prefix}_get_base, NULL),
+  JS_CGETSET_DEF ("code", {gumjs_function_prefix}_get_code, NULL),
+  JS_CGETSET_DEF ("pc", {gumjs_function_prefix}_get_pc, NULL),
+  JS_CGETSET_DEF ("offset", {gumjs_function_prefix}_get_offset, NULL),
+}};
+"""
+    params = dict(component.__dict__)
+
+    params["label_resolver"] = """
+static gconstpointer
+{wrapper_function_prefix}_resolve_label ({wrapper_struct_name} * self,
+    const gchar * str)
+{{
+  gchar * label = g_hash_table_lookup (self->labels, str);
+  if (label != NULL)
+    return label;
+
+  label = g_strdup (str);
+  g_hash_table_add (self->labels, label);
+  return label;
+}}
+""".format(**params)
+
+    return template.format(**params).split("\n")
+
+def generate_quick_relocator_base_methods(component):
+    template = """\
+static {wrapper_struct_name} * {wrapper_function_prefix}_alloc ({module_struct_name} * module);
+static void {wrapper_function_prefix}_dispose ({wrapper_struct_name} * self);
+static void {gumjs_function_prefix}_parse_constructor_args (const GumQuickArgs * args,
+    gconstpointer * input_code, {writer_wrapper_struct_name} ** writer, {module_struct_name} * module);
+
+{wrapper_struct_name} *
+_gum_quick_push_{flavor}_relocator (
+    JSContext * ctx,
+    {impl_struct_name} * impl,
+    {module_struct_name} * module)
+{{
+  {wrapper_struct_name} * relocator;
+
+  relocator = {wrapper_function_prefix}_alloc (module);
+  relocator->impl = (impl != NULL) ? {impl_function_prefix}_ref (impl) : NULL;
+
+  quick_push_heapptr (ctx, module->{flavor}_relocator);
+  quick_push_pointer (ctx, relocator);
+  quick_new (ctx, 1);
+
+  return relocator;
+}}
+
+{wrapper_struct_name} *
+_gum_quick_require_{flavor}_relocator (
+    JSContext * ctx,
+    JSValue val,
+    {module_struct_name} * module)
+{{
+  {wrapper_struct_name} * relocator;
+
+  quick_dup (ctx, index);
+  quick_push_heapptr (ctx, module->{flavor}_relocator);
+  if (!quick_instanceof (ctx, -2, -1))
+    _gum_quick_throw (ctx, "expected {flavor} relocator");
+
+  relocator = _gum_quick_require_data (ctx, -2);
+  if (relocator->impl == NULL)
+    _gum_quick_throw (ctx, "invalid operation");
+
+  quick_pop_2 (ctx);
+
+  return relocator;
+}}
+
+{wrapper_struct_name} *
+_{wrapper_function_prefix}_new ({module_struct_name} * module)
+{{
+  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (module->core);
+  JSContext * ctx = scope.ctx;
+  {wrapper_struct_name} * relocator;
+
+  relocator = _gum_quick_push_{flavor}_relocator (ctx, NULL, module);
+  _gum_quick_protect (ctx, relocator->object);
+  quick_pop (ctx);
+
+  return relocator;
+}}
+
+void
+_{wrapper_function_prefix}_release ({wrapper_struct_name} * self)
+{{
+  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (self->module->core);
+
+  {wrapper_function_prefix}_dispose (self);
+
+  _gum_quick_unprotect (scope.ctx, self->object);
+}}
+
+void
+_{wrapper_function_prefix}_init (
+    {wrapper_struct_name} * self,
+    {module_struct_name} * module)
+{{
+  self->object = NULL;
+  self->impl = NULL;
+  self->input = _gum_quick_instruction_new (module->instruction);
+  self->module = module;
+}}
+
+void
+_{wrapper_function_prefix}_finalize ({wrapper_struct_name} * self)
+{{
+  _{wrapper_function_prefix}_reset (self, NULL);
+
+  _gum_quick_instruction_release (self->input);
+}}
+
+void
+_{wrapper_function_prefix}_reset (
+    {wrapper_struct_name} * self,
+    {impl_struct_name} * impl)
+{{
+  if (impl != NULL)
+    {impl_function_prefix}_ref (impl);
+  if (self->impl != NULL)
+    {impl_function_prefix}_unref (self->impl);
+  self->impl = impl;
+
+  self->input->insn = NULL;
+}}
+
+static {wrapper_struct_name} *
+{wrapper_function_prefix}_alloc ({module_struct_name} * module)
+{{
+  {wrapper_struct_name} * relocator;
+
+  relocator = g_slice_new ({wrapper_struct_name});
+  _{wrapper_function_prefix}_init (relocator, module);
+
+  return relocator;
+}}
+
+static void
+{wrapper_function_prefix}_dispose ({wrapper_struct_name} * self)
+{{
+  _{wrapper_function_prefix}_reset (self, NULL);
+}}
+
+static void
+{wrapper_function_prefix}_free ({wrapper_struct_name} * self)
+{{
+  _{wrapper_function_prefix}_finalize (self);
+
+  g_slice_free ({wrapper_struct_name}, self);
+}}
+
+static {wrapper_struct_name} *
+{wrapper_function_prefix}_from_args (const GumQuickArgs * args)
+{{
+  JSContext * ctx = args->ctx;
+  {wrapper_struct_name} * self;
+
+  quick_push_this (ctx);
+  self = _gum_quick_require_data (ctx, -1);
+  if (self->impl == NULL)
+    _gum_quick_throw (ctx, "invalid operation");
+  quick_pop (ctx);
+
+  return self;
+}}
+
+GUMJS_DEFINE_CONSTRUCTOR ({gumjs_function_prefix}_construct)
+{{
+  {wrapper_struct_name} * relocator;
+
+  if (!quick_is_constructor_call (ctx))
+    _gum_quick_throw (ctx, "use constructor syntax to create a new instance");
+
+  quick_push_this (ctx);
+
+  if (quick_is_pointer (ctx, 0))
+  {{
+    relocator = quick_require_pointer (ctx, 0);
+  }}
+  else
+  {{
+    gconstpointer input_code;
+    {writer_wrapper_struct_name} * writer;
+    {module_struct_name} * module;
+
+    module = gumjs_module_from_args (args);
+
+    {gumjs_function_prefix}_parse_constructor_args (args, &input_code, &writer, module);
+
+    relocator = {wrapper_function_prefix}_alloc (module);
+    relocator->impl = {impl_function_prefix}_new (input_code, writer->impl);
+  }}
+
+  relocator->object = quick_require_heapptr (ctx, -1);
+  _gum_quick_put_data (ctx, -1, relocator);
+
+  quick_pop (ctx);
+
+  return 0;
+}}
+
+GUMJS_DEFINE_FUNCTION ({gumjs_function_prefix}_reset)
+{{
+  {wrapper_struct_name} * self;
+  gconstpointer input_code;
+  {writer_wrapper_struct_name} * writer;
+
+  self = {wrapper_function_prefix}_from_args (args);
+
+  {gumjs_function_prefix}_parse_constructor_args (args, &input_code, &writer, self->module);
+
+  {impl_function_prefix}_reset (self->impl, input_code, writer->impl);
+
+  self->input->insn = NULL;
+
+  return 0;
+}}
+
+static void
+{gumjs_function_prefix}_parse_constructor_args (
+    GumQuickArgs * args,
+    gconstpointer * input_code,
+    {writer_wrapper_struct_name} ** writer,
+    {module_struct_name} * module)
+{{
+  JSContext * ctx = args->ctx;
+  JSValue writer_object;
+
+  _gum_quick_args_parse (args, "pO", input_code, &writer_object);
+
+  quick_push_heapptr (ctx, writer_object);
+  *writer = _gum_quick_require_{flavor}_writer (ctx, -1, module->writer);
+  quick_pop (ctx);
+}}
+
+GUMJS_DEFINE_FUNCTION ({gumjs_function_prefix}_dispose)
+{{
+  {wrapper_struct_name} * self;
+
+  quick_push_this (ctx);
+  self = _gum_quick_require_data (ctx, -1);
+  quick_pop (ctx);
+
+  {wrapper_function_prefix}_dispose (self);
+
+  return 0;
+}}
+
+GUMJS_DEFINE_FINALIZER ({gumjs_function_prefix}_finalize)
+{{
+  {wrapper_struct_name} * self;
+
+  self = _gum_quick_steal_data (ctx, 0);
+  if (self == NULL)
+    return 0;
+
+  {wrapper_function_prefix}_free (self);
+
+  return 0;
+}}
+
+GUMJS_DEFINE_FUNCTION ({gumjs_function_prefix}_read_one)
+{{
+  {wrapper_struct_name} * self;
+  guint n_read;
+
+  self = {wrapper_function_prefix}_from_args (args);
+
+  n_read = {impl_function_prefix}_read_one (self->impl, &self->input->insn);
+  if (n_read != 0)
+  {{
+    self->input->target = {get_input_target_expression};
+  }}
+
+  quick_push_uint (ctx, n_read);
+  return 1;
+}}
+
+GUMJS_DEFINE_GETTER ({gumjs_function_prefix}_get_input)
+{{
+  {wrapper_struct_name} * self;
+
+  self = {wrapper_function_prefix}_from_args (args);
+
+  if (self->input->insn != NULL)
+    quick_push_heapptr (ctx, self->input->object);
+  else
+    quick_push_null (ctx);
+  return 1;
+}}
+
+GUMJS_DEFINE_GETTER ({gumjs_function_prefix}_get_eob)
+{{
+  {wrapper_struct_name} * self;
+
+  self = {wrapper_function_prefix}_from_args (args);
+
+  quick_push_boolean (ctx, {impl_function_prefix}_eob (self->impl));
+  return 1;
+}}
+
+GUMJS_DEFINE_GETTER ({gumjs_function_prefix}_get_eoi)
+{{
+  {wrapper_struct_name} * self;
+
+  self = {wrapper_function_prefix}_from_args (args);
+
+  quick_push_boolean (ctx, {impl_function_prefix}_eoi (self->impl));
+  return 1;
+}}
+
+static const GumQuickPropertyEntry {gumjs_function_prefix}_values[] =
+{{
+  {{ "input", {gumjs_function_prefix}_get_input, NULL }},
+  {{ "eob", {gumjs_function_prefix}_get_eob, NULL }},
+  {{ "eoi", {gumjs_function_prefix}_get_eoi, NULL }},
+
+  {{ NULL, NULL, NULL }}
+}};
+"""
+
+    if component.flavor == "x86":
+        target = "GSIZE_TO_POINTER (self->input->insn->address)"
+    else:
+        target = "self->impl->input_start + (self->input->insn->address - (self->impl->input_pc - self->impl->inpos))"
+        if component.flavor == "thumb":
+            target = "GSIZE_TO_POINTER (GPOINTER_TO_SIZE ({0}) | 1)".format(target)
+
+    params = {
+        "writer_wrapper_struct_name": component.wrapper_struct_name.replace("Relocator", "Writer"),
+        "get_input_target_expression": target,
+    }
+    params.update(component.__dict__)
+
+    return template.format(**params).split("\n")
+
+def generate_quick_enum_parser(name, type, prefix, values):
+    common_decls, common_code = generate_enum_parser(name, type, prefix, values)
+
+    params = {
+        'name': name,
+        'description': name.replace("_", " "),
+        'type': type,
+    }
+
+    decls = [
+        "static {type} gum_parse_{name} (JSContext * ctx, const gchar * name);".format(**params)
+    ] + common_decls
+
+    code = """\
+static {type}
+gum_parse_{name} (
+    JSContext * ctx,
+    const gchar * name)
+{{
+  {type} value = 0;
+
+  if (!gum_try_parse_{name} (name, &value))
+    _gum_quick_throw (ctx, "invalid {description}");
+
+  return value;
+}}
+""".format(**params).split("\n") + common_code
+
+    return (decls, code)
 
 def generate_duk_bindings(name, arch, flavor, api):
     component = Component(name, arch, flavor, "duk")

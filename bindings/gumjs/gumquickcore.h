@@ -121,6 +121,7 @@ struct _GumQuickCore
   GUM_DECLARE_ATOM (offset);
   GUM_DECLARE_ATOM (operation);
   GUM_DECLARE_ATOM (path);
+  GUM_DECLARE_ATOM (pc);
   GUM_DECLARE_ATOM (protection);
   GUM_DECLARE_ATOM (prototype);
   GUM_DECLARE_ATOM (resource);

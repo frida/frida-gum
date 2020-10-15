@@ -7,11 +7,10 @@
 #ifndef __GUM_QUICK_STALKER_H__
 #define __GUM_QUICK_STALKER_H__
 
+#include "gumquickcodewriter.h"
 #include "gumquickinstruction.h"
 
 G_BEGIN_DECLS
-
-typedef struct _GumQuickCodeWriter GumQuickCodeWriter;
 
 struct _GumQuickStalker
 {
@@ -24,13 +23,8 @@ struct _GumQuickStalker
   guint queue_drain_interval;
 };
 
-struct _GumQuickCodeWriter
-{
-  gint placeholder;
-};
-
 G_GNUC_INTERNAL void _gum_quick_stalker_init (GumQuickStalker * self,
-    GumQuickCodeWriter * writer, GumQuickInstruction * instruction,
+    JSValue ns, GumQuickCodeWriter * writer, GumQuickInstruction * instruction,
     GumQuickCore * core);
 G_GNUC_INTERNAL void _gum_quick_stalker_flush (GumQuickStalker * self);
 G_GNUC_INTERNAL void _gum_quick_stalker_dispose (GumQuickStalker * self);

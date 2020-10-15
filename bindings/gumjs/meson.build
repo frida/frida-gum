@@ -48,6 +48,8 @@ if have_quickjs
     'gumquicksymbol.c',
     'gumquickcmodule.c',
     'gumquickinstruction.c',
+    'gumquickcodewriter.c',
+    #'gumquickcoderelocator.c',
   ]
 endif
 

@@ -8,10 +8,8 @@
 
 #include "gumquickapiresolver.h"
 #include "gumquickcmodule.h"
-#if 0
 #include "gumquickcoderelocator.h"
 #include "gumquickcodewriter.h"
-#endif
 #include "gumquickcore.h"
 #if 0
 #include "gumquickdatabase.h"
@@ -81,9 +79,7 @@ struct _GumQuickScript
   GumQuickCModule cmodule;
   GumQuickInstruction instruction;
   GumQuickCodeWriter code_writer;
-#if 0
   GumQuickCodeRelocator code_relocator;
-#endif
   GumQuickStalker stalker;
 
   GumScriptMessageHandler message_handler;
@@ -397,7 +393,7 @@ gum_quick_script_create_context (GumQuickScript * self,
   core->current_scope = &scope;
 
 #if 0
-  _gum_quick_kernel_init (&self->kernel, core);
+  _gum_quick_kernel_init (&self->kernel, global_obj, core);
 #endif
   _gum_quick_memory_init (&self->memory, global_obj, core);
   _gum_quick_module_init (&self->module, global_obj, core);
@@ -405,21 +401,19 @@ gum_quick_script_create_context (GumQuickScript * self,
   _gum_quick_thread_init (&self->thread, global_obj, core);
   _gum_quick_file_init (&self->file, global_obj, core);
 #if 0
-  _gum_quick_stream_init (&self->stream, core);
-  _gum_quick_socket_init (&self->socket, core);
-  _gum_quick_database_init (&self->database, core);
+  _gum_quick_stream_init (&self->stream, global_obj, core);
+  _gum_quick_socket_init (&self->socket, global_obj, core);
+  _gum_quick_database_init (&self->database, global_obj, core);
 #endif
   _gum_quick_interceptor_init (&self->interceptor, global_obj, core);
   _gum_quick_api_resolver_init (&self->api_resolver, global_obj, core);
   _gum_quick_symbol_init (&self->symbol, global_obj, core);
   _gum_quick_cmodule_init (&self->cmodule, global_obj, core);
   _gum_quick_instruction_init (&self->instruction, global_obj, core);
-#if 0
-  _gum_quick_code_writer_init (&self->code_writer, core);
-  _gum_quick_code_relocator_init (&self->code_relocator, &self->code_writer,
-      &self->instruction, core);
-#endif
-  _gum_quick_stalker_init (&self->stalker, &self->code_writer,
+  _gum_quick_code_writer_init (&self->code_writer, global_obj, core);
+  _gum_quick_code_relocator_init (&self->code_relocator, global_obj,
+      &self->code_writer, &self->instruction, core);
+  _gum_quick_stalker_init (&self->stalker, global_obj, &self->code_writer,
       &self->instruction, core);
 
   JS_FreeValue (ctx, global_obj);

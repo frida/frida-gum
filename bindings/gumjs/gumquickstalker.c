@@ -8,6 +8,7 @@
 
 void
 _gum_quick_stalker_init (GumQuickStalker * self,
+                         JSValue ns,
                          GumQuickCodeWriter * writer,
                          GumQuickInstruction * instruction,
                          GumQuickCore * core)
