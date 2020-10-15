@@ -307,7 +307,7 @@ static const JSCFunctionListEntry gumjs_invocation_context_entries[] =
   JS_CGETSET_DEF ("returnAddress", gumjs_invocation_context_get_return_address,
       NULL),
   JS_CGETSET_DEF ("context", gumjs_invocation_context_get_cpu_context, NULL),
-  JS_CGETSET_DEF (G_STRINGIFY (GUMJS_SYSTEM_ERROR_FIELD),
+  JS_CGETSET_DEF (GUMJS_SYSTEM_ERROR_FIELD,
       gumjs_invocation_context_get_system_error,
       gumjs_invocation_context_set_system_error),
   JS_CGETSET_DEF ("threadId", gumjs_invocation_context_get_thread_id, NULL),

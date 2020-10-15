@@ -18,9 +18,9 @@
 #define GUM_QUICK_SCOPE_INIT(core) { core, NULL, }
 
 #ifdef HAVE_WINDOWS
-# define GUMJS_SYSTEM_ERROR_FIELD lastError
+# define GUMJS_SYSTEM_ERROR_FIELD "lastError"
 #else
-# define GUMJS_SYSTEM_ERROR_FIELD errno
+# define GUMJS_SYSTEM_ERROR_FIELD "errno"
 #endif
 
 G_BEGIN_DECLS
@@ -103,7 +103,6 @@ struct _GumQuickCore
 #define GUM_DECLARE_ATOM(name) \
     JSAtom G_PASTE (atom_for_, name)
 
-  GUM_DECLARE_ATOM (GUMJS_SYSTEM_ERROR_FIELD);
   GUM_DECLARE_ATOM (abi);
   GUM_DECLARE_ATOM (address);
   GUM_DECLARE_ATOM (base);
@@ -130,6 +129,7 @@ struct _GumQuickCore
   GUM_DECLARE_ATOM (size);
   GUM_DECLARE_ATOM (slot);
   GUM_DECLARE_ATOM (state);
+  GUM_DECLARE_ATOM (system_error);
   GUM_DECLARE_ATOM (traps);
   GUM_DECLARE_ATOM (type);
   GUM_DECLARE_ATOM (value);
@@ -139,6 +139,13 @@ struct _GumQuickCore
   GUM_DECLARE_ATOM (index);
   GUM_DECLARE_ATOM (scale);
   GUM_DECLARE_ATOM (segment);
+#elif defined (HAVE_ARM)
+  GUM_DECLARE_ATOM (disp);
+  GUM_DECLARE_ATOM (index);
+  GUM_DECLARE_ATOM (scale);
+  GUM_DECLARE_ATOM (shift);
+  GUM_DECLARE_ATOM (subtracted);
+  GUM_DECLARE_ATOM (vectorIndex);
 #elif defined (HAVE_ARM64)
   GUM_DECLARE_ATOM (disp);
   GUM_DECLARE_ATOM (ext);

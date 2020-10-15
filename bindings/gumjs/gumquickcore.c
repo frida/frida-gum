@@ -1007,7 +1007,6 @@ _gum_quick_core_init (GumQuickCore * self,
 #define GUM_SETUP_ATOM(name) \
     GUM_QUICK_CORE_ATOM (self, name) = JS_NewAtom (ctx, G_STRINGIFY (name))
 
-  GUM_SETUP_ATOM (GUMJS_SYSTEM_ERROR_FIELD);
   GUM_SETUP_ATOM (abi);
   GUM_SETUP_ATOM (address);
   GUM_SETUP_ATOM (base);
@@ -1042,6 +1041,13 @@ _gum_quick_core_init (GumQuickCore * self,
   GUM_SETUP_ATOM (index);
   GUM_SETUP_ATOM (scale);
   GUM_SETUP_ATOM (segment);
+#elif defined (HAVE_ARM)
+  GUM_SETUP_ATOM (disp);
+  GUM_SETUP_ATOM (index);
+  GUM_SETUP_ATOM (scale);
+  GUM_SETUP_ATOM (shift);
+  GUM_SETUP_ATOM (subtracted);
+  GUM_SETUP_ATOM (vectorIndex);
 #elif defined (HAVE_ARM64)
   GUM_SETUP_ATOM (disp);
   GUM_SETUP_ATOM (ext);
@@ -1054,6 +1060,7 @@ _gum_quick_core_init (GumQuickCore * self,
 #undef GUM_SETUP_ATOM
 
   self->atom_for_resource = JS_NewAtom (ctx, "$r");
+  self->atom_for_system_error = JS_NewAtom (ctx, GUMJS_SYSTEM_ERROR_FIELD);
 }
 
 gboolean
@@ -1138,7 +1145,6 @@ _gum_quick_core_dispose (GumQuickCore * self)
     JS_FreeAtom (ctx, GUM_QUICK_CORE_ATOM (self, name)); \
     GUM_QUICK_CORE_ATOM (self, name) = JS_ATOM_NULL
 
-  GUM_TEARDOWN_ATOM (GUMJS_SYSTEM_ERROR_FIELD);
   GUM_TEARDOWN_ATOM (abi);
   GUM_TEARDOWN_ATOM (address);
   GUM_TEARDOWN_ATOM (base);
@@ -1164,6 +1170,7 @@ _gum_quick_core_dispose (GumQuickCore * self)
   GUM_TEARDOWN_ATOM (size);
   GUM_TEARDOWN_ATOM (slot);
   GUM_TEARDOWN_ATOM (state);
+  GUM_TEARDOWN_ATOM (system_error);
   GUM_TEARDOWN_ATOM (traps);
   GUM_TEARDOWN_ATOM (type);
   GUM_TEARDOWN_ATOM (value);
@@ -1173,6 +1180,13 @@ _gum_quick_core_dispose (GumQuickCore * self)
   GUM_TEARDOWN_ATOM (index);
   GUM_TEARDOWN_ATOM (scale);
   GUM_TEARDOWN_ATOM (segment);
+#elif defined (HAVE_ARM)
+  GUM_TEARDOWN_ATOM (disp);
+  GUM_TEARDOWN_ATOM (index);
+  GUM_TEARDOWN_ATOM (scale);
+  GUM_TEARDOWN_ATOM (shift);
+  GUM_TEARDOWN_ATOM (subtracted);
+  GUM_TEARDOWN_ATOM (vectorIndex);
 #elif defined (HAVE_ARM64)
   GUM_TEARDOWN_ATOM (disp);
   GUM_TEARDOWN_ATOM (ext);
@@ -3095,7 +3109,7 @@ gum_quick_ffi_function_invoke (GumQuickFFIFunction * self,
         result,
         JS_PROP_C_W_E);
     JS_DefinePropertyValue (ctx, d,
-        GUM_QUICK_CORE_ATOM (core, GUMJS_SYSTEM_ERROR_FIELD),
+        GUM_QUICK_CORE_ATOM (core, system_error),
         JS_NewInt32 (ctx, system_error),
         JS_PROP_C_W_E);
     return d;
