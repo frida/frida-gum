@@ -225,7 +225,7 @@ def generate_quick_wrapper_code(component, api):
                     lines.append("  {0} {1};".format(arg.type, arg.name))
         if is_put_array:
             lines.extend([
-                "  quick_uarridx_t items_length, items_index;",
+                "  guint items_length, items_index;",
                 "  {0} * items;".format(array_item_type),
             ])
 
@@ -237,7 +237,7 @@ def generate_quick_wrapper_code(component, api):
 
         lines.extend([
             "",
-            "  parent = gumjs_get_parent_module (core);"
+            "  parent = gumjs_get_parent_module (core);",
             "",
             "  if (!_{0}_get (ctx, this_val, parent, &self))".format(component.wrapper_function_prefix),
             "    return JS_EXCEPTION;",
@@ -391,21 +391,24 @@ def generate_quick_wrapper_code(component, api):
 
 def generate_quick_parse_array_elements(item_type, parse_item):
     return """
-  quick_push_heapptr (ctx, items_value);
-  items_length = (quick_uarridx_t) quick_get_length (ctx, -1);
+  if (!_gum_quick_array_get_length (ctx, items_value, core, &items_length))
+    return JS_EXCEPTION;
   items = g_newa ({item_type}, items_length);
 
   for (items_index = 0; items_index != items_length; items_index++)
   {{
     {item_type} * item = &items[items_index];
+    JSValue val;
 
-    quick_get_prop_index (ctx, -1, items_index);
+    val = JS_GetPropertyUint32 (ctx, items_value, items_index);
+    if (!JS_IsException (val))
+      return JS_EXCEPTION;
+
 {parse_item}
 
-    quick_pop (ctx);
+    JS_FreeValue (ctx, val);
   }}
-
-  quick_pop (ctx);""".format(item_type=item_type, parse_item=parse_item)
+""".format(item_type=item_type, parse_item=parse_item)
 
 def generate_quick_parse_call_arg_array_element(component):
     return """
