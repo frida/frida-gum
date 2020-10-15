@@ -37,10 +37,10 @@ static void gum_arm_push_shift_details (JSContext * ctx, const cs_arm_op * op,
     GumQuickInstruction * parent);
 static const gchar * gum_arm_shifter_to_string (arm_shifter type);
 #elif defined (HAVE_ARM64)
-static void gum_arm64_push_memory_operand_value (JSContext * ctx,
-    const arm64_op_mem * mem, GumQuickInstruction * parent);
-static void gum_arm64_push_shift_details (JSContext * ctx,
-    const cs_arm64_op * op, GumQuickInstruction * parent);
+static JSValue gum_arm64_parse_memory_operand_value (JSContext * ctx,
+    const arm64_op_mem * mem, csh cs, GumQuickCore * core);
+static JSValue gum_arm64_parse_shift_details (JSContext * ctx,
+    const cs_arm64_op * op, GumQuickCore * core);
 static const gchar * gum_arm64_shifter_to_string (arm64_shifter type);
 static const gchar * gum_arm64_extender_to_string (arm64_extender ext);
 static const gchar * gum_arm64_vas_to_string (arm64_vas vas);
@@ -445,16 +445,18 @@ gum_parse_operands (JSContext * ctx,
 {
   JSValue result;
   const cs_x86 * x86 = &insn->detail->x86;
-  uint8_t op_count, op_index;
+  uint8_t i;
 
   result = JS_NewArray (ctx);
 
-  op_count = x86->op_count;
-  for (op_index = 0; op_index != op_count; op_index++)
+  for (i = 0; i != x86->op_count; i++)
   {
-    const cs_x86_op * op = &x86->operands[op_index];
+    const cs_x86_op * op = &x86->operands[i];
+    JSValue op_obj;
     const gchar * type;
-    JSValue val, o;
+    JSValue val;
+
+    op_obj = JS_NewObject (ctx);
 
     switch (op->type)
     {
@@ -465,7 +467,7 @@ gum_parse_operands (JSContext * ctx,
       case X86_OP_IMM:
         type = "imm";
         if (op->size <= 4)
-          val = JS_NewInt32 (ctx, op->imm);
+          val = JS_NewInt64 (ctx, op->imm);
         else
           val = _gum_quick_int64_new (ctx, op->imm, core);
         break;
@@ -477,22 +479,20 @@ gum_parse_operands (JSContext * ctx,
         g_assert_not_reached ();
     }
 
-    o = JS_NewObject (ctx);
-
-    JS_DefinePropertyValue (ctx, o,
+    JS_DefinePropertyValue (ctx, op_obj,
         GUM_QUICK_CORE_ATOM (core, type),
         JS_NewString (ctx, type),
         JS_PROP_C_W_E);
-    JS_DefinePropertyValue (ctx, o,
+    JS_DefinePropertyValue (ctx, op_obj,
         GUM_QUICK_CORE_ATOM (core, value),
         val,
         JS_PROP_C_W_E);
-    JS_DefinePropertyValue (ctx, o,
+    JS_DefinePropertyValue (ctx, op_obj,
         GUM_QUICK_CORE_ATOM (core, size),
         JS_NewInt32 (ctx, op->size),
         JS_PROP_C_W_E);
 
-    JS_DefinePropertyValueUint32 (ctx, result, op_index, o, JS_PROP_C_W_E);
+    JS_DefinePropertyValueUint32 (ctx, result, i, op_obj, JS_PROP_C_W_E);
   }
 
   return result;
@@ -504,41 +504,41 @@ gum_x86_parse_memory_operand_value (JSContext * ctx,
                                     csh cs,
                                     GumQuickCore * core)
 {
-  JSValue v;
+  JSValue val;
 
-  v = JS_NewObject (ctx);
+  val = JS_NewObject (ctx);
 
   if (mem->segment != X86_REG_INVALID)
   {
-    JS_DefinePropertyValue (ctx, v,
+    JS_DefinePropertyValue (ctx, val,
         GUM_QUICK_CORE_ATOM (core, segment),
         JS_NewString (ctx, cs_reg_name (cs, mem->segment)),
         JS_PROP_C_W_E);
   }
   if (mem->base != X86_REG_INVALID)
   {
-    JS_DefinePropertyValue (ctx, v,
+    JS_DefinePropertyValue (ctx, val,
         GUM_QUICK_CORE_ATOM (core, base),
         JS_NewString (ctx, cs_reg_name (cs, mem->base)),
         JS_PROP_C_W_E);
   }
   if (mem->index != X86_REG_INVALID)
   {
-    JS_DefinePropertyValue (ctx, v,
+    JS_DefinePropertyValue (ctx, val,
         GUM_QUICK_CORE_ATOM (core, index),
         JS_NewString (ctx, cs_reg_name (cs, mem->index)),
         JS_PROP_C_W_E);
   }
-  JS_DefinePropertyValue (ctx, v,
+  JS_DefinePropertyValue (ctx, val,
       GUM_QUICK_CORE_ATOM (core, scale),
       JS_NewInt32 (ctx, mem->scale),
       JS_PROP_C_W_E);
-  JS_DefinePropertyValue (ctx, v,
+  JS_DefinePropertyValue (ctx, val,
       GUM_QUICK_CORE_ATOM (core, disp),
       JS_NewInt64 (ctx, mem->disp),
       JS_PROP_C_W_E);
 
-  return v;
+  return val;
 }
 
 #elif defined (HAVE_ARM)
@@ -689,139 +689,164 @@ gum_arm_shifter_to_string (arm_shifter type)
 static JSValue
 gum_parse_operands (JSContext * ctx,
                     const cs_insn * insn,
-                    GumQuickInstruction * parent)
+                    csh cs,
+                    GumQuickCore * core)
 {
-  GumQuickCore * core = parent->core;
-  csh cs = parent->capstone;
+  JSValue result;
   const cs_arm64 * arm64 = &insn->detail->arm64;
-  uint8_t op_count, op_index;
+  uint8_t i;
 
-  quick_push_array (ctx);
+  result = JS_NewArray (ctx);
 
-  op_count = arm64->op_count;
-  for (op_index = 0; op_index != op_count; op_index++)
+  for (i = 0; i != arm64->op_count; i++)
   {
-    const cs_arm64_op * op = &arm64->operands[op_index];
+    const cs_arm64_op * op = &arm64->operands[i];
+    JSValue op_obj;
+    const gchar * type;
+    JSValue val;
 
-    quick_push_object (ctx);
+    op_obj = JS_NewObject (ctx);
 
     switch (op->type)
     {
       case ARM64_OP_REG:
-        quick_push_string (ctx, cs_reg_name (cs, op->reg));
-        quick_push_string (ctx, "reg");
+        type = "reg";
+        val = JS_NewString (ctx, cs_reg_name (cs, op->reg));
         break;
       case ARM64_OP_IMM:
-        _gum_quick_push_int64 (ctx, op->imm, core);
-        quick_push_string (ctx, "imm");
+        type = "imm";
+        val = _gum_quick_int64_new (ctx, op->imm, core);
         break;
       case ARM64_OP_MEM:
-        gum_arm64_push_memory_operand_value (ctx, &op->mem, parent);
-        quick_push_string (ctx, "mem");
+        type = "mem";
+        val = gum_arm64_parse_memory_operand_value (ctx, &op->mem, cs, core);
         break;
       case ARM64_OP_FP:
-        quick_push_number (ctx, op->fp);
-        quick_push_string (ctx, "fp");
+        type = "fp";
+        val = JS_NewFloat64 (ctx, op->fp);
         break;
       case ARM64_OP_CIMM:
-        _gum_quick_push_int64 (ctx, op->imm, core);
-        quick_push_string (ctx, "cimm");
+        type = "cimm";
+        val = _gum_quick_int64_new (ctx, op->imm, core);
         break;
       case ARM64_OP_REG_MRS:
-        quick_push_string (ctx, cs_reg_name (cs, op->reg));
-        quick_push_string (ctx, "reg-mrs");
+        type = "reg-mrs";
+        val = JS_NewString (ctx, cs_reg_name (cs, op->reg));
         break;
       case ARM64_OP_REG_MSR:
-        quick_push_string (ctx, cs_reg_name (cs, op->reg));
-        quick_push_string (ctx, "reg-msr");
+        type = "reg-msr";
+        val = JS_NewString (ctx, cs_reg_name (cs, op->reg));
         break;
       case ARM64_OP_PSTATE:
-        quick_push_uint (ctx, op->pstate);
-        quick_push_string (ctx, "pstate");
+        type = "pstate";
+        val = JS_NewInt32 (ctx, op->pstate);
         break;
       case ARM64_OP_SYS:
-        quick_push_uint (ctx, op->sys);
-        quick_push_string (ctx, "sys");
+        type = "sys";
+        val = JS_NewInt64 (ctx, op->sys);
         break;
       case ARM64_OP_PREFETCH:
-        quick_push_uint (ctx, op->prefetch);
-        quick_push_string (ctx, "prefetch");
+        type = "prefetch";
+        val = JS_NewInt32 (ctx, op->prefetch);
         break;
       case ARM64_OP_BARRIER:
-        quick_push_uint (ctx, op->barrier);
-        quick_push_string (ctx, "barrier");
+        type = "barrier";
+        val = JS_NewInt32 (ctx, op->barrier);
         break;
       default:
         g_assert_not_reached ();
     }
-    quick_put_prop_string (ctx, -3, "type");
-    quick_put_prop_string (ctx, -2, "value");
 
+    JS_DefinePropertyValue (ctx, op_obj,
+        GUM_QUICK_CORE_ATOM (core, type),
+        JS_NewString (ctx, type),
+        JS_PROP_C_W_E);
+    JS_DefinePropertyValue (ctx, op_obj,
+        GUM_QUICK_CORE_ATOM (core, value),
+        val,
+        JS_PROP_C_W_E);
     if (op->shift.type != ARM64_SFT_INVALID)
     {
-      gum_arm64_push_shift_details (ctx, op, parent);
-      quick_put_prop_string (ctx, -2, "shift");
+      JS_DefinePropertyValue (ctx, op_obj,
+          GUM_QUICK_CORE_ATOM (core, shift),
+          gum_arm64_parse_shift_details (ctx, op, core),
+          JS_PROP_C_W_E);
     }
-
     if (op->ext != ARM64_EXT_INVALID)
     {
-      quick_push_string (ctx, gum_arm64_extender_to_string (op->ext));
-      quick_put_prop_string (ctx, -2, "ext");
+      JS_DefinePropertyValue (ctx, op_obj,
+          GUM_QUICK_CORE_ATOM (core, ext),
+          JS_NewString (ctx, gum_arm64_extender_to_string (op->ext)),
+          JS_PROP_C_W_E);
     }
-
     if (op->vas != ARM64_VAS_INVALID)
     {
-      quick_push_string (ctx, gum_arm64_vas_to_string (op->vas));
-      quick_put_prop_string (ctx, -2, "vas");
+      JS_DefinePropertyValue (ctx, op_obj,
+          GUM_QUICK_CORE_ATOM (core, vas),
+          JS_NewString (ctx, gum_arm64_vas_to_string (op->vas)),
+          JS_PROP_C_W_E);
     }
-
     if (op->vector_index != -1)
     {
-      quick_push_uint (ctx, op->vector_index);
-      quick_put_prop_string (ctx, -2, "vectorIndex");
+      JS_DefinePropertyValue (ctx, op_obj,
+          GUM_QUICK_CORE_ATOM (core, vectorIndex),
+          JS_NewInt32 (ctx, op->vector_index),
+          JS_PROP_C_W_E);
     }
 
-    quick_put_prop_index (ctx, -2, op_index);
+    JS_DefinePropertyValueUint32 (ctx, result, i, op_obj, JS_PROP_C_W_E);
   }
+
+  return result;
 }
 
 static JSValue
 gum_arm64_parse_memory_operand_value (JSContext * ctx,
                                       const arm64_op_mem * mem,
-                                      GumQuickInstruction * parent)
+                                      csh cs,
+                                      GumQuickCore * core)
 {
-  csh cs = parent->capstone;
-
-  quick_push_object (ctx);
+  JSValue val = JS_NewObject (ctx);
 
   if (mem->base != ARM64_REG_INVALID)
   {
-    quick_push_string (ctx, cs_reg_name (cs, mem->base));
-    quick_put_prop_string (ctx, -2, "base");
+    JS_DefinePropertyValue (ctx, val,
+        GUM_QUICK_CORE_ATOM (core, base),
+        JS_NewString (ctx, cs_reg_name (cs, mem->base)),
+        JS_PROP_C_W_E);
   }
-
   if (mem->index != ARM64_REG_INVALID)
   {
-    quick_push_string (ctx, cs_reg_name (cs, mem->index));
-    quick_put_prop_string (ctx, -2, "index");
+    JS_DefinePropertyValue (ctx, val,
+        GUM_QUICK_CORE_ATOM (core, index),
+        JS_NewString (ctx, cs_reg_name (cs, mem->index)),
+        JS_PROP_C_W_E);
   }
+  JS_DefinePropertyValue (ctx, val,
+      GUM_QUICK_CORE_ATOM (core, disp),
+      JS_NewInt32 (ctx, mem->disp),
+      JS_PROP_C_W_E);
 
-  quick_push_int (ctx, mem->disp);
-  quick_put_prop_string (ctx, -2, "disp");
+  return val;
 }
 
 static JSValue
 gum_arm64_parse_shift_details (JSContext * ctx,
                                const cs_arm64_op * op,
-                               GumQuickInstruction * parent)
+                               GumQuickCore * core)
 {
-  quick_push_object (ctx);
+  JSValue shift = JS_NewObject (ctx);
 
-  quick_push_string (ctx, gum_arm64_shifter_to_string (op->shift.type));
-  quick_put_prop_string (ctx, -2, "type");
+  JS_DefinePropertyValue (ctx, shift,
+      GUM_QUICK_CORE_ATOM (core, type),
+      JS_NewString (ctx, gum_arm64_shifter_to_string (op->shift.type)),
+      JS_PROP_C_W_E);
+  JS_DefinePropertyValue (ctx, shift,
+      GUM_QUICK_CORE_ATOM (core, value),
+      JS_NewInt64 (ctx, op->shift.value),
+      JS_PROP_C_W_E);
 
-  quick_push_uint (ctx, op->shift.value);
-  quick_put_prop_string (ctx, -2, "value");
+  return shift;
 }
 
 static const gchar *

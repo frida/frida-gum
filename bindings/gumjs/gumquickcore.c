@@ -1042,6 +1042,13 @@ _gum_quick_core_init (GumQuickCore * self,
   GUM_SETUP_ATOM (index);
   GUM_SETUP_ATOM (scale);
   GUM_SETUP_ATOM (segment);
+#elif defined (HAVE_ARM64)
+  GUM_SETUP_ATOM (disp);
+  GUM_SETUP_ATOM (ext);
+  GUM_SETUP_ATOM (index);
+  GUM_SETUP_ATOM (shift);
+  GUM_SETUP_ATOM (vas);
+  GUM_SETUP_ATOM (vectorIndex);
 #endif
 
 #undef GUM_SETUP_ATOM
@@ -1166,6 +1173,13 @@ _gum_quick_core_dispose (GumQuickCore * self)
   GUM_TEARDOWN_ATOM (index);
   GUM_TEARDOWN_ATOM (scale);
   GUM_TEARDOWN_ATOM (segment);
+#elif defined (HAVE_ARM64)
+  GUM_TEARDOWN_ATOM (disp);
+  GUM_TEARDOWN_ATOM (ext);
+  GUM_TEARDOWN_ATOM (index);
+  GUM_TEARDOWN_ATOM (shift);
+  GUM_TEARDOWN_ATOM (vas);
+  GUM_TEARDOWN_ATOM (vectorIndex);
 #endif
 
 #undef GUM_TEARDOWN_ATOM

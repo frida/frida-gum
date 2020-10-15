@@ -139,6 +139,13 @@ struct _GumQuickCore
   GUM_DECLARE_ATOM (index);
   GUM_DECLARE_ATOM (scale);
   GUM_DECLARE_ATOM (segment);
+#elif defined (HAVE_ARM64)
+  GUM_DECLARE_ATOM (disp);
+  GUM_DECLARE_ATOM (ext);
+  GUM_DECLARE_ATOM (index);
+  GUM_DECLARE_ATOM (shift);
+  GUM_DECLARE_ATOM (vas);
+  GUM_DECLARE_ATOM (vectorIndex);
 #endif
 
 #undef GUM_DECLARE_ATOM
