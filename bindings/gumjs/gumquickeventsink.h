@@ -46,7 +46,7 @@ struct _GumQuickEventSinkOptions
   gpointer user_data;
 };
 
-G_GNUC_INTERNAL GumEventSink * gum_quick_event_sink_new (quick_context * ctx,
+G_GNUC_INTERNAL GumEventSink * gum_quick_event_sink_new (JSContext * ctx,
     const GumQuickEventSinkOptions * options);
 
 G_END_DECLS
