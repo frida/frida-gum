@@ -178,6 +178,8 @@ def generate_quick_bindings(name, arch, flavor, api):
 def generate_quick_wrapper_code(component, api):
     lines = [
         "/* Auto-generated, do not edit. */",
+        "",
+        "#include <string.h>",
     ]
 
     conversion_decls, conversion_code = generate_conversion_methods(component, generate_quick_enum_parser)
@@ -227,6 +229,8 @@ def generate_quick_wrapper_code(component, api):
             lines.extend([
                 "  guint items_length, items_index;",
                 "  {0} * items;".format(array_item_type),
+                "  JSValue element_val = JS_NULL;",
+                "  const char * element_str = NULL;",
             ])
 
         if method.return_type == "void":
@@ -240,7 +244,7 @@ def generate_quick_wrapper_code(component, api):
             "  parent = gumjs_get_parent_module (core);",
             "",
             "  if (!_{0}_get (ctx, this_val, parent, &self))".format(component.wrapper_function_prefix),
-            "    return JS_EXCEPTION;",
+            "    goto propagate_exception;",
         ])
 
         if len(args) > 0:
@@ -250,7 +254,7 @@ def generate_quick_wrapper_code(component, api):
             lines.extend([
                 "",
                 "  if (!_gum_quick_args_parse (args, \"{0}\", {1}))".format(arglist_signature, arglist_pointers),
-                "    return JS_EXCEPTION;",
+                "    goto propagate_exception;",
             ])
 
         args_needing_conversion = [arg for arg in args if arg.type_converter is not None]
@@ -272,7 +276,7 @@ def generate_quick_wrapper_code(component, api):
                         value=arg.name,
                         value_raw=arg.name_raw))
                 else:
-                    lines.append("  {value} = gum_parse_{arch}_{type} (ctx, {value_raw});".format(
+                    lines.append("  if (!gum_parse_{arch}_{type} (ctx, {value_raw}, &{value}))\n    goto propagate_exception;".format(
                         value=arg.name,
                         value_raw=arg.name_raw,
                         arch=component.arch,
@@ -300,20 +304,22 @@ def generate_quick_wrapper_code(component, api):
             "  {0}{1} ({2});".format(return_capture, impl_function_name, ", ".join(arglist))
         ])
 
-        args_needing_cleanup = [arg for arg in args if arg.type_converter == "bytes"]
-        if len(args_needing_cleanup) > 0:
-            lines.append("")
-            for arg in args_needing_cleanup:
-                lines.append("  g_bytes_unref ({0});".format(arg.name_raw))
+        error_targets = []
 
         if method.return_type == "gboolean" and method.name.startswith("put_"):
-            if len(args_needing_cleanup) > 0:
-                lines.append("")
             lines.extend([
+                "",
                 "  if (!result)",
-                "    _gum_quick_throw_literal (ctx, \"invalid argument\");",
+                "    goto invalid_argument;",
                 "",
                 "  return JS_UNDEFINED;",
+            ])
+            error_targets.extend([
+                "invalid_argument:",
+                "  {",
+                "    _gum_quick_throw_literal (ctx, \"invalid argument\");",
+                "    goto propagate_exception;",
+                "  }",
             ])
         elif method.return_type == "void":
             lines.append("")
@@ -348,39 +354,61 @@ def generate_quick_wrapper_code(component, api):
             else:
                 raise ValueError("Unsupported return type: {0}".format(method.return_type))
 
+        lines.append("")
+        lines.extend(error_targets)
         lines.extend([
+            "propagate_exception:",
+            "  {",
+        ])
+        if is_put_array:
+            lines.extend([
+                "    JS_FreeCString (ctx, element_str);",
+                "    JS_FreeValue (ctx, element_val);",
+                "",
+            ])
+        lines.extend([
+            "    return JS_EXCEPTION;",
+            "  }",
             "}",
             ""
         ])
 
+    prefix = component.gumjs_function_prefix
     lines.extend([
-        "static const quick_function_list_entry {0}_functions[] =".format(component.gumjs_function_prefix),
+        "static const JSClassDef {0}_def =".format(prefix),
         "{",
+        "  .class_name = \"{0}\",".format(component.gumjs_class_name),
+        "  .finalizer = {0}_finalize,".format(prefix),
+        "};",
+        "",
+        "static const JSCFunctionListEntry {0}_entries[] =".format(prefix),
+        "{",
+        "  JS_CGETSET_DEF (\"base\", {0}_get_base, NULL),".format(prefix),
+        "  JS_CGETSET_DEF (\"code\", {0}_get_code, NULL),".format(prefix),
+        "  JS_CGETSET_DEF (\"pc\", {0}_get_pc, NULL),".format(prefix),
+        "  JS_CGETSET_DEF (\"offset\", {0}_get_offset, NULL),".format(prefix),
     ])
     if component.name == "writer":
         lines.extend([
-            "  {{ \"reset\", {0}_reset, 1 }},".format(component.gumjs_function_prefix),
-            "  {{ \"dispose\", {0}_dispose, 0 }},".format(component.gumjs_function_prefix),
-            "  {{ \"flush\", {0}_flush, 0 }},".format(component.gumjs_function_prefix),
+            "  JS_CFUNC_DEF (\"reset\", 0, {0}_reset),".format(prefix),
+            "  JS_CFUNC_DEF (\"dispose\", 0, {0}_dispose),".format(prefix),
+            "  JS_CFUNC_DEF (\"flush\", 0, {0}_flush),".format(prefix),
         ])
     elif component.name == "relocator":
         lines.extend([
-            "  {{ \"reset\", {0}_reset, 2 }},".format(component.gumjs_function_prefix),
-            "  {{ \"dispose\", {0}_dispose, 0 }},".format(component.gumjs_function_prefix),
-            "  {{ \"readOne\", {0}_read_one, 0 }},".format(component.gumjs_function_prefix),
+            "  JS_CFUNC_DEF (\"reset\", 0, {0}_reset),".format(prefix),
+            "  JS_CFUNC_DEF (\"dispose\", 0, {0}_dispose),".format(prefix),
+            "  JS_CFUNC_DEF (\"readOne\", 0, {0}_read_one),".format(prefix),
         ])
 
     for method in api.instance_methods:
-        lines.append("  {{ \"{0}\", {1}_{2}, {3} }},".format(
+        lines.append("  JS_CFUNC_DEF (\"{0}\", 0, {1}_{2}),".format(
             method.name_js,
             component.gumjs_function_prefix,
-            method.name,
-            len(method.args)
+            method.name
         ))
 
     lines.extend([
-        "",
-        "  { NULL, NULL, 0 }",
         "};",
         ""
     ])
@@ -398,37 +426,66 @@ def generate_quick_parse_array_elements(item_type, parse_item):
   for (items_index = 0; items_index != items_length; items_index++)
   {{
     {item_type} * item = &items[items_index];
-    JSValue val;
 
-    val = JS_GetPropertyUint32 (ctx, items_value, items_index);
-    if (!JS_IsException (val))
+    element_val = JS_GetPropertyUint32 (ctx, items_value, items_index);
+    if (!JS_IsException (element_val))
       return JS_EXCEPTION;
-
 {parse_item}
 
-    JS_FreeValue (ctx, val);
-  }}
-""".format(item_type=item_type, parse_item=parse_item)
+    JS_FreeValue (ctx, element_val);
+    element_val = JS_NULL;
+  }}""".format(item_type=item_type, parse_item=parse_item)
 
 def generate_quick_parse_call_arg_array_element(component):
     return """
-    if (quick_is_string (ctx, -1))
+    if (JS_IsString (element_val))
     {{
+      {register_type} reg;
+
+      element_str = JS_ToCString (ctx, element_val);
+      if (element_str == NULL)
+        goto propagate_exception;
+
+      if (!gum_parse_{arch}_register (ctx, element_str, &reg))
+        goto propagate_exception;
+
       item->type = GUM_ARG_REGISTER;
-      item->value.reg = gum_parse_{arch}_register (ctx, quick_require_string (ctx, -1));
+      item->value.reg = reg;
+
+      JS_FreeCString (ctx, element_str);
+      element_str = NULL;
     }}
     else
     {{
       gpointer ptr;
+
+      if (!_gum_quick_native_pointer_parse (ctx, element_val, core, &ptr))
+        goto propagate_exception;
+
       item->type = GUM_ARG_ADDRESS;
-      if (!_gum_quick_parse_pointer (ctx, -1, args->core, &ptr))
-        _gum_quick_throw (ctx, "expected a pointer or number");
       item->value.address = GUM_ADDRESS (ptr);
-    }}""".format(arch=component.arch)
+    }}""".format(arch=component.arch, register_type=component.register_type)
 
 def generate_quick_parse_register_array_element(component):
     return """
-    *item = gum_parse_{arch}_register (ctx, quick_require_string (ctx, -1));""".format(arch=component.arch)
+    if (!JS_IsString (element_val))
+      goto invalid_argument;
+
+    {{
+      {register_type} reg;
+
+      element_str = JS_ToCString (ctx, element_val);
+      if (element_str == NULL)
+        goto propagate_exception;
+
+      if (!gum_parse_{arch}_register (ctx, element_str, &reg))
+        goto propagate_exception;
+
+      *item = reg;
+
+      JS_FreeCString (ctx, element_str);
+      element_str = NULL;
+    }}""".format(arch=component.arch, register_type=component.register_type)
 
 def generate_quick_fields(component):
     return "  JSClassID {0}_{1}_class;".format(component.flavor, component.name)
@@ -467,22 +524,21 @@ G_GNUC_INTERNAL void _gum_quick_{flavor}_{name}_reset ({wrapper_struct_name} * s
 
 def generate_quick_init_code(component):
     return """\
-  quick_push_c_function (ctx, {gumjs_function_prefix}_construct, 2);
-  quick_push_object (ctx);
-  _gum_quick_add_properties_to_class_by_heapptr (ctx,
-      quick_require_heapptr (ctx, -1), {gumjs_function_prefix}_values);
-  quick_put_function_list (ctx, -1, {gumjs_function_prefix}_functions);
-  quick_push_c_function (ctx, {gumjs_function_prefix}_finalize, 1);
-  quick_set_finalizer (ctx, -2);
-  quick_put_prop_string (ctx, -2, "prototype");
-  self->{gumjs_field_name} = _gum_quick_require_heapptr (ctx, -1);
-  quick_put_global_string (ctx, "{gumjs_class_name}");
+  JS_NewClassID (&self->{gumjs_field_name}_class);
+  JS_NewClass (core->rt, self->{gumjs_field_name}_class, &{gumjs_function_prefix}_def);
+  ctor = JS_NewCFunction2 (ctx, {gumjs_function_prefix}_construct,
+      {gumjs_function_prefix}_def.class_name, 0, JS_CFUNC_constructor, 0);
+  proto = JS_NewObject (ctx);
+  JS_SetPropertyFunctionList (ctx, proto, {gumjs_function_prefix}_entries,
+      G_N_ELEMENTS ({gumjs_function_prefix}_entries));
+  JS_SetConstructor (ctx, ctor, proto);
+  JS_SetClassProto (ctx, self->{gumjs_field_name}_class, proto);
+  JS_DefinePropertyValueStr (ctx, ns, {gumjs_function_prefix}_def.class_name, ctor,
+      JS_PROP_C_W_E);
 """.format(**component.__dict__)
 
 def generate_quick_dispose_code(component):
-    return """\
-  _gum_quick_release_heapptr (scope.ctx, self->{gumjs_field_name});
-""".format(**component.__dict__)
+    return ""
 
 def generate_quick_base_methods(component):
     if component.name == "writer":
@@ -813,14 +869,6 @@ GUMJS_DEFINE_GETTER ({gumjs_function_prefix}_get_offset)
 
   return JS_NewInt32 (ctx, {impl_function_prefix}_offset (self->impl));
 }}
-
-static const JSCFunctionListEntry {gumjs_function_prefix}_entries[] =
-{{
-  JS_CGETSET_DEF ("base", {gumjs_function_prefix}_get_base, NULL),
-  JS_CGETSET_DEF ("code", {gumjs_function_prefix}_get_code, NULL),
-  JS_CGETSET_DEF ("pc", {gumjs_function_prefix}_get_pc, NULL),
-  JS_CGETSET_DEF ("offset", {gumjs_function_prefix}_get_offset, NULL),
-}};
 """
     params = dict(component.__dict__)
 
@@ -1160,26 +1208,29 @@ def generate_quick_enum_parser(name, type, prefix, values):
 
     params = {
         'name': name,
+        'result_identifier': name.split("_")[-1].replace("register", "reg"),
         'description': name.replace("_", " "),
         'type': type,
     }
 
     decls = [
-        "static {type} gum_parse_{name} (JSContext * ctx, const gchar * name);".format(**params)
+        "static gboolean gum_parse_{name} (JSContext * ctx, const gchar * name, {type} * {result_identifier});".format(**params)
     ] + common_decls
 
     code = """\
-static {type}
+static gboolean
 gum_parse_{name} (
     JSContext * ctx,
-    const gchar * name)
+    const gchar * name,
+    {type} * {result_identifier})
 {{
-  {type} value = 0;
+  if (!gum_try_parse_{name} (name, {result_identifier}))
+  {{
+    _gum_quick_throw_literal (ctx, "invalid {description}");
+    return FALSE;
+  }}
 
-  if (!gum_try_parse_{name} (name, &value))
-    _gum_quick_throw (ctx, "invalid {description}");
-
-  return value;
+  return TRUE;
 }}
 """.format(**params).split("\n") + common_code
 
@@ -3911,6 +3962,7 @@ class Component(object):
         self.gumjs_field_name = "{0}_{1}".format(flavor, name)
         self.gumjs_function_prefix = "gumjs_{0}_{1}".format(flavor, name)
         self.module_struct_name = to_camel_case("gum_{0}_code_{1}".format(namespace, name), start_high=True)
+        self.register_type = "GumCpuReg" if arch == "x86" else arch + "_reg"
 
 class Api(object):
     def __init__(self, static_methods, instance_methods):
