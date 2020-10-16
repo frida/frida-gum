@@ -338,17 +338,19 @@ def generate_quick_wrapper_code(component, api):
                 if component.flavor == "x86":
                     target = "GSIZE_TO_POINTER (result->address)"
                 else:
-                    target = "self->impl->input_start + (result->address - (self->impl->input_pc - self->impl->inpos))"
+                    target = "self->impl->input_start + (result->address -\n            (self->impl->input_pc - self->impl->inpos))"
                     if component.flavor == "thumb":
                         target = "GSIZE_TO_POINTER (GPOINTER_TO_SIZE ({0}) | 1)".format(target)
                 lines.extend([
                     "  if (result != NULL)",
                     "  {",
-                    "    return _gum_quick_instruction_new (ctx, self->impl->capstone, result, FALSE, {0}, self->module->instruction);".format(target),
+                    "    return _gum_quick_instruction_new (ctx, result, FALSE,",
+                    "        {0},".format(target),
+                    "        self->impl->capstone, parent->instruction, NULL);",
                     "  }",
                     "  else",
                     "  {",
-                    "    return JS_NULL;"
+                    "    return JS_NULL;",
                     "  }",
                 ])
             else:
@@ -383,19 +385,22 @@ def generate_quick_wrapper_code(component, api):
         "",
         "static const JSCFunctionListEntry {0}_entries[] =".format(prefix),
         "{",
-        "  JS_CGETSET_DEF (\"base\", {0}_get_base, NULL),".format(prefix),
-        "  JS_CGETSET_DEF (\"code\", {0}_get_code, NULL),".format(prefix),
-        "  JS_CGETSET_DEF (\"pc\", {0}_get_pc, NULL),".format(prefix),
-        "  JS_CGETSET_DEF (\"offset\", {0}_get_offset, NULL),".format(prefix),
     ])
     if component.name == "writer":
         lines.extend([
+            "  JS_CGETSET_DEF (\"base\", {0}_get_base, NULL),".format(prefix),
+            "  JS_CGETSET_DEF (\"code\", {0}_get_code, NULL),".format(prefix),
+            "  JS_CGETSET_DEF (\"pc\", {0}_get_pc, NULL),".format(prefix),
+            "  JS_CGETSET_DEF (\"offset\", {0}_get_offset, NULL),".format(prefix),
             "  JS_CFUNC_DEF (\"reset\", 0, {0}_reset),".format(prefix),
             "  JS_CFUNC_DEF (\"dispose\", 0, {0}_dispose),".format(prefix),
             "  JS_CFUNC_DEF (\"flush\", 0, {0}_flush),".format(prefix),
         ])
     elif component.name == "relocator":
         lines.extend([
+            "  JS_CGETSET_DEF (\"input\", {0}_get_input, NULL),".format(prefix),
+            "  JS_CGETSET_DEF (\"eob\", {0}_get_eob, NULL),".format(prefix),
+            "  JS_CGETSET_DEF (\"eoi\", {0}_get_eoi, NULL),".format(prefix),
             "  JS_CFUNC_DEF (\"reset\", 0, {0}_reset),".format(prefix),
             "  JS_CFUNC_DEF (\"dispose\", 0, {0}_dispose),".format(prefix),
             "  JS_CFUNC_DEF (\"readOne\", 0, {0}_read_one),".format(prefix),
@@ -510,13 +515,13 @@ struct _{wrapper_struct_name}
 {{
   JSValue wrapper;
   {impl_struct_name} * impl;{extra_fields}
-  {module_struct_name} * parent;
+  JSContext * ctx;
 }};
 
 G_GNUC_INTERNAL JSValue _gum_quick_{flavor}_{name}_new (JSContext * ctx, {impl_struct_name} * impl, {module_struct_name} * parent, {wrapper_struct_name} ** {flavor}_{name});
 G_GNUC_INTERNAL gboolean _gum_quick_{flavor}_{name}_get (JSContext * ctx, JSValue val, {module_struct_name} * parent, {wrapper_struct_name} ** writer);
 
-G_GNUC_INTERNAL void _gum_quick_{flavor}_{name}_init ({wrapper_struct_name} * self, {module_struct_name} * parent);
+G_GNUC_INTERNAL void _gum_quick_{flavor}_{name}_init ({wrapper_struct_name} * self, JSContext * ctx, {module_struct_name} * parent);
 G_GNUC_INTERNAL void _gum_quick_{flavor}_{name}_finalize ({wrapper_struct_name} * self);
 G_GNUC_INTERNAL void _gum_quick_{flavor}_{name}_reset ({wrapper_struct_name} * self, {impl_struct_name} * impl);
 """
@@ -548,7 +553,7 @@ def generate_quick_base_methods(component):
 
 def generate_quick_writer_base_methods(component):
     template = """\
-static {wrapper_struct_name} * {wrapper_function_prefix}_alloc ({module_struct_name} * module);
+static {wrapper_struct_name} * {wrapper_function_prefix}_alloc (JSContext * ctx, {module_struct_name} * module);
 static void {wrapper_function_prefix}_dispose ({wrapper_struct_name} * self);
 static gboolean {gumjs_function_prefix}_parse_constructor_args (GumQuickArgs * args,
     gpointer * code_address, GumAddress * pc, gboolean * pc_specified);
@@ -565,7 +570,7 @@ _gum_quick_{flavor}_writer_new (
 
   wrapper = JS_NewObjectClass (ctx, parent->{flavor}_writer_class);
 
-  w = {wrapper_function_prefix}_alloc (parent);
+  w = {wrapper_function_prefix}_alloc (ctx, parent);
   w->impl = (impl != NULL) ? {impl_function_prefix}_ref (impl) : NULL;
 
   JS_SetOpaque (wrapper, w);
@@ -578,7 +583,6 @@ _gum_quick_{flavor}_writer_new (
 
 gboolean
 _gum_quick_{flavor}_writer_get (
-
     JSContext * ctx,
     JSValue val,
     {module_struct_name} * parent,
@@ -591,7 +595,10 @@ _gum_quick_{flavor}_writer_get (
     return FALSE;
 
   if (w->impl == NULL)
-    return _gum_quick_throw_literal (ctx, "invalid operation");
+  {{
+    _gum_quick_throw_literal (ctx, "invalid operation");
+    return FALSE;
+  }}
 
   *writer = w;
   return TRUE;
@@ -600,11 +607,12 @@ _gum_quick_{flavor}_writer_get (
 void
 _{wrapper_function_prefix}_init (
     {wrapper_struct_name} * self,
+    JSContext * ctx,
     {module_struct_name} * parent)
 {{
   self->wrapper = JS_NULL;
   self->impl = NULL;
-  self->parent = parent;
+  self->ctx = ctx;
   self->labels = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
 }}
 
@@ -630,12 +638,13 @@ _{wrapper_function_prefix}_reset (
 }}
 
 static {wrapper_struct_name} *
-{wrapper_function_prefix}_alloc ({module_struct_name} * module)
+{wrapper_function_prefix}_alloc (JSContext * ctx,
+                                 {module_struct_name} * module)
 {{
   {wrapper_struct_name} * writer;
 
   writer = g_slice_new ({wrapper_struct_name});
-  _{wrapper_function_prefix}_init (writer, module);
+  _{wrapper_function_prefix}_init (writer, ctx, module);
 
   return writer;
 }}
@@ -682,10 +691,8 @@ GUMJS_DEFINE_CONSTRUCTOR ({gumjs_function_prefix}_construct)
   if (JS_IsException (obj))
     goto propagate_exception;
 
-  writer = {wrapper_function_prefix}_alloc (parent);
-
+  writer = {wrapper_function_prefix}_alloc (ctx, parent);
   writer->wrapper = obj;
-
   writer->impl = {impl_function_prefix}_new (code_address);
   if (pc_specified)
     writer->impl->pc = pc;
@@ -891,84 +898,65 @@ static gconstpointer
 
 def generate_quick_relocator_base_methods(component):
     template = """\
-static {wrapper_struct_name} * {wrapper_function_prefix}_alloc ({module_struct_name} * module);
+static {wrapper_struct_name} * {wrapper_function_prefix}_alloc (JSContext * ctx, {module_struct_name} * module);
 static void {wrapper_function_prefix}_dispose ({wrapper_struct_name} * self);
-static void {gumjs_function_prefix}_parse_constructor_args (const GumQuickArgs * args,
-    gconstpointer * input_code, {writer_wrapper_struct_name} ** writer, {module_struct_name} * module);
+static gboolean {gumjs_function_prefix}_parse_constructor_args (GumQuickArgs * args,
+    gconstpointer * input_code, {writer_wrapper_struct_name} ** writer, {module_struct_name} * parent);
 
-{wrapper_struct_name} *
-_gum_quick_push_{flavor}_relocator (
+JSValue
+_gum_quick_{flavor}_relocator_new (
     JSContext * ctx,
     {impl_struct_name} * impl,
-    {module_struct_name} * module)
+    {module_struct_name} * parent,
+    {wrapper_struct_name} ** relocator)
 {{
-  {wrapper_struct_name} * relocator;
+  JSValue wrapper;
+  {wrapper_struct_name} * r;
 
-  relocator = {wrapper_function_prefix}_alloc (module);
-  relocator->impl = (impl != NULL) ? {impl_function_prefix}_ref (impl) : NULL;
+  wrapper = JS_NewObjectClass (ctx, parent->{flavor}_relocator_class);
 
-  quick_push_heapptr (ctx, module->{flavor}_relocator);
-  quick_push_pointer (ctx, relocator);
-  quick_new (ctx, 1);
+  r = {wrapper_function_prefix}_alloc (ctx, parent);
+  r->impl = (impl != NULL) ? {impl_function_prefix}_ref (impl) : NULL;
 
-  return relocator;
+  JS_SetOpaque (wrapper, r);
+
+  if (relocator != NULL)
+    *relocator = r;
+
+  return wrapper;
 }}
 
-{wrapper_struct_name} *
-_gum_quick_require_{flavor}_relocator (
+gboolean
+_gum_quick_{flavor}_relocator_get (
     JSContext * ctx,
     JSValue val,
-    {module_struct_name} * module)
+    {module_struct_name} * parent,
+    {wrapper_struct_name} ** relocator)
 {{
-  {wrapper_struct_name} * relocator;
+  {wrapper_struct_name} * r;
 
-  quick_dup (ctx, index);
-  quick_push_heapptr (ctx, module->{flavor}_relocator);
-  if (!quick_instanceof (ctx, -2, -1))
-    _gum_quick_throw (ctx, "expected {flavor} relocator");
+  r = JS_GetOpaque2 (ctx, val, parent->{flavor}_relocator_class);
+  if (r == NULL)
+    return FALSE;
 
-  relocator = _gum_quick_require_data (ctx, -2);
-  if (relocator->impl == NULL)
-    _gum_quick_throw (ctx, "invalid operation");
+  if (r->impl == NULL)
+    return _gum_quick_throw_literal (ctx, "invalid operation");
 
-  quick_pop_2 (ctx);
-
-  return relocator;
-}}
-
-{wrapper_struct_name} *
-_{wrapper_function_prefix}_new ({module_struct_name} * module)
-{{
-  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (module->core);
-  JSContext * ctx = scope.ctx;
-  {wrapper_struct_name} * relocator;
-
-  relocator = _gum_quick_push_{flavor}_relocator (ctx, NULL, module);
-  _gum_quick_protect (ctx, relocator->object);
-  quick_pop (ctx);
-
-  return relocator;
-}}
-
-void
-_{wrapper_function_prefix}_release ({wrapper_struct_name} * self)
-{{
-  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (self->module->core);
-
-  {wrapper_function_prefix}_dispose (self);
-
-  _gum_quick_unprotect (scope.ctx, self->object);
+  *relocator = r;
+  return TRUE;
 }}
 
 void
 _{wrapper_function_prefix}_init (
     {wrapper_struct_name} * self,
-    {module_struct_name} * module)
+    JSContext * ctx,
+    {module_struct_name} * parent)
 {{
-  self->object = NULL;
+  self->wrapper = JS_NULL;
   self->impl = NULL;
-  self->input = _gum_quick_instruction_new (module->instruction);
-  self->module = module;
+  _gum_quick_instruction_new (ctx, NULL, TRUE, NULL, 0, parent->instruction,
+      &self->input);
+  self->ctx = ctx;
 }}
 
 void
@@ -976,7 +964,7 @@ _{wrapper_function_prefix}_finalize ({wrapper_struct_name} * self)
 {{
   _{wrapper_function_prefix}_reset (self, NULL);
 
-  _gum_quick_instruction_release (self->input);
+  JS_FreeValue (self->ctx, self->input->wrapper);
 }}
 
 void
@@ -994,12 +982,13 @@ _{wrapper_function_prefix}_reset (
 }}
 
 static {wrapper_struct_name} *
-{wrapper_function_prefix}_alloc ({module_struct_name} * module)
+{wrapper_function_prefix}_alloc (JSContext * ctx,
+                                 {module_struct_name} * parent)
 {{
   {wrapper_struct_name} * relocator;
 
   relocator = g_slice_new ({wrapper_struct_name});
-  _{wrapper_function_prefix}_init (relocator, module);
+  _{wrapper_function_prefix}_init (relocator, ctx, parent);
 
   return relocator;
 }}
@@ -1018,122 +1007,129 @@ static void
   g_slice_free ({wrapper_struct_name}, self);
 }}
 
-static {wrapper_struct_name} *
-{wrapper_function_prefix}_from_args (const GumQuickArgs * args)
-{{
-  JSContext * ctx = args->ctx;
-  {wrapper_struct_name} * self;
-
-  quick_push_this (ctx);
-  self = _gum_quick_require_data (ctx, -1);
-  if (self->impl == NULL)
-    _gum_quick_throw (ctx, "invalid operation");
-  quick_pop (ctx);
-
-  return self;
-}}
-
 GUMJS_DEFINE_CONSTRUCTOR ({gumjs_function_prefix}_construct)
 {{
+  {module_struct_name} * parent;
+  JSValue obj;
+  gconstpointer input_code;
+  {writer_wrapper_struct_name} * writer;
+  JSValue proto;
   {wrapper_struct_name} * relocator;
 
-  if (!quick_is_constructor_call (ctx))
-    _gum_quick_throw (ctx, "use constructor syntax to create a new instance");
+  parent = gumjs_get_parent_module (core);
 
-  quick_push_this (ctx);
+  if (JS_IsUndefined (new_target))
+    goto missing_target;
 
-  if (quick_is_pointer (ctx, 0))
+  if (!{gumjs_function_prefix}_parse_constructor_args (args, &input_code, &writer,
+      parent))
+    goto propagate_exception;
+
+  proto = JS_GetProperty (ctx, new_target,
+      GUM_QUICK_CORE_ATOM (core, prototype));
+  obj = JS_NewObjectProtoClass (ctx, proto, parent->{flavor}_relocator_class);
+  JS_FreeValue (ctx, proto);
+  if (JS_IsException (obj))
+    goto propagate_exception;
+
+  relocator = {wrapper_function_prefix}_alloc (ctx, parent);
+  relocator->wrapper = obj;
+  relocator->impl = {impl_function_prefix}_new (input_code, writer->impl);
+
+  JS_SetOpaque (obj, relocator);
+
+  return obj;
+
+missing_target:
   {{
-    relocator = quick_require_pointer (ctx, 0);
+    _gum_quick_throw_literal (ctx,
+        "use constructor syntax to create a new instance");
+    goto propagate_exception;
   }}
-  else
+propagate_exception:
   {{
-    gconstpointer input_code;
-    {writer_wrapper_struct_name} * writer;
-    {module_struct_name} * module;
-
-    module = gumjs_module_from_args (args);
-
-    {gumjs_function_prefix}_parse_constructor_args (args, &input_code, &writer, module);
-
-    relocator = {wrapper_function_prefix}_alloc (module);
-    relocator->impl = {impl_function_prefix}_new (input_code, writer->impl);
+    return JS_EXCEPTION;
   }}
-
-  relocator->object = quick_require_heapptr (ctx, -1);
-  _gum_quick_put_data (ctx, -1, relocator);
-
-  quick_pop (ctx);
-
-  return 0;
 }}
 
 GUMJS_DEFINE_FUNCTION ({gumjs_function_prefix}_reset)
 {{
+  {module_struct_name} * parent;
   {wrapper_struct_name} * self;
   gconstpointer input_code;
   {writer_wrapper_struct_name} * writer;
 
-  self = {wrapper_function_prefix}_from_args (args);
+  parent = gumjs_get_parent_module (core);
 
-  {gumjs_function_prefix}_parse_constructor_args (args, &input_code, &writer, self->module);
+  if (!_{wrapper_function_prefix}_get (ctx, this_val, parent, &self))
+    return JS_EXCEPTION;
+
+  if (!{gumjs_function_prefix}_parse_constructor_args (args, &input_code, &writer,
+      parent))
+    return JS_EXCEPTION;
 
   {impl_function_prefix}_reset (self->impl, input_code, writer->impl);
 
   self->input->insn = NULL;
 
-  return 0;
+  return JS_UNDEFINED;
 }}
 
-static void
+static gboolean
 {gumjs_function_prefix}_parse_constructor_args (
     GumQuickArgs * args,
     gconstpointer * input_code,
     {writer_wrapper_struct_name} ** writer,
-    {module_struct_name} * module)
+    {module_struct_name} * parent)
 {{
-  JSContext * ctx = args->ctx;
   JSValue writer_object;
 
-  _gum_quick_args_parse (args, "pO", input_code, &writer_object);
+  if (!_gum_quick_args_parse (args, "pO", input_code, &writer_object))
+    return FALSE;
 
-  quick_push_heapptr (ctx, writer_object);
-  *writer = _gum_quick_require_{flavor}_writer (ctx, -1, module->writer);
-  quick_pop (ctx);
+  if (!_gum_quick_{flavor}_writer_get (args->ctx, writer_object, parent->writer,
+      writer))
+    return FALSE;
+
+  return TRUE;
 }}
 
 GUMJS_DEFINE_FUNCTION ({gumjs_function_prefix}_dispose)
 {{
+  {module_struct_name} * parent;
   {wrapper_struct_name} * self;
 
-  quick_push_this (ctx);
-  self = _gum_quick_require_data (ctx, -1);
-  quick_pop (ctx);
+  parent = gumjs_get_parent_module (core);
+
+  if (!_{wrapper_function_prefix}_get (ctx, this_val, parent, &self))
+    return JS_EXCEPTION;
 
   {wrapper_function_prefix}_dispose (self);
 
-  return 0;
+  return JS_UNDEFINED;
 }}
 
 GUMJS_DEFINE_FINALIZER ({gumjs_function_prefix}_finalize)
 {{
-  {wrapper_struct_name} * self;
+  {wrapper_struct_name} * r;
 
-  self = _gum_quick_steal_data (ctx, 0);
-  if (self == NULL)
-    return 0;
+  r = JS_GetOpaque (val, gumjs_get_parent_module (core)->{flavor}_relocator_class);
+  if (r == NULL)
+    return;
 
-  {wrapper_function_prefix}_free (self);
-
-  return 0;
+  {wrapper_function_prefix}_free (r);
 }}
 
 GUMJS_DEFINE_FUNCTION ({gumjs_function_prefix}_read_one)
 {{
+  {module_struct_name} * parent;
   {wrapper_struct_name} * self;
   guint n_read;
 
-  self = {wrapper_function_prefix}_from_args (args);
+  parent = gumjs_get_parent_module (core);
+
+  if (!_{wrapper_function_prefix}_get (ctx, this_val, parent, &self))
+    return JS_EXCEPTION;
 
   n_read = {impl_function_prefix}_read_one (self->impl, &self->input->insn);
   if (n_read != 0)
@@ -1141,57 +1137,56 @@ GUMJS_DEFINE_FUNCTION ({gumjs_function_prefix}_read_one)
     self->input->target = {get_input_target_expression};
   }}
 
-  quick_push_uint (ctx, n_read);
-  return 1;
+  return JS_NewInt32 (ctx, n_read);
 }}
 
 GUMJS_DEFINE_GETTER ({gumjs_function_prefix}_get_input)
 {{
+  {module_struct_name} * parent;
   {wrapper_struct_name} * self;
 
-  self = {wrapper_function_prefix}_from_args (args);
+  parent = gumjs_get_parent_module (core);
 
-  if (self->input->insn != NULL)
-    quick_push_heapptr (ctx, self->input->object);
-  else
-    quick_push_null (ctx);
-  return 1;
+  if (!_{wrapper_function_prefix}_get (ctx, this_val, parent, &self))
+    return JS_EXCEPTION;
+
+  if (self->input->insn == NULL)
+    return JS_NULL;
+
+  return JS_DupValue (ctx, self->input->wrapper);
 }}
 
 GUMJS_DEFINE_GETTER ({gumjs_function_prefix}_get_eob)
 {{
+  {module_struct_name} * parent;
   {wrapper_struct_name} * self;
 
-  self = {wrapper_function_prefix}_from_args (args);
+  parent = gumjs_get_parent_module (core);
 
-  quick_push_boolean (ctx, {impl_function_prefix}_eob (self->impl));
-  return 1;
+  if (!_{wrapper_function_prefix}_get (ctx, this_val, parent, &self))
+    return JS_EXCEPTION;
+
+  return JS_NewBool (ctx, {impl_function_prefix}_eob (self->impl));
 }}
 
 GUMJS_DEFINE_GETTER ({gumjs_function_prefix}_get_eoi)
 {{
+  {module_struct_name} * parent;
   {wrapper_struct_name} * self;
 
-  self = {wrapper_function_prefix}_from_args (args);
+  parent = gumjs_get_parent_module (core);
 
-  quick_push_boolean (ctx, {impl_function_prefix}_eoi (self->impl));
-  return 1;
+  if (!_{wrapper_function_prefix}_get (ctx, this_val, parent, &self))
+    return JS_EXCEPTION;
+
+  return JS_NewBool (ctx, {impl_function_prefix}_eoi (self->impl));
 }}
-
-static const GumQuickPropertyEntry {gumjs_function_prefix}_values[] =
-{{
-  {{ "input", {gumjs_function_prefix}_get_input, NULL }},
-  {{ "eob", {gumjs_function_prefix}_get_eob, NULL }},
-  {{ "eoi", {gumjs_function_prefix}_get_eoi, NULL }},
-
-  {{ NULL, NULL, NULL }}
-}};
 """
 
     if component.flavor == "x86":
         target = "GSIZE_TO_POINTER (self->input->insn->address)"
     else:
-        target = "self->impl->input_start + (self->input->insn->address - (self->impl->input_pc - self->impl->inpos))"
+        target = "self->impl->input_start +\n        (self->input->insn->address -\n            (self->impl->input_pc - self->impl->inpos))"
         if component.flavor == "thumb":
             target = "GSIZE_TO_POINTER (GPOINTER_TO_SIZE ({0}) | 1)".format(target)
 

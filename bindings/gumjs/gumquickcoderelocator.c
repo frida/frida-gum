@@ -20,6 +20,7 @@ _gum_quick_code_relocator_init (GumQuickCodeRelocator * self,
                                 GumQuickCore * core)
 {
   JSContext * ctx = core->ctx;
+  JSValue ctor, proto;
 
   self->writer = writer;
   self->instruction = instruction;

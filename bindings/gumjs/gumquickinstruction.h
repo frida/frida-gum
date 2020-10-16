@@ -40,7 +40,7 @@ G_GNUC_INTERNAL void _gum_quick_instruction_finalize (
     GumQuickInstruction * self);
 
 G_GNUC_INTERNAL JSValue _gum_quick_instruction_new (JSContext * ctx,
-    csh capstone, const cs_insn * insn, gboolean is_owned, gconstpointer target,
+    const cs_insn * insn, gboolean is_owned, gconstpointer target, csh capstone,
     GumQuickInstruction * parent, GumQuickInstructionValue ** instruction);
 G_GNUC_INTERNAL gboolean _gum_quick_instruction_get (JSContext * ctx,
     JSValue val, GumQuickInstruction * parent,

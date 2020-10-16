@@ -8,6 +8,8 @@
 
 #include "gumquickmacros.h"
 
+#include <string.h>
+
 GUMJS_DECLARE_FUNCTION (gumjs_instruction_parse)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_instruction_construct)
@@ -130,10 +132,10 @@ gumjs_get_parent_module (GumQuickCore * core)
 
 JSValue
 _gum_quick_instruction_new (JSContext * ctx,
-                            csh capstone,
                             const cs_insn * insn,
                             gboolean is_owned,
                             gconstpointer target,
+                            csh capstone,
                             GumQuickInstruction * parent,
                             GumQuickInstructionValue ** instruction)
 {
@@ -143,7 +145,7 @@ _gum_quick_instruction_new (JSContext * ctx,
   wrapper = JS_NewObjectClass (ctx, parent->instruction_class);
 
   v = g_slice_new (GumQuickInstructionValue);
-  v->wrapper = JS_NULL;
+  v->wrapper = wrapper;
   if (is_owned)
   {
     v->insn = insn;
@@ -220,7 +222,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_instruction_parse)
     return _gum_quick_throw_literal (ctx, "invalid instruction");
   }
 
-  return _gum_quick_instruction_new (ctx, self->capstone, insn, TRUE, target,
+  return _gum_quick_instruction_new (ctx, insn, TRUE, target, self->capstone,
       self, NULL);
 }
 
