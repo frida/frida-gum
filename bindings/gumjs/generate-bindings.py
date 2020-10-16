@@ -940,7 +940,10 @@ _gum_quick_{flavor}_relocator_get (
     return FALSE;
 
   if (r->impl == NULL)
-    return _gum_quick_throw_literal (ctx, "invalid operation");
+  {{
+    _gum_quick_throw_literal (ctx, "invalid operation");
+    return FALSE;
+  }}
 
   *relocator = r;
   return TRUE;
