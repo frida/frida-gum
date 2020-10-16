@@ -192,13 +192,19 @@ static const JSCFunctionListEntry gumjs_stalker_entries[] =
   JS_CFUNC_DEF ("_parse", 0, gumjs_stalker_parse),
 };
 
-static const JSCFunctionListEntry gumjs_stalker_default_iterator_functions[] = {
+static const JSClassDef gumjs_stalker_default_iterator_def =
+{
+  .class_name = "StalkerDefaultIterator",
+  .finalizer = gumjs_stalker_default_iterator_finalize,
+};
+
+static const JSCFunctionListEntry gumjs_stalker_default_iterator_entries[] = {
   JS_CFUNC_DEF ("next", 0, gumjs_stalker_default_iterator_next),
   JS_CFUNC_DEF ("keep", 0, gumjs_stalker_default_iterator_keep),
   JS_CFUNC_DEF ("putCallout", 0, gumjs_stalker_default_iterator_put_callout),
 };
 
-static const JSCFunctionListEntry gumjs_stalker_special_iterator_functions[] = {
+static const JSCFunctionListEntry gumjs_stalker_special_iterator_entries[] = {
   JS_CFUNC_DEF ("next", 0, gumjs_stalker_special_iterator_next),
   JS_CFUNC_DEF ("keep", 0, gumjs_stalker_special_iterator_keep),
   JS_CFUNC_DEF ("putCallout", 0, gumjs_stalker_special_iterator_put_callout),
@@ -231,31 +237,22 @@ _gum_quick_stalker_init (GumQuickStalker * self,
       G_N_ELEMENTS (gumjs_stalker_entries));
   JS_DefinePropertyValueStr (ctx, ns, "Stalker", obj, JS_PROP_C_W_E);
 
-  _gum_quick_create_subclass (ctx, GUM_QUICK_DEFAULT_WRITER_CLASS_NAME,
-      "StalkerDefaultIterator", gumjs_stalker_default_iterator_construct, 0,
-      gumjs_stalker_default_iterator_finalize);
-  quick_get_global_string (ctx, "StalkerDefaultIterator");
-  self->default_iterator = _gum_quick_require_heapptr (ctx, -1);
-  quick_get_prop_string (ctx, -1, "prototype");
-  quick_put_function_list (ctx, -1, gumjs_stalker_default_iterator_functions);
-  quick_pop_2 (ctx);
+  _gum_quick_create_subclass (ctx, &gumjs_stalker_default_iterator_def,
+      writer->default_writer_class, writer->default_writer_proto, core,
+      &self->default_iterator_class, &proto);
+  JS_SetPropertyFunctionList (ctx, proto,
+      gumjs_stalker_default_iterator_entries,
+      G_N_ELEMENTS (gumjs_stalker_default_iterator_entries));
 
-  _gum_quick_create_subclass (ctx, GUM_QUICK_SPECIAL_WRITER_CLASS_NAME,
-      "StalkerSpecialIterator", gumjs_stalker_special_iterator_construct, 0,
-      gumjs_stalker_special_iterator_finalize);
-  quick_get_global_string (ctx, "StalkerSpecialIterator");
-  self->special_iterator = _gum_quick_require_heapptr (ctx, -1);
-  quick_get_prop_string (ctx, -1, "prototype");
-  quick_put_function_list (ctx, -1, gumjs_stalker_special_iterator_functions);
-  quick_pop_2 (ctx);
+  _gum_quick_create_subclass (ctx, &gumjs_stalker_special_iterator_def,
+      writer->special_writer_class, writer->special_writer_proto, core,
+      &self->special_iterator_class, &proto);
+  JS_SetPropertyFunctionList (ctx, proto,
+      gumjs_stalker_special_iterator_entries,
+      G_N_ELEMENTS (gumjs_stalker_special_iterator_entries));
 
-  quick_push_c_function (ctx, gumjs_probe_args_construct, 0);
-  quick_push_object (ctx);
-  quick_push_c_function (ctx, gumjs_probe_args_finalize, 1);
-  quick_set_finalizer (ctx, -2);
-  quick_put_prop_string (ctx, -2, "prototype");
-  self->probe_args = _gum_quick_require_heapptr (ctx, -1);
-  quick_put_global_string (ctx, "ProbeArgs");
+  _gum_quick_create_class (ctx, &gumjs_probe_args_def, core,
+      &self->probe_args_class, &proto);
 
   self->cached_default_iterator = gum_quick_stalker_default_iterator_new (self);
   self->cached_default_iterator_in_use = FALSE;

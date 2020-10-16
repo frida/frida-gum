@@ -49,15 +49,13 @@ _gum_quick_cmodule_init (GumQuickCModule * self,
 
   _gum_quick_core_store_module_data (core, "cmodule", self);
 
-  JS_NewClassID (&self->cmodule_class);
-  JS_NewClass (core->rt, self->cmodule_class, &gumjs_cmodule_def);
+  _gum_quick_create_class (ctx, &gumjs_cmodule_def, core, &self->cmodule_class,
+      &proto);
   ctor = JS_NewCFunction2 (ctx, gumjs_cmodule_construct,
       gumjs_cmodule_def.class_name, 0, JS_CFUNC_constructor, 0);
-  proto = JS_NewObject (ctx);
+  JS_SetConstructor (ctx, ctor, proto);
   JS_SetPropertyFunctionList (ctx, proto, gumjs_cmodule_entries,
       G_N_ELEMENTS (gumjs_cmodule_entries));
-  JS_SetConstructor (ctx, ctor, proto);
-  JS_SetClassProto (ctx, self->cmodule_class, proto);
   JS_DefinePropertyValueStr (ctx, ns, gumjs_cmodule_def.class_name, ctor,
       JS_PROP_C_W_E);
 }

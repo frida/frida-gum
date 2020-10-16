@@ -98,17 +98,15 @@ _gum_quick_instruction_init (GumQuickInstruction * self,
 
   _gum_quick_core_store_module_data (core, "instruction", self);
 
-  JS_NewClassID (&self->instruction_class);
-  JS_NewClass (core->rt, self->instruction_class, &gumjs_instruction_def);
+  _gum_quick_create_class (ctx, &gumjs_instruction_def, core,
+      &self->instruction_class, &proto);
   ctor = JS_NewCFunction2 (ctx, gumjs_instruction_construct,
       gumjs_instruction_def.class_name, 0, JS_CFUNC_constructor, 0);
+  JS_SetConstructor (ctx, ctor, proto);
   JS_SetPropertyFunctionList (ctx, ctor, gumjs_instruction_module_entries,
       G_N_ELEMENTS (gumjs_instruction_module_entries));
-  proto = JS_NewObject (ctx);
   JS_SetPropertyFunctionList (ctx, proto, gumjs_instruction_entries,
       G_N_ELEMENTS (gumjs_instruction_entries));
-  JS_SetConstructor (ctx, ctor, proto);
-  JS_SetClassProto (ctx, self->instruction_class, proto);
   JS_DefinePropertyValueStr (ctx, ns, gumjs_instruction_def.class_name, ctor,
       JS_PROP_C_W_E);
 }

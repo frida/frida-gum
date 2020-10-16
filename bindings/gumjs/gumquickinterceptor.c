@@ -343,7 +343,6 @@ _gum_quick_interceptor_init (GumQuickInterceptor * self,
                              JSValue ns,
                              GumQuickCore * core)
 {
-  JSRuntime * rt = core->rt;
   JSContext * ctx = core->ctx;
   JSValue obj, proto;
 
@@ -364,29 +363,22 @@ _gum_quick_interceptor_init (GumQuickInterceptor * self,
       G_N_ELEMENTS (gumjs_interceptor_entries));
   JS_DefinePropertyValueStr (ctx, ns, "Interceptor", obj, JS_PROP_C_W_E);
 
-  JS_NewClassID (&self->invocation_listener_class);
-  JS_NewClass (rt, self->invocation_listener_class,
-      &gumjs_invocation_listener_def);
-  proto = JS_NewObject (ctx);
+  _gum_quick_create_class (ctx, &gumjs_invocation_listener_def, core,
+      &self->invocation_listener_class, &proto);
   JS_SetPropertyFunctionList (ctx, proto, gumjs_invocation_listener_entries,
       G_N_ELEMENTS (gumjs_invocation_listener_entries));
-  JS_SetClassProto (ctx, self->invocation_listener_class, proto);
 
-  JS_NewClassID (&self->invocation_context_class);
-  JS_NewClass (rt, self->invocation_context_class,
-      &gumjs_invocation_context_def);
-  proto = JS_NewObject (ctx);
+  _gum_quick_create_class (ctx, &gumjs_invocation_context_def, core,
+      &self->invocation_context_class, &proto);
   JS_SetPropertyFunctionList (ctx, proto, gumjs_invocation_context_entries,
       G_N_ELEMENTS (gumjs_invocation_context_entries));
-  JS_SetClassProto (ctx, self->invocation_context_class, proto);
 
-  JS_NewClassID (&self->invocation_args_class);
-  JS_NewClass (rt, self->invocation_args_class, &gumjs_invocation_args_def);
-  proto = JS_NewObject (ctx);
-  JS_SetClassProto (ctx, self->invocation_args_class, proto);
+  _gum_quick_create_class (ctx, &gumjs_invocation_args_def, core,
+      &self->invocation_args_class, &proto);
 
-  _gum_quick_core_create_native_pointer_subclass (core,
-      &gumjs_invocation_retval_def, &self->invocation_retval_class, &proto);
+  _gum_quick_create_subclass (ctx, &gumjs_invocation_retval_def,
+      core->native_pointer_class, core->native_pointer_proto, core,
+      &self->invocation_retval_class, &proto);
   JS_SetPropertyFunctionList (ctx, proto, gumjs_invocation_retval_entries,
       G_N_ELEMENTS (gumjs_invocation_retval_entries));
 

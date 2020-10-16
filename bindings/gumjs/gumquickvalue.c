@@ -1130,21 +1130,14 @@ _gum_quick_native_pointer_unwrap (JSContext * ctx,
                                   GumQuickCore * core,
                                   GumQuickNativePointer ** instance)
 {
-  GumQuickNativePointer * p;
-  JSClassID class_id;
-
-  p = JS_GetAnyOpaque (val, &class_id);
-  if (p == NULL || !_gum_quick_core_is_native_pointer (core, class_id))
-    goto expected_pointer;
-
-  *instance = p;
-  return TRUE;
-
-expected_pointer:
+  if (!_gum_quick_try_unwrap (val, core->native_pointer_class, core,
+      (gpointer *) instance))
   {
     _gum_quick_throw_literal (ctx, "expected a pointer");
     return FALSE;
   }
+
+  return TRUE;
 }
 
 gboolean
@@ -1170,10 +1163,9 @@ _gum_quick_native_pointer_try_get (JSContext * ctx,
 {
   gboolean success = FALSE;
   GumQuickNativePointer * p;
-  JSClassID class_id;
 
-  p = JS_GetAnyOpaque (val, &class_id);
-  if (p != NULL && _gum_quick_core_is_native_pointer (core, class_id))
+  if (_gum_quick_try_unwrap (val, core->native_pointer_class, core,
+      (gpointer *) &p))
   {
     *ptr = p->value;
     success = TRUE;
@@ -1185,8 +1177,8 @@ _gum_quick_native_pointer_try_get (JSContext * ctx,
     handle = JS_GetProperty (ctx, val, GUM_QUICK_CORE_ATOM (core, handle));
     if (!JS_IsException (val))
     {
-      p = JS_GetAnyOpaque (handle, &class_id);
-      if (p != NULL && _gum_quick_core_is_native_pointer (core, class_id))
+      if (_gum_quick_try_unwrap (handle, core->native_pointer_class, core,
+          (gpointer *) &p))
       {
         *ptr = p->value;
         success = TRUE;
@@ -1662,6 +1654,80 @@ _gum_quick_maybe_call_on_complete (JSContext * ctx,
   JS_FreeValue (ctx, val);
 
   return JS_UNDEFINED;
+}
+
+gboolean
+_gum_quick_try_unwrap (JSValue val,
+                       JSClassID klass,
+                       GumQuickCore * core,
+                       gpointer * instance)
+{
+  gpointer result;
+  JSClassID concrete_class;
+
+  result = JS_GetAnyOpaque (val, &concrete_class);
+  if (concrete_class == 0)
+    return FALSE;
+
+  if (concrete_class != klass)
+  {
+    JSClassID base_class = GPOINTER_TO_SIZE (
+        g_hash_table_lookup (core->classes, GSIZE_TO_POINTER (concrete_class)));
+    if (base_class != klass)
+      return FALSE;
+  }
+
+  *instance = result;
+  return TRUE;
+}
+
+void
+_gum_quick_create_class (JSContext * ctx,
+                         const JSClassDef * def,
+                         GumQuickCore * core,
+                         JSClassID * klass,
+                         JSValue * prototype)
+{
+  JSClassID id;
+  JSValue proto;
+
+  id = 0;
+  JS_NewClassID (&id);
+
+  JS_NewClass (core->rt, id, def);
+
+  proto = JS_NewObject (ctx);
+  JS_SetClassProto (ctx, id, proto);
+
+  *klass = id;
+  *prototype = proto;
+}
+
+void
+_gum_quick_create_subclass (JSContext * ctx,
+                            const JSClassDef * def,
+                            JSClassID parent_class,
+                            JSValue parent_prototype,
+                            GumQuickCore * core,
+                            JSClassID * klass,
+                            JSValue * prototype)
+{
+  JSClassID id;
+  JSValue proto;
+
+  id = 0;
+  JS_NewClassID (&id);
+
+  JS_NewClass (core->rt, id, def);
+
+  proto = JS_NewObjectProto (ctx, parent_prototype);
+  JS_SetClassProto (ctx, id, proto);
+
+  g_hash_table_insert (core->classes, GSIZE_TO_POINTER (id),
+      GSIZE_TO_POINTER (parent_class));
+
+  *klass = id;
+  *prototype = proto;
 }
 
 JSValue

@@ -99,7 +99,6 @@ _gum_quick_module_init (GumQuickModule * self,
                         JSValue ns,
                         GumQuickCore * core)
 {
-  JSRuntime * rt = core->rt;
   JSContext * ctx = core->ctx;
   JSValue ctor, proto;
 
@@ -107,27 +106,23 @@ _gum_quick_module_init (GumQuickModule * self,
 
   _gum_quick_core_store_module_data (core, "module", self);
 
-  JS_NewClassID (&self->module_class);
-  JS_NewClass (rt, self->module_class, &gumjs_module_def);
+  _gum_quick_create_class (ctx, &gumjs_module_def, core, &self->module_class,
+      &proto);
   ctor = JS_NewCFunction2 (ctx, gumjs_module_construct,
       gumjs_module_def.class_name, 0, JS_CFUNC_constructor, 0);
+  JS_SetConstructor (ctx, ctor, proto);
   JS_SetPropertyFunctionList (ctx, ctor, gumjs_module_entries,
       G_N_ELEMENTS (gumjs_module_entries));
-  proto = JS_NewObject (ctx);
-  JS_SetConstructor (ctx, ctor, proto);
-  JS_SetClassProto (ctx, self->module_class, proto);
   JS_DefinePropertyValueStr (ctx, ns, gumjs_module_def.class_name, ctor,
       JS_PROP_C_W_E);
 
-  JS_NewClassID (&self->module_map_class);
-  JS_NewClass (rt, self->module_map_class, &gumjs_module_map_def);
+  _gum_quick_create_class (ctx, &gumjs_module_map_def, core,
+      &self->module_map_class, &proto);
   ctor = JS_NewCFunction2 (ctx, gumjs_module_map_construct,
       gumjs_module_map_def.class_name, 0, JS_CFUNC_constructor, 0);
-  proto = JS_NewObject (ctx);
+  JS_SetConstructor (ctx, ctor, proto);
   JS_SetPropertyFunctionList (ctx, proto, gumjs_module_map_entries,
       G_N_ELEMENTS (gumjs_module_map_entries));
-  JS_SetConstructor (ctx, ctor, proto);
-  JS_SetClassProto (ctx, self->module_map_class, proto);
   JS_DefinePropertyValueStr (ctx, ns, gumjs_module_map_def.class_name, ctor,
       JS_PROP_C_W_E);
 }

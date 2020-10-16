@@ -81,17 +81,15 @@ _gum_quick_symbol_init (GumQuickSymbol * self,
 
   _gum_quick_core_store_module_data (core, "debug-symbol", self);
 
-  JS_NewClassID (&self->symbol_class);
-  JS_NewClass (core->rt, self->symbol_class, &gumjs_symbol_def);
+  _gum_quick_create_class (ctx, &gumjs_symbol_def, core, &self->symbol_class,
+      &proto);
   ctor = JS_NewCFunction2 (ctx, gumjs_symbol_construct,
       gumjs_symbol_def.class_name, 0, JS_CFUNC_constructor, 0);
+  JS_SetConstructor (ctx, ctor, proto);
   JS_SetPropertyFunctionList (ctx, ctor, gumjs_symbol_module_entries,
       G_N_ELEMENTS (gumjs_symbol_module_entries));
-  proto = JS_NewObject (ctx);
   JS_SetPropertyFunctionList (ctx, proto, gumjs_symbol_entries,
       G_N_ELEMENTS (gumjs_symbol_entries));
-  JS_SetConstructor (ctx, ctor, proto);
-  JS_SetClassProto (ctx, self->symbol_class, proto);
   JS_DefinePropertyValueStr (ctx, ns, gumjs_symbol_def.class_name, ctor,
       JS_PROP_C_W_E);
 }

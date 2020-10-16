@@ -144,6 +144,15 @@ G_GNUC_INTERNAL gboolean _gum_quick_process_match_result (JSContext * ctx,
 G_GNUC_INTERNAL JSValue _gum_quick_maybe_call_on_complete (JSContext * ctx,
     GumQuickMatchResult match_result, JSValue on_complete);
 
+G_GNUC_INTERNAL gboolean _gum_quick_try_unwrap (JSValue val, JSClassID klass,
+    GumQuickCore * core, gpointer * instance);
+G_GNUC_INTERNAL void _gum_quick_create_class (JSContext * ctx,
+    const JSClassDef * def, GumQuickCore * core, JSClassID * klass,
+    JSValue * prototype);
+G_GNUC_INTERNAL void _gum_quick_create_subclass (JSContext * ctx,
+    const JSClassDef * def, JSClassID parent_class, JSValue parent_prototype,
+    GumQuickCore * core, JSClassID * klass, JSValue * prototype);
+
 G_GNUC_INTERNAL JSValue _gum_quick_throw (JSContext * ctx, const gchar * format,
     ...);
 G_GNUC_INTERNAL JSValue _gum_quick_throw_literal (JSContext * ctx,

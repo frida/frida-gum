@@ -529,15 +529,13 @@ G_GNUC_INTERNAL void _gum_quick_{flavor}_{name}_reset ({wrapper_struct_name} * s
 
 def generate_quick_init_code(component):
     return """\
-  JS_NewClassID (&self->{gumjs_field_name}_class);
-  JS_NewClass (core->rt, self->{gumjs_field_name}_class, &{gumjs_function_prefix}_def);
+  _gum_quick_create_class (ctx, &{gumjs_function_prefix}_def, core,
+      &self->{gumjs_field_name}_class, &proto);
   ctor = JS_NewCFunction2 (ctx, {gumjs_function_prefix}_construct,
       {gumjs_function_prefix}_def.class_name, 0, JS_CFUNC_constructor, 0);
-  proto = JS_NewObject (ctx);
+  JS_SetConstructor (ctx, ctor, proto);
   JS_SetPropertyFunctionList (ctx, proto, {gumjs_function_prefix}_entries,
       G_N_ELEMENTS ({gumjs_function_prefix}_entries));
-  JS_SetConstructor (ctx, ctor, proto);
-  JS_SetClassProto (ctx, self->{gumjs_field_name}_class, proto);
   JS_DefinePropertyValueStr (ctx, ns, {gumjs_function_prefix}_def.class_name, ctor,
       JS_PROP_C_W_E);
 """.format(**component.__dict__)

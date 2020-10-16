@@ -229,7 +229,6 @@ _gum_quick_memory_init (GumQuickMemory * self,
                         JSValue ns,
                         GumQuickCore * core)
 {
-  JSRuntime * rt = core->rt;
   JSContext * ctx = core->ctx;
   JSValue obj, proto;
 
@@ -250,13 +249,10 @@ _gum_quick_memory_init (GumQuickMemory * self,
   JS_DefinePropertyValueStr (ctx, ns, "MemoryAccessMonitor", obj,
       JS_PROP_C_W_E);
 
-  JS_NewClassID (&self->memory_access_details_class);
-  JS_NewClass (rt, self->memory_access_details_class,
-      &gumjs_memory_access_details_def);
-  proto = JS_NewObject (ctx);
+  _gum_quick_create_class (ctx, &gumjs_memory_access_details_def, core,
+      &self->memory_access_details_class, &proto);
   JS_SetPropertyFunctionList (ctx, proto, gumjs_memory_access_details_entries,
       G_N_ELEMENTS (gumjs_memory_access_details_entries));
-  JS_SetClassProto (ctx, self->memory_access_details_class, proto);
 }
 
 void
