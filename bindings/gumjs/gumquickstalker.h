@@ -12,6 +12,10 @@
 
 G_BEGIN_DECLS
 
+typedef struct _GumQuickStalkerDefaultIterator GumQuickStalkerDefaultIterator;
+typedef struct _GumQuickStalkerSpecialIterator GumQuickStalkerSpecialIterator;
+typedef struct _GumQuickProbeArgs GumQuickProbeArgs;
+
 struct _GumQuickStalker
 {
   GumQuickCodeWriter * writer;
@@ -21,6 +25,27 @@ struct _GumQuickStalker
   GumStalker * stalker;
   guint queue_capacity;
   guint queue_drain_interval;
+
+  GSource * flush_timer;
+
+  JSClassID default_iterator_class;
+  JSClassID special_iterator_class;
+  JSClassID probe_args_class;
+
+  GumQuickStalkerDefaultIterator * cached_default_iterator;
+  gboolean cached_default_iterator_in_use;
+
+  GumQuickStalkerSpecialIterator * cached_special_iterator;
+  gboolean cached_special_iterator_in_use;
+
+  GumQuickInstructionValue * cached_instruction;
+  gboolean cached_instruction_in_use;
+
+  GumQuickCpuContext * cached_cpu_context;
+  gboolean cached_cpu_context_in_use;
+
+  GumQuickProbeArgs * cached_probe_args;
+  gboolean cached_probe_args_in_use;
 };
 
 G_GNUC_INTERNAL void _gum_quick_stalker_init (GumQuickStalker * self,

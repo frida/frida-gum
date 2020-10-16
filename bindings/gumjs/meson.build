@@ -44,6 +44,7 @@ if have_quickjs
     'gumquickfile.c',
     'gumquickinterceptor.c',
     'gumquickstalker.c',
+    'gumquickeventsink.c',
     'gumquickapiresolver.c',
     'gumquicksymbol.c',
     'gumquickcmodule.c',
