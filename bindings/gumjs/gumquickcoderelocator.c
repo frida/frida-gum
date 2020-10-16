@@ -34,6 +34,8 @@ _gum_quick_code_relocator_init (GumQuickCodeRelocator * self,
 void
 _gum_quick_code_relocator_dispose (GumQuickCodeRelocator * self)
 {
+  JSContext * ctx = self->core->ctx;
+
 #include "gumquickcoderelocator-dispose.inc"
 }
 

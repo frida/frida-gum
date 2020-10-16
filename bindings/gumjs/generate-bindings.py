@@ -121,7 +121,7 @@ def generate_alias_definitions(alias, runtime, name, flavor):
     params = {
         "name_uppercase": name.upper(),
         "alias_class_name": to_camel_case("{0}_{1}".format(flavor, name), start_high=True),
-        "alias_field_name": "{0}_{1}".format(flavor, name),
+        "alias_field_prefix": "{0}_{1}".format(flavor, name),
         "alias_struct_name": to_camel_case(alias_function_prefix, start_high=True),
         "alias_function_prefix": alias_function_prefix,
         "wrapper_macro_prefix": "GUM_{0}_{1}_{2}".format(runtime.upper(), alias.upper(), name.upper()),
@@ -133,7 +133,7 @@ def generate_alias_definitions(alias, runtime, name, flavor):
 
     return """
 #define {wrapper_macro_prefix}_CLASS_NAME "{alias_class_name}"
-#define {wrapper_macro_prefix}_FIELD {alias_field_name}
+#define {wrapper_macro_prefix}_FIELD {alias_field_prefix}
 
 typedef {wrapper_struct_name} {alias_struct_name};
 typedef {impl_struct_name} {alias_struct_name}Impl;
@@ -493,7 +493,8 @@ def generate_quick_parse_register_array_element(component):
     }}""".format(arch=component.arch, register_type=component.register_type)
 
 def generate_quick_fields(component):
-    return "  JSClassID {0}_{1}_class;".format(component.flavor, component.name)
+    return """  JSClassID {flavor}_{name}_class;
+JSValue {flavor}_{name}_proto;""".format(**component.__dict__)
 
 def generate_quick_methods(component):
     params = dict(component.__dict__)
@@ -530,7 +531,8 @@ G_GNUC_INTERNAL void _gum_quick_{flavor}_{name}_reset ({wrapper_struct_name} * s
 def generate_quick_init_code(component):
     return """\
   _gum_quick_create_class (ctx, &{gumjs_function_prefix}_def, core,
-      &self->{gumjs_field_name}_class, &proto);
+      &self->{gumjs_field_prefix}_class, &proto);
+  self->{gumjs_field_prefix}_proto = JS_DupValue (ctx, proto);
   ctor = JS_NewCFunction2 (ctx, {gumjs_function_prefix}_construct,
       {gumjs_function_prefix}_def.class_name, 0, JS_CFUNC_constructor, 0);
   JS_SetConstructor (ctx, ctor, proto);
@@ -541,7 +543,10 @@ def generate_quick_init_code(component):
 """.format(**component.__dict__)
 
 def generate_quick_dispose_code(component):
-    return ""
+    return """\
+  JS_FreeValue (ctx, self->{gumjs_field_prefix}_proto);
+  self->{gumjs_field_prefix}_proto = JS_NULL;
+""".format(**component.__dict__)
 
 def generate_quick_base_methods(component):
     if component.name == "writer":
@@ -1541,13 +1546,13 @@ def generate_duk_init_code(component):
   duk_push_c_function (ctx, {gumjs_function_prefix}_finalize, 1);
   duk_set_finalizer (ctx, -2);
   duk_put_prop_string (ctx, -2, "prototype");
-  self->{gumjs_field_name} = _gum_duk_require_heapptr (ctx, -1);
+  self->{gumjs_field_prefix} = _gum_duk_require_heapptr (ctx, -1);
   duk_put_global_string (ctx, "{gumjs_class_name}");
 """.format(**component.__dict__)
 
 def generate_duk_dispose_code(component):
     return """\
-  _gum_duk_release_heapptr (scope.ctx, self->{gumjs_field_name});
+  _gum_duk_release_heapptr (scope.ctx, self->{gumjs_field_prefix});
 """.format(**component.__dict__)
 
 def generate_duk_base_methods(component):
@@ -3957,7 +3962,7 @@ class Component(object):
         self.impl_struct_name = to_camel_case("gum_{0}_{1}".format(flavor, name), start_high=True)
         self.impl_function_prefix = "gum_{0}_{1}".format(flavor, name)
         self.gumjs_class_name = flavor.title() + name.title()
-        self.gumjs_field_name = "{0}_{1}".format(flavor, name)
+        self.gumjs_field_prefix = "{0}_{1}".format(flavor, name)
         self.gumjs_function_prefix = "gumjs_{0}_{1}".format(flavor, name)
         self.module_struct_name = to_camel_case("gum_{0}_code_{1}".format(namespace, name), start_high=True)
         self.register_type = "GumCpuReg" if arch == "x86" else arch + "_reg"

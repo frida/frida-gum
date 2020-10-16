@@ -30,6 +30,8 @@ _gum_quick_code_writer_init (GumQuickCodeWriter * self,
 void
 _gum_quick_code_writer_dispose (GumQuickCodeWriter * self)
 {
+  JSContext * ctx = self->core->ctx;
+
 #include "gumquickcodewriter-dispose.inc"
 }
 

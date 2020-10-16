@@ -15,24 +15,25 @@
     ((GumQuickCallbackTransformer *) (obj))
 
 typedef struct _GumQuickCallbackTransformer GumQuickCallbackTransformer;
-typedef struct _GumQuickCallbackTransformerClass GumQuickCallbackTransformerClass;
+typedef struct _GumQuickCallbackTransformerClass
+    GumQuickCallbackTransformerClass;
 typedef struct _GumQuickStalkerIterator GumQuickStalkerIterator;
 typedef struct _GumQuickCallout GumQuickCallout;
 typedef struct _GumQuickCallProbe GumQuickCallProbe;
 
 struct _GumQuickCallbackTransformer
 {
-  GObject parent;
+  GObject object;
 
   GumThreadId thread_id;
   JSValue callback;
 
-  GumQuickStalker * module;
+  GumQuickStalker * parent;
 };
 
 struct _GumQuickCallbackTransformerClass
 {
-  GObjectClass parent_class;
+  GObjectClass object_class;
 };
 
 struct _GumQuickStalkerIterator
@@ -40,18 +41,18 @@ struct _GumQuickStalkerIterator
   GumStalkerIterator * handle;
   GumQuickInstructionValue * instruction;
 
-  GumQuickStalker * module;
+  GumQuickStalker * parent;
 };
 
 struct _GumQuickStalkerDefaultIterator
 {
-  GumQuickDefaultWriter parent;
+  GumQuickDefaultWriter writer;
   GumQuickStalkerIterator iterator;
 };
 
 struct _GumQuickStalkerSpecialIterator
 {
-  GumQuickSpecialWriter parent;
+  GumQuickSpecialWriter writer;
   GumQuickStalkerIterator iterator;
 };
 
@@ -59,22 +60,20 @@ struct _GumQuickCallout
 {
   JSValue callback;
 
-  GumQuickStalker * module;
+  GumQuickStalker * parent;
 };
 
 struct _GumQuickCallProbe
 {
   JSValue callback;
 
-  GumQuickStalker * module;
+  GumQuickStalker * parent;
 };
 
 struct _GumQuickProbeArgs
 {
-  JSValue object;
+  JSValue wrapper;
   GumCallSite * site;
-
-  GumQuickCore * core;
 };
 
 static gboolean gum_quick_stalker_on_flush_timer_tick (GumQuickStalker * self);
@@ -107,10 +106,8 @@ G_DEFINE_TYPE_EXTENDED (GumQuickCallbackTransformer,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_STALKER_TRANSFORMER,
                             gum_quick_callback_transformer_iface_init))
 
-static GumQuickStalkerDefaultIterator * gum_quick_stalker_default_iterator_new (
-    GumQuickStalker * parent);
-static void gum_quick_stalker_default_iterator_release (
-    GumQuickStalkerDefaultIterator * self);
+static JSValue gum_quick_stalker_default_iterator_new (GumQuickStalker * parent,
+    GumQuickStalkerDefaultIterator ** iterator);
 static void gum_quick_stalker_default_iterator_reset (
     GumQuickStalkerDefaultIterator * self, GumStalkerIterator * handle,
     GumStalkerOutput * output);
@@ -120,10 +117,8 @@ GUMJS_DECLARE_FUNCTION (gumjs_stalker_default_iterator_next)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_default_iterator_keep)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_default_iterator_put_callout)
 
-static GumQuickStalkerSpecialIterator * gum_quick_stalker_special_iterator_new (
-    GumQuickStalker * parent);
-static void gum_quick_stalker_special_iterator_release (
-    GumQuickStalkerSpecialIterator * self);
+static JSValue gum_quick_stalker_special_iterator_new (GumQuickStalker * parent,
+    GumQuickStalkerSpecialIterator ** iterator);
 static void gum_quick_stalker_special_iterator_reset (
     GumQuickStalkerSpecialIterator * self, GumStalkerIterator * handle,
     GumStalkerOutput * output);
@@ -141,8 +136,8 @@ static void gum_quick_call_probe_free (GumQuickCallProbe * probe);
 static void gum_quick_call_probe_on_fire (GumCallSite * site,
     GumQuickCallProbe * self);
 
-static GumQuickProbeArgs * gum_quick_probe_args_new (GumQuickStalker * parent);
-static void gum_quick_probe_args_release (GumQuickProbeArgs * self);
+static JSValue gum_quick_probe_args_new (GumQuickStalker * parent,
+    GumQuickProbeArgs ** args);
 static void gum_quick_probe_args_reset (GumQuickProbeArgs * self,
     GumCallSite * site);
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_probe_args_construct)
@@ -204,10 +199,22 @@ static const JSCFunctionListEntry gumjs_stalker_default_iterator_entries[] = {
   JS_CFUNC_DEF ("putCallout", 0, gumjs_stalker_default_iterator_put_callout),
 };
 
+static const JSClassDef gumjs_stalker_special_iterator_def =
+{
+  .class_name = "StalkerSpecialIterator",
+  .finalizer = gumjs_stalker_special_iterator_finalize,
+};
+
 static const JSCFunctionListEntry gumjs_stalker_special_iterator_entries[] = {
   JS_CFUNC_DEF ("next", 0, gumjs_stalker_special_iterator_next),
   JS_CFUNC_DEF ("keep", 0, gumjs_stalker_special_iterator_keep),
   JS_CFUNC_DEF ("putCallout", 0, gumjs_stalker_special_iterator_put_callout),
+};
+
+static const JSClassDef gumjs_probe_args_def =
+{
+  .class_name = "ProbeArgs",
+  .finalizer = gumjs_probe_args_finalize,
 };
 
 void
@@ -238,14 +245,16 @@ _gum_quick_stalker_init (GumQuickStalker * self,
   JS_DefinePropertyValueStr (ctx, ns, "Stalker", obj, JS_PROP_C_W_E);
 
   _gum_quick_create_subclass (ctx, &gumjs_stalker_default_iterator_def,
-      writer->default_writer_class, writer->default_writer_proto, core,
+      writer->G_PASTE (GUM_QUICK_DEFAULT_WRITER_FIELD, _class),
+      writer->G_PASTE (GUM_QUICK_DEFAULT_WRITER_FIELD, _proto), core,
       &self->default_iterator_class, &proto);
   JS_SetPropertyFunctionList (ctx, proto,
       gumjs_stalker_default_iterator_entries,
       G_N_ELEMENTS (gumjs_stalker_default_iterator_entries));
 
   _gum_quick_create_subclass (ctx, &gumjs_stalker_special_iterator_def,
-      writer->special_writer_class, writer->special_writer_proto, core,
+      writer->G_PASTE (GUM_QUICK_SPECIAL_WRITER_FIELD, _class),
+      writer->G_PASTE (GUM_QUICK_SPECIAL_WRITER_FIELD, _proto), core,
       &self->special_iterator_class, &proto);
   JS_SetPropertyFunctionList (ctx, proto,
       gumjs_stalker_special_iterator_entries,
@@ -254,19 +263,21 @@ _gum_quick_stalker_init (GumQuickStalker * self,
   _gum_quick_create_class (ctx, &gumjs_probe_args_def, core,
       &self->probe_args_class, &proto);
 
-  self->cached_default_iterator = gum_quick_stalker_default_iterator_new (self);
+  gum_quick_stalker_default_iterator_new (self, &self->cached_default_iterator);
   self->cached_default_iterator_in_use = FALSE;
 
-  self->cached_special_iterator = gum_quick_stalker_special_iterator_new (self);
+  gum_quick_stalker_special_iterator_new (self, &self->cached_special_iterator);
   self->cached_special_iterator_in_use = FALSE;
 
-  self->cached_instruction = _gum_quick_instruction_new (instruction);
+  _gum_quick_instruction_new (ctx, NULL, TRUE, NULL, 0, instruction,
+      &self->cached_instruction);
   self->cached_instruction_in_use = FALSE;
 
-  self->cached_cpu_context = _gum_quick_cpu_context_new (core);
+  _gum_quick_cpu_context_new (ctx, NULL, GUM_CPU_CONTEXT_READWRITE, core,
+      &self->cached_cpu_context);
   self->cached_cpu_context_in_use = FALSE;
 
-  self->cached_probe_args = gum_quick_probe_args_new (self);
+  gum_quick_probe_args_new (self, &self->cached_probe_args);
   self->cached_probe_args_in_use = FALSE;
 }
 
@@ -339,20 +350,15 @@ gum_quick_stalker_on_flush_timer_tick (GumQuickStalker * self)
 void
 _gum_quick_stalker_dispose (GumQuickStalker * self)
 {
-  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (self->core);
-  JSContext * ctx = scope.ctx;
+  JSContext * ctx = self->core->ctx;
 
   g_assert (self->flush_timer == NULL);
 
-  gum_quick_probe_args_release (self->cached_probe_args);
-  _gum_quick_cpu_context_release (self->cached_cpu_context);
-  _gum_quick_instruction_release (self->cached_instruction);
-  gum_quick_stalker_special_iterator_release (self->cached_special_iterator);
-  gum_quick_stalker_default_iterator_release (self->cached_default_iterator);
-
-  _gum_quick_release_heapptr (ctx, self->probe_args);
-  _gum_quick_release_heapptr (ctx, self->special_iterator);
-  _gum_quick_release_heapptr (ctx, self->default_iterator);
+  JS_FreeValue (ctx, self->cached_probe_args->wrapper);
+  JS_FreeValue (ctx, self->cached_cpu_context->wrapper);
+  JS_FreeValue (ctx, self->cached_instruction->wrapper);
+  JS_FreeValue (ctx, self->cached_special_iterator->writer.wrapper);
+  JS_FreeValue (ctx, self->cached_default_iterator->writer.wrapper);
 }
 
 void
@@ -389,17 +395,17 @@ _gum_quick_stalker_process_pending (GumQuickStalker * self,
 }
 
 static GumQuickStalker *
-gumjs_module_from_args (const GumQuickArgs * args)
+gumjs_get_parent_module (GumQuickCore * core)
 {
-  return _gum_quick_load_module_data (args->ctx, "stalker");
+  return _gum_quick_core_load_module_data (core, "stalker");
 }
 
 GUMJS_DEFINE_GETTER (gumjs_stalker_get_trust_threshold)
 {
-  GumStalker * stalker = _gum_quick_stalker_get (gumjs_module_from_args (args));
+  GumStalker * stalker =
+      _gum_quick_stalker_get (gumjs_get_parent_module (core));
 
-  quick_push_number (ctx, gum_stalker_get_trust_threshold (stalker));
-  return 1;
+  return JS_NewInt32 (ctx, gum_stalker_get_trust_threshold (stalker));
 }
 
 GUMJS_DEFINE_SETTER (gumjs_stalker_set_trust_threshold)
@@ -407,9 +413,9 @@ GUMJS_DEFINE_SETTER (gumjs_stalker_set_trust_threshold)
   GumStalker * stalker;
   gint threshold;
 
-  stalker = _gum_quick_stalker_get (gumjs_module_from_args (args));
+  stalker = _gum_quick_stalker_get (gumjs_get_parent_module (core));
 
-  if (!_gum_quick_args_parse (args, "i", &threshold))
+  if (!_gum_quick_int_get (ctx, val, &threshold))
     return JS_EXCEPTION;
 
   gum_stalker_set_trust_threshold (stalker, threshold);
@@ -419,17 +425,16 @@ GUMJS_DEFINE_SETTER (gumjs_stalker_set_trust_threshold)
 
 GUMJS_DEFINE_GETTER (gumjs_stalker_get_queue_capacity)
 {
-  GumQuickStalker * self = gumjs_module_from_args (args);
+  GumQuickStalker * self = gumjs_get_parent_module (core);
 
-  quick_push_number (ctx, self->queue_capacity);
-  return 1;
+  return JS_NewInt32 (ctx, self->queue_capacity);
 }
 
 GUMJS_DEFINE_SETTER (gumjs_stalker_set_queue_capacity)
 {
-  GumQuickStalker * self = gumjs_module_from_args (args);
+  GumQuickStalker * self = gumjs_get_parent_module (core);
 
-  if (!_gum_quick_args_parse (args, "u", &self->queue_capacity))
+  if (!_gum_quick_uint_get (ctx, val, &self->queue_capacity))
     return JS_EXCEPTION;
 
   return JS_UNDEFINED;
@@ -437,16 +442,16 @@ GUMJS_DEFINE_SETTER (gumjs_stalker_set_queue_capacity)
 
 GUMJS_DEFINE_GETTER (gumjs_stalker_get_queue_drain_interval)
 {
-  GumQuickStalker * self = gumjs_module_from_args (args);
+  GumQuickStalker * self = gumjs_get_parent_module (core);
 
   return JS_NewInt32 (ctx, self->queue_drain_interval);
 }
 
 GUMJS_DEFINE_SETTER (gumjs_stalker_set_queue_drain_interval)
 {
-  GumQuickStalker * self = gumjs_module_from_args (args);
+  GumQuickStalker * self = gumjs_get_parent_module (core);
 
-  if (!_gum_quick_args_parse (args, "u", &self->queue_drain_interval))
+  if (!_gum_quick_uint_get (ctx, val, &self->queue_drain_interval))
     return JS_EXCEPTION;
 
   return JS_UNDEFINED;
@@ -454,34 +459,32 @@ GUMJS_DEFINE_SETTER (gumjs_stalker_set_queue_drain_interval)
 
 GUMJS_DEFINE_FUNCTION (gumjs_stalker_flush)
 {
-  GumStalker * stalker;
-
-  stalker = _gum_quick_stalker_get (gumjs_module_from_args (args));
+  GumStalker * stalker =
+      _gum_quick_stalker_get (gumjs_get_parent_module (core));
 
   gum_stalker_flush (stalker);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_stalker_garbage_collect)
 {
-  GumStalker * stalker;
-
-  stalker = _gum_quick_stalker_get (gumjs_module_from_args (args));
+  GumStalker * stalker =
+      _gum_quick_stalker_get (gumjs_get_parent_module (core));
 
   gum_stalker_garbage_collect (stalker);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_stalker_exclude)
 {
-  GumQuickStalker * module;
+  GumStalker * stalker;
   gpointer base;
   gsize size;
   GumMemoryRange range;
 
-  module = gumjs_module_from_args (args);
+  stalker = _gum_quick_stalker_get (gumjs_get_parent_module (core));
 
   if (!_gum_quick_args_parse (args, "pZ", &base, &size))
     return JS_EXCEPTION;
@@ -489,16 +492,15 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_exclude)
   range.base_address = GUM_ADDRESS (base);
   range.size = size;
 
-  gum_stalker_exclude (_gum_quick_stalker_get (module), &range);
+  gum_stalker_exclude (stalker, &range);
 
   return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
 {
-  GumQuickStalker * module;
+  GumQuickStalker * parent;
   GumStalker * stalker;
-  GumQuickCore * core;
   GumThreadId thread_id;
   JSValue transformer_callback_js;
   GumStalkerTransformerCallback transformer_callback_c;
@@ -507,14 +509,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
   GumStalkerTransformer * transformer;
   GumEventSink * sink;
 
-  module = gumjs_module_from_args (args);
-  stalker = _gum_quick_stalker_get (module);
-  core = module->core;
+  parent = gumjs_get_parent_module (core);
+  stalker = _gum_quick_stalker_get (parent);
 
   so.core = core;
   so.main_context = gum_script_scheduler_get_js_context (core->scheduler);
-  so.queue_capacity = module->queue_capacity;
-  so.queue_drain_interval = module->queue_drain_interval;
+  so.queue_capacity = parent->queue_capacity;
+  so.queue_drain_interval = parent->queue_drain_interval;
 
   if (!_gum_quick_args_parse (args, "ZF*?uF?F?pp", &thread_id,
       &transformer_callback_js, &transformer_callback_c, &so.event_mask,
@@ -523,15 +524,14 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
 
   so.user_data = user_data;
 
-  if (transformer_callback_js != NULL)
+  if (!JS_IsNull (transformer_callback_js))
   {
     GumQuickCallbackTransformer * cbt;
 
     cbt = g_object_new (GUM_QUICK_TYPE_CALLBACK_TRANSFORMER, NULL);
     cbt->thread_id = thread_id;
-    _gum_quick_protect (ctx, transformer_callback_js);
-    cbt->callback = transformer_callback_js;
-    cbt->module = module;
+    cbt->callback = JS_DupValue (ctx, transformer_callback_js);
+    cbt->parent = parent;
 
     transformer = GUM_STALKER_TRANSFORMER (cbt);
   }
@@ -565,17 +565,17 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
     g_clear_object (&transformer);
   }
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_stalker_unfollow)
 {
-  GumQuickStalker * module;
+  GumQuickStalker * parent;
   GumStalker * stalker;
   GumThreadId current_thread_id, thread_id;
 
-  module = gumjs_module_from_args (args);
-  stalker = _gum_quick_stalker_get (module);
+  parent = gumjs_get_parent_module (core);
+  stalker = _gum_quick_stalker_get (parent);
 
   current_thread_id = gum_process_get_current_thread_id ();
 
@@ -584,17 +584,17 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_unfollow)
     return JS_EXCEPTION;
 
   if (thread_id == current_thread_id)
-    module->core->current_scope->pending_stalker_level--;
+    parent->core->current_scope->pending_stalker_level--;
   else
     gum_stalker_unfollow (stalker, thread_id);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_stalker_add_call_probe)
 {
   GumProbeId id;
-  GumQuickStalker * module;
+  GumQuickStalker * parent;
   GumStalker * stalker;
   gpointer target_address;
   JSValue callback_js;
@@ -602,20 +602,19 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_add_call_probe)
   gpointer user_data;
   GumQuickCallProbe * probe;
 
-  module = gumjs_module_from_args (args);
-  stalker = _gum_quick_stalker_get (module);
+  parent = gumjs_get_parent_module (core);
+  stalker = _gum_quick_stalker_get (parent);
 
   user_data = NULL;
   if (!_gum_quick_args_parse (args, "pF*|p", &target_address, &callback_js,
       &callback_c, &user_data))
     return JS_EXCEPTION;
 
-  if (callback_js != NULL)
+  if (!JS_IsNull (callback_js))
   {
     probe = g_slice_new (GumQuickCallProbe);
-    _gum_quick_protect (ctx, callback_js);
-    probe->callback = callback_js;
-    probe->module = module;
+    probe->callback = JS_DupValue (ctx, callback_js);
+    probe->parent = parent;
 
     id = gum_stalker_add_call_probe (stalker, target_address,
         (GumCallProbeCallback) gum_quick_call_probe_on_fire, probe,
@@ -627,29 +626,27 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_add_call_probe)
         user_data, NULL);
   }
 
-  quick_push_uint (ctx, id);
-  return 1;
+  return JS_NewInt32 (ctx, id);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_stalker_remove_call_probe)
 {
-  GumQuickStalker * module;
+  GumQuickStalker * parent;
   GumProbeId id;
 
-  module = gumjs_module_from_args (args);
+  parent = gumjs_get_parent_module (core);
 
   if (!_gum_quick_args_parse (args, "u", &id))
     return JS_EXCEPTION;
 
-  gum_stalker_remove_call_probe (_gum_quick_stalker_get (module), id);
+  gum_stalker_remove_call_probe (_gum_quick_stalker_get (parent), id);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_stalker_parse)
 {
-  GumQuickStalker * module;
-  GumQuickCore * core;
+  GumQuickStalker * parent;
   JSValue events_value;
   gboolean annotate, stringify;
   const GumEvent * events;
@@ -657,8 +654,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_parse)
   quick_uarridx_t row_index;
   const GumEvent * ev;
 
-  module = gumjs_module_from_args (args);
-  core = module->core;
+  parent = gumjs_get_parent_module (core);
 
   if (!_gum_quick_args_parse (args, "Vtt", &events_value, &annotate,
       &stringify))
@@ -795,7 +791,7 @@ gum_quick_callback_transformer_transform_block (
 {
   GumQuickCallbackTransformer * self =
       GUM_QUICK_CALLBACK_TRANSFORMER_CAST (transformer);
-  GumQuickStalker * module = self->module;
+  GumQuickStalker * parent = self->parent;
   gint saved_system_error;
   JSContext * ctx;
   GumQuickScope scope;
@@ -806,17 +802,17 @@ gum_quick_callback_transformer_transform_block (
 
   saved_system_error = gum_thread_get_system_error ();
 
-  ctx = _gum_quick_scope_enter (&scope, module->core);
+  ctx = _gum_quick_scope_enter (&scope, parent->core);
 
   if (output->encoding == GUM_INSTRUCTION_DEFAULT)
   {
-    default_iter = gum_quick_stalker_obtain_default_iterator (module);
+    default_iter = gum_quick_stalker_obtain_default_iterator (parent);
     gum_quick_stalker_default_iterator_reset (default_iter, iterator, output);
     iter_object = default_iter->parent.object;
   }
   else
   {
-    special_iter = gum_quick_stalker_obtain_special_iterator (module);
+    special_iter = gum_quick_stalker_obtain_special_iterator (parent);
     gum_quick_stalker_special_iterator_reset (special_iter, iterator, output);
     iter_object = special_iter->parent.object;
   }
@@ -829,18 +825,18 @@ gum_quick_callback_transformer_transform_block (
   if (default_iter != NULL)
   {
     gum_quick_stalker_default_iterator_reset (default_iter, NULL, NULL);
-    gum_quick_stalker_release_default_iterator (module, default_iter);
+    gum_quick_stalker_release_default_iterator (parent, default_iter);
   }
   else
   {
     gum_quick_stalker_special_iterator_reset (special_iter, NULL, NULL);
-    gum_quick_stalker_release_special_iterator (module, special_iter);
+    gum_quick_stalker_release_special_iterator (parent, special_iter);
   }
 
   _gum_quick_scope_leave (&scope);
 
   if (transform_threw_an_exception)
-    gum_stalker_unfollow (module->stalker, self->thread_id);
+    gum_stalker_unfollow (parent->stalker, self->thread_id);
 
   gum_thread_set_system_error (saved_system_error);
 }
@@ -871,7 +867,7 @@ static void
 gum_quick_callback_transformer_dispose (GObject * object)
 {
   GumQuickCallbackTransformer * self = GUM_QUICK_CALLBACK_TRANSFORMER_CAST (object);
-  GumQuickCore * core = self->module->core;
+  GumQuickCore * core = self->parent->core;
   GumQuickScope scope;
   JSContext * ctx;
 
@@ -890,63 +886,61 @@ gum_quick_callback_transformer_dispose (GObject * object)
 
 static void
 gum_quick_stalker_iterator_init (GumQuickStalkerIterator * iter,
-                               GumQuickStalker * parent)
+                                 GumQuickStalker * parent)
 {
   iter->handle = NULL;
   iter->instruction = NULL;
 
-  iter->module = parent;
+  iter->parent = parent;
 }
 
 static void
 gum_quick_stalker_iterator_reset (GumQuickStalkerIterator * self,
-                                GumStalkerIterator * handle)
+                                  GumStalkerIterator * handle)
 {
   self->handle = handle;
 
   if (self->instruction != NULL)
   {
     self->instruction->insn = NULL;
-    gum_quick_stalker_release_instruction (self->module, self->instruction);
+    gum_quick_stalker_release_instruction (self->parent, self->instruction);
   }
   self->instruction = (handle != NULL)
-      ? gum_quick_stalker_obtain_instruction (self->module)
+      ? gum_quick_stalker_obtain_instruction (self->parent)
       : NULL;
 }
 
 static void
 gum_quick_stalker_iterator_check_valid (GumQuickStalkerIterator * self,
-                                      JSContext * ctx)
+                                        JSContext * ctx)
 {
   if (self->handle == NULL)
-    _gum_quick_throw (ctx, "invalid operation");
+    _gum_quick_throw_literal (ctx, "invalid operation");
 }
 
 static int
 gum_quick_stalker_iterator_next (GumQuickStalkerIterator * self,
-                               JSContext * ctx)
+                                 JSContext * ctx)
 {
   if (gum_stalker_iterator_next (self->handle, &self->instruction->insn))
-    quick_push_heapptr (ctx, self->instruction->object);
-  else
-    quick_push_null (ctx);
+    return JS_DupValue (ctx, self->instruction->wrapper);
 
-  return 1;
+  return JS_NULL;
 }
 
 static int
 gum_quick_stalker_iterator_keep (GumQuickStalkerIterator * self,
-                               JSContext * ctx)
+                                 JSContext * ctx)
 {
   gum_stalker_iterator_keep (self->handle);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 static int
 gum_quick_stalker_iterator_put_callout (GumQuickStalkerIterator * self,
-                                      JSContext * ctx,
-                                      const GumQuickArgs * args)
+                                        JSContext * ctx,
+                                        const GumQuickArgs * args)
 {
   JSValue callback_js;
   GumStalkerCallout callback_c;
@@ -964,7 +958,7 @@ gum_quick_stalker_iterator_put_callout (GumQuickStalkerIterator * self,
     callout = g_slice_new (GumQuickCallout);
     _gum_quick_protect (ctx, callback_js);
     callout->callback = callback_js;
-    callout->module = self->module;
+    callout->parent = self->parent;
 
     gum_stalker_iterator_put_callout (self->handle,
         (GumStalkerCallout) gum_quick_callout_on_invoke, callout,
@@ -1007,9 +1001,9 @@ gum_quick_stalker_default_iterator_new (GumQuickStalker * parent)
 static void
 gum_quick_stalker_default_iterator_release (GumQuickStalkerDefaultIterator * self)
 {
-  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (self->iterator.module->core);
+  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (self->iterator.parent->core);
 
-  _gum_quick_release_heapptr (scope.ctx, self->parent.object);
+  JS_FreeValue (scope.ctx, self->parent.object);
 }
 
 static void
@@ -1111,9 +1105,9 @@ gum_quick_stalker_special_iterator_new (GumQuickStalker * parent)
 static void
 gum_quick_stalker_special_iterator_release (GumQuickStalkerSpecialIterator * self)
 {
-  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (self->iterator.module->core);
+  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (self->iterator.parent->core);
 
-  _gum_quick_release_heapptr (scope.ctx, self->parent.object);
+  JS_FreeValue (scope.ctx, self->parent.object);
 }
 
 static void
@@ -1190,7 +1184,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_special_iterator_put_callout)
 static void
 gum_quick_callout_free (GumQuickCallout * callout)
 {
-  GumQuickCore * core = callout->module->core;
+  GumQuickCore * core = callout->parent->core;
   GumQuickScope scope;
   JSContext * ctx;
 
@@ -1207,7 +1201,7 @@ static void
 gum_quick_callout_on_invoke (GumCpuContext * cpu_context,
                            GumQuickCallout * self)
 {
-  GumQuickStalker * module = self->module;
+  GumQuickStalker * parent = self->parent;
   gint saved_system_error;
   JSContext * ctx;
   GumQuickScope scope;
@@ -1215,9 +1209,9 @@ gum_quick_callout_on_invoke (GumCpuContext * cpu_context,
 
   saved_system_error = gum_thread_get_system_error ();
 
-  ctx = _gum_quick_scope_enter (&scope, module->core);
+  ctx = _gum_quick_scope_enter (&scope, parent->core);
 
-  cpu_context_value = gum_quick_stalker_obtain_cpu_context (module);
+  cpu_context_value = gum_quick_stalker_obtain_cpu_context (parent);
   _gum_quick_cpu_context_reset (cpu_context_value, cpu_context,
       GUM_CPU_CONTEXT_READWRITE);
 
@@ -1228,7 +1222,7 @@ gum_quick_callout_on_invoke (GumCpuContext * cpu_context,
 
   _gum_quick_cpu_context_reset (cpu_context_value, NULL,
       GUM_CPU_CONTEXT_READWRITE);
-  gum_quick_stalker_release_cpu_context (module, cpu_context_value);
+  gum_quick_stalker_release_cpu_context (parent, cpu_context_value);
 
   _gum_quick_scope_leave (&scope);
 
@@ -1238,7 +1232,7 @@ gum_quick_callout_on_invoke (GumCpuContext * cpu_context,
 static void
 gum_quick_call_probe_free (GumQuickCallProbe * probe)
 {
-  GumQuickCore * core = probe->module->core;
+  GumQuickCore * core = probe->parent->core;
   GumQuickScope scope;
   JSContext * ctx;
 
@@ -1255,7 +1249,7 @@ static void
 gum_quick_call_probe_on_fire (GumCallSite * site,
                             GumQuickCallProbe * self)
 {
-  GumQuickStalker * module = self->module;
+  GumQuickStalker * parent = self->parent;
   gint saved_system_error;
   JSContext * ctx;
   GumQuickScope scope;
@@ -1263,9 +1257,9 @@ gum_quick_call_probe_on_fire (GumCallSite * site,
 
   saved_system_error = gum_thread_get_system_error ();
 
-  ctx = _gum_quick_scope_enter (&scope, module->core);
+  ctx = _gum_quick_scope_enter (&scope, parent->core);
 
-  args = gum_quick_stalker_obtain_probe_args (module);
+  args = gum_quick_stalker_obtain_probe_args (parent);
   gum_quick_probe_args_reset (args, site);
 
   quick_push_heapptr (ctx, self->callback);
@@ -1274,15 +1268,16 @@ gum_quick_call_probe_on_fire (GumCallSite * site,
   quick_pop (ctx);
 
   gum_quick_probe_args_reset (args, NULL);
-  gum_quick_stalker_release_probe_args (module, args);
+  gum_quick_stalker_release_probe_args (parent, args);
 
   _gum_quick_scope_leave (&scope);
 
   gum_thread_set_system_error (saved_system_error);
 }
 
-static GumQuickProbeArgs *
-gum_quick_probe_args_new (GumQuickStalker * parent)
+static JSValue
+gum_quick_probe_args_new (GumQuickStalker * parent,
+                          GumQuickProbeArgs ** args);
 {
   GumQuickCore * core = parent->core;
   GumQuickScope scope = GUM_QUICK_SCOPE_INIT (core);
@@ -1301,14 +1296,6 @@ gum_quick_probe_args_new (GumQuickStalker * parent)
   args->core = core;
 
   return args;
-}
-
-static void
-gum_quick_probe_args_release (GumQuickProbeArgs * self)
-{
-  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (self->core);
-
-  _gum_quick_release_heapptr (scope.ctx, self->object);
 }
 
 static void
@@ -1541,12 +1528,12 @@ gum_quick_stalker_obtain_probe_args (GumQuickStalker * self)
 
 static void
 gum_quick_stalker_release_probe_args (GumQuickStalker * self,
-                                    GumQuickProbeArgs * args)
+                                      GumQuickProbeArgs * args)
 {
   if (args == self->cached_probe_args)
     self->cached_probe_args_in_use = FALSE;
   else
-    gum_quick_probe_args_release (args);
+    JS_FreeValue (self->core->ctx, args->wrapper);
 }
 
 static void
