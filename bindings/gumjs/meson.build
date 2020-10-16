@@ -133,9 +133,9 @@ foreach o : gumjs_generated_origins
 endforeach
 gumjs_generated_outputs = []
 runtimes = []
-#if have_quickjs
-#  runtimes += 'quick'
-#endif
+if have_quickjs
+  runtimes += 'quick'
+endif
 if have_duktape
   runtimes += 'duk'
 endif

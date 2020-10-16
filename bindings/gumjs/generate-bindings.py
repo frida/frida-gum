@@ -425,7 +425,7 @@ def generate_quick_wrapper_code(component, api):
 def generate_quick_parse_array_elements(item_type, parse_item):
     return """
   if (!_gum_quick_array_get_length (ctx, items_value, core, &items_length))
-    return JS_EXCEPTION;
+    goto propagate_exception;
   items = g_newa ({item_type}, items_length);
 
   for (items_index = 0; items_index != items_length; items_index++)
@@ -433,8 +433,8 @@ def generate_quick_parse_array_elements(item_type, parse_item):
     {item_type} * item = &items[items_index];
 
     element_val = JS_GetPropertyUint32 (ctx, items_value, items_index);
-    if (!JS_IsException (element_val))
-      return JS_EXCEPTION;
+    if (JS_IsException (element_val))
+      goto propagate_exception;
 {parse_item}
 
     JS_FreeValue (ctx, element_val);
@@ -767,14 +767,18 @@ static gboolean
 
     if (!JS_IsUndefined (val))
     {{
+      gboolean valid;
       gpointer p;
-      if (!_gum_quick_native_pointer_get (ctx, val, core, &p))
+
+      valid = _gum_quick_native_pointer_get (ctx, val, core, &p);
+      JS_FreeValue (ctx, val);
+      if (!valid)
         return FALSE;
+
       *pc = GUM_ADDRESS (p);
       *pc_specified = TRUE;
     }}
 
-    JS_FreeValue (ctx, val);
   }}
 
   return TRUE;
@@ -879,8 +883,7 @@ GUMJS_DEFINE_GETTER ({gumjs_function_prefix}_get_offset)
 """
     params = dict(component.__dict__)
 
-    params["label_resolver"] = """
-static gconstpointer
+    params["label_resolver"] = """static gconstpointer
 {wrapper_function_prefix}_resolve_label ({wrapper_struct_name} * self,
     const gchar * str)
 {{
@@ -891,8 +894,7 @@ static gconstpointer
   label = g_strdup (str);
   g_hash_table_add (self->labels, label);
   return label;
-}}
-""".format(**params)
+}}""".format(**params)
 
     return template.format(**params).split("\n")
 
