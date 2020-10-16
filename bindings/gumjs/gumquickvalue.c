@@ -1687,8 +1687,8 @@ _gum_quick_try_unwrap (JSValue val,
 
   if (concrete_class != klass)
   {
-    JSClassID base_class = GPOINTER_TO_SIZE (
-        g_hash_table_lookup (core->classes, GSIZE_TO_POINTER (concrete_class)));
+    JSClassID base_class = GPOINTER_TO_SIZE (g_hash_table_lookup (
+        core->subclasses, GSIZE_TO_POINTER (concrete_class)));
     if (base_class != klass)
       return FALSE;
   }
@@ -1739,7 +1739,7 @@ _gum_quick_create_subclass (JSContext * ctx,
   proto = JS_NewObjectProto (ctx, parent_prototype);
   JS_SetClassProto (ctx, id, proto);
 
-  g_hash_table_insert (core->classes, GSIZE_TO_POINTER (id),
+  g_hash_table_insert (core->subclasses, GSIZE_TO_POINTER (id),
       GSIZE_TO_POINTER (parent_class));
 
   *klass = id;

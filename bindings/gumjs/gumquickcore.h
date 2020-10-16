@@ -84,8 +84,7 @@ struct _GumQuickCore
   GHashTable * scheduled_callbacks;
   guint next_callback_id;
 
-  GHashTable * classes;
-  GHashTable * managed_class_ids;
+  GHashTable * subclasses;
 
   JSClassID weak_ref_class;
   JSClassID int64_class;

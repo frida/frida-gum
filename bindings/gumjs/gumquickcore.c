@@ -875,8 +875,7 @@ _gum_quick_core_init (GumQuickCore * self,
   self->scheduled_callbacks = g_hash_table_new (NULL, NULL);
   self->next_callback_id = 1;
 
-  self->classes = g_hash_table_new (NULL, NULL);
-  self->managed_class_ids = g_hash_table_new (NULL, NULL);
+  self->subclasses = g_hash_table_new (NULL, NULL);
 
   JS_SetPropertyFunctionList (ctx, ns, gumjs_root_entries,
       G_N_ELEMENTS (gumjs_root_entries));
@@ -1211,11 +1210,8 @@ _gum_quick_core_dispose (GumQuickCore * self)
 void
 _gum_quick_core_finalize (GumQuickCore * self)
 {
-  g_hash_table_unref (self->managed_class_ids);
-  self->managed_class_ids = NULL;
-
-  g_hash_table_unref (self->classes);
-  self->classes = NULL;
+  g_hash_table_unref (self->subclasses);
+  self->subclasses = NULL;
 
   g_hash_table_unref (self->scheduled_callbacks);
   self->scheduled_callbacks = NULL;

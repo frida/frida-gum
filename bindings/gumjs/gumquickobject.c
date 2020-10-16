@@ -83,8 +83,6 @@ _gum_quick_object_manager_add (GumQuickObjectManager * self,
 {
   GumQuickCore * core = self->core;
   GumQuickObject * object;
-  JSClassID class_id;
-  void * opaque;
 
   object = g_slice_new (GumQuickObject);
   object->wrapper = wrapper;
@@ -99,10 +97,6 @@ _gum_quick_object_manager_add (GumQuickObjectManager * self,
   object->pending_operations = g_queue_new ();
 
   g_hash_table_insert (self->object_by_handle, handle, object);
-
-  opaque = JS_GetAnyOpaque (wrapper, &class_id);
-  g_assert (opaque == NULL);
-  g_hash_table_add (core->managed_class_ids, GSIZE_TO_POINTER (class_id));
 
   JS_SetOpaque (wrapper, object);
 
@@ -126,9 +120,7 @@ static void
 gum_quick_object_free (GumQuickObject * self)
 {
   if (self->manager != NULL)
-  {
     g_hash_table_remove (self->manager->object_by_handle, self->handle);
-  }
 
   g_assert (self->num_active_operations == 0);
   g_assert (g_queue_is_empty (self->pending_operations));
