@@ -79,6 +79,17 @@ gumjs_get_parent_module (GumQuickCore * core)
   return _gum_quick_core_load_module_data (core, "api-resolver");
 }
 
+static gboolean
+gum_quick_api_resolver_get (JSContext * ctx,
+                            JSValueConst val,
+                            GumQuickCore * core,
+                            GumQuickObject ** object)
+{
+  return _gum_quick_unwrap (ctx, val,
+      gumjs_get_parent_module (core)->api_resolver_class, core,
+      (gpointer *) object);
+}
+
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_api_resolver_construct)
 {
   JSValue obj = JS_NULL;
@@ -143,7 +154,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_api_resolver_enumerate_matches)
   const gchar * query;
   GError * error;
 
-  if (!_gum_quick_object_get (ctx, this_val, core, &self))
+  if (!gum_quick_api_resolver_get (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
   if (!_gum_quick_args_parse (args, "sF{onMatch,onComplete}", &query,

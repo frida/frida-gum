@@ -246,14 +246,14 @@ static JSValue gum_quick_ffi_function_invoke (GumQuickFFIFunction * self,
     JSContext * ctx, GCallback implementation, int argc, JSValueConst * argv,
     GumQuickCore * core);
 static JSValue gumjs_ffi_function_invoke (JSContext * ctx,
-    JSValueConst func_obj, JSClassID class_id, GumQuickArgs * args,
+    JSValueConst func_obj, JSClassID klass, GumQuickArgs * args,
     GumQuickCore * core);
 static JSValue gumjs_ffi_function_call (JSContext * ctx, JSValueConst func_obj,
-    JSClassID class_id, GumQuickArgs * args, GumQuickCore * core);
+    JSClassID klass, GumQuickArgs * args, GumQuickCore * core);
 static JSValue gumjs_ffi_function_apply (JSContext * ctx, JSValueConst func_obj,
-    JSClassID class_id, GumQuickArgs * args, GumQuickCore * core);
+    JSClassID klass, GumQuickArgs * args, GumQuickCore * core);
 static gboolean gumjs_ffi_function_get (JSContext * ctx, JSValueConst func_obj,
-    JSValueConst receiver, JSClassID class_id, GumQuickCore * core,
+    JSValueConst receiver, JSClassID klass, GumQuickCore * core,
     GumQuickFFIFunction ** func, GCallback * implementation);
 
 static gboolean gum_quick_ffi_function_params_init (
@@ -3087,14 +3087,13 @@ gum_quick_ffi_function_invoke (GumQuickFFIFunction * self,
 static JSValue
 gumjs_ffi_function_invoke (JSContext * ctx,
                            JSValueConst func_obj,
-                           JSClassID class_id,
+                           JSClassID klass,
                            GumQuickArgs * args,
                            GumQuickCore * core)
 {
   GumQuickFFIFunction * self;
 
-  self = JS_GetOpaque2 (ctx, func_obj, class_id);
-  if (self == NULL)
+  if (!_gum_quick_unwrap (ctx, func_obj, klass, core, (gpointer *) &self))
     return JS_EXCEPTION;
 
   return gum_quick_ffi_function_invoke (self, ctx, self->implementation,
@@ -3104,7 +3103,7 @@ gumjs_ffi_function_invoke (JSContext * ctx,
 static JSValue
 gumjs_ffi_function_call (JSContext * ctx,
                          JSValueConst func_obj,
-                         JSClassID class_id,
+                         JSClassID klass,
                          GumQuickArgs * args,
                          GumQuickCore * core)
 {
@@ -3115,8 +3114,7 @@ gumjs_ffi_function_call (JSContext * ctx,
   GumQuickFFIFunction * func;
   GCallback impl;
 
-  self = JS_GetOpaque2 (ctx, func_obj, class_id);
-  if (self == NULL)
+  if (!_gum_quick_unwrap (ctx, func_obj, klass, core, (gpointer *) &self))
     return JS_EXCEPTION;
 
   if (argc == 0 || JS_IsNull (argv[0]) || JS_IsUndefined (argv[0]))
@@ -3132,8 +3130,8 @@ gumjs_ffi_function_call (JSContext * ctx,
     return _gum_quick_throw_literal (ctx, "invalid receiver");
   }
 
-  if (!gumjs_ffi_function_get (ctx, func_obj, receiver, class_id, core,
-      &func, &impl))
+  if (!gumjs_ffi_function_get (ctx, func_obj, receiver, klass, core, &func,
+      &impl))
   {
     return JS_EXCEPTION;
   }
@@ -3145,7 +3143,7 @@ gumjs_ffi_function_call (JSContext * ctx,
 static JSValue
 gumjs_ffi_function_apply (JSContext * ctx,
                           JSValueConst func_obj,
-                          JSClassID class_id,
+                          JSClassID klass,
                           GumQuickArgs * args,
                           GumQuickCore * core)
 {
@@ -3157,8 +3155,7 @@ gumjs_ffi_function_apply (JSContext * ctx,
   guint n, i;
   JSValue * values;
 
-  self = JS_GetOpaque2 (ctx, func_obj, class_id);
-  if (self == NULL)
+  if (!_gum_quick_unwrap (ctx, func_obj, klass, core, (gpointer *) &self))
     return JS_EXCEPTION;
 
   if (JS_IsNull (argv[0]) || JS_IsUndefined (argv[0]))
@@ -3174,8 +3171,8 @@ gumjs_ffi_function_apply (JSContext * ctx,
     return _gum_quick_throw_literal (ctx, "invalid receiver");
   }
 
-  if (!gumjs_ffi_function_get (ctx, func_obj, receiver, class_id, core,
-      &func, &impl))
+  if (!gumjs_ffi_function_get (ctx, func_obj, receiver, klass, core, &func,
+      &impl))
   {
     return JS_EXCEPTION;
   }
@@ -3223,15 +3220,14 @@ static gboolean
 gumjs_ffi_function_get (JSContext * ctx,
                         JSValueConst func_obj,
                         JSValueConst receiver,
-                        JSClassID class_id,
+                        JSClassID klass,
                         GumQuickCore * core,
                         GumQuickFFIFunction ** func,
                         GCallback * implementation)
 {
   GumQuickFFIFunction * f;
 
-  f = JS_GetOpaque (func_obj, class_id);
-  if (f != NULL)
+  if (_gum_quick_try_unwrap (func_obj, klass, core, (gpointer *) &f))
   {
     *func = f;
 
@@ -3249,8 +3245,7 @@ gumjs_ffi_function_get (JSContext * ctx,
   }
   else
   {
-    f = JS_GetOpaque2 (ctx, receiver, class_id);
-    if (f == NULL)
+    if (!_gum_quick_unwrap (ctx, receiver, klass, core, (gpointer *) &f))
       return FALSE;
 
     *func = f;
@@ -3722,8 +3717,8 @@ gum_quick_source_map_get (JSContext * ctx,
                           GumQuickCore * core,
                           GumSourceMap ** source_map)
 {
-  *source_map = JS_GetOpaque2 (ctx, val, core->source_map_class);
-  return *source_map != NULL;
+  return _gum_quick_unwrap (ctx, val, core->source_map_class, core,
+      (gpointer *) source_map);
 }
 
 static JSValue

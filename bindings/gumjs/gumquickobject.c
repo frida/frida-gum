@@ -140,33 +140,6 @@ gum_quick_object_free (GumQuickObject * self)
   g_slice_free (GumQuickObject, self);
 }
 
-gboolean
-_gum_quick_object_get (JSContext * ctx,
-                       JSValue wrapper,
-                       GumQuickCore * core,
-                       GumQuickObject ** object)
-{
-  GumQuickObject * obj;
-  JSClassID class_id;
-
-  obj = JS_GetAnyOpaque (wrapper, &class_id);
-  if (obj == NULL)
-    goto expected_instance;
-
-  if (!g_hash_table_contains (core->managed_class_ids,
-      GSIZE_TO_POINTER (class_id)))
-    goto expected_instance;
-
-  *object = obj;
-  return TRUE;
-
-expected_instance:
-  {
-    _gum_quick_throw_literal (ctx, "expected an instance");
-    return FALSE;
-  }
-}
-
 gpointer
 _gum_quick_object_operation_alloc (gsize size,
                                    GumQuickObject * object,

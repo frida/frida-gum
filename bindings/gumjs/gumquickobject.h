@@ -83,9 +83,6 @@ G_GNUC_INTERNAL gpointer _gum_quick_object_manager_add (
 G_GNUC_INTERNAL gpointer _gum_quick_object_manager_lookup (
     GumQuickObjectManager * self, gpointer handle);
 
-G_GNUC_INTERNAL gboolean _gum_quick_object_get (JSContext * ctx,
-    JSValue wrapper, GumQuickCore * core, GumQuickObject ** object);
-
 #define _gum_quick_object_operation_new(type, object, callback, perform, \
     dispose) _gum_quick_object_operation_alloc (sizeof (type), object, \
         callback, (GumQuickObjectOperationFunc) perform, \

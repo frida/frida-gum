@@ -501,9 +501,9 @@ gum_quick_module_map_get (JSContext * ctx,
                           GumQuickCore * core,
                           GumModuleMap ** map)
 {
-  *map = JS_GetOpaque2 (ctx, val,
-      gumjs_get_parent_module (core)->module_map_class);
-  return *map != NULL;
+  return _gum_quick_unwrap (ctx, val,
+      gumjs_get_parent_module (core)->module_map_class, core,
+      (gpointer *) map);
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_map_construct)

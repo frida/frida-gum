@@ -1184,14 +1184,20 @@ gum_quick_memory_access_details_get (JSContext * ctx,
                                      GumQuickCore * core,
                                      const GumMemoryAccessDetails ** details)
 {
-  *details = JS_GetOpaque (val,
-      gumjs_get_parent_module (core)->memory_access_details_class);
-  if (*details == NULL)
+  const GumMemoryAccessDetails * d;
+
+  if (!_gum_quick_unwrap (ctx, val,
+      gumjs_get_parent_module (core)->memory_access_details_class, core,
+      (gpointer *) &d))
+    return FALSE;
+
+  if (d == NULL)
   {
     _gum_quick_throw_literal (ctx, "invalid operation");
     return FALSE;
   }
 
+  *details = d;
   return TRUE;
 }
 

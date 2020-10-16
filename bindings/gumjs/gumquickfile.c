@@ -88,8 +88,8 @@ gum_file_get (JSContext * ctx,
 {
   GumFile * f;
 
-  f = JS_GetOpaque2 (ctx, val, gumjs_get_parent_module (core)->file_class);
-  if (f == NULL)
+  if (!_gum_quick_unwrap (ctx, val, gumjs_get_parent_module (core)->file_class,
+      core, (gpointer *) &f))
     return FALSE;
 
   if (f->handle == NULL)

@@ -837,8 +837,8 @@ _gum_quick_int64_unwrap (JSContext * ctx,
                          GumQuickCore * core,
                          GumQuickInt64 ** instance)
 {
-  *instance = JS_GetOpaque2 (ctx, val, core->int64_class);
-  return *instance != NULL;
+  return _gum_quick_unwrap (ctx, val, core->int64_class, core,
+      (gpointer *) instance);
 }
 
 gboolean
@@ -928,8 +928,8 @@ _gum_quick_uint64_unwrap (JSContext * ctx,
                           GumQuickCore * core,
                           GumQuickUInt64 ** instance)
 {
-  *instance = JS_GetOpaque2 (ctx, val, core->uint64_class);
-  return *instance != NULL;
+  return _gum_quick_unwrap (ctx, val, core->uint64_class, core,
+      (gpointer *) instance);
 }
 
 gboolean
@@ -1018,11 +1018,13 @@ _gum_quick_size_get (JSContext * ctx,
 
     *size = v;
   }
-  else if ((u64 = JS_GetOpaque (val, core->uint64_class)) != NULL)
+  else if (_gum_quick_try_unwrap (val, core->uint64_class, core,
+      (gpointer *) &u64))
   {
     *size = u64->value;
   }
-  else if ((i64 = JS_GetOpaque (val, core->int64_class)) != NULL)
+  else if (_gum_quick_try_unwrap (val, core->int64_class, core,
+      (gpointer *) &i64))
   {
     if (i64->value < 0)
       goto expected_uint;
@@ -1061,11 +1063,13 @@ _gum_quick_ssize_get (JSContext * ctx,
 
     *size = v;
   }
-  else if ((i64 = JS_GetOpaque (val, core->int64_class)) != NULL)
+  else if (_gum_quick_try_unwrap (val, core->int64_class, core,
+      (gpointer *) &i64))
   {
     *size = i64->value;
   }
-  else if ((u64 = JS_GetOpaque (val, core->uint64_class)) != NULL)
+  else if (_gum_quick_try_unwrap (val, core->uint64_class, core,
+      (gpointer *) &u64))
   {
     *size = u64->value;
   }
@@ -1130,14 +1134,8 @@ _gum_quick_native_pointer_unwrap (JSContext * ctx,
                                   GumQuickCore * core,
                                   GumQuickNativePointer ** instance)
 {
-  if (!_gum_quick_try_unwrap (val, core->native_pointer_class, core,
-      (gpointer *) instance))
-  {
-    _gum_quick_throw_literal (ctx, "expected a pointer");
-    return FALSE;
-  }
-
-  return TRUE;
+  return _gum_quick_unwrap (ctx, val, core->native_pointer_class, core,
+      (gpointer *) instance);
 }
 
 gboolean
@@ -1244,11 +1242,13 @@ _gum_quick_native_pointer_parse (JSContext * ctx,
 
     *ptr = v.p;
   }
-  else if ((u64 = JS_GetOpaque (val, core->uint64_class)) != NULL)
+  else if (_gum_quick_try_unwrap (val, core->uint64_class, core,
+      (gpointer *) &u64))
   {
     *ptr = GSIZE_TO_POINTER (u64->value);
   }
-  else if ((i64 = JS_GetOpaque (val, core->int64_class)) != NULL)
+  else if (_gum_quick_try_unwrap (val, core->int64_class, core,
+      (gpointer *) &i64))
   {
     *ptr = GSIZE_TO_POINTER (i64->value);
   }
@@ -1356,8 +1356,8 @@ _gum_quick_cpu_context_unwrap (JSContext * ctx,
                                GumQuickCore * core,
                                GumQuickCpuContext ** instance)
 {
-  *instance = JS_GetOpaque2 (ctx, val, core->cpu_context_class);
-  return *instance != NULL;
+  return _gum_quick_unwrap (ctx, val, core->cpu_context_class, core,
+      (gpointer *) instance);
 }
 
 gboolean
@@ -1654,6 +1654,22 @@ _gum_quick_maybe_call_on_complete (JSContext * ctx,
   JS_FreeValue (ctx, val);
 
   return JS_UNDEFINED;
+}
+
+gboolean
+_gum_quick_unwrap (JSContext * ctx,
+                   JSValue val,
+                   JSClassID klass,
+                   GumQuickCore * core,
+                   gpointer * instance)
+{
+  if (!_gum_quick_try_unwrap (val, klass, core, instance))
+  {
+    JS_ThrowTypeErrorInvalidClass (ctx, klass);
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 gboolean

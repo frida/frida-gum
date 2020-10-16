@@ -174,8 +174,8 @@ _gum_quick_instruction_get (JSContext * ctx,
 {
   GumQuickInstructionValue * v;
 
-  v = JS_GetOpaque2 (ctx, val, parent->instruction_class);
-  if (v == NULL)
+  if (!_gum_quick_unwrap (ctx, val, parent->instruction_class, parent->core,
+      (gpointer *) &v))
     return FALSE;
 
   if (v->insn == NULL)

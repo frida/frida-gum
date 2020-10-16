@@ -84,9 +84,9 @@ gum_quick_cmodule_get (JSContext * ctx,
                        GumQuickCore * core,
                        GumCModule ** cmodule)
 {
-  *cmodule = JS_GetOpaque2 (ctx, val,
-      gumjs_get_parent_module (core)->cmodule_class);
-  return *cmodule != NULL;
+  return _gum_quick_unwrap (ctx, val,
+      gumjs_get_parent_module (core)->cmodule_class, core,
+      (gpointer *) cmodule);
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)

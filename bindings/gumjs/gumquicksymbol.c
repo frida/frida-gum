@@ -263,9 +263,8 @@ gum_symbol_get (JSContext * ctx,
                 GumQuickCore * core,
                 GumSymbol ** symbol)
 {
-  *symbol = JS_GetOpaque2 (ctx, val,
-      gumjs_get_parent_module (core)->symbol_class);
-  return *symbol != NULL;
+  return _gum_quick_unwrap (ctx, val,
+      gumjs_get_parent_module (core)->symbol_class, core, (gpointer *) symbol);
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_symbol_construct)

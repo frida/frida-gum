@@ -588,8 +588,8 @@ _gum_quick_{flavor}_writer_get (
 {{
   {wrapper_struct_name} * w;
 
-  w = JS_GetOpaque2 (ctx, val, parent->{flavor}_writer_class);
-  if (w == NULL)
+  if (!_gum_quick_unwrap (ctx, val, parent->{flavor}_writer_class, parent->core,
+      (gpointer *) &w))
     return FALSE;
 
   if (w->impl == NULL)
@@ -935,8 +935,8 @@ _gum_quick_{flavor}_relocator_get (
 {{
   {wrapper_struct_name} * r;
 
-  r = JS_GetOpaque2 (ctx, val, parent->{flavor}_relocator_class);
-  if (r == NULL)
+  if (!_gum_quick_unwrap (ctx, val, parent->{flavor}_relocator_class, parent->core,
+      (gpointer *) &r))
     return FALSE;
 
   if (r->impl == NULL)

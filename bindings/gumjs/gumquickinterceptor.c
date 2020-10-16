@@ -731,7 +731,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_invocation_listener_detach)
 
   parent = gumjs_get_parent_module (core);
 
-  listener = JS_GetOpaque (this_val, parent->invocation_listener_class);
+  if (!_gum_quick_unwrap (ctx, this_val, parent->invocation_listener_class,
+      core, (gpointer *) &listener))
+    return JS_EXCEPTION;
+
   if (listener != NULL)
     gum_quick_interceptor_detach (parent, listener);
 
@@ -1181,9 +1184,9 @@ gum_quick_invocation_context_get (JSContext * ctx,
                                   GumQuickCore * core,
                                   GumQuickInvocationContext ** ic)
 {
-  *ic = JS_GetOpaque2 (ctx, val,
-      gumjs_get_parent_module (core)->invocation_context_class);
-  return *ic != NULL;
+  return _gum_quick_unwrap (ctx, val,
+      gumjs_get_parent_module (core)->invocation_context_class, core,
+      (gpointer *) ic);
 }
 
 static gboolean
@@ -1319,9 +1322,9 @@ gum_quick_invocation_args_get (JSContext * ctx,
 {
   GumQuickInvocationArgs * a;
 
-  a = JS_GetOpaque2 (ctx, val,
-      gumjs_get_parent_module (core)->invocation_args_class);
-  if (a == NULL)
+  if (!_gum_quick_unwrap (ctx, val,
+      gumjs_get_parent_module (core)->invocation_args_class, core,
+      (gpointer *) &a))
     return FALSE;
 
   if (a->ic == NULL)
@@ -1496,9 +1499,9 @@ gum_quick_invocation_retval_get (JSContext * ctx,
 {
   GumQuickInvocationRetval * r;
 
-  r = JS_GetOpaque2 (ctx, val,
-      gumjs_get_parent_module (core)->invocation_retval_class);
-  if (r == NULL)
+  if (!_gum_quick_unwrap (ctx, val,
+      gumjs_get_parent_module (core)->invocation_retval_class, core,
+      (gpointer *) &r))
     return FALSE;
 
   if (r->ic == NULL)
