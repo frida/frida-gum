@@ -1023,7 +1023,7 @@ gum_parse_regs (JSContext * ctx,
   JSValue r;
   uint8_t i;
 
-  r = JS_NewObject (ctx);
+  r = JS_NewArray (ctx);
 
   for (i = 0; i != count; i++)
   {
@@ -1044,7 +1044,7 @@ gum_parse_groups (JSContext * ctx,
   JSValue g;
   uint8_t i;
 
-  g = JS_NewObject (ctx);
+  g = JS_NewArray (ctx);
 
   for (i = 0; i != count; i++)
   {
