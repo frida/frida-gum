@@ -17,9 +17,7 @@
 #include "gumquickfile.h"
 #include "gumquickinstruction.h"
 #include "gumquickinterceptor.h"
-#if 0
 #include "gumquickkernel.h"
-#endif
 #include "gumquickmemory.h"
 #include "gumquickmodule.h"
 #include "gumquickprocess.h"
@@ -60,9 +58,7 @@ struct _GumQuickScript
   JSContext * ctx;
   JSValue code;
   GumQuickCore core;
-#if 0
   GumQuickKernel kernel;
-#endif
   GumQuickMemory memory;
   GumQuickModule module;
   GumQuickProcess process;
@@ -392,9 +388,7 @@ gum_quick_script_create_context (GumQuickScript * self,
 
   core->current_scope = &scope;
 
-#if 0
   _gum_quick_kernel_init (&self->kernel, global_obj, core);
-#endif
   _gum_quick_memory_init (&self->memory, global_obj, core);
   _gum_quick_module_init (&self->module, global_obj, core);
   _gum_quick_process_init (&self->process, global_obj, &self->module, core);
@@ -461,9 +455,7 @@ gum_quick_script_destroy_context (GumQuickScript * self)
     _gum_quick_process_dispose (&self->process);
     _gum_quick_module_dispose (&self->module);
     _gum_quick_memory_dispose (&self->memory);
-#if 0
     _gum_quick_kernel_dispose (&self->kernel);
-#endif
     _gum_quick_core_dispose (core);
 
     _gum_quick_scope_leave (&scope);
@@ -504,9 +496,7 @@ gum_quick_script_destroy_context (GumQuickScript * self)
   _gum_quick_process_finalize (&self->process);
   _gum_quick_module_finalize (&self->module);
   _gum_quick_memory_finalize (&self->memory);
-#if 0
   _gum_quick_kernel_finalize (&self->kernel);
-#endif
   _gum_quick_core_finalize (core);
 }
 
