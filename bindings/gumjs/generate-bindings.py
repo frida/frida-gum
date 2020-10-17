@@ -494,7 +494,7 @@ def generate_quick_parse_register_array_element(component):
 
 def generate_quick_fields(component):
     return """  JSClassID {flavor}_{name}_class;
-JSValue {flavor}_{name}_proto;""".format(**component.__dict__)
+  JSValue {flavor}_{name}_proto;""".format(**component.__dict__)
 
 def generate_quick_methods(component):
     params = dict(component.__dict__)

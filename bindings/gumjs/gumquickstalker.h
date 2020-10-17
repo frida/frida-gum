@@ -12,8 +12,8 @@
 
 G_BEGIN_DECLS
 
-typedef struct _GumQuickStalkerDefaultIterator GumQuickStalkerDefaultIterator;
-typedef struct _GumQuickStalkerSpecialIterator GumQuickStalkerSpecialIterator;
+typedef struct _GumQuickDefaultIterator GumQuickDefaultIterator;
+typedef struct _GumQuickSpecialIterator GumQuickSpecialIterator;
 typedef struct _GumQuickProbeArgs GumQuickProbeArgs;
 
 struct _GumQuickStalker
@@ -32,10 +32,10 @@ struct _GumQuickStalker
   JSClassID special_iterator_class;
   JSClassID probe_args_class;
 
-  GumQuickStalkerDefaultIterator * cached_default_iterator;
+  GumQuickDefaultIterator * cached_default_iterator;
   gboolean cached_default_iterator_in_use;
 
-  GumQuickStalkerSpecialIterator * cached_special_iterator;
+  GumQuickSpecialIterator * cached_special_iterator;
   gboolean cached_special_iterator_in_use;
 
   GumQuickInstructionValue * cached_instruction;

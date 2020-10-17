@@ -398,7 +398,6 @@ Object.defineProperties(Interceptor, {
   },
 });
 
-/*
 const stalkerEventType = {
   call: 1,
   ret: 2,
@@ -475,7 +474,6 @@ Object.defineProperties(Stalker, {
     }
   }
 });
-*/
 
 Object.defineProperty(Instruction, 'parse', {
   enumerable: true,
