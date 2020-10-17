@@ -230,8 +230,8 @@ G_DEFINE_TYPE_EXTENDED (GumQuickCProbeListener,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
                             gum_quick_c_probe_listener_iface_init))
 
-static GumQuickInvocationContext * gum_quick_invocation_context_new (
-    GumQuickInterceptor * parent);
+static JSValue gum_quick_invocation_context_new (GumQuickInterceptor * parent,
+    GumQuickInvocationContext ** context);
 static void gum_quick_invocation_context_release (
     GumQuickInvocationContext * self);
 static gboolean gum_quick_invocation_context_is_dirty (
@@ -244,8 +244,8 @@ GUMJS_DECLARE_SETTER (gumjs_invocation_context_set_system_error)
 GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_thread_id)
 GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_depth)
 
-static GumQuickInvocationArgs * gum_quick_invocation_args_new (
-    GumQuickInterceptor * parent);
+static JSValue gum_quick_invocation_args_new (GumQuickInterceptor * parent,
+    GumQuickInvocationArgs ** args);
 static void gum_quick_invocation_args_release (GumQuickInvocationArgs * self);
 static void gum_quick_invocation_args_reset (GumQuickInvocationArgs * self,
     GumInvocationContext * ic);
@@ -256,8 +256,8 @@ static int gumjs_invocation_args_set_property (JSContext * ctx,
     JSValueConst obj, JSAtom atom, JSValueConst value, JSValueConst receiver,
     int flags);
 
-static GumQuickInvocationRetval * gum_quick_invocation_retval_new (
-    GumQuickInterceptor * parent);
+static JSValue gum_quick_invocation_retval_new (GumQuickInterceptor * parent,
+    GumQuickInvocationRetval ** retval);
 static void gum_quick_invocation_retval_release (
     GumQuickInvocationRetval * self);
 static void gum_quick_invocation_retval_reset (
@@ -382,13 +382,13 @@ _gum_quick_interceptor_init (GumQuickInterceptor * self,
   JS_SetPropertyFunctionList (ctx, proto, gumjs_invocation_retval_entries,
       G_N_ELEMENTS (gumjs_invocation_retval_entries));
 
-  self->cached_invocation_context = gum_quick_invocation_context_new (self);
+  gum_quick_invocation_context_new (self, &self->cached_invocation_context);
   self->cached_invocation_context_in_use = FALSE;
 
-  self->cached_invocation_args = gum_quick_invocation_args_new (self);
+  gum_quick_invocation_args_new (self, &self->cached_invocation_args);
   self->cached_invocation_args_in_use = FALSE;
 
-  self->cached_invocation_retval = gum_quick_invocation_retval_new (self);
+  gum_quick_invocation_retval_new (self, &self->cached_invocation_retval);
   self->cached_invocation_retval_in_use = FALSE;
 }
 
@@ -1137,8 +1137,9 @@ gum_quick_c_probe_listener_on_enter (GumInvocationListener * listener,
   self->on_hit (ic);
 }
 
-static GumQuickInvocationContext *
-gum_quick_invocation_context_new (GumQuickInterceptor * parent)
+static JSValue
+gum_quick_invocation_context_new (GumQuickInterceptor * parent,
+                                  GumQuickInvocationContext ** context)
 {
   JSContext * ctx = parent->core->ctx;
   JSValue wrapper;
@@ -1155,7 +1156,9 @@ gum_quick_invocation_context_new (GumQuickInterceptor * parent)
 
   JS_SetOpaque (wrapper, jic);
 
-  return jic;
+  *context = jic;
+
+  return wrapper;
 }
 
 static void
@@ -1282,23 +1285,26 @@ GUMJS_DEFINE_GETTER (gumjs_invocation_context_get_depth)
   return JS_NewUint32 (ctx, gum_invocation_context_get_depth (self->handle));
 }
 
-static GumQuickInvocationArgs *
-gum_quick_invocation_args_new (GumQuickInterceptor * parent)
+static JSValue
+gum_quick_invocation_args_new (GumQuickInterceptor * parent,
+                               GumQuickInvocationArgs ** args)
 {
   JSContext * ctx = parent->core->ctx;
   JSValue wrapper;
-  GumQuickInvocationArgs * args;
+  GumQuickInvocationArgs * ia;
 
   wrapper = JS_NewObjectClass (ctx, parent->invocation_args_class);
 
-  args = g_slice_new (GumQuickInvocationArgs);
-  args->wrapper = wrapper;
-  args->ic = NULL;
-  args->ctx = ctx;
+  ia = g_slice_new (GumQuickInvocationArgs);
+  ia->wrapper = wrapper;
+  ia->ic = NULL;
+  ia->ctx = ctx;
 
-  JS_SetOpaque (wrapper, args);
+  JS_SetOpaque (wrapper, ia);
 
-  return args;
+  *args = ia;
+
+  return wrapper;
 }
 
 static void
@@ -1448,26 +1454,29 @@ propagate_exception:
   }
 }
 
-static GumQuickInvocationRetval *
-gum_quick_invocation_retval_new (GumQuickInterceptor * parent)
+static JSValue
+gum_quick_invocation_retval_new (GumQuickInterceptor * parent,
+                                 GumQuickInvocationRetval ** retval)
 {
   JSContext * ctx = parent->core->ctx;
   JSValue wrapper;
-  GumQuickInvocationRetval * retval;
+  GumQuickInvocationRetval * rv;
   GumQuickNativePointer * ptr;
 
   wrapper = JS_NewObjectClass (ctx, parent->invocation_retval_class);
 
-  retval = g_slice_new (GumQuickInvocationRetval);
-  ptr = &retval->native_pointer;
+  rv = g_slice_new (GumQuickInvocationRetval);
+  ptr = &rv->native_pointer;
   ptr->value = NULL;
-  retval->wrapper = wrapper;
-  retval->ic = NULL;
-  retval->ctx = ctx;
+  rv->wrapper = wrapper;
+  rv->ic = NULL;
+  rv->ctx = ctx;
 
-  JS_SetOpaque (wrapper, retval);
+  JS_SetOpaque (wrapper, rv);
 
-  return retval;
+  *retval = rv;
+
+  return wrapper;
 }
 
 static void
@@ -1556,7 +1565,7 @@ _gum_quick_interceptor_obtain_invocation_context (GumQuickInterceptor * self)
   }
   else
   {
-    jic = gum_quick_invocation_context_new (self);
+    gum_quick_invocation_context_new (self, &jic);
   }
 
   return jic;
@@ -1584,7 +1593,7 @@ gum_quick_interceptor_check_invocation_context (GumQuickInterceptor * self,
 
   if (is_dirty && jic == self->cached_invocation_context)
   {
-    self->cached_invocation_context = gum_quick_invocation_context_new (self);
+    gum_quick_invocation_context_new (self, &self->cached_invocation_context);
     self->cached_invocation_context_in_use = FALSE;
   }
 
@@ -1604,7 +1613,7 @@ gum_quick_interceptor_obtain_invocation_args (GumQuickInterceptor * self)
   }
   else
   {
-    args = gum_quick_invocation_args_new (self);
+    gum_quick_invocation_args_new (self, &args);
   }
 
   return args;
@@ -1632,7 +1641,7 @@ gum_quick_interceptor_obtain_invocation_retval (GumQuickInterceptor * self)
   }
   else
   {
-    retval = gum_quick_invocation_retval_new (self);
+    gum_quick_invocation_retval_new (self, &retval);
   }
 
   return retval;
