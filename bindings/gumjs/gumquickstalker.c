@@ -9,6 +9,8 @@
 #include "gumquickeventsink.h"
 #include "gumquickmacros.h"
 
+#include <string.h>
+
 #define GUM_QUICK_TYPE_TRANSFORMER (gum_quick_transformer_get_type ())
 #define GUM_QUICK_TRANSFORMER_CAST(obj) ((GumQuickTransformer *) (obj))
 
@@ -1296,7 +1298,7 @@ gum_quick_probe_args_get (JSContext * ctx,
 {
   GumQuickProbeArgs * args;
 
-  if ( _gum_quick_unwrap (ctx, val,
+  if (!_gum_quick_unwrap (ctx, val,
       gumjs_get_parent_module (core)->probe_args_class, core,
       (gpointer *) &args))
     return FALSE;

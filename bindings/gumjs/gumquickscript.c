@@ -444,10 +444,8 @@ gum_quick_script_destroy_context (GumQuickScript * self)
     _gum_quick_scope_enter (&scope, core);
 
     _gum_quick_stalker_dispose (&self->stalker);
-#if 0
     _gum_quick_code_relocator_dispose (&self->code_relocator);
     _gum_quick_code_writer_dispose (&self->code_writer);
-#endif
     _gum_quick_instruction_dispose (&self->instruction);
     _gum_quick_cmodule_dispose (&self->cmodule);
     _gum_quick_symbol_dispose (&self->symbol);
@@ -489,10 +487,8 @@ gum_quick_script_destroy_context (GumQuickScript * self)
   }
 
   _gum_quick_stalker_finalize (&self->stalker);
-#if 0
   _gum_quick_code_relocator_finalize (&self->code_relocator);
   _gum_quick_code_writer_finalize (&self->code_writer);
-#endif
   _gum_quick_instruction_finalize (&self->instruction);
   _gum_quick_cmodule_finalize (&self->cmodule);
   _gum_quick_symbol_finalize (&self->symbol);
