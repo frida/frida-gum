@@ -310,19 +310,8 @@ gum_v8_close_io_stream_operation_finish (GIOStream * stream,
     auto isolate = core->isolate;
     auto context = isolate->GetCurrentContext ();
 
-    Local<Value> error_value;
+    auto error_value = _gum_v8_error_new_take_error (isolate, &error);
     auto success_value = success ? True (isolate) : False (isolate);
-    auto null_value = Null (isolate);
-    if (error == NULL)
-    {
-      error_value = null_value;
-    }
-    else
-    {
-      error_value = Exception::Error (
-          String::NewFromUtf8 (isolate, error->message).ToLocalChecked ());
-      g_error_free (error);
-    }
 
     Local<Value> argv[] = { error_value, success_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
@@ -379,19 +368,8 @@ gum_v8_close_input_operation_finish (GInputStream * stream,
     auto isolate = core->isolate;
     auto context = isolate->GetCurrentContext ();
 
-    Local<Value> error_value;
+    Local<Value> error_value = _gum_v8_error_new_take_error (isolate, &error);
     auto success_value = success ? True (isolate) : False (isolate);
-    auto null_value = Null (isolate);
-    if (error == NULL)
-    {
-      error_value = null_value;
-    }
-    else
-    {
-      error_value = Exception::Error (
-          String::NewFromUtf8 (isolate, error->message).ToLocalChecked ());
-      g_error_free (error);
-    }
 
     Local<Value> argv[] = { error_value, success_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
@@ -487,31 +465,32 @@ gum_v8_read_operation_finish (GInputStream * stream,
     auto isolate = core->isolate;
     auto context = isolate->GetCurrentContext ();
 
-    Local<Value> error_value, data_value, null_value;
-    null_value = Null (isolate);
+    Local<Value> error_value, data_value;
     if (self->strategy == GUM_V8_READ_ALL && bytes_read != self->buffer_size)
     {
-      error_value = Exception::Error (
-          String::NewFromUtf8 (isolate,
-              (error != NULL) ? error->message : "Short read")
-          .ToLocalChecked ());
+      if (error != NULL)
+      {
+        error_value = _gum_v8_error_new_take_error (isolate, &error);
+      }
+      else
+      {
+        error_value = Exception::Error (
+            String::NewFromUtf8 (isolate, "short read").ToLocalChecked ());
+      }
       data_value = _gum_v8_array_buffer_new_take (isolate,
           g_steal_pointer (&self->buffer), bytes_read);
     }
     else if (error == NULL)
     {
-      error_value = null_value;
+      error_value = Null (isolate);
       data_value = _gum_v8_array_buffer_new_take (isolate,
           g_steal_pointer (&self->buffer), bytes_read);
     }
     else
     {
-      error_value = Exception::Error (
-          String::NewFromUtf8 (isolate, error->message).ToLocalChecked ());
-      data_value = null_value;
+      error_value = _gum_v8_error_new_take_error (isolate, &error);
+      data_value = Null (isolate);
     }
-
-    g_clear_error (&error);
 
     Local<Value> argv[] = { error_value, data_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
@@ -568,19 +547,8 @@ gum_v8_close_output_operation_finish (GOutputStream * stream,
     auto isolate = core->isolate;
     auto context = isolate->GetCurrentContext ();
 
-    Local<Value> error_value;
+    auto error_value = _gum_v8_error_new_take_error (isolate, &error);
     auto success_value = success ? True (isolate) : False (isolate);
-    auto null_value = Null (isolate);
-    if (error == NULL)
-    {
-      error_value = null_value;
-    }
-    else
-    {
-      error_value = Exception::Error (
-          String::NewFromUtf8 (isolate, error->message).ToLocalChecked ());
-      g_error_free (error);
-    }
 
     Local<Value> argv[] = { error_value, success_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
@@ -696,26 +664,23 @@ gum_v8_write_operation_finish (GOutputStream * stream,
 
     Local<Value> error_value;
     auto size_value = Integer::NewFromUnsigned (isolate, bytes_written);
-    auto null_value = Null (isolate);
     if (self->strategy == GUM_V8_WRITE_ALL &&
         bytes_written != g_bytes_get_size (self->bytes))
     {
-      error_value = Exception::Error (
-          String::NewFromUtf8 (isolate,
-              (error != NULL) ? error->message : "Short write")
-          .ToLocalChecked ());
-    }
-    else if (error == NULL)
-    {
-      error_value = null_value;
+      if (error != NULL)
+      {
+        error_value = _gum_v8_error_new_take_error (isolate, &error);
+      }
+      else
+      {
+        error_value = Exception::Error (
+            String::NewFromUtf8 (isolate, "short write").ToLocalChecked ());
+      }
     }
     else
     {
-      error_value = Exception::Error (
-          String::NewFromUtf8 (isolate, error->message).ToLocalChecked ());
+      error_value = _gum_v8_error_new_take_error (isolate, &error);
     }
-
-    g_clear_error (&error);
 
     Local<Value> argv[] = { error_value, size_value };
     auto callback (Local<Function>::New (isolate, *self->callback));

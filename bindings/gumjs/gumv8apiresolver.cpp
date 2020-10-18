@@ -107,12 +107,8 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_api_resolver_enumerate_matches,
 
   g_free (query);
 
-  if (error != NULL)
-  {
-    _gum_v8_throw_literal (isolate, error->message);
-    g_error_free (error);
+  if (_gum_v8_maybe_throw (isolate, &error))
     return;
-  }
 
   mc.OnComplete ();
 }

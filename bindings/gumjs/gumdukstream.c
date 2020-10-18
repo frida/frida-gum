@@ -314,15 +314,7 @@ gum_duk_close_io_stream_operation_finish (GIOStream * stream,
   ctx = _gum_duk_scope_enter (&scope, op->core);
 
   duk_push_heapptr (ctx, op->callback);
-  if (error == NULL)
-  {
-    duk_push_null (ctx);
-  }
-  else
-  {
-    duk_push_error_object (ctx, DUK_ERR_ERROR, "%s", error->message);
-    g_error_free (error);
-  }
+  _gum_duk_push_and_steal_error (ctx, &error);
   duk_push_boolean (ctx, success);
   _gum_duk_scope_call (&scope, 2);
   duk_pop (ctx);
@@ -400,15 +392,7 @@ gum_duk_close_input_operation_finish (GInputStream * stream,
   ctx = _gum_duk_scope_enter (&scope, op->core);
 
   duk_push_heapptr (ctx, op->callback);
-  if (error == NULL)
-  {
-    duk_push_null (ctx);
-  }
-  else
-  {
-    duk_push_error_object (ctx, DUK_ERR_ERROR, "%s", error->message);
-    g_error_free (error);
-  }
+  _gum_duk_push_and_steal_error (ctx, &error);
   duk_push_boolean (ctx, success);
   _gum_duk_scope_call (&scope, 2);
   duk_pop (ctx);
@@ -513,8 +497,10 @@ gum_duk_read_operation_finish (GInputStream * stream,
 
   if (self->strategy == GUM_DUK_READ_ALL && bytes_read != self->buffer_size)
   {
-    duk_push_error_object (ctx, DUK_ERR_ERROR, "%s",
-        (error != NULL) ? error->message : "Short read");
+    if (error != NULL)
+      _gum_duk_push_and_steal_error (ctx, &error);
+    else
+      duk_push_error_object (ctx, DUK_ERR_ERROR, "short read");
     emit_data = TRUE;
   }
   else if (error == NULL)
@@ -524,11 +510,9 @@ gum_duk_read_operation_finish (GInputStream * stream,
   }
   else
   {
-    duk_push_error_object (ctx, DUK_ERR_ERROR, "%s", error->message);
+    _gum_duk_push_and_steal_error (ctx, &error);
     emit_data = FALSE;
   }
-
-  g_clear_error (&error);
 
   if (emit_data)
   {
@@ -629,15 +613,7 @@ gum_duk_close_output_operation_finish (GOutputStream * stream,
   ctx = _gum_duk_scope_enter (&scope, op->core);
 
   duk_push_heapptr (ctx, op->callback);
-  if (error == NULL)
-  {
-    duk_push_null (ctx);
-  }
-  else
-  {
-    duk_push_error_object (ctx, DUK_ERR_ERROR, "%s", error->message);
-    g_error_free (error);
-  }
+  _gum_duk_push_and_steal_error (ctx, &error);
   duk_push_boolean (ctx, success);
   _gum_duk_scope_call (&scope, 2);
   duk_pop (ctx);
@@ -769,19 +745,15 @@ gum_duk_write_operation_finish (GOutputStream * stream,
   if (self->strategy == GUM_DUK_WRITE_ALL &&
       bytes_written != g_bytes_get_size (self->bytes))
   {
-    duk_push_error_object (ctx, DUK_ERR_ERROR, "%s",
-        (error != NULL) ? error->message : "Short write");
-  }
-  else if (error == NULL)
-  {
-    duk_push_null (ctx);
+    if (error != NULL)
+      _gum_duk_push_and_steal_error (ctx, &error);
+    else
+      duk_push_error_object (ctx, DUK_ERR_ERROR, "short write");
   }
   else
   {
-    duk_push_error_object (ctx, DUK_ERR_ERROR, "%s", error->message);
+    _gum_duk_push_and_steal_error (ctx, &error);
   }
-
-  g_clear_error (&error);
 
   duk_push_uint (ctx, bytes_written);
 

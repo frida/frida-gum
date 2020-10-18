@@ -101,9 +101,8 @@ G_GNUC_INTERNAL void _gum_v8_throw_ascii_literal (v8::Isolate * isolate,
     const gchar * message);
 G_GNUC_INTERNAL void _gum_v8_throw_native (GumExceptionDetails * details,
     GumV8Core * core);
-G_GNUC_INTERNAL void _gum_v8_parse_exception_details (
-    GumExceptionDetails * details, v8::Local<v8::Object> & exception,
-    v8::Local<v8::Object> & cpu_context, GumV8Core * core);
+G_GNUC_INTERNAL gboolean _gum_v8_maybe_throw (v8::Isolate * isolate,
+    GError ** error);
 
 G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_cpu_context_new_immutable (
     const GumCpuContext * cpu_context, GumV8Core * core);
@@ -113,6 +112,13 @@ G_GNUC_INTERNAL void _gum_v8_cpu_context_free_later (
     GumPersistent<v8::Object>::type * cpu_context, GumV8Core * core);
 G_GNUC_INTERNAL gboolean _gum_v8_cpu_context_get (
     v8::Local<v8::Value> value, GumCpuContext ** context, GumV8Core * core);
+
+G_GNUC_INTERNAL void _gum_v8_parse_exception_details (
+    GumExceptionDetails * details, v8::Local<v8::Object> & exception,
+    v8::Local<v8::Object> & cpu_context, GumV8Core * core);
+
+v8::Local<v8::Value> _gum_v8_error_new_take_error (v8::Isolate * isolate,
+    GError ** error);
 
 G_GNUC_INTERNAL const gchar * _gum_v8_thread_state_to_string (
     GumThreadState state);

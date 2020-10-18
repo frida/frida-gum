@@ -298,10 +298,9 @@ gum_v8_listen_operation_perform (GumV8ListenOperation * self)
 
     Local<Value> error_value;
     Local<Value> listener_value;
-    auto null_value = Null (isolate);
     if (error == NULL)
     {
-      error_value = null_value;
+      error_value = Null (isolate);
       listener_value = gum_v8_socket_listener_new (listener, self->module);
 
       auto listener_object = listener_value.As<Object> ();
@@ -323,10 +322,8 @@ gum_v8_listen_operation_perform (GumV8ListenOperation * self)
     }
     else
     {
-      error_value = Exception::Error (
-          String::NewFromUtf8 (isolate, error->message).ToLocalChecked ());
-      g_error_free (error);
-      listener_value = null_value;
+      error_value = _gum_v8_error_new_take_error (isolate, &error);
+      listener_value = Null (isolate);
     }
 
     Local<Value> argv[] = { error_value, listener_value };
@@ -445,19 +442,16 @@ gum_v8_connect_operation_finish (GSocketClient * client,
 
     Local<Value> error_value;
     Local<Value> connection_value;
-    auto null_value = Null (isolate);
     if (error == NULL)
     {
-      error_value = null_value;
+      error_value = Null (isolate);
       connection_value =
           gum_v8_socket_connection_new (connection, self->module);
     }
     else
     {
-      error_value = Exception::Error (
-          String::NewFromUtf8 (isolate, error->message).ToLocalChecked ());
-      g_error_free (error);
-      connection_value = null_value;
+      error_value = _gum_v8_error_new_take_error (isolate, &error);
+      connection_value = Null (isolate);
     }
 
     Local<Value> argv[] = { error_value, connection_value };
@@ -667,19 +661,16 @@ gum_v8_accept_operation_finish (GSocketListener * listener,
 
     Local<Value> error_value;
     Local<Value> connection_value;
-    auto null_value = Null (isolate);
     if (error == NULL)
     {
-      error_value = null_value;
+      error_value = Null (isolate);
       connection_value =
           gum_v8_socket_connection_new (connection, self->object->module);
     }
     else
     {
-      error_value = Exception::Error (
-          String::NewFromUtf8 (isolate, error->message).ToLocalChecked ());
-      g_error_free (error);
-      connection_value = null_value;
+      error_value = _gum_v8_error_new_take_error (isolate, &error);
+      connection_value = Null (isolate);
     }
 
     Local<Value> argv[] = { error_value, connection_value };
@@ -749,19 +740,8 @@ gum_v8_set_no_delay_operation_perform (GumV8SetNoDelayOperation * self)
     auto isolate = core->isolate;
     auto context = isolate->GetCurrentContext ();
 
-    Local<Value> error_value;
+    Local<Value> error_value = _gum_v8_error_new_take_error (isolate, &error);
     auto success_value = success ? True (isolate) : False (isolate);
-    auto null_value = Null (isolate);
-    if (error == NULL)
-    {
-      error_value = null_value;
-    }
-    else
-    {
-      error_value = Exception::Error (
-          String::NewFromUtf8 (isolate, error->message).ToLocalChecked ());
-      g_error_free (error);
-    }
 
     Local<Value> argv[] = { error_value, success_value };
     auto callback (Local<Function>::New (isolate, *self->callback));

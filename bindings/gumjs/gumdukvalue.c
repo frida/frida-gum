@@ -1500,6 +1500,33 @@ _gum_duk_push_exception_details (duk_context * ctx,
 }
 
 void
+_gum_duk_push_and_steal_error (duk_context * ctx,
+                               GError ** error)
+{
+  GError * e;
+
+  e = g_steal_pointer (error);
+  if (e != NULL)
+  {
+    const gchar * m = e->message;
+    GString * message;
+
+    message = g_string_sized_new (strlen (m));
+    g_string_append_unichar (message, g_unichar_tolower (g_utf8_get_char (m)));
+    g_string_append (message, g_utf8_offset_to_pointer (m, 1));
+
+    duk_push_error_object (ctx, DUK_ERR_ERROR, "%s", message->str);
+
+    g_string_free (message, TRUE);
+    g_error_free (e);
+  }
+  else
+  {
+    duk_push_null (ctx);
+  }
+}
+
+void
 _gum_duk_push_range_details (duk_context * ctx,
                              const GumRangeDetails * details,
                              GumDukCore * core)
@@ -1678,6 +1705,14 @@ _gum_duk_throw (duk_context * ctx,
   duk_push_error_object_va (ctx, DUK_ERR_ERROR, format, args);
   va_end (args);
 
+  (void) duk_throw (ctx);
+}
+
+void
+_gum_duk_throw_error (duk_context * ctx,
+                      GError ** error)
+{
+  _gum_duk_push_and_steal_error (ctx, error);
   (void) duk_throw (ctx);
 }
 

@@ -159,13 +159,9 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
   if (error == NULL)
     gum_cmodule_link (handle, &error);
 
-  if (error != NULL)
+  if (_gum_v8_maybe_throw (isolate, &error))
   {
-    _gum_v8_throw_literal (isolate, error->message);
-    g_error_free (error);
-
     gum_cmodule_free (handle);
-
     return;
   }
 

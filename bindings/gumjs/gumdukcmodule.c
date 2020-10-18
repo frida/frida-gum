@@ -125,11 +125,7 @@ failure:
   {
     gum_cmodule_free (cmodule);
 
-    duk_push_error_object (ctx, DUK_ERR_ERROR, "%s", error->message);
-    g_error_free (error);
-
-    (void) duk_throw (ctx);
-
+    _gum_duk_throw_error (ctx, &error);
     return 0;
   }
 }

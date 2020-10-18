@@ -316,8 +316,8 @@ gum_duk_listen_operation_perform (GumDukListenOperation * self)
   if (error == NULL)
   {
     duk_push_null (ctx);
-
     gum_duk_push_socket_listener (ctx, listener, op->module);
+
     if (self->path != NULL)
     {
       duk_push_string (ctx, self->path);
@@ -340,9 +340,7 @@ gum_duk_listen_operation_perform (GumDukListenOperation * self)
   }
   else
   {
-    duk_push_error_object (ctx, DUK_ERR_ERROR, "%s", error->message);
-    g_error_free (error);
-
+    _gum_duk_push_and_steal_error (ctx, &error);
     duk_push_null (ctx);
   }
   _gum_duk_scope_call (&scope, 2);
@@ -463,8 +461,7 @@ gum_duk_connect_operation_finish (GSocketClient * client,
   }
   else
   {
-    duk_push_error_object (ctx, DUK_ERR_ERROR, "%s", error->message);
-    g_error_free (error);
+    _gum_duk_push_and_steal_error (ctx, &error);
     duk_push_null (ctx);
   }
   _gum_duk_scope_call (&scope, 2);
@@ -710,8 +707,7 @@ gum_duk_accept_operation_finish (GSocketListener * listener,
   }
   else
   {
-    duk_push_error_object (ctx, DUK_ERR_ERROR, "%s", error->message);
-    g_error_free (error);
+    _gum_duk_push_and_steal_error (ctx, &error);
     duk_push_null (ctx);
   }
   _gum_duk_scope_call (&scope, 2);
@@ -787,15 +783,7 @@ gum_duk_set_no_delay_operation_perform (GumDukSetNoDelayOperation * self)
   ctx = _gum_duk_scope_enter (&scope, op->core);
 
   duk_push_heapptr (ctx, op->callback);
-  if (error == NULL)
-  {
-    duk_push_null (ctx);
-  }
-  else
-  {
-    duk_push_error_object (ctx, DUK_ERR_ERROR, "%s", error->message);
-    g_error_free (error);
-  }
+  _gum_duk_push_and_steal_error (ctx, &error);
   duk_push_boolean (ctx, success);
   _gum_duk_scope_call (&scope, 2);
   duk_pop (ctx);

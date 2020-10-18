@@ -118,6 +118,9 @@ G_GNUC_INTERNAL void _gum_duk_push_exception_details (duk_context * ctx,
     GumExceptionDetails * details, GumDukCore * core,
     GumDukCpuContext ** cpu_context);
 
+G_GNUC_INTERNAL void _gum_duk_push_and_steal_error (duk_context * ctx,
+    GError ** error);
+
 G_GNUC_INTERNAL void _gum_duk_push_range_details (duk_context * ctx,
     const GumRangeDetails * details, GumDukCore * core);
 
@@ -136,6 +139,7 @@ G_GNUC_INTERNAL void _gum_duk_push_proxy (duk_context * ctx, duk_idx_t target,
 
 G_GNUC_INTERNAL void _gum_duk_throw (duk_context * ctx,
     const gchar * format, ...);
+G_GNUC_INTERNAL void _gum_duk_throw_error (duk_context * ctx, GError ** error);
 G_GNUC_INTERNAL void _gum_duk_throw_native (duk_context * ctx,
     GumExceptionDetails * details, GumDukCore * core);
 

@@ -1489,7 +1489,7 @@ TESTCASE (unix_fd_can_be_read_from)
           "send(error.toString(), error.partialData);"
       "});",
       fds[0]);
-  EXPECT_SEND_MESSAGE_WITH ("\"Error: Short read\"", "13 37");
+  EXPECT_SEND_MESSAGE_WITH ("\"Error: short read\"", "13 37");
   EXPECT_NO_MESSAGES ();
 
   COMPILE_AND_LOAD_SCRIPT (
@@ -1504,7 +1504,7 @@ TESTCASE (unix_fd_can_be_read_from)
       "});",
       fds[0]);
   EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("\"Error: Stream is already closed\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"Error: stream is already closed\"");
   EXPECT_NO_MESSAGES ();
 
   COMPILE_AND_LOAD_SCRIPT (
@@ -2744,14 +2744,14 @@ TESTCASE (execution_can_be_traced_with_faulty_transformer)
 
       "Stalker.follow(%" G_GSIZE_FORMAT ", {"
       "  transform: function (iterator) {"
-      "    throw new Error('Oh no I am buggy');"
+      "    throw new Error('oh no I am buggy');"
       "  }"
       "});",
 
       GUM_TESTS_MODULE_NAME,
       test_thread_id);
   g_usleep (1);
-  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER, "Error: Oh no I am buggy");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER, "Error: oh no I am buggy");
   EXPECT_NO_MESSAGES ();
 
   g_assert (
@@ -6327,7 +6327,7 @@ TESTCASE (cmodule_should_report_parsing_errors)
 {
   COMPILE_AND_LOAD_SCRIPT ("new CModule('void foo (int a');");
   EXPECT_ERROR_MESSAGE_MATCHING (ANY_LINE_NUMBER,
-      "Error: Compilation failed.+");
+      "Error: compilation failed.+");
 }
 
 TESTCASE (cmodule_should_report_linking_errors)
@@ -6335,7 +6335,7 @@ TESTCASE (cmodule_should_report_linking_errors)
   COMPILE_AND_LOAD_SCRIPT ("new CModule('"
       "extern int v; int f (void) { return v; }');");
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
-      "Error: Linking failed: tcc: error: undefined symbol 'v'");
+      "Error: linking failed: tcc: error: undefined symbol 'v'");
 }
 
 TESTCASE (cmodule_should_provide_lifecycle_hooks)
@@ -7185,7 +7185,7 @@ TESTCASE (cmodule_constructor_should_throw_not_available)
 {
   COMPILE_AND_LOAD_SCRIPT ("new CModule('');");
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
-      "Error: TinyCC is not available for the current architecture");
+      "Error: not available for the current architecture");
 }
 
 #endif

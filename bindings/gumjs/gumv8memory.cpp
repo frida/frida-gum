@@ -1113,11 +1113,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_enable)
   module->on_access = new GumPersistent<Function>::type (isolate, on_access);
 
   GError * error = NULL;
-  if (!gum_memory_access_monitor_enable (module->monitor, &error))
+  gum_memory_access_monitor_enable (module->monitor, &error);
+  if (_gum_v8_maybe_throw (isolate, &error))
   {
-    _gum_v8_throw_literal (isolate, error->message);
-    g_error_free (error);
-
     delete module->on_access;
     module->on_access = nullptr;
 

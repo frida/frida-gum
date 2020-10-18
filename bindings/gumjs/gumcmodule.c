@@ -366,7 +366,7 @@ gum_cmodule_new (const gchar * source,
                  GError ** error)
 {
   g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
-      "TinyCC is not available for the current architecture");
+      "Not available for the current architecture");
   return NULL;
 }
 

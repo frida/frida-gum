@@ -1108,12 +1108,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_enable)
 
   if (!gum_memory_access_monitor_enable (self->monitor, &error))
   {
-    duk_push_error_object (ctx, DUK_ERR_ERROR, "%s", error->message);
-    g_error_free (error);
-
     gum_duk_memory_clear_monitor (self, ctx);
 
-    (void) duk_throw (ctx);
+    _gum_duk_throw_error (ctx, &error);
   }
 
   return 0;

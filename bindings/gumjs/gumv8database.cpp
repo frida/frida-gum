@@ -324,8 +324,9 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_database_dump, GumDatabase)
   else
   {
     error = NULL;
-    if (!g_file_get_contents (self->path, (gchar **) &data, &size, &error))
-      goto io_error;
+    g_file_get_contents (self->path, (gchar **) &data, &size, &error);
+    if (_gum_v8_maybe_throw (isolate, &error))
+      return;
 
     malloc_data = data;
   }
@@ -336,15 +337,6 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_database_dump, GumDatabase)
 
   g_free (data_str);
   g_free (malloc_data);
-
-  return;
-
-io_error:
-  {
-    _gum_v8_throw (isolate, "%s", error->message);
-    g_error_free (error);
-    return;
-  }
 }
 
 static Local<Object>

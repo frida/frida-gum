@@ -263,11 +263,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_load)
     gum_module_load (name, &error);
   }
 
-  if (error != NULL)
-  {
-    _gum_v8_throw (isolate, "%s", error->message);
-    g_error_free (error);
-  }
+  _gum_v8_maybe_throw (isolate, &error);
 
   g_free (name);
 }

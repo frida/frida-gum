@@ -1387,39 +1387,15 @@ _gum_v8_throw_native (GumExceptionDetails * details,
   core->isolate->ThrowException (ex);
 }
 
-void
-_gum_v8_parse_exception_details (GumExceptionDetails * details,
-                                 Local<Object> & exception,
-                                 Local<Object> & cpu_context,
-                                 GumV8Core * core)
+gboolean
+_gum_v8_maybe_throw (Isolate * isolate,
+                     GError ** error)
 {
-  auto message = gum_exception_details_to_string (details);
-  auto ex = Exception::Error (
-      String::NewFromUtf8 (core->isolate, message).ToLocalChecked ())
-      .As<Object> ();
-  g_free (message);
-
-  _gum_v8_object_set_ascii (ex, "type",
-      gum_exception_type_to_string (details->type), core);
-  _gum_v8_object_set_pointer (ex, "address", details->address, core);
-
-  const GumExceptionMemoryDetails * md = &details->memory;
-  if (md->operation != GUM_MEMOP_INVALID)
-  {
-    auto memory (Object::New (core->isolate));
-    _gum_v8_object_set_ascii (memory, "operation",
-        _gum_v8_memory_operation_to_string (md->operation), core);
-    _gum_v8_object_set_pointer (memory, "address", md->address, core);
-    _gum_v8_object_set (ex, "memory", memory, core);
-  }
-
-  auto context = _gum_v8_cpu_context_new_mutable (&details->context, core);
-  _gum_v8_object_set (ex, "context", context, core);
-  _gum_v8_object_set_pointer (ex, "nativeContext", details->native_context,
-      core);
-
-  exception = ex;
-  cpu_context = context;
+  auto value = _gum_v8_error_new_take_error (isolate, error);
+  if (value->IsNull ())
+    return FALSE;
+  isolate->ThrowException (value);
+  return TRUE;
 }
 
 static const gchar *
@@ -1523,6 +1499,71 @@ _gum_v8_cpu_context_get (Local<Value> value,
   *context = GUMJS_CPU_CONTEXT_VALUE (value.As<Object> ());
 
   return TRUE;
+}
+
+void
+_gum_v8_parse_exception_details (GumExceptionDetails * details,
+                                 Local<Object> & exception,
+                                 Local<Object> & cpu_context,
+                                 GumV8Core * core)
+{
+  auto message = gum_exception_details_to_string (details);
+  auto ex = Exception::Error (
+      String::NewFromUtf8 (core->isolate, message).ToLocalChecked ())
+      .As<Object> ();
+  g_free (message);
+
+  _gum_v8_object_set_ascii (ex, "type",
+      gum_exception_type_to_string (details->type), core);
+  _gum_v8_object_set_pointer (ex, "address", details->address, core);
+
+  const GumExceptionMemoryDetails * md = &details->memory;
+  if (md->operation != GUM_MEMOP_INVALID)
+  {
+    auto memory (Object::New (core->isolate));
+    _gum_v8_object_set_ascii (memory, "operation",
+        _gum_v8_memory_operation_to_string (md->operation), core);
+    _gum_v8_object_set_pointer (memory, "address", md->address, core);
+    _gum_v8_object_set (ex, "memory", memory, core);
+  }
+
+  auto context = _gum_v8_cpu_context_new_mutable (&details->context, core);
+  _gum_v8_object_set (ex, "context", context, core);
+  _gum_v8_object_set_pointer (ex, "nativeContext", details->native_context,
+      core);
+
+  exception = ex;
+  cpu_context = context;
+}
+
+Local<Value>
+_gum_v8_error_new_take_error (Isolate * isolate,
+                              GError ** error)
+{
+  Local<Value> result;
+
+  auto e = (GError *) g_steal_pointer (error);
+  if (e != NULL)
+  {
+    const gchar * m = e->message;
+    GString * message;
+
+    message = g_string_sized_new (strlen (m));
+    g_string_append_unichar (message, g_unichar_tolower (g_utf8_get_char (m)));
+    g_string_append (message, g_utf8_offset_to_pointer (m, 1));
+
+    result = Exception::Error (
+        String::NewFromUtf8 (isolate, message->str).ToLocalChecked ());
+
+    g_string_free (message, TRUE);
+    g_error_free (e);
+  }
+  else
+  {
+    result = Null (isolate);
+  }
+
+  return result;
 }
 
 const gchar *
