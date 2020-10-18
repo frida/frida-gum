@@ -47,7 +47,7 @@ _gum_quick_file_init (GumQuickFile * self,
                       GumQuickCore * core)
 {
   JSContext * ctx = core->ctx;
-  JSValue ctor, proto;
+  JSValue proto, ctor;
 
   self->core = core;
 

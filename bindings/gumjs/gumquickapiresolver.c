@@ -43,7 +43,7 @@ _gum_quick_api_resolver_init (GumQuickApiResolver * self,
                               GumQuickCore * core)
 {
   JSContext * ctx = core->ctx;
-  JSValue ctor, proto;
+  JSValue proto, ctor;
 
   self->core = core;
 

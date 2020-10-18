@@ -18,7 +18,7 @@ _gum_quick_code_writer_init (GumQuickCodeWriter * self,
                              GumQuickCore * core)
 {
   JSContext * ctx = core->ctx;
-  JSValue ctor, proto;
+  JSValue proto, ctor;
 
   self->core = core;
 

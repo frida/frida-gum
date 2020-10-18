@@ -28,9 +28,7 @@
 #include "gumquicksocket.h"
 #endif
 #include "gumquickstalker.h"
-#if 0
 #include "gumquickstream.h"
-#endif
 #include "gumquicksymbol.h"
 #include "gumquickthread.h"
 #include "gumscripttask.h"
@@ -64,8 +62,8 @@ struct _GumQuickScript
   GumQuickProcess process;
   GumQuickThread thread;
   GumQuickFile file;
-#if 0
   GumQuickStream stream;
+#if 0
   GumQuickSocket socket;
   GumQuickDatabase database;
 #endif
@@ -394,8 +392,8 @@ gum_quick_script_create_context (GumQuickScript * self,
   _gum_quick_process_init (&self->process, global_obj, &self->module, core);
   _gum_quick_thread_init (&self->thread, global_obj, core);
   _gum_quick_file_init (&self->file, global_obj, core);
-#if 0
   _gum_quick_stream_init (&self->stream, global_obj, core);
+#if 0
   _gum_quick_socket_init (&self->socket, global_obj, core);
   _gum_quick_database_init (&self->database, global_obj, core);
 #endif
@@ -448,8 +446,8 @@ gum_quick_script_destroy_context (GumQuickScript * self)
 #if 0
     _gum_quick_database_dispose (&self->database);
     _gum_quick_socket_dispose (&self->socket);
-    _gum_quick_stream_dispose (&self->stream);
 #endif
+    _gum_quick_stream_dispose (&self->stream);
     _gum_quick_file_dispose (&self->file);
     _gum_quick_thread_dispose (&self->thread);
     _gum_quick_process_dispose (&self->process);
@@ -489,8 +487,8 @@ gum_quick_script_destroy_context (GumQuickScript * self)
 #if 0
   _gum_quick_database_finalize (&self->database);
   _gum_quick_socket_finalize (&self->socket);
-  _gum_quick_stream_finalize (&self->stream);
 #endif
+  _gum_quick_stream_finalize (&self->stream);
   _gum_quick_file_finalize (&self->file);
   _gum_quick_thread_finalize (&self->thread);
   _gum_quick_process_finalize (&self->process);
@@ -684,8 +682,8 @@ gum_quick_script_try_unload (GumQuickScript * self)
   _gum_quick_interceptor_flush (&self->interceptor);
 #if 0
   _gum_quick_socket_flush (&self->socket);
-  _gum_quick_stream_flush (&self->stream);
 #endif
+  _gum_quick_stream_flush (&self->stream);
   _gum_quick_process_flush (&self->process);
   success = _gum_quick_core_flush (&self->core, gum_quick_script_try_unload);
 

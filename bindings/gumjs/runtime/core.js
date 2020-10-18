@@ -485,7 +485,6 @@ Object.defineProperty(Instruction, 'parse', {
 
 makeEnumerateApi(ApiResolver.prototype, 'enumerateMatches', 1);
 
-/*
 const _closeIOStream = IOStream.prototype._close;
 IOStream.prototype.close = function () {
   const stream = this;
@@ -596,6 +595,7 @@ OutputStream.prototype.writeMemoryRegion = function (address, length) {
   });
 };
 
+/*
 const _closeListener = SocketListener.prototype._close;
 SocketListener.prototype.close = function () {
   const listener = this;

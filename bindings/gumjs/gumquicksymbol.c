@@ -75,7 +75,7 @@ _gum_quick_symbol_init (GumQuickSymbol * self,
                         GumQuickCore * core)
 {
   JSContext * ctx = core->ctx;
-  JSValue ctor, proto;
+  JSValue proto, ctor;
 
   self->core = core;
 

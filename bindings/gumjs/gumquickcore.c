@@ -836,7 +836,7 @@ _gum_quick_core_init (GumQuickCore * self,
                       GumScriptScheduler * scheduler)
 {
   JSRuntime * rt;
-  JSValue obj, ctor, proto, uint64_proto, global_obj;
+  JSValue obj, proto, ctor, uint64_proto, global_obj;
 
   rt = JS_GetRuntime (ctx);
 

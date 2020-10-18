@@ -100,7 +100,7 @@ _gum_quick_module_init (GumQuickModule * self,
                         GumQuickCore * core)
 {
   JSContext * ctx = core->ctx;
-  JSValue ctor, proto;
+  JSValue proto, ctor;
 
   self->core = core;
 

@@ -43,6 +43,7 @@ if have_quickjs
     'gumquickthread.c',
     'gumquickmodule.c',
     'gumquickfile.c',
+    'gumquickstream.c',
     'gumquickinterceptor.c',
     'gumquickstalker.c',
     'gumquickeventsink.c',
