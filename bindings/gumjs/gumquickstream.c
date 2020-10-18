@@ -768,7 +768,7 @@ gumjs_output_stream_write_with_strategy (JSContext * ctx,
   op = _gum_quick_object_operation_new (GumQuickWriteOperation, self, callback,
       gum_quick_write_operation_start, gum_quick_write_operation_dispose);
   op->strategy = strategy;
-  op->bytes = bytes;
+  op->bytes = g_bytes_ref (bytes);
   _gum_quick_object_operation_schedule (op);
 
   return JS_UNDEFINED;
