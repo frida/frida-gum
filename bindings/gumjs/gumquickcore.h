@@ -47,7 +47,7 @@ typedef void (* GumQuickWeakNotify) (gpointer data);
 typedef void (* GumQuickFlushNotify) (GumQuickScript * script);
 typedef void (* GumQuickMessageEmitter) (GumQuickScript * script,
     const gchar * message, GBytes * data);
-typedef void (* GumQuickKernelNotify) (guint64 data);
+typedef void (* GumQuickKernelDestroyNotify) (GumAddress data);
 
 struct _GumQuickCore
 {
@@ -218,7 +218,7 @@ struct _GumQuickKernelResource
 {
   GumQuickUInt64 u64;
 
-  GumQuickKernelNotify notify;
+  GumQuickKernelDestroyNotify notify;
 };
 
 G_GNUC_INTERNAL void _gum_quick_core_init (GumQuickCore * self,

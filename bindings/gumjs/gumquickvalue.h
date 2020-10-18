@@ -97,6 +97,8 @@ G_GNUC_INTERNAL gboolean _gum_quick_native_pointer_parse (JSContext * ctx,
 
 G_GNUC_INTERNAL JSValue _gum_quick_native_resource_new (JSContext * ctx,
     gpointer data, GDestroyNotify notify, GumQuickCore * core);
+G_GNUC_INTERNAL JSValue _gum_quick_kernel_resource_new (JSContext * ctx,
+    GumAddress data, GumQuickKernelDestroyNotify notify, GumQuickCore * core);
 
 G_GNUC_INTERNAL JSValue _gum_quick_cpu_context_new (JSContext * ctx,
     GumCpuContext * handle, GumQuickCpuContextAccess access,

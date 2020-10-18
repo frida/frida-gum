@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2018-2019 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -11,6 +12,7 @@
 typedef guint GumMemoryValueType;
 typedef struct _GumQuickMatchContext GumQuickMatchContext;
 typedef struct _GumKernelScanContext GumKernelScanContext;
+typedef struct _GumMemoryScanSyncContext GumMemoryScanSyncContext;
 
 enum _GumMemoryValueType
 {
@@ -36,8 +38,10 @@ struct _GumQuickMatchContext
 {
   JSValue on_match;
   JSValue on_complete;
+  GumQuickMatchResult result;
 
-  GumQuickScope * scope;
+  JSContext * ctx;
+  GumQuickCore * core;
 };
 
 struct _GumKernelScanContext
@@ -47,7 +51,18 @@ struct _GumKernelScanContext
   JSValue on_match;
   JSValue on_error;
   JSValue on_complete;
+  GumQuickMatchResult result;
 
+  JSContext * ctx;
+  GumQuickCore * core;
+};
+
+struct _GumMemoryScanSyncContext
+{
+  JSValue matches;
+  uint32_t index;
+
+  JSContext * ctx;
   GumQuickCore * core;
 };
 
@@ -57,23 +72,25 @@ GUMJS_DECLARE_SETTER (gumjs_kernel_set_base)
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_modules)
 static gboolean gum_emit_module (const GumModuleDetails * details,
     GumQuickMatchContext * mc);
-static void gum_push_module (JSContext * ctx,
+static JSValue gum_parse_module_details (JSContext * ctx,
     const GumModuleDetails * details, GumQuickCore * core);
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
     GumQuickMatchContext * mc);
-static void gum_push_range (JSContext * ctx,
+static JSValue gum_parse_range_details (JSContext * ctx,
     const GumRangeDetails * details, GumQuickCore * core);
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_module_ranges)
 static gboolean gum_emit_module_range (
     const GumKernelModuleRangeDetails * details, GumQuickMatchContext * mc);
+static JSValue gum_parse_module_range_details (JSContext * ctx,
+    const GumKernelModuleRangeDetails * details, GumQuickCore * core);
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_alloc)
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_protect)
 
 static JSValue gum_quick_kernel_read (JSContext * ctx, GumMemoryValueType type,
-    const GumQuickArgs * args, GumQuickCore * core);
+    GumQuickArgs * args, GumQuickCore * core);
 static JSValue gum_quick_kernel_write (JSContext * ctx, GumMemoryValueType type,
-    const GumQuickArgs * args, GumQuickCore * core);
+    GumQuickArgs * args, GumQuickCore * core);
 
 #define GUMJS_DEFINE_MEMORY_READ(T) \
     GUMJS_DEFINE_FUNCTION (gumjs_kernel_read_##T) \
@@ -121,7 +138,7 @@ static gboolean gum_kernel_scan_context_emit_match (GumAddress address,
     gsize size, GumKernelScanContext * self);
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_scan_sync)
 static gboolean gum_append_match (GumAddress address, gsize size,
-    GumQuickCore * core);
+    GumMemoryScanSyncContext * sc);
 
 static gboolean gum_quick_kernel_check_api_available (JSContext * ctx);
 
@@ -214,203 +231,195 @@ GUMJS_DEFINE_SETTER (gumjs_kernel_set_base)
   if (!gum_quick_kernel_check_api_available (ctx))
     return JS_EXCEPTION;
 
-  _gum_quick_args_parse (args, "Q", &address);
+  if (!_gum_quick_uint64_get (ctx, val, core, &address))
+    return JS_EXCEPTION;
 
   gum_kernel_set_base_address (address);
-  return 0;
+
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_modules)
 {
   GumQuickMatchContext mc;
-  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (args->core);
 
   if (!gum_quick_kernel_check_api_available (ctx))
     return JS_EXCEPTION;
 
-  _gum_quick_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
-      &mc.on_complete);
-  mc.scope = &scope;
+  if (!_gum_quick_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
+      &mc.on_complete))
+    return JS_EXCEPTION;
+  mc.result = GUM_QUICK_MATCH_CONTINUE;
+  mc.ctx = ctx;
+  mc.core = core;
 
   gum_kernel_enumerate_modules ((GumFoundModuleFunc) gum_emit_module, &mc);
-  _gum_quick_scope_flush (&scope);
 
-  quick_push_heapptr (ctx, mc.on_complete);
-  quick_call (ctx, 0);
-  quick_pop (ctx);
-
-  return 0;
+  return _gum_quick_maybe_call_on_complete (ctx, mc.result, mc.on_complete);
 }
 
 static gboolean
 gum_emit_module (const GumModuleDetails * details,
                  GumQuickMatchContext * mc)
 {
-  GumQuickScope * scope = mc->scope;
-  JSContext * ctx = scope->ctx;
-  gboolean proceed = TRUE;
+  JSContext * ctx = mc->ctx;
+  JSValue module, result;
 
-  quick_push_heapptr (ctx, mc->on_match);
-  gum_push_module (ctx, details, scope->core);
+  module = gum_parse_module_details (ctx, details, mc->core);
 
-  if (_gum_quick_scope_call_sync (scope, 1))
-  {
-    if (quick_is_string (ctx, -1))
-      proceed = strcmp (quick_require_string (ctx, -1), "stop") != 0;
-  }
-  else
-  {
-    proceed = FALSE;
-  }
-  quick_pop (ctx);
+  result = JS_Call (ctx, mc->on_match, JS_UNDEFINED, 1, &module);
 
-  return proceed;
+  JS_FreeValue (ctx, module);
+
+  return _gum_quick_process_match_result (ctx, &result, &mc->result);
 }
 
-static void
-gum_push_module (JSContext * ctx,
-                 const GumModuleDetails * details,
-                 GumQuickCore * core)
+static JSValue
+gum_parse_module_details (JSContext * ctx,
+                          const GumModuleDetails * details,
+                          GumQuickCore * core)
 {
-  quick_push_object (ctx);
+  JSValue m = JS_NewObject (ctx);
 
-  quick_push_string (ctx, details->name);
-  quick_put_prop_string (ctx, -2, "name");
+  JS_DefinePropertyValue (ctx, m,
+      GUM_QUICK_CORE_ATOM (core, name),
+      JS_NewString (ctx, details->name),
+      JS_PROP_C_W_E);
+  JS_DefinePropertyValue (ctx, m,
+      GUM_QUICK_CORE_ATOM (core, base),
+      _gum_quick_uint64_new (ctx, details->range->base_address, core),
+      JS_PROP_C_W_E);
+  JS_DefinePropertyValue (ctx, m,
+      GUM_QUICK_CORE_ATOM (core, size),
+      JS_NewInt64 (ctx, details->range->size),
+      JS_PROP_C_W_E);
 
-  _gum_quick_push_uint64 (ctx, details->range->base_address, core);
-  quick_put_prop_string (ctx, -2, "base");
-
-  quick_push_uint (ctx, details->range->size);
-  quick_put_prop_string (ctx, -2, "size");
+  return m;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_ranges)
 {
   GumQuickMatchContext mc;
   GumPageProtection prot;
-  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (args->core);
 
   if (!gum_quick_kernel_check_api_available (ctx))
     return JS_EXCEPTION;
 
-  _gum_quick_args_parse (args, "mF{onMatch,onComplete}", &prot, &mc.on_match,
-      &mc.on_complete);
-  mc.scope = &scope;
+  if (!_gum_quick_args_parse (args, "mF{onMatch,onComplete}", &prot,
+      &mc.on_match, &mc.on_complete))
+    return JS_EXCEPTION;
+  mc.result = GUM_QUICK_MATCH_CONTINUE;
+  mc.ctx = ctx;
+  mc.core = core;
 
   gum_kernel_enumerate_ranges (prot, (GumFoundRangeFunc) gum_emit_range, &mc);
-  _gum_quick_scope_flush (&scope);
 
-  quick_push_heapptr (ctx, mc.on_complete);
-  quick_call (ctx, 0);
-  quick_pop (ctx);
-
-  return 0;
+  return _gum_quick_maybe_call_on_complete (ctx, mc.result, mc.on_complete);
 }
 
 static gboolean
 gum_emit_range (const GumRangeDetails * details,
                 GumQuickMatchContext * mc)
 {
-  GumQuickScope * scope = mc->scope;
-  JSContext * ctx = scope->ctx;
-  gboolean proceed = TRUE;
+  JSContext * ctx = mc->ctx;
+  JSValue range, result;
 
-  quick_push_heapptr (ctx, mc->on_match);
-  gum_push_range (ctx, details, scope->core);
+  range = gum_parse_range_details (ctx, details, mc->core);
 
-  if (_gum_quick_scope_call_sync (scope, 1))
-  {
-    if (quick_is_string (ctx, -1))
-      proceed = strcmp (quick_require_string (ctx, -1), "stop") != 0;
-  }
-  else
-  {
-    proceed = FALSE;
-  }
-  quick_pop (ctx);
+  result = JS_Call (ctx, mc->on_match, JS_UNDEFINED, 1, &range);
 
-  return proceed;
+  JS_FreeValue (ctx, range);
+
+  return _gum_quick_process_match_result (ctx, &result, &mc->result);
 }
 
-static void
-gum_push_range (JSContext * ctx,
-                const GumRangeDetails * details,
-                GumQuickCore * core)
+static JSValue
+gum_parse_range_details (JSContext * ctx,
+                         const GumRangeDetails * details,
+                         GumQuickCore * core)
 {
-  quick_push_object (ctx);
+  JSValue r = JS_NewObject (ctx);
 
-  _gum_quick_push_uint64 (ctx, details->range->base_address, core);
-  quick_put_prop_string (ctx, -2, "base");
+  JS_DefinePropertyValue (ctx, r,
+      GUM_QUICK_CORE_ATOM (core, base),
+      _gum_quick_uint64_new (ctx, details->range->base_address, core),
+      JS_PROP_C_W_E);
+  JS_DefinePropertyValue (ctx, r,
+      GUM_QUICK_CORE_ATOM (core, size),
+      JS_NewInt64 (ctx, details->range->size),
+      JS_PROP_C_W_E);
+  JS_DefinePropertyValue (ctx, r,
+      GUM_QUICK_CORE_ATOM (core, protection),
+      _gum_quick_page_protection_new (ctx, details->prot),
+      JS_PROP_C_W_E);
 
-  quick_push_uint (ctx, details->range->size);
-  quick_put_prop_string (ctx, -2, "size");
-
-  _gum_quick_push_page_protection (ctx, details->prot);
-  quick_put_prop_string (ctx, -2, "protection");
+  return r;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_module_ranges)
 {
-  gchar * module_name;
-  GumQuickMatchContext mc;
+  const gchar * module_name;
   GumPageProtection prot;
-  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (args->core);
+  GumQuickMatchContext mc;
 
   if (!gum_quick_kernel_check_api_available (ctx))
     return JS_EXCEPTION;
 
-  _gum_quick_args_parse (args, "s?mF{onMatch,onComplete}", &module_name, &prot,
-      &mc.on_match, &mc.on_complete);
-  mc.scope = &scope;
+  if (!_gum_quick_args_parse (args, "s?mF{onMatch,onComplete}", &module_name,
+      &prot, &mc.on_match, &mc.on_complete))
+    return JS_EXCEPTION;
+  mc.result = GUM_QUICK_MATCH_CONTINUE;
+  mc.ctx = ctx;
+  mc.core = core;
 
   gum_kernel_enumerate_module_ranges (
       (module_name == NULL) ? "Kernel" : module_name, prot,
       (GumFoundKernelModuleRangeFunc) gum_emit_module_range, &mc);
-  _gum_quick_scope_flush (&scope);
 
-  quick_push_heapptr (ctx, mc.on_complete);
-  quick_call (ctx, 0);
-  quick_pop (ctx);
-
-  return 0;
+  return _gum_quick_maybe_call_on_complete (ctx, mc.result, mc.on_complete);
 }
 
 static gboolean
 gum_emit_module_range (const GumKernelModuleRangeDetails * details,
                        GumQuickMatchContext * mc)
 {
-  GumQuickScope * scope = mc->scope;
-  JSContext * ctx = scope->ctx;
-  gboolean proceed = TRUE;
+  JSContext * ctx = mc->ctx;
+  JSValue module_range, result;
 
-  quick_push_heapptr (ctx, mc->on_match);
+  module_range = gum_parse_module_range_details (ctx, details, mc->core);
 
-  quick_push_object (ctx);
+  result = JS_Call (ctx, mc->on_match, JS_UNDEFINED, 1, &module_range);
 
-  quick_push_string (ctx, details->name);
-  quick_put_prop_string (ctx, -2, "name");
+  JS_FreeValue (ctx, module_range);
 
-  _gum_quick_push_uint64 (ctx, details->address, scope->core);
-  quick_put_prop_string (ctx, -2, "base");
+  return _gum_quick_process_match_result (ctx, &result, &mc->result);
+}
 
-  quick_push_uint (ctx, details->size);
-  quick_put_prop_string (ctx, -2, "size");
+static JSValue
+gum_parse_module_range_details (JSContext * ctx,
+                                const GumKernelModuleRangeDetails * details,
+                                GumQuickCore * core)
+{
+  JSValue r = JS_NewObject (ctx);
 
-  _gum_quick_push_page_protection (ctx, details->protection);
-  quick_put_prop_string (ctx, -2, "protection");
+  JS_DefinePropertyValue (ctx, r,
+      GUM_QUICK_CORE_ATOM (core, name),
+      JS_NewString (ctx, details->name),
+      JS_PROP_C_W_E);
+  JS_DefinePropertyValue (ctx, r,
+      GUM_QUICK_CORE_ATOM (core, base),
+      _gum_quick_uint64_new (ctx, details->address, core),
+      JS_PROP_C_W_E);
+  JS_DefinePropertyValue (ctx, r,
+      GUM_QUICK_CORE_ATOM (core, size),
+      JS_NewInt64 (ctx, details->size),
+      JS_PROP_C_W_E);
+  JS_DefinePropertyValue (ctx, r,
+      GUM_QUICK_CORE_ATOM (core, protection),
+      _gum_quick_page_protection_new (ctx, details->protection),
+      JS_PROP_C_W_E);
 
-  if (_gum_quick_scope_call_sync (scope, 1))
-  {
-    if (quick_is_string (ctx, -1))
-      proceed = strcmp (quick_require_string (ctx, -1), "stop") != 0;
-  }
-  else
-  {
-    proceed = FALSE;
-  }
-  quick_pop (ctx);
-
-  return proceed;
+  return r;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_alloc)
@@ -418,23 +427,23 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_alloc)
   GumAddress address;
   gsize size, page_size;
   guint n_pages;
-  GumQuickCore * core = args->core;
 
   if (!gum_quick_kernel_check_api_available (ctx))
     return JS_EXCEPTION;
 
-  _gum_quick_args_parse (args, "Z", &size);
+  if (!_gum_quick_args_parse (args, "Z", &size))
+    return JS_EXCEPTION;
 
   if (size == 0 || size > 0x7fffffff)
-    _gum_quick_throw (ctx, "invalid size");
+    return _gum_quick_throw_literal (ctx, "invalid size");
 
   page_size = gum_kernel_query_page_size ();
   n_pages = ((size + page_size - 1) & ~(page_size - 1)) / page_size;
 
   address = gum_kernel_alloc_n_pages (n_pages);
 
-  _gum_quick_push_kernel_resource (ctx, address, gum_kernel_free_pages, core);
-  return 1;
+  return _gum_quick_kernel_resource_new (ctx, address, gum_kernel_free_pages,
+      core);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_protect)
@@ -447,32 +456,34 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_protect)
   if (!gum_quick_kernel_check_api_available (ctx))
     return JS_EXCEPTION;
 
-  _gum_quick_args_parse (args, "QZm", &address, &size, &prot);
+  if (!_gum_quick_args_parse (args, "QZm", &address, &size, &prot))
+    return JS_EXCEPTION;
 
   if (size > 0x7fffffff)
-    _gum_quick_throw (ctx, "invalid size");
+    return _gum_quick_throw_literal (ctx, "invalid size");
 
   if (size != 0)
     success = gum_kernel_try_mprotect (address, size, prot);
   else
     success = TRUE;
 
-  quick_push_boolean (ctx, success);
-  return 1;
+  return JS_NewBool (ctx, success);
 }
 
 static JSValue
 gum_quick_kernel_read (JSContext * ctx,
                        GumMemoryValueType type,
-                       const GumQuickArgs * args,
+                       GumQuickArgs * args,
                        GumQuickCore * core)
 {
+  JSValue result;
   GumAddress address;
-  gssize length = 0;
-  gsize n_bytes_read;
+  gssize length;
+  gpointer data = NULL;
+  const gchar * end;
 
   if (!gum_quick_kernel_check_api_available (ctx))
-    return JS_EXCEPTION;
+    goto propagate_exception;
 
   switch (type)
   {
@@ -480,17 +491,20 @@ gum_quick_kernel_read (JSContext * ctx,
     case GUM_MEMORY_VALUE_C_STRING:
     case GUM_MEMORY_VALUE_UTF8_STRING:
     case GUM_MEMORY_VALUE_UTF16_STRING:
-      _gum_quick_args_parse (args, "QZ", &address, &length);
+      if (!_gum_quick_args_parse (args, "QZ", &address, &length))
+        goto propagate_exception;
       break;
     default:
-      _gum_quick_args_parse (args, "Q", &address);
+      if (!_gum_quick_args_parse (args, "Q", &address))
+        goto propagate_exception;
+      length = 0;
       break;
   }
 
   if (address == 0)
   {
-    quick_push_null (ctx);
-    return 1;
+    result = JS_NULL;
+    goto beach;
   }
 
   if (length == 0)
@@ -524,64 +538,56 @@ gum_quick_kernel_read (JSContext * ctx,
 
   if (length > 0)
   {
-    guint8 * data;
-    gpointer buffer_data;
+    gsize n_bytes_read;
 
     data = gum_kernel_read (address, length, &n_bytes_read);
     if (data == NULL)
-    {
-      _gum_quick_throw (ctx, "access violation reading 0x%" G_GINT64_MODIFIER "x",
-          address);
-    }
+      goto invalid_address;
 
     switch (type)
     {
       case GUM_MEMORY_VALUE_S8:
-        quick_push_number (ctx, *((gint8 *) data));
+        result = JS_NewInt32 (ctx, *((gint8 *) data));
         break;
       case GUM_MEMORY_VALUE_U8:
-        quick_push_number (ctx, *((guint8 *) data));
+        result = JS_NewInt32 (ctx, *((guint8 *) data));
         break;
       case GUM_MEMORY_VALUE_S16:
-        quick_push_number (ctx, *((gint16 *) data));
+        result = JS_NewInt32 (ctx, *((gint16 *) data));
         break;
       case GUM_MEMORY_VALUE_U16:
-        quick_push_number (ctx, *((guint16 *) data));
+        result = JS_NewInt32 (ctx, *((guint16 *) data));
         break;
       case GUM_MEMORY_VALUE_S32:
-        quick_push_number (ctx, *((gint32 *) data));
+        result = JS_NewInt32 (ctx, *((gint32 *) data));
         break;
       case GUM_MEMORY_VALUE_U32:
-        quick_push_number (ctx, *((guint32 *) data));
+        result = JS_NewInt32 (ctx, *((guint32 *) data));
         break;
       case GUM_MEMORY_VALUE_S64:
-        _gum_quick_push_int64 (ctx, *((gint64 *) data), core);
+        result = _gum_quick_int64_new (ctx, *((gint64 *) data), core);
         break;
       case GUM_MEMORY_VALUE_U64:
-        _gum_quick_push_uint64 (ctx, *((guint64 *) data), core);
+        result = _gum_quick_uint64_new (ctx, *((guint64 *) data), core);
         break;
       case GUM_MEMORY_VALUE_LONG:
-        _gum_quick_push_int64 (ctx, *((glong *) data), core);
+        result = _gum_quick_int64_new (ctx, *((glong *) data), core);
         break;
       case GUM_MEMORY_VALUE_ULONG:
-        _gum_quick_push_uint64 (ctx, *((gulong *) data), core);
+        result = _gum_quick_uint64_new (ctx, *((gulong *) data), core);
         break;
       case GUM_MEMORY_VALUE_FLOAT:
-        quick_push_number (ctx, *((gfloat *) data));
+        result = JS_NewFloat64 (ctx, *((gfloat *) data));
         break;
       case GUM_MEMORY_VALUE_DOUBLE:
-        quick_push_number (ctx, *((gdouble *) data));
+        result = JS_NewFloat64 (ctx, *((gdouble *) data));
         break;
       case GUM_MEMORY_VALUE_BYTE_ARRAY:
       {
-        buffer_data = quick_push_fixed_buffer (ctx, n_bytes_read);
-        memcpy (buffer_data, data, n_bytes_read);
+        uint8_t * buf = g_steal_pointer (&data);
 
-        quick_push_buffer_object (ctx, -1, 0, n_bytes_read,
-            QUICK_BUFOBJ_ARRAYBUFFER);
-
-        quick_swap (ctx, -2, -1);
-        quick_pop (ctx);
+        result = JS_NewArrayBuffer (ctx, buf, n_bytes_read,
+            _gum_quick_array_buffer_free, buf, FALSE);
 
         break;
       }
@@ -589,41 +595,34 @@ gum_quick_kernel_read (JSContext * ctx,
       {
         gchar * str;
 
-        str = g_utf8_make_valid ((gchar *) data, length);
-        quick_push_string (ctx, str);
+        str = g_utf8_make_valid (data, n_bytes_read);
+        result = JS_NewString (ctx, str);
         g_free (str);
 
         break;
       }
       case GUM_MEMORY_VALUE_UTF8_STRING:
       {
-        const gchar * end;
         gchar * slice;
 
-        if (!g_utf8_validate ((gchar *) data, length, &end))
-        {
-          _gum_quick_throw (ctx, "can't decode byte 0x%02x in position %u",
-              (guint8) *end, (guint) (end - (gchar *) data));
-        }
+        if (!g_utf8_validate (data, n_bytes_read, &end))
+          goto invalid_utf8;
 
-        slice = g_strndup ((gchar *) data, length);
-        quick_push_string (ctx, slice);
+        slice = g_strndup (data, n_bytes_read);
+        result = JS_NewString (ctx, slice);
         g_free (slice);
 
         break;
       }
       case GUM_MEMORY_VALUE_UTF16_STRING:
       {
-        gunichar2 * str_utf16;
         gchar * str_utf8;
         glong size;
 
-        str_utf16 = (gunichar2 *) data;
-
-        str_utf8 = g_utf16_to_utf8 (str_utf16, length, NULL, &size, NULL);
+        str_utf8 = g_utf16_to_utf8 (data, n_bytes_read, NULL, &size, NULL);
         if (str_utf8 == NULL)
-          _gum_quick_throw (ctx, "invalid string");
-        quick_push_string (ctx, str_utf8);
+          goto invalid_utf16;
+        result = JS_NewString (ctx, str_utf8);
         g_free (str_utf8);
 
         break;
@@ -632,24 +631,57 @@ gum_quick_kernel_read (JSContext * ctx,
         g_assert_not_reached ();
     }
 
-    g_free (data);
   }
   else if (type == GUM_MEMORY_VALUE_BYTE_ARRAY)
   {
-    quick_push_fixed_buffer (ctx, 0);
+    result = JS_NewArrayBufferCopy (ctx, NULL, 0);
   }
   else
   {
-    _gum_quick_throw (ctx, "please provide a length > 0");
+    goto invalid_length;
   }
 
-  return 1;
+  goto beach;
+
+invalid_address:
+  {
+    _gum_quick_throw (ctx, "access violation reading 0x%" G_GINT64_MODIFIER "x",
+        address);
+    goto propagate_exception;
+  }
+invalid_length:
+  {
+    _gum_quick_throw_literal (ctx, "expected a length > 0");
+    goto propagate_exception;
+  }
+invalid_utf8:
+  {
+    _gum_quick_throw (ctx, "can't decode byte 0x%02x in position %u",
+        (guint8) *end, (guint) (end - (gchar *) data));
+    goto propagate_exception;
+  }
+invalid_utf16:
+  {
+    _gum_quick_throw_literal (ctx, "invalid string");
+    goto propagate_exception;
+  }
+propagate_exception:
+  {
+    result = JS_EXCEPTION;
+    goto beach;
+  }
+beach:
+  {
+    g_free (data);
+
+    return result;
+  }
 }
 
 static JSValue
 gum_quick_kernel_write (JSContext * ctx,
                         GumMemoryValueType type,
-                        const GumQuickArgs * args,
+                        GumQuickArgs * args,
                         GumQuickCore * core)
 {
   GumAddress address = 0;
@@ -675,36 +707,44 @@ gum_quick_kernel_write (JSContext * ctx,
     case GUM_MEMORY_VALUE_S8:
     case GUM_MEMORY_VALUE_S16:
     case GUM_MEMORY_VALUE_S32:
-      _gum_quick_args_parse (args, "Qz", &address, &s);
+      if (!_gum_quick_args_parse (args, "Qz", &address, &s))
+        return JS_EXCEPTION;
       break;
     case GUM_MEMORY_VALUE_U8:
     case GUM_MEMORY_VALUE_U16:
     case GUM_MEMORY_VALUE_U32:
-      _gum_quick_args_parse (args, "QZ", &address, &u);
+      if (!_gum_quick_args_parse (args, "QZ", &address, &u))
+        return JS_EXCEPTION;
       break;
     case GUM_MEMORY_VALUE_S64:
     case GUM_MEMORY_VALUE_LONG:
-      _gum_quick_args_parse (args, "Qq", &address, &s64);
+      if (!_gum_quick_args_parse (args, "Qq", &address, &s64))
+        return JS_EXCEPTION;
       break;
     case GUM_MEMORY_VALUE_U64:
     case GUM_MEMORY_VALUE_ULONG:
-      _gum_quick_args_parse (args, "QQ", &address, &u64);
+      if (!_gum_quick_args_parse (args, "QQ", &address, &u64))
+        return JS_EXCEPTION;
       break;
     case GUM_MEMORY_VALUE_FLOAT:
     case GUM_MEMORY_VALUE_DOUBLE:
-      _gum_quick_args_parse (args, "Qn", &address, &number);
+      if (!_gum_quick_args_parse (args, "Qn", &address, &number))
+        return JS_EXCEPTION;
       number32 = (gfloat) number;
       break;
     case GUM_MEMORY_VALUE_BYTE_ARRAY:
-      _gum_quick_args_parse (args, "QB", &address, &bytes);
+      if (!_gum_quick_args_parse (args, "QB", &address, &bytes))
+        return JS_EXCEPTION;
       break;
     case GUM_MEMORY_VALUE_UTF8_STRING:
     case GUM_MEMORY_VALUE_UTF16_STRING:
-      _gum_quick_args_parse (args, "Qs", &address, &str);
+      if (!_gum_quick_args_parse (args, "Qs", &address, &str))
+        return JS_EXCEPTION;
 
       str_length = g_utf8_strlen (str, -1);
       if (type == GUM_MEMORY_VALUE_UTF16_STRING)
         str_utf16 = g_utf8_to_utf16 (str, -1, NULL, NULL, NULL);
+
       break;
     default:
       g_assert_not_reached ();
@@ -770,7 +810,7 @@ gum_quick_kernel_write (JSContext * ctx,
   }
 
   if (length <= 0)
-    _gum_quick_throw (ctx, "please provide a length > 0");
+    goto invalid_length;
 
   success = gum_kernel_write (address, data, length);
 
@@ -778,37 +818,46 @@ gum_quick_kernel_write (JSContext * ctx,
   g_free (str_utf16);
 
   if (!success)
+    goto invalid_address;
+
+  return JS_UNDEFINED;
+
+invalid_address:
   {
     _gum_quick_throw (ctx, "access violation writing to 0x%" G_GINT64_MODIFIER
         "x", address);
+    return JS_EXCEPTION;
   }
-
-  return JS_UNDEFINED;
+invalid_length:
+  {
+    _gum_quick_throw_literal (ctx, "expected a length > 0");
+    return JS_EXCEPTION;
+  }
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_scan)
 {
-  GumQuickCore * core = args->core;
   GumKernelScanContext sc;
   GumAddress address;
   gsize size;
   const gchar * match_str;
 
-  _gum_quick_args_parse (args, "QZsF{onMatch,onError?,onComplete}",
-      &address, &size, &match_str, &sc.on_match, &sc.on_error, &sc.on_complete);
-
+  if (!_gum_quick_args_parse (args, "QZsF{onMatch,onError?,onComplete}",
+      &address, &size, &match_str, &sc.on_match, &sc.on_error, &sc.on_complete))
+    return JS_EXCEPTION;
   sc.range.base_address = address;
   sc.range.size = size;
   sc.pattern = gum_match_pattern_new_from_string (match_str);
+  sc.result = GUM_QUICK_MATCH_CONTINUE;
+  sc.ctx = ctx;
   sc.core = core;
 
   if (sc.pattern == NULL)
-    _gum_quick_throw (ctx, "invalid match pattern");
+    return _gum_quick_throw_literal (ctx, "invalid match pattern");
 
-  _gum_quick_protect (ctx, sc.on_match);
-  if (sc.on_error != NULL)
-    _gum_quick_protect (ctx, sc.on_error);
-  _gum_quick_protect (ctx, sc.on_complete);
+  JS_DupValue (ctx, sc.on_match);
+  JS_DupValue (ctx, sc.on_error);
+  JS_DupValue (ctx, sc.on_complete);
 
   _gum_quick_core_pin (core);
   _gum_quick_core_push_job (core,
@@ -816,22 +865,21 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_scan)
       g_slice_dup (GumKernelScanContext, &sc),
       (GDestroyNotify) gum_kernel_scan_context_free);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 static void
 gum_kernel_scan_context_free (GumKernelScanContext * self)
 {
+  JSContext * ctx = self->ctx;
   GumQuickCore * core = self->core;
   GumQuickScope scope;
-  JSContext * ctx;
 
-  ctx = _gum_quick_scope_enter (&scope, core);
+  _gum_quick_scope_enter (&scope, core);
 
-  _gum_quick_unprotect (ctx, self->on_match);
-  if (self->on_error != NULL)
-    _gum_quick_unprotect (ctx, self->on_error);
-  _gum_quick_unprotect (ctx, self->on_complete);
+  JS_FreeValue (ctx, self->on_match);
+  JS_FreeValue (ctx, self->on_error);
+  JS_FreeValue (ctx, self->on_complete);
 
   _gum_quick_core_unpin (core);
   _gum_quick_scope_leave (&scope);
@@ -844,20 +892,20 @@ gum_kernel_scan_context_free (GumKernelScanContext * self)
 static void
 gum_kernel_scan_context_run (GumKernelScanContext * self)
 {
-  GumQuickCore * core = self->core;
-  GumQuickScope script_scope;
-  JSContext * ctx;
-
   gum_kernel_scan (&self->range, self->pattern,
       (GumMemoryScanMatchFunc) gum_kernel_scan_context_emit_match, self);
 
-  ctx = _gum_quick_scope_enter (&script_scope, core);
+  if (self->result != GUM_QUICK_MATCH_ERROR)
+  {
+    GumQuickScope script_scope;
 
-  quick_push_heapptr (ctx, self->on_complete);
-  _gum_quick_scope_call (&script_scope, 0);
-  quick_pop (ctx);
+    _gum_quick_scope_enter (&script_scope, self->core);
 
-  _gum_quick_scope_leave (&script_scope);
+    _gum_quick_scope_call_void (&script_scope, self->on_complete, JS_UNDEFINED,
+        0, NULL);
+
+    _gum_quick_scope_leave (&script_scope);
+  }
 }
 
 static gboolean
@@ -865,26 +913,24 @@ gum_kernel_scan_context_emit_match (GumAddress address,
                                     gsize size,
                                     GumKernelScanContext * self)
 {
+  gboolean proceed;
+  JSContext * ctx = self->ctx;
   GumQuickCore * core = self->core;
   GumQuickScope scope;
-  JSContext * ctx;
-  gboolean proceed;
+  JSValue argv[2];
+  JSValue result;
 
-  ctx = _gum_quick_scope_enter (&scope, core);
+  _gum_quick_scope_enter (&scope, core);
 
-  quick_push_heapptr (ctx, self->on_match);
+  argv[0] = _gum_quick_uint64_new (ctx, address, core);
+  argv[1] = JS_NewUint32 (ctx, size);
 
-  _gum_quick_push_uint64 (ctx, address, core);
-  quick_push_number (ctx, size);
+  result = _gum_quick_scope_call (&scope, self->on_match, JS_UNDEFINED,
+      G_N_ELEMENTS (argv), argv);
 
-  proceed = TRUE;
+  JS_FreeValue (ctx, argv[0]);
 
-  if (_gum_quick_scope_call (&scope, 2))
-  {
-    if (quick_is_string (ctx, -1))
-      proceed = strcmp (quick_require_string (ctx, -1), "stop") != 0;
-  }
-  quick_pop (ctx);
+  proceed = _gum_quick_process_match_result (ctx, &result, &self->result);
 
   _gum_quick_scope_leave (&scope);
 
@@ -893,49 +939,58 @@ gum_kernel_scan_context_emit_match (GumAddress address,
 
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_scan_sync)
 {
-  GumQuickCore * core = args->core;
+  JSValue result;
   GumAddress address;
   gsize size;
   const gchar * match_str;
   GumMemoryRange range;
   GumMatchPattern * pattern;
+  GumMemoryScanSyncContext sc;
 
-  _gum_quick_args_parse (args, "QZs", &address, &size, &match_str);
+  if (!_gum_quick_args_parse (args, "QZs", &address, &size, &match_str))
+    return JS_EXCEPTION;
 
   range.base_address = address;
   range.size = size;
 
   pattern = gum_match_pattern_new_from_string (match_str);
   if (pattern == NULL)
-    _gum_quick_throw (ctx, "invalid match pattern");
+    return _gum_quick_throw_literal (ctx, "invalid match pattern");
 
-  quick_push_array (ctx);
+  result = JS_NewArray (ctx);
+
+  sc.matches = result;
+  sc.index = 0;
+  sc.ctx = ctx;
+  sc.core = core;
 
   gum_kernel_scan (&range, pattern, (GumMemoryScanMatchFunc) gum_append_match,
-      core);
+      &sc);
 
   gum_match_pattern_free (pattern);
 
-  return 1;
+  return result;
 }
 
 static gboolean
 gum_append_match (GumAddress address,
                   gsize size,
-                  GumQuickCore * core)
+                  GumMemoryScanSyncContext * sc)
 {
-  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (core);
-  JSContext * ctx = scope.ctx;
+  JSContext * ctx = sc->ctx;
+  GumQuickCore * core = sc->core;
+  JSValue m;
 
-  quick_push_object (ctx);
+  m = JS_NewObject (ctx);
+  JS_DefinePropertyValue (ctx, m, GUM_QUICK_CORE_ATOM (core, address),
+      _gum_quick_uint64_new (ctx, address, core),
+      JS_PROP_C_W_E);
+  JS_DefinePropertyValue (ctx, m, GUM_QUICK_CORE_ATOM (core, size),
+      JS_NewUint32 (ctx, size),
+      JS_PROP_C_W_E);
 
-  _gum_quick_push_uint64 (ctx, address, core);
-  quick_put_prop_string (ctx, -2, "address");
-
-  quick_push_uint (ctx, size);
-  quick_put_prop_string (ctx, -2, "size");
-
-  quick_put_prop_index (ctx, -2, (quick_uarridx_t) quick_get_length (ctx, -2));
+  JS_DefinePropertyValueUint32 (ctx, sc->matches, sc->index, m, JS_PROP_C_W_E);
+  sc->index++;
 
   return TRUE;
 }

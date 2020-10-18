@@ -1289,6 +1289,28 @@ _gum_quick_native_resource_new (JSContext * ctx,
 }
 
 JSValue
+_gum_quick_kernel_resource_new (JSContext * ctx,
+                                GumAddress data,
+                                GumQuickKernelDestroyNotify notify,
+                                GumQuickCore * core)
+{
+  JSValue wrapper;
+  GumQuickKernelResource * res;
+  GumQuickUInt64 * u64;
+
+  wrapper = JS_NewObjectClass (ctx, core->kernel_resource_class);
+
+  res = g_slice_new (GumQuickKernelResource);
+  u64 = &res->u64;
+  u64->value = data;
+  res->notify = notify;
+
+  JS_SetOpaque (wrapper, res);
+
+  return wrapper;
+}
+
+JSValue
 _gum_quick_cpu_context_new (JSContext * ctx,
                             GumCpuContext * handle,
                             GumQuickCpuContextAccess access,

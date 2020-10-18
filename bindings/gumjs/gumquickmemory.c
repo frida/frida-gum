@@ -47,6 +47,7 @@ struct _GumMemoryPatchContext
 {
   JSValue apply;
 
+  JSContext * ctx;
   GumQuickCore * core;
 };
 
@@ -59,15 +60,16 @@ struct _GumMemoryScanContext
   JSValue on_complete;
   GumQuickMatchResult result;
 
+  JSContext * ctx;
   GumQuickCore * core;
 };
 
 struct _GumMemoryScanSyncContext
 {
-  JSContext * ctx;
   JSValue matches;
   uint32_t index;
 
+  JSContext * ctx;
   GumQuickCore * core;
 };
 
@@ -354,6 +356,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_patch_code)
 
   if (!_gum_quick_args_parse (args, "pZF", &address, &size, &pc.apply))
     return JS_EXCEPTION;
+  pc.ctx = ctx;
   pc.core = core;
 
   success = gum_memory_patch_code (address, size,
@@ -368,8 +371,8 @@ static void
 gum_memory_patch_context_apply (gpointer mem,
                                 GumMemoryPatchContext * self)
 {
+  JSContext * ctx = self->ctx;
   GumQuickCore * core = self->core;
-  JSContext * ctx = core->ctx;
   JSValue mem_val;
 
   mem_val = _gum_quick_native_pointer_new (ctx, mem, core);
@@ -910,15 +913,15 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
   if (!_gum_quick_args_parse (args, "pZsF{onMatch,onError?,onComplete}",
       &address, &size, &match_str, &sc.on_match, &sc.on_error, &sc.on_complete))
     return JS_EXCEPTION;
-
   sc.range.base_address = GUM_ADDRESS (address);
   sc.range.size = size;
   sc.pattern = gum_match_pattern_new_from_string (match_str);
   sc.result = GUM_QUICK_MATCH_CONTINUE;
+  sc.ctx = ctx;
   sc.core = core;
 
   if (sc.pattern == NULL)
-    _gum_quick_throw_literal (ctx, "invalid match pattern");
+    return _gum_quick_throw_literal (ctx, "invalid match pattern");
 
   JS_DupValue (ctx, sc.on_match);
   JS_DupValue (ctx, sc.on_error);
@@ -936,8 +939,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
 static void
 gum_memory_scan_context_free (GumMemoryScanContext * self)
 {
+  JSContext * ctx = self->ctx;
   GumQuickCore * core = self->core;
-  JSContext * ctx = core->ctx;
   GumQuickScope scope;
 
   _gum_quick_scope_enter (&scope, core);
@@ -957,8 +960,8 @@ gum_memory_scan_context_free (GumMemoryScanContext * self)
 static void
 gum_memory_scan_context_run (GumMemoryScanContext * self)
 {
+  JSContext * ctx = self->ctx;
   GumQuickCore * core = self->core;
-  JSContext * ctx = core->ctx;
   GumExceptor * exceptor = core->exceptor;
   GumExceptorScope exceptor_scope;
   GumQuickScope script_scope;
@@ -1002,8 +1005,8 @@ gum_memory_scan_context_emit_match (GumAddress address,
                                     GumMemoryScanContext * self)
 {
   gboolean proceed;
+  JSContext * ctx = self->ctx;
   GumQuickCore * core = self->core;
-  JSContext * ctx = core->ctx;
   GumQuickScope scope;
   JSValue argv[2];
   JSValue result;
@@ -1052,9 +1055,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan_sync)
   {
     GumMemoryScanSyncContext sc;
 
-    sc.ctx = ctx;
     sc.matches = result;
     sc.index = 0;
+    sc.ctx = ctx;
     sc.core = core;
 
     gum_memory_scan (&range, pattern, (GumMemoryScanMatchFunc) gum_append_match,
