@@ -603,11 +603,10 @@ gum_quick_read_operation_finish (GInputStream * stream,
 
   if (self->strategy == GUM_QUICK_READ_ALL && bytes_read != self->buffer_size)
   {
-    argv[0] = _gum_quick_error_new (ctx,
-        (error != NULL) ? error->message : "short read", core);
+    argv[0] = (error != NULL)
+        ? _gum_quick_error_new_take_error (ctx, &error, core)
+        : _gum_quick_error_new (ctx, "short read", core);
     emit_data = TRUE;
-
-    g_clear_error (&error);
   }
   else if (error == NULL)
   {
@@ -840,10 +839,9 @@ gum_quick_write_operation_finish (GOutputStream * stream,
   if (self->strategy == GUM_QUICK_WRITE_ALL &&
       bytes_written != g_bytes_get_size (self->bytes))
   {
-    argv[0] = _gum_quick_error_new (ctx,
-        (error != NULL) ? error->message : "short write", core);
-
-    g_clear_error (&error);
+    argv[0] = (error != NULL)
+        ? _gum_quick_error_new_take_error (ctx, &error, core)
+        : _gum_quick_error_new (ctx, "short write", core);
   }
   else if (error == NULL)
   {
