@@ -508,7 +508,7 @@ gum_quick_module_map_get (JSContext * ctx,
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_map_construct)
 {
-  JSValue obj = JS_NULL;
+  JSValue wrapper = JS_NULL;
   GumQuickModule * parent;
   JSValue filter_callback;
   JSValue proto;
@@ -525,9 +525,9 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_map_construct)
 
   proto = JS_GetProperty (ctx, new_target,
       GUM_QUICK_CORE_ATOM (core, prototype));
-  obj = JS_NewObjectProtoClass (ctx, proto, parent->module_map_class);
+  wrapper = JS_NewObjectProtoClass (ctx, proto, parent->module_map_class);
   JS_FreeValue (ctx, proto);
-  if (JS_IsException (obj))
+  if (JS_IsException (wrapper))
     goto propagate_exception;
 
   if (JS_IsNull (filter_callback))
@@ -546,15 +546,15 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_map_construct)
         (GumModuleMapFilterFunc) gum_quick_module_filter_matches,
         filter, (GDestroyNotify) gum_quick_module_filter_free);
 
-    JS_DefinePropertyValue (ctx, obj,
+    JS_DefinePropertyValue (ctx, wrapper,
         GUM_QUICK_CORE_ATOM (core, resource),
         JS_DupValue (ctx, filter_callback),
         0);
   }
 
-  JS_SetOpaque (obj, map);
+  JS_SetOpaque (wrapper, map);
 
-  return obj;
+  return wrapper;
 
 missing_target:
   {

@@ -104,7 +104,7 @@ gum_file_get (JSContext * ctx,
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_file_construct)
 {
-  JSValue obj = JS_NULL;
+  JSValue wrapper = JS_NULL;
   const gchar * filename, * mode;
   JSValue proto;
   FILE * handle;
@@ -118,10 +118,10 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_file_construct)
 
   proto = JS_GetProperty (ctx, new_target,
       GUM_QUICK_CORE_ATOM (core, prototype));
-  obj = JS_NewObjectProtoClass (ctx, proto,
+  wrapper = JS_NewObjectProtoClass (ctx, proto,
       gumjs_get_parent_module (core)->file_class);
   JS_FreeValue (ctx, proto);
-  if (JS_IsException (obj))
+  if (JS_IsException (wrapper))
     goto propagate_exception;
 
   handle = fopen (filename, mode);
@@ -130,9 +130,9 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_file_construct)
 
   file = gum_file_new (handle);
 
-  JS_SetOpaque (obj, file);
+  JS_SetOpaque (wrapper, file);
 
-  return obj;
+  return wrapper;
 
 missing_target:
   {
@@ -146,7 +146,7 @@ fopen_failed:
   }
 propagate_exception:
   {
-    JS_FreeValue (ctx, obj);
+    JS_FreeValue (ctx, wrapper);
 
     return JS_EXCEPTION;
   }

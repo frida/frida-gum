@@ -104,6 +104,7 @@ struct _GumQuickCore
     JSAtom G_PASTE (atom_for_, name)
 
   GUM_DECLARE_ATOM (abi);
+  GUM_DECLARE_ATOM (autoClose);
   GUM_DECLARE_ATOM (address);
   GUM_DECLARE_ATOM (base);
   GUM_DECLARE_ATOM (context);

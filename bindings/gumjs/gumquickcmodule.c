@@ -96,7 +96,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
   const gchar * source;
   JSValue symbols;
   JSValue proto;
-  JSValue obj = JS_NULL;
+  JSValue wrapper = JS_NULL;
   GumCModule * cmodule = NULL;
   GError * error;
   JSPropertyEnum * properties = NULL;
@@ -117,9 +117,9 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
 
   proto = JS_GetProperty (ctx, new_target,
       GUM_QUICK_CORE_ATOM (core, prototype));
-  obj = JS_NewObjectProtoClass (ctx, proto, parent->cmodule_class);
+  wrapper = JS_NewObjectProtoClass (ctx, proto, parent->cmodule_class);
   JS_FreeValue (ctx, proto);
-  if (JS_IsException (obj))
+  if (JS_IsException (wrapper))
     goto propagate_exception;
 
   error = NULL;
@@ -159,7 +159,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
     }
 
     /* Anchor lifetime to CModule instance. */
-    JS_DefinePropertyValue (ctx, obj,
+    JS_DefinePropertyValue (ctx, wrapper,
         GUM_QUICK_CORE_ATOM (core, resource),
         JS_DupValue (ctx, symbols),
         0);
@@ -168,7 +168,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
   if (!gum_cmodule_link (cmodule, &error))
     goto propagate_error;
 
-  add_op.wrapper = obj;
+  add_op.wrapper = wrapper;
   add_op.core = core;
   gum_cmodule_enumerate_symbols (cmodule, (GumFoundCSymbolFunc) gum_add_csymbol,
       &add_op);
@@ -177,10 +177,10 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
 
   g_hash_table_add (parent->cmodules, cmodule);
 
-  JS_SetOpaque (obj, g_steal_pointer (&cmodule));
+  JS_SetOpaque (wrapper, g_steal_pointer (&cmodule));
 
-  result = obj;
-  obj = JS_NULL;
+  result = wrapper;
+  wrapper = JS_NULL;
 
   goto beach;
 
@@ -211,7 +211,7 @@ beach:
 
     gum_cmodule_free (cmodule);
 
-    JS_FreeValue (ctx, obj);
+    JS_FreeValue (ctx, wrapper);
 
     return result;
   }

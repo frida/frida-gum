@@ -92,7 +92,7 @@ gum_quick_api_resolver_get (JSContext * ctx,
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_api_resolver_construct)
 {
-  JSValue obj = JS_NULL;
+  JSValue wrapper = JS_NULL;
   GumQuickApiResolver * parent;
   const gchar * type;
   JSValue proto;
@@ -109,9 +109,9 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_api_resolver_construct)
 
   proto = JS_GetProperty (ctx, new_target,
       GUM_QUICK_CORE_ATOM (core, prototype));
-  obj = JS_NewObjectProtoClass (ctx, proto, parent->api_resolver_class);
+  wrapper = JS_NewObjectProtoClass (ctx, proto, parent->api_resolver_class);
   JS_FreeValue (ctx, proto);
-  if (JS_IsException (obj))
+  if (JS_IsException (wrapper))
     goto propagate_exception;
 
   _gum_quick_scope_suspend (&scope);
@@ -123,9 +123,9 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_api_resolver_construct)
   if (resolver == NULL)
     goto not_available;
 
-  _gum_quick_object_manager_add (&parent->objects, ctx, obj, resolver);
+  _gum_quick_object_manager_add (&parent->objects, ctx, wrapper, resolver);
 
-  return obj;
+  return wrapper;
 
 missing_target:
   {
@@ -141,7 +141,7 @@ not_available:
   }
 propagate_exception:
   {
-    JS_FreeValue (ctx, obj);
+    JS_FreeValue (ctx, wrapper);
 
     return JS_EXCEPTION;
   }

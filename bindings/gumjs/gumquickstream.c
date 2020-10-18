@@ -79,14 +79,14 @@ enum _GumQuickWriteStrategy
 };
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_io_stream_construct)
+GUMJS_DECLARE_GETTER (gumjs_io_stream_get_input)
+GUMJS_DECLARE_GETTER (gumjs_io_stream_get_output)
 GUMJS_DECLARE_FUNCTION (gumjs_io_stream_close)
 static void gum_quick_close_io_stream_operation_start (
     GumQuickCloseIOStreamOperation * self);
 static void gum_quick_close_io_stream_operation_finish (GIOStream * stream,
     GAsyncResult * result, GumQuickCloseIOStreamOperation * self);
 
-static void gum_quick_push_input_stream (JSContext * ctx, GInputStream * stream,
-    GumQuickStream * module);
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_input_stream_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_input_stream_close)
 static void gum_quick_close_input_operation_start (
@@ -95,15 +95,14 @@ static void gum_quick_close_input_operation_finish (GInputStream * stream,
     GAsyncResult * result, GumQuickCloseInputOperation * self);
 GUMJS_DECLARE_FUNCTION (gumjs_input_stream_read)
 GUMJS_DECLARE_FUNCTION (gumjs_input_stream_read_all)
-static gint gumjs_input_stream_read_with_strategy (JSContext * ctx,
-    const GumQuickArgs * args, GumQuickReadStrategy strategy);
+static JSValue gumjs_input_stream_read_with_strategy (JSContext * ctx,
+    JSValueConst this_val, GumQuickArgs * args, GumQuickReadStrategy strategy,
+    GumQuickCore * core);
 static void gum_quick_read_operation_dispose (GumQuickReadOperation * self);
 static void gum_quick_read_operation_start (GumQuickReadOperation * self);
 static void gum_quick_read_operation_finish (GInputStream * stream,
     GAsyncResult * result, GumQuickReadOperation * self);
 
-static void gum_quick_push_output_stream (JSContext * ctx,
-    GOutputStream * stream, GumQuickStream * module);
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_output_stream_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_output_stream_close)
 static void gum_quick_close_output_operation_start (
@@ -113,8 +112,9 @@ static void gum_quick_close_output_operation_finish (GOutputStream * stream,
 GUMJS_DECLARE_FUNCTION (gumjs_output_stream_write)
 GUMJS_DECLARE_FUNCTION (gumjs_output_stream_write_all)
 GUMJS_DECLARE_FUNCTION (gumjs_output_stream_write_memory_region)
-static gint gumjs_output_stream_write_with_strategy (JSContext * ctx,
-    const GumQuickArgs * args, GumQuickWriteStrategy strategy);
+static JSValue gumjs_output_stream_write_with_strategy (JSContext * ctx,
+    JSValueConst this_val, GumQuickArgs * args, GumQuickWriteStrategy strategy,
+    GumQuickCore * core);
 static void gum_quick_write_operation_dispose (GumQuickWriteOperation * self);
 static void gum_quick_write_operation_start (GumQuickWriteOperation * self);
 static void gum_quick_write_operation_finish (GOutputStream * stream,
@@ -124,7 +124,7 @@ GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_input_stream_construct)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_output_stream_construct)
 
-static void gum_quick_native_stream_ctor_args_parse (const GumQuickArgs * args,
+static gboolean gum_quick_native_stream_ctor_args_parse (GumQuickArgs * args,
     GumStreamHandle * handle, gboolean * auto_close);
 
 static const JSClassDef gumjs_io_stream_def =
@@ -134,6 +134,8 @@ static const JSClassDef gumjs_io_stream_def =
 
 static const JSCFunctionListEntry gumjs_io_stream_entries[] =
 {
+  JS_CGETSET_DEF ("input", gumjs_io_stream_get_input, NULL),
+  JS_CGETSET_DEF ("output", gumjs_io_stream_get_output, NULL),
   JS_CFUNC_DEF ("_close", 0, gumjs_io_stream_close),
 };
 
@@ -221,10 +223,20 @@ _gum_quick_stream_init (GumQuickStream * self,
   _gum_quick_create_subclass (ctx, &gumjs_native_input_stream_def,
       self->input_stream_class, input_stream_proto, core,
       &self->native_input_stream_class, &proto);
+  ctor = JS_NewCFunction2 (ctx, gumjs_native_input_stream_construct,
+      gumjs_native_input_stream_def.class_name, 0, JS_CFUNC_constructor, 0);
+  JS_SetConstructor (ctx, ctor, proto);
+  JS_DefinePropertyValueStr (ctx, ns, gumjs_native_input_stream_def.class_name,
+      ctor, JS_PROP_C_W_E);
 
   _gum_quick_create_subclass (ctx, &gumjs_native_output_stream_def,
       self->output_stream_class, output_stream_proto, core,
       &self->native_output_stream_class, &proto);
+  ctor = JS_NewCFunction2 (ctx, gumjs_native_output_stream_construct,
+      gumjs_native_output_stream_def.class_name, 0, JS_CFUNC_constructor, 0);
+  JS_SetConstructor (ctx, ctor, proto);
+  JS_DefinePropertyValueStr (ctx, ns, gumjs_native_output_stream_def.class_name,
+      ctor, JS_PROP_C_W_E);
 
   _gum_quick_object_manager_init (&self->objects, self, core);
 }
@@ -256,47 +268,99 @@ gumjs_get_parent_module (GumQuickCore * core)
   return _gum_quick_core_load_module_data (core, "stream");
 }
 
+static gboolean
+gum_quick_io_stream_get (JSContext * ctx,
+                         JSValueConst val,
+                         GumQuickCore * core,
+                         GumQuickObject ** object)
+{
+  return _gum_quick_unwrap (ctx, val,
+      gumjs_get_parent_module (core)->io_stream_class, core,
+      (gpointer *) object);
+}
+
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_io_stream_construct)
 {
-  GIOStream * stream;
-  GumQuickStream * module;
+  return _gum_quick_throw_literal (ctx, "not user-instantiable");
+}
 
-  stream = G_IO_STREAM (quick_require_pointer (ctx, 0));
-  module = gumjs_module_from_args (args);
+GUMJS_DEFINE_GETTER (gumjs_io_stream_get_input)
+{
+  GumQuickObject * self;
+  GumQuickStream * parent;
+  GInputStream * handle;
+  GumQuickObject * input;
+  JSValue wrapper;
 
-  quick_push_this (ctx);
-  _gum_quick_object_manager_add (&module->objects, ctx, -1, stream);
+  if (!gum_quick_io_stream_get (ctx, this_val, core, &self))
+    return JS_EXCEPTION;
 
-  gum_quick_push_input_stream (ctx,
-      g_object_ref (g_io_stream_get_input_stream (stream)), module);
-  quick_put_prop_string (ctx, -2, "input");
+  parent = self->module;
 
-  gum_quick_push_output_stream (ctx,
-      g_object_ref (g_io_stream_get_output_stream (stream)), module);
-  quick_put_prop_string (ctx, -2, "output");
+  handle = g_io_stream_get_input_stream (self->handle);
 
-  return 0;
+  input = _gum_quick_object_manager_lookup (&parent->objects, handle);
+  if (input != NULL)
+    return JS_DupValue (ctx, input->wrapper);
+
+  wrapper = JS_NewObjectClass (ctx, parent->input_stream_class);
+
+  _gum_quick_object_manager_add (&parent->objects, ctx, wrapper,
+      g_object_ref (handle));
+
+  return wrapper;
+}
+
+GUMJS_DEFINE_GETTER (gumjs_io_stream_get_output)
+{
+  GumQuickObject * self;
+  GumQuickStream * parent;
+  GOutputStream * handle;
+  GumQuickObject * output;
+  JSValue wrapper;
+
+  if (!gum_quick_io_stream_get (ctx, this_val, core, &self))
+    return JS_EXCEPTION;
+
+  parent = self->module;
+
+  handle = g_io_stream_get_output_stream (self->handle);
+
+  output = _gum_quick_object_manager_lookup (&parent->objects, handle);
+  if (output != NULL)
+    return JS_DupValue (ctx, output->wrapper);
+
+  wrapper = JS_NewObjectClass (ctx, parent->output_stream_class);
+
+  _gum_quick_object_manager_add (&parent->objects, ctx, wrapper,
+      g_object_ref (handle));
+
+  return wrapper;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_io_stream_close)
 {
-  GumQuickObject * self, * input, * output;
-  GumQuickStream * module;
+  GumQuickObject * self;
+  GumQuickStream * parent;
   JSValue callback;
   GumQuickCloseIOStreamOperation * op;
   GPtrArray * dependencies;
+  GumQuickObject * input, * output;
 
-  self = _gum_quick_object_get (args);
-  module = self->module;
+  if (!gum_quick_io_stream_get (ctx, this_val, core, &self))
+    return JS_EXCEPTION;
 
-  _gum_quick_args_parse (args, "F", &callback);
+  parent = self->module;
+
+  if (!_gum_quick_args_parse (args, "F", &callback))
+    return JS_EXCEPTION;
 
   op = _gum_quick_object_operation_new (GumQuickCloseIOStreamOperation, self,
       callback, gum_quick_close_io_stream_operation_start, NULL);
 
   dependencies = g_ptr_array_sized_new (2);
 
-  input = _gum_quick_object_manager_lookup (&module->objects,
+  input = _gum_quick_object_manager_lookup (&parent->objects,
       g_io_stream_get_input_stream (self->handle));
   if (input != NULL)
   {
@@ -304,7 +368,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_io_stream_close)
     g_ptr_array_add (dependencies, input);
   }
 
-  output = _gum_quick_object_manager_lookup (&module->objects,
+  output = _gum_quick_object_manager_lookup (&parent->objects,
       g_io_stream_get_output_stream (self->handle));
   if (output != NULL)
   {
@@ -318,11 +382,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_io_stream_close)
 
   g_ptr_array_unref (dependencies);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 static void
-gum_quick_close_io_stream_operation_start (GumQuickCloseIOStreamOperation * self)
+gum_quick_close_io_stream_operation_start (
+    GumQuickCloseIOStreamOperation * self)
 {
   GumQuickObjectOperation * op = GUM_QUICK_OBJECT_OPERATION (self);
 
@@ -331,61 +396,50 @@ gum_quick_close_io_stream_operation_start (GumQuickCloseIOStreamOperation * self
 }
 
 static void
-gum_quick_close_io_stream_operation_finish (GIOStream * stream,
-                                          GAsyncResult * result,
-                                          GumQuickCloseIOStreamOperation * self)
+gum_quick_close_io_stream_operation_finish (
+    GIOStream * stream,
+    GAsyncResult * result,
+    GumQuickCloseIOStreamOperation * self)
 {
   GumQuickObjectOperation * op = GUM_QUICK_OBJECT_OPERATION (self);
+  GumQuickCore * core = op->core;
+  JSContext * ctx = core->ctx;
   GError * error = NULL;
   gboolean success;
   GumQuickScope scope;
-  JSContext * ctx;
+  JSValue argv[2];
 
   success = g_io_stream_close_finish (stream, result, &error);
 
-  ctx = _gum_quick_scope_enter (&scope, op->core);
+  _gum_quick_scope_enter (&scope, core);
 
-  quick_push_heapptr (ctx, op->callback);
-  if (error == NULL)
-  {
-    quick_push_null (ctx);
-  }
-  else
-  {
-    quick_push_error_object (ctx, QUICK_ERR_ERROR, "%s", error->message);
-    g_error_free (error);
-  }
-  quick_push_boolean (ctx, success);
-  _gum_quick_scope_call (&scope, 2);
-  quick_pop (ctx);
+  argv[0] = _gum_quick_error_new_take_error (ctx, &error, core);
+  argv[1] = JS_NewBool (ctx, success);
+
+  _gum_quick_scope_call_void (&scope, op->callback, JS_UNDEFINED,
+      G_N_ELEMENTS (argv), argv);
+
+  JS_FreeValue (ctx, argv[0]);
 
   _gum_quick_scope_leave (&scope);
 
   _gum_quick_object_operation_finish (op);
 }
 
-static void
-gum_quick_push_input_stream (JSContext * ctx,
-                           GInputStream * stream,
-                           GumQuickStream * module)
+static gboolean
+gum_quick_input_stream_get (JSContext * ctx,
+                            JSValueConst val,
+                            GumQuickCore * core,
+                            GumQuickObject ** object)
 {
-  quick_push_heapptr (ctx, module->input_stream);
-  quick_push_pointer (ctx, stream);
-  quick_new (ctx, 1);
+  return _gum_quick_unwrap (ctx, val,
+      gumjs_get_parent_module (core)->input_stream_class, core,
+      (gpointer *) object);
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_input_stream_construct)
 {
-  GInputStream * stream;
-  GumQuickStream * module;
-
-  stream = G_INPUT_STREAM (quick_require_pointer (ctx, 0));
-  module = gumjs_module_from_args (args);
-
-  quick_push_this (ctx);
-  _gum_quick_object_manager_add (&module->objects, ctx, -1, stream);
-
-  return 0;
+  return _gum_quick_throw_literal (ctx, "not user-instantiable");
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_input_stream_close)
@@ -394,17 +448,19 @@ GUMJS_DEFINE_FUNCTION (gumjs_input_stream_close)
   JSValue callback;
   GumQuickCloseInputOperation * op;
 
-  self = _gum_quick_object_get (args);
+  if (!gum_quick_input_stream_get (ctx, this_val, core, &self))
+    return JS_EXCEPTION;
 
-  _gum_quick_args_parse (args, "F", &callback);
+  if (!_gum_quick_args_parse (args, "F", &callback))
+    return JS_EXCEPTION;
 
   g_cancellable_cancel (self->cancellable);
 
-  op = _gum_quick_object_operation_new (GumQuickCloseInputOperation, self, callback,
-      gum_quick_close_input_operation_start, NULL);
+  op = _gum_quick_object_operation_new (GumQuickCloseInputOperation, self,
+      callback, gum_quick_close_input_operation_start, NULL);
   _gum_quick_object_operation_schedule_when_idle (op, NULL);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 static void
@@ -418,32 +474,28 @@ gum_quick_close_input_operation_start (GumQuickCloseInputOperation * self)
 
 static void
 gum_quick_close_input_operation_finish (GInputStream * stream,
-                                      GAsyncResult * result,
-                                      GumQuickCloseInputOperation * self)
+                                        GAsyncResult * result,
+                                        GumQuickCloseInputOperation * self)
 {
   GumQuickObjectOperation * op = GUM_QUICK_OBJECT_OPERATION (self);
+  GumQuickCore * core = op->core;
+  JSContext * ctx = core->ctx;
   GError * error = NULL;
   gboolean success;
   GumQuickScope scope;
-  JSContext * ctx;
+  JSValue argv[2];
 
   success = g_input_stream_close_finish (stream, result, &error);
 
-  ctx = _gum_quick_scope_enter (&scope, op->core);
+  _gum_quick_scope_enter (&scope, core);
 
-  quick_push_heapptr (ctx, op->callback);
-  if (error == NULL)
-  {
-    quick_push_null (ctx);
-  }
-  else
-  {
-    quick_push_error_object (ctx, QUICK_ERR_ERROR, "%s", error->message);
-    g_error_free (error);
-  }
-  quick_push_boolean (ctx, success);
-  _gum_quick_scope_call (&scope, 2);
-  quick_pop (ctx);
+  argv[0] = _gum_quick_error_new_take_error (ctx, &error, core);
+  argv[1] = JS_NewBool (ctx, success);
+
+  _gum_quick_scope_call_void (&scope, op->callback, JS_UNDEFINED,
+      G_N_ELEMENTS (argv), argv);
+
+  JS_FreeValue (ctx, argv[0]);
 
   _gum_quick_scope_leave (&scope);
 
@@ -452,27 +504,33 @@ gum_quick_close_input_operation_finish (GInputStream * stream,
 
 GUMJS_DEFINE_FUNCTION (gumjs_input_stream_read)
 {
-  return gumjs_input_stream_read_with_strategy (ctx, args, GUM_QUICK_READ_SOME);
+  return gumjs_input_stream_read_with_strategy (ctx, this_val, args,
+      GUM_QUICK_READ_SOME, core);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_input_stream_read_all)
 {
-  return gumjs_input_stream_read_with_strategy (ctx, args, GUM_QUICK_READ_ALL);
+  return gumjs_input_stream_read_with_strategy (ctx, this_val, args,
+      GUM_QUICK_READ_ALL, core);
 }
 
-static gint
+static JSValue
 gumjs_input_stream_read_with_strategy (JSContext * ctx,
-                                       const GumQuickArgs * args,
-                                       GumQuickReadStrategy strategy)
+                                       JSValueConst this_val,
+                                       GumQuickArgs * args,
+                                       GumQuickReadStrategy strategy,
+                                       GumQuickCore * core)
 {
   GumQuickObject * self;
   guint64 size;
   JSValue callback;
   GumQuickReadOperation * op;
 
-  self = _gum_quick_object_get (args);
+  if (!gum_quick_input_stream_get (ctx, this_val, core, &self))
+    return JS_EXCEPTION;
 
-  _gum_quick_args_parse (args, "QF", &size, &callback);
+  if (!_gum_quick_args_parse (args, "QF", &size, &callback))
+    return JS_EXCEPTION;
 
   op = _gum_quick_object_operation_new (GumQuickReadOperation, self, callback,
       gum_quick_read_operation_start, gum_quick_read_operation_dispose);
@@ -481,7 +539,7 @@ gumjs_input_stream_read_with_strategy (JSContext * ctx,
   op->buffer_size = size;
   _gum_quick_object_operation_schedule (op);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 static void
@@ -514,14 +572,16 @@ gum_quick_read_operation_start (GumQuickReadOperation * self)
 
 static void
 gum_quick_read_operation_finish (GInputStream * stream,
-                               GAsyncResult * result,
-                               GumQuickReadOperation * self)
+                                 GAsyncResult * result,
+                                 GumQuickReadOperation * self)
 {
   GumQuickObjectOperation * op = GUM_QUICK_OBJECT_OPERATION (self);
+  GumQuickCore * core = op->core;
+  JSContext * ctx = core->ctx;
   gsize bytes_read = 0;
   GError * error = NULL;
   GumQuickScope scope;
-  JSContext * ctx;
+  JSValue argv[2];
   gboolean emit_data;
 
   if (self->strategy == GUM_QUICK_READ_SOME)
@@ -539,82 +599,57 @@ gum_quick_read_operation_finish (GInputStream * stream,
     g_input_stream_read_all_finish (stream, result, &bytes_read, &error);
   }
 
-  ctx = _gum_quick_scope_enter (&scope, op->core);
-
-  quick_push_heapptr (ctx, op->callback);
+  _gum_quick_scope_enter (&scope, op->core);
 
   if (self->strategy == GUM_QUICK_READ_ALL && bytes_read != self->buffer_size)
   {
-    quick_push_error_object (ctx, QUICK_ERR_ERROR, "%s",
-        (error != NULL) ? error->message : "Short read");
+    argv[0] = _gum_quick_error_new (ctx,
+        (error != NULL) ? error->message : "short read", core);
     emit_data = TRUE;
+
+    g_clear_error (&error);
   }
   else if (error == NULL)
   {
-    quick_push_null (ctx);
+    argv[0] = JS_NULL;
     emit_data = TRUE;
   }
   else
   {
-    quick_push_error_object (ctx, QUICK_ERR_ERROR, "%s", error->message);
+    argv[0] = _gum_quick_error_new_take_error (ctx, &error, core);
     emit_data = FALSE;
   }
 
-  g_clear_error (&error);
-
   if (emit_data)
-  {
-    if (bytes_read > 0)
-    {
-      gpointer buffer_data;
-
-      buffer_data = quick_push_fixed_buffer (ctx, bytes_read);
-      memcpy (buffer_data, self->buffer, bytes_read);
-    }
-    else
-    {
-      quick_push_fixed_buffer (ctx, 0);
-    }
-
-    quick_push_buffer_object (ctx, -1, 0, bytes_read, QUICK_BUFOBJ_ARRAYBUFFER);
-    quick_swap (ctx, -2, -1);
-    quick_pop (ctx);
-  }
+    argv[1] = JS_NewArrayBufferCopy (ctx, self->buffer, bytes_read);
   else
-  {
-    quick_push_null (ctx);
-  }
+    argv[1] = JS_NULL;
 
-  _gum_quick_scope_call (&scope, 2);
-  quick_pop (ctx);
+  _gum_quick_scope_call_void (&scope, op->callback, JS_UNDEFINED,
+      G_N_ELEMENTS (argv), argv);
+
+  JS_FreeValue (ctx, argv[0]);
+  JS_FreeValue (ctx, argv[1]);
 
   _gum_quick_scope_leave (&scope);
 
   _gum_quick_object_operation_finish (op);
 }
 
-static void
-gum_quick_push_output_stream (JSContext * ctx,
-                            GOutputStream * stream,
-                            GumQuickStream * module)
+static gboolean
+gum_quick_output_stream_get (JSContext * ctx,
+                            JSValueConst val,
+                            GumQuickCore * core,
+                            GumQuickObject ** object)
 {
-  quick_push_heapptr (ctx, module->output_stream);
-  quick_push_pointer (ctx, stream);
-  quick_new (ctx, 1);
+  return _gum_quick_unwrap (ctx, val,
+      gumjs_get_parent_module (core)->output_stream_class, core,
+      (gpointer *) object);
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_output_stream_construct)
 {
-  GOutputStream * stream;
-  GumQuickStream * module;
-
-  stream = G_OUTPUT_STREAM (quick_require_pointer (ctx, 0));
-  module = gumjs_module_from_args (args);
-
-  quick_push_this (ctx);
-  _gum_quick_object_manager_add (&module->objects, ctx, -1, stream);
-
-  return 0;
+  return _gum_quick_throw_literal (ctx, "not user-instantiable");
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_output_stream_close)
@@ -623,9 +658,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_output_stream_close)
   JSValue callback;
   GumQuickCloseOutputOperation * op;
 
-  self = _gum_quick_object_get (args);
+  if (!gum_quick_output_stream_get (ctx, this_val, core, &self))
+    return JS_EXCEPTION;
 
-  _gum_quick_args_parse (args, "F", &callback);
+  if (!_gum_quick_args_parse (args, "F", &callback))
+    return JS_EXCEPTION;
 
   g_cancellable_cancel (self->cancellable);
 
@@ -633,7 +670,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_output_stream_close)
       callback, gum_quick_close_output_operation_start, NULL);
   _gum_quick_object_operation_schedule_when_idle (op, NULL);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 static void
@@ -647,32 +684,28 @@ gum_quick_close_output_operation_start (GumQuickCloseOutputOperation * self)
 
 static void
 gum_quick_close_output_operation_finish (GOutputStream * stream,
-                                       GAsyncResult * result,
-                                       GumQuickCloseOutputOperation * self)
+                                         GAsyncResult * result,
+                                         GumQuickCloseOutputOperation * self)
 {
   GumQuickObjectOperation * op = GUM_QUICK_OBJECT_OPERATION (self);
+  GumQuickCore * core = op->core;
+  JSContext * ctx = core->ctx;
   GError * error = NULL;
   gboolean success;
   GumQuickScope scope;
-  JSContext * ctx;
+  JSValue argv[2];
 
   success = g_output_stream_close_finish (stream, result, &error);
 
-  ctx = _gum_quick_scope_enter (&scope, op->core);
+  _gum_quick_scope_enter (&scope, op->core);
 
-  quick_push_heapptr (ctx, op->callback);
-  if (error == NULL)
-  {
-    quick_push_null (ctx);
-  }
-  else
-  {
-    quick_push_error_object (ctx, QUICK_ERR_ERROR, "%s", error->message);
-    g_error_free (error);
-  }
-  quick_push_boolean (ctx, success);
-  _gum_quick_scope_call (&scope, 2);
-  quick_pop (ctx);
+  argv[0] = _gum_quick_error_new_take_error (ctx, &error, core);
+  argv[1] = JS_NewBool (ctx, success);
+
+  _gum_quick_scope_call_void (&scope, op->callback, JS_UNDEFINED,
+      G_N_ELEMENTS (argv), argv);
+
+  JS_FreeValue (ctx, argv[0]);
 
   _gum_quick_scope_leave (&scope);
 
@@ -681,14 +714,14 @@ gum_quick_close_output_operation_finish (GOutputStream * stream,
 
 GUMJS_DEFINE_FUNCTION (gumjs_output_stream_write)
 {
-  return gumjs_output_stream_write_with_strategy (ctx, args,
-      GUM_QUICK_WRITE_SOME);
+  return gumjs_output_stream_write_with_strategy (ctx, this_val, args,
+      GUM_QUICK_WRITE_SOME, core);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_output_stream_write_all)
 {
-  return gumjs_output_stream_write_with_strategy (ctx, args,
-      GUM_QUICK_WRITE_ALL);
+  return gumjs_output_stream_write_with_strategy (ctx, this_val, args,
+      GUM_QUICK_WRITE_ALL, core);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_output_stream_write_memory_region)
@@ -699,9 +732,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_output_stream_write_memory_region)
   JSValue callback;
   GumQuickWriteOperation * op;
 
-  self = _gum_quick_object_get (args);
+  if (!gum_quick_output_stream_get (ctx, this_val, core, &self))
+    return JS_EXCEPTION;
 
-  _gum_quick_args_parse (args, "pZF", &address, &length, &callback);
+  if (!_gum_quick_args_parse (args, "pZF", &address, &length, &callback))
+    return JS_EXCEPTION;
 
   op = _gum_quick_object_operation_new (GumQuickWriteOperation, self, callback,
       gum_quick_write_operation_start, gum_quick_write_operation_dispose);
@@ -709,22 +744,26 @@ GUMJS_DEFINE_FUNCTION (gumjs_output_stream_write_memory_region)
   op->bytes = g_bytes_new_static (address, length);
   _gum_quick_object_operation_schedule (op);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
-static gint
+static JSValue
 gumjs_output_stream_write_with_strategy (JSContext * ctx,
-                                         const GumQuickArgs * args,
-                                         GumQuickWriteStrategy strategy)
+                                         JSValueConst this_val,
+                                         GumQuickArgs * args,
+                                         GumQuickWriteStrategy strategy,
+                                         GumQuickCore * core)
 {
   GumQuickObject * self;
   GBytes * bytes;
   JSValue callback;
   GumQuickWriteOperation * op;
 
-  self = _gum_quick_object_get (args);
+  if (!gum_quick_output_stream_get (ctx, this_val, core, &self))
+    return JS_EXCEPTION;
 
-  _gum_quick_args_parse (args, "BF", &bytes, &callback);
+  if (!_gum_quick_args_parse (args, "BF", &bytes, &callback))
+    return JS_EXCEPTION;
 
   op = _gum_quick_object_operation_new (GumQuickWriteOperation, self, callback,
       gum_quick_write_operation_start, gum_quick_write_operation_dispose);
@@ -732,7 +771,7 @@ gumjs_output_stream_write_with_strategy (JSContext * ctx,
   op->bytes = bytes;
   _gum_quick_object_operation_schedule (op);
 
-  return 0;
+  return JS_UNDEFINED;
 }
 
 static void
@@ -770,14 +809,16 @@ gum_quick_write_operation_start (GumQuickWriteOperation * self)
 
 static void
 gum_quick_write_operation_finish (GOutputStream * stream,
-                                GAsyncResult * result,
-                                GumQuickWriteOperation * self)
+                                  GAsyncResult * result,
+                                  GumQuickWriteOperation * self)
 {
   GumQuickObjectOperation * op = GUM_QUICK_OBJECT_OPERATION (self);
+  GumQuickCore * core = op->core;
+  JSContext * ctx = core->ctx;
   gsize bytes_written = 0;
   GError * error = NULL;
   GumQuickScope scope;
-  JSContext * ctx;
+  JSValue argv[2];
 
   if (self->strategy == GUM_QUICK_WRITE_SOME)
   {
@@ -794,31 +835,31 @@ gum_quick_write_operation_finish (GOutputStream * stream,
     g_output_stream_write_all_finish (stream, result, &bytes_written, &error);
   }
 
-  ctx = _gum_quick_scope_enter (&scope, op->core);
-
-  quick_push_heapptr (ctx, op->callback);
+  _gum_quick_scope_enter (&scope, op->core);
 
   if (self->strategy == GUM_QUICK_WRITE_ALL &&
       bytes_written != g_bytes_get_size (self->bytes))
   {
-    quick_push_error_object (ctx, QUICK_ERR_ERROR, "%s",
-        (error != NULL) ? error->message : "Short write");
+    argv[0] = _gum_quick_error_new (ctx,
+        (error != NULL) ? error->message : "short write", core);
+
+    g_clear_error (&error);
   }
   else if (error == NULL)
   {
-    quick_push_null (ctx);
+    argv[0] = JS_NULL;
   }
   else
   {
-    quick_push_error_object (ctx, QUICK_ERR_ERROR, "%s", error->message);
+    argv[0] = _gum_quick_error_new_take_error (ctx, &error, core);
   }
 
-  g_clear_error (&error);
+  argv[1] = JS_NewInt64 (ctx, bytes_written);
 
-  quick_push_uint (ctx, bytes_written);
+  _gum_quick_scope_call_void (&scope, op->callback, JS_UNDEFINED,
+      G_N_ELEMENTS (argv), argv);
 
-  _gum_quick_scope_call (&scope, 2);
-  quick_pop (ctx);
+  JS_FreeValue (ctx, argv[0]);
 
   _gum_quick_scope_leave (&scope);
 
@@ -827,85 +868,129 @@ gum_quick_write_operation_finish (GOutputStream * stream,
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_input_stream_construct)
 {
+  GumQuickStream * parent;
+  JSValue wrapper;
   GumStreamHandle handle;
   gboolean auto_close;
+  JSValue proto;
   GInputStream * stream;
-  GumQuickStream * module;
 
-  if (!quick_is_constructor_call (ctx))
-  {
-    _gum_quick_throw (ctx, "use `new " GUM_NATIVE_INPUT_STREAM "()` to create "
-        "a new instance");
-  }
+  parent = gumjs_get_parent_module (core);
 
-  gum_quick_native_stream_ctor_args_parse (args, &handle, &auto_close);
+  if (JS_IsUndefined (new_target))
+    goto missing_target;
+
+  if (!gum_quick_native_stream_ctor_args_parse (args, &handle, &auto_close))
+    goto propagate_exception;
+
+  proto = JS_GetProperty (ctx, new_target,
+      GUM_QUICK_CORE_ATOM (core, prototype));
+  wrapper = JS_NewObjectProtoClass (ctx, proto,
+      parent->native_input_stream_class);
+  JS_FreeValue (ctx, proto);
+  if (JS_IsException (wrapper))
+    goto propagate_exception;
 
 #ifdef HAVE_WINDOWS
   stream = g_win32_input_stream_new (handle, auto_close);
 #else
   stream = g_unix_input_stream_new (handle, auto_close);
 #endif
-  module = gumjs_module_from_args (args);
 
-  quick_push_heapptr (ctx, module->input_stream);
-  quick_push_this (ctx);
-  quick_push_pointer (ctx, stream);
-  quick_call_method (ctx, 1);
+  _gum_quick_object_manager_add (&parent->objects, ctx, wrapper, stream);
 
-  return 0;
+  return wrapper;
+
+missing_target:
+  {
+    _gum_quick_throw_literal (ctx, "use `new " GUM_NATIVE_INPUT_STREAM "()` "
+        "to create a new instance");
+    goto propagate_exception;
+  }
+propagate_exception:
+  {
+    return JS_EXCEPTION;
+  }
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_output_stream_construct)
 {
+  GumQuickStream * parent;
+  JSValue wrapper;
   GumStreamHandle handle;
   gboolean auto_close;
+  JSValue proto;
   GOutputStream * stream;
-  GumQuickStream * module;
 
-  if (!quick_is_constructor_call (ctx))
-  {
-    _gum_quick_throw (ctx, "use `new " GUM_NATIVE_OUTPUT_STREAM "()` to create "
-        "a new instance");
-  }
+  parent = gumjs_get_parent_module (core);
 
-  gum_quick_native_stream_ctor_args_parse (args, &handle, &auto_close);
+  if (JS_IsUndefined (new_target))
+    goto missing_target;
+
+  if (!gum_quick_native_stream_ctor_args_parse (args, &handle, &auto_close))
+    goto propagate_exception;
+
+  proto = JS_GetProperty (ctx, new_target,
+      GUM_QUICK_CORE_ATOM (core, prototype));
+  wrapper = JS_NewObjectProtoClass (ctx, proto,
+      parent->native_output_stream_class);
+  JS_FreeValue (ctx, proto);
+  if (JS_IsException (wrapper))
+    goto propagate_exception;
 
 #ifdef HAVE_WINDOWS
   stream = g_win32_output_stream_new (handle, auto_close);
 #else
   stream = g_unix_output_stream_new (handle, auto_close);
 #endif
-  module = gumjs_module_from_args (args);
 
-  quick_push_heapptr (ctx, module->output_stream);
-  quick_push_this (ctx);
-  quick_push_pointer (ctx, stream);
-  quick_call_method (ctx, 1);
+  _gum_quick_object_manager_add (&parent->objects, ctx, wrapper, stream);
 
-  return 0;
+  return wrapper;
+
+missing_target:
+  {
+    _gum_quick_throw_literal (ctx, "use `new " GUM_NATIVE_OUTPUT_STREAM "()` "
+        "to create a new instance");
+    goto propagate_exception;
+  }
+propagate_exception:
+  {
+    return JS_EXCEPTION;
+  }
 }
 
-static void
-gum_quick_native_stream_ctor_args_parse (const GumQuickArgs * args,
-                                       GumStreamHandle * handle,
-                                       gboolean * auto_close)
+static gboolean
+gum_quick_native_stream_ctor_args_parse (GumQuickArgs * args,
+                                         GumStreamHandle * handle,
+                                         gboolean * auto_close)
 {
   JSValue options = JS_NULL;
 
 #ifdef HAVE_WINDOWS
-  _gum_quick_args_parse (args, "p|O", handle, &options);
+  if (!_gum_quick_args_parse (args, "p|O", handle, &options))
 #else
-  _gum_quick_args_parse (args, "i|O", handle, &options);
+  if (!_gum_quick_args_parse (args, "i|O", handle, &options))
 #endif
+    return FALSE;
 
   *auto_close = FALSE;
-  if (options != NULL)
+  if (!JS_IsNull (options))
   {
     JSContext * ctx = args->ctx;
+    GumQuickCore * core = args->core;
+    JSValue val;
+    gboolean valid;
 
-    quick_push_heapptr (ctx, options);
-    quick_get_prop_string (ctx, -1, "autoClose");
-    *auto_close = quick_to_boolean (ctx, -1);
-    quick_pop_2 (ctx);
+    val = JS_GetProperty (ctx, options, GUM_QUICK_CORE_ATOM (core, autoClose));
+    if (JS_IsException (val))
+      return FALSE;
+    valid = _gum_quick_boolean_get (ctx, val, auto_close);
+    JS_FreeValue (ctx, val);
+
+    if (!valid)
+      return FALSE;
   }
+
+  return TRUE;
 }

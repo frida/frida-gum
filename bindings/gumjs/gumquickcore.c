@@ -1001,6 +1001,7 @@ _gum_quick_core_init (GumQuickCore * self,
 
   GUM_SETUP_ATOM (abi);
   GUM_SETUP_ATOM (address);
+  GUM_SETUP_ATOM (autoClose);
   GUM_SETUP_ATOM (base);
   GUM_SETUP_ATOM (context);
   GUM_SETUP_ATOM (exceptions);
@@ -1142,6 +1143,7 @@ _gum_quick_core_dispose (GumQuickCore * self)
 
   GUM_TEARDOWN_ATOM (abi);
   GUM_TEARDOWN_ATOM (address);
+  GUM_TEARDOWN_ATOM (autoClose);
   GUM_TEARDOWN_ATOM (base);
   GUM_TEARDOWN_ATOM (context);
   GUM_TEARDOWN_ATOM (exceptions);
@@ -2657,7 +2659,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_apply)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_system_function_construct)
 {
-  JSValue obj = JS_NULL;
+  JSValue wrapper = JS_NULL;
   GumQuickFFIFunctionParams p = GUM_QUICK_FFI_FUNCTION_PARAMS_EMPTY;
   JSValue proto;
   GumQuickFFIFunction * func;
@@ -2670,20 +2672,20 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_system_function_construct)
 
   proto = JS_GetProperty (ctx, new_target,
       GUM_QUICK_CORE_ATOM (core, prototype));
-  obj = JS_NewObjectProtoClass (ctx, proto, core->system_function_class);
+  wrapper = JS_NewObjectProtoClass (ctx, proto, core->system_function_class);
   JS_FreeValue (ctx, proto);
-  if (JS_IsException (obj))
+  if (JS_IsException (wrapper))
     goto propagate_exception;
 
   func = gumjs_ffi_function_new (ctx, &p, core);
   if (func == NULL)
     goto propagate_exception;
 
-  JS_SetOpaque (obj, func);
+  JS_SetOpaque (wrapper, func);
 
   gum_quick_ffi_function_params_destroy (&p);
 
-  return obj;
+  return wrapper;
 
 missing_target:
   {
@@ -2693,7 +2695,7 @@ missing_target:
   }
 propagate_exception:
   {
-    JS_FreeValue (ctx, obj);
+    JS_FreeValue (ctx, wrapper);
     gum_quick_ffi_function_params_destroy (&p);
 
     return JS_EXCEPTION;
@@ -3736,7 +3738,7 @@ gumjs_source_map_new (const gchar * json,
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_source_map_construct)
 {
-  JSValue obj = JS_NULL;
+  JSValue wrapper = JS_NULL;
   const gchar * json;
   JSValue proto;
   GumSourceMap * map;
@@ -3749,18 +3751,18 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_source_map_construct)
 
   proto = JS_GetProperty (ctx, new_target,
       GUM_QUICK_CORE_ATOM (core, prototype));
-  obj = JS_NewObjectProtoClass (ctx, proto, core->source_map_class);
+  wrapper = JS_NewObjectProtoClass (ctx, proto, core->source_map_class);
   JS_FreeValue (ctx, proto);
-  if (JS_IsException (obj))
+  if (JS_IsException (wrapper))
     goto propagate_exception;
 
   map = gum_source_map_new (json);
   if (map == NULL)
     goto invalid_source_map;
 
-  JS_SetOpaque (obj, map);
+  JS_SetOpaque (wrapper, map);
 
-  return obj;
+  return wrapper;
 
 missing_target:
   {
@@ -3775,7 +3777,7 @@ invalid_source_map:
   }
 propagate_exception:
   {
-    JS_FreeValue (ctx, obj);
+    JS_FreeValue (ctx, wrapper);
 
     return JS_EXCEPTION;
   }

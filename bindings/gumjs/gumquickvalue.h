@@ -112,10 +112,6 @@ G_GNUC_INTERNAL gboolean _gum_quick_cpu_context_unwrap (JSContext * ctx,
 G_GNUC_INTERNAL gboolean _gum_quick_cpu_context_get (JSContext * ctx,
     JSValueConst val, GumQuickCore * core, GumCpuContext ** cpu_context);
 
-G_GNUC_INTERNAL JSValue _gum_quick_exception_details_new (JSContext * ctx,
-    GumExceptionDetails * details, GumQuickCore * core,
-    GumQuickCpuContext ** cpu_context);
-
 G_GNUC_INTERNAL JSValue _gum_quick_thread_state_new (JSContext * ctx,
     GumThreadState state);
 
@@ -145,6 +141,15 @@ G_GNUC_INTERNAL gboolean _gum_quick_process_match_result (JSContext * ctx,
     JSValue * val, GumQuickMatchResult * result);
 G_GNUC_INTERNAL JSValue _gum_quick_maybe_call_on_complete (JSContext * ctx,
     GumQuickMatchResult match_result, JSValue on_complete);
+
+G_GNUC_INTERNAL JSValue _gum_quick_exception_details_new (JSContext * ctx,
+    GumExceptionDetails * details, GumQuickCore * core,
+    GumQuickCpuContext ** cpu_context);
+
+G_GNUC_INTERNAL JSValue _gum_quick_error_new (JSContext * ctx,
+    const gchar * message, GumQuickCore * core);
+G_GNUC_INTERNAL JSValue _gum_quick_error_new_take_error (JSContext * ctx,
+    GError ** error, GumQuickCore * core);
 
 G_GNUC_INTERNAL gboolean _gum_quick_unwrap (JSContext * ctx, JSValue val,
     JSClassID klass, GumQuickCore * core, gpointer * instance);

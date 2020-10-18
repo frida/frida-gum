@@ -671,7 +671,7 @@ static void
 GUMJS_DEFINE_CONSTRUCTOR ({gumjs_function_prefix}_construct)
 {{
   {module_struct_name} * parent;
-  JSValue obj;
+  JSValue wrapper;
   gpointer code_address;
   GumAddress pc;
   gboolean pc_specified;
@@ -689,20 +689,20 @@ GUMJS_DEFINE_CONSTRUCTOR ({gumjs_function_prefix}_construct)
 
   proto = JS_GetProperty (ctx, new_target,
       GUM_QUICK_CORE_ATOM (core, prototype));
-  obj = JS_NewObjectProtoClass (ctx, proto, parent->{flavor}_writer_class);
+  wrapper = JS_NewObjectProtoClass (ctx, proto, parent->{flavor}_writer_class);
   JS_FreeValue (ctx, proto);
-  if (JS_IsException (obj))
+  if (JS_IsException (wrapper))
     goto propagate_exception;
 
   writer = {wrapper_function_prefix}_alloc (ctx, parent);
-  writer->wrapper = obj;
+  writer->wrapper = wrapper;
   writer->impl = {impl_function_prefix}_new (code_address);
   if (pc_specified)
     writer->impl->pc = pc;
 
-  JS_SetOpaque (obj, writer);
+  JS_SetOpaque (wrapper, writer);
 
-  return obj;
+  return wrapper;
 
 missing_target:
   {{
@@ -1018,7 +1018,7 @@ static void
 GUMJS_DEFINE_CONSTRUCTOR ({gumjs_function_prefix}_construct)
 {{
   {module_struct_name} * parent;
-  JSValue obj;
+  JSValue wrapper;
   gconstpointer input_code;
   {writer_wrapper_struct_name} * writer;
   JSValue proto;
@@ -1035,18 +1035,18 @@ GUMJS_DEFINE_CONSTRUCTOR ({gumjs_function_prefix}_construct)
 
   proto = JS_GetProperty (ctx, new_target,
       GUM_QUICK_CORE_ATOM (core, prototype));
-  obj = JS_NewObjectProtoClass (ctx, proto, parent->{flavor}_relocator_class);
+  wrapper = JS_NewObjectProtoClass (ctx, proto, parent->{flavor}_relocator_class);
   JS_FreeValue (ctx, proto);
-  if (JS_IsException (obj))
+  if (JS_IsException (wrapper))
     goto propagate_exception;
 
   relocator = {wrapper_function_prefix}_alloc (ctx, parent);
-  relocator->wrapper = obj;
+  relocator->wrapper = wrapper;
   relocator->impl = {impl_function_prefix}_new (input_code, writer->impl);
 
-  JS_SetOpaque (obj, relocator);
+  JS_SetOpaque (wrapper, relocator);
 
-  return obj;
+  return wrapper;
 
 missing_target:
   {{
