@@ -19,6 +19,7 @@
 #include "gumdukmemory.h"
 #include "gumdukmodule.h"
 #include "gumdukprocess.h"
+#include "gumdukscript-priv.h"
 #include "gumdukscript-runtime.h"
 #include "gumduksocket.h"
 #include "gumdukstalker.h"
