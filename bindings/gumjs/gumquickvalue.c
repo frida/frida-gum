@@ -1503,8 +1503,107 @@ _gum_quick_memory_ranges_get (JSContext * ctx,
                               GumQuickCore * core,
                               GArray ** ranges)
 {
-  _gum_quick_throw (ctx, "%s: TODO", G_STRFUNC);
-  return FALSE; /* TODO */
+  GArray * result = NULL;
+  JSValue element = JS_NULL;
+  GumMemoryRange range;
+
+  if (JS_IsArray (ctx, val))
+  {
+    guint n, i;
+
+    if (!_gum_quick_array_get_length (ctx, val, core, &n))
+      return FALSE;
+
+    result = g_array_sized_new (FALSE, FALSE, sizeof (GumMemoryRange), n);
+
+    for (i = 0; i != n; i++)
+    {
+      element = JS_GetPropertyUint32 (ctx, val, i);
+      if (JS_IsException (element))
+        goto propagate_exception;
+
+      if (!_gum_quick_memory_range_get (ctx, element, core, &range))
+        goto propagate_exception;
+
+      g_array_append_val (result, range);
+
+      JS_FreeValue (ctx, element);
+      element = JS_NULL;
+    }
+  }
+  else if (_gum_quick_memory_range_get (ctx, val, core, &range))
+  {
+    result = g_array_sized_new (FALSE, FALSE, sizeof (GumMemoryRange), 1);
+    g_array_append_val (result, range);
+  }
+  else
+  {
+    goto expected_array_of_ranges_or_range;
+  }
+
+  *ranges = result;
+  return TRUE;
+
+expected_array_of_ranges_or_range:
+  {
+    _gum_quick_throw_literal (ctx,
+        "expected a range object or an array of range objects");
+    goto propagate_exception;
+  }
+propagate_exception:
+  {
+    JS_FreeValue (ctx, element);
+    if (result != NULL)
+      g_array_free (result, TRUE);
+
+    return FALSE;
+  }
+}
+
+gboolean
+_gum_quick_memory_range_get (JSContext * ctx,
+                             JSValueConst val,
+                             GumQuickCore * core,
+                             GumMemoryRange * range)
+{
+  gboolean success = FALSE;
+  JSValue v = JS_NULL;
+  gpointer base;
+  gsize size;
+
+  v = JS_GetProperty (ctx, val, GUM_QUICK_CORE_ATOM (core, base));
+  if (JS_IsException (v))
+    goto expected_range;
+  if (!_gum_quick_native_pointer_get (ctx, v, core, &base))
+    goto expected_range;
+  JS_FreeValue (ctx, v);
+
+  v = JS_GetProperty (ctx, val, GUM_QUICK_CORE_ATOM (core, size));
+  if (JS_IsException (v))
+    goto expected_range;
+  if (!_gum_quick_size_get (ctx, v, core, &size))
+    goto expected_range;
+  JS_FreeValue (ctx, v);
+
+  v = JS_NULL;
+
+  range->base_address = GUM_ADDRESS (base);
+  range->size = size;
+
+  success = TRUE;
+  goto beach;
+
+expected_range:
+  {
+    _gum_quick_throw_literal (ctx, "expected a range object");
+    goto beach;
+  }
+beach:
+  {
+    JS_FreeValue (ctx, v);
+
+    return success;
+  }
 }
 
 JSValue

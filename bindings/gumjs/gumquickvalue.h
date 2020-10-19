@@ -124,6 +124,8 @@ G_GNUC_INTERNAL JSValue _gum_quick_memory_range_new (JSContext * ctx,
     const GumMemoryRange * range, GumQuickCore * core);
 G_GNUC_INTERNAL gboolean _gum_quick_memory_ranges_get (JSContext * ctx,
     JSValueConst val, GumQuickCore * core, GArray ** ranges);
+G_GNUC_INTERNAL gboolean _gum_quick_memory_range_get (JSContext * ctx,
+    JSValueConst val, GumQuickCore * core, GumMemoryRange * range);
 
 G_GNUC_INTERNAL JSValue _gum_quick_page_protection_new (JSContext * ctx,
     GumPageProtection prot);
