@@ -26,43 +26,46 @@ def generate_runtime_quick(runtime_name, output_dir, output, input_dir, inputs):
         quickcompile = os.path.join(output_dir, "gumquickcompile" + program_suffix)
         if not os.path.exists(quickcompile):
             quickcompile_defines = []
-            quickcompile_sources = [
-                "gumquickcompile.c"
-            ]
+            quickcompile_sources = [os.path.relpath(os.path.join(input_dir, name), output_dir) for name in [
+                "gumquickcompile.c",
+            ]]
 
             gumjs_dir = os.path.dirname(os.path.abspath(__file__))
             qjs_dir = os.path.join(os.path.dirname(os.path.dirname(gumjs_dir)), "ext", "quickjs")
-            qjs_incdir = os.path.relpath(qjs_dir, input_dir)
+            qjs_incdir = os.path.relpath(qjs_dir, output_dir)
             with open(os.path.join(qjs_dir, "VERSION.txt"), "r", encoding='utf-8') as f:
                 qjs_version = f.read().strip()
             quickcompile_defines += [
                   "CONFIG_VERSION=\"{}\"".format(qjs_version),
                   "CONFIG_BIGNUM",
             ]
-            quickcompile_sources += [os.path.relpath(os.path.join(qjs_dir, name), input_dir) for name in [
+            quickcompile_sources += [os.path.relpath(os.path.join(qjs_dir, name), output_dir) for name in [
                 "quickjs.c",
                 "libregexp.c",
                 "libunicode.c",
                 "cutils.c",
-                "quickjs-libc.c",
                 "libbf.c",
             ]]
 
             if build_os == 'windows':
                 subprocess.check_call(["cl.exe",
-                        "/nologo", "/MT", "/W3", "/O1", "/GL", "/MP",
+                        "/nologo",
+                        "/MT",
+                        "/W0",
+                        "/O1",
+                        "/GL",
+                        "/MP",
                         "/D", "WIN32",
                         "/D", "_WINDOWS",
                         "/D", "WINVER=0x0501",
                         "/D", "_WIN32_WINNT=0x0501",
                         "/D", "NDEBUG",
-                        "/D", "_CRT_SECURE_NO_WARNINGS",
                         "/D", "_USING_V110_SDK71_",
                         "/I", qjs_incdir,
                     ] +
                     ["/D" + d for d in quickcompile_defines] +
                     quickcompile_sources,
-                    cwd=input_dir)
+                    cwd=output_dir)
             else:
                 quickcompile_libs = []
                 if build_os == 'darwin':
@@ -82,7 +85,7 @@ def generate_runtime_quick(runtime_name, output_dir, output, input_dir, inputs):
                     ] +
                     ["-D" + d for d in quickcompile_defines] +
                     quickcompile_sources +
-                    ["-o", quickcompile] + quickcompile_libs, cwd=input_dir)
+                    ["-o", quickcompile] + quickcompile_libs, cwd=output_dir)
 
         modules = []
         for input_path in inputs:

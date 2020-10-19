@@ -11,6 +11,12 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\ext\quickjs\quickjs-64.vcxproj">
+      <Project>{cbaa232a-35fc-4557-83c3-c2a6e2ccb164}</Project>
+      <Private>false</Private>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <LinkLibraryDependencies>true</LinkLibraryDependencies>
+    </ProjectReference>
     <ProjectReference Include="..\..\ext\tinycc\tinycc-64.vcxproj">
       <Project>{9cdf2d78-15b7-4bae-b533-5f830fbd73e7}</Project>
       <Private>false</Private>
