@@ -360,7 +360,7 @@ gum_duk_module_operation_free (GumDukModuleOperation * self)
 void
 _gum_duk_module_operation_schedule (gpointer self)
 {
-  GumDukObjectOperation * op = self;
+  GumDukModuleOperation * op = self;
 
   gum_script_job_start_on_js_thread (op->job);
 }
