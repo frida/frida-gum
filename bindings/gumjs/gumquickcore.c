@@ -321,6 +321,9 @@ static gboolean gum_quick_value_to_ffi (JSContext * ctx, JSValueConst sval,
 static JSValue gum_quick_value_from_ffi (JSContext * ctx,
     const GumFFIValue * val, const ffi_type * type, GumQuickCore * core);
 
+static void gum_quick_core_setup_atoms (GumQuickCore * self);
+static void gum_quick_core_teardown_atoms (GumQuickCore * self);
+
 static const JSCFunctionListEntry gumjs_root_entries[] =
 {
   JS_CFUNC_DEF ("_setTimeout", 0, gumjs_set_timeout),
@@ -877,6 +880,8 @@ _gum_quick_core_init (GumQuickCore * self,
 
   self->subclasses = g_hash_table_new (NULL, NULL);
 
+  gum_quick_core_setup_atoms (self);
+
   JS_SetPropertyFunctionList (ctx, ns, gumjs_root_entries,
       G_N_ELEMENTS (gumjs_root_entries));
 
@@ -934,7 +939,7 @@ _gum_quick_core_init (GumQuickCore * self,
   obj = JS_GetPropertyStr (ctx, global_obj, "ArrayBuffer");
   JS_SetPropertyFunctionList (ctx, obj, gumjs_array_buffer_class_entries,
       G_N_ELEMENTS (gumjs_array_buffer_class_entries));
-  proto = JS_GetPrototype (ctx, obj);
+  proto = JS_GetProperty (ctx, obj, GUM_QUICK_CORE_ATOM (self, prototype));
   JS_SetPropertyFunctionList (ctx, proto, gumjs_array_buffer_instance_entries,
       G_N_ELEMENTS (gumjs_array_buffer_instance_entries));
   JS_FreeValue (ctx, proto);
@@ -995,73 +1000,6 @@ _gum_quick_core_init (GumQuickCore * self,
       G_N_ELEMENTS (gumjs_source_map_entries));
   JS_DefinePropertyValueStr (ctx, ns, gumjs_source_map_def.class_name, ctor,
       JS_PROP_C_W_E);
-
-#define GUM_SETUP_ATOM(id) \
-    GUM_SETUP_ATOM_NAMED (id, G_STRINGIFY (id))
-#define GUM_SETUP_ATOM_NAMED(id, name) \
-    GUM_QUICK_CORE_ATOM (self, id) = JS_NewAtom (ctx, name)
-
-  GUM_SETUP_ATOM (abi);
-  GUM_SETUP_ATOM (address);
-  GUM_SETUP_ATOM (autoClose);
-  GUM_SETUP_ATOM (base);
-  GUM_SETUP_ATOM_NAMED (cachedInput, "$i");
-  GUM_SETUP_ATOM_NAMED (cachedOutput, "$o");
-  GUM_SETUP_ATOM (context);
-  GUM_SETUP_ATOM (exceptions);
-  GUM_SETUP_ATOM (file);
-  GUM_SETUP_ATOM (handle);
-  GUM_SETUP_ATOM (id);
-  GUM_SETUP_ATOM (ip);
-  GUM_SETUP_ATOM (isGlobal);
-  GUM_SETUP_ATOM (length);
-  GUM_SETUP_ATOM (memory);
-  GUM_SETUP_ATOM (message);
-  GUM_SETUP_ATOM (module);
-  GUM_SETUP_ATOM (name);
-  GUM_SETUP_ATOM (nativeContext);
-  GUM_SETUP_ATOM (offset);
-  GUM_SETUP_ATOM (operation);
-  GUM_SETUP_ATOM (path);
-  GUM_SETUP_ATOM (pc);
-  GUM_SETUP_ATOM (port);
-  GUM_SETUP_ATOM (protection);
-  GUM_SETUP_ATOM (prototype);
-  GUM_SETUP_ATOM_NAMED (resource, "$r");
-  GUM_SETUP_ATOM (scheduling);
-  GUM_SETUP_ATOM (section);
-  GUM_SETUP_ATOM (size);
-  GUM_SETUP_ATOM (slot);
-  GUM_SETUP_ATOM (state);
-  GUM_SETUP_ATOM_NAMED (system_error, GUMJS_SYSTEM_ERROR_FIELD);
-  GUM_SETUP_ATOM (traps);
-  GUM_SETUP_ATOM (type);
-  GUM_SETUP_ATOM (value);
-
-#if defined (HAVE_I386)
-  GUM_SETUP_ATOM (disp);
-  GUM_SETUP_ATOM (index);
-  GUM_SETUP_ATOM (scale);
-  GUM_SETUP_ATOM (segment);
-#elif defined (HAVE_ARM)
-  GUM_SETUP_ATOM (disp);
-  GUM_SETUP_ATOM (index);
-  GUM_SETUP_ATOM (scale);
-  GUM_SETUP_ATOM (shift);
-  GUM_SETUP_ATOM (subtracted);
-  GUM_SETUP_ATOM (vectorIndex);
-#elif defined (HAVE_ARM64)
-  GUM_SETUP_ATOM (disp);
-  GUM_SETUP_ATOM (ext);
-  GUM_SETUP_ATOM (index);
-  GUM_SETUP_ATOM (shift);
-  GUM_SETUP_ATOM (vas);
-  GUM_SETUP_ATOM (vectorIndex);
-#elif defined (HAVE_MIPS)
-  GUM_SETUP_ATOM (disp);
-#endif
-
-#undef GUM_SETUP_ATOM
 }
 
 gboolean
@@ -1142,72 +1080,6 @@ _gum_quick_core_dispose (GumQuickCore * self)
 {
   JSContext * ctx = self->ctx;
 
-#define GUM_TEARDOWN_ATOM(id) \
-    JS_FreeAtom (ctx, GUM_QUICK_CORE_ATOM (self, id)); \
-    GUM_QUICK_CORE_ATOM (self, id) = JS_ATOM_NULL
-
-  GUM_TEARDOWN_ATOM (abi);
-  GUM_TEARDOWN_ATOM (address);
-  GUM_TEARDOWN_ATOM (autoClose);
-  GUM_TEARDOWN_ATOM (base);
-  GUM_TEARDOWN_ATOM (cachedInput);
-  GUM_TEARDOWN_ATOM (cachedOutput);
-  GUM_TEARDOWN_ATOM (context);
-  GUM_TEARDOWN_ATOM (exceptions);
-  GUM_TEARDOWN_ATOM (file);
-  GUM_TEARDOWN_ATOM (handle);
-  GUM_TEARDOWN_ATOM (id);
-  GUM_TEARDOWN_ATOM (ip);
-  GUM_TEARDOWN_ATOM (isGlobal);
-  GUM_TEARDOWN_ATOM (length);
-  GUM_TEARDOWN_ATOM (memory);
-  GUM_TEARDOWN_ATOM (message);
-  GUM_TEARDOWN_ATOM (module);
-  GUM_TEARDOWN_ATOM (name);
-  GUM_TEARDOWN_ATOM (nativeContext);
-  GUM_TEARDOWN_ATOM (offset);
-  GUM_TEARDOWN_ATOM (operation);
-  GUM_TEARDOWN_ATOM (path);
-  GUM_TEARDOWN_ATOM (pc);
-  GUM_TEARDOWN_ATOM (port);
-  GUM_TEARDOWN_ATOM (protection);
-  GUM_TEARDOWN_ATOM (prototype);
-  GUM_TEARDOWN_ATOM (resource);
-  GUM_TEARDOWN_ATOM (scheduling);
-  GUM_TEARDOWN_ATOM (section);
-  GUM_TEARDOWN_ATOM (size);
-  GUM_TEARDOWN_ATOM (slot);
-  GUM_TEARDOWN_ATOM (state);
-  GUM_TEARDOWN_ATOM (system_error);
-  GUM_TEARDOWN_ATOM (traps);
-  GUM_TEARDOWN_ATOM (type);
-  GUM_TEARDOWN_ATOM (value);
-
-#if defined (HAVE_I386)
-  GUM_TEARDOWN_ATOM (disp);
-  GUM_TEARDOWN_ATOM (index);
-  GUM_TEARDOWN_ATOM (scale);
-  GUM_TEARDOWN_ATOM (segment);
-#elif defined (HAVE_ARM)
-  GUM_TEARDOWN_ATOM (disp);
-  GUM_TEARDOWN_ATOM (index);
-  GUM_TEARDOWN_ATOM (scale);
-  GUM_TEARDOWN_ATOM (shift);
-  GUM_TEARDOWN_ATOM (subtracted);
-  GUM_TEARDOWN_ATOM (vectorIndex);
-#elif defined (HAVE_ARM64)
-  GUM_TEARDOWN_ATOM (disp);
-  GUM_TEARDOWN_ATOM (ext);
-  GUM_TEARDOWN_ATOM (index);
-  GUM_TEARDOWN_ATOM (shift);
-  GUM_TEARDOWN_ATOM (vas);
-  GUM_TEARDOWN_ATOM (vectorIndex);
-#elif defined (HAVE_MIPS)
-  GUM_TEARDOWN_ATOM (disp);
-#endif
-
-#undef GUM_TEARDOWN_ATOM
-
   g_clear_pointer (&self->unhandled_exception_sink,
       gum_quick_exception_sink_free);
 
@@ -1217,6 +1089,8 @@ _gum_quick_core_dispose (GumQuickCore * self)
 
   JS_FreeValue (ctx, self->source_map_ctor);
   JS_FreeValue (ctx, self->native_pointer_proto);
+
+  gum_quick_core_teardown_atoms (self);
 }
 
 void
@@ -4381,4 +4255,149 @@ gum_quick_value_from_ffi (JSContext * ctx,
   {
     g_assert_not_reached ();
   }
+}
+
+static void
+gum_quick_core_setup_atoms (GumQuickCore * self)
+{
+  JSContext * ctx = self->ctx;
+
+#define GUM_SETUP_ATOM(id) \
+    GUM_SETUP_ATOM_NAMED (id, G_STRINGIFY (id))
+#define GUM_SETUP_ATOM_NAMED(id, name) \
+    GUM_QUICK_CORE_ATOM (self, id) = JS_NewAtom (ctx, name)
+
+  GUM_SETUP_ATOM (abi);
+  GUM_SETUP_ATOM (address);
+  GUM_SETUP_ATOM (autoClose);
+  GUM_SETUP_ATOM (base);
+  GUM_SETUP_ATOM_NAMED (cachedInput, "$i");
+  GUM_SETUP_ATOM_NAMED (cachedOutput, "$o");
+  GUM_SETUP_ATOM (context);
+  GUM_SETUP_ATOM (exceptions);
+  GUM_SETUP_ATOM (file);
+  GUM_SETUP_ATOM (handle);
+  GUM_SETUP_ATOM (id);
+  GUM_SETUP_ATOM (ip);
+  GUM_SETUP_ATOM (isGlobal);
+  GUM_SETUP_ATOM (length);
+  GUM_SETUP_ATOM (memory);
+  GUM_SETUP_ATOM (message);
+  GUM_SETUP_ATOM (module);
+  GUM_SETUP_ATOM (name);
+  GUM_SETUP_ATOM (nativeContext);
+  GUM_SETUP_ATOM (offset);
+  GUM_SETUP_ATOM (operation);
+  GUM_SETUP_ATOM (path);
+  GUM_SETUP_ATOM (pc);
+  GUM_SETUP_ATOM (port);
+  GUM_SETUP_ATOM (protection);
+  GUM_SETUP_ATOM (prototype);
+  GUM_SETUP_ATOM_NAMED (resource, "$r");
+  GUM_SETUP_ATOM (scheduling);
+  GUM_SETUP_ATOM (section);
+  GUM_SETUP_ATOM (size);
+  GUM_SETUP_ATOM (slot);
+  GUM_SETUP_ATOM (state);
+  GUM_SETUP_ATOM_NAMED (system_error, GUMJS_SYSTEM_ERROR_FIELD);
+  GUM_SETUP_ATOM (traps);
+  GUM_SETUP_ATOM (type);
+  GUM_SETUP_ATOM (value);
+
+#if defined (HAVE_I386)
+  GUM_SETUP_ATOM (disp);
+  GUM_SETUP_ATOM (index);
+  GUM_SETUP_ATOM (scale);
+  GUM_SETUP_ATOM (segment);
+#elif defined (HAVE_ARM)
+  GUM_SETUP_ATOM (disp);
+  GUM_SETUP_ATOM (index);
+  GUM_SETUP_ATOM (scale);
+  GUM_SETUP_ATOM (shift);
+  GUM_SETUP_ATOM (subtracted);
+  GUM_SETUP_ATOM (vectorIndex);
+#elif defined (HAVE_ARM64)
+  GUM_SETUP_ATOM (disp);
+  GUM_SETUP_ATOM (ext);
+  GUM_SETUP_ATOM (index);
+  GUM_SETUP_ATOM (shift);
+  GUM_SETUP_ATOM (vas);
+  GUM_SETUP_ATOM (vectorIndex);
+#elif defined (HAVE_MIPS)
+  GUM_SETUP_ATOM (disp);
+#endif
+
+#undef GUM_SETUP_ATOM
+}
+
+static void
+gum_quick_core_teardown_atoms (GumQuickCore * self)
+{
+  JSContext * ctx = self->ctx;
+
+#define GUM_TEARDOWN_ATOM(id) \
+    JS_FreeAtom (ctx, GUM_QUICK_CORE_ATOM (self, id)); \
+    GUM_QUICK_CORE_ATOM (self, id) = JS_ATOM_NULL
+
+  GUM_TEARDOWN_ATOM (abi);
+  GUM_TEARDOWN_ATOM (address);
+  GUM_TEARDOWN_ATOM (autoClose);
+  GUM_TEARDOWN_ATOM (base);
+  GUM_TEARDOWN_ATOM (cachedInput);
+  GUM_TEARDOWN_ATOM (cachedOutput);
+  GUM_TEARDOWN_ATOM (context);
+  GUM_TEARDOWN_ATOM (exceptions);
+  GUM_TEARDOWN_ATOM (file);
+  GUM_TEARDOWN_ATOM (handle);
+  GUM_TEARDOWN_ATOM (id);
+  GUM_TEARDOWN_ATOM (ip);
+  GUM_TEARDOWN_ATOM (isGlobal);
+  GUM_TEARDOWN_ATOM (length);
+  GUM_TEARDOWN_ATOM (memory);
+  GUM_TEARDOWN_ATOM (message);
+  GUM_TEARDOWN_ATOM (module);
+  GUM_TEARDOWN_ATOM (name);
+  GUM_TEARDOWN_ATOM (nativeContext);
+  GUM_TEARDOWN_ATOM (offset);
+  GUM_TEARDOWN_ATOM (operation);
+  GUM_TEARDOWN_ATOM (path);
+  GUM_TEARDOWN_ATOM (pc);
+  GUM_TEARDOWN_ATOM (port);
+  GUM_TEARDOWN_ATOM (protection);
+  GUM_TEARDOWN_ATOM (prototype);
+  GUM_TEARDOWN_ATOM (resource);
+  GUM_TEARDOWN_ATOM (scheduling);
+  GUM_TEARDOWN_ATOM (section);
+  GUM_TEARDOWN_ATOM (size);
+  GUM_TEARDOWN_ATOM (slot);
+  GUM_TEARDOWN_ATOM (state);
+  GUM_TEARDOWN_ATOM (system_error);
+  GUM_TEARDOWN_ATOM (traps);
+  GUM_TEARDOWN_ATOM (type);
+  GUM_TEARDOWN_ATOM (value);
+
+#if defined (HAVE_I386)
+  GUM_TEARDOWN_ATOM (disp);
+  GUM_TEARDOWN_ATOM (index);
+  GUM_TEARDOWN_ATOM (scale);
+  GUM_TEARDOWN_ATOM (segment);
+#elif defined (HAVE_ARM)
+  GUM_TEARDOWN_ATOM (disp);
+  GUM_TEARDOWN_ATOM (index);
+  GUM_TEARDOWN_ATOM (scale);
+  GUM_TEARDOWN_ATOM (shift);
+  GUM_TEARDOWN_ATOM (subtracted);
+  GUM_TEARDOWN_ATOM (vectorIndex);
+#elif defined (HAVE_ARM64)
+  GUM_TEARDOWN_ATOM (disp);
+  GUM_TEARDOWN_ATOM (ext);
+  GUM_TEARDOWN_ATOM (index);
+  GUM_TEARDOWN_ATOM (shift);
+  GUM_TEARDOWN_ATOM (vas);
+  GUM_TEARDOWN_ATOM (vectorIndex);
+#elif defined (HAVE_MIPS)
+  GUM_TEARDOWN_ATOM (disp);
+#endif
+
+#undef GUM_TEARDOWN_ATOM
 }
