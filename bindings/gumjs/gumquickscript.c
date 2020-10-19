@@ -24,9 +24,7 @@
 #include "gumquickscript-priv.h"
 #include "gumquickscript-runtime.h"
 #include "gumquickscriptbackend.h"
-#if 0
 #include "gumquicksocket.h"
-#endif
 #include "gumquickstalker.h"
 #include "gumquickstream.h"
 #include "gumquicksymbol.h"
@@ -63,8 +61,8 @@ struct _GumQuickScript
   GumQuickThread thread;
   GumQuickFile file;
   GumQuickStream stream;
-#if 0
   GumQuickSocket socket;
+#if 0
   GumQuickDatabase database;
 #endif
   GumQuickInterceptor interceptor;
@@ -393,8 +391,8 @@ gum_quick_script_create_context (GumQuickScript * self,
   _gum_quick_thread_init (&self->thread, global_obj, core);
   _gum_quick_file_init (&self->file, global_obj, core);
   _gum_quick_stream_init (&self->stream, global_obj, core);
+  _gum_quick_socket_init (&self->socket, global_obj, &self->stream, core);
 #if 0
-  _gum_quick_socket_init (&self->socket, global_obj, core);
   _gum_quick_database_init (&self->database, global_obj, core);
 #endif
   _gum_quick_interceptor_init (&self->interceptor, global_obj, core);
@@ -445,8 +443,8 @@ gum_quick_script_destroy_context (GumQuickScript * self)
     _gum_quick_interceptor_dispose (&self->interceptor);
 #if 0
     _gum_quick_database_dispose (&self->database);
-    _gum_quick_socket_dispose (&self->socket);
 #endif
+    _gum_quick_socket_dispose (&self->socket);
     _gum_quick_stream_dispose (&self->stream);
     _gum_quick_file_dispose (&self->file);
     _gum_quick_thread_dispose (&self->thread);
@@ -486,8 +484,8 @@ gum_quick_script_destroy_context (GumQuickScript * self)
   _gum_quick_interceptor_finalize (&self->interceptor);
 #if 0
   _gum_quick_database_finalize (&self->database);
-  _gum_quick_socket_finalize (&self->socket);
 #endif
+  _gum_quick_socket_finalize (&self->socket);
   _gum_quick_stream_finalize (&self->stream);
   _gum_quick_file_finalize (&self->file);
   _gum_quick_thread_finalize (&self->thread);
@@ -680,9 +678,7 @@ gum_quick_script_try_unload (GumQuickScript * self)
 
   _gum_quick_stalker_flush (&self->stalker);
   _gum_quick_interceptor_flush (&self->interceptor);
-#if 0
   _gum_quick_socket_flush (&self->socket);
-#endif
   _gum_quick_stream_flush (&self->stream);
   _gum_quick_process_flush (&self->process);
   success = _gum_quick_core_flush (&self->core, gum_quick_script_try_unload);

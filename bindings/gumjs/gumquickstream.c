@@ -38,17 +38,17 @@ typedef guint GumQuickWriteStrategy;
 
 struct _GumQuickCloseIOStreamOperation
 {
-  GumQuickObjectOperation parent;
+  GumQuickObjectOperation operation;
 };
 
 struct _GumQuickCloseInputOperation
 {
-  GumQuickObjectOperation parent;
+  GumQuickObjectOperation operation;
 };
 
 struct _GumQuickReadOperation
 {
-  GumQuickObjectOperation parent;
+  GumQuickObjectOperation operation;
   GumQuickReadStrategy strategy;
   gpointer buffer;
   gsize buffer_size;
@@ -62,12 +62,12 @@ enum _GumQuickReadStrategy
 
 struct _GumQuickCloseOutputOperation
 {
-  GumQuickObjectOperation parent;
+  GumQuickObjectOperation operation;
 };
 
 struct _GumQuickWriteOperation
 {
-  GumQuickObjectOperation parent;
+  GumQuickObjectOperation operation;
   GumQuickWriteStrategy strategy;
   GBytes * bytes;
 };

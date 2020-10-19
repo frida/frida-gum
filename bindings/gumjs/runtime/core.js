@@ -595,7 +595,6 @@ OutputStream.prototype.writeMemoryRegion = function (address, length) {
   });
 };
 
-/*
 const _closeListener = SocketListener.prototype._close;
 SocketListener.prototype.close = function () {
   const listener = this;
@@ -682,7 +681,6 @@ Object.defineProperties(Socket, {
     },
   },
 });
-*/
 
 SourceMap.prototype.resolve = function (generatedPosition) {
   const generatedColumn = generatedPosition.column;

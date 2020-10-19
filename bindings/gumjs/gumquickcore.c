@@ -996,8 +996,10 @@ _gum_quick_core_init (GumQuickCore * self,
   JS_DefinePropertyValueStr (ctx, ns, gumjs_source_map_def.class_name, ctor,
       JS_PROP_C_W_E);
 
-#define GUM_SETUP_ATOM(name) \
-    GUM_QUICK_CORE_ATOM (self, name) = JS_NewAtom (ctx, G_STRINGIFY (name))
+#define GUM_SETUP_ATOM(id) \
+    GUM_SETUP_ATOM_NAMED (id, G_STRINGIFY (id))
+#define GUM_SETUP_ATOM_NAMED(id, name) \
+    GUM_QUICK_CORE_ATOM (self, id) = JS_NewAtom (ctx, name)
 
   GUM_SETUP_ATOM (abi);
   GUM_SETUP_ATOM (address);
@@ -1008,6 +1010,7 @@ _gum_quick_core_init (GumQuickCore * self,
   GUM_SETUP_ATOM (file);
   GUM_SETUP_ATOM (handle);
   GUM_SETUP_ATOM (id);
+  GUM_SETUP_ATOM (ip);
   GUM_SETUP_ATOM (isGlobal);
   GUM_SETUP_ATOM (length);
   GUM_SETUP_ATOM (memory);
@@ -1019,13 +1022,16 @@ _gum_quick_core_init (GumQuickCore * self,
   GUM_SETUP_ATOM (operation);
   GUM_SETUP_ATOM (path);
   GUM_SETUP_ATOM (pc);
+  GUM_SETUP_ATOM (port);
   GUM_SETUP_ATOM (protection);
   GUM_SETUP_ATOM (prototype);
+  GUM_SETUP_ATOM_NAMED (resource, "$r");
   GUM_SETUP_ATOM (scheduling);
   GUM_SETUP_ATOM (section);
   GUM_SETUP_ATOM (size);
   GUM_SETUP_ATOM (slot);
   GUM_SETUP_ATOM (state);
+  GUM_SETUP_ATOM_NAMED (system_error, GUMJS_SYSTEM_ERROR_FIELD);
   GUM_SETUP_ATOM (traps);
   GUM_SETUP_ATOM (type);
   GUM_SETUP_ATOM (value);
@@ -1054,9 +1060,6 @@ _gum_quick_core_init (GumQuickCore * self,
 #endif
 
 #undef GUM_SETUP_ATOM
-
-  self->atom_for_resource = JS_NewAtom (ctx, "$r");
-  self->atom_for_system_error = JS_NewAtom (ctx, GUMJS_SYSTEM_ERROR_FIELD);
 }
 
 gboolean
@@ -1137,9 +1140,9 @@ _gum_quick_core_dispose (GumQuickCore * self)
 {
   JSContext * ctx = self->ctx;
 
-#define GUM_TEARDOWN_ATOM(name) \
-    JS_FreeAtom (ctx, GUM_QUICK_CORE_ATOM (self, name)); \
-    GUM_QUICK_CORE_ATOM (self, name) = JS_ATOM_NULL
+#define GUM_TEARDOWN_ATOM(id) \
+    JS_FreeAtom (ctx, GUM_QUICK_CORE_ATOM (self, id)); \
+    GUM_QUICK_CORE_ATOM (self, id) = JS_ATOM_NULL
 
   GUM_TEARDOWN_ATOM (abi);
   GUM_TEARDOWN_ATOM (address);
@@ -1150,9 +1153,11 @@ _gum_quick_core_dispose (GumQuickCore * self)
   GUM_TEARDOWN_ATOM (file);
   GUM_TEARDOWN_ATOM (handle);
   GUM_TEARDOWN_ATOM (id);
+  GUM_TEARDOWN_ATOM (ip);
   GUM_TEARDOWN_ATOM (isGlobal);
   GUM_TEARDOWN_ATOM (length);
   GUM_TEARDOWN_ATOM (memory);
+  GUM_TEARDOWN_ATOM (message);
   GUM_TEARDOWN_ATOM (module);
   GUM_TEARDOWN_ATOM (name);
   GUM_TEARDOWN_ATOM (nativeContext);
@@ -1160,6 +1165,7 @@ _gum_quick_core_dispose (GumQuickCore * self)
   GUM_TEARDOWN_ATOM (operation);
   GUM_TEARDOWN_ATOM (path);
   GUM_TEARDOWN_ATOM (pc);
+  GUM_TEARDOWN_ATOM (port);
   GUM_TEARDOWN_ATOM (protection);
   GUM_TEARDOWN_ATOM (prototype);
   GUM_TEARDOWN_ATOM (resource);

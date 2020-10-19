@@ -328,7 +328,7 @@ gum_quick_module_operation_free (GumQuickModuleOperation * self)
 void
 _gum_quick_module_operation_schedule (gpointer self)
 {
-  GumQuickObjectOperation * op = self;
+  GumQuickModuleOperation * op = self;
 
   gum_script_job_start_on_js_thread (op->job);
 }

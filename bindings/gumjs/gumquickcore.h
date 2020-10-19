@@ -100,18 +100,19 @@ struct _GumQuickCore
   JSClassID source_map_class;
   JSValue source_map_ctor;
 
-#define GUM_DECLARE_ATOM(name) \
-    JSAtom G_PASTE (atom_for_, name)
+#define GUM_DECLARE_ATOM(id) \
+    JSAtom G_PASTE (atom_for_, id)
 
   GUM_DECLARE_ATOM (abi);
-  GUM_DECLARE_ATOM (autoClose);
   GUM_DECLARE_ATOM (address);
+  GUM_DECLARE_ATOM (autoClose);
   GUM_DECLARE_ATOM (base);
   GUM_DECLARE_ATOM (context);
   GUM_DECLARE_ATOM (exceptions);
   GUM_DECLARE_ATOM (file);
   GUM_DECLARE_ATOM (handle);
   GUM_DECLARE_ATOM (id);
+  GUM_DECLARE_ATOM (ip);
   GUM_DECLARE_ATOM (isGlobal);
   GUM_DECLARE_ATOM (length);
   GUM_DECLARE_ATOM (memory);
@@ -123,6 +124,7 @@ struct _GumQuickCore
   GUM_DECLARE_ATOM (operation);
   GUM_DECLARE_ATOM (path);
   GUM_DECLARE_ATOM (pc);
+  GUM_DECLARE_ATOM (port);
   GUM_DECLARE_ATOM (protection);
   GUM_DECLARE_ATOM (prototype);
   GUM_DECLARE_ATOM (resource);
