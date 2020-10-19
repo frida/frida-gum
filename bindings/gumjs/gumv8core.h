@@ -65,7 +65,6 @@ struct GumV8Core
   GumV8ExceptionSink * unhandled_exception_sink;
   GumV8MessageSink * incoming_message_sink;
 
-  GumPersistent<v8::Function>::type * on_global_enumerate;
   GumPersistent<v8::Function>::type * on_global_get;
   GumPersistent<v8::Object>::type * global_receiver;
 

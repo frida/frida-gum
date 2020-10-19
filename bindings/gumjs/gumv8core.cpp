@@ -167,9 +167,6 @@ GUMJS_DECLARE_FUNCTION (gumjs_wait_for_event)
 
 static void gumjs_global_get (Local<Name> property,
     const PropertyCallbackInfo<Value> & info);
-static void gumjs_global_query (Local<Name> property,
-    const PropertyCallbackInfo<Integer> & info);
-static void gumjs_global_enumerate (const PropertyCallbackInfo<Array> & info);
 
 GUMJS_DECLARE_GETTER (gumjs_frida_get_heap_size)
 GUMJS_DECLARE_GETTER (gumjs_frida_get_source_map)
@@ -499,8 +496,6 @@ _gum_v8_core_init (GumV8Core * self,
 
   NamedPropertyHandlerConfiguration global_access;
   global_access.getter = gumjs_global_get;
-  global_access.query = gumjs_global_query;
-  global_access.enumerator = gumjs_global_enumerate;
   global_access.data = module;
   global_access.flags = PropertyHandlerFlags::kNonMasking;
   scope->SetHandler (global_access);
@@ -895,10 +890,8 @@ _gum_v8_core_dispose (GumV8Core * self)
 
   g_clear_pointer (&self->incoming_message_sink, gum_v8_message_sink_free);
 
-  delete self->on_global_enumerate;
   delete self->on_global_get;
   delete self->global_receiver;
-  self->on_global_enumerate = nullptr;
   self->on_global_get = nullptr;
   self->global_receiver = nullptr;
 
@@ -1285,51 +1278,6 @@ gumjs_global_get (Local<Name> property,
   }
 }
 
-static void
-gumjs_global_query (Local<Name> property,
-                    const PropertyCallbackInfo<Integer> & info)
-{
-  auto self = (GumV8Core *) info.Data ().As<External> ()->Value ();
-
-  if (self->on_global_get == nullptr)
-    return;
-
-  auto isolate = info.GetIsolate ();
-  auto context = isolate->GetCurrentContext ();
-
-  auto get (Local<Function>::New (isolate, *self->on_global_get));
-  auto recv (Local<Object>::New (isolate, *self->global_receiver));
-  Local<Value> argv[] = { property };
-  Local<Value> result;
-  if (get->Call (context, recv, G_N_ELEMENTS (argv), argv).ToLocal (&result) &&
-      !result->IsUndefined ())
-  {
-    info.GetReturnValue ().Set (PropertyAttribute::ReadOnly |
-        PropertyAttribute::DontDelete);
-  }
-}
-
-static void
-gumjs_global_enumerate (const PropertyCallbackInfo<Array> & info)
-{
-  auto self = (GumV8Core *) info.Data ().As<External> ()->Value ();
-
-  if (self->on_global_enumerate == nullptr)
-    return;
-
-  auto isolate = info.GetIsolate ();
-  auto context = isolate->GetCurrentContext ();
-
-  auto enumerate (Local<Function>::New (isolate, *self->on_global_enumerate));
-  auto recv (Local<Object>::New (isolate, *self->global_receiver));
-  Local<Value> result;
-  if (enumerate->Call (context, recv, 0, nullptr).ToLocal (&result) &&
-      result->IsArray ())
-  {
-    info.GetReturnValue ().Set (result.As<Array> ());
-  }
-}
-
 GUMJS_DEFINE_GETTER (gumjs_frida_get_heap_size)
 {
   info.GetReturnValue ().Set (gum_peek_private_memory_usage ());
@@ -1463,27 +1411,23 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_unpin)
 
 GUMJS_DEFINE_FUNCTION (gumjs_script_set_global_access_handler)
 {
-  Local<Function> on_enumerate, on_get;
+  Local<Function> on_get;
   Local<Object> callbacks;
   gboolean has_callbacks = !(info.Length () > 0 && info[0]->IsNull ());
   if (has_callbacks)
   {
-    if (!_gum_v8_args_parse (args, "F{enumerate,get}", &on_enumerate, &on_get))
+    if (!_gum_v8_args_parse (args, "F{get}", &on_get))
       return;
     callbacks = info[0].As<Object> ();
   }
 
-  delete core->on_global_enumerate;
   delete core->on_global_get;
   delete core->global_receiver;
-  core->on_global_enumerate = nullptr;
   core->on_global_get = nullptr;
   core->global_receiver = nullptr;
 
   if (has_callbacks)
   {
-    core->on_global_enumerate = new GumPersistent<Function>::type (isolate,
-        on_enumerate.As<Function> ());
     core->on_global_get = new GumPersistent<Function>::type (isolate,
         on_get.As<Function> ());
     core->global_receiver = new GumPersistent<Object>::type (isolate,

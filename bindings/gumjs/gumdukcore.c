@@ -1046,10 +1046,8 @@ _gum_duk_core_dispose (GumDukCore * self)
 
   duk_set_global_access_functions (ctx, NULL);
 
-  _gum_duk_unprotect (ctx, self->on_global_enumerate);
   _gum_duk_unprotect (ctx, self->on_global_get);
   _gum_duk_unprotect (ctx, self->global_receiver);
-  self->on_global_enumerate = NULL;
   self->on_global_get = NULL;
   self->global_receiver = NULL;
 
@@ -1561,27 +1559,24 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_unpin)
 GUMJS_DEFINE_FUNCTION (gumjs_script_set_global_access_handler)
 {
   GumDukCore * self = args->core;
-  GumDukHeapPtr receiver, enumerate, get;
+  GumDukHeapPtr receiver, get;
 
   if (!duk_is_null (ctx, 0))
   {
     receiver = duk_get_heapptr (ctx, 0);
-    _gum_duk_args_parse (args, "F{enumerate,get}", &enumerate, &get);
+    _gum_duk_args_parse (args, "F{get}", &get);
   }
   else
   {
     receiver = NULL;
-    enumerate = NULL;
     get = NULL;
   }
 
   if (receiver == NULL)
     duk_set_global_access_functions (ctx, NULL);
 
-  _gum_duk_unprotect (ctx, self->on_global_enumerate);
   _gum_duk_unprotect (ctx, self->on_global_get);
   _gum_duk_unprotect (ctx, self->global_receiver);
-  self->on_global_enumerate = NULL;
   self->on_global_get = NULL;
   self->global_receiver = NULL;
 
@@ -1589,10 +1584,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_set_global_access_handler)
   {
     duk_global_access_functions funcs;
 
-    _gum_duk_protect (ctx, enumerate);
     _gum_duk_protect (ctx, get);
     _gum_duk_protect (ctx, receiver);
-    self->on_global_enumerate = enumerate;
     self->on_global_get = get;
     self->global_receiver = receiver;
 
@@ -1609,24 +1602,7 @@ static int
 gum_duk_core_on_global_enumerate (duk_context * ctx,
                                   void * udata)
 {
-  GumDukCore * self = udata;
-  GumDukScope scope = GUM_DUK_SCOPE_INIT (self);
-  int result;
-
-  duk_push_heapptr (ctx, self->on_global_enumerate);
-  duk_push_heapptr (ctx, self->global_receiver);
-  _gum_duk_scope_call_method (&scope, 0);
-  if (duk_is_array (ctx, -1))
-  {
-    result = 1;
-  }
-  else
-  {
-    result = 0;
-    duk_pop (ctx);
-  }
-
-  return result;
+  return 0;
 }
 
 static int

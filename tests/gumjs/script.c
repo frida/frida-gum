@@ -7561,26 +7561,17 @@ TESTCASE (weak_callback_is_triggered_on_unbind)
 TESTCASE (globals_can_be_dynamically_generated)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var lengthBefore = Object.getOwnPropertyNames(global).length;"
       "Script.setGlobalAccessHandler({"
       "  get: function (property) {"
       "    if (property === 'badger')"
       "      return 1337;"
       "  },"
-      "  enumerate: function () {"
-      "    return ['badger'];"
-      "  },"
       "});"
-      "var lengthAfter = Object.getOwnPropertyNames(global).length;"
-      "send('badger' in global);"
       "send(badger);"
       "send(typeof badger);"
-      "send(lengthAfter === lengthBefore + 1);"
       "send(snake);");
-  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("1337");
   EXPECT_SEND_MESSAGE_WITH ("\"number\"");
-  EXPECT_SEND_MESSAGE_WITH ("true");
   if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
   {
     EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
@@ -7598,9 +7589,6 @@ TESTCASE (globals_can_be_dynamically_generated)
       "Script.setGlobalAccessHandler({"
       "  get: function (property) {"
       "    totalGetCalls++;"
-      "  },"
-      "  enumerate: function () {"
-      "    return [];"
       "  },"
       "});"
       "(1, eval)('mushroom = 42;');"
