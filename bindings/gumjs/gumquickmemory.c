@@ -1177,6 +1177,7 @@ gum_quick_memory_on_access (GumMemoryAccessMonitor * monitor,
   _gum_quick_scope_call_void (&scope, self->on_access, JS_UNDEFINED, 1, &d);
 
   JS_SetOpaque (d, NULL);
+  JS_FreeValue (ctx, d);
 
   _gum_quick_scope_leave (&scope);
 }
