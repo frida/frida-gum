@@ -514,8 +514,6 @@ if __name__ == '__main__':
     generate_runtime_duk("objc", output_dir, "gumdukscript-objc.h", input_dir, [objc])
     generate_runtime_duk("java", output_dir, "gumdukscript-java.h", input_dir, [java])
 
-    generate_runtime_cmodule(output_dir, "gumcmodule-runtime.h", arch, input_dir, gum_dir, capstone_dir)
-
 
     v8_tmp_dir = os.path.join(output_dir, "runtime-build-v8")
     runtime = os.path.abspath(os.path.join(v8_tmp_dir, "frida.js"))
@@ -533,3 +531,6 @@ if __name__ == '__main__':
     generate_runtime_v8("runtime", output_dir, "gumv8script-runtime.h", [runtime])
     generate_runtime_v8("objc", output_dir, "gumv8script-objc.h", [objc])
     generate_runtime_v8("java", output_dir, "gumv8script-java.h", [java])
+
+
+    generate_runtime_cmodule(output_dir, "gumcmodule-runtime.h", arch, input_dir, gum_dir, capstone_dir)

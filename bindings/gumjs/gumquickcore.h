@@ -78,6 +78,9 @@ struct _GumQuickCore
   GumQuickExceptionSink * unhandled_exception_sink;
   GumQuickMessageSink * incoming_message_sink;
 
+  JSValue on_global_get;
+  JSValue global_receiver;
+
   GHashTable * weak_refs;
   guint next_weak_ref_id;
 

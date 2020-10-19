@@ -7603,12 +7603,6 @@ TESTCASE (weak_callback_is_triggered_on_unbind)
 
 TESTCASE (globals_can_be_dynamically_generated)
 {
-  if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
-  {
-    g_print ("<not yet available on QuickJS> ");
-    return;
-  }
-
   COMPILE_AND_LOAD_SCRIPT (
       "Script.setGlobalAccessHandler({"
       "  get: function (property) {"
@@ -7621,7 +7615,12 @@ TESTCASE (globals_can_be_dynamically_generated)
       "send(snake);");
   EXPECT_SEND_MESSAGE_WITH ("1337");
   EXPECT_SEND_MESSAGE_WITH ("\"number\"");
-  if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+  if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
+  {
+    EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+        "ReferenceError: 'snake' is not defined");
+  }
+  else if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
   {
     EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
         "ReferenceError: identifier 'snake' undefined");
