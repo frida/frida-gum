@@ -3298,6 +3298,8 @@ gum_quick_ffi_function_params_init (GumQuickFFIFunctionParams * params,
     GumQuickCore * core = args->core;
 
     val = JS_GetProperty (ctx, options, GUM_QUICK_CORE_ATOM (core, abi));
+    if (JS_IsException (val))
+      goto invalid_value;
     if (!JS_IsUndefined (val))
     {
       params->abi_name = JS_ToCString (ctx, val);
@@ -3307,6 +3309,8 @@ gum_quick_ffi_function_params_init (GumQuickFFIFunctionParams * params,
     }
 
     val = JS_GetProperty (ctx, options, GUM_QUICK_CORE_ATOM (core, scheduling));
+    if (JS_IsException (val))
+      goto invalid_value;
     if (!JS_IsUndefined (val))
     {
       if (!gum_quick_scheduling_behavior_get (ctx, val, &params->scheduling))
@@ -3315,6 +3319,8 @@ gum_quick_ffi_function_params_init (GumQuickFFIFunctionParams * params,
     }
 
     val = JS_GetProperty (ctx, options, GUM_QUICK_CORE_ATOM (core, exceptions));
+    if (JS_IsException (val))
+      goto invalid_value;
     if (!JS_IsUndefined (val))
     {
       if (!gum_quick_exceptions_behavior_get (ctx, val, &params->exceptions))
@@ -3323,6 +3329,8 @@ gum_quick_ffi_function_params_init (GumQuickFFIFunctionParams * params,
     }
 
     val = JS_GetProperty (ctx, options, GUM_QUICK_CORE_ATOM (core, traps));
+    if (JS_IsException (val))
+      goto invalid_value;
     if (!JS_IsUndefined (val))
     {
       if (!gum_quick_code_traps_get (ctx, val, &params->traps))
