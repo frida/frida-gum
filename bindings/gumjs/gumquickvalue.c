@@ -586,6 +586,14 @@ propagate_exception:
   }
 }
 
+GBytes *
+_gum_quick_args_steal_bytes (GumQuickArgs * self,
+                             GBytes * bytes)
+{
+  self->bytes = g_slist_remove (self->bytes, bytes);
+  return bytes;
+}
+
 static void
 gum_quick_args_free_value_later (GumQuickArgs * self,
                                  JSValue v)

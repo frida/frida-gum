@@ -253,9 +253,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_cmodule_dispose)
   if (!gum_quick_cmodule_get (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
-  g_hash_table_remove (gumjs_get_parent_module (core)->cmodules, self);
+  if (self != NULL)
+  {
+    g_hash_table_remove (gumjs_get_parent_module (core)->cmodules, self);
 
-  JS_SetOpaque (this_val, NULL);
+    JS_SetOpaque (this_val, NULL);
+  }
 
   return JS_UNDEFINED;
 }

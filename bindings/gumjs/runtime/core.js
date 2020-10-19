@@ -695,7 +695,6 @@ SourceMap.prototype.resolve = function (generatedPosition) {
   return {source, line, column, name};
 };
 
-/*
 const sqliteOpenFlags = {
   readonly: 1,
   readwrite: 2,
@@ -731,7 +730,6 @@ Object.defineProperties(SqliteDatabase, {
     }
   }
 });
-*/
 
 function makeEnumerateApi(mod, name, arity) {
   const impl = mod['_' + name];
