@@ -726,7 +726,7 @@ gum_quick_accept_operation_finish (GSocketListener * listener,
   {
     argv[0] = JS_NULL;
     argv[1] = gum_quick_socket_connection_new (ctx, connection,
-        op->object->module);
+        gumjs_get_parent_module (core));
   }
   else
   {

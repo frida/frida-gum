@@ -107,6 +107,8 @@ struct _GumQuickCore
   GUM_DECLARE_ATOM (address);
   GUM_DECLARE_ATOM (autoClose);
   GUM_DECLARE_ATOM (base);
+  GUM_DECLARE_ATOM (cachedInput);
+  GUM_DECLARE_ATOM (cachedOutput);
   GUM_DECLARE_ATOM (context);
   GUM_DECLARE_ATOM (exceptions);
   GUM_DECLARE_ATOM (file);

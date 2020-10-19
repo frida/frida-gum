@@ -37,7 +37,6 @@ struct _GumQuickObject
   GCancellable * cancellable;
 
   GumQuickCore * core;
-  gpointer module;
 
   GumQuickObjectManager * manager;
   guint num_active_operations;

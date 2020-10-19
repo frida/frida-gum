@@ -90,7 +90,6 @@ _gum_quick_object_manager_add (GumQuickObjectManager * self,
   object->cancellable = g_cancellable_new ();
 
   object->core = core;
-  object->module = self->module;
 
   object->manager = self;
   object->num_active_operations = 0;
@@ -177,9 +176,6 @@ gum_quick_object_operation_free (GumQuickObjectOperation * self)
 
   _gum_quick_scope_enter (&scope, core);
 
-  JS_FreeValue (ctx, self->wrapper);
-  JS_FreeValue (ctx, self->callback);
-
   if (--object->num_active_operations == 0)
   {
     gpointer next;
@@ -188,6 +184,9 @@ gum_quick_object_operation_free (GumQuickObjectOperation * self)
     if (next != NULL)
       _gum_quick_object_operation_schedule (next);
   }
+
+  JS_FreeValue (ctx, self->wrapper);
+  JS_FreeValue (ctx, self->callback);
 
   _gum_quick_core_unpin (core);
 

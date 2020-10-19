@@ -1005,6 +1005,8 @@ _gum_quick_core_init (GumQuickCore * self,
   GUM_SETUP_ATOM (address);
   GUM_SETUP_ATOM (autoClose);
   GUM_SETUP_ATOM (base);
+  GUM_SETUP_ATOM_NAMED (cachedInput, "$i");
+  GUM_SETUP_ATOM_NAMED (cachedOutput, "$o");
   GUM_SETUP_ATOM (context);
   GUM_SETUP_ATOM (exceptions);
   GUM_SETUP_ATOM (file);
@@ -1148,6 +1150,8 @@ _gum_quick_core_dispose (GumQuickCore * self)
   GUM_TEARDOWN_ATOM (address);
   GUM_TEARDOWN_ATOM (autoClose);
   GUM_TEARDOWN_ATOM (base);
+  GUM_TEARDOWN_ATOM (cachedInput);
+  GUM_TEARDOWN_ATOM (cachedOutput);
   GUM_TEARDOWN_ATOM (context);
   GUM_TEARDOWN_ATOM (exceptions);
   GUM_TEARDOWN_ATOM (file);

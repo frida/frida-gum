@@ -286,16 +286,21 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_io_stream_construct)
 
 GUMJS_DEFINE_GETTER (gumjs_io_stream_get_input)
 {
-  GumQuickObject * self;
+  JSValue wrapper;
   GumQuickStream * parent;
+  GumQuickObject * self;
   GInputStream * handle;
   GumQuickObject * input;
-  JSValue wrapper;
+
+  wrapper = JS_GetProperty (ctx, this_val,
+      GUM_QUICK_CORE_ATOM (core, cachedInput));
+  if (!JS_IsUndefined (wrapper))
+    return wrapper;
+
+  parent = gumjs_get_parent_module (core);
 
   if (!gum_quick_io_stream_get (ctx, this_val, core, &self))
     return JS_EXCEPTION;
-
-  parent = self->module;
 
   handle = g_io_stream_get_input_stream (self->handle);
 
@@ -308,21 +313,31 @@ GUMJS_DEFINE_GETTER (gumjs_io_stream_get_input)
   _gum_quick_object_manager_add (&parent->objects, ctx, wrapper,
       g_object_ref (handle));
 
+  JS_DefinePropertyValue (ctx, this_val,
+      GUM_QUICK_CORE_ATOM (core, cachedInput),
+      JS_DupValue (ctx, wrapper),
+      0);
+
   return wrapper;
 }
 
 GUMJS_DEFINE_GETTER (gumjs_io_stream_get_output)
 {
-  GumQuickObject * self;
   GumQuickStream * parent;
+  GumQuickObject * self;
   GOutputStream * handle;
   GumQuickObject * output;
   JSValue wrapper;
 
+  wrapper = JS_GetProperty (ctx, this_val,
+      GUM_QUICK_CORE_ATOM (core, cachedOutput));
+  if (!JS_IsUndefined (wrapper))
+    return wrapper;
+
+  parent = gumjs_get_parent_module (core);
+
   if (!gum_quick_io_stream_get (ctx, this_val, core, &self))
     return JS_EXCEPTION;
-
-  parent = self->module;
 
   handle = g_io_stream_get_output_stream (self->handle);
 
@@ -335,22 +350,27 @@ GUMJS_DEFINE_GETTER (gumjs_io_stream_get_output)
   _gum_quick_object_manager_add (&parent->objects, ctx, wrapper,
       g_object_ref (handle));
 
+  JS_DefinePropertyValue (ctx, this_val,
+      GUM_QUICK_CORE_ATOM (core, cachedOutput),
+      JS_DupValue (ctx, wrapper),
+      0);
+
   return wrapper;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_io_stream_close)
 {
-  GumQuickObject * self;
   GumQuickStream * parent;
+  GumQuickObject * self;
   JSValue callback;
   GumQuickCloseIOStreamOperation * op;
   GPtrArray * dependencies;
   GumQuickObject * input, * output;
 
+  parent = gumjs_get_parent_module (core);
+
   if (!gum_quick_io_stream_get (ctx, this_val, core, &self))
     return JS_EXCEPTION;
-
-  parent = self->module;
 
   if (!_gum_quick_args_parse (args, "F", &callback))
     return JS_EXCEPTION;
