@@ -2991,13 +2991,9 @@ gumjs_ffi_function_call (JSContext * ctx,
 {
   const int argc = args->count;
   JSValueConst * argv = args->elements;
-  GumQuickFFIFunction * self;
   JSValue receiver;
   GumQuickFFIFunction * func;
   GCallback impl;
-
-  if (!_gum_quick_unwrap (ctx, func_obj, klass, core, (gpointer *) &self))
-    return JS_EXCEPTION;
 
   if (argc == 0 || JS_IsNull (argv[0]) || JS_IsUndefined (argv[0]))
   {
@@ -3018,7 +3014,7 @@ gumjs_ffi_function_call (JSContext * ctx,
     return JS_EXCEPTION;
   }
 
-  return gum_quick_ffi_function_invoke (self, ctx, impl, MAX (argc - 1, 0),
+  return gum_quick_ffi_function_invoke (func, ctx, impl, MAX (argc - 1, 0),
       argv + 1, core);
 }
 
@@ -3030,15 +3026,11 @@ gumjs_ffi_function_apply (JSContext * ctx,
                           GumQuickCore * core)
 {
   JSValueConst * argv = args->elements;
-  GumQuickFFIFunction * self;
   JSValue receiver;
   GumQuickFFIFunction * func;
   GCallback impl;
   guint n, i;
   JSValue * values;
-
-  if (!_gum_quick_unwrap (ctx, func_obj, klass, core, (gpointer *) &self))
-    return JS_EXCEPTION;
 
   if (JS_IsNull (argv[0]) || JS_IsUndefined (argv[0]))
   {
@@ -3061,7 +3053,7 @@ gumjs_ffi_function_apply (JSContext * ctx,
 
   if (JS_IsNull (argv[1]) || JS_IsUndefined (argv[1]))
   {
-    return gum_quick_ffi_function_invoke (self, ctx, impl, 0, NULL, core);
+    return gum_quick_ffi_function_invoke (func, ctx, impl, 0, NULL, core);
   }
   else
   {
@@ -3080,7 +3072,7 @@ gumjs_ffi_function_apply (JSContext * ctx,
         goto invalid_argument_value;
     }
 
-    result = gum_quick_ffi_function_invoke (self, ctx, impl, n, values, core);
+    result = gum_quick_ffi_function_invoke (func, ctx, impl, n, values, core);
 
     for (i = 0; i != n; i++)
       JS_FreeValue (ctx, values[i]);
