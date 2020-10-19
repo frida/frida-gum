@@ -170,7 +170,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_database_open)
 invalid_database:
   {
     sqlite3_close_v2 (handle);
-    return _gum_quick_throw (ctx, "%s", sqlite3_errstr (status));
+
+    return _gum_quick_throw_literal (ctx, sqlite3_errstr (status));
   }
 }
 
@@ -214,7 +215,7 @@ invalid_database:
     sqlite3_close_v2 (handle);
     gum_memory_vfs_remove_file (self->memory_vfs, path);
 
-    return _gum_quick_throw (ctx, "%s", sqlite3_errstr (status));
+    return _gum_quick_throw_literal (ctx, sqlite3_errstr (status));
   }
 }
 

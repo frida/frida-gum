@@ -18,8 +18,6 @@ struct _GumQuickDatabase
 {
   GumQuickCore * core;
 
-  GHashTable * databases;
-
   JSClassID database_class;
   JSClassID statement_class;
 
