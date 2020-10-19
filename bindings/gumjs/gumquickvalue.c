@@ -665,6 +665,7 @@ _gum_quick_bytes_get (JSContext * ctx,
   size_t size;
   JSValue exception;
   gboolean buffer_is_empty;
+  gboolean is_array_buffer;
   JSValue element = JS_NULL;
   guint8 * tmp_array = NULL;
 
@@ -674,7 +675,30 @@ _gum_quick_bytes_get (JSContext * ctx,
   buffer_is_empty = data == NULL && JS_IsNull (exception);
   JS_FreeValue (ctx, exception);
 
-  if (data != NULL || buffer_is_empty)
+  is_array_buffer = data != NULL || buffer_is_empty;
+
+  if (!is_array_buffer)
+  {
+    JSValue buf;
+    size_t byte_offset, byte_length;
+
+    buf = JS_GetTypedArrayBuffer (ctx, val, &byte_offset, &byte_length, NULL);
+    if (!JS_IsException (buf))
+    {
+      *bytes = g_bytes_new (JS_GetArrayBuffer (ctx, &size, buf) + byte_offset,
+          byte_length);
+
+      JS_FreeValue (ctx, buf);
+
+      return TRUE;
+    }
+    else
+    {
+      JS_FreeValue (ctx, JS_GetException (ctx));
+    }
+  }
+
+  if (is_array_buffer)
   {
     *bytes = g_bytes_new (data, size);
   }

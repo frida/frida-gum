@@ -5774,6 +5774,7 @@ TESTCASE (byte_array_can_be_written)
 {
   guint8 val[4] = { 0x00, 0x00, 0x00, 0xff };
   const guint8 other[3] = { 0x01, 0x02, 0x03 };
+  guint16 shorts[2] = { 0x1111, 0x2222 };
 
   COMPILE_AND_LOAD_SCRIPT (
       GUM_PTR_CONST ".writeByteArray([0x13, 0x37, 0x42]);",
@@ -5804,6 +5805,15 @@ TESTCASE (byte_array_can_be_written)
   g_assert_cmpint (val[0], ==, 0x04);
   g_assert_cmpint (val[1], ==, 0x05);
   g_assert_cmpint (val[2], ==, 0x03);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var shorts = new Uint16Array(1);"
+      "shorts[0] = 0x4242;"
+      GUM_PTR_CONST ".writeByteArray(shorts);",
+      shorts);
+  EXPECT_NO_MESSAGES ();
+  g_assert_cmpint (shorts[0], ==, 0x4242);
+  g_assert_cmpint (shorts[1], ==, 0x2222);
 }
 
 TESTCASE (c_string_can_be_read)
