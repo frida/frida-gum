@@ -1,4 +1,4 @@
-[submodule "bindings/gumjs/tinycc"]
+[submodule "ext/tinycc"]
 	path = ext/tinycc
 	url = https://github.com/frida/tinycc.git
 [submodule "ext/quickjs"]
