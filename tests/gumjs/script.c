@@ -237,6 +237,7 @@ TESTLIST_BEGIN (script)
   TESTGROUP_BEGIN ("UInt64")
     TESTENTRY (uint64_provides_arithmetic_operations)
     TESTENTRY (uint64_can_be_constructed_from_a_large_number)
+    TESTENTRY (uint64_can_be_converted_to_a_large_number)
   TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("Int64")
@@ -1897,6 +1898,15 @@ TESTCASE (uint64_can_be_constructed_from_a_large_number)
 {
   COMPILE_AND_LOAD_SCRIPT ("send(uint64(Math.pow(2, 63)).toString(16));");
   EXPECT_SEND_MESSAGE_WITH ("\"8000000000000000\"");
+}
+
+TESTCASE (uint64_can_be_converted_to_a_large_number)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var a = Math.pow(2, 63);"
+      "var b = uint64(a).toNumber();"
+      "send(b === a);");
+  EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
 TESTCASE (int64_provides_arithmetic_operations)

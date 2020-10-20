@@ -2077,7 +2077,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_uint64_to_number)
   if (!_gum_quick_uint64_unwrap (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
-  return JS_NewInt64 (ctx, self->value);
+  return JS_NewFloat64 (ctx, (double) self->value);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_uint64_to_string)
