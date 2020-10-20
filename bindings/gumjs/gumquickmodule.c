@@ -516,19 +516,16 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_map_construct)
 
   parent = gumjs_get_parent_module (core);
 
-  if (JS_IsUndefined (new_target))
-    goto missing_target;
-
   filter_callback = JS_NULL;
   if (!_gum_quick_args_parse (args, "|F", &filter_callback))
-    goto propagate_exception;
+    return JS_EXCEPTION;
 
   proto = JS_GetProperty (ctx, new_target,
       GUM_QUICK_CORE_ATOM (core, prototype));
   wrapper = JS_NewObjectProtoClass (ctx, proto, parent->module_map_class);
   JS_FreeValue (ctx, proto);
   if (JS_IsException (wrapper))
-    goto propagate_exception;
+    return JS_EXCEPTION;
 
   if (JS_IsNull (filter_callback))
   {
@@ -555,17 +552,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_map_construct)
   JS_SetOpaque (wrapper, map);
 
   return wrapper;
-
-missing_target:
-  {
-    _gum_quick_throw_literal (ctx,
-        "use `new ModuleMap()` to create a new instance");
-    goto propagate_exception;
-  }
-propagate_exception:
-  {
-    return JS_EXCEPTION;
-  }
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_module_map_finalize)

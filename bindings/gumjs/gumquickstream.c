@@ -895,11 +895,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_input_stream_construct)
 
   parent = gumjs_get_parent_module (core);
 
-  if (JS_IsUndefined (new_target))
-    goto missing_target;
-
   if (!gum_quick_native_stream_ctor_args_parse (args, &handle, &auto_close))
-    goto propagate_exception;
+    return JS_EXCEPTION;
 
   proto = JS_GetProperty (ctx, new_target,
       GUM_QUICK_CORE_ATOM (core, prototype));
@@ -907,7 +904,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_input_stream_construct)
       parent->native_input_stream_class);
   JS_FreeValue (ctx, proto);
   if (JS_IsException (wrapper))
-    goto propagate_exception;
+    return JS_EXCEPTION;
 
 #ifdef HAVE_WINDOWS
   stream = g_win32_input_stream_new (handle, auto_close);
@@ -918,17 +915,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_input_stream_construct)
   _gum_quick_object_manager_add (&parent->objects, ctx, wrapper, stream);
 
   return wrapper;
-
-missing_target:
-  {
-    _gum_quick_throw_literal (ctx, "use `new " GUM_NATIVE_INPUT_STREAM "()` "
-        "to create a new instance");
-    goto propagate_exception;
-  }
-propagate_exception:
-  {
-    return JS_EXCEPTION;
-  }
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_output_stream_construct)
@@ -942,11 +928,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_output_stream_construct)
 
   parent = gumjs_get_parent_module (core);
 
-  if (JS_IsUndefined (new_target))
-    goto missing_target;
-
   if (!gum_quick_native_stream_ctor_args_parse (args, &handle, &auto_close))
-    goto propagate_exception;
+    return JS_EXCEPTION;
 
   proto = JS_GetProperty (ctx, new_target,
       GUM_QUICK_CORE_ATOM (core, prototype));
@@ -954,7 +937,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_output_stream_construct)
       parent->native_output_stream_class);
   JS_FreeValue (ctx, proto);
   if (JS_IsException (wrapper))
-    goto propagate_exception;
+    return JS_EXCEPTION;
 
 #ifdef HAVE_WINDOWS
   stream = g_win32_output_stream_new (handle, auto_close);
@@ -965,17 +948,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_output_stream_construct)
   _gum_quick_object_manager_add (&parent->objects, ctx, wrapper, stream);
 
   return wrapper;
-
-missing_target:
-  {
-    _gum_quick_throw_literal (ctx, "use `new " GUM_NATIVE_OUTPUT_STREAM "()` "
-        "to create a new instance");
-    goto propagate_exception;
-  }
-propagate_exception:
-  {
-    return JS_EXCEPTION;
-  }
 }
 
 static gboolean

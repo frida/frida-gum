@@ -110,9 +110,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_file_construct)
   FILE * handle;
   GumFile * file;
 
-  if (JS_IsUndefined (new_target))
-    goto missing_target;
-
   if (!_gum_quick_args_parse (args, "ss", &filename, &mode))
     goto propagate_exception;
 
@@ -134,11 +131,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_file_construct)
 
   return wrapper;
 
-missing_target:
-  {
-    _gum_quick_throw_literal (ctx, "use `new File()` to create a new instance");
-    goto propagate_exception;
-  }
 fopen_failed:
   {
     _gum_quick_throw (ctx, "failed to open file (%s)", strerror (errno));

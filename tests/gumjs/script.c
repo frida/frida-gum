@@ -7531,8 +7531,10 @@ TESTCASE (types_handle_invalid_construction)
       "} catch (e) {"
       "  send(e.message);"
       "}");
-  EXPECT_SEND_MESSAGE_WITH ("\"use `new NativePointer()` to create a new "
-      "instance, or use one of the two shorthands: `ptr()` and `NULL`\"");
+  EXPECT_SEND_MESSAGE_WITH (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend)
+      ? "\"must be called with new\""
+      : "\"use `new NativePointer()` to create a new instance, or use one of "
+      "the two shorthands: `ptr()` and `NULL`\"");
 
   COMPILE_AND_LOAD_SCRIPT (
       "try {"
@@ -7540,8 +7542,9 @@ TESTCASE (types_handle_invalid_construction)
       "} catch (e) {"
       "  send(e.message);"
       "}");
-  EXPECT_SEND_MESSAGE_WITH ("\"use `new NativeFunction()` to create a new "
-      "instance\"");
+  EXPECT_SEND_MESSAGE_WITH (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend)
+      ? "\"must be called with new\""
+      : "\"use `new NativeFunction()` to create a new instance\"");
 
   COMPILE_AND_LOAD_SCRIPT (
       "try {"
@@ -7549,8 +7552,9 @@ TESTCASE (types_handle_invalid_construction)
       "} catch (e) {"
       "  send(e.message);"
       "}");
-  EXPECT_SEND_MESSAGE_WITH ("\"use `new NativeCallback()` to create a new "
-      "instance\"");
+  EXPECT_SEND_MESSAGE_WITH (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend)
+      ? "\"must be called with new\""
+      : "\"use `new NativeCallback()` to create a new instance\"");
 
   COMPILE_AND_LOAD_SCRIPT (
       "try {"
@@ -7558,7 +7562,9 @@ TESTCASE (types_handle_invalid_construction)
       "} catch (e) {"
       "  send(e.message);"
       "}");
-  EXPECT_SEND_MESSAGE_WITH ("\"use `new File()` to create a new instance\"");
+  EXPECT_SEND_MESSAGE_WITH (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend)
+      ? "\"must be called with new\""
+      : "\"use `new File()` to create a new instance\"");
 #endif
 }
 

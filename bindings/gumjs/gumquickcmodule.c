@@ -108,9 +108,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
 
   parent = gumjs_get_parent_module (core);
 
-  if (JS_IsUndefined (new_target))
-    goto missing_target;
-
   symbols = JS_NULL;
   if (!_gum_quick_args_parse (args, "s|O", &source, &symbols))
     goto propagate_exception;
@@ -184,12 +181,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
 
   goto beach;
 
-missing_target:
-  {
-    _gum_quick_throw_literal (ctx,
-        "use `new CModule()` to create a new instance");
-    goto propagate_exception;
-  }
 propagate_error:
   {
     _gum_quick_throw_error (ctx, &error);

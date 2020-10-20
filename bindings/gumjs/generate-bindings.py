@@ -680,19 +680,16 @@ GUMJS_DEFINE_CONSTRUCTOR ({gumjs_function_prefix}_construct)
 
   parent = gumjs_get_parent_module (core);
 
-  if (JS_IsUndefined (new_target))
-    goto missing_target;
-
   if (!{gumjs_function_prefix}_parse_constructor_args (args, &code_address, &pc,
       &pc_specified))
-    goto propagate_exception;
+    return JS_EXCEPTION;
 
   proto = JS_GetProperty (ctx, new_target,
       GUM_QUICK_CORE_ATOM (core, prototype));
   wrapper = JS_NewObjectProtoClass (ctx, proto, parent->{flavor}_writer_class);
   JS_FreeValue (ctx, proto);
   if (JS_IsException (wrapper))
-    goto propagate_exception;
+    return JS_EXCEPTION;
 
   writer = {wrapper_function_prefix}_alloc (ctx, parent);
   writer->wrapper = wrapper;
@@ -703,17 +700,6 @@ GUMJS_DEFINE_CONSTRUCTOR ({gumjs_function_prefix}_construct)
   JS_SetOpaque (wrapper, writer);
 
   return wrapper;
-
-missing_target:
-  {{
-    _gum_quick_throw_literal (ctx,
-        "use constructor syntax to create a new instance");
-    goto propagate_exception;
-  }}
-propagate_exception:
-  {{
-    return JS_EXCEPTION;
-  }}
 }}
 
 GUMJS_DEFINE_FUNCTION ({gumjs_function_prefix}_reset)
@@ -1026,19 +1012,16 @@ GUMJS_DEFINE_CONSTRUCTOR ({gumjs_function_prefix}_construct)
 
   parent = gumjs_get_parent_module (core);
 
-  if (JS_IsUndefined (new_target))
-    goto missing_target;
-
   if (!{gumjs_function_prefix}_parse_constructor_args (args, &input_code, &writer,
       parent))
-    goto propagate_exception;
+    return JS_EXCEPTION;
 
   proto = JS_GetProperty (ctx, new_target,
       GUM_QUICK_CORE_ATOM (core, prototype));
   wrapper = JS_NewObjectProtoClass (ctx, proto, parent->{flavor}_relocator_class);
   JS_FreeValue (ctx, proto);
   if (JS_IsException (wrapper))
-    goto propagate_exception;
+    return JS_EXCEPTION;
 
   relocator = {wrapper_function_prefix}_alloc (ctx, parent);
   relocator->wrapper = wrapper;
@@ -1047,17 +1030,6 @@ GUMJS_DEFINE_CONSTRUCTOR ({gumjs_function_prefix}_construct)
   JS_SetOpaque (wrapper, relocator);
 
   return wrapper;
-
-missing_target:
-  {{
-    _gum_quick_throw_literal (ctx,
-        "use constructor syntax to create a new instance");
-    goto propagate_exception;
-  }}
-propagate_exception:
-  {{
-    return JS_EXCEPTION;
-  }}
 }}
 
 GUMJS_DEFINE_FUNCTION ({gumjs_function_prefix}_reset)

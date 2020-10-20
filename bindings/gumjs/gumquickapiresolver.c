@@ -101,9 +101,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_api_resolver_construct)
 
   parent = gumjs_get_parent_module (core);
 
-  if (JS_IsUndefined (new_target))
-    goto missing_target;
-
   if (!_gum_quick_args_parse (args, "s", &type))
     goto propagate_exception;
 
@@ -127,12 +124,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_api_resolver_construct)
 
   return wrapper;
 
-missing_target:
-  {
-    _gum_quick_throw_literal (ctx,
-        "use `new ApiResolver()` to create a new instance");
-    goto propagate_exception;
-  }
 not_available:
   {
     _gum_quick_throw_literal (ctx,
