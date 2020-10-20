@@ -471,12 +471,12 @@ namespace Gum {
 
 	public struct SymbolSection {
 		public string id;
-		public Gum.PageProtection prot;
+		public Gum.PageProtection protection;
 	}
 
 	public struct RangeDetails {
 		public Gum.MemoryRange? range;
-		public Gum.PageProtection prot;
+		public Gum.PageProtection protection;
 		public Gum.FileMapping? file;
 	}
 

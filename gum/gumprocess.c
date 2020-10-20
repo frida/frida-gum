@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -123,7 +123,7 @@ gum_emit_range_if_not_cloaked (const GumRangeDetails * details,
     GumRangeDetails sub_details;
     guint i;
 
-    sub_details.prot = details->prot;
+    sub_details.protection = details->protection;
     sub_details.file = details->file;
 
     for (i = 0; i != sub_ranges->len && carry_on; i++)

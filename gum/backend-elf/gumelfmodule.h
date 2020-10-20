@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -100,7 +100,7 @@ struct _GumElfSectionDetails
   Elf64_Word info;
   Elf64_Xword alignment;
   Elf64_Xword entry_size;
-  GumPageProtection prot;
+  GumPageProtection protection;
 };
 
 GUM_API GumElfModule * gum_elf_module_new_from_memory (const gchar * path,

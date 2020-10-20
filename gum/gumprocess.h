@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -122,13 +122,13 @@ struct _GumSymbolDetails
 struct _GumSymbolSection
 {
   const gchar * id;
-  GumPageProtection prot;
+  GumPageProtection protection;
 };
 
 struct _GumRangeDetails
 {
   const GumMemoryRange * range;
-  GumPageProtection prot;
+  GumPageProtection protection;
   const GumFileMapping * file;
 };
 

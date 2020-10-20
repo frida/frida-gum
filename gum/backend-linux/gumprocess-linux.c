@@ -1278,9 +1278,9 @@ gum_linux_enumerate_ranges (pid_t pid,
     }
 
     details.range = &range;
-    details.prot = gum_page_protection_from_proc_perms_string (perms);
+    details.protection = gum_page_protection_from_proc_perms_string (perms);
 
-    if ((details.prot & prot) == prot)
+    if ((details.protection & prot) == prot)
     {
       carry_on = func (&details, user_data);
     }
@@ -1600,7 +1600,7 @@ gum_append_symbol_section (const GumElfSectionDetails * details,
   GumSymbolSection section;
 
   section.id = g_strdup_printf ("%u%s", 1 + sections->len, details->name);
-  section.prot = details->prot;
+  section.protection = details->protection;
 
   g_array_append_val (sections, section);
 

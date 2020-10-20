@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -300,7 +300,7 @@ gum_emit_free_range (const GumRangeDetails * details,
       GumMemoryRange r;
 
       d.range = &r;
-      d.prot = GUM_PAGE_NO_ACCESS;
+      d.protection = GUM_PAGE_NO_ACCESS;
       d.file = NULL;
 
       r.base_address = ctx->prev_end;

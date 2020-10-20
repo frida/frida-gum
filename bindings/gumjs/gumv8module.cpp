@@ -466,7 +466,8 @@ gum_emit_symbol (const GumSymbolDetails * details,
   {
     auto section = Object::New (isolate);
     _gum_v8_object_set_ascii (section, "id", s->id, core);
-    _gum_v8_object_set_page_protection (section, "protection", s->prot, core);
+    _gum_v8_object_set_page_protection (section, "protection", s->protection,
+        core);
     _gum_v8_object_set (symbol, "section", section, core);
   }
 
@@ -506,7 +507,8 @@ gum_emit_range (const GumRangeDetails * details,
   _gum_v8_object_set_pointer (range, "base", details->range->base_address,
       core);
   _gum_v8_object_set_uint (range, "size", details->range->size, core);
-  _gum_v8_object_set_page_protection (range, "protection", details->prot, core);
+  _gum_v8_object_set_page_protection (range, "protection", details->protection,
+      core);
 
   return mc->OnMatch (range);
 }

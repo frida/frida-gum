@@ -821,7 +821,7 @@ gum_module_enumerate_ranges (const gchar * module_name,
         range.size = segcmd->vmsize;
 
         details.range = &range;
-        details.prot = cur_prot;
+        details.protection = cur_prot;
         details.file = NULL;
 
         if (pid != 0 && gum_darwin_fill_file_mapping (pid, range.base_address,
@@ -1821,7 +1821,7 @@ gum_darwin_enumerate_ranges (mach_port_t task,
       range.size = size;
 
       details.range = &range;
-      details.prot = cur_prot;
+      details.protection = cur_prot;
       details.file = NULL;
 
       if (pid != 0 && gum_darwin_fill_file_mapping (pid, address, &file,
@@ -2101,7 +2101,7 @@ gum_append_symbol_section (const GumDarwinSectionDetails * details,
 
   section.id = g_strdup_printf ("%u.%s.%s", sections->len,
       details->segment_name, details->section_name);
-  section.prot = gum_page_protection_from_mach (details->protection);
+  section.protection = gum_page_protection_from_mach (details->protection);
 
   g_array_append_val (sections, section);
 

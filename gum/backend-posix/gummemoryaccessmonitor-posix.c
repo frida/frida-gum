@@ -46,7 +46,7 @@ struct _GumMemoryAccessMonitor
 struct _GumPageState
 {
   gpointer base;
-  GumPageProtection prot;
+  GumPageProtection protection;
   guint range_index;
   volatile guint completed;
 };
@@ -60,7 +60,7 @@ struct _GumRangeStats
 struct _GumLivePageDetails
 {
   gpointer base;
-  GumPageProtection prot;
+  GumPageProtection protection;
   guint range_index;
 };
 
@@ -249,7 +249,7 @@ gum_collect_range_stats (const GumLivePageDetails * details,
   GumRangeStats * stats = user_data;
 
   stats->live_count++;
-  if (details->prot == GUM_PAGE_NO_ACCESS)
+  if (details->protection == GUM_PAGE_NO_ACCESS)
     stats->guarded_count++;
 
   return TRUE;
@@ -263,11 +263,11 @@ gum_monitor_range (const GumLivePageDetails * details,
   GumPageProtection old_prot, new_prot;
   GumPageState page;
 
-  old_prot = details->prot;
+  old_prot = details->protection;
   new_prot = (old_prot ^ self->access_mask) & old_prot;
 
   page.base = details->base;
-  page.prot = old_prot;
+  page.protection = old_prot;
   page.range_index = details->range_index;
   page.completed = 0;
 
@@ -291,7 +291,7 @@ gum_demonitor_range (const GumLivePageDetails * details,
 
     if (page->base == details->base)
     {
-      gum_try_mprotect (page->base, self->page_size, page->prot);
+      gum_try_mprotect (page->base, self->page_size, page->protection);
       return TRUE;
     }
   }
@@ -354,7 +354,7 @@ gum_emit_live_range_if_monitored (const GumRangeDetails * details,
       GumLivePageDetails d;
 
       d.base = cur;
-      d.prot = details->prot;
+      d.protection = details->protection;
       d.range_index = i;
 
       carry_on = ctx->func (&d, ctx->user_data);
@@ -393,7 +393,7 @@ gum_memory_access_monitor_on_exception (GumExceptionDetails * details,
 
     if (d.address >= page->base && d.address < page->base + page_size)
     {
-      GumPageProtection original_prot = page->prot;
+      GumPageProtection original_prot = page->protection;
 
       switch (d.operation)
       {
@@ -414,7 +414,7 @@ gum_memory_access_monitor_on_exception (GumExceptionDetails * details,
       }
 
       if (self->auto_reset)
-        gum_try_mprotect (page->base, page_size, page->prot);
+        gum_try_mprotect (page->base, page_size, page->protection);
 
       operation_mask = 1 << d.operation;
       operations_reported = g_atomic_int_or (&page->completed, operation_mask);

@@ -292,7 +292,8 @@ gum_emit_range (const GumRangeDetails * details,
   _gum_v8_object_set_pointer (range, "base", details->range->base_address,
       core);
   _gum_v8_object_set_uint (range, "size", details->range->size, core);
-  _gum_v8_object_set_page_protection (range, "protection", details->prot, core);
+  _gum_v8_object_set_page_protection (range, "protection", details->protection,
+      core);
 
   auto f = details->file;
   if (f != NULL)

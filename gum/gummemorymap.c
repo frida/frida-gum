@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2013-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -14,7 +14,7 @@ struct _GumMemoryMap
 {
   GObject parent;
 
-  GumPageProtection prot;
+  GumPageProtection protection;
   GArray * ranges;
   gsize ranges_min;
   gsize ranges_max;
@@ -63,7 +63,7 @@ gum_memory_map_new (GumPageProtection prot)
   GumMemoryMap * map;
 
   map = g_object_new (GUM_TYPE_MEMORY_MAP, NULL);
-  map->prot = prot;
+  map->protection = prot;
 
   gum_memory_map_update (map);
 
@@ -103,7 +103,8 @@ gum_memory_map_update (GumMemoryMap * self)
 
   g_array_set_size (self->ranges, 0);
 
-  _gum_process_enumerate_ranges (self->prot, gum_memory_map_add_range, &ctx);
+  _gum_process_enumerate_ranges (self->protection, gum_memory_map_add_range,
+      &ctx);
 
   if (self->ranges->len > 0)
   {

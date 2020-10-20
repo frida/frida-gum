@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -325,7 +325,7 @@ _gum_process_enumerate_ranges (GumPageProtection prot,
         range.size = mbi.RegionSize;
 
         details.range = &range;
-        details.prot = cur_prot;
+        details.protection = cur_prot;
         details.file = NULL; /* TODO */
 
         if (!func (&details, user_data))
@@ -660,7 +660,7 @@ gum_module_enumerate_ranges (const gchar * module_name,
         range.size = mbi.RegionSize;
 
         details.range = &range;
-        details.prot = cur_prot;
+        details.protection = cur_prot;
         details.file = NULL; /* TODO */
 
         if (!func (&details, user_data))

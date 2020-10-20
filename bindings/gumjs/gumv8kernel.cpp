@@ -290,7 +290,8 @@ gum_emit_range (const GumRangeDetails * details,
   _gum_v8_object_set_uint64 (range, "base", details->range->base_address,
       core);
   _gum_v8_object_set_uint (range, "size", details->range->size, core);
-  _gum_v8_object_set_page_protection (range, "protection", details->prot, core);
+  _gum_v8_object_set_page_protection (range, "protection", details->protection,
+      core);
 
   return mc->OnMatch (range);
 }
@@ -324,8 +325,8 @@ gum_emit_module_range (const GumKernelModuleRangeDetails * details,
   _gum_v8_object_set_utf8 (range, "name", details->name, core);
   _gum_v8_object_set_uint64 (range, "base", details->address, core);
   _gum_v8_object_set_uint (range, "size", details->size, core);
-  _gum_v8_object_set_page_protection (range, "protection",
-    details->protection, core);
+  _gum_v8_object_set_page_protection (range, "protection", details->protection,
+      core);
 
   return mc->OnMatch (range);
 }

@@ -390,7 +390,7 @@ gum_emit_symbol (const GumSymbolDetails * details,
         JS_PROP_C_W_E);
     JS_DefinePropertyValue (ctx, sect,
         GUM_QUICK_CORE_ATOM (core, protection),
-        _gum_quick_page_protection_new (ctx, section->prot),
+        _gum_quick_page_protection_new (ctx, section->protection),
         JS_PROP_C_W_E);
 
     JS_DefinePropertyValue (ctx, sym,

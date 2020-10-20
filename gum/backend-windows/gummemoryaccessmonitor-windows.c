@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Eloi Vanderbeken <eloi.vanderbeken@synacktiv.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -246,7 +246,7 @@ gum_collect_range_stats (const GumLiveRangeDetails * details,
   GumRangeStats * stats = (GumRangeStats *) user_data;
 
   stats->live_size += details->range->size;
-  if ((details->prot & PAGE_GUARD) == PAGE_GUARD)
+  if ((details->protection & PAGE_GUARD) == PAGE_GUARD)
     stats->guarded_size += details->range->size;
 
   return TRUE;
@@ -270,7 +270,7 @@ gum_set_guard_flag (const GumLiveRangeDetails * details,
     if (self->auto_reset)
     {
       is_guarded = TRUE;
-      new_prot = details->prot | PAGE_GUARD;
+      new_prot = details->protection | PAGE_GUARD;
     }
     else
     {
@@ -279,7 +279,7 @@ gum_set_guard_flag (const GumLiveRangeDetails * details,
   }
   else
   {
-    switch (details->prot & 0xFF)
+    switch (details->protection & 0xFF)
     {
     case PAGE_EXECUTE:
       if ((self->access_mask & GUM_PAGE_EXECUTE) != 0)
@@ -340,7 +340,7 @@ gum_set_guard_flag (const GumLiveRangeDetails * details,
       (num_pages + 1) * sizeof (self->pages_details[0]));
 
   self->pages_details[num_pages].range_index = details->range_index;
-  self->pages_details[num_pages].original_protection = details->prot;
+  self->pages_details[num_pages].original_protection = details->protection;
   self->pages_details[num_pages].address =
       (gpointer) details->range->base_address;
   self->pages_details[num_pages].is_guarded = is_guarded;
@@ -407,7 +407,7 @@ gum_memory_access_monitor_enumerate_live_ranges (GumMemoryAccessMonitor * self,
       size = MIN (mbi.RegionSize, self->page_size);
 
       details.range = &range;
-      details.prot = mbi.Protect;
+      details.protection = mbi.Protect;
       details.range_index = i;
 
       range.base_address = GUM_ADDRESS (cur);

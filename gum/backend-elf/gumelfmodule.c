@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -778,8 +778,11 @@ gum_elf_module_enumerate_sections (GumElfModule * self,
     d.info = shdr.sh_info;
     d.alignment = shdr.sh_addralign;
     d.entry_size = shdr.sh_entsize;
-    if (!gum_elf_module_find_address_protection (self, shdr.sh_addr, &d.prot))
-      d.prot = GUM_PAGE_NO_ACCESS;
+    if (!gum_elf_module_find_address_protection (self, shdr.sh_addr,
+        &d.protection))
+    {
+      d.protection = GUM_PAGE_NO_ACCESS;
+    }
 
     if (!func (&d, user_data))
       return;

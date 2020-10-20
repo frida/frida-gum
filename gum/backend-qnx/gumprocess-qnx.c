@@ -307,7 +307,7 @@ gum_qnx_enumerate_ranges (pid_t pid,
 
     details.range = &range;
     details.file = &file;
-    details.prot = _gum_page_protection_from_posix (mapinfos[i].flags);
+    details.protection = _gum_page_protection_from_posix (mapinfos[i].flags);
 
     range.base_address = mapinfos[i].vaddr;
     range.size = mapinfos[i].size;
@@ -320,7 +320,7 @@ gum_qnx_enumerate_ranges (pid_t pid,
     file.offset = 0; /* TODO */
     file.size = 0; /* TODO */
 
-    if ((details.prot & prot) == prot)
+    if ((details.protection & prot) == prot)
     {
       carry_on = func (&details, user_data);
     }

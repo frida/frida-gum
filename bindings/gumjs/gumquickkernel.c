@@ -350,7 +350,7 @@ gum_parse_range_details (JSContext * ctx,
       JS_PROP_C_W_E);
   JS_DefinePropertyValue (ctx, r,
       GUM_QUICK_CORE_ATOM (core, protection),
-      _gum_quick_page_protection_new (ctx, details->prot),
+      _gum_quick_page_protection_new (ctx, details->protection),
       JS_PROP_C_W_E);
 
   return r;
