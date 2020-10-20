@@ -171,8 +171,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_write)
   data = g_bytes_get_data (bytes, &size);
   fwrite (data, size, 1, self->handle);
 
-  g_bytes_unref (bytes);
-
   return JS_UNDEFINED;
 }
 

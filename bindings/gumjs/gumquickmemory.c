@@ -800,7 +800,6 @@ gum_quick_memory_write (JSContext * ctx,
     result = _gum_quick_throw_native (ctx, &scope.exception, core);
   }
 
-  g_bytes_unref (bytes);
   g_free (str_utf16);
 #ifdef HAVE_WINDOWS
   g_free (str_ansi);

@@ -811,7 +811,6 @@ gum_quick_kernel_write (JSContext * ctx,
 
   success = gum_kernel_write (address, data, length);
 
-  g_bytes_unref (bytes);
   g_free (str_utf16);
 
   if (!success)
