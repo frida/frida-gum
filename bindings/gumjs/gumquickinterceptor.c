@@ -515,7 +515,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
   else
   {
     JSValue on_enter_js, on_leave_js;
-    gpointer on_enter_c, on_leave_c;
+    GumQuickCHook on_enter_c, on_leave_c;
 
     if (!_gum_quick_args_parse (args, "pF*{onEnter?,onLeave?}", &target,
         &on_enter_js, &on_enter_c,
@@ -537,8 +537,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
       GumQuickCCallListener * l;
 
       l = g_object_new (GUM_QUICK_TYPE_C_CALL_LISTENER, NULL);
-      l->on_enter = GUM_POINTER_TO_FUNCPTR (GumQuickCHook, on_enter_c);
-      l->on_leave = GUM_POINTER_TO_FUNCPTR (GumQuickCHook, on_leave_c);
+      l->on_enter = on_enter_c;
+      l->on_leave = on_leave_c;
 
       listener = GUM_QUICK_INVOCATION_LISTENER (l);
     }
@@ -836,19 +836,20 @@ gum_quick_js_call_listener_on_enter (GumInvocationListener * listener,
                                      GumInvocationContext * ic)
 {
   GumQuickJSCallListener * self;
-  GumQuickInterceptor * parent;
   GumQuickInvocationState * state;
 
   self = GUM_QUICK_JS_CALL_LISTENER_CAST (listener);
-  parent = GUM_QUICK_INVOCATION_LISTENER_CAST (listener)->parent;
   state = GUM_IC_GET_INVOCATION_DATA (ic, GumQuickInvocationState);
 
   if (!JS_IsNull (self->on_enter))
   {
+    GumQuickInterceptor * parent;
     GumQuickScope scope;
     GumQuickInvocationContext * jic;
     GumQuickInvocationArgs * args;
     gboolean jic_is_dirty;
+
+    parent = GUM_QUICK_INVOCATION_LISTENER_CAST (listener)->parent;
 
     _gum_quick_scope_enter (&scope, parent->core);
 
@@ -1132,9 +1133,7 @@ static void
 gum_quick_c_probe_listener_on_enter (GumInvocationListener * listener,
                                      GumInvocationContext * ic)
 {
-  GumQuickCProbeListener * self = GUM_QUICK_C_PROBE_LISTENER_CAST (listener);
-
-  self->on_hit (ic);
+  GUM_QUICK_C_PROBE_LISTENER_CAST (listener)->on_hit (ic);
 }
 
 static JSValue
