@@ -1003,19 +1003,25 @@ _gum_v8_uint64_get (Local<Value> value,
 
   if (value->IsNumber ())
   {
-    *u = value->IntegerValue (isolate->GetCurrentContext ()).ToChecked ();
-    return TRUE;
+    double v = value->NumberValue (isolate->GetCurrentContext ()).ToChecked ();
+    if (v >= 0)
+    {
+      *u = (guint64) v;
+      return TRUE;
+    }
   }
-
-  auto uint64 (Local<FunctionTemplate>::New (isolate, *core->uint64));
-  if (!uint64->HasInstance (value))
+  else
   {
-    _gum_v8_throw_ascii_literal (isolate, "expected an unsigned integer");
-    return FALSE;
+    auto uint64 (Local<FunctionTemplate>::New (isolate, *core->uint64));
+    if (uint64->HasInstance (value))
+    {
+      *u = _gum_v8_uint64_get_value (value.As<Object> ());
+      return TRUE;
+    }
   }
 
-  *u = _gum_v8_uint64_get_value (value.As<Object> ());
-  return TRUE;
+  _gum_v8_throw_ascii_literal (isolate, "expected an unsigned integer");
+  return FALSE;
 }
 
 gboolean
@@ -1121,11 +1127,10 @@ _gum_v8_size_get (Local<Value> value,
 
   if (value->IsNumber ())
   {
-    int64_t i = value->IntegerValue (isolate->GetCurrentContext ())
-        .ToChecked ();
-    if (i >= 0)
+    double v = value->NumberValue (isolate->GetCurrentContext ()).ToChecked ();
+    if (v >= 0)
     {
-      *size = (gsize) i;
+      *size = (gsize) v;
       return TRUE;
     }
   }

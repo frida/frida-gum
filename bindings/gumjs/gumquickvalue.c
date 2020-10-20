@@ -972,15 +972,15 @@ _gum_quick_uint64_get (JSContext * ctx,
 {
   if (JS_IsNumber (val))
   {
-    int64_t v;
+    double v;
 
-    if (JS_ToInt64 (ctx, &v, val) != 0)
+    if (JS_ToFloat64 (ctx, &v, val) != 0)
       return FALSE;
 
     if (v < 0)
       goto expected_uint;
 
-    *u = v;
+    *u = (guint64) v;
   }
   else
   {
@@ -1043,12 +1043,15 @@ _gum_quick_size_get (JSContext * ctx,
 
   if (JS_IsNumber (val))
   {
-    int64_t v;
+    double v;
 
-    if (JS_ToInt64 (ctx, &v, val) != 0 || v < 0)
+    if (JS_ToFloat64 (ctx, &v, val) != 0)
+      return FALSE;
+
+    if (v < 0)
       goto expected_uint;
 
-    *size = v;
+    *size = (gsize) v;
   }
   else if (_gum_quick_try_unwrap (val, core->uint64_class, core,
       (gpointer *) &u64))

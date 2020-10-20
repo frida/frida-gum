@@ -236,6 +236,7 @@ TESTLIST_BEGIN (script)
 
   TESTGROUP_BEGIN ("UInt64")
     TESTENTRY (uint64_provides_arithmetic_operations)
+    TESTENTRY (uint64_can_be_constructed_from_a_large_number)
   TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("Int64")
@@ -1890,6 +1891,12 @@ TESTCASE (uint64_provides_arithmetic_operations)
   EXPECT_SEND_MESSAGE_WITH ("3");
   EXPECT_SEND_MESSAGE_WITH ("8");
   EXPECT_SEND_MESSAGE_WITH ("\"18446744073709551615\"");
+}
+
+TESTCASE (uint64_can_be_constructed_from_a_large_number)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send(uint64(Math.pow(2, 63)).toString(16));");
+  EXPECT_SEND_MESSAGE_WITH ("\"8000000000000000\"");
 }
 
 TESTCASE (int64_provides_arithmetic_operations)
