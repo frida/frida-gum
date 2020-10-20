@@ -226,6 +226,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (native_pointer_provides_ptrauth_functionality)
     TESTENTRY (native_pointer_to_match_pattern)
     TESTENTRY (native_pointer_can_be_constructed_from_64bit_value)
+    TESTENTRY (native_pointer_should_be_serializable_to_json)
   TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("ArrayBuffer")
@@ -1796,6 +1797,12 @@ TESTCASE (native_pointer_can_be_constructed_from_64bit_value)
       "send(ptr(int64(-1)).equals(ptr('0xffffffffffffffff')));");
   EXPECT_SEND_MESSAGE_WITH ("true");
 #endif
+}
+
+TESTCASE (native_pointer_should_be_serializable_to_json)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send(ptr(1).toJSON());");
+  EXPECT_SEND_MESSAGE_WITH ("\"0x1\"");
 }
 
 TESTCASE (array_buffer_can_wrap_memory_region)
@@ -3844,9 +3851,11 @@ TESTCASE (strict_mode_should_be_enforced)
       "}"
       "run();");
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
-      GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend)
-      ? "ReferenceError: identifier 'oops' undefined"
-      : "ReferenceError: oops is not defined");
+      GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend)
+      ? "ReferenceError: 'oops' is not defined"
+      : GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend)
+          ? "ReferenceError: identifier 'oops' undefined"
+          : "ReferenceError: oops is not defined");
 }
 
 TESTCASE (array_buffer_can_be_created)
@@ -5116,7 +5125,7 @@ measure_target_function_int_overhead (void)
   g_assert (n % 2 == 0);
   t_median = (measurement[n / 2] + measurement[(n / 2) - 1]) / 2.0;
 
-  g_print ("<min: %.1f µs, max: %.1f µs, median: %.1f µs> ",
+  g_print ("<min: %.1f us, max: %.1f us, median: %.1f us> ",
       t_min * (gdouble) G_USEC_PER_SEC,
       t_max * (gdouble) G_USEC_PER_SEC,
       t_median * (gdouble) G_USEC_PER_SEC);
@@ -5765,6 +5774,7 @@ TESTCASE (byte_array_can_be_written)
 {
   guint8 val[4] = { 0x00, 0x00, 0x00, 0xff };
   const guint8 other[3] = { 0x01, 0x02, 0x03 };
+  guint16 shorts[2] = { 0x1111, 0x2222 };
 
   COMPILE_AND_LOAD_SCRIPT (
       GUM_PTR_CONST ".writeByteArray([0x13, 0x37, 0x42]);",
@@ -5795,6 +5805,15 @@ TESTCASE (byte_array_can_be_written)
   g_assert_cmpint (val[0], ==, 0x04);
   g_assert_cmpint (val[1], ==, 0x05);
   g_assert_cmpint (val[2], ==, 0x03);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var shorts = new Uint16Array(1);"
+      "shorts[0] = 0x4242;"
+      GUM_PTR_CONST ".writeByteArray(shorts);",
+      shorts);
+  EXPECT_NO_MESSAGES ();
+  g_assert_cmpint (shorts[0], ==, 0x4242);
+  g_assert_cmpint (shorts[1], ==, 0x2222);
 }
 
 TESTCASE (c_string_can_be_read)
@@ -7199,7 +7218,8 @@ TESTCASE (script_can_be_compiled_to_bytecode)
   error = NULL;
   code = gum_script_backend_compile_sync (fixture->backend, "testcase",
       "send(1337);\noops;", NULL, &error);
-  if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+  if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend) ||
+      GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
   {
     g_assert_nonnull (code);
     g_assert_null (error);
@@ -7226,7 +7246,8 @@ TESTCASE (script_can_be_compiled_to_bytecode)
 
   script = gum_script_backend_create_from_bytes_sync (fixture->backend, code,
       NULL, &error);
-  if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+  if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend) ||
+      GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
   {
     TestScriptMessageItem * item;
 
@@ -7299,9 +7320,10 @@ TESTCASE (script_memory_usage)
   GTimer * timer;
   guint before, after;
 
-  if (!GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+  if (!GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend) &&
+      !GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
   {
-    g_print ("<skipping, measurement only valid for the Duktape runtime> ");
+    g_print ("<skipped due to runtime> ");
     return;
   }
 
@@ -7429,10 +7451,26 @@ TESTCASE (source_maps_should_be_supported_for_user_scripts)
   );
 
   item = test_script_fixture_pop_message (fixture);
-  if (!GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+  if (!GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend) &&
+      !GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+  {
     g_assert_null (strstr (item->message, "testcase.js"));
+  }
   g_assert_nonnull (strstr (item->message, "\"type\":\"send\""));
-  if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+  if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
+  {
+    g_assert_nonnull (strstr (item->message,
+        "\"payload\":\"Error: not yet implemented\\n"
+        "    at add (math.js:5)\\n"
+        "    at <anonymous> (index.js:6)\\n"
+        "    at call (native)\\n"
+        "    at s (node_modules/frida/node_modules/browserify/node_modules/"
+            "browser-pack/_prelude.js:1)\\n"
+        "    at e (node_modules/frida/node_modules/browserify/node_modules/"
+            "browser-pack/_prelude.js:1)\\n"
+        "    at <eval> (/testcase.js:25)"));
+  }
+  else if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
   {
     g_assert_nonnull (strstr (item->message,
         "\"payload\":\"Error: not yet implemented\\n"
@@ -7462,7 +7500,12 @@ TESTCASE (source_maps_should_be_supported_for_user_scripts)
   g_assert_null (strstr (item->message, "testcase.js"));
   g_assert_nonnull (strstr (item->message, "\"type\":\"error\""));
   g_assert_nonnull (strstr (item->message, "\"description\":\"Error: Oops!\""));
-  if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+  if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
+  {
+    g_assert_nonnull (strstr (item->message, "\"stack\":\"Error: Oops!\\n"
+        "    at <anonymous> (index.js:12)\\n"));
+  }
+  else if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
   {
     g_assert_nonnull (strstr (item->message, "\"stack\":\"Error: Oops!\\n"
         "    at index.js:12\\n"));
@@ -7488,8 +7531,10 @@ TESTCASE (types_handle_invalid_construction)
       "} catch (e) {"
       "  send(e.message);"
       "}");
-  EXPECT_SEND_MESSAGE_WITH ("\"use `new NativePointer()` to create a new "
-      "instance, or use one of the two shorthands: `ptr()` and `NULL`\"");
+  EXPECT_SEND_MESSAGE_WITH (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend)
+      ? "\"must be called with new\""
+      : "\"use `new NativePointer()` to create a new instance, or use one of "
+      "the two shorthands: `ptr()` and `NULL`\"");
 
   COMPILE_AND_LOAD_SCRIPT (
       "try {"
@@ -7497,8 +7542,9 @@ TESTCASE (types_handle_invalid_construction)
       "} catch (e) {"
       "  send(e.message);"
       "}");
-  EXPECT_SEND_MESSAGE_WITH ("\"use `new NativeFunction()` to create a new "
-      "instance\"");
+  EXPECT_SEND_MESSAGE_WITH (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend)
+      ? "\"must be called with new\""
+      : "\"use `new NativeFunction()` to create a new instance\"");
 
   COMPILE_AND_LOAD_SCRIPT (
       "try {"
@@ -7506,8 +7552,9 @@ TESTCASE (types_handle_invalid_construction)
       "} catch (e) {"
       "  send(e.message);"
       "}");
-  EXPECT_SEND_MESSAGE_WITH ("\"use `new NativeCallback()` to create a new "
-      "instance\"");
+  EXPECT_SEND_MESSAGE_WITH (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend)
+      ? "\"must be called with new\""
+      : "\"use `new NativeCallback()` to create a new instance\"");
 
   COMPILE_AND_LOAD_SCRIPT (
       "try {"
@@ -7515,7 +7562,9 @@ TESTCASE (types_handle_invalid_construction)
       "} catch (e) {"
       "  send(e.message);"
       "}");
-  EXPECT_SEND_MESSAGE_WITH ("\"use `new File()` to create a new instance\"");
+  EXPECT_SEND_MESSAGE_WITH (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend)
+      ? "\"must be called with new\""
+      : "\"use `new File()` to create a new instance\"");
 #endif
 }
 
@@ -7572,7 +7621,12 @@ TESTCASE (globals_can_be_dynamically_generated)
       "send(snake);");
   EXPECT_SEND_MESSAGE_WITH ("1337");
   EXPECT_SEND_MESSAGE_WITH ("\"number\"");
-  if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+  if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
+  {
+    EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+        "ReferenceError: 'snake' is not defined");
+  }
+  else if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
   {
     EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
         "ReferenceError: identifier 'snake' undefined");
@@ -7633,6 +7687,12 @@ TESTCASE (debugger_can_be_enabled)
   GumScript * badger, * snake;
   GumInspectorServer * server;
   GError * error;
+
+  if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
+  {
+    g_print ("<not available on QuickJS> ");
+    return;
+  }
 
   if (!g_test_slow ())
   {

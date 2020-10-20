@@ -10,6 +10,12 @@ option('gumjs',
   description: 'Build JavaScript bindings'
 )
 
+option('quickjs',
+  type: 'feature',
+  value: 'enabled',
+  description: 'Build JavaScript bindings with QuickJS runtime included'
+)
+
 option('duktape',
   type: 'feature',
   value: 'enabled',

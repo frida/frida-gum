@@ -20,9 +20,42 @@ gumjs_sources = [
 ]
 
 gumjs_objects = []
+if have_quickjs
+  gumjs_objects += quickjs.extract_all_objects()
+  gumjs_extra_deps += [quickjs_dep]
+endif
 if have_tinycc
   gumjs_objects += tinycc.extract_all_objects()
   gumjs_extra_deps += [tinycc_dep]
+endif
+
+if have_quickjs
+  gumjs_sources += [
+    'gumquickscriptbackend.c',
+    'gumquickscript.c',
+    'gumquickbundle.c',
+    'gumquickvalue.c',
+    'gumquickobject.c',
+    'gumquickcore.c',
+    'gumquickkernel.c',
+    'gumquickmemory.c',
+    'gumquickprocess.c',
+    'gumquickthread.c',
+    'gumquickmodule.c',
+    'gumquickfile.c',
+    'gumquickstream.c',
+    'gumquicksocket.c',
+    'gumquickdatabase.c',
+    'gumquickinterceptor.c',
+    'gumquickstalker.c',
+    'gumquickeventsink.c',
+    'gumquickapiresolver.c',
+    'gumquicksymbol.c',
+    'gumquickcmodule.c',
+    'gumquickinstruction.c',
+    'gumquickcodewriter.c',
+    'gumquickcoderelocator.c',
+  ]
 endif
 
 if have_duktape
@@ -105,6 +138,9 @@ foreach o : gumjs_generated_origins
 endforeach
 gumjs_generated_outputs = []
 runtimes = []
+if have_quickjs
+  runtimes += 'quick'
+endif
 if have_duktape
   runtimes += 'duk'
 endif
@@ -141,12 +177,14 @@ foreach r : runtimes
 endforeach
 
 gumjs_runtime_sources = [
-  'runtime/entrypoint-v8.js',
+  'runtime/entrypoint-quickjs.js',
   'runtime/entrypoint-duktape.js',
+  'runtime/entrypoint-v8.js',
   'runtime/core.js',
   'runtime/message-dispatcher.js',
-  'runtime/error-handler-v8.js',
+  'runtime/error-handler-quickjs.js',
   'runtime/error-handler-duktape.js',
+  'runtime/error-handler-v8.js',
   'runtime/console.js',
   'runtime/hexdump.js',
   'runtime/promise.js',
@@ -170,6 +208,9 @@ gumjs_runtime_sources = [
   'runtime/cmodule/json-glib/json-glib.h',
 ]
 gumjs_runtime_outputs = [
+  'gumquickscript-runtime.h',
+  'gumquickscript-objc.h',
+  'gumquickscript-java.h',
   'gumdukscript-runtime.h',
   'gumdukscript-promise.h',
   'gumdukscript-objc.h',
@@ -218,7 +259,7 @@ gumjs = library('frida-gumjs-' + api_version, gumjs_sources,
 
 gumjs_dep = declare_dependency(link_with: gumjs,
   include_directories: [bindings_inc, include_directories('.')],
-  dependencies: [gum_dep, gio_dep, json_glib_dep],
+  dependencies: [gum_dep, gio_dep, json_glib_dep] + gumjs_extra_deps,
 )
 
 pkg = import('pkgconfig')
@@ -232,6 +273,7 @@ pkg.generate(filebase: 'frida-gumjs-' + api_version,
   libraries: [gumjs],
   libraries_private: gumjs_extra_libraries,
   variables: [
+    'gumjs_quickjs=' + have_quickjs.to_string('enabled', 'disabled'),
     'gumjs_duktape=' + have_duktape.to_string('enabled', 'disabled'),
     'gumjs_v8=' + have_v8.to_string('enabled', 'disabled'),
   ],

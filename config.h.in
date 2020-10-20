@@ -69,6 +69,9 @@
 /* Define to 1 if OS is QNX based. */
 #mesondefine HAVE_QNX
 
+/* Define to 1 if QuickJS runtime is available. */
+#mesondefine HAVE_QUICKJS
+
 /* Define to 1 if you have the <stdint.h> header file. */
 #mesondefine HAVE_STDINT_H
 

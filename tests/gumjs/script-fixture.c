@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -10,6 +10,7 @@
 #include "gum-init.h"
 #include "gumdukscriptbackend.h"
 #include "guminspectorserver.h"
+#include "gumquickscriptbackend.h"
 #include "gumscriptbackend.h"
 #include "valgrind.h"
 
@@ -46,26 +47,27 @@
 #endif
 #define TESTCASE(NAME) \
     void test_script_ ## NAME (TestScriptFixture * fixture, gconstpointer data)
-#define TESTENTRY(NAME)                                                    \
-    G_STMT_START                                                           \
-    {                                                                      \
-      extern void test_script_ ##NAME (TestScriptFixture * fixture,        \
-          gconstpointer data);                                             \
-      gchar * path;                                                        \
-                                                                           \
-      path = g_strconcat ("/GumJS/Script/" SCRIPT_SUITE, group, #NAME "#", \
-          GUM_DUK_IS_SCRIPT_BACKEND (fixture_data) ? "DUK" : "V8",         \
-          NULL);                                                           \
-                                                                           \
-      g_test_add (path,                                                    \
-          TestScriptFixture,                                               \
-          fixture_data,                                                    \
-          test_script_fixture_setup,                                       \
-          test_script_ ##NAME,                                             \
-          test_script_fixture_teardown);                                   \
-                                                                           \
-      g_free (path);                                                       \
-    }                                                                      \
+#define TESTENTRY(NAME)                                                   \
+    G_STMT_START                                                          \
+    {                                                                     \
+      extern void test_script_ ##NAME (TestScriptFixture * fixture,       \
+          gconstpointer data);                                            \
+      gchar * path;                                                       \
+                                                                          \
+      path = g_strconcat ("/GumJS/Script/" SCRIPT_SUITE, group, #NAME "#",\
+          GUM_QUICK_IS_SCRIPT_BACKEND (fixture_data) ? "QJS" :            \
+              GUM_DUK_IS_SCRIPT_BACKEND (fixture_data) ? "DUK" : "V8",    \
+          NULL);                                                          \
+                                                                          \
+      g_test_add (path,                                                   \
+          TestScriptFixture,                                              \
+          fixture_data,                                                   \
+          test_script_fixture_setup,                                      \
+          test_script_ ##NAME,                                            \
+          test_script_fixture_teardown);                                  \
+                                                                          \
+      g_free (path);                                                      \
+    }                                                                     \
     G_STMT_END;
 
 #define COMPILE_AND_LOAD_SCRIPT(SOURCE, ...) \

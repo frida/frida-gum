@@ -10,9 +10,6 @@
     <ClCompile Include="gumscriptscheduler.c">
       <Filter>common</Filter>
     </ClCompile>
-    <ClCompile Include="guminspectorserver.c">
-      <Filter>common</Filter>
-    </ClCompile>
     <ClCompile Include="gumscripttask.c">
       <Filter>common</Filter>
     </ClCompile>
@@ -184,6 +181,78 @@
     <ClCompile Include="gumv8cmodule.cpp">
       <Filter>v8</Filter>
     </ClCompile>
+    <ClCompile Include="gumquickapiresolver.c">
+      <Filter>quick</Filter>
+    </ClCompile>
+    <ClCompile Include="gumquickbundle.c">
+      <Filter>quick</Filter>
+    </ClCompile>
+    <ClCompile Include="gumquickcmodule.c">
+      <Filter>quick</Filter>
+    </ClCompile>
+    <ClCompile Include="gumquickcoderelocator.c">
+      <Filter>quick</Filter>
+    </ClCompile>
+    <ClCompile Include="gumquickcodewriter.c">
+      <Filter>quick</Filter>
+    </ClCompile>
+    <ClCompile Include="gumquickcore.c">
+      <Filter>quick</Filter>
+    </ClCompile>
+    <ClCompile Include="gumquickdatabase.c">
+      <Filter>quick</Filter>
+    </ClCompile>
+    <ClCompile Include="gumquickeventsink.c">
+      <Filter>quick</Filter>
+    </ClCompile>
+    <ClCompile Include="gumquickfile.c">
+      <Filter>quick</Filter>
+    </ClCompile>
+    <ClCompile Include="gumquickinstruction.c">
+      <Filter>quick</Filter>
+    </ClCompile>
+    <ClCompile Include="gumquickinterceptor.c">
+      <Filter>quick</Filter>
+    </ClCompile>
+    <ClCompile Include="gumquickkernel.c">
+      <Filter>quick</Filter>
+    </ClCompile>
+    <ClCompile Include="gumquickmemory.c">
+      <Filter>quick</Filter>
+    </ClCompile>
+    <ClCompile Include="gumquickmodule.c">
+      <Filter>quick</Filter>
+    </ClCompile>
+    <ClCompile Include="gumquickobject.c">
+      <Filter>quick</Filter>
+    </ClCompile>
+    <ClCompile Include="gumquickprocess.c">
+      <Filter>quick</Filter>
+    </ClCompile>
+    <ClCompile Include="gumquickscript.c">
+      <Filter>quick</Filter>
+    </ClCompile>
+    <ClCompile Include="gumquickscriptbackend.c">
+      <Filter>quick</Filter>
+    </ClCompile>
+    <ClCompile Include="gumquicksocket.c">
+      <Filter>quick</Filter>
+    </ClCompile>
+    <ClCompile Include="gumquickstalker.c">
+      <Filter>quick</Filter>
+    </ClCompile>
+    <ClCompile Include="gumquickstream.c">
+      <Filter>quick</Filter>
+    </ClCompile>
+    <ClCompile Include="gumquicksymbol.c">
+      <Filter>quick</Filter>
+    </ClCompile>
+    <ClCompile Include="gumquickthread.c">
+      <Filter>quick</Filter>
+    </ClCompile>
+    <ClCompile Include="gumquickvalue.c">
+      <Filter>quick</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(IntDir)gumjs\gumv8script-runtime.h">
@@ -196,9 +265,6 @@
       <Filter>common</Filter>
     </ClInclude>
     <ClInclude Include="gumscriptscheduler.h">
-      <Filter>common</Filter>
-    </ClInclude>
-    <ClInclude Include="guminspectorserver.h">
       <Filter>common</Filter>
     </ClInclude>
     <ClInclude Include="gumscripttask.h">
@@ -393,6 +459,87 @@
     <ClInclude Include="$(IntDir)gumjs\gumcmodule-runtime.h">
       <Filter>runtime\generated</Filter>
     </ClInclude>
+    <ClInclude Include="gumquickapiresolver.h">
+      <Filter>quick</Filter>
+    </ClInclude>
+    <ClInclude Include="gumquickbundle.h">
+      <Filter>quick</Filter>
+    </ClInclude>
+    <ClInclude Include="gumquickcmodule.h">
+      <Filter>quick</Filter>
+    </ClInclude>
+    <ClInclude Include="gumquickcoderelocator.h">
+      <Filter>quick</Filter>
+    </ClInclude>
+    <ClInclude Include="gumquickcodewriter.h">
+      <Filter>quick</Filter>
+    </ClInclude>
+    <ClInclude Include="gumquickcore.h">
+      <Filter>quick</Filter>
+    </ClInclude>
+    <ClInclude Include="gumquickdatabase.h">
+      <Filter>quick</Filter>
+    </ClInclude>
+    <ClInclude Include="gumquickeventsink.h">
+      <Filter>quick</Filter>
+    </ClInclude>
+    <ClInclude Include="gumquickfile.h">
+      <Filter>quick</Filter>
+    </ClInclude>
+    <ClInclude Include="gumquickinstruction.h">
+      <Filter>quick</Filter>
+    </ClInclude>
+    <ClInclude Include="gumquickinterceptor.h">
+      <Filter>quick</Filter>
+    </ClInclude>
+    <ClInclude Include="gumquickkernel.h">
+      <Filter>quick</Filter>
+    </ClInclude>
+    <ClInclude Include="gumquickmacros.h">
+      <Filter>quick</Filter>
+    </ClInclude>
+    <ClInclude Include="gumquickmemory.h">
+      <Filter>quick</Filter>
+    </ClInclude>
+    <ClInclude Include="gumquickmodule.h">
+      <Filter>quick</Filter>
+    </ClInclude>
+    <ClInclude Include="gumquickobject.h">
+      <Filter>quick</Filter>
+    </ClInclude>
+    <ClInclude Include="gumquickprocess.h">
+      <Filter>quick</Filter>
+    </ClInclude>
+    <ClInclude Include="gumquickscript.h">
+      <Filter>quick</Filter>
+    </ClInclude>
+    <ClInclude Include="gumquickscriptbackend.h">
+      <Filter>quick</Filter>
+    </ClInclude>
+    <ClInclude Include="gumquickscript-priv.h">
+      <Filter>quick</Filter>
+    </ClInclude>
+    <ClInclude Include="$(IntDir)gumjs\gumquickscript-runtime.h">
+      <Filter>quick</Filter>
+    </ClInclude>
+    <ClInclude Include="gumquicksocket.h">
+      <Filter>quick</Filter>
+    </ClInclude>
+    <ClInclude Include="gumquickstalker.h">
+      <Filter>quick</Filter>
+    </ClInclude>
+    <ClInclude Include="gumquickstream.h">
+      <Filter>quick</Filter>
+    </ClInclude>
+    <ClInclude Include="gumquicksymbol.h">
+      <Filter>quick</Filter>
+    </ClInclude>
+    <ClInclude Include="gumquickthread.h">
+      <Filter>quick</Filter>
+    </ClInclude>
+    <ClInclude Include="gumquickvalue.h">
+      <Filter>quick</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="vapi">
@@ -418,6 +565,12 @@
     </Filter>
     <Filter Include="runtime\cmodule\gum">
       <UniqueIdentifier>{532af58d-0da9-473c-a50e-14d7e072bbdf}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="quick">
+      <UniqueIdentifier>{36e6dbac-b737-46ef-9a14-8ac5c9367f08}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="runtime\cmodule\json-glib">
+      <UniqueIdentifier>{7e74d778-c2ae-4ca9-83fd-2cd215caaa7b}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -504,6 +657,12 @@
     </None>
     <None Include="runtime\cmodule\json-glib\json-glib.h">
       <Filter>runtime\cmodule\json-glib</Filter>
+    </None>
+    <None Include="runtime\entrypoint-quickjs.js">
+      <Filter>runtime</Filter>
+    </None>
+    <None Include="runtime\error-handler-quickjs.js">
+      <Filter>runtime</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

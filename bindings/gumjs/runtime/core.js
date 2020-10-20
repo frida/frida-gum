@@ -8,10 +8,10 @@ let messageDispatcher;
 function initialize() {
   messageDispatcher = new MessageDispatcher();
 
-  const proxyClass = global.Proxy;
+  const proxyClass = engine.Proxy;
   if ('create' in proxyClass) {
     const createProxy = proxyClass.create;
-    global.Proxy = function (target, handler) {
+    engine.Proxy = function (target, handler) {
       return createProxy.call(proxyClass, handler, Object.getPrototypeOf(target));
     };
   }
@@ -130,7 +130,7 @@ Object.defineProperties(engine, {
 
 const pointerPrototype = NativePointer.prototype;
 
-Object.keys(Memory)
+Object.getOwnPropertyNames(Memory)
   .forEach(methodName => {
     if (methodName.indexOf('read') === 0) {
       pointerPrototype[methodName] = makePointerReadMethod(Memory[methodName]);
@@ -166,7 +166,7 @@ function numberWrapperEquals(rhs) {
 
 const _nextTick = Script._nextTick;
 Script.nextTick = function (callback, ...args) {
-  _nextTick(callback.bind(global, ...args));
+  _nextTick(callback.bind(engine, ...args));
 };
 
 if (Script.runtime === 'DUK') {
@@ -179,9 +179,11 @@ if (Script.runtime === 'DUK') {
   };
 }
 
+/*
 makeEnumerateApi(Kernel, 'enumerateModules', 0);
 makeEnumerateRanges(Kernel);
 makeEnumerateApi(Kernel, 'enumerateModuleRanges', 2);
+*/
 
 Object.defineProperties(Memory, {
   dup: {

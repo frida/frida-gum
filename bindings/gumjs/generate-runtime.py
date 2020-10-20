@@ -12,9 +12,80 @@ import subprocess
 import sys
 
 
-def generate_runtime_v8(runtime_name, output_dir, output, inputs):
+def generate_runtime_quick(runtime_name, output_dir, output, input_dir, inputs):
     with codecs.open(os.path.join(output_dir, output), 'wb', 'utf-8') as output_file:
-        output_file.write("#include \"gumv8bundle.h\"\n")
+        output_file.write("#include \"gumquickbundle.h\"\n")
+
+        build_os = platform.system().lower()
+
+        if build_os == 'windows':
+            program_suffix = ".exe"
+        else:
+            program_suffix = ""
+
+        quickcompile = os.path.join(output_dir, "gumquickcompile" + program_suffix)
+        if not os.path.exists(quickcompile):
+            quickcompile_defines = []
+            quickcompile_sources = [os.path.relpath(os.path.join(input_dir, name), output_dir) for name in [
+                "gumquickcompile.c",
+            ]]
+
+            gumjs_dir = os.path.dirname(os.path.abspath(__file__))
+            qjs_dir = os.path.join(os.path.dirname(os.path.dirname(gumjs_dir)), "ext", "quickjs")
+            qjs_incdir = os.path.relpath(qjs_dir, output_dir)
+            with open(os.path.join(qjs_dir, "VERSION.txt"), "r", encoding='utf-8') as f:
+                qjs_version = f.read().strip()
+            quickcompile_defines += [
+                  "CONFIG_VERSION=\"{}\"".format(qjs_version),
+                  "CONFIG_BIGNUM",
+            ]
+            quickcompile_sources += [os.path.relpath(os.path.join(qjs_dir, name), output_dir) for name in [
+                "quickjs.c",
+                "libregexp.c",
+                "libunicode.c",
+                "cutils.c",
+                "libbf.c",
+            ]]
+
+            if build_os == 'windows':
+                subprocess.check_call(["cl.exe",
+                        "/nologo",
+                        "/MT",
+                        "/W0",
+                        "/O1",
+                        "/GL",
+                        "/MP",
+                        "/D", "WIN32",
+                        "/D", "_WINDOWS",
+                        "/D", "WINVER=0x0501",
+                        "/D", "_WIN32_WINNT=0x0501",
+                        "/D", "NDEBUG",
+                        "/D", "_USING_V110_SDK71_",
+                        "/I", qjs_incdir,
+                    ] +
+                    ["/D" + d for d in quickcompile_defines] +
+                    quickcompile_sources,
+                    cwd=output_dir)
+            else:
+                quickcompile_libs = []
+                if build_os == 'darwin':
+                    sdk = "macosx"
+                    CC = [
+                        subprocess.check_output(["xcrun", "--sdk", sdk, "-f", "clang"]).decode('utf-8').rstrip("\n"),
+                        "-isysroot", subprocess.check_output(["xcrun", "--sdk", sdk, "--show-sdk-path"]).decode('utf-8').rstrip("\n")
+                    ]
+                else:
+                    CC = ["gcc"]
+                    quickcompile_libs.append("-lm")
+                subprocess.check_call(CC + [
+                        "-Wall",
+                        "-pipe",
+                        "-O1", "-fomit-frame-pointer",
+                        "-I" + qjs_incdir
+                    ] +
+                    ["-D" + d for d in quickcompile_defines] +
+                    quickcompile_sources +
+                    ["-o", quickcompile] + quickcompile_libs, cwd=output_dir)
 
         modules = []
         for input_path in inputs:
@@ -22,19 +93,26 @@ def generate_runtime_v8(runtime_name, output_dir, output, inputs):
 
             base, ext = os.path.splitext(input_name)
 
-            input_source_code_identifier = "gumjs_{0}_source_code".format(identifier(base))
+            input_name_quick = base + ".qjs"
+            input_path_quick = os.path.join(output_dir, input_name_quick)
+
+            input_bytecode_identifier = "gumjs_{0}_bytecode".format(identifier(base))
             input_source_map_identifier = "gumjs_{0}_source_map".format(identifier(base))
+
+            subprocess.check_call([quickcompile, input_path, input_path_quick])
+
+            with open(input_path_quick, 'rb') as quick:
+                bytecode = quick.read()
+            bytecode_size = len(bytecode)
+
+            output_file.write("\nstatic const guint8 {0}[{1}] =\n{{".format(input_bytecode_identifier, bytecode_size))
+            write_bytes(bytecode, output_file)
+            output_file.write("\n};\n")
 
             with codecs.open(input_path, 'rb', 'utf-8') as input_file:
                 source_code = input_file.read()
-            (stripped_source_code, source_map) = extract_source_map(input_name, source_code)
-            source_code_bytes = bytearray(stripped_source_code.encode('utf-8'))
-            source_code_bytes.append(0)
-            source_code_size = len(source_code_bytes)
 
-            output_file.write("\nstatic const gchar {0}[{1}] =\n{{".format(input_source_code_identifier, source_code_size))
-            write_bytes(source_code_bytes, output_file)
-            output_file.write("\n};\n")
+            (stripped_source_code, source_map) = extract_source_map(input_name, source_code)
 
             if source_map is not None:
                 source_map_bytes = bytearray(source_map.encode('utf-8'))
@@ -45,14 +123,14 @@ def generate_runtime_v8(runtime_name, output_dir, output, inputs):
                 write_bytes(source_map_bytes, output_file)
                 output_file.write("\n};\n")
 
-                modules.append((input_name, input_source_code_identifier, input_source_map_identifier))
+                modules.append((input_bytecode_identifier, bytecode_size, input_source_map_identifier))
             else:
-                modules.append((input_name, input_source_code_identifier, "NULL"))
+                modules.append((input_bytecode_identifier, bytecode_size, "NULL"))
 
-        output_file.write("\nstatic const GumV8RuntimeModule gumjs_{0}_modules[] =\n{{".format(runtime_name))
-        for filename, source_code_identifier, source_map_identifier in modules:
-            output_file.write("\n  {{ \"{0}\", {1}, {2} }},".format(filename, source_code_identifier, source_map_identifier))
-        output_file.write("\n  { NULL, NULL, NULL }\n};")
+        output_file.write("\nstatic const GumQuickRuntimeModule gumjs_{0}_modules[] =\n{{".format(runtime_name))
+        for bytecode_identifier, bytecode_size, source_map_identifier in modules:
+            output_file.write("\n  {{ {0}, {1}, {2} }},".format(bytecode_identifier, bytecode_size, source_map_identifier))
+        output_file.write("\n  { NULL, 0, NULL }\n};")
 
 
 def generate_runtime_duk(runtime_name, output_dir, output, input_dir, inputs):
@@ -139,6 +217,49 @@ def generate_runtime_duk(runtime_name, output_dir, output, input_dir, inputs):
         for bytecode_identifier, bytecode_size, source_map_identifier in modules:
             output_file.write("\n  {{ {0}, {1}, {2} }},".format(bytecode_identifier, bytecode_size, source_map_identifier))
         output_file.write("\n  { NULL, 0, NULL }\n};")
+
+
+def generate_runtime_v8(runtime_name, output_dir, output, inputs):
+    with codecs.open(os.path.join(output_dir, output), 'wb', 'utf-8') as output_file:
+        output_file.write("#include \"gumv8bundle.h\"\n")
+
+        modules = []
+        for input_path in inputs:
+            input_name = os.path.basename(input_path)
+
+            base, ext = os.path.splitext(input_name)
+
+            input_source_code_identifier = "gumjs_{0}_source_code".format(identifier(base))
+            input_source_map_identifier = "gumjs_{0}_source_map".format(identifier(base))
+
+            with codecs.open(input_path, 'rb', 'utf-8') as input_file:
+                source_code = input_file.read()
+            (stripped_source_code, source_map) = extract_source_map(input_name, source_code)
+            source_code_bytes = bytearray(stripped_source_code.encode('utf-8'))
+            source_code_bytes.append(0)
+            source_code_size = len(source_code_bytes)
+
+            output_file.write("\nstatic const gchar {0}[{1}] =\n{{".format(input_source_code_identifier, source_code_size))
+            write_bytes(source_code_bytes, output_file)
+            output_file.write("\n};\n")
+
+            if source_map is not None:
+                source_map_bytes = bytearray(source_map.encode('utf-8'))
+                source_map_bytes.append(0)
+                source_map_size = len(source_map_bytes)
+
+                output_file.write("\nstatic const gchar {0}[{1}] =\n{{".format(input_source_map_identifier, source_map_size))
+                write_bytes(source_map_bytes, output_file)
+                output_file.write("\n};\n")
+
+                modules.append((input_name, input_source_code_identifier, input_source_map_identifier))
+            else:
+                modules.append((input_name, input_source_code_identifier, "NULL"))
+
+        output_file.write("\nstatic const GumV8RuntimeModule gumjs_{0}_modules[] =\n{{".format(runtime_name))
+        for filename, source_code_identifier, source_map_identifier in modules:
+            output_file.write("\n  {{ \"{0}\", {1}, {2} }},".format(filename, source_code_identifier, source_map_identifier))
+        output_file.write("\n  { NULL, NULL, NULL }\n};")
 
 
 cmodule_function_pattern = re.compile(
@@ -357,22 +478,24 @@ if __name__ == '__main__':
     capstone_dir = sys.argv[4]
     output_dir = sys.argv[5]
 
-    v8_tmp_dir = os.path.join(output_dir, "runtime-build-v8")
-    runtime = os.path.abspath(os.path.join(v8_tmp_dir, "frida.js"))
-    objc = os.path.abspath(os.path.join(v8_tmp_dir, "objc.js"))
-    java = os.path.abspath(os.path.join(v8_tmp_dir, "java.js"))
 
-    v8_options = [
-        "-x", # No need for Babel, V8 supports modern JS.
-        "-c", # Compress for smaller code and better performance.
+    quick_tmp_dir = os.path.join(output_dir, "runtime-build-quick")
+    runtime = os.path.abspath(os.path.join(quick_tmp_dir, "frida.js"))
+    objc = os.path.abspath(os.path.join(quick_tmp_dir, "objc.js"))
+    java = os.path.abspath(os.path.join(quick_tmp_dir, "java.js"))
+
+    quick_options = [
+        "-x", # No need for Babel, QuickJS supports modern JS.
+        #"-c", # Compress for smaller code and better performance.
     ]
-    subprocess.check_call([node_script_path("frida-compile"), "./runtime/entrypoint-v8.js", "-o", runtime] + v8_options, cwd=input_dir)
-    subprocess.check_call([node_script_path("frida-compile"), "./runtime/objc.js", "-o", objc] + v8_options, cwd=input_dir)
-    subprocess.check_call([node_script_path("frida-compile"), "./runtime/java.js", "-o", java] + v8_options, cwd=input_dir)
+    subprocess.check_call([node_script_path("frida-compile"), "./runtime/entrypoint-quickjs.js", "-o", runtime] + quick_options, cwd=input_dir)
+    subprocess.check_call([node_script_path("frida-compile"), "./runtime/objc.js", "-o", objc] + quick_options, cwd=input_dir)
+    subprocess.check_call([node_script_path("frida-compile"), "./runtime/java.js", "-o", java] + quick_options, cwd=input_dir)
 
-    generate_runtime_v8("runtime", output_dir, "gumv8script-runtime.h", [runtime])
-    generate_runtime_v8("objc", output_dir, "gumv8script-objc.h", [objc])
-    generate_runtime_v8("java", output_dir, "gumv8script-java.h", [java])
+    generate_runtime_quick("runtime", output_dir, "gumquickscript-runtime.h", input_dir, [runtime])
+    generate_runtime_quick("objc", output_dir, "gumquickscript-objc.h", input_dir, [objc])
+    generate_runtime_quick("java", output_dir, "gumquickscript-java.h", input_dir, [java])
+
 
     duk_tmp_dir = os.path.join(output_dir, "runtime-build-duk")
     runtime = os.path.abspath(os.path.join(duk_tmp_dir, "frida.js"))
@@ -393,5 +516,24 @@ if __name__ == '__main__':
     generate_runtime_duk("promise", output_dir, "gumdukscript-promise.h", input_dir, [promise])
     generate_runtime_duk("objc", output_dir, "gumdukscript-objc.h", input_dir, [objc])
     generate_runtime_duk("java", output_dir, "gumdukscript-java.h", input_dir, [java])
+
+
+    v8_tmp_dir = os.path.join(output_dir, "runtime-build-v8")
+    runtime = os.path.abspath(os.path.join(v8_tmp_dir, "frida.js"))
+    objc = os.path.abspath(os.path.join(v8_tmp_dir, "objc.js"))
+    java = os.path.abspath(os.path.join(v8_tmp_dir, "java.js"))
+
+    v8_options = [
+        "-x", # No need for Babel, V8 supports modern JS.
+        "-c", # Compress for smaller code and better performance.
+    ]
+    subprocess.check_call([node_script_path("frida-compile"), "./runtime/entrypoint-v8.js", "-o", runtime] + v8_options, cwd=input_dir)
+    subprocess.check_call([node_script_path("frida-compile"), "./runtime/objc.js", "-o", objc] + v8_options, cwd=input_dir)
+    subprocess.check_call([node_script_path("frida-compile"), "./runtime/java.js", "-o", java] + v8_options, cwd=input_dir)
+
+    generate_runtime_v8("runtime", output_dir, "gumv8script-runtime.h", [runtime])
+    generate_runtime_v8("objc", output_dir, "gumv8script-objc.h", [objc])
+    generate_runtime_v8("java", output_dir, "gumv8script-java.h", [java])
+
 
     generate_runtime_cmodule(output_dir, "gumcmodule-runtime.h", arch, input_dir, gum_dir, capstone_dir)
