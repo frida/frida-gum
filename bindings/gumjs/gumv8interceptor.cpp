@@ -13,74 +13,100 @@
 
 #define GUMJS_MODULE_NAME Interceptor
 
-#define GUM_V8_INVOCATION_LISTENER_CAST(obj) \
-    ((GumV8InvocationListener *) (obj))
+#define GUM_V8_TYPE_INVOCATION_LISTENER (gum_v8_invocation_listener_get_type ())
 #define GUM_V8_TYPE_JS_CALL_LISTENER (gum_v8_js_call_listener_get_type ())
 #define GUM_V8_TYPE_JS_PROBE_LISTENER (gum_v8_js_probe_listener_get_type ())
 #define GUM_V8_TYPE_C_CALL_LISTENER (gum_v8_c_call_listener_get_type ())
 #define GUM_V8_TYPE_C_PROBE_LISTENER (gum_v8_c_probe_listener_get_type ())
 
+#define GUM_V8_INVOCATION_LISTENER(obj) \
+    G_TYPE_CHECK_INSTANCE_CAST (obj, GUM_V8_TYPE_INVOCATION_LISTENER, \
+        GumV8InvocationListener)
+#define GUM_V8_JS_CALL_LISTENER(obj) \
+    G_TYPE_CHECK_INSTANCE_CAST (obj, GUM_V8_TYPE_JS_CALL_LISTENER, \
+        GumV8JSCallListener)
+#define GUM_V8_JS_PROBE_LISTENER(obj) \
+    G_TYPE_CHECK_INSTANCE_CAST (obj, GUM_V8_TYPE_JS_PROBE_LISTENER, \
+        GumV8JSProbeListener)
+#define GUM_V8_C_CALL_LISTENER(obj) \
+    G_TYPE_CHECK_INSTANCE_CAST (obj, GUM_V8_TYPE_C_CALL_LISTENER, \
+        GumV8CCallListener)
+#define GUM_V8_C_PROBE_LISTENER(obj) \
+    G_TYPE_CHECK_INSTANCE_CAST (obj, GUM_V8_TYPE_C_PROBE_LISTENER, \
+        GumV8CProbeListener)
+
+#define GUM_V8_INVOCATION_LISTENER_CAST(obj) ((GumV8InvocationListener *) (obj))
+#define GUM_V8_JS_CALL_LISTENER_CAST(obj) ((GumV8JSCallListener *) (obj))
+#define GUM_V8_JS_PROBE_LISTENER_CAST(obj) ((GumV8JSProbeListener *) (obj))
+#define GUM_V8_C_CALL_LISTENER_CAST(obj) ((GumV8CCallListener *) (obj))
+#define GUM_V8_C_PROBE_LISTENER_CAST(obj) ((GumV8CProbeListener *) (obj))
+
 using namespace v8;
+
+typedef void (* GumV8CHook) (GumInvocationContext * ic);
 
 struct GumV8InvocationListener
 {
-  GObject parent;
+  GObject object;
 
-  union
-  {
-    gpointer on_enter;
-    GumPersistent<Function>::type * on_enter_js;
-    void (* on_enter_c) (GumInvocationContext * ic);
-  };
-  union
-  {
-    gpointer on_leave;
-    GumPersistent<Function>::type * on_leave_js;
-    void (* on_leave_c) (GumInvocationContext * ic);
-  };
   GumPersistent<Object>::type * resource;
 
   GumV8Interceptor * module;
 };
 
+struct GumV8InvocationListenerClass
+{
+  GObjectClass object_class;
+};
+
 struct GumV8JSCallListener
 {
   GumV8InvocationListener listener;
+
+  GumPersistent<Function>::type * on_enter;
+  GumPersistent<Function>::type * on_leave;
 };
 
 struct GumV8JSCallListenerClass
 {
-  GObjectClass parent_class;
+  GumV8InvocationListenerClass listener_class;
 };
 
 struct GumV8JSProbeListener
 {
   GumV8InvocationListener listener;
+
+  GumPersistent<Function>::type * on_hit;
 };
 
 struct GumV8JSProbeListenerClass
 {
-  GObjectClass parent_class;
+  GumV8InvocationListenerClass listener_class;
 };
 
 struct GumV8CCallListener
 {
   GumV8InvocationListener listener;
+
+  GumV8CHook on_enter;
+  GumV8CHook on_leave;
 };
 
 struct GumV8CCallListenerClass
 {
-  GObjectClass parent_class;
+  GumV8InvocationListenerClass listener_class;
 };
 
 struct GumV8CProbeListener
 {
   GumV8InvocationListener listener;
+
+  GumV8CHook on_hit;
 };
 
 struct GumV8CProbeListenerClass
 {
-  GObjectClass parent_class;
+  GumV8InvocationListenerClass listener_class;
 };
 
 struct GumV8InvocationState
@@ -124,13 +150,25 @@ GUMJS_DECLARE_FUNCTION (gumjs_interceptor_revert)
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_flush)
 
 GUMJS_DECLARE_FUNCTION (gumjs_invocation_listener_detach)
+static void gum_v8_invocation_listener_dispose (GObject * object);
+static void gum_v8_invocation_listener_release_resource (
+    GumV8InvocationListener * self);
+G_DEFINE_TYPE_EXTENDED (GumV8InvocationListener,
+                        gum_v8_invocation_listener,
+                        G_TYPE_OBJECT,
+                        G_TYPE_FLAG_ABSTRACT,
+                        {})
 
 static void gum_v8_js_call_listener_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_v8_js_call_listener_dispose (GObject * object);
+static void gum_v8_js_call_listener_on_enter (
+    GumInvocationListener * listener, GumInvocationContext * ic);
+static void gum_v8_js_call_listener_on_leave (
+    GumInvocationListener * listener, GumInvocationContext * ic);
 G_DEFINE_TYPE_EXTENDED (GumV8JSCallListener,
                         gum_v8_js_call_listener,
-                        G_TYPE_OBJECT,
+                        GUM_V8_TYPE_INVOCATION_LISTENER,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
                             gum_v8_js_call_listener_iface_init))
@@ -138,9 +176,11 @@ G_DEFINE_TYPE_EXTENDED (GumV8JSCallListener,
 static void gum_v8_js_probe_listener_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_v8_js_probe_listener_dispose (GObject * object);
+static void gum_v8_js_probe_listener_on_enter (
+    GumInvocationListener * listener, GumInvocationContext * ic);
 G_DEFINE_TYPE_EXTENDED (GumV8JSProbeListener,
                         gum_v8_js_probe_listener,
-                        G_TYPE_OBJECT,
+                        GUM_V8_TYPE_INVOCATION_LISTENER,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
                             gum_v8_js_probe_listener_iface_init))
@@ -148,9 +188,13 @@ G_DEFINE_TYPE_EXTENDED (GumV8JSProbeListener,
 static void gum_v8_c_call_listener_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_v8_c_call_listener_dispose (GObject * object);
+static void gum_v8_c_call_listener_on_enter (
+    GumInvocationListener * listener, GumInvocationContext * ic);
+static void gum_v8_c_call_listener_on_leave (
+    GumInvocationListener * listener, GumInvocationContext * ic);
 G_DEFINE_TYPE_EXTENDED (GumV8CCallListener,
                         gum_v8_c_call_listener,
-                        G_TYPE_OBJECT,
+                        GUM_V8_TYPE_INVOCATION_LISTENER,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
                             gum_v8_c_call_listener_iface_init))
@@ -158,9 +202,11 @@ G_DEFINE_TYPE_EXTENDED (GumV8CCallListener,
 static void gum_v8_c_probe_listener_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_v8_c_probe_listener_dispose (GObject * object);
+static void gum_v8_c_probe_listener_on_enter (
+    GumInvocationListener * listener, GumInvocationContext * ic);
 G_DEFINE_TYPE_EXTENDED (GumV8CProbeListener,
                         gum_v8_c_probe_listener,
-                        G_TYPE_OBJECT,
+                        GUM_V8_TYPE_INVOCATION_LISTENER,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
                             gum_v8_c_probe_listener_iface_init))
@@ -500,7 +546,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
     return;
   }
 
-  gpointer target, on_enter, on_leave;
+  gpointer target;
   GumV8InvocationListener * listener;
   auto target_val = info[0];
   auto callback_val = info[1];
@@ -510,27 +556,30 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
   {
     if (!_gum_v8_native_pointer_get (target_val, &target, core))
       return;
-    on_enter = new GumPersistent<Function>::type (isolate,
-        callback_val.As<Function> ());
-    on_leave = NULL;
 
-    listener = GUM_V8_INVOCATION_LISTENER_CAST (
+    auto l = GUM_V8_JS_PROBE_LISTENER (
         g_object_new (GUM_V8_TYPE_JS_PROBE_LISTENER, NULL));
+    l->on_hit = new GumPersistent<Function>::type (isolate,
+        callback_val.As<Function> ());
+
+    listener = GUM_V8_INVOCATION_LISTENER (l);
   }
   else if (native_pointer->HasInstance (callback_val))
   {
     if (!_gum_v8_native_pointer_get (target_val, &target, core))
       return;
-    on_enter = GUMJS_NATIVE_POINTER_VALUE (callback_val.As<Object> ());
-    on_leave = NULL;
 
-    listener = GUM_V8_INVOCATION_LISTENER_CAST (
+    auto l = GUM_V8_C_PROBE_LISTENER (
         g_object_new (GUM_V8_TYPE_C_PROBE_LISTENER, NULL));
+    l->on_hit = GUM_POINTER_TO_FUNCPTR (GumV8CHook,
+        GUMJS_NATIVE_POINTER_VALUE (callback_val.As<Object> ()));
+
+    listener = GUM_V8_INVOCATION_LISTENER (l);
   }
   else
   {
     Local<Function> on_enter_js, on_leave_js;
-    gpointer on_enter_c, on_leave_c;
+    GumV8CHook on_enter_c, on_leave_c;
 
     if (!_gum_v8_args_parse (args, "pF*{onEnter?,onLeave?}", &target,
         &on_enter_js, &on_enter_c,
@@ -541,31 +590,26 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
 
     if (!on_enter_js.IsEmpty () || !on_leave_js.IsEmpty ())
     {
-      if (!on_enter_js.IsEmpty ())
-        on_enter = new GumPersistent<Function>::type (isolate, on_enter_js);
-      else
-        on_enter = NULL;
-
-      if (!on_leave_js.IsEmpty ())
-        on_leave = new GumPersistent<Function>::type (isolate, on_leave_js);
-      else
-        on_leave = NULL;
-
-      listener = GUM_V8_INVOCATION_LISTENER_CAST (
+      auto l = GUM_V8_JS_CALL_LISTENER (
           g_object_new (GUM_V8_TYPE_JS_CALL_LISTENER, NULL));
+      if (!on_enter_js.IsEmpty ())
+        l->on_enter = new GumPersistent<Function>::type (isolate, on_enter_js);
+      if (!on_leave_js.IsEmpty ())
+        l->on_leave = new GumPersistent<Function>::type (isolate, on_leave_js);
+
+      listener = GUM_V8_INVOCATION_LISTENER (l);
     }
     else
     {
-      on_enter = on_enter_c;
-      on_leave = on_leave_c;
-
-      listener = GUM_V8_INVOCATION_LISTENER_CAST (
+      auto l = GUM_V8_C_CALL_LISTENER (
           g_object_new (GUM_V8_TYPE_C_CALL_LISTENER, NULL));
+      l->on_enter = on_enter_c;
+      l->on_leave = on_leave_c;
+
+      listener = GUM_V8_INVOCATION_LISTENER (l);
     }
   }
 
-  listener->on_enter = on_enter;
-  listener->on_leave = on_leave;
   listener->resource =
       new GumPersistent<Object>::type (isolate, callback_val.As<Object> ());
   listener->module = module;
@@ -735,45 +779,93 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_invocation_listener_detach,
 }
 
 static void
-gum_v8_js_invocation_listener_dispose (GumV8InvocationListener * self)
+gum_v8_invocation_listener_class_init (GumV8InvocationListenerClass * klass)
 {
-  ScriptScope scope (self->module->core->script);
+  auto object_class = G_OBJECT_CLASS (klass);
 
-  delete self->on_enter_js;
-  self->on_enter_js = nullptr;
+  object_class->dispose = gum_v8_invocation_listener_dispose;
+}
 
-  delete self->on_leave_js;
-  self->on_leave_js = nullptr;
+static void
+gum_v8_invocation_listener_init (GumV8InvocationListener * self)
+{
+}
 
+static void
+gum_v8_invocation_listener_dispose (GObject * object)
+{
+  g_assert (GUM_V8_INVOCATION_LISTENER (object)->resource == nullptr);
+
+  G_OBJECT_CLASS (gum_v8_invocation_listener_parent_class)->dispose (object);
+}
+
+static void
+gum_v8_invocation_listener_release_resource (GumV8InvocationListener * self)
+{
   delete self->resource;
   self->resource = nullptr;
 }
 
 static void
-gum_v8_c_invocation_listener_dispose (GumV8InvocationListener * self)
+gum_v8_js_call_listener_class_init (GumV8JSCallListenerClass * klass)
 {
-  ScriptScope scope (self->module->core->script);
+  auto object_class = G_OBJECT_CLASS (klass);
 
-  delete self->resource;
-  self->resource = nullptr;
+  object_class->dispose = gum_v8_js_call_listener_dispose;
 }
 
 static void
-gum_v8_js_invocation_listener_on_enter (GumInvocationListener * listener,
-                                        GumInvocationContext * ic)
+gum_v8_js_call_listener_iface_init (gpointer g_iface,
+                                    gpointer iface_data)
 {
-  auto self = GUM_V8_INVOCATION_LISTENER_CAST (listener);
+  auto iface = (GumInvocationListenerInterface *) g_iface;
+
+  iface->on_enter = gum_v8_js_call_listener_on_enter;
+  iface->on_leave = gum_v8_js_call_listener_on_leave;
+}
+
+static void
+gum_v8_js_call_listener_init (GumV8JSCallListener * self)
+{
+}
+
+static void
+gum_v8_js_call_listener_dispose (GObject * object)
+{
+  auto self = GUM_V8_JS_CALL_LISTENER (object);
+  auto base_listener = GUM_V8_INVOCATION_LISTENER (object);
+
+  {
+    ScriptScope scope (base_listener->module->core->script);
+
+    delete self->on_enter;
+    self->on_enter = nullptr;
+
+    delete self->on_leave;
+    self->on_leave = nullptr;
+
+    gum_v8_invocation_listener_release_resource (base_listener);
+  }
+
+  G_OBJECT_CLASS (gum_v8_js_call_listener_parent_class)->dispose (object);
+}
+
+static void
+gum_v8_js_call_listener_on_enter (GumInvocationListener * listener,
+                                  GumInvocationContext * ic)
+{
+  auto self = GUM_V8_JS_CALL_LISTENER_CAST (listener);
   auto state = GUM_IC_GET_INVOCATION_DATA (ic, GumV8InvocationState);
 
-  if (self->on_enter_js != nullptr)
+  if (self->on_enter != nullptr)
   {
-    auto module = self->module;
+    auto module = GUM_V8_INVOCATION_LISTENER_CAST (listener)->module;
     auto core = module->core;
     ScriptScope scope (core->script);
     auto isolate = core->isolate;
     auto context = isolate->GetCurrentContext ();
 
-    auto on_enter = Local<Function>::New (isolate, *self->on_enter_js);
+    auto on_enter = Local<Function>::New (isolate, *self->on_enter);
 
     auto jic = _gum_v8_interceptor_obtain_invocation_context (module);
     _gum_v8_invocation_context_reset (jic, ic);
@@ -792,7 +884,7 @@ gum_v8_js_invocation_listener_on_enter (GumInvocationListener * listener,
     gum_v8_interceptor_release_invocation_args (module, args);
 
     _gum_v8_invocation_context_reset (jic, NULL);
-    if (self->on_leave_js != nullptr || jic->dirty)
+    if (self->on_leave != nullptr || jic->dirty)
     {
       state->jic = jic;
     }
@@ -809,23 +901,23 @@ gum_v8_js_invocation_listener_on_enter (GumInvocationListener * listener,
 }
 
 static void
-gum_v8_js_invocation_listener_on_leave (GumInvocationListener * listener,
-                                        GumInvocationContext * ic)
+gum_v8_js_call_listener_on_leave (GumInvocationListener * listener,
+                                  GumInvocationContext * ic)
 {
-  auto self = GUM_V8_INVOCATION_LISTENER_CAST (listener);
+  auto self = GUM_V8_JS_CALL_LISTENER_CAST (listener);
+  auto module = GUM_V8_INVOCATION_LISTENER_CAST (listener)->module;
+  auto core = module->core;
   auto state = GUM_IC_GET_INVOCATION_DATA (ic, GumV8InvocationState);
 
-  if (self->on_leave_js != nullptr)
+  if (self->on_leave != nullptr)
   {
-    auto module = self->module;
-    auto core = module->core;
     ScriptScope scope (core->script);
     auto isolate = core->isolate;
     auto context = isolate->GetCurrentContext ();
 
-    auto on_leave = Local<Function>::New (isolate, *self->on_leave_js);
+    auto on_leave = Local<Function>::New (isolate, *self->on_leave);
 
-    auto jic = (self->on_enter_js != nullptr) ? state->jic : NULL;
+    auto jic = (self->on_enter != nullptr) ? state->jic : NULL;
     if (jic == NULL)
     {
       jic = _gum_v8_interceptor_obtain_invocation_context (module);
@@ -852,64 +944,10 @@ gum_v8_js_invocation_listener_on_leave (GumInvocationListener * listener,
   }
   else if (state->jic != NULL)
   {
-    auto module = self->module;
-    ScriptScope scope (module->core->script);
+    ScriptScope scope (core->script);
 
     _gum_v8_interceptor_release_invocation_context (module, state->jic);
   }
-}
-
-static void
-gum_v8_c_invocation_listener_on_enter (GumInvocationListener * listener,
-                                       GumInvocationContext * ic)
-{
-  auto self = GUM_V8_INVOCATION_LISTENER_CAST (listener);
-
-  if (self->on_enter_c != NULL)
-    self->on_enter_c (ic);
-}
-
-static void
-gum_v8_c_invocation_listener_on_leave (GumInvocationListener * listener,
-                                       GumInvocationContext * ic)
-{
-  auto self = GUM_V8_INVOCATION_LISTENER_CAST (listener);
-
-  if (self->on_leave_c != NULL)
-    self->on_leave_c (ic);
-}
-
-static void
-gum_v8_js_call_listener_class_init (GumV8JSCallListenerClass * klass)
-{
-  auto object_class = G_OBJECT_CLASS (klass);
-
-  object_class->dispose = gum_v8_js_call_listener_dispose;
-}
-
-static void
-gum_v8_js_call_listener_iface_init (gpointer g_iface,
-                                    gpointer iface_data)
-{
-  auto iface = (GumInvocationListenerInterface *) g_iface;
-
-  iface->on_enter = gum_v8_js_invocation_listener_on_enter;
-  iface->on_leave = gum_v8_js_invocation_listener_on_leave;
-}
-
-static void
-gum_v8_js_call_listener_init (GumV8JSCallListener * self)
-{
-}
-
-static void
-gum_v8_js_call_listener_dispose (GObject * object)
-{
-  auto self = GUM_V8_INVOCATION_LISTENER_CAST (object);
-
-  gum_v8_js_invocation_listener_dispose (self);
-
-  G_OBJECT_CLASS (gum_v8_js_call_listener_parent_class)->dispose (object);
 }
 
 static void
@@ -926,7 +964,7 @@ gum_v8_js_probe_listener_iface_init (gpointer g_iface,
 {
   auto iface = (GumInvocationListenerInterface *) g_iface;
 
-  iface->on_enter = gum_v8_js_invocation_listener_on_enter;
+  iface->on_enter = gum_v8_js_probe_listener_on_enter;
   iface->on_leave = NULL;
 }
 
@@ -938,11 +976,53 @@ gum_v8_js_probe_listener_init (GumV8JSProbeListener * self)
 static void
 gum_v8_js_probe_listener_dispose (GObject * object)
 {
-  auto self = GUM_V8_INVOCATION_LISTENER_CAST (object);
+  auto self = GUM_V8_JS_PROBE_LISTENER (object);
+  auto base_listener = GUM_V8_INVOCATION_LISTENER (object);
 
-  gum_v8_js_invocation_listener_dispose (self);
+  {
+    ScriptScope scope (base_listener->module->core->script);
+
+    delete self->on_hit;
+    self->on_hit = nullptr;
+
+    gum_v8_invocation_listener_release_resource (base_listener);
+  }
 
   G_OBJECT_CLASS (gum_v8_js_probe_listener_parent_class)->dispose (object);
+}
+
+static void
+gum_v8_js_probe_listener_on_enter (GumInvocationListener * listener,
+                                   GumInvocationContext * ic)
+{
+  auto self = GUM_V8_JS_PROBE_LISTENER_CAST (listener);
+  auto module = GUM_V8_INVOCATION_LISTENER_CAST (listener)->module;
+  auto core = module->core;
+
+  ScriptScope scope (core->script);
+  auto isolate = core->isolate;
+  auto context = isolate->GetCurrentContext ();
+
+  auto on_hit = Local<Function>::New (isolate, *self->on_hit);
+
+  auto jic = _gum_v8_interceptor_obtain_invocation_context (module);
+  _gum_v8_invocation_context_reset (jic, ic);
+  auto recv = Local<Object>::New (isolate, *jic->object);
+
+  auto args = gum_v8_interceptor_obtain_invocation_args (module);
+  gum_v8_invocation_args_reset (args, ic);
+  auto args_object = Local<Object>::New (isolate, *args->object);
+
+  Local<Value> argv[] = { args_object };
+  auto result = on_hit->Call (context, recv, G_N_ELEMENTS (argv), argv);
+  if (result.IsEmpty ())
+    scope.ProcessAnyPendingException ();
+
+  gum_v8_invocation_args_reset (args, NULL);
+  gum_v8_interceptor_release_invocation_args (module, args);
+
+  _gum_v8_invocation_context_reset (jic, NULL);
+  _gum_v8_interceptor_release_invocation_context (module, jic);
 }
 
 static void
@@ -959,8 +1039,8 @@ gum_v8_c_call_listener_iface_init (gpointer g_iface,
 {
   auto iface = (GumInvocationListenerInterface *) g_iface;
 
-  iface->on_enter = gum_v8_c_invocation_listener_on_enter;
-  iface->on_leave = gum_v8_c_invocation_listener_on_leave;
+  iface->on_enter = gum_v8_c_call_listener_on_enter;
+  iface->on_leave = gum_v8_c_call_listener_on_leave;
 }
 
 static void
@@ -971,11 +1051,35 @@ gum_v8_c_call_listener_init (GumV8CCallListener * self)
 static void
 gum_v8_c_call_listener_dispose (GObject * object)
 {
-  auto self = GUM_V8_INVOCATION_LISTENER_CAST (object);
+  auto base_listener = GUM_V8_INVOCATION_LISTENER (object);
 
-  gum_v8_c_invocation_listener_dispose (self);
+  {
+    ScriptScope scope (base_listener->module->core->script);
+
+    gum_v8_invocation_listener_release_resource (base_listener);
+  }
 
   G_OBJECT_CLASS (gum_v8_c_call_listener_parent_class)->dispose (object);
+}
+
+static void
+gum_v8_c_call_listener_on_enter (GumInvocationListener * listener,
+                                 GumInvocationContext * ic)
+{
+  auto self = GUM_V8_C_CALL_LISTENER_CAST (listener);
+
+  if (self->on_enter != NULL)
+    self->on_enter (ic);
+}
+
+static void
+gum_v8_c_call_listener_on_leave (GumInvocationListener * listener,
+                                 GumInvocationContext * ic)
+{
+  auto self = GUM_V8_C_CALL_LISTENER_CAST (listener);
+
+  if (self->on_leave != NULL)
+    self->on_leave (ic);
 }
 
 static void
@@ -992,7 +1096,7 @@ gum_v8_c_probe_listener_iface_init (gpointer g_iface,
 {
   auto iface = (GumInvocationListenerInterface *) g_iface;
 
-  iface->on_enter = gum_v8_c_invocation_listener_on_enter;
+  iface->on_enter = gum_v8_c_probe_listener_on_enter;
   iface->on_leave = NULL;
 }
 
@@ -1004,11 +1108,22 @@ gum_v8_c_probe_listener_init (GumV8CProbeListener * self)
 static void
 gum_v8_c_probe_listener_dispose (GObject * object)
 {
-  auto self = GUM_V8_INVOCATION_LISTENER_CAST (object);
+  auto base_listener = GUM_V8_INVOCATION_LISTENER (object);
 
-  gum_v8_c_invocation_listener_dispose (self);
+  {
+    ScriptScope scope (base_listener->module->core->script);
+
+    gum_v8_invocation_listener_release_resource (base_listener);
+  }
 
   G_OBJECT_CLASS (gum_v8_c_probe_listener_parent_class)->dispose (object);
+}
+
+static void
+gum_v8_c_probe_listener_on_enter (GumInvocationListener * listener,
+                                  GumInvocationContext * ic)
+{
+  GUM_V8_C_PROBE_LISTENER_CAST (listener)->on_hit (ic);
 }
 
 static GumV8InvocationContext *
