@@ -59,7 +59,7 @@ struct _GumScriptBackendInterface
 };
 
 GUM_API GumScriptBackend * gum_script_backend_obtain (void);
-GUM_API GumScriptBackend * gum_script_backend_obtain_quick (void);
+GUM_API GumScriptBackend * gum_script_backend_obtain_qjs (void);
 GUM_API GumScriptBackend * gum_script_backend_obtain_duk (void);
 GUM_API GumScriptBackend * gum_script_backend_obtain_v8 (void);
 

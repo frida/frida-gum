@@ -53,7 +53,7 @@ gum_script_backend_obtain (void)
 
   backend = gum_script_backend_obtain_v8 ();
   if (backend == NULL)
-    backend = gum_script_backend_obtain_quick ();
+    backend = gum_script_backend_obtain_qjs ();
   if (backend == NULL)
     backend = gum_script_backend_obtain_duk ();
 
@@ -62,10 +62,10 @@ gum_script_backend_obtain (void)
 
 #ifdef HAVE_QUICKJS
 
-static void gum_script_backend_deinit_quick (void);
+static void gum_script_backend_deinit_qjs (void);
 
 GumScriptBackend *
-gum_script_backend_obtain_quick (void)
+gum_script_backend_obtain_qjs (void)
 {
   static volatile gsize gonce_value;
 
@@ -75,7 +75,7 @@ gum_script_backend_obtain_quick (void)
 
     backend = g_object_new (GUM_QUICK_TYPE_SCRIPT_BACKEND, NULL);
 
-    _gum_register_early_destructor (gum_script_backend_deinit_quick);
+    _gum_register_early_destructor (gum_script_backend_deinit_qjs);
 
     g_once_init_leave (&gonce_value, GPOINTER_TO_SIZE (backend) + 1);
   }
@@ -84,15 +84,15 @@ gum_script_backend_obtain_quick (void)
 }
 
 static void
-gum_script_backend_deinit_quick (void)
+gum_script_backend_deinit_qjs (void)
 {
-  g_object_unref (gum_script_backend_obtain_quick ());
+  g_object_unref (gum_script_backend_obtain_qjs ());
 }
 
 #else
 
 GumScriptBackend *
-gum_script_backend_obtain_quick (void)
+gum_script_backend_obtain_qjs (void)
 {
   return NULL;
 }
