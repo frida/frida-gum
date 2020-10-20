@@ -760,9 +760,9 @@ gum_v8_native_resource_on_weak_notify (
 }
 
 GumV8KernelResource *
-_gum_v8_kernel_resource_new (guint64 data,
+_gum_v8_kernel_resource_new (GumAddress data,
                              gsize size,
-                             GumV8KernelNotify notify,
+                             GumV8KernelDestroyNotify notify,
                              GumV8Core * core)
 {
   auto resource = g_slice_new (GumV8KernelResource);

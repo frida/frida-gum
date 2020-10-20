@@ -49,7 +49,8 @@ G_GNUC_INTERNAL GumV8NativeResource * _gum_v8_native_resource_new (
 G_GNUC_INTERNAL void _gum_v8_native_resource_free (GumV8NativeResource * block);
 
 G_GNUC_INTERNAL GumV8KernelResource * _gum_v8_kernel_resource_new (
-    guint64 data, gsize size, GumV8KernelNotify notify, GumV8Core * core);
+    GumAddress data, gsize size, GumV8KernelDestroyNotify notify,
+    GumV8Core * core);
 G_GNUC_INTERNAL void _gum_v8_kernel_resource_free (GumV8KernelResource * block);
 
 G_GNUC_INTERNAL gboolean _gum_v8_int_get (v8::Local<v8::Value> value, gint * i,

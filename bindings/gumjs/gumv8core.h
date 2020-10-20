@@ -39,7 +39,7 @@ struct GumPersistent
 typedef void (* GumV8FlushNotify) (GumV8Script * script);
 typedef void (* GumV8MessageEmitter) (GumV8Script * script,
     const gchar * message, GBytes * data);
-typedef void (* GumV8KernelNotify) (guint64 data);
+typedef void (* GumV8KernelDestroyNotify) (guint64 data);
 
 struct GumV8Core
 {
@@ -122,9 +122,9 @@ struct GumV8NativeResource
 struct GumV8KernelResource
 {
   GumPersistent<v8::Object>::type * instance;
-  guint64 data;
+  GumAddress data;
   gsize size;
-  GumV8KernelNotify notify;
+  GumV8KernelDestroyNotify notify;
   GumV8Core * core;
 };
 
