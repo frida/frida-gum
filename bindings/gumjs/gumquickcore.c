@@ -118,7 +118,7 @@ struct _GumQuickFFIFunction
   ffi_type ** atypes;
   gsize arglist_size;
   gboolean is_variadic;
-  int nargs_fixed;
+  guint nargs_fixed;
   ffi_abi abi;
   GSList * data;
 };
@@ -245,7 +245,7 @@ static GumQuickFFIFunction * gumjs_ffi_function_new (JSContext * ctx,
     const GumQuickFFIFunctionParams * params, GumQuickCore * core);
 static void gum_quick_ffi_function_finalize (GumQuickFFIFunction * func);
 static JSValue gum_quick_ffi_function_invoke (GumQuickFFIFunction * self,
-    JSContext * ctx, GCallback implementation, int argc, JSValueConst * argv,
+    JSContext * ctx, GCallback implementation, guint argc, JSValueConst * argv,
     GumQuickCore * core);
 static JSValue gumjs_ffi_function_invoke (JSContext * ctx,
     JSValueConst func_obj, JSClassID klass, GumQuickArgs * args,
@@ -2844,13 +2844,13 @@ static JSValue
 gum_quick_ffi_function_invoke (GumQuickFFIFunction * self,
                                JSContext * ctx,
                                GCallback implementation,
-                               int argc,
+                               guint argc,
                                JSValueConst * argv,
                                GumQuickCore * core)
 {
   JSValue result;
   ffi_cif * cif;
-  gsize nargs, nargs_fixed;
+  guint nargs, nargs_fixed;
   gboolean is_variadic;
   ffi_type * rtype;
   ffi_type ** atypes;

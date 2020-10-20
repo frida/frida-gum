@@ -32,6 +32,7 @@
 
   <ItemGroup>
     <ClInclude Include="gumquickscriptbackend.h" />
+    <ClInclude Include="gumquickscriptbackend-priv.h" />
     <ClInclude Include="gumquickscript.h" />
     <ClInclude Include="gumquickscript-priv.h" />
     <ClInclude Include="$(IntDir)gumjs\gumquickscript-runtime.h" />

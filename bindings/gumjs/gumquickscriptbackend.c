@@ -7,6 +7,7 @@
 #include "gumquickscriptbackend.h"
 
 #include "gumquickscript.h"
+#include "gumquickscriptbackend-priv.h"
 #include "gumscripttask.h"
 
 #include <stdlib.h>

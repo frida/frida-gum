@@ -8,7 +8,7 @@
 #define __GUM_QUICK_CORE_H__
 
 #include "gumquickscript.h"
-#include "gumquickscriptbackend.h"
+#include "gumquickscriptbackend-priv.h"
 
 #include <gum/gumexceptor.h>
 

@@ -21,6 +21,7 @@
 #include "gumquickprocess.h"
 #include "gumquickscript-priv.h"
 #include "gumquickscript-runtime.h"
+#include "gumquickscriptbackend-priv.h"
 #include "gumquickscriptbackend.h"
 #include "gumquicksocket.h"
 #include "gumquickstalker.h"
