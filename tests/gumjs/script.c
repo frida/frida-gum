@@ -3853,9 +3853,7 @@ TESTCASE (strict_mode_should_be_enforced)
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
       GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend)
       ? "ReferenceError: 'oops' is not defined"
-      : GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend)
-          ? "ReferenceError: identifier 'oops' undefined"
-          : "ReferenceError: oops is not defined");
+      : "ReferenceError: oops is not defined");
 }
 
 TESTCASE (array_buffer_can_be_created)
@@ -7218,8 +7216,7 @@ TESTCASE (script_can_be_compiled_to_bytecode)
   error = NULL;
   code = gum_script_backend_compile_sync (fixture->backend, "testcase",
       "send(1337);\noops;", NULL, &error);
-  if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend) ||
-      GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+  if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
   {
     g_assert_nonnull (code);
     g_assert_null (error);
@@ -7246,8 +7243,7 @@ TESTCASE (script_can_be_compiled_to_bytecode)
 
   script = gum_script_backend_create_from_bytes_sync (fixture->backend, code,
       NULL, &error);
-  if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend) ||
-      GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+  if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
   {
     TestScriptMessageItem * item;
 
@@ -7320,8 +7316,7 @@ TESTCASE (script_memory_usage)
   GTimer * timer;
   guint before, after;
 
-  if (!GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend) &&
-      !GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+  if (!GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
   {
     g_print ("<skipped due to runtime> ");
     return;
@@ -7451,11 +7446,8 @@ TESTCASE (source_maps_should_be_supported_for_user_scripts)
   );
 
   item = test_script_fixture_pop_message (fixture);
-  if (!GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend) &&
-      !GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
-  {
+  if (!GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
     g_assert_null (strstr (item->message, "testcase.js"));
-  }
   g_assert_nonnull (strstr (item->message, "\"type\":\"send\""));
   if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
   {
@@ -7469,17 +7461,6 @@ TESTCASE (source_maps_should_be_supported_for_user_scripts)
         "    at e (node_modules/frida/node_modules/browserify/node_modules/"
             "browser-pack/_prelude.js:1)\\n"
         "    at <eval> (/testcase.js:25)"));
-  }
-  else if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
-  {
-    g_assert_nonnull (strstr (item->message,
-        "\"payload\":\"Error: not yet implemented\\n"
-        "    at math.js:5\\n"
-        "    at index.js:6\\n"
-        "    at s (node_modules/frida/node_modules/browserify/node_modules/"
-            "browser-pack/_prelude.js:1)\\n"
-        "    at e (node_modules/frida/node_modules/browserify/node_modules/"
-            "browser-pack/_prelude.js:1)\\n"));
   }
   else
   {
@@ -7504,11 +7485,6 @@ TESTCASE (source_maps_should_be_supported_for_user_scripts)
   {
     g_assert_nonnull (strstr (item->message, "\"stack\":\"Error: Oops!\\n"
         "    at <anonymous> (index.js:12)\\n"));
-  }
-  else if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
-  {
-    g_assert_nonnull (strstr (item->message, "\"stack\":\"Error: Oops!\\n"
-        "    at index.js:12\\n"));
   }
   else
   {
@@ -7625,11 +7601,6 @@ TESTCASE (globals_can_be_dynamically_generated)
   {
     EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
         "ReferenceError: 'snake' is not defined");
-  }
-  else if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
-  {
-    EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
-        "ReferenceError: identifier 'snake' undefined");
   }
   else
   {

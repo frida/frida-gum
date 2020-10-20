@@ -22,81 +22,6 @@
     <ClCompile Include="gumffi.c">
       <Filter>common</Filter>
     </ClCompile>
-    <ClCompile Include="gumdukcompat.c">
-      <Filter>duk</Filter>
-    </ClCompile>
-    <ClCompile Include="duktape.c">
-      <Filter>duk</Filter>
-    </ClCompile>
-    <ClCompile Include="gumdukbundle.c">
-      <Filter>duk</Filter>
-    </ClCompile>
-    <ClCompile Include="gumdukcore.c">
-      <Filter>duk</Filter>
-    </ClCompile>
-    <ClCompile Include="gumdukkernel.c">
-      <Filter>duk</Filter>
-    </ClCompile>
-    <ClCompile Include="gumdukfile.c">
-      <Filter>duk</Filter>
-    </ClCompile>
-    <ClCompile Include="gumdukinstruction.c">
-      <Filter>duk</Filter>
-    </ClCompile>
-    <ClCompile Include="gumdukcodewriter.c">
-      <Filter>duk</Filter>
-    </ClCompile>
-    <ClCompile Include="gumdukcoderelocator.c">
-      <Filter>duk</Filter>
-    </ClCompile>
-    <ClCompile Include="gumdukinterceptor.c">
-      <Filter>duk</Filter>
-    </ClCompile>
-    <ClCompile Include="gumdukmemory.c">
-      <Filter>duk</Filter>
-    </ClCompile>
-    <ClCompile Include="gumdukmodule.c">
-      <Filter>duk</Filter>
-    </ClCompile>
-    <ClCompile Include="gumdukprocess.c">
-      <Filter>duk</Filter>
-    </ClCompile>
-    <ClCompile Include="gumdukscript.c">
-      <Filter>duk</Filter>
-    </ClCompile>
-    <ClCompile Include="gumdukscriptbackend.c">
-      <Filter>duk</Filter>
-    </ClCompile>
-    <ClCompile Include="gumdukstream.c">
-      <Filter>duk</Filter>
-    </ClCompile>
-    <ClCompile Include="gumduksocket.c">
-      <Filter>duk</Filter>
-    </ClCompile>
-    <ClCompile Include="gumdukdatabase.c">
-      <Filter>duk</Filter>
-    </ClCompile>
-    <ClCompile Include="gumdukstalker.c">
-      <Filter>duk</Filter>
-    </ClCompile>
-    <ClCompile Include="gumdukeventsink.c">
-      <Filter>duk</Filter>
-    </ClCompile>
-    <ClCompile Include="gumdukapiresolver.c">
-      <Filter>duk</Filter>
-    </ClCompile>
-    <ClCompile Include="gumduksymbol.c">
-      <Filter>duk</Filter>
-    </ClCompile>
-    <ClCompile Include="gumdukthread.c">
-      <Filter>duk</Filter>
-    </ClCompile>
-    <ClCompile Include="gumdukvalue.c">
-      <Filter>duk</Filter>
-    </ClCompile>
-    <ClCompile Include="gumdukobject.c">
-      <Filter>duk</Filter>
-    </ClCompile>
     <ClCompile Include="gumv8bundle.cpp">
       <Filter>v8</Filter>
     </ClCompile>
@@ -171,9 +96,6 @@
     </ClCompile>
     <ClCompile Include="gumv8thread.cpp">
       <Filter>v8</Filter>
-    </ClCompile>
-    <ClCompile Include="gumdukcmodule.c">
-      <Filter>duk</Filter>
     </ClCompile>
     <ClCompile Include="gumv8cmodule.cpp">
       <Filter>v8</Filter>
@@ -279,87 +201,6 @@
     <ClInclude Include="gumffi.h">
       <Filter>common</Filter>
     </ClInclude>
-    <ClInclude Include="gumdukcompat.h">
-      <Filter>duk</Filter>
-    </ClInclude>
-    <ClInclude Include="duk_config.h">
-      <Filter>duk</Filter>
-    </ClInclude>
-    <ClInclude Include="duktape.h">
-      <Filter>duk</Filter>
-    </ClInclude>
-    <ClInclude Include="gumdukbundle.h">
-      <Filter>duk</Filter>
-    </ClInclude>
-    <ClInclude Include="gumdukcore.h">
-      <Filter>duk</Filter>
-    </ClInclude>
-    <ClInclude Include="gumdukkernel.h">
-      <Filter>duk</Filter>
-    </ClInclude>
-    <ClInclude Include="gumdukfile.h">
-      <Filter>duk</Filter>
-    </ClInclude>
-    <ClInclude Include="gumdukinstruction.h">
-      <Filter>duk</Filter>
-    </ClInclude>
-    <ClInclude Include="gumdukcodewriter.h">
-      <Filter>duk</Filter>
-    </ClInclude>
-    <ClInclude Include="gumdukcoderelocator.h">
-      <Filter>duk</Filter>
-    </ClInclude>
-    <ClInclude Include="gumdukinterceptor.h">
-      <Filter>duk</Filter>
-    </ClInclude>
-    <ClInclude Include="gumdukmacros.h">
-      <Filter>duk</Filter>
-    </ClInclude>
-    <ClInclude Include="gumdukmemory.h">
-      <Filter>duk</Filter>
-    </ClInclude>
-    <ClInclude Include="gumdukmodule.h">
-      <Filter>duk</Filter>
-    </ClInclude>
-    <ClInclude Include="gumdukprocess.h">
-      <Filter>duk</Filter>
-    </ClInclude>
-    <ClInclude Include="gumdukscript.h">
-      <Filter>duk</Filter>
-    </ClInclude>
-    <ClInclude Include="gumdukscriptbackend.h">
-      <Filter>duk</Filter>
-    </ClInclude>
-    <ClInclude Include="gumdukscript-priv.h">
-      <Filter>duk</Filter>
-    </ClInclude>
-    <ClInclude Include="gumdukstream.h">
-      <Filter>duk</Filter>
-    </ClInclude>
-    <ClInclude Include="gumduksocket.h">
-      <Filter>duk</Filter>
-    </ClInclude>
-    <ClInclude Include="gumdukdatabase.h">
-      <Filter>duk</Filter>
-    </ClInclude>
-    <ClInclude Include="gumdukstalker.h">
-      <Filter>duk</Filter>
-    </ClInclude>
-    <ClInclude Include="gumdukapiresolver.h">
-      <Filter>duk</Filter>
-    </ClInclude>
-    <ClInclude Include="gumduksymbol.h">
-      <Filter>duk</Filter>
-    </ClInclude>
-    <ClInclude Include="gumdukthread.h">
-      <Filter>duk</Filter>
-    </ClInclude>
-    <ClInclude Include="gumdukvalue.h">
-      <Filter>duk</Filter>
-    </ClInclude>
-    <ClInclude Include="gumdukobject.h">
-      <Filter>duk</Filter>
-    </ClInclude>
     <ClInclude Include="gumv8bundle.h">
       <Filter>v8</Filter>
     </ClInclude>
@@ -443,12 +284,6 @@
     </ClInclude>
     <ClInclude Include="gumv8thread.h">
       <Filter>v8</Filter>
-    </ClInclude>
-    <ClInclude Include="$(IntDir)gumjs\gumdukscript-runtime.h">
-      <Filter>runtime\generated</Filter>
-    </ClInclude>
-    <ClInclude Include="gumdukcmodule.h">
-      <Filter>duk</Filter>
     </ClInclude>
     <ClInclude Include="gumv8cmodule.h">
       <Filter>v8</Filter>
@@ -554,9 +389,6 @@
     <Filter Include="common">
       <UniqueIdentifier>{1f738122-10e2-4a1d-b97d-383fdd3a2c10}</UniqueIdentifier>
     </Filter>
-    <Filter Include="duk">
-      <UniqueIdentifier>{b93dd7fc-d337-48a8-a0a8-9d5065283a3e}</UniqueIdentifier>
-    </Filter>
     <Filter Include="v8">
       <UniqueIdentifier>{f123372e-85cf-470a-9209-46be608567b6}</UniqueIdentifier>
     </Filter>
@@ -580,9 +412,6 @@
     <None Include="runtime\entrypoint-v8.js">
       <Filter>runtime</Filter>
     </None>
-    <None Include="runtime\entrypoint-duktape.js">
-      <Filter>runtime</Filter>
-    </None>
     <None Include="runtime\core.js">
       <Filter>runtime</Filter>
     </None>
@@ -592,16 +421,10 @@
     <None Include="runtime\error-handler-v8.js">
       <Filter>runtime</Filter>
     </None>
-    <None Include="runtime\error-handler-duktape.js">
-      <Filter>runtime</Filter>
-    </None>
     <None Include="runtime\console.js">
       <Filter>runtime</Filter>
     </None>
     <None Include="runtime\hexdump.js">
-      <Filter>runtime</Filter>
-    </None>
-    <None Include="runtime\promise.js">
       <Filter>runtime</Filter>
     </None>
     <None Include="runtime\objc.js">

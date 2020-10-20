@@ -274,11 +274,6 @@ if have_gumjs
     cdata.set('HAVE_QUICKJS', 1)
   endif
 
-  have_duktape = not get_option('duktape').disabled()
-  if have_duktape
-    cdata.set('HAVE_DUKTAPE', 1)
-  endif
-
   v8_dep = dependency('v8-8.0', version: '>=8.3.125', required: get_option('v8'))
   have_v8 = v8_dep.found()
   if have_v8
@@ -287,7 +282,7 @@ if have_gumjs
     gumjs_extra_requires += ['v8-8.0']
   endif
 
-  if not (have_quickjs or have_duktape or have_v8)
+  if not (have_quickjs or have_v8)
     error('Cannot build JavaScript bindings without any runtimes enabled')
   endif
 
@@ -297,7 +292,6 @@ if have_gumjs
   endif
 else
   have_quickjs = false
-  have_duktape = false
   have_v8 = false
   have_tinycc = false
 endif

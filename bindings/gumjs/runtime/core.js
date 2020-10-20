@@ -169,16 +169,6 @@ Script.nextTick = function (callback, ...args) {
   _nextTick(callback.bind(engine, ...args));
 };
 
-if (Script.runtime === 'DUK') {
-  const cpuContextFields = Object.getOwnPropertyNames(CpuContext.prototype);
-  CpuContext.prototype.toJSON = function () {
-    return cpuContextFields.reduce((result, name) => {
-      result[name] = this[name];
-      return result;
-    }, {});
-  };
-}
-
 makeEnumerateApi(Kernel, 'enumerateModules', 0);
 makeEnumerateRanges(Kernel);
 makeEnumerateApi(Kernel, 'enumerateModuleRanges', 2);

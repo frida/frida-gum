@@ -58,37 +58,6 @@ if have_quickjs
   ]
 endif
 
-if have_duktape
-  gumjs_sources += [
-    'gumdukscriptbackend.c',
-    'gumdukscript.c',
-    'gumdukbundle.c',
-    'gumdukvalue.c',
-    'gumdukobject.c',
-    'gumdukcore.c',
-    'gumdukkernel.c',
-    'gumdukmemory.c',
-    'gumdukprocess.c',
-    'gumdukthread.c',
-    'gumdukmodule.c',
-    'gumdukfile.c',
-    'gumdukstream.c',
-    'gumduksocket.c',
-    'gumdukdatabase.c',
-    'gumdukinterceptor.c',
-    'gumdukstalker.c',
-    'gumdukeventsink.c',
-    'gumdukapiresolver.c',
-    'gumduksymbol.c',
-    'gumdukcmodule.c',
-    'gumdukinstruction.c',
-    'gumdukcodewriter.c',
-    'gumdukcoderelocator.c',
-    'gumdukcompat.c',
-    'duktape.c',
-  ]
-endif
-
 if have_v8
   gumjs_sources += [
     'gumv8scriptbackend.cpp',
@@ -141,9 +110,6 @@ runtimes = []
 if have_quickjs
   runtimes += 'quick'
 endif
-if have_duktape
-  runtimes += 'duk'
-endif
 if have_v8
   runtimes += 'v8'
 endif
@@ -178,16 +144,13 @@ endforeach
 
 gumjs_runtime_sources = [
   'runtime/entrypoint-quickjs.js',
-  'runtime/entrypoint-duktape.js',
   'runtime/entrypoint-v8.js',
   'runtime/core.js',
   'runtime/message-dispatcher.js',
   'runtime/error-handler-quickjs.js',
-  'runtime/error-handler-duktape.js',
   'runtime/error-handler-v8.js',
   'runtime/console.js',
   'runtime/hexdump.js',
-  'runtime/promise.js',
   'runtime/objc.js',
   'runtime/java.js',
   'runtime/cmodule/inttypes.h',
@@ -211,10 +174,6 @@ gumjs_runtime_outputs = [
   'gumquickscript-runtime.h',
   'gumquickscript-objc.h',
   'gumquickscript-java.h',
-  'gumdukscript-runtime.h',
-  'gumdukscript-promise.h',
-  'gumdukscript-objc.h',
-  'gumdukscript-java.h',
   'gumv8script-runtime.h',
   'gumv8script-objc.h',
   'gumv8script-java.h',
@@ -274,7 +233,6 @@ pkg.generate(filebase: 'frida-gumjs-' + api_version,
   libraries_private: gumjs_extra_libraries,
   variables: [
     'gumjs_quickjs=' + have_quickjs.to_string('enabled', 'disabled'),
-    'gumjs_duktape=' + have_duktape.to_string('enabled', 'disabled'),
     'gumjs_v8=' + have_v8.to_string('enabled', 'disabled'),
   ],
 )

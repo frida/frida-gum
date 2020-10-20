@@ -133,92 +133,6 @@ def generate_runtime_quick(runtime_name, output_dir, output, input_dir, inputs):
         output_file.write("\n  { NULL, 0, NULL }\n};")
 
 
-def generate_runtime_duk(runtime_name, output_dir, output, input_dir, inputs):
-    with codecs.open(os.path.join(output_dir, output), 'wb', 'utf-8') as output_file:
-        output_file.write("#include \"gumdukbundle.h\"\n")
-
-        build_os = platform.system().lower()
-
-        if build_os == 'windows':
-            program_suffix = ".exe"
-        else:
-            program_suffix = ""
-
-        dukcompile = os.path.join(output_dir, "gumdukcompile" + program_suffix)
-        if not os.path.exists(dukcompile):
-            dukcompile_sources = list(map(lambda name: os.path.join(input_dir, name), ["gumdukcompile.c", "duktape.c"]))
-            if build_os == 'windows':
-                subprocess.check_call(["cl.exe",
-                    "/nologo", "/MT", "/W3", "/O1", "/GL", "/MP",
-                    "/D", "WIN32",
-                    "/D", "_WINDOWS",
-                    "/D", "WINVER=0x0501",
-                    "/D", "_WIN32_WINNT=0x0501",
-                    "/D", "NDEBUG",
-                    "/D", "_CRT_SECURE_NO_WARNINGS",
-                    "/D", "_USING_V110_SDK71_",
-                    "/D", "GUM_DUK_NO_COMPAT"] + dukcompile_sources, cwd=output_dir)
-            else:
-                dukcompile_libs = []
-                if build_os == 'darwin':
-                    sdk = "macosx"
-                    CC = [
-                        subprocess.check_output(["xcrun", "--sdk", sdk, "-f", "clang"]).decode('utf-8').rstrip("\n"),
-                        "-isysroot", subprocess.check_output(["xcrun", "--sdk", sdk, "--show-sdk-path"]).decode('utf-8').rstrip("\n")
-                    ]
-                else:
-                    CC = ["gcc"]
-                    dukcompile_libs.append("-lm")
-                subprocess.check_call(CC + ["-Wall", "-pipe", "-O1", "-fomit-frame-pointer", "-DGUM_DUK_NO_COMPAT"] +
-                    dukcompile_sources +
-                    ["-o", dukcompile] + dukcompile_libs)
-
-        modules = []
-        for input_path in inputs:
-            input_name = os.path.basename(input_path)
-
-            base, ext = os.path.splitext(input_name)
-
-            input_name_duk = base + ".duk"
-            input_path_duk = os.path.join(output_dir, input_name_duk)
-
-            input_bytecode_identifier = "gumjs_{0}_bytecode".format(identifier(base))
-            input_source_map_identifier = "gumjs_{0}_source_map".format(identifier(base))
-
-            subprocess.check_call([dukcompile, input_path, input_path_duk])
-
-            with open(input_path_duk, 'rb') as duk:
-                bytecode = duk.read()
-            bytecode_size = len(bytecode)
-
-            output_file.write("\nstatic const guint8 {0}[{1}] =\n{{".format(input_bytecode_identifier, bytecode_size))
-            write_bytes(bytecode, output_file)
-            output_file.write("\n};\n")
-
-            with codecs.open(input_path, 'rb', 'utf-8') as input_file:
-                source_code = input_file.read()
-
-            (stripped_source_code, source_map) = extract_source_map(input_name, source_code)
-
-            if source_map is not None:
-                source_map_bytes = bytearray(source_map.encode('utf-8'))
-                source_map_bytes.append(0)
-                source_map_size = len(source_map_bytes)
-
-                output_file.write("\nstatic const gchar {0}[{1}] =\n{{".format(input_source_map_identifier, source_map_size))
-                write_bytes(source_map_bytes, output_file)
-                output_file.write("\n};\n")
-
-                modules.append((input_bytecode_identifier, bytecode_size, input_source_map_identifier))
-            else:
-                modules.append((input_bytecode_identifier, bytecode_size, "NULL"))
-
-        output_file.write("\nstatic const GumDukRuntimeModule gumjs_{0}_modules[] =\n{{".format(runtime_name))
-        for bytecode_identifier, bytecode_size, source_map_identifier in modules:
-            output_file.write("\n  {{ {0}, {1}, {2} }},".format(bytecode_identifier, bytecode_size, source_map_identifier))
-        output_file.write("\n  { NULL, 0, NULL }\n};")
-
-
 def generate_runtime_v8(runtime_name, output_dir, output, inputs):
     with codecs.open(os.path.join(output_dir, output), 'wb', 'utf-8') as output_file:
         output_file.write("#include \"gumv8bundle.h\"\n")
@@ -495,27 +409,6 @@ if __name__ == '__main__':
     generate_runtime_quick("runtime", output_dir, "gumquickscript-runtime.h", input_dir, [runtime])
     generate_runtime_quick("objc", output_dir, "gumquickscript-objc.h", input_dir, [objc])
     generate_runtime_quick("java", output_dir, "gumquickscript-java.h", input_dir, [java])
-
-
-    duk_tmp_dir = os.path.join(output_dir, "runtime-build-duk")
-    runtime = os.path.abspath(os.path.join(duk_tmp_dir, "frida.js"))
-    promise = os.path.abspath(os.path.join(duk_tmp_dir, "promise.js"))
-    objc = os.path.abspath(os.path.join(duk_tmp_dir, "objc.js"))
-    java = os.path.abspath(os.path.join(duk_tmp_dir, "java.js"))
-
-    duk_options = [
-        "-L", # Tell Babel to sacrifice spec compliance for reduced bloat and better performance.
-        "-c", # Compress for smaller code and better performance.
-    ]
-    subprocess.check_call([node_script_path("frida-compile"), "./runtime/entrypoint-duktape.js", "-o", runtime] + duk_options, cwd=input_dir)
-    subprocess.check_call([node_script_path("frida-compile"), "./runtime/promise.js", "-o", promise, "-x"] + duk_options, cwd=input_dir)
-    subprocess.check_call([node_script_path("frida-compile"), "./runtime/objc.js", "-o", objc] + duk_options, cwd=input_dir)
-    subprocess.check_call([node_script_path("frida-compile"), "./runtime/java.js", "-o", java] + duk_options, cwd=input_dir)
-
-    generate_runtime_duk("runtime", output_dir, "gumdukscript-runtime.h", input_dir, [runtime])
-    generate_runtime_duk("promise", output_dir, "gumdukscript-promise.h", input_dir, [promise])
-    generate_runtime_duk("objc", output_dir, "gumdukscript-objc.h", input_dir, [objc])
-    generate_runtime_duk("java", output_dir, "gumdukscript-java.h", input_dir, [java])
 
 
     v8_tmp_dir = os.path.join(output_dir, "runtime-build-v8")

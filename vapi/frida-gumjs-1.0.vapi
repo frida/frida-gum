@@ -13,7 +13,6 @@ namespace Gum {
 
 		public static unowned ScriptBackend obtain ();
 		public static unowned ScriptBackend? obtain_qjs ();
-		public static unowned ScriptBackend? obtain_duk ();
 		public static unowned ScriptBackend? obtain_v8 ();
 
 		public async Script create (string name, string source, GLib.Cancellable? cancellable = null) throws GLib.IOError;

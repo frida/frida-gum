@@ -8,7 +8,6 @@
 #include "testutil.h"
 
 #include "gum-init.h"
-#include "gumdukscriptbackend.h"
 #include "guminspectorserver.h"
 #include "gumquickscriptbackend.h"
 #include "gumscriptbackend.h"
@@ -55,8 +54,7 @@
       gchar * path;                                                       \
                                                                           \
       path = g_strconcat ("/GumJS/Script/" SCRIPT_SUITE, group, #NAME "#",\
-          GUM_QUICK_IS_SCRIPT_BACKEND (fixture_data) ? "QJS" :            \
-              GUM_DUK_IS_SCRIPT_BACKEND (fixture_data) ? "DUK" : "V8",    \
+          GUM_QUICK_IS_SCRIPT_BACKEND (fixture_data) ? "QJS" : "V8",      \
           NULL);                                                          \
                                                                           \
       g_test_add (path,                                                   \

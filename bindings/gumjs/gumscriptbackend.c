@@ -6,7 +6,6 @@
 
 #include "gumscriptbackend.h"
 
-#include "gumdukscriptbackend.h"
 #include "gumquickscriptbackend.h"
 #include "gumv8scriptbackend.h"
 #include "sqlite3.h"
@@ -51,11 +50,9 @@ gum_script_backend_obtain (void)
 {
   GumScriptBackend * backend = NULL;
 
-  backend = gum_script_backend_obtain_v8 ();
+  backend = gum_script_backend_obtain_qjs ();
   if (backend == NULL)
-    backend = gum_script_backend_obtain_qjs ();
-  if (backend == NULL)
-    backend = gum_script_backend_obtain_duk ();
+    backend = gum_script_backend_obtain_v8 ();
 
   return backend;
 }
@@ -93,45 +90,6 @@ gum_script_backend_deinit_qjs (void)
 
 GumScriptBackend *
 gum_script_backend_obtain_qjs (void)
-{
-  return NULL;
-}
-
-#endif
-
-#ifdef HAVE_DUKTAPE
-
-static void gum_script_backend_deinit_duk (void);
-
-GumScriptBackend *
-gum_script_backend_obtain_duk (void)
-{
-  static volatile gsize gonce_value;
-
-  if (g_once_init_enter (&gonce_value))
-  {
-    GumScriptBackend * backend;
-
-    backend = g_object_new (GUM_DUK_TYPE_SCRIPT_BACKEND, NULL);
-
-    _gum_register_early_destructor (gum_script_backend_deinit_duk);
-
-    g_once_init_leave (&gonce_value, GPOINTER_TO_SIZE (backend) + 1);
-  }
-
-  return GSIZE_TO_POINTER (gonce_value - 1);
-}
-
-static void
-gum_script_backend_deinit_duk (void)
-{
-  g_object_unref (gum_script_backend_obtain_duk ());
-}
-
-#else
-
-GumScriptBackend *
-gum_script_backend_obtain_duk (void)
 {
   return NULL;
 }
