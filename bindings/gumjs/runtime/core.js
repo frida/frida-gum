@@ -179,11 +179,9 @@ if (Script.runtime === 'DUK') {
   };
 }
 
-/*
 makeEnumerateApi(Kernel, 'enumerateModules', 0);
 makeEnumerateRanges(Kernel);
 makeEnumerateApi(Kernel, 'enumerateModuleRanges', 2);
-*/
 
 Object.defineProperties(Memory, {
   dup: {
