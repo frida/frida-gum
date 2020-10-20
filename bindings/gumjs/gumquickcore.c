@@ -4113,6 +4113,7 @@ gum_quick_value_to_ffi (JSContext * ctx,
       const ffi_type * field_type = field_types[field_index];
       GumFFIValue * field_val;
       JSValue field_sval;
+      gboolean valid;
 
       offset = GUM_ALIGN_SIZE (offset, field_type->alignment);
 
@@ -4122,11 +4123,13 @@ gum_quick_value_to_ffi (JSContext * ctx,
       if (JS_IsException (field_sval))
         return FALSE;
 
-      if (!gum_quick_value_to_ffi (ctx, field_sval, field_type, core,
-          field_val))
-      {
+      valid =
+          gum_quick_value_to_ffi (ctx, field_sval, field_type, core, field_val);
+
+      JS_FreeValue (ctx, field_sval);
+
+      if (!valid)
         return FALSE;
-      }
 
       offset += field_type->size;
     }
