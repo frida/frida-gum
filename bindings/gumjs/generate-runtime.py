@@ -3,7 +3,6 @@
 from __future__ import unicode_literals, print_function
 from base64 import b64decode
 import codecs
-import glob
 import json
 import os
 import platform
@@ -399,8 +398,7 @@ if __name__ == '__main__':
     java = os.path.abspath(os.path.join(quick_tmp_dir, "java.js"))
 
     quick_options = [
-        "-x", # No need for Babel, QuickJS supports modern JS.
-        #"-c", # Compress for smaller code and better performance.
+        "-c", # Compress for smaller code and better performance.
     ]
     subprocess.check_call([node_script_path("frida-compile"), "./runtime/entrypoint-quickjs.js", "-o", runtime] + quick_options, cwd=input_dir)
     subprocess.check_call([node_script_path("frida-compile"), "./runtime/objc.js", "-o", objc] + quick_options, cwd=input_dir)
@@ -417,7 +415,6 @@ if __name__ == '__main__':
     java = os.path.abspath(os.path.join(v8_tmp_dir, "java.js"))
 
     v8_options = [
-        "-x", # No need for Babel, V8 supports modern JS.
         "-c", # Compress for smaller code and better performance.
     ]
     subprocess.check_call([node_script_path("frida-compile"), "./runtime/entrypoint-v8.js", "-o", runtime] + v8_options, cwd=input_dir)
