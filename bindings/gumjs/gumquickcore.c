@@ -3541,11 +3541,10 @@ gum_quick_native_callback_invoke (ffi_cif * cif,
   JSContext * ctx = core->ctx;
   ffi_type * rtype = cif->rtype;
   GumFFIValue * retval = return_value;
-  guint i;
   GumInvocationContext * ic;
   GumQuickInvocationContext * jic = NULL;
   JSValue this_obj;
-  int argc;
+  int argc, i;
   JSValue * argv;
   JSValue result;
 
@@ -4170,7 +4169,7 @@ gum_quick_value_to_ffi (JSContext * ctx,
   else if (type->type == FFI_TYPE_STRUCT)
   {
     ffi_type ** const field_types = type->elements, ** t;
-    guint length, expected_length, i;
+    guint length, expected_length, field_index;
     guint8 * field_values;
     gsize offset;
 
@@ -4187,9 +4186,9 @@ gum_quick_value_to_ffi (JSContext * ctx,
     field_values = (guint8 *) val;
     offset = 0;
 
-    for (i = 0; i != length; i++)
+    for (field_index = 0; field_index != length; field_index++)
     {
-      const ffi_type * field_type = field_types[i];
+      const ffi_type * field_type = field_types[field_index];
       GumFFIValue * field_val;
       JSValue field_sval;
 
@@ -4197,7 +4196,7 @@ gum_quick_value_to_ffi (JSContext * ctx,
 
       field_val = (GumFFIValue *) (field_values + offset);
 
-      field_sval = JS_GetPropertyUint32 (ctx, sval, i);
+      field_sval = JS_GetPropertyUint32 (ctx, sval, field_index);
       if (JS_IsException (field_sval))
         return FALSE;
 

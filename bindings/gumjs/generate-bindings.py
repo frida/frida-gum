@@ -445,17 +445,17 @@ def generate_quick_parse_call_arg_array_element(component):
     return """
     if (JS_IsString (element_val))
     {{
-      {register_type} reg;
+      {register_type} r;
 
       element_str = JS_ToCString (ctx, element_val);
       if (element_str == NULL)
         goto propagate_exception;
 
-      if (!gum_parse_{arch}_register (ctx, element_str, &reg))
+      if (!gum_parse_{arch}_register (ctx, element_str, &r))
         goto propagate_exception;
 
       item->type = GUM_ARG_REGISTER;
-      item->value.reg = reg;
+      item->value.reg = r;
 
       JS_FreeCString (ctx, element_str);
       element_str = NULL;

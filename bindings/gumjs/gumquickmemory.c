@@ -385,7 +385,7 @@ gum_memory_patch_context_apply (gpointer mem,
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_check_code_pointer)
 {
-  JSValue result;
+  JSValue result = JS_NULL;
   const guint8 * ptr;
   GumExceptor * exceptor = core->exceptor;
   GumExceptorScope scope;

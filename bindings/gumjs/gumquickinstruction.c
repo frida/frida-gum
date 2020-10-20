@@ -476,6 +476,8 @@ gum_parse_operands (JSContext * ctx,
         val = gum_x86_parse_memory_operand_value (ctx, &op->mem, cs, core);
         break;
       default:
+        type = NULL;
+        val = JS_NULL;
         g_assert_not_reached ();
     }
 

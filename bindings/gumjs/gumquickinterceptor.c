@@ -59,6 +59,8 @@ typedef struct _GumQuickCProbeListenerClass GumQuickCProbeListenerClass;
 typedef struct _GumQuickInvocationState GumQuickInvocationState;
 typedef struct _GumQuickReplaceEntry GumQuickReplaceEntry;
 
+typedef void (* GumQuickCHook) (GumInvocationContext * ic);
+
 struct _GumQuickInvocationListener
 {
   GObject object;
@@ -102,8 +104,8 @@ struct _GumQuickCCallListener
 {
   GumQuickInvocationListener listener;
 
-  void (* on_enter) (GumInvocationContext * ic);
-  void (* on_leave) (GumInvocationContext * ic);
+  GumQuickCHook on_enter;
+  GumQuickCHook on_leave;
 };
 
 struct _GumQuickCCallListenerClass
@@ -115,7 +117,7 @@ struct _GumQuickCProbeListener
 {
   GumQuickInvocationListener listener;
 
-  void (* on_hit) (GumInvocationContext * ic);
+  GumQuickCHook on_hit;
 };
 
 struct _GumQuickCProbeListenerClass
@@ -506,7 +508,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
       goto propagate_exception;
 
     l = g_object_new (GUM_QUICK_TYPE_C_PROBE_LISTENER, NULL);
-    l->on_hit = cb_ptr;
+    l->on_hit = GUM_POINTER_TO_FUNCPTR (GumQuickCHook, cb_ptr);
 
     listener = GUM_QUICK_INVOCATION_LISTENER (l);
   }
@@ -535,8 +537,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
       GumQuickCCallListener * l;
 
       l = g_object_new (GUM_QUICK_TYPE_C_CALL_LISTENER, NULL);
-      l->on_enter = on_enter_c;
-      l->on_leave = on_leave_c;
+      l->on_enter = GUM_POINTER_TO_FUNCPTR (GumQuickCHook, on_enter_c);
+      l->on_leave = GUM_POINTER_TO_FUNCPTR (GumQuickCHook, on_leave_c);
 
       listener = GUM_QUICK_INVOCATION_LISTENER (l);
     }
@@ -759,9 +761,7 @@ gum_quick_invocation_listener_init (GumQuickInvocationListener * self)
 static void
 gum_quick_invocation_listener_dispose (GObject * object)
 {
-  GumQuickInvocationListener * self = GUM_QUICK_INVOCATION_LISTENER (object);
-
-  g_assert (JS_IsNull (self->wrapper));
+  g_assert (JS_IsNull (GUM_QUICK_INVOCATION_LISTENER (object)->wrapper));
 
   G_OBJECT_CLASS (gum_quick_invocation_listener_parent_class)->dispose (object);
 }

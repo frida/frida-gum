@@ -476,7 +476,7 @@ gum_quick_kernel_read (JSContext * ctx,
                        GumQuickArgs * args,
                        GumQuickCore * core)
 {
-  JSValue result;
+  JSValue result = JS_NULL;
   GumAddress address;
   gssize length;
   gpointer data = NULL;
@@ -502,10 +502,7 @@ gum_quick_kernel_read (JSContext * ctx,
   }
 
   if (address == 0)
-  {
-    result = JS_NULL;
     goto beach;
-  }
 
   if (length == 0)
   {

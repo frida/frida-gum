@@ -684,7 +684,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_parse)
     row = JS_NewArray (ctx);
 
 #define GUM_APPEND_VAL(v) \
-    JS_DefinePropertyValueUint32 (ctx, row, column_index++, v, JS_PROP_C_W_E)
+    JS_DefinePropertyValueUint32 (ctx, row, (uint32_t) column_index++, v, \
+        JS_PROP_C_W_E)
 #define GUM_APPEND_STR(s) \
     GUM_APPEND_VAL (JS_NewString (ctx, s))
 #define GUM_APPEND_PTR(p) \
@@ -759,7 +760,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_parse)
 #undef GUM_APPEND_PTR
 #undef GUM_APPEND_INT
 
-    JS_DefinePropertyValueUint32 (ctx, result, row_index, row, JS_PROP_C_W_E);
+    JS_DefinePropertyValueUint32 (ctx, result, (uint32_t) row_index, row,
+        JS_PROP_C_W_E);
   }
 
   return result;
