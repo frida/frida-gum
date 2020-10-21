@@ -60,7 +60,7 @@ struct _GumLiveRangeDetails
 {
   const GumMemoryRange * range;
   guint range_index;
-  DWORD prot;
+  DWORD protection;
 };
 
 struct _GumRangeStats
