@@ -15,7 +15,7 @@
 
 #define GUMPP_MAX_BACKTRACE_DEPTH 16
 #define GUMPP_MAX_PATH            260
-#define GUMPP_MAX_SYMBOL_NAME     2000
+#define GUMPP_MAX_SYMBOL_NAME     2048
 
 #include <cstddef>
 #include <vector>
