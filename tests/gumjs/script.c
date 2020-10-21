@@ -35,6 +35,13 @@ TESTLIST_BEGIN (script)
   TESTENTRY (callback_can_be_scheduled_on_next_tick)
   TESTENTRY (timer_cancellation_apis_should_be_forgiving)
 
+  TESTGROUP_BEGIN ("WeakRef")
+    TESTENTRY (weak_callback_is_triggered_on_gc)
+    TESTENTRY (weak_callback_is_triggered_on_unload)
+    TESTENTRY (weak_callback_is_triggered_on_unbind)
+    TESTENTRY (weak_callback_should_not_be_exclusive)
+  TESTGROUP_END ()
+
   TESTGROUP_BEGIN ("Interceptor")
     TESTENTRY (argument_can_be_read)
     TESTENTRY (argument_can_be_replaced)
@@ -340,9 +347,6 @@ TESTLIST_BEGIN (script)
   TESTENTRY (source_maps_should_be_supported_for_our_runtime)
   TESTENTRY (source_maps_should_be_supported_for_user_scripts)
   TESTENTRY (types_handle_invalid_construction)
-  TESTENTRY (weak_callback_is_triggered_on_gc)
-  TESTENTRY (weak_callback_is_triggered_on_unload)
-  TESTENTRY (weak_callback_is_triggered_on_unbind)
   TESTENTRY (globals_can_be_dynamically_generated)
   TESTENTRY (exceptions_can_be_handled)
   TESTENTRY (debugger_can_be_enabled)
@@ -7598,6 +7602,38 @@ TESTCASE (weak_callback_is_triggered_on_unbind)
       "});"
       "WeakRef.unbind(id);");
   EXPECT_SEND_MESSAGE_WITH ("\"weak notify\"");
+}
+
+TESTCASE (weak_callback_should_not_be_exclusive)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var val = {};"
+      "var w1 = WeakRef.bind(val, onWeakNotify.bind(null, 'w1'));"
+      "var w2 = WeakRef.bind(val, onWeakNotify.bind(null, 'w2'));"
+      "recv(onMessage);"
+      "function onMessage(message) {"
+      "  switch (message.type) {"
+      "    case 'unbind':"
+      "      WeakRef.unbind(w1);"
+      "      break;"
+      "    case 'destroy':"
+      "      val = null;"
+      "      gc();"
+      "  }"
+      "  recv(onMessage);"
+      "}"
+      "function onWeakNotify(id) {"
+      "  send(id);"
+      "}");
+  EXPECT_NO_MESSAGES ();
+
+  POST_MESSAGE ("{\"type\":\"unbind\"}");
+  EXPECT_SEND_MESSAGE_WITH ("\"w1\"");
+  EXPECT_NO_MESSAGES ();
+
+  POST_MESSAGE ("{\"type\":\"destroy\"}");
+  EXPECT_SEND_MESSAGE_WITH ("\"w2\"");
+  EXPECT_NO_MESSAGES ();
 }
 
 TESTCASE (globals_can_be_dynamically_generated)

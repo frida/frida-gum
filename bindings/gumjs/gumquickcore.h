@@ -81,8 +81,13 @@ struct _GumQuickCore
   JSValue on_global_get;
   JSValue global_receiver;
 
-  GHashTable * weak_refs;
-  guint next_weak_ref_id;
+  GHashTable * weak_callbacks;
+  guint next_weak_callback_id;
+  JSValue weak_objects;
+  JSValue weak_map_ctor;
+  JSValue weak_map_get_method;
+  JSValue weak_map_set_method;
+  JSValue weak_map_delete_method;
 
   GHashTable * scheduled_callbacks;
   guint next_callback_id;
