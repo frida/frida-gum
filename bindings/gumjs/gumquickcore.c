@@ -2403,6 +2403,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_blend)
 
   if (!_gum_quick_native_pointer_unwrap (ctx, this_val, core, &self))
     return JS_EXCEPTION;
+  value = self->value;
 
   if (!_gum_quick_args_parse (args, "u", &small_integer))
     return JS_EXCEPTION;
