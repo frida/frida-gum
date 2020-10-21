@@ -6,8 +6,8 @@
   "main": "runtime/index.js",
   "devDependencies": {
     "frida-compile": "^10.0.0",
-    "frida-java-bridge": "3.9.4",
-    "frida-objc-bridge": "5.0.1"
+    "frida-java-bridge": "4.0.0",
+    "frida-objc-bridge": "6.0.0"
   },
   "repository": {
     "type": "git",
