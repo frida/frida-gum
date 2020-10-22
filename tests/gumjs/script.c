@@ -7642,13 +7642,15 @@ TESTCASE (globals_can_be_dynamically_generated)
       "Script.setGlobalAccessHandler({"
       "  get: function (property) {"
       "    if (property === 'badger')"
-      "      return 1337;"
+      "      return 1337 + mushroom;"
+      "    else if (property === 'mushroom')"
+      "      return 3;"
       "  },"
       "});"
       "send(badger);"
       "send(typeof badger);"
       "send(snake);");
-  EXPECT_SEND_MESSAGE_WITH ("1337");
+  EXPECT_SEND_MESSAGE_WITH ("1340");
   EXPECT_SEND_MESSAGE_WITH ("\"number\"");
   if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
   {
