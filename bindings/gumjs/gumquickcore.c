@@ -3513,7 +3513,10 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
     goto prepare_failed;
 
   JS_SetOpaque (wrapper, cb);
-  JS_DefinePropertyValueStr (ctx, wrapper, "$f", JS_DupValue (ctx, func), 0);
+  JS_DefinePropertyValue (ctx, wrapper,
+      GUM_QUICK_CORE_ATOM (core, resource),
+      JS_DupValue (ctx, func),
+      0);
 
   return wrapper;
 
