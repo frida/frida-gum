@@ -274,6 +274,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (native_callback_can_be_invoked)
     TESTENTRY (native_callback_is_a_native_pointer)
     TESTENTRY (native_callback_memory_should_be_eagerly_reclaimed)
+    TESTENTRY (native_callback_should_be_kept_alive_during_calls)
   TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("DebugSymbol")
@@ -1434,6 +1435,27 @@ TESTCASE (native_callback_memory_should_be_eagerly_reclaimed)
         usage_before, usage_after);
     g_assert_true (difference_is_less_than_2x);
   }
+}
+
+TESTCASE (native_callback_should_be_kept_alive_during_calls)
+{
+  void (* cb) (void);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "let cb = new NativeCallback(() => {"
+        "cb = null;"
+        "gc();"
+        "send('returning');"
+      "}, 'void', []);"
+      "WeakRef.bind(cb, () => { send('dead'); });"
+      GUM_PTR_CONST ".writePointer(cb);",
+      &cb);
+  EXPECT_NO_MESSAGES ();
+
+  cb ();
+  EXPECT_SEND_MESSAGE_WITH ("\"returning\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"dead\"");
+  EXPECT_NO_MESSAGES ();
 }
 
 #ifdef G_OS_UNIX

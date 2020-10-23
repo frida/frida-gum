@@ -132,6 +132,7 @@ struct _GumQuickNativeCallback
 {
   GumQuickNativePointer native_pointer;
 
+  JSValue wrapper;
   JSValue func;
   ffi_closure * closure;
   ffi_cif cif;
@@ -3461,6 +3462,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
 
   cb = g_slice_new0 (GumQuickNativeCallback);
   ptr = &cb->native_pointer;
+  cb->wrapper = wrapper;
   cb->func = func;
   cb->core = core;
 
@@ -3589,6 +3591,8 @@ gum_quick_native_callback_invoke (ffi_cif * cif,
 
   _gum_quick_scope_enter (&scope, core);
 
+  JS_DupValue (ctx, self->wrapper);
+
   if (rtype != &ffi_type_void)
   {
     /*
@@ -3634,8 +3638,9 @@ gum_quick_native_callback_invoke (ffi_cif * cif,
     if (!gum_quick_value_to_ffi (ctx, result, cif->rtype, core, retval))
       _gum_quick_scope_catch_and_emit (&scope);
   }
-
   JS_FreeValue (ctx, result);
+
+  JS_FreeValue (ctx, self->wrapper);
 
   _gum_quick_scope_leave (&scope);
 }
