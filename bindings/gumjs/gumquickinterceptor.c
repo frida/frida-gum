@@ -581,10 +581,13 @@ unable_to_attach:
       case GUM_ATTACH_WRONG_SIGNATURE:
         _gum_quick_throw (ctx, "unable to intercept function at %p; "
             "please file a bug", target);
+        break;
       case GUM_ATTACH_ALREADY_ATTACHED:
         _gum_quick_throw_literal (ctx, "already attached to this function");
+        break;
       case GUM_ATTACH_POLICY_VIOLATION:
         _gum_quick_throw_literal (ctx, "not permitted by code-signing policy");
+        break;
       default:
         g_assert_not_reached ();
     }
@@ -664,10 +667,13 @@ unable_to_replace:
       case GUM_REPLACE_WRONG_SIGNATURE:
         _gum_quick_throw (ctx, "unable to intercept function at %p; "
             "please file a bug", target);
+        break;
       case GUM_REPLACE_ALREADY_REPLACED:
         _gum_quick_throw_literal (ctx, "already replaced this function");
+        break;
       case GUM_REPLACE_POLICY_VIOLATION:
         _gum_quick_throw_literal (ctx, "not permitted by code-signing policy");
+        break;
       default:
         g_assert_not_reached ();
     }
