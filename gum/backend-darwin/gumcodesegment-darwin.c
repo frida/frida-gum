@@ -259,10 +259,7 @@ gum_code_segment_realize (GumCodeSegment * self)
 {
   if (gum_code_segment_is_realize_supported ())
   {
-    gboolean realized_successfully;
-
-    realized_successfully = gum_code_segment_try_realize (self);
-    g_assert (realized_successfully);
+    gum_code_segment_try_realize (self);
   }
 }
 
@@ -701,7 +698,6 @@ gum_file_open_tmp (const gchar * tmpl,
 {
   gchar * path;
   gint res;
-
 
   path = g_build_filename (g_get_tmp_dir (), tmpl, NULL);
   res = g_mkstemp (path);
