@@ -3,7 +3,7 @@
 
   <ItemDefinitionGroup>
     <ClCompile>
-      <PreprocessorDefinitions>G_LOG_DOMAIN=&quot;Frida&quot;;GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_QUICKJS=1;HAVE_V8=1;HAVE_TINYCC=1;HAVE_LOG2=1;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>G_LOG_DOMAIN=&quot;Frida&quot;;GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_QUICKJS=1;HAVE_TINYCC=1;HAVE_LOG2=1;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(IntDir)gumjs;..\..\ext\quickjs;..\..\ext\tinycc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
