@@ -132,9 +132,8 @@ gum_emit_lr_thunk (gpointer mem,
 
   ctx->thunk = GSIZE_TO_POINTER (tw.pc | 1);
   gum_thumb_writer_put_label (&tw, thunk_start);
-  gum_thumb_writer_put_mov_reg_u8 (&tw, ARM_REG_R2, 0);
   gum_thumb_writer_put_mov_reg_reg (&tw, ARM_REG_R3, ARM_REG_LR);
-  gum_thumb_writer_put_b_label_wide (&tw, inner_start);
+  gum_thumb_writer_put_b_label (&tw, inner_start);
 
   gum_thumb_writer_put_label (&tw, inner_start);
   gum_thumb_writer_put_mov_reg_reg (&tw, ARM_REG_R0, ARM_REG_R3);
