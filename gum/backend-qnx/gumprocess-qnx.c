@@ -1092,7 +1092,7 @@ gum_qnx_unparse_ucontext (const GumCpuContext * ctx,
   ARM_CPU_REGISTERS * cpu = &uc->uc_mcontext.cpu;
   guint i;
 
-  cpu->gpr[ARM_REG_PC] = ctx->pc & ~1;
+  cpu->gpr[ARM_REG_PC] = ctx->pc;
   cpu->gpr[ARM_REG_SP] = ctx->sp;
   cpu->gpr[ARM_REG_LR] = ctx->lr;
 

@@ -2465,7 +2465,7 @@ gum_darwin_unparse_native_thread_state (const GumCpuContext * ctx,
   guint n;
 
   ts->__cpsr = ctx->cpsr;
-  ts->__pc = ctx->pc & ~1;
+  ts->__pc = ctx->pc;
   ts->__sp = ctx->sp;
 
   ts->__r[8] = ctx->r8;

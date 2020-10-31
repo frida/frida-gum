@@ -354,6 +354,11 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
 #elif defined (HAVE_ARM)
   context->pc = GPOINTER_TO_SIZE (
       GUM_FUNCPTR_TO_POINTER (gum_exceptor_scope_perform_longjmp));
+  if ((context->pc & 1) != 0)
+    context->cpsr |= GUM_PSR_T_BIT;
+  else
+    context->cpsr &= ~GUM_PSR_T_BIT;
+  context->pc &= ~1;
 
   /* Align to 16 byte boundary */
   context->sp &= ~(gsize) (16 - 1);

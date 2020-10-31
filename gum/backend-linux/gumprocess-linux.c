@@ -2141,7 +2141,7 @@ gum_linux_unparse_ucontext (const GumCpuContext * ctx,
   mcontext_t * mc = &uc->uc_mcontext;
 
   mc->arm_cpsr = ctx->cpsr;
-  mc->arm_pc = ctx->pc & ~1;
+  mc->arm_pc = ctx->pc;
   mc->arm_sp = ctx->sp;
 
   mc->arm_r8 = ctx->r8;

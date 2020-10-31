@@ -818,6 +818,7 @@ gum_stalker_infect (GumThreadId thread_id,
     return;
   }
 
+  cpu_context->cpsr &= ~GUM_PSR_T_BIT;
   cpu_context->pc = GPOINTER_TO_SIZE (ctx->infect_thunk);
 
   gum_stalker_thaw (self, ctx->infect_thunk, self->page_size);

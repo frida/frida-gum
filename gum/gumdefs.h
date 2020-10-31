@@ -88,6 +88,7 @@ typedef GumX64CpuContext GumCpuContext;
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_ARM
 # define GUM_DEFAULT_CS_MODE \
     ((cs_mode) (CS_MODE_ARM | CS_MODE_V8 | GUM_DEFAULT_CS_ENDIAN))
+# define GUM_PSR_T_BIT 0x20
 typedef GumArmCpuContext GumCpuContext;
 #elif defined (__aarch64__)
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_ARM64
