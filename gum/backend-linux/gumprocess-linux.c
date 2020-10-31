@@ -2014,38 +2014,38 @@ gum_linux_parse_ucontext (const ucontext_t * uc,
   ctx->rcx = gr[REG_RCX];
   ctx->rax = gr[REG_RAX];
 #elif defined (HAVE_ARM)
-  const struct sigcontext * sc = &uc->uc_mcontext;
+  const mcontext_t * mc = &uc->uc_mcontext;
 
-  ctx->cpsr = sc->arm_cpsr;
-  ctx->pc = sc->arm_pc;
-  ctx->sp = sc->arm_sp;
+  ctx->cpsr = mc->arm_cpsr;
+  ctx->pc = mc->arm_pc;
+  ctx->sp = mc->arm_sp;
 
-  ctx->r8 = sc->arm_r8;
-  ctx->r9 = sc->arm_r9;
-  ctx->r10 = sc->arm_r10;
-  ctx->r11 = sc->arm_fp;
-  ctx->r12 = sc->arm_ip;
+  ctx->r8 = mc->arm_r8;
+  ctx->r9 = mc->arm_r9;
+  ctx->r10 = mc->arm_r10;
+  ctx->r11 = mc->arm_fp;
+  ctx->r12 = mc->arm_ip;
 
-  ctx->r[0] = sc->arm_r0;
-  ctx->r[1] = sc->arm_r1;
-  ctx->r[2] = sc->arm_r2;
-  ctx->r[3] = sc->arm_r3;
-  ctx->r[4] = sc->arm_r4;
-  ctx->r[5] = sc->arm_r5;
-  ctx->r[6] = sc->arm_r6;
-  ctx->r[7] = sc->arm_r7;
-  ctx->lr = sc->arm_lr;
+  ctx->r[0] = mc->arm_r0;
+  ctx->r[1] = mc->arm_r1;
+  ctx->r[2] = mc->arm_r2;
+  ctx->r[3] = mc->arm_r3;
+  ctx->r[4] = mc->arm_r4;
+  ctx->r[5] = mc->arm_r5;
+  ctx->r[6] = mc->arm_r6;
+  ctx->r[7] = mc->arm_r7;
+  ctx->lr = mc->arm_lr;
 #elif defined (HAVE_ARM64)
-  const struct sigcontext * sc = &uc->uc_mcontext;
+  const mcontext_t * mc = &uc->uc_mcontext;
   gsize i;
 
-  ctx->pc = sc->pc;
-  ctx->sp = sc->sp;
+  ctx->pc = mc->pc;
+  ctx->sp = mc->sp;
 
   for (i = 0; i != G_N_ELEMENTS (ctx->x); i++)
-    ctx->x[i] = sc->regs[i];
-  ctx->fp = sc->regs[29];
-  ctx->lr = sc->regs[30];
+    ctx->x[i] = mc->regs[i];
+  ctx->fp = mc->regs[29];
+  ctx->lr = mc->regs[30];
   memset (ctx->q, 0, sizeof (ctx->q));
 #elif defined (HAVE_MIPS)
   const greg_t * gr = uc->uc_mcontext.gregs;
@@ -2138,38 +2138,38 @@ gum_linux_unparse_ucontext (const GumCpuContext * ctx,
   gr[REG_RCX] = ctx->rcx;
   gr[REG_RAX] = ctx->rax;
 #elif defined (HAVE_ARM)
-  struct sigcontext * sc = &uc->uc_mcontext;
+  mcontext_t * mc = &uc->uc_mcontext;
 
-  sc->arm_cpsr = ctx->cpsr;
-  sc->arm_pc = ctx->pc & ~1;
-  sc->arm_sp = ctx->sp;
+  mc->arm_cpsr = ctx->cpsr;
+  mc->arm_pc = ctx->pc & ~1;
+  mc->arm_sp = ctx->sp;
 
-  sc->arm_r8 = ctx->r8;
-  sc->arm_r9 = ctx->r9;
-  sc->arm_r10 = ctx->r10;
-  sc->arm_fp = ctx->r11;
-  sc->arm_ip = ctx->r12;
+  mc->arm_r8 = ctx->r8;
+  mc->arm_r9 = ctx->r9;
+  mc->arm_r10 = ctx->r10;
+  mc->arm_fp = ctx->r11;
+  mc->arm_ip = ctx->r12;
 
-  sc->arm_r0 = ctx->r[0];
-  sc->arm_r1 = ctx->r[1];
-  sc->arm_r2 = ctx->r[2];
-  sc->arm_r3 = ctx->r[3];
-  sc->arm_r4 = ctx->r[4];
-  sc->arm_r5 = ctx->r[5];
-  sc->arm_r6 = ctx->r[6];
-  sc->arm_r7 = ctx->r[7];
-  sc->arm_lr = ctx->lr;
+  mc->arm_r0 = ctx->r[0];
+  mc->arm_r1 = ctx->r[1];
+  mc->arm_r2 = ctx->r[2];
+  mc->arm_r3 = ctx->r[3];
+  mc->arm_r4 = ctx->r[4];
+  mc->arm_r5 = ctx->r[5];
+  mc->arm_r6 = ctx->r[6];
+  mc->arm_r7 = ctx->r[7];
+  mc->arm_lr = ctx->lr;
 #elif defined (HAVE_ARM64)
-  struct sigcontext * sc = &uc->uc_mcontext;
+  mcontext_t * mc = &uc->uc_mcontext;
   gsize i;
 
-  sc->pc = ctx->pc;
-  sc->sp = ctx->sp;
+  mc->pc = ctx->pc;
+  mc->sp = ctx->sp;
 
   for (i = 0; i != G_N_ELEMENTS (ctx->x); i++)
-    sc->regs[i] = ctx->x[i];
-  sc->regs[29] = ctx->fp;
-  sc->regs[30] = ctx->lr;
+    mc->regs[i] = ctx->x[i];
+  mc->regs[29] = ctx->fp;
+  mc->regs[30] = ctx->lr;
 #elif defined (HAVE_MIPS)
   greg_t * gr = uc->uc_mcontext.gregs;
 
