@@ -652,15 +652,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_remove_call_probe)
 GUMJS_DEFINE_FUNCTION (gumjs_stalker_parse)
 {
   JSValue result = JS_NULL;
-  GumQuickStalker * parent;
   JSValue events_value;
   gboolean annotate, stringify;
   const GumEvent * events;
   size_t size, count, row_index;
   const GumEvent * ev;
   JSValue row = JS_NULL;
-
-  parent = gumjs_get_parent_module (core);
 
   if (!_gum_quick_args_parse (args, "Vtt", &events_value, &annotate,
       &stringify))

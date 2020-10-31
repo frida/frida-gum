@@ -117,13 +117,10 @@ static cs_insn *
 disassemble_instruction_at (gconstpointer address)
 {
   csh capstone;
-  cs_err err;
   cs_insn * insn = NULL;
 
-  err = cs_open (CS_ARCH_ARM, CS_MODE_ARM | CS_MODE_V8, &capstone);
-  g_assert (err == CS_ERR_OK);
-  err = cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
-  g_assert (err == CS_ERR_OK);
+  cs_open (CS_ARCH_ARM, CS_MODE_ARM | CS_MODE_V8, &capstone);
+  cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
 
   cs_disasm (capstone, address, 4, GPOINTER_TO_SIZE (address), 1, &insn);
 

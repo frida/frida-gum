@@ -1053,12 +1053,10 @@ gum_quick_c_call_listener_init (GumQuickCCallListener * self)
 static void
 gum_quick_c_call_listener_dispose (GObject * object)
 {
-  GumQuickCCallListener * self;
   GumQuickInvocationListener * base_listener;
   GumQuickCore * core;
   GumQuickScope scope;
 
-  self = GUM_QUICK_C_CALL_LISTENER (object);
   base_listener = GUM_QUICK_INVOCATION_LISTENER (object);
   core = base_listener->parent->core;
 
@@ -1117,12 +1115,10 @@ gum_quick_c_probe_listener_init (GumQuickCProbeListener * self)
 static void
 gum_quick_c_probe_listener_dispose (GObject * object)
 {
-  GumQuickCProbeListener * self;
   GumQuickInvocationListener * base_listener;
   GumQuickCore * core;
   GumQuickScope scope;
 
-  self = GUM_QUICK_C_PROBE_LISTENER (object);
   base_listener = GUM_QUICK_INVOCATION_LISTENER (object);
   core = base_listener->parent->core;
 

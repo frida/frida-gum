@@ -37,13 +37,10 @@ disassemble_instruction_at (gconstpointer address)
 {
   gconstpointer code = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (address) & ~1);
   csh capstone;
-  cs_err err;
   cs_insn * insn = NULL;
 
-  err = cs_open (CS_ARCH_ARM, CS_MODE_THUMB | CS_MODE_V8, &capstone);
-  g_assert (err == CS_ERR_OK);
-  err = cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
-  g_assert (err == CS_ERR_OK);
+  cs_open (CS_ARCH_ARM, CS_MODE_THUMB | CS_MODE_V8, &capstone);
+  cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
 
   cs_disasm (capstone, code, 16, GPOINTER_TO_SIZE (code), 1, &insn);
 
