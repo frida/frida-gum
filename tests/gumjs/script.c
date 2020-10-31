@@ -2699,6 +2699,14 @@ TESTCASE (execution_can_be_traced)
 {
   GumThreadId test_thread_id;
 
+#ifdef __ARM_PCS_VFP
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+#endif
+
   test_thread_id = gum_process_get_current_thread_id ();
 
   COMPILE_AND_LOAD_SCRIPT (
@@ -2738,6 +2746,14 @@ TESTCASE (execution_can_be_traced)
 TESTCASE (execution_can_be_traced_with_custom_transformer)
 {
   GumThreadId test_thread_id;
+
+#ifdef __ARM_PCS_VFP
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+#endif
 
   test_thread_id = gum_process_get_current_thread_id ();
 
@@ -2883,6 +2899,14 @@ TESTCASE (execution_can_be_traced_after_native_function_call_from_hook)
   StalkerDummyChannel channel;
   GThread * thread;
   GumThreadId thread_id;
+
+#ifdef __ARM_PCS_VFP
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+#endif
 
   sdc_init (&channel);
 
