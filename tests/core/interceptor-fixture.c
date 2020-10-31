@@ -58,7 +58,11 @@
 #  define GUM_TEST_SHLIB_ARCH "x86_64"
 # endif
 #elif defined (HAVE_ARM)
-# define GUM_TEST_SHLIB_ARCH "arm"
+# ifdef __ARM_PCS_VFP
+#  define GUM_TEST_SHLIB_ARCH "armhf"
+# else
+#  define GUM_TEST_SHLIB_ARCH "arm"
+# endif
 #elif defined (HAVE_ARM64)
 # ifdef HAVE_PTRAUTH
 #  define GUM_TEST_SHLIB_ARCH "arm64e"

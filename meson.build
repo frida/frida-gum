@@ -16,11 +16,7 @@ host_os_family = host_machine.system()
 host_os = host_os_family
 if host_machine.cpu_family() == 'arm'
   host_arch = 'arm'
-  if host_machine.cpu().endswith('hf')
-    host_abi = 'armhf'
-  else
-    host_abi = 'arm'
-  endif
+  host_abi = 'arm'
 elif host_machine.cpu_family() == 'aarch64'
   host_arch = 'arm64'
   host_abi = 'arm64'
@@ -52,6 +48,17 @@ if ndebug == 'true' or (ndebug == 'if-release' and not get_option('debug'))
     '-DG_DISABLE_CHECKS',
     '-DG_DISABLE_CAST_CHECKS',
   ]
+endif
+
+if host_arch == 'arm'
+  is_hardfloat_src = '''
+  #ifndef __ARM_PCS_VFP
+  # error Not hardfloat
+  #endif
+  '''
+  if cc.compiles(is_hardfloat_src, name: 'hardfloat ABI')
+    host_abi = 'armhf'
+  endif
 endif
 
 have_ptrauth_src = '''#ifdef __clang__
