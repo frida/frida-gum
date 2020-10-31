@@ -456,9 +456,9 @@ TESTCASE (instruction_can_be_parsed)
 
   if (!gum_process_is_debugger_attached () && !RUNNING_ON_VALGRIND)
   {
-    COMPILE_AND_LOAD_SCRIPT ("Instruction.parse(ptr(\"0x1\"));");
+    COMPILE_AND_LOAD_SCRIPT ("Instruction.parse(ptr(\"0x42\"));");
     EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
-        "Error: access violation accessing 0x1");
+        "Error: access violation accessing 0x42");
   }
 
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
@@ -5072,18 +5072,18 @@ TESTCASE (interceptor_handles_invalid_arguments)
     return;
 
   COMPILE_AND_LOAD_SCRIPT (
-      "Interceptor.attach(ptr(\"0x1\"), {"
+      "Interceptor.attach(ptr(\"0x42\"), {"
       "  onEnter: function (args) {"
       "  }"
       "});");
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
-      "Error: access violation accessing 0x1");
+      "Error: access violation accessing 0x42");
 
   COMPILE_AND_LOAD_SCRIPT (
-      "Interceptor.replace(ptr(\"0x1\"), new NativeCallback(function (arg) {"
+      "Interceptor.replace(ptr(\"0x42\"), new NativeCallback(function (arg) {"
       "}, 'void', []));");
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
-      "Error: access violation accessing 0x1");
+      "Error: access violation accessing 0x42");
 }
 
 TESTCASE (interceptor_on_enter_performance)
