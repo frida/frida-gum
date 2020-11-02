@@ -741,7 +741,7 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
     gsize impl;
 
     impl = GPOINTER_TO_SIZE (
-        gum_module_get_symbol (RTLD_DEFAULT, "dl_iterate_phdr"));
+        gum_module_get_symbol (RTLD_NEXT, "dl_iterate_phdr"));
 
     g_once_init_leave (&iterate_phdr_value, impl + 1);
   }
