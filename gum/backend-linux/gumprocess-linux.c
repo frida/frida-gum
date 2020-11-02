@@ -113,6 +113,7 @@ enum _GumModifyThreadAck
   GUM_ACK_MODIFIED_CONTEXT,
   GUM_ACK_WROTE_CONTEXT,
   GUM_ACK_FAILED_TO_ATTACH,
+  GUM_ACK_FAILED_TO_STOP,
   GUM_ACK_FAILED_TO_READ,
   GUM_ACK_FAILED_TO_WRITE,
   GUM_ACK_FAILED_TO_DETACH
@@ -547,19 +548,27 @@ gum_process_modify_thread (GumThreadId thread_id,
       gboolean still_alive;
 
       while ((still_alive = gum_thread_read_state (thread_id, &state)) &&
-          state != GUM_THREAD_STOPPED)
+          state != GUM_THREAD_STOPPED && state != GUM_THREAD_UNINTERRUPTIBLE)
       {
         g_usleep (G_USEC_PER_SEC / 100);
       }
-      gum_put_ack (fd, GUM_ACK_STOPPED);
 
-      if (still_alive)
+      if (state == GUM_THREAD_STOPPED)
       {
-        gum_await_ack (fd, GUM_ACK_READ_CONTEXT);
-        func (thread_id, &ctx.cpu_context, user_data);
-        gum_put_ack (fd, GUM_ACK_MODIFIED_CONTEXT);
+        gum_put_ack (fd, GUM_ACK_STOPPED);
 
-        success = gum_await_ack (fd, GUM_ACK_WROTE_CONTEXT);
+        if (still_alive)
+        {
+          gum_await_ack (fd, GUM_ACK_READ_CONTEXT);
+          func (thread_id, &ctx.cpu_context, user_data);
+          gum_put_ack (fd, GUM_ACK_MODIFIED_CONTEXT);
+
+          success = gum_await_ack (fd, GUM_ACK_WROTE_CONTEXT);
+        }
+      }
+      else
+      {
+        gum_put_ack (fd, GUM_ACK_FAILED_TO_STOP);
       }
     }
 
@@ -595,7 +604,8 @@ gum_do_modify_thread (gpointer data)
     goto failed_to_attach;
   gum_put_ack (fd, GUM_ACK_ATTACHED);
 
-  gum_await_ack (fd, GUM_ACK_STOPPED);
+  if (!gum_await_ack (fd, GUM_ACK_STOPPED))
+    goto failed_to_stop;
   res = gum_get_regs (ctx->thread_id, &regs);
   if (res < 0)
     goto failed_to_read;
@@ -619,6 +629,11 @@ gum_do_modify_thread (gpointer data)
 failed_to_attach:
   {
     gum_put_ack (fd, GUM_ACK_FAILED_TO_ATTACH);
+    goto beach;
+  }
+failed_to_stop:
+  {
+    gum_libc_ptrace (PTRACE_DETACH, ctx->thread_id, NULL, NULL);
     goto beach;
   }
 failed_to_read:
