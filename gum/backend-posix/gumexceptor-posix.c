@@ -324,7 +324,7 @@ gum_exceptor_backend_replacement_sigaction (int sig,
   if (old_handler == NULL)
     return gum_original_sigaction (sig, act, oact);
 
-  old_action = *old_handler;
+  previous_old_handler = *old_handler;
   if (act != NULL)
     *old_handler = *act;
   if (oact != NULL)
