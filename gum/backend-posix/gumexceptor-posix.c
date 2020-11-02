@@ -312,7 +312,7 @@ gum_exceptor_backend_replacement_sigaction (int sig,
   GumExceptorBackend * self;
   GumInvocationContext * ctx;
   struct sigaction * old_handler;
-  struct sigaction old_action;
+  struct sigaction previous_old_handler;
 
   ctx = gum_interceptor_get_current_invocation ();
   g_assert (ctx != NULL);
