@@ -7,7 +7,7 @@
   "devDependencies": {
     "frida-compile": "^10.0.0",
     "frida-java-bridge": "4.0.0",
-    "frida-objc-bridge": "6.0.0"
+    "frida-objc-bridge": "6.0.2"
   },
   "repository": {
     "type": "git",
