@@ -35,7 +35,9 @@ TESTLIST_BEGIN (script)
   TESTENTRY (callback_can_be_cancelled)
   TESTENTRY (callback_can_be_scheduled_on_next_tick)
   TESTENTRY (timer_cancellation_apis_should_be_forgiving)
+#ifndef HAVE_WINDOWS
   TESTENTRY (crash_on_thread_holding_js_lock_should_not_deadlock)
+#endif
 
   TESTGROUP_BEGIN ("WeakRef")
     TESTENTRY (weak_callback_is_triggered_on_gc)
