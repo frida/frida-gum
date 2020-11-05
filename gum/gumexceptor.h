@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -104,6 +105,8 @@ GUM_API void gum_exceptor_remove (GumExceptor * self, GumExceptionHandler func,
 #endif
 GUM_API gboolean gum_exceptor_catch (GumExceptor * self,
     GumExceptorScope * scope);
+GUM_API gboolean gum_exceptor_has_scope (GumExceptor * self,
+    GumThreadId thread_id);
 
 GUM_API gchar * gum_exception_details_to_string (
     const GumExceptionDetails * details);
