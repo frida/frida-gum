@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -248,6 +249,18 @@ gum_exceptor_catch (GumExceptor * self,
   GUM_EXCEPTOR_UNLOCK ();
 
   return scope->exception_occurred;
+}
+
+gboolean
+gum_exceptor_has_scope (GumExceptor * self, GumThreadId thread_id)
+{
+  GumExceptorScope * scope;
+
+  GUM_EXCEPTOR_LOCK ();
+  scope = g_hash_table_lookup (self->scopes, GSIZE_TO_POINTER (thread_id));
+  GUM_EXCEPTOR_UNLOCK ();
+
+  return scope != NULL;
 }
 
 gchar *
