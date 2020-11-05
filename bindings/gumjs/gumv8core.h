@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -53,6 +54,7 @@ struct GumV8Core
   v8::Isolate * isolate;
 
   ScriptScope * current_scope;
+  GumThreadId current_owner;
   volatile guint usage_count;
   volatile GumV8FlushNotify flush_notify;
 

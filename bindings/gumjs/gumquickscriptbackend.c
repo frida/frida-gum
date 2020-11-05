@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -23,6 +24,7 @@ struct _GumQuickScriptBackend
 
   GMutex mutex;
   GRecMutex scope_mutex;
+  gboolean scope_mutex_trapped;
 
   GumScriptScheduler * scheduler;
 };
@@ -165,6 +167,7 @@ gum_quick_script_backend_init (GumQuickScriptBackend * self)
 {
   g_mutex_init (&self->mutex);
   g_rec_mutex_init (&self->scope_mutex);
+  self->scope_mutex_trapped = FALSE;
 
   self->scheduler = g_object_ref (gum_script_backend_get_scheduler ());
 }
@@ -644,6 +647,12 @@ gum_quick_script_backend_with_lock_held (GumScriptBackend * backend,
 {
   GumQuickScriptBackend * self = GUM_QUICK_SCRIPT_BACKEND (backend);
 
+  if (self->scope_mutex_trapped)
+  {
+    func (user_data);
+    return;
+  }
+
   g_rec_mutex_lock (&self->scope_mutex);
   func (user_data);
   g_rec_mutex_unlock (&self->scope_mutex);
@@ -654,11 +663,27 @@ gum_quick_script_backend_is_locked (GumScriptBackend * backend)
 {
   GumQuickScriptBackend * self = GUM_QUICK_SCRIPT_BACKEND (backend);
 
+  if (self->scope_mutex_trapped)
+    return FALSE;
+
   if (!g_rec_mutex_trylock (&self->scope_mutex))
     return TRUE;
 
   g_rec_mutex_unlock (&self->scope_mutex);
+
   return FALSE;
+}
+
+gboolean
+gum_quick_script_backend_is_scope_mutex_trapped (GumQuickScriptBackend * self)
+{
+  return self->scope_mutex_trapped;
+}
+
+void
+gum_quick_script_backend_mark_scope_mutex_trapped (GumQuickScriptBackend * self)
+{
+  self->scope_mutex_trapped = TRUE;
 }
 
 #ifndef HAVE_ASAN

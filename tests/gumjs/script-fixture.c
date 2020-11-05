@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
+ * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -33,6 +34,9 @@
 # include <sys/socket.h>
 # include <sys/un.h>
 # include <unistd.h>
+#endif
+#if HAVE_DARWIN
+# include <mach/mach.h>
 #endif
 #ifdef HAVE_QNX
 # include <unix.h>

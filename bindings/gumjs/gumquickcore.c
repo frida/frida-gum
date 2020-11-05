@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -141,6 +142,9 @@ struct _GumQuickNativeCallback
 
   GumQuickCore * core;
 };
+
+static gboolean gum_quick_core_handle_crashed_js (GumExceptionDetails * details,
+    gpointer user_data);
 
 static void gum_quick_flush_callback_free (GumQuickFlushCallback * self);
 static gboolean gum_quick_flush_callback_notify (GumQuickFlushCallback * self);
@@ -864,6 +868,7 @@ _gum_quick_core_init (GumQuickCore * self,
   self->module_data =
       g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
   self->current_scope = NULL;
+  self->current_owner = GUM_THREAD_ID_INVALID;
 
   gum_quick_core_setup_atoms (self);
 
@@ -1016,6 +1021,27 @@ _gum_quick_core_init (GumQuickCore * self,
       JS_PROP_C_W_E);
 
   JS_FreeValue (ctx, global_obj);
+
+  gum_exceptor_add (self->exceptor, gum_quick_core_handle_crashed_js, self);
+}
+
+static gboolean
+gum_quick_core_handle_crashed_js (GumExceptionDetails * details,
+                                  gpointer user_data)
+{
+  GumQuickCore * self = user_data;
+  GumThreadId thread_id = details->thread_id;
+
+  if (gum_exceptor_has_scope (self->exceptor, thread_id))
+    return FALSE;
+
+  if (self->current_owner == thread_id)
+  {
+    gum_interceptor_end_transaction (self->interceptor->interceptor);
+    gum_quick_script_backend_mark_scope_mutex_trapped (self->backend);
+  }
+
+  return FALSE;
 }
 
 gboolean
@@ -1114,7 +1140,9 @@ _gum_quick_core_dispose (GumQuickCore * self)
 
   g_clear_pointer (&self->incoming_message_sink, gum_quick_message_sink_free);
 
-  g_clear_pointer (&self->exceptor, g_object_unref);
+  gum_exceptor_remove (self->exceptor, gum_quick_core_handle_crashed_js, self);
+  g_object_unref (self->exceptor);
+  self->exceptor = NULL;
 
   JS_FreeValue (ctx, self->source_map_ctor);
   JS_FreeValue (ctx, self->native_pointer_proto);
@@ -1245,6 +1273,7 @@ _gum_quick_scope_enter (GumQuickScope * self,
   {
     g_assert (core->current_scope == NULL);
     core->current_scope = self;
+    core->current_owner = gum_process_get_current_thread_id ();
 
     JS_Enter (core->rt);
   }
@@ -1269,6 +1298,8 @@ _gum_quick_scope_suspend (GumQuickScope * self)
 
   g_assert (core->current_scope != NULL);
   self->previous_scope = g_steal_pointer (&core->current_scope);
+  self->previous_owner = core->current_owner;
+  core->current_owner = GUM_THREAD_ID_INVALID;
 
   self->previous_mutex_depth = core->mutex_depth;
   core->mutex_depth = 0;
@@ -1288,6 +1319,7 @@ _gum_quick_scope_resume (GumQuickScope * self)
 
   g_assert (core->current_scope == NULL);
   core->current_scope = g_steal_pointer (&self->previous_scope);
+  core->current_owner = self->previous_owner;
 
   core->mutex_depth = self->previous_mutex_depth;
   self->previous_mutex_depth = 0;
@@ -1416,6 +1448,7 @@ _gum_quick_scope_leave (GumQuickScope * self)
     JS_Leave (core->rt);
 
     core->current_scope = NULL;
+    core->current_owner = GUM_THREAD_ID_INVALID;
   }
 
   core->mutex_depth--;

@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -63,6 +64,7 @@ struct _GumQuickCore
   JSContext * ctx;
   GHashTable * module_data;
   GumQuickScope * current_scope;
+  GumThreadId current_owner;
 
   GRecMutex * mutex;
   volatile guint usage_count;
@@ -178,6 +180,7 @@ struct _GumQuickScope
 {
   GumQuickCore * core;
   GumQuickScope * previous_scope;
+  GumThreadId previous_owner;
   guint previous_mutex_depth;
   JSRuntimeThreadState thread_state;
 
