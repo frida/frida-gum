@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
+ * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -65,6 +66,7 @@ struct _GumV8ScriptBackend
   GMutex mutex;
   GCond cond;
   volatile GumV8ScriptBackendState state;
+  gboolean scope_mutex_trapped;
 
   GumV8Platform * platform;
   int context_group_id;
@@ -287,6 +289,7 @@ gum_v8_script_backend_init (GumV8ScriptBackend * self)
   g_mutex_init (&self->mutex);
   g_cond_init (&self->cond);
   self->state = GUM_V8_BACKEND_RUNNING;
+  self->scope_mutex_trapped = FALSE;
 
   self->platform = NULL;
   self->context_group_id = 1;
@@ -907,6 +910,13 @@ gum_v8_script_backend_with_lock_held (GumScriptBackend * backend,
                                       gpointer user_data)
 {
   auto self = GUM_V8_SCRIPT_BACKEND (backend);
+
+  if (self->scope_mutex_trapped)
+  {
+    func (user_data);
+    return;
+  }
+
   auto isolate = GUM_V8_SCRIPT_BACKEND_GET_ISOLATE (self);
 
   {
@@ -920,12 +930,28 @@ static gboolean
 gum_v8_script_backend_is_locked (GumScriptBackend * backend)
 {
   auto self = GUM_V8_SCRIPT_BACKEND (backend);
+
+  if (self->scope_mutex_trapped)
+    return FALSE;
+
   auto isolate = GUM_V8_SCRIPT_BACKEND_GET_ISOLATE (self);
 
   if (Locker::IsLocked (isolate))
     return FALSE;
 
   return Locker::IsLockedByAnyThread (isolate);
+}
+
+gboolean
+gum_v8_script_backend_is_scope_mutex_trapped (GumV8ScriptBackend * self)
+{
+  return self->scope_mutex_trapped;
+}
+
+void
+gum_v8_script_backend_mark_scope_mutex_trapped (GumV8ScriptBackend * self)
+{
+  self->scope_mutex_trapped = TRUE;
 }
 
 static void

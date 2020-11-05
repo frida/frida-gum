@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
+ * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -34,6 +35,7 @@ TESTLIST_BEGIN (script)
   TESTENTRY (callback_can_be_cancelled)
   TESTENTRY (callback_can_be_scheduled_on_next_tick)
   TESTENTRY (timer_cancellation_apis_should_be_forgiving)
+  TESTENTRY (crash_on_thread_holding_js_lock_should_not_deadlock)
 
   TESTGROUP_BEGIN ("WeakRef")
     TESTENTRY (weak_callback_is_triggered_on_gc)
@@ -356,6 +358,7 @@ TESTLIST_BEGIN (script)
 TESTLIST_END ()
 
 typedef struct _GumInvokeTargetContext GumInvokeTargetContext;
+typedef struct _GumCrashExceptorContext GumCrashExceptorContext;
 typedef struct _TestTrigger TestTrigger;
 
 struct _GumInvokeTargetContext
@@ -364,6 +367,12 @@ struct _GumInvokeTargetContext
   guint repeat_duration;
   volatile gint started;
   volatile gint finished;
+};
+
+struct _GumCrashExceptorContext
+{
+  gboolean called;
+  GumScriptBackend * backend;
 };
 
 struct _TestTrigger
@@ -403,6 +412,19 @@ static gpointer sleeping_dummy (gpointer data);
 
 static gpointer invoke_target_function_int_worker (gpointer data);
 static gpointer invoke_target_function_trigger (gpointer data);
+
+#ifndef HAVE_WINDOWS
+static void exit_on_sigsegv (int sig, siginfo_t * info, void * context);
+static gboolean on_exceptor_called (GumExceptionDetails * details,
+    gpointer user_data);
+#ifdef HAVE_DARWIN
+static gpointer simulate_crash_handler (gpointer user_data);
+static gboolean suspend_all_threads (const GumThreadDetails * details,
+    gpointer user_data);
+static gboolean resume_all_threads (const GumThreadDetails * details,
+    gpointer user_data);
+#endif
+#endif
 
 static void measure_target_function_int_overhead (void);
 static int compare_measurements (gconstpointer element_a,
@@ -4454,6 +4476,149 @@ TESTCASE (timer_cancellation_apis_should_be_forgiving)
       "clearImmediate(undefined);");
   EXPECT_NO_MESSAGES ();
 }
+
+#ifndef HAVE_WINDOWS
+
+TESTCASE (crash_on_thread_holding_js_lock_should_not_deadlock)
+{
+  struct sigaction sa;
+  GThread * worker1, * worker2;
+  GumInvokeTargetContext invoke_ctx;
+  GumCrashExceptorContext crash_ctx;
+  GumExceptor * exceptor;
+
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
+  memset (&sa, 0, sizeof (sigaction));
+  sigemptyset (&sa.sa_mask);
+  sa.sa_flags = SA_NODEFER;
+  sa.sa_sigaction = exit_on_sigsegv;
+  sigaction (SIGSEGV, &sa, NULL);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const strcmp = new NativeFunction("
+      "    Module.getExportByName(null, 'strcmp'),"
+      "    'int', ['pointer', 'pointer'],"
+      "    {"
+      "      scheduling: 'exclusive',"
+      "      exceptions: 'propagate'"
+      "    });"
+
+      "Process.setExceptionHandler(() => {"
+      "  console.log('never called');"
+      "});"
+
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter(args) {"
+      "    strcmp(ptr(341234213), ptr(3423423422));"
+      "  }"
+      "});",
+      target_function_int);
+  EXPECT_NO_MESSAGES ();
+
+  invoke_ctx.script = fixture->script;
+  invoke_ctx.repeat_duration = 1.0;
+  invoke_ctx.started = 0;
+  invoke_ctx.finished = 0;
+
+  crash_ctx.called = FALSE;
+  crash_ctx.backend = fixture->backend;
+
+  exceptor = gum_exceptor_obtain ();
+  gum_exceptor_add (exceptor, on_exceptor_called, &crash_ctx);
+
+  worker1 = g_thread_new ("script-test-worker-thread",
+      invoke_target_function_int_worker, &invoke_ctx);
+  worker2 = g_thread_new ("script-test-worker-thread",
+      invoke_target_function_int_worker, &invoke_ctx);
+
+  while (invoke_ctx.started == 0)
+    g_usleep (G_USEC_PER_SEC / 200);
+  g_usleep (G_USEC_PER_SEC / 10);
+
+  g_assert_true (crash_ctx.called);
+
+  g_thread_join (worker1);
+  g_thread_join (worker2);
+
+  gum_exceptor_remove (exceptor, on_exceptor_called, &crash_ctx);
+  g_object_unref (exceptor);
+}
+
+static void
+exit_on_sigsegv (int sig,
+                 siginfo_t * info,
+                 void * context)
+{
+  exit (0);
+}
+
+static gboolean
+on_exceptor_called (GumExceptionDetails * details,
+                    gpointer user_data)
+{
+  GumCrashExceptorContext * ctx = user_data;
+
+  ctx->called = TRUE;
+
+#ifdef HAVE_DARWIN
+  {
+    GThread * worker = g_thread_new ("fake-crash-handler-thread",
+        simulate_crash_handler, ctx);
+    g_thread_join (worker);
+  }
+#endif
+
+  return FALSE;
+}
+
+#ifdef HAVE_DARWIN
+
+static gpointer
+simulate_crash_handler (gpointer user_data)
+{
+  GumCrashExceptorContext * ctx = user_data;
+  GumScriptBackend * backend = ctx->backend;
+
+  gum_process_enumerate_threads (suspend_all_threads, backend);
+  gum_process_enumerate_threads (resume_all_threads, backend);
+
+  return NULL;
+}
+
+static gboolean
+suspend_all_threads (const GumThreadDetails * details,
+                     gpointer user_data)
+{
+  GumScriptBackend * backend = user_data;
+
+  if (details->id != gum_process_get_current_thread_id ())
+  {
+    gum_script_backend_with_lock_held (backend,
+        (GumScriptBackendLockedFunc) thread_suspend,
+        GSIZE_TO_POINTER (details->id));
+  }
+
+  return TRUE;
+}
+
+static gboolean
+resume_all_threads (const GumThreadDetails * details,
+                    gpointer user_data)
+{
+  if (details->id != gum_process_get_current_thread_id ())
+    thread_resume (details->id);
+
+  return TRUE;
+}
+
+#endif /* HAVE_DARWIN */
+
+#endif /* !HAVE_WINDOWS */
 
 TESTCASE (argument_can_be_read)
 {

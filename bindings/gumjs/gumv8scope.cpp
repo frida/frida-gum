@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -26,7 +27,9 @@ ScriptScope::ScriptScope (GumV8Script * parent)
   _gum_v8_core_pin (core);
 
   next_scope = core->current_scope;
+  next_owner = core->current_owner;
   core->current_scope = this;
+  core->current_owner = gum_process_get_current_thread_id ();
 
   root_scope = this;
   while (root_scope->next_scope != nullptr)
@@ -52,6 +55,7 @@ ScriptScope::~ScriptScope ()
     PerformPendingIO ();
 
   core->current_scope = next_scope;
+  core->current_owner = next_owner;
 
   _gum_v8_core_unpin (core);
 
@@ -188,14 +192,17 @@ ScriptUnlocker::ExitInterceptorScope::~ExitInterceptorScope ()
 
 ScriptUnlocker::ExitCurrentScope::ExitCurrentScope (GumV8Core * core)
   : core (core),
-    scope (core->current_scope)
+    scope (core->current_scope),
+    owner (core->current_owner)
 {
   core->current_scope = nullptr;
+  core->current_owner = GUM_THREAD_ID_INVALID;
 }
 
 ScriptUnlocker::ExitCurrentScope::~ExitCurrentScope ()
 {
   core->current_scope = scope;
+  core->current_owner = owner;
 }
 
 ScriptUnlocker::ExitIsolateScope::ExitIsolateScope (Isolate * isolate)

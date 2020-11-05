@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -523,6 +524,9 @@ gum_quick_exception_handler_on_exception (GumExceptionDetails * details,
   GumQuickScope scope;
   JSValue d, r;
   GumQuickCpuContext * cpu_context;
+
+  if (gum_quick_script_backend_is_scope_mutex_trapped (core->backend))
+    return FALSE;
 
   _gum_quick_scope_enter (&scope, core);
 

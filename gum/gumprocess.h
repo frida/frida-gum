@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2008-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -8,6 +9,8 @@
 #define __GUM_PROCESS_H__
 
 #include <gum/gummemory.h>
+
+#define GUM_THREAD_ID_INVALID ((GumThreadId) -1)
 
 #define GUM_TYPE_MODULE_DETAILS (gum_module_details_get_type ())
 #define GUM_TYPE_CODE_SIGNING_POLICY (gum_code_signing_policy_get_type ())

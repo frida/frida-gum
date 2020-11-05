@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -419,6 +420,9 @@ gum_v8_exception_handler_on_exception (GumExceptionDetails * details,
                                        GumV8ExceptionHandler * handler)
 {
   auto core = handler->core;
+
+  if (gum_v8_script_backend_is_scope_mutex_trapped (core->backend))
+    return FALSE;
 
   ScriptScope scope (core->script);
   auto isolate = core->isolate;

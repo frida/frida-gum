@@ -2,6 +2,7 @@
  * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
+ * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -143,6 +144,9 @@ struct GumV8SourceMap
 
   GumV8Core * core;
 };
+
+static gboolean gum_v8_core_handle_crashed_js (GumExceptionDetails * details,
+    gpointer user_data);
 
 static void gum_v8_core_clear_weak_refs (GumV8Core * self);
 static void gum_v8_flush_callback_free (GumV8FlushCallback * self);
@@ -474,6 +478,7 @@ _gum_v8_core_init (GumV8Core * self,
   self->isolate = isolate;
 
   self->current_scope = nullptr;
+  self->current_owner = GUM_THREAD_ID_INVALID;
   self->usage_count = 0;
   self->flush_notify = NULL;
 
@@ -680,6 +685,27 @@ _gum_v8_core_init (GumV8Core * self,
   _gum_v8_class_add (source_map, gumjs_source_map_functions, module, isolate);
   self->source_map =
       new GumPersistent<FunctionTemplate>::type (isolate, source_map);
+
+  gum_exceptor_add (self->exceptor, gum_v8_core_handle_crashed_js, self);
+}
+
+static gboolean
+gum_v8_core_handle_crashed_js (GumExceptionDetails * details,
+                               gpointer user_data)
+{
+  GumV8Core * self = (GumV8Core *) user_data;
+  GumThreadId thread_id = details->thread_id;
+
+  if (gum_exceptor_has_scope (self->exceptor, thread_id))
+    return FALSE;
+
+  if (self->current_owner == thread_id)
+  {
+    gum_interceptor_end_transaction (self->script->interceptor.interceptor);
+    gum_v8_script_backend_mark_scope_mutex_trapped (self->backend);
+  }
+
+  return FALSE;
 }
 
 void
@@ -953,6 +979,7 @@ _gum_v8_core_finalize (GumV8Core * self)
   delete self->int64;
   self->int64 = nullptr;
 
+  gum_exceptor_remove (self->exceptor, gum_v8_core_handle_crashed_js, self);
   g_object_unref (self->exceptor);
   self->exceptor = NULL;
 
