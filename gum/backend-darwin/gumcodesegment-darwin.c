@@ -757,10 +757,10 @@ static gboolean
 gum_file_check_sandbox_allows (const gchar * path,
                                const gchar * operation)
 {
-  static volatile gsize initialized = FALSE;
-  static volatile gint (* check) (pid_t pid, const gchar * operation,
+  static gsize initialized = FALSE;
+  static gint (* check) (pid_t pid, const gchar * operation,
       GumSandboxFilterType type, ...) = NULL;
-  static volatile GumSandboxFilterType no_report = 0;
+  static GumSandboxFilterType no_report = 0;
 
   if (g_once_init_enter (&initialized))
   {
@@ -796,7 +796,7 @@ gum_file_check_sandbox_allows (const gchar * path,
 static mach_port_t
 gum_try_get_substrated_port (void)
 {
-  static volatile gsize cached_result = 0;
+  static gsize cached_result = 0;
 
   if (g_once_init_enter (&cached_result))
   {

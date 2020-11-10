@@ -64,7 +64,7 @@ static void gum_script_backend_deinit_qjs (void);
 GumScriptBackend *
 gum_script_backend_obtain_qjs (void)
 {
-  static volatile gsize gonce_value;
+  static gsize gonce_value;
 
   if (g_once_init_enter (&gonce_value))
   {
@@ -103,7 +103,7 @@ static void gum_script_backend_deinit_v8 (void);
 GumScriptBackend *
 gum_script_backend_obtain_v8 (void)
 {
-  static volatile gsize gonce_value;
+  static gsize gonce_value;
 
   if (g_once_init_enter (&gonce_value))
   {
@@ -264,7 +264,7 @@ gum_script_backend_is_locked (GumScriptBackend * self)
 GumScriptScheduler *
 gum_script_backend_get_scheduler (void)
 {
-  static volatile gsize gonce_value;
+  static gsize gonce_value;
 
   if (g_once_init_enter (&gonce_value))
   {

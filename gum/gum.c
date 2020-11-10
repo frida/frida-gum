@@ -719,7 +719,7 @@ gum_query_cpu_features (void)
 GType
 gum_cpu_type_get_type (void)
 {
-  static volatile gsize gonce_value;
+  static gsize gonce_value;
 
   if (g_once_init_enter (&gonce_value))
   {

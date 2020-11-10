@@ -263,7 +263,7 @@ static void gum_cmodule_deinit_symbols (void);
 static GHashTable *
 gum_cmodule_get_symbols (void)
 {{
-  static volatile gsize gonce_value;
+  static gsize gonce_value;
 
   if (g_once_init_enter (&gonce_value))
   {{

@@ -2984,7 +2984,7 @@ gum_darwin_export_details_init_from_node (GumDarwinExportDetails * details,
 GType
 gum_darwin_module_flags_get_type (void)
 {
-  static volatile gsize gonce_value;
+  static gsize gonce_value;
 
   if (g_once_init_enter (&gonce_value))
   {

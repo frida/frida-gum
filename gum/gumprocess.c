@@ -175,7 +175,7 @@ gum_store_address_if_name_matches (const GumSymbolDetails * details,
 GType
 gum_code_signing_policy_get_type (void)
 {
-  static volatile gsize gonce_value;
+  static gsize gonce_value;
 
   if (g_once_init_enter (&gonce_value))
   {
