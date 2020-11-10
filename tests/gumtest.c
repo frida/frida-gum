@@ -275,11 +275,7 @@ main (gint argc, gchar * argv[])
     if (qjs_backend != NULL)
       TESTLIST_REGISTER_WITH_DATA (script, qjs_backend);
 
-# ifndef HAVE_ASAN
     v8_backend = gum_script_backend_obtain_v8 ();
-# else
-    v8_backend = NULL;
-# endif
     if (v8_backend != NULL)
       TESTLIST_REGISTER_WITH_DATA (script, v8_backend);
 
