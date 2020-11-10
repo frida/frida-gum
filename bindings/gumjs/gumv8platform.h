@@ -60,6 +60,8 @@ public:
   void CallDelayedOnWorkerThread (std::unique_ptr<v8::Task> task,
       double delay_in_seconds) override;
   bool IdleTasksEnabled (v8::Isolate * isolate) override;
+  std::unique_ptr<v8::JobHandle> PostJob (v8::TaskPriority priority,
+      std::unique_ptr<v8::JobTask> job_task) override;
   double MonotonicallyIncreasingTime () override;
   double CurrentClockTimeMillis () override;
   v8::ThreadingBackend * GetThreadingBackend () override;
@@ -80,7 +82,7 @@ private:
   static void PerformDelayedThreadPoolOperation (gpointer data);
   static void ReleaseDelayedThreadPoolOperation (gpointer data);
 
-  GMutex lock;
+  GMutex mutex;
   v8::Isolate * shared_isolate;
   GumV8Bundle * runtime_bundle;
   GumV8Bundle * objc_bundle;

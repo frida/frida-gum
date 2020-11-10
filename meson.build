@@ -3,7 +3,7 @@ project('frida-gum', 'c', 'cpp',
   meson_version: '>=0.54.0',
   default_options: [
     'c_std=gnu99',
-    'cpp_std=c++11',
+    'cpp_std=c++14',
     'cpp_eh=none',
     'cpp_rtti=false',
   ],
@@ -281,7 +281,7 @@ if have_gumjs
     cdata.set('HAVE_QUICKJS', 1)
   endif
 
-  v8_dep = dependency('v8-8.0', version: '>=8.3.125', required: get_option('v8'))
+  v8_dep = dependency('v8-8.0', version: '>=8.8.273', required: get_option('v8'))
   have_v8 = v8_dep.found()
   if have_v8
     cdata.set('HAVE_V8', 1)

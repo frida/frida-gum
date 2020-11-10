@@ -17,6 +17,11 @@
 
 using namespace v8;
 
+namespace
+{
+  constexpr size_t kMaxWorkerPerJob = 32;
+}
+
 static GumPageProtection gum_page_protection_from_v8 (
     PageAllocator::Permission permission);
 
@@ -134,9 +139,109 @@ private:
   GHashTable * pending;
 };
 
+/* The following three classes are based on the default implementation in V8. */
+
+class GumV8JobState : public std::enable_shared_from_this<GumV8JobState>
+{
+public:
+  GumV8JobState (GumV8Platform * platform, std::unique_ptr<JobTask> job_task,
+      TaskPriority priority, size_t num_worker_threads);
+  GumV8JobState (const GumV8JobState &) = delete;
+  GumV8JobState & operator= (const GumV8JobState &) = delete;
+  virtual ~GumV8JobState ();
+
+  void NotifyConcurrencyIncrease ();
+  uint8_t AcquireTaskId ();
+  void ReleaseTaskId (uint8_t task_id);
+  void Join ();
+  void CancelAndWait ();
+  void CancelAndDetach ();
+  bool IsActive ();
+  void UpdatePriority (TaskPriority new_priority);
+  bool CanRunFirstTask ();
+  bool DidRunTask ();
+
+private:
+  bool WaitForParticipationOpportunityLocked ();
+  size_t CappedMaxConcurrency (size_t worker_count) const;
+  void CallOnWorkerThread (TaskPriority priority, std::unique_ptr<Task> task);
+
+public:
+  class JobDelegate : public v8::JobDelegate
+  {
+  public:
+    explicit JobDelegate (GumV8JobState * parent, bool is_joining_thread);
+    ~JobDelegate ();
+
+    void NotifyConcurrencyIncrease () override;
+    bool ShouldYield () override;
+    uint8_t GetTaskId () override;
+    bool IsJoiningThread () const override { return is_joining_thread; }
+
+  private:
+    static constexpr uint8_t kInvalidTaskId = G_MAXUINT8;
+
+    GumV8JobState * parent;
+    uint8_t task_id = kInvalidTaskId;
+    bool is_joining_thread;
+  };
+
+private:
+  GMutex mutex;
+  GumV8Platform * platform;
+  std::unique_ptr<JobTask> job_task;
+  TaskPriority priority;
+  size_t num_worker_threads;
+  size_t active_workers = 0;
+  GCond worker_released_cond;
+  size_t pending_tasks = 0;
+  std::atomic<uint32_t> assigned_task_ids { 0 };
+  std::atomic_bool is_canceled { false };
+};
+
+class GumV8JobHandle : public JobHandle
+{
+public:
+  GumV8JobHandle (std::shared_ptr<GumV8JobState> state);
+  GumV8JobHandle (const GumV8JobHandle &) = delete;
+  GumV8JobHandle & operator= (const GumV8JobHandle &) = delete;
+  ~GumV8JobHandle () override;
+
+  void NotifyConcurrencyIncrease () override;
+  void Join () override;
+  void Cancel () override;
+  void CancelAndDetach () override;
+  bool IsCompleted () override { return !IsActive (); }
+  bool IsActive () override;
+  bool IsRunning () override { return IsValid (); }
+  bool IsValid () override { return state != nullptr; }
+  bool UpdatePriorityEnabled () const override { return true; }
+  void UpdatePriority (TaskPriority new_priority) override;
+
+private:
+  std::shared_ptr<GumV8JobState> state;
+};
+
+class GumV8JobWorker : public Task
+{
+public:
+  GumV8JobWorker (std::weak_ptr<GumV8JobState> state, JobTask * job_task);
+  GumV8JobWorker (const GumV8JobWorker &) = delete;
+  GumV8JobWorker & operator= (const GumV8JobWorker &) = delete;
+  ~GumV8JobWorker () override = default;
+
+  void Run () override;
+
+private:
+  std::weak_ptr<GumV8JobState> state;
+  JobTask * job_task;
+};
+
 class GumV8PageAllocator : public PageAllocator
 {
 public:
+  GumV8PageAllocator () = default;
+
   size_t AllocatePageSize () override;
   size_t CommitPageSize () override;
   void SetRandomMmapSeed (int64_t seed) override;
@@ -234,48 +339,72 @@ private:
   GCond cond;
 };
 
+class GumMutexLocker
+{
+public:
+  GumMutexLocker (GMutex * mutex)
+    : mutex (mutex)
+  {
+    g_mutex_lock (mutex);
+  }
+
+  GumMutexLocker (const GumMutexLocker &) = delete;
+
+  GumMutexLocker & operator= (const GumMutexLocker &) = delete;
+
+  ~GumMutexLocker ()
+  {
+    g_mutex_unlock (mutex);
+  }
+
+private:
+  GMutex * mutex;
+};
+
+class GumMutexUnlocker
+{
+public:
+  GumMutexUnlocker (GMutex * mutex)
+    : mutex (mutex)
+  {
+    g_mutex_unlock (mutex);
+  }
+
+  GumMutexUnlocker (const GumMutexUnlocker &) = delete;
+
+  GumMutexUnlocker & operator= (const GumMutexUnlocker &) = delete;
+
+  ~GumMutexUnlocker ()
+  {
+    g_mutex_lock (mutex);
+  }
+
+private:
+  GMutex * mutex;
+};
+
 class GumV8PlatformLocker
 {
 public:
   GumV8PlatformLocker (GumV8Platform * platform)
-    : platform (platform)
+    : locker (&platform->mutex)
   {
-    g_mutex_lock (&platform->lock);
-  }
-
-  GumV8PlatformLocker (const GumV8PlatformLocker &) = delete;
-
-  GumV8PlatformLocker & operator= (const GumV8PlatformLocker &) = delete;
-
-  ~GumV8PlatformLocker ()
-  {
-    g_mutex_unlock (&platform->lock);
   }
 
 private:
-  GumV8Platform * platform;
+  GumMutexLocker locker;
 };
 
 class GumV8PlatformUnlocker
 {
 public:
   GumV8PlatformUnlocker (GumV8Platform * platform)
-    : platform (platform)
+    : unlocker (&platform->mutex)
   {
-    g_mutex_unlock (&platform->lock);
-  }
-
-  GumV8PlatformUnlocker (const GumV8PlatformUnlocker &) = delete;
-
-  GumV8PlatformUnlocker & operator= (const GumV8PlatformUnlocker &) = delete;
-
-  ~GumV8PlatformUnlocker ()
-  {
-    g_mutex_lock (&platform->lock);
   }
 
 private:
-  GumV8Platform * platform;
+  GumMutexUnlocker unlocker;
 };
 
 class GumV8InterceptorIgnoreScope
@@ -307,7 +436,7 @@ GumV8Platform::GumV8Platform ()
     threading_backend (new GumV8ThreadingBackend ()),
     tracing_controller (new TracingController ())
 {
-  g_mutex_init (&lock);
+  g_mutex_init (&mutex);
 
   g_object_ref (scheduler);
 
@@ -330,7 +459,7 @@ GumV8Platform::~GumV8Platform ()
 
   g_object_unref (scheduler);
 
-  g_mutex_clear (&lock);
+  g_mutex_clear (&mutex);
 }
 
 void
@@ -713,6 +842,18 @@ GumV8Platform::IdleTasksEnabled (Isolate * isolate)
   return true;
 }
 
+std::unique_ptr<JobHandle>
+GumV8Platform::PostJob (TaskPriority priority,
+                        std::unique_ptr<JobTask> job_task)
+{
+  size_t num_worker_threads = NumberOfWorkerThreads ();
+  if (priority == TaskPriority::kBestEffort)
+    num_worker_threads = std::min (num_worker_threads, (size_t) 2);
+
+  return std::make_unique<GumV8JobHandle> (std::make_shared<GumV8JobState> (
+      this, std::move (job_task), priority, num_worker_threads));
+}
+
 double
 GumV8Platform::MonotonicallyIncreasingTime ()
 {
@@ -806,7 +947,7 @@ GumV8MainContextOperation::Await ()
 {
   GumV8PlatformLocker locker (platform);
   while (state != kCompleted && state != kCanceled)
-    g_cond_wait (&cond, &platform->lock);
+    g_cond_wait (&cond, &platform->mutex);
 }
 
 GumV8ThreadPoolOperation::GumV8ThreadPoolOperation (
@@ -858,7 +999,7 @@ GumV8ThreadPoolOperation::Await ()
 {
   GumV8PlatformLocker locker (platform);
   while (state != kCompleted && state != kCanceled)
-    g_cond_wait (&cond, &platform->lock);
+    g_cond_wait (&cond, &platform->mutex);
 }
 
 GumV8DelayedThreadPoolOperation::GumV8DelayedThreadPoolOperation (
@@ -922,7 +1063,7 @@ GumV8DelayedThreadPoolOperation::Await ()
 {
   GumV8PlatformLocker locker (platform);
   while (state != kCompleted && state != kCanceled)
-    g_cond_wait (&cond, &platform->lock);
+    g_cond_wait (&cond, &platform->mutex);
 }
 
 GumV8ForegroundTaskRunner::GumV8ForegroundTaskRunner (GumV8Platform * platform,
@@ -1021,6 +1162,340 @@ GumV8ForegroundTaskRunner::Run (IdleTask * task)
   const double deadline_in_seconds =
       platform->MonotonicallyIncreasingTime () + (1.0 / 60.0);
   task->Run (deadline_in_seconds);
+}
+
+GumV8JobState::GumV8JobState (GumV8Platform * platform,
+                              std::unique_ptr<JobTask> job_task,
+                              TaskPriority priority,
+                              size_t num_worker_threads)
+  : platform (platform),
+    job_task (std::move (job_task)),
+    priority (priority),
+    num_worker_threads (std::min (num_worker_threads, kMaxWorkerPerJob))
+{
+  g_mutex_init (&mutex);
+  g_cond_init (&worker_released_cond);
+}
+
+GumV8JobState::~GumV8JobState ()
+{
+  g_assert (active_workers == 0);
+
+  g_cond_clear (&worker_released_cond);
+  g_mutex_clear (&mutex);
+}
+
+void
+GumV8JobState::NotifyConcurrencyIncrease ()
+{
+  if (is_canceled.load (std::memory_order_relaxed))
+    return;
+
+  size_t num_tasks_to_post = 0;
+  TaskPriority priority_to_use;
+  {
+    GumMutexLocker locker (&mutex);
+
+    const size_t max_concurrency = CappedMaxConcurrency (active_workers);
+    if (active_workers + pending_tasks < max_concurrency)
+    {
+      num_tasks_to_post = max_concurrency - active_workers - pending_tasks;
+      pending_tasks += num_tasks_to_post;
+    }
+
+    priority_to_use = priority;
+  }
+
+  for (size_t i = 0; i != num_tasks_to_post; i++)
+  {
+    CallOnWorkerThread (priority_to_use, std::make_unique<GumV8JobWorker> (
+        shared_from_this (), job_task.get ()));
+  }
+}
+
+uint8_t
+GumV8JobState::AcquireTaskId ()
+{
+  uint32_t task_ids = assigned_task_ids.load (std::memory_order_relaxed);
+  uint32_t new_task_ids = 0;
+
+  uint8_t task_id = 0;
+  do
+  {
+    task_id = g_bit_nth_lsf (~task_ids, -1);
+    new_task_ids = task_ids | (uint32_t (1) << task_id);
+  }
+  while (!assigned_task_ids.compare_exchange_weak (task_ids, new_task_ids,
+      std::memory_order_acquire, std::memory_order_relaxed));
+
+  return task_id;
+}
+
+void
+GumV8JobState::ReleaseTaskId (uint8_t task_id)
+{
+  assigned_task_ids.fetch_and (~(uint32_t (1) << task_id),
+      std::memory_order_release);
+}
+
+void
+GumV8JobState::Join ()
+{
+  bool can_run = false;
+
+  {
+    GumMutexLocker locker (&mutex);
+
+    priority = TaskPriority::kUserBlocking;
+    num_worker_threads = platform->NumberOfWorkerThreads () + 1;
+    active_workers++;
+
+    can_run = WaitForParticipationOpportunityLocked ();
+  }
+
+  GumV8JobState::JobDelegate delegate (this, true);
+  while (can_run)
+  {
+    job_task->Run (&delegate);
+
+    GumMutexLocker locker (&mutex);
+    can_run = WaitForParticipationOpportunityLocked ();
+  }
+}
+
+void
+GumV8JobState::CancelAndWait ()
+{
+  GumMutexLocker locker (&mutex);
+
+  is_canceled.store (true, std::memory_order_relaxed);
+
+  while (active_workers > 0)
+    g_cond_wait (&worker_released_cond, &mutex);
+}
+
+void
+GumV8JobState::CancelAndDetach ()
+{
+  GumMutexLocker locker (&mutex);
+
+  is_canceled.store (true, std::memory_order_relaxed);
+}
+
+bool
+GumV8JobState::IsActive ()
+{
+  GumMutexLocker locker (&mutex);
+
+  return job_task->GetMaxConcurrency (active_workers) != 0 ||
+      active_workers != 0;
+}
+
+void
+GumV8JobState::UpdatePriority (TaskPriority new_priority)
+{
+  GumMutexLocker locker (&mutex);
+
+  priority = new_priority;
+}
+
+bool
+GumV8JobState::CanRunFirstTask ()
+{
+  GumMutexLocker locker (&mutex);
+
+  pending_tasks--;
+
+  if (is_canceled.load (std::memory_order_relaxed))
+    return false;
+
+  const size_t max_workers = std::min (
+      job_task->GetMaxConcurrency (active_workers), num_worker_threads);
+  if (active_workers >= max_workers)
+    return false;
+
+  active_workers++;
+  return true;
+}
+
+bool
+GumV8JobState::DidRunTask ()
+{
+  size_t num_tasks_to_post = 0;
+  TaskPriority priority_to_use;
+  {
+    GumMutexLocker locker (&mutex);
+
+    const size_t max_concurrency = CappedMaxConcurrency (active_workers - 1);
+    if (is_canceled.load (std::memory_order_relaxed) ||
+        active_workers > max_concurrency)
+    {
+      active_workers--;
+      g_cond_signal (&worker_released_cond);
+      return false;
+    }
+
+    if (active_workers + pending_tasks < max_concurrency)
+    {
+      num_tasks_to_post = max_concurrency - active_workers - pending_tasks;
+      pending_tasks += num_tasks_to_post;
+    }
+
+    priority_to_use = priority;
+  }
+
+  for (size_t i = 0; i != num_tasks_to_post; i++)
+  {
+    CallOnWorkerThread (priority_to_use, std::make_unique<GumV8JobWorker> (
+        shared_from_this (), job_task.get ()));
+  }
+
+  return true;
+}
+
+bool
+GumV8JobState::WaitForParticipationOpportunityLocked ()
+{
+  size_t max_concurrency = CappedMaxConcurrency (active_workers - 1);
+  while (active_workers > max_concurrency && active_workers > 1)
+  {
+    g_cond_wait (&worker_released_cond, &mutex);
+    max_concurrency = CappedMaxConcurrency (active_workers - 1);
+  }
+
+  if (active_workers <= max_concurrency)
+    return true;
+
+  g_assert (active_workers == 1);
+  g_assert (max_concurrency == 0);
+
+  active_workers = 0;
+  is_canceled.store (true, std::memory_order_relaxed);
+
+  return false;
+}
+
+size_t
+GumV8JobState::CappedMaxConcurrency (size_t worker_count) const
+{
+  return std::min (job_task->GetMaxConcurrency (worker_count),
+      num_worker_threads);
+}
+
+void
+GumV8JobState::CallOnWorkerThread (TaskPriority priority,
+                                   std::unique_ptr<Task> task)
+{
+  std::shared_ptr<Task> t (std::move (task));
+  platform->ScheduleOnThreadPool ([=]() { t->Run (); });
+}
+
+GumV8JobState::JobDelegate::JobDelegate (GumV8JobState * parent,
+                                         bool is_joining_thread)
+  : parent (parent),
+    is_joining_thread (is_joining_thread)
+{
+}
+
+GumV8JobState::JobDelegate::~JobDelegate ()
+{
+  if (task_id != kInvalidTaskId)
+    parent->ReleaseTaskId (task_id);
+}
+
+void
+GumV8JobState::JobDelegate::NotifyConcurrencyIncrease ()
+{
+  parent->NotifyConcurrencyIncrease ();
+}
+
+bool
+GumV8JobState::JobDelegate::ShouldYield ()
+{
+  return parent->is_canceled.load (std::memory_order_relaxed);
+}
+
+uint8_t
+GumV8JobState::JobDelegate::GetTaskId ()
+{
+  if (task_id == kInvalidTaskId)
+    task_id = parent->AcquireTaskId ();
+  return task_id;
+}
+
+GumV8JobHandle::GumV8JobHandle (std::shared_ptr<GumV8JobState> state)
+  : state (std::move (state))
+{
+  this->state->NotifyConcurrencyIncrease ();
+}
+
+GumV8JobHandle::~GumV8JobHandle ()
+{
+  g_assert (state == nullptr);
+}
+
+void
+GumV8JobHandle::NotifyConcurrencyIncrease ()
+{
+  state->NotifyConcurrencyIncrease ();
+}
+
+void
+GumV8JobHandle::Join ()
+{
+  state->Join ();
+  state = nullptr;
+}
+
+void
+GumV8JobHandle::Cancel ()
+{
+  state->CancelAndWait ();
+  state = nullptr;
+}
+
+void
+GumV8JobHandle::CancelAndDetach ()
+{
+  state->CancelAndDetach ();
+  state = nullptr;
+}
+
+bool
+GumV8JobHandle::IsActive ()
+{
+  return state->IsActive ();
+}
+
+void
+GumV8JobHandle::UpdatePriority (TaskPriority new_priority)
+{
+  state->UpdatePriority (new_priority);
+}
+
+GumV8JobWorker::GumV8JobWorker (std::weak_ptr<GumV8JobState> state,
+                                JobTask * job_task)
+  : state (std::move (state)),
+    job_task (job_task)
+{
+}
+
+void
+GumV8JobWorker::Run ()
+{
+  auto shared_state = state.lock ();
+  if (shared_state == nullptr)
+    return;
+
+  if (!shared_state->CanRunFirstTask ())
+    return;
+
+  do
+  {
+    GumV8JobState::JobDelegate delegate (shared_state.get (), false);
+    job_task->Run (&delegate);
+  }
+  while (shared_state->DidRunTask ());
 }
 
 size_t
