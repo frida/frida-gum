@@ -126,6 +126,8 @@ struct GumV8NativeFunction
 
 struct GumV8NativeCallback
 {
+  gint ref_count;
+
   GumPersistent<Object>::type * wrapper;
 
   GumPersistent<Function>::type * func;
@@ -283,7 +285,10 @@ static gboolean gum_v8_code_traps_parse (Local<Value> value,
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_callback_construct)
 static void gum_v8_native_callback_on_weak_notify (
     const WeakCallbackInfo<GumV8NativeCallback> & info);
-static void gum_v8_native_callback_free (GumV8NativeCallback * callback);
+static GumV8NativeCallback * gum_v8_native_callback_ref (
+    GumV8NativeCallback * callback);
+static void gum_v8_native_callback_unref (GumV8NativeCallback * callback);
+static void gum_v8_native_callback_clear (GumV8NativeCallback * self);
 static void gum_v8_native_callback_invoke (ffi_cif * cif,
     void * return_value, void ** args, void * user_data);
 
@@ -738,7 +743,7 @@ _gum_v8_core_realize (GumV8Core * self)
       (GDestroyNotify) gum_v8_native_function_free);
 
   self->native_callbacks = g_hash_table_new_full (NULL, NULL, NULL,
-      (GDestroyNotify) gum_v8_native_callback_free);
+      (GDestroyNotify) gum_v8_native_callback_clear);
 
   self->native_resources = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) _gum_v8_native_resource_free);
@@ -2832,6 +2837,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
     return;
 
   callback = g_slice_new0 (GumV8NativeCallback);
+  callback->ref_count = 1;
   callback->func = new GumPersistent<Function>::type (isolate, func_value);
   callback->core = core;
 
@@ -2891,7 +2897,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
   return;
 
 error:
-  gum_v8_native_callback_free (callback);
+  gum_v8_native_callback_unref (callback);
 }
 
 static void
@@ -2903,23 +2909,42 @@ gum_v8_native_callback_on_weak_notify (
   g_hash_table_remove (self->core->native_callbacks, self);
 }
 
+static GumV8NativeCallback *
+gum_v8_native_callback_ref (GumV8NativeCallback * callback)
+{
+  g_atomic_int_inc (&callback->ref_count);
+
+  return callback;
+}
+
 static void
-gum_v8_native_callback_free (GumV8NativeCallback * self)
+gum_v8_native_callback_unref (GumV8NativeCallback * callback)
+{
+  if (!g_atomic_int_dec_and_test (&callback->ref_count))
+    return;
+
+  gum_v8_native_callback_clear (callback);
+
+  ffi_closure_free (callback->closure);
+
+  while (callback->data != NULL)
+  {
+    auto head = callback->data;
+    g_free (head->data);
+    callback->data = g_slist_delete_link (callback->data, head);
+  }
+  g_free (callback->atypes);
+
+  g_slice_free (GumV8NativeCallback, callback);
+}
+
+static void
+gum_v8_native_callback_clear (GumV8NativeCallback * self)
 {
   delete self->wrapper;
   delete self->func;
-
-  ffi_closure_free (self->closure);
-
-  while (self->data != NULL)
-  {
-    auto head = self->data;
-    g_free (head->data);
-    self->data = g_slist_delete_link (self->data, head);
-  }
-  g_free (self->atypes);
-
-  g_slice_free (GumV8NativeCallback, self);
+  self->wrapper = nullptr;
+  self->func = nullptr;
 }
 
 static void
@@ -2932,6 +2957,8 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
   ScriptScope scope (self->core->script);
   auto isolate = self->core->isolate;
   auto context = isolate->GetCurrentContext ();
+
+  gum_v8_native_callback_ref (self);
 
   auto rtype = cif->rtype;
   auto retval = (GumFFIValue *) return_value;
@@ -2993,6 +3020,8 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
 
   for (guint i = 0; i != cif->nargs; i++)
     argv[i].~Local<Value> ();
+
+  gum_v8_native_callback_unref (self);
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_cpu_context_construct)
