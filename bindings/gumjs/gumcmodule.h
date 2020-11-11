@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2019-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -20,7 +20,7 @@ struct _GumCSymbolDetails
   gpointer address;
 };
 
-typedef gboolean (* GumFoundCSymbolFunc) (const GumCSymbolDetails * details,
+typedef void (* GumFoundCSymbolFunc) (const GumCSymbolDetails * details,
     gpointer user_data);
 
 GUM_API GumCModule * gum_cmodule_new (const gchar * source, GError ** error);

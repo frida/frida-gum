@@ -6586,7 +6586,13 @@ TESTCASE (cmodule_should_report_linking_errors)
   COMPILE_AND_LOAD_SCRIPT ("new CModule('"
       "extern int v; int f (void) { return v; }');");
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
-      "Error: linking failed: tcc: error: undefined symbol 'v'");
+      "Error: linking failed: tcc: error: undefined symbol '"
+#ifdef HAVE_DARWIN
+      "_v"
+#else
+      "v"
+#endif
+      "'");
 }
 
 TESTCASE (cmodule_should_provide_lifecycle_hooks)
@@ -6658,18 +6664,19 @@ TESTCASE (cmodule_can_be_used_with_interceptor_attach)
       "  void\\n"
       "  onEnter (GumInvocationContext * ic)\\n"
       "  {\\n"
-      "    int arg = (int) gum_invocation_context_get_nth_argument (ic, 0);\\n"
+      "    int arg = GPOINTER_TO_INT (\\n"
+      "        gum_invocation_context_get_nth_argument (ic, 0));\\n"
       "\\n"
       "    seenArgval = arg;\\n"
       "    gum_invocation_context_replace_nth_argument (ic, 0,\\n"
-      "        (gpointer) (arg + 1));\\n"
+      "        GINT_TO_POINTER (arg + 1));\\n"
       "\\n"
       "    seenReturnAddress =\\n"
       "        gum_invocation_context_get_return_address (ic);\\n"
       "    seenThreadId = gum_invocation_context_get_thread_id (ic);\\n"
       "    seenDepth = gum_invocation_context_get_depth (ic);\\n"
       "\\n"
-      "    seenFunctionData = GUM_IC_GET_FUNC_DATA (ic, int);\\n"
+      "    seenFunctionData = GUM_IC_GET_FUNC_DATA (ic, gsize);\\n"
       "\\n"
       "    ThreadState * ts = GUM_IC_GET_THREAD_DATA (ic, ThreadState);\\n"
       "    ts->calls++;\\n"
@@ -6681,8 +6688,10 @@ TESTCASE (cmodule_can_be_used_with_interceptor_attach)
       "  void\\n"
       "  onLeave (GumInvocationContext * ic)\\n"
       "  {\\n"
-      "    seenRetval = (int) gum_invocation_context_get_return_value (ic);\\n"
-      "    gum_invocation_context_replace_return_value (ic, (gpointer) 42);\\n"
+      "    seenRetval = GPOINTER_TO_INT (\\n"
+      "        gum_invocation_context_get_return_value (ic));\\n"
+      "    gum_invocation_context_replace_return_value (ic,\\n"
+      "        GINT_TO_POINTER (42));\\n"
       "\\n"
       "    ThreadState * ts = GUM_IC_GET_THREAD_DATA (ic, ThreadState);\\n"
       "    seenThreadStateCalls = ts->calls;\\n"
@@ -6743,7 +6752,7 @@ TESTCASE (cmodule_can_be_used_with_interceptor_replace)
       "{\\n"
       "  GumInvocationContext * ic =\\n"
       "      gum_interceptor_get_current_invocation ();\\n"
-      "  seenReplacementData = GUM_IC_GET_REPLACEMENT_DATA (ic, int);\\n"
+      "  seenReplacementData = GUM_IC_GET_REPLACEMENT_DATA (ic, gsize);\\n"
       "\\n"
       "  return 1337;\\n"
       "}\\n"

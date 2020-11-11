@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2019-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -42,15 +42,15 @@ struct _GumEnumerateSymbolsContext
 };
 
 static void gum_append_tcc_error (void * opaque, const char * msg);
-static int gum_emit_symbol (void * opaque, const TCCSymbolDetails * details);
+static void gum_emit_symbol (void * ctx, const char * name, const void * val);
 static const char * gum_cmodule_load_header (void * opaque, const char * path,
     int * len);
 static void * gum_cmodule_resolve_symbol (void * opaque, const char * name);
 static void gum_define_symbol_str (TCCState * state, const gchar * name,
     const gchar * value);
+static const gchar * gum_undecorate_name (const gchar * name);
 
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8 && !defined (_MSC_VER)
-extern void __va_start (void * ap, void * fp);
 extern void * __va_arg (void * ap, int arg_type, int size, int align);
 #endif
 
@@ -122,7 +122,6 @@ gum_cmodule_new (const gchar * source,
     goto failure;
 
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8 && !defined (_MSC_VER)
-  tcc_add_symbol (state, "__va_start", __va_start);
   tcc_add_symbol (state, "__va_arg", __va_arg);
 #endif
 
@@ -276,23 +275,21 @@ gum_cmodule_enumerate_symbols (GumCModule * self,
   ctx.func = func;
   ctx.user_data = user_data;
 
-  tcc_enumerate_symbols (state, &ctx, gum_emit_symbol);
+  tcc_list_symbols (state, &ctx, gum_emit_symbol);
 }
 
-static int
-gum_emit_symbol (void * opaque,
-                 const TCCSymbolDetails * details)
+static void
+gum_emit_symbol (void * ctx,
+                 const char * name,
+                 const void * val)
 {
-  GumEnumerateSymbolsContext * ctx = opaque;
+  GumEnumerateSymbolsContext * sc = ctx;
   GumCSymbolDetails d;
-  gboolean carry_on;
 
-  d.name = details->name;
-  d.address = details->value;
+  d.name = gum_undecorate_name (name);
+  d.address = (gpointer) val;
 
-  carry_on = ctx->func (&d, ctx->user_data);
-
-  return carry_on ? 0 : -1;
+  sc->func (&d, sc->user_data);
 }
 
 gpointer
@@ -342,7 +339,8 @@ static void *
 gum_cmodule_resolve_symbol (void * opaque,
                             const char * name)
 {
-  return g_hash_table_lookup (gum_cmodule_get_symbols (), name);
+  return g_hash_table_lookup (gum_cmodule_get_symbols (),
+      gum_undecorate_name (name));
 }
 
 static void
@@ -357,6 +355,16 @@ gum_define_symbol_str (TCCState * state,
   tcc_define_symbol (state, name, raw_value);
 
   g_free (raw_value);
+}
+
+static const gchar *
+gum_undecorate_name (const gchar * name)
+{
+#ifdef HAVE_DARWIN
+  return name + 1;
+#else
+  return name;
+#endif
 }
 
 #else /* !HAVE_TINYCC */
