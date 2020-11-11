@@ -457,11 +457,11 @@ gint gum_script_dummy_global_to_trick_optimizer = 0;
 TESTCASE (instruction_can_be_parsed)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var first = Instruction.parse(" GUM_PTR_CONST ");"
-      "var second = Instruction.parse(first.next);"
+      "const first = Instruction.parse(" GUM_PTR_CONST ");"
+      "const second = Instruction.parse(first.next);"
       "send(typeof first.toString());"
       "send(typeof second.toString());"
-      "send(second.toString().indexOf(\"[object\") !== 0);"
+      "send(!second.toString().startsWith('[object'));"
       "send(first.address.toInt32() !== 0);"
       "send(first.size > 0);"
       "send(typeof first.mnemonic);"
@@ -487,9 +487,9 @@ TESTCASE (instruction_can_be_parsed)
 
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
   COMPILE_AND_LOAD_SCRIPT (
-      "var code = Memory.alloc(Process.pageSize);"
+      "const code = Memory.alloc(Process.pageSize);"
 
-      "var cw = new X86Writer(code, { pc: ptr(0x1000) });"
+      "const cw = new X86Writer(code, { pc: ptr(0x1000) });"
       "send(cw.pc);"
       "send(cw.offset);"
       "cw.putU8(0xab);" /* stosd */
@@ -500,15 +500,15 @@ TESTCASE (instruction_can_be_parsed)
       "cw.putCallRegOffsetPtr('rax', 12);"
       "cw.flush();"
 
-      "var stosd = Instruction.parse(code);"
+      "const stosd = Instruction.parse(code);"
       "send(stosd.mnemonic);"
       "send(stosd.regsRead);"
       "send(stosd.regsWritten);"
       "send(stosd.groups);"
 
-      "var mov = Instruction.parse(stosd.next);"
+      "const mov = Instruction.parse(stosd.next);"
       "send(mov.mnemonic);"
-      "var operands = mov.operands;"
+      "let operands = mov.operands;"
       "send(operands.length);"
       "send(operands[0].type);"
       "send(operands[0].value);"
@@ -520,11 +520,11 @@ TESTCASE (instruction_can_be_parsed)
       "send(mov.regsWritten);"
       "send(mov.groups);"
 
-      "var call = Instruction.parse(mov.next);"
+      "const call = Instruction.parse(mov.next);"
       "send(call.mnemonic);"
       "operands = call.operands;"
       "send(operands[0].type);"
-      "var memProps = Object.keys(operands[0].value);"
+      "const memProps = Object.keys(operands[0].value);"
       "memProps.sort();"
       "send(memProps);"
       "send(operands[0].value.base);"
@@ -563,9 +563,9 @@ TESTCASE (instruction_can_be_parsed)
   EXPECT_SEND_MESSAGE_WITH ("[\"call\",\"mode64\"]");
 #elif defined (HAVE_ARM)
   COMPILE_AND_LOAD_SCRIPT (
-      "var code = Memory.alloc(Process.pageSize);"
+      "const code = Memory.alloc(Process.pageSize);"
 
-      "var tw = new ThumbWriter(code);"
+      "const tw = new ThumbWriter(code);"
       "tw.putLdrRegU32('r0', 42);"
       "tw.putBlImm(code.add(64));"
       /* sxtb.w r3, r7, ror 16 */
@@ -574,42 +574,42 @@ TESTCASE (instruction_can_be_parsed)
       "tw.putInstruction(0xffb3); tw.putInstruction(0x3c07);"
       "tw.flush();"
 
-      "var ldr = Instruction.parse(code.or(1));"
+      "const ldr = Instruction.parse(code.or(1));"
       "send(ldr.mnemonic);"
-      "var operands = ldr.operands;"
+      "let operands = ldr.operands;"
       "send(operands.length);"
       "send(operands[0].type);"
       "send(operands[0].value);"
       "send(operands[1].type);"
       "send(operands[1].value.base);"
       "send(operands[1].value.scale);"
-      "var disp = operands[1].value.disp;"
+      "const disp = operands[1].value.disp;"
       "send(ldr.address.add(4 + disp).readU32());"
 
-      "var bl = Instruction.parse(ldr.next);"
+      "const bl = Instruction.parse(ldr.next);"
       "send(bl.mnemonic);"
       "operands = bl.operands;"
       "send(operands[0].type);"
       "send(ptr(operands[0].value).equals(code.add(64)));"
 
-      "var sxtb = Instruction.parse(bl.next);"
+      "const sxtb = Instruction.parse(bl.next);"
       "send(sxtb.mnemonic);"
       "operands = sxtb.operands;"
       "send(typeof operands[0].shift);"
       "send(operands[1].shift.type);"
       "send(operands[1].shift.value);"
 
-      "var vdup = Instruction.parse(sxtb.next);"
+      "const vdup = Instruction.parse(sxtb.next);"
       "send(vdup.mnemonic);"
       "operands = vdup.operands;"
       "send(typeof operands[0].vectorIndex);"
       "send(operands[1].vectorIndex);"
 
-      "var aw = new ArmWriter(code);"
+      "const aw = new ArmWriter(code);"
       "aw.putInstruction(0xe00380f7);" /* strd r8, sb, [r3], -r7 */
       "aw.flush();"
 
-      "var strdeq = Instruction.parse(code);"
+      "const strdeq = Instruction.parse(code);"
       "send(strdeq.mnemonic);"
       "operands = strdeq.operands;"
       "send(operands[0].subtracted);"
@@ -646,9 +646,9 @@ TESTCASE (instruction_can_be_parsed)
   EXPECT_SEND_MESSAGE_WITH ("true");
 #elif defined (HAVE_ARM64)
   COMPILE_AND_LOAD_SCRIPT (
-      "var code = Memory.alloc(Process.pageSize);"
+      "const code = Memory.alloc(Process.pageSize);"
 
-      "var cw = new Arm64Writer(code);"
+      "const cw = new Arm64Writer(code);"
       "cw.putLdrRegU64('x0', 42);"
       "cw.putStrRegRegOffset('x0', 'x7', 32);"
       "cw.putInstruction(0xcb422020);" /* sub x0, x1, x2, lsr #8 */
@@ -657,26 +657,26 @@ TESTCASE (instruction_can_be_parsed)
       "cw.putInstruction(0x9eae00e5);" /* fmov.d x5, v7[1] */
       "cw.flush();"
 
-      "var ldr = Instruction.parse(code);"
+      "const ldr = Instruction.parse(code);"
       "send(ldr.mnemonic);"
-      "var operands = ldr.operands;"
+      "let operands = ldr.operands;"
       "send(operands.length);"
       "send(operands[0].type);"
       "send(operands[0].value);"
       "send(operands[1].type);"
       "send(ptr(operands[1].value).readU64().valueOf());"
 
-      "var str = Instruction.parse(ldr.next);"
+      "const str = Instruction.parse(ldr.next);"
       "send(str.mnemonic);"
       "operands = str.operands;"
       "send(operands[1].type);"
-      "var memProps = Object.keys(operands[1].value);"
+      "const memProps = Object.keys(operands[1].value);"
       "memProps.sort();"
       "send(memProps);"
       "send(operands[1].value.base);"
       "send(operands[1].value.disp);"
 
-      "var sub = Instruction.parse(str.next);"
+      "const sub = Instruction.parse(str.next);"
       "send(sub.mnemonic);"
       "operands = sub.operands;"
       "send(typeof operands[0].shift);"
@@ -684,21 +684,21 @@ TESTCASE (instruction_can_be_parsed)
       "send(operands[2].shift.type);"
       "send(operands[2].shift.value);"
 
-      "var add = Instruction.parse(sub.next);"
+      "const add = Instruction.parse(sub.next);"
       "send(add.mnemonic);"
       "operands = add.operands;"
       "send(typeof operands[0].ext);"
       "send(typeof operands[1].ext);"
       "send(operands[2].ext);"
 
-      "var vadd = Instruction.parse(add.next);"
+      "const vadd = Instruction.parse(add.next);"
       "send(vadd.mnemonic);"
       "operands = vadd.operands;"
       "send(operands[0].vas);"
       "send(operands[1].vas);"
       "send(operands[2].vas);"
 
-      "var fmov = Instruction.parse(vadd.next);"
+      "const fmov = Instruction.parse(vadd.next);"
       "send(fmov.mnemonic);"
       "operands = fmov.operands;"
       "send(typeof operands[0].vectorIndex);"
@@ -743,18 +743,18 @@ TESTCASE (instruction_can_be_generated)
 {
 #if defined (HAVE_I386)
   COMPILE_AND_LOAD_SCRIPT (
-      "var callback = new NativeCallback(function (a, b) {"
+      "const callback = new NativeCallback((a, b) => {"
       "  return a * b;"
       "}, 'int', ['int', 'int']);"
 
-      "var page = Memory.alloc(Process.pageSize);"
+      "const page = Memory.alloc(Process.pageSize);"
 
-      "Memory.patchCode(page, 64, function (code) {"
-        "var cw = new X86Writer(code, { pc: page });"
+      "Memory.patchCode(page, 64, code => {"
+        "const cw = new X86Writer(code, { pc: page });"
 
         "cw.putMovRegU32('eax', 42);"
 
-        "var stackAlignOffset = Process.pointerSize;"
+        "const stackAlignOffset = Process.pointerSize;"
         "cw.putSubRegImm('xsp', stackAlignOffset);"
 
         "cw.putCallAddressWithArguments(callback, ['eax', 7]);"
@@ -772,7 +772,7 @@ TESTCASE (instruction_can_be_generated)
         "send(cw.offset > 30);"
       "});"
 
-      "var f = new NativeFunction(page, 'int', []);"
+      "const f = new NativeFunction(page, 'int', []);"
       "send(f());");
 
   EXPECT_SEND_MESSAGE_WITH ("true");
@@ -780,8 +780,8 @@ TESTCASE (instruction_can_be_generated)
   EXPECT_NO_MESSAGES ();
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var code = Memory.alloc(16);"
-      "var cw = new X86Writer(code);"
+      "const code = Memory.alloc(16);"
+      "const cw = new X86Writer(code);"
       "cw.putMovRegU32('rax', 42);");
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER, "Error: invalid argument");
 #endif
@@ -791,21 +791,21 @@ TESTCASE (instruction_can_be_relocated)
 {
 #if defined (HAVE_I386)
   COMPILE_AND_LOAD_SCRIPT (
-      "var page = Memory.alloc(Process.pageSize);"
+      "const page = Memory.alloc(Process.pageSize);"
 
-      "var impl1 = page.add(0);"
-      "var impl2 = page.add(64);"
+      "const impl1 = page.add(0);"
+      "const impl2 = page.add(64);"
 
-      "Memory.patchCode(impl1, 16, function (code) {"
-        "var cw = new X86Writer(code, { pc: impl1 });"
+      "Memory.patchCode(impl1, 16, code => {"
+        "const cw = new X86Writer(code, { pc: impl1 });"
         "cw.putMovRegU32('eax', 42);"
         "cw.putRet();"
         "cw.flush();"
       "});"
 
-      "Memory.patchCode(impl2, 16, function (code) {"
-        "var cw = new X86Writer(code, { pc: impl2 });"
-        "var rl = new X86Relocator(impl1, cw);"
+      "Memory.patchCode(impl2, 16, code => {"
+        "const cw = new X86Writer(code, { pc: impl2 });"
+        "const rl = new X86Relocator(impl1, cw);"
 
         "send(rl.input);"
 
@@ -827,7 +827,7 @@ TESTCASE (instruction_can_be_relocated)
         "cw.flush();"
       "});"
 
-      "var f = new NativeFunction(impl2, 'int', []);"
+      "const f = new NativeFunction(impl2, 'int', []);"
       "send(f());");
 
   EXPECT_SEND_MESSAGE_WITH ("null");
@@ -864,7 +864,7 @@ TESTCASE (address_can_be_resolved_to_symbol)
 #endif
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var sym = DebugSymbol.fromAddress(" GUM_PTR_CONST ");"
+      "const sym = DebugSymbol.fromAddress(" GUM_PTR_CONST ");"
       "send(sym.name);"
       "send(sym.toString().indexOf(sym.name) !== -1);"
       "send(JSON.stringify(sym) !== \"{}\");",
@@ -958,7 +958,7 @@ TESTCASE (native_function_can_be_invoked)
   gchar str[7];
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var f = new NativeFunction(" GUM_PTR_CONST ", 'int', []);"
+      "const f = new NativeFunction(" GUM_PTR_CONST ", 'int', []);"
       "send(f());",
       gum_get_answer_to_life_universe_and_everything);
   EXPECT_SEND_MESSAGE_WITH ("42");
@@ -966,7 +966,7 @@ TESTCASE (native_function_can_be_invoked)
 
   strcpy (str, "badger");
   COMPILE_AND_LOAD_SCRIPT (
-      "var toupper = new NativeFunction(" GUM_PTR_CONST ", "
+      "const toupper = new NativeFunction(" GUM_PTR_CONST ", "
           "'int', ['pointer', 'int']);"
       "send(toupper(" GUM_PTR_CONST ", 3));"
       "send(toupper(" GUM_PTR_CONST ", -1));",
@@ -977,7 +977,7 @@ TESTCASE (native_function_can_be_invoked)
   g_assert_cmpstr (str, ==, "BADGER");
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var sum = new NativeFunction(" GUM_PTR_CONST ", "
+      "const sum = new NativeFunction(" GUM_PTR_CONST ", "
           "'int', ['pointer', 'pointer', 'float']);"
       "send(sum(ptr(3), ptr(4), 42.0));",
       gum_add_pointers_and_float_fixed);
@@ -986,16 +986,16 @@ TESTCASE (native_function_can_be_invoked)
 
 #ifdef HAVE_WINDOWS
   COMPILE_AND_LOAD_SCRIPT (
-      "var impl = Module.getExportByName(\"user32.dll\", \"GetKeyState\");"
-      "var f = new NativeFunction(impl, 'int16', ['int']);"
-      "var result = f(0x41);"
+      "const impl = Module.getExportByName(\"user32.dll\", \"GetKeyState\");"
+      "const f = new NativeFunction(impl, 'int16', ['int']);"
+      "const result = f(0x41);"
       "send(typeof result);");
   EXPECT_SEND_MESSAGE_WITH ("\"number\"");
   EXPECT_NO_MESSAGES ();
 #endif
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var classify = new NativeFunction(" GUM_PTR_CONST ", "
+      "const classify = new NativeFunction(" GUM_PTR_CONST ", "
           "'int64', ['int64']);"
       "send(classify(int64(\"-42\")));"
       "send(classify(int64(\"0\")));"
@@ -1007,7 +1007,7 @@ TESTCASE (native_function_can_be_invoked)
   EXPECT_NO_MESSAGES ();
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var square = new NativeFunction(" GUM_PTR_CONST ", "
+      "const square = new NativeFunction(" GUM_PTR_CONST ", "
           "'uint64', ['uint64']);"
       "send(square(uint64(\"2\")));"
       "send(square(uint64(\"4\")));"
@@ -1037,17 +1037,17 @@ TESTCASE (native_function_can_be_intercepted_when_thread_is_ignored)
   g_source_unref (source);
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var impl = " GUM_PTR_CONST ";"
+      "const impl = " GUM_PTR_CONST ";"
       "Interceptor.attach(impl, {"
-      "  onEnter: function (args) {"
+      "  onEnter(args) {"
       "    send('>');"
       "  },"
-      "  onLeave: function (retval) {"
+      "  onLeave(retval) {"
       "    send('<');"
       "  }"
       "});"
       "Interceptor.flush();"
-      "var f = new NativeFunction(impl, 'int', ['int']);"
+      "const f = new NativeFunction(impl, 'int', ['int']);"
       "send(f(42));",
       target_function_nested_a);
 
@@ -1084,7 +1084,7 @@ unignore_thread (GumInterceptor * interceptor)
 TESTCASE (native_function_should_implement_call_and_apply)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var f = new NativeFunction(" GUM_PTR_CONST ", 'int', []);"
+      "const f = new NativeFunction(" GUM_PTR_CONST ", 'int', []);"
       "send(f.call());"
       "send(f.call(f));"
       "send(f.apply(f));"
@@ -1101,7 +1101,7 @@ TESTCASE (native_function_should_implement_call_and_apply)
   EXPECT_NO_MESSAGES ();
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var f = new NativeFunction(" GUM_PTR_CONST ", 'int', ['int']);"
+      "const f = new NativeFunction(" GUM_PTR_CONST ", 'int', ['int']);"
       "send(NativeFunction.prototype.call(f, 42));"
       "send(NativeFunction.prototype.apply(f, [42]));"
       "send(f.call(undefined, 42));"
@@ -1126,7 +1126,7 @@ TESTCASE (native_function_should_implement_call_and_apply)
   EXPECT_NO_MESSAGES ();
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var f = new NativeFunction(" GUM_PTR_CONST ", 'pointer', "
+      "const f = new NativeFunction(" GUM_PTR_CONST ", 'pointer', "
       "    ['pointer', 'int']);"
       "send(f.call(null, ptr(4), 3));"
       "send(f.apply(null, [ptr(4), 3]));",
@@ -1142,8 +1142,8 @@ TESTCASE (native_function_crash_results_in_exception)
     return;
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var targetWithString = new NativeFunction(" GUM_PTR_CONST ", 'pointer', "
-          "['pointer'], {"
+      "const targetWithString = new NativeFunction(" GUM_PTR_CONST ", "
+          "'pointer', ['pointer'], {"
           "abi: 'default',"
           "scheduling: 'exclusive',"
           "exceptions: 'steal',"
@@ -1163,9 +1163,9 @@ TESTCASE (nested_native_function_crash_is_handled_gracefully)
     return;
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var targetWithCallback = new NativeFunction(" GUM_PTR_CONST ", "
+      "const targetWithCallback = new NativeFunction(" GUM_PTR_CONST ", "
           "'pointer', ['int', 'pointer', 'pointer']);"
-      "var callback = new NativeCallback(function (value) {"
+      "const callback = new NativeCallback(value => {"
       "  send(value.readInt());"
       "}, 'void', ['pointer']);"
       "try {"
@@ -1182,7 +1182,7 @@ TESTCASE (nested_native_function_crash_is_handled_gracefully)
 TESTCASE (variadic_native_function_can_be_invoked)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var sum = new NativeFunction(" GUM_PTR_CONST ", "
+      "const sum = new NativeFunction(" GUM_PTR_CONST ", "
           "'int', ['int', '...', 'int']);"
       "send(sum(0));"
       "send(sum(1, 1));"
@@ -1197,10 +1197,10 @@ TESTCASE (variadic_native_function_can_be_invoked)
 TESTCASE (variadic_native_function_args_smaller_than_int_should_be_promoted)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var f = new NativeFunction(" GUM_PTR_CONST ", 'int', "
+      "const f = new NativeFunction(" GUM_PTR_CONST ", 'int', "
           "['pointer', 'pointer', 'pointer', 'pointer', '...', "
           "'uint8', 'pointer', 'uint8']);"
-      "var val = NULL.not();"
+      "const val = NULL.not();"
       "send(f(val, val, val, val, 13, val, 37));",
       gum_assert_variadic_uint8_values_are_sane);
   EXPECT_SEND_MESSAGE_WITH ("42");
@@ -1232,7 +1232,7 @@ gum_assert_variadic_uint8_values_are_sane (gpointer a,
 TESTCASE (variadic_native_function_float_args_should_be_promoted_to_double)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var sum = new NativeFunction(" GUM_PTR_CONST ", "
+      "const sum = new NativeFunction(" GUM_PTR_CONST ", "
           "'int', ['pointer', '...', 'pointer', 'float']);"
       "send(sum(ptr(3), NULL));"
       "send(sum(ptr(3), ptr(4), 42.0, NULL));"
@@ -1247,7 +1247,7 @@ TESTCASE (variadic_native_function_float_args_should_be_promoted_to_double)
 TESTCASE (native_function_is_a_native_pointer)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var toupper = new NativeFunction(" GUM_PTR_CONST ", "
+      "const toupper = new NativeFunction(" GUM_PTR_CONST ", "
           "'int', ['pointer', 'int']);"
       "send(toupper instanceof NativePointer);"
       "send(toupper.toString() === " GUM_PTR_CONST ".toString());",
@@ -1260,9 +1260,9 @@ TESTCASE (system_function_can_be_invoked)
 {
 #ifdef HAVE_WINDOWS
   COMPILE_AND_LOAD_SCRIPT (
-      "var f = new SystemFunction(" GUM_PTR_CONST ", 'int', ['int']);"
+      "const f = new SystemFunction(" GUM_PTR_CONST ", 'int', ['int']);"
 
-      "var result = f(13);"
+      "let result = f(13);"
       "send(result.value);"
       "send(result.lastError);"
 
@@ -1271,9 +1271,9 @@ TESTCASE (system_function_can_be_invoked)
       "send(result.lastError);", gum_clobber_system_error);
 #else
   COMPILE_AND_LOAD_SCRIPT (
-      "var f = new SystemFunction(" GUM_PTR_CONST ", 'int', ['int']);"
+      "const f = new SystemFunction(" GUM_PTR_CONST ", 'int', ['int']);"
 
-      "var result = f(13);"
+      "let result = f(13);"
       "send(result.value);"
       "send(result.errno);"
 
@@ -1294,7 +1294,7 @@ TESTCASE (system_function_can_be_invoked)
 TESTCASE (system_function_should_implement_call_and_apply)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var f = new SystemFunction(" GUM_PTR_CONST ", 'int', []);"
+      "const f = new SystemFunction(" GUM_PTR_CONST ", 'int', []);"
       "send(f.call().value);"
       "send(f.call(f).value);"
       "send(f.apply(f).value);"
@@ -1311,7 +1311,7 @@ TESTCASE (system_function_should_implement_call_and_apply)
   EXPECT_NO_MESSAGES ();
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var f = new SystemFunction(" GUM_PTR_CONST ", 'int', ['int']);"
+      "const f = new SystemFunction(" GUM_PTR_CONST ", 'int', ['int']);"
       "send(SystemFunction.prototype.call(f, 42).value);"
       "send(SystemFunction.prototype.apply(f, [42]).value);"
       "send(f.call(undefined, 42).value);"
@@ -1336,7 +1336,7 @@ TESTCASE (system_function_should_implement_call_and_apply)
   EXPECT_NO_MESSAGES ();
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var f = new SystemFunction(" GUM_PTR_CONST ", 'pointer', "
+      "const f = new SystemFunction(" GUM_PTR_CONST ", 'pointer', "
       "    ['pointer', 'int']);"
       "send(f.call(null, ptr(4), 3).value);"
       "send(f.apply(null, [ptr(4), 3]).value);",
@@ -1349,7 +1349,7 @@ TESTCASE (system_function_should_implement_call_and_apply)
 TESTCASE (system_function_is_a_native_pointer)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var toupper = new SystemFunction(" GUM_PTR_CONST ", "
+      "const toupper = new SystemFunction(" GUM_PTR_CONST ", "
           "'int', ['pointer', 'int']);"
       "send(toupper instanceof NativePointer);"
       "send(toupper.toString() === " GUM_PTR_CONST ".toString());",
@@ -1376,11 +1376,11 @@ TESTCASE (native_callback_can_be_invoked)
   gchar str[7];
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var toupper = new NativeCallback(function (str, limit) {"
-      "  var count = 0;"
+      "const toupper = new NativeCallback((str, limit) => {"
+      "  let count = 0;"
       "  while (count < limit || limit === -1) {"
-      "    var p = str.add(count);"
-      "    var b = p.readU8();"
+      "    const p = str.add(count);"
+      "    const b = p.readU8();"
       "    if (b === 0)"
       "      break;"
       "    p.writeU8(String.fromCharCode(b).toUpperCase().charCodeAt(0));"
@@ -1404,7 +1404,7 @@ TESTCASE (native_callback_can_be_invoked)
 TESTCASE (native_callback_is_a_native_pointer)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var cb = new NativeCallback(function () {}, 'void', []);"
+      "const cb = new NativeCallback(() => {}, 'void', []);"
       "send(cb instanceof NativePointer);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
@@ -1415,14 +1415,14 @@ TESTCASE (native_callback_memory_should_be_eagerly_reclaimed)
   gboolean difference_is_less_than_2x;
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var iterationsRemaining = null;"
+      "let iterationsRemaining = null;"
       "recv('start', onStartRequest);"
       "function onStartRequest(message) {"
       "  iterationsRemaining = message.iterations;"
       "  processNext();"
       "}"
       "function processNext() {"
-      "  var cb = new NativeCallback(function () {}, 'void', []);"
+      "  const cb = new NativeCallback(() => {}, 'void', []);"
       "  if (--iterationsRemaining === 0) {"
       "    recv('start', onStartRequest);"
       "    gc();"
@@ -1503,11 +1503,16 @@ TESTCASE (unix_fd_can_be_read_from)
   g_assert_cmpint (socketpair (AF_UNIX, SOCK_STREAM, 0, fds), ==, 0);
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var stream = new UnixInputStream(%d, { autoClose: false });"
-      "stream.read(1337)"
-      ".then(function (buf) {"
-          "send(buf.byteLength, buf);"
-      "});",
+      "async function run() {"
+      "  try {"
+      "    const stream = new UnixInputStream(%d, { autoClose: false });"
+      "    const buf = await stream.read(1337);"
+      "    send(buf.byteLength, buf);"
+      "  } catch (e) {"
+      "    send(`oops: ${e.stack}`);"
+      "  }"
+      "}"
+      "run();",
       fds[0]);
   EXPECT_NO_MESSAGES ();
   res = GUM_TEMP_FAILURE_RETRY (write (fds[1], message, 1));
@@ -1516,11 +1521,16 @@ TESTCASE (unix_fd_can_be_read_from)
   EXPECT_NO_MESSAGES ();
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var stream = new UnixInputStream(%d, { autoClose: false });"
-      "stream.readAll(7)"
-      ".then(function (buf) {"
-          "send(buf.byteLength, buf);"
-      "});",
+      "async function run() {"
+      "  try {"
+      "    const stream = new UnixInputStream(%d, { autoClose: false });"
+      "    const buf = await stream.readAll(7);"
+      "    send(buf.byteLength, buf);"
+      "  } catch (e) {"
+      "    send(`oops: ${e.stack}`);"
+      "  }"
+      "}"
+      "run();",
       fds[0]);
   EXPECT_NO_MESSAGES ();
   res = GUM_TEMP_FAILURE_RETRY (write (fds[1], message, 4));
@@ -1536,40 +1546,49 @@ TESTCASE (unix_fd_can_be_read_from)
   g_assert_cmpint (res, ==, 2);
   close (fds[1]);
   COMPILE_AND_LOAD_SCRIPT (
-      "var stream = new UnixInputStream(%d, { autoClose: false });"
-      "stream.readAll(7)"
-      ".catch(function (error) {"
-          "send(error.toString(), error.partialData);"
-      "});",
+      "async function run() {"
+      "  try {"
+      "    const stream = new UnixInputStream(%d, { autoClose: false });"
+      "    await stream.readAll(7);"
+      "  } catch (e) {"
+      "    send(e.toString(), e.partialData);"
+      "  }"
+      "}"
+      "run();",
       fds[0]);
   EXPECT_SEND_MESSAGE_WITH ("\"Error: short read\"", "13 37");
   EXPECT_NO_MESSAGES ();
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var stream = new UnixInputStream(%d, { autoClose: false });"
-      "stream.close()"
-      ".then(function (success) {"
-          "send(success);"
-          "stream.read(1337)"
-          ".catch(function (error) {"
-              "send(error.toString());"
-          "});"
-      "});",
+      "async function run() {"
+      "  try {"
+      "    const stream = new UnixInputStream(%d, { autoClose: false });"
+      "    const success = await stream.close();"
+      "    send(success);"
+      "    await stream.read(1337);"
+      "  } catch (e) {"
+      "    send(e.toString());"
+      "  }"
+      "}"
+      "run();",
       fds[0]);
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("\"Error: stream is already closed\"");
   EXPECT_NO_MESSAGES ();
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var stream = new UnixInputStream(%d, { autoClose: false });"
-      "stream.close()"
-      ".then(function (success) {"
-          "send(success);"
-          "stream.close()"
-          ".then(function (success) {"
-              "send(success);"
-          "});"
-      "});",
+      "async function run() {"
+      "  try {"
+      "    const stream = new UnixInputStream(%d, { autoClose: false });"
+      "    let success = await stream.close();"
+      "    send(success);"
+      "    success = await stream.close();"
+      "    send(success);"
+      "  } catch (e) {"
+      "    send(`oops: ${e.stack}`);"
+      "  }"
+      "}"
+      "run();",
       fds[0]);
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
@@ -1595,11 +1614,16 @@ TESTCASE (unix_fd_can_be_written_to)
   g_assert_cmpint (socketpair (AF_UNIX, SOCK_STREAM, 0, fds), ==, 0);
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var stream = new UnixOutputStream(%d, { autoClose: false });"
-      "stream.write([0x13])"
-      ".then(function (size) {"
-          "send(size);"
-      "});",
+      "async function run() {"
+      "  try {"
+      "    const stream = new UnixOutputStream(%d, { autoClose: false });"
+      "    const size = await stream.write([0x13]);"
+      "    send(size);"
+      "  } catch (e) {"
+      "    send(`oops: ${e.stack}`);"
+      "  }"
+      "}"
+      "run();",
       fds[0]);
   EXPECT_SEND_MESSAGE_WITH ("1");
   EXPECT_NO_MESSAGES ();
@@ -1607,11 +1631,20 @@ TESTCASE (unix_fd_can_be_written_to)
   g_assert_cmphex (buffer[0], ==, 0x13);
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var stream = new UnixOutputStream(%d, { autoClose: false });"
-      "stream.writeAll([0x13, 0x37, 0xca, 0xfe, 0xba, 0xbe, 0xff])"
-      ".then(function (size) {"
-          "send(size);"
-      "});",
+      "async function run() {"
+      "  try {"
+      "    const stream = new UnixOutputStream(%d, { autoClose: false });"
+      "    const size = await stream.writeAll(["
+      "        0x13, 0x37,"
+      "        0xca, 0xfe, 0xba, 0xbe,"
+      "        0xff"
+      "    ]);"
+      "    send(size);"
+      "  } catch (e) {"
+      "    send(`oops: ${e.stack}`);"
+      "  }"
+      "}"
+      "run();",
       fds[0]);
   EXPECT_SEND_MESSAGE_WITH ("7");
   EXPECT_NO_MESSAGES ();
@@ -1627,11 +1660,19 @@ TESTCASE (unix_fd_can_be_written_to)
   close (fds[1]);
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var stream = new UnixOutputStream(%d, { autoClose: false });"
-      "stream.writeAll([0x13, 0x37, 0xca, 0xfe, 0xba, 0xbe, 0xff])"
-      ".catch(function (error) {"
-          "send(error.partialSize);"
-      "});",
+      "async function run() {"
+      "  try {"
+      "    const stream = new UnixOutputStream(%d, { autoClose: false });"
+      "    await stream.writeAll(["
+      "        0x13, 0x37,"
+      "        0xca, 0xfe, 0xba, 0xbe,"
+      "        0xff"
+      "    ]);"
+      "  } catch (e) {"
+      "    send(e.partialSize);"
+      "  }"
+      "}"
+      "run();",
       fds[0]);
   EXPECT_SEND_MESSAGE_WITH ("0");
   EXPECT_NO_MESSAGES ();
@@ -1646,8 +1687,8 @@ TESTCASE (unix_fd_can_be_written_to)
 TESTCASE (basic_hexdump_functionality_is_available)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var str = Memory.allocUtf8String(\"Hello hex world! w00t\");"
-      "var buf = str.readByteArray(22);"
+      "const str = Memory.allocUtf8String(\"Hello hex world! w00t\");"
+      "const buf = str.readByteArray(22);"
       "send(hexdump(buf));");
   EXPECT_SEND_MESSAGE_WITH ("\""
       "           0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F  "
@@ -1658,7 +1699,7 @@ TESTCASE (basic_hexdump_functionality_is_available)
           " w00t.\"");
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var str = Memory.allocUtf8String(\"Hello hex world! w00t\");"
+      "const str = Memory.allocUtf8String(\"Hello hex world! w00t\");"
       "send(hexdump(str, { address: uint64('0x100000000'), length: 22 }));");
   EXPECT_SEND_MESSAGE_WITH ("\""
       "            0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F  "
@@ -1674,7 +1715,7 @@ TESTCASE (hexdump_supports_native_pointer_conforming_object)
   const gchar * message = "Hello hex world!";
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var obj = { handle: " GUM_PTR_CONST "  };"
+      "const obj = { handle: " GUM_PTR_CONST "  };"
       "send(hexdump(obj, { address: NULL, length: 16 }));", message);
   EXPECT_SEND_MESSAGE_WITH ("\""
       "           0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F  "
@@ -1723,9 +1764,9 @@ TESTCASE (native_pointer_provides_ptrauth_functionality)
 {
 #ifdef HAVE_PTRAUTH
   COMPILE_AND_LOAD_SCRIPT (
-      "var original = ptr(1);"
+      "const original = ptr(1);"
 
-      "var a = original.sign();"
+      "const a = original.sign();"
       "send(a.equals(original));"
       "send(a.strip().equals(original));"
 
@@ -1734,11 +1775,11 @@ TESTCASE (native_pointer_provides_ptrauth_functionality)
       "send(original.sign('da').equals(a));"
       "send(original.sign('db').equals(a));"
 
-      "var b = original.sign('ia', ptr(1337));"
+      "const b = original.sign('ia', ptr(1337));"
       "send(b.equals(a));"
-      "var c = original.sign('ia', 1337);"
+      "const c = original.sign('ia', 1337);"
       "send(c.equals(b));"
-      "var d = original.sign('ia', ptr(1337).blend(42));"
+      "const d = original.sign('ia', ptr(1337).blend(42));"
       "send(d.equals(b));"
 
       "try {"
@@ -1762,7 +1803,7 @@ TESTCASE (native_pointer_provides_ptrauth_functionality)
   EXPECT_SEND_MESSAGE_WITH ("\"invalid key\"");
 #else
   COMPILE_AND_LOAD_SCRIPT (
-      "var original = ptr(1);"
+      "const original = ptr(1);"
       "send(original.sign() === original);"
       "send(original.strip() === original);"
       "send(original.blend(42) === original);");
@@ -1862,7 +1903,7 @@ TESTCASE (array_buffer_can_wrap_memory_region)
   guint8 val[2] = { 13, 37 };
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var val = new Uint8Array(ArrayBuffer.wrap(" GUM_PTR_CONST ", 2));"
+      "const val = new Uint8Array(ArrayBuffer.wrap(" GUM_PTR_CONST ", 2));"
       "send(val.length);"
       "send(val[0]);"
       "send(val[1]);"
@@ -1876,7 +1917,7 @@ TESTCASE (array_buffer_can_wrap_memory_region)
   g_assert_cmpint (val[1], ==, 24);
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var val = new Uint8Array(ArrayBuffer.wrap(" GUM_PTR_CONST ", 0));"
+      "const val = new Uint8Array(ArrayBuffer.wrap(" GUM_PTR_CONST ", 0));"
       "send(val.length);"
       "send(typeof val[0]);",
       val);
@@ -1884,7 +1925,7 @@ TESTCASE (array_buffer_can_wrap_memory_region)
   EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var val = new Uint8Array(ArrayBuffer.wrap(NULL, 0));"
+      "const val = new Uint8Array(ArrayBuffer.wrap(NULL, 0));"
       "send(val.length);"
       "send(typeof val[0]);");
   EXPECT_SEND_MESSAGE_WITH ("0");
@@ -1896,10 +1937,10 @@ TESTCASE (array_buffer_can_be_unwrapped)
   gchar str[5 + 1];
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var toupper = new NativeFunction(" GUM_PTR_CONST ", "
+      "const toupper = new NativeFunction(" GUM_PTR_CONST ", "
           "'int', ['pointer', 'int']);"
-      "var buf = new ArrayBuffer(2 + 1);"
-      "var bytes = new Uint8Array(buf);"
+      "const buf = new ArrayBuffer(2 + 1);"
+      "const bytes = new Uint8Array(buf);"
       "bytes[0] = 'h'.charCodeAt(0);"
       "bytes[1] = 'i'.charCodeAt(0);"
       "send(toupper(buf.unwrap(), -1));"
@@ -1913,9 +1954,9 @@ TESTCASE (array_buffer_can_be_unwrapped)
 
   strcpy (str, "snake");
   COMPILE_AND_LOAD_SCRIPT (
-      "var toupper = new NativeFunction(" GUM_PTR_CONST ", "
+      "const toupper = new NativeFunction(" GUM_PTR_CONST ", "
           "'int', ['pointer', 'int']);"
-      "var buf = ArrayBuffer.wrap(" GUM_PTR_CONST ", 5 + 1);"
+      "const buf = ArrayBuffer.wrap(" GUM_PTR_CONST ", 5 + 1);"
       "send(toupper(buf.unwrap(), -1));",
       gum_toupper, str);
   EXPECT_SEND_MESSAGE_WITH ("-5");
@@ -1953,8 +1994,8 @@ TESTCASE (uint64_can_be_constructed_from_a_large_number)
 TESTCASE (uint64_can_be_converted_to_a_large_number)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var a = Math.pow(2, 63);"
-      "var b = uint64(a).toNumber();"
+      "const a = Math.pow(2, 63);"
+      "const b = uint64(a).toNumber();"
       "send(b === a);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
@@ -2072,7 +2113,7 @@ TESTCASE (file_can_be_written_to)
   }
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var log = new File(\"/tmp/script-test.log\", 'a');"
+      "const log = new File(\"/tmp/script-test.log\", 'a');"
       "log.write(\"Hello \");"
       "log.write(" GUM_PTR_CONST ".readByteArray(4));"
       "log.write(\"!\\n\");"
@@ -2084,7 +2125,7 @@ TESTCASE (file_can_be_written_to)
 TESTCASE (inline_sqlite_database_can_be_queried)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var db = SqliteDatabase.openInline('"
+      "const db = SqliteDatabase.openInline('"
           "H4sIAMMIT1kAA+3ZsU7DMBAG4HMC7VChROpQut0IqGJhYCWJDAq4LbhGoqNRDYqgpIo"
           "CO8y8JM/AC+CKFNhgLfo/+U7n0/kBTp5cqKJ2fFNWc1vzAcUkBB0xE1HYxIrwsdHUYX"
           "P/TUj7m+nWcjhy5A8AAAAAAADA//W8Ldq9fl+8dGp7fe8WrlyscphpmRjJJkmV5M8e7"
@@ -2094,7 +2135,7 @@ TESTCASE (inline_sqlite_database_can_be_queried)
       "');\n"
 
       /* 1: bindInteger() */
-      "var s = db.prepare('SELECT name, age FROM people WHERE age = ?');\n"
+      "let s = db.prepare('SELECT name, age FROM people WHERE age = ?');\n"
       "s.bindInteger(1, 42);\n"
       "send(s.step());\n"
       "send(s.step());\n"
@@ -2181,7 +2222,7 @@ TESTCASE (external_sqlite_database_can_be_queried)
   }
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var db = SqliteDatabase.open('/tmp/gum-test.db');\n"
+      "const db = SqliteDatabase.open('/tmp/gum-test.db');\n"
       "db.exec(\""
           "PRAGMA foreign_keys=OFF;"
           "BEGIN TRANSACTION;"
@@ -2213,7 +2254,7 @@ TESTCASE (external_sqlite_database_can_be_opened_with_flags)
   }
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var db = null;\n"
+      "let db = null;\n"
 
       "try {\n"
           "db = SqliteDatabase.open('/tmp/gum-test-dont-create.db',"
@@ -2285,44 +2326,34 @@ TESTCASE (socket_connection_can_be_established)
   PUSH_TIMEOUT (10000);
 
   COMPILE_AND_LOAD_SCRIPT (
-      "Socket.listen({"
-      "  backlog: 1,"
-      "})"
-      ".then(function (listener) {"
-      "  listener.accept()"
-      "  .then(function (client) {"
-      "    return client.input.readAll(5)"
-      "    .then(function (data) {"
-      "      send('server read', data);"
-      "      client.close();"
-      "      listener.close();"
+      "async function run() {"
+      "  try {"
+      "    const listener = await Socket.listen({ backlog: 1 });"
+      "    launchClient({"
+      "      family: 'ipv4',"
+      "      host: 'localhost',"
+      "      port: listener.port,"
       "    });"
-      "  })"
-      "  .catch(function (error) {"
-      "    send('error: ' + error.message);"
-      "  });"
-      ""
-      "  return Socket.connect({"
-      "    family: 'ipv4',"
-      "    host: 'localhost',"
-      "    port: listener.port,"
-      "  })"
-      "  .then(function (connection) {"
-      "    return connection.setNoDelay(true)"
-      "    .then(function () {"
-      "      return connection.output.writeAll([0x31, 0x33, 0x33, 0x37, 0x0a])"
-      "      .then(function () {"
-      "        return connection.close();"
-      "      });"
-      "    });"
-      "  })"
-      "  .catch(function (error) {"
-      "    send('error: ' + error.message);"
-      "  });"
-      "})"
-      ".catch(function (error) {"
-      "  send('error: ' + error.message);"
-      "});");
+      "    const client = await listener.accept();"
+      "    const data = await client.input.readAll(5);"
+      "    send('server read', data);"
+      "    await client.close();"
+      "    await listener.close();"
+      "  } catch (e) {"
+      "    send(`[server] ${e.stack}`);"
+      "  }"
+      "}"
+      "async function launchClient(options) {"
+      "  try {"
+      "    const connection = await Socket.connect(options);"
+      "    await connection.setNoDelay(true);"
+      "    await connection.output.writeAll([0x31, 0x33, 0x33, 0x37, 0x0a]);"
+      "    await connection.close();"
+      "  } catch (e) {"
+      "    send(`[client] ${e.stack}`);"
+      "  }"
+      "}"
+      "run();");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"server read\"",
       "31 33 33 37 0a");
 
@@ -2337,48 +2368,40 @@ TESTCASE (socket_connection_can_be_established)
 #endif
 
     COMPILE_AND_LOAD_SCRIPT (
-        "var getpid = new NativeFunction("
-        "    Module.getExportByName(null, 'getpid'), 'int', []);"
-        "var unlink = new NativeFunction("
+        "const unlink = new NativeFunction("
         "    Module.getExportByName(null, 'unlink'), 'int', ['pointer']);"
-        ""
-        "Socket.listen({"
-        "  type: 'path',"
-        "  path: '%s/frida-gum-test-listener-' + getpid(),"
-        "  backlog: 1,"
-        "})"
-        ".then(function (listener) {"
-        "  listener.accept()"
-        "  .then(function (client) {"
-        "    return client.input.readAll(5)"
-        "    .then(function (data) {"
-        "      send('server read', data);"
-        "      client.close();"
-        "      listener.close();"
+        "async function run() {"
+        "  try {"
+        "    const listener = await Socket.listen({"
+        "      type: 'path',"
+        "      path: '%s/frida-gum-test-listener-' + Process.id,"
+        "      backlog: 1,"
         "    });"
-        "  })"
-        "  .catch(function (error) {"
-        "    send('error: ' + error.message);"
-        "  });"
-        ""
-        "  return Socket.connect({"
-        "    type: 'path',"
-        "    path: listener.path,"
-        "  })"
-        "  .then(function (connection) {"
-        "    unlink(Memory.allocUtf8String(listener.path));"
-        "    return connection.output.writeAll([0x31, 0x33, 0x33, 0x37, 0x0a])"
-        "    .then(function () {"
-        "      return connection.close();"
+        "    launchClient({"
+        "      type: 'path',"
+        "      path: listener.path,"
         "    });"
-        "  })"
-        "  .catch(function (error) {"
-        "    send('error: ' + error.message);"
-        "  });"
-        "})"
-        ".catch(function (error) {"
-        "  send('error: ' + error.message);"
-        "});", tmp_dir);
+        "    const client = await listener.accept();"
+        "    const data = await client.input.readAll(5);"
+        "    send('server read', data);"
+        "    await client.close();"
+        "    await listener.close();"
+        "  } catch (e) {"
+        "    send(`[server] ${e.stack}`);"
+        "  }"
+        "}"
+        "async function launchClient(options) {"
+        "  try {"
+        "    const connection = await Socket.connect(options);"
+        "    unlink(Memory.allocUtf8String(options.path));"
+        "    await connection.output.writeAll([0x31, 0x33, 0x33, 0x37, 0x0a]);"
+        "    await connection.close();"
+        "  } catch (e) {"
+        "    send(`[client] ${e.stack}`);"
+        "  }"
+        "}"
+        "run();",
+      tmp_dir);
     EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"server read\"",
         "31 33 33 37 0a");
   }
@@ -2398,16 +2421,18 @@ TESTCASE (socket_connection_can_be_established_with_tls)
   PUSH_TIMEOUT (10000);
 
   COMPILE_AND_LOAD_SCRIPT (
-      "Socket.connect({"
-      "  family: 'ipv4',"
-      "  host: 'www.google.com',"
-      "  port: 443,"
-      "  tls: true,"
-      "})"
-      ".then(function (connection) {"
-      "  return connection.setNoDelay(true)"
-      "  .then(function () {"
-      "    var request = ["
+      "async function run() {"
+      "  try {"
+      "    const connection = await Socket.connect({"
+      "      family: 'ipv4',"
+      "      host: 'www.google.com',"
+      "      port: 443,"
+      "      tls: true,"
+      "    });"
+      ""
+      "    await connection.setNoDelay(true);"
+      ""
+      "    const request = ["
       "      'GET / HTTP/1.1',"
       "      'Connection: close',"
       "      'Host: www.google.com',"
@@ -2416,22 +2441,19 @@ TESTCASE (socket_connection_can_be_established_with_tls)
       "      '',"
       "      '',"
       "    ].join('\\r\\n');"
-      "    var rawRequest = [];"
-      "    for (var i = 0; i !== request.length; i++)"
+      "    const rawRequest = [];"
+      "    for (let i = 0; i !== request.length; i++)"
       "      rawRequest.push(request.charCodeAt(i));"
       "    send('request', rawRequest);"
-      "    return connection.output.writeAll(rawRequest)"
-      "    .then(function () {"
-      "      return connection.input.read(128 * 1024);"
-      "    })"
-      "    .then(function (data) {"
-      "      send('response', data);"
-      "    });"
-      "  });"
-      "})"
-      ".catch(function (error) {"
-      "  send('error: ' + error.message);"
-      "});");
+      "    await connection.output.writeAll(rawRequest);"
+      ""
+      "    const response = await connection.input.read(128 * 1024);"
+      "    send('response', response);"
+      "  } catch (e) {"
+      "    send(`oops: ${e.stack}`);"
+      "  }"
+      "}"
+      "run();");
 
   g_printerr ("\n\n");
 
@@ -2482,9 +2504,9 @@ TESTCASE (socket_connection_should_not_leak_on_error)
 
   PUSH_TIMEOUT (5000);
   COMPILE_AND_LOAD_SCRIPT (
-      "var tries = 0;"
-      "var port = 28300;"
-      "var firstErrorMessage = null;"
+      "let tries = 0;"
+      "let port = 28300;"
+      "let firstErrorMessage = null;"
       ""
       "tryNext();"
       ""
@@ -2500,13 +2522,13 @@ TESTCASE (socket_connection_should_not_leak_on_error)
       "    host: 'localhost',"
       "    port: port,"
       "  })"
-      "  .then(function (connection) {"
+      "  .then(connection => {"
       "    console.log('success');"
       "    tries--;"
       "    port++;"
       "    tryNext();"
       "  })"
-      "  .catch(function (error) {"
+      "  .catch(error => {"
       "    if (firstErrorMessage === null) {"
       "      firstErrorMessage = error.message;"
       "    } else if (error.message !== firstErrorMessage) {"
@@ -2633,12 +2655,12 @@ TESTCASE (socket_endpoints_can_be_inspected)
       g_main_context_iteration (context, FALSE);
 
     COMPILE_AND_LOAD_SCRIPT (
-        "var addr = Socket.localAddress(%d);"
+        "const addr = Socket.localAddress(%d);"
         "send([typeof addr.ip, addr.port]);", fd);
     EXPECT_SEND_MESSAGE_WITH ("[\"string\",%u]", client_port);
 
     COMPILE_AND_LOAD_SCRIPT (
-        "var addr = Socket.peerAddress(%d);"
+        "const addr = Socket.peerAddress(%d);"
         "send([typeof addr.ip, addr.port]);", fd);
     EXPECT_SEND_MESSAGE_WITH ("[\"string\",%u]", server_port);
 
@@ -2735,7 +2757,7 @@ TESTCASE (execution_can_be_traced)
 
   COMPILE_AND_LOAD_SCRIPT (
       "Stalker.queueDrainInterval = 0;"
-      "var testsRange = Process.getModuleByName('%s');"
+      "const testsRange = Process.getModuleByName('%s');"
       "Stalker.exclude(testsRange);"
 
       "Stalker.follow(%" G_GSIZE_FORMAT ", {"
@@ -2744,15 +2766,15 @@ TESTCASE (execution_can_be_traced)
       "    ret: false,"
       "    exec: false"
       "  },"
-      "  onReceive: function (events) {"
+      "  onReceive(events) {"
       "    send('onReceive: ' + (events.byteLength > 0));"
       "  },"
-      "  onCallSummary: function (summary) {"
+      "  onCallSummary(summary) {"
       "    send('onCallSummary: ' + (Object.keys(summary).length > 0));"
       "  }"
       "});"
 
-      "recv('stop', function (message) {"
+      "recv('stop', message => {"
       "  Stalker.unfollow(%" G_GSIZE_FORMAT ");"
       "  Stalker.flush();"
       "});",
@@ -2782,13 +2804,13 @@ TESTCASE (execution_can_be_traced_with_custom_transformer)
   test_thread_id = gum_process_get_current_thread_id ();
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var testsRange = Process.getModuleByName('%s');"
+      "const testsRange = Process.getModuleByName('%s');"
       "Stalker.exclude(testsRange);"
 
-      "var instructionsSeen = 0;"
+      "let instructionsSeen = 0;"
       "Stalker.follow(%" G_GSIZE_FORMAT ", {"
-      "  transform: function (iterator) {"
-      "    var instruction;"
+      "  transform(iterator) {"
+      "    let instruction;"
 
       "    while ((instruction = iterator.next()) !== null) {"
       "      if (instructionsSeen === 0) {"
@@ -2806,7 +2828,7 @@ TESTCASE (execution_can_be_traced_with_custom_transformer)
       "  console.log(JSON.stringify(context, null, 2));"
       "}"
 
-      "recv('stop', function (message) {"
+      "recv('stop', message => {"
       "  Stalker.unfollow(%" G_GSIZE_FORMAT ");"
       "  send(instructionsSeen > 0);"
       "});",
@@ -2829,11 +2851,11 @@ TESTCASE (execution_can_be_traced_with_faulty_transformer)
   test_thread_id = gum_process_get_current_thread_id ();
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var testsRange = Process.getModuleByName('%s');"
+      "const testsRange = Process.getModuleByName('%s');"
       "Stalker.exclude(testsRange);"
 
       "Stalker.follow(%" G_GSIZE_FORMAT ", {"
-      "  transform: function (iterator) {"
+      "  transform(iterator) {"
       "    throw new Error('oh no I am buggy');"
       "  }"
       "});",
@@ -2852,18 +2874,18 @@ TESTCASE (execution_can_be_traced_during_immediate_native_function_call)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Stalker.queueDrainInterval = 0;"
-      "var testsRange = Process.getModuleByName('%s');"
+      "const testsRange = Process.getModuleByName('%s');"
       "Stalker.exclude(testsRange);"
 
-      "var a = new NativeFunction(" GUM_PTR_CONST ", 'int', ['int'], "
+      "const a = new NativeFunction(" GUM_PTR_CONST ", 'int', ['int'], "
           "{ traps: 'all', exceptions: 'propagate' });"
 
       "Stalker.follow({"
       "  events: {"
       "    call: true,"
       "  },"
-      "  onCallSummary: function (summary) {"
-      "    var key = a.strip().toString();"
+      "  onCallSummary(summary) {"
+      "    const key = a.strip().toString();"
       "    send(key in summary);"
       "    send(summary[key]);"
       "  }"
@@ -2886,24 +2908,24 @@ TESTCASE (execution_can_be_traced_during_scheduled_native_function_call)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Stalker.queueDrainInterval = 0;"
-      "var testsRange = Process.getModuleByName('%s');"
+      "const testsRange = Process.getModuleByName('%s');"
       "Stalker.exclude(testsRange);"
 
-      "var a = new NativeFunction(" GUM_PTR_CONST ", 'int', ['int'], "
+      "const a = new NativeFunction(" GUM_PTR_CONST ", 'int', ['int'], "
           "{ traps: 'all' });"
 
       "Stalker.follow({"
       "  events: {"
       "    call: true,"
       "  },"
-      "  onCallSummary: function (summary) {"
-      "    var key = a.strip().toString();"
+      "  onCallSummary(summary) {"
+      "    const key = a.strip().toString();"
       "    send(key in summary);"
       "    send(summary[key]);"
       "  }"
       "});"
 
-      "setImmediate(function () {"
+      "setImmediate(() => {"
         "a(42);"
         "a(42);"
 
@@ -2940,15 +2962,15 @@ TESTCASE (execution_can_be_traced_after_native_function_call_from_hook)
 
   COMPILE_AND_LOAD_SCRIPT (
       "Stalker.queueDrainInterval = 0;"
-      "var testsRange = Process.getModuleByName('%s');"
+      "const testsRange = Process.getModuleByName('%s');"
       "Stalker.exclude(testsRange);"
 
-      "var targetThreadId = %" G_GSIZE_FORMAT ";"
-      "var targetFuncInt = " GUM_PTR_CONST ";"
-      "var targetFuncNestedA = new NativeFunction(" GUM_PTR_CONST ", 'int', "
+      "const targetThreadId = %" G_GSIZE_FORMAT ";"
+      "const targetFuncInt = " GUM_PTR_CONST ";"
+      "const targetFuncNestedA = new NativeFunction(" GUM_PTR_CONST ", 'int', "
           "['int'], { traps: 'all' });"
 
-      "Interceptor.attach(targetFuncInt, function () {"
+      "Interceptor.attach(targetFuncInt, () => {"
       "  targetFuncNestedA(1337);"
       "});"
 
@@ -2956,16 +2978,16 @@ TESTCASE (execution_can_be_traced_after_native_function_call_from_hook)
       "  events: {"
       "    call: true,"
       "  },"
-      "  onCallSummary: function (summary) {"
-      "    [targetFuncInt, targetFuncNestedA].forEach(function (target) {"
-      "      var key = target.strip().toString();"
+      "  onCallSummary(summary) {"
+      "    for (const target of [targetFuncInt, targetFuncNestedA]) {"
+      "      const key = target.strip().toString();"
       "      send(key in summary);"
       "      send(summary[key]);"
-      "    });"
+      "    }"
       "  }"
       "});"
 
-      "recv('stop', function (message) {"
+      "recv('stop', message => {"
       "  Stalker.unfollow(targetThreadId);"
       "  Stalker.flush();"
       "});"
@@ -3030,15 +3052,15 @@ TESTCASE (call_can_be_probed)
   thread_id = sdc_await_thread_id (&channel);
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var targetThreadId = %" G_GSIZE_FORMAT ";"
+      "const targetThreadId = %" G_GSIZE_FORMAT ";"
 
-      "Stalker.addCallProbe(" GUM_PTR_CONST ", function (args) {"
+      "Stalker.addCallProbe(" GUM_PTR_CONST ", args => {"
       "  send(args[0].toInt32());"
       "});"
 
       "Stalker.follow(targetThreadId);"
 
-      "recv('stop', function (message) {"
+      "recv('stop', message => {"
       "  Stalker.unfollow(targetThreadId);"
       "});"
 
@@ -3157,7 +3179,7 @@ TESTCASE (process_should_support_nested_signal_handling)
 
   page = gum_alloc_n_pages (1, GUM_PAGE_NO_ACCESS);
 
-  COMPILE_AND_LOAD_SCRIPT ("Process.setExceptionHandler(function (details) {"
+  COMPILE_AND_LOAD_SCRIPT ("Process.setExceptionHandler(details => {"
           "Memory.protect(" GUM_PTR_CONST ", Process.pageSize, 'rw-');"
           "try {"
               "ptr(42).readU8();"
@@ -3221,7 +3243,7 @@ TESTCASE (process_threads_can_be_enumerated)
 #endif
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var threads = Process.enumerateThreads();"
+      "const threads = Process.enumerateThreads();"
       "send(threads.length > 0);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
@@ -3246,11 +3268,11 @@ TESTCASE (process_threads_can_be_enumerated_legacy_style)
 
   COMPILE_AND_LOAD_SCRIPT (
       "Process.enumerateThreads({"
-        "onMatch: function (thread) {"
+        "onMatch(thread) {"
         "  send('onMatch');"
         "  return 'stop';"
         "},"
-        "onComplete: function () {"
+        "onComplete() {"
         "  send('onComplete');"
         "}"
       "});");
@@ -3284,9 +3306,9 @@ sleeping_dummy (gpointer data)
 TESTCASE (process_modules_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var modules = Process.enumerateModules();"
+      "const modules = Process.enumerateModules();"
       "send(modules.length > 0);"
-      "var m = modules[0];"
+      "const m = modules[0];"
       "send(typeof m.name === 'string');"
       "send(typeof m.path === 'string');"
       "send(m.base instanceof NativePointer);"
@@ -3304,11 +3326,11 @@ TESTCASE (process_modules_can_be_enumerated_legacy_style)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Process.enumerateModules({"
-        "onMatch: function (module) {"
+        "onMatch(module) {"
         "  send('onMatch');"
         "  return 'stop';"
         "},"
-        "onComplete: function () {"
+        "onComplete() {"
         "  send('onComplete');"
         "}"
       "});");
@@ -3344,8 +3366,8 @@ TESTCASE (process_module_can_be_looked_up_from_address)
 #endif
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var someModule = Process.enumerateModules()[1];"
-      "var foundModule = Process.findModuleByAddress(someModule.base);"
+      "const someModule = Process.enumerateModules()[1];"
+      "const foundModule = Process.findModuleByAddress(someModule.base);"
       "send(foundModule !== null);"
       "send(foundModule.name === someModule.name);");
   EXPECT_SEND_MESSAGE_WITH ("true");
@@ -3353,13 +3375,13 @@ TESTCASE (process_module_can_be_looked_up_from_address)
   EXPECT_NO_MESSAGES ();
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var map = new ModuleMap();"
-      "var someModule = Process.enumerateModules()[1];"
+      "const map = new ModuleMap();"
+      "const someModule = Process.enumerateModules()[1];"
 
       "send(map.has(someModule.base));"
       "send(map.has(ptr(1)));"
 
-      "var foundModule = map.find(someModule.base);"
+      "let foundModule = map.find(someModule.base);"
       "send(foundModule !== null);"
       "send(foundModule.name === someModule.name);"
       "send(map.find(ptr(1)));"
@@ -3415,14 +3437,10 @@ TESTCASE (process_module_can_be_looked_up_from_address)
 
 #ifdef HAVE_DARWIN
   COMPILE_AND_LOAD_SCRIPT (
-      "var systemModule = Process.enumerateModules()"
-      "  .filter(function (m) {"
-      "    return m.path.indexOf('/System/') === 0;"
-      "  })[0];"
-      "var map = new ModuleMap(function (module) {"
-      "  return module.path.indexOf('/System/') === -1;"
-      "});"
-      "var foundModule = map.find(systemModule.base);"
+      "const systemModule = Process.enumerateModules()"
+      "  .filter(m => m.path.startsWith('/System/'))[0];"
+      "const map = new ModuleMap(m => !m.path.startsWith('/System/'));"
+      "const foundModule = map.find(systemModule.base);"
       "send(foundModule === null);");
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_NO_MESSAGES ();
@@ -3445,7 +3463,7 @@ TESTCASE (process_module_can_be_looked_up_from_name)
 TESTCASE (process_ranges_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var ranges = Process.enumerateRanges('--x');"
+      "const ranges = Process.enumerateRanges('--x');"
       "send(ranges.length > 0);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
@@ -3454,11 +3472,11 @@ TESTCASE (process_ranges_can_be_enumerated_legacy_style)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Process.enumerateRanges('--x', {"
-        "onMatch: function (range) {"
+        "onMatch(range) {"
         "  send('onMatch');"
         "  return 'stop';"
         "},"
-        "onComplete: function () {"
+        "onComplete() {"
         "  send('onComplete');"
         "}"
       "});");
@@ -3473,8 +3491,8 @@ TESTCASE (process_ranges_can_be_enumerated_legacy_style)
 TESTCASE (process_ranges_can_be_enumerated_with_neighbors_coalesced)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var a = Process.enumerateRanges('--x');"
-      "var b = Process.enumerateRanges({"
+      "const a = Process.enumerateRanges('--x');"
+      "const b = Process.enumerateRanges({"
         "protection: '--x',"
         "coalesce: true"
       "});"
@@ -3499,8 +3517,8 @@ TESTCASE (process_range_can_be_looked_up_from_address)
   EXPECT_SEND_MESSAGE_WITH ("true");
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var someRange = Process.enumerateRanges('r-x')[1];"
-      "var foundRange = Process.findRangeByAddress(someRange.base);"
+      "const someRange = Process.enumerateRanges('r-x')[1];"
+      "const foundRange = Process.findRangeByAddress(someRange.base);"
       "send(foundRange !== null);"
       "send(foundRange.base.equals(someRange.base));");
   EXPECT_SEND_MESSAGE_WITH ("true");
@@ -3525,7 +3543,7 @@ TESTCASE (process_malloc_ranges_can_be_enumerated)
   }
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var ranges = Process.enumerateMallocRanges();"
+      "const ranges = Process.enumerateMallocRanges();"
       "send(ranges.length > 0);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
@@ -3540,11 +3558,11 @@ TESTCASE (process_malloc_ranges_can_be_enumerated_legacy_style)
 
   COMPILE_AND_LOAD_SCRIPT (
       "Process.enumerateMallocRanges({"
-        "onMatch: function (range) {"
+        "onMatch(range) {"
         "  send('onMatch');"
         "  return 'stop';"
         "},"
-        "onComplete: function () {"
+        "onComplete() {"
         "  send('onComplete');"
         "}"
       "});");
@@ -3561,7 +3579,7 @@ TESTCASE (process_malloc_ranges_can_be_enumerated_legacy_style)
 TESTCASE (process_system_ranges_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var ranges = Process.enumerateSystemRanges();"
+      "const ranges = Process.enumerateSystemRanges();"
       "console.log(JSON.stringify(ranges, null, 2));");
   EXPECT_NO_MESSAGES ();
 }
@@ -3569,7 +3587,7 @@ TESTCASE (process_system_ranges_can_be_enumerated)
 TESTCASE (module_imports_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var imports = Process.getModuleByName('%s').enumerateImports();"
+      "const imports = Process.getModuleByName('%s').enumerateImports();"
       "send(imports.length > 0);",
       GUM_TESTS_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("true");
@@ -3578,18 +3596,18 @@ TESTCASE (module_imports_can_be_enumerated)
 TESTCASE (module_imports_can_be_enumerated_legacy_style)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var imports = Module.enumerateImports('%s');"
+      "const imports = Module.enumerateImports('%s');"
       "send(imports.length > 0);",
       GUM_TESTS_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("true");
 
   COMPILE_AND_LOAD_SCRIPT (
       "Module.enumerateImports('%s', {"
-        "onMatch: function (imp) {"
+        "onMatch(imp) {"
         "  send('onMatch');"
         "  return 'stop';"
         "},"
-        "onComplete: function () {"
+        "onComplete() {"
         "  send('onComplete');"
         "}"
       "});",
@@ -3598,7 +3616,7 @@ TESTCASE (module_imports_can_be_enumerated_legacy_style)
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var imports = Module.enumerateImportsSync('%s');"
+      "const imports = Module.enumerateImportsSync('%s');"
       "send(imports.length > 0);",
       GUM_TESTS_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("true");
@@ -3607,9 +3625,9 @@ TESTCASE (module_imports_can_be_enumerated_legacy_style)
 TESTCASE (module_exports_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var exports = Process.getModuleByName('%s').enumerateExports();"
+      "const exports = Process.getModuleByName('%s').enumerateExports();"
       "send(exports.length > 0);"
-      "var e = exports[0];"
+      "const e = exports[0];"
       "send(typeof e.type === 'string');"
       "send(typeof e.name === 'string');"
       "send(e.address instanceof NativePointer);"
@@ -3625,18 +3643,18 @@ TESTCASE (module_exports_can_be_enumerated)
 TESTCASE (module_exports_can_be_enumerated_legacy_style)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var exports = Module.enumerateExports('%s');"
+      "const exports = Module.enumerateExports('%s');"
       "send(exports.length > 0);",
       SYSTEM_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("true");
 
   COMPILE_AND_LOAD_SCRIPT (
       "Module.enumerateExports('%s', {"
-        "onMatch: function (exp) {"
+        "onMatch(exp) {"
         "  send('onMatch');"
         "  return 'stop';"
         "},"
-        "onComplete: function () {"
+        "onComplete() {"
         "  send('onComplete');"
         "}"
       "});",
@@ -3645,7 +3663,7 @@ TESTCASE (module_exports_can_be_enumerated_legacy_style)
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var exports = Module.enumerateExportsSync('%s');"
+      "const exports = Module.enumerateExportsSync('%s');"
       "send(exports.length > 0);",
       SYSTEM_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("true");
@@ -3657,8 +3675,8 @@ TESTCASE (module_exports_enumeration_performance)
   gint duration;
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var module = Process.getModuleByName('%s');"
-      "var start = Date.now();"
+      "const module = Process.getModuleByName('%s');"
+      "const start = Date.now();"
       "module.enumerateExports();"
       "send(Date.now() - start);",
       SYSTEM_MODULE_NAME);
@@ -3672,9 +3690,9 @@ TESTCASE (module_symbols_can_be_enumerated)
 {
 #if defined (HAVE_DARWIN) || defined (HAVE_LINUX)
   COMPILE_AND_LOAD_SCRIPT (
-      "var symbols = Process.getModuleByName('%s').enumerateSymbols();"
+      "const symbols = Process.getModuleByName('%s').enumerateSymbols();"
       "send(symbols.length > 0);"
-      "var s = symbols[0];"
+      "const s = symbols[0];"
       "send(typeof s.isGlobal === 'boolean');"
       "send(typeof s.type === 'string');"
       "send(typeof s.name === 'string');"
@@ -3696,18 +3714,18 @@ TESTCASE (module_symbols_can_be_enumerated_legacy_style)
 {
 #if defined (HAVE_DARWIN) || defined (HAVE_LINUX)
   COMPILE_AND_LOAD_SCRIPT (
-      "var symbols = Module.enumerateSymbols('%s');"
+      "const symbols = Module.enumerateSymbols('%s');"
       "send(symbols.length > 0);",
       GUM_TESTS_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("true");
 
   COMPILE_AND_LOAD_SCRIPT (
       "Module.enumerateSymbols('%s', {"
-        "onMatch: function (sym) {"
+        "onMatch(sym) {"
         "  send('onMatch');"
         "  return 'stop';"
         "},"
-        "onComplete: function () {"
+        "onComplete() {"
         "  send('onComplete');"
         "}"
       "});",
@@ -3716,7 +3734,7 @@ TESTCASE (module_symbols_can_be_enumerated_legacy_style)
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var symbols = Module.enumerateSymbolsSync('%s');"
+      "const symbols = Module.enumerateSymbolsSync('%s');"
       "send(symbols.length > 0);",
       GUM_TESTS_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("true");
@@ -3728,7 +3746,7 @@ TESTCASE (module_symbols_can_be_enumerated_legacy_style)
 TESTCASE (module_ranges_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var ranges = Process.getModuleByName('%s').enumerateRanges('--x');"
+      "const ranges = Process.getModuleByName('%s').enumerateRanges('--x');"
       "send(ranges.length > 0);",
       SYSTEM_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("true");
@@ -3737,18 +3755,18 @@ TESTCASE (module_ranges_can_be_enumerated)
 TESTCASE (module_ranges_can_be_enumerated_legacy_style)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var ranges = Module.enumerateRanges('%s', '--x');"
+      "const ranges = Module.enumerateRanges('%s', '--x');"
       "send(ranges.length > 0);",
       SYSTEM_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("true");
 
   COMPILE_AND_LOAD_SCRIPT (
       "Module.enumerateRanges('%s', '--x', {"
-        "onMatch: function (range) {"
+        "onMatch(range) {"
         "  send('onMatch');"
         "  return 'stop';"
         "},"
-        "onComplete: function () {"
+        "onComplete() {"
         "  send('onComplete');"
         "}"
       "});",
@@ -3757,7 +3775,7 @@ TESTCASE (module_ranges_can_be_enumerated_legacy_style)
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var ranges = Module.enumerateRangesSync('%s', '--x');"
+      "const ranges = Module.enumerateRangesSync('%s', '--x');"
       "send(ranges.length > 0);",
       SYSTEM_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("true");
@@ -3766,10 +3784,10 @@ TESTCASE (module_ranges_can_be_enumerated_legacy_style)
 TESTCASE (module_base_address_can_be_found)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var sysModuleName = '%s';"
-      "var badModuleName = 'nope_' + sysModuleName;"
+      "const sysModuleName = '%s';"
+      "const badModuleName = 'nope_' + sysModuleName;"
 
-      "var base = Module.findBaseAddress(sysModuleName);"
+      "const base = Module.findBaseAddress(sysModuleName);"
       "send(base !== null);"
 
       "send(Module.findBaseAddress(badModuleName) === null);"
@@ -3794,12 +3812,12 @@ TESTCASE (module_base_address_can_be_found)
 TESTCASE (module_export_can_be_found_by_name)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var sysModuleName = '%s';"
-      "var sysModuleExport = '%s';"
-      "var badModuleName = 'nope_' + sysModuleName;"
-      "var badModuleExport = sysModuleExport + '_does_not_exist';"
+      "const sysModuleName = '%s';"
+      "const sysModuleExport = '%s';"
+      "const badModuleName = 'nope_' + sysModuleName;"
+      "const badModuleExport = sysModuleExport + '_does_not_exist';"
 
-      "var impl = Module.findExportByName(sysModuleName, sysModuleExport);"
+      "const impl = Module.findExportByName(sysModuleName, sysModuleExport);"
       "send(impl !== null);"
 
       "send(Module.findExportByName(badModuleName, badModuleExport) === null);"
@@ -3842,9 +3860,9 @@ TESTCASE (module_export_can_be_found_by_name)
 TESTCASE (module_can_be_loaded)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var moduleName = '%s';"
-      "var moduleExport = '%s';"
-      "var m = Module.load(moduleName);"
+      "const moduleName = '%s';"
+      "const moduleExport = '%s';"
+      "const m = Module.load(moduleName);"
       "send(m.getExportByName(moduleExport).equals("
           "Module.getExportByName(moduleName, moduleExport)));"
       "try {"
@@ -3874,7 +3892,7 @@ TESTCASE (module_can_be_forcibly_initialized)
 TESTCASE (module_map_values_should_have_module_prototype)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var map = new ModuleMap();"
+      "const map = new ModuleMap();"
       "send(map.values()[0] instanceof Module);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
@@ -3888,8 +3906,8 @@ TESTCASE (module_map_values_should_have_module_prototype)
 TESTCASE (api_resolver_can_be_used_to_find_functions)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var resolver = new ApiResolver('module');"
-      "var matches = resolver.enumerateMatches('%s');"
+      "const resolver = new ApiResolver('module');"
+      "const matches = resolver.enumerateMatches('%s');"
       "send(matches.length > 0);",
       API_RESOLVER_TEST_QUERY);
   EXPECT_SEND_MESSAGE_WITH ("true");
@@ -3898,13 +3916,13 @@ TESTCASE (api_resolver_can_be_used_to_find_functions)
 TESTCASE (api_resolver_can_be_used_to_find_functions_legacy_style)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var resolver = new ApiResolver('module');"
+      "const resolver = new ApiResolver('module');"
       "resolver.enumerateMatches('%s', {"
-      "  onMatch: function (match) {"
+      "  onMatch(match) {"
       "    send('onMatch');"
       "    return 'stop';"
       "  },"
-      "  onComplete: function () {"
+      "  onComplete() {"
       "    send('onComplete');"
       "  }"
       "});",
@@ -3913,8 +3931,8 @@ TESTCASE (api_resolver_can_be_used_to_find_functions_legacy_style)
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var resolver = new ApiResolver('module');"
-      "var matches = resolver.enumerateMatchesSync('%s');"
+      "const resolver = new ApiResolver('module');"
+      "const matches = resolver.enumerateMatchesSync('%s');"
       "send(matches.length > 0);",
       API_RESOLVER_TEST_QUERY);
   EXPECT_SEND_MESSAGE_WITH ("true");
@@ -3956,24 +3974,24 @@ TESTCASE (array_buffer_can_be_created)
 TESTCASE (rpc_can_be_performed)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "rpc.exports.foo = function (a, b) {"
-          "var result = a + b;"
+      "rpc.exports.foo = (a, b) => {"
+          "const result = a + b;"
           "if (result >= 0)"
               "return result;"
           "else "
               "throw new Error('no');"
       "};"
-      "rpc.exports.bar = function (a, b) {"
-          "return new Promise(function (resolve, reject) {"
-              "var result = a + b;"
+      "rpc.exports.bar = (a, b) => {"
+          "return new Promise((resolve, reject) => {"
+              "const result = a + b;"
               "if (result >= 0)"
                   "resolve(result);"
               "else "
                   "reject(new Error('nope'));"
           "});"
       "};"
-      "rpc.exports.badger = function () {"
-          "var buf = Memory.allocUtf8String(\"Yo\");"
+      "rpc.exports.badger = () => {"
+          "const buf = Memory.allocUtf8String(\"Yo\");"
           "return buf.readByteArray(2);"
       "};");
   EXPECT_NO_MESSAGES ();
@@ -4018,7 +4036,7 @@ TESTCASE (message_can_be_sent_with_data)
 TESTCASE (message_can_be_received)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "recv(function (message) {"
+      "recv(message => {"
       "  if (message.type === 'ping')"
       "    send('pong');"
       "});");
@@ -4033,7 +4051,7 @@ TESTCASE (message_can_be_received_with_data)
   GBytes * bytes;
 
   COMPILE_AND_LOAD_SCRIPT (
-      "recv(function (message, data) {"
+      "recv((message, data) => {"
       "  if (message.type === 'ping')"
       "    send('pong', data);"
       "});");
@@ -4049,10 +4067,10 @@ TESTCASE (message_can_be_received_with_data)
 TESTCASE (recv_may_specify_desired_message_type)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "recv('wobble', function (message) {"
+      "recv('wobble', message => {"
       "  send('wibble');"
       "});"
-      "recv('ping', function (message) {"
+      "recv('ping', message => {"
       "  send('pong');"
       "});");
   EXPECT_NO_MESSAGES ();
@@ -4067,8 +4085,8 @@ TESTCASE (recv_can_be_waited_for_from_an_application_thread)
 
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function (args) {"
-      "    var op = recv('poke', function (pokeMessage) {"
+      "  onEnter(args) {"
+      "    const op = recv('poke', pokeMessage => {"
       "      send('pokeBack');"
       "    });"
       "    op.wait();"
@@ -4105,8 +4123,8 @@ TESTCASE (recv_can_be_waited_for_from_two_application_threads)
 
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function (args) {"
-      "    var op = recv('poke', function (pokeMessage) {"
+      "  onEnter(args) {"
+      "    const op = recv('poke', pokeMessage => {"
       "      send('pokeBack');"
       "    });"
       "    op.wait();"
@@ -4152,8 +4170,8 @@ TESTCASE (recv_can_be_waited_for_from_our_js_thread)
    * script synchronously...
    */
   COMPILE_AND_LOAD_SCRIPT (
-      "setTimeout(function () {"
-      "  var op = recv('poke', function (pokeMessage) {"
+      "setTimeout(() => {"
+      "  const op = recv('poke', pokeMessage => {"
       "    send('pokeBack');"
       "  });"
       "  op.wait();"
@@ -4174,8 +4192,8 @@ TESTCASE (recv_wait_in_an_application_thread_should_throw_on_unload)
 
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function (args) {"
-      "    var op = recv('poke', function (pokeMessage) {"
+      "  onEnter(args) {"
+      "    const op = recv('poke', pokeMessage => {"
       "      send('pokeBack');"
       "    });"
       "    try {"
@@ -4212,9 +4230,9 @@ TESTCASE (recv_wait_in_our_js_thread_should_throw_on_unload)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Script.pin();"
-      "setTimeout(function () {"
+      "setTimeout(() => {"
       "  Script.unpin();"
-      "  var op = recv('poke', function (pokeMessage) {"
+      "  const op = recv('poke', pokeMessage => {"
       "    send('pokeBack');"
       "  });"
       "  try {"
@@ -4245,8 +4263,8 @@ TESTCASE (recv_wait_should_not_leak)
 
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function (args) {"
-      "    var op = recv('input', onInput);"
+      "  onEnter(args) {"
+      "    const op = recv('input', onInput);"
       "    send('request-input');"
       "    op.wait();"
       "  }"
@@ -4355,7 +4373,7 @@ TESTCASE (thread_can_be_forced_to_sleep)
 TESTCASE (timeout_can_be_scheduled)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "setTimeout(function () {"
+      "setTimeout(() => {"
       "  send(1337);"
       "}, 20);");
   EXPECT_NO_MESSAGES ();
@@ -4367,7 +4385,7 @@ TESTCASE (timeout_can_be_scheduled)
   EXPECT_NO_MESSAGES ();
 
   COMPILE_AND_LOAD_SCRIPT (
-      "setTimeout(function (value) {"
+      "setTimeout(value => {"
       "  send(value);"
       "}, uint64(20), 1338);");
   EXPECT_NO_MESSAGES ();
@@ -4376,7 +4394,7 @@ TESTCASE (timeout_can_be_scheduled)
   EXPECT_SEND_MESSAGE_WITH ("1338");
 
   COMPILE_AND_LOAD_SCRIPT (
-      "setTimeout(function () {"
+      "setTimeout(() => {"
       "  send(1227);"
       "});");
   g_usleep (10000);
@@ -4386,7 +4404,7 @@ TESTCASE (timeout_can_be_scheduled)
 TESTCASE (timeout_can_be_cancelled)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var timeout = setTimeout(function () {"
+      "const timeout = setTimeout(() => {"
       "  send(1337);"
       "}, 20);"
       "clearTimeout(timeout);");
@@ -4397,7 +4415,7 @@ TESTCASE (timeout_can_be_cancelled)
 TESTCASE (interval_can_be_scheduled)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "setInterval(function (value) {"
+      "setInterval(value => {"
       "  send(value);"
       "}, 20, 1337);");
   EXPECT_NO_MESSAGES ();
@@ -4412,8 +4430,8 @@ TESTCASE (interval_can_be_scheduled)
 TESTCASE (interval_can_be_cancelled)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var count = 1;"
-      "var interval = setInterval(function () {"
+      "let count = 1;"
+      "const interval = setInterval(() => {"
       "  send(count++);"
       "  if (count === 3)"
       "    clearInterval(interval);"
@@ -4432,7 +4450,7 @@ TESTCASE (interval_can_be_cancelled)
 TESTCASE (callback_can_be_scheduled)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "setImmediate(function () {"
+      "setImmediate(() => {"
       "  send(1337);"
       "});");
   EXPECT_SEND_MESSAGE_WITH ("1337");
@@ -4442,10 +4460,10 @@ TESTCASE (callback_can_be_scheduled)
 TESTCASE (callback_can_be_scheduled_from_a_scheduled_callback)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "setImmediate(function () {"
+      "setImmediate(() => {"
       "  send(1337);"
-      "  Script.nextTick(function () { send(1338); });"
-      "  setImmediate(function () { send(1339); });"
+      "  Script.nextTick(() => { send(1338); });"
+      "  setImmediate(() => { send(1339); });"
       "});");
   EXPECT_SEND_MESSAGE_WITH ("1337");
   EXPECT_SEND_MESSAGE_WITH ("1338");
@@ -4456,7 +4474,7 @@ TESTCASE (callback_can_be_scheduled_from_a_scheduled_callback)
 TESTCASE (callback_can_be_cancelled)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var id = setImmediate(function () {"
+      "const id = setImmediate(() => {"
       "  send(1337);"
       "});"
       "clearImmediate(id);");
@@ -4628,7 +4646,7 @@ TESTCASE (argument_can_be_read)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function (args) {"
+      "  onEnter(args) {"
       "    send(args[0].toInt32());"
       "  }"
       "});", target_function_int);
@@ -4645,9 +4663,9 @@ TESTCASE (argument_can_be_read)
 TESTCASE (argument_can_be_replaced)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var replacementString = Memory.allocUtf8String('Hei');"
+      "const replacementString = Memory.allocUtf8String('Hei');"
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function (args) {"
+      "  onEnter(args) {"
       "    args[0] = replacementString;"
       "  }"
       "});", target_function_string);
@@ -4663,7 +4681,7 @@ TESTCASE (return_value_can_be_read)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onLeave: function (retval) {"
+      "  onLeave(retval) {"
       "    send(retval.toInt32());"
       "  }"
       "});", target_function_int);
@@ -4677,7 +4695,7 @@ TESTCASE (return_value_can_be_replaced)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onLeave: function (retval) {"
+      "  onLeave(retval) {"
       "    retval.replace(1337);"
       "  }"
       "});", target_function_int);
@@ -4687,7 +4705,7 @@ TESTCASE (return_value_can_be_replaced)
 
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onLeave: function (retval) {"
+      "  onLeave(retval) {"
       "    retval.replace({ handle: ptr(1338) });"
       "  }"
       "});", target_function_int);
@@ -4696,13 +4714,13 @@ TESTCASE (return_value_can_be_replaced)
   EXPECT_NO_MESSAGES ();
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var savedRetval = null;"
+      "let savedRetval = null;"
       "Interceptor.attach(" GUM_PTR_CONST  ", {"
-      "  onLeave: function (retval) {"
+      "  onLeave(retval) {"
       "    savedRetval = retval;"
       "  }"
       "});"
-      "recv('try-replace', function () {"
+      "recv('try-replace', () => {"
       "  savedRetval.replace(1337);"
       "});", target_function_int);
   EXPECT_NO_MESSAGES ();
@@ -4717,11 +4735,11 @@ TESTCASE (return_address_can_be_read)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function () {"
+      "  onEnter() {"
       "    send(this.returnAddress instanceof NativePointer);"
       "    this.onEnterReturnAddress = this.returnAddress;"
       "  },"
-      "  onLeave: function () {"
+      "  onLeave() {"
       "    send(this.returnAddress.equals(this.onEnterReturnAddress));"
       "  }"
       "});", target_function_int);
@@ -4737,7 +4755,7 @@ TESTCASE (register_can_be_read)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onLeave: function () {"
+      "  onLeave() {"
       "    send(this.context." GUM_RETURN_VALUE_REGISTER_NAME ".toInt32());"
       "  }"
       "});", target_function_int);
@@ -4751,7 +4769,7 @@ TESTCASE (register_can_be_written)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onLeave: function () {"
+      "  onLeave() {"
       "    this.context." GUM_RETURN_VALUE_REGISTER_NAME " = ptr(1337);"
       "  }"
       "});", target_function_int);
@@ -4766,7 +4784,7 @@ TESTCASE (system_error_can_be_read_from_interceptor_listener)
 #ifdef HAVE_WINDOWS
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function (retval) {"
+      "  onEnter(retval) {"
       "    send(this.lastError);"
       "  }"
       "});", target_function_int);
@@ -4778,7 +4796,7 @@ TESTCASE (system_error_can_be_read_from_interceptor_listener)
 #else
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function (retval) {"
+      "  onEnter(retval) {"
       "    send(this.errno);"
       "  }"
       "});", target_function_int);
@@ -4839,7 +4857,7 @@ TESTCASE (system_error_can_be_replaced_from_interceptor_listener)
 #ifdef HAVE_WINDOWS
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function (retval) {"
+      "  onEnter(retval) {"
       "    this.lastError = 1337;"
       "  }"
       "});", target_function_int);
@@ -4850,7 +4868,7 @@ TESTCASE (system_error_can_be_replaced_from_interceptor_listener)
 #else
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function (retval) {"
+      "  onEnter(retval) {"
       "    this.errno = 1337;"
       "  }"
       "});", target_function_int);
@@ -4892,11 +4910,11 @@ TESTCASE (invocations_are_bound_on_tls_object)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function (args) {"
+      "  onEnter(args) {"
       "    send(this.value || null);"
       "    this.value = args[0].toInt32();"
       "  },"
-      "  onLeave: function (retval) {"
+      "  onLeave(retval) {"
       "    send(this.value || null);"
       "  }"
       "});", target_function_int);
@@ -4916,10 +4934,10 @@ TESTCASE (invocations_provide_thread_id)
 
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function (args) {"
+      "  onEnter(args) {"
       "    send(this.threadId);"
       "  },"
-      "  onLeave: function (retval) {"
+      "  onLeave(retval) {"
       "    send(this.threadId);"
       "  }"
       "});",
@@ -4945,26 +4963,26 @@ TESTCASE (invocations_provide_call_depth)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function (args) {"
+      "  onEnter(args) {"
       "    send('>a' + this.depth);"
       "  },"
-      "  onLeave: function (retval) {"
+      "  onLeave(retval) {"
       "    send('<a' + this.depth);"
       "  }"
       "});"
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function (args) {"
+      "  onEnter(args) {"
       "    send('>b' + this.depth);"
       "  },"
-      "  onLeave: function (retval) {"
+      "  onLeave(retval) {"
       "    send('<b' + this.depth);"
       "  }"
       "});"
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function (args) {"
+      "  onEnter(args) {"
       "    send('>c' + this.depth);"
       "  },"
-      "  onLeave: function (retval) {"
+      "  onLeave(retval) {"
       "    send('<c' + this.depth);"
       "  }"
       "});",
@@ -4992,13 +5010,13 @@ TESTCASE (invocations_provide_context_for_backtrace)
   }
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var mode = '%s';"
+      "const mode = '%s';"
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function (args) {"
+      "  onEnter(args) {"
       "    send(Thread.backtrace(this.context, Backtracer.ACCURATE)"
       "        .length > 0);"
       "  },"
-      "  onLeave: function (retval) {"
+      "  onLeave(retval) {"
       "    if (mode === 'slow')"
       "      send(Thread.backtrace(this.context, Backtracer.FUZZY).length > 0);"
       "  }"
@@ -5018,10 +5036,10 @@ TESTCASE (invocations_provide_context_serializable_to_json)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function (args) {"
+      "  onEnter(args) {"
       "    send(JSON.stringify(this.context) !== \"{}\");"
       "  },"
-      "  onLeave: function (retval) {"
+      "  onLeave(retval) {"
       "    send(JSON.stringify(this.context) !== \"{}\");"
       "  }"
       "});",
@@ -5037,23 +5055,21 @@ TESTCASE (invocations_provide_context_serializable_to_json)
 TESTCASE (listener_can_be_detached)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var firstListener, secondListener;"
-      ""
-      "firstListener = Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function (args) {"
+      "const firstListener = Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter(args) {"
       "    send(1);"
       "    firstListener.detach();"
       "  },"
-      "  onLeave: function (retval) {"
+      "  onLeave(retval) {"
       "    send(2);"
       "  }"
       "});"
       ""
-      "secondListener = Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function (args) {"
+      "const secondListener = Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter(args) {"
       "    send(3);"
       "  },"
-      "  onLeave: function (retval) {"
+      "  onLeave(retval) {"
       "    send(4);"
       "    secondListener.detach();"
       "  }"
@@ -5090,9 +5106,9 @@ TESTCASE (listener_can_be_detached_by_destruction_mid_call)
 
     COMPILE_AND_LOAD_SCRIPT (
         "Interceptor.attach(" GUM_PTR_CONST ", {"
-        "  onEnter: function (args) {"
+        "  onEnter(args) {"
         "  },"
-        "  onLeave: function (retval) {"
+        "  onLeave(retval) {"
         "  }"
         "});",
         target_function_trigger);
@@ -5133,7 +5149,7 @@ TESTCASE (all_listeners_can_be_detached)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function (args) {"
+      "  onEnter(args) {"
       "    send(args[0].toInt32());"
       "  }"
       "});"
@@ -5149,7 +5165,7 @@ TESTCASE (function_can_be_replaced)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.replace(" GUM_PTR_CONST ","
-      "    new NativeCallback(function (arg) {"
+      "    new NativeCallback(arg => {"
       "  send(arg);"
       "  return 1337;"
       "}, 'int', ['int']));",
@@ -5168,13 +5184,13 @@ TESTCASE (function_can_be_replaced)
 TESTCASE (function_can_be_replaced_and_called_immediately)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var address = " GUM_PTR_CONST ";"
+      "const address = " GUM_PTR_CONST ";"
       "Interceptor.replace(address,"
-      "    new NativeCallback(function (arg) {"
+      "    new NativeCallback(arg => {"
       "  send(arg);"
       "  return 1337;"
       "}, 'int', ['int']));"
-      "var f = new NativeFunction(address, 'int', ['int'],"
+      "const f = new NativeFunction(address, 'int', ['int'],"
       "    { scheduling: 'exclusive' });"
       "f(7);"
       "Interceptor.flush();"
@@ -5187,11 +5203,10 @@ TESTCASE (function_can_be_replaced_and_called_immediately)
 TESTCASE (function_can_be_reverted)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "Interceptor.replace(" GUM_PTR_CONST ", new NativeCallback("
-      "  function (arg) {"
-      "    send(arg);"
-      "    return 1337;"
-      "  }, 'int', ['int']));"
+      "Interceptor.replace(" GUM_PTR_CONST ", new NativeCallback(arg => {"
+      "  send(arg);"
+      "  return 1337;"
+      "}, 'int', ['int']));"
       "Interceptor.revert(" GUM_PTR_CONST ");",
       target_function_int, target_function_int);
 
@@ -5203,11 +5218,10 @@ TESTCASE (function_can_be_reverted)
 TESTCASE (replaced_function_should_have_invocation_context)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "Interceptor.replace(" GUM_PTR_CONST ", new NativeCallback("
-      "  function (arg) {"
-      "    send(this.returnAddress instanceof NativePointer);"
-      "    return 0;"
-      "  }, 'int', ['int']));",
+      "Interceptor.replace(" GUM_PTR_CONST ", new NativeCallback(function () {"
+      "  send(this.returnAddress instanceof NativePointer);"
+      "  return 0;"
+      "}, 'int', ['int']));",
       target_function_int);
 
   EXPECT_NO_MESSAGES ();
@@ -5237,9 +5251,9 @@ TESTCASE (instructions_can_be_probed)
 TESTCASE (interceptor_should_support_native_pointer_values)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var value = { handle: " GUM_PTR_CONST " };"
+      "const value = { handle: " GUM_PTR_CONST " };"
       "Interceptor.attach(value, {"
-      "  onEnter: function (args) {"
+      "  onEnter(args) {"
       "    send(args[0].toInt32());"
       "  }"
       "});", target_function_int);
@@ -5248,11 +5262,9 @@ TESTCASE (interceptor_should_support_native_pointer_values)
   EXPECT_SEND_MESSAGE_WITH ("42");
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var value = { handle: " GUM_PTR_CONST " };"
+      "const value = { handle: " GUM_PTR_CONST " };"
       "Interceptor.replace(value,"
-      "    new NativeCallback(function (arg) {"
-      "  return 1337;"
-      "}, 'int', ['int']));",
+      "    new NativeCallback(arg => 1337, 'int', ['int']));",
       target_function_int);
   EXPECT_NO_MESSAGES ();
   g_assert_cmpint (target_function_int (7), ==, 1337);
@@ -5265,16 +5277,16 @@ TESTCASE (interceptor_handles_invalid_arguments)
     return;
 
   COMPILE_AND_LOAD_SCRIPT (
-      "Interceptor.attach(ptr(\"0x42\"), {"
-      "  onEnter: function (args) {"
+      "Interceptor.attach(ptr(0x42), {"
+      "  onEnter(args) {"
       "  }"
       "});");
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
       "Error: access violation accessing 0x42");
 
   COMPILE_AND_LOAD_SCRIPT (
-      "Interceptor.replace(ptr(\"0x42\"), new NativeCallback(function (arg) {"
-      "}, 'void', []));");
+      "Interceptor.replace(ptr(0x42),"
+      "    new NativeCallback(() => {}, 'void', []));");
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
       "Error: access violation accessing 0x42");
 }
@@ -5283,7 +5295,7 @@ TESTCASE (interceptor_on_enter_performance)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function (args) {"
+      "  onEnter(args) {"
       "  }"
       "});", target_function_int);
 
@@ -5299,7 +5311,7 @@ TESTCASE (interceptor_on_leave_performance)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onLeave: function (retval) {"
+      "  onLeave(retval) {"
       "  }"
       "});", target_function_int);
 
@@ -5315,9 +5327,9 @@ TESTCASE (interceptor_on_enter_and_leave_performance)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function (args) {"
+      "  onEnter(args) {"
       "  },"
-      "  onLeave: function (retval) {"
+      "  onLeave(retval) {"
       "  }"
       "});", target_function_int);
 
@@ -5389,11 +5401,11 @@ TESTCASE (memory_can_be_scanned)
 
   COMPILE_AND_LOAD_SCRIPT (
       "Memory.scan(" GUM_PTR_CONST ", 7, '13 37', {"
-        "onMatch: function (address, size) {"
+        "onMatch(address, size) {"
         "  send('onMatch offset=' + address.sub(" GUM_PTR_CONST
              ").toInt32() + ' size=' + size);"
         "},"
-        "onComplete: function () {"
+        "onComplete() {"
         "  send('onComplete');"
         "}"
       "});", haystack, haystack);
@@ -5403,11 +5415,11 @@ TESTCASE (memory_can_be_scanned)
 
   COMPILE_AND_LOAD_SCRIPT (
       "Memory.scan(" GUM_PTR_CONST ", uint64(7), '13 37', {"
-        "onMatch: function (address, size) {"
+        "onMatch(address, size) {"
         "  send('onMatch offset=' + address.sub(" GUM_PTR_CONST
              ").toInt32() + ' size=' + size);"
         "},"
-        "onComplete: function () {"
+        "onComplete() {"
         "  send('onComplete');"
         "}"
       "});", haystack, haystack);
@@ -5421,11 +5433,10 @@ TESTCASE (memory_can_be_scanned_synchronously)
   guint8 haystack[] = { 0x01, 0x02, 0x13, 0x37, 0x03, 0x13, 0x37 };
 
   COMPILE_AND_LOAD_SCRIPT (
-      "Memory.scanSync(" GUM_PTR_CONST ", 7, '13 37')"
-      ".forEach(function (match) {"
-      "  send('match offset=' + match.address.sub(" GUM_PTR_CONST
-           ").toInt32() + ' size=' + match.size);"
-      "});"
+      "for (const match of Memory.scanSync(" GUM_PTR_CONST ", 7, '13 37')) {"
+      "  send(`match offset=${match.address.sub(" GUM_PTR_CONST ").toInt32()} "
+          "size=${match.size}`);"
+      "}"
       "send('done');",
       haystack, haystack);
   EXPECT_SEND_MESSAGE_WITH ("\"match offset=2 size=2\"");
@@ -5433,11 +5444,11 @@ TESTCASE (memory_can_be_scanned_synchronously)
   EXPECT_SEND_MESSAGE_WITH ("\"done\"");
 
   COMPILE_AND_LOAD_SCRIPT (
-      "Memory.scanSync(" GUM_PTR_CONST ", uint64(7), '13 37')"
-      ".forEach(function (match) {"
-      "  send('match offset=' + match.address.sub(" GUM_PTR_CONST
-           ").toInt32() + ' size=' + match.size);"
-      "});"
+      "for (const match of Memory.scanSync(" GUM_PTR_CONST ", uint64(7), "
+          "'13 37')) {"
+      "  send(`match offset=${match.address.sub(" GUM_PTR_CONST ").toInt32()} "
+          "size=${match.size}`);"
+      "}"
       "send('done');",
       haystack, haystack);
   EXPECT_SEND_MESSAGE_WITH ("\"match offset=2 size=2\"");
@@ -5450,12 +5461,12 @@ TESTCASE (memory_scan_should_be_interruptible)
   guint8 haystack[] = { 0x01, 0x02, 0x13, 0x37, 0x03, 0x13, 0x37 };
   COMPILE_AND_LOAD_SCRIPT (
       "Memory.scan(" GUM_PTR_CONST ", 7, '13 37', {"
-        "onMatch: function (address, size) {"
+        "onMatch(address, size) {"
         "  send('onMatch offset=' + address.sub(" GUM_PTR_CONST
              ").toInt32() + ' size=' + size);"
         "  return 'stop';"
         "},"
-        "onComplete: function () {"
+        "onComplete() {"
         "  send('onComplete');"
         "}"
       "});", haystack, haystack);
@@ -5470,13 +5481,13 @@ TESTCASE (memory_scan_handles_unreadable_memory)
 
   COMPILE_AND_LOAD_SCRIPT (
       "Memory.scan(ptr(\"1328\"), 7, '13 37', {"
-        "onMatch: function (address, size) {"
+        "onMatch(address, size) {"
         "  send('onMatch');"
         "},"
-        "onError: function (message) {"
+        "onError(message) {"
         "  send('onError: ' + message);"
         "},"
-        "onComplete: function () {"
+        "onComplete() {"
         "  send('onComplete');"
         "}"
       "});");
@@ -5504,7 +5515,7 @@ TESTCASE (memory_access_can_be_monitored)
   COMPILE_AND_LOAD_SCRIPT (
       "MemoryAccessMonitor.enable([{ base: " GUM_PTR_CONST ", size: %u },"
         "{ base: " GUM_PTR_CONST ", size: %u }], {"
-        "onAccess: function (details) {"
+        "onAccess(details) {"
           "send([details.operation, !!details.from, details.address,"
             "details.rangeIndex, details.pageIndex, details.pagesCompleted,"
             "details.pagesTotal]);"
@@ -5539,7 +5550,7 @@ TESTCASE (memory_access_can_be_monitored_one_range)
 
   COMPILE_AND_LOAD_SCRIPT (
       "MemoryAccessMonitor.enable({ base: " GUM_PTR_CONST ", size: %u }, {"
-        "onAccess: function (details) {"
+        "onAccess(details) {"
           "send([details.operation, !!details.from, details.address,"
             "details.rangeIndex, details.pageIndex, details.pagesCompleted,"
             "details.pagesTotal]);"
@@ -5599,26 +5610,26 @@ TESTCASE (memory_can_be_allocated)
   gsize p;
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var p = Memory.alloc(8);"
+      "const p = Memory.alloc(8);"
       "p.writePointer(ptr('1337'));"
       "send(p.readPointer().toInt32() === 1337);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var p = Memory.alloc(uint64(8));"
+      "const p = Memory.alloc(uint64(8));"
       "p.writePointer(ptr('1337'));"
       "send(p.readPointer().toInt32() === 1337);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var p = Memory.alloc(Process.pageSize);"
+      "const p = Memory.alloc(Process.pageSize);"
       "send(p);");
   p = GPOINTER_TO_SIZE (EXPECT_SEND_MESSAGE_WITH_POINTER ());
   g_assert_cmpuint (p, !=, 0);
   g_assert_cmpuint (p & (gum_query_page_size () - 1), ==, 0);
 
   COMPILE_AND_LOAD_SCRIPT(
-      "var p = Memory.alloc(5);"
+      "const p = Memory.alloc(5);"
       "send('p', p.readByteArray(5));");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA("\"p\"", "00 00 00 00 00");
 }
@@ -5661,7 +5672,7 @@ TESTCASE (memory_can_be_duped)
   guint8 buf[3] = { 0x13, 0x37, 0x42 };
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var p = Memory.dup(" GUM_PTR_CONST ", 3);"
+      "const p = Memory.dup(" GUM_PTR_CONST ", 3);"
       "p.writeU8(0x12);"
       "send('p', p.readByteArray(3));"
       "send('buf', " GUM_PTR_CONST ".readByteArray(3));",
@@ -5670,7 +5681,7 @@ TESTCASE (memory_can_be_duped)
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"buf\"", "13 37 42");
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var p = Memory.dup(" GUM_PTR_CONST ", uint64(2));"
+      "const p = Memory.dup(" GUM_PTR_CONST ", uint64(2));"
       "p.writeU8(0x12);"
       "send('p', p.readByteArray(2));"
       "send('buf', " GUM_PTR_CONST ".readByteArray(2));",
@@ -5730,8 +5741,7 @@ TESTCASE (code_can_be_patched)
   code[7] = 0xc3;
   gum_mprotect (code, gum_query_page_size (), GUM_PAGE_RX);
 
-  COMPILE_AND_LOAD_SCRIPT ("Memory.patchCode(" GUM_PTR_CONST ", 1, "
-      "function (ptr) {"
+  COMPILE_AND_LOAD_SCRIPT ("Memory.patchCode(" GUM_PTR_CONST ", 1, ptr => {"
           "ptr.writeU8(0x90);"
       "});", code + 7);
   g_assert_cmphex (code[7], ==, 0x90);
@@ -5827,7 +5837,7 @@ TESTCASE (s64_can_be_read)
 {
   gint64 val = G_GINT64_CONSTANT (-1201239876783);
   COMPILE_AND_LOAD_SCRIPT (
-      "var value = " GUM_PTR_CONST ".readS64();"
+      "const value = " GUM_PTR_CONST ".readS64();"
       "send(value instanceof Int64);"
       "send(value);",
       &val);
@@ -5847,7 +5857,7 @@ TESTCASE (u64_can_be_read)
 {
   guint64 val = G_GUINT64_CONSTANT (1201239876783);
   COMPILE_AND_LOAD_SCRIPT (
-      "var value = " GUM_PTR_CONST ".readU64();"
+      "const value = " GUM_PTR_CONST ".readU64();"
       "send(value instanceof UInt64);"
       "send(value);",
       &val);
@@ -5987,11 +5997,11 @@ TESTCASE (byte_array_can_be_read)
 {
   guint8 buf[3] = { 0x13, 0x37, 0x42 };
   COMPILE_AND_LOAD_SCRIPT (
-      "var buffer = " GUM_PTR_CONST ".readByteArray(3);"
+      "const buffer = " GUM_PTR_CONST ".readByteArray(3);"
       "send('badger', buffer);"
       "send('badger', " GUM_PTR_CONST ".readByteArray(int64(3)));"
       "send('badger', " GUM_PTR_CONST ".readByteArray(uint64(3)));"
-      "var emptyBuffer = " GUM_PTR_CONST ".readByteArray(0);"
+      "const emptyBuffer = " GUM_PTR_CONST ".readByteArray(0);"
       "send('snake', emptyBuffer);"
       "send(buffer instanceof ArrayBuffer);"
       "send(emptyBuffer instanceof ArrayBuffer);",
@@ -6020,7 +6030,7 @@ TESTCASE (byte_array_can_be_written)
   g_assert_cmpint (val[3], ==, 0xff);
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var other = " GUM_PTR_CONST ".readByteArray(3);"
+      "const other = " GUM_PTR_CONST ".readByteArray(3);"
       GUM_PTR_CONST ".writeByteArray(other);",
       other, val);
   EXPECT_NO_MESSAGES ();
@@ -6030,7 +6040,7 @@ TESTCASE (byte_array_can_be_written)
   g_assert_cmpint (val[3], ==, 0xff);
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var bytes = new Uint8Array(2);"
+      "const bytes = new Uint8Array(2);"
       "bytes[0] = 4;"
       "bytes[1] = 5;"
       GUM_PTR_CONST ".writeByteArray(bytes);",
@@ -6041,7 +6051,7 @@ TESTCASE (byte_array_can_be_written)
   g_assert_cmpint (val[2], ==, 0x03);
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var shorts = new Uint16Array(1);"
+      "const shorts = new Uint16Array(1);"
       "shorts[0] = 0x4242;"
       GUM_PTR_CONST ".writeByteArray(shorts);",
       shorts);
@@ -6515,13 +6525,12 @@ TESTCASE (invalid_read_write_execute_results_in_exception)
       "Error: access violation accessing 0x530");
   EXPECT_NO_MESSAGES ();
 
-  COMPILE_AND_LOAD_SCRIPT ("var data = Memory.alloc(Process.pageSize);"
-      "var f = new NativeFunction(data.sign(), 'void', []);"
+  COMPILE_AND_LOAD_SCRIPT ("const data = Memory.alloc(Process.pageSize);"
+      "const f = new NativeFunction(data.sign(), 'void', []);"
       "try {"
       "  f();"
       "} catch (e) {"
-      "  send(e.toString().indexOf('Error: access violation accessing 0x')"
-      "      === 0);"
+      "  send(e.toString().startsWith('Error: access violation accessing 0x'));"
       "}");
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_NO_MESSAGES ();
@@ -6534,7 +6543,7 @@ TESTCASE (cmodule_can_be_defined)
   int (* add_impl) (int a, int b);
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var m = new CModule('"
+      "const m = new CModule('"
       ""
       "int\\n"
       "add (int a,\\n"
@@ -6557,7 +6566,7 @@ TESTCASE (cmodule_symbols_can_be_provided)
   int (* get_magic_impl) (void);
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var m = new CModule('"
+      "const m = new CModule('"
       ""
       "extern int a;\\n"
       "extern int b;\\n"
@@ -6600,7 +6609,7 @@ TESTCASE (cmodule_should_report_linking_errors)
 TESTCASE (cmodule_should_provide_lifecycle_hooks)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var m = new CModule('"
+      "const m = new CModule('"
       ""
       "extern void notify (int n);\\n"
       "\\n"
@@ -6616,7 +6625,7 @@ TESTCASE (cmodule_should_provide_lifecycle_hooks)
       "  notify (2);\\n"
       "}\\n"
       "', {"
-      "  notify: new NativeCallback(function (n) { send(n); }, 'void', ['int'])"
+      "  notify: new NativeCallback(n => { send(n); }, 'void', ['int'])"
       "});");
   EXPECT_SEND_MESSAGE_WITH ("1");
   EXPECT_NO_MESSAGES ();
@@ -6638,7 +6647,7 @@ TESTCASE (cmodule_can_be_used_with_interceptor_attach)
   int seen_invocation_state_arg = -1;
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var cm = new CModule('"
+      "const cm = new CModule('"
       "  #include <gum/guminterceptor.h>\\n"
       "\\n"
       "  typedef struct _ThreadState ThreadState;\\n"
@@ -6744,7 +6753,7 @@ TESTCASE (cmodule_can_be_used_with_interceptor_replace)
   int seen_replacement_data = -1;
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var m = new CModule('"
+      "const m = new CModule('"
       "#include <gum/guminterceptor.h>\\n"
       "\\n"
       "extern int seenReplacementData;\\n"
@@ -6785,7 +6794,7 @@ TESTCASE (cmodule_can_be_used_with_stalker_events)
   test_thread_id = gum_process_get_current_thread_id ();
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var m = new CModule('"
+      "const m = new CModule('"
       "#include <stdio.h>\\n"
       "#include <gum/gumspinlock.h>\\n"
       "#include <gum/gumstalker.h>\\n"
@@ -6836,7 +6845,7 @@ TESTCASE (cmodule_can_be_used_with_stalker_events)
       "  onEvent: m.process,"
       "  data: ptr(42)"
       "});"
-      "recv('stop', function (message) {"
+      "recv('stop', message => {"
       "  Stalker.unfollow(%" G_GSIZE_FORMAT ");"
       "  send('done');"
       "});",
@@ -6868,7 +6877,7 @@ TESTCASE (cmodule_can_be_used_with_stalker_transform)
   test_thread_id = gum_process_get_current_thread_id ();
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var m = new CModule('"
+      "const m = new CModule('"
       "#include <stdio.h>\\n"
       "#include <gum/gumstalker.h>\\n"
       "\\n"
@@ -6932,7 +6941,7 @@ TESTCASE (cmodule_can_be_used_with_stalker_transform)
       "  transform: m.transform,"
       "  data: ptr(3)"
       "});"
-      "recv('stop', function (message) {"
+      "recv('stop', message => {"
       "  Stalker.unfollow(%" G_GSIZE_FORMAT ");"
       "  send('done');"
       "});",
@@ -6964,7 +6973,7 @@ TESTCASE (cmodule_can_be_used_with_stalker_callout)
   test_thread_id = gum_process_get_current_thread_id ();
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var m = new CModule('"
+      "const m = new CModule('"
       "#include <stdio.h>\\n"
       "#include <gum/gumstalker.h>\\n"
       "\\n"
@@ -6983,10 +6992,10 @@ TESTCASE (cmodule_can_be_used_with_stalker_callout)
       "  numCallouts: " GUM_PTR_CONST ","
       "  seenUserData: " GUM_PTR_CONST
       "});"
-      "var instructionsSeen = 0;"
+      "let instructionsSeen = 0;"
       "Stalker.follow(%" G_GSIZE_FORMAT ", {"
-      "  transform: function (iterator) {"
-      "    var instruction;"
+      "  transform(iterator) {"
+      "    let instruction;"
 
       "    while ((instruction = iterator.next()) !== null) {"
       "      if (instructionsSeen === 0) {"
@@ -6999,7 +7008,7 @@ TESTCASE (cmodule_can_be_used_with_stalker_callout)
       "    }"
       "  }"
       "});"
-      "recv('stop', function (message) {"
+      "recv('stop', message => {"
       "  Stalker.unfollow(%" G_GSIZE_FORMAT ");"
       "  send(instructionsSeen > 0);"
       "});",
@@ -7029,7 +7038,7 @@ TESTCASE (cmodule_can_be_used_with_stalker_call_probe)
   test_thread_id = gum_process_get_current_thread_id ();
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var m = new CModule('"
+      "const m = new CModule('"
       "#include <stdio.h>\\n"
       "#include <gum/gumstalker.h>\\n"
       "\\n"
@@ -7043,12 +7052,12 @@ TESTCASE (cmodule_can_be_used_with_stalker_call_probe)
       "  send (user_data);\\n"
       "}\\n"
       "', {"
-      "  send: new NativeCallback(function (v) { send(v.toUInt32()); }, "
-          "'void', ['pointer'])"
+      "  send: new NativeCallback(v => { send(v.toUInt32()); }, 'void', "
+          "['pointer'])"
       "});"
       "Stalker.addCallProbe(" GUM_PTR_CONST ", m.onCall, ptr(12));"
       "Stalker.follow(%" G_GSIZE_FORMAT ");"
-      "recv('stop', function (message) {"
+      "recv('stop', message => {"
       "  Stalker.unfollow(%" G_GSIZE_FORMAT ");"
       "});"
       "send('ready');",
@@ -7065,9 +7074,9 @@ TESTCASE (cmodule_can_be_used_with_stalker_call_probe)
 TESTCASE (cmodule_can_be_used_with_module_map)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var modules = new ModuleMap();"
+      "const modules = new ModuleMap();"
       ""
-      "var cm = new CModule('"
+      "const cm = new CModule('"
       "#include <gum/gummodulemap.h>\\n"
       "\\n"
       "const gchar *\\n"
@@ -7083,7 +7092,7 @@ TESTCASE (cmodule_can_be_used_with_module_map)
       "  return m->name;\\n"
       "}');"
       ""
-      "var find = new NativeFunction(cm.find, 'pointer', "
+      "const find = new NativeFunction(cm.find, 'pointer', "
           "['pointer', 'pointer']);"
       "send(find(modules, modules.values()[0].base).isNull());"
       "send(find(modules, NULL).isNull());");
@@ -7098,7 +7107,7 @@ TESTCASE (cmodule_should_provide_some_builtin_string_functions)
   int (* score_impl) (const char * str);
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var m = new CModule('"
+      "const m = new CModule('"
       "#include <glib.h>\\n"
       "#include <string.h>\\n"
       "\\n"
@@ -7171,7 +7180,7 @@ TESTCASE (cmodule_should_provide_some_builtin_string_functions)
 TESTCASE (cmodule_should_support_floating_point)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var m = new CModule([\n"
+      "const m = new CModule([\n"
       "  '#include <glib.h>',\n"
       "  '',\n"
       "  'gdouble',\n"
@@ -7181,7 +7190,7 @@ TESTCASE (cmodule_should_support_floating_point)
       "  '}',\n"
       "].join('\\n'));\n"
       "\n"
-      "var measure = new NativeFunction(m.measure, 'double', []);\n"
+      "const measure = new NativeFunction(m.measure, 'double', []);\n"
       "send(measure().toFixed(0));\n");
   EXPECT_SEND_MESSAGE_WITH ("\"42\"");
   EXPECT_NO_MESSAGES ();
@@ -7190,7 +7199,7 @@ TESTCASE (cmodule_should_support_floating_point)
 TESTCASE (cmodule_should_support_varargs)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var m = new CModule([\n"
+      "const m = new CModule([\n"
       "  '#include <glib.h>',\n"
       "  '#include <stdio.h>',\n"
       "  '',\n"
@@ -7318,12 +7327,12 @@ TESTCASE (cmodule_should_support_varargs)
       "  '  g_string_free (message, TRUE);',\n"
       "  '}',\n"
       "].join('\\n'), {\n"
-      "  deliver: new NativeCallback(function (m1, m2) {\n"
+      "  deliver: new NativeCallback((m1, m2) => {\n"
       "    send([m1.readUtf8String(), m2.readUtf8String()]);\n"
       "  }, 'void', ['pointer', 'pointer'])\n"
       "});\n"
       "\n"
-      "var sayHello = new NativeFunction(m.sayHello, 'void',\n"
+      "const sayHello = new NativeFunction(m.sayHello, 'void',\n"
       "    ['pointer', 'uint8', 'uint8']);\n"
       "sayHello(Memory.allocUtf8String('World'), 42, 24);\n");
 
@@ -7337,11 +7346,11 @@ TESTCASE (cmodule_should_support_varargs)
 TESTCASE (cmodule_should_support_global_callbacks)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var cb = new NativeCallback(function (n) { send(n); }, 'void', ['int']);"
-      "var cbPtr = Memory.alloc(Process.pointerSize);"
+      "const cb = new NativeCallback(n => { send(n); }, 'void', ['int']);"
+      "const cbPtr = Memory.alloc(Process.pointerSize);"
       "cbPtr.writePointer(cb);"
       ""
-      "var m = new CModule('"
+      "const m = new CModule('"
       "\\n"
       "extern void notify1 (int n);\\n"
       "extern void (* notify2) (int n);\\n"
@@ -7395,7 +7404,7 @@ TESTCASE (cmodule_should_provide_access_to_cpu_registers)
 #endif
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var cm = new CModule('"
+      "const cm = new CModule('"
       "  #include <gum/guminterceptor.h>\\n"
       "\\n"
       "  extern int seenValue;\\n"
@@ -7422,7 +7431,7 @@ TESTCASE (cmodule_should_provide_access_to_system_error)
   void (* bump_impl) (void);
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var m = new CModule('"
+      "const m = new CModule('"
       "#include <gum/gumprocess.h>\\n"
       ""
       "void\\n"
@@ -7569,7 +7578,7 @@ TESTCASE (script_memory_usage)
 
   /* Warm up */
   script = gum_script_backend_create_sync (fixture->backend, "testcase",
-      "var foo = 42;", NULL, NULL);
+      "const foo = 42;", NULL, NULL);
   gum_script_load_sync (script, NULL);
   gum_script_unload_sync (script, NULL);
   g_object_unref (script);
@@ -7580,7 +7589,7 @@ TESTCASE (script_memory_usage)
 
   g_timer_reset (timer);
   script = gum_script_backend_create_sync (fixture->backend, "testcase",
-      "var foo = 42;", NULL, NULL);
+      "const foo = 42;", NULL, NULL);
   g_print ("created in %u ms\n",
       (guint) (g_timer_elapsed (timer, NULL) * 1000.0));
 
@@ -7744,8 +7753,6 @@ TESTCASE (source_maps_should_be_supported_for_user_scripts)
 
 TESTCASE (types_handle_invalid_construction)
 {
-  /* FIXME: there seems to be a TryCatch issue with V8 on macos-x86_64 */
-#if !(defined (HAVE_MACOS) && GLIB_SIZEOF_VOID_P == 8)
   COMPILE_AND_LOAD_SCRIPT (
       "try {"
       "  NativePointer(\"0x1234\")"
@@ -7769,7 +7776,7 @@ TESTCASE (types_handle_invalid_construction)
 
   COMPILE_AND_LOAD_SCRIPT (
       "try {"
-      "  NativeCallback(function () {}, 'void', []);"
+      "  NativeCallback(() => {}, 'void', []);"
       "} catch (e) {"
       "  send(e.message);"
       "}");
@@ -7786,14 +7793,13 @@ TESTCASE (types_handle_invalid_construction)
   EXPECT_SEND_MESSAGE_WITH (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend)
       ? "\"must be called with new\""
       : "\"use `new File()` to create a new instance\"");
-#endif
 }
 
 TESTCASE (weak_callback_is_triggered_on_gc)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "(function () {"
-      "  var val = {};"
+      "(() => {"
+      "  const val = {};"
       "  WeakRef.bind(val, onWeakNotify);"
       "})();"
       "function onWeakNotify() {"
@@ -7807,8 +7813,8 @@ TESTCASE (weak_callback_is_triggered_on_gc)
 TESTCASE (weak_callback_is_triggered_on_unload)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var val = {};"
-      "WeakRef.bind(val, function () {"
+      "const val = {};"
+      "WeakRef.bind(val, () => {"
       "  send(\"weak notify\");"
       "});");
   EXPECT_NO_MESSAGES ();
@@ -7820,8 +7826,8 @@ TESTCASE (weak_callback_is_triggered_on_unload)
 TESTCASE (weak_callback_is_triggered_on_unbind)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var val = {};"
-      "var id = WeakRef.bind(val, function () {"
+      "const val = {};"
+      "const id = WeakRef.bind(val, () => {"
       "  send(\"weak notify\");"
       "});"
       "WeakRef.unbind(id);");
@@ -7831,9 +7837,9 @@ TESTCASE (weak_callback_is_triggered_on_unbind)
 TESTCASE (weak_callback_should_not_be_exclusive)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var val = {};"
-      "var w1 = WeakRef.bind(val, onWeakNotify.bind(null, 'w1'));"
-      "var w2 = WeakRef.bind(val, onWeakNotify.bind(null, 'w2'));"
+      "let val = {};"
+      "const w1 = WeakRef.bind(val, onWeakNotify.bind(null, 'w1'));"
+      "const w2 = WeakRef.bind(val, onWeakNotify.bind(null, 'w2'));"
       "recv(onMessage);"
       "function onMessage(message) {"
       "  switch (message.type) {"
@@ -7864,7 +7870,7 @@ TESTCASE (globals_can_be_dynamically_generated)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Script.setGlobalAccessHandler({"
-      "  get: function (property) {"
+      "  get(property) {"
       "    if (property === 'badger')"
       "      return 1337 + mushroom;"
       "    else if (property === 'mushroom')"
@@ -7889,9 +7895,9 @@ TESTCASE (globals_can_be_dynamically_generated)
   EXPECT_NO_MESSAGES ();
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var totalGetCalls = 0;"
+      "let totalGetCalls = 0;"
       "Script.setGlobalAccessHandler({"
-      "  get: function (property) {"
+      "  get(property) {"
       "    totalGetCalls++;"
       "  },"
       "});"
@@ -7914,7 +7920,7 @@ TESTCASE (exceptions_can_be_handled)
     return;
 
   COMPILE_AND_LOAD_SCRIPT (
-      "Process.setExceptionHandler(function (ex) {"
+      "Process.setExceptionHandler(ex => {"
       "  send('w00t');"
       "});");
 
@@ -7951,14 +7957,14 @@ TESTCASE (debugger_can_be_enabled)
   }
 
   badger = gum_script_backend_create_sync (fixture->backend, "badger",
-      "var badgerTimer = setInterval(function () {\n"
+      "const badgerTimer = setInterval(() => {\n"
       "  send('badger');\n"
       "}, 1000);", NULL, NULL);
   gum_script_set_message_handler (badger, on_script_message, "badger", NULL);
   gum_script_load_sync (badger, NULL);
 
   snake = gum_script_backend_create_sync (fixture->backend, "snake",
-      "var snakeTimer = setInterval(function () {\n"
+      "const snakeTimer = setInterval(() => {\n"
       "  send('snake');\n"
       "}, 1000);", NULL, NULL);
   gum_script_set_message_handler (snake, on_script_message, "snake", NULL);
