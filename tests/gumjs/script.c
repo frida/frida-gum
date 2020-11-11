@@ -4211,7 +4211,9 @@ TESTCASE (recv_wait_in_an_application_thread_should_throw_on_unload)
 TESTCASE (recv_wait_in_our_js_thread_should_throw_on_unload)
 {
   COMPILE_AND_LOAD_SCRIPT (
+      "Script.pin();"
       "setTimeout(function () {"
+      "  Script.unpin();"
       "  var op = recv('poke', function (pokeMessage) {"
       "    send('pokeBack');"
       "  });"
