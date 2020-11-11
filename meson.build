@@ -12,8 +12,12 @@ project('frida-gum', 'c', 'cpp',
 gum_version = meson.project_version()
 api_version = '1.0'
 
-host_os_family = host_machine.system()
-host_os = host_os_family
+host_os = host_machine.system()
+if host_os == 'android'
+  host_os_family = 'linux'
+else
+  host_os_family = host_os
+endif
 if host_machine.cpu_family() == 'arm'
   host_arch = 'arm'
   host_abi = 'arm'
