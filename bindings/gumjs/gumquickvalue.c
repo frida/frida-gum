@@ -1836,10 +1836,25 @@ _gum_quick_error_new_take_error (JSContext * ctx,
   {
     const gchar * m = e->message;
     GString * message;
+    gboolean probably_starts_with_acronym;
 
     message = g_string_sized_new (strlen (m));
-    g_string_append_unichar (message, g_unichar_tolower (g_utf8_get_char (m)));
-    g_string_append (message, g_utf8_offset_to_pointer (m, 1));
+
+    probably_starts_with_acronym =
+        g_unichar_isupper (g_utf8_get_char (m)) &&
+        g_utf8_strlen (m, -1) >= 2 &&
+        g_unichar_isupper (g_utf8_get_char (g_utf8_offset_to_pointer (m, 1)));
+
+    if (probably_starts_with_acronym)
+    {
+      g_string_append (message, m);
+    }
+    else
+    {
+      g_string_append_unichar (message,
+          g_unichar_tolower (g_utf8_get_char (m)));
+      g_string_append (message, g_utf8_offset_to_pointer (m, 1));
+    }
 
     result = _gum_quick_error_new (ctx, message->str, core);
 
