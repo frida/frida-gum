@@ -129,6 +129,7 @@ struct _GumExecCtx
   gpointer resume_at;
   gpointer kuh_target;
   gconstpointer activation_target;
+  guint32 cpsr;
 
   gpointer infect_thunk;
 
@@ -340,6 +341,11 @@ static void gum_stalker_iterator_handle_thumb_branch_insn (
     GumStalkerIterator * self, const cs_insn * insn);
 static void gum_stalker_iterator_handle_thumb_it_insn (
     GumStalkerIterator * self);
+
+static void gum_stalker_save_cpsr (GumCpuContext * cpu_context,
+    GumExecCtx * ctx);
+static void gum_stalker_restore_cpsr (GumCpuContext * cpu_context,
+    GumExecCtx * ctx);
 
 static void gum_stalker_get_target_address (const cs_insn * insn,
     gboolean thumb, GumBranchTarget * target, guint16 * mask);
@@ -1809,7 +1815,25 @@ gum_stalker_iterator_handle_thumb_it_insn (GumStalkerIterator * self)
        * If the instruction in the IT block is not a branch, then just emit the
        * relocated instruction as normal.
        */
+      gum_exec_block_thumb_open_prolog (block, gc);
+
+      gum_thumb_writer_put_call_address_with_arguments (gc->thumb_writer,
+          GUM_ADDRESS (gum_stalker_save_cpsr), 2,
+          GUM_ARG_REGISTER, ARM_REG_R10,
+          GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx));
+
+      gum_exec_block_thumb_close_prolog (block, gc);
+
       gum_thumb_relocator_write_one (gc->thumb_relocator);
+
+      gum_exec_block_thumb_open_prolog (block, gc);
+
+      gum_thumb_writer_put_call_address_with_arguments (gc->thumb_writer,
+          GUM_ADDRESS (gum_stalker_restore_cpsr), 2,
+          GUM_ARG_REGISTER, ARM_REG_R10,
+          GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx));
+
+      gum_exec_block_thumb_close_prolog (block, gc);
     }
   }
 
@@ -1824,6 +1848,20 @@ gum_stalker_iterator_handle_thumb_it_insn (GumStalkerIterator * self)
    */
   gum_exec_block_thumb_open_prolog (block, gc);
   gum_exec_block_write_thumb_handle_continue (block, gc);
+}
+
+static void
+gum_stalker_save_cpsr (GumCpuContext * cpu_context,
+                       GumExecCtx * ctx)
+{
+  ctx->cpsr = cpu_context->cpsr;
+}
+
+static void
+gum_stalker_restore_cpsr (GumCpuContext * cpu_context,
+                          GumExecCtx * ctx)
+{
+  cpu_context->cpsr = ctx->cpsr;
 }
 
 static void
