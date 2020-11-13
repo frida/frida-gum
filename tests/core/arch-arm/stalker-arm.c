@@ -36,6 +36,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (thumb_pop_pc_ret_events_generated)
   TESTENTRY (arm_pop_just_pc_ret_events_generated)
   TESTENTRY (thumb_pop_just_pc_ret_events_generated)
+  TESTENTRY (thumb_pop_just_pc2_ret_events_generated)
   TESTENTRY (arm_ldm_pc_ret_events_generated)
   TESTENTRY (thumb_ldm_pc_ret_events_generated)
   TESTENTRY (arm_branch_cc_block_events_generated)
@@ -896,6 +897,34 @@ TESTCASE (thumb_pop_just_pc_ret_events_generated)
 
   GUM_ASSERT_EVENT_ADDR (ret, 1, location, func + 10);
   GUM_ASSERT_EVENT_ADDR (ret, 1, depth, 0);
+}
+
+TESTCODE (thumb_pop_just_pc2,
+  0xf0, 0xb5,             /* push {r4-r7, lr} */
+  0x00, 0x1a,             /* subs r0, r0, r0  */
+  0x01, 0x30,             /* adds r0, 1       */
+  0x00, 0xf0, 0x01, 0xf8, /* bl inner         */
+  0xf0, 0xbd,             /* pop {r4-r7, pc}  */
+
+  /* inner:                                   */
+  0x00, 0xb5,             /* push {lr}        */
+  0x01, 0x30,             /* adds r0, 1       */
+  0x5d, 0xf8, 0x04, 0xfb, /* ldr pc, [sp], #4 */
+);
+
+TESTCASE (thumb_pop_just_pc2_ret_events_generated)
+{
+  GumAddress func;
+
+  func = INVOKE_THUMB_EXPECTING (GUM_RET, thumb_pop_just_pc2, 2);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, 1);
+
+  g_assert_cmpint (
+      g_array_index (fixture->sink->events, GumEvent, 0).type, ==, GUM_RET);
+
+  GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + 10);
+  GUM_ASSERT_EVENT_ADDR (ret, 0, depth, 0);
 }
 
 TESTCODE (arm_ldm_pc,
