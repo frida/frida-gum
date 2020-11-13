@@ -19,17 +19,7 @@ gumjs_sources = [
   'gumcmodule.c',
 ]
 
-gumjs_objects = []
-if have_quickjs
-  gumjs_objects += quickjs.extract_all_objects()
-  gumjs_extra_deps += [quickjs_dep]
-endif
-if have_tinycc
-  gumjs_objects += tinycc.extract_all_objects()
-  gumjs_extra_deps += [tinycc_dep]
-endif
-
-if have_quickjs
+if quickjs_dep.found()
   gumjs_sources += [
     'gumquickscriptbackend.c',
     'gumquickscript.c',
@@ -58,7 +48,7 @@ if have_quickjs
   ]
 endif
 
-if have_v8
+if v8_dep.found()
   gumjs_sources += [
     'gumv8scriptbackend.cpp',
     'gumv8script.cpp',
@@ -107,7 +97,7 @@ foreach o : gumjs_generated_origins
 endforeach
 gumjs_generated_outputs = []
 runtimes = []
-if have_quickjs
+if quickjs_dep.found()
   runtimes += 'quick'
 endif
 if have_v8
@@ -207,18 +197,32 @@ gumjs_runtime = custom_target('gumjs-runtime',
 )
 gumjs_sources += [gumjs_runtime]
 
+deps = [
+  gum_dep,
+
+  quickjs_dep,
+  v8_dep,
+
+  gio_dep,
+  gio_os_package_dep,
+  json_glib_dep,
+  ffi_dep,
+  libtcc_dep,
+  sqlite_dep,
+  libsoup_dep,
+]
+
 gumjs = library('frida-gumjs-' + api_version, gumjs_sources,
   c_args: frida_component_cflags,
   override_options: ['cpp_std=c++14'],
   include_directories: [bindings_inc],
-  dependencies: [gum_dep, gio_dep, json_glib_dep, ffi_dep, sqlite_dep, libsoup_dep] + gumjs_extra_deps,
-  objects: gumjs_objects,
+  dependencies: deps,
   install: true,
 )
 
 gumjs_dep = declare_dependency(link_with: gumjs,
   include_directories: [bindings_inc, include_directories('.')],
-  dependencies: [gum_dep, gio_dep, json_glib_dep] + gumjs_extra_deps,
+  dependencies: deps,
 )
 
 pkg = import('pkgconfig')
@@ -232,7 +236,7 @@ pkg.generate(filebase: 'frida-gumjs-' + api_version,
   libraries: [gumjs],
   libraries_private: gumjs_extra_libraries,
   variables: [
-    'gumjs_quickjs=' + have_quickjs.to_string('enabled', 'disabled'),
-    'gumjs_v8=' + have_v8.to_string('enabled', 'disabled'),
+    'gumjs_qjs=' + quickjs_dep.found().to_string('enabled', 'disabled'),
+    'gumjs_v8=' + v8_dep.found().to_string('enabled', 'disabled'),
   ],
 )
