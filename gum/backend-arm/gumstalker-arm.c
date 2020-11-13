@@ -343,7 +343,7 @@ static void gum_stalker_iterator_handle_thumb_it_insn (
 
 static void gum_stalker_get_target_address (const cs_insn * insn,
     gboolean thumb, GumBranchTarget * target, guint16 * mask);
-static void gum_stalker_arm_get_writeback (const cs_insn * insn,
+static void gum_stalker_get_writeback (const cs_insn * insn,
     GumWriteback * writeback);
 
 static void gum_stalker_invoke_callout (GumCpuContext * cpu_context,
@@ -370,7 +370,7 @@ static void gum_exec_block_virtualize_arm_branch_insn (GumExecBlock * block,
     GumGeneratorContext * gc);
 static void gum_exec_block_virtualize_thumb_branch_insn (GumExecBlock * block,
     const GumBranchTarget * target, arm_cc cc, arm_reg cc_reg,
-    GumGeneratorContext * gc);
+    GumWriteback * writeback, GumGeneratorContext * gc);
 static void gum_exec_block_virtualize_arm_call_insn (GumExecBlock * block,
     const GumBranchTarget * target, arm_cc cc, GumGeneratorContext * gc);
 static void gum_exec_block_virtualize_thumb_call_insn (GumExecBlock * block,
@@ -415,6 +415,8 @@ static void gum_exec_block_write_arm_handle_continue (GumExecBlock * block,
 static void gum_exec_block_write_thumb_handle_continue (GumExecBlock * block,
     GumGeneratorContext * gc);
 static void gum_exec_block_write_arm_handle_writeback (GumExecBlock * block,
+    const GumWriteback * writeback, GumGeneratorContext * gc);
+static void gum_exec_block_write_thumb_handle_writeback (GumExecBlock * block,
     const GumWriteback * writeback, GumGeneratorContext * gc);
 static void gum_exec_block_write_arm_exec_generated_code (GumArmWriter * cw,
     GumExecCtx * ctx);
@@ -1627,7 +1629,7 @@ gum_stalker_iterator_arm_keep (GumStalkerIterator * self)
     switch (insn->id)
     {
       case ARM_INS_LDR:
-        gum_stalker_arm_get_writeback (insn, &writeback);
+        gum_stalker_get_writeback (insn, &writeback);
         /* Deliberate fall-through */
       case ARM_INS_SUB:
       case ARM_INS_ADD:
@@ -1687,32 +1689,35 @@ gum_stalker_iterator_handle_thumb_branch_insn (GumStalkerIterator * self,
 {
   GumExecBlock * block = self->exec_block;
   GumGeneratorContext * gc = self->generator_context;
+  cs_arm * arm = &insn->detail->arm;
   GumBranchTarget target;
   guint16 mask;
-  cs_arm * arm = &insn->detail->arm;
+  GumWriteback writeback = { .target = ARM_REG_INVALID };
 
   switch (insn->id)
   {
+    case ARM_INS_LDR:
+      gum_stalker_get_writeback (insn, &writeback);
+      /* Deliberate fall-through */
     case ARM_INS_B:
     case ARM_INS_BX:
-    case ARM_INS_LDR:
     case ARM_INS_TBB:
     case ARM_INS_TBH:
       gum_stalker_get_target_address (insn, TRUE, &target, &mask);
       gum_exec_block_virtualize_thumb_branch_insn (block, &target, arm->cc,
-          ARM_REG_INVALID, gc);
+          ARM_REG_INVALID, &writeback, gc);
       break;
     case ARM_INS_CBZ:
       g_assert (arm->operands[0].type == ARM_OP_REG);
       gum_stalker_get_target_address (insn, TRUE, &target, &mask);
       gum_exec_block_virtualize_thumb_branch_insn (block, &target, ARM_CC_EQ,
-          arm->operands[0].reg, gc);
+          arm->operands[0].reg, &writeback, gc);
       break;
     case ARM_INS_CBNZ:
       g_assert (arm->operands[0].type == ARM_OP_REG);
       gum_stalker_get_target_address (insn, TRUE, &target, &mask);
       gum_exec_block_virtualize_thumb_branch_insn (block, &target, ARM_CC_NE,
-          arm->operands[0].reg, gc);
+          arm->operands[0].reg, &writeback, gc);
       break;
     case ARM_INS_BL:
     case ARM_INS_BLX:
@@ -2100,8 +2105,8 @@ gum_stalker_get_target_address (const cs_insn * insn,
 }
 
 static void
-gum_stalker_arm_get_writeback (const cs_insn * insn,
-                               GumWriteback * writeback)
+gum_stalker_get_writeback (const cs_insn * insn,
+                           GumWriteback * writeback)
 {
   cs_arm * arm = &insn->detail->arm;
   cs_arm_op * op2 = &arm->operands[1];
@@ -3085,6 +3090,7 @@ gum_exec_block_virtualize_thumb_branch_insn (GumExecBlock * block,
                                              const GumBranchTarget * target,
                                              arm_cc cc,
                                              arm_reg cc_reg,
+                                             GumWriteback * writeback,
                                              GumGeneratorContext * gc)
 {
   GumExecCtx * ec = block->ctx;
@@ -3137,6 +3143,7 @@ gum_exec_block_virtualize_thumb_branch_insn (GumExecBlock * block,
 
   gum_exec_block_thumb_close_prolog (block, gc);
 
+  gum_exec_block_write_thumb_handle_writeback (block, writeback, gc);
   gum_exec_block_write_thumb_exec_generated_code (cw, block->ctx);
 }
 
@@ -3991,6 +3998,25 @@ gum_exec_block_write_arm_handle_writeback (GumExecBlock * block,
     gum_arm_writer_put_add_reg_u32 (cw, writeback->target, offset);
   else
     gum_arm_writer_put_sub_reg_u32 (cw, writeback->target, -offset);
+}
+
+static void
+gum_exec_block_write_thumb_handle_writeback (GumExecBlock * block,
+                                             const GumWriteback * writeback,
+                                             GumGeneratorContext * gc)
+{
+  GumThumbWriter * cw = gc->thumb_writer;
+  gssize offset;
+
+  if (writeback->target == ARM_REG_INVALID)
+    return;
+
+  offset = writeback->offset;
+
+  if (offset >= 0)
+    gum_thumb_writer_put_add_reg_imm (cw, writeback->target, offset);
+  else
+    gum_thumb_writer_put_sub_reg_imm (cw, writeback->target, -offset);
 }
 
 static void
