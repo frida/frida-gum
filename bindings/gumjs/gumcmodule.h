@@ -12,6 +12,7 @@
 G_BEGIN_DECLS
 
 typedef struct _GumCModule GumCModule;
+typedef struct _GumCModuleOps GumCModuleOps;
 typedef struct _GumCSymbolDetails GumCSymbolDetails;
 
 struct _GumCSymbolDetails
@@ -23,7 +24,10 @@ struct _GumCSymbolDetails
 typedef void (* GumFoundCSymbolFunc) (const GumCSymbolDetails * details,
     gpointer user_data);
 
-GUM_API GumCModule * gum_cmodule_new (const gchar * source, GError ** error);
+GUM_API const GumCModuleOps * gum_cmodule_get_ops (const gchar * name);
+
+GUM_API GumCModule * gum_cmodule_new (const GumCModuleOps * ops,
+    const gchar * source, GError ** error);
 GUM_API void gum_cmodule_free (GumCModule * cmodule);
 
 GUM_API const GumMemoryRange * gum_cmodule_get_range (GumCModule * self);

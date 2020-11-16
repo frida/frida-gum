@@ -93,11 +93,13 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
 
   gchar * source;
   Local<Object> symbols;
-  if (!_gum_v8_args_parse (args, "s|O", &source, &symbols))
+  gchar * toolchain = NULL;
+  if (!_gum_v8_args_parse (args, "s|O?s?", &source, &symbols, &toolchain))
     return;
 
   GError * error = NULL;
-  auto handle = gum_cmodule_new (source, &error);
+  auto handle = gum_cmodule_new (gum_cmodule_get_ops (toolchain), source,
+      &error);
 
   g_free (source);
 

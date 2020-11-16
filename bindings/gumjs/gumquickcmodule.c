@@ -95,6 +95,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
   GumQuickCModule * parent;
   const gchar * source;
   JSValue symbols;
+  const gchar * toolchain;
   JSValue proto;
   JSValue wrapper = JS_NULL;
   GumCModule * cmodule = NULL;
@@ -109,7 +110,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
   parent = gumjs_get_parent_module (core);
 
   symbols = JS_NULL;
-  if (!_gum_quick_args_parse (args, "s|O", &source, &symbols))
+  toolchain = NULL;
+  if (!_gum_quick_args_parse (args, "s|O?s?", &source, &symbols, &toolchain))
     goto propagate_exception;
 
   proto = JS_GetProperty (ctx, new_target,
@@ -120,7 +122,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
     goto propagate_exception;
 
   error = NULL;
-  cmodule = gum_cmodule_new (source, &error);
+  cmodule = gum_cmodule_new (gum_cmodule_get_ops (toolchain), source, &error);
   if (error != NULL)
     goto propagate_error;
 
