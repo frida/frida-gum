@@ -13,9 +13,10 @@ struct _GumCModuleOps
   GumCModule * (*gum_cmodule_new) (const GumCModuleOps *, const gchar *,
       GError **);
   void (*gum_cmodule_free) (GumCModule *);
-  const GumMemoryRange * (*gum_cmodule_get_range) (GumCModule *);
   void (*gum_cmodule_add_symbol) (GumCModule *, const gchar *, gconstpointer);
-  gboolean (*gum_cmodule_link) (GumCModule *, GError **);
+  gint (*gum_cmodule_link_pre) (GumCModule *, GString **);
+  gint (*gum_cmodule_link) (GumCModule *, gpointer);
+  void (*gum_cmodule_link_post) (GumCModule *);
   void (*gum_cmodule_enumerate_symbols) (GumCModule *, GumFoundCSymbolFunc,
       gpointer);
   gpointer (*gum_cmodule_find_symbol_by_name) (GumCModule *, const gchar *);
@@ -28,6 +29,7 @@ typedef void (* GumCModuleFinalizeFunc) (void);
 struct _GumCModule
 {
   const GumCModuleOps* ops;
+  GumMemoryRange range;
   GumCModuleFinalizeFunc finalize;
 };
 
@@ -45,7 +47,6 @@ struct _GumCModuleTcc
 {
   GumCModule common;
   TCCState * state;
-  GumMemoryRange range;
 };
 
 typedef struct _GumCModuleTcc GumCModuleTcc;
@@ -177,14 +178,6 @@ gum_cmodule_free_tcc (GumCModule * _cmodule)
   g_slice_free (GumCModuleTcc, (GumCModuleTcc *) _cmodule);
 }
 
-static const GumMemoryRange *
-gum_cmodule_get_range_tcc (GumCModule * _self)
-{
-  GumCModuleTcc * self = (GumCModuleTcc *) _self;
-
-  return &self->range;
-}
-
 static void
 gum_cmodule_add_symbol_tcc (GumCModule * _self,
                             const gchar * name,
@@ -198,69 +191,29 @@ gum_cmodule_add_symbol_tcc (GumCModule * _self,
   tcc_add_symbol (state, name, value);
 }
 
-static gboolean
-gum_cmodule_link_tcc (GumCModule * _self,
-                      GError ** error)
+static gint
+gum_cmodule_link_pre_tcc (GumCModule * _self, GString ** error_messages)
 {
   GumCModuleTcc * self = (GumCModuleTcc *) _self;
   TCCState * state = self->state;
-  GString * error_messages;
-  gint res;
-  guint size, page_size;
-  gpointer base;
 
   g_assert (state != NULL);
-  g_assert (self->range.base_address == 0);
 
-  error_messages = NULL;
-  tcc_set_error_func (state, &error_messages, gum_append_tcc_error);
+  tcc_set_error_func (state, error_messages, gum_append_tcc_error);
 
-  res = tcc_relocate (state, NULL);
-  if (res == -1)
-    goto beach;
-  size = res;
+  return tcc_relocate (state, NULL);
+}
 
-  page_size = gum_query_page_size ();
+static gint
+gum_cmodule_link_tcc (GumCModule * _self, gpointer base)
+{
+  return tcc_relocate (((GumCModuleTcc *) _self)->state, base);
+}
 
-  base = gum_memory_allocate (NULL, size, page_size, GUM_PAGE_RW);
-
-  res = tcc_relocate (state, base);
-  if (res == 0)
-  {
-    GumMemoryRange * r = &self->range;
-    GumCModuleInitFunc init;
-
-    r->base_address = GUM_ADDRESS (base);
-    r->size = GUM_ALIGN_SIZE (size, page_size);
-
-    gum_memory_mark_code (base, size);
-
-    gum_cloak_add_range (r);
-
-    init = GUM_POINTER_TO_FUNCPTR (GumCModuleInitFunc,
-        tcc_get_symbol (state, "init"));
-    if (init != NULL)
-      init ();
-
-    self->common.finalize = GUM_POINTER_TO_FUNCPTR (GumCModuleFinalizeFunc,
-        tcc_get_symbol (self->state, "finalize"));
-  }
-  else
-  {
-    gum_memory_free (base, size);
-  }
-
-beach:
-  tcc_set_error_func (state, NULL, NULL);
-
-  if (error_messages != NULL)
-  {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
-        "Linking failed: %s", error_messages->str);
-    g_string_free (error_messages, TRUE);
-  }
-
-  return res == 0;
+static void
+gum_cmodule_link_post_tcc (GumCModule * _self)
+{
+  tcc_set_error_func (((GumCModuleTcc *) _self)->state, NULL, NULL);
 }
 
 static void
@@ -319,7 +272,7 @@ gum_cmodule_find_symbol_by_name_tcc (GumCModule * _self,
   TCCState * state = self->state;
 
   g_assert (state != NULL);
-  g_assert (self->range.base_address != 0);
+  g_assert (self->common.range.base_address != 0);
 
   return tcc_get_symbol (state, name);
 }
@@ -393,9 +346,10 @@ static const GumCModuleOps
 gum_cmodule_tcc_ops = {
   .gum_cmodule_new = gum_cmodule_new_tcc,
   .gum_cmodule_free = gum_cmodule_free_tcc,
-  .gum_cmodule_get_range = gum_cmodule_get_range_tcc,
   .gum_cmodule_add_symbol = gum_cmodule_add_symbol_tcc,
+  .gum_cmodule_link_pre = gum_cmodule_link_pre_tcc,
   .gum_cmodule_link = gum_cmodule_link_tcc,
+  .gum_cmodule_link_post = gum_cmodule_link_post_tcc,
   .gum_cmodule_enumerate_symbols = gum_cmodule_enumerate_symbols_tcc,
   .gum_cmodule_find_symbol_by_name = gum_cmodule_find_symbol_by_name_tcc,
   .gum_cmodule_drop_metadata = gum_cmodule_drop_metadata_tcc,
@@ -435,7 +389,7 @@ gum_cmodule_free (GumCModule * cmodule)
   if (cmodule == NULL)
     return;
 
-  r = gum_cmodule_get_range (cmodule);
+  r = &cmodule->range;
   if (r->base_address != 0)
   {
     if (cmodule->finalize != NULL)
@@ -456,7 +410,7 @@ gum_cmodule_get_range (GumCModule * self)
 {
   g_assert (self != NULL);
 
-  return self->ops->gum_cmodule_get_range (self);
+  return &self->range;
 }
 
 void
@@ -473,9 +427,61 @@ gboolean
 gum_cmodule_link (GumCModule * self,
                   GError ** error)
 {
-  g_assert (self != NULL);
+  GString * error_messages;
+  gint res;
+  guint size, page_size;
+  gpointer base;
 
-  return self->ops->gum_cmodule_link (self, error);
+  g_assert (self != NULL);
+  g_assert (self->range.base_address == 0);
+
+  error_messages = NULL;
+  res = self->ops->gum_cmodule_link_pre (self, &error_messages);
+  if (res == -1)
+    goto beach;
+  size = res;
+
+  page_size = gum_query_page_size ();
+
+  base = gum_memory_allocate (NULL, size, page_size, GUM_PAGE_RW);
+
+  res = self->ops->gum_cmodule_link (self, base);
+  if (res == 0)
+  {
+    GumMemoryRange * r = &self->range;
+    GumCModuleInitFunc init;
+
+    r->base_address = GUM_ADDRESS (base);
+    r->size = GUM_ALIGN_SIZE (size, page_size);
+
+    gum_memory_mark_code (base, size);
+
+    gum_cloak_add_range (r);
+
+    init = GUM_POINTER_TO_FUNCPTR (GumCModuleInitFunc,
+        gum_cmodule_find_symbol_by_name (self, "init"));
+    if (init != NULL)
+      init ();
+
+    self->finalize = GUM_POINTER_TO_FUNCPTR (GumCModuleFinalizeFunc,
+        gum_cmodule_find_symbol_by_name (self, "finalize"));
+  }
+  else
+  {
+    gum_memory_free (base, size);
+  }
+
+beach:
+  self->ops->gum_cmodule_link_post (self);
+
+  if (error_messages != NULL)
+  {
+    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+        "Linking failed: %s", error_messages->str);
+    g_string_free (error_messages, TRUE);
+  }
+
+  return res == 0;
 }
 
 void
