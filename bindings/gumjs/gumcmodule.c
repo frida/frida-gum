@@ -22,9 +22,13 @@ struct _GumCModuleOps
   void (*gum_cmodule_drop_metadata) (GumCModule *);
 };
 
+typedef void (* GumCModuleInitFunc) (void);
+typedef void (* GumCModuleFinalizeFunc) (void);
+
 struct _GumCModule
 {
   const GumCModuleOps* ops;
+  GumCModuleFinalizeFunc finalize;
 };
 
 #ifdef HAVE_TINYCC
@@ -37,15 +41,11 @@ struct _GumCModule
 typedef struct _GumEnumerateSymbolsContext GumEnumerateSymbolsContext;
 typedef struct _GumCModuleHeader GumCModuleHeader;
 
-typedef void (* GumCModuleInitFunc) (void);
-typedef void (* GumCModuleFinalizeFunc) (void);
-
 struct _GumCModuleTcc
 {
   GumCModule common;
   TCCState * state;
   GumMemoryRange range;
-  GumCModuleFinalizeFunc finalize;
 };
 
 typedef struct _GumCModuleTcc GumCModuleTcc;
@@ -174,23 +174,7 @@ failure:
 static void
 gum_cmodule_free_tcc (GumCModule * _cmodule)
 {
-  GumCModuleTcc * cmodule = (GumCModuleTcc *) _cmodule;
-  GumMemoryRange * r;
-
-  r = &cmodule->range;
-  if (r->base_address != 0)
-  {
-    if (cmodule->finalize != NULL)
-      cmodule->finalize ();
-
-    gum_cloak_remove_range (r);
-
-    gum_memory_free (GSIZE_TO_POINTER (r->base_address), r->size);
-  }
-
-  gum_cmodule_drop_metadata (&cmodule->common);
-
-  g_slice_free (GumCModuleTcc, cmodule);
+  g_slice_free (GumCModuleTcc, (GumCModuleTcc *) _cmodule);
 }
 
 static const GumMemoryRange *
@@ -258,7 +242,7 @@ gum_cmodule_link_tcc (GumCModule * _self,
     if (init != NULL)
       init ();
 
-    self->finalize = GUM_POINTER_TO_FUNCPTR (GumCModuleFinalizeFunc,
+    self->common.finalize = GUM_POINTER_TO_FUNCPTR (GumCModuleFinalizeFunc,
         tcc_get_symbol (self->state, "finalize"));
   }
   else
@@ -446,8 +430,23 @@ gum_cmodule_new (const GumCModuleOps * ops,
 void
 gum_cmodule_free (GumCModule * cmodule)
 {
+  const GumMemoryRange * r;
+
   if (cmodule == NULL)
     return;
+
+  r = gum_cmodule_get_range (cmodule);
+  if (r->base_address != 0)
+  {
+    if (cmodule->finalize != NULL)
+      cmodule->finalize ();
+
+    gum_cloak_remove_range (r);
+
+    gum_memory_free (GSIZE_TO_POINTER (r->base_address), r->size);
+  }
+
+  gum_cmodule_drop_metadata (cmodule);
 
   cmodule->ops->gum_cmodule_free (cmodule);
 }
