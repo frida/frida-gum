@@ -370,6 +370,90 @@ gum_cmodule_tcc_ops = {
 
 #endif /* HAVE_TINYCC */
 
+static GumCModule *
+gum_cmodule_new_gcc (const GumCModuleOps * ops, const gchar * source,
+    GError ** error)
+{
+  g_assert_not_reached ();
+  return NULL;
+}
+
+static void
+gum_cmodule_free_gcc (GumCModule * _cmodule)
+{
+  g_assert_not_reached ();
+}
+
+static void
+gum_cmodule_add_symbol_gcc (GumCModule * _self,
+                            const gchar * name,
+                            gconstpointer value)
+{
+  g_assert_not_reached ();
+}
+
+static gint
+gum_cmodule_link_pre_gcc (GumCModule * _self, GString ** error_messages)
+{
+  g_assert_not_reached ();
+  return -1;
+}
+
+static gint
+gum_cmodule_link_gcc (GumCModule * _self, gpointer base)
+{
+  g_assert_not_reached ();
+  return -1;
+}
+
+static void
+gum_cmodule_link_post_gcc (GumCModule * _self)
+{
+  g_assert_not_reached ();
+}
+
+static void
+gum_cmodule_enumerate_symbols_gcc (GumCModule * _self,
+                                   GumFoundCSymbolFunc func,
+                                   gpointer user_data)
+{
+  g_assert_not_reached ();
+}
+
+static gpointer
+gum_cmodule_find_symbol_by_name_gcc (GumCModule * _self,
+                                     const gchar * name)
+{
+  g_assert_not_reached ();
+  return NULL;
+}
+
+static void
+gum_cmodule_drop_metadata_gcc (GumCModule * _self)
+{
+  g_assert_not_reached ();
+}
+
+static void gum_cmodule_add_define_gcc (GumCModule * _self,
+    const gchar * name, const gchar * value)
+{
+  g_assert_not_reached ();
+}
+
+static const GumCModuleOps
+gum_cmodule_gcc_ops = {
+  .gum_cmodule_new = gum_cmodule_new_gcc,
+  .gum_cmodule_free = gum_cmodule_free_gcc,
+  .gum_cmodule_add_symbol = gum_cmodule_add_symbol_gcc,
+  .gum_cmodule_link_pre = gum_cmodule_link_pre_gcc,
+  .gum_cmodule_link = gum_cmodule_link_gcc,
+  .gum_cmodule_link_post = gum_cmodule_link_post_gcc,
+  .gum_cmodule_enumerate_symbols = gum_cmodule_enumerate_symbols_gcc,
+  .gum_cmodule_find_symbol_by_name = gum_cmodule_find_symbol_by_name_gcc,
+  .gum_cmodule_drop_metadata = gum_cmodule_drop_metadata_gcc,
+  .gum_cmodule_add_define = gum_cmodule_add_define_gcc,
+};
+
 const GumCModuleOps *
 gum_cmodule_get_ops (const gchar * name)
 {
@@ -377,6 +461,8 @@ gum_cmodule_get_ops (const gchar * name)
   if (!name || strcmp (name, "tcc") == 0)
     return &gum_cmodule_tcc_ops;
 #endif
+  if (!name || strcmp (name, "gcc") == 0)
+    return &gum_cmodule_gcc_ops;
   return NULL;
 }
 
