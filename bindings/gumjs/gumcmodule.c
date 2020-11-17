@@ -21,6 +21,7 @@ struct _GumCModuleOps
       gpointer);
   gpointer (*gum_cmodule_find_symbol_by_name) (GumCModule *, const gchar *);
   void (*gum_cmodule_drop_metadata) (GumCModule *);
+  void (*gum_cmodule_add_define) (GumCModule *, const gchar *, const gchar *);
 };
 
 typedef void (* GumCModuleInitFunc) (void);
@@ -32,6 +33,51 @@ struct _GumCModule
   GumMemoryRange range;
   GumCModuleFinalizeFunc finalize;
 };
+
+static void
+gum_add_define_str (GumCModule * self,
+                    const gchar * name,
+                    const gchar * value)
+{
+  gchar * raw_value;
+
+  raw_value = g_strconcat ("\"", value, "\"", NULL);
+
+  self->ops->gum_cmodule_add_define (self, name, raw_value);
+
+  g_free (raw_value);
+}
+
+static void
+gum_add_defines (GumCModule * self)
+{
+#if defined (HAVE_I386)
+  self->ops->gum_cmodule_add_define (self, "HAVE_I386", NULL);
+#elif defined (HAVE_ARM)
+  self->ops->gum_cmodule_add_define (self, "HAVE_ARM", NULL);
+#elif defined (HAVE_ARM64)
+  self->ops->gum_cmodule_add_define (self, "HAVE_ARM64", NULL);
+#elif defined (HAVE_MIPS)
+  self->ops->gum_cmodule_add_define (self, "HAVE_MIPS", NULL);
+#endif
+
+  self->ops->gum_cmodule_add_define (self, "TRUE", "1");
+  self->ops->gum_cmodule_add_define (self, "FALSE", "0");
+
+  gum_add_define_str (self, "G_GINT16_MODIFIER", G_GINT16_MODIFIER);
+  gum_add_define_str (self, "G_GINT32_MODIFIER", G_GINT32_MODIFIER);
+  gum_add_define_str (self, "G_GINT64_MODIFIER", G_GINT64_MODIFIER);
+  gum_add_define_str (self, "G_GSIZE_MODIFIER", G_GSIZE_MODIFIER);
+  gum_add_define_str (self, "G_GSSIZE_MODIFIER", G_GSSIZE_MODIFIER);
+
+  self->ops->gum_cmodule_add_define (self, "GLIB_SIZEOF_VOID_P",
+      G_STRINGIFY (GLIB_SIZEOF_VOID_P));
+
+#ifdef HAVE_WINDOWS
+  self->ops->gum_cmodule_add_define (self,
+      "extern", "__attribute__ ((dllimport))");
+#endif
+}
 
 #ifdef HAVE_TINYCC
 
@@ -78,8 +124,6 @@ static void gum_emit_symbol (void * ctx, const char * name, const void * val);
 static const char * gum_cmodule_load_header (void * opaque, const char * path,
     int * len);
 static void * gum_cmodule_resolve_symbol (void * opaque, const char * name);
-static void gum_define_symbol_str (TCCState * state, const gchar * name,
-    const gchar * value);
 static const gchar * gum_undecorate_name (const gchar * name);
 
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8 && !defined (_MSC_VER)
@@ -115,31 +159,7 @@ gum_cmodule_new_tcc (const GumCModuleOps * ops, const gchar * source,
       "-isystem /frida/capstone"
   );
 
-#if defined (HAVE_I386)
-  tcc_define_symbol (state, "HAVE_I386", NULL);
-#elif defined (HAVE_ARM)
-  tcc_define_symbol (state, "HAVE_ARM", NULL);
-#elif defined (HAVE_ARM64)
-  tcc_define_symbol (state, "HAVE_ARM64", NULL);
-#elif defined (HAVE_MIPS)
-  tcc_define_symbol (state, "HAVE_MIPS", NULL);
-#endif
-
-  tcc_define_symbol (state, "TRUE", "1");
-  tcc_define_symbol (state, "FALSE", "0");
-
-  gum_define_symbol_str (state, "G_GINT16_MODIFIER", G_GINT16_MODIFIER);
-  gum_define_symbol_str (state, "G_GINT32_MODIFIER", G_GINT32_MODIFIER);
-  gum_define_symbol_str (state, "G_GINT64_MODIFIER", G_GINT64_MODIFIER);
-  gum_define_symbol_str (state, "G_GSIZE_MODIFIER", G_GSIZE_MODIFIER);
-  gum_define_symbol_str (state, "G_GSSIZE_MODIFIER", G_GSSIZE_MODIFIER);
-
-  tcc_define_symbol (state, "GLIB_SIZEOF_VOID_P",
-      G_STRINGIFY (GLIB_SIZEOF_VOID_P));
-
-#ifdef HAVE_WINDOWS
-  tcc_define_symbol (state, "extern", "__attribute__ ((dllimport))");
-#endif
+  gum_add_defines (&cmodule->common);
 
   tcc_set_output_type (state, TCC_OUTPUT_MEMORY);
 
@@ -318,18 +338,10 @@ gum_cmodule_resolve_symbol (void * opaque,
       gum_undecorate_name (name));
 }
 
-static void
-gum_define_symbol_str (TCCState * state,
-                       const gchar * name,
-                       const gchar * value)
+static void gum_cmodule_add_define_tcc (GumCModule * self,
+    const gchar * name, const gchar * value)
 {
-  gchar * raw_value;
-
-  raw_value = g_strconcat ("\"", value, "\"", NULL);
-
-  tcc_define_symbol (state, name, raw_value);
-
-  g_free (raw_value);
+  tcc_define_symbol (((GumCModuleTcc *) self)->state, name, value);
 }
 
 static const gchar *
@@ -353,6 +365,7 @@ gum_cmodule_tcc_ops = {
   .gum_cmodule_enumerate_symbols = gum_cmodule_enumerate_symbols_tcc,
   .gum_cmodule_find_symbol_by_name = gum_cmodule_find_symbol_by_name_tcc,
   .gum_cmodule_drop_metadata = gum_cmodule_drop_metadata_tcc,
+  .gum_cmodule_add_define = gum_cmodule_add_define_tcc,
 };
 
 #endif /* HAVE_TINYCC */
