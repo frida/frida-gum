@@ -389,6 +389,7 @@ struct _GumCModuleGcc
   GumCModule common;
   gchar * workdir;
   GPtrArray * argv;
+  GArray * symbols;
 };
 
 typedef struct _GumCModuleGcc GumCModuleGcc;
@@ -521,7 +522,15 @@ gum_cmodule_add_symbol_gcc (GumCModule * _self,
                             const gchar * name,
                             gconstpointer value)
 {
-  g_assert_not_reached ();
+  GumCModuleGcc * self = (GumCModuleGcc *) _self;
+  GumCSymbolDetails element;
+
+  if (self->symbols == NULL)
+    self->symbols = g_array_new (FALSE, FALSE, sizeof (GumCSymbolDetails));
+
+  element.name = g_strdup (name);
+  element.address = (gpointer) value;
+  g_array_append_vals (self->symbols, &element, 1);
 }
 
 struct _LdsGen
@@ -541,7 +550,8 @@ static void assign_lds (gpointer key, gpointer value, gpointer user_data)
 }
 
 static void
-create_lds (FILE * file, gpointer base, GHashTable * frida_symbols)
+create_lds (FILE * file, gpointer base, GHashTable * frida_symbols,
+    GArray * symbols)
 {
   LdsGen ctx = {
     .file = file,
@@ -549,6 +559,19 @@ create_lds (FILE * file, gpointer base, GHashTable * frida_symbols)
   };
 
   g_hash_table_foreach (frida_symbols, assign_lds, &ctx);
+
+  if (symbols != NULL)
+  {
+    guint i;
+
+    for (i = 0; i < symbols->len; i++)
+    {
+      GumCSymbolDetails * element;
+
+      element = &g_array_index (symbols, GumCSymbolDetails, i);
+      assign_lds ((gpointer) element->name, element->address, &ctx);
+    }
+  }
 
   fprintf (ctx.file,
       "SECTIONS {\n"
@@ -584,7 +607,7 @@ do_ld (GumCModuleGcc * self, gpointer base, GError ** error)
     return FALSE;
   }
   g_clear_pointer (&filename, g_free);
-  create_lds (file, base, gum_cmodule_get_symbols());
+  create_lds (file, base, gum_cmodule_get_symbols(), self->symbols);
   fclose (file);
 
   i = 0;
@@ -808,6 +831,22 @@ gum_cmodule_drop_metadata_gcc (GumCModule * _self)
     rmtree (workdir_file);
     g_clear_pointer (&workdir_file, g_object_unref);
     g_clear_pointer (&self->workdir, g_free);
+  }
+
+  if (self->symbols != NULL)
+  {
+    guint i;
+
+    for (i = 0; i < self->symbols->len; i++)
+    {
+      GumCSymbolDetails * element;
+
+      element = &g_array_index (self->symbols, GumCSymbolDetails, i);
+      g_free ((gchar *) element->name);
+    }
+
+    g_array_free (self->symbols, TRUE);
+    self->symbols = NULL;
   }
 }
 
