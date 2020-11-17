@@ -15,7 +15,7 @@ struct _GumCModuleOps
   void (*gum_cmodule_free) (GumCModule *);
   void (*gum_cmodule_add_symbol) (GumCModule *, const gchar *, gconstpointer);
   gint (*gum_cmodule_link_pre) (GumCModule *, GString **);
-  gint (*gum_cmodule_link) (GumCModule *, gpointer);
+  gint (*gum_cmodule_link) (GumCModule *, gpointer, GString **);
   void (*gum_cmodule_link_post) (GumCModule *);
   void (*gum_cmodule_enumerate_symbols) (GumCModule *, GumFoundCSymbolFunc,
       gpointer);
@@ -77,6 +77,20 @@ gum_add_defines (GumCModule * self)
   self->ops->gum_cmodule_add_define (self,
       "extern", "__attribute__ ((dllimport))");
 #endif
+}
+
+static void
+gum_append_error (GString ** messages, const char * msg)
+{
+  if (*messages == NULL)
+  {
+    *messages = g_string_new (msg);
+  }
+  else
+  {
+    g_string_append_c (*messages, '\n');
+    g_string_append (*messages, msg);
+  }
 }
 
 #ifdef HAVE_TINYCC
@@ -225,7 +239,8 @@ gum_cmodule_link_pre_tcc (GumCModule * _self, GString ** error_messages)
 }
 
 static gint
-gum_cmodule_link_tcc (GumCModule * _self, gpointer base)
+gum_cmodule_link_tcc (GumCModule * _self, gpointer base,
+    GString ** error_messages)
 {
   return tcc_relocate (((GumCModuleTcc *) _self)->state, base);
 }
@@ -510,24 +525,195 @@ gum_cmodule_add_symbol_gcc (GumCModule * _self,
   g_assert_not_reached ();
 }
 
-static gint
-gum_cmodule_link_pre_gcc (GumCModule * _self, GString ** error_messages)
+struct _LdsGen
 {
-  g_assert_not_reached ();
-  return -1;
+  FILE * file;
+  gpointer base;
+};
+
+typedef struct _LdsGen LdsGen;
+
+static void assign_lds (gpointer key, gpointer value, gpointer user_data)
+{
+  LdsGen * ctx = user_data;
+
+  fprintf (ctx->file, "%s = 0x%lx;\n", (gchar *) key,
+      ctx->base == NULL ? 0 : (ulong) value);
+}
+
+static void
+create_lds (FILE * file, gpointer base, GHashTable * frida_symbols)
+{
+  LdsGen ctx = {
+    .file = file,
+    .base = base,
+  };
+
+  g_hash_table_foreach (frida_symbols, assign_lds, &ctx);
+
+  fprintf (ctx.file,
+      "SECTIONS {\n"
+      "  .frida 0x%lx: {\n"
+      "    *(.text*)\n"
+      "    *(.data)\n"
+      "    *(.bss)\n"
+      "    *(COMMON)\n"
+      "    *(.rodata*)\n"
+      "  }\n"
+      "  /DISCARD/ : { *(*) }\n"
+      "}\n", (ulong) base);
+}
+
+static gboolean
+do_ld (GumCModuleGcc * self, gpointer base, GError ** error)
+{
+  gchar * filename;
+  FILE * file;
+  guint i;
+  gchar * argv[16];
+  gchar * standard_output;
+  gchar * standard_error;
+  gint exit_status;
+
+  filename = g_build_filename (self->workdir, "module.lds", NULL);
+  file = fopen (filename, "w");
+  if (file == NULL)
+  {
+    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+        "Failed to create %s", filename);
+    g_clear_pointer (&filename, g_free);
+    return FALSE;
+  }
+  g_clear_pointer (&filename, g_free);
+  create_lds (file, base, gum_cmodule_get_symbols());
+  fclose (file);
+
+  i = 0;
+  argv[i++] = "gcc";
+  argv[i++] = "-nostdlib";
+  argv[i++] = "-Wl,--build-id=none";
+  argv[i++] = "-Wl,--script=module.lds";
+  argv[i++] = "module.o";
+  argv[i++] = NULL;
+  if (!g_spawn_sync (self->workdir, argv, NULL, G_SPAWN_SEARCH_PATH, NULL,
+      NULL, &standard_output, &standard_error, &exit_status, error))
+    return FALSE;
+  if (exit_status != 0)
+  {
+    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+        "ld failed: %s%s", standard_output, standard_error);
+    g_clear_pointer (&standard_output, g_free);
+    g_clear_pointer (&standard_error, g_free);
+    return FALSE;
+  }
+
+  g_clear_pointer (&standard_output, g_free);
+  g_clear_pointer (&standard_error, g_free);
+
+  return TRUE;
+}
+
+static gboolean
+do_objcopy (GumCModuleGcc * self, GError ** error)
+{
+  guint i;
+  gchar * argv[16];
+  gchar * standard_output;
+  gchar * standard_error;
+  gint exit_status;
+
+  i = 0;
+  argv[i++] = "objcopy";
+  argv[i++] = "-O"; argv[i++] = "binary";
+  argv[i++] = "--only-section=.frida";
+  argv[i++] = "a.out"; argv[i++] = "module";
+  argv[i++] = NULL;
+  if (!g_spawn_sync (self->workdir, argv, NULL, G_SPAWN_SEARCH_PATH, NULL,
+      NULL, &standard_output, &standard_error, &exit_status, error))
+    return FALSE;
+  if (exit_status != 0)
+  {
+    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+        "objcopy failed: %s%s", standard_output, standard_error);
+    g_clear_pointer (&standard_output, g_free);
+    g_clear_pointer (&standard_error, g_free);
+    return FALSE;
+  }
+
+  g_clear_pointer (&standard_output, g_free);
+  g_clear_pointer (&standard_error, g_free);
+
+  return TRUE;
 }
 
 static gint
-gum_cmodule_link_gcc (GumCModule * _self, gpointer base)
+link_common_gcc (GumCModule * _self, gpointer base, gchar ** contents,
+    GString ** error_messages)
 {
-  g_assert_not_reached ();
-  return -1;
+  GumCModuleGcc * self = (GumCModuleGcc *) _self;
+  GError * error = NULL;
+  gchar * filename;
+  gsize length;
+
+  if (!do_ld (self, base, &error))
+    goto failure;
+
+  if (!do_objcopy (self, &error))
+    goto failure;
+
+  filename = g_build_filename (self->workdir, "module", NULL);
+  if (!g_file_get_contents (filename, contents, &length, &error))
+  {
+    g_clear_pointer (&filename, g_free);
+    goto failure;
+  }
+  g_clear_pointer (&filename, g_free);
+
+  return length;
+
+failure:
+  {
+    gum_append_error (error_messages, error->message);
+    g_clear_pointer (&error, g_error_free);
+    return -1;
+  }
+}
+
+static gint
+gum_cmodule_link_pre_gcc (GumCModule * _self, GString ** error_messages)
+{
+  gchar * contents;
+  gint length;
+
+  length = link_common_gcc (_self, 0, &contents, error_messages);
+  if (length == -1)
+    return -1;
+
+  g_clear_pointer (&contents, g_free);
+
+  return length;
+}
+
+static gint
+gum_cmodule_link_gcc (GumCModule * _self, gpointer base,
+    GString ** error_messages)
+{
+  gchar * contents;
+  gint length;
+
+  length = link_common_gcc (_self, base, &contents, error_messages);
+  if (length == -1)
+    return -1;
+
+  memcpy (base, contents, length);
+  g_clear_pointer (&contents, g_free);
+
+  return 0;
 }
 
 static void
 gum_cmodule_link_post_gcc (GumCModule * _self)
 {
-  g_assert_not_reached ();
 }
 
 static void
@@ -678,7 +864,7 @@ gum_cmodule_link (GumCModule * self,
 
   base = gum_memory_allocate (NULL, size, page_size, GUM_PAGE_RW);
 
-  res = self->ops->gum_cmodule_link (self, base);
+  res = self->ops->gum_cmodule_link (self, base, &error_messages);
   if (res == 0)
   {
     GumMemoryRange * r = &self->range;
