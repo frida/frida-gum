@@ -255,6 +255,9 @@ if have_gumjs
   cdata.set('HAVE_QUICKJS', quickjs_dep.found())
   if quickjs_dep.found()
     gumjs_extra_requires += 'quickjs'
+    quickjs_dep_native = dependency('quickjs', native: true)
+  else
+    quickjs_dep_native = disabler()
   endif
 
   v8_dep = dependency('v8-8.0',
@@ -292,6 +295,7 @@ if have_gumjs
   libsoup_dep = dependency('libsoup-2.4')
 else
   quickjs_dep = disabler()
+  quickjs_dep_native = disabler()
   v8_dep = disabler()
 
   gio_os_package_dep = disabler()

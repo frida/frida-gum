@@ -46,6 +46,13 @@ if quickjs_dep.found()
     'gumquickcodewriter.c',
     'gumquickcoderelocator.c',
   ]
+
+  quickcompile = executable('quickcompile', 'gumquickcompile.c',
+    dependencies: [quickjs_dep_native],
+    native: true,
+  )
+else
+  quickcompile = ''
 endif
 
 if v8_dep.found()
@@ -191,7 +198,9 @@ gumjs_runtime = custom_target('gumjs-runtime',
     host_arch,
     meson.current_source_dir(),
     join_paths(meson.source_root(), 'gum'),
-    capstone_dep.get_pkgconfig_variable('includedir'),
+    capstone_dep.get_variable(pkgconfig: 'includedir'),
+    libtcc_dep.found() ? libtcc_dep.get_variable(pkgconfig: 'libdir') : '',
+    quickcompile,
     meson.current_build_dir(),
   ],
 )
