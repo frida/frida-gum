@@ -250,7 +250,6 @@ if have_gumjs
 
   quickjs_dep = dependency('quickjs',
     required: get_option('quickjs'),
-    disabler: true
   )
   cdata.set('HAVE_QUICKJS', quickjs_dep.found())
   if quickjs_dep.found()
@@ -263,7 +262,6 @@ if have_gumjs
   v8_dep = dependency('v8-8.0',
     version: '>=8.8.273',
     required: get_option('v8'),
-    disabler: true
   )
   cdata.set('HAVE_V8', v8_dep.found())
   if v8_dep.found()
@@ -286,7 +284,6 @@ if have_gumjs
 
   libtcc_dep = dependency('libtcc',
     required: host_arch != 'mips',
-    disabler: true
   )
   cdata.set('HAVE_TINYCC', libtcc_dep.found())
 
