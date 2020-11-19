@@ -3,6 +3,7 @@
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -3431,6 +3432,48 @@ gum_v8_value_to_ffi_type (GumV8Core * core,
     if (!_gum_v8_uint64_get (svalue, &value->v_uint64, core))
       return FALSE;
   }
+  else if (type == &gum_ffi_type_size_t)
+  {
+    guint64 u64;
+    if (!_gum_v8_uint64_get (svalue, &u64, core))
+      return FALSE;
+
+    switch (type->size)
+    {
+      case 8:
+        value->v_uint64 = u64;
+        break;
+      case 4:
+        value->v_uint32 = u64;
+        break;
+      case 2:
+        value->v_uint16 = u64;
+        break;
+      default:
+        g_assert_not_reached ();
+    }
+  }
+  else if (type == &gum_ffi_type_ssize_t)
+  {
+    gint64 i64;
+    if (!_gum_v8_int64_get (svalue, &i64, core))
+      return FALSE;
+
+    switch (type->size)
+    {
+      case 8:
+        value->v_sint64 = i64;
+        break;
+      case 4:
+        value->v_sint32 = i64;
+        break;
+      case 2:
+        value->v_sint16 = i64;
+        break;
+      default:
+        g_assert_not_reached ();
+    }
+  }
   else if (type == &ffi_type_float)
   {
     if (!svalue->IsNumber ())
@@ -3557,6 +3600,48 @@ gum_v8_value_from_ffi_type (GumV8Core * core,
   else if (type == &ffi_type_uint64)
   {
     *svalue = _gum_v8_uint64_new (value->v_uint64, core);
+  }
+  else if (type == &gum_ffi_type_size_t)
+  {
+    guint64 u64;
+
+    switch (type->size)
+    {
+      case 8:
+        u64 = value->v_uint64;
+        break;
+      case 4:
+        u64 = value->v_uint32;
+        break;
+      case 2:
+        u64 = value->v_uint16;
+        break;
+      default:
+        g_assert_not_reached ();
+    }
+
+    *svalue = _gum_v8_uint64_new (u64, core);
+  }
+  else if (type == &gum_ffi_type_ssize_t)
+  {
+    gint64 i64;
+
+    switch (type->size)
+    {
+      case 8:
+        i64 = value->v_sint64;
+        break;
+      case 4:
+        i64 = value->v_sint32;
+        break;
+      case 2:
+        i64 = value->v_sint16;
+        break;
+      default:
+        g_assert_not_reached ();
+    }
+
+    *svalue = _gum_v8_int64_new (i64, core);
   }
   else if (type == &ffi_type_float)
   {

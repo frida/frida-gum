@@ -2,6 +2,7 @@
  * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -257,6 +258,7 @@ TESTLIST_BEGIN (script)
 
   TESTGROUP_BEGIN ("NativeFunction")
     TESTENTRY (native_function_can_be_invoked)
+    TESTENTRY (native_function_can_be_invoked_with_size_t)
     TESTENTRY (native_function_can_be_intercepted_when_thread_is_ignored)
     TESTENTRY (native_function_should_implement_call_and_apply)
     TESTENTRY (native_function_crash_results_in_exception)
@@ -384,6 +386,12 @@ struct _TestTrigger
   GMutex mutex;
   GCond cond;
 };
+
+static size_t gum_get_size_max (void);
+static gboolean gum_test_size_max (size_t sz);
+static size_t gum_add_size (size_t sz);
+static size_t gum_pass_size (size_t u64);
+static size_t gum_pass_ssize (ssize_t ssz);
 
 static gboolean ignore_thread (GumInterceptor * interceptor);
 static gboolean unignore_thread (GumInterceptor * interceptor);
@@ -1017,6 +1025,159 @@ TESTCASE (native_function_can_be_invoked)
   EXPECT_SEND_MESSAGE_WITH ("\"16\"");
   EXPECT_SEND_MESSAGE_WITH ("\"36\"");
   EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (native_function_can_be_invoked_with_size_t)
+{
+  gchar arg[23];
+  gchar ret[23];
+
+  /*
+   * Per specs “size_t” is an unsigned integer type defined in stddef.h.
+   * Per recommendation “size_t” shall be able to represent the largest
+   * possible object size:
+   *
+   *     The types used for “size_t” and “ptrdiff_t” should not have an
+   *     integer conversion rank greater than that of “signed long int”
+   *     unless the implementation supports objects large enough to make
+   *     this necessary.
+   *
+   * The largest possible size is defined by SIZE_MAX (stddef.h).
+   * The minimum value for SIZE_MAX definitions is 65535 (ref C99, 7.18.3),
+   * which implies that the smallest possible “size_t” conversion would be
+   * 16bit (depends on architecture implementation and compiler).
+   *
+   * Conclusion: If the maximum object size of an implementation corresponds to
+   * the address-width, it could be assumed that SIZE_MAX will not exceed
+   * UINT64_MAX, for architectures in Frida's scope. This again means, that for
+   * the JavaScript runtimes all possible “size_t” values could be represented
+   * as “uint64” (as 64bit SIZE_MAX of 1844674407370955161UL would exceed the
+   * limits of JavaScript “Number.MAX_SAFE_INTEGER”).
+   * For the native part, on the other hand, “size_t” values cannot be encoded
+   * in uint64 per se, instead this has to be done depending on the
+   * implementation's value of SIZE_MAX.
+   *
+   * SIZE_WIDTH    JS size_t        Native size_t
+   * 64            uint64    <->    uint64
+   * 32            uint64    <->    uint32 (temporary guint64 during conversion)
+   * 16            uint64    <->    uint16 (temporary guint64 during conversion)
+   *
+   * For GLib, the definition of gsize is very simplified (compared to C99):
+   *
+   *     > usually 32 bit wide on a 32-bit platform and 64 bit wide on a 64-bit
+   *     > platform”
+   *
+   * Ref: https://developer.gnome.org/glib/stable/glib-Basic-Types.html#gsize
+   *
+   * Implementation of “ssize_t” is analogous.
+   *
+   * SIZE_WIDTH    JS ssize_t       Native ssize_t
+   * 64            int64     <->    int64
+   * 32            int64     <->    int32 (temporary gint64 during conversion)
+   * 16            int64     <->    int16 (temporary gint64 during conversion)
+   *
+   * Additional notes:
+   *
+   * 1) ssize_t seems to be POSIX defined, but not C99.
+   * 2) ptrdiff_t is not implemented (but C99 defined) ... normally ssize_t
+   *    should be able to store ptrdiff_t, but this requires further testing
+   * 3) Focus was put on size_t implementation, which is tested and working.
+   *    ssize_t/ptrdiff_t are not in main scope and require additional testing
+   *    (+ implementation of ptrdiff_t, if not casted to size_t). The test for
+   *    “ssize_t” uses a simple pass-through function which is called with
+   *    a) PTRDIFF_MAX and b) PTRDIFF_MIN
+   *
+   * External:
+   *
+   * - Discussion on SSIZE_MAX weirdness:
+   *   https://sourceware.org/bugzilla/show_bug.cgi?id=13575
+   */
+
+  sprintf (ret, "\"%zu\"", SIZE_MAX);
+  COMPILE_AND_LOAD_SCRIPT (
+      "const getSizeMax = new NativeFunction(" GUM_PTR_CONST ", 'size_t', []);"
+      "send(getSizeMax());",
+      gum_get_size_max);
+  EXPECT_SEND_MESSAGE_WITH (ret);
+  EXPECT_NO_MESSAGES ();
+
+  sprintf (arg, "%zu", SIZE_MAX - 1);
+  COMPILE_AND_LOAD_SCRIPT (
+      "const addSize = new NativeFunction(" GUM_PTR_CONST ", 'size_t', "
+          "['size_t']);"
+      "send(addSize(uint64(\"%s\")));",
+      gum_add_size, arg);
+  EXPECT_SEND_MESSAGE_WITH (ret);
+  EXPECT_NO_MESSAGES ();
+
+  sprintf (arg, "%zu", SIZE_MAX);
+  COMPILE_AND_LOAD_SCRIPT (
+      "const testSizeMax = new NativeFunction(" GUM_PTR_CONST ", 'bool', "
+          "['size_t']);"
+      "send(testSizeMax(uint64(\"%s\")) === 1);",
+      gum_test_size_max, arg);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+
+  sprintf (arg, "%zu", SIZE_MAX);
+  sprintf (ret, "\"%zu\"", SIZE_MAX);
+  COMPILE_AND_LOAD_SCRIPT (
+      "const passSize = new NativeFunction(" GUM_PTR_CONST ", 'size_t', "
+          "['size_t']);"
+      "send(passSize(uint64(\"%s\")));",
+      gum_pass_size, arg);
+  EXPECT_SEND_MESSAGE_WITH (ret);
+  EXPECT_NO_MESSAGES ();
+
+  sprintf (arg, "%td", PTRDIFF_MAX);
+  sprintf (ret, "\"%td\"", PTRDIFF_MAX);
+  COMPILE_AND_LOAD_SCRIPT (
+      "const passSSize = new NativeFunction(" GUM_PTR_CONST ", 'ssize_t', "
+          "['ssize_t']);"
+      "send(passSSize(int64(\"%s\")));",
+      gum_pass_ssize, arg);
+  EXPECT_SEND_MESSAGE_WITH (ret);
+  EXPECT_NO_MESSAGES ();
+
+  sprintf (arg, "%zd", PTRDIFF_MIN);
+  sprintf (ret, "\"%zd\"", PTRDIFF_MIN);
+  COMPILE_AND_LOAD_SCRIPT (
+      "const passSSize = new NativeFunction(" GUM_PTR_CONST ", 'ssize_t', "
+          "['ssize_t']);"
+      "send(passSSize(int64(\"%s\")));",
+      gum_pass_ssize, arg);
+  EXPECT_SEND_MESSAGE_WITH (ret);
+  EXPECT_NO_MESSAGES ();
+}
+
+static size_t
+gum_get_size_max (void)
+{
+  return SIZE_MAX;
+}
+
+static gboolean
+gum_test_size_max (size_t sz)
+{
+  return SIZE_MAX == sz;
+}
+
+static size_t
+gum_add_size (size_t sz)
+{
+  return sz + (size_t) 1;
+}
+
+static size_t
+gum_pass_size (size_t sz)
+{
+  return sz;
+}
+
+static size_t
+gum_pass_ssize (ssize_t ssz)
+{
+  return ssz;
 }
 
 TESTCASE (native_function_can_be_intercepted_when_thread_is_ignored)

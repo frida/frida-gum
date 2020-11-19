@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -21,6 +22,49 @@ struct _GumFFIABIMapping
   ffi_abi abi;
 };
 
+/* Based on the analogous macro in libffi's types.c */
+#define GUM_DEFINE_FFI_TYPE(name, type, id)          \
+    struct GumFFIStructAlign_##name                  \
+    {                                                \
+      char c;                                        \
+      type x;                                        \
+    };                                               \
+                                                     \
+    ffi_type gum_ffi_type_##name =                   \
+    {                                                \
+      sizeof (type),                                 \
+      offsetof (struct GumFFIStructAlign_##name, x), \
+      id, NULL                                       \
+    };
+
+#if defined (SIZE_WIDTH)
+# if SIZE_WIDTH == 64
+GUM_DEFINE_FFI_TYPE (size_t, guint64, FFI_TYPE_UINT64)
+GUM_DEFINE_FFI_TYPE (ssize_t, gint64, FFI_TYPE_SINT64)
+# elif SIZE_WIDTH == 32
+GUM_DEFINE_FFI_TYPE (size_t, guint32, FFI_TYPE_UINT32)
+GUM_DEFINE_FFI_TYPE (ssize_t, gint32, FFI_TYPE_SINT32)
+# elif SIZE_WIDTH == 16
+GUM_DEFINE_FFI_TYPE (size_t, guint16, FFI_TYPE_UINT16)
+GUM_DEFINE_FFI_TYPE (ssize_t, gint16, FFI_TYPE_SINT16)
+# endif
+#elif defined (SIZE_MAX)
+# if SIZE_MAX == UINT64_MAX
+GUM_DEFINE_FFI_TYPE (size_t, guint64, FFI_TYPE_UINT64)
+GUM_DEFINE_FFI_TYPE (ssize_t, gint64, FFI_TYPE_SINT64)
+# elif SIZE_MAX == UINT32_MAX
+GUM_DEFINE_FFI_TYPE (size_t, guint32, FFI_TYPE_UINT32)
+GUM_DEFINE_FFI_TYPE (ssize_t, gint32, FFI_TYPE_SINT32)
+# elif SIZE_MAX == UINT16_MAX
+GUM_DEFINE_FFI_TYPE (size_t, guint16, FFI_TYPE_UINT16)
+GUM_DEFINE_FFI_TYPE (ssize_t, gint16, FFI_TYPE_SINT16)
+# else
+#  error "size_t size not supported"
+# endif
+#else
+# error "size_t detection missing"
+#endif
+
 static const GumFFITypeMapping gum_ffi_type_mappings[] =
 {
   { "void", &ffi_type_void },
@@ -31,6 +75,8 @@ static const GumFFITypeMapping gum_ffi_type_mappings[] =
   { "ulong", &ffi_type_ulong },
   { "char", &ffi_type_schar },
   { "uchar", &ffi_type_uchar },
+  { "size_t", &gum_ffi_type_size_t },
+  { "ssize_t", &gum_ffi_type_ssize_t },
   { "float", &ffi_type_float },
   { "double", &ffi_type_double },
   { "int8", &ffi_type_sint8 },

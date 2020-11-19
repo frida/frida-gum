@@ -2,6 +2,7 @@
  * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -14,6 +15,7 @@
 #include "gumscriptbackend.h"
 #include "valgrind.h"
 
+#include <limits.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>

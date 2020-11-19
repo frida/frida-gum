@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -4198,6 +4199,46 @@ gum_quick_value_to_ffi (JSContext * ctx,
       return FALSE;
     val->v_uint64 = u64;
   }
+  else if (type == &gum_ffi_type_size_t)
+  {
+    if (!_gum_quick_uint64_get (ctx, sval, core, &u64))
+      return FALSE;
+
+    switch (type->size)
+    {
+      case 8:
+        val->v_uint64 = u64;
+        break;
+      case 4:
+        val->v_uint32 = u64;
+        break;
+      case 2:
+        val->v_uint16 = u64;
+        break;
+      default:
+        g_assert_not_reached ();
+    }
+  }
+  else if (type == &gum_ffi_type_ssize_t)
+  {
+    if (!_gum_quick_int64_get (ctx, sval, core, &i64))
+      return FALSE;
+
+    switch (type->size)
+    {
+      case 8:
+        val->v_sint64 = i64;
+        break;
+      case 4:
+        val->v_sint32 = i64;
+        break;
+      case 2:
+        val->v_sint16 = i64;
+        break;
+      default:
+        g_assert_not_reached ();
+    }
+  }
   else if (type == &ffi_type_float)
   {
     if (!_gum_quick_float64_get (ctx, sval, &d))
@@ -4309,6 +4350,48 @@ gum_quick_value_from_ffi (JSContext * ctx,
   else if (type == &ffi_type_uint64)
   {
     return _gum_quick_uint64_new (ctx, val->v_uint64, core);
+  }
+  else if (type == &gum_ffi_type_size_t)
+  {
+    guint64 u64;
+
+    switch (type->size)
+    {
+      case 8:
+        u64 = val->v_uint64;
+        break;
+      case 4:
+        u64 = val->v_uint32;
+        break;
+      case 2:
+        u64 = val->v_uint16;
+        break;
+      default:
+        g_assert_not_reached ();
+    }
+
+    return _gum_quick_uint64_new (ctx, u64, core);
+  }
+  else if (type == &gum_ffi_type_ssize_t)
+  {
+    gint64 i64;
+
+    switch (type->size)
+    {
+      case 8:
+        i64 = val->v_sint64;
+        break;
+      case 4:
+        i64 = val->v_sint32;
+        break;
+      case 2:
+        i64 = val->v_sint16;
+        break;
+      default:
+        g_assert_not_reached ();
+    }
+
+    return _gum_quick_int64_new (ctx, i64, core);
   }
   else if (type == &ffi_type_float)
   {

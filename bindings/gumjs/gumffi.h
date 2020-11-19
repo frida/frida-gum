@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
- * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
+ * Copyright (C) 2019 Jon Wilson <jonwilson@zepler.net>
+ * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -162,6 +163,9 @@ union _GumFFIValue
 # pragma pack (pop)
 
 #endif
+
+extern ffi_type gum_ffi_type_size_t;
+extern ffi_type gum_ffi_type_ssize_t;
 
 G_GNUC_INTERNAL gboolean gum_ffi_try_get_type_by_name (const gchar * name,
     ffi_type ** type);
