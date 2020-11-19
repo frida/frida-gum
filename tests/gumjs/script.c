@@ -257,6 +257,7 @@ TESTLIST_BEGIN (script)
 
   TESTGROUP_BEGIN ("NativeFunction")
     TESTENTRY (native_function_can_be_invoked)
+    TESTENTRY (native_function_can_be_invoked_with_size_t)
     TESTENTRY (native_function_can_be_intercepted_when_thread_is_ignored)
     TESTENTRY (native_function_should_implement_call_and_apply)
     TESTENTRY (native_function_crash_results_in_exception)
@@ -391,6 +392,9 @@ static gboolean unignore_thread (GumInterceptor * interceptor);
 static gint gum_assert_variadic_uint8_values_are_sane (gpointer a, gpointer b,
     gpointer c, gpointer d, ...);
 static gint gum_clobber_system_error (gint value);
+static size_t gum_get_size_max(void);
+static gboolean gum_test_size_max(size_t sz);
+static size_t gum_add_size(size_t sz);
 static gint gum_get_answer_to_life_universe_and_everything (void);
 static gint gum_toupper (gchar * str, gint limit);
 static gint64 gum_classify_timestamp (gint64 timestamp);
@@ -1017,6 +1021,43 @@ TESTCASE (native_function_can_be_invoked)
   EXPECT_SEND_MESSAGE_WITH ("\"16\"");
   EXPECT_SEND_MESSAGE_WITH ("\"36\"");
   EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (native_function_can_be_invoked_with_size_t)
+{
+  // note: There exists no GUM conversion function like 'uint64()' for size_t, as
+  //       the actual conversion is platform depended. Thus the function arguments
+  //       are created by converting defined MAX_SIZE to strings.
+  const int n = snprintf(NULL, 0, "%zu", SIZE_MAX);
+  char strSizeMax[n+1];
+  char strSizeMaxMinusOne[n+1];
+  char strSizeMaxQuoted[n+3];
+  snprintf(strSizeMax, n+1, "%zu", SIZE_MAX);
+  snprintf(strSizeMaxMinusOne, n+1, "%zu", SIZE_MAX - 1);
+  snprintf(strSizeMaxQuoted, n+3, "\"%zu\"", SIZE_MAX);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var getSizeMax = new NativeFunction(" GUM_PTR_CONST ", 'size_t', []);"
+      "send(getSizeMax());",
+      gum_get_size_max);
+  EXPECT_SEND_MESSAGE_WITH (strSizeMaxQuoted);
+  EXPECT_NO_MESSAGES ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+    "var addSize = new NativeFunction(" GUM_PTR_CONST ", 'size_t', ['size_t']);"
+    "send(addSize(uint64(\"18446744073709551614\")));",
+      gum_add_size);
+  EXPECT_SEND_MESSAGE_WITH (strSizeMaxQuoted);
+  EXPECT_NO_MESSAGES ();
+  
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var testSizeMax = new NativeFunction(" GUM_PTR_CONST ", 'bool', ['size_t']);"
+      "send(testSizeMax(18446744073709551615));",
+      gum_test_size_max);
+  EXPECT_SEND_MESSAGE_WITH ("1");
+  EXPECT_NO_MESSAGES ();
+
 }
 
 TESTCASE (native_function_can_be_intercepted_when_thread_is_ignored)
@@ -1978,6 +2019,18 @@ TESTCASE (int64_provides_arithmetic_operations)
   EXPECT_SEND_MESSAGE_WITH ("3");
   EXPECT_SEND_MESSAGE_WITH ("8");
   EXPECT_SEND_MESSAGE_WITH ("-1");
+}
+
+static size_t gum_get_size_max(void) {
+  return SIZE_MAX;
+}
+
+static gboolean gum_test_size_max(size_t sz) {
+  return SIZE_MAX == sz;
+}
+
+static size_t gum_add_size(size_t sz) {
+  return sz + (size_t) 1;
 }
 
 static gint

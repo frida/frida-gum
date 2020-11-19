@@ -41,7 +41,9 @@ static const GumFFITypeMapping gum_ffi_type_mappings[] =
   { "uint32", &ffi_type_uint32 },
   { "int64", &ffi_type_sint64 },
   { "uint64", &ffi_type_uint64 },
-  { "bool", &ffi_type_schar }
+  { "bool", &ffi_type_schar },
+  { "size_t", &ffi_type_size_t },
+  { "ssize_t", &ffi_type_ssize_t }
 };
 
 static const GumFFIABIMapping gum_ffi_abi_mappings[] =

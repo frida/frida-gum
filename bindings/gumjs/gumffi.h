@@ -10,10 +10,22 @@
 
 #include <ffi.h>
 #include <glib-object.h>
+#include <stdint.h>
 
 G_BEGIN_DECLS
 
 typedef union _GumFFIValue GumFFIValue;
+
+// Requires careful testing, SIZE_MAX must be 65535 at least, but also could exceed UINT_MAX
+#if SIZE_MAX == ULONG_MAX
+# define ffi_type_size_t       ffi_type_ulong
+# define ffi_type_ssize_t       ffi_type_slong
+#elif SIZE_MAX == UINT_MAX
+# define ffi_type_size_t       ffi_type_uint
+# define ffi_type_ssize_t       ffi_type_sint
+#else
+ #error "size_t size not supported"
+#endif
 
 #if G_BYTE_ORDER == G_LITTLE_ENDIAN
 
