@@ -17,8 +17,8 @@ G_BEGIN_DECLS
 typedef union _GumFFIValue GumFFIValue;
 
 // strong typedef in gumffi.c
-ffi_type ffi_type_size_t;
-ffi_type ffi_type_ssize_t;
+FFI_EXTERN ffi_type ffi_type_size_t;
+FFI_EXTERN ffi_type ffi_type_ssize_t;
 
 #if G_BYTE_ORDER == G_LITTLE_ENDIAN
 

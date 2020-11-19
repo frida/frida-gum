@@ -23,7 +23,7 @@ typedef signed int   SINT64 __attribute__((__mode__(__DI__)));
 struct struct_align_##name {			\
   char c;					\
   type x;					\
-};						\
+};                \
 ffi_type ffi_type_##name = {	\
   sizeof(type),					\
   offsetof(struct struct_align_##name, x),	\
