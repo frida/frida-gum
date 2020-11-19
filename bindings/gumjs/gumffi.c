@@ -5,9 +5,54 @@
  */
 
 #include "gumffi.h"
+#include <ffi.h>
 
 typedef struct _GumFFITypeMapping GumFFITypeMapping;
 typedef struct _GumFFIABIMapping GumFFIABIMapping;
+
+// from: https://github.com/libffi/libffi/blob/65da63abc843fe448aaa86015d094cf016f325ba/include/ffi_common.h
+typedef unsigned int UINT16 __attribute__((__mode__(__HI__)));
+typedef signed int   SINT16 __attribute__((__mode__(__HI__)));
+typedef unsigned int UINT32 __attribute__((__mode__(__SI__)));
+typedef signed int   SINT32 __attribute__((__mode__(__SI__)));
+typedef unsigned int UINT64 __attribute__((__mode__(__DI__)));
+typedef signed int   SINT64 __attribute__((__mode__(__DI__)));
+
+// modified from: https://github.com/libffi/libffi/blob/master/src/types.c
+#define FFI_TYPEDEF(name, type, id)\
+struct struct_align_##name {			\
+  char c;					\
+  type x;					\
+};						\
+ffi_type ffi_type_##name = {	\
+  sizeof(type),					\
+  offsetof(struct struct_align_##name, x),	\
+  id, NULL					\
+}
+
+// create strong type definition for 'ffi_type_size_t' and 'ffi_type_ssize_t'
+// based on the respective properties of ffi_type_uint64, ffi_type_uint32 or ffi_type_uint16
+//
+// Strong typedef, instead of alias allows distinguishing 'size_t' from uint64/32/16
+// in functions like:
+// - gum_quick_value_to_ffi
+// - gum_quick_value_from_ffi
+// - gum_v8_value_to_ffi_type
+// - gum_v8_value_from_ffi_type
+#if SIZE_MAX == UINT64_MAX
+FFI_TYPEDEF(size_t, UINT64, FFI_TYPE_UINT64);
+FFI_TYPEDEF(ssize_t, SINT64, FFI_TYPE_SINT64);
+#elif SIZE_MAX == UINT32_MAX
+FFI_TYPEDEF(size_t, UINT32, FFI_TYPE_UINT32);
+FFI_TYPEDEF(ssize_t, SINT32, FFI_TYPE_SINT32);
+#elif SIZE_MAX == UINT16_MAX
+FFI_TYPEDEF(size_t, UINT16, FFI_TYPE_UINT16);
+FFI_TYPEDEF(ssize_t, SINT16, FFI_TYPE_SINT16);
+#else
+# error "size_t size not supported"
+#endif
+
+
 
 struct _GumFFITypeMapping
 {

@@ -1025,39 +1025,100 @@ TESTCASE (native_function_can_be_invoked)
 
 TESTCASE (native_function_can_be_invoked_with_size_t)
 {
-  // note: There exists no GUM conversion function like 'uint64()' for size_t, as
-  //       the actual conversion is platform depended. Thus the function arguments
-  //       are created by converting defined MAX_SIZE to strings.
-  const int n = snprintf(NULL, 0, "%zu", SIZE_MAX);
-  char strSizeMax[n+1];
-  char strSizeMaxMinusOne[n+1];
-  char strSizeMaxQuoted[n+3];
-  snprintf(strSizeMax, n+1, "%zu", SIZE_MAX);
-  snprintf(strSizeMaxMinusOne, n+1, "%zu", SIZE_MAX - 1);
-  snprintf(strSizeMaxQuoted, n+3, "\"%zu\"", SIZE_MAX);
+  gchar arg[23];
+  gchar ret[23];
 
+  // size_t type conversion tests with SIZE_MAX
+
+  // Notes:
+  // Per specs 'size_t' is an unsigned integer type defined in stddef.h.
+  // Per recommendation 'size_t' shall be able to represent the largest possible 
+  // object size:
+  //    The types used for 'size_t' and 'ptrdiff_t' should not have an integer 
+  //    conversion rank greater than that of 'signed long int' unless the implementation 
+  //    supports objects large enough to make this necessary. 
+  // The largest possible size is defined by SIZE_MAX (stddef.h).
+  // The minimum value for SIZE_MAX definitions is 65535 (ref C99, 7.18.3), which implies
+  // that the smallest possible 'size_t' conversion would be 16bit (depends on architecture
+  // implementation and compiler).
+  // 
+  // Conclusion: If the maximum object size of an implementation corresponds to the address-width,
+  // it could be assumed that SIZE_MAX will not exceed UINT64_MAX, for architectures in Frida's
+  // scope. This again means, that for the JavaScript runtimes all possible 'size_t' values could
+  // be represented as 'uint64' (as 64bit SIZE_MAX of 1844674407370955161UL would exceed the limits
+  // of JavaScript 'Number.MAX_SAFE_INTEGER'). 
+  // For the native part, on the other hand, 'size_t' values can not be encoded in uint64 per se,
+  // instead this has to be done depending on the implementation's value of SIZE_MAX.
+  // 
+  // implementation SIZE_MAX        JS              Native
+  // UINT64_MAX                     uint64    <->   uint64  
+  // UINT32_MAX                     uint64    <->   uint32  
+  // UINT16_MAX                     uint64    <->   uint16
+  //
+  // For GLib, the definition of gsize is very simplified (compared to C99) 
+  //    "usually 32 bit wide on a 32-bit platform and 64 bit wide on a 64-bit platform"
+  // Ref: https://developer.gnome.org/glib/stable/glib-Basic-Types.html#gsize
+  //
+  // Issues
+  // 
+  // 1) gumffi.h has no 'ffi_type_size_t' in a first test it was defined like so:
+  //
+  //    #if SIZE_MAX == UINT64_MAX
+  //    # define ffi_type_size_t       ffi_type_uint64
+  //    # define ffi_type_ssize_t       ffi_type_sint64
+  //    #elif SIZE_MAX == UINT32_MAX
+  //    # define ffi_type_size_t       ffi_type_uint32
+  //    # define ffi_type_ssize_t       ffi_type_sint32
+  //    #elif SIZE_MAX == UINT16_MAX
+  //    # define ffi_type_size_t       ffi_type_uint16
+  //    # define ffi_type_ssize_t       ffi_type_sint16
+  //    #else
+  //    # error "size_t size not supported"
+  //    #endif
+  //
+  // 2) 'gum_quick_value_from_ffi' has no adoptable code for uint16 conversions (SIZE_MAX == 0xffff case)
+  // 3) As on the JS end 'size_t' shall be represented as Uint64, values have to be created with the 'uint64()'
+  //    constructor (as done in the test cases). Maybe an alias should be created, which allows using 'size_t("number string")'
+  // 4) I have no idea on how to run the test cases on different architectures (only linux x86_64 is available to me)
+  // 5) I have no idea on how to select the runtime for which the testcases (currently they are processed with QuickJS only)
+  // 6) The 'typedef' approach described above did not work out, as the aliases (no strong typedef) would match the ffi_types
+  //    for uint16/uint32/uint64 in the *_from_ffi and *_to_ffi functions of the runtime cores. This again would mean, that
+  //    on the JavaScript end the representation of size_t would end up as either 'Number' (for uint32 and uint16) or as
+  //    'Uint64' (for SIZE_MAX == UINT64_MAX). To account for this dedicated types for 'ffi_type_size_t' and 'ffi_type_ssize_t'
+  //    were decalred in 'gumffi.h'. The types are defined in 'gumffi.c' and derive the properties of ffi_type_uint64/32/16
+  //    (depending on the value of SIZE_MAX). The *_from_ffi and *_to_ffi functions have been adjusted, to always convert from/to
+  //    uint64 for JavaScript (currently QuickJS only, as I do not know how to enforce V8 for the tests, neither am I able to
+  //    run the tests for different architectures).
+  //    Note: If this approach works, i see no need to extend '_GumFFIValue' (gumffi.h) with 'gsize' and 'gssize'.
+
+  // returns SIZE_MAX
+  sprintf(ret, "\"%zu\"", SIZE_MAX);
   COMPILE_AND_LOAD_SCRIPT (
       "var getSizeMax = new NativeFunction(" GUM_PTR_CONST ", 'size_t', []);"
       "send(getSizeMax());",
       gum_get_size_max);
-  EXPECT_SEND_MESSAGE_WITH (strSizeMaxQuoted);
+  EXPECT_SEND_MESSAGE_WITH (ret);
   EXPECT_NO_MESSAGES ();
 
+  // ADDS '(size_t) 1' to argument, for argument 'SIZE_MAX - 1' shall return SIZE_MAX
+  sprintf(arg, "%zu", SIZE_MAX - 1);
   COMPILE_AND_LOAD_SCRIPT (
     "var addSize = new NativeFunction(" GUM_PTR_CONST ", 'size_t', ['size_t']);"
-    "send(addSize(uint64(\"18446744073709551614\")));",
-      gum_add_size);
-  EXPECT_SEND_MESSAGE_WITH (strSizeMaxQuoted);
+    "send(addSize(uint64(\"%s\")));",
+    gum_add_size, arg);
+  EXPECT_SEND_MESSAGE_WITH (ret);
   EXPECT_NO_MESSAGES ();
   
-
+  // checks if given size_t argument is SIZE_MAX
+  sprintf(arg, "%zu", SIZE_MAX);
   COMPILE_AND_LOAD_SCRIPT (
       "var testSizeMax = new NativeFunction(" GUM_PTR_CONST ", 'bool', ['size_t']);"
-      "send(testSizeMax(18446744073709551615));",
-      gum_test_size_max);
-  EXPECT_SEND_MESSAGE_WITH ("1");
+      "send(testSizeMax(uint64(\"%s\")) === 1);",
+      gum_test_size_max, arg);
+  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_NO_MESSAGES ();
 
+  // ToDo: ssize_t test 
 }
 
 TESTCASE (native_function_can_be_intercepted_when_thread_is_ignored)

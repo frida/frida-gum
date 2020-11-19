@@ -4140,10 +4140,39 @@ gum_quick_value_to_ffi (JSContext * ctx,
   gint64 i64;
   guint64 u64;
   gdouble d;
-
+  
+  //printf("to ffi type is size_t %d, type is uint64_t %d, type size=%zu\n", type == &ffi_type_size_t, type == &ffi_type_uint64, type->size);
   if (type == &ffi_type_void)
   {
     val->v_pointer = NULL;
+  }
+  else if (type == &ffi_type_size_t)
+  {
+    if (type->size == 8)
+    {
+      if (!_gum_quick_uint64_get (ctx, sval, core, &u64))
+        return FALSE;
+      //val->v_gsize = u64;
+      val->v_uint64 = u64;
+    }
+    else if (type->size == 4)
+    {
+      if (!_gum_quick_uint_get (ctx, sval, &u))
+        return FALSE;
+      //val->v_gsize = u;
+      val->v_uint32 = u;
+    }
+    else if (type->size == 2)
+    {
+      if (!_gum_quick_uint_get (ctx, sval, &u))
+        return FALSE;
+      //val->v_gsize = u;
+      val->v_uint16 = u;
+    }
+    else
+    {
+      g_assert_not_reached ();
+    }    
   }
   else if (type == &ffi_type_pointer)
   {
@@ -4270,9 +4299,29 @@ gum_quick_value_from_ffi (JSContext * ctx,
                           const ffi_type * type,
                           GumQuickCore * core)
 {
+  //printf("from ffi type is size_t %d, type is uint64_t %d, type size=%zu\n", type == &ffi_type_size_t, type == &ffi_type_uint64, type->size);
   if (type == &ffi_type_void)
   {
     return JS_UNDEFINED;
+  }
+  else if (type == &ffi_type_size_t)
+  {
+    if (type->size == 8)
+    {
+      return _gum_quick_uint64_new (ctx, val->v_uint64, core);
+    }
+    else if (type->size == 4)
+    {
+      return _gum_quick_uint64_new (ctx, val->v_uint32, core);
+    }
+    else if (type->size == 2)
+    {
+      return _gum_quick_uint64_new (ctx, val->v_uint16, core);
+    }
+    else
+    {
+      g_assert_not_reached ();
+    }    
   }
   else if (type == &ffi_type_pointer)
   {
