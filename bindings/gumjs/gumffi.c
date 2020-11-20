@@ -45,11 +45,30 @@ FFI_TYPEDEF(ssize_t, SINT64, FFI_TYPE_SINT64);
 #elif SIZE_WIDTH == 32
 FFI_TYPEDEF(size_t, UINT32, FFI_TYPE_UINT32);
 FFI_TYPEDEF(ssize_t, SINT32, FFI_TYPE_SINT32);
-#elif SIZE_WIDTH == 16
+#elif SIZE_WIDTH == 16  
 FFI_TYPEDEF(size_t, UINT16, FFI_TYPE_UINT16);
 FFI_TYPEDEF(ssize_t, SINT16, FFI_TYPE_SINT16);
 #else
-# error "size_t size not supported"
+// SIZE_MAX fallback for Android
+
+#   if SIZE_MAX == UINT64_MAX
+FFI_TYPEDEF(size_t, UINT64, FFI_TYPE_UINT64);
+FFI_TYPEDEF(ssize_t, SINT64, FFI_TYPE_SINT64);
+#   elif SIZE_MAX == UINT32_MAX
+FFI_TYPEDEF(size_t, UINT32, FFI_TYPE_UINT32);
+FFI_TYPEDEF(ssize_t, SINT32, FFI_TYPE_SINT32);
+#   elif SIZE_MAX == UINT16_MAX
+FFI_TYPEDEF(size_t, UINT16, FFI_TYPE_UINT16);
+FFI_TYPEDEF(ssize_t, SINT16, FFI_TYPE_SINT16);
+#   else
+#     define VALUE_TO_STRING(x) #x
+#     define VALUE(x) VALUE_TO_STRING(x)
+#     define VAR_NAME_VALUE(var) #var "="  VALUE(var)
+#     pragma message(VAR_NAME_VALUE(SIZE_MAX))
+#     pragma message(VAR_NAME_VALUE(SIZE_WIDTH))
+#     pragma message(VAR_NAME_VALUE(__SIZE_WIDTH__))
+#     error "size_t size not supported" 
+#   endif
 #endif
 
 

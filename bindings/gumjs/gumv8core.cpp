@@ -3358,7 +3358,8 @@ gum_v8_value_to_ffi_type (GumV8Core * core,
     guint64 tmpU64;
     if (!_gum_v8_uint64_get (svalue, &tmpU64, core))
       return FALSE;
-    printf("V8 size_t to native %lu (%#016lx)\n", tmpU64, tmpU64);
+    
+    printf("V8 size_t to native %" PRIu64 " (%#" PRIx64 ")\n", tmpU64, tmpU64);
 
     switch (type->size)
     {
@@ -3528,7 +3529,7 @@ gum_v8_value_from_ffi_type (GumV8Core * core,
       case 8:
         u64 = value->v_uint64;
         break;
-      case 4:
+      case 4:    
         u64 = value->v_uint32;
         break;  
       case 2:
@@ -3539,7 +3540,7 @@ gum_v8_value_from_ffi_type (GumV8Core * core,
         return FALSE;
     }
 
-    printf("V8 size_t from native %lu (%#016lx)\n", u64, u64);
+    printf("V8 size_t from native %" PRIu64 " (%#" PRIx64 ")\n", u64, u64);
     *svalue = _gum_v8_uint64_new (u64, core);
   }
   else if (type == &ffi_type_pointer)

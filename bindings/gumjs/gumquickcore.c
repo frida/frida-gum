@@ -4152,7 +4152,8 @@ gum_quick_value_to_ffi (JSContext * ctx,
     // temporary storing in guint64 has to be tested on (physical) 32bit arch
     if (!_gum_quick_uint64_get (ctx, sval, core, &u64))
       return FALSE;
-    printf("QJS size_t to native %lu (%#016lx)\n", u64, u64);
+    printf("QJS size_t to native %" PRIu64 " (%#" PRIx64 ")\n", u64, u64);
+    
     switch (type->size) {
       case 8:
         val->v_uint64 = u64;
@@ -4317,7 +4318,7 @@ gum_quick_value_from_ffi (JSContext * ctx,
         g_assert_not_reached ();
     }
     
-    printf("QJS size_t from native %lu (%#016lx)\n", u64, u64);
+    printf("QJS size_t from native %" PRIu64 " (%#" PRIx64 ")\n", u64, u64);    
     return _gum_quick_uint64_new (ctx, u64, core);
   }
   else if (type == &ffi_type_pointer)
