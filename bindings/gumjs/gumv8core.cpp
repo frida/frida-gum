@@ -3347,7 +3347,6 @@ gum_v8_value_to_ffi_type (GumV8Core * core,
   auto isolate = core->isolate;
   auto context = isolate->GetCurrentContext ();
 
-  printf("V8 to ffi type is size_t %d, type size=%zu\n", type == &ffi_type_size_t, type->size);
   if (type == &ffi_type_void)
   {
     value->v_pointer = NULL;
@@ -3373,6 +3372,32 @@ gum_v8_value_to_ffi_type (GumV8Core * core,
       case 2:
         // ToDo: check limits before conversion
         value->v_uint16 = tmpU64;
+        break;
+      default:
+        goto error_unsupported_type;
+    }
+  }
+  else if (type == &ffi_type_ssize_t)
+  {
+    // temporary storing in gint64 has to be tested on (physical) 32bit arch
+    gint64 tmpI64;
+    if (!_gum_v8_int64_get (svalue, &tmpI64, core))
+      return FALSE;
+    
+    printf("V8 ssize_t to native %" PRId64 " (%#" PRIx64 ")\n", tmpI64, tmpI64);
+
+    switch (type->size)
+    {
+      case 8:
+        value->v_sint64 = tmpI64;
+        break;
+      case 4:
+        // ToDo: check limits before conversion
+        value->v_sint32 = tmpI64;
+        break;
+      case 2:
+        // ToDo: check limits before conversion
+        value->v_sint16 = tmpI64;
         break;
       default:
         goto error_unsupported_type;
@@ -3516,7 +3541,6 @@ gum_v8_value_from_ffi_type (GumV8Core * core,
 {
   auto isolate = core->isolate;
 
-  printf("from ffi type is size_t %d, type size=%zu\n", type == &ffi_type_size_t, type->size);
   if (type == &ffi_type_void)
   {
     *svalue = Undefined (isolate);
@@ -3542,6 +3566,28 @@ gum_v8_value_from_ffi_type (GumV8Core * core,
 
     printf("V8 size_t from native %" PRIu64 " (%#" PRIx64 ")\n", u64, u64);
     *svalue = _gum_v8_uint64_new (u64, core);
+  }
+  else if (type == &ffi_type_ssize_t)
+  {
+    gint64 i64;
+    switch(type->size )
+    {
+      case 8:
+        i64 = value->v_sint64;
+        break;
+      case 4:    
+        i64 = value->v_sint32;
+        break;  
+      case 2:
+        i64 = value->v_sint16;
+        break; 
+      default:
+        _gum_v8_throw_ascii_literal (isolate, "unsupported type");
+        return FALSE;
+    }
+
+    printf("V8 ssize_t from native %" PRId64 " (%#" PRIx64 ")\n", i64, i64);
+    *svalue = _gum_v8_int64_new (i64, core);
   }
   else if (type == &ffi_type_pointer)
   {

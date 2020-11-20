@@ -4141,8 +4141,7 @@ gum_quick_value_to_ffi (JSContext * ctx,
   guint64 u64;
   gdouble d;
   
-  printf("QJS to ffi type is size_t %d, type size=%zu\n", type == &ffi_type_size_t, type->size);
-
+  
   if (type == &ffi_type_void)
   {
     val->v_pointer = NULL;
@@ -4165,6 +4164,29 @@ gum_quick_value_to_ffi (JSContext * ctx,
       case 2:
         // ToDo: check limits before conversion
         val->v_uint16 = u64;
+        break;
+      default:
+        g_assert_not_reached ();
+    }
+  }
+  else if (type == &ffi_type_ssize_t)
+  {
+    // temporary storing in guint64 has to be tested on (physical) 32bit arch
+    if (!_gum_quick_int64_get (ctx, sval, core, &i64))
+      return FALSE;
+    printf("QJS ssize_t to native %" PRId64 " (%#" PRIx64 ")\n", i64, i64);
+    
+    switch (type->size) {
+      case 8:
+        val->v_sint64 = i64;
+        break;
+      case 4:
+        // ToDo: check limits before conversion
+        val->v_sint32 = i64;
+        break;
+      case 2:
+        // ToDo: check limits before conversion
+        val->v_sint16 = i64;
         break;
       default:
         g_assert_not_reached ();
@@ -4295,7 +4317,6 @@ gum_quick_value_from_ffi (JSContext * ctx,
                           const ffi_type * type,
                           GumQuickCore * core)
 {
-  printf("QJS from ffi type is size_t %d, type size=%zu\n", type == &ffi_type_size_t, type->size);
   if (type == &ffi_type_void)
   {
     return JS_UNDEFINED;
@@ -4320,6 +4341,27 @@ gum_quick_value_from_ffi (JSContext * ctx,
     
     printf("QJS size_t from native %" PRIu64 " (%#" PRIx64 ")\n", u64, u64);    
     return _gum_quick_uint64_new (ctx, u64, core);
+  }
+  else if (type == &ffi_type_ssize_t)
+  {
+    gint64 i64;
+    switch(type->size )
+    {
+      case 8:
+        i64 = val->v_sint64;
+        break;
+      case 4:
+        i64 = val->v_sint32;
+        break;  
+      case 2:
+        i64 = val->v_sint16;
+        break; 
+      default:
+        g_assert_not_reached ();
+    }
+    
+    printf("QJS ssize_t from native %" PRId64 " (%#" PRIx64 ")\n", i64, i64);    
+    return _gum_quick_int64_new (ctx, i64, core);
   }
   else if (type == &ffi_type_pointer)
   {

@@ -397,6 +397,7 @@ static size_t gum_get_size_max(void);
 static gboolean gum_test_size_max(size_t sz);
 static size_t gum_add_size(size_t sz);
 static size_t gum_pass_size(size_t u64);
+static size_t gum_pass_ssize(ssize_t ssz);
 static gint gum_get_answer_to_life_universe_and_everything (void);
 static gint gum_toupper (gchar * str, gint limit);
 static gint64 gum_classify_timestamp (gint64 timestamp);
@@ -1052,19 +1053,32 @@ TESTCASE (native_function_can_be_invoked_with_size_t)
   // For the native part, on the other hand, 'size_t' values can not be encoded in uint64 per se,
   // instead this has to be done depending on the implementation's value of SIZE_MAX.
   // 
-  // implementation SIZE_WIDTH        JS              Native
-  // 64                               uint64    <->   uint64  
-  // 32                               uint64    <->   uint32 (temporary guint64 during conversion)
-  // 16                               uint64    <->   uint16 (temporary guint64 during conversion)
+  // SIZE_WIDTH                       JS size_t         Native size_t
+  // 64                               uint64      <->   uint64  
+  // 32                               uint64      <->   uint32 (temporary guint64 during conversion)
+  // 16                               uint64      <->   uint16 (temporary guint64 during conversion)
   //
   // For GLib, the definition of gsize is very simplified (compared to C99) 
   //    "usually 32 bit wide on a 32-bit platform and 64 bit wide on a 64-bit platform"
   // Ref: https://developer.gnome.org/glib/stable/glib-Basic-Types.html#gsize
   //
+  // Implementation of 'ssize_t' is analog
+  //
+  // SIZE_WIDTH                       JS ssize_t          Native ssize_t
+  // 64                               int64         <->   int64  
+  // 32                               int64         <->   int32 (temporary gint64 during conversion)
+  // 16                               int64         <->   int16 (temporary gint64 during conversion)
+  //
   // Issues
   // 
   // 1) As on the JS end 'size_t' shall be represented as Uint64, values have to be created with the 'uint64()'
   //    constructor (as done in the test cases). Maybe an alias should be created, which allows using 'size_t("number string")'
+  // 2) ssize_t seems to be POSIX defined, but not C99
+  // 3) ptrdiff_t is not implemented (but C99 defined) ... normally ssize_t should be able to store ptrdiff_t, but this requires
+  //    further testing
+  // 4) Focus was put on size_t implementation, which is tested and working. ssize_t/ptrdiff_t are not in main scope
+  //    and require additional testing (+ implementation of ptrdiff_t, if not casted to size_t).
+  //    The test for 'ssize_t' uses a simple pass-through function which is called with a) PTRDIFF_MAX and b) PTRDIFF_MIN
   //
   // External:
   // - discussion on SSIZE_MAX weirdness https://sourceware.org/bugzilla/show_bug.cgi?id=13575
@@ -1108,7 +1122,28 @@ TESTCASE (native_function_can_be_invoked_with_size_t)
   EXPECT_NO_MESSAGES ();
 
 
-  // ToDo: ssize_t test 
+  //ssize_t tests
+
+  // returns given size_t argument without modification (check for proper conversion to native/from native)
+  sprintf(arg, "%td", PTRDIFF_MAX);
+  sprintf(ret, "\"%td\"", PTRDIFF_MAX);
+  COMPILE_AND_LOAD_SCRIPT (
+    "var passSSize = new NativeFunction(" GUM_PTR_CONST ", 'ssize_t', ['ssize_t']);"
+    "send(passSSize(int64(\"%s\")));",
+    gum_pass_ssize, arg);
+  EXPECT_SEND_MESSAGE_WITH (ret);
+  EXPECT_NO_MESSAGES ();
+
+
+  // returns given size_t argument without modification (check for proper conversion to native/from native)
+  sprintf(arg, "%zd", PTRDIFF_MIN);
+  sprintf(ret, "\"%zd\"", PTRDIFF_MIN);
+  COMPILE_AND_LOAD_SCRIPT (
+    "var passSSize = new NativeFunction(" GUM_PTR_CONST ", 'ssize_t', ['ssize_t']);"
+    "send(passSSize(int64(\"%s\")));",
+    gum_pass_ssize, arg);
+  EXPECT_SEND_MESSAGE_WITH (ret);
+  EXPECT_NO_MESSAGES ();
 }
 
 TESTCASE (native_function_can_be_intercepted_when_thread_is_ignored)
@@ -2085,9 +2120,13 @@ static size_t gum_add_size(size_t sz) {
 }
 
 static size_t gum_pass_size(size_t sz) {
-  //printf("value in gum_pass_size %zu\n", SSIZE_MAX);
   printf("value in gum_pass_size %zu\n", sz);
   return sz;
+}
+
+static size_t gum_pass_ssize(ssize_t ssz) {
+  printf("value in gum_pass_ssize %zd\n", ssz);
+  return ssz;
 }
 
 static gint
