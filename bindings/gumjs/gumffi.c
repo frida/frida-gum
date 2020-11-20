@@ -39,13 +39,13 @@ ffi_type ffi_type_##name = {	\
 // - gum_quick_value_from_ffi
 // - gum_v8_value_to_ffi_type
 // - gum_v8_value_from_ffi_type
-#if SIZE_MAX == UINT64_MAX
+#if SIZE_WIDTH == 64
 FFI_TYPEDEF(size_t, UINT64, FFI_TYPE_UINT64);
 FFI_TYPEDEF(ssize_t, SINT64, FFI_TYPE_SINT64);
-#elif SIZE_MAX == UINT32_MAX
+#elif SIZE_WIDTH == 32
 FFI_TYPEDEF(size_t, UINT32, FFI_TYPE_UINT32);
 FFI_TYPEDEF(ssize_t, SINT32, FFI_TYPE_SINT32);
-#elif SIZE_MAX == UINT16_MAX
+#elif SIZE_WIDTH == 16
 FFI_TYPEDEF(size_t, UINT16, FFI_TYPE_UINT16);
 FFI_TYPEDEF(ssize_t, SINT16, FFI_TYPE_SINT16);
 #else
