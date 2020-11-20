@@ -395,6 +395,7 @@ static gint gum_clobber_system_error (gint value);
 static size_t gum_get_size_max(void);
 static gboolean gum_test_size_max(size_t sz);
 static size_t gum_add_size(size_t sz);
+static size_t gum_pass_size(size_t u64);
 static gint gum_get_answer_to_life_universe_and_everything (void);
 static gint gum_toupper (gchar * str, gint limit);
 static gint64 gum_classify_timestamp (gint64 timestamp);
@@ -1091,6 +1092,7 @@ TESTCASE (native_function_can_be_invoked_with_size_t)
   //    run the tests for different architectures).
   //    Note: If this approach works, i see no need to extend '_GumFFIValue' (gumffi.h) with 'gsize' and 'gssize'.
 
+
   // returns SIZE_MAX
   sprintf(ret, "\"%zu\"", SIZE_MAX);
   COMPILE_AND_LOAD_SCRIPT (
@@ -1108,7 +1110,7 @@ TESTCASE (native_function_can_be_invoked_with_size_t)
     gum_add_size, arg);
   EXPECT_SEND_MESSAGE_WITH (ret);
   EXPECT_NO_MESSAGES ();
-  
+
   // checks if given size_t argument is SIZE_MAX
   sprintf(arg, "%zu", SIZE_MAX);
   COMPILE_AND_LOAD_SCRIPT (
@@ -1117,6 +1119,17 @@ TESTCASE (native_function_can_be_invoked_with_size_t)
       gum_test_size_max, arg);
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_NO_MESSAGES ();
+
+
+  sprintf(arg, "%zu", SIZE_MAX);
+  sprintf(ret, "\"%zu\"", SIZE_MAX);
+  COMPILE_AND_LOAD_SCRIPT (
+    "var passSize = new NativeFunction(" GUM_PTR_CONST ", 'size_t', ['size_t']);"
+    "send(passSize(uint64(\"%s\")));",
+    gum_pass_size, arg);
+  EXPECT_SEND_MESSAGE_WITH (ret);
+  EXPECT_NO_MESSAGES ();
+
 
   // ToDo: ssize_t test 
 }
@@ -2092,6 +2105,11 @@ static gboolean gum_test_size_max(size_t sz) {
 
 static size_t gum_add_size(size_t sz) {
   return sz + (size_t) 1;
+}
+
+static size_t gum_pass_size(size_t sz) {
+  printf("value in gum_pass_size %zu\n", sz);
+  return sz;
 }
 
 static gint

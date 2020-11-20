@@ -3347,9 +3347,35 @@ gum_v8_value_to_ffi_type (GumV8Core * core,
   auto isolate = core->isolate;
   auto context = isolate->GetCurrentContext ();
 
+  printf("V8 to ffi type is size_t %d, type size=%zu\n", type == &ffi_type_size_t, type->size);
   if (type == &ffi_type_void)
   {
     value->v_pointer = NULL;
+  }
+  else if (type == &ffi_type_size_t)
+  {
+    // temporary storing in guint64 has to be tested on (physical) 32bit arch
+    guint64 tmpU64;
+    if (!_gum_v8_uint64_get (svalue, &tmpU64, core))
+      return FALSE;
+    printf("V8 size_t to native %lu (%#016lx)\n", tmpU64, tmpU64);
+
+    switch (type->size)
+    {
+      case 8:
+        value->v_uint64 = tmpU64;
+        break;
+      case 4:
+        // ToDo: check limits before conversion
+        value->v_uint32 = tmpU64;
+        break;
+      case 2:
+        // ToDo: check limits before conversion
+        value->v_uint16 = tmpU64;
+        break;
+      default:
+        goto error_unsupported_type;
+    }
   }
   else if (type == &ffi_type_pointer)
   {
@@ -3489,9 +3515,32 @@ gum_v8_value_from_ffi_type (GumV8Core * core,
 {
   auto isolate = core->isolate;
 
+  printf("from ffi type is size_t %d, type size=%zu\n", type == &ffi_type_size_t, type->size);
   if (type == &ffi_type_void)
   {
     *svalue = Undefined (isolate);
+  }
+  else if (type == &ffi_type_size_t)
+  {
+    guint64 u64;
+    switch(type->size )
+    {
+      case 8:
+        u64 = value->v_uint64;
+        break;
+      case 4:
+        u64 = value->v_uint32;
+        break;  
+      case 2:
+        u64 = value->v_uint16;
+        break; 
+      default:
+        _gum_v8_throw_ascii_literal (isolate, "unsupported type");
+        return FALSE;
+    }
+
+    printf("V8 size_t from native %lu (%#016lx)\n", u64, u64);
+    *svalue = _gum_v8_uint64_new (u64, core);
   }
   else if (type == &ffi_type_pointer)
   {

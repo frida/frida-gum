@@ -41,6 +41,7 @@ union _GumFFIValue
   guint32 v_uint32;
   gint64 v_sint64;
   guint64 v_uint64;
+  gsize v_gsize;
 };
 
 #else
