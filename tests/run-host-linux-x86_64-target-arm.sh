@@ -1,5 +1,9 @@
 #!/bin/sh
 
+# build:  linux_x86_64
+# host:   linux_x86_64
+# target: Android 9; armeabi/armeabi-v7a
+
 arch=arm
 #apex_libdir=/apex/com.android.runtime/lib64
 apex_libdir=/system/lib
