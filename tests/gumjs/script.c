@@ -1069,20 +1069,19 @@ TESTCASE (native_function_can_be_invoked_with_size_t)
   // 32                               int64         <->   int32 (temporary gint64 during conversion)
   // 16                               int64         <->   int16 (temporary gint64 during conversion)
   //
-  // Issues
+  // Additional notes
   // 
-  // 1) As on the JS end 'size_t' shall be represented as Uint64, values have to be created with the 'uint64()'
-  //    constructor (as done in the test cases). Maybe an alias should be created, which allows using 'size_t("number string")'
-  // 2) ssize_t seems to be POSIX defined, but not C99
-  // 3) ptrdiff_t is not implemented (but C99 defined) ... normally ssize_t should be able to store ptrdiff_t, but this requires
+  // 1) ssize_t seems to be POSIX defined, but not C99
+  // 2) ptrdiff_t is not implemented (but C99 defined) ... normally ssize_t should be able to store ptrdiff_t, but this requires
   //    further testing
-  // 4) Focus was put on size_t implementation, which is tested and working. ssize_t/ptrdiff_t are not in main scope
+  // 3) Focus was put on size_t implementation, which is tested and working. ssize_t/ptrdiff_t are not in main scope
   //    and require additional testing (+ implementation of ptrdiff_t, if not casted to size_t).
   //    The test for 'ssize_t' uses a simple pass-through function which is called with a) PTRDIFF_MAX and b) PTRDIFF_MIN
   //
   // External:
   // - discussion on SSIZE_MAX weirdness https://sourceware.org/bugzilla/show_bug.cgi?id=13575
 
+  // size_t tests
 
   // returns SIZE_MAX
   sprintf(ret, "\"%zu\"", SIZE_MAX);
@@ -2120,12 +2119,12 @@ static size_t gum_add_size(size_t sz) {
 }
 
 static size_t gum_pass_size(size_t sz) {
-  printf("value in gum_pass_size %zu\n", sz);
+  //printf("value in gum_pass_size %zu\n", sz);
   return sz;
 }
 
 static size_t gum_pass_ssize(ssize_t ssz) {
-  printf("value in gum_pass_ssize %zd\n", ssz);
+  //printf("value in gum_pass_ssize %zd\n", ssz);
   return ssz;
 }
 
