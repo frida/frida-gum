@@ -65,10 +65,7 @@
   </ItemDefinitionGroup>
   <Import Project="gum-common.props" />
   <ItemGroup>
-    <ProjectReference Include="..\capstone\capstone-64.vcxproj">
-      <Project>{3d5dfa8a-628c-40cc-86d7-078f72833309}</Project>
-    </ProjectReference>
-    <ProjectReference Include="..\releng\frida-builddeps.vcxproj">
+    <ProjectReference Include="..\releng\frida-deps.vcxproj">
       <Project>{4afce7c4-6d9a-4663-b43c-d2e518486910}</Project>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <Private>false</Private>
