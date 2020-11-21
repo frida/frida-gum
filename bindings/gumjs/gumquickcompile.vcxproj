@@ -21,6 +21,14 @@
   <ItemGroup>
     <ClCompile Include="gumquickcompile.c" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\releng\frida-deps.vcxproj">
+      <Project>{4afce7c4-6d9a-4663-b43c-d2e518486910}</Project>
+      <Private>false</Private>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
