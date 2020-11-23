@@ -107,7 +107,8 @@ TESTLIST_END ()
 static void dummy_call_probe (GumCallSite * site, gpointer user_data);
 static gboolean store_range_of_test_runner (const GumModuleDetails * details,
     gpointer user_data);
-static void pretend_workload (GumMemoryRange * runner_range);
+static guint32 pretend_workload (GumMemoryRange * runner_range);
+static guint32 crc32b (const guint8 * message, gsize size);
 static gboolean test_log_fatal_func (const gchar * log_domain,
     GLogLevelFlags log_level, const gchar * message, gpointer user_data);
 static GLogWriterOutput test_log_writer_func (GLogLevelFlags log_level,
@@ -2163,8 +2164,9 @@ TESTCODE (call_workload,
 TESTCASE (can_follow_workload)
 {
   GumAddress func;
-  void (* call_workload_impl) (GumMemoryRange * runner_range);
+  guint32 (* call_workload_impl) (GumMemoryRange * runner_range);
   GumMemoryRange runner_range;
+  guint32 crc, crc_followed;
 
 #ifdef __ARM_PCS_VFP
   if (!g_test_slow ())
@@ -2182,7 +2184,7 @@ TESTCASE (can_follow_workload)
   runner_range.size = 0;
   gum_process_enumerate_modules (store_range_of_test_runner, &runner_range);
 
-  call_workload_impl (&runner_range);
+  crc = call_workload_impl (&runner_range);
 
   g_test_log_set_fatal_handler (test_log_fatal_func, NULL);
   g_log_set_writer_func (test_log_writer_func, NULL, NULL);
@@ -2194,6 +2196,15 @@ TESTCASE (can_follow_workload)
   call_workload_impl (&runner_range);
 
   gum_stalker_unfollow_me (fixture->stalker);
+
+  gum_stalker_follow_me (fixture->stalker, fixture->transformer,
+      GUM_EVENT_SINK (fixture->sink));
+
+  crc_followed = call_workload_impl (&runner_range);
+
+  gum_stalker_unfollow_me (fixture->stalker);
+
+  g_assert_cmpuint (crc_followed, ==, crc);
 
   GUM_ASSERT_EVENT_ADDR (ret, fixture->sink->events->len - 1, location,
       func + 12);
@@ -2272,9 +2283,10 @@ store_range_of_test_runner (const GumModuleDetails * details,
   return TRUE;
 }
 
-GUM_NOINLINE static void
+GUM_NOINLINE static guint32
 pretend_workload (GumMemoryRange * runner_range)
 {
+  guint32 crc;
   lzma_stream stream = LZMA_STREAM_INIT;
   const uint32_t preset = LZMA_PRESET_DEFAULT;
   lzma_ret ret;
@@ -2319,7 +2331,40 @@ pretend_workload (GumMemoryRange * runner_range)
 
   lzma_end (&stream);
 
+  crc = crc32b (outbuf, stream.total_out);
+
   free (outbuf);
+
+  return crc;
+}
+
+static guint32
+crc32b (const guint8 * message,
+        gsize size)
+{
+  guint32 crc;
+  gint i;
+
+  crc = 0xffffffff;
+
+  for (i = 0; i != size; i++)
+  {
+    guint32 byte;
+    gint j;
+
+    byte = message[i];
+
+    crc = crc ^ byte;
+
+    for (j = 7; j >= 0; j--)
+    {
+      guint32 mask = -(crc & 1);
+
+      crc = (crc >> 1) ^ (0xedb88320 & mask);
+    }
+  }
+
+  return ~crc;
 }
 
 static gboolean

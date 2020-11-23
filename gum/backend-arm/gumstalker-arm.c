@@ -2769,7 +2769,7 @@ gum_exec_ctx_write_thumb_mov_branch_target (GumExecCtx * ctx,
       if (value->element_size == 2)
       {
         /* Transform index to offset. */
-        gum_thumb_writer_put_lsls_reg_reg_imm (cw, offset_reg, offset_reg, 1);
+        gum_thumb_writer_put_lsl_reg_reg_imm (cw, offset_reg, offset_reg, 1);
       }
 
       /* Add base address. */
@@ -2781,7 +2781,7 @@ gum_exec_ctx_write_thumb_mov_branch_target (GumExecCtx * ctx,
       else
         gum_thumb_writer_put_ldrh_reg_reg (cw, offset_reg, offset_reg);
       /* Transform index to offset. */
-      gum_thumb_writer_put_lsls_reg_reg_imm (cw, offset_reg, offset_reg, 1);
+      gum_thumb_writer_put_lsl_reg_reg_imm (cw, offset_reg, offset_reg, 1);
 
       /* Add Thumb bit. */
       gum_thumb_writer_put_add_reg_imm (cw, offset_reg, 1);
