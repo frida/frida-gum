@@ -18,6 +18,7 @@
 
 typedef struct _GumEnumerateSymbolsContext GumEnumerateSymbolsContext;
 typedef struct _GumCModuleHeader GumCModuleHeader;
+typedef guint GumCModuleHeaderKind;
 
 typedef void (* GumCModuleInitFunc) (void);
 typedef void (* GumCModuleFinalizeFunc) (void);
@@ -34,6 +35,13 @@ struct _GumCModuleHeader
   const gchar * name;
   const gchar * data;
   guint size;
+  GumCModuleHeaderKind kind;
+};
+
+enum _GumCModuleHeaderKind
+{
+  GUM_CMODULE_HEADER_TCC,
+  GUM_CMODULE_HEADER_FRIDA
 };
 
 struct _GumEnumerateSymbolsContext
