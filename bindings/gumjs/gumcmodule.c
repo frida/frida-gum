@@ -28,11 +28,20 @@ struct _GumCModule
   GumCModuleFinalizeFunc finalize;
 };
 
+enum _GumCModuleHeaderKind
+{
+  GUM_CMODULE_HEADER_TCC,
+  GUM_CMODULE_HEADER_FRIDA
+};
+
+typedef enum _GumCModuleHeaderKind GumCModuleHeaderKind;
+
 struct _GumCModuleHeader
 {
   const gchar * name;
   const gchar * data;
   guint size;
+  GumCModuleHeaderKind kind;
 };
 
 struct _GumEnumerateSymbolsContext
