@@ -164,11 +164,11 @@
     <None Include="runtime\hexdump.js" />
     <None Include="runtime\objc.js" />
     <None Include="runtime\java.js" />
-    <None Include="runtime\cmodule\inttypes.h" />
-    <None Include="runtime\cmodule\stdint.h" />
-    <None Include="runtime\cmodule\stdio.h" />
-    <None Include="runtime\cmodule\stdlib.h" />
-    <None Include="runtime\cmodule\string.h" />
+    <None Include="runtime\cmodule-tcc\inttypes.h" />
+    <None Include="runtime\cmodule-tcc\stdint.h" />
+    <None Include="runtime\cmodule-tcc\stdio.h" />
+    <None Include="runtime\cmodule-tcc\stdlib.h" />
+    <None Include="runtime\cmodule-tcc\string.h" />
     <None Include="runtime\cmodule\glib.h" />
     <None Include="runtime\cmodule\gum\gumdefs.h" />
     <None Include="runtime\cmodule\gum\gumprocess.h" />
@@ -206,7 +206,7 @@ generate-runtime.py $(PlatformShortName) $(ProjectDir) ..\..\gum $(SolutionDir)b
 REM. &gt; $(IntDir)gumjs\runtime.stamp
 </Command>
       <LinkObjects>false</LinkObjects>
-      <AdditionalInputs>runtime\entrypoint-quickjs.js;runtime\entrypoint-v8.js;runtime\core.js;runtime\message-dispatcher.js;runtime\error-handler-quickjs.js;runtime\error-handler-v8.js;runtime\console.js;runtime\hexdump.js;runtime\objc.js;runtime\java.js;runtime\cmodule\inttypes.h;runtime\cmodule\stdint.h;runtime\cmodule\stdio.h;runtime\cmodule\stdlib.h;runtime\cmodule\string.h;runtime\cmodule\glib.h;runtime\cmodule\gum\gumdefs.h;runtime\cmodule\gum\gumprocess.h;runtime\cmodule\gum\gummodulemap.h;runtime\cmodule\gum\gummemory.h;runtime\cmodule\gum\guminterceptor.h;runtime\cmodule\gum\gumstalker.h;runtime\cmodule\gum\gummetalarray.h;runtime\cmodule\gum\gummetalhash.h;runtime\cmodule\gum\gumspinlock.h;runtime\cmodule\json-glib\json-glib.h;%(AdditionalInputs)</AdditionalInputs>
+      <AdditionalInputs>runtime\entrypoint-quickjs.js;runtime\entrypoint-v8.js;runtime\core.js;runtime\message-dispatcher.js;runtime\error-handler-quickjs.js;runtime\error-handler-v8.js;runtime\console.js;runtime\hexdump.js;runtime\objc.js;runtime\java.js;runtime\cmodule-tcc\inttypes.h;runtime\cmodule-tcc\stdint.h;runtime\cmodule-tcc\stdio.h;runtime\cmodule-tcc\stdlib.h;runtime\cmodule-tcc\string.h;runtime\cmodule\glib.h;runtime\cmodule\gum\gumdefs.h;runtime\cmodule\gum\gumprocess.h;runtime\cmodule\gum\gummodulemap.h;runtime\cmodule\gum\gummemory.h;runtime\cmodule\gum\guminterceptor.h;runtime\cmodule\gum\gumstalker.h;runtime\cmodule\gum\gummetalarray.h;runtime\cmodule\gum\gummetalhash.h;runtime\cmodule\gum\gumspinlock.h;runtime\cmodule\json-glib\json-glib.h;%(AdditionalInputs)</AdditionalInputs>
     </CustomBuild>
   </ItemGroup>
 

@@ -439,19 +439,19 @@
     <None Include="runtime\cmodule\glib.h">
       <Filter>runtime\cmodule</Filter>
     </None>
-    <None Include="runtime\cmodule\string.h">
+    <None Include="runtime\cmodule-tcc\string.h">
       <Filter>runtime\cmodule</Filter>
     </None>
-    <None Include="runtime\cmodule\inttypes.h">
+    <None Include="runtime\cmodule-tcc\inttypes.h">
       <Filter>runtime\cmodule</Filter>
     </None>
-    <None Include="runtime\cmodule\stdint.h">
+    <None Include="runtime\cmodule-tcc\stdint.h">
       <Filter>runtime\cmodule</Filter>
     </None>
-    <None Include="runtime\cmodule\stdio.h">
+    <None Include="runtime\cmodule-tcc\stdio.h">
       <Filter>runtime\cmodule</Filter>
     </None>
-    <None Include="runtime\cmodule\stdlib.h">
+    <None Include="runtime\cmodule-tcc\stdlib.h">
       <Filter>runtime\cmodule</Filter>
     </None>
     <None Include="runtime\cmodule\gum\gumdefs.h">
