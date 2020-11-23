@@ -1024,6 +1024,9 @@ gum_thumb_writer_put_mov_reg_reg (GumThumbWriter * self,
   if (dst.meta <= GUM_ARM_MREG_R7 && src.meta <= GUM_ARM_MREG_R7)
   {
     insn = 0x1c00 | (src.index << 3) | dst.index;
+
+    /* Here we emit “ADDS Rd, Rm, #0” so need to suppress flags */
+    gum_thumb_writer_put_it_al (self);
   }
   else
   {
@@ -1056,6 +1059,7 @@ gum_thumb_writer_put_mov_reg_u8 (GumThumbWriter * self,
 
   gum_arm_reg_describe (dst_reg, &dst);
 
+  gum_thumb_writer_put_it_al (self);
   gum_thumb_writer_put_instruction (self, 0x2000 | (dst.index << 8) |
       imm_value);
 }
@@ -1156,6 +1160,7 @@ gum_thumb_writer_put_add_reg_reg_reg (GumThumbWriter * self,
   else
   {
     insn = 0x1800 | (right.index << 6) | (left.index << 3) | dst.index;
+    gum_thumb_writer_put_it_al (self);
   }
 
   gum_thumb_writer_put_instruction (self, insn);
@@ -1199,6 +1204,7 @@ gum_thumb_writer_put_add_reg_reg_imm (GumThumbWriter * self,
     else
       base_mask = 0x0000;
 
+    /* ADR instruction doesn't modify flags */
     insn = 0xa000 | base_mask | (dst.index << 8) | (right_value / 4);
   }
   else
@@ -1258,6 +1264,7 @@ gum_thumb_writer_put_sub_reg_reg_reg (GumThumbWriter * self,
 
   insn = 0x1a00 | (right.index << 6) | (left.index << 3) | dst.index;
 
+  gum_thumb_writer_put_it_al (self);
   gum_thumb_writer_put_instruction (self, insn);
 }
 
@@ -1325,6 +1332,18 @@ gum_thumb_writer_put_or_reg_reg_imm (GumThumbWriter * self,
   gum_thumb_writer_put_instruction_wide (self, insn_high, insn_low);
 
   return TRUE;
+}
+
+gboolean
+gum_thumb_writer_put_lsl_reg_reg_imm (GumThumbWriter * self,
+                                      arm_reg dst_reg,
+                                      arm_reg left_reg,
+                                      guint8 right_value)
+{
+  gum_thumb_writer_put_it_al (self);
+
+  return gum_thumb_writer_put_lsls_reg_reg_imm (self, dst_reg, left_reg,
+      right_value);
 }
 
 gboolean

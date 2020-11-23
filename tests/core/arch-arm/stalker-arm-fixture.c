@@ -80,7 +80,7 @@
  * This is counted from the first instruction after the call to follow_me()
  * up to and including the call to unfollow_me().
  */
-#define INVOKER_INSN_COUNT 6
+#define INVOKER_INSN_COUNT 7
 
 /*
  * Total number of call instructions in the invoker built by
@@ -97,7 +97,7 @@
  * Offset of the first instruction within the invoker which should be stalked in
  * bytes.
  */
-#define INVOKER_IMPL_OFFSET 20
+#define INVOKER_IMPL_OFFSET 24
 
 typedef struct _TestArmStalkerFixture TestArmStalkerFixture;
 typedef struct _UnfollowTransformContext UnfollowTransformContext;
