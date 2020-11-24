@@ -6596,14 +6596,9 @@ TESTCASE (cmodule_should_report_linking_errors)
 {
   COMPILE_AND_LOAD_SCRIPT ("new CModule('"
       "extern int v; int f (void) { return v; }');");
-  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
-      "Error: linking failed: tcc: error: undefined symbol '"
-#ifdef HAVE_DARWIN
-      "_v"
-#else
-      "v"
-#endif
-      "'");
+  EXPECT_ERROR_MESSAGE_MATCHING (ANY_LINE_NUMBER,
+      "Error: linking failed:"
+      ".*(undefined symbol '_?v'|undefined reference to `_?v')");
 }
 
 TESTCASE (cmodule_should_provide_lifecycle_hooks)
