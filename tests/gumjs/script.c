@@ -6774,15 +6774,15 @@ TESTCASE (cmodule_should_report_parsing_errors)
 TESTCASE (cmodule_should_report_linking_errors)
 {
   const gchar * expected_message =
-      "Error: linking failed: tcc: error: undefined symbol '"
+      "Error: linking failed: (tcc: error: undefined symbol '"
 #ifdef HAVE_DARWIN
       "_"
 #endif
-      "v'";
+      "v'|undefined reference to `v')";
 
   COMPILE_AND_LOAD_SCRIPT ("new CModule('"
       "extern int v; int f (void) { return v; }');");
-  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER, expected_message);
+  EXPECT_ERROR_MESSAGE_MATCHING (ANY_LINE_NUMBER, expected_message);
 }
 
 TESTCASE (cmodule_should_provide_lifecycle_hooks)
