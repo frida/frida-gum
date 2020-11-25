@@ -1811,29 +1811,54 @@ gum_stalker_iterator_handle_thumb_it_insn (GumStalkerIterator * self)
     }
     else
     {
+      gboolean preserve_flags;
+
+      switch (insn->id)
+      {
+        case ARM_INS_CMN:
+        case ARM_INS_CMP:
+        case ARM_INS_TST:
+          preserve_flags = FALSE;
+          break;
+        default:
+          preserve_flags = TRUE;
+          break;
+      }
+
       /*
        * If the instruction in the IT block is not a branch, then just emit the
-       * relocated instruction as normal.
+       * relocated instruction as normal. We must preserve the flags in the CPSR
+       * unless we are executing a CMN, CMP or TST instruction:
+       *
+       * https://developer.arm.com/documentation/dui0489/c/
+       *     arm-and-thumb-instructions/branch-and-control-instructions/it
        */
-      gum_exec_block_thumb_open_prolog (block, gc);
 
-      gum_thumb_writer_put_call_address_with_arguments (gc->thumb_writer,
-          GUM_ADDRESS (gum_stalker_save_cpsr), 2,
-          GUM_ARG_REGISTER, ARM_REG_R10,
-          GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx));
+      if (preserve_flags)
+      {
+        gum_exec_block_thumb_open_prolog (block, gc);
 
-      gum_exec_block_thumb_close_prolog (block, gc);
+        gum_thumb_writer_put_call_address_with_arguments (gc->thumb_writer,
+            GUM_ADDRESS (gum_stalker_save_cpsr), 2,
+            GUM_ARG_REGISTER, ARM_REG_R10,
+            GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx));
+
+        gum_exec_block_thumb_close_prolog (block, gc);
+      }
 
       gum_thumb_relocator_write_one (gc->thumb_relocator);
 
-      gum_exec_block_thumb_open_prolog (block, gc);
+      if (preserve_flags)
+      {
+        gum_exec_block_thumb_open_prolog (block, gc);
 
-      gum_thumb_writer_put_call_address_with_arguments (gc->thumb_writer,
-          GUM_ADDRESS (gum_stalker_restore_cpsr), 2,
-          GUM_ARG_REGISTER, ARM_REG_R10,
-          GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx));
+        gum_thumb_writer_put_call_address_with_arguments (gc->thumb_writer,
+            GUM_ADDRESS (gum_stalker_restore_cpsr), 2,
+            GUM_ARG_REGISTER, ARM_REG_R10,
+            GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx));
 
-      gum_exec_block_thumb_close_prolog (block, gc);
+        gum_exec_block_thumb_close_prolog (block, gc);
+      }
     }
   }
 
