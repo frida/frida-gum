@@ -3784,7 +3784,9 @@ gum_exec_block_write_thumb_handle_excluded (GumExecBlock * block,
                                             GumGeneratorContext * gc)
 {
   GumThumbWriter * cw = gc->thumb_writer;
-  gconstpointer not_excluded = cw->code + 1;
+  gsize unique_id = GPOINTER_TO_SIZE (cw->code) << 1;
+  gconstpointer is_excluded = GSIZE_TO_POINTER (unique_id | 1);
+  gconstpointer not_excluded = GSIZE_TO_POINTER (unique_id | 0);
   GumCheckExcludedFunc check;
 
   if (call)
@@ -3806,7 +3808,9 @@ gum_exec_block_write_thumb_handle_excluded (GumExecBlock * block,
         GUM_ADDRESS (check), 2,
         GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
         GUM_ARG_REGISTER, ARM_REG_R1);
-    gum_thumb_writer_put_cbz_reg_label (cw, ARM_REG_R0, not_excluded);
+    gum_thumb_writer_put_cbnz_reg_label (cw, ARM_REG_R0, is_excluded);
+    gum_thumb_writer_put_b_label (cw, not_excluded);
+    gum_thumb_writer_put_label (cw, is_excluded);
   }
 
   if (call)
