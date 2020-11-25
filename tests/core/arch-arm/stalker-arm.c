@@ -72,6 +72,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (thumb_it_eq_pop)
   TESTENTRY (thumb_itttt_eq_blx_reg)
   TESTENTRY (thumb_it_flags)
+  TESTENTRY (thumb_it_flags2)
   TESTENTRY (thumb_tbb)
   TESTENTRY (thumb_tbh)
   TESTENTRY (thumb_strex_no_exec_events)
@@ -1823,7 +1824,7 @@ TESTCODE (thumb_it_flags,
   0x00, 0xb5, /* push {lr}       */
   0x00, 0x1a, /* subs r0, r0, r0 */
   0x00, 0x28, /* cmp r0, #0      */
-  0x08, 0xbf, /* ite eq          */
+  0x08, 0xbf, /* it eq           */
   0x01, 0x30, /* adds r0, #1     */
 
   /* part_two:                   */
@@ -1835,6 +1836,26 @@ TESTCODE (thumb_it_flags,
 TESTCASE (thumb_it_flags)
 {
   INVOKE_THUMB_EXPECTING (GUM_NOTHING, thumb_it_flags, 3);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, 0);
+}
+
+TESTCODE (thumb_it_flags2,
+  0x00, 0xb5, /* push {lr}       */
+  0x00, 0x1a, /* subs r0, r0, r0 */
+  0x00, 0x28, /* cmp r0, #0      */
+  0x08, 0xbf, /* it eq           */
+  0x01, 0x28, /* cmp.eq r0, #1   */
+
+  /* part_two:                   */
+  0x18, 0xbf, /* it ne           */
+  0x02, 0x30, /* adds r0, #2     */
+  0x00, 0xbd, /* pop {pc}        */
+);
+
+TESTCASE (thumb_it_flags2)
+{
+  INVOKE_THUMB_EXPECTING (GUM_NOTHING, thumb_it_flags2, 2);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 0);
 }
