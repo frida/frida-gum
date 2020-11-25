@@ -375,6 +375,9 @@
     <ClInclude Include="gumquickvalue.h">
       <Filter>quick</Filter>
     </ClInclude>
+    <ClInclude Include="gumquickscriptbackend-priv.h">
+      <Filter>quick</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="vapi">

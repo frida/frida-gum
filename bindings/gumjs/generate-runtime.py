@@ -11,80 +11,9 @@ import subprocess
 import sys
 
 
-def generate_runtime_quick(runtime_name, output_dir, output, input_dir, inputs):
+def generate_runtime_quick(runtime_name, output_dir, output, input_dir, inputs, quickcompile):
     with codecs.open(os.path.join(output_dir, output), 'wb', 'utf-8') as output_file:
         output_file.write("#include \"gumquickbundle.h\"\n")
-
-        build_os = platform.system().lower()
-
-        if build_os == 'windows':
-            program_suffix = ".exe"
-        else:
-            program_suffix = ""
-
-        quickcompile = os.path.join(output_dir, "gumquickcompile" + program_suffix)
-        if not os.path.exists(quickcompile):
-            quickcompile_defines = []
-            quickcompile_sources = [os.path.relpath(os.path.join(input_dir, name), output_dir) for name in [
-                "gumquickcompile.c",
-            ]]
-
-            gumjs_dir = os.path.dirname(os.path.abspath(__file__))
-            qjs_dir = os.path.join(os.path.dirname(os.path.dirname(gumjs_dir)), "ext", "quickjs")
-            qjs_incdir = os.path.relpath(qjs_dir, output_dir)
-            with open(os.path.join(qjs_dir, "VERSION.txt"), "r", encoding='utf-8') as f:
-                qjs_version = f.read().strip()
-            quickcompile_defines += [
-                  "CONFIG_VERSION=\"{}\"".format(qjs_version),
-                  "CONFIG_BIGNUM",
-            ]
-            quickcompile_sources += [os.path.relpath(os.path.join(qjs_dir, name), output_dir) for name in [
-                "quickjs.c",
-                "libregexp.c",
-                "libunicode.c",
-                "cutils.c",
-                "libbf.c",
-            ]]
-
-            if build_os == 'windows':
-                subprocess.check_call(["cl.exe",
-                        "/nologo",
-                        "/MT",
-                        "/W0",
-                        "/O1",
-                        "/GL",
-                        "/MP",
-                        "/D", "WIN32",
-                        "/D", "_WINDOWS",
-                        "/D", "WINVER=0x0501",
-                        "/D", "_WIN32_WINNT=0x0501",
-                        "/D", "NDEBUG",
-                        "/D", "_USING_V110_SDK71_",
-                        "/I", qjs_incdir,
-                    ] +
-                    ["/D" + d for d in quickcompile_defines] +
-                    quickcompile_sources,
-                    cwd=output_dir)
-            else:
-                quickcompile_libs = []
-                if build_os == 'darwin':
-                    sdk = "macosx"
-                    CC = [
-                        subprocess.check_output(["xcrun", "--sdk", sdk, "-f", "clang"]).decode('utf-8').rstrip("\n"),
-                        "-isysroot", subprocess.check_output(["xcrun", "--sdk", sdk, "--show-sdk-path"]).decode('utf-8').rstrip("\n")
-                    ]
-                else:
-                    CC = ["gcc"]
-                    quickcompile_libs.append("-lm")
-                subprocess.check_call(CC + [
-                        "-Wall",
-                        "-pipe",
-                        "-O1", "-fomit-frame-pointer",
-                        "-I" + qjs_incdir
-                    ] +
-                    ["-D" + d for d in quickcompile_defines] +
-                    quickcompile_sources +
-                    ["-o", quickcompile] + quickcompile_libs, cwd=output_dir)
 
         modules = []
         for input_path in inputs:
@@ -186,7 +115,7 @@ c_comment_pattern = re.compile(r"\/\*(\*(?!\/)|[^*])*\*\/")
 cpp_comment_pattern = re.compile(r"\s+?\/\/.+")
 
 
-def generate_runtime_cmodule(output_dir, output, arch, input_dir, gum_dir, capstone_dir):
+def generate_runtime_cmodule(output_dir, output, arch, input_dir, gum_dir, capstone_dir, libtcc_dir):
     writer_arch = "x86" if arch.startswith("x86") or arch == "x64" else arch
     capstone_arch = writer_arch
 
@@ -223,7 +152,7 @@ def generate_runtime_cmodule(output_dir, output, arch, input_dir, gum_dir, capst
 
     inputs = [
         (os.path.join(input_dir, "runtime", "cmodule"), None, is_header, identity_transform),
-        (os.path.join(input_dir, "..", "..", "ext", "tinycc", "include"), None, is_header, identity_transform),
+        (os.path.join(libtcc_dir, "tcc", "include"), None, is_header, identity_transform),
         (os.path.join(gum_dir, "arch-" + writer_arch), os.path.dirname(gum_dir), gum_header_matches_writer, optimize_gum_header),
         (os.path.dirname(capstone_dir), None, capstone_header_matches_arch, optimize_capstone_header),
     ]
@@ -389,7 +318,9 @@ if __name__ == '__main__':
     input_dir = sys.argv[2]
     gum_dir = sys.argv[3]
     capstone_dir = sys.argv[4]
-    output_dir = sys.argv[5]
+    libtcc_dir = sys.argv[5]
+    quickcompile = sys.argv[6]
+    output_dir = sys.argv[7]
 
 
     quick_tmp_dir = os.path.join(output_dir, "runtime-build-quick")
@@ -404,9 +335,9 @@ if __name__ == '__main__':
     subprocess.check_call([node_script_path("frida-compile"), "./runtime/objc.js", "-o", objc] + quick_options, cwd=input_dir)
     subprocess.check_call([node_script_path("frida-compile"), "./runtime/java.js", "-o", java] + quick_options, cwd=input_dir)
 
-    generate_runtime_quick("runtime", output_dir, "gumquickscript-runtime.h", input_dir, [runtime])
-    generate_runtime_quick("objc", output_dir, "gumquickscript-objc.h", input_dir, [objc])
-    generate_runtime_quick("java", output_dir, "gumquickscript-java.h", input_dir, [java])
+    generate_runtime_quick("runtime", output_dir, "gumquickscript-runtime.h", input_dir, [runtime], quickcompile)
+    generate_runtime_quick("objc", output_dir, "gumquickscript-objc.h", input_dir, [objc], quickcompile)
+    generate_runtime_quick("java", output_dir, "gumquickscript-java.h", input_dir, [java], quickcompile)
 
 
     v8_tmp_dir = os.path.join(output_dir, "runtime-build-v8")
@@ -426,4 +357,4 @@ if __name__ == '__main__':
     generate_runtime_v8("java", output_dir, "gumv8script-java.h", [java])
 
 
-    generate_runtime_cmodule(output_dir, "gumcmodule-runtime.h", arch, input_dir, gum_dir, capstone_dir)
+    generate_runtime_cmodule(output_dir, "gumcmodule-runtime.h", arch, input_dir, gum_dir, capstone_dir, libtcc_dir)

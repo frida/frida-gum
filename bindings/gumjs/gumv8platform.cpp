@@ -164,7 +164,8 @@ public:
 private:
   bool WaitForParticipationOpportunityLocked ();
   size_t CappedMaxConcurrency (size_t worker_count) const;
-  void CallOnWorkerThread (TaskPriority priority, std::unique_ptr<Task> task);
+  void CallOnWorkerThread (TaskPriority with_priority,
+      std::unique_ptr<Task> task);
 
 public:
   class JobDelegate : public v8::JobDelegate
@@ -1383,7 +1384,7 @@ GumV8JobState::CappedMaxConcurrency (size_t worker_count) const
 }
 
 void
-GumV8JobState::CallOnWorkerThread (TaskPriority priority,
+GumV8JobState::CallOnWorkerThread (TaskPriority with_priority,
                                    std::unique_ptr<Task> task)
 {
   std::shared_ptr<Task> t (std::move (task));

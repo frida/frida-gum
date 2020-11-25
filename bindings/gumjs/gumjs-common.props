@@ -4,7 +4,7 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <PreprocessorDefinitions>G_LOG_DOMAIN=&quot;Frida&quot;;GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_QUICKJS=1;HAVE_TINYCC=1;HAVE_LOG2=1;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(IntDir)gumjs;..\..\ext\quickjs;..\..\ext\tinycc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(IntDir)gumjs;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
 
@@ -197,7 +197,7 @@ REM. &gt; $(IntDir)gumjs\bindings.stamp
       <Outputs>$(IntDir)gumjs\runtime.stamp;$(IntDir)gumjs\gumquickscript-runtime.h;$(IntDir)gumjs\gumquickscript-objc.h;$(IntDir)gumjs\gumquickscript-java.h;$(IntDir)gumjs\gumv8script-runtime.h;$(IntDir)gumjs\gumv8script-objc.h;$(IntDir)gumjs\gumv8script-java.h;$(IntDir)gumjs\gumcmodule-runtime.h</Outputs>
       <Message>Generating runtime</Message>
       <Command>mkdir $(IntDir)gumjs 2&gt;NUL
-generate-runtime.py $(PlatformShortName) $(ProjectDir) ..\..\gum $(SolutionDir)capstone\include\capstone $(IntDir)gumjs || exit 1
+generate-runtime.py $(PlatformShortName) $(ProjectDir) ..\..\gum $(SolutionDir)build\sdk-windows\$(Platform)-$(Configuration)\include\capstone $(SolutionDir)build\sdk-windows\$(Platform)-$(Configuration)\lib $(SolutionDir)build\tmp-windows\Win32-$(Configuration)\gumquickcompile\gumquickcompile.exe $(IntDir)gumjs || exit 1
 REM. &gt; $(IntDir)gumjs\runtime.stamp
 </Command>
       <LinkObjects>false</LinkObjects>

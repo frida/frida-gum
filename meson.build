@@ -194,10 +194,6 @@ extra_deps = []
 extra_requires_private = []
 extra_libs_private = []
 
-gumjs_extra_deps = []
-gumjs_extra_requires = []
-gumjs_extra_libraries = []
-
 if host_os == 'android'
   extra_libs_private += ['-llog']
 endif
@@ -248,12 +244,33 @@ if have_gumpp
 endif
 
 have_gumjs = not get_option('gumjs').disabled()
+gumjs_extra_requires = []
 if have_gumjs
   cdata.set('HAVE_GUMJS', 1)
 
-  json_glib_dep = dependency('json-glib-1.0')
-  sqlite_dep = dependency('sqlite3')
-  libsoup_dep = dependency('libsoup-2.4')
+  quickjs_dep = dependency('quickjs',
+    required: get_option('quickjs'),
+  )
+  cdata.set('HAVE_QUICKJS', quickjs_dep.found())
+  if quickjs_dep.found()
+    gumjs_extra_requires += 'quickjs'
+    quickjs_dep_native = dependency('quickjs', native: true)
+  else
+    quickjs_dep_native = disabler()
+  endif
+
+  v8_dep = dependency('v8-8.0',
+    version: '>=8.8.273',
+    required: get_option('v8'),
+  )
+  cdata.set('HAVE_V8', v8_dep.found())
+  if v8_dep.found()
+    gumjs_extra_requires += 'v8-8.0'
+  endif
+
+  if not (quickjs_dep.found() or v8_dep.found())
+    error('Cannot build JavaScript bindings without any runtimes enabled')
+  endif
 
   if host_os_family == 'windows'
     gio_os_package_name = 'gio-windows-2.0'
@@ -261,38 +278,28 @@ if have_gumjs
     gio_os_package_name = 'gio-unix-2.0'
   endif
   gio_os_package_dep = dependency(gio_os_package_name)
-  gumjs_extra_deps += [gio_os_package_dep]
   gumjs_extra_requires += [gio_os_package_name]
 
-  if host_os_family == 'linux' or host_os_family == 'qnx'
-    gumjs_extra_libraries += ['-lm']
-  endif
+  json_glib_dep = dependency('json-glib-1.0')
 
-  have_quickjs = not get_option('quickjs').disabled()
-  if have_quickjs
-    cdata.set('HAVE_QUICKJS', 1)
-  endif
+  libtcc_dep = dependency('libtcc',
+    required: host_arch != 'mips',
+  )
+  cdata.set('HAVE_TINYCC', libtcc_dep.found())
 
-  v8_dep = dependency('v8-8.0', version: '>=8.8.273', required: get_option('v8'))
-  have_v8 = v8_dep.found()
-  if have_v8
-    cdata.set('HAVE_V8', 1)
-    gumjs_extra_deps += [v8_dep]
-    gumjs_extra_requires += ['v8-8.0']
-  endif
+  sqlite_dep = dependency('sqlite3')
 
-  if not (have_quickjs or have_v8)
-    error('Cannot build JavaScript bindings without any runtimes enabled')
-  endif
-
-  have_tinycc = host_arch != 'mips'
-  if have_tinycc
-    cdata.set('HAVE_TINYCC', 1)
-  endif
+  libsoup_dep = dependency('libsoup-2.4')
 else
-  have_quickjs = false
-  have_v8 = false
-  have_tinycc = false
+  quickjs_dep = disabler()
+  quickjs_dep_native = disabler()
+  v8_dep = disabler()
+
+  gio_os_package_dep = disabler()
+  json_glib_dep = disabler()
+  libtcc_dep = disabler()
+  sqlite_dep = disabler()
+  libsoup_dep = disabler()
 endif
 
 configure_file(input: 'config.h.in',
@@ -339,7 +346,6 @@ endif
 install_header_basedir = 'frida-' + api_version
 install_header_subdir = install_header_basedir + '/gum'
 
-subdir('ext')
 subdir('gum')
 subdir('libs')
 subdir('bindings')
