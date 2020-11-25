@@ -238,11 +238,15 @@ test_arm_stalker_fixture_follow_and_invoke (TestArmStalkerFixture * fixture,
    */
   gum_arm_writer_put_push_registers (&cw, 2, ARM_REG_R0, ARM_REG_LR);
 
-  gum_arm_writer_put_call_address_with_arguments (&cw,
-      GUM_ADDRESS (gum_stalker_follow_me), 3,
-      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker),
-      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->transformer),
-      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->sink));
+  gum_arm_writer_put_ldr_reg_address (&cw, ARM_REG_R3,
+      GUM_ADDRESS (gum_stalker_follow_me));
+  gum_arm_writer_put_ldr_reg_address (&cw, ARM_REG_R0,
+      GUM_ADDRESS (fixture->stalker));
+  gum_arm_writer_put_ldr_reg_address (&cw, ARM_REG_R1,
+      GUM_ADDRESS (fixture->transformer));
+  gum_arm_writer_put_ldr_reg_address (&cw, ARM_REG_R2,
+      GUM_ADDRESS (fixture->sink));
+  gum_arm_writer_put_blx_reg (&cw, ARM_REG_R3);
 
   gum_arm_writer_put_ldr_reg_u32 (&cw, ARM_REG_R0, GUM_ADDRESS (addr));
   gum_arm_writer_put_blx_reg (&cw, ARM_REG_R0);
@@ -250,9 +254,11 @@ test_arm_stalker_fixture_follow_and_invoke (TestArmStalkerFixture * fixture,
   gum_arm_writer_put_ldr_reg_address (&cw, ARM_REG_R1, GUM_ADDRESS (&retval));
   gum_arm_writer_put_str_reg_reg_offset (&cw, ARM_REG_R0, ARM_REG_R1, 0);
 
-  gum_arm_writer_put_call_address_with_arguments (&cw,
-      GUM_ADDRESS (gum_stalker_unfollow_me), 1,
-      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker));
+  gum_arm_writer_put_ldr_reg_address (&cw, ARM_REG_R1,
+      GUM_ADDRESS (gum_stalker_unfollow_me));
+  gum_arm_writer_put_ldr_reg_address (&cw, ARM_REG_R0,
+      GUM_ADDRESS (fixture->stalker));
+  gum_arm_writer_put_blx_reg (&cw, ARM_REG_R1);
 
   gum_arm_writer_put_pop_registers (&cw, 2, ARM_REG_R0, ARM_REG_LR);
   gum_arm_writer_put_ret (&cw);
