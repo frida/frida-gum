@@ -26,6 +26,10 @@
 #include <ffi.h>
 #include <glib-object.h>
 #include <gio/gio.h>
+#if defined (HAVE_ARM) && defined (HAVE_LINUX)
+# include <stdlib.h>
+# include <string.h>
+#endif
 #ifdef HAVE_WINDOWS
 # include <windows.h>
 #endif
@@ -104,6 +108,8 @@ static void gum_do_init (void);
 
 static GumAddress * gum_address_copy (const GumAddress * address);
 static void gum_address_free (GumAddress * address);
+
+static GumCpuFeatures gum_do_query_cpu_features (void);
 
 static gboolean gum_initialized = FALSE;
 static GSList * gum_early_destructors = NULL;
@@ -631,13 +637,28 @@ gum_address_free (GumAddress * address)
   g_slice_free (GumAddress, address);
 }
 
+GumCpuFeatures
+gum_query_cpu_features (void)
+{
+  static gsize cached_result = 0;
+
+  if (g_once_init_enter (&cached_result))
+  {
+    GumCpuFeatures features = gum_do_query_cpu_features ();
+
+    g_once_init_leave (&cached_result, features + 1);
+  }
+
+  return cached_result - 1;
+}
+
 #if defined (HAVE_I386)
 
 static gboolean gum_get_cpuid (guint level, guint * a, guint * b, guint * c,
     guint * d);
 
-GumCpuFeatures
-gum_query_cpu_features (void)
+static GumCpuFeatures
+gum_do_query_cpu_features (void)
 {
   GumCpuFeatures features = 0;
   guint a, b, c, d;
@@ -688,10 +709,61 @@ gum_get_cpuid (guint level,
 #endif
 }
 
+#elif defined (HAVE_ARM)
+
+static GumCpuFeatures
+gum_do_query_cpu_features (void)
+{
+  GumCpuFeatures features = 0;
+
+#ifdef __ARM_VFPV2__
+  features |= GUM_CPU_VFP2;
+#endif
+
+#ifdef __ARM_VFPV3__
+  features |= GUM_CPU_VFP3;
+#endif
+
+#if defined (HAVE_LINUX) && \
+    !(defined (__ARM_VFPV2__) && defined (__ARM_VFPV3__))
+  {
+    gchar * info, * start, * end, ** items, * item;
+    guint i;
+
+    info = NULL;
+    g_file_get_contents ("/proc/cpuinfo", &info, NULL, NULL);
+
+    start = strchr (strstr (info, "\nFeatures") + 9, ':') + 2;
+    end = strchr (start, '\n');
+    *end = '\0';
+
+    items = g_strsplit (start, " ", -1);
+
+    for (i = 0; (item = items[i]) != NULL; i++)
+    {
+      if (strcmp (item, "vfp") == 0)
+      {
+        features |= GUM_CPU_VFP2;
+      }
+      else if (strcmp (item, "vfpv3") == 0)
+      {
+        features |= GUM_CPU_VFP3;
+      }
+    }
+
+    g_strfreev (items);
+
+    g_free (info);
+  }
+#endif
+
+  return features;
+}
+
 #elif defined (HAVE_ARM64) && defined (HAVE_DARWIN)
 
-GumCpuFeatures
-gum_query_cpu_features (void)
+static GumCpuFeatures
+gum_do_query_cpu_features (void)
 {
   GumCpuFeatures features = 0;
   GumDarwinAllImageInfos infos;
@@ -708,8 +780,8 @@ gum_query_cpu_features (void)
 
 #else
 
-GumCpuFeatures
-gum_query_cpu_features (void)
+static GumCpuFeatures
+gum_do_query_cpu_features (void)
 {
   return 0;
 }
