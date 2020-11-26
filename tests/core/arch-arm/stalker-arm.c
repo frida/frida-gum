@@ -2168,14 +2168,6 @@ TESTCASE (can_follow_workload)
   GumMemoryRange runner_range;
   guint32 crc, crc_followed;
 
-#ifdef __ARM_PCS_VFP
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping, run in slow mode> ");
-    return;
-  }
-#endif
-
   func = DUP_TESTCODE (call_workload);
   patch_code_pointer (func, 4 * 4, GUM_ADDRESS (pretend_workload));
   call_workload_impl = GSIZE_TO_POINTER (func);
@@ -2216,14 +2208,6 @@ TESTCASE (performance)
   GTimer * timer;
   gdouble normal_cold, normal_hot;
   gdouble stalker_cold, stalker_hot;
-
-#ifdef __ARM_PCS_VFP
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping, run in slow mode> ");
-    return;
-  }
-#endif
 
   runner_range.base_address = 0;
   runner_range.size = 0;
@@ -2650,14 +2634,6 @@ TESTCASE (follow_me_should_support_nullable_event_sink)
 
 TESTCASE (follow_syscall)
 {
-#ifdef __ARM_PCS_VFP
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping, run in slow mode> ");
-    return;
-  }
-#endif
-
   fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
 
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
@@ -2675,14 +2651,6 @@ TESTCASE (follow_thread)
   GumThreadId thread_id;
 #ifdef HAVE_LINUX
   int prev_dumpable;
-
-# ifdef __ARM_PCS_VFP
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping, run in slow mode> ");
-    return;
-  }
-# endif
 
   /* Android spawns non-debuggable applications as not dumpable by default. */
   prev_dumpable = prctl (PR_GET_DUMPABLE);
@@ -2745,14 +2713,6 @@ TESTCASE (unfollow_should_handle_terminated_thread)
 {
   guint i;
 
-#ifdef __ARM_PCS_VFP
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping, run in slow mode> ");
-    return;
-  }
-#endif
-
   for (i = 0; i != 10; i++)
   {
     StalkerDummyChannel channel;
@@ -2801,14 +2761,6 @@ TESTCASE (pthread_create)
   int ret;
   pthread_t thread;
   int number = 0;
-
-#ifdef __ARM_PCS_VFP
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping, run in slow mode> ");
-    return;
-  }
-#endif
 
   fixture->sink->mask = GUM_NOTHING;
 
