@@ -64,6 +64,7 @@ struct _GumStalker
   guint slab_size;
   guint slab_header_size;
   guint slab_max_blocks;
+  GumCpuFeatures cpu_features;
   gboolean is_rwx_supported;
 
   GMutex mutex;
@@ -508,6 +509,7 @@ gum_stalker_init (GumStalker * self)
       GUM_ALIGN_SIZE (GUM_CODE_SLAB_MAX_SIZE / 12, self->page_size);
   self->slab_max_blocks = (self->slab_header_size -
       G_STRUCT_OFFSET (GumSlab, blocks)) / sizeof (GumExecBlock);
+  self->cpu_features = gum_query_cpu_features ();
   self->is_rwx_supported = gum_query_rwx_support () != GUM_RWX_NONE;
 
   g_mutex_init (&self->mutex);
@@ -2380,6 +2382,7 @@ static void
 gum_exec_ctx_write_arm_prolog (GumExecCtx * ctx,
                                GumArmWriter * cw)
 {
+  const GumCpuFeatures cpu_features = ctx->stalker->cpu_features;
   gint immediate_for_sp = 0;
 
   /*
@@ -2474,21 +2477,24 @@ gum_exec_ctx_write_arm_prolog (GumExecCtx * ctx,
   gum_arm_writer_put_ands_reg_reg_imm (cw, ARM_REG_R0, ARM_REG_SP, 7);
   gum_arm_writer_put_sub_reg_reg_reg (cw, ARM_REG_SP, ARM_REG_SP, ARM_REG_R0);
 
-#ifdef __ARM_VFPV3__
-  /* vpush {q8-q15} */
-  gum_arm_writer_put_instruction (cw, 0xed6d0b20);
-#endif
+  if ((cpu_features & GUM_CPU_VFP3) != 0)
+  {
+    /* vpush {q8-q15} */
+    gum_arm_writer_put_instruction (cw, 0xed6d0b20);
+  }
 
-#ifdef __ARM_VFPV2__
-  /* vpush {q0-q3} */
-  gum_arm_writer_put_instruction (cw, 0xed2d0b10);
-#endif
+  if ((cpu_features & GUM_CPU_VFP2) != 0)
+  {
+    /* vpush {q0-q3} */
+    gum_arm_writer_put_instruction (cw, 0xed2d0b10);
+  }
 }
 
 static void
 gum_exec_ctx_write_thumb_prolog (GumExecCtx * ctx,
                                  GumThumbWriter * cw)
 {
+  const GumCpuFeatures cpu_features = ctx->stalker->cpu_features;
   gint immediate_for_sp = 0;
 
   gum_thumb_writer_put_push_regs (cw, 9,
@@ -2536,30 +2542,36 @@ gum_exec_ctx_write_thumb_prolog (GumExecCtx * ctx,
   gum_thumb_writer_put_sub_reg_reg_imm (cw, ARM_REG_SP, ARM_REG_SP, 8);
   gum_thumb_writer_put_add_reg_reg_reg (cw, ARM_REG_SP, ARM_REG_SP, ARM_REG_R0);
 
-#ifdef __ARM_VFPV3__
-  /* vpush {q8-q15} */
-  gum_thumb_writer_put_instruction_wide (cw, 0xed6d, 0x0b20);
-#endif
+  if ((cpu_features & GUM_CPU_VFP3) != 0)
+  {
+    /* vpush {q8-q15} */
+    gum_thumb_writer_put_instruction_wide (cw, 0xed6d, 0x0b20);
+  }
 
-#ifdef __ARM_VFPV2__
-  /* vpush {q0-q3} */
-  gum_thumb_writer_put_instruction_wide (cw, 0xed2d, 0x0b10);
-#endif
+  if ((cpu_features & GUM_CPU_VFP2) != 0)
+  {
+    /* vpush {q0-q3} */
+    gum_thumb_writer_put_instruction_wide (cw, 0xed2d, 0x0b10);
+  }
 }
 
 static void
 gum_exec_ctx_write_arm_epilog (GumExecCtx * ctx,
                                GumArmWriter * cw)
 {
-#ifdef __ARM_VFPV2__
-  /* vpop {q0-q3} */
-  gum_arm_writer_put_instruction (cw, 0xecbd0b10);
-#endif
+  const GumCpuFeatures cpu_features = ctx->stalker->cpu_features;
 
-#ifdef __ARM_VFPV3__
-  /* vpop {q8-q15} */
-  gum_arm_writer_put_instruction (cw, 0xecfd0b20);
-#endif
+  if ((cpu_features & GUM_CPU_VFP2) != 0)
+  {
+    /* vpop {q0-q3} */
+    gum_arm_writer_put_instruction (cw, 0xecbd0b10);
+  }
+
+  if ((cpu_features & GUM_CPU_VFP3) != 0)
+  {
+    /* vpop {q8-q15} */
+    gum_arm_writer_put_instruction (cw, 0xecfd0b20);
+  }
 
   /*
    * We know that the context structure was at the top of the stack at the end
@@ -2589,15 +2601,19 @@ static void
 gum_exec_ctx_write_thumb_epilog (GumExecCtx * ctx,
                                  GumThumbWriter * cw)
 {
-#ifdef __ARM_VFPV2__
-  /* vpop {q0-q3} */
-  gum_thumb_writer_put_instruction_wide (cw, 0xecbd, 0x0b10);
-#endif
+  const GumCpuFeatures cpu_features = ctx->stalker->cpu_features;
 
-#ifdef __ARM_VFPV3__
-  /* vpop {q8-q15} */
-  gum_thumb_writer_put_instruction_wide (cw, 0xecfd, 0x0b20);
-#endif
+  if ((cpu_features & GUM_CPU_VFP2) != 0)
+  {
+    /* vpop {q0-q3} */
+    gum_thumb_writer_put_instruction_wide (cw, 0xecbd, 0x0b10);
+  }
+
+  if ((cpu_features & GUM_CPU_VFP3) != 0)
+  {
+    /* vpop {q8-q15} */
+    gum_thumb_writer_put_instruction_wide (cw, 0xecfd, 0x0b20);
+  }
 
   gum_thumb_writer_put_mov_reg_reg (cw, ARM_REG_SP, ARM_REG_R10);
 
