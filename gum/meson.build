@@ -274,7 +274,19 @@ install_headers(gum_arm_headers, subdir: install_header_subdir + '/arch-arm')
 install_headers(gum_arm64_headers, subdir: install_header_subdir + '/arch-arm64')
 install_headers(gum_mips_headers, subdir: install_header_subdir + '/arch-mips')
 
-gum = library('frida-gum-' + api_version, gum_sources,
+gum_enums = gnome.mkenums('gum-enum-types',
+  sources: gum_headers,
+  c_template: 'gumenumtypes.c.template',
+  h_template: 'gumenumtypes.h.template',
+  install_dir: install_header_subdir,
+  install_header: true,
+)
+
+gum_enums_dep = declare_dependency(sources: gum_enums)
+
+gum_enum_h = gum_enums[1]
+
+gum = library('frida-gum-' + api_version, gum_sources + gum_enums,
   c_args: frida_component_cflags,
   include_directories: gum_incdirs,
   link_args: extra_libs_private,
@@ -289,7 +301,7 @@ if gir.found()
   ]
 
   gnome.generate_gir(gum,
-    sources: gum_sources + gum_headers,
+    sources: gum_sources + gum_headers + [gum_enum_h],
     namespace: 'Gum',
     nsversion: api_version,
     identifier_prefix: 'Gum',
@@ -305,7 +317,7 @@ endif
 gum_dep = declare_dependency(link_with: gum,
   include_directories: gum_incdirs,
   link_args: extra_libs_private,
-  dependencies: [glib_dep, gobject_dep, gio_dep, capstone_dep],
+  dependencies: [glib_dep, gobject_dep, gio_dep, capstone_dep, gum_enums_dep],
 )
 
 pkg = import('pkgconfig')

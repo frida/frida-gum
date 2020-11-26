@@ -13,11 +13,9 @@
 #define GUM_THREAD_ID_INVALID ((GumThreadId) -1)
 
 #define GUM_TYPE_MODULE_DETAILS (gum_module_details_get_type ())
-#define GUM_TYPE_CODE_SIGNING_POLICY (gum_code_signing_policy_get_type ())
 
 G_BEGIN_DECLS
 
-typedef guint GumCodeSigningPolicy;
 typedef guint GumProcessId;
 typedef gsize GumThreadId;
 typedef guint GumThreadState;
@@ -34,11 +32,10 @@ typedef struct _GumRangeDetails GumRangeDetails;
 typedef struct _GumFileMapping GumFileMapping;
 typedef struct _GumMallocRangeDetails GumMallocRangeDetails;
 
-enum _GumCodeSigningPolicy
-{
+typedef enum {
   GUM_CODE_SIGNING_OPTIONAL,
   GUM_CODE_SIGNING_REQUIRED
-};
+} GumCodeSigningPolicy;
 
 enum _GumThreadState
 {
@@ -202,7 +199,6 @@ GUM_API GumAddress gum_module_find_export_by_name (const gchar * module_name,
 GUM_API GumAddress gum_module_find_symbol_by_name (const gchar * module_name,
     const gchar * symbol_name);
 
-GUM_API GType gum_code_signing_policy_get_type (void) G_GNUC_CONST;
 GUM_API const gchar * gum_code_signing_policy_to_string (
     GumCodeSigningPolicy policy);
 

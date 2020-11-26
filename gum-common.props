@@ -10,30 +10,24 @@
 
   <ItemGroup>
     <ClInclude Include="gum\gum.h" />
-    <ClInclude Include="gum\gum-init.h" />
     <ClInclude Include="gum\gumapiresolver.h" />
     <ClInclude Include="gum\gumbacktracer.h" />
     <ClInclude Include="gum\gumcloak.h" />
-    <ClInclude Include="gum\gumcloak-priv.h" />
     <ClInclude Include="gum\gumcodeallocator.h" />
     <ClInclude Include="gum\gumcodesegment.h" />
     <ClInclude Include="gum\gumdarwinmodule.h" />
     <ClInclude Include="gum\gumdefs.h" />
     <ClInclude Include="gum\gumexceptor.h" />
-    <ClInclude Include="gum\gumexceptorbackend.h" />
     <ClInclude Include="gum\gumevent.h" />
     <ClInclude Include="gum\gumeventsink.h" />
     <ClInclude Include="gum\gumfunction.h" />
     <ClInclude Include="gum\gumheapapi.h" />
     <ClInclude Include="gum\guminterceptor.h" />
-    <ClInclude Include="gum\guminterceptor-priv.h" />
     <ClInclude Include="gum\guminvocationcontext.h" />
     <ClInclude Include="gum\guminvocationlistener.h" />
     <ClInclude Include="gum\gumkernel.h" />
-    <ClInclude Include="gum\gumleb.h" />
     <ClInclude Include="gum\gumlibc.h" />
     <ClInclude Include="gum\gummemory.h" />
-    <ClInclude Include="gum\gummemory-priv.h" />
     <ClInclude Include="gum\gummemoryaccessmonitor.h" />
     <ClInclude Include="gum\gummemorymap.h" />
     <ClInclude Include="gum\gummetalarray.h" />
@@ -42,13 +36,49 @@
     <ClInclude Include="gum\gummodulemap.h" />
     <ClInclude Include="gum\gumprintf.h" />
     <ClInclude Include="gum\gumprocess.h" />
-    <ClInclude Include="gum\gumprocess-priv.h" />
     <ClInclude Include="gum\gumreturnaddress.h" />
     <ClInclude Include="gum\gumspinlock.h" />
     <ClInclude Include="gum\gumstalker.h" />
     <ClInclude Include="gum\gumsymbolutil.h" />
     <ClInclude Include="gum\gumsysinternals.h" />
     <ClInclude Include="gum\gumtls.h" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <CustomBuild Include="gum\gumenumtypes.c.template">
+      <FileType>Document</FileType>
+      <Message>Generating gumenumtypes.c</Message>
+      <AdditionalInputs>@(ClInclude)</AdditionalInputs>
+      <Outputs>$(IntDir)gum\gumenumtypes.c</Outputs>
+      <OutputItemType>ClCompile</OutputItemType>
+      <LinkObjects>false</LinkObjects>
+      <Command>mkdir "$(IntDir)gum" 2&gt;NUL
+echo $(GLibMkenums) --output "$(IntDir)gum\%(Filename)" --template %(Identity) @(ClInclude, ' ')
+$(GLibMkenums) --output "$(IntDir)gum\%(Filename)" --template %(Identity) @(ClInclude, ' ')
+</Command>
+    </CustomBuild>
+    <CustomBuild Include="gum\gumenumtypes.h.template">
+      <FileType>Document</FileType>
+      <Message>Generating gumenumtypes.h</Message>
+      <AdditionalInputs>@(ClInclude)</AdditionalInputs>
+      <Outputs>$(IntDir)gum\gumenumtypes.h</Outputs>
+      <OutputItemType>ClInclude</OutputItemType>
+      <LinkObjects>false</LinkObjects>
+      <Command>mkdir "$(IntDir)gum" 2&gt;NUL
+echo $(GLibMkenums) --output "$(IntDir)gum\%(Filename)" --template %(Identity) @(ClInclude, ' ')
+$(GLibMkenums) --output "$(IntDir)gum\%(Filename)" --template %(Identity) @(ClInclude, ' ')
+</Command>
+    </CustomBuild>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ClInclude Include="gum\gum-init.h" />
+    <ClInclude Include="gum\gumcloak-priv.h" />
+    <ClInclude Include="gum\gumexceptorbackend.h" />
+    <ClInclude Include="gum\guminterceptor-priv.h" />
+    <ClInclude Include="gum\gumleb.h" />
+    <ClInclude Include="gum\gummemory-priv.h" />
+    <ClInclude Include="gum\gumprocess-priv.h" />
     <ClInclude Include="gum\gumtls-priv.h" />
   </ItemGroup>
 
