@@ -750,12 +750,14 @@ gum_thumb_relocator_rewrite_adr (GumThumbRelocator * self,
 {
   const cs_arm_op * dst = &ctx->detail->operands[0];
   const cs_arm_op * offset = &ctx->detail->operands[1];
+  GumAddress absolute_pc;
   arm_reg temp_reg;
 
+  absolute_pc = ctx->pc & ~((GumAddress) (4 - 1));
   temp_reg = (dst->reg != ARM_REG_R0) ? ARM_REG_R0 : ARM_REG_R1;
 
   gum_thumb_writer_put_push_regs (ctx->output, 1, temp_reg);
-  gum_thumb_writer_put_ldr_reg_address (ctx->output, dst->reg, ctx->pc);
+  gum_thumb_writer_put_ldr_reg_address (ctx->output, dst->reg, absolute_pc);
   gum_thumb_writer_put_ldr_reg_address (ctx->output, temp_reg, offset->imm);
   gum_thumb_writer_put_add_reg_reg (ctx->output, dst->reg, temp_reg);
   gum_thumb_writer_put_pop_regs (ctx->output, 1, temp_reg);
