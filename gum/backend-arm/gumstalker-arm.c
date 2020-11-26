@@ -812,13 +812,19 @@ gum_stalker_infect (GumThreadId thread_id,
   GumInfectContext * infect_context = user_data;
   GumStalker * self = infect_context->stalker;
   GumExecCtx * ctx;
+  guint32 pc;
   GumArmWriter cw;
 
   ctx = gum_stalker_create_exec_ctx (self, thread_id,
       infect_context->transformer, infect_context->sink);
 
+  if ((cpu_context->cpsr & GUM_PSR_T_BIT) == 0)
+    pc = cpu_context->pc;
+  else
+    pc = cpu_context->pc + 1;
+
   ctx->current_block = gum_exec_ctx_obtain_block_for (ctx,
-      GSIZE_TO_POINTER (cpu_context->pc), &ctx->resume_at);
+      GSIZE_TO_POINTER (pc), &ctx->resume_at);
 
   if (gum_exec_ctx_maybe_unfollow (ctx, NULL))
   {
