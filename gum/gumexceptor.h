@@ -25,7 +25,9 @@ G_DECLARE_FINAL_TYPE (GumExceptor, gum_exceptor, GUM, EXCEPTOR, GObject)
 #else
 # define GUM_NATIVE_SETJMP(env) sigsetjmp (env, TRUE)
 # define GUM_NATIVE_LONGJMP siglongjmp
+# if !defined (GUM_GIR_COMPILATION)
   typedef sigjmp_buf GumExceptorNativeJmpBuf;
+# endif
 #endif
 
 typedef struct _GumExceptionDetails GumExceptionDetails;

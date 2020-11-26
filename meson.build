@@ -194,6 +194,20 @@ extra_deps = []
 extra_requires_private = []
 extra_libs_private = []
 
+glib_flavor_src = '''
+#include <glib.h>
+
+#ifdef GLIB_STATIC_COMPILATION
+# error GLib is static
+#endif
+'''
+have_shared_glib = cc.compiles(glib_flavor_src, name: 'compiling with shared GLib', dependencies: [glib_dep])
+if have_shared_glib
+  gir = find_program('g-ir-scanner')
+else
+  gir = disabler()
+endif
+
 if cc.has_function('g_thread_set_callbacks', dependencies: [glib_dep])
   cdata.set('HAVE_FRIDA_GLIB', 1)
 endif

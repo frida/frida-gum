@@ -78,28 +78,46 @@ typedef struct _GumMipsCpuContext GumMipsCpuContext;
 #if !defined (__arm__) && !defined (__aarch64__) && !defined (__mips__)
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_X86
 # if GLIB_SIZEOF_VOID_P == 4
+/**
+ * GUM_DEFAULT_CS_MODE: (skip)
+ */
 #  define GUM_DEFAULT_CS_MODE CS_MODE_32
 typedef GumIA32CpuContext GumCpuContext;
 # else
+/**
+ * GUM_DEFAULT_CS_MODE: (skip)
+ */
 #  define GUM_DEFAULT_CS_MODE CS_MODE_64
 typedef GumX64CpuContext GumCpuContext;
 # endif
 #elif defined (__arm__) && !defined (__aarch64__)
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_ARM
+/**
+ * GUM_DEFAULT_CS_MODE: (skip)
+ */
 # define GUM_DEFAULT_CS_MODE \
     ((cs_mode) (CS_MODE_ARM | CS_MODE_V8 | GUM_DEFAULT_CS_ENDIAN))
 # define GUM_PSR_T_BIT 0x20
 typedef GumArmCpuContext GumCpuContext;
 #elif defined (__aarch64__)
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_ARM64
+/**
+ * GUM_DEFAULT_CS_MODE: (skip)
+ */
 # define GUM_DEFAULT_CS_MODE GUM_DEFAULT_CS_ENDIAN
 typedef GumArm64CpuContext GumCpuContext;
 #elif defined (__mips__)
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_MIPS
 # if GLIB_SIZEOF_VOID_P == 4
+/**
+ * GUM_DEFAULT_CS_MODE: (skip)
+ */
 #  define GUM_DEFAULT_CS_MODE ((cs_mode) \
     (CS_MODE_MIPS32 | GUM_DEFAULT_CS_ENDIAN))
 # else
+/**
+ * GUM_DEFAULT_CS_MODE: (skip)
+ */
 #  define GUM_DEFAULT_CS_MODE ((cs_mode) \
     (CS_MODE_MIPS64 | GUM_DEFAULT_CS_ENDIAN))
 # endif

@@ -1,3 +1,5 @@
+gnome = import('gnome')
+
 gum_headers = [
   'gum.h',
   'gumapiresolver.h',
@@ -75,8 +77,10 @@ gum_sources = [
   'arch-mips/gummipsrelocator.c',
 ]
 
+gum_backend_headers = []
+
 if host_os_family == 'windows'
-  gum_headers += [
+  gum_backend_headers += [
     'backend-windows/gumwindows.h',
     'backend-dbghelp/gumdbghelp.h',
     'backend-dbghelp/gumdbghelpbacktracer.h',
@@ -98,7 +102,7 @@ else
 endif
 
 if host_os_family == 'darwin'
-  gum_headers += [
+  gum_backend_headers += [
     'backend-darwin/gumdarwin.h',
     'backend-darwin/gumdarwinbacktracer.h',
     'backend-darwin/gumdarwinsymbolicator.h',
@@ -124,7 +128,7 @@ if host_os_family == 'darwin'
 endif
 
 if host_os_family == 'linux'
-  gum_headers += [
+  gum_backend_headers += [
     'backend-linux/gumlinux.h',
   ]
   gum_sources += [
@@ -135,7 +139,7 @@ if host_os_family == 'linux'
     'backend-posix/gumexceptor-posix.c',
   ]
   if host_os == 'android'
-    gum_headers += [
+    gum_backend_headers += [
       'backend-linux/gumandroid.h',
     ]
     gum_sources += [
@@ -145,7 +149,7 @@ if host_os_family == 'linux'
 endif
 
 if host_os_family == 'qnx'
-  gum_headers += [
+  gum_backend_headers += [
     'backend-qnx/gumqnx.h',
   ]
   gum_sources += [
@@ -158,7 +162,7 @@ if host_os_family == 'qnx'
 endif
 
 if host_os_family == 'linux' or host_os_family == 'qnx'
-  gum_headers += [
+  gum_backend_headers += [
     'backend-elf/gumelfmodule.h',
   ]
   gum_sources += [
@@ -250,7 +254,7 @@ if host_arch == 'mips'
 endif
 
 if unwind_dep.found()
-  gum_headers += [
+  gum_backend_headers += [
     'backend-libunwind/gumunwbacktracer.h',
   ]
   gum_sources += [
@@ -264,7 +268,7 @@ if have_libdwarf
   ]
 endif
 
-install_headers(gum_headers, subdir: install_header_subdir)
+install_headers(gum_headers + gum_backend_headers, subdir: install_header_subdir)
 install_headers(gum_x86_headers, subdir: install_header_subdir + '/arch-x86')
 install_headers(gum_arm_headers, subdir: install_header_subdir + '/arch-arm')
 install_headers(gum_arm64_headers, subdir: install_header_subdir + '/arch-arm64')
@@ -277,6 +281,26 @@ gum = library('frida-gum-' + api_version, gum_sources,
   dependencies: [glib_dep, gobject_dep, gio_dep, ffi_dep, capstone_dep] + extra_deps,
   install: true,
 )
+
+if gir.found()
+  gir_args = [
+    '--quiet',
+    '-DGUM_GIR_COMPILATION',
+  ]
+
+  gnome.generate_gir(gum,
+    sources: gum_sources + gum_headers,
+    namespace: 'Gum',
+    nsversion: api_version,
+    identifier_prefix: 'Gum',
+    symbol_prefix: 'gum',
+    export_packages: 'gum',
+    includes: ['GLib-2.0', 'GObject-2.0', 'Gio-2.0'],
+    header: 'gum/gum.h',
+    extra_args: gir_args + extra_libs_private,
+    install: true,
+  )
+endif
 
 gum_dep = declare_dependency(link_with: gum,
   include_directories: gum_incdirs,
