@@ -470,4 +470,12 @@
       <Filter>vapi</Filter>
     </None>
   </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="gum\gumenumtypes.c.template">
+      <Filter>core</Filter>
+    </CustomBuild>
+    <CustomBuild Include="gum\gumenumtypes.h.template">
+      <Filter>core</Filter>
+    </CustomBuild>
+  </ItemGroup>
 </Project>

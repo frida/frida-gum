@@ -172,29 +172,6 @@ gum_store_address_if_name_matches (const GumSymbolDetails * details,
   return carry_on;
 }
 
-GType
-gum_code_signing_policy_get_type (void)
-{
-  static gsize gonce_value;
-
-  if (g_once_init_enter (&gonce_value))
-  {
-    static const GEnumValue values[] =
-    {
-      { GUM_CODE_SIGNING_OPTIONAL, "GUM_CODE_SIGNING_OPTIONAL", "optional" },
-      { GUM_CODE_SIGNING_REQUIRED, "GUM_CODE_SIGNING_REQUIRED", "required" },
-      { 0, NULL, NULL }
-    };
-    GType etype;
-
-    etype = g_enum_register_static ("GumCodeSigningPolicy", values);
-
-    g_once_init_leave (&gonce_value, etype);
-  }
-
-  return (GType) gonce_value;
-}
-
 const gchar *
 gum_code_signing_policy_to_string (GumCodeSigningPolicy policy)
 {

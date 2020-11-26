@@ -2981,30 +2981,6 @@ gum_darwin_export_details_init_from_node (GumDarwinExportDetails * details,
   }
 }
 
-GType
-gum_darwin_module_flags_get_type (void)
-{
-  static gsize gonce_value;
-
-  if (g_once_init_enter (&gonce_value))
-  {
-    static const GFlagsValue values[] =
-    {
-      { GUM_DARWIN_MODULE_FLAGS_NONE, "GUM_DARWIN_MODULE_FLAGS_NONE", "none" },
-      { GUM_DARWIN_MODULE_FLAGS_HEADER_ONLY,
-        "GUM_DARWIN_MODULE_FLAGS_HEADER_ONLY", "header-only" },
-      { 0, NULL, NULL }
-    };
-    GType ftype;
-
-    ftype = g_flags_register_static ("GumDarwinModuleFlags", values);
-
-    g_once_init_leave (&gonce_value, ftype);
-  }
-
-  return (GType) gonce_value;
-}
-
 static GumCpuType
 gum_cpu_type_from_darwin (GumDarwinCpuType cpu_type)
 {

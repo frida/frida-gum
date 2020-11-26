@@ -807,30 +807,3 @@ gum_do_query_cpu_features (void)
 }
 
 #endif
-
-GType
-gum_cpu_type_get_type (void)
-{
-  static gsize gonce_value;
-
-  if (g_once_init_enter (&gonce_value))
-  {
-    static const GEnumValue values[] =
-    {
-      { GUM_CPU_INVALID, "GUM_CPU_INVALID", "invalid" },
-      { GUM_CPU_IA32, "GUM_CPU_IA32", "ia32" },
-      { GUM_CPU_AMD64, "GUM_CPU_AMD64", "amd64" },
-      { GUM_CPU_ARM, "GUM_CPU_ARM", "arm" },
-      { GUM_CPU_ARM64, "GUM_CPU_ARM64", "arm64" },
-      { GUM_CPU_MIPS, "GUM_CPU_MIPS", "mips" },
-      { 0, NULL, NULL }
-    };
-    GType etype;
-
-    etype = g_enum_register_static ("GumCpuType", values);
-
-    g_once_init_leave (&gonce_value, etype);
-  }
-
-  return (GType) gonce_value;
-}

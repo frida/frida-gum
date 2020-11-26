@@ -7,7 +7,7 @@
 #ifndef __GUMDEFS_H__
 #define __GUMDEFS_H__
 
-#include <glib-object.h>
+#include <gum/gumenumtypes.h>
 
 #if !defined (GUM_STATIC) && defined (G_OS_WIN32)
 #  ifdef GUM_EXPORTS
@@ -52,10 +52,8 @@ typedef guint64 GumAddress;
 typedef guint GumOS;
 typedef guint GumCallingConvention;
 typedef guint GumAbiType;
-typedef guint GumCpuType;
 typedef guint GumCpuFeatures;
 typedef guint GumInstructionEncoding;
-#define GUM_TYPE_CPU_TYPE (gum_cpu_type_get_type ())
 typedef guint GumArgType;
 typedef struct _GumArgument GumArgument;
 typedef guint GumBranchHint;
@@ -147,15 +145,14 @@ enum _GumAbiType
   GUM_ABI_WINDOWS
 };
 
-enum _GumCpuType
-{
+typedef enum {
   GUM_CPU_INVALID,
   GUM_CPU_IA32,
   GUM_CPU_AMD64,
   GUM_CPU_ARM,
   GUM_CPU_ARM64,
   GUM_CPU_MIPS
-};
+} GumCpuType;
 
 enum _GumCpuFeatures
 {
@@ -495,7 +492,6 @@ GUM_API void gum_cpu_context_replace_return_value (GumCpuContext * self,
     gpointer value);
 
 GUM_API GType gum_address_get_type (void) G_GNUC_CONST;
-GUM_API GType gum_cpu_type_get_type (void) G_GNUC_CONST;
 
 G_END_DECLS
 

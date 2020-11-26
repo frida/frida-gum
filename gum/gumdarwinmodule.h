@@ -17,13 +17,10 @@ G_BEGIN_DECLS
 G_DECLARE_FINAL_TYPE (GumDarwinModule, gum_darwin_module, GUM_DARWIN, MODULE,
     GObject)
 
-#define GUM_TYPE_DARWIN_MODULE_FLAGS (gum_darwin_module_flags_get_type ())
-
 #define GUM_DARWIN_PORT_NULL 0
 #define GUM_DARWIN_EXPORT_KIND_MASK 3
 
 typedef guint GumDarwinModuleFiletype;
-typedef guint GumDarwinModuleFlags;
 typedef gint GumDarwinCpuType;
 typedef gint GumDarwinCpuSubtype;
 
@@ -77,6 +74,11 @@ typedef gboolean (* GumFoundDarwinDependencyFunc) (const gchar * path,
 typedef struct _GumDyldInfoCommand GumDyldInfoCommand;
 typedef struct _GumSymtabCommand GumSymtabCommand;
 typedef struct _GumDysymtabCommand GumDysymtabCommand;
+
+typedef enum {
+  GUM_DARWIN_MODULE_FLAGS_NONE        = 0,
+  GUM_DARWIN_MODULE_FLAGS_HEADER_ONLY = (1 << 0),
+} GumDarwinModuleFlags;
 
 struct _GumDarwinModule
 {
@@ -142,12 +144,6 @@ enum _GumDarwinModuleFiletype
   GUM_DARWIN_MODULE_FILETYPE_DSYM,
   GUM_DARWIN_MODULE_FILETYPE_KEXT_BUNDLE,
   GUM_DARWIN_MODULE_FILETYPE_FILESET,
-};
-
-enum _GumDarwinModuleFlags
-{
-  GUM_DARWIN_MODULE_FLAGS_NONE        = 0,
-  GUM_DARWIN_MODULE_FLAGS_HEADER_ONLY = (1 << 0),
 };
 
 enum _GumDarwinCpuArchType
@@ -417,8 +413,6 @@ GUM_API GumDarwinModuleImage * gum_darwin_module_image_new (void);
 GUM_API GumDarwinModuleImage * gum_darwin_module_image_dup (
     const GumDarwinModuleImage * other);
 GUM_API void gum_darwin_module_image_free (GumDarwinModuleImage * image);
-
-GUM_API GType gum_darwin_module_flags_get_type (void) G_GNUC_CONST;
 
 G_END_DECLS
 
