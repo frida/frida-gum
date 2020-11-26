@@ -37,7 +37,9 @@ TESTLIST_BEGIN (interceptor)
   TESTENTRY (attach_detach_torture)
 #endif
   TESTENTRY (thread_id)
-#if !(defined (HAVE_ANDROID) && defined (HAVE_ARM64)) && !defined (HAVE_ASAN)
+#if defined (HAVE_FRIDA_GLIB) && \
+    !(defined (HAVE_ANDROID) && defined (HAVE_ARM64)) && \
+    !defined (HAVE_ASAN)
   TESTENTRY (intercepted_free_in_thread_exit)
 #endif
   TESTENTRY (function_arguments)
@@ -54,10 +56,12 @@ TESTLIST_BEGIN (interceptor)
 
   TESTENTRY (i_can_has_replaceability)
   TESTENTRY (already_replaced)
-# ifndef HAVE_ASAN
+#ifndef HAVE_ASAN
   TESTENTRY (replace_one)
+# ifdef HAVE_FRIDA_GLIB
   TESTENTRY (replace_two)
 # endif
+#endif
   TESTENTRY (replace_then_attach)
 
 #ifdef HAVE_QNX
@@ -233,6 +237,10 @@ TESTCASE (thread_id)
   g_assert_cmpuint (second_thread_id, !=, first_thread_id);
 }
 
+#if defined (HAVE_FRIDA_GLIB) && \
+    !(defined (HAVE_ANDROID) && defined (HAVE_ARM64)) && \
+    !defined (HAVE_ASAN)
+
 TESTCASE (intercepted_free_in_thread_exit)
 {
   interceptor_fixture_attach (fixture, 0, interceptor_fixture_get_libc_free (),
@@ -240,6 +248,8 @@ TESTCASE (intercepted_free_in_thread_exit)
   g_thread_join (g_thread_new ("interceptor-test-thread-exit",
       target_nop_function_a, NULL));
 }
+
+#endif
 
 TESTCASE (function_arguments)
 {
@@ -582,6 +592,8 @@ static gpointer replacement_malloc_calling_malloc_and_replaced_free (
     gsize size);
 static void replacement_free_doing_nothing (gpointer mem);
 
+#ifdef HAVE_FRIDA_GLIB
+
 TESTCASE (replace_two)
 {
   gpointer malloc_impl, free_impl;
@@ -612,6 +624,8 @@ TESTCASE (replace_two)
 
   free (ret);
 }
+
+#endif
 
 static gpointer
 replacement_malloc_calling_malloc_and_replaced_free (gsize size)

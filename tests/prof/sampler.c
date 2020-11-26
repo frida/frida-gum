@@ -10,7 +10,7 @@
 TESTLIST_BEGIN (sampler)
   TESTENTRY (cycle)
   TESTENTRY (busy_cycle)
-#ifndef HAVE_ASAN
+#if defined (HAVE_FRIDA_GLIB) && !defined (HAVE_ASAN)
   TESTENTRY (malloc_count)
 #endif
   TESTENTRY (multiple_call_counters)
@@ -75,6 +75,8 @@ struct _MallocCountHelperContext
   GumSample count;
 };
 
+#if defined (HAVE_FRIDA_GLIB) && !defined (HAVE_ASAN)
+
 TESTCASE (malloc_count)
 {
   const GumHeapApiList * heap_apis;
@@ -123,6 +125,8 @@ TESTCASE (malloc_count)
   g_assert_cmpuint (gum_call_count_sampler_peek_total_count (
       GUM_CALL_COUNT_SAMPLER (fixture->sampler)), >=, 3 + 1);
 }
+
+#endif
 
 TESTCASE (multiple_call_counters)
 {
