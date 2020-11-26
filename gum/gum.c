@@ -171,9 +171,11 @@ gum_do_init (void)
     (cs_vsnprintf_t) gum_vsnprintf
   };
 
+#ifdef HAVE_FRIDA_GLIB
   glib_init ();
   gobject_init ();
   gio_init ();
+#endif
 
   cs_option (0, CS_OPT_MEM, GPOINTER_TO_SIZE (&gum_cs_mem_callbacks));
 
@@ -205,6 +207,7 @@ gum_destructor_invoke (GumDestructorFunc destructor)
 void
 gum_init_embedded (void)
 {
+#ifdef HAVE_FRIDA_LIBFFI
   ffi_mem_callbacks ffi_callbacks = {
     (void * (*) (size_t)) gum_malloc,
     (void * (*) (size_t, size_t)) gum_calloc,
@@ -212,6 +215,8 @@ gum_init_embedded (void)
     gum_on_ffi_allocate,
     gum_on_ffi_deallocate
   };
+#endif
+#ifdef HAVE_FRIDA_GLIB
   GThreadCallbacks thread_callbacks = {
     gum_on_thread_init,
     gum_on_thread_realize,
@@ -222,7 +227,8 @@ gum_init_embedded (void)
     gum_on_fd_opened,
     gum_on_fd_closed
   };
-#if !DEBUG_HEAP_LEAKS && !defined (HAVE_ASAN)
+#endif
+#if defined (HAVE_FRIDA_GLIB) && !DEBUG_HEAP_LEAKS && !defined (HAVE_ASAN)
   GMemVTable mem_vtable = {
     gum_malloc,
     gum_realloc,
@@ -257,9 +263,13 @@ gum_init_embedded (void)
 #endif
 
   gum_internal_heap_ref ();
+#ifdef HAVE_FRIDA_LIBFFI
   ffi_set_mem_callbacks (&ffi_callbacks);
+#endif
+#ifdef HAVE_FRIDA_GLIB
   g_thread_set_callbacks (&thread_callbacks);
   g_platform_audit_set_fd_callbacks (&fd_callbacks);
+#endif
 #if !DEBUG_HEAP_LEAKS && !defined (HAVE_ASAN)
   if (RUNNING_ON_VALGRIND)
   {
@@ -267,13 +277,17 @@ gum_init_embedded (void)
   }
   else
   {
+#ifdef HAVE_FRIDA_GLIB
     g_mem_set_vtable (&mem_vtable);
+#endif
   }
 #else
   g_setenv ("G_SLICE", "always-malloc", TRUE);
 #endif
+#ifdef HAVE_FRIDA_GLIB
   glib_init ();
   g_assertion_set_handler (gum_on_assert_failure, NULL);
+#endif
   g_log_set_default_handler (gum_on_log_message, NULL);
   gum_do_init ();
 
@@ -292,15 +306,21 @@ gum_deinit_embedded (void)
   g_assert (gum_initialized);
 
   gum_shutdown ();
+#ifdef HAVE_FRIDA_GLIB
   gio_shutdown ();
   glib_shutdown ();
+#endif
 
   g_clear_object (&gum_cached_interceptor);
 
   gum_deinit ();
+#ifdef HAVE_FRIDA_GLIB
   gio_deinit ();
   glib_deinit ();
+#endif
+#ifdef HAVE_FRIDA_LIBFFI
   ffi_deinit ();
+#endif
   gum_internal_heap_unref ();
 
   gum_initialized = FALSE;

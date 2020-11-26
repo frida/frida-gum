@@ -194,6 +194,14 @@ extra_deps = []
 extra_requires_private = []
 extra_libs_private = []
 
+if cc.has_function('g_thread_set_callbacks', dependencies: [glib_dep])
+  cdata.set('HAVE_FRIDA_GLIB', 1)
+endif
+
+if cc.has_function('ffi_set_mem_callbacks', dependencies: [ffi_dep])
+  cdata.set('HAVE_FRIDA_LIBFFI', 1)
+endif
+
 if host_os == 'android'
   extra_libs_private += ['-llog']
 endif

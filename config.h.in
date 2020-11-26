@@ -18,6 +18,12 @@
 /* Define to 1 if you have the <elf.h> header file. */
 #mesondefine HAVE_ELF_H
 
+/* Define to 1 if using Frida's GLib. */
+#mesondefine HAVE_FRIDA_GLIB
+
+/* Define to 1 if using Frida's libffi. */
+#mesondefine HAVE_FRIDA_LIBFFI
+
 /* Define to 1 if libc is glibc. */
 #mesondefine HAVE_GLIBC
 
