@@ -4367,6 +4367,7 @@ gum_quick_value_from_ffi (JSContext * ctx,
         u64 = val->v_uint16;
         break;
       default:
+        u64 = 0;
         g_assert_not_reached ();
     }
 
@@ -4388,6 +4389,7 @@ gum_quick_value_from_ffi (JSContext * ctx,
         i64 = val->v_sint16;
         break;
       default:
+        i64 = 0;
         g_assert_not_reached ();
     }
 

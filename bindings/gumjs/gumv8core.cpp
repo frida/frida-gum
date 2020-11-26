@@ -3617,6 +3617,7 @@ gum_v8_value_from_ffi_type (GumV8Core * core,
         u64 = value->v_uint16;
         break;
       default:
+        u64 = 0;
         g_assert_not_reached ();
     }
 
@@ -3638,6 +3639,7 @@ gum_v8_value_from_ffi_type (GumV8Core * core,
         i64 = value->v_sint16;
         break;
       default:
+        i64 = 0;
         g_assert_not_reached ();
     }
 
