@@ -2168,6 +2168,12 @@ TESTCASE (can_follow_workload)
   GumMemoryRange runner_range;
   guint32 crc, crc_followed;
 
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
   func = DUP_TESTCODE (call_workload);
   patch_code_pointer (func, 4 * 4, GUM_ADDRESS (pretend_workload));
   call_workload_impl = GSIZE_TO_POINTER (func);
@@ -2208,6 +2214,12 @@ TESTCASE (performance)
   GTimer * timer;
   gdouble normal_cold, normal_hot;
   gdouble stalker_cold, stalker_hot;
+
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
 
   runner_range.base_address = 0;
   runner_range.size = 0;
