@@ -7,6 +7,8 @@
 
 #include "gumffi.h"
 
+#include <stdint.h>
+
 typedef struct _GumFFITypeMapping GumFFITypeMapping;
 typedef struct _GumFFIABIMapping GumFFIABIMapping;
 
