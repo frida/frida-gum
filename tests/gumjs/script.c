@@ -391,7 +391,9 @@ static size_t gum_get_size_max (void);
 static gboolean gum_test_size_max (size_t sz);
 static size_t gum_add_size (size_t sz);
 static size_t gum_pass_size (size_t u64);
+#ifndef _MSC_VER
 static size_t gum_pass_ssize (ssize_t ssz);
+#endif
 
 static gboolean ignore_thread (GumInterceptor * interceptor);
 static gboolean unignore_thread (GumInterceptor * interceptor);
@@ -1129,6 +1131,7 @@ TESTCASE (native_function_can_be_invoked_with_size_t)
   EXPECT_SEND_MESSAGE_WITH (ret);
   EXPECT_NO_MESSAGES ();
 
+#ifndef _MSC_VER
   sprintf (arg, "%td", PTRDIFF_MAX);
   sprintf (ret, "\"%td\"", PTRDIFF_MAX);
   COMPILE_AND_LOAD_SCRIPT (
@@ -1148,6 +1151,7 @@ TESTCASE (native_function_can_be_invoked_with_size_t)
       gum_pass_ssize, arg);
   EXPECT_SEND_MESSAGE_WITH (ret);
   EXPECT_NO_MESSAGES ();
+#endif
 }
 
 static size_t
@@ -1174,11 +1178,15 @@ gum_pass_size (size_t sz)
   return sz;
 }
 
+#ifndef _MSC_VER
+
 static size_t
 gum_pass_ssize (ssize_t ssz)
 {
   return ssz;
 }
+
+#endif
 
 TESTCASE (native_function_can_be_intercepted_when_thread_is_ignored)
 {
