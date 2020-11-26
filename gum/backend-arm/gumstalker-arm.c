@@ -1691,6 +1691,8 @@ gum_stalker_iterator_thumb_keep (GumStalkerIterator * self)
 
   if (gum_thumb_relocator_eob (gc->thumb_relocator))
     gum_stalker_iterator_handle_thumb_branch_insn (self, insn);
+  else if (insn->id == ARM_INS_SVC)
+    gum_exec_block_virtualize_thumb_svc_insn (block, gc);
   else
     gum_exec_block_dont_virtualize_thumb_insn (block, gc);
 }
@@ -1748,9 +1750,6 @@ gum_stalker_iterator_handle_thumb_branch_insn (GumStalkerIterator * self,
     case ARM_INS_SMC:
     case ARM_INS_HVC:
       g_error ("Unsupported");
-      break;
-    case ARM_INS_SVC:
-      gum_exec_block_virtualize_thumb_svc_insn (block, gc);
       break;
     case ARM_INS_IT:
       gum_stalker_iterator_handle_thumb_it_insn (self);
@@ -3444,7 +3443,7 @@ gum_exec_block_virtualize_thumb_svc_insn (GumExecBlock * block,
      */
     gum_thumb_writer_put_push_regs (cw, 2, ARM_REG_R0, ARM_REG_R1);
     gum_thumb_writer_put_ldr_reg_address (cw, ARM_REG_R0,
-        GUM_ADDRESS (gc->instruction->end));
+        GUM_ADDRESS (gc->instruction->end + 1));
     gum_thumb_writer_put_str_reg_reg_offset (cw, ARM_REG_R0, ARM_REG_SP, 4);
     gum_thumb_writer_put_pop_regs (cw, 2, ARM_REG_R0, ARM_REG_PC);
 
