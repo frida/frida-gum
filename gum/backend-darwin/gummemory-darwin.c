@@ -140,6 +140,8 @@ gum_darwin_query_page_size (mach_port_t task,
     case GUM_CPU_ARM64:
       *page_size = 16384;
       break;
+    default:
+      g_assert_not_reached ();
   }
 
   return TRUE;
