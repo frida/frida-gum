@@ -53,7 +53,6 @@
       <OutputItemType>ClCompile</OutputItemType>
       <LinkObjects>false</LinkObjects>
       <Command>mkdir "$(IntDir)gum" 2&gt;NUL
-echo $(GLibMkenums) --output "$(IntDir)gum\%(Filename)" --template %(Identity) @(ClInclude, ' ')
 $(GLibMkenums) --output "$(IntDir)gum\%(Filename)" --template %(Identity) @(ClInclude, ' ')
 </Command>
     </CustomBuild>
@@ -65,7 +64,6 @@ $(GLibMkenums) --output "$(IntDir)gum\%(Filename)" --template %(Identity) @(ClIn
       <OutputItemType>ClInclude</OutputItemType>
       <LinkObjects>false</LinkObjects>
       <Command>mkdir "$(IntDir)gum" 2&gt;NUL
-echo $(GLibMkenums) --output "$(IntDir)gum\%(Filename)" --template %(Identity) @(ClInclude, ' ')
 $(GLibMkenums) --output "$(IntDir)gum\%(Filename)" --template %(Identity) @(ClInclude, ' ')
 </Command>
     </CustomBuild>
