@@ -278,7 +278,7 @@ gum_enums = gnome.mkenums('gum-enum-types',
   sources: gum_headers,
   c_template: 'gumenumtypes.c.template',
   h_template: 'gumenumtypes.h.template',
-  install_dir: install_header_subdir,
+  install_dir: get_option('includedir') / install_header_subdir,
   install_header: true,
 )
 
