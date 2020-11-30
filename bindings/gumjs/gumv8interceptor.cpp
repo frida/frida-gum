@@ -599,7 +599,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
 
       listener = GUM_V8_INVOCATION_LISTENER (l);
     }
-    else
+    else if (on_enter_c != NULL || on_leave_c != NULL)
     {
       auto l = GUM_V8_C_CALL_LISTENER (
           g_object_new (GUM_V8_TYPE_C_CALL_LISTENER, NULL));
@@ -607,6 +607,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
       l->on_leave = on_leave_c;
 
       listener = GUM_V8_INVOCATION_LISTENER (l);
+    }
+    else
+    {
+      _gum_v8_throw_ascii_literal (isolate, "expected at least one callback");
+      return;
     }
   }
 

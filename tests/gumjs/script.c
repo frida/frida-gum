@@ -75,7 +75,8 @@ TESTLIST_BEGIN (script)
     TESTENTRY (replaced_function_should_have_invocation_context)
     TESTENTRY (instructions_can_be_probed)
     TESTENTRY (interceptor_should_support_native_pointer_values)
-    TESTENTRY (interceptor_handles_invalid_arguments)
+    TESTENTRY (interceptor_should_handle_bad_pointers)
+    TESTENTRY (interceptor_should_refuse_to_attach_without_any_callbacks)
   TESTGROUP_END ()
   TESTGROUP_BEGIN ("Interceptor/Performance")
     TESTENTRY (interceptor_on_enter_performance)
@@ -5440,7 +5441,7 @@ TESTCASE (interceptor_should_support_native_pointer_values)
   EXPECT_NO_MESSAGES ();
 }
 
-TESTCASE (interceptor_handles_invalid_arguments)
+TESTCASE (interceptor_should_handle_bad_pointers)
 {
   if (!check_exception_handling_testable ())
     return;
@@ -5458,6 +5459,14 @@ TESTCASE (interceptor_handles_invalid_arguments)
       "    new NativeCallback(() => {}, 'void', []));");
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
       "Error: access violation accessing 0x42");
+}
+
+TESTCASE (interceptor_should_refuse_to_attach_without_any_callbacks)
+{
+  COMPILE_AND_LOAD_SCRIPT ("Interceptor.attach(" GUM_PTR_CONST ", {});",
+      target_function_int);
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "Error: expected at least one callback");
 }
 
 TESTCASE (interceptor_on_enter_performance)

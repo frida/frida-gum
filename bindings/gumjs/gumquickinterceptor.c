@@ -532,7 +532,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
 
       listener = GUM_QUICK_INVOCATION_LISTENER (l);
     }
-    else
+    else if (on_enter_c != NULL || on_leave_c != NULL)
     {
       GumQuickCCallListener * l;
 
@@ -541,6 +541,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
       l->on_leave = on_leave_c;
 
       listener = GUM_QUICK_INVOCATION_LISTENER (l);
+    }
+    else
+    {
+      goto expected_callback;
     }
   }
 
@@ -592,6 +596,11 @@ unable_to_attach:
         g_assert_not_reached ();
     }
 
+    goto propagate_exception;
+  }
+expected_callback:
+  {
+    _gum_quick_throw_literal (ctx, "expected at least one callback");
     goto propagate_exception;
   }
 propagate_exception:
