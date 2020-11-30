@@ -7,6 +7,11 @@
       <AdditionalIncludeDirectories>$(IntDir)gumjs;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(FridaV8)'=='Enabled'">
+    <ClCompile>
+      <PreprocessorDefinitions>HAVE_V8=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
 
   <ItemGroup>
     <ClInclude Include="gumscript.h" />
@@ -87,7 +92,7 @@
     <ClCompile Include="gumquickcoderelocator.c" />
   </ItemGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition="'$(FridaV8)'=='Enabled'">
     <ClInclude Include="gumv8scriptbackend.h" />
     <ClInclude Include="gumv8script.h" />
     <ClInclude Include="gumv8script-priv.h" />
@@ -119,7 +124,7 @@
     <ClInclude Include="gumv8codewriter.h" />
     <ClInclude Include="gumv8coderelocator.h" />
   </ItemGroup>
-  <ItemGroup>
+  <ItemGroup Condition="'$(FridaV8)'=='Enabled'">
     <ClCompile Include="gumv8scriptbackend.cpp" />
     <ClCompile Include="gumv8script.cpp" />
     <ClCompile Include="gumv8platform.cpp" />

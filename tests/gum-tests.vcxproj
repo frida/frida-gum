@@ -169,6 +169,11 @@ copy /B /Y "$(SolutionDir)build\frida-windows\$(Platform)-$(ConfigurationName)\b
       <Message>Copying dbghelp.dll and gumpp.dll into place</Message>
     </PostBuildEvent>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(FridaV8)'=='Enabled'">
+    <ClCompile>
+      <PreprocessorDefinitions>HAVE_V8=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="stalkerdummychannel.h" />
     <ClInclude Include="lowlevelhelpers.h" />
