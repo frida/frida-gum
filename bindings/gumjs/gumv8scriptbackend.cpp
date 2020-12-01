@@ -791,6 +791,8 @@ gum_v8_script_backend_process_queued_debug_messages (GumV8ScriptBackend * self)
   GUM_V8_SCRIPT_BACKEND_LOCK (self);
   gum_v8_script_backend_process_queued_debug_messages_unlocked (self);
   GUM_V8_SCRIPT_BACKEND_UNLOCK (self);
+
+  isolate->PerformMicrotaskCheckpoint ();
 }
 
 static void
