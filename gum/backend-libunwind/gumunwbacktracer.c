@@ -193,7 +193,7 @@ gum_cpu_context_to_unw (const GumCpuContext * ctx,
 
   uc->regs[UNW_ARM_R14] = ctx->lr;
 #elif defined (UNW_TARGET_AARCH64)
-  mcontext_t * mc = &uc->uc_mcontext;
+  struct unw_sigcontext * mc = &uc->uc_mcontext;
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-value"
