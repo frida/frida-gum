@@ -115,7 +115,7 @@ c_comment_pattern = re.compile(r"\/\*(\*(?!\/)|[^*])*\*\/")
 cpp_comment_pattern = re.compile(r"\s+?\/\/.+")
 
 
-def generate_runtime_cmodule(output_dir, output, arch, input_dir, gum_dir, capstone_dir, libtcc_dir):
+def generate_runtime_cmodule(output_dir, output, arch, input_dir, gum_dir, capstone_incdir, libtcc_dir):
     writer_arch = "x86" if arch.startswith("x86") or arch == "x64" else arch
     capstone_arch = writer_arch
 
@@ -154,7 +154,7 @@ def generate_runtime_cmodule(output_dir, output, arch, input_dir, gum_dir, capst
         (os.path.join(input_dir, "runtime", "cmodule"), None, is_header, identity_transform),
         (os.path.join(libtcc_dir, "tcc", "include"), None, is_header, identity_transform),
         (os.path.join(gum_dir, "arch-" + writer_arch), os.path.dirname(gum_dir), gum_header_matches_writer, optimize_gum_header),
-        (os.path.dirname(capstone_dir), None, capstone_header_matches_arch, optimize_capstone_header),
+        (capstone_incdir, None, capstone_header_matches_arch, optimize_capstone_header),
     ]
 
     with codecs.open(os.path.join(output_dir, output), 'wb', 'utf-8') as output_file:
@@ -317,7 +317,7 @@ if __name__ == '__main__':
     arch = sys.argv[1]
     input_dir = sys.argv[2]
     gum_dir = sys.argv[3]
-    capstone_dir = sys.argv[4]
+    capstone_incdir = sys.argv[4]
     libtcc_dir = sys.argv[5]
     quickcompile = sys.argv[6]
     output_dir = sys.argv[7]
@@ -357,4 +357,4 @@ if __name__ == '__main__':
     generate_runtime_v8("java", output_dir, "gumv8script-java.h", [java])
 
 
-    generate_runtime_cmodule(output_dir, "gumcmodule-runtime.h", arch, input_dir, gum_dir, capstone_dir, libtcc_dir)
+    generate_runtime_cmodule(output_dir, "gumcmodule-runtime.h", arch, input_dir, gum_dir, capstone_incdir, libtcc_dir)
