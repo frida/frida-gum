@@ -307,6 +307,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (cmodule_can_be_used_with_stalker_call_probe)
     TESTENTRY (cmodule_can_be_used_with_module_map)
     TESTENTRY (cmodule_should_provide_some_builtin_string_functions)
+    TESTENTRY (cmodule_should_support_memory_builtins)
     TESTENTRY (cmodule_should_support_floating_point)
     TESTENTRY (cmodule_should_support_varargs)
     TESTENTRY (cmodule_should_support_global_callbacks)
@@ -7353,6 +7354,28 @@ TESTCASE (cmodule_should_provide_some_builtin_string_functions)
   g_assert_cmphex (buf[1], ==, 'X');
 
   g_assert_cmpint (score_impl ("w00tage"), ==, 9);
+}
+
+TESTCASE (cmodule_should_support_memory_builtins)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "const m = new CModule(`"
+      "struct Pos1 { char x; char y; };\n"
+      "struct Pos4 { int x; int y; };\n"
+      "struct Pos8 { double x; double y; };\n"
+      "\n"
+      "void\n"
+      "f (void)\n"
+      "{\n"
+      "  struct Pos1 a = { 0, }, b;\n"
+      "  struct Pos4 c = { 0, }, d;\n"
+      "  struct Pos8 e = { 0, }, f;\n"
+      "  b = a;\n"
+      "  d = c;\n"
+      "  f = e;\n"
+      "}\n"
+      "`);");
+  EXPECT_NO_MESSAGES ();
 }
 
 TESTCASE (cmodule_should_support_floating_point)

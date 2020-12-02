@@ -14,6 +14,7 @@
 #include <gum/gum.h>
 #include <json-glib/json-glib.h>
 #include <libtcc.h>
+#include <string.h>
 
 typedef struct _GumEnumerateSymbolsContext GumEnumerateSymbolsContext;
 typedef struct _GumCModuleHeader GumCModuleHeader;
@@ -123,6 +124,12 @@ gum_cmodule_new (const gchar * source,
 
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8 && !defined (_MSC_VER)
   tcc_add_symbol (state, "__va_arg", __va_arg);
+#endif
+#if defined (HAVE_ARM)
+  tcc_add_symbol (state, "__aeabi_memmove", memmove);
+  tcc_add_symbol (state, "__aeabi_memmove4", memmove);
+  tcc_add_symbol (state, "__aeabi_memmove8", memmove);
+  tcc_add_symbol (state, "__aeabi_memset", memset);
 #endif
 
   return cmodule;
