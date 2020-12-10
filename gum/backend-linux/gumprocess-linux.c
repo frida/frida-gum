@@ -209,6 +209,8 @@ struct _GumTcbHead
 };
 
 static gchar * gum_try_init_libc_name (void);
+static gboolean gum_try_resolve_dynamic_symbol (const gchar * name,
+    Dl_info * info);
 static void gum_deinit_libc_name (void);
 
 static gint gum_do_modify_thread (gpointer data);
@@ -307,14 +309,11 @@ gum_process_query_libc_name (void)
 static gchar *
 gum_try_init_libc_name (void)
 {
-  Dl_info info = { NULL, };
+  Dl_info info;
 
-  dladdr (dlsym (RTLD_NEXT, "__libc_start_main"), &info);
-
-  if (info.dli_fname == NULL)
+  if (!gum_try_resolve_dynamic_symbol ("__libc_start_main", &info))
   {
-    dladdr (dlsym (RTLD_NEXT, "exit"), &info);
-    if (info.dli_fname == NULL)
+    if (!gum_try_resolve_dynamic_symbol ("exit", &info))
       return NULL;
   }
 
@@ -354,6 +353,21 @@ gum_try_init_libc_name (void)
   _gum_register_destructor (gum_deinit_libc_name);
 
   return gum_libc_name;
+}
+
+static gboolean
+gum_try_resolve_dynamic_symbol (const gchar * name,
+                                Dl_info * info)
+{
+  gpointer address;
+
+  address = dlsym (RTLD_NEXT, name);
+  if (address == NULL)
+    address = dlsym (RTLD_DEFAULT, name);
+  if (address == NULL)
+    return FALSE;
+
+  return dladdr (address, info) != 0;
 }
 
 static void
@@ -738,10 +752,10 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
 
   if (g_once_init_enter (&iterate_phdr_value))
   {
-    gsize impl;
+    GumAddress impl;
 
-    impl = GPOINTER_TO_SIZE (
-        gum_module_get_symbol (RTLD_NEXT, "dl_iterate_phdr"));
+    impl = gum_module_find_export_by_name (gum_process_query_libc_name (),
+        "dl_iterate_phdr");
 
     g_once_init_leave (&iterate_phdr_value, impl + 1);
   }
