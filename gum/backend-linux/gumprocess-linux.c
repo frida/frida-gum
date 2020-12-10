@@ -311,7 +311,9 @@ gum_try_init_libc_name (void)
 {
   Dl_info info;
 
+#ifndef HAVE_ANDROID
   if (!gum_try_resolve_dynamic_symbol ("__libc_start_main", &info))
+#endif
   {
     if (!gum_try_resolve_dynamic_symbol ("exit", &info))
       return NULL;
