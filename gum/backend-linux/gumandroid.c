@@ -792,8 +792,12 @@ gum_store_module_handle_if_name_matches (const GumSoinfoDetails * details,
 {
   GumLinkerApi * api = details->api;
 
-  if (gum_linux_module_path_matches (details->path, ctx->name))
+  if (
+    gum_linux_module_path_matches (details->path, ctx->name) &&
+    !gum_android_is_vdso_module_name (details->path)
+  )
   {
+
     GumSoinfoBody * sb = details->body;
     int flags = RTLD_LAZY;
     void * caller_addr = GSIZE_TO_POINTER (sb->base);
