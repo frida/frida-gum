@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -12,6 +12,7 @@
 
 G_BEGIN_DECLS
 
+typedef gint GumAndroidLinkerFlavor;
 typedef struct _GumAndroidUnrestrictedLinkerApi GumAndroidUnrestrictedLinkerApi;
 
 typedef void * (* GumGenericDlopenImpl) (const char * filename, int flags);
@@ -22,11 +23,19 @@ typedef void * (* GumAndroidDlopenImpl) (const char * filename, int flags,
 typedef void * (* GumAndroidDlsymImpl) (void * handle, const char * symbol,
     const char * version, const void * caller_addr);
 
+enum _GumAndroidLinkerFlavor
+{
+  GUM_ANDROID_LINKER_NATIVE,
+  GUM_ANDROID_LINKER_EMULATED
+};
+
 struct _GumAndroidUnrestrictedLinkerApi
 {
   GumAndroidDlopenImpl dlopen;
   GumAndroidDlsymImpl dlsym;
 };
+
+GUM_API GumAndroidLinkerFlavor gum_android_get_linker_flavor (void);
 
 GUM_API guint gum_android_get_api_level (void);
 

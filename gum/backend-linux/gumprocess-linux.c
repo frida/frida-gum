@@ -220,7 +220,6 @@ static void gum_put_ack (gint fd, GumModifyThreadAck ack);
 static void gum_store_cpu_context (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 
-#ifndef HAVE_ANDROID
 static void gum_process_enumerate_modules_by_using_libc (
     GumDlIteratePhdrImpl iterate_phdr, GumFoundModuleFunc func,
     gpointer user_data);
@@ -234,7 +233,6 @@ static gboolean gum_maybe_emit_interpreter (const GumModuleDetails * details,
     GumEmitExecutableModuleContext * ctx);
 static gboolean gum_emit_executable_module_by_name (
     const GumModuleDetails * details, gpointer user_data);
-#endif
 
 static void gum_linux_named_range_free (GumLinuxNamedRange * range);
 static gboolean gum_try_translate_vdso_name (gchar * name);
@@ -734,23 +732,20 @@ gum_store_cpu_context (GumThreadId thread_id,
   memcpy (user_data, cpu_context, sizeof (GumCpuContext));
 }
 
-#ifdef HAVE_ANDROID
-
-void
-gum_process_enumerate_modules (GumFoundModuleFunc func,
-                               gpointer user_data)
-{
-  gum_android_enumerate_modules (func, user_data);
-}
-
-#else
-
 void
 gum_process_enumerate_modules (GumFoundModuleFunc func,
                                gpointer user_data)
 {
   static gsize iterate_phdr_value = 0;
   GumDlIteratePhdrImpl iterate_phdr;
+
+#ifdef HAVE_ANDROID
+  if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE)
+  {
+    gum_android_enumerate_modules (func, user_data);
+    return;
+  }
+#endif
 
   if (g_once_init_enter (&iterate_phdr_value))
   {
@@ -1005,8 +1000,6 @@ gum_emit_executable_module_by_name (const GumModuleDetails * details,
 
   return FALSE;
 }
-
-#endif
 
 void
 gum_linux_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
@@ -1359,7 +1352,8 @@ gum_module_load (const gchar * module_name,
   if (gum_module_get_handle (module_name) != NULL)
     return TRUE;
 
-  gum_android_find_unrestricted_dlopen (&dlopen_impl);
+  if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE)
+    gum_android_find_unrestricted_dlopen (&dlopen_impl);
 #endif
 
   if (dlopen_impl (module_name, RTLD_LAZY) == NULL)
@@ -1378,10 +1372,11 @@ static void *
 gum_module_get_handle (const gchar * module_name)
 {
 #ifdef HAVE_ANDROID
-  return gum_android_get_module_handle (module_name);
-#else
-  return dlopen (module_name, RTLD_LAZY | RTLD_NOLOAD);
+  if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE)
+    return gum_android_get_module_handle (module_name);
 #endif
+
+  return dlopen (module_name, RTLD_LAZY | RTLD_NOLOAD);
 }
 
 static void *
@@ -1391,7 +1386,8 @@ gum_module_get_symbol (void * module,
   GumGenericDlsymImpl dlsym_impl = dlsym;
 
 #ifdef HAVE_ANDROID
-  gum_android_find_unrestricted_dlsym (&dlsym_impl);
+  if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE)
+    gum_android_find_unrestricted_dlsym (&dlsym_impl);
 #endif
 
   return dlsym_impl (module, symbol);
@@ -1400,10 +1396,12 @@ gum_module_get_symbol (void * module,
 gboolean
 gum_module_ensure_initialized (const gchar * module_name)
 {
-#ifdef HAVE_ANDROID
-  return gum_android_ensure_module_initialized (module_name);
-#else
   void * module;
+
+#ifdef HAVE_ANDROID
+  if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE)
+    return gum_android_ensure_module_initialized (module_name);
+#endif
 
   module = gum_module_get_handle (module_name);
   if (module == NULL)
@@ -1416,7 +1414,6 @@ gum_module_ensure_initialized (const gchar * module_name)
   dlclose (module);
 
   return TRUE;
-#endif
 }
 
 void
@@ -1700,7 +1697,8 @@ gum_module_find_export_by_name (const gchar * module_name,
   void * module;
 
 #ifdef HAVE_ANDROID
-  if (gum_android_try_resolve_magic_export (module_name, symbol_name, &result))
+  if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE &&
+      gum_android_try_resolve_magic_export (module_name, symbol_name, &result))
     return result;
 #endif
 

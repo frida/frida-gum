@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -524,6 +524,31 @@ static const GumFunctionSignature gum_dlsym_signatures_api26p[] =
 #endif
   { NULL, 0 }
 };
+
+GumAndroidLinkerFlavor
+gum_android_get_linker_flavor (void)
+{
+#if defined (HAVE_ARM) || defined (HAVE_ARM64)
+  static GumAndroidLinkerFlavor cached_flavor = -1;
+
+  if (cached_flavor == -1)
+  {
+    gchar * info = NULL;
+
+    g_file_get_contents ("/sys/devices/system/cpu/modalias", &info, NULL, NULL);
+
+    cached_flavor = (info != NULL && strstr (info, "x86") != NULL)
+        ? GUM_ANDROID_LINKER_EMULATED
+        : GUM_ANDROID_LINKER_NATIVE;
+
+    g_free (info);
+  }
+
+  return cached_flavor;
+#else
+  return GUM_ANDROID_LINKER_NATIVE;
+#endif
+}
 
 guint
 gum_android_get_api_level (void)
