@@ -798,6 +798,9 @@ gum_store_module_handle_if_name_matches (const GumSoinfoDetails * details,
     int flags = RTLD_LAZY;
     void * caller_addr = GSIZE_TO_POINTER (sb->base);
 
+    if (gum_android_is_vdso_module_name (details->path))
+      return FALSE;
+
     if ((sb->flags & GUM_SOINFO_NEW_FORMAT) != 0)
     {
       GumSoinfo * parent;
