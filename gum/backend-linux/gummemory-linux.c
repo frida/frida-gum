@@ -111,7 +111,9 @@ void
 gum_clear_cache (gpointer address,
                  gsize size)
 {
-#if defined (HAVE_ARM) || defined (HAVE_ARM64) || defined (HAVE_MIPS)
+#if defined (HAVE_ANDROID) && defined (HAVE_ARM)
+  cacheflush (GPOINTER_TO_SIZE (address), size, 0);
+#elif defined (HAVE_ARM) || defined (HAVE_ARM64) || defined (HAVE_MIPS)
   __builtin___clear_cache (address, address + size);
 #endif
 
