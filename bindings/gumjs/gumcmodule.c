@@ -8,23 +8,6 @@
 
 #include <gio/gio.h>
 
-#define GUM_TYPE_CMODULE (gum_cmodule_get_type ())
-G_DECLARE_DERIVABLE_TYPE (GumCModule, gum_cmodule, GUM, CMODULE, GObject)
-
-struct _GumCModuleClass
-{
-  GObjectClass parent_class;
-
-  const GumMemoryRange * (* get_range) (GumCModule * cm);
-  void (* add_symbol) (GumCModule * cm, const gchar * name,
-      gconstpointer value);
-  gboolean (* link) (GumCModule * cm, GError ** error);
-  void (* enumerate_symbols) (GumCModule * cm, GumFoundCSymbolFunc func,
-      gpointer user_data);
-  gpointer (* find_symbol_by_name) (GumCModule * cm, const gchar * name);
-  void (* drop_metadata) (GumCModule * cm);
-};
-
 #ifdef HAVE_TINYCC
 static GumCModule * gum_tcc_cmodule_new (const gchar * source, GError ** error);
 #endif
