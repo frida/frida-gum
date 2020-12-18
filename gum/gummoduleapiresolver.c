@@ -7,8 +7,10 @@
 
 #include "gummoduleapiresolver.h"
 
+#include "gummodulemap.h"
 #include "gumprocess.h"
 
+#include <string.h>
 #include <gio/gio.h>
 
 typedef struct _GumModuleMetadata GumModuleMetadata;
@@ -20,6 +22,7 @@ struct _GumModuleApiResolver
 
   GRegex * query_pattern;
 
+  GumModuleMap * all_modules;
   GHashTable * module_by_name;
 };
 
@@ -27,8 +30,8 @@ struct _GumModuleMetadata
 {
   gint ref_count;
 
-  gchar * name;
-  gchar * path;
+  const gchar * name;
+  const gchar * path;
 
   GHashTable * import_by_name;
   GHashTable * export_by_name;
@@ -47,10 +50,6 @@ static void gum_module_api_resolver_finalize (GObject * object);
 static void gum_module_api_resolver_enumerate_matches (
     GumApiResolver * resolver, const gchar * query, GumFoundApiFunc func,
     gpointer user_data, GError ** error);
-
-static GHashTable * gum_module_api_resolver_create_snapshot (void);
-static gboolean gum_module_api_resolver_collect_module (
-    const GumModuleDetails * details, gpointer user_data);
 
 static void gum_module_metadata_unref (GumModuleMetadata * module);
 static GHashTable * gum_module_metadata_get_imports (GumModuleMetadata * self);
@@ -91,10 +90,31 @@ gum_module_api_resolver_iface_init (gpointer g_iface,
 static void
 gum_module_api_resolver_init (GumModuleApiResolver * self)
 {
+  GArray * entries;
+  guint i;
+
   self->query_pattern =
       g_regex_new ("(imports|exports):(.+)!([^\\n\\r\\/]+)(\\/i)?", 0, 0, NULL);
 
-  self->module_by_name = gum_module_api_resolver_create_snapshot ();
+  self->all_modules = gum_module_map_new ();
+  self->module_by_name = g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
+      (GDestroyNotify) gum_module_metadata_unref);
+  entries = gum_module_map_get_values (self->all_modules);
+  for (i = 0; i != entries->len; i++)
+  {
+    GumModuleDetails * d = &g_array_index (entries, GumModuleDetails, i);
+    GumModuleMetadata * module;
+
+    module = g_slice_new (GumModuleMetadata);
+    module->ref_count = 2;
+    module->name = d->name;
+    module->path = d->path;
+    module->import_by_name = NULL;
+    module->export_by_name = NULL;
+
+    g_hash_table_insert (self->module_by_name, g_strdup (module->name), module);
+    g_hash_table_insert (self->module_by_name, g_strdup (module->path), module);
+  }
 }
 
 static void
@@ -103,6 +123,7 @@ gum_module_api_resolver_finalize (GObject * object)
   GumModuleApiResolver * self = GUM_MODULE_API_RESOLVER (object);
 
   g_hash_table_unref (self->module_by_name);
+  g_object_unref (self->all_modules);
 
   g_regex_unref (self->query_pattern);
 
@@ -204,6 +225,25 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
 
         details.address =
             gum_module_find_export_by_name (module->path, function_query);
+
+#ifndef HAVE_WINDOWS
+        if (details.address != 0)
+        {
+          const GumModuleDetails * module_containing_address;
+          gboolean match_is_in_a_different_module;
+
+          module_containing_address =
+              gum_module_map_find (self->all_modules, details.address);
+
+          match_is_in_a_different_module =
+              module_containing_address != NULL &&
+              strcmp (module_containing_address->path, module->path) != 0;
+
+          if (match_is_in_a_different_module)
+            details.address = 0;
+        }
+#endif
+
         if (details.address != 0)
         {
           details.name = g_strconcat (module->path, "!", function_query, NULL);
@@ -278,40 +318,6 @@ invalid_query:
   }
 }
 
-static GHashTable *
-gum_module_api_resolver_create_snapshot (void)
-{
-  GHashTable * module_by_name;
-
-  module_by_name = g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
-      (GDestroyNotify) gum_module_metadata_unref);
-
-  gum_process_enumerate_modules (gum_module_api_resolver_collect_module,
-      module_by_name);
-
-  return module_by_name;
-}
-
-static gboolean
-gum_module_api_resolver_collect_module (const GumModuleDetails * details,
-                                        gpointer user_data)
-{
-  GHashTable * module_by_name = user_data;
-  GumModuleMetadata * module;
-
-  module = g_slice_new (GumModuleMetadata);
-  module->ref_count = 2;
-  module->name = g_strdup (details->name);
-  module->path = g_strdup (details->path);
-  module->import_by_name = NULL;
-  module->export_by_name = NULL;
-
-  g_hash_table_insert (module_by_name, g_strdup (module->name), module);
-  g_hash_table_insert (module_by_name, g_strdup (module->path), module);
-
-  return TRUE;
-}
-
 static void
 gum_module_metadata_unref (GumModuleMetadata * module)
 {
@@ -323,9 +329,6 @@ gum_module_metadata_unref (GumModuleMetadata * module)
 
     if (module->import_by_name != NULL)
       g_hash_table_unref (module->import_by_name);
-
-    g_free (module->path);
-    g_free (module->name);
 
     g_slice_free (GumModuleMetadata, module);
   }
