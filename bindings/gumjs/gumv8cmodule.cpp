@@ -93,13 +93,15 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
 
   gchar * source;
   Local<Object> symbols;
-  if (!_gum_v8_args_parse (args, "s|O", &source, &symbols))
+  gchar * toolchain = NULL;
+  if (!_gum_v8_args_parse (args, "s|O?s?", &source, &symbols, &toolchain))
     return;
 
   GError * error = NULL;
-  auto handle = gum_cmodule_new (source, &error);
+  auto handle = gum_cmodule_new (toolchain, source, &error);
 
   g_free (source);
+  g_free (toolchain);
 
   if (error == NULL && !symbols.IsEmpty ())
   {
@@ -151,7 +153,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
 
     if (!valid)
     {
-      gum_cmodule_free (handle);
+      g_object_unref (handle);
       return;
     }
   }
@@ -161,7 +163,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
 
   if (_gum_v8_maybe_throw (isolate, &error))
   {
-    gum_cmodule_free (handle);
+    g_object_unref (handle);
     return;
   }
 
@@ -232,7 +234,7 @@ gum_cmodule_entry_free (GumCModuleEntry * self)
   self->module->core->isolate->AdjustAmountOfExternalAllocatedMemory (
       -((gssize) range->size));
 
-  gum_cmodule_free (self->handle);
+  g_object_unref (self->handle);
 
   delete self->symbols;
   delete self->wrapper;

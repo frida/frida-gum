@@ -11,8 +11,27 @@
 
 G_BEGIN_DECLS
 
-typedef struct _GumCModule GumCModule;
+#define GUM_TYPE_CMODULE (gum_cmodule_get_type ())
+G_DECLARE_DERIVABLE_TYPE (GumCModule, gum_cmodule, GUM, CMODULE, GObject)
+
 typedef struct _GumCSymbolDetails GumCSymbolDetails;
+
+typedef void (* GumFoundCSymbolFunc) (const GumCSymbolDetails * details,
+    gpointer user_data);
+
+struct _GumCModuleClass
+{
+  GObjectClass parent_class;
+
+  const GumMemoryRange * (* get_range) (GumCModule * cm);
+  void (* add_symbol) (GumCModule * cm, const gchar * name,
+      gconstpointer value);
+  gboolean (* link) (GumCModule * cm, GError ** error);
+  void (* enumerate_symbols) (GumCModule * cm, GumFoundCSymbolFunc func,
+      gpointer user_data);
+  gpointer (* find_symbol_by_name) (GumCModule * cm, const gchar * name);
+  void (* drop_metadata) (GumCModule * cm);
+};
 
 struct _GumCSymbolDetails
 {
@@ -20,11 +39,8 @@ struct _GumCSymbolDetails
   gpointer address;
 };
 
-typedef void (* GumFoundCSymbolFunc) (const GumCSymbolDetails * details,
-    gpointer user_data);
-
-GUM_API GumCModule * gum_cmodule_new (const gchar * source, GError ** error);
-GUM_API void gum_cmodule_free (GumCModule * cmodule);
+GUM_API GumCModule * gum_cmodule_new (const gchar * toolchain,
+    const gchar * source, GError ** error);
 
 GUM_API const GumMemoryRange * gum_cmodule_get_range (GumCModule * self);
 

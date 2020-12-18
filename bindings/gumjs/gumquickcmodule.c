@@ -44,8 +44,7 @@ _gum_quick_cmodule_init (GumQuickCModule * self,
 
   self->core = core;
 
-  self->cmodules = g_hash_table_new_full (NULL, NULL, NULL,
-      (GDestroyNotify) gum_cmodule_free);
+  self->cmodules = g_hash_table_new_full (NULL, NULL, NULL, g_object_unref);
 
   _gum_quick_core_store_module_data (core, "cmodule", self);
 
@@ -95,6 +94,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
   GumQuickCModule * parent;
   const gchar * source;
   JSValue symbols;
+  const gchar * toolchain;
   JSValue proto;
   JSValue wrapper = JS_NULL;
   GumCModule * cmodule = NULL;
@@ -109,7 +109,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
   parent = gumjs_get_parent_module (core);
 
   symbols = JS_NULL;
-  if (!_gum_quick_args_parse (args, "s|O", &source, &symbols))
+  toolchain = NULL;
+  if (!_gum_quick_args_parse (args, "s|O?s?", &source, &symbols, &toolchain))
     goto propagate_exception;
 
   proto = JS_GetProperty (ctx, new_target,
@@ -120,7 +121,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
     goto propagate_exception;
 
   error = NULL;
-  cmodule = gum_cmodule_new (source, &error);
+  cmodule = gum_cmodule_new (toolchain, source, &error);
   if (error != NULL)
     goto propagate_error;
 
@@ -200,7 +201,7 @@ beach:
       JS_FreeAtom (ctx, properties[i].atom);
     js_free (ctx, properties);
 
-    gum_cmodule_free (cmodule);
+    g_clear_object (&cmodule);
 
     JS_FreeValue (ctx, wrapper);
 

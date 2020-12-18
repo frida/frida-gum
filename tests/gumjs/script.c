@@ -295,6 +295,7 @@ TESTLIST_BEGIN (script)
   TESTGROUP_BEGIN ("CModule")
 #ifdef HAVE_TINYCC
     TESTENTRY (cmodule_can_be_defined)
+    TESTENTRY (cmodule_can_be_defined_with_toolchain)
     TESTENTRY (cmodule_symbols_can_be_provided)
     TESTENTRY (cmodule_should_report_parsing_errors)
     TESTENTRY (cmodule_should_report_linking_errors)
@@ -6736,6 +6737,26 @@ TESTCASE (cmodule_can_be_defined)
   add_impl = EXPECT_SEND_MESSAGE_WITH_POINTER ();
   g_assert_nonnull (add_impl);
   g_assert_cmpint (add_impl (3, 4), ==, 7);
+}
+
+TESTCASE (cmodule_can_be_defined_with_toolchain)
+{
+  int (* answer_impl) (void);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var m = new CModule('"
+      ""
+      "int\\n"
+      "answer (void)\\n"
+      "{\\n"
+      "  return 42;\\n"
+      "}"
+      "', null, null);"
+      "send(m.answer);");
+
+  answer_impl = EXPECT_SEND_MESSAGE_WITH_POINTER ();
+  g_assert_nonnull (answer_impl);
+  g_assert_cmpint (answer_impl (), ==, 42);
 }
 
 TESTCASE (cmodule_symbols_can_be_provided)
