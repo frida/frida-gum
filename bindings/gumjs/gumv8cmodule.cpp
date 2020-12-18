@@ -153,7 +153,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
 
     if (!valid)
     {
-      g_clear_object (&handle);
+      g_object_unref (handle);
       return;
     }
   }
@@ -163,7 +163,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
 
   if (_gum_v8_maybe_throw (isolate, &error))
   {
-    g_clear_object (&handle);
+    g_object_unref (handle);
     return;
   }
 
@@ -234,7 +234,7 @@ gum_cmodule_entry_free (GumCModuleEntry * self)
   self->module->core->isolate->AdjustAmountOfExternalAllocatedMemory (
       -((gssize) range->size));
 
-  g_clear_object (&self->handle);
+  g_object_unref (self->handle);
 
   delete self->symbols;
   delete self->wrapper;

@@ -6,24 +6,97 @@
 
 #include "gumcmodule.h"
 
-#include <glib-object.h>
 #include <gio/gio.h>
+
+#define GUM_TYPE_CMODULE (gum_cmodule_get_type ())
+G_DECLARE_DERIVABLE_TYPE (GumCModule, gum_cmodule, GUM, CMODULE, GObject)
 
 struct _GumCModuleClass
 {
   GObjectClass parent_class;
 
-  const GumMemoryRange * (* get_range) (GumCModule *);
-  void (* add_symbol) (GumCModule *, const gchar *, gconstpointer);
-  gboolean (* link) (GumCModule *, GError **);
-  void (* enumerate_symbols) (GumCModule *, GumFoundCSymbolFunc, gpointer);
-  gpointer (* find_symbol_by_name) (GumCModule *, const gchar *);
-  void (* drop_metadata) (GumCModule *);
+  const GumMemoryRange * (* get_range) (GumCModule * cm);
+  void (* add_symbol) (GumCModule * cm, const gchar * name,
+      gconstpointer value);
+  gboolean (* link) (GumCModule * cm, GError ** error);
+  void (* enumerate_symbols) (GumCModule * cm, GumFoundCSymbolFunc func,
+      gpointer user_data);
+  gpointer (* find_symbol_by_name) (GumCModule * cm, const gchar * name);
+  void (* drop_metadata) (GumCModule * cm);
 };
 
-#define GUM_TYPE_CMODULE (gum_cmodule_get_type ())
-G_DECLARE_DERIVABLE_TYPE (GumCModule, gum_cmodule, GUM, CMODULE, GObject)
+#ifdef HAVE_TINYCC
+static GumCModule * gum_tcc_cmodule_new (const gchar * source, GError ** error);
+#endif
+
 G_DEFINE_ABSTRACT_TYPE (GumCModule, gum_cmodule, G_TYPE_OBJECT)
+
+static void
+gum_cmodule_class_init (GumCModuleClass * klass)
+{
+}
+
+static void
+gum_cmodule_init (GumCModule * cmodule)
+{
+}
+
+GumCModule *
+gum_cmodule_new (const gchar * name,
+                 const gchar * source,
+                 GError ** error)
+{
+#ifdef HAVE_TINYCC
+  if (name == NULL || strcmp (name, "tcc") == 0)
+    return gum_tcc_cmodule_new (source, error);
+#endif
+
+  g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
+      "Not available for the current architecture");
+  return NULL;
+}
+
+const GumMemoryRange *
+gum_cmodule_get_range (GumCModule * self)
+{
+  return GUM_CMODULE_GET_CLASS (self)->get_range (self);
+}
+
+void
+gum_cmodule_add_symbol (GumCModule * self,
+                        const gchar * name,
+                        gconstpointer value)
+{
+  GUM_CMODULE_GET_CLASS (self)->add_symbol (self, name, value);
+}
+
+gboolean
+gum_cmodule_link (GumCModule * self,
+                  GError ** error)
+{
+  return GUM_CMODULE_GET_CLASS (self)->link (self, error);
+}
+
+void
+gum_cmodule_enumerate_symbols (GumCModule * self,
+                               GumFoundCSymbolFunc func,
+                               gpointer user_data)
+{
+  GUM_CMODULE_GET_CLASS (self)->enumerate_symbols (self, func, user_data);
+}
+
+gpointer
+gum_cmodule_find_symbol_by_name (GumCModule * self,
+                                 const gchar * name)
+{
+  return GUM_CMODULE_GET_CLASS (self)->find_symbol_by_name (self, name);
+}
+
+void
+gum_cmodule_drop_metadata (GumCModule * self)
+{
+  GUM_CMODULE_GET_CLASS (self)->drop_metadata (self);
+}
 
 #ifdef HAVE_TINYCC
 
@@ -32,6 +105,10 @@ G_DEFINE_ABSTRACT_TYPE (GumCModule, gum_cmodule, G_TYPE_OBJECT)
 #include <json-glib/json-glib.h>
 #include <libtcc.h>
 #include <string.h>
+
+#define GUM_TYPE_TCC_CMODULE (gum_tcc_cmodule_get_type ())
+G_DECLARE_FINAL_TYPE (GumTccCModule, gum_tcc_cmodule, GUM, TCC_CMODULE,
+    GumCModule)
 
 typedef struct _GumEnumerateSymbolsContext GumEnumerateSymbolsContext;
 typedef struct _GumCModuleHeader GumCModuleHeader;
@@ -69,8 +146,6 @@ struct _GumEnumerateSymbolsContext
   gpointer user_data;
 };
 
-static GumCModule * gum_tcc_cmodule_new (const gchar * source,
-    GError ** error);
 static void gum_tcc_cmodule_finalize (GObject * object);
 static const GumMemoryRange * gum_tcc_cmodule_get_range (GumCModule * cm);
 static void gum_tcc_cmodule_add_symbol (GumCModule * cm, const gchar * name,
@@ -95,9 +170,6 @@ static const gchar * gum_undecorate_name (const gchar * name);
 extern void * __va_arg (void * ap, int arg_type, int size, int align);
 #endif
 
-#define GUM_TYPE_TCC_CMODULE (gum_tcc_cmodule_get_type ())
-G_DECLARE_FINAL_TYPE (GumTccCModule, gum_tcc_cmodule, GUM, TCC_CMODULE,
-    GumCModule)
 G_DEFINE_TYPE (GumTccCModule, gum_tcc_cmodule, GUM_TYPE_CMODULE)
 
 static void
@@ -208,7 +280,7 @@ failure:
         "Compilation failed: %s", error_messages->str);
     g_string_free (error_messages, TRUE);
 
-    g_clear_object (&result);
+    g_object_unref (result);
 
     return NULL;
   }
@@ -449,70 +521,3 @@ gum_undecorate_name (const gchar * name)
 }
 
 #endif /* HAVE_TINYCC */
-
-static void
-gum_cmodule_class_init (GumCModuleClass * klass)
-{
-}
-
-static void
-gum_cmodule_init (GumCModule * cmodule)
-{
-}
-
-GumCModule *
-gum_cmodule_new (const gchar * name,
-                 const gchar * source,
-                 GError ** error)
-{
-#ifdef HAVE_TINYCC
-  if (name == NULL || strcmp (name, "tcc") == 0)
-    return gum_tcc_cmodule_new (source, error);
-#endif
-
-  g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
-      "Not available for the current architecture");
-  return NULL;
-}
-
-const GumMemoryRange *
-gum_cmodule_get_range (GumCModule * self)
-{
-  return GUM_CMODULE_GET_CLASS (self)->get_range (self);
-}
-
-void
-gum_cmodule_add_symbol (GumCModule * self,
-                        const gchar * name,
-                        gconstpointer value)
-{
-  GUM_CMODULE_GET_CLASS (self)->add_symbol (self, name, value);
-}
-
-gboolean
-gum_cmodule_link (GumCModule * self,
-                  GError ** error)
-{
-  return GUM_CMODULE_GET_CLASS (self)->link (self, error);
-}
-
-void
-gum_cmodule_enumerate_symbols (GumCModule * self,
-                               GumFoundCSymbolFunc func,
-                               gpointer user_data)
-{
-  GUM_CMODULE_GET_CLASS (self)->enumerate_symbols (self, func, user_data);
-}
-
-gpointer
-gum_cmodule_find_symbol_by_name (GumCModule * self,
-                                 const gchar * name)
-{
-  return GUM_CMODULE_GET_CLASS (self)->find_symbol_by_name (self, name);
-}
-
-void
-gum_cmodule_drop_metadata (GumCModule * self)
-{
-  GUM_CMODULE_GET_CLASS (self)->drop_metadata (self);
-}

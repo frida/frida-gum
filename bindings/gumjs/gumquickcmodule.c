@@ -44,8 +44,7 @@ _gum_quick_cmodule_init (GumQuickCModule * self,
 
   self->core = core;
 
-  self->cmodules = g_hash_table_new_full (NULL, NULL, NULL,
-      (GDestroyNotify) g_object_unref);
+  self->cmodules = g_hash_table_new_full (NULL, NULL, NULL, g_object_unref);
 
   _gum_quick_core_store_module_data (core, "cmodule", self);
 
