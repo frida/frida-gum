@@ -1505,6 +1505,7 @@ gum_soinfo_get_head (GumSoinfo * self)
   else
     return &self->legacy.legacy23.head;
 }
+
 #endif
 
 static GumSoinfoBody *
