@@ -481,7 +481,7 @@ gum_module_entry_from_address (gpointer address,
   const gchar * path;
   gchar * path_malloc_data;
 
-  if (!dladdr (address, &dl_info))
+  if (dladdr (address, &dl_info) == 0)
   {
     nearest->name = NULL;
     nearest->address = NULL;
