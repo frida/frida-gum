@@ -42,6 +42,8 @@ typedef struct _GumLinkerApi GumLinkerApi;
 typedef struct _GumSoinfo GumSoinfo;
 typedef struct _GumSoinfoHead GumSoinfoHead;
 typedef struct _GumSoinfoBody GumSoinfoBody;
+typedef struct _GumSoinfoModern GumSoinfoModern;
+typedef struct _GumSoinfoLegacy23 GumSoinfoLegacy23;
 typedef struct _GumSoinfoLegacy GumSoinfoLegacy;
 typedef guint32 GumSoinfoFlags;
 typedef struct _GumSoinfoList GumSoinfoList;
@@ -265,22 +267,38 @@ struct _GumSoinfoBody
   /* For now we don't need anything from version >= 3. */
 };
 
-struct _GumSoinfoLegacy
+struct _GumSoinfoModern
 {
+  GumSoinfoHead head;
+  GumSoinfoBody body;
+};
+
+struct _GumSoinfoLegacy23
+{
+  GumSoinfoHead head;
+
 #ifndef GUM_ANDROID_LEGACY_SOINFO
   ElfW(Addr) entry;
 #endif
   GumSoinfoBody body;
 };
 
+struct _GumSoinfoLegacy
+{
+#ifndef GUM_ANDROID_LEGACY_SOINFO
+  gchar name[128];
+#endif
+
+  GumSoinfoLegacy23 legacy23;
+};
+
 struct _GumSoinfo
 {
-  GumSoinfoHead head;
-
   union
   {
+    GumSoinfoModern modern;
+    GumSoinfoLegacy23 legacy23;
     GumSoinfoLegacy legacy;
-    GumSoinfoBody body_26p;
   };
 };
 
@@ -366,6 +384,7 @@ static gboolean gum_store_first_scan_match (GumAddress address, gsize size,
     gpointer user_data);
 static GumSoinfo * gum_solist_get_head_fallback (void);
 static GumSoinfo * gum_solist_get_somain_fallback (void);
+static GumSoinfoHead * gum_soinfo_get_head (GumSoinfo * self);
 static GumSoinfoBody * gum_soinfo_get_body (GumSoinfo * self);
 static gboolean gum_soinfo_is_linker (GumSoinfo * self);
 static const char * gum_soinfo_get_path_fallback (GumSoinfo * self);
@@ -1471,12 +1490,28 @@ gum_solist_get_somain_fallback (void)
       : gum_dl_api.somain_node;
 }
 
-GumSoinfoBody *
+static GumSoinfoHead *
+gum_soinfo_get_head (GumSoinfo * self)
+{
+  guint api_level = gum_android_get_api_level ();
+  if (api_level >= 26)
+    return &self->modern.head;
+  else if (api_level >= 23)
+    return &self->legacy23.head;
+  else
+    return &self->legacy.legacy23.head;
+}
+
+static GumSoinfoBody *
 gum_soinfo_get_body (GumSoinfo * self)
 {
-  return (gum_android_get_api_level () >= 26)
-      ? &self->body_26p
-      : &self->legacy.body;
+  guint api_level = gum_android_get_api_level ();
+  if (api_level >= 26)
+    return &self->modern.body;
+  else if (api_level >= 23)
+    return &self->legacy23.body;
+  else
+    return &self->legacy.legacy23.body;
 }
 
 static gboolean
@@ -1494,7 +1529,7 @@ gum_soinfo_get_path_fallback (GumSoinfo * self)
   if ((sb->flags & GUM_SOINFO_NEW_FORMAT) != 0 && sb->version >= 2)
     return gum_libcxx_string_get_data (&sb->realpath);
   else
-    return self->head.old_name;
+    return gum_soinfo_get_head (self)->old_name;
 #else
   return gum_libcxx_string_get_data (&sb->realpath);
 #endif
