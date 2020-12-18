@@ -1493,6 +1493,7 @@ gum_solist_get_somain_fallback (void)
 }
 
 #ifdef GUM_ANDROID_LEGACY_SOINFO
+
 static GumSoinfoHead *
 gum_soinfo_get_head (GumSoinfo * self)
 {
