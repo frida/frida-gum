@@ -384,7 +384,9 @@ static gboolean gum_store_first_scan_match (GumAddress address, gsize size,
     gpointer user_data);
 static GumSoinfo * gum_solist_get_head_fallback (void);
 static GumSoinfo * gum_solist_get_somain_fallback (void);
+#ifdef GUM_ANDROID_LEGACY_SOINFO
 static GumSoinfoHead * gum_soinfo_get_head (GumSoinfo * self);
+#endif
 static GumSoinfoBody * gum_soinfo_get_body (GumSoinfo * self);
 static gboolean gum_soinfo_is_linker (GumSoinfo * self);
 static const char * gum_soinfo_get_path_fallback (GumSoinfo * self);
@@ -1490,6 +1492,8 @@ gum_solist_get_somain_fallback (void)
       : gum_dl_api.somain_node;
 }
 
+#ifdef GUM_ANDROID_LEGACY_SOINFO
+
 static GumSoinfoHead *
 gum_soinfo_get_head (GumSoinfo * self)
 {
@@ -1501,6 +1505,8 @@ gum_soinfo_get_head (GumSoinfo * self)
   else
     return &self->legacy.legacy23.head;
 }
+
+#endif
 
 static GumSoinfoBody *
 gum_soinfo_get_body (GumSoinfo * self)
