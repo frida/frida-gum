@@ -163,7 +163,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
 
   if (_gum_v8_maybe_throw (isolate, &error))
   {
-    g_object_unref (handle);
+    g_clear_object (&handle);
     return;
   }
 
