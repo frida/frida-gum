@@ -147,11 +147,8 @@ static const char * gum_cmodule_load_header (void * opaque, const char * path,
 static void * gum_cmodule_resolve_symbol (void * opaque, const char * name);
 static void gum_define_symbol_str (TCCState * state, const gchar * name,
     const gchar * value);
+static void gum_add_abi_symbols (TCCState * state);
 static const gchar * gum_undecorate_name (const gchar * name);
-
-#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8 && !defined (_MSC_VER)
-extern void * __va_arg (void * ap, int arg_type, int size, int align);
-#endif
 
 G_DEFINE_TYPE (GumTccCModule, gum_tcc_cmodule, GUM_TYPE_CMODULE)
 
@@ -245,15 +242,7 @@ gum_tcc_cmodule_new (const gchar * source,
   if (error_messages != NULL)
     goto failure;
 
-#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8 && !defined (_MSC_VER)
-  tcc_add_symbol (state, "__va_arg", __va_arg);
-#endif
-#if defined (HAVE_ARM)
-  tcc_add_symbol (state, "__aeabi_memmove", memmove);
-  tcc_add_symbol (state, "__aeabi_memmove4", memmove);
-  tcc_add_symbol (state, "__aeabi_memmove8", memmove);
-  tcc_add_symbol (state, "__aeabi_memset", memset);
-#endif
+  gum_add_abi_symbols (state);
 
   return result;
 
@@ -492,6 +481,46 @@ gum_define_symbol_str (TCCState * state,
 
   g_free (raw_value);
 }
+
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8 && !defined (_MSC_VER)
+
+extern void * __va_arg (void * ap, int arg_type, int size, int align);
+
+static void
+gum_add_abi_symbols (TCCState * state)
+{
+  tcc_add_symbol (state, "__va_arg", __va_arg);
+}
+
+#elif defined (HAVE_ARM)
+
+static void gum_aeabi_memset (void * dest, size_t n, int c);
+
+static void
+gum_add_abi_symbols (TCCState * state)
+{
+  tcc_add_symbol (state, "__aeabi_memmove", memmove);
+  tcc_add_symbol (state, "__aeabi_memmove4", memmove);
+  tcc_add_symbol (state, "__aeabi_memmove8", memmove);
+  tcc_add_symbol (state, "__aeabi_memset", gum_aeabi_memset);
+}
+
+static void
+gum_aeabi_memset (void * dest,
+                  size_t n,
+                  int c)
+{
+  memset (dest, c, n);
+}
+
+#else
+
+static void
+gum_add_abi_symbols (TCCState * state)
+{
+}
+
+#endif
 
 static const gchar *
 gum_undecorate_name (const gchar * name)

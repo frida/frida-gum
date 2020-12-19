@@ -7379,13 +7379,15 @@ TESTCASE (cmodule_should_provide_some_builtin_string_functions)
 
 TESTCASE (cmodule_should_support_memory_builtins)
 {
+  int (* f) (void);
+
   COMPILE_AND_LOAD_SCRIPT (
       "const m = new CModule(`"
       "struct Pos1 { char x; char y; };\n"
       "struct Pos4 { int x; int y; };\n"
       "struct Pos8 { double x; double y; };\n"
       "\n"
-      "void\n"
+      "int\n"
       "f (void)\n"
       "{\n"
       "  struct Pos1 a = { 0, }, b;\n"
@@ -7394,9 +7396,14 @@ TESTCASE (cmodule_should_support_memory_builtins)
       "  b = a;\n"
       "  d = c;\n"
       "  f = e;\n"
+      "  return a.x + a.y;\n"
       "}\n"
-      "`);");
-  EXPECT_NO_MESSAGES ();
+      "`);"
+      "send(m.f);");
+
+  f = EXPECT_SEND_MESSAGE_WITH_POINTER ();
+  g_assert_nonnull (f);
+  g_assert_cmpint (f (), ==, 0);
 }
 
 TESTCASE (cmodule_should_support_floating_point)
