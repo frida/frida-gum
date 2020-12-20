@@ -52,6 +52,13 @@ struct _GumChainedStartsInSegment
   uint16_t page_start[1];
 };
 
+enum _GumChainedPtrStart
+{
+  GUM_CHAINED_PTR_START_NONE  = 0xffff,
+  GUM_CHAINED_PTR_START_MULTI = 0x8000,
+  GUM_CHAINED_PTR_START_LAST  = 0x8000,
+};
+
 struct _GumChainedPtrArm64eRebase
 {
   uint64_t target : 43,
@@ -273,9 +280,17 @@ gum_process_chained_fixups (const GumChainedFixupsHeader * fixups_header,
 
     for (page_index = 0; page_index != seg_starts->page_count; page_index++)
     {
-      void * cursor = (void *) mach_header + seg_starts->segment_offset +
+      uint16_t start;
+      void * cursor;
+
+      start = seg_starts->page_start[page_index];
+      if (start == GUM_CHAINED_PTR_START_NONE)
+        continue;
+      /* Ignoring MULTI for now as it only applies to 32-bit formats. */
+
+      cursor = (void *) mach_header + seg_starts->segment_offset +
           (page_index * seg_starts->page_size) +
-          seg_starts->page_start[page_index];
+          start;
 
       while (TRUE)
       {
