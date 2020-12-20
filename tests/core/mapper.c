@@ -5,7 +5,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <mach/mach.h>
+#include <sys/socket.h>
 
 typedef struct _DarwinInjectorState DarwinInjectorState;
 
@@ -120,7 +122,20 @@ main (gint argc,
   mapped_range.size = mapped_size;
 
   if (entrypoint != NULL)
-    entrypoint ("", &unload_policy, &injector_state);
+  {
+    int fds[2];
+    gchar * agent_parameters;
+
+    socketpair (AF_UNIX, SOCK_STREAM, 0, fds);
+
+    close (fds[0]);
+    agent_parameters = g_strdup_printf ("socket:%d", fds[1]);
+
+    entrypoint (agent_parameters, &unload_policy, &injector_state);
+
+    g_free (agent_parameters);
+    close (fds[1]);
+  }
 
   g_print ("Running. Hit ENTER to stop.\n");
 
