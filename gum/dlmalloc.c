@@ -1844,7 +1844,7 @@ static FORCEINLINE void* dlmremap(void* old_address, size_t old_size, size_t new
     #define CALL_MREMAP(addr, osz, nsz, mv)     MFAIL
 #endif /* HAVE_MMAP && HAVE_MREMAP */
 
-/* mstate bit set if continguous morecore disabled or failed */
+/* mstate bit set if contiguous morecore disabled or failed */
 #define USE_NONCONTIGUOUS_BIT (4U)
 
 /* segment bit set in create_mspace_with_base */
