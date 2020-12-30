@@ -149,6 +149,8 @@ struct _GumQuickCore
   GUM_DECLARE_ATOM (traps);
   GUM_DECLARE_ATOM (type);
   GUM_DECLARE_ATOM (value);
+  GUM_DECLARE_ATOM (near);
+  GUM_DECLARE_ATOM (maxDistance);
 
 #if defined (HAVE_I386)
   GUM_DECLARE_ATOM (disp);

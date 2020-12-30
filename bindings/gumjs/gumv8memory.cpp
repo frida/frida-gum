@@ -234,8 +234,12 @@ _gum_v8_memory_finalize (GumV8Memory * self)
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
 {
-  gsize size;
-  if (!_gum_v8_args_parse (args, "Z", &size))
+  gsize size, page_size;
+  Local<Object> options;
+  gpointer near_address = NULL;
+  uint32_t max_distance;
+
+  if (!_gum_v8_args_parse (args, "Z|O", &size, &options))
     return;
 
   if (size == 0 || size > 0x7fffffff)
@@ -244,18 +248,63 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
     return;
   }
 
+  page_size = gum_query_page_size ();
+
+  if (!options.IsEmpty () && !options->IsNull ())
+  {
+    auto context = isolate->GetCurrentContext ();
+    Local<Value> v;
+
+    if (!options->Get (context, Local<String>::New (isolate, *core->near_key))
+        .ToLocal (&v))
+      return;
+    if (!v->IsUndefined ())
+    {
+      if (!_gum_v8_native_pointer_parse(v, &near_address, core))
+        return;
+
+      if (!options->Get (context, Local<String>::New (isolate,
+          *core->max_distance_key)).ToLocal (&v))
+        return;
+      if (!v->IsNumber ())
+        return _gum_v8_throw_ascii_literal (isolate,
+            "options object has an invalid or missing max distance property");
+
+      max_distance = v.As<Number> ()->Uint32Value (context).ToChecked ();
+    }
+  }
+
   GumV8NativeResource * res;
 
-  gsize page_size = gum_query_page_size ();
-  if ((size % page_size) != 0)
+  if (near_address != NULL)
   {
-    res = _gum_v8_native_resource_new (g_malloc0 (size), size, g_free, core);
+    gpointer result;
+    GumAddressSpec spec;
+
+    spec.near_address = near_address;
+    spec.max_distance = max_distance;
+
+    result = gum_try_alloc_n_pages_near (size / page_size, GUM_PAGE_RW,
+        &spec);
+
+    if (result == NULL)
+      return _gum_v8_throw_ascii_literal (isolate,
+          "unable to allocate free page(s) near address");
+
+    res = _gum_v8_native_resource_new (result, size, gum_free_pages, core);
   }
   else
   {
-    res = _gum_v8_native_resource_new (
-        gum_alloc_n_pages (size / page_size, GUM_PAGE_RW), size,
-        gum_free_pages, core);
+    if ((size % page_size) != 0)
+    {
+      res = _gum_v8_native_resource_new (g_malloc0 (size), size, g_free, core);
+    }
+    else
+    {
+      res = _gum_v8_native_resource_new (
+          gum_alloc_n_pages (size / page_size, GUM_PAGE_RW), size,
+          gum_free_pages, core);
+    }
   }
 
   info.GetReturnValue ().Set (Local<Object>::New (isolate, *res->instance));

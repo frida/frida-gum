@@ -105,6 +105,8 @@ struct GumV8Core
   GumPersistent<v8::Object>::type * native_return_value;
   GumPersistent<v8::String>::type * value_key;
   GumPersistent<v8::String>::type * system_error_key;
+  GumPersistent<v8::String>::type * near_key;
+  GumPersistent<v8::String>::type * max_distance_key;
 
   GumPersistent<v8::FunctionTemplate>::type * cpu_context;
   GumPersistent<v8::Object>::type * cpu_context_value;

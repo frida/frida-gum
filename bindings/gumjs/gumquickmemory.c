@@ -277,8 +277,12 @@ gumjs_get_parent_module (GumQuickCore * core)
 GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
 {
   gsize size, page_size;
+  JSValueConst options = JS_UNDEFINED;
+  JSValue val;
+  gpointer near_address = NULL;
+  uint32_t max_distance;
 
-  if (!_gum_quick_args_parse (args, "Z", &size))
+  if (!_gum_quick_args_parse (args, "Z|O", &size, &options))
     return JS_EXCEPTION;
 
   if (size == 0 || size > 0x7fffffff)
@@ -286,15 +290,67 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
 
   page_size = gum_query_page_size ();
 
-  if ((size % page_size) != 0)
+  if (JS_IsObject (options))
   {
-    return _gum_quick_native_resource_new (ctx, g_malloc0 (size), g_free, core);
+    val = JS_GetProperty (ctx, options, GUM_QUICK_CORE_ATOM (core, near));
+    if (JS_IsException (val))
+      goto propagate_exception;
+    if (!JS_IsUndefined (val))
+    {
+      if (!_gum_quick_native_pointer_parse(ctx, val, core, &near_address))
+        goto propagate_exception;
+
+      val = JS_GetProperty (ctx, options, GUM_QUICK_CORE_ATOM (core, maxDistance));
+      if (JS_IsException (val))
+        goto propagate_exception;
+      if (JS_IsUndefined (val)) {
+        _gum_quick_throw_literal (ctx,
+            "options object has missing max_distance property");
+        goto propagate_exception;
+      }
+      if (JS_ToUint32 (ctx, &max_distance, val) != 0)
+        goto propagate_exception;
+    }
+
+    JS_FreeValue (ctx, val);
+  }
+
+  if (near_address != NULL)
+  {
+    GumAddressSpec spec;
+    gpointer result;
+
+    spec.near_address = near_address;
+    spec.max_distance = (gsize) max_distance;
+
+    result = gum_try_alloc_n_pages_near (size / gum_query_page_size (), GUM_PAGE_RW,
+        &spec);
+
+    if (result == NULL)
+      return _gum_quick_throw_literal (ctx,
+          "unable to allocate free page(s) near address");
+
+    return _gum_quick_native_resource_new (ctx, result, gum_free_pages, core);
   }
   else
   {
-    return _gum_quick_native_resource_new (ctx,
-        gum_alloc_n_pages (size / page_size, GUM_PAGE_RW), gum_free_pages,
-        core);
+    if ((size % page_size) != 0)
+    {
+      return _gum_quick_native_resource_new (ctx, g_malloc0 (size), g_free, core);
+    }
+    else
+    {
+      return _gum_quick_native_resource_new (ctx,
+          gum_alloc_n_pages (size / page_size, GUM_PAGE_RW), gum_free_pages,
+          core);
+    }
+  }
+
+propagate_exception:
+  {
+    JS_FreeValue (ctx, val);
+
+    return JS_EXCEPTION;
   }
 }
 
