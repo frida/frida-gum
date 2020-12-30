@@ -284,12 +284,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
     spec.near_address = near_address;
     spec.max_distance = max_distance;
 
-    if ((size % page_size) == 0)
-      result = gum_try_alloc_n_pages_near (size / page_size, GUM_PAGE_RW, &spec);
-    else
+    if ((size % page_size) != 0)
       return _gum_v8_throw_ascii_literal (isolate,
-          "size must be a multiple of page size")
+          "size must be a multiple of page size");
 
+    result = gum_try_alloc_n_pages_near (size / page_size, GUM_PAGE_RW, &spec);
     if (result == NULL)
       return _gum_v8_throw_ascii_literal (isolate,
           "unable to allocate free page(s) near address");
