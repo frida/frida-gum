@@ -13,8 +13,8 @@ TESTLIST_BEGIN (relocator)
 #if GLIB_SIZEOF_VOID_P == 4
   TESTENTRY (call_near_gnu_get_pc_thunk)
   TESTENTRY (call_near_android_get_pc_thunk)
-#endif
   TESTENTRY (call_near_indirect)
+#endif
   TESTENTRY (jmp_short_outside_block)
   TESTENTRY (jmp_near_outside_block)
   TESTENTRY (jmp_register)
@@ -38,6 +38,7 @@ TESTLIST_BEGIN (relocator)
   TESTENTRY (rip_relative_push)
   TESTENTRY (rip_relative_push_red_zone)
   TESTENTRY (rip_relative_cmpxchg)
+  TESTENTRY (rip_relative_call)
 #endif
 TESTLIST_END ()
 
@@ -716,6 +717,42 @@ TESTCASE (rip_relative_cmpxchg)
   SETUP_RELOCATOR_WITH (input);
 
   gum_x86_relocator_read_one (&fixture->rl, NULL);
+  gum_x86_relocator_write_one (&fixture->rl);
+  assert_output_equals (expected_output);
+}
+
+TESTCASE (rip_relative_call)
+{
+  const guint8 input[] = {
+    0xff, 0x15,                   /* call [rip + 0x1234] */
+          0x34, 0x12, 0x00, 0x00
+  };
+  guint8 expected_output[] = {
+    0x50,                         /* push rax */
+    0x48, 0xb8,                   /* movabs rax, <return_address> */
+          0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00,
+    0x48, 0x87, 0x04, 0x24,       /* xchg qword [rsp], rax */
+
+    0x50,                         /* push rax */
+    0x48, 0xb8,                   /* movabs rax, <target_address> */
+          0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00,
+    0x48, 0x8b, 0x40, 0x00,       /* mov rax, qword [rax] */
+    0x48, 0x87, 0x04, 0x24,       /* xchg qword [rsp], rax */
+    0xc3,                         /* ret */
+    /* return_address: */
+  };
+
+  *((gpointer *) (expected_output + 3)) =
+      fixture->output + sizeof (expected_output);
+  *((gpointer *) (expected_output + 18)) =
+      (gpointer) (input + 6 + 0x1234);
+
+  gum_x86_writer_set_target_abi (&fixture->cw, GUM_ABI_UNIX);
+  SETUP_RELOCATOR_WITH (input);
+
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 6);
   gum_x86_relocator_write_one (&fixture->rl);
   assert_output_equals (expected_output);
 }

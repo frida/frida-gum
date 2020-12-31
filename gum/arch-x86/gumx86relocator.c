@@ -463,9 +463,16 @@ gum_x86_relocator_rewrite_unconditional_branch (GumX86Relocator * self,
 
     return TRUE;
   }
-  else if (((ctx->insn->id == X86_INS_CALL || ctx->insn->id == X86_INS_JMP)
-          && op->type == X86_OP_MEM) ||
-      (ctx->insn->id == X86_INS_JMP && op->type == X86_OP_IMM && op->size == 8))
+  else if ((ctx->insn->id == X86_INS_CALL || ctx->insn->id == X86_INS_JMP) &&
+      op->type == X86_OP_MEM)
+  {
+    if (self->output->target_cpu == GUM_CPU_AMD64)
+      return gum_x86_relocator_rewrite_if_rip_relative (self, ctx);
+
+    return FALSE;
+  }
+  else if (ctx->insn->id == X86_INS_JMP && op->type == X86_OP_IMM &&
+      op->size == 8)
   {
     return FALSE;
   }
@@ -557,6 +564,34 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
   is_rip_relative = (mod == 0 && rm == 5);
   if (!is_rip_relative)
     return FALSE;
+
+  if (insn->id == X86_INS_CALL || insn->id == X86_INS_JMP)
+  {
+    gint32 distance = *((gint32 *) (ctx->end - sizeof (gint32)));
+    guint64 * return_address_placeholder = NULL;
+
+    if (insn->id == X86_INS_CALL)
+    {
+      gum_x86_writer_put_push_reg (cw, GUM_REG_RAX);
+      gum_x86_writer_put_mov_reg_address (cw, GUM_REG_RAX, 0);
+      return_address_placeholder = (guint64 *) (cw->code - sizeof (guint64));
+      gum_x86_writer_put_xchg_reg_reg_ptr (cw, GUM_REG_RAX, GUM_REG_RSP);
+    }
+
+    gum_x86_writer_put_push_reg (cw, GUM_REG_RAX);
+    gum_x86_writer_put_mov_reg_address (cw, GUM_REG_RAX,
+        GUM_ADDRESS (ctx->end + distance));
+    gum_x86_writer_put_mov_reg_reg_ptr (cw, GUM_REG_RAX, GUM_REG_RAX);
+    gum_x86_writer_put_xchg_reg_reg_ptr (cw, GUM_REG_RAX, GUM_REG_RSP);
+    gum_x86_writer_put_ret (cw);
+
+    if (insn->id == X86_INS_CALL)
+    {
+      *return_address_placeholder = cw->pc;
+    }
+
+    return TRUE;
+  }
 
   other_reg = (GumCpuReg) (GUM_REG_RAX + reg);
 

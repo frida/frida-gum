@@ -20,6 +20,9 @@ TESTLIST_BEGIN (interceptor)
   TESTENTRY (absolute_indirect_proxy_function)
   TESTENTRY (two_indirects_to_function)
   TESTENTRY (relocation_of_early_call)
+#if GLIB_SIZEOF_VOID_P == 8
+  TESTENTRY (relocation_of_early_rip_relative_call)
+#endif
 #endif
 
   TESTENTRY (attach_one)
@@ -549,6 +552,25 @@ TESTCASE (relocation_of_early_call)
 
   proxy_func_free (proxy_func);
 }
+
+#if GLIB_SIZEOF_VOID_P == 8
+
+TESTCASE (relocation_of_early_rip_relative_call)
+{
+  ProxyFunc proxy_func;
+
+  proxy_func =
+      proxy_func_new_early_rip_relative_call_with_target (target_function);
+
+  interceptor_fixture_attach (fixture, 0, proxy_func, '>', '<');
+  proxy_func (fixture->result);
+  g_assert_cmpstr (fixture->result->str, ==, ">|<");
+  interceptor_fixture_detach (fixture, 0);
+
+  proxy_func_free (proxy_func);
+}
+
+#endif /* GLIB_SIZEOF_VOID_P */
 
 #endif /* HAVE_I386 */
 
