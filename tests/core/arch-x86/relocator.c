@@ -13,8 +13,8 @@ TESTLIST_BEGIN (relocator)
 #if GLIB_SIZEOF_VOID_P == 4
   TESTENTRY (call_near_gnu_get_pc_thunk)
   TESTENTRY (call_near_android_get_pc_thunk)
-#endif
   TESTENTRY (call_near_indirect)
+#endif
   TESTENTRY (jmp_short_outside_block)
   TESTENTRY (jmp_near_outside_block)
   TESTENTRY (jmp_register)
@@ -38,6 +38,7 @@ TESTLIST_BEGIN (relocator)
   TESTENTRY (rip_relative_push)
   TESTENTRY (rip_relative_push_red_zone)
   TESTENTRY (rip_relative_cmpxchg)
+  TESTENTRY (rip_relative_call)
 #endif
 TESTLIST_END ()
 
@@ -720,4 +721,27 @@ TESTCASE (rip_relative_cmpxchg)
   assert_output_equals (expected_output);
 }
 
+TESTCASE (rip_relative_call)
+{
+  guint8 input[] = {
+    0xff, 0x15, 0x78, 0x56, 0x34, 0x12 /* call [rip + 012345678h] */
+  };
+  guint8 expected_output [] = {
+    0x48, 0x8d, 0xa4, 0x24, 0x80, 0xff, 0xff, 0xff,               /* lea rsp, [rsp - 80h] */
+    0x53,                                                         /* push rbx */
+    0x48, 0xbb, 0x12, 0x20, 0x0a, 0x7f, 0xfe, 0x7f, 0x00, 0x00,   /* mov rbx, <rip> */
+    0xff, 0x93, 0x78, 0x56, 0x34, 0x12,                           /* call [rbx + 012345678h] */
+    0x5b,                                                         /* pop rbx */
+    0x48, 0x8d, 0xa4, 0x24, 0x80, 0x00, 0x00, 0x00                /* lea rsp, [rsp + 80h] */
+  };
+
+  *((gpointer *) (expected_output + 11)) = (gpointer) (input + 6);
+
+  gum_x86_writer_set_target_abi(&fixture->cw, GUM_ABI_UNIX);
+  SETUP_RELOCATOR_WITH (input);
+
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 6);
+  gum_x86_relocator_write_one (&fixture->rl);
+  assert_output_equals (expected_output);
+}
 #endif
