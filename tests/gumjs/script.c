@@ -268,6 +268,9 @@ TESTLIST_BEGIN (script)
     TESTENTRY (
         variadic_native_function_args_smaller_than_int_should_be_promoted)
     TESTENTRY (variadic_native_function_float_args_should_be_promoted_to_double)
+#if defined (HAVE_WINDOWS) && GLIB_SIZEOF_VOID_P == 4
+    TESTENTRY (native_function_should_support_stdcall)
+#endif
     TESTENTRY (native_function_is_a_native_pointer)
   TESTGROUP_END ()
 
@@ -282,6 +285,9 @@ TESTLIST_BEGIN (script)
     TESTENTRY (native_callback_is_a_native_pointer)
     TESTENTRY (native_callback_memory_should_be_eagerly_reclaimed)
     TESTENTRY (native_callback_should_be_kept_alive_during_calls)
+#if defined (HAVE_WINDOWS) && GLIB_SIZEOF_VOID_P == 4
+    TESTENTRY (native_callback_should_support_stdcall)
+#endif
   TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("DebugSymbol")
@@ -1416,6 +1422,29 @@ TESTCASE (variadic_native_function_float_args_should_be_promoted_to_double)
   EXPECT_NO_MESSAGES ();
 }
 
+#if defined (HAVE_WINDOWS) && GLIB_SIZEOF_VOID_P == 4
+
+static int __stdcall gum_divide_by_two_stdcall (int n);
+
+TESTCASE (native_function_should_support_stdcall)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "const f = new NativeFunction(" GUM_PTR_CONST ", 'int', ['int'], "
+          "{ abi: 'stdcall', exceptions: 'propagate' });"
+      "send(f(42));",
+      gum_divide_by_two_stdcall);
+  EXPECT_SEND_MESSAGE_WITH ("21");
+  EXPECT_NO_MESSAGES ();
+}
+
+static int __stdcall
+gum_divide_by_two_stdcall (int n)
+{
+  return n / 2;
+}
+
+#endif
+
 TESTCASE (native_function_is_a_native_pointer)
 {
   COMPILE_AND_LOAD_SCRIPT (
@@ -1653,6 +1682,26 @@ TESTCASE (native_callback_should_be_kept_alive_during_calls)
   EXPECT_SEND_MESSAGE_WITH ("\"dead\"");
   EXPECT_NO_MESSAGES ();
 }
+
+#if defined (HAVE_WINDOWS) && GLIB_SIZEOF_VOID_P == 4
+
+TESTCASE (native_callback_should_support_stdcall)
+{
+  int (__stdcall * cb) (int);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const cb = new NativeCallback(n => { send(n); return n / 2; }, 'int', "
+          "['int'], 'stdcall');"
+      GUM_PTR_CONST ".writePointer(cb);",
+      &cb);
+  EXPECT_NO_MESSAGES ();
+
+  g_assert_cmpint (cb (42), ==, 21);
+  EXPECT_SEND_MESSAGE_WITH ("42");
+  EXPECT_NO_MESSAGES ();
+}
+
+#endif
 
 #ifdef G_OS_UNIX
 
