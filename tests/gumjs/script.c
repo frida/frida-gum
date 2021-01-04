@@ -269,6 +269,7 @@ TESTLIST_BEGIN (script)
         variadic_native_function_args_smaller_than_int_should_be_promoted)
     TESTENTRY (variadic_native_function_float_args_should_be_promoted_to_double)
 #if defined (HAVE_WINDOWS) && GLIB_SIZEOF_VOID_P == 4
+    TESTENTRY (native_function_should_support_fastcall)
     TESTENTRY (native_function_should_support_stdcall)
 #endif
     TESTENTRY (native_function_is_a_native_pointer)
@@ -286,6 +287,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (native_callback_memory_should_be_eagerly_reclaimed)
     TESTENTRY (native_callback_should_be_kept_alive_during_calls)
 #if defined (HAVE_WINDOWS) && GLIB_SIZEOF_VOID_P == 4
+    TESTENTRY (native_callback_should_support_fastcall)
     TESTENTRY (native_callback_should_support_stdcall)
 #endif
   TESTGROUP_END ()
@@ -1424,7 +1426,20 @@ TESTCASE (variadic_native_function_float_args_should_be_promoted_to_double)
 
 #if defined (HAVE_WINDOWS) && GLIB_SIZEOF_VOID_P == 4
 
+static int __fastcall gum_sum_three_fastcall (int a, int b, int c);
 static int __stdcall gum_divide_by_two_stdcall (int n);
+
+TESTCASE (native_function_should_support_fastcall)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "const f = new NativeFunction(" GUM_PTR_CONST ", "
+          "'int', ['int', 'int', 'int'], "
+          "{ abi: 'fastcall', exceptions: 'propagate' });"
+      "send(f(10, 20, 12));",
+      gum_sum_three_fastcall);
+  EXPECT_SEND_MESSAGE_WITH ("42");
+  EXPECT_NO_MESSAGES ();
+}
 
 TESTCASE (native_function_should_support_stdcall)
 {
@@ -1435,6 +1450,14 @@ TESTCASE (native_function_should_support_stdcall)
       gum_divide_by_two_stdcall);
   EXPECT_SEND_MESSAGE_WITH ("21");
   EXPECT_NO_MESSAGES ();
+}
+
+static int __fastcall
+gum_sum_three_fastcall (int a,
+                        int b,
+                        int c)
+{
+  return a + b + c;
 }
 
 static int __stdcall
@@ -1684,6 +1707,24 @@ TESTCASE (native_callback_should_be_kept_alive_during_calls)
 }
 
 #if defined (HAVE_WINDOWS) && GLIB_SIZEOF_VOID_P == 4
+
+TESTCASE (native_callback_should_support_fastcall)
+{
+  int (__fastcall * cb) (int, int, int);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const cb = new NativeCallback((a, b, c) => {"
+              "send([a, b, c]);"
+              "return a + b + c;"
+          "}, 'int', ['int', 'int', 'int'], 'fastcall');"
+      GUM_PTR_CONST ".writePointer(cb);",
+      &cb);
+  EXPECT_NO_MESSAGES ();
+
+  g_assert_cmpint (cb (10, 20, 12), ==, 42);
+  EXPECT_SEND_MESSAGE_WITH ("[10,20,12]");
+  EXPECT_NO_MESSAGES ();
+}
 
 TESTCASE (native_callback_should_support_stdcall)
 {
