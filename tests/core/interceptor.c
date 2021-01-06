@@ -70,7 +70,6 @@ TESTLIST_BEGIN (interceptor)
 #ifdef HAVE_QNX
   TESTENTRY (intercept_malloc_and_create_thread)
 #endif
-
 TESTLIST_END ()
 
 #ifdef HAVE_QNX
@@ -555,11 +554,13 @@ TESTCASE (relocation_of_early_call)
 }
 
 #if GLIB_SIZEOF_VOID_P == 8
+
 TESTCASE (relocation_of_early_rip_relative_call)
 {
   ProxyFunc proxy_func;
 
-  proxy_func = proxy_func_new_early_rip_relative_call_with_target(target_function);
+  proxy_func =
+      proxy_func_new_early_rip_relative_call_with_target (target_function);
 
   interceptor_fixture_attach (fixture, 0, proxy_func, '>', '<');
   proxy_func (fixture->result);
@@ -568,7 +569,9 @@ TESTCASE (relocation_of_early_rip_relative_call)
 
   proxy_func_free (proxy_func);
 }
+
 #endif /* GLIB_SIZEOF_VOID_P */
+
 #endif /* HAVE_I386 */
 
 #ifndef HAVE_ASAN

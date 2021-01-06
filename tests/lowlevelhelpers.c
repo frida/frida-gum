@@ -453,6 +453,7 @@ proxy_func_new_two_jumps_with_target (TargetFunc target_func)
 }
 
 #if GLIB_SIZEOF_VOID_P == 8
+
 ProxyFunc
 proxy_func_new_early_rip_relative_call_with_target (TargetFunc target_func)
 {
@@ -461,35 +462,36 @@ proxy_func_new_early_rip_relative_call_with_target (TargetFunc target_func)
 
   addr_spec.near_address = target_func;
   addr_spec.max_distance = G_MAXINT32 - gum_query_page_size ();
-  func = (guint8 *) gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &addr_spec);
-  
+  func = gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &addr_spec);
+
   code = func;
 
-  code[0] = 0x48;
+  code[0] = 0x48; /* sub rsp, 0x38 */
   code[1] = 0x83;
   code[2] = 0xec;
-  code[3] = 0x38; // sub rsp, 0x38
-
+  code[3] = 0x38;
   code += 4;
-  code[0] = 0xff;
+
+  code[0] = 0xff; /* call [rip + x] */
   code[1] = 0x15;
-
-  *((gssize *) (code + 2)) = 13; // call [rip + x]
-
+  *((gssize *) (code + 2)) = 13;
   code += 6;
-  code[0] = 0x48;
+
+  code[0] = 0x48; /* add rsp, 0x38 */
   code[1] = 0x83;
   code[2] = 0xc4;
-  code[3] = 0x38; // add rsp, 0x38
-
+  code[3] = 0x38;
   code += 4;
-  code[0] = 0xc3; // retn
-  
-  code += 9;
-  *((guint64 *) (code)) = (guint64) target_func; // abs addr
+
+  code[0] = 0xc3; /* ret */
+  code++;
+
+  code += 8;
+  *((TargetFunc *) code) = target_func;
 
   return GUM_POINTER_TO_FUNCPTR (ProxyFunc, func);
 }
+
 #endif
 
 ProxyFunc
