@@ -309,7 +309,7 @@ if gir.found()
     export_packages: 'gum',
     includes: ['GLib-2.0', 'GObject-2.0', 'Gio-2.0'],
     header: 'gum/gum.h',
-    extra_args: gir_args + extra_libs_private,
+    extra_args: gir_args + extra_gir_args_private,
     install: true,
   )
 endif

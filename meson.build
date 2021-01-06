@@ -192,6 +192,7 @@ lzma_dep = dependency('liblzma')
 extra_deps = []
 extra_requires_private = []
 extra_libs_private = []
+extra_gir_args_private = []
 
 glib_flavor_src = '''
 #include <glib.h>
@@ -230,18 +231,17 @@ elif host_os_family == 'linux' or host_os_family == 'qnx'
 endif
 
 if host_os_family == 'linux' or host_os_family == 'qnx'
-  have_libelf = cc.has_header('libelf.h')
-  if not have_libelf
-    error('libelf is required')
-  endif
+  elf_dep = dependency('libelf')
+  extra_deps += [elf_dep]
   have_libdwarf = cc.has_header('libdwarf.h')
   if not have_libdwarf
     error('libdwarf is required')
   endif
   if host_os_family == 'linux'
-    extra_libs_private += ['-ldwarf', '-lelf', '-ldl', '-lz']
+    extra_libs_private += ['-ldwarf', '-ldl', '-lz']
+    extra_gir_args_private += ['--extra-library=dwarf']
   else
-    extra_libs_private += ['-ldwarf', '-lelf', '-lz']
+    extra_libs_private += ['-ldwarf', '-lz']
   endif
 else
   have_libdwarf = false
