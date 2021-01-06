@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -8,8 +8,6 @@
 
 #include "guminterceptor.h"
 #include "gumprocess.h"
-
-#include <gmodule.h>
 
 typedef enum _FunctionId FunctionId;
 
@@ -152,18 +150,12 @@ gum_instance_tracker_fill_vtable_if_module_is_gobject (
 
   if (g_strstr_len (name_lowercase, -1, "gobject-2.0") != NULL)
   {
-    GModule * module;
-
-    module = g_module_open (details->path, (GModuleFlags) 0);
-
-    g_module_symbol (module, "g_type_create_instance",
-        (gpointer *) &vtable->create_instance);
-    g_module_symbol (module, "g_type_free_instance",
-        (gpointer *) &vtable->free_instance);
-    g_module_symbol (module, "g_type_name",
-        (gpointer *) &vtable->type_id_to_name);
-
-    g_module_close (module);
+    vtable->create_instance = GSIZE_TO_POINTER (gum_module_find_export_by_name (
+        details->path, "g_type_create_instance"));
+    vtable->free_instance = GSIZE_TO_POINTER (gum_module_find_export_by_name (
+        details->path, "g_type_free_instance"));
+    vtable->type_id_to_name = GSIZE_TO_POINTER (gum_module_find_export_by_name (
+        details->path, "g_type_name"));
   }
 
   g_free (name_lowercase);

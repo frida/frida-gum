@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
@@ -3606,14 +3606,11 @@ TESTCASE (process_modules_can_be_enumerated_legacy_style)
 TESTCASE (process_module_can_be_looked_up_from_address)
 {
 #ifndef HAVE_LINUX
-  GModule * m;
   gpointer f;
-  gboolean found;
 
-  m = g_module_open (SYSTEM_MODULE_NAME, G_MODULE_BIND_LAZY);
-  found = g_module_symbol (m, SYSTEM_MODULE_EXPORT, &f);
-  g_assert_true (found);
-  g_module_close (m);
+  f = GSIZE_TO_POINTER (gum_module_find_export_by_name (
+      SYSTEM_MODULE_NAME, SYSTEM_MODULE_EXPORT));
+  g_assert_nonnull (f);
 
   COMPILE_AND_LOAD_SCRIPT (
       "send(Process.findModuleByAddress(" GUM_PTR_CONST ".strip()) !== null);",
@@ -3764,14 +3761,11 @@ TESTCASE (process_ranges_can_be_enumerated_with_neighbors_coalesced)
 
 TESTCASE (process_range_can_be_looked_up_from_address)
 {
-  GModule * m;
   gpointer f;
-  gboolean found;
 
-  m = g_module_open (SYSTEM_MODULE_NAME, G_MODULE_BIND_LAZY);
-  found = g_module_symbol (m, SYSTEM_MODULE_EXPORT, &f);
-  g_assert_true (found);
-  g_module_close (m);
+  f = GSIZE_TO_POINTER (gum_module_find_export_by_name (
+      SYSTEM_MODULE_NAME, SYSTEM_MODULE_EXPORT));
+  g_assert_nonnull (f);
 
   COMPILE_AND_LOAD_SCRIPT (
       "send(Process.findRangeByAddress(" GUM_PTR_CONST ".strip()) !== null);",

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -8,13 +8,10 @@
 
 #include "gumprocess.h"
 
-#include <gmodule.h>
 #include <string.h>
 
 static gboolean gum_collect_heap_api_if_crt_module (
     const GumModuleDetails * details, gpointer user_data);
-static void gum_init_field_from_module_symbol (gpointer * field,
-    GModule * module, const gchar * name);
 
 GumHeapApiList *
 gum_process_find_heap_apis (void)
@@ -28,8 +25,8 @@ gum_process_find_heap_apis (void)
 }
 
 #define GUM_API_INIT_FIELD(name) \
-    gum_init_field_from_module_symbol ((gpointer *) &api.name, module, \
-        G_STRINGIFY (name))
+    api.name = GSIZE_TO_POINTER (gum_module_find_export_by_name ( \
+        details->path, G_STRINGIFY (name)))
 
 static gboolean
 gum_collect_heap_api_if_crt_module (const GumModuleDetails * details,
@@ -50,9 +47,6 @@ gum_collect_heap_api_if_crt_module (const GumModuleDetails * details,
   if (is_libc_module)
   {
     GumHeapApi api = { 0, };
-    GModule * module;
-
-    module = g_module_open (details->path, (GModuleFlags) 0);
 
     GUM_API_INIT_FIELD (malloc);
     GUM_API_INIT_FIELD (calloc);
@@ -70,20 +64,10 @@ gum_collect_heap_api_if_crt_module (const GumModuleDetails * details,
     }
 #endif
 
-    g_module_close (module);
-
     gum_heap_api_list_add (list, &api);
   }
 
   return TRUE;
-}
-
-static void
-gum_init_field_from_module_symbol (gpointer * field,
-                                   GModule * module,
-                                   const gchar * name)
-{
-  g_module_symbol (module, name, field);
 }
 
 GumHeapApiList *

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -11,8 +11,6 @@
 #include "guminterceptor.h"
 #include "gumprocess.h"
 #include "gumsymbolutil.h"
-
-#include <gmodule.h>
 
 #define DEFAULT_ENABLE_COUNTERS FALSE
 
@@ -357,19 +355,14 @@ gum_allocator_probe_add_suppression_addresses_if_glib (
 
   if (function_name != NULL)
   {
-    GModule * module;
     guint i;
-
-    module = g_module_open (details->path, (GModuleFlags) 0);
 
     for (i = 0; function_name[i] != NULL; i++)
     {
-      gpointer address = NULL;
-      g_module_symbol (module, function_name[i], &address);
+      gpointer address = GSIZE_TO_POINTER (gum_module_find_export_by_name (
+          details->path, function_name[i]));
       g_array_append_val (ignored, address);
     }
-
-    g_module_close (module);
   }
 
   g_free (name_lowercase);
