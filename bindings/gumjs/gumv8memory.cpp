@@ -150,7 +150,7 @@ static void gum_v8_memory_on_access (GumMemoryAccessMonitor * monitor,
 
 static const GumV8Function gumjs_memory_functions[] =
 {
-  { "alloc", gumjs_memory_alloc },
+  { "_alloc", gumjs_memory_alloc },
   { "copy", gumjs_memory_copy },
   { "protect", gumjs_memory_protect },
   { "_patchCode", gumjs_memory_patch_code },
@@ -235,7 +235,9 @@ _gum_v8_memory_finalize (GumV8Memory * self)
 GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
 {
   gsize size;
-  if (!_gum_v8_args_parse (args, "Z", &size))
+  GumAddressSpec spec;
+  if (!_gum_v8_args_parse (args, "ZpZ", &size, &spec.near_address,
+      &spec.max_distance))
     return;
 
   if (size == 0 || size > 0x7fffffff)
@@ -247,15 +249,38 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
   GumV8NativeResource * res;
 
   gsize page_size = gum_query_page_size ();
-  if ((size % page_size) != 0)
+
+  if (spec.near_address != NULL)
   {
-    res = _gum_v8_native_resource_new (g_malloc0 (size), size, g_free, core);
+    gpointer result;
+
+    if ((size % page_size) != 0)
+    {
+      return _gum_v8_throw_ascii_literal (isolate,
+          "size must be a multiple of page size");
+    }
+
+    result = gum_try_alloc_n_pages_near (size / page_size, GUM_PAGE_RW, &spec);
+    if (result == NULL)
+    {
+      return _gum_v8_throw_ascii_literal (isolate,
+          "unable to allocate free page(s) near address");
+    }
+
+    res = _gum_v8_native_resource_new (result, size, gum_free_pages, core);
   }
   else
   {
-    res = _gum_v8_native_resource_new (
-        gum_alloc_n_pages (size / page_size, GUM_PAGE_RW), size,
-        gum_free_pages, core);
+    if ((size % page_size) != 0)
+    {
+      res = _gum_v8_native_resource_new (g_malloc0 (size), size, g_free, core);
+    }
+    else
+    {
+      res = _gum_v8_native_resource_new (
+          gum_alloc_n_pages (size / page_size, GUM_PAGE_RW), size,
+          gum_free_pages, core);
+    }
   }
 
   info.GetReturnValue ().Set (Local<Object>::New (isolate, *res->instance));

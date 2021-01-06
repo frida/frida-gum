@@ -89,7 +89,9 @@ TESTLIST_BEGIN (script)
     TESTENTRY (pointer_can_be_read_legacy_style)
     TESTENTRY (pointer_can_be_written)
     TESTENTRY (pointer_can_be_written_legacy_style)
-    TESTENTRY (memory_can_be_allocated)
+    TESTENTRY (memory_can_be_allocated_with_byte_granularity)
+    TESTENTRY (memory_can_be_allocated_with_page_granularity)
+    TESTENTRY (memory_can_be_allocated_near_address)
     TESTENTRY (memory_can_be_copied)
     TESTENTRY (memory_can_be_duped)
     TESTENTRY (memory_can_be_protected)
@@ -5869,10 +5871,8 @@ TESTCASE (pointer_can_be_written_legacy_style)
   g_assert_cmphex (GPOINTER_TO_SIZE (val), ==, 0x1337000);
 }
 
-TESTCASE (memory_can_be_allocated)
+TESTCASE (memory_can_be_allocated_with_byte_granularity)
 {
-  gsize p;
-
   COMPILE_AND_LOAD_SCRIPT (
       "const p = Memory.alloc(8);"
       "p.writePointer(ptr('1337'));"
@@ -5885,6 +5885,16 @@ TESTCASE (memory_can_be_allocated)
       "send(p.readPointer().toInt32() === 1337);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 
+  COMPILE_AND_LOAD_SCRIPT(
+      "const p = Memory.alloc(5);"
+      "send('p', p.readByteArray(5));");
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA("\"p\"", "00 00 00 00 00");
+}
+
+TESTCASE (memory_can_be_allocated_with_page_granularity)
+{
+  gsize p;
+
   COMPILE_AND_LOAD_SCRIPT (
       "const p = Memory.alloc(Process.pageSize);"
       "send(p);");
@@ -5896,6 +5906,33 @@ TESTCASE (memory_can_be_allocated)
       "const p = Memory.alloc(5);"
       "send('p', p.readByteArray(5));");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA("\"p\"", "00 00 00 00 00");
+}
+
+TESTCASE (memory_can_be_allocated_near_address)
+{
+  gsize p;
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const maxDistance = uint64(NULL.sub(1).toString());"
+      "const a = Memory.alloc(Process.pageSize);"
+      "const b = Memory.alloc(Process.pageSize, { near: a, maxDistance });"
+      "send(b);");
+  p = GPOINTER_TO_SIZE (EXPECT_SEND_MESSAGE_WITH_POINTER ());
+  g_assert_cmpuint (p, !=, 0);
+  g_assert_cmpuint (p & (gum_query_page_size () - 1), ==, 0);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Memory.alloc(Process.pageSize - 1, { "
+          "near: ptr(Process.pageSize), "
+          "maxDistance: 12345678 "
+      "});");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "Error: size must be a multiple of page size");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Memory.alloc(Process.pageSize, { near: ptr(Process.pageSize) });");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "Error: missing maxDistance option");
 }
 
 TESTCASE (memory_can_be_copied)

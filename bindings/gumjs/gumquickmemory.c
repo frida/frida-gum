@@ -163,7 +163,7 @@ GUMJS_DECLARE_GETTER (gumjs_memory_access_details_get_pages_total)
 
 static const JSCFunctionListEntry gumjs_memory_entries[] =
 {
-  JS_CFUNC_DEF ("alloc", 0, gumjs_memory_alloc),
+  JS_CFUNC_DEF ("_alloc", 0, gumjs_memory_alloc),
   JS_CFUNC_DEF ("copy", 0, gumjs_memory_copy),
   JS_CFUNC_DEF ("protect", 0, gumjs_memory_protect),
   JS_CFUNC_DEF ("_patchCode", 0, gumjs_memory_patch_code),
@@ -277,8 +277,10 @@ gumjs_get_parent_module (GumQuickCore * core)
 GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
 {
   gsize size, page_size;
+  GumAddressSpec spec;
 
-  if (!_gum_quick_args_parse (args, "Z", &size))
+  if (!_gum_quick_args_parse (args, "ZpZ", &size, &spec.near_address,
+      &spec.max_distance))
     return JS_EXCEPTION;
 
   if (size == 0 || size > 0x7fffffff)
@@ -286,15 +288,37 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
 
   page_size = gum_query_page_size ();
 
-  if ((size % page_size) != 0)
+  if (spec.near_address != NULL)
   {
-    return _gum_quick_native_resource_new (ctx, g_malloc0 (size), g_free, core);
+    gpointer result;
+
+    if ((size % page_size) != 0)
+    {
+      return _gum_quick_throw_literal (ctx,
+          "size must be a multiple of page size");
+    }
+
+    result = gum_try_alloc_n_pages_near (size / page_size, GUM_PAGE_RW, &spec);
+    if (result == NULL)
+    {
+      return _gum_quick_throw_literal (ctx,
+          "unable to allocate free page(s) near address");
+    }
+
+    return _gum_quick_native_resource_new (ctx, result, gum_free_pages, core);
   }
   else
   {
-    return _gum_quick_native_resource_new (ctx,
-        gum_alloc_n_pages (size / page_size, GUM_PAGE_RW), gum_free_pages,
-        core);
+    if ((size % page_size) != 0)
+    {
+      return _gum_quick_native_resource_new (ctx, g_malloc0 (size), g_free, core);
+    }
+    else
+    {
+      return _gum_quick_native_resource_new (ctx,
+          gum_alloc_n_pages (size / page_size, GUM_PAGE_RW), gum_free_pages,
+          core);
+    }
   }
 }
 
