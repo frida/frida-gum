@@ -246,9 +246,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
     return;
   }
 
+  GumV8NativeResource * res;
+
   gsize page_size = gum_query_page_size ();
 
-  GumV8NativeResource * res;
   if (spec.near_address != NULL)
   {
     gpointer result;
