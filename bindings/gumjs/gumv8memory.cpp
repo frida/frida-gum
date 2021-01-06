@@ -150,7 +150,7 @@ static void gum_v8_memory_on_access (GumMemoryAccessMonitor * monitor,
 
 static const GumV8Function gumjs_memory_functions[] =
 {
-  { "alloc", gumjs_memory_alloc },
+  { "_alloc", gumjs_memory_alloc },
   { "copy", gumjs_memory_copy },
   { "protect", gumjs_memory_protect },
   { "_patchCode", gumjs_memory_patch_code },
@@ -235,11 +235,10 @@ _gum_v8_memory_finalize (GumV8Memory * self)
 GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
 {
   gsize size, page_size;
-  Local<Object> options;
-  gpointer near_address = NULL;
-  uint32_t max_distance;
+  GumAddressSpec spec;
 
-  if (!_gum_v8_args_parse (args, "Z|O", &size, &options))
+  if (!_gum_v8_args_parse (args, "ZpZ", &size, &spec.near_address,
+      &spec.max_distance))
     return;
 
   if (size == 0 || size > 0x7fffffff)
@@ -250,48 +249,23 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
 
   page_size = gum_query_page_size ();
 
-  if (!options.IsEmpty () && !options->IsNull ())
-  {
-    auto context = isolate->GetCurrentContext ();
-    Local<Value> v;
-
-    if (!options->Get (context, Local<String>::New (isolate, *core->near_key))
-        .ToLocal (&v))
-      return;
-    if (!v->IsUndefined ())
-    {
-      if (!_gum_v8_native_pointer_parse(v, &near_address, core))
-        return;
-
-      if (!options->Get (context, Local<String>::New (isolate,
-          *core->max_distance_key)).ToLocal (&v))
-        return;
-      if (!v->IsNumber ())
-        return _gum_v8_throw_ascii_literal (isolate,
-            "options object has an invalid or missing max distance property");
-
-      max_distance = v.As<Number> ()->Uint32Value (context).ToChecked ();
-    }
-  }
-
   GumV8NativeResource * res;
-
-  if (near_address != NULL)
+  if (spec.near_address != NULL)
   {
     gpointer result;
-    GumAddressSpec spec;
-
-    spec.near_address = near_address;
-    spec.max_distance = max_distance;
 
     if ((size % page_size) != 0)
+    {
       return _gum_v8_throw_ascii_literal (isolate,
           "size must be a multiple of page size");
+    }
 
     result = gum_try_alloc_n_pages_near (size / page_size, GUM_PAGE_RW, &spec);
     if (result == NULL)
+    {
       return _gum_v8_throw_ascii_literal (isolate,
           "unable to allocate free page(s) near address");
+    }
 
     res = _gum_v8_native_resource_new (result, size, gum_free_pages, core);
   }
