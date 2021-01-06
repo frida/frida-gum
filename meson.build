@@ -277,8 +277,6 @@ if have_gumjs
   if quickjs_dep.found()
     gumjs_extra_requires += 'quickjs'
     quickjs_dep_native = dependency('quickjs', native: true)
-  else
-    quickjs_dep_native = disabler()
   endif
 
   v8_dep = dependency('v8-8.0',
@@ -312,16 +310,6 @@ if have_gumjs
   sqlite_dep = dependency('sqlite3')
 
   libsoup_dep = dependency('libsoup-2.4')
-else
-  quickjs_dep = disabler()
-  quickjs_dep_native = disabler()
-  v8_dep = disabler()
-
-  gio_os_package_dep = disabler()
-  json_glib_dep = disabler()
-  libtcc_dep = disabler()
-  sqlite_dep = disabler()
-  libsoup_dep = disabler()
 endif
 
 configure_file(input: 'config.h.in',
