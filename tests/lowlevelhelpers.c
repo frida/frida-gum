@@ -474,7 +474,7 @@ proxy_func_new_early_rip_relative_call_with_target (TargetFunc target_func)
 
   code[0] = 0xff; /* call [rip + x] */
   code[1] = 0x15;
-  *((gssize *) (code + 2)) = 13;
+  *((gint32 *) (code + 2)) = 13;
   code += 6;
 
   code[0] = 0x48; /* add rsp, 0x38 */
