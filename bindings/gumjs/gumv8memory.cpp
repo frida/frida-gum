@@ -234,9 +234,8 @@ _gum_v8_memory_finalize (GumV8Memory * self)
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
 {
-  gsize size, page_size;
+  gsize size;
   GumAddressSpec spec;
-
   if (!_gum_v8_args_parse (args, "ZpZ", &size, &spec.near_address,
       &spec.max_distance))
     return;
@@ -247,7 +246,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
     return;
   }
 
-  page_size = gum_query_page_size ();
+  gsize page_size = gum_query_page_size ();
 
   GumV8NativeResource * res;
   if (spec.near_address != NULL)

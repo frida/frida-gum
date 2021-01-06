@@ -176,11 +176,11 @@ makeEnumerateApi(Kernel, 'enumerateModuleRanges', 2);
 Object.defineProperties(Memory, {
   alloc: {
     enumerable: true,
-    value: function (size, { near = NULL, maxDistance = 0 } = {}) {
-      if (near !== NULL && maxDistance === 0)
+    value: function (size, { near, maxDistance } = {}) {
+      if (near !== undefined && maxDistance === undefined)
         throw new Error('missing maxDistance option');
 
-      return Memory._alloc(size, near, maxDistance);
+      return Memory._alloc(size, near ?? NULL, maxDistance ?? 0);
     }
   },
   dup: {
