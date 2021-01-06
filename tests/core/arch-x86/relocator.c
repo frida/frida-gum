@@ -723,28 +723,31 @@ TESTCASE (rip_relative_cmpxchg)
 
 TESTCASE (rip_relative_call)
 {
-  guint8 input[] = {
-    0xff, 0x15,                   /* call [rip + 0x12345678] */
-          0x78, 0x56, 0x34, 0x12
+  const guint8 input[] = {
+    0xff, 0x15,                   /* call [rip + 0x1234] */
+          0x34, 0x12, 0x00, 0x00
   };
-  guint8 expected_output [] = {
-    0x48, 0x8d, 0xa4, 0x24,       /* lea rsp, [rsp - 128] */
-          0x80, 0xff, 0xff, 0xff,
-    0x53,                         /* push rbx */
-
-    0x48, 0xbb,                   /* mov rbx, <rip> */
+  guint8 expected_output[] = {
+    0x50,                         /* push rax */
+    0x48, 0xb8,                   /* movabs rax, <return_address> */
           0x00, 0x00, 0x00, 0x00,
           0x00, 0x00, 0x00, 0x00,
+    0x48, 0x87, 0x04, 0x24,       /* xchg qword [rsp], rax */
 
-    0xff, 0x93,
-          0x78, 0x56, 0x34, 0x12, /* call [rbx + 0x12345678] */
-
-    0x5b,                         /* pop rbx */
-    0x48, 0x8d, 0xa4, 0x24,       /* lea rsp, [rsp + 128] */
-          0x80, 0x00, 0x00, 0x00
+    0x50,                         /* push rax */
+    0x48, 0xb8,                   /* movabs rax, <target_address> */
+          0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00,
+    0x48, 0x8b, 0x40, 0x00,       /* mov rax, qword [rax] */
+    0x48, 0x87, 0x04, 0x24,       /* xchg qword [rsp], rax */
+    0xc3,                         /* ret */
+    /* return_address: */
   };
 
-  *((gpointer *) (expected_output + 11)) = (gpointer) (input + 6);
+  *((gpointer *) (expected_output + 3)) =
+      fixture->output + sizeof (expected_output);
+  *((gpointer *) (expected_output + 18)) =
+      (gpointer) (input + 6 + 0x1234);
 
   gum_x86_writer_set_target_abi (&fixture->cw, GUM_ABI_UNIX);
   SETUP_RELOCATOR_WITH (input);
@@ -753,4 +756,5 @@ TESTCASE (rip_relative_call)
   gum_x86_relocator_write_one (&fixture->rl);
   assert_output_equals (expected_output);
 }
+
 #endif
