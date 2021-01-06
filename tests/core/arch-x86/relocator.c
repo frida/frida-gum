@@ -724,20 +724,29 @@ TESTCASE (rip_relative_cmpxchg)
 TESTCASE (rip_relative_call)
 {
   guint8 input[] = {
-    0xff, 0x15, 0x78, 0x56, 0x34, 0x12 /* call [rip + 012345678h] */
+    0xff, 0x15,                   /* call [rip + 0x12345678] */
+          0x78, 0x56, 0x34, 0x12
   };
   guint8 expected_output [] = {
-    0x48, 0x8d, 0xa4, 0x24, 0x80, 0xff, 0xff, 0xff,               /* lea rsp, [rsp - 80h] */
-    0x53,                                                         /* push rbx */
-    0x48, 0xbb, 0x12, 0x20, 0x0a, 0x7f, 0xfe, 0x7f, 0x00, 0x00,   /* mov rbx, <rip> */
-    0xff, 0x93, 0x78, 0x56, 0x34, 0x12,                           /* call [rbx + 012345678h] */
-    0x5b,                                                         /* pop rbx */
-    0x48, 0x8d, 0xa4, 0x24, 0x80, 0x00, 0x00, 0x00                /* lea rsp, [rsp + 80h] */
+    0x48, 0x8d, 0xa4, 0x24,       /* lea rsp, [rsp - 128] */
+          0x80, 0xff, 0xff, 0xff,
+    0x53,                         /* push rbx */
+
+    0x48, 0xbb,                   /* mov rbx, <rip> */
+          0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00,
+
+    0xff, 0x93,
+          0x78, 0x56, 0x34, 0x12, /* call [rbx + 0x12345678] */
+
+    0x5b,                         /* pop rbx */
+    0x48, 0x8d, 0xa4, 0x24,       /* lea rsp, [rsp + 128] */
+          0x80, 0x00, 0x00, 0x00
   };
 
   *((gpointer *) (expected_output + 11)) = (gpointer) (input + 6);
 
-  gum_x86_writer_set_target_abi(&fixture->cw, GUM_ABI_UNIX);
+  gum_x86_writer_set_target_abi (&fixture->cw, GUM_ABI_UNIX);
   SETUP_RELOCATOR_WITH (input);
 
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 6);

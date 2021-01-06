@@ -319,7 +319,6 @@ gum_x86_relocator_write_one_instruction (GumX86Relocator * self)
       break;
   }
 
-
   if (!rewritten)
     gum_x86_writer_put_bytes (ctx.code_writer, ctx.start, ctx.len);
 
@@ -464,15 +463,16 @@ gum_x86_relocator_rewrite_unconditional_branch (GumX86Relocator * self,
 
     return TRUE;
   }
-  else if ((ctx->insn->id == X86_INS_CALL || ctx->insn->id == X86_INS_JMP)
-          && op->type == X86_OP_MEM)
+  else if ((ctx->insn->id == X86_INS_CALL || ctx->insn->id == X86_INS_JMP) &&
+      op->type == X86_OP_MEM)
   {
-    if (self->output->target_cpu == GUM_CPU_AMD64) {
-      return gum_x86_relocator_rewrite_if_rip_relative(self, ctx);
-    }
+    if (self->output->target_cpu == GUM_CPU_AMD64)
+      return gum_x86_relocator_rewrite_if_rip_relative (self, ctx);
+
     return FALSE;
   }
-  else if (ctx->insn->id == X86_INS_JMP && op->type == X86_OP_IMM && op->size == 8)
+  else if (ctx->insn->id == X86_INS_JMP && op->type == X86_OP_IMM &&
+      op->size == 8)
   {
     return FALSE;
   }
@@ -552,7 +552,7 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
   GumCpuReg other_reg, rip_reg;
   GumAbiType target_abi = self->output->target_abi;
   guint8 code[16];
-  
+
   if (x86->encoding.modrm_offset == 0)
     return FALSE;
 
@@ -577,7 +577,8 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
       continue;
     else if (insn->id == X86_INS_CMPXCHG && cpu_regs[i] == GUM_REG_RAX)
       continue;
-    else if (insn->id == X86_INS_CALL && !(cpu_regs[i] == GUM_REG_RBX || cpu_regs[i] == GUM_REG_RBP))
+    else if (insn->id == X86_INS_CALL &&
+        !(cpu_regs[i] == GUM_REG_RBX || cpu_regs[i] == GUM_REG_RBP))
       continue;
     else if (cs_reg_read (self->capstone, ctx->insn, cs_regs[i]))
       continue;
