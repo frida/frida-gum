@@ -789,11 +789,6 @@ _gum_v8_core_realize (GumV8Core * self)
       _gum_v8_string_new_ascii (isolate, GUMJS_SYSTEM_ERROR_FIELD);
   self->system_error_key = new GumPersistent<String>::type (isolate,
       system_error_key);
-  auto near_key = _gum_v8_string_new_ascii (isolate, "near");
-  self->near_key = new GumPersistent<String>::type (isolate, near_key);
-  auto max_distance_key = _gum_v8_string_new_ascii (isolate, "maxDistance");
-  self->max_distance_key = new GumPersistent<String>::type (isolate,
-      max_distance_key);
 
   auto native_return_value = Object::New (isolate);
   native_return_value->Set (context, value_key, zero).Check ();
@@ -949,16 +944,12 @@ _gum_v8_core_dispose (GumV8Core * self)
   delete self->traps_key;
   delete self->value_key;
   delete self->system_error_key;
-  delete self->near_key;
-  delete self->max_distance_key;
   self->abi_key = nullptr;
   self->scheduling_key = nullptr;
   self->exceptions_key = nullptr;
   self->traps_key = nullptr;
   self->value_key = nullptr;
   self->system_error_key = nullptr;
-  self->near_key = nullptr;
-  self->max_distance_key = nullptr;
 
   delete self->native_return_value;
   self->native_return_value = nullptr;
