@@ -563,10 +563,6 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
   rip_reg_index = -1;
   for (i = 0; i != G_N_ELEMENTS (cs_regs) && rip_reg_index == -1; i++)
   {
-    /*
-     * FIXME: These first two checks shouldn't be necessary.
-     *        Need to have a closer look at capstone's mappings.
-     */
     if (cpu_regs[i] == other_reg)
       continue;
     if (insn->id == X86_INS_CMPXCHG && cpu_regs[i] == GUM_REG_RAX)
