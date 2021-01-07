@@ -47,10 +47,10 @@ ProxyFunc proxy_func_new_relative_with_target (TargetFunc target_func);
 ProxyFunc proxy_func_new_absolute_indirect_with_target (TargetFunc target_func);
 ProxyFunc proxy_func_new_two_jumps_with_target (TargetFunc target_func);
 ProxyFunc proxy_func_new_early_call_with_target (TargetFunc target_func);
-#if GLIB_SIZEOF_VOID_P == 8
+# if GLIB_SIZEOF_VOID_P == 8
 ProxyFunc proxy_func_new_early_rip_relative_call_with_target (
     TargetFunc target_func);
-#endif
+# endif
 void proxy_func_free (ProxyFunc proxy_func);
 #endif
 

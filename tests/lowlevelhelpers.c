@@ -421,11 +421,11 @@ proxy_func_new_absolute_indirect_with_target (TargetFunc target_func)
   func = (guint8 *) gum_alloc_n_pages (1, GUM_PAGE_RWX);
   func[0] = 0xff;
   func[1] = 0x25;
-#if GLIB_SIZEOF_VOID_P == 4
+# if GLIB_SIZEOF_VOID_P == 4
   *((gpointer *) (func + 2)) = func + 6;
-#else
+# else
   *((gint32 *) (func + 2)) = 0;
-#endif
+# endif
   *((TargetFunc *) (func + 6)) = target_func;
 
   return GUM_POINTER_TO_FUNCPTR (ProxyFunc, func);
@@ -442,11 +442,11 @@ proxy_func_new_two_jumps_with_target (TargetFunc target_func)
 
   func[20] = 0xff;
   func[21] = 0x25;
-#if GLIB_SIZEOF_VOID_P == 4
+# if GLIB_SIZEOF_VOID_P == 4
   *((gpointer *)   (func + 22)) = func + 30;
-#else
+# else
   *((gint32 *)     (func + 22)) = 4;
-#endif
+# endif
   *((TargetFunc *) (func + 30)) = target_func;
 
   return GUM_POINTER_TO_FUNCPTR (ProxyFunc, func);
@@ -464,43 +464,43 @@ proxy_func_new_early_call_with_target (TargetFunc target_func)
 
   code = func;
 
-#if GLIB_SIZEOF_VOID_P == 4
+# if GLIB_SIZEOF_VOID_P == 4
   code[0] = 0xff; /* push dword [esp + 4] */
   code[1] = 0x74;
   code[2] = 0x24;
   code[3] = 0x04;
   code += 4;
-#else
+# else
   code[0] = 0x48; /* sub rsp, 0x28 (4 * sizeof (gpointer) + 8) */
   code[1] = 0x83;
   code[2] = 0xec;
   code[3] = 0x28;
   code += 4;
-#endif
+# endif
 
   code[0] = 0xe8; /* call */
   *((gssize *) (code + 1)) = (gssize) target_func - (gssize) (code + 5);
   code += 5;
 
-#if GLIB_SIZEOF_VOID_P == 4
+# if GLIB_SIZEOF_VOID_P == 4
   code[0] = 0x83; /* add esp, 4 */
   code[1] = 0xc4;
   code[2] = 0x04;
   code += 3;
-#else
+# else
   code[0] = 0x48; /* add rsp, 0x28 */
   code[1] = 0x83;
   code[2] = 0xc4;
   code[3] = 0x28;
   code += 4;
-#endif
+# endif
 
   *code++ = 0xc3; /* ret */
 
   return GUM_POINTER_TO_FUNCPTR (ProxyFunc, func);
 }
 
-#if GLIB_SIZEOF_VOID_P == 8
+# if GLIB_SIZEOF_VOID_P == 8
 
 ProxyFunc
 proxy_func_new_early_rip_relative_call_with_target (TargetFunc target_func)
@@ -540,7 +540,7 @@ proxy_func_new_early_rip_relative_call_with_target (TargetFunc target_func)
   return GUM_POINTER_TO_FUNCPTR (ProxyFunc, func);
 }
 
-#endif
+# endif
 
 void
 proxy_func_free (ProxyFunc proxy_func)
