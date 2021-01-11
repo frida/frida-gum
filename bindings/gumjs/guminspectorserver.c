@@ -356,13 +356,13 @@ gum_inspector_server_on_list (SoupServer * server,
   g_slist_free_full (uris, (GDestroyNotify) soup_uri_free);
 
   json_builder_set_member_name (builder, "devtoolsFrontendUrl");
-  url = g_strdup_printf ("chrome-devtools://devtools/bundled/js_app.html"
+  url = g_strdup_printf ("devtools://devtools/bundled/js_app.html"
       "?experiments=true&v8only=true&ws=%s/%s", host_port, self->id);
   json_builder_add_string_value (builder, url);
   g_free (url);
 
   json_builder_set_member_name (builder, "devtoolsFrontendUrlCompat");
-  url = g_strdup_printf ("chrome-devtools://devtools/bundled/inspector.html"
+  url = g_strdup_printf ("devtools://devtools/bundled/inspector.html"
       "?experiments=true&v8only=true&ws=%s/%s", host_port, self->id);
   json_builder_add_string_value (builder, url);
   g_free (url);
