@@ -531,7 +531,8 @@ gum_module_entry_from_path_and_base (const gchar * path,
       dwarf_elf_init_b (module->elf, DW_DLC_READ, DW_GROUPNUMBER_ANY,
       gum_on_dwarf_error, NULL, &dbg, &error) != DW_DLV_OK)
   {
-    g_clear_pointer (&error, free);
+    dwarf_dealloc_error (dbg, error);
+    error = NULL;
   }
 
   entry = g_slice_new (GumModuleEntry);
