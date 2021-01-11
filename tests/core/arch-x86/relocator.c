@@ -723,10 +723,11 @@ TESTCASE (rip_relative_cmpxchg)
 
 TESTCASE (rip_relative_call)
 {
-  const guint8 input[] = {
+  const guint8 input_template[] = {
     0xff, 0x15,                   /* call [rip + 0x1234] */
           0x34, 0x12, 0x00, 0x00
   };
+  guint8 * input;
   guint8 expected_output[] = {
     0x50,                         /* push rax */
     0x48, 0xb8,                   /* movabs rax, <return_address> */
@@ -743,6 +744,10 @@ TESTCASE (rip_relative_call)
     0xc3,                         /* ret */
     /* return_address: */
   };
+
+  /* Make a copy to avoid GCC array bounds checking. */
+  input = g_alloca (sizeof (input_template));
+  memcpy (input, input_template, sizeof (input_template));
 
   *((gpointer *) (expected_output + 3)) =
       fixture->output + sizeof (expected_output);
