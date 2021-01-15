@@ -14,6 +14,7 @@
 #ifdef HAVE_TINYCC
 static GumCModule * gum_tcc_cmodule_new (const gchar * source, GError ** error);
 #endif
+static GumCModule * gum_gcc_cmodule_new (const gchar * source, GError ** error);
 
 typedef struct _GumCModulePrivate GumCModulePrivate;
 
@@ -55,6 +56,9 @@ gum_cmodule_new (const gchar * name,
   if (name == NULL || strcmp (name, "tcc") == 0)
     return gum_tcc_cmodule_new (source, error);
 #endif
+
+  if (name == NULL || strcmp (name, "gcc") == 0)
+    return gum_gcc_cmodule_new (source, error);
 
   g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
       "Not available for the current architecture");
@@ -576,3 +580,107 @@ gum_undecorate_name (const gchar * name)
 }
 
 #endif /* HAVE_TINYCC */
+
+#define GUM_TYPE_GCC_CMODULE (gum_gcc_cmodule_get_type ())
+G_DECLARE_FINAL_TYPE (GumGccCModule, gum_gcc_cmodule, GUM, GCC_CMODULE,
+    GumCModule)
+
+struct _GumGccCModule
+{
+  GumCModule parent;
+};
+
+static void gum_gcc_cmodule_add_symbol (GumCModule * cm, const gchar * name,
+    gconstpointer value);
+static gint gum_gcc_cmodule_link_pre (GumCModule * cm,
+    GString ** error_messages);
+static gint gum_gcc_cmodule_link (GumCModule * cm, gpointer base,
+    GString ** error_messages);
+static void gum_gcc_cmodule_link_post (GumCModule * cm);
+static void gum_gcc_cmodule_enumerate_symbols (GumCModule * cm,
+    GumFoundCSymbolFunc func, gpointer user_data);
+static gpointer gum_gcc_cmodule_find_symbol_by_name (GumCModule * cm,
+    const gchar * name);
+static void gum_gcc_cmodule_drop_metadata (GumCModule * cm);
+static void gum_gcc_cmodule_add_define (GumCModule * cm, const gchar * name,
+    const gchar * value);
+
+G_DEFINE_TYPE (GumGccCModule, gum_gcc_cmodule, GUM_TYPE_CMODULE)
+
+static void
+gum_gcc_cmodule_class_init (GumGccCModuleClass * klass)
+{
+  GumCModuleClass * cmodule_class = GUM_CMODULE_CLASS (klass);
+
+  cmodule_class->add_symbol = gum_gcc_cmodule_add_symbol;
+  cmodule_class->link_pre = gum_gcc_cmodule_link_pre;
+  cmodule_class->link = gum_gcc_cmodule_link;
+  cmodule_class->link_post = gum_gcc_cmodule_link_post;
+  cmodule_class->enumerate_symbols = gum_gcc_cmodule_enumerate_symbols;
+  cmodule_class->find_symbol_by_name = gum_gcc_cmodule_find_symbol_by_name;
+  cmodule_class->drop_metadata = gum_gcc_cmodule_drop_metadata;
+  cmodule_class->add_define = gum_gcc_cmodule_add_define;
+}
+
+static void
+gum_gcc_cmodule_init (GumGccCModule * cmodule)
+{
+}
+
+static GumCModule *
+gum_gcc_cmodule_new (const gchar * source, GError ** error)
+{
+  g_assert_not_reached ();
+}
+
+static void
+gum_gcc_cmodule_add_symbol (GumCModule * cm, const gchar * name,
+    gconstpointer value)
+{
+  g_assert_not_reached ();
+}
+
+static gint
+gum_gcc_cmodule_link_pre (GumCModule * cm, GString ** error_messages)
+{
+  g_assert_not_reached ();
+}
+
+static gint
+gum_gcc_cmodule_link (GumCModule * cm, gpointer base,
+    GString ** error_messages)
+{
+  g_assert_not_reached ();
+}
+
+static void
+gum_gcc_cmodule_link_post (GumCModule * cm)
+{
+  g_assert_not_reached ();
+}
+
+static void
+gum_gcc_cmodule_enumerate_symbols (GumCModule * cm, GumFoundCSymbolFunc func,
+    gpointer user_data)
+{
+  g_assert_not_reached ();
+}
+
+static gpointer
+gum_gcc_cmodule_find_symbol_by_name (GumCModule * cm, const gchar * name)
+{
+  g_assert_not_reached ();
+}
+
+static void
+gum_gcc_cmodule_drop_metadata (GumCModule * cm)
+{
+  g_assert_not_reached ();
+}
+
+static void
+gum_gcc_cmodule_add_define (GumCModule * cm, const gchar * name,
+    const gchar * value)
+{
+  g_assert_not_reached ();
+}
