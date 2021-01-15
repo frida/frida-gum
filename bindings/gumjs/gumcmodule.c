@@ -28,6 +28,9 @@ struct _GumCModulePrivate
 
 G_DEFINE_ABSTRACT_TYPE_WITH_PRIVATE (GumCModule, gum_cmodule, G_TYPE_OBJECT);
 
+static void gum_add_defines (GumCModule * cm);
+static void gum_add_define_str (GumCModule * cm, const gchar * name,
+    const gchar * value);
 static void gum_cmodule_finalize (GObject * object);
 
 static void
@@ -56,6 +59,50 @@ gum_cmodule_new (const gchar * name,
   g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
       "Not available for the current architecture");
   return NULL;
+}
+
+static void
+gum_add_defines (GumCModule * cm)
+{
+  GumCModuleClass * cls = GUM_CMODULE_GET_CLASS (cm);
+
+#if defined (HAVE_I386)
+  cls->add_define (cm, "HAVE_I386", NULL);
+#elif defined (HAVE_ARM)
+  cls->add_define (cm, "HAVE_ARM", NULL);
+#elif defined (HAVE_ARM64)
+  cls->add_define (cm, "HAVE_ARM64", NULL);
+#elif defined (HAVE_MIPS)
+  cls->add_define (cm, "HAVE_MIPS", NULL);
+#endif
+
+  cls->add_define (cm, "TRUE", "1");
+  cls->add_define (cm, "FALSE", "0");
+
+  gum_add_define_str (cm, "G_GINT16_MODIFIER", G_GINT16_MODIFIER);
+  gum_add_define_str (cm, "G_GINT32_MODIFIER", G_GINT32_MODIFIER);
+  gum_add_define_str (cm, "G_GINT64_MODIFIER", G_GINT64_MODIFIER);
+  gum_add_define_str (cm, "G_GSIZE_MODIFIER", G_GSIZE_MODIFIER);
+  gum_add_define_str (cm, "G_GSSIZE_MODIFIER", G_GSSIZE_MODIFIER);
+
+  cls->add_define (cm, "GLIB_SIZEOF_VOID_P",
+      G_STRINGIFY (GLIB_SIZEOF_VOID_P));
+
+#ifdef HAVE_WINDOWS
+  cls->add_define (cm, "extern", "__attribute__ ((dllimport))");
+#endif
+}
+
+static void
+gum_add_define_str (GumCModule * cm, const gchar * name, const gchar * value)
+{
+  gchar * raw_value;
+
+  raw_value = g_strconcat ("\"", value, "\"", NULL);
+
+  GUM_CMODULE_GET_CLASS (cm)->add_define (cm, name, raw_value);
+
+  g_free (raw_value);
 }
 
 static void
@@ -232,14 +279,14 @@ static void gum_tcc_cmodule_enumerate_symbols (GumCModule * cm,
 static gpointer gum_tcc_cmodule_find_symbol_by_name (GumCModule * cm,
     const gchar * name);
 static void gum_tcc_cmodule_drop_metadata (GumCModule * cm);
+static void gum_tcc_cmodule_add_define (GumCModule * cm, const gchar * name,
+    const gchar * value);
 static void gum_emit_symbol (void * ctx, const char * name, const void * val);
 static void gum_append_tcc_error (void * opaque, const char * msg);
 static void gum_emit_symbol (void * ctx, const char * name, const void * val);
 static const char * gum_cmodule_load_header (void * opaque, const char * path,
     int * len);
 static void * gum_cmodule_resolve_symbol (void * opaque, const char * name);
-static void gum_define_symbol_str (TCCState * state, const gchar * name,
-    const gchar * value);
 static void gum_add_abi_symbols (TCCState * state);
 static const gchar * gum_undecorate_name (const gchar * name);
 
@@ -257,6 +304,7 @@ gum_tcc_cmodule_class_init (GumTccCModuleClass * klass)
   cmodule_class->enumerate_symbols = gum_tcc_cmodule_enumerate_symbols;
   cmodule_class->find_symbol_by_name = gum_tcc_cmodule_find_symbol_by_name;
   cmodule_class->drop_metadata = gum_tcc_cmodule_drop_metadata;
+  cmodule_class->add_define = gum_tcc_cmodule_add_define;
 }
 
 static void
@@ -294,31 +342,7 @@ gum_tcc_cmodule_new (const gchar * source,
       "-isystem /frida/capstone"
   );
 
-#if defined (HAVE_I386)
-  tcc_define_symbol (state, "HAVE_I386", NULL);
-#elif defined (HAVE_ARM)
-  tcc_define_symbol (state, "HAVE_ARM", NULL);
-#elif defined (HAVE_ARM64)
-  tcc_define_symbol (state, "HAVE_ARM64", NULL);
-#elif defined (HAVE_MIPS)
-  tcc_define_symbol (state, "HAVE_MIPS", NULL);
-#endif
-
-  tcc_define_symbol (state, "TRUE", "1");
-  tcc_define_symbol (state, "FALSE", "0");
-
-  gum_define_symbol_str (state, "G_GINT16_MODIFIER", G_GINT16_MODIFIER);
-  gum_define_symbol_str (state, "G_GINT32_MODIFIER", G_GINT32_MODIFIER);
-  gum_define_symbol_str (state, "G_GINT64_MODIFIER", G_GINT64_MODIFIER);
-  gum_define_symbol_str (state, "G_GSIZE_MODIFIER", G_GSIZE_MODIFIER);
-  gum_define_symbol_str (state, "G_GSSIZE_MODIFIER", G_GSSIZE_MODIFIER);
-
-  tcc_define_symbol (state, "GLIB_SIZEOF_VOID_P",
-      G_STRINGIFY (GLIB_SIZEOF_VOID_P));
-
-#ifdef HAVE_WINDOWS
-  tcc_define_symbol (state, "extern", "__attribute__ ((dllimport))");
-#endif
+  gum_add_defines (result);
 
   tcc_set_output_type (state, TCC_OUTPUT_MEMORY);
 
@@ -459,6 +483,15 @@ gum_tcc_cmodule_drop_metadata (GumCModule * cm)
   g_clear_pointer (&self->state, tcc_delete);
 }
 
+static void
+gum_tcc_cmodule_add_define (GumCModule * cm, const gchar * name,
+    const gchar * value)
+{
+  GumTccCModule * self = GUM_TCC_CMODULE (cm);
+
+  tcc_define_symbol (self->state, name, value);
+}
+
 static const char *
 gum_cmodule_load_header (void * opaque,
                          const char * path,
@@ -490,20 +523,6 @@ gum_cmodule_resolve_symbol (void * opaque,
 {
   return g_hash_table_lookup (gum_cmodule_get_symbols (),
       gum_undecorate_name (name));
-}
-
-static void
-gum_define_symbol_str (TCCState * state,
-                       const gchar * name,
-                       const gchar * value)
-{
-  gchar * raw_value;
-
-  raw_value = g_strconcat ("\"", value, "\"", NULL);
-
-  tcc_define_symbol (state, name, raw_value);
-
-  g_free (raw_value);
 }
 
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8 && !defined (_MSC_VER)

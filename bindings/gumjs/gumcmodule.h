@@ -32,6 +32,8 @@ struct _GumCModuleClass
       gpointer user_data);
   gpointer (* find_symbol_by_name) (GumCModule * cm, const gchar * name);
   void (* drop_metadata) (GumCModule * cm);
+  void (* add_define) (GumCModule * cm, const gchar * name,
+      const gchar * value);
 };
 
 struct _GumCSymbolDetails
