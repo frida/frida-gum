@@ -100,7 +100,62 @@ gboolean
 gum_cmodule_link (GumCModule * self,
                   GError ** error)
 {
-  return GUM_CMODULE_GET_CLASS (self)->link (self, error);
+  GumCModulePrivate * priv = gum_cmodule_get_instance_private (self);
+  GString * error_messages;
+  gint res;
+  guint size, page_size;
+  gpointer base;
+
+  g_assert (state != NULL);
+  g_assert (self->range.base_address == 0);
+
+  error_messages = NULL;
+  res = GUM_CMODULE_GET_CLASS (self)->link_pre (self, &error_messages);
+  if (res == -1)
+    goto beach;
+  size = res;
+
+  page_size = gum_query_page_size ();
+
+  base = gum_memory_allocate (NULL, size, page_size, GUM_PAGE_RW);
+
+  res = GUM_CMODULE_GET_CLASS (self)->link (self, base, &error_messages);
+  if (res == 0)
+  {
+    GumMemoryRange * r = &priv->range;
+    GumCModuleInitFunc init;
+
+    r->base_address = GUM_ADDRESS (base);
+    r->size = GUM_ALIGN_SIZE (size, page_size);
+
+    gum_memory_mark_code (base, size);
+
+    gum_cloak_add_range (r);
+
+    init = GUM_POINTER_TO_FUNCPTR (GumCModuleInitFunc,
+        gum_cmodule_find_symbol_by_name (self, "init"));
+    if (init != NULL)
+      init ();
+
+    priv->finalize = GUM_POINTER_TO_FUNCPTR (GumCModuleFinalizeFunc,
+        gum_cmodule_find_symbol_by_name (self, "finalize"));
+  }
+  else
+  {
+    gum_memory_free (base, size);
+  }
+
+beach:
+  GUM_CMODULE_GET_CLASS (self)->link_post (self);
+
+  if (error_messages != NULL)
+  {
+    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+        "Linking failed: %s", error_messages->str);
+    g_string_free (error_messages, TRUE);
+  }
+
+  return res == 0;
 }
 
 void
@@ -167,7 +222,11 @@ struct _GumEnumerateSymbolsContext
 
 static void gum_tcc_cmodule_add_symbol (GumCModule * cm, const gchar * name,
     gconstpointer value);
-static gboolean gum_tcc_cmodule_link (GumCModule * cm, GError ** error);
+static gint gum_tcc_cmodule_link_pre (GumCModule * cm,
+    GString ** error_messages);
+static gint gum_tcc_cmodule_link (GumCModule * cm, gpointer base,
+    GString ** error_messages);
+static void gum_tcc_cmodule_link_post (GumCModule * cm);
 static void gum_tcc_cmodule_enumerate_symbols (GumCModule * cm,
     GumFoundCSymbolFunc func, gpointer user_data);
 static gpointer gum_tcc_cmodule_find_symbol_by_name (GumCModule * cm,
@@ -192,7 +251,9 @@ gum_tcc_cmodule_class_init (GumTccCModuleClass * klass)
   GumCModuleClass * cmodule_class = GUM_CMODULE_CLASS (klass);
 
   cmodule_class->add_symbol = gum_tcc_cmodule_add_symbol;
+  cmodule_class->link_pre = gum_tcc_cmodule_link_pre;
   cmodule_class->link = gum_tcc_cmodule_link;
+  cmodule_class->link_post = gum_tcc_cmodule_link_post;
   cmodule_class->enumerate_symbols = gum_tcc_cmodule_enumerate_symbols;
   cmodule_class->find_symbol_by_name = gum_tcc_cmodule_find_symbol_by_name;
   cmodule_class->drop_metadata = gum_tcc_cmodule_drop_metadata;
@@ -301,70 +362,32 @@ gum_tcc_cmodule_add_symbol (GumCModule * cm,
   tcc_add_symbol (state, name, value);
 }
 
-static gboolean
-gum_tcc_cmodule_link (GumCModule * cm,
-                      GError ** error)
+static gint
+gum_tcc_cmodule_link_pre (GumCModule * cm, GString ** error_messages)
 {
   GumTccCModule * self = GUM_TCC_CMODULE (cm);
-  GumCModulePrivate * priv = gum_cmodule_get_instance_private (cm);
   TCCState * state = self->state;
-  GString * error_messages;
-  gint res;
-  guint size, page_size;
-  gpointer base;
 
-  g_assert (state != NULL);
-  g_assert (self->range.base_address == 0);
+  tcc_set_error_func (state, error_messages, gum_append_tcc_error);
 
-  error_messages = NULL;
-  tcc_set_error_func (state, &error_messages, gum_append_tcc_error);
+  return tcc_relocate (state, NULL);
+}
 
-  res = tcc_relocate (state, NULL);
-  if (res == -1)
-    goto beach;
-  size = res;
+static gint
+gum_tcc_cmodule_link (GumCModule * cm, gpointer base,
+    GString ** error_messages)
+{
+  GumTccCModule * self = GUM_TCC_CMODULE (cm);
 
-  page_size = gum_query_page_size ();
+  return tcc_relocate (self->state, base);
+}
 
-  base = gum_memory_allocate (NULL, size, page_size, GUM_PAGE_RW);
+static void
+gum_tcc_cmodule_link_post (GumCModule * cm)
+{
+  GumTccCModule * self = GUM_TCC_CMODULE (cm);
 
-  res = tcc_relocate (state, base);
-  if (res == 0)
-  {
-    GumMemoryRange * r = &priv->range;
-    GumCModuleInitFunc init;
-
-    r->base_address = GUM_ADDRESS (base);
-    r->size = GUM_ALIGN_SIZE (size, page_size);
-
-    gum_memory_mark_code (base, size);
-
-    gum_cloak_add_range (r);
-
-    init = GUM_POINTER_TO_FUNCPTR (GumCModuleInitFunc,
-        tcc_get_symbol (state, "init"));
-    if (init != NULL)
-      init ();
-
-    priv->finalize = GUM_POINTER_TO_FUNCPTR (GumCModuleFinalizeFunc,
-        tcc_get_symbol (self->state, "finalize"));
-  }
-  else
-  {
-    gum_memory_free (base, size);
-  }
-
-beach:
-  tcc_set_error_func (state, NULL, NULL);
-
-  if (error_messages != NULL)
-  {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
-        "Linking failed: %s", error_messages->str);
-    g_string_free (error_messages, TRUE);
-  }
-
-  return res == 0;
+  tcc_set_error_func (self->state, NULL, NULL);
 }
 
 static void
