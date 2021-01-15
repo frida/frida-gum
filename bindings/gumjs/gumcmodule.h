@@ -23,7 +23,6 @@ struct _GumCModuleClass
 {
   GObjectClass parent_class;
 
-  const GumMemoryRange * (* get_range) (GumCModule * cm);
   void (* add_symbol) (GumCModule * cm, const gchar * name,
       gconstpointer value);
   gboolean (* link) (GumCModule * cm, GError ** error);

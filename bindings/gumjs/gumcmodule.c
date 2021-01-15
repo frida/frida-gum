@@ -6,17 +6,36 @@
 
 #include "gumcmodule.h"
 
+#include <gum/gum-init.h>
+#include <gum/gum.h>
+
 #include <gio/gio.h>
 
 #ifdef HAVE_TINYCC
 static GumCModule * gum_tcc_cmodule_new (const gchar * source, GError ** error);
 #endif
 
-G_DEFINE_ABSTRACT_TYPE (GumCModule, gum_cmodule, G_TYPE_OBJECT)
+typedef struct _GumCModulePrivate GumCModulePrivate;
+
+typedef void (* GumCModuleInitFunc) (void);
+typedef void (* GumCModuleFinalizeFunc) (void);
+
+struct _GumCModulePrivate
+{
+  GumMemoryRange range;
+  GumCModuleFinalizeFunc finalize;
+};
+
+G_DEFINE_ABSTRACT_TYPE_WITH_PRIVATE (GumCModule, gum_cmodule, G_TYPE_OBJECT);
+
+static void gum_cmodule_finalize (GObject * object);
 
 static void
 gum_cmodule_class_init (GumCModuleClass * klass)
 {
+  GObjectClass * object_class = G_OBJECT_CLASS (klass);
+
+  object_class->finalize = gum_cmodule_finalize;
 }
 
 static void
@@ -39,10 +58,34 @@ gum_cmodule_new (const gchar * name,
   return NULL;
 }
 
+static void
+gum_cmodule_finalize (GObject * object)
+{
+  GumCModule * cmodule = GUM_CMODULE (object);
+  GumCModulePrivate * priv = gum_cmodule_get_instance_private (cmodule);
+  const GumMemoryRange * r = &priv->range;
+
+  if (r->base_address != 0)
+  {
+    if (priv->finalize != NULL)
+      priv->finalize ();
+
+    gum_cloak_remove_range (r);
+
+    gum_memory_free (GSIZE_TO_POINTER (r->base_address), r->size);
+  }
+
+  gum_cmodule_drop_metadata (GUM_CMODULE (object));
+
+  G_OBJECT_CLASS (gum_cmodule_parent_class)->finalize (object);
+}
+
 const GumMemoryRange *
 gum_cmodule_get_range (GumCModule * self)
 {
-  return GUM_CMODULE_GET_CLASS (self)->get_range (self);
+  GumCModulePrivate * priv = gum_cmodule_get_instance_private (self);
+
+  return &priv->range;
 }
 
 void
@@ -83,8 +126,6 @@ gum_cmodule_drop_metadata (GumCModule * self)
 
 #ifdef HAVE_TINYCC
 
-#include <gum/gum-init.h>
-#include <gum/gum.h>
 #include <json-glib/json-glib.h>
 #include <libtcc.h>
 #include <string.h>
@@ -97,16 +138,11 @@ typedef struct _GumEnumerateSymbolsContext GumEnumerateSymbolsContext;
 typedef struct _GumCModuleHeader GumCModuleHeader;
 typedef guint GumCModuleHeaderKind;
 
-typedef void (* GumCModuleInitFunc) (void);
-typedef void (* GumCModuleFinalizeFunc) (void);
-
 struct _GumTccCModule
 {
   GumCModule parent;
 
   TCCState * state;
-  GumMemoryRange range;
-  GumCModuleFinalizeFunc finalize;
 };
 
 struct _GumCModuleHeader
@@ -129,8 +165,6 @@ struct _GumEnumerateSymbolsContext
   gpointer user_data;
 };
 
-static void gum_tcc_cmodule_finalize (GObject * object);
-static const GumMemoryRange * gum_tcc_cmodule_get_range (GumCModule * cm);
 static void gum_tcc_cmodule_add_symbol (GumCModule * cm, const gchar * name,
     gconstpointer value);
 static gboolean gum_tcc_cmodule_link (GumCModule * cm, GError ** error);
@@ -155,12 +189,8 @@ G_DEFINE_TYPE (GumTccCModule, gum_tcc_cmodule, GUM_TYPE_CMODULE)
 static void
 gum_tcc_cmodule_class_init (GumTccCModuleClass * klass)
 {
-  GObjectClass * object_class = G_OBJECT_CLASS (klass);
   GumCModuleClass * cmodule_class = GUM_CMODULE_CLASS (klass);
 
-  object_class->finalize = gum_tcc_cmodule_finalize;
-
-  cmodule_class->get_range = gum_tcc_cmodule_get_range;
   cmodule_class->add_symbol = gum_tcc_cmodule_add_symbol;
   cmodule_class->link = gum_tcc_cmodule_link;
   cmodule_class->enumerate_symbols = gum_tcc_cmodule_enumerate_symbols;
@@ -259,36 +289,6 @@ failure:
 }
 
 static void
-gum_tcc_cmodule_finalize (GObject * object)
-{
-  GumTccCModule * cmodule = GUM_TCC_CMODULE (object);
-  GumMemoryRange * r;
-
-  r = &cmodule->range;
-  if (r->base_address != 0)
-  {
-    if (cmodule->finalize != NULL)
-      cmodule->finalize ();
-
-    gum_cloak_remove_range (r);
-
-    gum_memory_free (GSIZE_TO_POINTER (r->base_address), r->size);
-  }
-
-  gum_cmodule_drop_metadata (GUM_CMODULE (object));
-
-  G_OBJECT_CLASS (gum_tcc_cmodule_parent_class)->finalize (object);
-}
-
-static const GumMemoryRange *
-gum_tcc_cmodule_get_range (GumCModule * cm)
-{
-  GumTccCModule * self = GUM_TCC_CMODULE (cm);
-
-  return &self->range;
-}
-
-static void
 gum_tcc_cmodule_add_symbol (GumCModule * cm,
                             const gchar * name,
                             gconstpointer value)
@@ -306,6 +306,7 @@ gum_tcc_cmodule_link (GumCModule * cm,
                       GError ** error)
 {
   GumTccCModule * self = GUM_TCC_CMODULE (cm);
+  GumCModulePrivate * priv = gum_cmodule_get_instance_private (cm);
   TCCState * state = self->state;
   GString * error_messages;
   gint res;
@@ -330,7 +331,7 @@ gum_tcc_cmodule_link (GumCModule * cm,
   res = tcc_relocate (state, base);
   if (res == 0)
   {
-    GumMemoryRange * r = &self->range;
+    GumMemoryRange * r = &priv->range;
     GumCModuleInitFunc init;
 
     r->base_address = GUM_ADDRESS (base);
@@ -345,7 +346,7 @@ gum_tcc_cmodule_link (GumCModule * cm,
     if (init != NULL)
       init ();
 
-    self->finalize = GUM_POINTER_TO_FUNCPTR (GumCModuleFinalizeFunc,
+    priv->finalize = GUM_POINTER_TO_FUNCPTR (GumCModuleFinalizeFunc,
         tcc_get_symbol (self->state, "finalize"));
   }
   else
