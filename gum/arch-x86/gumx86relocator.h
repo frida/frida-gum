@@ -14,6 +14,8 @@
 G_BEGIN_DECLS
 
 typedef struct _GumX86Relocator GumX86Relocator;
+typedef struct _GumX86RelocatorCachedInstruction GumX86RelocatorCachedInstruction;
+typedef struct _GumX86RelocatorCacheKey GumX86RelocatorCacheKey;
 
 struct _GumX86Relocator
 {
@@ -31,6 +33,22 @@ struct _GumX86Relocator
 
   gboolean eob;
   gboolean eoi;
+
+  GHashTable * cache;
+};
+
+struct _GumX86RelocatorCachedInstruction
+{
+  gboolean has_imm;
+  cs_insn insn;
+  cs_detail detail;
+  GumX86RelocatorCacheKey * key;
+};
+
+struct _GumX86RelocatorCacheKey
+{
+    guint size;
+    uint8_t insn[8];
 };
 
 GUM_API GumX86Relocator * gum_x86_relocator_new (gconstpointer input_code,

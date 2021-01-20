@@ -42,6 +42,38 @@ static gboolean gum_x86_call_is_to_next_instruction (cs_insn * insn);
 static gboolean gum_x86_call_try_parse_get_pc_thunk (cs_insn * insn,
     GumCpuType cpu_type, GumCpuReg * pc_reg);
 
+guint
+gum_x86_relocator_hash (gconstpointer key)
+{
+  GumX86RelocatorCacheKey * cache_key = (GumX86RelocatorCacheKey *) key;
+  guint hash = 5381;
+  guint i;
+
+  for (i = 0; i < cache_key->size; i++)
+    hash = hash * 33 + cache_key->insn[i];
+
+  hash ^= g_int_hash (&cache_key->size);
+  return hash;
+}
+
+gboolean
+gum_x86_relocator_equal (gconstpointer a,
+                         gconstpointer b)
+{
+  GumX86RelocatorCacheKey * key_a = (GumX86RelocatorCacheKey *) a;
+  GumX86RelocatorCacheKey * key_b = (GumX86RelocatorCacheKey *) b;
+  guint i;
+
+  if (key_a->size != key_b->size)
+    return false;
+
+  for (i = 0; i < key_a->size; i++)
+    if (key_a->insn[i] != key_b->insn[i])
+      return false;
+
+  return true;
+}
+
 GumX86Relocator *
 gum_x86_relocator_new (gconstpointer input_code,
                        GumX86Writer * output)
@@ -81,6 +113,12 @@ gum_x86_relocator_init (GumX86Relocator * relocator,
 {
   relocator->ref_count = 1;
 
+  if (relocator->cache == NULL)
+  {
+    relocator->cache = g_hash_table_new_full (gum_x86_relocator_hash,
+        gum_x86_relocator_equal, g_free, g_free);
+  }
+
   cs_open (CS_ARCH_X86,
       (output->target_cpu == GUM_CPU_AMD64) ? CS_MODE_64 : CS_MODE_32,
       &relocator->capstone);
@@ -111,6 +149,8 @@ gum_x86_relocator_clear (GumX86Relocator * relocator)
   g_free (relocator->input_insns);
 
   cs_close (&relocator->capstone);
+
+  g_hash_table_destroy (relocator->cache);
 }
 
 void
@@ -160,6 +200,100 @@ gum_x86_relocator_increment_outpos (GumX86Relocator * self)
   g_assert (self->outpos <= self->inpos);
 }
 
+static guint hits = 0;
+static guint misses = 0;
+
+static void
+gum_x86_relocator_fault (GumX86Relocator * self,
+                         cs_insn * insn)
+{
+  GumX86RelocatorCacheKey * key;
+  GumX86RelocatorCachedInstruction * value;
+  cs_x86 * x86;
+
+  key = gum_malloc (sizeof (GumX86RelocatorCacheKey));
+  memcpy (key->insn, insn->bytes, insn->size);
+  key->size = insn->size;
+
+  value = gum_malloc (sizeof (GumX86RelocatorCachedInstruction));
+  value->detail = *insn->detail;
+  value->insn = *insn;
+  value->insn.detail = &value->detail;
+  value->key = key;
+
+  x86 = &insn->detail->x86;
+  value->has_imm = false;
+  for (int i = 0; i < x86->op_count; i++)
+  {
+    if (x86->operands[i].type == X86_OP_IMM)
+    {
+      value->has_imm = true;
+    }
+  }
+
+  g_hash_table_insert (self->cache, key, value);
+}
+
+static gboolean
+gum_x86_relocator_lookup (GumX86Relocator * self,
+                          const uint8_t * code,
+                          cs_insn * insn)
+{
+  GumX86RelocatorCacheKey key;
+  GumX86RelocatorCachedInstruction * value;
+  cs_detail * detail;
+
+  memcpy (key.insn, code, sizeof (key.insn));
+  for (key.size = 0; key.size < sizeof (key.insn); key.size++)
+  {
+    value = (GumX86RelocatorCachedInstruction *) g_hash_table_lookup (self->cache, &key);
+    if (value == NULL)
+      continue;
+
+    if (value->has_imm)
+    {
+      return false;
+    }
+
+    detail = insn->detail;
+    *detail = value->detail;
+    *insn = value->insn;
+    insn->detail = detail;
+    return true;
+  }
+  return false;
+}
+
+static bool
+gum_x86_relocator_iter (GumX86Relocator * self,
+                        const uint8_t ** code,
+                        size_t * size,
+                        uint64_t * address,
+                        cs_insn * insn)
+{
+  // if (((hits + misses) % 50) == 0)
+  //   printf ("hits: %d, misses: %d\n", hits, misses);
+
+  if (gum_x86_relocator_lookup (self, *code, insn))
+  {
+    hits++;
+    insn->address = *address;
+
+    *code += insn->size;
+    *size -= insn->size;
+    *address += insn->size;
+
+    return true;
+  }
+  misses++;
+
+  if (!cs_disasm_iter (self->capstone, code, size, address, insn))
+    return false;
+
+  gum_x86_relocator_fault (self, insn);
+  return true;
+}
+
 guint
 gum_x86_relocator_read_one (GumX86Relocator * self,
                             const cs_insn ** instruction)
@@ -182,7 +316,7 @@ gum_x86_relocator_read_one (GumX86Relocator * self,
   address = GPOINTER_TO_SIZE (self->input_cur);
   insn = *insn_ptr;
 
-  if (!cs_disasm_iter (self->capstone, &code, &size, &address, insn))
+  if (!gum_x86_relocator_iter (self, &code, &size, &address, insn))
     return 0;
 
   switch (insn->id)

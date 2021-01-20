@@ -69,6 +69,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (unfollow_should_handle_terminated_thread)
 #ifndef HAVE_WINDOWS
   TESTENTRY (performance)
+  TESTENTRY (cold_performance)
 #endif
 
 #ifdef HAVE_WINDOWS
@@ -259,6 +260,47 @@ TESTCASE (performance)
   g_timer_reset (timer);
   pretend_workload (&runner_range);
   g_timer_elapsed (timer, NULL);
+
+  /* the real deal */
+  gum_stalker_set_counters_enabled (TRUE);
+  g_timer_reset (timer);
+  pretend_workload (&runner_range);
+  duration_stalked = g_timer_elapsed (timer, NULL);
+
+  gum_stalker_unfollow_me (fixture->stalker);
+
+  g_timer_destroy (timer);
+
+  g_print ("<duration_direct=%f duration_stalked=%f ratio=%f> ",
+      duration_direct, duration_stalked, duration_stalked / duration_direct);
+
+  gum_stalker_dump_counters ();
+}
+
+TESTCASE (cold_performance)
+{
+  GumMemoryRange runner_range;
+  GTimer * timer;
+  gdouble duration_direct, duration_stalked;
+
+  runner_range.base_address = 0;
+  runner_range.size = 0;
+  gum_process_enumerate_modules (store_range_of_test_runner, &runner_range);
+  g_assert_cmpuint (runner_range.base_address, !=, 0);
+  g_assert_cmpuint (runner_range.size, !=, 0);
+
+  timer = g_timer_new ();
+  pretend_workload (&runner_range);
+
+  g_timer_reset (timer);
+  pretend_workload (&runner_range);
+  duration_direct = g_timer_elapsed (timer, NULL);
+
+  fixture->sink->mask = GUM_NOTHING;
+
+  gum_stalker_set_trust_threshold (fixture->stalker, 0);
+  gum_stalker_follow_me (fixture->stalker, fixture->transformer,
+      GUM_EVENT_SINK (fixture->sink));
 
   /* the real deal */
   gum_stalker_set_counters_enabled (TRUE);
