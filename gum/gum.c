@@ -58,8 +58,6 @@ static void gum_internal_thread_details_free (
 static void gum_on_fd_opened (gint fd, const gchar * description);
 static void gum_on_fd_closed (gint fd, const gchar * description);
 
-static void gum_on_assert_failure (const gchar * log_domain, const gchar * file,
-    gint line, const gchar * func, const gchar * message, gpointer user_data);
 static void gum_on_log_message (const gchar * log_domain,
     GLogLevelFlags log_level, const gchar * message, gpointer user_data);
 
@@ -286,7 +284,6 @@ gum_init_embedded (void)
 #endif
 #ifdef HAVE_FRIDA_GLIB
   glib_init ();
-  g_assertion_set_handler (gum_on_assert_failure, NULL);
 #endif
   g_log_set_default_handler (gum_on_log_message, NULL);
   gum_do_init ();
@@ -445,29 +442,6 @@ gum_libdl_prevent_unload (void)
 }
 
 #endif
-
-static void
-gum_on_assert_failure (const gchar * log_domain,
-                       const gchar * file,
-                       gint line,
-                       const gchar * func,
-                       const gchar * message,
-                       gpointer user_data)
-{
-  gchar * full_message;
-
-  while (g_str_has_prefix (file, ".." G_DIR_SEPARATOR_S))
-    file += 3;
-  if (message == NULL)
-    message = "code should not be reached";
-
-  full_message = g_strdup_printf ("%s:%d:%s%s %s", file, line, func,
-      (func[0] != '\0') ? ":" : "", message);
-  gum_on_log_message (log_domain, G_LOG_LEVEL_ERROR, full_message, user_data);
-  g_free (full_message);
-
-  abort ();
-}
 
 static void
 gum_on_log_message (const gchar * log_domain,
