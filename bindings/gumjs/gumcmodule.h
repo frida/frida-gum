@@ -23,14 +23,18 @@ struct _GumCModuleClass
 {
   GObjectClass parent_class;
 
-  const GumMemoryRange * (* get_range) (GumCModule * cm);
   void (* add_symbol) (GumCModule * cm, const gchar * name,
       gconstpointer value);
-  gboolean (* link) (GumCModule * cm, GError ** error);
+  gboolean (* link_pre) (GumCModule * cm, gsize * size,
+      GString ** error_messages);
+  gboolean (* link) (GumCModule * cm, gpointer base, GString ** error_messages);
+  void (* link_post) (GumCModule * cm);
   void (* enumerate_symbols) (GumCModule * cm, GumFoundCSymbolFunc func,
       gpointer user_data);
   gpointer (* find_symbol_by_name) (GumCModule * cm, const gchar * name);
   void (* drop_metadata) (GumCModule * cm);
+  void (* add_define) (GumCModule * cm, const gchar * name,
+      const gchar * value);
 };
 
 struct _GumCSymbolDetails
