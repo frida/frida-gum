@@ -165,9 +165,6 @@ gum_cmodule_link (GumCModule * self,
 
   priv = gum_cmodule_get_instance_private (self);
 
-  g_assert (state != NULL);
-  g_assert (self->range.base_address == 0);
-
   error_messages = NULL;
   if (!GUM_CMODULE_GET_CLASS (self)->link_pre (self, &size, &error_messages))
     goto beach;
@@ -390,11 +387,8 @@ gum_tcc_cmodule_add_symbol (GumCModule * cm,
                             gconstpointer value)
 {
   GumTccCModule * self = GUM_TCC_CMODULE (cm);
-  TCCState * state = self->state;
 
-  g_assert (state != NULL);
-
-  tcc_add_symbol (state, name, value);
+  tcc_add_symbol (self->state, name, value);
 }
 
 static gboolean
@@ -457,15 +451,12 @@ gum_tcc_cmodule_enumerate_symbols (GumCModule * cm,
                                    gpointer user_data)
 {
   GumTccCModule * self = GUM_TCC_CMODULE (cm);
-  TCCState * state = self->state;
   GumEnumerateSymbolsContext ctx;
-
-  g_assert (state != NULL);
 
   ctx.func = func;
   ctx.user_data = user_data;
 
-  tcc_list_symbols (state, &ctx, gum_emit_symbol);
+  tcc_list_symbols (self->state, &ctx, gum_emit_symbol);
 }
 
 static void
@@ -487,12 +478,8 @@ gum_tcc_cmodule_find_symbol_by_name (GumCModule * cm,
                                      const gchar * name)
 {
   GumTccCModule * self = GUM_TCC_CMODULE (cm);
-  TCCState * state = self->state;
 
-  g_assert (state != NULL);
-  g_assert (self->range.base_address != 0);
-
-  return tcc_get_symbol (state, name);
+  return tcc_get_symbol (self->state, name);
 }
 
 static void
