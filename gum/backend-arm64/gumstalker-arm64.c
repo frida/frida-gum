@@ -866,6 +866,23 @@ _gum_stalker_do_deactivate (GumStalker * self,
   return ret_addr;
 }
 
+void
+gum_stalker_prefetch (GumStalker * self,
+                      gconstpointer address,
+                      gint recycle_count)
+{
+  GumExecCtx * ctx;
+  GumExecBlock * block;
+  gpointer code_address;
+
+  ctx = gum_stalker_get_exec_ctx (self);
+  g_assert (ctx != NULL);
+
+  block = gum_exec_ctx_obtain_block_for (ctx, (gpointer) address,
+      &code_address);
+  block->recycle_count = recycle_count;
+}
+
 GumProbeId
 gum_stalker_add_call_probe (GumStalker * self,
                             gpointer target_address,

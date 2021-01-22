@@ -112,6 +112,13 @@ gum_stalker_deactivate (GumStalker * self)
 {
 }
 
+void
+gum_stalker_prefetch (GumStalker * self,
+                      gconstpointer address,
+                      gint recycle_count)
+{
+}
+
 GumProbeId
 gum_stalker_add_call_probe (GumStalker * self,
                             gpointer target_address,

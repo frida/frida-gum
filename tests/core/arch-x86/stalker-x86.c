@@ -11,6 +11,13 @@
 # include <lzma.h>
 #endif
 
+#ifdef HAVE_LINUX
+# include <errno.h>
+# include <fcntl.h>
+# include <unistd.h>
+# include <sys/wait.h>
+#endif
+
 TESTLIST_BEGIN (stalker)
   TESTENTRY (no_events)
   TESTENTRY (call)
@@ -79,6 +86,10 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (win32_follow_user_to_kernel_to_callback)
   TESTENTRY (win32_follow_callback_to_kernel_to_user)
 #endif
+
+#ifdef HAVE_LINUX
+  TESTENTRY (prefetch)
+#endif
 TESTLIST_END ()
 
 static gpointer run_stalked_briefly (gpointer data);
@@ -95,6 +106,19 @@ static void unfollow_during_transform (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
 static void invoke_follow_return_code (TestStalkerFixture * fixture);
 static void invoke_unfollow_deep_code (TestStalkerFixture * fixture);
+
+#ifdef HAVE_LINUX
+static void prefetch_on_event (const GumEvent * event,
+    GumCpuContext * cpu_context, gpointer user_data);
+static void prefetch_run_child (GumStalker * stalker,
+    GumMemoryRange * runner_range, int compile_fd, int execute_fd);
+static void prefetch_activation_target (void);
+static void prefetch_write_blocks (int fd, GHashTable * table);
+static void prefetch_read_blocks (int fd, GHashTable * table);
+
+static GHashTable * prefetch_compiled = NULL;
+static GHashTable * prefetch_executed = NULL;
+#endif
 
 TESTCASE (heap_api)
 {
@@ -2156,6 +2180,231 @@ test_window_proc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
   }
 
   return DefWindowProc (hwnd, msg, wparam, lparam);
+}
+
+#endif
+
+#ifdef HAVE_LINUX
+
+TESTCASE (prefetch)
+{
+  GumMemoryRange runner_range;
+  gint trust;
+  int compile_pipes[2] = { -1, -1 };
+  int execute_pipes[2] = { -1, -1 };
+  GumEventSink * sink;
+  GHashTable * compiled_run1;
+  GHashTable * executed_run1;
+  guint compiled_size_run1;
+  guint executed_size_run1;
+  GHashTableIter iter;
+  gpointer iter_key, iter_value;
+  GHashTable * compiled_run2;
+  GHashTable * executed_run2;
+  guint compiled_size_run2;
+  guint executed_size_run2;
+
+  /* Initialize workload parameters */
+  runner_range.base_address = 0;
+  runner_range.size = 0;
+  gum_process_enumerate_modules (store_range_of_test_runner, &runner_range);
+  g_assert_cmpuint (runner_range.base_address, !=, 0);
+  g_assert_cmpuint (runner_range.size, !=, 0);
+
+  /* Initialize Stalker */
+  gum_stalker_set_trust_threshold (fixture->stalker, 3);
+  trust = gum_stalker_get_trust_threshold (fixture->stalker);
+
+  /*
+   * Create IPC.
+   *
+   * The pipes by default are 64 KB in size. At 8-bytes per-block, (the block
+   * address) we thus have capacity to communicate up to 8192 blocks back to the
+   * parent before the child's write() call blocks and we deadlock in waitpid().
+   *
+   * We can increase the size of these pipes using fcntl(F_SETPIPE_SZ), but we
+   * need to be careful so we don't exceed the limit set in
+   * /proc/sys/fs/pipe-max-size.
+   *
+   * Since our test has approx 1300 blocks, we don't need to worry about this.
+   * However, production implementations may need to handle this error.
+   */
+  g_assert_cmpint (pipe2 (compile_pipes, O_NONBLOCK), ==, 0);
+  g_assert_cmpint (pipe2 (execute_pipes, O_NONBLOCK), ==, 0);
+
+  /* Configure Stalker */
+  sink = gum_event_sink_make_from_callback (GUM_COMPILE | GUM_BLOCK,
+      prefetch_on_event, NULL, NULL);
+  gum_stalker_follow_me (fixture->stalker, NULL, sink);
+  gum_stalker_deactivate (fixture->stalker);
+
+  /* Run the child */
+  prefetch_run_child (fixture->stalker, &runner_range,
+      compile_pipes[STDOUT_FILENO], execute_pipes[STDOUT_FILENO]);
+
+  /* Read the results */
+  compiled_run1 = g_hash_table_new (NULL, NULL);
+  prefetch_read_blocks (compile_pipes[STDIN_FILENO], compiled_run1);
+  executed_run1 = g_hash_table_new (NULL, NULL);
+  prefetch_read_blocks (execute_pipes[STDIN_FILENO], executed_run1);
+
+  compiled_size_run1 = g_hash_table_size (compiled_run1);
+  executed_size_run1 = g_hash_table_size (executed_run1);
+
+  if (g_test_verbose ())
+  {
+    g_print ("\tcompiled: %d\n", compiled_size_run1);
+    g_print ("\texecuted: %d\n", executed_size_run1);
+  }
+
+  g_assert_cmpuint (compiled_size_run1, >, 0);
+  g_assert_cmpuint (compiled_size_run1, ==, executed_size_run1);
+
+  /* Prefetch the blocks */
+  g_hash_table_iter_init (&iter, compiled_run1);
+  while (g_hash_table_iter_next (&iter, &iter_key, &iter_value))
+  {
+    gum_stalker_prefetch (fixture->stalker, iter_key, trust);
+  }
+
+  /* Run the child again */
+  prefetch_run_child (fixture->stalker, &runner_range,
+      compile_pipes[STDOUT_FILENO], execute_pipes[STDOUT_FILENO]);
+
+  /* Read the results */
+  compiled_run2 = g_hash_table_new (NULL, NULL);
+  prefetch_read_blocks (compile_pipes[STDIN_FILENO], compiled_run2);
+  executed_run2 = g_hash_table_new (NULL, NULL);
+  prefetch_read_blocks (execute_pipes[STDIN_FILENO], executed_run2);
+
+  compiled_size_run2 = g_hash_table_size (compiled_run2);
+  executed_size_run2 = g_hash_table_size (executed_run2);
+
+  if (g_test_verbose ())
+  {
+    g_print ("\tcompiled2: %d\n", compiled_size_run2);
+    g_print ("\texecuted2: %d\n", executed_size_run2);
+  }
+
+  g_assert_cmpuint (compiled_size_run2, ==, 0);
+  g_assert_cmpuint (executed_size_run2, ==, executed_size_run1);
+
+  /* Free resources */
+  g_hash_table_unref (compiled_run2);
+  g_hash_table_unref (executed_run2);
+  g_hash_table_unref (compiled_run1);
+  g_hash_table_unref (executed_run1);
+
+  close (execute_pipes[STDIN_FILENO]);
+  close (execute_pipes[STDOUT_FILENO]);
+  close (compile_pipes[STDIN_FILENO]);
+  close (compile_pipes[STDOUT_FILENO]);
+
+  gum_stalker_unfollow_me (fixture->stalker);
+  g_object_unref (sink);
+}
+
+static void
+prefetch_on_event (const GumEvent * event,
+                   GumCpuContext * cpu_context,
+                   gpointer user_data)
+{
+  switch (event->type)
+  {
+    case GUM_COMPILE:
+    {
+      const GumCompileEvent * compile = &event->compile;
+
+      if (prefetch_compiled != NULL)
+        g_hash_table_add (prefetch_compiled, compile->begin);
+
+      break;
+    }
+    case GUM_BLOCK:
+    {
+      const GumBlockEvent * block = &event->block;
+
+      if (prefetch_executed != NULL)
+        g_hash_table_add (prefetch_executed, block->begin);
+
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+static void
+prefetch_run_child (GumStalker * stalker,
+                    GumMemoryRange * runner_range,
+                    int compile_fd,
+                    int execute_fd)
+{
+  pid_t pid;
+  int res;
+  int status;
+
+  pid = fork ();
+  g_assert_cmpint (pid, >=, 0);
+
+  if (pid == 0)
+  {
+    /* Child */
+
+    prefetch_compiled = g_hash_table_new (NULL, NULL);
+    prefetch_executed = g_hash_table_new (NULL, NULL);
+
+    gum_stalker_activate (stalker, prefetch_activation_target);
+    prefetch_activation_target ();
+    pretend_workload (runner_range);
+    gum_stalker_unfollow_me (stalker);
+
+    prefetch_write_blocks (compile_fd, prefetch_compiled);
+    prefetch_write_blocks (execute_fd, prefetch_executed);
+
+    exit (0);
+  }
+
+  /* Wait for the child */
+  res = waitpid (pid, &status, 0);
+  g_assert_cmpint (res, ==, pid);
+  g_assert_cmpint (WIFEXITED (status), !=, 0);
+  g_assert_cmpint (WEXITSTATUS (status), ==, 0);
+}
+
+__attribute__ ((noinline))
+static void
+prefetch_activation_target (void)
+{
+  /* Avoid calls being optimized out */
+  asm ("");
+}
+
+static void
+prefetch_write_blocks (int fd,
+                       GHashTable * table)
+{
+  GHashTableIter iter;
+  gpointer iter_key, iter_value;
+
+  g_hash_table_iter_init (&iter, table);
+  while (g_hash_table_iter_next (&iter, &iter_key, &iter_value))
+  {
+    int res = write (fd, &iter_key, sizeof (gpointer));
+    g_assert_cmpint (res, ==, sizeof (gpointer));
+  }
+}
+
+static void
+prefetch_read_blocks (int fd,
+                      GHashTable * table)
+{
+  gpointer block_address;
+
+  while (read (fd, &block_address, sizeof (gpointer)) == sizeof (gpointer))
+  {
+    g_hash_table_add (table, block_address);
+  }
 }
 
 #endif
