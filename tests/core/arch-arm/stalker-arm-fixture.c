@@ -91,7 +91,12 @@
 /*
  * Total number of blocks in the invoker built by follow_and_invoke().
  */
-#define INVOKER_BLOCK_COUNT 0
+#define INVOKER_BLOCK_COUNT 3
+
+/*
+ * Index of block invoked by follow_and_invoke().
+ */
+#define INVOKEE_BLOCK_INDEX 1
 
 /*
  * Offset of the first instruction within the invoker which should be stalked in

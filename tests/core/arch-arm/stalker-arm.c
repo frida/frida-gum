@@ -312,8 +312,8 @@ TESTCASE (arm_block_events_generated)
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 1);
 
-  GUM_ASSERT_EVENT_ADDR (block, 0, begin, func);
-  GUM_ASSERT_EVENT_ADDR (block, 0, end, func + (3 * 4));
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, begin, func);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, end, func + (3 * 4));
 }
 
 TESTCODE (thumb_block_events,
@@ -337,8 +337,8 @@ TESTCASE (thumb_block_events_generated)
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 1);
 
-  GUM_ASSERT_EVENT_ADDR (block, 0, begin, func);
-  GUM_ASSERT_EVENT_ADDR (block, 0, end, func + (4 * 2));
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, begin, func);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, end, func + (4 * 2));
 }
 
 TESTCODE (arm_nested_call,
@@ -1029,19 +1029,19 @@ TESTCASE (arm_branch_cc_block_events_generated)
 
   func = INVOKE_ARM_EXPECTING (GUM_BLOCK, arm_b_cc, 10);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 4);
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 4);
 
-  GUM_ASSERT_EVENT_ADDR (block, 0, begin, func);
-  GUM_ASSERT_EVENT_ADDR (block, 0, end, func + 16);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, begin, func);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, end, func + 16);
 
-  GUM_ASSERT_EVENT_ADDR (block, 1, begin, func + 20);
-  GUM_ASSERT_EVENT_ADDR (block, 1, end, func + 28);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 1, begin, func + 20);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 1, end, func + 28);
 
-  GUM_ASSERT_EVENT_ADDR (block, 2, begin, func + 28);
-  GUM_ASSERT_EVENT_ADDR (block, 2, end, func + 40);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 2, begin, func + 28);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 2, end, func + 40);
 
-  GUM_ASSERT_EVENT_ADDR (block, 3, begin, func + 44);
-  GUM_ASSERT_EVENT_ADDR (block, 3, end, func + 52);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 3, begin, func + 44);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 3, end, func + 52);
 }
 
 TESTCODE (thumb_b_cc,
@@ -1078,19 +1078,19 @@ TESTCASE (thumb_branch_cc_block_events_generated)
 
   func = INVOKE_THUMB_EXPECTING (GUM_BLOCK, thumb_b_cc, 10);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 4);
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 4);
 
-  GUM_ASSERT_EVENT_ADDR (block, 0, begin, func);
-  GUM_ASSERT_EVENT_ADDR (block, 0, end, func + 10);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, begin, func);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, end, func + 10);
 
-  GUM_ASSERT_EVENT_ADDR (block, 1, begin, func + 12);
-  GUM_ASSERT_EVENT_ADDR (block, 1, end, func + 16);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 1, begin, func + 12);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 1, end, func + 16);
 
-  GUM_ASSERT_EVENT_ADDR (block, 2, begin, func + 16);
-  GUM_ASSERT_EVENT_ADDR (block, 2, end, func + 22);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 2, begin, func + 16);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 2, end, func + 22);
 
-  GUM_ASSERT_EVENT_ADDR (block, 3, begin, func + 24);
-  GUM_ASSERT_EVENT_ADDR (block, 3, end, func + 28);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 3, begin, func + 24);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 3, end, func + 28);
 }
 
 TESTCODE (thumb_cbz_cbnz,
@@ -1125,19 +1125,19 @@ TESTCASE (thumb_cbz_cbnz_block_events_generated)
 
   func = INVOKE_THUMB_EXPECTING (GUM_BLOCK, thumb_cbz_cbnz, 6);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 4);
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 4);
 
-  GUM_ASSERT_EVENT_ADDR (block, 0, begin, func);
-  GUM_ASSERT_EVENT_ADDR (block, 0, end, func + 12);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, begin, func);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, end, func + 12);
 
-  GUM_ASSERT_EVENT_ADDR (block, 1, begin, func + 14);
-  GUM_ASSERT_EVENT_ADDR (block, 1, end, func + 16);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 1, begin, func + 14);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 1, end, func + 16);
 
-  GUM_ASSERT_EVENT_ADDR (block, 2, begin, func + 16);
-  GUM_ASSERT_EVENT_ADDR (block, 2, end, func + 20);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 2, begin, func + 16);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 2, end, func + 20);
 
-  GUM_ASSERT_EVENT_ADDR (block, 3, begin, func + 20);
-  GUM_ASSERT_EVENT_ADDR (block, 3, end, func + 24);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 3, begin, func + 20);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 3, end, func + 24);
 }
 
 TESTCODE (thumb2_mov_pc_reg,
@@ -1367,10 +1367,10 @@ TESTCASE (arm_ldr_pc)
   fixture->sink->mask = GUM_BLOCK;
   g_assert_cmpuint (FOLLOW_AND_INVOKE (func), ==, 2);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 1);
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 1);
 
-  GUM_ASSERT_EVENT_ADDR (block, 0, begin, func);
-  GUM_ASSERT_EVENT_ADDR (block, 0, end, func + 12);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, begin, func);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, end, func + 12);
 }
 
 TESTCODE (arm_ldr_pc_pre_index_imm,
@@ -1403,10 +1403,10 @@ TESTCASE (arm_ldr_pc_pre_index_imm)
   fixture->sink->mask = GUM_BLOCK;
   g_assert_cmpuint (FOLLOW_AND_INVOKE (func), ==, 0xbabababb);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 1);
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 1);
 
-  GUM_ASSERT_EVENT_ADDR (block, 0, begin, func);
-  GUM_ASSERT_EVENT_ADDR (block, 0, end, func + 16);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, begin, func);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, end, func + 16);
 }
 
 TESTCODE (arm_ldr_pc_post_index_imm,
@@ -1437,10 +1437,10 @@ TESTCASE (arm_ldr_pc_post_index_imm)
   fixture->sink->mask = GUM_BLOCK;
   g_assert_cmpuint (FOLLOW_AND_INVOKE (func), ==, 0xbabababb);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 1);
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 1);
 
-  GUM_ASSERT_EVENT_ADDR (block, 0, begin, func);
-  GUM_ASSERT_EVENT_ADDR (block, 0, end, func + 16);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, begin, func);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, end, func + 16);
 }
 
 TESTCODE (arm_ldr_pc_pre_index_imm_negative,
@@ -1473,10 +1473,10 @@ TESTCASE (arm_ldr_pc_pre_index_imm_negative)
   fixture->sink->mask = GUM_BLOCK;
   g_assert_cmpuint (FOLLOW_AND_INVOKE (func), ==, 0xbabababb);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 1);
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 1);
 
-  GUM_ASSERT_EVENT_ADDR (block, 0, begin, func);
-  GUM_ASSERT_EVENT_ADDR (block, 0, end, func + 16);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, begin, func);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, end, func + 16);
 }
 
 TESTCODE (arm_ldr_pc_post_index_imm_negative,
@@ -1507,10 +1507,10 @@ TESTCASE (arm_ldr_pc_post_index_imm_negative)
   fixture->sink->mask = GUM_BLOCK;
   g_assert_cmpuint (FOLLOW_AND_INVOKE (func), ==, 0xbabababb);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 1);
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 1);
 
-  GUM_ASSERT_EVENT_ADDR (block, 0, begin, func);
-  GUM_ASSERT_EVENT_ADDR (block, 0, end, func + 16);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, begin, func);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, end, func + 16);
 }
 
 TESTCODE (arm_sub_pc,
@@ -1531,13 +1531,13 @@ TESTCASE (arm_sub_pc)
 
   func = INVOKE_ARM_EXPECTING (GUM_BLOCK, arm_sub_pc, 2);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 2);
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 2);
 
-  GUM_ASSERT_EVENT_ADDR (block, 0, begin, func);
-  GUM_ASSERT_EVENT_ADDR (block, 0, end, func + 8);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, begin, func);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, end, func + 8);
 
-  GUM_ASSERT_EVENT_ADDR (block, 1, begin, func + 16);
-  GUM_ASSERT_EVENT_ADDR (block, 1, end, func + 24);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 1, begin, func + 16);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 1, end, func + 24);
 }
 
 TESTCODE (arm_add_pc,
@@ -1558,13 +1558,13 @@ TESTCASE (arm_add_pc)
 
   func = INVOKE_ARM_EXPECTING (GUM_BLOCK, arm_add_pc, 2);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 2);
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 2);
 
-  GUM_ASSERT_EVENT_ADDR (block, 0, begin, func);
-  GUM_ASSERT_EVENT_ADDR (block, 0, end, func + 8);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, begin, func);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, end, func + 8);
 
-  GUM_ASSERT_EVENT_ADDR (block, 1, begin, func + 16);
-  GUM_ASSERT_EVENT_ADDR (block, 1, end, func + 24);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 1, begin, func + 16);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 1, end, func + 24);
 }
 
 TESTCODE (thumb_it_eq,
@@ -1612,10 +1612,10 @@ TESTCASE (thumb_it_eq_branch)
 
   func = INVOKE_THUMB_EXPECTING (GUM_BLOCK, thumb_it_eq_branch, 0);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 1);
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 2);
 
-  GUM_ASSERT_EVENT_ADDR (block, 0, begin, func);
-  GUM_ASSERT_EVENT_ADDR (block, 0, end, func + 10);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, begin, func);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, end, func + 10);
 }
 
 TESTCODE (thumb_itt_eq_branch,
@@ -1645,10 +1645,10 @@ TESTCASE (thumb_itt_eq_branch)
 
   func = INVOKE_THUMB_EXPECTING (GUM_BLOCK, thumb_itt_eq_branch, 1);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 1);
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 2);
 
-  GUM_ASSERT_EVENT_ADDR (block, 0, begin, func);
-  GUM_ASSERT_EVENT_ADDR (block, 0, end, func + 14);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, begin, func);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, end, func + 14);
 }
 
 TESTCODE (thumb_ite_eq_branch,
@@ -1678,10 +1678,10 @@ TESTCASE (thumb_ite_eq_branch)
 
   func = INVOKE_THUMB_EXPECTING (GUM_BLOCK, thumb_ite_eq_branch, 2);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 1);
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 2);
 
-  GUM_ASSERT_EVENT_ADDR (block, 0, begin, func);
-  GUM_ASSERT_EVENT_ADDR (block, 0, end, func + 14);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, begin, func);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, end, func + 14);
 }
 
 TESTCODE (thumb_it_eq_branch_link,
@@ -2141,17 +2141,17 @@ TESTCASE (branch_thumb)
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 4);
 
-  GUM_ASSERT_EVENT_ADDR (block, 0, begin, func);
-  GUM_ASSERT_EVENT_ADDR (block, 0, end, func + 24);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, begin, func);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, end, func + 24);
 
-  GUM_ASSERT_EVENT_ADDR (block, 1, begin, func + 40);
-  GUM_ASSERT_EVENT_ADDR (block, 1, end, func + 44);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 1, begin, func + 40);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 1, end, func + 44);
 
-  GUM_ASSERT_EVENT_ADDR (block, 2, begin, func + 24);
-  GUM_ASSERT_EVENT_ADDR (block, 2, end, func + 28);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 2, begin, func + 24);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 2, end, func + 28);
 
-  GUM_ASSERT_EVENT_ADDR (block, 3, begin, func + 32);
-  GUM_ASSERT_EVENT_ADDR (block, 3, end, func + 40);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 3, begin, func + 32);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 3, end, func + 40);
 }
 
 TESTCODE (call_workload,

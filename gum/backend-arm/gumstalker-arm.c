@@ -1496,15 +1496,18 @@ static gboolean
 gum_stalker_iterator_arm_next (GumStalkerIterator * self,
                                const cs_insn ** insn)
 {
+  GumExecBlock * block = self->exec_block;
   GumGeneratorContext * gc = self->generator_context;
   GumArmRelocator * rl = gc->arm_relocator;
   GumInstruction * instruction;
+  gboolean is_first_instruction;
   guint n_read;
 
   instruction = self->generator_context->instruction;
+  is_first_instruction = instruction == NULL;
+
   if (instruction != NULL)
   {
-    GumExecBlock * block = self->exec_block;
     gboolean skip_implicitly_requested;
 
     skip_implicitly_requested = rl->outpos != rl->inpos;
@@ -1544,6 +1547,13 @@ gum_stalker_iterator_arm_next (GumStalkerIterator * self,
 
   self->generator_context->instruction = instruction;
 
+  if (is_first_instruction && (self->exec_context->sink_mask & GUM_BLOCK) != 0)
+  {
+    gum_exec_block_arm_open_prolog (block, gc);
+    gum_exec_block_write_arm_block_event_code (block, gc);
+    gum_exec_block_arm_close_prolog (block, gc);
+  }
+
   if (insn != NULL)
     *insn = instruction->ci;
 
@@ -1554,15 +1564,18 @@ static gboolean
 gum_stalker_iterator_thumb_next (GumStalkerIterator * self,
                                  const cs_insn ** insn)
 {
+  GumExecBlock * block = self->exec_block;
   GumGeneratorContext * gc = self->generator_context;
   GumThumbRelocator * rl = gc->thumb_relocator;
   GumInstruction * instruction;
+  gboolean is_first_instruction;
   guint n_read;
 
   instruction = self->generator_context->instruction;
+  is_first_instruction = instruction == NULL;
+
   if (instruction != NULL)
   {
-    GumExecBlock * block = self->exec_block;
     gboolean skip_implicitly_requested;
 
     skip_implicitly_requested = rl->outpos != rl->inpos;
@@ -1602,6 +1615,13 @@ gum_stalker_iterator_thumb_next (GumStalkerIterator * self,
 
   self->generator_context->instruction = instruction;
 
+  if (is_first_instruction && (self->exec_context->sink_mask & GUM_BLOCK) != 0)
+  {
+    gum_exec_block_thumb_open_prolog (block, gc);
+    gum_exec_block_write_thumb_block_event_code (block, gc);
+    gum_exec_block_thumb_close_prolog (block, gc);
+  }
+
   if (insn != NULL)
     *insn = instruction->ci;
 
@@ -1614,7 +1634,7 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
   GumGeneratorContext * gc = self->generator_context;
 
   if (gum_is_exclusive_load_insn (gc->instruction->ci))
-      gc->exclusive_load_offset = 0;
+    gc->exclusive_load_offset = 0;
 
   if (gc->is_thumb)
     gum_stalker_iterator_thumb_keep (self);
@@ -2293,23 +2313,18 @@ gum_exec_ctx_emit_exec_event (GumExecCtx * ctx,
 
 static void
 gum_exec_ctx_emit_block_event (GumExecCtx * ctx,
-                               gpointer begin,
-                               gsize shape,
+                               const GumExecBlock * block,
                                GumCpuContext * cpu_context)
 {
   GumEvent ev;
-  gsize block_size, trailer_size;
-  GumBlockEvent * block = &ev.block;
+  GumBlockEvent * bev = &ev.block;
 
   ev.type = GUM_BLOCK;
 
-  block_size = shape >> 5;
-  trailer_size = shape & 0x1f;
+  bev->begin = block->real_begin;
+  bev->end = block->real_end;
 
-  block->begin = begin;
-  block->end = begin + block_size;
-
-  cpu_context->pc = GPOINTER_TO_SIZE (block->end - trailer_size);
+  cpu_context->pc = GPOINTER_TO_SIZE (block->real_begin);
 
   ctx->sink_process_impl (ctx->sink, &ev, cpu_context);
 }
@@ -3118,24 +3133,18 @@ gum_exec_block_virtualize_arm_branch_insn (GumExecBlock * block,
 {
   GumExecCtx * ec = block->ctx;
   GumArmWriter * cw = gc->arm_writer;
-  gboolean should_emit_events;
   GumPrologState backpatch_prolog_state;
   guint32 * backpatch_code_start;
 
   gum_exec_block_write_arm_handle_not_taken (block, target, cc, gc);
 
-  should_emit_events = !gum_generator_context_is_timing_sensitive (gc) &&
-      (ec->sink_mask & (GUM_EXEC | GUM_BLOCK)) != 0;
-  if (should_emit_events)
+  if ((ec->sink_mask & GUM_EXEC) != 0 &&
+      !gum_generator_context_is_timing_sensitive (gc))
   {
     gum_exec_block_arm_open_prolog (block, gc);
     backpatch_prolog_state = GUM_PROLOG_OPEN;
 
-    if ((ec->sink_mask & GUM_EXEC) != 0)
-      gum_exec_block_write_arm_exec_event_code (block, gc);
-
-    if ((ec->sink_mask & GUM_BLOCK) != 0)
-      gum_exec_block_write_arm_block_event_code (block, gc);
+    gum_exec_block_write_arm_exec_event_code (block, gc);
   }
   else
   {
@@ -3179,24 +3188,18 @@ gum_exec_block_virtualize_thumb_branch_insn (GumExecBlock * block,
 {
   GumExecCtx * ec = block->ctx;
   GumThumbWriter * cw = gc->thumb_writer;
-  gboolean should_emit_events;
   GumPrologState backpatch_prolog_state;
   guint16 * backpatch_code_start;
 
   gum_exec_block_write_thumb_handle_not_taken (block, target, cc, cc_reg, gc);
 
-  should_emit_events = !gum_generator_context_is_timing_sensitive (gc) &&
-      (ec->sink_mask & (GUM_EXEC | GUM_BLOCK)) != 0;
-  if (should_emit_events)
+  if ((ec->sink_mask & GUM_EXEC) != 0 &&
+      !gum_generator_context_is_timing_sensitive (gc))
   {
     gum_exec_block_thumb_open_prolog (block, gc);
     backpatch_prolog_state = GUM_PROLOG_OPEN;
 
-    if ((ec->sink_mask & GUM_EXEC) != 0)
-      gum_exec_block_write_thumb_exec_event_code (block, gc);
-
-    if ((ec->sink_mask & GUM_BLOCK) != 0)
-      gum_exec_block_write_thumb_block_event_code (block, gc);
+    gum_exec_block_write_thumb_exec_event_code (block, gc);
   }
   else
   {
@@ -3870,7 +3873,6 @@ gum_exec_block_write_arm_handle_not_taken (GumExecBlock * block,
   GumExecCtx * ec = block->ctx;
   GumArmWriter * cw = gc->arm_writer;
   gconstpointer taken = cw->code + 1;
-  gboolean should_emit_events;
   GumPrologState backpatch_prolog_state;
   guint32 * backpatch_code_start;
 
@@ -3893,18 +3895,13 @@ gum_exec_block_write_arm_handle_not_taken (GumExecBlock * block,
    * instruction.
    */
 
-  should_emit_events = !gum_generator_context_is_timing_sensitive (gc) &&
-      (ec->sink_mask & (GUM_EXEC | GUM_BLOCK)) != 0;
-  if (should_emit_events)
+  if ((ec->sink_mask & GUM_EXEC) != 0 &&
+      !gum_generator_context_is_timing_sensitive (gc))
   {
     gum_exec_block_arm_open_prolog (block, gc);
     backpatch_prolog_state = GUM_PROLOG_OPEN;
 
-    if ((ec->sink_mask & GUM_EXEC) != 0)
-      gum_exec_block_write_arm_exec_event_code (block, gc);
-
-    if ((ec->sink_mask & GUM_BLOCK) != 0)
-      gum_exec_block_write_arm_block_event_code (block, gc);
+    gum_exec_block_write_arm_exec_event_code (block, gc);
   }
   else
   {
@@ -3977,22 +3974,16 @@ gum_exec_block_write_thumb_handle_not_taken (GumExecBlock * block,
 
   if (cc != ARM_CC_AL)
   {
-    gboolean should_emit_events;
     GumPrologState backpatch_prolog_state;
     guint16 * backpatch_code_start;
 
-    should_emit_events = !gum_generator_context_is_timing_sensitive (gc) &&
-        (ec->sink_mask & (GUM_EXEC | GUM_BLOCK)) != 0;
-    if (should_emit_events)
+    if ((ec->sink_mask & GUM_EXEC) != 0 &&
+        !gum_generator_context_is_timing_sensitive (gc))
     {
       gum_exec_block_thumb_open_prolog (block, gc);
       backpatch_prolog_state = GUM_PROLOG_OPEN;
 
-      if ((ec->sink_mask & GUM_EXEC) != 0)
-        gum_exec_block_write_thumb_exec_event_code (block, gc);
-
-      if ((ec->sink_mask & GUM_BLOCK) != 0)
-        gum_exec_block_write_thumb_block_event_code (block, gc);
+      gum_exec_block_write_thumb_exec_event_code (block, gc);
     }
     else
     {
@@ -4247,26 +4238,10 @@ static void
 gum_exec_block_write_arm_block_event_code (GumExecBlock * block,
                                            GumGeneratorContext * gc)
 {
-  const guint8 * start, * end;
-  gsize block_size, trailer_size, shape;
-
-  if (gum_generator_context_is_timing_sensitive (gc))
-    return;
-
-  start = gc->arm_relocator->input_start;
-  end = gc->arm_relocator->input_cur;
-
-  block_size = end - start;
-  trailer_size = end - gc->instruction->begin;
-
-  /* FIXME: Add support for more than 4 arguments in ArmWriter. */
-  shape = (block_size << 5) | trailer_size;
-
   gum_arm_writer_put_call_address_with_arguments (gc->arm_writer,
-      GUM_ADDRESS (gum_exec_ctx_emit_block_event), 4,
+      GUM_ADDRESS (gum_exec_ctx_emit_block_event), 3,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
-      GUM_ARG_ADDRESS, GUM_ADDRESS (start),
-      GUM_ARG_ADDRESS, GUM_ADDRESS (shape),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (block),
       GUM_ARG_REGISTER, ARM_REG_R10);
 }
 
@@ -4274,26 +4249,10 @@ static void
 gum_exec_block_write_thumb_block_event_code (GumExecBlock * block,
                                              GumGeneratorContext * gc)
 {
-  const guint8 * start, * end;
-  gsize block_size, trailer_size, shape;
-
-  if (gum_generator_context_is_timing_sensitive (gc))
-    return;
-
-  start = gc->thumb_relocator->input_start;
-  end = gc->thumb_relocator->input_cur;
-
-  block_size = end - start;
-  trailer_size = end - gc->instruction->begin;
-
-  /* FIXME: Add proper support for more than 4 arguments in ThumbWriter. */
-  shape = (block_size << 5) | trailer_size;
-
   gum_thumb_writer_put_call_address_with_arguments (gc->thumb_writer,
-      GUM_ADDRESS (gum_exec_ctx_emit_block_event), 4,
+      GUM_ADDRESS (gum_exec_ctx_emit_block_event), 3,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
-      GUM_ARG_ADDRESS, GUM_ADDRESS (start),
-      GUM_ARG_ADDRESS, GUM_ADDRESS (shape),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (block),
       GUM_ARG_REGISTER, ARM_REG_R10);
 }
 

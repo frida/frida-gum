@@ -1693,15 +1693,18 @@ gboolean
 gum_stalker_iterator_next (GumStalkerIterator * self,
                            const cs_insn ** insn)
 {
+  GumExecBlock * block = self->exec_block;
   GumGeneratorContext * gc = self->generator_context;
   GumX86Relocator * rl = gc->relocator;
   GumInstruction * instruction;
+  gboolean is_first_instruction;
   guint n_read;
 
   instruction = self->generator_context->instruction;
+  is_first_instruction = instruction == NULL;
+
   if (instruction != NULL)
   {
-    GumExecBlock * block = self->exec_block;
     gboolean skip_implicitly_requested;
 
     skip_implicitly_requested = rl->outpos != rl->inpos;
@@ -1734,6 +1737,11 @@ gum_stalker_iterator_next (GumStalkerIterator * self,
 
   self->generator_context->instruction = instruction;
 
+  if (is_first_instruction && (self->exec_context->sink_mask & GUM_BLOCK) != 0)
+  {
+    gum_exec_block_write_block_event_code (block, gc, GUM_CODE_INTERRUPTIBLE);
+  }
+
   if (insn != NULL)
     *insn = instruction->ci;
 
@@ -1743,22 +1751,14 @@ gum_stalker_iterator_next (GumStalkerIterator * self,
 void
 gum_stalker_iterator_keep (GumStalkerIterator * self)
 {
-  GumExecCtx * ec = self->exec_context;
   GumExecBlock * block = self->exec_block;
   GumGeneratorContext * gc = self->generator_context;
   GumX86Relocator * rl = gc->relocator;
   const cs_insn * insn = gc->instruction->ci;
   GumVirtualizationRequirements requirements;
 
-  if ((ec->sink_mask & GUM_EXEC) != 0)
+  if ((self->exec_context->sink_mask & GUM_EXEC) != 0)
     gum_exec_block_write_exec_event_code (block, gc, GUM_CODE_INTERRUPTIBLE);
-
-  if ((ec->sink_mask & GUM_BLOCK) != 0 &&
-      gum_x86_relocator_eob (rl) &&
-      insn->id != X86_INS_CALL)
-  {
-    gum_exec_block_write_block_event_code (block, gc, GUM_CODE_INTERRUPTIBLE);
-  }
 
   switch (insn->id)
   {
@@ -1857,20 +1857,18 @@ gum_exec_ctx_emit_exec_event (GumExecCtx * ctx,
 
 static void
 gum_exec_ctx_emit_block_event (GumExecCtx * ctx,
-                               gpointer location,
-                               gpointer begin,
-                               gpointer end,
+                               const GumExecBlock * block,
                                GumCpuContext * cpu_context)
 {
   GumEvent ev;
-  GumBlockEvent * block = &ev.block;
+  GumBlockEvent * bev = &ev.block;
 
   ev.type = GUM_BLOCK;
 
-  block->begin = begin;
-  block->end = end;
+  bev->begin = block->real_begin;
+  bev->end = block->real_end;
 
-  GUM_CPU_CONTEXT_XIP (cpu_context) = GPOINTER_TO_SIZE (location);
+  GUM_CPU_CONTEXT_XIP (cpu_context) = GPOINTER_TO_SIZE (block->real_begin);
 
   ctx->sink_process_impl (ctx->sink, &ev, cpu_context);
 }
@@ -3737,11 +3735,9 @@ gum_exec_block_write_block_event_code (GumExecBlock * block,
   gum_exec_block_open_prolog (block, GUM_PROLOG_FULL, gc);
 
   gum_x86_writer_put_call_address_with_aligned_arguments (gc->code_writer,
-      GUM_CALL_CAPI, GUM_ADDRESS (gum_exec_ctx_emit_block_event), 5,
+      GUM_CALL_CAPI, GUM_ADDRESS (gum_exec_ctx_emit_block_event), 3,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
-      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->begin),
-      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->relocator->input_start),
-      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->relocator->input_cur),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (block),
       GUM_ARG_REGISTER, GUM_REG_XBX);
 
   gum_exec_block_write_unfollow_check_code (block, gc, cc);
