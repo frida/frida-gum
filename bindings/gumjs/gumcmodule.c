@@ -624,6 +624,8 @@ static void gum_gcc_cmodule_enumerate_symbols (GumCModule * cm,
     GumFoundCSymbolFunc func, gpointer user_data);
 static gpointer gum_gcc_cmodule_find_symbol_by_name (GumCModule * cm,
     const gchar * name);
+static void gum_gcc_cmodule_check_symbol_name (
+    const GumCSymbolDetails * details, gpointer user_data);
 static void gum_gcc_cmodule_drop_metadata (GumCModule * cm);
 static void gum_gcc_cmodule_add_define (GumCModule * cm, const gchar * name,
     const gchar * value);
@@ -785,14 +787,74 @@ gum_gcc_cmodule_enumerate_symbols (GumCModule * cm,
                                    GumFoundCSymbolFunc func,
                                    gpointer user_data)
 {
-  g_assert_not_reached ();
+  GumGccCModule * self = GUM_GCC_CMODULE (cm);
+  gchar * argv[] = { "nm", "a.out", NULL };
+  gchar * standard_output;
+  gchar * standard_error;
+  gint exit_status;
+  GError * error;
+  gchar * line_start;
+
+  if (!g_spawn_sync (self->workdir, argv, NULL, G_SPAWN_SEARCH_PATH, NULL,
+      NULL, &standard_output, &standard_error, &exit_status, &error))
+  {
+    g_error_free (error);
+    return;
+  }
+  g_free (standard_error);
+  if (exit_status != 0)
+  {
+    g_free (standard_output);
+    return;
+  }
+
+  line_start = standard_output;
+  while (TRUE)
+  {
+     gchar * line_end;
+     guint64 address;
+     gchar * endptr;
+
+     line_end = strchr (line_start, '\n');
+     if (line_end == NULL)
+       break;
+     *line_end = '\0';
+     address = g_ascii_strtoull (line_start, &endptr, 16);
+     if (endptr != line_start)
+     {
+       GumCSymbolDetails details;
+
+       details.address = (gpointer) address;
+       details.name = endptr + 3;
+       func (&details, user_data);
+     }
+     line_start = line_end + 1;
+  }
+
+  g_free (standard_output);
 }
 
 static gpointer
 gum_gcc_cmodule_find_symbol_by_name (GumCModule * cm,
                                      const gchar * name)
 {
-  g_assert_not_reached ();
+  GumCSymbolDetails ctx;
+
+  ctx.name = name;
+  ctx.address = NULL;
+  gum_cmodule_enumerate_symbols (cm, gum_gcc_cmodule_check_symbol_name, &ctx);
+
+  return ctx.address;
+}
+
+static void
+gum_gcc_cmodule_check_symbol_name (const GumCSymbolDetails * details,
+                                   gpointer user_data)
+{
+  GumCSymbolDetails * ctx = (GumCSymbolDetails *) user_data;
+
+  if (strcmp (details->name, ctx->name) == 0)
+    ctx->address = details->address;
 }
 
 static void
