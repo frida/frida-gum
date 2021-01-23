@@ -592,6 +592,8 @@ G_DECLARE_FINAL_TYPE (GumGccCModule, gum_gcc_cmodule, GUM, GCC_CMODULE,
 struct _GumGccCModule
 {
   GumCModule parent;
+  gchar * workdir;
+  GPtrArray * argv;
 };
 
 static void gum_gcc_cmodule_add_symbol (GumCModule * cm, const gchar * name,
@@ -608,6 +610,8 @@ static gpointer gum_gcc_cmodule_find_symbol_by_name (GumCModule * cm,
 static void gum_gcc_cmodule_drop_metadata (GumCModule * cm);
 static void gum_gcc_cmodule_add_define (GumCModule * cm, const gchar * name,
     const gchar * value);
+static bool populate_include_dir(GumGccCModule * cmodule, GError ** error);
+static void rmtree (GFile * file);
 
 G_DEFINE_TYPE (GumGccCModule, gum_gcc_cmodule, GUM_TYPE_CMODULE)
 
@@ -635,7 +639,74 @@ static GumCModule *
 gum_gcc_cmodule_new (const gchar * source,
                      GError ** error)
 {
-  g_assert_not_reached ();
+  GumCModule * result;
+  GumGccCModule * cmodule;
+  gchar * filename;
+  gboolean res;
+  gchar * standard_output;
+  gchar * standard_error;
+  gint exit_status;
+
+  result = g_object_new (GUM_TYPE_GCC_CMODULE, NULL);
+  cmodule = GUM_GCC_CMODULE (result);
+
+  cmodule->workdir = g_dir_make_tmp ("frida-gcc-XXXXXX", error);
+  if (cmodule->workdir == NULL)
+    goto failure;
+
+  filename = g_build_filename (cmodule->workdir, "module.c", NULL);
+  res = g_file_set_contents (filename, source, strlen (source), error);
+  g_free (filename);
+  if (!res)
+    goto failure;
+
+  if (!populate_include_dir(cmodule, error))
+    goto failure;
+
+  cmodule->argv = g_ptr_array_new_with_free_func (g_free);
+  g_ptr_array_add (cmodule->argv, g_strdup ("gcc"));
+  gum_add_defines (result);
+  g_ptr_array_add (cmodule->argv, g_strdup ("-c"));
+  g_ptr_array_add (cmodule->argv, g_strdup ("-O2"));
+  g_ptr_array_add (cmodule->argv, g_strdup ("-fno-pic"));
+#if defined (HAVE_I386)
+  g_ptr_array_add (cmodule->argv, g_strdup ("-mcmodel=large"));
+#endif
+  g_ptr_array_add (cmodule->argv, g_strdup ("-nostdlib"));
+  g_ptr_array_add (cmodule->argv, g_strdup ("-isystem"));
+  g_ptr_array_add (cmodule->argv, g_strdup ("."));
+  g_ptr_array_add (cmodule->argv, g_strdup ("-isystem"));
+  g_ptr_array_add (cmodule->argv, g_strdup ("capstone"));
+  g_ptr_array_add (cmodule->argv, g_strdup ("module.c"));
+  g_ptr_array_add (cmodule->argv, NULL);
+  if (!g_spawn_sync (cmodule->workdir, (gchar **) cmodule->argv->pdata, NULL,
+      G_SPAWN_SEARCH_PATH, NULL, NULL, &standard_output, &standard_error,
+      &exit_status, error))
+  {
+    g_ptr_array_free (cmodule->argv, TRUE);
+    cmodule->argv = NULL;
+    goto failure;
+  }
+  if (exit_status != 0)
+  {
+    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+        "Compilation failed: %s%s", standard_output, standard_error);
+  }
+  g_ptr_array_free (cmodule->argv, TRUE);
+  cmodule->argv = NULL;
+  g_free (standard_output);
+  g_free (standard_error);
+  if (exit_status != 0)
+    goto failure;
+
+  return result;
+
+failure:
+  {
+    g_object_unref (result);
+
+    return NULL;
+  }
 }
 
 static void
@@ -686,7 +757,15 @@ gum_gcc_cmodule_find_symbol_by_name (GumCModule * cm,
 static void
 gum_gcc_cmodule_drop_metadata (GumCModule * cm)
 {
-  g_assert_not_reached ();
+  GumGccCModule * self = GUM_GCC_CMODULE (cm);
+
+  if (self->workdir != NULL)
+  {
+    GFile * workdir_file = g_file_new_for_path (self->workdir);
+    rmtree (workdir_file);
+    g_object_unref (workdir_file);
+    g_clear_pointer (&self->workdir, g_free);
+  }
 }
 
 static void
@@ -694,5 +773,66 @@ gum_gcc_cmodule_add_define (GumCModule * cm,
                             const gchar * name,
                             const gchar * value)
 {
-  g_assert_not_reached ();
+  GumGccCModule * self = GUM_GCC_CMODULE (cm);
+  GString * arg;
+
+  arg = g_string_new (NULL);
+  if (value == NULL)
+    g_string_printf (arg, "-D%s", name);
+  else
+    g_string_printf (arg, "-D%s=%s", name, value);
+  g_ptr_array_add (self->argv, g_string_free (arg, FALSE));
+}
+
+static bool
+populate_include_dir(GumGccCModule * cmodule,
+                     GError ** error)
+{
+  guint i;
+
+  for (i = 0; i != G_N_ELEMENTS (gum_cmodule_headers); i++)
+  {
+    const GumCModuleHeader * h;
+    gchar * filename;
+    gchar * dirname;
+    gboolean res;
+
+    h = &gum_cmodule_headers[i];
+    if (h->kind == GUM_CMODULE_HEADER_TCC)
+      continue;
+    filename = g_build_filename (cmodule->workdir, h->name, NULL);
+    dirname = g_path_get_dirname (filename);
+    g_mkdir_with_parents (dirname, 0700);
+    g_free (dirname);
+    res = g_file_set_contents (filename, h->data, h->size, error);
+    g_free (filename);
+    if (!res)
+      return false;
+  }
+
+  return true;
+}
+
+static void
+rmtree (GFile * file)
+{
+  GFileEnumerator * direnum;
+
+  direnum = g_file_enumerate_children (file, "",
+      G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, NULL, NULL);
+  if (direnum != NULL)
+  {
+    while (TRUE)
+    {
+      GFile * child;
+      if (!g_file_enumerator_iterate (direnum, NULL, &child, NULL, NULL))
+        break;
+      if (child == NULL)
+        break;
+      rmtree (child);
+    }
+    g_object_unref (direnum);
+  }
+
+  g_file_delete (file, NULL, NULL);
 }
