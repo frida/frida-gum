@@ -605,6 +605,7 @@ struct _GumGccCModule
   GumCModule parent;
   gchar * workdir;
   GPtrArray * argv;
+  GArray * symbols;
 };
 
 struct _LdsPrinter
@@ -632,7 +633,8 @@ static void gum_gcc_cmodule_add_define (GumCModule * cm, const gchar * name,
 static bool populate_include_dir(GumGccCModule * cmodule, GError ** error);
 static void print_lds_assignment (gpointer key, gpointer value,
     gpointer user_data);
-static void write_lds (FILE * file, gpointer base, GHashTable * frida_symbols);
+static void write_lds (FILE * file, gpointer base, GHashTable * frida_symbols,
+    GArray * symbols);
 static gboolean call_ld (GumGccCModule * self, gpointer base, GError ** error);
 static gboolean call_objcopy (GumGccCModule * self, GError ** error);
 static gint gum_gcc_cmodule_link_common (GumCModule * cm, gpointer base,
@@ -740,7 +742,15 @@ gum_gcc_cmodule_add_symbol (GumCModule * cm,
                             const gchar * name,
                             gconstpointer value)
 {
-  g_assert_not_reached ();
+  GumGccCModule * self = GUM_GCC_CMODULE (cm);
+  GumCSymbolDetails element;
+
+  if (self->symbols == NULL)
+    self->symbols = g_array_new (FALSE, FALSE, sizeof (GumCSymbolDetails));
+
+  element.name = g_strdup (name);
+  element.address = (gpointer) value;
+  g_array_append_vals (self->symbols, &element, 1);
 }
 
 static gboolean
@@ -869,6 +879,22 @@ gum_gcc_cmodule_drop_metadata (GumCModule * cm)
     g_object_unref (workdir_file);
     g_clear_pointer (&self->workdir, g_free);
   }
+
+  if (self->symbols != NULL)
+  {
+    guint i;
+
+    for (i = 0; i != self->symbols->len; i++)
+    {
+      GumCSymbolDetails * element;
+
+      element = &g_array_index (self->symbols, GumCSymbolDetails, i);
+      g_free ((gchar *) element->name);
+    }
+
+    g_array_free (self->symbols, TRUE);
+    self->symbols = NULL;
+  }
 }
 
 static void
@@ -929,7 +955,8 @@ static void print_lds_assignment (gpointer key,
 static void
 write_lds (FILE * file,
            gpointer base,
-           GHashTable * frida_symbols)
+           GHashTable * frida_symbols,
+           GArray * symbols)
 {
   LdsPrinter printer = {
     .file = file,
@@ -937,6 +964,20 @@ write_lds (FILE * file,
   };
 
   g_hash_table_foreach (frida_symbols, print_lds_assignment, &printer);
+
+  if (symbols != NULL)
+  {
+    guint i;
+
+    for (i = 0; i != symbols->len; i++)
+    {
+      GumCSymbolDetails * element;
+
+      element = &g_array_index (symbols, GumCSymbolDetails, i);
+      print_lds_assignment ((gpointer) element->name, element->address,
+          &printer);
+    }
+  }
 
   fprintf (printer.file,
       "SECTIONS {\n"
@@ -974,7 +1015,7 @@ call_ld (GumGccCModule * self,
   g_free (filename);
   if (file == NULL)
     return FALSE;
-  write_lds (file, base, gum_cmodule_get_symbols ());
+  write_lds (file, base, gum_cmodule_get_symbols (), self->symbols);
   fclose (file);
 
   if (!g_spawn_sync (self->workdir, argv, NULL, G_SPAWN_SEARCH_PATH, NULL,
