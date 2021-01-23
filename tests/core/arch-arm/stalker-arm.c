@@ -2901,8 +2901,8 @@ TESTCASE (prefetch)
    * Since our test has approx 1300 blocks, we don't need to worry about this.
    * However, production implementations may need to handle this error.
    */
-  g_assert_cmpint (pipe2 (compile_pipes, O_NONBLOCK), ==, 0);
-  g_assert_cmpint (pipe2 (execute_pipes, O_NONBLOCK), ==, 0);
+  g_assert_cmpint (pipe (compile_pipes), ==, 0);
+  g_assert_cmpint (pipe (execute_pipes), ==, 0);
 
   /* Configure Stalker */
   sink = gum_event_sink_make_from_callback (GUM_COMPILE | GUM_BLOCK,
