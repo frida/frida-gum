@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -181,7 +181,7 @@ TESTCASE (call_indirect_label)
   };
 
   *(guint32 *) ((gpointer) (expected_ia32_code + 2)) =
-      (guint32) GUM_ADDRESS (fixture->output) + 7;
+      GUINT32_TO_LE ((guint32) GUM_ADDRESS (fixture->output) + 7);
 
   gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
   gum_x86_writer_put_call_indirect_label (&fixture->cw, addr_lbl);
@@ -473,10 +473,12 @@ TESTCASE (lock_inc_dec_imm32_ptr)
 
 #if GLIB_SIZEOF_VOID_P == 4
   gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_IA32);
-  *((gpointer *) (expected_code + 3)) = target;
+  *((guint32 *) (expected_code + 3)) =
+      GUINT32_TO_LE (GPOINTER_TO_SIZE (target));
 #else
   gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
-  *((gint32 *) (expected_code + 3)) = 32 - sizeof (expected_code);
+  *((gint32 *) (expected_code + 3)) =
+      GINT32_TO_LE (32 - sizeof (expected_code));
 #endif
 
   gum_x86_writer_put_lock_inc_imm32_ptr (&fixture->cw, target);
