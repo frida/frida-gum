@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -752,7 +752,7 @@ gum_mips_writer_put_addi_reg_reg_imm (GumMipsWriter * self,
   gum_mips_writer_describe_reg (self, dst_reg, &rd);
   gum_mips_writer_describe_reg (self, left_reg, &rs);
 
-  g_assert ((imm & 0xffff) == imm);
+  g_assert (GUM_IS_WITHIN_INT16_RANGE (imm));
 
   gum_mips_writer_put_instruction (self,
       /* See MIPS64 comment in put_lw_reg_reg_offset(). */
