@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -17,31 +17,6 @@
 #  endif
 #else
 #  define GUM_API
-#endif
-
-#if !defined (__arm__) && !defined (__aarch64__)
-# if GLIB_SIZEOF_VOID_P == 4
-#  define GUM_NATIVE_CPU GUM_CPU_IA32
-# else
-#  define GUM_NATIVE_CPU GUM_CPU_AMD64
-# endif
-#elif defined (__arm__) || defined (__aarch64__)
-# if GLIB_SIZEOF_VOID_P == 4
-#  define GUM_NATIVE_CPU GUM_CPU_ARM
-# else
-#  define GUM_NATIVE_CPU GUM_CPU_ARM64
-# endif
-#elif defined (__mips__)
-# define GUM_NATIVE_CPU GUM_CPU_MIPS
-#endif
-#ifdef G_OS_WIN32
-# define GUM_NATIVE_ABI            GUM_ABI_WINDOWS
-# define GUM_NATIVE_ABI_IS_WINDOWS 1
-# define GUM_NATIVE_ABI_IS_UNIX    0
-#else
-# define GUM_NATIVE_ABI            GUM_ABI_UNIX
-# define GUM_NATIVE_ABI_IS_WINDOWS 0
-# define GUM_NATIVE_ABI_IS_UNIX    1
 #endif
 
 G_BEGIN_DECLS
@@ -62,33 +37,26 @@ typedef struct _GumX64CpuContext GumX64CpuContext;
 typedef struct _GumArmCpuContext GumArmCpuContext;
 typedef struct _GumArm64CpuContext GumArm64CpuContext;
 typedef struct _GumMipsCpuContext GumMipsCpuContext;
-/*
- * The only non-legacy big-endian configuration on 32-bit ARM systems is BE8.
- * In this configuration, whilst the data is in big-endian, the code stream is
- * still in little-endian. Since Capstone is disassembling the code stream, it
- * should work in little-endian even on BE8 systems.
- */
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN || defined (__arm__)
-# define GUM_DEFAULT_CS_ENDIAN CS_MODE_LITTLE_ENDIAN
-#else
-# define GUM_DEFAULT_CS_ENDIAN CS_MODE_BIG_ENDIAN
-#endif
-#if !defined (__arm__) && !defined (__aarch64__) && !defined (__mips__)
+typedef guint GumRelocationScenario;
+
+#if defined (_M_IX86) || defined (__i386__)
+# define GUM_NATIVE_CPU GUM_CPU_IA32
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_X86
-# if GLIB_SIZEOF_VOID_P == 4
 /**
  * GUM_DEFAULT_CS_MODE: (skip)
  */
-#  define GUM_DEFAULT_CS_MODE CS_MODE_32
+# define GUM_DEFAULT_CS_MODE CS_MODE_32
 typedef GumIA32CpuContext GumCpuContext;
-# else
+#elif defined (_M_X64) || defined (__x86_64__)
+# define GUM_NATIVE_CPU GUM_CPU_AMD64
+# define GUM_DEFAULT_CS_ARCH CS_ARCH_X86
 /**
  * GUM_DEFAULT_CS_MODE: (skip)
  */
-#  define GUM_DEFAULT_CS_MODE CS_MODE_64
+# define GUM_DEFAULT_CS_MODE CS_MODE_64
 typedef GumX64CpuContext GumCpuContext;
-# endif
-#elif defined (__arm__) && !defined (__aarch64__)
+#elif defined (_M_ARM) || defined (__arm__)
+# define GUM_NATIVE_CPU GUM_CPU_ARM
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_ARM
 /**
  * GUM_DEFAULT_CS_MODE: (skip)
@@ -97,7 +65,8 @@ typedef GumX64CpuContext GumCpuContext;
     ((cs_mode) (CS_MODE_ARM | CS_MODE_V8 | GUM_DEFAULT_CS_ENDIAN))
 # define GUM_PSR_T_BIT 0x20
 typedef GumArmCpuContext GumCpuContext;
-#elif defined (__aarch64__)
+#elif defined (_M_ARM64) || defined (__aarch64__)
+# define GUM_NATIVE_CPU GUM_CPU_ARM64
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_ARM64
 /**
  * GUM_DEFAULT_CS_MODE: (skip)
@@ -105,6 +74,7 @@ typedef GumArmCpuContext GumCpuContext;
 # define GUM_DEFAULT_CS_MODE GUM_DEFAULT_CS_ENDIAN
 typedef GumArm64CpuContext GumCpuContext;
 #elif defined (__mips__)
+# define GUM_NATIVE_CPU GUM_CPU_MIPS
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_MIPS
 # if GLIB_SIZEOF_VOID_P == 4
 /**
@@ -120,8 +90,29 @@ typedef GumArm64CpuContext GumCpuContext;
     (CS_MODE_MIPS64 | GUM_DEFAULT_CS_ENDIAN))
 # endif
 typedef GumMipsCpuContext GumCpuContext;
+#else
+# error Unsupported architecture.
 #endif
-typedef guint GumRelocationScenario;
+/*
+ * The only non-legacy big-endian configuration on 32-bit ARM systems is BE8.
+ * In this configuration, whilst the data is in big-endian, the code stream is
+ * still in little-endian. Since Capstone is disassembling the code stream, it
+ * should work in little-endian even on BE8 systems.
+ */
+#if G_BYTE_ORDER == G_LITTLE_ENDIAN || defined (__arm__)
+# define GUM_DEFAULT_CS_ENDIAN CS_MODE_LITTLE_ENDIAN
+#else
+# define GUM_DEFAULT_CS_ENDIAN CS_MODE_BIG_ENDIAN
+#endif
+#ifdef G_OS_WIN32
+# define GUM_NATIVE_ABI            GUM_ABI_WINDOWS
+# define GUM_NATIVE_ABI_IS_WINDOWS 1
+# define GUM_NATIVE_ABI_IS_UNIX    0
+#else
+# define GUM_NATIVE_ABI            GUM_ABI_UNIX
+# define GUM_NATIVE_ABI_IS_WINDOWS 0
+# define GUM_NATIVE_ABI_IS_UNIX    1
+#endif
 
 enum _GumOS
 {
@@ -389,27 +380,26 @@ enum _GumRelocationScenario
 #endif
 #define GUM_RED_ZONE_SIZE 128
 
+#if defined (_M_IX86) || defined (__i386__)
+# ifdef _MSC_VER
+#  define GUM_CDECL __cdecl
+#  define GUM_STDCALL __stdcall
+#  define GUM_FASTCALL __fastcall
+# else
+#  define GUM_CDECL __attribute__ ((cdecl))
+#  define GUM_STDCALL __attribute__ ((stdcall))
+#  define GUM_FASTCALL __attribute__ ((fastcall))
+# endif
+#else
+# define GUM_CDECL
+# define GUM_STDCALL
+# define GUM_FASTCALL
+#endif
+
 #ifdef _MSC_VER
-# define GUM_CDECL __cdecl
-# define GUM_STDCALL __stdcall
-# define GUM_FASTCALL __fastcall
 # define GUM_NOINLINE __declspec (noinline)
 #else
-# ifndef __arm__
-#  if GLIB_SIZEOF_VOID_P == 4
-#   define GUM_CDECL __attribute__((cdecl))
-#   define GUM_STDCALL __attribute__((stdcall))
-#  else
-#   define GUM_CDECL
-#   define GUM_STDCALL
-#  endif
-#  define GUM_FASTCALL __attribute__((fastcall))
-# else
-#  define GUM_CDECL
-#  define GUM_STDCALL
-#  define GUM_FASTCALL
-# endif
-# define GUM_NOINLINE __attribute__((noinline))
+# define GUM_NOINLINE __attribute__ ((noinline))
 #endif
 
 #define GUM_ALIGN_POINTER(t, p, b) \
