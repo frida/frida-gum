@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -106,7 +106,7 @@ typedef gint (* GumCloneFunc) (gpointer arg);
 
 enum _GumModifyThreadAck
 {
-  GUM_ACK_PTRACER = 1,
+  GUM_ACK_READY = 1,
   GUM_ACK_ATTACHED,
   GUM_ACK_STOPPED,
   GUM_ACK_READ_CONTEXT,
@@ -506,17 +506,6 @@ gum_process_modify_thread (GumThreadId thread_id,
 #endif
 
     /*
-     * Some systems (notably Android on release applications) spawn processes as
-     * not dumpable by default, disabling ptrace() on that process for anyone
-     * other than root.
-     *
-     * To allow our child to ptrace() this process, we enable this temporarily.
-     */
-    prev_dumpable = prctl (PR_GET_DUMPABLE);
-    if (prev_dumpable != -1 && prev_dumpable != 1)
-      prctl (PR_SET_DUMPABLE, 1);
-
-    /*
      * It seems like the only reliable way to read/write the registers of
      * another thread is to use ptrace(). We used to accomplish this by
      * hi-jacking the target thread by installing a signal handler and sending a
@@ -551,10 +540,23 @@ gum_process_modify_thread (GumThreadId thread_id,
         NULL,
         desc,
         NULL);
-    g_assert (child > 0);
+    if (child == -1)
+      goto beach;
+
+    /*
+     * Some systems (notably Android on release applications) spawn processes as
+     * not dumpable by default, disabling ptrace() on that process for anyone
+     * other than root.
+     *
+     * To allow our child to ptrace() this process, we enable this temporarily.
+     */
+    prev_dumpable = prctl (PR_GET_DUMPABLE);
+    if (prev_dumpable != -1 && prev_dumpable != 1)
+      prctl (PR_SET_DUMPABLE, 1);
 
     prctl (PR_SET_PTRACER, child);
-    gum_put_ack (fd, GUM_ACK_PTRACER);
+
+    gum_put_ack (fd, GUM_ACK_READY);
 
     if (gum_await_ack (fd, GUM_ACK_ATTACHED))
     {
@@ -591,6 +593,7 @@ gum_process_modify_thread (GumThreadId thread_id,
 
     waitpid (child, NULL, __WCLONE);
 
+beach:
     gum_free_pages (tls);
     gum_free_pages (stack);
 
@@ -611,7 +614,7 @@ gum_do_modify_thread (gpointer data)
 
   fd = ctx->fd[1];
 
-  gum_await_ack (fd, GUM_ACK_PTRACER);
+  gum_await_ack (fd, GUM_ACK_READY);
 
   res = gum_libc_ptrace (PTRACE_ATTACH, ctx->thread_id, NULL, NULL);
   if (res < 0)
@@ -2742,6 +2745,69 @@ gum_libc_clone (GumCloneFunc child_func,
 
     result = x0;
   }
+#elif defined (HAVE_MIPS)
+  *(--child_sp) = child_func;
+  *(--child_sp) = arg;
+
+  {
+    register          gint a0 asm ("$4") = flags;
+    register    gpointer * a1 asm ("$5") = child_sp;
+    register       pid_t * a2 asm ("$6") = parent_tidptr;
+    register GumUserDesc * a3 asm ("$7") = tls;
+    register       pid_t * a4 asm ("$8") = child_tidptr;
+    int status;
+    gssize retval;
+
+    asm volatile (
+        ".set noreorder\n\t"
+        "addiu $sp, $sp, -24\n\t"
+        "sw $8, 16($sp)\n\t"
+        "li $2, %[clone_syscall]\n\t"
+        "syscall\n\t"
+        ".set reorder\n\t"
+        "bne $7, $0, 1f\n\t"
+        "bne $2, $0, 1f\n\t"
+
+        /* child: */
+        "lw $4, 0($sp)\n\t"
+        "lw $8, 4($sp)\n\t"
+        "addiu $sp, $sp, 8\n\t"
+        "jalr $8\n\t"
+        "move $4, $2\n\t"
+        "li $2, %[exit_syscall]\n\t"
+        "syscall\n\t"
+
+        /* parent: */
+        "1:\n\t"
+        "addiu $sp, $sp, 24\n\t"
+        "move %0, $7\n\t"
+        "move %1, $2\n\t"
+        : "=r" (status),
+          "=r" (retval)
+        : "r" (a0),
+          "r" (a1),
+          "r" (a2),
+          "r" (a3),
+          "r" (a4),
+          [clone_syscall] "i" (__NR_clone),
+          [exit_syscall] "i" (__NR_exit)
+        : "$1", "$2", "$3",
+          "$10", "$11", "$12", "$13", "$14", "$15",
+          "$24", "$25",
+          "hi", "lo",
+          "memory"
+    );
+
+    if (status == 0)
+    {
+      result = retval;
+    }
+    else
+    {
+      result = -1;
+      errno = retval;
+    }
+  }
 #endif
 
   return result;
@@ -2860,6 +2926,47 @@ gum_libc_syscall_4 (gsize n,
     );
 
     result = x0;
+  }
+#elif defined (HAVE_MIPS)
+  {
+    register gssize v0 asm ("$16") = n;
+    register  gsize a0 asm ("$4") = a;
+    register  gsize a1 asm ("$5") = b;
+    register  gsize a2 asm ("$6") = c;
+    register  gsize a3 asm ("$7") = d;
+    int status;
+    gssize retval;
+
+    asm volatile (
+        ".set noreorder\n\t"
+        "move $2, %1\n\t"
+        "syscall\n\t"
+        "move %0, $7\n\t"
+        "move %1, $2\n\t"
+        ".set reorder\n\t"
+        : "=r" (status),
+          "=r" (retval)
+        : "r" (v0),
+          "r" (a0),
+          "r" (a1),
+          "r" (a2),
+          "r" (a3)
+        : "$1", "$2", "$3",
+          "$10", "$11", "$12", "$13", "$14", "$15",
+          "$24", "$25",
+          "hi", "lo",
+          "memory"
+    );
+
+    if (status == 0)
+    {
+      result = retval;
+    }
+    else
+    {
+      result = -1;
+      errno = retval;
+    }
   }
 #endif
 
