@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -28,6 +28,8 @@
 # define GUM_SCRIPT_ARCH "arm"
 #elif defined (HAVE_ARM64)
 # define GUM_SCRIPT_ARCH "arm64"
+#elif defined (HAVE_MIPS)
+# define GUM_SCRIPT_ARCH "mips"
 #endif
 
 #if defined (HAVE_LINUX)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -935,7 +935,7 @@ gum_mips_parse_memory_operand_value (const mips_op_mem * mem,
 
   auto result = Object::New (core->isolate);
 
-  if (mem->base != X86_REG_INVALID)
+  if (mem->base != MIPS_REG_INVALID)
   {
     _gum_v8_object_set_ascii (result, "base",
         cs_reg_name (capstone, mem->base), core);
