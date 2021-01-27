@@ -596,11 +596,11 @@ gum_undecorate_name (const gchar * name)
 
 #endif /* HAVE_TINYCC */
 
-typedef struct _LdsPrinter LdsPrinter;
-
 #define GUM_TYPE_GCC_CMODULE (gum_gcc_cmodule_get_type ())
 G_DECLARE_FINAL_TYPE (GumGccCModule, gum_gcc_cmodule, GUM, GCC_CMODULE,
     GumCModule)
+
+typedef struct _GumLdsPrinter GumLdsPrinter;
 
 struct _GumGccCModule
 {
@@ -611,7 +611,7 @@ struct _GumGccCModule
   GArray * symbols;
 };
 
-struct _LdsPrinter
+struct _GumLdsPrinter
 {
   FILE * file;
   gpointer base;
@@ -635,15 +635,17 @@ static void gum_gcc_cmodule_add_define (GumCModule * cm, const gchar * name,
     const gchar * value);
 static gboolean gum_gcc_cmodule_populate_include_dir (GumGccCModule * self,
     GError ** error);
-static void print_lds_assignment (gpointer key, gpointer value,
+static gboolean gum_gcc_cmodule_call_ld (GumGccCModule * self, gpointer base,
+    GError ** error);
+static void gum_gcc_cmodule_write_linker_script (FILE * file, gpointer base,
+    GHashTable * frida_symbols, GArray * symbols);
+static void gum_print_lds_assignment (gpointer key, gpointer value,
     gpointer user_data);
-static void write_lds (FILE * file, gpointer base, GHashTable * frida_symbols,
-    GArray * symbols);
-static gboolean call_ld (GumGccCModule * self, gpointer base, GError ** error);
-static gboolean call_objcopy (GumGccCModule * self, GError ** error);
+static gboolean gum_gcc_cmodule_call_objcopy (GumGccCModule * self,
+    GError ** error);
 static gint gum_gcc_cmodule_link_common (GumCModule * cm, gpointer base,
     gchar ** contents, GString ** error_messages);
-static gboolean gum_gcc_cmodule_invoke_tool (GumGccCModule * self,
+static gboolean gum_gcc_cmodule_call_tool (GumGccCModule * self,
     const gchar * const * argv, gchar ** output, gint * exit_status,
     GError ** error);
 
@@ -717,7 +719,7 @@ gum_gcc_cmodule_new (const gchar * source,
   g_ptr_array_add (cmodule->argv, g_strdup ("module.c"));
   g_ptr_array_add (cmodule->argv, NULL);
 
-  if (!gum_gcc_cmodule_invoke_tool (cmodule,
+  if (!gum_gcc_cmodule_call_tool (cmodule,
       (const gchar * const *) cmodule->argv->pdata, &output, &exit_status,
       error))
   {
@@ -816,7 +818,7 @@ gum_gcc_cmodule_enumerate_symbols (GumCModule * cm,
   gint exit_status;
   gchar * line_start;
 
-  if (!gum_gcc_cmodule_invoke_tool (self, argv, &output, &exit_status, NULL))
+  if (!gum_gcc_cmodule_call_tool (self, argv, &output, &exit_status, NULL))
     goto beach;
 
   if (exit_status != 0)
@@ -839,7 +841,7 @@ gum_gcc_cmodule_enumerate_symbols (GumCModule * cm,
      {
        GumCSymbolDetails details;
 
-       details.address = address;
+       details.address = GSIZE_TO_POINTER (address);
        details.name = endptr + 3;
        func (&details, user_data);
      }
@@ -901,14 +903,13 @@ gum_gcc_cmodule_add_define (GumCModule * cm,
                             const gchar * value)
 {
   GumGccCModule * self = GUM_GCC_CMODULE (cm);
-  GString * arg;
+  gchar * arg;
 
-  arg = g_string_new (NULL);
-  if (value == NULL)
-    g_string_printf (arg, "-D%s", name);
-  else
-    g_string_printf (arg, "-D%s=%s", name, value);
-  g_ptr_array_add (self->argv, g_string_free (arg, FALSE));
+  arg = (value == NULL)
+      ? g_strconcat ("-D", name, NULL)
+      : g_strconcat ("-D", name, "=", value, NULL);
+
+  g_ptr_array_add (self->argv, arg);
 }
 
 static gboolean
@@ -939,125 +940,6 @@ gum_gcc_cmodule_populate_include_dir (GumGccCModule * self,
   return TRUE;
 }
 
-static void
-print_lds_assignment (gpointer key,
-                      gpointer value,
-                      gpointer user_data)
-{
-  LdsPrinter * printer = user_data;
-
-  fprintf (printer->file, "%s = 0x%lx;\n", (gchar *) key,
-      printer->base == NULL ? 0 : (ulong) value);
-}
-
-static void
-write_lds (FILE * file,
-           gpointer base,
-           GHashTable * frida_symbols,
-           GArray * symbols)
-{
-  LdsPrinter printer = {
-    .file = file,
-    .base = base,
-  };
-
-  g_hash_table_foreach (frida_symbols, print_lds_assignment, &printer);
-
-  if (symbols != NULL)
-  {
-    guint i;
-
-    for (i = 0; i != symbols->len; i++)
-    {
-      GumCSymbolDetails * element;
-
-      element = &g_array_index (symbols, GumCSymbolDetails, i);
-      print_lds_assignment ((gpointer) element->name, element->address,
-          &printer);
-    }
-  }
-
-  fprintf (printer.file,
-      "SECTIONS {\n"
-      "  .frida 0x%lx: {\n"
-      "    *(.text*)\n"
-      "    *(.data)\n"
-      "    *(.bss)\n"
-      "    *(COMMON)\n"
-      "    *(.rodata*)\n"
-      "  }\n"
-      "  /DISCARD/ : { *(*) }\n"
-      "}\n", (ulong) base);
-}
-
-static gboolean
-call_ld (GumGccCModule * self,
-         gpointer base,
-         GError ** error)
-{
-  gchar * filename;
-  FILE * file;
-  gchar * argv[] = { "gcc", "-nostdlib", "-Wl,--build-id=none",
-      "-Wl,--script=module.lds", "module.o", NULL };
-  gchar * standard_output;
-  gchar * standard_error;
-  gint exit_status;
-
-  filename = g_build_filename (self->workdir, "module.lds", NULL);
-  file = fopen (filename, "w");
-  if (file == NULL)
-  {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
-        "Failed to create %s", filename);
-  }
-  g_free (filename);
-  if (file == NULL)
-    return FALSE;
-  write_lds (file, base, gum_cmodule_get_symbols (), self->symbols);
-  fclose (file);
-
-  if (!g_spawn_sync (self->workdir, argv, NULL, G_SPAWN_SEARCH_PATH, NULL,
-      NULL, &standard_output, &standard_error, &exit_status, error))
-    return FALSE;
-  if (exit_status != 0)
-  {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
-        "ld failed: %s%s", standard_output, standard_error);
-  }
-  g_free (standard_output);
-  g_free (standard_error);
-  if (exit_status != 0)
-    return FALSE;
-
-  return TRUE;
-}
-
-static gboolean
-call_objcopy (GumGccCModule * self,
-              GError ** error)
-{
-  gchar * argv[] = { "objcopy", "-O", "binary", "--only-section=.frida",
-      "a.out", "module", NULL };
-  gchar * standard_output;
-  gchar * standard_error;
-  gint exit_status;
-
-  if (!g_spawn_sync (self->workdir, argv, NULL, G_SPAWN_SEARCH_PATH, NULL,
-      NULL, &standard_output, &standard_error, &exit_status, error))
-    return FALSE;
-  if (exit_status != 0)
-  {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
-        "objcopy failed: %s%s", standard_output, standard_error);
-  }
-  g_free (standard_output);
-  g_free (standard_error);
-  if (exit_status != 0)
-    return FALSE;
-
-  return TRUE;
-}
-
 static gint
 gum_gcc_cmodule_link_common (GumCModule * cm,
                              gpointer base,
@@ -1070,10 +952,10 @@ gum_gcc_cmodule_link_common (GumCModule * cm,
   gsize length;
   gboolean res;
 
-  if (!call_ld (self, base, &error))
+  if (!gum_gcc_cmodule_call_ld (self, base, &error))
     goto failure;
 
-  if (!call_objcopy (self, &error))
+  if (!gum_gcc_cmodule_call_objcopy (self, &error))
     goto failure;
 
   filename = g_build_filename (self->workdir, "module", NULL);
@@ -1093,11 +975,160 @@ failure:
 }
 
 static gboolean
-gum_gcc_cmodule_invoke_tool (GumGccCModule * self,
-                             const gchar * const * argv,
-                             gchar ** output,
-                             gint * exit_status,
-                             GError ** error)
+gum_gcc_cmodule_call_ld (GumGccCModule * self,
+                         gpointer base,
+                         GError ** error)
+{
+  gboolean success = FALSE;
+  gchar * path;
+  FILE * file;
+  const gchar * argv[] = {
+    "gcc",
+    "-nostdlib",
+    "-Wl,--build-id=none",
+    "-Wl,--script=module.lds",
+    "module.o",
+    NULL
+  };
+  gchar * output = NULL;
+  gint exit_status;
+
+  path = g_build_filename (self->workdir, "module.lds", NULL);
+
+  file = fopen (path, "w");
+  if (file == NULL)
+    goto fopen_failed;
+  gum_gcc_cmodule_write_linker_script (file, base, gum_cmodule_get_symbols (),
+      self->symbols);
+  fclose (file);
+
+  if (!gum_gcc_cmodule_call_tool (self, argv, &output, &exit_status, error))
+    goto beach;
+
+  if (exit_status != 0)
+    goto ld_failed;
+
+  success = TRUE;
+  goto beach;
+
+fopen_failed:
+  {
+    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+        "Failed to create %s", path);
+    goto beach;
+  }
+ld_failed:
+  {
+    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+        "ld failed: %s", output);
+    goto beach;
+  }
+beach:
+  {
+    g_free (output);
+    g_free (path);
+
+    return success;
+  }
+}
+
+static void
+gum_gcc_cmodule_write_linker_script (FILE * file,
+                                     gpointer base,
+                                     GHashTable * frida_symbols,
+                                     GArray * symbols)
+{
+  GumLdsPrinter printer = {
+    .file = file,
+    .base = base,
+  };
+
+  g_hash_table_foreach (frida_symbols, gum_print_lds_assignment, &printer);
+
+  if (symbols != NULL)
+  {
+    guint i;
+
+    for (i = 0; i != symbols->len; i++)
+    {
+      GumCSymbolDetails * element;
+
+      element = &g_array_index (symbols, GumCSymbolDetails, i);
+      gum_print_lds_assignment ((gpointer) element->name, element->address,
+          &printer);
+    }
+  }
+
+  fprintf (printer.file,
+      "SECTIONS {\n"
+      "  .frida 0x%zx: {\n"
+      "    *(.text*)\n"
+      "    *(.data)\n"
+      "    *(.bss)\n"
+      "    *(COMMON)\n"
+      "    *(.rodata*)\n"
+      "  }\n"
+      "  /DISCARD/ : { *(*) }\n"
+      "}\n",
+      GPOINTER_TO_SIZE (base));
+}
+
+static void
+gum_print_lds_assignment (gpointer key,
+                          gpointer value,
+                          gpointer user_data)
+{
+  GumLdsPrinter * printer = user_data;
+
+  fprintf (printer->file, "%s = 0x%lx;\n", (gchar *) key,
+      printer->base == NULL ? 0 : (ulong) value);
+}
+
+static gboolean
+gum_gcc_cmodule_call_objcopy (GumGccCModule * self,
+                              GError ** error)
+{
+  gboolean success = FALSE;
+  const gchar * argv[] = {
+    "objcopy",
+    "-O", "binary",
+    "--only-section=.frida",
+    "a.out",
+    "module",
+    NULL
+  };
+  gchar * output;
+  gint exit_status;
+
+  if (!gum_gcc_cmodule_call_tool (self, argv, &output, &exit_status, error))
+    return FALSE;
+
+  if (exit_status != 0)
+    goto objcopy_failed;
+
+  success = TRUE;
+  goto beach;
+
+objcopy_failed:
+  {
+    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+        "objcopy failed: %s", output);
+    goto beach;
+  }
+beach:
+  {
+    g_free (output);
+
+    return success;
+  }
+}
+
+static gboolean
+gum_gcc_cmodule_call_tool (GumGccCModule * self,
+                           const gchar * const * argv,
+                           gchar ** output,
+                           gint * exit_status,
+                           GError ** error)
 {
   GSubprocessLauncher * launcher;
   GSubprocess * proc = NULL;
