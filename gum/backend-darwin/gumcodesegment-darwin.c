@@ -455,6 +455,20 @@ gum_code_segment_try_remap_locally (GumCodeSegment * self,
       VM_FLAGS_OVERWRITE | VM_FLAGS_FIXED, self_task, source_address, TRUE,
       &cur_protection, &max_protection, VM_INHERIT_COPY);
 
+  if (kr == KERN_NO_SPACE)
+  {
+    /* Get rid of permanent map entries in target range. */
+    mach_vm_protect (self_task, address, source_size, FALSE,
+        PROT_READ | PROT_WRITE | VM_PROT_COPY);
+
+    kr = mach_vm_remap (self_task, &address, source_size, 0,
+        VM_FLAGS_OVERWRITE | VM_FLAGS_FIXED, self_task, source_address, TRUE,
+        &cur_protection, &max_protection, VM_INHERIT_COPY);
+
+    mach_vm_protect (self_task, address, source_size, FALSE,
+        PROT_READ | PROT_EXEC);
+  }
+
   return kr == KERN_SUCCESS;
 }
 
