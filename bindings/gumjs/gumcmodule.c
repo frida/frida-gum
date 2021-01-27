@@ -6,6 +6,7 @@
 
 #include "gumcmodule.h"
 
+#include <stdio.h>
 #include <string.h>
 #include <gio/gio.h>
 #include <gum/gum-init.h>
