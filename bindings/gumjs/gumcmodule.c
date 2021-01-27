@@ -81,6 +81,8 @@ gum_cmodule_new (const gchar * name,
                  const gchar * source,
                  GError ** error)
 {
+  return gum_gcc_cmodule_new (source, error);
+
 #ifdef HAVE_TINYCC
   if (name == NULL || strcmp (name, "tcc") == 0)
     return gum_tcc_cmodule_new (source, error);
@@ -641,6 +643,9 @@ static gboolean call_ld (GumGccCModule * self, gpointer base, GError ** error);
 static gboolean call_objcopy (GumGccCModule * self, GError ** error);
 static gint gum_gcc_cmodule_link_common (GumCModule * cm, gpointer base,
     gchar ** contents, GString ** error_messages);
+static gboolean gum_gcc_cmodule_invoke_tool (GumGccCModule * self,
+    const gchar * const * argv, gchar ** output, gint * exit_status,
+    GError ** error);
 
 static void gum_csymbol_details_destroy (GumCSymbolDetails * details);
 
@@ -677,9 +682,8 @@ gum_gcc_cmodule_new (const gchar * source,
   GumGccCModule * cmodule;
   gchar * source_path;
   gboolean written;
-  GSubprocessLauncher * launcher;
-  GSubprocess * gcc = NULL;
   gchar * output = NULL;
+  gint exit_status;
 
   result = g_object_new (GUM_TYPE_GCC_CMODULE, NULL);
   cmodule = GUM_GCC_CMODULE (result);
@@ -713,24 +717,17 @@ gum_gcc_cmodule_new (const gchar * source,
   g_ptr_array_add (cmodule->argv, g_strdup ("module.c"));
   g_ptr_array_add (cmodule->argv, NULL);
 
-  launcher = g_subprocess_launcher_new (
-      G_SUBPROCESS_FLAGS_STDOUT_PIPE |
-      G_SUBPROCESS_FLAGS_STDERR_MERGE);
-  g_subprocess_launcher_set_cwd (launcher, cmodule->workdir);
-  gcc = g_subprocess_launcher_spawnv (launcher,
-      (const gchar * const *) cmodule->argv->pdata, error);
-  g_object_unref (launcher);
-  if (gcc == NULL)
+  if (!gum_gcc_cmodule_invoke_tool (cmodule,
+      (const gchar * const *) cmodule->argv->pdata, &output, &exit_status,
+      error))
+  {
     goto failure;
+  }
 
-  if (!g_subprocess_communicate_utf8 (gcc, NULL, NULL, &output, NULL, error))
-    goto failure;
-
-  if (g_subprocess_get_exit_status (gcc) != 0)
+  if (exit_status != 0)
     goto compilation_failed;
 
   g_free (output);
-  g_object_unref (gcc);
 
   return result;
 
@@ -743,8 +740,6 @@ compilation_failed:
 failure:
   {
     g_free (output);
-    g_clear_object (&gcc);
-
     g_object_unref (result);
 
     return NULL;
@@ -816,27 +811,18 @@ gum_gcc_cmodule_enumerate_symbols (GumCModule * cm,
                                    gpointer user_data)
 {
   GumGccCModule * self = GUM_GCC_CMODULE (cm);
-  gchar * argv[] = { "nm", "a.out", NULL };
-  gchar * standard_output;
-  gchar * standard_error;
+  const gchar * argv[] = { "nm", "a.out", NULL };
+  gchar * output = NULL;
   gint exit_status;
-  GError * error;
   gchar * line_start;
 
-  if (!g_spawn_sync (self->workdir, argv, NULL, G_SPAWN_SEARCH_PATH, NULL,
-      NULL, &standard_output, &standard_error, &exit_status, &error))
-  {
-    g_error_free (error);
-    return;
-  }
-  g_free (standard_error);
-  if (exit_status != 0)
-  {
-    g_free (standard_output);
-    return;
-  }
+  if (!gum_gcc_cmodule_invoke_tool (self, argv, &output, &exit_status, NULL))
+    goto beach;
 
-  line_start = standard_output;
+  if (exit_status != 0)
+    goto beach;
+
+  line_start = output;
   while (TRUE)
   {
      gchar * line_end;
@@ -847,19 +833,22 @@ gum_gcc_cmodule_enumerate_symbols (GumCModule * cm,
      if (line_end == NULL)
        break;
      *line_end = '\0';
+
      address = g_ascii_strtoull (line_start, &endptr, 16);
      if (endptr != line_start)
      {
        GumCSymbolDetails details;
 
-       details.address = (gpointer) address;
+       details.address = address;
        details.name = endptr + 3;
        func (&details, user_data);
      }
+
      line_start = line_end + 1;
   }
 
-  g_free (standard_output);
+beach:
+  g_free (output);
 }
 
 static gpointer
@@ -1100,6 +1089,42 @@ failure:
     gum_append_error (error_messages, error->message);
     g_error_free (error);
     return -1;
+  }
+}
+
+static gboolean
+gum_gcc_cmodule_invoke_tool (GumGccCModule * self,
+                             const gchar * const * argv,
+                             gchar ** output,
+                             gint * exit_status,
+                             GError ** error)
+{
+  GSubprocessLauncher * launcher;
+  GSubprocess * proc = NULL;
+
+  launcher = g_subprocess_launcher_new (
+      G_SUBPROCESS_FLAGS_STDOUT_PIPE |
+      G_SUBPROCESS_FLAGS_STDERR_MERGE);
+  g_subprocess_launcher_set_cwd (launcher, self->workdir);
+  proc = g_subprocess_launcher_spawnv (launcher, argv, error);
+  g_object_unref (launcher);
+  if (proc == NULL)
+    goto failure;
+
+  if (!g_subprocess_communicate_utf8 (proc, NULL, NULL, output, NULL, error))
+    goto failure;
+
+  *exit_status = g_subprocess_get_exit_status (proc);
+
+  g_object_unref (proc);
+
+  return TRUE;
+
+failure:
+  {
+    g_clear_object (&proc);
+
+    return FALSE;
   }
 }
 
