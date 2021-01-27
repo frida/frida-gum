@@ -6,10 +6,11 @@
 
 #include "gumcmodule.h"
 
+#include <string.h>
 #include <gio/gio.h>
 #include <gum/gum-init.h>
 #include <gum/gum.h>
-#include <string.h>
+#include <json-glib/json-glib.h>
 
 #ifdef HAVE_TINYCC
 static GumCModule * gum_tcc_cmodule_new (const gchar * source, GError ** error);
@@ -21,10 +22,27 @@ typedef struct _GumCModulePrivate GumCModulePrivate;
 typedef void (* GumCModuleInitFunc) (void);
 typedef void (* GumCModuleFinalizeFunc) (void);
 
+typedef struct _GumCModuleHeader GumCModuleHeader;
+typedef guint GumCModuleHeaderKind;
+
 struct _GumCModulePrivate
 {
   GumMemoryRange range;
   GumCModuleFinalizeFunc finalize;
+};
+
+struct _GumCModuleHeader
+{
+  const gchar * name;
+  const gchar * data;
+  guint size;
+  GumCModuleHeaderKind kind;
+};
+
+enum _GumCModuleHeaderKind
+{
+  GUM_CMODULE_HEADER_FRIDA,
+  GUM_CMODULE_HEADER_TCC
 };
 
 static void gum_cmodule_finalize (GObject * object);
@@ -36,6 +54,8 @@ static void gum_add_define_str (GumCModule * cm, const gchar * name,
 static void gum_append_error (GString ** messages, const char * msg);
 
 G_DEFINE_ABSTRACT_TYPE_WITH_PRIVATE (GumCModule, gum_cmodule, G_TYPE_OBJECT);
+
+#include "gumcmodule-runtime.h"
 
 static void
 gum_cmodule_class_init (GumCModuleClass * klass)
@@ -81,8 +101,6 @@ gum_cmodule_new (const gchar * name,
                  const gchar * source,
                  GError ** error)
 {
-  return gum_gcc_cmodule_new (source, error);
-
 #ifdef HAVE_TINYCC
   if (name == NULL || strcmp (name, "tcc") == 0)
     return gum_tcc_cmodule_new (source, error);
@@ -255,37 +273,19 @@ gum_append_error (GString ** messages,
 
 #ifdef HAVE_TINYCC
 
-#include <json-glib/json-glib.h>
 #include <libtcc.h>
-#include <string.h>
 
 #define GUM_TYPE_TCC_CMODULE (gum_tcc_cmodule_get_type ())
 G_DECLARE_FINAL_TYPE (GumTccCModule, gum_tcc_cmodule, GUM, TCC_CMODULE,
     GumCModule)
 
 typedef struct _GumEnumerateSymbolsContext GumEnumerateSymbolsContext;
-typedef struct _GumCModuleHeader GumCModuleHeader;
-typedef guint GumCModuleHeaderKind;
 
 struct _GumTccCModule
 {
   GumCModule parent;
 
   TCCState * state;
-};
-
-struct _GumCModuleHeader
-{
-  const gchar * name;
-  const gchar * data;
-  guint size;
-  GumCModuleHeaderKind kind;
-};
-
-enum _GumCModuleHeaderKind
-{
-  GUM_CMODULE_HEADER_TCC,
-  GUM_CMODULE_HEADER_FRIDA
 };
 
 struct _GumEnumerateSymbolsContext
@@ -338,8 +338,6 @@ static void
 gum_tcc_cmodule_init (GumTccCModule * cmodule)
 {
 }
-
-#include "gumcmodule-runtime.h"
 
 static GumCModule *
 gum_tcc_cmodule_new (const gchar * source,
@@ -617,6 +615,8 @@ struct _GumLdsPrinter
   gpointer base;
 };
 
+static gboolean gum_gcc_cmodule_populate_include_dir (GumGccCModule * self,
+    GError ** error);
 static void gum_gcc_cmodule_add_symbol (GumCModule * cm, const gchar * name,
     gconstpointer value);
 static gboolean gum_gcc_cmodule_link_pre (GumCModule * cm, gsize * size,
@@ -624,27 +624,25 @@ static gboolean gum_gcc_cmodule_link_pre (GumCModule * cm, gsize * size,
 static gboolean gum_gcc_cmodule_link (GumCModule * cm, gpointer base,
     GString ** error_messages);
 static void gum_gcc_cmodule_link_post (GumCModule * cm);
+static gboolean gum_gcc_cmodule_do_link (GumCModule * cm, gpointer base,
+    gpointer * contents, gsize * size, GString ** error_messages);
+static gboolean gum_gcc_cmodule_call_ld (GumGccCModule * self, gpointer base,
+    GError ** error);
+static gboolean gum_gcc_cmodule_call_objcopy (GumGccCModule * self,
+    GError ** error);
+static void gum_write_linker_script (FILE * file, gpointer base,
+    GHashTable * api_symbols, GArray * user_symbols);
+static void gum_print_lds_assignment (gpointer key, gpointer value,
+    gpointer user_data);
 static void gum_gcc_cmodule_enumerate_symbols (GumCModule * cm,
     GumFoundCSymbolFunc func, gpointer user_data);
 static gpointer gum_gcc_cmodule_find_symbol_by_name (GumCModule * cm,
     const gchar * name);
-static void gum_gcc_cmodule_check_symbol_name (
+static void gum_store_address_if_name_matches (
     const GumCSymbolDetails * details, gpointer user_data);
 static void gum_gcc_cmodule_drop_metadata (GumCModule * cm);
 static void gum_gcc_cmodule_add_define (GumCModule * cm, const gchar * name,
     const gchar * value);
-static gboolean gum_gcc_cmodule_populate_include_dir (GumGccCModule * self,
-    GError ** error);
-static gboolean gum_gcc_cmodule_call_ld (GumGccCModule * self, gpointer base,
-    GError ** error);
-static void gum_gcc_cmodule_write_linker_script (FILE * file, gpointer base,
-    GHashTable * frida_symbols, GArray * symbols);
-static void gum_print_lds_assignment (gpointer key, gpointer value,
-    gpointer user_data);
-static gboolean gum_gcc_cmodule_call_objcopy (GumGccCModule * self,
-    GError ** error);
-static gint gum_gcc_cmodule_link_common (GumCModule * cm, gpointer base,
-    gchar ** contents, GString ** error_messages);
 static gboolean gum_gcc_cmodule_call_tool (GumGccCModule * self,
     const gchar * const * argv, gchar ** output, gint * exit_status,
     GError ** error);
@@ -682,8 +680,8 @@ gum_gcc_cmodule_new (const gchar * source,
 {
   GumCModule * result;
   GumGccCModule * cmodule;
-  gchar * source_path;
-  gboolean written;
+  gboolean success = FALSE;
+  gchar * source_path = NULL;
   gchar * output = NULL;
   gint exit_status;
 
@@ -692,16 +690,15 @@ gum_gcc_cmodule_new (const gchar * source,
 
   cmodule->workdir = g_dir_make_tmp ("frida-gcc-XXXXXX", error);
   if (cmodule->workdir == NULL)
-    goto failure;
+    goto beach;
 
   source_path = g_build_filename (cmodule->workdir, "module.c", NULL);
-  written = g_file_set_contents (source_path, source, -1, error);
-  g_free (source_path);
-  if (!written)
-    goto failure;
+
+  if (!g_file_set_contents (source_path, source, -1, error))
+    goto beach;
 
   if (!gum_gcc_cmodule_populate_include_dir (cmodule, error))
-    goto failure;
+    goto beach;
 
   g_ptr_array_add (cmodule->argv, g_strdup ("gcc"));
   gum_add_defines (result);
@@ -723,193 +720,30 @@ gum_gcc_cmodule_new (const gchar * source,
       (const gchar * const *) cmodule->argv->pdata, &output, &exit_status,
       error))
   {
-    goto failure;
+    goto beach;
   }
 
   if (exit_status != 0)
     goto compilation_failed;
 
-  g_free (output);
-
-  return result;
+  success = TRUE;
+  goto beach;
 
 compilation_failed:
   {
     g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
         "Compilation failed: %s", output);
-    goto failure;
+    goto beach;
   }
-failure:
+beach:
   {
     g_free (output);
-    g_object_unref (result);
+    g_free (source_path);
+    if (!success)
+      g_clear_object (&result);
 
-    return NULL;
+    return result;
   }
-}
-
-static void
-gum_gcc_cmodule_add_symbol (GumCModule * cm,
-                            const gchar * name,
-                            gconstpointer value)
-{
-  GumGccCModule * self = GUM_GCC_CMODULE (cm);
-  GumCSymbolDetails element;
-
-  if (self->symbols == NULL)
-  {
-    self->symbols = g_array_new (FALSE, FALSE, sizeof (GumCSymbolDetails));
-    g_array_set_clear_func (self->symbols,
-        (GDestroyNotify) gum_csymbol_details_destroy);
-  }
-
-  element.name = g_strdup (name);
-  element.address = (gpointer) value;
-  g_array_append_val (self->symbols, element);
-}
-
-static gboolean
-gum_gcc_cmodule_link_pre (GumCModule * cm,
-                          gsize * size,
-                          GString ** error_messages)
-{
-  gchar * contents;
-
-  *size = gum_gcc_cmodule_link_common (cm, 0, &contents, error_messages);
-  if (*size == -1)
-    return FALSE;
-
-  g_free (contents);
-
-  return TRUE;
-}
-
-static gboolean
-gum_gcc_cmodule_link (GumCModule * cm,
-                      gpointer base,
-                      GString ** error_messages)
-{
-  gchar * contents;
-  gint length;
-
-  length = gum_gcc_cmodule_link_common (cm, base, &contents, error_messages);
-  if (length == -1)
-    return FALSE;
-
-  memcpy (base, contents, length);
-  g_free (contents);
-
-  return TRUE;
-}
-
-static void
-gum_gcc_cmodule_link_post (GumCModule * cm)
-{
-}
-
-static void
-gum_gcc_cmodule_enumerate_symbols (GumCModule * cm,
-                                   GumFoundCSymbolFunc func,
-                                   gpointer user_data)
-{
-  GumGccCModule * self = GUM_GCC_CMODULE (cm);
-  const gchar * argv[] = { "nm", "a.out", NULL };
-  gchar * output = NULL;
-  gint exit_status;
-  gchar * line_start;
-
-  if (!gum_gcc_cmodule_call_tool (self, argv, &output, &exit_status, NULL))
-    goto beach;
-
-  if (exit_status != 0)
-    goto beach;
-
-  line_start = output;
-  while (TRUE)
-  {
-     gchar * line_end;
-     guint64 address;
-     gchar * endptr;
-
-     line_end = strchr (line_start, '\n');
-     if (line_end == NULL)
-       break;
-     *line_end = '\0';
-
-     address = g_ascii_strtoull (line_start, &endptr, 16);
-     if (endptr != line_start)
-     {
-       GumCSymbolDetails details;
-
-       details.address = GSIZE_TO_POINTER (address);
-       details.name = endptr + 3;
-       func (&details, user_data);
-     }
-
-     line_start = line_end + 1;
-  }
-
-beach:
-  g_free (output);
-}
-
-static gpointer
-gum_gcc_cmodule_find_symbol_by_name (GumCModule * cm,
-                                     const gchar * name)
-{
-  GumCSymbolDetails ctx;
-
-  ctx.name = name;
-  ctx.address = NULL;
-  gum_cmodule_enumerate_symbols (cm, gum_gcc_cmodule_check_symbol_name, &ctx);
-
-  return ctx.address;
-}
-
-static void
-gum_gcc_cmodule_check_symbol_name (const GumCSymbolDetails * details,
-                                   gpointer user_data)
-{
-  GumCSymbolDetails * ctx = (GumCSymbolDetails *) user_data;
-
-  if (strcmp (details->name, ctx->name) == 0)
-    ctx->address = details->address;
-}
-
-static void
-gum_gcc_cmodule_drop_metadata (GumCModule * cm)
-{
-  GumGccCModule * self = GUM_GCC_CMODULE (cm);
-
-  if (self->workdir != NULL)
-  {
-    GFile * workdir_file = g_file_new_for_path (self->workdir);
-
-    gum_rmtree (workdir_file);
-    g_object_unref (workdir_file);
-
-    g_free (self->workdir);
-    self->workdir = NULL;
-  }
-
-  g_clear_pointer (&self->argv, g_ptr_array_unref);
-
-  g_clear_pointer (&self->symbols, g_array_unref);
-}
-
-static void
-gum_gcc_cmodule_add_define (GumCModule * cm,
-                            const gchar * name,
-                            const gchar * value)
-{
-  GumGccCModule * self = GUM_GCC_CMODULE (cm);
-  gchar * arg;
-
-  arg = (value == NULL)
-      ? g_strconcat ("-D", name, NULL)
-      : g_strconcat ("-D", name, "=", value, NULL);
-
-  g_ptr_array_add (self->argv, arg);
 }
 
 static gboolean
@@ -922,55 +756,122 @@ gum_gcc_cmodule_populate_include_dir (GumGccCModule * self,
   {
     const GumCModuleHeader * h;
     gchar * filename, * dirname;
-    gboolean res;
+    gboolean written;
 
     h = &gum_cmodule_headers[i];
-    if (h->kind == GUM_CMODULE_HEADER_TCC)
+    if (h->kind != GUM_CMODULE_HEADER_FRIDA)
       continue;
+
     filename = g_build_filename (self->workdir, h->name, NULL);
     dirname = g_path_get_dirname (filename);
+
     g_mkdir_with_parents (dirname, 0700);
+    written = g_file_set_contents (filename, h->data, h->size, error);
+
     g_free (dirname);
-    res = g_file_set_contents (filename, h->data, h->size, error);
     g_free (filename);
-    if (!res)
+
+    if (!written)
       return FALSE;
   }
 
   return TRUE;
 }
 
-static gint
-gum_gcc_cmodule_link_common (GumCModule * cm,
-                             gpointer base,
-                             gchar ** contents,
-                             GString ** error_messages)
+static void
+gum_gcc_cmodule_add_symbol (GumCModule * cm,
+                            const gchar * name,
+                            gconstpointer value)
 {
   GumGccCModule * self = GUM_GCC_CMODULE (cm);
+  GumCSymbolDetails d;
+
+  if (self->symbols == NULL)
+  {
+    self->symbols = g_array_new (FALSE, FALSE, sizeof (GumCSymbolDetails));
+    g_array_set_clear_func (self->symbols,
+        (GDestroyNotify) gum_csymbol_details_destroy);
+  }
+
+  d.name = g_strdup (name);
+  d.address = (gpointer) value;
+  g_array_append_val (self->symbols, d);
+}
+
+static gboolean
+gum_gcc_cmodule_link_pre (GumCModule * cm,
+                          gsize * size,
+                          GString ** error_messages)
+{
+  gpointer contents;
+
+  if (!gum_gcc_cmodule_do_link (cm, 0, &contents, size, error_messages))
+    return FALSE;
+
+  g_free (contents);
+
+  return TRUE;
+}
+
+static gboolean
+gum_gcc_cmodule_link (GumCModule * cm,
+                      gpointer base,
+                      GString ** error_messages)
+{
+  gpointer contents;
+  gsize size;
+
+  if (!gum_gcc_cmodule_do_link (cm, base, &contents, &size, error_messages))
+    return FALSE;
+
+  memcpy (base, contents, size);
+  g_free (contents);
+
+  return TRUE;
+}
+
+static void
+gum_gcc_cmodule_link_post (GumCModule * cm)
+{
+}
+
+static gboolean
+gum_gcc_cmodule_do_link (GumCModule * cm,
+                         gpointer base,
+                         gpointer * contents,
+                         gsize * size,
+                         GString ** error_messages)
+{
+  GumGccCModule * self = GUM_GCC_CMODULE (cm);
+  gboolean success = FALSE;
   GError * error = NULL;
-  gchar * filename;
-  gsize length;
-  gboolean res;
+  gchar * module_path = NULL;
 
   if (!gum_gcc_cmodule_call_ld (self, base, &error))
-    goto failure;
+    goto propagate_error;
 
   if (!gum_gcc_cmodule_call_objcopy (self, &error))
-    goto failure;
+    goto propagate_error;
 
-  filename = g_build_filename (self->workdir, "module", NULL);
-  res = g_file_get_contents (filename, contents, &length, &error);
-  g_free (filename);
-  if (!res)
-    goto failure;
+  module_path = g_build_filename (self->workdir, "module", NULL);
 
-  return length;
+  if (!g_file_get_contents (module_path, (gchar **) contents, size, &error))
+    goto propagate_error;
 
-failure:
+  success = TRUE;
+  goto beach;
+
+propagate_error:
   {
     gum_append_error (error_messages, error->message);
     g_error_free (error);
-    return -1;
+    goto beach;
+  }
+beach:
+  {
+    g_free (module_path);
+
+    return success;
   }
 }
 
@@ -980,7 +881,7 @@ gum_gcc_cmodule_call_ld (GumGccCModule * self,
                          GError ** error)
 {
   gboolean success = FALSE;
-  gchar * path;
+  gchar * linker_script_path;
   FILE * file;
   const gchar * argv[] = {
     "gcc",
@@ -993,12 +894,12 @@ gum_gcc_cmodule_call_ld (GumGccCModule * self,
   gchar * output = NULL;
   gint exit_status;
 
-  path = g_build_filename (self->workdir, "module.lds", NULL);
+  linker_script_path = g_build_filename (self->workdir, "module.lds", NULL);
 
-  file = fopen (path, "w");
+  file = fopen (linker_script_path, "w");
   if (file == NULL)
     goto fopen_failed;
-  gum_gcc_cmodule_write_linker_script (file, base, gum_cmodule_get_symbols (),
+  gum_write_linker_script (file, base, gum_cmodule_get_symbols (),
       self->symbols);
   fclose (file);
 
@@ -1014,7 +915,7 @@ gum_gcc_cmodule_call_ld (GumGccCModule * self,
 fopen_failed:
   {
     g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
-        "Failed to create %s", path);
+        "Failed to create %s", linker_script_path);
     goto beach;
   }
 ld_failed:
@@ -1026,62 +927,10 @@ ld_failed:
 beach:
   {
     g_free (output);
-    g_free (path);
+    g_free (linker_script_path);
 
     return success;
   }
-}
-
-static void
-gum_gcc_cmodule_write_linker_script (FILE * file,
-                                     gpointer base,
-                                     GHashTable * frida_symbols,
-                                     GArray * symbols)
-{
-  GumLdsPrinter printer = {
-    .file = file,
-    .base = base,
-  };
-
-  g_hash_table_foreach (frida_symbols, gum_print_lds_assignment, &printer);
-
-  if (symbols != NULL)
-  {
-    guint i;
-
-    for (i = 0; i != symbols->len; i++)
-    {
-      GumCSymbolDetails * element;
-
-      element = &g_array_index (symbols, GumCSymbolDetails, i);
-      gum_print_lds_assignment ((gpointer) element->name, element->address,
-          &printer);
-    }
-  }
-
-  fprintf (printer.file,
-      "SECTIONS {\n"
-      "  .frida 0x%zx: {\n"
-      "    *(.text*)\n"
-      "    *(.data)\n"
-      "    *(.bss)\n"
-      "    *(COMMON)\n"
-      "    *(.rodata*)\n"
-      "  }\n"
-      "  /DISCARD/ : { *(*) }\n"
-      "}\n",
-      GPOINTER_TO_SIZE (base));
-}
-
-static void
-gum_print_lds_assignment (gpointer key,
-                          gpointer value,
-                          gpointer user_data)
-{
-  GumLdsPrinter * printer = user_data;
-
-  fprintf (printer->file, "%s = 0x%lx;\n", (gchar *) key,
-      printer->base == NULL ? 0 : (ulong) value);
 }
 
 static gboolean
@@ -1121,6 +970,163 @@ beach:
 
     return success;
   }
+}
+
+static void
+gum_write_linker_script (FILE * file,
+                         gpointer base,
+                         GHashTable * api_symbols,
+                         GArray * user_symbols)
+{
+  GumLdsPrinter printer = {
+    .file = file,
+    .base = base,
+  };
+
+  g_hash_table_foreach (api_symbols, gum_print_lds_assignment, &printer);
+
+  if (user_symbols != NULL)
+  {
+    guint i;
+
+    for (i = 0; i != user_symbols->len; i++)
+    {
+      GumCSymbolDetails * d =
+          &g_array_index (user_symbols, GumCSymbolDetails, i);
+      gum_print_lds_assignment ((gpointer) d->name, d->address, &printer);
+    }
+  }
+
+  fprintf (printer.file,
+      "SECTIONS {\n"
+      "  .frida 0x%zx: {\n"
+      "    *(.text*)\n"
+      "    *(.data)\n"
+      "    *(.bss)\n"
+      "    *(COMMON)\n"
+      "    *(.rodata*)\n"
+      "  }\n"
+      "  /DISCARD/ : { *(*) }\n"
+      "}\n",
+      GPOINTER_TO_SIZE (base));
+}
+
+static void
+gum_print_lds_assignment (gpointer key,
+                          gpointer value,
+                          gpointer user_data)
+{
+  GumLdsPrinter * printer = user_data;
+
+  fprintf (printer->file, "%s = 0x%zx;\n",
+      (gchar *) key,
+      (printer->base != NULL) ? GPOINTER_TO_SIZE (value) : 0);
+}
+
+static void
+gum_gcc_cmodule_enumerate_symbols (GumCModule * cm,
+                                   GumFoundCSymbolFunc func,
+                                   gpointer user_data)
+{
+  GumGccCModule * self = GUM_GCC_CMODULE (cm);
+  const gchar * argv[] = { "nm", "a.out", NULL };
+  gchar * output = NULL;
+  gint exit_status;
+  gchar * line_start;
+
+  if (!gum_gcc_cmodule_call_tool (self, argv, &output, &exit_status, NULL))
+    goto beach;
+
+  if (exit_status != 0)
+    goto beach;
+
+  line_start = output;
+  while (TRUE)
+  {
+    gchar * line_end;
+    guint64 address;
+    gchar * endptr;
+
+    line_end = strchr (line_start, '\n');
+    if (line_end == NULL)
+      break;
+    *line_end = '\0';
+
+    address = g_ascii_strtoull (line_start, &endptr, 16);
+    if (endptr != line_start)
+    {
+      GumCSymbolDetails d;
+
+      d.address = GSIZE_TO_POINTER (address);
+      d.name = endptr + 3;
+
+      func (&d, user_data);
+    }
+
+    line_start = line_end + 1;
+  }
+
+beach:
+  g_free (output);
+}
+
+static gpointer
+gum_gcc_cmodule_find_symbol_by_name (GumCModule * cm,
+                                     const gchar * name)
+{
+  GumCSymbolDetails ctx;
+
+  ctx.name = name;
+  ctx.address = NULL;
+  gum_cmodule_enumerate_symbols (cm, gum_store_address_if_name_matches, &ctx);
+
+  return ctx.address;
+}
+
+static void
+gum_store_address_if_name_matches (const GumCSymbolDetails * details,
+                                   gpointer user_data)
+{
+  GumCSymbolDetails * ctx = user_data;
+
+  if (strcmp (details->name, ctx->name) == 0)
+    ctx->address = details->address;
+}
+
+static void
+gum_gcc_cmodule_drop_metadata (GumCModule * cm)
+{
+  GumGccCModule * self = GUM_GCC_CMODULE (cm);
+
+  if (self->workdir != NULL)
+  {
+    GFile * workdir_file = g_file_new_for_path (self->workdir);
+
+    gum_rmtree (workdir_file);
+    g_object_unref (workdir_file);
+
+    g_free (self->workdir);
+    self->workdir = NULL;
+  }
+
+  g_clear_pointer (&self->argv, g_ptr_array_unref);
+
+  g_clear_pointer (&self->symbols, g_array_unref);
+}
+
+static void
+gum_gcc_cmodule_add_define (GumCModule * cm,
+                            const gchar * name,
+                            const gchar * value)
+{
+  GumGccCModule * self = GUM_GCC_CMODULE (cm);
+  gchar * arg;
+
+  arg = (value == NULL)
+      ? g_strconcat ("-D", name, NULL)
+      : g_strconcat ("-D", name, "=", value, NULL);
+
+  g_ptr_array_add (self->argv, arg);
 }
 
 static gboolean
@@ -1168,22 +1174,29 @@ gum_csymbol_details_destroy (GumCSymbolDetails * details)
 static void
 gum_rmtree (GFile * file)
 {
-  GFileEnumerator * direnum;
+  GFileEnumerator * enumerator;
 
-  direnum = g_file_enumerate_children (file, "",
+  enumerator = g_file_enumerate_children (file, "",
       G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, NULL, NULL);
-  if (direnum != NULL)
+  if (enumerator != NULL)
   {
     while (TRUE)
     {
+      GFileInfo * info;
       GFile * child;
-      if (!g_file_enumerator_iterate (direnum, NULL, &child, NULL, NULL))
+
+      if (!g_file_enumerator_iterate (enumerator, &info, &child, NULL, NULL))
         break;
       if (child == NULL)
         break;
-      gum_rmtree (child);
+
+      if (g_file_info_get_file_type (info) == G_FILE_TYPE_DIRECTORY)
+        gum_rmtree (child);
+      else
+        g_file_delete (file, NULL, NULL);
     }
-    g_object_unref (direnum);
+
+    g_object_unref (enumerator);
   }
 
   g_file_delete (file, NULL, NULL);
