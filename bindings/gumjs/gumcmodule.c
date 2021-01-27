@@ -377,13 +377,13 @@ gum_tcc_cmodule_new (const gchar * source,
   tcc_set_error_func (state, NULL, NULL);
 
   if (error_messages != NULL)
-    goto failure;
+    goto propagate_error;
 
   gum_add_abi_symbols (state);
 
   return result;
 
-failure:
+propagate_error:
   {
     g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
         "Compilation failed: %s", error_messages->str);
@@ -1133,7 +1133,7 @@ gum_gcc_cmodule_call_tool (GumGccCModule * self,
                            GError ** error)
 {
   GSubprocessLauncher * launcher;
-  GSubprocess * proc = NULL;
+  GSubprocess * proc;
 
   launcher = g_subprocess_launcher_new (
       G_SUBPROCESS_FLAGS_STDOUT_PIPE |
@@ -1142,10 +1142,10 @@ gum_gcc_cmodule_call_tool (GumGccCModule * self,
   proc = g_subprocess_launcher_spawnv (launcher, argv, error);
   g_object_unref (launcher);
   if (proc == NULL)
-    goto failure;
+    goto propagate_error;
 
   if (!g_subprocess_communicate_utf8 (proc, NULL, NULL, output, NULL, error))
-    goto failure;
+    goto propagate_error;
 
   *exit_status = g_subprocess_get_exit_status (proc);
 
@@ -1153,7 +1153,7 @@ gum_gcc_cmodule_call_tool (GumGccCModule * self,
 
   return TRUE;
 
-failure:
+propagate_error:
   {
     g_clear_object (&proc);
 
