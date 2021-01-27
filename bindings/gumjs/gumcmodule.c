@@ -755,11 +755,10 @@ gum_gcc_cmodule_populate_include_dir (GumGccCModule * self,
 
   for (i = 0; i != G_N_ELEMENTS (gum_cmodule_headers); i++)
   {
-    const GumCModuleHeader * h;
+    const GumCModuleHeader * h = &gum_cmodule_headers[i];
     gchar * filename, * dirname;
     gboolean written;
 
-    h = &gum_cmodule_headers[i];
     if (h->kind != GUM_CMODULE_HEADER_FRIDA)
       continue;
 
