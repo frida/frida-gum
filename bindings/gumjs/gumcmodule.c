@@ -47,12 +47,8 @@ enum _GumCModuleHeaderKind
 };
 
 static void gum_cmodule_finalize (GObject * object);
-
-static void gum_add_defines (GumCModule * cm);
-static void gum_add_define_str (GumCModule * cm, const gchar * name,
+static void gum_cmodule_add_define_str (GumCModule * self, const gchar * name,
     const gchar * value);
-
-static void gum_append_error (GString ** messages, const char * msg);
 
 G_DEFINE_ABSTRACT_TYPE_WITH_PRIVATE (GumCModule, gum_cmodule, G_TYPE_OBJECT);
 
@@ -116,46 +112,46 @@ gum_cmodule_new (const gchar * name,
 }
 
 static void
-gum_add_defines (GumCModule * cm)
+gum_cmodule_add_defines (GumCModule * self)
 {
-  GumCModuleClass * cls = GUM_CMODULE_GET_CLASS (cm);
+  GumCModuleClass * cls = GUM_CMODULE_GET_CLASS (self);
 
 #if defined (HAVE_I386)
-  cls->add_define (cm, "HAVE_I386", NULL);
+  cls->add_define (self, "HAVE_I386", NULL);
 #elif defined (HAVE_ARM)
-  cls->add_define (cm, "HAVE_ARM", NULL);
+  cls->add_define (self, "HAVE_ARM", NULL);
 #elif defined (HAVE_ARM64)
-  cls->add_define (cm, "HAVE_ARM64", NULL);
+  cls->add_define (self, "HAVE_ARM64", NULL);
 #elif defined (HAVE_MIPS)
-  cls->add_define (cm, "HAVE_MIPS", NULL);
+  cls->add_define (self, "HAVE_MIPS", NULL);
 #endif
 
-  cls->add_define (cm, "TRUE", "1");
-  cls->add_define (cm, "FALSE", "0");
+  cls->add_define (self, "TRUE", "1");
+  cls->add_define (self, "FALSE", "0");
 
-  gum_add_define_str (cm, "G_GINT16_MODIFIER", G_GINT16_MODIFIER);
-  gum_add_define_str (cm, "G_GINT32_MODIFIER", G_GINT32_MODIFIER);
-  gum_add_define_str (cm, "G_GINT64_MODIFIER", G_GINT64_MODIFIER);
-  gum_add_define_str (cm, "G_GSIZE_MODIFIER", G_GSIZE_MODIFIER);
-  gum_add_define_str (cm, "G_GSSIZE_MODIFIER", G_GSSIZE_MODIFIER);
+  gum_cmodule_add_define_str (self, "G_GINT16_MODIFIER", G_GINT16_MODIFIER);
+  gum_cmodule_add_define_str (self, "G_GINT32_MODIFIER", G_GINT32_MODIFIER);
+  gum_cmodule_add_define_str (self, "G_GINT64_MODIFIER", G_GINT64_MODIFIER);
+  gum_cmodule_add_define_str (self, "G_GSIZE_MODIFIER", G_GSIZE_MODIFIER);
+  gum_cmodule_add_define_str (self, "G_GSSIZE_MODIFIER", G_GSSIZE_MODIFIER);
 
-  cls->add_define (cm, "GLIB_SIZEOF_VOID_P", G_STRINGIFY (GLIB_SIZEOF_VOID_P));
+  cls->add_define (self, "GLIB_SIZEOF_VOID_P", G_STRINGIFY (GLIB_SIZEOF_VOID_P));
 
 #ifdef HAVE_WINDOWS
-  cls->add_define (cm, "extern", "__attribute__ ((dllimport))");
+  cls->add_define (self, "extern", "__attribute__ ((dllimport))");
 #endif
 }
 
 static void
-gum_add_define_str (GumCModule * cm,
-                    const gchar * name,
-                    const gchar * value)
+gum_cmodule_add_define_str (GumCModule * self,
+                            const gchar * name,
+                            const gchar * value)
 {
   gchar * raw_value;
 
   raw_value = g_strconcat ("\"", value, "\"", NULL);
 
-  GUM_CMODULE_GET_CLASS (cm)->add_define (cm, name, raw_value);
+  GUM_CMODULE_GET_CLASS (self)->add_define (self, name, raw_value);
 
   g_free (raw_value);
 }
@@ -368,7 +364,7 @@ gum_tcc_cmodule_new (const gchar * source,
       "-isystem /frida/capstone"
   );
 
-  gum_add_defines (result);
+  gum_cmodule_add_defines (result);
 
   tcc_set_output_type (state, TCC_OUTPUT_MEMORY);
 
@@ -702,7 +698,7 @@ gum_gcc_cmodule_new (const gchar * source,
     goto beach;
 
   g_ptr_array_add (cmodule->argv, g_strdup ("gcc"));
-  gum_add_defines (result);
+  gum_cmodule_add_defines (result);
   g_ptr_array_add (cmodule->argv, g_strdup ("-c"));
   g_ptr_array_add (cmodule->argv, g_strdup ("-O2"));
   g_ptr_array_add (cmodule->argv, g_strdup ("-fno-pic"));
