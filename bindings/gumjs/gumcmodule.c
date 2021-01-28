@@ -397,10 +397,12 @@ gum_tcc_cmodule_new (const gchar * source,
   tcc_set_cpp_load_func (state, cmodule, gum_tcc_cmodule_load_header);
   tcc_set_linker_resolve_func (state, cmodule, gum_tcc_cmodule_resolve_symbol);
   tcc_set_options (state,
-      "-nostdinc "
-      "-nostdlib "
+      "-Wall "
+      "-Werror "
       "-isystem /frida "
-      "-isystem /frida/capstone"
+      "-isystem /frida/capstone "
+      "-nostdinc "
+      "-nostdlib"
   );
 
   gum_cmodule_add_standard_defines (result);
@@ -743,6 +745,8 @@ gum_gcc_cmodule_new (const gchar * source,
 
   g_ptr_array_add (cmodule->argv, g_strdup ("gcc"));
   g_ptr_array_add (cmodule->argv, g_strdup ("-c"));
+  g_ptr_array_add (cmodule->argv, g_strdup ("-Wall"));
+  g_ptr_array_add (cmodule->argv, g_strdup ("-Werror"));
   g_ptr_array_add (cmodule->argv, g_strdup ("-O2"));
   g_ptr_array_add (cmodule->argv, g_strdup ("-fno-pic"));
 #ifdef HAVE_I386
@@ -1231,6 +1235,8 @@ gum_darwin_cmodule_new (const gchar * source,
 
   g_ptr_array_add (cmodule->argv, g_strdup ("clang"));
   g_ptr_array_add (cmodule->argv, g_strdup ("-dynamiclib"));
+  g_ptr_array_add (cmodule->argv, g_strdup ("-Wall"));
+  g_ptr_array_add (cmodule->argv, g_strdup ("-Werror"));
   g_ptr_array_add (cmodule->argv, g_strdup ("-O2"));
   g_ptr_array_add (cmodule->argv, g_strdup ("-isystem"));
   g_ptr_array_add (cmodule->argv, g_strdup ("."));
