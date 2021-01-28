@@ -7213,7 +7213,7 @@ TESTCASE (cmodule_can_be_used_with_stalker_transform)
       "           gpointer user_data)\\n"
       "{\\n"
       "  printf (\"\\\\ntransform()\\\\n\");\\n"
-      "  cs_insn * insn = NULL;\\n"
+      "  const cs_insn * insn = NULL;\\n"
       "  while (gum_stalker_iterator_next (iterator, &insn))\\n"
       "  {\\n"
       "    printf (\"\\\\t%%s %%s\\\\n\", insn->mnemonic, insn->op_str);\\n"
