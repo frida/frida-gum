@@ -2012,28 +2012,44 @@ gum_darwin_mapper_bind_pointer (GumDarwinMapper * self,
                                 const GumDarwinBindDetails * bind,
                                 GError ** error)
 {
-  GumDarwinMapping * dependency;
   GumDarwinSymbolValue value;
-  gboolean success, is_weak_import;
+  gboolean is_weak_import, success;
+  GumDarwinMapping * dependency;
 
-  dependency = gum_darwin_mapper_get_dependency_by_ordinal (self,
-      bind->library_ordinal, error);
-  if (dependency == NULL)
-    goto module_not_found;
-
-  success = gum_darwin_mapper_resolve_symbol (self, dependency->module,
-      bind->symbol_name, &value);
   is_weak_import = (bind->symbol_flags & GUM_DARWIN_BIND_WEAK_IMPORT) != 0;
-  if (!success && !is_weak_import && self->resolver->sysroot != NULL &&
-      g_str_has_suffix (bind->symbol_name, "$INODE64"))
-  {
-    gchar * plain_name;
 
-    plain_name = g_strndup (bind->symbol_name, strlen (bind->symbol_name) - 8);
-    success = gum_darwin_mapper_resolve_symbol (self, dependency->module,
-        plain_name, &value);
-    g_free (plain_name);
+  if (bind->library_ordinal == GUM_DARWIN_BIND_FLAT_LOOKUP)
+  {
+    dependency = NULL;
+
+    value.address = gum_darwin_module_resolver_find_dynamic_address (
+        self->resolver, gum_symbol_name_from_darwin (bind->symbol_name));
+    value.resolver = 0;
+
+    success = value.address != 0;
   }
+  else
+  {
+    dependency = gum_darwin_mapper_get_dependency_by_ordinal (self,
+        bind->library_ordinal, error);
+    if (dependency == NULL)
+      goto module_not_found;
+
+    success = gum_darwin_mapper_resolve_symbol (self, dependency->module,
+        bind->symbol_name, &value);
+    if (!success && !is_weak_import && self->resolver->sysroot != NULL &&
+        g_str_has_suffix (bind->symbol_name, "$INODE64"))
+    {
+      gchar * plain_name;
+
+      plain_name = g_strndup (bind->symbol_name,
+          strlen (bind->symbol_name) - 8);
+      success = gum_darwin_mapper_resolve_symbol (self, dependency->module,
+          plain_name, &value);
+      g_free (plain_name);
+    }
+  }
+
   if (!success && !is_weak_import)
     goto symbol_not_found;
 
@@ -2074,9 +2090,19 @@ module_not_found:
   }
 symbol_not_found:
   {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
-        "Unable to bind, “%s” not found in “%s”",
-        bind->symbol_name, dependency->module->name);
+    if (dependency != NULL)
+    {
+      g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND,
+          "Unable to bind, “%s” not found in “%s”",
+          gum_symbol_name_from_darwin (bind->symbol_name),
+          dependency->module->name);
+    }
+    else
+    {
+      g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND,
+          "Unable to bind, “%s” cannot be resolved through flat lookup",
+          gum_symbol_name_from_darwin (bind->symbol_name));
+    }
     return FALSE;
   }
 }

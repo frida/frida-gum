@@ -16,6 +16,9 @@ G_BEGIN_DECLS
 G_DECLARE_FINAL_TYPE (GumDarwinModuleResolver, gum_darwin_module_resolver,
     GUM_DARWIN, MODULE_RESOLVER, GObject)
 
+typedef GumAddress (* GumDarwinModuleResolverLookupFunc) (const gchar * symbol,
+    gpointer user_data);
+
 struct _GumDarwinModuleResolver
 {
   GObject parent;
@@ -26,10 +29,19 @@ struct _GumDarwinModuleResolver
   guint page_size;
   GHashTable * modules;
   gchar * sysroot;
+
+  GumDarwinModuleResolverLookupFunc lookup_dynamic_func;
+  gpointer lookup_dynamic_data;
+  GDestroyNotify lookup_dynamic_data_destroy;
 };
 
 GUM_API GumDarwinModuleResolver * gum_darwin_module_resolver_new (
     mach_port_t task, GError ** error);
+
+GUM_API void gum_darwin_module_resolver_set_dynamic_lookup_handler (
+    GumDarwinModuleResolver * self, GumDarwinModuleResolverLookupFunc func,
+    gpointer data, GDestroyNotify data_destroy);
+
 GUM_API GumDarwinModule * gum_darwin_module_resolver_find_module (
     GumDarwinModuleResolver * self, const gchar * module_name);
 GUM_API gboolean gum_darwin_module_resolver_find_export (
@@ -44,6 +56,8 @@ GUM_API gboolean gum_darwin_module_resolver_find_export_by_mangled_name (
 GUM_API gboolean gum_darwin_module_resolver_resolve_export (
     GumDarwinModuleResolver * self, GumDarwinModule * module,
     const GumDarwinExportDetails * exp, GumExportDetails * result);
+GUM_API GumAddress gum_darwin_module_resolver_find_dynamic_address (
+    GumDarwinModuleResolver * self, const gchar * symbol);
 
 G_END_DECLS
 

@@ -132,6 +132,9 @@ gum_darwin_module_resolver_finalize (GObject * object)
 {
   GumDarwinModuleResolver * self = GUM_DARWIN_MODULE_RESOLVER (object);
 
+  gum_darwin_module_resolver_set_dynamic_lookup_handler (self, NULL, NULL,
+      NULL);
+
   g_free (self->sysroot);
   g_hash_table_unref (self->modules);
 
@@ -181,6 +184,21 @@ gum_darwin_module_resolver_new (mach_port_t task,
   return g_initable_new (GUM_DARWIN_TYPE_MODULE_RESOLVER, NULL, error,
       "task", task,
       NULL);
+}
+
+void
+gum_darwin_module_resolver_set_dynamic_lookup_handler (
+    GumDarwinModuleResolver * self,
+    GumDarwinModuleResolverLookupFunc func,
+    gpointer data,
+    GDestroyNotify data_destroy)
+{
+  if (self->lookup_dynamic_data_destroy != NULL)
+    self->lookup_dynamic_data_destroy (self->lookup_dynamic_data);
+
+  self->lookup_dynamic_func = func;
+  self->lookup_dynamic_data = data;
+  self->lookup_dynamic_data_destroy = data_destroy;
 }
 
 GumDarwinModule *
@@ -356,6 +374,16 @@ gum_darwin_module_resolver_resolve_export (
   }
 
   return TRUE;
+}
+
+GumAddress
+gum_darwin_module_resolver_find_dynamic_address (GumDarwinModuleResolver * self,
+                                                 const gchar * symbol)
+{
+  if (self->lookup_dynamic_func != NULL)
+    return self->lookup_dynamic_func (symbol, self->lookup_dynamic_data);
+
+  return 0;
 }
 
 static gboolean
