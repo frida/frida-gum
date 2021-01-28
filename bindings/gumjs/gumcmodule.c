@@ -126,9 +126,6 @@ gum_cmodule_add_defines (GumCModule * self)
   cls->add_define (self, "HAVE_MIPS", NULL);
 #endif
 
-  cls->add_define (self, "TRUE", "1");
-  cls->add_define (self, "FALSE", "0");
-
   gum_cmodule_add_define_str (self, "G_GINT16_MODIFIER", G_GINT16_MODIFIER);
   gum_cmodule_add_define_str (self, "G_GINT32_MODIFIER", G_GINT32_MODIFIER);
   gum_cmodule_add_define_str (self, "G_GINT64_MODIFIER", G_GINT64_MODIFIER);

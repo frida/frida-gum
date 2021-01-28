@@ -6,6 +6,14 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#ifndef FALSE
+#define FALSE 0
+#endif
+
+#ifndef TRUE
+#define TRUE 1
+#endif
+
 #undef MAX
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
