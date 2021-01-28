@@ -7517,7 +7517,7 @@ TESTCASE (cmodule_should_support_memory_builtins)
       "  b = a;\n"
       "  d = c;\n"
       "  f = e;\n"
-      "  return a.x + a.y;\n"
+      "  return a.x + a.y + b.x + d.x + f.x;\n"
       "}\n"
       "`);"
       "send(m.f);");
