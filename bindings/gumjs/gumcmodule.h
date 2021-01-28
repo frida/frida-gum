@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2019-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -23,18 +23,19 @@ struct _GumCModuleClass
 {
   GObjectClass parent_class;
 
+  void (* add_define) (GumCModule * cm, const gchar * name,
+      const gchar * value);
   void (* add_symbol) (GumCModule * cm, const gchar * name,
       gconstpointer value);
   gboolean (* link_pre) (GumCModule * cm, gsize * size,
       GString ** error_messages);
-  gboolean (* link) (GumCModule * cm, gpointer base, GString ** error_messages);
+  gboolean (* link_at) (GumCModule * cm, gpointer base,
+      GString ** error_messages);
   void (* link_post) (GumCModule * cm);
   void (* enumerate_symbols) (GumCModule * cm, GumFoundCSymbolFunc func,
       gpointer user_data);
   gpointer (* find_symbol_by_name) (GumCModule * cm, const gchar * name);
   void (* drop_metadata) (GumCModule * cm);
-  void (* add_define) (GumCModule * cm, const gchar * name,
-      const gchar * value);
 };
 
 struct _GumCSymbolDetails

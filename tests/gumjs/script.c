@@ -7806,7 +7806,7 @@ TESTCASE (cmodule_constructor_should_throw_not_available)
 {
   COMPILE_AND_LOAD_SCRIPT ("new CModule('');");
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
-      "Error: not available for the current architecture");
+      "Error: not available for the current OS/architecture");
 }
 
 #endif
