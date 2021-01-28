@@ -4,7 +4,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>  /* for ssize_t */
+#include <stdio.h>
 
 #undef MAX
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
