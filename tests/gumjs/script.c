@@ -6862,22 +6862,37 @@ TESTCASE (cmodule_can_be_defined)
 
 TESTCASE (cmodule_can_be_defined_with_toolchain)
 {
-  int (* answer_impl) (void);
-
-  COMPILE_AND_LOAD_SCRIPT (
-      "var m = new CModule('"
-      ""
+  const gchar * code =
       "int\\n"
       "answer (void)\\n"
       "{\\n"
       "  return 42;\\n"
-      "}"
-      "', null, null);"
-      "send(m.answer);");
+      "}";
+  int (* answer_impl) (void);
 
+  COMPILE_AND_LOAD_SCRIPT (
+      "var m = new CModule('%s', null, { toolchain: 'internal' });"
+      "send(m.answer);",
+      code);
   answer_impl = EXPECT_SEND_MESSAGE_WITH_POINTER ();
-  g_assert_nonnull (answer_impl);
   g_assert_cmpint (answer_impl (), ==, 42);
+
+#ifndef HAVE_MACOS
+  if (g_test_slow ())
+#endif
+  {
+    COMPILE_AND_LOAD_SCRIPT (
+        "var m = new CModule('%s', null, { toolchain: 'external' });"
+        "send(m.answer);",
+        code);
+    answer_impl = EXPECT_SEND_MESSAGE_WITH_POINTER ();
+    g_assert_cmpint (answer_impl (), ==, 42);
+  }
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "new CModule('%s', null, { toolchain: 'nope' });",
+      code);
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER, "Error: invalid toolchain value");
 }
 
 TESTCASE (cmodule_symbols_can_be_provided)
@@ -7806,7 +7821,7 @@ TESTCASE (cmodule_constructor_should_throw_not_available)
 {
   COMPILE_AND_LOAD_SCRIPT ("new CModule('');");
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
-      "Error: not available for the current OS/architecture");
+      "Error: internal toolchain is not available in this build configuration");
 }
 
 #endif

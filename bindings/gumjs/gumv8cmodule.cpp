@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2019-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -28,6 +28,10 @@ struct GumAddCSymbolsContext
 };
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_cmodule_construct)
+static gboolean gum_parse_cmodule_options (Local<Object> options_val,
+    GumCModuleOptions * options, Local<Context> context, GumV8CModule * parent);
+static gboolean gum_parse_cmodule_toolchain (Local<Value> val,
+    GumCModuleToolchain * toolchain, Isolate * isolate);
 static gboolean gum_add_csymbol (const GumCSymbolDetails * details,
     GumAddCSymbolsContext * ctx);
 GUMJS_DECLARE_FUNCTION (gumjs_cmodule_dispose)
@@ -64,14 +68,22 @@ _gum_v8_cmodule_init (GumV8CModule * self,
 void
 _gum_v8_cmodule_realize (GumV8CModule * self)
 {
+  auto isolate = self->core->isolate;
+
   self->cmodules = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_cmodule_entry_free);
+
+  self->toolchain_key = new GumPersistent<String>::type (isolate,
+      _gum_v8_string_new_ascii (isolate, "toolchain"));
 }
 
 void
 _gum_v8_cmodule_dispose (GumV8CModule * self)
 {
   g_hash_table_remove_all (self->cmodules);
+
+  delete self->toolchain_key;
+  self->toolchain_key = nullptr;
 }
 
 void
@@ -93,15 +105,21 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
 
   gchar * source;
   Local<Object> symbols;
-  gchar * toolchain = NULL;
-  if (!_gum_v8_args_parse (args, "s|O?s?", &source, &symbols, &toolchain))
+  Local<Object> options_val;
+  if (!_gum_v8_args_parse (args, "s|O?O?", &source, &symbols, &options_val))
     return;
 
+  GumCModuleOptions options;
+  if (!gum_parse_cmodule_options (options_val, &options, context, module))
+  {
+    g_free (source);
+    return;
+  }
+
   GError * error = NULL;
-  auto handle = gum_cmodule_new (toolchain, source, &error);
+  auto handle = gum_cmodule_new (source, &options, &error);
 
   g_free (source);
-  g_free (toolchain);
 
   if (error == NULL && !symbols.IsEmpty ())
   {
@@ -178,6 +196,59 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
 
   auto entry = gum_cmodule_entry_new (wrapper, symbols, handle, module);
   wrapper->SetAlignedPointerInInternalField (0, entry);
+}
+
+static gboolean
+gum_parse_cmodule_options (Local<Object> options_val,
+                           GumCModuleOptions * options,
+                           Local<Context> context,
+                           GumV8CModule * parent)
+{
+  auto isolate = parent->core->isolate;
+  Local<Value> v;
+
+  options->toolchain = GUM_CMODULE_TOOLCHAIN_INTERNAL;
+
+  if (options_val.IsEmpty ())
+    return TRUE;
+
+  if (!options_val->Get (context, Local<String>::New (isolate,
+      *parent->toolchain_key)).ToLocal (&v))
+    return FALSE;
+  if (!v->IsUndefined ())
+  {
+    if (!gum_parse_cmodule_toolchain (v, &options->toolchain, isolate))
+      return FALSE;
+  }
+
+  return TRUE;
+}
+
+static gboolean
+gum_parse_cmodule_toolchain (Local<Value> val,
+                             GumCModuleToolchain * toolchain,
+                             Isolate * isolate)
+{
+  if (val->IsString ())
+  {
+    String::Utf8Value str_val (isolate, val);
+    auto str = *str_val;
+
+    if (strcmp (str, "internal") == 0)
+    {
+      *toolchain = GUM_CMODULE_TOOLCHAIN_INTERNAL;
+      return TRUE;
+    }
+
+    if (strcmp (str, "external") == 0)
+    {
+      *toolchain = GUM_CMODULE_TOOLCHAIN_EXTERNAL;
+      return TRUE;
+    }
+  }
+
+  _gum_v8_throw_ascii_literal (isolate, "invalid toolchain value");
+  return FALSE;
 }
 
 static gboolean

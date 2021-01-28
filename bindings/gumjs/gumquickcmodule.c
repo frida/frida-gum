@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -8,6 +8,8 @@
 
 #include "gumcmodule.h"
 #include "gumquickmacros.h"
+
+#include <string.h>
 
 typedef struct _GumAddCSymbolsOperation GumAddCSymbolsOperation;
 
@@ -18,6 +20,10 @@ struct _GumAddCSymbolsOperation
 };
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_cmodule_construct)
+static gboolean gum_parse_cmodule_options (JSContext * ctx, JSValue options_val,
+    GumQuickCore * core, GumCModuleOptions * options);
+static gboolean gum_parse_cmodule_toolchain (JSContext * ctx, JSValue val,
+    GumCModuleToolchain * toolchain);
 static gboolean gum_add_csymbol (const GumCSymbolDetails * details,
     GumAddCSymbolsOperation * op);
 GUMJS_DECLARE_FINALIZER (gumjs_cmodule_finalize)
@@ -94,7 +100,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
   GumQuickCModule * parent;
   const gchar * source;
   JSValue symbols;
-  const gchar * toolchain;
+  JSValue options_val;
+  GumCModuleOptions options;
   JSValue proto;
   JSValue wrapper = JS_NULL;
   GumCModule * cmodule = NULL;
@@ -109,8 +116,11 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
   parent = gumjs_get_parent_module (core);
 
   symbols = JS_NULL;
-  toolchain = NULL;
-  if (!_gum_quick_args_parse (args, "s|O?s?", &source, &symbols, &toolchain))
+  options_val = JS_NULL;
+  if (!_gum_quick_args_parse (args, "s|O?O?", &source, &symbols, &options_val))
+    goto propagate_exception;
+
+  if (!gum_parse_cmodule_options (ctx, options_val, core, &options))
     goto propagate_exception;
 
   proto = JS_GetProperty (ctx, new_target,
@@ -121,7 +131,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
     goto propagate_exception;
 
   error = NULL;
-  cmodule = gum_cmodule_new (toolchain, source, &error);
+  cmodule = gum_cmodule_new (source, &options, &error);
   if (error != NULL)
     goto propagate_error;
 
@@ -207,6 +217,72 @@ beach:
 
     return result;
   }
+}
+
+static gboolean
+gum_parse_cmodule_options (JSContext * ctx,
+                           JSValue options_val,
+                           GumQuickCore * core,
+                           GumCModuleOptions * options)
+{
+  JSValue val;
+
+  options->toolchain = GUM_CMODULE_TOOLCHAIN_INTERNAL;
+
+  if (JS_IsNull (options_val))
+    return TRUE;
+
+  val = JS_GetProperty (ctx, options_val,
+      GUM_QUICK_CORE_ATOM (core, toolchain));
+  if (JS_IsException (val))
+    return FALSE;
+  if (!JS_IsUndefined (val))
+  {
+    if (!gum_parse_cmodule_toolchain (ctx, val, &options->toolchain))
+      goto invalid_value;
+    JS_FreeValue (ctx, val);
+  }
+
+  return TRUE;
+
+invalid_value:
+  {
+    JS_FreeValue (ctx, val);
+
+    return FALSE;
+  }
+}
+
+static gboolean
+gum_parse_cmodule_toolchain (JSContext * ctx,
+                             JSValue val,
+                             GumCModuleToolchain * toolchain)
+{
+  gboolean valid;
+  const char * str;
+
+  if (!_gum_quick_string_get (ctx, val, &str))
+    return FALSE;
+
+  valid = TRUE;
+
+  if (strcmp (str, "internal") == 0)
+  {
+    *toolchain = GUM_CMODULE_TOOLCHAIN_INTERNAL;
+  }
+  else if (strcmp (str, "external") == 0)
+  {
+    *toolchain = GUM_CMODULE_TOOLCHAIN_EXTERNAL;
+  }
+  else
+  {
+    _gum_quick_throw_literal (ctx, "invalid toolchain value");
+    valid = FALSE;
+  }
+
+  JS_FreeCString (ctx, str);
+
+  return valid;
 }
 
 static gboolean

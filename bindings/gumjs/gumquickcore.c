@@ -4488,6 +4488,7 @@ gum_quick_core_setup_atoms (GumQuickCore * self)
   GUM_SETUP_ATOM (slot);
   GUM_SETUP_ATOM (state);
   GUM_SETUP_ATOM_NAMED (system_error, GUMJS_SYSTEM_ERROR_FIELD);
+  GUM_SETUP_ATOM (toolchain);
   GUM_SETUP_ATOM (traps);
   GUM_SETUP_ATOM (type);
   GUM_SETUP_ATOM (value);
@@ -4560,6 +4561,7 @@ gum_quick_core_teardown_atoms (GumQuickCore * self)
   GUM_TEARDOWN_ATOM (slot);
   GUM_TEARDOWN_ATOM (state);
   GUM_TEARDOWN_ATOM (system_error);
+  GUM_TEARDOWN_ATOM (toolchain);
   GUM_TEARDOWN_ATOM (traps);
   GUM_TEARDOWN_ATOM (type);
   GUM_TEARDOWN_ATOM (value);

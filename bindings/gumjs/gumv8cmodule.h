@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2019-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -14,6 +14,8 @@ struct GumV8CModule
   GumV8Core * core;
 
   GHashTable * cmodules;
+
+  GumPersistent<v8::String>::type * toolchain_key;
 };
 
 G_GNUC_INTERNAL void _gum_v8_cmodule_init (GumV8CModule * self,

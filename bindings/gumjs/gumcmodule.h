@@ -14,6 +14,8 @@ G_BEGIN_DECLS
 #define GUM_TYPE_CMODULE (gum_cmodule_get_type ())
 G_DECLARE_DERIVABLE_TYPE (GumCModule, gum_cmodule, GUM, CMODULE, GObject)
 
+typedef struct _GumCModuleOptions GumCModuleOptions;
+typedef guint GumCModuleToolchain;
 typedef struct _GumCSymbolDetails GumCSymbolDetails;
 
 typedef void (* GumFoundCSymbolFunc) (const GumCSymbolDetails * details,
@@ -38,14 +40,25 @@ struct _GumCModuleClass
   void (* drop_metadata) (GumCModule * cm);
 };
 
+struct _GumCModuleOptions
+{
+  GumCModuleToolchain toolchain;
+};
+
+enum _GumCModuleToolchain
+{
+  GUM_CMODULE_TOOLCHAIN_INTERNAL,
+  GUM_CMODULE_TOOLCHAIN_EXTERNAL
+};
+
 struct _GumCSymbolDetails
 {
   const gchar * name;
   gpointer address;
 };
 
-GUM_API GumCModule * gum_cmodule_new (const gchar * toolchain,
-    const gchar * source, GError ** error);
+GUM_API GumCModule * gum_cmodule_new (const gchar * source,
+    const GumCModuleOptions * options, GError ** error);
 
 GUM_API const GumMemoryRange * gum_cmodule_get_range (GumCModule * self);
 

@@ -146,6 +146,7 @@ struct _GumQuickCore
   GUM_DECLARE_ATOM (slot);
   GUM_DECLARE_ATOM (state);
   GUM_DECLARE_ATOM (system_error);
+  GUM_DECLARE_ATOM (toolchain);
   GUM_DECLARE_ATOM (traps);
   GUM_DECLARE_ATOM (type);
   GUM_DECLARE_ATOM (value);

@@ -17,12 +17,14 @@
 #endif
 
 #ifdef HAVE_TINYCC
-static GumCModule * gum_tcc_cmodule_new (const gchar * source, GError ** error);
+static GumCModule * gum_tcc_cmodule_new (const gchar * source,
+    const GumCModuleOptions * options, GError ** error);
 #endif
-static GumCModule * gum_gcc_cmodule_new (const gchar * source, GError ** error);
+static GumCModule * gum_gcc_cmodule_new (const gchar * source,
+    const GumCModuleOptions * options, GError ** error) G_GNUC_UNUSED;
 #ifdef HAVE_DARWIN
 static GumCModule * gum_darwin_cmodule_new (const gchar * source,
-    GError ** error);
+    const GumCModuleOptions * options, GError ** error);
 #endif
 
 typedef struct _GumCModulePrivate GumCModulePrivate;
@@ -121,26 +123,29 @@ gum_cmodule_finalize (GObject * object)
 }
 
 GumCModule *
-gum_cmodule_new (const gchar * name,
-                 const gchar * source,
+gum_cmodule_new (const gchar * source,
+                 const GumCModuleOptions * options,
                  GError ** error)
 {
+  switch (options->toolchain)
+  {
+    case GUM_CMODULE_TOOLCHAIN_INTERNAL:
 #ifdef HAVE_TINYCC
-  if (name == NULL || strcmp (name, "tcc") == 0)
-    return gum_tcc_cmodule_new (source, error);
+      return gum_tcc_cmodule_new (source, options, error);
+#else
+      g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
+          "Internal toolchain is not available in this build configuration");
+      return NULL;
 #endif
-
-  if (strcmp (name, "gcc") == 0)
-    return gum_gcc_cmodule_new (source, error);
-
+    case GUM_CMODULE_TOOLCHAIN_EXTERNAL:
 #ifdef HAVE_DARWIN
-  if (strcmp (name, "darwin") == 0)
-    return gum_darwin_cmodule_new (source, error);
+      return gum_darwin_cmodule_new (source, options, error);
+#else
+      return gum_gcc_cmodule_new (source, options, error);
 #endif
-
-  g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
-      "Not available for the current OS/architecture");
-  return NULL;
+    default:
+      g_assert_not_reached ();
+  }
 }
 
 const GumMemoryRange *
@@ -377,6 +382,7 @@ gum_tcc_cmodule_init (GumTccCModule * cmodule)
 
 static GumCModule *
 gum_tcc_cmodule_new (const gchar * source,
+                     const GumCModuleOptions * options,
                      GError ** error)
 {
   GumCModule * result;
@@ -719,6 +725,7 @@ gum_gcc_cmodule_init (GumGccCModule * self)
 
 static GumCModule *
 gum_gcc_cmodule_new (const gchar * source,
+                     const GumCModuleOptions * options,
                      GError ** error)
 {
   GumCModule * result;
@@ -1209,6 +1216,7 @@ gum_darwin_cmodule_init (GumDarwinCModule * self)
 
 static GumCModule *
 gum_darwin_cmodule_new (const gchar * source,
+                        const GumCModuleOptions * options,
                         GError ** error)
 {
   GumCModule * result;
