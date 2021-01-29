@@ -7859,7 +7859,7 @@ TESTCASE (cmodule_should_provide_access_to_system_error)
 
 TESTCASE (cmodule_constructor_should_throw_not_available)
 {
-  COMPILE_AND_LOAD_SCRIPT ("new CModule('');");
+  COMPILE_AND_LOAD_SCRIPT ("new CModule('', {}, { toolchain: 'internal' });");
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
       "Error: internal toolchain is not available in this build configuration");
 }
