@@ -406,6 +406,9 @@ gum_darwin_mapper_new_take_blob (const gchar * name,
   if (module == NULL)
     goto malformed_blob;
 
+  if (module->name == NULL)
+    g_object_set (module, "name", name, NULL);
+
   mapper = g_initable_new (GUM_DARWIN_TYPE_MAPPER, NULL, error,
       "name", name,
       "module", module,
@@ -439,6 +442,9 @@ gum_darwin_mapper_new_from_file_with_parent (GumDarwinMapper * parent,
       error);
   if (module == NULL)
     goto beach;
+
+  if (module->name == NULL)
+    g_object_set (module, "name", path, NULL);
 
   mapper = g_initable_new (GUM_DARWIN_TYPE_MAPPER, NULL, error,
       "name", path,
