@@ -227,7 +227,7 @@ gum_parse_cmodule_options (JSContext * ctx,
 {
   JSValue val;
 
-  options->toolchain = GUM_CMODULE_TOOLCHAIN_INTERNAL;
+  options->toolchain = GUM_CMODULE_TOOLCHAIN_ANY;
 
   if (JS_IsNull (options_val))
     return TRUE;
@@ -266,7 +266,11 @@ gum_parse_cmodule_toolchain (JSContext * ctx,
 
   valid = TRUE;
 
-  if (strcmp (str, "internal") == 0)
+  if (strcmp (str, "any") == 0)
+  {
+    *toolchain = GUM_CMODULE_TOOLCHAIN_ANY;
+  }
+  else if (strcmp (str, "internal") == 0)
   {
     *toolchain = GUM_CMODULE_TOOLCHAIN_INTERNAL;
   }

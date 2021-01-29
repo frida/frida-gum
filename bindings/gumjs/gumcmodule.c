@@ -127,7 +127,18 @@ gum_cmodule_new (const gchar * source,
                  const GumCModuleOptions * options,
                  GError ** error)
 {
-  switch (options->toolchain)
+  GumCModuleToolchain toolchain = options->toolchain;
+
+  if (toolchain == GUM_CMODULE_TOOLCHAIN_ANY)
+  {
+#ifdef HAVE_TINYCC
+    toolchain = GUM_CMODULE_TOOLCHAIN_INTERNAL;
+#else
+    toolchain = GUM_CMODULE_TOOLCHAIN_EXTERNAL;
+#endif
+  }
+
+  switch (toolchain)
   {
     case GUM_CMODULE_TOOLCHAIN_INTERNAL:
 #ifdef HAVE_TINYCC

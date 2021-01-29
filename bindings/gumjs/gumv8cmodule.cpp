@@ -207,7 +207,7 @@ gum_parse_cmodule_options (Local<Object> options_val,
   auto isolate = parent->core->isolate;
   Local<Value> v;
 
-  options->toolchain = GUM_CMODULE_TOOLCHAIN_INTERNAL;
+  options->toolchain = GUM_CMODULE_TOOLCHAIN_ANY;
 
   if (options_val.IsEmpty ())
     return TRUE;
@@ -233,6 +233,12 @@ gum_parse_cmodule_toolchain (Local<Value> val,
   {
     String::Utf8Value str_val (isolate, val);
     auto str = *str_val;
+
+    if (strcmp (str, "any") == 0)
+    {
+      *toolchain = GUM_CMODULE_TOOLCHAIN_ANY;
+      return TRUE;
+    }
 
     if (strcmp (str, "internal") == 0)
     {
