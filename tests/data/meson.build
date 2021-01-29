@@ -26,3 +26,7 @@ test_data_stamp = custom_target('gum-tests-data-stamp',
   output: '.stamp',
   command: ['touch', '@OUTPUT@'],
 )
+
+shared_module('prebuiltcmodule', 'prebuiltcmodule.c',
+  name_prefix: '',
+)

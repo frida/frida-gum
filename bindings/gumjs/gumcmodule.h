@@ -58,7 +58,7 @@ struct _GumCSymbolDetails
   gpointer address;
 };
 
-GUM_API GumCModule * gum_cmodule_new (const gchar * source,
+GUM_API GumCModule * gum_cmodule_new (const gchar * source, GBytes * binary,
     const GumCModuleOptions * options, GError ** error);
 
 GUM_API const GumMemoryRange * gum_cmodule_get_range (GumCModule * self);

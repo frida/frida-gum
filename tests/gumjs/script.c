@@ -306,6 +306,7 @@ TESTLIST_BEGIN (script)
 #ifdef HAVE_TINYCC
     TESTENTRY (cmodule_can_be_defined)
     TESTENTRY (cmodule_can_be_defined_with_toolchain)
+    TESTENTRY (cmodule_can_be_created_from_prebuilt_binary)
     TESTENTRY (cmodule_symbols_can_be_provided)
     TESTENTRY (cmodule_should_report_parsing_errors)
     TESTENTRY (cmodule_should_report_linking_errors)
@@ -6893,6 +6894,45 @@ TESTCASE (cmodule_can_be_defined_with_toolchain)
       "new CModule('%s', null, { toolchain: 'nope' });",
       code);
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER, "Error: invalid toolchain value");
+}
+
+TESTCASE (cmodule_can_be_created_from_prebuilt_binary)
+{
+#ifdef HAVE_DARWIN
+  gchar * data_dir, * module_path;
+  gpointer module_contents;
+  gsize module_size;
+  GBytes * module_bytes;
+  int (* answer_impl) (void);
+
+  data_dir = test_util_get_data_dir ();
+  module_path = g_build_filename (data_dir, "prebuiltcmodule.dylib", NULL);
+  g_assert_true (g_file_get_contents (module_path, (gchar **) &module_contents,
+      &module_size, NULL));
+  module_bytes =
+      g_bytes_new_take (g_steal_pointer (&module_contents), module_size);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "let m = null;"
+      "const notify = new NativeCallback(n => { send(n); }, 'void', ['int']);"
+      "recv((message, data) => {"
+      "  m = new CModule(data, { notify });"
+      "  send(m.answer);"
+      "});");
+  EXPECT_NO_MESSAGES ();
+
+  gum_script_post (fixture->script, "{}", module_bytes);
+  answer_impl = EXPECT_SEND_MESSAGE_WITH_POINTER ();
+  g_assert_cmpint (answer_impl (), ==, 42);
+  EXPECT_SEND_MESSAGE_WITH ("1337");
+  EXPECT_NO_MESSAGES ();
+
+  g_bytes_unref (module_bytes);
+  g_free (module_path);
+  g_free (data_dir);
+#else
+  g_test_skip ("Missing implementation or test on this OS");
+#endif
 }
 
 TESTCASE (cmodule_symbols_can_be_provided)

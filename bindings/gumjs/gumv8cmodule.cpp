@@ -103,23 +103,40 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
     return;
   }
 
-  gchar * source;
+  if (info.Length () == 0)
+  {
+    _gum_v8_throw_ascii_literal (isolate, "missing argument");
+    return;
+  }
+
+  gchar * source = NULL;
+  GBytes * binary = NULL;
   Local<Object> symbols;
   Local<Object> options_val;
-  if (!_gum_v8_args_parse (args, "s|O?O?", &source, &symbols, &options_val))
-    return;
+  if (!info[0]->IsObject ())
+  {
+    if (!_gum_v8_args_parse (args, "s|O?O?", &source, &symbols, &options_val))
+      return;
+  }
+  else
+  {
+    if (!_gum_v8_args_parse (args, "B|O?O?", &binary, &symbols, &options_val))
+      return;
+  }
 
   GumCModuleOptions options;
   if (!gum_parse_cmodule_options (options_val, &options, context, module))
   {
     g_free (source);
+    g_bytes_unref (binary);
     return;
   }
 
   GError * error = NULL;
-  auto handle = gum_cmodule_new (source, &options, &error);
+  auto handle = gum_cmodule_new (source, binary, &options, &error);
 
   g_free (source);
+  g_bytes_unref (binary);
 
   if (error == NULL && !symbols.IsEmpty ())
   {

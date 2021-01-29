@@ -57,7 +57,7 @@ _gum_quick_cmodule_init (GumQuickCModule * self,
   _gum_quick_create_class (ctx, &gumjs_cmodule_def, core, &self->cmodule_class,
       &proto);
   ctor = JS_NewCFunction2 (ctx, gumjs_cmodule_construct,
-      gumjs_cmodule_def.class_name, 0, JS_CFUNC_constructor, 0);
+      gumjs_cmodule_def.class_name, 1, JS_CFUNC_constructor, 0);
   JS_SetConstructor (ctx, ctor, proto);
   JS_SetPropertyFunctionList (ctx, proto, gumjs_cmodule_entries,
       G_N_ELEMENTS (gumjs_cmodule_entries));
@@ -99,6 +99,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
   JSValue result;
   GumQuickCModule * parent;
   const gchar * source;
+  GBytes * binary;
   JSValue symbols;
   JSValue options_val;
   GumCModuleOptions options;
@@ -115,10 +116,22 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
 
   parent = gumjs_get_parent_module (core);
 
+  source = NULL;
+  binary = NULL;
   symbols = JS_NULL;
   options_val = JS_NULL;
-  if (!_gum_quick_args_parse (args, "s|O?O?", &source, &symbols, &options_val))
-    goto propagate_exception;
+  if (!JS_IsObject (args->elements[0]))
+  {
+    if (!_gum_quick_args_parse (args, "s|O?O?", &source, &symbols,
+        &options_val))
+      goto propagate_exception;
+  }
+  else
+  {
+    if (!_gum_quick_args_parse (args, "B|O?O?", &binary, &symbols,
+        &options_val))
+      goto propagate_exception;
+  }
 
   if (!gum_parse_cmodule_options (ctx, options_val, core, &options))
     goto propagate_exception;
@@ -131,7 +144,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
     goto propagate_exception;
 
   error = NULL;
-  cmodule = gum_cmodule_new (source, &options, &error);
+  cmodule = gum_cmodule_new (source, binary, &options, &error);
   if (error != NULL)
     goto propagate_error;
 

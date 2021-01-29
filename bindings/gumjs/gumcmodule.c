@@ -20,11 +20,11 @@
 static GumCModule * gum_tcc_cmodule_new (const gchar * source,
     const GumCModuleOptions * options, GError ** error);
 #endif
-static GumCModule * gum_gcc_cmodule_new (const gchar * source,
+static GumCModule * gum_gcc_cmodule_new (const gchar * source, GBytes * binary,
     const GumCModuleOptions * options, GError ** error) G_GNUC_UNUSED;
 #ifdef HAVE_DARWIN
 static GumCModule * gum_darwin_cmodule_new (const gchar * source,
-    const GumCModuleOptions * options, GError ** error);
+    GBytes * binary, const GumCModuleOptions * options, GError ** error);
 #endif
 
 typedef struct _GumCModulePrivate GumCModulePrivate;
@@ -124,6 +124,7 @@ gum_cmodule_finalize (GObject * object)
 
 GumCModule *
 gum_cmodule_new (const gchar * source,
+                 GBytes * binary,
                  const GumCModuleOptions * options,
                  GError ** error)
 {
@@ -138,6 +139,9 @@ gum_cmodule_new (const gchar * source,
 #endif
   }
 
+  if (binary != NULL)
+    toolchain = GUM_CMODULE_TOOLCHAIN_EXTERNAL;
+
   switch (toolchain)
   {
     case GUM_CMODULE_TOOLCHAIN_INTERNAL:
@@ -150,9 +154,9 @@ gum_cmodule_new (const gchar * source,
 #endif
     case GUM_CMODULE_TOOLCHAIN_EXTERNAL:
 #ifdef HAVE_DARWIN
-      return gum_darwin_cmodule_new (source, options, error);
+      return gum_darwin_cmodule_new (source, binary, options, error);
 #else
-      return gum_gcc_cmodule_new (source, options, error);
+      return gum_gcc_cmodule_new (source, binary, options, error);
 #endif
     default:
       g_assert_not_reached ();
@@ -736,20 +740,24 @@ gum_gcc_cmodule_init (GumGccCModule * self)
 
 static GumCModule *
 gum_gcc_cmodule_new (const gchar * source,
+                     GBytes * binary,
                      const GumCModuleOptions * options,
                      GError ** error)
 {
-  GumCModule * result;
+  GumCModule * result = NULL;
   GumGccCModule * cmodule;
   gboolean success = FALSE;
   gchar * source_path = NULL;
   gchar * output = NULL;
   gint exit_status;
 
+  if (binary != NULL)
+    goto binary_loading_unsupported;
+
   result = g_object_new (GUM_TYPE_GCC_CMODULE, NULL);
   cmodule = GUM_GCC_CMODULE (result);
 
-  cmodule->workdir = g_dir_make_tmp ("frida-gcc-XXXXXX", error);
+  cmodule->workdir = g_dir_make_tmp ("cmodule-XXXXXX", error);
   if (cmodule->workdir == NULL)
     goto beach;
 
@@ -792,6 +800,12 @@ gum_gcc_cmodule_new (const gchar * source,
   success = TRUE;
   goto beach;
 
+binary_loading_unsupported:
+  {
+    g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
+        "Binary loading is not yet supported on this platform");
+    goto beach;
+  }
 compilation_failed:
   {
     g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
@@ -1164,6 +1178,8 @@ struct _GumDarwinCModule
 {
   GumCModule parent;
 
+  gchar * name;
+  GBytes * binary;
   gchar * workdir;
   GPtrArray * argv;
   GHashTable * symbols;
@@ -1220,13 +1236,13 @@ gum_darwin_cmodule_class_init (GumDarwinCModuleClass * klass)
 static void
 gum_darwin_cmodule_init (GumDarwinCModule * self)
 {
-  self->argv = g_ptr_array_new_with_free_func (g_free);
-
+  self->name = g_strdup ("module.dylib");
   self->symbols = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
 }
 
 static GumCModule *
 gum_darwin_cmodule_new (const gchar * source,
+                        GBytes * binary,
                         const GumCModuleOptions * options,
                         GError ** error)
 {
@@ -1234,47 +1250,67 @@ gum_darwin_cmodule_new (const gchar * source,
   GumDarwinCModule * cmodule;
   gboolean success = FALSE;
   gchar * source_path = NULL;
+  gchar * binary_path = NULL;
   gchar * output = NULL;
-  gint exit_status;
 
   result = g_object_new (GUM_TYPE_DARWIN_CMODULE, NULL);
   cmodule = GUM_DARWIN_CMODULE (result);
 
-  cmodule->workdir = g_dir_make_tmp ("frida-darwin-XXXXXX", error);
-  if (cmodule->workdir == NULL)
-    goto beach;
-
-  source_path = g_build_filename (cmodule->workdir, "module.c", NULL);
-
-  if (!g_file_set_contents (source_path, source, -1, error))
-    goto beach;
-
-  if (!gum_populate_include_dir (cmodule->workdir, error))
-    goto beach;
-
-  g_ptr_array_add (cmodule->argv, g_strdup ("clang"));
-  g_ptr_array_add (cmodule->argv, g_strdup ("-dynamiclib"));
-  g_ptr_array_add (cmodule->argv, g_strdup ("-Wall"));
-  g_ptr_array_add (cmodule->argv, g_strdup ("-Werror"));
-  g_ptr_array_add (cmodule->argv, g_strdup ("-O2"));
-  g_ptr_array_add (cmodule->argv, g_strdup ("-isystem"));
-  g_ptr_array_add (cmodule->argv, g_strdup ("."));
-  g_ptr_array_add (cmodule->argv, g_strdup ("-isystem"));
-  g_ptr_array_add (cmodule->argv, g_strdup ("capstone"));
-  gum_cmodule_add_standard_defines (result);
-  g_ptr_array_add (cmodule->argv, g_strdup ("module.c"));
-  g_ptr_array_add (cmodule->argv, g_strdup ("-Wl,-undefined,dynamic_lookup"));
-  g_ptr_array_add (cmodule->argv, NULL);
-
-  if (!gum_call_tool (cmodule->workdir,
-      (const gchar * const *) cmodule->argv->pdata, &output, &exit_status,
-      error))
+  if (binary != NULL)
   {
-    goto beach;
+    cmodule->binary = g_bytes_ref (binary);
   }
+  else
+  {
+    gint exit_status;
+    gpointer data;
+    gsize size;
 
-  if (exit_status != 0)
-    goto compilation_failed;
+    cmodule->workdir = g_dir_make_tmp ("cmodule-XXXXXX", error);
+    if (cmodule->workdir == NULL)
+      goto beach;
+
+    source_path = g_build_filename (cmodule->workdir, "module.c", NULL);
+    binary_path = g_build_filename (cmodule->workdir, cmodule->name, NULL);
+
+    if (!g_file_set_contents (source_path, source, -1, error))
+      goto beach;
+
+    if (!gum_populate_include_dir (cmodule->workdir, error))
+      goto beach;
+
+    cmodule->argv = g_ptr_array_new_with_free_func (g_free);
+    g_ptr_array_add (cmodule->argv, g_strdup ("clang"));
+    g_ptr_array_add (cmodule->argv, g_strdup ("-dynamiclib"));
+    g_ptr_array_add (cmodule->argv, g_strdup ("-Wall"));
+    g_ptr_array_add (cmodule->argv, g_strdup ("-Werror"));
+    g_ptr_array_add (cmodule->argv, g_strdup ("-O2"));
+    g_ptr_array_add (cmodule->argv, g_strdup ("-isystem"));
+    g_ptr_array_add (cmodule->argv, g_strdup ("."));
+    g_ptr_array_add (cmodule->argv, g_strdup ("-isystem"));
+    g_ptr_array_add (cmodule->argv, g_strdup ("capstone"));
+    gum_cmodule_add_standard_defines (result);
+    g_ptr_array_add (cmodule->argv, g_strdup ("module.c"));
+    g_ptr_array_add (cmodule->argv, g_strdup ("-o"));
+    g_ptr_array_add (cmodule->argv, g_strdup (cmodule->name));
+    g_ptr_array_add (cmodule->argv, g_strdup ("-Wl,-undefined,dynamic_lookup"));
+    g_ptr_array_add (cmodule->argv, NULL);
+
+    if (!gum_call_tool (cmodule->workdir,
+        (const gchar * const *) cmodule->argv->pdata, &output, &exit_status,
+        error))
+    {
+      goto beach;
+    }
+
+    if (exit_status != 0)
+      goto compilation_failed;
+
+    if (!g_file_get_contents (binary_path, (gchar **) &data, &size, error))
+      goto beach;
+
+    cmodule->binary = g_bytes_new_take (data, size);
+  }
 
   success = TRUE;
   goto beach;
@@ -1288,6 +1324,7 @@ compilation_failed:
 beach:
   {
     g_free (output);
+    g_free (binary_path);
     g_free (source_path);
     if (!success)
       g_clear_object (&result);
@@ -1329,19 +1366,13 @@ gum_darwin_cmodule_link_pre (GumCModule * cm,
   GumDarwinCModule * self = GUM_DARWIN_CMODULE (cm);
   gboolean success = FALSE;
   GError * error = NULL;
-  gchar * module_path;
 
   self->resolver = gum_darwin_module_resolver_new (mach_task_self (), NULL);
   gum_darwin_module_resolver_set_dynamic_lookup_handler (self->resolver,
       gum_darwin_cmodule_resolve_symbol, self, NULL);
 
-  module_path = g_build_filename (self->workdir, "a.out", NULL);
-
-  self->mapper =
-      gum_darwin_mapper_new_from_file (module_path, self->resolver, &error);
-
-  g_free (module_path);
-
+  self->mapper = gum_darwin_mapper_new_take_blob (self->name,
+      g_steal_pointer (&self->binary), self->resolver, &error);
   if (error != NULL)
     goto propagate_error;
 
@@ -1510,6 +1541,10 @@ gum_darwin_cmodule_drop_metadata (GumCModule * cm)
     g_free (self->workdir);
     self->workdir = NULL;
   }
+
+  g_clear_pointer (&self->binary, g_bytes_unref);
+
+  g_clear_pointer (&self->name, g_free);
 }
 
 #endif /* HAVE_DARWIN */
