@@ -2149,6 +2149,8 @@ gum_darwin_module_load_image_from_blob (GumDarwinModule * self,
   GumDarwinModuleImage * image;
   guint8 * blob_start, * blob_end;
   gsize blob_size;
+  gsize page_size;
+  gboolean is_page_aligned;
   gpointer data;
   gsize size;
   guint32 magic;
@@ -2158,6 +2160,28 @@ gum_darwin_module_load_image_from_blob (GumDarwinModule * self,
 
   blob_start = (guint8 *) g_bytes_get_data (blob, &blob_size);
   blob_end = blob_start + blob_size;
+
+  page_size = gum_query_page_size ();
+  is_page_aligned = (GPOINTER_TO_SIZE (blob_start) % page_size) == 0;
+  if (!is_page_aligned)
+  {
+    gsize size_in_pages;
+    gpointer copy;
+
+    size_in_pages = blob_size / page_size;
+    if (blob_size % page_size != 0)
+      size_in_pages++;
+
+    copy = gum_alloc_n_pages (size_in_pages, GUM_PAGE_RW);
+    memcpy (copy, blob_start, blob_size);
+
+    blob = g_bytes_new_with_free_func (copy, blob_size, gum_free_pages, copy);
+    blob_start = copy;
+    blob_end = blob_start + blob_size;
+
+    g_bytes_unref (image->bytes);
+    image->bytes = blob;
+  }
 
   data = blob_start;
   size = blob_size;
