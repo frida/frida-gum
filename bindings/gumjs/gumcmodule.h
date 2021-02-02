@@ -16,8 +16,15 @@ G_DECLARE_DERIVABLE_TYPE (GumCModule, gum_cmodule, GUM, CMODULE, GObject)
 
 typedef struct _GumCModuleOptions GumCModuleOptions;
 typedef guint GumCModuleToolchain;
+typedef struct _GumCDefineDetails GumCDefineDetails;
+typedef struct _GumCHeaderDetails GumCHeaderDetails;
+typedef guint GumCHeaderKind;
 typedef struct _GumCSymbolDetails GumCSymbolDetails;
 
+typedef void (* GumFoundCDefineFunc) (const GumCDefineDetails * details,
+    gpointer user_data);
+typedef void (* GumFoundCHeaderFunc) (const GumCHeaderDetails * details,
+    gpointer user_data);
 typedef void (* GumFoundCSymbolFunc) (const GumCSymbolDetails * details,
     gpointer user_data);
 
@@ -52,6 +59,26 @@ enum _GumCModuleToolchain
   GUM_CMODULE_TOOLCHAIN_EXTERNAL
 };
 
+struct _GumCDefineDetails
+{
+  const gchar * name;
+  const gchar * value;
+};
+
+struct _GumCHeaderDetails
+{
+  const gchar * name;
+  const gchar * data;
+  guint size;
+  GumCHeaderKind kind;
+};
+
+enum _GumCHeaderKind
+{
+  GUM_CHEADER_FRIDA,
+  GUM_CHEADER_TCC
+};
+
 struct _GumCSymbolDetails
 {
   const gchar * name;
@@ -68,6 +95,10 @@ GUM_API void gum_cmodule_add_symbol (GumCModule * self, const gchar * name,
 
 GUM_API gboolean gum_cmodule_link (GumCModule * self, GError ** error);
 
+GUM_API void gum_cmodule_enumerate_builtin_defines (GumFoundCDefineFunc func,
+    gpointer user_data);
+GUM_API void gum_cmodule_enumerate_builtin_headers (GumFoundCHeaderFunc func,
+    gpointer user_data);
 GUM_API void gum_cmodule_enumerate_symbols (GumCModule * self,
     GumFoundCSymbolFunc func, gpointer user_data);
 GUM_API gpointer gum_cmodule_find_symbol_by_name (GumCModule * self,

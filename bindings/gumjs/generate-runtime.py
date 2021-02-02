@@ -151,11 +151,11 @@ def generate_runtime_cmodule(output_dir, output, arch, input_dir, gum_dir, capst
         return "typedef int cs_{0};".format(name)
 
     inputs = [
-        (os.path.join(input_dir, "runtime", "cmodule"), None, is_header, identity_transform, 'GUM_CMODULE_HEADER_FRIDA'),
-        (os.path.join(input_dir, "runtime", "cmodule-tcc"), None, is_header, identity_transform, 'GUM_CMODULE_HEADER_TCC'),
-        (os.path.join(libtcc_dir, "tcc", "include"), None, is_header, identity_transform, 'GUM_CMODULE_HEADER_TCC'),
-        (os.path.join(gum_dir, "arch-" + writer_arch), os.path.dirname(gum_dir), gum_header_matches_writer, optimize_gum_header, 'GUM_CMODULE_HEADER_FRIDA'),
-        (capstone_incdir, None, capstone_header_matches_arch, optimize_capstone_header, 'GUM_CMODULE_HEADER_FRIDA'),
+        (os.path.join(input_dir, "runtime", "cmodule"), None, is_header, identity_transform, 'GUM_CHEADER_FRIDA'),
+        (os.path.join(input_dir, "runtime", "cmodule-tcc"), None, is_header, identity_transform, 'GUM_CHEADER_TCC'),
+        (os.path.join(libtcc_dir, "tcc", "include"), None, is_header, identity_transform, 'GUM_CHEADER_TCC'),
+        (os.path.join(gum_dir, "arch-" + writer_arch), os.path.dirname(gum_dir), gum_header_matches_writer, optimize_gum_header, 'GUM_CHEADER_FRIDA'),
+        (capstone_incdir, None, capstone_header_matches_arch, optimize_capstone_header, 'GUM_CHEADER_FRIDA'),
     ]
 
     with codecs.open(os.path.join(output_dir, output), 'wb', 'utf-8') as output_file:
@@ -181,7 +181,7 @@ def generate_runtime_cmodule(output_dir, output, arch, input_dir, gum_dir, capst
 
                 modules.append((header_name, input_identifier, source_size - 1, header_kind))
 
-        output_file.write("static const GumCModuleHeader gum_cmodule_headers[] =\n{")
+        output_file.write("static const GumCHeaderDetails gum_cmodule_headers[] =\n{")
         for input_name, input_identifier, input_size, header_kind in modules:
             output_file.write("\n  {{ \"{0}\", {1}, {2}, {3} }},".format(input_name, input_identifier, input_size, header_kind))
         output_file.write("\n};\n")

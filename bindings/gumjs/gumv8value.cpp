@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -1905,6 +1905,22 @@ _gum_v8_create_class (const gchar * name,
   klass->InstanceTemplate ()->SetInternalFieldCount (1);
   scope->Set (name_value, klass);
   return klass;
+}
+
+void
+_gum_v8_class_add_static (Local<FunctionTemplate> klass,
+                          const GumV8Property * properties,
+                          Local<External> module,
+                          Isolate * isolate)
+{
+  auto prop = properties;
+  while (prop->name != NULL)
+  {
+    klass->SetNativeDataProperty (
+        _gum_v8_string_new_ascii (isolate, prop->name),
+        prop->getter, prop->setter, module);
+    prop++;
+  }
 }
 
 void

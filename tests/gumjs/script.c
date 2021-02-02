@@ -328,6 +328,7 @@ TESTLIST_BEGIN (script)
 #else
     TESTENTRY (cmodule_constructor_should_throw_not_available)
 #endif
+    TESTENTRY (cmodule_builtins_can_be_retrieved)
   TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("Instruction")
@@ -7872,6 +7873,19 @@ TESTCASE (cmodule_constructor_should_throw_not_available)
 }
 
 #endif
+
+TESTCASE (cmodule_builtins_can_be_retrieved)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "const { builtins } = CModule;"
+      "send(typeof builtins);"
+      "send(typeof builtins.defines);"
+      "send(typeof builtins.headers);");
+  EXPECT_SEND_MESSAGE_WITH ("\"object\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"object\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"object\"");
+  EXPECT_NO_MESSAGES ();
+}
 
 TESTCASE (script_can_be_compiled_to_bytecode)
 {

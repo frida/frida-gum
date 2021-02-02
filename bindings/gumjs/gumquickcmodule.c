@@ -11,13 +11,26 @@
 
 #include <string.h>
 
+typedef struct _GumGetBuiltinsOperation GumGetBuiltinsOperation;
 typedef struct _GumAddCSymbolsOperation GumAddCSymbolsOperation;
+
+struct _GumGetBuiltinsOperation
+{
+  JSContext * ctx;
+  JSValue container;
+};
 
 struct _GumAddCSymbolsOperation
 {
   JSValue wrapper;
   GumQuickCore * core;
 };
+
+GUMJS_DECLARE_GETTER (gumjs_cmodule_get_builtins)
+static void gum_store_builtin_define (const GumCDefineDetails * details,
+    GumGetBuiltinsOperation * op);
+static void gum_store_builtin_header (const GumCHeaderDetails * details,
+    GumGetBuiltinsOperation * op);
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_cmodule_construct)
 static gboolean gum_parse_cmodule_options (JSContext * ctx, JSValue options_val,
@@ -28,6 +41,11 @@ static gboolean gum_add_csymbol (const GumCSymbolDetails * details,
     GumAddCSymbolsOperation * op);
 GUMJS_DECLARE_FINALIZER (gumjs_cmodule_finalize)
 GUMJS_DECLARE_FUNCTION (gumjs_cmodule_dispose)
+
+static const JSCFunctionListEntry gumjs_cmodule_module_entries[] =
+{
+  JS_CGETSET_DEF ("builtins", gumjs_cmodule_get_builtins, NULL),
+};
 
 static const JSClassDef gumjs_cmodule_def =
 {
@@ -59,6 +77,8 @@ _gum_quick_cmodule_init (GumQuickCModule * self,
   ctor = JS_NewCFunction2 (ctx, gumjs_cmodule_construct,
       gumjs_cmodule_def.class_name, 1, JS_CFUNC_constructor, 0);
   JS_SetConstructor (ctx, ctor, proto);
+  JS_SetPropertyFunctionList (ctx, ctor, gumjs_cmodule_module_entries,
+      G_N_ELEMENTS (gumjs_cmodule_module_entries));
   JS_SetPropertyFunctionList (ctx, proto, gumjs_cmodule_entries,
       G_N_ELEMENTS (gumjs_cmodule_entries));
   JS_DefinePropertyValueStr (ctx, ns, gumjs_cmodule_def.class_name, ctor,
@@ -92,6 +112,55 @@ gum_quick_cmodule_get (JSContext * ctx,
   return _gum_quick_unwrap (ctx, val,
       gumjs_get_parent_module (core)->cmodule_class, core,
       (gpointer *) cmodule);
+}
+
+GUMJS_DEFINE_GETTER (gumjs_cmodule_get_builtins)
+{
+  JSValue result;
+  GumGetBuiltinsOperation op;
+
+  result = JS_NewObject (ctx);
+
+  op.ctx = ctx;
+
+  op.container = JS_NewObject (ctx);
+  gum_cmodule_enumerate_builtin_defines (
+      (GumFoundCDefineFunc) gum_store_builtin_define, &op);
+  JS_DefinePropertyValueStr (ctx, result, "defines", op.container,
+      JS_PROP_C_W_E);
+
+  op.container = JS_NewObject (ctx);
+  gum_cmodule_enumerate_builtin_headers (
+      (GumFoundCHeaderFunc) gum_store_builtin_header, &op);
+  JS_DefinePropertyValueStr (ctx, result, "headers", op.container,
+      JS_PROP_C_W_E);
+
+  return result;
+}
+
+static void
+gum_store_builtin_define (const GumCDefineDetails * details,
+                          GumGetBuiltinsOperation * op)
+{
+  JSContext * ctx = op->ctx;
+
+  JS_DefinePropertyValueStr (ctx, op->container, details->name,
+      (details->value != NULL) ? JS_NewString (ctx, details->value) : JS_TRUE,
+      JS_PROP_C_W_E);
+}
+
+static void
+gum_store_builtin_header (const GumCHeaderDetails * details,
+                          GumGetBuiltinsOperation * op)
+{
+  JSContext * ctx = op->ctx;
+
+  if (details->kind != GUM_CHEADER_FRIDA)
+    return;
+
+  JS_DefinePropertyValueStr (ctx, op->container, details->name,
+      JS_NewString (ctx, details->data),
+      JS_PROP_C_W_E);
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)

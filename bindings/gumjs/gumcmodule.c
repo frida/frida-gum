@@ -33,9 +33,6 @@ typedef void (* GumCModuleInitFunc) (void);
 typedef void (* GumCModuleFinalizeFunc) (void);
 typedef void (* GumCModuleDestructFunc) (void);
 
-typedef struct _GumCModuleHeader GumCModuleHeader;
-typedef guint GumCModuleHeaderKind;
-
 struct _GumCModulePrivate
 {
   GumMemoryRange range;
@@ -43,30 +40,20 @@ struct _GumCModulePrivate
   GumCModuleDestructFunc destruct;
 };
 
-struct _GumCModuleHeader
-{
-  const gchar * name;
-  const gchar * data;
-  guint size;
-  GumCModuleHeaderKind kind;
-};
-
-enum _GumCModuleHeaderKind
-{
-  GUM_CMODULE_HEADER_FRIDA,
-  GUM_CMODULE_HEADER_TCC
-};
-
 static void gum_cmodule_finalize (GObject * object);
+static void gum_emit_standard_define (const GumCDefineDetails * details,
+    gpointer user_data);
 static void gum_cmodule_add_define (GumCModule * self, const gchar * name,
-    const gchar * value);
-static void gum_cmodule_add_define_str (GumCModule * self, const gchar * name,
     const gchar * value);
 static gboolean gum_cmodule_link_pre (GumCModule * self, gsize * size,
     GString ** error_messages);
 static gboolean gum_cmodule_link_at (GumCModule * self, gpointer base,
     GString ** error_messages);
 static void gum_cmodule_link_post (GumCModule * self);
+static void gum_emit_builtin_define (const gchar * name, const gchar * value,
+    GumFoundCDefineFunc func, gpointer user_data);
+static void gum_emit_builtin_define_str (const gchar * name,
+    const gchar * value, GumFoundCDefineFunc func, gpointer user_data);
 
 static void gum_csymbol_details_destroy (GumCSymbolDetails * details);
 
@@ -174,24 +161,16 @@ gum_cmodule_get_range (GumCModule * self)
 static void
 gum_cmodule_add_standard_defines (GumCModule * self)
 {
-#if defined (HAVE_I386)
-  gum_cmodule_add_define (self, "HAVE_I386", NULL);
-#elif defined (HAVE_ARM)
-  gum_cmodule_add_define (self, "HAVE_ARM", NULL);
-#elif defined (HAVE_ARM64)
-  gum_cmodule_add_define (self, "HAVE_ARM64", NULL);
-#elif defined (HAVE_MIPS)
-  gum_cmodule_add_define (self, "HAVE_MIPS", NULL);
-#endif
+  gum_cmodule_enumerate_builtin_defines (gum_emit_standard_define, self);
+}
 
-  gum_cmodule_add_define_str (self, "G_GINT16_MODIFIER", G_GINT16_MODIFIER);
-  gum_cmodule_add_define_str (self, "G_GINT32_MODIFIER", G_GINT32_MODIFIER);
-  gum_cmodule_add_define_str (self, "G_GINT64_MODIFIER", G_GINT64_MODIFIER);
-  gum_cmodule_add_define_str (self, "G_GSIZE_MODIFIER", G_GSIZE_MODIFIER);
-  gum_cmodule_add_define_str (self, "G_GSSIZE_MODIFIER", G_GSSIZE_MODIFIER);
+static void
+gum_emit_standard_define (const GumCDefineDetails * details,
+                          gpointer user_data)
+{
+  GumCModule * self = user_data;
 
-  gum_cmodule_add_define (self, "GLIB_SIZEOF_VOID_P",
-      G_STRINGIFY (GLIB_SIZEOF_VOID_P));
+  gum_cmodule_add_define (self, details->name, details->value);
 }
 
 static void
@@ -200,20 +179,6 @@ gum_cmodule_add_define (GumCModule * self,
                         const gchar * value)
 {
   GUM_CMODULE_GET_CLASS (self)->add_define (self, name, value);
-}
-
-static void
-gum_cmodule_add_define_str (GumCModule * self,
-                            const gchar * name,
-                            const gchar * value)
-{
-  gchar * raw_value;
-
-  raw_value = g_strconcat ("\"", value, "\"", NULL);
-
-  gum_cmodule_add_define (self, name, raw_value);
-
-  g_free (raw_value);
 }
 
 void
@@ -302,6 +267,75 @@ static void
 gum_cmodule_link_post (GumCModule * self)
 {
   GUM_CMODULE_GET_CLASS (self)->link_post (self);
+}
+
+void
+gum_cmodule_enumerate_builtin_defines (GumFoundCDefineFunc func,
+                                       gpointer user_data)
+{
+#if defined (HAVE_I386)
+  gum_emit_builtin_define ("HAVE_I386", NULL, func, user_data);
+#elif defined (HAVE_ARM)
+  gum_emit_builtin_define ("HAVE_ARM", NULL, func, user_data);
+#elif defined (HAVE_ARM64)
+  gum_emit_builtin_define ("HAVE_ARM64", NULL, func, user_data);
+#elif defined (HAVE_MIPS)
+  gum_emit_builtin_define ("HAVE_MIPS", NULL, func, user_data);
+#endif
+
+  gum_emit_builtin_define_str ("G_GINT16_MODIFIER", G_GINT16_MODIFIER,
+      func, user_data);
+  gum_emit_builtin_define_str ("G_GINT32_MODIFIER", G_GINT32_MODIFIER,
+      func, user_data);
+  gum_emit_builtin_define_str ("G_GINT64_MODIFIER", G_GINT64_MODIFIER,
+      func, user_data);
+  gum_emit_builtin_define_str ("G_GSIZE_MODIFIER", G_GSIZE_MODIFIER,
+      func, user_data);
+  gum_emit_builtin_define_str ("G_GSSIZE_MODIFIER", G_GSSIZE_MODIFIER,
+      func, user_data);
+
+  gum_emit_builtin_define ("GLIB_SIZEOF_VOID_P",
+      G_STRINGIFY (GLIB_SIZEOF_VOID_P), func, user_data);
+}
+
+static void
+gum_emit_builtin_define (const gchar * name,
+                         const gchar * value,
+                         GumFoundCDefineFunc func,
+                         gpointer user_data)
+{
+  GumCDefineDetails d = { name, value };
+
+  func (&d, user_data);
+}
+
+static void
+gum_emit_builtin_define_str (const gchar * name,
+                             const gchar * value,
+                             GumFoundCDefineFunc func,
+                             gpointer user_data)
+{
+  gchar * raw_value;
+
+  raw_value = g_strconcat ("\"", value, "\"", NULL);
+
+  gum_emit_builtin_define (name, raw_value, func, user_data);
+
+  g_free (raw_value);
+}
+
+void
+gum_cmodule_enumerate_builtin_headers (GumFoundCHeaderFunc func,
+                                       gpointer user_data)
+{
+  guint i;
+
+  for (i = 0; i != G_N_ELEMENTS (gum_cmodule_headers); i++)
+  {
+    const GumCHeaderDetails * h = &gum_cmodule_headers[i];
+
+    func (h, user_data);
+  }
 }
 
 void
@@ -592,7 +626,7 @@ gum_tcc_cmodule_load_header (void * opaque,
 
   for (i = 0; i != G_N_ELEMENTS (gum_cmodule_headers); i++)
   {
-    const GumCModuleHeader * h = &gum_cmodule_headers[i];
+    const GumCHeaderDetails * h = &gum_cmodule_headers[i];
     if (strcmp (h->name, name) == 0)
     {
       *len = h->size;
@@ -1563,11 +1597,11 @@ gum_populate_include_dir (const gchar * path,
 
   for (i = 0; i != G_N_ELEMENTS (gum_cmodule_headers); i++)
   {
-    const GumCModuleHeader * h = &gum_cmodule_headers[i];
+    const GumCHeaderDetails * h = &gum_cmodule_headers[i];
     gchar * filename, * dirname;
     gboolean written;
 
-    if (h->kind != GUM_CMODULE_HEADER_FRIDA)
+    if (h->kind != GUM_CHEADER_FRIDA)
       continue;
 
     filename = g_build_filename (path, h->name, NULL);

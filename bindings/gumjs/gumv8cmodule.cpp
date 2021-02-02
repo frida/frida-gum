@@ -21,11 +21,23 @@ struct GumCModuleEntry
   GumV8CModule * module;
 };
 
-struct GumAddCSymbolsContext
+struct GumGetBuiltinsOperation
+{
+  Local<Object> container;
+  GumV8Core * core;
+};
+
+struct GumAddCSymbolsOperation
 {
   Local<Object> wrapper;
   GumV8Core * core;
 };
+
+GUMJS_DECLARE_GETTER (gumjs_cmodule_get_builtins)
+static void gum_store_builtin_define (const GumCDefineDetails * details,
+    GumGetBuiltinsOperation * op);
+static void gum_store_builtin_header (const GumCHeaderDetails * details,
+    GumGetBuiltinsOperation * op);
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_cmodule_construct)
 static gboolean gum_parse_cmodule_options (Local<Object> options_val,
@@ -33,7 +45,7 @@ static gboolean gum_parse_cmodule_options (Local<Object> options_val,
 static gboolean gum_parse_cmodule_toolchain (Local<Value> val,
     GumCModuleToolchain * toolchain, Isolate * isolate);
 static gboolean gum_add_csymbol (const GumCSymbolDetails * details,
-    GumAddCSymbolsContext * ctx);
+    GumAddCSymbolsOperation * op);
 GUMJS_DECLARE_FUNCTION (gumjs_cmodule_dispose)
 
 static GumCModuleEntry * gum_cmodule_entry_new (Local<Object> wrapper,
@@ -41,6 +53,13 @@ static GumCModuleEntry * gum_cmodule_entry_new (Local<Object> wrapper,
 static void gum_cmodule_entry_free (GumCModuleEntry * self);
 static void gum_cmodule_entry_on_weak_notify (
     const WeakCallbackInfo<GumCModuleEntry> & info);
+
+static const GumV8Property gumjs_cmodule_module_values[] =
+{
+  { "builtins", gumjs_cmodule_get_builtins, NULL },
+
+  { NULL, NULL, NULL }
+};
 
 static const GumV8Function gumjs_cmodule_functions[] =
 {
@@ -62,6 +81,8 @@ _gum_v8_cmodule_init (GumV8CModule * self,
 
   auto cmodule = _gum_v8_create_class ("CModule", gumjs_cmodule_construct,
       scope, module, isolate);
+  _gum_v8_class_add_static (cmodule, gumjs_cmodule_module_values, module,
+      isolate);
   _gum_v8_class_add (cmodule, gumjs_cmodule_functions, module, isolate);
 }
 
@@ -90,6 +111,55 @@ void
 _gum_v8_cmodule_finalize (GumV8CModule * self)
 {
   g_clear_pointer (&self->cmodules, g_hash_table_unref);
+}
+
+GUMJS_DEFINE_GETTER (gumjs_cmodule_get_builtins)
+{
+  auto result = Object::New (isolate);
+
+  GumGetBuiltinsOperation op;
+  op.core = core;
+
+  op.container = Object::New (isolate);
+  gum_cmodule_enumerate_builtin_defines (
+      (GumFoundCDefineFunc) gum_store_builtin_define, &op);
+  _gum_v8_object_set (result, "defines", op.container, core);
+
+  op.container = Object::New (isolate);
+  gum_cmodule_enumerate_builtin_headers (
+      (GumFoundCHeaderFunc) gum_store_builtin_header, &op);
+  _gum_v8_object_set (result, "headers", op.container, core);
+
+  info.GetReturnValue ().Set (result);
+}
+
+static void
+gum_store_builtin_define (const GumCDefineDetails * details,
+                          GumGetBuiltinsOperation * op)
+{
+  auto core = op->core;
+
+  if (details->value != NULL)
+  {
+    _gum_v8_object_set_utf8 (op->container, details->name, details->value,
+        core);
+  }
+  else
+  {
+    _gum_v8_object_set (op->container, details->name, True (core->isolate),
+        core);
+  }
+}
+
+static void
+gum_store_builtin_header (const GumCHeaderDetails * details,
+                          GumGetBuiltinsOperation * op)
+{
+  if (details->kind != GUM_CHEADER_FRIDA)
+    return;
+
+  _gum_v8_object_set_utf8 (op->container, details->name, details->data,
+      op->core);
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
@@ -202,12 +272,12 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
     return;
   }
 
-  GumAddCSymbolsContext ctx;
-  ctx.wrapper = wrapper;
-  ctx.core = core;
+  GumAddCSymbolsOperation op;
+  op.wrapper = wrapper;
+  op.core = core;
 
   gum_cmodule_enumerate_symbols (handle, (GumFoundCSymbolFunc) gum_add_csymbol,
-      &ctx);
+      &op);
 
   gum_cmodule_drop_metadata (handle);
 
@@ -276,10 +346,10 @@ gum_parse_cmodule_toolchain (Local<Value> val,
 
 static gboolean
 gum_add_csymbol (const GumCSymbolDetails * details,
-                 GumAddCSymbolsContext * ctx)
+                 GumAddCSymbolsOperation * op)
 {
-  _gum_v8_object_set_pointer (ctx->wrapper, details->name,
-      details->address, ctx->core);
+  _gum_v8_object_set_pointer (op->wrapper, details->name,
+      details->address, op->core);
 
   return TRUE;
 }

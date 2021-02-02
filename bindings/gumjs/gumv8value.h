@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -172,6 +172,9 @@ G_GNUC_INTERNAL v8::Local<v8::FunctionTemplate> _gum_v8_create_class (
     const gchar * name, v8::FunctionCallback ctor,
     v8::Local<v8::ObjectTemplate> scope, v8::Local<v8::External> module,
     v8::Isolate * isolate);
+G_GNUC_INTERNAL void _gum_v8_class_add_static (
+    v8::Local<v8::FunctionTemplate> klass, const GumV8Property * properties,
+    v8::Local<v8::External> module, v8::Isolate * isolate);
 G_GNUC_INTERNAL void _gum_v8_class_add_static (
     v8::Local<v8::FunctionTemplate> klass, const GumV8Function * functions,
     v8::Local<v8::External> module, v8::Isolate * isolate);
