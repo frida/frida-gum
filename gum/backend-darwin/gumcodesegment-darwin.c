@@ -450,7 +450,7 @@ gum_code_segment_try_remap_locally (GumCodeSegment * self,
   source_address = (vm_offset_t) self->data + source_offset;
 
   mach_vm_protect (self_task, source_address, source_size, FALSE,
-      PROT_READ | PROT_EXEC);
+      VM_PROT_READ | VM_PROT_EXECUTE);
   kr = mach_vm_remap (self_task, &address, source_size, 0,
       VM_FLAGS_OVERWRITE | VM_FLAGS_FIXED, self_task, source_address, TRUE,
       &cur_protection, &max_protection, VM_INHERIT_COPY);
