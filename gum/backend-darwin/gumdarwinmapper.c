@@ -627,6 +627,7 @@ gum_darwin_mapper_map (GumDarwinMapper * self,
   GArray * shared_segments;
   const gchar * failed_operation;
   kern_return_t kr;
+  static gboolean use_memory_mapping = TRUE;
 
   g_assert (!self->mapped);
 
@@ -678,15 +679,43 @@ gum_darwin_mapper_map (GumDarwinMapper * self,
         (s->file_offset != 0) ? s->file_offset - self->image->source_offset : 0;
 
     mapped_address = segment_address;
-    kr = mach_vm_remap (task, &mapped_address, s->file_size, 0,
-        VM_FLAGS_OVERWRITE, mach_task_self (),
-        (vm_offset_t) (self->image->data + file_offset), TRUE, &cur_protection,
-        &max_protection, VM_INHERIT_COPY);
-    GUM_CHECK_MACH_RESULT (kr, ==, KERN_SUCCESS, "mach_vm_remap(segment)");
+    if (use_memory_mapping)
+    {
+      kr = mach_vm_remap (task, &mapped_address, s->file_size, 0,
+          VM_FLAGS_OVERWRITE, mach_task_self (),
+          (vm_offset_t) (self->image->data + file_offset), TRUE,
+          &cur_protection, &max_protection, VM_INHERIT_COPY);
+      GUM_CHECK_MACH_RESULT (kr, ==, KERN_SUCCESS, "mach_vm_remap(segment)");
 
-    kr = mach_vm_protect (task, segment_address, s->vm_size, FALSE,
-        s->protection);
-    GUM_CHECK_MACH_RESULT (kr, ==, KERN_SUCCESS, "mach_vm_protect(segment)");
+      kr = mach_vm_protect (task, segment_address, s->vm_size, FALSE,
+          s->protection);
+      if (kr == KERN_PROTECTION_FAILURE)
+      {
+        use_memory_mapping = FALSE;
+
+        kr = mach_vm_allocate (task, &mapped_address, s->vm_size,
+            VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE);
+        GUM_CHECK_MACH_RESULT (kr, ==, KERN_SUCCESS, "mach_vm_allocate(oops)");
+
+        goto fallback;
+      }
+      else
+      {
+        GUM_CHECK_MACH_RESULT (kr, ==, KERN_SUCCESS,
+            "mach_vm_protect(segment)");
+      }
+    }
+    else
+    {
+fallback:
+      kr = mach_vm_write (task, segment_address,
+          (vm_offset_t) (self->image->data + file_offset), s->file_size);
+      GUM_CHECK_MACH_RESULT (kr, ==, KERN_SUCCESS, "mach_vm_write(segment)");
+
+      kr = mach_vm_protect (task, segment_address, s->vm_size, FALSE,
+          s->protection);
+      GUM_CHECK_MACH_RESULT (kr, ==, KERN_SUCCESS, "mach_vm_protect(segment)");
+    }
   }
 
   shared_segments = self->image->shared_segments;
