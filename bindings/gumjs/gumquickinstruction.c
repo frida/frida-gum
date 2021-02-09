@@ -466,10 +466,7 @@ gum_parse_operands (JSContext * ctx,
         break;
       case X86_OP_IMM:
         type = "imm";
-        if (op->size <= 4)
-          val = JS_NewInt64 (ctx, op->imm);
-        else
-          val = _gum_quick_int64_new (ctx, op->imm, core);
+        val = _gum_quick_int64_new (ctx, op->imm, core);
         break;
       case X86_OP_MEM:
         type = "mem";
