@@ -449,15 +449,8 @@ gum_parse_operands (const cs_insn * insn,
         break;
       case X86_OP_IMM:
         _gum_v8_object_set_ascii (element, type_key, "imm", core);
-        if (op->size <= 4)
-        {
-          _gum_v8_object_set_int (element, value_key, op->imm, core);
-        }
-        else
-        {
-          _gum_v8_object_set (element, value_key,
-              _gum_v8_int64_new (op->imm, core), core);
-        }
+        _gum_v8_object_set (element, value_key,
+            _gum_v8_int64_new (op->imm, core), core);
         break;
       case X86_OP_MEM:
         _gum_v8_object_set_ascii (element, type_key, "mem", core);
