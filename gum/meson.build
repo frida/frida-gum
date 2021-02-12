@@ -120,6 +120,7 @@ if host_os_family == 'darwin'
     'backend-darwin/gummemory-darwin.c',
     'backend-darwin/gumprocess-darwin.c',
     'backend-darwin/gumcodesegment-darwin.c',
+    'backend-darwin/jitdclient.c',
     'backend-darwin/substratedclient.c',
     'backend-darwin/gumexceptor-darwin.c',
     'backend-darwin/gumdarwinmapper.c',

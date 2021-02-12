@@ -100,6 +100,10 @@ GUM_API guint8 * gum_darwin_read (mach_port_t task, GumAddress address,
     gsize len, gsize * n_bytes_read);
 GUM_API gboolean gum_darwin_write (mach_port_t task, GumAddress address,
     const guint8 * bytes, gsize len);
+GUM_API gboolean gum_darwin_query_is_mark_supported (void);
+GUM_API kern_return_t gum_darwin_mark (mach_port_t task,
+    mach_vm_address_t source_address, mach_vm_size_t source_size,
+    mach_vm_address_t * target_address);
 GUM_API gboolean gum_darwin_cpu_type_from_pid (pid_t pid,
     GumCpuType * cpu_type);
 GUM_API gboolean gum_darwin_query_ptrauth_support (mach_port_t task,

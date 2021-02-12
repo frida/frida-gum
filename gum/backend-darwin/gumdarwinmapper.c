@@ -678,6 +678,8 @@ gum_darwin_mapper_map (GumDarwinMapper * self,
     file_offset =
         (s->file_offset != 0) ? s->file_offset - self->image->source_offset : 0;
 
+    g_info ("segments[%u]: 0x%llx->0x%llx", i, segment_address, segment_address + s->vm_size);
+
     mapped_address = segment_address;
     if (use_memory_mapping)
     {
@@ -736,6 +738,8 @@ fallback:
     GUM_CHECK_MACH_RESULT (kr, ==, KERN_SUCCESS,
         "mach_vm_protect(shared_segment)");
   }
+
+  g_info ("runtime: 0x%llx->0x%llx", self->runtime_address, self->runtime_address + self->runtime_file_size);
 
   if (gum_query_is_rwx_supported () || !gum_code_segment_is_supported ())
   {

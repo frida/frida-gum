@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -9,6 +9,7 @@
 #include "gum-init.h"
 #include "gumcloak.h"
 #include "gumdarwin.h"
+#include "jitdclient.h"
 #include "substratedclient.h"
 
 #include <CommonCrypto/CommonDigest.h>
@@ -117,6 +118,8 @@ static gboolean gum_code_segment_try_map (GumCodeSegment * self,
     gsize source_offset, gsize source_size, gpointer target_address);
 static gboolean gum_code_segment_try_remap_locally (GumCodeSegment * self,
     gsize source_offset, gsize source_size, gpointer target_address);
+static gboolean gum_code_segment_try_remap_using_jitd (GumCodeSegment * self,
+    gsize source_offset, gsize source_size, gpointer target_address);
 static gboolean gum_code_segment_try_remap_using_substrated (
     GumCodeSegment * self, gsize source_offset, gsize source_size,
     gpointer target_address);
@@ -134,6 +137,9 @@ static void gum_file_write_all (gint fd, gssize offset, gconstpointer data,
     gsize size);
 static gboolean gum_file_check_sandbox_allows (const gchar * path,
     const gchar * operation);
+
+static mach_port_t gum_try_get_jitd_port (void);
+static void gum_deallocate_jitd_port (void);
 
 static mach_port_t gum_try_get_substrated_port (void);
 static void gum_deallocate_substrated_port (void);
@@ -302,12 +308,17 @@ gum_code_segment_map (GumCodeSegment * self,
   }
   else
   {
-    mapped_successfully = gum_code_segment_try_remap_using_substrated (self,
+    mapped_successfully = gum_code_segment_try_remap_using_jitd (self,
         source_offset, source_size, target_address);
     if (!mapped_successfully)
     {
-      mapped_successfully = gum_code_segment_try_remap_locally (self,
+      mapped_successfully = gum_code_segment_try_remap_using_substrated (self,
           source_offset, source_size, target_address);
+      if (!mapped_successfully)
+      {
+        mapped_successfully = gum_code_segment_try_remap_locally (self,
+            source_offset, source_size, target_address);
+      }
     }
   }
 
@@ -319,6 +330,8 @@ gum_code_segment_mark (gpointer code,
                        gsize size,
                        GError ** error)
 {
+  mach_port_t server_port;
+
   if (gum_process_is_debugger_attached ())
     goto fallback;
 
@@ -335,15 +348,29 @@ gum_code_segment_mark (gpointer code,
 
     return TRUE;
   }
-  else
+  else if ((server_port = gum_try_get_jitd_port ()) != MACH_PORT_NULL)
   {
-    mach_port_t server_port;
     mach_vm_address_t address;
     kern_return_t kr;
 
-    server_port = gum_try_get_substrated_port ();
-    if (server_port == MACH_PORT_NULL)
-      goto fallback;
+    address = GPOINTER_TO_SIZE (code);
+
+    kr = frida_jitd_mark (server_port, mach_task_self (), address, size,
+        &address);
+
+    if (kr != KERN_SUCCESS)
+    {
+      g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
+          "Unable to mark code (frida-jitd returned %d)", kr);
+      return FALSE;
+    }
+
+    return TRUE;
+  }
+  else if ((server_port = gum_try_get_substrated_port ()) != MACH_PORT_NULL)
+  {
+    mach_vm_address_t address;
+    kern_return_t kr;
 
     address = GPOINTER_TO_SIZE (code);
 
@@ -371,6 +398,28 @@ fallback:
 
     return TRUE;
   }
+}
+
+gboolean
+gum_darwin_query_is_mark_supported (void)
+{
+  return gum_try_get_jitd_port () != MACH_PORT_NULL;
+}
+
+kern_return_t
+gum_darwin_mark (mach_port_t task,
+                 mach_vm_address_t source_address,
+                 mach_vm_size_t source_size,
+                 mach_vm_address_t * target_address)
+{
+  mach_port_t server_port;
+
+  server_port = gum_try_get_jitd_port ();
+  if (server_port == MACH_PORT_NULL)
+    return KERN_FAILURE;
+
+  return frida_jitd_mark (server_port, task, source_address, source_size,
+      target_address);
 }
 
 static gboolean
@@ -468,6 +517,31 @@ gum_code_segment_try_remap_locally (GumCodeSegment * self,
     mach_vm_protect (self_task, address, source_size, FALSE,
         VM_PROT_READ | VM_PROT_EXECUTE);
   }
+
+  return kr == KERN_SUCCESS;
+}
+
+static gboolean
+gum_code_segment_try_remap_using_jitd (GumCodeSegment * self,
+                                       gsize source_offset,
+                                       gsize source_size,
+                                       gpointer target_address)
+{
+  mach_port_t server_port;
+  mach_vm_address_t source_address, target_address_value;
+  kern_return_t kr;
+
+  server_port = gum_try_get_jitd_port ();
+  if (server_port == MACH_PORT_NULL)
+    return FALSE;
+
+  source_address = (mach_vm_address_t) self->data + source_offset;
+  target_address_value = GPOINTER_TO_SIZE (target_address);
+
+  kr = frida_jitd_mark (server_port, mach_task_self (), source_address,
+      source_size, &target_address_value);
+
+  g_info ("frida_jitd_mark() kr=%d", kr);
 
   return kr == KERN_SUCCESS;
 }
@@ -805,6 +879,35 @@ gum_file_check_sandbox_allows (const gchar * path,
 
   return !check (getpid (), operation, GUM_SANDBOX_FILTER_PATH | no_report,
       path);
+}
+
+static mach_port_t
+gum_try_get_jitd_port (void)
+{
+  static gsize cached_result = 0;
+
+  if (g_once_init_enter (&cached_result))
+  {
+    mach_port_t server_port = MACH_PORT_NULL;
+    kern_return_t kr;
+
+    kr = bootstrap_look_up (bootstrap_port, "re.frida.jitd", &server_port);
+
+    g_info ("bootstrap_look_up() for jitd kr=%d server_port=0x%x", kr, server_port);
+
+    if (server_port != MACH_PORT_NULL)
+      _gum_register_destructor (gum_deallocate_jitd_port);
+
+    g_once_init_leave (&cached_result, server_port + 1);
+  }
+
+  return cached_result - 1;
+}
+
+static void
+gum_deallocate_jitd_port (void)
+{
+  mach_port_deallocate (mach_task_self (), gum_try_get_jitd_port ());
 }
 
 static mach_port_t
