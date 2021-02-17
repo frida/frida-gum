@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -26,15 +26,16 @@
 #define GUM_INTERCEPTOR_UNLOCK(o) g_rec_mutex_unlock (&(o)->mutex)
 
 typedef struct _GumInterceptorTransaction GumInterceptorTransaction;
+typedef guint GumInstrumentationError;
 typedef struct _GumDestroyTask GumDestroyTask;
-typedef struct _GumPrologueWrite GumPrologueWrite;
+typedef struct _GumUpdateTask GumUpdateTask;
 typedef struct _ListenerEntry ListenerEntry;
 typedef struct _InterceptorThreadContext InterceptorThreadContext;
 typedef struct _GumInvocationStackEntry GumInvocationStackEntry;
 typedef struct _ListenerDataSlot ListenerDataSlot;
 typedef struct _ListenerInvocationState ListenerInvocationState;
 
-typedef void (* GumPrologueWriteFunc) (GumInterceptor * self,
+typedef void (* GumUpdateTaskFunc) (GumInterceptor * self,
     GumFunctionContext * ctx, gpointer prologue);
 
 struct _GumInterceptorTransaction
@@ -42,7 +43,7 @@ struct _GumInterceptorTransaction
   gboolean is_dirty;
   gint level;
   GQueue * pending_destroy_tasks;
-  GHashTable * pending_prologue_writes;
+  GHashTable * pending_update_tasks;
 
   GumInterceptor * interceptor;
 };
@@ -63,6 +64,13 @@ struct _GumInterceptor
   GumInterceptorTransaction current_transaction;
 };
 
+enum _GumInstrumentationError
+{
+  GUM_INSTRUMENTATION_ERROR_NONE,
+  GUM_INSTRUMENTATION_ERROR_WRONG_SIGNATURE,
+  GUM_INSTRUMENTATION_ERROR_POLICY_VIOLATION,
+};
+
 struct _GumDestroyTask
 {
   GumFunctionContext * ctx;
@@ -70,10 +78,10 @@ struct _GumDestroyTask
   gpointer data;
 };
 
-struct _GumPrologueWrite
+struct _GumUpdateTask
 {
   GumFunctionContext * ctx;
-  GumPrologueWriteFunc func;
+  GumUpdateTaskFunc func;
 };
 
 struct _ListenerEntry
@@ -128,7 +136,7 @@ static void the_interceptor_weak_notify (gpointer data,
     GObject * where_the_object_was);
 
 static GumFunctionContext * gum_interceptor_instrument (GumInterceptor * self,
-    gpointer function_address);
+    gpointer function_address, GumInstrumentationError * error);
 static void gum_interceptor_activate (GumInterceptor * self,
     GumFunctionContext * ctx, gpointer prologue);
 static void gum_interceptor_deactivate (GumInterceptor * self,
@@ -144,9 +152,9 @@ static void gum_interceptor_transaction_end (GumInterceptorTransaction * self);
 static void gum_interceptor_transaction_schedule_destroy (
     GumInterceptorTransaction * self, GumFunctionContext * ctx,
     GDestroyNotify notify, gpointer data);
-static void gum_interceptor_transaction_schedule_prologue_write (
+static void gum_interceptor_transaction_schedule_update (
     GumInterceptorTransaction * self, GumFunctionContext * ctx,
-    GumPrologueWriteFunc func);
+    GumUpdateTaskFunc func);
 
 static GumFunctionContext * gum_function_context_new (
     GumInterceptor * interceptor, gpointer function_address);
@@ -246,7 +254,6 @@ gum_interceptor_init (GumInterceptor * self)
       (GDestroyNotify) gum_function_context_destroy);
 
   gum_code_allocator_init (&self->allocator, GUM_INTERCEPTOR_CODE_SLICE_SIZE);
-  self->backend = _gum_interceptor_backend_create (&self->allocator);
 
   gum_interceptor_transaction_init (&self->current_transaction, self);
 }
@@ -275,7 +282,8 @@ gum_interceptor_finalize (GObject * object)
 
   gum_interceptor_transaction_destroy (&self->current_transaction);
 
-  _gum_interceptor_backend_destroy (self->backend);
+  if (self->backend != NULL)
+    _gum_interceptor_backend_destroy (self->backend);
 
   g_rec_mutex_clear (&self->mutex);
 
@@ -331,9 +339,7 @@ gum_interceptor_attach (GumInterceptor * self,
 {
   GumAttachReturn result = GUM_ATTACH_OK;
   GumFunctionContext * function_ctx;
-
-  if (gum_process_get_code_signing_policy () == GUM_CODE_SIGNING_REQUIRED)
-    goto policy_violation;
+  GumInstrumentationError error;
 
   gum_interceptor_ignore_current_thread (self);
   GUM_INTERCEPTOR_LOCK (self);
@@ -342,9 +348,9 @@ gum_interceptor_attach (GumInterceptor * self,
 
   function_address = gum_interceptor_resolve (self, function_address);
 
-  function_ctx = gum_interceptor_instrument (self, function_address);
+  function_ctx = gum_interceptor_instrument (self, function_address, &error);
   if (function_ctx == NULL)
-    goto wrong_signature;
+    goto instrumentation_error;
 
   if (gum_function_context_has_listener (function_ctx, listener))
     goto already_attached;
@@ -354,13 +360,19 @@ gum_interceptor_attach (GumInterceptor * self,
 
   goto beach;
 
-policy_violation:
+instrumentation_error:
   {
-    return GUM_ATTACH_POLICY_VIOLATION;
-  }
-wrong_signature:
-  {
-    result = GUM_ATTACH_WRONG_SIGNATURE;
+    switch (error)
+    {
+      case GUM_INSTRUMENTATION_ERROR_WRONG_SIGNATURE:
+        result = GUM_ATTACH_WRONG_SIGNATURE;
+        break;
+      case GUM_INSTRUMENTATION_ERROR_POLICY_VIOLATION:
+        result = GUM_ATTACH_POLICY_VIOLATION;
+        break;
+      default:
+        g_assert_not_reached ();
+    }
     goto beach;
   }
 already_attached:
@@ -427,9 +439,7 @@ gum_interceptor_replace (GumInterceptor * self,
 {
   GumReplaceReturn result = GUM_REPLACE_OK;
   GumFunctionContext * function_ctx;
-
-  if (gum_process_get_code_signing_policy () == GUM_CODE_SIGNING_REQUIRED)
-    goto policy_violation;
+  GumInstrumentationError error;
 
   GUM_INTERCEPTOR_LOCK (self);
   gum_interceptor_transaction_begin (&self->current_transaction);
@@ -437,9 +447,9 @@ gum_interceptor_replace (GumInterceptor * self,
 
   function_address = gum_interceptor_resolve (self, function_address);
 
-  function_ctx = gum_interceptor_instrument (self, function_address);
+  function_ctx = gum_interceptor_instrument (self, function_address, &error);
   if (function_ctx == NULL)
-    goto wrong_signature;
+    goto instrumentation_error;
 
   if (function_ctx->replacement_function != NULL)
     goto already_replaced;
@@ -449,13 +459,19 @@ gum_interceptor_replace (GumInterceptor * self,
 
   goto beach;
 
-policy_violation:
+instrumentation_error:
   {
-    return GUM_REPLACE_POLICY_VIOLATION;
-  }
-wrong_signature:
-  {
-    result = GUM_REPLACE_WRONG_SIGNATURE;
+    switch (error)
+    {
+      case GUM_INSTRUMENTATION_ERROR_WRONG_SIGNATURE:
+        result = GUM_REPLACE_WRONG_SIGNATURE;
+        break;
+      case GUM_INSTRUMENTATION_ERROR_POLICY_VIOLATION:
+        result = GUM_REPLACE_POLICY_VIOLATION;
+        break;
+      default:
+        g_assert_not_reached ();
+    }
     goto beach;
   }
 already_replaced:
@@ -682,31 +698,60 @@ fallback:
 
 static GumFunctionContext *
 gum_interceptor_instrument (GumInterceptor * self,
-                            gpointer function_address)
+                            gpointer function_address,
+                            GumInstrumentationError * error)
 {
   GumFunctionContext * ctx;
+
+  *error = GUM_INSTRUMENTATION_ERROR_NONE;
 
   ctx = (GumFunctionContext *) g_hash_table_lookup (self->function_by_address,
       function_address);
   if (ctx != NULL)
     return ctx;
 
-  ctx = gum_function_context_new (self, function_address);
-  if (ctx == NULL)
-    return NULL;
-
-  if (!_gum_interceptor_backend_create_trampoline (self->backend, ctx))
+  if (self->backend == NULL)
   {
-    gum_function_context_finalize (ctx);
-    return NULL;
+    self->backend =
+        _gum_interceptor_backend_create (&self->mutex, &self->allocator);
+  }
+
+  ctx = gum_function_context_new (self, function_address);
+
+  if (gum_process_get_code_signing_policy () == GUM_CODE_SIGNING_REQUIRED)
+  {
+    if (!_gum_interceptor_backend_claim_grafted_trampoline (self->backend, ctx))
+      goto policy_violation;
+  }
+  else
+  {
+    if (!_gum_interceptor_backend_create_trampoline (self->backend, ctx))
+      goto wrong_signature;
   }
 
   g_hash_table_insert (self->function_by_address, function_address, ctx);
 
-  gum_interceptor_transaction_schedule_prologue_write (
-      &self->current_transaction, ctx, gum_interceptor_activate);
+  gum_interceptor_transaction_schedule_update (&self->current_transaction, ctx,
+      gum_interceptor_activate);
 
   return ctx;
+
+policy_violation:
+  {
+    *error = GUM_INSTRUMENTATION_ERROR_POLICY_VIOLATION;
+    goto propagate_error;
+  }
+wrong_signature:
+  {
+    *error = GUM_INSTRUMENTATION_ERROR_WRONG_SIGNATURE;
+    goto propagate_error;
+  }
+propagate_error:
+  {
+    gum_function_context_finalize (ctx);
+
+    return NULL;
+  }
 }
 
 static void
@@ -744,7 +789,7 @@ gum_interceptor_transaction_init (GumInterceptorTransaction * transaction,
   transaction->is_dirty = FALSE;
   transaction->level = 0;
   transaction->pending_destroy_tasks = g_queue_new ();
-  transaction->pending_prologue_writes = g_hash_table_new_full (
+  transaction->pending_update_tasks = g_hash_table_new_full (
       NULL, NULL, NULL, (GDestroyNotify) g_array_unref);
 
   transaction->interceptor = interceptor;
@@ -755,7 +800,7 @@ gum_interceptor_transaction_destroy (GumInterceptorTransaction * transaction)
 {
   GumDestroyTask * task;
 
-  g_hash_table_unref (transaction->pending_prologue_writes);
+  g_hash_table_unref (transaction->pending_update_tasks);
 
   while ((task = g_queue_pop_head (transaction->pending_destroy_tasks)) != NULL)
   {
@@ -778,9 +823,6 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
   GumInterceptor * interceptor = self->interceptor;
   GumInterceptorTransaction transaction_copy;
   GList * addresses, * cur;
-  guint page_size;
-  gboolean rwx_supported, code_segment_supported;
-  GumDestroyTask * task;
 
   self->level--;
   if (self->level > 0)
@@ -794,7 +836,7 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
   gum_code_allocator_commit (&interceptor->allocator);
 
   if (g_queue_is_empty (self->pending_destroy_tasks) &&
-      g_hash_table_size (self->pending_prologue_writes) == 0)
+      g_hash_table_size (self->pending_update_tasks) == 0)
   {
     interceptor->current_transaction.is_dirty = FALSE;
     goto no_changes;
@@ -805,145 +847,177 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
   gum_interceptor_transaction_init (&interceptor->current_transaction,
       interceptor);
 
-  addresses = g_hash_table_get_keys (self->pending_prologue_writes);
+  addresses = g_hash_table_get_keys (self->pending_update_tasks);
   addresses = g_list_sort (addresses, gum_page_address_compare);
 
-  page_size = gum_query_page_size ();
-
-  rwx_supported = gum_query_is_rwx_supported ();
-  code_segment_supported = gum_code_segment_is_supported ();
-
-  if (rwx_supported || !code_segment_supported)
+  if (gum_process_get_code_signing_policy () == GUM_CODE_SIGNING_REQUIRED)
   {
-    GumPageProtection protection;
-
-    protection = rwx_supported ? GUM_PAGE_RWX : GUM_PAGE_RW;
-
-    for (cur = addresses; cur != NULL; cur = cur->next)
-    {
-      gpointer target_page = cur->data;
-
-      gum_mprotect (target_page, page_size, protection);
-    }
-
     for (cur = addresses; cur != NULL; cur = cur->next)
     {
       gpointer target_page = cur->data;
       GArray * pending;
       guint i;
 
-      pending = g_hash_table_lookup (self->pending_prologue_writes,
-          target_page);
+      pending = g_hash_table_lookup (self->pending_update_tasks, target_page);
       g_assert (pending != NULL);
 
       for (i = 0; i != pending->len; i++)
       {
-        GumPrologueWrite * write;
+        GumUpdateTask * update;
 
-        write = &g_array_index (pending, GumPrologueWrite, i);
+        update = &g_array_index (pending, GumUpdateTask, i);
 
-        write->func (interceptor, write->ctx,
-            _gum_interceptor_backend_get_function_address (write->ctx));
+        update->func (interceptor, update->ctx,
+            _gum_interceptor_backend_get_function_address (update->ctx));
       }
-    }
-
-    if (!rwx_supported)
-    {
-      for (cur = addresses; cur != NULL; cur = cur->next)
-      {
-        gpointer target_page = cur->data;
-
-        gum_mprotect (target_page, page_size, GUM_PAGE_RX);
-      }
-    }
-
-    for (cur = addresses; cur != NULL; cur = cur->next)
-    {
-      gpointer target_page = cur->data;
-
-      gum_clear_cache (target_page, page_size);
     }
   }
   else
   {
-    guint num_pages;
-    GumCodeSegment * segment;
-    guint8 * source_page, * current_page;
-    gsize source_offset;
+    guint page_size;
+    gboolean rwx_supported, code_segment_supported;
 
-    num_pages = g_hash_table_size (self->pending_prologue_writes);
-    segment = gum_code_segment_new (num_pages * page_size, NULL);
+    page_size = gum_query_page_size ();
 
-    source_page = gum_code_segment_get_address (segment);
+    rwx_supported = gum_query_is_rwx_supported ();
+    code_segment_supported = gum_code_segment_is_supported ();
 
-    current_page = source_page;
-    for (cur = addresses; cur != NULL; cur = cur->next)
+    if (rwx_supported || !code_segment_supported)
     {
-      guint8 * target_page = cur->data;
+      GumPageProtection protection;
 
-      memcpy (current_page, target_page, page_size);
+      protection = rwx_supported ? GUM_PAGE_RWX : GUM_PAGE_RW;
 
-      current_page += page_size;
-    }
-
-    for (cur = addresses; cur != NULL; cur = cur->next)
-    {
-      guint8 * target_page = cur->data;
-      GArray * pending;
-      guint i;
-
-      pending = g_hash_table_lookup (self->pending_prologue_writes,
-          target_page);
-      g_assert (pending != NULL);
-
-      for (i = 0; i != pending->len; i++)
+      for (cur = addresses; cur != NULL; cur = cur->next)
       {
-        GumPrologueWrite * write;
+        gpointer target_page = cur->data;
 
-        write = &g_array_index (pending, GumPrologueWrite, i);
-
-        write->func (interceptor, write->ctx, source_page +
-            ((guint8 *) _gum_interceptor_backend_get_function_address (
-                write->ctx) - target_page));
+        gum_mprotect (target_page, page_size, protection);
       }
 
-      source_page += page_size;
+      for (cur = addresses; cur != NULL; cur = cur->next)
+      {
+        gpointer target_page = cur->data;
+        GArray * pending;
+        guint i;
+
+        pending = g_hash_table_lookup (self->pending_update_tasks,
+            target_page);
+        g_assert (pending != NULL);
+
+        for (i = 0; i != pending->len; i++)
+        {
+          GumUpdateTask * update;
+
+          update = &g_array_index (pending, GumUpdateTask, i);
+
+          update->func (interceptor, update->ctx,
+              _gum_interceptor_backend_get_function_address (update->ctx));
+        }
+      }
+
+      if (!rwx_supported)
+      {
+        for (cur = addresses; cur != NULL; cur = cur->next)
+        {
+          gpointer target_page = cur->data;
+
+          gum_mprotect (target_page, page_size, GUM_PAGE_RX);
+        }
+      }
+
+      for (cur = addresses; cur != NULL; cur = cur->next)
+      {
+        gpointer target_page = cur->data;
+
+        gum_clear_cache (target_page, page_size);
+      }
     }
-
-    gum_code_segment_realize (segment);
-
-    source_offset = 0;
-    for (cur = addresses; cur != NULL; cur = cur->next)
+    else
     {
-      gpointer target_page = cur->data;
+      guint num_pages;
+      GumCodeSegment * segment;
+      guint8 * source_page, * current_page;
+      gsize source_offset;
 
-      gum_code_segment_map (segment, source_offset, page_size, target_page);
+      num_pages = g_hash_table_size (self->pending_update_tasks);
+      segment = gum_code_segment_new (num_pages * page_size, NULL);
 
-      gum_clear_cache (target_page, page_size);
+      source_page = gum_code_segment_get_address (segment);
 
-      source_offset += page_size;
+      current_page = source_page;
+      for (cur = addresses; cur != NULL; cur = cur->next)
+      {
+        guint8 * target_page = cur->data;
+
+        memcpy (current_page, target_page, page_size);
+
+        current_page += page_size;
+      }
+
+      for (cur = addresses; cur != NULL; cur = cur->next)
+      {
+        guint8 * target_page = cur->data;
+        GArray * pending;
+        guint i;
+
+        pending = g_hash_table_lookup (self->pending_update_tasks,
+            target_page);
+        g_assert (pending != NULL);
+
+        for (i = 0; i != pending->len; i++)
+        {
+          GumUpdateTask * update;
+
+          update = &g_array_index (pending, GumUpdateTask, i);
+
+          update->func (interceptor, update->ctx, source_page +
+              ((guint8 *) _gum_interceptor_backend_get_function_address (
+                  update->ctx) - target_page));
+        }
+
+        source_page += page_size;
+      }
+
+      gum_code_segment_realize (segment);
+
+      source_offset = 0;
+      for (cur = addresses; cur != NULL; cur = cur->next)
+      {
+        gpointer target_page = cur->data;
+
+        gum_code_segment_map (segment, source_offset, page_size, target_page);
+
+        gum_clear_cache (target_page, page_size);
+
+        source_offset += page_size;
+      }
+
+      gum_code_segment_free (segment);
     }
-
-    gum_code_segment_free (segment);
   }
 
   g_list_free (addresses);
 
-  while ((task = g_queue_pop_head (self->pending_destroy_tasks)) != NULL)
   {
-    if (task->ctx->trampoline_usage_counter == 0)
-    {
-      GUM_INTERCEPTOR_UNLOCK (interceptor);
-      task->notify (task->data);
-      GUM_INTERCEPTOR_LOCK (interceptor);
+    GumDestroyTask * task;
 
-      g_slice_free (GumDestroyTask, task);
-    }
-    else
+    while ((task = g_queue_pop_head (self->pending_destroy_tasks)) != NULL)
     {
-      interceptor->current_transaction.is_dirty = TRUE;
-      g_queue_push_tail (interceptor->current_transaction.pending_destroy_tasks,
-          task);
+      if (task->ctx->trampoline_usage_counter == 0)
+      {
+        GUM_INTERCEPTOR_UNLOCK (interceptor);
+        task->notify (task->data);
+        GUM_INTERCEPTOR_LOCK (interceptor);
+
+        g_slice_free (GumDestroyTask, task);
+      }
+      else
+      {
+        interceptor->current_transaction.is_dirty = TRUE;
+        g_queue_push_tail (
+            interceptor->current_transaction.pending_destroy_tasks, task);
+      }
     }
   }
 
@@ -970,15 +1044,14 @@ gum_interceptor_transaction_schedule_destroy (GumInterceptorTransaction * self,
 }
 
 static void
-gum_interceptor_transaction_schedule_prologue_write (
-    GumInterceptorTransaction * self,
-    GumFunctionContext * ctx,
-    GumPrologueWriteFunc func)
+gum_interceptor_transaction_schedule_update (GumInterceptorTransaction * self,
+                                             GumFunctionContext * ctx,
+                                             GumUpdateTaskFunc func)
 {
   guint8 * function_address;
   gpointer start_page, end_page;
   GArray * pending;
-  GumPrologueWrite write;
+  GumUpdateTask update;
 
   function_address = _gum_interceptor_backend_get_function_address (ctx);
 
@@ -986,24 +1059,24 @@ gum_interceptor_transaction_schedule_prologue_write (
   end_page = gum_page_address_from_pointer (function_address +
       ctx->overwritten_prologue_len - 1);
 
-  pending = g_hash_table_lookup (self->pending_prologue_writes, start_page);
+  pending = g_hash_table_lookup (self->pending_update_tasks, start_page);
   if (pending == NULL)
   {
-    pending = g_array_new (FALSE, FALSE, sizeof (GumPrologueWrite));
-    g_hash_table_insert (self->pending_prologue_writes, start_page, pending);
+    pending = g_array_new (FALSE, FALSE, sizeof (GumUpdateTask));
+    g_hash_table_insert (self->pending_update_tasks, start_page, pending);
   }
 
-  write.ctx = ctx;
-  write.func = func;
-  g_array_append_val (pending, write);
+  update.ctx = ctx;
+  update.func = func;
+  g_array_append_val (pending, update);
 
   if (end_page != start_page)
   {
-    pending = g_hash_table_lookup (self->pending_prologue_writes, end_page);
+    pending = g_hash_table_lookup (self->pending_update_tasks, end_page);
     if (pending == NULL)
     {
-      pending = g_array_new (FALSE, FALSE, sizeof (GumPrologueWrite));
-      g_hash_table_insert (self->pending_prologue_writes, end_page, pending);
+      pending = g_array_new (FALSE, FALSE, sizeof (GumUpdateTask));
+      g_hash_table_insert (self->pending_update_tasks, end_page, pending);
     }
   }
 }
@@ -1047,8 +1120,8 @@ gum_function_context_destroy (GumFunctionContext * function_ctx)
 
   if (function_ctx->activated)
   {
-    gum_interceptor_transaction_schedule_prologue_write (transaction,
-        function_ctx, gum_interceptor_deactivate);
+    gum_interceptor_transaction_schedule_update (transaction, function_ctx,
+        gum_interceptor_deactivate);
   }
 
   gum_interceptor_transaction_schedule_destroy (transaction, function_ctx,
@@ -1742,6 +1815,10 @@ gum_interceptor_resolve (GumInterceptor * self,
     gpointer target;
 
     gum_ensure_code_readable (address, max_redirect_size);
+
+    /* Avoid following grafted branches. */
+    if (gum_process_get_code_signing_policy () == GUM_CODE_SIGNING_REQUIRED)
+      return address;
 
     target = _gum_interceptor_backend_resolve_redirect (self->backend,
         address);

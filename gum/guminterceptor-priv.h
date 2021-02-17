@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -30,6 +30,9 @@ struct _GumFunctionContext
   gboolean destroyed;
   gboolean activated;
   gboolean has_on_leave_listener;
+
+  gpointer grafted_hook;
+  gpointer import_target;
 
   GumCodeSlice * trampoline_slice;
   GumCodeDeflector * trampoline_deflector;
@@ -64,9 +67,11 @@ G_GNUC_INTERNAL void _gum_function_context_end_invocation (
     gpointer * next_hop);
 
 G_GNUC_INTERNAL GumInterceptorBackend * _gum_interceptor_backend_create (
-    GumCodeAllocator * allocator);
+    GRecMutex * mutex, GumCodeAllocator * allocator);
 G_GNUC_INTERNAL void _gum_interceptor_backend_destroy (
     GumInterceptorBackend * backend);
+G_GNUC_INTERNAL gboolean _gum_interceptor_backend_claim_grafted_trampoline (
+    GumInterceptorBackend * self, GumFunctionContext * ctx);
 G_GNUC_INTERNAL gboolean _gum_interceptor_backend_create_trampoline (
     GumInterceptorBackend * self, GumFunctionContext * ctx);
 G_GNUC_INTERNAL void _gum_interceptor_backend_destroy_trampoline (

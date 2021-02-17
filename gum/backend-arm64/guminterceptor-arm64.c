@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -11,9 +11,18 @@
 #include "gumarm64writer.h"
 #include "gumlibc.h"
 #include "gummemory.h"
+#ifdef HAVE_DARWIN
+# include "gumdarwingrafter-priv.h"
+#endif
 
 #include <string.h>
 #include <unistd.h>
+#ifdef HAVE_DARWIN
+# include <dlfcn.h>
+# include <mach-o/dyld.h>
+# include <mach-o/loader.h>
+# include <stdlib.h>
+#endif
 
 #define GUM_ARM64_LOGICAL_PAGE_SIZE 4096
 
@@ -25,6 +34,7 @@ typedef struct _GumArm64FunctionContextData GumArm64FunctionContextData;
 
 struct _GumInterceptorBackend
 {
+  GRecMutex * mutex;
   GumCodeAllocator * allocator;
 
   GumArm64Writer writer;
@@ -43,6 +53,9 @@ struct _GumArm64FunctionContextData
 G_STATIC_ASSERT (sizeof (GumArm64FunctionContextData)
     <= sizeof (GumFunctionContextBackendData));
 
+extern void _gum_interceptor_begin_invocation (void);
+extern void _gum_interceptor_end_invocation (void);
+
 static void gum_interceptor_backend_create_thunks (
     GumInterceptorBackend * self);
 static void gum_interceptor_backend_destroy_thunks (
@@ -55,17 +68,22 @@ static void gum_emit_prolog (GumArm64Writer * aw);
 static void gum_emit_epilog (GumArm64Writer * aw);
 
 GumInterceptorBackend *
-_gum_interceptor_backend_create (GumCodeAllocator * allocator)
+_gum_interceptor_backend_create (GRecMutex * mutex,
+                                 GumCodeAllocator * allocator)
 {
   GumInterceptorBackend * backend;
 
-  backend = g_slice_new (GumInterceptorBackend);
+  backend = g_slice_new0 (GumInterceptorBackend);
+  backend->mutex = mutex;
   backend->allocator = allocator;
 
-  gum_arm64_writer_init (&backend->writer, NULL);
-  gum_arm64_relocator_init (&backend->relocator, NULL, &backend->writer);
+  if (gum_process_get_code_signing_policy () == GUM_CODE_SIGNING_OPTIONAL)
+  {
+    gum_arm64_writer_init (&backend->writer, NULL);
+    gum_arm64_relocator_init (&backend->relocator, NULL, &backend->writer);
 
-  gum_interceptor_backend_create_thunks (backend);
+    gum_interceptor_backend_create_thunks (backend);
+  }
 
   return backend;
 }
@@ -73,13 +91,488 @@ _gum_interceptor_backend_create (GumCodeAllocator * allocator)
 void
 _gum_interceptor_backend_destroy (GumInterceptorBackend * backend)
 {
-  gum_interceptor_backend_destroy_thunks (backend);
+  if (backend->enter_thunk != NULL)
+  {
+    gum_interceptor_backend_destroy_thunks (backend);
 
-  gum_arm64_relocator_clear (&backend->relocator);
-  gum_arm64_writer_clear (&backend->writer);
+    gum_arm64_relocator_clear (&backend->relocator);
+    gum_arm64_writer_clear (&backend->writer);
+  }
 
   g_slice_free (GumInterceptorBackend, backend);
 }
+
+#ifdef HAVE_DARWIN
+
+typedef struct _GumImportTarget GumImportTarget;
+typedef struct _GumImportEntry GumImportEntry;
+typedef struct _GumClaimHookOperation GumClaimHookOperation;
+typedef struct _GumGraftedSegmentPairDetails GumGraftedSegmentPairDetails;
+
+typedef gboolean (* GumFoundGraftedSegmentPairFunc) (
+    const GumGraftedSegmentPairDetails * details, gpointer user_data);
+
+struct _GumImportTarget
+{
+  gpointer implementation;
+  GumFunctionContext * ctx;
+  GArray * entries;
+};
+
+struct _GumImportEntry
+{
+  const struct mach_header_64 * mach_header;
+  GumGraftedImport * import;
+};
+
+struct _GumClaimHookOperation
+{
+  GumFunctionContext * ctx;
+  guint32 code_offset;
+
+  gboolean success;
+};
+
+struct _GumGraftedSegmentPairDetails
+{
+  const struct mach_header_64 * mach_header;
+
+  GumGraftedHeader * header;
+
+  GumGraftedHook * hooks;
+  guint32 num_hooks;
+
+  GumGraftedImport * imports;
+  guint32 num_imports;
+};
+
+static void gum_on_module_added (const struct mach_header * mh,
+    intptr_t vmaddr_slide);
+static void gum_on_module_removed (const struct mach_header * mh,
+    intptr_t vmaddr_slide);
+static gboolean gum_attach_segment_pair (
+    const GumGraftedSegmentPairDetails * details, gpointer user_data);
+static gboolean gum_detach_segment_pair (
+    const GumGraftedSegmentPairDetails * details, gpointer user_data);
+static gboolean gum_claim_hook_if_found_in_pair (
+    const GumGraftedSegmentPairDetails * details, gpointer user_data);
+
+static GumImportTarget * gum_import_target_register (gpointer implementation);
+static void gum_import_target_link (GumImportTarget * self,
+    GumFunctionContext * ctx);
+static void gum_import_target_free (GumImportTarget * target);
+static void gum_import_target_maybe_activate (GumImportTarget * self,
+    const GumImportEntry * entry);
+static void gum_import_target_activate (GumImportTarget * self,
+    const GumImportEntry * entry);
+static void gum_import_target_deactivate (GumImportTarget * self,
+    const GumImportEntry * entry);
+
+static void gum_enumerate_grafted_segment_pairs (gconstpointer mach_header,
+    GumFoundGraftedSegmentPairFunc func, gpointer user_data);
+
+static int gum_compare_grafted_hook (const void * element_a,
+    const void * element_b);
+
+static gboolean gum_is_system_module (const gchar * path);
+
+static GumInterceptorBackend * gum_interceptor_backend = NULL;
+static GHashTable * gum_import_targets = NULL;
+
+gboolean
+_gum_interceptor_backend_claim_grafted_trampoline (GumInterceptorBackend * self,
+                                                   GumFunctionContext * ctx)
+{
+  GumImportTarget * target;
+  Dl_info info;
+  GumClaimHookOperation op;
+
+  if (gum_interceptor_backend == NULL)
+  {
+    gum_interceptor_backend = self;
+    gum_import_targets = g_hash_table_new_full (NULL, NULL, NULL,
+        (GDestroyNotify) gum_import_target_free);
+
+    _dyld_register_func_for_add_image (gum_on_module_added);
+    _dyld_register_func_for_remove_image (gum_on_module_removed);
+  }
+
+  target = g_hash_table_lookup (gum_import_targets, ctx->function_address);
+  if (target != NULL)
+  {
+    gum_import_target_link (target, ctx);
+    return TRUE;
+  }
+
+  if (dladdr (ctx->function_address, &info) == 0)
+    return FALSE;
+
+  op.ctx = ctx;
+  op.code_offset = (guint8 *) ctx->function_address - (guint8 *) info.dli_fbase;
+
+  op.success = FALSE;
+
+  gum_enumerate_grafted_segment_pairs (info.dli_fbase,
+      gum_claim_hook_if_found_in_pair, &op);
+
+  if (!op.success && gum_is_system_module (info.dli_fname))
+  {
+    target = gum_import_target_register (ctx->function_address);
+    gum_import_target_link (target, ctx);
+    return TRUE;
+  }
+
+  return op.success;
+}
+
+static void
+gum_on_module_added (const struct mach_header * mh,
+                     intptr_t vmaddr_slide)
+{
+  g_rec_mutex_lock (gum_interceptor_backend->mutex);
+  gum_enumerate_grafted_segment_pairs (mh, gum_attach_segment_pair, NULL);
+  g_rec_mutex_unlock (gum_interceptor_backend->mutex);
+}
+
+static void
+gum_on_module_removed (const struct mach_header * mh,
+                       intptr_t vmaddr_slide)
+{
+  g_rec_mutex_lock (gum_interceptor_backend->mutex);
+  gum_enumerate_grafted_segment_pairs (mh, gum_detach_segment_pair, NULL);
+  g_rec_mutex_unlock (gum_interceptor_backend->mutex);
+}
+
+static gboolean
+gum_attach_segment_pair (const GumGraftedSegmentPairDetails * details,
+                         gpointer user_data)
+{
+  const struct mach_header_64 * mach_header = details->mach_header;
+  GumGraftedHeader * header = details->header;
+  GumGraftedImport * imports = details->imports;
+  guint32 i;
+
+  header->begin_invocation =
+      GPOINTER_TO_SIZE (_gum_interceptor_begin_invocation);
+  header->end_invocation =
+      GPOINTER_TO_SIZE (_gum_interceptor_end_invocation);
+
+  for (i = 0; i != header->num_imports; i++)
+  {
+    GumGraftedImport * import = &imports[i];
+    gpointer * slot, implementation;
+    GumImportTarget * target;
+    GumImportEntry entry;
+
+    slot = (gpointer *) ((const guint8 *) mach_header + import->slot_offset);
+    implementation = *slot;
+
+    target = g_hash_table_lookup (gum_import_targets, implementation);
+    if (target == NULL)
+      target = gum_import_target_register (implementation);
+
+    entry.mach_header = mach_header;
+    entry.import = import;
+    g_array_append_val (target->entries, entry);
+
+    gum_import_target_maybe_activate (target, &entry);
+  }
+
+  return TRUE;
+}
+
+static gboolean
+gum_detach_segment_pair (const GumGraftedSegmentPairDetails * details,
+                         gpointer user_data)
+{
+  const struct mach_header_64 * mach_header = details->mach_header;
+  GHashTableIter iter;
+  gpointer implementation;
+  GumImportTarget * target;
+  GQueue empty_targets = G_QUEUE_INIT;
+  GList * cur;
+
+  g_hash_table_iter_init (&iter, gum_import_targets);
+  while (g_hash_table_iter_next (&iter, &implementation, (gpointer *) &target))
+  {
+    GArray * entries = target->entries;
+    gint i;
+
+    for (i = 0; i < entries->len; i++)
+    {
+      GumImportEntry * entry = &g_array_index (entries, GumImportEntry, i);
+      if (entry->mach_header == mach_header)
+      {
+        g_array_remove_index_fast (entries, i);
+        i--;
+      }
+    }
+
+    if (target->ctx == NULL && entries->len == 0)
+    {
+      g_queue_push_tail (&empty_targets, implementation);
+    }
+    else if (entries->len != 0)
+    {
+      gum_import_target_maybe_activate (target,
+          &g_array_index (entries, GumImportEntry, 0));
+    }
+  }
+
+  for (cur = empty_targets.head; cur != NULL; cur = cur->next)
+  {
+    g_hash_table_remove (gum_import_targets, cur->data);
+  }
+
+  g_queue_clear (&empty_targets);
+
+  return TRUE;
+}
+
+static gboolean
+gum_claim_hook_if_found_in_pair (const GumGraftedSegmentPairDetails * details,
+                                 gpointer user_data)
+{
+  GumClaimHookOperation * op = user_data;
+  GumFunctionContext * ctx = op->ctx;
+  GumGraftedHook key = { 0, };
+  GumGraftedHook * hook;
+  guint8 * trampoline;
+
+  key.code_offset = op->code_offset;
+  hook = bsearch (&key, details->hooks, details->header->num_hooks,
+      sizeof (GumGraftedHook), gum_compare_grafted_hook);
+  if (hook == NULL)
+    return TRUE;
+
+  hook->user_data = GPOINTER_TO_SIZE (ctx);
+
+  ctx->grafted_hook = hook;
+
+  trampoline = (guint8 *) details->mach_header + hook->trampoline_offset;
+  ctx->on_enter_trampoline =
+      trampoline + GUM_GRAFTED_HOOK_ON_ENTER_OFFSET (hook);
+  ctx->on_leave_trampoline =
+      trampoline + GUM_GRAFTED_HOOK_ON_LEAVE_OFFSET (hook);
+  ctx->on_invoke_trampoline =
+      trampoline + GUM_GRAFTED_HOOK_ON_INVOKE_OFFSET (hook);
+
+  op->success = TRUE;
+
+  return FALSE;
+}
+
+static GumImportTarget *
+gum_import_target_register (gpointer implementation)
+{
+  GumImportTarget * target;
+
+  target = g_slice_new (GumImportTarget);
+  target->implementation = implementation;
+  target->ctx = NULL;
+  target->entries = g_array_new (FALSE, FALSE, sizeof (GumImportEntry));
+
+  g_hash_table_insert (gum_import_targets, implementation, target);
+
+  return target;
+}
+
+static void
+gum_import_target_link (GumImportTarget * self,
+                        GumFunctionContext * ctx)
+{
+  self->ctx = ctx;
+  ctx->import_target = self;
+}
+
+static void
+gum_import_target_free (GumImportTarget * target)
+{
+  g_array_free (target->entries, TRUE);
+
+  g_slice_free (GumImportTarget, target);
+}
+
+static void
+gum_import_target_activate_all (GumImportTarget * self)
+{
+  GArray * entries = self->entries;
+  guint i;
+
+  for (i = 0; i != entries->len; i++)
+  {
+    const GumImportEntry * entry = &g_array_index (entries, GumImportEntry, i);
+    gum_import_target_activate (self, entry);
+  }
+}
+
+static void
+gum_import_target_deactivate_all (GumImportTarget * self)
+{
+  GArray * entries = self->entries;
+  guint i;
+
+  for (i = 0; i != entries->len; i++)
+  {
+    const GumImportEntry * entry = &g_array_index (entries, GumImportEntry, i);
+    gum_import_target_deactivate (self, entry);
+  }
+}
+
+static void
+gum_import_target_maybe_activate (GumImportTarget * self,
+                                  const GumImportEntry * entry)
+{
+  GumFunctionContext * ctx = self->ctx;
+
+  if (ctx == NULL || !ctx->activated)
+    return;
+
+  gum_import_target_activate (self, entry);
+}
+
+static void
+gum_import_target_activate (GumImportTarget * self,
+                            const GumImportEntry * entry)
+{
+  GumFunctionContext * ctx = self->ctx;
+  GumGraftedImport * import = entry->import;
+  gpointer * slot;
+  guint8 * trampoline;
+
+  import->user_data = GPOINTER_TO_SIZE (ctx);
+
+  slot = (gpointer *) ((guint8 *) entry->mach_header + import->slot_offset);
+
+  trampoline = (guint8 *) entry->mach_header + import->trampoline_offset;
+  ctx->on_enter_trampoline =
+      trampoline + GUM_GRAFTED_IMPORT_ON_ENTER_OFFSET (import);
+  ctx->on_leave_trampoline =
+      trampoline + GUM_GRAFTED_IMPORT_ON_LEAVE_OFFSET (import);
+  ctx->on_invoke_trampoline = self->implementation;
+
+  /* TODO: flip page protection when needed */
+  *slot = ctx->on_enter_trampoline;
+}
+
+static void
+gum_import_target_deactivate (GumImportTarget * self,
+                              const GumImportEntry * entry)
+{
+  gpointer * slot =
+      (gpointer *) ((guint8 *) entry->mach_header + entry->import->slot_offset);
+
+  /* TODO: flip page protection when needed */
+  *slot = self->implementation;
+}
+
+static void
+gum_import_target_clear_user_data (GumImportTarget * self)
+{
+  GArray * entries = self->entries;
+  guint i;
+
+  for (i = 0; i != entries->len; i++)
+  {
+    const GumImportEntry * entry = &g_array_index (entries, GumImportEntry, i);
+    entry->import->user_data = 0;
+  }
+}
+
+static void
+gum_enumerate_grafted_segment_pairs (gconstpointer mach_header,
+                                     GumFoundGraftedSegmentPairFunc func,
+                                     gpointer user_data)
+{
+  const struct mach_header_64 * mh;
+  gconstpointer command;
+  intptr_t slide;
+  guint i;
+
+  mh = mach_header;
+  command = mh + 1;
+  slide = 0;
+  for (i = 0; i != mh->ncmds; i++)
+  {
+    const struct load_command * lc = command;
+
+    if (lc->cmd == LC_SEGMENT_64)
+    {
+      const struct segment_command_64 * sc = command;
+
+      if (strcmp (sc->segname, "__TEXT") == 0)
+      {
+        slide = (guint8 *) mach_header - (guint8 *) sc->vmaddr;
+      }
+      else if (g_str_has_prefix (sc->segname, "__FRIDA_DATA"))
+      {
+        GumGraftedHeader * header = GSIZE_TO_POINTER (sc->vmaddr + slide);
+
+        if (header->abi_version == GUM_DARWIN_GRAFTER_ABI_VERSION)
+        {
+          GumGraftedSegmentPairDetails d;
+
+          d.mach_header = mh;
+
+          d.header = header;
+
+          d.hooks = (GumGraftedHook *) (header + 1);
+          d.num_hooks = header->num_hooks;
+
+          d.imports = (GumGraftedImport *) (d.hooks + header->num_hooks);
+          d.num_imports = header->num_imports;
+
+          if (!func (&d, user_data))
+            return;
+        }
+      }
+    }
+
+    command = (const guint8 *) command + lc->cmdsize;
+  }
+}
+
+static int
+gum_compare_grafted_hook (const void * element_a,
+                          const void * element_b)
+{
+  const GumGraftedHook * a = element_a;
+  const GumGraftedHook * b = element_b;
+
+  return (gssize) a->code_offset - (gssize) b->code_offset;
+}
+
+static gboolean
+gum_is_system_module (const gchar * path)
+{
+  static gboolean initialized = FALSE;
+  static bool (* dsc_contains_path) (const char * path) = NULL;
+
+  if (!initialized)
+  {
+    dsc_contains_path =
+        dlsym (RTLD_DEFAULT, "_dyld_shared_cache_contains_path");
+    initialized = TRUE;
+  }
+
+  if (dsc_contains_path != NULL)
+    return dsc_contains_path (path);
+
+  return g_str_has_prefix (path, "/System/") ||
+      g_str_has_prefix (path, "/usr/lib/") ||
+      g_str_has_prefix (path, "/Developer/");
+}
+
+#else
+
+gboolean
+_gum_interceptor_backend_claim_grafted_trampoline (GumInterceptorBackend * self,
+                                                   GumFunctionContext * ctx)
+{
+  return FALSE;
+}
+
+#endif
 
 static gboolean
 gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
@@ -332,6 +825,21 @@ void
 _gum_interceptor_backend_destroy_trampoline (GumInterceptorBackend * self,
                                              GumFunctionContext * ctx)
 {
+#ifdef HAVE_DARWIN
+  if (ctx->grafted_hook != NULL)
+  {
+    GumGraftedHook * func = ctx->grafted_hook;
+    func->user_data = 0;
+    return;
+  }
+
+  if (ctx->import_target != NULL)
+  {
+    gum_import_target_clear_user_data (ctx->import_target);
+    return;
+  }
+#endif
+
   gum_code_slice_free (ctx->trampoline_slice);
   gum_code_deflector_free (ctx->trampoline_deflector);
   ctx->trampoline_slice = NULL;
@@ -347,6 +855,20 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
   GumArm64FunctionContextData * data = (GumArm64FunctionContextData *)
       &ctx->backend_data;
   GumAddress on_enter = GUM_ADDRESS (ctx->on_enter_trampoline);
+
+#ifdef HAVE_DARWIN
+  if (ctx->grafted_hook != NULL)
+  {
+    _gum_grafted_hook_activate (ctx->grafted_hook);
+    return;
+  }
+
+  if (ctx->import_target != NULL)
+  {
+    gum_import_target_activate_all (ctx->import_target);
+    return;
+  }
+#endif
 
   gum_arm64_writer_reset (aw, prologue);
   aw->pc = GUM_ADDRESS (ctx->function_address);
@@ -395,6 +917,20 @@ _gum_interceptor_backend_deactivate_trampoline (GumInterceptorBackend * self,
                                                 GumFunctionContext * ctx,
                                                 gpointer prologue)
 {
+#ifdef HAVE_DARWIN
+  if (ctx->grafted_hook != NULL)
+  {
+    _gum_grafted_hook_deactivate (ctx->grafted_hook);
+    return;
+  }
+
+  if (ctx->import_target != NULL)
+  {
+    gum_import_target_deactivate_all (ctx->import_target);
+    return;
+  }
+#endif
+
   gum_memcpy (prologue, ctx->overwritten_prologue,
       ctx->overwritten_prologue_len);
 }

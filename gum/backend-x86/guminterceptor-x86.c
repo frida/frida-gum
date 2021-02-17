@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -50,7 +50,8 @@ static void gum_emit_prolog (GumX86Writer * cw,
 static void gum_emit_epilog (GumX86Writer * cw);
 
 GumInterceptorBackend *
-_gum_interceptor_backend_create (GumCodeAllocator * allocator)
+_gum_interceptor_backend_create (GRecMutex * mutex,
+                                 GumCodeAllocator * allocator)
 {
   GumInterceptorBackend * backend;
 
@@ -74,6 +75,13 @@ _gum_interceptor_backend_destroy (GumInterceptorBackend * backend)
   gum_x86_writer_clear (&backend->writer);
 
   g_slice_free (GumInterceptorBackend, backend);
+}
+
+gboolean
+_gum_interceptor_backend_claim_grafted_trampoline (GumInterceptorBackend * self,
+                                                   GumFunctionContext * ctx)
+{
+  return FALSE;
 }
 
 static gboolean
