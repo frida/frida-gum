@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -35,6 +35,7 @@ typedef struct _GumDarwinThreadedItem GumDarwinThreadedItem;
 typedef struct _GumDarwinInitPointersDetails GumDarwinInitPointersDetails;
 typedef struct _GumDarwinInitOffsetsDetails GumDarwinInitOffsetsDetails;
 typedef struct _GumDarwinTermPointersDetails GumDarwinTermPointersDetails;
+typedef struct _GumDarwinFunctionStartsDetails GumDarwinFunctionStartsDetails;
 typedef struct _GumDarwinSegment GumDarwinSegment;
 typedef struct _GumDarwinExportDetails GumDarwinExportDetails;
 typedef struct _GumDarwinSymbolDetails GumDarwinSymbolDetails;
@@ -70,6 +71,8 @@ typedef gboolean (* GumFoundDarwinTermPointersFunc) (
     const GumDarwinTermPointersDetails * details, gpointer user_data);
 typedef gboolean (* GumFoundDarwinDependencyFunc) (const gchar * path,
     gpointer user_data);
+typedef gboolean (* GumFoundDarwinFunctionStartsFunc) (
+    const GumDarwinFunctionStartsDetails * details, gpointer user_data);
 
 typedef struct _GumDyldInfoCommand GumDyldInfoCommand;
 typedef struct _GumSymtabCommand GumSymtabCommand;
@@ -261,6 +264,13 @@ struct _GumDarwinTermPointersDetails
   guint64 count;
 };
 
+struct _GumDarwinFunctionStartsDetails
+{
+  GumAddress vm_address;
+  guint64 file_offset;
+  guint32 size;
+};
+
 struct _GumDarwinSegment
 {
   gchar name[17];
@@ -403,6 +413,9 @@ GUM_API void gum_darwin_module_enumerate_term_pointers (GumDarwinModule * self,
     GumFoundDarwinTermPointersFunc func, gpointer user_data);
 GUM_API void gum_darwin_module_enumerate_dependencies (GumDarwinModule * self,
     GumFoundDarwinDependencyFunc func, gpointer user_data);
+GUM_API void gum_darwin_module_enumerate_function_starts (
+    GumDarwinModule * self, GumFoundDarwinFunctionStartsFunc func,
+    gpointer user_data);
 GUM_API const gchar * gum_darwin_module_get_dependency_by_ordinal (
     GumDarwinModule * self, gint ordinal);
 

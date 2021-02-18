@@ -1507,6 +1507,54 @@ gum_darwin_module_enumerate_dependencies (GumDarwinModule * self,
   }
 }
 
+void
+gum_darwin_module_enumerate_function_starts (
+    GumDarwinModule * self,
+    GumFoundDarwinFunctionStartsFunc func,
+    gpointer user_data)
+{
+  GumDarwinModuleImage * image;
+  const GumMachHeader32 * header;
+  gconstpointer command;
+  gsize command_index;
+
+  if (!gum_darwin_module_ensure_image_loaded (self, NULL))
+    return;
+
+  image = self->image;
+
+  header = (GumMachHeader32 *) image->data;
+  if (header->magic == GUM_MH_MAGIC_32)
+    command = (GumMachHeader32 *) image->data + 1;
+  else
+    command = (GumMachHeader64 *) image->data + 1;
+  for (command_index = 0; command_index != header->ncmds; command_index++)
+  {
+    const GumLoadCommand * lc = command;
+
+    if (lc->cmd == GUM_LC_FUNCTION_STARTS)
+    {
+      const GumLinkeditDataCommand * starts = command;
+      GumAddress linkedit;
+      GumDarwinFunctionStartsDetails details;
+
+      if (!gum_find_linkedit (image->data, image->size, &linkedit))
+        return;
+
+      linkedit += gum_darwin_module_get_slide (self);
+
+      details.vm_address = linkedit + starts->dataoff;
+      details.file_offset = starts->dataoff;
+      details.size = starts->datasize;
+
+      if (!func (&details, user_data))
+        return;
+    }
+
+    command = (const guint8 *) command + lc->cmdsize;
+  }
+}
+
 const gchar *
 gum_darwin_module_get_dependency_by_ordinal (GumDarwinModule * self,
                                              gint ordinal)
