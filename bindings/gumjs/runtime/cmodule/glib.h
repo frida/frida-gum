@@ -328,4 +328,40 @@ gint64 g_get_real_time (void);
 gpointer g_object_ref (gpointer object);
 void g_object_unref (gpointer object);
 
+gsize g_base64_encode_step (const guchar * in, gsize len, gboolean break_lines,
+    gchar * out, gint * state, gint * save);
+gsize g_base64_encode_close (gboolean break_lines, gchar * out, gint * state,
+    gint * save);
+gchar * g_base64_encode (const guchar * data, gsize len);
+gsize g_base64_decode_step (const gchar * in, gsize len, guchar * out,
+    gint * state, guint * save);
+guchar * g_base64_decode (const gchar * text, gsize * out_len);
+guchar * g_base64_decode_inplace (gchar * text, gsize * out_len);
+
+typedef enum {
+  G_CHECKSUM_MD5,
+  G_CHECKSUM_SHA1,
+  G_CHECKSUM_SHA256,
+  G_CHECKSUM_SHA512,
+  G_CHECKSUM_SHA384
+} GChecksumType;
+
+typedef struct _GChecksum GChecksum;
+
+struct _GChecksum
+{
+  guint8 opaque[296];
+};
+
+gssize g_checksum_type_get_length (GChecksumType checksum_type);
+GChecksum * g_checksum_new (GChecksumType checksum_type);
+GChecksum * g_checksum_copy (const GChecksum * checksum);
+void g_checksum_free (GChecksum * checksum);
+void g_checksum_reset (GChecksum * checksum);
+void g_checksum_update (GChecksum * checksum, const guchar * data,
+    gssize length);
+const gchar * g_checksum_get_string (GChecksum * checksum);
+void g_checksum_get_digest (GChecksum * checksum, guint8 * buffer,
+    gsize * digest_len);
+
 #endif
