@@ -7,9 +7,8 @@
 
 #include "guminterceptor.h"
 
-#include "guminterceptor-priv.h"
-
 #include "gumcodesegment.h"
+#include "guminterceptor-priv.h"
 #include "gumlibc.h"
 #include "gummemory.h"
 #include "gumprocess.h"
