@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -102,10 +102,18 @@ GUM_API gboolean gum_arm64_writer_put_blr_reg (GumArm64Writer * self,
 GUM_API gboolean gum_arm64_writer_put_blr_reg_no_auth (GumArm64Writer * self,
     arm64_reg reg);
 GUM_API void gum_arm64_writer_put_ret (GumArm64Writer * self);
+GUM_API gboolean gum_arm64_writer_put_cbz_reg_imm (GumArm64Writer * self,
+    arm64_reg reg, GumAddress target);
+GUM_API gboolean gum_arm64_writer_put_cbnz_reg_imm (GumArm64Writer * self,
+    arm64_reg reg, GumAddress target);
 GUM_API void gum_arm64_writer_put_cbz_reg_label (GumArm64Writer * self,
     arm64_reg reg, gconstpointer label_id);
 GUM_API void gum_arm64_writer_put_cbnz_reg_label (GumArm64Writer * self,
     arm64_reg reg, gconstpointer label_id);
+GUM_API gboolean gum_arm64_writer_put_tbz_reg_imm_imm (GumArm64Writer * self,
+    arm64_reg reg, guint bit, GumAddress target);
+GUM_API gboolean gum_arm64_writer_put_tbnz_reg_imm_imm (GumArm64Writer * self,
+    arm64_reg reg, guint bit, GumAddress target);
 GUM_API void gum_arm64_writer_put_tbz_reg_imm_label (GumArm64Writer * self,
     arm64_reg reg, guint bit, gconstpointer label_id);
 GUM_API void gum_arm64_writer_put_tbnz_reg_imm_label (GumArm64Writer * self,
@@ -122,8 +130,14 @@ GUM_API void gum_arm64_writer_put_pop_all_q_registers (GumArm64Writer * self);
 
 GUM_API gboolean gum_arm64_writer_put_ldr_reg_address (GumArm64Writer * self,
     arm64_reg reg, GumAddress address);
+GUM_API gboolean gum_arm64_writer_put_ldr_reg_u32 (GumArm64Writer * self,
+    arm64_reg reg, guint32 val);
 GUM_API gboolean gum_arm64_writer_put_ldr_reg_u64 (GumArm64Writer * self,
     arm64_reg reg, guint64 val);
+GUM_API gboolean gum_arm64_writer_put_ldr_reg_u32_ptr (GumArm64Writer * self,
+    arm64_reg reg, GumAddress src_address);
+GUM_API gboolean gum_arm64_writer_put_ldr_reg_u64_ptr (GumArm64Writer * self,
+    arm64_reg reg, GumAddress src_address);
 GUM_API guint gum_arm64_writer_put_ldr_reg_ref (GumArm64Writer * self,
     arm64_reg reg);
 GUM_API void gum_arm64_writer_put_ldr_reg_value (GumArm64Writer * self,
