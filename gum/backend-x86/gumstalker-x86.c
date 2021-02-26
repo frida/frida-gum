@@ -188,6 +188,7 @@ struct _GumExecCtx
   gpointer last_epilog_full;
   gpointer last_stack_push;
   gpointer last_stack_pop_and_go;
+  GumSpinlock mappings_lock;
   GumMetalHashTable * mappings;
 };
 
@@ -1310,6 +1311,7 @@ gum_stalker_create_exec_ctx (GumStalker * self,
       ctx->code_slab->size + self->page_size - sizeof (GumExecFrame));
   ctx->current_frame = ctx->first_frame;
 
+  gum_spinlock_init (&ctx->mappings_lock);
   ctx->mappings = gum_metal_hash_table_new (NULL, NULL);
 
   GUM_STALKER_LOCK (self);
@@ -1414,7 +1416,9 @@ gum_exec_ctx_free (GumExecCtx * ctx)
 {
   GumSlab * slab;
 
+  gum_spinlock_acquire (&ctx->mappings_lock);
   gum_metal_hash_table_unref (ctx->mappings);
+  gum_spinlock_release (&ctx->mappings_lock);
 
   slab = ctx->code_slab;
   while (slab != &ctx->first_code_slab)
@@ -1558,7 +1562,9 @@ gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
 
   if (ctx->invalidate_pending)
   {
+    gum_spinlock_acquire (&ctx->mappings_lock);
     gum_metal_hash_table_remove_all (ctx->mappings);
+    gum_spinlock_release (&ctx->mappings_lock);
 
     ctx->invalidate_pending = FALSE;
   }
@@ -1625,7 +1631,9 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
       }
       else
       {
+        gum_spinlock_acquire (&ctx->mappings_lock);
         gum_metal_hash_table_remove (ctx->mappings, real_address);
+        gum_spinlock_release (&ctx->mappings_lock);
       }
     }
   }
@@ -1635,7 +1643,11 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   *code_address = block->code_begin;
 
   if (ctx->stalker->trust_threshold >= 0)
+  {
+    gum_spinlock_acquire (&ctx->mappings_lock);
     gum_metal_hash_table_insert (ctx->mappings, real_address, block);
+    gum_spinlock_release (&ctx->mappings_lock);
+  }
 
   cw = &ctx->code_writer;
   rl = &ctx->relocator;
