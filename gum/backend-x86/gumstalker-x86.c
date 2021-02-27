@@ -59,6 +59,8 @@ typedef struct _GumBranchTarget GumBranchTarget;
 
 typedef guint GumVirtualizationRequirements;
 
+typedef struct _GumStalkerInvalidateContext GumStalkerInvalidateContext;
+
 #ifdef HAVE_WINDOWS
 # if GLIB_SIZEOF_VOID_P == 8
 typedef DWORD64 GumNativeRegisterValue;
@@ -239,8 +241,10 @@ struct _GumBackPatch
    * offsets from the start of the block, and then unionize them, or just
    * use the type to determine the semantics of the offset.
    */
-  gpointer code_start;
   gpointer * inline_cache;
+  gpointer code_start;
+  GumBranchTarget target;
+  GumPrologType opened_prolog;
 };
 
 enum _GumBackPatchType
@@ -335,6 +339,14 @@ enum _GumVirtualizationRequirements
 
   GUM_REQUIRE_RELOCATION      = 1 << 0,
   GUM_REQUIRE_SINGLE_STEP     = 1 << 1
+};
+
+struct _GumStalkerInvalidateContext
+{
+  gconstpointer address;
+  GumExecCtx * ctx;
+  GumExecBlock * block;
+  gboolean is_executing_target_block;
 };
 
 #define GUM_STALKER_LOCK(o) g_mutex_lock (&(o)->mutex)
@@ -440,8 +452,9 @@ static gboolean gum_exec_block_is_full (GumExecBlock * block);
 static void gum_exec_block_commit (GumExecBlock * block);
 
 static void gum_exec_block_backpatch_call (GumExecBlock * current,
-    GumExecBlock * predecessor, gpointer code_start, GumPrologType opened_prolog,
-    gpointer ret_real_address, gpointer ret_code_address);
+    GumExecBlock * predecessor, GumBranchTarget * target, gpointer code_start,
+    GumPrologType opened_prolog, gpointer ret_real_address,
+    gpointer ret_code_address);
 static void gum_exec_block_backpatch_jmp (GumExecBlock * current,
     GumExecBlock * predecessor, gpointer code_start, GumPrologType opened_prolog);
 static void gum_exec_block_backpatch_ret (GumExecBlock * current,
@@ -1184,6 +1197,93 @@ gum_stalker_prefetch (GumStalker * self,
   block->recycle_count = recycle_count;
 }
 
+static void
+_gum_stalker_invalidate_thread (GumThreadId thread_id,
+                                GumCpuContext * cpu_context,
+                                gpointer user_data)
+{
+  GumGeneratorContext gc;
+  GumBranchTarget continue_target = { 0, };
+  GumStalkerInvalidateContext * ic = (GumStalkerInvalidateContext *) user_data;
+  GumExecBlock * block = ic->block;
+  GumAddress ip = GUM_CPU_CONTEXT_XIP (cpu_context);
+  GumX86Writer * cw;
+  GumX86Relocator * rl;
+  GumBackPatch * bp = block->backpatches;
+
+  if ((block->code_begin <= ip) && (ip < block->code_end)) {
+    ic->is_executing_target_block = TRUE;
+    return;
+  }
+
+  // TODO: somehow restore the gc and cw
+
+  while (bp = bp->next)
+  {
+    if (bp->type != GUM_BACKPATCH_INLINE_CACHE)
+      gc.code_writer->code = bp->code_start;
+
+    switch (bp->type)
+    {
+    case GUM_BACKPATCH_CALL:
+      gc.opened_prolog = bp->opened_prolog;
+      gum_exec_block_write_call_invoke_code (bp->predecessor, &bp->target, &gc);
+      break;
+    case GUM_BACKPATCH_JMP:
+    case GUM_BACKPATCH_RET:
+      break;
+    case GUM_BACKPATCH_INLINE_CACHE:
+      bp->inline_cache[0] = NULL;
+      bp->inline_cache[1] = NULL;
+      bp->inline_cache[2] = NULL;
+      bp->inline_cache[3] = NULL;
+      break;
+    default:
+      g_assert_not_reached ();
+      break;
+  }
+
+  // TODO: Remove the current block from the mappings.
+}
+
+void
+gum_stalker_invalidate (GumStalker * self,
+                        gconstpointer address)
+{
+  GSList * contexts, * cur, * temp;
+
+  GUM_STALKER_LOCK (self);
+  contexts = g_slist_copy(self->contexts);
+  GUM_STALKER_UNLOCK (self);
+
+  cur = contexts;
+
+  while (cur)
+  {
+    GumStalkerInvalidateContext ic = {
+      .address = address,
+      .ctx = cur->data,
+      .is_executing_target_block = FALSE,
+    };
+
+    gum_spinlock_acquire (&ic.ctx->mappings_lock);
+    if (ic.block = gum_metal_hash_table_lookup (ic.ctx->mappings, address))
+    {
+      gum_metal_hash_table_remove (ic.ctx->mappings, address);
+      gum_process_modify_thread (ic.ctx->thread_id, _gum_stalker_invalidate_thread, &ic);
+    }
+    gum_spinlock_release (&ic.ctx->mappings_lock);
+
+    if (ic.is_executing_target_block) {
+      g_slist_append(cur, cur->data);
+    }
+
+    temp = cur;
+    cur = g_slist_next(cur);
+    g_slist_free_1 (temp);
+  }
+}
+
 GumProbeId
 gum_stalker_add_call_probe (GumStalker * self,
                             gpointer target_address,
@@ -1577,6 +1677,7 @@ GUM_DEFINE_ENTRYGATE (call_mem)
 GUM_DEFINE_ENTRYGATE (post_call_invoke)
 GUM_DEFINE_ENTRYGATE (excluded_call_imm)
 GUM_DEFINE_ENTRYGATE (ret_slow_path)
+GUM_DEFINE_ENTRYGATE (invalidation)
 
 GUM_DEFINE_ENTRYGATE (jmp_imm)
 GUM_DEFINE_ENTRYGATE (jmp_mem)
@@ -2832,6 +2933,26 @@ gum_backpatch_record_new (GumExecBlock * current,
 }
 
 static void
+gum_backpatch_record_call (GumExecBlock * current,
+                          GumExecBlock * predecessor,
+                          gpointer code_start,
+                          GumPrologType opened_prolog,
+                          GumBranchTarget * target)
+{
+  g_assert (predecessor->backpatch_storage_used < G_N_ELEMENTS(predecessor->backpatch_storage));
+  GumBackPatch * record = &predecessor->backpatch_storage[predecessor->backpatch_storage_used++];
+
+  record->type = GUM_BACKPATCH_CALL;
+  record->predecessor = predecessor;
+  record->code_start = code_start;
+  record->opened_prolog = opened_prolog;
+  memcpy(&record->target, target, sizeof(GumBranchTarget));
+
+  record->next = current->backpatches;
+  current->backpatches = record;
+}
+
+static void
 gum_backpatch_record_inline_cache (GumExecBlock * current,
                                    GumExecBlock *  predecessor,
                                    gpointer * inline_cache)
@@ -2850,6 +2971,7 @@ gum_backpatch_record_inline_cache (GumExecBlock * current,
 static void
 gum_exec_block_backpatch_call (GumExecBlock * current,
                                GumExecBlock * predecessor,
+                               GumBranchTarget * target,
                                gpointer code_start,
                                GumPrologType opened_prolog,
                                gpointer ret_real_address,
@@ -2905,7 +3027,7 @@ gum_exec_block_backpatch_call (GumExecBlock * current,
     gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (current->code_begin));
 
     gum_x86_writer_flush (cw);
-    gum_backpatch_record_new(current, GUM_BACKPATCH_CALL, predecessor, code_start);
+    gum_backpatch_record_call(current, predecessor, code_start, opened_prolog, target);
   }
 }
 
@@ -3526,9 +3648,10 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   if (can_backpatch_statically)
   {
     gum_x86_writer_put_call_address_with_aligned_arguments (cw, GUM_CALL_CAPI,
-        GUM_ADDRESS (gum_exec_block_backpatch_call), 6,
+        GUM_ADDRESS (gum_exec_block_backpatch_call), 7,
         GUM_ARG_REGISTER, GUM_REG_XAX,
         GUM_ARG_ADDRESS, GUM_ADDRESS (block),
+        GUM_ARG_ADDRESS, GUM_ADDRESS (target),
         GUM_ARG_ADDRESS, GUM_ADDRESS (call_code_start),
         GUM_ARG_ADDRESS, GUM_ADDRESS (opened_prolog),
         GUM_ARG_ADDRESS, GUM_ADDRESS (ret_real_address),
@@ -4359,6 +4482,7 @@ gum_stalker_dump_counters (void)
   GUM_PRINT_ENTRYGATE_COUNTER (post_call_invoke);
   GUM_PRINT_ENTRYGATE_COUNTER (excluded_call_imm);
   GUM_PRINT_ENTRYGATE_COUNTER (ret_slow_path);
+  GUM_PRINT_ENTRYGATE_COUNTER (invalidation);
 
   g_printerr ("\n");
 

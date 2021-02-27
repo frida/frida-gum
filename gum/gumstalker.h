@@ -223,6 +223,8 @@ GUM_API void gum_stalker_deactivate (GumStalker * self);
 GUM_API void gum_stalker_prefetch (GumStalker * self, gconstpointer address,
     gint recycle_count);
 
+GUM_API void gum_stalker_invalidate (GumStalker * self, gconstpointer address);
+
 GUM_API GumProbeId gum_stalker_add_call_probe (GumStalker * self,
     gpointer target_address, GumCallProbeCallback callback, gpointer data,
     GDestroyNotify notify);
