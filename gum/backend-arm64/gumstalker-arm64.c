@@ -281,7 +281,7 @@ static GumExecCtx * gum_stalker_create_exec_ctx (GumStalker * self,
     GumEventSink * sink);
 static void gum_stalker_destroy_exec_ctx (GumStalker * self, GumExecCtx * ctx);
 static GumExecCtx * gum_stalker_get_exec_ctx (GumStalker * self);
-static void gum_stalker_invalidate_caches (GumStalker * self);
+void gum_stalker_flush_caches (GumStalker * self);
 
 static void gum_stalker_thaw (GumStalker * self, gpointer code, gsize size);
 static void gum_stalker_freeze (GumStalker * self, gpointer code, gsize size);
@@ -919,7 +919,7 @@ gum_stalker_add_call_probe (GumStalker * self,
 
   gum_spinlock_release (&self->probe_lock);
 
-  gum_stalker_invalidate_caches (self);
+  gum_stalker_flush_caches (self);
 
   return probe.id;
 }
@@ -971,7 +971,7 @@ gum_stalker_remove_call_probe (GumStalker * self,
 
   gum_spinlock_release (&self->probe_lock);
 
-  gum_stalker_invalidate_caches (self);
+  gum_stalker_flush_caches (self);
 }
 
 static void
@@ -1079,7 +1079,7 @@ gum_stalker_get_exec_ctx (GumStalker * self)
 }
 
 static void
-gum_stalker_invalidate_caches (GumStalker * self)
+gum_stalker_flush_caches (GumStalker * self)
 {
   GSList * cur;
 

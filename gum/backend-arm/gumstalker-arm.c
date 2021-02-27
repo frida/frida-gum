@@ -4466,3 +4466,9 @@ gum_is_exclusive_store_insn (const cs_insn * insn)
       return FALSE;
   }
 }
+
+void
+gum_stalker_flush_caches (GumStalker * self)
+{
+    g_warning ("Invalidation unsupported");
+}

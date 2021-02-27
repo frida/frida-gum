@@ -154,3 +154,9 @@ gum_stalker_iterator_put_callout (GumStalkerIterator * self,
                                   GDestroyNotify data_destroy)
 {
 }
+
+void
+gum_stalker_flush_caches (GumStalker * self)
+{
+    g_warning ("Invalidation unsupported");
+}
