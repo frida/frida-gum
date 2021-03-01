@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -66,8 +66,8 @@ beach:
 }
 
 void
-gum_skip_uleb128 (const guint8 ** data,
-                  const guint8 * end)
+gum_skip_leb128 (const guint8 ** data,
+                 const guint8 * end)
 {
   const guint8 * p = *data;
 

@@ -2891,7 +2891,7 @@ gum_exports_trie_find (const guint8 * exports,
       }
       else
       {
-        gum_skip_uleb128 (&p, exports_end);
+        gum_skip_leb128 (&p, exports_end);
       }
     }
 
