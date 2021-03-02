@@ -3079,6 +3079,12 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
           is_false, GUM_NO_HINT);
     }
 
+    if (insn->ci->id == X86_INS_JMP)
+    {
+      if (ctx->stalker->any_probes_attached)
+        gum_exec_block_write_call_probe_code (block, &target, gc);
+    }
+
     if (target.is_indirect)
     {
       regular_entry_func = GUM_ENTRYGATE (jmp_mem);
