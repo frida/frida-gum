@@ -43,6 +43,8 @@ typedef struct _GumExecFrame GumExecFrame;
 typedef struct _GumExecCtx GumExecCtx;
 typedef void (* GumExecHelperWriteFunc) (GumExecCtx * ctx, GumX86Writer * cw);
 typedef struct _GumExecBlock GumExecBlock;
+typedef struct _GumBackPatch GumBackPatch;
+typedef guint GumBackPatchType;
 typedef gpointer (GUM_THUNK * GumExecCtxReplaceCurrentBlockFunc) (
     GumExecCtx * ctx, gpointer start_address);
 
@@ -207,12 +209,46 @@ struct _GumExecBlock
   GumExecBlockFlags flags;
   gint recycle_count;
 
+  /*
+   * Each ExecBlock is terminated by at at most two control flow transfers,
+   *  - JMP - only need 1
+   *  - conditional JMP – need 2
+   *  - CALL - need up to 2, one for the CALL and one for the landing strip
+   * It therefore provides static storage for up to two backpatch records,
+   * which are pointed to by its successors.
+   */
+  guint backpatch_storage_used;
+  GumBackPatch backpatch_storage[2];
+  GumBackPatch * backpatches;
+
 #ifdef HAVE_WINDOWS
   GumNativeRegisterValue previous_dr0;
   GumNativeRegisterValue previous_dr1;
   GumNativeRegisterValue previous_dr2;
   GumNativeRegisterValue previous_dr7;
 #endif
+};
+
+struct _GumBackPatch
+{
+  GumBackPatch * next;
+  GumExecBlock * predecessor;
+  GumBackPatchType type;
+  /*
+   * TODO: we can probably optimize the following two to be offsets to be
+   * offsets from the start of the block, and then unionize them, or just
+   * use the type to determine the semantics of the offset.
+   */
+  gpointer code_start;
+  gpointer * inline_cache;
+};
+
+enum _GumBackPatchType
+{
+  GUM_BACKPATCH_CALL,
+  GUM_BACKPATCH_JMP,
+  GUM_BACKPATCH_INLINE_CACHE,
+  GUM_BACKPATCH_RET,
 };
 
 enum _GumExecBlockState
@@ -2712,6 +2748,9 @@ gum_exec_block_new (GumExecCtx * ctx)
     block->state = GUM_EXEC_NORMAL;
     block->flags = 0;
     block->recycle_count = 0;
+    block->backpatch_storage_used = 0;
+    memset(block->backpatch_storage, 0, sizeof(GumBackPatch)*3);
+    block->backpatches = NULL;
 
     slab->offset += block->code_begin - (slab->data + slab->offset);
 
@@ -2776,6 +2815,39 @@ gum_exec_block_commit (GumExecBlock * block)
 }
 
 static void
+gum_backpatch_record_new (GumExecBlock * current,
+                          GumBackPatchType type,
+                          GumExecBlock * predecessor,
+                          gpointer code_start)
+{
+  g_assert (predecessor->backpatch_storage_used < G_N_ELEMENTS(predecessor->backpatch_storage));
+  GumBackPatch * record = &predecessor->backpatch_storage[predecessor->backpatch_storage_used++];
+
+  record->type = type;
+  record->predecessor = predecessor;
+  record->code_start = code_start;
+
+  record->next = current->backpatches;
+  current->backpatches = record;
+}
+
+static void
+gum_backpatch_record_inline_cache (GumExecBlock * current,
+                                   GumExecBlock *  predecessor,
+                                   gpointer * inline_cache)
+{
+  g_assert (predecessor->backpatch_storage_used < G_N_ELEMENTS(predecessor->backpatch_storage));
+  GumBackPatch * record  = &predecessor->backpatch_storage[predecessor->backpatch_storage_used++];
+
+  record->type = GUM_BACKPATCH_INLINE_CACHE;
+  record->predecessor = predecessor;
+  record->inline_cache = inline_cache;
+
+  record->next = current->backpatches;
+  current->backpatches = record;
+}
+
+static void
 gum_exec_block_backpatch_call (GumExecBlock * current,
                                GumExecBlock * predecessor,
                                gpointer code_start,
@@ -2833,6 +2905,7 @@ gum_exec_block_backpatch_call (GumExecBlock * current,
     gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (current->code_begin));
 
     gum_x86_writer_flush (cw);
+    gum_backpatch_record_new(current, GUM_BACKPATCH_CALL, predecessor, code_start);
   }
 }
 
@@ -2864,6 +2937,7 @@ gum_exec_block_backpatch_jmp (GumExecBlock * current,
 
     gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (current->code_begin));
     gum_x86_writer_flush (cw);
+    gum_backpatch_record_new(current, GUM_BACKPATCH_JMP, predecessor, code_start);
   }
 }
 
@@ -2888,6 +2962,7 @@ gum_exec_block_backpatch_ret (GumExecBlock * current,
     gum_x86_writer_reset (cw, code_start);
     gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (current->code_begin));
     gum_x86_writer_flush (cw);
+    gum_backpatch_record_new(current, GUM_BACKPATCH_RET, predecessor, code_start);
   }
 }
 
@@ -2916,6 +2991,8 @@ gum_exec_block_backpatch_inline_cache (GumExecBlock * current,
       ic_entries[offset + 0] = current->real_begin;
       ic_entries[offset + 1] = current->code_begin;
     }
+
+    gum_backpatch_record_inline_cache(current, predecessor, ic_entries);
   }
 }
 
