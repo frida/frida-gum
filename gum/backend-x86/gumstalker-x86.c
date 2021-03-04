@@ -403,13 +403,13 @@ static GumExecBlock * gum_exec_block_obtain (GumExecCtx * ctx,
 static gboolean gum_exec_block_is_full (GumExecBlock * block);
 static void gum_exec_block_commit (GumExecBlock * block);
 
-static void gum_exec_block_backpatch_call (GumExecBlock * block,
-    gpointer code_start, GumPrologType opened_prolog, gpointer ret_real_address,
-    gpointer ret_code_address);
-static void gum_exec_block_backpatch_jmp (GumExecBlock * block,
-    gpointer code_start, GumPrologType opened_prolog);
-static void gum_exec_block_backpatch_ret (GumExecBlock * block,
-    gpointer code_start);
+static void gum_exec_block_backpatch_call (GumExecBlock * current,
+    GumExecBlock * predecessor, gpointer code_start, GumPrologType opened_prolog,
+    gpointer ret_real_address, gpointer ret_code_address);
+static void gum_exec_block_backpatch_jmp (GumExecBlock * current,
+    GumExecBlock * predecessor, gpointer code_start, GumPrologType opened_prolog);
+static void gum_exec_block_backpatch_ret (GumExecBlock * current,
+    GumExecBlock * predecessor, gpointer code_start);
 
 static GumVirtualizationRequirements gum_exec_block_virtualize_branch_insn (
     GumExecBlock * block, GumGeneratorContext * gc);
@@ -2776,7 +2776,8 @@ gum_exec_block_commit (GumExecBlock * block)
 }
 
 static void
-gum_exec_block_backpatch_call (GumExecBlock * block,
+gum_exec_block_backpatch_call (GumExecBlock * current,
+                               GumExecBlock * predecessor,
                                gpointer code_start,
                                GumPrologType opened_prolog,
                                gpointer ret_real_address,
@@ -2785,13 +2786,13 @@ gum_exec_block_backpatch_call (GumExecBlock * block,
   gboolean just_unfollowed;
   GumExecCtx * ctx;
 
-  just_unfollowed = block == NULL;
+  just_unfollowed = current == NULL;
   if (just_unfollowed)
     return;
 
-  ctx = block->ctx;
+  ctx = current->ctx;
 
-  if (gum_exec_ctx_may_now_backpatch (ctx, block))
+  if (gum_exec_ctx_may_now_backpatch (ctx, current))
   {
     GumX86Writer * cw = &ctx->code_writer;
 
@@ -2810,7 +2811,7 @@ gum_exec_block_backpatch_call (GumExecBlock * block,
     gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XDX,
         GUM_ADDRESS (ret_code_address));
     gum_x86_writer_put_call_address (cw,
-        GUM_ADDRESS (block->ctx->last_stack_push));
+        GUM_ADDRESS (current->ctx->last_stack_push));
 
     if (opened_prolog == GUM_PROLOG_NONE)
     {
@@ -2821,7 +2822,7 @@ gum_exec_block_backpatch_call (GumExecBlock * block,
     }
     else
     {
-      gum_exec_ctx_write_epilog (block->ctx, opened_prolog, cw);
+      gum_exec_ctx_write_epilog (current->ctx, opened_prolog, cw);
     }
 
     gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
@@ -2829,27 +2830,28 @@ gum_exec_block_backpatch_call (GumExecBlock * block,
         GUM_ADDRESS (ret_real_address));
     gum_x86_writer_put_xchg_reg_reg_ptr (cw, GUM_REG_XAX, GUM_REG_XSP);
 
-    gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (block->code_begin));
+    gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (current->code_begin));
 
     gum_x86_writer_flush (cw);
   }
 }
 
 static void
-gum_exec_block_backpatch_jmp (GumExecBlock * block,
+gum_exec_block_backpatch_jmp (GumExecBlock * current,
+                              GumExecBlock * predecessor,
                               gpointer code_start,
                               GumPrologType opened_prolog)
 {
   gboolean just_unfollowed;
   GumExecCtx * ctx;
 
-  just_unfollowed = block == NULL;
+  just_unfollowed = current == NULL;
   if (just_unfollowed)
     return;
 
-  ctx = block->ctx;
+  ctx = current->ctx;
 
-  if (gum_exec_ctx_may_now_backpatch (ctx, block))
+  if (gum_exec_ctx_may_now_backpatch (ctx, current))
   {
     GumX86Writer * cw = &ctx->code_writer;
 
@@ -2857,51 +2859,53 @@ gum_exec_block_backpatch_jmp (GumExecBlock * block,
 
     if (opened_prolog != GUM_PROLOG_NONE)
     {
-      gum_exec_ctx_write_epilog (block->ctx, opened_prolog, cw);
+      gum_exec_ctx_write_epilog (current->ctx, opened_prolog, cw);
     }
 
-    gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (block->code_begin));
+    gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (current->code_begin));
     gum_x86_writer_flush (cw);
   }
 }
 
 static void
-gum_exec_block_backpatch_ret (GumExecBlock * block,
+gum_exec_block_backpatch_ret (GumExecBlock * current,
+                              GumExecBlock * predecessor,
                               gpointer code_start)
 {
   gboolean just_unfollowed;
   GumExecCtx * ctx;
 
-  just_unfollowed = block == NULL;
+  just_unfollowed = current == NULL;
   if (just_unfollowed)
     return;
 
-  ctx = block->ctx;
+  ctx = current->ctx;
 
-  if (gum_exec_ctx_may_now_backpatch (ctx, block))
+  if (gum_exec_ctx_may_now_backpatch (ctx, current))
   {
     GumX86Writer * cw = &ctx->code_writer;
 
     gum_x86_writer_reset (cw, code_start);
-    gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (block->code_begin));
+    gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (current->code_begin));
     gum_x86_writer_flush (cw);
   }
 }
 
 static void
-gum_exec_block_backpatch_inline_cache (GumExecBlock * block,
+gum_exec_block_backpatch_inline_cache (GumExecBlock * current,
+                                       GumExecBlock * predecessor,
                                        gpointer * ic_entries)
 {
   gboolean just_unfollowed;
   GumExecCtx * ctx;
 
-  just_unfollowed = block == NULL;
+  just_unfollowed = current == NULL;
   if (just_unfollowed)
     return;
 
-  ctx = block->ctx;
+  ctx = current->ctx;
 
-  if (gum_exec_ctx_may_now_backpatch (ctx, block))
+  if (gum_exec_ctx_may_now_backpatch (ctx, current))
   {
     guint offset;
 
@@ -2909,8 +2913,8 @@ gum_exec_block_backpatch_inline_cache (GumExecBlock * block,
 
     if (ic_entries[offset + 0] == NULL)
     {
-      ic_entries[offset + 0] = block->real_begin;
-      ic_entries[offset + 1] = block->code_begin;
+      ic_entries[offset + 0] = current->real_begin;
+      ic_entries[offset + 1] = current->code_begin;
     }
   }
 }
@@ -3405,8 +3409,9 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
     gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_XAX,
         GUM_ADDRESS (&block->ctx->current_block));
     gum_x86_writer_put_call_address_with_aligned_arguments (cw, GUM_CALL_CAPI,
-        GUM_ADDRESS (gum_exec_block_backpatch_ret), 2,
+        GUM_ADDRESS (gum_exec_block_backpatch_ret), 3,
         GUM_ARG_REGISTER, GUM_REG_XAX,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (block),
         GUM_ARG_ADDRESS, GUM_ADDRESS (ret_code_address));
   }
 
@@ -3444,8 +3449,9 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   if (can_backpatch_statically)
   {
     gum_x86_writer_put_call_address_with_aligned_arguments (cw, GUM_CALL_CAPI,
-        GUM_ADDRESS (gum_exec_block_backpatch_call), 5,
+        GUM_ADDRESS (gum_exec_block_backpatch_call), 6,
         GUM_ARG_REGISTER, GUM_REG_XAX,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (block),
         GUM_ARG_ADDRESS, GUM_ADDRESS (call_code_start),
         GUM_ARG_ADDRESS, GUM_ADDRESS (opened_prolog),
         GUM_ARG_ADDRESS, GUM_ADDRESS (ret_real_address),
@@ -3455,8 +3461,9 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   if (ic_entries != NULL)
   {
     gum_x86_writer_put_call_address_with_aligned_arguments (cw, GUM_CALL_CAPI,
-        GUM_ADDRESS (gum_exec_block_backpatch_inline_cache), 2,
+        GUM_ADDRESS (gum_exec_block_backpatch_inline_cache), 3,
         GUM_ARG_REGISTER, GUM_REG_XAX,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (block),
         GUM_ARG_ADDRESS, GUM_ADDRESS (ic_entries));
   }
 
@@ -3560,8 +3567,9 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
   if (can_backpatch_statically)
   {
     gum_x86_writer_put_call_address_with_aligned_arguments (cw, GUM_CALL_CAPI,
-        GUM_ADDRESS (gum_exec_block_backpatch_jmp), 3,
+        GUM_ADDRESS (gum_exec_block_backpatch_jmp), 4,
         GUM_ARG_REGISTER, GUM_REG_XAX,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (block),
         GUM_ARG_ADDRESS, GUM_ADDRESS (code_start),
         GUM_ARG_ADDRESS, GUM_ADDRESS (opened_prolog));
   }
@@ -3569,8 +3577,9 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
   if (ic_entries != NULL)
   {
     gum_x86_writer_put_call_address_with_aligned_arguments (cw, GUM_CALL_CAPI,
-        GUM_ADDRESS (gum_exec_block_backpatch_inline_cache), 2,
+        GUM_ADDRESS (gum_exec_block_backpatch_inline_cache), 3,
         GUM_ARG_REGISTER, GUM_REG_XAX,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (block),
         GUM_ARG_ADDRESS, GUM_ADDRESS (ic_entries));
   }
 
