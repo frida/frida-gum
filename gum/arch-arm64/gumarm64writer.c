@@ -787,7 +787,7 @@ gum_arm64_writer_put_tbx_op_reg_imm_imm (GumArm64Writer * self,
 
   gum_arm64_writer_describe_reg (self, reg, &ri);
 
-  if (bit > 31)
+  if (bit >= ri.width)
     return FALSE;
 
   if (target != 0)
@@ -803,11 +803,10 @@ gum_arm64_writer_put_tbx_op_reg_imm_imm (GumArm64Writer * self,
   }
 
   gum_arm64_writer_put_instruction (self,
-      (bit >> 4) << 31 |
       ri.sf |
       0x36000000 |
       (guint32) op << 24 |
-      ((bit & GUM_INT4_MASK) << 19) |
+      ((bit & GUM_INT5_MASK) << 19) |
       (imm14 & GUM_INT14_MASK) << 5 |
       ri.index);
 
