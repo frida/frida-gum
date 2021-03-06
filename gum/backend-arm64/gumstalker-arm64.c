@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  * Copyright (C) 2019 John Coates <john@johncoates.dev>
  *
@@ -11,6 +11,7 @@
 #include "gumarm64reader.h"
 #include "gumarm64relocator.h"
 #include "gumarm64writer.h"
+#include "gumexceptor.h"
 #include "gummemory.h"
 #include "gummetalhash.h"
 #include "gumspinlock.h"
@@ -68,6 +69,7 @@ struct _GumStalker
   GMutex mutex;
   GSList * contexts;
   GumTlsKey exec_ctx;
+  GumExceptor * exceptor;
 
   GArray * exclusions;
   gint trust_threshold;
@@ -139,6 +141,7 @@ struct _GumExecCtx
   GumExecBlock * current_block;
   gpointer pending_return_location;
   guint pending_calls;
+  guint pending_stack_misalignment;
   GumExecFrame * current_frame;
   GumExecFrame * first_frame;
   GumExecFrame * frames;
@@ -260,6 +263,7 @@ enum _GumVirtualizationRequirements
   GUM_REQUIRE_EXCLUSIVE_STORE  = 1 << 1,
 };
 
+static void gum_stalker_dispose (GObject * object);
 static void gum_stalker_finalize (GObject * object);
 
 G_GNUC_INTERNAL gpointer _gum_stalker_do_follow_me (GumStalker * self,
@@ -396,6 +400,9 @@ static void gum_exec_block_open_prolog (GumExecBlock * block,
 static void gum_exec_block_close_prolog (GumExecBlock * block,
     GumGeneratorContext * gc);
 
+static gboolean gum_stalker_on_exception (GumExceptionDetails * details,
+    gpointer user_data);
+
 static gpointer gum_find_thread_exit_implementation (void);
 
 G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
@@ -415,6 +422,7 @@ gum_stalker_class_init (GumStalkerClass * klass)
 {
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
 
+  object_class->dispose = gum_stalker_dispose;
   object_class->finalize = gum_stalker_finalize;
 
   gum_unfollow_me_address = gum_strip_code_pointer (gum_stalker_unfollow_me);
@@ -447,6 +455,24 @@ gum_stalker_init (GumStalker * self)
   g_mutex_init (&self->mutex);
   self->contexts = NULL;
   self->exec_ctx = gum_tls_key_new ();
+
+  self->exceptor = gum_exceptor_obtain ();
+  gum_exceptor_add (self->exceptor, gum_stalker_on_exception, self);
+}
+
+static void
+gum_stalker_dispose (GObject * object)
+{
+  GumStalker * self = GUM_STALKER (object);
+
+  if (self->exceptor != NULL)
+  {
+    gum_exceptor_remove (self->exceptor, gum_stalker_on_exception, self);
+    g_object_unref (self->exceptor);
+    self->exceptor = NULL;
+  }
+
+  G_OBJECT_CLASS (gum_stalker_parent_class)->dispose (object);
 }
 
 static void
@@ -1948,8 +1974,15 @@ gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
 
     /* GumCpuContext.pc + sp */
     gum_arm64_writer_put_mov_reg_reg (cw, ARM64_REG_X0, ARM64_REG_XZR);
+
     gum_arm64_writer_put_add_reg_reg_imm (cw, ARM64_REG_X1, ARM64_REG_SP,
         (16 * 16) + (4 * 32) + 16 + GUM_RED_ZONE_SIZE);
+    gum_arm64_writer_put_ldr_reg_address (cw, ARM64_REG_X2,
+        GUM_ADDRESS (&ctx->pending_stack_misalignment));
+    gum_arm64_writer_put_ldr_reg_reg_offset (cw, ARM64_REG_W2, ARM64_REG_X2, 0);
+    gum_arm64_writer_put_add_reg_reg_reg (cw, ARM64_REG_X1, ARM64_REG_X1,
+        ARM64_REG_X2);
+
     gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X0, ARM64_REG_X1);
 
     immediate_for_sp += sizeof (GumCpuContext) + 8;
@@ -1973,6 +2006,7 @@ gum_exec_ctx_write_epilog_helper (GumExecCtx * ctx,
                                   GumArm64Writer * cw)
 {
   const guint32 msr_nzcv_x15 = 0xd51b420f;
+  gconstpointer request_stack_misalignment = cw->code + 1;
 
   /* padding + status */
   gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X14, ARM64_REG_X15);
@@ -2043,7 +2077,16 @@ gum_exec_ctx_write_epilog_helper (GumExecCtx * ctx,
     gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_Q6, ARM64_REG_Q7);
   }
 
+  gum_arm64_writer_put_ldr_reg_address (cw, ARM64_REG_X20,
+      GUM_ADDRESS (&ctx->pending_stack_misalignment));
+  gum_arm64_writer_put_ldr_reg_reg_offset (cw, ARM64_REG_W20, ARM64_REG_X20, 0);
+  gum_arm64_writer_put_cbnz_reg_label (cw, ARM64_REG_W20,
+      request_stack_misalignment);
+
   gum_arm64_writer_put_br_reg_no_auth (cw, ARM64_REG_X19);
+
+  gum_arm64_writer_put_label (cw, request_stack_misalignment);
+  gum_arm64_writer_put_brk_imm (cw, 42);
 }
 
 static void
@@ -3575,6 +3618,81 @@ gum_exec_block_close_prolog (GumExecBlock * block,
 
   gum_exec_ctx_write_epilog (block->ctx, gc->opened_prolog, gc->code_writer);
   gc->opened_prolog = GUM_PROLOG_NONE;
+}
+
+static gboolean
+gum_stalker_on_exception (GumExceptionDetails * details,
+                          gpointer user_data)
+{
+  GumCpuContext * cpu_context = &details->context;
+  GumStalker * self = user_data;
+  GumExecCtx * ctx;
+  GSList * cur;
+  guint32 * insn;
+
+  GUM_STALKER_LOCK (self);
+
+  ctx = NULL;
+  for (cur = self->contexts; cur != NULL; cur = cur->next)
+  {
+    GumExecCtx * candidate = cur->data;
+
+    if (candidate->thread_id == details->thread_id)
+    {
+      ctx = candidate;
+      break;
+    }
+  }
+
+  GUM_STALKER_UNLOCK (self);
+
+  if (ctx == NULL)
+    return FALSE;
+
+  insn = GSIZE_TO_POINTER (cpu_context->pc);
+
+  if (!gum_exec_ctx_contains (ctx, insn))
+    return FALSE;
+
+  switch (*insn)
+  {
+    case 0xa9b77bf3: /* stp x19, lr, [sp, #-(16 + GUM_RED_ZONE_SIZE)]! */
+    {
+      guint sp_misalignment_offset = cpu_context->sp % 16;
+      if (sp_misalignment_offset == 0)
+        return FALSE;
+
+      cpu_context->sp -= sp_misalignment_offset;
+      ctx->pending_stack_misalignment = sp_misalignment_offset;
+
+      return TRUE;
+    }
+    case 0xd4200540: /* brk #42 */
+    {
+      guint64 * saved_regs;
+
+      if (ctx->pending_stack_misalignment == 0)
+        return FALSE;
+
+      /* Jump back from epilog helper, skipping the ldp instruction */
+      cpu_context->pc = cpu_context->x[19] + sizeof (guint32);
+
+      /* Emulate: ldp x19, x20, [sp], #(16 + GUM_RED_ZONE_SIZE) */
+      saved_regs = GSIZE_TO_POINTER (cpu_context->sp);
+      cpu_context->x[19] = saved_regs[0];
+      cpu_context->x[20] = saved_regs[1];
+      cpu_context->sp += 16 + GUM_RED_ZONE_SIZE;
+
+      cpu_context->sp += ctx->pending_stack_misalignment;
+      ctx->pending_stack_misalignment = 0;
+
+      return TRUE;
+    }
+    default:
+      break;
+  }
+
+  return FALSE;
 }
 
 void

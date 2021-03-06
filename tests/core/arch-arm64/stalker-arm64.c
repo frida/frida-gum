@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -54,6 +54,7 @@ TESTLIST_BEGIN (stalker)
   /* FOLLOWS */
   TESTENTRY (follow_std_call)
   TESTENTRY (follow_return)
+  TESTENTRY (follow_misaligned_stack)
   TESTENTRY (follow_syscall)
   TESTENTRY (follow_thread)
   TESTENTRY (unfollow_should_handle_terminated_thread)
@@ -1143,6 +1144,29 @@ TESTCASE (follow_return)
   g_assert_cmpint (r, ==, 4);
 
   gum_free_pages (code);
+}
+
+TESTCASE (follow_misaligned_stack)
+{
+  const guint32 code_template[] =
+  {
+    0xd10023ff, /* sub sp, sp, #8 */
+    0x910023ff, /* add sp, sp, #8 */
+    0xd2800540, /* mov x0, #42    */
+    0xd65f03c0, /* ret            */
+  };
+  StalkerTestFunc func;
+
+  fixture->sink->mask = GUM_EXEC;
+
+  func = (StalkerTestFunc) test_arm64_stalker_fixture_dup_code (fixture,
+      code_template, sizeof (code_template));
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, 0);
+
+  test_arm64_stalker_fixture_follow_and_invoke (fixture, func, 42);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, 10);
 }
 
 TESTCASE (follow_syscall)
