@@ -1151,6 +1151,9 @@ TESTCASE (follow_misaligned_stack)
   const guint32 code_template[] =
   {
     0xd10023ff, /* sub sp, sp, #8 */
+    0x14000002, /* b part_two     */
+    0xd4200540, /* brk #42        */
+    /* part_two:                  */
     0x910023ff, /* add sp, sp, #8 */
     0xd2800540, /* mov x0, #42    */
     0xd65f03c0, /* ret            */
@@ -1166,7 +1169,7 @@ TESTCASE (follow_misaligned_stack)
 
   test_arm64_stalker_fixture_follow_and_invoke (fixture, func, 42);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 10);
+  g_assert_cmpuint (fixture->sink->events->len, ==, 11);
 }
 
 TESTCASE (follow_syscall)

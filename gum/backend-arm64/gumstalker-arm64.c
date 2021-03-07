@@ -3656,6 +3656,7 @@ gum_stalker_on_exception (GumExceptionDetails * details,
 
   switch (*insn)
   {
+    /* Prolog */
     case 0xa9b77bf3: /* stp x19, lr, [sp, #-(16 + GUM_RED_ZONE_SIZE)]! */
     {
       guint sp_misalignment_offset = cpu_context->sp % 16;
@@ -3667,6 +3668,7 @@ gum_stalker_on_exception (GumExceptionDetails * details,
 
       return TRUE;
     }
+    /* Epilog */
     case 0xd4200540: /* brk #42 */
     {
       guint64 * saved_regs;
@@ -3685,6 +3687,19 @@ gum_stalker_on_exception (GumExceptionDetails * details,
 
       cpu_context->sp += ctx->pending_stack_misalignment;
       ctx->pending_stack_misalignment = 0;
+
+      return TRUE;
+    }
+    /* Continuation – code emitted by write_exec_generated_code() */
+    case 0xa9b747f0: /* stp x16, x17, [sp, #-(16 + GUM_RED_ZONE_SIZE)]! */
+    {
+      gboolean target_is_stalker_generated_block;
+
+      cpu_context->pc = GPOINTER_TO_SIZE (ctx->resume_at);
+
+      target_is_stalker_generated_block = ctx->current_block != NULL;
+      if (target_is_stalker_generated_block)
+        cpu_context->pc += sizeof (guint32);
 
       return TRUE;
     }
