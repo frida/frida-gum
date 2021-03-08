@@ -1150,13 +1150,27 @@ TESTCASE (follow_misaligned_stack)
 {
   const guint32 code_template[] =
   {
-    0xd10023ff, /* sub sp, sp, #8 */
-    0x14000002, /* b part_two     */
-    0xd4200540, /* brk #42        */
-    /* part_two:                  */
-    0x910023ff, /* add sp, sp, #8 */
-    0xd2800540, /* mov x0, #42    */
-    0xd65f03c0, /* ret            */
+    0xa9bf7bf4, /* stp x20, lr, [sp, #-0x10]! */
+    0xd10023ff, /* sub sp, sp, #8             */
+    0x14000002, /* b part_two                 */
+    0xd4200540, /* brk #42                    */
+    /* part_two:                              */
+    0x94000009, /* bl get_base_value          */
+    0x10000070, /* adr x16, part_three        */
+    0xd61f0200, /* br x16                     */
+    0xd4200560, /* brk #43                    */
+    /* part_three:                            */
+    0x100000f0, /* adr x16, add_other_value   */
+    0xd63f0200, /* blr x16                    */
+    0x910023ff, /* add sp, sp, #8             */
+    0xa8c17bf4, /* ldp x20, lr, [sp], #0x10   */
+    0xd65f03c0, /* ret                        */
+    /* get_base_value:                        */
+    0xd2800500, /* mov x0, #40                */
+    0xd65f03c0, /* ret                        */
+    /* add_other_value:                       */
+    0x91000800, /* add x0, x0, #2             */
+    0xd65f03c0, /* ret                        */
   };
   StalkerTestFunc func;
 
@@ -1169,7 +1183,7 @@ TESTCASE (follow_misaligned_stack)
 
   test_arm64_stalker_fixture_follow_and_invoke (fixture, func, 42);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 11);
+  g_assert_cmpuint (fixture->sink->events->len, ==, 21);
 }
 
 TESTCASE (follow_syscall)

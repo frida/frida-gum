@@ -22,6 +22,7 @@
 #include <unistd.h>
 #include <sys/syscall.h>
 
+#define GUM_STACK_ALIGNMENT     16
 #define GUM_CODE_SLAB_MAX_SIZE  (4 * 1024 * 1024)
 #define GUM_EXEC_BLOCK_MIN_SIZE 1024
 
@@ -290,6 +291,9 @@ static void gum_stalker_invalidate_caches (GumStalker * self);
 static void gum_stalker_thaw (GumStalker * self, gpointer code, gsize size);
 static void gum_stalker_freeze (GumStalker * self, gpointer code, gsize size);
 
+static gboolean gum_stalker_on_exception (GumExceptionDetails * details,
+    gpointer user_data);
+
 static void gum_exec_ctx_dispose_callouts (GumExecCtx * ctx);
 static void gum_exec_ctx_free (GumExecCtx * ctx);
 static GumSlab * gum_exec_ctx_add_slab (GumExecCtx * ctx);
@@ -348,6 +352,30 @@ static void gum_exec_ctx_load_real_register_from_full_frame_into (
     GumExecCtx * ctx, arm64_reg target_register, arm64_reg source_register,
     GumGeneratorContext * gc);
 
+static gboolean gum_exec_ctx_try_handle_exception (GumExecCtx * ctx,
+    GumExceptionDetails * details);
+static gboolean gum_exec_ctx_try_handle_misaligned_stack_in_prolog (
+    GumExecCtx * ctx, GumCpuContext * cpu_context);
+static gboolean gum_exec_ctx_try_handle_misaligned_stack_in_epilog (
+    GumExecCtx * ctx, GumCpuContext * cpu_context);
+static gboolean gum_exec_ctx_try_handle_misaligned_stack_in_transition (
+    GumExecCtx * ctx, GumCpuContext * cpu_context);
+static void gum_exec_ctx_handle_misaligned_stack_in_exec_generated_code (
+    GumExecCtx * ctx, GumCpuContext * cpu_context);
+static void gum_exec_ctx_handle_misaligned_stack_in_jmp_transfer_ic (
+    GumExecCtx * ctx, GumCpuContext * cpu_context);
+static void gum_exec_ctx_handle_misaligned_stack_in_call_invoke_ic (
+    GumExecCtx * ctx, GumCpuContext * cpu_context);
+static void gum_exec_ctx_handle_misaligned_stack_in_ret_transfer_code (
+    GumExecCtx * ctx, GumCpuContext * cpu_context,
+    const guint32 * mov_instruction);
+static void gum_exec_ctx_align_stack_temporarily (GumExecCtx * ctx,
+    GumCpuContext * cpu_context);
+static void gum_exec_ctx_undo_temporary_stack_alignment (GumExecCtx * ctx,
+    GumCpuContext * cpu_context);
+static void gum_exec_ctx_set_program_counter_to_naked_resume_address (
+    GumExecCtx * ctx, GumCpuContext * cpu_context);
+
 static GumExecBlock * gum_exec_block_new (GumExecCtx * ctx);
 static GumExecBlock * gum_exec_block_obtain (GumExecCtx * ctx,
     gpointer real_address, gpointer * code_address);
@@ -400,10 +428,13 @@ static void gum_exec_block_open_prolog (GumExecBlock * block,
 static void gum_exec_block_close_prolog (GumExecBlock * block,
     GumGeneratorContext * gc);
 
-static gboolean gum_stalker_on_exception (GumExceptionDetails * details,
-    gpointer user_data);
-
 static gpointer gum_find_thread_exit_implementation (void);
+
+static gboolean gum_is_mov_reg_reg (guint32 insn);
+static gboolean gum_is_mov_x16_reg (guint32 insn);
+static gboolean gum_is_ldr_x16_pcrel (guint32 insn);
+static gboolean gum_is_b_imm (guint32 insn);
+static gboolean gum_is_bl_imm (guint32 insn);
 
 G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
 
@@ -1139,6 +1170,36 @@ gum_stalker_freeze (GumStalker * self,
     gum_memory_mark_code (code, size);
 
   gum_clear_cache (code, size);
+}
+
+static gboolean
+gum_stalker_on_exception (GumExceptionDetails * details,
+                          gpointer user_data)
+{
+  GumStalker * self = user_data;
+  GumExecCtx * ctx;
+  GSList * cur;
+
+  GUM_STALKER_LOCK (self);
+
+  ctx = NULL;
+  for (cur = self->contexts; cur != NULL; cur = cur->next)
+  {
+    GumExecCtx * candidate = cur->data;
+
+    if (candidate->thread_id == details->thread_id)
+    {
+      ctx = candidate;
+      break;
+    }
+  }
+
+  GUM_STALKER_UNLOCK (self);
+
+  if (ctx == NULL)
+    return FALSE;
+
+  return gum_exec_ctx_try_handle_exception (ctx, details);
 }
 
 static void
@@ -2339,6 +2400,225 @@ gum_exec_ctx_load_real_register_from_full_frame_into (GumExecCtx * ctx,
   {
     gum_arm64_writer_put_mov_reg_reg (cw, target_register, source_register);
   }
+}
+
+static gboolean
+gum_exec_ctx_try_handle_exception (GumExecCtx * ctx,
+                                   GumExceptionDetails * details)
+{
+  GumCpuContext * cpu_context = &details->context;
+  const guint32 * insn;
+
+  insn = GSIZE_TO_POINTER (cpu_context->pc);
+
+  if (!gum_exec_ctx_contains (ctx, insn))
+    return FALSE;
+
+  switch (*insn)
+  {
+    case 0xa9b77bf3: /* stp x19, lr, [sp, #-(16 + GUM_RED_ZONE_SIZE)]! */
+      return gum_exec_ctx_try_handle_misaligned_stack_in_prolog (ctx,
+          cpu_context);
+    case 0xd4200540: /* brk #42 */
+      return gum_exec_ctx_try_handle_misaligned_stack_in_epilog (ctx,
+          cpu_context);
+    case 0xa9b747f0: /* stp x16, x17, [sp, #-(16 + GUM_RED_ZONE_SIZE)]! */
+      return gum_exec_ctx_try_handle_misaligned_stack_in_transition (ctx,
+          cpu_context);
+    default:
+      break;
+  }
+
+  return FALSE;
+}
+
+static gboolean
+gum_exec_ctx_try_handle_misaligned_stack_in_prolog (GumExecCtx * ctx,
+                                                    GumCpuContext * cpu_context)
+{
+  if (cpu_context->sp % GUM_STACK_ALIGNMENT == 0)
+    return FALSE;
+
+  gum_exec_ctx_align_stack_temporarily (ctx, cpu_context);
+
+  return TRUE;
+}
+
+static gboolean
+gum_exec_ctx_try_handle_misaligned_stack_in_epilog (GumExecCtx * ctx,
+                                                    GumCpuContext * cpu_context)
+{
+  guint64 * saved_regs;
+
+  if (ctx->pending_stack_misalignment == 0)
+    return FALSE;
+
+  /* Jump back from epilog helper, skipping the ldp instruction */
+  cpu_context->pc = cpu_context->x[19] + sizeof (guint32);
+
+  /* Emulate: ldp x19, x20, [sp], #(16 + GUM_RED_ZONE_SIZE) */
+  saved_regs = GSIZE_TO_POINTER (cpu_context->sp);
+  cpu_context->x[19] = saved_regs[0];
+  cpu_context->x[20] = saved_regs[1];
+  cpu_context->sp += 16 + GUM_RED_ZONE_SIZE;
+
+  gum_exec_ctx_undo_temporary_stack_alignment (ctx, cpu_context);
+
+  return TRUE;
+}
+
+static gboolean
+gum_exec_ctx_try_handle_misaligned_stack_in_transition (
+    GumExecCtx * ctx,
+    GumCpuContext * cpu_context)
+{
+  const guint32 * insn = GSIZE_TO_POINTER (cpu_context->pc);
+  gboolean starts_with_mov_x16, ic_with_existing_prolog;
+
+  if (cpu_context->sp % GUM_STACK_ALIGNMENT == 0)
+    return FALSE;
+
+  if (gum_is_ldr_x16_pcrel (insn[1]))
+  {
+    gum_exec_ctx_handle_misaligned_stack_in_exec_generated_code (ctx,
+        cpu_context);
+    return TRUE;
+  }
+
+  if (((starts_with_mov_x16 = gum_is_mov_x16_reg (insn[1])) &&
+      gum_is_b_imm (insn[2])) || gum_is_b_imm (insn[1]))
+  {
+    gum_exec_ctx_handle_misaligned_stack_in_ret_transfer_code (ctx, cpu_context,
+        starts_with_mov_x16 ? &insn[1] : NULL);
+    return TRUE;
+  }
+
+  if ((ic_with_existing_prolog = gum_is_mov_reg_reg (insn[1])) ||
+      insn[1] == 0xa9bf07e0) /* stp x0, x1, [sp, -0x10]! */
+  {
+    if (ic_with_existing_prolog)
+    {
+      guint dst_reg_index = insn[1] & GUM_INT5_MASK;
+      if (dst_reg_index != 16 && dst_reg_index != 30)
+        return FALSE;
+    }
+
+    if (ic_with_existing_prolog ||
+        insn[2] == 0xa9bf7be2 /* stp x2, lr, [sp, #-0x10]! */)
+    {
+      gum_exec_ctx_handle_misaligned_stack_in_call_invoke_ic (ctx, cpu_context);
+      return TRUE;
+    }
+
+    gum_exec_ctx_handle_misaligned_stack_in_jmp_transfer_ic (ctx, cpu_context);
+    return TRUE;
+  }
+
+  return FALSE;
+}
+
+static void
+gum_exec_ctx_handle_misaligned_stack_in_exec_generated_code (
+    GumExecCtx * ctx,
+    GumCpuContext * cpu_context)
+{
+  gum_exec_ctx_set_program_counter_to_naked_resume_address (ctx, cpu_context);
+}
+
+static void
+gum_exec_ctx_handle_misaligned_stack_in_jmp_transfer_ic (
+    GumExecCtx * ctx,
+    GumCpuContext * cpu_context)
+{
+  const guint32 * insn = GSIZE_TO_POINTER (cpu_context->pc);
+  guint num_pop_x0_x1_found;
+  const guint32 * cursor;
+  gconstpointer prolog_start;
+
+  num_pop_x0_x1_found = 0;
+  for (cursor = insn + 1; num_pop_x0_x1_found != 2; cursor++)
+  {
+    if (*cursor == 0xa8c107e0)
+      num_pop_x0_x1_found++;
+  }
+
+  prolog_start = cursor + 1 + (4 * 2) + 2;
+  cpu_context->pc = GPOINTER_TO_SIZE (prolog_start);
+
+  gum_exec_ctx_align_stack_temporarily (ctx, cpu_context);
+}
+
+static void
+gum_exec_ctx_handle_misaligned_stack_in_call_invoke_ic (
+    GumExecCtx * ctx,
+    GumCpuContext * cpu_context)
+{
+  const guint32 * insn = GSIZE_TO_POINTER (cpu_context->pc);
+  gboolean jump_across_ic_entries_found;
+  const guint32 * cursor;
+  gconstpointer prolog_start;
+
+  jump_across_ic_entries_found = FALSE;
+  for (cursor = insn + 2; !jump_across_ic_entries_found; cursor++)
+  {
+    if (*cursor == 0x14000009)
+      jump_across_ic_entries_found = TRUE;
+  }
+
+  prolog_start = cursor + (4 * 2) + 3;
+  cpu_context->pc = GPOINTER_TO_SIZE (prolog_start);
+
+  gum_exec_ctx_align_stack_temporarily (ctx, cpu_context);
+}
+
+static void
+gum_exec_ctx_handle_misaligned_stack_in_ret_transfer_code (
+    GumExecCtx * ctx,
+    GumCpuContext * cpu_context,
+    const guint32 * mov_instruction)
+{
+  guint ret_reg_index = (mov_instruction != NULL)
+      ? (*mov_instruction >> 16) & GUM_INT5_MASK
+      : 30;
+
+  ctx->return_at = GSIZE_TO_POINTER (cpu_context->x[ret_reg_index]);
+  gum_exec_ctx_replace_current_block_with (ctx, ctx->return_at);
+  gum_exec_ctx_set_program_counter_to_naked_resume_address (ctx, cpu_context);
+}
+
+static void
+gum_exec_ctx_align_stack_temporarily (GumExecCtx * ctx,
+                                      GumCpuContext * cpu_context)
+{
+  guint misalignment_offset = cpu_context->sp % GUM_STACK_ALIGNMENT;
+  g_assert (misalignment_offset != 0);
+
+  cpu_context->sp -= misalignment_offset;
+  ctx->pending_stack_misalignment = misalignment_offset;
+}
+
+static void
+gum_exec_ctx_undo_temporary_stack_alignment (GumExecCtx * ctx,
+                                             GumCpuContext * cpu_context)
+{
+  g_assert (ctx->pending_stack_misalignment != 0);
+
+  cpu_context->sp += ctx->pending_stack_misalignment;
+  ctx->pending_stack_misalignment = 0;
+}
+
+static void
+gum_exec_ctx_set_program_counter_to_naked_resume_address (
+    GumExecCtx * ctx,
+    GumCpuContext * cpu_context)
+{
+  gboolean target_is_stalker_generated_block;
+
+  cpu_context->pc = GPOINTER_TO_SIZE (ctx->resume_at);
+
+  target_is_stalker_generated_block = ctx->current_block != NULL;
+  if (target_is_stalker_generated_block)
+    cpu_context->pc += sizeof (guint32);
 }
 
 static GumExecBlock *
@@ -3620,96 +3900,6 @@ gum_exec_block_close_prolog (GumExecBlock * block,
   gc->opened_prolog = GUM_PROLOG_NONE;
 }
 
-static gboolean
-gum_stalker_on_exception (GumExceptionDetails * details,
-                          gpointer user_data)
-{
-  GumCpuContext * cpu_context = &details->context;
-  GumStalker * self = user_data;
-  GumExecCtx * ctx;
-  GSList * cur;
-  guint32 * insn;
-
-  GUM_STALKER_LOCK (self);
-
-  ctx = NULL;
-  for (cur = self->contexts; cur != NULL; cur = cur->next)
-  {
-    GumExecCtx * candidate = cur->data;
-
-    if (candidate->thread_id == details->thread_id)
-    {
-      ctx = candidate;
-      break;
-    }
-  }
-
-  GUM_STALKER_UNLOCK (self);
-
-  if (ctx == NULL)
-    return FALSE;
-
-  insn = GSIZE_TO_POINTER (cpu_context->pc);
-
-  if (!gum_exec_ctx_contains (ctx, insn))
-    return FALSE;
-
-  switch (*insn)
-  {
-    /* Prolog */
-    case 0xa9b77bf3: /* stp x19, lr, [sp, #-(16 + GUM_RED_ZONE_SIZE)]! */
-    {
-      guint sp_misalignment_offset = cpu_context->sp % 16;
-      if (sp_misalignment_offset == 0)
-        return FALSE;
-
-      cpu_context->sp -= sp_misalignment_offset;
-      ctx->pending_stack_misalignment = sp_misalignment_offset;
-
-      return TRUE;
-    }
-    /* Epilog */
-    case 0xd4200540: /* brk #42 */
-    {
-      guint64 * saved_regs;
-
-      if (ctx->pending_stack_misalignment == 0)
-        return FALSE;
-
-      /* Jump back from epilog helper, skipping the ldp instruction */
-      cpu_context->pc = cpu_context->x[19] + sizeof (guint32);
-
-      /* Emulate: ldp x19, x20, [sp], #(16 + GUM_RED_ZONE_SIZE) */
-      saved_regs = GSIZE_TO_POINTER (cpu_context->sp);
-      cpu_context->x[19] = saved_regs[0];
-      cpu_context->x[20] = saved_regs[1];
-      cpu_context->sp += 16 + GUM_RED_ZONE_SIZE;
-
-      cpu_context->sp += ctx->pending_stack_misalignment;
-      ctx->pending_stack_misalignment = 0;
-
-      return TRUE;
-    }
-    /* Continuation – code emitted by write_exec_generated_code() */
-    case 0xa9b747f0: /* stp x16, x17, [sp, #-(16 + GUM_RED_ZONE_SIZE)]! */
-    {
-      gboolean target_is_stalker_generated_block;
-
-      cpu_context->pc = GPOINTER_TO_SIZE (ctx->resume_at);
-
-      target_is_stalker_generated_block = ctx->current_block != NULL;
-      if (target_is_stalker_generated_block)
-        cpu_context->pc += sizeof (guint32);
-
-      return TRUE;
-    }
-    default:
-      break;
-  }
-
-  return FALSE;
-}
-
 void
 gum_stalker_set_counters_enabled (gboolean enabled)
 {
@@ -3753,10 +3943,8 @@ gum_find_thread_exit_implementation (void)
   do
   {
     guint32 insn = *cursor;
-    gboolean is_bl_imm;
 
-    is_bl_imm = (insn & ~GUM_INT26_MASK) == 0x94000000;
-    if (is_bl_imm)
+    if (gum_is_bl_imm (insn))
     {
       union
       {
@@ -3777,4 +3965,35 @@ gum_find_thread_exit_implementation (void)
 #else
   return NULL;
 #endif
+}
+
+
+static gboolean
+gum_is_mov_reg_reg (guint32 insn)
+{
+  return (insn & 0xffe0ffe0) == 0xaa0003e0;
+}
+
+static gboolean
+gum_is_mov_x16_reg (guint32 insn)
+{
+  return (insn & 0xffe0ffff) == 0xaa0003f0;
+}
+
+static gboolean
+gum_is_ldr_x16_pcrel (guint32 insn)
+{
+  return (insn & 0xff00001f) == 0x58000010;
+}
+
+static gboolean
+gum_is_b_imm (guint32 insn)
+{
+  return (insn & ~GUM_INT26_MASK) == 0x14000000;
+}
+
+static gboolean
+gum_is_bl_imm (guint32 insn)
+{
+  return (insn & ~GUM_INT26_MASK) == 0x94000000;
 }
