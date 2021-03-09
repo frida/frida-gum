@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -91,6 +91,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_stalker_garbage_collect)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_exclude)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_follow)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_unfollow)
+GUMJS_DECLARE_FUNCTION (gumjs_stalker_invalidate)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_add_call_probe)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_remove_call_probe)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_parse)
@@ -178,6 +179,7 @@ static const JSCFunctionListEntry gumjs_stalker_entries[] =
   JS_CFUNC_DEF ("_exclude", 0, gumjs_stalker_exclude),
   JS_CFUNC_DEF ("_follow", 0, gumjs_stalker_follow),
   JS_CFUNC_DEF ("unfollow", 0, gumjs_stalker_unfollow),
+  JS_CFUNC_DEF ("invalidate", 0, gumjs_stalker_invalidate),
   JS_CFUNC_DEF ("addCallProbe", 0, gumjs_stalker_add_call_probe),
   JS_CFUNC_DEF ("removeCallProbe", 0, gumjs_stalker_remove_call_probe),
   JS_CFUNC_DEF ("_parse", 0, gumjs_stalker_parse),
@@ -592,6 +594,40 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_unfollow)
     parent->core->current_scope->pending_stalker_level--;
   else
     gum_stalker_unfollow (stalker, thread_id);
+
+  return JS_UNDEFINED;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_stalker_invalidate)
+{
+  GumQuickStalker * parent;
+  GumStalker * stalker;
+  gconstpointer address;
+
+  parent = gumjs_get_parent_module (core);
+  stalker = _gum_quick_stalker_get (parent);
+
+  if (args->count <= 1)
+  {
+    if (!_gum_quick_args_parse (args, "p", &address))
+      return JS_EXCEPTION;
+
+    gum_stalker_invalidate (stalker, address);
+  }
+  else
+  {
+    GumThreadId thread_id;
+    GumQuickScope scope = GUM_QUICK_SCOPE_INIT (core);
+
+    if (!_gum_quick_args_parse (args, "Zp", &thread_id, &address))
+      return JS_EXCEPTION;
+
+    _gum_quick_scope_suspend (&scope);
+
+    gum_stalker_invalidate_for_thread (stalker, thread_id, address);
+
+    _gum_quick_scope_resume (&scope);
+  }
 
   return JS_UNDEFINED;
 }

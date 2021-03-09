@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2010-2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -202,6 +202,8 @@ silence_warnings (void)
 }
 
 typedef struct _UnfollowTransformContext UnfollowTransformContext;
+typedef struct _InvalidationTransformContext InvalidationTransformContext;
+typedef struct _InvalidationTarget InvalidationTarget;
 
 struct _UnfollowTransformContext
 {
@@ -209,4 +211,22 @@ struct _UnfollowTransformContext
   guint num_blocks_transformed;
   guint target_block;
   gint max_instructions;
+};
+
+struct _InvalidationTransformContext
+{
+  GumStalker * stalker;
+  gconstpointer target_function;
+  guint n;
+};
+
+struct _InvalidationTarget
+{
+  GumStalkerTransformer * transformer;
+  InvalidationTransformContext ctx;
+
+  GThread * thread;
+  GumThreadId thread_id;
+  StalkerDummyChannel channel;
+  volatile gboolean finished;
 };

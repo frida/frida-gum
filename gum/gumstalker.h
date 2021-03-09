@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2010 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -222,6 +222,10 @@ GUM_API void gum_stalker_deactivate (GumStalker * self);
  */
 GUM_API void gum_stalker_prefetch (GumStalker * self, gconstpointer address,
     gint recycle_count);
+
+GUM_API void gum_stalker_invalidate (GumStalker * self, gconstpointer address);
+GUM_API void gum_stalker_invalidate_for_thread (GumStalker * self,
+    GumThreadId thread_id, gconstpointer address);
 
 GUM_API GumProbeId gum_stalker_add_call_probe (GumStalker * self,
     gpointer target_address, GumCallProbeCallback callback, gpointer data,

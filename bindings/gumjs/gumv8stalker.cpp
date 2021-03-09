@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -101,6 +101,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_stalker_garbage_collect)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_exclude)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_follow)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_unfollow)
+GUMJS_DECLARE_FUNCTION (gumjs_stalker_invalidate)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_add_call_probe)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_remove_call_probe)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_parse)
@@ -202,6 +203,7 @@ static const GumV8Function gumjs_stalker_functions[] =
   { "_exclude", gumjs_stalker_exclude },
   { "_follow", gumjs_stalker_follow },
   { "unfollow", gumjs_stalker_unfollow },
+  { "invalidate", gumjs_stalker_invalidate },
   { "addCallProbe", gumjs_stalker_add_call_probe },
   { "removeCallProbe", gumjs_stalker_remove_call_probe },
   { "_parse", gumjs_stalker_parse },
@@ -613,6 +615,33 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_unfollow)
     core->current_scope->stalker_scope.pending_level--;
   else
     gum_stalker_unfollow (stalker, thread_id);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_stalker_invalidate)
+{
+  GumStalker * stalker = _gum_v8_stalker_get (module);
+
+  if (info.Length () <= 1)
+  {
+    gpointer address;
+    if (!_gum_v8_args_parse (args, "p", &address))
+      return;
+
+    gum_stalker_invalidate (stalker, address);
+  }
+  else
+  {
+    GumThreadId thread_id;
+    gpointer address;
+    if (!_gum_v8_args_parse (args, "Zp", &thread_id, &address))
+      return;
+
+    {
+      ScriptUnlocker unlocker (core);
+
+      gum_stalker_invalidate_for_thread (stalker, thread_id, address);
+    }
+  }
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_stalker_add_call_probe)

@@ -119,6 +119,19 @@ gum_stalker_prefetch (GumStalker * self,
 {
 }
 
+void
+gum_stalker_invalidate (GumStalker * self,
+                        gconstpointer address)
+{
+}
+
+void
+gum_stalker_invalidate_for_thread (GumStalker * self,
+                                   GumThreadId thread_id,
+                                   gconstpointer address)
+{
+}
+
 GumProbeId
 gum_stalker_add_call_probe (GumStalker * self,
                             gpointer target_address,

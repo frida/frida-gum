@@ -355,6 +355,8 @@ TESTLIST_BEGIN (script)
     TESTENTRY (execution_can_be_traced_during_immediate_native_function_call)
     TESTENTRY (execution_can_be_traced_during_scheduled_native_function_call)
     TESTENTRY (execution_can_be_traced_after_native_function_call_from_hook)
+    TESTENTRY (basic_block_can_be_invalidated_for_current_thread)
+    TESTENTRY (basic_block_can_be_invalidated_for_specific_thread)
 #endif
 #if defined (HAVE_I386) || defined (HAVE_ARM64)
     TESTENTRY (call_can_be_probed)
@@ -432,6 +434,10 @@ static void on_read_ready (GObject * source_object, GAsyncResult * res,
 
 #if defined (HAVE_I386) || defined (HAVE_ARM) || defined (HAVE_ARM64)
 static gpointer run_stalked_through_hooked_function (gpointer data);
+static gpointer run_stalked_through_block_invalidated_in_callout (
+    gpointer data);
+static gpointer run_stalked_through_block_invalidated_by_request (
+    gpointer data);
 static gpointer run_stalked_through_target_function (gpointer data);
 #endif
 
@@ -3299,6 +3305,194 @@ run_stalked_through_hooked_function (gpointer data)
   target_function_nested_a (1338);
 
   sdc_put_run_confirmation (channel);
+
+  sdc_await_finish_confirmation (channel);
+
+  return NULL;
+}
+
+TESTCASE (basic_block_can_be_invalidated_for_current_thread)
+{
+  StalkerDummyChannel channel;
+  GThread * thread;
+  GumThreadId thread_id;
+
+  sdc_init (&channel);
+
+  thread = g_thread_new ("stalker-test-target",
+      run_stalked_through_block_invalidated_in_callout, &channel);
+  thread_id = sdc_await_thread_id (&channel);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const targetThreadId = %" G_GSIZE_FORMAT ";"
+      "const targetFuncInt = " GUM_PTR_CONST ";"
+
+      "let instrumentationVersion = 0;"
+      "let calls = 0;"
+
+      "Stalker.follow(targetThreadId, {"
+      "  transform(iterator) {"
+      "    let i = 0;"
+      "    let instruction;"
+      "    while ((instruction = iterator.next()) !== null) {"
+      "      if (i === 0 && instruction.address.equals(targetFuncInt)) {"
+      "        const v = instrumentationVersion++;"
+      "        iterator.putCallout(() => {"
+      "          send(`f() version=${v}`);"
+      "          if (++calls === 3) {"
+      "            Stalker.invalidate(targetFuncInt);"
+      "          }"
+      "        });"
+      "      }"
+
+      "      iterator.keep();"
+
+      "      i++;"
+      "    }"
+      "  }"
+      "});"
+
+      "recv('stop', message => {"
+      "  Stalker.unfollow(targetThreadId);"
+      "  Stalker.flush();"
+      "});"
+
+      "send('ready');",
+
+      thread_id,
+      target_function_int);
+  EXPECT_SEND_MESSAGE_WITH ("\"ready\"");
+
+  EXPECT_NO_MESSAGES ();
+  sdc_put_follow_confirmation (&channel);
+
+  EXPECT_SEND_MESSAGE_WITH ("\"f() version=0\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"f() version=0\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"f() version=0\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"f() version=1\"");
+  EXPECT_NO_MESSAGES ();
+
+  POST_MESSAGE ("{\"type\":\"stop\"}");
+  EXPECT_NO_MESSAGES ();
+
+  sdc_put_finish_confirmation (&channel);
+
+  g_thread_join (thread);
+
+  sdc_finalize (&channel);
+}
+
+static gpointer
+run_stalked_through_block_invalidated_in_callout (gpointer data)
+{
+  StalkerDummyChannel * channel = data;
+
+  sdc_put_thread_id (channel, gum_process_get_current_thread_id ());
+
+  sdc_await_follow_confirmation (channel);
+
+  target_function_int (42);
+  target_function_int (42);
+  target_function_int (42);
+
+  target_function_int (42);
+
+  sdc_await_finish_confirmation (channel);
+
+  return NULL;
+}
+
+TESTCASE (basic_block_can_be_invalidated_for_specific_thread)
+{
+  StalkerDummyChannel channel;
+  GThread * thread;
+  GumThreadId thread_id;
+
+  sdc_init (&channel);
+
+  thread = g_thread_new ("stalker-test-target",
+      run_stalked_through_block_invalidated_by_request, &channel);
+  thread_id = sdc_await_thread_id (&channel);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const targetThreadId = %" G_GSIZE_FORMAT ";"
+      "const targetFuncInt = " GUM_PTR_CONST ";"
+
+      "let instrumentationVersion = 0;"
+
+      "Stalker.follow(targetThreadId, {"
+      "  transform(iterator) {"
+      "    let i = 0;"
+      "    let instruction;"
+      "    while ((instruction = iterator.next()) !== null) {"
+      "      if (i === 0 && instruction.address.equals(targetFuncInt)) {"
+      "        const v = instrumentationVersion++;"
+      "        iterator.putCallout(() => {"
+      "          send(`f() version=${v}`);"
+      "        });"
+      "      }"
+
+      "      iterator.keep();"
+
+      "      i++;"
+      "    }"
+      "  }"
+      "});"
+
+      "recv('invalidate', message => {"
+      "  Stalker.invalidate(targetThreadId, targetFuncInt);"
+      "  send('invalidated');"
+      "});"
+
+      "recv('stop', message => {"
+      "  Stalker.unfollow(targetThreadId);"
+      "  Stalker.flush();"
+      "});"
+
+      "send('ready');",
+
+      thread_id,
+      target_function_int);
+  EXPECT_SEND_MESSAGE_WITH ("\"ready\"");
+
+  EXPECT_NO_MESSAGES ();
+  sdc_put_follow_confirmation (&channel);
+
+  EXPECT_SEND_MESSAGE_WITH ("\"f() version=0\"");
+  EXPECT_NO_MESSAGES ();
+
+  POST_MESSAGE ("{\"type\":\"invalidate\"}");
+  EXPECT_SEND_MESSAGE_WITH ("\"invalidated\"");
+  EXPECT_NO_MESSAGES ();
+
+  sdc_put_run_confirmation (&channel);
+  EXPECT_SEND_MESSAGE_WITH ("\"f() version=1\"");
+  EXPECT_NO_MESSAGES ();
+
+  POST_MESSAGE ("{\"type\":\"stop\"}");
+  EXPECT_NO_MESSAGES ();
+
+  sdc_put_finish_confirmation (&channel);
+
+  g_thread_join (thread);
+
+  sdc_finalize (&channel);
+}
+
+static gpointer
+run_stalked_through_block_invalidated_by_request (gpointer data)
+{
+  StalkerDummyChannel * channel = data;
+
+  sdc_put_thread_id (channel, gum_process_get_current_thread_id ());
+
+  sdc_await_follow_confirmation (channel);
+
+  target_function_int (42);
+
+  sdc_await_run_confirmation (channel);
+
+  target_function_int (42);
 
   sdc_await_finish_confirmation (channel);
 

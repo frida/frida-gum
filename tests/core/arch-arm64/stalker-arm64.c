@@ -37,6 +37,9 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (unfollow_should_be_allowed_mid_second_transform)
   TESTENTRY (unfollow_should_be_allowed_after_second_transform)
   TESTENTRY (follow_me_should_support_nullable_event_sink)
+  TESTENTRY (invalidation_for_current_thread_should_be_supported)
+  TESTENTRY (invalidation_for_specific_thread_should_be_supported)
+  TESTENTRY (invalidation_should_allow_block_to_grow)
 
   /* EXCLUSION */
   TESTENTRY (exclude_bl)
@@ -75,12 +78,31 @@ static void insert_extra_add_after_sub (GumStalkerIterator * iterator,
 static void store_x0 (GumCpuContext * cpu_context, gpointer user_data);
 static void unfollow_during_transform (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
+static gboolean test_is_finished (void);
+static void modify_to_return_true_after_three_calls (
+    GumStalkerIterator * iterator, GumStalkerOutput * output,
+    gpointer user_data);
+static void invalidate_after_three_calls (GumCpuContext * cpu_context,
+    gpointer user_data);
+static void start_invalidation_target (InvalidationTarget * target,
+    TestArm64StalkerFixture * fixture);
+static void join_invalidation_target (InvalidationTarget * target);
+static gpointer run_stalked_until_finished (gpointer data);
+static void modify_to_return_true_on_subsequent_transform (
+    GumStalkerIterator * iterator, GumStalkerOutput * output,
+    gpointer user_data);
+static int get_magic_number (void);
+static void add_n_return_value_increments (GumStalkerIterator * iterator,
+    GumStalkerOutput * output, gpointer user_data);
 static gpointer run_stalked_briefly (gpointer data);
 static gpointer run_stalked_into_termination (gpointer data);
 static gpointer increment_integer (gpointer data);
 static gboolean store_range_of_test_runner (const GumModuleDetails * details,
     gpointer user_data);
 static void pretend_workload (GumMemoryRange * runner_range);
+
+volatile gboolean stalker_invalidation_test_is_finished = FALSE;
+volatile gint stalker_invalidation_magic_number = 42;
 
 #ifdef HAVE_LINUX
 static void prefetch_on_event (const GumEvent * event,
@@ -522,6 +544,266 @@ TESTCASE (follow_me_should_support_nullable_event_sink)
   p = malloc (1);
   free (p);
   gum_stalker_unfollow_me (fixture->stalker);
+}
+
+TESTCASE (invalidation_for_current_thread_should_be_supported)
+{
+  InvalidationTransformContext ctx;
+
+  ctx.stalker = fixture->stalker;
+  ctx.target_function = test_is_finished;
+  ctx.n = 0;
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      modify_to_return_true_after_three_calls, &ctx, NULL);
+
+  gum_stalker_follow_me (fixture->stalker, fixture->transformer, NULL);
+
+  while (!test_is_finished ())
+  {
+  }
+
+  gum_stalker_unfollow_me (fixture->stalker);
+}
+
+static gboolean GUM_NOINLINE
+test_is_finished (void)
+{
+  return stalker_invalidation_test_is_finished;
+}
+
+static void
+modify_to_return_true_after_three_calls (GumStalkerIterator * iterator,
+                                         GumStalkerOutput * output,
+                                         gpointer user_data)
+{
+  InvalidationTransformContext * ctx = user_data;
+  guint i;
+  const cs_insn * insn;
+  gboolean in_target_function;
+
+  for (i = 0; gum_stalker_iterator_next (iterator, &insn); i++)
+  {
+    if (i == 0)
+    {
+      in_target_function =
+          insn->address == GPOINTER_TO_SIZE (ctx->target_function);
+
+      if (in_target_function && ctx->n == 0)
+      {
+        gum_stalker_iterator_put_callout (iterator,
+            invalidate_after_three_calls, ctx, NULL);
+      }
+    }
+
+    if (insn->id == ARM64_INS_RET && in_target_function && ctx->n == 3)
+    {
+      gum_arm64_writer_put_ldr_reg_u32 (output->writer.arm64, ARM64_REG_W0,
+          TRUE);
+    }
+
+    gum_stalker_iterator_keep (iterator);
+  }
+}
+
+static void
+invalidate_after_three_calls (GumCpuContext * cpu_context,
+                              gpointer user_data)
+{
+  InvalidationTransformContext * ctx = user_data;
+
+  if (++ctx->n == 3)
+  {
+    gum_stalker_invalidate (ctx->stalker, ctx->target_function);
+  }
+}
+
+TESTCASE (invalidation_for_specific_thread_should_be_supported)
+{
+  InvalidationTarget a, b;
+
+  start_invalidation_target (&a, fixture);
+  start_invalidation_target (&b, fixture);
+
+  gum_stalker_invalidate_for_thread (fixture->stalker, a.thread_id,
+      test_is_finished);
+  join_invalidation_target (&a);
+
+  g_usleep (50000);
+  g_assert_false (b.finished);
+
+  gum_stalker_invalidate_for_thread (fixture->stalker, b.thread_id,
+      test_is_finished);
+  join_invalidation_target (&b);
+  g_assert_true (b.finished);
+}
+
+static void
+start_invalidation_target (InvalidationTarget * target,
+                           TestArm64StalkerFixture * fixture)
+{
+  InvalidationTransformContext * ctx = &target->ctx;
+  StalkerDummyChannel * channel = &target->channel;
+
+  ctx->stalker = fixture->stalker;
+  ctx->target_function = test_is_finished;
+  ctx->n = 0;
+
+  target->transformer = gum_stalker_transformer_make_from_callback (
+      modify_to_return_true_on_subsequent_transform, ctx, NULL);
+
+  target->finished = FALSE;
+
+  sdc_init (channel);
+
+  target->thread = g_thread_new ("stalker-invalidation-target",
+      run_stalked_until_finished, target);
+  target->thread_id = sdc_await_thread_id (channel);
+
+  gum_stalker_follow (ctx->stalker, target->thread_id, target->transformer,
+      NULL);
+  sdc_put_follow_confirmation (channel);
+
+  sdc_await_run_confirmation (channel);
+}
+
+static void
+join_invalidation_target (InvalidationTarget * target)
+{
+  GumStalker * stalker = target->ctx.stalker;
+
+  g_thread_join (target->thread);
+
+  gum_stalker_unfollow (stalker, target->thread_id);
+
+  sdc_finalize (&target->channel);
+
+  g_object_unref (target->transformer);
+}
+
+static gpointer
+run_stalked_until_finished (gpointer data)
+{
+  InvalidationTarget * target = data;
+  StalkerDummyChannel * channel = &target->channel;
+  gboolean first_iteration;
+
+  sdc_put_thread_id (channel, gum_process_get_current_thread_id ());
+
+  sdc_await_follow_confirmation (channel);
+
+  first_iteration = TRUE;
+
+  while (!test_is_finished ())
+  {
+    if (first_iteration)
+    {
+      sdc_put_run_confirmation (channel);
+      first_iteration = FALSE;
+    }
+
+    g_thread_yield ();
+  }
+
+  target->finished = TRUE;
+
+  return NULL;
+}
+
+static void
+modify_to_return_true_on_subsequent_transform (GumStalkerIterator * iterator,
+                                               GumStalkerOutput * output,
+                                               gpointer user_data)
+{
+  InvalidationTransformContext * ctx = user_data;
+  guint i;
+  const cs_insn * insn;
+  gboolean in_target_function;
+
+  for (i = 0; gum_stalker_iterator_next (iterator, &insn); i++)
+  {
+    if (i == 0)
+    {
+      in_target_function =
+          insn->address == GPOINTER_TO_SIZE (ctx->target_function);
+      if (in_target_function)
+        ctx->n++;
+    }
+
+    if (insn->id == ARM64_INS_RET && in_target_function && ctx->n > 1)
+    {
+      gum_arm64_writer_put_ldr_reg_u32 (output->writer.arm64, ARM64_REG_W0,
+          TRUE);
+    }
+
+    gum_stalker_iterator_keep (iterator);
+  }
+}
+
+TESTCASE (invalidation_should_allow_block_to_grow)
+{
+  InvalidationTransformContext ctx;
+
+  ctx.stalker = fixture->stalker;
+  ctx.target_function = get_magic_number;
+  ctx.n = 0;
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      add_n_return_value_increments, &ctx, NULL);
+
+  gum_stalker_follow_me (fixture->stalker, fixture->transformer, NULL);
+
+  g_assert_cmpint (get_magic_number (), ==, 42);
+
+  ctx.n = 1;
+  gum_stalker_invalidate (fixture->stalker, ctx.target_function);
+  g_assert_cmpint (get_magic_number (), ==, 43);
+  g_assert_cmpint (get_magic_number (), ==, 43);
+
+  ctx.n = 2;
+  gum_stalker_invalidate (fixture->stalker, ctx.target_function);
+  g_assert_cmpint (get_magic_number (), ==, 44);
+
+  gum_stalker_unfollow_me (fixture->stalker);
+}
+
+static int GUM_NOINLINE
+get_magic_number (void)
+{
+  return stalker_invalidation_magic_number;
+}
+
+static void
+add_n_return_value_increments (GumStalkerIterator * iterator,
+                               GumStalkerOutput * output,
+                               gpointer user_data)
+{
+  InvalidationTransformContext * ctx = user_data;
+  guint i;
+  const cs_insn * insn;
+  gboolean in_target_function;
+
+  for (i = 0; gum_stalker_iterator_next (iterator, &insn); i++)
+  {
+    if (i == 0)
+    {
+      in_target_function =
+          insn->address == GPOINTER_TO_SIZE (ctx->target_function);
+    }
+
+    if (insn->id == ARM64_INS_RET && in_target_function)
+    {
+      guint increment_index;
+
+      for (increment_index = 0; increment_index != ctx->n; increment_index++)
+      {
+        gum_arm64_writer_put_add_reg_reg_imm (output->writer.arm64,
+            ARM64_REG_W0, ARM64_REG_W0, 1);
+      }
+    }
+
+    gum_stalker_iterator_keep (iterator);
+  }
 }
 
 TESTCASE (exclude_bl)
@@ -1729,8 +2011,7 @@ prefetch_run_child (GumStalker * stalker,
   g_assert_cmpint (WEXITSTATUS (status), ==, 0);
 }
 
-__attribute__ ((noinline))
-static void
+GUM_NOINLINE static void
 prefetch_activation_target (void)
 {
   /* Avoid calls being optimized out */
