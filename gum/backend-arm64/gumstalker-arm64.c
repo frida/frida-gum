@@ -846,7 +846,7 @@ gum_stalker_infect (GumThreadId thread_id,
   gum_stalker_freeze (self, cw.base, gum_arm64_writer_offset (&cw));
   gum_arm64_writer_clear (&cw);
 
-  gum_event_sink_start (infect_context->sink);
+  gum_event_sink_start (ctx->sink);
 
   cpu_context->pc = ctx->infect_body;
 }

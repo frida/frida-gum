@@ -954,7 +954,7 @@ gum_stalker_infect (GumThreadId thread_id,
 
   gum_x86_writer_clear (&cw);
 
-  gum_event_sink_start (infect_context->sink);
+  gum_event_sink_start (ctx->sink);
 
 #ifdef HAVE_WINDOWS
   {
