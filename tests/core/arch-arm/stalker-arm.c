@@ -3276,6 +3276,10 @@ TESTCASE (prefetch)
    */
   g_assert_cmpint (pipe (compile_pipes), ==, 0);
   g_assert_cmpint (pipe (execute_pipes), ==, 0);
+  g_assert_true (g_unix_set_fd_nonblocking (compile_pipes[0], TRUE, NULL));
+  g_assert_true (g_unix_set_fd_nonblocking (compile_pipes[1], TRUE, NULL));
+  g_assert_true (g_unix_set_fd_nonblocking (execute_pipes[0], TRUE, NULL));
+  g_assert_true (g_unix_set_fd_nonblocking (execute_pipes[1], TRUE, NULL));
 
   /* Configure Stalker */
   sink = gum_event_sink_make_from_callback (GUM_COMPILE | GUM_BLOCK,

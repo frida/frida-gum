@@ -16,9 +16,12 @@
 #include <stdlib.h>
 #include <string.h>
 #ifdef HAVE_WINDOWS
-#define VC_EXTRALEAN
-#include <windows.h>
-#include <tchar.h>
+# define VC_EXTRALEAN
+# include <windows.h>
+# include <tchar.h>
+#endif
+#ifdef HAVE_LINUX
+# include <glib-unix.h>
 #endif
 
 #define TESTCASE(NAME) \

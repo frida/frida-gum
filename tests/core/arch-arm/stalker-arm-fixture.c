@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #ifdef HAVE_LINUX
+# include <glib-unix.h>
 # include <sys/prctl.h>
 #endif
 

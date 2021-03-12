@@ -15,6 +15,9 @@
 
 #include <stdlib.h>
 #include <string.h>
+#ifdef HAVE_LINUX
+# include <glib-unix.h>
+#endif
 
 #define TESTCASE(NAME) \
     void test_arm64_stalker_ ## NAME ( \
