@@ -474,7 +474,7 @@ static gboolean gum_is_mov_reg_reg (guint32 insn);
 static gboolean gum_is_mov_x16_reg (guint32 insn);
 static gboolean gum_is_ldr_x16_pcrel (guint32 insn);
 static gboolean gum_is_b_imm (guint32 insn);
-static gboolean gum_is_bl_imm (guint32 insn);
+G_GNUC_UNUSED static gboolean gum_is_bl_imm (guint32 insn);
 
 G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
 
