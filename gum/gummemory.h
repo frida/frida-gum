@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -135,20 +135,25 @@ GUM_API gpointer gum_alloc_n_pages (guint n_pages, GumPageProtection page_prot);
 GUM_API gpointer gum_try_alloc_n_pages (guint n_pages,
     GumPageProtection page_prot);
 GUM_API gpointer gum_alloc_n_pages_near (guint n_pages,
-    GumPageProtection page_prot, const GumAddressSpec * address_spec);
+    GumPageProtection page_prot, const GumAddressSpec * spec);
 GUM_API gpointer gum_try_alloc_n_pages_near (guint n_pages,
-    GumPageProtection page_prot, const GumAddressSpec * address_spec);
+    GumPageProtection page_prot, const GumAddressSpec * spec);
 GUM_API void gum_query_page_allocation_range (gconstpointer mem, guint size,
     GumMemoryRange * range);
 GUM_API void gum_free_pages (gpointer mem);
 
 GUM_API gpointer gum_memory_allocate (gpointer address, gsize size,
     gsize alignment, GumPageProtection page_prot);
+GUM_API gpointer gum_memory_allocate_near (const GumAddressSpec * spec,
+    gsize size, gsize alignment, GumPageProtection page_prot);
 GUM_API gboolean gum_memory_free (gpointer address, gsize size);
 GUM_API gboolean gum_memory_release (gpointer address, gsize size);
 GUM_API gboolean gum_memory_commit (gpointer address, gsize size,
     GumPageProtection page_prot);
 GUM_API gboolean gum_memory_decommit (gpointer address, gsize size);
+
+GUM_API gboolean gum_address_spec_is_satisfied_by (const GumAddressSpec * spec,
+    gconstpointer address);
 
 GUM_API GType gum_memory_range_get_type (void) G_GNUC_CONST;
 GUM_API GumMemoryRange * gum_memory_range_copy (const GumMemoryRange * range);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -126,7 +126,15 @@ gum_clear_cache (gpointer address,
 
 gpointer
 gum_try_alloc_n_pages (guint n_pages,
-                       GumPageProtection page_prot)
+                       GumPageProtection prot)
+{
+  return gum_try_alloc_n_pages_near (n_pages, prot, NULL);
+}
+
+gpointer
+gum_try_alloc_n_pages_near (guint n_pages,
+                            GumPageProtection prot,
+                            const GumAddressSpec * spec)
 {
   gpointer result;
   gsize page_size, size;
@@ -134,52 +142,11 @@ gum_try_alloc_n_pages (guint n_pages,
   page_size = gum_query_page_size ();
   size = n_pages * page_size;
 
-  result = gum_memory_allocate (NULL, size, page_size, page_prot);
-  if (result != NULL && page_prot == GUM_PAGE_NO_ACCESS)
+  result = gum_memory_allocate_near (spec, size, page_size, prot);
+  if (result != NULL && prot == GUM_PAGE_NO_ACCESS)
   {
-    gum_memory_commit (result, size, page_prot);
+    gum_memory_commit (result, size, prot);
   }
-
-  return result;
-}
-
-gpointer
-gum_try_alloc_n_pages_near (guint n_pages,
-                            GumPageProtection page_prot,
-                            const GumAddressSpec * address_spec)
-{
-  gpointer result = NULL;
-  gsize page_size, size;
-  DWORD win_page_prot;
-  guint8 * low_address, * high_address;
-
-  page_size = gum_query_page_size ();
-  size = n_pages * page_size;
-  win_page_prot = gum_page_protection_to_windows (page_prot);
-
-  low_address = (guint8 *)
-      (GPOINTER_TO_SIZE (address_spec->near_address) & ~(page_size - 1));
-  high_address = low_address;
-
-  do
-  {
-    gsize cur_distance;
-
-    low_address -= page_size;
-    high_address += page_size;
-    cur_distance = (gsize) high_address - (gsize) address_spec->near_address;
-    if (cur_distance > address_spec->max_distance)
-      break;
-
-    result = VirtualAlloc (low_address, size, MEM_COMMIT | MEM_RESERVE,
-        win_page_prot);
-    if (result == NULL)
-    {
-      result = VirtualAlloc (high_address, size, MEM_COMMIT | MEM_RESERVE,
-          win_page_prot);
-    }
-  }
-  while (result == NULL);
 
   return result;
 }
@@ -248,6 +215,54 @@ gum_memory_allocate (gpointer address,
   }
 
   return base;
+}
+
+gpointer
+gum_memory_allocate_near (const GumAddressSpec * spec,
+                          gsize size,
+                          gsize alignment,
+                          GumPageProtection prot)
+{
+  gpointer result = NULL;
+  gsize page_size;
+  DWORD win_prot;
+  guint8 * low_address, * high_address;
+
+  result = gum_memory_allocate (NULL, size, alignment, prot);
+  if (result == NULL)
+    return NULL;
+  if (spec == NULL || gum_address_spec_is_satisfied_by (spec, result))
+    return result;
+  gum_memory_free (result, size);
+
+  page_size = gum_query_page_size ();
+  win_prot = gum_page_protection_to_windows (prot);
+
+  low_address = GSIZE_TO_POINTER (
+      (GPOINTER_TO_SIZE (spec->near_address) & ~(page_size - 1)));
+  high_address = low_address;
+
+  do
+  {
+    gsize cur_distance;
+
+    low_address -= page_size;
+    high_address += page_size;
+    cur_distance = (gsize) high_address - (gsize) spec->near_address;
+    if (cur_distance > spec->max_distance)
+      break;
+
+    result = VirtualAlloc (low_address, size, MEM_COMMIT | MEM_RESERVE,
+        win_prot);
+    if (result == NULL)
+    {
+      result = VirtualAlloc (high_address, size, MEM_COMMIT | MEM_RESERVE,
+          win_prot);
+    }
+  }
+  while (result == NULL);
+
+  return result;
 }
 
 static gpointer

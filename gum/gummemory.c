@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -879,14 +879,26 @@ gum_alloc_n_pages (guint n_pages,
 gpointer
 gum_alloc_n_pages_near (guint n_pages,
                         GumPageProtection page_prot,
-                        const GumAddressSpec * address_spec)
+                        const GumAddressSpec * spec)
 {
   gpointer result;
 
-  result = gum_try_alloc_n_pages_near (n_pages, page_prot, address_spec);
+  result = gum_try_alloc_n_pages_near (n_pages, page_prot, spec);
   g_assert (result != NULL);
 
   return result;
+}
+
+gboolean
+gum_address_spec_is_satisfied_by (const GumAddressSpec * spec,
+                                  gconstpointer address)
+{
+  gsize distance;
+
+  distance =
+      ABS ((const guint8 *) spec->near_address - (const guint8 *) address);
+
+  return distance <= spec->max_distance;
 }
 
 GumMemoryRange *

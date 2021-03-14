@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -22,16 +22,17 @@ typedef struct _GumAllocNearContext GumAllocNearContext;
 
 struct _GumAllocNearContext
 {
-  gpointer result;
-  gsize size;
-  const GumAddressSpec * address_spec;
   mach_port_t task;
+  const GumAddressSpec * spec;
+  gsize size;
+
+  gpointer result;
 };
 
-static gboolean gum_try_alloc_in_range_if_near_enough (
-    const GumMemoryRange * range, gpointer user_data);
 static gpointer gum_allocate_page_aligned (gpointer address, gsize size,
     gint prot);
+static gboolean gum_try_alloc_in_range_if_near_enough (
+    const GumMemoryRange * range, gpointer user_data);
 static gint gum_page_protection_to_bsd (GumPageProtection page_prot);
 
 void
@@ -460,98 +461,36 @@ gpointer
 gum_try_alloc_n_pages (guint n_pages,
                        GumPageProtection page_prot)
 {
-  mach_vm_address_t result = 0;
-  gsize page_size, size;
-  kern_return_t kr;
-
-  page_size = gum_query_page_size ();
-  size = (1 + n_pages) * page_size;
-
-  kr = mach_vm_allocate (mach_task_self (), &result, size, VM_FLAGS_ANYWHERE);
-  if (kr != KERN_SUCCESS)
-    return NULL;
-
-  *((gsize *) GSIZE_TO_POINTER (result)) = size;
-
-  gum_mprotect (GSIZE_TO_POINTER (result), page_size, GUM_PAGE_READ);
-
-  if (page_prot != GUM_PAGE_RW)
-  {
-    gum_mprotect (GSIZE_TO_POINTER (result + page_size), size - page_size,
-        page_prot);
-  }
-
-  return GSIZE_TO_POINTER (result + page_size);
+  return gum_try_alloc_n_pages_near (n_pages, page_prot, NULL);
 }
 
 gpointer
 gum_try_alloc_n_pages_near (guint n_pages,
                             GumPageProtection page_prot,
-                            const GumAddressSpec * address_spec)
+                            const GumAddressSpec * spec)
 {
-  gsize page_size;
-  GumAllocNearContext ctx;
+  guint8 * base;
+  gsize page_size, size;
 
   page_size = gum_query_page_size ();
+  size = (1 + n_pages) * page_size;
 
-  ctx.result = NULL;
-  ctx.size = (1 + n_pages) * gum_query_page_size ();
-  ctx.address_spec = address_spec;
-  ctx.task = mach_task_self ();
-
-  gum_memory_enumerate_free_ranges (gum_try_alloc_in_range_if_near_enough,
-      &ctx);
-  if (ctx.result == NULL)
+  base = gum_memory_allocate_near (spec, size, page_size, page_prot);
+  if (base == NULL)
     return NULL;
 
-  *((gsize *) ctx.result) = ctx.size;
+  if ((page_prot & GUM_PAGE_WRITE) == 0)
+    gum_mprotect (base, page_size, GUM_PAGE_RW);
+
+  *((gsize *) base) = size;
 
   if (page_prot != GUM_PAGE_READ)
-  {
-    gum_mprotect (ctx.result, page_size, GUM_PAGE_READ);
-  }
+    gum_mprotect (base, page_size, GUM_PAGE_READ);
 
   if (page_prot != GUM_PAGE_RW)
-  {
-    gum_mprotect (ctx.result + page_size, ctx.size - page_size, page_prot);
-  }
+    gum_mprotect (base + page_size, size - page_size, page_prot);
 
-  return ctx.result + page_size;
-}
-
-static gboolean
-gum_try_alloc_in_range_if_near_enough (const GumMemoryRange * range,
-                                       gpointer user_data)
-{
-  GumAllocNearContext * ctx = user_data;
-  GumAddress base_address;
-  gsize distance;
-  mach_vm_address_t address;
-  kern_return_t kr;
-
-  if (range->size < ctx->size)
-    return TRUE;
-
-  base_address = range->base_address;
-  distance =
-      ABS (ctx->address_spec->near_address - GSIZE_TO_POINTER (base_address));
-  if (distance > ctx->address_spec->max_distance)
-  {
-    base_address = range->base_address + range->size - ctx->size;
-    distance =
-        ABS (ctx->address_spec->near_address - GSIZE_TO_POINTER (base_address));
-  }
-
-  if (distance > ctx->address_spec->max_distance)
-    return TRUE;
-
-  address = base_address;
-  kr = mach_vm_allocate (ctx->task, &address, ctx->size, VM_FLAGS_FIXED);
-  if (kr != KERN_SUCCESS)
-    return TRUE;
-
-  ctx->result = GSIZE_TO_POINTER (address);
-  return FALSE;
+  return base + page_size;
 }
 
 void
@@ -650,6 +589,67 @@ gum_allocate_page_aligned (gpointer address,
 #endif
 
   return result;
+}
+
+gpointer
+gum_memory_allocate_near (const GumAddressSpec * spec,
+                          gsize size,
+                          gsize alignment,
+                          GumPageProtection page_prot)
+{
+  gpointer base, address;
+  GumAllocNearContext ctx;
+
+  address = (spec != NULL) ? spec->near_address : NULL;
+
+  base = gum_memory_allocate (address, size, alignment, page_prot);
+  if (base == NULL)
+    return NULL;
+  if (spec == NULL || gum_address_spec_is_satisfied_by (spec, base))
+    return base;
+  gum_memory_free (base, size);
+
+  ctx.task = mach_task_self ();
+  ctx.spec = spec;
+  ctx.size = size;
+  ctx.result = NULL;
+
+  gum_memory_enumerate_free_ranges (gum_try_alloc_in_range_if_near_enough,
+      &ctx);
+
+  return ctx.result;
+}
+
+static gboolean
+gum_try_alloc_in_range_if_near_enough (const GumMemoryRange * range,
+                                       gpointer user_data)
+{
+  GumAllocNearContext * ctx = user_data;
+  GumAddress base;
+  mach_vm_address_t address;
+  kern_return_t kr;
+
+  if (range->size < ctx->size)
+    goto keep_looking;
+
+  base = range->base_address;
+  if (!gum_address_spec_is_satisfied_by (ctx->spec, GSIZE_TO_POINTER (base)))
+  {
+    base = range->base_address + range->size - ctx->size;
+    if (!gum_address_spec_is_satisfied_by (ctx->spec, GSIZE_TO_POINTER (base)))
+      goto keep_looking;
+  }
+
+  address = base;
+  kr = mach_vm_allocate (ctx->task, &address, ctx->size, VM_FLAGS_FIXED);
+  if (kr != KERN_SUCCESS)
+    goto keep_looking;
+
+  ctx->result = GSIZE_TO_POINTER (address);
+  return FALSE;
+
+keep_looking:
+  return TRUE;
 }
 
 gboolean

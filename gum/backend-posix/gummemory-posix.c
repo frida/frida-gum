@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -29,10 +29,11 @@ typedef struct _GumEnumerateFreeRangesContext GumEnumerateFreeRangesContext;
 
 struct _GumAllocNearContext
 {
-  gpointer result;
+  const GumAddressSpec * spec;
   gsize size;
   gint posix_page_prot;
-  const GumAddressSpec * address_spec;
+
+  gpointer result;
 };
 
 struct _GumEnumerateFreeRangesContext
@@ -71,84 +72,36 @@ gpointer
 gum_try_alloc_n_pages (guint n_pages,
                        GumPageProtection page_prot)
 {
-  guint8 * result;
-  gsize page_size, size;
-
-  page_size = gum_query_page_size ();
-  size = (1 + n_pages) * page_size;
-
-  result = gum_memory_allocate (NULL, size, page_size, page_prot);
-  if (result == NULL)
-    return NULL;
-
-  if ((page_prot & GUM_PAGE_WRITE) == 0)
-    gum_mprotect (result, page_size, GUM_PAGE_RW);
-  *((gsize *) result) = size;
-  gum_mprotect (result, page_size, GUM_PAGE_READ);
-
-  return result + page_size;
+  return gum_try_alloc_n_pages_near (n_pages, page_prot, NULL);
 }
 
 gpointer
 gum_try_alloc_n_pages_near (guint n_pages,
                             GumPageProtection page_prot,
-                            const GumAddressSpec * address_spec)
+                            const GumAddressSpec * spec)
 {
-  GumAllocNearContext ctx;
-  gsize page_size;
+  guint8 * base;
+  gsize page_size, size;
 
   page_size = gum_query_page_size ();
+  size = (1 + n_pages) * page_size;
 
-  ctx.result = NULL;
-  ctx.size = (1 + n_pages) * page_size;
-  ctx.posix_page_prot = _gum_page_protection_to_posix (page_prot);
-  ctx.address_spec = address_spec;
-
-  gum_enumerate_free_ranges (gum_try_alloc_in_range_if_near_enough, &ctx);
-  if (ctx.result == NULL)
+  base = gum_memory_allocate_near (spec, size, page_size, page_prot);
+  if (base == NULL)
     return NULL;
 
   if ((page_prot & GUM_PAGE_WRITE) == 0)
-    gum_mprotect (ctx.result, page_size, GUM_PAGE_RW);
-  *((gsize *) ctx.result) = ctx.size;
-  gum_mprotect (ctx.result, page_size, GUM_PAGE_READ);
+    gum_mprotect (base, page_size, GUM_PAGE_RW);
 
-  return ctx.result + page_size;
-}
+  *((gsize *) base) = size;
 
-static gboolean
-gum_try_alloc_in_range_if_near_enough (const GumRangeDetails * details,
-                                       gpointer user_data)
-{
-  const GumMemoryRange * range = details->range;
-  GumAllocNearContext * ctx = user_data;
-  GumAddress base_address;
-  gsize distance;
+  if (page_prot != GUM_PAGE_READ)
+    gum_mprotect (base, page_size, GUM_PAGE_READ);
 
-  if (range->size < ctx->size)
-    return TRUE;
+  if (page_prot != GUM_PAGE_RW)
+    gum_mprotect (base + page_size, size - page_size, page_prot);
 
-  base_address = range->base_address;
-  distance = ABS (ctx->address_spec->near_address -
-      GSIZE_TO_POINTER (base_address));
-  if (distance > ctx->address_spec->max_distance)
-  {
-    base_address = range->base_address + range->size - ctx->size;
-    distance = ABS (ctx->address_spec->near_address -
-        GSIZE_TO_POINTER (base_address));
-  }
-
-  if (distance > ctx->address_spec->max_distance)
-    return TRUE;
-
-  ctx->result = mmap (GSIZE_TO_POINTER (base_address), ctx->size,
-      ctx->posix_page_prot, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
-  if (ctx->result == MAP_FAILED)
-    ctx->result = NULL;
-  else
-    return FALSE;
-
-  return TRUE;
+  return base + page_size;
 }
 
 void
@@ -213,6 +166,66 @@ gum_memory_allocate (gpointer address,
   g_assert (allocation_size == size);
 
   return aligned_base;
+}
+
+gpointer
+gum_memory_allocate_near (const GumAddressSpec * spec,
+                          gsize size,
+                          gsize alignment,
+                          GumPageProtection page_prot)
+{
+  gpointer base, address;
+  GumAllocNearContext ctx;
+
+  address = (spec != NULL) ? spec->near_address : NULL;
+
+  base = gum_memory_allocate (address, size, alignment, page_prot);
+  if (base == NULL)
+    return NULL;
+  if (spec == NULL || gum_address_spec_is_satisfied_by (spec, base))
+    return base;
+  gum_memory_free (base, size);
+
+  ctx.spec = spec;
+  ctx.size = size;
+  ctx.posix_page_prot = _gum_page_protection_to_posix (page_prot);
+  ctx.result = NULL;
+
+  gum_enumerate_free_ranges (gum_try_alloc_in_range_if_near_enough, &ctx);
+
+  return ctx.result;
+}
+
+static gboolean
+gum_try_alloc_in_range_if_near_enough (const GumRangeDetails * details,
+                                       gpointer user_data)
+{
+  GumAllocNearContext * ctx = user_data;
+  const GumMemoryRange * range = details->range;
+  GumAddress base;
+  void * res;
+
+  if (range->size < ctx->size)
+    goto keep_looking;
+
+  base = range->base_address;
+  if (!gum_address_spec_is_satisfied_by (ctx->spec, GSIZE_TO_POINTER (base)))
+  {
+    base = range->base_address + range->size - ctx->size;
+    if (!gum_address_spec_is_satisfied_by (ctx->spec, GSIZE_TO_POINTER (base)))
+      goto keep_looking;
+  }
+
+  res = mmap (GSIZE_TO_POINTER (base), ctx->size, ctx->posix_page_prot,
+      MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+  if (res == MAP_FAILED)
+    goto keep_looking;
+
+  ctx->result = res;
+  return FALSE;
+
+keep_looking:
+  return TRUE;
 }
 
 static gpointer
