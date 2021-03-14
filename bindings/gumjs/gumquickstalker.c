@@ -72,7 +72,7 @@ struct _GumQuickCallProbe
 struct _GumQuickProbeArgs
 {
   JSValue wrapper;
-  GumCallSite * site;
+  GumCallDetails * call;
 };
 
 static gboolean gum_quick_stalker_on_flush_timer_tick (GumQuickStalker * self);
@@ -129,13 +129,13 @@ static void gum_quick_callout_on_invoke (GumCpuContext * cpu_context,
     GumQuickCallout * self);
 
 static void gum_quick_call_probe_free (GumQuickCallProbe * probe);
-static void gum_quick_call_probe_on_fire (GumCallSite * site,
+static void gum_quick_call_probe_on_fire (GumCallDetails * details,
     GumQuickCallProbe * self);
 
 static JSValue gum_quick_probe_args_new (GumQuickStalker * parent,
     GumQuickProbeArgs ** probe_args);
 static void gum_quick_probe_args_reset (GumQuickProbeArgs * self,
-    GumCallSite * site);
+    GumCallDetails * call);
 GUMJS_DECLARE_FINALIZER (gumjs_probe_args_finalize)
 static JSValue gumjs_probe_args_get_property (JSContext * ctx, JSValueConst obj,
     JSAtom atom, JSValueConst receiver);
@@ -1271,7 +1271,7 @@ gum_quick_call_probe_free (GumQuickCallProbe * probe)
 }
 
 static void
-gum_quick_call_probe_on_fire (GumCallSite * site,
+gum_quick_call_probe_on_fire (GumCallDetails * details,
                               GumQuickCallProbe * self)
 {
   GumQuickStalker * parent = self->parent;
@@ -1284,7 +1284,7 @@ gum_quick_call_probe_on_fire (GumCallSite * site,
   _gum_quick_scope_enter (&scope, parent->core);
 
   args = gum_quick_stalker_obtain_probe_args (parent);
-  gum_quick_probe_args_reset (args, site);
+  gum_quick_probe_args_reset (args, details);
 
   _gum_quick_scope_call_void (&scope, self->callback, JS_UNDEFINED,
       1, &args->wrapper);
@@ -1309,7 +1309,7 @@ gum_quick_probe_args_new (GumQuickStalker * parent,
 
   args = g_slice_new (GumQuickProbeArgs);
   args->wrapper = wrapper;
-  args->site = NULL;
+  args->call = NULL;
 
   JS_SetOpaque (wrapper, args);
 
@@ -1320,9 +1320,9 @@ gum_quick_probe_args_new (GumQuickStalker * parent,
 
 static void
 gum_quick_probe_args_reset (GumQuickProbeArgs * self,
-                            GumCallSite * site)
+                            GumCallDetails * call)
 {
-  self->site = site;
+  self->call = call;
 }
 
 static gboolean
@@ -1338,7 +1338,7 @@ gum_quick_probe_args_get (JSContext * ctx,
       (gpointer *) &args))
     return FALSE;
 
-  if (args->site == NULL)
+  if (args->call == NULL)
   {
     _gum_quick_throw_literal (ctx, "invalid operation");
     return FALSE;
@@ -1391,7 +1391,7 @@ gumjs_probe_args_get_property (JSContext * ctx,
       goto invalid_array_index;
 
     result = _gum_quick_native_pointer_new (ctx,
-        gum_call_site_get_nth_argument (self->site, n), core);
+        gum_cpu_context_get_nth_argument (self->call->cpu_context, n), core);
   }
 
   JS_FreeCString (ctx, prop_name);
@@ -1440,7 +1440,7 @@ gumjs_probe_args_set_property (JSContext * ctx,
   if (!_gum_quick_native_pointer_get (ctx, value, core, &v))
     goto propagate_exception;
 
-  gum_call_site_replace_nth_argument (self->site, n, v);
+  gum_cpu_context_replace_nth_argument (self->call->cpu_context, n, v);
 
   JS_FreeCString (ctx, prop_name);
 

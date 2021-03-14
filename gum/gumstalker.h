@@ -49,8 +49,9 @@ typedef void (* GumStalkerCallout) (GumCpuContext * cpu_context,
     gpointer user_data);
 
 typedef guint GumProbeId;
-typedef struct _GumCallSite GumCallSite;
-typedef void (* GumCallProbeCallback) (GumCallSite * site, gpointer user_data);
+typedef struct _GumCallDetails GumCallDetails;
+typedef void (* GumCallProbeCallback) (GumCallDetails * details,
+    gpointer user_data);
 
 struct _GumStalkerTransformerInterface
 {
@@ -76,9 +77,10 @@ struct _GumStalkerOutput
   GumInstructionEncoding encoding;
 };
 
-struct _GumCallSite
+struct _GumCallDetails
 {
-  gpointer block_address;
+  gpointer target_address;
+  gpointer return_address;
   gpointer stack_data;
   GumCpuContext * cpu_context;
 };
@@ -232,11 +234,6 @@ GUM_API GumProbeId gum_stalker_add_call_probe (GumStalker * self,
     GDestroyNotify notify);
 GUM_API void gum_stalker_remove_call_probe (GumStalker * self,
     GumProbeId id);
-
-#define gum_call_site_get_nth_argument(s, n) \
-    gum_cpu_context_get_nth_argument ((s)->cpu_context, n)
-#define gum_call_site_replace_nth_argument(s, n, v) \
-    gum_cpu_context_replace_nth_argument ((s)->cpu_context, n, v)
 
 GUM_API GumStalkerTransformer * gum_stalker_transformer_make_default (void);
 GUM_API GumStalkerTransformer * gum_stalker_transformer_make_from_callback (

@@ -513,13 +513,13 @@ typedef struct _CallProbeContext CallProbeContext;
 
 struct _CallProbeContext
 {
-  guint callback_count;
-  guint8 * block_start;
-  gpointer call_address;
+  guint num_calls;
+  gpointer target_address;
   gpointer return_address;
 };
 
-static void probe_func_a_invocation (GumCallSite * site, gpointer user_data);
+static void probe_func_a_invocation (GumCallDetails * details,
+    gpointer user_data);
 
 TESTCASE (call_probe)
 {
@@ -548,7 +548,7 @@ TESTCASE (call_probe)
     0xc2, 2 * sizeof (gpointer), 0x00, /* ret x          */
   };
   StalkerTestFunc func;
-  guint8 * func_a_address;
+  guint8 * func_a;
   CallProbeContext probe_ctx, secondary_probe_ctx;
   GumProbeId probe_id;
 
@@ -556,65 +556,63 @@ TESTCASE (call_probe)
       test_stalker_fixture_dup_code (fixture, code_template,
           sizeof (code_template)));
 
-  func_a_address = fixture->code + 52;
+  func_a = fixture->code + 52;
 
-  probe_ctx.callback_count = 0;
-  probe_ctx.block_start = fixture->code;
-  probe_ctx.call_address = fixture->code + 20;
+  probe_ctx.num_calls = 0;
+  probe_ctx.target_address = fixture->code + 52;
   probe_ctx.return_address = fixture->code + 25;
-  probe_id = gum_stalker_add_call_probe (fixture->stalker,
-      func_a_address, probe_func_a_invocation, &probe_ctx, NULL);
+  probe_id = gum_stalker_add_call_probe (fixture->stalker, func_a,
+      probe_func_a_invocation, &probe_ctx, NULL);
   test_stalker_fixture_follow_and_invoke (fixture, func, 0);
-  g_assert_cmpuint (probe_ctx.callback_count, ==, 1);
+  g_assert_cmpuint (probe_ctx.num_calls, ==, 1);
 
-  secondary_probe_ctx.callback_count = 0;
-  secondary_probe_ctx.block_start = fixture->code;
-  secondary_probe_ctx.call_address = probe_ctx.call_address;
+  secondary_probe_ctx.num_calls = 0;
+  secondary_probe_ctx.target_address = probe_ctx.target_address;
   secondary_probe_ctx.return_address = probe_ctx.return_address;
-  gum_stalker_add_call_probe (fixture->stalker,
-      func_a_address, probe_func_a_invocation, &secondary_probe_ctx, NULL);
+  gum_stalker_add_call_probe (fixture->stalker, func_a, probe_func_a_invocation,
+      &secondary_probe_ctx, NULL);
   test_stalker_fixture_follow_and_invoke (fixture, func, 0);
-  g_assert_cmpuint (probe_ctx.callback_count, ==, 2);
-  g_assert_cmpuint (secondary_probe_ctx.callback_count, ==, 1);
+  g_assert_cmpuint (probe_ctx.num_calls, ==, 2);
+  g_assert_cmpuint (secondary_probe_ctx.num_calls, ==, 1);
 
   gum_stalker_remove_call_probe (fixture->stalker, probe_id);
   test_stalker_fixture_follow_and_invoke (fixture, func, 0);
-  g_assert_cmpuint (probe_ctx.callback_count, ==, 2);
-  g_assert_cmpuint (secondary_probe_ctx.callback_count, ==, 2);
+  g_assert_cmpuint (probe_ctx.num_calls, ==, 2);
+  g_assert_cmpuint (secondary_probe_ctx.num_calls, ==, 2);
 }
 
 static void
-probe_func_a_invocation (GumCallSite * site,
+probe_func_a_invocation (GumCallDetails * details,
                          gpointer user_data)
 {
-  CallProbeContext * ctx = (CallProbeContext *) user_data;
+  CallProbeContext * ctx = user_data;
+  gsize * stack_values = details->stack_data;
+  GumCpuContext * cpu_context = details->cpu_context;
 
-  ctx->callback_count++;
+  ctx->num_calls++;
 
-  GUM_ASSERT_CMPADDR (site->block_address, ==, ctx->block_start);
+  GUM_ASSERT_CMPADDR (details->target_address, ==, ctx->target_address);
+  GUM_ASSERT_CMPADDR (details->return_address, ==, ctx->return_address);
+
 #if GLIB_SIZEOF_VOID_P == 4
-  g_assert_cmphex (site->cpu_context->ecx, ==, 0xaaaa1111);
-  g_assert_cmphex (site->cpu_context->edx, ==, 0xaaaa2222);
-#else
-  g_assert_cmphex (site->cpu_context->rcx & 0xffffffff, ==, 0xaaaa1111);
-  g_assert_cmphex (site->cpu_context->rdx & 0xffffffff, ==, 0xaaaa2222);
+  g_assert_cmphex (GPOINTER_TO_SIZE (
+      gum_cpu_context_get_nth_argument (cpu_context, 0)), ==, 0xaaaa3333);
+  g_assert_cmphex (GPOINTER_TO_SIZE (
+      gum_cpu_context_get_nth_argument (cpu_context, 1)), ==, 0xaaaa4444);
 #endif
-  g_assert_cmphex (GUM_CPU_CONTEXT_XIP (site->cpu_context),
-      ==, GPOINTER_TO_SIZE (ctx->call_address));
-  g_assert_cmphex (((gsize *) site->stack_data)[0],
-      ==, GPOINTER_TO_SIZE (ctx->return_address));
-  g_assert_cmphex (((gsize *) site->stack_data)[1] & 0xffffffff,
-      ==, 0xaaaa3333);
-  g_assert_cmphex (((gsize *) site->stack_data)[2] & 0xffffffff,
-      ==, 0xaaaa4444);
 
+  g_assert_cmphex (stack_values[0], ==, GPOINTER_TO_SIZE (ctx->return_address));
+  g_assert_cmphex (stack_values[1] & 0xffffffff, ==, 0xaaaa3333);
+  g_assert_cmphex (stack_values[2] & 0xffffffff, ==, 0xaaaa4444);
+
+  g_assert_cmphex (GUM_CPU_CONTEXT_XIP (cpu_context),
+      ==, GPOINTER_TO_SIZE (ctx->target_address));
 #if GLIB_SIZEOF_VOID_P == 4
-  g_assert_cmphex (GPOINTER_TO_SIZE (
-      gum_cpu_context_get_nth_argument (site->cpu_context, 0)),
-      ==, 0xaaaa3333);
-  g_assert_cmphex (GPOINTER_TO_SIZE (
-      gum_cpu_context_get_nth_argument (site->cpu_context, 1)),
-      ==, 0xaaaa4444);
+  g_assert_cmphex (cpu_context->ecx, ==, 0xaaaa1111);
+  g_assert_cmphex (cpu_context->edx, ==, 0xaaaa2222);
+#else
+  g_assert_cmphex (cpu_context->rcx & 0xffffffff, ==, 0xaaaa1111);
+  g_assert_cmphex (cpu_context->rdx & 0xffffffff, ==, 0xaaaa2222);
 #endif
 }
 
@@ -1326,7 +1324,7 @@ invoke_follow_return_code (TestStalkerFixture * fixture)
   spec.near_address = gum_stalker_follow_me;
   spec.max_distance = G_MAXINT32 / 2;
 
-  code = gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &spec);
+  code = gum_alloc_n_pages_near (1, GUM_PAGE_RW, &spec);
 
   gum_x86_writer_init (&cw, code);
 
@@ -1349,6 +1347,8 @@ invoke_follow_return_code (TestStalkerFixture * fixture)
   gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_follow);
   gum_x86_writer_put_ret (&cw);
 
+  gum_x86_writer_flush (&cw);
+  gum_memory_mark_code (cw.base, gum_x86_writer_offset (&cw));
   gum_x86_writer_clear (&cw);
 
   invoke_func = GUM_POINTER_TO_FUNCPTR (GCallback, code);
@@ -1483,7 +1483,7 @@ invoke_unfollow_deep_code (TestStalkerFixture * fixture)
   spec.near_address = gum_stalker_follow_me;
   spec.max_distance = G_MAXINT32 / 2;
 
-  code = (guint8 *) gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &spec);
+  code = gum_alloc_n_pages_near (1, GUM_PAGE_RW, &spec);
 
   gum_x86_writer_init (&cw, code);
 
@@ -1513,6 +1513,8 @@ invoke_unfollow_deep_code (TestStalkerFixture * fixture)
   gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_unfollow);
   gum_x86_writer_put_ret (&cw);
 
+  gum_x86_writer_flush (&cw);
+  gum_memory_mark_code (cw.base, gum_x86_writer_offset (&cw));
   gum_x86_writer_clear (&cw);
 
   invoke_func = GUM_POINTER_TO_FUNCPTR (GCallback, code);
@@ -1564,7 +1566,7 @@ struct _CallTemplate
   gboolean enable_probe;
 };
 
-static void probe_template_func_invocation (GumCallSite * site,
+static void probe_template_func_invocation (GumCallDetails * details,
     gpointer user_data);
 
 static StalkerTestFunc
@@ -1583,6 +1585,8 @@ invoke_call_from_template (TestStalkerFixture * fixture,
       call_template->code_template, call_template->code_size);
   func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
 
+  gum_mprotect (code, call_template->code_size, GUM_PAGE_RW);
+
   target_func_address = code + call_template->target_func_offset;
   if (call_template->target_address_offset_points_directly_to_function)
     target_actual_address = GPOINTER_TO_SIZE (target_func_address);
@@ -1595,6 +1599,8 @@ invoke_call_from_template (TestStalkerFixture * fixture,
   if (call_template->target_mov_offset != 0)
     *(code + call_template->target_mov_offset - 1) = 0x48;
 #endif
+
+  gum_memory_mark_code (code, call_template->code_size);
 
   expected_insn_count = INVOKER_INSN_COUNT + call_template->instruction_count;
 #if GLIB_SIZEOF_VOID_P == 4
@@ -1628,7 +1634,7 @@ invoke_call_from_template (TestStalkerFixture * fixture,
 }
 
 static void
-probe_template_func_invocation (GumCallSite * site,
+probe_template_func_invocation (GumCallDetails * details,
                                 gpointer user_data)
 {
 }
@@ -1992,6 +1998,8 @@ invoke_jump (TestStalkerFixture * fixture,
       jump_template->code_size);
   func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
 
+  gum_mprotect (code, jump_template->code_size, GUM_PAGE_RW);
+
   target_address = code + jump_template->offset_of_target;
   if (jump_template->offset_of_target_pointer_points_directly)
     target_actual_address = GPOINTER_TO_SIZE (target_address);
@@ -1999,6 +2007,8 @@ invoke_jump (TestStalkerFixture * fixture,
     target_actual_address = GPOINTER_TO_SIZE (&target_address);
   *((gsize *) (code + jump_template->offset_of_target_pointer)) =
       target_actual_address + jump_template->target_immediate_fixup;
+
+  gum_memory_mark_code (code, jump_template->code_size);
 
   expected_insn_count = INVOKER_INSN_COUNT + jump_template->instruction_count;
 #if GLIB_SIZEOF_VOID_P == 4
@@ -2091,7 +2101,7 @@ TESTCASE (no_register_clobber)
   ClobberFunc func;
   GumCpuContext ctx;
 
-  code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  code = gum_alloc_n_pages (1, GUM_PAGE_RW);
   gum_x86_writer_init (&cw, code);
 
   gum_x86_writer_put_pushax (&cw);
@@ -2155,6 +2165,8 @@ TESTCASE (no_register_clobber)
   gum_x86_writer_put_nop (&cw);
   gum_x86_writer_put_ret (&cw);
 
+  gum_x86_writer_flush (&cw);
+  gum_memory_mark_code (cw.base, gum_x86_writer_offset (&cw));
   gum_x86_writer_clear (&cw);
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
@@ -2199,7 +2211,9 @@ TESTCASE (no_red_zone_clobber)
 
   code = test_stalker_fixture_dup_code (fixture, code_template,
       sizeof (code_template));
+  gum_mprotect (code, sizeof (code_template), GUM_PAGE_RW);
   *((gpointer *) (code + 2)) = code + 23;
+  gum_memory_mark_code (code, sizeof (code_template));
 
   func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
   ret = func (42);
@@ -2225,7 +2239,7 @@ TESTCASE (big_block)
 
   code = gum_alloc_n_pages (
       (nop_instruction_count / gum_query_page_size ()) + 1,
-      GUM_PAGE_RWX);
+      GUM_PAGE_RW);
   gum_x86_writer_init (&cw, code);
 
   for (i = 0; i != nop_instruction_count; i++)
@@ -2233,6 +2247,7 @@ TESTCASE (big_block)
   gum_x86_writer_put_ret (&cw);
 
   gum_x86_writer_flush (&cw);
+  gum_memory_mark_code (cw.base, gum_x86_writer_offset (&cw));
 
   func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc,
       test_stalker_fixture_dup_code (fixture, code,
@@ -2307,7 +2322,9 @@ invoke_indirect_call_seg (TestStalkerFixture * fixture,
       sizeof (code_template));
   func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
 
+  gum_mprotect (code, sizeof (code_template), GUM_PAGE_RW);
   *((gpointer *) (code + 14)) = code + sizeof (code_template) - 1 - 5;
+  gum_memory_mark_code (code, sizeof (code_template));
 
   fixture->sink->mask = mask;
   ret = test_stalker_fixture_follow_and_invoke (fixture, func, 0);

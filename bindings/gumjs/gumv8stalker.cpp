@@ -151,7 +151,7 @@ static void gum_v8_callout_on_invoke (GumCpuContext * cpu_context,
     GumV8Callout * self);
 
 static void gum_v8_call_probe_free (GumV8CallProbe * probe);
-static void gum_v8_call_probe_on_fire (GumCallSite * site,
+static void gum_v8_call_probe_on_fire (GumCallDetails * details,
     GumV8CallProbe * self);
 
 static void gumjs_probe_args_get_nth (uint32_t index,
@@ -1248,7 +1248,7 @@ gum_v8_call_probe_free (GumV8CallProbe * probe)
 }
 
 static void
-gum_v8_call_probe_on_fire (GumCallSite * site,
+gum_v8_call_probe_on_fire (GumCallDetails * details,
                            GumV8CallProbe * self)
 {
   GumV8SystemErrorPreservationScope error_scope;
@@ -1262,7 +1262,7 @@ gum_v8_call_probe_on_fire (GumCallSite * site,
       Local<ObjectTemplate>::New (isolate, *self->module->probe_args);
   auto args = probe_args->NewInstance (context).ToLocalChecked ();
   args->SetAlignedPointerInInternalField (0, self);
-  args->SetAlignedPointerInInternalField (1, site);
+  args->SetAlignedPointerInInternalField (1, details);
 
   auto callback (Local<Function>::New (isolate, *self->callback));
   auto recv = Undefined (isolate);
@@ -1282,19 +1282,19 @@ gumjs_probe_args_get_nth (uint32_t index,
   auto wrapper = info.This ();
   auto self =
       (GumV8CallProbe *) wrapper->GetAlignedPointerFromInternalField (0);
-  auto site =
-      (GumCallSite *) wrapper->GetAlignedPointerFromInternalField (1);
+  auto call =
+      (GumCallDetails *) wrapper->GetAlignedPointerFromInternalField (1);
   auto core = self->module->core;
 
-  if (site == nullptr)
+  if (call == nullptr)
   {
     _gum_v8_throw_ascii_literal (core->isolate, "invalid operation");
     return;
   }
 
   info.GetReturnValue ().Set (
-      _gum_v8_native_pointer_new (gum_call_site_get_nth_argument (site, index),
-          core));
+      _gum_v8_native_pointer_new (
+          gum_cpu_context_get_nth_argument (call->cpu_context, index), core));
 }
 
 static void
@@ -1305,11 +1305,11 @@ gumjs_probe_args_set_nth (uint32_t index,
   auto wrapper = info.This ();
   auto self =
       (GumV8CallProbe *) wrapper->GetAlignedPointerFromInternalField (0);
-  auto site =
-      (GumCallSite *) wrapper->GetAlignedPointerFromInternalField (1);
+  auto call =
+      (GumCallDetails *) wrapper->GetAlignedPointerFromInternalField (1);
   auto core = self->module->core;
 
-  if (site == nullptr)
+  if (call == nullptr)
   {
     _gum_v8_throw_ascii_literal (core->isolate, "invalid operation");
     return;
@@ -1321,7 +1321,7 @@ gumjs_probe_args_set_nth (uint32_t index,
   if (!_gum_v8_native_pointer_get (value, &raw_value, core))
     return;
 
-  gum_call_site_replace_nth_argument (site, index, raw_value);
+  gum_cpu_context_replace_nth_argument (call->cpu_context, index, raw_value);
 }
 
 static GumV8StalkerDefaultIterator *

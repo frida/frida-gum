@@ -16,8 +16,6 @@
 
 TESTLIST_BEGIN (stalker)
   TESTENTRY (trust_should_be_one_by_default)
-  TESTENTRY (add_call_probe_unsupported)
-  TESTENTRY (remove_call_probe_unsupported)
 
   TESTENTRY (arm_no_events)
   TESTENTRY (thumb_no_events)
@@ -84,6 +82,9 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (thumb_tbh)
   TESTENTRY (thumb_strex_no_exec_events)
 
+  TESTENTRY (arm_call_probe)
+  TESTENTRY (thumb_call_probe)
+
   TESTENTRY (self_modifying_code_should_be_detected_with_threshold_minus_one)
   TESTENTRY (self_modifying_code_should_not_be_detected_with_threshold_zero)
   TESTENTRY (self_modifying_code_should_be_detected_with_threshold_one)
@@ -121,7 +122,6 @@ TESTLIST_BEGIN (stalker)
 #endif
 TESTLIST_END ()
 
-static void dummy_call_probe (GumCallSite * site, gpointer user_data);
 static gboolean store_range_of_test_runner (const GumModuleDetails * details,
     gpointer user_data);
 static guint32 pretend_workload (GumMemoryRange * runner_range);
@@ -204,32 +204,6 @@ TESTCASE (activate_unsupported)
   g_test_assert_expected_messages ();
 }
 
-TESTCASE (add_call_probe_unsupported)
-{
-  GumProbeId id;
-
-  g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
-      "Call probes unsupported");
-  id = gum_stalker_add_call_probe (fixture->stalker, NULL, dummy_call_probe,
-      NULL, NULL);
-  g_test_assert_expected_messages ();
-  g_assert_cmpuint (id, ==, 0);
-}
-
-static void
-dummy_call_probe (GumCallSite * site,
-                  gpointer user_data)
-{
-}
-
-TESTCASE (remove_call_probe_unsupported)
-{
-  g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
-      "Call probes unsupported");
-  gum_stalker_remove_call_probe (fixture->stalker, 10);
-  g_test_assert_expected_messages ();
-}
-
 TESTCODE (arm_flat_code,
   0x00, 0x00, 0x40, 0xe0, /* sub r0, r0, r0  */
   0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1   */
@@ -302,11 +276,11 @@ TESTCASE (thumb_exec_events_generated)
   GUM_ASSERT_EVENT_ADDR (exec, 1, location,
       fixture->invoker + INVOKER_IMPL_OFFSET + 4);
 
-  GUM_ASSERT_EVENT_ADDR (exec, 2, location, func);
-  GUM_ASSERT_EVENT_ADDR (exec, 3, location, func + 2);
-  GUM_ASSERT_EVENT_ADDR (exec, 4, location, func + 4);
-  GUM_ASSERT_EVENT_ADDR (exec, 5, location, func + 6);
-  GUM_ASSERT_EVENT_ADDR (exec, 6, location, func + 8);
+  GUM_ASSERT_EVENT_ADDR (exec, 2, location, func + 0 + 1);
+  GUM_ASSERT_EVENT_ADDR (exec, 3, location, func + 2 + 1);
+  GUM_ASSERT_EVENT_ADDR (exec, 4, location, func + 4 + 1);
+  GUM_ASSERT_EVENT_ADDR (exec, 5, location, func + 6 + 1);
+  GUM_ASSERT_EVENT_ADDR (exec, 6, location, func + 8 + 1);
 
   GUM_ASSERT_EVENT_ADDR (exec, 7, location,
       fixture->invoker + INVOKER_IMPL_OFFSET + 8);
@@ -387,8 +361,8 @@ TESTCASE (thumb_block_events_generated)
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 1);
 
-  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, begin, func);
-  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, end, func + (4 * 2));
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, begin, func + 1);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, end, func + (4 * 2) + 1);
 }
 
 TESTCODE (arm_nested_call,
@@ -469,16 +443,16 @@ TESTCASE (thumb_nested_call_events_generated)
   GUM_ASSERT_EVENT_ADDR (call, 0, target, func + 1);
   GUM_ASSERT_EVENT_ADDR (call, 0, depth, 0);
 
-  GUM_ASSERT_EVENT_ADDR (call, 1, location, func + 6);
-  GUM_ASSERT_EVENT_ADDR (call, 1, target, func + 17);
+  GUM_ASSERT_EVENT_ADDR (call, 1, location, func + 6 + 1);
+  GUM_ASSERT_EVENT_ADDR (call, 1, target, func + 16 + 1);
   GUM_ASSERT_EVENT_ADDR (call, 1, depth, 1);
 
-  GUM_ASSERT_EVENT_ADDR (call, 2, location, func + 20);
-  GUM_ASSERT_EVENT_ADDR (call, 2, target, func + 27);
+  GUM_ASSERT_EVENT_ADDR (call, 2, location, func + 20 + 1);
+  GUM_ASSERT_EVENT_ADDR (call, 2, target, func + 26 + 1);
   GUM_ASSERT_EVENT_ADDR (call, 2, depth, 2);
 
-  GUM_ASSERT_EVENT_ADDR (call, 3, location, func + 10);
-  GUM_ASSERT_EVENT_ADDR (call, 3, target, func + 27);
+  GUM_ASSERT_EVENT_ADDR (call, 3, location, func + 10 + 1);
+  GUM_ASSERT_EVENT_ADDR (call, 3, target, func + 26 + 1);
   GUM_ASSERT_EVENT_ADDR (call, 3, depth, 1);
 }
 
@@ -514,20 +488,175 @@ TESTCASE (thumb_nested_ret_events_generated)
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 4);
 
-  GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + 30);
-  GUM_ASSERT_EVENT_ADDR (ret, 0, target, func + 25);
+  GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + 30 + 1);
+  GUM_ASSERT_EVENT_ADDR (ret, 0, target, func + 24 + 1);
   GUM_ASSERT_EVENT_ADDR (ret, 0, depth, 2);
 
-  GUM_ASSERT_EVENT_ADDR (ret, 1, location, func + 24);
-  GUM_ASSERT_EVENT_ADDR (ret, 1, target, func + 11);
+  GUM_ASSERT_EVENT_ADDR (ret, 1, location, func + 24 + 1);
+  GUM_ASSERT_EVENT_ADDR (ret, 1, target, func + 10 + 1);
   GUM_ASSERT_EVENT_ADDR (ret, 1, depth, 1);
 
-  GUM_ASSERT_EVENT_ADDR (ret, 2, location, func + 30);
-  GUM_ASSERT_EVENT_ADDR (ret, 2, target, func + 15);
+  GUM_ASSERT_EVENT_ADDR (ret, 2, location, func + 30 + 1);
+  GUM_ASSERT_EVENT_ADDR (ret, 2, target, func + 14 + 1);
   GUM_ASSERT_EVENT_ADDR (ret, 2, depth, 1);
 
-  GUM_ASSERT_EVENT_ADDR (ret, 3, location, func + 14);
+  GUM_ASSERT_EVENT_ADDR (ret, 3, location, func + 14 + 1);
   GUM_ASSERT_EVENT_ADDR (ret, 3, depth, 0);
+}
+
+typedef struct _CallProbeContext CallProbeContext;
+
+struct _CallProbeContext
+{
+  guint num_calls;
+  gpointer target_address;
+  gpointer return_address;
+};
+
+static void test_call_probe (GumAddress func, GumAddress func_a,
+    GumAddress return_address, TestArmStalkerFixture * fixture);
+static void probe_func_a_invocation (GumCallDetails * details,
+    gpointer user_data);
+
+TESTCODE (arm_call_probe,
+  0x00, 0x44, 0x2d, 0xe9, /* push {r10, lr}   */
+  0xaa, 0xa0, 0xa0, 0xe3, /* mov r10, 0xaa    */
+  0x44, 0x30, 0xa0, 0xe3, /* mov r3, 0x44     */
+  0x33, 0x20, 0xa0, 0xe3, /* mov r2, 0x33     */
+  0x22, 0x10, 0xa0, 0xe3, /* mov r1, 0x22     */
+  0x11, 0x00, 0xa0, 0xe3, /* mov r0, 0x11     */
+  0x03, 0x00, 0x2d, 0xe9, /* push {r0, r1}    */
+  0x06, 0x00, 0x00, 0xeb, /* bl func_a        */
+  0x03, 0x00, 0xbd, 0xe8, /* pop {r0, r1}     */
+  0x88, 0x30, 0xa0, 0xe3, /* mov r3, 0x88     */
+  0x77, 0x20, 0xa0, 0xe3, /* mov r2, 0x77     */
+  0x66, 0x10, 0xa0, 0xe3, /* mov r1, 0x66     */
+  0x55, 0x00, 0xa0, 0xe3, /* mov r0, 0x55     */
+  0x02, 0x00, 0x00, 0xeb, /* bl func_b        */
+  0x00, 0x84, 0xbd, 0xe8, /* pop {r10, pc}    */
+
+  /* func_a: */
+  0x88, 0x00, 0xa0, 0xe3, /* mov r0, 0x88     */
+  0x0e, 0xf0, 0xa0, 0xe1, /* mov pc, lr       */
+
+  /* func_b: */
+  0x99, 0x00, 0xa0, 0xe3, /* mov r0, 0x99     */
+  0x0e, 0xf0, 0xa0, 0xe1, /* mov pc, lr       */
+);
+
+TESTCODE (thumb_call_probe,
+  0x2d, 0xe9, 0x00, 0x44, /* push.w {r10, lr} */
+  0x4f, 0xf0, 0xaa, 0x0a, /* mov.w r10, 0xaa  */
+  0x4f, 0xf0, 0x44, 0x03, /* mov.w r3, 0x44   */
+  0x4f, 0xf0, 0x33, 0x02, /* mov.w r2, 0x33   */
+  0x4f, 0xf0, 0x22, 0x01, /* mov.w r1, 0x22   */
+  0x4f, 0xf0, 0x11, 0x00, /* mov.w r0, 0x11   */
+  0x03, 0xb4,             /* push {r0, r1}    */
+  0x00, 0xf0, 0x0d, 0xf8, /* bl func_a        */
+  0x03, 0xbc,             /* pop {r0, r1}     */
+  0x4f, 0xf0, 0x88, 0x03, /* mov.w r3, 0x88   */
+  0x4f, 0xf0, 0x77, 0x02, /* mov.w r2, 0x77   */
+  0x4f, 0xf0, 0x66, 0x01, /* mov.w r1, 0x66   */
+  0x4f, 0xf0, 0x55, 0x00, /* mov.w r0, 0x55   */
+  0x00, 0xf0, 0x05, 0xf8, /* bl func_b        */
+  0xbd, 0xe8, 0x00, 0x84, /* pop.w {r10, pc}  */
+
+  /* func_a: */
+  0x4f, 0xf0, 0x88, 0x00, /* mov.w r0, 0x88   */
+  0x70, 0x47,             /* bx lr            */
+
+  /* func_b: */
+  0x4f, 0xf0, 0x99, 0x00, /* mov.w r0, 0x99   */
+  0x70, 0x47,             /* bx lr            */
+);
+
+TESTCASE (arm_call_probe)
+{
+  GumAddress func = DUP_TESTCODE (arm_call_probe);
+
+  test_call_probe (
+      func,
+      func + 15 * 4,
+      func + 8 * 4,
+      fixture);
+}
+
+TESTCASE (thumb_call_probe)
+{
+  GumAddress func = DUP_TESTCODE (thumb_call_probe);
+
+  test_call_probe (
+      func + 1,
+      func + 56 + 1,
+      func + 30 + 1,
+      fixture);
+}
+
+static void
+test_call_probe (GumAddress func,
+                 GumAddress func_a,
+                 GumAddress return_address,
+                 TestArmStalkerFixture * fixture)
+{
+  gpointer func_a_ptr;
+  CallProbeContext probe_ctx, secondary_probe_ctx;
+  GumProbeId probe_id;
+
+  func_a_ptr = GSIZE_TO_POINTER (func_a);
+
+  probe_ctx.num_calls = 0;
+  probe_ctx.target_address = func_a_ptr;
+  probe_ctx.return_address = GSIZE_TO_POINTER (return_address);
+  probe_id = gum_stalker_add_call_probe (fixture->stalker, func_a_ptr,
+      probe_func_a_invocation, &probe_ctx, NULL);
+  FOLLOW_AND_INVOKE (func);
+  g_assert_cmpuint (probe_ctx.num_calls, ==, 1);
+
+  secondary_probe_ctx.num_calls = 0;
+  secondary_probe_ctx.target_address = probe_ctx.target_address;
+  secondary_probe_ctx.return_address = probe_ctx.return_address;
+  gum_stalker_add_call_probe (fixture->stalker, func_a_ptr,
+      probe_func_a_invocation, &secondary_probe_ctx, NULL);
+  FOLLOW_AND_INVOKE (func);
+  g_assert_cmpuint (probe_ctx.num_calls, ==, 2);
+  g_assert_cmpuint (secondary_probe_ctx.num_calls, ==, 1);
+
+  gum_stalker_remove_call_probe (fixture->stalker, probe_id);
+  FOLLOW_AND_INVOKE (func);
+  g_assert_cmpuint (probe_ctx.num_calls, ==, 2);
+  g_assert_cmpuint (secondary_probe_ctx.num_calls, ==, 2);
+}
+
+static void
+probe_func_a_invocation (GumCallDetails * details,
+                         gpointer user_data)
+{
+  CallProbeContext * ctx = user_data;
+  gsize * stack_values = details->stack_data;
+  GumCpuContext * cpu_context = details->cpu_context;
+
+  ctx->num_calls++;
+
+  GUM_ASSERT_CMPADDR (details->target_address, ==, ctx->target_address);
+  GUM_ASSERT_CMPADDR (details->return_address, ==, ctx->return_address);
+
+  g_assert_cmphex (GPOINTER_TO_SIZE (
+      gum_cpu_context_get_nth_argument (cpu_context, 0)), ==, 0x11);
+  g_assert_cmphex (GPOINTER_TO_SIZE (
+      gum_cpu_context_get_nth_argument (cpu_context, 1)), ==, 0x22);
+
+  g_assert_cmphex (stack_values[0], ==, 0x11);
+  g_assert_cmphex (stack_values[1], ==, 0x22);
+
+  g_assert_cmphex (cpu_context->pc, ==,
+      GPOINTER_TO_SIZE (ctx->target_address) & ~1);
+  g_assert_cmphex (cpu_context->lr, ==,
+      GPOINTER_TO_SIZE (ctx->return_address));
+  g_assert_cmphex (cpu_context->r[0], ==, 0x11);
+  g_assert_cmphex (cpu_context->r[1], ==, 0x22);
+  g_assert_cmphex (cpu_context->r[2], ==, 0x33);
+  g_assert_cmphex (cpu_context->r[3], ==, 0x44);
+  g_assert_cmphex (cpu_context->r10, ==, 0xaa);
 }
 
 TESTCODE (arm_unmodified_lr,
@@ -644,11 +773,11 @@ TESTCASE (thumb_excluded_range)
 
     g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 5);
 
-    GUM_ASSERT_EVENT_ADDR (exec, 2, location, func);
-    GUM_ASSERT_EVENT_ADDR (exec, 3, location, func + 2);
-    GUM_ASSERT_EVENT_ADDR (exec, 4, location, func + 4);
-    GUM_ASSERT_EVENT_ADDR (exec, 5, location, func + 6);
-    GUM_ASSERT_EVENT_ADDR (exec, 6, location, func + 10);
+    GUM_ASSERT_EVENT_ADDR (exec, 2, location, func +  0 + 1);
+    GUM_ASSERT_EVENT_ADDR (exec, 3, location, func +  2 + 1);
+    GUM_ASSERT_EVENT_ADDR (exec, 4, location, func +  4 + 1);
+    GUM_ASSERT_EVENT_ADDR (exec, 5, location, func +  6 + 1);
+    GUM_ASSERT_EVENT_ADDR (exec, 6, location, func + 10 + 1);
   }
 }
 
@@ -754,12 +883,12 @@ TESTCASE (thumb_excluded_range_call_events)
     g_assert_cmpuint (fixture->sink->events->len, ==,
         INVOKER_CALL_INSN_COUNT + 2);
 
-    GUM_ASSERT_EVENT_ADDR (call, 1, location, func + 6);
-    GUM_ASSERT_EVENT_ADDR (call, 1, target, func + 29);
+    GUM_ASSERT_EVENT_ADDR (call, 1, location, func + 6 + 1);
+    GUM_ASSERT_EVENT_ADDR (call, 1, target, func + 28 + 1);
     GUM_ASSERT_EVENT_ADDR (call, 1, depth, 1);
 
-    GUM_ASSERT_EVENT_ADDR (call, 2, location, func + 10);
-    GUM_ASSERT_EVENT_ADDR (call, 2, target, func + 17);
+    GUM_ASSERT_EVENT_ADDR (call, 2, location, func + 10 + 1);
+    GUM_ASSERT_EVENT_ADDR (call, 2, target, func + 16 + 1);
     GUM_ASSERT_EVENT_ADDR (call, 2, depth, 1);
   }
 }
@@ -815,11 +944,11 @@ TESTCASE (thumb_excluded_range_ret_events)
 
     g_assert_cmpuint (fixture->sink->events->len, ==, 2);
 
-    GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + 20);
-    GUM_ASSERT_EVENT_ADDR (ret, 0, target, func + 15);
+    GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + 20 + 1);
+    GUM_ASSERT_EVENT_ADDR (ret, 0, target, func + 14 + 1);
     GUM_ASSERT_EVENT_ADDR (ret, 0, depth, 1);
 
-    GUM_ASSERT_EVENT_ADDR (ret, 1, location, func + 14);
+    GUM_ASSERT_EVENT_ADDR (ret, 1, location, func + 14 + 1);
     GUM_ASSERT_EVENT_ADDR (ret, 1, depth, 0);
   }
 }
@@ -880,11 +1009,11 @@ TESTCASE (thumb_pop_pc_ret_events_generated)
   g_assert_cmpint (
       g_array_index (fixture->sink->events, GumEvent, 0).type, ==, GUM_RET);
 
-  GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + 16);
-  GUM_ASSERT_EVENT_ADDR (ret, 0, target, func + 11);
+  GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + 16 + 1);
+  GUM_ASSERT_EVENT_ADDR (ret, 0, target, func + 10 + 1);
   GUM_ASSERT_EVENT_ADDR (ret, 0, depth, 1);
 
-  GUM_ASSERT_EVENT_ADDR (ret, 1, location, func + 10);
+  GUM_ASSERT_EVENT_ADDR (ret, 1, location, func + 10 + 1);
   GUM_ASSERT_EVENT_ADDR (ret, 1, depth, 0);
 }
 
@@ -944,11 +1073,11 @@ TESTCASE (thumb_pop_just_pc_ret_events_generated)
   g_assert_cmpint (
       g_array_index (fixture->sink->events, GumEvent, 0).type, ==, GUM_RET);
 
-  GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + 16);
-  GUM_ASSERT_EVENT_ADDR (ret, 0, target, func + 11);
+  GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + 16 + 1);
+  GUM_ASSERT_EVENT_ADDR (ret, 0, target, func + 10 + 1);
   GUM_ASSERT_EVENT_ADDR (ret, 0, depth, 1);
 
-  GUM_ASSERT_EVENT_ADDR (ret, 1, location, func + 10);
+  GUM_ASSERT_EVENT_ADDR (ret, 1, location, func + 10 + 1);
   GUM_ASSERT_EVENT_ADDR (ret, 1, depth, 0);
 }
 
@@ -976,7 +1105,7 @@ TESTCASE (thumb_pop_just_pc2_ret_events_generated)
   g_assert_cmpint (
       g_array_index (fixture->sink->events, GumEvent, 0).type, ==, GUM_RET);
 
-  GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + 10);
+  GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + 10 + 1);
   GUM_ASSERT_EVENT_ADDR (ret, 0, depth, 0);
 }
 
@@ -1038,11 +1167,11 @@ TESTCASE (thumb_ldm_pc_ret_events_generated)
   g_assert_cmpint (
       g_array_index (fixture->sink->events, GumEvent, 0).type, ==, GUM_RET);
 
-  GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + 20);
-  GUM_ASSERT_EVENT_ADDR (ret, 0, target, func + 11);
+  GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + 20 + 1);
+  GUM_ASSERT_EVENT_ADDR (ret, 0, target, func + 10 + 1);
   GUM_ASSERT_EVENT_ADDR (ret, 0, depth, 1);
 
-  GUM_ASSERT_EVENT_ADDR (ret, 1, location, func + 10);
+  GUM_ASSERT_EVENT_ADDR (ret, 1, location, func + 10 + 1);
   GUM_ASSERT_EVENT_ADDR (ret, 1, depth, 0);
 }
 
@@ -1130,17 +1259,17 @@ TESTCASE (thumb_branch_cc_block_events_generated)
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 4);
 
-  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, begin, func);
-  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, end, func + 10);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, begin, func + 1);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, end, func + 10 + 1);
 
-  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 1, begin, func + 12);
-  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 1, end, func + 16);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 1, begin, func + 12 + 1);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 1, end, func + 16 + 1);
 
-  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 2, begin, func + 16);
-  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 2, end, func + 22);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 2, begin, func + 16 + 1);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 2, end, func + 22 + 1);
 
-  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 3, begin, func + 24);
-  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 3, end, func + 28);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 3, begin, func + 24 + 1);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 3, end, func + 28 + 1);
 }
 
 TESTCODE (thumb_cbz_cbnz,
@@ -1177,17 +1306,17 @@ TESTCASE (thumb_cbz_cbnz_block_events_generated)
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 4);
 
-  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, begin, func);
-  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, end, func + 12);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, begin, func + 1);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, end, func + 12 + 1);
 
-  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 1, begin, func + 14);
-  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 1, end, func + 16);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 1, begin, func + 14 + 1);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 1, end, func + 16 + 1);
 
-  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 2, begin, func + 16);
-  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 2, end, func + 20);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 2, begin, func + 16 + 1);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 2, end, func + 20 + 1);
 
-  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 3, begin, func + 20);
-  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 3, end, func + 24);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 3, begin, func + 20 + 1);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 3, end, func + 24 + 1);
 }
 
 TESTCODE (thumb2_mov_pc_reg,
@@ -1218,12 +1347,12 @@ TESTCASE (thumb2_mov_pc_reg_exec_events_generated)
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 6);
 
-  GUM_ASSERT_EVENT_ADDR (exec, 2, location, func);
-  GUM_ASSERT_EVENT_ADDR (exec, 3, location, func + 2);
-  GUM_ASSERT_EVENT_ADDR (exec, 4, location, func + 4);
-  GUM_ASSERT_EVENT_ADDR (exec, 5, location, func + 6);
-  GUM_ASSERT_EVENT_ADDR (exec, 6, location, func + 16);
-  GUM_ASSERT_EVENT_ADDR (exec, 7, location, func + 18);
+  GUM_ASSERT_EVENT_ADDR (exec, 2, location, func +  0 + 1);
+  GUM_ASSERT_EVENT_ADDR (exec, 3, location, func +  2 + 1);
+  GUM_ASSERT_EVENT_ADDR (exec, 4, location, func +  4 + 1);
+  GUM_ASSERT_EVENT_ADDR (exec, 5, location, func +  6 + 1);
+  GUM_ASSERT_EVENT_ADDR (exec, 6, location, func + 16 + 1);
+  GUM_ASSERT_EVENT_ADDR (exec, 7, location, func + 18 + 1);
 }
 
 TESTCASE (thumb2_mov_pc_reg_without_thumb_bit_set)
@@ -1238,12 +1367,12 @@ TESTCASE (thumb2_mov_pc_reg_without_thumb_bit_set)
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 6);
 
-  GUM_ASSERT_EVENT_ADDR (exec, 2, location, func);
-  GUM_ASSERT_EVENT_ADDR (exec, 3, location, func + 2);
-  GUM_ASSERT_EVENT_ADDR (exec, 4, location, func + 4);
-  GUM_ASSERT_EVENT_ADDR (exec, 5, location, func + 6);
-  GUM_ASSERT_EVENT_ADDR (exec, 6, location, func + 16);
-  GUM_ASSERT_EVENT_ADDR (exec, 7, location, func + 18);
+  GUM_ASSERT_EVENT_ADDR (exec, 2, location, func +  0 + 1);
+  GUM_ASSERT_EVENT_ADDR (exec, 3, location, func +  2 + 1);
+  GUM_ASSERT_EVENT_ADDR (exec, 4, location, func +  4 + 1);
+  GUM_ASSERT_EVENT_ADDR (exec, 5, location, func +  6 + 1);
+  GUM_ASSERT_EVENT_ADDR (exec, 6, location, func + 16 + 1);
+  GUM_ASSERT_EVENT_ADDR (exec, 7, location, func + 18 + 1);
 }
 
 TESTCODE (thumb2_mov_pc_reg_no_clobber_reg,
@@ -1274,13 +1403,13 @@ TESTCASE (thumb2_mov_pc_reg_no_clobber_reg)
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 7);
 
-  GUM_ASSERT_EVENT_ADDR (exec, 2, location, func);
-  GUM_ASSERT_EVENT_ADDR (exec, 3, location, func + 2);
-  GUM_ASSERT_EVENT_ADDR (exec, 4, location, func + 4);
-  GUM_ASSERT_EVENT_ADDR (exec, 5, location, func + 6);
-  GUM_ASSERT_EVENT_ADDR (exec, 6, location, func + 8);
-  GUM_ASSERT_EVENT_ADDR (exec, 7, location, func + 16);
-  GUM_ASSERT_EVENT_ADDR (exec, 8, location, func + 18);
+  GUM_ASSERT_EVENT_ADDR (exec, 2, location, func +  0 + 1);
+  GUM_ASSERT_EVENT_ADDR (exec, 3, location, func +  2 + 1);
+  GUM_ASSERT_EVENT_ADDR (exec, 4, location, func +  4 + 1);
+  GUM_ASSERT_EVENT_ADDR (exec, 5, location, func +  6 + 1);
+  GUM_ASSERT_EVENT_ADDR (exec, 6, location, func +  8 + 1);
+  GUM_ASSERT_EVENT_ADDR (exec, 7, location, func + 16 + 1);
+  GUM_ASSERT_EVENT_ADDR (exec, 8, location, func + 18 + 1);
 }
 
 TESTCODE (arm_bl_cc,
@@ -1664,8 +1793,8 @@ TESTCASE (thumb_it_eq_branch)
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 2);
 
-  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, begin, func);
-  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, end, func + 10);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, begin, func + 1);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, end, func + 10 + 1);
 }
 
 TESTCODE (thumb_itt_eq_branch,
@@ -1697,8 +1826,8 @@ TESTCASE (thumb_itt_eq_branch)
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 2);
 
-  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, begin, func);
-  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, end, func + 14);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, begin, func + 1);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, end, func + 14 + 1);
 }
 
 TESTCODE (thumb_ite_eq_branch,
@@ -1730,8 +1859,8 @@ TESTCASE (thumb_ite_eq_branch)
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 2);
 
-  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, begin, func);
-  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, end, func + 14);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, begin, func + 1);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, end, func + 14 + 1);
 }
 
 TESTCODE (thumb_it_eq_branch_link,
@@ -1765,8 +1894,8 @@ TESTCASE (thumb_it_eq_branch_link)
   g_assert_cmpuint (fixture->sink->events->len, ==,
       INVOKER_CALL_INSN_COUNT + 1);
 
-  GUM_ASSERT_EVENT_ADDR (call, 1, location, func + 10);
-  GUM_ASSERT_EVENT_ADDR (call, 1, target, func + 29);
+  GUM_ASSERT_EVENT_ADDR (call, 1, location, func + 10 + 1);
+  GUM_ASSERT_EVENT_ADDR (call, 1, target, func + 28 + 1);
 }
 
 TESTCASE (thumb_it_eq_branch_link_excluded)
@@ -1790,16 +1919,16 @@ TESTCASE (thumb_it_eq_branch_link_excluded)
 
     g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 10);
 
-    GUM_ASSERT_EVENT_ADDR (exec, 2, location, func);
-    GUM_ASSERT_EVENT_ADDR (exec, 3, location, func + 2);
-    GUM_ASSERT_EVENT_ADDR (exec, 4, location, func + 4);
-    GUM_ASSERT_EVENT_ADDR (exec, 5, location, func + 6);
-    GUM_ASSERT_EVENT_ADDR (exec, 6, location, func + 8);
-    GUM_ASSERT_EVENT_ADDR (exec, 7, location, func + 10);
-    GUM_ASSERT_EVENT_ADDR (exec, 8, location, func + 16);
-    GUM_ASSERT_EVENT_ADDR (exec, 9, location, func + 18);
-    GUM_ASSERT_EVENT_ADDR (exec, 10, location, func + 20);
-    GUM_ASSERT_EVENT_ADDR (exec, 11, location, func + 26);
+    GUM_ASSERT_EVENT_ADDR (exec,  2, location, func +  0 + 1);
+    GUM_ASSERT_EVENT_ADDR (exec,  3, location, func +  2 + 1);
+    GUM_ASSERT_EVENT_ADDR (exec,  4, location, func +  4 + 1);
+    GUM_ASSERT_EVENT_ADDR (exec,  5, location, func +  6 + 1);
+    GUM_ASSERT_EVENT_ADDR (exec,  6, location, func +  8 + 1);
+    GUM_ASSERT_EVENT_ADDR (exec,  7, location, func + 10 + 1);
+    GUM_ASSERT_EVENT_ADDR (exec,  8, location, func + 16 + 1);
+    GUM_ASSERT_EVENT_ADDR (exec,  9, location, func + 18 + 1);
+    GUM_ASSERT_EVENT_ADDR (exec, 10, location, func + 20 + 1);
+    GUM_ASSERT_EVENT_ADDR (exec, 11, location, func + 26 + 1);
   }
 }
 
@@ -1828,13 +1957,13 @@ TESTCASE (thumb_it_eq_pop)
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 3);
 
-  GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + 26);
-  GUM_ASSERT_EVENT_ADDR (ret, 0, target, func + 11);
+  GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + 26 + 1);
+  GUM_ASSERT_EVENT_ADDR (ret, 0, target, func + 10 + 1);
 
-  GUM_ASSERT_EVENT_ADDR (ret, 1, location, func + 20);
-  GUM_ASSERT_EVENT_ADDR (ret, 1, target, func + 15);
+  GUM_ASSERT_EVENT_ADDR (ret, 1, location, func + 20 + 1);
+  GUM_ASSERT_EVENT_ADDR (ret, 1, target, func + 14 + 1);
 
-  GUM_ASSERT_EVENT_ADDR (ret, 2, location, func + 14);
+  GUM_ASSERT_EVENT_ADDR (ret, 2, location, func + 14 + 1);
 }
 
 TESTCODE (thumb_itttt_eq_blx_reg,
@@ -1942,7 +2071,7 @@ TESTCASE (thumb_tbb)
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 1);
 
-  GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + 20);
+  GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + 20 + 1);
 }
 
 TESTCODE (thumb_tbh,
@@ -1975,7 +2104,7 @@ TESTCASE (thumb_tbh)
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 1);
 
-  GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + 24);
+  GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + 24 + 1);
 }
 
 TESTCODE (thumb_strex_no_exec_events,
@@ -2007,13 +2136,13 @@ TESTCASE (thumb_strex_no_exec_events)
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 7);
 
-  GUM_ASSERT_EVENT_ADDR (exec, 2, location, func);
-  GUM_ASSERT_EVENT_ADDR (exec, 3, location, func + 2);
-  GUM_ASSERT_EVENT_ADDR (exec, 4, location, func + 4);
-  GUM_ASSERT_EVENT_ADDR (exec, 5, location, func + 16);
-  GUM_ASSERT_EVENT_ADDR (exec, 6, location, func + 28);
-  GUM_ASSERT_EVENT_ADDR (exec, 7, location, func + 30);
-  GUM_ASSERT_EVENT_ADDR (exec, 8, location, func + 32);
+  GUM_ASSERT_EVENT_ADDR (exec, 2, location, func +  0 + 1);
+  GUM_ASSERT_EVENT_ADDR (exec, 3, location, func +  2 + 1);
+  GUM_ASSERT_EVENT_ADDR (exec, 4, location, func +  4 + 1);
+  GUM_ASSERT_EVENT_ADDR (exec, 5, location, func + 16 + 1);
+  GUM_ASSERT_EVENT_ADDR (exec, 6, location, func + 28 + 1);
+  GUM_ASSERT_EVENT_ADDR (exec, 7, location, func + 30 + 1);
+  GUM_ASSERT_EVENT_ADDR (exec, 8, location, func + 32 + 1);
 }
 
 TESTCODE (self_modifying_code_should_be_detected,
@@ -2148,10 +2277,10 @@ TESTCASE (call_thumb)
       INVOKER_CALL_INSN_COUNT + 3);
 
   GUM_ASSERT_EVENT_ADDR (call, 1, location, func + 12);
-  GUM_ASSERT_EVENT_ADDR (call, 1, target, func + 41);
+  GUM_ASSERT_EVENT_ADDR (call, 1, target, func + 40 + 1);
   GUM_ASSERT_EVENT_ADDR (call, 1, depth, 1);
 
-  GUM_ASSERT_EVENT_ADDR (call, 2, location, func + 44);
+  GUM_ASSERT_EVENT_ADDR (call, 2, location, func + 44 + 1);
   GUM_ASSERT_EVENT_ADDR (call, 2, target, func + 32);
   GUM_ASSERT_EVENT_ADDR (call, 2, depth, 2);
 
@@ -2194,8 +2323,8 @@ TESTCASE (branch_thumb)
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, begin, func);
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, end, func + 24);
 
-  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 1, begin, func + 40);
-  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 1, end, func + 44);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 1, begin, func + 40 + 1);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 1, end, func + 44 + 1);
 
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 2, begin, func + 24);
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 2, end, func + 28);
