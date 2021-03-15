@@ -395,6 +395,7 @@ gum_darwin_grafter_compute_layout (GumDarwinGrafter * self,
   layout->text_address = 0;
   layout->linkedit_address = 0;
   layout->linkedit_offset_in = -1;
+  layout->linkedit_size_in = 0;
   layout->linkedit_shift = 0;
   for (i = 0; i != module->segments->len; i++)
   {
