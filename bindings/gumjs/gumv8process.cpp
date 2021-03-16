@@ -61,6 +61,15 @@ struct GumV8FindModuleByNameContext
   GumV8Process * parent;
 };
 
+struct GumV8RunOnThreadContext
+{
+  GumV8Core * core;
+  Isolate * isolate;
+  Local<Context> context;
+  Local<Function> user_func;
+  MaybeLocal<Value> ret;
+};
+
 GUMJS_DECLARE_FUNCTION (gumjs_process_is_debugger_attached)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_thread_id)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_threads)
@@ -78,6 +87,8 @@ static gboolean gum_emit_range (const GumRangeDetails * details,
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_system_ranges)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
 GUMJS_DECLARE_FUNCTION (gumjs_process_set_exception_handler)
+GUMJS_DECLARE_FUNCTION (gumjs_process_run_on_thread_sync)
+GUMJS_DECLARE_FUNCTION (gumjs_process_run_on_thread_async)
 
 static GumV8ExceptionHandler * gum_v8_exception_handler_new (
     Local<Function> callback, GumV8Core * core);
@@ -85,6 +96,10 @@ static void gum_v8_exception_handler_free (
     GumV8ExceptionHandler * handler);
 static gboolean gum_v8_exception_handler_on_exception (
     GumExceptionDetails * details, GumV8ExceptionHandler * handler);
+static gpointer gum_js_process_run_sync_cb (const GumCpuContext * cpu_context,
+    gpointer user_data);
+static void gum_js_process_run_async_cb (const GumCpuContext * cpu_context,
+    gpointer user_data);
 
 const gchar * gum_v8_script_exception_type_to_string (GumExceptionType type);
 
@@ -99,6 +114,8 @@ static const GumV8Function gumjs_process_functions[] =
   { "enumerateSystemRanges", gumjs_process_enumerate_system_ranges },
   { "_enumerateMallocRanges", gumjs_process_enumerate_malloc_ranges },
   { "setExceptionHandler", gumjs_process_set_exception_handler },
+  { "runOnThread", gumjs_process_run_on_thread_sync },
+  { "runOnThreadAsync", gumjs_process_run_on_thread_async },
 
   { NULL, NULL }
 };
@@ -448,4 +465,89 @@ gum_v8_exception_handler_on_exception (GumExceptionDetails * details,
       new GumPersistent<Object>::type (isolate, context), core);
 
   return handled;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_process_run_on_thread_sync)
+{
+  GumThreadId thread_id;
+  Local<Function> user_func;
+  GumV8RunOnThreadContext sync_ctx;
+
+  auto isolate = core->isolate;
+  auto context = isolate->GetCurrentContext ();
+
+  if (!_gum_v8_args_parse (args, "ZF", &thread_id, &user_func))
+    return;
+
+  if (thread_id == 0)
+    return;
+
+  {
+    ScriptUnlocker unlocker (core);
+    sync_ctx.core = core;
+    sync_ctx.isolate = isolate;
+    sync_ctx.context = context;
+    sync_ctx.user_func = user_func;
+
+    (void) gum_process_run_on_thread_sync (thread_id, gum_js_process_run_sync_cb,
+        &sync_ctx);
+  }
+
+  info.GetReturnValue ().Set (sync_ctx.ret.ToLocalChecked ());
+}
+
+static gpointer
+gum_js_process_run_sync_cb (const GumCpuContext * cpu_context,
+                            gpointer user_data)
+{
+  GumV8RunOnThreadContext * sync_ctx = (GumV8RunOnThreadContext *) user_data;
+
+  ScriptScope scope (sync_ctx->core->script);
+  auto isolate = sync_ctx->isolate;
+  auto context = sync_ctx->context;
+  auto recv = Undefined (isolate);
+
+  sync_ctx->ret = sync_ctx->user_func->Call (context, recv, 0, nullptr);
+  return NULL;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_process_run_on_thread_async)
+{
+  GumThreadId thread_id;
+  Local<Function> user_func;
+  GumV8RunOnThreadContext sync_ctx;
+
+  auto isolate = core->isolate;
+  auto context = isolate->GetCurrentContext ();
+
+  if (!_gum_v8_args_parse (args, "ZF", &thread_id, &user_func))
+    return;
+
+  if (thread_id == 0)
+    return;
+
+  {
+    ScriptUnlocker unlocker (core);
+    sync_ctx.core = core;
+    sync_ctx.isolate = isolate;
+    sync_ctx.context = context;
+    sync_ctx.user_func = Local<Function>::New (isolate, user_func);
+
+    gum_process_run_on_thread_async (thread_id, gum_js_process_run_async_cb,
+        &sync_ctx);
+  }
+}
+
+static void
+gum_js_process_run_async_cb (const GumCpuContext * cpu_context,
+                             gpointer user_data)
+{
+  GumV8RunOnThreadContext * sync_ctx = (GumV8RunOnThreadContext *) user_data;
+
+  ScriptScope scope (sync_ctx->core->script);
+  auto isolate = sync_ctx->isolate;
+  auto context = sync_ctx->context;
+  auto recv = Undefined (isolate);
+
+  sync_ctx->ret = sync_ctx->user_func->Call (context, recv, 0, nullptr);;
 }

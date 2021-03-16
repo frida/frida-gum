@@ -11,6 +11,7 @@
 typedef struct _GumEmitThreadsContext GumEmitThreadsContext;
 typedef struct _GumEmitRangesContext GumEmitRangesContext;
 typedef struct _GumResolveSymbolContext GumResolveSymbolContext;
+typedef struct _GumRunOnThreadContext GumRunOnThreadContext;
 
 struct _GumEmitThreadsContext
 {
@@ -29,6 +30,36 @@ struct _GumResolveSymbolContext
   const gchar * name;
   GumAddress result;
 };
+
+struct _GumRunOnThreadContext
+{
+  gboolean is_async;
+
+  union {
+    struct {
+      GumRunOnThreadSyncUserFunc sync_func;
+      void * ret_val;
+    } sync;
+
+    struct {
+      GumRunOnThreadAsyncUserFunc async_func;
+    } async;
+  };
+  gpointer user_data;
+
+  GumCpuContext cpu_context;
+
+  GMutex data_mutex;
+  GCond data_cond;
+  gboolean ready;
+} ;
+
+static void gum_process_run_callback_on_thread (GumCpuContext * cpu_context,
+    gpointer user_data);
+static void gum_process_run_callback_with_full_context (GumFullCpuContext * ctx,
+    gpointer user_data);
+static void gum_process_set_context (GumThreadId thread_id,
+    GumCpuContext * cpu_context, gpointer user_data);
 
 static gboolean gum_emit_thread_if_not_cloaked (
     const GumThreadDetails * details, gpointer user_data);
@@ -72,6 +103,136 @@ void
 gum_process_set_code_signing_policy (GumCodeSigningPolicy policy)
 {
   gum_code_signing_policy = policy;
+}
+
+void *
+gum_process_run_on_thread_sync (GumThreadId id,
+                                GumRunOnThreadSyncUserFunc func,
+                                gpointer user_data)
+{
+  GumRunOnThreadContext run_ctx =
+  {
+    .is_async = FALSE,
+    .sync = {
+      .sync_func = func,
+    },
+    .user_data = user_data,
+    .ready = FALSE,
+  };
+
+  GumProcessRunOnThreadContext modify_ctx = {
+    .callback = gum_process_run_callback_on_thread,
+    .user_data = &run_ctx
+  };
+
+  g_mutex_lock (&run_ctx.data_mutex);
+
+  if (!gum_process_is_run_on_thread_supported())
+  {
+    g_print ("Unsupported");
+    return NULL;
+  }
+
+  gum_process_modify_thread (id, gum_process_modify_thread_to_call_function,
+      &modify_ctx);
+
+  while (!run_ctx.ready)
+    g_cond_wait (&run_ctx.data_cond, &run_ctx.data_mutex);
+
+  g_mutex_unlock (&run_ctx.data_mutex);
+
+  return run_ctx.sync.ret_val;
+}
+
+void
+gum_process_run_on_thread_async (GumThreadId id,
+                                 GumRunOnThreadAsyncUserFunc func,
+                                 gpointer user_data)
+{
+  GumRunOnThreadContext run_ctx =
+  {
+    .is_async = TRUE,
+    .async = {
+      .async_func = func,
+    },
+    .user_data = user_data,
+    .ready = FALSE,
+  };
+
+  GumProcessRunOnThreadContext modify_ctx = {
+    .callback = gum_process_run_callback_on_thread,
+    .user_data = &run_ctx
+  };
+
+  g_mutex_lock (&run_ctx.data_mutex);
+
+  if (!gum_process_is_run_on_thread_supported())
+  {
+    g_print ("Unsupported");
+  }
+
+  gum_process_modify_thread (id, gum_process_modify_thread_to_call_function,
+      &modify_ctx);
+
+  while (!run_ctx.ready)
+    g_cond_wait (&run_ctx.data_cond, &run_ctx.data_mutex);
+
+  g_mutex_unlock (&run_ctx.data_mutex);
+
+  return;
+}
+
+static void
+gum_process_run_callback_on_thread (GumCpuContext * cpu_context,
+                                    gpointer user_data)
+{
+  GumCpuContext cached_context = *cpu_context;
+  GumRunOnThreadContext * run_ctx = (GumRunOnThreadContext *) user_data;
+  GumThreadId id;
+
+  gum_process_call_with_full_context (&cached_context,
+    gum_process_run_callback_with_full_context, run_ctx);
+
+  id = gum_process_get_current_thread_id ();
+  gum_process_modify_thread (id, gum_process_set_context, &cached_context);
+}
+
+static void
+gum_process_run_callback_with_full_context (GumFullCpuContext * cpu_context,
+                                            gpointer user_data)
+{
+  GumRunOnThreadContext * run_ctx = (GumRunOnThreadContext *) user_data;
+  GumRunOnThreadAsyncUserFunc async_func = run_ctx->async.async_func;
+  void * async_arg = run_ctx->user_data;
+
+  g_mutex_lock (&run_ctx->data_mutex);
+
+  if (run_ctx->is_async)
+  {
+    run_ctx->ready = TRUE;
+    g_cond_signal (&run_ctx->data_cond);
+    g_mutex_unlock (&run_ctx->data_mutex);
+
+    async_func(&cpu_context->regs, async_arg);
+  }
+  else
+  {
+    run_ctx->sync.ret_val = run_ctx->sync.sync_func(&cpu_context->regs,
+        run_ctx->user_data);
+
+    run_ctx->ready = TRUE;
+    g_cond_signal (&run_ctx->data_cond);
+    g_mutex_unlock (&run_ctx->data_mutex);
+  }
+}
+
+static void
+gum_process_set_context (GumThreadId thread_id,
+                         GumCpuContext * cpu_context,
+                         gpointer user_data)
+{
+  GumCpuContext * saved_ctx = (GumCpuContext *) user_data;
+  *cpu_context = *saved_ctx;
 }
 
 void
