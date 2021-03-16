@@ -2500,6 +2500,12 @@ TESTCASE (prefetch)
   guint compiled_size_run2;
   guint executed_size_run2;
 
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
   /* Initialize workload parameters */
   runner_range.base_address = 0;
   runner_range.size = 0;
