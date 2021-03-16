@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -144,7 +144,7 @@ GUM_API void gum_darwin_unparse_native_thread_state (
     const GumCpuContext * ctx, GumDarwinNativeThreadState * ts);
 
 GUM_API GumPageProtection gum_page_protection_from_mach (vm_prot_t native_prot);
-GUM_API vm_prot_t gum_page_protection_to_mach (GumPageProtection page_prot);
+GUM_API vm_prot_t gum_page_protection_to_mach (GumPageProtection prot);
 
 GUM_API const char * gum_symbol_name_from_darwin (const char * s);
 

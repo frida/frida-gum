@@ -33,7 +33,7 @@ static gpointer gum_allocate_page_aligned (gpointer address, gsize size,
     gint prot);
 static gboolean gum_try_alloc_in_range_if_near_enough (
     const GumMemoryRange * range, gpointer user_data);
-static gint gum_page_protection_to_bsd (GumPageProtection page_prot);
+static gint gum_page_protection_to_bsd (GumPageProtection prot);
 
 void
 _gum_memory_backend_init (void)
@@ -426,12 +426,12 @@ gum_mach_vm_protect (vm_map_t target_task,
 gboolean
 gum_try_mprotect (gpointer address,
                   gsize size,
-                  GumPageProtection page_prot)
+                  GumPageProtection prot)
 {
   gsize page_size;
   gpointer aligned_address;
   gsize aligned_size;
-  vm_prot_t mach_page_prot;
+  vm_prot_t mach_prot;
   kern_return_t kr;
 
   g_assert (size != 0);
@@ -441,10 +441,10 @@ gum_try_mprotect (gpointer address,
       GPOINTER_TO_SIZE (address) & ~(page_size - 1));
   aligned_size =
       (1 + ((address + size - 1 - aligned_address) / page_size)) * page_size;
-  mach_page_prot = gum_page_protection_to_mach (page_prot);
+  mach_prot = gum_page_protection_to_mach (prot);
 
   kr = gum_mach_vm_protect (mach_task_self (),
-      GPOINTER_TO_SIZE (aligned_address), aligned_size, FALSE, mach_page_prot);
+      GPOINTER_TO_SIZE (aligned_address), aligned_size, FALSE, mach_prot);
 
   return kr == KERN_SUCCESS;
 }
@@ -459,14 +459,14 @@ gum_clear_cache (gpointer address,
 
 gpointer
 gum_try_alloc_n_pages (guint n_pages,
-                       GumPageProtection page_prot)
+                       GumPageProtection prot)
 {
-  return gum_try_alloc_n_pages_near (n_pages, page_prot, NULL);
+  return gum_try_alloc_n_pages_near (n_pages, prot, NULL);
 }
 
 gpointer
 gum_try_alloc_n_pages_near (guint n_pages,
-                            GumPageProtection page_prot,
+                            GumPageProtection prot,
                             const GumAddressSpec * spec)
 {
   guint8 * base;
@@ -475,20 +475,20 @@ gum_try_alloc_n_pages_near (guint n_pages,
   page_size = gum_query_page_size ();
   size = (1 + n_pages) * page_size;
 
-  base = gum_memory_allocate_near (spec, size, page_size, page_prot);
+  base = gum_memory_allocate_near (spec, size, page_size, prot);
   if (base == NULL)
     return NULL;
 
-  if ((page_prot & GUM_PAGE_WRITE) == 0)
+  if ((prot & GUM_PAGE_WRITE) == 0)
     gum_mprotect (base, page_size, GUM_PAGE_RW);
 
   *((gsize *) base) = size;
 
-  if (page_prot != GUM_PAGE_READ)
+  if (prot != GUM_PAGE_READ)
     gum_mprotect (base, page_size, GUM_PAGE_READ);
 
-  if (page_prot != GUM_PAGE_RW)
-    gum_mprotect (base + page_size, size - page_size, page_prot);
+  if (prot != GUM_PAGE_RW)
+    gum_mprotect (base + page_size, size - page_size, prot);
 
   return base + page_size;
 }
@@ -525,7 +525,7 @@ gpointer
 gum_memory_allocate (gpointer address,
                      gsize size,
                      gsize alignment,
-                     GumPageProtection page_prot)
+                     GumPageProtection prot)
 {
   gsize page_size, allocation_size;
   guint8 * base, * aligned_base;
@@ -537,7 +537,7 @@ gum_memory_allocate (gpointer address,
   allocation_size = GUM_ALIGN_SIZE (allocation_size, page_size);
 
   base = gum_allocate_page_aligned (address, allocation_size,
-      gum_page_protection_to_bsd (page_prot));
+      gum_protection_to_bsd (prot));
   if (base == NULL)
     return NULL;
 
@@ -595,14 +595,14 @@ gpointer
 gum_memory_allocate_near (const GumAddressSpec * spec,
                           gsize size,
                           gsize alignment,
-                          GumPageProtection page_prot)
+                          GumPageProtection prot)
 {
   gpointer base, address;
   GumAllocNearContext ctx;
 
   address = (spec != NULL) ? spec->near_address : NULL;
 
-  base = gum_memory_allocate (address, size, alignment, page_prot);
+  base = gum_memory_allocate (address, size, alignment, prot);
   if (base == NULL)
     return NULL;
   if (spec == NULL || gum_address_spec_is_satisfied_by (spec, base))
@@ -669,7 +669,7 @@ gum_memory_release (gpointer address,
 gboolean
 gum_memory_commit (gpointer address,
                    gsize size,
-                   GumPageProtection page_prot)
+                   GumPageProtection prot)
 {
   return madvise (address, size, MADV_FREE_REUSE) == 0;
 }
@@ -684,44 +684,44 @@ gum_memory_decommit (gpointer address,
 GumPageProtection
 gum_page_protection_from_mach (vm_prot_t native_prot)
 {
-  GumPageProtection page_prot = 0;
+  GumPageProtection prot = 0;
 
   if ((native_prot & VM_PROT_READ) == VM_PROT_READ)
-    page_prot |= GUM_PAGE_READ;
+    prot |= GUM_PAGE_READ;
   if ((native_prot & VM_PROT_WRITE) == VM_PROT_WRITE)
-    page_prot |= GUM_PAGE_WRITE;
+    prot |= GUM_PAGE_WRITE;
   if ((native_prot & VM_PROT_EXECUTE) == VM_PROT_EXECUTE)
-    page_prot |= GUM_PAGE_EXECUTE;
+    prot |= GUM_PAGE_EXECUTE;
 
-  return page_prot;
+  return prot;
 }
 
 vm_prot_t
-gum_page_protection_to_mach (GumPageProtection page_prot)
+gum_page_protection_to_mach (GumPageProtection prot)
 {
-  vm_prot_t mach_page_prot = VM_PROT_NONE;
+  vm_prot_t mach_prot = VM_PROT_NONE;
 
-  if ((page_prot & GUM_PAGE_READ) != 0)
-    mach_page_prot |= VM_PROT_READ;
-  if ((page_prot & GUM_PAGE_WRITE) != 0)
-    mach_page_prot |= VM_PROT_WRITE | VM_PROT_COPY;
-  if ((page_prot & GUM_PAGE_EXECUTE) != 0)
-    mach_page_prot |= VM_PROT_EXECUTE;
+  if ((prot & GUM_PAGE_READ) != 0)
+    mach_prot |= VM_PROT_READ;
+  if ((prot & GUM_PAGE_WRITE) != 0)
+    mach_prot |= VM_PROT_WRITE | VM_PROT_COPY;
+  if ((prot & GUM_PAGE_EXECUTE) != 0)
+    mach_prot |= VM_PROT_EXECUTE;
 
-  return mach_page_prot;
+  return mach_prot;
 }
 
 static gint
-gum_page_protection_to_bsd (GumPageProtection page_prot)
+gum_page_protection_to_bsd (GumPageProtection prot)
 {
-  gint posix_page_prot = PROT_NONE;
+  gint posix_prot = PROT_NONE;
 
-  if ((page_prot & GUM_PAGE_READ) != 0)
-    posix_page_prot |= PROT_READ;
-  if ((page_prot & GUM_PAGE_WRITE) != 0)
-    posix_page_prot |= PROT_WRITE;
-  if ((page_prot & GUM_PAGE_EXECUTE) != 0)
-    posix_page_prot |= PROT_EXEC;
+  if ((prot & GUM_PAGE_READ) != 0)
+    posix_prot |= PROT_READ;
+  if ((prot & GUM_PAGE_WRITE) != 0)
+    posix_prot |= PROT_WRITE;
+  if ((prot & GUM_PAGE_EXECUTE) != 0)
+    posix_prot |= PROT_EXEC;
 
-  return posix_page_prot;
+  return posix_prot;
 }

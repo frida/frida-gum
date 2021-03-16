@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -29,7 +29,7 @@ GUM_API guint gum_kernel_query_page_size (void);
 GUM_API GumAddress gum_kernel_alloc_n_pages (guint n_pages);
 GUM_API void gum_kernel_free_pages (GumAddress mem);
 GUM_API gboolean gum_kernel_try_mprotect (GumAddress address, gsize size,
-    GumPageProtection page_prot);
+    GumPageProtection prot);
 GUM_API guint8 * gum_kernel_read (GumAddress address, gsize len,
     gsize * n_bytes_read);
 GUM_API gboolean gum_kernel_write (GumAddress address, const guint8 * bytes,

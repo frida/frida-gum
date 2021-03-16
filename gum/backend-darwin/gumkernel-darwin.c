@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -202,13 +202,13 @@ gum_kernel_free_pages (GumAddress mem)
 gboolean
 gum_kernel_try_mprotect (GumAddress address,
                          gsize size,
-                         GumPageProtection page_prot)
+                         GumPageProtection prot)
 {
   mach_port_t task;
   gsize page_size;
   GumAddress aligned_address;
   gsize aligned_size;
-  vm_prot_t mach_page_prot;
+  vm_prot_t mach_prot;
   kern_return_t kr;
 
   g_assert (size != 0);
@@ -221,10 +221,9 @@ gum_kernel_try_mprotect (GumAddress address,
   aligned_address = address & ~(page_size - 1);
   aligned_size =
       (1 + ((address + size - 1 - aligned_address) / page_size)) * page_size;
-  mach_page_prot = gum_page_protection_to_mach (page_prot);
+  mach_prot = gum_page_protection_to_mach (prot);
 
-  kr = mach_vm_protect (task, aligned_address, aligned_size,
-      FALSE, mach_page_prot);
+  kr = mach_vm_protect (task, aligned_address, aligned_size, FALSE, mach_prot);
 
   return kr == KERN_SUCCESS;
 }

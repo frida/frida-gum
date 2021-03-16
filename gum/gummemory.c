@@ -757,11 +757,11 @@ gum_ensure_code_readable (gconstpointer address,
 void
 gum_mprotect (gpointer address,
               gsize size,
-              GumPageProtection page_prot)
+              GumPageProtection prot)
 {
   gboolean success;
 
-  success = gum_try_mprotect (address, size, page_prot);
+  success = gum_try_mprotect (address, size, prot);
   if (!success)
     g_abort ();
 }
@@ -866,11 +866,11 @@ gum_internal_free (gpointer mem)
 
 gpointer
 gum_alloc_n_pages (guint n_pages,
-                   GumPageProtection page_prot)
+                   GumPageProtection prot)
 {
   gpointer result;
 
-  result = gum_try_alloc_n_pages (n_pages, page_prot);
+  result = gum_try_alloc_n_pages (n_pages, prot);
   g_assert (result != NULL);
 
   return result;
@@ -878,12 +878,12 @@ gum_alloc_n_pages (guint n_pages,
 
 gpointer
 gum_alloc_n_pages_near (guint n_pages,
-                        GumPageProtection page_prot,
+                        GumPageProtection prot,
                         const GumAddressSpec * spec)
 {
   gpointer result;
 
-  result = gum_try_alloc_n_pages_near (n_pages, page_prot, spec);
+  result = gum_try_alloc_n_pages_near (n_pages, prot, spec);
   g_assert (result != NULL);
 
   return result;

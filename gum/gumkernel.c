@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -34,7 +34,7 @@ gum_kernel_free_pages (GumAddress mem)
 gboolean
 gum_kernel_try_mprotect (GumAddress address,
                          gsize size,
-                         GumPageProtection page_prot)
+                         GumPageProtection prot)
 {
   return FALSE;
 }

@@ -105,12 +105,12 @@ gum_memory_write (gpointer address,
 gboolean
 gum_try_mprotect (gpointer address,
                   gsize size,
-                  GumPageProtection page_prot)
+                  GumPageProtection prot)
 {
   gsize page_size;
   gpointer aligned_address;
   gsize aligned_size;
-  gint posix_page_prot;
+  gint posix_prot;
   gint result;
 
   g_assert (size != 0);
@@ -120,11 +120,11 @@ gum_try_mprotect (gpointer address,
       GPOINTER_TO_SIZE (address) & ~(page_size - 1));
   aligned_size =
       (1 + ((address + size - 1 - aligned_address) / page_size)) * page_size;
-  posix_page_prot = _gum_page_protection_to_posix (page_prot);
+  posix_prot = _gum_page_protection_to_posix (prot);
 
-  result = mprotect (aligned_address, aligned_size, posix_page_prot);
+  result = mprotect (aligned_address, aligned_size, posix_prot);
   if (result == -1 && errno == EACCES &&
-      (page_prot & GUM_PAGE_WRITE) == GUM_PAGE_WRITE)
+      (prot & GUM_PAGE_WRITE) == GUM_PAGE_WRITE)
   {
     int fd = -1;
     char * buffer;
@@ -154,7 +154,7 @@ gum_try_mprotect (gpointer address,
 
     memcpy (aligned_address, buffer, aligned_size);
 
-    result = mprotect (aligned_address, aligned_size, posix_page_prot);
+    result = mprotect (aligned_address, aligned_size, posix_prot);
 
     ThreadCtl (_NTO_TCTL_THREADS_CONT, 0);
 

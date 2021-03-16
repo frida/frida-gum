@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -1587,7 +1587,7 @@ GumV8PageAllocator::SetPermissions (void * address,
 {
   GumV8InterceptorIgnoreScope interceptor_ignore_scope;
 
-  GumPageProtection page_prot = gum_page_protection_from_v8 (permissions);
+  GumPageProtection prot = gum_page_protection_from_v8 (permissions);
 
 #ifndef HAVE_WINDOWS
   gboolean success;
@@ -1598,7 +1598,7 @@ GumV8PageAllocator::SetPermissions (void * address,
   }
   else
   {
-    success = gum_try_mprotect (address, length, page_prot);
+    success = gum_try_mprotect (address, length, prot);
   }
   if (!success)
     return false;
@@ -1607,7 +1607,7 @@ GumV8PageAllocator::SetPermissions (void * address,
   if (permissions == PageAllocator::kNoAccess)
     gum_memory_decommit (address, length);
   else
-    gum_memory_commit (address, length, page_prot);
+    gum_memory_commit (address, length, prot);
 
   return true;
 }

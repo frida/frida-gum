@@ -108,13 +108,13 @@ gum_memory_write (gpointer address,
 gboolean
 gum_try_mprotect (gpointer address,
                   gsize size,
-                  GumPageProtection page_prot)
+                  GumPageProtection prot)
 {
-  DWORD win_page_prot, old_protect;
+  DWORD win_prot, old_protect;
 
-  win_page_prot = gum_page_protection_to_windows (page_prot);
+  win_prot = gum_page_protection_to_windows (prot);
 
-  return VirtualProtect (address, size, win_page_prot, &old_protect);
+  return VirtualProtect (address, size, win_prot, &old_protect);
 }
 
 void
@@ -173,18 +173,18 @@ gpointer
 gum_memory_allocate (gpointer address,
                      gsize size,
                      gsize alignment,
-                     GumPageProtection page_prot)
+                     GumPageProtection prot)
 {
   DWORD allocation_type, win_prot;
   gpointer base, aligned_base;
   gsize padded_size;
   gint retries = 3;
 
-  allocation_type = (page_prot == GUM_PAGE_NO_ACCESS)
+  allocation_type = (prot == GUM_PAGE_NO_ACCESS)
       ? MEM_RESERVE
       : MEM_RESERVE | MEM_COMMIT;
 
-  win_prot = gum_page_protection_to_windows (page_prot);
+  win_prot = gum_page_protection_to_windows (prot);
 
   base = gum_virtual_alloc (address, size, allocation_type, win_prot);
   if (base == NULL)
@@ -303,10 +303,10 @@ gum_memory_release (gpointer address,
 gboolean
 gum_memory_commit (gpointer address,
                    gsize size,
-                   GumPageProtection page_prot)
+                   GumPageProtection prot)
 {
   return VirtualAlloc (address, size, MEM_COMMIT,
-      gum_page_protection_to_windows (page_prot)) != NULL;
+      gum_page_protection_to_windows (prot)) != NULL;
 }
 
 gboolean
@@ -398,9 +398,9 @@ gum_page_protection_from_windows (DWORD native_prot)
 }
 
 DWORD
-gum_page_protection_to_windows (GumPageProtection page_prot)
+gum_page_protection_to_windows (GumPageProtection prot)
 {
-  switch (page_prot)
+  switch (prot)
   {
     case GUM_PAGE_NO_ACCESS:
       return PAGE_NOACCESS;

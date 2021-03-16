@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -148,14 +148,14 @@ static void
 gum_exceptor_backend_finalize (GObject * object)
 {
   GumExceptorBackend * self = GUM_EXCEPTOR_BACKEND (object);
-  DWORD page_prot;
+  DWORD prot;
 
   *self->dispatcher_impl_call_immediate =
       (gssize) self->system_handler -
       (gssize) (self->dispatcher_impl_call_immediate + 1);
 
   VirtualProtect (self->dispatcher_impl, 4096,
-      self->previous_page_protection, &page_prot);
+      self->previous_page_protection, &prot);
 
   self->system_handler = NULL;
 

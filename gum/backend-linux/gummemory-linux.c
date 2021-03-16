@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -85,12 +85,12 @@ gum_memory_write (gpointer address,
 gboolean
 gum_try_mprotect (gpointer address,
                   gsize size,
-                  GumPageProtection page_prot)
+                  GumPageProtection prot)
 {
   gsize page_size;
   gpointer aligned_address;
   gsize aligned_size;
-  gint posix_page_prot;
+  gint posix_prot;
   gint result;
 
   g_assert (size != 0);
@@ -100,9 +100,9 @@ gum_try_mprotect (gpointer address,
       GPOINTER_TO_SIZE (address) & ~(page_size - 1));
   aligned_size =
       (1 + ((address + size - 1 - aligned_address) / page_size)) * page_size;
-  posix_page_prot = _gum_page_protection_to_posix (page_prot);
+  posix_prot = _gum_page_protection_to_posix (prot);
 
-  result = mprotect (aligned_address, aligned_size, posix_page_prot);
+  result = mprotect (aligned_address, aligned_size, posix_prot);
 
   return result == 0;
 }

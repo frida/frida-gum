@@ -109,9 +109,9 @@ GUM_API void gum_match_pattern_free (GumMatchPattern * pattern);
 GUM_API void gum_ensure_code_readable (gconstpointer address, gsize size);
 
 GUM_API void gum_mprotect (gpointer address, gsize size,
-    GumPageProtection page_prot);
+    GumPageProtection prot);
 GUM_API gboolean gum_try_mprotect (gpointer address, gsize size,
-    GumPageProtection page_prot);
+    GumPageProtection prot);
 
 GUM_API void gum_clear_cache (gpointer address, gsize size);
 
@@ -131,25 +131,24 @@ GUM_API gpointer gum_memalign (gsize alignment, gsize size);
 GUM_API gpointer gum_memdup (gconstpointer mem, gsize byte_size);
 GUM_API void gum_free (gpointer mem);
 
-GUM_API gpointer gum_alloc_n_pages (guint n_pages, GumPageProtection page_prot);
-GUM_API gpointer gum_try_alloc_n_pages (guint n_pages,
-    GumPageProtection page_prot);
-GUM_API gpointer gum_alloc_n_pages_near (guint n_pages,
-    GumPageProtection page_prot, const GumAddressSpec * spec);
+GUM_API gpointer gum_alloc_n_pages (guint n_pages, GumPageProtection prot);
+GUM_API gpointer gum_try_alloc_n_pages (guint n_pages, GumPageProtection prot);
+GUM_API gpointer gum_alloc_n_pages_near (guint n_pages, GumPageProtection prot,
+    const GumAddressSpec * spec);
 GUM_API gpointer gum_try_alloc_n_pages_near (guint n_pages,
-    GumPageProtection page_prot, const GumAddressSpec * spec);
+    GumPageProtection prot, const GumAddressSpec * spec);
 GUM_API void gum_query_page_allocation_range (gconstpointer mem, guint size,
     GumMemoryRange * range);
 GUM_API void gum_free_pages (gpointer mem);
 
 GUM_API gpointer gum_memory_allocate (gpointer address, gsize size,
-    gsize alignment, GumPageProtection page_prot);
+    gsize alignment, GumPageProtection prot);
 GUM_API gpointer gum_memory_allocate_near (const GumAddressSpec * spec,
-    gsize size, gsize alignment, GumPageProtection page_prot);
+    gsize size, gsize alignment, GumPageProtection prot);
 GUM_API gboolean gum_memory_free (gpointer address, gsize size);
 GUM_API gboolean gum_memory_release (gpointer address, gsize size);
 GUM_API gboolean gum_memory_commit (gpointer address, gsize size,
-    GumPageProtection page_prot);
+    GumPageProtection prot);
 GUM_API gboolean gum_memory_decommit (gpointer address, gsize size);
 
 GUM_API gboolean gum_address_spec_is_satisfied_by (const GumAddressSpec * spec,

@@ -23,8 +23,8 @@ namespace Gum {
 
 	public void ensure_code_readable (void * address, size_t size);
 
-	public void mprotect (void * address, size_t size, Gum.PageProtection page_prot);
-	public bool try_mprotect (void * address, size_t size, Gum.PageProtection page_prot);
+	public void mprotect (void * address, size_t size, Gum.PageProtection prot);
+	public bool try_mprotect (void * address, size_t size, Gum.PageProtection prot);
 
 	public void clear_cache (void * address, size_t size);
 
@@ -38,10 +38,10 @@ namespace Gum {
 	public void * memdup (void * mem, size_t byte_size);
 	public void free (void * mem);
 
-	public void * alloc_n_pages (uint n_pages, Gum.PageProtection page_prot);
-	public void * try_alloc_n_pages (uint n_pages, Gum.PageProtection page_prot);
-	public void * alloc_n_pages_near (uint n_pages, Gum.PageProtection page_prot, Gum.AddressSpec address_spec);
-	public void * try_alloc_n_pages_near (uint n_pages, Gum.PageProtection page_prot, Gum.AddressSpec address_spec);
+	public void * alloc_n_pages (uint n_pages, Gum.PageProtection prot);
+	public void * try_alloc_n_pages (uint n_pages, Gum.PageProtection prot);
+	public void * alloc_n_pages_near (uint n_pages, Gum.PageProtection prot, Gum.AddressSpec spec);
+	public void * try_alloc_n_pages_near (uint n_pages, Gum.PageProtection prot, Gum.AddressSpec spec);
 	public void query_page_allocation_range (void * mem, uint size, out Gum.MemoryRange range);
 	public void free_pages (void * mem);
 
@@ -256,10 +256,10 @@ namespace Gum {
 
 		public void scan (Gum.MemoryRange range, Gum.MatchPattern pattern, Gum.Memory.ScanMatchFunc func);
 
-		public void * allocate (void * address, size_t size, size_t alignment, Gum.PageProtection page_prot);
+		public void * allocate (void * address, size_t size, size_t alignment, Gum.PageProtection prot);
 		public bool free (void * address, size_t size);
 		public bool release (void * address, size_t size);
-		public bool commit (void * address, size_t size, Gum.PageProtection page_prot);
+		public bool commit (void * address, size_t size, Gum.PageProtection prot);
 		public bool decommit (void * address, size_t size);
 
 		public delegate void PatchApplyFunc (void * mem);

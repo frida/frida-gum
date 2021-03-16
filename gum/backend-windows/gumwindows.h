@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -23,7 +23,7 @@ GUM_API void gum_windows_unparse_context (const GumCpuContext * cpu_context,
     CONTEXT * context);
 
 GUM_API GumPageProtection gum_page_protection_from_windows (DWORD native_prot);
-GUM_API DWORD gum_page_protection_to_windows (GumPageProtection page_prot);
+GUM_API DWORD gum_page_protection_to_windows (GumPageProtection prot);
 
 G_END_DECLS
 
