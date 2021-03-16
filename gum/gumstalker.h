@@ -145,7 +145,7 @@ GUM_API void gum_stalker_deactivate (GumStalker * self);
  *    the simplest solution to this is to define an empty function (marked as
  *    non-inlineable) and then subsequently call it immediately after activation
  *    to return Stalker to its normal behavior. It is important that `target` is
- *    at the beginning of a basic block, otherwise Stalker will not detect it.
+ *    at the start of a basic block, otherwise Stalker will not detect it.
  *    Failure to do so may mean that Stalker continues to follow the thread into
  *    code which it should not, including any calls to Stalker itself. Thus care
  *    should be taken to ensure that the function is not inlined, or optimized

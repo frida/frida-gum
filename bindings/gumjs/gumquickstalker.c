@@ -768,7 +768,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_parse)
 
         if (annotate)
           GUM_APPEND_STR ("block");
-        GUM_APPEND_PTR (block->begin);
+        GUM_APPEND_PTR (block->start);
         GUM_APPEND_PTR (block->end);
 
         break;
@@ -779,7 +779,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_parse)
 
         if (annotate)
           GUM_APPEND_STR ("compile");
-        GUM_APPEND_PTR (compile->begin);
+        GUM_APPEND_PTR (compile->start);
         GUM_APPEND_PTR (compile->end);
 
         break;

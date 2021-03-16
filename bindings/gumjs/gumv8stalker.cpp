@@ -808,7 +808,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_parse)
         }
 
         row->Set (context, column_index++,
-            gum_make_pointer (block->begin, stringify, core)).Check ();
+            gum_make_pointer (block->start, stringify, core)).Check ();
         row->Set (context, column_index++,
             gum_make_pointer (block->end, stringify, core)).Check ();
 
@@ -830,7 +830,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_parse)
         }
 
         row->Set (context, column_index++,
-            gum_make_pointer (compile->begin, stringify, core)).Check ();
+            gum_make_pointer (compile->start, stringify, core)).Check ();
         row->Set (context, column_index++,
             gum_make_pointer (compile->end, stringify, core)).Check ();
 

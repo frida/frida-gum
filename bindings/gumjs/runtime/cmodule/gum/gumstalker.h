@@ -107,7 +107,7 @@ struct _GumBlockEvent
 {
   GumEventType type;
 
-  gpointer begin;
+  gpointer start;
   gpointer end;
 };
 
@@ -115,7 +115,7 @@ struct _GumCompileEvent
 {
   GumEventType type;
 
-  gpointer begin;
+  gpointer start;
   gpointer end;
 };
 

@@ -2616,7 +2616,7 @@ prefetch_on_event (const GumEvent * event,
       const GumCompileEvent * compile = &event->compile;
 
       if (prefetch_compiled != NULL)
-        g_hash_table_add (prefetch_compiled, compile->begin);
+        g_hash_table_add (prefetch_compiled, compile->start);
 
       break;
     }
@@ -2625,7 +2625,7 @@ prefetch_on_event (const GumEvent * event,
       const GumBlockEvent * block = &event->block;
 
       if (prefetch_executed != NULL)
-        g_hash_table_add (prefetch_executed, block->begin);
+        g_hash_table_add (prefetch_executed, block->start);
 
       break;
     }

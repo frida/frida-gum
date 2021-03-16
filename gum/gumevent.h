@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -67,7 +67,7 @@ struct _GumBlockEvent
 {
   GumEventType type;
 
-  gpointer begin;
+  gpointer start;
   gpointer end;
 };
 
@@ -75,7 +75,7 @@ struct _GumCompileEvent
 {
   GumEventType type;
 
-  gpointer begin;
+  gpointer start;
   gpointer end;
 };
 
