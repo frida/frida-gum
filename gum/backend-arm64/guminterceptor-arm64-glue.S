@@ -19,20 +19,21 @@
 #endif
 
 .macro gum_emit_prolog
-  sub sp, sp, GUM_FRAME_SIZE - (2 * 8) ; Absorb x16 and x17 pushed by caller
+  # Absorb x16 and x17 pushed by caller
+  sub sp, sp, GUM_FRAME_SIZE - (2 * 8)
 
-  ; We want to clobber x1, so let's save it (and x2) first
+  # We want to clobber x1, so let's save it (and x2) first
   stp x1, x2, [sp, GUM_PADDING_SIZE + (3 * 8)]
 
-  ; Compute sp, and save it and x0
+  # Compute sp, and save it and x0
   add x1, sp, GUM_FRAME_SIZE
   stp x1, x0, [sp, GUM_PADDING_SIZE + (1 * 8)]
 
-  ; GumFunctionContext argument is in x17
+  # GumFunctionContext argument is in x17
   mov x0, x17
   ldp x16, x17, [sp, GUM_FRAME_SIZE - (2 * 8)]
 
-  ; Save everything else
+  # Save everything else
   stp x3, x4, [sp, GUM_PADDING_SIZE + (5 * 8)]
   stp x5, x6, [sp, GUM_PADDING_SIZE + (7 * 8)]
   stp x7, x8, [sp, GUM_PADDING_SIZE + (9 * 8)]
