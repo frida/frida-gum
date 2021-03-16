@@ -537,7 +537,7 @@ gum_memory_allocate (gpointer address,
   allocation_size = GUM_ALIGN_SIZE (allocation_size, page_size);
 
   base = gum_allocate_page_aligned (address, allocation_size,
-      gum_protection_to_bsd (prot));
+      gum_page_protection_to_bsd (prot));
   if (base == NULL)
     return NULL;
 
