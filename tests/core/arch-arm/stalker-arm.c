@@ -2880,7 +2880,7 @@ modify_to_return_true_after_three_calls (GumStalkerIterator * iterator,
   InvalidationTransformContext * ctx = user_data;
   guint i;
   const cs_insn * insn;
-  gboolean in_target_function;
+  gboolean in_target_function = FALSE;
 
   for (i = 0; gum_stalker_iterator_next (iterator, &insn); i++)
   {
@@ -3046,7 +3046,7 @@ modify_to_return_true_on_subsequent_transform (GumStalkerIterator * iterator,
   InvalidationTransformContext * ctx = user_data;
   guint i;
   const cs_insn * insn;
-  gboolean in_target_function;
+  gboolean in_target_function = FALSE;
 
   for (i = 0; gum_stalker_iterator_next (iterator, &insn); i++)
   {
@@ -3138,7 +3138,7 @@ add_n_return_value_increments (GumStalkerIterator * iterator,
   InvalidationTransformContext * ctx = user_data;
   guint i;
   const cs_insn * insn;
-  gboolean in_target_function;
+  gboolean in_target_function = FALSE;
 
   for (i = 0; gum_stalker_iterator_next (iterator, &insn); i++)
   {
