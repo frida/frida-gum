@@ -150,12 +150,15 @@ gum_instance_tracker_fill_vtable_if_module_is_gobject (
 
   if (g_strstr_len (name_lowercase, -1, "gobject-2.0") != NULL)
   {
-    vtable->create_instance = GSIZE_TO_POINTER (gum_module_find_export_by_name (
-        details->path, "g_type_create_instance"));
-    vtable->free_instance = GSIZE_TO_POINTER (gum_module_find_export_by_name (
-        details->path, "g_type_free_instance"));
-    vtable->type_id_to_name = GSIZE_TO_POINTER (gum_module_find_export_by_name (
-        details->path, "g_type_name"));
+#define GUM_ASSIGN(type, field, name) \
+    vtable->field = GUM_POINTER_TO_FUNCPTR (type, \
+        gum_module_find_export_by_name (details->path, G_STRINGIFY (name)))
+
+    GUM_ASSIGN (GumCreateInstanceFunc, create_instance, g_type_create_instance);
+    GUM_ASSIGN (GumFreeInstanceFunc, free_instance, g_type_free_instance);
+    GUM_ASSIGN (GumTypeIdToNameFunc, type_id_to_name, g_type_name);
+
+#undef GUM_ASSIGN
   }
 
   g_free (name_lowercase);

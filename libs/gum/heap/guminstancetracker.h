@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -19,6 +19,9 @@ G_DECLARE_FINAL_TYPE (GumInstanceTracker, gum_instance_tracker, GUM,
 typedef struct _GumInstanceVTable GumInstanceVTable;
 typedef struct _GumInstanceDetails GumInstanceDetails;
 
+typedef GTypeInstance * (* GumCreateInstanceFunc) (GType type);
+typedef void (* GumFreeInstanceFunc) (GTypeInstance * instance);
+typedef const gchar * (* GumTypeIdToNameFunc) (GType type);
 typedef gboolean (* GumFilterInstanceTypeFunc) (
     GumInstanceTracker * tracker, GType gtype, gpointer user_data);
 typedef void (* GumWalkInstanceFunc) (GumInstanceDetails * id,
@@ -26,10 +29,10 @@ typedef void (* GumWalkInstanceFunc) (GumInstanceDetails * id,
 
 struct _GumInstanceVTable
 {
-  GTypeInstance * (* create_instance) (GType type);
-  void (* free_instance) (GTypeInstance * instance);
+  GumCreateInstanceFunc create_instance;
+  GumFreeInstanceFunc free_instance;
 
-  const gchar * (* type_id_to_name) (GType type);
+  GumTypeIdToNameFunc type_id_to_name;
 };
 
 struct _GumInstanceDetails

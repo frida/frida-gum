@@ -24,10 +24,6 @@ gum_process_find_heap_apis (void)
   return list;
 }
 
-#define GUM_API_INIT_FIELD(name) \
-    api.name = GSIZE_TO_POINTER (gum_module_find_export_by_name ( \
-        details->path, G_STRINGIFY (name)))
-
 static gboolean
 gum_collect_heap_api_if_crt_module (const GumModuleDetails * details,
                                     gpointer user_data)
@@ -48,21 +44,27 @@ gum_collect_heap_api_if_crt_module (const GumModuleDetails * details,
   {
     GumHeapApi api = { 0, };
 
-    GUM_API_INIT_FIELD (malloc);
-    GUM_API_INIT_FIELD (calloc);
-    GUM_API_INIT_FIELD (realloc);
-    GUM_API_INIT_FIELD (free);
+#define GUM_ASSIGN(type, name) \
+    api.name = GUM_POINTER_TO_FUNCPTR (type, gum_module_find_export_by_name ( \
+        details->path, G_STRINGIFY (name)))
+
+    GUM_ASSIGN (GumMallocFunc, malloc);
+    GUM_ASSIGN (GumCallocFunc, calloc);
+    GUM_ASSIGN (GumReallocFunc, realloc);
+    GUM_ASSIGN (GumFreeFunc, free);
 
 #ifdef HAVE_WINDOWS
     if (g_str_has_suffix (name, "d.dll"))
     {
-      GUM_API_INIT_FIELD (_malloc_dbg);
-      GUM_API_INIT_FIELD (_calloc_dbg);
-      GUM_API_INIT_FIELD (_realloc_dbg);
-      GUM_API_INIT_FIELD (_free_dbg);
-      GUM_API_INIT_FIELD (_CrtReportBlockType);
+      GUM_ASSIGN (GumMallocDbgFunc, _malloc_dbg);
+      GUM_ASSIGN (GumCallocDbgFunc, _calloc_dbg);
+      GUM_ASSIGN (GumReallocDbgFunc, _realloc_dbg);
+      GUM_ASSIGN (GumFreeDbgFunc, _free_dbg);
+      GUM_ASSIGN (GumCrtReportBlockTypeFunc, _CrtReportBlockType);
     }
 #endif
+
+#undef GUM_ASSIGN
 
     gum_heap_api_list_add (list, &api);
   }
