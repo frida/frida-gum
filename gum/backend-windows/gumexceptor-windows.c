@@ -103,18 +103,18 @@ gum_exceptor_backend_init (GumExceptorBackend * self)
       cs_x86_op * op = &insn->detail->x86.operands[0];
       if (op->type == X86_OP_IMM)
       {
-        guint8 * call_begin, * call_end;
+        guint8 * call_start, * call_end;
         gssize distance;
 
-        call_begin = (guint8 *) insn->address;
-        call_end = call_begin + insn->size;
+        call_start = (guint8 *) insn->address;
+        call_end = call_start + insn->size;
 
         self->system_handler = GUM_POINTER_TO_FUNCPTR (
             GumWindowsExceptionHandler, op->imm);
 
         VirtualProtect (self->dispatcher_impl, 4096,
             PAGE_EXECUTE_READWRITE, &self->previous_page_protection);
-        self->dispatcher_impl_call_immediate = (gint32 *) (call_begin + 1);
+        self->dispatcher_impl_call_immediate = (gint32 *) (call_start + 1);
 
         distance = (gssize) gum_exceptor_backend_dispatch - (gssize) call_end;
         if (!GUM_IS_WITHIN_INT32_RANGE (distance))

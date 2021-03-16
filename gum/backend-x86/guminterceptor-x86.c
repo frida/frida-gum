@@ -305,7 +305,7 @@ gum_emit_prolog (GumX86Writer * cw,
    *
    * [next_hop] <-- already pushed before the branch to our thunk
    * [cpu_flags]
-   * [cpu_context] <-- xbp points to the beginning of the cpu_context
+   * [cpu_context] <-- xbp points to the start of the cpu_context
    * [alignment_padding]
    * [extended_context]
    */

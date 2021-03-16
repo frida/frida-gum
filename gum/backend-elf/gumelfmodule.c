@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -631,12 +631,12 @@ gum_elf_module_enumerate_dynamic_entries (GumElfModule * self,
                                           gpointer user_data)
 {
   GumMemoryRange dynamic;
-  gpointer dynamic_begin;
+  gpointer dynamic_start;
 
   if (!gum_elf_module_find_dynamic_range (self, &dynamic))
     return;
 
-  dynamic_begin = GSIZE_TO_POINTER (
+  dynamic_start = GSIZE_TO_POINTER (
       gum_elf_module_resolve_static_virtual_address (self,
           dynamic.base_address));
 
@@ -645,7 +645,7 @@ gum_elf_module_enumerate_dynamic_entries (GumElfModule * self,
     Elf32_Dyn * entries;
     guint entry_count, entry_index;
 
-    entries = dynamic_begin;
+    entries = dynamic_start;
     entry_count = dynamic.size / sizeof (Elf32_Dyn);
 
     for (entry_index = 0; entry_index != entry_count; entry_index++)
@@ -665,7 +665,7 @@ gum_elf_module_enumerate_dynamic_entries (GumElfModule * self,
     Elf64_Dyn * entries;
     guint entry_count, entry_index;
 
-    entries = dynamic_begin;
+    entries = dynamic_start;
     entry_count = dynamic.size / sizeof (Elf64_Dyn);
 
     for (entry_index = 0; entry_index != entry_count; entry_index++)
