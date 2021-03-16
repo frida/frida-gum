@@ -30,6 +30,7 @@ typedef struct _GumSymbolSection GumSymbolSection;
 typedef struct _GumRangeDetails GumRangeDetails;
 typedef struct _GumFileMapping GumFileMapping;
 typedef struct _GumMallocRangeDetails GumMallocRangeDetails;
+typedef struct _GumProcessRunOnThreadContext GumProcessRunOnThreadContext;
 
 typedef enum {
   GUM_CODE_SIGNING_OPTIONAL,
@@ -142,8 +143,22 @@ struct _GumMallocRangeDetails
   const GumMemoryRange * range;
 };
 
+typedef void (* GumProcessRunOnThreadFunc) (GumCpuContext * ctx,
+    gpointer user_data);
+
+struct _GumProcessRunOnThreadContext
+{
+    GumProcessRunOnThreadFunc callback;
+    gpointer user_data;
+    GumCpuContext cached_context;
+};
+
 typedef void (* GumModifyThreadFunc) (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
+typedef void (* GumRunOnThreadAsyncUserFunc) (const GumCpuContext * cpu_context,
+    gpointer user_data);
+typedef gpointer (* GumRunOnThreadSyncUserFunc) (
+    const GumCpuContext * cpu_context, gpointer user_data);
 typedef gboolean (* GumFoundThreadFunc) (const GumThreadDetails * details,
     gpointer user_data);
 typedef gboolean (* GumFoundModuleFunc) (const GumModuleDetails * details,
@@ -160,6 +175,8 @@ typedef gboolean (* GumFoundMallocRangeFunc) (
     const GumMallocRangeDetails * details, gpointer user_data);
 typedef GumAddress (* GumResolveExportFunc) (const char * module_name,
     const char * symbol_name, gpointer user_data);
+typedef void (* GumProcessFullContextFunc) (GumFullCpuContext * ctx,
+    gpointer user_data);
 
 GUM_API GumOS gum_process_get_native_os (void);
 GUM_API GumCodeSigningPolicy gum_process_get_code_signing_policy (void);
@@ -171,6 +188,10 @@ GUM_API GumThreadId gum_process_get_current_thread_id (void);
 GUM_API gboolean gum_process_has_thread (GumThreadId thread_id);
 GUM_API gboolean gum_process_modify_thread (GumThreadId thread_id,
     GumModifyThreadFunc func, gpointer user_data);
+GUM_API void * gum_process_run_on_thread_sync (GumThreadId id,
+    GumRunOnThreadSyncUserFunc func, gpointer user_data);
+GUM_API void gum_process_run_on_thread_async (GumThreadId id,
+    GumRunOnThreadAsyncUserFunc func, gpointer user_data);
 GUM_API void gum_process_enumerate_threads (GumFoundThreadFunc func,
     gpointer user_data);
 GUM_API gboolean gum_process_resolve_module_pointer (gconstpointer ptr,
@@ -212,6 +233,12 @@ GUM_API GumModuleDetails * gum_module_details_copy (
 GUM_API void gum_module_details_free (GumModuleDetails * module);
 
 GUM_API const gchar * gum_symbol_type_to_string (GumSymbolType type);
+
+GUM_API gboolean gum_process_is_run_on_thread_supported ();
+GUM_API void gum_process_modify_thread_to_call_function (GumThreadId thread_id,
+    GumCpuContext * cpu_context, gpointer user_data);
+GUM_API void gum_process_call_with_full_context (GumCpuContext * cpu_context,
+    GumProcessFullContextFunc callback, gpointer user_data);
 
 G_END_DECLS
 

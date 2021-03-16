@@ -240,6 +240,10 @@
     <ClCompile Include="gum\gumdarwinmodule.c">
       <Filter>core</Filter>
     </ClCompile>
+    <ClCompile Include="gum\backend-x86\gumprocess-x86.c" />
+    <ClCompile Include="gum\backend-x86\gumprocess-x86.c">
+      <Filter>core\backend-x86</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="gum\arch-x86\gumx86reader.h">
@@ -472,6 +476,7 @@
     <None Include="vapi\frida-gum-1.0.vapi">
       <Filter>vapi</Filter>
     </None>
+    <None Include="gum\backend-x86\gumprocess-x86-glue.S" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="gum\gumenumtypes.c.template">
@@ -480,5 +485,10 @@
     <CustomBuild Include="gum\gumenumtypes.h.template">
       <Filter>core</Filter>
     </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <MASM Include="gum\backend-x86\gumprocess-amd64-glue.asm">
+      <Filter>core\backend-x86</Filter>
+    </MASM>
   </ItemGroup>
 </Project>

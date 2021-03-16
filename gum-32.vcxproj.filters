@@ -237,6 +237,10 @@
     <ClCompile Include="gum\gumdarwinmodule.c">
       <Filter>core</Filter>
     </ClCompile>
+    <ClCompile Include="gum\backend-x86\gumprocess-x86.c" />
+    <ClCompile Include="gum\backend-x86\gumprocess-x86.c">
+      <Filter>core\backend-x86</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="gum\arch-x86\gumx86reader.h">
@@ -477,5 +481,10 @@
     <CustomBuild Include="gum\gumenumtypes.h.template">
       <Filter>core</Filter>
     </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <MASM Include="gum\backend-x86\gumprocess-ia32-glue.asm">
+      <Filter>core\backend-x86</Filter>
+    </MASM>
   </ItemGroup>
 </Project>
