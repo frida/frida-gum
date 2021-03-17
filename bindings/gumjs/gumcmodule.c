@@ -645,7 +645,23 @@ gum_tcc_cmodule_resolve_symbol (void * opaque,
       gum_undecorate_name (name));
 }
 
-#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8 && !defined (_MSC_VER)
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+
+static long gum_fixdfdi (double value);
+
+static void
+gum_add_abi_symbols (TCCState * state)
+{
+  tcc_add_symbol (state, "__fixdfdi", GUM_FUNCPTR_TO_POINTER (gum_fixdfdi));
+}
+
+static long
+gum_fixdfdi (double value)
+{
+  return value;
+}
+
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8 && !defined (_MSC_VER)
 
 extern void * __va_arg (void * ap, int arg_type, int size, int align);
 
