@@ -320,6 +320,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (cmodule_can_be_used_with_module_map)
     TESTENTRY (cmodule_should_provide_some_builtin_string_functions)
     TESTENTRY (cmodule_should_support_memory_builtins)
+    TESTENTRY (cmodule_should_support_arithmetic_builtins)
     TESTENTRY (cmodule_should_support_floating_point)
     TESTENTRY (cmodule_should_support_varargs)
     TESTENTRY (cmodule_should_support_global_callbacks)
@@ -7782,6 +7783,45 @@ TESTCASE (cmodule_should_support_memory_builtins)
   f = EXPECT_SEND_MESSAGE_WITH_POINTER ();
   g_assert_nonnull (f);
   g_assert_cmpint (f (), ==, 0);
+}
+
+TESTCASE (cmodule_should_support_arithmetic_builtins)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "const m = new CModule(`"
+      "\n"
+      "int\n"
+      "test_int_ops (int a,\n"
+      "              int b)\n"
+      "{\n"
+      "  return (a / b) + (a %% b);\n"
+      "}\n"
+      "\n"
+      "unsigned\n"
+      "test_unsigned_ops (unsigned a,\n"
+      "                   unsigned b)\n"
+      "{\n"
+      "  return (a / b) + (a %% b);\n"
+      "}\n"
+      "`);"
+      "send(m.test_int_ops);"
+      "send(m.test_unsigned_ops);");
+
+  {
+    int (* test_int_ops) (int a, int b);
+
+    test_int_ops = EXPECT_SEND_MESSAGE_WITH_POINTER ();
+    g_assert_nonnull (test_int_ops);
+    g_assert_cmpint (test_int_ops (16, 2), ==, 8);
+  }
+
+  {
+    unsigned (* test_unsigned_ops) (unsigned a, unsigned b);
+
+    test_unsigned_ops = EXPECT_SEND_MESSAGE_WITH_POINTER ();
+    g_assert_nonnull (test_unsigned_ops);
+    g_assert_cmpint (test_unsigned_ops (16, 2), ==, 8);
+  }
 }
 
 TESTCASE (cmodule_should_support_floating_point)

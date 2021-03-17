@@ -657,7 +657,22 @@ gum_add_abi_symbols (TCCState * state)
 
 #elif defined (HAVE_ARM)
 
+#define GUM_DECLARE_BINARY_HELPER(name, type) \
+    static type G_PASTE (gum_aeabi_, name) (type a, type b);
+#define GUM_DEFINE_BINARY_HELPER(name, type, operation) \
+    static type                                         \
+    G_PASTE (gum_aeabi_, name) (type a,                 \
+                                type b)                 \
+    {                                                   \
+      return a operation b;                             \
+    }
+
 static void gum_aeabi_memset (void * dest, size_t n, int c);
+
+GUM_DECLARE_BINARY_HELPER (idiv, int)
+GUM_DECLARE_BINARY_HELPER (idivmod, int)
+GUM_DECLARE_BINARY_HELPER (uidiv, unsigned)
+GUM_DECLARE_BINARY_HELPER (uidivmod, unsigned)
 
 static void
 gum_add_abi_symbols (TCCState * state)
@@ -666,6 +681,10 @@ gum_add_abi_symbols (TCCState * state)
   tcc_add_symbol (state, "__aeabi_memmove4", memmove);
   tcc_add_symbol (state, "__aeabi_memmove8", memmove);
   tcc_add_symbol (state, "__aeabi_memset", gum_aeabi_memset);
+  tcc_add_symbol (state, "__aeabi_idiv", gum_aeabi_idiv);
+  tcc_add_symbol (state, "__aeabi_idivmod", gum_aeabi_idivmod);
+  tcc_add_symbol (state, "__aeabi_uidiv", gum_aeabi_uidiv);
+  tcc_add_symbol (state, "__aeabi_uidivmod", gum_aeabi_uidivmod);
 }
 
 static void
@@ -675,6 +694,11 @@ gum_aeabi_memset (void * dest,
 {
   memset (dest, c, n);
 }
+
+GUM_DEFINE_BINARY_HELPER (idiv, int, /)
+GUM_DEFINE_BINARY_HELPER (idivmod, int, %)
+GUM_DEFINE_BINARY_HELPER (uidiv, unsigned, /)
+GUM_DEFINE_BINARY_HELPER (uidivmod, unsigned, %)
 
 #else
 
