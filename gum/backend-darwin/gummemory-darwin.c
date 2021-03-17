@@ -22,9 +22,11 @@ typedef struct _GumAllocNearContext GumAllocNearContext;
 
 struct _GumAllocNearContext
 {
-  mach_port_t task;
   const GumAddressSpec * spec;
   gsize size;
+  gsize alignment;
+  gsize page_size;
+  GumPageProtection prot;
 
   gpointer result;
 };
@@ -33,6 +35,8 @@ static gpointer gum_allocate_page_aligned (gpointer address, gsize size,
     gint prot);
 static gboolean gum_try_alloc_in_range_if_near_enough (
     const GumMemoryRange * range, gpointer user_data);
+static gboolean gum_try_suggest_allocation_base (const GumMemoryRange * range,
+    const GumAllocNearContext * ctx, gpointer * allocation_base);
 static gint gum_page_protection_to_bsd (GumPageProtection prot);
 
 void
@@ -149,8 +153,8 @@ gum_darwin_query_page_size (mach_port_t task,
 }
 
 static void
-gum_memory_enumerate_free_ranges (GumFoundFreeRangeFunc func,
-                                  gpointer user_data)
+gum_enumerate_free_ranges (GumFoundFreeRangeFunc func,
+                           gpointer user_data)
 {
   mach_port_t self;
   guint page_size, index;
@@ -484,11 +488,7 @@ gum_try_alloc_n_pages_near (guint n_pages,
 
   *((gsize *) base) = size;
 
-  if (prot != GUM_PAGE_READ)
-    gum_mprotect (base, page_size, GUM_PAGE_READ);
-
-  if (prot != GUM_PAGE_RW)
-    gum_mprotect (base + page_size, size - page_size, prot);
+  gum_mprotect (base, page_size, GUM_PAGE_READ);
 
   return base + page_size;
 }
@@ -597,25 +597,26 @@ gum_memory_allocate_near (const GumAddressSpec * spec,
                           gsize alignment,
                           GumPageProtection prot)
 {
-  gpointer base, address;
+  gpointer suggested_base, received_base;
   GumAllocNearContext ctx;
 
-  address = (spec != NULL) ? spec->near_address : NULL;
+  suggested_base = (spec != NULL) ? spec->near_address : NULL;
 
-  base = gum_memory_allocate (address, size, alignment, prot);
-  if (base == NULL)
+  received_base = gum_memory_allocate (suggested_base, size, alignment, prot);
+  if (received_base == NULL)
     return NULL;
-  if (spec == NULL || gum_address_spec_is_satisfied_by (spec, base))
-    return base;
-  gum_memory_free (base, size);
+  if (spec == NULL || gum_address_spec_is_satisfied_by (spec, received_base))
+    return received_base;
+  gum_memory_free (received_base, size);
 
-  ctx.task = mach_task_self ();
   ctx.spec = spec;
   ctx.size = size;
+  ctx.alignment = alignment;
+  ctx.page_size = gum_query_page_size ();
+  ctx.prot = prot;
   ctx.result = NULL;
 
-  gum_memory_enumerate_free_ranges (gum_try_alloc_in_range_if_near_enough,
-      &ctx);
+  gum_enumerate_free_ranges (gum_try_alloc_in_range_if_near_enough, &ctx);
 
   return ctx.result;
 }
@@ -625,30 +626,53 @@ gum_try_alloc_in_range_if_near_enough (const GumMemoryRange * range,
                                        gpointer user_data)
 {
   GumAllocNearContext * ctx = user_data;
-  GumAddress base;
-  mach_vm_address_t address;
-  kern_return_t kr;
+  gpointer suggested_base, received_base;
 
-  if (range->size < ctx->size)
+  if (!gum_try_suggest_allocation_base (range, ctx, &suggested_base))
     goto keep_looking;
 
-  base = range->base_address;
-  if (!gum_address_spec_is_satisfied_by (ctx->spec, GSIZE_TO_POINTER (base)))
+  received_base = gum_memory_allocate (suggested_base, ctx->size,
+      ctx->alignment, ctx->prot);
+  if (received_base == NULL)
+    goto keep_looking;
+
+  if (!gum_address_spec_is_satisfied_by (ctx->spec, received_base))
   {
-    base = range->base_address + range->size - ctx->size;
-    if (!gum_address_spec_is_satisfied_by (ctx->spec, GSIZE_TO_POINTER (base)))
-      goto keep_looking;
+    gum_memory_free (received_base, ctx->size);
+    goto keep_looking;
   }
 
-  address = base;
-  kr = mach_vm_allocate (ctx->task, &address, ctx->size, VM_FLAGS_FIXED);
-  if (kr != KERN_SUCCESS)
-    goto keep_looking;
-
-  ctx->result = GSIZE_TO_POINTER (address);
+  ctx->result = received_base;
   return FALSE;
 
 keep_looking:
+  return TRUE;
+}
+
+static gboolean
+gum_try_suggest_allocation_base (const GumMemoryRange * range,
+                                 const GumAllocNearContext * ctx,
+                                 gpointer * allocation_base)
+{
+  const gsize allocation_size = ctx->size + (ctx->alignment - ctx->page_size);
+  gpointer base;
+  gsize mask;
+
+  if (range->size < allocation_size)
+    return FALSE;
+
+  mask = ~(ctx->alignment - 1);
+
+  base = GSIZE_TO_POINTER ((range->base_address + ctx->alignment - 1) & mask);
+  if (!gum_address_spec_is_satisfied_by (ctx->spec, base))
+  {
+    base = GSIZE_TO_POINTER ((range->base_address + range->size -
+        allocation_size) & mask);
+    if (!gum_address_spec_is_satisfied_by (ctx->spec, base))
+      return FALSE;
+  }
+
+  *allocation_base = base;
   return TRUE;
 }
 

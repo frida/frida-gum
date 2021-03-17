@@ -224,7 +224,7 @@ gum_memory_allocate_near (const GumAddressSpec * spec,
                           GumPageProtection prot)
 {
   gpointer result = NULL;
-  gsize page_size;
+  gsize page_size, step_size;
   DWORD win_prot;
   guint8 * low_address, * high_address;
 
@@ -236,18 +236,19 @@ gum_memory_allocate_near (const GumAddressSpec * spec,
   gum_memory_free (result, size);
 
   page_size = gum_query_page_size ();
+  step_size = MAX (page_size, GUM_ALIGN_SIZE (alignment, page_size));
   win_prot = gum_page_protection_to_windows (prot);
 
   low_address = GSIZE_TO_POINTER (
-      (GPOINTER_TO_SIZE (spec->near_address) & ~(page_size - 1)));
+      (GPOINTER_TO_SIZE (spec->near_address) & ~(step_size - 1)));
   high_address = low_address;
 
   do
   {
     gsize cur_distance;
 
-    low_address -= page_size;
-    high_address += page_size;
+    low_address -= step_size;
+    high_address += step_size;
     cur_distance = (gsize) high_address - (gsize) spec->near_address;
     if (cur_distance > spec->max_distance)
       break;

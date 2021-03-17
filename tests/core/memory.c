@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -28,6 +28,8 @@ TESTLIST_BEGIN (memory)
   TESTENTRY (is_memory_readable_handles_mixed_page_protections)
   TESTENTRY (alloc_n_pages_returns_aligned_rw_address)
   TESTENTRY (alloc_n_pages_near_returns_aligned_rw_address_within_range)
+  TESTENTRY (allocate_handles_alignment)
+  TESTENTRY (allocate_near_handles_alignment)
   TESTENTRY (mprotect_handles_page_boundaries)
 TESTLIST_END ()
 
@@ -457,6 +459,41 @@ TESTCASE (alloc_n_pages_near_returns_aligned_rw_address_within_range)
   g_assert_cmpuint (actual_distance, <=, as.max_distance);
 
   gum_free_pages (page);
+}
+
+TESTCASE (allocate_handles_alignment)
+{
+  gsize size, alignment;
+  gpointer page;
+
+  size = gum_query_page_size ();
+  alignment = 1024 * 1024;
+
+  page = gum_memory_allocate (NULL, size, alignment, GUM_PAGE_RW);
+  g_assert_nonnull (page);
+  g_assert_cmpuint (GPOINTER_TO_SIZE (page) % alignment, ==, 0);
+
+  gum_memory_free (page, size);
+}
+
+TESTCASE (allocate_near_handles_alignment)
+{
+  GumAddressSpec as;
+  guint variable_on_stack;
+  gsize size, alignment;
+  gpointer page;
+
+  as.near_address = &variable_on_stack;
+  as.max_distance = G_MAXINT32;
+
+  size = gum_query_page_size ();
+  alignment = 1024 * 1024;
+
+  page = gum_memory_allocate_near (&as, size, alignment, GUM_PAGE_RW);
+  g_assert_nonnull (page);
+  g_assert_cmpuint (GPOINTER_TO_SIZE (page) % alignment, ==, 0);
+
+  gum_memory_free (page, size);
 }
 
 TESTCASE (mprotect_handles_page_boundaries)
