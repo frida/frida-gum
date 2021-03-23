@@ -56,6 +56,8 @@ typedef struct _TestStalkerFixture
 } TestStalkerFixture;
 
 typedef gint (STALKER_TESTFUNC * StalkerTestFunc) (gint arg);
+typedef gboolean (* TestIsFinishedFunc) (void);
+typedef gint (* GetMagicNumberFunc) (void);
 
 static void silence_warnings (void);
 

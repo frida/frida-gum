@@ -107,27 +107,22 @@ static void insert_extra_increment_after_xor (GumStalkerIterator * iterator,
 static void store_xax (GumCpuContext * cpu_context, gpointer user_data);
 static void unfollow_during_transform (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
-static gboolean test_is_finished (void);
 static void modify_to_return_true_after_three_calls (
     GumStalkerIterator * iterator, GumStalkerOutput * output,
     gpointer user_data);
 static void invalidate_after_three_calls (GumCpuContext * cpu_context,
     gpointer user_data);
 static void start_invalidation_target (InvalidationTarget * target,
-    TestStalkerFixture * fixture);
+    gconstpointer target_function, TestStalkerFixture * fixture);
 static void join_invalidation_target (InvalidationTarget * target);
 static gpointer run_stalked_until_finished (gpointer data);
 static void modify_to_return_true_on_subsequent_transform (
     GumStalkerIterator * iterator, GumStalkerOutput * output,
     gpointer user_data);
-static int get_magic_number (void);
 static void add_n_return_value_increments (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
 static void invoke_follow_return_code (TestStalkerFixture * fixture);
 static void invoke_unfollow_deep_code (TestStalkerFixture * fixture);
-
-volatile gboolean stalker_invalidation_test_is_finished = FALSE;
-volatile gint stalker_invalidation_magic_number = 42;
 
 #ifdef HAVE_LINUX
 static void prefetch_on_event (const GumEvent * event,
@@ -825,9 +820,19 @@ TESTCASE (follow_me_should_support_nullable_event_sink)
   gum_stalker_unfollow_me (fixture->stalker);
 }
 
+static const guint8 test_is_finished_code[] = {
+    0x33, 0xc0, /* xor eax, eax */
+    0xc3,       /* ret          */
+};
+
 TESTCASE (invalidation_for_current_thread_should_be_supported)
 {
+  TestIsFinishedFunc test_is_finished;
   InvalidationTransformContext ctx;
+
+  test_is_finished = GUM_POINTER_TO_FUNCPTR (TestIsFinishedFunc,
+      test_stalker_fixture_dup_code (fixture, test_is_finished_code,
+          sizeof (test_is_finished_code)));
 
   ctx.stalker = fixture->stalker;
   ctx.target_function = test_is_finished;
@@ -843,12 +848,6 @@ TESTCASE (invalidation_for_current_thread_should_be_supported)
   }
 
   gum_stalker_unfollow_me (fixture->stalker);
-}
-
-static gboolean GUM_NOINLINE
-test_is_finished (void)
-{
-  return stalker_invalidation_test_is_finished;
 }
 
 static void
@@ -898,10 +897,15 @@ invalidate_after_three_calls (GumCpuContext * cpu_context,
 
 TESTCASE (invalidation_for_specific_thread_should_be_supported)
 {
+  TestIsFinishedFunc test_is_finished;
   InvalidationTarget a, b;
 
-  start_invalidation_target (&a, fixture);
-  start_invalidation_target (&b, fixture);
+  test_is_finished = GUM_POINTER_TO_FUNCPTR (TestIsFinishedFunc,
+      test_stalker_fixture_dup_code (fixture, test_is_finished_code,
+          sizeof (test_is_finished_code)));
+
+  start_invalidation_target (&a, test_is_finished, fixture);
+  start_invalidation_target (&b, test_is_finished, fixture);
 
   gum_stalker_invalidate_for_thread (fixture->stalker, a.thread_id,
       test_is_finished);
@@ -918,13 +922,14 @@ TESTCASE (invalidation_for_specific_thread_should_be_supported)
 
 static void
 start_invalidation_target (InvalidationTarget * target,
+                           gconstpointer target_function,
                            TestStalkerFixture * fixture)
 {
   InvalidationTransformContext * ctx = &target->ctx;
   StalkerDummyChannel * channel = &target->channel;
 
   ctx->stalker = fixture->stalker;
-  ctx->target_function = test_is_finished;
+  ctx->target_function = target_function;
   ctx->n = 0;
 
   target->transformer = gum_stalker_transformer_make_from_callback (
@@ -963,6 +968,8 @@ static gpointer
 run_stalked_until_finished (gpointer data)
 {
   InvalidationTarget * target = data;
+  TestIsFinishedFunc test_is_finished =
+      GUM_POINTER_TO_FUNCPTR (TestIsFinishedFunc, target->ctx.target_function);
   StalkerDummyChannel * channel = &target->channel;
   gboolean first_iteration;
 
@@ -1017,9 +1024,19 @@ modify_to_return_true_on_subsequent_transform (GumStalkerIterator * iterator,
   }
 }
 
+static const guint8 get_magic_number_code[] = {
+    0xb8, 0x2a, 0x00, 0x00, 0x00, /* mov eax, 42 */
+    0xc3,                         /* ret         */
+};
+
 TESTCASE (invalidation_should_allow_block_to_grow)
 {
+  GetMagicNumberFunc get_magic_number;
   InvalidationTransformContext ctx;
+
+  get_magic_number = GUM_POINTER_TO_FUNCPTR (GetMagicNumberFunc,
+      test_stalker_fixture_dup_code (fixture, get_magic_number_code,
+          sizeof (get_magic_number_code)));
 
   ctx.stalker = fixture->stalker;
   ctx.target_function = get_magic_number;
@@ -1042,12 +1059,6 @@ TESTCASE (invalidation_should_allow_block_to_grow)
   g_assert_cmpint (get_magic_number (), ==, 44);
 
   gum_stalker_unfollow_me (fixture->stalker);
-}
-
-static int GUM_NOINLINE
-get_magic_number (void)
-{
-  return stalker_invalidation_magic_number;
 }
 
 static void
