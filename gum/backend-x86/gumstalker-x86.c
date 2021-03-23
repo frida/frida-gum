@@ -1366,10 +1366,12 @@ gum_stalker_invalidate_for_thread (GumStalker * self,
   gum_stalker_maybe_deactivate (self, &activation);
 
   ctx = gum_stalker_find_exec_ctx_by_thread_id (self, thread_id);
-
-  while (!gum_stalker_do_invalidate (ctx, address, &activation))
+  if (ctx != NULL)
   {
-    g_thread_yield ();
+    while (!gum_stalker_do_invalidate (ctx, address, &activation))
+    {
+      g_thread_yield ();
+    }
   }
 
   gum_stalker_maybe_reactivate (self, &activation);
