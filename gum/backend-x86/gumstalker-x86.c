@@ -931,7 +931,7 @@ rescan:
 #define RETURN_ADDRESS_POINTER_FROM_FIRST_ARGUMENT(arg)   \
     ((gpointer *) ((volatile guint8 *) &arg - sizeof (gpointer)))
 
-void
+GUM_NOINLINE void
 gum_stalker_follow_me (GumStalker * self,
                        GumStalkerTransformer * transformer,
                        GumEventSink * sink)
@@ -973,7 +973,7 @@ _gum_stalker_do_follow_me (GumStalker * self,
   *ret_addr_ptr = code_address;
 }
 
-void
+GUM_NOINLINE void
 gum_stalker_unfollow_me (GumStalker * self)
 {
   GumExecCtx * ctx;
@@ -1211,7 +1211,7 @@ gum_stalker_disinfect (GumThreadId thread_id,
 
 #ifdef _MSC_VER
 
-void
+GUM_NOINLINE void
 gum_stalker_activate (GumStalker * self,
                       gconstpointer target)
 {
@@ -1222,7 +1222,7 @@ gum_stalker_activate (GumStalker * self,
   _gum_stalker_do_activate (self, target, ret_addr_ptr);
 }
 
-void
+GUM_NOINLINE void
 gum_stalker_deactivate (GumStalker * self)
 {
   gpointer * ret_addr_ptr;
