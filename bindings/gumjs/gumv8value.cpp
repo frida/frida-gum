@@ -1311,7 +1311,7 @@ _gum_v8_native_pointer_parse (Local<Value> value,
       return TRUE;
     }
 
-    *ptr = GSIZE_TO_POINTER (number);
+    *ptr = GSIZE_TO_POINTER ((guint64) number);
     return TRUE;
   }
   else
