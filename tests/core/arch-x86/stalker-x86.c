@@ -77,6 +77,9 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (follow_syscall)
   TESTENTRY (follow_thread)
   TESTENTRY (unfollow_should_handle_terminated_thread)
+  TESTENTRY (self_modifying_code_should_be_detected_with_threshold_minus_one)
+  TESTENTRY (self_modifying_code_should_not_be_detected_with_threshold_zero)
+  TESTENTRY (self_modifying_code_should_be_detected_with_threshold_one)
 #ifndef HAVE_WINDOWS
   TESTENTRY (performance)
 #endif
@@ -97,6 +100,8 @@ TESTLIST_END ()
 
 static gpointer run_stalked_briefly (gpointer data);
 static gpointer run_stalked_into_termination (gpointer data);
+static void patch_code (gpointer code, gconstpointer new_code, gsize size);
+static void do_patch_instruction (gpointer mem, gpointer user_data);
 #ifndef HAVE_WINDOWS
 static gboolean store_range_of_test_runner (const GumModuleDetails * details,
     gpointer user_data);
@@ -136,6 +141,13 @@ static void prefetch_read_blocks (int fd, GHashTable * table);
 static GHashTable * prefetch_compiled = NULL;
 static GHashTable * prefetch_executed = NULL;
 #endif
+
+static const guint8 flat_code[] = {
+  0x33, 0xc0, /* xor eax, eax */
+  0xff, 0xc0, /* inc eax      */
+  0xff, 0xc0, /* inc eax      */
+  0xc3        /* retn         */
+};
 
 TESTCASE (heap_api)
 {
@@ -269,6 +281,121 @@ run_stalked_into_termination (gpointer data)
   return NULL;
 }
 
+TESTCASE (self_modifying_code_should_be_detected_with_threshold_minus_one)
+{
+  FlatFunc f;
+  guint8 mov_eax_imm_plus_nop[] = {
+    0xb8, 0x00, 0x00, 0x00, 0x00, /* mov eax, <imm> */
+    0x90                          /* nop padding    */
+  };
+
+  f = GUM_POINTER_TO_FUNCPTR (FlatFunc,
+      test_stalker_fixture_dup_code (fixture, flat_code, sizeof (flat_code)));
+
+  fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
+
+  gum_stalker_set_trust_threshold (fixture->stalker, -1);
+  gum_stalker_follow_me (fixture->stalker, fixture->transformer,
+      GUM_EVENT_SINK (fixture->sink));
+
+  g_assert_cmpuint (f (), ==, 2);
+
+  *((guint32 *) (mov_eax_imm_plus_nop + 1)) = 42;
+  patch_code (f, mov_eax_imm_plus_nop, sizeof (mov_eax_imm_plus_nop));
+  g_assert_cmpuint (f (), ==, 42);
+  f ();
+  f ();
+
+  *((guint32 *) (mov_eax_imm_plus_nop + 1)) = 1337;
+  patch_code (f, mov_eax_imm_plus_nop, sizeof (mov_eax_imm_plus_nop));
+  g_assert_cmpuint (f (), ==, 1337);
+
+  gum_stalker_unfollow_me (fixture->stalker);
+
+  g_assert_cmpuint (fixture->sink->events->len, >, 0);
+}
+
+TESTCASE (self_modifying_code_should_not_be_detected_with_threshold_zero)
+{
+  FlatFunc f;
+  guint8 mov_eax_imm_plus_nop[] = {
+    0xb8, 0x00, 0x00, 0x00, 0x00, /* mov eax, <imm> */
+    0x90                          /* nop padding    */
+  };
+
+  f = GUM_POINTER_TO_FUNCPTR (FlatFunc,
+      test_stalker_fixture_dup_code (fixture, flat_code, sizeof (flat_code)));
+
+  fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
+
+  gum_stalker_set_trust_threshold (fixture->stalker, 0);
+  gum_stalker_follow_me (fixture->stalker, fixture->transformer,
+      GUM_EVENT_SINK (fixture->sink));
+
+  g_assert_cmpuint (f (), ==, 2);
+
+  *((guint32 *) (mov_eax_imm_plus_nop + 1)) = 42;
+  patch_code (f, mov_eax_imm_plus_nop, sizeof (mov_eax_imm_plus_nop));
+  g_assert_cmpuint (f (), ==, 2);
+
+  gum_stalker_unfollow_me (fixture->stalker);
+
+  g_assert_cmpuint (fixture->sink->events->len, >, 0);
+}
+
+TESTCASE (self_modifying_code_should_be_detected_with_threshold_one)
+{
+  FlatFunc f;
+  guint8 mov_eax_imm_plus_nop[] = {
+    0xb8, 0x00, 0x00, 0x00, 0x00, /* mov eax, <imm> */
+    0x90                          /* nop padding    */
+  };
+
+  f = GUM_POINTER_TO_FUNCPTR (FlatFunc,
+      test_stalker_fixture_dup_code (fixture, flat_code, sizeof (flat_code)));
+
+  fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
+
+  gum_stalker_set_trust_threshold (fixture->stalker, 1);
+  gum_stalker_follow_me (fixture->stalker, fixture->transformer,
+      GUM_EVENT_SINK (fixture->sink));
+
+  g_assert_cmpuint (f (), ==, 2);
+
+  *((guint32 *) (mov_eax_imm_plus_nop + 1)) = 42;
+  patch_code (f, mov_eax_imm_plus_nop, sizeof (mov_eax_imm_plus_nop));
+  g_assert_cmpuint (f (), ==, 42);
+  f ();
+  f ();
+
+  *((guint32 *) (mov_eax_imm_plus_nop + 1)) = 1337;
+  patch_code (f, mov_eax_imm_plus_nop, sizeof (mov_eax_imm_plus_nop));
+  g_assert_cmpuint (f (), ==, 42);
+
+  gum_stalker_unfollow_me (fixture->stalker);
+
+  g_assert_cmpuint (fixture->sink->events->len, >, 0);
+}
+
+static void
+patch_code (gpointer code,
+            gconstpointer new_code,
+            gsize size)
+{
+  PatchCodeContext ctx = { new_code, size };
+
+  gum_memory_patch_code (code, size, do_patch_instruction, &ctx);
+}
+
+static void
+do_patch_instruction (gpointer mem,
+                      gpointer user_data)
+{
+  PatchCodeContext * ctx = user_data;
+
+  memcpy (mem, ctx->code, ctx->size);
+}
+
 #ifndef HAVE_WINDOWS
 
 TESTCASE (performance)
@@ -383,13 +510,6 @@ pretend_workload (GumMemoryRange * runner_range)
 }
 
 #endif
-
-static const guint8 flat_code[] = {
-    0x33, 0xc0, /* xor eax, eax */
-    0xff, 0xc0, /* inc eax      */
-    0xff, 0xc0, /* inc eax      */
-    0xc3        /* retn         */
-};
 
 static StalkerTestFunc
 invoke_flat_expecting_return_value (TestStalkerFixture * fixture,

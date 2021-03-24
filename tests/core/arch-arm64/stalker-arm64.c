@@ -61,6 +61,9 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (follow_syscall)
   TESTENTRY (follow_thread)
   TESTENTRY (unfollow_should_handle_terminated_thread)
+  TESTENTRY (self_modifying_code_should_be_detected_with_threshold_minus_one)
+  TESTENTRY (self_modifying_code_should_not_be_detected_with_threshold_zero)
+  TESTENTRY (self_modifying_code_should_be_detected_with_threshold_one)
 
   /* EXTRA */
   TESTENTRY (pthread_create)
@@ -96,6 +99,8 @@ static void add_n_return_value_increments (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
 static gpointer run_stalked_briefly (gpointer data);
 static gpointer run_stalked_into_termination (gpointer data);
+static void patch_instruction (gpointer code, guint offset, guint32 insn);
+static void do_patch_instruction (gpointer mem, gpointer user_data);
 static gpointer increment_integer (gpointer data);
 static gboolean store_range_of_test_runner (const GumModuleDetails * details,
     gpointer user_data);
@@ -118,10 +123,10 @@ static GHashTable * prefetch_executed = NULL;
 #endif
 
 static const guint32 flat_code[] = {
-  0xCB000000, /* SUB W0, W0, W0 */
-  0x91000400, /* ADD W0, W0, #1 */
-  0x91000400, /* ADD W0, W0, #1 */
-  0xd65f03c0  /* RET            */
+    0xcb000000, /* sub w0, w0, w0 */
+    0x91000400, /* add w0, w0, #1 */
+    0x91000400, /* add w0, w0, #1 */
+    0xd65f03c0  /* ret            */
 };
 
 static StalkerTestFunc
@@ -1596,6 +1601,104 @@ run_stalked_into_termination (gpointer data)
   sdc_await_follow_confirmation (channel);
 
   return NULL;
+}
+
+TESTCASE (self_modifying_code_should_be_detected_with_threshold_minus_one)
+{
+  FlatFunc f;
+
+  f = (FlatFunc) test_arm64_stalker_fixture_dup_code (fixture, flat_code,
+      sizeof (flat_code));
+
+  fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
+
+  gum_stalker_set_trust_threshold (fixture->stalker, -1);
+  gum_stalker_follow_me (fixture->stalker, fixture->transformer,
+      GUM_EVENT_SINK (fixture->sink));
+
+  g_assert_cmpuint (f (), ==, 2);
+
+  patch_instruction (f, 4, 0x1100a400);
+  g_assert_cmpuint (f (), ==, 42);
+  f ();
+  f ();
+
+  patch_instruction (f, 4, 0x1114e000);
+  g_assert_cmpuint (f (), ==, 1337);
+
+  gum_stalker_unfollow_me (fixture->stalker);
+
+  g_assert_cmpuint (fixture->sink->events->len, >, 0);
+}
+
+TESTCASE (self_modifying_code_should_not_be_detected_with_threshold_zero)
+{
+  FlatFunc f;
+
+  f = (FlatFunc) test_arm64_stalker_fixture_dup_code (fixture, flat_code,
+      sizeof (flat_code));
+
+  fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
+
+  gum_stalker_set_trust_threshold (fixture->stalker, 0);
+  gum_stalker_follow_me (fixture->stalker, fixture->transformer,
+      GUM_EVENT_SINK (fixture->sink));
+
+  g_assert_cmpuint (f (), ==, 2);
+
+  patch_instruction (f, 4, 0x1100a400);
+  g_assert_cmpuint (f (), ==, 2);
+
+  gum_stalker_unfollow_me (fixture->stalker);
+
+  g_assert_cmpuint (fixture->sink->events->len, >, 0);
+}
+
+TESTCASE (self_modifying_code_should_be_detected_with_threshold_one)
+{
+  FlatFunc f;
+
+  f = (FlatFunc) test_arm64_stalker_fixture_dup_code (fixture, flat_code,
+      sizeof (flat_code));
+
+  fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
+
+  gum_stalker_set_trust_threshold (fixture->stalker, 1);
+  gum_stalker_follow_me (fixture->stalker, fixture->transformer,
+      GUM_EVENT_SINK (fixture->sink));
+
+  g_assert_cmpuint (f (), ==, 2);
+
+  patch_instruction (f, 4, 0x1100a400);
+  g_assert_cmpuint (f (), ==, 42);
+  f ();
+  f ();
+
+  patch_instruction (f, 4, 0x1114e000);
+  g_assert_cmpuint (f (), ==, 42);
+
+  gum_stalker_unfollow_me (fixture->stalker);
+
+  g_assert_cmpuint (fixture->sink->events->len, >, 0);
+}
+
+static void
+patch_instruction (gpointer code,
+                   guint offset,
+                   guint32 insn)
+{
+  gum_memory_patch_code ((guint8 *) code + offset, sizeof (insn),
+      do_patch_instruction, GSIZE_TO_POINTER (insn));
+}
+
+static void
+do_patch_instruction (gpointer mem,
+                      gpointer user_data)
+{
+  guint32 * insn = mem;
+  guint32 new_insn = GPOINTER_TO_SIZE (user_data);
+
+  *insn = new_insn;
 }
 
 TESTCASE (pthread_create)

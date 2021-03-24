@@ -45,6 +45,7 @@ typedef struct _TestArm64StalkerFixture
 } TestArm64StalkerFixture;
 
 typedef gint (* StalkerTestFunc) (gint arg);
+typedef guint (* FlatFunc) (void);
 
 static void silence_warnings (void);
 

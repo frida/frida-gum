@@ -56,6 +56,7 @@ typedef struct _TestStalkerFixture
 } TestStalkerFixture;
 
 typedef gint (STALKER_TESTFUNC * StalkerTestFunc) (gint arg);
+typedef guint (* FlatFunc) (void);
 typedef gboolean (* TestIsFinishedFunc) (void);
 typedef gint (* GetMagicNumberFunc) (void);
 
@@ -210,9 +211,16 @@ silence_warnings (void)
   (void) test_stalker_fixture_follow_and_invoke;
 }
 
+typedef struct _PatchCodeContext PatchCodeContext;
 typedef struct _UnfollowTransformContext UnfollowTransformContext;
 typedef struct _InvalidationTransformContext InvalidationTransformContext;
 typedef struct _InvalidationTarget InvalidationTarget;
+
+struct _PatchCodeContext
+{
+  gconstpointer code;
+  gsize size;
+};
 
 struct _UnfollowTransformContext
 {

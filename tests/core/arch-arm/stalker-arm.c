@@ -2154,11 +2154,11 @@ TESTCODE (self_modifying_code_should_be_detected,
 TESTCASE (self_modifying_code_should_be_detected_with_threshold_minus_one)
 {
   GumAddress func;
-  guint (* callback) (void);
+  guint (* f) (void);
   guint value;
 
   func = DUP_TESTCODE (self_modifying_code_should_be_detected);
-  callback = GUM_POINTER_TO_FUNCPTR (guint (*) (void), func);
+  f = GUM_POINTER_TO_FUNCPTR (guint (*) (void), func);
 
   fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
 
@@ -2166,17 +2166,17 @@ TESTCASE (self_modifying_code_should_be_detected_with_threshold_minus_one)
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
       GUM_EVENT_SINK (fixture->sink));
 
-  value = callback ();
+  value = f ();
   g_assert_cmpuint (value, ==, 1);
 
   patch_code_pointer (func, 4, 0xe2800002);
-  value = callback ();
+  value = f ();
   g_assert_cmpuint (value, ==, 2);
-  callback ();
-  callback ();
+  f ();
+  f ();
 
   patch_code_pointer (func, 4, 0xe2800003);
-  value = callback ();
+  value = f ();
   g_assert_cmpuint (value, ==, 3);
 
   gum_stalker_unfollow_me (fixture->stalker);
@@ -2187,11 +2187,11 @@ TESTCASE (self_modifying_code_should_be_detected_with_threshold_minus_one)
 TESTCASE (self_modifying_code_should_not_be_detected_with_threshold_zero)
 {
   GumAddress func;
-  guint (* callback) (void);
+  guint (* f) (void);
   guint value;
 
   func = DUP_TESTCODE (self_modifying_code_should_be_detected);
-  callback = GUM_POINTER_TO_FUNCPTR (guint (*) (void), func);
+  f = GUM_POINTER_TO_FUNCPTR (guint (*) (void), func);
 
   fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
 
@@ -2199,11 +2199,11 @@ TESTCASE (self_modifying_code_should_not_be_detected_with_threshold_zero)
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
       GUM_EVENT_SINK (fixture->sink));
 
-  value = callback ();
+  value = f ();
   g_assert_cmpuint (value, ==, 1);
 
   patch_code_pointer (func, 4, 0xe2800002);
-  value = callback ();
+  value = f ();
   g_assert_cmpuint (value, ==, 1);
 
   gum_stalker_unfollow_me (fixture->stalker);
@@ -2214,11 +2214,11 @@ TESTCASE (self_modifying_code_should_not_be_detected_with_threshold_zero)
 TESTCASE (self_modifying_code_should_be_detected_with_threshold_one)
 {
   GumAddress func;
-  guint (* callback) (void);
+  guint (* f) (void);
   guint value;
 
   func = DUP_TESTCODE (self_modifying_code_should_be_detected);
-  callback = GUM_POINTER_TO_FUNCPTR (guint (*) (void), func);
+  f = GUM_POINTER_TO_FUNCPTR (guint (*) (void), func);
 
   fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
 
@@ -2226,17 +2226,17 @@ TESTCASE (self_modifying_code_should_be_detected_with_threshold_one)
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
       GUM_EVENT_SINK (fixture->sink));
 
-  value = callback ();
+  value = f ();
   g_assert_cmpuint (value, ==, 1);
 
   patch_code_pointer (func, 4, 0xe2800002);
-  value = callback ();
+  value = f ();
   g_assert_cmpuint (value, ==, 2);
-  callback ();
-  callback ();
+  f ();
+  f ();
 
   patch_code_pointer (func, 4, 0xe2800003);
-  value = callback ();
+  value = f ();
   g_assert_cmpuint (value, ==, 2);
 
   gum_stalker_unfollow_me (fixture->stalker);
