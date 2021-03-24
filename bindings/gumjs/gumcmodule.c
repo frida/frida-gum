@@ -1665,24 +1665,20 @@ gum_rmtree (GFile * file)
 {
   GFileEnumerator * enumerator;
 
-  enumerator = g_file_enumerate_children (file, "",
+  enumerator = g_file_enumerate_children (file, G_FILE_ATTRIBUTE_STANDARD_NAME,
       G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, NULL, NULL);
   if (enumerator != NULL)
   {
-    while (TRUE)
+    GFileInfo * info;
+    GFile * child;
+
+    while (g_file_enumerator_iterate (enumerator, &info, &child, NULL, NULL) &&
+        child != NULL)
     {
-      GFileInfo * info;
-      GFile * child;
-
-      if (!g_file_enumerator_iterate (enumerator, &info, &child, NULL, NULL))
-        break;
-      if (child == NULL)
-        break;
-
       if (g_file_info_get_file_type (info) == G_FILE_TYPE_DIRECTORY)
         gum_rmtree (child);
       else
-        g_file_delete (file, NULL, NULL);
+        g_file_delete (child, NULL, NULL);
     }
 
     g_object_unref (enumerator);
