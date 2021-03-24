@@ -48,7 +48,6 @@ typedef void (* GumThumbHelperWriteFunc) (GumExecCtx * ctx, GumThumbWriter * cw)
 typedef struct _GumExecBlock GumExecBlock;
 
 typedef guint GumExecBlockFlags;
-typedef struct _GumExecBlockMeta GumExecBlockMeta;
 
 typedef struct _GumExecFrame GumExecFrame;
 
@@ -209,11 +208,14 @@ struct _GumExecBlock
 {
   GumExecCtx * ctx;
   GumCodeSlab * code_slab;
+  GumExecBlock * storage_block;
 
   guint8 * real_start;
   guint8 * code_start;
   guint real_size;
   guint code_size;
+  guint capacity;
+  guint last_callout_offset;
 
   GumExecBlockFlags flags;
   gint recycle_count;
@@ -221,16 +223,8 @@ struct _GumExecBlock
 
 enum _GumExecBlockFlags
 {
-  GUM_EXEC_BLOCK_HAS_META          = 1 << 0,
-  GUM_EXEC_BLOCK_ACTIVATION_TARGET = 1 << 1,
-  GUM_EXEC_BLOCK_THUMB             = 1 << 2,
-};
-
-struct _GumExecBlockMeta
-{
-  GumCalloutEntry * callouts;
-  guint internal_capacity;
-  GumExecBlock * storage_block;
+  GUM_EXEC_BLOCK_ACTIVATION_TARGET = 1 << 0,
+  GUM_EXEC_BLOCK_THUMB             = 1 << 1,
 };
 
 struct _GumExecFrame
@@ -503,16 +497,10 @@ static void gum_exec_block_invalidate (GumExecBlock * block);
 static gpointer gum_exec_block_encode_instruction_pointer (
     const GumExecBlock * block, gpointer ptr);
 static gpointer gum_exec_block_get_snapshot_start (GumExecBlock * block);
-static GumExecBlockMeta * gum_exec_block_try_get_meta (
+static GumCalloutEntry * gum_exec_block_get_last_callout_entry (
     const GumExecBlock * block);
-static GumExecBlockMeta * gum_exec_block_arm_upsert_meta (GumExecBlock * block,
-    GumArmWriter * cw);
-static GumExecBlockMeta * gum_exec_block_thumb_upsert_meta (
-    GumExecBlock * block, GumThumbWriter * cw);
-static GumExecBlockMeta * gum_exec_block_do_upsert_meta (GumExecBlock * block,
-    GumArmWriter * aw, GumThumbWriter * tw);
-
-static void gum_exec_block_meta_clear (GumExecBlockMeta * meta);
+static void gum_exec_block_set_last_callout_entry (GumExecBlock * block,
+    GumCalloutEntry * entry);
 
 static void gum_exec_block_virtualize_arm_branch_insn (GumExecBlock * block,
     const GumBranchTarget * target, arm_cc cc, GumWriteback * writeback,
@@ -1968,8 +1956,6 @@ gum_exec_ctx_recompile_block (GumExecCtx * ctx,
 {
   GumStalker * stalker = ctx->stalker;
   guint8 * internal_code = block->code_start;
-  GumExecBlockMeta * meta;
-  gsize block_capacity;
   GumCodeSlab * slab;
   guint8 * scratch_base;
   guint input_size, output_size;
@@ -1977,23 +1963,11 @@ gum_exec_ctx_recompile_block (GumExecCtx * ctx,
 
   gum_spinlock_acquire (&ctx->code_lock);
 
-  meta = gum_exec_block_try_get_meta (block);
-  if (meta != NULL && meta->internal_capacity != 0)
-  {
-    block_capacity = meta->internal_capacity;
-  }
-  else
-  {
-    block_capacity = block->code_size + block->real_size;
-  }
+  gum_stalker_thaw (stalker, internal_code, block->capacity);
 
-  gum_stalker_thaw (stalker, internal_code, block_capacity);
-
+  if (block->storage_block != NULL)
+    gum_exec_block_clear (block->storage_block);
   gum_exec_block_clear (block);
-  if (meta != NULL && meta->storage_block != NULL)
-    gum_exec_block_clear (meta->storage_block);
-
-  meta = NULL;
 
   slab = block->code_slab;
   block->code_slab = ctx->scratch_slab;
@@ -2009,15 +1983,14 @@ gum_exec_ctx_recompile_block (GumExecCtx * ctx,
 
   new_block_size = output_size + new_snapshot_size;
 
-  if (new_block_size <= block_capacity)
+  if (new_block_size <= block->capacity)
   {
-    memcpy (internal_code, scratch_base, output_size);
-
     block->real_size = input_size;
+    block->code_size = output_size;
+
+    memcpy (internal_code, scratch_base, output_size);
     memcpy (gum_exec_block_get_snapshot_start (block), block->real_start,
         new_snapshot_size);
-
-    block->code_size = output_size;
 
     gum_stalker_freeze (stalker, internal_code, new_block_size);
   }
@@ -2027,14 +2000,16 @@ gum_exec_ctx_recompile_block (GumExecCtx * ctx,
     GumAddress external_code_address;
 
     storage_block = gum_exec_block_new (ctx);
-    storage_block->flags = block->flags & 4; /* THUMB flag */
+    storage_block->flags = block->flags & 2; /* THUMB flag */
     storage_block->real_start = block->real_start;
     gum_exec_ctx_compile_block (ctx, block, block->real_start,
         storage_block->code_start, GUM_ADDRESS (storage_block->code_start),
         &storage_block->real_size, &storage_block->code_size);
     gum_exec_block_commit (storage_block);
 
-    gum_stalker_thaw (stalker, internal_code, block_capacity);
+    block->storage_block = storage_block;
+
+    gum_stalker_thaw (stalker, internal_code, block->capacity);
 
     external_code_address = GUM_ADDRESS (storage_block->code_start);
 
@@ -2044,7 +2019,6 @@ gum_exec_ctx_recompile_block (GumExecCtx * ctx,
 
       gum_thumb_writer_reset (cw, internal_code);
       gum_thumb_writer_put_branch_address (cw, external_code_address);
-      meta = gum_exec_block_thumb_upsert_meta (block, cw);
       gum_thumb_writer_flush (cw);
     }
     else
@@ -2053,14 +2027,10 @@ gum_exec_ctx_recompile_block (GumExecCtx * ctx,
 
       gum_arm_writer_reset (cw, internal_code);
       gum_arm_writer_put_branch_address (cw, external_code_address);
-      meta = gum_exec_block_arm_upsert_meta (block, cw);
       gum_arm_writer_flush (cw);
     }
 
-    meta->internal_capacity = block_capacity;
-    meta->storage_block = storage_block;
-
-    gum_stalker_freeze (stalker, internal_code, block_capacity);
+    gum_stalker_freeze (stalker, internal_code, block->capacity);
   }
 
   gum_spinlock_release (&ctx->code_lock);
@@ -3131,7 +3101,6 @@ gum_stalker_iterator_put_callout (GumStalkerIterator * self,
   GumExecBlock * block = self->exec_block;
   GumGeneratorContext * gc = self->generator_context;
   GumCalloutEntry entry, * live_entry;
-  GumExecBlockMeta * meta;
   GumAddress entry_address;
 
   entry.callout = callout;
@@ -3144,8 +3113,6 @@ gum_stalker_iterator_put_callout (GumStalkerIterator * self,
   if (gc->is_thumb)
   {
     GumThumbWriter * cw = gc->thumb_writer;
-
-    meta = gum_exec_block_thumb_upsert_meta (block, cw);
 
     live_entry = gum_exec_block_write_thumb_inline_data (cw, &entry,
         sizeof (entry), &entry_address);
@@ -3161,8 +3128,6 @@ gum_stalker_iterator_put_callout (GumStalkerIterator * self,
   {
     GumArmWriter * cw = gc->arm_writer;
 
-    meta = gum_exec_block_arm_upsert_meta (block, cw);
-
     live_entry = gum_exec_block_write_arm_inline_data (cw, &entry,
         sizeof (entry), &entry_address);
 
@@ -3174,8 +3139,9 @@ gum_stalker_iterator_put_callout (GumStalkerIterator * self,
     gum_exec_block_arm_close_prolog (block, gc);
   }
 
-  live_entry->next = meta->callouts;
-  meta->callouts = GSIZE_TO_POINTER (entry_address);
+  live_entry->next = gum_exec_block_get_last_callout_entry (block);
+  gum_exec_block_set_last_callout_entry (block,
+      GSIZE_TO_POINTER (entry_address));
 }
 
 static void
@@ -3978,10 +3944,6 @@ gum_exec_block_new (GumExecCtx * ctx)
   block->code_slab = code_slab;
 
   block->code_start = gum_slab_cursor (&code_slab->slab);
-  block->code_size = 0;
-
-  block->flags = 0;
-  block->recycle_count = 0;
 
   gum_stalker_thaw (stalker, block->code_start, code_available);
 
@@ -3991,15 +3953,18 @@ gum_exec_block_new (GumExecCtx * ctx)
 static void
 gum_exec_block_clear (GumExecBlock * block)
 {
-  GumExecBlockMeta * meta;
+  GumCalloutEntry * entry;
 
-  meta = gum_exec_block_try_get_meta (block);
-  if (meta == NULL)
-    return;
+  for (entry = gum_exec_block_get_last_callout_entry (block);
+      entry != NULL;
+      entry = entry->next)
+  {
+    if (entry->data_destroy != NULL)
+      entry->data_destroy (entry->data);
+  }
+  block->last_callout_offset = 0;
 
-  gum_exec_block_meta_clear (meta);
-
-  block->flags = (block->flags & GUM_INT3_MASK) & ~GUM_EXEC_BLOCK_HAS_META;
+  block->storage_block = NULL;
 }
 
 static void
@@ -4013,7 +3978,9 @@ gum_exec_block_commit (GumExecBlock * block)
   memcpy (gum_exec_block_get_snapshot_start (block), block->real_start,
       snapshot_size);
 
-  gum_slab_reserve (&block->code_slab->slab, block->code_size + snapshot_size);
+  block->capacity = block->code_size + snapshot_size;
+
+  gum_slab_reserve (&block->code_slab->slab, block->capacity);
 
   gum_stalker_freeze (stalker, block->code_start, block->code_size);
 }
@@ -4078,83 +4045,22 @@ gum_exec_block_get_snapshot_start (GumExecBlock * block)
   return block->code_start + block->code_size;
 }
 
-static GumExecBlockMeta *
-gum_exec_block_try_get_meta (const GumExecBlock * block)
+static GumCalloutEntry *
+gum_exec_block_get_last_callout_entry (const GumExecBlock * block)
 {
-  guint offset;
+  const guint last_callout_offset = block->last_callout_offset;
 
-  if ((block->flags & GUM_EXEC_BLOCK_HAS_META) == 0)
+  if (last_callout_offset == 0)
     return NULL;
 
-  offset = block->flags >> 3;
-
-  return (GumExecBlockMeta *) (block->code_start + offset);
-}
-
-static GumExecBlockMeta *
-gum_exec_block_arm_upsert_meta (GumExecBlock * block,
-                                GumArmWriter * cw)
-{
-  return gum_exec_block_do_upsert_meta (block, cw, NULL);
-}
-
-static GumExecBlockMeta *
-gum_exec_block_thumb_upsert_meta (GumExecBlock * block,
-                                  GumThumbWriter * cw)
-{
-  return gum_exec_block_do_upsert_meta (block, NULL, cw);
-}
-
-static GumExecBlockMeta *
-gum_exec_block_do_upsert_meta (GumExecBlock * block,
-                               GumArmWriter * aw,
-                               GumThumbWriter * tw)
-{
-  GumExecBlockMeta * meta, m;
-  GumAddress meta_address;
-  guint offset;
-
-  meta = gum_exec_block_try_get_meta (block);
-  if (meta != NULL)
-    return meta;
-
-  m.callouts = NULL;
-  m.internal_capacity = 0;
-  m.storage_block = NULL;
-  if (aw != NULL)
-  {
-    meta = gum_exec_block_write_arm_inline_data (aw, &m, sizeof (m),
-        &meta_address);
-  }
-  else
-  {
-    meta = gum_exec_block_write_thumb_inline_data (tw, &m, sizeof (m),
-        &meta_address);
-  }
-
-  offset = meta_address - GUM_ADDRESS (block->code_start);
-  block->flags =
-      (offset << 3) |
-      (block->flags & GUM_INT3_MASK) |
-      GUM_EXEC_BLOCK_HAS_META;
-
-  return meta;
+  return (GumCalloutEntry *) (block->code_start + last_callout_offset);
 }
 
 static void
-gum_exec_block_meta_clear (GumExecBlockMeta * meta)
+gum_exec_block_set_last_callout_entry (GumExecBlock * block,
+                                       GumCalloutEntry * entry)
 {
-  GumCalloutEntry * entry;
-
-  for (entry = meta->callouts; entry != NULL; entry = entry->next)
-  {
-    if (entry->data_destroy != NULL)
-      entry->data_destroy (entry->data);
-  }
-  meta->callouts = NULL;
-
-  meta->internal_capacity = 0;
-  meta->storage_block = NULL;
+  block->last_callout_offset = (guint8 *) entry - block->code_start;
 }
 
 static void
