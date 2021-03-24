@@ -1886,9 +1886,14 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
     gum_spinlock_release (&ctx->code_lock);
 
     if (still_up_to_date)
-      block->recycle_count++;
+    {
+      if (trust_threshold > 0)
+        block->recycle_count++;
+    }
     else
+    {
       gum_exec_ctx_recompile_block (ctx, block);
+    }
   }
   else
   {
