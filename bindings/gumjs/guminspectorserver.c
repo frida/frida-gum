@@ -296,7 +296,6 @@ gum_inspector_server_on_unknown_request (SoupServer * server,
                                          SoupClientContext * client,
                                          gpointer user_data)
 {
-  g_printerr ("Unknown request: %s %s\n", msg->method, path);
 }
 
 static void
