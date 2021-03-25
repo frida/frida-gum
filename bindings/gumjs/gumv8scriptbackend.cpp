@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
@@ -68,6 +68,7 @@ struct _GumV8ScriptBackend
   volatile GumV8ScriptBackendState state;
   gboolean scope_mutex_trapped;
 
+  GPtrArray * live_scripts;
   GumV8Platform * platform;
   int context_group_id;
 
@@ -113,6 +114,8 @@ public:
 
   void runMessageLoopOnPause (int context_group_id) override;
   void quitMessageLoopOnPause () override;
+
+  Local<Context> ensureDefaultContextInGroup (int contextGroupId) override;
 
   double currentTimeMS () override;
 
@@ -291,6 +294,7 @@ gum_v8_script_backend_init (GumV8ScriptBackend * self)
   self->state = GUM_V8_BACKEND_RUNNING;
   self->scope_mutex_trapped = FALSE;
 
+  self->live_scripts = g_ptr_array_sized_new (1);
   self->platform = NULL;
   self->context_group_id = 1;
 
@@ -347,6 +351,7 @@ gum_v8_script_backend_finalize (GObject * object)
   delete self->channels;
 
   delete self->platform;
+  g_ptr_array_free (self->live_scripts, TRUE);
 
   g_cond_clear (&self->cond);
   g_mutex_clear (&self->mutex);
@@ -978,6 +983,8 @@ gum_v8_script_backend_notify_context_created (GumV8ScriptBackend * self,
                                               Local<Context> * context,
                                               GumV8Script * script)
 {
+  g_ptr_array_add (self->live_scripts, script);
+
   auto name_buffer = gum_string_buffer_from_utf8 (script->name);
   V8ContextInfo info (*context, self->context_group_id, name_buffer->string ());
 
@@ -990,6 +997,8 @@ gum_v8_script_backend_notify_context_destroyed (GumV8ScriptBackend * self,
                                                 GumV8Script * script)
 {
   self->inspector->contextDestroyed (*context);
+
+  g_ptr_array_remove (self->live_scripts, script);
 }
 
 static void
@@ -1080,6 +1089,18 @@ GumInspectorClient::quitMessageLoopOnPause ()
   }
 
   GUM_V8_SCRIPT_BACKEND_UNLOCK (backend);
+}
+
+Local<Context>
+GumInspectorClient::ensureDefaultContextInGroup (int contextGroupId)
+{
+  GPtrArray * live_scripts = backend->live_scripts;
+
+  if (live_scripts->len == 0)
+    return Local<Context> ();
+
+  GumV8Script * script = GUM_V8_SCRIPT (g_ptr_array_index (live_scripts, 0));
+  return Local<Context>::New (script->isolate, *script->context);
 }
 
 double
