@@ -240,8 +240,14 @@ struct _GumIA32AvxRegs
 struct _GumIA32FullCpuContext
 {
   GumIA32CpuContext regs;
-  __attribute__ ((aligned (512)))
-  GumIA32FpuRegs fpu;
+#ifdef HAVE_WINDOWS
+# pragma warning(push)
+# pragma warning(disable : 4324)
+  __declspec(align(512)) GumIA32FpuRegs fpu;
+# pragma warning(pop)
+#else
+  __attribute__ ((aligned (512))) GumIA32FpuRegs fpu;
+#endif  
   GumIA32AvxRegs avx;
 };
 
@@ -301,8 +307,14 @@ struct _GumX64AvxRegs
 struct _GumX64FullCpuContext
 {
   GumX64CpuContext regs;
-  __attribute__ ((aligned (512)))
-  GumX64FpuRegs fpu;
+#ifdef HAVE_WINDOWS
+# pragma warning(push)
+# pragma warning(disable : 4324)
+  __declspec(align(512)) GumX64FpuRegs fpu;
+# pragma warning(pop)
+#else
+  __attribute__((aligned(512))) GumX64FpuRegs fpu;
+#endif
   GumX64AvxRegs avx;
 };
 
