@@ -120,10 +120,15 @@ gum_process_run_on_thread_sync (GumThreadId id,
     .ready = FALSE,
   };
 
+  g_mutex_init(&run_ctx.data_mutex);
+  g_cond_init(&run_ctx.data_cond);
+
   GumProcessRunOnThreadContext modify_ctx = {
     .callback = gum_process_run_callback_on_thread,
     .user_data = &run_ctx
   };
+
+  volatile gboolean* ready = &run_ctx.ready;
 
   g_mutex_lock (&run_ctx.data_mutex);
 
@@ -136,7 +141,7 @@ gum_process_run_on_thread_sync (GumThreadId id,
   gum_process_modify_thread (id, gum_process_modify_thread_to_call_function,
       &modify_ctx);
 
-  while (!run_ctx.ready)
+  while (!(*ready))
     g_cond_wait (&run_ctx.data_cond, &run_ctx.data_mutex);
 
   g_mutex_unlock (&run_ctx.data_mutex);
@@ -159,10 +164,15 @@ gum_process_run_on_thread_async (GumThreadId id,
     .ready = FALSE,
   };
 
+  g_mutex_init(&run_ctx.data_mutex);
+  g_cond_init(&run_ctx.data_cond);
+
   GumProcessRunOnThreadContext modify_ctx = {
     .callback = gum_process_run_callback_on_thread,
     .user_data = &run_ctx
   };
+
+  volatile gboolean* ready = &run_ctx.ready;
 
   g_mutex_lock (&run_ctx.data_mutex);
 
@@ -174,7 +184,7 @@ gum_process_run_on_thread_async (GumThreadId id,
   gum_process_modify_thread (id, gum_process_modify_thread_to_call_function,
       &modify_ctx);
 
-  while (!run_ctx.ready)
+  while (!(*ready))
     g_cond_wait (&run_ctx.data_cond, &run_ctx.data_mutex);
 
   g_mutex_unlock (&run_ctx.data_mutex);
@@ -204,12 +214,13 @@ gum_process_run_callback_with_full_context (GumFullCpuContext * cpu_context,
   GumRunOnThreadContext * run_ctx = (GumRunOnThreadContext *) user_data;
   GumRunOnThreadAsyncUserFunc async_func = run_ctx->async.async_func;
   void * async_arg = run_ctx->user_data;
+  volatile gboolean* ready = &run_ctx->ready;
 
   g_mutex_lock (&run_ctx->data_mutex);
 
   if (run_ctx->is_async)
   {
-    run_ctx->ready = TRUE;
+    *ready = TRUE;
     g_cond_signal (&run_ctx->data_cond);
     g_mutex_unlock (&run_ctx->data_mutex);
 
@@ -220,7 +231,7 @@ gum_process_run_callback_with_full_context (GumFullCpuContext * cpu_context,
     run_ctx->sync.ret_val = run_ctx->sync.sync_func(&cpu_context->regs,
         run_ctx->user_data);
 
-    run_ctx->ready = TRUE;
+    *ready = TRUE;
     g_cond_signal (&run_ctx->data_cond);
     g_mutex_unlock (&run_ctx->data_mutex);
   }
