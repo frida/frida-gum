@@ -154,8 +154,14 @@ static gpointer
 gum_process_modify_self_proc (gpointer param)
 {
     GumProcessRestoreSelfCtx* ctx = (GumProcessRestoreSelfCtx*)param;
-    gum_process_modify_thread(ctx->thread_id, ctx->func, ctx->user_data);
-    return 0;
+    if (gum_process_modify_thread(ctx->thread_id, ctx->func, ctx->user_data))
+    {
+      return (gpointer)TRUE;
+    }
+    else
+    {
+      return (gpointer)FALSE;
+    }
 }
 
 static gboolean
@@ -164,6 +170,7 @@ gum_process_modify_self (GumThreadId thread_id,
                          gpointer user_data)
 {
   GThread * thread;
+  gpointer ret;
   GumProcessRestoreSelfCtx data = 
   {
     .thread_id = thread_id,
@@ -176,9 +183,8 @@ gum_process_modify_self (GumThreadId thread_id,
   if (thread == NULL)
       return FALSE;
 
-  g_thread_join (thread);
-
-  return TRUE;
+  ret = g_thread_join (thread);
+  return (gboolean)ret;
 }
 
 void

@@ -204,7 +204,8 @@ gum_process_run_callback_on_thread (GumCpuContext * cpu_context,
     gum_process_run_callback_with_full_context, run_ctx);
 
   id = gum_process_get_current_thread_id ();
-  gum_process_modify_thread (id, gum_process_set_context, &cached_context);
+  if (!gum_process_modify_thread(id, gum_process_set_context, &cached_context))
+    g_thread_exit((gpointer)1);
 }
 
 static void
