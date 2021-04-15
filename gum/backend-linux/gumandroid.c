@@ -623,8 +623,9 @@ static const GumModuleDetails *
 gum_try_init_linker_details (void)
 {
   const GumModuleDetails * result = NULL;
+  gchar * linker_path;
   GRegex * linker_path_pattern;
-  gchar * linker_path, * maps, ** lines;
+  gchar * maps, ** lines;
   gint num_lines, vdso_index, i;
 
   linker_path = gum_find_linker_path ();
@@ -740,13 +741,17 @@ gum_find_linker_path_pattern (void)
   const gchar * pattern;
 
   if (gum_android_get_api_level () >= 29)
+  {
     pattern = (sizeof (gpointer) == 4)
-      ? "/apex/com.android.runtime[^/]*/bin/linker$"
-      : "/apex/com.android.runtime[^/]*/bin/linker64$";
-  else 
+        ? "/apex/com.android.runtime[^/]*/bin/linker$"
+        : "/apex/com.android.runtime[^/]*/bin/linker64$";
+  }
+  else
+  {
     pattern = (sizeof (gpointer) == 4)
-      ? "/system/bin/linker$"
-      : "/system/bin/linker64$";
+        ? "/system/bin/linker$"
+        : "/system/bin/linker64$";
+  }
 
   return g_regex_new (pattern, 0, 0, NULL);
 }
