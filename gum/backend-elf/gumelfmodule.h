@@ -48,6 +48,7 @@ struct _GumElfModule
   gpointer file_data;
   gsize file_size;
   gboolean is_linux_vdso;
+  gboolean is_android_extracted;
 
   Elf * elf;
 

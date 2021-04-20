@@ -9,6 +9,14 @@
 
 #ifdef HAVE_ANDROID
 # include "backend-linux/gumandroid.h"
+#ifdef HAVE_MINIZIP
+#include <minizip/mz.h>
+#include <minizip/mz_os.h>
+#include <minizip/mz_zip.h>
+#include <minizip/mz_strm.h>
+#include <minizip/mz_zip_rw.h>
+#include <minizip/mz_strm_os.h>
+#endif
 #endif
 
 #include <fcntl.h>
@@ -96,6 +104,8 @@ static GumAddress gum_elf_module_resolve_dynamic_virtual_address (
     GumElfModule * self, GumAddress address);
 static gboolean gum_store_dynamic_string_table (
     const GumElfDynamicEntryDetails * details, gpointer user_data);
+static gint32 gum_elf_extract_from_apk (
+    gchar * path, gpointer * file_buffer_ptr);
 
 G_DEFINE_TYPE (GumElfModule, gum_elf_module, G_TYPE_OBJECT)
 
@@ -149,20 +159,55 @@ gum_elf_module_constructed (GObject * object)
 
     fd = open (self->path, O_RDONLY);
     if (fd == -1)
+    {
+      #if defined HAVE_ANDROID && defined HAVE_MINIZIP
+      /* Android packages may have native libraries that are only extracted at
+       * runtime to memory. Therefore, we need to extract it ourselves
+       */
+
+      gchar * delimiter_ptr;
+      int delimiter_pos;
+      gpointer file_buffer;
+      gint32 buf_size;
+
+      delimiter_ptr = strchr (self->path, '!');
+      if (delimiter_ptr == NULL)
+        goto error;
+
+      delimiter_pos = delimiter_ptr - self->path;
+      if (delimiter_pos < 4 || strncmp (delimiter_ptr - 4, ".apk", 4) != 0)
+        goto error;
+
+      buf_size =  gum_elf_extract_from_apk (self->path, &file_buffer);
+
+      if (buf_size < 0)
+        goto error;
+
+      self->file_size = buf_size;
+      self->file_data = file_buffer;
+      self->is_linux_vdso = FALSE;
+      self->is_android_extracted = TRUE;
+
+      #else
       goto error;
+      #endif
+    }
+    else
+    {
+      self->file_size = lseek (fd, 0, SEEK_END);
+      lseek (fd, 0, SEEK_SET);
 
-    self->file_size = lseek (fd, 0, SEEK_END);
-    lseek (fd, 0, SEEK_SET);
+      self->file_data =
+          mmap (NULL, self->file_size, PROT_READ, MAP_PRIVATE, fd, 0);
 
-    self->file_data =
-        mmap (NULL, self->file_size, PROT_READ, MAP_PRIVATE, fd, 0);
+      close (fd);
 
-    close (fd);
+      if (self->file_data == MAP_FAILED)
+        goto mmap_failed;
 
-    if (self->file_data == MAP_FAILED)
-      goto mmap_failed;
-
-    self->is_linux_vdso = FALSE;
+      self->is_linux_vdso = FALSE;
+      self->is_android_extracted = FALSE;
+    }
   }
 
   self->elf = elf_memory (self->file_data, self->file_size);
@@ -208,8 +253,16 @@ gum_elf_module_finalize (GObject * object)
   if (self->elf != NULL)
     elf_end (self->elf);
 
-  if (self->file_data != NULL && !self->is_linux_vdso)
+  if (self->file_data != NULL
+      && !self->is_linux_vdso
+      && !self->is_android_extracted)
+  {
     munmap (self->file_data, self->file_size);
+  }
+  else if (self->is_android_extracted)
+  {
+    g_free(self->file_data);
+  }
 
   g_free (self->path);
   g_free (self->name);
@@ -935,4 +988,59 @@ gum_elf_module_has_interp (GumElfModule * self)
   }
 
   return FALSE;
+}
+
+static gint32
+gum_elf_extract_from_apk (gchar * path,
+                          gpointer * file_buffer_ptr)
+{
+  gint32 buf_size = -1;
+  gchar * delimiter_ptr;
+  int path_len;
+  int apk_path_len;
+  int file_path_len;
+  void * zip_reader = NULL;
+  void * zip_stream = NULL;
+
+  /* Get apk path name and (to be extracted) file name */
+  delimiter_ptr = strchr (path, '!');
+  path_len = strlen (path);
+  apk_path_len = delimiter_ptr - path;
+  /* -1 for the missing exclamation mark and -1 for the leading "/" */
+  file_path_len = path_len - apk_path_len - 2;
+  gchar apk_path[apk_path_len+1];
+  gchar file_path[file_path_len+1];
+  strncpy (apk_path, path, apk_path_len);
+  strncpy (file_path, path+apk_path_len+2, file_path_len);
+  apk_path[apk_path_len] = '\0';
+  file_path[file_path_len] = '\0';
+
+  mz_zip_reader_create (&zip_reader);
+  mz_stream_os_create (&zip_stream);
+
+  if (mz_stream_os_open (zip_stream, apk_path, MZ_OPEN_MODE_READ) != MZ_OK)
+    goto cleanup;
+
+  if (mz_zip_reader_open (zip_reader, zip_stream) != MZ_OK)
+    goto cleanup;
+
+  if (mz_zip_reader_locate_entry (zip_reader, file_path, 1) != MZ_OK)
+    goto cleanup;
+
+  /* Extract file to memory as we may not be able to write to any file */
+  buf_size = (gint32) mz_zip_reader_entry_save_buffer_length (zip_reader);
+  *file_buffer_ptr = (gpointer) g_malloc (buf_size);
+
+  if (mz_zip_reader_entry_save_buffer (zip_reader, *file_buffer_ptr, buf_size)
+      != MZ_OK)
+  {
+    buf_size = -1;
+    goto cleanup;
+  }
+
+cleanup:
+  mz_stream_os_delete (&zip_stream);
+  mz_zip_reader_delete (&zip_reader);
+
+  return buf_size;
 }
