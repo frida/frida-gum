@@ -673,48 +673,58 @@ gum_add_abi_symbols (TCCState * state)
 
 #elif defined (HAVE_ARM)
 
-#define GUM_DECLARE_BINARY_HELPER(name, type) \
-    static type G_PASTE (gum_aeabi_, name) (type a, type b);
-#define GUM_DEFINE_BINARY_HELPER(name, type, operation) \
-    static type                                         \
-    G_PASTE (gum_aeabi_, name) (type a,                 \
-                                type b)                 \
-    {                                                   \
-      return a operation b;                             \
-    }
+#define GUM_DECLARE_HELPER(name) \
+    extern void __aeabi_ ## name (void);
+#define GUM_REGISTER_HELPER(name) \
+    tcc_add_symbol (state, G_STRINGIFY (__aeabi_ ## name), __aeabi_ ## name)
 
-static void gum_aeabi_memset (void * dest, size_t n, int c);
-
-GUM_DECLARE_BINARY_HELPER (idiv, int)
-GUM_DECLARE_BINARY_HELPER (idivmod, int)
-GUM_DECLARE_BINARY_HELPER (uidiv, unsigned)
-GUM_DECLARE_BINARY_HELPER (uidivmod, unsigned)
+GUM_DECLARE_HELPER (memmove)
+GUM_DECLARE_HELPER (memmove4)
+GUM_DECLARE_HELPER (memmove8)
+GUM_DECLARE_HELPER (memset)
+GUM_DECLARE_HELPER (f2ulz)
+GUM_DECLARE_HELPER (f2lz)
+GUM_DECLARE_HELPER (d2ulz)
+GUM_DECLARE_HELPER (d2lz)
+GUM_DECLARE_HELPER (ul2f)
+GUM_DECLARE_HELPER (l2f)
+GUM_DECLARE_HELPER (ul2d)
+GUM_DECLARE_HELPER (l2d)
+GUM_DECLARE_HELPER (ldivmod)
+GUM_DECLARE_HELPER (uldivmod)
+GUM_DECLARE_HELPER (llsl)
+GUM_DECLARE_HELPER (llsr)
+GUM_DECLARE_HELPER (lasr)
+GUM_DECLARE_HELPER (idiv)
+GUM_DECLARE_HELPER (uidiv)
+GUM_DECLARE_HELPER (idivmod)
+GUM_DECLARE_HELPER (uidivmod)
 
 static void
 gum_add_abi_symbols (TCCState * state)
 {
-  tcc_add_symbol (state, "__aeabi_memmove", memmove);
-  tcc_add_symbol (state, "__aeabi_memmove4", memmove);
-  tcc_add_symbol (state, "__aeabi_memmove8", memmove);
-  tcc_add_symbol (state, "__aeabi_memset", gum_aeabi_memset);
-  tcc_add_symbol (state, "__aeabi_idiv", gum_aeabi_idiv);
-  tcc_add_symbol (state, "__aeabi_idivmod", gum_aeabi_idivmod);
-  tcc_add_symbol (state, "__aeabi_uidiv", gum_aeabi_uidiv);
-  tcc_add_symbol (state, "__aeabi_uidivmod", gum_aeabi_uidivmod);
+  GUM_REGISTER_HELPER (memmove);
+  GUM_REGISTER_HELPER (memmove4);
+  GUM_REGISTER_HELPER (memmove8);
+  GUM_REGISTER_HELPER (memset);
+  GUM_REGISTER_HELPER (f2ulz);
+  GUM_REGISTER_HELPER (f2lz);
+  GUM_REGISTER_HELPER (d2ulz);
+  GUM_REGISTER_HELPER (d2lz);
+  GUM_REGISTER_HELPER (ul2f);
+  GUM_REGISTER_HELPER (l2f);
+  GUM_REGISTER_HELPER (ul2d);
+  GUM_REGISTER_HELPER (l2d);
+  GUM_REGISTER_HELPER (ldivmod);
+  GUM_REGISTER_HELPER (uldivmod);
+  GUM_REGISTER_HELPER (llsl);
+  GUM_REGISTER_HELPER (llsr);
+  GUM_REGISTER_HELPER (lasr);
+  GUM_REGISTER_HELPER (idiv);
+  GUM_REGISTER_HELPER (uidiv);
+  GUM_REGISTER_HELPER (idivmod);
+  GUM_REGISTER_HELPER (uidivmod);
 }
-
-static void
-gum_aeabi_memset (void * dest,
-                  size_t n,
-                  int c)
-{
-  memset (dest, c, n);
-}
-
-GUM_DEFINE_BINARY_HELPER (idiv, int, /)
-GUM_DEFINE_BINARY_HELPER (idivmod, int, %)
-GUM_DEFINE_BINARY_HELPER (uidiv, unsigned, /)
-GUM_DEFINE_BINARY_HELPER (uidivmod, unsigned, %)
 
 #else
 

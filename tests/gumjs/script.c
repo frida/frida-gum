@@ -7789,6 +7789,7 @@ TESTCASE (cmodule_should_support_arithmetic_builtins)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "const m = new CModule(`"
+      "#include <stdint.h>\n"
       "\n"
       "int\n"
       "test_int_ops (int a,\n"
@@ -7803,16 +7804,24 @@ TESTCASE (cmodule_should_support_arithmetic_builtins)
       "{\n"
       "  return (a / b) + (a %% b);\n"
       "}\n"
+      "\n"
+      "int64_t\n"
+      "test_int64_ops (int64_t a,\n"
+      "                int64_t b)\n"
+      "{\n"
+      "  return (a / b) + (a %% b);\n"
+      "}\n"
       "`);"
       "send(m.test_int_ops);"
-      "send(m.test_unsigned_ops);");
+      "send(m.test_unsigned_ops);"
+      "send(m.test_int64_ops);");
 
   {
     int (* test_int_ops) (int a, int b);
 
     test_int_ops = EXPECT_SEND_MESSAGE_WITH_POINTER ();
     g_assert_nonnull (test_int_ops);
-    g_assert_cmpint (test_int_ops (16, 2), ==, 8);
+    g_assert_cmpint (test_int_ops (16, 3), ==, 6);
   }
 
   {
@@ -7820,7 +7829,15 @@ TESTCASE (cmodule_should_support_arithmetic_builtins)
 
     test_unsigned_ops = EXPECT_SEND_MESSAGE_WITH_POINTER ();
     g_assert_nonnull (test_unsigned_ops);
-    g_assert_cmpint (test_unsigned_ops (16, 2), ==, 8);
+    g_assert_cmpint (test_unsigned_ops (16, 3), ==, 6);
+  }
+
+  {
+    gint64 (* test_int64_ops) (gint64 a, gint64 b);
+
+    test_int64_ops = EXPECT_SEND_MESSAGE_WITH_POINTER ();
+    g_assert_nonnull (test_int64_ops);
+    g_assert_cmpint (test_int64_ops (16, 3), ==, 6);
   }
 }
 
