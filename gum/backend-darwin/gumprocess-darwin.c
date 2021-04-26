@@ -1970,11 +1970,12 @@ gum_resolve_export (const char * module_name,
 {
   GumEnumerateImportsContext * ctx = user_data;
   GumDarwinModule * module;
-  GumExportDetails exp;
 
   module = gum_darwin_module_resolver_find_module (ctx->resolver, module_name);
   if (module != NULL)
   {
+    GumExportDetails exp;
+
     if (gum_darwin_module_resolver_find_export_by_mangled_name (ctx->resolver,
         module, symbol_name, &exp))
     {
