@@ -385,7 +385,7 @@ GUM_API GumAddress gum_darwin_module_resolve_symbol_address (
 GUM_API gboolean gum_darwin_module_get_lacks_exports_for_reexports (
     GumDarwinModule * self);
 GUM_API void gum_darwin_module_enumerate_imports (GumDarwinModule * self,
-    GumFoundImportFunc func, gpointer user_data);
+    GumFoundImportFunc func, GumResolveExportFunc resolver, gpointer user_data);
 GUM_API void gum_darwin_module_enumerate_exports (GumDarwinModule * self,
     GumFoundDarwinExportFunc func, gpointer user_data);
 GUM_API void gum_darwin_module_enumerate_symbols (GumDarwinModule * self,

@@ -342,6 +342,8 @@ static gboolean gum_emit_modules_in_range (const GumMemoryRange * range,
     GumEnumerateModulesSlowContext * ctx);
 static gboolean gum_emit_import (const GumImportDetails * details,
     gpointer user_data);
+static GumAddress gum_resolve_export (const char * module_name,
+    const char * symbol_name, gpointer user_data);
 static gboolean gum_emit_export (const GumDarwinExportDetails * details,
     gpointer user_data);
 static gboolean gum_emit_symbol (const GumDarwinSymbolDetails * details,
@@ -1903,7 +1905,10 @@ gum_darwin_enumerate_imports (mach_port_t task,
 
   module = gum_darwin_module_resolver_find_module (ctx.resolver, module_name);
   if (module != NULL)
-    gum_darwin_module_enumerate_imports (module, gum_emit_import, &ctx);
+  {
+    gum_darwin_module_enumerate_imports (module, gum_emit_import,
+        gum_resolve_export, &ctx);
+  }
 
   g_clear_object (&ctx.module_map);
   g_object_unref (ctx.resolver);
@@ -1956,6 +1961,29 @@ gum_emit_import (const GumImportDetails * details,
   }
 
   return ctx->func (&d, ctx->user_data);
+}
+
+static GumAddress
+gum_resolve_export (const char * module_name,
+                    const char * symbol_name,
+                    gpointer user_data)
+{
+  GumEnumerateImportsContext * ctx = user_data;
+  GumDarwinModule * module;
+
+  module = gum_darwin_module_resolver_find_module (ctx->resolver, module_name);
+  if (module != NULL)
+  {
+    GumExportDetails exp;
+
+    if (gum_darwin_module_resolver_find_export_by_mangled_name (ctx->resolver,
+        module, symbol_name, &exp))
+    {
+      return exp.address;
+    }
+  }
+
+  return 0;
 }
 
 void

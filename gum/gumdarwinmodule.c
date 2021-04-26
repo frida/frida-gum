@@ -30,6 +30,23 @@ typedef struct _GumEmitTermPointersContext GumEmitTermPointersContext;
 
 typedef struct _GumExportsTrieForeachContext GumExportsTrieForeachContext;
 
+typedef struct _GumChainedFixupsHeader GumChainedFixupsHeader;
+
+typedef struct _GumChainedStartsInImage GumChainedStartsInImage;
+typedef struct _GumChainedStartsInSegment GumChainedStartsInSegment;
+
+typedef guint32 GumChainedImportFormat;
+typedef guint32 GumChainedSymbolFormat;
+
+typedef struct _GumChainedImport GumChainedImport;
+typedef struct _GumChainedImportAddend GumChainedImportAddend;
+typedef struct _GumChainedImportAddend64 GumChainedImportAddend64;
+
+typedef struct _GumChainedPtrArm64eRebase GumChainedPtrArm64eRebase;
+typedef struct _GumChainedPtrArm64eBind GumChainedPtrArm64eBind;
+typedef struct _GumChainedPtrArm64eAuthRebase GumChainedPtrArm64eAuthRebase;
+typedef struct _GumChainedPtrArm64eAuthBind GumChainedPtrArm64eAuthBind;
+
 enum
 {
   PROP_0,
@@ -53,6 +70,7 @@ struct _GumResolveSymbolContext
 struct _GumEmitImportContext
 {
   GumFoundImportFunc func;
+  GumResolveExportFunc resolver;
   gpointer user_data;
 
   GumDarwinModule * module;
@@ -98,6 +116,123 @@ struct _GumExportsTrieForeachContext
   const guint8 * exports;
   const guint8 * exports_end;
 };
+
+struct _GumChainedFixupsHeader
+{
+  guint32 fixups_version;
+  guint32 starts_offset;
+  guint32 imports_offset;
+  guint32 symbols_offset;
+  guint32 imports_count;
+  GumChainedImportFormat imports_format;
+  GumChainedSymbolFormat symbols_format;
+};
+
+#ifdef _MSC_VER
+# pragma warning (push)
+# pragma warning (disable: 4214)
+#endif
+
+enum _GumChainedImportFormat
+{
+  GUM_CHAINED_IMPORT          = 1,
+  GUM_CHAINED_IMPORT_ADDEND   = 2,
+  GUM_CHAINED_IMPORT_ADDEND64 = 3,
+};
+
+struct _GumChainedImport
+{
+  guint32 lib_ordinal :  8,
+          weak_import :  1,
+          name_offset : 23;
+};
+
+struct _GumChainedImportAddend
+{
+  guint32 lib_ordinal :  8,
+          weak_import :  1,
+          name_offset : 23;
+  gint32 addend;
+};
+
+struct _GumChainedImportAddend64
+{
+  guint64 lib_ordinal : 16,
+          weak_import :  1,
+          reserved    : 15,
+          name_offset : 32;
+  guint64 addend;
+};
+
+struct _GumChainedStartsInImage
+{
+  guint32 seg_count;
+  guint32 seg_info_offset[1];
+};
+
+struct _GumChainedStartsInSegment
+{
+  guint32 size;
+  guint16 page_size;
+  guint16 pointer_format;
+  guint64 segment_offset;
+  guint32 max_valid_pointer;
+  guint16 page_count;
+  guint16 page_start[1];
+};
+
+enum _GumChainedPtrStart
+{
+  GUM_CHAINED_PTR_START_NONE  = 0xffff,
+  GUM_CHAINED_PTR_START_MULTI = 0x8000,
+  GUM_CHAINED_PTR_START_LAST  = 0x8000,
+};
+
+struct _GumChainedPtrArm64eRebase
+{
+  guint64 target : 43,
+          high8  :  8,
+          next   : 11,
+          bind   :  1,
+          auth   :  1;
+};
+
+struct _GumChainedPtrArm64eBind
+{
+  guint64 ordinal : 16,
+          zero    : 16,
+          addend  : 19,
+          next    : 11,
+          bind    :  1,
+          auth    :  1;
+};
+
+struct _GumChainedPtrArm64eAuthRebase
+{
+  guint64 target    : 32,
+          diversity : 16,
+          addr_div  :  1,
+          key       :  2,
+          next      : 11,
+          bind      :  1,
+          auth      :  1;
+};
+
+struct _GumChainedPtrArm64eAuthBind
+{
+  guint64 ordinal   : 16,
+          zero      : 16,
+          diversity : 16,
+          addr_div  :  1,
+          key       :  2,
+          next      : 11,
+          bind      :  1,
+          auth      :  1;
+};
+
+#ifdef _MSC_VER
+# pragma warning (pop)
+#endif
 
 static void gum_darwin_module_initable_iface_init (gpointer g_iface,
     gpointer iface_data);
@@ -160,6 +295,11 @@ static gboolean gum_exports_trie_traverse (const guint8 * p,
 static void gum_darwin_export_details_init_from_node (
     GumDarwinExportDetails * details, const gchar * name, const guint8 * node,
     const guint8 * exports_end);
+
+static void gum_darwin_module_enumerate_chained_binds (GumDarwinModule * self,
+    GumFoundDarwinBindFunc func, gpointer user_data);
+static gboolean gum_emit_chained_imports (
+    const GumDarwinChainedFixupsDetails * details, GumEmitImportContext * ctx);
 
 static GumCpuType gum_cpu_type_from_darwin (GumDarwinCpuType cpu_type);
 static GumPtrauthSupport gum_ptrauth_support_from_darwin (
@@ -547,11 +687,13 @@ gum_darwin_module_get_lacks_exports_for_reexports (GumDarwinModule * self)
 void
 gum_darwin_module_enumerate_imports (GumDarwinModule * self,
                                      GumFoundImportFunc func,
+                                     GumResolveExportFunc resolver,
                                      gpointer user_data)
 {
   GumEmitImportContext ctx;
 
   ctx.func = func;
+  ctx.resolver = resolver;
   ctx.user_data = user_data;
 
   ctx.module = self;
@@ -564,6 +706,8 @@ gum_darwin_module_enumerate_imports (GumDarwinModule * self,
   gum_darwin_module_enumerate_binds (self, gum_emit_import, &ctx);
   if (ctx.carry_on)
     gum_darwin_module_enumerate_lazy_binds (self, gum_emit_import, &ctx);
+  if (ctx.carry_on)
+    gum_darwin_module_enumerate_chained_binds (self, gum_emit_import, &ctx);
 
   g_clear_pointer (&ctx.source_file, g_mapped_file_unref);
   g_clear_pointer (&ctx.threaded_binds, g_array_unref);
@@ -1369,6 +1513,189 @@ gum_darwin_module_enumerate_lazy_binds (GumDarwinModule * self,
         return;
     }
   }
+}
+
+static void
+gum_darwin_module_enumerate_chained_binds (GumDarwinModule * self,
+                                           GumFoundDarwinBindFunc func,
+                                           gpointer user_data)
+{
+  GumEmitImportContext * ctx = user_data;
+
+  g_assert (ctx->resolver != NULL);
+
+  if (GUM_DARWIN_MODULE_HAS_HEADER_ONLY (self))
+    return;
+
+  gum_darwin_module_enumerate_chained_fixups (self,
+      (GumFoundDarwinChainedFixupsFunc) gum_emit_chained_imports,
+      ctx);
+}
+
+static gboolean
+gum_emit_chained_imports (const GumDarwinChainedFixupsDetails * details,
+                          GumEmitImportContext * ctx)
+{
+  GumDarwinModule * self = ctx->module;
+  const guint8 * fixups_start, * fixups_end;
+  gpointer malloc_data;
+  const GumChainedFixupsHeader * fixups_header;
+  const gchar * symbols;
+  GHashTable * targets;
+  guint imp_index;
+  const GumChainedStartsInImage * image_starts;
+  gsize slide;
+  guint seg_index;
+
+  gum_darwin_module_read_and_assign (self, details->vm_address, details->size,
+      &fixups_start, &fixups_end, &malloc_data);
+  if (fixups_start == NULL)
+    return ctx->carry_on;
+
+  fixups_header = (const GumChainedFixupsHeader *) fixups_start;
+
+  symbols = (const gchar *) fixups_start + fixups_header->symbols_offset;
+  targets = g_hash_table_new_full (g_direct_hash, g_direct_equal, NULL, g_free);
+
+  for (imp_index = 0; imp_index != fixups_header->imports_count; imp_index++)
+  {
+    guint name_offset;
+    gint lib_ordinal;
+    GumImportDetails * d;
+    gpointer key;
+
+    switch (fixups_header->imports_format)
+    {
+      case GUM_CHAINED_IMPORT:
+      {
+        const GumChainedImport * imports = (const GumChainedImport *)
+            (fixups_start + fixups_header->imports_offset);
+        const GumChainedImport * import = &imports[imp_index];
+
+        name_offset = import->name_offset;
+        lib_ordinal = import->lib_ordinal;
+
+        break;
+      }
+      case GUM_CHAINED_IMPORT_ADDEND:
+      {
+        const GumChainedImportAddend * imports =
+            (const GumChainedImportAddend *) (fixups_start +
+                fixups_header->imports_offset);
+        const GumChainedImportAddend * import = &imports[imp_index];
+
+        name_offset = import->name_offset;
+        lib_ordinal = import->lib_ordinal;
+
+        break;
+      }
+      case GUM_CHAINED_IMPORT_ADDEND64:
+      {
+        const GumChainedImportAddend64 * imports =
+            (const GumChainedImportAddend64 *) (fixups_start +
+                fixups_header->imports_offset);
+        const GumChainedImportAddend64 * import = &imports[imp_index];
+
+        name_offset = import->name_offset;
+        lib_ordinal = import->lib_ordinal;
+
+        break;
+      }
+      default:
+        goto skip;
+    }
+
+    d = g_new (GumImportDetails, 1);
+    d->type = GUM_IMPORT_UNKNOWN;
+    d->name = symbols + name_offset;
+    d->module = gum_darwin_module_get_dependency_by_ordinal (self, lib_ordinal);
+    d->address = ctx->resolver (d->module, d->name, ctx->user_data);
+    d->slot = 0;
+
+    key = GSIZE_TO_POINTER (gum_strip_code_address (d->address));
+
+    g_hash_table_replace (targets, key, d);
+  }
+
+  image_starts = (const GumChainedStartsInImage *) (fixups_start +
+      fixups_header->starts_offset);
+
+  slide = gum_darwin_module_get_slide (self);
+
+  for (seg_index = 0; seg_index != image_starts->seg_count; seg_index++)
+  {
+    const guint seg_offset = image_starts->seg_info_offset[seg_index];
+    const GumChainedStartsInSegment * seg_starts;
+    const GumDarwinSegment * current_seg;
+    guint16 page_index;
+
+    if (seg_offset == 0)
+      continue;
+
+    seg_starts = (const GumChainedStartsInSegment *)
+        ((const guint8 *) image_starts + seg_offset);
+
+    current_seg = gum_darwin_module_get_nth_segment (self, seg_index);
+
+    for (page_index = 0; page_index != seg_starts->page_count; page_index++)
+    {
+      guint16 start;
+      GumAddress page_address;
+      const guint8 * page_start, * page_end, * cursor;
+      gpointer page_malloc_data;
+
+      start = seg_starts->page_start[page_index];
+      if (start == GUM_CHAINED_PTR_START_NONE)
+        continue;
+
+      page_address = current_seg->vm_address +
+          (page_index * seg_starts->page_size) + start + slide;
+
+      gum_darwin_module_read_and_assign (self, page_address,
+          seg_starts->page_size - start, &page_start, &page_end,
+          &page_malloc_data);
+      if (page_start == NULL)
+        continue;
+
+      cursor = page_start;
+
+      for (; cursor != page_end; cursor += GLIB_SIZEOF_VOID_P)
+      {
+        GumAddress candidate = *(guint64 *) cursor;
+        gpointer key;
+        GumImportDetails * d;
+
+        if (candidate == 0)
+          continue;
+
+        key = GSIZE_TO_POINTER (gum_strip_code_address (candidate));
+
+        d = g_hash_table_lookup (targets, key);
+        if (d == NULL)
+          continue;
+
+        d->slot = page_address + (cursor - page_start);
+
+        ctx->carry_on = ctx->func (d, ctx->user_data);
+        if (!ctx->carry_on)
+          break;
+      }
+
+      g_free (page_malloc_data);
+
+      if (!ctx->carry_on)
+        break;
+    }
+
+    if (!ctx->carry_on)
+      break;
+  }
+
+skip:
+  g_hash_table_unref (targets);
+  g_free (malloc_data);
+
+  return ctx->carry_on;
 }
 
 void
