@@ -1047,7 +1047,7 @@ gum_linux_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
         "%" G_GINT64_MODIFIER "x-%" G_GINT64_MODIFIER "x "
         "%4c "
         "%*x %*s %*d "
-        "%s",
+        "%[^\n]",
         &range.base_address, &end,
         perms,
         path);
@@ -1080,7 +1080,7 @@ gum_linux_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
     while (fgets (line, line_size, fp) != NULL)
     {
       n = sscanf (line,
-          "%*x-%" G_GINT64_MODIFIER "x %*c%*c%*c%*c %*x %*s %*d %s",
+          "%*x-%" G_GINT64_MODIFIER "x %*c%*c%*c%*c %*x %*s %*d %[^\n]",
           &end,
           next_path);
       if (n == 1)
@@ -1160,7 +1160,7 @@ gum_linux_collect_named_ranges (void)
         "%" G_GINT64_MODIFIER "x-%" G_GINT64_MODIFIER "x "
         "%*4c "
         "%*x %*s %*d "
-        "%s",
+        "%[^\n]",
         &start, &end,
         name);
     if (n == 2)
@@ -1174,7 +1174,7 @@ gum_linux_collect_named_ranges (void)
     while (fgets (line, line_size, fp) != NULL)
     {
       n = sscanf (line,
-          "%*x-%" G_GINT64_MODIFIER "x %*c%*c%*c%*c %*x %*s %*d %s",
+          "%*x-%" G_GINT64_MODIFIER "x %*c%*c%*c%*c %*x %*s %*d %[^\n]",
           &end,
           next_name);
       if (n == 1)
