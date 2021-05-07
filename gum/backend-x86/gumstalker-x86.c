@@ -3061,11 +3061,20 @@ gum_exec_ctx_write_push_branch_target_address (GumExecCtx * ctx,
     g_assert (target->absolute_address != NULL);
     g_assert (target->relative_offset == 0);
 
+#if GLIB_SIZEOF_VOID_P == 8
+    gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
+    gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
+        GUM_ADDRESS (target->absolute_address));
+    gum_write_segment_prefix (target->pfx_seg, cw);
+    gum_x86_writer_put_mov_reg_reg_ptr (cw, GUM_REG_RAX, GUM_REG_RAX);
+    gum_x86_writer_put_xchg_reg_reg_ptr (cw, GUM_REG_XAX, GUM_REG_XSP);
+#else
     gum_write_segment_prefix (target->pfx_seg, cw);
     gum_x86_writer_put_u8 (cw, 0xff);
     gum_x86_writer_put_u8 (cw, 0x35);
     gum_x86_writer_put_bytes (cw, (guint8 *) &target->absolute_address,
         sizeof (target->absolute_address));
+#endif
   }
   else
   {
