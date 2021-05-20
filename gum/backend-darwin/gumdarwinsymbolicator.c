@@ -7,6 +7,11 @@
 #include "gumdarwinsymbolicator.h"
 
 #include "gum-init.h"
+#include "gumapiresolver.h"
+#include "gumdarwinmodule.h"
+#include "gumleb.h"
+#include "gummodulemap.h"
+#include "gumobjcapiresolver-priv.h"
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <dlfcn.h>
@@ -26,6 +31,10 @@ typedef CSTypeRef CSSourceInfoRef;
 
 typedef int (^ CSEachSymbolBlock) (CSSymbolRef symbol);
 
+typedef struct _GumCollectFunctionsOperation GumCollectFunctionsOperation;
+typedef struct _GumCollectedFunction GumCollectedFunction;
+typedef struct _GumSectionFromAddressOperation GumSectionFromAddressOperation;
+
 struct _CSTypeRef
 {
   void * data;
@@ -42,6 +51,8 @@ struct _GumDarwinSymbolicator
   mach_port_t task;
 
   CSSymbolicatorRef handle;
+
+  GumApiResolver * objc_resolver;
 };
 
 enum
@@ -58,6 +69,24 @@ struct _CSRange
   uint64_t length;
 };
 
+struct _GumCollectFunctionsOperation
+{
+  GArray * functions;
+  gconstpointer linkedit;
+  GumDarwinModule * module;
+};
+
+struct _GumCollectedFunction {
+  GumAddress address;
+  guint64 size;
+};
+
+struct _GumSectionFromAddressOperation
+{
+  GumAddress address;
+  const GumDarwinSectionDetails * sect_details;
+};
+
 static void gum_darwin_symbolicator_initable_iface_init (gpointer g_iface,
     gpointer iface_data);
 static gboolean gum_darwin_symbolicator_initable_init (GInitable * initable,
@@ -68,6 +97,15 @@ static void gum_darwin_symbolicator_get_property (GObject * object,
     guint property_id, GValue * value, GParamSpec * pspec);
 static void gum_darwin_symbolicator_set_property (GObject * object,
     guint property_id, const GValue * value, GParamSpec * pspec);
+static gboolean gum_darwin_symbolicator_objc_details_from_address (
+    GumDarwinSymbolicator * self, GumAddress address,
+    GumDebugSymbolDetails * details);
+static gboolean gum_collect_functions (const GumDarwinFunctionStartsDetails * details,
+    gpointer user_data);
+static gint gum_compare_collected_functions (const GumCollectedFunction * a,
+    const GumCollectedFunction * b);
+static gboolean gum_get_section_from_address (
+    const GumDarwinSectionDetails * details, gpointer user_data);
 
 static cpu_type_t gum_cpu_type_to_darwin (GumCpuType cpu_type);
 static GumAddress gum_cs_symbol_address (CSSymbolRef symbol);
@@ -220,6 +258,12 @@ gum_darwin_symbolicator_dispose (GObject * object)
     self->handle = kCSNull;
   }
 
+  if (self->objc_resolver != NULL)
+  {
+    g_object_unref (self->objc_resolver);
+    self->objc_resolver = NULL;
+  }
+
   G_OBJECT_CLASS (gum_darwin_symbolicator_parent_class)->dispose (object);
 }
 
@@ -314,7 +358,8 @@ gum_darwin_symbolicator_details_from_address (GumDarwinSymbolicator * self,
   symbol = CSSymbolicatorGetSymbolWithAddressAtTime (self->handle, address,
       kCSNow);
   if (CSIsNull (symbol))
-    return FALSE;
+    return gum_darwin_symbolicator_objc_details_from_address (self,
+        address, details);
 
   owner = CSSymbolGetSymbolOwner (symbol);
 
@@ -326,7 +371,8 @@ gum_darwin_symbolicator_details_from_address (GumDarwinSymbolicator * self,
   {
     g_strlcpy (details->symbol_name, name, sizeof (details->symbol_name));
   }
-  else
+  else if (!gum_darwin_symbolicator_objc_details_from_address (self, address,
+      details))
   {
     sprintf (details->symbol_name, "0x%lx",
         (long) ((unsigned long long) details->address -
@@ -455,6 +501,160 @@ gum_darwin_symbolicator_find_functions_matching (GumDarwinSymbolicator * self,
   *len = result->len;
 
   return (GumAddress *) g_array_free (result, FALSE);
+}
+
+gboolean
+gum_darwin_symbolicator_objc_details_from_address (GumDarwinSymbolicator * self,
+                                                   GumAddress address,
+                                                   GumDebugSymbolDetails * details)
+{
+  gboolean success = FALSE;
+  gchar * selector;
+  GumModuleMap * module_map;
+  const GumModuleDetails * module_details;
+  GumDarwinModule * module;
+  GumCollectFunctionsOperation op;
+  GumCollectedFunction dummy_function, * matched_function;
+
+  if (self->objc_resolver == NULL)
+  {
+    GumApiResolver * resolver;
+    resolver = gum_api_resolver_make("objc");
+
+    if (resolver == NULL)
+      goto beach;
+
+    self->objc_resolver = resolver;
+  }
+
+  selector = NULL;
+  module_map = gum_module_map_new ();
+  module_details = gum_module_map_find (module_map, address);
+
+  if (module_details == NULL)
+    goto unref_module_map;
+
+  module = gum_darwin_module_new_from_memory (module_details->path, self->task,
+      module_details->range->base_address, GUM_DARWIN_MODULE_FLAGS_NONE, NULL);
+
+  if (!gum_darwin_module_ensure_image_loaded(module, NULL))
+    goto unref_module;
+
+  op.functions = g_array_new (FALSE, FALSE, sizeof (GumCollectedFunction));
+  op.linkedit = module->image->data;
+  op.module = module;
+
+  gum_darwin_module_enumerate_function_starts (module, gum_collect_functions,
+      &op);
+
+  dummy_function.address = address;
+  dummy_function.size = 0;
+
+  matched_function = bsearch (&dummy_function, op.functions->data,
+      op.functions->len, sizeof (GumCollectedFunction),
+      (GCompareFunc)gum_compare_collected_functions);
+
+  _gum_objc_api_resolver_selector_from_address (self->objc_resolver,
+      matched_function->address, &selector, NULL);
+
+  if (selector == NULL)
+    goto free_functions_arr;
+
+  success = TRUE;
+  details->address = address;
+  g_strlcpy (details->symbol_name, selector, sizeof (details->symbol_name));
+  g_strlcpy (details->module_name, module->name, sizeof (details->module_name));
+
+  g_free (selector);
+
+free_functions_arr:
+  g_array_free (op.functions, TRUE);
+
+unref_module:
+  g_object_unref (module);
+
+unref_module_map:
+  g_object_unref (module_map);
+
+beach:
+  return success;
+}
+
+static gboolean
+gum_collect_functions (const GumDarwinFunctionStartsDetails * details,
+                       gpointer user_data)
+{
+  GumCollectFunctionsOperation * op;
+  const guint8 * p, * end;
+  GumCollectedFunction * prev_function;
+  guint32 offset;
+  GumSectionFromAddressOperation sfa_op;
+  const GumDarwinSectionDetails * sect_details;
+
+  op = user_data;
+  p = (const guint8 *)details->vm_address;
+  end = p + details->size;
+  prev_function = NULL;
+
+  offset = 0;
+  while (p != end)
+  {
+    guint64 delta;
+    GumCollectedFunction function;
+
+    delta = gum_read_uleb128 (&p, end);
+    if (delta == 0)
+      break;
+
+    if (prev_function != NULL)
+      prev_function->size = delta;
+
+    offset += delta;
+    function.address = GUM_ADDRESS (offset + op->linkedit);
+    prev_function = &function;
+
+    g_array_append_val (op->functions, function);
+  }
+
+  gum_darwin_module_enumerate_sections (op->module,
+      gum_get_section_from_address, &sfa_op);
+
+  sect_details = sfa_op.sect_details;
+  prev_function->size = (sect_details->vm_address + sect_details->size) -
+      prev_function->address;
+
+  return TRUE;
+}
+
+static gint
+gum_compare_collected_functions (const GumCollectedFunction * key,
+                                 const GumCollectedFunction * f)
+{
+  GumAddress p = key->address;
+
+  if (p >= f->address && p <= f->address + f->size)
+    return 0;
+
+  return p < f->address ? -1 : 1;
+}
+
+static gboolean
+gum_get_section_from_address (const GumDarwinSectionDetails * details,
+                              gpointer user_data)
+{
+  GumSectionFromAddressOperation * op = user_data;
+  GumAddress address;
+
+  address = op->address;
+
+  if (address >= details->vm_address &&
+      address < details->vm_address + details->size)
+  {
+    op->sect_details = details;
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 static cpu_type_t

@@ -6,6 +6,7 @@
  */
 
 #include "gumobjcapiresolver.h"
+#include "gumobjcapiresolver-priv.h"
 
 #include "gumprocess.h"
 
@@ -456,4 +457,52 @@ gum_objc_class_metadata_get_methods (GumObjcClassMetadata * self,
   *count = *cached_method_count;
 
   return *cached_methods;
+}
+
+void
+_gum_objc_api_resolver_selector_from_address (GumApiResolver * resolver,
+                                              GumAddress address,
+                                              gchar ** result,
+                                              GError ** error)
+{
+  GumObjcApiResolver * self = GUM_OBJC_API_RESOLVER (resolver);
+  GHashTableIter iter;
+  GumObjcClassMetadata * klass;
+
+  g_hash_table_iter_init (&iter, self->class_by_handle);
+
+  while (g_hash_table_iter_next (&iter, NULL, (gpointer *)&klass))
+  {
+    const gchar all_method_types[3] = { '+', '-', '\0' };
+    const gchar * t;
+
+    for (t = all_method_types; *t != '\0'; t++) {
+      const Method * method_handles;
+      guint method_index, method_count;
+
+      method_handles = gum_objc_class_metadata_get_methods(klass, *t,
+          &method_count);
+
+      for (method_index = 0; method_index != method_count; method_index++)
+      {
+        Method method_handle;
+        GumAddress method_imp;
+
+        method_handle = method_handles[method_index];
+        method_imp = GUM_ADDRESS (self->method_getImplementation (method_handle));
+
+        if (method_imp == address)
+        {
+          const gchar * method_name;
+          const gchar prefix[3] = { *t, '[', '\0'};
+          const gchar suffix[2] = { ']', '\0' };
+
+          method_name = self->sel_getName (self->method_getName (method_handle));
+
+          *result = g_strconcat (prefix, klass->name, " ", method_name,
+              suffix, NULL);
+        }
+      }
+    }
+  }
 }
