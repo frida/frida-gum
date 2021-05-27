@@ -104,6 +104,9 @@ static void gum_v8_script_do_post (GumPostData * d);
 static void gum_v8_post_data_free (GumPostData * d);
 
 static GumStalker * gum_v8_script_get_stalker (GumScript * script);
+static void * gum_v8_script_get_context (GumScript * script);
+static gboolean gum_v8_script_parse_args (GumScript * script, int argc,
+    void * argv, gchar * format, va_list ap);
 
 static void gum_v8_script_emit (GumV8Script * self, const gchar * message,
     GBytes * data);
@@ -174,6 +177,8 @@ gum_v8_script_iface_init (gpointer g_iface,
   iface->post = gum_v8_script_post;
 
   iface->get_stalker = gum_v8_script_get_stalker;
+  iface->get_context = gum_v8_script_get_context;
+  iface->parse_args = gum_v8_script_parse_args;
 }
 
 static void
@@ -714,6 +719,25 @@ gum_v8_script_get_stalker (GumScript * script)
   auto self = GUM_V8_SCRIPT (script);
 
   return _gum_v8_stalker_get (&self->stalker);
+}
+
+static void *
+gum_v8_script_get_context (GumScript * script)
+{
+  auto self = GUM_V8_SCRIPT (script);
+
+  return self->isolate;
+}
+
+static gboolean
+gum_v8_script_parse_args (GumScript * script,
+                          int argc,
+                          void * argv,
+                          gchar * format,
+                          va_list ap)
+{
+  g_warning ("Unimplemented gum_v8_script_parse_args");
+  return FALSE;
 }
 
 static void

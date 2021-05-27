@@ -84,15 +84,25 @@ _gum_quick_args_parse (GumQuickArgs * self,
                        const gchar * format,
                        ...)
 {
+  gboolean result;
+  va_list ap;
+  va_start (ap, format);
+  result = _gum_quick_args_vparse (self, format, ap);
+  va_end (ap);
+  return result;
+}
+
+gboolean
+_gum_quick_args_vparse (GumQuickArgs * self,
+                        const gchar * format,
+                        va_list ap)
+{
   JSContext * ctx = self->ctx;
   GumQuickCore * core = self->core;
-  va_list ap;
   int arg_index;
   const gchar * t;
   gboolean is_required;
   const gchar * error_message = NULL;
-
-  va_start (ap, format);
 
   arg_index = 0;
   is_required = TRUE;
@@ -536,8 +546,6 @@ _gum_quick_args_parse (GumQuickArgs * self,
     arg_index++;
   }
 
-  va_end (ap);
-
   return TRUE;
 
 missing_argument:
@@ -577,8 +585,6 @@ expected_function:
   }
 propagate_exception:
   {
-    va_end (ap);
-
     if (error_message != NULL)
       _gum_quick_throw_literal (ctx, error_message);
 

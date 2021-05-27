@@ -159,6 +159,9 @@ static void gum_quick_script_do_post (GumPostData * d);
 static void gum_quick_post_data_free (GumPostData * d);
 
 static GumStalker * gum_quick_script_get_stalker (GumScript * script);
+static void * gum_quick_script_get_context (GumScript * script);
+static gboolean gum_quick_script_parse_args (GumScript * script, int argc,
+    void * argv, gchar * fmt, va_list ap);
 
 static void gum_quick_script_emit (GumQuickScript * self,
     const gchar * message, GBytes * data);
@@ -218,6 +221,8 @@ gum_quick_script_iface_init (gpointer g_iface,
   iface->post = gum_quick_script_post;
 
   iface->get_stalker = gum_quick_script_get_stalker;
+  iface->get_context = gum_quick_script_get_context;
+  iface->parse_args = gum_quick_script_parse_args;
 }
 
 static void
@@ -774,6 +779,33 @@ gum_quick_script_get_stalker (GumScript * script)
   GumQuickScript * self = GUM_QUICK_SCRIPT (script);
 
   return _gum_quick_stalker_get (&self->stalker);
+}
+
+static void *
+gum_quick_script_get_context (GumScript * script)
+{
+  GumQuickScript * self = GUM_QUICK_SCRIPT (script);
+
+  return self->ctx;
+}
+
+static gboolean
+gum_quick_script_parse_args (GumScript * script,
+                             int argc,
+                             void * argv,
+                             gchar * format,
+                             va_list ap)
+{
+  GumQuickScript * self = GUM_QUICK_SCRIPT (script);
+  GumQuickArgs args;
+  gboolean result;
+
+  _gum_quick_args_init (&args, self->ctx, argc, argv, &self->core);
+
+  result = _gum_quick_args_vparse (&args, format, ap);
+  _gum_quick_args_destroy (&args);
+
+  return result;
 }
 
 static void

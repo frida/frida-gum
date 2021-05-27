@@ -38,6 +38,11 @@ struct _GumScriptInterface
   void (* post) (GumScript * self, const gchar * message, GBytes * data);
 
   GumStalker * (* get_stalker) (GumScript * self);
+
+  void * (*get_context) (GumScript * self);
+
+  gboolean (*parse_args) (GumScript * self, int argc, void * argv, gchar * fmt,
+        va_list ap);
 };
 
 GUM_API void gum_script_load (GumScript * self, GCancellable * cancellable,
@@ -58,6 +63,11 @@ GUM_API void gum_script_post (GumScript * self, const gchar * message,
     GBytes * data);
 
 GUM_API GumStalker * gum_script_get_stalker (GumScript * self);
+
+GUM_API void * gum_script_get_context (GumScript * self);
+
+GUM_API gboolean gum_script_parse_args (GumScript * self, int argc, void * argv,
+    gchar * fmt, ...);
 
 G_END_DECLS
 

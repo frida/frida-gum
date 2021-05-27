@@ -82,3 +82,24 @@ gum_script_get_stalker (GumScript * self)
 {
   return GUM_SCRIPT_GET_IFACE (self)->get_stalker (self);
 }
+
+void *
+gum_script_get_context (GumScript * self)
+{
+  return GUM_SCRIPT_GET_IFACE (self)->get_context (self);
+}
+
+gboolean
+gum_script_parse_args (GumScript * self,
+                       int argc,
+                       void * argv,
+                       gchar * fmt,
+                       ...)
+{
+  gboolean result;
+  va_list ap;
+  va_start(ap, fmt);
+  result = GUM_SCRIPT_GET_IFACE (self)->parse_args (self, argc, argv, fmt, ap);
+  va_end(ap);
+  return result;
+}

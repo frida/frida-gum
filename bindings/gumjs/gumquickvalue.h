@@ -40,6 +40,8 @@ G_GNUC_INTERNAL void _gum_quick_args_init (GumQuickArgs * args,
 G_GNUC_INTERNAL void _gum_quick_args_destroy (GumQuickArgs * args);
 G_GNUC_INTERNAL gboolean _gum_quick_args_parse (GumQuickArgs * self,
     const gchar * format, ...);
+G_GNUC_INTERNAL gboolean _gum_quick_args_vparse (GumQuickArgs * self,
+    const gchar * format, va_list ap);
 G_GNUC_INTERNAL GBytes * _gum_quick_args_steal_bytes (GumQuickArgs * self,
     GBytes * bytes);
 
