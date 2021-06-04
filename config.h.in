@@ -51,9 +51,6 @@
 /* Define to 1 if OS is Linux based. */
 #mesondefine HAVE_LINUX
 
-/* Define if log2() exists. */
-#mesondefine HAVE_LOG2
-
 /* Define to 1 if the system has the type `long double'. */
 #mesondefine HAVE_LONG_DOUBLE
 

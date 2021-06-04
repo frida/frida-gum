@@ -170,10 +170,6 @@ if cc.compiles(glibc_src, name: 'compiling for glibc')
   cdata.set('HAVE_GLIBC', 1)
 endif
 
-if cc.has_function('log2') and host_os != 'android'
-  cdata.set('HAVE_LOG2', 1)
-endif
-
 if cc.has_member('struct mallinfo', 'arena', prefix: '#include <malloc.h>')
   cdata.set('HAVE_LIBC_MALLINFO', 1)
 endif
