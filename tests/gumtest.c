@@ -19,9 +19,6 @@
 #include <capstone.h>
 #include <glib.h>
 #include <gio/gio.h>
-#ifdef HAVE_GIOSCHANNEL
-# include <gioschannel.h>
-#endif
 #ifdef HAVE_GIOOPENSSL
 # include <gioopenssl.h>
 #endif
@@ -115,9 +112,6 @@ main (gint argc, gchar * argv[])
 #ifdef HAVE_FRIDA_GLIB
   glib_init ();
   gio_init ();
-#endif
-#ifdef HAVE_GIOSCHANNEL
-  g_io_module_schannel_register ();
 #endif
 #ifdef HAVE_GIOOPENSSL
   g_io_module_openssl_register ();

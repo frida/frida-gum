@@ -102,9 +102,6 @@
 /* Define to 1 if V8 runtime is available. */
 #mesondefine HAVE_V8
 
-/* Define to 1 if gioschannel is available. */
-#mesondefine HAVE_GIOSCHANNEL
-
 /* Define to 1 if gioopenssl is available. */
 #mesondefine HAVE_GIOOPENSSL
 

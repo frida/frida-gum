@@ -247,16 +247,9 @@ else
   have_libdwarf = false
 endif
 
-if host_os_family == 'windows'
-  tls_provider_dep = dependency('gioschannel', required: false)
-  if tls_provider_dep.found()
-    cdata.set('HAVE_GIOSCHANNEL', 1)
-  endif
-else
-  tls_provider_dep = dependency('gioopenssl', required: false)
-  if tls_provider_dep.found()
-    cdata.set('HAVE_GIOOPENSSL', 1)
-  endif
+tls_provider_dep = dependency('gioopenssl', required: false)
+if tls_provider_dep.found()
+  cdata.set('HAVE_GIOOPENSSL', 1)
 endif
 
 have_gumpp = not get_option('gumpp').disabled()
