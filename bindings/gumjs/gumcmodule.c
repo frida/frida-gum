@@ -647,12 +647,30 @@ gum_tcc_cmodule_resolve_symbol (void * opaque,
 
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
 
+static long long gum_divdi3 (long long a, long long b);
+static long long gum_moddi3 (long long a, long long b);
 static long gum_fixdfdi (double value);
 
 static void
 gum_add_abi_symbols (TCCState * state)
 {
+  tcc_add_symbol (state, "__divdi3", GUM_FUNCPTR_TO_POINTER (gum_divdi3));
+  tcc_add_symbol (state, "__moddi3", GUM_FUNCPTR_TO_POINTER (gum_moddi3));
   tcc_add_symbol (state, "__fixdfdi", GUM_FUNCPTR_TO_POINTER (gum_fixdfdi));
+}
+
+static long long
+gum_divdi3 (long long a,
+            long long b)
+{
+  return a / b;
+}
+
+static long long
+gum_moddi3 (long long a,
+            long long b)
+{
+  return a % b;
 }
 
 static long
