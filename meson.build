@@ -307,6 +307,8 @@ configure_file(input: 'config.h.in',
 add_project_arguments(
   '-include', 'config.h',
   '-DG_LOG_DOMAIN="Frida"',
+  '-DGLIB_VERSION_MIN_REQUIRED=GLIB_VERSION_2_56',
+  '-DG_DISABLE_DEPRECATED',
   language: languages)
 
 if host_os_family == 'linux'
