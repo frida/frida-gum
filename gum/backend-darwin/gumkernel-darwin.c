@@ -860,7 +860,7 @@ gum_kernel_get_task (void)
 
   g_once (&init_once, (GThreadFunc) gum_kernel_do_init, NULL);
 
-  return (mach_port_t) init_once.retval;
+  return (mach_port_t) GPOINTER_TO_SIZE (init_once.retval);
 }
 
 static mach_port_t
