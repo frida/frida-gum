@@ -351,6 +351,7 @@ gum_x86_relocator_write_one_instruction (GumX86Relocator * self)
         rewritten = TRUE;
       break;
 #endif
+
     default:
       if (gum_x86_reader_insn_is_jcc (ctx.insn))
         rewritten = gum_x86_relocator_rewrite_conditional_branch (self, &ctx);
