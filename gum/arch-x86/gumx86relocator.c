@@ -345,7 +345,7 @@ gum_x86_relocator_write_one_instruction (GumX86Relocator * self)
        * will behave as if it were running on an older CPU without support for
        * that instruction. There may be a performance penalty to pay for the
        * slower mode-switch instruction, but mode-switches are inherently slow
-       * any ways.
+       * anyways.
        */
       if (self->output->target_cpu == GUM_CPU_IA32)
         rewritten = TRUE;
