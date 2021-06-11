@@ -320,7 +320,7 @@ gum_x86_relocator_write_one_instruction (GumX86Relocator * self)
        *
        * https://github.com/torvalds/linux/blob/c3d0e3fd41b7f0f5d5d5b6022ab7e813f04ea727/arch/x86/entry/common.c#L165
        *
-       * This means if we are instrumenting some code in stalker which uses a
+       * This means if we are instrumenting some code in Stalker which uses a
        * VSYSCALL instruction, we will not return to the instrumented code, but
        * rather the uninstrumented original and hence the current execution flow
        * continues, but is no longer stalked.
