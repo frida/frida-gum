@@ -330,7 +330,7 @@ gum_x86_relocator_write_one_instruction (GumX86Relocator * self)
        *
        * https://github.com/torvalds/linux/blob/c3d0e3fd41b7f0f5d5d5b6022ab7e813f04ea727/arch/x86/entry/entry_64_compat.S#L158
        *
-       * One some x86 processors, however the SYSCALL instruction is not
+       * On some x86 processors, however, the SYSCALL instruction is not
        * supported and is instead interpreted as a NOP. For this reason,
        * __kerenel_vsyscall immediately follows the SYSCALL instruction with a
        * good old fashioned INT 0x80. This form of mode-switch does preserve a
