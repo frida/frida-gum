@@ -332,7 +332,7 @@ gum_x86_relocator_write_one_instruction (GumX86Relocator * self)
        *
        * On some x86 processors, however, the SYSCALL instruction is not
        * supported and is instead interpreted as a NOP. For this reason,
-       * __kerenel_vsyscall immediately follows the SYSCALL instruction with a
+       * __kernel_vsyscall immediately follows the SYSCALL instruction with a
        * good old fashioned INT 0x80. This form of mode-switch does preserve a
        * return address and hence does not encounter this problem.
        *
