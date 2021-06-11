@@ -311,6 +311,47 @@ gum_x86_relocator_write_one_instruction (GumX86Relocator * self)
       rewritten = gum_x86_relocator_rewrite_conditional_branch (self, &ctx);
       break;
 
+#ifdef HAVE_LINUX
+    case X86_INS_SYSCALL:
+      /*
+       * On x64 platforms in compatibility (32-bit) mode, it is typical to mode
+       * switch using the SYSCALL instruction. However, the kernel hard-codes
+       * the return address.
+       *
+       * https://github.com/torvalds/linux/blob/c3d0e3fd41b7f0f5d5d5b6022ab7e813f04ea727/arch/x86/entry/common.c#L165
+       *
+       * This means if we are instrumenting some code in Stalker which uses a
+       * VSYSCALL instruction, we will not return to the instrumented code, but
+       * rather the uninstrumented original and hence the current execution flow
+       * continues, but is no longer stalked.
+       *
+       * The kernel states that the SYSCALL instruction should *only* occur in
+       * the VDSO for this reason (and many others).
+       *
+       * https://github.com/torvalds/linux/blob/c3d0e3fd41b7f0f5d5d5b6022ab7e813f04ea727/arch/x86/entry/entry_64_compat.S#L158
+       *
+       * On some x86 processors, however, the SYSCALL instruction is not
+       * supported and is instead interpreted as a NOP. For this reason,
+       * __kernel_vsyscall immediately follows the SYSCALL instruction with a
+       * good old fashioned INT 0x80. This form of mode-switch does preserve a
+       * return address and hence does not encounter this problem.
+       *
+       * This is part of the reason why the return address for SYSCALL is hard
+       * coded, since the return address would need to be advanced past the
+       * INT 0x80 to avoid the syscall being called twice on systems which
+       * support SYSCALL.
+       *
+       * Therefore if we simply omit any VSYSCALL instructions, our application
+       * will behave as if it were running on an older CPU without support for
+       * that instruction. There may be a performance penalty to pay for the
+       * slower mode-switch instruction, but mode-switches are inherently slow
+       * anyways.
+       */
+      if (self->output->target_cpu == GUM_CPU_IA32)
+        rewritten = TRUE;
+      break;
+#endif
+
     default:
       if (gum_x86_reader_insn_is_jcc (ctx.insn))
         rewritten = gum_x86_relocator_rewrite_conditional_branch (self, &ctx);
