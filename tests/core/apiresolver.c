@@ -154,7 +154,6 @@ TESTCASE (objc_selector_can_be_resolved_from_class_method_address)
   GError * error = NULL;
 
   fixture->resolver = gum_api_resolver_make ("objc");
-
   if (fixture->resolver == NULL)
   {
     g_print ("<skipping, not available> ");
@@ -165,9 +164,9 @@ TESTCASE (objc_selector_can_be_resolved_from_class_method_address)
       resolve_method_impl, &address, &error);
   g_assert_null (error);
 
-  _gum_objc_api_resolver_selector_from_address(fixture->resolver, address,
+  _gum_objc_api_resolver_selector_from_address (fixture->resolver, address,
       &selector, &error);
-  g_assert_null (error);
+  g_assert_no_error (error);
   g_assert_nonnull (selector);
 
   g_free (selector);
@@ -180,20 +179,19 @@ TESTCASE (objc_selector_can_be_resolved_from_instance_method_address)
   GError * error = NULL;
 
   fixture->resolver = gum_api_resolver_make ("objc");
-
   if (fixture->resolver == NULL)
   {
     g_print ("<skipping, not available> ");
     return;
   }
 
-  gum_api_resolver_enumerate_matches (fixture->resolver, "-[NSArray initWithArray:]",
-      resolve_method_impl, &address, &error);
+  gum_api_resolver_enumerate_matches (fixture->resolver,
+      "-[NSArray initWithArray:]", resolve_method_impl, &address, &error);
   g_assert_null (error);
 
-  _gum_objc_api_resolver_selector_from_address(fixture->resolver, address,
+  _gum_objc_api_resolver_selector_from_address (fixture->resolver, address,
       &selector, &error);
-  g_assert_null (error);
+  g_assert_no_error (error);
   g_assert_nonnull (selector);
 
   g_free (selector);
@@ -212,8 +210,9 @@ match_found_cb (const GumApiDetails * details,
 
 static gboolean
 resolve_method_impl (const GumApiDetails * details,
-                     gpointer user_data) {
-  GumAddress * address = (GumAddress *)user_data;
+                     gpointer user_data)
+{
+  GumAddress * address = user_data;
 
   *address = details->address;
 

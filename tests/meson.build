@@ -57,8 +57,9 @@ if host_os_family == 'darwin'
   symlist = 'gum-tests.symbols'
   extra_link_args += ['-Wl,-exported_symbols_list,' + join_paths(meson.current_source_dir(), symlist)]
   extra_link_depends += [symlist]
-  subdir('stubs/objcdummyclass')
-  link_targets += [gum_tests_objcdummyclass]
+
+  subdir('stubs/objc')
+  link_targets += objcdummyclass
 elif host_os_family != 'windows'
   if host_os == 'android'
     symscript = 'gum-tests-android.version'

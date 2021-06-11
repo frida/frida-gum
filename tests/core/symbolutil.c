@@ -7,10 +7,9 @@
 
 #include "testutil.h"
 
-#if HAVE_DARWIN
-#include "tests/stubs/objcdummyclass/DummyClass.h"
-
-#include <objc/runtime.h>
+#ifdef HAVE_DARWIN
+# include "tests/stubs/objc/dummyclass.h"
+# include <objc/runtime.h>
 #endif
 
 #define TESTCASE(NAME) \
@@ -64,9 +63,8 @@ TESTCASE (symbol_details_from_address_objc_fallback)
 {
 #ifdef HAVE_DARWIN
   GumDebugSymbolDetails details;
-  /* Creates a mid-function pointer for `-[DummyClass dummyMethod:]` */
-  void * dummy_impl = dummy_class_get_dummy_method_impl () + 20;
-  g_assert_true (gum_symbol_details_from_address (dummy_impl, &details));
+  void * mid_function = dummy_class_get_dummy_method_impl () + 20;
+  g_assert_true (gum_symbol_details_from_address (mid_function, &details));
   g_assert_cmpstr (details.symbol_name, ==, "-[DummyClass dummyMethod:]");
 #else
   g_print ("<skipping, not available >");

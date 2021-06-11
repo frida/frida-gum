@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2016-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2020 Grant Douglas <grant@reconditorium.uk>
+ * Copyright (C)      2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -471,36 +472,34 @@ _gum_objc_api_resolver_selector_from_address (GumApiResolver * resolver,
 
   g_hash_table_iter_init (&iter, self->class_by_handle);
 
-  while (g_hash_table_iter_next (&iter, NULL, (gpointer *)&klass))
+  while (g_hash_table_iter_next (&iter, NULL, (gpointer *) &klass))
   {
-    const gchar all_method_types[3] = { '+', '-', '\0' };
+    const gchar all_method_types[] = { '+', '-', '\0' };
     const gchar * t;
 
-    for (t = all_method_types; *t != '\0'; t++) {
+    for (t = all_method_types; *t != '\0'; t++)
+    {
       const Method * method_handles;
-      guint method_index, method_count;
+      guint count, i;
 
-      method_handles = gum_objc_class_metadata_get_methods(klass, *t,
-          &method_count);
+      method_handles = gum_objc_class_metadata_get_methods (klass, *t, &count);
 
-      for (method_index = 0; method_index != method_count; method_index++)
+      for (i = 0; i != count; i++)
       {
-        Method method_handle;
-        GumAddress method_imp;
+        Method handle = method_handles[i];
+        GumAddress imp;
 
-        method_handle = method_handles[method_index];
-        method_imp = GUM_ADDRESS (self->method_getImplementation (method_handle));
+        imp = GUM_ADDRESS (self->method_getImplementation (handle));
 
-        if (method_imp == address)
+        if (imp == address)
         {
-          const gchar * method_name;
-          const gchar prefix[3] = { *t, '[', '\0'};
+          const gchar * name;
+          const gchar prefix[3] = { *t, '[', '\0' };
           const gchar suffix[2] = { ']', '\0' };
 
-          method_name = self->sel_getName (self->method_getName (method_handle));
+          name = self->sel_getName (self->method_getName (handle));
 
-          *result = g_strconcat (prefix, klass->name, " ", method_name,
-              suffix, NULL);
+          *result = g_strconcat (prefix, klass->name, " ", name, suffix, NULL);
         }
       }
     }

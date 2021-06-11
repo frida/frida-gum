@@ -13,8 +13,9 @@
 
 G_BEGIN_DECLS
 
-G_GNUC_INTERNAL void _gum_objc_api_resolver_selector_from_address (GumApiResolver * self,
-    GumAddress address, gchar ** result, GError ** error);
+G_GNUC_INTERNAL void _gum_objc_api_resolver_selector_from_address (
+    GumApiResolver * self, GumAddress address, gchar ** result,
+    GError ** error);
 
 G_END_DECLS
 

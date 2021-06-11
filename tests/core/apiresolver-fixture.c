@@ -6,12 +6,10 @@
 
 #include "gumapiresolver.h"
 
+#include "backend-darwin/gumobjcapiresolver-priv.h"
 #include "testutil.h"
 #ifdef HAVE_ANDROID
 # include "backend-linux/gumandroid.h"
-#endif
-#ifdef HAVE_DARWIN
-# include "backend-darwin/gumobjcapiresolver-priv.h"
 #endif
 
 #include <string.h>
