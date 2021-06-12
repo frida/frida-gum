@@ -15,9 +15,6 @@
 /* Define to 1 if OS is Darwin based. */
 #mesondefine HAVE_DARWIN
 
-/* Define to 1 if you have the <elf.h> header file. */
-#mesondefine HAVE_ELF_H
-
 /* Define to 1 if using Frida's GLib. */
 #mesondefine HAVE_FRIDA_GLIB
 
@@ -86,9 +83,6 @@
 
 /* Define to 1 if you have the <sys/auxv.h> header file. */
 #mesondefine HAVE_SYS_AUXV_H
-
-/* Define to 1 if you have the <sys/elf.h> header file. */
-#mesondefine HAVE_SYS_ELF_H
 
 /* Define to 1 if you have the <sys/user.h> header file. */
 #mesondefine HAVE_SYS_USER_H
