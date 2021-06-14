@@ -1943,7 +1943,7 @@ static FORCEINLINE void x86_clear_lock(int* sl) {
 /* How to yield for a spin lock */
 #define SPINS_PER_YIELD       63
 #if defined(_MSC_VER)
-#define SLEEP_EX_DURATION     50 /* delay for yield/sleep */
+#define SLEEP_EX_DURATION      0 /* delay for yield/sleep */
 #define SPIN_LOCK_YIELD  SleepEx(SLEEP_EX_DURATION, FALSE)
 #elif defined (__SVR4) && defined (__sun) /* solaris */
 #define SPIN_LOCK_YIELD   thr_yield();
