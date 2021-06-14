@@ -117,9 +117,11 @@ static gboolean gum_code_segment_try_map (GumCodeSegment * self,
     gsize source_offset, gsize source_size, gpointer target_address);
 static gboolean gum_code_segment_try_remap_locally (GumCodeSegment * self,
     gsize source_offset, gsize source_size, gpointer target_address);
+#ifdef HAVE_IOS
 static gboolean gum_code_segment_try_remap_using_substrated (
     GumCodeSegment * self, gsize source_offset, gsize source_size,
     gpointer target_address);
+#endif
 
 static void gum_code_segment_compute_layout (GumCodeSegment * self,
     GumCodeLayout * layout);
@@ -135,16 +137,18 @@ static void gum_file_write_all (gint fd, gssize offset, gconstpointer data,
 static gboolean gum_file_check_sandbox_allows (const gchar * path,
     const gchar * operation);
 
+#ifdef HAVE_IOS
 static mach_port_t gum_try_get_substrated_port (void);
 static void gum_deallocate_substrated_port (void);
 
 kern_return_t bootstrap_look_up (mach_port_t bp, const char * service_name,
     mach_port_t * sp);
+#endif
 
 gboolean
 gum_code_segment_is_supported (void)
 {
-#ifdef HAVE_IOS
+#if (defined (HAVE_MACOS) && defined (HAVE_ARM64)) || defined (HAVE_IOS)
   return TRUE;
 #else
   return FALSE;
@@ -302,9 +306,11 @@ gum_code_segment_map (GumCodeSegment * self,
   }
   else
   {
+#ifdef HAVE_IOS
     mapped_successfully = gum_code_segment_try_remap_using_substrated (self,
         source_offset, source_size, target_address);
     if (!mapped_successfully)
+#endif
     {
       mapped_successfully = gum_code_segment_try_remap_locally (self,
           source_offset, source_size, target_address);
@@ -335,6 +341,7 @@ gum_code_segment_mark (gpointer code,
 
     return TRUE;
   }
+#ifdef HAVE_IOS
   else
   {
     mach_port_t server_port;
@@ -359,6 +366,7 @@ gum_code_segment_mark (gpointer code,
 
     return TRUE;
   }
+#endif
 
 fallback:
   {
@@ -472,6 +480,8 @@ gum_code_segment_try_remap_locally (GumCodeSegment * self,
   return kr == KERN_SUCCESS;
 }
 
+#ifdef HAVE_IOS
+
 static gboolean
 gum_code_segment_try_remap_using_substrated (GumCodeSegment * self,
                                              gsize source_offset,
@@ -494,6 +504,8 @@ gum_code_segment_try_remap_using_substrated (GumCodeSegment * self,
 
   return kr == KERN_SUCCESS;
 }
+
+#endif
 
 static void
 gum_code_segment_compute_layout (GumCodeSegment * self,
@@ -807,6 +819,8 @@ gum_file_check_sandbox_allows (const gchar * path,
       path);
 }
 
+#ifdef HAVE_IOS
+
 static mach_port_t
 gum_try_get_substrated_port (void)
 {
@@ -850,3 +864,5 @@ gum_deallocate_substrated_port (void)
 {
   mach_port_deallocate (mach_task_self (), gum_try_get_substrated_port ());
 }
+
+#endif
