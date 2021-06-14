@@ -1021,8 +1021,8 @@ gum_emit_prolog (GumArm64Writer * aw)
   /*
    * Set up our stack frame:
    *
-   * [next_hop]
-   * [cpu_context]
+   * [in: frame pointer chain entry, out: next_hop]
+   * [in/out: cpu_context]
    */
 
   /* reserve space for next_hop */
@@ -1059,6 +1059,14 @@ gum_emit_prolog (GumArm64Writer * aw)
   /* alignment padding + dummy PC */
   gum_arm64_writer_put_sub_reg_reg_imm (aw, ARM64_REG_SP,
       ARM64_REG_SP, 16);
+
+  /* frame pointer chain entry */
+  gum_arm64_writer_put_str_reg_reg_offset (aw, ARM64_REG_LR, ARM64_REG_SP,
+      sizeof (GumCpuContext) + 8);
+  gum_arm64_writer_put_str_reg_reg_offset (aw, ARM64_REG_FP, ARM64_REG_SP,
+      sizeof (GumCpuContext));
+  gum_arm64_writer_put_add_reg_reg_imm (aw, ARM64_REG_FP, ARM64_REG_SP,
+      sizeof (GumCpuContext));
 }
 
 static void
