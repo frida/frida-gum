@@ -29,15 +29,16 @@ if host_os_family == 'darwin'
   runner_name = 'gum-tests-unsigned'
 endif
 
-extra_test_deps = [lzma_dep]
-extra_link_args = []
-extra_link_depends = []
 link_targets = [
     gum_tests_core,
     gum_tests_heap,
     gum_tests_prof,
     gum_tests_gumjs,
 ]
+
+extra_test_deps = [lzma_dep]
+extra_link_args = []
+extra_link_depends = []
 
 if have_gumjs
   extra_test_deps += [gumjs_dep]
