@@ -29,6 +29,7 @@ case $host_os in
     ;;
 esac
 
+rm -f "$signed_runner_binary"
 cp "$runner_binary" "$signed_runner_binary"
 
 case $host_os in
