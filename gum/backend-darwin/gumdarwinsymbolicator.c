@@ -86,7 +86,7 @@ struct _GumCollectedFunction
 struct _GumSectionFromAddressOperation
 {
   GumAddress address;
-  const GumDarwinSectionDetails * sect_details;
+  GumDarwinSectionDetails sect_details;
 };
 
 static void gum_darwin_symbolicator_initable_iface_init (gpointer g_iface,
@@ -574,20 +574,15 @@ static gboolean
 gum_collect_functions (const GumDarwinFunctionStartsDetails * details,
                        gpointer user_data)
 {
-  GumCollectFunctionsOperation * op;
+  GumCollectFunctionsOperation * op = user_data;
+  GArray * functions = op->functions;
   const guint8 * p, * end;
-  GumCollectedFunction * prev_function;
-  guint32 offset;
-  GumSectionFromAddressOperation sfa_op;
-  const GumDarwinSectionDetails * sect_details;
+  guint i, offset;
 
-  op = user_data;
   p = GSIZE_TO_POINTER (details->vm_address);
   end = p + details->size;
-  prev_function = NULL;
 
-  offset = 0;
-  while (p != end)
+  for (i = 0, offset = 0; p != end; i++)
   {
     guint64 delta;
     GumCollectedFunction function;
@@ -596,22 +591,37 @@ gum_collect_functions (const GumDarwinFunctionStartsDetails * details,
     if (delta == 0)
       break;
 
-    if (prev_function != NULL)
+    if (i != 0)
+    {
+      GumCollectedFunction * prev_function =
+          &g_array_index (functions, GumCollectedFunction, i - 1);
       prev_function->size = delta;
+    }
 
     offset += delta;
-    function.address = GUM_ADDRESS (offset + op->linkedit);
-    prev_function = &function;
 
-    g_array_append_val (op->functions, function);
+    function.address = GUM_ADDRESS (op->linkedit + offset);
+    function.size = 0;
+    g_array_append_val (functions, function);
   }
 
-  gum_darwin_module_enumerate_sections (op->module,
-      gum_get_section_from_address, &sfa_op);
+  if (functions->len != 0)
+  {
+    GumCollectedFunction * last_function;
+    GumSectionFromAddressOperation sfa_op = { 0, };
+    const GumDarwinSectionDetails * sect;
 
-  sect_details = sfa_op.sect_details;
-  prev_function->size = (sect_details->vm_address + sect_details->size) -
-      prev_function->address;
+    last_function =
+        &g_array_index (functions, GumCollectedFunction, functions->len - 1);
+
+    sfa_op.address = last_function->address;
+    gum_darwin_module_enumerate_sections (op->module,
+        gum_get_section_from_address, &sfa_op);
+
+    sect = &sfa_op.sect_details;
+    last_function->size =
+        (sect->vm_address + sect->size) - last_function->address;
+  }
 
   return TRUE;
 }
@@ -633,14 +643,12 @@ gum_get_section_from_address (const GumDarwinSectionDetails * details,
                               gpointer user_data)
 {
   GumSectionFromAddressOperation * op = user_data;
-  GumAddress address;
-
-  address = op->address;
+  GumAddress address = op->address;
 
   if (address >= details->vm_address &&
       address < details->vm_address + details->size)
   {
-    op->sect_details = details;
+    op->sect_details = *details;
     return FALSE;
   }
 
