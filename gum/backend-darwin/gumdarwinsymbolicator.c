@@ -549,6 +549,8 @@ gum_darwin_symbolicator_objc_details_from_address (
   matched_function = bsearch (&dummy_function, op.functions->data,
       op.functions->len, sizeof (GumCollectedFunction),
       (GCompareFunc) gum_compare_collected_functions);
+  if (matched_function == NULL)
+    goto beach;
 
   _gum_objc_api_resolver_selector_from_address (self->objc_resolver,
       matched_function->address, &selector, NULL);
