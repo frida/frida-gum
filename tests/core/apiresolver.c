@@ -12,8 +12,8 @@ TESTLIST_BEGIN (api_resolver)
   TESTENTRY (module_imports_can_be_resolved)
   TESTENTRY (objc_methods_can_be_resolved_case_sensitively)
   TESTENTRY (objc_methods_can_be_resolved_case_insensitively)
-  TESTENTRY (objc_selector_can_be_resolved_from_class_method_address)
-  TESTENTRY (objc_selector_can_be_resolved_from_instance_method_address)
+  TESTENTRY (objc_method_can_be_resolved_from_class_method_address)
+  TESTENTRY (objc_method_can_be_resolved_from_instance_method_address)
 
 #ifdef HAVE_ANDROID
   TESTENTRY (linker_exports_can_be_resolved_on_android)
@@ -147,10 +147,10 @@ TESTCASE (objc_methods_can_be_resolved_case_insensitively)
   g_assert_cmpuint (ctx.number_of_calls, >, 1);
 }
 
-TESTCASE (objc_selector_can_be_resolved_from_class_method_address)
+TESTCASE (objc_method_can_be_resolved_from_class_method_address)
 {
   GumAddress address;
-  gchar * selector = NULL;
+  gchar * method = NULL;
   GError * error = NULL;
 
   fixture->resolver = gum_api_resolver_make ("objc");
@@ -164,18 +164,16 @@ TESTCASE (objc_selector_can_be_resolved_from_class_method_address)
       resolve_method_impl, &address, &error);
   g_assert_null (error);
 
-  _gum_objc_api_resolver_selector_from_address (fixture->resolver, address,
-      &selector, &error);
-  g_assert_no_error (error);
-  g_assert_nonnull (selector);
-
-  g_free (selector);
+  method =
+      gum_objc_api_resolver_find_method_by_address (fixture->resolver, address);
+  g_assert_nonnull (method);
+  g_free (method);
 }
 
-TESTCASE (objc_selector_can_be_resolved_from_instance_method_address)
+TESTCASE (objc_method_can_be_resolved_from_instance_method_address)
 {
   GumAddress address;
-  gchar * selector = NULL;
+  gchar * method = NULL;
   GError * error = NULL;
 
   fixture->resolver = gum_api_resolver_make ("objc");
@@ -189,12 +187,10 @@ TESTCASE (objc_selector_can_be_resolved_from_instance_method_address)
       "-[NSArray initWithArray:]", resolve_method_impl, &address, &error);
   g_assert_null (error);
 
-  _gum_objc_api_resolver_selector_from_address (fixture->resolver, address,
-      &selector, &error);
-  g_assert_no_error (error);
-  g_assert_nonnull (selector);
-
-  g_free (selector);
+  method =
+      gum_objc_api_resolver_find_method_by_address (fixture->resolver, address);
+  g_assert_nonnull (method);
+  g_free (method);
 }
 
 static gboolean

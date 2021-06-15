@@ -460,11 +460,9 @@ gum_objc_class_metadata_get_methods (GumObjcClassMetadata * self,
   return *cached_methods;
 }
 
-void
-_gum_objc_api_resolver_selector_from_address (GumApiResolver * resolver,
-                                              GumAddress address,
-                                              gchar ** result,
-                                              GError ** error)
+gchar *
+gum_objc_api_resolver_find_method_by_address (GumApiResolver * resolver,
+                                              GumAddress address)
 {
   GumObjcApiResolver * self = GUM_OBJC_API_RESOLVER (resolver);
   GHashTableIter iter;
@@ -499,9 +497,11 @@ _gum_objc_api_resolver_selector_from_address (GumApiResolver * resolver,
 
           name = self->sel_getName (self->method_getName (handle));
 
-          *result = g_strconcat (prefix, klass->name, " ", name, suffix, NULL);
+          return g_strconcat (prefix, klass->name, " ", name, suffix, NULL);
         }
       }
     }
   }
+
+  return NULL;
 }

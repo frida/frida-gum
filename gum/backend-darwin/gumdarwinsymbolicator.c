@@ -54,6 +54,7 @@ struct _GumDarwinSymbolicator
   CSSymbolicatorRef handle;
 
   GumApiResolver * objc_resolver;
+  GumModuleMap * modules;
 };
 
 enum
@@ -260,6 +261,7 @@ gum_darwin_symbolicator_dispose (GObject * object)
     self->handle = kCSNull;
   }
 
+  g_clear_object (&self->modules);
   g_clear_object (&self->objc_resolver);
 
   G_OBJECT_CLASS (gum_darwin_symbolicator_parent_class)->dispose (object);
@@ -510,12 +512,11 @@ gum_darwin_symbolicator_objc_details_from_address (
     GumDebugSymbolDetails * details)
 {
   gboolean success = FALSE;
-  GumModuleMap * module_map = NULL;
   const GumModuleDetails * module_details;
   GumDarwinModule * module = NULL;
   GumCollectFunctionsOperation op = { NULL, NULL, NULL };
   GumCollectedFunction key, * match;
-  gchar * selector = NULL;
+  gchar * symbol_name = NULL;
 
   if (self->objc_resolver == NULL)
   {
@@ -525,9 +526,10 @@ gum_darwin_symbolicator_objc_details_from_address (
     self->objc_resolver = resolver;
   }
 
-  module_map = gum_module_map_new ();
+  if (self->modules == NULL)
+    self->modules = gum_module_map_new ();
 
-  module_details = gum_module_map_find (module_map, address);
+  module_details = gum_module_map_find (self->modules, address);
   if (module_details == NULL)
     goto beach;
 
@@ -552,22 +554,21 @@ gum_darwin_symbolicator_objc_details_from_address (
   if (match == NULL)
     goto beach;
 
-  _gum_objc_api_resolver_selector_from_address (self->objc_resolver,
-      match->address, &selector, NULL);
-  if (selector == NULL)
+  symbol_name = gum_objc_api_resolver_find_method_by_address (
+      self->objc_resolver, match->address);
+  if (symbol_name == NULL)
     goto beach;
 
   success = TRUE;
 
   details->address = address;
-  g_strlcpy (details->symbol_name, selector, sizeof (details->symbol_name));
+  g_strlcpy (details->symbol_name, symbol_name, sizeof (details->symbol_name));
   g_strlcpy (details->module_name, module->name, sizeof (details->module_name));
 
 beach:
-  g_free (selector);
+  g_free (symbol_name);
   g_clear_pointer (&op.functions, g_array_unref);
   g_clear_object (&module);
-  g_clear_object (&module_map);
 
   return success;
 }
