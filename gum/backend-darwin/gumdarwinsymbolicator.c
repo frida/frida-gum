@@ -514,7 +514,7 @@ gum_darwin_symbolicator_objc_details_from_address (
   const GumModuleDetails * module_details;
   GumDarwinModule * module = NULL;
   GumCollectFunctionsOperation op = { NULL, NULL, NULL };
-  GumCollectedFunction dummy_function, * matched_function;
+  GumCollectedFunction key, * match;
   gchar * selector = NULL;
 
   if (self->objc_resolver == NULL)
@@ -543,17 +543,17 @@ gum_darwin_symbolicator_objc_details_from_address (
   gum_darwin_module_enumerate_function_starts (module, gum_collect_functions,
       &op);
 
-  dummy_function.address = address;
-  dummy_function.size = 0;
+  key.address = address;
+  key.size = 0;
 
-  matched_function = bsearch (&dummy_function, op.functions->data,
-      op.functions->len, sizeof (GumCollectedFunction),
+  match = bsearch (&key, op.functions->data, op.functions->len,
+      sizeof (GumCollectedFunction),
       (GCompareFunc) gum_compare_collected_functions);
-  if (matched_function == NULL)
+  if (match == NULL)
     goto beach;
 
   _gum_objc_api_resolver_selector_from_address (self->objc_resolver,
-      matched_function->address, &selector, NULL);
+      match->address, &selector, NULL);
   if (selector == NULL)
     goto beach;
 
