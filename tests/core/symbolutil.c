@@ -67,7 +67,7 @@ TESTCASE (symbol_details_from_address_objc_fallback)
   g_assert_true (gum_symbol_details_from_address (mid_function, &details));
   g_assert_cmpstr (details.symbol_name, ==, "-[DummyClass dummyMethod:]");
 #else
-  g_print ("<skipping, not available >");
+  g_print ("<skipping, not available> ");
 #endif
 }
 
