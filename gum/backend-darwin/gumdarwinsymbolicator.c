@@ -622,7 +622,7 @@ gum_compare_collected_functions (const GumCollectedFunction * key,
 {
   GumAddress p = key->address;
 
-  if (p >= f->address && p <= f->address + f->size)
+  if (p >= f->address && p < f->address + f->size)
     return 0;
 
   return p < f->address ? -1 : 1;
