@@ -655,7 +655,7 @@ TESTCASE (module_can_be_loaded)
   gchar * invalid_name;
 
   g_assert_true (gum_module_load (SYSTEM_MODULE_NAME, &error));
-  g_assert_null (error);
+  g_assert_no_error (error);
 
   invalid_name = g_strconcat (SYSTEM_MODULE_NAME, "_nope", NULL);
   g_assert_false (gum_module_load (invalid_name, &error));

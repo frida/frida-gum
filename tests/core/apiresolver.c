@@ -37,14 +37,14 @@ TESTCASE (module_exports_can_be_resolved_case_sensitively)
   ctx.value_to_return = TRUE;
   gum_api_resolver_enumerate_matches (fixture->resolver, query, match_found_cb,
       &ctx, &error);
-  g_assert_null (error);
+  g_assert_no_error (error);
   g_assert_cmpuint (ctx.number_of_calls, >, 1);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = FALSE;
   gum_api_resolver_enumerate_matches (fixture->resolver, query, match_found_cb,
       &ctx, &error);
-  g_assert_null (error);
+  g_assert_no_error (error);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
 
@@ -65,7 +65,7 @@ TESTCASE (module_exports_can_be_resolved_case_insensitively)
   ctx.value_to_return = TRUE;
   gum_api_resolver_enumerate_matches (fixture->resolver, query, match_found_cb,
       &ctx, &error);
-  g_assert_null (error);
+  g_assert_no_error (error);
   g_assert_cmpuint (ctx.number_of_calls, >, 1);
 }
 
@@ -81,7 +81,7 @@ TESTCASE (module_imports_can_be_resolved)
 
   gum_api_resolver_enumerate_matches (fixture->resolver, query,
       check_module_import, &number_of_imports_seen, &error);
-  g_assert_null (error);
+  g_assert_no_error (error);
 #else
   (void) check_module_import;
 #endif
@@ -116,14 +116,14 @@ TESTCASE (objc_methods_can_be_resolved_case_sensitively)
   ctx.value_to_return = TRUE;
   gum_api_resolver_enumerate_matches (fixture->resolver, "+[*Arr* arr*]",
       match_found_cb, &ctx, &error);
-  g_assert_null (error);
+  g_assert_no_error (error);
   g_assert_cmpuint (ctx.number_of_calls, >, 1);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = FALSE;
   gum_api_resolver_enumerate_matches (fixture->resolver, "+[*Arr* arr*]",
       match_found_cb, &ctx, &error);
-  g_assert_null (error);
+  g_assert_no_error (error);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
 
@@ -143,7 +143,7 @@ TESTCASE (objc_methods_can_be_resolved_case_insensitively)
   ctx.value_to_return = TRUE;
   gum_api_resolver_enumerate_matches (fixture->resolver, "+[*Arr* aRR*]/i",
       match_found_cb, &ctx, &error);
-  g_assert_null (error);
+  g_assert_no_error (error);
   g_assert_cmpuint (ctx.number_of_calls, >, 1);
 }
 
@@ -162,7 +162,7 @@ TESTCASE (objc_method_can_be_resolved_from_class_method_address)
 
   gum_api_resolver_enumerate_matches (fixture->resolver, "+[NSArray array]",
       resolve_method_impl, &address, &error);
-  g_assert_null (error);
+  g_assert_no_error (error);
 
   method =
       gum_objc_api_resolver_find_method_by_address (fixture->resolver, address);
@@ -185,7 +185,7 @@ TESTCASE (objc_method_can_be_resolved_from_instance_method_address)
 
   gum_api_resolver_enumerate_matches (fixture->resolver,
       "-[NSArray initWithArray:]", resolve_method_impl, &address, &error);
-  g_assert_null (error);
+  g_assert_no_error (error);
 
   method =
       gum_objc_api_resolver_find_method_by_address (fixture->resolver, address);
@@ -283,7 +283,7 @@ TESTCASE (linker_exports_can_be_resolved_on_android)
 
     gum_api_resolver_enumerate_matches (fixture->resolver, query,
         check_linker_export, &ctx, &error);
-    g_assert_null (error);
+    g_assert_no_error (error);
     g_assert_cmpuint (ctx.number_of_calls, >=, 1);
 
     g_free (ctx.expected_name);

@@ -8150,7 +8150,7 @@ TESTCASE (script_can_be_compiled_to_bytecode)
   if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
   {
     g_assert_nonnull (code);
-    g_assert_null (error);
+    g_assert_no_error (error);
 
     g_assert_null (gum_script_backend_compile_sync (fixture->backend,
         "failcase1", "'", NULL, NULL));
@@ -8179,7 +8179,7 @@ TESTCASE (script_can_be_compiled_to_bytecode)
     TestScriptMessageItem * item;
 
     g_assert_nonnull (script);
-    g_assert_null (error);
+    g_assert_no_error (error);
 
     gum_script_set_message_handler (script, test_script_fixture_store_message,
         fixture, NULL);
