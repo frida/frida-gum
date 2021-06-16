@@ -12,9 +12,10 @@ TESTLIST_BEGIN (api_resolver)
   TESTENTRY (module_imports_can_be_resolved)
   TESTENTRY (objc_methods_can_be_resolved_case_sensitively)
   TESTENTRY (objc_methods_can_be_resolved_case_insensitively)
+#ifdef HAVE_DARWIN
   TESTENTRY (objc_method_can_be_resolved_from_class_method_address)
   TESTENTRY (objc_method_can_be_resolved_from_instance_method_address)
-
+#endif
 #ifdef HAVE_ANDROID
   TESTENTRY (linker_exports_can_be_resolved_on_android)
 #endif
@@ -147,6 +148,22 @@ TESTCASE (objc_methods_can_be_resolved_case_insensitively)
   g_assert_cmpuint (ctx.number_of_calls, >, 1);
 }
 
+static gboolean
+match_found_cb (const GumApiDetails * details,
+                gpointer user_data)
+{
+  TestForEachContext * ctx = (TestForEachContext *) user_data;
+
+  ctx->number_of_calls++;
+
+  return ctx->value_to_return;
+}
+
+#ifdef HAVE_DARWIN
+
+static gboolean resolve_method_impl (const GumApiDetails * details,
+    gpointer user_data);
+
 TESTCASE (objc_method_can_be_resolved_from_class_method_address)
 {
   GumAddress address;
@@ -194,17 +211,6 @@ TESTCASE (objc_method_can_be_resolved_from_instance_method_address)
 }
 
 static gboolean
-match_found_cb (const GumApiDetails * details,
-                gpointer user_data)
-{
-  TestForEachContext * ctx = (TestForEachContext *) user_data;
-
-  ctx->number_of_calls++;
-
-  return ctx->value_to_return;
-}
-
-static gboolean
 resolve_method_impl (const GumApiDetails * details,
                      gpointer user_data)
 {
@@ -214,6 +220,8 @@ resolve_method_impl (const GumApiDetails * details,
 
   return FALSE;
 }
+
+#endif
 
 #ifdef HAVE_ANDROID
 
