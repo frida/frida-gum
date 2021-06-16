@@ -84,12 +84,15 @@ G_DEFINE_TYPE_EXTENDED (GumObjcApiResolver,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_API_RESOLVER,
                             gum_objc_api_resolver_iface_init))
 
-static GumLibcFreeFunc gum_libc_free = NULL;
+static GumLibcFreeFunc gum_libc_free;
 
 static void
 gum_objc_api_resolver_class_init (GumObjcApiResolverClass * klass)
 {
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
+
+  gum_libc_free = (GumLibcFreeFunc) gum_module_find_export_by_name (
+      "/usr/lib/system/libsystem_malloc.dylib", "free");
 
   object_class->finalize = gum_objc_api_resolver_finalize;
 }
@@ -410,12 +413,6 @@ gum_objc_api_resolver_create_snapshot (GumObjcApiResolver * self)
 static void
 gum_objc_class_metadata_free (GumObjcClassMetadata * klass)
 {
-  if (gum_libc_free == NULL)
-  {
-    gum_libc_free = (GumLibcFreeFunc) gum_module_find_export_by_name (
-        "/usr/lib/system/libsystem_malloc.dylib", "free");
-  }
-
   g_slist_free (klass->subclasses);
 
   if (klass->instance_methods != NULL)
