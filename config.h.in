@@ -57,6 +57,9 @@
 /* Define to 1 if OS is macOS. */
 #mesondefine HAVE_MACOS
 
+/* Define to 1 if minizip is available. */
+#mesondefine HAVE_MINIZIP
+
 /* Define to 1 if target is MIPS based. */
 #mesondefine HAVE_MIPS
 

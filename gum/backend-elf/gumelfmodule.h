@@ -29,6 +29,7 @@ typedef gboolean (* GumElfFoundDynamicEntryFunc) (
 typedef gboolean (* GumElfFoundSectionFunc) (
     const GumElfSectionDetails * details, gpointer user_data);
 
+typedef guint GumElfSource;
 typedef guint GumElfDynamicAddressState;
 typedef GElf_Sxword GumElfDynamicEntryType;
 typedef GElf_Xword GumElfDynamicEntryValue;
@@ -47,7 +48,7 @@ struct _GumElfModule
 
   gpointer file_data;
   gsize file_size;
-  gboolean is_linux_vdso;
+  GumElfSource source;
 
   Elf * elf;
 
@@ -59,6 +60,14 @@ struct _GumElfModule
   GumElfDynamicAddressState dynamic_address_state;
 
   const gchar * dynamic_strings;
+};
+
+enum _GumElfSource
+{
+  GUM_ELF_SOURCE_NONE,
+  GUM_ELF_SOURCE_FILE,
+  GUM_ELF_SOURCE_BLOB,
+  GUM_ELF_SOURCE_VDSO,
 };
 
 enum _GumElfDynamicAddressState

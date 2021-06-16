@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
+ * Copyright (C)      2021 Paul Schmidt <p.schmidt@tu-bs.de>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -9,6 +10,13 @@
 
 #ifdef HAVE_ANDROID
 # include "backend-linux/gumandroid.h"
+# ifdef HAVE_MINIZIP
+#  include <minizip/mz.h>
+#  include <minizip/mz_strm.h>
+#  include <minizip/mz_strm_os.h>
+#  include <minizip/mz_zip.h>
+#  include <minizip/mz_zip_rw.h>
+# endif
 #endif
 
 #include <fcntl.h>
@@ -96,6 +104,8 @@ static GumAddress gum_elf_module_resolve_dynamic_virtual_address (
     GumElfModule * self, GumAddress address);
 static gboolean gum_store_dynamic_string_table (
     const GumElfDynamicEntryDetails * details, gpointer user_data);
+static gboolean gum_maybe_extract_from_apk (const gchar * path,
+    gpointer * file_data, gsize * file_size);
 
 G_DEFINE_TYPE (GumElfModule, gum_elf_module, G_TYPE_OBJECT)
 
@@ -124,6 +134,7 @@ gum_elf_module_class_init (GumElfModuleClass * klass)
 static void
 gum_elf_module_init (GumElfModule * self)
 {
+  self->source = GUM_ELF_SOURCE_NONE;
 }
 
 static void
@@ -141,7 +152,12 @@ gum_elf_module_constructed (GObject * object)
   {
     self->file_data = GSIZE_TO_POINTER (self->base_address);
     self->file_size = gum_query_page_size ();
-    self->is_linux_vdso = TRUE;
+    self->source = GUM_ELF_SOURCE_VDSO;
+  }
+  else if (gum_maybe_extract_from_apk (self->path, &self->file_data,
+      &self->file_size))
+  {
+    self->source = GUM_ELF_SOURCE_BLOB;
   }
   else
   {
@@ -162,7 +178,7 @@ gum_elf_module_constructed (GObject * object)
     if (self->file_data == MAP_FAILED)
       goto mmap_failed;
 
-    self->is_linux_vdso = FALSE;
+    self->source = GUM_ELF_SOURCE_FILE;
   }
 
   self->elf = elf_memory (self->file_data, self->file_size);
@@ -208,8 +224,19 @@ gum_elf_module_finalize (GObject * object)
   if (self->elf != NULL)
     elf_end (self->elf);
 
-  if (self->file_data != NULL && !self->is_linux_vdso)
-    munmap (self->file_data, self->file_size);
+  switch (self->source)
+  {
+    case GUM_ELF_SOURCE_NONE:
+      break;
+    case GUM_ELF_SOURCE_FILE:
+      munmap (self->file_data, self->file_size);
+      break;
+    case GUM_ELF_SOURCE_BLOB:
+      g_free (self->file_data);
+      break;
+    case GUM_ELF_SOURCE_VDSO:
+      break;
+  }
 
   g_free (self->path);
   g_free (self->name);
@@ -864,7 +891,7 @@ gum_elf_module_detect_dynamic_address_state (GumElfModule * self)
 {
   /* FIXME: this is not very generic */
 
-  if (self->is_linux_vdso)
+  if (self->source == GUM_ELF_SOURCE_VDSO)
     return GUM_ELF_DYNAMIC_ADDRESS_PRISTINE;
 
 #ifdef HAVE_ANDROID
@@ -935,4 +962,58 @@ gum_elf_module_has_interp (GumElfModule * self)
   }
 
   return FALSE;
+}
+
+static gboolean
+gum_maybe_extract_from_apk (const gchar * path,
+                            gpointer * file_data,
+                            gsize * file_size)
+{
+#if defined (HAVE_ANDROID) && defined (HAVE_MINIZIP)
+  gboolean success = FALSE;
+  gchar ** tokens;
+  const gchar * apk_path, * file_path, * bare_file_path;
+  void * zip_stream = NULL;
+  void * zip_reader = NULL;
+  gsize size;
+  gpointer buffer = NULL;
+
+  tokens = g_strsplit (path, "!", 2);
+  if (g_strv_length (tokens) != 2 || !g_str_has_suffix (tokens[0], ".apk"))
+    goto beach;
+  apk_path = tokens[0];
+  file_path = tokens[1];
+  bare_file_path = file_path + 1;
+
+  mz_stream_os_create (&zip_stream);
+  if (mz_stream_os_open (zip_stream, apk_path, MZ_OPEN_MODE_READ) != MZ_OK)
+    goto beach;
+
+  mz_zip_reader_create (&zip_reader);
+  if (mz_zip_reader_open (zip_reader, zip_stream) != MZ_OK)
+    goto beach;
+
+  if (mz_zip_reader_locate_entry (zip_reader, bare_file_path, TRUE) != MZ_OK)
+    goto beach;
+
+  size = mz_zip_reader_entry_save_buffer_length (zip_reader);
+  buffer = g_malloc (size);
+  if (mz_zip_reader_entry_save_buffer (zip_reader, buffer, size) != MZ_OK)
+    goto beach;
+
+  success = TRUE;
+
+  *file_data = g_steal_pointer (&buffer);
+  *file_size = size;
+
+beach:
+  g_free (buffer);
+  mz_zip_reader_delete (&zip_reader);
+  mz_stream_os_delete (&zip_stream);
+  g_strfreev (tokens);
+
+  return success;
+#else
+  return FALSE;
+#endif
 }

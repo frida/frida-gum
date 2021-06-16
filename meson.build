@@ -243,6 +243,15 @@ else
   have_libdwarf = false
 endif
 
+if host_os == 'android'
+  minizip_dep = dependency('minizip', required: false)
+  if minizip_dep.found()
+    cdata.set('HAVE_MINIZIP', 1)
+    extra_deps += [minizip_dep]
+    extra_requires_private += ['minizip']
+  endif
+endif
+
 tls_provider_dep = dependency('gioopenssl', required: false)
 if tls_provider_dep.found()
   cdata.set('HAVE_GIOOPENSSL', 1)
