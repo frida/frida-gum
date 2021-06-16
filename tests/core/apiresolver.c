@@ -12,6 +12,8 @@ TESTLIST_BEGIN (api_resolver)
   TESTENTRY (module_imports_can_be_resolved)
   TESTENTRY (objc_methods_can_be_resolved_case_sensitively)
   TESTENTRY (objc_methods_can_be_resolved_case_insensitively)
+  TESTENTRY (objc_method_can_be_resolved_from_class_method_address)
+  TESTENTRY (objc_method_can_be_resolved_from_instance_method_address)
 
 #ifdef HAVE_ANDROID
   TESTENTRY (linker_exports_can_be_resolved_on_android)
@@ -145,6 +147,52 @@ TESTCASE (objc_methods_can_be_resolved_case_insensitively)
   g_assert_cmpuint (ctx.number_of_calls, >, 1);
 }
 
+TESTCASE (objc_method_can_be_resolved_from_class_method_address)
+{
+  GumAddress address;
+  gchar * method = NULL;
+  GError * error = NULL;
+
+  fixture->resolver = gum_api_resolver_make ("objc");
+  if (fixture->resolver == NULL)
+  {
+    g_print ("<skipping, not available> ");
+    return;
+  }
+
+  gum_api_resolver_enumerate_matches (fixture->resolver, "+[NSArray array]",
+      resolve_method_impl, &address, &error);
+  g_assert_null (error);
+
+  method =
+      gum_objc_api_resolver_find_method_by_address (fixture->resolver, address);
+  g_assert_nonnull (method);
+  g_free (method);
+}
+
+TESTCASE (objc_method_can_be_resolved_from_instance_method_address)
+{
+  GumAddress address;
+  gchar * method = NULL;
+  GError * error = NULL;
+
+  fixture->resolver = gum_api_resolver_make ("objc");
+  if (fixture->resolver == NULL)
+  {
+    g_print ("<skipping, not available> ");
+    return;
+  }
+
+  gum_api_resolver_enumerate_matches (fixture->resolver,
+      "-[NSArray initWithArray:]", resolve_method_impl, &address, &error);
+  g_assert_null (error);
+
+  method =
+      gum_objc_api_resolver_find_method_by_address (fixture->resolver, address);
+  g_assert_nonnull (method);
+  g_free (method);
+}
+
 static gboolean
 match_found_cb (const GumApiDetails * details,
                 gpointer user_data)
@@ -154,6 +202,17 @@ match_found_cb (const GumApiDetails * details,
   ctx->number_of_calls++;
 
   return ctx->value_to_return;
+}
+
+static gboolean
+resolve_method_impl (const GumApiDetails * details,
+                     gpointer user_data)
+{
+  GumAddress * address = user_data;
+
+  *address = details->address;
+
+  return FALSE;
 }
 
 #ifdef HAVE_ANDROID

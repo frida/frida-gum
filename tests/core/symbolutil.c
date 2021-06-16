@@ -7,6 +7,11 @@
 
 #include "testutil.h"
 
+#ifdef HAVE_DARWIN
+# include "tests/stubs/objc/dummyclass.h"
+# include <objc/runtime.h>
+#endif
+
 #define TESTCASE(NAME) \
     void test_symbolutil_ ## NAME (void)
 #define TESTENTRY(NAME) \
@@ -14,6 +19,7 @@
 
 TESTLIST_BEGIN (symbolutil)
   TESTENTRY (symbol_details_from_address)
+  TESTENTRY (symbol_details_from_address_objc_fallback)
   TESTENTRY (symbol_name_from_address)
   TESTENTRY (find_external_public_function)
   TESTENTRY (find_local_static_function)
@@ -50,6 +56,18 @@ TESTCASE (symbol_details_from_address)
   g_assert_true (g_str_has_prefix (details.module_name, "gum-tests"));
   g_assert_cmpuint (details.symbol_name[0], ==, '0');
   g_assert_cmpuint (details.symbol_name[1], ==, 'x');
+#endif
+}
+
+TESTCASE (symbol_details_from_address_objc_fallback)
+{
+#ifdef HAVE_DARWIN
+  GumDebugSymbolDetails details;
+  void * mid_function = dummy_class_get_dummy_method_impl () + 20;
+  g_assert_true (gum_symbol_details_from_address (mid_function, &details));
+  g_assert_cmpstr (details.symbol_name, ==, "-[DummyClass dummyMethod:]");
+#else
+  g_print ("<skipping, not available> ");
 #endif
 }
 

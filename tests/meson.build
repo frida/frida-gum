@@ -29,6 +29,13 @@ if host_os_family == 'darwin'
   runner_name = 'gum-tests-unsigned'
 endif
 
+link_targets = [
+    gum_tests_core,
+    gum_tests_heap,
+    gum_tests_prof,
+    gum_tests_gumjs,
+]
+
 extra_test_deps = [lzma_dep]
 extra_link_args = []
 extra_link_depends = []
@@ -51,6 +58,9 @@ if host_os_family == 'darwin'
   symlist = 'gum-tests.symbols'
   extra_link_args += ['-Wl,-exported_symbols_list,' + join_paths(meson.current_source_dir(), symlist)]
   extra_link_depends += [symlist]
+
+  subdir('stubs/objc')
+  link_targets += objcdummyclass
 elif host_os_family != 'windows'
   if host_os == 'android'
     symscript = 'gum-tests-android.version'
@@ -70,12 +80,7 @@ if host_os == 'ios'
 endif
 
 runner = executable(runner_name, runner_sources + [test_data_stamp],
-  link_with: [
-    gum_tests_core,
-    gum_tests_heap,
-    gum_tests_prof,
-    gum_tests_gumjs,
-  ],
+  link_with: link_targets,
   dependencies: [gum_dep, gum_heap_dep, gum_prof_dep, tls_provider_dep] + extra_test_deps,
   link_args: extra_link_args,
   link_depends: extra_link_depends,

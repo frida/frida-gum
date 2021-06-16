@@ -418,6 +418,8 @@ GUM_API void gum_darwin_module_enumerate_function_starts (
     gpointer user_data);
 GUM_API const gchar * gum_darwin_module_get_dependency_by_ordinal (
     GumDarwinModule * self, gint ordinal);
+GUM_API gboolean gum_darwin_module_ensure_image_loaded (GumDarwinModule * self,
+    GError ** error);
 
 GUM_API void gum_darwin_threaded_item_parse (guint64 value,
     GumDarwinThreadedItem * result);

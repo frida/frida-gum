@@ -257,8 +257,6 @@ static gboolean gum_emit_section_init_offsets (
     const GumDarwinSectionDetails * details, gpointer user_data);
 static gboolean gum_emit_section_term_pointers (
     const GumDarwinSectionDetails * details, gpointer user_data);
-static gboolean gum_darwin_module_ensure_image_loaded (GumDarwinModule * self,
-    GError ** error);
 static gboolean gum_darwin_module_load_image_from_filesystem (
     GumDarwinModule * self, const gchar * path, GError ** error);
 static gboolean gum_darwin_module_load_image_header_from_filesystem (
@@ -1897,6 +1895,16 @@ gum_darwin_module_get_dependency_by_ordinal (GumDarwinModule * self,
   return g_ptr_array_index (self->dependencies, i);
 }
 
+gboolean
+gum_darwin_module_ensure_image_loaded (GumDarwinModule * self,
+                                       GError ** error)
+{
+  if (self->image != NULL)
+    return TRUE;
+
+  return gum_darwin_module_load_image_from_memory (self, error);
+}
+
 void
 gum_darwin_threaded_item_parse (guint64 value,
                                 GumDarwinThreadedItem * result)
@@ -1935,16 +1943,6 @@ gum_darwin_threaded_item_parse (guint64 value,
       result->rebase_address = top_8_bits | sign_bits | bottom_43_bits;
     }
   }
-}
-
-static gboolean
-gum_darwin_module_ensure_image_loaded (GumDarwinModule * self,
-                                       GError ** error)
-{
-  if (self->image != NULL)
-    return TRUE;
-
-  return gum_darwin_module_load_image_from_memory (self, error);
 }
 
 static gboolean

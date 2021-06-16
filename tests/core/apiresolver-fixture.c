@@ -6,6 +6,7 @@
 
 #include "gumapiresolver.h"
 
+#include "backend-darwin/gumobjcapiresolver-priv.h"
 #include "testutil.h"
 #ifdef HAVE_ANDROID
 # include "backend-linux/gumandroid.h"
@@ -50,4 +51,6 @@ test_api_resolver_fixture_teardown (TestApiResolverFixture * fixture,
 static gboolean check_module_import (const GumApiDetails * details,
     gpointer user_data);
 static gboolean match_found_cb (const GumApiDetails * details,
+    gpointer user_data);
+static gboolean resolve_method_impl (const GumApiDetails * details,
     gpointer user_data);

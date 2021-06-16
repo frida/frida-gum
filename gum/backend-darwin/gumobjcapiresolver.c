@@ -1,11 +1,13 @@
 /*
  * Copyright (C) 2016-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2020 Grant Douglas <grant@reconditorium.uk>
+ * Copyright (C)      2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gumobjcapiresolver.h"
+#include "gumobjcapiresolver-priv.h"
 
 #include "gumprocess.h"
 
@@ -456,4 +458,50 @@ gum_objc_class_metadata_get_methods (GumObjcClassMetadata * self,
   *count = *cached_method_count;
 
   return *cached_methods;
+}
+
+gchar *
+gum_objc_api_resolver_find_method_by_address (GumApiResolver * resolver,
+                                              GumAddress address)
+{
+  GumObjcApiResolver * self = GUM_OBJC_API_RESOLVER (resolver);
+  GHashTableIter iter;
+  GumObjcClassMetadata * klass;
+
+  g_hash_table_iter_init (&iter, self->class_by_handle);
+
+  while (g_hash_table_iter_next (&iter, NULL, (gpointer *) &klass))
+  {
+    const gchar all_method_types[] = { '+', '-', '\0' };
+    const gchar * t;
+
+    for (t = all_method_types; *t != '\0'; t++)
+    {
+      const Method * method_handles;
+      guint count, i;
+
+      method_handles = gum_objc_class_metadata_get_methods (klass, *t, &count);
+
+      for (i = 0; i != count; i++)
+      {
+        Method handle = method_handles[i];
+        GumAddress imp;
+
+        imp = GUM_ADDRESS (self->method_getImplementation (handle));
+
+        if (imp == address)
+        {
+          const gchar * name;
+          const gchar prefix[3] = { *t, '[', '\0' };
+          const gchar suffix[2] = { ']', '\0' };
+
+          name = self->sel_getName (self->method_getName (handle));
+
+          return g_strconcat (prefix, klass->name, " ", name, suffix, NULL);
+        }
+      }
+    }
+  }
+
+  return NULL;
 }
