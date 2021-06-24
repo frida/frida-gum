@@ -484,7 +484,8 @@ on_constructor_enter_handler (GumCObjectTracker * self,
   if (self->backtracer_instance != NULL)
   {
     self->backtracer_iface->generate (self->backtracer_instance,
-        invocation_context->cpu_context, &cobject->return_addresses);
+        invocation_context->cpu_context, &cobject->return_addresses,
+        GUM_MAX_BACKTRACE_DEPTH);
   }
 
   thread_context->data = cobject;

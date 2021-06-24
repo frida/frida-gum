@@ -355,7 +355,7 @@ gum_allocation_tracker_on_malloc_full (GumAllocationTracker * self,
     if (do_backtrace)
     {
       self->backtracer_iface->generate (self->backtracer_instance, cpu_context,
-          &return_addresses);
+          &return_addresses, GUM_MAX_BACKTRACE_DEPTH);
     }
     else
     {

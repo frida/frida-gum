@@ -109,6 +109,9 @@ struct GumV8Core
   GumPersistent<v8::FunctionTemplate>::type * cpu_context;
   GumPersistent<v8::Object>::type * cpu_context_value;
 
+  GumPersistent<v8::FunctionTemplate>::type * callback_context;
+  GumPersistent<v8::Object>::type * callback_context_value;
+
   GumPersistent<v8::FunctionTemplate>::type * source_map;
 };
 

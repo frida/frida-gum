@@ -497,7 +497,8 @@ gum_bounds_checker_try_alloc (GumBoundsChecker * self,
 
     g_assert (block.guard_size / 2 >= sizeof (GumReturnAddressArray));
     self->backtracer_iface->generate (self->backtracer_instance,
-        ctx->cpu_context, BLOCK_ALLOC_RETADDRS (&block));
+        ctx->cpu_context, BLOCK_ALLOC_RETADDRS (&block),
+        GUM_MAX_BACKTRACE_DEPTH);
 
     BLOCK_FREE_RETADDRS (&block)->len = 0;
 
@@ -526,7 +527,8 @@ gum_bounds_checker_try_free (GumBoundsChecker * self,
 
     g_assert (block.guard_size / 2 >= sizeof (GumReturnAddressArray));
     self->backtracer_iface->generate (self->backtracer_instance,
-        ctx->cpu_context, BLOCK_FREE_RETADDRS (&block));
+        ctx->cpu_context, BLOCK_FREE_RETADDRS (&block),
+        GUM_MAX_BACKTRACE_DEPTH);
 
     gum_mprotect (block.guard, block.guard_size, GUM_PAGE_NO_ACCESS);
   }
@@ -579,7 +581,7 @@ gum_bounds_checker_on_exception (GumExceptionDetails * details,
   if (self->backtracer_instance != NULL)
   {
     self->backtracer_iface->generate (self->backtracer_instance, NULL,
-        &accessed_at);
+        &accessed_at, GUM_MAX_BACKTRACE_DEPTH);
   }
 
   if (accessed_at.len > 0)

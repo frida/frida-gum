@@ -72,9 +72,20 @@ gum_backtracer_generate (GumBacktracer * self,
                          const GumCpuContext * cpu_context,
                          GumReturnAddressArray * return_addresses)
 {
+  gum_backtracer_generate_with_limit (self, cpu_context, return_addresses,
+      GUM_MAX_BACKTRACE_DEPTH);
+}
+
+void
+gum_backtracer_generate_with_limit (GumBacktracer * self,
+                                    const GumCpuContext * cpu_context,
+                                    GumReturnAddressArray * return_addresses,
+                                    guint limit)
+{
   GumBacktracerInterface * iface = GUM_BACKTRACER_GET_IFACE (self);
 
   g_assert (iface->generate != NULL);
 
-  iface->generate (self, cpu_context, return_addresses);
+  iface->generate (self, cpu_context, return_addresses,
+      limit);
 }

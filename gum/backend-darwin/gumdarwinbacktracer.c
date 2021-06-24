@@ -13,8 +13,12 @@
 # define GUM_FP_IS_ALIGNED(F) ((GPOINTER_TO_SIZE (F) & 0xf) == 8)
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
 # define GUM_FP_IS_ALIGNED(F) ((GPOINTER_TO_SIZE (F) & 0xf) == 0)
+# define GUM_FFI_STACK_SKIP (0xd8 / 8)
 #else
 # define GUM_FP_IS_ALIGNED(F) ((GPOINTER_TO_SIZE (F) & 0x1) == 0)
+# if defined (HAVE_ARM)
+#  define GUM_FFI_STACK_SKIP 1
+# endif
 #endif
 
 struct _GumDarwinBacktracer
@@ -26,7 +30,7 @@ static void gum_darwin_backtracer_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_darwin_backtracer_generate (GumBacktracer * backtracer,
     const GumCpuContext * cpu_context,
-    GumReturnAddressArray * return_addresses);
+    GumReturnAddressArray * return_addresses, guint limit);
 
 static gpointer gum_strip_item (gpointer address);
 
@@ -65,12 +69,17 @@ gum_darwin_backtracer_new (void)
 static void
 gum_darwin_backtracer_generate (GumBacktracer * backtracer,
                                 const GumCpuContext * cpu_context,
-                                GumReturnAddressArray * return_addresses)
+                                GumReturnAddressArray * return_addresses,
+                                guint limit)
 {
   pthread_t thread;
   gpointer stack_top, stack_bottom;
   gpointer * cur;
-  guint start_index, i;
+  guint start_index, n_skip, depth, i;
+  gboolean has_ffi_frames;
+#if defined (HAVE_ARM)
+  gpointer * ffi_next = NULL;
+#endif
   GumInvocationStack * invocation_stack;
 
   thread = pthread_self ();
@@ -85,29 +94,44 @@ gum_darwin_backtracer_generate (GumBacktracer * backtracer,
 
     return_addresses->items[0] = *((GumReturnAddress *) GSIZE_TO_POINTER (
         GUM_CPU_CONTEXT_XSP (cpu_context)));
+    has_ffi_frames = GUM_CPU_CONTEXT_XIP (cpu_context) == 0;
 #elif defined (HAVE_ARM)
     cur = GSIZE_TO_POINTER (cpu_context->r[7]);
 
     return_addresses->items[0] = GSIZE_TO_POINTER (cpu_context->lr);
+    has_ffi_frames = cpu_context->pc == 0;
 #elif defined (HAVE_ARM64)
     cur = GSIZE_TO_POINTER (cpu_context->fp);
 
     return_addresses->items[0] = GSIZE_TO_POINTER (cpu_context->lr);
+    has_ffi_frames = cpu_context->pc == 0;
 #else
 # error Unsupported architecture
 #endif
-    return_addresses->items[0] = gum_strip_item (return_addresses->items[0]);
-    start_index = 1;
+    if (has_ffi_frames)
+    {
+      n_skip = 2;
+      start_index = 0;
+    }
+    else
+    {
+      return_addresses->items[0] = gum_strip_item (return_addresses->items[0]);
+      n_skip = 0;
+      start_index = 1;
+    }
   }
   else
   {
     cur = __builtin_frame_address (0);
-
+    has_ffi_frames = FALSE;
+    n_skip = 0;
     start_index = 0;
   }
 
+  depth = MIN (limit, G_N_ELEMENTS (return_addresses->items));
+
   for (i = start_index;
-      i < G_N_ELEMENTS (return_addresses->items) &&
+      i < depth &&
       cur >= (gpointer *) stack_bottom &&
       cur <= (gpointer *) stack_top &&
       GUM_FP_IS_ALIGNED (cur);
@@ -124,7 +148,29 @@ gum_darwin_backtracer_generate (GumBacktracer * backtracer,
     next = *cur;
     if (next <= cur)
       break;
+
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+    if (has_ffi_frames && n_skip == 1)
+      next = cur + GUM_FFI_STACK_SKIP + 1;
+#elif defined (HAVE_ARM)
+    if (has_ffi_frames && n_skip == 1)
+    {
+      ffi_next = next;
+      next = cur + GUM_FFI_STACK_SKIP + 1;
+    }
+    else if (n_skip == 0 && ffi_next != NULL)
+    {
+      next = ffi_next;
+      ffi_next = NULL;
+    }
+#endif
+
     cur = next;
+    if (n_skip > 0)
+    {
+      n_skip--;
+      i--;
+    }
   }
   return_addresses->len = i;
 

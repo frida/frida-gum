@@ -9,6 +9,10 @@
 
 #include "script-fixture.c"
 
+#if defined (HAVE_WINDOWS)
+# include <intrin.h>
+#endif
+
 TESTLIST_BEGIN (script)
   TESTENTRY (invalid_script_should_return_null)
   TESTENTRY (strict_mode_should_be_enforced)
@@ -288,6 +292,13 @@ TESTLIST_BEGIN (script)
     TESTENTRY (native_callback_is_a_native_pointer)
     TESTENTRY (native_callback_memory_should_be_eagerly_reclaimed)
     TESTENTRY (native_callback_should_be_kept_alive_during_calls)
+#if defined (HAVE_DARWIN)
+    TESTENTRY (native_callback_should_get_accurate_backtraces)
+    TESTENTRY (native_callback_should_get_accurate_backtraces_2)
+#endif
+#if defined (HAVE_WINDOWS)
+    TESTENTRY (native_callback_should_get_accurate_backtraces)
+#endif
 #if defined (HAVE_WINDOWS) && GLIB_SIZEOF_VOID_P == 4
     TESTENTRY (native_callback_should_support_fastcall)
     TESTENTRY (native_callback_should_support_stdcall)
@@ -1717,7 +1728,244 @@ TESTCASE (native_callback_should_be_kept_alive_during_calls)
   EXPECT_NO_MESSAGES ();
 }
 
-#if defined (HAVE_WINDOWS) && GLIB_SIZEOF_VOID_P == 4
+#if defined (HAVE_DARWIN)
+
+TESTCASE (native_callback_should_get_accurate_backtraces)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+# ifdef HAVE_ARM
+    "Module.load('/System/Library/Frameworks/Foundation.framework/Foundation');"
+# endif
+
+    "const {"
+    "  __NSCFBoolean,"
+    "  NSAutoreleasePool,"
+    "  NSData,"
+    "  NSJSONSerialization,"
+    "} = ObjC.classes;"
+
+    "const pool = NSAutoreleasePool.alloc().init();"
+    "let reference = null;"
+    "let sample = null;"
+    "let referenceRet = null;"
+    "let sampleRet = null;"
+
+    "try {"
+    "  const jsonString = '{\"a\":{\"b\":{\"c\":{\"d\":{\"e\":{\"f\":{\"g\":' +"
+    "     '{\"h\":{\"i\":{\"j\":{\"k\":{\"l\":{\"m\":{\"n\":{\"o\":{\"p\":' +"
+    "     '{\"q\":{},\"cool\":true}}}}}}}}}}}}}}}}}';"
+    "  const bytes = Memory.allocUtf8String(jsonString);"
+    "  const data = NSData.dataWithBytes_length_(bytes,"
+    "      jsonString.length);"
+    "  const jsonObject =  NSJSONSerialization"
+    "      .JSONObjectWithData_options_error_(data, 0, NULL);"
+
+    "  const method = __NSCFBoolean['- boolValue'];"
+    "  const listener = Interceptor.attach(method.implementation, {"
+    "    onEnter () {"
+    "      listener.detach();"
+    "      if (reference === null) {"
+    "        reference = Thread.backtrace(this.context,"
+    "            Backtracer.ACCURATE);"
+    "        referenceRet = this.returnAddress;"
+    "      }"
+    "    }"
+    "  });"
+
+    "  NSJSONSerialization"
+    "    .dataWithJSONObject_options_error_(jsonObject, 0, NULL);"
+
+    "  const origImpl = method.implementation;"
+    "  method.implementation = ObjC.implement(method,"
+    "  function (handle, selector) {"
+    "    if (sample === null) {"
+    "      sample = Thread.backtrace(this.context,"
+    "          Backtracer.ACCURATE);"
+    "      sampleRet = this.returnAddress;"
+    "      send('returnAddress ' +"
+    "          (sample[0].equals(sampleRet) ? 'ok' : 'error'));"
+    "    }"
+    "    return origImpl(handle, selector);"
+    "  });"
+
+    "  NSJSONSerialization"
+    "    .dataWithJSONObject_options_error_(jsonObject, 0, NULL);"
+
+    "  method.implementation = origImpl;"
+    "} finally {"
+    "  pool.release();"
+    "}"
+
+    "let backtraceEquals = true;"
+    "for (let i = 0; i !== reference.length; i++) {"
+    "  try {"
+    "    if (!reference[i].equals(sample[i])) {"
+    "      backtraceEquals = false;"
+    "      break;"
+    "    }"
+    "  } catch (e) {"
+    "    backtraceEquals = false;"
+    "    break;"
+    "  }"
+    "}"
+
+    "if (backtraceEquals) {"
+    "  send('backtrace ok');"
+    "} else {"
+    "  send('backtrace error');"
+    "}"
+
+    "if (referenceRet.equals(sampleRet)) {"
+    "  send('returnAddress consistent');"
+    "} else {"
+    "  send('returnAddress inconsistent: ' + referenceRet +"
+    "      ' got ' + sampleRet);"
+    "}"
+  );
+
+  EXPECT_SEND_MESSAGE_WITH ("\"returnAddress ok\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"backtrace ok\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"returnAddress consistent\"");
+}
+
+TESTCASE (native_callback_should_get_accurate_backtraces_2)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+# ifdef HAVE_ARM
+    "Module.load('/System/Library/Frameworks/Foundation.framework/Foundation');"
+# endif
+
+    "const {"
+    "  NSAutoreleasePool,"
+    "  NSDataDetector,"
+    "  NSDateCheckingResult,"
+    "  NSString"
+    "} = ObjC.classes;"
+
+    "const pool = NSAutoreleasePool.alloc().init();"
+
+    "let reference = null;"
+    "let sample = null;"
+    "let referenceRet = null;"
+    "let sampleRet = null;"
+    "const textWithTime = 'is scheduled for tomorrow night' +"
+    "    'from 9 PM PST to 5 AM EST if i remember correctly';"
+
+    "try {"
+    "  const testString = NSString.stringWithString_(textWithTime);"
+    "  const range = [0, textWithTime.length];"
+    "  const detector = NSDataDetector"
+    "      .dataDetectorWithTypes_error_(0xffffffff, NULL);"
+    "  const methodName = '- initWithRange:date:timeZone:duration:' +"
+    "      'referenceDate:underlyingResult:timeIsSignificant:' +"
+    "      'timeIsApproximate:timeIsPast:leadingText:trailingText:';"
+    "  const method = NSDateCheckingResult[methodName];"
+
+    "  const listener = Interceptor.attach(method.implementation, {"
+    "    onEnter () {"
+    "      listener.detach();"
+    "      if (reference === null) {"
+    "        reference = Thread.backtrace(this.context,"
+    "            Backtracer.ACCURATE);"
+    "        referenceRet = this.returnAddress;"
+    "      }"
+    "    }"
+    "  });"
+
+    "  detector.matchesInString_options_range_(testString, 0, range);"
+
+    "  const origImpl = method.implementation;"
+    "  method.implementation = ObjC.implement(method,"
+    "    function (handle, selector, ...args) {"
+    "      if (sample === null) {"
+    "        sample = Thread.backtrace(this.context,"
+    "            Backtracer.ACCURATE);"
+    "        sampleRet = this.returnAddress;"
+    "        send('returnAddress ' +"
+    "            (sample[0].equals(sampleRet) ? 'ok' : 'error'));"
+    "      }"
+    "      return origImpl(handle, selector, ...args);"
+    "    });"
+
+    "  detector.matchesInString_options_range_(testString, 0, range);"
+    "  method.implementation = origImpl;"
+    "} finally {"
+    "  pool.release();"
+    "}"
+
+    "let backtraceEquals = true;"
+    "for (let i = 0; i !== reference.length; i++) {"
+    "  try {"
+    "    if (!reference[i].equals(sample[i])) {"
+    "      backtraceEquals = false;"
+    "      break;"
+    "    }"
+    "  } catch (e) {"
+    "    backtraceEquals = false;"
+    "    break;"
+    "  }"
+    "}"
+
+    "if (backtraceEquals) {"
+    "  send('backtrace ok');"
+    "} else {"
+    "  send('backtrace error');"
+    "}"
+
+    "if (referenceRet.equals(sampleRet)) {"
+    "  send('returnAddress consistent');"
+    "} else {"
+    "  send('returnAddress inconsistent: ' + referenceRet);"
+    "}"
+  );
+
+  EXPECT_SEND_MESSAGE_WITH ("\"returnAddress ok\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"backtrace ok\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"returnAddress consistent\"");
+}
+
+#endif
+
+#if defined (HAVE_WINDOWS)
+
+void *
+sample_return_address ()
+{
+  return _ReturnAddress ();
+}
+
+TESTCASE (native_callback_should_get_accurate_backtraces)
+{
+  void (*cb) (void);
+  void * ret_address = sample_return_address ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const min = " GUM_PTR_CONST ";"
+      "const max = min.add(128);"
+      "let cb = new NativeCallback(function () {"
+      "  cb = null;"
+      "  gc();"
+      "  if (this.returnAddress.compare(min) > 0 &&"
+      "      this.returnAddress.compare(max) < 0) {"
+      "    send('return address ok');"
+      "  } else {"
+      "    send('return address error');"
+      "  }"
+      "  send('returning');"
+      "}, 'void', []);"
+      "WeakRef.bind(cb, () => { send('dead'); });"
+      GUM_PTR_CONST ".writePointer(cb);",
+      ret_address, &cb);
+  EXPECT_NO_MESSAGES ();
+
+  cb ();
+  EXPECT_SEND_MESSAGE_WITH ("\"return address ok\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"returning\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"dead\"");
+  EXPECT_NO_MESSAGES ();
+}
+
+# if GLIB_SIZEOF_VOID_P == 4
 
 TESTCASE (native_callback_should_support_fastcall)
 {
@@ -1753,6 +2001,7 @@ TESTCASE (native_callback_should_support_stdcall)
   EXPECT_NO_MESSAGES ();
 }
 
+# endif
 #endif
 
 #ifdef G_OS_UNIX

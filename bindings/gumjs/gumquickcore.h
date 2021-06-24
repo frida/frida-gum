@@ -108,6 +108,7 @@ struct _GumQuickCore
   JSClassID native_callback_class;
   JSClassID cpu_context_class;
   JSClassID source_map_class;
+  JSClassID callback_context_class;
   JSValue source_map_ctor;
 
 #define GUM_DECLARE_ATOM(id) \

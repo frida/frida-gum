@@ -21,7 +21,7 @@ struct _GumBacktracerInterface
   GTypeInterface parent;
 
   void (* generate) (GumBacktracer * self, const GumCpuContext * cpu_context,
-      GumReturnAddressArray * return_addresses);
+      GumReturnAddressArray * return_addresses, guint limit);
 };
 
 GUM_API GumBacktracer * gum_backtracer_make_accurate (void);
@@ -30,6 +30,9 @@ GUM_API GumBacktracer * gum_backtracer_make_fuzzy (void);
 GUM_API void gum_backtracer_generate (GumBacktracer * self,
     const GumCpuContext * cpu_context,
     GumReturnAddressArray * return_addresses);
+GUM_API void gum_backtracer_generate_with_limit (GumBacktracer * self,
+    const GumCpuContext * cpu_context,
+    GumReturnAddressArray * return_addresses, guint limit);
 
 G_END_DECLS
 

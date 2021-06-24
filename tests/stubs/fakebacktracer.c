@@ -11,7 +11,7 @@ static void gum_fake_backtracer_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_fake_backtracer_generate (GumBacktracer * backtracer,
     const GumCpuContext * cpu_context,
-    GumReturnAddressArray * return_addresses);
+    GumReturnAddressArray * return_addresses, guint limit);
 
 G_DEFINE_TYPE_EXTENDED (GumFakeBacktracer,
                         gum_fake_backtracer,
@@ -55,11 +55,13 @@ gum_fake_backtracer_new (const GumReturnAddress * ret_addrs,
 static void
 gum_fake_backtracer_generate (GumBacktracer * backtracer,
                               const GumCpuContext * cpu_context,
-                              GumReturnAddressArray * return_addresses)
+                              GumReturnAddressArray * return_addresses,
+                              guint limit)
 {
   GumFakeBacktracer * self = GUM_FAKE_BACKTRACER (backtracer);
+  guint depth = MIN (limit, self->num_ret_addrs);
 
   memcpy (return_addresses->items, self->ret_addrs,
-      self->num_ret_addrs * sizeof (GumReturnAddress));
-  return_addresses->len = self->num_ret_addrs;
+      depth * sizeof (GumReturnAddress));
+  return_addresses->len = depth;
 }
