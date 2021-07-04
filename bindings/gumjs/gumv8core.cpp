@@ -3048,7 +3048,7 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
 #if defined (HAVE_I386) && defined (_MSC_VER)
   return_address = GPOINTER_TO_SIZE (_ReturnAddress ());
   stack_pointer = GPOINTER_TO_SIZE (_AddressOfReturnAddress ());
-  frame_pointer = *((guintptr*) stack_pointer - 1);
+  frame_pointer = *((guintptr *) stack_pointer - 1);
 #elif defined (HAVE_I386)
 # if GLIB_SIZEOF_VOID_P == 4
   asm ("mov %%esp, %0" : "=m" (stack_pointer));
