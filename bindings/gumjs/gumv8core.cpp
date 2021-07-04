@@ -3202,7 +3202,6 @@ GUMJS_DEFINE_CLASS_GETTER (gumjs_callback_context_get_return_address,
 {
   if (self->return_address == 0)
   {
-    auto isolate = core->isolate;
     auto instance (Local<Object>::New (isolate, *self->cpu_context));
     auto cpu_context = (GumCpuContext *)
         instance->GetInternalField (0).As<External> ()->Value ();
