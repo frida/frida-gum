@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
- * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -105,6 +105,9 @@ struct GumV8Core
   GumPersistent<v8::Object>::type * native_return_value;
   GumPersistent<v8::String>::type * value_key;
   GumPersistent<v8::String>::type * system_error_key;
+
+  GumPersistent<v8::FunctionTemplate>::type * callback_context;
+  GumPersistent<v8::Object>::type * callback_context_value;
 
   GumPersistent<v8::FunctionTemplate>::type * cpu_context;
   GumPersistent<v8::Object>::type * cpu_context_value;

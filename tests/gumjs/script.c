@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
- * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -288,9 +288,16 @@ TESTLIST_BEGIN (script)
     TESTENTRY (native_callback_is_a_native_pointer)
     TESTENTRY (native_callback_memory_should_be_eagerly_reclaimed)
     TESTENTRY (native_callback_should_be_kept_alive_during_calls)
-#if defined (HAVE_WINDOWS) && GLIB_SIZEOF_VOID_P == 4
+#ifdef HAVE_WINDOWS
+# if GLIB_SIZEOF_VOID_P == 4
     TESTENTRY (native_callback_should_support_fastcall)
     TESTENTRY (native_callback_should_support_stdcall)
+# endif
+    TESTENTRY (native_callback_should_get_accurate_backtraces)
+#endif
+#ifdef HAVE_DARWIN
+    TESTENTRY (native_callback_should_get_accurate_backtraces)
+    TESTENTRY (native_callback_should_get_accurate_backtraces_2)
 #endif
   TESTGROUP_END ()
 
@@ -1717,7 +1724,9 @@ TESTCASE (native_callback_should_be_kept_alive_during_calls)
   EXPECT_NO_MESSAGES ();
 }
 
-#if defined (HAVE_WINDOWS) && GLIB_SIZEOF_VOID_P == 4
+#ifdef HAVE_WINDOWS
+
+# if GLIB_SIZEOF_VOID_P == 4
 
 TESTCASE (native_callback_should_support_fastcall)
 {
@@ -1751,6 +1760,222 @@ TESTCASE (native_callback_should_support_stdcall)
   g_assert_cmpint (cb (42), ==, 21);
   EXPECT_SEND_MESSAGE_WITH ("42");
   EXPECT_NO_MESSAGES ();
+}
+
+# endif
+
+static void *
+sample_return_address (void)
+{
+  return _ReturnAddress ();
+}
+
+TESTCASE (native_callback_should_get_accurate_backtraces)
+{
+  void (* cb) (void);
+  void * ret_address = sample_return_address ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const min = " GUM_PTR_CONST ";"
+      "const max = min.add(128);"
+      "const cb = new NativeCallback(function () {"
+      "  if (this.returnAddress.compare(min) > 0 &&"
+      "      this.returnAddress.compare(max) < 0) {"
+      "    send('return address ok');"
+      "  } else {"
+      "    send('return address error');"
+      "  }"
+      "}, 'void', []);"
+      GUM_PTR_CONST ".writePointer(cb);",
+      ret_address, &cb);
+  EXPECT_NO_MESSAGES ();
+
+  cb ();
+  EXPECT_SEND_MESSAGE_WITH ("\"return address ok\"");
+  EXPECT_NO_MESSAGES ();
+}
+#endif
+
+#ifdef HAVE_DARWIN
+
+TESTCASE (native_callback_should_get_accurate_backtraces)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+# ifdef HAVE_ARM
+    "Module.load('/System/Library/Frameworks/Foundation.framework/Foundation');"
+# endif
+
+    "const {"
+    "  __NSCFBoolean,"
+    "  NSAutoreleasePool,"
+    "  NSData,"
+    "  NSJSONSerialization,"
+    "} = ObjC.classes;"
+
+    "const pool = NSAutoreleasePool.alloc().init();"
+    "let reference = null;"
+    "let sample = null;"
+    "let referenceRet = null;"
+    "let sampleRet = null;"
+
+    "try {"
+    "  const jsonString = '{\"a\":{\"b\":{\"c\":{\"d\":{\"e\":{\"f\":{\"g\":' +"
+    "     '{\"h\":{\"i\":{\"j\":{\"k\":{\"l\":{\"m\":{\"n\":{\"o\":{\"p\":' +"
+    "     '{\"q\":{},\"cool\":true}}}}}}}}}}}}}}}}}';"
+    "  const bytes = Memory.allocUtf8String(jsonString);"
+    "  const data = NSData.dataWithBytes_length_(bytes, jsonString.length);"
+    "  const jsonObject = NSJSONSerialization"
+    "      .JSONObjectWithData_options_error_(data, 0, NULL);"
+
+    "  const method = __NSCFBoolean['- boolValue'];"
+    "  const listener = Interceptor.attach(method.implementation, {"
+    "    onEnter() {"
+    "      listener.detach();"
+    "      if (reference === null) {"
+    "        reference = Thread.backtrace(this.context, Backtracer.ACCURATE);"
+    "        referenceRet = this.returnAddress;"
+    "      }"
+    "    }"
+    "  });"
+
+    "  NSJSONSerialization"
+    "      .dataWithJSONObject_options_error_(jsonObject, 0, NULL);"
+
+    "  const origImpl = method.implementation;"
+    "  method.implementation = ObjC.implement(method,"
+    "      function (handle, selector) {"
+    "        if (sample === null) {"
+    "          sample = Thread.backtrace(this.context, Backtracer.ACCURATE);"
+    "          sampleRet = this.returnAddress;"
+    "          send('returnAddress ' +"
+    "              (sample[0].equals(sampleRet) ? 'ok' : 'error'));"
+    "        }"
+    "        return origImpl(handle, selector);"
+    "      });"
+
+    "  NSJSONSerialization"
+    "      .dataWithJSONObject_options_error_(jsonObject, 0, NULL);"
+
+    "  method.implementation = origImpl;"
+    "} finally {"
+    "  pool.release();"
+    "}"
+
+    "let backtraceMatches = true;"
+    "for (let i = 0; i !== reference.length; i++) {"
+    "  try {"
+    "    if (!reference[i].equals(sample[i])) {"
+    "      backtraceMatches = false;"
+    "      break;"
+    "    }"
+    "  } catch (e) {"
+    "    backtraceMatches = false;"
+    "    break;"
+    "  }"
+    "}"
+
+    "send(backtraceMatches ? 'backtrace ok' : 'backtrace error');"
+
+    "if (referenceRet.equals(sampleRet)) {"
+    "  send('returnAddress consistent');"
+    "} else {"
+    "  send('returnAddress inconsistent: ' + referenceRet +"
+    "      ' got ' + sampleRet);"
+    "}"
+  );
+
+  EXPECT_SEND_MESSAGE_WITH ("\"returnAddress ok\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"backtrace ok\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"returnAddress consistent\"");
+}
+
+TESTCASE (native_callback_should_get_accurate_backtraces_2)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+# ifdef HAVE_ARM
+    "Module.load('/System/Library/Frameworks/Foundation.framework/Foundation');"
+# endif
+
+    "const {"
+    "  NSAutoreleasePool,"
+    "  NSDataDetector,"
+    "  NSDateCheckingResult,"
+    "  NSString"
+    "} = ObjC.classes;"
+
+    "const pool = NSAutoreleasePool.alloc().init();"
+
+    "let reference = null;"
+    "let sample = null;"
+    "let referenceRet = null;"
+    "let sampleRet = null;"
+    "const textWithTime = 'is scheduled for tomorrow night' +"
+    "    'from 9 PM PST to 5 AM EST if i remember correctly';"
+
+    "try {"
+    "  const testString = NSString.stringWithString_(textWithTime);"
+    "  const range = [0, textWithTime.length];"
+    "  const detector = NSDataDetector"
+    "      .dataDetectorWithTypes_error_(0xffffffff, NULL);"
+    "  const methodName = '- initWithRange:date:timeZone:duration:' +"
+    "      'referenceDate:underlyingResult:timeIsSignificant:' +"
+    "      'timeIsApproximate:timeIsPast:leadingText:trailingText:';"
+    "  const method = NSDateCheckingResult[methodName];"
+
+    "  const listener = Interceptor.attach(method.implementation, {"
+    "    onEnter() {"
+    "      listener.detach();"
+    "      if (reference === null) {"
+    "        reference = Thread.backtrace(this.context, Backtracer.ACCURATE);"
+    "        referenceRet = this.returnAddress;"
+    "      }"
+    "    }"
+    "  });"
+
+    "  detector.matchesInString_options_range_(testString, 0, range);"
+
+    "  const origImpl = method.implementation;"
+    "  method.implementation = ObjC.implement(method,"
+    "    function (handle, selector, ...args) {"
+    "      if (sample === null) {"
+    "        sample = Thread.backtrace(this.context, Backtracer.ACCURATE);"
+    "        sampleRet = this.returnAddress;"
+    "        send('returnAddress ' +"
+    "            (sample[0].equals(sampleRet) ? 'ok' : 'error'));"
+    "      }"
+    "      return origImpl(handle, selector, ...args);"
+    "    });"
+
+    "  detector.matchesInString_options_range_(testString, 0, range);"
+    "  method.implementation = origImpl;"
+    "} finally {"
+    "  pool.release();"
+    "}"
+
+    "let backtraceEquals = true;"
+    "for (let i = 0; i !== reference.length; i++) {"
+    "  try {"
+    "    if (!reference[i].equals(sample[i])) {"
+    "      backtraceEquals = false;"
+    "      break;"
+    "    }"
+    "  } catch (e) {"
+    "    backtraceEquals = false;"
+    "    break;"
+    "  }"
+    "}"
+
+    "send(backtraceEquals ? 'backtrace ok' : 'backtrace error');"
+
+    "if (referenceRet.equals(sampleRet))"
+    "  send('returnAddress consistent');"
+    "else"
+    "  send('returnAddress inconsistent: ' + referenceRet);"
+  );
+
+  EXPECT_SEND_MESSAGE_WITH ("\"returnAddress ok\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"backtrace ok\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"returnAddress consistent\"");
 }
 
 #endif
