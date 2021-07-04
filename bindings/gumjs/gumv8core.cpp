@@ -2,7 +2,7 @@
  * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
- * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -17,13 +17,13 @@
 #include "gumv8script-priv.h"
 
 #include <ffi.h>
+#ifdef _MSC_VER
+# include <intrin.h>
+#endif
 #ifdef HAVE_PTRAUTH
 # include <ptrauth.h>
 #endif
 #include <string.h>
-#if defined(_MSC_VER)
-# include <intrin.h>
-#endif
 #include <gum/gum-init.h>
 
 #define GUMJS_MODULE_NAME Core
@@ -304,16 +304,16 @@ static void gum_v8_native_callback_clear (GumV8NativeCallback * self);
 static void gum_v8_native_callback_invoke (ffi_cif * cif,
     void * return_value, void ** args, void * user_data);
 
-GUMJS_DECLARE_CONSTRUCTOR (gumjs_cpu_context_construct)
-GUMJS_DECLARE_GETTER (gumjs_cpu_context_get_register)
-GUMJS_DECLARE_SETTER (gumjs_cpu_context_set_register)
-
 static GumV8CallbackContext * gum_v8_callback_context_new_persistent (
     GumV8Core * core, GumCpuContext * cpu_context,
     GumAddress raw_return_address);
 static void gum_v8_callback_context_free (GumV8CallbackContext * self);
 GUMJS_DECLARE_GETTER (gumjs_callback_context_get_return_address)
 GUMJS_DECLARE_GETTER (gumjs_callback_context_get_cpu_context)
+
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_cpu_context_construct)
+GUMJS_DECLARE_GETTER (gumjs_cpu_context_get_register)
+GUMJS_DECLARE_SETTER (gumjs_cpu_context_set_register)
 
 static MaybeLocal<Object> gumjs_source_map_new (const gchar * json,
     GumV8Core * core);
@@ -596,6 +596,12 @@ _gum_v8_core_init (GumV8Core * self,
   native_callback->Inherit (native_pointer);
   native_callback->InstanceTemplate ()->SetInternalFieldCount (1);
 
+  auto cc = _gum_v8_create_class ("CallbackContext", nullptr, scope,
+      module, isolate);
+  _gum_v8_class_add (cc, gumjs_callback_context_values, module, isolate);
+  self->callback_context =
+      new GumPersistent<FunctionTemplate>::type (isolate, cc);
+
   auto cpu_context = _gum_v8_create_class ("CpuContext",
       gumjs_cpu_context_construct, scope, module, isolate);
   auto cpu_context_object = cpu_context->InstanceTemplate ();
@@ -755,12 +761,6 @@ _gum_v8_core_init (GumV8Core * self,
   GUM_DEFINE_CPU_CONTEXT_ACCESSOR (k1);
 #endif
 
-  auto cc = _gum_v8_create_class ("CallbackContext", nullptr, scope,
-      module, isolate);
-  _gum_v8_class_add (cc, gumjs_callback_context_values, module, isolate);
-  self->callback_context =
-      new GumPersistent<FunctionTemplate>::type (isolate, cc);
-
   auto source_map = _gum_v8_create_class ("SourceMap",
       gumjs_source_map_construct, scope, module, isolate);
   _gum_v8_class_add (source_map, gumjs_source_map_functions, module, isolate);
@@ -871,6 +871,13 @@ _gum_v8_core_realize (GumV8Core * self)
   self->native_return_value = new GumPersistent<Object>::type (isolate,
       native_return_value);
 
+  auto callback_context = Local<FunctionTemplate>::New (isolate,
+      *self->callback_context);
+  auto callback_context_value = callback_context->GetFunction (context)
+      .ToLocalChecked ()->NewInstance (context, 0, nullptr).ToLocalChecked ();
+  self->callback_context_value = new GumPersistent<Object>::type (isolate,
+      callback_context_value);
+
   auto cpu_context = Local<FunctionTemplate>::New (isolate, *self->cpu_context);
   Local<Value> args[] = {
     External::New (isolate, NULL),
@@ -880,13 +887,6 @@ _gum_v8_core_realize (GumV8Core * self)
       ->NewInstance (context, G_N_ELEMENTS (args), args).ToLocalChecked ();
   self->cpu_context_value = new GumPersistent<Object>::type (isolate,
       cpu_context_value);
-
-  auto callback_context = Local<FunctionTemplate>::New (isolate,
-      *self->callback_context);
-  auto callback_context_value = callback_context->GetFunction (context)
-      .ToLocalChecked ()->NewInstance (context, 0, nullptr).ToLocalChecked ();
-  self->callback_context_value = new GumPersistent<Object>::type (isolate,
-      callback_context_value);
 }
 
 gboolean
@@ -1036,6 +1036,9 @@ _gum_v8_core_dispose (GumV8Core * self)
   delete self->native_return_value;
   self->native_return_value = nullptr;
 
+  delete self->callback_context_value;
+  self->callback_context_value = nullptr;
+
   delete self->cpu_context_value;
   self->cpu_context_value = nullptr;
 }
@@ -1054,6 +1057,9 @@ _gum_v8_core_finalize (GumV8Core * self)
 
   delete self->cpu_context;
   self->cpu_context = nullptr;
+
+  delete self->callback_context;
+  self->callback_context = nullptr;
 
   delete self->native_function;
   self->native_function = nullptr;
@@ -3036,29 +3042,32 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
                                void ** args,
                                void * user_data)
 {
-  guintptr frame_pointer = 0, return_address = 0, stack_pointer = 0;
-
-#if defined (HAVE_ARM64)
-  asm ("mov %0, x29" : "=r" (frame_pointer));
-  asm ("mov %0, x30" : "=r" (return_address));
-  asm ("mov %0, sp" : "=r" (stack_pointer));
-
-  return_address &= G_GUINT64_CONSTANT (0x7fffffffff);
-#elif defined (HAVE_ARM)
-  asm ("mov %0, r7" : "=r" (frame_pointer));
-  asm ("mov %0, lr" : "=r" (return_address));
-  asm ("mov %0, sp" : "=r" (stack_pointer));
-#elif defined (HAVE_I386) && defined (_MSC_VER)
+  guintptr return_address = 0;
+  guintptr stack_pointer = 0;
+  guintptr frame_pointer = 0;
+#if defined (HAVE_I386) && defined (_MSC_VER)
   return_address = GPOINTER_TO_SIZE (_ReturnAddress ());
   stack_pointer = GPOINTER_TO_SIZE (_AddressOfReturnAddress ());
   frame_pointer = *((guintptr*) stack_pointer - 1);
 #elif defined (HAVE_I386)
-# if GLIB_SIZEOF_VOID_P == 8
-  asm ("movq %%rbp, %0" : "=m" (frame_pointer));
-  asm ("movq %%rsp, %0" : "=m" (stack_pointer));
-# else
-  asm ("mov %%ebp, %0" : "=m" (frame_pointer));
+# if GLIB_SIZEOF_VOID_P == 4
   asm ("mov %%esp, %0" : "=m" (stack_pointer));
+  asm ("mov %%ebp, %0" : "=m" (frame_pointer));
+# else
+  asm ("movq %%rsp, %0" : "=m" (stack_pointer));
+  asm ("movq %%rbp, %0" : "=m" (frame_pointer));
+# endif
+#elif defined (HAVE_ARM)
+  asm ("mov %0, lr" : "=r" (return_address));
+  asm ("mov %0, sp" : "=r" (stack_pointer));
+  asm ("mov %0, r7" : "=r" (frame_pointer));
+#elif defined (HAVE_ARM64)
+  asm ("mov %0, lr" : "=r" (return_address));
+  asm ("mov %0, sp" : "=r" (stack_pointer));
+  asm ("mov %0, x29" : "=r" (frame_pointer));
+
+# ifdef HAVE_DARWIN
+  return_address &= G_GUINT64_CONSTANT (0x7fffffffff);
 # endif
 #endif
 
@@ -3110,18 +3119,17 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
   else
   {
     GumCpuContext cpu_context = { 0, };
-
-#if defined(HAVE_ARM64)
-    cpu_context.fp = frame_pointer;
-    cpu_context.lr = return_address;
-    cpu_context.sp = stack_pointer;
-#elif defined(HAVE_ARM)
-    cpu_context.r[7] = frame_pointer;
-    cpu_context.lr = return_address;
-    cpu_context.sp = stack_pointer;
-#elif defined(HAVE_I386)
-    GUM_CPU_CONTEXT_XBP (&cpu_context) = frame_pointer;
+#if defined (HAVE_I386)
     GUM_CPU_CONTEXT_XSP (&cpu_context) = stack_pointer;
+    GUM_CPU_CONTEXT_XBP (&cpu_context) = frame_pointer;
+#elif defined (HAVE_ARM)
+    cpu_context.lr = return_address;
+    cpu_context.sp = stack_pointer;
+    cpu_context.r[7] = frame_pointer;
+#elif defined (HAVE_ARM64)
+    cpu_context.lr = return_address;
+    cpu_context.sp = stack_pointer;
+    cpu_context.fp = frame_pointer;
 #endif
 
     jcc = gum_v8_callback_context_new_persistent (self->core, &cpu_context,
@@ -3156,6 +3164,83 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
     argv[i].~Local<Value> ();
 
   gum_v8_native_callback_unref (self);
+}
+
+static GumV8CallbackContext *
+gum_v8_callback_context_new_persistent (GumV8Core * core,
+                                        GumCpuContext * cpu_context,
+                                        GumAddress raw_return_address)
+{
+  auto isolate = core->isolate;
+
+  auto jcc = g_slice_new (GumV8CallbackContext);
+
+  auto callback_context_value = Local<Object>::New (isolate,
+      *core->callback_context_value);
+  auto wrapper = callback_context_value->Clone ();
+  wrapper->SetAlignedPointerInInternalField (0, jcc);
+  jcc->wrapper = new GumPersistent<Object>::type (isolate, wrapper);
+  jcc->return_address = 0;
+  jcc->raw_return_address = raw_return_address;
+
+  jcc->cpu_context = new GumPersistent<Object>::type (isolate,
+      _gum_v8_cpu_context_new_immutable (cpu_context, core));
+
+  return jcc;
+}
+
+static void
+gum_v8_callback_context_free (GumV8CallbackContext * self)
+{
+  delete self->wrapper;
+
+  g_slice_free (GumV8CallbackContext, self);
+}
+
+GUMJS_DEFINE_CLASS_GETTER (gumjs_callback_context_get_return_address,
+                           GumV8CallbackContext)
+{
+  if (self->return_address == 0)
+  {
+    auto isolate = core->isolate;
+    auto instance (Local<Object>::New (isolate, *self->cpu_context));
+    auto cpu_context = (GumCpuContext *)
+        instance->GetInternalField (0).As<External> ()->Value ();
+
+    auto backtracer = gum_backtracer_make_accurate ();
+
+    if (backtracer == NULL)
+    {
+      self->return_address = self->raw_return_address;
+    }
+    else
+    {
+      GumReturnAddressArray ret_addrs;
+
+      gum_backtracer_generate_with_limit (backtracer, cpu_context,
+          &ret_addrs, 1);
+      self->return_address = GPOINTER_TO_SIZE (ret_addrs.items[0]);
+    }
+
+    g_clear_object (&backtracer);
+  }
+
+  info.GetReturnValue ().Set (
+      _gum_v8_native_pointer_new (GSIZE_TO_POINTER (self->return_address),
+        core));
+}
+
+GUMJS_DEFINE_CLASS_GETTER (gumjs_callback_context_get_cpu_context,
+                           GumV8CallbackContext)
+{
+  auto context = self->cpu_context;
+  if (context == nullptr)
+  {
+    _gum_v8_throw (isolate, "invalid operation");
+    return;
+  }
+
+  info.GetReturnValue ().Set (Local<Object>::New (isolate, *context));
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_cpu_context_construct)
@@ -3208,83 +3293,6 @@ gumjs_cpu_context_set_register (Local<Name> property,
     return;
 
   cpu_context[offset] = ptr;
-}
-
-static GumV8CallbackContext *
-gum_v8_callback_context_new_persistent (GumV8Core * core,
-                                        GumCpuContext * cpu_context,
-                                        GumAddress raw_return_address)
-{
-  auto isolate = core->isolate;
-
-  auto jcc = g_slice_new (GumV8CallbackContext);
-
-  auto callback_context_value = Local<Object>::New (isolate,
-      *core->callback_context_value);
-  auto wrapper = callback_context_value->Clone ();
-  wrapper->SetAlignedPointerInInternalField (0, jcc);
-  jcc->wrapper = new GumPersistent<Object>::type (isolate, wrapper);
-  jcc->return_address = 0;
-  jcc->raw_return_address = raw_return_address;
-
-  jcc->cpu_context = new GumPersistent<Object>::type (isolate,
-      _gum_v8_cpu_context_new_immutable (cpu_context, core));
-
-  return jcc;
-}
-
-static void
-gum_v8_callback_context_free (GumV8CallbackContext * self)
-{
-  delete self->wrapper;
-
-  g_slice_free (GumV8CallbackContext, self);
-}
-
-GUMJS_DEFINE_CLASS_GETTER (gumjs_callback_context_get_return_address,
-                           GumV8CallbackContext)
-{
-  if (self->return_address == 0)
-  {
-    auto isolate = core->isolate;
-    auto instance (Local<Object>::New (isolate, *self->cpu_context));
-    auto cpu_context = (GumCpuContext *)
-      instance->GetInternalField (0).As<External> ()->Value ();
-
-    auto backtracer = gum_backtracer_make_accurate ();
-
-    if (backtracer == NULL)
-    {
-      self->return_address = self->raw_return_address;
-    }
-    else
-    {
-      GumReturnAddressArray ret_addrs;
-
-      gum_backtracer_generate_with_limit (backtracer, cpu_context,
-          &ret_addrs, 1);
-      self->return_address = GPOINTER_TO_SIZE (ret_addrs.items[0]);
-    }
-
-    g_clear_pointer (&backtracer, g_object_unref);
-  }
-
-  info.GetReturnValue ().Set (
-      _gum_v8_native_pointer_new (GSIZE_TO_POINTER (self->return_address),
-        core));
-}
-
-GUMJS_DEFINE_CLASS_GETTER (gumjs_callback_context_get_cpu_context,
-                           GumV8CallbackContext)
-{
-  auto context = self->cpu_context;
-  if (context == nullptr)
-  {
-    _gum_v8_throw (isolate, "invalid operation");
-    return;
-  }
-
-  info.GetReturnValue ().Set (Local<Object>::New (isolate, *context));
 }
 
 static MaybeLocal<Object>
