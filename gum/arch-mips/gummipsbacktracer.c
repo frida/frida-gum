@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2021 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -21,8 +22,8 @@ static void gum_mips_backtracer_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_mips_backtracer_dispose (GObject * object);
 static void gum_mips_backtracer_generate (GumBacktracer * backtracer,
-    const GumCpuContext * cpu_context,
-    GumReturnAddressArray * return_addresses, guint limit);
+    const GumCpuContext * cpu_context, GumReturnAddressArray * return_addresses,
+    guint limit);
 
 G_DEFINE_TYPE_EXTENDED (GumMipsBacktracer,
                         gum_mips_backtracer,
