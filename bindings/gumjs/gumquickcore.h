@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
- * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -106,9 +106,9 @@ struct _GumQuickCore
   JSClassID native_function_class;
   JSClassID system_function_class;
   JSClassID native_callback_class;
+  JSClassID callback_context_class;
   JSClassID cpu_context_class;
   JSClassID source_map_class;
-  JSClassID callback_context_class;
   JSValue source_map_ctor;
 
 #define GUM_DECLARE_ATOM(id) \
