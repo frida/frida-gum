@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
- * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -18,11 +18,11 @@
 #include "gumsourcemap.h"
 
 #include <ffi.h>
+#ifdef _MSC_VER
+# include <intrin.h>
+#endif
 #ifdef HAVE_PTRAUTH
 # include <ptrauth.h>
-#endif
-#if defined(_MSC_VER)
-# include <intrin.h>
 #endif
 
 #define GUM_QUICK_FFI_FUNCTION_PARAMS_EMPTY { NULL, }
@@ -179,10 +179,6 @@ GUMJS_DECLARE_GETTER (gumjs_frida_java_get_source_map)
 GUMJS_DECLARE_FUNCTION (gumjs_frida_objc_load)
 GUMJS_DECLARE_FUNCTION (gumjs_frida_java_load)
 
-GUMJS_DECLARE_FINALIZER (gumjs_callback_context_finalize)
-GUMJS_DECLARE_GETTER (gumjs_callback_context_get_return_address)
-GUMJS_DECLARE_GETTER (gumjs_callback_context_get_cpu_context)
-
 GUMJS_DECLARE_GETTER (gumjs_script_get_file_name)
 GUMJS_DECLARE_GETTER (gumjs_script_get_source_map)
 GUMJS_DECLARE_FUNCTION (gumjs_script_next_tick)
@@ -305,16 +301,19 @@ static void gum_quick_native_callback_finalize (GumQuickNativeCallback * func);
 static void gum_quick_native_callback_invoke (ffi_cif * cif,
     void * return_value, void ** args, void * user_data);
 
-GUMJS_DECLARE_FINALIZER (gumjs_cpu_context_finalize)
-GUMJS_DECLARE_FUNCTION (gumjs_cpu_context_to_json)
-static JSValue gumjs_cpu_context_set_register (GumQuickCpuContext * self,
-    JSContext * ctx, JSValueConst val, gpointer * reg);
-
+GUMJS_DECLARE_FINALIZER (gumjs_callback_context_finalize)
+GUMJS_DECLARE_GETTER (gumjs_callback_context_get_return_address)
+GUMJS_DECLARE_GETTER (gumjs_callback_context_get_cpu_context)
 static JSValue gum_quick_callback_context_new (GumQuickCore * core,
     GumCpuContext * cpu_context, GumAddress raw_return_address,
     GumQuickCallbackContext ** context);
 static gboolean gum_quick_callback_context_get (JSContext * ctx,
     JSValueConst val, GumQuickCore * core, GumQuickCallbackContext ** ic);
+
+GUMJS_DECLARE_FINALIZER (gumjs_cpu_context_finalize)
+GUMJS_DECLARE_FUNCTION (gumjs_cpu_context_to_json)
+static JSValue gumjs_cpu_context_set_register (GumQuickCpuContext * self,
+    JSContext * ctx, JSValueConst val, gpointer * reg);
 
 static JSValue gumjs_source_map_new (const gchar * json, GumQuickCore * core);
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_source_map_construct)
@@ -3656,6 +3655,9 @@ gum_quick_native_callback_invoke (ffi_cif * cif,
 {
   GumQuickNativeCallback * self = user_data;
   GumQuickCore * core = self->core;
+  guintptr return_address = 0;
+  guintptr stack_pointer = 0;
+  guintptr frame_pointer = 0;
   GumQuickScope scope;
   JSContext * ctx = core->ctx;
   ffi_type * rtype = cif->rtype;
@@ -3667,29 +3669,30 @@ gum_quick_native_callback_invoke (ffi_cif * cif,
   int argc, i;
   JSValue * argv;
   JSValue result;
-  guintptr frame_pointer = 0, return_address = 0, stack_pointer = 0;
 
-#if defined (HAVE_ARM64)
-  asm ("mov %0, x29" : "=r" (frame_pointer));
-  asm ("mov %0, x30" : "=r" (return_address));
-  asm ("mov %0, sp" : "=r" (stack_pointer));
-
-  return_address &= G_GUINT64_CONSTANT (0x7fffffffff);
-#elif defined (HAVE_ARM)
-  asm ("mov %0, r7" : "=r" (frame_pointer));
-  asm ("mov %0, lr" : "=r" (return_address));
-  asm ("mov %0, sp" : "=r" (stack_pointer));
-#elif defined (HAVE_I386) && defined (_MSC_VER)
+#if defined (HAVE_I386) && defined (_MSC_VER)
   return_address = GPOINTER_TO_SIZE (_ReturnAddress ());
   stack_pointer = GPOINTER_TO_SIZE (_AddressOfReturnAddress ());
-  frame_pointer = *((guintptr*) stack_pointer - 1);
+  frame_pointer = *((guintptr *) stack_pointer - 1);
 #elif defined (HAVE_I386)
-# if GLIB_SIZEOF_VOID_P == 8
-  asm ("movq %%rbp, %0" : "=m" (frame_pointer));
-  asm ("movq %%rsp, %0" : "=m" (stack_pointer));
-# else
-  asm ("mov %%ebp, %0" : "=m" (frame_pointer));
+# if GLIB_SIZEOF_VOID_P == 4
   asm ("mov %%esp, %0" : "=m" (stack_pointer));
+  asm ("mov %%ebp, %0" : "=m" (frame_pointer));
+# else
+  asm ("movq %%rsp, %0" : "=m" (stack_pointer));
+  asm ("movq %%rbp, %0" : "=m" (frame_pointer));
+# endif
+#elif defined (HAVE_ARM)
+  asm ("mov %0, lr" : "=r" (return_address));
+  asm ("mov %0, sp" : "=r" (stack_pointer));
+  asm ("mov %0, r7" : "=r" (frame_pointer));
+#elif defined (HAVE_ARM64)
+  asm ("mov %0, lr" : "=r" (return_address));
+  asm ("mov %0, sp" : "=r" (stack_pointer));
+  asm ("mov %0, x29" : "=r" (frame_pointer));
+
+# ifdef HAVE_DARWIN
+  return_address &= G_GUINT64_CONSTANT (0x7fffffffff);
 # endif
 #endif
 
@@ -3719,17 +3722,17 @@ gum_quick_native_callback_invoke (ffi_cif * cif,
   {
     GumCpuContext cpu_context = { 0, };
 
-#if defined(HAVE_ARM64)
-    cpu_context.fp = frame_pointer;
-    cpu_context.lr = return_address;
-    cpu_context.sp = stack_pointer;
-#elif defined(HAVE_ARM)
-    cpu_context.r[7] = frame_pointer;
-    cpu_context.lr = return_address;
-    cpu_context.sp = stack_pointer;
-#elif defined(HAVE_I386)
-    GUM_CPU_CONTEXT_XBP (&cpu_context) = frame_pointer;
+#if defined (HAVE_I386)
     GUM_CPU_CONTEXT_XSP (&cpu_context) = stack_pointer;
+    GUM_CPU_CONTEXT_XBP (&cpu_context) = frame_pointer;
+#elif defined (HAVE_ARM)
+    cpu_context.lr = return_address;
+    cpu_context.sp = stack_pointer;
+    cpu_context.r[7] = frame_pointer;
+#elif defined (HAVE_ARM64)
+    cpu_context.lr = return_address;
+    cpu_context.sp = stack_pointer;
+    cpu_context.fp = frame_pointer;
 #endif
 
     this_obj = gum_quick_callback_context_new (core, &cpu_context,
@@ -3770,62 +3773,6 @@ gum_quick_native_callback_invoke (ffi_cif * cif,
   JS_FreeValue (ctx, self->wrapper);
 
   _gum_quick_scope_leave (&scope);
-}
-
-GUMJS_DEFINE_FINALIZER (gumjs_cpu_context_finalize)
-{
-  GumQuickCpuContext * c;
-
-  c = JS_GetOpaque (val, core->cpu_context_class);
-  if (c == NULL)
-    return;
-
-  g_slice_free (GumQuickCpuContext, c);
-}
-
-GUMJS_DEFINE_FUNCTION (gumjs_cpu_context_to_json)
-{
-  JSValue result;
-  guint i;
-
-  result = JS_NewObject (ctx);
-
-  for (i = 0; i != G_N_ELEMENTS (gumjs_cpu_context_entries); i++)
-  {
-    const JSCFunctionListEntry * e = &gumjs_cpu_context_entries[i];
-    JSValue val;
-
-    if (e->def_type != JS_DEF_CGETSET)
-      continue;
-
-    val = JS_GetPropertyStr (ctx, this_val, e->name);
-    if (JS_IsException (val))
-      goto propagate_exception;
-    JS_SetPropertyStr (ctx, result, e->name, val);
-  }
-
-  return result;
-
-propagate_exception:
-  {
-    JS_FreeValue (ctx, result);
-
-    return JS_EXCEPTION;
-  }
-}
-
-static JSValue
-gumjs_cpu_context_set_register (GumQuickCpuContext * self,
-                                JSContext * ctx,
-                                JSValueConst val,
-                                gpointer * reg)
-{
-  if (self->access == GUM_CPU_CONTEXT_READONLY)
-    return _gum_quick_throw_literal (ctx, "invalid operation");
-
-  return _gum_quick_native_pointer_parse (ctx, val, self->core, reg)
-      ? JS_UNDEFINED
-      : JS_EXCEPTION;
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_callback_context_finalize)
@@ -3895,11 +3842,11 @@ GUMJS_DEFINE_GETTER (gumjs_callback_context_get_return_address)
       self->return_address = GPOINTER_TO_SIZE (ret_addrs.items[0]);
     }
 
-    g_clear_pointer (&backtracer, g_object_unref);
+    g_clear_object (&backtracer);
   }
 
-  return _gum_quick_native_pointer_new (ctx, GSIZE_TO_POINTER (
-      self->return_address), core);
+  return _gum_quick_native_pointer_new (ctx,
+      GSIZE_TO_POINTER (self->return_address), core);
 }
 
 GUMJS_DEFINE_GETTER (gumjs_callback_context_get_cpu_context)
@@ -3920,6 +3867,62 @@ gum_quick_callback_context_get (JSContext * ctx,
 {
   return _gum_quick_unwrap (ctx, val, core->callback_context_class, core,
       (gpointer *) cc);
+}
+
+GUMJS_DEFINE_FINALIZER (gumjs_cpu_context_finalize)
+{
+  GumQuickCpuContext * c;
+
+  c = JS_GetOpaque (val, core->cpu_context_class);
+  if (c == NULL)
+    return;
+
+  g_slice_free (GumQuickCpuContext, c);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_cpu_context_to_json)
+{
+  JSValue result;
+  guint i;
+
+  result = JS_NewObject (ctx);
+
+  for (i = 0; i != G_N_ELEMENTS (gumjs_cpu_context_entries); i++)
+  {
+    const JSCFunctionListEntry * e = &gumjs_cpu_context_entries[i];
+    JSValue val;
+
+    if (e->def_type != JS_DEF_CGETSET)
+      continue;
+
+    val = JS_GetPropertyStr (ctx, this_val, e->name);
+    if (JS_IsException (val))
+      goto propagate_exception;
+    JS_SetPropertyStr (ctx, result, e->name, val);
+  }
+
+  return result;
+
+propagate_exception:
+  {
+    JS_FreeValue (ctx, result);
+
+    return JS_EXCEPTION;
+  }
+}
+
+static JSValue
+gumjs_cpu_context_set_register (GumQuickCpuContext * self,
+                                JSContext * ctx,
+                                JSValueConst val,
+                                gpointer * reg)
+{
+  if (self->access == GUM_CPU_CONTEXT_READONLY)
+    return _gum_quick_throw_literal (ctx, "invalid operation");
+
+  return _gum_quick_native_pointer_parse (ctx, val, self->core, reg)
+      ? JS_UNDEFINED
+      : JS_EXCEPTION;
 }
 
 static gboolean
