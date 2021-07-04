@@ -11,11 +11,10 @@
 #include "gumv8script-objc.h"
 #include "gumv8script-runtime.h"
 
+#include <algorithm>
 #include <gum/gumcloak.h>
 #include <gum/gumcodesegment.h>
 #include <gum/gummemory.h>
-
-#include <algorithm>
 
 using namespace v8;
 
