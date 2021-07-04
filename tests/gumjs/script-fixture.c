@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
- * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -22,9 +22,10 @@
 #include <string.h>
 #include <gio/gio.h>
 #ifdef HAVE_WINDOWS
-#ifndef WIN32_LEAN_AND_MEAN
-# define WIN32_LEAN_AND_MEAN
-#endif
+# ifndef WIN32_LEAN_AND_MEAN
+#  define WIN32_LEAN_AND_MEAN
+# endif
+# include <intrin.h>
 # include <tchar.h>
 # include <windows.h>
 # include <winsock2.h>
