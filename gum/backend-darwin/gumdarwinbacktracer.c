@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2021 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -29,8 +30,8 @@ struct _GumDarwinBacktracer
 static void gum_darwin_backtracer_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_darwin_backtracer_generate (GumBacktracer * backtracer,
-    const GumCpuContext * cpu_context,
-    GumReturnAddressArray * return_addresses, guint limit);
+    const GumCpuContext * cpu_context, GumReturnAddressArray * return_addresses,
+    guint limit);
 
 static gpointer gum_strip_item (gpointer address);
 
@@ -77,7 +78,7 @@ gum_darwin_backtracer_generate (GumBacktracer * backtracer,
   gpointer * cur;
   guint start_index, n_skip, depth, i;
   gboolean has_ffi_frames;
-#if defined (HAVE_ARM)
+#ifdef HAVE_ARM
   gpointer * ffi_next = NULL;
 #endif
   GumInvocationStack * invocation_stack;
@@ -92,40 +93,46 @@ gum_darwin_backtracer_generate (GumBacktracer * backtracer,
 #if defined (HAVE_I386)
     cur = GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XBP (cpu_context));
 
+    has_ffi_frames = GUM_CPU_CONTEXT_XIP (cpu_context) == 0;
+
     return_addresses->items[0] = *((GumReturnAddress *) GSIZE_TO_POINTER (
         GUM_CPU_CONTEXT_XSP (cpu_context)));
-    has_ffi_frames = GUM_CPU_CONTEXT_XIP (cpu_context) == 0;
 #elif defined (HAVE_ARM)
     cur = GSIZE_TO_POINTER (cpu_context->r[7]);
 
-    return_addresses->items[0] = GSIZE_TO_POINTER (cpu_context->lr);
     has_ffi_frames = cpu_context->pc == 0;
+
+    return_addresses->items[0] = GSIZE_TO_POINTER (cpu_context->lr);
 #elif defined (HAVE_ARM64)
     cur = GSIZE_TO_POINTER (cpu_context->fp);
 
-    return_addresses->items[0] = GSIZE_TO_POINTER (cpu_context->lr);
     has_ffi_frames = cpu_context->pc == 0;
+
+    return_addresses->items[0] = GSIZE_TO_POINTER (cpu_context->lr);
 #else
 # error Unsupported architecture
 #endif
+
     if (has_ffi_frames)
     {
-      n_skip = 2;
       start_index = 0;
+      n_skip = 2;
     }
     else
     {
-      return_addresses->items[0] = gum_strip_item (return_addresses->items[0]);
-      n_skip = 0;
       start_index = 1;
+      n_skip = 0;
+
+      return_addresses->items[0] = gum_strip_item (return_addresses->items[0]);
     }
   }
   else
   {
     cur = __builtin_frame_address (0);
-    has_ffi_frames = FALSE;
-    n_skip = 0;
+
     start_index = 0;
+    n_skip = 0;
+    has_ffi_frames = FALSE;
   }
 
   depth = MIN (limit, G_N_ELEMENTS (return_addresses->items));
