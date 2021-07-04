@@ -1764,7 +1764,7 @@ TESTCASE (native_callback_should_support_stdcall)
 
 # endif
 
-static void *
+GUM_NOINLINE static void *
 sample_return_address (void)
 {
   return _ReturnAddress ();
