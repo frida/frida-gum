@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2021 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -25,8 +26,8 @@ struct _GumDbghelpBacktracer
 static void gum_dbghelp_backtracer_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
-    const GumCpuContext * cpu_context,
-    GumReturnAddressArray * return_addresses, guint limit);
+    const GumCpuContext * cpu_context, GumReturnAddressArray * return_addresses,
+    guint limit);
 
 G_DEFINE_TYPE_EXTENDED (GumDbghelpBacktracer,
                         gum_dbghelp_backtracer,
@@ -80,7 +81,7 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
   __declspec (align (64)) CONTEXT context_next = { 0, };
 #endif
   STACKFRAME64 frame = { 0, };
-  BOOL has_ffi_frames = FALSE;
+  gboolean has_ffi_frames = FALSE;
   guint skip_count = 0;
   HANDLE current_process, current_thread;
   guint depth, i;
@@ -100,8 +101,6 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
   if (cpu_context != NULL)
   {
 #if GLIB_SIZEOF_VOID_P == 4
-    has_ffi_frames = cpu_context->eip == 0;
-
     context.Eip = *((gsize *) GSIZE_TO_POINTER (cpu_context->esp));
 
     context.Edi = cpu_context->edi;
@@ -117,8 +116,6 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
     frame.AddrFrame.Offset = cpu_context->ebp;
     frame.AddrStack.Offset = cpu_context->esp;
 #else
-    has_ffi_frames = cpu_context->rip == 0;
-
     context.Rip = *((gsize *) GSIZE_TO_POINTER (cpu_context->rsp));
 
     context.R15 = cpu_context->r15;
@@ -144,6 +141,7 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
     frame.AddrStack.Offset = cpu_context->rsp;
 #endif
 
+    has_ffi_frames = GUM_CPU_CONTEXT_XIP (cpu_context) == 0;
     if (has_ffi_frames)
       skip_count += 2;
   }
