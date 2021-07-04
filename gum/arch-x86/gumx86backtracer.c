@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2021 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -21,8 +22,8 @@ static void gum_x86_backtracer_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_x86_backtracer_dispose (GObject * object);
 static void gum_x86_backtracer_generate (GumBacktracer * backtracer,
-    const GumCpuContext * cpu_context,
-    GumReturnAddressArray * return_addresses);
+    const GumCpuContext * cpu_context, GumReturnAddressArray * return_addresses,
+    guint limit);
 
 G_DEFINE_TYPE_EXTENDED (GumX86Backtracer,
                         gum_x86_backtracer,
@@ -78,13 +79,14 @@ gum_x86_backtracer_new (void)
 static void
 gum_x86_backtracer_generate (GumBacktracer * backtracer,
                              const GumCpuContext * cpu_context,
-                             GumReturnAddressArray * return_addresses)
+                             GumReturnAddressArray * return_addresses,
+                             guint limit)
 {
   GumX86Backtracer * self;
   GumInvocationStack * invocation_stack;
   gsize * start_address;
   gsize first_address = 0;
-  guint i;
+  guint depth, i;
   gsize * p;
 
   self = GUM_X86_BACKTRACER (backtracer);
@@ -94,6 +96,8 @@ gum_x86_backtracer_generate (GumBacktracer * backtracer,
     start_address = GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XSP (cpu_context));
   else
     start_address = (gsize *) &backtracer;
+
+  depth = MIN (limit, G_N_ELEMENTS (return_addresses->items));
 
   for (i = 0, p = start_address; p < start_address + 2048; p++)
   {
@@ -143,7 +147,7 @@ gum_x86_backtracer_generate (GumBacktracer * backtracer,
     if (valid)
     {
       return_addresses->items[i++] = GSIZE_TO_POINTER (value);
-      if (i == G_N_ELEMENTS (return_addresses->items))
+      if (i == depth)
         break;
 
       if (first_address == 0)

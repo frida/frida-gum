@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2021 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -10,6 +11,7 @@
 
 #if GLIB_SIZEOF_VOID_P == 4
 # define GUM_BACKTRACER_MACHINE_TYPE IMAGE_FILE_MACHINE_I386
+# define GUM_FFI_STACK_SKIP 44
 #else
 # define GUM_BACKTRACER_MACHINE_TYPE IMAGE_FILE_MACHINE_AMD64
 #endif
@@ -24,8 +26,8 @@ struct _GumDbghelpBacktracer
 static void gum_dbghelp_backtracer_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
-    const GumCpuContext * cpu_context,
-    GumReturnAddressArray * return_addresses);
+    const GumCpuContext * cpu_context, GumReturnAddressArray * return_addresses,
+    guint limit);
 
 G_DEFINE_TYPE_EXTENDED (GumDbghelpBacktracer,
                         gum_dbghelp_backtracer,
@@ -69,15 +71,20 @@ gum_dbghelp_backtracer_new (GumDbghelpImpl * dbghelp)
 static void
 gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
                                  const GumCpuContext * cpu_context,
-                                 GumReturnAddressArray * return_addresses)
+                                 GumReturnAddressArray * return_addresses,
+                                 guint limit)
 {
   GumDbghelpBacktracer * self;
   GumDbghelpImpl * dbghelp;
   __declspec (align (64)) CONTEXT context = { 0, };
+#if GLIB_SIZEOF_VOID_P == 4
+  __declspec (align (64)) CONTEXT context_next = { 0, };
+#endif
   STACKFRAME64 frame = { 0, };
+  gboolean has_ffi_frames = FALSE;
   guint skip_count = 0;
   HANDLE current_process, current_thread;
-  guint i;
+  guint depth, i;
   BOOL success;
   GumInvocationStack * invocation_stack;
 
@@ -133,6 +140,10 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
     frame.AddrFrame.Offset = cpu_context->rsp;
     frame.AddrStack.Offset = cpu_context->rsp;
 #endif
+
+    has_ffi_frames = GUM_CPU_CONTEXT_XIP (cpu_context) == 0;
+    if (has_ffi_frames)
+      skip_count += 2;
   }
   else
   {
@@ -156,8 +167,25 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
 
   dbghelp->Lock ();
 
-  for (i = 0; i < GUM_MAX_BACKTRACE_DEPTH + skip_count; i++)
+  depth = MIN (limit, GUM_MAX_BACKTRACE_DEPTH);
+
+  for (i = 0; i < depth + skip_count; i++)
   {
+#if GLIB_SIZEOF_VOID_P == 4
+    if (has_ffi_frames)
+    {
+      if (i == 2)
+      {
+        context_next = context;
+        context.Ebp = context.Esp + GUM_FFI_STACK_SKIP - 4;
+      }
+      else if (i == 3)
+      {
+        context = context_next;
+      }
+    }
+#endif
+
     success = dbghelp->StackWalk64 (GUM_BACKTRACER_MACHINE_TYPE,
         current_process, current_thread, &frame, &context, NULL,
         dbghelp->SymFunctionTableAccess64, dbghelp->SymGetModuleBase64, NULL);

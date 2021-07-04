@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2021 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -19,8 +20,8 @@ struct _GumUnwBacktracer
 static void gum_unw_backtracer_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_unw_backtracer_generate (GumBacktracer * backtracer,
-    const GumCpuContext * cpu_context,
-    GumReturnAddressArray * return_addresses);
+    const GumCpuContext * cpu_context, GumReturnAddressArray * return_addresses,
+    guint limit);
 
 static void gum_cpu_context_to_unw (const GumCpuContext * ctx,
     unw_context_t * uc);
@@ -60,11 +61,12 @@ gum_unw_backtracer_new (void)
 static void
 gum_unw_backtracer_generate (GumBacktracer * backtracer,
                              const GumCpuContext * cpu_context,
-                             GumReturnAddressArray * return_addresses)
+                             GumReturnAddressArray * return_addresses,
+                             guint limit)
 {
   unw_context_t context;
   unw_cursor_t cursor;
-  guint start_index, i;
+  guint start_index, depth, i;
   GumInvocationStack * invocation_stack;
 
   if (cpu_context != NULL)
@@ -100,9 +102,11 @@ gum_unw_backtracer_generate (GumBacktracer * backtracer,
 #pragma GCC diagnostic pop
   }
 
+  depth = MIN (limit, G_N_ELEMENTS (return_addresses->items));
+
   unw_init_local (&cursor, &context);
   for (i = start_index;
-      i < G_N_ELEMENTS (return_addresses->items) && unw_step (&cursor) > 0;
+      i < depth && unw_step (&cursor) > 0;
       i++)
   {
     unw_word_t pc;

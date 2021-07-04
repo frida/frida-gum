@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2021 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -21,8 +22,8 @@ static void gum_mips_backtracer_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_mips_backtracer_dispose (GObject * object);
 static void gum_mips_backtracer_generate (GumBacktracer * backtracer,
-    const GumCpuContext * cpu_context,
-    GumReturnAddressArray * return_addresses);
+    const GumCpuContext * cpu_context, GumReturnAddressArray * return_addresses,
+    guint limit);
 
 G_DEFINE_TYPE_EXTENDED (GumMipsBacktracer,
                         gum_mips_backtracer,
@@ -75,12 +76,13 @@ gum_mips_backtracer_new (void)
 static void
 gum_mips_backtracer_generate (GumBacktracer * backtracer,
                               const GumCpuContext * cpu_context,
-                              GumReturnAddressArray * return_addresses)
+                              GumReturnAddressArray * return_addresses,
+                              guint limit)
 {
   GumMipsBacktracer * self;
   GumInvocationStack * invocation_stack;
   gsize * start_address;
-  guint skips_pending, i;
+  guint skips_pending, depth, i;
   gsize * p;
 
   self = GUM_MIPS_BACKTRACER (backtracer);
@@ -96,6 +98,8 @@ gum_mips_backtracer_generate (GumBacktracer * backtracer,
     asm ("\tmove %0, $sp" : "=r" (start_address));
     skips_pending = 1;
   }
+
+  depth = MIN (limit, G_N_ELEMENTS (return_addresses->items));
 
   for (i = 0, p = start_address; p < start_address + 2048; p++)
   {
@@ -170,7 +174,7 @@ gum_mips_backtracer_generate (GumBacktracer * backtracer,
       if (skips_pending == 0)
       {
         return_addresses->items[i++] = GSIZE_TO_POINTER (value);
-        if (i == G_N_ELEMENTS (return_addresses->items))
+        if (i == depth)
           break;
       }
       else
