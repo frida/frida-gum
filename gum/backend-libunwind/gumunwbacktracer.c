@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2021 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -19,8 +20,8 @@ struct _GumUnwBacktracer
 static void gum_unw_backtracer_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_unw_backtracer_generate (GumBacktracer * backtracer,
-    const GumCpuContext * cpu_context,
-    GumReturnAddressArray * return_addresses);
+    const GumCpuContext * cpu_context, GumReturnAddressArray * return_addresses,
+    guint limit);
 
 static void gum_cpu_context_to_unw (const GumCpuContext * ctx,
     unw_context_t * uc);
