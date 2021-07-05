@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -55,13 +55,6 @@ gum_script_scheduler_init (GumScriptScheduler * self)
   self->enable_background_thread = TRUE;
 
   self->js_context = g_main_context_new ();
-
-  self->thread_pool = g_thread_pool_new (
-      (GFunc) gum_script_scheduler_perform_pool_job,
-      self,
-      4,
-      FALSE,
-      NULL);
 }
 
 static void
@@ -73,8 +66,11 @@ gum_script_scheduler_dispose (GObject * obj)
   {
     self->disposed = TRUE;
 
-    g_thread_pool_free (self->thread_pool, FALSE, TRUE);
-    self->thread_pool = NULL;
+    if (self->thread_pool != NULL)
+    {
+      g_thread_pool_free (self->thread_pool, FALSE, TRUE);
+      self->thread_pool = NULL;
+    }
 
     gum_script_scheduler_stop (self);
 
@@ -176,6 +172,16 @@ gum_script_scheduler_push_job_on_thread_pool (GumScriptScheduler * self,
                                               gpointer data,
                                               GDestroyNotify data_destroy)
 {
+  if (self->thread_pool == NULL)
+  {
+    self->thread_pool = g_thread_pool_new (
+        (GFunc) gum_script_scheduler_perform_pool_job,
+        self,
+        4,
+        FALSE,
+        NULL);
+  }
+
   g_thread_pool_push (self->thread_pool,
       gum_script_job_new (self, func, data, data_destroy),
       NULL);
