@@ -1713,7 +1713,7 @@ TESTCASE (native_callback_should_be_kept_alive_during_calls)
         "gc();"
         "send('returning');"
       "}, 'void', []);"
-      "WeakRef.bind(cb, () => { send('dead'); });"
+      "Script.bindWeak(cb, () => { send('dead'); });"
       GUM_PTR_CONST ".writePointer(cb);",
       &cb);
   EXPECT_NO_MESSAGES ();
@@ -8702,7 +8702,7 @@ TESTCASE (weak_callback_is_triggered_on_gc)
   COMPILE_AND_LOAD_SCRIPT (
       "(() => {"
       "  const val = {};"
-      "  WeakRef.bind(val, onWeakNotify);"
+      "  Script.bindWeak(val, onWeakNotify);"
       "})();"
       "function onWeakNotify() {"
       "  send(\"weak notify\");"
@@ -8716,7 +8716,7 @@ TESTCASE (weak_callback_is_triggered_on_unload)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "const val = {};"
-      "WeakRef.bind(val, () => {"
+      "Script.bindWeak(val, () => {"
       "  send(\"weak notify\");"
       "});");
   EXPECT_NO_MESSAGES ();
@@ -8729,10 +8729,10 @@ TESTCASE (weak_callback_is_triggered_on_unbind)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "const val = {};"
-      "const id = WeakRef.bind(val, () => {"
+      "const id = Script.bindWeak(val, () => {"
       "  send(\"weak notify\");"
       "});"
-      "WeakRef.unbind(id);");
+      "Script.unbindWeak(id);");
   EXPECT_SEND_MESSAGE_WITH ("\"weak notify\"");
 }
 
@@ -8740,13 +8740,13 @@ TESTCASE (weak_callback_should_not_be_exclusive)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "let val = {};"
-      "const w1 = WeakRef.bind(val, onWeakNotify.bind(null, 'w1'));"
-      "const w2 = WeakRef.bind(val, onWeakNotify.bind(null, 'w2'));"
+      "const w1 = Script.bindWeak(val, onWeakNotify.bind(null, 'w1'));"
+      "const w2 = Script.bindWeak(val, onWeakNotify.bind(null, 'w2'));"
       "recv(onMessage);"
       "function onMessage(message) {"
       "  switch (message.type) {"
       "    case 'unbind':"
-      "      WeakRef.unbind(w1);"
+      "      Script.unbindWeak(w1);"
       "      break;"
       "    case 'destroy':"
       "      val = null;"

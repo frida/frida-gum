@@ -198,10 +198,8 @@ GUMJS_DECLARE_GETTER (gumjs_script_get_source_map)
 GUMJS_DECLARE_FUNCTION (gumjs_script_next_tick)
 GUMJS_DECLARE_FUNCTION (gumjs_script_pin)
 GUMJS_DECLARE_FUNCTION (gumjs_script_unpin)
-GUMJS_DECLARE_FUNCTION (gumjs_script_set_global_access_handler)
-
-GUMJS_DECLARE_FUNCTION (gumjs_weak_ref_bind)
-GUMJS_DECLARE_FUNCTION (gumjs_weak_ref_unbind)
+GUMJS_DECLARE_FUNCTION (gumjs_script_bind_weak)
+GUMJS_DECLARE_FUNCTION (gumjs_script_unbind_weak)
 static GumV8WeakRef * gum_v8_weak_ref_new (guint id, Local<Value> target,
     Local<Function> callback, GumV8Core * core);
 static void gum_v8_weak_ref_clear (GumV8WeakRef * ref);
@@ -212,6 +210,7 @@ static gboolean gum_v8_core_invoke_pending_weak_callbacks_in_idle (
     GumV8Core * self);
 static void gum_v8_core_invoke_pending_weak_callbacks (GumV8Core * self,
     ScriptScope * scope);
+GUMJS_DECLARE_FUNCTION (gumjs_script_set_global_access_handler)
 
 GUMJS_DECLARE_FUNCTION (gumjs_int64_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_int64_add)
@@ -393,15 +392,9 @@ static const GumV8Function gumjs_script_functions[] =
   { "_nextTick", gumjs_script_next_tick },
   { "pin", gumjs_script_pin },
   { "unpin", gumjs_script_unpin },
+  { "bindWeak", gumjs_script_bind_weak },
+  { "unbindWeak", gumjs_script_unbind_weak },
   { "setGlobalAccessHandler", gumjs_script_set_global_access_handler },
-
-  { NULL, NULL }
-};
-
-static const GumV8Function gumjs_weak_ref_functions[] =
-{
-  { "bind", gumjs_weak_ref_bind },
-  { "unbind", gumjs_weak_ref_unbind },
 
   { NULL, NULL }
 };
@@ -548,9 +541,6 @@ _gum_v8_core_init (GumV8Core * self,
   _gum_v8_module_add (module, script_module, gumjs_script_functions, isolate);
   script_module->Set (_gum_v8_string_new_ascii (isolate, "runtime"),
       _gum_v8_string_new_ascii (isolate, "V8"), ReadOnly);
-
-  auto weak = _gum_v8_create_module ("WeakRef", scope, isolate);
-  _gum_v8_module_add (module, weak, gumjs_weak_ref_functions, isolate);
 
   auto int64 = _gum_v8_create_class ("Int64", gumjs_int64_construct, scope,
       module, isolate);
@@ -1530,33 +1520,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_unpin)
   _gum_v8_core_unpin (core);
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_script_set_global_access_handler)
-{
-  Local<Function> on_get;
-  Local<Object> callbacks;
-  gboolean has_callbacks = !(info.Length () > 0 && info[0]->IsNull ());
-  if (has_callbacks)
-  {
-    if (!_gum_v8_args_parse (args, "F{get}", &on_get))
-      return;
-    callbacks = info[0].As<Object> ();
-  }
-
-  delete core->on_global_get;
-  delete core->global_receiver;
-  core->on_global_get = nullptr;
-  core->global_receiver = nullptr;
-
-  if (has_callbacks)
-  {
-    core->on_global_get = new GumPersistent<Function>::type (isolate,
-        on_get.As<Function> ());
-    core->global_receiver = new GumPersistent<Object>::type (isolate,
-        callbacks);
-  }
-}
-
-GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_bind)
+GUMJS_DEFINE_FUNCTION (gumjs_script_bind_weak)
 {
   Local<Value> target;
   Local<Function> callback;
@@ -1577,7 +1541,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_bind)
   info.GetReturnValue ().Set (id);
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_unbind)
+GUMJS_DEFINE_FUNCTION (gumjs_script_unbind_weak)
 {
   guint id;
   if (!_gum_v8_args_parse (args, "u", &id))
@@ -1683,6 +1647,32 @@ gum_v8_core_invoke_pending_weak_callbacks (GumV8Core * self,
       scope->ProcessAnyPendingException ();
 
     delete weak_callback;
+  }
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_script_set_global_access_handler)
+{
+  Local<Function> on_get;
+  Local<Object> callbacks;
+  gboolean has_callbacks = !(info.Length () > 0 && info[0]->IsNull ());
+  if (has_callbacks)
+  {
+    if (!_gum_v8_args_parse (args, "F{get}", &on_get))
+      return;
+    callbacks = info[0].As<Object> ();
+  }
+
+  delete core->on_global_get;
+  delete core->global_receiver;
+  core->on_global_get = nullptr;
+  core->global_receiver = nullptr;
+
+  if (has_callbacks)
+  {
+    core->on_global_get = new GumPersistent<Function>::type (isolate,
+        on_get.As<Function> ());
+    core->global_receiver = new GumPersistent<Object>::type (isolate,
+        callbacks);
   }
 }
 

@@ -184,14 +184,12 @@ GUMJS_DECLARE_GETTER (gumjs_script_get_source_map)
 GUMJS_DECLARE_FUNCTION (gumjs_script_next_tick)
 GUMJS_DECLARE_FUNCTION (gumjs_script_pin)
 GUMJS_DECLARE_FUNCTION (gumjs_script_unpin)
+GUMJS_DECLARE_FUNCTION (gumjs_script_bind_weak)
+GUMJS_DECLARE_FUNCTION (gumjs_script_unbind_weak)
+GUMJS_DECLARE_FINALIZER (gumjs_weak_ref_finalize)
 GUMJS_DECLARE_FUNCTION (gumjs_script_set_global_access_handler)
 static JSValue gum_quick_core_on_global_get (JSContext * ctx, JSAtom name,
     void * opaque);
-
-GUMJS_DECLARE_FUNCTION (gumjs_weak_ref_bind)
-GUMJS_DECLARE_FUNCTION (gumjs_weak_ref_unbind)
-
-GUMJS_DECLARE_FINALIZER (gumjs_weak_ref_finalize)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_int64_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_int64_finalize)
@@ -389,14 +387,10 @@ static const JSCFunctionListEntry gumjs_script_entries[] =
   JS_CFUNC_DEF ("_nextTick", 0, gumjs_script_next_tick),
   JS_CFUNC_DEF ("pin", 0, gumjs_script_pin),
   JS_CFUNC_DEF ("unpin", 0, gumjs_script_unpin),
+  JS_CFUNC_DEF ("bindWeak", 0, gumjs_script_bind_weak),
+  JS_CFUNC_DEF ("unbindWeak", 0, gumjs_script_unbind_weak),
   JS_CFUNC_DEF ("setGlobalAccessHandler", 1,
       gumjs_script_set_global_access_handler),
-};
-
-static const JSCFunctionListEntry gumjs_weak_ref_module_entries[] =
-{
-  JS_CFUNC_DEF ("bind", 0, gumjs_weak_ref_bind),
-  JS_CFUNC_DEF ("unbind", 0, gumjs_weak_ref_unbind),
 };
 
 static const JSClassDef gumjs_weak_ref_def =
@@ -951,11 +945,6 @@ _gum_quick_core_init (GumQuickCore * self,
   JS_SetPropertyFunctionList (ctx, obj, gumjs_script_entries,
       G_N_ELEMENTS (gumjs_script_entries));
   JS_DefinePropertyValueStr (ctx, ns, "Script", obj, JS_PROP_C_W_E);
-
-  obj = JS_NewObject (ctx);
-  JS_SetPropertyFunctionList (ctx, obj, gumjs_weak_ref_module_entries,
-      G_N_ELEMENTS (gumjs_weak_ref_module_entries));
-  JS_DefinePropertyValueStr (ctx, ns, "WeakRef", obj, JS_PROP_C_W_E);
 
   _gum_quick_create_class (ctx, &gumjs_weak_ref_def, self,
       &self->weak_ref_class, &proto);
@@ -1640,66 +1629,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_unpin)
   return JS_UNDEFINED;
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_script_set_global_access_handler)
-{
-  JSValueConst * argv = args->elements;
-  JSValue receiver, get;
-
-  if (!JS_IsNull (argv[0]))
-  {
-    receiver = argv[0];
-    if (!_gum_quick_args_parse (args, "F{get}", &get))
-      return JS_EXCEPTION;
-  }
-  else
-  {
-    receiver = JS_NULL;
-    get = JS_NULL;
-  }
-
-  if (JS_IsNull (receiver))
-    JS_SetGlobalAccessFunctions (ctx, NULL);
-
-  JS_FreeValue (ctx, core->on_global_get);
-  JS_FreeValue (ctx, core->global_receiver);
-  core->on_global_get = JS_NULL;
-  core->global_receiver = JS_NULL;
-
-  if (!JS_IsNull (receiver))
-  {
-    JSGlobalAccessFunctions funcs;
-
-    core->on_global_get = JS_DupValue (ctx, get);
-    core->global_receiver = JS_DupValue (ctx, receiver);
-
-    funcs.get = gum_quick_core_on_global_get;
-    funcs.opaque = core;
-    JS_SetGlobalAccessFunctions (ctx, &funcs);
-  }
-
-  return JS_UNDEFINED;
-}
-
-static JSValue
-gum_quick_core_on_global_get (JSContext * ctx,
-                              JSAtom name,
-                              void * opaque)
-{
-  GumQuickCore * self = opaque;
-  JSValue result;
-  JSValue name_val;
-
-  name_val = JS_AtomToValue (ctx, name);
-
-  result = _gum_quick_scope_call (self->current_scope, self->on_global_get,
-      self->global_receiver, 1, &name_val);
-
-  JS_FreeValue (ctx, name_val);
-
-  return result;
-}
-
-GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_bind)
+GUMJS_DEFINE_FUNCTION (gumjs_script_bind_weak)
 {
   guint id;
   JSValue target, callback;
@@ -1760,7 +1690,7 @@ propagate_exception:
   }
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_unbind)
+GUMJS_DEFINE_FUNCTION (gumjs_script_unbind_weak)
 {
   guint id;
   GumQuickWeakRef * ref;
@@ -1837,6 +1767,65 @@ GUMJS_DEFINE_FINALIZER (gumjs_weak_ref_finalize)
   g_array_free (ref->callbacks, TRUE);
 
   g_slice_free (GumQuickWeakRef, ref);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_script_set_global_access_handler)
+{
+  JSValueConst * argv = args->elements;
+  JSValue receiver, get;
+
+  if (!JS_IsNull (argv[0]))
+  {
+    receiver = argv[0];
+    if (!_gum_quick_args_parse (args, "F{get}", &get))
+      return JS_EXCEPTION;
+  }
+  else
+  {
+    receiver = JS_NULL;
+    get = JS_NULL;
+  }
+
+  if (JS_IsNull (receiver))
+    JS_SetGlobalAccessFunctions (ctx, NULL);
+
+  JS_FreeValue (ctx, core->on_global_get);
+  JS_FreeValue (ctx, core->global_receiver);
+  core->on_global_get = JS_NULL;
+  core->global_receiver = JS_NULL;
+
+  if (!JS_IsNull (receiver))
+  {
+    JSGlobalAccessFunctions funcs;
+
+    core->on_global_get = JS_DupValue (ctx, get);
+    core->global_receiver = JS_DupValue (ctx, receiver);
+
+    funcs.get = gum_quick_core_on_global_get;
+    funcs.opaque = core;
+    JS_SetGlobalAccessFunctions (ctx, &funcs);
+  }
+
+  return JS_UNDEFINED;
+}
+
+static JSValue
+gum_quick_core_on_global_get (JSContext * ctx,
+                              JSAtom name,
+                              void * opaque)
+{
+  GumQuickCore * self = opaque;
+  JSValue result;
+  JSValue name_val;
+
+  name_val = JS_AtomToValue (ctx, name);
+
+  result = _gum_quick_scope_call (self->current_scope, self->on_global_get,
+      self->global_receiver, 1, &name_val);
+
+  JS_FreeValue (ctx, name_val);
+
+  return result;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_set_timeout)
