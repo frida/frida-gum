@@ -732,7 +732,10 @@ gum_file_open_tmp (const gchar * tmpl,
   if (res == -1 || !gum_file_check_sandbox_allows (path, "file-map-executable"))
   {
     if (res != -1)
+    {
       close (res);
+      unlink (path);
+    }
     g_free (path);
     path = g_build_filename ("/Library/Caches", tmpl, NULL);
     res = g_mkstemp (path);
