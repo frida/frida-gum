@@ -749,7 +749,15 @@ gum_darwin_grafter_transform_load_commands (gconstpointer commands_in,
           binds = gum_merge_lazy_binds_into_binds (ic, linkedit);
           *merged_binds = binds;
           ic->bind_off = layout->rewritten_binds_offset + layout->linkedit_shift;
-          ic->bind_size = binds->len;
+
+          /*
+           * Adjust the size of binds so that everything is contiguous.
+           * Not doing so results in a bug in codesign for which the resulting
+           * signed binary turns out corrupted.
+           */
+          ic->bind_size += ic->lazy_bind_size;
+          g_assert (binds->len <= ic->bind_size);
+
           ic->lazy_bind_off = 0;
           ic->lazy_bind_size = 0;
         }
