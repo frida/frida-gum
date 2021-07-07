@@ -12,13 +12,21 @@
 #include <intrin.h>
 #include <psapi.h>
 #include <tlhelp32.h>
-
+#include <Windows.h>
 typedef struct _GumFindExportContext GumFindExportContext;
+typedef struct _GumProcessRestoreSelfCtx GumProcessRestoreSelfCtx;
 
 struct _GumFindExportContext
 {
   const gchar * symbol_name;
   GumAddress result;
+};
+
+struct _GumProcessRestoreSelfCtx
+{
+    GumThreadId thread_id;
+    GumModifyThreadFunc func;
+    gpointer user_data;
 };
 
 static gboolean gum_windows_get_thread_details (DWORD thread_id,
@@ -30,6 +38,9 @@ static gboolean gum_store_address_if_module_has_export (
 static gboolean gum_store_address_if_export_name_matches (
     const GumExportDetails * details, gpointer user_data);
 static HMODULE get_module_handle_utf8 (const gchar * module_name);
+static gpointer gum_process_modify_self_proc (gpointer param);
+static gboolean gum_process_modify_self (GumThreadId thread_id, 
+    GumModifyThreadFunc func, gpointer user_data);
 
 const gchar *
 gum_process_query_libc_name (void)
@@ -98,39 +109,82 @@ gum_process_modify_thread (GumThreadId thread_id,
                            gpointer user_data)
 {
   gboolean success = FALSE;
+  GumThreadId self;
   HANDLE thread;
   __declspec (align (64)) CONTEXT context = { 0, };
   GumCpuContext cpu_context;
 
-  thread = OpenThread (THREAD_GET_CONTEXT | THREAD_SET_CONTEXT |
+  self = gum_process_get_current_thread_id();
+
+  if (self == thread_id)
+    return gum_process_modify_self (thread_id, func, user_data);
+
+  thread = OpenThread(THREAD_GET_CONTEXT | THREAD_SET_CONTEXT |
       THREAD_SUSPEND_RESUME, FALSE, thread_id);
   if (thread == NULL)
     goto beach;
 
-  if (SuspendThread (thread) == (DWORD) -1)
+  if (SuspendThread(thread) == (DWORD)-1)
     goto beach;
 
   context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
-  if (!GetThreadContext (thread, &context))
+  if (!GetThreadContext(thread, &context))
     goto beach;
 
   gum_windows_parse_context (&context, &cpu_context);
   func (thread_id, &cpu_context, user_data);
   gum_windows_unparse_context (&cpu_context, &context);
-
-  if (!SetThreadContext (thread, &context))
+  
+  if (!SetThreadContext(thread, &context))
   {
-    ResumeThread (thread);
+    ResumeThread(thread);
     goto beach;
   }
 
-  success = ResumeThread (thread) != (DWORD) -1;
+  success = ResumeThread(thread) != (DWORD)-1;
 
 beach:
   if (thread != NULL)
     CloseHandle (thread);
 
   return success;
+}
+
+static gpointer
+gum_process_modify_self_proc (gpointer param)
+{
+    GumProcessRestoreSelfCtx* ctx = (GumProcessRestoreSelfCtx*)param;
+    if (gum_process_modify_thread(ctx->thread_id, ctx->func, ctx->user_data))
+    {
+      return (gpointer)TRUE;
+    }
+    else
+    {
+      return (gpointer)FALSE;
+    }
+}
+
+static gboolean
+gum_process_modify_self (GumThreadId thread_id,
+                         GumModifyThreadFunc func,
+                         gpointer user_data)
+{
+  GThread * thread;
+  gpointer ret;
+  GumProcessRestoreSelfCtx data = 
+  {
+    .thread_id = thread_id,
+    .func = func,
+    .user_data = user_data,
+  };
+
+  thread = g_thread_new ("reset-ctx", gum_process_modify_self_proc, &data);
+
+  if (thread == NULL)
+      return FALSE;
+
+  ret = g_thread_join (thread);
+  return (gboolean)ret;
 }
 
 void

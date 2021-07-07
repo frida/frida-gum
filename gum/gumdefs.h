@@ -33,10 +33,23 @@ typedef guint GumArgType;
 typedef struct _GumArgument GumArgument;
 typedef guint GumBranchHint;
 typedef struct _GumIA32CpuContext GumIA32CpuContext;
+typedef struct _GumIA32FpuRegs GumIA32FpuRegs;
+typedef struct _GumIA32AvxReg GumIA32AvxReg;
+typedef struct _GumIA32AvxRegs GumIA32AvxRegs;
+typedef struct _GumIA32FullCpuContext GumIA32FullCpuContext;
 typedef struct _GumX64CpuContext GumX64CpuContext;
+typedef struct _GumX64FpuRegs GumX64FpuRegs;
+typedef struct _GumX64AvxReg GumX64AvxReg;
+typedef struct _GumX64AvxRegs GumX64AvxRegs;
+typedef struct _GumX64FullCpuContext GumX64FullCpuContext;
 typedef struct _GumArmCpuContext GumArmCpuContext;
+typedef struct _GumArmNeonRegs GumArmNeonRegs;
+typedef struct _GumArmNeonReg GumArmNeonReg;
+typedef struct _GumArmFullCpuContext GumArmFullCpuContext;
 typedef struct _GumArm64CpuContext GumArm64CpuContext;
+typedef struct _GumArm64FullCpuContext GumArm64FullCpuContext;
 typedef struct _GumMipsCpuContext GumMipsCpuContext;
+typedef struct _GumMipsFullCpuContext GumMipsFullCpuContext;
 typedef guint GumRelocationScenario;
 
 #if defined (_M_IX86) || defined (__i386__)
@@ -47,6 +60,7 @@ typedef guint GumRelocationScenario;
  */
 # define GUM_DEFAULT_CS_MODE CS_MODE_32
 typedef GumIA32CpuContext GumCpuContext;
+typedef GumIA32FullCpuContext GumFullCpuContext;
 #elif defined (_M_X64) || defined (__x86_64__)
 # define GUM_NATIVE_CPU GUM_CPU_AMD64
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_X86
@@ -55,6 +69,7 @@ typedef GumIA32CpuContext GumCpuContext;
  */
 # define GUM_DEFAULT_CS_MODE CS_MODE_64
 typedef GumX64CpuContext GumCpuContext;
+typedef GumX64FullCpuContext GumFullCpuContext;
 #elif defined (_M_ARM) || defined (__arm__)
 # define GUM_NATIVE_CPU GUM_CPU_ARM
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_ARM
@@ -65,6 +80,7 @@ typedef GumX64CpuContext GumCpuContext;
     ((cs_mode) (CS_MODE_ARM | CS_MODE_V8 | GUM_DEFAULT_CS_ENDIAN))
 # define GUM_PSR_T_BIT 0x20
 typedef GumArmCpuContext GumCpuContext;
+typedef GumArmFullCpuContext GumFullCpuContext;
 #elif defined (_M_ARM64) || defined (__aarch64__)
 # define GUM_NATIVE_CPU GUM_CPU_ARM64
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_ARM64
@@ -73,6 +89,7 @@ typedef GumArmCpuContext GumCpuContext;
  */
 # define GUM_DEFAULT_CS_MODE GUM_DEFAULT_CS_ENDIAN
 typedef GumArm64CpuContext GumCpuContext;
+typedef GumArm64FullCpuContext GumFullCpuContext;
 #elif defined (__mips__)
 # define GUM_NATIVE_CPU GUM_CPU_MIPS
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_MIPS
@@ -90,6 +107,7 @@ typedef GumArm64CpuContext GumCpuContext;
     (CS_MODE_MIPS64 | GUM_DEFAULT_CS_ENDIAN))
 # endif
 typedef GumMipsCpuContext GumCpuContext;
+typedef GumMipsFullCpuContext GumFullCpuContext;
 #else
 # error Unsupported architecture.
 #endif
@@ -197,6 +215,42 @@ struct _GumIA32CpuContext
   guint32 eax;
 };
 
+struct _GumIA32FpuRegs
+{
+   guint8 data[512];
+};
+
+struct _GumIA32AvxReg
+{
+   guint8 data[16];
+};
+
+struct _GumIA32AvxRegs
+{
+  GumIA32AvxReg ymm0;
+  GumIA32AvxReg ymm1;
+  GumIA32AvxReg ymm2;
+  GumIA32AvxReg ymm3;
+  GumIA32AvxReg ymm4;
+  GumIA32AvxReg ymm5;
+  GumIA32AvxReg ymm6;
+  GumIA32AvxReg ymm7;
+};
+
+struct _GumIA32FullCpuContext
+{
+  GumIA32CpuContext regs;
+#ifdef HAVE_WINDOWS
+# pragma warning(push)
+# pragma warning(disable : 4324)
+  __declspec(align(512)) GumIA32FpuRegs fpu;
+# pragma warning(pop)
+#else
+  __attribute__ ((aligned (512))) GumIA32FpuRegs fpu;
+#endif  
+  GumIA32AvxRegs avx;
+};
+
 struct _GumX64CpuContext
 {
   guint64 rip;
@@ -220,6 +274,50 @@ struct _GumX64CpuContext
   guint64 rax;
 };
 
+struct _GumX64FpuRegs
+{
+   guint8 data[512];
+};
+
+struct _GumX64AvxReg
+{
+   guint8 data[16];
+};
+
+struct _GumX64AvxRegs
+{
+  GumX64AvxReg ymm0;
+  GumX64AvxReg ymm1;
+  GumX64AvxReg ymm2;
+  GumX64AvxReg ymm3;
+  GumX64AvxReg ymm4;
+  GumX64AvxReg ymm5;
+  GumX64AvxReg ymm6;
+  GumX64AvxReg ymm7;
+  GumX64AvxReg ymm8;
+  GumX64AvxReg ymm9;
+  GumX64AvxReg ymm10;
+  GumX64AvxReg ymm11;
+  GumX64AvxReg ymm12;
+  GumX64AvxReg ymm13;
+  GumX64AvxReg ymm14;
+  GumX64AvxReg ymm15;
+};
+
+struct _GumX64FullCpuContext
+{
+  GumX64CpuContext regs;
+#ifdef HAVE_WINDOWS
+# pragma warning(push)
+# pragma warning(disable : 4324)
+  __declspec(align(512)) GumX64FpuRegs fpu;
+# pragma warning(pop)
+#else
+  __attribute__((aligned(512))) GumX64FpuRegs fpu;
+#endif
+  GumX64AvxRegs avx;
+};
+
 struct _GumArmCpuContext
 {
   guint32 cpsr;
@@ -236,6 +334,38 @@ struct _GumArmCpuContext
   guint32 lr;
 };
 
+struct _GumArmNeonReg
+{
+  guint8 data[16];
+};
+
+struct _GumArmNeonRegs
+{
+  GumArmNeonReg q0;
+  GumArmNeonReg q1;
+  GumArmNeonReg q2;
+  GumArmNeonReg q3;
+  GumArmNeonReg q4;
+  GumArmNeonReg q5;
+  GumArmNeonReg q6;
+  GumArmNeonReg q7;
+
+  GumArmNeonReg q8;
+  GumArmNeonReg q9;
+  GumArmNeonReg q10;
+  GumArmNeonReg q11;
+  GumArmNeonReg q12;
+  GumArmNeonReg q13;
+  GumArmNeonReg q14;
+  GumArmNeonReg q15;
+};
+
+struct _GumArmFullCpuContext
+{
+  GumArmCpuContext regs;
+  GumArmNeonRegs neon;
+};
+
 struct _GumArm64CpuContext
 {
   guint64 pc;
@@ -245,6 +375,11 @@ struct _GumArm64CpuContext
   guint64 fp;
   guint64 lr;
   guint8 q[128];
+};
+
+struct _GumArm64FullCpuContext
+{
+  GumArm64CpuContext regs;
 };
 
 struct _GumMipsCpuContext
@@ -300,6 +435,11 @@ struct _GumMipsCpuContext
 
   gsize k0;
   gsize k1;
+};
+
+struct _GumMipsFullCpuContext
+{
+  GumMipsCpuContext regs;
 };
 
 enum _GumRelocationScenario

@@ -27,6 +27,8 @@ TESTLIST_BEGIN (script)
   TESTENTRY (rpc_can_be_performed)
   TESTENTRY (message_can_be_logged)
   TESTENTRY (thread_can_be_forced_to_sleep)
+  TESTENTRY (process_can_run_on_thread_sync)
+  TESTENTRY (process_can_run_on_thread_async)
   TESTENTRY (timeout_can_be_scheduled)
   TESTENTRY (timeout_can_be_cancelled)
   TESTENTRY (interval_can_be_scheduled)
@@ -387,6 +389,7 @@ TESTLIST_BEGIN (script)
 TESTLIST_END ()
 
 typedef struct _GumInvokeTargetContext GumInvokeTargetContext;
+typedef struct _TestRunOnThreadSyncContext TestRunOnThreadSyncContext;
 typedef struct _GumCrashExceptorContext GumCrashExceptorContext;
 typedef struct _TestTrigger TestTrigger;
 
@@ -396,6 +399,15 @@ struct _GumInvokeTargetContext
   guint repeat_duration;
   volatile gint started;
   volatile gint finished;
+};
+
+struct _TestRunOnThreadSyncContext
+{
+  GMutex mutex;
+  GCond cond;
+  volatile gboolean started;
+  volatile GumThreadId thread_id;
+  volatile gboolean * volatile done;
 };
 
 struct _GumCrashExceptorContext
@@ -453,6 +465,11 @@ static gpointer sleeping_dummy (gpointer data);
 
 static gpointer invoke_target_function_int_worker (gpointer data);
 static gpointer invoke_target_function_trigger (gpointer data);
+
+static GThread * create_sleeping_dummy_thread_sync (volatile gboolean * done,
+    GumThreadId * thread_id);
+
+static gpointer sleeping_dummy_func (gpointer data);
 
 #ifndef HAVE_WINDOWS
 static void exit_on_sigsegv (int sig, siginfo_t * info, void * context);
@@ -5048,6 +5065,114 @@ TESTCASE (thread_can_be_forced_to_sleep)
   g_assert_cmpfloat (g_timer_elapsed (timer, NULL), >=, 0.2f);
   EXPECT_NO_MESSAGES ();
   g_timer_destroy (timer);
+}
+
+TESTCASE (process_can_run_on_thread_sync)
+{
+  GThread * thread;
+  GumThreadId thread_id;
+  volatile gboolean done = FALSE;
+
+  thread = create_sleeping_dummy_thread_sync (&done, &thread_id);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const threads = Process.enumerateThreads();"
+      "const thread = threads.find(t => t.id == " GUM_PTR_CONST ");"
+      "const data = 1338;"
+      "const ret = Process.runOnThread(thread.id, function (ctx) {"
+      "  send (data);"
+      "  return 1339;"
+      "});"
+      "send (ret)",
+      thread_id);
+
+  EXPECT_SEND_MESSAGE_WITH ("1338");
+  EXPECT_SEND_MESSAGE_WITH ("1339");
+
+  done = TRUE;
+  g_thread_join (thread);
+}
+
+TESTCASE (process_can_run_on_thread_async)
+{
+  GThread * thread;
+  GumThreadId thread_id;
+  volatile gboolean done = FALSE;
+
+  thread = create_sleeping_dummy_thread_sync (&done, &thread_id);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "async function run () {"
+      "  const threads = Process.enumerateThreads();"
+      "  const thread = threads.find(t => t.id == " GUM_PTR_CONST ");"
+      "  const data = 1338;"
+      "  let res;"
+      "  const prom = new Promise (function (resolve, reject) {"
+      "    res = resolve;"
+      "  });"
+      "  const ret = Process.runOnThreadAsync(thread.id, function (ctx) {"
+      "    send (data);"
+      "    res();"
+      "  });"
+      "  await prom;"
+      "};"
+      "run();",
+      thread_id);
+
+  EXPECT_SEND_MESSAGE_WITH ("1338");
+
+  done = TRUE;
+  g_thread_join (thread);
+}
+
+static GThread *
+create_sleeping_dummy_thread_sync (volatile gboolean * done,
+                                   GumThreadId * thread_id)
+{
+  TestRunOnThreadSyncContext sync_data;
+  GThread * thread;
+
+  g_mutex_init (&sync_data.mutex);
+  g_cond_init (&sync_data.cond);
+  sync_data.started = FALSE;
+  sync_data.thread_id = 0;
+  sync_data.done = done;
+
+  g_mutex_lock (&sync_data.mutex);
+
+  thread = g_thread_new ("process-test-sleeping-dummy-func",
+      sleeping_dummy_func, &sync_data);
+
+  while (!sync_data.started)
+    g_cond_wait (&sync_data.cond, &sync_data.mutex);
+
+  if (thread_id != NULL)
+    *thread_id = sync_data.thread_id;
+
+  g_mutex_unlock (&sync_data.mutex);
+
+  g_cond_clear (&sync_data.cond);
+  g_mutex_clear (&sync_data.mutex);
+
+  return thread;
+}
+
+static gpointer
+sleeping_dummy_func (gpointer data)
+{
+  TestRunOnThreadSyncContext * sync_data = data;
+  volatile gboolean * done = sync_data->done;
+
+  g_mutex_lock (&sync_data->mutex);
+  sync_data->started = TRUE;
+  sync_data->thread_id = gum_process_get_current_thread_id ();
+  g_cond_signal (&sync_data->cond);
+  g_mutex_unlock (&sync_data->mutex);
+
+  while (!(*done))
+    g_thread_yield ();
+
+  return NULL;
 }
 
 TESTCASE (timeout_can_be_scheduled)

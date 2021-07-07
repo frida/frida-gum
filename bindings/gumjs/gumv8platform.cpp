@@ -16,6 +16,8 @@
 #include <gum/gumcodesegment.h>
 #include <gum/gummemory.h>
 
+#include <algorithm>
+
 using namespace v8;
 
 namespace

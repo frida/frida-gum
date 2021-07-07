@@ -32,6 +32,8 @@
     TESTENTRY_SIMPLE ("Core/Process", test_process, NAME)
 
 TESTLIST_BEGIN (process)
+  TESTENTRY (process_threads_run_sync)
+  TESTENTRY (process_threads_run_async)
   TESTENTRY (process_threads)
   TESTENTRY (process_threads_exclude_cloaked)
   TESTENTRY (process_modules)
@@ -76,10 +78,20 @@ TESTLIST_BEGIN (process)
 #endif
 TESTLIST_END ()
 
+typedef struct _TestRunOnThreadAsyncContext TestRunOnThreadAsyncContext;
 typedef struct _TestForEachContext TestForEachContext;
 typedef struct _TestThreadContext TestThreadContext;
 typedef struct _TestRangeContext TestRangeContext;
 typedef struct _TestThreadSyncData TestThreadSyncData;
+
+struct _TestRunOnThreadAsyncContext
+{
+  guint64 user_data;
+  GMutex data_mutex;
+  GCond data_cond;
+  gboolean ready;
+  GumThreadId id;
+} ;
 
 struct _TestForEachContext
 {
@@ -142,6 +154,10 @@ static gboolean process_potential_export_search_result (
     const GumExportDetails * details, gpointer user_data);
 #endif
 
+static void * process_run_on_thread_run_sync_func (
+    const GumCpuContext * cpu_context, gpointer user_data);
+static void process_run_on_thread_run_async_func (
+    const GumCpuContext * cpu_context, gpointer user_data);
 static GThread * create_sleeping_dummy_thread_sync (volatile gboolean * done,
     GumThreadId * thread_id);
 static gpointer sleeping_dummy (gpointer data);
@@ -169,6 +185,107 @@ static gboolean malloc_range_found_cb (
 static gboolean malloc_range_check_cb (
     const GumMallocRangeDetails * details, gpointer user_data);
 #endif
+
+TESTCASE (process_threads_run_sync)
+{
+  volatile gboolean done = FALSE;
+  GThread * thread;
+  GumThreadId thread_id;
+  void * ret;
+
+  if (!check_thread_enumeration_testable ())
+    return;
+
+  if (!gum_process_is_run_on_thread_supported ())
+  {
+    g_print ("<skipping, unsupported> ");
+    return;
+  }
+
+  thread = create_sleeping_dummy_thread_sync (&done, &thread_id);
+
+  ret = gum_process_run_on_thread_sync (thread_id,
+      process_run_on_thread_run_sync_func, (gpointer) 0xdeadface);
+
+  g_assert_cmpuint ((GumThreadId) ret, ==, thread_id);
+
+  done = TRUE;
+  g_thread_join (thread);
+}
+
+static void *
+process_run_on_thread_run_sync_func (const GumCpuContext * cpu_context,
+                                     gpointer user_data)
+{
+  GumThreadId self;
+  g_assert (user_data == (gpointer) 0xdeadface);
+  self = gum_process_get_current_thread_id ();
+  return (void *) self;
+}
+
+TESTCASE (process_threads_run_async)
+{
+  volatile gboolean done = FALSE;
+  GThread * thread;
+  GumThreadId thread_id;
+
+  TestRunOnThreadAsyncContext ctx =
+  {
+    .user_data = 0xdeadface,
+    .ready = FALSE,
+    .id = 0,
+  };
+
+  volatile gboolean* ready = &ctx.ready;
+
+  g_mutex_init (&ctx.data_mutex);
+  g_cond_init (&ctx.data_cond);
+
+  if (!check_thread_enumeration_testable ())
+    return;
+
+  if (!gum_process_is_run_on_thread_supported ())
+  {
+    g_print ("<skipping, unsupported> ");
+    return;
+  }
+
+  thread = create_sleeping_dummy_thread_sync (&done, &thread_id);
+  
+  g_mutex_lock (&ctx.data_mutex);
+
+  gum_process_run_on_thread_async (thread_id,
+      process_run_on_thread_run_async_func, &ctx);
+
+  /* check we have control back before the async function is complete */
+  g_assert_cmpuint (ctx.id, ==, 0);
+  g_assert_false (ctx.ready);
+
+  while (!(*ready))
+    g_cond_wait (&ctx.data_cond, &ctx.data_mutex);
+
+  g_mutex_unlock (&ctx.data_mutex);
+
+  g_assert_cmpuint (ctx.id, ==, thread_id);
+
+  done = TRUE;
+  g_thread_join (thread);
+}
+
+static void
+process_run_on_thread_run_async_func (const GumCpuContext * cpu_context,
+                                      gpointer user_data)
+{
+  TestRunOnThreadAsyncContext * ctx = (TestRunOnThreadAsyncContext *)user_data;
+
+  g_assert_cmpuint (ctx->user_data, ==, 0xdeadface);
+
+  g_mutex_lock (&ctx->data_mutex);
+  ctx->id = gum_process_get_current_thread_id ();
+  ctx->ready = TRUE;
+  g_cond_signal (&ctx->data_cond);
+  g_mutex_unlock (&ctx->data_mutex);
+}
 
 TESTCASE (process_threads)
 {
@@ -1047,12 +1164,14 @@ create_sleeping_dummy_thread_sync (volatile gboolean * done,
   sync_data.thread_id = 0;
   sync_data.done = done;
 
+  volatile gboolean* started = &sync_data.started;
+
   g_mutex_lock (&sync_data.mutex);
 
   thread = g_thread_new ("process-test-sleeping-dummy", sleeping_dummy,
       &sync_data);
 
-  while (!sync_data.started)
+  while (!(*started))
     g_cond_wait (&sync_data.cond, &sync_data.mutex);
 
   if (thread_id != NULL)
