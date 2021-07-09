@@ -52,6 +52,7 @@ typedef guint GumProbeId;
 typedef struct _GumCallDetails GumCallDetails;
 typedef void (* GumCallProbeCallback) (GumCallDetails * details,
     gpointer user_data);
+typedef guint GumPrologType;
 
 struct _GumStalkerTransformerInterface
 {
@@ -252,6 +253,32 @@ GUM_API void gum_stalker_iterator_put_callout (GumStalkerIterator * self,
 
 GUM_API void gum_stalker_set_counters_enabled (gboolean enabled);
 GUM_API void gum_stalker_dump_counters (void);
+
+GUM_API void gum_stalker_prefetch_backpatch_jmp (GumStalker * self, guint8 * to,
+    guint8 * from, gsize code_offset, GumPrologType opened_prolog);
+
+GUM_API void gum_stalker_prefetch_backpatch_call (GumStalker * self,
+    guint8 * to, guint8 * from, gsize code_offset, GumPrologType opened_prolog,
+    gpointer ret_real_address, gsize ret_code_offset);
+
+GUM_API void gum_stalker_prefetch_backpatch_ret (GumStalker * self, guint8 * to,
+    guint8 * from, gsize code_offset);
+
+GUM_API void gum_stalker_prefetch_backpatch_inline_cache (GumStalker * self,
+    guint8 * to, guint8 * from, gsize ic_offset);
+
+GUM_API GUM_WEAK void gum_stalker_backpatch_jmp_notify (guint8 * to,
+    guint8 * from, gsize code_offset, GumPrologType opened_prolog);
+
+GUM_API GUM_WEAK void gum_stalker_backpatch_call_notify (guint8 * to,
+    guint8 * from, gsize code_offset, GumPrologType opened_prolog,
+    gpointer ret_real_address, gsize ret_code_offset);
+
+GUM_API GUM_WEAK void gum_stalker_backpatch_ret_notify (guint8 * to,
+    guint8 * from, gsize code_offset);
+
+GUM_API GUM_WEAK void gum_stalker_backpatch_inline_cache_notify (guint8 * to,
+    guint8 * from, gsize ic_offset);
 
 G_END_DECLS
 

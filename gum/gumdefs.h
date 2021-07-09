@@ -19,6 +19,8 @@
 #  define GUM_API
 #endif
 
+#define GUM_WEAK __attribute__((weak))
+
 G_BEGIN_DECLS
 
 typedef guint64 GumAddress;
