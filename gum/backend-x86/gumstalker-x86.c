@@ -1948,21 +1948,38 @@ gum_exec_ctx_may_now_backpatch (GumExecCtx * ctx,
 static gboolean counters_enabled = FALSE;
 static guint total_transitions = 0;
 
+__attribute__((weak)) void
+gum_increment_counter_callback_total_transitions ()
+{
+
+}
+
 #define GUM_ENTRYGATE(name) \
     gum_exec_ctx_replace_current_block_from_##name
+#define GUM_ENTRYGATE_CALLBACK(name) \
+    gum_increment_counter_callback_##name
 #define GUM_DEFINE_ENTRYGATE(name) \
     static guint total_##name##s = 0; \
     \
+    __attribute__((weak)) void \
+    GUM_ENTRYGATE_CALLBACK (name) (void) \
+    { \
+    } \
     static gpointer GUM_THUNK \
     GUM_ENTRYGATE (name) ( \
         GumExecCtx * ctx, \
         gpointer start_address) \
     { \
       if (counters_enabled) \
+      { \
         total_##name##s++; \
+        GUM_ENTRYGATE_CALLBACK (name) (); \
+        gum_increment_counter_callback_total_transitions (); \
+      } \
       \
       return gum_exec_ctx_switch_block (ctx, start_address); \
     }
+
 #define GUM_PRINT_ENTRYGATE_COUNTER(name) \
     g_printerr ("\t" G_STRINGIFY (name) "s: %u\n", total_##name##s)
 
