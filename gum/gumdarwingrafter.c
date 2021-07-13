@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2021 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -13,6 +14,8 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+
+#define GUM_BIND_STATE_RESET_SIZE 2
 
 typedef struct _GumGraftedLayout GumGraftedLayout;
 typedef struct _GumGraftedHookTrampoline GumGraftedHookTrampoline;
@@ -148,8 +151,6 @@ static void gum_replay_bind_state_transitions (const guint8 * start,
     const guint8 * end, GumBindState * state);
 
 G_DEFINE_TYPE (GumDarwinGrafter, gum_darwin_grafter, G_TYPE_OBJECT)
-
-#define GUM_BIND_STATE_RESET_SIZE 2
 
 static void
 gum_darwin_grafter_class_init (GumDarwinGrafterClass * klass)
@@ -330,7 +331,7 @@ gum_darwin_grafter_graft (GumDarwinGrafter * self,
   else
   {
     gsize head_size =
-      layout.rewritten_binds_split_offset - layout.linkedit_offset_in;
+        layout.rewritten_binds_split_offset - layout.linkedit_offset_in;
 
     g_byte_array_append (output,
         (const guint8 *) input + layout.linkedit_offset_in,
@@ -354,7 +355,7 @@ gum_darwin_grafter_graft (GumDarwinGrafter * self,
   }
 
   linkedit_addendum_size = layout.linkedit_offset_out +
-    layout.linkedit_size_out - output->len;
+      layout.linkedit_size_out - output->len;
   g_assert (linkedit_addendum_size == 0);
 
   gum_darwin_grafter_emit_segments (output->data, &layout, code_offsets,
@@ -748,12 +749,12 @@ gum_darwin_grafter_transform_load_commands (gconstpointer commands_in,
 
 #define GUM_SHIFT(field) \
     if (field >= layout->rewritten_binds_split_offset) \
-      field += layout->rewritten_binds_shift;\
+      field += layout->rewritten_binds_shift; \
     field += layout->linkedit_shift
 
 #define GUM_MAYBE_SHIFT(field) \
     if (field != 0 && field >= layout->rewritten_binds_split_offset) \
-      field += layout->rewritten_binds_shift;\
+      field += layout->rewritten_binds_shift; \
     if (field != 0) \
       field += layout->linkedit_shift
 
@@ -802,10 +803,11 @@ gum_darwin_grafter_transform_load_commands (gconstpointer commands_in,
             else if (ic->export_off + ic->export_size == ic->lazy_bind_off)
               ic->export_size += ic->lazy_bind_size;
           }
+
           /*
-           * Get rid of lazy binds so Interceptor can index them. This could also
-           * be achieved at runtime by calling dlopen() with RTLD_NOW, but we
-           * don't know if the library was loaded with RTLD_GLOBAL vs RTLD_LOCAL.
+           * Get rid of lazy binds so Interceptor can index them. This could
+           * also be achieved at runtime by calling dlopen() with RTLD_NOW, but
+           * we don't know if the library was loaded RTLD_GLOBAL vs RTLD_LOCAL.
            */
           binds = gum_merge_lazy_binds_into_binds (ic, linkedit);
           *merged_binds = binds;
