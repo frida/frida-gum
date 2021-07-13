@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2021 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -13,6 +14,8 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+
+#define GUM_BIND_STATE_RESET_SIZE 2
 
 typedef struct _GumGraftedLayout GumGraftedLayout;
 typedef struct _GumGraftedHookTrampoline GumGraftedHookTrampoline;
@@ -62,6 +65,9 @@ struct _GumGraftedLayout
 
   goffset rewritten_binds_offset;
   gsize rewritten_binds_capacity;
+
+  goffset rewritten_binds_split_offset;
+  gsize rewritten_binds_shift;
 };
 
 #pragma pack (push, 1)
@@ -261,7 +267,6 @@ gum_darwin_grafter_graft (GumDarwinGrafter * self,
   gconstpointer end_of_load_commands;
   gsize gap_space_used;
   gconstpointer rest_of_gap;
-  goffset linkedit_addendum_offset;
   gsize linkedit_addendum_size;
   FILE * file = NULL;
 
@@ -317,23 +322,41 @@ gum_darwin_grafter_graft (GumDarwinGrafter * self,
   g_byte_array_set_size (output, output->len + layout.code_size +
       layout.data_size);
 
-  g_byte_array_append (output,
-      (const guint8 *) input + layout.linkedit_offset_in,
-      layout.linkedit_size_in);
+  if (layout.rewritten_binds_split_offset == -1)
+  {
+    g_byte_array_append (output,
+        (const guint8 *) input + layout.linkedit_offset_in,
+        layout.linkedit_size_in);
+  }
+  else
+  {
+    gsize head_size =
+        layout.rewritten_binds_split_offset - layout.linkedit_offset_in;
 
-  linkedit_addendum_offset = output->len;
-  linkedit_addendum_size = layout.linkedit_size_out - layout.linkedit_size_in;
-  g_byte_array_set_size (output, output->len + linkedit_addendum_size);
-  memset (output->data + linkedit_addendum_offset, 0, linkedit_addendum_size);
+    g_byte_array_append (output,
+        (const guint8 *) input + layout.linkedit_offset_in,
+        head_size);
+    g_byte_array_set_size (output, output->len + layout.rewritten_binds_shift);
+    g_byte_array_append (output,
+        (const guint8 *) input + layout.rewritten_binds_split_offset,
+        layout.linkedit_size_in - head_size);
+  }
 
   if (layout.rewritten_binds_offset != -1)
   {
     guint8 * rewritten_binds_start = output->data +
         layout.rewritten_binds_offset + layout.linkedit_shift;
     memcpy (rewritten_binds_start, merged_binds->data, merged_binds->len);
-    memset (rewritten_binds_start + merged_binds->len, 0,
-        layout.rewritten_binds_capacity - merged_binds->len);
+    if (layout.rewritten_binds_capacity > merged_binds->len)
+    {
+      memset (rewritten_binds_start + merged_binds->len, 0,
+          layout.rewritten_binds_capacity - merged_binds->len);
+    }
   }
+
+  linkedit_addendum_size = layout.linkedit_offset_out +
+      layout.linkedit_size_out - output->len;
+  g_assert (linkedit_addendum_size == 0);
 
   gum_darwin_grafter_emit_segments (output->data, &layout, code_offsets,
       imports);
@@ -419,6 +442,8 @@ gum_darwin_grafter_compute_layout (GumDarwinGrafter * self,
   layout->linkedit_size_out = layout->linkedit_size_in;
   layout->rewritten_binds_offset = -1;
   layout->rewritten_binds_capacity = 0;
+  layout->rewritten_binds_split_offset = -1;
+  layout->rewritten_binds_shift = 0;
   if ((self->flags & GUM_DARWIN_GRAFTER_FLAGS_TRANSFORM_LAZY_BINDS) != 0)
   {
     const GumMachHeader64 * mach_header;
@@ -438,21 +463,34 @@ gum_darwin_grafter_compute_layout (GumDarwinGrafter * self,
         if (ic->lazy_bind_size != 0)
         {
           gboolean lazy_binds_follow_binds;
+          gsize addendum;
 
           lazy_binds_follow_binds =
               ic->lazy_bind_off == ic->bind_off + ic->bind_size;
+
+          layout->rewritten_binds_offset = ic->bind_off;
+          layout->rewritten_binds_capacity = GUM_ALIGN_SIZE (ic->bind_size +
+              ic->lazy_bind_size + GUM_BIND_STATE_RESET_SIZE, 16);
+
           if (lazy_binds_follow_binds)
           {
-            layout->rewritten_binds_offset = ic->bind_off;
-            layout->rewritten_binds_capacity =
-                ic->bind_size + ic->lazy_bind_size;
+            addendum = layout->rewritten_binds_capacity -
+                (ic->bind_size + ic->lazy_bind_size);
+            layout->rewritten_binds_split_offset =
+                layout->rewritten_binds_offset + ic->bind_size +
+                ic->lazy_bind_size;
           }
           else
           {
-            layout->linkedit_size_out += ic->bind_size + ic->lazy_bind_size;
-            layout->rewritten_binds_offset =
-                layout->linkedit_offset_in + layout->linkedit_size_in;
+            addendum = GUM_ALIGN_SIZE (
+                layout->rewritten_binds_capacity - ic->bind_size, 16);
+            layout->rewritten_binds_capacity = ic->bind_size + addendum;
+            layout->rewritten_binds_split_offset =
+                layout->rewritten_binds_offset + ic->bind_size;
           }
+
+          layout->rewritten_binds_shift = addendum;
+          layout->linkedit_size_out += addendum;
         }
       }
 
@@ -710,8 +748,13 @@ gum_darwin_grafter_transform_load_commands (gconstpointer commands_in,
     n++;
 
 #define GUM_SHIFT(field) \
+    if (field >= layout->rewritten_binds_split_offset) \
+      field += layout->rewritten_binds_shift; \
     field += layout->linkedit_shift
+
 #define GUM_MAYBE_SHIFT(field) \
+    if (field != 0 && field >= layout->rewritten_binds_split_offset) \
+      field += layout->rewritten_binds_shift; \
     if (field != 0) \
       field += layout->linkedit_shift
 
@@ -723,12 +766,14 @@ gum_darwin_grafter_transform_load_commands (gconstpointer commands_in,
 
         if (is_linkedit_command)
         {
-          GUM_SHIFT (sc->vmaddr);
+          guint64 base = sc->vmaddr - sc->fileoff;
+
           sc->vmsize =
               GUM_ALIGN_SIZE (layout->linkedit_size_out, layout->page_size);
 
           GUM_SHIFT (sc->fileoff);
           sc->filesize = layout->linkedit_size_out;
+          sc->vmaddr = base + sc->fileoff;
         }
 
         break;
@@ -740,11 +785,29 @@ gum_darwin_grafter_transform_load_commands (gconstpointer commands_in,
         if (layout->rewritten_binds_offset != -1)
         {
           GByteArray * binds;
+          gboolean lazy_binds_follow_binds =
+              ic->lazy_bind_off == ic->bind_off + ic->bind_size;
+
+          if (!lazy_binds_follow_binds)
+          {
+            /*
+             * Fill the gap left by merging binds and lazy binds, so that
+             * __LINKEDIT has no gaps and codesign is happy. We do this by
+             * detecting what is preceding the lazy bindings and extending
+             * its size.
+             */
+            if (ic->rebase_off + ic->rebase_size == ic->lazy_bind_off)
+              ic->rebase_size += ic->lazy_bind_size;
+            else if (ic->weak_bind_off + ic->weak_bind_size == ic->lazy_bind_off)
+              ic->weak_bind_size += ic->lazy_bind_size;
+            else if (ic->export_off + ic->export_size == ic->lazy_bind_off)
+              ic->export_size += ic->lazy_bind_size;
+          }
 
           /*
-           * Get rid of lazy binds so Interceptor can index them. This could also
-           * be achieved at runtime by calling dlopen() with RTLD_NOW, but we
-           * don't know if the library was loaded with RTLD_GLOBAL vs RTLD_LOCAL.
+           * Get rid of lazy binds so Interceptor can index them. This could
+           * also be achieved at runtime by calling dlopen() with RTLD_NOW, but
+           * we don't know if the library was loaded RTLD_GLOBAL vs RTLD_LOCAL.
            */
           binds = gum_merge_lazy_binds_into_binds (ic, linkedit);
           *merged_binds = binds;
@@ -755,7 +818,8 @@ gum_darwin_grafter_transform_load_commands (gconstpointer commands_in,
            * Not doing so results in a bug in codesign for which the resulting
            * signed binary turns out corrupted.
            */
-          ic->bind_size += ic->lazy_bind_size;
+          ic->bind_size = layout->rewritten_binds_capacity;
+
           g_assert (binds->len <= ic->bind_size);
 
           ic->lazy_bind_off = 0;
@@ -1034,6 +1098,22 @@ gum_merge_lazy_binds_into_binds (const GumDyldInfoCommand * ic,
     start = (const guint8 *) linkedit + ic->lazy_bind_off;
     end = start + ic->lazy_bind_size;
     p = start;
+
+    if (state.addend != 0)
+    {
+      guint8 reset_state[GUM_BIND_STATE_RESET_SIZE] = {
+        GUM_BIND_OPCODE_SET_ADDEND_SLEB,
+        0
+      };
+
+      /*
+       * Prevent some of the previous state from bleeding into the converted
+       * lazy bindings, which state must be treated as a different "context".
+       */
+      g_byte_array_append (binds, reset_state, sizeof (reset_state));
+
+      state.addend = 0;
+    }
 
     while (p != end)
     {
