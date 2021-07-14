@@ -959,7 +959,7 @@ TESTCASE (darwin_module_exports_should_support_dyld)
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
   gum_darwin_enumerate_exports (task, "/usr/lib/dyld", export_found_cb, &ctx);
-  g_assert_cmpuint (ctx.number_of_calls, >, 1);
+  g_assert_cmpuint (ctx.number_of_calls, >=, 1);
 }
 
 TESTCASE (darwin_libsystem_exports_should_contain_chkstk)
