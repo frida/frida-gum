@@ -474,8 +474,10 @@ gum_darwin_grafter_compute_layout (GumDarwinGrafter * self,
 
           if (lazy_binds_follow_binds)
           {
-            addendum = layout->rewritten_binds_capacity -
-                (ic->bind_size + ic->lazy_bind_size);
+            addendum = GUM_ALIGN_SIZE (layout->rewritten_binds_capacity -
+                (ic->bind_size + ic->lazy_bind_size), 16);
+            layout->rewritten_binds_capacity =
+                ic->bind_size + ic->lazy_bind_size + addendum;
             layout->rewritten_binds_split_offset =
                 layout->rewritten_binds_offset + ic->bind_size +
                 ic->lazy_bind_size;
