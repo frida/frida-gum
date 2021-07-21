@@ -164,6 +164,7 @@ struct _GumExecCtx
   GumEventType sink_mask;
   void (* sink_process_impl) (GumEventSink * self, const GumEvent * event,
       GumCpuContext * cpu_context);
+  GumStalkerStats * stats;
 
   gboolean unfollow_called_while_still_following;
   GumExecBlock * current_block;
@@ -1094,6 +1095,22 @@ gum_stalker_maybe_reactivate (GumStalker * self,
 }
 
 void
+gum_stalker_set_stats (GumStalker * self,
+                       GumStalkerStats * stats)
+{
+  GumExecCtx * ctx;
+
+  ctx = gum_stalker_get_exec_ctx (self);
+  g_assert (ctx != NULL);
+
+  if (stats != NULL)
+    g_object_ref (stats);
+  if (ctx->stats != NULL)
+    g_object_unref (ctx->stats);
+  ctx->stats = stats;
+}
+
+void
 gum_stalker_prefetch (GumStalker * self,
                       gconstpointer address,
                       gint recycle_count)
@@ -1514,6 +1531,8 @@ gum_exec_ctx_new (GumStalker * stalker,
   ctx->sink_mask = gum_event_sink_query_mask (ctx->sink);
   ctx->sink_process_impl = GUM_EVENT_SINK_GET_IFACE (ctx->sink)->process;
 
+  ctx->stats = NULL;
+
   ctx->frames = (GumExecFrame *) (base + stalker->frames_offset);
   ctx->first_frame =
       ctx->frames + (stalker->frames_size / sizeof (GumExecFrame)) - 1;
@@ -1586,6 +1605,7 @@ gum_exec_ctx_free (GumExecCtx * ctx)
 
   g_object_unref (ctx->sink);
   g_object_unref (ctx->transformer);
+  g_clear_object (&ctx->stats);
 
   gum_arm64_relocator_clear (&ctx->relocator);
   gum_arm64_writer_clear (&ctx->code_writer);
@@ -1736,26 +1756,19 @@ gum_exec_ctx_may_now_backpatch (GumExecCtx * ctx,
   return TRUE;
 }
 
-static gboolean counters_enabled = FALSE;
-static guint total_transitions = 0;
-
 #define GUM_ENTRYGATE(name) \
     gum_exec_ctx_replace_current_block_from_##name
 #define GUM_DEFINE_ENTRYGATE(name) \
-    static guint total_##name##s = 0; \
-    \
     static gpointer GUM_THUNK \
     GUM_ENTRYGATE (name) ( \
         GumExecCtx * ctx, \
         gpointer start_address) \
     { \
-      if (counters_enabled) \
-        total_##name##s++; \
+      if (ctx->stats != NULL) \
+        gum_stalker_stats_increment_##name (ctx->stats); \
       \
       return gum_exec_ctx_switch_block (ctx, start_address); \
     }
-#define GUM_PRINT_ENTRYGATE_COUNTER(name) \
-    g_printerr ("\t" G_STRINGIFY (name) "s: %u\n", total_##name##s)
 
 GUM_DEFINE_ENTRYGATE (call_imm)
 GUM_DEFINE_ENTRYGATE (call_reg)
@@ -1779,8 +1792,8 @@ static gpointer
 gum_exec_ctx_switch_block (GumExecCtx * ctx,
                            gpointer start_address)
 {
-  if (counters_enabled)
-    total_transitions++;
+  if (ctx->stats != NULL)
+    gum_stalker_stats_increment_total (ctx->stats);
 
   if (start_address == gum_unfollow_me_address ||
       start_address == gum_deactivate_address)
@@ -4657,36 +4670,6 @@ gum_slab_try_reserve (GumSlab * self,
   self->offset += size;
 
   return cursor;
-}
-
-void
-gum_stalker_set_counters_enabled (gboolean enabled)
-{
-  counters_enabled = enabled;
-}
-
-void
-gum_stalker_dump_counters (void)
-{
-  g_printerr ("\n\ntotal_transitions: %u\n", total_transitions);
-
-  GUM_PRINT_ENTRYGATE_COUNTER (call_imm);
-  GUM_PRINT_ENTRYGATE_COUNTER (call_reg);
-  GUM_PRINT_ENTRYGATE_COUNTER (post_call_invoke);
-  GUM_PRINT_ENTRYGATE_COUNTER (excluded_call_imm);
-  GUM_PRINT_ENTRYGATE_COUNTER (excluded_call_reg);
-  GUM_PRINT_ENTRYGATE_COUNTER (ret);
-
-  GUM_PRINT_ENTRYGATE_COUNTER (jmp_imm);
-  GUM_PRINT_ENTRYGATE_COUNTER (jmp_reg);
-
-  GUM_PRINT_ENTRYGATE_COUNTER (jmp_cond_cc);
-  GUM_PRINT_ENTRYGATE_COUNTER (jmp_cond_cbz);
-  GUM_PRINT_ENTRYGATE_COUNTER (jmp_cond_cbnz);
-  GUM_PRINT_ENTRYGATE_COUNTER (jmp_cond_tbz);
-  GUM_PRINT_ENTRYGATE_COUNTER (jmp_cond_tbnz);
-
-  GUM_PRINT_ENTRYGATE_COUNTER (jmp_continuation);
 }
 
 static gpointer

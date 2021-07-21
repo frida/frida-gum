@@ -95,8 +95,20 @@ TESTLIST_BEGIN (stalker)
 
 #ifdef HAVE_LINUX
   TESTENTRY (prefetch)
+  TESTENTRY (stats)
 #endif
 TESTLIST_END ()
+
+#ifdef HAVE_LINUX
+
+struct _GumTestStalkerStats
+{
+  GObject parent;
+
+  guint64 total;
+};
+
+#endif
 
 static gpointer run_stalked_briefly (gpointer data);
 static gpointer run_stalked_into_termination (gpointer data);
@@ -140,6 +152,24 @@ static void prefetch_read_blocks (int fd, GHashTable * table);
 
 static GHashTable * prefetch_compiled = NULL;
 static GHashTable * prefetch_executed = NULL;
+
+#define GUM_TYPE_TEST_STALKER_STATS (gum_test_stalker_stats_get_type ())
+G_DECLARE_FINAL_TYPE (GumTestStalkerStats, gum_test_stalker_stats, GUM,
+                      TEST_STALKER_STATS, GObject)
+
+static void gum_test_stalker_stats_iface_init (gpointer g_iface,
+    gpointer iface_data);
+static void gum_test_stalker_stats_class_init (
+    GumTestStalkerStatsClass * klass);
+static void gum_test_stalker_stats_init (GumTestStalkerStats * self);
+static void gum_test_stalker_stats_increment_total (GumStalkerStats * stats);
+
+G_DEFINE_TYPE_EXTENDED (GumTestStalkerStats,
+                        gum_test_stalker_stats,
+                        G_TYPE_OBJECT,
+                        0,
+                        G_IMPLEMENT_INTERFACE (GUM_TYPE_STALKER_STATS,
+                            gum_test_stalker_stats_iface_init))
 #endif
 
 static const guint8 flat_code[] = {
@@ -429,7 +459,6 @@ TESTCASE (performance)
   g_timer_elapsed (timer, NULL);
 
   /* the real deal */
-  gum_stalker_set_counters_enabled (TRUE);
   g_timer_reset (timer);
   pretend_workload (&runner_range);
   duration_stalked = g_timer_elapsed (timer, NULL);
@@ -440,8 +469,6 @@ TESTCASE (performance)
 
   g_print ("<duration_direct=%f duration_stalked=%f ratio=%f> ",
       duration_direct, duration_stalked, duration_stalked / duration_direct);
-
-  gum_stalker_dump_counters ();
 }
 
 static gboolean
@@ -2841,6 +2868,63 @@ prefetch_read_blocks (int fd,
   {
     g_hash_table_add (table, block_address);
   }
+}
+
+TESTCASE (stats)
+{
+  GumTestStalkerStats * test_stats;
+  GumStalkerStats * stats;
+  guint sum, i;
+
+  test_stats = g_object_new (GUM_TYPE_TEST_STALKER_STATS, NULL);
+
+  stats = GUM_STALKER_STATS (test_stats);
+
+  gum_stalker_follow_me (fixture->stalker, fixture->transformer,
+      GUM_EVENT_SINK (fixture->sink));
+  gum_stalker_deactivate (fixture->stalker);
+
+  gum_stalker_set_stats (fixture->stalker, stats);
+
+  gum_stalker_activate (fixture->stalker, prefetch_activation_target);
+  prefetch_activation_target ();
+
+  sum = 0;
+  for (i = 0; i != 10; i++)
+    sum += i;
+
+  gum_stalker_unfollow_me (fixture->stalker);
+
+  if (g_test_verbose ())
+    g_print ("total: %" G_GINT64_MODIFIER "u\n", test_stats->total);
+
+  g_assert_cmpuint (sum, ==, 45);
+  g_assert_cmpuint (test_stats->total, !=, 0);
+}
+
+static void
+gum_test_stalker_stats_iface_init (gpointer g_iface,
+                                   gpointer iface_data)
+{
+  GumStalkerStatsInterface * iface = g_iface;
+
+  iface->increment_total = gum_test_stalker_stats_increment_total;
+}
+
+static void
+gum_test_stalker_stats_class_init (GumTestStalkerStatsClass * klass)
+{
+}
+
+static void
+gum_test_stalker_stats_init (GumTestStalkerStats * self)
+{
+}
+
+static void
+gum_test_stalker_stats_increment_total (GumStalkerStats * stats)
+{
+  GUM_TEST_STALKER_STATS (stats)->total++;
 }
 
 #endif

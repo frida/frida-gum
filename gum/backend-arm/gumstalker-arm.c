@@ -1164,6 +1164,12 @@ gum_stalker_maybe_reactivate (GumStalker * self,
 }
 
 void
+gum_stalker_set_stats (GumStalker * self,
+                       GumStalkerStats * stats)
+{
+}
+
+void
 gum_stalker_prefetch (GumStalker * self,
                       gconstpointer address,
                       gint recycle_count)

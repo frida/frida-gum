@@ -40,6 +40,12 @@ G_DECLARE_FINAL_TYPE (GumCallbackStalkerTransformer,
     gum_callback_stalker_transformer, GUM, CALLBACK_STALKER_TRANSFORMER,
     GObject)
 
+#define GUM_TYPE_STALKER_STATS (gum_stalker_stats_get_type ())
+G_DECLARE_INTERFACE (GumStalkerStats, gum_stalker_stats, GUM, STALKER_STATS,
+    GObject)
+
+typedef void (* GumStalkerStatsIncrementFunc) (GumStalkerStats * self);
+
 typedef struct _GumStalkerIterator GumStalkerIterator;
 typedef struct _GumStalkerOutput GumStalkerOutput;
 typedef union _GumStalkerWriter GumStalkerWriter;
@@ -59,6 +65,57 @@ struct _GumStalkerTransformerInterface
 
   void (* transform_block) (GumStalkerTransformer * self,
       GumStalkerIterator * iterator, GumStalkerOutput * output);
+};
+
+struct _GumStalkerStatsInterface
+{
+  GTypeInterface parent;
+
+  /* Common */
+  GumStalkerStatsIncrementFunc increment_total;
+
+  GumStalkerStatsIncrementFunc increment_call_imm;
+  GumStalkerStatsIncrementFunc increment_call_reg;
+
+  /* x86 only */
+  GumStalkerStatsIncrementFunc increment_call_mem;
+
+  /* Arm64 only */
+  GumStalkerStatsIncrementFunc increment_excluded_call_reg;
+
+  /* x86 only */
+  GumStalkerStatsIncrementFunc increment_ret_slow_path;
+
+  /* Arm64 only */
+  GumStalkerStatsIncrementFunc increment_ret;
+
+  /* Common */
+  GumStalkerStatsIncrementFunc increment_post_call_invoke;
+  GumStalkerStatsIncrementFunc increment_excluded_call_imm;
+
+  /* Common */
+  GumStalkerStatsIncrementFunc increment_jmp_imm;
+  GumStalkerStatsIncrementFunc increment_jmp_reg;
+
+  /* x86 only */
+  GumStalkerStatsIncrementFunc increment_jmp_mem;
+  GumStalkerStatsIncrementFunc increment_jmp_cond_imm;
+  GumStalkerStatsIncrementFunc increment_jmp_cond_mem;
+  GumStalkerStatsIncrementFunc increment_jmp_cond_reg;
+  GumStalkerStatsIncrementFunc increment_jmp_cond_jcxz;
+
+  /* Arm64 only */
+  GumStalkerStatsIncrementFunc increment_jmp_cond_cc;
+  GumStalkerStatsIncrementFunc increment_jmp_cond_cbz;
+  GumStalkerStatsIncrementFunc increment_jmp_cond_cbnz;
+  GumStalkerStatsIncrementFunc increment_jmp_cond_tbz;
+  GumStalkerStatsIncrementFunc increment_jmp_cond_tbnz;
+
+  /* Common */
+  GumStalkerStatsIncrementFunc increment_jmp_continuation;
+
+  /* x86 only */
+  GumStalkerStatsIncrementFunc increment_sysenter_slow_path;
 };
 
 union _GumStalkerWriter
@@ -111,6 +168,8 @@ GUM_API void gum_stalker_unfollow (GumStalker * self, GumThreadId thread_id);
 
 GUM_API void gum_stalker_activate (GumStalker * self, gconstpointer target);
 GUM_API void gum_stalker_deactivate (GumStalker * self);
+
+GUM_API void gum_stalker_set_stats (GumStalker * self, GumStalkerStats * stats);
 
 /**
  * This API is intended for use during fuzzing scenarios such as AFL forkserver.
@@ -244,14 +303,49 @@ GUM_API void gum_stalker_transformer_transform_block (
     GumStalkerTransformer * self, GumStalkerIterator * iterator,
     GumStalkerOutput * output);
 
+#define GUM_DECLARE_STATS_INCREMENT(name) \
+    GUM_API void gum_stalker_stats_increment_##name (GumStalkerStats * stats);
+
+GUM_DECLARE_STATS_INCREMENT (total)
+
+GUM_DECLARE_STATS_INCREMENT (call_imm)
+GUM_DECLARE_STATS_INCREMENT (call_reg)
+
+GUM_DECLARE_STATS_INCREMENT (call_mem)
+
+GUM_DECLARE_STATS_INCREMENT (excluded_call_reg)
+
+GUM_DECLARE_STATS_INCREMENT (ret_slow_path)
+
+GUM_DECLARE_STATS_INCREMENT (ret)
+
+GUM_DECLARE_STATS_INCREMENT (post_call_invoke)
+GUM_DECLARE_STATS_INCREMENT (excluded_call_imm)
+
+GUM_DECLARE_STATS_INCREMENT (jmp_imm)
+GUM_DECLARE_STATS_INCREMENT (jmp_reg)
+
+GUM_DECLARE_STATS_INCREMENT (jmp_mem)
+GUM_DECLARE_STATS_INCREMENT (jmp_cond_imm)
+GUM_DECLARE_STATS_INCREMENT (jmp_cond_mem)
+GUM_DECLARE_STATS_INCREMENT (jmp_cond_reg)
+GUM_DECLARE_STATS_INCREMENT (jmp_cond_jcxz)
+
+GUM_DECLARE_STATS_INCREMENT (jmp_cond_cc)
+GUM_DECLARE_STATS_INCREMENT (jmp_cond_cbz)
+GUM_DECLARE_STATS_INCREMENT (jmp_cond_cbnz)
+GUM_DECLARE_STATS_INCREMENT (jmp_cond_tbz)
+GUM_DECLARE_STATS_INCREMENT (jmp_cond_tbnz)
+
+GUM_DECLARE_STATS_INCREMENT (jmp_continuation)
+
+GUM_DECLARE_STATS_INCREMENT (sysenter_slow_path)
+
 GUM_API gboolean gum_stalker_iterator_next (GumStalkerIterator * self,
     const cs_insn ** insn);
 GUM_API void gum_stalker_iterator_keep (GumStalkerIterator * self);
 GUM_API void gum_stalker_iterator_put_callout (GumStalkerIterator * self,
     GumStalkerCallout callout, gpointer data, GDestroyNotify data_destroy);
-
-GUM_API void gum_stalker_set_counters_enabled (gboolean enabled);
-GUM_API void gum_stalker_dump_counters (void);
 
 G_END_DECLS
 
