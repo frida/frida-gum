@@ -194,6 +194,8 @@ struct _GumExecCtx
   gpointer last_stack_push;
   gpointer last_stack_pop_and_go;
   gpointer last_invalidator;
+
+  GumStalkerStats * stats;
 };
 
 enum _GumExecCtxState
@@ -382,6 +384,7 @@ static gpointer gum_exec_ctx_switch_block (GumExecCtx * ctx,
 static void gum_exec_ctx_begin_call (GumExecCtx * ctx, gpointer ret_addr);
 static void gum_exec_ctx_end_call (GumExecCtx * ctx);
 
+static void gum_stalker_stats_increment_total (GumStalkerStats * stats);
 static GumExecBlock * gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
     gpointer real_address, gpointer * code_address);
 static void gum_exec_ctx_recompile_block (GumExecCtx * ctx,
@@ -1542,6 +1545,8 @@ gum_exec_ctx_new (GumStalker * stalker,
 
   code_slab->invalidator = ctx->last_invalidator;
 
+  ctx->stats = NULL;
+
   return ctx;
 }
 
@@ -1742,6 +1747,23 @@ static guint total_transitions = 0;
 #define GUM_ENTRYGATE(name) \
     gum_exec_ctx_replace_current_block_from_##name
 #define GUM_DEFINE_ENTRYGATE(name) \
+    static void \
+    gum_stalker_stats_increment_##name (GumStalkerStats * stats) \
+    { \
+      GumStalkerStatsInterface * iface; \
+      \
+      if (stats == NULL) \
+        return; \
+      \
+      iface = GUM_STALKER_STATS_GET_IFACE (stats); \
+      g_assert (iface != NULL); \
+      \
+      if (iface->increment_##name == NULL) \
+        return; \
+      \
+      iface->increment_##name(stats); \
+    } \
+    \
     static guint total_##name##s = 0; \
     \
     static gpointer GUM_THUNK \
@@ -1751,6 +1773,8 @@ static guint total_transitions = 0;
     { \
       if (counters_enabled) \
         total_##name##s++; \
+      \
+      gum_stalker_stats_increment_##name (ctx->stats); \
       \
       return gum_exec_ctx_switch_block (ctx, start_address); \
     }
@@ -1781,6 +1805,8 @@ gum_exec_ctx_switch_block (GumExecCtx * ctx,
 {
   if (counters_enabled)
     total_transitions++;
+
+  gum_stalker_stats_increment_total (ctx->stats);
 
   if (start_address == gum_unfollow_me_address ||
       start_address == gum_deactivate_address)
@@ -1816,6 +1842,24 @@ gum_exec_ctx_switch_block (GumExecCtx * ctx,
   }
 
   return ctx->resume_at;
+}
+
+static void
+gum_stalker_stats_increment_total (GumStalkerStats * stats)
+{
+  GumStalkerStatsInterface * iface;
+
+  if (stats == NULL)
+    return;
+
+  iface = GUM_STALKER_STATS_GET_IFACE (stats);
+
+  g_assert (iface != NULL);
+
+  if (iface->increment_total == NULL)
+    return;
+
+  iface->increment_total(stats);
 }
 
 static void
@@ -4754,4 +4798,16 @@ static gboolean
 gum_is_bl_imm (guint32 insn)
 {
   return (insn & ~GUM_INT26_MASK) == 0x94000000;
+}
+
+void
+gum_stalker_set_stats (GumStalker * self,
+			GumStalkerStats * stats)
+{
+  GumExecCtx * ctx;
+
+  ctx = gum_stalker_get_exec_ctx (self);
+  g_assert (ctx != NULL);
+
+  ctx->stats = stats;
 }

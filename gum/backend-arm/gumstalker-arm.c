@@ -5740,3 +5740,9 @@ gum_is_exclusive_store_insn (const cs_insn * insn)
       return FALSE;
   }
 }
+
+void
+gum_stalker_set_stats (GumStalker * self,
+			GumStalkerStats * stats)
+{
+}

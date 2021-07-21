@@ -40,6 +40,10 @@ G_DECLARE_FINAL_TYPE (GumCallbackStalkerTransformer,
     gum_callback_stalker_transformer, GUM, CALLBACK_STALKER_TRANSFORMER,
     GObject)
 
+#define GUM_TYPE_STALKER_STATS (gum_stalker_stats_get_type ())
+G_DECLARE_INTERFACE (GumStalkerStats, gum_stalker_stats, GUM, STALKER_STATS,
+    GObject)
+
 typedef struct _GumStalkerIterator GumStalkerIterator;
 typedef struct _GumStalkerOutput GumStalkerOutput;
 typedef union _GumStalkerWriter GumStalkerWriter;
@@ -59,6 +63,56 @@ struct _GumStalkerTransformerInterface
 
   void (* transform_block) (GumStalkerTransformer * self,
       GumStalkerIterator * iterator, GumStalkerOutput * output);
+};
+
+typedef void (* GumStalkerStatsIncrement) (GumStalkerStats * self);
+
+struct _GumStalkerStatsInterface
+{
+  GTypeInterface parent;
+
+  /* Common */
+  GumStalkerStatsIncrement increment_total;
+  GumStalkerStatsIncrement increment_call_imm;
+  GumStalkerStatsIncrement increment_call_reg;
+
+  /* x86 only */
+  GumStalkerStatsIncrement increment_call_mem;
+
+  /* Arm64 only */
+  GumStalkerStatsIncrement increment_excluded_call_reg;
+
+  /* x86 only */
+  GumStalkerStatsIncrement increment_ret_slow_path;
+
+  /* Arm64 only */
+  GumStalkerStatsIncrement increment_ret;
+
+  /* Common */
+  GumStalkerStatsIncrement increment_post_call_invoke;
+  GumStalkerStatsIncrement increment_excluded_call_imm;
+
+  /* Common */
+  GumStalkerStatsIncrement increment_jmp_imm;
+  GumStalkerStatsIncrement increment_jmp_reg;
+
+  /* x86 only */
+  GumStalkerStatsIncrement increment_jmp_mem;
+  GumStalkerStatsIncrement increment_jmp_cond_imm;
+  GumStalkerStatsIncrement increment_jmp_cond_mem;
+  GumStalkerStatsIncrement increment_jmp_cond_reg;
+  GumStalkerStatsIncrement increment_jmp_cond_jcxz;
+
+  /* Arm64 only */
+  GumStalkerStatsIncrement increment_jmp_cond_cc;
+  GumStalkerStatsIncrement increment_jmp_cond_cbz;
+  GumStalkerStatsIncrement increment_jmp_cond_cbnz;
+  GumStalkerStatsIncrement increment_jmp_cond_tbz;
+  GumStalkerStatsIncrement increment_jmp_cond_tbnz;
+
+  /* Common */
+  GumStalkerStatsIncrement increment_jmp_continuation;
+
 };
 
 union _GumStalkerWriter
@@ -252,6 +306,8 @@ GUM_API void gum_stalker_iterator_put_callout (GumStalkerIterator * self,
 
 GUM_API void gum_stalker_set_counters_enabled (gboolean enabled);
 GUM_API void gum_stalker_dump_counters (void);
+
+GUM_API void gum_stalker_set_stats (GumStalker * self, GumStalkerStats * stats);
 
 G_END_DECLS
 
