@@ -5740,3 +5740,17 @@ gum_is_exclusive_store_insn (const cs_insn * insn)
       return FALSE;
   }
 }
+
+void
+gum_stalker_set_backpatcher (GumStalker * self,
+                             GumStalkerBackpatcher * backpatcher)
+{
+
+}
+
+void
+gum_stalker_prefetch_backpatch  (GumStalker * self,
+                                 GumBackpatch * backpatch)
+{
+
+}

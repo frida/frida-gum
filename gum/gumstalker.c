@@ -33,6 +33,9 @@ static void gum_callback_stalker_transformer_transform_block (
     GumStalkerTransformer * transformer, GumStalkerIterator * iterator,
     GumStalkerOutput * output);
 
+static void gum_stalker_backpatcher_default_init (
+    GumStalkerBackpatcherInterface * iface);
+
 G_DEFINE_INTERFACE (GumStalkerTransformer, gum_stalker_transformer,
     G_TYPE_OBJECT)
 
@@ -49,6 +52,9 @@ G_DEFINE_TYPE_EXTENDED (GumCallbackStalkerTransformer,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_STALKER_TRANSFORMER,
                             gum_callback_stalker_transformer_iface_init))
+
+G_DEFINE_INTERFACE (GumStalkerBackpatcher, gum_stalker_backpatcher,
+    G_TYPE_OBJECT);
 
 static void
 gum_stalker_transformer_default_init (GumStalkerTransformerInterface * iface)
@@ -170,4 +176,10 @@ gum_callback_stalker_transformer_transform_block (
       (GumCallbackStalkerTransformer *) transformer;
 
   self->callback (iterator, output, self->data);
+}
+
+static void
+gum_stalker_backpatcher_default_init (GumStalkerBackpatcherInterface * iface)
+{
+
 }
