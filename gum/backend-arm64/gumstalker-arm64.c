@@ -3148,7 +3148,6 @@ gum_exec_block_new (GumExecCtx * ctx)
     GumAddressSpec data_spec;
 
     code_slab = gum_exec_ctx_add_code_slab (ctx, gum_code_slab_new (ctx));
-    code_available = gum_slab_available (&code_slab->slab);
 
     gum_exec_ctx_compute_data_address_spec (ctx, data_slab->slab.size,
         &data_spec);
@@ -3159,6 +3158,8 @@ gum_exec_block_new (GumExecCtx * ctx)
     }
 
     gum_exec_ctx_ensure_inline_helpers_reachable (ctx);
+
+    code_available = gum_slab_available (&code_slab->slab);
   }
 
   block = gum_slab_try_reserve (&data_slab->slab, sizeof (GumExecBlock));
