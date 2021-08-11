@@ -376,8 +376,8 @@ gum_darwin_symbolicator_details_from_address (GumDarwinSymbolicator * self,
   else if (!gum_darwin_symbolicator_objc_details_from_address (self, address,
       details))
   {
-    sprintf (details->symbol_name, "0x%lx",
-        (long) ((unsigned long long) details->address -
+    sprintf (details->symbol_name, "0x%zx",
+        (size_t) ((unsigned long long) details->address -
             CSSymbolOwnerGetBaseAddress (owner)));
   }
 
