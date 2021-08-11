@@ -100,7 +100,7 @@ static void gum_darwin_symbolicator_get_property (GObject * object,
     guint property_id, GValue * value, GParamSpec * pspec);
 static void gum_darwin_symbolicator_set_property (GObject * object,
     guint property_id, const GValue * value, GParamSpec * pspec);
-static gboolean gum_darwin_symbolicator_objc_details_from_address (
+static gboolean gum_darwin_symbolicator_synthesize_details_from_address (
     GumDarwinSymbolicator * self, GumAddress address,
     GumDebugSymbolDetails * details);
 static gboolean gum_collect_functions (
@@ -359,8 +359,8 @@ gum_darwin_symbolicator_details_from_address (GumDarwinSymbolicator * self,
       kCSNow);
   if (CSIsNull (symbol))
   {
-    return gum_darwin_symbolicator_objc_details_from_address (self, address,
-        details);
+    return gum_darwin_symbolicator_synthesize_details_from_address (self,
+        address, details);
   }
 
   owner = CSSymbolGetSymbolOwner (symbol);
@@ -373,8 +373,8 @@ gum_darwin_symbolicator_details_from_address (GumDarwinSymbolicator * self,
   {
     g_strlcpy (details->symbol_name, name, sizeof (details->symbol_name));
   }
-  else if (!gum_darwin_symbolicator_objc_details_from_address (self, address,
-      details))
+  else if (!gum_darwin_symbolicator_synthesize_details_from_address (self,
+      address, details))
   {
     sprintf (details->symbol_name, "0x%zx",
         (size_t) ((unsigned long long) details->address -
@@ -506,7 +506,7 @@ gum_darwin_symbolicator_find_functions_matching (GumDarwinSymbolicator * self,
 }
 
 static gboolean
-gum_darwin_symbolicator_objc_details_from_address (
+gum_darwin_symbolicator_synthesize_details_from_address (
     GumDarwinSymbolicator * self,
     GumAddress address,
     GumDebugSymbolDetails * details)
@@ -566,6 +566,14 @@ gum_darwin_symbolicator_objc_details_from_address (
   g_strlcpy (details->module_name, module->name, sizeof (details->module_name));
 
 beach:
+  if (!success && module != NULL)
+  {
+    sprintf (details->symbol_name, "0x%zx (0x%zx)",
+        (size_t) (address - module->base_address),
+        (size_t) (module->preferred_address + (address - module->base_address)));
+    success = TRUE;
+  }
+
   g_free (symbol_name);
   g_clear_pointer (&op.functions, g_array_unref);
   g_clear_object (&module);
