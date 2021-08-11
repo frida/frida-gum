@@ -527,6 +527,7 @@ namespace Gum {
 	}
 
 	public class Exceptor : GLib.Object {
+		public static void disable ();
 		public static Exceptor obtain ();
 	}
 

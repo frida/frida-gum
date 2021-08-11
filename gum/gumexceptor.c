@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -50,6 +50,7 @@ G_DEFINE_TYPE (GumExceptor, gum_exceptor, G_TYPE_OBJECT)
 
 G_LOCK_DEFINE_STATIC (the_exceptor);
 static GumExceptor * the_exceptor = NULL;
+static gboolean gum_exceptor_is_available = TRUE;
 
 static void
 gum_exceptor_class_init (GumExceptorClass * klass)
@@ -69,8 +70,11 @@ gum_exceptor_init (GumExceptor * self)
 
   gum_exceptor_add (self, gum_exceptor_handle_scope_exception, self);
 
-  self->backend = gum_exceptor_backend_new (
-      (GumExceptionHandler) gum_exceptor_handle_exception, self);
+  if (gum_exceptor_is_available)
+  {
+    self->backend = gum_exceptor_backend_new (
+        (GumExceptionHandler) gum_exceptor_handle_exception, self);
+  }
 }
 
 static void
@@ -95,6 +99,14 @@ gum_exceptor_finalize (GObject * object)
   g_mutex_clear (&self->mutex);
 
   G_OBJECT_CLASS (gum_exceptor_parent_class)->finalize (object);
+}
+
+void
+gum_exceptor_disable (void)
+{
+  g_assert (the_exceptor == NULL);
+
+  gum_exceptor_is_available = FALSE;
 }
 
 GumExceptor *
