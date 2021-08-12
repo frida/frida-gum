@@ -3057,6 +3057,8 @@ gum_exec_ctx_write_stack_pop_and_go_helper (GumExecCtx * ctx,
                                             GumX86Writer * cw)
 {
   gconstpointer resolve_dynamically = cw->code + 1;
+  gconstpointer check_slab = cw->code + 2;
+  gconstpointer next_slab = cw->code + 3;
   GumAddress return_at = GUM_ADDRESS (&ctx->return_at);
   guint stack_delta = GUM_RED_ZONE_SIZE + sizeof (gpointer);
 
@@ -3121,6 +3123,74 @@ gum_exec_ctx_write_stack_pop_and_go_helper (GumExecCtx * ctx,
   gum_x86_writer_put_pop_reg (cw, GUM_REG_XCX);
   gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP,
       GUM_REG_XSP, GUM_RED_ZONE_SIZE);
+
+  /*
+   * Check if the target is already in one of the slabs.
+   */
+  gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
+  gum_x86_writer_put_push_reg (cw, GUM_REG_XCX);
+  gum_x86_writer_put_push_reg (cw, GUM_REG_XDX);
+
+  /*
+   * Our stack is clear here except for the 3 registers we just saved above,
+   * the stack_delta therefore is the offset of the return address from XSP.
+   */
+  stack_delta = sizeof (gpointer) * 3;
+
+  /* GumSlab * cur(XAX) = &ctx->code_slab->slab; */
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX, GUM_ADDRESS (ctx));
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_XAX,
+      GUM_REG_XAX, G_STRUCT_OFFSET (GumExecCtx, code_slab));
+
+  if (G_STRUCT_OFFSET (GumCodeSlab, slab) != 0)
+  {
+    gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XAX,
+        G_STRUCT_OFFSET (GumCodeSlab, slab));
+  }
+
+  /* do */
+  gum_x86_writer_put_label (cw, check_slab);
+
+  /* data(XCX) = curr->data */
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_XCX,
+      GUM_REG_XAX, G_STRUCT_OFFSET (GumSlab, data));
+
+  /* IF return_address < data THEN continue */
+  gum_x86_writer_put_cmp_reg_offset_ptr_reg (cw, GUM_REG_XSP, stack_delta,
+      GUM_REG_XCX);
+  gum_x86_writer_put_jcc_short_label (cw, X86_INS_JLE, next_slab, GUM_LIKELY);
+
+  /* offset(XDX) = curr->offset */
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_EDX,
+      GUM_REG_XAX, G_STRUCT_OFFSET (GumSlab, offset));
+
+  /* limit(XCX) = data + offset */
+  gum_x86_writer_put_add_reg_reg (cw, GUM_REG_XCX, GUM_REG_XDX);
+
+  /* IF return_address > limit THEN continue */
+  gum_x86_writer_put_cmp_reg_offset_ptr_reg (cw, GUM_REG_XSP, stack_delta,
+      GUM_REG_XCX);
+  gum_x86_writer_put_jcc_short_label (cw, X86_INS_JGE, next_slab, GUM_LIKELY);
+
+  /* Our target is within a slab, we can just unwind. */
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_XDX);
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_XCX);
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_XAX);
+  gum_x86_writer_put_jmp_near_ptr (cw, return_at);
+
+  gum_x86_writer_put_label (cw, next_slab);
+
+  /* cur = cur->next; */
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_XAX,
+      GUM_REG_XAX, G_STRUCT_OFFSET (GumSlab, next));
+
+  /* while (cur != NULL); */
+  gum_x86_writer_put_test_reg_reg (cw, GUM_REG_XAX, GUM_REG_XAX);
+  gum_x86_writer_put_jcc_short_label (cw, X86_INS_JNE, check_slab, GUM_LIKELY);
+
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_XDX);
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_XCX);
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_XAX);
 
   /*
    * Slow path (resolve dynamically)
