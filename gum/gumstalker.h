@@ -67,6 +67,12 @@ struct _GumStalkerTransformerInterface
       GumStalkerIterator * iterator, GumStalkerOutput * output);
 };
 
+struct _GumBackpatch;
+typedef struct _GumBackpatch GumBackpatch;
+
+typedef void (* GumStalkerNotifyBackpatchFunc) (GumStalkerObserver * self,
+    GumStalker * stalker, GumBackpatch * backpatch, gsize size);
+
 struct _GumStalkerObserverInterface
 {
   GTypeInterface parent;
@@ -116,6 +122,8 @@ struct _GumStalkerObserverInterface
 
   /* x86 only */
   GumStalkerObserverIncrementFunc increment_sysenter_slow_path;
+
+  GumStalkerNotifyBackpatchFunc notify_backpatch;
 };
 
 union _GumStalkerWriter
@@ -348,6 +356,9 @@ GUM_API gboolean gum_stalker_iterator_next (GumStalkerIterator * self,
 GUM_API void gum_stalker_iterator_keep (GumStalkerIterator * self);
 GUM_API void gum_stalker_iterator_put_callout (GumStalkerIterator * self,
     GumStalkerCallout callout, gpointer data, GDestroyNotify data_destroy);
+
+GUM_API void gum_stalker_prefetch_backpatch (GumStalker * self,
+    GumBackpatch * notification);
 
 G_END_DECLS
 

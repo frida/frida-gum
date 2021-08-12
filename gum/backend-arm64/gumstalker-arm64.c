@@ -4739,3 +4739,10 @@ gum_is_bl_imm (guint32 insn)
 {
   return (insn & ~GUM_INT26_MASK) == 0x94000000;
 }
+
+void
+gum_stalker_prefetch_backpatch  (GumStalker * self,
+                                 GumBackpatch * backpatch)
+{
+
+}
