@@ -40,11 +40,11 @@ G_DECLARE_FINAL_TYPE (GumCallbackStalkerTransformer,
     gum_callback_stalker_transformer, GUM, CALLBACK_STALKER_TRANSFORMER,
     GObject)
 
-#define GUM_TYPE_STALKER_STATS (gum_stalker_stats_get_type ())
-G_DECLARE_INTERFACE (GumStalkerStats, gum_stalker_stats, GUM, STALKER_STATS,
-    GObject)
+#define GUM_TYPE_STALKER_OBSERVER (gum_stalker_observer_get_type ())
+G_DECLARE_INTERFACE (GumStalkerObserver, gum_stalker_observer, GUM,
+    STALKER_OBSERVER, GObject)
 
-typedef void (* GumStalkerStatsIncrementFunc) (GumStalkerStats * self);
+typedef void (* GumStalkerObserverIncrementFunc) (GumStalkerObserver * self);
 
 typedef struct _GumStalkerIterator GumStalkerIterator;
 typedef struct _GumStalkerOutput GumStalkerOutput;
@@ -67,55 +67,55 @@ struct _GumStalkerTransformerInterface
       GumStalkerIterator * iterator, GumStalkerOutput * output);
 };
 
-struct _GumStalkerStatsInterface
+struct _GumStalkerObserverInterface
 {
   GTypeInterface parent;
 
   /* Common */
-  GumStalkerStatsIncrementFunc increment_total;
+  GumStalkerObserverIncrementFunc increment_total;
 
-  GumStalkerStatsIncrementFunc increment_call_imm;
-  GumStalkerStatsIncrementFunc increment_call_reg;
+  GumStalkerObserverIncrementFunc increment_call_imm;
+  GumStalkerObserverIncrementFunc increment_call_reg;
 
   /* x86 only */
-  GumStalkerStatsIncrementFunc increment_call_mem;
+  GumStalkerObserverIncrementFunc increment_call_mem;
 
   /* Arm64 only */
-  GumStalkerStatsIncrementFunc increment_excluded_call_reg;
+  GumStalkerObserverIncrementFunc increment_excluded_call_reg;
 
   /* x86 only */
-  GumStalkerStatsIncrementFunc increment_ret_slow_path;
+  GumStalkerObserverIncrementFunc increment_ret_slow_path;
 
   /* Arm64 only */
-  GumStalkerStatsIncrementFunc increment_ret;
+  GumStalkerObserverIncrementFunc increment_ret;
 
   /* Common */
-  GumStalkerStatsIncrementFunc increment_post_call_invoke;
-  GumStalkerStatsIncrementFunc increment_excluded_call_imm;
+  GumStalkerObserverIncrementFunc increment_post_call_invoke;
+  GumStalkerObserverIncrementFunc increment_excluded_call_imm;
 
   /* Common */
-  GumStalkerStatsIncrementFunc increment_jmp_imm;
-  GumStalkerStatsIncrementFunc increment_jmp_reg;
+  GumStalkerObserverIncrementFunc increment_jmp_imm;
+  GumStalkerObserverIncrementFunc increment_jmp_reg;
 
   /* x86 only */
-  GumStalkerStatsIncrementFunc increment_jmp_mem;
-  GumStalkerStatsIncrementFunc increment_jmp_cond_imm;
-  GumStalkerStatsIncrementFunc increment_jmp_cond_mem;
-  GumStalkerStatsIncrementFunc increment_jmp_cond_reg;
-  GumStalkerStatsIncrementFunc increment_jmp_cond_jcxz;
+  GumStalkerObserverIncrementFunc increment_jmp_mem;
+  GumStalkerObserverIncrementFunc increment_jmp_cond_imm;
+  GumStalkerObserverIncrementFunc increment_jmp_cond_mem;
+  GumStalkerObserverIncrementFunc increment_jmp_cond_reg;
+  GumStalkerObserverIncrementFunc increment_jmp_cond_jcxz;
 
   /* Arm64 only */
-  GumStalkerStatsIncrementFunc increment_jmp_cond_cc;
-  GumStalkerStatsIncrementFunc increment_jmp_cond_cbz;
-  GumStalkerStatsIncrementFunc increment_jmp_cond_cbnz;
-  GumStalkerStatsIncrementFunc increment_jmp_cond_tbz;
-  GumStalkerStatsIncrementFunc increment_jmp_cond_tbnz;
+  GumStalkerObserverIncrementFunc increment_jmp_cond_cc;
+  GumStalkerObserverIncrementFunc increment_jmp_cond_cbz;
+  GumStalkerObserverIncrementFunc increment_jmp_cond_cbnz;
+  GumStalkerObserverIncrementFunc increment_jmp_cond_tbz;
+  GumStalkerObserverIncrementFunc increment_jmp_cond_tbnz;
 
   /* Common */
-  GumStalkerStatsIncrementFunc increment_jmp_continuation;
+  GumStalkerObserverIncrementFunc increment_jmp_continuation;
 
   /* x86 only */
-  GumStalkerStatsIncrementFunc increment_sysenter_slow_path;
+  GumStalkerObserverIncrementFunc increment_sysenter_slow_path;
 };
 
 union _GumStalkerWriter
@@ -169,7 +169,8 @@ GUM_API void gum_stalker_unfollow (GumStalker * self, GumThreadId thread_id);
 GUM_API void gum_stalker_activate (GumStalker * self, gconstpointer target);
 GUM_API void gum_stalker_deactivate (GumStalker * self);
 
-GUM_API void gum_stalker_set_stats (GumStalker * self, GumStalkerStats * stats);
+GUM_API void gum_stalker_set_observer (GumStalker * self,
+    GumStalkerObserver * observer);
 
 /**
  * This API is intended for use during fuzzing scenarios such as AFL forkserver.
@@ -303,43 +304,44 @@ GUM_API void gum_stalker_transformer_transform_block (
     GumStalkerTransformer * self, GumStalkerIterator * iterator,
     GumStalkerOutput * output);
 
-#define GUM_DECLARE_STATS_INCREMENT(name) \
-    GUM_API void gum_stalker_stats_increment_##name (GumStalkerStats * stats);
+#define GUM_DECLARE_OBSERVER_INCREMENT(name) \
+    GUM_API void gum_stalker_observer_increment_##name ( \
+        GumStalkerObserver * observer);
 
-GUM_DECLARE_STATS_INCREMENT (total)
+GUM_DECLARE_OBSERVER_INCREMENT (total)
 
-GUM_DECLARE_STATS_INCREMENT (call_imm)
-GUM_DECLARE_STATS_INCREMENT (call_reg)
+GUM_DECLARE_OBSERVER_INCREMENT (call_imm)
+GUM_DECLARE_OBSERVER_INCREMENT (call_reg)
 
-GUM_DECLARE_STATS_INCREMENT (call_mem)
+GUM_DECLARE_OBSERVER_INCREMENT (call_mem)
 
-GUM_DECLARE_STATS_INCREMENT (excluded_call_reg)
+GUM_DECLARE_OBSERVER_INCREMENT (excluded_call_reg)
 
-GUM_DECLARE_STATS_INCREMENT (ret_slow_path)
+GUM_DECLARE_OBSERVER_INCREMENT (ret_slow_path)
 
-GUM_DECLARE_STATS_INCREMENT (ret)
+GUM_DECLARE_OBSERVER_INCREMENT (ret)
 
-GUM_DECLARE_STATS_INCREMENT (post_call_invoke)
-GUM_DECLARE_STATS_INCREMENT (excluded_call_imm)
+GUM_DECLARE_OBSERVER_INCREMENT (post_call_invoke)
+GUM_DECLARE_OBSERVER_INCREMENT (excluded_call_imm)
 
-GUM_DECLARE_STATS_INCREMENT (jmp_imm)
-GUM_DECLARE_STATS_INCREMENT (jmp_reg)
+GUM_DECLARE_OBSERVER_INCREMENT (jmp_imm)
+GUM_DECLARE_OBSERVER_INCREMENT (jmp_reg)
 
-GUM_DECLARE_STATS_INCREMENT (jmp_mem)
-GUM_DECLARE_STATS_INCREMENT (jmp_cond_imm)
-GUM_DECLARE_STATS_INCREMENT (jmp_cond_mem)
-GUM_DECLARE_STATS_INCREMENT (jmp_cond_reg)
-GUM_DECLARE_STATS_INCREMENT (jmp_cond_jcxz)
+GUM_DECLARE_OBSERVER_INCREMENT (jmp_mem)
+GUM_DECLARE_OBSERVER_INCREMENT (jmp_cond_imm)
+GUM_DECLARE_OBSERVER_INCREMENT (jmp_cond_mem)
+GUM_DECLARE_OBSERVER_INCREMENT (jmp_cond_reg)
+GUM_DECLARE_OBSERVER_INCREMENT (jmp_cond_jcxz)
 
-GUM_DECLARE_STATS_INCREMENT (jmp_cond_cc)
-GUM_DECLARE_STATS_INCREMENT (jmp_cond_cbz)
-GUM_DECLARE_STATS_INCREMENT (jmp_cond_cbnz)
-GUM_DECLARE_STATS_INCREMENT (jmp_cond_tbz)
-GUM_DECLARE_STATS_INCREMENT (jmp_cond_tbnz)
+GUM_DECLARE_OBSERVER_INCREMENT (jmp_cond_cc)
+GUM_DECLARE_OBSERVER_INCREMENT (jmp_cond_cbz)
+GUM_DECLARE_OBSERVER_INCREMENT (jmp_cond_cbnz)
+GUM_DECLARE_OBSERVER_INCREMENT (jmp_cond_tbz)
+GUM_DECLARE_OBSERVER_INCREMENT (jmp_cond_tbnz)
 
-GUM_DECLARE_STATS_INCREMENT (jmp_continuation)
+GUM_DECLARE_OBSERVER_INCREMENT (jmp_continuation)
 
-GUM_DECLARE_STATS_INCREMENT (sysenter_slow_path)
+GUM_DECLARE_OBSERVER_INCREMENT (sysenter_slow_path)
 
 GUM_API gboolean gum_stalker_iterator_next (GumStalkerIterator * self,
     const cs_insn ** insn);

@@ -73,13 +73,13 @@ TESTLIST_BEGIN (stalker)
 
 #ifdef HAVE_LINUX
   TESTENTRY (prefetch)
-  TESTENTRY (stats)
+  TESTENTRY (observer)
 #endif
 TESTLIST_END ()
 
 #ifdef HAVE_LINUX
 
-struct _GumTestStalkerStats
+struct _GumTestStalkerObserver
 {
   GObject parent;
 
@@ -133,23 +133,24 @@ static void prefetch_read_blocks (int fd, GHashTable * table);
 static GHashTable * prefetch_compiled = NULL;
 static GHashTable * prefetch_executed = NULL;
 
-#define GUM_TYPE_TEST_STALKER_STATS (gum_test_stalker_stats_get_type ())
-G_DECLARE_FINAL_TYPE (GumTestStalkerStats, gum_test_stalker_stats, GUM,
-                      TEST_STALKER_STATS, GObject)
+#define GUM_TYPE_TEST_STALKER_OBSERVER (gum_test_stalker_observer_get_type ())
+G_DECLARE_FINAL_TYPE (GumTestStalkerObserver, gum_test_stalker_observer, GUM,
+                      TEST_STALKER_OBSERVER, GObject)
 
-static void gum_test_stalker_stats_iface_init (gpointer g_iface,
+static void gum_test_stalker_observer_iface_init (gpointer g_iface,
     gpointer iface_data);
-static void gum_test_stalker_stats_class_init (
-    GumTestStalkerStatsClass * klass);
-static void gum_test_stalker_stats_init (GumTestStalkerStats * self);
-static void gum_test_stalker_stats_increment_total (GumStalkerStats * stats);
+static void gum_test_stalker_observer_class_init (
+    GumTestStalkerObserverClass * klass);
+static void gum_test_stalker_observer_init (GumTestStalkerObserver * self);
+static void gum_test_stalker_observer_increment_total (
+    GumStalkerObserver * observer);
 
-G_DEFINE_TYPE_EXTENDED (GumTestStalkerStats,
-                        gum_test_stalker_stats,
+G_DEFINE_TYPE_EXTENDED (GumTestStalkerObserver,
+                        gum_test_stalker_observer,
                         G_TYPE_OBJECT,
                         0,
-                        G_IMPLEMENT_INTERFACE (GUM_TYPE_STALKER_STATS,
-                            gum_test_stalker_stats_iface_init))
+                        G_IMPLEMENT_INTERFACE (GUM_TYPE_STALKER_OBSERVER,
+                            gum_test_stalker_observer_iface_init))
 #endif
 
 static const guint32 flat_code[] = {
@@ -2191,21 +2192,21 @@ prefetch_read_blocks (int fd,
   }
 }
 
-TESTCASE (stats)
+TESTCASE (observer)
 {
-  GumTestStalkerStats * test_stats;
-  GumStalkerStats * stats;
+  GumTestStalkerObserver * test_observer;
+  GumStalkerObserver * observer;
   guint sum, i;
 
-  test_stats = g_object_new (GUM_TYPE_TEST_STALKER_STATS, NULL);
+  test_observer = g_object_new (GUM_TYPE_TEST_STALKER_OBSERVER, NULL);
 
-  stats = GUM_STALKER_STATS (test_stats);
+  observer = GUM_STALKER_OBSERVER (test_observer);
 
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
       GUM_EVENT_SINK (fixture->sink));
   gum_stalker_deactivate (fixture->stalker);
 
-  gum_stalker_set_stats (fixture->stalker, stats);
+  gum_stalker_set_observer (fixture->stalker, observer);
 
   gum_stalker_activate (fixture->stalker, prefetch_activation_target);
   prefetch_activation_target ();
@@ -2217,35 +2218,35 @@ TESTCASE (stats)
   gum_stalker_unfollow_me (fixture->stalker);
 
   if (g_test_verbose ())
-    g_print ("total: %" G_GINT64_MODIFIER "u\n", test_stats->total);
+    g_print ("total: %" G_GINT64_MODIFIER "u\n", test_observer->total);
 
   g_assert_cmpuint (sum, ==, 45);
-  g_assert_cmpuint (test_stats->total, !=, 0);
+  g_assert_cmpuint (test_observer->total, !=, 0);
 }
 
 static void
-gum_test_stalker_stats_iface_init (gpointer g_iface,
-                                   gpointer iface_data)
+gum_test_stalker_observer_iface_init (gpointer g_iface,
+                                      gpointer iface_data)
 {
-  GumStalkerStatsInterface * iface = g_iface;
+  GumStalkerObserverInterface * iface = g_iface;
 
-  iface->increment_total = gum_test_stalker_stats_increment_total;
+  iface->increment_total = gum_test_stalker_observer_increment_total;
 }
 
 static void
-gum_test_stalker_stats_class_init (GumTestStalkerStatsClass * klass)
-{
-}
-
-static void
-gum_test_stalker_stats_init (GumTestStalkerStats * self)
+gum_test_stalker_observer_class_init (GumTestStalkerObserverClass * klass)
 {
 }
 
 static void
-gum_test_stalker_stats_increment_total (GumStalkerStats * stats)
+gum_test_stalker_observer_init (GumTestStalkerObserver * self)
 {
-  GUM_TEST_STALKER_STATS (stats)->total++;
+}
+
+static void
+gum_test_stalker_observer_increment_total (GumStalkerObserver * observer)
+{
+  GUM_TEST_STALKER_OBSERVER (observer)->total++;
 }
 
 #endif
